@@ -1,0 +1,5 @@
+// プロジェクト全体のビルド設定（plugins DSL に移行済み、settings.gradle で宣言）
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

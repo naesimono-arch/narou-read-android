@@ -1,0 +1,10 @@
+__pycache__/
+novel_app/
+library/progress.json
+library/books.json
+
+# Android ビルド成果物・ローカル設定
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
