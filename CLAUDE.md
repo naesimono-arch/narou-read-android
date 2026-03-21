@@ -21,7 +21,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   ```
 - 複数ファイルを編集した場合はすべてのファイルを開く。
 
-### 3. 実装前の思考プロセス構造化
+### 3. 修正後のコミット必須
+
+- ファイルを修正・作成した後は、必ず `git add` → `git commit` を実行すること。
+- コミットメッセージは以下の形式に従うこと：
+  ```
+  fix/feat/refactor: 変更内容の要約（日本語可）
+
+  - 変更点1
+  - 変更点2
+
+  Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+  ```
+- ユーザーに確認を求めず、実装完了後に自動でコミットまで行う。
+
+### 4. 実装前の思考プロセス構造化
 
 - コードを書き始める前に、必ず `<thinking>` タグ内で以下を言語化すること：
   1. 要求の分解（何を実現するか）
