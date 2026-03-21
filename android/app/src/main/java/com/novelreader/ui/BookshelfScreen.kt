@@ -63,9 +63,9 @@ fun BookshelfScreen(
         pdfPicker.launch(arrayOf("application/pdf"))
     }
 
-    // 「二度と表示しない」フラグをSharedPreferencesで永続化
+    // 「二度と表示しない」フラグをSharedPreferencesで永続化、mutableStateOfでリアルタイム反映
     val prefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
-    val batteryDialogDismissed = remember { prefs.getBoolean("battery_dialog_dismissed", false) }
+    var batteryDialogDismissed by remember { mutableStateOf(prefs.getBoolean("battery_dialog_dismissed", false)) }
 
     // バッテリー最適化除外ダイアログの表示フラグ（onFabClickより先に宣言必須）
     var showBatteryOptDialog by remember { mutableStateOf(false) }
@@ -223,7 +223,10 @@ fun BookshelfScreen(
     // バッテリー最適化除外ダイアログ
     if (showBatteryOptDialog) {
         val dismiss: (openSettings: Boolean) -> Unit = { openSettings ->
-            if (doNotShowAgain) prefs.edit().putBoolean("battery_dialog_dismissed", true).apply()
+            if (doNotShowAgain) {
+                prefs.edit().putBoolean("battery_dialog_dismissed", true).apply()
+                batteryDialogDismissed = true  // リアルタイムで状態に反映
+            }
             showBatteryOptDialog = false
             if (openSettings) {
                 val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
