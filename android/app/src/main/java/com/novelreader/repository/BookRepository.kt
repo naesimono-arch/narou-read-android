@@ -20,8 +20,15 @@ class BookRepository(private val context: Context) {
 
     val allBooks: Flow<List<BookEntity>> = bookDao.getAllBooks()
 
+    fun interface ProgressCallback {
+        fun onProgress(percent: Int, phase: String)
+    }
+
     /** PDFをキャッシュにコピーし、Chaquopy経由でHTML生成後にRoomへ登録する。 */
-    suspend fun addBook(pdfUri: Uri): Result<BookEntity> = withContext(Dispatchers.IO) {
+    suspend fun addBook(
+        pdfUri: Uri,
+        onProgress: (percent: Int, phase: String) -> Unit = { _, _ -> },
+    ): Result<BookEntity> = withContext(Dispatchers.IO) {
         runCatching {
             val bookId = UUID.randomUUID().toString().take(8)
 
@@ -34,10 +41,17 @@ class BookRepository(private val context: Context) {
             // ② 出力先ディレクトリを確定
             val outputDir = File(context.filesDir, "novels/$bookId").also { it.mkdirs() }
 
-            // ③ Chaquopy経由で Python 処理
+            // ③ Chaquopy経由で Python 処理（コールバックでフェーズ進捗を通知）
             val python = Python.getInstance()
             val title = python.getModule("app")
-                .callAttr("process_pdf", tempFile.absolutePath, bookId, outputDir.absolutePath, true)
+                .callAttr(
+                    "process_pdf",
+                    tempFile.absolutePath,
+                    bookId,
+                    outputDir.absolutePath,
+                    true,
+                    ProgressCallback { percent, phase -> onProgress(percent, phase) },
+                )
                 .toString()
 
             tempFile.delete()
