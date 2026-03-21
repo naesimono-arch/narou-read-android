@@ -2,21 +2,25 @@ package com.novelreader.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.novelreader.data.BookEntity
 import com.novelreader.viewmodel.BookshelfViewModel
@@ -105,11 +109,6 @@ fun BookshelfScreen(
 
             // PDF処理中インジケーター
             if (isProcessing) {
-                val animatedProgress by animateFloatAsState(
-                    targetValue = processingState.percent / 100f,
-                    animationSpec = tween(durationMillis = 500),
-                    label = "progressAnim",
-                )
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
@@ -121,21 +120,42 @@ fun BookshelfScreen(
                         Column(
                             modifier = Modifier
                                 .padding(24.dp)
-                                .width(240.dp),
+                                .width(280.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text(
-                                text = if (processingState.phase.isNotEmpty()) processingState.phase else "PDF処理中…",
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            LinearProgressIndicator(
-                                progress = { animatedProgress },
+                            val stepLabels = listOf("タイトル", "本文", "分割", "HTML")
+                            StepperIndicator(
+                                stepIndex = processingState.stepIndex,
+                                stepTotal = processingState.stepTotal,
+                                labels = stepLabels,
                                 modifier = Modifier.fillMaxWidth(),
                             )
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(12.dp))
                             Text(
-                                text = "${processingState.percent}%",
+                                text = processingState.phase.ifEmpty { "PDF処理中…" },
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            // ステップ切替時は瞬時リセット、通常時はtweenでアニメーション
+                            val progress = remember { Animatable(0f) }
+                            var lastStep by remember { mutableIntStateOf(-1) }
+                            LaunchedEffect(processingState.stepIndex, processingState.stepLocalPercent) {
+                                if (processingState.stepIndex != lastStep) {
+                                    progress.snapTo(0f)
+                                    lastStep = processingState.stepIndex
+                                }
+                                progress.animateTo(
+                                    targetValue = processingState.stepLocalPercent,
+                                    animationSpec = tween(durationMillis = 400),
+                                )
+                            }
+                            LinearProgressIndicator(
+                                progress = { progress.value },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "ステップ ${processingState.stepIndex + 1}/${processingState.stepTotal}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.outline,
                             )
@@ -173,5 +193,53 @@ fun BookshelfScreen(
             modifier = Modifier.padding(16.dp),
             action = { TextButton(onClick = { viewModel.clearError() }) { Text("閉じる") } },
         ) { Text(msg) }
+    }
+}
+
+@Composable
+private fun StepperIndicator(
+    stepIndex: Int,
+    stepTotal: Int,
+    labels: List<String>,
+    modifier: Modifier = Modifier,
+) {
+    val primary = MaterialTheme.colorScheme.primary
+    val outline = MaterialTheme.colorScheme.outlineVariant
+    Column(modifier = modifier) {
+        // ドットとライン
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            repeat(stepTotal) { i ->
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(if (i <= stepIndex) primary else outline),
+                )
+                if (i < stepTotal - 1) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(2.dp)
+                            .background(if (i < stepIndex) primary else outline),
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        // ステップラベル
+        Row(modifier = Modifier.fillMaxWidth()) {
+            labels.forEachIndexed { i, label ->
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (i == stepIndex) primary else outline,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
     }
 }

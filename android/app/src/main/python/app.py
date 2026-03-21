@@ -15,30 +15,30 @@ def process_pdf(pdf_path, book_id, output_dir=None, android_mode=False, progress
         # Web版との互換性維持（Android では必ず output_dir を渡すこと）
         output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "novel_app", book_id)
 
-    def _notify(percent, phase):
+    def _notify(step, step_local, phase):
         if progress_callback is not None:
-            progress_callback(percent, phase)
+            progress_callback(step, step_local, phase)
 
-    _notify(5, "タイトルを読み取っています…")
+    _notify(0, 0.0, "タイトルを読み取っています…")
     real_title = pdf_extractor.extract_book_title(pdf_path)
 
-    _notify(15, "本文を抽出しています…")
+    _notify(1, 0.0, "本文を抽出しています…")
     paragraphs = pdf_extractor.run_final_engine(
         pdf_path_override=pdf_path,
-        progress_callback=lambda pct, cur, tot: _notify(pct, f"本文を抽出しています… ({cur+1:,}/{tot:,}ページ)")
+        progress_callback=lambda pct, cur, tot: _notify(1, cur / max(tot, 1), f"本文を抽出しています… ({cur+1:,}/{tot:,}ページ)")
     )
 
-    _notify(75, "章を分割しています…")
+    _notify(2, 0.0, "章を分割しています…")
     chapters_data = chapter_processor.split_into_chapters(paragraphs)
 
-    _notify(82, "前書き・後書きを処理しています…")
+    _notify(2, 1.0, "前書き・後書きを処理しています…")
     final_chapters = chapter_processor.process_foreword_afterword(chapters_data)
 
-    _notify(88, "HTMLを生成しています…")
+    _notify(3, 0.0, "HTMLを生成しています…")
     html_exporter.export_to_pwa(
         final_chapters, book_id, real_title, output_dir,
         android_mode=android_mode,
-        progress_callback=lambda pct, phase: _notify(pct, phase)
+        progress_callback=lambda pct, phase: _notify(3, (pct - 88) / 12, phase)
     )
 
     return real_title

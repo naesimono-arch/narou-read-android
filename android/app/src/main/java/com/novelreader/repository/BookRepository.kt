@@ -21,13 +21,13 @@ class BookRepository(private val context: Context) {
     val allBooks: Flow<List<BookEntity>> = bookDao.getAllBooks()
 
     fun interface ProgressCallback {
-        fun onProgress(percent: Int, phase: String)
+        fun onProgress(step: Int, stepLocalPercent: Float, phase: String)
     }
 
     /** PDFをキャッシュにコピーし、Chaquopy経由でHTML生成後にRoomへ登録する。 */
     suspend fun addBook(
         pdfUri: Uri,
-        onProgress: (percent: Int, phase: String) -> Unit = { _, _ -> },
+        onProgress: (step: Int, stepLocalPercent: Float, phase: String) -> Unit = { _, _, _ -> },
     ): Result<BookEntity> = withContext(Dispatchers.IO) {
         runCatching {
             val bookId = UUID.randomUUID().toString().take(8)
@@ -50,7 +50,7 @@ class BookRepository(private val context: Context) {
                     bookId,
                     outputDir.absolutePath,
                     true,
-                    ProgressCallback { percent, phase -> onProgress(percent, phase) },
+                    ProgressCallback { step, stepLocalPercent, phase -> onProgress(step, stepLocalPercent, phase) },
                 )
                 .toString()
 

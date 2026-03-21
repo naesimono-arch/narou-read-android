@@ -12,7 +12,9 @@ import kotlinx.coroutines.launch
 
 data class ProcessingState(
     val isProcessing: Boolean = false,
-    val percent: Int = 0,
+    val stepIndex: Int = 0,
+    val stepTotal: Int = 4,
+    val stepLocalPercent: Float = 0f,
     val phase: String = "",
 )
 
@@ -33,8 +35,8 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch(Dispatchers.IO) {
             _processingState.value = ProcessingState(isProcessing = true)
             try {
-                repository.addBook(uri, onProgress = { percent, phase ->
-                    _processingState.value = ProcessingState(true, percent, phase)
+                repository.addBook(uri, onProgress = { step, stepLocalPercent, phase ->
+                    _processingState.value = ProcessingState(true, step, 4, stepLocalPercent, phase)
                 }).onFailure { e ->
                     _errorMessage.value = e.message ?: "PDF処理に失敗しました"
                 }
