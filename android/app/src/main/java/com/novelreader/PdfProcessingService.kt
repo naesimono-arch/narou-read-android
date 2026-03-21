@@ -4,9 +4,11 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.novelreader.repository.BookRepository
@@ -21,6 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class PdfProcessingService : Service() {
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var wakeLock: PowerManager.WakeLock? = null
 
     @Volatile
     private var isProcessing = AtomicBoolean(false)
@@ -46,35 +49,47 @@ class PdfProcessingService : Service() {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
         )
 
+        // CPUをスリープさせないWakeLock（OPPOのバックグラウンド強制停止対策）
+        wakeLock = (getSystemService(Context.POWER_SERVICE) as PowerManager)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NovelReader::PdfProcessing")
+            .also { it.acquire(10 * 60 * 1000L) } // 最大10分
+
         val app = application as NovelReaderApplication
         val repository = BookRepository(applicationContext)
 
         scope.launch {
-            val result = repository.addBook(uri, onProgress = { step, stepLocalPercent, phase ->
-                val progress = (step * 25 + stepLocalPercent * 25).toInt().coerceIn(0, 100)
-                updateProgressNotification(progress, "ステップ ${step + 1}/4 - $phase")
-                app.processingState.value = ProcessingState(true, step, 4, stepLocalPercent, phase)
-            })
+            try {
+                val result = repository.addBook(uri, onProgress = { step, stepLocalPercent, phase ->
+                    val progress = (step * 25 + stepLocalPercent * 25).toInt().coerceIn(0, 100)
+                    updateProgressNotification(progress, "ステップ ${step + 1}/4 - $phase")
+                    app.processingState.value = ProcessingState(true, step, 4, stepLocalPercent, phase)
+                })
 
-            result.fold(
-                onSuccess = { book ->
-                    showCompletionNotification(book.title)
-                    app.processingState.value = null
-                },
-                onFailure = { e ->
-                    showErrorNotification()
-                    app.errorState.value = e.message ?: "PDF処理に失敗しました"
-                    app.processingState.value = null
-                },
-            )
-            isProcessing.set(false)
-            stopSelf()
+                result.fold(
+                    onSuccess = { book ->
+                        showCompletionNotification(book.title)
+                        app.processingState.value = null
+                    },
+                    onFailure = { e ->
+                        showErrorNotification()
+                        app.errorState.value = e.message ?: "PDF処理に失敗しました"
+                        app.processingState.value = null
+                    },
+                )
+            } finally {
+                wakeLock?.release()
+                wakeLock = null
+                isProcessing.set(false)
+                stopSelf()
+            }
         }
 
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
+        wakeLock?.release()
+        wakeLock = null
         scope.cancel()
         super.onDestroy()
     }
