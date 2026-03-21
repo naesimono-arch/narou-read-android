@@ -1,5 +1,0 @@
-# 本棚読書アプリ - 依存パッケージ
-# インストール: pip install -r requirements.txt
-
-Flask>=2.0.0
-pdfplumber>=0.9.0
