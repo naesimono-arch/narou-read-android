@@ -42,7 +42,7 @@ def run_final_engine(pdf_path_override=None, _default_pdf_path="N6169DZ.pdf", pr
             if progress_callback and total_pages > 0:
                 processed = page_num - 3
                 pct = 10 + int(processed / total_pages * 50)
-                progress_callback(pct)
+                progress_callback(pct, page_num - 3, total_pages)
             page = pdf.pages[page_num]
             chars = page.chars
 

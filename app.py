@@ -21,7 +21,7 @@ def process_pdf(pdf_path, book_id, progress_callback=None):
 
     paragraphs = pdf_extractor.run_final_engine(
         pdf_path_override=pdf_path,
-        progress_callback=lambda pct: _cb(pct, "本文を抽出しています…")
+        progress_callback=lambda pct, cur, tot: _cb(pct, f"本文を抽出しています… ({cur+1:,}/{tot:,}ページ)")
     )
 
     _cb(60, "章に分割しています…")
@@ -32,6 +32,9 @@ def process_pdf(pdf_path, book_id, progress_callback=None):
 
     _cb(85, "HTMLを生成しています…")
     output_dir = str(NOVEL_APP_DIR / book_id)
-    html_exporter.export_to_pwa(final_chapters, book_id, real_title, output_dir)
+    html_exporter.export_to_pwa(
+        final_chapters, book_id, real_title, output_dir,
+        progress_callback=lambda pct, phase: _cb(pct, phase)
+    )
 
     return real_title
