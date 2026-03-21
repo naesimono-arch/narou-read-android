@@ -63,6 +63,9 @@ fun BookshelfScreen(
         pdfPicker.launch(arrayOf("application/pdf"))
     }
 
+    // バッテリー最適化除外ダイアログの表示フラグ（onFabClickより先に宣言必須）
+    var showBatteryOptDialog by remember { mutableStateOf(false) }
+
     // PDF選択を実際に開始するヘルパー（通知権限チェック後に呼ぶ）
     val launchPdfPicker: () -> Unit = {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -90,9 +93,6 @@ fun BookshelfScreen(
             }
         }
     }
-
-    // バッテリー最適化除外ダイアログの表示フラグ
-    var showBatteryOptDialog by remember { mutableStateOf(false) }
 
     // 削除確認ダイアログ用の状態
     var bookToDelete by remember { mutableStateOf<BookEntity?>(null) }
