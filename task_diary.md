@@ -4,6 +4,69 @@
 
 ---
 
+## 2026-03-21 | ビルドエラー修正 Vol.3（jlink.exe 非ゼロ終了エラー → AGP 8.6.1 アップグレード）
+
+### 背景
+
+`./gradlew assembleDebug` 実行時に以下のエラーで失敗。
+
+```
+Execution failed for task ':app:compileDebugJavaWithJavac'.
+Error while executing process C:\Program Files\Android\Android Studio\jbr\bin\jlink.exe
+finished with non-zero exit value 1
+```
+
+---
+
+### 根本原因
+
+AGP と Gradle のバージョン互換性の不一致。
+
+| 項目 | 状態 |
+|------|------|
+| AGP | 8.1.4 |
+| Gradle | **8.9**（非対応） |
+| Android Studio JBR | Java 21.0.9 |
+
+AGP 8.1.4 の対応 Gradle は 8.0〜8.1 のみ。Gradle 8.9 が JBR 21 を使って
+`jlink`（Java モジュールシステム関連）を呼び出す際、AGP 8.1.4 がその挙動に
+対応していないため jlink が非ゼロで終了する。
+
+---
+
+### 試みたアプローチと結果
+
+#### アプローチA（Gradle を 8.3 にダウングレード）: 失敗 ❌
+
+`gradle-wrapper.properties` の `distributionUrl` を `gradle-8.3-bin.zip` に変更。
+Android Studio の `Use Gradle from` は `Wrapper` になっていたが、
+同じエラーが再発。Android Studio のキャッシュか内部挙動が原因と推測。
+
+#### アプローチB（AGP を 8.6.1 にアップグレード）: 採用 ✅
+
+AGP 8.6.x は Gradle 8.7+ に正式対応。Gradle 8.9 をそのまま維持して
+AGP 側を合わせることで解消。
+
+| ファイル | 変更内容 |
+|----------|---------|
+| `android/settings.gradle` | AGP `8.1.4` → `8.6.1` |
+| `android/gradle/wrapper/gradle-wrapper.properties` | Gradle `8.9`（アプローチ A で 8.3 にしたのを戻す） |
+
+Kotlin 1.9.22、Chaquo 15.0.1、KSP 1.9.22-1.0.17 は変更不要（AGP 8.6.1 と互換）。
+
+---
+
+### 学んだこと
+
+- AGP と Gradle のバージョンは Google の互換性マトリクスに厳密に従う。
+  - AGP 8.1.x → Gradle 8.0〜8.1
+  - AGP 8.6.x → Gradle 8.7+
+- Gradle のダウングレードより AGP のアップグレード（方針 B）の方が
+  Android Studio のキャッシュ問題を回避できて確実。
+- Chaquo Python は AGP 8.1+ 対応を謳っており、AGP 8.6 でも動作する。
+
+---
+
 ## 2026-03-21 | ビルドエラー修正 Vol.2（PyMuPDF → pdfminer.six ＋ Compose BOM 更新）
 
 ### 背景
