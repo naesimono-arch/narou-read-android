@@ -12,22 +12,26 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.novelreader.data.BookEntity
 import com.novelreader.viewmodel.BookshelfViewModel
+import com.novelreader.viewmodel.ProcessingState
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun BookshelfScreen(
     viewModel: BookshelfViewModel,
     onOpenBook: (bookId: String, startFile: String) -> Unit,
 ) {
     val books by viewModel.books.collectAsState()
-    val isProcessing by viewModel.isProcessing.collectAsState()
+    val processingState by viewModel.processingState.collectAsState()
+    val isProcessing = processingState.isProcessing
     val errorMessage by viewModel.errorMessage.collectAsState()
     val scope = rememberCoroutineScope()
 
@@ -101,6 +105,11 @@ fun BookshelfScreen(
 
             // PDF処理中インジケーター
             if (isProcessing) {
+                val animatedProgress by animateFloatAsState(
+                    targetValue = processingState.percent / 100f,
+                    animationSpec = tween(durationMillis = 500),
+                    label = "progressAnim",
+                )
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
@@ -110,12 +119,26 @@ fun BookshelfScreen(
                         tonalElevation = 8.dp,
                     ) {
                         Column(
-                            modifier = Modifier.padding(24.dp),
+                            modifier = Modifier
+                                .padding(24.dp)
+                                .width(240.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            CircularProgressIndicator()
+                            Text(
+                                text = if (processingState.phase.isNotEmpty()) processingState.phase else "PDF処理中…",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
                             Spacer(Modifier.height(12.dp))
-                            Text("PDF処理中…")
+                            LinearProgressIndicator(
+                                progress = { animatedProgress },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = "${processingState.percent}%",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline,
+                            )
                         }
                     }
                 }
