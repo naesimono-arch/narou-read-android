@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **10行を超えるコードブロックをチャットに出力してはならない。**
 - ファイル全体の表示も禁止。代わりに `code <ファイルパス>` を実行してエディタで開くこと。
   ```bash
-  code src/bookshelf.py
+  code android/app/src/main/java/com/novelreader/BookshelfScreen.kt
   ```
 - 変更点の説明は「何を・なぜ変えたか」を簡潔に文章で述べるだけでよい。
 
@@ -58,52 +58,79 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 概要
 
-日本語Web小説（なろう系）のPDFを、ふりがな対応のインタラクティブなHTML読書体験に変換するWebアプリ。FlaskバックエンドとバニラJavaScriptフロントエンドで構成。
+日本語Web小説（なろう系）のPDFを、ふりがな対応のインタラクティブなHTML読書体験に変換する **Androidアプリ**。
+Jetpack Compose（UI）+ Chaquopy（Python 3.12 統合）で構成。
 
-## 起動・開発コマンド
+## 開発コマンド
 
 ```bash
-# 依存関係のインストール
-pip install -r requirements.txt
+# デバッグAPKをビルド
+./gradlew assembleDebug
 
-# サーバー起動（デフォルト: http://0.0.0.0:5000）
-python bookshelf.py
+# 接続デバイス／エミュレーターへインストール
+./gradlew installDebug
 
-# ポート変更
-PORT=8000 python bookshelf.py
-
-# デバッグ・テスト用
-python tools/main.py
-python tools/check_font.py     # フォントデバッグ
-python tools/pdf_conversion.py # PDF解析
+# Kotlinビルドのみ確認
+./gradlew compileDebugKotlin
 ```
+
+ビルド設定: Chaquopy 15.0.1 / Python 3.12 / pdfminer.six / minSdk 26 / targetSdk 34
 
 ## アーキテクチャ
 
-### PDF処理パイプライン（app.py が統括）
+### PDF処理パイプライン
 
 ```
-app.process_pdf(pdf_path, book_id)
-  Phase 00-02: pdf_extractor.py  → タイトル抽出・本文テキスト抽出（文字座標・フォント情報から）
-  Phase 03:    chapter_processor.py → 【題名】マーカーで章に分割
-  Phase 03B:   chapter_processor.py → 前書き・後書き処理、ルビマーカーをHTMLに変換
-  Phase 04:    html_exporter.py   → index.html + chap_N.html を生成
+BookRepository.kt（Kotlin）
+  └─ Chaquopy → python/app.py
+        Phase 00-02: pdf_extractor.py       → タイトル抽出・本文テキスト抽出（文字座標・フォント情報から）
+        Phase 03:    chapter_processor.py   → 【題名】マーカーで章に分割
+        Phase 03B:   chapter_processor.py   → 前書き・後書き処理、ルビマーカーをHTMLに変換
+        Phase 04:    html_exporter.py        → index.html + chap_N.html を生成
 ```
 
-### Flaskサーバー（bookshelf.py）
+Pythonファイルはすべて `android/app/src/main/python/` に配置。
 
-主要APIエンドポイント：
-- `POST /api/add` — PDF受け取り → app.py で処理 → books.json に登録
-- `GET /api/books` — 書籍一覧＋読書進捗を返す
-- `POST /api/progress` — 読書進捗（どの章まで読んだか）を保存
-- `POST /api/rename` / `POST /api/delete` — 書籍管理
-- `GET /book/<book_id>/...` — 生成済みHTMLを配信
+### UI層（Jetpack Compose）
 
-### データ構造
+```
+MainActivity
+  └─ NavHost
+       ├─ BookshelfScreen  — 書籍一覧、PDF選択、処理進捗表示
+       └─ ReadingScreen    — WebViewでローカルHTML表示、章遷移・進捗保存
+BookshelfViewModel
+  └─ BookRepository        — データアクセス層（Room + Chaquopy呼び出し）
+```
 
-- `library/books.json` — 書籍メタデータ（id, title, path）
-- `library/progress.json` — 読書進捗（book_id → chap_N.html）
-- `novel_app/<book_id>/` — 生成されたHTML（index.html + chap_N.html）
+### Service層
+
+```
+PdfProcessingService（Foreground Service）
+  └─ BookRepository.addBook()
+       └─ Chaquopy → python/app.py → HTML生成
+```
+
+進捗はコールバック（`fun interface ProgressCallback`）経由でUIに通知。
+
+### データベース（Room）
+
+```
+AppDatabase
+  ├─ BookDao       → books テーブル（id, title, htmlDirPath）
+  └─ ProgressDao   → progress テーブル（bookId, lastReadFilename）
+```
+
+DB操作はすべて IO Dispatcher（Coroutines）で実行。
+
+### ファイル保存先
+
+```
+context.filesDir/novels/{bookId}/
+  ├─ index.html    — 目次
+  ├─ chap_1.html
+  ├─ chap_2.html
+  └─ ...
+```
 
 ### PDF解析のポイント（pdf_rules.py）
 
@@ -116,14 +143,10 @@ app.process_pdf(pdf_path, book_id)
 
 ルビのマーカー形式：`|base_char《ruby_text》` → HTML変換後：`<ruby>base<rt>ruby</rt></ruby>`
 
-### 並行アクセス対策
-
-books.json と progress.json への書き込みはスレッドロック（`threading.Lock`）で保護。
-
 ## 注意事項
 
-- `novel_app/` と `library/` は .gitignore 対象（生成物・ユーザーデータ）
-- フロントエンドはフレームワーク不使用（バニラJS）
+- Pythonロジックの唯一の場所は `android/app/src/main/python/`（Web版は削除済み）
 - UIコメントはすべて日本語
-- ブラウザバック（bfcache）からの復帰時は `pageshow` イベントで書籍一覧を再取得
 - index.html（目次ページ）閲覧時は読書進捗を上書きしない制御が入っている
+- ForegroundService の多重起動ガードに `AtomicBoolean` を使用
+- OPPO/ColorOS 固有の動作については `task.md` を参照
