@@ -4,6 +4,102 @@
 
 ---
 
+## 2026-03-21 | PDF処理 進捗バー追加（Web版 + Android版）
+
+### 背景
+
+PDF処理（`/api/add`）は同期ブロッキングで数分かかることがあるが、スピナーのみで進捗が不明だった。
+Web版・Android版それぞれにフェーズ別進捗バーを実装した。
+
+---
+
+### 設計判断
+
+#### Web版：バックグラウンドスレッド + ポーリング方式
+
+| 選択肢 | 採否 | 理由 |
+|---|---|---|
+| SSE（Server-Sent Events） | 不採用 | Flask dev server での安定性が不確か |
+| WebSocket | 不採用 | 依存ライブラリが増える |
+| バックグラウンドスレッド + GET ポーリング | **採用** | バニラJS のみで完結、シンプル |
+
+- `/api/add` は即座に `job_id` を返す（非同期化）
+- フロントが `GET /api/job/<job_id>` を 500ms 間隔でポーリング
+- `job_id` と `book_id` を分離（ジョブ追跡用 vs ディレクトリ名）
+
+#### Android版：Chaquopy SAM コールバック方式
+
+- Python → Kotlin のコールバックは `fun interface` を Chaquopy に渡すことで実現
+- Chaquopy 15.0.1 では `fun interface`（SAM）が Python から直接 `callback(percent, phase)` として呼び出せる
+- コールバックは IO スレッドから呼ばれるが、`MutableStateFlow.value =` への代入はスレッドセーフなので `withContext(Main)` 不要
+
+---
+
+### 実装のポイント
+
+#### 単調増加保証（Web版）
+
+複数スレッドから `_set_progress` が呼ばれても percent が後退しないよう `max(job["percent"], percent)` で保証。
+
+#### エラー時クリーンアップ（Web版）
+
+`_run_job` の except で `shutil.rmtree(target_dir)` を実行し孤立ディレクトリを削除。
+`process_pdf` 本体ではなく呼び出し元でクリーンアップする設計にすることで責務を分離。
+
+#### TTL によるメモリ管理（Web版）
+
+完了・失敗後 600 秒で `threading.Timer` が `jobs.pop(job_id)` を実行。
+長期稼働時にメモリが増え続けるのを防ぐ。
+
+#### finally でのリセット保証（Android版）
+
+`addBook()` を try/finally 構造にし、成功・失敗いずれの場合も `_processingState.value = ProcessingState()` でリセットされるよう保証。
+以前は成功後にのみ `_isProcessing.value = false` を呼ぶ構造だったため、例外時にフラグが残るリスクがあった。
+
+#### ProcessingState への一本化（Android版）
+
+`_isProcessing: Boolean` を `ProcessingState(isProcessing, percent, phase)` に置き換えることで、
+「処理中かどうか」「何%か」「どのフェーズか」を単一の StateFlow で管理。UI 側の collectAsState も1箇所で済む。
+
+---
+
+### アーキテクチャの気づき
+
+- **WebアプリとAndroidアプリは完全に独立した実装経路を持つ**。
+  Web版は Flask API 経由、Android版は Chaquopy でローカル Python を直接呼ぶ。
+  Web版の `/api/add` 非同期化はAndroid版に影響しない（そもそも /api/add を呼んでいない）。
+
+- **`android/app/src/main/python/app.py` は Web版の `app.py` とは別ファイル**。
+  Android 専用の引数（`output_dir`, `android_mode`）を持ち、それぞれ独立して管理する必要がある。
+  両者に同じ機能を追加する場合は両方を忘れずに変更する。
+
+---
+
+### コミット粒度ルールの策定
+
+今回の実装を機に「Atomic Commit」ルールを CLAUDE.md に追加した。
+
+- 以前：複数ファイルをまとめて 1 コミット（粒度が大きすぎた）
+- 以後：1 論理的変更 = 1 コミット、git commit 前に要約提示・承認を得る（Human-in-the-loop）
+
+---
+
+### コミット一覧
+
+```
+44131e8  feat(pdf_extractor): run_final_engine に progress_callback 引数を追加
+536e505  feat(app): process_pdf に progress_callback を追加・各フェーズで進捗通知
+3bbd923  feat(bookshelf): /api/add を非同期化・ジョブ管理システムを追加
+a3ac680  feat(index): プログレスバーUI・ポーリングJSを追加
+0146fb1  feat(android/app.py): process_pdf に progress_callback 追加・フェーズ通知
+7d62784  feat(BookRepository): ProgressCallback インターフェース追加・Chaquopy に渡す
+2fce13b  feat(BookshelfViewModel): ProcessingState で進捗管理・_isProcessing を置き換え
+a7d999d  feat(BookshelfScreen): CircularProgressIndicator → LinearProgressIndicator + フェーズテキストに変更
+fc30f54  docs(CLAUDE.md): Atomic Commit ルール（3-1）を追加
+```
+
+---
+
 ## 2026-03-21 | ビルドエラー修正 Vol.3（jlink.exe 非ゼロ終了エラー → AGP 8.6.1 アップグレード）
 
 ### 背景
