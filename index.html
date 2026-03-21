@@ -197,11 +197,15 @@
     @keyframes overlayIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    @media (prefers-reduced-motion: reduce) { 
-      .header, .add-section, .shelf-label, .book-item, .empty-state { animation: none; } 
-      .book-item:hover, .book-item:focus-within { transform: none; } 
-      .book-link:hover .book-arrow, .book-link:focus .book-arrow { transform: none; } 
+    @media (prefers-reduced-motion: reduce) {
+      .header, .add-section, .shelf-label, .book-item, .empty-state { animation: none; }
+      .book-item:hover, .book-item:focus-within { transform: none; }
+      .book-link:hover .book-arrow, .book-link:focus .book-arrow { transform: none; }
     }
+
+    .progress-bar-wrap { width: 100%; height: 6px; background: var(--border); border-radius: 3px; margin-top: 14px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent-soft), var(--accent)); border-radius: 3px; transition: width 0.4s ease; }
+    .progress-phase { font-size: 0.8125rem; color: var(--ink-muted); margin: 8px 0 0; }
   </style>
 </head>
 <body>
@@ -232,6 +236,10 @@
       <div class="spinner" aria-hidden="true"></div>
       <h3 id="overlayTitle">処理中です…</h3>
       <p id="overlayMessage">しばらくお待ちください</p>
+      <div id="progressBarWrap" style="display:none;">
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBarFill"></div></div>
+        <p class="progress-phase" id="progressPhase"></p>
+      </div>
       <p class="overlay-hint" id="overlayHint" style="display: none;">タップで閉じる</p>
     </div>
   </div>
@@ -258,6 +266,9 @@
       var overlayTitle = document.getElementById("overlayTitle");
       var overlayMessage = document.getElementById("overlayMessage");
       var overlayHint = document.getElementById("overlayHint");
+      var progressBarWrap = document.getElementById("progressBarWrap");
+      var progressBarFill = document.getElementById("progressBarFill");
+      var progressPhase = document.getElementById("progressPhase");
       var toast = document.getElementById("toast");
       var sheet = document.getElementById("sheet");
       var sheetTitle = document.getElementById("sheetTitle");
@@ -265,6 +276,8 @@
       var sheetDelete = document.getElementById("sheetDelete");
       var sheetCancel = document.getElementById("sheetCancel");
       var activeBook = null;
+      var pollingTimer = null;
+      var uploadAbortCtrl = null;
 
       function showOverlay(title, message) {
         overlayTitle.textContent = title;
@@ -277,6 +290,48 @@
       function hideOverlay() {
         overlay.classList.remove("is-visible", "error");
         overlay.setAttribute("aria-hidden", "true");
+        resetProgress();
+      }
+
+      function showProgress(percent, phase) {
+        progressBarWrap.style.display = "";
+        progressBarFill.style.width = percent + "%";
+        progressPhase.textContent = phase || "";
+      }
+      function resetProgress() {
+        progressBarWrap.style.display = "none";
+        progressBarFill.style.width = "0%";
+        progressPhase.textContent = "";
+      }
+
+      function stopPolling() {
+        if (pollingTimer !== null) { clearInterval(pollingTimer); pollingTimer = null; }
+        if (uploadAbortCtrl) { uploadAbortCtrl.abort(); uploadAbortCtrl = null; }
+      }
+
+      function startPolling(jobId) {
+        stopPolling();
+        pollingTimer = setInterval(function () {
+          fetch("/api/job/" + jobId, { cache: "no-store" })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (!data.ok) { return; }
+              showProgress(data.percent || 0, data.phase || "");
+              if (data.status === "done") {
+                stopPolling();
+                addBtn.disabled = false;
+                hideOverlay();
+                showToast("本棚に追加しました");
+                loadBooks();
+              } else if (data.status === "error") {
+                stopPolling();
+                addBtn.disabled = false;
+                showError(data.error || "処理に失敗しました");
+                setTimeout(hideOverlay, 4000);
+              }
+            })
+            .catch(function () {});
+        }, 500);
       }
       function showError(message) {
         overlayTitle.textContent = "エラー";
@@ -358,15 +413,35 @@
         var file = this.files && this.files[0];
         this.value = "";
         if (!file) return;
-        if (!file.name.toLowerCase().endsWith(".pdf")) { showError("PDFファイルを選択してください。"); setTimeout(hideOverlay, 3000); return; }
+        if (!file.name.toLowerCase().endsWith(".pdf")) {
+          showError("PDFファイルを選択してください。");
+          setTimeout(hideOverlay, 3000);
+          return;
+        }
+        stopPolling();
+        addBtn.disabled = true;
         showOverlay("PDFを処理しています…", "ページ数によっては数分かかることがあります");
+        uploadAbortCtrl = new AbortController();
         var form = new FormData();
         form.append("pdf", file);
-        fetch("/api/add", { method: "POST", body: form }).then(function (r) { return r.json(); }).then(function (data) {
-          hideOverlay();
-          if (data.ok) { showToast("本棚に追加しました"); loadBooks(); }
-          else { showError(data.error || "処理に失敗しました"); setTimeout(hideOverlay, 4000); }
-        }).catch(function () { hideOverlay(); showError("通信エラーです。しばらくしてからやり直してください。"); setTimeout(hideOverlay, 4000); });
+        fetch("/api/add", { method: "POST", body: form, signal: uploadAbortCtrl.signal })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data.ok && data.job_id) {
+              startPolling(data.job_id);
+            } else {
+              addBtn.disabled = false;
+              showError(data.error || "処理に失敗しました");
+              setTimeout(hideOverlay, 4000);
+            }
+          })
+          .catch(function (err) {
+            if (err && err.name === "AbortError") return;
+            addBtn.disabled = false;
+            hideOverlay();
+            showError("通信エラーです。しばらくしてからやり直してください。");
+            setTimeout(hideOverlay, 4000);
+          });
       });
 
       overlay.addEventListener("click", function () { if (overlay.classList.contains("error")) hideOverlay(); });
