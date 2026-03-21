@@ -1,8 +1,12 @@
 package com.novelreader.ui
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
@@ -59,23 +63,36 @@ fun BookshelfScreen(
         pdfPicker.launch(arrayOf("application/pdf"))
     }
 
-    // FAB タップ時の処理: Android 13+ は通知権限を確認してからPDF選択へ
+    // PDF選択を実際に開始するヘルパー（通知権限チェック後に呼ぶ）
+    val launchPdfPicker: () -> Unit = {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(
+                context, Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+            if (granted) {
+                pdfPicker.launch(arrayOf("application/pdf"))
+            } else {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        } else {
+            pdfPicker.launch(arrayOf("application/pdf"))
+        }
+    }
+
+    // FAB タップ時: バッテリー最適化が有効なら除外を促してからPDF選択へ
     val onFabClick: () -> Unit = {
         if (!isProcessing) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val granted = ContextCompat.checkSelfPermission(
-                    context, Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED
-                if (granted) {
-                    pdfPicker.launch(arrayOf("application/pdf"))
-                } else {
-                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
+            val pm = context.getSystemService(PowerManager::class.java)
+            if (!pm.isIgnoringBatteryOptimizations(context.packageName)) {
+                showBatteryOptDialog = true
             } else {
-                pdfPicker.launch(arrayOf("application/pdf"))
+                launchPdfPicker()
             }
         }
     }
+
+    // バッテリー最適化除外ダイアログの表示フラグ
+    var showBatteryOptDialog by remember { mutableStateOf(false) }
 
     // 削除確認ダイアログ用の状態
     var bookToDelete by remember { mutableStateOf<BookEntity?>(null) }
@@ -193,6 +210,31 @@ fun BookshelfScreen(
                 }
             }
         }
+    }
+
+    // バッテリー最適化除外ダイアログ
+    if (showBatteryOptDialog) {
+        AlertDialog(
+            onDismissRequest = { showBatteryOptDialog = false },
+            title = { Text("バックグラウンド処理について") },
+            text = { Text("バッテリー最適化が有効だと、ホーム画面に移動したときにPDF変換が途中で止まることがあります。\n\n「設定を開く」で本アプリを最適化対象外にすると安定して動作します。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showBatteryOptDialog = false
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                    }
+                    context.startActivity(intent)
+                    launchPdfPicker()
+                }) { Text("設定を開く") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showBatteryOptDialog = false
+                    launchPdfPicker()
+                }) { Text("このまま続ける") }
+            },
+        )
     }
 
     // 削除確認ダイアログ
