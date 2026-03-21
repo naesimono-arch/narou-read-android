@@ -24,6 +24,11 @@ app = Flask(__name__, static_folder=None)
 library_lock = threading.Lock()
 progress_lock = threading.Lock()
 
+# ジョブ管理
+jobs = {}
+jobs_lock = threading.Lock()
+JOB_TTL = 600  # 完了後10分でメモリから削除
+
 def ensure_library():
     LIBRARY_DIR.mkdir(exist_ok=True)
     if not MANIFEST_PATH.exists():
@@ -129,6 +134,56 @@ def api_books():
         b["last_read"] = progress.get(b["id"], "index.html")
     return jsonify(books)
 
+def _set_progress(job_id, percent, phase):
+    with jobs_lock:
+        job = jobs.get(job_id)
+        if job is None:
+            return
+        job["percent"] = max(job["percent"], percent)
+        job["phase"] = phase
+
+def _expire_job(job_id):
+    with jobs_lock:
+        jobs.pop(job_id, None)
+
+def _run_job(job_id, book_id, tmp_path):
+    def progress_callback(percent, phase):
+        _set_progress(job_id, percent, phase)
+    try:
+        real_title = novel_app_engine.process_pdf(tmp_path, book_id,
+                                                   progress_callback=progress_callback)
+        books = load_books()
+        books.append({"id": book_id, "title": real_title, "path": f"novel_app/{book_id}"})
+        save_books(books)
+        with jobs_lock:
+            jobs[job_id]["status"] = "done"
+            jobs[job_id]["percent"] = 100
+            jobs[job_id]["book_id"] = book_id
+    except Exception as e:
+        target_dir = NOVEL_APP_DIR / book_id
+        try:
+            if target_dir.exists():
+                shutil.rmtree(target_dir)
+        except Exception:
+            pass
+        with jobs_lock:
+            jobs[job_id]["status"] = "error"
+            jobs[job_id]["error"] = str(e)
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
+        threading.Timer(JOB_TTL, _expire_job, args=(job_id,)).start()
+
+@app.route("/api/job/<job_id>")
+def api_job(job_id):
+    with jobs_lock:
+        job = jobs.get(job_id)
+    if job is None:
+        return jsonify({"ok": False, "error": "ジョブが見つかりません"}), 404
+    return jsonify({"ok": True, **job})
+
 @app.route("/api/add", methods=["POST"])
 def api_add():
     if "pdf" not in request.files:
@@ -138,26 +193,23 @@ def api_add():
         return jsonify({"ok": False, "error": "PDFファイルを選択してください"}), 400
 
     book_id = str(uuid.uuid4())[:8]
+    job_id = str(uuid.uuid4())[:8]
 
-    try:
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-            f.save(tmp.name)
-            tmp_path = tmp.name
-        try:
-            real_title = novel_app_engine.process_pdf(tmp_path, book_id)
-        finally:
-            try:
-                os.unlink(tmp_path)
-            except Exception:
-                pass
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+        f.save(tmp.name)
+        tmp_path = tmp.name
 
-        books = load_books()
-        books.append({"id": book_id, "title": real_title, "path": f"novel_app/{book_id}"})
-        save_books(books)
+    with jobs_lock:
+        jobs[job_id] = {
+            "status": "running",
+            "percent": 0,
+            "phase": "",
+            "book_id": None,
+            "error": None
+        }
 
-        return jsonify({"ok": True, "id": book_id, "title": real_title})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+    threading.Thread(target=_run_job, args=(job_id, book_id, tmp_path), daemon=True).start()
+    return jsonify({"ok": True, "job_id": job_id})
 
 @app.route("/api/progress", methods=["POST"])
 def api_progress():
