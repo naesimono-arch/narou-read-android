@@ -57,9 +57,14 @@ fun ReadingScreen(
                     }
                 }
 
-                // 初回ロード
-                val startPath = File(htmlDirPath, startFile).absolutePath
-                loadUrl("file://$startPath")
+            }
+        },
+        update = { webView ->
+            // htmlDirPath や startFile が変化した場合のみ再ロード
+            val newUrl = "file://${File(htmlDirPath, startFile).absolutePath}"
+            if (webView.tag != newUrl) {
+                webView.tag = newUrl
+                webView.loadUrl(newUrl)
             }
         },
     )

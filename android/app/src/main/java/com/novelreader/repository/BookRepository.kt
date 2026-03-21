@@ -32,34 +32,36 @@ class BookRepository(private val context: Context) {
         runCatching {
             val bookId = UUID.randomUUID().toString().take(8)
 
-            // ① 一時ファイルにコピー
+            // ① 一時ファイルにコピー（try-finally で確実に削除する）
             val tempFile = File(context.cacheDir, "temp_$bookId.pdf")
-            context.contentResolver.openInputStream(pdfUri)!!.use { input ->
-                tempFile.outputStream().use { output -> input.copyTo(output) }
+            try {
+                context.contentResolver.openInputStream(pdfUri)!!.use { input ->
+                    tempFile.outputStream().use { output -> input.copyTo(output) }
+                }
+
+                // ② 出力先ディレクトリを確定
+                val outputDir = File(context.filesDir, "novels/$bookId").also { it.mkdirs() }
+
+                // ③ Chaquopy経由で Python 処理（コールバックでフェーズ進捗を通知）
+                val python = Python.getInstance()
+                val title = python.getModule("app")
+                    .callAttr(
+                        "process_pdf",
+                        tempFile.absolutePath,
+                        bookId,
+                        outputDir.absolutePath,
+                        true,
+                        ProgressCallback { step, stepLocalPercent, phase -> onProgress(step, stepLocalPercent, phase) },
+                    )
+                    .toString()
+
+                // ④ Roomに登録
+                val book = BookEntity(bookId, title, outputDir.absolutePath)
+                bookDao.insertBook(book)
+                book
+            } finally {
+                tempFile.delete()
             }
-
-            // ② 出力先ディレクトリを確定
-            val outputDir = File(context.filesDir, "novels/$bookId").also { it.mkdirs() }
-
-            // ③ Chaquopy経由で Python 処理（コールバックでフェーズ進捗を通知）
-            val python = Python.getInstance()
-            val title = python.getModule("app")
-                .callAttr(
-                    "process_pdf",
-                    tempFile.absolutePath,
-                    bookId,
-                    outputDir.absolutePath,
-                    true,
-                    ProgressCallback { step, stepLocalPercent, phase -> onProgress(step, stepLocalPercent, phase) },
-                )
-                .toString()
-
-            tempFile.delete()
-
-            // ④ Roomに登録
-            val book = BookEntity(bookId, title, outputDir.absolutePath)
-            bookDao.insertBook(book)
-            book
         }
     }
 

@@ -16,7 +16,6 @@ import com.novelreader.ui.BookshelfScreen
 import com.novelreader.ui.ReadingScreen
 import com.novelreader.viewmodel.BookshelfViewModel
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 
 class MainActivity : ComponentActivity() {
 
@@ -62,25 +61,26 @@ private fun NovelReaderApp() {
             val bookId = backStackEntry.arguments!!.getString("bookId")!!
             val startFile = backStackEntry.arguments!!.getString("startFile")!!
 
-            // Room から htmlDirPath を取得（同期的に1回だけ読む）
-            val htmlDirPath = remember(bookId) {
-                runBlocking {
-                    AppDatabase.getDatabase(navController.context)
-                        .bookDao()
-                        .getAllBooks()
-                        .first()
-                        .firstOrNull { it.id == bookId }
-                        ?.htmlDirPath ?: ""
-                }
+            // Room から htmlDirPath を非同期で取得（null = ロード中）
+            var htmlDirPath by remember(bookId) { mutableStateOf<String?>(null) }
+            LaunchedEffect(bookId) {
+                htmlDirPath = AppDatabase.getDatabase(navController.context)
+                    .bookDao()
+                    .getAllBooks()
+                    .first()
+                    .firstOrNull { it.id == bookId }
+                    ?.htmlDirPath
             }
 
-            ReadingScreen(
-                bookId = bookId,
-                startFile = startFile,
-                htmlDirPath = htmlDirPath,
-                viewModel = viewModel,
-                onNavigateToBookshelf = { navController.popBackStack("bookshelf", false) },
-            )
+            if (htmlDirPath != null) {
+                ReadingScreen(
+                    bookId = bookId,
+                    startFile = startFile,
+                    htmlDirPath = htmlDirPath!!,
+                    viewModel = viewModel,
+                    onNavigateToBookshelf = { navController.popBackStack("bookshelf", false) },
+                )
+            }
         }
     }
 }
