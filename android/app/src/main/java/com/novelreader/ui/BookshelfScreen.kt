@@ -221,12 +221,11 @@ fun BookshelfScreen(
             confirmButton = {
                 TextButton(onClick = {
                     showBatteryOptDialog = false
-                    // アプリ詳細設定を開く（OPPOではここからバッテリー→バックグラウンドアクティビティに進む）
+                    // アプリ詳細設定を開く。設定後にユーザーが戻ってFABを再タップする流れ
                     val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                         data = Uri.parse("package:${context.packageName}")
                     }
                     context.startActivity(intent)
-                    launchPdfPicker()
                 }) { Text("設定を開く") }
             },
             dismissButton = {
