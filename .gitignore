@@ -7,4 +7,6 @@ library/books.json
 android/.gradle/
 android/build/
 android/app/build/
-android/local.properties.idea/
+android/local.properties
+.idea/
+.claude/settings.local.json
