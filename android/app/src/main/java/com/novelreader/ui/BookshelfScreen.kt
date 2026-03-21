@@ -217,13 +217,17 @@ fun BookshelfScreen(
         AlertDialog(
             onDismissRequest = { showBatteryOptDialog = false },
             title = { Text("バックグラウンド処理について") },
-            text = { Text("バッテリー最適化が有効だと、ホーム画面に移動したときにPDF変換が途中で止まることがあります。\n\n「設定を開く」で本アプリを最適化対象外にすると安定して動作します。") },
+            text = { Text("ホーム画面に移動するとPDF変換が途中で止まる場合があります。\n\n【推奨設定】\n設定 → バッテリー → アプリごとの消費管理 → NovelReader → バックグラウンドアクティビティを許可\n\n「設定を開く」でバッテリー設定画面に移動します。") },
             confirmButton = {
                 TextButton(onClick = {
                     showBatteryOptDialog = false
-                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                        data = Uri.parse("package:${context.packageName}")
-                    }
+                    // ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONSはOPPOの「バックグラウンドアクティビティ」に
+                    // 直接遷移しないため、バッテリー設定のトップ画面を開く
+                    val intent = runCatching {
+                        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                            data = Uri.parse("package:${context.packageName}")
+                        }
+                    }.getOrElse { Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS) }
                     context.startActivity(intent)
                     launchPdfPicker()
                 }) { Text("設定を開く") }
