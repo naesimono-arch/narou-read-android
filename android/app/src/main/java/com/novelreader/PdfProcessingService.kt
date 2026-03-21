@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.IBinder
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.novelreader.repository.BookRepository
@@ -50,9 +51,14 @@ class PdfProcessingService : Service() {
         )
 
         // CPUをスリープさせないWakeLock（OPPOのバックグラウンド強制停止対策）
-        wakeLock = (getSystemService(Context.POWER_SERVICE) as PowerManager)
-            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NovelReader::PdfProcessing")
-            .also { it.acquire(10 * 60 * 1000L) } // 最大10分
+        // 取得失敗時はログのみ出してWakeLockなしで継続（スリープ対策が効かなくなるだけで処理自体は継続）
+        try {
+            wakeLock = (getSystemService(Context.POWER_SERVICE) as PowerManager)
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NovelReader::PdfProcessing")
+                .also { it.acquire(10 * 60 * 1000L) } // 最大10分
+        } catch (e: Exception) {
+            Log.e(TAG, "WakeLock取得に失敗（スリープ対策なしで継続）", e)
+        }
 
         val app = application as NovelReaderApplication
         val repository = BookRepository(applicationContext)
@@ -147,5 +153,6 @@ class PdfProcessingService : Service() {
     companion object {
         const val ACTION_START = "com.novelreader.action.START_PROCESSING"
         const val NOTIFICATION_ID = 1001
+        private const val TAG = "PdfProcessingService"
     }
 }
