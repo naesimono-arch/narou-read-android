@@ -221,13 +221,10 @@ fun BookshelfScreen(
             confirmButton = {
                 TextButton(onClick = {
                     showBatteryOptDialog = false
-                    // ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONSはOPPOの「バックグラウンドアクティビティ」に
-                    // 直接遷移しないため、バッテリー設定のトップ画面を開く
-                    val intent = runCatching {
-                        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                            data = Uri.parse("package:${context.packageName}")
-                        }
-                    }.getOrElse { Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS) }
+                    // アプリ詳細設定を開く（OPPOではここからバッテリー→バックグラウンドアクティビティに進む）
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                    }
                     context.startActivity(intent)
                     launchPdfPicker()
                 }) { Text("設定を開く") }
