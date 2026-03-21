@@ -63,8 +63,13 @@ fun BookshelfScreen(
         pdfPicker.launch(arrayOf("application/pdf"))
     }
 
+    // 「二度と表示しない」フラグをSharedPreferencesで永続化
+    val prefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
+    val batteryDialogDismissed = remember { prefs.getBoolean("battery_dialog_dismissed", false) }
+
     // バッテリー最適化除外ダイアログの表示フラグ（onFabClickより先に宣言必須）
     var showBatteryOptDialog by remember { mutableStateOf(false) }
+    var doNotShowAgain by remember { mutableStateOf(false) }
 
     // PDF選択を実際に開始するヘルパー（通知権限チェック後に呼ぶ）
     val launchPdfPicker: () -> Unit = {
@@ -82,11 +87,14 @@ fun BookshelfScreen(
         }
     }
 
-    // FAB タップ時: バッテリー最適化が有効なら除外を促してからPDF選択へ
+    // FAB タップ時: 未確認かつバッテリー最適化が有効なら除外を促してからPDF選択へ
     val onFabClick: () -> Unit = {
         if (!isProcessing) {
             val pm = context.getSystemService(PowerManager::class.java)
-            if (!pm.isIgnoringBatteryOptimizations(context.packageName)) {
+            val needsWarning = !batteryDialogDismissed &&
+                !pm.isIgnoringBatteryOptimizations(context.packageName)
+            if (needsWarning) {
+                doNotShowAgain = false
                 showBatteryOptDialog = true
             } else {
                 launchPdfPicker()
@@ -214,25 +222,39 @@ fun BookshelfScreen(
 
     // バッテリー最適化除外ダイアログ
     if (showBatteryOptDialog) {
+        val dismiss: (openSettings: Boolean) -> Unit = { openSettings ->
+            if (doNotShowAgain) prefs.edit().putBoolean("battery_dialog_dismissed", true).apply()
+            showBatteryOptDialog = false
+            if (openSettings) {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                }
+                context.startActivity(intent)
+            } else {
+                launchPdfPicker()
+            }
+        }
         AlertDialog(
-            onDismissRequest = { showBatteryOptDialog = false },
+            onDismissRequest = { dismiss(false) },
             title = { Text("バックグラウンド処理について") },
-            text = { Text("ホーム画面に移動するとPDF変換が途中で止まる場合があります。\n\n【推奨設定】\n設定 → バッテリー → アプリごとの消費管理 → NovelReader → バックグラウンドアクティビティを許可\n\n「設定を開く」でバッテリー設定画面に移動します。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showBatteryOptDialog = false
-                    // アプリ詳細設定を開く。設定後にユーザーが戻ってFABを再タップする流れ
-                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.parse("package:${context.packageName}")
+            text = {
+                Column {
+                    Text("ホーム画面に移動するとPDF変換が途中で止まる場合があります。\n\n【推奨設定】\n設定 → バッテリー → アプリごとの消費管理 → NovelReader → バックグラウンドアクティビティを許可\n\n「設定を開く」でバッテリー設定画面に移動します。")
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = doNotShowAgain,
+                            onCheckedChange = { doNotShowAgain = it },
+                        )
+                        Text("二度と表示しない", style = MaterialTheme.typography.bodyMedium)
                     }
-                    context.startActivity(intent)
-                }) { Text("設定を開く") }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { dismiss(true) }) { Text("設定を開く") }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    showBatteryOptDialog = false
-                    launchPdfPicker()
-                }) { Text("このまま続ける") }
+                TextButton(onClick = { dismiss(false) }) { Text("このまま続ける") }
             },
         )
     }
