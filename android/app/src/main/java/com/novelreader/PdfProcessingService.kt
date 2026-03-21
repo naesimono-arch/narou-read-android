@@ -2,6 +2,7 @@ package com.novelreader
 
 import android.app.Notification
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -81,13 +82,24 @@ class PdfProcessingService : Service() {
     private fun notificationManager() =
         getSystemService(NOTIFICATION_SERVICE) as NotificationManager
 
+    /** タップでアプリを開くPendingIntent（OPPO等のOEMは必須の場合がある） */
+    private fun openAppIntent(): PendingIntent {
+        val intent = packageManager.getLaunchIntentForPackage(packageName)
+            ?: Intent(this, MainActivity::class.java)
+        return PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+    }
+
     private fun buildProgressNotification(progress: Int, text: String): Notification {
         return NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
             .setContentTitle("小説を変換中...")
             .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_menu_upload)
+            .setSmallIcon(R.drawable.ic_notification)
             .setProgress(100, progress, false)
             .setOngoing(true)
+            .setContentIntent(openAppIntent())
             .build()
     }
 
@@ -99,8 +111,9 @@ class PdfProcessingService : Service() {
         val notification = NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
             .setContentTitle("変換完了")
             .setContentText("$title を追加しました")
-            .setSmallIcon(android.R.drawable.ic_menu_upload)
+            .setSmallIcon(R.drawable.ic_notification)
             .setAutoCancel(true)
+            .setContentIntent(openAppIntent())
             .build()
         notificationManager().notify(NOTIFICATION_ID, notification)
     }
@@ -109,8 +122,9 @@ class PdfProcessingService : Service() {
         val notification = NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
             .setContentTitle("変換失敗")
             .setContentText("ファイルを確認してください")
-            .setSmallIcon(android.R.drawable.ic_menu_upload)
+            .setSmallIcon(R.drawable.ic_notification)
             .setAutoCancel(true)
+            .setContentIntent(openAppIntent())
             .build()
         notificationManager().notify(NOTIFICATION_ID, notification)
     }
