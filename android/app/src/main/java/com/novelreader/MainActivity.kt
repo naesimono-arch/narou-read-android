@@ -58,8 +58,8 @@ private fun NovelReaderApp() {
                 navArgument("startFile") { type = NavType.StringType },
             ),
         ) { backStackEntry ->
-            val bookId = backStackEntry.arguments!!.getString("bookId")!!
-            val startFile = backStackEntry.arguments!!.getString("startFile")!!
+            val bookId = backStackEntry.arguments?.getString("bookId") ?: return@composable
+            val startFile = backStackEntry.arguments?.getString("startFile") ?: return@composable
 
             // Room から htmlDirPath を非同期で取得（null = ロード中）
             var htmlDirPath by remember(bookId) { mutableStateOf<String?>(null) }
