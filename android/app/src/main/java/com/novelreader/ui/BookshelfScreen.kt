@@ -47,8 +47,9 @@ fun BookshelfScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { pdfPicker.launch(arrayOf("application/pdf")) },
-                enabled = !isProcessing,
+                onClick = {
+                    if (!isProcessing) pdfPicker.launch(arrayOf("application/pdf"))
+                },
             ) {
                 Icon(Icons.Filled.Add, contentDescription = "PDFを追加")
             }
