@@ -16,6 +16,7 @@ def export_to_mobile_html(
     book_title=None,
     book_id=None,
     android_mode=False,
+    progress_callback=None,
 ):
     if output_dir is None:
         output_dir = "novel_app"
@@ -85,6 +86,7 @@ def export_to_mobile_html(
             <ul class="index-list">
     """
 
+    total_chapters = len(final_chapters)
     for i, chap in enumerate(final_chapters):
         filename = f"chap_{i + 1}.html"
         index_html += f'<li><a href="{filename}">{chap["title"]}</a></li>'
@@ -123,6 +125,10 @@ def export_to_mobile_html(
         with open(os.path.join(output_dir, filename), "w", encoding="utf-8") as f:
             f.write(chapter_html)
 
+        if progress_callback is not None:
+            pct = 88 + int((i + 1) / total_chapters * 11)
+            progress_callback(pct, f"HTMLを生成しています… ({i+1:,}/{total_chapters:,}章)")
+
     index_html += f"""
             </ul>
             <a href="{bookshelf_href}" class="back-link-bottom">本棚に戻る</a>
@@ -135,7 +141,7 @@ def export_to_mobile_html(
         f.write(index_html)
 
 
-def export_to_pwa(final_chapters, book_id, real_title, output_dir=None, android_mode=False):
+def export_to_pwa(final_chapters, book_id, real_title, output_dir=None, android_mode=False, progress_callback=None):
     if output_dir is None:
         output_dir = os.path.join("novel_app", book_id)
 
@@ -145,4 +151,5 @@ def export_to_pwa(final_chapters, book_id, real_title, output_dir=None, android_
         book_title=real_title,
         book_id=book_id,
         android_mode=android_mode,
+        progress_callback=progress_callback,
     )

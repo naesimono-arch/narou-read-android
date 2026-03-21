@@ -23,7 +23,10 @@ def process_pdf(pdf_path, book_id, output_dir=None, android_mode=False, progress
     real_title = pdf_extractor.extract_book_title(pdf_path)
 
     _notify(15, "本文を抽出しています…")
-    paragraphs = pdf_extractor.run_final_engine(pdf_path_override=pdf_path)
+    paragraphs = pdf_extractor.run_final_engine(
+        pdf_path_override=pdf_path,
+        progress_callback=lambda pct, cur, tot: _notify(pct, f"本文を抽出しています… ({cur+1:,}/{tot:,}ページ)")
+    )
 
     _notify(75, "章を分割しています…")
     chapters_data = chapter_processor.split_into_chapters(paragraphs)
@@ -32,6 +35,10 @@ def process_pdf(pdf_path, book_id, output_dir=None, android_mode=False, progress
     final_chapters = chapter_processor.process_foreword_afterword(chapters_data)
 
     _notify(88, "HTMLを生成しています…")
-    html_exporter.export_to_pwa(final_chapters, book_id, real_title, output_dir, android_mode=android_mode)
+    html_exporter.export_to_pwa(
+        final_chapters, book_id, real_title, output_dir,
+        android_mode=android_mode,
+        progress_callback=lambda pct, phase: _notify(pct, phase)
+    )
 
     return real_title

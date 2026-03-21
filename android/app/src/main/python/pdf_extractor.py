@@ -56,7 +56,7 @@ def extract_book_title(pdf_path):
 # ==========================================
 # 【Phase 01-02】 抽出・整形エンジン
 # ==========================================
-def run_final_engine(pdf_path_override=None, _default_pdf_path="N6169DZ.pdf"):
+def run_final_engine(pdf_path_override=None, _default_pdf_path="N6169DZ.pdf", progress_callback=None):
     """PDFから本文を抽出。pdf_path_override が None の場合はデフォルトパスを使用。"""
     path_to_use = pdf_path_override if pdf_path_override is not None else _default_pdf_path
     all_paragraphs = []
@@ -66,10 +66,17 @@ def run_final_engine(pdf_path_override=None, _default_pdf_path="N6169DZ.pdf"):
     with open(path_to_use, "rb") as f:
         total_pages = sum(1 for _ in PDFPage.get_pages(f))
 
+    body_total = max(total_pages - 4, 1)
+
     # 最初の3ページ（表紙・注意事項）と最後の1ページ（クレジット）を除外
     for page_num, page in enumerate(extract_pages(path_to_use)):
         if page_num < 3 or page_num >= total_pages - 1:
             continue
+
+        if progress_callback is not None:
+            processed = page_num - 3
+            pct = 10 + int(processed / body_total * 50)
+            progress_callback(pct, processed, body_total)
 
         titles_all = []
         bodies_all = []
