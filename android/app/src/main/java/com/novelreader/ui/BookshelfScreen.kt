@@ -1,5 +1,8 @@
 package com.novelreader.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
@@ -20,8 +23,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.novelreader.data.BookEntity
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.ProcessingState
@@ -38,12 +43,38 @@ fun BookshelfScreen(
     val isProcessing = processingState.isProcessing
     val errorMessage by viewModel.errorMessage.collectAsState()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     // PDF ファイル選択ランチャー
     val pdfPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         uri?.let { viewModel.addBook(it) }
+    }
+
+    // 通知権限ランチャー（Android 13+）。権限結果に関わらずPDF選択を開始
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        pdfPicker.launch(arrayOf("application/pdf"))
+    }
+
+    // FAB タップ時の処理: Android 13+ は通知権限を確認してからPDF選択へ
+    val onFabClick: () -> Unit = {
+        if (!isProcessing) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val granted = ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+                if (granted) {
+                    pdfPicker.launch(arrayOf("application/pdf"))
+                } else {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            } else {
+                pdfPicker.launch(arrayOf("application/pdf"))
+            }
+        }
     }
 
     // 削除確認ダイアログ用の状態
@@ -55,9 +86,7 @@ fun BookshelfScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = {
-                    if (!isProcessing) pdfPicker.launch(arrayOf("application/pdf"))
-                },
+                onClick = onFabClick,
             ) {
                 Icon(Icons.Filled.Add, contentDescription = "PDFを追加")
             }
