@@ -29,7 +29,7 @@ def extract_book_title(pdf_path):
 # ==========================================
 # 【Phase 01-02】 抽出・整形エンジン
 # ==========================================
-def run_final_engine(pdf_path_override=None, _default_pdf_path="N6169DZ.pdf"):
+def run_final_engine(pdf_path_override=None, _default_pdf_path="N6169DZ.pdf", progress_callback=None):
     """PDFから本文を抽出。pdf_path_override が None の場合はデフォルトパスを使用。"""
     path_to_use = pdf_path_override if pdf_path_override is not None else _default_pdf_path
     all_paragraphs = []
@@ -37,7 +37,12 @@ def run_final_engine(pdf_path_override=None, _default_pdf_path="N6169DZ.pdf"):
 
     with pdfplumber.open(path_to_use) as pdf:
         # 最初の3ページ（表紙・注意事項）と最後の1ページ（クレジット）を除外
+        total_pages = len(pdf.pages) - 4
         for page_num in range(3, len(pdf.pages) - 1):
+            if progress_callback and total_pages > 0:
+                processed = page_num - 3
+                pct = 10 + int(processed / total_pages * 50)
+                progress_callback(pct)
             page = pdf.pages[page_num]
             chars = page.chars
 
