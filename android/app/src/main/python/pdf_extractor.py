@@ -1,33 +1,35 @@
 """
 pdf_extractor.py (Android版)
 Phase 00-02: PDFから書籍タイトルと本文を抽出するモジュール
-pdfplumber → PyMuPDF (fitz) に移行済み
+pdfminer.six に移行済み（PyMuPDF / fitz を使用しない純Python実装）
 """
 import math
-import fitz  # PyMuPDF
+from pdfminer.high_level import extract_pages
+from pdfminer.layout import LTChar, LTAnno
+from pdfminer.pdfpage import PDFPage
 import pdf_rules
 
 
-def _iter_chars(page):
-    """ページからフラットな文字リストを生成する。fontname/sizeはspan単位で取得。"""
-    raw = page.get_text("rawdict")
-    for block in raw.get("blocks", []):
-        if block.get("type") != 0:
-            continue
-        for line in block.get("lines", []):
-            for span in line.get("spans", []):
-                fontname = span.get("font", "")
-                fontsize = span.get("size", 0.0)
-                for char in span.get("chars", []):
-                    bbox = char["bbox"]  # (x0, y0, x1, y1)
-                    yield {
-                        "text":     char["c"],
-                        "fontname": fontname,
-                        "size":     fontsize,
-                        "x0":       bbox[0],
-                        "top":      bbox[1],
-                        "bottom":   bbox[3],
-                    }
+def _iter_chars_from_page(layout_page, page_height):
+    """pdfminer の LTPage から PyMuPDF rawdict 互換の文字 dict を生成する。
+    Y軸反転: pdfminer は下原点、PyMuPDF 互換に上原点へ変換。
+    """
+    def _recurse(element):
+        if isinstance(element, LTChar):
+            yield {
+                "text":     element.get_text(),
+                "fontname": element.fontname,
+                "size":     element.size,
+                "x0":       element.x0,
+                "top":      page_height - element.y1,
+                "bottom":   page_height - element.y0,
+            }
+        elif isinstance(element, LTAnno):
+            pass  # 合字/スペースはスキップ
+        elif hasattr(element, "__iter__"):
+            for child in element:
+                yield from _recurse(child)
+    yield from _recurse(layout_page)
 
 
 # ==========================================
@@ -35,9 +37,11 @@ def _iter_chars(page):
 # ==========================================
 def extract_book_title(pdf_path):
     """1ページ目の最も大きな文字列を、X左→右の順で結合してタイトルとする。"""
-    doc = fitz.open(pdf_path)
-    chars = list(_iter_chars(doc[0]))
-    doc.close()
+    pages = list(extract_pages(pdf_path, page_numbers=[0]))
+    if not pages:
+        return "不明なタイトル"
+    page = pages[0]
+    chars = list(_iter_chars_from_page(page, page.height))
 
     if not chars:
         return "不明なタイトル"
@@ -58,18 +62,20 @@ def run_final_engine(pdf_path_override=None, _default_pdf_path="N6169DZ.pdf"):
     all_paragraphs = []
     current_paragraph = ""
 
-    doc = fitz.open(path_to_use)
-    total_pages = len(doc)
+    # ページ数を取得（最後のページを除外するため）
+    with open(path_to_use, "rb") as f:
+        total_pages = sum(1 for _ in PDFPage.get_pages(f))
 
     # 最初の3ページ（表紙・注意事項）と最後の1ページ（クレジット）を除外
-    for page_num in range(3, total_pages - 1):
-        page = doc[page_num]
+    for page_num, page in enumerate(extract_pages(path_to_use)):
+        if page_num < 3 or page_num >= total_pages - 1:
+            continue
 
         titles_all = []
         bodies_all = []
         rubies_all = []
 
-        for c in _iter_chars(page):
+        for c in _iter_chars_from_page(page, page.height):
             fontname = c["fontname"]
             fontsize = c["size"]
             y_pos   = c["top"]
@@ -211,8 +217,6 @@ def run_final_engine(pdf_path_override=None, _default_pdf_path="N6169DZ.pdf"):
                 current_paragraph += line_str
 
             prev_x = x
-
-    doc.close()
 
     if current_paragraph:
         all_paragraphs.append(current_paragraph)
