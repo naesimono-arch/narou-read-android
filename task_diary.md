@@ -4,6 +4,69 @@
 
 ---
 
+## 2026-03-21 | 進捗バーの精度改善（ページ数・章数カウンター追加）＋ Android専用構成への移行
+
+### 背景
+
+10,000ページ規模のPDFを処理中、進捗バーが長時間ほぼ動かず処理状況が不明だった。
+また、Web版とAndroid版でPythonファイルが二重管理になっており、Web版のみ修正してAndroid版に反映し忘れるミスが発生した。
+
+---
+
+### 実装内容
+
+#### フェーズ1：ページ数・章数カウンターの追加
+
+| フェーズ | 変更前 | 変更後 |
+|---------|--------|--------|
+| 抽出中 | `本文を抽出しています…`（固定） | `本文を抽出しています… (3,450/9,996ページ)` |
+| HTML生成中 | `HTMLを生成しています…`（85%固定） | `HTMLを生成しています… (234/1,024章)` |
+
+**変更ファイル（Android版）**：
+
+| ファイル | 変更内容 |
+|---------|---------|
+| `android/.../pdf_extractor.py` | `run_final_engine` に `progress_callback=None` を追加。ループ内で `(pct, processed, body_total)` をコールバック |
+| `android/.../app.py` | ページ数テキスト付き lambda を `run_final_engine` に渡す。`export_to_pwa` にもコールバック伝播 |
+| `android/.../html_exporter.py` | `export_to_mobile_html` / `export_to_pwa` に `progress_callback=None` を追加。章書き出しループ内で章カウンター通知 |
+
+#### フェーズ2：Android専用構成への移行
+
+Web版のルートPythonファイル群・Flask関連ファイル・ツール群を全削除。
+Pythonロジックを `android/app/src/main/python/` に一本化。
+
+**削除したもの**：`app.py`, `bookshelf.py`, `pdf_extractor.py`, `html_exporter.py`, `chapter_processor.py`, `pdf_rules.py`, `index.html`, `requirements.txt`, `tools/`, `library/`, `novel_app/`
+
+---
+
+### 失敗・気づき
+
+#### Web版だけ修正してAndroid版を忘れた
+
+進捗カウンターをまず **ルートのPythonファイル（Web版）** に実装した。
+「画面上の表示は何も変わっていない」と言われて気づいた。
+
+**根本原因**：このプロジェクトはPythonロジックが2箇所に存在する。
+- `pdf_extractor.py` 等（ルート直下）→ Web版（pdfplumber使用）
+- `android/app/src/main/python/` → Android版（pdfminer.six使用）
+
+AndroidにはpdfplumberのC拡張が動かないため、実装が分岐している。
+**同じ機能追加は必ず両方のファイルに行う必要がある。**
+
+→ Web版ファイルを全削除してAndroid専用構成に移行することで、この二重管理問題を根本解決した。
+
+---
+
+### コミット一覧
+
+```
+37915d1  feat: 進捗バーにページ数・章数カウンターを追加（Web版・10,000ページ対応）
+b1e07cc  feat: Android版にも進捗バーのページ数・章数カウンターを追加
+5dd5f3a  refactor: Web版ファイル群を削除、Android専用構成に移行
+```
+
+---
+
 ## 2026-03-21 | PDF処理 進捗バー追加（Web版 + Android版）
 
 ### 背景
