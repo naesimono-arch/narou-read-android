@@ -56,9 +56,9 @@ def extract_book_title(pdf_path):
 # ==========================================
 # 【Phase 01-02】 抽出・整形エンジン
 # ==========================================
-def run_final_engine(pdf_path_override=None, _default_pdf_path="N6169DZ.pdf", progress_callback=None):
-    """PDFから本文を抽出。pdf_path_override が None の場合はデフォルトパスを使用。"""
-    path_to_use = pdf_path_override if pdf_path_override is not None else _default_pdf_path
+def run_final_engine(pdf_path_override, progress_callback=None):
+    """PDFから本文を抽出する。"""
+    path_to_use = pdf_path_override
     all_paragraphs = []
     current_paragraph = ""
 

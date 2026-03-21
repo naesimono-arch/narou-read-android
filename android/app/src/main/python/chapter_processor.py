@@ -1,7 +1,6 @@
 """
 chapter_processor.py
 Phase 03-03B: 段落リストを話数・前書き・後書きに分割・整形するモジュール
-（変更なし — 純Pythonのみ、完全互換）
 """
 import re
 

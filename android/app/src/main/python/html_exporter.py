@@ -1,8 +1,6 @@
 """
 html_exporter.py (Android版)
-android_mode=True のとき:
-  - /api/progress への fetch スクリプトを埋め込まない（WebView に該当サーバーなし）
-  - 本棚へのバックリンクを特殊URLに変換（WebView 側で傍受）
+本棚へのバックリンクは特殊URL（WebView 側で傍受）を使用する。
 """
 import os
 
@@ -12,15 +10,11 @@ _BOOKSHELF_URL = "https://novelreader.app/bookshelf"
 
 def export_to_mobile_html(
     final_chapters,
-    output_dir=None,
+    output_dir,
     book_title=None,
     book_id=None,
-    android_mode=False,
     progress_callback=None,
 ):
-    if output_dir is None:
-        output_dir = "novel_app"
-
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -42,29 +36,8 @@ def export_to_mobile_html(
     </style>
     """
 
-    # 本棚への遷移リンク（android_mode では特殊URLを使用）
-    bookshelf_href = _BOOKSHELF_URL if android_mode else "/"
-
-    def get_progress_script(current_filename):
-        """android_mode では進捗スクリプトを埋め込まない。"""
-        if android_mode:
-            return ""
-        if not book_id:
-            return ""
-        if current_filename == "index.html":
-            return ""
-        return f"""
-        <script>
-        fetch('/api/progress', {{
-            method: 'POST',
-            headers: {{ 'Content-Type': 'application/json' }},
-            body: JSON.stringify({{
-                book_id: '{book_id}',
-                last_read: '{current_filename}'
-            }})
-        }}).catch(e => console.error('progress error', e));
-        </script>
-        """
+    # 本棚への遷移リンク（WebView 側で傍受する特殊URL）
+    bookshelf_href = _BOOKSHELF_URL
 
     index_heading = (book_title if book_title else "作品目次").strip()
     index_page_title = f"{index_heading} - 目次" if book_title else "小説リーダー - 目次"
@@ -77,7 +50,6 @@ def export_to_mobile_html(
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>{index_page_title}</title>
         {style}
-        {get_progress_script('index.html')}
     </head>
     <body>
         <div class="container">
@@ -102,7 +74,6 @@ def export_to_mobile_html(
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>{chap['title']}</title>
             {style}
-            {get_progress_script(filename)}
         </head>
         <body>
             <div class="container">
@@ -141,15 +112,11 @@ def export_to_mobile_html(
         f.write(index_html)
 
 
-def export_to_pwa(final_chapters, book_id, real_title, output_dir=None, android_mode=False, progress_callback=None):
-    if output_dir is None:
-        output_dir = os.path.join("novel_app", book_id)
-
+def export_to_pwa(final_chapters, book_id, real_title, output_dir, progress_callback=None):
     export_to_mobile_html(
         final_chapters,
         output_dir=output_dir,
         book_title=real_title,
         book_id=book_id,
-        android_mode=android_mode,
         progress_callback=progress_callback,
     )
