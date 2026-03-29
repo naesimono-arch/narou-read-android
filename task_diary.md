@@ -184,6 +184,19 @@ Gradleダウングレードより**AGPアップグレード**の方がAndroid St
 try/finally で成功・失敗いずれの場合も `ProcessingState()` にリセットされるよう保証すること。
 
 ---
+
+### 18. 意図的に採用しなかったアーキテクチャとその理由
+
+#### Hilt（DIフレームワーク）
+**不採用**。依存グラフが `Application → Repository → ViewModel` の一直線に近く、手動DIで10分以内に管理可能な規模。
+Hiltの主目的は依存解決の自動化であり、テスタビリティはその副産物。プロトタイプ段階で単体テストより手動テストを優先しているため、テスト容易性のためにDIを整備する動機もない。
+
+#### UseCase層（Clean Architecture的な中間層）
+**不採用**。ビジネスロジックの大部分がPython（`app.py` 以下）にカプセル化されており、Kotlinは橋渡し役に徹している。
+KotlinにUseCase層を設けても `repository.xxx()` を呼ぶだけの薄いラッパーになるため、間接層が増えるだけでメリットがない。
+ViewModel → Repository 直結の素直なMVVMを採用。
+
+---
 ---
 
 # 作業日誌
