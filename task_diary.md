@@ -163,6 +163,83 @@ fc30f54  docs(CLAUDE.md): Atomic Commit ルール（3-1）を追加
 
 ---
 
+## 2026-03-29 | アーキテクチャ負債の洗い出しと修正（③④⑤⑦）
+
+### 背景
+
+コードレビュー的な観点でアーキテクチャ問題を一通り洗い出し、優先度・難度を整理した上で、対応可能な4件を修正した。
+
+---
+
+### 洗い出した問題の全体像
+
+| # | 問題 | 重要度 | 難度 | 対応 |
+|---|---|---|---|---|
+| ③ | Application がグローバル状態バス | 高 | 低 | ✅ 対応済み |
+| ④ | BookRepository の二重インスタンス（DI なし） | 高 | 低 | ✅ 対応済み |
+| ⑤ | ライフサイクル管理不足（Python がキャンセル不能） | 高 | 中 | ✅ 対応済み |
+| ⑦ | エラーメッセージ一律「変換失敗」 | 高 | 低 | ✅ 対応済み |
+| ⑥ | 単体テスト不能（DI なし・インターフェースなし） | 中 | 中 | 未対応（次フェーズ） |
+| ⑧ | AtomicBoolean による多重起動防止（無言破棄） | 中 | 低 | 未対応（次フェーズ） |
+| ① | Chaquopy/Python → Kotlin ネイティブ化 | 中 | 非常に高 | 未対応（将来） |
+| ② | Chaquopy 並列処理不可（GIL） | 中 | 高 | 未対応（①依存） |
+
+---
+
+### 実装内容
+
+#### ③④ Repository シングルトン化
+
+`NovelReaderApplication` に `val repository: BookRepository by lazy { BookRepository(this) }` を追加。
+`PdfProcessingService` と `BookshelfViewModel` がそれぞれ `BookRepository(context)` をnewしていたのを、
+両者とも `app.repository` を参照するように変更。Hilt 不使用でも二重インスタンス問題を解消。
+
+#### ⑤ ライフサイクル修正
+
+**問題の核心**: Kotlin コルーチンのキャンセルは協調的だが、Chaquopy の `callAttr()` は JNI の同期ブロッキング呼び出しのためキャンセル不能。`scope.cancel()` を呼んでも Python 処理は止まらない。
+
+**修正1（onDestroy フェイルセーフ）**: `onDestroy()` に `processingState.value = null` と `isProcessing.set(false)` を追加。Service が突然終了しても UI と排他フラグがリセットされる。
+
+**修正2（NonCancellable）**: Python 処理 + DB 登録を `withContext(NonCancellable)` でラップ。
+- キャンセル不能であることをコードの意図として明示
+- Python が HTML ファイルを書き出した後・DB 登録前にキャンセルされると孤立ファイルが残るため、両者を同一ブロックに含める
+
+**修正3（ensureActive）**: `NonCancellable` ブロックの外で `currentCoroutineContext().ensureActive()` を呼ぶ。
+NonCancellable 内では `ensureActive()` が機能しないため、必ず外側で呼ぶこと。
+
+#### ⑦ エラー分類
+
+`BookImportError` sealed class を追加（EncryptedPdf, CorruptedPdf, InsufficientStorage, UriPermissionDenied, StorageWriteFailure, Unknown）。
+
+**Python 側の例外伝達**: マーカー文字列方式（`ERROR_ENCRYPTED:` 等）は Chaquopy が PyException にラップする際にスタックトレース全体を含む文字列になるため誤検出リスクがある。代わりにカスタム例外クラスを定義し、Kotlin 側で `e is PyException && e.message.contains("EncryptedPdfError")` でクラス名を判定する方式を採用。
+
+---
+
+### 重要な知見
+
+#### Chaquopy の例外ラッピング
+
+Python で `raise EncryptedPdfError("...")` すると、Kotlin 側では `PyException` としてラップされ、`e.message` は `"builtins.EncryptedPdfError: ..."` のようにクラス名が先頭に含まれる。`contains(クラス名)` で安全に判定できる。
+
+#### gradlew がコミットされていなかった
+
+`gradlew` / `gradlew.bat` / `gradle-wrapper.jar` がリポジトリに含まれていなかったため、コマンドラインビルドが一切できない状態だった。Android Studio は Gradle Tooling API を直接使うため Studio 内では動くが、CLI では失敗する。`gradle wrapper` コマンドで生成できるが Gradle のローカルインストールが必要。今回は `~/.gradle/wrapper/dists/` にキャッシュされていた Gradle 8.9 を使って生成した。以後は必ずコミットに含めること。
+
+#### Atomic Commit と実装順序の対応
+
+今回、3コミット分割を計画したが実装後に分割不能と判明した。`BookshelfViewModel.kt` の `import BookRepository` 削除と `BookImportError` クラス追加が1つのハンクになったため。**複数コミットに分けることを事前に決めていた場合は、コミット単位に合わせた実装順序で進めるべき**（まず③④のファイルのみ変更してコミット、次に⑦のファイルを変更してコミット、等）。
+
+---
+
+### コミット一覧
+
+```
+664bb25  chore: Gradle Wrapper を追加
+5da009a  refactor/fix/feat: アーキテクチャ負債解消（③④⑤⑦）
+```
+
+---
+
 ## 2026-03-21 | ビルドエラー修正 Vol.3（jlink.exe 非ゼロ終了エラー → AGP 8.6.1 アップグレード）
 
 ### 背景
