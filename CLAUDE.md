@@ -30,8 +30,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
   - 変更点1
   - 変更点2
-
-  Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
   ```
 - ユーザーに確認を求めず、実装完了後に自動でコミットまで行う。
 
