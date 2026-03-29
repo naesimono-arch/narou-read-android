@@ -12,7 +12,7 @@ import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
-import com.novelreader.repository.BookRepository
+import com.novelreader.viewmodel.BookImportError
 import com.novelreader.viewmodel.ProcessingState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -61,7 +61,7 @@ class PdfProcessingService : Service() {
         }
 
         val app = application as NovelReaderApplication
-        val repository = BookRepository(applicationContext)
+        val repository = app.repository
 
         scope.launch {
             try {
@@ -77,8 +77,10 @@ class PdfProcessingService : Service() {
                         app.processingState.value = null
                     },
                     onFailure = { e ->
-                        showErrorNotification()
-                        app.errorState.value = e.message ?: "PDF処理に失敗しました"
+                        val msg = if (e is BookImportError) e.userMessage
+                                  else e.message ?: "PDF処理に失敗しました"
+                        showErrorNotification(msg)
+                        app.errorState.value = msg
                         app.processingState.value = null
                     },
                 )
@@ -97,6 +99,9 @@ class PdfProcessingService : Service() {
         wakeLock?.release()
         wakeLock = null
         scope.cancel()
+        // Service が突然終了した場合のフェイルセーフ：処理状態と排他フラグをリセット
+        (application as? NovelReaderApplication)?.processingState?.value = null
+        isProcessing.set(false)
         super.onDestroy()
     }
 
@@ -139,10 +144,10 @@ class PdfProcessingService : Service() {
         notificationManager().notify(NOTIFICATION_ID, notification)
     }
 
-    private fun showErrorNotification() {
+    private fun showErrorNotification(message: String) {
         val notification = NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
             .setContentTitle("変換失敗")
-            .setContentText("ファイルを確認してください")
+            .setContentText(message)
             .setSmallIcon(R.drawable.ic_notification)
             .setAutoCancel(true)
             .setContentIntent(openAppIntent())

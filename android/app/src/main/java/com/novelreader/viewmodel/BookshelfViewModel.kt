@@ -9,10 +9,19 @@ import androidx.lifecycle.viewModelScope
 import com.novelreader.NovelReaderApplication
 import com.novelreader.PdfProcessingService
 import com.novelreader.data.BookEntity
-import com.novelreader.repository.BookRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+
+/** PDF取込時のエラー種別。UI層でユーザー向けメッセージに変換する。 */
+sealed class BookImportError(val userMessage: String) : Exception(userMessage) {
+    class EncryptedPdf        : BookImportError("パスワード付きPDFは現在サポートしていません")
+    class CorruptedPdf        : BookImportError("PDFファイルが破損しているか、読み取れません")
+    class InsufficientStorage : BookImportError("ストレージの空き容量が不足しています")
+    class UriPermissionDenied : BookImportError("ファイルへのアクセス権限がありません。もう一度ファイルを選択してください")
+    class StorageWriteFailure : BookImportError("ファイルの書き込みに失敗しました")
+    class Unknown(val detail: String?) : BookImportError("PDF処理に失敗しました")
+}
 
 data class ProcessingState(
     val isProcessing: Boolean = false,
@@ -24,8 +33,8 @@ data class ProcessingState(
 
 class BookshelfViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = BookRepository(application)
     private val app = application as NovelReaderApplication
+    private val repository = app.repository
 
     val books: StateFlow<List<BookEntity>> = repository.allBooks
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

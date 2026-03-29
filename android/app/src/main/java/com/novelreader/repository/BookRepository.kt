@@ -3,11 +3,16 @@ package com.novelreader.repository
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import com.chaquo.python.PyException
 import com.chaquo.python.Python
 import com.novelreader.data.AppDatabase
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.viewmodel.BookImportError
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -24,6 +29,26 @@ class BookRepository(private val context: Context) {
 
     fun interface ProgressCallback {
         fun onProgress(step: Int, stepLocalPercent: Float, phase: String)
+    }
+
+    /** Python/Kotlin の例外をユーザー向けエラー種別に変換する */
+    private fun classifyError(e: Throwable): Throwable {
+        if (e is PyException) {
+            val msg = e.message ?: ""
+            return when {
+                msg.contains("EncryptedPdfError")        -> BookImportError.EncryptedPdf()
+                msg.contains("InsufficientStorageError") -> BookImportError.InsufficientStorage()
+                msg.contains("CorruptedPdfError")        -> BookImportError.CorruptedPdf()
+                else                                     -> BookImportError.Unknown(msg)
+            }
+        }
+        val msg = e.message ?: ""
+        return when {
+            msg.contains("PDFファイルを開けません")      -> BookImportError.UriPermissionDenied()
+            msg.contains("出力ディレクトリの作成に失敗")  -> BookImportError.StorageWriteFailure()
+            msg.contains("No space left on device")     -> BookImportError.InsufficientStorage()
+            else                                        -> BookImportError.Unknown(msg)
+        }
     }
 
     /** PDFをキャッシュにコピーし、Chaquopy経由でHTML生成後にRoomへ登録する。 */
@@ -49,27 +74,36 @@ class BookRepository(private val context: Context) {
                     throw IOException("出力ディレクトリの作成に失敗しました: ${outputDir.absolutePath}")
                 }
 
-                // ③ Chaquopy経由で Python 処理（コールバックでフェーズ進捗を通知）
-                val python = Python.getInstance()
-                val title = python.getModule("app")
-                    .callAttr(
-                        "process_pdf",
-                        tempFile.absolutePath,
-                        bookId,
-                        outputDir.absolutePath,
-                        true,
-                        ProgressCallback { step, stepLocalPercent, phase -> onProgress(step, stepLocalPercent, phase) },
-                    )
-                    .toString()
-
-                // ④ Roomに登録
-                val book = BookEntity(bookId, title, outputDir.absolutePath)
-                bookDao.insertBook(book)
+                // ③ Chaquopy経由で Python 処理 + ④ Room登録を NonCancellable で一体化
+                // Python は JNI ブロッキング呼び出しのためキャンセル不能。
+                // HTML生成後・DB登録前にキャンセルされると孤立ファイルが残るため両者を同一ブロックに含める。
+                val book = withContext(NonCancellable) {
+                    val python = Python.getInstance()
+                    val title = python.getModule("app")
+                        .callAttr(
+                            "process_pdf",
+                            tempFile.absolutePath,
+                            bookId,
+                            outputDir.absolutePath,
+                            true,
+                            ProgressCallback { step, stepLocalPercent, phase -> onProgress(step, stepLocalPercent, phase) },
+                        )
+                        .toString()
+                    val b = BookEntity(bookId, title, outputDir.absolutePath)
+                    bookDao.insertBook(b)
+                    b
+                }
+                // NonCancellable ブロック完了後にキャンセルを確認
+                // （NonCancellable 内では ensureActive() が機能しないため必ず外側で呼ぶ）
+                currentCoroutineContext().ensureActive()
                 book
             } finally {
                 if (!tempFile.delete()) Log.w(TAG, "一時ファイルの削除に失敗: ${tempFile.absolutePath}")
             }
-        }
+        }.fold(
+            onSuccess = { Result.success(it) },
+            onFailure = { Result.failure(classifyError(it)) },
+        )
     }
 
     suspend fun deleteBook(book: BookEntity) = withContext(Dispatchers.IO) {

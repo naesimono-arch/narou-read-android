@@ -3,10 +3,14 @@ package com.novelreader
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import com.novelreader.repository.BookRepository
 import com.novelreader.viewmodel.ProcessingState
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class NovelReaderApplication : Application() {
+
+    /** 書籍データアクセス層のシングルトン（Service/ViewModel 共用） */
+    val repository: BookRepository by lazy { BookRepository(this) }
 
     /** サービス↔ViewModel間の処理状態共有 */
     val processingState = MutableStateFlow<ProcessingState?>(null)
