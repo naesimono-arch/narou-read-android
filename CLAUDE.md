@@ -145,6 +145,21 @@ context.filesDir/novels/{bookId}/
 
 ルビのマーカー形式：`|base_char《ruby_text》` → HTML変換後：`<ruby>base<rt>ruby</rt></ruby>`
 
+## Room スキーマ変更ルール
+
+- **Entityを変更したら `version` を必ず1上げ、`Migration` オブジェクトを書くこと。**
+  ```kotlin
+  val MIGRATION_3_4 = object : Migration(3, 4) {
+      override fun migrate(database: SupportSQLiteDatabase) {
+          // ALTER TABLE などの DDL
+      }
+  }
+  // databaseBuilder(...).addMigrations(MIGRATION_3_4).build()
+  ```
+- `fallbackToDestructiveMigration()` は使用禁止（既存ユーザーのデータが消えるため）。
+- スキーマ JSON は `android/app/schemas/` に自動出力される。**git 管理対象**とし、コミットに含めること。
+- version 3 が「ゼロベース」。v3 以前の Migration は存在しない（歴史不明のため省略）。
+
 ## 注意事項
 
 - Pythonロジックの唯一の場所は `android/app/src/main/python/`（Web版は削除済み）
