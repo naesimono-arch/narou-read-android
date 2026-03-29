@@ -66,5 +66,5 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch(Dispatchers.IO) { repository.saveProgress(bookId, filename) }
     }
 
-    fun clearError() { app.errorState.value = null }
+    fun clearError() { app.clearError() }
 }

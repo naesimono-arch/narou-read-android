@@ -68,20 +68,20 @@ class PdfProcessingService : Service() {
                 val result = repository.addBook(uri, onProgress = { step, stepLocalPercent, phase ->
                     val progress = (step * 25 + stepLocalPercent * 25).toInt().coerceIn(0, 100)
                     updateProgressNotification(progress, "ステップ ${step + 1}/4 - $phase")
-                    app.processingState.value = ProcessingState(true, step, 4, stepLocalPercent, phase)
+                    app.updateProcessingState(ProcessingState(true, step, 4, stepLocalPercent, phase))
                 })
 
                 result.fold(
                     onSuccess = { book ->
                         showCompletionNotification(book.title)
-                        app.processingState.value = null
+                        app.updateProcessingState(null)
                     },
                     onFailure = { e ->
                         val msg = if (e is BookImportError) e.userMessage
                                   else e.message ?: "PDF処理に失敗しました"
                         showErrorNotification(msg)
-                        app.errorState.value = msg
-                        app.processingState.value = null
+                        app.updateErrorState(msg)
+                        app.updateProcessingState(null)
                     },
                 )
             } finally {
@@ -100,7 +100,7 @@ class PdfProcessingService : Service() {
         wakeLock = null
         scope.cancel()
         // Service が突然終了した場合のフェイルセーフ：処理状態と排他フラグをリセット
-        (application as? NovelReaderApplication)?.processingState?.value = null
+        (application as? NovelReaderApplication)?.updateProcessingState(null)
         isProcessing.set(false)
         super.onDestroy()
     }
