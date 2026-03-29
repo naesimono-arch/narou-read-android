@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **10行を超えるコードブロックをチャットに出力してはならない。**
 - ファイル全体の表示も禁止。代わりに `code <ファイルパス>` を実行してエディタで開くこと。
   ```bash
-  code android/app/src/main/java/com/novelreader/BookshelfScreen.kt
+  code android/app/src/main/java/com/novelreader/ui/BookshelfScreen.kt
   ```
 - 変更点の説明は「何を・なぜ変えたか」を簡潔に文章で述べるだけでよい。
 
@@ -94,10 +94,14 @@ Pythonファイルはすべて `android/app/src/main/python/` に配置。
 ```
 MainActivity
   └─ NavHost
-       ├─ BookshelfScreen  — 書籍一覧、PDF選択、処理進捗表示
-       └─ ReadingScreen    — WebViewでローカルHTML表示、章遷移・進捗保存
-BookshelfViewModel
-  └─ BookRepository        — データアクセス層（Room + Chaquopy呼び出し）
+       ├─ ui/BookshelfScreen     — 書籍一覧、PDF選択、処理進捗表示
+       └─ ui/ReadingScreen       — WebViewでローカルHTML表示、章遷移・進捗保存
+viewmodel/BookshelfViewModel
+  └─ repository/BookRepository   — データアクセス層（Room + Chaquopy呼び出し）
+NovelReaderApplication
+  ├─ repository（シングルトン）   — Service/ViewModel 共用
+  ├─ processingState: MutableStateFlow<ProcessingState?>
+  └─ errorState:      MutableStateFlow<String?>
 ```
 
 ### Service層
@@ -147,4 +151,4 @@ context.filesDir/novels/{bookId}/
 - UIコメントはすべて日本語
 - index.html（目次ページ）閲覧時は読書進捗を上書きしない制御が入っている
 - ForegroundService の多重起動ガードに `AtomicBoolean` を使用
-- OPPO/ColorOS 固有の動作については `task.md` を参照
+- OPPO/ColorOS 固有の動作については `task_diary.md` を参照
