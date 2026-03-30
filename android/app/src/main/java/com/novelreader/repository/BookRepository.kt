@@ -101,7 +101,10 @@ class BookRepository(private val context: Context) {
             }
         }.fold(
             onSuccess = { Result.success(it) },
-            onFailure = { Result.failure(classifyError(it)) },
+            onFailure = { e ->
+                Log.e(TAG, "addBook 失敗", e)
+                Result.failure(classifyError(e))
+            },
         )
     }
 
