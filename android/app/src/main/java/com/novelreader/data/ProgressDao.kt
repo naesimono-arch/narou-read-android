@@ -5,7 +5,7 @@ import androidx.room.*
 @Dao
 interface ProgressDao {
 
-    @Query("SELECT lastRead FROM progress WHERE bookId = :bookId")
+    @Query("SELECT lastReadFilename FROM progress WHERE bookId = :bookId")
     suspend fun getLastRead(bookId: String): String?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
