@@ -237,3 +237,43 @@ Migration 実行前に `PRAGMA table_info` でカラムの実在を確認し、`
 - コードを revert する前に「端末 DB が何バージョンか」を必ず確認すること
 
 
+## 2026-03-31 | Chaquopy callAttr() 引数ミスマッチによる PyException の無音失敗
+
+### 症状
+PDF を選択するたびに「PDF処理に失敗しました」が Snackbar に表示され、何も追加されない。
+logcat の E レベルには OPPO システムノイズしか現れず、アプリ側のエラーが一切見えなかった。
+
+### 原因の連鎖
+
+**① Kotlin → Python 呼び出しの引数が1個多かった**
+`BookRepository.callAttr("process_pdf", ...)` に余分な `true` が混入していた。
+
+```kotlin
+// 誤: 5個渡している
+.callAttr("process_pdf", path, bookId, outputDir, true, ProgressCallback { ... })
+
+// 正: process_pdf(pdf_path, book_id, output_dir, progress_callback=None) の4引数
+.callAttr("process_pdf", path, bookId, outputDir, ProgressCallback { ... })
+```
+
+Python 側で `TypeError: process_pdf() takes from 3 to 4 positional arguments but 5 were given` が発生。
+
+**② runCatching + classifyError() が例外をログなしに吸収**
+`BookRepository.addBook()` は `runCatching { } .fold(onFailure = { Result.failure(classifyError(it)) })` という構造で、
+`classifyError()` も `onFailure` も `Log.e()` を呼んでいなかった。
+結果として PyException は `BookImportError.Unknown` に変換されるだけで logcat に痕跡ゼロ。
+
+**③ Chaquopy は PyException をアプリのログとして出力しない**
+Chaquopy が Python 例外を JNI 経由で Kotlin に橋渡しする際、logcat に自動でスタックトレースを書き出さない。
+`classifyError()` で処理される前に `Log.e()` を挿入しなければ原因は永遠に見えない。
+
+### 修正
+- `callAttr()` から余分な `true` を削除（根本原因の修正）
+- `BookRepository.addBook()` の `onFailure` と `PdfProcessingService.onFailure` に `Log.e()` を追加
+
+### 教訓
+- **Chaquopy の `callAttr()` は引数の型チェックをしない。** Python 関数定義の引数の数と完全に一致させること
+- **`runCatching + classifyError()` パターンは例外を無音で飲み込む。** このパターンを使う箇所には必ず `Log.e()` でログを残すこと
+- logcat に E レベルのアプリエラーが出ない場合、「例外がどこかで catch されてログ出力されていない」を疑うこと
+- OPPO デバイスの E レベルノイズ（SchedAssist / UAH_CLIENT / OplusThermalStats 等）はアプリの問題とは無関係
+
