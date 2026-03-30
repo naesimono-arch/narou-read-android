@@ -85,7 +85,6 @@ class BookRepository(private val context: Context) {
                             tempFile.absolutePath,
                             bookId,
                             outputDir.absolutePath,
-                            true,
                             ProgressCallback { step, stepLocalPercent, phase -> onProgress(step, stepLocalPercent, phase) },
                         )
                         .toString()
