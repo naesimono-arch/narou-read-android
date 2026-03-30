@@ -44,7 +44,7 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
         .map { it ?: ProcessingState() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProcessingState())
 
-    val errorMessage: StateFlow<String?> = app.errorState.asStateFlow()
+    val errorMessage: StateFlow<String?> = app.errorState
 
     fun addBook(uri: Uri) {
         val intent = Intent(getApplication(), PdfProcessingService::class.java).apply {

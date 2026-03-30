@@ -34,6 +34,7 @@ import androidx.core.content.ContextCompat
 import com.novelreader.data.BookEntity
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.ProcessingState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -283,6 +284,7 @@ fun BookshelfScreen(
     // エラー Snackbar
     errorMessage?.let { msg ->
         LaunchedEffect(msg) {
+            delay(4_000L)
             viewModel.clearError()
         }
         Snackbar(
