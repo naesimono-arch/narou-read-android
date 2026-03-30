@@ -203,3 +203,37 @@ ViewModel → Repository 直結の素直なMVVMを採用。
 
 <!-- 新規エントリは以下に追加。フォーマット: ## YYYY-MM-DD | タイトル -->
 
+## 2026-03-30 | Room Migration の誤った前提によるクラッシュ
+
+### 症状
+PDF を選択すると上部に一瞬エラーが表示されて何も起こらない。その後、修正を試みたことでアプリが即座に落ちるようになった。
+
+### 原因の連鎖
+
+**① 発端: Room スキーマ変更ルールの不遵守**
+`ProgressEntity.kt` の `lastRead` → `lastReadFilename` カラムリネームを行ったが、`AppDatabase.version` を上げず Migration も書かなかった。
+
+**② フレッシュインストールによる想定外の v3 スキーマ**
+端末がフレッシュインストールのため、Room が v3 DB を Entity 定義から直接生成した。
+結果として v3 DB に `lastReadFilename` カラムが作られた（`lastRead` は存在しない）。
+
+**③ Migration が誤った前提で書かれていた**
+「v3 DB は必ず `lastRead` を持つ」と仮定して以下の SQL を書いた：
+```sql
+INSERT INTO progress_new SELECT bookId, lastRead FROM progress
+```
+実際には `lastRead` が存在しないため `SQLiteException: no such column` → アプリ即クラッシュ。
+
+**④ revert 操作が追い討ち**
+AppDatabase を v3 に revert したため、デバイス DB（v4）とコード（v3）が不一致 → Room がダウングレード Migration を要求してクラッシュ。
+
+### 最終的な修正
+Migration 実行前に `PRAGMA table_info` でカラムの実在を確認し、`lastRead` がある場合のみテーブル再作成を行う分岐を追加した。
+
+### 教訓
+- **Room スキーマ変更は必ず version UP + Migration とセットで行うこと**（CLAUDE.md 記載済み）
+- Migration の SQL を書く前に `PRAGMA table_info` で端末 DB の実際のカラムを確認すること
+- Entity 変更後にフレッシュインストールした端末は、バージョン据え置きのまま新スキーマで DB が作られる。後から Migration を追加すると「旧カラム名を参照する SQL」が失敗する
+- コードを revert する前に「端末 DB が何バージョンか」を必ず確認すること
+
+
