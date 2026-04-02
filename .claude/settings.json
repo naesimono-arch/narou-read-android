@@ -1,0 +1,43 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/block_destructive_migration.py"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/check_commit_granularity.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/check_schema_change.py"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/open_in_vscode.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/remind_commit_plan.py"
+          }
+        ]
+      }
+    ]
+  }
+}
