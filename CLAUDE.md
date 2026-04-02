@@ -12,6 +12,9 @@ Jetpack Compose + Chaquopy (Python 3.12)。
 ./gradlew assembleDebug       # デバッグAPKビルド
 ./gradlew installDebug        # インストール
 ./gradlew compileDebugKotlin  # Kotlinコンパイル確認
+
+# Python PDFロジックの単体テスト（Android実機不要）
+cd android/app/src/main/python && python -m unittest test_logic -v
 ```
 
 ## 開発ルール
@@ -20,6 +23,7 @@ Jetpack Compose + Chaquopy (Python 3.12)。
 - **コードダンプ禁止**: チャットへのコード出力は10行以内。全体確認は `code <ファイルパス>` でエディターを開く。
 - **Atomic Commit**: 1論理的変更＝1コミット。形式は `fix/feat/refactor: 要約（日本語可）`。`git commit` 前に変更内容を提示して人間の承認を得ること。
 - **UIコメントは日本語**
+- **自己検証必須**: PDF処理ロジック（`pdf_extractor.py` / `chapter_processor.py` 等）を変更した場合は必ず `python -m unittest test_logic -v` を実行してからコミット計画を提示すること。
 
 ## ドメイン知識
 
