@@ -7,7 +7,10 @@ import json
 import sys
 import subprocess
 
-data = json.load(sys.stdin)
+try:
+    data = json.load(sys.stdin)
+except (json.JSONDecodeError, EOFError):
+    sys.exit(0)
 tool_name = data.get("tool_name", "")
 tool_input = data.get("tool_input", {})
 
