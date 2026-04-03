@@ -166,6 +166,15 @@ class TestProcessForewordAfterwword(unittest.TestCase):
         self.assertIn("|字《》", result[0]["body"])
         self.assertNotIn("<ruby>", result[0]["body"])
 
+    def test_ruby_in_afterword_body(self):
+        # 後書き本文の ruby マーカーも変換される
+        chapters = [
+            {"title": "第一話", "body": ["本文"]},
+            {"title": "後書き", "body": ["|字《よみ》"]},
+        ]
+        result = process_foreword_afterword(chapters)
+        self.assertIn("<ruby>字<rt>よみ</rt></ruby>", result[0]["body"])
+
 
 # ゴールデンテスト用定数
 _GOLDEN_CHAPTERS = [

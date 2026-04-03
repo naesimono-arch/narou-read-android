@@ -30,13 +30,23 @@ def split_into_chapters(paragraphs):
     return chapters
 
 
+def _apply_ruby(text):
+    """|base《ruby》 マーカーを <ruby> タグに変換する。"""
+    def _repl(m):
+        base, ruby = m.group(1), m.group(2)
+        if len(base) == len(ruby):
+            return "".join(f"<ruby>{b}<rt>{r}</rt></ruby>" for b, r in zip(base, ruby))
+        return f"<ruby>{base}<rt>{ruby}</rt></ruby>"
+    return re.sub(r"\|([^《]+)《([^》]+)》", _repl, text)
+
+
 def process_foreword_afterword(chapters_data):
     final_chapters = []
     temp_foreword = ""
 
     for chap in chapters_data:
         title = chap["title"]
-        body_text = "\n".join(chap["body"])
+        body_text = _apply_ruby("\n".join(chap["body"]))
 
         if "前書き" in title:
             temp_foreword = (
@@ -57,15 +67,6 @@ def process_foreword_afterword(chapters_data):
             continue
 
         full_body = temp_foreword + body_text
-
-        def ruby_marker_repl(m):
-            base, ruby = m.group(1), m.group(2)
-            if len(base) == len(ruby):
-                return "".join(f"<ruby>{b}<rt>{r}</rt></ruby>" for b, r in zip(base, ruby))
-            return f"<ruby>{base}<rt>{ruby}</rt></ruby>"
-
-        full_body = re.sub(r"\|([^《]+)《([^》]+)》", ruby_marker_repl, full_body)
-
         final_chapters.append({"title": title, "body": full_body})
         temp_foreword = ""
 
