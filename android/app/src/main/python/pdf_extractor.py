@@ -32,44 +32,98 @@ def _iter_chars_from_page(layout_page, page_height):
     yield from _recurse(layout_page)
 
 
-# ==========================================
-# 【Phase 00】 表紙から書籍タイトルを抽出
-# ==========================================
-def extract_book_title(pdf_path):
-    """1ページ目の最も大きな文字列を、X左→右の順で結合してタイトルとする。"""
-    pages = list(extract_pages(pdf_path, page_numbers=[0]))
-    if not pages:
-        return "不明なタイトル"
-    page = pages[0]
-    chars = list(_iter_chars_from_page(page, page.height))
-
-    if not chars:
-        return "不明なタイトル"
-
-    max_size = max(c["size"] for c in chars)
-    title_chars = [c for c in chars if math.isclose(c["size"], max_size, abs_tol=0.1)]
-    title_chars.sort(key=lambda c: (c["top"], c["x0"]))
-    title = "".join(c["text"] for c in title_chars).strip()
-    return title if title else "無題の作品"
+def _group_chars_by_line(bodies_all):
+    """本文文字 dict リストを x0 座標（縦列）でグループ化して dict を返す。"""
+    lines_dict = {}
+    for c in bodies_all:
+        x_val = c["x0"]
+        matched_key = None
+        for k in lines_dict:
+            if math.isclose(x_val, k, abs_tol=pdf_rules.TOLERANCE):
+                matched_key = k
+                break
+        if matched_key is not None:
+            lines_dict[matched_key].append(c)
+        else:
+            lines_dict[x_val] = [c]
+    return lines_dict
 
 
-# ==========================================
-# 【Phase 01-02】 抽出・整形エンジン
-# ==========================================
-def run_final_engine(pdf_path_override, progress_callback=None):
-    """PDFから本文を抽出する。"""
-    path_to_use = pdf_path_override
+def _associate_ruby(lines_dict, rubies_all):
+    """ルビ文字を lines_dict の最近傍親文字に ruby_text として紐付ける（in-place）。"""
+    for r in rubies_all:
+        target_x = r["x0"] - pdf_rules.RUBY_OFFSET_X
+        matched_line_key = None
+        for x_key in lines_dict:
+            if math.isclose(x_key, target_x, abs_tol=pdf_rules.TOLERANCE):
+                matched_line_key = x_key
+                break
+
+        if matched_line_key is not None:
+            target_line = lines_dict[matched_line_key]
+            best_match_char = None
+            min_distance = float("inf")
+            for bc in target_line:
+                dist = abs(bc["top"] - r["top"])
+                if dist < min_distance:
+                    min_distance = dist
+                    best_match_char = bc
+            if best_match_char is not None:
+                if "ruby_text" not in best_match_char:
+                    best_match_char["ruby_text"] = ""
+                best_match_char["ruby_text"] += r["text"]
+
+
+def _build_line_str(line_bodies):
+    """Y昇順でソート済みの文字リストからルビマーカー付き文字列を組み立てる。"""
+    line_str = ""
+    j = 0
+    while j < len(line_bodies):
+        bc = line_bodies[j]
+        char_text = bc.get("text", "")
+        if char_text in [" ", "\n", "\r", "\t", "\xa0"]:
+            j += 1
+            continue
+
+        ruby_text = bc.get("ruby_text")
+        if ruby_text:
+            base_run = ""
+            ruby_run = ""
+            while j < len(line_bodies):
+                bc2 = line_bodies[j]
+                t2 = bc2.get("text", "")
+                if t2 in [" ", "\n", "\r", "\t", "\xa0"]:
+                    j += 1
+                    continue
+                r2 = bc2.get("ruby_text")
+                if not r2:
+                    break
+                base_run += t2
+                ruby_run += r2
+                j += 1
+            if base_run and ruby_run:
+                line_str += f"|{base_run}《{ruby_run}》"
+            else:
+                line_str += char_text
+                j += 1
+        else:
+            line_str += char_text
+            j += 1
+    return line_str
+
+
+def _process_pages(char_lists_by_page, total_pages, progress_callback=None):
+    """pdfminer に依存しない本文抽出コア。
+    char_lists_by_page: ページごとの char dict リスト（list[list[dict]]）
+    total_pages: 総ページ数（ページ除外条件に使用）
+    戻り値: 段落文字列のリスト
+    """
     all_paragraphs = []
     current_paragraph = ""
-
-    # ページ数を取得（最後のページを除外するため）
-    with open(path_to_use, "rb") as f:
-        total_pages = sum(1 for _ in PDFPage.get_pages(f))
-
     body_total = max(total_pages - 4, 1)
 
-    # 最初の3ページ（表紙・注意事項）と最後の1ページ（クレジット）を除外
-    for page_num, page in enumerate(extract_pages(path_to_use)):
+    for page_num, chars in enumerate(char_lists_by_page):
+        # 最初の3ページ（表紙・注意事項）と最後の1ページ（クレジット）を除外
         if page_num < 3 or page_num >= total_pages - 1:
             continue
 
@@ -82,7 +136,7 @@ def run_final_engine(pdf_path_override, progress_callback=None):
         bodies_all = []
         rubies_all = []
 
-        for c in _iter_chars_from_page(page, page.height):
+        for c in chars:
             fontname = c["fontname"]
             fontsize = c["size"]
             y_pos   = c["top"]
@@ -120,42 +174,8 @@ def run_final_engine(pdf_path_override, progress_callback=None):
         # 本文のソート（X降順・Y昇順）
         bodies_all.sort(key=lambda c: (-c["x0"], c["top"]))
 
-        # 本文をX座標（行）ごとに仕分ける
-        lines_dict = {}
-        for c in bodies_all:
-            x_val = c["x0"]
-            matched_key = None
-            for k in lines_dict:
-                if math.isclose(x_val, k, abs_tol=pdf_rules.TOLERANCE):
-                    matched_key = k
-                    break
-            if matched_key is not None:
-                lines_dict[matched_key].append(c)
-            else:
-                lines_dict[x_val] = [c]
-
-        # ルビを親文字に紐付ける
-        for r in rubies_all:
-            target_x = r["x0"] - pdf_rules.RUBY_OFFSET_X
-            matched_line_key = None
-            for x_key in lines_dict:
-                if math.isclose(x_key, target_x, abs_tol=pdf_rules.TOLERANCE):
-                    matched_line_key = x_key
-                    break
-
-            if matched_line_key is not None:
-                target_line = lines_dict[matched_line_key]
-                best_match_char = None
-                min_distance = float("inf")
-                for bc in target_line:
-                    dist = abs(bc["top"] - r["top"])
-                    if dist < min_distance:
-                        min_distance = dist
-                        best_match_char = bc
-                if best_match_char is not None:
-                    if "ruby_text" not in best_match_char:
-                        best_match_char["ruby_text"] = ""
-                    best_match_char["ruby_text"] += r["text"]
+        lines_dict = _group_chars_by_line(bodies_all)
+        _associate_ruby(lines_dict, rubies_all)
 
         # 右の行から順にテキスト化 ＆ 段落の縫合
         lines_sorted_x = sorted(lines_dict.keys(), reverse=True)
@@ -163,40 +183,7 @@ def run_final_engine(pdf_path_override, progress_callback=None):
 
         for x in lines_sorted_x:
             line_bodies = sorted(lines_dict[x], key=lambda c: c["top"])
-            line_str = ""
-
-            j = 0
-            while j < len(line_bodies):
-                bc = line_bodies[j]
-                char_text = bc.get("text", "")
-                if char_text in [" ", "\n", "\r", "\t", "\xa0"]:
-                    j += 1
-                    continue
-
-                ruby_text = bc.get("ruby_text")
-                if ruby_text:
-                    base_run = ""
-                    ruby_run = ""
-                    while j < len(line_bodies):
-                        bc2 = line_bodies[j]
-                        t2 = bc2.get("text", "")
-                        if t2 in [" ", "\n", "\r", "\t", "\xa0"]:
-                            j += 1
-                            continue
-                        r2 = bc2.get("ruby_text")
-                        if not r2:
-                            break
-                        base_run += t2
-                        ruby_run += r2
-                        j += 1
-                    if base_run and ruby_run:
-                        line_str += f"|{base_run}《{ruby_run}》"
-                    else:
-                        line_str += char_text
-                        j += 1
-                else:
-                    line_str += char_text
-                    j += 1
+            line_str = _build_line_str(line_bodies)
 
             if not line_str:
                 continue
@@ -238,3 +225,40 @@ def run_final_engine(pdf_path_override, progress_callback=None):
                 final_output.append(cleaned)
 
     return final_output
+
+
+# ==========================================
+# 【Phase 00】 表紙から書籍タイトルを抽出
+# ==========================================
+def extract_book_title(pdf_path):
+    """1ページ目の最も大きな文字列を、X左→右の順で結合してタイトルとする。"""
+    pages = list(extract_pages(pdf_path, page_numbers=[0]))
+    if not pages:
+        return "不明なタイトル"
+    page = pages[0]
+    chars = list(_iter_chars_from_page(page, page.height))
+
+    if not chars:
+        return "不明なタイトル"
+
+    max_size = max(c["size"] for c in chars)
+    title_chars = [c for c in chars if math.isclose(c["size"], max_size, abs_tol=0.1)]
+    title_chars.sort(key=lambda c: (c["top"], c["x0"]))
+    title = "".join(c["text"] for c in title_chars).strip()
+    return title if title else "無題の作品"
+
+
+# ==========================================
+# 【Phase 01-02】 抽出・整形エンジン
+# ==========================================
+def run_final_engine(pdf_path_override, progress_callback=None):
+    """PDFから本文を抽出する。"""
+    path_to_use = pdf_path_override
+    with open(path_to_use, "rb") as f:
+        total_pages = sum(1 for _ in PDFPage.get_pages(f))
+
+    char_lists_by_page = [
+        list(_iter_chars_from_page(page, page.height))
+        for page in extract_pages(path_to_use)
+    ]
+    return _process_pages(char_lists_by_page, total_pages, progress_callback)
