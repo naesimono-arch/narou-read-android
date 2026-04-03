@@ -7,6 +7,8 @@ fixture更新: cd android/app/src/main/python && UPDATE_GOLDEN=1 python -m unitt
 import os
 import tempfile
 import unittest
+import pdf_extractor
+import pdf_rules
 from pdf_rules import check_is_title
 from chapter_processor import split_into_chapters, process_foreword_afterword
 from html_exporter import export_to_mobile_html
@@ -174,6 +176,107 @@ class TestProcessForewordAfterwword(unittest.TestCase):
         ]
         result = process_foreword_afterword(chapters)
         self.assertIn("<ruby>字<rt>よみ</rt></ruby>", result[0]["body"])
+
+
+def _ch(text, fontname, size, x0, top, bottom=None):
+    """テスト用の char dict を生成するヘルパー。"""
+    return {
+        "text": text,
+        "fontname": fontname,
+        "size": size,
+        "x0": x0,
+        "top": top,
+        "bottom": bottom if bottom is not None else top + size,
+    }
+
+
+class TestGroupCharsByLine(unittest.TestCase):
+    """pdf_extractor._group_chars_by_line のテスト"""
+
+    def test_same_x_grouped(self):
+        # 同一 x0 の文字は1グループになる
+        chars = [
+            _ch("あ", "R", 14.0, 100.0, 50.0),
+            _ch("い", "R", 14.0, 100.0, 70.0),
+        ]
+        result = pdf_extractor._group_chars_by_line(chars)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(len(list(result.values())[0]), 2)
+
+    def test_close_x_within_tolerance(self):
+        # x0 差が TOLERANCE(0.1) 以内は同グループ、超過は別グループ
+        close  = _ch("あ", "R", 14.0, 100.05, 50.0)  # 差0.05 → 同グループ
+        far    = _ch("い", "R", 14.0, 100.20, 50.0)  # 差0.20 → 別グループ
+        anchor = _ch("基", "R", 14.0, 100.0,  50.0)
+        result = pdf_extractor._group_chars_by_line([anchor, close, far])
+        self.assertEqual(len(result), 2)
+
+
+class TestAssociateRuby(unittest.TestCase):
+    """pdf_extractor._associate_ruby のテスト"""
+
+    def test_ruby_attached_to_nearest_char(self):
+        # ルビの x0 が親文字 x0 + RUBY_OFFSET_X と一致する場合に紐付く
+        body_char = _ch("漢", "R", 14.0, 200.0, 50.0)
+        ruby_char = _ch("か", "R", 7.0, 200.0 + pdf_rules.RUBY_OFFSET_X, 50.0)
+        lines_dict = {200.0: [body_char]}
+        pdf_extractor._associate_ruby(lines_dict, [ruby_char])
+        self.assertEqual(body_char.get("ruby_text"), "か")
+
+    def test_ruby_no_match_ignored(self):
+        # 対応する列がないルビはスキップされる（クラッシュしない）
+        body_char = _ch("漢", "R", 14.0, 200.0, 50.0)
+        ruby_char = _ch("か", "R", 7.0, 999.0, 50.0)  # 対応列なし
+        lines_dict = {200.0: [body_char]}
+        pdf_extractor._associate_ruby(lines_dict, [ruby_char])
+        self.assertNotIn("ruby_text", body_char)
+
+
+class TestBuildLineStr(unittest.TestCase):
+    """pdf_extractor._build_line_str のテスト"""
+
+    def test_ruby_run_built(self):
+        # ruby_text 付き文字が |base《ruby》 形式に変換される
+        char = _ch("字", "R", 14.0, 100.0, 50.0)
+        char["ruby_text"] = "よみ"
+        result = pdf_extractor._build_line_str([char])
+        self.assertEqual(result, "|字《よみ》")
+
+
+class TestProcessPages(unittest.TestCase):
+    """pdf_extractor._process_pages の統合回帰テスト（3点確認）"""
+
+    def _make_pages(self):
+        """5ページ構成: page0-2はスキップ, page3が有効, page4はスキップ（total_pages-1）"""
+        bold = "NotoSerifCJK Bold"
+        reg  = "NotoSerifCJK Regular"
+        skip_char   = _ch("除外", reg, 14.0, 200.0, 50.0)
+        title_char  = _ch("話", bold, 14.0, 200.0, 50.0)
+        body_char   = _ch("本", reg, 14.0, 180.0, 70.0)
+        pageno_char = _ch("1", reg, pdf_rules.FONT_SIZE_PAGE, 100.0,
+                          pdf_rules.PAGE_NUM_Y,
+                          pdf_rules.PAGE_NUM_Y + pdf_rules.FONT_SIZE_PAGE)
+        return [
+            [skip_char],                           # page 0: 除外されるべき
+            [],                                    # page 1
+            [],                                    # page 2
+            [title_char, body_char, pageno_char],  # page 3: 有効
+            [skip_char],                           # page 4 (= total_pages-1): 除外されるべき
+        ]
+
+    def test_page_exclusion_title_detection_pageno_exclusion(self):
+        pages  = self._make_pages()
+        result = pdf_extractor._process_pages(pages, total_pages=5)
+        joined = "\n".join(result)
+
+        # 1. ページ除外: page0/4 の「除外」は結果に含まれない
+        self.assertNotIn("除外", joined)
+
+        # 2. 題名検出: Bold文字が 【題名】 プレフィックス付きで出力される
+        self.assertTrue(any("【題名】" in p for p in result))
+
+        # 3. ページ番号除外: PAGE_NUM_Y 位置の 12pt 文字「1」は出力されない
+        self.assertNotIn("1", joined)
 
 
 # ゴールデンテスト用定数
