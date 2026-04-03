@@ -39,12 +39,12 @@ except OSError:
 if re.search(r"^##\s+.*?(コミット|commit)", content, re.MULTILINE | re.IGNORECASE):
     sys.exit(0)
 
-print("[コミット計画チェック]")
+print("[コミット計画チェック] BLOCK")
 print(f"プランファイル {os.path.basename(normalized)} にコミット計画セクションがありません。")
-print("「## 検証方法」の後に以下の形式で追加してください:\n")
+print("以下の形式でセクションを追加してからプランを保存してください:\n")
 print("## コミット計画\n")
 print("| # | 内容 | 対象ファイル |")
 print("|---|------|------------|")
 print("| 1 | feat: ... | foo.kt |")
 print("| 2 | fix: ...  | bar.py |")
-sys.exit(0)
+sys.exit(2)
