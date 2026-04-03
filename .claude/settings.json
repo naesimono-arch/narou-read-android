@@ -1,4 +1,9 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(cd *android* && *gradlew testDebugUnitTest*BookRepositoryTest*)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
@@ -6,7 +11,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/open_in_vscode.py"
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/open_in_vscode.py\""
           }
         ]
       },
@@ -15,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/remind_commit_plan.py"
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/remind_commit_plan.py\""
           }
         ]
       }
@@ -26,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/block_destructive_migration.py"
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/block_destructive_migration.py\""
           }
         ]
       },
@@ -35,11 +40,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/check_commit_granularity.py"
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/check_commit_granularity.py\""
           },
           {
             "type": "command",
-            "command": "python .claude/hooks/check_schema_change.py"
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/check_schema_change.py\""
           }
         ]
       }
