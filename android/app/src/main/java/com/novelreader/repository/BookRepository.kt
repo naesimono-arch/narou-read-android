@@ -6,7 +6,9 @@ import android.util.Log
 import com.chaquo.python.PyException
 import com.chaquo.python.Python
 import com.novelreader.data.AppDatabase
+import com.novelreader.data.BookDao
 import com.novelreader.data.BookEntity
+import com.novelreader.data.ProgressDao
 import com.novelreader.data.ProgressEntity
 import com.novelreader.viewmodel.BookImportError
 import kotlinx.coroutines.Dispatchers
@@ -19,11 +21,11 @@ import java.io.File
 import java.io.IOException
 import java.util.UUID
 
-class BookRepository(private val context: Context) {
-
-    private val db = AppDatabase.getDatabase(context)
-    private val bookDao = db.bookDao()
-    private val progressDao = db.progressDao()
+class BookRepository(
+    private val context: Context,
+    private val bookDao: BookDao = AppDatabase.getDatabase(context).bookDao(),
+    private val progressDao: ProgressDao = AppDatabase.getDatabase(context).progressDao(),
+) {
 
     val allBooks: Flow<List<BookEntity>> = bookDao.getAllBooks()
 
@@ -32,7 +34,7 @@ class BookRepository(private val context: Context) {
     }
 
     /** Python/Kotlin の例外をユーザー向けエラー種別に変換する */
-    private fun classifyError(e: Throwable): Throwable {
+    internal fun classifyError(e: Throwable): Throwable {
         if (e is PyException) {
             val msg = e.message ?: ""
             return when {
