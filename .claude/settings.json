@@ -1,8 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cd *android* && *gradlew testDebugUnitTest*BookRepositoryTest*)",
-      "Bash(cd *android* && *gradlew testDebugUnitTest*BookshelfViewModelTest*)",
+      "Bash(cd *android* && *gradlew testDebugUnitTest*)",
       "Bash(cd *python* && python -m unittest test_logic*)",
       "Bash(python -m unittest test_logic*)"
     ]
