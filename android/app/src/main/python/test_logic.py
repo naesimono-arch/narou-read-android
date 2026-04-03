@@ -2,10 +2,14 @@
 test_logic.py
 Pythonロジックのユニットテスト
 実行: cd android/app/src/main/python && python -m unittest test_logic -v
+fixture更新: cd android/app/src/main/python && UPDATE_GOLDEN=1 python -m unittest test_logic.TestHtmlGolden -v
 """
+import os
+import tempfile
 import unittest
 from pdf_rules import check_is_title
 from chapter_processor import split_into_chapters, process_foreword_afterword
+from html_exporter import export_to_mobile_html
 
 
 class TestCheckIsTitle(unittest.TestCase):
@@ -125,6 +129,55 @@ class TestProcessForewordAfterwword(unittest.TestCase):
         result = process_foreword_afterword(chapters)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["title"], "第一話")
+
+
+# ゴールデンテスト用定数
+_GOLDEN_CHAPTERS = [
+    {
+        "title": "第一話　ゴールデンテスト",
+        "body": "この<ruby>物語<rt>ものがたり</rt></ruby>は始まる。\n第二段落。",
+    },
+    {
+        "title": "第二話　終章",
+        "body": "すべては<ruby>終<rt>お</rt></ruby>わった。",
+    },
+]
+_GOLDEN_BOOK_TITLE = "テスト小説"
+_GOLDEN_BOOK_ID = "golden_test"
+_FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "fixtures", "golden_html")
+_UPDATE_GOLDEN = os.environ.get("UPDATE_GOLDEN") == "1"
+
+
+class TestHtmlGolden(unittest.TestCase):
+    """html_exporter.export_to_mobile_html のゴールデンテスト
+    UPDATE_GOLDEN=1 で fixture を再生成できる"""
+
+    def _run_export(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            export_to_mobile_html(
+                _GOLDEN_CHAPTERS, tmpdir, _GOLDEN_BOOK_TITLE,
+                _GOLDEN_BOOK_ID, lambda *a: None,
+            )
+            files = {}
+            for name in ["index.html", "chap_1.html", "chap_2.html"]:
+                path = os.path.join(tmpdir, name)
+                with open(path, encoding="utf-8") as f:
+                    files[name] = f.read()
+        return files
+
+    def test_golden_html(self):
+        actual = self._run_export()
+        if _UPDATE_GOLDEN:
+            os.makedirs(_FIXTURE_DIR, exist_ok=True)
+            for name, content in actual.items():
+                with open(os.path.join(_FIXTURE_DIR, name), "w", encoding="utf-8") as f:
+                    f.write(content)
+            self.skipTest("UPDATE_GOLDEN=1: fixture を更新しました")
+        for name, content in actual.items():
+            fixture_path = os.path.join(_FIXTURE_DIR, name)
+            with open(fixture_path, encoding="utf-8") as f:
+                expected = f.read()
+            self.assertEqual(expected, content, msg=f"{name} の内容が期待値と異なります")
 
 
 if __name__ == "__main__":
