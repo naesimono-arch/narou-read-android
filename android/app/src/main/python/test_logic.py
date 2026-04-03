@@ -79,6 +79,23 @@ class TestSplitIntoChapters(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertIn("後書き", result[0]["body"])
 
+    def test_consecutive_titles_no_body_between(self):
+        # 本文のない章は if current_body: チェックでサイレントドロップ（仕様明文化）
+        paragraphs = ["【題名】第一話", "【題名】第二話", "本文"]
+        result = split_into_chapters(paragraphs)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["title"], "第二話")
+        self.assertEqual(result[0]["body"], ["本文"])
+
+    def test_afterword_substring_in_chapter_title(self):
+        # タイトルに「後書き」を含む話（例: 「第五話　後書きの話」）は
+        # "後書き" in p が True になるため章として認識されず本文に追加される（仕様上の制限）
+        paragraphs = ["【題名】第一話", "本文1", "【題名】第五話　後書きの話"]
+        result = split_into_chapters(paragraphs)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["title"], "第一話")
+        self.assertIn("第五話　後書きの話", result[0]["body"])
+
 
 class TestProcessForewordAfterwword(unittest.TestCase):
     """chapter_processor.process_foreword_afterword のテスト"""
@@ -129,6 +146,25 @@ class TestProcessForewordAfterwword(unittest.TestCase):
         result = process_foreword_afterword(chapters)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["title"], "第一話")
+
+    def test_only_foreword_no_following_chapter(self):
+        # 前書きのみで後続の通常章がない場合、temp_foreword がセットされるが使われずドロップ
+        chapters = [{"title": "前書き", "body": ["前書き本文"]}]
+        result = process_foreword_afterword(chapters)
+        self.assertEqual(result, [])
+
+    def test_only_afterword_no_preceding_chapter(self):
+        # 後書きのみで前章がない場合、if final_chapters: チェックでドロップ
+        chapters = [{"title": "後書き", "body": ["後書き本文"]}]
+        result = process_foreword_afterword(chapters)
+        self.assertEqual(result, [])
+
+    def test_ruby_unmatched_empty_reading(self):
+        # |base《》 → [^》]+ は空文字列にマッチしないためマーカーがそのまま残る（クラッシュしない）
+        chapters = [{"title": "第一話", "body": ["|字《》"]}]
+        result = process_foreword_afterword(chapters)
+        self.assertIn("|字《》", result[0]["body"])
+        self.assertNotIn("<ruby>", result[0]["body"])
 
 
 # ゴールデンテスト用定数
