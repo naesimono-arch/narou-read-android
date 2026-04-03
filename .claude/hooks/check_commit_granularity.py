@@ -39,12 +39,58 @@ try:
 except Exception:
     staged = []
 
+# ──── Pythonテスト強制チェック ────
+PYTHON_DIR = "android/app/src/main/python/"
+SENTINEL = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    ".python_tests_passed"
+)
+
+python_staged = [f for f in staged if f.startswith(PYTHON_DIR) and f.endswith(".py")]
+
+if python_staged:
+    if not os.path.exists(SENTINEL):
+        print("[Pythonテスト未実行] コミットをブロックします")
+        print("以下のPythonファイルがステージされています:")
+        for f in python_staged:
+            print(f"  - {f}")
+        print("\n先に実行してください:")
+        print("  cd android/app/src/main/python && python -m unittest test_logic -v")
+        sys.exit(2)
+
+    sentinel_mtime = os.path.getmtime(SENTINEL)
+    try:
+        repo_root = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=10
+        ).stdout.strip()
+    except Exception:
+        repo_root = ""
+
+    stale = [
+        f for f in python_staged
+        if os.path.exists(os.path.join(repo_root, f))
+        and os.path.getmtime(os.path.join(repo_root, f)) > sentinel_mtime
+    ]
+    if stale:
+        print("[Pythonテスト古い] コミットをブロックします")
+        print("センチネルより新しいPythonファイルがあります:")
+        for f in stale:
+            print(f"  - {f}")
+        print("\n再度テストを実行してください:")
+        print("  cd android/app/src/main/python && python -m unittest test_logic -v")
+        sys.exit(2)
+# ──── ここまで ────
+
 # 最新プランファイルを取得
 plans_dir = os.path.expanduser("~/.claude/plans")
 plan_name = None
 commit_section = None
 
 plan_files = glob.glob(os.path.join(plans_dir, "*.md"))
+if not plan_files:
+    sys.exit(0)
+
 if plan_files:
     latest = max(plan_files, key=os.path.getmtime)
     plan_name = os.path.basename(latest)
