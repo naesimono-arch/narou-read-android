@@ -356,6 +356,28 @@ class TestBuildLineStr(unittest.TestCase):
         result = pdf_extractor._build_line_str([char])
         self.assertEqual(result, "|字《よみ》")
 
+    def test_plain_text_no_ruby(self):
+        # ルビなし文字はそのまま結合される
+        chars = [_ch("あ", "R", 14.0, 100.0, 50.0), _ch("い", "R", 14.0, 100.0, 60.0)]
+        self.assertEqual(pdf_extractor._build_line_str(chars), "あい")
+
+    def test_consecutive_ruby_merged_into_one_marker(self):
+        # ルビあり文字が連続する場合は1つのマーカーにまとめられる
+        c1 = _ch("漢", "R", 14.0, 100.0, 50.0); c1["ruby_text"] = "か"
+        c2 = _ch("字", "R", 14.0, 100.0, 60.0); c2["ruby_text"] = "じ"
+        self.assertEqual(pdf_extractor._build_line_str([c1, c2]), "|漢字《かじ》")
+
+    def test_mixed_ruby_and_plain(self):
+        # ルビあり・なしが混在する行はそれぞれ正しく処理される
+        ruby_c = _ch("漢", "R", 14.0, 100.0, 50.0); ruby_c["ruby_text"] = "か"
+        plain_c = _ch("字", "R", 14.0, 100.0, 60.0)
+        self.assertEqual(pdf_extractor._build_line_str([ruby_c, plain_c]), "|漢《か》字")
+
+    def test_whitespace_chars_are_skipped(self):
+        # スペース・改行等はスキップされる
+        chars = [_ch(" ", "R", 14.0, 100.0, 50.0), _ch("あ", "R", 14.0, 100.0, 60.0)]
+        self.assertEqual(pdf_extractor._build_line_str(chars), "あ")
+
 
 class TestProcessPages(unittest.TestCase):
     """pdf_extractor._process_pages の統合回帰テスト（3点確認）"""
@@ -440,6 +462,27 @@ class TestHtmlGolden(unittest.TestCase):
             with open(fixture_path, encoding="utf-8") as f:
                 expected = f.read()
             self.assertEqual(expected, content, msg=f"{name} の内容が期待値と異なります")
+
+
+class TestExportToPwa(unittest.TestCase):
+    """html_exporter.export_to_pwa のテスト
+    export_to_pwa は export_to_mobile_html の薄いラッパーなので、
+    引数が正しく委譲されているかだけを確認する。"""
+
+    def test_delegates_to_export_to_mobile_html(self):
+        # export_to_pwa が export_to_mobile_html を正しい引数で呼ぶこと
+        from html_exporter import export_to_pwa
+        chapters = [{"title": "第一話", "body": "本文"}]
+        cb = lambda *a: None
+        with patch("html_exporter.export_to_mobile_html") as mock_export:
+            export_to_pwa(chapters, "book_01", "テスト小説", "/tmp/out", cb)
+        mock_export.assert_called_once_with(
+            chapters,
+            output_dir="/tmp/out",
+            book_title="テスト小説",
+            book_id="book_01",
+            progress_callback=cb,
+        )
 
 
 class TestProcessPdf(unittest.TestCase):
