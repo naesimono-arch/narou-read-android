@@ -23,6 +23,13 @@ LINE_STEP_X = 22.68          # 1行あたりのX座標の移動量（空行計�
 START_Y_BODY = 83.36         # 本文の通常の開始Y座標
 START_Y_TITLE = 97.33        # 題名特有の開始Y座標
 
+# 6. 表紙ページの著者名に関する設定
+# FONT_SIZE_AUTHOR は FONT_SIZE_PAGE と同値（12.0pt）だが、COVER_FOOTER_Y での除外で区別する。
+# 表紙ページにページ番号が印字されているPDFでは COVER_FOOTER_Y_TOL の調整が必要になる可能性がある。
+FONT_SIZE_AUTHOR = 12.0      # 著者名フォントサイズ（FONT_SIZE_PAGE と同値 → COVER_FOOTER_Y 除外で区別）
+COVER_FOOTER_Y = 500.0       # 表紙フッターのY座標（著者名除外用）
+COVER_FOOTER_Y_TOL = 30.0    # フッターY座標の許容誤差
+
 # 注意：数値比較用の許容誤差
 TOLERANCE = 0.1              # math.isclose で使用する誤差範囲
 
