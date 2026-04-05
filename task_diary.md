@@ -277,3 +277,161 @@ Chaquopy が Python 例外を JNI 経由で Kotlin に橋渡しする際、logca
 - logcat に E レベルのアプリエラーが出ない場合、「例外がどこかで catch されてログ出力されていない」を疑うこと
 - OPPO デバイスの E レベルノイズ（SchedAssist / UAH_CLIENT / OplusThermalStats 等）はアプリの問題とは無関係
 
+---
+
+## 2026-03-22 | UI全面リニューアル + 読書画面ネイティブ化
+
+### 背景
+
+本棚UIがデフォルトのListItem+Divider構成で無個性だった。
+また、WebViewの章ナビボタン（HTMLの`nav-footer`）がCompose画面と質感が合わず、
+章切り替え時もアニメーションなしで瞬間的に切り替わる問題があった。
+
+---
+
+### 変更内容
+
+#### 1. 本棚カードデザイン（BookshelfScreen.kt）
+
+| 項目 | 変更前 | 変更後 |
+|------|--------|--------|
+| リストUI | `ListItem` + `HorizontalDivider` | `ElevatedCard`（角丸16dp・shadowElevation 2dp） |
+| 背景色 | デフォルト白 | `#F2F2F7`（iOS風ライトグレー） |
+| カード色 | - | 純白 `#FFFFFF` |
+| タイトル | `headlineContent` のみ | `titleMedium` + `FontWeight.Bold`（大・太字） |
+| 進捗表示 | なし | 「第N話 · N%」テキスト + LinearProgressIndicator（3dp細線） |
+| 進捗カラー | - | モノトーン（trackColor `#EEEEEE` / バーはprimary） |
+| 削除ボタン | `Icons.Filled.Delete`（黒） | `Icons.Outlined.DeleteOutline`（`#CCCCCC` 薄グレー） |
+| 未読表示 | なし | 「未読」テキスト（`#BBBBBB`） |
+
+進捗表示のために以下も追加：
+- `ProgressDao`：`getAllProgress(): Flow<List<ProgressEntity>>`
+- `BookRepository`：`allProgress` プロパティ
+- `BookshelfViewModel`：`progressMap: StateFlow<Map<String, String>>`（bookId → lastReadFilename）
+
+#### 2. 読書画面ナビゲーションのネイティブ化（ReadingScreen.kt）
+
+HTMLの`nav-footer`（前へ / 目次 / 次へ ボタン）を廃止し、Compose製に置き換えた。
+
+**設計のポイント：2状態分離によるフェードアニメーション**
+
+```
+currentFile（UI操作で即更新）
+    ↓ LaunchedEffect
+    fadeOut（150ms）
+    ↓
+displayedFile = currentFile（WebViewへ渡す値をここで切替）
+    ↓
+WebView.loadUrl()
+    ↓
+    fadeIn（200ms）
+```
+
+`currentFile`と`displayedFile`を分離することで「フェードアウト完了後にWebViewがロード」を実現。
+直接`currentFile`をWebViewに渡すとフェードと読み込みが競合してアニメーションが意味をなさない。
+
+**目次ページの制御**
+- 目次ページでは`isIndex == true`のとき`TopAppBar`（左上に「←」戻るボタン）を表示
+- `BackHandler(enabled = isIndex)`でシステムバックを本棚遷移に割り当て
+- 章ページでは`TopAppBar`を非表示にしてコンテンツ領域を最大化
+
+**WebViewClient の責務変更**
+- 以前：`chap_*.html`リンクを傍受して進捗保存のみ
+- 以後：すべての`.html`リンクを傍受し`currentFileState.value`を更新 → Kotlin側で章遷移を制御
+- `shouldOverrideUrlLoading`内でMutableStateオブジェクト参照経由で更新（factoryクロージャからの安全なstate更新）
+
+#### 3. HTML読書ページのデザイン統一（html_exporter.py）
+
+| 項目 | 変更前 | 変更後 |
+|------|--------|--------|
+| 背景色 | `#fcfaf2`（クリーム） | `#ffffff`（純白） |
+| フォント | 明朝体（MS Mincho） | サンセリフ（-apple-system / Hiragino / Noto） |
+| リンク色 | `#8b4513`（茶色） | `#1a1a1a`（黒） |
+| nav-footer | HTMLで描画 | **削除**（Compose側に移管） |
+| back-link | HTMLで描画 | **削除**（Compose TopAppBar に移管） |
+
+#### 4. 画面遷移バグ修正（MainActivity.kt）
+
+| 項目 | 変更前 | 変更後 |
+|------|--------|--------|
+| 遷移アニメーション | デフォルトスライド（左上ずれの原因） | `fadeIn` / `fadeOut` |
+| htmlDirPath取得 | `LaunchedEffect` + DB非同期クエリ | `viewModel.books.collectAsState()` から直接参照 |
+
+**null→非null recompositionが「ずれ」の原因だった。**
+本棚でロード済みのStateFlowから直接引くことで初回フレームから値が確定し、再計算が起きない。
+
+---
+
+### 設計判断：なぜWebViewを捨てなかったか
+
+完全ネイティブ化の場合、Composeにはruby（ふりがな）のネイティブサポートがなく、
+カスタムLayoutが必要になり工数が大きい。
+WebViewはrubyタグを正確にレンダリングするため本文表示は維持し、
+**ナビゲーション制御のみKotlin側に移管**するハイブリッド構成を採用した。
+
+---
+
+### 注意点・ハマりポイント
+
+- `TopAppBar`は`@OptIn(ExperimentalMaterial3Api::class)`が必要。ファイルレベルで`@file:OptIn`を付与した。
+- `factory`クロージャ内のlambdaは生成時の値をキャプチャするため、Stateの「値」ではなく「オブジェクト参照」をキャプチャさせること（`currentFileState`を渡し、内部で`.value`を書き換える）。
+- `初回ロード時フラグ`（`isInitialLoad`）を立てないと、画面表示時に不要なフェードが発生する。
+
+---
+
+### 追加知見（同日追加作業より）
+
+#### 後書き枠が表示されなかった根本原因
+
+`chapter_processor.py` の `split_into_chapters` に以下の特別処理があった：
+
+```python
+if "後書き" in p:
+    current_body.append(p.replace("【題名】", ""))  # 後書きタイトルを本文に埋め込む
+    continue
+```
+
+この結果、後書きは独立した章オブジェクトとして生成されず、直後の本文段落も含めて
+前の章の `body` に素のテキストとして混入していた。
+`process_foreword_afterword` の `if "後書き" in title:` は章タイトルで判定するため**一度も発火しない**。
+→ 特別処理を削除して前書きと同じ通常フローに乗せることで解決。
+
+**教訓**: HTMLの見た目（前書きに枠がある）から「後書きにも同じコードがあるはず」と決めつけず、
+処理パイプライン全体を追って「どこで変換されるか」を確認すること。
+
+#### ReadingScreen のナビゲーション階層設計
+
+```
+本棚 → 目次（index.html） → 章（chap_N.html）
+  ←          ←（BackHandler）  ←（BackHandler）
+```
+
+`BackHandler` を2つ重ねることで多段階の戻り動作を実現：
+```kotlin
+BackHandler(enabled = !isIndex) { currentFile = "index.html" }   // 章 → 目次
+BackHandler(enabled = isIndex)  { onNavigateToBookshelf() }       // 目次 → 本棚
+```
+両方 `enabled = true` にならないよう `isIndex` で排他制御している点がポイント。
+
+#### `@file:OptIn` によるExperimental API の一括適用
+
+`TopAppBar` 等の `@ExperimentalMaterial3Api` をファイル内の全関数に適用する場合、
+各 `@Composable` に個別アノテーションを付けるより `@file:OptIn` をファイル先頭に書く方が簡潔：
+
+```kotlin
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
+package com.novelreader.ui
+```
+
+---
+
+### コミット
+
+```
+5b388f9  fix: 本棚→読書画面遷移時の画面ずれを修正
+5f039e9  feat: 本棚カードデザインをElevatedCardに刷新・進捗表示を追加
+bc4333c  feat: 読書画面ナビゲーションをCompose化・章遷移フェードアニメーションを追加
+4e56012  feat: 読書画面に戻るボタンを全ページ追加・後書き枠表示バグを修正
+```
+
