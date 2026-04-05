@@ -32,6 +32,7 @@ def process_pdf(pdf_path, book_id, output_dir, progress_callback=None):
     try:
         _notify(0, 0.0, "タイトルを読み取っています…")
         real_title = pdf_extractor.extract_book_title(pdf_path)
+        real_author = pdf_extractor.extract_book_author(pdf_path)
 
         _notify(1, 0.0, "本文を抽出しています…")
         paragraphs = pdf_extractor.run_final_engine(
@@ -51,7 +52,7 @@ def process_pdf(pdf_path, book_id, output_dir, progress_callback=None):
             progress_callback=lambda pct, phase: _notify(3, (pct - 88) / 12, phase)
         )
 
-        return real_title
+        return [real_title, real_author]
 
     except Exception as e:
         err_str = str(e)
