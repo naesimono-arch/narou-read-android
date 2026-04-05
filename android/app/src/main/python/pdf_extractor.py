@@ -248,6 +248,25 @@ def extract_book_title(pdf_path):
     return title if title else "無題の作品"
 
 
+def extract_book_author(pdf_path):
+    """1ページ目の FONT_SIZE_AUTHOR pt の文字を結合して筆者名とする。
+    フッター領域（COVER_FOOTER_Y 付近）を除外するのは、表紙フッターに印刷されることがある
+    ページ番号・シリーズ名等が著者名と同サイズ（12pt）のため。
+    """
+    pages = list(extract_pages(pdf_path, page_numbers=[0]))
+    if not pages:
+        return ""
+    page = pages[0]
+    chars = list(_iter_chars_from_page(page, page.height))
+    author_chars = [
+        c for c in chars
+        if math.isclose(c["size"], pdf_rules.FONT_SIZE_AUTHOR, abs_tol=pdf_rules.TOLERANCE)
+        and not math.isclose(c["top"], pdf_rules.COVER_FOOTER_Y, abs_tol=pdf_rules.COVER_FOOTER_Y_TOL)
+    ]
+    author_chars.sort(key=lambda c: (round(c["top"]), c["x0"]))
+    return "".join(c["text"] for c in author_chars).strip()
+
+
 # ==========================================
 # 【Phase 01-02】 抽出・整形エンジン
 # ==========================================
