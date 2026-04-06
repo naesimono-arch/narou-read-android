@@ -80,6 +80,14 @@ class TestSplitIntoChapters(unittest.TestCase):
         self.assertEqual(result[1]["title"], "後書き")
         self.assertIn("後書き本文", result[1]["body"])
 
+    def test_afterword_with_no_body_is_dropped(self):
+        # 後書きタイトルの直後に本文がない場合、章としてドロップされる
+        # （後書きインライン処理削除後: current_body が空のため if current_body: を通過しない）
+        paragraphs = ["【題名】第一話", "本文1", "【題名】後書き"]
+        result = split_into_chapters(paragraphs)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["title"], "第一話")
+
     def test_consecutive_titles_no_body_between(self):
         # 本文のない章は if current_body: チェックでサイレントドロップ（仕様明文化）
         paragraphs = ["【題名】第一話", "【題名】第二話", "本文"]
