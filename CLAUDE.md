@@ -6,6 +6,15 @@
 Jetpack Compose + Chaquopy (Python 3.12)。
 ビルド設定: Chaquopy 15.0.1 / Python 3.12 / pdfminer.six / minSdk 26 / targetSdk 34
 
+## 環境セットアップ
+
+Claude Code のシェルには Java が通っていないため、Gradle 実行前に以下を設定すること：
+
+```bash
+export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"
+export PATH="$JAVA_HOME/bin:$PATH"
+```
+
 ## 開発コマンド
 
 ```bash
