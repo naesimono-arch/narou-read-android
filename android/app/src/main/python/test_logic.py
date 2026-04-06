@@ -589,6 +589,18 @@ class TestProcessPdf(unittest.TestCase):
             with self.assertRaises(app_module.EncryptedPdfError):
                 app_module.process_pdf("dummy.pdf", "book_id", "/tmp")
 
+    def test_corrupted_pdf_error_reraises(self):
+        # すでに CorruptedPdfError であれば変換せずそのまま再送出される
+        # （app.py:66 の isinstance チェックに含まれているが専用テストがなかったため追加）
+        import app as app_module
+        with self._happy_stack({
+            "pdf_extractor.extract_book_title": {
+                "side_effect": app_module.CorruptedPdfError("corrupted")
+            }
+        }):
+            with self.assertRaises(app_module.CorruptedPdfError):
+                app_module.process_pdf("dummy.pdf", "book_id", "/tmp")
+
     # ---- 未知例外の再送出 -----------------------------------------------
 
     def test_unknown_exception_reraises_as_is(self):
