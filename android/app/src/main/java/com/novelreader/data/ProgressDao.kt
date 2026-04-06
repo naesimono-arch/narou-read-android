@@ -1,9 +1,13 @@
 package com.novelreader.data
 
 import androidx.room.*
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ProgressDao {
+
+    @Query("SELECT * FROM progress")
+    fun getAllProgress(): Flow<List<ProgressEntity>>
 
     @Query("SELECT lastReadFilename FROM progress WHERE bookId = :bookId")
     suspend fun getLastRead(bookId: String): String?
