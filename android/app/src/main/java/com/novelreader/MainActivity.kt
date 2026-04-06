@@ -3,8 +3,8 @@ package com.novelreader
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
@@ -14,6 +14,7 @@ import com.chaquo.python.android.AndroidPlatform
 import com.novelreader.data.AppDatabase
 import com.novelreader.ui.BookshelfScreen
 import com.novelreader.ui.ReadingScreen
+import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.viewmodel.BookshelfViewModel
 import kotlinx.coroutines.flow.first
 
@@ -22,13 +23,18 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Edge-to-Edge 表示を有効化（ステータスバー・ナビバー領域までコンテンツを描画）
+        // NovelReaderTheme 内で WindowCompat.getInsetsController を使うため、
+        // setDecorFitsSystemWindows は setContent より前に呼ぶ必要がある
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+
         // Chaquopy の初期化（アクティビティのコンテキストが必要）
         if (!Python.isStarted()) {
             Python.start(AndroidPlatform(this))
         }
 
         setContent {
-            MaterialTheme {
+            NovelReaderTheme {
                 NovelReaderApp()
             }
         }
