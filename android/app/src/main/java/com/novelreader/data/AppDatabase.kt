@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [BookEntity::class, ProgressEntity::class], version = 4, exportSchema = true)
+@Database(entities = [BookEntity::class, ProgressEntity::class], version = 5, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun bookDao(): BookDao
@@ -51,10 +51,23 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v4→v5: books テーブルに author 列を追加する。
+         *
+         *  STEP 6 で BookEntity に author フィールドを追加したため、
+         *  既存インストール端末の books テーブルに列が存在しない状態が発生する。
+         *  ALTER TABLE で列を追加し、デフォルト値 '' で既存行を補完する。
+         *  minSdk 26 の SQLite 3.18.x は ADD COLUMN をサポートしているため
+         *  テーブル再作成は不要。 */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE books ADD COLUMN author TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
-                    .addMigrations(MIGRATION_3_4)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                     .also { INSTANCE = it }
             }
