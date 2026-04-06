@@ -4,6 +4,9 @@ Phase 03-03B: 段落リストを話数・前書き・後書きに分割・整形
 """
 import re
 
+# モジュールロード時にコンパイルしておくことで、呼び出しのたびにパターン解析が走らない
+_RUBY_PATTERN = re.compile(r"\|([^《]+)《([^》]+)》")
+
 
 def split_into_chapters(paragraphs):
     chapters = []
@@ -12,10 +15,8 @@ def split_into_chapters(paragraphs):
 
     for p in paragraphs:
         if p.startswith("【題名】"):
-            if "後書き" in p:
-                current_body.append(p.replace("【題名】", ""))
-                continue
-
+            # 後書き特殊処理を削除: process_foreword_afterword() が後書きタイトルを正しく処理するため、
+            # ここで current_body に追加する必要はない（二重処理になる）
             if current_body:
                 chapters.append({"title": current_title, "body": current_body})
 
@@ -37,7 +38,7 @@ def _apply_ruby(text):
         if len(base) == len(ruby):
             return "".join(f"<ruby>{b}<rt>{r}</rt></ruby>" for b, r in zip(base, ruby))
         return f"<ruby>{base}<rt>{ruby}</rt></ruby>"
-    return re.sub(r"\|([^《]+)《([^》]+)》", _repl, text)
+    return _RUBY_PATTERN.sub(_repl, text)
 
 
 def process_foreword_afterword(chapters_data):

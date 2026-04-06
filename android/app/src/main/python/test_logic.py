@@ -72,16 +72,13 @@ class TestSplitIntoChapters(unittest.TestCase):
         self.assertEqual(result[0]["title"], "第一話")
         self.assertEqual(result[1]["title"], "第二話")
 
-    def test_afterword_title_not_split(self):
-        # 「後書き」を含む題名は新しい章にならず本文に追加される
-        paragraphs = [
-            "【題名】第一話",
-            "本文1",
-            "【題名】後書き",
-        ]
+    def test_afterword_title_becomes_separate_chapter(self):
+        # 後書きは通常の章として分離される（process_foreword_afterword で後処理）
+        paragraphs = ["【題名】第一話", "本文1", "【題名】後書き", "後書き本文"]
         result = split_into_chapters(paragraphs)
-        self.assertEqual(len(result), 1)
-        self.assertIn("後書き", result[0]["body"])
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[1]["title"], "後書き")
+        self.assertIn("後書き本文", result[1]["body"])
 
     def test_consecutive_titles_no_body_between(self):
         # 本文のない章は if current_body: チェックでサイレントドロップ（仕様明文化）
@@ -91,14 +88,13 @@ class TestSplitIntoChapters(unittest.TestCase):
         self.assertEqual(result[0]["title"], "第二話")
         self.assertEqual(result[0]["body"], ["本文"])
 
-    def test_afterword_substring_in_chapter_title(self):
-        # タイトルに「後書き」を含む話（例: 「第五話　後書きの話」）は
-        # "後書き" in p が True になるため章として認識されず本文に追加される（仕様上の制限）
-        paragraphs = ["【題名】第一話", "本文1", "【題名】第五話　後書きの話"]
+    def test_afterword_substring_in_chapter_title_is_split(self):
+        # タイトルに「後書き」を含む話も通常の章として分離される
+        paragraphs = ["【題名】第一話", "本文1", "【題名】第五話　後書きの話", "本文2"]
         result = split_into_chapters(paragraphs)
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["title"], "第一話")
-        self.assertIn("第五話　後書きの話", result[0]["body"])
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[1]["title"], "第五話　後書きの話")
+        self.assertNotIn("第五話　後書きの話", result[0]["body"])
 
 
 class TestProcessForewordAfterwword(unittest.TestCase):
