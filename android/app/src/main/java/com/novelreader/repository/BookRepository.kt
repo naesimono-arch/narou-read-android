@@ -28,6 +28,7 @@ class BookRepository(
 ) {
 
     val allBooks: Flow<List<BookEntity>> = bookDao.getAllBooks()
+    val allProgress: Flow<List<ProgressEntity>> = progressDao.getAllProgress()
 
     fun interface ProgressCallback {
         fun onProgress(step: Int, stepLocalPercent: Float, phase: String)
@@ -81,7 +82,7 @@ class BookRepository(
                 // HTML生成後・DB登録前にキャンセルされると孤立ファイルが残るため両者を同一ブロックに含める。
                 val book = withContext(NonCancellable) {
                     val python = Python.getInstance()
-                    val title = python.getModule("app")
+                    val result = python.getModule("app")
                         .callAttr(
                             "process_pdf",
                             tempFile.absolutePath,
@@ -89,8 +90,11 @@ class BookRepository(
                             outputDir.absolutePath,
                             ProgressCallback { step, stepLocalPercent, phase -> onProgress(step, stepLocalPercent, phase) },
                         )
-                        .toString()
-                    val b = BookEntity(bookId, title, outputDir.absolutePath)
+                    val resultList = result.asList()
+                    val title = resultList.getOrNull(0)?.toString() ?: "無題"
+                    val author = resultList.getOrNull(1)?.toString() ?: ""
+                    val b = BookEntity(bookId, title, outputDir.absolutePath, author)
+                    //                                                         ↑ author は末尾（BookEntity のフィールド順に合わせる）
                     bookDao.insertBook(b)
                     b
                 }
