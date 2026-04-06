@@ -39,6 +39,12 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     val books: StateFlow<List<BookEntity>> = repository.allBooks
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val progressMap: StateFlow<Map<String, String>> = repository.allProgress
+        .map { list -> list.associate { it.bookId to it.lastReadFilename } }
+        //                                                    ↑ mainのフィールド名（labの lastRead ではない）
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+        // WhileSubscribed(5_000) に統一（Lazily はサブスクライバーゼロでもDBクエリが流れ続けるため）
+
     // Application の StateFlow を購読して processingState を提供
     val processingState: StateFlow<ProcessingState> = app.processingState
         .map { it ?: ProcessingState() }
