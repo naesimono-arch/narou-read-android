@@ -28,7 +28,9 @@ elif tool_name == "MultiEdit":
 
 for path in paths:
     try:
-        subprocess.Popen(["code", path], shell=False)
+        # Windows では code.cmd なので shell=True が必要
+        # shell=False だと FileNotFoundError になり静かに失敗する
+        subprocess.Popen(f'code "{path}"', shell=True)
     except Exception:
         pass
 
