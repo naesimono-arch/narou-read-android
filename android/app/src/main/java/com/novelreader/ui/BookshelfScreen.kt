@@ -18,9 +18,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -162,14 +161,13 @@ fun BookshelfScreen(
         }
     }
 
-    // LargeTopAppBar のスクロール連動
-    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
-
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier,
         topBar = {
             Column {
-                LargeTopAppBar(
+                // TopAppBar を固定表示。スクロール連動を廃止。
+                // scrollBehavior による吸着アニメーションがもたつき感の原因だったため完全に除去。
+                TopAppBar(
                     title = {
                         Text(
                             "本棚",
@@ -188,10 +186,8 @@ fun BookshelfScreen(
                             )
                         }
                     },
-                    scrollBehavior = scrollBehavior,
-                    colors = TopAppBarDefaults.largeTopAppBarColors(
+                    colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface,
-                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                     ),
                 )
 
