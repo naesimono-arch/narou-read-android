@@ -57,10 +57,13 @@ PdfProcessingService（Foreground Service）
 ## データベース（Room）
 
 ```
-AppDatabase（現在 version = 4）
-  ├─ BookDao    → books テーブル（id, title, htmlDirPath）
+AppDatabase（versionはAppDatabase.ktを直接参照）
+  ├─ BookDao    → books テーブル
   └─ ProgressDao → progress テーブル（bookId, lastReadFilename）
 ```
+
+現在のversion・カラム定義・Migrationリストは `AppDatabase.kt` と各 Entity ファイルが正典。
+スキーマ変更手順 → `/db-migration` スキルを参照。
 
 DB操作はすべて IO Dispatcher（Coroutines）で実行。
 

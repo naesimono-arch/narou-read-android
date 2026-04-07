@@ -10,20 +10,24 @@ triggers:
 
 # Room DBスキーマ変更手順
 
-## 現在のバージョン
+## 作業前の必須確認
 
-- **AppDatabase version = 4**（`android/app/src/main/java/com/novelreader/data/AppDatabase.kt`）
-- 最新の適用済み Migration: `MIGRATION_3_4`（git commit 21ef32e で追加）
-- 次回スキーマ変更時は **MIGRATION_4_5** を作成すること
+**スキーマ変更を始める前に必ず `AppDatabase.kt` を読んで現在の `version` を確認すること。**
+
+```
+android/app/src/main/java/com/novelreader/data/AppDatabase.kt
+```
+
+ここに記載したバージョン番号はすぐ古くなるため記載しない。コードが唯一の正典。
 
 ## 手順
 
 1. Entity クラスのフィールドを変更する
-2. `AppDatabase` の `version` を +1 する（現在 4 → 次は 5）
-3. `Migration` オブジェクトを書く
+2. `AppDatabase` の `version` を +1 する（AppDatabase.kt を読んで現在値を確認すること）
+3. `Migration` オブジェクトを書く（N = 現在version, N+1 = 新version）
 
 ```kotlin
-val MIGRATION_4_5 = object : Migration(4, 5) {
+val MIGRATION_N_N1 = object : Migration(N, N+1) {
     override fun migrate(database: SupportSQLiteDatabase) {
         // 変更前に必ず PRAGMA table_info で実際のカラム名を確認すること
         // 例: database.execSQL("ALTER TABLE books ADD COLUMN coverPath TEXT")
@@ -31,11 +35,11 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
 }
 ```
 
-4. `databaseBuilder` に追加する
+4. `databaseBuilder` に追加する（既存のMigrationリストはAppDatabase.ktで確認）
 
 ```kotlin
 Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
-    .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
+    .addMigrations(..., MIGRATION_N_N1)
     .build()
 ```
 
