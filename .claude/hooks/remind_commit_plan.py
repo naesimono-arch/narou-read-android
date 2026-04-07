@@ -39,19 +39,5 @@ except OSError:
 if re.search(r"^##\s+.*?(コミット|commit)", content, re.MULTILINE | re.IGNORECASE):
     sys.exit(0)
 
-# ブロックではなくファイルに直接追記する。
-# VSCodeが開かれていなくてもプランに必ずコミット計画が含まれるようにするため。
-template = (
-    "\n## コミット計画\n\n"
-    "| # | 内容 | 対象ファイル |\n"
-    "|---|------|------------|\n"
-    "| 1 | feat/fix: ... | ファイル名 |\n"
-)
-try:
-    with open(normalized, "a", encoding="utf-8") as f:
-        f.write(template)
-except OSError:
-    sys.exit(0)
-
-print(f"[コミット計画チェック] `## コミット計画` セクションを {os.path.basename(normalized)} に自動追記しました。")
-sys.exit(0)
+print(f"[コミット計画チェック] `## コミット計画` セクションが {os.path.basename(normalized)} にありません。追加してください。")
+sys.exit(2)
