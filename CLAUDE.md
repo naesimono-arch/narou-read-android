@@ -22,3 +22,11 @@ Jetpack Compose + Chaquopy (Python 3.12)。
 - DBスキーマ変更手順 → `/db-migration` スキルを参照
 - PDF解析の定数・ルール → `android/app/src/main/python/pdf_rules.py` を直接参照
 - OPPO/ColorOS 固有動作 → `task_diary.md` を参照
+- **ホットスポット分析**（頻繁変更ファイルの特定）:
+  ```bash
+  # ファイル別変更回数ランキング（上位20件）
+  git log --name-only --format="" | sort | uniq -c | sort -rn | head -20
+  # 特定ファイルの変更回数
+  git log --oneline -- <file_path> | wc -l
+  ```
+  AIへの提示例: 「上記コマンドの結果を渡して、なぜ頻繁に変更されるのか・設計上の問題がないかを分析させる」

@@ -65,6 +65,10 @@
           {
             "type": "command",
             "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/check_schema_change.py\""
+          },
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/check_lint_on_commit.py\""
           }
         ]
       }
