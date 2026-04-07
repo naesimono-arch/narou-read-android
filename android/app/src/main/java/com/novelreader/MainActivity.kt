@@ -11,12 +11,10 @@ import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
-import com.novelreader.data.AppDatabase
 import com.novelreader.ui.BookshelfScreen
 import com.novelreader.ui.ReadingScreen
 import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.viewmodel.BookshelfViewModel
-import kotlinx.coroutines.flow.first
 
 class MainActivity : ComponentActivity() {
 
@@ -67,16 +65,11 @@ private fun NovelReaderApp() {
             val bookId = backStackEntry.arguments?.getString("bookId") ?: return@composable
             val startFile = backStackEntry.arguments?.getString("startFile") ?: return@composable
 
-            // Room から htmlDirPath を非同期で取得（null = ロード中）
-            var htmlDirPath by remember(bookId) { mutableStateOf<String?>(null) }
-            LaunchedEffect(bookId) {
-                htmlDirPath = AppDatabase.getDatabase(navController.context)
-                    .bookDao()
-                    .getAllBooks()
-                    .first()
-                    .firstOrNull { it.id == bookId }
-                    ?.htmlDirPath
-            }
+            // books は BookshelfScreen がバックスタック上で subscribe 中のため hot StateFlow。
+            // collectAsState() で第1フレームから現在値を即時派生させることで、
+            // LaunchedEffect の1フレーム遅延を排除し AndroidView の (0,0) 初期描画（左上ジャンプ）を防ぐ。
+            val books by viewModel.books.collectAsState()
+            val htmlDirPath = books.firstOrNull { it.id == bookId }?.htmlDirPath
 
             if (htmlDirPath != null) {
                 ReadingScreen(
