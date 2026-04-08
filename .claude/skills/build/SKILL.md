@@ -11,7 +11,8 @@ triggers:
 
 # ビルド環境セットアップ
 
-Claude Code のシェルには Java が通っていないため、Gradle 実行前に必ず設定すること：
+JAVA_HOME は `~/.bashrc` に設定済みのため、通常は追加設定不要。
+もし `java: command not found` が出た場合は手動で通す：
 
 ```bash
 export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"
