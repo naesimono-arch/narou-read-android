@@ -113,6 +113,10 @@ fun NativeReadingScreen(
         ReadingErrorScreen(
             message = "書籍データが見つかりません",
             onNavigateToBookshelf = onNavigateToBookshelf,
+            // Phase 3: WebView版にフォールバック。useNativeReader を false にすると
+            // MainActivity が即座に ReadingScreen へ切り替わる。
+            // Phase 4 で WebView 削除時にこの引数ごと削除すること。
+            onOpenWithWebView = { viewModel.setUseNativeReader(false) },
         )
         return
     }
@@ -187,6 +191,15 @@ private fun ChapterScreen(
         currentIndex in 0 until tocEntries.size - 1 -> tocEntries[currentIndex + 1].fileName
         else -> "index.html" // 最後の章 → 目次に戻る
     }
+
+    // バックキーはデフォルトで本棚に戻る（Navigation の popBackStack）。
+    // なぜ Phase 3 では章履歴スタックを導入しないか:
+    // 章履歴の上限管理・永続化・プロセス再生成時の復元はネイティブ化の本質ではなく
+    // 複雑度が高いため Phase 3 では省略する。将来の拡張ポイント:
+    // BackHandler(enabled = chapterHistory.size > 1) {
+    //     chapterHistory.removeLast()
+    //     currentFile = chapterHistory.last()
+    // }
 
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(rememberTopAppBarState())
 
@@ -272,6 +285,9 @@ private fun ChapterScreen(
                 is ParseResult.Error -> ReadingErrorScreen(
                     message = result.message,
                     onNavigateToBookshelf = onNavigateToBookshelf,
+                    // Phase 3: WebView版にフォールバック。
+                    // Phase 4 で WebView 削除時にこの引数ごと削除すること。
+                    onOpenWithWebView = { viewModel.setUseNativeReader(false) },
                 )
             }
         }
@@ -417,11 +433,17 @@ private fun ParagraphItem(
     }
 }
 
-/** エラー表示UI（ファイル欠損・パース失敗時） */
+/**
+ * エラー表示UI（ファイル欠損・パース失敗時）
+ *
+ * @param onOpenWithWebView Phase 3 のみ使用。null の場合はボタン非表示。
+ *   Phase 4 で WebView 削除時はこのパラメータごと削除すること。
+ */
 @Composable
 private fun ReadingErrorScreen(
     message: String,
     onNavigateToBookshelf: () -> Unit,
+    onOpenWithWebView: (() -> Unit)? = null,
 ) {
     Box(
         modifier = Modifier.fillMaxSize(),
@@ -442,6 +464,14 @@ private fun ReadingErrorScreen(
                 modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
                 textAlign = TextAlign.Center,
             )
+            if (onOpenWithWebView != null) {
+                Button(
+                    onClick = onOpenWithWebView,
+                    modifier = Modifier.padding(bottom = 8.dp),
+                ) {
+                    Text("WebView版で開く")
+                }
+            }
             Button(onClick = onNavigateToBookshelf) {
                 Text("本棚に戻る")
             }
