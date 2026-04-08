@@ -12,6 +12,7 @@ import androidx.navigation.navArgument
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import com.novelreader.ui.BookshelfScreen
+import com.novelreader.ui.NativeReadingScreen
 import com.novelreader.ui.ReadingScreen
 import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.viewmodel.BookshelfViewModel
@@ -71,14 +72,26 @@ private fun NovelReaderApp() {
             val books by viewModel.books.collectAsState()
             val htmlDirPath = books.firstOrNull { it.id == bookId }?.htmlDirPath
 
+            val useNativeReader by viewModel.useNativeReader.collectAsState()
+
             if (htmlDirPath != null) {
-                ReadingScreen(
-                    bookId = bookId,
-                    startFile = startFile,
-                    htmlDirPath = htmlDirPath!!,
-                    viewModel = viewModel,
-                    onNavigateToBookshelf = { navController.popBackStack("bookshelf", false) },
-                )
+                if (useNativeReader) {
+                    NativeReadingScreen(
+                        bookId = bookId,
+                        startFile = startFile,
+                        htmlDirPath = htmlDirPath!!,
+                        viewModel = viewModel,
+                        onNavigateToBookshelf = { navController.popBackStack("bookshelf", false) },
+                    )
+                } else {
+                    ReadingScreen(
+                        bookId = bookId,
+                        startFile = startFile,
+                        htmlDirPath = htmlDirPath!!,
+                        viewModel = viewModel,
+                        onNavigateToBookshelf = { navController.popBackStack("bookshelf", false) },
+                    )
+                }
             }
         }
     }
