@@ -276,8 +276,8 @@ def run_final_engine(pdf_path_override, progress_callback=None):
     with open(path_to_use, "rb") as f:
         total_pages = sum(1 for _ in PDFPage.get_pages(f))
 
-    char_lists_by_page = [
+    char_lists_by_page = (
         list(_iter_chars_from_page(page, page.height))
         for page in extract_pages(path_to_use)
-    ]
+    )
     return _process_pages(char_lists_by_page, total_pages, progress_callback)
