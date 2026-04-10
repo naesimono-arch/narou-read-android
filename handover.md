@@ -8,63 +8,16 @@
 
 ## Quick Win — 今すぐやる（工数小）
 
-### pre-commit hook による Room スキーマ変更ガード（〜30分）
+### ~~pre-commit hook による Room スキーマ変更ガード~~ ✅ 完了（2026-04-10）
 
-**背景**
-2026-03-30 に `*Entity.kt` のカラムリネームで `version` UP と Migration を付け忘れ、アプリが即クラッシュした（詳細は `task_diary.md` 同日エントリ）。CLAUDE.md への記載だけでは再発防止に限界があるため、機械チェックを追加する。
-
-**実装方針**
-
-`.git/hooks/pre-commit` に追加：
-
-```bash
-#!/bin/sh
-# Entity.kt が変更されていたら AppDatabase.kt も変更されているか確認する
-entity_changed=$(git diff --cached --name-only | grep -E 'Entity\.kt$')
-if [ -n "$entity_changed" ]; then
-  db_changed=$(git diff --cached --name-only | grep 'AppDatabase.kt')
-  if [ -z "$db_changed" ]; then
-    echo "ERROR: *Entity.kt が変更されていますが AppDatabase.kt が変更されていません。"
-    echo "       version を上げ、Migration を追加してからコミットしてください。"
-    exit 1
-  fi
-fi
-```
-
-**検出範囲**
-
-| チェック項目 | 検出可否 |
-|---|---|
-| Entity 変更時に AppDatabase.kt を変更し忘れる | ✅ |
-| version の数値が実際に増えているか | △（追加チェックが必要） |
-| Migration SQL の前提（カラム名等）が正しいか | ❌（推論エラーは機械検出不能） |
-
-**難度**: ★☆☆☆☆　**工数**: 〜30分
+`.git/hooks/pre-commit` に実装済み。`*Entity.kt` 変更時に `AppDatabase.kt` の同時変更を強制する。
 
 ---
 
-### AtomicBoolean → Channel キューイング（〜半日）
+### ~~AtomicBoolean → キューイング~~ ✅ 完了（2026-04-10）
 
-**問題**
-処理中に2冊目の PDF を選択すると `isProcessing.compareAndSet(false, true)` が `false` を返して**無言で破棄**される。ユーザーへのフィードバックがない。
-
-**修正方針**
-`Channel<Uri>(capacity = UNLIMITED)` でキューを持ち、Service 起動中は追加するだけにする。
-
-```
-onStartCommand()
-  └─ uri を Channel に送信
-処理ループ
-  └─ Channel から受け取り順番に処理
-  └─ 通知を「変換中 (1/2)」のように更新
-  └─ キューが空になったら stopSelf()
-```
-
-> **注意**: WorkManager の導入は Chaquopy の 10 分実行制限に引っかかるリスクがあるため、
-> Kotlin ネイティブ化が完了するまでは ForegroundService + Channel 方式が現実的。
-
-**影響ファイル**: `PdfProcessingService.kt`（Channel 追加、通知更新ロジック）  
-**難度**: ★★☆☆☆　**工数**: 〜半日
+`ReentrantLock` + `ArrayDeque<Uri>` で競合ゼロのキューに置き換え済み。
+複数PDF選択時は通知に「変換中... (1/2)」を表示。
 
 ---
 

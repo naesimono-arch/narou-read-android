@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.Uri
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
@@ -19,90 +20,139 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 class PdfProcessingService : Service() {
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private var wakeLock: PowerManager.WakeLock? = null
 
-    @Volatile
-    private var isProcessing = AtomicBoolean(false)
+    // キューと状態を1つの lock で保護（「追加+起動判定」と「取り出し+終了判定」をアトミックにし競合ゼロにする）
+    private val lock = ReentrantLock()
+    private val uriQueue = ArrayDeque<Uri>()
+    private var isLoopRunning = false   // lock で保護
+    private var totalCount = 0          // 現バッチの総件数（通知用、lock で保護）
+    private var doneCount = 0           // 現バッチの完了件数（通知用、lock で保護）
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // 多重起動ガード
-        if (intent?.action != ACTION_START || !isProcessing.compareAndSet(false, true)) {
-            return START_NOT_STICKY
+        if (intent?.action != ACTION_START) return START_NOT_STICKY
+        val uri = intent.data ?: return START_NOT_STICKY
+
+        // キューへの追加とループ起動判定をアトミックに行う
+        val shouldStart = lock.withLock {
+            uriQueue.add(uri)
+            totalCount++
+            if (!isLoopRunning) { isLoopRunning = true; true } else false
         }
 
-        val uri = intent.data ?: run {
-            isProcessing.set(false)
-            return START_NOT_STICKY
-        }
-
-        // API 34+ 対応: ServiceCompat で型を明示
-        ServiceCompat.startForeground(
-            this,
-            NOTIFICATION_ID,
-            buildProgressNotification(0, "準備中…"),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
-        )
-
-        // CPUをスリープさせないWakeLock（OPPOのバックグラウンド強制停止対策）
-        // 取得失敗時はログのみ出してWakeLockなしで継続（スリープ対策が効かなくなるだけで処理自体は継続）
-        try {
-            wakeLock = (getSystemService(Context.POWER_SERVICE) as PowerManager)
-                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NovelReader::PdfProcessing")
-                .also { it.acquire(10 * 60 * 1000L) } // 最大10分
-        } catch (e: Exception) {
-            Log.e(TAG, "WakeLock取得に失敗（スリープ対策なしで継続）", e)
-        }
-
-        val app = application as NovelReaderApplication
-        val repository = app.repository
-
-        scope.launch {
-            try {
-                val result = repository.addBook(uri, onProgress = { step, stepLocalPercent, phase ->
-                    val progress = (step * 25 + stepLocalPercent * 25).toInt().coerceIn(0, 100)
-                    updateProgressNotification(progress, "ステップ ${step + 1}/4 - $phase")
-                    app.updateProcessingState(ProcessingState(true, step, 4, stepLocalPercent, phase))
-                })
-
-                result.fold(
-                    onSuccess = { book ->
-                        showCompletionNotification(book.title)
-                        app.updateProcessingState(null)
-                    },
-                    onFailure = { e ->
-                        Log.e(TAG, "PDF処理失敗", e)
-                        val msg = if (e is BookImportError) e.userMessage
-                                  else e.message ?: "PDF処理に失敗しました"
-                        showErrorNotification(msg)
-                        app.updateErrorState(msg)
-                        app.updateProcessingState(null)
-                    },
-                )
-            } finally {
-                wakeLock?.release()
-                wakeLock = null
-                isProcessing.set(false)
-                stopSelf()
-            }
+        if (shouldStart) {
+            // API 34+ 対応: ServiceCompat で型を明示
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                buildProgressNotification(0, "準備中…"),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+            )
+            startProcessingLoop()
         }
 
         return START_NOT_STICKY
     }
 
+    private fun startProcessingLoop() {
+        // WakeLockをローカル変数で管理（フィールド共有だと新ループ起動時に旧ループが誤解放するため）
+        // CPUをスリープさせないWakeLock（OPPOのバックグラウンド強制停止対策）
+        // 取得失敗時はログのみ出してWakeLockなしで継続（スリープ対策が効かなくなるだけで処理自体は継続）
+        val wl: PowerManager.WakeLock? = try {
+            (getSystemService(Context.POWER_SERVICE) as PowerManager)
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NovelReader::PdfProcessing")
+                .also { it.acquire(10 * 60 * 1000L) } // 最大10分
+        } catch (e: Exception) {
+            Log.e(TAG, "WakeLock取得に失敗（スリープ対策なしで継続）", e)
+            null
+        }
+
+        scope.launch {
+            var isNormalExit = false
+            try {
+                while (true) {
+                    // キューからの取り出しと、空の場合の isLoopRunning リセットをアトミックに行う
+                    val uri = lock.withLock {
+                        if (uriQueue.isEmpty()) {
+                            isLoopRunning = false
+                            isNormalExit = true
+                            null
+                        }
+                        else uriQueue.removeFirst()
+                    } ?: break
+                    processSingleUri(uri)
+                }
+            } finally {
+                wl?.release()
+                // 異常終了時（クラッシュ等）のフェールセーフ
+                val shouldStopSelf = lock.withLock {
+                    if (!isNormalExit && isLoopRunning) {
+                        isLoopRunning = false // 例外でループが破綻した場合は確実にフラグを下ろす
+                        true // 自分以外にループがいない状態に戻したので停止する
+                    } else {
+                        // 正常に isEmpty() で終了した場合は、直後に新しいリクエストが来て起動していなければ停止
+                        !isLoopRunning
+                    }
+                }
+                if (shouldStopSelf) {
+                    lock.withLock { totalCount = 0; doneCount = 0 }
+                    stopSelf()
+                }
+            }
+        }
+    }
+
+    private suspend fun processSingleUri(uri: Uri) {
+        val app = application as NovelReaderApplication
+        val repository = app.repository
+        // 件数は処理開始時点のスナップショットを使う（処理中に totalCount が増えても通知は変わらない）
+        val (currentNumber, total) = lock.withLock { Pair(doneCount + 1, totalCount) }
+
+        try {
+            val result = repository.addBook(uri, onProgress = { step, stepLocalPercent, phase ->
+                val progress = (step * 25 + stepLocalPercent * 25).toInt().coerceIn(0, 100)
+                updateProgressNotification(progress, "ステップ ${step + 1}/4 - $phase", currentNumber, total)
+                app.updateProcessingState(ProcessingState(true, step, 4, stepLocalPercent, phase))
+            })
+
+            result.fold(
+                onSuccess = { book ->
+                    showCompletionNotification(book.title)
+                    app.updateProcessingState(null)
+                },
+                onFailure = { e ->
+                    Log.e(TAG, "PDF処理失敗", e)
+                    val msg = if (e is BookImportError) e.userMessage
+                              else e.message ?: "PDF処理に失敗しました"
+                    showErrorNotification(msg)
+                    app.updateErrorState(msg)
+                    app.updateProcessingState(null)
+                },
+            )
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) {
+                throw e // コルーチンのキャンセルはそのまま上位に伝播させる（ここでループ処理が終了する）
+            }
+            // 予期しない例外: ログして次の URI の処理に継続
+            Log.e(TAG, "予期しないエラー（処理継続）", e)
+            app.updateProcessingState(null)
+        } finally {
+            lock.withLock { doneCount++ }
+        }
+    }
+
     override fun onDestroy() {
-        wakeLock?.release()
-        wakeLock = null
+        // WakeLock は startProcessingLoop のローカル変数で管理されるため、ここでの解放は不要
         scope.cancel()
-        // Service が突然終了した場合のフェイルセーフ：処理状態と排他フラグをリセット
+        // Service が突然終了した場合のフェイルセーフ：処理状態をリセット
         (application as? NovelReaderApplication)?.updateProcessingState(null)
-        isProcessing.set(false)
         super.onDestroy()
     }
 
@@ -119,9 +169,11 @@ class PdfProcessingService : Service() {
         )
     }
 
-    private fun buildProgressNotification(progress: Int, text: String): Notification {
+    private fun buildProgressNotification(progress: Int, text: String, current: Int = 1, total: Int = 1): Notification {
+        // 複数件キューイングされている場合のみ件数を表示
+        val queueInfo = if (total > 1) " ($current/$total)" else ""
         return NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
-            .setContentTitle("小説を変換中...")
+            .setContentTitle("小説を変換中...$queueInfo")
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_notification)
             .setProgress(100, progress, false)
@@ -130,8 +182,8 @@ class PdfProcessingService : Service() {
             .build()
     }
 
-    private fun updateProgressNotification(progress: Int, text: String) {
-        notificationManager().notify(NOTIFICATION_ID, buildProgressNotification(progress, text))
+    private fun updateProgressNotification(progress: Int, text: String, current: Int = 1, total: Int = 1) {
+        notificationManager().notify(NOTIFICATION_ID, buildProgressNotification(progress, text, current, total))
     }
 
     private fun showCompletionNotification(title: String) {
