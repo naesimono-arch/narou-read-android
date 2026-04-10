@@ -28,6 +28,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.rememberTopAppBarState
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -363,13 +364,22 @@ private fun ParagraphItem(
         lineHeight = 2.5.em,
         fontFamily = FontFamily.Serif,
         letterSpacing = 0.sp,
+        // なぜ Trim.LastLineBottom か:
+        // lineHeight = 2.5.em を RubyText 内折り返しとParagraphItem 間で統一するため。
+        // LastLineBottom のみ除去することで上 leading(13.5sp=ルビ描画領域)を保ちつつ、
+        // composable 高さを 31.5sp に確定させる。
+        lineHeightStyle = LineHeightStyle(
+            alignment = LineHeightStyle.Alignment.Proportional,
+            trim = LineHeightStyle.Trim.LastLineBottom,
+        ),
     )
 
     when {
         paragraph.isEmpty() -> {
             // 空段落: なろう系小説のシーン転換・演出として意図的な空行を保持する
             // なぜフィルタリングしないか: 削除すると原作者の意図が失われるため
-            Spacer(modifier = Modifier.height(bodyStyle.lineHeight.value.dp))
+            // 空行 = 20dp Spacer + 次アイテムの上 leading 13.5dp = 計 47.5dp ≈ WebView の空行
+            Spacer(modifier = Modifier.height(20.dp))
         }
         paragraph.size == 1 && paragraph[0] is TextSegment.HorizontalRule -> {
             // 水平線（html_exporter.py の <hr> に対応）
@@ -410,12 +420,13 @@ private fun ParagraphItem(
                     )
                     innerParagraphs.forEach { innerPara ->
                         if (innerPara.isEmpty()) {
-                            Spacer(modifier = Modifier.height(bodyStyle.lineHeight.value.dp))
+                            Spacer(modifier = Modifier.height(20.dp))
                         } else {
+                            // padding(bottom=14.dp): 下 padding + 次アイテムの上 leading = 27.5dp ≈ 折り返し行間
                             RubyText(
                                 segments = innerPara,
                                 style = bodyStyle,
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
                             )
                         }
                     }
@@ -424,10 +435,11 @@ private fun ParagraphItem(
         }
         else -> {
             // 通常の段落
+            // padding(bottom=14.dp): 下 padding + 次アイテムの上 leading = 27.5dp ≈ 折り返し行間
             RubyText(
                 segments = paragraph,
                 style = bodyStyle,
-                modifier = modifier.fillMaxWidth(),
+                modifier = modifier.fillMaxWidth().padding(bottom = 14.dp),
             )
         }
     }
