@@ -1,8 +1,5 @@
-# 開発知見メモ ＋ 作業日誌
+# 開発知見メモ
 
-> **前半（§1〜§17）**: 永続参照の重要知見
-> **後半**: 作業日誌（日付順、新規エントリを追加していく）
->
 > **重要度凡例**: ★★★ Critical（バグ/クラッシュ/動作不可に直結） ★★ Important（特定条件下で問題発生）
 
 ---
@@ -104,6 +101,61 @@ flag = true  // ← これがないと再起動するまで反映されない
 
 ---
 
+### 19. Compose × WebView のフェードアニメーションは2状態分離で実現する
+
+`currentFile`（UI操作で即更新）と `displayedFile`（WebViewへ渡す値）を分離し、
+`LaunchedEffect` で「fadeOut → displayedFile を更新 → loadUrl → fadeIn」の順を制御する。
+
+`currentFile` を直接 WebView に渡すとフェードと読み込みが競合してアニメーションが意味をなさない。
+また `factory` クロージャ内のlambdaは生成時の値をキャプチャするため、
+Stateの「値」ではなく「オブジェクト参照」をキャプチャさせること（`currentFileState` を渡し内部で `.value` を書き換える）。
+
+---
+
+### 20. BackHandler の多段階戻り設計  ★★
+
+複数画面（例: 章 → 目次 → 本棚）を単一 Composable で管理する場合、
+`isIndex` のような状態フラグで排他制御して BackHandler を2つ重ねる。
+
+```kotlin
+BackHandler(enabled = !isIndex) { currentFile = "index.html" }  // 章 → 目次
+BackHandler(enabled = isIndex)  { onNavigateToBookshelf() }     // 目次 → 本棚
+```
+
+両方 `enabled = true` にならないよう排他制御が必須。どちらも enabled の場合、後に宣言した方が優先される（予期しない遷移の原因になる）。
+
+---
+
+### 21. Compose LazyColumn で lineHeight を複数Composable間に一貫適用する  ★★
+
+`lineHeight = 2.5.em` などの行高は**単一 BasicText 内の折り返し行間**には適用されるが、
+LazyColumn 上の**別Composable間の間隔**には自動適用されない。
+
+bottom trailing leading（lineHeight の下余白分）がCompose バージョンによってsingle-line
+BasicTextのcomposable高さに含まれるかどうかが未定義のため、行間が0〜27spと予測不能になる。
+
+**対処パターン:**
+```kotlin
+val bodyStyle = TextStyle(
+    fontSize = 18.sp,
+    lineHeight = 2.5.em,
+    lineHeightStyle = LineHeightStyle(
+        alignment = LineHeightStyle.Alignment.Proportional,
+        trim = LineHeightStyle.Trim.LastLineBottom, // 高さを確定させる
+    ),
+)
+// 各テキスト段落に明示的な下余白を追加
+RubyText(
+    style = bodyStyle,
+    modifier = Modifier.padding(bottom = 14.dp), // 間隔を明示制御
+)
+```
+
+`Trim.LastLineBottom` で composable 高さ = 上leading + fontSize に確定させ、
+`padding(bottom)` で意図した間隔を明示的に付与する。
+
+---
+
 ## Chaquopy / Python統合
 
 ### 9. Chaquopyで使えるのは純Pythonパッケージのみ  ★★★
@@ -146,6 +198,18 @@ Python で `raise EncryptedPdfError("...")` すると、Kotlin側では `PyExcep
 
 ---
 
+### 21. callAttr() 引数ミスマッチは無音失敗する  ★★★
+
+`callAttr()` は引数の型チェックをしない。Python関数定義の引数の数と完全に一致させること。
+ミスマッチ時は Python 側で `TypeError` が発生するが、Chaquopy は PyException を logcat に自動出力しない。
+`runCatching + classifyError()` パターンが `Log.e()` なしで例外を吸収すると原因が永遠に見えない。
+
+**対策**:
+- `runCatching` を使う箇所には必ず `onFailure` 内に `Log.e()` を入れる
+- logcat に E レベルのアプリエラーが出ない場合、「例外がどこかで catch されてログ出力されていない」を疑う
+
+---
+
 ## ビルド設定（AGP / Gradle / Compose BOM）
 
 ### 14. AGP と Gradle のバージョン互換性マトリクス
@@ -164,6 +228,24 @@ Gradleダウングレードより**AGPアップグレード**の方がAndroid St
 
 `gradlew` / `gradlew.bat` / `gradle-wrapper.jar` が未コミットだとCLIビルド不可（Android Studioは動くが紛らわしい）。
 生成コマンド: `gradle wrapper`（Gradleのローカルインストール or `~/.gradle/wrapper/dists/` のキャッシュが必要）。
+
+---
+
+## Room / DB
+
+### 22. Room Migration 前に PRAGMA table_info でカラムを確認する  ★★★
+
+Migration SQL を書く前に端末 DB の実際のカラム名を `PRAGMA table_info(テーブル名)` で確認すること。
+フレッシュインストール端末は version 据え置きのまま新スキーマで DB が作られるため、
+「旧カラム名が必ず存在する」という前提が崩れやすい。
+
+**よくある失敗パターン**:
+1. `lastRead` → `lastReadFilename` リネーム時に version UP を忘れる
+2. フレッシュインストール端末が `lastReadFilename` で DB を生成（`lastRead` は存在しない）
+3. 後から追加した Migration が `lastRead` を参照 → `SQLiteException: no such column` でクラッシュ
+4. コードを revert → デバイス DB とバージョン不一致でさらにクラッシュ
+
+→ コードを revert する前に「端末 DB が何バージョンか」を必ず確認すること。
 
 ---
 
@@ -189,249 +271,7 @@ try/finally で成功・失敗いずれの場合も `ProcessingState()` にリ�
 
 #### Hilt（DIフレームワーク）
 **不採用**。依存グラフが `Application → Repository → ViewModel` の一直線に近く、手動DIで10分以内に管理可能な規模。
-Hiltの主目的は依存解決の自動化であり、テスタビリティはその副産物。プロトタイプ段階で単体テストより手動テストを優先しているため、テスト容易性のためにDIを整備する動機もない。
 
 #### UseCase層（Clean Architecture的な中間層）
-**不採用**。ビジネスロジックの大部分がPython（`app.py` 以下）にカプセル化されており、Kotlinは橋渡し役に徹している。
-KotlinにUseCase層を設けても `repository.xxx()` を呼ぶだけの薄いラッパーになるため、間接層が増えるだけでメリットがない。
+**不採用**。ビジネスロジックの大部分がPython（`app.py` 以下）にカプセル化されており、KotlinはUseCase層を設けても `repository.xxx()` を呼ぶだけの薄いラッパーになる。
 ViewModel → Repository 直結の素直なMVVMを採用。
-
----
----
-
-# 作業日誌
-
-<!-- 新規エントリは以下に追加。フォーマット: ## YYYY-MM-DD | タイトル -->
-
-## 2026-03-30 | Room Migration の誤った前提によるクラッシュ
-
-### 症状
-PDF を選択すると上部に一瞬エラーが表示されて何も起こらない。その後、修正を試みたことでアプリが即座に落ちるようになった。
-
-### 原因の連鎖
-
-**① 発端: Room スキーマ変更ルールの不遵守**
-`ProgressEntity.kt` の `lastRead` → `lastReadFilename` カラムリネームを行ったが、`AppDatabase.version` を上げず Migration も書かなかった。
-
-**② フレッシュインストールによる想定外の v3 スキーマ**
-端末がフレッシュインストールのため、Room が v3 DB を Entity 定義から直接生成した。
-結果として v3 DB に `lastReadFilename` カラムが作られた（`lastRead` は存在しない）。
-
-**③ Migration が誤った前提で書かれていた**
-「v3 DB は必ず `lastRead` を持つ」と仮定して以下の SQL を書いた：
-```sql
-INSERT INTO progress_new SELECT bookId, lastRead FROM progress
-```
-実際には `lastRead` が存在しないため `SQLiteException: no such column` → アプリ即クラッシュ。
-
-**④ revert 操作が追い討ち**
-AppDatabase を v3 に revert したため、デバイス DB（v4）とコード（v3）が不一致 → Room がダウングレード Migration を要求してクラッシュ。
-
-### 最終的な修正
-Migration 実行前に `PRAGMA table_info` でカラムの実在を確認し、`lastRead` がある場合のみテーブル再作成を行う分岐を追加した。
-
-### 教訓
-- **Room スキーマ変更は必ず version UP + Migration とセットで行うこと**（CLAUDE.md 記載済み）
-- Migration の SQL を書く前に `PRAGMA table_info` で端末 DB の実際のカラムを確認すること
-- Entity 変更後にフレッシュインストールした端末は、バージョン据え置きのまま新スキーマで DB が作られる。後から Migration を追加すると「旧カラム名を参照する SQL」が失敗する
-- コードを revert する前に「端末 DB が何バージョンか」を必ず確認すること
-
-
-## 2026-03-31 | Chaquopy callAttr() 引数ミスマッチによる PyException の無音失敗
-
-### 症状
-PDF を選択するたびに「PDF処理に失敗しました」が Snackbar に表示され、何も追加されない。
-logcat の E レベルには OPPO システムノイズしか現れず、アプリ側のエラーが一切見えなかった。
-
-### 原因の連鎖
-
-**① Kotlin → Python 呼び出しの引数が1個多かった**
-`BookRepository.callAttr("process_pdf", ...)` に余分な `true` が混入していた。
-
-```kotlin
-// 誤: 5個渡している
-.callAttr("process_pdf", path, bookId, outputDir, true, ProgressCallback { ... })
-
-// 正: process_pdf(pdf_path, book_id, output_dir, progress_callback=None) の4引数
-.callAttr("process_pdf", path, bookId, outputDir, ProgressCallback { ... })
-```
-
-Python 側で `TypeError: process_pdf() takes from 3 to 4 positional arguments but 5 were given` が発生。
-
-**② runCatching + classifyError() が例外をログなしに吸収**
-`BookRepository.addBook()` は `runCatching { } .fold(onFailure = { Result.failure(classifyError(it)) })` という構造で、
-`classifyError()` も `onFailure` も `Log.e()` を呼んでいなかった。
-結果として PyException は `BookImportError.Unknown` に変換されるだけで logcat に痕跡ゼロ。
-
-**③ Chaquopy は PyException をアプリのログとして出力しない**
-Chaquopy が Python 例外を JNI 経由で Kotlin に橋渡しする際、logcat に自動でスタックトレースを書き出さない。
-`classifyError()` で処理される前に `Log.e()` を挿入しなければ原因は永遠に見えない。
-
-### 修正
-- `callAttr()` から余分な `true` を削除（根本原因の修正）
-- `BookRepository.addBook()` の `onFailure` と `PdfProcessingService.onFailure` に `Log.e()` を追加
-
-### 教訓
-- **Chaquopy の `callAttr()` は引数の型チェックをしない。** Python 関数定義の引数の数と完全に一致させること
-- **`runCatching + classifyError()` パターンは例外を無音で飲み込む。** このパターンを使う箇所には必ず `Log.e()` でログを残すこと
-- logcat に E レベルのアプリエラーが出ない場合、「例外がどこかで catch されてログ出力されていない」を疑うこと
-- OPPO デバイスの E レベルノイズ（SchedAssist / UAH_CLIENT / OplusThermalStats 等）はアプリの問題とは無関係
-
----
-
-## 2026-03-22 | UI全面リニューアル + 読書画面ネイティブ化
-
-### 背景
-
-本棚UIがデフォルトのListItem+Divider構成で無個性だった。
-また、WebViewの章ナビボタン（HTMLの`nav-footer`）がCompose画面と質感が合わず、
-章切り替え時もアニメーションなしで瞬間的に切り替わる問題があった。
-
----
-
-### 変更内容
-
-#### 1. 本棚カードデザイン（BookshelfScreen.kt）
-
-| 項目 | 変更前 | 変更後 |
-|------|--------|--------|
-| リストUI | `ListItem` + `HorizontalDivider` | `ElevatedCard`（角丸16dp・shadowElevation 2dp） |
-| 背景色 | デフォルト白 | `#F2F2F7`（iOS風ライトグレー） |
-| カード色 | - | 純白 `#FFFFFF` |
-| タイトル | `headlineContent` のみ | `titleMedium` + `FontWeight.Bold`（大・太字） |
-| 進捗表示 | なし | 「第N話 · N%」テキスト + LinearProgressIndicator（3dp細線） |
-| 進捗カラー | - | モノトーン（trackColor `#EEEEEE` / バーはprimary） |
-| 削除ボタン | `Icons.Filled.Delete`（黒） | `Icons.Outlined.DeleteOutline`（`#CCCCCC` 薄グレー） |
-| 未読表示 | なし | 「未読」テキスト（`#BBBBBB`） |
-
-進捗表示のために以下も追加：
-- `ProgressDao`：`getAllProgress(): Flow<List<ProgressEntity>>`
-- `BookRepository`：`allProgress` プロパティ
-- `BookshelfViewModel`：`progressMap: StateFlow<Map<String, String>>`（bookId → lastReadFilename）
-
-#### 2. 読書画面ナビゲーションのネイティブ化（ReadingScreen.kt）
-
-HTMLの`nav-footer`（前へ / 目次 / 次へ ボタン）を廃止し、Compose製に置き換えた。
-
-**設計のポイント：2状態分離によるフェードアニメーション**
-
-```
-currentFile（UI操作で即更新）
-    ↓ LaunchedEffect
-    fadeOut（150ms）
-    ↓
-displayedFile = currentFile（WebViewへ渡す値をここで切替）
-    ↓
-WebView.loadUrl()
-    ↓
-    fadeIn（200ms）
-```
-
-`currentFile`と`displayedFile`を分離することで「フェードアウト完了後にWebViewがロード」を実現。
-直接`currentFile`をWebViewに渡すとフェードと読み込みが競合してアニメーションが意味をなさない。
-
-**目次ページの制御**
-- 目次ページでは`isIndex == true`のとき`TopAppBar`（左上に「←」戻るボタン）を表示
-- `BackHandler(enabled = isIndex)`でシステムバックを本棚遷移に割り当て
-- 章ページでは`TopAppBar`を非表示にしてコンテンツ領域を最大化
-
-**WebViewClient の責務変更**
-- 以前：`chap_*.html`リンクを傍受して進捗保存のみ
-- 以後：すべての`.html`リンクを傍受し`currentFileState.value`を更新 → Kotlin側で章遷移を制御
-- `shouldOverrideUrlLoading`内でMutableStateオブジェクト参照経由で更新（factoryクロージャからの安全なstate更新）
-
-#### 3. HTML読書ページのデザイン統一（html_exporter.py）
-
-| 項目 | 変更前 | 変更後 |
-|------|--------|--------|
-| 背景色 | `#fcfaf2`（クリーム） | `#ffffff`（純白） |
-| フォント | 明朝体（MS Mincho） | サンセリフ（-apple-system / Hiragino / Noto） |
-| リンク色 | `#8b4513`（茶色） | `#1a1a1a`（黒） |
-| nav-footer | HTMLで描画 | **削除**（Compose側に移管） |
-| back-link | HTMLで描画 | **削除**（Compose TopAppBar に移管） |
-
-#### 4. 画面遷移バグ修正（MainActivity.kt）
-
-| 項目 | 変更前 | 変更後 |
-|------|--------|--------|
-| 遷移アニメーション | デフォルトスライド（左上ずれの原因） | `fadeIn` / `fadeOut` |
-| htmlDirPath取得 | `LaunchedEffect` + DB非同期クエリ | `viewModel.books.collectAsState()` から直接参照 |
-
-**null→非null recompositionが「ずれ」の原因だった。**
-本棚でロード済みのStateFlowから直接引くことで初回フレームから値が確定し、再計算が起きない。
-
----
-
-### 設計判断：なぜWebViewを捨てなかったか
-
-完全ネイティブ化の場合、Composeにはruby（ふりがな）のネイティブサポートがなく、
-カスタムLayoutが必要になり工数が大きい。
-WebViewはrubyタグを正確にレンダリングするため本文表示は維持し、
-**ナビゲーション制御のみKotlin側に移管**するハイブリッド構成を採用した。
-
----
-
-### 注意点・ハマりポイント
-
-- `TopAppBar`は`@OptIn(ExperimentalMaterial3Api::class)`が必要。ファイルレベルで`@file:OptIn`を付与した。
-- `factory`クロージャ内のlambdaは生成時の値をキャプチャするため、Stateの「値」ではなく「オブジェクト参照」をキャプチャさせること（`currentFileState`を渡し、内部で`.value`を書き換える）。
-- `初回ロード時フラグ`（`isInitialLoad`）を立てないと、画面表示時に不要なフェードが発生する。
-
----
-
-### 追加知見（同日追加作業より）
-
-#### 後書き枠が表示されなかった根本原因
-
-`chapter_processor.py` の `split_into_chapters` に以下の特別処理があった：
-
-```python
-if "後書き" in p:
-    current_body.append(p.replace("【題名】", ""))  # 後書きタイトルを本文に埋め込む
-    continue
-```
-
-この結果、後書きは独立した章オブジェクトとして生成されず、直後の本文段落も含めて
-前の章の `body` に素のテキストとして混入していた。
-`process_foreword_afterword` の `if "後書き" in title:` は章タイトルで判定するため**一度も発火しない**。
-→ 特別処理を削除して前書きと同じ通常フローに乗せることで解決。
-
-**教訓**: HTMLの見た目（前書きに枠がある）から「後書きにも同じコードがあるはず」と決めつけず、
-処理パイプライン全体を追って「どこで変換されるか」を確認すること。
-
-#### ReadingScreen のナビゲーション階層設計
-
-```
-本棚 → 目次（index.html） → 章（chap_N.html）
-  ←          ←（BackHandler）  ←（BackHandler）
-```
-
-`BackHandler` を2つ重ねることで多段階の戻り動作を実現：
-```kotlin
-BackHandler(enabled = !isIndex) { currentFile = "index.html" }   // 章 → 目次
-BackHandler(enabled = isIndex)  { onNavigateToBookshelf() }       // 目次 → 本棚
-```
-両方 `enabled = true` にならないよう `isIndex` で排他制御している点がポイント。
-
-#### `@file:OptIn` によるExperimental API の一括適用
-
-`TopAppBar` 等の `@ExperimentalMaterial3Api` をファイル内の全関数に適用する場合、
-各 `@Composable` に個別アノテーションを付けるより `@file:OptIn` をファイル先頭に書く方が簡潔：
-
-```kotlin
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-
-package com.novelreader.ui
-```
-
----
-
-### コミット
-
-```
-5b388f9  fix: 本棚→読書画面遷移時の画面ずれを修正
-5f039e9  feat: 本棚カードデザインをElevatedCardに刷新・進捗表示を追加
-bc4333c  feat: 読書画面ナビゲーションをCompose化・章遷移フェードアニメーションを追加
-4e56012  feat: 読書画面に戻るボタンを全ページ追加・後書き枠表示バグを修正
-```
-
