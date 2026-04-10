@@ -37,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -70,6 +71,9 @@ fun BookshelfScreen(
     val books by viewModel.books.collectAsState()
     val progressMap by viewModel.progressMap.collectAsState()
     val processingState by viewModel.processingState.collectAsState()
+    val useNativeReader by viewModel.useNativeReader.collectAsState()
+    // 3点メニューの開閉状態（Phase 4 で useNativeReader フラグ削除時にこのメニューも削除すること）
+    var showMenu by remember { mutableStateOf(false) }
     val isProcessing = processingState.isProcessing
     val errorMessage by viewModel.errorMessage.collectAsState()
     val scope = rememberCoroutineScope()
@@ -184,6 +188,38 @@ fun BookshelfScreen(
                                 imageVector = if (isGridView) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView,
                                 contentDescription = if (isGridView) "リスト表示" else "グリッド表示",
                             )
+                        }
+                        // 設定メニュー（Phase 4 で WebView 削除時にこの Box ごと削除すること）
+                        Box {
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(Icons.Filled.MoreVert, contentDescription = "設定")
+                            }
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                        ) {
+                                            Text("ネイティブ読書（試験中）")
+                                            Switch(
+                                                checked = useNativeReader,
+                                                // なぜ null か: DropdownMenuItem の onClick でまとめて処理するため
+                                                onCheckedChange = null,
+                                                modifier = Modifier.padding(start = 8.dp),
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        viewModel.setUseNativeReader(!useNativeReader)
+                                        showMenu = false
+                                    },
+                                )
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
