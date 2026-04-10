@@ -12,3 +12,4 @@ data class BookEntity(
     // デフォルト値 "" を設定。STEP 9 で author 取得後に渡すようになる。
     val author: String = "",
 )
+// test
