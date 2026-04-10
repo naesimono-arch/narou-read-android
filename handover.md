@@ -145,3 +145,80 @@ fi
 | Migration SQL の前提（カラム名など）が正しいか | ❌ 検出不可（推論エラーは機械チェック不能） |
 
 **優先度**: 低〜中（工数 30 分、再発防止として有効だが必須ではない）
+
+---
+
+## ⑩ 機能追加とUI改善のロードマップ (2026-04-10作成)
+
+**背景**
+やりたいこと（パフォーマンス改善、UIアニメーション、新機能、外部連携）がバラバラに存在し、どこから手をつけるべきか見失いやすくなっていたため、機能駆動（垂直スライス）でユーザー体験に直結する順序でロードマップを整理した。
+
+**開発フェーズ**
+
+### Phase 1: クイックウィン＆UX改善（不快感の除去）
+まずは「現在ある機能」の触り心地を完璧にし、手戻りを防ぐ。
+1. **読書画面：題名の2段重複表示の解消**（最も簡単で見た目の効果が高い修正）
+2. **読書画面：スライド時の題名格納アニメーション改善**（スクロール時の「不自然な吸着感」の解消）
+3. **本棚UI：スライドアニメーションのカクつき解消**（パフォーマンス起因かアニメーション設定の問題かを特定し修正）
+4. **本棚UI：表示形式切り替えアニメーションの追加**（リスト/グリッド等切り替え時のフェード実装）
+
+### Phase 2: リーダー基本機能の拡充
+5. **文字サイズの変換機能の追加**（読書アプリとして最重要の追加機能。設定値の永続化とUI反映）
+
+### Phase 3: コンテンツ取得の外部連携（大きな新機能）
+6. **内部ブラウザからのPDF直接取り込み＆動線追加**（WebView実装と、ダウンロード→PDF処理サービスへの連携フロー構築）
+7. **「小説家になろう」公式APIの連携・ランキング表示**（外部APIとの通信処理、リストUIの実装の一気貫通）
+
+### Phase 4: 全体最適化
+8. **データ処理の効率化**（機能が出揃った段階で、PDF解析やDB処理のボトルネックを計測し、非同期処理などを最適化）
+
+**進め方の原則**
+バラバラに手をつけるのではなく、この順番に沿って**「1つのトピック（処理〜UI〜動線）を完全に終わらせてから次へ行く」**ことを徹底する。
+
+---
+
+## ⑪ 読書画面 Compose 化（Phase 4 完了）で解放された追加機能
+
+**背景**
+WebView 版では実現不可能だった機能が、Compose ネイティブ化により実装可能になった。
+フォントサイズ変更は ⑩ Phase 2 に記載済み。以下はその他の候補。
+
+### 実装候補
+
+| 機能 | 実装アプローチ |
+|------|--------------|
+| ダークモード / セピアモード | `MaterialTheme` のカラースキーム切替＋`SharedPreferences` 永続化 |
+| 章内検索 | `AnnotatedString` の文字列検索＋ハイライト `SpanStyle` 付与 |
+| 読書進捗インジケータ | TopAppBar サブタイトルに「3 / 12章」表示 |
+| **章内スクロール位置永続化** | 下記参照（Room Migration 必要） |
+
+### 章内スクロール位置永続化の技術詳細
+
+`LazyColumn` の復元には `firstVisibleItemIndex`（段落インデックス）と
+`firstVisibleItemScrollOffset`（段落内ピクセルオフセット）の2値が必要。
+`ProgressEntity` にカラムを追加し、DB を v5 → v6 に上げる。
+
+```kotlin
+// ProgressEntity.kt
+@Entity(tableName = "progress")
+data class ProgressEntity(
+    @PrimaryKey val bookId: String,
+    val lastReadFilename: String,
+    val scrollItemIndex: Int = 0,
+    val scrollOffset: Int = 0,
+)
+
+// AppDatabase.kt  version = 6
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE progress ADD COLUMN scrollItemIndex INTEGER NOT NULL DEFAULT 0")
+        database.execSQL("ALTER TABLE progress ADD COLUMN scrollOffset INTEGER NOT NULL DEFAULT 0")
+    }
+}
+// addMigrations(..., MIGRATION_5_6) に追加
+```
+
+**注意**: Migration 前に `PRAGMA table_info(progress)` で実際のカラム名を確認すること
+（`feedback_room_migration.md` 参照）。
+
+**難度**: ★★☆☆☆  **優先度**: 低（章単位の進捗保存で実用上は十分）
