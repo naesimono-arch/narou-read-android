@@ -12,7 +12,6 @@ import androidx.navigation.navArgument
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import com.novelreader.ui.BookshelfScreen
-import com.novelreader.ui.NativeReadingScreen
 import com.novelreader.ui.ReadingScreen
 import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.viewmodel.BookshelfViewModel
@@ -69,29 +68,20 @@ private fun NovelReaderApp() {
             // books は BookshelfScreen がバックスタック上で subscribe 中のため hot StateFlow。
             // collectAsState() で第1フレームから現在値を即時派生させることで、
             // LaunchedEffect の1フレーム遅延を排除し AndroidView の (0,0) 初期描画（左上ジャンプ）を防ぐ。
+            // books は BookshelfScreen がバックスタック上で subscribe 中のため hot StateFlow。
+            // collectAsState() で第1フレームから現在値を即時派生させることで、
+            // LaunchedEffect の1フレーム遅延を排除し AndroidView の (0,0) 初期描画（左上ジャンプ）を防ぐ。
             val books by viewModel.books.collectAsState()
             val htmlDirPath = books.firstOrNull { it.id == bookId }?.htmlDirPath
 
-            val useNativeReader by viewModel.useNativeReader.collectAsState()
-
             if (htmlDirPath != null) {
-                if (useNativeReader) {
-                    NativeReadingScreen(
-                        bookId = bookId,
-                        startFile = startFile,
-                        htmlDirPath = htmlDirPath!!,
-                        viewModel = viewModel,
-                        onNavigateToBookshelf = { navController.popBackStack("bookshelf", false) },
-                    )
-                } else {
-                    ReadingScreen(
-                        bookId = bookId,
-                        startFile = startFile,
-                        htmlDirPath = htmlDirPath!!,
-                        viewModel = viewModel,
-                        onNavigateToBookshelf = { navController.popBackStack("bookshelf", false) },
-                    )
-                }
+                ReadingScreen(
+                    bookId = bookId,
+                    startFile = startFile,
+                    htmlDirPath = htmlDirPath,
+                    viewModel = viewModel,
+                    onNavigateToBookshelf = { navController.popBackStack("bookshelf", false) },
+                )
             }
         }
     }

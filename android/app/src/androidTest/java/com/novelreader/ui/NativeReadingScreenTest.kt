@@ -59,7 +59,7 @@ class NativeReadingScreenTest {
     @Test
     fun 次へボタンで次の章に遷移する() {
         composeTestRule.setContent {
-            NativeReadingScreen(
+            ReadingScreen(
                 bookId = "test",
                 startFile = "chap_1.html",
                 htmlDirPath = htmlDir.absolutePath,
@@ -81,7 +81,7 @@ class NativeReadingScreenTest {
     @Test
     fun 最初の章で前へボタンを押すと目次に遷移する() {
         composeTestRule.setContent {
-            NativeReadingScreen(
+            ReadingScreen(
                 bookId = "test",
                 startFile = "chap_1.html",
                 htmlDirPath = htmlDir.absolutePath,
@@ -104,7 +104,7 @@ class NativeReadingScreenTest {
     @Test
     fun 目次ボタンで目次画面に遷移する() {
         composeTestRule.setContent {
-            NativeReadingScreen(
+            ReadingScreen(
                 bookId = "test",
                 startFile = "chap_1.html",
                 htmlDirPath = htmlDir.absolutePath,
@@ -126,7 +126,7 @@ class NativeReadingScreenTest {
     @Test
     fun 目次から章を選択すると章画面に遷移する() {
         composeTestRule.setContent {
-            NativeReadingScreen(
+            ReadingScreen(
                 bookId = "test",
                 startFile = "index.html",
                 htmlDirPath = htmlDir.absolutePath,
@@ -149,7 +149,7 @@ class NativeReadingScreenTest {
     @Test
     fun 存在しないstartFileは目次にフォールバックする() {
         composeTestRule.setContent {
-            NativeReadingScreen(
+            ReadingScreen(
                 bookId = "test",
                 startFile = "nonexistent_999.html",
                 htmlDirPath = htmlDir.absolutePath,
@@ -170,7 +170,7 @@ class NativeReadingScreenTest {
     fun index_htmlも存在しない場合はエラーUIが表示される() {
         val emptyDir = File(htmlDir, "empty_${System.currentTimeMillis()}").also { it.mkdirs() }
         composeTestRule.setContent {
-            NativeReadingScreen(
+            ReadingScreen(
                 bookId = "test",
                 startFile = "chap_1.html",
                 htmlDirPath = emptyDir.absolutePath,
@@ -192,7 +192,7 @@ class NativeReadingScreenTest {
         File(htmlDir, "chap_3.html").mkdir()
 
         composeTestRule.setContent {
-            NativeReadingScreen(
+            ReadingScreen(
                 bookId = "test",
                 startFile = "chap_3.html",
                 htmlDirPath = htmlDir.absolutePath,
@@ -212,7 +212,7 @@ class NativeReadingScreenTest {
     @Test
     fun Activity再生成後に表示中の章が保持される() {
         composeTestRule.setContent {
-            NativeReadingScreen(
+            ReadingScreen(
                 bookId = "test",
                 startFile = "chap_1.html",
                 htmlDirPath = htmlDir.absolutePath,

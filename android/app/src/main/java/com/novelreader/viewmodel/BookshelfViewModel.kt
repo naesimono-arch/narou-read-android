@@ -32,14 +32,10 @@ data class ProcessingState(
     val phase: String = "",
 )
 
-private const val PREFS_NAME = "novel_reader_settings"
-private const val KEY_USE_NATIVE_READER = "use_native_reader"
-
 class BookshelfViewModel(application: Application) : AndroidViewModel(application) {
 
     private val app = application as NovelReaderApplication
     private val repository = app.repository
-    private val prefs = application.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
 
     val books: StateFlow<List<BookEntity>> = repository.allBooks
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -56,15 +52,6 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProcessingState())
 
     val errorMessage: StateFlow<String?> = app.errorState
-
-    /** ネイティブ読書画面を使うかどうかのフラグ。デフォルト false（WebView版） */
-    private val _useNativeReader = MutableStateFlow(prefs.getBoolean(KEY_USE_NATIVE_READER, false))
-    val useNativeReader: StateFlow<Boolean> = _useNativeReader.asStateFlow()
-
-    fun setUseNativeReader(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_USE_NATIVE_READER, enabled).apply()
-        _useNativeReader.value = enabled
-    }
 
     // なぜ Channel.CONFLATED を使うか:
     // viewModelScope.launch ごとに独立コルーチンを発火すると、章ナビ連打時に

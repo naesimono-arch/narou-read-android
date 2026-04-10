@@ -72,7 +72,7 @@ import java.io.File
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NativeReadingScreen(
+fun ReadingScreen(
     bookId: String,
     startFile: String,
     htmlDirPath: String,
@@ -110,14 +110,10 @@ fun NativeReadingScreen(
     }
 
     if (resolvedFile == null) {
-        // htmlDirPath 自体が存在しない致命的エラー
+        // htmlDirPath 自体が存在しない致命的エラー（再試行不可）
         ReadingErrorScreen(
             message = "書籍データが見つかりません",
             onNavigateToBookshelf = onNavigateToBookshelf,
-            // Phase 3: WebView版にフォールバック。useNativeReader を false にすると
-            // MainActivity が即座に ReadingScreen へ切り替わる。
-            // Phase 4 で WebView 削除時にこの引数ごと削除すること。
-            onOpenWithWebView = { viewModel.setUseNativeReader(false) },
         )
         return
     }
@@ -136,11 +132,9 @@ fun NativeReadingScreen(
 
     // 章表示
     ChapterScreen(
-        bookId = bookId,
         currentFile = resolvedFile,
         htmlDirPath = htmlDirPath,
         tocEntries = tocEntries,
-        viewModel = viewModel,
         onNavigateToBookshelf = onNavigateToBookshelf,
         onNavigateTo = { fileName ->
             currentFile = fileName
@@ -155,20 +149,24 @@ fun NativeReadingScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChapterScreen(
-    bookId: String,
     currentFile: String,
     htmlDirPath: String,
     tocEntries: List<TocEntry>,
-    viewModel: BookshelfViewModel,
     onNavigateToBookshelf: () -> Unit,
     onNavigateTo: (String) -> Unit,
 ) {
+    // 再試行カウンタ。インクリメントで produceState を再起動させる。
+    // なぜ currentFile だけでなく retryKey も key に持つか:
+    // currentFile が同じままパースを再実行するには別のキーが必要なため。
+    var retryKey by remember { mutableStateOf(0) }
+
     // 章HTMLを非同期パース（メインスレッドブロック防止）
     // なぜ produceState か: キーが変わったときの再起動が自動化され、
     // Loading → Success の状態遷移をシンプルに記述できるため
     val parseResult by produceState<ParseResult>(
         initialValue = ParseResult.Loading,
         key1 = currentFile,
+        key2 = retryKey,
     ) {
         value = ParseResult.Loading
         value = withContext(Dispatchers.IO) {
@@ -286,9 +284,7 @@ private fun ChapterScreen(
                 is ParseResult.Error -> ReadingErrorScreen(
                     message = result.message,
                     onNavigateToBookshelf = onNavigateToBookshelf,
-                    // Phase 3: WebView版にフォールバック。
-                    // Phase 4 で WebView 削除時にこの引数ごと削除すること。
-                    onOpenWithWebView = { viewModel.setUseNativeReader(false) },
+                    onRetry = { retryKey++ },
                 )
             }
         }
@@ -445,17 +441,12 @@ private fun ParagraphItem(
     }
 }
 
-/**
- * エラー表示UI（ファイル欠損・パース失敗時）
- *
- * @param onOpenWithWebView Phase 3 のみ使用。null の場合はボタン非表示。
- *   Phase 4 で WebView 削除時はこのパラメータごと削除すること。
- */
+/** エラー表示UI（ファイル欠損・パース失敗時）*/
 @Composable
 private fun ReadingErrorScreen(
     message: String,
     onNavigateToBookshelf: () -> Unit,
-    onOpenWithWebView: (() -> Unit)? = null,
+    onRetry: (() -> Unit)? = null,
 ) {
     Box(
         modifier = Modifier.fillMaxSize(),
@@ -476,12 +467,12 @@ private fun ReadingErrorScreen(
                 modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
                 textAlign = TextAlign.Center,
             )
-            if (onOpenWithWebView != null) {
+            if (onRetry != null) {
                 Button(
-                    onClick = onOpenWithWebView,
+                    onClick = onRetry,
                     modifier = Modifier.padding(bottom = 8.dp),
                 ) {
-                    Text("WebView版で開く")
+                    Text("再試行")
                 }
             }
             Button(onClick = onNavigateToBookshelf) {
