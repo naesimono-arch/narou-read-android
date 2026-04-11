@@ -1,5 +1,8 @@
 package com.novelreader.ui
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,7 +29,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.material3.TopAppBarState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.runtime.Composable
@@ -41,11 +44,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -200,11 +206,55 @@ private fun ChapterScreen(
     //     currentFile = chapterHistory.last()
     // }
 
-    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(rememberTopAppBarState())
+    // snapAnimationSpec = null: デフォルトのスナップを無効化する。
+    // スナップが有効だとわずかなスクロールでバーが「自走」し、
+    // ページの動きと乖離した独立した動きに見えてしまうため。
+    val topAppBarState = rememberTopAppBarState()
+    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(
+        topAppBarState,
+        snapAnimationSpec = null,
+    )
+
+    // enterAlwaysScrollBehavior のデフォルト接続はスクロールを横取りしやすい。
+    // 読書体験を優先するため、本文には常にスクロールを渡しつつバー状態だけ追従させる。
+    val nonStealingConnection = remember(topAppBarState) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                // 下スクロール（読み進め）ではバーを非表示方向へ追従させるが、消費はしない。
+                if (available.y < 0) {
+                    topAppBarState.heightOffset =
+                        (topAppBarState.heightOffset + available.y)
+                            .coerceAtLeast(topAppBarState.heightOffsetLimit)
+                }
+                return Offset.Zero
+            }
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                // 上スクロール（戻り）は本文が実際に動いた分だけバーを表示方向へ追従させる。
+                if (consumed.y > 0) {
+                    topAppBarState.heightOffset =
+                        (topAppBarState.heightOffset + consumed.y).coerceAtMost(0f)
+                }
+                return Offset.Zero
+            }
+
+            // なぜ onPreFling ではなく onPostFling で snap するか:
+            // onPreFling で spring を走らせると本文フリングの開始伝達が遅れ、
+            // 体感として「引っかかり」が発生しやすいため。
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                settleTopBar(topAppBarState)
+                return Velocity.Zero
+            }
+        }
+    }
 
     Scaffold(
         containerColor = Color(0xFFFCFAF2),
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier.nestedScroll(nonStealingConnection),
         topBar = {
             TopAppBar(
                 title = {
@@ -228,6 +278,12 @@ private fun ChapterScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color(0xFFFCFAF2),
+                    scrolledContainerColor = Color(0xFFFCFAF2),
+                    // Material3 内部の色計算に依存せず墨色を直接指定。
+                    // containerColor が非デフォルト値のとき titleContentColor が
+                    // 意図しない薄さになる場合があるため明示する。
+                    titleContentColor = Color(0xFF1C1916),
+                    navigationIconContentColor = Color(0xFF524540),
                 ),
                 scrollBehavior = scrollBehavior,
             )
@@ -300,40 +356,6 @@ private fun ChapterContent(content: ChapterContent) {
         modifier = Modifier
             .fillMaxSize(),
     ) {
-        // 章タイトル
-        item {
-            Column(
-                modifier = Modifier
-                    .widthIn(max = 600.dp)
-                    .padding(start = 15.dp, end = 15.dp, top = 20.dp, bottom = 12.dp),
-            ) {
-                Text(
-                    text = content.title,
-                    style = TextStyle(
-                        fontSize = 22.sp,
-                        fontFamily = FontFamily.Serif,
-                        fontWeight = FontWeight.SemiBold,
-                        lineHeight = 32.sp,
-                        letterSpacing = 0.sp,
-                    ),
-                )
-                // タイトル下の区切り線（html_exporter.py の h1 border-bottom に対応）
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                        .height(1.dp),
-                ) {
-                    drawLine(
-                        color = Color(0xFFE0DCD0),
-                        start = Offset(0f, 0f),
-                        end = Offset(size.width, 0f),
-                        strokeWidth = 2.dp.toPx(),
-                    )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-        }
 
         // 段落ごとにレンダリング
         items(paragraphs) { paragraph ->
@@ -519,4 +541,21 @@ private fun List<TextSegment>.splitIntoParagraphs(): List<List<TextSegment>> {
     if (current.isNotEmpty()) result.add(current.toList())
 
     return result
+}
+
+/**
+ * collapsedFraction に応じてバーを全表示または全非表示へスナップさせる。
+ * なぜ自前実装か: enterAlways の標準 snap はスクロール消費戦略と一体化しており、
+ * 本実装の「本文優先・非消費」方針と両立しないため。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+private suspend fun settleTopBar(state: TopAppBarState) {
+    val target = if (state.collapsedFraction > 0.5f) state.heightOffsetLimit else 0f
+    animate(
+        initialValue = state.heightOffset,
+        targetValue = target,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+    ) { value, _ ->
+        state.heightOffset = value
+    }
 }
