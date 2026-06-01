@@ -11,3 +11,7 @@ android/local.properties
 .idea/
 .vscode/
 .claude/settings.local.json
+
+# テスト実行センチネル（コミット時テスト強制 hook のランタイム生成物）
+.claude/.python_tests_passed
+.claude/.kotlin_tests_passed

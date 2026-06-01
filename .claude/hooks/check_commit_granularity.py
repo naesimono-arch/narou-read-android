@@ -82,6 +82,56 @@ if python_staged:
         sys.exit(2)
 # ──── ここまで ────
 
+# ──── Kotlinテスト強制チェック ────
+# なぜ src/main と src/test のみ対象で androidTest を除外するか:
+# androidTest（計器テスト）は実機/エミュレータが無いとコミット時に自動実行できないため、
+# JVM 単体テスト(testDebugUnitTest)で回せる src/main・src/test の .kt のみをゲート対象とする。
+KOTLIN_GATE_DIRS = ("android/app/src/main/", "android/app/src/test/")
+KOTLIN_SENTINEL = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    ".kotlin_tests_passed"
+)
+KOTLIN_TEST_CMD = "cd android && ./gradlew testDebugUnitTest"
+
+kotlin_staged = [
+    f for f in staged
+    if f.endswith(".kt") and f.startswith(KOTLIN_GATE_DIRS)
+]
+
+if kotlin_staged:
+    if not os.path.exists(KOTLIN_SENTINEL):
+        print("[Kotlinテスト未実行] コミットをブロックします")
+        print("以下のKotlinファイルがステージされています:")
+        for f in kotlin_staged:
+            print(f"  - {f}")
+        print("\n先に実行してください:")
+        print(f"  {KOTLIN_TEST_CMD}")
+        sys.exit(2)
+
+    kotlin_sentinel_mtime = os.path.getmtime(KOTLIN_SENTINEL)
+    try:
+        repo_root = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=10
+        ).stdout.strip()
+    except Exception:
+        repo_root = ""
+
+    kotlin_stale = [
+        f for f in kotlin_staged
+        if os.path.exists(os.path.join(repo_root, f))
+        and os.path.getmtime(os.path.join(repo_root, f)) > kotlin_sentinel_mtime
+    ]
+    if kotlin_stale:
+        print("[Kotlinテスト古い] コミットをブロックします")
+        print("センチネルより新しいKotlinファイルがあります:")
+        for f in kotlin_stale:
+            print(f"  - {f}")
+        print("\n再度テストを実行してください:")
+        print(f"  {KOTLIN_TEST_CMD}")
+        sys.exit(2)
+# ──── ここまで ────
+
 # 最新プランファイルを取得
 plans_dir = os.path.expanduser("~/.claude/plans")
 plan_name = None
