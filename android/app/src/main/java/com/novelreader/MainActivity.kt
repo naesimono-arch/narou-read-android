@@ -67,10 +67,7 @@ private fun NovelReaderApp() {
 
             // books は BookshelfScreen がバックスタック上で subscribe 中のため hot StateFlow。
             // collectAsState() で第1フレームから現在値を即時派生させることで、
-            // LaunchedEffect の1フレーム遅延を排除し AndroidView の (0,0) 初期描画（左上ジャンプ）を防ぐ。
-            // books は BookshelfScreen がバックスタック上で subscribe 中のため hot StateFlow。
-            // collectAsState() で第1フレームから現在値を即時派生させることで、
-            // LaunchedEffect の1フレーム遅延を排除し AndroidView の (0,0) 初期描画（左上ジャンプ）を防ぐ。
+            // LaunchedEffect の1フレーム遅延を排除し初期描画のちらつき（左上ジャンプ）を防ぐ。
             val books by viewModel.books.collectAsState()
             val htmlDirPath = books.firstOrNull { it.id == bookId }?.htmlDirPath
 
