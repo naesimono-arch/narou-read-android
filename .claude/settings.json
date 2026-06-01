@@ -7,17 +7,6 @@
     ]
   },
   "hooks": {
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "MARKER=\"/tmp/claude_skill_injected_${PPID}\"; if [ ! -f \"$MARKER\" ]; then touch \"$MARKER\"; echo 'スキル使用ルール（セッション開始時リマインダー）: ビルド・Gradle作業→/build（java not foundが出たら/buildに復旧手順あり）、アーキテクチャ確認→/architecture、DB/Entityスキーマ変更→/db-migration。これらの場面では自力調査より先にスキルを実行すること。'; fi"
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",
@@ -34,15 +23,6 @@
           {
             "type": "command",
             "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/remind_commit_plan.py\""
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/remind_add_test_permission.py\""
           }
         ]
       },

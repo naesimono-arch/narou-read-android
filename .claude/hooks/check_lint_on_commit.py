@@ -55,9 +55,15 @@ REPORT_XML = os.path.join(ANDROID_DIR, "app", "build", "reports", "lint-results-
 BASELINE_FILE = os.path.join(PROJECT_DIR, ".claude", "lint_baseline.json")
 
 print("[Android Lint] Kotlin/XMLファイルがステージされているため Lint を実行中...")
+# なぜ OS で実行ファイルを切り替えるか:
+# Windows では Unix シェルスクリプト ./gradlew を subprocess から直接起動できず
+# WinError 193（有効な Win32 アプリケーションではない）になる。これは FileNotFoundError では
+# 捕捉できず未捕捉クラッシュ＝毎 Android コミットでトレースバックを吐いていた。
+# Windows は gradlew.bat を呼ぶことで正しく解決させる。
+gradlew_cmd = "gradlew.bat" if os.name == "nt" else "./gradlew"
 try:
     subprocess.run(
-        ["./gradlew", "lintDebug", "-q", "--no-daemon"],
+        [gradlew_cmd, "lintDebug", "-q", "--no-daemon"],
         cwd=ANDROID_DIR,
         timeout=300,
         check=False,
@@ -65,8 +71,10 @@ try:
 except subprocess.TimeoutExpired:
     print("[Android Lint] タイムアウト（5分）。スキップします。")
     sys.exit(0)
-except FileNotFoundError:
-    print("[Android Lint] gradlew が見つかりません。スキップします。")
+except OSError as e:
+    # FileNotFoundError / WinError193 等いずれも Lint をスキップ（コミットは妨げない）。
+    # ここで sys.exit(2) するとビルド未整備の端末でコミット不能になるため握り潰す。
+    print(f"[Android Lint] gradlew を起動できません（{e}）。スキップします。")
     sys.exit(0)
 
 # ── レポート解析 ──
