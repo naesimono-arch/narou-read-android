@@ -67,3 +67,4 @@ Androidの `SupportSQLiteDatabase` でも `execSQL("PRAGMA table_info(books)")` 
 |-----------|------|
 | 〜v3      | 歴史不明のため省略（v3 がゼロベース） |
 | v3 → v4   | progress テーブルのカラムリネーム（MIGRATION_3_4）|
+| v4 → v5   | books テーブルに author 列を追加（MIGRATION_4_5、ADD COLUMN DEFAULT ''）|
