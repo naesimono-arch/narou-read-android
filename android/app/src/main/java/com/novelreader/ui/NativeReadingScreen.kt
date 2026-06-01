@@ -11,9 +11,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -44,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -62,6 +66,7 @@ import com.novelreader.model.TocEntry
 import com.novelreader.parser.ChapterHtmlParser
 import com.novelreader.ui.compose.RubyText
 import com.novelreader.viewmodel.BookshelfViewModel
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -217,6 +222,7 @@ private fun ChapterScreen(
 
     // enterAlwaysScrollBehavior のデフォルト接続はスクロールを横取りしやすい。
     // 読書体験を優先するため、本文には常にスクロールを渡しつつバー状態だけ追従させる。
+    val lazyListState = rememberLazyListState()
     val nonStealingConnection = remember(topAppBarState) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -242,9 +248,11 @@ private fun ChapterScreen(
                 return Offset.Zero
             }
 
-            // なぜ onPreFling ではなく onPostFling で snap するか:
-            // onPreFling で spring を走らせると本文フリングの開始伝達が遅れ、
-            // 体感として「引っかかり」が発生しやすいため。
+            // なぜ onPostFling でスナップするか:
+            // フリック後に半端な位置で止まるとバーが宙ぶらりんになるため、
+            // 勢いのある操作が終わった直後に全表示/全非表示へ吸いつかせる。
+            // ゆっくりドラッグして止めた場合は onPostFling が低速度で発火するが
+            // settleTopBar の 0.5f 閾値判定で適切な方向へスナップする。
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
                 settleTopBar(topAppBarState)
                 return Velocity.Zero
@@ -252,109 +260,127 @@ private fun ChapterScreen(
         }
     }
 
-    Scaffold(
-        containerColor = Color(0xFFFCFAF2),
-        modifier = Modifier.nestedScroll(nonStealingConnection),
-        topBar = {
-            TopAppBar(
-                title = {
-                    when (val r = parseResult) {
-                        is ParseResult.Success -> Text(
-                            text = r.content.title,
-                            fontFamily = FontFamily.Serif,
-                            fontSize = 16.sp,
-                            maxLines = 1,
-                        )
-                        else -> Unit
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateToBookshelf) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            containerColor = Color(0xFFFCFAF2),
+            modifier = Modifier.nestedScroll(nonStealingConnection),
+            bottomBar = {
+                // なぜ rgba(252,250,242,0.95) か: スクロール中も文字が透けて読めるよう
+                // 背景色を半透明にするため（html_exporter.py の .nav-footer に対応）
+                BottomAppBar(
+                    containerColor = Color(0xFFFCFAF2).copy(alpha = 0.95f),
+                ) {
+                    IconButton(
+                        onClick = { onNavigateTo(prevFile) },
+                        modifier = Modifier.weight(1f),
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "本棚に戻る",
+                            contentDescription = "前の章",
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFFCFAF2),
-                    scrolledContainerColor = Color(0xFFFCFAF2),
-                    // Material3 内部の色計算に依存せず墨色を直接指定。
-                    // containerColor が非デフォルト値のとき titleContentColor が
-                    // 意図しない薄さになる場合があるため明示する。
-                    titleContentColor = Color(0xFF1C1916),
-                    navigationIconContentColor = Color(0xFF524540),
-                ),
-                scrollBehavior = scrollBehavior,
-            )
-        },
-        bottomBar = {
-            // なぜ rgba(252,250,242,0.95) か: スクロール中も文字が透けて読めるよう
-            // 背景色を半透明にするため（html_exporter.py の .nav-footer に対応）
-            BottomAppBar(
-                containerColor = Color(0xFFFCFAF2).copy(alpha = 0.95f),
+                    IconButton(
+                        onClick = { onNavigateTo("index.html") },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.List,
+                            contentDescription = "目次",
+                        )
+                    }
+                    IconButton(
+                        onClick = { onNavigateTo(nextFile) },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "次の章",
+                        )
+                    }
+                }
+            },
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center,
             ) {
-                IconButton(
-                    onClick = { onNavigateTo(prevFile) },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "前の章",
-                    )
-                }
-                IconButton(
-                    onClick = { onNavigateTo("index.html") },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.List,
-                        contentDescription = "目次",
-                    )
-                }
-                IconButton(
-                    onClick = { onNavigateTo(nextFile) },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "次の章",
-                    )
-                }
-            }
-        },
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentAlignment = Alignment.Center,
-        ) {
-            when (val result = parseResult) {
-                is ParseResult.Loading -> CircularProgressIndicator()
+                when (val result = parseResult) {
+                    is ParseResult.Loading -> CircularProgressIndicator()
 
-                is ParseResult.Success -> ChapterContent(
-                    content = result.content,
-                )
+                    is ParseResult.Success -> ChapterContent(
+                        content = result.content,
+                        lazyListState = lazyListState,
+                    )
 
-                is ParseResult.Error -> ReadingErrorScreen(
-                    message = result.message,
-                    onNavigateToBookshelf = onNavigateToBookshelf,
-                    onRetry = { retryKey++ },
-                )
+                    is ParseResult.Error -> ReadingErrorScreen(
+                        message = result.message,
+                        onNavigateToBookshelf = onNavigateToBookshelf,
+                        onRetry = { retryKey++ },
+                    )
+                }
             }
         }
+
+        TopAppBar(
+            modifier = Modifier.graphicsLayer {
+                // なぜ graphicsLayer か: レイアウトを再計算せず描画位置のみを変えるため。
+                // これによりバーの追従中でも本文の位置が一切動かない。
+                translationY = topAppBarState.heightOffset
+            },
+            title = {
+                when (val r = parseResult) {
+                    is ParseResult.Success -> Text(
+                        text = r.content.title,
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 16.sp,
+                        maxLines = 1,
+                    )
+                    else -> Unit
+                }
+            },
+            navigationIcon = {
+                IconButton(onClick = onNavigateToBookshelf) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "本棚に戻る",
+                    )
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color(0xFFD4B896),
+                scrolledContainerColor = Color(0xFFD4B896),
+                // Material3 内部の色計算に依存せず墨色を直接指定。
+                // containerColor が非デフォルト値のとき titleContentColor が
+                // 意図しない薄さになる場合があるため明示する。
+                titleContentColor = Color(0xFF1C1916),
+                navigationIconContentColor = Color(0xFF524540),
+            ),
+            // scrollBehavior は heightOffsetLimit の測定のため維持する。
+            scrollBehavior = scrollBehavior,
+        )
     }
 }
 
 /** 章本文を LazyColumn でレンダリングする */
 @Composable
-private fun ChapterContent(content: ChapterContent) {
+private fun ChapterContent(
+    content: ChapterContent,
+    lazyListState: LazyListState = rememberLazyListState(),
+) {
     val paragraphs = remember(content) { content.segments.splitIntoParagraphs() }
 
     LazyColumn(
+        state = lazyListState,
         modifier = Modifier
             .fillMaxSize(),
+        // なぜ contentPadding で 64.dp を確保するか:
+        // TopAppBar がオーバーレイ配置のため Scaffold の innerPadding にバー分が含まれない。
+        // Box の padding にすると全画面（ローディング等）に影響しバー非表示時も常に隙間が残る。
+        // contentPadding はスクロール領域内の余白なので、中盤では画面外に収まり本文位置に影響しない。
+        // 章の最上部でのみバー高さ分のスペースが確保され、先頭行がバーに隠れなくなる。
+        contentPadding = PaddingValues(top = 64.dp),
     ) {
 
         // 段落ごとにレンダリング
@@ -543,6 +569,7 @@ private fun List<TextSegment>.splitIntoParagraphs(): List<List<TextSegment>> {
     return result
 }
 
+
 /**
  * collapsedFraction に応じてバーを全表示または全非表示へスナップさせる。
  * なぜ自前実装か: enterAlways の標準 snap はスクロール消費戦略と一体化しており、
@@ -554,6 +581,8 @@ private suspend fun settleTopBar(state: TopAppBarState) {
     animate(
         initialValue = state.heightOffset,
         targetValue = target,
+        // なぜ StiffnessMediumLow か: オーバーレイ化によりバーの動きが本文レイアウトに
+        // 伝わらなくなったため、デフォルトのバウンシー挙動を復元して軽快な触感にする。
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
     ) { value, _ ->
         state.heightOffset = value
