@@ -78,7 +78,7 @@ intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
 ## Jetpack Compose / State管理
 
-### 7. Composableの状態変数は参照する前に宣言する  ★★★
+### 7. Composableの状態変数は参照する前に宣言する  ★★
 
 ラムダ内で `showBatteryOptDialog = true` のように参照する変数は、
 そのラムダより**前**に `remember { mutableStateOf(...) }` で宣言しないと
@@ -112,6 +112,13 @@ BackHandler(enabled = isIndex)  { onNavigateToBookshelf() }     // 目次 → �
 ```
 
 両方 `enabled = true` にならないよう排他制御が必須。どちらも enabled の場合、後に宣言した方が優先される（予期しない遷移の原因になる）。
+
+**現行実装（Phase 3）との関係**:
+現在の `NativeReadingScreen` は BackHandler を使っていない。戻り操作の実装は以下の通り:
+- 本棚への戻り → TopAppBar の戻るボタンが `navController.popBackStack("bookshelf", false)` を呼ぶ
+- 章/目次の切り替え → `currentFile` state を変更するだけ（BackHandler 不使用）
+
+多段階 BackHandler は将来の章履歴スタック導入時の候補としてコード内にコメントアウトで残存。
 
 ---
 
@@ -154,7 +161,7 @@ MSVCがなければビルド失敗。`pdfminer.six`（純Python）のような�
 
 ---
 
-### 12. Python → Kotlin コールバックは fun interface（SAM）を使う
+### 12. Python → Kotlin コールバックは fun interface（SAM）を使う  ★★
 
 Chaquopy 15.0.1 では `fun interface` を Python から直接 `callback(percent, phase)` として呼び出せる。
 IOスレッドから呼ばれるが `MutableStateFlow.value =` への代入はスレッドセーフ（`withContext(Main)` 不要）。
@@ -264,3 +271,70 @@ try/finally で成功・失敗いずれの場合も `ProcessingState()` にリ�
 #### UseCase層（Clean Architecture的な中間層）
 **不採用**。ビジネスロジックの大部分がPython（`app.py` 以下）にカプセル化されており、KotlinはUseCase層を設けても `repository.xxx()` を呼ぶだけの薄いラッパーになる。
 ViewModel → Repository 直結の素直なMVVMを採用。
+
+---
+
+### 23. Service内キュー+シングルループ処理パターン  ★★
+
+複数の URI が短時間に `onStartCommand()` に来ても無言破棄せず直列処理するパターン。
+
+```kotlin
+private val lock = ReentrantLock()
+private val uriQueue = ArrayDeque<Uri>()
+private var isLoopRunning = false
+
+override fun onStartCommand(intent: Intent?, ...): Int {
+    val uri = intent.data ?: return START_NOT_STICKY
+    val shouldStart = lock.withLock {
+        uriQueue.add(uri)
+        if (!isLoopRunning) { isLoopRunning = true; true } else false
+    }
+    if (shouldStart) startProcessingLoop()
+    return START_NOT_STICKY
+}
+```
+
+**設計のポイント**:
+- `lock.withLock {}` で「追加+起動判定」と「取り出し+終了判定」をアトミック化することで競合ゼロ
+- `isLoopRunning` フラグで多重起動を防止。ループ終了時に `isEmpty()` の確認と同一ロックで行う
+- WakeLock はフィールドではなくループのローカル変数で管理（フィールド共有だと旧ループが誤解放するリスクがある）
+- ループが例外で破綻した場合の finally ブロックで `isLoopRunning = false` のフェイルセーフが必要
+
+コード: `PdfProcessingService.kt`（65abfe4 で導入）
+
+---
+
+### 24. TopAppBar オーバーレイ化 + NestedScrollConnection 非消費パターン  ★★
+
+`enterAlwaysScrollBehavior` をそのまま `Scaffold` に渡すと、スクロールを横取りして
+LazyColumn の `contentPadding` が再計算され本文が揺れる問題がある。
+
+**解決パターン**: `Scaffold` の外側の `Box` に TopAppBar をオーバーレイで重ね、
+バーの動きは `graphicsLayer { translationY }` で制御する。
+
+```kotlin
+Box(modifier = Modifier.fillMaxSize()) {
+    Scaffold(
+        modifier = Modifier.nestedScroll(nonStealingConnection),
+        // TopAppBar は Scaffold の topBar に渡さない
+    ) { ... }
+
+    TopAppBar(
+        modifier = Modifier.graphicsLayer {
+            translationY = topAppBarState.heightOffset
+        },
+        scrollBehavior = scrollBehavior, // heightOffsetLimit 計測のために維持
+    )
+}
+```
+
+**NestedScrollConnection の実装方針**:
+- `onPreScroll`: 下スクロール時にバーを追従させるが `Offset.Zero` を返して消費しない
+- `onPostScroll`: 上スクロール時は本文が実際に動いた分だけバーを復元
+- `onPostFling`: 慣性終了後に `settleTopBar()` を呼んで全表示/全非表示へスナップ
+
+標準の snap は消費戦略と一体化しているため自前実装が必要。
+`scrollBehavior = null` にすると `heightOffsetLimit` が測定されず追従計算が壊れるため、
+`scrollBehavior` は引き続きバーに渡し続けること。
+
+コード: `NativeReadingScreen.kt`（8a27999, 2662bf6 で導入）
