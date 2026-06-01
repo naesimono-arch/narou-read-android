@@ -101,18 +101,7 @@ flag = true  // ← これがないと再起動するまで反映されない
 
 ---
 
-### 19. Compose × WebView のフェードアニメーションは2状態分離で実現する
-
-`currentFile`（UI操作で即更新）と `displayedFile`（WebViewへ渡す値）を分離し、
-`LaunchedEffect` で「fadeOut → displayedFile を更新 → loadUrl → fadeIn」の順を制御する。
-
-`currentFile` を直接 WebView に渡すとフェードと読み込みが競合してアニメーションが意味をなさない。
-また `factory` クロージャ内のlambdaは生成時の値をキャプチャするため、
-Stateの「値」ではなく「オブジェクト参照」をキャプチャさせること（`currentFileState` を渡し内部で `.value` を書き換える）。
-
----
-
-### 20. BackHandler の多段階戻り設計  ★★
+### 9. BackHandler の多段階戻り設計  ★★
 
 複数画面（例: 章 → 目次 → 本棚）を単一 Composable で管理する場合、
 `isIndex` のような状態フラグで排他制御して BackHandler を2つ重ねる。
@@ -126,7 +115,7 @@ BackHandler(enabled = isIndex)  { onNavigateToBookshelf() }     // 目次 → �
 
 ---
 
-### 21. Compose LazyColumn で lineHeight を複数Composable間に一貫適用する  ★★
+### 10. Compose LazyColumn で lineHeight を複数Composable間に一貫適用する  ★★
 
 `lineHeight = 2.5.em` などの行高は**単一 BasicText 内の折り返し行間**には適用されるが、
 LazyColumn 上の**別Composable間の間隔**には自動適用されない。
@@ -158,21 +147,21 @@ RubyText(
 
 ## Chaquopy / Python統合
 
-### 9. Chaquopyで使えるのは純Pythonパッケージのみ  ★★★
+### 11. Chaquopyで使えるのは純Pythonパッケージのみ  ★★★
 
 C拡張を含むパッケージ（PyMuPDF/fitz等）はChaquopyのpipがWindowsホスト上でクロスビルドを試みるが、
 MSVCがなければビルド失敗。`pdfminer.six`（純Python）のような代替を選ぶこと。
 
 ---
 
-### 10. Python → Kotlin コールバックは fun interface（SAM）を使う
+### 12. Python → Kotlin コールバックは fun interface（SAM）を使う
 
 Chaquopy 15.0.1 では `fun interface` を Python から直接 `callback(percent, phase)` として呼び出せる。
 IOスレッドから呼ばれるが `MutableStateFlow.value =` への代入はスレッドセーフ（`withContext(Main)` 不要）。
 
 ---
 
-### 11. Chaquopyのcallattr()はキャンセル不能 → NonCancellable必須
+### 13. Chaquopyのcallattr()はキャンセル不能 → NonCancellable必須
 
 `callAttr()` は JNI の同期ブロッキング呼び出しのためコルーチンキャンセル不能。
 Python処理 + DB登録を `withContext(NonCancellable)` でラップし、キャンセル不能であることを明示。
@@ -180,7 +169,7 @@ Python処理 + DB登録を `withContext(NonCancellable)` でラップし、キ�
 
 ---
 
-### 12. Chaquopyの例外はPyExceptionにラップされる → クラス名で判定  ★★
+### 14. Chaquopyの例外はPyExceptionにラップされる → クラス名で判定  ★★
 
 Python で `raise EncryptedPdfError("...")` すると、Kotlin側では `PyException` としてラップされ、
 `e.message` は `"builtins.EncryptedPdfError: ..."` のようにクラス名が先頭に含まれる。
@@ -189,7 +178,7 @@ Python で `raise EncryptedPdfError("...")` すると、Kotlin側では `PyExcep
 
 ---
 
-### 13. pdfminer.six の Y軸は下原点（PyMuPDF と逆）
+### 15. pdfminer.six の Y軸は下原点（PyMuPDF と逆）
 
 - PyMuPDF: 上原点（`top` = ページ上端からの距離）
 - pdfminer: 下原点（`y0`, `y1` = ページ下端からの距離）
@@ -198,7 +187,7 @@ Python で `raise EncryptedPdfError("...")` すると、Kotlin側では `PyExcep
 
 ---
 
-### 21. callAttr() 引数ミスマッチは無音失敗する  ★★★
+### 16. callAttr() 引数ミスマッチは無音失敗する  ★★★
 
 `callAttr()` は引数の型チェックをしない。Python関数定義の引数の数と完全に一致させること。
 ミスマッチ時は Python 側で `TypeError` が発生するが、Chaquopy は PyException を logcat に自動出力しない。
@@ -212,7 +201,7 @@ Python で `raise EncryptedPdfError("...")` すると、Kotlin側では `PyExcep
 
 ## ビルド設定（AGP / Gradle / Compose BOM）
 
-### 14. AGP と Gradle のバージョン互換性マトリクス
+### 17. AGP と Gradle のバージョン互換性マトリクス
 
 | AGP | 対応 Gradle |
 |-----|-------------|
@@ -224,7 +213,7 @@ Gradleダウングレードより**AGPアップグレード**の方がAndroid St
 
 ---
 
-### 15. gradlew はリポジトリに必ずコミットすること  ★★★
+### 18. gradlew はリポジトリに必ずコミットすること  ★★★
 
 `gradlew` / `gradlew.bat` / `gradle-wrapper.jar` が未コミットだとCLIビルド不可（Android Studioは動くが紛らわしい）。
 生成コマンド: `gradle wrapper`（Gradleのローカルインストール or `~/.gradle/wrapper/dists/` のキャッシュが必要）。
@@ -233,7 +222,7 @@ Gradleダウングレードより**AGPアップグレード**の方がAndroid St
 
 ## Room / DB
 
-### 22. Room Migration 前に PRAGMA table_info でカラムを確認する  ★★★
+### 19. Room Migration 前に PRAGMA table_info でカラムを確認する  ★★★
 
 Migration SQL を書く前に端末 DB の実際のカラム名を `PRAGMA table_info(テーブル名)` で確認すること。
 フレッシュインストール端末は version 据え置きのまま新スキーマで DB が作られるため、
@@ -251,7 +240,7 @@ Migration SQL を書く前に端末 DB の実際のカラム名を `PRAGMA table
 
 ## アーキテクチャパターン
 
-### 16. Atomic Commitは実装順序から設計する
+### 20. Atomic Commitは実装順序から設計する
 
 複数コミットに分けることを事前に決めていた場合は、**コミット単位に合わせた実装順序**で進める。
 （例: まず③④のファイルのみ変更してコミット → 次に⑦のファイルを変更してコミット）
@@ -259,7 +248,7 @@ Migration SQL を書く前に端末 DB の実際のカラム名を `PRAGMA table
 
 ---
 
-### 17. ProcessingStateへの一本化パターン
+### 21. ProcessingStateへの一本化パターン
 
 `_isProcessing: Boolean` を `ProcessingState(isProcessing, percent, phase)` に置き換えると、
 「処理中かどうか」「何%か」「どのフェーズか」を単一のStateFlowで管理でき、UI側の collectAsState も1箇所で済む。
@@ -267,7 +256,7 @@ try/finally で成功・失敗いずれの場合も `ProcessingState()` にリ�
 
 ---
 
-### 18. 意図的に採用しなかったアーキテクチャとその理由
+### 22. 意図的に採用しなかったアーキテクチャとその理由
 
 #### Hilt（DIフレームワーク）
 **不採用**。依存グラフが `Application → Repository → ViewModel` の一直線に近く、手動DIで10分以内に管理可能な規模。
