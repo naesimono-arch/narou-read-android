@@ -5,9 +5,12 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import com.novelreader.repository.BookRepository
 import com.novelreader.viewmodel.ProcessingState
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 
 class NovelReaderApplication : Application() {
 
@@ -18,13 +21,14 @@ class NovelReaderApplication : Application() {
     private val _processingState = MutableStateFlow<ProcessingState?>(null)
     val processingState: StateFlow<ProcessingState?> = _processingState.asStateFlow()
 
-    /** エラーメッセージ共有（書き込みは updateErrorState / clearError のみ） */
-    private val _errorState = MutableStateFlow<String?>(null)
-    val errorState: StateFlow<String?> = _errorState.asStateFlow()
+    // エラーは一度きりのイベント。StateFlow だと構成変更（画面回転）で再表示され、
+    // 複数購読時に重複する恐れがあるため、単一コンシューマ向けの Channel で配送する。
+    // 受信時に消費され状態として残らないので clearError は不要。
+    private val _errorEvents = Channel<String>(Channel.BUFFERED)
+    val errorEvents: Flow<String> = _errorEvents.receiveAsFlow()
 
     fun updateProcessingState(state: ProcessingState?) { _processingState.value = state }
-    fun updateErrorState(msg: String?) { _errorState.value = msg }
-    fun clearError() { _errorState.value = null }
+    fun emitError(msg: String) { _errorEvents.trySend(msg) }
 
     override fun onCreate() {
         super.onCreate()

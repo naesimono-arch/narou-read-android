@@ -132,7 +132,7 @@ class PdfProcessingService : Service() {
                     val msg = if (e is BookImportError) e.userMessage
                               else e.message ?: "PDF処理に失敗しました"
                     showErrorNotification(msg)
-                    app.updateErrorState(msg)
+                    app.emitError(msg)
                     app.updateProcessingState(null)
                 },
             )

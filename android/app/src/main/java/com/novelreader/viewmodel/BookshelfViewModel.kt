@@ -51,7 +51,8 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
         .map { it ?: ProcessingState() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProcessingState())
 
-    val errorMessage: StateFlow<String?> = app.errorState
+    // エラーは一度きりのイベント。Application の Channel を購読してそのまま UI へ流す。
+    val errorEvents: Flow<String> = app.errorEvents
 
     // なぜ Channel.CONFLATED を使うか:
     // viewModelScope.launch ごとに独立コルーチンを発火すると、章ナビ連打時に
@@ -88,6 +89,4 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     fun saveProgress(bookId: String, filename: String) {
         progressChannel.trySend(bookId to filename)
     }
-
-    fun clearError() { app.clearError() }
 }

@@ -71,7 +71,6 @@ fun BookshelfScreen(
     val progressMap by viewModel.progressMap.collectAsState()
     val processingState by viewModel.processingState.collectAsState()
     val isProcessing = processingState.isProcessing
-    val errorMessage by viewModel.errorMessage.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -277,11 +276,11 @@ fun BookshelfScreen(
         }
     }
 
-    // エラー Snackbar（snackbarHostState 経由で表示、dismissで clearError を呼ぶ）
-    LaunchedEffect(errorMessage) {
-        errorMessage?.let { msg ->
+    // エラーは一度きりのイベントとして Channel から受信し Snackbar 表示する。
+    // collect は画面の生存期間中ずっと購読し続ければよいので key は Unit。
+    LaunchedEffect(Unit) {
+        viewModel.errorEvents.collect { msg ->
             snackbarHostState.showSnackbar(message = msg, actionLabel = "閉じる")
-            viewModel.clearError()
         }
     }
 

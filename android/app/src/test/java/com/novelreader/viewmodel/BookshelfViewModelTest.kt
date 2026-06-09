@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -43,7 +44,7 @@ class BookshelfViewModelTest {
 
         every { mockApp.repository } returns mockRepository
         every { mockApp.processingState } returns MutableStateFlow<ProcessingState?>(null).asStateFlow()
-        every { mockApp.errorState } returns MutableStateFlow<String?>(null).asStateFlow()
+        every { mockApp.errorEvents } returns emptyFlow()
         every { mockRepository.allBooks } returns flowOf(emptyList())
 
         viewModel = BookshelfViewModel(mockApp)
@@ -65,12 +66,6 @@ class BookshelfViewModelTest {
     @Test
     fun `初期状態 - processingState が ProcessingState() を返す`() {
         assertEquals(ProcessingState(), viewModel.processingState.value)
-    }
-
-    @Test
-    fun `初期状態 - errorMessage が null を返す`() {
-        // errorMessage は app.errorState を直接参照（stateIn なし）
-        assertNull(viewModel.errorMessage.value)
     }
 
     // ── DAO委譲 ───────────────────────────────────────────────────────────
@@ -102,15 +97,6 @@ class BookshelfViewModelTest {
         viewModel.saveProgress("id01", "chapter_02.html")
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { mockRepository.saveProgress("id01", "chapter_02.html") }
-    }
-
-    // ── clearError ────────────────────────────────────────────────────────
-
-    @Test
-    fun `clearError - app の clearError が呼ばれる`() {
-        justRun { mockApp.clearError() }
-        viewModel.clearError()
-        verify { mockApp.clearError() }
     }
 
     // ── addBook ───────────────────────────────────────────────────────────
