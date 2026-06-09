@@ -108,6 +108,11 @@ class BookRepository(
         }.fold(
             onSuccess = { Result.success(it) },
             onFailure = { e ->
+                // コルーチンのキャンセルはエラーに変換せず素通しする。
+                // runCatching は CancellationException も捕捉するため、ここで rethrow しないと
+                // ensureActive() 等が投げたキャンセルが classifyError() で Unknown エラーに化け、
+                // 呼び出し側で不要なエラー通知が出てキャンセルの静かな伝播が壊れる。
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.e(TAG, "addBook 失敗", e)
                 Result.failure(classifyError(e))
             },
