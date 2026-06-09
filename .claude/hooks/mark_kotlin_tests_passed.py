@@ -36,13 +36,19 @@ command = data.get("tool_input", {}).get("command", "")
 if not re.search(r"test\w*UnitTest", command):
     sys.exit(0)
 
-# tool_response の出力を取得（文字列 or {"output": ...} の両形式に対応）
+# tool_response の出力を取得。
+# なぜトップレベルの stdout/stderr を読むか:
+# Claude Code の Bash は tool_response を {"stdout":..., "stderr":...} 形式で渡す。
+# 旧実装は "output" キー前提だったため値が空になり、BUILD SUCCESSFUL を検出できず
+# センチネルが一度も更新されない不具合があった。旧 {"output": ...} 形式にも後方互換で対応する。
 tool_response = data.get("tool_response", {})
-if isinstance(tool_response, dict):
-    raw = tool_response.get("output", "")
-    output = raw if isinstance(raw, str) else (raw.get("stdout", "") + raw.get("stderr", ""))
-elif isinstance(tool_response, str):
+if isinstance(tool_response, str):
     output = tool_response
+elif isinstance(tool_response, dict):
+    raw = tool_response.get("output", "")
+    if not isinstance(raw, str):
+        raw = raw.get("stdout", "") + raw.get("stderr", "")
+    output = raw or (tool_response.get("stdout", "") + tool_response.get("stderr", ""))
 else:
     output = ""
 
