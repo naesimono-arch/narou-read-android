@@ -1,11 +1,17 @@
 package com.novelreader.ui
 
+import android.app.Activity
+import android.content.Context
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,12 +27,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -36,6 +46,7 @@ import androidx.compose.material3.TopAppBarState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -44,8 +55,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -59,12 +71,16 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
 import com.novelreader.model.ChapterContent
 import com.novelreader.model.ParseResult
 import com.novelreader.model.TextSegment
 import com.novelreader.model.TocEntry
 import com.novelreader.parser.ChapterHtmlParser
 import com.novelreader.ui.compose.RubyText
+import com.novelreader.ui.theme.ReadingColors
+import com.novelreader.ui.theme.ReadingTheme
+import com.novelreader.ui.theme.colors
 import com.novelreader.viewmodel.BookshelfViewModel
 
 import kotlinx.coroutines.Dispatchers
@@ -98,6 +114,39 @@ fun ReadingScreen(
         mutableStateOf(startFile)
     }
 
+    // 読書テーマ（ライト/セピア/ダーク）。SharedPreferences で永続化する。
+    // なぜ runCatching で包むか: 不正値が保存されていた場合や将来 enum 名を変更した場合に
+    // クラッシュせず LIGHT へフォールバックするため（防御的だが起動不能よりよい）。
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
+    var readingTheme by remember {
+        mutableStateOf(
+            runCatching { ReadingTheme.valueOf(prefs.getString("reading_theme", "") ?: "") }
+                .getOrDefault(ReadingTheme.LIGHT)
+        )
+    }
+    val onThemeChange: (ReadingTheme) -> Unit = { theme ->
+        readingTheme = theme
+        prefs.edit().putString("reading_theme", theme.name).apply()
+    }
+    val readingColors = readingTheme.colors
+
+    // ステータスバーアイコン色を読書テーマに合わせる。
+    // なぜ DisposableEffect か: NovelReaderTheme 側の SideEffect は読書画面から
+    // 本棚へ戻ったときに再実行される保証がないため、onDispose で必ず
+    // システムテーマ準拠（ライト=暗アイコン）へ復元する必要がある。
+    val view = LocalView.current
+    val systemDark = isSystemInDarkTheme()
+    if (!view.isInEditMode) {
+        DisposableEffect(readingTheme, systemDark) {
+            val controller = WindowCompat.getInsetsController(
+                (view.context as Activity).window, view
+            )
+            controller.isAppearanceLightStatusBars = readingColors.isLight
+            onDispose { controller.isAppearanceLightStatusBars = !systemDark }
+        }
+    }
+
     // パストラバーサル防御: currentFile が htmlDirPath 配下に収まることを保証。
     // なぜ canonicalPath で検証するか: "../../etc/passwd" のような相対パスが
     // htmlDirPath 外のファイルを指す可能性を排除するため。
@@ -124,6 +173,7 @@ fun ReadingScreen(
         // htmlDirPath 自体が存在しない致命的エラー（再試行不可）
         ReadingErrorScreen(
             message = "書籍データが見つかりません",
+            colors = readingColors,
             onNavigateToBookshelf = onNavigateToBookshelf,
         )
         return
@@ -132,6 +182,7 @@ fun ReadingScreen(
     if (resolvedFile == "index.html") {
         NativeTableOfContentsScreen(
             tocEntries = tocEntries,
+            colors = readingColors,
             onSelectChapter = { fileName ->
                 currentFile = fileName
                 viewModel.saveProgress(bookId, fileName)
@@ -146,6 +197,8 @@ fun ReadingScreen(
         currentFile = resolvedFile,
         htmlDirPath = htmlDirPath,
         tocEntries = tocEntries,
+        readingTheme = readingTheme,
+        onThemeChange = onThemeChange,
         onNavigateToBookshelf = onNavigateToBookshelf,
         onNavigateTo = { fileName ->
             currentFile = fileName
@@ -163,9 +216,16 @@ private fun ChapterScreen(
     currentFile: String,
     htmlDirPath: String,
     tocEntries: List<TocEntry>,
+    readingTheme: ReadingTheme,
+    onThemeChange: (ReadingTheme) -> Unit,
     onNavigateToBookshelf: () -> Unit,
     onNavigateTo: (String) -> Unit,
 ) {
+    val colors = readingTheme.colors
+
+    // 表示設定ボトムシートの開閉状態
+    var showSettings by remember { mutableStateOf(false) }
+
     // 再試行カウンタ。インクリメントで produceState を再起動させる。
     // なぜ currentFile だけでなく retryKey も key に持つか:
     // currentFile が同じままパースを再実行するには別のキーが必要なため。
@@ -262,13 +322,14 @@ private fun ChapterScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-            containerColor = Color(0xFFFCFAF2),
+            containerColor = colors.background,
             modifier = Modifier.nestedScroll(nonStealingConnection),
             bottomBar = {
-                // なぜ rgba(252,250,242,0.95) か: スクロール中も文字が透けて読めるよう
+                // なぜ alpha 0.95f か: スクロール中も文字が透けて読めるよう
                 // 背景色を半透明にするため（html_exporter.py の .nav-footer に対応）
                 BottomAppBar(
-                    containerColor = Color(0xFFFCFAF2).copy(alpha = 0.95f),
+                    containerColor = colors.navBackground.copy(alpha = 0.95f),
+                    contentColor = colors.topBarIcon,
                 ) {
                     IconButton(
                         onClick = { onNavigateTo(prevFile) },
@@ -311,11 +372,13 @@ private fun ChapterScreen(
 
                     is ParseResult.Success -> ChapterContent(
                         content = result.content,
+                        colors = colors,
                         lazyListState = lazyListState,
                     )
 
                     is ParseResult.Error -> ReadingErrorScreen(
                         message = result.message,
+                        colors = colors,
                         onNavigateToBookshelf = onNavigateToBookshelf,
                         onRetry = { retryKey++ },
                     )
@@ -348,18 +411,84 @@ private fun ChapterScreen(
                     )
                 }
             },
+            actions = {
+                // 表示設定（テーマ切替）ボトムシートを開く
+                IconButton(onClick = { showSettings = true }) {
+                    Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = "表示設定",
+                    )
+                }
+            },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = Color(0xFFD4B896),
-                scrolledContainerColor = Color(0xFFD4B896),
-                // Material3 内部の色計算に依存せず墨色を直接指定。
+                containerColor = colors.topBarBackground,
+                scrolledContainerColor = colors.topBarBackground,
+                // Material3 内部の色計算に依存せず読書テーマの色を直接指定。
                 // containerColor が非デフォルト値のとき titleContentColor が
                 // 意図しない薄さになる場合があるため明示する。
-                titleContentColor = Color(0xFF1C1916),
-                navigationIconContentColor = Color(0xFF524540),
+                titleContentColor = colors.topBarTitle,
+                navigationIconContentColor = colors.topBarIcon,
+                actionIconContentColor = colors.topBarIcon,
             ),
             // scrollBehavior は heightOffsetLimit の測定のため維持する。
             scrollBehavior = scrollBehavior,
         )
+
+        if (showSettings) {
+            ReadingSettingsSheet(
+                readingTheme = readingTheme,
+                onThemeChange = onThemeChange,
+                onDismiss = { showSettings = false },
+            )
+        }
+    }
+}
+
+/** 表示設定ボトムシート（テーマ切替）。色はアプリ全体の MaterialTheme に従う */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReadingSettingsSheet(
+    readingTheme: ReadingTheme,
+    onThemeChange: (ReadingTheme) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+        ) {
+            Text(
+                text = "表示設定",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = "テーマ",
+                style = MaterialTheme.typography.labelMedium,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // values() を使うのは Kotlin バージョン非依存のため（entries は 1.9+）
+                ReadingTheme.values().forEach { theme ->
+                    FilterChip(
+                        selected = readingTheme == theme,
+                        onClick = { onThemeChange(theme) },
+                        label = {
+                            Text(
+                                when (theme) {
+                                    ReadingTheme.LIGHT -> "ライト"
+                                    ReadingTheme.SEPIA -> "セピア"
+                                    ReadingTheme.DARK -> "ダーク"
+                                }
+                            )
+                        },
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -367,6 +496,7 @@ private fun ChapterScreen(
 @Composable
 private fun ChapterContent(
     content: ChapterContent,
+    colors: ReadingColors,
     lazyListState: LazyListState = rememberLazyListState(),
 ) {
     val paragraphs = remember(content) { content.segments.splitIntoParagraphs() }
@@ -387,6 +517,7 @@ private fun ChapterContent(
         items(paragraphs) { paragraph ->
             ParagraphItem(
                 paragraph = paragraph,
+                colors = colors,
                 modifier = Modifier
                     .widthIn(max = 600.dp)
                     .padding(horizontal = 15.dp),
@@ -401,9 +532,11 @@ private fun ChapterContent(
 @Composable
 private fun ParagraphItem(
     paragraph: List<TextSegment>,
+    colors: ReadingColors,
     modifier: Modifier = Modifier,
 ) {
     val bodyStyle = TextStyle(
+        color = colors.text,
         fontSize = 18.sp,
         lineHeight = 2.5.em,
         fontFamily = FontFamily.Serif,
@@ -434,7 +567,7 @@ private fun ParagraphItem(
                     .height(1.dp),
             ) {
                 drawLine(
-                    color = Color(0xFFCCCCCC),
+                    color = colors.hr,
                     start = Offset(0f, 0f),
                     end = Offset(size.width, 0f),
                     strokeWidth = 1.dp.toPx(),
@@ -452,8 +585,8 @@ private fun ParagraphItem(
                 modifier = modifier
                     .fillMaxWidth()
                     .padding(bottom = 20.dp),
-                color = Color(0xFFF9F9F9),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEEEEEE)),
+                color = colors.blockBackground,
+                border = androidx.compose.foundation.BorderStroke(1.dp, colors.blockBorder),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
             ) {
                 Column(modifier = Modifier.padding(15.dp)) {
@@ -470,6 +603,7 @@ private fun ParagraphItem(
                             RubyText(
                                 segments = innerPara,
                                 style = bodyStyle,
+                                rubyColor = colors.ruby,
                                 modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
                             )
                         }
@@ -483,6 +617,7 @@ private fun ParagraphItem(
             RubyText(
                 segments = paragraph,
                 style = bodyStyle,
+                rubyColor = colors.ruby,
                 modifier = modifier.fillMaxWidth().padding(bottom = 14.dp),
             )
         }
@@ -493,11 +628,15 @@ private fun ParagraphItem(
 @Composable
 private fun ReadingErrorScreen(
     message: String,
+    colors: ReadingColors,
     onNavigateToBookshelf: () -> Unit,
     onRetry: (() -> Unit)? = null,
 ) {
     Box(
-        modifier = Modifier.fillMaxSize(),
+        // トップレベル（Scaffold 外）からも呼ばれるため自前で背景色を塗る
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.background),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -505,13 +644,13 @@ private fun ReadingErrorScreen(
                 text = "読み込みに失敗しました",
                 fontFamily = FontFamily.Serif,
                 fontSize = 16.sp,
-                color = Color(0xFF666666),
+                color = colors.textSecondary,
             )
             Text(
                 text = message,
                 fontFamily = FontFamily.Serif,
                 fontSize = 12.sp,
-                color = Color(0xFF999999),
+                color = colors.textSecondary.copy(alpha = 0.75f),
                 modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
                 textAlign = TextAlign.Center,
             )
