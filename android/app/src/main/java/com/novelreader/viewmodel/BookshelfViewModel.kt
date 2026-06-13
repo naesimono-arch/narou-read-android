@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.novelreader.NovelReaderApplication
 import com.novelreader.PdfProcessingService
 import com.novelreader.data.BookEntity
+import com.novelreader.data.ProgressEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -65,10 +66,19 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     // CONFLATED により中間値は捨てられ最新値のみが処理される。
     private val progressChannel = Channel<Pair<String, String>>(Channel.CONFLATED)
 
+    // スクロール位置の保存要求。読書中の連続発火（snapshotFlow）を捌くため
+    // progressChannel と同様 CONFLATED で最新値のみを逐次書き込む。
+    private val scrollChannel = Channel<ProgressEntity>(Channel.CONFLATED)
+
     init {
         viewModelScope.launch(Dispatchers.IO) {
             for ((bookId, filename) in progressChannel) {
                 repository.saveProgress(bookId, filename)
+            }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            for (p in scrollChannel) {
+                repository.saveScrollPosition(p.bookId, p.lastReadFilename, p.scrollIndex, p.scrollOffset)
             }
         }
     }
@@ -89,7 +99,13 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
 
     suspend fun getLastRead(bookId: String): String? = repository.getLastRead(bookId)
 
+    suspend fun getProgress(bookId: String): ProgressEntity? = repository.getProgress(bookId)
+
     fun saveProgress(bookId: String, filename: String) {
         progressChannel.trySend(bookId to filename)
+    }
+
+    fun saveScrollPosition(bookId: String, filename: String, scrollIndex: Int, scrollOffset: Int) {
+        scrollChannel.trySend(ProgressEntity(bookId, filename, scrollIndex, scrollOffset))
     }
 }

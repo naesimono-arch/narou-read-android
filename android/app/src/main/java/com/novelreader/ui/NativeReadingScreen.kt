@@ -26,6 +26,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -88,6 +90,8 @@ import com.novelreader.ui.theme.colors
 import com.novelreader.viewmodel.BookshelfViewModel
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.roundToInt
@@ -124,6 +128,18 @@ fun ReadingScreen(
     // 上書きされ、どの章から来たかが失われるため。
     var lastChapterFile by rememberSaveable(key = "lastChapter_$bookId") {
         mutableStateOf(startFile.takeIf { it != "index.html" })
+    }
+
+    // 読書再開位置。画面初回に一度だけ DB から取得する（章の途中から復元するため）。
+    // null=取得待ち。getProgress は DB 1行クエリのため一瞬で解決する。
+    var chapterRestore by remember { mutableStateOf<ChapterRestore?>(null) }
+    LaunchedEffect(bookId) {
+        val p = viewModel.getProgress(bookId)
+        chapterRestore = ChapterRestore(
+            targetFile = p?.lastReadFilename,
+            scrollIndex = p?.scrollIndex ?: 0,
+            scrollOffset = p?.scrollOffset ?: 0,
+        )
     }
 
     // 読書テーマ（ライト/セピア/ダーク）。SharedPreferences で永続化する。
@@ -219,7 +235,16 @@ fun ReadingScreen(
         return
     }
 
-    // 章表示
+    // 章表示。読書再開位置の取得を待ってから描画する。
+    // なぜ待つか: LazyListState に初期スクロール位置を注入するため。
+    // 取得後に scrollToItem する方式だと「先頭→保存位置」へのジャンプが見えてしまう。
+    val restore = chapterRestore
+    if (restore == null) {
+        // 取得待ちの一瞬。テーマ背景で塗りつぶし白フラッシュを防ぐ
+        Box(modifier = Modifier.fillMaxSize().background(readingColors.background))
+        return
+    }
+
     ChapterScreen(
         currentFile = resolvedFile,
         htmlDirPath = htmlDirPath,
@@ -228,6 +253,12 @@ fun ReadingScreen(
         onThemeChange = onThemeChange,
         fontSize = fontSize,
         onFontSizeChange = onFontSizeChange,
+        // resolvedFile が「最後に読んだ章」と一致する場合のみスクロール位置を復元する
+        initialScrollIndex = if (resolvedFile == restore.targetFile) restore.scrollIndex else 0,
+        initialScrollOffset = if (resolvedFile == restore.targetFile) restore.scrollOffset else 0,
+        onSaveScroll = { index, offset ->
+            viewModel.saveScrollPosition(bookId, resolvedFile, index, offset)
+        },
         onNavigateToBookshelf = onNavigateToBookshelf,
         onNavigateTo = { fileName ->
             currentFile = fileName
@@ -239,8 +270,15 @@ fun ReadingScreen(
     )
 }
 
+/** 読書再開位置。targetFile（最後に読んだ章）と一致する章のみスクロール位置を復元する。 */
+private data class ChapterRestore(
+    val targetFile: String?,
+    val scrollIndex: Int,
+    val scrollOffset: Int,
+)
+
 /** 章本文を表示する内部 Composable */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
 private fun ChapterScreen(
     currentFile: String,
@@ -250,6 +288,9 @@ private fun ChapterScreen(
     onThemeChange: (ReadingTheme) -> Unit,
     fontSize: Int,
     onFontSizeChange: (Int) -> Unit,
+    initialScrollIndex: Int,
+    initialScrollOffset: Int,
+    onSaveScroll: (index: Int, offset: Int) -> Unit,
     onNavigateToBookshelf: () -> Unit,
     onNavigateTo: (String) -> Unit,
 ) {
@@ -314,7 +355,22 @@ private fun ChapterScreen(
 
     // enterAlwaysScrollBehavior のデフォルト接続はスクロールを横取りしやすい。
     // 読書体験を優先するため、本文には常にスクロールを渡しつつバー状態だけ追従させる。
-    val lazyListState = rememberLazyListState()
+    // 章ごとに初期スクロール位置付きで生成し、remember(currentFile) で章移動時に
+    // 必ず作り直すことで前章のスクロール位置の引き継ぎを防ぐ。
+    val lazyListState = remember(currentFile) {
+        LazyListState(initialScrollIndex, initialScrollOffset)
+    }
+
+    // スクロール位置を継続保存する（読書中にプロセスが kill されても続きから読めるように）。
+    // 読書中の連続発火を debounce で間引き、DB 書き込みを最小化する。
+    LaunchedEffect(lazyListState, currentFile) {
+        snapshotFlow {
+            lazyListState.firstVisibleItemIndex to lazyListState.firstVisibleItemScrollOffset
+        }
+            .debounce(400)
+            .collect { (index, offset) -> onSaveScroll(index, offset) }
+    }
+
     val nonStealingConnection = remember(topAppBarState) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
