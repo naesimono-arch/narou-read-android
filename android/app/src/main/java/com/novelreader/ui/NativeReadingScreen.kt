@@ -38,6 +38,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -86,6 +87,7 @@ import com.novelreader.viewmodel.BookshelfViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.roundToInt
 
 /**
  * ネイティブ読書画面のエントリポイント。
@@ -130,6 +132,19 @@ fun ReadingScreen(
         prefs.edit().putString("reading_theme", theme.name).apply()
     }
     val readingColors = readingTheme.colors
+
+    // 本文フォントサイズ（sp）。lineHeight は em 指定のため自動追従する。
+    // なぜ coerceIn か: 将来レンジを狭めた場合に保存済みの範囲外値で
+    // レイアウトが崩れないよう、読み出し時点で必ず現行レンジに丸める。
+    var fontSize by remember {
+        mutableStateOf(prefs.getInt("reading_font_size", 18).coerceIn(14, 24))
+    }
+    val onFontSizeChange: (Int) -> Unit = { size ->
+        fontSize = size
+        // apply はメモリ即時反映＋非同期ディスク書込のため、
+        // スライダードラッグ中に連続発火しても UI をブロックしない
+        prefs.edit().putInt("reading_font_size", size).apply()
+    }
 
     // ステータスバーアイコン色を読書テーマに合わせる。
     // なぜ DisposableEffect か: NovelReaderTheme 側の SideEffect は読書画面から
@@ -199,6 +214,8 @@ fun ReadingScreen(
         tocEntries = tocEntries,
         readingTheme = readingTheme,
         onThemeChange = onThemeChange,
+        fontSize = fontSize,
+        onFontSizeChange = onFontSizeChange,
         onNavigateToBookshelf = onNavigateToBookshelf,
         onNavigateTo = { fileName ->
             currentFile = fileName
@@ -218,6 +235,8 @@ private fun ChapterScreen(
     tocEntries: List<TocEntry>,
     readingTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
+    fontSize: Int,
+    onFontSizeChange: (Int) -> Unit,
     onNavigateToBookshelf: () -> Unit,
     onNavigateTo: (String) -> Unit,
 ) {
@@ -373,6 +392,7 @@ private fun ChapterScreen(
                     is ParseResult.Success -> ChapterContent(
                         content = result.content,
                         colors = colors,
+                        fontSize = fontSize,
                         lazyListState = lazyListState,
                     )
 
@@ -438,18 +458,22 @@ private fun ChapterScreen(
             ReadingSettingsSheet(
                 readingTheme = readingTheme,
                 onThemeChange = onThemeChange,
+                fontSize = fontSize,
+                onFontSizeChange = onFontSizeChange,
                 onDismiss = { showSettings = false },
             )
         }
     }
 }
 
-/** 表示設定ボトムシート（テーマ切替）。色はアプリ全体の MaterialTheme に従う */
+/** 表示設定ボトムシート（テーマ切替・文字サイズ）。色はアプリ全体の MaterialTheme に従う */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReadingSettingsSheet(
     readingTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
+    fontSize: Int,
+    onFontSizeChange: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -488,6 +512,26 @@ private fun ReadingSettingsSheet(
                     )
                 }
             }
+            Spacer(Modifier.height(24.dp))
+            Text(
+                text = "文字サイズ（${fontSize}sp）",
+                style = MaterialTheme.typography.labelMedium,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // 両端の「あ」はスライダーの効果（最小・最大の文字サイズ）を視覚的に示す
+                Text("あ", fontSize = 14.sp, fontFamily = FontFamily.Serif)
+                Slider(
+                    value = fontSize.toFloat(),
+                    onValueChange = { onFontSizeChange(it.roundToInt()) },
+                    valueRange = 14f..24f,
+                    // steps = 9 で 14〜24sp を 1sp 刻みの離散値にする（中間刻み = 範囲幅 - 1）
+                    steps = 9,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 12.dp),
+                )
+                Text("あ", fontSize = 24.sp, fontFamily = FontFamily.Serif)
+            }
         }
     }
 }
@@ -497,6 +541,7 @@ private fun ReadingSettingsSheet(
 private fun ChapterContent(
     content: ChapterContent,
     colors: ReadingColors,
+    fontSize: Int,
     lazyListState: LazyListState = rememberLazyListState(),
 ) {
     val paragraphs = remember(content) { content.segments.splitIntoParagraphs() }
@@ -518,6 +563,7 @@ private fun ChapterContent(
             ParagraphItem(
                 paragraph = paragraph,
                 colors = colors,
+                fontSize = fontSize,
                 modifier = Modifier
                     .widthIn(max = 600.dp)
                     .padding(horizontal = 15.dp),
@@ -533,18 +579,21 @@ private fun ChapterContent(
 private fun ParagraphItem(
     paragraph: List<TextSegment>,
     colors: ReadingColors,
+    fontSize: Int,
     modifier: Modifier = Modifier,
 ) {
     val bodyStyle = TextStyle(
         color = colors.text,
-        fontSize = 18.sp,
+        // ユーザー設定の文字サイズ。lineHeight が em（相対値）のため行間も自動でスケールする
+        fontSize = fontSize.sp,
         lineHeight = 2.5.em,
         fontFamily = FontFamily.Serif,
         letterSpacing = 0.sp,
         // なぜ Trim.LastLineBottom か:
         // lineHeight = 2.5.em を RubyText 内折り返しとParagraphItem 間で統一するため。
-        // LastLineBottom のみ除去することで上 leading(13.5sp=ルビ描画領域)を保ちつつ、
-        // composable 高さを 31.5sp に確定させる。
+        // LastLineBottom のみ除去することで上 leading（ルビ描画領域）を保ちつつ
+        // composable 高さを確定させる（18sp 時の実値: 上 leading 13.5sp / 高さ 31.5sp。
+        // em 指定のため文字サイズ変更時も比率は維持される）。
         lineHeightStyle = LineHeightStyle(
             alignment = LineHeightStyle.Alignment.Proportional,
             trim = LineHeightStyle.Trim.LastLineBottom,
