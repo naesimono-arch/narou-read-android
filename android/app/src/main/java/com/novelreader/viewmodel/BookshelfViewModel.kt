@@ -30,6 +30,9 @@ data class ProcessingState(
     val stepTotal: Int = 4,
     val stepLocalPercent: Float = 0f,
     val phase: String = "",
+    // キュー情報（通知と同じ「N件目/全M件」をアプリ内バナーにも出すため）
+    val queueCurrent: Int = 1,
+    val queueTotal: Int = 1,
 )
 
 class BookshelfViewModel(application: Application) : AndroidViewModel(application) {

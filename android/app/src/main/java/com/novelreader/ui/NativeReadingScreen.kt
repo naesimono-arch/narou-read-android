@@ -18,6 +18,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -116,6 +119,13 @@ fun ReadingScreen(
         mutableStateOf(startFile)
     }
 
+    // 最後に表示していた章。目次表示中の「現在章ハイライト」に使う。
+    // なぜ currentFile と別に持つか: 目次を開くと currentFile は "index.html" に
+    // 上書きされ、どの章から来たかが失われるため。
+    var lastChapterFile by rememberSaveable(key = "lastChapter_$bookId") {
+        mutableStateOf(startFile.takeIf { it != "index.html" })
+    }
+
     // 読書テーマ（ライト/セピア/ダーク）。SharedPreferences で永続化する。
     // なぜ runCatching で包むか: 不正値が保存されていた場合や将来 enum 名を変更した場合に
     // クラッシュせず LIGHT へフォールバックするため（防御的だが起動不能よりよい）。
@@ -198,8 +208,10 @@ fun ReadingScreen(
         NativeTableOfContentsScreen(
             tocEntries = tocEntries,
             colors = readingColors,
+            currentChapterFile = lastChapterFile,
             onSelectChapter = { fileName ->
                 currentFile = fileName
+                lastChapterFile = fileName
                 viewModel.saveProgress(bookId, fileName)
             },
             onNavigateToBookshelf = onNavigateToBookshelf,
@@ -220,6 +232,7 @@ fun ReadingScreen(
         onNavigateTo = { fileName ->
             currentFile = fileName
             if (fileName != "index.html") {
+                lastChapterFile = fileName
                 viewModel.saveProgress(bookId, fileName)
             }
         },
@@ -550,12 +563,16 @@ private fun ChapterContent(
         state = lazyListState,
         modifier = Modifier
             .fillMaxSize(),
-        // なぜ contentPadding で 64.dp を確保するか:
+        // なぜ contentPadding で確保するか:
         // TopAppBar がオーバーレイ配置のため Scaffold の innerPadding にバー分が含まれない。
         // Box の padding にすると全画面（ローディング等）に影響しバー非表示時も常に隙間が残る。
         // contentPadding はスクロール領域内の余白なので、中盤では画面外に収まり本文位置に影響しない。
         // 章の最上部でのみバー高さ分のスペースが確保され、先頭行がバーに隠れなくなる。
-        contentPadding = PaddingValues(top = 64.dp),
+        // なぜ statusBars を加算するか: Edge-to-Edge 表示では TopAppBar の実高が
+        // 64dp + ステータスバーインセットになるため、64dp 固定だと先頭行がバーに隠れる。
+        contentPadding = PaddingValues(
+            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 64.dp,
+        ),
     ) {
 
         // 段落ごとにレンダリング

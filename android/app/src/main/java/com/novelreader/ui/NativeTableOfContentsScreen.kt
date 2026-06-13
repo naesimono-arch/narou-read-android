@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.HorizontalDivider
@@ -23,10 +24,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.model.TocEntry
@@ -37,6 +40,7 @@ import com.novelreader.ui.theme.ReadingColors
  *
  * @param tocEntries 目次エントリのリスト（空の場合は「章が見つかりません」を表示）
  * @param colors 読書テーマの色トークン（直書き色は禁止。正典は Theme.kt）
+ * @param currentChapterFile 最後に表示していた章のファイル名（null なら未読。ハイライト＋自動スクロールに使う）
  * @param onSelectChapter 章ファイル名を引数にして章選択時に呼ぶコールバック
  * @param onNavigateToBookshelf 本棚に戻るコールバック
  */
@@ -45,6 +49,7 @@ import com.novelreader.ui.theme.ReadingColors
 fun NativeTableOfContentsScreen(
     tocEntries: List<TocEntry>,
     colors: ReadingColors,
+    currentChapterFile: String?,
     onSelectChapter: (fileName: String) -> Unit,
     onNavigateToBookshelf: () -> Unit,
 ) {
@@ -85,12 +90,26 @@ fun NativeTableOfContentsScreen(
                 )
             }
         } else {
+            val listState = rememberLazyListState()
+            val currentIndex = tocEntries.indexOfFirst { it.fileName == currentChapterFile }
+
+            // 初期表示時に現在章まで自動スクロールする（長編で毎回先頭から探す手間をなくす）。
+            // tocEntries は非同期ロードのため、空 → 充足のタイミングでも発火するよう key に含める。
+            LaunchedEffect(tocEntries, currentChapterFile) {
+                if (currentIndex >= 0) {
+                    // 1つ手前まで見せることで「現在章が先頭に張り付いて前後関係が分からない」のを防ぐ
+                    listState.scrollToItem((currentIndex - 1).coerceAtLeast(0))
+                }
+            }
+
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
             ) {
                 itemsIndexed(tocEntries) { index, entry ->
+                    val isCurrent = index == currentIndex
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -103,8 +122,10 @@ fun NativeTableOfContentsScreen(
                                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
                                 fontSize = 16.sp,
                                 fontFamily = FontFamily.Serif,
+                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
                                 lineHeight = 24.sp,
-                                color = colors.text,
+                                // 現在読んでいる章はアクセント色＋太字で示す
+                                color = if (isCurrent) colors.accent else colors.text,
                             )
                             HorizontalDivider(color = colors.divider, thickness = 0.5.dp)
                         }

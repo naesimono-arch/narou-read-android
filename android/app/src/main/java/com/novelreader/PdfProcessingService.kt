@@ -119,7 +119,9 @@ class PdfProcessingService : Service() {
             val result = repository.addBook(uri, onProgress = { step, stepLocalPercent, phase ->
                 val progress = (step * 25 + stepLocalPercent * 25).toInt().coerceIn(0, 100)
                 updateProgressNotification(progress, "ステップ ${step + 1}/4 - $phase", currentNumber, total)
-                app.updateProcessingState(ProcessingState(true, step, 4, stepLocalPercent, phase))
+                app.updateProcessingState(
+                    ProcessingState(true, step, 4, stepLocalPercent, phase, currentNumber, total)
+                )
             })
 
             result.fold(

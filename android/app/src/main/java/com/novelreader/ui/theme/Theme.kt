@@ -33,6 +33,7 @@ data class ReadingColors(
     val divider: Color,           // 目次の区切り線
     val blockBackground: Color,   // 前書き・後書きブロック背景
     val blockBorder: Color,       // 前書き・後書きブロック枠線
+    val accent: Color,            // 強調色（目次の現在章ハイライトなど）
     val isLight: Boolean,         // true ならステータスバーアイコンを暗色にする
 )
 
@@ -53,6 +54,7 @@ val ReadingTheme.colors: ReadingColors
             divider          = Color(0xFFE0DCD0),
             blockBackground  = Color(0xFFF9F9F9),
             blockBorder      = Color(0xFFEEEEEE),
+            accent           = Color(0xFF7B3F2A), // アプリ全体の primary（朱墨色）と統一
             isLight          = true,
         )
         ReadingTheme.SEPIA -> ReadingColors(
@@ -68,6 +70,7 @@ val ReadingTheme.colors: ReadingColors
             divider          = Color(0xFFE0D3AE),
             blockBackground  = Color(0xFFEFE6CC),
             blockBorder      = Color(0xFFE2D6B4),
+            accent           = Color(0xFF8C4A2F), // セピア背景に合わせやや深めの朱
             isLight          = true,
         )
         ReadingTheme.DARK -> ReadingColors(
@@ -83,6 +86,7 @@ val ReadingTheme.colors: ReadingColors
             divider          = Color(0xFF3A342E),
             blockBackground  = Color(0xFF24201C),
             blockBorder      = Color(0xFF38322C),
+            accent           = Color(0xFFFFBBA3), // ダーク用の明るい朱（PrimaryDark と統一）
             isLight          = false,
         )
     }
