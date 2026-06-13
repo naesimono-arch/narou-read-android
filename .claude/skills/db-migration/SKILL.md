@@ -68,3 +68,4 @@ Androidの `SupportSQLiteDatabase` でも `execSQL("PRAGMA table_info(books)")` 
 | 〜v3      | 歴史不明のため省略（v3 がゼロベース） |
 | v3 → v4   | progress テーブルのカラムリネーム（MIGRATION_3_4）|
 | v4 → v5   | books テーブルに author 列を追加（MIGRATION_4_5、ADD COLUMN DEFAULT ''）|
+| v5 → v6   | progress テーブルに scrollIndex / scrollOffset 列を追加（MIGRATION_5_6、ADD COLUMN INTEGER DEFAULT 0、章内スクロール位置の永続化）|
