@@ -58,26 +58,20 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     // エラーは一度きりのイベント。Application の Channel を購読してそのまま UI へ流す。
     val errorEvents: Flow<String> = app.errorEvents
 
-    // なぜ Channel.CONFLATED を使うか:
-    // viewModelScope.launch ごとに独立コルーチンを発火すると、章ナビ連打時に
-    // IO dispatcher のスレッドプール上で書き込み順序が逆転し、最終意図と
-    // 異なるファイル名が保存される可能性がある。Channel で FIFO キューに変換し
-    // 単一コルーチンで逐次処理することで順序を保証する。
-    // CONFLATED により中間値は捨てられ最新値のみが処理される。
-    private val progressChannel = Channel<Pair<String, String>>(Channel.CONFLATED)
-
-    // スクロール位置の保存要求。読書中の連続発火（snapshotFlow）を捌くため
-    // progressChannel と同様 CONFLATED で最新値のみを逐次書き込む。
-    private val scrollChannel = Channel<ProgressEntity>(Channel.CONFLATED)
+    // 進捗（章移動＋章内スクロール位置）の保存要求を単一チャネルに集約する。
+    // なぜ1本に統合するか: 以前は章移動用とスクロール用で2本のチャネル＋2コルーチンに
+    // 分かれていたが、両者は同じ progress 行を REPLACE で上書きするため、
+    // 2チャネル跨ぎでは書き込み順序が保証されず（順序保証はチャネル内のみ）、
+    // 章送り直後に旧章のスクロール書き込みが後着すると lastReadFilename が
+    // 旧章へ巻き戻る競合があった。単一チャネルにすることで「最後に送られた操作＝
+    // 最新のユーザー操作」が確実に最後に書き込まれる。
+    // CONFLATED により中間値は捨てられ最新値のみが処理される（単一行の現在位置
+    // 表現としてこの破棄は意味的に正しい）。
+    private val progressChannel = Channel<ProgressEntity>(Channel.CONFLATED)
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            for ((bookId, filename) in progressChannel) {
-                repository.saveProgress(bookId, filename)
-            }
-        }
-        viewModelScope.launch(Dispatchers.IO) {
-            for (p in scrollChannel) {
+            for (p in progressChannel) {
                 repository.saveScrollPosition(p.bookId, p.lastReadFilename, p.scrollIndex, p.scrollOffset)
             }
         }
@@ -101,11 +95,12 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
 
     suspend fun getProgress(bookId: String): ProgressEntity? = repository.getProgress(bookId)
 
+    // 章移動時の保存。スクロール位置は default 0 のまま送ることで章先頭にリセットする。
     fun saveProgress(bookId: String, filename: String) {
-        progressChannel.trySend(bookId to filename)
+        progressChannel.trySend(ProgressEntity(bookId, filename))
     }
 
     fun saveScrollPosition(bookId: String, filename: String, scrollIndex: Int, scrollOffset: Int) {
-        scrollChannel.trySend(ProgressEntity(bookId, filename, scrollIndex, scrollOffset))
+        progressChannel.trySend(ProgressEntity(bookId, filename, scrollIndex, scrollOffset))
     }
 }

@@ -92,11 +92,20 @@ class BookshelfViewModelTest {
         assertNull(result)
     }
 
+    // 進捗保存は単一チャネルに統合され、章移動・スクロール双方とも
+    // repository.saveScrollPosition で書き込まれる（章移動はスクロール 0,0 = 章先頭）。
     @Test
-    fun `saveProgress - repository の saveProgress が呼ばれる`() = runTest {
+    fun `saveProgress - 章移動はスクロール0で saveScrollPosition が呼ばれる`() = runTest {
         viewModel.saveProgress("id01", "chapter_02.html")
         testDispatcher.scheduler.advanceUntilIdle()
-        coVerify { mockRepository.saveProgress("id01", "chapter_02.html") }
+        coVerify { mockRepository.saveScrollPosition("id01", "chapter_02.html", 0, 0) }
+    }
+
+    @Test
+    fun `saveScrollPosition - 指定位置で saveScrollPosition が呼ばれる`() = runTest {
+        viewModel.saveScrollPosition("id01", "chapter_02.html", 5, 120)
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify { mockRepository.saveScrollPosition("id01", "chapter_02.html", 5, 120) }
     }
 
     // ── addBook ───────────────────────────────────────────────────────────
