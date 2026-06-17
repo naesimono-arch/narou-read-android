@@ -22,6 +22,20 @@ class CorruptedPdfError(Exception):
     pass
 
 
+# pdfminer / pdfparser が PDF 構造の破損で投げる例外の型名マーカー。
+# なぜ型名の部分一致で判定するか: pdfminer のバージョン差で例外の所属モジュール
+# （pdfminer.pdfparser / pdfminer.pdfexceptions / pdfminer.psexceptions 等）が
+# 変わっても追従できるよう、EncryptedPdf 判定と同じく型名で判定する。
+_CORRUPTED_PDF_MARKERS = (
+    "PDFSyntaxError",
+    "PDFException",
+    "PDFNoValidXRef",
+    "PSEOF",
+    "PSSyntaxError",
+    "PSException",
+)
+
+
 def process_pdf(pdf_path, book_id, output_dir, progress_callback=None):
     """PDFを開き、タイトル抽出→本文抽出→話分割→HTML出力まで行い、書籍タイトルを返す。"""
 
@@ -62,7 +76,13 @@ def process_pdf(pdf_path, book_id, output_dir, progress_callback=None):
             raise EncryptedPdfError(err_str) from e
         if "No space left on device" in err_str or "[Errno 28]" in err_str:
             raise InsufficientStorageError(err_str) from e
-        # 既にカスタム例外であればそのまま再送出
-        if isinstance(e, (EncryptedPdfError, InsufficientStorageError, CorruptedPdfError)):
-            raise
+        # PDF 構造の破損（pdfminer 由来の解析例外）をユーザー向けに分類する。
+        # なぜ型名のみで限定するか: ValueError 等の汎用例外まで巻き込むと
+        # 本来「予期しないエラー」として扱うべきものまで「破損」に化けるため、
+        # pdfminer 系の型名に該当する場合だけ CorruptedPdfError に包む。
+        if any(marker in err_type for marker in _CORRUPTED_PDF_MARKERS):
+            raise CorruptedPdfError(err_str) from e
+        # EncryptedPdfError / InsufficientStorageError / CorruptedPdfError などの
+        # カスタム例外も、それ以外の未知例外も、ここではそのまま再送出する
+        # （bare raise なので型・トレースバックを保持）。
         raise

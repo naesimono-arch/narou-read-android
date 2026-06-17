@@ -601,6 +601,22 @@ class TestProcessPdf(unittest.TestCase):
             with self.assertRaises(app_module.CorruptedPdfError):
                 app_module.process_pdf("dummy.pdf", "book_id", "/tmp")
 
+    def test_pdfminer_parse_error_raises_CorruptedPdfError(self):
+        # pdfminer 由来の解析例外（型名に PDFSyntaxError 等を含む）は CorruptedPdfError に変換される。
+        # 例外名で判定するため、pdfminer のバージョン差でモジュールが変わっても対応できる。
+        import app as app_module
+
+        class PDFSyntaxError(Exception):
+            pass
+
+        with self._happy_stack({
+            "pdf_extractor.run_final_engine": {
+                "side_effect": PDFSyntaxError("Syntax Error: Invalid xref table")
+            }
+        }):
+            with self.assertRaises(app_module.CorruptedPdfError):
+                app_module.process_pdf("dummy.pdf", "book_id", "/tmp")
+
     # ---- 未知例外の再送出 -----------------------------------------------
 
     def test_unknown_exception_reraises_as_is(self):
