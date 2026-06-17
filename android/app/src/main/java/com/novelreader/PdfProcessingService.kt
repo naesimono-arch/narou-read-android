@@ -62,18 +62,6 @@ class PdfProcessingService : Service() {
     }
 
     private fun startProcessingLoop() {
-        // WakeLockをローカル変数で管理（フィールド共有だと新ループ起動時に旧ループが誤解放するため）
-        // CPUをスリープさせないWakeLock（OPPOのバックグラウンド強制停止対策）
-        // 取得失敗時はログのみ出してWakeLockなしで継続（スリープ対策が効かなくなるだけで処理自体は継続）
-        val wl: PowerManager.WakeLock? = try {
-            (getSystemService(Context.POWER_SERVICE) as PowerManager)
-                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NovelReader::PdfProcessing")
-                .also { it.acquire(10 * 60 * 1000L) } // 最大10分
-        } catch (e: Exception) {
-            Log.e(TAG, "WakeLock取得に失敗（スリープ対策なしで継続）", e)
-            null
-        }
-
         scope.launch {
             var isNormalExit = false
             try {
@@ -87,10 +75,29 @@ class PdfProcessingService : Service() {
                         }
                         else uriQueue.removeFirst()
                     } ?: break
-                    processSingleUri(uri)
+
+                    // WakeLock は PDF 1件ごとに取得・解放する。
+                    // なぜループ単位でなく PDF 単位か: キューに複数 PDF を積むと合計処理が
+                    // 10分を超えうるが、ループ全体で1度だけ acquire(10分) すると途中で自動解放され、
+                    // OPPO 等にバックグラウンド kill されて残りの PDF が孤立する。1件ごとに取り直すことで
+                    // バッチ全体が長時間でも各処理中は確実に WakeLock を保持できる。
+                    // ローカル変数で管理（フィールド共有だと新ループ起動時に旧ループが誤解放するため）。
+                    // 取得失敗時はログのみ出して WakeLock なしで継続（スリープ対策が効かなくなるだけで処理は継続）。
+                    val wl: PowerManager.WakeLock? = try {
+                        (getSystemService(Context.POWER_SERVICE) as PowerManager)
+                            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NovelReader::PdfProcessing")
+                            .also { it.acquire(10 * 60 * 1000L) } // 1件あたり最大10分
+                    } catch (e: Exception) {
+                        Log.e(TAG, "WakeLock取得に失敗（スリープ対策なしで継続）", e)
+                        null
+                    }
+                    try {
+                        processSingleUri(uri)
+                    } finally {
+                        wl?.release()
+                    }
                 }
             } finally {
-                wl?.release()
                 // 異常終了時（クラッシュ等）のフェールセーフ
                 val shouldStopSelf = lock.withLock {
                     if (!isNormalExit && isLoopRunning) {
