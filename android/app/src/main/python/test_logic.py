@@ -127,6 +127,20 @@ class TestProcessForewordAfterwword(unittest.TestCase):
         result = process_foreword_afterword(chapters)
         self.assertIn("<ruby>三文字<rt>よみ</rt></ruby>", result[0]["body"])
 
+    def test_html_special_chars_are_escaped(self):
+        # 本文中の < > & は HTML エスケープされ、生のタグとして解釈されない
+        chapters = [{"title": "第一話", "body": ["a < b & c > d"]}]
+        result = process_foreword_afterword(chapters)
+        body = result[0]["body"]
+        self.assertIn("a &lt; b &amp; c &gt; d", body)
+        self.assertNotIn("a < b", body)
+
+    def test_escape_and_ruby_coexist(self):
+        # エスケープ後もルビマーカーは <ruby> へ変換され、親文字内の & も実体参照になる
+        chapters = [{"title": "第一話", "body": ["|A&B《えび》"]}]
+        result = process_foreword_afterword(chapters)
+        self.assertIn("<ruby>A&amp;B<rt>えび</rt></ruby>", result[0]["body"])
+
     def test_foreword_prepended(self):
         # 前書きは次の章の先頭に付与される
         chapters = [

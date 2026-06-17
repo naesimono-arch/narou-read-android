@@ -2,6 +2,7 @@
 html_exporter.py (Android版)
 本棚へのバックリンクは特殊URL（WebView 側で傍受）を使用する。
 """
+import html
 import os
 
 # WebView が本棚に戻るリクエストとして傍受するための特殊 URL
@@ -39,7 +40,9 @@ def export_to_mobile_html(
     # 本棚への遷移リンク（WebView 側で傍受する特殊URL）
     bookshelf_href = _BOOKSHELF_URL
 
-    index_heading = (book_title if book_title else "作品目次").strip()
+    # タイトルは PDF 抽出由来で < > & を含みうるため HTML エスケープする
+    # （本文 body は chapter_processor 側でエスケープ済みのため二重エスケープしない）。
+    index_heading = html.escape((book_title if book_title else "作品目次").strip())
     index_page_title = f"{index_heading} - 目次" if book_title else "小説リーダー - 目次"
 
     index_html = f"""
@@ -61,7 +64,9 @@ def export_to_mobile_html(
     total_chapters = len(final_chapters)
     for i, chap in enumerate(final_chapters):
         filename = f"chap_{i + 1}.html"
-        index_html += f'<li><a href="{filename}">{chap["title"]}</a></li>'
+        # 章タイトルも PDF 抽出由来のため目次リンク・<title>・<h1> でエスケープする
+        safe_title = html.escape(chap["title"])
+        index_html += f'<li><a href="{filename}">{safe_title}</a></li>'
 
         prev_page = f"chap_{i}.html" if i > 0 else "index.html"
         next_page = f"chap_{i + 2}.html" if i < len(final_chapters) - 1 else "index.html"
@@ -72,12 +77,12 @@ def export_to_mobile_html(
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>{chap['title']}</title>
+            <title>{safe_title}</title>
             {style}
         </head>
         <body>
             <div class="container">
-                <h1>{chap['title']}</h1>
+                <h1>{safe_title}</h1>
                 <div class="content">
 {chap['body']}
                 </div>
