@@ -48,17 +48,57 @@ class PdfProcessingService : Service() {
         }
 
         if (shouldStart) {
-            // API 34+ 対応: ServiceCompat で型を明示
-            ServiceCompat.startForeground(
-                this,
-                NOTIFICATION_ID,
-                buildProgressNotification(0, "準備中…"),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
-            )
+            // API 34+ 対応: ServiceCompat で型を明示。
+            // startForeground は Android 12+ のバックグラウンド起動制限により
+            // ForegroundServiceStartNotAllowedException(IllegalStateException のサブクラス)を
+            // 投げうる。現状はユーザー操作(前面)からの起動のみだが、将来 background 起動経路を
+            // 追加したときにアプリをクラッシュさせないよう防御し、失敗時は積んだキューと
+            // 状態をリセットして静かに終了する。
+            try {
+                ServiceCompat.startForeground(
+                    this,
+                    NOTIFICATION_ID,
+                    buildProgressNotification(0, "準備中…"),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+                )
+            } catch (e: IllegalStateException) {
+                Log.e(TAG, "フォアグラウンド開始に失敗（処理を中止）", e)
+                lock.withLock {
+                    uriQueue.clear()
+                    isLoopRunning = false
+                    totalCount = 0
+                    doneCount = 0
+                }
+                (application as? NovelReaderApplication)?.updateProcessingState(null)
+                stopSelf()
+                return START_NOT_STICKY
+            }
             startProcessingLoop()
         }
 
         return START_NOT_STICKY
+    }
+
+    // Android 14+ の dataSync 型 FGS は1日累計の実行時間上限(約6時間)に達すると
+    // onTimeout が呼ばれる。放置するとシステムに強制終了され通知・状態が残るため、
+    // 実行中ループをキャンセルし(各 PDF の finally で WakeLock 解放)、状態をリセットして
+    // 明示的に停止する。ユーザーには中断を通知して再試行を促す。
+    // 注: API 34 で追加されたコールバックのため、それ未満の端末では呼ばれない。
+    override fun onTimeout(startId: Int) {
+        Log.w(TAG, "FGS タイムアウト(dataSync 実行時間上限)により処理を中断")
+        scope.cancel()
+        lock.withLock {
+            uriQueue.clear()
+            isLoopRunning = false
+            totalCount = 0
+            doneCount = 0
+        }
+        (application as? NovelReaderApplication)?.let {
+            it.updateProcessingState(null)
+            it.emitError("変換が時間制限により中断されました。アプリを開いて再度お試しください。")
+        }
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     private fun startProcessingLoop() {
