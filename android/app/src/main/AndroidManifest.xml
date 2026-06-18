@@ -6,9 +6,17 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!--
+      allowBackup を false にする理由:
+      蔵書の本文は filesDir/novels/{bookId}/*.html に保存され、DB(books) はその絶対パスを持つ。
+      Auto Backup には 25MB 上限があり、蔵書がこれを超えると HTML だけが部分的にバックアップ
+      されず DB だけ復元される → 復元後に書籍を開くと実体が無く「書籍データが見つかりません」に
+      なる（NativeReadingScreen の resolvedFile==null）。DB とファイル実体の整合を Auto Backup で
+      保証できないため、壊れる可能性のあるバックアップより無効化を選ぶ。
+    -->
     <application
         android:name=".NovelReaderApplication"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
