@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -163,7 +164,7 @@ fun ReadingScreen(
     // なぜ coerceIn か: 将来レンジを狭めた場合に保存済みの範囲外値で
     // レイアウトが崩れないよう、読み出し時点で必ず現行レンジに丸める。
     var fontSize by remember {
-        mutableStateOf(prefs.getInt("reading_font_size", 18).coerceIn(14, 24))
+        mutableIntStateOf(prefs.getInt("reading_font_size", 18).coerceIn(14, 24))
     }
     val onFontSizeChange: (Int) -> Unit = { size ->
         fontSize = size
@@ -302,7 +303,7 @@ private fun ChapterScreen(
     // 再試行カウンタ。インクリメントで produceState を再起動させる。
     // なぜ currentFile だけでなく retryKey も key に持つか:
     // currentFile が同じままパースを再実行するには別のキーが必要なため。
-    var retryKey by remember { mutableStateOf(0) }
+    var retryKey by remember { mutableIntStateOf(0) }
 
     // 章HTMLを非同期パース（メインスレッドブロック防止）
     // なぜ produceState か: キーが変わったときの再起動が自動化され、
