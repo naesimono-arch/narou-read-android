@@ -227,6 +227,18 @@ Gradleダウングレードより**AGPアップグレード**の方がAndroid St
 
 ---
 
+### 19. プロジェクトパスに非ASCII文字があるとビルドが拒否される（Windows）  ★★★
+
+配置パスに日本語等の非ASCII文字（例: `Desktop\開発\...`）が含まれると、AGPが
+**コンパイル開始前**に `Your project path contains non-ASCII characters` で `BUILD FAILED`。
+Kotlinエラーではないため原因が分かりにくい。
+
+**対策（推奨）**: プロジェクトをASCIIのみのパス（例: `Desktop\project\...`）へ配置する。
+**回避策**: `gradle.properties` に `android.overridePathCheck=true`。ただし公式に
+「Windowsでビルド失敗の可能性大」と警告される道なので、配置変更が本筋。
+
+---
+
 ## Room / DB
 
 ### 19. Room Migration 前に PRAGMA table_info でカラムを確認する  ★★★
