@@ -130,8 +130,24 @@ class BookRepository(
     suspend fun getLastRead(bookId: String): String? =
         withContext(Dispatchers.IO) { progressDao.getLastRead(bookId) }
 
+    suspend fun getProgress(bookId: String): ProgressEntity? =
+        withContext(Dispatchers.IO) { progressDao.getProgress(bookId) }
+
+    // 章を切り替えたときの進捗保存。スクロール位置は 0 にリセットする
+    // （別の章へ移ったので前章のスクロール位置は引き継がない）。
     suspend fun saveProgress(bookId: String, filename: String) = withContext(Dispatchers.IO) {
         progressDao.saveProgress(ProgressEntity(bookId, filename))
+    }
+
+    // 章内スクロール位置の保存。lastReadFilename も一緒に書き込むことで
+    // 「どの章のどの位置か」を1行で表現する（REPLACE で上書き）。
+    suspend fun saveScrollPosition(
+        bookId: String,
+        filename: String,
+        scrollIndex: Int,
+        scrollOffset: Int,
+    ) = withContext(Dispatchers.IO) {
+        progressDao.saveProgress(ProgressEntity(bookId, filename, scrollIndex, scrollOffset))
     }
 
     companion object {

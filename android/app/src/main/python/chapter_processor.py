@@ -2,6 +2,7 @@
 chapter_processor.py
 Phase 03-03B: 段落リストを話数・前書き・後書きに分割・整形するモジュール
 """
+import html
 import re
 
 # モジュールロード時にコンパイルしておくことで、呼び出しのたびにパターン解析が走らない
@@ -47,7 +48,12 @@ def process_foreword_afterword(chapters_data):
 
     for chap in chapters_data:
         title = chap["title"]
-        body_text = _apply_ruby("\n".join(chap["body"]))
+        # なぜ escape してから _apply_ruby するか:
+        # PDF 抽出した本文に含まれる < > & を生のまま HTML へ流すと、Compose 側の
+        # Jsoup パースで本文欠落やタグ崩壊が起きる。先に html.escape で無害化し、
+        # その後にルビマーカー(|base《ruby》)を <ruby> タグへ変換する。
+        # ルビマーカー文字(| 《 》)は html.escape の対象外なので順序を守れば共存できる。
+        body_text = _apply_ruby(html.escape("\n".join(chap["body"])))
 
         if "前書き" in title:
             temp_foreword = (

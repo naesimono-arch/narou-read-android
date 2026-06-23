@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.novelreader.NovelReaderApplication
 import com.novelreader.PdfProcessingService
 import com.novelreader.data.BookEntity
+import com.novelreader.data.ProgressEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -30,6 +31,9 @@ data class ProcessingState(
     val stepTotal: Int = 4,
     val stepLocalPercent: Float = 0f,
     val phase: String = "",
+    // キュー情報（通知と同じ「N件目/全M件」をアプリ内バナーにも出すため）
+    val queueCurrent: Int = 1,
+    val queueTotal: Int = 1,
 )
 
 class BookshelfViewModel(application: Application) : AndroidViewModel(application) {
@@ -54,18 +58,21 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     // エラーは一度きりのイベント。Application の Channel を購読してそのまま UI へ流す。
     val errorEvents: Flow<String> = app.errorEvents
 
-    // なぜ Channel.CONFLATED を使うか:
-    // viewModelScope.launch ごとに独立コルーチンを発火すると、章ナビ連打時に
-    // IO dispatcher のスレッドプール上で書き込み順序が逆転し、最終意図と
-    // 異なるファイル名が保存される可能性がある。Channel で FIFO キューに変換し
-    // 単一コルーチンで逐次処理することで順序を保証する。
-    // CONFLATED により中間値は捨てられ最新値のみが処理される。
-    private val progressChannel = Channel<Pair<String, String>>(Channel.CONFLATED)
+    // 進捗（章移動＋章内スクロール位置）の保存要求を単一チャネルに集約する。
+    // なぜ1本に統合するか: 以前は章移動用とスクロール用で2本のチャネル＋2コルーチンに
+    // 分かれていたが、両者は同じ progress 行を REPLACE で上書きするため、
+    // 2チャネル跨ぎでは書き込み順序が保証されず（順序保証はチャネル内のみ）、
+    // 章送り直後に旧章のスクロール書き込みが後着すると lastReadFilename が
+    // 旧章へ巻き戻る競合があった。単一チャネルにすることで「最後に送られた操作＝
+    // 最新のユーザー操作」が確実に最後に書き込まれる。
+    // CONFLATED により中間値は捨てられ最新値のみが処理される（単一行の現在位置
+    // 表現としてこの破棄は意味的に正しい）。
+    private val progressChannel = Channel<ProgressEntity>(Channel.CONFLATED)
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            for ((bookId, filename) in progressChannel) {
-                repository.saveProgress(bookId, filename)
+            for (p in progressChannel) {
+                repository.saveScrollPosition(p.bookId, p.lastReadFilename, p.scrollIndex, p.scrollOffset)
             }
         }
     }
@@ -86,7 +93,14 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
 
     suspend fun getLastRead(bookId: String): String? = repository.getLastRead(bookId)
 
+    suspend fun getProgress(bookId: String): ProgressEntity? = repository.getProgress(bookId)
+
+    // 章移動時の保存。スクロール位置は default 0 のまま送ることで章先頭にリセットする。
     fun saveProgress(bookId: String, filename: String) {
-        progressChannel.trySend(bookId to filename)
+        progressChannel.trySend(ProgressEntity(bookId, filename))
+    }
+
+    fun saveScrollPosition(bookId: String, filename: String, scrollIndex: Int, scrollOffset: Int) {
+        progressChannel.trySend(ProgressEntity(bookId, filename, scrollIndex, scrollOffset))
     }
 }

@@ -1,11 +1,13 @@
 """
 html_exporter.py (Android版)
-本棚へのバックリンクは特殊URL（WebView 側で傍受）を使用する。
+chapter_processor.py が整形した本文を、Compose 側(ChapterHtmlParser)が解釈する
+静的 HTML(index.html / chap_N.html)へ書き出すモジュール。
+読書画面のナビゲーション(前/次/目次/本棚)は Compose ネイティブ UI が担うため、
+HTML 側のリンクは実描画には使われない（旧 WebView 版で本棚遷移に使っていた
+特殊URL傍受の仕組みは撤去済み）。
 """
+import html
 import os
-
-# WebView が本棚に戻るリクエストとして傍受するための特殊 URL
-_BOOKSHELF_URL = "https://novelreader.app/bookshelf"
 
 
 def export_to_mobile_html(
@@ -31,15 +33,12 @@ def export_to_mobile_html(
         hr { border: 0; border-top: 1px dashed #ccc; margin: 30px 0; }
         .index-list { list-style: none; padding: 0; }
         .index-list li { padding: 15px 0; border-bottom: 1px solid #eee; }
-        .back-link-top { display: inline-block; margin-bottom: 15px; font-family: "Zen Kaku Gothic New", sans-serif; font-size: 0.9em; padding: 8px 12px; background-color: #f4efdf; border-radius: 6px; color: #555; text-decoration: none; font-weight: normal; }
-        .back-link-bottom { display: block; text-align: center; margin-top: 30px; padding: 15px; background-color: #f4efdf; border-radius: 8px; font-family: "Zen Kaku Gothic New", sans-serif; color: #555; text-decoration: none; font-weight: normal; }
     </style>
     """
 
-    # 本棚への遷移リンク（WebView 側で傍受する特殊URL）
-    bookshelf_href = _BOOKSHELF_URL
-
-    index_heading = (book_title if book_title else "作品目次").strip()
+    # タイトルは PDF 抽出由来で < > & を含みうるため HTML エスケープする
+    # （本文 body は chapter_processor 側でエスケープ済みのため二重エスケープしない）。
+    index_heading = html.escape((book_title if book_title else "作品目次").strip())
     index_page_title = f"{index_heading} - 目次" if book_title else "小説リーダー - 目次"
 
     index_html = f"""
@@ -53,7 +52,6 @@ def export_to_mobile_html(
     </head>
     <body>
         <div class="container">
-            <a href="{bookshelf_href}" class="back-link-top">← 本棚に戻る</a>
             <h1>{index_heading}</h1>
             <ul class="index-list">
     """
@@ -61,23 +59,28 @@ def export_to_mobile_html(
     total_chapters = len(final_chapters)
     for i, chap in enumerate(final_chapters):
         filename = f"chap_{i + 1}.html"
-        index_html += f'<li><a href="{filename}">{chap["title"]}</a></li>'
+        # 章タイトルも PDF 抽出由来のため目次リンク・<title>・<h1> でエスケープする
+        safe_title = html.escape(chap["title"])
+        index_html += f'<li><a href="{filename}">{safe_title}</a></li>'
 
         prev_page = f"chap_{i}.html" if i > 0 else "index.html"
         next_page = f"chap_{i + 2}.html" if i < len(final_chapters) - 1 else "index.html"
 
+        # nav-footer(前へ/目次/次へ)は読書画面のナビを Compose 側(ChapterScreen の
+        # BottomAppBar)が再実装しているため実描画には使われない。ChapterHtmlParser は
+        # div.content の外にある nav-footer を解釈しないが、視覚的フォールバックとして残す。
         chapter_html = f"""
         <!DOCTYPE html>
         <html lang="ja">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>{chap['title']}</title>
+            <title>{safe_title}</title>
             {style}
         </head>
         <body>
             <div class="container">
-                <h1>{chap['title']}</h1>
+                <h1>{safe_title}</h1>
                 <div class="content">
 {chap['body']}
                 </div>
@@ -102,7 +105,6 @@ def export_to_mobile_html(
 
     index_html += f"""
             </ul>
-            <a href="{bookshelf_href}" class="back-link-bottom">本棚に戻る</a>
         </div>
     </body>
     </html>

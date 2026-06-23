@@ -48,32 +48,60 @@ class PdfProcessingService : Service() {
         }
 
         if (shouldStart) {
-            // API 34+ 対応: ServiceCompat で型を明示
-            ServiceCompat.startForeground(
-                this,
-                NOTIFICATION_ID,
-                buildProgressNotification(0, "準備中…"),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
-            )
+            // API 34+ 対応: ServiceCompat で型を明示。
+            // startForeground は Android 12+ のバックグラウンド起動制限により
+            // ForegroundServiceStartNotAllowedException(IllegalStateException のサブクラス)を
+            // 投げうる。現状はユーザー操作(前面)からの起動のみだが、将来 background 起動経路を
+            // 追加したときにアプリをクラッシュさせないよう防御し、失敗時は積んだキューと
+            // 状態をリセットして静かに終了する。
+            try {
+                ServiceCompat.startForeground(
+                    this,
+                    NOTIFICATION_ID,
+                    buildProgressNotification(0, "準備中…"),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+                )
+            } catch (e: IllegalStateException) {
+                Log.e(TAG, "フォアグラウンド開始に失敗（処理を中止）", e)
+                lock.withLock {
+                    uriQueue.clear()
+                    isLoopRunning = false
+                    totalCount = 0
+                    doneCount = 0
+                }
+                (application as? NovelReaderApplication)?.updateProcessingState(null)
+                stopSelf()
+                return START_NOT_STICKY
+            }
             startProcessingLoop()
         }
 
         return START_NOT_STICKY
     }
 
-    private fun startProcessingLoop() {
-        // WakeLockをローカル変数で管理（フィールド共有だと新ループ起動時に旧ループが誤解放するため）
-        // CPUをスリープさせないWakeLock（OPPOのバックグラウンド強制停止対策）
-        // 取得失敗時はログのみ出してWakeLockなしで継続（スリープ対策が効かなくなるだけで処理自体は継続）
-        val wl: PowerManager.WakeLock? = try {
-            (getSystemService(Context.POWER_SERVICE) as PowerManager)
-                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NovelReader::PdfProcessing")
-                .also { it.acquire(10 * 60 * 1000L) } // 最大10分
-        } catch (e: Exception) {
-            Log.e(TAG, "WakeLock取得に失敗（スリープ対策なしで継続）", e)
-            null
+    // Android 14+ の dataSync 型 FGS は1日累計の実行時間上限(約6時間)に達すると
+    // onTimeout が呼ばれる。放置するとシステムに強制終了され通知・状態が残るため、
+    // 実行中ループをキャンセルし(各 PDF の finally で WakeLock 解放)、状態をリセットして
+    // 明示的に停止する。ユーザーには中断を通知して再試行を促す。
+    // 注: API 34 で追加されたコールバックのため、それ未満の端末では呼ばれない。
+    override fun onTimeout(startId: Int) {
+        Log.w(TAG, "FGS タイムアウト(dataSync 実行時間上限)により処理を中断")
+        scope.cancel()
+        lock.withLock {
+            uriQueue.clear()
+            isLoopRunning = false
+            totalCount = 0
+            doneCount = 0
         }
+        (application as? NovelReaderApplication)?.let {
+            it.updateProcessingState(null)
+            it.emitError("変換が時間制限により中断されました。アプリを開いて再度お試しください。")
+        }
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
 
+    private fun startProcessingLoop() {
         scope.launch {
             var isNormalExit = false
             try {
@@ -87,10 +115,29 @@ class PdfProcessingService : Service() {
                         }
                         else uriQueue.removeFirst()
                     } ?: break
-                    processSingleUri(uri)
+
+                    // WakeLock は PDF 1件ごとに取得・解放する。
+                    // なぜループ単位でなく PDF 単位か: キューに複数 PDF を積むと合計処理が
+                    // 10分を超えうるが、ループ全体で1度だけ acquire(10分) すると途中で自動解放され、
+                    // OPPO 等にバックグラウンド kill されて残りの PDF が孤立する。1件ごとに取り直すことで
+                    // バッチ全体が長時間でも各処理中は確実に WakeLock を保持できる。
+                    // ローカル変数で管理（フィールド共有だと新ループ起動時に旧ループが誤解放するため）。
+                    // 取得失敗時はログのみ出して WakeLock なしで継続（スリープ対策が効かなくなるだけで処理は継続）。
+                    val wl: PowerManager.WakeLock? = try {
+                        (getSystemService(Context.POWER_SERVICE) as PowerManager)
+                            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "NovelReader::PdfProcessing")
+                            .also { it.acquire(10 * 60 * 1000L) } // 1件あたり最大10分
+                    } catch (e: Exception) {
+                        Log.e(TAG, "WakeLock取得に失敗（スリープ対策なしで継続）", e)
+                        null
+                    }
+                    try {
+                        processSingleUri(uri)
+                    } finally {
+                        wl?.release()
+                    }
                 }
             } finally {
-                wl?.release()
                 // 異常終了時（クラッシュ等）のフェールセーフ
                 val shouldStopSelf = lock.withLock {
                     if (!isNormalExit && isLoopRunning) {
@@ -119,7 +166,9 @@ class PdfProcessingService : Service() {
             val result = repository.addBook(uri, onProgress = { step, stepLocalPercent, phase ->
                 val progress = (step * 25 + stepLocalPercent * 25).toInt().coerceIn(0, 100)
                 updateProgressNotification(progress, "ステップ ${step + 1}/4 - $phase", currentNumber, total)
-                app.updateProcessingState(ProcessingState(true, step, 4, stepLocalPercent, phase))
+                app.updateProcessingState(
+                    ProcessingState(true, step, 4, stepLocalPercent, phase, currentNumber, total)
+                )
             })
 
             result.fold(

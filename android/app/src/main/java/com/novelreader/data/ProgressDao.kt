@@ -12,6 +12,10 @@ interface ProgressDao {
     @Query("SELECT lastReadFilename FROM progress WHERE bookId = :bookId")
     suspend fun getLastRead(bookId: String): String?
 
+    // 章ファイル名とスクロール位置をまとめて取得する（読書再開時の復元用）
+    @Query("SELECT * FROM progress WHERE bookId = :bookId")
+    suspend fun getProgress(bookId: String): ProgressEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveProgress(progress: ProgressEntity)
 

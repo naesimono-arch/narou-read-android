@@ -16,7 +16,7 @@ android/local.properties
 .claude/.python_tests_passed
 .claude/.kotlin_tests_passed
 
-# スキル陳腐化チェックの状態（ランタイム生成物）
+# stale-check 軽量モードの状態記録（ランタイム生成物）
 .claude/.stale_check_state.json
 
 # ab-review プロト評価環境（ソースのみ追跡。ビルド成果物・再生成可能な出力は除外）

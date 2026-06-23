@@ -116,18 +116,19 @@ fun BookshelfScreen(
         }
     }
 
-    // FAB タップ時: 未確認かつバッテリー最適化が有効なら除外を促してからPDF選択へ
+    // FAB タップ時: 未確認かつバッテリー最適化が有効なら除外を促してからPDF選択へ。
+    // なぜ処理中もブロックしないか: Service 側がキュー（ArrayDeque）で複数PDFを
+    // 逐次処理できるため。処理中に追加された分はキュー末尾に積まれ、
+    // バナーと通知に「N件目/全M件」として反映される。
     val onFabClick: () -> Unit = {
-        if (!isProcessing) {
-            val pm = context.getSystemService(PowerManager::class.java)
-            val needsWarning = !batteryDialogDismissed &&
-                !pm.isIgnoringBatteryOptimizations(context.packageName)
-            if (needsWarning) {
-                doNotShowAgain = false
-                showBatteryOptDialog = true
-            } else {
-                launchPdfPicker()
-            }
+        val pm = context.getSystemService(PowerManager::class.java)
+        val needsWarning = !batteryDialogDismissed &&
+            !pm.isIgnoringBatteryOptimizations(context.packageName)
+        if (needsWarning) {
+            doNotShowAgain = false
+            showBatteryOptDialog = true
+        } else {
+            launchPdfPicker()
         }
     }
 
@@ -403,15 +404,25 @@ private fun GridBookCard(
                         .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
                 )
                 // 削除ボタン（右上に重ねて配置）
+                // なぜスクリム背景を敷くか: 書影はタイトルハッシュ由来の任意の色相のため、
+                // アイコン単体（surface 色）では明色カバー上で視認できなくなる。
+                // 半透明黒スクリム＋白アイコンはどの色相の上でもコントラストを確保できる。
                 IconButton(
                     onClick = onDelete,
-                    modifier = Modifier.align(Alignment.TopEnd),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .size(30.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f),
+                            shape = CircleShape,
+                        ),
                 ) {
                     Icon(
                         Icons.Outlined.DeleteOutline,
                         contentDescription = "削除",
-                        tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                        modifier = Modifier.size(20.dp),
+                        tint = androidx.compose.ui.graphics.Color.White,
+                        modifier = Modifier.size(18.dp),
                     )
                 }
             }
@@ -452,7 +463,9 @@ private fun GridBookCard(
                     Text(
                         text = "未読",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outlineVariant,
+                        // outlineVariant では surface 上のコントラストが約1.6:1 で読めないため
+                        // onSurfaceVariant（補助テキスト用）を使う
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -560,7 +573,9 @@ private fun ListBookCard(
                     Text(
                         text = "未読",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outlineVariant,
+                        // outlineVariant では surface 上のコントラストが約1.6:1 で読めないため
+                        // onSurfaceVariant（補助テキスト用）を使う
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -568,7 +583,8 @@ private fun ListBookCard(
                 Icon(
                     Icons.Outlined.DeleteOutline,
                     contentDescription = "削除",
-                    tint = MaterialTheme.colorScheme.outlineVariant,
+                    // outlineVariant では surface 上で視認しづらいため補助色に統一
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -650,8 +666,12 @@ private fun ProcessingBanner(processingState: ProcessingState) {
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Spacer(Modifier.width(10.dp))
+                // 複数件キューイング時のみ件数を付記（通知の表記と揃える）
+                val queueSuffix = if (processingState.queueTotal > 1) {
+                    "（${processingState.queueCurrent}/${processingState.queueTotal}件）"
+                } else ""
                 Text(
-                    text = processingState.phase.ifEmpty { "PDF処理中…" },
+                    text = processingState.phase.ifEmpty { "PDF処理中…" } + queueSuffix,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     fontWeight = FontWeight.Medium,

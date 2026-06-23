@@ -48,6 +48,7 @@ WebView版は削除済み。NativeReadingScreen が唯一の実装。以下の�
 | 章内検索 | `AnnotatedString` の文字列検索 ＋ ハイライト `SpanStyle` 付与 |
 | 読書進捗インジケータ | TopAppBar サブタイトルに「3 / 12章」表示 |
 | **章内スクロール位置永続化** | 下記参照（Room Migration 必要） |
+| **左右スワイプで章遷移** | 下記参照（experiment/lab-old に旧実装あり・要新規実装） |
 
 **章内スクロール位置永続化の技術詳細**
 
@@ -59,22 +60,37 @@ WebView版は削除済み。NativeReadingScreen が唯一の実装。以下の�
 data class ProgressEntity(
     @PrimaryKey val bookId: String,
     val lastReadFilename: String,
-    val scrollItemIndex: Int = 0,
+    val scrollIndex: Int = 0,
     val scrollOffset: Int = 0,
 )
 
 // AppDatabase.kt  version = 6
 val MIGRATION_5_6 = object : Migration(5, 6) {
     override fun migrate(database: SupportSQLiteDatabase) {
-        database.execSQL("ALTER TABLE progress ADD COLUMN scrollItemIndex INTEGER NOT NULL DEFAULT 0")
+        database.execSQL("ALTER TABLE progress ADD COLUMN scrollIndex INTEGER NOT NULL DEFAULT 0")
         database.execSQL("ALTER TABLE progress ADD COLUMN scrollOffset INTEGER NOT NULL DEFAULT 0")
     }
 }
 ```
 
-> **注意**: Migration 前に `PRAGMA table_info(progress)` で実際のカラム名を確認すること（`feedback_room_migration.md` 参照）。
+> **注意**: Migration 前に `PRAGMA table_info(progress)` で実際のカラム名を確認すること（`/db-migration` スキルおよび task_diary.md の「Room Migration 前に PRAGMA table_info」項を参照）。
 
 **難度**: ★★☆☆☆　**優先度**: 低（章単位の進捗保存で実用上は十分）
+
+---
+
+### 左右スワイプによる章遷移（experiment / lab-old からの移植候補）
+
+旧 `experiment` / `lab-old` 分岐（**WebView描画時代**）に実装があったが、WebView のタッチ実装のため**現行ネイティブ描画（NativeReadingScreen）には流用不可**。Compose の `HorizontalPager` か `pointerInput` で新規実装する。コードは使えないが、タッチ判定の**チューニング知見**として価値があるので残す:
+
+- **軸ロック判定**（`de60869`）: スワイプ開始時に主軸（横/縦）を確定し、縦スクロールと章遷移ジェスチャの誤爆を防ぐ
+- **EMAフィルタ + isDragging フラグ**（`a07dd3e`）: ドラッグ中のガタつきを平滑化
+- **距離 OR 速度の複合判定**（`4a0719b`）: 短く速いフリックでも遷移を成立させる
+- ※ `3974015`（スワイプ後の一瞬暗転fix）は WebView 固有 → ネイティブでは不要
+
+元機能コミット: `23b5f33`（main 未取り込み）。**experiment/lab-old を main HEAD へ進めても、本知見と reflog で履歴は追える**ため、ブランチ自体を残す必要はない。
+
+**難度**: ★★★☆☆（ジェスチャ競合の調整が肝）　**優先度**: 中（読書UXの体感に直結）
 
 ---
 
