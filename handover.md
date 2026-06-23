@@ -60,20 +60,20 @@ WebView版は削除済み。NativeReadingScreen が唯一の実装。以下の�
 data class ProgressEntity(
     @PrimaryKey val bookId: String,
     val lastReadFilename: String,
-    val scrollItemIndex: Int = 0,
+    val scrollIndex: Int = 0,
     val scrollOffset: Int = 0,
 )
 
 // AppDatabase.kt  version = 6
 val MIGRATION_5_6 = object : Migration(5, 6) {
     override fun migrate(database: SupportSQLiteDatabase) {
-        database.execSQL("ALTER TABLE progress ADD COLUMN scrollItemIndex INTEGER NOT NULL DEFAULT 0")
+        database.execSQL("ALTER TABLE progress ADD COLUMN scrollIndex INTEGER NOT NULL DEFAULT 0")
         database.execSQL("ALTER TABLE progress ADD COLUMN scrollOffset INTEGER NOT NULL DEFAULT 0")
     }
 }
 ```
 
-> **注意**: Migration 前に `PRAGMA table_info(progress)` で実際のカラム名を確認すること（`feedback_room_migration.md` 参照）。
+> **注意**: Migration 前に `PRAGMA table_info(progress)` で実際のカラム名を確認すること（`/db-migration` スキルおよび task_diary.md の「Room Migration 前に PRAGMA table_info」項を参照）。
 
 **難度**: ★★☆☆☆　**優先度**: 低（章単位の進捗保存で実用上は十分）
 
