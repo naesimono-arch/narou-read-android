@@ -248,6 +248,33 @@ Kotlinエラーではないため原因が分かりにくい。
 
 ---
 
+### 実機検証 / adb（Windows）
+
+#### 25. Git Bash は adb の `/sdcard` 絶対パスを変換して push/pull/dump を壊す  ★★★
+
+**根本原因**: この環境では `adb` がネイティブ実行ファイル（`scoop/shims/adb.exe`）かつ
+`MSYS_NO_PATHCONV` が未設定（＝MSYSのパス自動変換がデフォルトでON）。そのため `adb` に
+`/sdcard/x.xml` を渡すと、MSYS が引数のPOSIXパスを Git ルート基準で変換し
+`C:\Program Files\Git\sdcard\x.xml` に化け、`failed to stat remote object 'C:/Program Files/Git/sdcard/...'`
+で失敗する（`cygpath -w /sdcard/x.xml` で同じ化け先を再現確認）。**コマンド自体は正しくパスだけ化ける**ため気づきにくい。
+該当: `adb push <file> /sdcard/...` / `adb pull /sdcard/x.xml` / `adb shell uiautomator dump /sdcard/x.xml`。
+
+**回避策（すべて実測確認済）**:
+- `~/.bashrc` に **project配下限定の adb ラッパー**を定義済。`$PWD` が `$HOME/Desktop/project/*` のとき
+  `MSYS2_ARG_CONV_EXCL="/sdcard;/data;/system;/storage;/mnt;/data/local/tmp" command adb "$@"` を実行する。
+  **`MSYS_NO_PATHCONV=1`（全変換OFF）ではなく `MSYS2_ARG_CONV_EXCL` で device パスのみ変換除外**する点が肝で、
+  `/sdcard` は素通し・host側 `/c/Users/...` は通常通り `C:\Users\...` へ変換されるため**両方が前置き不要で通る**
+  （旧 `MSYS_NO_PATHCONV=1` 版は host側保存先が壊れる制約があったが解消。3ケース実測: remote素通し✅／local宛先✅／project外は従来どおり化ける）。
+- ⚠️ **Claude Code の Bash ツールは非対話シェル（`-c`／フラグに `i` 無し）で起動し `~/.bashrc` を source しない**
+  ため、上記ラッパーは効かず生 `adb.exe` に直行する（`type adb`＝生shim、`BASH_ENV`空）。
+  **エージェントから `/sdcard` を扱うときは PowerShell ツールで実行**するか、コマンド前置で同じ
+  `MSYS2_ARG_CONV_EXCL=...` を付ける。恒久対応するなら settings.json の env で `BASH_ENV` をラッパー定義ファイルへ向ける手もある。
+**補足**: デバイス側パスを引数に取らない adb は Git Bash でそのまま通る
+— `adb exec-out screencap -p > out.png`（リダイレクト先はWindows側）、`adb shell input tap/swipe`、
+`adb shell pidof`、`adb logcat` 等。
+
+---
+
 ### Room / DB
 
 #### 19. Room Migration 前に PRAGMA table_info でカラムを確認する  ★★★
