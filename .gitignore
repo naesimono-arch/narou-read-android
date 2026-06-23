@@ -15,3 +15,14 @@ android/local.properties
 # テスト実行センチネル（コミット時テスト強制 hook のランタイム生成物）
 .claude/.python_tests_passed
 .claude/.kotlin_tests_passed
+
+# スキル陳腐化チェックの状態（ランタイム生成物）
+.claude/.stale_check_state.json
+
+# ab-review プロト評価環境（ソースのみ追跡。ビルド成果物・再生成可能な出力は除外）
+ab-review/submission-B/.gradle/
+ab-review/submission-B/build/
+ab-review/submission-B/output/
+ab-review/_compute_logs/
+# トップ階層 sample_pdfs/ と同一PDFの重複コピーのため除外（参照はトップを使う）
+ab-review/sample_pdfs/
