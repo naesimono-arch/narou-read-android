@@ -1,0 +1,419 @@
+#!/usr/bin/env python3
+"""
+stale-check の「機械チェック実体」。
+
+ドキュメント／設定が主張する内容と、実態（コード・ビルド設定・DBスキーマ・git）の
+ズレを決定的に検出する。読み取り専用で副作用は無い。
+
+なぜ単体スクリプトに切り出すか:
+  軽量モードを「日常的に叩けるコスト」にするため。Claude が個別に grep/read する代わりに
+  全機械チェックを一括実行し結果だけ受け取れば、トークンが桁違いに安く・結果が再現的になる。
+  意味的整合（アーキ記述とコードの乖離など機械化困難なもの）は SKILL.md 側で
+  Claude／並列エージェントが担当する。
+
+使い方:
+  python .claude/skills/stale-check/check_machine.py          # 人間可読サマリ
+  python .claude/skills/stale-check/check_machine.py --json    # 機械可読(JSON)
+  python .claude/skills/stale-check/check_machine.py --full    # 互換のため受理（出力は同じ＝機械チェックは常に全件）
+
+終了コード: 確度高(severity=high)の陳腐化が1件以上あれば 1、無ければ 0。
+  ※ これはレポート用途であり hook ではない。コミット等はブロックしない。
+"""
+import datetime
+import io
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+# Windows のコンソール既定コードページでの文字化けを防ぐ（既存 hook と同じ作法）。
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
+# このスクリプトは <root>/.claude/skills/stale-check/check_machine.py に置かれる。
+# parents[3] がプロジェクトルート。CWD に依存させない（どこから呼ばれても安定）ため __file__ 基準。
+ROOT = Path(__file__).resolve().parents[3]
+STATE_FILE = ROOT / ".claude/.stale_check_state.json"
+
+# 軽量モードで「前回チェック以降に変わった管理ファイル」を絞り込むための対象プレフィックス。
+# これに該当する差分だけ Claude が意味確認すればよい（コア9チェックは常に全件実行）。
+MANAGED_PREFIXES = (
+    "CLAUDE.md", "handover.md", "task_diary.md",
+    ".claude/skills/", ".claude/hooks/", ".claude/settings", ".mcp.json", "docs/",
+)
+
+findings = []  # 各要素: {"check", "status", "severity", "detail"}
+
+
+def add(check, status, severity, detail):
+    findings.append({"check": check, "status": status, "severity": severity, "detail": detail})
+
+
+def read_text(rel):
+    """ルート相対パスを utf-8 で読む。読めなければ None。"""
+    try:
+        return (ROOT / rel).read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
+# ── 1. 版数照合: CLAUDE.md の宣言 ↔ gradle の実値 ──────────────────────────
+def check_versions():
+    claude = read_text("CLAUDE.md")
+    settings_gradle = read_text("android/settings.gradle")
+    app_gradle = read_text("android/app/build.gradle")
+    if not (claude and settings_gradle and app_gradle):
+        add("versions", "error", "info", "CLAUDE.md / gradle のいずれかが読めず版数照合をスキップ")
+        return
+
+    actual = {}
+    m = re.search(r"com\.chaquo\.python['\"]\s+version\s+['\"]([^'\"]+)['\"]", settings_gradle)
+    if m:
+        actual["Chaquopy"] = m.group(1)
+    # python の version は python{...} ブロック限定で取る（versionName "1.0" との誤マッチ回避）。
+    m = re.search(r"python\s*\{[\s\S]*?\bversion\s+['\"]([\d.]+)['\"]", app_gradle)
+    if m:
+        actual["Python"] = m.group(1)
+    m = re.search(r"\bminSdk\s+(\d+)", app_gradle)
+    if m:
+        actual["minSdk"] = m.group(1)
+    m = re.search(r"\btargetSdk\s+(\d+)", app_gradle)
+    if m:
+        actual["targetSdk"] = m.group(1)
+
+    declared = {}
+    for key, pat in (
+        ("Chaquopy", r"Chaquopy\s+([0-9][\w.]*)"),
+        ("Python", r"Python\s+([\d.]+)"),
+        ("minSdk", r"minSdk\s+(\d+)"),
+        ("targetSdk", r"targetSdk\s+(\d+)"),
+    ):
+        m = re.search(pat, claude)
+        declared[key] = m.group(1) if m else None
+
+    for key in ("Chaquopy", "Python", "minSdk", "targetSdk"):
+        a, d = actual.get(key), declared.get(key)
+        if a and d and a != d:
+            add("versions", "stale", "high", f"{key}: CLAUDE.md='{d}' ↔ gradle実値='{a}'")
+        elif a is None or d is None:
+            add("versions", "warn", "info", f"{key}: 値の抽出に失敗 (actual={a}, declared={d})")
+
+
+# ── 2. DB整合: version ↔ schemas ↔ addMigrations ↔ skill履歴 ───────────────
+def check_db():
+    appdb = read_text("android/app/src/main/java/com/novelreader/data/AppDatabase.kt")
+    if not appdb:
+        add("db", "error", "info", "AppDatabase.kt が読めず DB 整合チェックをスキップ")
+        return
+
+    mver = re.search(r"version\s*=\s*(\d+)", appdb)
+    version = int(mver.group(1)) if mver else None
+
+    pairs = sorted({(int(a), int(b)) for a, b in re.findall(r"MIGRATION_(\d+)_(\d+)", appdb)})
+
+    schemas_dir = ROOT / "android/app/schemas/com.novelreader.data.AppDatabase"
+    schema_versions = [int(f.stem) for f in schemas_dir.glob("*.json") if f.stem.isdigit()] \
+        if schemas_dir.is_dir() else []
+    max_schema = max(schema_versions) if schema_versions else None
+
+    if version and max_schema and version != max_schema:
+        add("db", "stale", "high",
+            f"AppDatabase version={version} だが schemas 最大={max_schema}（スキーマ未export の疑い）")
+
+    if version and pairs:
+        max_to = max(b for _, b in pairs)
+        if max_to != version:
+            add("db", "stale", "high", f"最大 Migration の to=v{max_to} ↔ AppDatabase version={version} 不一致")
+        for a, b in pairs:
+            if b != a + 1:
+                add("db", "warn", "info", f"MIGRATION_{a}_{b} が +1 の連続でない")
+
+    skill = read_text(".claude/skills/db-migration/SKILL.md")
+    if skill and version:
+        sv = re.findall(r"v(\d+)\s*→\s*v(\d+)", skill)
+        if sv:
+            max_skill = max(int(b) for _, b in sv)
+            if max_skill != version:
+                add("db", "stale", "info",
+                    f"db-migration skill の履歴表 最大=v{max_skill} ↔ 実 version=v{version}（skill 追記漏れ?）")
+
+
+# ── 3. hook 双方向照合: settings の参照 ↔ 実ファイル ───────────────────────
+def _registered_hooks():
+    registered = set()
+    for sf in (".claude/settings.json", ".claude/settings.local.json"):
+        txt = read_text(sf)
+        if not txt:
+            continue
+        try:
+            data = json.loads(txt)
+        except json.JSONDecodeError:
+            add("hooks", "warn", "info", f"{sf} が JSON としてパースできない")
+            continue
+        # command 文字列群を走査して hooks/<name>.py を拾う。
+        for m in re.finditer(r"hooks/([\w.-]+\.py)", json.dumps(data)):
+            registered.add(m.group(1))
+    return registered
+
+
+def _actual_hooks():
+    hooks_dir = ROOT / ".claude/hooks"
+    return {p.name for p in hooks_dir.glob("*.py")} if hooks_dir.is_dir() else set()
+
+
+def check_hooks_registration():
+    actual = _actual_hooks()
+    registered = _registered_hooks()
+    for r in sorted(registered - actual):
+        add("hooks", "stale", "high", f"settings が参照する '{r}' が .claude/hooks/ に実在しない（壊れた参照）")
+    for a in sorted(actual - registered):
+        add("hooks", "warn", "info", f"'{a}' は実在するが settings に未登録（動いていない死 hook の可能性）")
+
+
+# ── 4. hook の git 追跡: 実ファイル ↔ git ls-files ─────────────────────────
+def check_hook_git_tracked():
+    actual = _actual_hooks()
+    if not actual:
+        return
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", ".claude/hooks"],
+            cwd=ROOT, capture_output=True, text=True, timeout=10
+        ).stdout
+    except Exception:
+        add("hook-git", "warn", "info", "git ls-files を実行できず追跡チェックをスキップ")
+        return
+    tracked = {Path(line).name for line in out.splitlines() if line.endswith(".py")}
+    registered = _registered_hooks()
+    for a in sorted(actual - tracked):
+        # 登録済みなのに未追跡＝別環境で hook が file-not-found で壊れる。重大。
+        sev = "high" if a in registered else "info"
+        add("hook-git", "stale", sev, f"'{a}' が git 未追跡（settings 登録 hook ならコミット漏れ）")
+
+
+# ── 5. コンフリクトマーカー検知 ──────────────────────────────────────────
+def check_conflict_markers():
+    targets = ["CLAUDE.md", "handover.md", "task_diary.md"]
+    skills_dir = ROOT / ".claude/skills"
+    if skills_dir.is_dir():
+        targets += [str(p.relative_to(ROOT)).replace("\\", "/") for p in skills_dir.glob("*/SKILL.md")]
+    # git の衝突マーカー。`=======` は setext 見出しの誤検知を避けるため行全体一致に限定。
+    pat = re.compile(r"^(<{7}|>{7}|={7}\s*$)", re.MULTILINE)
+    for t in targets:
+        txt = read_text(t)
+        if txt and pat.search(txt):
+            add("conflict", "stale", "high", f"{t} に未解決のコンフリクトマーカーが残存")
+
+
+# ── 6. 参照ファイルの実在 ────────────────────────────────────────────────
+def _ref_exists(ref, doc):
+    """参照ファイルが実在するか。パス付きは相対で厳密確認、ファイル名のみは主要ツリーを basename 検索。
+
+    なぜ basename 検索するか: ドキュメントは `app.py` のようにファイル名だけで言及することが多く、
+    実体は android/app/src/main/python/ 配下にある。ルート直下だけ見ると実在ファイルを
+    「参照切れ」と誤検知する。生成物 build/ は無関係かつ重いので検索対象から外す。
+    """
+    if "/" in ref:
+        return (ROOT / ref).exists() or ((ROOT / doc).parent / ref).exists()
+    if (ROOT / ref).exists():
+        return True
+    for base in (ROOT / "android/app/src", ROOT / ".claude", ROOT / "docs", ROOT / "ab-review"):
+        if base.is_dir() and next(base.rglob(ref), None) is not None:
+            return True
+    return False
+
+
+def check_referenced_files():
+    must = [
+        "android/gradlew",
+        "android/app/src/main/java/com/novelreader/data/AppDatabase.kt",
+        "android/app/src/main/python/pdf_extractor.py",
+        "android/app/src/main/python/chapter_processor.py",
+        "android/app/src/main/python/pdf_rules.py",
+        "android/app/src/main/python/html_exporter.py",
+        "android/app/src/main/python/app.py",
+        "android/app/src/main/python/test_logic.py",
+    ]
+    for rel in must:
+        if not (ROOT / rel).exists():
+            add("ref", "stale", "high", f"主要ファイルが存在しない: {rel}")
+
+    # ドキュメントがバッククォートで名指しする *.md / *.py の相対参照が実在するか。
+    for d in ("handover.md", "task_diary.md", "CLAUDE.md"):
+        txt = read_text(d)
+        if not txt:
+            continue
+        for m in re.finditer(r"`([\w./-]+\.(?:md|py))`", txt):
+            ref = m.group(1)
+            # URL・絶対・plans 配下・ワイルドカード的記述は対象外（誤検知回避）。
+            if ref.startswith(("http", "/")) or ".claude/plans" in ref or "*" in ref:
+                continue
+            if not _ref_exists(ref, d):
+                add("ref", "warn", "info", f"{d} が参照する '{ref}' が見つからない（参照切れの疑い）")
+
+
+# ── 7. テストコマンドの一貫性 ────────────────────────────────────────────
+def check_test_commands():
+    claude = read_text("CLAUDE.md") or ""
+    for needle, label in (
+        ("unittest test_logic", "Python 単体テスト (unittest test_logic)"),
+        ("testDebugUnitTest", "Kotlin 単体テスト (testDebugUnitTest)"),
+    ):
+        if needle not in claude:
+            add("cmd", "warn", "info", f"CLAUDE.md に {label} コマンドが見当たらない（記述ずれの疑い）")
+
+
+# ── 8. gradlew パス健全性（build skill）──────────────────────────────────
+def check_gradlew_path():
+    build = read_text(".claude/skills/build/SKILL.md")
+    if not build:
+        return
+    # gradlew の実体は android/ 配下。'./gradlew' を cd android 無しで書くとルートからは動かない。
+    for i, line in enumerate(build.splitlines(), 1):
+        if re.match(r"^\./gradlew\b", line.strip()):
+            add("gradlew", "warn", "info",
+                f"build skill L{i}: '{line.strip()}' は cd android を伴わない（gradlew 実体は android/ 配下）")
+
+
+# ── 9. skill frontmatter 妥当性 ──────────────────────────────────────────
+def check_skill_frontmatter():
+    skills_dir = ROOT / ".claude/skills"
+    if not skills_dir.is_dir():
+        return
+    for skill_md in skills_dir.glob("*/SKILL.md"):
+        dir_name = skill_md.parent.name
+        txt = skill_md.read_text(encoding="utf-8", errors="replace")
+        fm = re.match(r"^---\s*\n(.*?)\n---", txt, re.DOTALL)
+        if not fm:
+            add("frontmatter", "stale", "high", f"{dir_name}/SKILL.md に frontmatter が無い")
+            continue
+        block = fm.group(1)
+        mn = re.search(r"^name:\s*(\S+)", block, re.MULTILINE)
+        if not mn:
+            add("frontmatter", "stale", "high", f"{dir_name}/SKILL.md に name: が無い")
+        elif mn.group(1) != dir_name:
+            add("frontmatter", "warn", "info",
+                f"{dir_name}/SKILL.md: name='{mn.group(1)}' がディレクトリ名と不一致")
+        if not re.search(r"^description:\s*\S", block, re.MULTILINE):
+            add("frontmatter", "warn", "info", f"{dir_name}/SKILL.md に description: が無い")
+
+
+# ── 状態管理（軽量モードの差分起点）─────────────────────────────────────
+def _git(args):
+    try:
+        return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, timeout=10).stdout.strip()
+    except Exception:
+        return ""
+
+
+def load_state():
+    try:
+        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def changed_since(last_commit):
+    """前回チェックのコミット以降に変わった/未追跡のファイル集合。初回(last_commit無し)は None。"""
+    if not last_commit:
+        return None
+    files = set()
+    for line in _git(["diff", "--name-only", f"{last_commit}..HEAD"]).splitlines():
+        if line.strip():
+            files.add(line.strip())
+    # まだコミットしていない作業ツリーの変更・未追跡も拾う（porcelain の3文字目以降がパス）。
+    for line in _git(["status", "--porcelain"]).splitlines():
+        path = line[3:].strip()
+        if path:
+            files.add(path)
+    return files
+
+
+def is_managed(path):
+    p = path.replace("\\", "/")
+    return any(p == m or p.startswith(m) for m in MANAGED_PREFIXES)
+
+
+def update_state(high, total):
+    """状態ファイルを現在の HEAD・日時・結果サマリで更新する（管理対象ファイルには触れない）。"""
+    try:
+        STATE_FILE.write_text(json.dumps({
+            "last_checked_commit": _git(["rev-parse", "HEAD"]),
+            "last_checked_at": datetime.datetime.now().isoformat(timespec="seconds"),
+            "high": high,
+            "total": total,
+        }, ensure_ascii=False, indent=2), encoding="utf-8")
+    except OSError:
+        pass
+
+
+CHECKS = [
+    check_versions,
+    check_db,
+    check_hooks_registration,
+    check_hook_git_tracked,
+    check_conflict_markers,
+    check_referenced_files,
+    check_test_commands,
+    check_gradlew_path,
+    check_skill_frontmatter,
+]
+
+
+def main():
+    as_json = "--json" in sys.argv
+    full = "--full" in sys.argv
+    state = load_state()
+    changed = None if full else changed_since(state.get("last_checked_commit"))
+
+    for c in CHECKS:
+        try:
+            c()
+        except Exception as e:  # 1チェックの例外で全体を落とさない
+            add(c.__name__, "error", "info", f"チェック中に例外: {e}")
+
+    high = [f for f in findings if f["severity"] == "high" and f["status"] != "ok"]
+    info = [f for f in findings if f not in high]
+
+    if as_json:
+        out = {"high": len(high), "findings": findings}
+        if not full:
+            out["changed_managed"] = (
+                None if changed is None else sorted(f for f in changed if is_managed(f))
+            )
+        print(json.dumps(out, ensure_ascii=False, indent=2))
+    else:
+        print(f"=== stale-check 機械チェック結果（検出 {len(findings)} 件 / 確度高 {len(high)} 件）===")
+        # 軽量モードの差分セクション: ここに出た管理ファイルだけ意味確認すればよい。
+        if not full:
+            print("\n■ 前回チェック以降に変わった管理ファイル")
+            if changed is None:
+                print("  （状態記録なし → 初回フォールバック: 全体を対象に意味確認すること）")
+            else:
+                managed = sorted(f for f in changed if is_managed(f))
+                if managed:
+                    for f in managed:
+                        print(f"  ~ {f}")
+                else:
+                    print("  （管理ファイルの変更なし → 機械チェック結果のみで可）")
+        print(f"\n■ 確度高 / 要対応（{len(high)} 件）")
+        for f in high:
+            print(f"  ✗ [{f['check']}] {f['detail']}")
+        if not high:
+            print("  （なし）")
+        print(f"\n■ 要確認 / 情報（{len(info)} 件）")
+        for f in info:
+            print(f"  - [{f['check']}] {f['detail']}")
+        if not info:
+            print("  （なし）")
+
+    # 状態ファイルを更新（--no-update で抑制可）。管理対象ファイルには触れない。
+    if "--no-update" not in sys.argv:
+        update_state(len(high), len(findings))
+
+    sys.exit(1 if high else 0)
+
+
+if __name__ == "__main__":
+    main()
