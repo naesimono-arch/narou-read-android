@@ -18,7 +18,7 @@ triggers:
 android/app/src/main/java/com/novelreader/data/AppDatabase.kt
 ```
 
-ここに記載したバージョン番号はすぐ古くなるため記載しない。コードが唯一の正典。
+現在の version 番号はすぐ古くなるため、この手順書には固定値で書かない（AppDatabase.kt が唯一の正典）。末尾の「既存の Migration 履歴」表は過去の移行記録であり、最新 version の確認には使わないこと。
 
 ## 手順
 
@@ -62,6 +62,8 @@ PRAGMA table_info(テーブル名);
 Androidの `SupportSQLiteDatabase` でも `execSQL("PRAGMA table_info(books)")` で確認できる。
 
 ## 既存の Migration 履歴
+
+> 下表は**過去の移行記録**。現在の version と最新の Migration リストは必ず AppDatabase.kt を正典として確認すること（下表は追記漏れがありうる）。
 
 | Migration | 内容 |
 |-----------|------|
