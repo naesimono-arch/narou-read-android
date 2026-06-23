@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>デザイン方向性候補 — NovelReader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ============ 共通（モック自体の体裁） ============ */
+  :root{
+    /* 現行 Color.kt のトークン */
+    --washi:#FAF7F4; --sumi:#1C1916; --shuzumi:#7B3F2A;
+    --sakura:#F5DDD5; --rokusho:#4A7C6B;
+    --sv:#F0EAE4; --ov:#D7C6BF; --outline:#857470;
+    --dark-bg:#1C1916; --dark-surface:#2A2420; --dark-on:#EDE1DC;
+    --dark-obi:#612B15; --dark-obi-on:#FFDBCE; --dark-border:#3A332C;
+    --serif:'Shippori Mincho','Yu Mincho','Hiragino Mincho ProN',serif;
+    --sans:'Noto Sans JP','Hiragino Sans',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E7E2DB;font-family:var(--sans);color:var(--sumi);padding:36px 28px 60px}
+  .page-head{max-width:1180px;margin:0 auto 36px}
+  .page-head h1{font-family:var(--serif);font-size:26px;letter-spacing:.08em}
+  .page-head p{margin-top:8px;font-size:13px;color:#5d564f;line-height:1.9}
+  .proposal{max-width:1180px;margin:0 auto 56px}
+  .proposal-head{margin-bottom:16px;border-left:4px solid var(--sumi);padding-left:14px}
+  .proposal-head h2{font-family:var(--serif);font-size:20px;letter-spacing:.06em}
+  .proposal-head p{margin-top:6px;font-size:12.5px;color:#5d564f;line-height:1.8;max-width:760px}
+  .proposal-head .sig{color:var(--shuzumi);font-weight:700}
+  .panels{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+  .panel-label{font-size:11px;color:#8a8278;letter-spacing:.2em;margin:0 0 8px 4px}
+  .phone{width:360px;border-radius:26px;padding:18px 16px 26px;box-shadow:0 10px 34px rgba(28,25,22,.20)}
+  footer{max-width:1180px;margin:0 auto;font-size:12.5px;color:#5d564f;line-height:2.0;border-top:1px solid #cfc8bf;padding-top:18px}
+
+  /* ============ 案A 文庫本・和紙 ============ */
+  .a-light{background:var(--washi)}
+  .a-dark{background:var(--dark-bg)}
+  .a-appbar{font-family:var(--serif);font-size:17px;font-weight:600;letter-spacing:.3em;padding:10px 6px 16px}
+  .a-dark .a-appbar{color:var(--dark-on)}
+  .a-shelf{display:grid;grid-template-columns:1fr 1fr;gap:16px 14px}
+  .a-book{display:flex;flex-direction:column;gap:6px}
+  .a-cover{aspect-ratio:2/3;background:#FCF9F1;border:1px solid #E4DACB;border-radius:5px;position:relative;overflow:hidden;box-shadow:0 1px 4px rgba(28,25,22,.10)}
+  .a-dark .a-cover{background:var(--dark-surface);border-color:var(--dark-border)}
+  .a-title{writing-mode:vertical-rl;font-family:var(--serif);font-weight:600;font-size:14.5px;line-height:2.05;letter-spacing:.14em;position:absolute;top:13px;right:13px;max-height:62%;color:var(--sumi)}
+  .a-dark .a-title{color:var(--dark-on)}
+  .a-obi{position:absolute;left:0;right:0;bottom:0;height:21%;background:var(--shuzumi);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+  .a-obi b{font-family:var(--serif);font-weight:600;font-size:11px;letter-spacing:.32em}
+  .a-obi i{font-style:normal;font-size:8px;letter-spacing:.18em;opacity:.75}
+  .a-dark .a-obi{background:var(--dark-obi);color:var(--dark-obi-on)}
+  .a-meta{padding:0 2px}
+  .a-progress{height:2px;background:var(--ov);border-radius:1px;overflow:hidden}
+  .a-progress i{display:block;height:100%;background:var(--shuzumi)}
+  .a-dark .a-progress{background:#524540}
+  .a-dark .a-progress i{background:var(--dark-obi-on)}
+  .a-caption{margin-top:4px;font-size:9.5px;color:var(--outline);letter-spacing:.08em}
+  .a-dark .a-caption{color:#A08580}
+  .a-row{display:flex;gap:14px;align-items:center;margin-top:20px;padding-top:18px;border-top:1px solid #E4DACB}
+  .a-dark .a-row{border-top-color:var(--dark-border)}
+  .a-row .a-cover{width:54px;aspect-ratio:2/3;flex:none}
+  .a-row .a-title{font-size:8px;top:6px;right:6px;line-height:1.9}
+  .a-row .a-obi b{font-size:5px;letter-spacing:.2em}
+  .a-row .a-obi i{display:none}
+  .a-row-meta{flex:1}
+  .a-row-meta .t{font-family:var(--serif);font-weight:600;font-size:14px;line-height:1.5}
+  .a-dark .a-row-meta .t{color:var(--dark-on)}
+  .a-row-meta .au{font-size:11px;color:var(--outline);margin-top:3px}
+  .a-row-meta .a-progress{margin-top:8px}
+  .a-banner{margin:18px 2px 4px;padding:10px 12px;background:var(--sv);border-left:3px solid var(--shuzumi);border-radius:3px}
+  .a-dark .a-banner{background:var(--dark-surface);border-left-color:var(--dark-obi-on)}
+  .a-banner .txt{font-size:11.5px;letter-spacing:.06em}
+  .a-dark .a-banner .txt{color:var(--dark-on)}
+  .a-banner .a-progress{margin-top:8px}
+</style>
+</head>
+<body>
+<header class="page-head">
+  <h1>デザイン方向性候補 — NovelReader</h1>
+  <p>本棚画面を3つの世界観で試作した<strong>使い捨てモックアップ</strong>です（実装コードではありません）。
+  配色は現行 Color.kt の実値、書体・縦書きはCSSで実機相当を再現しています。
+  「この案のここだけ別案に差し替え」のような混合指定も可能です。</p>
+</header>
+
+<!-- ==================== 案A ==================== -->
+<section class="proposal" id="plan-a">
+  <div class="proposal-head">
+    <h2>案A 文庫本・和紙</h2>
+    <p>現行パレット（和紙・墨・朱墨）を全画面に徹底し、書影は「和紙の地に縦書き明朝＋朱墨の帯」。
+    叢書のように全冊で装丁を統一することで、色がバラバラな文字アバターとの差を出す。
+    <span class="sig">signature = 帯付き縦書き書影</span>。装飾は最小、組版の精度で勝負する静かな路線。工数は3案で最小。</p>
+  </div>
+  <div class="panels">
+    <div>
+      <p class="panel-label">ライト</p>
+      <div class="phone a-light">
+        <div class="a-appbar">本棚</div>
+        <div class="a-shelf">
+          <div class="a-book">
+            <div class="a-cover">
+              <div class="a-title">転生したら辺境伯の三男だった件</div>
+              <div class="a-obi"><b>蒼月　慎</b><i>全三一二話</i></div>
+            </div>
+            <div class="a-meta"><div class="a-progress"><i style="width:34%"></i></div>
+            <div class="a-caption">第45話 ・ 34%</div></div>
+          </div>
+          <div class="a-book">
+            <div class="a-cover">
+              <div class="a-title">薬屋の弟子は今日も世界を救わない</div>
+              <div class="a-obi"><b>水瀬　あおい</b><i>全八九話</i></div>
+            </div>
+            <div class="a-meta"><div class="a-progress"><i style="width:78%"></i></div>
+            <div class="a-caption">第69話 ・ 78%</div></div>
+          </div>
+          <div class="a-book">
+            <div class="a-cover">
+              <div class="a-title">悪役令嬢は静かに暮らしたい</div>
+              <div class="a-obi"><b>九条　ひいらぎ</b><i>全二〇四話</i></div>
+            </div>
+            <div class="a-meta"><div class="a-progress"><i style="width:8%"></i></div>
+            <div class="a-caption">第16話 ・ 8%</div></div>
+          </div>
+          <div class="a-book">
+            <div class="a-cover">
+              <div class="a-title">迷宮都市の錬金術師</div>
+              <div class="a-obi"><b>佐伯　遼</b><i>全四五六話</i></div>
+            </div>
+            <div class="a-meta"><div class="a-caption">未読</div></div>
+          </div>
+        </div>
+        <div class="a-row">
+          <div class="a-cover">
+            <div class="a-title">迷宮都市の錬金術師</div>
+            <div class="a-obi"><b>佐伯　遼</b></div>
+          </div>
+          <div class="a-row-meta">
+            <div class="t">迷宮都市の錬金術師</div>
+            <div class="au">佐伯 遼</div>
+            <div class="a-progress"><i style="width:52%"></i></div>
+          </div>
+        </div>
+        <div class="a-banner">
+          <div class="txt">本文を解析しています ・ 2/4</div>
+          <div class="a-progress"><i style="width:60%"></i></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="panel-label">ダーク</p>
+      <div class="phone a-dark">
+        <div class="a-appbar">本棚</div>
+        <div class="a-shelf">
+          <div class="a-book">
+            <div class="a-cover">
+              <div class="a-title">転生したら辺境伯の三男だった件</div>
+              <div class="a-obi"><b>蒼月　慎</b><i>全三一二話</i></div>
+            </div>
+            <div class="a-meta"><div class="a-progress"><i style="width:34%"></i></div>
+            <div class="a-caption">第45話 ・ 34%</div></div>
+          </div>
+          <div class="a-book">
+            <div class="a-cover">
+              <div class="a-title">悪役令嬢は静かに暮らしたい</div>
+              <div class="a-obi"><b>九条　ひいらぎ</b><i>全二〇四話</i></div>
+            </div>
+            <div class="a-meta"><div class="a-caption">未読</div></div>
+          </div>
+        </div>
+        <div class="a-banner">
+          <div class="txt">本文を解析しています ・ 2/4</div>
+          <div class="a-progress"><i style="width:60%"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 案B ==================== -->
+<style>
+  /* ============ 案B 昭和レトロ・活版叢書 ============ */
+  .b-light{background:#F3EEE3}
+  .b-dark{background:var(--dark-bg)}
+  .b-appbar{font-family:var(--serif);font-size:17px;font-weight:700;letter-spacing:.42em;padding:10px 6px 6px;text-align:center}
+  .b-rule{height:0;border-top:1px solid var(--sumi);border-bottom:1px solid var(--sumi);margin:0 4px 16px;padding-top:2px}
+  .b-dark .b-appbar{color:var(--dark-on)}
+  .b-dark .b-rule{border-color:#524540}
+  .b-shelf{display:grid;grid-template-columns:1fr 1fr;gap:16px 14px}
+  .b-cover{aspect-ratio:2/3;border-radius:3px;position:relative;overflow:hidden;color:#F3EDE2;box-shadow:0 2px 6px rgba(28,25,22,.25)}
+  .b-c1{background:#2E3A52}.b-c2{background:#35503F}.b-c3{background:#5C2E36}.b-c4{background:#4E3D2A}
+  .b-frame{position:absolute;inset:9px;border:1px solid rgba(243,237,226,.8)}
+  .b-frame::after{content:"";position:absolute;inset:3px;border:1px solid rgba(243,237,226,.35)}
+  .b-title{writing-mode:vertical-rl;font-family:var(--serif);font-weight:700;font-size:15px;line-height:2.0;letter-spacing:.2em;position:absolute;top:26px;left:50%;transform:translateX(-50%);max-height:58%}
+  .b-author{position:absolute;bottom:20px;width:100%;text-align:center;font-family:var(--serif);font-size:9px;letter-spacing:.4em;opacity:.85}
+  .b-num{position:absolute;top:12px;left:14px;font-family:var(--serif);font-size:9px;letter-spacing:.2em;opacity:.6;writing-mode:vertical-rl}
+  .b-seal{position:absolute;right:13px;bottom:13px;width:25px;height:25px;background:#C13B2A;color:#fff;font-family:var(--serif);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;transform:rotate(-4deg);border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+  .b-seal.half{background:transparent;border:1.5px solid #C13B2A;color:#C13B2A}
+  .b-caption{margin-top:6px;font-family:var(--serif);font-size:10px;color:#6b5f55;letter-spacing:.12em;text-align:center}
+  .b-dark .b-caption{color:#A08580}
+  .b-row{display:flex;gap:14px;align-items:center;margin-top:20px;padding-top:16px;border-top:1px double var(--sumi);position:relative}
+  .b-dark .b-row{border-top-color:#524540}
+  .b-row .b-cover{width:54px;flex:none}
+  .b-row .b-title{font-size:8px;top:10px;line-height:1.8}
+  .b-row .b-author{display:none}
+  .b-row .b-frame{inset:4px}
+  .b-row-meta{flex:1}
+  .b-row-meta .t{font-family:var(--serif);font-weight:700;font-size:14px;line-height:1.5}
+  .b-dark .b-row-meta .t{color:var(--dark-on)}
+  .b-row-meta .au{font-family:var(--serif);font-size:11px;color:#6b5f55;margin-top:3px;letter-spacing:.2em}
+  .b-row-meta .st{font-family:var(--serif);font-size:11px;margin-top:8px;color:#C13B2A;letter-spacing:.15em}
+  .b-banner{margin:18px 2px 4px;padding:10px 14px;border:1px solid var(--sumi);position:relative;background:transparent}
+  .b-banner::after{content:"";position:absolute;inset:2px;border:1px solid rgba(28,25,22,.3);pointer-events:none}
+  .b-dark .b-banner{border-color:#524540;color:var(--dark-on)}
+  .b-dark .b-banner::after{border-color:rgba(237,225,220,.25)}
+  .b-banner .txt{font-family:var(--serif);font-size:12px;letter-spacing:.3em;text-align:center}
+</style>
+<section class="proposal" id="plan-b">
+  <div class="proposal-head">
+    <h2>案B 昭和レトロ・活版叢書</h2>
+    <p>古い全集・叢書の装丁がモチーフ。書影はクロス装の濃色地（紺・深緑・臙脂・焦茶）に二重罫の枠と白抜き明朝。
+    巻数表記や罫線などの「印刷物の記号」を意味のある場所に使う。
+    <span class="sig">signature = 落款（朱印）風の読了スタンプ</span>（読了=塗り、読書中=輪郭のみ）。
+    個性は最強だが作り込み工数は案Aの2倍弱。</p>
+  </div>
+  <div class="panels">
+    <div>
+      <p class="panel-label">ライト</p>
+      <div class="phone b-light">
+        <div class="b-appbar">書架</div>
+        <div class="b-rule"></div>
+        <div class="b-shelf">
+          <div>
+            <div class="b-cover b-c1">
+              <div class="b-frame"></div>
+              <div class="b-num">第一巻</div>
+              <div class="b-title">転生したら辺境伯の三男だった件</div>
+              <div class="b-author">蒼月　慎</div>
+              <div class="b-seal half">読</div>
+            </div>
+            <div class="b-caption">第四十五話 ・ 三割</div>
+          </div>
+          <div>
+            <div class="b-cover b-c2">
+              <div class="b-frame"></div>
+              <div class="b-num">第一巻</div>
+              <div class="b-title">薬屋の弟子は今日も世界を救わない</div>
+              <div class="b-author">水瀬　あおい</div>
+              <div class="b-seal">了</div>
+            </div>
+            <div class="b-caption">読了</div>
+          </div>
+          <div>
+            <div class="b-cover b-c3">
+              <div class="b-frame"></div>
+              <div class="b-num">第一巻</div>
+              <div class="b-title">悪役令嬢は静かに暮らしたい</div>
+              <div class="b-author">九条　ひいらぎ</div>
+              <div class="b-seal half">読</div>
+            </div>
+            <div class="b-caption">第十六話 ・ 一割</div>
+          </div>
+          <div>
+            <div class="b-cover b-c4">
+              <div class="b-frame"></div>
+              <div class="b-num">第一巻</div>
+              <div class="b-title">迷宮都市の錬金術師</div>
+              <div class="b-author">佐伯　遼</div>
+            </div>
+            <div class="b-caption">未読</div>
+          </div>
+        </div>
+        <div class="b-row">
+          <div class="b-cover b-c4">
+            <div class="b-frame"></div>
+            <div class="b-title">迷宮都市の錬金術師</div>
+          </div>
+          <div class="b-row-meta">
+            <div class="t">迷宮都市の錬金術師</div>
+            <div class="au">佐伯　遼</div>
+            <div class="st">第二三七話まで ・ 五割</div>
+          </div>
+        </div>
+        <div class="b-banner">
+          <div class="txt">組　版　中 ─ 二／四</div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="panel-label">ダーク</p>
+      <div class="phone b-dark">
+        <div class="b-appbar">書架</div>
+        <div class="b-rule"></div>
+        <div class="b-shelf">
+          <div>
+            <div class="b-cover b-c1">
+              <div class="b-frame"></div>
+              <div class="b-num">第一巻</div>
+              <div class="b-title">転生したら辺境伯の三男だった件</div>
+              <div class="b-author">蒼月　慎</div>
+              <div class="b-seal half">読</div>
+            </div>
+            <div class="b-caption">第四十五話 ・ 三割</div>
+          </div>
+          <div>
+            <div class="b-cover b-c3">
+              <div class="b-frame"></div>
+              <div class="b-num">第一巻</div>
+              <div class="b-title">悪役令嬢は静かに暮らしたい</div>
+              <div class="b-author">九条　ひいらぎ</div>
+              <div class="b-seal half">読</div>
+            </div>
+            <div class="b-caption">第十六話 ・ 一割</div>
+          </div>
+        </div>
+        <div class="b-banner">
+          <div class="txt">組　版　中 ─ 二／四</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 案C ==================== -->
+<style>
+  /* ============ 案C Web小説ネイティブ ============ */
+  .c-light{background:#F4F6F8}
+  .c-appbar{font-size:17px;font-weight:700;letter-spacing:.04em;padding:10px 6px 16px;color:#22282F}
+  .c-card{background:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 1px 4px rgba(34,40,47,.08);margin-bottom:12px}
+  .c-chips{display:flex;gap:6px;margin-bottom:8px}
+  .c-chip{font-size:10px;font-weight:500;padding:2.5px 9px;border-radius:999px;background:#EDF1F6;color:#5A6471}
+  .c-chip.on{background:#E3F2E8;color:#2E7D4F}
+  .c-chip.fin{background:#EAE6F4;color:#5B4B8A}
+  .c-t{font-size:15px;font-weight:700;line-height:1.5;color:#22282F}
+  .c-au{font-size:11.5px;color:#7A828C;margin-top:3px}
+  .c-pr-label{display:flex;justify-content:space-between;font-size:11px;color:#5A6471;margin-top:10px}
+  .c-pr-label b{color:#3D6BB3}
+  .c-bar{height:6px;background:#E3E8EF;border-radius:3px;margin-top:5px;overflow:hidden}
+  .c-bar i{display:block;height:100%;background:#3D6BB3;border-radius:3px}
+  .c-banner{background:#E8EFF9;border-radius:14px;padding:12px 16px;margin-top:16px}
+  .c-banner .txt{font-size:12px;font-weight:500;color:#2D4E80}
+  .c-banner .c-bar{background:#CCD9EC}
+</style>
+<section class="proposal" id="plan-c">
+  <div class="proposal-head">
+    <h2>案C Web小説ネイティブ</h2>
+    <p>「これは紙の本ではなくWeb連載だ」と割り切り、なろう/カクヨムの語彙（連載中・全N話・タグ）で構成する書影レスのカードUI。
+    <span class="sig">signature = 話数ベースの大きな読了表現</span>。
+    題材への忠実さは最高だが、読書画面の「紙」世界観とは意図的に分裂する（本棚=サイト、読書=紙、という二層構造と解釈する）。</p>
+  </div>
+  <div class="panels">
+    <div>
+      <p class="panel-label">ライト（この案はダーク省略）</p>
+      <div class="phone c-light">
+        <div class="c-appbar">本棚</div>
+        <div class="c-card">
+          <div class="c-chips"><span class="c-chip on">連載中</span><span class="c-chip">全312話</span></div>
+          <div class="c-t">転生したら辺境伯の三男だった件</div>
+          <div class="c-au">蒼月 慎</div>
+          <div class="c-pr-label"><span>第45話まで読了</span><b>14%</b></div>
+          <div class="c-bar"><i style="width:14%"></i></div>
+        </div>
+        <div class="c-card">
+          <div class="c-chips"><span class="c-chip fin">完結</span><span class="c-chip">全89話</span></div>
+          <div class="c-t">薬屋の弟子は今日も世界を救わない</div>
+          <div class="c-au">水瀬 あおい</div>
+          <div class="c-pr-label"><span>第69話まで読了</span><b>78%</b></div>
+          <div class="c-bar"><i style="width:78%"></i></div>
+        </div>
+        <div class="c-card">
+          <div class="c-chips"><span class="c-chip on">連載中</span><span class="c-chip">全204話</span></div>
+          <div class="c-t">悪役令嬢は静かに暮らしたい</div>
+          <div class="c-au">九条 ひいらぎ</div>
+          <div class="c-pr-label"><span>未読</span><b>—</b></div>
+          <div class="c-bar"></div>
+        </div>
+        <div class="c-banner">
+          <div class="txt">本文を解析しています… 2/4</div>
+          <div class="c-bar" style="margin-top:8px"><i style="width:60%"></i></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== 採用案E ふたつのビュー ==================== -->
+<style>
+  /* セグメント切替（既存のグリッド/リスト切替ボタンの発展形） */
+  .seg{display:flex;background:var(--sv);border-radius:999px;padding:3px;margin:2px 4px 16px;font-family:var(--serif);font-size:12px}
+  .seg span{flex:1;text-align:center;padding:7px;border-radius:999px;letter-spacing:.28em}
+  .seg .on{background:var(--washi);color:var(--shuzumi);font-weight:600;box-shadow:0 1px 2px rgba(28,25,22,.10)}
+  .seg .off{color:var(--outline)}
+  .a-dark .seg{background:#2A2420}
+  .a-dark .seg .on{background:#3A332C;color:var(--dark-obi-on)}
+  .a-dark .seg .off{color:#8a7d76}
+  /* 落款: 完成した装丁の"上から"事後に捺される達成の印。読了時にスタンプ */
+  .e-seal{position:absolute;right:11px;bottom:calc(21% + 11px);width:30px;height:30px;
+    background:#C13B2A;color:#fff;font-family:var(--serif);font-weight:700;font-size:16px;
+    display:flex;align-items:center;justify-content:center;border-radius:3px;
+    box-shadow:0 2px 6px rgba(140,30,20,.45);transform:rotate(-6deg);
+    animation:stamp 4.2s ease-in-out infinite}
+  @keyframes stamp{
+    0%,55%{opacity:0;transform:scale(2.6) rotate(-22deg)}
+    66%{opacity:1;transform:scale(.9) rotate(-6deg)}
+    72%{transform:scale(1.06) rotate(-6deg)}
+    80%,100%{opacity:1;transform:scale(1) rotate(-6deg)}
+  }
+  @media (prefers-reduced-motion: reduce){.e-seal{animation:none;opacity:1;transform:rotate(-6deg)}}
+  /* 目録ビュー（和紙トーンに寄せた情報リスト） */
+  .e-list .row{background:var(--washi);border:1px solid #E4DACB;border-radius:12px;padding:13px 15px;margin-bottom:11px;box-shadow:0 1px 3px rgba(28,25,22,.06)}
+  .e-list .chips{display:flex;gap:6px;margin-bottom:7px}
+  .e-list .chip{font-family:var(--sans);font-size:10px;font-weight:500;padding:2.5px 9px;border-radius:999px;background:var(--sv);color:#6b5f55}
+  .e-list .chip.on{background:#E4EFE9;color:var(--rokusho)}
+  .e-list .chip.fin{background:var(--sakura);color:var(--shuzumi)}
+  .e-list .t{font-family:var(--serif);font-weight:600;font-size:15px;line-height:1.55;color:var(--sumi)}
+  .e-list .au{font-size:11.5px;color:var(--outline);margin-top:3px}
+  .e-list .prl{display:flex;justify-content:space-between;font-size:11px;color:#6b5f55;margin-top:10px}
+  .e-list .prl b{color:var(--shuzumi)}
+  .e-list .bar{height:5px;background:var(--ov);border-radius:3px;margin-top:5px;overflow:hidden}
+  .e-list .bar i{display:block;height:100%;background:var(--shuzumi);border-radius:3px}
+</style>
+<section class="proposal" id="plan-e">
+  <div class="proposal-head">
+    <h2>採用案E ふたつのビューを切り替える</h2>
+    <p>上の A／B／C は比較用の単独案。これは3案の良いとこ取りではなく<strong>役割分担で統合した採用候補</strong>。
+    本棚に2つの表示を持たせ、上部トグルで切り替える（既存のグリッド/リスト切替ボタンの発展）。
+    <strong>書架</strong>＝装丁を愛でるビュー。帯は著者名だけに絞り、連載状態などのメタは載せない。
+    <strong>目録</strong>＝Web連載を捌くビュー。連載状態・全話数・進捗を担当。
+    混在させないことでD案の情報過多を解消し、各ビューは片方の仕事だけをする。
+    <span class="sig">signature ＝ 読了した瞬間、完成した装丁の上に落款が「捺される」</span>
+    （このモックでは数秒ごとに再生。読了本にだけ出る褒章）。</p>
+  </div>
+  <div class="panels">
+    <!-- 書架ビュー ライト -->
+    <div>
+      <p class="panel-label">書架ビュー ライト</p>
+      <div class="phone a-light">
+        <div class="a-appbar">本棚</div>
+        <div class="seg"><span class="on">書架</span><span class="off">目録</span></div>
+        <div class="a-shelf">
+          <div class="a-book">
+            <div class="a-cover">
+              <div class="a-title">転生したら辺境伯の三男だった件</div>
+              <div class="a-obi"><b>蒼月　慎</b></div>
+            </div>
+            <div class="a-meta"><div class="a-progress"><i style="width:34%"></i></div>
+            <div class="a-caption">第45話 ・ 34%</div></div>
+          </div>
+          <div class="a-book">
+            <div class="a-cover">
+              <div class="a-title">薬屋の弟子は今日も世界を救わない</div>
+              <div class="a-obi"><b>水瀬　あおい</b></div>
+              <div class="e-seal">了</div>
+            </div>
+            <div class="a-meta"><div class="a-progress"><i style="width:100%"></i></div>
+            <div class="a-caption">読了</div></div>
+          </div>
+          <div class="a-book">
+            <div class="a-cover">
+              <div class="a-title">悪役令嬢は静かに暮らしたい</div>
+              <div class="a-obi"><b>九条　ひいらぎ</b></div>
+            </div>
+            <div class="a-meta"><div class="a-progress"><i style="width:8%"></i></div>
+            <div class="a-caption">第16話 ・ 8%</div></div>
+          </div>
+          <div class="a-book">
+            <div class="a-cover">
+              <div class="a-title">迷宮都市の錬金術師</div>
+              <div class="a-obi"><b>佐伯　遼</b></div>
+            </div>
+            <div class="a-meta"><div class="a-caption">未読</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- 書架ビュー ダーク -->
+    <div>
+      <p class="panel-label">書架ビュー ダーク</p>
+      <div class="phone a-dark">
+        <div class="a-appbar">本棚</div>
+        <div class="seg"><span class="on">書架</span><span class="off">目録</span></div>
+        <div class="a-shelf">
+          <div class="a-book">
+            <div class="a-cover">
+              <div class="a-title">転生したら辺境伯の三男だった件</div>
+              <div class="a-obi"><b>蒼月　慎</b></div>
+            </div>
+            <div class="a-meta"><div class="a-progress"><i style="width:34%"></i></div>
+            <div class="a-caption">第45話 ・ 34%</div></div>
+          </div>
+          <div class="a-book">
+            <div class="a-cover">
+              <div class="a-title">薬屋の弟子は今日も世界を救わない</div>
+              <div class="a-obi"><b>水瀬　あおい</b></div>
+              <div class="e-seal">了</div>
+            </div>
+            <div class="a-meta"><div class="a-progress"><i style="width:100%"></i></div>
+            <div class="a-caption">読了</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- 目録ビュー（同じ本棚をトグルで切替） -->
+    <div>
+      <p class="panel-label">目録ビュー（同じ本棚・トグル切替後）</p>
+      <div class="phone a-light">
+        <div class="a-appbar">本棚</div>
+        <div class="seg"><span class="off">書架</span><span class="on">目録</span></div>
+        <div class="e-list">
+          <div class="row">
+            <div class="chips"><span class="chip on">連載中</span><span class="chip">全312話</span></div>
+            <div class="t">転生したら辺境伯の三男だった件</div>
+            <div class="au">蒼月 慎</div>
+            <div class="prl"><span>第45話まで読了</span><b>14%</b></div>
+            <div class="bar"><i style="width:14%"></i></div>
+          </div>
+          <div class="row">
+            <div class="chips"><span class="chip fin">完結</span><span class="chip">全89話</span></div>
+            <div class="t">薬屋の弟子は今日も世界を救わない</div>
+            <div class="au">水瀬 あおい</div>
+            <div class="prl"><span>読了</span><b>100%</b></div>
+            <div class="bar"><i style="width:100%"></i></div>
+          </div>
+          <div class="row">
+            <div class="chips"><span class="chip on">連載中</span><span class="chip">全204話</span></div>
+            <div class="t">悪役令嬢は静かに暮らしたい</div>
+            <div class="au">九条 ひいらぎ</div>
+            <div class="prl"><span>第16話まで読了</span><b>8%</b></div>
+            <div class="bar"><i style="width:8%"></i></div>
+          </div>
+          <div class="row">
+            <div class="chips"><span class="chip on">連載中</span><span class="chip">全456話</span></div>
+            <div class="t">迷宮都市の錬金術師</div>
+            <div class="au">佐伯 遼</div>
+            <div class="prl"><span>未読</span><b>—</b></div>
+            <div class="bar"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <strong>構成のねらい</strong><br>
+  ・上の A／B／C は比較用の単独案。<strong>採用候補は E（2ビュー切替）</strong>で、良いとこ取りではなく「役割分担」で統合している。<br>
+  ・書架＝装丁を見る、目録＝情報を捌く。混在させない（D案の情報過多の反省）。読書画面の紙パレットとも連続する。<br>
+  ・落款は<strong>読了の瞬間に捺されるスタンプ演出</strong>が肝（書架ビューの読了本だけ）。字（了／読了）・回転角・濃さ・位置は調整可能。デフォルトを書架/目録どちらで開くかも指定どおりにします。
+</footer>
+</body>
+</html>
