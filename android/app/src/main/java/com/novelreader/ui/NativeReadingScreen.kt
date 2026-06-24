@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -103,6 +104,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
@@ -179,6 +181,19 @@ fun ReadingScreen(
         // apply はメモリ即時反映＋非同期ディスク書込のため、
         // スライダードラッグ中に連続発火しても UI をブロックしない
         prefs.edit().putInt("reading_font_size", size).apply()
+    }
+
+    // 本文の行間（em）。
+    // なぜ 2.3〜2.8em の狭めレンジに絞るか: ルビは行の上端基準で描画されるため、
+    // 行間を広げるほどルビが親文字から離れ、狭めるほど被るという物理制約がある。
+    // 段落間スペースも lineHeight=2.5em 前提で微調整済みのため、可変幅を狭く保つことで
+    // ルビ被り/離れと段落リズムの破綻を許容範囲に抑える。
+    var lineHeightEm by remember {
+        mutableFloatStateOf(prefs.getFloat("reading_line_height", 2.5f).coerceIn(2.3f, 2.8f))
+    }
+    val onLineHeightChange: (Float) -> Unit = { v ->
+        lineHeightEm = v
+        prefs.edit().putFloat("reading_line_height", v).apply()
     }
 
     // ステータスバーアイコン色を読書テーマに合わせる。
@@ -262,6 +277,8 @@ fun ReadingScreen(
         onThemeChange = onThemeChange,
         fontSize = fontSize,
         onFontSizeChange = onFontSizeChange,
+        lineHeightEm = lineHeightEm,
+        onLineHeightChange = onLineHeightChange,
         // resolvedFile が「最後に読んだ章」と一致する場合のみスクロール位置を復元する
         initialScrollIndex = if (resolvedFile == restore.targetFile) restore.scrollIndex else 0,
         initialScrollOffset = if (resolvedFile == restore.targetFile) restore.scrollOffset else 0,
@@ -297,6 +314,8 @@ private fun ChapterScreen(
     onThemeChange: (ReadingTheme) -> Unit,
     fontSize: Int,
     onFontSizeChange: (Int) -> Unit,
+    lineHeightEm: Float,
+    onLineHeightChange: (Float) -> Unit,
     initialScrollIndex: Int,
     initialScrollOffset: Int,
     onSaveScroll: (index: Int, offset: Int) -> Unit,
@@ -463,6 +482,7 @@ private fun ChapterScreen(
                         content = result.content,
                         colors = colors,
                         fontSize = fontSize,
+                        lineHeightEm = lineHeightEm,
                         lazyListState = lazyListState,
                     )
 
@@ -578,6 +598,8 @@ private fun ChapterScreen(
                 onThemeChange = onThemeChange,
                 fontSize = fontSize,
                 onFontSizeChange = onFontSizeChange,
+                lineHeightEm = lineHeightEm,
+                onLineHeightChange = onLineHeightChange,
                 onDismiss = { showSettings = false },
             )
         }
@@ -593,6 +615,8 @@ private fun ReadingSettingsSheet(
     onThemeChange: (ReadingTheme) -> Unit,
     fontSize: Int,
     onFontSizeChange: (Int) -> Unit,
+    lineHeightEm: Float,
+    onLineHeightChange: (Float) -> Unit,
     onDismiss: () -> Unit,
 ) {
     // なぜ containerColor/contentColor を読書テーマで明示するか:
@@ -667,6 +691,29 @@ private fun ReadingSettingsSheet(
                 )
                 Text("あ", fontSize = 24.sp, fontFamily = FontFamily.Serif)
             }
+            Spacer(Modifier.height(24.dp))
+            Text(
+                // なぜ Locale.US を明示するか: 既定ロケールだと欧州端末等で小数点が
+                // 「2,5」のようにカンマ表記に化けるため、表示を一貫させる。
+                text = "行間（${String.format(Locale.US, "%.1f", lineHeightEm)}）",
+                style = MaterialTheme.typography.labelMedium,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // 両端の「狭／広」で行間スライダーの効果を視覚的に示す
+                Text("狭", style = MaterialTheme.typography.labelMedium, fontFamily = FontFamily.Serif)
+                Slider(
+                    value = lineHeightEm,
+                    // 0.1em 刻みに丸める。ルビ被り/離れを避けるため狭めレンジ(2.3〜2.8)に固定。
+                    onValueChange = { onLineHeightChange((it * 10).roundToInt() / 10f) },
+                    valueRange = 2.3f..2.8f,
+                    // steps = 4 で 2.3〜2.8em を 0.1em 刻みの離散値にする（中間刻み = 区切り数 - 1）
+                    steps = 4,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 12.dp),
+                )
+                Text("広", style = MaterialTheme.typography.labelMedium, fontFamily = FontFamily.Serif)
+            }
         }
     }
 }
@@ -677,6 +724,7 @@ private fun ChapterContent(
     content: ChapterContent,
     colors: ReadingColors,
     fontSize: Int,
+    lineHeightEm: Float,
     lazyListState: LazyListState = rememberLazyListState(),
 ) {
     val paragraphs = remember(content) { content.segments.splitIntoParagraphs() }
@@ -706,6 +754,7 @@ private fun ChapterContent(
                 paragraph = paragraph,
                 colors = colors,
                 fontSize = fontSize,
+                lineHeightEm = lineHeightEm,
                 modifier = Modifier
                     .widthIn(max = 600.dp)
                     .padding(horizontal = 15.dp),
@@ -721,20 +770,22 @@ private fun ParagraphItem(
     paragraph: List<TextSegment>,
     colors: ReadingColors,
     fontSize: Int,
+    lineHeightEm: Float,
     modifier: Modifier = Modifier,
 ) {
     val bodyStyle = TextStyle(
         color = colors.text,
         // ユーザー設定の文字サイズ。lineHeight が em（相対値）のため行間も自動でスケールする
         fontSize = fontSize.sp,
-        lineHeight = 2.5.em,
+        // ユーザー設定の行間（em）。RubyText も style=bodyStyle 経由でこの lineHeight を受け取るため、
+        // ここ1か所の変更でルビ行にも反映される。可変幅は 2.3〜2.8em に絞ってルビ被り/離れを抑制。
+        lineHeight = lineHeightEm.em,
         fontFamily = FontFamily.Serif,
         letterSpacing = 0.sp,
         // なぜ Trim.LastLineBottom か:
-        // lineHeight = 2.5.em を RubyText 内折り返しとParagraphItem 間で統一するため。
+        // lineHeight を RubyText 内折り返しとParagraphItem 間で統一するため。
         // LastLineBottom のみ除去することで上 leading（ルビ描画領域）を保ちつつ
-        // composable 高さを確定させる（18sp 時の実値: 上 leading 13.5sp / 高さ 31.5sp。
-        // em 指定のため文字サイズ変更時も比率は維持される）。
+        // composable 高さを確定させる（em 指定のため文字サイズ・行間変更時も比率は維持される）。
         lineHeightStyle = LineHeightStyle(
             alignment = LineHeightStyle.Alignment.Proportional,
             trim = LineHeightStyle.Trim.LastLineBottom,
