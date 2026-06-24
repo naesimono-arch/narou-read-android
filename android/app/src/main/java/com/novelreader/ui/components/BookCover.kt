@@ -67,15 +67,19 @@ fun BookCover(
     val colors = remember(bookId) {
         val hash = bookId.hashCode()
         val hue  = abs(hash) % 360f
-        // 計画仕様値: 彩度 35〜60%、明度 38〜50%（落ち着いた印象で書影らしく）
-        val saturation = 0.35f + (abs(hash / 360) % 25) / 100f   // 35〜60%
-        val lightnessTop = 0.38f + (abs(hash / 8640) % 12) / 100f // 38〜50%
+        // 彩度・明度をなるべく揃え、色相だけを振った調和パレットにする（くすみ解消）。
+        // 彩度: 上限を下げて 38〜49%（旧 35〜60%）。高彩度＋中明度のオリーブ/ブラウンのくすみを抑える。
+        // 明度: 底上げして 46〜61%（旧 38〜50%）。低明度域のくすみを解消し均質な見栄えにする。
+        val saturation = 0.38f + (abs(hash / 360) % 12) / 100f    // 38〜49%
+        val lightnessTop = 0.46f + (abs(hash / 8640) % 16) / 100f // 46〜61%
         val lightnessBot = lightnessTop - 0.10f
 
         val topColor    = hslToColor(hue, saturation, lightnessTop)
         val bottomColor = hslToColor(hue, saturation, lightnessBot)
-        // テキスト色: 背景が明るければ暗色、暗ければ白
-        val textColor   = if (lightnessTop > 0.55f) Color(0xFF1C1916) else Color(0xFFFFFFFF)
+        // テキスト色: 背景が明るければ暗色、暗ければ白。
+        // しきい値 0.56 は実際の明度レンジ(0.46〜0.61)の内側にあり、明るめのカバーでは
+        // 暗文字へ正しく切り替わる（旧 0.55 はレンジ最大 0.50 を超えており常に白文字になる死にコードだった）。
+        val textColor   = if (lightnessTop > 0.56f) Color(0xFF1C1916) else Color(0xFFFFFFFF)
 
         Triple(topColor, bottomColor, textColor)
     }
