@@ -404,7 +404,6 @@ private fun GridBookCard(
                 BookCover(
                     bookId = book.id,
                     title = book.title,
-                    author = book.author,
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(2f / 3f)
@@ -540,7 +539,6 @@ private fun ListBookCard(
             BookCover(
                 bookId = book.id,
                 title = book.title,
-                author = book.author,
                 modifier = Modifier
                     .width(60.dp)
                     .height(90.dp)

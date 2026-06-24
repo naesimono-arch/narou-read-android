@@ -3,7 +3,6 @@ package com.novelreader.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -14,7 +13,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 
@@ -57,14 +55,12 @@ private fun hslToColor(hue: Float, saturation: Float, lightness: Float): Color {
 /**
  * @param bookId 書籍ID（ハッシュのシードに使用）
  * @param title  表紙中央に大きく表示する1〜2文字の抽出元
- * @param author 表紙下部に小さく表示する著者名
  * @param modifier Modifier（縦横比はこのModifierで制御する）
  */
 @Composable
 fun BookCover(
     bookId: String,
     title: String,
-    author: String,
     modifier: Modifier = Modifier,
 ) {
     // ハッシュから色相を決定（同じIDなら毎回同じ色になる）
@@ -106,19 +102,6 @@ fun BookCover(
             color = textColor.copy(alpha = 0.90f),
             modifier = Modifier.align(Alignment.Center),
         )
-
-        // ────── 下部: 著者名（計画仕様: 11sp, alpha=0.7f） ──────
-        if (author.isNotBlank()) {
-            Text(
-                text = author,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Normal,
-                color = textColor.copy(alpha = 0.70f),
-                maxLines = 1,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 8.dp, start = 8.dp, end = 8.dp),
-            )
-        }
+        // 著者名はカード本文（書影の外）に一本化したため、カバー内には描画しない
     }
 }
