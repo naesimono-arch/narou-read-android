@@ -18,7 +18,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -61,7 +60,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookshelfScreen(
     viewModel: BookshelfViewModel,
@@ -249,7 +248,10 @@ fun BookshelfScreen(
                                 }
                             },
                             onDelete = { bookToDelete = book },
-                            modifier = Modifier.animateItemPlacement(),
+                            // Foundation1.6系(BOM 2024.04.01)のanimateItemPlacementは高速フリング中に
+                            // カバーが画面外の古い位置から補間され重なる既知不具合があるため使用しない。
+                            // 詰め直しアニメは案B(BOM 2024.09+へ更新しanimateItem()へ置換)で別タスク復活予定。
+                            modifier = Modifier,
                         )
                     }
                 }
@@ -273,7 +275,8 @@ fun BookshelfScreen(
                                 }
                             },
                             onDelete = { bookToDelete = book },
-                            modifier = Modifier.animateItemPlacement(),
+                            // グリッドと同理由でanimateItemPlacementは使用しない（案B参照）。
+                            modifier = Modifier,
                         )
                     }
                 }
