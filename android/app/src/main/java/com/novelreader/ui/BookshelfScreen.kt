@@ -450,6 +450,14 @@ private fun GridBookCard(
                 }
                 Spacer(Modifier.height(6.dp))
                 if (progressFraction != null) {
+                    // バーだけだと進捗が読み取りづらいため、リスト表示と同様に章番号＋%を併記する
+                    val percent = (progressFraction * 100).toInt()
+                    Text(
+                        text = "第${chapNum}話 · $percent%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(4.dp))
                     LinearProgressIndicator(
                         progress = { progressFraction },
                         modifier = Modifier
