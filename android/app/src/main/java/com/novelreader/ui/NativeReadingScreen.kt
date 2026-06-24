@@ -38,6 +38,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -529,6 +530,7 @@ private fun ChapterScreen(
 
         if (showSettings) {
             ReadingSettingsSheet(
+                colors = colors,
                 readingTheme = readingTheme,
                 onThemeChange = onThemeChange,
                 fontSize = fontSize,
@@ -539,17 +541,26 @@ private fun ChapterScreen(
     }
 }
 
-/** 表示設定ボトムシート（テーマ切替・文字サイズ）。色はアプリ全体の MaterialTheme に従う */
+/** 表示設定ボトムシート（テーマ切替・文字サイズ）。色は読書テーマ（colors）に追従させる */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReadingSettingsSheet(
+    colors: ReadingColors,
     readingTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
     fontSize: Int,
     onFontSizeChange: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    // なぜ containerColor/contentColor を読書テーマで明示するか:
+    // 未指定だとシート色がシステムテーマ（MaterialTheme.surface）に従うため、
+    // 例えば「システム=ライト・読書テーマ=ダーク」で設定を開くと白いシートがフラッシュする。
+    // 読書中の背景と一致させて違和感とフラッシュをなくす。
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = colors.background,
+        contentColor = colors.text,
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -582,6 +593,14 @@ private fun ReadingSettingsSheet(
                                 }
                             )
                         },
+                        // 選択色をアクセント(朱)に統一する。
+                        // M3 既定だと secondaryContainer（青鼠）になりアプリの主役色から外れるため。
+                        // システムテーマではなく読書テーマの colors を使い、シート背景(colors.background)と調和させる。
+                        colors = FilterChipDefaults.filterChipColors(
+                            labelColor = colors.text,
+                            selectedContainerColor = colors.accent,
+                            selectedLabelColor = colors.background,
+                        ),
                     )
                 }
             }
