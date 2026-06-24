@@ -20,8 +20,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -59,6 +61,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -71,6 +74,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -95,6 +100,7 @@ import com.novelreader.viewmodel.BookshelfViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.roundToInt
@@ -298,9 +304,15 @@ private fun ChapterScreen(
     onNavigateTo: (String) -> Unit,
 ) {
     val colors = readingTheme.colors
+    val scope = rememberCoroutineScope()
 
     // 表示設定ボトムシートの開閉状態
     var showSettings by remember { mutableStateOf(false) }
+
+    // ボトムバーの実測高さ（px）。退避スライド量に使う。
+    // なぜ固定値にしないか: ナビゲーションバー実高（ボタン式/ジェスチャー式）でバー総高が
+    // 変わるため、onSizeChanged で実測した高さ分だけスライドさせて完全に画面外へ退避させる。
+    var bottomBarHeightPx by remember { mutableIntStateOf(0) }
 
     // 再試行カウンタ。インクリメントで produceState を再起動させる。
     // なぜ currentFile だけでなく retryKey も key に持つか:
@@ -415,47 +427,33 @@ private fun ChapterScreen(
         Scaffold(
             containerColor = colors.background,
             modifier = Modifier.nestedScroll(nonStealingConnection),
-            bottomBar = {
-                // なぜ alpha 0.95f か: スクロール中も文字が透けて読めるよう
-                // 背景色を半透明にするため（html_exporter.py の .nav-footer に対応）
-                BottomAppBar(
-                    containerColor = colors.navBackground.copy(alpha = 0.95f),
-                    contentColor = colors.topBarIcon,
-                ) {
-                    IconButton(
-                        onClick = { onNavigateTo(prevFile) },
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "前の章",
-                        )
-                    }
-                    IconButton(
-                        onClick = { onNavigateTo("index.html") },
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.List,
-                            contentDescription = "目次",
-                        )
-                    }
-                    IconButton(
-                        onClick = { onNavigateTo(nextFile) },
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = "次の章",
-                        )
-                    }
-                }
-            },
+            // なぜ contentWindowInsets を 0 にするか: 上下バーを Scaffold スロットではなく
+            // オーバーレイで描くため、インセットは本文側(ChapterContent の contentPadding)で
+            // 完全に管理する。Scaffold が二重にインセットを足さないよう無効化する。
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            // ボトムバーは Scaffold スロットに置かずオーバーレイ化する。
+            // なぜか: スロットに置くと退避させても Scaffold が下部余白を確保し続け、
+            // 本文が画面最下部まで届かない。オーバーレイなら退避時に本文が全画面を使える。
         ) { innerPadding ->
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding),
+                    .padding(innerPadding)
+                    // 本文中央タップで上下バーをトグル表示する。
+                    // なぜ barsVisible の真偽値を持たないか: スクロール退避で既にバーが
+                    // 隠れている状態でも真偽値は true のままになり「隠れているものを隠す」
+                    // 空打ちが起き2回タップが必要になる。実オフセット(collapsedFraction)から
+                    // 現在の表示状態を判定して反転させることで1タップで必ず切り替わる。
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = {
+                            val target = if (topAppBarState.collapsedFraction < 0.5f) {
+                                topAppBarState.heightOffsetLimit // 表示中→全退避
+                            } else {
+                                0f // 退避中→全表示
+                            }
+                            scope.launch { settleTopBar(topAppBarState, target) }
+                        })
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 when (val result = parseResult) {
@@ -475,6 +473,51 @@ private fun ChapterScreen(
                         onRetry = { retryKey++ },
                     )
                 }
+            }
+        }
+
+        // ────── ボトムバー（オーバーレイ）──────
+        // collapsedFraction（トップバーの退避割合）に連動して下方向へスライド退避させる。
+        // これによりスクロール退避・中央タップトグルの両方でトップバーと同期して動く。
+        BottomAppBar(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .onSizeChanged { bottomBarHeightPx = it.height }
+                .graphicsLayer {
+                    // 退避割合 × 実測高さ分だけ下へずらす（collapsedFraction=1 で完全に画面外）
+                    translationY = bottomBarHeightPx * topAppBarState.collapsedFraction
+                },
+            // なぜ alpha 0.95f か: スクロール中も文字が透けて読めるよう
+            // 背景色を半透明にするため（html_exporter.py の .nav-footer に対応）
+            containerColor = colors.navBackground.copy(alpha = 0.95f),
+            contentColor = colors.topBarIcon,
+        ) {
+            IconButton(
+                onClick = { onNavigateTo(prevFile) },
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "前の章",
+                )
+            }
+            IconButton(
+                onClick = { onNavigateTo("index.html") },
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.List,
+                    contentDescription = "目次",
+                )
+            }
+            IconButton(
+                onClick = { onNavigateTo(nextFile) },
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = "次の章",
+                )
             }
         }
 
@@ -649,8 +692,11 @@ private fun ChapterContent(
         // 章の最上部でのみバー高さ分のスペースが確保され、先頭行がバーに隠れなくなる。
         // なぜ statusBars を加算するか: Edge-to-Edge 表示では TopAppBar の実高が
         // 64dp + ステータスバーインセットになるため、64dp 固定だと先頭行がバーに隠れる。
+        // bottom: オーバーレイ化したボトムバー（実高 ≒ 80dp + ナビバーインセット）の分を確保し、
+        // 末尾行がバーに隠れないようにする。ナビバー実高は端末（ボタン/ジェスチャー）で異なるため実測値を加算。
         contentPadding = PaddingValues(
             top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 64.dp,
+            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 80.dp,
         ),
     ) {
 
@@ -665,8 +711,7 @@ private fun ChapterContent(
                     .padding(horizontal = 15.dp),
             )
         }
-
-        item { Spacer(modifier = Modifier.height(80.dp)) }
+        // 旧 Spacer(80dp) は上の contentPadding.bottom へ移行（バー実高＋ナビバー実高で算出）
     }
 }
 
@@ -855,13 +900,18 @@ private fun List<TextSegment>.splitIntoParagraphs(): List<List<TextSegment>> {
 
 
 /**
- * collapsedFraction に応じてバーを全表示または全非表示へスナップさせる。
+ * バーを全表示または全非表示へスナップさせる。
  * なぜ自前実装か: enterAlways の標準 snap はスクロール消費戦略と一体化しており、
  * 本実装の「本文優先・非消費」方針と両立しないため。
+ *
+ * @param target 退避先の heightOffset。省略時は現在の collapsedFraction から近い方へ吸着
+ *               （フリック後の半端位置の整列に使用）。中央タップでは反転先を明示的に渡す。
  */
 @OptIn(ExperimentalMaterial3Api::class)
-private suspend fun settleTopBar(state: TopAppBarState) {
-    val target = if (state.collapsedFraction > 0.5f) state.heightOffsetLimit else 0f
+private suspend fun settleTopBar(
+    state: TopAppBarState,
+    target: Float = if (state.collapsedFraction > 0.5f) state.heightOffsetLimit else 0f,
+) {
     animate(
         initialValue = state.heightOffset,
         targetValue = target,
