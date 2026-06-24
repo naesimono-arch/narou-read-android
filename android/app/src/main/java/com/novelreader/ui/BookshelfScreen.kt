@@ -19,7 +19,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -36,6 +39,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -98,6 +102,11 @@ fun BookshelfScreen(
 
     // グリッド/リスト表示の切り替え状態（SharedPreferencesで永続化）
     var isGridView by remember { mutableStateOf(prefs.getBoolean("is_grid_view", true)) }
+
+    // 削除UIの方式（SharedPreferencesで永続化）。0=長押しメニュー / 1=⋮メニュー。
+    // なぜトグルで両方式を残すか: 2方式を実機で触り比べて採用方式を決めるための一時機構。
+    // 採用方式が確定したら、他方の分岐とこのトグル自体を削除する。
+    var deleteUiMode by remember { mutableStateOf(prefs.getInt("delete_ui_mode", 1)) }
 
     // PDF選択を実際に開始するヘルパー（通知権限チェック後に呼ぶ）
     val launchPdfPicker: () -> Unit = {
@@ -174,6 +183,16 @@ fun BookshelfScreen(
                         )
                     },
                     actions = {
+                        // 削除UI方式の切り替えボタン（一時機構：採用方式確定後にトグルごと削除予定）
+                        IconButton(onClick = {
+                            deleteUiMode = if (deleteUiMode == 1) 0 else 1
+                            prefs.edit().putInt("delete_ui_mode", deleteUiMode).apply()
+                        }) {
+                            Icon(
+                                imageVector = if (deleteUiMode == 1) Icons.Filled.MoreVert else Icons.Outlined.DeleteOutline,
+                                contentDescription = if (deleteUiMode == 1) "削除UI:⋮メニュー（タップで長押し方式へ）" else "削除UI:長押し（タップで⋮方式へ）",
+                            )
+                        }
                         // グリッド/リスト切り替えボタン
                         IconButton(onClick = {
                             isGridView = !isGridView
@@ -248,6 +267,7 @@ fun BookshelfScreen(
                                 }
                             },
                             onDelete = { bookToDelete = book },
+                            deleteUiMode = deleteUiMode,
                             // Foundation1.6系(BOM 2024.04.01)のanimateItemPlacementは高速フリング中に
                             // カバーが画面外の古い位置から補間され重なる既知不具合があるため使用しない。
                             // 詰め直しアニメは案B(BOM 2024.09+へ更新しanimateItem()へ置換)で別タスク復活予定。
@@ -275,6 +295,7 @@ fun BookshelfScreen(
                                 }
                             },
                             onDelete = { bookToDelete = book },
+                            deleteUiMode = deleteUiMode,
                             // グリッドと同理由でanimateItemPlacementは使用しない（案B参照）。
                             modifier = Modifier,
                         )
@@ -356,14 +377,19 @@ fun BookshelfScreen(
 // ============================================================
 // グリッド用書籍カード
 // ============================================================
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun GridBookCard(
     book: BookEntity,
     lastRead: String?,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
+    deleteUiMode: Int,
     modifier: Modifier = Modifier,
 ) {
+    // 削除メニューの開閉状態（⋮タップ または 長押しで開く）
+    var menuExpanded by remember { mutableStateOf(false) }
+
     val totalChaps by produceState(initialValue = 0, key1 = book.id) {
         value = withContext(Dispatchers.IO) {
             File(book.htmlDirPath)
@@ -390,12 +416,21 @@ private fun GridBookCard(
     )
 
     Surface(
-        onClick = onOpen,
-        modifier = modifier.graphicsLayer { scaleX = scale; scaleY = scale },
+        // Surface(onClick) に combinedClickable を重ねるとクリック重複・長押し検知漏れが起きるため、
+        // クリック/長押しを1つの combinedClickable に集約する（Surface 自体は onClick を持たせない）。
+        // indication=LocalIndication で従来のリップル、interactionSource 共有で press スケールを維持する。
+        modifier = modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                onClick = onOpen,
+                // 長押しモード(0)のみ長押しでメニューを開く。⋮モード(1)では長押し無効。
+                onLongClick = if (deleteUiMode == 0) ({ menuExpanded = true }) else null,
+            ),
         shape = RoundedCornerShape(12.dp),
         tonalElevation = 1.dp,
         shadowElevation = 2.dp,
-        interactionSource = interactionSource,
         color = MaterialTheme.colorScheme.surface,
     ) {
         Column {
@@ -409,26 +444,35 @@ private fun GridBookCard(
                         .aspectRatio(2f / 3f)
                         .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
                 )
-                // 削除ボタン（右上に重ねて配置）
-                // なぜスクリム背景を敷くか: 書影はタイトルハッシュ由来の任意の色相のため、
-                // アイコン単体（surface 色）では明色カバー上で視認できなくなる。
-                // 半透明黒スクリム＋白アイコンはどの色相の上でもコントラストを確保できる。
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp)
-                        .size(30.dp)
-                        .background(
-                            color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f),
-                            shape = CircleShape,
-                        ),
-                ) {
-                    Icon(
-                        Icons.Outlined.DeleteOutline,
-                        contentDescription = "削除",
-                        tint = androidx.compose.ui.graphics.Color.White,
-                        modifier = Modifier.size(18.dp),
+                // 削除アフォーダンス。右上の Box を DropdownMenu のアンカーにして表示位置を安定させる。
+                // mode=1(⋮): ⋮ボタン常時表示。mode=0(長押し): アイコンは出さず、メニューはカード長押しで開く。
+                Box(modifier = Modifier.align(Alignment.TopEnd)) {
+                    if (deleteUiMode == 1) {
+                        // なぜスクリム背景を敷くか: 書影はタイトルハッシュ由来の任意の色相のため、
+                        // アイコン単体（surface 色）では明色カバー上で視認できなくなる。
+                        // 半透明黒スクリム＋白アイコンはどの色相の上でもコントラストを確保できる。
+                        IconButton(
+                            onClick = { menuExpanded = true },
+                            modifier = Modifier
+                                .padding(6.dp)
+                                .size(30.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f),
+                                    shape = CircleShape,
+                                ),
+                        ) {
+                            Icon(
+                                Icons.Filled.MoreVert,
+                                contentDescription = "メニュー",
+                                tint = androidx.compose.ui.graphics.Color.White,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+                    DeleteDropdownMenu(
+                        expanded = menuExpanded,
+                        onDismiss = { menuExpanded = false },
+                        onDelete = { menuExpanded = false; onDelete() },
                     )
                 }
             }
@@ -490,14 +534,19 @@ private fun GridBookCard(
 // ============================================================
 // リスト用書籍カード
 // ============================================================
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ListBookCard(
     book: BookEntity,
     lastRead: String?,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
+    deleteUiMode: Int,
     modifier: Modifier = Modifier,
 ) {
+    // 削除メニューの開閉状態（⋮タップ または 長押しで開く）
+    var menuExpanded by remember { mutableStateOf(false) }
+
     val totalChaps by produceState(initialValue = 0, key1 = book.id) {
         value = withContext(Dispatchers.IO) {
             File(book.htmlDirPath)
@@ -523,16 +572,29 @@ private fun ListBookCard(
     )
 
     Surface(
-        onClick = onOpen,
-        modifier = modifier.graphicsLayer { scaleX = scale; scaleY = scale },
+        // グリッドと同理由でクリック/長押しを combinedClickable に集約（Surface に onClick を持たせない）。
+        modifier = modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                onClick = onOpen,
+                onLongClick = if (deleteUiMode == 0) ({ menuExpanded = true }) else null,
+            ),
         shape = RoundedCornerShape(16.dp),
         tonalElevation = 1.dp,
         shadowElevation = 1.dp,
-        interactionSource = interactionSource,
         color = MaterialTheme.colorScheme.surface,
     ) {
         Row(
-            modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
+            // 長押しモード(0)は末尾の⋮を出さないため、行末余白を通常値(12dp)に戻して
+            // テキストが端に寄りすぎないようにする。⋮モード(1)はアイコン分を詰めて 4dp。
+            modifier = Modifier.padding(
+                start = 12.dp,
+                end = if (deleteUiMode == 1) 4.dp else 12.dp,
+                top = 12.dp,
+                bottom = 12.dp,
+            ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // 小さい書影
@@ -592,15 +654,51 @@ private fun ListBookCard(
                     )
                 }
             }
-            IconButton(onClick = onDelete) {
-                Icon(
-                    Icons.Outlined.DeleteOutline,
-                    contentDescription = "削除",
-                    // outlineVariant では surface 上で視認しづらいため補助色に統一
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            // 削除アフォーダンス。行末の Box を DropdownMenu のアンカーにして表示位置を安定させる。
+            // mode=1(⋮): ⋮ボタン表示。mode=0(長押し): アイコンなし（メニューは行の長押しで開く）。
+            Box {
+                if (deleteUiMode == 1) {
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Icon(
+                            Icons.Filled.MoreVert,
+                            contentDescription = "メニュー",
+                            // outlineVariant では surface 上で視認しづらいため補助色に統一
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                DeleteDropdownMenu(
+                    expanded = menuExpanded,
+                    onDismiss = { menuExpanded = false },
+                    onDelete = { menuExpanded = false; onDelete() },
                 )
             }
         }
+    }
+}
+
+// ============================================================
+// 削除メニュー（⋮タップ・長押し共通のドロップダウン）
+// 一時機構：削除UIの採用方式が確定したら呼び出し側の分岐ごと整理する。
+// ============================================================
+@Composable
+private fun DeleteDropdownMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = { Text("削除") },
+            onClick = onDelete,
+            leadingIcon = {
+                Icon(
+                    Icons.Outlined.DeleteOutline,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            },
+        )
     }
 }
 
