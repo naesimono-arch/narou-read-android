@@ -46,7 +46,10 @@ val ReadingTheme.colors: ReadingColors
             text             = Color(0xFF1C1916),
             textSecondary    = Color(0xFF666666),
             navBackground    = Color(0xFFFCFAF2),
-            topBarBackground = Color(0xFFD4B896),
+            // 没入感向上のためトップバーを本文クリームへ寄せる（旧トープ 0xFFD4B896 は
+            // 本文と色がズレて「塊」として主張していた）。ボトムバー(navBackground)と同色に揃え、
+            // 上下バーの色を統一する。アイコン/タイトルは下記の濃色でコントラストを確保。
+            topBarBackground = Color(0xFFFCFAF2),
             topBarTitle      = Color(0xFF1C1916),
             topBarIcon       = Color(0xFF524540),
             ruby             = Color(0xFF777777),
@@ -62,7 +65,9 @@ val ReadingTheme.colors: ReadingColors
             text             = Color(0xFF3B2A14),
             textSecondary    = Color(0xFF7A6648),
             navBackground    = Color(0xFFEEE0BA),
-            topBarBackground = Color(0xFFE2D2A4),
+            // LIGHT と同方針: トップバーをボトムバー(navBackground)と同じ紙トーンに揃える
+            // （旧 0xFFE2D2A4 は本文よりやや濃く主張していた）。
+            topBarBackground = Color(0xFFEEE0BA),
             topBarTitle      = Color(0xFF3B2A14),
             topBarIcon       = Color(0xFF5C4A28),
             ruby             = Color(0xFF8A734F),
