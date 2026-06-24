@@ -1,13 +1,18 @@
 package com.novelreader.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -114,19 +119,33 @@ fun NativeTableOfContentsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onSelectChapter(entry.fileName) },
-                        color = Color.Transparent,
+                        // 現在章は淡いアクセント背景で「面」として示し、文字色だけより見落としにくくする
+                        color = if (isCurrent) colors.accent.copy(alpha = 0.08f) else Color.Transparent,
                     ) {
                         Column {
-                            Text(
-                                text = entry.title.ifEmpty { "第${index + 1}章" },
-                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-                                fontSize = 16.sp,
-                                fontFamily = FontFamily.Serif,
-                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                                lineHeight = 24.sp,
-                                // 現在読んでいる章はアクセント色＋太字で示す
-                                color = if (isCurrent) colors.accent else colors.text,
-                            )
+                            // height(IntrinsicSize.Min) で左バーの fillMaxHeight をテキスト行高に一致させる
+                            Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                                // 現在章は行頭の左アクセントバーで一目で分かるようにする。
+                                // 非現在章も透明な同幅バーを置き、全行のテキスト開始位置を揃える。
+                                Box(
+                                    modifier = Modifier
+                                        .width(4.dp)
+                                        .fillMaxHeight()
+                                        .background(
+                                            if (isCurrent) colors.accent else Color.Transparent,
+                                        ),
+                                )
+                                Text(
+                                    text = entry.title.ifEmpty { "第${index + 1}章" },
+                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                                    fontSize = 16.sp,
+                                    fontFamily = FontFamily.Serif,
+                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                    lineHeight = 24.sp,
+                                    // 現在読んでいる章はアクセント色＋太字で示す
+                                    color = if (isCurrent) colors.accent else colors.text,
+                                )
+                            }
                             HorizontalDivider(color = colors.divider, thickness = 0.5.dp)
                         }
                     }
