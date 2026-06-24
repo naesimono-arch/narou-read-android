@@ -98,17 +98,6 @@ fun BookCover(
                 ),
             ),
     ) {
-        // ────── 装飾: 右上に薄い半透明の大文字でテクスチャ感を演出 ──────
-        Text(
-            text = displayChar,
-            fontSize = 80.sp,
-            fontWeight = FontWeight.Black,
-            color = textColor.copy(alpha = 0.08f),
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 4.dp, end = 4.dp),
-        )
-
         // ────── 中央の大きな1文字（計画仕様: 36sp Bold, alpha=0.9f） ──────
         Text(
             text = displayChar,
