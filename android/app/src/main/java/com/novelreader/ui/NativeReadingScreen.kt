@@ -74,6 +74,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -489,6 +490,8 @@ private fun ChapterScreen(
                         fontFamily = FontFamily.Serif,
                         fontSize = 16.sp,
                         maxLines = 1,
+                        // 長い章タイトルは文字途中で切らず末尾を「…」で省略する
+                        overflow = TextOverflow.Ellipsis,
                     )
                     else -> Unit
                 }
