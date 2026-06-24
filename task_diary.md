@@ -275,6 +275,28 @@ Kotlinエラーではないため原因が分かりにくい。
 
 ---
 
+### Claude Code フック / Python stdin（Windows）
+
+#### 26. Windows の Python は `sys.stdin` 既定が cp932 → UTF-8 の日本語 stdin が文字化け  ★★
+
+**根本原因**: Windows の CPython は `sys.stdin.encoding` がロケール既定（日本語環境では **cp932**）。
+Claude Code はフックへ入力を **UTF-8 の JSON で stdin 渡し**するため、`json.load(sys.stdin)` だと
+UTF-8 の日本語が cp932 として誤デコードされ文字化けする（実測: `このバグを修正して` → `こ�\udc81�バグを修正して`）。
+JSON の構造文字（`{ } " :`）と ASCII はそのまま読めるので **json パース自体は通る**＝気づきにくい。
+
+**影響範囲**: 判定が **ASCII トークン**（コマンド種別・`fix:`/`feat:` 接頭辞・拡張子・識別子）に依る
+フックは ASCII が化けないので正しく動く。**判定対象が stdin 内の日本語そのもの**のフックだけが
+サイレントに空振りする（UserPromptSubmit の根本原因リマインダで実際に踏み、長期間一度も発火していなかった）。
+
+**対策**: stdin を生バイトで受けて UTF-8 明示デコードする。
+`raw = sys.stdin.buffer.read().decode("utf-8", errors="replace"); data = json.loads(raw)`
+（`except` に `ValueError` も加える）。出力側 `sys.stdout = io.TextIOWrapper(..., encoding="utf-8")` だけでは
+**入力側は直らない**点に注意。新フックを既存フックの雛形からコピーするとこの入力側を見落として再発しやすい。
+
+**現状**: `~/.claude/hooks/remind_root_cause.py` は対応済。既存フックは判定が ASCII のため実害なく未変更。
+
+---
+
 ### Room / DB
 
 #### 19. Room Migration 前に PRAGMA table_info でカラムを確認する  ★★★
