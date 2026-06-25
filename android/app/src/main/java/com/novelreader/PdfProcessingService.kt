@@ -159,15 +159,20 @@ class PdfProcessingService : Service() {
     private suspend fun processSingleUri(uri: Uri) {
         val app = application as NovelReaderApplication
         val repository = app.repository
-        // 件数は処理開始時点のスナップショットを使う（処理中に totalCount が増えても通知は変わらない）
-        val (currentNumber, total) = lock.withLock { Pair(doneCount + 1, totalCount) }
+        // この本の位置（分子）は開始時点のスナップショットで固定する。
+        // doneCount は完了時（finally）にしか増えないため、処理中は常にこの本の番号を指す。
+        val currentNumber = lock.withLock { doneCount + 1 }
 
         try {
             val result = repository.addBook(uri, onProgress = { step, stepLocalPercent, phase ->
                 val progress = (step * 25 + stepLocalPercent * 25).toInt().coerceIn(0, 100)
-                updateProgressNotification(progress, "ステップ ${step + 1}/4 - $phase", currentNumber, total)
+                // 分母（総件数）は毎回ライブ読みする。なぜスナップショットにしないか:
+                // この本の処理中にキューへ追加された分（totalCount 増加）を即座に「n/m」へ
+                // 反映するため。開始時固定だと2冊目を追加しても /m が1冊完了まで更新されない。
+                val liveTotal = lock.withLock { totalCount }
+                updateProgressNotification(progress, "ステップ ${step + 1}/4 - $phase", currentNumber, liveTotal)
                 app.updateProcessingState(
-                    ProcessingState(true, step, 4, stepLocalPercent, phase, currentNumber, total)
+                    ProcessingState(true, step, 4, stepLocalPercent, phase, currentNumber, liveTotal)
                 )
             })
 
