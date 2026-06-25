@@ -35,6 +35,11 @@ Jetpack Compose + Chaquopy (Python 3.12)。
 - **Room DBのスキーマ・Entityを変更するときは → 必ず `/db-migration` スキルを最初に実行すること**
 - PDF解析の定数・ルール → `android/app/src/main/python/pdf_rules.py` を直接参照
 - OPPO/ColorOS 固有動作 → `task_diary.md` を参照
+- **管理ドキュメントの体系**（役割で分離。混ぜないこと）:
+  - **今どうなっているか（状態・完了・既知不具合）→ `STATUS.md`**（現況台帳＝正本）
+  - **次に何をやるか（backlog・思いつき・取りこぼし）→ `handover.md`**（やること台帳。**作業に悩んだらまず見る**／拾った宿題はここへ追記）
+  - 腐りにくい知見（外部事実・実装why・設計判断）→ `task_diary.md` ／ 過去プランの一次情報アーカイブ → `.claude/plans/`
+  - 運用ルール詳細は memory `docs-status-vs-handover-split`。整合点検は `/stale-check` スキル。
 - **ホットスポット分析**（頻繁変更ファイルの特定）:
   ```bash
   # ファイル別変更回数ランキング（上位20件）

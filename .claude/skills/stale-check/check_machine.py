@@ -39,7 +39,7 @@ STATE_FILE = ROOT / ".claude/.stale_check_state.json"
 # 軽量モードで「前回チェック以降に変わった管理ファイル」を絞り込むための対象プレフィックス。
 # これに該当する差分だけ Claude が意味確認すればよい（コア9チェックは常に全件実行）。
 MANAGED_PREFIXES = (
-    "CLAUDE.md", "handover.md", "task_diary.md",
+    "CLAUDE.md", "STATUS.md", "handover.md", "task_diary.md",
     ".claude/skills/", ".claude/hooks/", ".claude/settings", ".mcp.json", "docs/",
 )
 
@@ -194,7 +194,7 @@ def check_hook_git_tracked():
 
 # ── 5. コンフリクトマーカー検知 ──────────────────────────────────────────
 def check_conflict_markers():
-    targets = ["CLAUDE.md", "handover.md", "task_diary.md"]
+    targets = ["CLAUDE.md", "STATUS.md", "handover.md", "task_diary.md"]
     skills_dir = ROOT / ".claude/skills"
     if skills_dir.is_dir():
         targets += [str(p.relative_to(ROOT)).replace("\\", "/") for p in skills_dir.glob("*/SKILL.md")]
@@ -240,7 +240,7 @@ def check_referenced_files():
             add("ref", "stale", "high", f"主要ファイルが存在しない: {rel}")
 
     # ドキュメントがバッククォートで名指しする *.md / *.py の相対参照が実在するか。
-    for d in ("handover.md", "task_diary.md", "CLAUDE.md"):
+    for d in ("STATUS.md", "handover.md", "task_diary.md", "CLAUDE.md"):
         txt = read_text(d)
         if not txt:
             continue
