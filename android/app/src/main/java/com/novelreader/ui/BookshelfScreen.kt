@@ -279,7 +279,10 @@ fun BookshelfScreen(
                     enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
                     exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
                 ) {
-                    ProcessingBanner(processingState = processingState)
+                    ProcessingBanner(
+                        processingState = processingState,
+                        onStop = { viewModel.cancelProcessing() },
+                    )
                 }
             }
         },
@@ -807,7 +810,7 @@ private fun EmptyBookshelf(onAddClick: () -> Unit) {
 // 処理中バナー（TopAppBar直下からスライドイン）
 // ============================================================
 @Composable
-private fun ProcessingBanner(processingState: ProcessingState) {
+private fun ProcessingBanner(processingState: ProcessingState, onStop: () -> Unit) {
     Surface(
         color = MaterialTheme.colorScheme.primaryContainer,
         modifier = Modifier.fillMaxWidth(),
@@ -823,11 +826,12 @@ private fun ProcessingBanner(processingState: ProcessingState) {
                 )
                 Spacer(Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    // 主見出し: 変換中タイトル（未判明時は従来の汎用文言）。
+                    // 主見出し: 停止中は「停止しています…」、通常は変換中タイトル（未判明時は汎用文言）。
                     // 件数(n/m)は連結せず別要素にする。連結すると長いタイトルの省略(...)で
                     // 件数まで切り捨てられ、件数が見えなくなるため。
                     Text(
-                        text = processingState.title.ifEmpty { "PDF処理中…" },
+                        text = if (processingState.isStopping) "停止しています…"
+                               else processingState.title.ifEmpty { "PDF処理中…" },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         fontWeight = FontWeight.Medium,
@@ -855,6 +859,16 @@ private fun ProcessingBanner(processingState: ProcessingState) {
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
                     )
+                }
+                // 停止ボタン: 停止中は連打防止のため非表示にする。
+                if (!processingState.isStopping) {
+                    Spacer(Modifier.width(4.dp))
+                    TextButton(
+                        onClick = onStop,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    ) {
+                        Text("停止", color = MaterialTheme.colorScheme.primary)
+                    }
                 }
             }
             Spacer(Modifier.height(10.dp))

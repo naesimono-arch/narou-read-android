@@ -36,6 +36,8 @@ data class ProcessingState(
     // キュー情報（通知と同じ「N件目/全M件」をアプリ内バナーにも出すため）
     val queueCurrent: Int = 1,
     val queueTotal: Int = 1,
+    // 停止操作後、処理中の1冊が完了するまでの「停止しています…」状態。
+    val isStopping: Boolean = false,
 )
 
 class BookshelfViewModel(application: Application) : AndroidViewModel(application) {
@@ -87,6 +89,16 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         ContextCompat.startForegroundService(getApplication(), intent)
+    }
+
+    // 変換の全体停止。キュー待ちを破棄し、処理中の1冊は完了させて停止する
+    // （Python は JNI ブロッキングで途中中断できないため）。Service へ STOP を送るだけ。
+    fun cancelProcessing() {
+        val intent = Intent(getApplication(), PdfProcessingService::class.java).apply {
+            action = PdfProcessingService.ACTION_STOP
+        }
+        // 既に前面で動作中の FGS への命令送信。新規起動が不要なため startService を使う。
+        getApplication<Application>().startService(intent)
     }
 
     fun deleteBook(book: BookEntity) {

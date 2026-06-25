@@ -34,10 +34,38 @@ class PdfProcessingService : Service() {
     private var isLoopRunning = false   // lock で保護
     private var totalCount = 0          // 現バッチの総件数（通知用、lock で保護）
     private var doneCount = 0           // 現バッチの完了件数（通知用、lock で保護）
+    private var isStopping = false      // 全体停止操作後の「停止しています…」状態（lock で保護）
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // 全体停止: キュー待ちを破棄し停止フラグを立てる。
+        // 処理中の1冊は NonCancellable（Python は JNI 割り込み不可）で完了後、
+        // ループ次周回が空キューを検知して正常終了→stopSelf する。
+        // 実行中でなければ何も処理が無いので、自前で foreground を片付けて停止する。
+        if (intent?.action == ACTION_STOP) {
+            val running = lock.withLock {
+                uriQueue.clear()
+                isStopping = true
+                isLoopRunning
+            }
+            if (running) {
+                // 即時フィードバック: バナーと通知を「停止しています…」へ。
+                // 通知バーは onProgress が高頻度で上書きするが、停止フラグはフィールド側に
+                // 保持してあるので onProgress も isStopping を読んで巻き戻さない。
+                (application as? NovelReaderApplication)?.let {
+                    it.processingState.value?.let { st -> it.updateProcessingState(st.copy(isStopping = true)) }
+                }
+                updateProgressNotification(0, "", isStopping = true)
+            } else {
+                lock.withLock { isStopping = false; totalCount = 0; doneCount = 0 }
+                (application as? NovelReaderApplication)?.updateProcessingState(null)
+                ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
+            return START_NOT_STICKY
+        }
+
         if (intent?.action != ACTION_START) return START_NOT_STICKY
         val uri = intent.data ?: return START_NOT_STICKY
 
@@ -45,6 +73,7 @@ class PdfProcessingService : Service() {
         val shouldStart = lock.withLock {
             uriQueue.add(uri)
             totalCount++
+            isStopping = false  // 新規追加で停止状態を解除（同一インスタンス再利用時の取りこぼし防止）
             if (!isLoopRunning) { isLoopRunning = true; true } else false
         }
 
@@ -69,6 +98,7 @@ class PdfProcessingService : Service() {
                     isLoopRunning = false
                     totalCount = 0
                     doneCount = 0
+                    isStopping = false
                 }
                 (application as? NovelReaderApplication)?.updateProcessingState(null)
                 stopSelf()
@@ -93,6 +123,7 @@ class PdfProcessingService : Service() {
             isLoopRunning = false
             totalCount = 0
             doneCount = 0
+            isStopping = false
         }
         (application as? NovelReaderApplication)?.let {
             it.updateProcessingState(null)
@@ -150,7 +181,7 @@ class PdfProcessingService : Service() {
                     }
                 }
                 if (shouldStopSelf) {
-                    lock.withLock { totalCount = 0; doneCount = 0 }
+                    lock.withLock { totalCount = 0; doneCount = 0; isStopping = false }
                     stopSelf()
                 }
             }
@@ -176,12 +207,14 @@ class PdfProcessingService : Service() {
                 // 分母（総件数）は毎回ライブ読みする。なぜスナップショットにしないか:
                 // この本の処理中にキューへ追加された分（totalCount 増加）を即座に「n/m」へ
                 // 反映するため。開始時固定だと2冊目を追加しても /m が1冊完了まで更新されない。
-                val liveTotal = lock.withLock { totalCount }
+                // 分母と停止フラグを同一ロックで読む。停止フラグはフィールドから読むことで、
+                // 停止タップ直後にこの高頻度コールバックが false へ巻き戻すのを防ぐ。
+                val (liveTotal, stopping) = lock.withLock { Pair(totalCount, isStopping) }
                 // 実タイトル未判明（step0 前）は表示名で代替する。
                 val shownTitle = title.ifEmpty { displayName }
-                updateProgressNotification(progress, "ステップ ${step + 1}/4 - $phase", currentNumber, liveTotal, shownTitle)
+                updateProgressNotification(progress, "ステップ ${step + 1}/4 - $phase", currentNumber, liveTotal, shownTitle, stopping)
                 app.updateProcessingState(
-                    ProcessingState(true, step, 4, stepLocalPercent, phase, shownTitle, currentNumber, liveTotal)
+                    ProcessingState(true, step, 4, stepLocalPercent, phase, shownTitle, currentNumber, liveTotal, isStopping = stopping)
                 )
             })
 
@@ -232,23 +265,38 @@ class PdfProcessingService : Service() {
         )
     }
 
-    private fun buildProgressNotification(progress: Int, text: String, current: Int = 1, total: Int = 1, title: String = ""): Notification {
+    private fun buildProgressNotification(progress: Int, text: String, current: Int = 1, total: Int = 1, title: String = "", isStopping: Boolean = false): Notification {
         // 複数件キューイングされている場合のみ件数を表示
         val queueInfo = if (total > 1) " ($current/$total)" else ""
         // タイトル判明時は「『タイトル』を変換中」、未判明時は従来の「小説を変換中」
         val subject = if (title.isNotEmpty()) "「$title」を" else "小説を"
-        return NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
-            .setContentTitle("${subject}変換中...$queueInfo")
-            .setContentText(text)
+        val builder = NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
+            .setContentTitle(if (isStopping) "停止しています…" else "${subject}変換中...$queueInfo")
+            .setContentText(if (isStopping) "処理中の本が完了すると停止します" else text)
             .setSmallIcon(R.drawable.ic_notification)
-            .setProgress(100, progress, false)
+            // 停止中は残り時間が読めないため不確定バーにする
+            .setProgress(100, progress, isStopping)
             .setOngoing(true)
             .setContentIntent(openAppIntent())
-            .build()
+        // 停止中は連打防止のため「停止」アクションを出さない
+        if (!isStopping) {
+            builder.addAction(0, "停止", stopPendingIntent())
+        }
+        return builder.build()
     }
 
-    private fun updateProgressNotification(progress: Int, text: String, current: Int = 1, total: Int = 1, title: String = "") {
-        notificationManager().notify(NOTIFICATION_ID, buildProgressNotification(progress, text, current, total, title))
+    private fun updateProgressNotification(progress: Int, text: String, current: Int = 1, total: Int = 1, title: String = "", isStopping: Boolean = false) {
+        notificationManager().notify(NOTIFICATION_ID, buildProgressNotification(progress, text, current, total, title, isStopping))
+    }
+
+    /** 通知の「停止」アクション用 PendingIntent（ACTION_STOP を自分自身へ送る）。
+     *  openAppIntent() と requestCode を分けないと PendingIntent が共有され取り違える。 */
+    private fun stopPendingIntent(): PendingIntent {
+        val intent = Intent(this, PdfProcessingService::class.java).apply { action = ACTION_STOP }
+        return PendingIntent.getService(
+            this, 1, intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
     }
 
     /** content:// URI から表示名（拡張子除去）を取得する。変換中タイトルの即時フォールバック用。
@@ -288,6 +336,7 @@ class PdfProcessingService : Service() {
 
     companion object {
         const val ACTION_START = "com.novelreader.action.START_PROCESSING"
+        const val ACTION_STOP = "com.novelreader.action.STOP_PROCESSING"
         const val NOTIFICATION_ID = 1001
         private const val TAG = "PdfProcessingService"
     }
