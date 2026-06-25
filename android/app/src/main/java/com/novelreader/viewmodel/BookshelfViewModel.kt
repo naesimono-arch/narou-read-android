@@ -31,6 +31,8 @@ data class ProcessingState(
     val stepTotal: Int = 4,
     val stepLocalPercent: Float = 0f,
     val phase: String = "",
+    // 変換中の本のタイトル（step0 で判明する実タイトル。判明前は表示名フォールバック）。
+    val title: String = "",
     // キュー情報（通知と同じ「N件目/全M件」をアプリ内バナーにも出すため）
     val queueCurrent: Int = 1,
     val queueTotal: Int = 1,

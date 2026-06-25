@@ -10,6 +10,7 @@ import android.content.pm.ServiceInfo
 import android.net.Uri
 import android.os.IBinder
 import android.os.PowerManager
+import android.provider.OpenableColumns
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -162,17 +163,25 @@ class PdfProcessingService : Service() {
         // この本の位置（分子）は開始時点のスナップショットで固定する。
         // doneCount は完了時（finally）にしか増えないため、処理中は常にこの本の番号を指す。
         val currentNumber = lock.withLock { doneCount + 1 }
+        // Python step0 で実タイトルが判明するまでの即時フォールバック表示名。
+        val displayName = resolveDisplayName(uri)
+        // 変換開始直後にバナー/通知へ表示名を出す（step0 のコールバックを待たない即時フィードバック）。
+        app.updateProcessingState(
+            ProcessingState(true, 0, 4, 0f, "準備中…", displayName, currentNumber, lock.withLock { totalCount })
+        )
 
         try {
-            val result = repository.addBook(uri, onProgress = { step, stepLocalPercent, phase ->
+            val result = repository.addBook(uri, onProgress = { step, stepLocalPercent, phase, title ->
                 val progress = (step * 25 + stepLocalPercent * 25).toInt().coerceIn(0, 100)
                 // 分母（総件数）は毎回ライブ読みする。なぜスナップショットにしないか:
                 // この本の処理中にキューへ追加された分（totalCount 増加）を即座に「n/m」へ
                 // 反映するため。開始時固定だと2冊目を追加しても /m が1冊完了まで更新されない。
                 val liveTotal = lock.withLock { totalCount }
-                updateProgressNotification(progress, "ステップ ${step + 1}/4 - $phase", currentNumber, liveTotal)
+                // 実タイトル未判明（step0 前）は表示名で代替する。
+                val shownTitle = title.ifEmpty { displayName }
+                updateProgressNotification(progress, "ステップ ${step + 1}/4 - $phase", currentNumber, liveTotal, shownTitle)
                 app.updateProcessingState(
-                    ProcessingState(true, step, 4, stepLocalPercent, phase, currentNumber, liveTotal)
+                    ProcessingState(true, step, 4, stepLocalPercent, phase, shownTitle, currentNumber, liveTotal)
                 )
             })
 
@@ -223,11 +232,13 @@ class PdfProcessingService : Service() {
         )
     }
 
-    private fun buildProgressNotification(progress: Int, text: String, current: Int = 1, total: Int = 1): Notification {
+    private fun buildProgressNotification(progress: Int, text: String, current: Int = 1, total: Int = 1, title: String = ""): Notification {
         // 複数件キューイングされている場合のみ件数を表示
         val queueInfo = if (total > 1) " ($current/$total)" else ""
+        // タイトル判明時は「『タイトル』を変換中」、未判明時は従来の「小説を変換中」
+        val subject = if (title.isNotEmpty()) "「$title」を" else "小説を"
         return NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
-            .setContentTitle("小説を変換中...$queueInfo")
+            .setContentTitle("${subject}変換中...$queueInfo")
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_notification)
             .setProgress(100, progress, false)
@@ -236,8 +247,21 @@ class PdfProcessingService : Service() {
             .build()
     }
 
-    private fun updateProgressNotification(progress: Int, text: String, current: Int = 1, total: Int = 1) {
-        notificationManager().notify(NOTIFICATION_ID, buildProgressNotification(progress, text, current, total))
+    private fun updateProgressNotification(progress: Int, text: String, current: Int = 1, total: Int = 1, title: String = "") {
+        notificationManager().notify(NOTIFICATION_ID, buildProgressNotification(progress, text, current, total, title))
+    }
+
+    /** content:// URI から表示名（拡張子除去）を取得する。変換中タイトルの即時フォールバック用。
+     *  URI 権限喪失や ContentProvider のクラッシュで query が例外を投げうるため runCatching で
+     *  防御し、失敗時は lastPathSegment、それも無ければ「未知のファイル」を返す。 */
+    private fun resolveDisplayName(uri: Uri): String {
+        val name = runCatching {
+            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(0) else null
+            }
+        }.getOrNull()
+        val raw = name ?: uri.lastPathSegment ?: "未知のファイル"
+        return raw.removeSuffix(".pdf").removeSuffix(".PDF")
     }
 
     private fun showCompletionNotification(title: String) {

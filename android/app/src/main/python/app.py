@@ -39,14 +39,20 @@ _CORRUPTED_PDF_MARKERS = (
 def process_pdf(pdf_path, book_id, output_dir, progress_callback=None):
     """PDFを開き、タイトル抽出→本文抽出→話分割→HTML出力まで行い、書籍タイトルを返す。"""
 
+    # 判明済みのタイトル。step0 で抽出するまでは "" を渡し、抽出後は実タイトルを
+    # 進捗コールバックの第4引数として載せる（UI が「変換中タイトル」を表示するため）。
+    # _notify は呼び出し時に current_title を参照するので、後の代入が反映される。
+    current_title = ""
+
     def _notify(step, step_local, phase):
         if progress_callback is not None:
-            progress_callback(step, step_local, phase)
+            progress_callback(step, step_local, phase, current_title)
 
     try:
         _notify(0, 0.0, "タイトルを読み取っています…")
         real_title = pdf_extractor.extract_book_title(pdf_path)
         real_author = pdf_extractor.extract_book_author(pdf_path)
+        current_title = real_title
 
         _notify(1, 0.0, "本文を抽出しています…")
         paragraphs = pdf_extractor.run_final_engine(

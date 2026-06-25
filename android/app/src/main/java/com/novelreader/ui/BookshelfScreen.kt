@@ -822,16 +822,40 @@ private fun ProcessingBanner(processingState: ProcessingState) {
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Spacer(Modifier.width(10.dp))
-                // 複数件キューイング時のみ件数を付記（通知の表記と揃える）
-                val queueSuffix = if (processingState.queueTotal > 1) {
-                    "（${processingState.queueCurrent}/${processingState.queueTotal}件）"
-                } else ""
-                Text(
-                    text = processingState.phase.ifEmpty { "PDF処理中…" } + queueSuffix,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    fontWeight = FontWeight.Medium,
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    // 主見出し: 変換中タイトル（未判明時は従来の汎用文言）。
+                    // 件数(n/m)は連結せず別要素にする。連結すると長いタイトルの省略(...)で
+                    // 件数まで切り捨てられ、件数が見えなくなるため。
+                    Text(
+                        text = processingState.title.ifEmpty { "PDF処理中…" },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    // 補助行: 現在のフェーズ詳細（ページ進捗など）。
+                    if (processingState.phase.isNotEmpty()) {
+                        Text(
+                            text = processingState.phase,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                // 件数バッジ: 複数件キューイング時のみ右端に常時表示（タイトル省略の影響を受けない）
+                if (processingState.queueTotal > 1) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "${processingState.queueCurrent}/${processingState.queueTotal}件",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                    )
+                }
             }
             Spacer(Modifier.height(10.dp))
             // ステッパーインジケーター

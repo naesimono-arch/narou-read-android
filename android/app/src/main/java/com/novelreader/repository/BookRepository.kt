@@ -31,7 +31,8 @@ class BookRepository(
     val allProgress: Flow<List<ProgressEntity>> = progressDao.getAllProgress()
 
     fun interface ProgressCallback {
-        fun onProgress(step: Int, stepLocalPercent: Float, phase: String)
+        // title: step0 で判明する実タイトル（判明前は空文字）。UI の変換中タイトル表示に使う。
+        fun onProgress(step: Int, stepLocalPercent: Float, phase: String, title: String)
     }
 
     /** Python/Kotlin の例外をユーザー向けエラー種別に変換する */
@@ -57,7 +58,7 @@ class BookRepository(
     /** PDFをキャッシュにコピーし、Chaquopy経由でHTML生成後にRoomへ登録する。 */
     suspend fun addBook(
         pdfUri: Uri,
-        onProgress: (step: Int, stepLocalPercent: Float, phase: String) -> Unit = { _, _, _ -> },
+        onProgress: (step: Int, stepLocalPercent: Float, phase: String, title: String) -> Unit = { _, _, _, _ -> },
     ): Result<BookEntity> = withContext(Dispatchers.IO) {
         runCatching {
             val bookId = UUID.randomUUID().toString().take(8)
@@ -88,7 +89,7 @@ class BookRepository(
                             tempFile.absolutePath,
                             bookId,
                             outputDir.absolutePath,
-                            ProgressCallback { step, stepLocalPercent, phase -> onProgress(step, stepLocalPercent, phase) },
+                            ProgressCallback { step, stepLocalPercent, phase, title -> onProgress(step, stepLocalPercent, phase, title) },
                         )
                     val resultList = result.asList()
                     val title = resultList.getOrNull(0)?.toString() ?: "無題"
