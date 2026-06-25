@@ -94,8 +94,8 @@ class BookRepository(
                     val resultList = result.asList()
                     val title = resultList.getOrNull(0)?.toString() ?: "無題"
                     val author = resultList.getOrNull(1)?.toString() ?: ""
-                    val b = BookEntity(bookId, title, outputDir.absolutePath, author)
-                    //                                                         ↑ author は末尾（BookEntity のフィールド順に合わせる）
+                    // addedAt に追加時刻をスタンプし、本棚の最近活動順ソート（未読本の基準）に使う。
+                    val b = BookEntity(bookId, title, outputDir.absolutePath, author, addedAt = System.currentTimeMillis())
                     bookDao.insertBook(b)
                     b
                 }
@@ -136,19 +136,23 @@ class BookRepository(
 
     // 章を切り替えたときの進捗保存。スクロール位置は 0 にリセットする
     // （別の章へ移ったので前章のスクロール位置は引き継がない）。
+    // lastReadAt を書き込み時刻でスタンプし、本棚の最近読書順ソートに使う。
     suspend fun saveProgress(bookId: String, filename: String) = withContext(Dispatchers.IO) {
-        progressDao.saveProgress(ProgressEntity(bookId, filename))
+        progressDao.saveProgress(ProgressEntity(bookId, filename, lastReadAt = System.currentTimeMillis()))
     }
 
     // 章内スクロール位置の保存。lastReadFilename も一緒に書き込むことで
     // 「どの章のどの位置か」を1行で表現する（REPLACE で上書き）。
+    // lastReadAt も毎回スタンプ（単一チャネル統合の最終1書き込みに自然に乗る）。
     suspend fun saveScrollPosition(
         bookId: String,
         filename: String,
         scrollIndex: Int,
         scrollOffset: Int,
     ) = withContext(Dispatchers.IO) {
-        progressDao.saveProgress(ProgressEntity(bookId, filename, scrollIndex, scrollOffset))
+        progressDao.saveProgress(
+            ProgressEntity(bookId, filename, scrollIndex, scrollOffset, lastReadAt = System.currentTimeMillis())
+        )
     }
 
     companion object {

@@ -113,6 +113,15 @@ class BookRepositoryTest {
     @Test
     fun `saveProgress - progressDao に ProgressEntity を渡して呼ぶ`() = runTest {
         repository.saveProgress("id01", "chapter_02.html")
-        coVerify { progressDao.saveProgress(ProgressEntity("id01", "chapter_02.html")) }
+        // lastReadAt は書き込み時刻（System.currentTimeMillis()）で非決定的なため完全一致は使わず、
+        // 識別子フィールドのみ検証する（章移動なのでスクロール位置は 0,0）。
+        coVerify {
+            progressDao.saveProgress(
+                match {
+                    it.bookId == "id01" && it.lastReadFilename == "chapter_02.html" &&
+                        it.scrollIndex == 0 && it.scrollOffset == 0
+                }
+            )
+        }
     }
 }

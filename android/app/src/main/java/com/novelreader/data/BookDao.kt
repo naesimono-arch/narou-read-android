@@ -6,7 +6,13 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface BookDao {
 
-    @Query("SELECT * FROM books ORDER BY title")
+    // 最近の活動順に並べる: 既読は progress.lastReadAt、未読は books.addedAt で評価し、
+    // その大きい方の降順。どちらも 0（移行直後の既存行）なら同点となりタイトル昇順で安定化。
+    @Query(
+        "SELECT b.* FROM books b " +
+        "LEFT JOIN progress p ON b.id = p.bookId " +
+        "ORDER BY MAX(b.addedAt, COALESCE(p.lastReadAt, 0)) DESC, b.title ASC"
+    )
     fun getAllBooks(): Flow<List<BookEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

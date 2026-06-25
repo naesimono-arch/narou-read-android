@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [BookEntity::class, ProgressEntity::class], version = 6, exportSchema = true)
+@Database(entities = [BookEntity::class, ProgressEntity::class], version = 7, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun bookDao(): BookDao
@@ -76,10 +76,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v6→v7: 本棚の「最近の活動順」ソート用に日時列を追加する。
+         *  books.addedAt（追加日時）と progress.lastReadAt（最終読書日時）。
+         *  既存行は DEFAULT 0 で補完するため、初回はタイトル順クラスタになり、
+         *  以降の追加・読書で recency に浮上する。ADD COLUMN のみで既存カラム名に
+         *  依存しないため PRAGMA 分岐は不要（MIGRATION_4_5/5_6 と同方針）。 */
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE books ADD COLUMN addedAt INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE progress ADD COLUMN lastReadAt INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
-                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .build()
                     .also { INSTANCE = it }
             }
