@@ -21,6 +21,13 @@
 3. **変換中タイトル表示**: 進捗バナー/通知に処理中タイトルを出す（現状は件数 `(n/m件)` のみ。かつ `n/m` が1冊完了後にしか反映されないUX課題も併記の改善余地）。進捗は `BookshelfViewModel` の単一 progressChannel(`d9d9a3c`)経由。進捗イベントに処理中タイトル（or ファイル名→タイトル解決）を載せる。
 4. **最終読書順ソート**: 最後に読んだ本を本棚先頭へ自動更新。`ProgressEntity` に `lastReadAt` 追加＋本棚クエリ `ORDER BY lastReadAt DESC`。カラム追加＝**Room Migration 必須**（現行DB v6 → `/db-migration` スキル先行）。位置保存は単一チャネル統合済(`d9d9a3c`)なので位置更新時に `lastReadAt` を併記する形が自然。`BookshelfViewModel`/`BookDao` 周辺。
 
+## A2. UI-n ブランチ（見た目の白紙改装・2026-06-26 フェーズ0完了）
+
+- **フェーズ0完了＝D「和モダン・余白」をデフォルト視覚言語に採用。** 本棚案A〜Jの10案を作り横並び選定した結果。詳細・モック地図・なぜDかは `UI-n_DESIGN_PLAN.md`（§3 フェーズ0結果・§6.1）が正本。
+- **新機能の与件＝UI着せ替え（スキン選択）。** A〜J 全案をユーザーが選べるスキンとして残す方針。
+- **次セッションの第2バッチ（最優先）**: ① D で読書・目次・読書設定をHTMLモック化（D は現状本棚のみ）／② 「UI着せ替え」設定画面を新規モック化（選択肢=A〜J、既定=D、切替粒度を決定）／③ 固まったら Compose 実装へ。手順は `UI-n_DESIGN_PLAN.md` §7。
+- モック正本は claude.ai/design プロジェクト `Novel Reader UI`（projectId `bb5a35c8-70ac-4efa-bb03-1579d3f11d93`）の `ui-n-phase0/` 配下。`DesignSync: get_file` で再取得可。
+
 ## B. 本棚
 
 - **案B 詰め直しアニメ復活**: 案Aで `animateItemPlacement()` を削除し重なりバグは解消済（代償で削除時の詰め直しアニメが消えた）。Compose BOM `2024.04.01`→`2024.09+` に上げ、削除箇所を新API `Modifier.animateItem()` で置換。**リスク大＝全画面回帰必須**（BOMは全Composeモジュールの版を一括決定）。対象 `android/app/build.gradle`(BOM 2か所), `BookshelfScreen.kt:252` 付近の理由コメントが正本。
