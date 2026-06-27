@@ -39,59 +39,65 @@ data class ReadingColors(
 
 val ReadingTheme.colors: ReadingColors
     get() = when (this) {
-        // LIGHT はテーマ導入前の直書き値（FCFAF2 / D4B896 等）をそのまま移植し、
-        // 既存ユーザーの見た目を変えない
+        // UI-n: 白紙設計で採用した視覚言語 D「和モダン・余白」へ全面差し替え。
+        // なぜ旧クリーム＋朱墨を捨てるか: UI-n は既存配色を踏襲せず作り直す方針（DESIGN_PLAN §0.5）。
+        // 値は確定モック ui-n-phase0/reading-D.html から写経し、寒色白×藍ヘアラインで統一する。
+        // LIGHT = 素地 #FBFAF8／墨 #1C1F26／アクセント藍 #1C3D5A。
         ReadingTheme.LIGHT -> ReadingColors(
-            background       = Color(0xFFFCFAF2),
-            text             = Color(0xFF1C1916),
-            textSecondary    = Color(0xFF666666),
-            navBackground    = Color(0xFFFCFAF2),
-            // 没入感向上のためトップバーを本文クリームへ寄せる（旧トープ 0xFFD4B896 は
-            // 本文と色がズレて「塊」として主張していた）。ボトムバー(navBackground)と同色に揃え、
-            // 上下バーの色を統一する。アイコン/タイトルは下記の濃色でコントラストを確保。
-            topBarBackground = Color(0xFFFCFAF2),
-            topBarTitle      = Color(0xFF1C1916),
-            topBarIcon       = Color(0xFF524540),
-            ruby             = Color(0xFF777777),
-            hr               = Color(0xFFCCCCCC),
-            divider          = Color(0xFFE0DCD0),
-            blockBackground  = Color(0xFFF9F9F9),
-            blockBorder      = Color(0xFFEEEEEE),
-            accent           = Color(0xFF7B3F2A), // アプリ全体の primary（朱墨色）と統一
+            background       = Color(0xFFFBFAF8),
+            text             = Color(0xFF1C1F26),
+            textSecondary    = Color(0xFF7C808B),
+            navBackground    = Color(0xFFFBFAF8),
+            // D はトップ/ボトムバーを本文素地と同色に揃え、藍のヘアラインだけで境界を示す。
+            // アイコンは素地から十分離れた濃灰でコントラストを確保（タイトルは墨色）。
+            topBarBackground = Color(0xFFFBFAF8),
+            topBarTitle      = Color(0xFF1C1F26),
+            topBarIcon       = Color(0xFF4A4F58),
+            ruby             = Color(0xFF8B96A0),
+            // hr は藍 #1C3D5A を素地に約50%で溶かした青灰（モックの opacity:.5 相当）。
+            // 破線で主張させすぎないシーン区切りにする。
+            hr               = Color(0xFF9FB0BC),
+            divider          = Color(0xFFECEAE4), // D のヘアライン色
+            blockBackground  = Color(0xFFF1F0EC),
+            blockBorder      = Color(0xFFE4E2DB),
+            accent           = Color(0xFF1C3D5A), // D の藍（現在章ハイライト・チップ選択色）
             isLight          = true,
         )
+        // SEPIA は D の寒色を温かい紙トーンへ寄せた変種。藍アクセントは骨格として残しつつ
+        // やや深い藍鼠 #2E4A60 にして暖色背景と調和させる（モック reading-D.html の .t-sepia）。
         ReadingTheme.SEPIA -> ReadingColors(
-            background       = Color(0xFFF5EDD6),
-            text             = Color(0xFF3B2A14),
-            textSecondary    = Color(0xFF7A6648),
-            navBackground    = Color(0xFFEEE0BA),
-            // LIGHT と同方針: トップバーをボトムバー(navBackground)と同じ紙トーンに揃える
-            // （旧 0xFFE2D2A4 は本文よりやや濃く主張していた）。
-            topBarBackground = Color(0xFFEEE0BA),
-            topBarTitle      = Color(0xFF3B2A14),
-            topBarIcon       = Color(0xFF5C4A28),
-            ruby             = Color(0xFF8A734F),
-            hr               = Color(0xFFD5C5A0),
-            divider          = Color(0xFFE0D3AE),
-            blockBackground  = Color(0xFFEFE6CC),
-            blockBorder      = Color(0xFFE2D6B4),
-            accent           = Color(0xFF8C4A2F), // セピア背景に合わせやや深めの朱
+            background       = Color(0xFFF3ECDD),
+            text             = Color(0xFF2B2620),
+            textSecondary    = Color(0xFF8A7E68),
+            navBackground    = Color(0xFFEFE7D6),
+            // LIGHT と同方針: 上下バーを本文紙トーンに揃え、ヘアラインで境界を示す。
+            topBarBackground = Color(0xFFEFE7D6),
+            topBarTitle      = Color(0xFF2B2620),
+            topBarIcon       = Color(0xFF5C5240),
+            ruby             = Color(0xFF9A8C72),
+            hr               = Color(0xFFB0A890),
+            divider          = Color(0xFFE3D9C2),
+            blockBackground  = Color(0xFFEDE4D0),
+            blockBorder      = Color(0xFFE0D6BE),
+            accent           = Color(0xFF2E4A60), // 暖色背景に合わせやや深めの藍鼠
             isLight          = true,
         )
+        // DARK は D の寒色を保った冷たい暗面（旧の温かい黒 #1C1916 から転換）。
+        // アクセントは暗背景で沈まないよう明るい青 #6E96B8 にする（モック reading-D.html の .t-dark）。
         ReadingTheme.DARK -> ReadingColors(
-            background       = Color(0xFF1C1916),
-            text             = Color(0xFFD4C8C0),
-            textSecondary    = Color(0xFF9C9088),
-            navBackground    = Color(0xFF242018),
-            topBarBackground = Color(0xFF242018),
-            topBarTitle      = Color(0xFFEDE1DC),
-            topBarIcon       = Color(0xFFC0B0A8),
-            ruby             = Color(0xFF8F837B),
-            hr               = Color(0xFF45403A),
-            divider          = Color(0xFF3A342E),
-            blockBackground  = Color(0xFF24201C),
-            blockBorder      = Color(0xFF38322C),
-            accent           = Color(0xFFFFBBA3), // ダーク用の明るい朱（PrimaryDark と統一）
+            background       = Color(0xFF14171C),
+            text             = Color(0xFFC7CDD3),
+            textSecondary    = Color(0xFF7B838C),
+            navBackground    = Color(0xFF181C22),
+            topBarBackground = Color(0xFF181C22),
+            topBarTitle      = Color(0xFFC7CDD3),
+            topBarIcon       = Color(0xFF9AA2AB),
+            ruby             = Color(0xFF6E7984),
+            hr               = Color(0xFF46566A),
+            divider          = Color(0xFF2A2F38),
+            blockBackground  = Color(0xFF1B1F26),
+            blockBorder      = Color(0xFF2A2F38),
+            accent           = Color(0xFF6E96B8), // 暗背景で沈まない明るい藍
             isLight          = false,
         )
     }
