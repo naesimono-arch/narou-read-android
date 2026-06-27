@@ -70,7 +70,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -800,21 +799,24 @@ private fun ParagraphItem(
             Spacer(modifier = Modifier.height(20.dp))
         }
         paragraph.size == 1 && paragraph[0] is TextSegment.HorizontalRule -> {
-            // 水平線（html_exporter.py の <hr> に対応）
+            // 水平線（html_exporter.py の <hr> に対応＝シーン区切り）
             Canvas(
                 modifier = modifier
                     .fillMaxWidth()
-                    .padding(vertical = 12.dp)
+                    .padding(vertical = 18.dp)
                     .height(1.dp),
             ) {
+                // D 様式: 旧・全幅破線をやめ、中央寄せの短い実線にする。
+                // なぜ短い実線か: D「和モダン・余白」は藍の細ルールで静かに区切る思想で、
+                // 全幅破線は主張が強すぎるため。モック reading-D.html の hr(width:42%) に対応。
+                // 色 colors.hr は藍を素地に溶かした青灰のため、これ自体が控えめな区切りになる。
+                val lineWidth = size.width * 0.42f
+                val startX = (size.width - lineWidth) / 2f
                 drawLine(
                     color = colors.hr,
-                    start = Offset(0f, 0f),
-                    end = Offset(size.width, 0f),
+                    start = Offset(startX, 0f),
+                    end = Offset(startX + lineWidth, 0f),
                     strokeWidth = 1.dp.toPx(),
-                    pathEffect = PathEffect.dashPathEffect(
-                        intervals = floatArrayOf(6.dp.toPx(), 4.dp.toPx()),
-                    ),
                 )
             }
         }
