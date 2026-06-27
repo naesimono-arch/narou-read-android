@@ -2,7 +2,10 @@ package com.novelreader.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -13,15 +16,20 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 
 // ============================================================
 // BookCover — タイトルハッシュから書影を動的生成するコンポーザブル
 //
-// 画像データなしでも Apple Books 風の美しい書影を実現する。
-// book.id のハッシュから HSL 色相を決定することで、
+// 画像データなしで書影を表現する。book.id のハッシュから色相を決定するため、
 // 同じ書籍は常に同じ色になる（ランダムではなく決定的）。
+//
+// UI-n: 視覚言語 D「和モダン・余白」へ作り替え（モック ui-n-phase0/bookshelf-D.html）。
+// なぜ低彩度・暗色スラブにするか: D は寒色×藍ヘアラインの静謐な構図で、
+// 旧 HSL の高彩度カラフル書影は世界観に合わないため。色相は残しつつ彩度・明度を抑え、
+// 左に藍の縦ルールを引いて「実画像を捏造しない静かな書影」という D の署名を与える。
 // ============================================================
 
 /** HSL → RGB 変換（Jetpack Compose は HSL を直接持たないため手動実装） */
@@ -67,19 +75,17 @@ fun BookCover(
     val colors = remember(bookId) {
         val hash = bookId.hashCode()
         val hue  = abs(hash) % 360f
-        // 彩度・明度をなるべく揃え、色相だけを振った調和パレットにする（くすみ解消）。
-        // 彩度: 上限を下げて 38〜49%（旧 35〜60%）。高彩度＋中明度のオリーブ/ブラウンのくすみを抑える。
-        // 明度: 底上げして 46〜61%（旧 38〜50%）。低明度域のくすみを解消し均質な見栄えにする。
-        val saturation = 0.38f + (abs(hash / 360) % 12) / 100f    // 38〜49%
-        val lightnessTop = 0.46f + (abs(hash / 8640) % 16) / 100f // 46〜61%
-        val lightnessBot = lightnessTop - 0.10f
+        // D 様式: 色相だけ振り、彩度・明度は低く抑えた暗色スラブにする。
+        // 彩度 12〜21%（旧 38〜49%）／明度 上 26〜34%・下はさらに 8% 暗く（旧 46〜61%）。
+        // これで全書影が「静かな寒色寄りの暗い面」に揃い、藍の縦ルールと文字が映える。
+        val saturation = 0.12f + (abs(hash / 360) % 10) / 100f    // 12〜21%
+        val lightnessTop = 0.26f + (abs(hash / 8640) % 9) / 100f  // 26〜34%
+        val lightnessBot = lightnessTop - 0.08f
 
         val topColor    = hslToColor(hue, saturation, lightnessTop)
         val bottomColor = hslToColor(hue, saturation, lightnessBot)
-        // テキスト色: 背景が明るければ暗色、暗ければ白。
-        // しきい値 0.56 は実際の明度レンジ(0.46〜0.61)の内側にあり、明るめのカバーでは
-        // 暗文字へ正しく切り替わる（旧 0.55 はレンジ最大 0.50 を超えており常に白文字になる死にコードだった）。
-        val textColor   = if (lightnessTop > 0.56f) Color(0xFF1C1916) else Color(0xFFFFFFFF)
+        // 暗色スラブに固定したため文字は常に白で読める（旧のしきい値分岐は不要）。
+        val textColor   = Color(0xFFFFFFFF)
 
         Triple(topColor, bottomColor, textColor)
     }
@@ -98,7 +104,19 @@ fun BookCover(
                 ),
             ),
     ) {
-        // ────── 中央の大きな1文字（計画仕様: 36sp Bold, alpha=0.9f） ──────
+        // ────── 左の藍の縦ルール（D の署名要素）──────
+        // なぜ start を固定 dp にするか: グリッド(幅大)・リスト(幅60dp)の双方で
+        // おおむね左端 7〜16% に収まり、サイズ非依存で破綻しないため。
+        // 暗色スラブ上で沈まないよう、トークン藍より明るめの藍を使う。
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = 10.dp)
+                .width(2.dp)
+                .fillMaxHeight(0.82f)
+                .background(Color(0xFF6E96B8)),
+        )
+        // ────── 中央の大きな1文字 ──────
         Text(
             text = displayChar,
             fontSize = 36.sp,
