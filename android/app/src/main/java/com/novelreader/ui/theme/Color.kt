@@ -3,79 +3,80 @@ package com.novelreader.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // ============================================================
-// ライトモード — 「紙と墨・朱墨色」パレット
-// primary に日本の朱墨色を採用し、background は和紙の温かいオフホワイト。
-// 完全な白・黒を避けることで目の疲れを軽減しつつ文学的雰囲気を出す。
+// UI-n: 視覚言語 D「和モダン・余白」へ全面差し替え。
+// なぜ旧「紙と墨・朱墨色」を捨てるか: UI-n は既存配色を踏襲せず白紙で作り直す方針（DESIGN_PLAN §0.5）。
+// 値は確定モック ui-n-phase0/bookshelf-D.html から写経。
+//   素地 #FBFAF8 ／ 墨 #1C1F26 ／ アクセント藍 #1C3D5A ／ 補助 青磁 #9CB3A8 ／ ヘアライン #ECEAE4。
+// 本棚は MaterialTheme.colorScheme をトークン経由で参照するため、この値変更だけで D へ追従する。
 // ============================================================
 
-val PrimaryLight             = Color(0xFF7B3F2A)   // 朱墨色
+val PrimaryLight             = Color(0xFF1C3D5A)   // 藍（FAB・主アクセント）
 val OnPrimaryLight           = Color(0xFFFFFFFF)
-val PrimaryContainerLight    = Color(0xFFF5DDD5)   // 薄い桜色
-val OnPrimaryContainerLight  = Color(0xFF4A1A08)
+val PrimaryContainerLight    = Color(0xFFD6E0E9)   // 淡い藍（処理中バナー背景）
+val OnPrimaryContainerLight  = Color(0xFF0E2335)
 
-val SecondaryLight           = Color(0xFF5A6475)   // 青鼠
+val SecondaryLight           = Color(0xFF6E8A86)   // 青磁寄りの補助
 val OnSecondaryLight         = Color(0xFFFFFFFF)
-val SecondaryContainerLight  = Color(0xFFDCE4F0)
-val OnSecondaryContainerLight= Color(0xFF1A2535)
+val SecondaryContainerLight  = Color(0xFFD9E4DF)
+val OnSecondaryContainerLight= Color(0xFF18241F)
 
-val TertiaryLight            = Color(0xFF4A7C6B)   // 緑青（進捗・完了状態）
+val TertiaryLight            = Color(0xFF1C3D5A)   // 進捗バーも藍で統一（Dは藍の細線で進捗を示す）
 val OnTertiaryLight          = Color(0xFFFFFFFF)
-val TertiaryContainerLight   = Color(0xFFC8EDE2)
-val OnTertiaryContainerLight = Color(0xFF002019)
+val TertiaryContainerLight   = Color(0xFFD6E0E9)
+val OnTertiaryContainerLight = Color(0xFF0E2335)
 
 val ErrorLight               = Color(0xFFBA1A1A)
 val OnErrorLight             = Color(0xFFFFFFFF)
 val ErrorContainerLight      = Color(0xFFFFDAD6)
 val OnErrorContainerLight    = Color(0xFF410002)
 
-val BackgroundLight          = Color(0xFFFAF7F4)   // 和紙色（完全白より温かい）
-val OnBackgroundLight        = Color(0xFF1C1916)   // 墨色（純黒より柔らかい）
-val SurfaceLight             = Color(0xFFFAF7F4)
-val OnSurfaceLight           = Color(0xFF1C1916)
-val SurfaceVariantLight      = Color(0xFFF0EAE4)   // カード背景
-val OnSurfaceVariantLight    = Color(0xFF524540)
-val SurfaceContainerLight    = Color(0xFFEEEAE6)   // 一段低い階層の背景
-val OutlineLight             = Color(0xFF857470)
-val OutlineVariantLight      = Color(0xFFD7C6BF)
-val InverseSurfaceLight      = Color(0xFF342F2C)
-val InverseOnSurfaceLight    = Color(0xFFF6EDE8)
-val InversePrimaryLight      = Color(0xFFFFBBA3)
+val BackgroundLight          = Color(0xFFFBFAF8)   // D 素地（寒色白）
+val OnBackgroundLight        = Color(0xFF1C1F26)   // D 墨
+val SurfaceLight             = Color(0xFFFBFAF8)
+val OnSurfaceLight           = Color(0xFF1C1F26)
+val SurfaceVariantLight      = Color(0xFFF1F0EC)   // カード背景（素地よりわずかに沈める）
+val OnSurfaceVariantLight    = Color(0xFF7C808B)   // 補助テキスト（著者・未読・進捗）
+val SurfaceContainerLight    = Color(0xFFEFEEE9)
+val OutlineLight             = Color(0xFF9CA0A8)
+val OutlineVariantLight      = Color(0xFFE4E2DB)   // ヘアライン・進捗トラック
+val InverseSurfaceLight      = Color(0xFF2A2E35)
+val InverseOnSurfaceLight    = Color(0xFFF2F1EE)
+val InversePrimaryLight      = Color(0xFF9DB6CC)
 
 // ============================================================
-// ダークモード
-// background は墨色で読書にも適した暗さ。
-// primary は朱色を明るくして視認性を確保。
+// ダークモード（D の寒色を保った冷たい暗面）
+// background は青みのある暗色。primary は暗背景で沈まない明るい藍。
 // ============================================================
 
-val PrimaryDark              = Color(0xFFFFBBA3)   // 明るい朱色
-val OnPrimaryDark            = Color(0xFF4A1A08)
-val PrimaryContainerDark     = Color(0xFF612B15)
-val OnPrimaryContainerDark   = Color(0xFFFFDBCE)
+val PrimaryDark              = Color(0xFF8FB3D4)   // 明るい藍
+val OnPrimaryDark            = Color(0xFF0E2030)
+val PrimaryContainerDark     = Color(0xFF24435F)
+val OnPrimaryContainerDark   = Color(0xFFCFE0EF)
 
-val SecondaryDark            = Color(0xFFB8C8DE)
-val OnSecondaryDark          = Color(0xFF283040)
-val SecondaryContainerDark   = Color(0xFF3F4858)
-val OnSecondaryContainerDark = Color(0xFFD4E4F8)
+val SecondaryDark            = Color(0xFFA9C2BB)   // 青磁の明色
+val OnSecondaryDark          = Color(0xFF1B2A26)
+val SecondaryContainerDark   = Color(0xFF36433F)
+val OnSecondaryContainerDark = Color(0xFFCFE5DE)
 
-val TertiaryDark             = Color(0xFFA8D5C4)
-val OnTertiaryDark           = Color(0xFF0F3A2B)
-val TertiaryContainerDark    = Color(0xFF296350)
-val OnTertiaryContainerDark  = Color(0xFFC4F0DE)
+val TertiaryDark             = Color(0xFF8FB3D4)   // 進捗も明るい藍で統一
+val OnTertiaryDark           = Color(0xFF0E2030)
+val TertiaryContainerDark    = Color(0xFF24435F)
+val OnTertiaryContainerDark  = Color(0xFFCFE0EF)
 
 val ErrorDark                = Color(0xFFFFB4AB)
 val OnErrorDark              = Color(0xFF690005)
 val ErrorContainerDark       = Color(0xFF93000A)
 val OnErrorContainerDark     = Color(0xFFFFDAD6)
 
-val BackgroundDark           = Color(0xFF1C1916)   // 墨色背景
-val OnBackgroundDark         = Color(0xFFEDE1DC)
-val SurfaceDark              = Color(0xFF1C1916)
-val OnSurfaceDark            = Color(0xFFEDE1DC)
-val SurfaceVariantDark       = Color(0xFF2A2420)
-val OnSurfaceVariantDark     = Color(0xFFD7C6BF)
-val SurfaceContainerDark     = Color(0xFF252019)
-val OutlineDark              = Color(0xFFA08580)
-val OutlineVariantDark       = Color(0xFF524540)
-val InverseSurfaceDark       = Color(0xFFEDE1DC)
-val InverseOnSurfaceDark     = Color(0xFF342F2C)
-val InversePrimaryDark       = Color(0xFF7B3F2A)
+val BackgroundDark           = Color(0xFF14171C)   // D 寒色暗面
+val OnBackgroundDark         = Color(0xFFC7CDD3)
+val SurfaceDark              = Color(0xFF14171C)
+val OnSurfaceDark            = Color(0xFFC7CDD3)
+val SurfaceVariantDark       = Color(0xFF1B1F26)
+val OnSurfaceVariantDark     = Color(0xFF8A929B)
+val SurfaceContainerDark     = Color(0xFF181C22)
+val OutlineDark              = Color(0xFF6B727B)
+val OutlineVariantDark       = Color(0xFF2A2F38)
+val InverseSurfaceDark       = Color(0xFFC7CDD3)
+val InverseOnSurfaceDark     = Color(0xFF2A2E35)
+val InversePrimaryDark       = Color(0xFF1C3D5A)
