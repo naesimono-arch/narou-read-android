@@ -24,8 +24,10 @@
 ## A2. UI-n ブランチ（見た目の白紙改装・2026-06-26 フェーズ0完了）
 
 - **フェーズ0完了＝D「和モダン・余白」をデフォルト視覚言語に採用。** 本棚案A〜Jの10案を作り横並び選定した結果。詳細・モック地図・なぜDかは `UI-n_DESIGN_PLAN.md`（§3 フェーズ0結果・§6.1）が正本。
-- **新機能の与件＝UI着せ替え（スキン選択）。** A〜J 全案をユーザーが選べるスキンとして残す方針。
-- **次セッションの第2バッチ（最優先）**: ① D で読書・目次・読書設定をHTMLモック化（D は現状本棚のみ）／② 「UI着せ替え」設定画面を新規モック化（選択肢=A〜J、既定=D、切替粒度を決定）／③ 固まったら Compose 実装へ。手順は `UI-n_DESIGN_PLAN.md` §7。
+- **方針確定（2026-06-27・ユーザー指示）＝UIスキン着せ替え（A〜J 選択）はまだ実装しない。main は現状 D のみ。** A〜J は資産として claude.ai/design に保持するが、スキン切替機能は将来送り。
+- **第2バッチ（2026-06-27 実施済み）**: ① D で読書・目次・読書設定をHTMLモック化＝**完了**（`ui-n-phase0/reading-D.html`・`toc-D.html`・`settings-D.html` を push）。読書は3テーマ（ライト/セピア/ダーク）＋クローム表示/没入の見た目を併記、目次は現在章=左藍ルール＋淡背景＋明朝太字＋空状態、設定シートはテーマ3択（藍選択）/文字サイズ/行間。
+- **次にやること**: D の HTMLモックが目視OKなら **D を Compose 翻訳**（`Theme.kt` の `ReadingColors` を D 寒色へ／`Typography.kt`／`BookshelfScreen.kt`・`NativeReadingScreen.kt`・`NativeTableOfContentsScreen.kt`・`BookCover.kt`。色は `Color.kt`/`Theme.kt` 経由＝直書き禁止）。
+- **将来送り（保留・元第2バッチ②③）**: 「UI着せ替え」設定画面のモック化（選択肢=A〜J・既定=D・切替粒度の決定）／A〜J スキンの Compose 実装（スキン×読書テーマの関係・トークン体系）。スキン機能に着手する時はここから再開する。
 - モック正本は claude.ai/design プロジェクト `Novel Reader UI`（projectId `bb5a35c8-70ac-4efa-bb03-1579d3f11d93`）の `ui-n-phase0/` 配下。`DesignSync: get_file` で再取得可。
 
 ## B. 本棚
