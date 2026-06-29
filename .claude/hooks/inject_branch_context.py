@@ -33,7 +33,6 @@ def git(args):
 
 # 現在ブランチ（detached HEAD では空文字になる）
 branch = git(["branch", "--show-current"])
-toplevel = git(["rev-parse", "--show-toplevel"])
 
 # STATUS.md の探索はカレントディレクトリ依存にしない。
 # なぜスクリプト位置から逆算するか:
@@ -45,10 +44,14 @@ status_path = os.path.join(project_root, "STATUS.md")
 status_exists = os.path.exists(status_path)
 
 branch_label = branch if branch else "(detached HEAD)"
+# 不在時は「正本扱いするな」で終わらず、ブランチ種別ごとの現況正本の在処まで案内する。
+# auto-memory はパス紐付けで案内できないため、ここで現況の探し先を明示して迷子を防ぐ。
 status_line = (
     "STATUS.md は **このブランチに存在する** → 現況の正本として参照してよい。"
     if status_exists
-    else "STATUS.md は **このブランチに存在しない** → 正本扱いしないこと（lab 系作業ブランチにのみ存在）。"
+    else "STATUS.md は **このブランチに存在しない**（lab 系の長期作業ブランチにのみ置く方針）。"
+         "→ 現況の正本は、ephemeral な作業ブランチなら **active plan ファイル**（`.claude/plans/`）、"
+         "main なら `handover.md` を参照すること。"
 )
 
 context = (
