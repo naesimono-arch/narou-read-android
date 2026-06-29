@@ -38,7 +38,7 @@ def main():
     try:
         out = subprocess.run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD",
-             "--show-toplevel", "--git-common-dir"],
+             "--show-toplevel", "--git-common-dir", "--git-dir"],
             capture_output=True, text=True, timeout=5,
         )
     except Exception:
@@ -53,6 +53,7 @@ def main():
     branch = lines[0] if len(lines) > 0 else "?"
     toplevel = lines[1] if len(lines) > 1 else ""
     common_dir = lines[2] if len(lines) > 2 else ""
+    git_dir = lines[3] if len(lines) > 3 else ""
 
     # プロジェクト名は作業ツリールートのベース名
     project = toplevel.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1] if toplevel else "?"
@@ -68,8 +69,9 @@ def main():
     if norm_common in ("", ".git", norm_main_git):
         wt = "main"
     else:
-        # リンク worktree: worktrees/<name> 形式の末尾名を表示
-        wt = norm_common.rstrip("/").rsplit("/", 1)[-1] or "linked"
+        # リンク worktree。--git-dir は <main>/.git/worktrees/<name> を指すのでその末尾名を採る。
+        # （--git-common-dir は共通 .git を指し worktree 名を含まないため、名前付けには使えない）
+        wt = git_dir.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1] or "linked"
 
     print(f"📂 {project} | 🌿 {branch} | wt:{wt}")
 
