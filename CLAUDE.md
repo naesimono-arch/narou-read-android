@@ -21,8 +21,9 @@ Jetpack Compose + Chaquopy (Python 3.12)。
 - **プロンプトキャッシュの維持**: モデル切替・設定変更・MCP追加など「キャッシュを破棄する操作」は、1セッションの冒頭にまとめて行い、作業の途中で挟まないこと。キャッシュ破棄は以降の入力トークンを割引前の定価に戻すため、途中で行うと当該セッションのコストが跳ね上がる。
 - **ブランチ境界の遵守 / auto-memoryの役割分担**: Claude Code の auto-memory（`MEMORY.md`・`~/.claude` 配下）と session history は**ディレクトリパス紐付けで全ブランチ共有**＝ブランチを考慮しない。そのため:
   - **auto-memory にはブランチ不変情報のみを書く**（ユーザー嗜好・環境・ワークフロー・汎用知見）。スキーマ版・不具合の解決状況・CP進捗などブランチ固有の状態は書かず、**git 管理の `STATUS.md` / `handover.md`（ブランチ追従する）を正本**とする。
-  - **`STATUS.md` は存在するブランチでのみ正本**。存在しなければ正本扱いしない（例: `main` には無い場合がある）。現在ブランチは statusline 表示と SessionStart 注入を参照すること。
-  - **コード変更・コミット前に必ず `git branch --show-current` を確認**し、active な plan ファイル冒頭に対象ブランチを記録する（コンテキスト圧縮で現在ブランチが脱落しても参照可能なデータとして残すため）。`main` への直接コミットは `guard_commit_branch.py` がブロックする。
+  - **`STATUS.md` は存在するブランチでのみ正本**。存在しなければ正本扱いしない。ブランチ種別ごとの**現況の正本**は: ① lab 系の長期作業ブランチ → `STATUS.md`、② ephemeral な feature ブランチ → `.claude/plans/` の active plan ファイル、③ `main` → `handover.md`。現在ブランチは statusline 表示と SessionStart 注入を参照すること。
+  - **整理済みの doc アーキ（`STATUS.md` ＋規約準拠 `handover.md`）は lab が正本**。handover/docs の整理分割（完了済み項目→`STATUS.md` 移動・冒頭の思いつき欄・`docs/decisions/` への ADR 化）は **lab（または専用 docs ブランチ）で行い**、他ブランチで再編して lab と乖離させないこと（やる価値はあるが工程を分けるべき**未了タスク**。忘れないための記録）。
+  - **コード変更・コミット前に必ず `git branch --show-current` を確認**し、active な plan ファイル冒頭に対象ブランチを記録する（コンテキスト圧縮で現在ブランチが脱落しても参照可能なデータとして残すため）。`main` への直接コミットは **Bash ツール経由の一般的な `git commit`（改行区切り・`git -C/-c …` 等のグローバルオプション付き含む）を `guard_commit_branch.py` が検知してブロック**する＝**ソフトな防御網であり完全な防止ではない**（PowerShell ツール経由・難読化形は対象外。既存コミット系フックが `matcher:"Bash"` のため PowerShell 実ゲート化は波及の大きい別タスク）。最終防壁は作業ブランチ運用と「未 push の main コミットは可逆」である事実。
   - ブランチ固有の内容を `@import` で `~/.claude` や親パスから引かないこと（worktree 越境でパスが誤解決する既知問題を避けるため、参照はリポジトリ内の相対パスに留める）。
 
 ## ドメイン知識
