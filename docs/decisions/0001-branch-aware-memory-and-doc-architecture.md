@@ -46,6 +46,20 @@ Claude Code の auto-memory（`MEMORY.md`・`~/.claude` 配下）と session his
   - `git commit --quiet` は成功形を出力しないため当該コミットでは消費されないが、ブランチ非依存の consume が次の任意コミットで自己修復する。
 - 最終防壁はガードではなく「**作業ブランチ運用 ＋ 未 push の `main` コミットは可逆**」という事実に置く。
 
+### 既知の副作用: セッション内ブランチ跨ぎで hook が壊れる（2026-06-30 追記）
+
+`settings.json`（hook 配線）は**セッション起動時に読み込まれ、以後ブランチ追従しない**。一方 hook 実ファイルは作業ツリー＝ブランチ追従する。infra hook を持つブランチ（feat/main）で起動したセッションから、infra hook を**持たない**ブランチ（lab 等）へ `git switch` すると、配線は存在しない hook を呼び **file-not-found** になる:
+
+- 該当するのは PostToolUse の `consume_protected_sentinel.py` と PreToolUse の `guard_commit_branch.py`。
+- `git switch <infra無しブランチ>` 自体では、PreToolUse は switch 前（infra 有りブランチ）で走るためエラーが出ず、PostToolUse のみ switch 後に file-not-found になる（非対称）。
+- だが switch 後にそのブランチで `git commit` 等を実行すると、今度は **PreToolUse の `guard_commit_branch.py` も file-not-found となり、コマンド自体をブロックしうる**。
+- 当座の回避: そのブランチでのコミットを **PowerShell ツール**で行えば Bash matcher の hook 自体が発火せず迂回できる（本 ADR の追記コミットも feat 経由で main 直コミットを避けつつ実施した）。
+- 皮肉だが、ブランチ意識のための infra が「1セッション内のブランチ跨ぎ」で破綻する。
+
+**根本対処（未了・今後の課題）**:
+- (a) `settings.json` の各 hook コマンドを**ファイル不在に耐性化**する（存在すれば実行するラッパー化）。1セッション内のブランチ跨ぎに強く、波及も小さいため第一候補。
+- (b) infra hook を全作業ブランチへ行き渡らせる（各ブランチが運用で main から取り込む）。
+
 ## Alternatives（採用しなかった案と理由）
 
 - **worktree 分離**（ブランチ毎に別パスの worktree を割り当て、auto-memory のパス紐付けを逆手に取って分離する）: パスは分離できるが、worktree 越境で `@import` 等のパスが誤解決する既知問題があり運用が複雑化する。不採用。
