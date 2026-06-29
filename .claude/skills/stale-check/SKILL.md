@@ -10,7 +10,7 @@ triggers:
 
 # stale-check — 管理ファイル陳腐化チェック
 
-CLAUDE.md / handover.md / task_diary.md / `.claude/skills/` / `.claude/hooks/` / settings / `.mcp.json` が
+CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/decisions/` / `.claude/skills/` / `.claude/hooks/` / settings / `.mcp.json` が
 実態（コード・ビルド設定・DBスキーマ・git）とズレていないかを点検する。
 
 検出で終わらせず **確度高 / 要確認** に分類して報告し、**修正案（diff）を提示**する。
@@ -47,7 +47,7 @@ CLAUDE.md / handover.md / task_diary.md / `.claude/skills/` / `.claude/hooks/` /
    python .claude/skills/stale-check/check_machine.py --full
    ```
 2. **Explore エージェントを3つ並列起動**して意味レベルまで全面照合する（差分に絞らない）:
-   - (a) 管理md系: CLAUDE.md / handover.md / task_diary.md の主張 ↔ 実コード・git
+   - (a) 管理md系: CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/decisions/` の主張 ↔ 実コード・git
    - (b) skill系: `.claude/skills/**/SKILL.md` ↔ 実構成・DBスキーマ・コマンド
    - (c) hooks/settings系: `.claude/hooks/**` ↔ settings 登録・参照パス・git追跡
    - 各エージェントに「主張(file:line) / 実態 / 推奨アクション」を確度別で報告させる。
@@ -71,7 +71,8 @@ CLAUDE.md / handover.md / task_diary.md / `.claude/skills/` / `.claude/hooks/` /
 
 - architecture skill の記述 ↔ 実コード構成（Service名・Composable・**描画方式**。WebView→Compose のような構造変化の追従漏れ）
 - skill 内部の論理矛盾（「版数は書かない」と言いつつ版数を明記、等）
-- task_diary / handover の個別エントリで状況が変わった・解決済みの記述
+- STATUS / task_diary / handover の個別エントリで状況が変わった・解決済みの記述
+- `docs/decisions/` の ADR ↔ 実装（恒久決定が実装とズレていないか。例: hook 仕様変更が ADR に未反映）
 - `docs/reference/frontend-design/SKILL.md` などがプロジェクト用途に対し有効か
 - CLAUDE.md のルール ↔ 現行 hook / skill の実運用の整合
 
