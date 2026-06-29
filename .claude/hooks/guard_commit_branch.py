@@ -27,6 +27,23 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="repla
 
 PROTECTED = {"main"}
 
+# 実行コマンドとしての `git commit` を検知する正規表現。
+# 【重要】consume_protected_sentinel.py と同一定義（検知整合のため）。変更時は両ファイルを更新すること。
+# なぜコマンド境界に限定するか:
+#   本フックは exit 2 で実際にブロックするため精度が要る。素朴な \bgit\s+commit\b だと
+#   `echo '...git commit...'`（クォート内の単なる言及）まで誤ブロックする（実際に検証中に巻き込まれた）。
+# なぜ境界に改行 \n を含めるか:
+#   `git add -A`⏎`git commit ...` のような複数行コマンド（heredoc 等）では commit が行頭に来る。
+#   改行を境界に含めないと、この最頻パターンの直接コミットを取りこぼす（監査で実証）。
+# なぜ git と commit の間にグローバルオプションを許容するか:
+#   `git -C <path> commit` / `git -c k=v commit` / `git --git-dir=… commit` も実コミット。
+#   オプションを許容しないと取りこぼす（監査で実証）。引数・メッセージ内の言及は引き続き無視する。
+COMMIT_CMD_RE = re.compile(
+    r"(?:^|\n|&&|\|\||[;|&])\s*git"
+    r"(?:\s+(?:-[Cc]\s+\S+|-{1,2}[\w.-]+(?:=\S+)?))*"
+    r"\s+commit\b"
+)
+
 try:
     data = json.load(sys.stdin)
 except (json.JSONDecodeError, EOFError, ValueError):
@@ -36,12 +53,7 @@ if data.get("tool_name", "") != "Bash":
     sys.exit(0)
 
 command = data.get("tool_input", {}).get("command", "")
-# なぜ「コマンド先頭 or 区切り直後の git commit」に限定するか:
-#   本フックは exit 2 で実際にブロックするため精度が重要。素朴な \bgit\s+commit\b だと
-#   `echo '...git commit...'` のような単なる言及（クォート内の文字列）まで誤ブロックする
-#   （実際に検証中に巻き込まれた）。コマンド境界（行頭/&&/;/|）の直後に来る実行コマンドとしての
-#   git commit のみを対象にし、引数やメッセージ内の言及は無視する。
-if not re.search(r"(?:^|&&|\|\||[;|&])\s*git\s+commit\b", command):
+if not COMMIT_CMD_RE.search(command):
     sys.exit(0)
 
 try:

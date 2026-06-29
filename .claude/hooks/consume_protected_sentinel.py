@@ -18,6 +18,16 @@ import sys
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
+# 実行コマンドとしての `git commit` を検知する正規表現。
+# 【重要】guard_commit_branch.py と同一定義（検知整合のため）。詳細な理由は同ファイルのコメント参照。
+# 改行区切り・グローバルオプション付き（git -C/-c … commit）も対象にし、guard が許可・実行した
+# コミットを consume 側でも確実に検知して、上書きセンチネルを消費できるようにする。
+COMMIT_CMD_RE = re.compile(
+    r"(?:^|\n|&&|\|\||[;|&])\s*git"
+    r"(?:\s+(?:-[Cc]\s+\S+|-{1,2}[\w.-]+(?:=\S+)?))*"
+    r"\s+commit\b"
+)
+
 try:
     data = json.load(sys.stdin)
 except (json.JSONDecodeError, EOFError, ValueError):
@@ -27,7 +37,7 @@ if data.get("tool_name", "") != "Bash":
     sys.exit(0)
 
 command = data.get("tool_input", {}).get("command", "")
-if not re.search(r"\bgit\s+commit\b", command):
+if not COMMIT_CMD_RE.search(command):
     sys.exit(0)
 
 # tool_response の出力を取得。
@@ -46,6 +56,9 @@ else:
 
 # コミット成功の判定: "[<branch/desc> <短縮hash>]" 形式が出力に現れる。
 # 例) "[main 1a2b3c4] message" / "[lab (root-commit) 1a2b3c4] ...".
+# 既知の限界: `git commit --quiet` は本形式を出力しないためここで消費されずセンチネルが残る。
+# ただし本フックはブランチ非依存（PROTECTED 判定をしない）ため、次に成功する任意のコミットが
+# 必ずセンチネルを消費する＝1コミット以内に自己修復する。よって個別対処はせず挙動として明記する。
 if not re.search(r"\[[^\]]+\s[0-9a-f]{7,}\]", output):
     sys.exit(0)
 
