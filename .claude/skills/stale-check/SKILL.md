@@ -83,8 +83,9 @@ CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/decisions/` / `.clau
 ```
 を「確度高（実態と明確に矛盾）」「要確認（疑わしいが断定不可）」に分類して提示する。
 
-## 注意（Windows 環境）
+## 注意
 
-- `python` 実行は PowerShell ツール / Bash ツールどちらでも可（分類器不調時は PowerShell が通りやすい）。
+- 実行環境はこのマシンでは Linux/WSL が正本。`python` は `~/.local/bin/python → python3` シム経由で
+  Bash から実行する（Windows では PowerShell / Bash どちらでも可）。
 - 状態ファイル `.claude/.stale_check_state.json` は `.gitignore` 済みのローカル状態。コミットしない。
 - リナンバー禁止: task_diary.md のエントリ番号（#N）は固定IDなので、重複を見つけても自動リネームせず報告に留める。
