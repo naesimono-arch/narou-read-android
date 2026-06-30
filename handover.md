@@ -26,7 +26,8 @@
 - **フェーズ0完了＝D「和モダン・余白」をデフォルト視覚言語に採用。** 本棚案A〜Jの10案を作り横並び選定した結果。詳細・モック地図・なぜDかは `UI-n_DESIGN_PLAN.md`（§3 フェーズ0結果・§6.1）が正本。
 - **方針確定（2026-06-27・ユーザー指示）＝UIスキン着せ替え（A〜J 選択）はまだ実装しない。main は現状 D のみ。** A〜J は資産として claude.ai/design に保持するが、スキン切替機能は将来送り。
 - **第2バッチ（2026-06-27 実施済み）**: ① D で読書・目次・読書設定をHTMLモック化＝**完了**（`ui-n-phase0/reading-D.html`・`toc-D.html`・`settings-D.html` を push）。読書は3テーマ（ライト/セピア/ダーク）＋クローム表示/没入の見た目を併記、目次は現在章=左藍ルール＋淡背景＋明朝太字＋空状態、設定シートはテーマ3択（藍選択）/文字サイズ/行間。
-- **次にやること**: D の HTMLモックが目視OKなら **D を Compose 翻訳**（`Theme.kt` の `ReadingColors` を D 寒色へ／`Typography.kt`／`BookshelfScreen.kt`・`NativeReadingScreen.kt`・`NativeTableOfContentsScreen.kt`・`BookCover.kt`。色は `Color.kt`/`Theme.kt` 経由＝直書き禁止）。
+- **第3バッチ進行中（Compose翻訳の一部完了）**: `Color.kt`(`cb09392`)・`Theme.kt` の `ReadingColors`(`c6da6cf`)・`BookCover.kt` 自動書影(`20dcc00`)・読書 hr 区切り(`cd4853f`)を D 化済み。`BookshelfScreen.kt` は書影まわりを一部 D 化。未着手＝`Typography.kt`(D明朝)・`NativeTableOfContentsScreen.kt`(目次)。
+- **次にやること（方針転換・2026-06-30）**: 画面を増やす前に、**実機での D 再現が「お粗末」なのを実機確認→調整ループで仕上げ切る**。実機スクショ↔D モック(`ui-n-phase0/*-D.html`)を突合し差分を潰す。手順書＝`.claude/plans/ui-n-D-completion-loop-HANDOVER-2026-06-30.md`（**次セッションは必ず UI-n 上で起動**＝ブランチ跨ぎ hook 破綻回避）。色は `Color.kt`/`Theme.kt` 経由＝直書き禁止。
 - **将来送り（保留・元第2バッチ②③）**: 「UI着せ替え」設定画面のモック化（選択肢=A〜J・既定=D・切替粒度の決定）／A〜J スキンの Compose 実装（スキン×読書テーマの関係・トークン体系）。スキン機能に着手する時はここから再開する。
 - モック正本は claude.ai/design プロジェクト `Novel Reader UI`（projectId `bb5a35c8-70ac-4efa-bb03-1579d3f11d93`）の `ui-n-phase0/` 配下。`DesignSync: get_file` で再取得可。
 
