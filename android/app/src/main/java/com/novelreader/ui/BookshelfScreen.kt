@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -59,6 +60,7 @@ import androidx.core.content.ContextCompat
 import com.novelreader.data.BookEntity
 import com.novelreader.ui.components.BookCover
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.ProcessingState
 import java.io.File
@@ -70,6 +72,9 @@ import kotlinx.coroutines.withContext
 @Composable
 fun BookshelfScreen(
     viewModel: BookshelfViewModel,
+    // 見た目テーマの単一正本（読書と共有）。本棚の⋮メニューからも切り替えられるようにする。
+    appTheme: ReadingTheme,
+    onThemeChange: (ReadingTheme) -> Unit,
     onOpenBook: (bookId: String, startFile: String) -> Unit,
 ) {
     val books by viewModel.books.collectAsState()
@@ -111,6 +116,9 @@ fun BookshelfScreen(
     // 既定を 0(長押し) にした理由: 視覚言語D（モック bookshelf-D）は削除アフォーダンスを持たない
     // フラットな構図のため、既定で⋮を出さない長押し方式がモック準拠。⋮方式はトグルで opt-in。
     var deleteUiMode by remember { mutableStateOf(prefs.getInt("delete_ui_mode", 0)) }
+
+    // 本棚トップバーの⋮オーバーフロー（テーマ切替＋開発トグル）の開閉状態
+    var showOverflowMenu by remember { mutableStateOf(false) }
 
     // PDF選択を実際に開始するヘルパー（通知権限チェック後に呼ぶ）
     val launchPdfPicker: () -> Unit = {
@@ -191,17 +199,7 @@ fun BookshelfScreen(
                         )
                     },
                     actions = {
-                        // 削除UI方式の切り替えボタン（一時機構：採用方式確定後にトグルごと削除予定）
-                        IconButton(onClick = {
-                            deleteUiMode = if (deleteUiMode == 1) 0 else 1
-                            prefs.edit().putInt("delete_ui_mode", deleteUiMode).apply()
-                        }) {
-                            Icon(
-                                imageVector = if (deleteUiMode == 1) Icons.Filled.MoreVert else Icons.Outlined.DeleteOutline,
-                                contentDescription = if (deleteUiMode == 1) "削除UI:⋮メニュー（タップで長押し方式へ）" else "削除UI:長押し（タップで⋮方式へ）",
-                            )
-                        }
-                        // グリッド/リスト切り替えボタン
+                        // グリッド/リスト切り替え（モック .top の第1アクション）
                         IconButton(onClick = {
                             isGridView = !isGridView
                             prefs.edit().putBoolean("is_grid_view", isGridView).apply()
@@ -211,7 +209,64 @@ fun BookshelfScreen(
                                 contentDescription = if (isGridView) "リスト表示" else "グリッド表示",
                             )
                         }
-
+                        // ⋮ オーバーフロー（モック .top の第2アクション）。
+                        // テーマ切替を本棚からも行えるようにする（読書と同じ単一正本 appTheme を変更）。
+                        Box {
+                            IconButton(onClick = { showOverflowMenu = true }) {
+                                Icon(Icons.Filled.MoreVert, contentDescription = "メニュー")
+                            }
+                            DropdownMenu(
+                                expanded = showOverflowMenu,
+                                onDismissRequest = { showOverflowMenu = false },
+                            ) {
+                                Text(
+                                    "テーマ",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),
+                                )
+                                // ライト/セピア/ダーク。選択中に藍のチェックを付ける。
+                                ReadingTheme.values().forEach { theme ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                when (theme) {
+                                                    ReadingTheme.LIGHT -> "ライト"
+                                                    ReadingTheme.SEPIA -> "セピア"
+                                                    ReadingTheme.DARK -> "ダーク"
+                                                }
+                                            )
+                                        },
+                                        onClick = {
+                                            onThemeChange(theme)
+                                            showOverflowMenu = false
+                                        },
+                                        leadingIcon = {
+                                            // 選択中のみチェック表示（未選択はアイコン領域を空けて字頭を揃える）
+                                            if (appTheme == theme) {
+                                                Icon(
+                                                    Icons.Filled.Check,
+                                                    contentDescription = "選択中",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                )
+                                            } else {
+                                                Spacer(Modifier.width(24.dp))
+                                            }
+                                        },
+                                    )
+                                }
+                                HorizontalDivider()
+                                // 開発用: 削除UI方式トグル（一時機構。採用方式が確定したらこの項目ごと削除予定）。
+                                DropdownMenuItem(
+                                    text = { Text("削除方式: " + if (deleteUiMode == 1) "⋮メニュー" else "長押し") },
+                                    onClick = {
+                                        deleteUiMode = if (deleteUiMode == 1) 0 else 1
+                                        prefs.edit().putInt("delete_ui_mode", deleteUiMode).apply()
+                                        showOverflowMenu = false
+                                    },
+                                )
+                            }
+                        }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface,

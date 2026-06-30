@@ -124,6 +124,9 @@ fun ReadingScreen(
     startFile: String,
     htmlDirPath: String,
     viewModel: BookshelfViewModel,
+    // テーマは MainActivity が持つ単一正本を受け取る（本棚と共有して全体を同期させるため）。
+    readingTheme: ReadingTheme,
+    onThemeChange: (ReadingTheme) -> Unit,
     onNavigateToBookshelf: () -> Unit,
 ) {
     // なぜ rememberSaveable に bookId をキーとして含めるか:
@@ -153,21 +156,12 @@ fun ReadingScreen(
         )
     }
 
-    // 読書テーマ（ライト/セピア/ダーク）。SharedPreferences で永続化する。
-    // なぜ runCatching で包むか: 不正値が保存されていた場合や将来 enum 名を変更した場合に
-    // クラッシュせず LIGHT へフォールバックするため（防御的だが起動不能よりよい）。
+    // テーマ（readingTheme/onThemeChange）は MainActivity から受け取る単一正本を使う。
+    // 本棚(NovelReaderTheme)と同じ状態を共有し設定変更を全体へ同期させるため、ここでは pref を
+    // 直接読まない（初期決定・永続化は MainActivity 側 = loadInitialTheme/onThemeChange が担う）。
+    // context/prefs は文字サイズ・行間（読書固有設定）の読み書きに引き続き使う。
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
-    var readingTheme by remember {
-        mutableStateOf(
-            runCatching { ReadingTheme.valueOf(prefs.getString("reading_theme", "") ?: "") }
-                .getOrDefault(ReadingTheme.LIGHT)
-        )
-    }
-    val onThemeChange: (ReadingTheme) -> Unit = { theme ->
-        readingTheme = theme
-        prefs.edit().putString("reading_theme", theme.name).apply()
-    }
     val readingColors = readingTheme.colors
 
     // 本文フォントサイズ（sp）。lineHeight は em 指定のため自動追従する。
