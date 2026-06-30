@@ -11,10 +11,15 @@ triggers:
 
 # ビルド環境セットアップ
 
-JAVA_HOME は `~/.bashrc` に設定済みのため、通常は追加設定不要。
-もし `java: command not found` が出た場合は手動で通す：
+JAVA_HOME は設定済み（Linux/WSL は `~/.bashrc`、Windows は環境変数）のため通常は追加設定不要。
+もし `java: command not found` が出た場合は手動で通す（OS で JDK の在処が異なる）：
 
 ```bash
+# Linux / WSL（このマシンの正本。グローバル ~/.claude/CLAUDE.md と一致）
+export JAVA_HOME="$HOME/opt/jdk-17"   # Temurin 17。AGP 8.6.1 に合わせ 17
+export PATH="$JAVA_HOME/bin:$PATH"
+
+# Windows（Git Bash 等）
 export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"
 export PATH="$JAVA_HOME/bin:$PATH"
 ```
@@ -23,13 +28,37 @@ export PATH="$JAVA_HOME/bin:$PATH"
 
 > gradlew の実体は `android/` 配下。プロジェクトルートからは `cd android` してから実行する。
 
+## Linux / WSL（このマシンの正本）
+
+`/mnt/c` 上では2つの WSL 固有ワークアラウンドが**必須**:
+- `gradlew` は CRLF 改行で `./gradlew` が直接実行できない → ラッパー jar を直接起動する `gw` 関数を使う
+  （`~/.bashrc` 定義の薄いラッパー。`gradle-wrapper.jar` を `--no-daemon --console=plain` で起動し、
+  ビルド直前に `local.properties` の `sdk.dir` 行を除去して Linux SDK(`ANDROID_HOME`)へ自動フォールバックさせる）。
+- `/mnt/c`(drvfs) で AAPT2 が EPERM で落ちる → 成果物を ext4 へ逃がす `--init-script` を**必ず**付ける。
+
+```bash
+cd android
+gw --init-script /home/qingj/ext-build/novel-reader-init.gradle testDebugUnitTest   # Kotlin単体テスト
+gw --init-script /home/qingj/ext-build/novel-reader-init.gradle assembleDebug       # デバッグAPKビルド
+gw --init-script /home/qingj/ext-build/novel-reader-init.gradle compileDebugKotlin  # Kotlinコンパイル確認
+```
+
+## Windows
+
 ```bash
 cd android && ./gradlew assembleDebug       # デバッグAPKビルド
 cd android && ./gradlew installDebug        # インストール
 cd android && ./gradlew compileDebugKotlin  # Kotlinコンパイル確認
+```
 
-# Python PDFロジックの単体テスト（Android実機不要）
-cd android/app/src/main/python && python -m unittest test_logic -v
+## Python PDFロジックの単体テスト（Android実機不要・素早い検証）
+
+依存(pdfminer.six)と Python 3.12 固定が要るため **uv 経由**で実行する（Chaquopy が Python 3.12 前提のため版を合わせる。
+hook の `python` シムは 3.14 を指すので、PDF テストはこの uv コマンドで明示的に 3.12 に固定すること）：
+
+```bash
+cd android/app/src/main/python
+uv run --no-project --python 3.12 --with pdfminer.six python -m unittest test_logic -v
 ```
 
 ## 注意: プロジェクトパスは ASCII のみ
