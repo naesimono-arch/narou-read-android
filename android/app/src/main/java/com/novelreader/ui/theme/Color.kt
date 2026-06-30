@@ -15,7 +15,11 @@ val OnPrimaryLight           = Color(0xFFFFFFFF)
 val PrimaryContainerLight    = Color(0xFFD6E0E9)   // 淡い藍（処理中バナー背景）
 val OnPrimaryContainerLight  = Color(0xFF0E2335)
 
-val SecondaryLight           = Color(0xFF6E8A86)   // 青磁寄りの補助
+// 青磁 #9CB3A8（モック bookshelf-D.html の --seiji）。本棚の「未読」ラベル等の補助色に使う。
+// トレードオフ: 素地 #FBFAF8 上で約2:1 と低コントラスト＝モックが意図する「静かに沈める」表現だが
+// 可読性は弱い。完全準拠を優先しモック値を採用（要・後日コントラスト再検証）。secondary は他画面で
+// 直接未使用のため、この変更の波及は本棚の未読色のみ。
+val SecondaryLight           = Color(0xFF9CB3A8)   // 青磁（未読ラベル）
 val OnSecondaryLight         = Color(0xFFFFFFFF)
 val SecondaryContainerLight  = Color(0xFFD9E4DF)
 val OnSecondaryContainerLight= Color(0xFF18241F)

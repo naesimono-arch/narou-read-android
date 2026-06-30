@@ -54,9 +54,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.novelreader.data.BookEntity
 import com.novelreader.ui.components.BookCover
+import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.ProcessingState
 import java.io.File
@@ -106,7 +108,9 @@ fun BookshelfScreen(
     // 削除UIの方式（SharedPreferencesで永続化）。0=長押しメニュー / 1=⋮メニュー。
     // なぜトグルで両方式を残すか: 2方式を実機で触り比べて採用方式を決めるための一時機構。
     // 採用方式が確定したら、他方の分岐とこのトグル自体を削除する。
-    var deleteUiMode by remember { mutableStateOf(prefs.getInt("delete_ui_mode", 1)) }
+    // 既定を 0(長押し) にした理由: 視覚言語D（モック bookshelf-D）は削除アフォーダンスを持たない
+    // フラットな構図のため、既定で⋮を出さない長押し方式がモック準拠。⋮方式はトグルで opt-in。
+    var deleteUiMode by remember { mutableStateOf(prefs.getInt("delete_ui_mode", 0)) }
 
     // PDF選択を実際に開始するヘルパー（通知権限チェック後に呼ぶ）
     val launchPdfPicker: () -> Unit = {
@@ -177,9 +181,13 @@ fun BookshelfScreen(
                 // scrollBehavior による吸着アニメーションがもたつき感の原因だったため完全に除去。
                 TopAppBar(
                     title = {
+                        // モック .top h1: 明朝・字間広め・中肉。余白主導のエディトリアル題字。
                         Text(
                             "本棚",
-                            fontWeight = FontWeight.Bold,
+                            fontFamily = MinchoFamily,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 26.sp,
+                            letterSpacing = 2.sp,
                         )
                     },
                     actions = {
@@ -252,9 +260,10 @@ fun BookshelfScreen(
                     // bottom にFAB分の余白を足す。FABは浮動でレイアウト領域を予約しないため、
                     // これがないと最終行のカード（削除ボタン等）がFABに隠れてタップできない。
                     // ナビバーインセットはScaffoldのinnerPadding(Box.padding)で吸収済みなので二重加算しない。
-                    contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 96.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    // モック D は余白主導。列間20/行間26相当へ広げ、左右も24px相当の余白を取る。
+                    contentPadding = PaddingValues(start = 24.dp, top = 12.dp, end = 24.dp, bottom = 96.dp),
+                    verticalArrangement = Arrangement.spacedBy(26.dp),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
                     items(books, key = { it.id }) { book ->
                         GridBookCard(
@@ -281,8 +290,8 @@ fun BookshelfScreen(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     // bottom にFAB分の余白を足す（グリッドと同理由＝最終行がFABに隠れるのを防ぐ）。
-                    contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 96.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    // 行間スペーシングは置かない: 各行が自前の縦余白＋下ヘアラインで区切るモック .li 準拠のため。
+                    contentPadding = PaddingValues(start = 24.dp, top = 4.dp, end = 24.dp, bottom = 96.dp),
                 ) {
                     items(books, key = { it.id }) { book ->
                         ListBookCard(
@@ -375,6 +384,52 @@ fun BookshelfScreen(
 }
 
 // ============================================================
+// 進捗行（モック .pr）: 「N話 + 細い藍バー + N%」を藍で、未読は青磁で表示。
+// グリッド=バー伸縮(flexBar=true) / リスト=バー80dp固定(false)。
+// 色は token 経由（primary=藍 #1C3D5A / secondary=青磁 #9CB3A8 / track=outlineVariant）＝直書き回避。
+// ============================================================
+@Composable
+private fun BookProgressRow(
+    totalChaps: Int,
+    progressFraction: Float?,
+    flexBar: Boolean,
+) {
+    if (progressFraction != null) {
+        val percent = (progressFraction * 100).toInt()
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "${totalChaps}話",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(Modifier.width(8.dp))
+            LinearProgressIndicator(
+                progress = { progressFraction },
+                modifier = (if (flexBar) Modifier.weight(1f) else Modifier.width(80.dp))
+                    .height(2.dp)
+                    .clip(RoundedCornerShape(1.dp)),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.outlineVariant,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "$percent%",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+    } else {
+        // 未読は青磁。素地上で低コントラスト（モック意図の「静かに沈める」）＝完全準拠のトレードオフ。
+        Text(
+            text = "未読",
+            fontSize = 11.sp,
+            letterSpacing = 0.8.sp,
+            color = MaterialTheme.colorScheme.secondary,
+        )
+    }
+}
+
+// ============================================================
 // グリッド用書籍カード
 // ============================================================
 @OptIn(ExperimentalFoundationApi::class)
@@ -415,119 +470,80 @@ private fun GridBookCard(
         label = "gridCardScale",
     )
 
-    Surface(
-        // Surface(onClick) に combinedClickable を重ねるとクリック重複・長押し検知漏れが起きるため、
-        // クリック/長押しを1つの combinedClickable に集約する（Surface 自体は onClick を持たせない）。
-        // indication=LocalIndication で従来のリップル、interactionSource 共有で press スケールを維持する。
+    // モック .bk: カード地・影・角丸チップを廃したフラット構図。書影＋メタを地に直接置く。
+    // クリック=開く / 長押し=削除メニュー（モックは削除アフォーダンスを持たないため既定は長押しに集約）。
+    Column(
         modifier = modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current,
                 onClick = onOpen,
-                // 長押しモード(0)のみ長押しでメニューを開く。⋮モード(1)では長押し無効。
+                // 既定(0)は長押しで削除メニュー。⋮方式(1)を選んだ場合は書影上の⋮で開くため長押しは無効。
                 onLongClick = if (deleteUiMode == 0) ({ menuExpanded = true }) else null,
             ),
-        shape = RoundedCornerShape(12.dp),
-        tonalElevation = 1.dp,
-        shadowElevation = 2.dp,
-        color = MaterialTheme.colorScheme.surface,
     ) {
-        Column {
-            // 書影（縦横比 2:3）
-            Box(modifier = Modifier.fillMaxWidth()) {
-                BookCover(
-                    bookId = book.id,
-                    title = book.title,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(2f / 3f)
-                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)),
-                )
-                // 削除アフォーダンス。右上の Box を DropdownMenu のアンカーにして表示位置を安定させる。
-                // mode=1(⋮): ⋮ボタン常時表示。mode=0(長押し): アイコンは出さず、メニューはカード長押しで開く。
-                Box(modifier = Modifier.align(Alignment.TopEnd)) {
-                    if (deleteUiMode == 1) {
-                        // なぜスクリム背景を敷くか: 書影はタイトルハッシュ由来の任意の色相のため、
-                        // アイコン単体（surface 色）では明色カバー上で視認できなくなる。
-                        // 半透明黒スクリム＋白アイコンはどの色相の上でもコントラストを確保できる。
-                        IconButton(
-                            onClick = { menuExpanded = true },
-                            modifier = Modifier
-                                .padding(6.dp)
-                                .size(30.dp)
-                                .background(
-                                    color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f),
-                                    shape = CircleShape,
-                                ),
-                        ) {
-                            Icon(
-                                Icons.Filled.MoreVert,
-                                contentDescription = "メニュー",
-                                tint = androidx.compose.ui.graphics.Color.White,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                    }
-                    DeleteDropdownMenu(
-                        expanded = menuExpanded,
-                        onDismiss = { menuExpanded = false },
-                        onDelete = { menuExpanded = false; onDelete() },
-                    )
-                }
-            }
-
-            Column(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
-            ) {
-                Text(
-                    text = book.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                if (book.author.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = book.author,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.height(6.dp))
-                if (progressFraction != null) {
-                    // バーだけだと進捗が読み取りづらいため、リスト表示と同様に章番号＋%を併記する
-                    val percent = (progressFraction * 100).toInt()
-                    Text(
-                        text = "第${chapNum}話 · $percent%",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    LinearProgressIndicator(
-                        progress = { progressFraction },
+        // 書影（縦横比 2:3・角丸2px・下部に明朝タイトル焼き込み）
+        Box(modifier = Modifier.fillMaxWidth()) {
+            BookCover(
+                bookId = book.id,
+                title = book.title,
+                showTitle = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(2f / 3f)
+                    .clip(RoundedCornerShape(2.dp)),
+            )
+            // ⋮方式(1)のみ書影右上に削除ボタン（既定0では非表示＝モック準拠のフラット）。
+            // Box は方式に関わらず DropdownMenu のアンカーとして常設する。
+            Box(modifier = Modifier.align(Alignment.TopEnd)) {
+                if (deleteUiMode == 1) {
+                    // なぜスクリム背景を敷くか: 書影はタイトルハッシュ由来の任意の色相のため、
+                    // アイコン単体では明色カバー上で視認できない。半透明黒＋白でコントラストを確保。
+                    IconButton(
+                        onClick = { menuExpanded = true },
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(2.dp)
-                            .clip(RoundedCornerShape(1.dp)),
-                        color = MaterialTheme.colorScheme.tertiary,
-                        trackColor = MaterialTheme.colorScheme.outlineVariant,
-                    )
-                } else {
-                    Text(
-                        text = "未読",
-                        style = MaterialTheme.typography.labelSmall,
-                        // outlineVariant では surface 上のコントラストが約1.6:1 で読めないため
-                        // onSurfaceVariant（補助テキスト用）を使う
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                            .padding(6.dp)
+                            .size(30.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f),
+                                shape = CircleShape,
+                            ),
+                    ) {
+                        Icon(
+                            Icons.Filled.MoreVert,
+                            contentDescription = "メニュー",
+                            tint = androidx.compose.ui.graphics.Color.White,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
                 }
+                DeleteDropdownMenu(
+                    expanded = menuExpanded,
+                    onDismiss = { menuExpanded = false },
+                    onDelete = { menuExpanded = false; onDelete() },
+                )
             }
         }
+
+        Spacer(Modifier.height(11.dp))
+        // メタ題字（明朝）。著者はモックのグリッドでは表示しない（リストのみ）。
+        // 書影内タイトルと本欄タイトルが重複する点は完全準拠ゆえのトレードオフ（後日検証・調整）。
+        Text(
+            text = book.title,
+            fontFamily = MinchoFamily,
+            fontSize = 13.sp,
+            lineHeight = 19.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.height(9.dp))
+        BookProgressRow(
+            totalChaps = totalChaps,
+            progressFraction = progressFraction,
+            flexBar = true,
+        )
     }
 }
 
@@ -571,98 +587,67 @@ private fun ListBookCard(
         label = "listCardScale",
     )
 
-    Surface(
-        // グリッドと同理由でクリック/長押しを combinedClickable に集約（Surface に onClick を持たせない）。
-        modifier = modifier
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .combinedClickable(
-                interactionSource = interactionSource,
-                indication = LocalIndication.current,
-                onClick = onOpen,
-                onLongClick = if (deleteUiMode == 0) ({ menuExpanded = true }) else null,
-            ),
-        shape = RoundedCornerShape(16.dp),
-        tonalElevation = 1.dp,
-        shadowElevation = 1.dp,
-        color = MaterialTheme.colorScheme.surface,
-    ) {
+    // モック .li: カード地・影を廃し、上下余白＋下ヘアラインで区切る静かな行。
+    // 外側 Column が行本体(Row)と区切り線(HorizontalDivider)を束ねる。
+    Column(modifier = modifier) {
         Row(
-            // 長押しモード(0)は末尾の⋮を出さないため、行末余白を通常値(12dp)に戻して
-            // テキストが端に寄りすぎないようにする。⋮モード(1)はアイコン分を詰めて 4dp。
-            modifier = Modifier.padding(
-                start = 12.dp,
-                end = if (deleteUiMode == 1) 4.dp else 12.dp,
-                top = 12.dp,
-                bottom = 12.dp,
-            ),
+            modifier = Modifier
+                .graphicsLayer { scaleX = scale; scaleY = scale }
+                .combinedClickable(
+                    interactionSource = interactionSource,
+                    indication = LocalIndication.current,
+                    onClick = onOpen,
+                    onLongClick = if (deleteUiMode == 0) ({ menuExpanded = true }) else null,
+                )
+                .padding(top = 18.dp, bottom = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 小さい書影
+            // 小さい書影（46×69・角丸2px・文字なしの色面のみ）
             BookCover(
                 bookId = book.id,
                 title = book.title,
+                showTitle = false,
                 modifier = Modifier
-                    .width(60.dp)
-                    .height(90.dp)
-                    .clip(RoundedCornerShape(8.dp)),
+                    .width(46.dp)
+                    .height(69.dp)
+                    .clip(RoundedCornerShape(2.dp)),
             )
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = book.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
+                    fontFamily = MinchoFamily,
+                    fontSize = 15.sp,
+                    lineHeight = 21.sp,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 if (book.author.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         text = book.author,
-                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Spacer(Modifier.height(8.dp))
-                if (progressFraction != null) {
-                    val percent = (progressFraction * 100).toInt()
-                    Text(
-                        text = "第${chapNum}話 · $percent%",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    LinearProgressIndicator(
-                        progress = { progressFraction },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(2.dp)),
-                        color = MaterialTheme.colorScheme.tertiary,
-                        trackColor = MaterialTheme.colorScheme.outlineVariant,
-                    )
-                } else {
-                    Text(
-                        text = "未読",
-                        style = MaterialTheme.typography.labelSmall,
-                        // outlineVariant では surface 上のコントラストが約1.6:1 で読めないため
-                        // onSurfaceVariant（補助テキスト用）を使う
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Spacer(Modifier.height(9.dp))
+                BookProgressRow(
+                    totalChaps = totalChaps,
+                    progressFraction = progressFraction,
+                    flexBar = false,
+                )
             }
-            // 削除アフォーダンス。行末の Box を DropdownMenu のアンカーにして表示位置を安定させる。
-            // mode=1(⋮): ⋮ボタン表示。mode=0(長押し): アイコンなし（メニューは行の長押しで開く）。
+            // 削除アフォーダンス。⋮方式(1)のみ行末にボタン。既定0は非表示（長押しで開く）。
+            // Box は方式に関わらず DropdownMenu のアンカーとして常設する。
             Box {
                 if (deleteUiMode == 1) {
                     IconButton(onClick = { menuExpanded = true }) {
                         Icon(
                             Icons.Filled.MoreVert,
                             contentDescription = "メニュー",
-                            // outlineVariant では surface 上で視認しづらいため補助色に統一
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -674,6 +659,11 @@ private fun ListBookCard(
                 )
             }
         }
+        // 行下のヘアライン区切り（モック .li の border-bottom 1px）
+        HorizontalDivider(
+            thickness = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant,
+        )
     }
 }
 

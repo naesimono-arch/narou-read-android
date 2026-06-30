@@ -15,9 +15,13 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.novelreader.ui.theme.MinchoFamily
 import kotlin.math.abs
 
 // ============================================================
@@ -61,15 +65,18 @@ private fun hslToColor(hue: Float, saturation: Float, lightness: Float): Color {
 }
 
 /**
- * @param bookId 書籍ID（ハッシュのシードに使用）
- * @param title  表紙中央に大きく表示する1〜2文字の抽出元
+ * @param bookId   書籍ID（ハッシュのシードに使用）
+ * @param title    書影下部に明朝で焼き込むタイトル（showTitle=true のとき）
  * @param modifier Modifier（縦横比はこのModifierで制御する）
+ * @param showTitle グリッド=true（書影下部に明朝タイトル）／リスト=false（文字なしスラブ）。
+ *   モック bookshelf-D.html ではグリッド書影に明朝タイトルを焼き込み、リスト書影は色面のみ。
  */
 @Composable
 fun BookCover(
     bookId: String,
     title: String,
     modifier: Modifier = Modifier,
+    showTitle: Boolean = false,
 ) {
     // ハッシュから色相を決定（同じIDなら毎回同じ色になる）
     val colors = remember(bookId) {
@@ -84,16 +91,10 @@ fun BookCover(
 
         val topColor    = hslToColor(hue, saturation, lightnessTop)
         val bottomColor = hslToColor(hue, saturation, lightnessBot)
-        // 暗色スラブに固定したため文字は常に白で読める（旧のしきい値分岐は不要）。
-        val textColor   = Color(0xFFFFFFFF)
-
-        Triple(topColor, bottomColor, textColor)
+        Pair(topColor, bottomColor)
     }
 
-    val (topColor, bottomColor, textColor) = colors
-
-    // 表紙の最初の1文字（絵文字や記号でも1文字として取得）
-    val displayChar = title.take(1).ifEmpty { "？" }
+    val (topColor, bottomColor) = colors
 
     Box(
         modifier = modifier
@@ -105,7 +106,7 @@ fun BookCover(
             ),
     ) {
         // ────── 左の藍の縦ルール（D の署名要素）──────
-        // なぜ start を固定 dp にするか: グリッド(幅大)・リスト(幅60dp)の双方で
+        // なぜ start を固定 dp にするか: グリッド(幅大)・リスト(幅46dp)の双方で
         // おおむね左端 7〜16% に収まり、サイズ非依存で破綻しないため。
         // 暗色スラブ上で沈まないよう、トークン藍より明るめの藍を使う。
         Box(
@@ -116,14 +117,30 @@ fun BookCover(
                 .fillMaxHeight(0.82f)
                 .background(Color(0xFF6E96B8)),
         )
-        // ────── 中央の大きな1文字 ──────
-        Text(
-            text = displayChar,
-            fontSize = 36.sp,
-            fontWeight = FontWeight.Bold,
-            color = textColor.copy(alpha = 0.90f),
-            modifier = Modifier.align(Alignment.Center),
-        )
-        // 著者名はカード本文（書影の外）に一本化したため、カバー内には描画しない
+        // ────── 書影下部の明朝タイトル（グリッドのみ）──────
+        // モック .cv .ttl-in: 下寄せ・左 padding は藍ルール(左10dp)を避けて 22dp、明朝 14sp・3行省略。
+        // 暗色スラブ上の白文字を確実に読ませるため text-shadow（モック相当）を載せる。
+        if (showTitle) {
+            Text(
+                text = title.ifEmpty { "（無題）" },
+                fontFamily = MinchoFamily,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 19.sp,
+                color = Color.White,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                style = TextStyle(
+                    shadow = Shadow(
+                        color = Color.Black.copy(alpha = 0.35f),
+                        offset = Offset(0f, 1f),
+                        blurRadius = 3f,
+                    ),
+                ),
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 22.dp, end = 14.dp, bottom = 16.dp, top = 14.dp),
+            )
+        }
     }
 }
