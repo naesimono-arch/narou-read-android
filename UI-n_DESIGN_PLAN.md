@@ -165,5 +165,5 @@ HTMLカタログ＝見た目の決定 → Claude Code が翻訳 → 実機で確
 
 - **色は必ず `Color.kt` / `Theme.kt` 経由（直書き禁止）。** 採用案でトークン体系ごと作り替えてよいが、Composable への色の直書きはしない（白紙設計はトークンの *中身* を変える作業で、トークン経由という *構造* は維持する）。
 - **Atomic commit / why コメント。** 1論理変更＝1コミット（`fix/feat/refactor: 要約`、`Co-Authored-By` は付けない、commit 前に差分提示し承認）。自明でない設計判断には「なぜこの値/構図にしたか」を残す。
-- **記録の置き場（混ぜない）**: 採用した視覚言語・確定値の *現況* は `STATUS.md`、次にやる詰め・取りこぼしは `handover.md`、腐りにくい設計判断（Why-not 含む）は `task_diary.md`／過去プランは `.claude/plans/`。本 md はフェーズ進行の作業指示書として保つ。
+- **記録の置き場（混ぜない）**: 採用した視覚言語・確定値の *現況* は `STATUS.md`、次にやる詰め・取りこぼしは `handover.md`、腐りにくい設計判断（Why-not 含む）は `docs/decisions/`（ADR）／過去プランは `.claude/plans/`。本 md はフェーズ進行の作業指示書として保つ。
 - **構成を変えるリファクタ後はスキル陳腐化チェック**（`.claude/skills/` 特に `architecture`）。白紙設計で画面構造を組み替えたら `/stale-check` で md・スキルのズレを点検。

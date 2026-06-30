@@ -51,9 +51,9 @@ if not should_remind:
 
 print(
     "[task_diary 想起] この変更に、コードコメントでは伝わらない知見はあるか？\n"
-    "  ・根本原因／OEM固有動作／将来はまりやすいパターン → あれば task_diary.md に追記。\n"
-    "  ・追記先のパート: Part I=外部プラットフォームの事実 / Part II=本アプリ実装(なぜに絞る) /"
-    " Part III=設計判断・Why-not。\n"
+    "  ・根本原因／OEM固有動作／将来はまりやすいパターン → あれば記録。\n"
+    "  ・置き場: 外部プラットフォームの事実→task_diary.md / 実装パターン→docs/patterns/ /"
+    " 設計判断・Why-not→docs/decisions/(ADR)。\n"
     "  ・既存エントリと重複、または自明なら追記不要。"
 )
 sys.exit(0)
