@@ -26,15 +26,18 @@
 - **フェーズ0完了＝D「和モダン・余白」をデフォルト視覚言語に採用。** 本棚案A〜Jの10案を作り横並び選定した結果。詳細・モック地図・なぜDかは `UI-n_DESIGN_PLAN.md`（§3 フェーズ0結果・§6.1）が正本。
 - **方針確定（2026-06-27・ユーザー指示）＝UIスキン着せ替え（A〜J 選択）はまだ実装しない。main は現状 D のみ。** A〜J は資産として claude.ai/design に保持するが、スキン切替機能は将来送り。
 - **第2バッチ（2026-06-27 実施済み）**: ① D で読書・目次・読書設定をHTMLモック化＝**完了**（`ui-n-phase0/reading-D.html`・`toc-D.html`・`settings-D.html` を push）。読書は3テーマ（ライト/セピア/ダーク）＋クローム表示/没入の見た目を併記、目次は現在章=左藍ルール＋淡背景＋明朝太字＋空状態、設定シートはテーマ3択（藍選択）/文字サイズ/行間。
-- **第3バッチ進行中（Compose翻訳の一部完了）**: `Color.kt`(`cb09392`)・`Theme.kt` の `ReadingColors`(`c6da6cf`)・`BookCover.kt` 自動書影(`20dcc00`)・読書 hr 区切り(`cd4853f`)を D 化済み。`BookshelfScreen.kt` は書影まわりを一部 D 化。未着手＝`Typography.kt`(D明朝)・`NativeTableOfContentsScreen.kt`(目次)。
-- **次にやること（方針転換・2026-06-30）**: 画面を増やす前に、**実機での D 再現が「お粗末」なのを実機確認→調整ループで仕上げ切る**。実機スクショ↔D モック(`ui-n-phase0/*-D.html`)を突合し差分を潰す。手順書＝`.claude/plans/ui-n-D-completion-loop-HANDOVER-2026-06-30.md`（**次セッションは必ず UI-n 上で起動**＝ブランチ跨ぎ hook 破綻回避）。色は `Color.kt`/`Theme.kt` 経由＝直書き禁止。
+- **第3バッチ・D実機ループ（2026-06-30〜07-01 進行中）**: 実機スクショ↔Dモック突合でCompose翻訳を仕上げ中。
+  - 完了: `Color.kt`(`cb09392`)/`Theme.kt`(`c6da6cf`)/`BookCover.kt`(`20dcc00`)/読書hr(`cd4853f`) ＋ **① 本棚 D完全準拠**(`461cf7c`：フラット編集・明朝題字・書影下部タイトル・藍進捗/青磁未読・⋮メニュー化) ＋ **③ 読書 章見出し明朝＋藍ルール・前書き後書きラベル藍**(`35eae10`) ＋ **テーマ単一正本同期**(`e93d2eb`：本棚⋮/設定シートどちらでも切替→全体追従。セピアは本棚ライト流用)。
+  - 残＝**④ `Typography.kt` D明朝の土台仕上げ**（`MinchoFamily`トークンは導入済・本文/題字はSerif化済だが全画面の階層詰めは残）／**⑤ 目次 `NativeTableOfContentsScreen.kt`(toc-D)**（未着手）／**⑥ 設定シート(settings-D)突合**。
+  - 手順書＝`.claude/plans/ui-n-D-completion-loop-HANDOVER-2026-06-30.md`（**必ず UI-n 上で起動**＝ブランチ跨ぎ hook 破綻回避）。色は `Color.kt`/`Theme.kt` 経由＝直書き禁止／字面は `Typography.kt`。
+  - 環境知見: WSLビルドを実機へ上書きinstallするには Windows debug.keystore の共有が要る → memory [[wsl-debug-keystore-share-for-install]]。
 - **将来送り（保留・元第2バッチ②③）**: 「UI着せ替え」設定画面のモック化（選択肢=A〜J・既定=D・切替粒度の決定）／A〜J スキンの Compose 実装（スキン×読書テーマの関係・トークン体系）。スキン機能に着手する時はここから再開する。
 - モック正本は claude.ai/design プロジェクト `Novel Reader UI`（projectId `bb5a35c8-70ac-4efa-bb03-1579d3f11d93`）の `ui-n-phase0/` 配下。`DesignSync: get_file` で再取得可。
 
 ## B. 本棚
 
 - **案B 詰め直しアニメ復活**: 案Aで `animateItemPlacement()` を削除し重なりバグは解消済（代償で削除時の詰め直しアニメが消えた）。Compose BOM `2024.04.01`→`2024.09+` に上げ、削除箇所を新API `Modifier.animateItem()` で置換。**リスク大＝全画面回帰必須**（BOMは全Composeモジュールの版を一括決定）。対象 `android/app/build.gradle`(BOM 2か所), `BookshelfScreen.kt:252` 付近の理由コメントが正本。
-- **11 本棚テーマ追従**（見送り）: 本棚=`NovelReaderTheme`(system dark追従)/読書=`ReadingTheme` で別系統。全画面回帰要。着手点=`BookshelfScreen` の `surface/primary` を読書LIGHT/DARKトーンへ寄せるか、温かい黒 `0xFF1C1916` 固定かをまず決める。
+- ~~**11 本棚テーマ追従**（見送り）~~ → **解消済み（2026-07-01・`e93d2eb`）**: テーマ正本を `MainActivity` へ巻き上げ、本棚(`NovelReaderTheme(darkTheme=theme==DARK)`)も読書も単一の `ReadingTheme` 正本に追従。本棚⋮メニュー/読書設定シートのどちらで変えても全体同期。セピアは本棚ライト流用（専用セピア本棚は将来拡張の余地）。
 
 ## C. UI見送りサブ（2026-06-25 スコープ外決定）
 
