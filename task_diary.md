@@ -2,10 +2,10 @@
 
 > **重要度凡例**: ★★★ Critical（バグ/クラッシュ/動作不可に直結） ★★ Important（特定条件下で問題発生）
 >
-> **構成（3パート）**: 知見を「腐敗耐性」で分けている。追記時はどのパートに属すか判断すること。
-> - **Part I — 外部プラットフォームの事実・落とし穴**: Android/OEM/Chaquopy/pdfminer/Gradle/Room 等、**コードと無関係に真**で「はまったら引く」もの。ほぼ腐らない。
-> - **Part II — 本アプリ固有の実装パターン**: **コードが正本**。実装が変わったらコード側を直し、ここは「なぜこのパターンか」とコード/コミット参照に絞る（コードのコピーを増やさない）。
-> - **Part III — 設計判断・運用メモ**: 「なぜその代替を採らなかったか」等。Why-not は将来 `docs/decisions/`（ADR）へ寄せる候補。
+> **本ファイルの役割**: 外部プラットフォームの事実・落とし穴（Android/OEM/Chaquopy/pdfminer/Gradle/Room 等、**コードと無関係に真**で「はまったら引く」もの）の引き場。ほぼ腐らない知見に絞る。
+> - 本アプリ固有の**実装パターン**（コードが正本）→ `docs/patterns/`
+> - **設計判断・Why-not**（なぜその代替を採らなかったか）→ `docs/decisions/`（ADR）
+> - 旧 Part II / Part III はそれぞれ上記へ移設済み。固定ID（`§N`）の対応は末尾の「移設マッピング」を参照。
 >
 > ※ 各エントリ番号（#1〜）は他文書・表内参照（`§N`）の固定IDのため、リナンバーしないこと。
 
@@ -299,7 +299,9 @@ JSON の構造文字（`{ } " :`）と ASCII はそのまま読めるので **js
 
 ### Room / DB
 
-#### 19. Room Migration 前に PRAGMA table_info でカラムを確認する  ★★★
+#### 27. Room Migration 前に PRAGMA table_info でカラムを確認する  ★★★
+
+> ※ 旧 `#19`。非ASCIIパス項（上記 §19）と番号が重複していたため `#27` へ採番（ライブ `§19` 参照は無し）。
 
 Migration SQL を書く前に端末 DB の実際のカラム名を `PRAGMA table_info(テーブル名)` で確認すること。
 フレッシュインストール端末は version 据え置きのまま新スキーマで DB が作られるため、
@@ -315,103 +317,14 @@ Migration SQL を書く前に端末 DB の実際のカラム名を `PRAGMA table
 
 ---
 
-## Part II — 本アプリ固有の実装パターン（コードが正本）
+## 移設マッピング（旧 Part II / Part III の固定ID対応）
 
-> ここは**コードが正本**。実装の詳細はコードを読めば分かるので、本パートは「**なぜこのパターンを選んだか**」とコード/コミット参照に絞る。実装が変わったら**コード側を直し**、ここのコピーは増やさないこと（二重管理を避ける）。
+> 旧エントリ番号（`§N`）は固定ID。本ファイルから `docs/` へ移設したものは下表で追跡する（移設先での再採番はしない）。
 
-### 21. ProcessingStateへの一本化パターン
-
-`_isProcessing: Boolean` を `ProcessingState(isProcessing, percent, phase)` に置き換えると、
-「処理中かどうか」「何%か」「どのフェーズか」を単一のStateFlowで管理でき、UI側の collectAsState も1箇所で済む。
-try/finally で成功・失敗いずれの場合も `ProcessingState()` にリセットされるよう保証すること。
-
----
-
-### 23. Service内キュー+シングルループ処理パターン  ★★
-
-複数の URI が短時間に `onStartCommand()` に来ても無言破棄せず直列処理するパターン。
-
-```kotlin
-private val lock = ReentrantLock()
-private val uriQueue = ArrayDeque<Uri>()
-private var isLoopRunning = false
-
-override fun onStartCommand(intent: Intent?, ...): Int {
-    val uri = intent.data ?: return START_NOT_STICKY
-    val shouldStart = lock.withLock {
-        uriQueue.add(uri)
-        if (!isLoopRunning) { isLoopRunning = true; true } else false
-    }
-    if (shouldStart) startProcessingLoop()
-    return START_NOT_STICKY
-}
-```
-
-**設計のポイント**:
-- `lock.withLock {}` で「追加+起動判定」と「取り出し+終了判定」をアトミック化することで競合ゼロ
-- `isLoopRunning` フラグで多重起動を防止。ループ終了時に `isEmpty()` の確認と同一ロックで行う
-- WakeLock はフィールドではなくローカル変数で管理（フィールド共有だと旧ループが誤解放するリスクがある）
-- **WakeLock は「ループ全体で1回」ではなく「PDF 1件ごと」に acquire/release する**。`acquire(10*60*1000)` の10分上限はバッチ総処理時間とは無関係で、ループ単位で1度だけ取ると複数 PDF の合計が10分を超えた時点で自動解放され、OPPO 等にバックグラウンド kill されて残り PDF が孤立する（§4 の WakeLock 不十分問題とは別軸の「取得粒度」の話）
-- ループが例外で破綻した場合の finally ブロックで `isLoopRunning = false` のフェイルセーフが必要
-
-コード: `PdfProcessingService.kt`（65abfe4 で導入）
-
----
-
-### 24. TopAppBar オーバーレイ化 + NestedScrollConnection 非消費パターン  ★★
-
-`enterAlwaysScrollBehavior` をそのまま `Scaffold` に渡すと、スクロールを横取りして
-LazyColumn の `contentPadding` が再計算され本文が揺れる問題がある。
-
-**解決パターン**: `Scaffold` の外側の `Box` に TopAppBar をオーバーレイで重ね、
-バーの動きは `graphicsLayer { translationY }` で制御する。
-
-```kotlin
-Box(modifier = Modifier.fillMaxSize()) {
-    Scaffold(
-        modifier = Modifier.nestedScroll(nonStealingConnection),
-        // TopAppBar は Scaffold の topBar に渡さない
-    ) { ... }
-
-    TopAppBar(
-        modifier = Modifier.graphicsLayer {
-            translationY = topAppBarState.heightOffset
-        },
-        scrollBehavior = scrollBehavior, // heightOffsetLimit 計測のために維持
-    )
-}
-```
-
-**NestedScrollConnection の実装方針**:
-- `onPreScroll`: 下スクロール時にバーを追従させるが `Offset.Zero` を返して消費しない
-- `onPostScroll`: 上スクロール時は本文が実際に動いた分だけバーを復元
-- `onPostFling`: 慣性終了後に `settleTopBar()` を呼んで全表示/全非表示へスナップ
-
-標準の snap は消費戦略と一体化しているため自前実装が必要。
-`scrollBehavior = null` にすると `heightOffsetLimit` が測定されず追従計算が壊れるため、
-`scrollBehavior` は引き続きバーに渡し続けること。
-
-コード: `NativeReadingScreen.kt`（8a27999, 2662bf6 で導入）
-
----
-
-## Part III — 設計判断・運用メモ
-
-### 20. Atomic Commitは実装順序から設計する
-
-複数コミットに分けることを事前に決めていた場合は、**コミット単位に合わせた実装順序**で進める。
-（例: まず③④のファイルのみ変更してコミット → 次に⑦のファイルを変更してコミット）
-後から `git add -p` で分割しようとすると、異なる変更が同一ハンクになって分割不能になることがある。
-
----
-
-### 22. 意図的に採用しなかったアーキテクチャとその理由
-
-> ※ **Why-not**（なぜその代替を採らなかったか）。本来 `docs/decisions/`（ADR）向きの内容で、ADR を導入したら移設する候補。
-
-#### Hilt（DIフレームワーク）
-**不採用**。依存グラフが `Application → Repository → ViewModel` の一直線に近く、手動DIで10分以内に管理可能な規模。
-
-#### UseCase層（Clean Architecture的な中間層）
-**不採用**。ビジネスロジックの大部分がPython（`app.py` 以下）にカプセル化されており、KotlinはUseCase層を設けても `repository.xxx()` を呼ぶだけの薄いラッパーになる。
-ViewModel → Repository 直結の素直なMVVMを採用。
+| 旧ID | 内容 | 移設先 |
+|---|---|---|
+| §20 | Atomic Commit は実装順序から設計する | `docs/decisions/0003-atomic-commit-from-impl-order.md` |
+| §21 | ProcessingState への一本化 | `docs/patterns/processing-state.md` |
+| §22 | Hilt / UseCase 層 不採用（Why-not） | `docs/decisions/0001-no-hilt.md` ・ `docs/decisions/0002-no-usecase-layer.md` |
+| §23 | Service 内キュー + シングルループ処理 | `docs/patterns/service-queue-loop.md` |
+| §24 | TopAppBar オーバーレイ化 + NestedScrollConnection 非消費 | `docs/patterns/topappbar-overlay.md` |
