@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.lazy.LazyColumn
@@ -746,6 +747,11 @@ private fun ChapterContent(
             bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 80.dp,
         ),
     ) {
+        // 章見出し（モック reading-D .chap-h）: 章タイトルを明朝で中央寄せ＋藍の短ルール。
+        // なぜ本文先頭に置くか: 没入時はトップバーが隠れるため、ここが唯一の章タイトル表示になる。
+        item {
+            ChapterHeader(title = content.title, colors = colors, fontSize = fontSize)
+        }
 
         // 段落ごとにレンダリング
         items(paragraphs) { paragraph ->
@@ -760,6 +766,43 @@ private fun ChapterContent(
             )
         }
         // 旧 Spacer(80dp) は上の contentPadding.bottom へ移行（バー実高＋ナビバー実高で算出）
+    }
+}
+
+/** 章見出し（モック reading-D .chap-h）。章タイトルを明朝で中央寄せし、下に藍の短いルールを引く。 */
+@Composable
+private fun ChapterHeader(
+    title: String,
+    colors: ReadingColors,
+    fontSize: Int,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .widthIn(max = 600.dp)
+            .padding(horizontal = 15.dp)
+            .padding(top = 14.dp, bottom = 26.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = title,
+            fontFamily = FontFamily.Serif,
+            // 本文よりわずかに大きい見出しサイズ。ユーザーの文字サイズ設定にも追従させる。
+            fontSize = (fontSize + 2).sp,
+            fontWeight = FontWeight.SemiBold,
+            lineHeight = 1.6.em,
+            color = colors.text,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(15.dp))
+        // 藍の短いルール（48dp×2dp）。モック .chap-h .rule（--rule 藍 opacity .85）。
+        // colors.hr は素地に溶けた淡い区切り用のため、見出しには濃い藍 colors.accent を使う。
+        Box(
+            modifier = Modifier
+                .width(48.dp)
+                .height(2.dp)
+                .background(colors.accent.copy(alpha = 0.85f)),
+        )
     }
 }
 
@@ -835,7 +878,8 @@ private fun ParagraphItem(
                 Column(modifier = Modifier.padding(15.dp)) {
                     Text(
                         text = block.label,
-                        style = bodyStyle.copy(fontWeight = FontWeight.Bold),
+                        // モック .block .lbl: ラベルは藍（accent）。本文インク色ではなくアクセントで小見出し化する。
+                        style = bodyStyle.copy(fontWeight = FontWeight.Bold, color = colors.accent),
                         modifier = Modifier.padding(bottom = 4.dp),
                     )
                     innerParagraphs.forEach { innerPara ->
