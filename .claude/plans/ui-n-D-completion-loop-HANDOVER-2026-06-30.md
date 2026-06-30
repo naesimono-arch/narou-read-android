@@ -91,3 +91,16 @@ UI-n の「視覚言語D（和モダン・余白）」は配色・読書テー�
 - 本 HANDOVER 作成＋`handover.md` A2 を「画面網羅翻訳」から「実機ループで D 仕上げ」へ更新。
 - **これらのドキュメント変更は §5 の hook 破綻で未コミット**（working tree に残置）。
   次セッション（UI-n 起動）で内容確認のうえ `docs:` 単独コミットすること。
+
+## 7. 環境レディ検証（2026-06-30・UI-n 起点セッションで実施＝Bash 正常）
+
+「ループを回せる環境」を検証済み。次セッションは下記コマンドでそのまま①本棚から走れる。
+
+- ✅ §6 の滞留 doc を `docs:`(`9f32947`) で確定。機械固有2ファイルを `.gitignore` する `chore:`(`8878ce0`) も実施（`statusline-local.sh`/`.monthly_cost_cache` の `??` 解消）。
+- ✅ 実機ブリッジ ライブ: `~/.local/bin/adb devices` → `192.168.1.210:5555 device`（PGEM10）。落ちたら `~/.local/bin/adb-bridge`（USB 接続要）。
+- ✅ ビルド健全性: `assembleDebug` BUILD SUCCESSFUL（AAPT2 段=`processDebugResources` 通過＝ext4 init 有効）。
+  生成 APK ＝ **`/home/qingj/ext-build/novel-reader/app/outputs/apk/debug/app-debug.apk`**（init が `:app` の buildDir を ext4 直下へ退避するため `app/outputs/…`。`app/build/outputs/…` ではない）。
+- ⚠️ **落とし穴（実地で踏んだ）**: Bash ツールの非対話シェルは `~/.bashrc` を読まない。`gw` 関数も `~/.local/bin` も PATH に無いため、
+  - ビルドは `bash -ic 'cd …/android && gw --init-script /home/qingj/ext-build/novel-reader-init.gradle assembleDebug'`（`-i` で `.bashrc` を読ませ本物の `gw`＋環境変数を使う）。
+  - adb は **フルパス `~/.local/bin/adb`**（vendor-key ラッパー）で呼ぶ。生の `~/Android/Sdk/platform-tools/adb` は鍵/接続が無く端末が見えない。
+- 次セッションの着手: `~/.local/bin/adb install -r /home/qingj/ext-build/novel-reader/app/outputs/apk/debug/app-debug.apk` → 起動 → §3 ループへ。
