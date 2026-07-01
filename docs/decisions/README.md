@@ -11,3 +11,4 @@
 | [0001](0001-no-hilt.md) | Hilt（DIフレームワーク）不採用 | §22 |
 | [0002](0002-no-usecase-layer.md) | UseCase 層（Clean Architecture 中間層）不採用 | §22 |
 | [0003](0003-atomic-commit-from-impl-order.md) | Atomic Commit は実装順序から設計する | §20 |
+| [0004](0004-branch-aware-memory-and-doc-architecture.md) | ブランチ非依存 auto-memory への対処＋doc アーキテクチャ | — |

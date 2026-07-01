@@ -1,4 +1,4 @@
-# 0001. ブランチ非依存な auto-memory への対処（branch-aware-memory）と doc アーキテクチャ
+# 0004. ブランチ非依存な auto-memory への対処（branch-aware-memory）と doc アーキテクチャ
 
 - ステータス: Accepted
 - 日付: 2026-06-29
