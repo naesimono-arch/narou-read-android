@@ -13,7 +13,7 @@
 
 ## 1. 完了済み
 
-- **lab検証 CP1〜CP7 全完了**（実機確認済, 2026-06-25）。詳細一次情報 = `.claude/plans/lab-verification-HANDOVER-2026-06-23-v2.md`（アーカイブ）。
+- **lab検証 CP1〜CP7 全完了**（実機確認済, 2026-06-25）。<!-- 詳細アーカイブ .claude/plans/lab-verification-HANDOVER-2026-06-23-v2.md は全git履歴に存在せず張替え先も無いため参照リンクを削除（存在しないファイルを指す台帳を放置しない, CLAUDE.md rule 18）。 -->
 - **UI改善 01〜10 全完了**（各項目とも実機目視OK）。詳細 = `.claude/plans/ui-fixes-HANDOVER-2026-06-24.md`（アーカイブ）。コミット表（新しい順）:
 
   | 項目 | commit | 内容 |
