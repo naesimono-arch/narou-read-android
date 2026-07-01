@@ -7,6 +7,7 @@ import json
 import sys
 import shutil
 import subprocess
+import re
 
 try:
     data = json.load(sys.stdin)
@@ -45,6 +46,13 @@ for path in paths:
                 open_path = win
         except Exception:
             pass  # 変換不能なら元パスで試行(最悪 Windows で開けないだけで操作は止めない)
+    # Windows版 VS Code(code) が開けるのは実ドライブパス(C:\... 等)のみ。
+    # /home 配下(ext4)の auto-memory/plan ファイルは wslpath -m で \\wsl.localhost\...(UNC)へ化け、
+    # Windows 側で (1) allowedUNCHosts 確認プロンプト (2) ext4越しの脆いオープン を招く＝この用途では誤り。
+    # 根本対処: ドライブレター始まりの Windows パスへ変換できたものだけ開く
+    # (UNC・未変換Linuxパスは握り潰しでなく「開く対象外」として明示的にスキップ)。
+    if not re.match(r"^[A-Za-z]:[\\/]", open_path):
+        continue
     try:
         # Windows では code.cmd なので shell=True が必要
         # shell=False だと FileNotFoundError になり静かに失敗する
