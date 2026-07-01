@@ -631,7 +631,10 @@ private fun ReadingSettingsSheet(
             Text(
                 text = "表示設定",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
+                // モック settings-D .sheet h2: 明朝・weight600・字間.08em
+                fontFamily = MinchoFamily,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.08.em,
             )
             Spacer(Modifier.height(16.dp))
             Text(
