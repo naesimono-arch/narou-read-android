@@ -18,7 +18,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -27,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.model.TextSegment
+import com.novelreader.ui.theme.MinchoFamily
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
@@ -60,7 +60,7 @@ fun RubyText(
         // ルビ分の余白を lineHeight で確保する
         // なぜ 2.5em か: 親文字(1em) + ルビ(~0.5em) + 上下余白で約 2.5em が最適
         lineHeight = 2.5.em,
-        fontFamily = FontFamily.Serif,
+        fontFamily = MinchoFamily,
         letterSpacing = 0.sp,
     ),
     rubyFontSizeRatio: Float = 0.5f,
@@ -194,7 +194,7 @@ private fun RubyTextPreview_Bold() {
         style = TextStyle(
             fontSize = 18.sp,
             lineHeight = 2.5.em,
-            fontFamily = FontFamily.Serif,
+            fontFamily = MinchoFamily,
             fontWeight = FontWeight.Normal,
             letterSpacing = 0.sp,
         ),

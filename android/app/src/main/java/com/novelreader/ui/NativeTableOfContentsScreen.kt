@@ -33,11 +33,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.model.TocEntry
+import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 
 /**
@@ -62,7 +62,7 @@ fun NativeTableOfContentsScreen(
         containerColor = colors.background,
         topBar = {
             TopAppBar(
-                title = { Text("目次", fontFamily = FontFamily.Serif) },
+                title = { Text("目次", fontFamily = MinchoFamily) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateToBookshelf) {
                         Icon(
@@ -91,7 +91,7 @@ fun NativeTableOfContentsScreen(
                 Text(
                     text = "章が見つかりません",
                     color = colors.textSecondary,
-                    fontFamily = FontFamily.Serif,
+                    fontFamily = MinchoFamily,
                 )
             }
         } else {
@@ -139,7 +139,7 @@ fun NativeTableOfContentsScreen(
                                     text = entry.title.ifEmpty { "第${index + 1}章" },
                                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
                                     fontSize = 16.sp,
-                                    fontFamily = FontFamily.Serif,
+                                    fontFamily = MinchoFamily,
                                     fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
                                     lineHeight = 24.sp,
                                     // 現在読んでいる章はアクセント色＋太字で示す

@@ -78,7 +78,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -93,6 +92,7 @@ import com.novelreader.model.TextSegment
 import com.novelreader.model.TocEntry
 import com.novelreader.parser.ChapterHtmlParser
 import com.novelreader.ui.compose.RubyText
+import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.colors
@@ -545,7 +545,7 @@ private fun ChapterScreen(
                 when (val r = parseResult) {
                     is ParseResult.Success -> Text(
                         text = r.content.title,
-                        fontFamily = FontFamily.Serif,
+                        fontFamily = MinchoFamily,
                         fontSize = 16.sp,
                         maxLines = 1,
                         // 長い章タイトルは文字途中で切らず末尾を「…」で省略する
@@ -672,7 +672,7 @@ private fun ReadingSettingsSheet(
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // 両端の「あ」はスライダーの効果（最小・最大の文字サイズ）を視覚的に示す
-                Text("あ", fontSize = 14.sp, fontFamily = FontFamily.Serif)
+                Text("あ", fontSize = 14.sp, fontFamily = MinchoFamily)
                 Slider(
                     value = fontSize.toFloat(),
                     onValueChange = { onFontSizeChange(it.roundToInt()) },
@@ -683,7 +683,7 @@ private fun ReadingSettingsSheet(
                         .weight(1f)
                         .padding(horizontal = 12.dp),
                 )
-                Text("あ", fontSize = 24.sp, fontFamily = FontFamily.Serif)
+                Text("あ", fontSize = 24.sp, fontFamily = MinchoFamily)
             }
             Spacer(Modifier.height(24.dp))
             Text(
@@ -694,7 +694,7 @@ private fun ReadingSettingsSheet(
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // 両端の「狭／広」で行間スライダーの効果を視覚的に示す
-                Text("狭", style = MaterialTheme.typography.labelMedium, fontFamily = FontFamily.Serif)
+                Text("狭", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
                 Slider(
                     value = lineHeightEm,
                     // 0.1em 刻みに丸める。ルビ被り/離れを避けるため狭めレンジ(2.3〜2.8)に固定。
@@ -706,7 +706,7 @@ private fun ReadingSettingsSheet(
                         .weight(1f)
                         .padding(horizontal = 12.dp),
                 )
-                Text("広", style = MaterialTheme.typography.labelMedium, fontFamily = FontFamily.Serif)
+                Text("広", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
             }
         }
     }
@@ -780,7 +780,7 @@ private fun ChapterHeader(
     ) {
         Text(
             text = title,
-            fontFamily = FontFamily.Serif,
+            fontFamily = MinchoFamily,
             // 本文よりわずかに大きい見出しサイズ。ユーザーの文字サイズ設定にも追従させる。
             fontSize = (fontSize + 2).sp,
             fontWeight = FontWeight.SemiBold,
@@ -816,7 +816,7 @@ private fun ParagraphItem(
         // ユーザー設定の行間（em）。RubyText も style=bodyStyle 経由でこの lineHeight を受け取るため、
         // ここ1か所の変更でルビ行にも反映される。可変幅は 2.3〜2.8em に絞ってルビ被り/離れを抑制。
         lineHeight = lineHeightEm.em,
-        fontFamily = FontFamily.Serif,
+        fontFamily = MinchoFamily,
         letterSpacing = 0.sp,
         // なぜ Trim.LastLineBottom か:
         // lineHeight を RubyText 内折り返しとParagraphItem 間で統一するため。
@@ -923,13 +923,13 @@ private fun ReadingErrorScreen(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = "読み込みに失敗しました",
-                fontFamily = FontFamily.Serif,
+                fontFamily = MinchoFamily,
                 fontSize = 16.sp,
                 color = colors.textSecondary,
             )
             Text(
                 text = message,
-                fontFamily = FontFamily.Serif,
+                fontFamily = MinchoFamily,
                 fontSize = 12.sp,
                 color = colors.textSecondary.copy(alpha = 0.75f),
                 modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
