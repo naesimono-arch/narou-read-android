@@ -70,7 +70,7 @@ UI-n の「視覚言語D（和モダン・余白）」は配色・読書テー�
 - **🔴 ブランチ跨ぎ hook 破綻（最重要）**: セッションを `main` 等で起動して `UI-n` へ
   `git checkout` すると、起動時に読まれた main の hook config が UI-n に無いフックファイル
   （`guard_commit_branch.py` 等）を指し、**PreToolUse:Bash が落ちて以降の Bash（=git commit）が
-  全ブロック**される（ADR0001 記載の現象を 2026-06-30 に実地で踏んだ）。
+  全ブロック**される（memory `[[planning-session-outputs-plan-not-execution]]` 記載の現象を 2026-06-30 に実地で踏んだ）。
   → **必ず最初から `UI-n` 上でセッションを起動する**こと（UI-n の settings.json が指すフックは
   UI-n ツリーに存在＝正常動作する）。
 - **main の stash 未処理**: `main` に `stash@{0}`「main: CRLF churn + .gitignore tweak（UI-n切替の退避）」
@@ -81,9 +81,7 @@ UI-n の「視覚言語D（和モダン・余白）」は配色・読書テー�
   `.claude/statusline-local.sh` と `.claude/.monthly_cost_cache` が `??`（未追跡）で出る。
   機械固有ファイルなので **コミット時に誤って `git add` しない**こと。必要なら UI-n の
   `.gitignore` に上記4行を取り込む（独立した `chore:` コミット）。
-- **未追跡スクラッチ**: `UI_FIXES_TODO.md`（lab で対応済みの古いTODO）, `commit_details.md`,
-  `narou_api_manual.md`（Phase3 なろうAPI連携の資料・handover D 参照）, `planmode-bypass-incident.txt`,
-  `アーキテクチャ解説.txt` がツリーに同居。D ループのコミットに混ぜないこと。
+- **未追跡スクラッチ（2026-07-02 整理済み）**: 旧 `UI_FIXES_TODO.md` は `.claude/plans/ui-fixes-HANDOVER-2026-06-24.md` へ移設（STATUS §1 の参照リンク切れも解消）。`commit_details.md`（git log 由来の派生表）と `planmode-bypass-incident.txt`（教訓は memory へ集約）は削除。`narou_api_manual.md`・`アーキテクチャ解説.txt` は既に不在。ツリー上の滞留スクラッチは解消済み。
 
 ## 6. 2026-06-30 引継ぎ作成セッションでやったこと
 
