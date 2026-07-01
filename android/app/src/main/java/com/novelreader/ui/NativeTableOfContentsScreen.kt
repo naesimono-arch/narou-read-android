@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.model.TocEntry
 import com.novelreader.ui.theme.MinchoFamily
@@ -62,7 +63,16 @@ fun NativeTableOfContentsScreen(
         containerColor = colors.background,
         topBar = {
             TopAppBar(
-                title = { Text("目次", fontFamily = MinchoFamily) },
+                title = {
+                    // モック toc-D .topbar h1: 明朝・やや大きめ・字間を開けた「和」の題字
+                    Text(
+                        "目次",
+                        fontFamily = MinchoFamily,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = 0.12.em,
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateToBookshelf) {
                         Icon(
@@ -120,7 +130,7 @@ fun NativeTableOfContentsScreen(
                             .fillMaxWidth()
                             .clickable { onSelectChapter(entry.fileName) },
                         // 現在章は淡いアクセント背景で「面」として示し、文字色だけより見落としにくくする
-                        color = if (isCurrent) colors.accent.copy(alpha = 0.08f) else Color.Transparent,
+                        color = if (isCurrent) colors.accent.copy(alpha = 0.06f) else Color.Transparent,
                     ) {
                         Column {
                             // height(IntrinsicSize.Min) で左バーの fillMaxHeight をテキスト行高に一致させる
