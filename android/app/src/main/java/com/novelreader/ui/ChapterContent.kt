@@ -47,6 +47,7 @@ internal fun ChapterContent(
     colors: ReadingColors,
     fontSize: Int,
     lineHeightEm: Float,
+    bodyMarginDp: Int,
     lazyListState: LazyListState = rememberLazyListState(),
 ) {
     val paragraphs = remember(content) { content.segments.splitIntoParagraphs() }
@@ -55,6 +56,9 @@ internal fun ChapterContent(
         state = lazyListState,
         modifier = Modifier
             .fillMaxSize(),
+        // なぜ中央寄せか: widthIn(max=600dp) が効く広幅端末（タブレット等）で
+        // 本文ブロックが左に張り付くのを防ぐ。スマホ幅では常に全幅なので影響しない。
+        horizontalAlignment = Alignment.CenterHorizontally,
         // なぜ contentPadding で確保するか:
         // TopAppBar がオーバーレイ配置のため Scaffold の innerPadding にバー分が含まれない。
         // Box の padding にすると全画面（ローディング等）に影響しバー非表示時も常に隙間が残る。
@@ -72,7 +76,12 @@ internal fun ChapterContent(
         // 章見出し（モック reading-D .chap-h）: 章タイトルを明朝で中央寄せ＋藍の短ルール。
         // なぜ本文先頭に置くか: 没入時はトップバーが隠れるため、ここが唯一の章タイトル表示になる。
         item {
-            ChapterHeader(title = content.title, colors = colors, fontSize = fontSize)
+            ChapterHeader(
+                title = content.title,
+                colors = colors,
+                fontSize = fontSize,
+                bodyMarginDp = bodyMarginDp,
+            )
         }
 
         // 段落ごとにレンダリング
@@ -84,7 +93,8 @@ internal fun ChapterContent(
                 lineHeightEm = lineHeightEm,
                 modifier = Modifier
                     .widthIn(max = 600.dp)
-                    .padding(horizontal = 15.dp),
+                    // ユーザー設定の左右余白（スマホ幅では実質これが行長を決める）
+                    .padding(horizontal = bodyMarginDp.dp),
             )
         }
         // 旧 Spacer(80dp) は上の contentPadding.bottom へ移行（バー実高＋ナビバー実高で算出）
@@ -97,12 +107,14 @@ private fun ChapterHeader(
     title: String,
     colors: ReadingColors,
     fontSize: Int,
+    bodyMarginDp: Int,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .widthIn(max = 600.dp)
-            .padding(horizontal = 15.dp)
+            // 本文と同じユーザー設定余白に追従させ、見出しと本文の版面を揃える
+            .padding(horizontal = bodyMarginDp.dp)
             .padding(top = 14.dp, bottom = 26.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {

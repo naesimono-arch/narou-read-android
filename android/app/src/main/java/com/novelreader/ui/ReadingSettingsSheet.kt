@@ -40,6 +40,8 @@ internal fun ReadingSettingsSheet(
     onFontSizeChange: (Int) -> Unit,
     lineHeightEm: Float,
     onLineHeightChange: (Float) -> Unit,
+    bodyMarginDp: Int,
+    onBodyMarginChange: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
     // なぜ containerColor/contentColor を読書テーマで明示するか:
@@ -161,6 +163,35 @@ internal fun ReadingSettingsSheet(
                     valueRange = 2.3f..2.8f,
                     // steps = 4 で 2.3〜2.8em を 0.1em 刻みの離散値にする（中間刻み = 区切り数 - 1）
                     steps = 4,
+                    colors = sliderColors,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 12.dp),
+                )
+                Text("広", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
+            }
+            Spacer(Modifier.height(24.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "本文余白",
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = "${bodyMarginDp}dp",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.accent,
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // 両端の「狭／広」で余白スライダーの効果を視覚的に示す
+                Text("狭", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
+                Slider(
+                    value = bodyMarginDp.toFloat(),
+                    onValueChange = { onBodyMarginChange(it.roundToInt()) },
+                    // 10〜40dp を 5dp 刻み（steps=5）。既定 15 がグリッドに乗るレンジ設計
+                    valueRange = 10f..40f,
+                    steps = 5,
                     colors = sliderColors,
                     modifier = Modifier
                         .weight(1f)

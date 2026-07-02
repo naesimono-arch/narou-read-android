@@ -155,6 +155,17 @@ fun ReadingScreen(
         prefs.edit().putFloat("reading_line_height", v).apply()
     }
 
+    // 本文の左右余白（dp）。既定 15 は設定化前の固定値と同じ＝既存ユーザーの見た目を変えない。
+    // スマホ幅では widthIn(max=600dp) が効かず実質この余白だけが行長を決めるため、
+    // 行長を詰めたい要望（旧 backlog C-05/06）はこの1値の設定化で吸収する。
+    var bodyMarginDp by remember {
+        mutableIntStateOf(prefs.getInt("reading_body_margin", 15).coerceIn(10, 40))
+    }
+    val onBodyMarginChange: (Int) -> Unit = { v ->
+        bodyMarginDp = v
+        prefs.edit().putInt("reading_body_margin", v).apply()
+    }
+
     // ステータスバーアイコン色を読書テーマに合わせる。
     // なぜ DisposableEffect か: NovelReaderTheme 側の SideEffect は読書画面から
     // 本棚へ戻ったときに再実行される保証がないため、onDispose で必ず
@@ -238,6 +249,8 @@ fun ReadingScreen(
         onFontSizeChange = onFontSizeChange,
         lineHeightEm = lineHeightEm,
         onLineHeightChange = onLineHeightChange,
+        bodyMarginDp = bodyMarginDp,
+        onBodyMarginChange = onBodyMarginChange,
         // resolvedFile が「最後に読んだ章」と一致する場合のみスクロール位置を復元する
         initialScrollIndex = if (resolvedFile == restore.targetFile) restore.scrollIndex else 0,
         initialScrollOffset = if (resolvedFile == restore.targetFile) restore.scrollOffset else 0,
@@ -275,6 +288,8 @@ private fun ChapterScreen(
     onFontSizeChange: (Int) -> Unit,
     lineHeightEm: Float,
     onLineHeightChange: (Float) -> Unit,
+    bodyMarginDp: Int,
+    onBodyMarginChange: (Int) -> Unit,
     initialScrollIndex: Int,
     initialScrollOffset: Int,
     onSaveScroll: (index: Int, offset: Int) -> Unit,
@@ -442,6 +457,7 @@ private fun ChapterScreen(
                         colors = colors,
                         fontSize = fontSize,
                         lineHeightEm = lineHeightEm,
+                        bodyMarginDp = bodyMarginDp,
                         lazyListState = lazyListState,
                     )
 
@@ -559,6 +575,8 @@ private fun ChapterScreen(
                 onFontSizeChange = onFontSizeChange,
                 lineHeightEm = lineHeightEm,
                 onLineHeightChange = onLineHeightChange,
+                bodyMarginDp = bodyMarginDp,
+                onBodyMarginChange = onBodyMarginChange,
                 onDismiss = { showSettings = false },
             )
         }
