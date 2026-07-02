@@ -127,7 +127,7 @@ internal fun ReadingSettingsSheet(
                 Text("狭", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
                 Slider(
                     value = lineHeightEm,
-                    // 0.1em 刻みに丸める。ルビ被り/離れを避けるため狭めレンジ(2.3〜2.8)に固定。
+                    // 0.1em 刻みに丸める。前行とのルビ被りを避けるため狭めレンジ(2.3〜2.8)に固定。
                     onValueChange = { onLineHeightChange((it * 10).roundToInt() / 10f) },
                     valueRange = 2.3f..2.8f,
                     // steps = 4 で 2.3〜2.8em を 0.1em 刻みの離散値にする（中間刻み = 区切り数 - 1）

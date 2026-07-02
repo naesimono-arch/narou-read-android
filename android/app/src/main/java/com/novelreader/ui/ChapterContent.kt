@@ -142,7 +142,7 @@ private fun ParagraphItem(
         // ユーザー設定の文字サイズ。lineHeight が em（相対値）のため行間も自動でスケールする
         fontSize = fontSize.sp,
         // ユーザー設定の行間（em）。RubyText も style=bodyStyle 経由でこの lineHeight を受け取るため、
-        // ここ1か所の変更でルビ行にも反映される。可変幅は 2.3〜2.8em に絞ってルビ被り/離れを抑制。
+        // ここ1か所の変更でルビ行にも反映される。可変幅は 2.3〜2.8em に絞って前行とのルビ被りを抑制。
         lineHeight = lineHeightEm.em,
         fontFamily = MinchoFamily,
         letterSpacing = 0.sp,
