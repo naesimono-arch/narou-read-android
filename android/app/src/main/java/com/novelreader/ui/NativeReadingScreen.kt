@@ -34,7 +34,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
@@ -520,7 +520,7 @@ private fun ChapterScreen(
                 modifier = Modifier.weight(1f),
             ) {
                 Icon(
-                    imageVector = Icons.Filled.List,
+                    imageVector = Icons.AutoMirrored.Filled.List,
                     contentDescription = "目次",
                 )
             }
