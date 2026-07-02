@@ -168,6 +168,10 @@ def check_hooks_registration():
     for r in sorted(registered - actual):
         add("hooks", "stale", "high", f"settings が参照する '{r}' が .claude/hooks/ に実在しない（壊れた参照）")
     for a in sorted(actual - registered):
+        # test_*.py は hook 本体ではなく回帰テスト（guard/consume の正規表現整合を守る test_hooks.py 等）。
+        # settings に登録しないのが正なので死 hook 判定から除外する（誤検知回避）。
+        if a.startswith("test_"):
+            continue
         add("hooks", "warn", "info", f"'{a}' は実在するが settings に未登録（動いていない死 hook の可能性）")
 
 
@@ -247,7 +251,8 @@ def check_referenced_files():
         for m in re.finditer(r"`([\w./-]+\.(?:md|py))`", txt):
             ref = m.group(1)
             # URL・絶対・plans 配下・ワイルドカード的記述は対象外（誤検知回避）。
-            if ref.startswith(("http", "/")) or ".claude/plans" in ref or "*" in ref:
+            # MEMORY.md は auto-memory の索引で ~/.claude 配下の外部ファイル（リポジトリ内に無いのが正）。
+            if ref.startswith(("http", "/")) or ".claude/plans" in ref or "*" in ref or ref == "MEMORY.md":
                 continue
             if not _ref_exists(ref, d):
                 add("ref", "warn", "info", f"{d} が参照する '{ref}' が見つからない（参照切れの疑い）")
