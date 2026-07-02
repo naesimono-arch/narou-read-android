@@ -6,12 +6,24 @@
 
 ## 0. 現在の状態（一次情報）
 
-- branch=`main` / HEAD=`018779c`（変換まわり機能 A①③④ 実装後・lab を統合）
+- branch=`main` / HEAD=`c5959ae`＋直後のdocsコミット（2026-07-02 単発修正バッチ＝`cleanup-pre-uidesign` を統合。ルビ#1修正・UI god file分割・設定シート磨き・本文余白設定化）
 - 端末DB=`user_version 7`（v6→v7 で `books.addedAt`／`progress.lastReadAt` を追加）。⚠️ **旧APKへ逆走すると `migration N→N-1 not found` でクラッシュ＝逆走禁止**（古い→新しいの一方向のみ）。
-- 既知バグ **#1 ルビ位置ずれ＝未解決**（文字サイズ非依存で常時ずれる。`NativeReadingScreen.kt` のルビ配置 or `html_exporter.py`/`chapter_processor.py` を疑う）。
+- 既知バグ: なし（**#1 ルビ位置ずれは 2026-07-02 解消**＝`90d037a`。根本原因と1.6系APIの制約は `task_diary.md` #28）。
 - 検証ワークフローは `[[workflow-autonomous-device-verification]]`（Claudeがadb自律駆動）/ `[[workflow-notify-each-step-visual-check]]`（各ステップで目視関門）。
 
 ## 1. 完了済み
+
+- **単発修正バッチ完了**（実機確認済, 2026-07-02・`cleanup-pre-uidesign` で実施し main へ統合）。コミット表（新しい順）:
+
+  | 項目 | commit | 内容 |
+  |---|---|---|
+  | 本文余白設定化 (旧C-05+06) | `c5959ae` | 10〜40dpスライダー＋`reading_body_margin` prefs・広幅端末は中央寄せ |
+  | 設定シート磨き (A2残) | `39927b5` | 現在値を右寄せ藍数字化・スライダー目盛りドット非表示（`task_diary` #29） |
+  | コメント整合 | `89683b3` | ルビ字面アンカー化に伴う行間レンジ why コメント更新 |
+  | androidTest追従 | `8c75ec5` | ReadingScreen テーマ引数追加（`e93d2eb`）への追従漏れでコンパイル不能だったのを修正 |
+  | god file 分割 | `2b7d9ba`/`4900b5c` | 純移動リファクタ。NativeReadingScreen 1018→608行（+ChapterContent/ReadingSettingsSheet/ReadingErrorScreen）、BookshelfScreen 963→417行（+BookCard/ProcessingBanner） |
+  | **バグ#1 ルビ位置ずれ解消** | `90d037a` | ルビを行上端→字面上端アンカーへ（根本原因 = `task_diary` #28） |
+  | 非推奨アイコン | `b71e672` | 目次アイコンを AutoMirrored 化 |
 
 - **lab検証 CP1〜CP7 全完了**（実機確認済, 2026-06-25）。<!-- 詳細アーカイブ .claude/plans/lab-verification-HANDOVER-2026-06-23-v2.md は全git履歴に存在せず張替え先も無いため参照リンクを削除（存在しないファイルを指す台帳を放置しない, CLAUDE.md rule 18）。 -->
 - **UI改善 01〜10 全完了**（各項目とも実機目視OK）。詳細 = `.claude/plans/ui-fixes-HANDOVER-2026-06-24.md`（アーカイブ）。コミット表（新しい順）:
@@ -56,5 +68,5 @@
 
 ## 2. 不具合・観察ログ
 
-- **#1 ルビ位置ずれ**＝未解決（再掲・§0）。
+- ~~**#1 ルビ位置ずれ**~~ → **解消済み（2026-07-02・`90d037a`）**: 根本原因はルビY座標が `getLineTop`（行ボックス上端）基準で、lineHeight 余剰分だけ字面から浮いていたこと。字面上端アンカー（ベースライン＋フォントメトリクス導出）へ修正。実機目視OK（文字サイズ変更にも追尾）。詳細 = `task_diary.md` #28。
 - **#2 章往復で章末着地**（⚠️未確認）: Claude側で2回観察したがユーザー手元で再現せず＝確定バグでない。フレーキー or 操作アーティファクトの可能性。深追い不要だが頭の片隅に。

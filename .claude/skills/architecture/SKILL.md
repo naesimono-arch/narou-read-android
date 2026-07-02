@@ -35,10 +35,13 @@ Pythonファイルはすべて `android/app/src/main/python/` に配置。
 ```
 MainActivity
   └─ NavHost（2ルート: "bookshelf" と "reading/{bookId}/{startFile}"）
-       ├─ ui/BookshelfScreen          — 書籍一覧、PDF選択、処理進捗表示
-       └─ ui/NativeReadingScreen.kt   — 読書画面（公開Composable名は ReadingScreen）
+       ├─ ui/BookshelfScreen.kt       — 書籍一覧、PDF選択（2026-07-02 分割:
+       │    カード= ui/BookCard.kt ／ 処理バナー・空状態= ui/ProcessingBanner.kt）
+       └─ ui/NativeReadingScreen.kt   — 読書画面（公開Composable名は ReadingScreen。2026-07-02 分割:
+            │    本文描画= ui/ChapterContent.kt ／ 設定シート= ui/ReadingSettingsSheet.kt ／
+            │    エラー画面= ui/ReadingErrorScreen.kt）
             ├─ Compose ネイティブ描画（WebViewではない）:
-            │    ChapterHtmlParser で HTML をパース → LazyColumn + RubyText で縦ルビ描画
+            │    ChapterHtmlParser で HTML をパース → LazyColumn + RubyText でルビ描画
             └─ index.html を開いたときは ui/NativeTableOfContentsScreen（目次）を表示
 viewmodel/BookshelfViewModel
   └─ repository/BookRepository   — データアクセス層（Room + Chaquopy呼び出し）

@@ -161,6 +161,30 @@ RubyText(
 
 ---
 
+#### 28. getLineTop は「行ボックス上端」であり字面上端ではない（lineHeight 余剰の分配）  ★★★
+
+Compose の `lineHeight`（em）の余剰スペースは**行上端と字面（グリフ）の間に分配される**。
+そのため `TextLayoutResult.getLineTop()` を基準にオーバーレイ描画（ルビ等）をすると、
+lineHeight に比例した量だけ字面から浮く（バグ#1 ルビ位置ずれの根本原因。
+em 指定だとフォントサイズにも比例するため「文字サイズ非依存で常にずれる」ように見える）。
+
+さらに **Compose 1.6 系（BOM 2024.04）には行単位のベースライン API が無い**
+（`getLineBaseline` は 1.7+。公開は `firstBaseline` / `lastBaseline` / `getLineTop` / `getLineBottom` のみ）。
+単一段落・単一スタイルなら「行0 = firstBaseline ／ 行i = getLineTop(i) + (lastBaseline − 最終行top)」で
+正確に導出できる（行上端→ベースライン距離は全行一様・トリムの影響は先頭行上端のみ）。
+実装 = `RubyLayoutHelper.lineBaseline()`。BOM 1.7+ へ上げたら `getLineBaseline` に置換してよい。
+
+---
+
+#### 29. M3 Slider の steps 目盛りドットは tickColor 透明化で消せる  ★
+
+material3 1.2.x の `Slider` は `steps > 0` で目盛りドットを描くが、
+`SliderDefaults.colors(activeTickColor = Transparent, inactiveTickColor = Transparent)` だけで
+**スナップ挙動を保ったまま**ドットを消せる。カスタム `track` lambda は不要
+（旧 handover に「カスタム track が要る」と書いていたのは誤りだった）。
+
+---
+
 ### Chaquopy / Python統合
 
 #### 11. Chaquopyで使えるのは純Pythonパッケージのみ  ★★★
