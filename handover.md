@@ -48,7 +48,7 @@
 
 ## D. 長期・品質（旧handoverから保全）
 
-- **Chaquopy→Kotlin(PDFBox)ネイティブ化**: プロト評価済（submission-B 採用・完全版完成）。知見 = `[[kotlin-pdfbox-migration-prototype]]` / 回帰基盤 = `[[golden-regression-baseline]]`。完了後 `Dispatchers.IO` で真の並列処理が可能になる。最大の難所＝縦書き列復元・ルビ対応付け・pdfminer が吸収していたエッジケース。
+- **Chaquopy→Kotlin(PDFBox)ネイティブ化**【実アプリ移植は未着手】: A/B評価で **B案が技術的に優位**と判定済（`ab-review/submission-B` に完成形プロトを残置）。**実アプリへの移植自体は未着手の長期backlog**。知見 = `[[kotlin-pdfbox-migration-prototype]]` / 回帰基盤 = `[[golden-regression-baseline]]`。完了後 `Dispatchers.IO` で真の並列処理が可能になる。最大の難所＝縦書き列復元・ルビ対応付け・pdfminer が吸収していたエッジケース。
 - **左右スワイプで章遷移**: 旧 `experiment`/`lab-old` は WebView 実装で流用不可。`HorizontalPager`/`pointerInput` で新規。チューニング知見＝軸ロック(`de60869`)/EMA+isDragging(`a07dd3e`)/距離OR速度複合(`4a0719b`)。元コミット `23b5f33`(main未取り込み)。
 - **BookRepository インターフェース化**（テスト可能化）: 具象直参照＋static シングルトン(Chaquopy/Room)で JVM単体テスト不可。interface 抽出＋`FakeBookRepository`。影響 `BookRepository.kt`/`NovelReaderApplication.kt`。
 - **Phase3 外部連携**: ①内部ブラウザからPDF直接取込＆動線追加 ②「小説家になろう」公式API連携・ランキング表示（`docs/reference/narou_api_manual.md` 参照）。
