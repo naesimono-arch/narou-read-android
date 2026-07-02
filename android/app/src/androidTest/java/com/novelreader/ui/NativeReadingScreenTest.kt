@@ -10,6 +10,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.novelreader.NovelReaderApplication
+import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfViewModel
 import org.junit.After
 import org.junit.Before
@@ -64,6 +65,9 @@ class NativeReadingScreenTest {
                 startFile = "chap_1.html",
                 htmlDirPath = htmlDir.absolutePath,
                 viewModel = viewModel,
+                // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
+                readingTheme = ReadingTheme.LIGHT,
+                onThemeChange = {},
                 onNavigateToBookshelf = {},
             )
         }
@@ -86,6 +90,9 @@ class NativeReadingScreenTest {
                 startFile = "chap_1.html",
                 htmlDirPath = htmlDir.absolutePath,
                 viewModel = viewModel,
+                // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
+                readingTheme = ReadingTheme.LIGHT,
+                onThemeChange = {},
                 onNavigateToBookshelf = {},
             )
         }
@@ -109,6 +116,9 @@ class NativeReadingScreenTest {
                 startFile = "chap_1.html",
                 htmlDirPath = htmlDir.absolutePath,
                 viewModel = viewModel,
+                // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
+                readingTheme = ReadingTheme.LIGHT,
+                onThemeChange = {},
                 onNavigateToBookshelf = {},
             )
         }
@@ -131,6 +141,9 @@ class NativeReadingScreenTest {
                 startFile = "index.html",
                 htmlDirPath = htmlDir.absolutePath,
                 viewModel = viewModel,
+                // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
+                readingTheme = ReadingTheme.LIGHT,
+                onThemeChange = {},
                 onNavigateToBookshelf = {},
             )
         }
@@ -154,6 +167,9 @@ class NativeReadingScreenTest {
                 startFile = "nonexistent_999.html",
                 htmlDirPath = htmlDir.absolutePath,
                 viewModel = viewModel,
+                // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
+                readingTheme = ReadingTheme.LIGHT,
+                onThemeChange = {},
                 onNavigateToBookshelf = {},
             )
         }
@@ -175,6 +191,9 @@ class NativeReadingScreenTest {
                 startFile = "chap_1.html",
                 htmlDirPath = emptyDir.absolutePath,
                 viewModel = viewModel,
+                // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
+                readingTheme = ReadingTheme.LIGHT,
+                onThemeChange = {},
                 onNavigateToBookshelf = {},
             )
         }
@@ -197,6 +216,9 @@ class NativeReadingScreenTest {
                 startFile = "chap_3.html",
                 htmlDirPath = htmlDir.absolutePath,
                 viewModel = viewModel,
+                // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
+                readingTheme = ReadingTheme.LIGHT,
+                onThemeChange = {},
                 onNavigateToBookshelf = {},
             )
         }
@@ -217,6 +239,9 @@ class NativeReadingScreenTest {
                 startFile = "chap_1.html",
                 htmlDirPath = htmlDir.absolutePath,
                 viewModel = viewModel,
+                // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
+                readingTheme = ReadingTheme.LIGHT,
+                onThemeChange = {},
                 onNavigateToBookshelf = {},
             )
         }
