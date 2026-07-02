@@ -13,10 +13,12 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -95,11 +97,29 @@ internal fun ReadingSettingsSheet(
                     )
                 }
             }
-            Spacer(Modifier.height(24.dp))
-            Text(
-                text = "文字サイズ（${fontSize}sp）",
-                style = MaterialTheme.typography.labelMedium,
+            // スライダー共通色。モック settings-D は目盛りドットを持たない細線＋藍フィルのため、
+            // steps のスナップは維持したまま tick 色だけ透明化して視覚的に消す。
+            // フィル/つまみはシート全体と同じく読書テーマの藍（colors.accent）に追従させる。
+            val sliderColors = SliderDefaults.colors(
+                thumbColor = colors.accent,
+                activeTrackColor = colors.accent,
+                activeTickColor = Color.Transparent,
+                inactiveTickColor = Color.Transparent,
             )
+            Spacer(Modifier.height(24.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "文字サイズ",
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                // 現在値は右端の藍数字（モック settings-D の値表示）。ラベル連結より視線移動が少ない
+                Text(
+                    text = "${fontSize}sp",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.accent,
+                )
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // 両端の「あ」はスライダーの効果（最小・最大の文字サイズ）を視覚的に示す
                 Text("あ", fontSize = 14.sp, fontFamily = MinchoFamily)
@@ -109,6 +129,7 @@ internal fun ReadingSettingsSheet(
                     valueRange = 14f..24f,
                     // steps = 9 で 14〜24sp を 1sp 刻みの離散値にする（中間刻み = 範囲幅 - 1）
                     steps = 9,
+                    colors = sliderColors,
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 12.dp),
@@ -116,12 +137,20 @@ internal fun ReadingSettingsSheet(
                 Text("あ", fontSize = 24.sp, fontFamily = MinchoFamily)
             }
             Spacer(Modifier.height(24.dp))
-            Text(
-                // なぜ Locale.US を明示するか: 既定ロケールだと欧州端末等で小数点が
-                // 「2,5」のようにカンマ表記に化けるため、表示を一貫させる。
-                text = "行間（${String.format(Locale.US, "%.1f", lineHeightEm)}）",
-                style = MaterialTheme.typography.labelMedium,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "行間",
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    // なぜ Locale.US を明示するか: 既定ロケールだと欧州端末等で小数点が
+                    // 「2,5」のようにカンマ表記に化けるため、表示を一貫させる。
+                    text = String.format(Locale.US, "%.1f", lineHeightEm),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.accent,
+                )
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // 両端の「狭／広」で行間スライダーの効果を視覚的に示す
                 Text("狭", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
@@ -132,6 +161,7 @@ internal fun ReadingSettingsSheet(
                     valueRange = 2.3f..2.8f,
                     // steps = 4 で 2.3〜2.8em を 0.1em 刻みの離散値にする（中間刻み = 区切り数 - 1）
                     steps = 4,
+                    colors = sliderColors,
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 12.dp),
