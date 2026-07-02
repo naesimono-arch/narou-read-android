@@ -7,6 +7,10 @@
 ## 0. 現在の状態（一次情報）
 
 - branch=`main` / HEAD=`c5959ae`＋直後のdocsコミット（2026-07-02 単発修正バッチ＝`cleanup-pre-uidesign` を統合。ルビ#1修正・UI god file分割・設定シート磨き・本文余白設定化）
+- **⚠️ 別ブランチ作業中: `kotlin`（Chaquopy→Kotlin+PDFBox 移植・handover D 着手／2026-07-03〜）** — main `9c3c500` から分岐。Phase 0-2（垂直スライス＝実機で Kotlin 抽出 1冊通しまで・Chaquopy は残置し revert 可）を実行中。
+  - **完了（3コミット・全て testDebugUnitTest 緑）**: `0a23d53` PDFBox-Android 依存追加（Chaquopy 併存） / `41c3b24` ParserRules・CharBox 移植 / `eae9892` TextProcessor 移植。移植先 `android/app/src/main/java/com/novelreader/pdf/`。
+  - **次**: PdfExtractor → ChapterProcessor(HTML版) → HtmlExporter → PdfBookExtractor facade → 実機スパイク(穴3検証) → 実機フル疎通。
+  - **再開手順の正本 = `~/.claude/plans/kotrin-branch-python-kotrin-graceful-flute.md` の「実行ログ & 別セッション引き継ぎ」**（残タスク詳細・WSLビルドコマンド・環境メモ）。腐りにくい知見は `task_diary.md` #30-32。実機 `192.168.1.210:5555` 接続済み（切れたら `adb-bridge`）。
 - 端末DB=`user_version 7`（v6→v7 で `books.addedAt`／`progress.lastReadAt` を追加）。⚠️ **旧APKへ逆走すると `migration N→N-1 not found` でクラッシュ＝逆走禁止**（古い→新しいの一方向のみ）。
 - 既知バグ: なし（**#1 ルビ位置ずれは 2026-07-02 解消**＝`90d037a`。根本原因と1.6系APIの制約は `task_diary.md` #28）。
 - 検証ワークフローは `[[workflow-autonomous-device-verification]]`（Claudeがadb自律駆動）/ `[[workflow-notify-each-step-visual-check]]`（各ステップで目視関門）。

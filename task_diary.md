@@ -361,6 +361,27 @@ Migration SQL を書く前に端末 DB の実際のカラム名を `PRAGMA table
 
 ---
 
+### PDFBox-Android 移植（Chaquopy→Kotlin ネイティブ化）
+
+#### 30. pdfbox-android は Maven 座標がハイフン・Java パッケージがアンダースコア（逆転の罠）  ★★★
+
+Tom Roush の PDFBox-Android（Chaquopy/pdfminer からの移植先）は、**依存座標とパッケージ名で区切り文字が逆転する**:
+- Maven 座標（build.gradle）: `com.tom-roush:pdfbox-android:2.0.27.0` ← **ハイフン**。`com.tom_roush`（アンダースコア）は Maven Central に存在せず `Could not find` で 404 になる。
+- Java/Kotlin パッケージ名（import）: `com.tom_roush.pdfbox.*` ← **アンダースコア**（Java 識別子にハイフン不可のため）。
+
+移植元プロト submission-B は JVM 版 `org.apache.pdfbox:pdfbox:2.0.31` を使うので、Android 版へは `org.apache.pdfbox.*` → `com.tom_roush.pdfbox.*` の import 差替で移る。**apache-pdfbox 2.0.x と tom-roush 2.0.x は API 1:1**（TextPosition の unicode/xDirAdj/yDirAdj/heightDir/font/fontSizeInPt、PDFTextStripper、上原点座標系が同名同義）なので import 以外はコード無改変で移植できる。バージョンは 2.0.x 系で固定する（Android 版が upstream 2.0.x ベースのため）。
+
+#### 31. pdfbox-android は PDDocument.load 前に PDFBoxResourceLoader.init(context) が要る（実機効果は未検証＝移植の穴3）  ★★★
+
+ToUnicode CMap を持たない CID フォントのグリフ解決に、AAR 同梱の Adobe glyphlist/CMap 資産を使う。そのため **`com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(applicationContext)` を全ての `PDDocument.load` の前に1回**呼ぶ必要がある（`MainActivity.onCreate` の `Python.start` 置換位置か `Application.onCreate`）。フォントは AAR 同梱で手動配布不要。**⚠️ これが実機で正しく効くか（pdfminer と同じ Unicode を返すか）は 2026-07-03 時点で未検証**＝移植の最大リスク「穴3」。submission-B のデスクトップ実測では長編でルビ P/R 約81%・行カバレッジ約93%の残差（波ダッシュ〜/～等の CID→Unicode 差）があり、実機はさらにズレる可能性。実機スパイクで座標・フォントサイズ・グリフを最優先検証すること（[[kotlin-pdfbox-migration-prototype]]）。
+
+#### 32. WSL Bash ツールで Gradle を回す作法（.bashrc 非ロード・sdk.dir 競合・sed 警告）  ★★
+
+`.bashrc` が非対話で early-return するため Bash ツールでは `gw` 関数も `JAVA_HOME` も未定義（[[bash-tool-no-bashrc-gradle-env]]）。加えて `/mnt/c` 上の `local.properties` は Android Studio が `sdk.dir` を Windows パスで書き戻すため、Linux ビルドで競合する。作法:
+- 毎回 `export JAVA_HOME=/home/qingj/opt/jdk-17` ほか（ANDROID_HOME/ANDROID_SDK_ROOT/PATH）を明示し、`java -classpath gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain … --init-script /home/qingj/ext-build/novel-reader-init.gradle <task>` で起動（init script が build/ を ext4 へ逃がし AAPT2 EPERM を回避）。
+- ビルド直前に `sed -i '/^sdk\.dir/d' local.properties` で Windows sdk.dir を除去し、export 済み `ANDROID_HOME`（Linux SDK）へフォールバックさせる（AGP の解決順位 sdk.dir > ANDROID_HOME のため行が在ると環境変数を上書きする）。
+- **`sed -i` は `/mnt/c`(drvfs) で `preserving permissions … Operation not permitted` 警告を出すが置換自体は成功する**（無害・`2>/dev/null` で抑制可）。不可視文字の一括エスケープ化 `sed 's/\xc2\xa0/\\u00a0/g'`（生 NBSP → ` `）も drvfs 警告付きで成功する。
+
 ## 移設マッピング（旧 Part II / Part III の固定ID対応）
 
 > 旧エントリ番号（`§N`）は固定ID。本ファイルから `docs/` へ移設したものは下表で追跡する（移設先での再採番はしない）。
