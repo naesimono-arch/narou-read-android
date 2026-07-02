@@ -1,5 +1,8 @@
 package com.novelreader.pdf
 
+/** 前後書き整形後の章（body は HTML 文字列。移植元 process_foreword_afterword 出力の {title, body:str} 相当）。 */
+data class ProcessedChapter(val title: String, var body: String)
+
 /**
  * 段落リストを話数・前書き・後書きに分割/整形する（移植元 python/chapter_processor.py の HTML 版）。
  *
@@ -8,6 +11,10 @@ package com.novelreader.pdf
  * 章本文は HTML 中間表現のまま生成する。
  */
 object ChapterProcessor {
+
+    // モジュールロード時にコンパイルしておく（移植元 _RUBY_PATTERN と同一パターン）。
+    // Kotlin Regex も既定で貪欲＝Python re と同一マッチ挙動。
+    private val RUBY_PATTERN = Regex("""\|([^《]+)《([^》]+)》""")
 
     /**
      * 段落列を「【題名】プレフィックス」で章に分割する（移植元 split_into_chapters と 1:1）。
@@ -38,5 +45,79 @@ object ChapterProcessor {
         }
 
         return chapters
+    }
+
+    /**
+     * |base《ruby》 マーカーを <ruby> タグへ変換する（移植元 _apply_ruby と 1:1）。
+     * 親文字とルビの長さが一致する場合は 1 文字ずつ紐付ける（zip）。長さが異なる場合はまとめて 1 つの ruby に。
+     *
+     * length/zip は Kotlin では Char 単位＝Python len()/zip の code point 単位と BMP 文字では一致する
+     * （なろう本文は日本語 BMP のため実害なし。非 BMP のサロゲートペアのみ差が出るが対象外）。
+     */
+    private fun applyRuby(text: String): String =
+        RUBY_PATTERN.replace(text) { m ->
+            val base = m.groupValues[1]
+            val ruby = m.groupValues[2]
+            if (base.length == ruby.length) {
+                base.zip(ruby).joinToString("") { (b, r) -> "<ruby>$b<rt>$r</rt></ruby>" }
+            } else {
+                "<ruby>$base<rt>$ruby</rt></ruby>"
+            }
+        }
+
+    /**
+     * Python html.escape(s, quote=True) の忠実移植。
+     * quote=True が Python の既定＝ " と ' もエスケープする。Task 7 HtmlExporter のバイト等価
+     * ゴールデンを Python 出力と一致させるため、既定挙動をそのまま再現する（quote を落とさない）。
+     * 置換順は & を最優先（後続の &lt; 等の & を二重エスケープしないため）＝Python 実装と同一。
+     */
+    private fun htmlEscape(s: String): String =
+        s.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&#x27;")
+
+    /**
+     * 章列の前書き/後書きを畳み込み HTML 本文へ整形する（移植元 process_foreword_afterword と 1:1）。
+     *
+     * 本文は「先に htmlEscape → 後に applyRuby」の順で処理する。なぜこの順か:
+     * 抽出本文の生 < > & をそのまま HTML へ流すと Jsoup パースで本文欠落/タグ崩壊が起きるため先に無害化し、
+     * その後ルビマーカー(| 《 》＝escape 対象外)を <ruby> へ変換する。順序を守れば両者は共存できる。
+     *
+     * 前書き: 次の通常章の先頭へ前置。後書き: 直前の章末へ追記（前章が無ければドロップ）。
+     * div/hr の HTML 文字列は Python f-string とバイト等価に揃える（Task 7 のゴールデンの前提）。
+     */
+    fun processForewordAfterword(chaptersData: List<RawChapter>): List<ProcessedChapter> {
+        val finalChapters = mutableListOf<ProcessedChapter>()
+        var tempForeword = ""
+
+        for (chap in chaptersData) {
+            val title = chap.title
+            val bodyText = applyRuby(htmlEscape(chap.body.joinToString("\n")))
+
+            if ("前書き" in title) {
+                tempForeword = "<div style=\"background-color: #f9f9f9; padding: 15px; " +
+                    "border: 1px solid #eee; margin-bottom: 20px;\">" +
+                    "<b>（前書き）</b><br>$bodyText</div><hr>"
+                continue
+            }
+
+            if ("後書き" in title) {
+                if (finalChapters.isNotEmpty()) {
+                    val afterwordHtml = "<hr><div style=\"background-color: #f9f9f9; padding: 15px; " +
+                        "border: 1px solid #eee; margin-top: 20px;\">" +
+                        "<b>（後書き）</b><br>$bodyText</div>"
+                    finalChapters.last().body += afterwordHtml
+                }
+                continue
+            }
+
+            val fullBody = tempForeword + bodyText
+            finalChapters.add(ProcessedChapter(title, fullBody))
+            tempForeword = ""
+        }
+
+        return finalChapters
     }
 }
