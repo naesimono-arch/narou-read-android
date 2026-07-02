@@ -48,7 +48,7 @@ NovelReaderApplication
   └─ errorState:      MutableStateFlow<String?>
 ```
 
-**重要**: 読書画面は WebView ではなく **Compose ネイティブ描画**（`366f9ea` で WebView 版を削除し
+**重要**: 読書画面は WebView ではなく **Compose ネイティブ描画**（`e82df4a` で WebView 版を削除し
 `NativeReadingScreen` に一本化）。ルビ描画は `ui/compose/RubyText.kt`、HTML解析は
 `parser/ChapterHtmlParser.kt`。目次は NavHost のルートではなく ReadingScreen 内から表示される。
 
@@ -61,7 +61,7 @@ PdfProcessingService（Foreground Service）
 ```
 
 - 進捗は `BookRepository.ProgressCallback`（`fun interface`）経由でUIに通知
-- **多重起動制御は `ReentrantLock` + `ArrayDeque<Uri>` のキュー方式**（`0360ab8` で導入）。
+- **多重起動制御は `ReentrantLock` + `ArrayDeque<Uri>` のキュー方式**（`65abfe4` で導入）。
   処理中に別PDFが追加されてもキューに積まれ、ループが順次処理する（無音破棄しない）。
   「キュー追加+ループ起動判定」と「取り出し+終了判定」を1つの lock でアトミックに保護。
 - OPPO のバックグラウンド強制停止対策として処理ループ中は `PARTIAL_WAKE_LOCK` を保持
