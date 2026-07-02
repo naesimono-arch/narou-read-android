@@ -275,7 +275,7 @@ Kotlinエラーではないため原因が分かりにくい。
 
 ---
 
-### Claude Code フック / Python stdin（Windows）
+### Claude Code フック（stdin 文字化け・出力の届き方）
 
 #### 26. Windows の Python は `sys.stdin` 既定が cp932 → UTF-8 の日本語 stdin が文字化け  ★★
 
@@ -294,6 +294,26 @@ JSON の構造文字（`{ } " :`）と ASCII はそのまま読めるので **js
 **入力側は直らない**点に注意。新フックを既存フックの雛形からコピーするとこの入力側を見落として再発しやすい。
 
 **現状**: `~/.claude/hooks/remind_root_cause.py` は対応済。既存フックは判定が ASCII のため実害なく未変更。
+
+#### 28. PostToolUse の stdout はモデルに届かない → `additionalContext` で注入する  ★★★
+
+**根本原因**: フックの **plain stdout が「Claude のコンテキスト」に入るのは限られたイベントだけ**。
+公式仕様で stdout がコンテキスト追加されるのは `UserPromptSubmit` / `UserPromptExpansion` /
+`SessionStart` のみ。**PostToolUse / PreToolUse 等の stdout はデバッグログ止まり**でモデルには届かない
+（exit 2 の stderr は届くが、それは「ブロック/エラー」を意味するので想起目的には不適）。
+
+**踏んだ実例**: `remind_task_diary.py`（PostToolUse）は `print()` で想起文を出していたが、
+モデルには一度も届いていなかった（＝想起として無意味）。
+
+**対策**: モデルに読ませたいテキストは JSON で `hookSpecificOutput.additionalContext` に載せる。
+PostToolUse はこれをサポートし、ツール結果の隣に system-reminder として注入される。
+```python
+print(json.dumps({"hookSpecificOutput": {
+    "hookEventName": "PostToolUse", "additionalContext": msg}}, ensure_ascii=False))
+```
+**雛形コピー時の罠**: 既存フックの `print(...)`＋exit 0 をそのまま流用すると、ユーザー向け表示の
+つもりでもモデルにもユーザーにも実質届かない（debug ログのみ）。「誰に届けたいか」でイベントと
+出力方式を選ぶこと（#26 の stdin 文字化けと並ぶ、フック自作時の二大ハマりどころ）。
 
 ---
 
