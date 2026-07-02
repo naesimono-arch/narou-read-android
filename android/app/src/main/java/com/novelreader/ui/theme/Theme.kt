@@ -40,7 +40,7 @@ data class ReadingColors(
 val ReadingTheme.colors: ReadingColors
     get() = when (this) {
         // UI-n: 白紙設計で採用した視覚言語 D「和モダン・余白」へ全面差し替え。
-        // なぜ旧クリーム＋朱墨を捨てるか: UI-n は既存配色を踏襲せず作り直す方針（DESIGN_PLAN §0.5）。
+        // なぜ旧クリーム＋朱墨を捨てるか: UI-n は既存配色を踏襲せず作り直す方針（docs/decisions/0005-ui-n-visual-language-D.md）。
         // 値は確定モック ui-n-phase0/reading-D.html から写経し、寒色白×藍ヘアラインで統一する。
         // LIGHT = 素地 #FBFAF8／墨 #1C1F26／アクセント藍 #1C3D5A。
         ReadingTheme.LIGHT -> ReadingColors(

@@ -4,7 +4,7 @@ import androidx.compose.ui.graphics.Color
 
 // ============================================================
 // UI-n: 視覚言語 D「和モダン・余白」へ全面差し替え。
-// なぜ旧「紙と墨・朱墨色」を捨てるか: UI-n は既存配色を踏襲せず白紙で作り直す方針（DESIGN_PLAN §0.5）。
+// なぜ旧「紙と墨・朱墨色」を捨てるか: UI-n は既存配色を踏襲せず白紙で作り直す方針（docs/decisions/0005-ui-n-visual-language-D.md）。
 // 値は確定モック ui-n-phase0/bookshelf-D.html から写経。
 //   素地 #FBFAF8 ／ 墨 #1C1F26 ／ アクセント藍 #1C3D5A ／ 補助 青磁 #9CB3A8 ／ ヘアライン #ECEAE4。
 // 本棚は MaterialTheme.colorScheme をトークン経由で参照するため、この値変更だけで D へ追従する。
