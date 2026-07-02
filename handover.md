@@ -1,4 +1,4 @@
-# handover — やること台帳（lab）
+# handover — やること台帳（main）
 
 > **次に何をやろうか悩んだら、まずここを見る。**
 > 作る予定のもの・あとで拾う思いつき・その場から漏れた取りこぼしを書き溜める場所。
@@ -52,4 +52,4 @@
 - **左右スワイプで章遷移**: 旧 `experiment`/`lab-old` は WebView 実装で流用不可。`HorizontalPager`/`pointerInput` で新規。チューニング知見＝軸ロック(`de60869`)/EMA+isDragging(`a07dd3e`)/距離OR速度複合(`4a0719b`)。元コミット `23b5f33`(main未取り込み)。
 - **BookRepository インターフェース化**（テスト可能化）: 具象直参照＋static シングルトン(Chaquopy/Room)で JVM単体テスト不可。interface 抽出＋`FakeBookRepository`。影響 `BookRepository.kt`/`NovelReaderApplication.kt`。
 - **Phase3 外部連携**: ①内部ブラウザからPDF直接取込＆動線追加 ②「小説家になろう」公式API連携・ランキング表示（`docs/reference/narou_api_manual.md` 参照）。
-- **doc アーキの main↔lab 乖離解消**（2026-07-02 発覚）: doc 再編（task_diary 分割・`docs/decisions`/`patterns`/`reference` 移設・`.claude/plans` アーカイブ化）は **main 先行で lab 未反映**＝規約「整頓は lab で行い他ブランチと乖離させるな」と実態が逆転している。規約どおり lab を現況正本に戻すには、lab へ整った docs 構成を展開する専用 docs 作業が要る（工程を分けるべき未了タスク）。※main 側の綻び（STATUS.md デッドリンク・ADR 0001 二重採番）は 2026-07-02 に解消済み。
+- ~~**doc アーキの main↔lab 乖離**（2026-07-02 発覚）~~ → **解消済み（2026-07-02）**: lab の実質新規（変換 A①③④・DB v7・想起フック修正・実装知見）を main へ論理単位で統合し、doc 正本を main へ一本化・lab を廃止した。規約と実態の逆転（旧「整頓は lab で」）は解消し、以後 doc 整理は main で行う。※main 側の綻び（STATUS.md デッドリンク・ADR 0001 二重採番）も 2026-07-02 に解消済み。
