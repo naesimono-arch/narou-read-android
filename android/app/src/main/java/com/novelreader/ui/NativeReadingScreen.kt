@@ -5,30 +5,14 @@ import android.content.Context
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.material.icons.Icons
@@ -37,24 +21,16 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.BottomAppBar
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarState
 import androidx.compose.material3.rememberTopAppBarState
-import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -77,23 +53,14 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
-import com.novelreader.model.ChapterContent
 import com.novelreader.model.ParseResult
-import com.novelreader.model.TextSegment
 import com.novelreader.model.TocEntry
 import com.novelreader.parser.ChapterHtmlParser
-import com.novelreader.ui.compose.RubyText
 import com.novelreader.ui.theme.MinchoFamily
-import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.colors
 import com.novelreader.viewmodel.BookshelfViewModel
@@ -104,8 +71,6 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.util.Locale
-import kotlin.math.roundToInt
 
 /**
  * ネイティブ読書画面のエントリポイント。
@@ -599,399 +564,6 @@ private fun ChapterScreen(
         }
     }
 }
-
-/** 表示設定ボトムシート（テーマ切替・文字サイズ）。色は読書テーマ（colors）に追従させる */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ReadingSettingsSheet(
-    colors: ReadingColors,
-    readingTheme: ReadingTheme,
-    onThemeChange: (ReadingTheme) -> Unit,
-    fontSize: Int,
-    onFontSizeChange: (Int) -> Unit,
-    lineHeightEm: Float,
-    onLineHeightChange: (Float) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    // なぜ containerColor/contentColor を読書テーマで明示するか:
-    // 未指定だとシート色がシステムテーマ（MaterialTheme.surface）に従うため、
-    // 例えば「システム=ライト・読書テーマ=ダーク」で設定を開くと白いシートがフラッシュする。
-    // 読書中の背景と一致させて違和感とフラッシュをなくす。
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = colors.background,
-        contentColor = colors.text,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp),
-        ) {
-            Text(
-                text = "表示設定",
-                style = MaterialTheme.typography.titleMedium,
-                // モック settings-D .sheet h2: 明朝・weight600・字間.08em
-                fontFamily = MinchoFamily,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.08.em,
-            )
-            Spacer(Modifier.height(16.dp))
-            Text(
-                text = "テーマ",
-                style = MaterialTheme.typography.labelMedium,
-            )
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // values() を使うのは Kotlin バージョン非依存のため（entries は 1.9+）
-                ReadingTheme.values().forEach { theme ->
-                    FilterChip(
-                        selected = readingTheme == theme,
-                        onClick = { onThemeChange(theme) },
-                        label = {
-                            Text(
-                                when (theme) {
-                                    ReadingTheme.LIGHT -> "ライト"
-                                    ReadingTheme.SEPIA -> "セピア"
-                                    ReadingTheme.DARK -> "ダーク"
-                                }
-                            )
-                        },
-                        // 選択色をアクセント(朱)に統一する。
-                        // M3 既定だと secondaryContainer（青鼠）になりアプリの主役色から外れるため。
-                        // システムテーマではなく読書テーマの colors を使い、シート背景(colors.background)と調和させる。
-                        colors = FilterChipDefaults.filterChipColors(
-                            labelColor = colors.text,
-                            selectedContainerColor = colors.accent,
-                            selectedLabelColor = colors.background,
-                        ),
-                    )
-                }
-            }
-            Spacer(Modifier.height(24.dp))
-            Text(
-                text = "文字サイズ（${fontSize}sp）",
-                style = MaterialTheme.typography.labelMedium,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // 両端の「あ」はスライダーの効果（最小・最大の文字サイズ）を視覚的に示す
-                Text("あ", fontSize = 14.sp, fontFamily = MinchoFamily)
-                Slider(
-                    value = fontSize.toFloat(),
-                    onValueChange = { onFontSizeChange(it.roundToInt()) },
-                    valueRange = 14f..24f,
-                    // steps = 9 で 14〜24sp を 1sp 刻みの離散値にする（中間刻み = 範囲幅 - 1）
-                    steps = 9,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 12.dp),
-                )
-                Text("あ", fontSize = 24.sp, fontFamily = MinchoFamily)
-            }
-            Spacer(Modifier.height(24.dp))
-            Text(
-                // なぜ Locale.US を明示するか: 既定ロケールだと欧州端末等で小数点が
-                // 「2,5」のようにカンマ表記に化けるため、表示を一貫させる。
-                text = "行間（${String.format(Locale.US, "%.1f", lineHeightEm)}）",
-                style = MaterialTheme.typography.labelMedium,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // 両端の「狭／広」で行間スライダーの効果を視覚的に示す
-                Text("狭", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
-                Slider(
-                    value = lineHeightEm,
-                    // 0.1em 刻みに丸める。ルビ被り/離れを避けるため狭めレンジ(2.3〜2.8)に固定。
-                    onValueChange = { onLineHeightChange((it * 10).roundToInt() / 10f) },
-                    valueRange = 2.3f..2.8f,
-                    // steps = 4 で 2.3〜2.8em を 0.1em 刻みの離散値にする（中間刻み = 区切り数 - 1）
-                    steps = 4,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 12.dp),
-                )
-                Text("広", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
-            }
-        }
-    }
-}
-
-/** 章本文を LazyColumn でレンダリングする */
-@Composable
-private fun ChapterContent(
-    content: ChapterContent,
-    colors: ReadingColors,
-    fontSize: Int,
-    lineHeightEm: Float,
-    lazyListState: LazyListState = rememberLazyListState(),
-) {
-    val paragraphs = remember(content) { content.segments.splitIntoParagraphs() }
-
-    LazyColumn(
-        state = lazyListState,
-        modifier = Modifier
-            .fillMaxSize(),
-        // なぜ contentPadding で確保するか:
-        // TopAppBar がオーバーレイ配置のため Scaffold の innerPadding にバー分が含まれない。
-        // Box の padding にすると全画面（ローディング等）に影響しバー非表示時も常に隙間が残る。
-        // contentPadding はスクロール領域内の余白なので、中盤では画面外に収まり本文位置に影響しない。
-        // 章の最上部でのみバー高さ分のスペースが確保され、先頭行がバーに隠れなくなる。
-        // なぜ statusBars を加算するか: Edge-to-Edge 表示では TopAppBar の実高が
-        // 64dp + ステータスバーインセットになるため、64dp 固定だと先頭行がバーに隠れる。
-        // bottom: オーバーレイ化したボトムバー（実高 ≒ 80dp + ナビバーインセット）の分を確保し、
-        // 末尾行がバーに隠れないようにする。ナビバー実高は端末（ボタン/ジェスチャー）で異なるため実測値を加算。
-        contentPadding = PaddingValues(
-            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 64.dp,
-            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 80.dp,
-        ),
-    ) {
-        // 章見出し（モック reading-D .chap-h）: 章タイトルを明朝で中央寄せ＋藍の短ルール。
-        // なぜ本文先頭に置くか: 没入時はトップバーが隠れるため、ここが唯一の章タイトル表示になる。
-        item {
-            ChapterHeader(title = content.title, colors = colors, fontSize = fontSize)
-        }
-
-        // 段落ごとにレンダリング
-        items(paragraphs) { paragraph ->
-            ParagraphItem(
-                paragraph = paragraph,
-                colors = colors,
-                fontSize = fontSize,
-                lineHeightEm = lineHeightEm,
-                modifier = Modifier
-                    .widthIn(max = 600.dp)
-                    .padding(horizontal = 15.dp),
-            )
-        }
-        // 旧 Spacer(80dp) は上の contentPadding.bottom へ移行（バー実高＋ナビバー実高で算出）
-    }
-}
-
-/** 章見出し（モック reading-D .chap-h）。章タイトルを明朝で中央寄せし、下に藍の短いルールを引く。 */
-@Composable
-private fun ChapterHeader(
-    title: String,
-    colors: ReadingColors,
-    fontSize: Int,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .widthIn(max = 600.dp)
-            .padding(horizontal = 15.dp)
-            .padding(top = 14.dp, bottom = 26.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = title,
-            fontFamily = MinchoFamily,
-            // 本文よりわずかに大きい見出しサイズ。ユーザーの文字サイズ設定にも追従させる。
-            fontSize = (fontSize + 2).sp,
-            fontWeight = FontWeight.SemiBold,
-            lineHeight = 1.6.em,
-            color = colors.text,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(15.dp))
-        // 藍の短いルール（48dp×2dp）。モック .chap-h .rule（--rule 藍 opacity .85）。
-        // colors.hr は素地に溶けた淡い区切り用のため、見出しには濃い藍 colors.accent を使う。
-        Box(
-            modifier = Modifier
-                .width(48.dp)
-                .height(2.dp)
-                .background(colors.accent.copy(alpha = 0.85f)),
-        )
-    }
-}
-
-/** 1段落分を描画する。空段落は Spacer、StyledBlock は背景付き Surface で描画 */
-@Composable
-private fun ParagraphItem(
-    paragraph: List<TextSegment>,
-    colors: ReadingColors,
-    fontSize: Int,
-    lineHeightEm: Float,
-    modifier: Modifier = Modifier,
-) {
-    val bodyStyle = TextStyle(
-        color = colors.text,
-        // ユーザー設定の文字サイズ。lineHeight が em（相対値）のため行間も自動でスケールする
-        fontSize = fontSize.sp,
-        // ユーザー設定の行間（em）。RubyText も style=bodyStyle 経由でこの lineHeight を受け取るため、
-        // ここ1か所の変更でルビ行にも反映される。可変幅は 2.3〜2.8em に絞ってルビ被り/離れを抑制。
-        lineHeight = lineHeightEm.em,
-        fontFamily = MinchoFamily,
-        letterSpacing = 0.sp,
-        // なぜ Trim.LastLineBottom か:
-        // lineHeight を RubyText 内折り返しとParagraphItem 間で統一するため。
-        // LastLineBottom のみ除去することで上 leading（ルビ描画領域）を保ちつつ
-        // composable 高さを確定させる（em 指定のため文字サイズ・行間変更時も比率は維持される）。
-        lineHeightStyle = LineHeightStyle(
-            alignment = LineHeightStyle.Alignment.Proportional,
-            trim = LineHeightStyle.Trim.LastLineBottom,
-        ),
-    )
-
-    when {
-        paragraph.isEmpty() -> {
-            // 空段落: なろう系小説のシーン転換・演出として意図的な空行を保持する
-            // なぜフィルタリングしないか: 削除すると原作者の意図が失われるため
-            // 空行 = 20dp Spacer + 次アイテムの上 leading 13.5dp = 計 47.5dp ≈ WebView の空行
-            Spacer(modifier = Modifier.height(20.dp))
-        }
-        paragraph.size == 1 && paragraph[0] is TextSegment.HorizontalRule -> {
-            // 水平線（html_exporter.py の <hr> に対応＝シーン区切り）
-            Canvas(
-                modifier = modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 18.dp)
-                    .height(1.dp),
-            ) {
-                // D 様式: 旧・全幅破線をやめ、中央寄せの短い実線にする。
-                // なぜ短い実線か: D「和モダン・余白」は藍の細ルールで静かに区切る思想で、
-                // 全幅破線は主張が強すぎるため。モック reading-D.html の hr(width:42%) に対応。
-                // 色 colors.hr は藍を素地に溶かした青灰のため、これ自体が控えめな区切りになる。
-                val lineWidth = size.width * 0.42f
-                val startX = (size.width - lineWidth) / 2f
-                drawLine(
-                    color = colors.hr,
-                    start = Offset(startX, 0f),
-                    end = Offset(startX + lineWidth, 0f),
-                    strokeWidth = 1.dp.toPx(),
-                )
-            }
-        }
-        paragraph.size == 1 && paragraph[0] is TextSegment.StyledBlock -> {
-            // 前書き・後書きブロック（背景色付き領域）
-            val block = paragraph[0] as TextSegment.StyledBlock
-            val innerParagraphs = block.segments.splitIntoParagraphs()
-            Surface(
-                modifier = modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 20.dp),
-                color = colors.blockBackground,
-                border = androidx.compose.foundation.BorderStroke(1.dp, colors.blockBorder),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
-            ) {
-                Column(modifier = Modifier.padding(15.dp)) {
-                    Text(
-                        text = block.label,
-                        // モック .block .lbl: ラベルは藍（accent）。本文インク色ではなくアクセントで小見出し化する。
-                        style = bodyStyle.copy(fontWeight = FontWeight.Bold, color = colors.accent),
-                        modifier = Modifier.padding(bottom = 4.dp),
-                    )
-                    innerParagraphs.forEach { innerPara ->
-                        if (innerPara.isEmpty()) {
-                            Spacer(modifier = Modifier.height(20.dp))
-                        } else {
-                            // padding(bottom=14.dp): 下 padding + 次アイテムの上 leading = 27.5dp ≈ 折り返し行間
-                            RubyText(
-                                segments = innerPara,
-                                style = bodyStyle,
-                                rubyColor = colors.ruby,
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        else -> {
-            // 通常の段落
-            // padding(bottom=14.dp): 下 padding + 次アイテムの上 leading = 27.5dp ≈ 折り返し行間
-            RubyText(
-                segments = paragraph,
-                style = bodyStyle,
-                rubyColor = colors.ruby,
-                modifier = modifier.fillMaxWidth().padding(bottom = 14.dp),
-            )
-        }
-    }
-}
-
-/** エラー表示UI（ファイル欠損・パース失敗時）*/
-@Composable
-private fun ReadingErrorScreen(
-    message: String,
-    colors: ReadingColors,
-    onNavigateToBookshelf: () -> Unit,
-    onRetry: (() -> Unit)? = null,
-) {
-    Box(
-        // トップレベル（Scaffold 外）からも呼ばれるため自前で背景色を塗る
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "読み込みに失敗しました",
-                fontFamily = MinchoFamily,
-                fontSize = 16.sp,
-                color = colors.textSecondary,
-            )
-            Text(
-                text = message,
-                fontFamily = MinchoFamily,
-                fontSize = 12.sp,
-                color = colors.textSecondary.copy(alpha = 0.75f),
-                modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
-                textAlign = TextAlign.Center,
-            )
-            if (onRetry != null) {
-                Button(
-                    onClick = onRetry,
-                    modifier = Modifier.padding(bottom = 8.dp),
-                ) {
-                    Text("再試行")
-                }
-            }
-            Button(onClick = onNavigateToBookshelf) {
-                Text("本棚に戻る")
-            }
-        }
-    }
-}
-
-/**
- * TextSegment リストを LineBreak で段落分割する。
- * 空段落（LineBreak 連続）はフィルタリングせず保持する。
- * なぜか: なろう系小説では連続空行によるシーン転換演出が頻出するため。
- */
-private fun List<TextSegment>.splitIntoParagraphs(): List<List<TextSegment>> {
-    val result = mutableListOf<List<TextSegment>>()
-    val current = mutableListOf<TextSegment>()
-
-    for (segment in this) {
-        when {
-            segment is TextSegment.LineBreak -> {
-                result.add(current.toList())
-                current.clear()
-            }
-            segment is TextSegment.HorizontalRule -> {
-                // 水平線は独立した段落として扱う
-                if (current.isNotEmpty()) {
-                    result.add(current.toList())
-                    current.clear()
-                }
-                result.add(listOf(segment))
-            }
-            segment is TextSegment.StyledBlock -> {
-                // 前書き・後書きも独立した段落として扱う
-                if (current.isNotEmpty()) {
-                    result.add(current.toList())
-                    current.clear()
-                }
-                result.add(listOf(segment))
-            }
-            else -> current.add(segment)
-        }
-    }
-    if (current.isNotEmpty()) result.add(current.toList())
-
-    return result
-}
-
 
 /**
  * バーを全表示または全非表示へスナップさせる。
