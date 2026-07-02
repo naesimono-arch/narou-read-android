@@ -90,15 +90,25 @@ fun RubyText(
                         isAntiAlias = true
                         typeface = android.graphics.Typeface.SERIF
                     }
+                    // 親文字の字面上端をベースラインから導出するためのメトリクス。
+                    // なぜ別 Paint を作るか: TextLayoutResult は行ボックス座標しか持たず、
+                    // lineHeight の余剰を含む行上端からは字面位置が分からないため（バグ#1 の根本原因）。
+                    // MinchoFamily = FontFamily.Serif なので Typeface.SERIF でメトリクスが一致する。
+                    val baseAscent = android.graphics.Paint().apply {
+                        textSize = style.fontSize.value * density
+                        typeface = android.graphics.Typeface.SERIF
+                    }.ascent()
 
                     for ((start, end, reading) in rubyRanges) {
                         val positions = RubyLayoutHelper.calculateRubyPositions(
                             layout, start, end, reading,
                         )
                         for (info in positions) {
-                            // ルビを親文字の上端より少し上に描画
-                            // paint.textSize / 2 は上端からルビ中央までの距離
-                            val y = info.baselineY - paint.textSize * 0.2f
+                            // baselineY(親文字ベースライン) + ascent(負値) = 親文字の字面上端。
+                            // そこからルビの descent 分を引き、ルビの下端が字面上端に接するよう配置する
+                            // （ascent はインク上端よりわずかに上を指すため、自然な隙間が残る）。
+                            val baseGlyphTop = info.baselineY + baseAscent
+                            val y = baseGlyphTop - paint.descent()
                             canvas.nativeCanvas.drawText(
                                 info.rubyText,
                                 info.centerX,

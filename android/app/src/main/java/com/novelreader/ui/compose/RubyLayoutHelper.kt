@@ -8,7 +8,7 @@ import java.util.Locale
  * ルビの描画位置情報（1行分）
  * @param line 行インデックス
  * @param centerX ルビテキストの中央X座標
- * @param baselineY ルビのベースライン Y 座標（親文字行の上端）
+ * @param baselineY 親文字行のベースライン Y 座標（描画側がフォントメトリクスで字面上端を導出する）
  * @param rubyText この行に描画するルビ部分文字列
  */
 data class RubyDrawInfo(
@@ -108,7 +108,10 @@ object RubyLayoutHelper {
             val startBox = layout.getBoundingBox(start)
             val endBox = layout.getBoundingBox(end - 1)
             val centerX = (startBox.left + endBox.right) / 2f
-            val baselineY = layout.getLineTop(startLine)
+            // なぜ getLineTop でなくベースライン基準か: lineHeight（2.3〜2.8em）の余剰スペースは
+            // 行上端と字面の間に分配されるため、行上端基準ではルビが親文字から行間分浮く（バグ#1）。
+            // ベースライン基準なら描画側がフォントメトリクスで字面上端を正確に導出できる。
+            val baselineY = lineBaseline(layout, startLine)
             return listOf(RubyDrawInfo(startLine, centerX, baselineY, fullReading))
         }
 
@@ -131,9 +134,29 @@ object RubyLayoutHelper {
             val startBox = layout.getBoundingBox(lineStart)
             val endBox = layout.getBoundingBox(safeLineEnd)
             val centerX = (startBox.left + endBox.right) / 2f
-            val baselineY = layout.getLineTop(line)
+            // 同一行ケースと同じ理由でベースライン基準（getLineTop だと行間分浮く）
+            val baselineY = lineBaseline(layout, line)
 
             RubyDrawInfo(line, centerX, baselineY, rubyText)
         }
+    }
+
+    /**
+     * 指定行のベースライン Y 座標を返す。
+     *
+     * なぜ自前計算か: Compose 1.6 系の TextLayoutResult には行単位のベースライン API が無く
+     * 公開されているのは firstBaseline / lastBaseline / getLineTop / getLineBottom のみ
+     * （getLineBaseline は 1.7 以降）。RubyText は「単一段落・単一スタイル」契約のため
+     * 行上端→ベースラインの距離は全行で一様（lineHeight トリムの影響は先頭行の上端のみ）であり、
+     * - 行0 = firstBaseline（定義どおり正確）
+     * - 行i≧1 = 行i上端 + (lastBaseline - 最終行上端)
+     *   （最終行のトリムはベースラインより下側のみ＝上端→ベースライン距離は中間行と同一）
+     * で正確に導出できる。BOM を 1.7 系へ上げたら getLineBaseline へ置換してよい。
+     */
+    fun lineBaseline(layout: TextLayoutResult, line: Int): Float {
+        if (line == 0) return layout.firstBaseline
+        val lastLine = layout.lineCount - 1
+        val baselineOffsetFromTop = layout.lastBaseline - layout.getLineTop(lastLine)
+        return layout.getLineTop(line) + baselineOffsetFromTop
     }
 }
