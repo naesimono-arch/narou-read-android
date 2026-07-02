@@ -3,10 +3,16 @@
 PostToolUse hook: `fix:` コミット時に task_diary.md への追記要否を「想起」させる。
 対象ツール: Bash
 
-設計意図（なぜブロックせず print だけか）:
+設計意図（なぜブロックせず additionalContext だけか）:
   CLAUDE.md の既存ルールは「追記が必要か確認／重複なら不要」。大半の fix は追記不要で、
   追記を強制すると空エントリが量産され task_diary が再び雑多化する（3パート再編の意図を壊す）。
   そのため「考慮の想起」までに留め、コミットは決して妨げない（常に exit 0・例外を投げない）。
+
+出力方式（重要）:
+  PostToolUse の plain stdout(exit 0) は **デバッグログ止まりでモデルのコンテキストに入らない**
+  （公式仕様。コンテキスト注入されるのは UserPromptSubmit/SessionStart 等の stdout か exit 2 の
+  stderr のみ）。素の print では「想起」がモデルに届かず無意味になるため、
+  PostToolUse がサポートする `hookSpecificOutput.additionalContext`(JSON) で注入する。
 
 発火条件:
   - tool_name == "Bash"
@@ -49,11 +55,19 @@ should_remind = any(
 if not should_remind:
     sys.exit(0)
 
-print(
+reminder = (
     "[task_diary 想起] この変更に、コードコメントでは伝わらない知見はあるか？\n"
     "  ・根本原因／OEM固有動作／将来はまりやすいパターン → あれば記録。\n"
     "  ・置き場: 外部プラットフォームの事実→task_diary.md / 実装パターン→docs/patterns/ /"
     " 設計判断・Why-not→docs/decisions/(ADR)。\n"
     "  ・既存エントリと重複、または自明なら追記不要。"
 )
+
+# PostToolUse の additionalContext でモデルのコンテキストへ注入する（plain stdout は届かない）。
+print(json.dumps({
+    "hookSpecificOutput": {
+        "hookEventName": "PostToolUse",
+        "additionalContext": reminder,
+    }
+}, ensure_ascii=False))
 sys.exit(0)
