@@ -6,8 +6,8 @@
 
 ## 0. 現在の状態（一次情報）
 
-- branch=`lab` / HEAD=`7b844a4`（本棚カバー重なりバグ 案A 修正後）
-- 端末DB=`user_version 6`。⚠️ **旧APK(v5)へ逆走すると `migration 6→5 not found` でクラッシュ＝逆走禁止**（古い→新しいの一方向のみ）。
+- branch=`main` / HEAD=`018779c`（変換まわり機能 A①③④ 実装後・lab を統合）
+- 端末DB=`user_version 7`（v6→v7 で `books.addedAt`／`progress.lastReadAt` を追加）。⚠️ **旧APKへ逆走すると `migration N→N-1 not found` でクラッシュ＝逆走禁止**（古い→新しいの一方向のみ）。
 - 既知バグ **#1 ルビ位置ずれ＝未解決**（文字サイズ非依存で常時ずれる。`NativeReadingScreen.kt` のルビ配置 or `html_exporter.py`/`chapter_processor.py` を疑う）。
 - 検証ワークフローは `[[workflow-autonomous-device-verification]]`（Claudeがadb自律駆動）/ `[[workflow-notify-each-step-visual-check]]`（各ステップで目視関門）。
 
@@ -32,6 +32,17 @@
   | 07 | — | 棄却（既に行送り一定・ルビ減光済） |
 
 - ※ 旧backlogの「Phase2 文字サイズ変更」「章内スクロール位置永続化」は本検証(CP2/CP3)で**実装完了**。
+
+- **変換まわり機能 A①③④ 完了**（実機目視OK, 2026-06-25）。handover A の②（強制終了時の再開）のみ未着手で残す。コミット表（新しい順）:
+
+  | 項目 | commit | 内容 |
+  |---|---|---|
+  | ④ | `018779c` | 本棚を最近の活動順ソート（Room v6→v7・addedAt/lastReadAt） |
+  | ① | `97fcd5a` | 変換の全体停止ボタン（キュー破棄＋現在の本は完了して停止） |
+  | ③-b | `841b5a8` | 変換中タイトルを進捗バナー/通知に表示 |
+  | ③-a | `c1cb9b5` | 進捗の分母(n/m)を処理中もライブ反映 |
+
+  - **①の制約**: 割り込み停止（処理中PDFの即中断）は Chaquopy(Python/JNI)構成では不可能。真の割り込みは D（Kotlinネイティブ化）が前提。詳細は `handover.md` A①。
 
 ### UI-n ブランチ（見た目の白紙改装・別系統の実験ブランチ）
 - **フェーズ0完了（2026-06-26）＝デフォルト視覚言語に D「和モダン・余白」を採用。** 本棚A〜J 10案を作り選定。設計判断の正本＝`docs/decisions/0005-ui-n-visual-language-D.md`、モック地図は `.claude/plans/UI-n_DESIGN_PLAN-archived-2026-07-02.md`（§6.1）に保全。
