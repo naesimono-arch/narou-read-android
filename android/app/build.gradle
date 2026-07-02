@@ -85,6 +85,12 @@ dependencies {
     // HTMLパーサー (Jsoup)
     implementation 'org.jsoup:jsoup:1.17.2'
 
+    // PDF抽出 (PDFBox-Android / Tom Roush 版)。Chaquopy(Python+pdfminer) からの純 Kotlin 移植用。
+    // なぜ 2.0.x 系で固定: Android 版 PDFBox-Android は upstream apache-pdfbox 2.0.x をベースにしており、
+    // 移植元プロト (ab-review/submission-B) が apache 2.0.31 で精度検証済みのため API を 1:1 に保てる。
+    // 移植完了 (Phase 5) までは Chaquopy と併存し、実機で抽出パイプラインを段階検証する。
+    implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
+
     // データベース (Room)
     def room_version = "2.6.1"
     implementation "androidx.room:room-runtime:$room_version"
