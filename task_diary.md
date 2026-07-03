@@ -392,6 +392,15 @@ HtmlExporter 移植のテスト KDoc でライブに踏んだ（`src/test/resour
 回避: doc/コメントに glob やパスを書くときは `/*` を出さない（`{index,chap_1,chap_2}.html` 等の列挙、
 または末尾スラッシュ止めにする）。移植で KDoc にファイル例を多用するため今後も再発しやすい。
 
+#### 34. tom-roush の InvalidPasswordException コンストラクタは package-private（テスト生成不可）  ★★
+
+apache-pdfbox の `InvalidPasswordException(String)` は public だが、**tom-roush 版(2.0.27.0)は package-private**。
+そのため `com.tom_roush.pdfbox.pdmodel.encryption` 外（＝ユニットテスト）から `new`/サブクラス化できず、
+`Cannot access '<init>': it is package-private` でコンパイルが落ちる。本番コードは PDFBox 内部が投げた実インスタンスを
+`e is InvalidPasswordException` で拾えるので支障ないが、**暗号化分類のテストはこの型を作れない**。
+対処: `classifyPdfError` を「型分岐＋"password" メッセージ fallback」の二段にし（Python も元々 `"password" in str(e)` 判定）、
+テストは `IOException("…password…")` のメッセージ経路で暗号化分類を担保した。PDFBox 例外周りのテストで再発する落とし穴。
+
 ## 移設マッピング（旧 Part II / Part III の固定ID対応）
 
 > 旧エントリ番号（`§N`）は固定ID。本ファイルから `docs/` へ移設したものは下表で追跡する（移設先での再採番はしない）。
