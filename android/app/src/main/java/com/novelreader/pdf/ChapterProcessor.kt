@@ -65,18 +65,8 @@ object ChapterProcessor {
             }
         }
 
-    /**
-     * Python html.escape(s, quote=True) の忠実移植。
-     * quote=True が Python の既定＝ " と ' もエスケープする。Task 7 HtmlExporter のバイト等価
-     * ゴールデンを Python 出力と一致させるため、既定挙動をそのまま再現する（quote を落とさない）。
-     * 置換順は & を最優先（後続の &lt; 等の & を二重エスケープしないため）＝Python 実装と同一。
-     */
-    private fun htmlEscape(s: String): String =
-        s.replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace("\"", "&quot;")
-            .replace("'", "&#x27;")
+    // htmlEscape は HtmlExporter（タイトル）と共有するため HtmlEscape.kt のトップレベル関数へ集約した。
+    // 同一パッケージのため下記 processForewordAfterword 内の htmlEscape(...) はそのまま解決される。
 
     /**
      * 章列の前書き/後書きを畳み込み HTML 本文へ整形する（移植元 process_foreword_afterword と 1:1）。
