@@ -55,6 +55,15 @@ NovelReaderApplication
 `NativeReadingScreen` に一本化）。ルビ描画は `ui/compose/RubyText.kt`、HTML解析は
 `parser/ChapterHtmlParser.kt`。目次は NavHost のルートではなく ReadingScreen 内から表示される。
 
+**見た目の正本 ＝ /design の HTMLモック**: 配色・タイポ・余白・レイアウトといった静的視覚は、
+claude.ai `/design`（HTMLデザインシステム）で作った HTMLモック（`ui-n-phase0/*-D.html`）が正本で、
+上記 Compose 実装はその**翻訳**にすぎない。**見た目を変えるときは Compose 単独で決めず、
+設計判断 `docs/decisions/0005-ui-n-visual-language-D.md` とモックを先に見る**こと。
+色は `theme/Color.kt`、明朝は `theme/Typography.kt` の `MinchoFamily` 経由（トークン直書き禁止）。
+モック現物は**リポジトリ内には無い**＝claude.ai/design プロジェクト `Novel Reader UI` の `ui-n-phase0/` 配下にあり
+`DesignSync: get_file` で取得（入口は `handover.md`）。
+（操作感・組版・アニメ・没入クロームはこのワークフローのスコープ外＝実機フィードバックで後詰め。ADR 0005 §B）
+
 ## Service層
 
 ```
