@@ -34,8 +34,9 @@ Jetpack Compose + Chaquopy (Python 3.12)。
 - **ビルド・環境セットアップ・Gradleに関する作業が発生したら → 必ず `/build` スキルを最初に実行すること**
 - **アーキテクチャ・構成・モジュール間の関係を把握する必要があれば → 必ず `/architecture` スキルを最初に実行すること**
 - **Room DBのスキーマ・Entityを変更するときは → 必ず `/db-migration` スキルを最初に実行すること**
+- **実機で検証する作業（adb操作・APK投入・androidTest実行・実機DB確認）が発生したら → 必ず `/device-verify` スキルを最初に実行すること**（connectedAndroidTest 直叩きによる蔵書DB消失などの禁忌を含む）
 - PDF解析の定数・ルール → `android/app/src/main/python/pdf_rules.py` を直接参照
-- OPPO/ColorOS 固有動作 → `task_diary.md` を参照
+- OPPO/ColorOS 固有動作 → `/device-verify` スキル（§4 の症状→対処表）経由で `task_diary.md` を参照
 - **管理ドキュメントの体系**（役割で分離。混ぜないこと）:
   - **今どうなっているか（状態・完了・既知不具合）→ `STATUS.md`**（現況台帳＝正本）
   - **次に何をやるか（backlog・思いつき・取りこぼし）→ `handover.md`**（やること台帳。**作業に悩んだらまず見る**／拾った宿題はここへ追記）
