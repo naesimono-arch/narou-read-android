@@ -47,7 +47,7 @@
 
 ## D. 長期・品質（旧handoverから保全）
 
-- **Chaquopy→Kotlin(PDFBox)ネイティブ化**【`kotlin` ブランチで進行中：Phase 1 純ロジック移植完了・穴3 KILL 済／現況は STATUS.md 参照】: A/B評価で **B案が技術的に優位**と判定済（`ab-review/submission-B` に完成形プロトを残置）。知見 = `[[kotlin-pdfbox-migration-prototype]]` / 回帰基盤 = `[[golden-regression-baseline]]`。完了後 `Dispatchers.IO` で真の並列処理が可能になる。最大の難所＝縦書き列復元・ルビ対応付け・pdfminer が吸収していたエッジケース。
+- **Chaquopy→Kotlin(PDFBox)ネイティブ化**【`kotlin` ブランチ：Phase 1 純ロジック移植＋垂直スライス完了・穴3 全経路 KILL 済／**次は Phase 3 配線**／現況は STATUS.md 参照】: A/B評価で **B案が技術的に優位**と判定済（`ab-review/submission-B` に完成形プロトを残置）。知見 = `[[kotlin-pdfbox-migration-prototype]]` / 回帰基盤 = `[[golden-regression-baseline]]`。完了後 `Dispatchers.IO` で真の並列処理が可能になる。**次段階 Phase 3**＝BookRepository 切替（JNI→`PdfBookExtractor` 直呼・`PDFBoxResourceLoader.init` を MainActivity/Application へ配線・NonCancellable 緩和）。最大の難所は済み（縦書き列復元・ルビ対応付け）だが、pdfminer が吸収していた超長編エッジは残（下記）。
   - **[残タスク] 超長編PDFの抽出エッジ残差**（2026-07-03 穴3実機スパイクで検出・優先度低）: N6169DZ(116650段/350万字)で pdfminer 比 **文字+434(+0.012%)・ルビ+110(+0.97%)・段落+5・章題並び1件**(`兎'ｓ`↔`'鳥…`)の残差。短中編(N1453LW/N2959KI)は body_sha256 完全一致なので**超長編固有の抽出エッジ**（座標順・グリフ欠落＝pdfminer が吸収していたケース）。垂直スライスでは許容範囲だが、忠実度を上げるならいずれ発生箇所を特定して潰す。基準=`ab-review/golden_regression`、再現=`PdfExtractorDeviceSpikeTest`、詳細=task_diary #35。※波ダッシュ(U+FF5E↔U+301C)は本残差とは別問題で、抽出時の正規化(FF5E→301C)を採用して対処する（task_diary #35）。
 - **左右スワイプで章遷移**: 旧 `experiment`/`lab-old` は WebView 実装で流用不可。`HorizontalPager`/`pointerInput` で新規。チューニング知見＝軸ロック(`de60869`)/EMA+isDragging(`a07dd3e`)/距離OR速度複合(`4a0719b`)。元コミット `23b5f33`(main未取り込み)。
 - **BookRepository インターフェース化**（テスト可能化）: 具象直参照＋static シングルトン(Chaquopy/Room)で JVM単体テスト不可。interface 抽出＋`FakeBookRepository`。影響 `BookRepository.kt`/`NovelReaderApplication.kt`。

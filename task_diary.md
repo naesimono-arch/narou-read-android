@@ -419,6 +419,17 @@ AGP の `connectedDebugAndroidTest` は既定で **run 後に対象アプリAPK�
 回避: `-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true` を付けて実行すると run 後もインストールが残る。
 実機に保持したい実データがある状態で androidTest を回すときは必ず付けること。
 
+#### 37. ColorOS(OPPO) は CPU 集中の androidTest プロセスを「abnormal fg_cpu」で強制killする（超長編抽出が落ちる）  ★★★
+
+Task 9 実機フル疎通で、N6169DZ(8.9MB/350万字/951章)を `PdfBookExtractor.process` で抽出中、約2.5分後に
+**ColorOS の OSense/Athena が com.novelreader を強制終了**した（logcat: `Athena OplusClearSystemService … reason: 502 o-kill(502)`、
+`OGuardManager_AppPowerAnalyzer: a abnormal fg_cpu app … com.novelreader`、直前に `osense.compress … do shrink`）。
+**OOM ではない**（GCInfo は 314→325MB でヒープ余裕あり）＝純粋に「長時間 CPU を食う前景プロセス」を OEM 電源ガーディアンが異常判定して殺した。
+`am instrument` は `INSTRUMENTATION_RESULT: shortMsg=Process crashed.` を返す。短中編(N1453LW 3章/N2959KI 131章)は kill 前に完走・本棚シード済み、超長編だけが落ちた。
+- **含意**: 素の androidTest には前景サービス保護が無いため、この OEM killer に対して無防備。**実アプリは `PdfProcessingService` の前景サービス＋WakeLock＋10分/件で保護**しており（handover/plan Phase2 memo）、Phase 3 配線後は生存しうるが、**ColorOS では前景サービスでも超長編が落ちないかは要実機再確認**（本アプリの最重要 OEM リスク）。
+- **回避（検証用）**: ①電源最適化から除外を試す（`dumpsys deviceidle whitelist +com.novelreader` 等。ただし fg_cpu killer には効きにくい） ②検証目的なら PDF を冒頭数十ページに切詰めて CPU バーストを閾値未満にする ③実書での長編検証は Phase 3 の前景サービス経路で行う。
+- 関連: [[workflow-autonomous-device-verification]]。connectedAndroidTest の自動uninstall(#36)とは別の落とし穴。
+
 ## 移設マッピング（旧 Part II / Part III の固定ID対応）
 
 > 旧エントリ番号（`§N`）は固定ID。本ファイルから `docs/` へ移設したものは下表で追跡する（移設先での再採番はしない）。
