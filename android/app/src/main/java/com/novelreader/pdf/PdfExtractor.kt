@@ -9,6 +9,22 @@ import com.tom_roush.pdfbox.text.TextPosition
 data class BookMeta(val title: String, val author: String)
 
 /**
+ * PDFBox-android の CID→Unicode 出力を pdfminer（移植のオラクル）に揃える 1 文字正規化。
+ *
+ * なぜ: PDFBox-android は波ダッシュのグリフを FULLWIDTH TILDE(U+FF5E) に写すが、
+ * pdfminer / Adobe-Japan1 は WAVE DASH(U+301C) を返す（有名な「波ダッシュ問題」の CMap 版・task_diary #35）。
+ * これを放置すると title・本文の記号が実機とオラクルでズレ、ゴールデン回帰が波ダッシュだけで不一致になる。
+ * なろう小説では波ダッシュが正で U+FF5E の正当な用例はほぼ無いため、オラクルに合わせ 301C へ寄せるのは低リスク。
+ *
+ * indexOf ガードで「FF5E を含まない大多数のグリフ」では新規文字列を確保しない
+ * （processTextPosition は 1 グリフ毎＝超長編で数百万回走るホットパスのため）。
+ */
+internal fun normalizeGlyphUnicode(s: String): String =
+    // '\uFF5E' FULLWIDTH TILDE(PDFBoxが返す) → '\u301C' WAVE DASH(pdfminerが返す)。
+    // 見た目がほぼ同一のため取り違え防止にエスケープで明示する。
+    if (s.indexOf('\uFF5E') >= 0) s.replace('\uFF5E', '\u301C') else s
+
+/**
  * PDFTextStripper をカスタマイズし、processTextPosition で 1 文字ずつ座標付きで収集する。
  *
  * pdfminer 版の座標変換（top = page_height - y1, bottom = page_height - y0）に合わせ、
@@ -34,8 +50,10 @@ class GlyphStripper : PDFTextStripper() {
     }
 
     override fun processTextPosition(text: TextPosition) {
-        val s = text.unicode
-        if (s.isNullOrEmpty()) return
+        val raw = text.unicode
+        if (raw.isNullOrEmpty()) return
+        // PDFBox-android の CID→Unicode を pdfminer(オラクル)へ揃える（波ダッシュ等・task_diary #35）。
+        val s = normalizeGlyphUnicode(raw)
 
         val bottom = text.yDirAdj.toDouble()
         val top = bottom - text.heightDir.toDouble()

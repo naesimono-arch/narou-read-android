@@ -1,6 +1,7 @@
 package com.novelreader.pdf
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Test
 
 /**
@@ -36,5 +37,22 @@ class PdfExtractorTest {
             cb("大", 20.0, 100.0, 50.0), // サイズ違い→除外
         )
         assertEquals("著者", PdfExtractor.authorFromChars(chars))
+    }
+
+    // --- 波ダッシュ正規化（task_diary #35）: PDFBox-android の FULLWIDTH TILDE を pdfminer の WAVE DASH へ ---
+
+    @Test fun normalizeMapsFullwidthTildeToWaveDash() {
+        // '\uFF5E'(PDFBoxが返す) → '\u301C'(pdfminerが返す)
+        assertEquals("\u301C", normalizeGlyphUnicode("\uFF5E"))
+        assertEquals("前世を思い出しました　\u301Cあれ", normalizeGlyphUnicode("前世を思い出しました　\uFF5Eあれ"))
+    }
+
+    @Test fun normalizeLeavesWaveDashAndOthersUntouched() {
+        // 既に WAVE DASH のものは不変（二重変換しない）
+        assertEquals("\u301C", normalizeGlyphUnicode("\u301C"))
+        // 無関係な文字は不変（同一インスタンスを返す＝ホットパスで新規確保しない設計）
+        val plain = "婚約の継続"
+        assertEquals(plain, normalizeGlyphUnicode(plain))
+        assertSame(plain, normalizeGlyphUnicode(plain))
     }
 }
