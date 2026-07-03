@@ -371,9 +371,11 @@ Tom Roush の PDFBox-Android（Chaquopy/pdfminer からの移植先）は、**�
 
 移植元プロト submission-B は JVM 版 `org.apache.pdfbox:pdfbox:2.0.31` を使うので、Android 版へは `org.apache.pdfbox.*` → `com.tom_roush.pdfbox.*` の import 差替で移る。**apache-pdfbox 2.0.x と tom-roush 2.0.x は API 1:1**（TextPosition の unicode/xDirAdj/yDirAdj/heightDir/font/fontSizeInPt、PDFTextStripper、上原点座標系が同名同義）なので import 以外はコード無改変で移植できる。バージョンは 2.0.x 系で固定する（Android 版が upstream 2.0.x ベースのため）。
 
-#### 31. pdfbox-android は PDDocument.load 前に PDFBoxResourceLoader.init(context) が要る（実機効果は未検証＝移植の穴3）  ★★★
+#### 31. pdfbox-android は PDDocument.load 前に PDFBoxResourceLoader.init(context) が要る（2026-07-03 実機スパイクで検証済＝穴3 KILL）  ★★★
 
-ToUnicode CMap を持たない CID フォントのグリフ解決に、AAR 同梱の Adobe glyphlist/CMap 資産を使う。そのため **`com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(applicationContext)` を全ての `PDDocument.load` の前に1回**呼ぶ必要がある（`MainActivity.onCreate` の `Python.start` 置換位置か `Application.onCreate`）。フォントは AAR 同梱で手動配布不要。**⚠️ これが実機で正しく効くか（pdfminer と同じ Unicode を返すか）は 2026-07-03 時点で未検証**＝移植の最大リスク「穴3」。submission-B のデスクトップ実測では長編でルビ P/R 約81%・行カバレッジ約93%の残差（波ダッシュ〜/～等の CID→Unicode 差）があり、実機はさらにズレる可能性。実機スパイクで座標・フォントサイズ・グリフを最優先検証すること（[[kotlin-pdfbox-migration-prototype]]）。
+ToUnicode CMap を持たない CID フォントのグリフ解決に、AAR 同梱の Adobe glyphlist/CMap 資産を使う。そのため **`com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(applicationContext)` を全ての `PDDocument.load` の前に1回**呼ぶ必要がある（`MainActivity.onCreate` の `Python.start` 置換位置か `Application.onCreate`）。フォントは AAR 同梱で手動配布不要。androidTest では `@Before` で instrumentation の `targetContext` により init する。
+
+**【2026-07-03 実機実測で解消＝穴3 KILL】** OPPO PGEM10(ColorOS) 実機で `PdfExtractorDeviceSpikeTest`（実PDF3件を golden_regression と同一指標で突合）を実行。**init は実機で効く**＝CID→Unicode 解決が根本的に機能する。決定的証拠: 短編 N1453LW は body_sha256 まで**完全一致**、中編 N2959KI（9786段落/131章/38万字）も **body_sha256 完全一致**。残差は init 失敗ではなく既知の CID→Unicode マッピング差で、正体は #35（波ダッシュ主因）＋超長編 N6169DZ の 0.01% オーダーのエッジ（文字+0.012%・ルビ+0.97%）。submission-B デスクトップ実測の「ルビ P/R 約81%」は char-level 指標での話で、段落/本文ベースでは実機でもほぼ一致した（[[kotlin-pdfbox-migration-prototype]]）。
 
 #### 32. WSL Bash ツールで Gradle を回す作法（.bashrc 非ロード・sdk.dir 競合・sed 警告）  ★★
 
@@ -400,6 +402,22 @@ apache-pdfbox の `InvalidPasswordException(String)` は public だが、**tom-r
 `e is InvalidPasswordException` で拾えるので支障ないが、**暗号化分類のテストはこの型を作れない**。
 対処: `classifyPdfError` を「型分岐＋"password" メッセージ fallback」の二段にし（Python も元々 `"password" in str(e)` 判定）、
 テストは `IOException("…password…")` のメッセージ経路で暗号化分類を担保した。PDFBox 例外周りのテストで再発する落とし穴。
+
+#### 35. PDFBox-android は WAVE DASH(U+301C) を FULLWIDTH TILDE(U+FF5E) に写す（pdfminer との CID→Unicode 差の主因）  ★★★
+
+穴3 実機スパイク（#31）で判明した pdfminer↔PDFBox 残差の**主因**。同じ波ダッシュのグリフに対し、
+**pdfminer は `〜`(U+301C WAVE DASH) を、PDFBox-android は `～`(U+FF5E FULLWIDTH TILDE) を返す**。
+1:1 置換なので文字数は変わらず、title・本文の記号として現れる（例: 「シャングリラ・フロンティア〜…〜」）。
+これは有名な「Windows 波ダッシュ問題」の CMap 版で、Adobe-Japan1 の CID→Unicode をどちらの正規形へ写すかの選択差。
+pdfminer に揃えるには**抽出後に U+FF5E→U+301C を正規化**する手がある（なろう小説では波ダッシュが正でありFF5Eの正当な用例はほぼ無い＝低リスク）。ただし超長編 N6169DZ は波ダッシュ以外にも残差があり（文字+434=+0.012%・ルビ+110=+0.97%・段落+5・章題並び1件`兎'ｓ`↔`'鳥…`）、これは pdfminer が吸収していた抽出エッジ（座標順・グリフ欠落）で波ダッシュ正規化だけでは body 完全一致にならない。正規化の要否は移植ロードマップの判断事項（handover 参照）。
+
+#### 36. connectedAndroidTest はテスト後にアプリ本体+テストAPKを自動アンインストールする（実データ消失）  ★★
+
+AGP の `connectedDebugAndroidTest` は既定で **run 後に対象アプリAPKとテストAPKの両方を uninstall** する。
+そのため実機に入っていた `com.novelreader` の**蔵書DB等の実データが消える**（穴3スパイク実行で実際に消えた＝`pm list packages` から消滅・`run-as` も unknown package）。
+[[wsl-debug-keystore-share-for-install]] が「uninstall は最終手段（蔵書保持）」と気にしているのと衝突する副作用。
+回避: `-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true` を付けて実行すると run 後もインストールが残る。
+実機に保持したい実データがある状態で androidTest を回すときは必ず付けること。
 
 ## 移設マッピング（旧 Part II / Part III の固定ID対応）
 
