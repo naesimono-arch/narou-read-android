@@ -382,6 +382,16 @@ ToUnicode CMap を持たない CID フォントのグリフ解決に、AAR 同�
 - ビルド直前に `sed -i '/^sdk\.dir/d' local.properties` で Windows sdk.dir を除去し、export 済み `ANDROID_HOME`（Linux SDK）へフォールバックさせる（AGP の解決順位 sdk.dir > ANDROID_HOME のため行が在ると環境変数を上書きする）。
 - **`sed -i` は `/mnt/c`(drvfs) で `preserving permissions … Operation not permitted` 警告を出すが置換自体は成功する**（無害・`2>/dev/null` で抑制可）。不可視文字の一括エスケープ化 `sed 's/\xc2\xa0/\\u00a0/g'`（生 NBSP → ` `）も drvfs 警告付きで成功する。
 
+#### 33. Kotlin のブロックコメントはネストする＝KDoc 内の `/*`（ファイルパス glob 等）が入れ子を開く  ★★
+
+Kotlin は Java と違い**ブロックコメントがネスト**する。そのため `/** … */` の KDoc 本文に
+`golden_html/*.html` のような **`/*` を含む文字列**を書くと、`/*` が入れ子コメントを開き、
+KDoc 末尾の `*/` はその内側だけを閉じ、**外側コメントが EOF まで未閉鎖**になる。コンパイラは
+`Unclosed comment` を**ファイル末尾の行**で報告する（真の原因行から遠く、原因が読み取りにくい）。
+HtmlExporter 移植のテスト KDoc でライブに踏んだ（`src/test/resources/golden_html/` の glob 表記 → `Unclosed comment` at EOF）。
+回避: doc/コメントに glob やパスを書くときは `/*` を出さない（`{index,chap_1,chap_2}.html` 等の列挙、
+または末尾スラッシュ止めにする）。移植で KDoc にファイル例を多用するため今後も再発しやすい。
+
 ## 移設マッピング（旧 Part II / Part III の固定ID対応）
 
 > 旧エントリ番号（`§N`）は固定ID。本ファイルから `docs/` へ移設したものは下表で追跡する（移設先での再採番はしない）。
