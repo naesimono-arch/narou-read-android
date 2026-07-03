@@ -30,6 +30,28 @@ BookRepository.kt（Kotlin）
 Pythonファイルはすべて `android/app/src/main/python/` に配置。
 進捗は4ステップ（step 0〜3）で通知される。
 
+## Kotlin+PDFBox 移植パイプライン（進行中・Chaquopy と併存）
+
+上記 Python パイプラインの **Kotlin への忠実移植**が `java/com/novelreader/pdf/` に併存する
+（依存: PDFBox-Android `com.tom-roush:pdfbox-android`。何がどこまで完了したかは **STATUS.md が正本**＝
+このスキルには進捗状態を書かない）。
+
+```
+pdf/PdfBookExtractor.kt    — facade。app.py: process_pdf と同形の4ステップ進捗（typealias PdfProgress）
+  ├─ PdfExtractor.kt       — PDFBoxで文字座標抽出（pdf_extractor.py 相当）。
+  │     PDDocument.load 前に PDFBoxResourceLoader.init(context) 必須（task_diary #31）。
+  │     波ダッシュは pdfminer に揃えて正規化 U+FF5E→U+301C（#35）
+  ├─ TextProcessor.kt      — 本文抽出コア（run_final_engine 相当）
+  ├─ ChapterProcessor.kt   — 章分割・前後書き処理（chapter_processor.py 相当）
+  ├─ HtmlExporter.kt       — HTML出力（html_exporter.py 相当・Python出力とバイト等価ゴールデン）
+  └─ CharBox / ParserRules / HtmlEscape / PdfExtractionException（sealed 3型＋classifyPdfError）
+```
+
+- **ランタイムで実際に動くのは現状 Chaquopy（Python）側**。Phase 3 で `BookRepository` を
+  `PdfBookExtractor.process` 直呼へ切替予定（切替済みかは STATUS.md で確認すること）。
+- 実機テスト harness は `androidTest/…/pdf/PdfExtractorDeviceSpikeTest.kt`・`PdfPipelineDeviceTest.kt`。
+  実行作法は `/device-verify` スキル参照（`connectedAndroidTest` 直叩きは蔵書DB消失＝task_diary #36）。
+
 ## UI層（Jetpack Compose）
 
 ```
@@ -47,8 +69,9 @@ viewmodel/BookshelfViewModel
   └─ repository/BookRepository   — データアクセス層（Room + Chaquopy呼び出し）
 NovelReaderApplication
   ├─ repository（シングルトン）   — Service/ViewModel 共用
-  ├─ processingState: MutableStateFlow<ProcessingState?>
-  └─ errorState:      MutableStateFlow<String?>
+  ├─ processingState: StateFlow<ProcessingState?>（書き込みは updateProcessingState() のみ）
+  └─ errorEvents:     Flow<String> — Channel ベースの one-shot イベント（emitError() で送出）。
+       StateFlow だと画面回転で再表示・複数購読で重複するため Channel（受信時に消費・clearError 不要）
 ```
 
 **重要**: 読書画面は WebView ではなく **Compose ネイティブ描画**（`e82df4a` で WebView 版を削除し
@@ -107,6 +130,8 @@ context.filesDir/novels/{bookId}/
 ## 特記事項
 
 - `index.html`（目次ページ）閲覧時は読書進捗を上書きしない制御が `NativeReadingScreen.kt` に入っている
-  （`chap_` で始まり `.html` で終わるファイルのみ進捗保存）
-- OPPO/ColorOS 固有の動作については `task_diary.md` を参照
-- Python ロジックの唯一の場所は `android/app/src/main/python/`（Web版は削除済み）
+  （実装は `fileName != "index.html"` のブロックリスト方式。`chap_` 接頭辞の許可リスト判定ではない）
+- OPPO/ColorOS 固有の動作については `/device-verify` スキル経由で `task_diary.md` を参照
+- Python ロジックの置き場は `android/app/src/main/python/`（Web版は削除済み）。ただし抽出/章分割/HTML出力の
+  ロジックは `java/com/novelreader/pdf/` にも忠実移植済み（上記「Kotlin+PDFBox 移植」参照）＝現在は二重構造。
+  **Python 側ロジックを直すときは Kotlin 側への反映要否も必ず確認**（逆も同様）
