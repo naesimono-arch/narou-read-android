@@ -37,6 +37,7 @@ Jetpack Compose + Chaquopy (Python 3.12)。
 - **実機で検証する作業（adb操作・APK投入・androidTest実行・実機DB確認）が発生したら → 必ず `/device-verify` スキルを最初に実行すること**（connectedAndroidTest 直叩きによる蔵書DB消失などの禁忌を含む）
 - PDF解析の定数・ルール → `android/app/src/main/python/pdf_rules.py` を直接参照
 - OPPO/ColorOS 固有動作 → `/device-verify` スキル（§4 の症状→対処表）経由で `task_diary.md` を参照
+- Claude Code のフック（`.claude/hooks/`）を新規作成・改修するときは → 先に `task_diary.md` の「Claude Code フック」節（#26 stdin cp932 文字化け・#28 PostToolUse stdout 不達）と `docs/decisions/0004`（matcher範囲・ブランチ跨ぎ破綻）を必ず確認すること（いずれも**サイレント失敗クラス**＝踏むと長期間気づけないため、既存フックの雛形コピーだけで書き始めない）
 - **管理ドキュメントの体系**（役割で分離。混ぜないこと）:
   - **今どうなっているか（状態・完了・既知不具合）→ `STATUS.md`**（現況台帳＝正本）
   - **次に何をやるか（backlog・思いつき・取りこぼし）→ `handover.md`**（やること台帳。**作業に悩んだらまず見る**／拾った宿題はここへ追記）
