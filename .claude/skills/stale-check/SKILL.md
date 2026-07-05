@@ -55,7 +55,7 @@ CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/decisions/` / `.clau
 
 ## check_machine.py が見る項目（機械的に確定）
 
-1. 版数照合（CLAUDE.md ↔ gradle: Chaquopy / Python / minSdk / targetSdk）
+1. 版数照合（CLAUDE.md ↔ gradle: minSdk / targetSdk）
 2. DB整合（AppDatabase.kt の version ↔ schemas 最大 ↔ MIGRATION 連番 ↔ db-migration skill 履歴表）
 3. hook 双方向照合（settings 参照 ↔ 実ファイル: 壊れた参照／未登録の死hook）
 4. hook の git 追跡（実ファイル ↔ git ls-files: コミット漏れ）

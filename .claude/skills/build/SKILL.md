@@ -1,6 +1,6 @@
 ---
 name: build
-description: ビルドコマンドと環境セットアップ。Gradle実行・Python単体テストのコマンドを確認したいときに使う。
+description: ビルドコマンドと環境セットアップ。Gradle実行・単体テストのコマンドを確認したいときに使う。
 triggers:
   - "ビルドしたい"
   - "gradleを実行したい"
@@ -69,20 +69,13 @@ cd android && ./gradlew installDebug        # インストール
 cd android && ./gradlew compileDebugKotlin  # Kotlinコンパイル確認
 ```
 
-## Python PDFロジックの単体テスト（Android実機不要・素早い検証）
+## PDF 抽出ロジックのテスト
 
-> kotlin ブランチでは PDF ロジックの Kotlin+PDFBox 移植（`java/com/novelreader/pdf/`・依存
-> `com.tom-roush:pdfbox-android`）が **Chaquopy と併存中**。Kotlin 側 PDF コードのテストは
-> 上記 `testDebugUnitTest` でカバーされる。Python 側を変えたら以下、Kotlin 側を変えたら Gradle、
-> 両方変えたら両方を回すこと（二重構造の詳細は `/architecture` スキル）。
-
-依存(pdfminer.six)と Python 3.12 固定が要るため **uv 経由**で実行する（Chaquopy が Python 3.12 前提のため版を合わせる。
-hook の `python` シムは 3.14 を指すので、PDF テストはこの uv コマンドで明示的に 3.12 に固定すること）：
-
-```bash
-cd android/app/src/main/python
-uv run --no-project --python 3.12 --with pdfminer.six python -m unittest test_logic -v
-```
+PDF 抽出（縦書き列復元・ルビ紐付け・章分割・HTML 出力）は Kotlin ネイティブ実装
+（`java/com/novelreader/pdf/`・PDFBox-Android）で、上記 `testDebugUnitTest` が正本の単体テスト。
+**旧 Chaquopy(Python)+pdfminer 経路と `python/test_logic.py` は 2026-07-05 Phase 5 で撤去済み**
+（`uv run … unittest test_logic` は現存しない。移植の経緯は `/architecture` スキル・STATUS.md 参照）。
+実機での精度回帰は `PdfExtractorDeviceSpikeTest`（`/device-verify` スキル）。
 
 ## 注意: プロジェクトパスは ASCII のみ
 

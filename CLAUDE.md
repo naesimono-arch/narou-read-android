@@ -3,8 +3,9 @@
 ## 概要
 
 日本語Web小説（なろう系）のPDFを、ふりがな対応のHTMLに変換する **Androidアプリ**。
-Jetpack Compose + Chaquopy (Python 3.12)。
-ビルド設定: Chaquopy 15.0.1 / Python 3.12 / pdfminer.six / minSdk 26 / targetSdk 34
+Jetpack Compose + Kotlin ネイティブ PDF 抽出（PDFBox-Android）。
+ビルド設定: PDFBox-Android 2.0.27.0 / compileSdk 34 / minSdk 26 / targetSdk 34
+（旧 Chaquopy(Python 3.12)+pdfminer は 2026-07-05 Phase 5 で完全撤去＝APK 67→24MiB）
 
 ## 開発ルール
 
@@ -12,7 +13,7 @@ Jetpack Compose + Chaquopy (Python 3.12)。
 - **コードダンプ禁止**: チャットへのコード出力は10行以内。全体確認は `code <ファイルパス>` でエディターを開く。
 - **Atomic Commit**: 1論理的変更＝1コミット。形式は `fix/feat/refactor: 要約（日本語可）`。`git commit` 前に変更内容を提示して人間の承認を得ること。`Co-Authored-By` トレーラーは付けないこと。
 - **UIコメントは日本語**
-- **自己検証必須**: PDF処理ロジック（`pdf_extractor.py` / `chapter_processor.py` 等）を変更した場合は必ず `python -m unittest test_logic -v` を実行してからコミット計画を提示すること。Kotlin の `src/main` または `src/test` を変更した場合は必ず `cd android && ./gradlew testDebugUnitTest` を実行してからコミット計画を提示すること（`androidTest` は端末必須のため対象外）。
+- **自己検証必須**: Kotlin の `src/main` または `src/test` を変更した場合は必ず `cd android && ./gradlew testDebugUnitTest` を実行してからコミット計画を提示すること（`androidTest` は端末必須のため対象外）。PDF抽出ロジック（`java/com/novelreader/pdf/` の `PdfExtractor`/`TextProcessor`/`ChapterProcessor`/`HtmlExporter` 等）もこの Kotlin テストで担保される（旧 Python 版の単体テスト test_logic.py は Phase 5 で撤去済み）。
 - **「なぜ」コメントの義務付け**: 自明でないロジック・バグ修正・防御的コードには必ず「なぜそうしているか」をコメントで残すこと。whatはコードを読めば分かる。根本原因が未確定の場合は「〇〇が原因と推定されるが未確定のため防御的に対処」と明記。**【絶対禁止】** what コメントのみ・why なしのバグ修正・防御的コード追加。
 - **task_diary自動更新**: `fix:` コミット後は同じターン内で `task_diary.md` への追記が必要か確認すること。コードコメントだけでは伝わらない根本原因・OEM固有動作・将来はまりやすいパターンがある場合のみ追記。既存エントリと重複なら不要。追記時は内容で置き場を判断すること（**外部プラットフォームの事実・落とし穴**→ `task_diary.md` / **本アプリ実装パターン**＝コードが正本なので「なぜ」に絞り `docs/patterns/` / **設計判断・Why-not**→ `docs/decisions/` のADR）。task_diary のエントリ番号（#N・`§N`参照）は固定IDのためリナンバーしない（移設済みの旧ID対応は `task_diary.md` 末尾の移設マッピング表が正本）。
 - **一時ファイルは「抽出→集約→削除」まで1セット（作りっぱなし禁止）**: スクラッチ・TODO・事象レポート・分析ダンプ等の一時ファイルは、役目を終えたら〈①残すべき事項を既存の管理ファイルへ分割・集約 → ②然る後に削除〉を同じ作業単位で完了すること。作りっぱなしにしない。集約先は管理ドキュメント体系に従う（現況→`STATUS.md`／やること→`handover.md`／腐りにくい知見→`task_diary.md`／一次情報の細部→`.claude/plans/`／ブランチ不変の作業知見→auto-memory）。**git 管理下では削除は不可逆ではない**（履歴から復元できる）。恐れるべきは「未抽出の知識ごと消すこと」であって削除そのものではない＝①を済ませれば②は安全になる。**削除・移設で他ファイルからの参照がリンク切れになるなら、張り替えるか参照ごと消すこと**（存在しないファイルを指す台帳は読者を誤誘導する＝放置そのものが害）。
@@ -35,7 +36,7 @@ Jetpack Compose + Chaquopy (Python 3.12)。
 - **アーキテクチャ・構成・モジュール間の関係を把握する必要があれば → 必ず `/architecture` スキルを最初に実行すること**
 - **Room DBのスキーマ・Entityを変更するときは → 必ず `/db-migration` スキルを最初に実行すること**
 - **実機で検証する作業（adb操作・APK投入・androidTest実行・実機DB確認）が発生したら → 必ず `/device-verify` スキルを最初に実行すること**（connectedAndroidTest 直叩きによる蔵書DB消失などの禁忌を含む）
-- PDF解析の定数・ルール → `android/app/src/main/python/pdf_rules.py` を直接参照
+- PDF解析の定数・ルール → `android/app/src/main/java/com/novelreader/pdf/ParserRules.kt` を直接参照
 - OPPO/ColorOS 固有動作 → `/device-verify` スキル（§4 の症状→対処表）経由で `task_diary.md` を参照
 - Claude Code のフック（`.claude/hooks/`）を新規作成・改修するときは → 先に `task_diary.md` の「Claude Code フック」節（#26 stdin cp932 文字化け・#28 PostToolUse stdout 不達）と `docs/decisions/0004`（matcher範囲・ブランチ跨ぎ破綻）を必ず確認すること（いずれも**サイレント失敗クラス**＝踏むと長期間気づけないため、既存フックの雛形コピーだけで書き始めない）
 - **管理ドキュメントの体系**（役割で分離。混ぜないこと）:
