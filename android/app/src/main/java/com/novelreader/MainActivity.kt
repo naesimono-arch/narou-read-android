@@ -13,8 +13,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
-import com.chaquo.python.Python
-import com.chaquo.python.android.AndroidPlatform
 import com.novelreader.ui.BookshelfScreen
 import com.novelreader.ui.ReadingScreen
 import com.novelreader.ui.theme.NovelReaderTheme
@@ -30,11 +28,6 @@ class MainActivity : ComponentActivity() {
         // NovelReaderTheme 内で WindowCompat.getInsetsController を使うため、
         // setDecorFitsSystemWindows は setContent より前に呼ぶ必要がある
         WindowCompat.setDecorFitsSystemWindows(window, false)
-
-        // Chaquopy の初期化（アクティビティのコンテキストが必要）
-        if (!Python.isStarted()) {
-            Python.start(AndroidPlatform(this))
-        }
 
         setContent {
             // 見た目テーマの正本を MainActivity へ巻き上げ、本棚(NovelReaderTheme)と読書(ReadingScreen)で

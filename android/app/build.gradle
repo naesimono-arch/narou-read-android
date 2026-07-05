@@ -1,7 +1,6 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
-    id 'com.chaquo.python'
     id 'com.google.devtools.ksp'
 }
 
@@ -19,18 +18,6 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary true
-        }
-
-        // Pythonの設定
-        ndk {
-            abiFilters "arm64-v8a", "x86_64"
-        }
-        python {
-            buildPython "py", "-3.12"
-            version "3.12"
-            pip {
-                install "pdfminer.six"
-            }
         }
     }
 
@@ -85,10 +72,9 @@ dependencies {
     // HTMLパーサー (Jsoup)
     implementation 'org.jsoup:jsoup:1.17.2'
 
-    // PDF抽出 (PDFBox-Android / Tom Roush 版)。Chaquopy(Python+pdfminer) からの純 Kotlin 移植用。
+    // PDF抽出 (PDFBox-Android / Tom Roush 版)。旧 Chaquopy(Python+pdfminer) から移植した唯一の抽出経路。
     // なぜ 2.0.x 系で固定: Android 版 PDFBox-Android は upstream apache-pdfbox 2.0.x をベースにしており、
     // 移植元プロト (ab-review/submission-B) が apache 2.0.31 で精度検証済みのため API を 1:1 に保てる。
-    // 移植完了 (Phase 5) までは Chaquopy と併存し、実機で抽出パイプラインを段階検証する。
     implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
 
     // データベース (Room)
