@@ -49,6 +49,7 @@ Jetpack Compose + Kotlin ネイティブ PDF 抽出（PDFBox-Android）。
 - Claude Code のフック（`.claude/hooks/`）を新規作成・改修するときは → 先に `task_diary.md` の「Claude Code フック」節（#26 stdin cp932 文字化け・#28 PostToolUse stdout 不達）と `docs/decisions/0004`（matcher範囲・ブランチ跨ぎ破綻）を必ず確認すること（いずれも**サイレント失敗クラス**＝踏むと長期間気づけないため、既存フックの雛形コピーだけで書き始めない）
 - **agy(Antigravity) 委譲の実行者向けブリーフィング → `AGENTS.md`（agy が自動注入で読む）＋ `.agents/`（hooks＝禁忌コマンドの機械的ガード）**。監督側の委譲運用（--dir 必須・モデル選定）は auto-memory の `agy-*` 系を参照
 - 実行捏造ハルシネーション検知器（トランスクリプト静的解析）→ エンジン `.claude/hooks/detect_fabricated_execution_core.py`／CLI `analyze_transcript.py`。既知の実ハルシネーション正解データ（検証・回帰用）→ `docs/reference/hallucination-ground-truth.md`
+  - **ユーザーから「（このセッションの）ハルシネーションを記載して」と頼まれたら → `docs/reference/hallucination-ground-truth.md` に追記する**（正本はここ。他所には書かない）。手順: ①該当セッション JSONL（`~/.claude/projects/<slug>/*.jsonl`）を特定 → ②`analyze_transcript.py` を先にかける（**ただし静的検知器が拾うのは「実行の捏造」だけ**。存在しない対話・話題逸脱・帰属誤り・生成コード不具合などは 0 件で通るので、**JSONL を直読して一次情報で幻覚を確定**する）→ ③既存フォーマットに倣い〈確度・場所（JSONLパス）・`行/uuid` 表・※根拠note〉のセクションを追加し、冒頭の「確認済み実幻覚セクション: N件（M事象）」を更新。同事象の HANDOFF/MEMORY エコーは重複参照として非掲載にする。
 - **管理ドキュメントの体系**（役割で分離。混ぜないこと）:
   - **今どうなっているか（状態・完了・既知不具合）→ `STATUS.md`**（現況台帳＝正本）
   - **次に何をやるか（backlog・思いつき・取りこぼし）→ `handover.md`**（やること台帳。**作業に悩んだらまず見る**／拾った宿題はここへ追記）
