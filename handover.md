@@ -10,8 +10,8 @@
 > レビュー中・実装中に出た宿題や着想で、まだ正式バックログに整理していないものをここへ。
 > 育ったら下のA〜Dへ移す。
 
-- **実行捏造検知器（`feat/exec-fabrication-detector`）の残り**（ADR 0006・エンジンは `.claude/hooks/detect_fabricated_execution_core.py`）:
-  - **Stop フックのライブ化**: `stop_guard_fabrication.py` を実装し、last_turn の Tier B（`confidence≥0.8`・非降格）のみ `decision:"block"` で自己修正を促す。トラップ・コーパスで「絶対ブロックしない」ことを確認してから settings.json の `Stop` に配線し、全作業ブランチへ配布（ADR 0004 (b)）。CLI で精度検証済みなので着手可。
+- **実行捏造検知器（`feat/exec-fabrication-detector`・2026-07-06 main 統合済み）の残タスク**（ADR 0006・エンジンは `.claude/hooks/detect_fabricated_execution_core.py`）:
+  - ~~**Stop フックのライブ化**~~ **完了（2026-07-06 統合）**: `stop_guard_fabrication.py` を実装し `.claude/settings.json` の `Stop` に配線済み（last_turn の Tier B `confidence≥0.8`・非降格のみ `decision:"block"` で自己修正を促す）。※作業ブランチは全て main へ統合・削除済みのため「全作業ブランチへ配布」は不要化。
   - **Tier B 汎用主張の免罪の限界**: 「セッション内に成功実行が1回でもあれば免罪」で後半の汎用捏造を取りこぼす（事象D）。具体値主張は具体照合に絞ったが、汎用主張の掘り下げは将来課題。
   - **サブエージェント/オフロード全文の裏取り強化**（現状は読めなければ降格）。
   - **Tier C（帰属誤り・生成コード不具合・外部リサーチ捏造）は別系統検知器**が必要（正解データ事象A/B/C・スコープ外）。着想段階。
