@@ -13,3 +13,4 @@
 | [0003](0003-atomic-commit-from-impl-order.md) | Atomic Commit は実装順序から設計する | §20 |
 | [0004](0004-branch-aware-memory-and-doc-architecture.md) | ブランチ非依存 auto-memory への対処＋doc アーキテクチャ | — |
 | [0005](0005-ui-n-visual-language-D.md) | UI-n 視覚言語に D「和モダン・余白」採用（スコープ・Why-not 含む） | — |
+| [0006](0006-detect-fabricated-execution-static-analysis.md) | 実行捏造ハルシネーションのトランスクリプト静的解析検知（スコープ・Why-not） | — |

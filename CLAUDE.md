@@ -36,6 +36,7 @@ Jetpack Compose + Chaquopy (Python 3.12)。
 - PDF解析の定数・ルール → `android/app/src/main/python/pdf_rules.py` を直接参照
 - OPPO/ColorOS 固有動作 → `task_diary.md` を参照
 - **agy(Antigravity) 委譲の実行者向けブリーフィング → `AGENTS.md`（agy が自動注入で読む）＋ `.agents/`（hooks＝禁忌コマンドの機械的ガード）**。監督側の委譲運用（--dir 必須・モデル選定）は auto-memory の `agy-*` 系を参照
+- 実行捏造ハルシネーション検知器（トランスクリプト静的解析）→ エンジン `.claude/hooks/detect_fabricated_execution_core.py`／CLI `analyze_transcript.py`。既知の実ハルシネーション正解データ（検証・回帰用）→ `docs/reference/hallucination-ground-truth.md`
 - **管理ドキュメントの体系**（役割で分離。混ぜないこと）:
   - **今どうなっているか（状態・完了・既知不具合）→ `STATUS.md`**（現況台帳＝正本）
   - **次に何をやるか（backlog・思いつき・取りこぼし）→ `handover.md`**（やること台帳。**作業に悩んだらまず見る**／拾った宿題はここへ追記）
