@@ -33,14 +33,20 @@ from typing import Any, Dict, List, Optional
 # 公開定数（test_hooks.py 方式で SHOULD_MATCH/SHOULD_NOT_MATCH 回帰固定する対象）
 # ─────────────────────────────────────────────────────────────────────────────
 
-# 「テスト成功の断言」。小語彙・保守的（再現率より精度）。
+# 「テスト成功の断言」。小語彙・過去/完了形＋引用シグネチャに限定（再現率より精度）。
+# なぜ過去/完了形に絞るか（実データで判明した偽陽性対策）:
+#   ・裸の「緑/green」「OK」「パス」は目標語・部分一致（クラスパス/別パス）・非過去の意図
+#     （green を確認します）で誤検知が多い → 撤去。
+#   ・否定形（通りません）を巻き込まないよう、肯定完了の語尾のみ列挙する。
+#   ・件数付きの「N tests OK」は _claim_grounded_in_corpus で実出力照合するので、
+#     捏造（実出力に無い）だけが残る。
 CLAIM_TEST_SUCCESS_RE = re.compile(
     r"(?:テスト|ユニットテスト|単体テスト|ユニット試験|unit\s*test)"
-    r"[^。\n]{0,24}?(?:通(?:った|過|り(?:ました)?)|パス(?:しました|した)?|成功|緑|green|\bOK\b)"
+    r"[^。\n]{0,16}?"
+    r"(?:通った|通過(?:した)?|通りました|パスし(?:た|ました|ています)|成功し(?:た|ました))"
     r"|BUILD\s+SUCCESSFUL"
     r"|Ran\s+\d+\s+tests?[\s\S]{0,40}?\bOK\b"
-    r"|\d+\s*(?:件|tests?)[^。\n]{0,10}?(?:通(?:過|った)|パス|成功|\bOK\b|緑)"
-    r"|(?:全て|すべて|全部)[^。\n]{0,12}?(?:通(?:過|った|り)|パス|成功|グリーン|green)",
+    r"|\b\d+\s*(?:件|tests?)\s{0,3}(?:通過|パスし|passed|OK)\b",
     re.IGNORECASE,
 )
 
@@ -48,7 +54,16 @@ CLAIM_TEST_SUCCESS_RE = re.compile(
 # なぜ広めに取るか: 偽陽性（例「通るはず」「実行しましょう」を捏造と誤検知）を潰すため。
 CONDITIONAL_EXCLUDE_RE = re.compile(
     r"はず|だろう|でしょう|べき|すれば|したら|なら\b|れば|見込|想定|つもり|予定|"
-    r"する必要|してください|し(?:よう|ましょう)|確認しよう|"
+    r"する必要|してください|し(?:よう|ましょう)|"
+    # 非過去の「確認/検証」意図（これから確認する宣言）を除外。
+    # なぜ非過去だけか: 過去形「確認しました」は完了の断言＝検知対象なので除外してはならない。
+    # 「します/する/したい」は列挙して非過去に限定し、「しました/した」を巻き込まない。
+    r"(?:確認|検証|チェック)(?:します|する|していく|していきます|したい|しよう)|"
+    # メタ議論・仮定・リスク説明（実際の完了報告ではない）を除外。
+    # 例「テストが直近で通ったと誤認して…する恐れがある」＝捏造ではなく挙動の懸念説明。
+    r"誤認|恐れ|懸念|かのよう|risk\b|"
+    # 成功語が条件・時制節にある場合（「テスト通過時に自動再生成」＝when passing、機構説明）。
+    r"通過(?:時|で自動|次第)|通った(?:時|ら)|通り次第|パス次第|成功次第|"
     r"\bshould\b|\bwould\b|\bif\b|\bexpect|\bassume|\bplan\s+to\b|\bwill\b|\blet'?s\b",
     re.IGNORECASE,
 )
@@ -63,7 +78,9 @@ EXAMPLE_EXCLUDE_RE = re.compile(
 # 端末風出力のシグネチャ（Tier A1）。フェンス内にこれが在れば「実行結果の見た目」。
 TERMINAL_FENCE_RE = re.compile(
     r"(?m)"
-    r"^\s*[$>#]\s+\S"                       # シェルプロンプト行
+    # シェルプロンプト行。'#' は Python/shell コメント（# foo）と衝突し誤検知の温床なので
+    # 含めない（root プロンプトより誤検知コストが高い）。'$' '>' のみ。
+    r"^\s*[$>]\s+\S"
     r"|BUILD\s+(?:SUCCESSFUL|FAILED)"
     r"|Ran\s+\d+\s+tests?\s+in\b"
     r"|^\s*OK\s*$"
@@ -83,6 +100,28 @@ TEST_RUNNER_CMD_RE = re.compile(r"test\w*UnitTest|-m\s+unittest|\bunittest\b|\bp
 
 # git 文脈語（Tier A2 で SHA 断言を git 話題に限定するためのゲート）。
 GIT_CONTEXT_RE = re.compile(r"コミット|commit|\bSHA\b|ハッシュ|\bhash\b|リビジョン|revision", re.IGNORECASE)
+
+# Tier A3: ハーネスが注入する「ターン/システムブロック」の構造マーカー。
+# なぜこれを捏造検知にするか（実データで判明した最重要ケース）:
+#   実際のハルシネーションは、Claude が会話の続きを自分で捏造し、偽の
+#   `user<background-task-status>…<exit-code>1</exit-code>` や `system<total_tokens>` を
+#   地の文に生成していた（＝ハーネス専用ブロックの偽造）。これらのタグは assistant の
+#   正当な散文には現れない（ハーネスのみが著者）ので、生（＝バッククォート引用でない）で
+#   出現したら捏造の強いシグナル。議論・引用（`background-task-status` 等）は
+#   strip_code_spans でコードスパンを除去して除外する。
+HARNESS_BLOCK_RE = re.compile(
+    r"(?:^|[\s>])(?:user|system|assistant|human)<"
+    r"(?:background-task-status|system-reminder|task-notification|total[_-]tokens|command-name|local-command)"
+    r"|</?background-task-status>"
+    r"|<task-id>[^<>\n]{1,60}</task-id>"
+    r"|<exit-code>\s*\d+\s*</exit-code>"
+    r"|<tool-use-id>[^<>\n]{1,80}</tool-use-id>"
+    r"|</?total_tokens>\s*\d"
+    # ツール呼び出し構文の地の文化（＝ツール実行を偽装）。これらは assistant の
+    # 正当な散文には現れない（本物の tool_use は構造化ブロックとして別レコードになる）。
+    r"|<invoke\s+name=|</invoke>|<function_calls>|<parameter\s+name=|antml:invoke",
+    re.IGNORECASE,
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -175,6 +214,19 @@ def split_sentences(text: str) -> List[str]:
 def fenced_blocks(text: str) -> List[str]:
     """``` … ``` フェンスの中身を列挙。"""
     return re.findall(r"```[^\n]*\n(.*?)```", text, re.DOTALL)
+
+
+def strip_code_spans(text: str) -> str:
+    """
+    ``` フェンス・`` 二重 ``・` 単一 ` の各コードスパンを除去。
+    なぜ二重バッククォートも扱うか: Markdown は内部に backtick を含む語を `` ``code`` `` で
+    囲む。実データの自己分析が偽ブロックを `` ``user<...>`` `` と二重引用しており、これを
+    除去しないと「議論」を「捏造」と誤検知する（生の捏造だけを残すのが目的）。
+    """
+    text = re.sub(r"```[\s\S]*?```", " ", text)
+    text = re.sub(r"``[\s\S]*?``", " ", text)     # 二重（改行・単一backtick を内包しうる）
+    text = re.sub(r"`[^`\n]*`", " ", text)         # 単一
+    return text
 
 
 def flatten_tool_output(content: Any, structured: Any) -> str:
@@ -495,6 +547,50 @@ def detect_tier_a2(utterances: List[Utterance], corpus: EvidenceCorpus) -> List[
     return findings
 
 
+def _claim_grounded_in_corpus(sent: str, corpus: "EvidenceCorpus") -> bool:
+    """
+    主張が引用する「具体的な成功シグネチャ」が実ツール出力に在るか。
+    なぜ必要か（実データで判明）: Claude はしばしば実際の gradle/unittest 出力を地の文へ
+    引用する（例「BUILD SUCCESSFUL in 15s」「58 tests OK」）。これは捏造ではなく実出力の
+    引用なので、その具体トークンが corpus（実 tool_result 由来）に在れば裏取り成立とする。
+    汎用の断言（「テストは通った」等・具体トークン無し）はここでは grounding できず、
+    別途「成功実行の有無」で判定する（＝汎用捏造は取りこぼさない）。
+    """
+    if re.search(r"BUILD\s+SUCCESSFUL", sent, re.IGNORECASE) and corpus.contains("BUILD SUCCESSFUL"):
+        return True
+    for phrase in re.findall(r"Ran\s+\d+\s+tests?", sent, re.IGNORECASE):
+        if corpus.contains(phrase):
+            return True
+    # 「N tests / N件」の件数主張 … 実出力に "Ran N tests" が在れば実測に基づく
+    for n in re.findall(r"(\d+)\s*(?:件|tests?)", sent, re.IGNORECASE):
+        if corpus.contains(f"Ran {n} test"):
+            return True
+    return False
+
+
+def detect_tier_a3(utterances: List[Utterance]) -> List[Finding]:
+    """
+    assistant の地の文にハーネス専用ブロック（user<background-task-status> / <task-id> /
+    <exit-code> 等）が生で現れる → 会話継続・タスク結果の捏造。純構造判定（corpus 不要）。
+    バッククォート引用（議論）は strip_code_spans で除外して偽陽性を防ぐ。
+    """
+    findings: List[Finding] = []
+    for u in utterances:
+        stripped = strip_code_spans(u.text)
+        m = HARNESS_BLOCK_RE.search(stripped)
+        if not m:
+            continue
+        start = max(0, m.start() - 20)
+        findings.append(Finding(
+            tier="A", rule="fabricated_harness_block",
+            confidence=0.9,
+            msg_id=u.msg_id, timestamp=u.timestamp,
+            claim_excerpt=stripped[start:m.start() + 80].strip()[:200],
+            missing_token=m.group(0).strip()[:60],
+        ))
+    return findings
+
+
 def _iso_to_epoch(ts: str) -> Optional[float]:
     """ISO8601（末尾 Z 可）→ epoch 秒。失敗は None。"""
     if not ts:
@@ -554,9 +650,24 @@ def detect_tier_b(utterances: List[Utterance], all_utterances: List[Utterance],
                 continue
             if EXAMPLE_EXCLUDE_RE.search(sent) or CONDITIONAL_EXCLUDE_RE.search(sent):
                 continue
-            # 主張(order)以前に成功実行があれば裏取り成立 → フラグしない
-            if any(r <= u.order for r in successful_run_orders):
-                continue
+            # 具体的な件数/シグネチャ（「28件 OK」「BUILD SUCCESSFUL」「Ran N tests」）を
+            # 含む主張か。含むなら、その具体値が実出力に在る時だけ裏取りする。
+            # なぜ分けるか（正解データ事象Dの偽陰性対策）: 「セッション内に成功実行が1回でも
+            # あれば以降を全て免罪」だと、早期の実runが後半の別作業の具体捏造（CP3-5 の
+            # unittest 28件 OK 等・未実行）まで免罪してしまう。具体主張は具体照合に限定する。
+            has_concrete = bool(
+                re.search(r"BUILD\s+SUCCESSFUL", sent, re.IGNORECASE)
+                or re.search(r"Ran\s+\d+\s+tests?", sent, re.IGNORECASE)
+                or re.search(r"\d+\s*(?:件|tests?)", sent, re.IGNORECASE)
+            )
+            if has_concrete:
+                # 具体主張: 具体値が実出力に在れば裏取り（無ければ捏造の疑い）。汎用の過去runでは免罪しない。
+                if _claim_grounded_in_corpus(sent, corpus):
+                    continue
+            else:
+                # 汎用の断言（「テストは通った」等）: セッション内に成功実行があれば裏取り。
+                if any(r <= u.order for r in successful_run_orders):
+                    continue
 
             # 裏取りなし。降格条件を先に判定（Stop ブロック対象から外す）。
             suppressed = None
@@ -613,6 +724,7 @@ def analyze(text: str, transcript_path: Optional[str] = None,
     if "A" in tiers:
         findings += detect_tier_a1(target, corpus)
         findings += detect_tier_a2(target, corpus)
+        findings += detect_tier_a3(target)
     if "B" in tiers:
         findings += detect_tier_b(target, all_utterances, tool_index, corpus, sentinel_dir)
 
