@@ -10,6 +10,7 @@
 > レビュー中・実装中に出た宿題や着想で、まだ正式バックログに整理していないものをここへ。
 > 育ったら下のA〜Dへ移す。
 
+- **[運用/CLAUDE.md] plan運用ルールの正式化（main の CLAUDE.md 開発ルールへ追記）**（2026-07-05 発案・実測根拠あり）: ①plan作成時に各フェーズを〈機械的バッチ〉〈判断ループ〉に二分しバッチ側の agy 委譲可否を plan 冒頭に明記 ②plan末尾に「実行セッション起動ブロック」（対象ブランチ・★次はここから・最小読みセット＝実行に必要なファイル+行範囲・検証ゲートのコマンド）を必須化 ③実行見込み ~10ターン以上の plan は fresh セッションで実行 ④edit-streak ゲート（`AGY_FORCE_DELEGATE_EDITS=1`・.bashrc 設定済み）誤発火時は Bash 迂回せずユーザーへ申告。根拠実測（53セッション/$987解剖・cache非対称・分岐点≈10ターン）= memory `workflow-plan-fresh-session-execution` / `agy-objective-minimize-claude-agy-free`。CLAUDE.md は main 正本のため追記コミットは main で行う。
 - **[kotlin/掃除] 実機の本棚にテスト用シード本2冊が残存**（2026-07-03 Task9 目視関門で `PdfPipelineDeviceTest` が投入）: `spike-N1453LW`/`spike-N2959KI`（+空 `spike-N6169DZ` dir）。掃除の可否をユーザーに確認中で未実施。掃除するなら `filesDir/novels/spike-*` と books テーブルの該当行のみ削除（手動追加のルビ本・他蔵書には触れない）。Phase 3 の実書取込で上書きされる想定でもある。
 
 ---
