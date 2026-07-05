@@ -32,7 +32,7 @@ CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/decisions/` / `.clau
    ```
    python .claude/skills/stale-check/check_machine.py
    ```
-   - 9種の機械チェックを**全件**実行し、「前回チェック以降に変わった管理ファイル」一覧の提示と、
+   - 12種の機械チェックを**全件**実行し、「前回チェック以降に変わった管理ファイル」一覧の提示と、
      状態ファイル `.claude/.stale_check_state.json` の自動更新まで行う。
    - 状態記録が無い初回は「初回フォールバック」と表示される → その場合は全管理ファイルを意味確認の対象にする。
 2. 出力の「前回チェック以降に変わった管理ファイル」に挙がったものだけ、下記**意味チェック観点**で精読する
@@ -64,6 +64,9 @@ CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/decisions/` / `.clau
 7. テストコマンドの一貫性
 8. gradlew パス健全性（build skill）
 9. skill frontmatter 妥当性（name ↔ ディレクトリ名）
+10. plans 参照の実在（管理md・docs・skill が名指しするリポジトリ内 `.claude/plans/*.md`。項目6が plans を除外しているための専用チェック。`~/.claude/plans/` は対象外＝マシンローカル）
+11. permissions パス実在（settings の allow/deny ルールが指すパスの消滅＝死 permission。ワイルドカード始まりの断片は対象外）
+12. hook 動作点検（全 hook の構文チェック＋`test_*.py` 自己テストの実行。サイレント失敗クラス対策）
 
 機械チェックを足したくなったら、このスクリプトに関数を追加して `CHECKS` に登録する。
 

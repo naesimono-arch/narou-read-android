@@ -19,9 +19,11 @@ stale-check の「機械チェック実体」。
 終了コード: 確度高(severity=high)の陳腐化が1件以上あれば 1、無ければ 0。
   ※ これはレポート用途であり hook ではない。コミット等はブロックしない。
 """
+import ast
 import datetime
 import io
 import json
+import os
 import re
 import subprocess
 import sys
@@ -37,7 +39,7 @@ ROOT = Path(__file__).resolve().parents[3]
 STATE_FILE = ROOT / ".claude/.stale_check_state.json"
 
 # 軽量モードで「前回チェック以降に変わった管理ファイル」を絞り込むための対象プレフィックス。
-# これに該当する差分だけ Claude が意味確認すればよい（コア9チェックは常に全件実行）。
+# これに該当する差分だけ Claude が意味確認すればよい（コア12チェックは常に全件実行）。
 MANAGED_PREFIXES = (
     "CLAUDE.md", "STATUS.md", "handover.md", "task_diary.md",
     ".claude/skills/", ".claude/hooks/", ".claude/settings", ".mcp.json", "docs/",
@@ -160,10 +162,13 @@ def check_hooks_registration():
     registered = _registered_hooks()
     for r in sorted(registered - actual):
         add("hooks", "stale", "high", f"settings が参照する '{r}' が .claude/hooks/ に実在しない（壊れた参照）")
+    # hook ではない同居ライブラリ/CLI（ADR 0006: 捏造検知は「純ロジックのエンジン＋薄いアダプタ」構成で、
+    # エンジンは Stop フックと CLI が import して使い、CLI は配線ゼロが設計）。settings 未登録が正。
+    non_hook_libs = {"detect_fabricated_execution_core.py", "analyze_transcript.py"}
     for a in sorted(actual - registered):
         # test_*.py は hook 本体ではなく回帰テスト（guard/consume の正規表現整合を守る test_hooks.py 等）。
         # settings に登録しないのが正なので死 hook 判定から除外する（誤検知回避）。
-        if a.startswith("test_"):
+        if a.startswith("test_") or a in non_hook_libs:
             continue
         add("hooks", "warn", "info", f"'{a}' は実在するが settings に未登録（動いていない死 hook の可能性）")
 
@@ -297,6 +302,104 @@ def check_skill_frontmatter():
             add("frontmatter", "warn", "info", f"{dir_name}/SKILL.md に description: が無い")
 
 
+# ── 10. plans 参照の実在（管理md・skill が名指しする .claude/plans/*.md）────
+def check_plans_references():
+    """なぜ専用チェックか: check_referenced_files は .claude/plans を誤検知回避のため除外しており、
+    2026-07-06 のフル照合で architecture skill の plans 参照切れを機械が見逃した実績がある。
+    plans はアーカイブでも「存在しないファイルを指す台帳は読者を誤誘導する」（CLAUDE.md の
+    一時ファイル規約）ため、参照の実在だけは機械で担保する。"""
+    docs = ["CLAUDE.md", "STATUS.md", "handover.md", "task_diary.md"]
+    docs_dir = ROOT / "docs"
+    if docs_dir.is_dir():
+        docs += [str(p.relative_to(ROOT)).replace("\\", "/") for p in docs_dir.rglob("*.md")]
+    skills_dir = ROOT / ".claude/skills"
+    if skills_dir.is_dir():
+        docs += [str(p.relative_to(ROOT)).replace("\\", "/") for p in skills_dir.glob("*/SKILL.md")]
+    # (?<!~/) で `~/.claude/plans/…`（ホーム側 active plan・リポジトリ外）を除外する。
+    # ホーム側はこのマシンにしか無くリポジトリ実在チェックの対象にできない（マシン間で結果が揺れる）。
+    pat = re.compile(r"(?<!~/)\.claude/plans/[\w.-]+\.md")
+    for d in docs:
+        txt = read_text(d)
+        if not txt:
+            continue
+        # HTML コメントは除外: 「この参照は削除した」という経緯説明が旧パス文字列を含むのは正当
+        # （STATUS.md の lab-verification 注記で実証済みの誤検知パターン）。
+        txt = re.sub(r"<!--.*?-->", "", txt, flags=re.DOTALL)
+        for ref in sorted(set(pat.findall(txt))):
+            if not (ROOT / ref).exists():
+                add("plans-ref", "stale", "info",
+                    f"{d} が参照する '{ref}' が存在しない（plans 参照切れ）")
+
+
+# ── 11. permissions が指すパスの実在 ─────────────────────────────────────
+def check_permission_paths():
+    """settings の allow/deny ルール内のパス様文字列が実在するかを確認する。
+    なぜ: Phase 5 の Python 撤去後も test_logic 系の死 permission が残存し、
+    2026-07-06 のフル照合まで機械では検出できなかった（穴の実証）。
+    限界: `cd *python*` のようにワイルドカードで始まる断片はパスとして再構成できないため対象外
+    （そうした残骸は意味チェック側で拾う）。"""
+    token_pat = re.compile(r"[A-Za-z0-9_.~-]+(?:/[A-Za-z0-9_.*~-]+)+")
+    for sf in (".claude/settings.json", ".claude/settings.local.json"):
+        txt = read_text(sf)
+        if not txt:
+            continue
+        try:
+            perms = json.loads(txt).get("permissions", {})
+        except json.JSONDecodeError:
+            continue  # JSON 破損は check_hooks_registration 側で既に警告される
+        rules = [r for v in perms.values() if isinstance(v, list)
+                 for r in v if isinstance(r, str)]
+        for rule in rules:
+            for tok in sorted(set(token_pat.findall(rule))):
+                prefix = tok.split("*", 1)[0].rstrip("/")
+                # ホーム相対(~)・URL 断片・スラッシュが残らない断片は再構成不能のため対象外
+                if "/" not in prefix or prefix.startswith(("http", "~")):
+                    continue
+                if not (ROOT / prefix).exists():
+                    add("perm-path", "stale", "info",
+                        f"{sf} の許可ルール '{rule}' が指す '{prefix}' が存在しない（死 permission の疑い）")
+
+
+# ── 12. hook 動作点検（構文＋自己テスト）────────────────────────────────
+def check_hook_smoke():
+    """全 hook の構文チェック（ast.parse＝副作用なし）と、hooks の自己テスト
+    （test_*.py を unittest で実行）を行う。
+    なぜ: 参照整合だけでは「登録されているが起動時に落ちる hook」（構文エラー・リファクタの
+    取り残し）を検出できない。hook はサイレント失敗クラス（task_diary #26/#28）のため、
+    動作レベルの点検を機械チェックに組み込む（2026-07-06 大規模マージ後点検でのユーザー要望）。
+    py_compile でなく ast.parse を使うのは __pycache__ を生成しない（本スクリプトの
+    「読み取り専用・副作用なし」を守る）ため。"""
+    hooks_dir = ROOT / ".claude/hooks"
+    if not hooks_dir.is_dir():
+        return
+    for p in sorted(hooks_dir.glob("*.py")):
+        try:
+            ast.parse(p.read_text(encoding="utf-8", errors="replace"), filename=str(p))
+        except SyntaxError as e:
+            add("hook-smoke", "stale", "high",
+                f"{p.name} が構文エラーで起動不能: L{e.lineno}: {e.msg}")
+        except OSError:
+            add("hook-smoke", "error", "info", f"{p.name} を読めず構文チェックをスキップ")
+    tests = sorted(t.stem for t in hooks_dir.glob("test_*.py"))
+    if not tests:
+        return
+    try:
+        r = subprocess.run(
+            [sys.executable, "-m", "unittest", *tests],
+            cwd=hooks_dir, capture_output=True, text=True, timeout=120,
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},  # 副作用（__pycache__）を作らない
+        )
+        if r.returncode != 0:
+            out = (r.stderr or r.stdout).strip()
+            tail = out.splitlines()[-1] if out else "(出力なし)"
+            add("hook-smoke", "stale", "high",
+                f"hook 自己テスト失敗（{' '.join(tests)}）: {tail}")
+    except subprocess.TimeoutExpired:
+        add("hook-smoke", "error", "info", "hook 自己テストがタイムアウト（120秒）")
+    except Exception as e:
+        add("hook-smoke", "error", "info", f"hook 自己テストを実行できない: {e}")
+
+
 # ── 状態管理（軽量モードの差分起点）─────────────────────────────────────
 def _git(args):
     try:
@@ -356,6 +459,9 @@ CHECKS = [
     check_test_commands,
     check_gradlew_path,
     check_skill_frontmatter,
+    check_plans_references,
+    check_permission_paths,
+    check_hook_smoke,
 ]
 
 
