@@ -12,7 +12,7 @@ Stop フック: ターン終了時に、直近の assistant 発話の「実行�
   - 偽陽性・例外・transcript 不在は必ず exit 0（ユーザー作業を妨げない）。
 
 なぜ scope=last_turn か: 直近の発話の主張だけを対象にする（証拠・成功実行はセッション全域から
-集める）。センチネル(.python_tests_passed 等)は現行セッションの実行痕跡なので裏取りに使える。
+集める）。センチネル(.kotlin_tests_passed)は現行セッションの実行痕跡なので裏取りに使える。
 """
 import io
 import json

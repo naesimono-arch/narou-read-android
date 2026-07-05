@@ -288,7 +288,9 @@ def read_offload(transcript_path: Optional[str], tool_use_id: str) -> Optional[s
 
 def is_success_test_result(command: str, output: str, is_error: bool) -> bool:
     """
-    テスト実行が成功したかを判定。mark_python/kotlin_tests_passed.py の判定を移植:
+    テスト実行が成功したかを判定。mark_kotlin_tests_passed.py（および Phase 5 撤去済みの
+    旧 mark_python 版）の判定を移植。unittest/pytest 分岐はプロダクトの Python 撤去後も
+    hook 自己テスト等の transcript 照合に使うため残す:
       gradle: 出力に "BUILD SUCCESSFUL"
       unittest: output.rstrip().endswith("\\nOK") かつ "Ran N tests in"
       pytest: "N passed" があり "N failed/error" が無い
@@ -604,8 +606,10 @@ def _iso_to_epoch(ts: str) -> Optional[float]:
 
 def _sentinel_state(sentinel_dir: Optional[str], claim_ts: str) -> Optional[dict]:
     """
-    既存センチネル（.python_tests_passed / .kotlin_tests_passed）の存在と、
+    既存センチネル（.kotlin_tests_passed）の存在と、
     主張時刻との mtime 前後関係を返す。sentinel_dir 未指定なら None（照合しない）。
+    （.python_tests_passed は Phase 5 の Python 撤去＋mark_python hook 廃止（2026-07-06）で
+    生成者が消滅したため照合対象から外した。残骸ファイルを拾うと誤ったナッジになる。）
     なぜ live 時のみ有効か: センチネルは現在の FS 状態を表すため、過去セッションの
     事後解析では意味が薄い。よって「補助的な信頼度ナッジ」に留める。
     """
@@ -613,7 +617,7 @@ def _sentinel_state(sentinel_dir: Optional[str], claim_ts: str) -> Optional[dict
         return None
     claim_epoch = _iso_to_epoch(claim_ts)
     state = {"present": False, "fresh": False}
-    for name in (".python_tests_passed", ".kotlin_tests_passed"):
+    for name in (".kotlin_tests_passed",):
         p = os.path.join(sentinel_dir, name)
         if os.path.exists(p):
             state["present"] = True
