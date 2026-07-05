@@ -36,11 +36,13 @@ Jetpack Compose + Kotlin。**PDF 抽出パイプラインの実装はブラン�
 ```bash
 export JAVA_HOME=/home/qingj/opt/jdk-17 ANDROID_HOME=/home/qingj/Android/Sdk
 cd android
-# local.properties に Windows 側の sdk.dir が残っていると WSL で壊れるため除去（gitignore 済みで安全）
-sed -i '/^sdk\.dir=/d' local.properties
+# local.properties に Windows 側の sdk.dir が残っていると WSL で壊れるため除去（gitignore 済みで安全）。
+# ※ /mnt/c(drvfs) では sed -i が EPERM で失敗するため、一時ファイル経由で書き換える（2026-07-05 実証済み）
+sed '/^sdk\.dir=/d' local.properties > local.properties.tmp && cat local.properties.tmp > local.properties && rm local.properties.tmp
 # gradlew は CRLF 改行のため直接実行不可 → ラッパー jar を直接起動する。
+# java は PATH に無い（非対話シェルは ~/.bashrc を読まない）ため JAVA_HOME 経由のフルパスで起動する。
 # --init-script は必須（/mnt/c 上では AAPT2 が EPERM で死ぬため build/ を ext4 へ退避している）
-java -classpath gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain \
+"$JAVA_HOME/bin/java" -classpath gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain \
   --no-daemon --console=plain \
   --init-script /home/qingj/ext-build/novel-reader-init.gradle \
   testDebugUnitTest
