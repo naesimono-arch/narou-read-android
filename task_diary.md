@@ -431,6 +431,29 @@ Task 9 実機フル疎通で、N6169DZ(8.9MB/350万字/951章)を `PdfBookExtrac
 - **回避（検証用）**: ①電源最適化から除外を試す（`dumpsys deviceidle whitelist +com.novelreader` 等。ただし fg_cpu killer には効きにくい） ②検証目的なら PDF を冒頭数十ページに切詰めて CPU バーストを閾値未満にする ③実書での長編検証は Phase 3 の前景サービス経路で行う。
 - 関連: [[workflow-autonomous-device-verification]]。connectedAndroidTest の自動uninstall(#36)とは別の落とし穴。
 
+#### 38. ColorOS(OPPO) の Hans フリーザ(OplusHansManager)は素の androidTest プロセスを freeze する（kill ではない・#37 と別機構）  ★★★
+
+Phase 4 精度回帰ゲート(`PdfExtractorDeviceSpikeTest`)の ≤15版クリーンラン取得中、N6169DZ(350万字)抽出が
+「CPU時間 0:25 のまま凍結・約10分 no progress」でハングに見えた。真因は **ColorOS の Hans フリーザが
+`com.novelreader` プロセスを freeze（cgroup freezer で丸ごと一時停止）** したこと（logcat:
+`OplusHansManager: unfreeze uid ... com.novelreader ... reason: Signal`／`F exit(), F stay=1578`）。
+- **#37(fg_cpu kill) とは別機構**: Osense の kill ガーディアンは instrumentation を
+  `KillAction: don't check adj ... FGS/48/0/instrumentation` と**kill 対象外に保護**していた＝プロセスは死んでいない。
+  **殺されたのではなく凍結された**。凍結中は CPU が進まないので「ハング/デッドロック」に誤認しやすい
+  （SIGQUIT で一瞬解凍→数十秒 work→再凍結 を繰り返す＝CPU時間が飛び飛びに増える）。
+- **端末操作・充電の有無は無関係**（無操作・充電中・`svc power stayon true`・
+  `dumpsys deviceidle whitelist +com.novelreader` を全て満たしても凍結した）＝素の `am instrument` は
+  プロセスを foreground/perceptible にしないため Hans に background 扱いされる。
+  `device_config put activity_manager use_freezer false` は allowlist 権限不足で不可。
+- **回避（実測で確立）**: テスト対象アプリの **MainActivity を前面化してプロセスを perceptible にする**＝
+  `adb shell monkey -p com.novelreader -c android.intent.category.LAUNCHER 1`。前面化した瞬間 oom_adj が
+  foreground(-10) になり **%CPU が 0→250% へ復帰**し N6169DZ が完走・`OK (1 test)`。instrumentation テストは
+  同一プロセスで並行継続するので Activity 表示と共存できる。**超長編の素 androidTest を回すときは
+  実行中に MainActivity を前面化しておくこと。**
+- freeze/thaw は cgroup freezer のクリーンな中断・再開なので抽出結果は無破損（決定的）＝凍結を挟んでも
+  PASS は有効（本ランの wall time 1784s は凍結分が大半で、実 CPU は約1分）。関連: #37・#4（FGS でも停止）・
+  [[workflow-autonomous-device-verification]]。
+
 ## 移設マッピング（旧 Part II / Part III の固定ID対応）
 
 > 旧エントリ番号（`§N`）は固定ID。本ファイルから `docs/` へ移設したものは下表で追跡する（移設先での再採番はしない）。

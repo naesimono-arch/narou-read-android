@@ -62,6 +62,7 @@ sqlite3 /tmp/…/db "SELECT …"
 | 症状 | 対処・参照 |
 |------|-----------|
 | CPU 集中プロセスが数分で強制 kill（logcat: `abnormal fg_cpu`・`o-kill(502)`。**OOM ではない**） | #37。素の androidTest は無防備。超長編の検証は前景サービス経路で行うか PDF を切詰める |
+| 素の androidTest が超長編抽出中に no progress でハング（logcat: `OplusHansManager … F stay=` / CPU時間が凍結）。**kill ではなく freeze** | #38。Hans フリーザが background 扱いの instrumentation を凍結（#37 の kill とは別・操作/充電無関係）。回避=`adb shell monkey -p com.novelreader -c android.intent.category.LAUNCHER 1` で MainActivity を前面化し perceptible 化（%CPU 0→250% へ復帰し完走） |
 | FGS + WakeLock でもバックグラウンドで停止 | #4（根本解決は端末設定「バックグラウンドアクティビティを許可」のみ） |
 | バッテリー最適化除外の画面遷移が誤動作 | #5（`ACTION_APPLICATION_DETAILS_SETTINGS` を使う） |
 | 通知が表示されない | #2（ContentIntent 必須） |
