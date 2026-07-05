@@ -18,6 +18,17 @@ import xml.etree.ElementTree as ET
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
+# 実行コマンドとしての `git commit` を検知する正規表現。
+# 【重要】guard_commit_branch.py と同一定義（test_hooks.py が一致を回帰固定）。
+# なぜ緩い \bgit\s+commit\b から置き換えたか: クォート内言及（echo/grep 等）にも誤発火し、
+# 本フックは Lint 実行（最大5分）まで走るため誤発火コストがとりわけ大きい。
+# なぜ stdin 読込より前に定義するか: test_hooks.py が実ファイルを exec して定数を回収する設計のため。
+COMMIT_CMD_RE = re.compile(
+    r"(?:^|\n|&&|\|\||[;|&])\s*git"
+    r"(?:\s+(?:-[Cc]\s+\S+|-{1,2}[\w.-]+(?:=\S+)?))*"
+    r"\s+commit\b"
+)
+
 try:
     data = json.load(sys.stdin)
 except (json.JSONDecodeError, EOFError):
@@ -30,7 +41,7 @@ if tool_name != "Bash":
     sys.exit(0)
 
 command = tool_input.get("command", "")
-if not re.search(r"\bgit\s+commit\b", command):
+if not COMMIT_CMD_RE.search(command):
     sys.exit(0)
 
 # Kotlin/Java/XMLファイルがステージされているときだけ実行（高コストなので限定）

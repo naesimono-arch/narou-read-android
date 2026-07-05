@@ -44,6 +44,21 @@ COMMIT_CMD_RE = re.compile(
     r"\s+commit\b"
 )
 
+# コミットを生成する merge/rebase/cherry-pick も保護対象にする。
+# なぜ: 競合しない `git merge <branch>` やマージ/リベースの `--continue` は "commit" トークンを
+# 含まずに保護ブランチの HEAD を進める＝リテラル git commit 検知だけでは branch guard を素通り
+# していた（2026-07-06 の feat+kotlin 統合で実地に露呈＝handover hooks/fix ②）。
+# --abort/--quit はコミットを生成しない回復コマンドのため除外（誤ブロックすると main 上での
+# マージ中断すらセンチネルが要る本末転倒になる）。--no-commit も生成しない（後続の明示
+# git commit が COMMIT_CMD_RE で捕まる）ため除外。
+# 【重要】consume_protected_sentinel.py / check_commit_granularity.py と同一定義。
+COMMIT_GENERATING_RE = re.compile(
+    r"(?:^|\n|&&|\|\||[;|&])\s*git"
+    r"(?:\s+(?:-[Cc]\s+\S+|-{1,2}[\w.-]+(?:=\S+)?))*"
+    # (?!-) は merge-base / merge-file 等の読み取り系サブコマンドへの誤発火防止
+    r"\s+(?:merge|rebase|cherry-pick)\b(?!-)(?![^\n;|&]*--(?:abort|quit|no-commit)\b)"
+)
+
 try:
     data = json.load(sys.stdin)
 except (json.JSONDecodeError, EOFError, ValueError):
@@ -53,7 +68,7 @@ if data.get("tool_name", "") != "Bash":
     sys.exit(0)
 
 command = data.get("tool_input", {}).get("command", "")
-if not COMMIT_CMD_RE.search(command):
+if not (COMMIT_CMD_RE.search(command) or COMMIT_GENERATING_RE.search(command)):
     sys.exit(0)
 
 try:
@@ -78,7 +93,8 @@ if os.path.exists(sentinel):
           "コミット成功時に自動消費されます。")
     sys.exit(0)
 
-print(f"[ブランチガード] 保護ブランチ '{branch}' への直接コミットをブロックします。", file=sys.stderr)
+print(f"[ブランチガード] 保護ブランチ '{branch}' への直接コミット"
+      "（またはコミットを生成する merge/rebase/cherry-pick）をブロックします。", file=sys.stderr)
 print("作業ブランチ（lab / UI-* など）へ切替えてコミットしてください。", file=sys.stderr)
 print("意図的に main へコミットする場合のみ:", file=sys.stderr)
 print(f"  echo > \"{sentinel}\"   # を作成してから再実行（1回の成功コミットで自動消費）", file=sys.stderr)

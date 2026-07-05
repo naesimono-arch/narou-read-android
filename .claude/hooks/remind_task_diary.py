@@ -28,6 +28,17 @@ import sys
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
+# 実行コマンドとしての `git commit` を検知する正規表現。
+# 【重要】guard_commit_branch.py と同一定義（test_hooks.py が一致を回帰固定）。
+# なぜ単純部分文字列（"git commit" in command）から置き換えたか: クォート内言及にも誤発火するため
+# （本フックは無害な想起のみだが、-m 抽出が echo 内の疑似メッセージを拾うノイズ源になる）。
+# なぜ stdin 読込より前に定義するか: test_hooks.py が実ファイルを exec して定数を回収する設計のため。
+COMMIT_CMD_RE = re.compile(
+    r"(?:^|\n|&&|\|\||[;|&])\s*git"
+    r"(?:\s+(?:-[Cc]\s+\S+|-{1,2}[\w.-]+(?:=\S+)?))*"
+    r"\s+commit\b"
+)
+
 try:
     data = json.load(sys.stdin)
 except (json.JSONDecodeError, EOFError):
@@ -38,8 +49,8 @@ if data.get("tool_name", "") != "Bash":
 
 command = data.get("tool_input", {}).get("command", "")
 
-# `git commit` でなければ無関係。
-if "git commit" not in command:
+# 実行コマンドとしての `git commit` でなければ無関係。
+if not COMMIT_CMD_RE.search(command):
     sys.exit(0)
 
 # コミットメッセージ（-m "..." / -m '...'）を抽出して接頭辞を判定する。

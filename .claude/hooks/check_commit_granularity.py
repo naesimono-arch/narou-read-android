@@ -14,6 +14,31 @@ import sys
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
+# 実行コマンドとしての `git commit` を検知する正規表現。
+# 【重要】guard_commit_branch.py / consume_protected_sentinel.py と同一定義（検知整合のため）。
+# 変更時は全ファイルを更新すること（test_hooks.py が一致を回帰固定）。
+# なぜ緩い \bgit\s+commit\b から置き換えたか: `echo '...git commit...'` 等のクォート内言及にも
+# 誤発火し、Kotlin ステージ×センチネル不在の状況では exit 2 の誤ブロックまで到達しうるため
+# （2026-07-06 stale-check フル照合で指摘）。
+# なぜ stdin 読込より前に定義するか: test_hooks.py が実ファイルを exec して定数を回収する設計のため。
+COMMIT_CMD_RE = re.compile(
+    r"(?:^|\n|&&|\|\||[;|&])\s*git"
+    r"(?:\s+(?:-[Cc]\s+\S+|-{1,2}[\w.-]+(?:=\S+)?))*"
+    r"\s+commit\b"
+)
+# コミットを生成する merge/rebase/cherry-pick も対象にする（--abort/--quit/--no-commit は
+# コミットを生成しないため除外）。
+# なぜ: 競合解決後の `git merge --continue` 等は "commit" トークンを含まずにコミットを生成し、
+# リテラル git commit 検知だけではテストゲートを素通りしていた
+# （2026-07-06 の feat+kotlin 統合で実地に露呈＝handover hooks/fix ②）。
+# 【重要】guard_commit_branch.py / consume_protected_sentinel.py と同一定義。
+COMMIT_GENERATING_RE = re.compile(
+    r"(?:^|\n|&&|\|\||[;|&])\s*git"
+    r"(?:\s+(?:-[Cc]\s+\S+|-{1,2}[\w.-]+(?:=\S+)?))*"
+    # (?!-) は merge-base / merge-file 等の読み取り系サブコマンドへの誤発火防止
+    r"\s+(?:merge|rebase|cherry-pick)\b(?!-)(?![^\n;|&]*--(?:abort|quit|no-commit)\b)"
+)
+
 try:
     data = json.load(sys.stdin)
 except (json.JSONDecodeError, EOFError):
@@ -26,61 +51,31 @@ if tool_name != "Bash":
     sys.exit(0)
 
 command = tool_input.get("command", "")
-if not re.search(r"\bgit\s+commit\b", command):
+
+if not (COMMIT_CMD_RE.search(command) or COMMIT_GENERATING_RE.search(command)):
     sys.exit(0)
 
-# ステージ済みファイル一覧を取得
+# ステージ済みファイル一覧を取得（--name-status で削除を区別する）。
+# なぜ D（削除）をテストゲート対象から除外するか: 削除ファイルはテスト実行対象が存在せず、
+# センチネル存在チェックが「削除済みで実行不能なファイルのテスト」を要求してコミット不能になる
+# （kotlin マージの Python 全撤去で実地に露呈＝handover hooks/fix ①）。表示用一覧には削除も含める。
 try:
     result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only"],
+        ["git", "diff", "--cached", "--name-status"],
         capture_output=True, text=True, timeout=10
     )
-    staged = [f for f in result.stdout.strip().splitlines() if f]
+    staged_entries = []
+    for line in result.stdout.strip().splitlines():
+        parts = line.split("\t")
+        if len(parts) < 2:
+            continue
+        # R/C（rename/copy）は "R100\t旧\t新" 形式＝新パス（末尾要素）を採用する
+        staged_entries.append((parts[0], parts[-1]))
 except Exception:
-    staged = []
+    staged_entries = []
 
-# ──── Pythonテスト強制チェック ────
-PYTHON_DIR = "android/app/src/main/python/"
-SENTINEL = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    ".python_tests_passed"
-)
-
-python_staged = [f for f in staged if f.startswith(PYTHON_DIR) and f.endswith(".py")]
-
-if python_staged:
-    if not os.path.exists(SENTINEL):
-        print("[Pythonテスト未実行] コミットをブロックします")
-        print("以下のPythonファイルがステージされています:")
-        for f in python_staged:
-            print(f"  - {f}")
-        print("\n先に実行してください:")
-        print("  cd android/app/src/main/python && python -m unittest test_logic -v")
-        sys.exit(2)
-
-    sentinel_mtime = os.path.getmtime(SENTINEL)
-    try:
-        repo_root = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, timeout=10
-        ).stdout.strip()
-    except Exception:
-        repo_root = ""
-
-    stale = [
-        f for f in python_staged
-        if os.path.exists(os.path.join(repo_root, f))
-        and os.path.getmtime(os.path.join(repo_root, f)) > sentinel_mtime
-    ]
-    if stale:
-        print("[Pythonテスト古い] コミットをブロックします")
-        print("センチネルより新しいPythonファイルがあります:")
-        for f in stale:
-            print(f"  - {f}")
-        print("\n再度テストを実行してください:")
-        print("  cd android/app/src/main/python && python -m unittest test_logic -v")
-        sys.exit(2)
-# ──── ここまで ────
+staged = [p for _s, p in staged_entries]  # 表示用（削除含む）
+gate_targets = [p for s, p in staged_entries if not s.startswith("D")]
 
 # ──── Kotlinテスト強制チェック ────
 # なぜ src/main と src/test のみ対象で androidTest を除外するか:
@@ -94,7 +89,7 @@ KOTLIN_SENTINEL = os.path.join(
 KOTLIN_TEST_CMD = "cd android && ./gradlew testDebugUnitTest"
 
 kotlin_staged = [
-    f for f in staged
+    f for f in gate_targets
     if f.endswith(".kt") and f.startswith(KOTLIN_GATE_DIRS)
 ]
 

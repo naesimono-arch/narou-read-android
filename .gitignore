@@ -13,8 +13,11 @@ android/local.properties
 .claude/settings.local.json
 
 # テスト実行センチネル（コミット時テスト強制 hook のランタイム生成物）
-.claude/.python_tests_passed
+# （.python_tests_passed は 2026-07-06 の Python ゲート撤去で生成者が消滅したため行ごと削除済み）
 .claude/.kotlin_tests_passed
+
+# Android Lint のベースライン（check_lint_on_commit hook のランタイム生成物・マシン固有の基準値）
+.claude/lint_baseline.json
 
 # 保護ブランチへの明示コミット許可センチネル（ブランチガード hook の一回限り上書き）
 .claude/.allow_protected_commit

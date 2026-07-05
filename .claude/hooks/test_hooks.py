@@ -48,6 +48,26 @@ def load_constant(filename, name):
 GUARD_RE = load_constant("guard_commit_branch.py", "COMMIT_CMD_RE")
 CONSUME_RE = load_constant("consume_protected_sentinel.py", "COMMIT_CMD_RE")
 
+# COMMIT_CMD_RE を定義する全フック（2026-07-06 stale-check で緩い検知〈\bgit\s+commit\b・
+# 単純部分文字列〉の誤発火を解消し、厳密版を全フックへ複製統一した）。
+# 意図的複製（共有 util 化しない設計）のため、乖離はこの一致テストで検出する。
+COMMIT_RE_HOOKS = [
+    "guard_commit_branch.py",
+    "consume_protected_sentinel.py",
+    "check_commit_granularity.py",
+    "check_schema_change.py",
+    "check_lint_on_commit.py",
+    "remind_task_diary.py",
+]
+# COMMIT_GENERATING_RE（merge/rebase/cherry-pick 検知）を定義するフック
+# （handover hooks/fix ②: マージ完了経路の素通し対策。ブロック/消費/テストゲートの3本のみ）。
+GENERATING_RE_HOOKS = [
+    "guard_commit_branch.py",
+    "consume_protected_sentinel.py",
+    "check_commit_granularity.py",
+]
+GENERATING_RE = load_constant("guard_commit_branch.py", "COMMIT_GENERATING_RE")
+
 # 実行コマンドとしての git commit ＝検知すべき（block / consume 対象）
 SHOULD_MATCH = [
     "git commit -m x",
@@ -74,10 +94,46 @@ SHOULD_NOT_MATCH = [
 ]
 
 
+# コミットを生成する merge/rebase/cherry-pick ＝検知すべき
+GENERATING_SHOULD_MATCH = [
+    "git merge feature/x",
+    "git merge --continue",                   # マージ完了経路（handover hooks/fix ②の主対象）
+    "git rebase --continue",
+    "git rebase main",
+    "git cherry-pick abc1234",
+    "git cherry-pick --continue",
+    "git -C . merge topic",                   # グローバルオプション付き
+    "git add -A\ngit merge topic",            # 改行区切り
+    "git fetch && git merge origin/main",
+]
+# コミットを生成しない・言及＝検知してはならない
+GENERATING_SHOULD_NOT_MATCH = [
+    "git merge --abort",                      # 回復コマンド（ブロックすると中断すら不能になる）
+    "git rebase --abort",
+    "git cherry-pick --abort",
+    "git rebase --quit",
+    "git merge --no-commit topic",            # 後続の明示 git commit が COMMIT_CMD_RE で捕まる
+    "git merge-base main HEAD",               # 読み取り系サブコマンド
+    "echo 'git merge'",                       # クォート内の言及
+    "grep 'git rebase' file.txt",
+    "git status",
+]
+
+
 class CommitDetectRegex(unittest.TestCase):
     def test_guard_and_consume_identical(self):
         # 検知整合: 片方だけ直す事故を防ぐため両フックの定義は完全一致であること
         self.assertEqual(GUARD_RE.pattern, CONSUME_RE.pattern)
+
+    def test_commit_re_identical_across_all_hooks(self):
+        # 統一先の全フックで COMMIT_CMD_RE が完全一致であること（意図的複製の乖離検出）
+        for filename in COMMIT_RE_HOOKS:
+            with self.subTest(hook=filename):
+                self.assertEqual(
+                    GUARD_RE.pattern,
+                    load_constant(filename, "COMMIT_CMD_RE").pattern,
+                    f"COMMIT_CMD_RE が guard と乖離: {filename}",
+                )
 
     def test_should_match(self):
         for cmd in SHOULD_MATCH:
@@ -88,6 +144,27 @@ class CommitDetectRegex(unittest.TestCase):
         for cmd in SHOULD_NOT_MATCH:
             with self.subTest(cmd=cmd):
                 self.assertIsNone(GUARD_RE.search(cmd), f"誤検知（偽陽性）: {cmd!r}")
+
+
+class CommitGeneratingRegex(unittest.TestCase):
+    def test_identical_across_hooks(self):
+        for filename in GENERATING_RE_HOOKS:
+            with self.subTest(hook=filename):
+                self.assertEqual(
+                    GENERATING_RE.pattern,
+                    load_constant(filename, "COMMIT_GENERATING_RE").pattern,
+                    f"COMMIT_GENERATING_RE が guard と乖離: {filename}",
+                )
+
+    def test_should_match(self):
+        for cmd in GENERATING_SHOULD_MATCH:
+            with self.subTest(cmd=cmd):
+                self.assertTrue(GENERATING_RE.search(cmd), f"検知漏れ（偽陰性）: {cmd!r}")
+
+    def test_should_not_match(self):
+        for cmd in GENERATING_SHOULD_NOT_MATCH:
+            with self.subTest(cmd=cmd):
+                self.assertIsNone(GENERATING_RE.search(cmd), f"誤検知（偽陽性）: {cmd!r}")
 
 
 if __name__ == "__main__":
