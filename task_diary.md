@@ -378,6 +378,99 @@ Migration SQL を書く前に端末 DB の実際のカラム名を `PRAGMA table
 
 ---
 
+### PDFBox-Android 移植（Chaquopy→Kotlin ネイティブ化）
+
+#### 30. pdfbox-android は Maven 座標がハイフン・Java パッケージがアンダースコア（逆転の罠）  ★★★
+
+Tom Roush の PDFBox-Android（Chaquopy/pdfminer からの移植先）は、**依存座標とパッケージ名で区切り文字が逆転する**:
+- Maven 座標（build.gradle）: `com.tom-roush:pdfbox-android:2.0.27.0` ← **ハイフン**。`com.tom_roush`（アンダースコア）は Maven Central に存在せず `Could not find` で 404 になる。
+- Java/Kotlin パッケージ名（import）: `com.tom_roush.pdfbox.*` ← **アンダースコア**（Java 識別子にハイフン不可のため）。
+
+移植元プロト submission-B は JVM 版 `org.apache.pdfbox:pdfbox:2.0.31` を使うので、Android 版へは `org.apache.pdfbox.*` → `com.tom_roush.pdfbox.*` の import 差替で移る。**apache-pdfbox 2.0.x と tom-roush 2.0.x は API 1:1**（TextPosition の unicode/xDirAdj/yDirAdj/heightDir/font/fontSizeInPt、PDFTextStripper、上原点座標系が同名同義）なので import 以外はコード無改変で移植できる。バージョンは 2.0.x 系で固定する（Android 版が upstream 2.0.x ベースのため）。
+
+#### 31. pdfbox-android は PDDocument.load 前に PDFBoxResourceLoader.init(context) が要る（2026-07-03 実機スパイクで検証済＝穴3 KILL）  ★★★
+
+ToUnicode CMap を持たない CID フォントのグリフ解決に、AAR 同梱の Adobe glyphlist/CMap 資産を使う。そのため **`com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(applicationContext)` を全ての `PDDocument.load` の前に1回**呼ぶ必要がある（`MainActivity.onCreate` の `Python.start` 置換位置か `Application.onCreate`）。フォントは AAR 同梱で手動配布不要。androidTest では `@Before` で instrumentation の `targetContext` により init する。
+
+**【2026-07-03 実機実測で解消＝穴3 KILL】** OPPO PGEM10(ColorOS) 実機で `PdfExtractorDeviceSpikeTest`（実PDF3件を golden_regression と同一指標で突合）を実行。**init は実機で効く**＝CID→Unicode 解決が根本的に機能する。決定的証拠: 短編 N1453LW は body_sha256 まで**完全一致**、中編 N2959KI（9786段落/131章/38万字）も **body_sha256 完全一致**。残差は init 失敗ではなく既知の CID→Unicode マッピング差で、正体は #35（波ダッシュ主因）＋超長編 N6169DZ の 0.01% オーダーのエッジ（文字+0.012%・ルビ+0.97%）。submission-B デスクトップ実測の「ルビ P/R 約81%」は char-level 指標での話で、段落/本文ベースでは実機でもほぼ一致した（[[kotlin-pdfbox-migration-prototype]]）。
+
+#### 32. WSL Bash ツールで Gradle を回す作法（.bashrc 非ロード・sdk.dir 競合・sed 警告）  ★★
+
+`.bashrc` が非対話で early-return するため Bash ツールでは `gw` 関数も `JAVA_HOME` も未定義（[[bash-tool-no-bashrc-gradle-env]]）。加えて `/mnt/c` 上の `local.properties` は Android Studio が `sdk.dir` を Windows パスで書き戻すため、Linux ビルドで競合する。作法:
+- 毎回 `export JAVA_HOME=/home/qingj/opt/jdk-17` ほか（ANDROID_HOME/ANDROID_SDK_ROOT/PATH）を明示し、`java -classpath gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain … --init-script /home/qingj/ext-build/novel-reader-init.gradle <task>` で起動（init script が build/ を ext4 へ逃がし AAPT2 EPERM を回避）。
+- ビルド直前に `sed -i '/^sdk\.dir/d' local.properties` で Windows sdk.dir を除去し、export 済み `ANDROID_HOME`（Linux SDK）へフォールバックさせる（AGP の解決順位 sdk.dir > ANDROID_HOME のため行が在ると環境変数を上書きする）。
+- **`sed -i` は `/mnt/c`(drvfs) で `preserving permissions … Operation not permitted` 警告を出すが置換自体は成功する**（無害・`2>/dev/null` で抑制可）。不可視文字の一括エスケープ化 `sed 's/\xc2\xa0/\\u00a0/g'`（生 NBSP → ` `）も drvfs 警告付きで成功する。
+
+#### 33. Kotlin のブロックコメントはネストする＝KDoc 内の `/*`（ファイルパス glob 等）が入れ子を開く  ★★
+
+Kotlin は Java と違い**ブロックコメントがネスト**する。そのため `/** … */` の KDoc 本文に
+`golden_html/*.html` のような **`/*` を含む文字列**を書くと、`/*` が入れ子コメントを開き、
+KDoc 末尾の `*/` はその内側だけを閉じ、**外側コメントが EOF まで未閉鎖**になる。コンパイラは
+`Unclosed comment` を**ファイル末尾の行**で報告する（真の原因行から遠く、原因が読み取りにくい）。
+HtmlExporter 移植のテスト KDoc でライブに踏んだ（`src/test/resources/golden_html/` の glob 表記 → `Unclosed comment` at EOF）。
+回避: doc/コメントに glob やパスを書くときは `/*` を出さない（`{index,chap_1,chap_2}.html` 等の列挙、
+または末尾スラッシュ止めにする）。移植で KDoc にファイル例を多用するため今後も再発しやすい。
+
+#### 34. tom-roush の InvalidPasswordException コンストラクタは package-private（テスト生成不可）  ★★
+
+apache-pdfbox の `InvalidPasswordException(String)` は public だが、**tom-roush 版(2.0.27.0)は package-private**。
+そのため `com.tom_roush.pdfbox.pdmodel.encryption` 外（＝ユニットテスト）から `new`/サブクラス化できず、
+`Cannot access '<init>': it is package-private` でコンパイルが落ちる。本番コードは PDFBox 内部が投げた実インスタンスを
+`e is InvalidPasswordException` で拾えるので支障ないが、**暗号化分類のテストはこの型を作れない**。
+対処: `classifyPdfError` を「型分岐＋"password" メッセージ fallback」の二段にし（Python も元々 `"password" in str(e)` 判定）、
+テストは `IOException("…password…")` のメッセージ経路で暗号化分類を担保した。PDFBox 例外周りのテストで再発する落とし穴。
+
+#### 35. PDFBox-android は WAVE DASH(U+301C) を FULLWIDTH TILDE(U+FF5E) に写す（pdfminer との CID→Unicode 差の主因）  ★★★
+
+穴3 実機スパイク（#31）で判明した pdfminer↔PDFBox 残差の**主因**。同じ波ダッシュのグリフに対し、
+**pdfminer は `〜`(U+301C WAVE DASH) を、PDFBox-android は `～`(U+FF5E FULLWIDTH TILDE) を返す**。
+1:1 置換なので文字数は変わらず、title・本文の記号として現れる（例: 「シャングリラ・フロンティア〜…〜」）。
+これは有名な「Windows 波ダッシュ問題」の CMap 版で、Adobe-Japan1 の CID→Unicode をどちらの正規形へ写すかの選択差。
+pdfminer に揃えるには**抽出後に U+FF5E→U+301C を正規化**する手がある（なろう小説では波ダッシュが正でありFF5Eの正当な用例はほぼ無い＝低リスク）。ただし超長編 N6169DZ は波ダッシュ以外にも残差があり（文字+434=+0.012%・ルビ+110=+0.97%・段落+5・blank+1・章題グリフ写像差**11件**）、これは pdfminer が吸収していた抽出エッジ（座標順・グリフ写像）で波ダッシュ正規化だけでは body 完全一致にならない。正規化の要否は移植ロードマップの判断事項（handover 参照）。
+**【2026-07-05 Phase 4 で章題11件の全容判明】** 当初この欄で「章題並び1件`兎'ｓ`↔`'鳥…`」と書いたのは**旧spikeが最初の差だけ表示した過少記録**で、実測は11件・全てグリフ写像差＝①ダッシュ変種 `－`(U+FF0D)→`−`(U+2212) が6件 ②矢印回転 `↑↓`(U+2191/2193)→`←→`(U+2190/2192) が3件（PDFBox が矢印を90°回転誤読・golden の←→が意味的に自然） ③アポストロフィ座標順 `兎'ｓ`↔`'鳥…` が2件。①②の9件は波ダッシュと同型の1:1コードポイント置換なので `normalizeGlyphUnicode` へ追加すれば golden に寄る（改善候補=handover D）。③は座標順のため1:1置換不可。文字化け・欠落ではなくグリフ写像の系統差である点が要点。
+
+#### 36. connectedAndroidTest はテスト後にアプリ本体+テストAPKを自動アンインストールする（実データ消失）  ★★
+
+AGP の `connectedDebugAndroidTest` は既定で **run 後に対象アプリAPKとテストAPKの両方を uninstall** する。
+そのため実機に入っていた `com.novelreader` の**蔵書DB等の実データが消える**（穴3スパイク実行で実際に消えた＝`pm list packages` から消滅・`run-as` も unknown package）。
+[[wsl-debug-keystore-share-for-install]] が「uninstall は最終手段（蔵書保持）」と気にしているのと衝突する副作用。
+回避: `-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true` を付けて実行すると run 後もインストールが残る。
+実機に保持したい実データがある状態で androidTest を回すときは必ず付けること。
+
+#### 37. ColorOS(OPPO) は CPU 集中の androidTest プロセスを「abnormal fg_cpu」で強制killする（超長編抽出が落ちる）  ★★★
+
+Task 9 実機フル疎通で、N6169DZ(8.9MB/350万字/951章)を `PdfBookExtractor.process` で抽出中、約2.5分後に
+**ColorOS の OSense/Athena が com.novelreader を強制終了**した（logcat: `Athena OplusClearSystemService … reason: 502 o-kill(502)`、
+`OGuardManager_AppPowerAnalyzer: a abnormal fg_cpu app … com.novelreader`、直前に `osense.compress … do shrink`）。
+**OOM ではない**（GCInfo は 314→325MB でヒープ余裕あり）＝純粋に「長時間 CPU を食う前景プロセス」を OEM 電源ガーディアンが異常判定して殺した。
+`am instrument` は `INSTRUMENTATION_RESULT: shortMsg=Process crashed.` を返す。短中編(N1453LW 3章/N2959KI 131章)は kill 前に完走・本棚シード済み、超長編だけが落ちた。
+- **含意**: 素の androidTest には前景サービス保護が無いため、この OEM killer に対して無防備。**実アプリは `PdfProcessingService` の前景サービス＋WakeLock＋10分/件で保護**しており（handover/plan Phase2 memo）、Phase 3 配線後は生存しうるが、**ColorOS では前景サービスでも超長編が落ちないかは要実機再確認**（本アプリの最重要 OEM リスク）。
+- **回避（検証用）**: ①電源最適化から除外を試す（`dumpsys deviceidle whitelist +com.novelreader` 等。ただし fg_cpu killer には効きにくい） ②検証目的なら PDF を冒頭数十ページに切詰めて CPU バーストを閾値未満にする ③実書での長編検証は Phase 3 の前景サービス経路で行う。
+- 関連: [[workflow-autonomous-device-verification]]。connectedAndroidTest の自動uninstall(#36)とは別の落とし穴。
+
+#### 38. ColorOS(OPPO) の Hans フリーザ(OplusHansManager)は素の androidTest プロセスを freeze する（kill ではない・#37 と別機構）  ★★★
+
+Phase 4 精度回帰ゲート(`PdfExtractorDeviceSpikeTest`)の ≤15版クリーンラン取得中、N6169DZ(350万字)抽出が
+「CPU時間 0:25 のまま凍結・約10分 no progress」でハングに見えた。真因は **ColorOS の Hans フリーザが
+`com.novelreader` プロセスを freeze（cgroup freezer で丸ごと一時停止）** したこと（logcat:
+`OplusHansManager: unfreeze uid ... com.novelreader ... reason: Signal`／`F exit(), F stay=1578`）。
+- **#37(fg_cpu kill) とは別機構**: Osense の kill ガーディアンは instrumentation を
+  `KillAction: don't check adj ... FGS/48/0/instrumentation` と**kill 対象外に保護**していた＝プロセスは死んでいない。
+  **殺されたのではなく凍結された**。凍結中は CPU が進まないので「ハング/デッドロック」に誤認しやすい
+  （SIGQUIT で一瞬解凍→数十秒 work→再凍結 を繰り返す＝CPU時間が飛び飛びに増える）。
+- **端末操作・充電の有無は無関係**（無操作・充電中・`svc power stayon true`・
+  `dumpsys deviceidle whitelist +com.novelreader` を全て満たしても凍結した）＝素の `am instrument` は
+  プロセスを foreground/perceptible にしないため Hans に background 扱いされる。
+  `device_config put activity_manager use_freezer false` は allowlist 権限不足で不可。
+- **回避（実測で確立）**: テスト対象アプリの **MainActivity を前面化してプロセスを perceptible にする**＝
+  `adb shell monkey -p com.novelreader -c android.intent.category.LAUNCHER 1`。前面化した瞬間 oom_adj が
+  foreground(-10) になり **%CPU が 0→250% へ復帰**し N6169DZ が完走・`OK (1 test)`。instrumentation テストは
+  同一プロセスで並行継続するので Activity 表示と共存できる。**超長編の素 androidTest を回すときは
+  実行中に MainActivity を前面化しておくこと。**
+- freeze/thaw は cgroup freezer のクリーンな中断・再開なので抽出結果は無破損（決定的）＝凍結を挟んでも
+  PASS は有効（本ランの wall time 1784s は凍結分が大半で、実 CPU は約1分）。関連: #37・#4（FGS でも停止）・
+  [[workflow-autonomous-device-verification]]。
+
 ## 移設マッピング（旧 Part II / Part III の固定ID対応）
 
 > 旧エントリ番号（`§N`）は固定ID。本ファイルから `docs/` へ移設したものは下表で追跡する（移設先での再採番はしない）。

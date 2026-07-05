@@ -67,14 +67,9 @@ def check_versions():
         add("versions", "error", "info", "CLAUDE.md / gradle のいずれかが読めず版数照合をスキップ")
         return
 
+    # Phase 5 (2026-07-05) で Chaquopy/Python を撤去したため版数照合対象から外した
+    # （settings.gradle に chaquo plugin・build.gradle に python{} ブロックが無くなり抽出不能になる）。
     actual = {}
-    m = re.search(r"com\.chaquo\.python['\"]\s+version\s+['\"]([^'\"]+)['\"]", settings_gradle)
-    if m:
-        actual["Chaquopy"] = m.group(1)
-    # python の version は python{...} ブロック限定で取る（versionName "1.0" との誤マッチ回避）。
-    m = re.search(r"python\s*\{[\s\S]*?\bversion\s+['\"]([\d.]+)['\"]", app_gradle)
-    if m:
-        actual["Python"] = m.group(1)
     m = re.search(r"\bminSdk\s+(\d+)", app_gradle)
     if m:
         actual["minSdk"] = m.group(1)
@@ -84,15 +79,13 @@ def check_versions():
 
     declared = {}
     for key, pat in (
-        ("Chaquopy", r"Chaquopy\s+([0-9][\w.]*)"),
-        ("Python", r"Python\s+([\d.]+)"),
         ("minSdk", r"minSdk\s+(\d+)"),
         ("targetSdk", r"targetSdk\s+(\d+)"),
     ):
         m = re.search(pat, claude)
         declared[key] = m.group(1) if m else None
 
-    for key in ("Chaquopy", "Python", "minSdk", "targetSdk"):
+    for key in ("minSdk", "targetSdk"):
         a, d = actual.get(key), declared.get(key)
         if a and d and a != d:
             add("versions", "stale", "high", f"{key}: CLAUDE.md='{d}' ↔ gradle実値='{a}'")
@@ -214,8 +207,8 @@ def check_conflict_markers():
 def _ref_exists(ref, doc):
     """参照ファイルが実在するか。パス付きは相対で厳密確認、ファイル名のみは主要ツリーを basename 検索。
 
-    なぜ basename 検索するか: ドキュメントは `app.py` のようにファイル名だけで言及することが多く、
-    実体は android/app/src/main/python/ 配下にある。ルート直下だけ見ると実在ファイルを
+    なぜ basename 検索するか: ドキュメントは `PdfBookExtractor.kt` のようにファイル名だけで言及することが多く、
+    実体は android/app/src/ の深い階層にある。ルート直下だけ見ると実在ファイルを
     「参照切れ」と誤検知する。生成物 build/ は無関係かつ重いので検索対象から外す。
     """
     if "/" in ref:
@@ -229,15 +222,15 @@ def _ref_exists(ref, doc):
 
 
 def check_referenced_files():
+    # PDF 抽出ロジックは Phase 5 (2026-07-05) で Kotlin(pdf/) へ一本化し python/ を撤去した。
     must = [
         "android/gradlew",
         "android/app/src/main/java/com/novelreader/data/AppDatabase.kt",
-        "android/app/src/main/python/pdf_extractor.py",
-        "android/app/src/main/python/chapter_processor.py",
-        "android/app/src/main/python/pdf_rules.py",
-        "android/app/src/main/python/html_exporter.py",
-        "android/app/src/main/python/app.py",
-        "android/app/src/main/python/test_logic.py",
+        "android/app/src/main/java/com/novelreader/pdf/PdfBookExtractor.kt",
+        "android/app/src/main/java/com/novelreader/pdf/PdfExtractor.kt",
+        "android/app/src/main/java/com/novelreader/pdf/ChapterProcessor.kt",
+        "android/app/src/main/java/com/novelreader/pdf/HtmlExporter.kt",
+        "android/app/src/main/java/com/novelreader/pdf/ParserRules.kt",
     ]
     for rel in must:
         if not (ROOT / rel).exists():
@@ -260,9 +253,9 @@ def check_referenced_files():
 
 # ── 7. テストコマンドの一貫性 ────────────────────────────────────────────
 def check_test_commands():
+    # Phase 5 (2026-07-05) で Python 経路撤去。unittest test_logic の照合は廃止し testDebugUnitTest のみ。
     claude = read_text("CLAUDE.md") or ""
     for needle, label in (
-        ("unittest test_logic", "Python 単体テスト (unittest test_logic)"),
         ("testDebugUnitTest", "Kotlin 単体テスト (testDebugUnitTest)"),
     ):
         if needle not in claude:

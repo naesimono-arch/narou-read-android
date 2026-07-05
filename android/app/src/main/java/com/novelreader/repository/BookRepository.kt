@@ -3,17 +3,18 @@ package com.novelreader.repository
 import android.content.Context
 import android.net.Uri
 import android.util.Log
-import com.chaquo.python.PyException
-import com.chaquo.python.Python
 import com.novelreader.data.AppDatabase
 import com.novelreader.data.BookDao
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressDao
 import com.novelreader.data.ProgressEntity
+import com.novelreader.pdf.CorruptedPdfError
+import com.novelreader.pdf.EncryptedPdfError
+import com.novelreader.pdf.InsufficientStorageError
+import com.novelreader.pdf.PdfBookExtractor
 import com.novelreader.viewmodel.BookImportError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -30,41 +31,45 @@ class BookRepository(
     val allBooks: Flow<List<BookEntity>> = bookDao.getAllBooks()
     val allProgress: Flow<List<ProgressEntity>> = progressDao.getAllProgress()
 
-    fun interface ProgressCallback {
-        // title: step0 で判明する実タイトル（判明前は空文字）。UI の変換中タイトル表示に使う。
-        fun onProgress(step: Int, stepLocalPercent: Float, phase: String, title: String)
-    }
-
-    /** Python/Kotlin の例外をユーザー向けエラー種別に変換する */
-    internal fun classifyError(e: Throwable): Throwable {
-        if (e is PyException) {
+    /**
+     * 抽出例外・IO 例外をユーザー向けエラー種別に変換する。
+     *
+     * ネイティブ PDFBox 経路は暗号化/破損/容量不足を [com.novelreader.pdf.PdfExtractionException] の
+     * サブ**型**で投げる（facade PdfBookExtractor が内部で classifyPdfError 済み）ため型で分岐する。
+     * Chaquopy 版は PyException のメッセージ文字列で分類していたが、型の方が堅牢なため文字列マッチは廃止した。
+     * facade を通らない例外（URI 権限喪失・出力ディレクトリ生成失敗）は BookRepository 自身が投げる
+     * IOException なので、従来どおりメッセージで拾う（else 節）。
+     */
+    internal fun classifyError(e: Throwable): Throwable = when (e) {
+        is EncryptedPdfError        -> BookImportError.EncryptedPdf()
+        is InsufficientStorageError -> BookImportError.InsufficientStorage()
+        is CorruptedPdfError        -> BookImportError.CorruptedPdf()
+        else -> {
             val msg = e.message ?: ""
-            return when {
-                msg.contains("EncryptedPdfError")        -> BookImportError.EncryptedPdf()
-                msg.contains("InsufficientStorageError") -> BookImportError.InsufficientStorage()
-                msg.contains("CorruptedPdfError")        -> BookImportError.CorruptedPdf()
-                else                                     -> BookImportError.Unknown(msg)
+            when {
+                msg.contains("PDFファイルを開けません")      -> BookImportError.UriPermissionDenied()
+                msg.contains("出力ディレクトリの作成に失敗")  -> BookImportError.StorageWriteFailure()
+                msg.contains("No space left on device")     -> BookImportError.InsufficientStorage()
+                else                                        -> BookImportError.Unknown(msg)
             }
         }
-        val msg = e.message ?: ""
-        return when {
-            msg.contains("PDFファイルを開けません")      -> BookImportError.UriPermissionDenied()
-            msg.contains("出力ディレクトリの作成に失敗")  -> BookImportError.StorageWriteFailure()
-            msg.contains("No space left on device")     -> BookImportError.InsufficientStorage()
-            else                                        -> BookImportError.Unknown(msg)
-        }
     }
 
-    /** PDFをキャッシュにコピーし、Chaquopy経由でHTML生成後にRoomへ登録する。 */
+    /** PDFをキャッシュにコピーし、ネイティブ(PDFBox)抽出でHTML生成後にRoomへ登録する。 */
     suspend fun addBook(
         pdfUri: Uri,
         onProgress: (step: Int, stepLocalPercent: Float, phase: String, title: String) -> Unit = { _, _, _, _ -> },
     ): Result<BookEntity> = withContext(Dispatchers.IO) {
+        // withContext(Dispatchers.IO) の CoroutineScope を捕捉する。抽出の進捗コールバック（非 suspend）から
+        // キャンセルを確認するために使う（下記 ③）。
+        val extractionScope = this
         runCatching {
             val bookId = UUID.randomUUID().toString().take(8)
 
             // ① 一時ファイルにコピー（try-finally で確実に削除する）
             val tempFile = File(context.cacheDir, "temp_$bookId.pdf")
+            // catch から参照するため try の外で宣言する（②で確定・③の失敗時に掃除）。
+            val outputDir = File(context.filesDir, "novels/$bookId")
             try {
                 val inputStream = context.contentResolver.openInputStream(pdfUri)
                     ?: throw IOException("PDFファイルを開けません（URI権限が失われた可能性があります）")
@@ -73,35 +78,40 @@ class BookRepository(
                 }
 
                 // ② 出力先ディレクトリを確定
-                val outputDir = File(context.filesDir, "novels/$bookId")
                 if (!outputDir.mkdirs() && !outputDir.exists()) {
                     throw IOException("出力ディレクトリの作成に失敗しました: ${outputDir.absolutePath}")
                 }
 
-                // ③ Chaquopy経由で Python 処理 + ④ Room登録を NonCancellable で一体化
-                // Python は JNI ブロッキング呼び出しのためキャンセル不能。
-                // HTML生成後・DB登録前にキャンセルされると孤立ファイルが残るため両者を同一ブロックに含める。
+                // ③ ネイティブ(PDFBox)抽出で HTML を生成する。
+                // Chaquopy(JNI) は割り込み不能だったが、純 Kotlin 実行なので中断可能。processPages は本文ページ
+                // 毎に onProgress を呼ぶため、進捗通知のたびに ensureActive() を通せば本文抽出中でも「停止」で
+                // 割り込める（handover A① の NonCancellable 制約を緩和）。processPages 自体はコルーチン非依存の
+                // 純ロジックに保つため、既に全層へ通っている進捗コールバックへ相乗りしてキャンセルを確認する。
+                val meta = try {
+                    PdfBookExtractor.process(tempFile, bookId, outputDir) { step, stepLocalPercent, phase, title ->
+                        extractionScope.ensureActive()
+                        onProgress(step, stepLocalPercent, phase, title)
+                    }
+                } catch (e: Throwable) {
+                    // 抽出が中断/失敗したら書きかけの出力ディレクトリを消す（本棚に出ない孤立 HTML を残さない）。
+                    // 旧実装は抽出全体を NonCancellable で包んで孤立を防いでいたが、緩和で抽出中のキャンセルを
+                    // 許すため、その代替としてこの明示クリーンアップで担保する（DB 登録前のみ発火）。
+                    outputDir.deleteRecursively()
+                    throw e
+                }
+
+                // ④ Room 登録のみ NonCancellable で保護する。
+                // HTML 生成済み→DB 登録前の一瞬でキャンセルされると本棚に出ない孤立本になるため、この最終確定
+                // だけは中断不能に保つ（抽出全体を包んでいた旧 NonCancellable の縮小）。
                 val book = withContext(NonCancellable) {
-                    val python = Python.getInstance()
-                    val result = python.getModule("app")
-                        .callAttr(
-                            "process_pdf",
-                            tempFile.absolutePath,
-                            bookId,
-                            outputDir.absolutePath,
-                            ProgressCallback { step, stepLocalPercent, phase, title -> onProgress(step, stepLocalPercent, phase, title) },
-                        )
-                    val resultList = result.asList()
-                    val title = resultList.getOrNull(0)?.toString() ?: "無題"
-                    val author = resultList.getOrNull(1)?.toString() ?: ""
                     // addedAt に追加時刻をスタンプし、本棚の最近活動順ソート（未読本の基準）に使う。
-                    val b = BookEntity(bookId, title, outputDir.absolutePath, author, addedAt = System.currentTimeMillis())
+                    val b = BookEntity(bookId, meta.title, outputDir.absolutePath, meta.author, addedAt = System.currentTimeMillis())
                     bookDao.insertBook(b)
                     b
                 }
                 // NonCancellable ブロック完了後にキャンセルを確認
                 // （NonCancellable 内では ensureActive() が機能しないため必ず外側で呼ぶ）
-                currentCoroutineContext().ensureActive()
+                extractionScope.ensureActive()
                 book
             } finally {
                 if (!tempFile.delete()) Log.w(TAG, "一時ファイルの削除に失敗: ${tempFile.absolutePath}")

@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import com.novelreader.repository.BookRepository
 import com.novelreader.viewmodel.ProcessingState
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +33,12 @@ class NovelReaderApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // PDFBox-Android のフォント/CMap 資産ローダを初期化する。ToUnicode CMap 非搭載の CID フォントを
+        // グリフ→Unicode 解決するのに AAR 同梱資産を使うため、あらゆる PDDocument.load より前に一度だけ必要
+        // （task_diary #31）。PdfProcessingService は MainActivity 無しでも走る（プロセス再生成・サービス起動
+        // 経路）ため、全コンポーネントより先に必ず走る Application で先行初期化し、Service が最初の PDF を
+        // 処理する前に init 済みを保証する。
+        PDFBoxResourceLoader.init(applicationContext)
         createNotificationChannel()
     }
 

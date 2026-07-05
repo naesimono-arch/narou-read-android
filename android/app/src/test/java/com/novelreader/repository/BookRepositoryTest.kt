@@ -1,15 +1,16 @@
 package com.novelreader.repository
 
 import android.content.Context
-import com.chaquo.python.PyException
 import com.novelreader.data.BookDao
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressDao
 import com.novelreader.data.ProgressEntity
+import com.novelreader.pdf.CorruptedPdfError
+import com.novelreader.pdf.EncryptedPdfError
+import com.novelreader.pdf.InsufficientStorageError
 import com.novelreader.viewmodel.BookImportError
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -33,37 +34,34 @@ class BookRepositoryTest {
         repository = BookRepository(context, bookDao, progressDao)
     }
 
-    // ── classifyError: PyException 側 ──────────────────────────────────────
+    // ── classifyError: PdfExtractionException 型分岐 ──────────────────────
+    // ネイティブ PDFBox 経路は暗号化/破損/容量不足を型で投げる（Chaquopy 版の PyException 文字列マッチは廃止）。
 
     @Test
-    fun `classifyError - PyException EncryptedPdfError を EncryptedPdf に変換する`() {
-        val e = mockk<PyException> { every { message } returns "EncryptedPdfError: password required" }
-        val result = repository.classifyError(e)
+    fun `classifyError - EncryptedPdfError を EncryptedPdf に変換する`() {
+        val result = repository.classifyError(EncryptedPdfError("password required"))
         assert(result is BookImportError.EncryptedPdf)
     }
 
     @Test
-    fun `classifyError - PyException InsufficientStorageError を InsufficientStorage に変換する`() {
-        val e = mockk<PyException> { every { message } returns "InsufficientStorageError: disk full" }
-        val result = repository.classifyError(e)
+    fun `classifyError - InsufficientStorageError を InsufficientStorage に変換する`() {
+        val result = repository.classifyError(InsufficientStorageError("disk full"))
         assert(result is BookImportError.InsufficientStorage)
     }
 
     @Test
-    fun `classifyError - PyException CorruptedPdfError を CorruptedPdf に変換する`() {
-        val e = mockk<PyException> { every { message } returns "CorruptedPdfError: bad structure" }
-        val result = repository.classifyError(e)
+    fun `classifyError - CorruptedPdfError を CorruptedPdf に変換する`() {
+        val result = repository.classifyError(CorruptedPdfError("bad structure"))
         assert(result is BookImportError.CorruptedPdf)
     }
 
     @Test
-    fun `classifyError - PyException 未知メッセージを Unknown に変換する`() {
-        val e = mockk<PyException> { every { message } returns "SomeOtherError: unexpected" }
-        val result = repository.classifyError(e)
+    fun `classifyError - 未知例外を Unknown に変換する`() {
+        val result = repository.classifyError(RuntimeException("SomeOtherError: unexpected"))
         assert(result is BookImportError.Unknown)
     }
 
-    // ── classifyError: 非PyException 側 ───────────────────────────────────
+    // ── classifyError: メッセージ分岐（facade を通らない BookRepository 由来の IOException）──
 
     @Test
     fun `classifyError - PDFファイルを開けません を UriPermissionDenied に変換する`() {
