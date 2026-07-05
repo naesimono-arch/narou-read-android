@@ -96,6 +96,9 @@ if os.path.exists(sentinel):
 print(f"[ブランチガード] 保護ブランチ '{branch}' への直接コミット"
       "（またはコミットを生成する merge/rebase/cherry-pick）をブロックします。", file=sys.stderr)
 print("作業ブランチ（lab / UI-* など）へ切替えてコミットしてください。", file=sys.stderr)
-print("意図的に main へコミットする場合のみ:", file=sys.stderr)
-print(f"  echo > \"{sentinel}\"   # を作成してから再実行（1回の成功コミットで自動消費）", file=sys.stderr)
+print("意図的に main へコミットする場合のみ（センチネルは AI では作成できません）:", file=sys.stderr)
+print("  → コミット内容をユーザーに提示して承認を得たうえで、ユーザーに入力欄で", file=sys.stderr)
+print("    次を先頭の `!` ごと実行してもらう（`!`=bash mode だけがフックを迂回する）:", file=sys.stderr)
+print(r"      ! echo > .claude/.allow_protected_commit", file=sys.stderr)
+print("  （guard_sentinel_creation.py が AI のツール経由作成を塞ぐ。作成後に再度コミットを実行）", file=sys.stderr)
 sys.exit(2)
