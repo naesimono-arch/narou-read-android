@@ -369,6 +369,14 @@ print(json.dumps({"hookSpecificOutput": {
 「配線＝起動時固定／本体＝毎回読込」の非対称を覚えておく。
 関連: `docs/decisions/0004` の「セッション内ブランチ跨ぎで hook が壊れる」も同じ起動時固定が根因（あちらはブランチ切替で実ファイル側が消える形、こちらは同一ブランチ内の配線編集が反映されない形）。
 
+#### 40. plan モードはプラグイン subagent へ伝播しない → plan 中でも agy は実行され、`--yolo` 付きなら書き込む  ★★★
+
+**事実**: Claude Code は (a) プラグイン subagent の `permissionMode`/`hooks`/`mcpServers` frontmatter を security 上**サイレント破棄**し、(b) main セッションの **plan モード（read-only）を subagent の権限層へ伝播させない**。結果、**plan モード中でも `antigravity-delegate` を spawn でき、`--yolo` なしの `agy-delegate` はそのまま実行される**。web の issue #4750（plan 中の subagent 挙動は未定義）がこの環境で現実化したもの。
+**なぜ危険か（サイレント失敗クラス）**: plan モードの read-only 保証は **agy プロセスに及ばない**（agy は別プロセスの Gemini CLI で、監視するのは agy 自身の `.agents/scripts/guard_forbidden.py` deny フックのみ・fail-open）。read-only は「`--yolo`（= `agy --dangerously-skip-permissions`）を渡さない」ことだけで構造的に担保されており、**plan 中にうっかり `--yolo` を付ければ agy は plan モードを無視してファイルを書く**＝「plan だから安全」の前提が無言で破れる。
+**実測（2026-07-06 probe）**: plan モードのまま `antigravity-delegate` に read-only digest タスク（`--yolo` 無し・`--dir` でリポジトリ指定）を投げ → agy が pdf/ パッケージを実読し正確な digest を返却（cited `file:line` を spot-check、幻覚なし）→ `git status --porcelain` clean で**書き込みゼロを独立確認**。ブロックしたのは subagent 自身の no-chaining ガード（`; echo` を足した時）だけで、plan モードや permission deny は一切発火しなかった。
+**対処**: plan モード中の agy 委譲は **read-only（`--yolo` 厳禁）限定**。運用ルールは `CLAUDE.md`「委譲判断 / plan運用」⑦。書き込みを伴う探索/生成は plan の外で行う。将来課題（handover 登録済み）＝plan 時に `--yolo`/`--dangerously-skip-permissions` を機械 deny できるか（PreToolUse JSON に permission-mode が露出するか）の調査。
+関連: #28（PostToolUse stdout 不達）／`docs/decisions/0004`（hook の matcher 範囲・起動時固定）／agy 安全機構は `.agents/scripts/guard_forbidden.py`・`AGENTS.md`。
+
 ---
 
 ### Room / DB

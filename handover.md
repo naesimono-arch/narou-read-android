@@ -10,6 +10,9 @@
 > レビュー中・実装中に出た宿題や着想で、まだ正式バックログに整理していないものをここへ。
 > 育ったら下のA〜Dへ移す。
 
+- **[workflow] plan モード中の read-only 探索を agy へ開放（2026-07-06 実機検証で確定）**: 「plan 内で agy は不可」は誤りだった＝plan モードはプラグイン subagent の権限層へ伝播せず、`--yolo` 無しの `agy-delegate` は plan 中でも実行され書き込みゼロ（根拠 task_diary #40／運用ルール CLAUDE.md「委譲判断 / plan運用」⑦）。**運用**: 〈ユーザー明示〉or〈break-even 超の read-only 探索〉は agy へ、割に合わない小さな読みは Explore にフォールバック。**plan 外での agy 探索**は「書き込みを伴う探索/生成」を plan の read-only 保証から切り離したいとき用の選択肢として残す。派生タスク:
+  - **[調査/hardening・未着手] plan 中 `--yolo` の機械 deny 可否**: `.agents/scripts/guard_forbidden.py` または plugin 側 `validate-delegate-bash.sh` が受け取る PreToolUse JSON に permission-mode(plan) が露出するか調べる。露出するなら plan 時に `--dangerously-skip-permissions`/`--yolo` を deny して convention を機械化。露出しなければ現状の convention 止まり（`--yolo` 封印は運用規約で担保）。
+  - **[任意・別レバー・未着手] Explore→Haiku フォールバック**: `~/.claude/agents/Explore.md`（Linux 側 ext4・Windows 非共有）に `model: haiku`。v2.1.198 以降 Explore はメイン(Opus)継承で高くなるため、agy に出すほどでない小さな plan 探索を安く回す。built-in Explore を user agent で上書きできることは公式 docs で確認済み。※ブランチ不変の Linux ローカル設定だが「採否メモ」はブランチ追従の handover が置き場。
 - **実行捏造検知器（`feat/exec-fabrication-detector`・2026-07-06 main 統合済み）の残タスク**（ADR 0006・エンジンは `.claude/hooks/detect_fabricated_execution_core.py`）:
   - ~~**Stop フックのライブ化**~~ **完了（2026-07-06 統合）**: `stop_guard_fabrication.py` を実装し `.claude/settings.json` の `Stop` に配線済み（last_turn の Tier B `confidence≥0.8`・非降格のみ `decision:"block"` で自己修正を促す）。※作業ブランチは全て main へ統合・削除済みのため「全作業ブランチへ配布」は不要化。
   - **Tier B 汎用主張の免罪の限界**: 「セッション内に成功実行が1回でもあれば免罪」で後半の汎用捏造を取りこぼす（事象D）。具体値主張は具体照合に絞ったが、汎用主張の掘り下げは将来課題。
