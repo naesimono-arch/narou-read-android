@@ -2,7 +2,7 @@
 
 - ステータス: Accepted
 - 日付: 2026-06-29
-- 関連実装: `.claude/hooks/{statusline,inject_branch_context,guard_commit_branch,consume_protected_sentinel}.py` / `.claude/settings.json`
+- 関連実装: `.claude/hooks/{statusline,inject_branch_context,guard_commit_branch,consume_protected_sentinel,guard_sentinel_creation}.py` / `.claude/settings.json`
 - 関連コミット: `cb5078f`（infra 追加）, `9247b76` / `96c8f14` / `96a9061` / `280038a` / `7416c85`
 
 ## Context（背景）
@@ -36,6 +36,8 @@ Claude Code の auto-memory（`MEMORY.md`・`~/.claude` 配下）と session his
 3. **`guard_commit_branch.py`（PreToolUse / matcher:"Bash"）** — `main` への直接 `git commit` をコマンド境界に限定した正規表現で検知し `exit 2` でブロックする。**検査のみ**でセンチネルは消費しない。改行区切り・グローバルオプション付き（`git -C/-c … commit`）も検知し、クォート内の単なる言及は誤ブロックしない。**2026-07-06 拡張**: コミットを生成する `merge`/`rebase`/`cherry-pick`（`--abort`/`--quit`/`--no-commit` は除外）も検知対象に追加（競合しない main 直マージ・`merge --continue` が "commit" トークンを含まず素通りした実地事象への対処）。検知正規表現は `check_commit_granularity.py` 等とも同一定義で、`test_hooks.py` が全コピーの一致を回帰固定する。
 
 4. **`consume_protected_sentinel.py`（PostToolUse / matcher:"Bash"）** — 上書きセンチネル `.claude/.allow_protected_commit` を、コミットが**実際に成功した後にのみ**消費する。検査(Pre)と消費(Post)を分離する理由: PreToolUse がブロックするとコマンド自体が走らず PostToolUse は発火しない。もし Pre 側で消費すると、後続フック（テスト未実行・粒度違反等）のブロック時に「コミットは失敗したのにセンチネルだけ消える」穴が生じる。消費を「成功後」に限定してこれを塞ぐ。
+
+5. **`guard_sentinel_creation.py`（PreToolUse / matcher:"Edit|Write|MultiEdit|Bash"・2026-07-06 追加）** — 上書きセンチネル `.allow_protected_commit` を **AI がツール経由で生成・改変する操作をブロック**する（Write/Edit/MultiEdit の `file_path` basename 一致、Bash の `command` 文字列一致）。**なぜ**: 従来センチネルは AI 自身が `echo>`/`touch`/Write で自己発行でき、「被認可者が認可トークンを自分で発行できる」設計崩壊で認可の意味が骨抜きだった。発行主体を**人間に固定**するため、ツール経由の生成を塞ぐ。成立の鍵は **ユーザーの `!`（bash mode）実行が PreToolUse フックを一切通らない**という非対称性（2026-07-06 実測確定＝AI の Bash ツール実行のみ `tool_name="Bash"` で発火。`!` 由来のエントリはフックに現れない）。これで「AI は作れない・人間は `!` で作れる」を機構的に成立させ、コミット承認を人間の明示操作に戻す。運用は〈AI がコミット内容を提示 → ユーザーが `! echo > .claude/.allow_protected_commit` → AI がコミット → `consume_protected_sentinel` が消費〉。ブロック理由と手順は exit 2 の stderr で AI に返す（PreToolUse の plain stdout は届かないため＝task_diary #28）。
 
 ## Consequences（結果と制約）
 
