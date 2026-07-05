@@ -339,6 +339,23 @@ print(json.dumps({"hookSpecificOutput": {
 つもりでもモデルにもユーザーにも実質届かない（debug ログのみ）。「誰に届けたいか」でイベントと
 出力方式を選ぶこと（#26 の stdin 文字化けと並ぶ、フック自作時の二大ハマりどころ）。
 
+#### 30. セッション・トランスクリプト JSONL の構造と「実行捏造」ハルシネーションの形  ★★★
+
+**用途**: フック/ツールがトランスクリプトを静的解析するときの不変点（詳細な設計判断は ADR 0006、実装は `.claude/hooks/detect_fabricated_execution_core.py`）。
+
+**JSONL の不変点（`~/.claude/projects/<slug>/<session-id>.jsonl`）**:
+- 1行1レコード、`type` で判別。実体照合に使うのは `assistant`/`user` の2種のみ（`mode`/`ai-title`/`attachment`/`queue-operation` 等はメタ・無視）。
+- **照合一次キー**: `assistant.content[].tool_use.id`（`toolu_…`）== `user.content[].tool_result.tool_use_id`（1:1）。ツール結果 user 行はトップレベルに `toolUseResult`（dict か str）も持つ。
+- **同一発話が `message.id`/`requestId` を共有して複数行に分割**される（thinking行→text行→tool_use行）。ブロック集約は `message.id` で束ねる。
+- **Bash に数値 exit code フィールドは無い**。失敗時のみ `tool_result.content` 先頭が `"Exit code N"`＋`is_error:true`。成功は接頭辞なし stdout。`toolUseResult` は成功=dict{stdout,stderr,…}／失敗・拒否=str。
+- **大容量出力はオフロード**され、`<session-id>/tool-results/<toolu_id>.txt` に全文、transcript 側は 2KB プレビュー＋`persistedOutputSize` に置換。
+- **サブエージェント委譲の実体は別ファイル** `<session-id>/subagents/agent-<agentId>.jsonl`（全行 `isSidechain:true`）。メイン transcript に委譲先のツール実行は出ない。`agentId` は起動 `Agent` tool の `toolUseResult.agentId`。
+
+**実際に起きた「実行捏造」ハルシネーションの形（`docs/reference/hallucination-ground-truth.md`）**:
+- **ハーネスブロックの地の文化**: Claude が会話の続きを自分で捏造し、**偽の `user<background-task-status>…<exit-code>1</exit-code>`／`system<total_tokens>`／`<invoke name=…>`** を assistant の text に生成した（c2e7a254・事象D）。これらのタグはハーネス/ツール層のみが著者で、正当な散文には現れない＝生（バッククォート引用でない）出現は捏造の強シグナル。
+- **未実行の成功報告**: テスト/ビルドの成功を実行せず断言（事象D の CP3–5「unittest 28件 OK」等）。
+- 検知は「text は証拠にせず tool_use/tool_result ペアに突き合わせる」＝ハーネス著者と assistant 著者の**構造的分離**が根拠。
+
 ---
 
 ### Room / DB
