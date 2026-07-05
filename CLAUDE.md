@@ -27,6 +27,14 @@ Jetpack Compose + Kotlin ネイティブ PDF 抽出（PDFBox-Android）。
   - **整理済みの doc アーキ（`STATUS.md` ＋規約準拠 `handover.md` ＋ `docs/decisions`・`docs/patterns`）は main が正本**。handover/docs の整理分割（完了済み項目→`STATUS.md` 移動・冒頭の思いつき欄・`docs/decisions/` への ADR 化）は **main で行う**（かつて lab を正本とし main 先行整理との乖離が宿題だったが、2026-07-02 の統合で main へ一本化して解消）。
   - **コード変更・コミット前に必ず `git branch --show-current` を確認**し、active な plan ファイル冒頭に対象ブランチを記録する（コンテキスト圧縮で現在ブランチが脱落しても参照可能なデータとして残すため）。`main` への直接コミットは **Bash ツール経由の一般的な `git commit`（改行区切り・`git -C/-c …` 等のグローバルオプション付き含む）を `guard_commit_branch.py` が検知してブロック**する＝**ソフトな防御網であり完全な防止ではない**（PowerShell ツール経由・難読化形は対象外。既存コミット系フックが `matcher:"Bash"` のため PowerShell 実ゲート化は波及の大きい別タスク）。最終防壁は作業ブランチ運用と「未 push の main コミットは可逆」である事実。
   - ブランチ固有の内容を `@import` で `~/.claude` や親パスから引かないこと（worktree 越境でパスが誤解決する既知問題を避けるため、参照はリポジトリ内の相対パスに留める）。
+- **委譲判断 / plan運用（agy＝実行者・Claude＝監督。コスト方針は「agy側は無料扱い・Claude側の節約を最大化」）**: サブエージェント／委譲の使い分けの原則は「**読み＝agy・判断＝Claude**」。
+  - **①探索は agy に回す**＝コード read→依存関係・注意点の digest／多ファイル読→小 digest。実測で健全性を確認済み（同一タスク4モデル採点で flash **9.0/10**・幻覚ゼロ・行番号引用ほぼ正確＝「安心して任せられる」水準。かつサブエージェントの read 実体は全コストの**約9%**＝最大の未回収レバー）。普段使い tier は **flash**（詳細と pro/Sonnet 4.6 の使い所は memory `agy-model-selection-guideline`）。
+  - **②統合・設計判断・trade-off 評価は Claude に残す**。**なぜ**: digest はコードと違いゲートで機械検証できず、かつ plan の質＝実行コストの源泉だから。委譲時の条件は〈**file:line 引用必須→Claude が引用行を spot-check**／網羅が要るなら観点を分けて複数回投げる（上位N制約で細部が落ちるため）／**verification は agy が無料でも Claude が必ず払う**＝自己申告 GREEN を信じずゲートを自分で回す〉。
+  - **③plan 作成時**は各フェーズを〈機械的バッチ〉〈判断ループ〉に二分し、**バッチ側の agy 委譲可否を plan 冒頭に明記**する。
+  - **④plan 末尾に「実行セッション起動ブロック」を必須化**（対象ブランチ・★次はここから・最小読みセット＝実行に要るファイル+行範囲・検証ゲートのコマンド）。「最小読みセットが書けない」＝plan の圧縮が未完のシグナル。
+  - **⑤実行見込み ~10ターン以上の plan は fresh セッションで実行**。**なぜ**: cache 非対称（読み直しは一回課金・太った context の持ち越しは毎ターン課金＋5分TTL 失効で全量再 write）で分岐点≈実行10ターン。
+  - **⑥edit-streak ゲート**（`AGY_FORCE_DELEGATE_EDITS=1`・`.bashrc` 設定済み・次回 claude 起動から有効）が誤発火したら、**Bash の sed/heredoc へ迂回せずユーザーへ申告**する（env の逃げ道はセッション起動時固定でセッション中に設定できないため）。
+  - **根拠**: 53セッション/$987 の transcript 解剖で、委譲の価値は「タイピングの肩代わり」（コード出力実体は総額0.8%）ではなく「太った context に居座るターン数の削減」（cache churn 回避）と確定。実測の全容は memory `agy-objective-minimize-claude-agy-free`／`workflow-plan-fresh-session-execution`。agy の作業空間・`--dir` 運用は `AGENTS.md`＋memory `agy-workspace-agents-md-two-layers`。
 
 ## ドメイン知識
 
