@@ -13,6 +13,16 @@
 
 ## 1. 完了済み
 
+- **agy(Antigravity)委譲の作業空間整備 完了**（2026-07-06・`agy-workspace` ブランチで実施し main へ統合）。
+  `AGENTS.md` 新設（agy 実行者向けブリーフィング。`--dir` 登録で自動注入・記載の Gradle 手順は agy 実地検証済み＝testDebugUnitTest 50/50 パス）＋ `.agents/`（hooks.json＋guard_forbidden.py＝禁忌コマンドの PreToolUse 機械的 deny・発火実証済み）。
+  モデル指針: 普段=flash（実測採点9.0/10）／pro=難解純粋推論のみ／agy経由 Claude Sonnet 4.6=深掘りレビューの第二の目。委譲運用の詳細は auto-memory `agy-workspace-agents-md-two-layers`・`agy-model-selection-guideline` が正本。コミット表（新しい順）:
+
+  | 項目 | commit | 内容 |
+  |---|---|---|
+  | hooksガード | `6d5a626` | `.agents/` PreToolUse で git 書き込み系・adb・connectedAndroidTest・sudo を deny |
+  | 手順fix | `5236932` | AGENTS.md の Gradle 手順修正（drvfs の sed -i EPERM 回避・java フルパス起動） |
+  | AGENTS.md | `9a43b83` | agy 実行者向けブリーフィング新設 |
+
 - **単発修正バッチ完了**（実機確認済, 2026-07-02・`cleanup-pre-uidesign` で実施し main へ統合）。Step 6（C-09 カバー色味微調整）は**コード変更なし＝現状維持で打ち切り**（起点値が旧HSL書影で陳腐化・書影は既にD様式へ刷新済みのため。詳細は handover C-09／プラン `.claude/plans/single-fix-batch-archived-2026-07-02.md`）。コミット表（新しい順）:
 
   | 項目 | commit | 内容 |
