@@ -10,7 +10,9 @@
 
 ## 理由
 
-ビジネスロジックの大部分が Python（`app.py` 以下）にカプセル化されており、Kotlin は UseCase 層を設けても `repository.xxx()` を呼ぶだけの薄いラッパーになる。中間層が値を生まないため、層を増やさず直結する。
+抽出ロジックの実体が Repository の外（`pdf/` パッケージの `PdfBookExtractor` facade 以下）に凝集しており、UseCase 層を設けても `repository.xxx()` を呼ぶだけの薄いラッパーになる。中間層が値を生まないため、層を増やさず直結する。
+
+> 判断当時はロジックの実体が Python（`app.py` 以下・Chaquopy）側にあった。2026-07-05 Phase 5 で Kotlin `pdf/` へ全面移植・Python 撤去したが、「ロジックは Repository 外に凝集し中間層が値を生まない」という構図は不変のため、本判断は引き続き有効。
 
 ## 関連
 

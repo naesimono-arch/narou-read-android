@@ -33,7 +33,7 @@ Claude Code の auto-memory（`MEMORY.md`・`~/.claude` 配下）と session his
 
 2. **`inject_branch_context.py`（SessionStart）** — セッション開始（圧縮復帰を含む）時に、現在ブランチ・作業ツリー・`STATUS.md` の在処・現況正本の方針を `additionalContext` として注入する。`STATUS.md` 探索は cwd 非依存（スクリプト位置の2つ上＝リポジトリルート基準）で、サブディレクトリ起動時の「存在しない」誤判定を防ぐ。
 
-3. **`guard_commit_branch.py`（PreToolUse / matcher:"Bash"）** — `main` への直接 `git commit` をコマンド境界に限定した正規表現で検知し `exit 2` でブロックする。**検査のみ**でセンチネルは消費しない。改行区切り・グローバルオプション付き（`git -C/-c … commit`）も検知し、クォート内の単なる言及は誤ブロックしない。
+3. **`guard_commit_branch.py`（PreToolUse / matcher:"Bash"）** — `main` への直接 `git commit` をコマンド境界に限定した正規表現で検知し `exit 2` でブロックする。**検査のみ**でセンチネルは消費しない。改行区切り・グローバルオプション付き（`git -C/-c … commit`）も検知し、クォート内の単なる言及は誤ブロックしない。**2026-07-06 拡張**: コミットを生成する `merge`/`rebase`/`cherry-pick`（`--abort`/`--quit`/`--no-commit` は除外）も検知対象に追加（競合しない main 直マージ・`merge --continue` が "commit" トークンを含まず素通りした実地事象への対処）。検知正規表現は `check_commit_granularity.py` 等とも同一定義で、`test_hooks.py` が全コピーの一致を回帰固定する。
 
 4. **`consume_protected_sentinel.py`（PostToolUse / matcher:"Bash"）** — 上書きセンチネル `.claude/.allow_protected_commit` を、コミットが**実際に成功した後にのみ**消費する。検査(Pre)と消費(Post)を分離する理由: PreToolUse がブロックするとコマンド自体が走らず PostToolUse は発火しない。もし Pre 側で消費すると、後続フック（テスト未実行・粒度違反等）のブロック時に「コミットは失敗したのにセンチネルだけ消える」穴が生じる。消費を「成功後」に限定してこれを塞ぐ。
 
@@ -42,6 +42,7 @@ Claude Code の auto-memory（`MEMORY.md`・`~/.claude` 配下）と session his
 - `main` 直コミット事故が減り、SessionStart で毎回ブランチ文脈が明示される。
 - **これはソフトな防御網であり完全な防止ではない**:
   - matcher が `"Bash"` のみ＝**PowerShell ツール経由・難読化形は対象外**。
+  - `git pull`（fetch+merge）は検知対象外（本リポジトリは push/pull を Windows `git.exe` 側で行う運用が前提のため据え置き）。
   - detached HEAD は対象外（`git branch --show-current` が空＝過剰ブロック回避のため意図的）。
   - `git commit --quiet` は成功形を出力しないため当該コミットでは消費されないが、ブランチ非依存の consume が次の任意コミットで自己修復する。
 - 最終防壁はガードではなく「**作業ブランチ運用 ＋ 未 push の `main` コミットは可逆**」という事実に置く。

@@ -187,6 +187,8 @@ material3 1.2.x の `Slider` は `steps > 0` で目盛りドットを描くが�
 
 ### Chaquopy / Python統合
 
+> ※Chaquopy は 2026-07-05 Phase 5 で完全撤去済み（現行は Kotlin/PDFBox 単独経路）。本節は再導入・類似機構検討時に引く歴史的知見として保全（エントリ番号 #N は固定IDのため維持）。
+
 #### 11. Chaquopyで使えるのは純Pythonパッケージのみ  ★★★
 
 C拡張を含むパッケージ（PyMuPDF/fitz等）はChaquopyのpipがWindowsホスト上でクロスビルドを試みるが、
@@ -355,6 +357,17 @@ print(json.dumps({"hookSpecificOutput": {
 - **ハーネスブロックの地の文化**: Claude が会話の続きを自分で捏造し、**偽の `user<background-task-status>…<exit-code>1</exit-code>`／`system<total_tokens>`／`<invoke name=…>`** を assistant の text に生成した（c2e7a254・事象D）。これらのタグはハーネス/ツール層のみが著者で、正当な散文には現れない＝生（バッククォート引用でない）出現は捏造の強シグナル。
 - **未実行の成功報告**: テスト/ビルドの成功を実行せず断言（事象D の CP3–5「unittest 28件 OK」等）。
 - 検知は「text は証拠にせず tool_use/tool_result ペアに突き合わせる」＝ハーネス著者と assistant 著者の**構造的分離**が根拠。
+
+#### 39. settings.json の hooks 配線変更はセッション再起動まで反映されない（削除した hook が呼ばれ続ける）  ★★
+
+**根本原因**: Claude Code は hooks の登録（settings.json の `hooks` ブロック）を**セッション起動時に読み込んで固定**する。
+セッション中に settings.json から hook を外しても旧配線のまま呼び続け、逆に新規追加した hook はそのセッションでは発火しない。
+**実測（2026-07-06）**: mark_python_tests_passed.py（撤去済み）を配線ごと削除した直後から、毎 Bash 実行で
+「can't open file … mark_python_tests_passed.py」の PostToolUse エラーが再起動まで出続けた（実コマンドへの影響は無し）。
+**対処**: 配線変更を伴う hook 改修をしたら、エラー連発や無発火を「壊した」と誤診しない。反映はセッション再起動で。
+なお **hook 本体（.py の中身）の編集は再読み込み不要で即反映**される（毎回 `python <file>` を起動し直すため）＝
+「配線＝起動時固定／本体＝毎回読込」の非対称を覚えておく。
+関連: `docs/decisions/0004` の「セッション内ブランチ跨ぎで hook が壊れる」も同じ起動時固定が根因（あちらはブランチ切替で実ファイル側が消える形、こちらは同一ブランチ内の配線編集が反映されない形）。
 
 ---
 

@@ -15,13 +15,13 @@ triggers:
 
 Kotlin ネイティブ実装（PDFBox-Android `com.tom-roush:pdfbox-android`）。配置は
 `android/app/src/main/java/com/novelreader/pdf/`。進捗は4ステップ（step 0〜3）で通知される。
-（旧 Chaquopy(Python 3.12)+pdfminer 経路は **2026-07-05 Phase 5 で完全撤去**。移植の経緯・A/B評価は STATUS.md／
-`.claude/plans/kotrin-branch-python-kotrin-graceful-flute.md` 参照。精度オラクルの双子 `ab-review/submission-B` は残置）
+（旧 Chaquopy(Python 3.12)+pdfminer 経路は **2026-07-05 Phase 5 で完全撤去**。移植の経緯・A/B評価は STATUS.md と
+`handover.md` §D 参照。精度オラクルの双子 `ab-review/submission-B` は残置）
 
 ```
 BookRepository.kt（Kotlin）
   └─ PdfBookExtractor.process(pdf, bookId, outputDir, onProgress)   ← facade
-        step0: PdfExtractor.extractBookTitle() / extractBookAuthor()   タイトル・著者を抽出
+        step0: PdfExtractor.extractBookMeta()                          タイトル・著者を一括抽出（BookMeta）
         step1: PdfExtractor.runFinalEngine()                          本文抽出
                  文字座標・フォント情報から縦書きPDFを解析
                  （PDDocument.load 前に PDFBoxResourceLoader.init(context) 必須＝CID→Unicode 解決／task_diary #31。
@@ -29,7 +29,7 @@ BookRepository.kt（Kotlin）
         step2: ChapterProcessor.splitIntoChapters()          【題名】マーカーで章分割
                ChapterProcessor.processForewordAfterword()   前書き・後書き処理、
                                                              |base《ruby》 → <ruby> HTML変換
-        step3: HtmlExporter.export()   index.html + chap_N.html を生成（旧 Python 出力とバイト等価）
+        step3: HtmlExporter.exportToPwa()   index.html + chap_N.html を生成（旧 Python 出力とバイト等価）
         return BookMeta（title, author）
 ```
 
@@ -88,14 +88,15 @@ PdfProcessingService（Foreground Service）
        └─ PdfBookExtractor.process → HTML生成（純 Kotlin / PDFBox）
 ```
 
-- 進捗は `BookRepository.ProgressListener` 経由でUIに通知
+- 進捗は `onProgress` ラムダ（`PdfBookExtractor.process` → `BookRepository`）→ `NovelReaderApplication.updateProcessingState()` → `processingState: StateFlow` 経由でUIに通知（`ProgressListener` 型は Phase 3 の直結化で廃止済み）
 - **多重起動制御は `ReentrantLock` + `ArrayDeque<Uri>` のキュー方式**（`65abfe4` で導入）。
   処理中に別PDFが追加されてもキューに積まれ、ループが順次処理する（無音破棄しない）。
   「キュー追加+ループ起動判定」と「取り出し+終了判定」を1つの lock でアトミックに保護。
 - OPPO のバックグラウンド強制停止対策として処理ループ中は `PARTIAL_WAKE_LOCK` を保持
 - **全体停止**は `ACTION_STOP`（通知/本棚バナーの「停止」）→ キュー待ちを破棄し停止フラグ `isStopping` を立てる。
   停止ボタンのキャンセル粒度は現状 **PDF境界**（処理中の1冊は完走し、ループ次周回が空キューを検知して `stopSelf`）。
-  ※ 純 Kotlin 化（Phase 3 の NonCancellable 緩和）で `processPages` が本文ページ毎に `ensureActive()` を呼ぶため、
+  ※ 純 Kotlin 化（Phase 3 の NonCancellable 緩和）で `processPages` のページ毎進捗を受けた
+    `BookRepository` 側の onProgress が `ensureActive()` を呼ぶため（TextProcessor 自体は coroutines 非依存）、
     本文抽出中の割り込み中断**自体は可能**になった（旧 Chaquopy/JNI では原理的に不可能だった）。
     停止ボタンをページ境界の即中断へ再配線するのは別タスク（handover 参照）。
 
