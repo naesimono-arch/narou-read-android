@@ -93,19 +93,28 @@ PdfProcessingService（Foreground Service）
   処理中に別PDFが追加されてもキューに積まれ、ループが順次処理する（無音破棄しない）。
   「キュー追加+ループ起動判定」と「取り出し+終了判定」を1つの lock でアトミックに保護。
 - OPPO のバックグラウンド強制停止対策として処理ループ中は `PARTIAL_WAKE_LOCK` を保持
-- **全体停止**は `ACTION_STOP`（通知/本棚バナーの「停止」）→ キュー待ちを破棄し停止フラグ `isStopping` を立てる。
-  停止ボタンのキャンセル粒度は現状 **PDF境界**（処理中の1冊は完走し、ループ次周回が空キューを検知して `stopSelf`）。
-  ※ 純 Kotlin 化（Phase 3 の NonCancellable 緩和）で `processPages` のページ毎進捗を受けた
-    `BookRepository` 側の onProgress が `ensureActive()` を呼ぶため（TextProcessor 自体は coroutines 非依存）、
-    本文抽出中の割り込み中断**自体は可能**になった（旧 Chaquopy/JNI では原理的に不可能だった）。
-    停止ボタンをページ境界の即中断へ再配線するのは別タスク（handover 参照）。
+- **全体停止**は `ACTION_STOP`（通知/本棚バナーの「停止」）→ キュー待ちを破棄し、処理中の1冊も
+  **ページ境界で即中断**する（2026-07-07 再配線済み）。仕組み: 処理中の1冊を子 Job（`currentBookJob`）
+  として起動し ACTION_STOP が cancel → `BookRepository.addBook` の進捗コールバック内 `ensureActive()`
+  （TextProcessor 自体は coroutines 非依存）が次のページ境界で CancellationException を投げる。
+  ループ Job ごと cancel しないのは、cancel〜finally の隙間に来た ACTION_START を取りこぼす
+  レースを避けるため（ループは生かし、次周回の空キュー検知で正常終了→`stopSelf`）。
+- **強制終了（OEM kill/OOM/onTimeout）からの再開**（2026-07-07 導入）: enqueue 時に `pending_jobs`
+  テーブルへ記帳し、変換の成否確定時に削除（成功=Room 登録と同じ NonCancellable 内／失敗=classifyError 時）。
+  ユーザーの明示停止（ACTION_STOP）は全消し＝再開しない。残った行は次回アプリ起動時に
+  `NovelReaderApplication.runStartupRecoveryOnce()`（MainActivity.onCreate がトリガー・プロセスごとに1回）
+  が検出し、孤立HTML掃除（books に無い novels/<bookId>/ を削除）→ snackbar 通知 → FGS 再投入で再開する。
+  再開にはプロセスを跨ぐ読み取り権限が要るため `BookshelfViewModel.addBook` が
+  `takePersistableUriPermission` を取得（解放は記帳削除時）。記帳の insert/全消しは
+  `pendingJobDispatcher`（並列度1）で直列化＝「追加直後に停止」でも破棄済みジョブが復活しない。
 
 ## データベース（Room）
 
 ```
 AppDatabase（versionはAppDatabase.ktを直接参照）
-  ├─ BookDao    → books テーブル
-  └─ ProgressDao → progress テーブル（bookId, lastReadFilename）
+  ├─ BookDao       → books テーブル
+  ├─ ProgressDao   → progress テーブル（bookId, lastReadFilename）
+  └─ PendingJobDao → pending_jobs テーブル（uri PK, displayName, enqueuedAt。処理キューの永続写し＝強制終了からの再開材料）
 ```
 
 現在のversion・カラム定義・Migrationリストは `AppDatabase.kt` と各 Entity ファイルが正典。

@@ -29,12 +29,12 @@
 
 ---
 
-## A. 変換まわりの機能要望（残り②のみ・2026-06-23 lab検証中にユーザー発案）
+## A. 変換まわりの機能要望（**全件完了**・2026-06-23 lab検証中にユーザー発案）
 
-> ①③④は **2026-06-25 実装完了**（実機目視OK・コミット表は `STATUS.md`）。残るは②のみ。
-> ①の補足: 割り込み停止（処理中PDFの即中断）は旧 Chaquopy(Python/JNI)構成では不可能で、全体停止のみ実装した。前提だった **D. Kotlinネイティブ化は完了済み（2026-07-05）**＝土台は充足。停止ボタンをページ境界の即中断へ再配線するのは別タスク（未着手・`.claude/skills/architecture` Service層の項参照）。
-
-2. **強制終了時の通知/再開**【未着手】: OEM kill/OOM/onTimeout で落ちた際に通知し可能なら再開。「処理キュー/進捗の永続化」＋「再起動時の未完了ジョブ検出」＋孤立HTML掃除が要る。content:// は現状 `FLAG_GRANT_READ_URI_PERMISSION`（一時権限）のみ＝再開には `takePersistableUriPermission` が必須。ColorOSは積極kill（`task_diary.md`）＝実害大。他3件と質的に重くリスク大のため別フェーズに分離した。
+> ①③④は **2026-06-25 実装完了**（実機目視OK）。①の割り込み停止（ページ境界の即中断への再配線）と
+> ② 強制終了時の通知/再開（Room v8 `pending_jobs`・起動時リカバリ・孤立HTML掃除・`takePersistableUriPermission`）は
+> **2026-07-07 実装＋実機検証完了**（`feat/processing-resilience`）。詳細・検証エビデンスは `STATUS.md`、
+> 実装のアーキテクチャは `.claude/skills/architecture` Service層の項が正本。本節に残タスクなし。
 
 ## A2. UI-n ブランチ（見た目の白紙改装・2026-06-26 フェーズ0完了）
 
