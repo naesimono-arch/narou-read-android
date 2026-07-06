@@ -7,18 +7,24 @@
 
 ## 0. 現在地（★次はここから）
 
-- **Phase 0〜2 完遂（2026-07-07・branch=`api-lab-ai`・worktree `/home/qingj/wt/api-lab-ai`）**: 発見体験の意匠モック6画面＋発見コアC1〜C4＋発見強化D1〜D5 を実装。**テスト150件 GREEN・assembleDebug 25.4MiB・実機(PGEM10)スモーク全経路OK**（本棚→見つける→orderタブ→詳細→なろうで読む／検索→条件シート→条件のみ検索→結果一覧。条件チップ・総件数・type絞り込みの実効を実データで確認）。コミット表は §1。
-- **★次アクション**: **Phase 3＝PDF↔Web継続読書（目玉①）**。`BookEntity` に ncode 列追加＝**Room version 7→8 のため着手前に `/db-migration` スキル必須**。実装詳細は plan `~/.claude/plans/api-agy-woolly-swan.md` の Phase 3 節（話数突き合わせ・継続導線の差し込み点 file:line 付き）。
+- **Phase 0〜3 完遂（2026-07-07・branch=`api-lab-ai`・worktree `/home/qingj/wt/api-lab-ai`）**: 発見体験の意匠モック6画面＋発見コアC1〜C4＋発見強化D1〜D5＋**目玉①PDF↔Web継続読書**を実装。**テスト162件 GREEN・assembleDebug 25.6MiB・実機(PGEM10)スモーク全経路OK**。Phase 3 の実機エビデンス: シャングリラ・フロンティア（PDF 951章）で最終章末尾→「なろうで続きを探す」→紐付けシート（書名自動検索・候補=硬梨菜/連載中全955話）→タップ紐付け→継続カード「手元のPDFは第951話まで。なろうには第952〜955話（新着4話）」→藍ボタン→**Chrome で ncode.syosetu.com の 952/955 話に正確着地**。解除→プロンプト復帰→再紐付け・DB永続化（books.ncode='N6169DZ'・WAL込み確認）まで検証済み。コミット表は §1。
+- **⚠️ Room version は 9 へ退避（v8 は使えない）**: 並列ブランチ `feat/processing-resilience` が v8（`pending_jobs`）を先取り消費し実機も v8 化済みのため、当初の v8 実装は identity hash 衝突で起動即クラッシュした（実測）。本ブランチは v9（`MIGRATION_8_9`=books.ncode）へ退避し、resilience の 7→8 を同一内容で複製してパスを繋いだ。**マージ時は「version 9＋両 migration＋両エンティティ」で合併すること**。機序と予防は `task_diary.md` #39・`/db-migration` スキル。
+- **設計方針（2026-07-07・ユーザー表明）**: **Web 閲覧系の導線（継続読書・なろうで読む）は、行く行くはアプリ内 WebView で完結させる**（「なるべくこのアプリで完結したい」＝目玉④の"アプリ内で完結する発見〜読書"の徹底）。今すぐの作業指示ではなく**考え方**として固定: 現状 Phase 3 の外部ブラウザ送客（C4 と同方式）は暫定であり、B2「Webで読む」導線を実装する際はアプリ内 WebView 内包を既定の解とし、継続導線・C4 もそこへ統一する。
+- **★次アクション**: **Phase 4＝融合本棚（②）＋整理 U2＋新着通知 U1**。翻訳元モック `bookshelf-fusion-D.html` は Phase 0 で作成済み。実装詳細は plan `~/.claude/plans/api-agy-woolly-swan.md` の Phase 4 節（B2 実装時は上記方針＝アプリ内 WebView を適用）。
 - **旧記録（縦スライス第1本・5コミット済み 2026-07-06）**: `e19fe50`(依存＋権限)→`6783d9a`(メタ取得サブシステム＋テスト)→`ac2d575`(画面＋導線)→`3a4ec46`(調査資料docs)→`8b267c8`(ディスカバリVMテスト)。
 - **やっていること**: なろう公式APIの**発見機能を「第2の柱」に育てる**。案A（本文は取らずメタのみ）を堅持しつつ、発見機能を「公式より丁寧・アプリ内で完結するレベル」に作り込む。目玉＝**PDF↔Web継続読書**と**静かな没入意匠**。競合5アプリ解析（`docs/reference/04-competitor-app-features.md`）が裏付け＝競合はどれも発見が弱い。**計画を策定・ユーザー承認済み（2026-07-06）**＝§3 の目標ロードマップが現在地・目標の正本、実装詳細の一次情報は plan `~/.claude/plans/api-agy-woolly-swan.md`。
 - **既存本棚UIの刷新（融合本棚・目玉②）**: Phase 0 でモック `bookshelf-fusion-D.html`（見つける導線帯・続きありバッジ・Web由来カード並置）を作成済み。**Compose 実装は Phase 4**（Phase 3 の ncode 紐付けが前提のため）。見た目の正本は ADR0005＋HTMLモック（直書き禁止・`theme/Color.kt`／`MinchoFamily` 経由）。
 
-## 1a. 完了（Phase 0〜2＝発見体験の意匠＋発見コア＋発見強化・2026-07-07）
+## 1a. 完了（Phase 0〜3＝発見体験の意匠＋発見コア＋発見強化＋PDF↔Web継続読書・2026-07-07）
 
-実装・単体テスト150件・assembleDebug・実機スモークの全レベルで GREEN。コミット表（新しい順）:
+実装・単体テスト162件・assembleDebug・実機スモークの全レベルで GREEN。コミット表（新しい順）:
 
 | Phase | commit | 内容 |
 |---|---|---|
+| 3 | `9431755` | fix: Room version 9 へ退避（並列ブランチが v8 先取り・identity hash 衝突の実測対処） |
+| 3 | `8620cd3` | 継続カード＋紐付けシート＋読書画面配線（reading-continuation-Dモック翻訳・androidTest追従込み） |
+| 3 | `649be4c` | 話数突き合わせ純関数 `ContinuationLogic`＋テスト12件 |
+| 3 | `709b920` | 蔵書に ncode 列（BookDao 部分UPDATE・Repository/VM 経路） |
 | D3 | `df91e4d` | 気分プリセット「きょうの気分」4種をホーム最上段に（範囲絞り込みの体験昇華・BINGEのみ累計順） |
 | D1/D2/D4/D5 | `b2f7bfa` | 条件シート（type/期間/属性/文字数/読了時間/会話率/挿絵＝段階チップ）＋検索履歴・ピン留め（DataStore別系統・純関数ロジック） |
 | C4 | `b89de20` | 作品詳細（BookCover流用ヒーロー・ステータス表・評価表）＋「なろうで読む」外部ブラウザ送客（B2先取り） |
@@ -63,6 +69,9 @@
 - **意匠モックの置き場所（Phase 0 で二重化）**: 発見系モックの一次はリポジトリ `docs/design-candidates/discovery/*.html`（git管理）。claude.ai/design の `Novel Reader UI` プロジェクト `ui-n-phase0/` へも DesignSync で収蔵済み（Design System ペインで閲覧可）。従来の「モック現物はリポジトリに無い」前提は発見系については変わった。
 - **モックのレンジスライダーは段階チップへ翻訳**: 文字数等はダイナミックレンジが広く線形スライダーは実用に耐えないため（操作系差分は ADR 0005 スコープ外規定）。
 - **検索履歴は DataStore Preferences**（`narou_search_history`・蔵書Roomと別系統）。並び・上限の操作ロジックは `SearchHistory` 拡張の純関数に分離し純JVMテストで担保。VM 側は lazy＋WhileSubscribed で検索画面を開くまでディスク非接触。
+- **（Phase 3 で追加）ncode 紐付けは人間確定必須**: title 一致だけの自動紐付けは同名別作品の誤誘導リスクがあるため、候補提示→タップ確定（or 手動 ncode 入力・`isValidNcode` 検証付き）のみ。解除導線（継続カード末尾の極小テキスト）が唯一の救済パス。
+- **（Phase 3 で追加）PDF正規化済みタイトル（波ダッシュ U+301C）でも、なろう検索はヒットする**: シャングリラ・フロンティア（タイトルに 〜 を含む）の書名自動検索が候補1件を正しく返した（API 側が波ダッシュ差を吸収する模様。実測1件・保証ではない→ヒットしない場合の逃げ道が手動 ncode 入力）。
+- **（Phase 3 で追加）継続情報の取得は最終章表示時のみ**（`novelDetail` は 6h TTL キャッシュ相乗り）。オフライン失敗時は静かに非表示＝読書の没入を通信エラーで壊さない（次回の最終章表示で自然に再試行）。
 
 ## 3. 目標ロードマップ（承認済み計画・2026-07-06）
 
@@ -74,8 +83,8 @@
 - [x] **Phase 0** 発見体験の意匠設計（全画面モック6枚・2026-07-07 完了。※融合本棚/継続導線モックは Phase 3〜4 の翻訳元として作成済み・Compose 実装は未着手）
 - [x] **Phase 1** 発見コア C1〜C4（2026-07-07 完了・§1a）
 - [x] **Phase 2** 発見強化 D1〜D5（2026-07-07 完了・§1a）
-- [ ] **Phase 3** ★PDF↔Web継続読書（目玉①・Room version 7→8 で `/db-migration` 必須）★次
-- [ ] **Phase 4** 融合本棚②＋整理 U2＋新着通知 U1
+- [x] **Phase 3** ★PDF↔Web継続読書（2026-07-07 完了・§0/§1a。Room は v8 衝突により **version 9** で実装。遷移先は暫定＝外部ブラウザ、B2 実装時にアプリ内 WebView へ統一の方針）
+- [ ] **Phase 4** 融合本棚②＋整理 U2＋新着通知 U1 ★次
 - [ ] **Phase 5** doc昇格（ADR・handover §D・03↔04 相互リンク）
 
 ## 4. 参照

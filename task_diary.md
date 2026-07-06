@@ -407,6 +407,28 @@ Migration SQL を書く前に端末 DB の実際のカラム名を `PRAGMA table
 
 → コードを revert する前に「端末 DB が何バージョンか」を必ず確認すること。
 
+#### 39. 並列ブランチが同じ Room version を別スキーマで宣言すると identity hash クラッシュ（migration は走らない）  ★★★
+
+Room は起動時、端末 DB の `user_version` が宣言 version と**同値**だと migration を一切走らせず、
+`room_master_table` の identity_hash 照合だけを行う。並列 worktree の2ブランチがそれぞれ
+「version 8」を**別のスキーマ変更**で宣言すると、片方のビルドで v8 化した端末にもう片方を
+インストールした瞬間 `Room cannot verify the data integrity`（identity hash 不一致）でクラッシュする。
+**migration 不足系と違いエラーメッセージが「version を上げ忘れた」と誤誘導してくる**のが罠
+（実際は version の上げ方ではなく「同じ番号の取り合い」が原因）。
+
+**実測（2026-07-07）**: `feat/processing-resilience`（v8＝`pending_jobs` テーブル・実機検証済み）と
+`api-lab-ai`（v8＝`books.ncode` 列）が PGEM10 上で衝突。端末 DB は resilience 側の v8 になっており、
+api-lab-ai ビルドが起動即クラッシュ（user_version=8 なので MIGRATION_7_8 は呼ばれもしない）。
+
+**対処（後発側が退避する）**: 後発ブランチは version 9（`MIGRATION_8_9`）へ退避し、先行側の 7→8 を
+**同一内容で複製**して 7→8→9 のパスを繋ぐ（Room は自分の管理外テーブルを検証しないので、
+エンティティ未定義の `pending_jobs` が存在しても無害）。マージ時は「version 9＋両 migration＋
+両エンティティの合併」で解決する。
+
+**予防**: スキーマを触る前に**全 worktree の宣言 version を確認**する
+（`grep -h "version = " ~/wt/*/android/app/src/main/java/com/novelreader/data/AppDatabase.kt`）。
+`/db-migration` スキルの手順にも組み込み済み。
+
 ---
 
 ### PDFBox-Android 移植（Chaquopy→Kotlin ネイティブ化）

@@ -20,6 +20,16 @@ android/app/src/main/java/com/novelreader/data/AppDatabase.kt
 
 現在の version 番号はすぐ古くなるため、この手順書には固定値で書かない（AppDatabase.kt が唯一の正典）。末尾の「既存の Migration 履歴」表は過去の移行記録であり、最新 version の確認には使わないこと。
 
+**あわせて並列 worktree の version 先取りも必ず確認する**（task_diary #39・実測クラッシュあり）:
+
+```bash
+grep -h "version = " ~/wt/*/android/app/src/main/java/com/novelreader/data/AppDatabase.kt | sort -u
+```
+
+別ブランチが同じ次期番号を別スキーマで既に消費している（＝実機がそのスキーマで migrate 済みの）場合、
+同番号を名乗ると identity hash 不一致で起動即クラッシュする。その場合は**さらに +1 した番号へ退避し、
+先行ブランチの Migration を同一内容で複製してパスを繋ぐ**こと（詳細は task_diary #39）。
+
 ## 手順
 
 1. Entity クラスのフィールドを変更する
