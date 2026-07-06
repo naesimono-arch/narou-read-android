@@ -379,6 +379,14 @@ print(json.dumps({"hookSpecificOutput": {
 **実装ノート（ハマり所）**: ①**hook はサンドボックス実行**＝hook 外で作った sentinel ファイルを `[ -f ]` で見えない → gate は stdin(JSON) payload と `tool_input.command` だけで判定すること。②**この directory-marketplace 版では live な hook は cache でなく git-test source**（`CLAUDE_PLUGIN_ROOT`→source。source に入れたゲートが発火した実測で確定）。編集・commit 対象は git-test source（[[antigravity-plugin-cache-vs-source-cost-gate]] を要更新）。
 関連: #28（PostToolUse stdout 不達）／`docs/decisions/0004`（hook の matcher 範囲・起動時固定）／agy 安全機構は `.agents/scripts/guard_forbidden.py`・`AGENTS.md`。
 
+#### 41. `!`（bash mode）で実行するコマンドはツールフックを一切通らない → 「AIは作れない・人間は作れる」を機構化できる  ★★
+
+**事実**: ユーザーが入力欄で `! <cmd>`（bang-command / bash mode）を実行しても、`PreToolUse`/`PostToolUse`（matcher "Bash"）は**一切発火しない**。フックを通るのは **AI が Bash ツールで実行したコマンドだけ**で、その stdin JSON は `tool_name:"Bash"` と `tool_use_id` を持つ。公式ドキュメントに bash mode の記載は無く、挙動として実測でのみ確定できる。
+**実測（2026-07-06）**: 既存 PreToolUse(Bash) フック本体に stdin JSON を丸ごと記録するプローブを仕込み（本体編集は即時反映＝#39）、①AI の `echo` → 記録あり（`tool_use_id` 付き）②ユーザーの `! echo …` → **記録ゼロ**。3 発火すべて AI ツール由来で、bang 由来のエントリは現れなかった。
+**活用（レバー）**: この非対称性で「**AI はツール経由でファイルを作れない／人間は `!` で作れる**」を機構的に成立させられる。初適用が `guard_sentinel_creation.py`＝main コミット許可センチネル `.allow_protected_commit` を人間発行のみに限定（Write/Edit/Bash 経由の生成を PreToolUse でブロック）。「AI 由来か人間由来か」をフックで判別する必要すら無い（`!` はそもそも来ない）ため実装は単純な文字列/パス一致で済む。
+**落とし穴（盲点）**: 逆に言うと「フックで全 Bash を捕捉している」つもりでも **`!` 経由は監査・ガードの盲点として素通り**する。コミットガード等が `!` で回避されうる点は設計時に意識する（＝ソフト境界。ADR 0004 の限界と同根）。加えて **新規フック配線はセッション中無反映**（#39）なので、この種の実測は「既存配線フックの本体編集（即時反映）」で行うのが速い。
+関連: #39（配線＝起動時固定／本体＝毎回読込の非対称）／`docs/decisions/0004`（この事実を利用した guard_sentinel_creation の設計判断＝Decision B-5）。
+
 ---
 
 ### Room / DB
