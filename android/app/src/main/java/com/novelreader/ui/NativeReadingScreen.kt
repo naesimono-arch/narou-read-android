@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
@@ -57,8 +58,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import com.novelreader.NovelReaderApplication
 import com.novelreader.model.ParseResult
 import com.novelreader.model.TocEntry
+import com.novelreader.narou.ContinuationInfo
+import com.novelreader.narou.NarouApiException
+import com.novelreader.narou.computeContinuation
+import com.novelreader.narou.narouEpisodeUrl
+import com.novelreader.narou.narouWorkUrl
 import com.novelreader.parser.ChapterHtmlParser
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingTheme
@@ -79,7 +86,9 @@ import java.io.File
  * @param bookId 書籍ID
  * @param startFile ナビゲーション引数で渡された初期ファイル名
  * @param htmlDirPath 章HTMLが格納されたディレクトリの絶対パス
- * @param viewModel BookshelfViewModel（進捗保存に使用）
+ * @param bookTitle 蔵書タイトル（なろう紐付けシートの初期検索語に使う）
+ * @param ncode 紐付け済みなろう作品の Nコード（null = 未紐付け。継続導線の分岐に使う）
+ * @param viewModel BookshelfViewModel（進捗保存・ncode 紐付けに使用）
  * @param onNavigateToBookshelf 本棚に戻るコールバック
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -88,6 +97,8 @@ fun ReadingScreen(
     bookId: String,
     startFile: String,
     htmlDirPath: String,
+    bookTitle: String,
+    ncode: String?,
     viewModel: BookshelfViewModel,
     // テーマは MainActivity が持つ単一正本を受け取る（本棚と共有して全体を同期させるため）。
     readingTheme: ReadingTheme,
@@ -243,6 +254,11 @@ fun ReadingScreen(
         currentFile = resolvedFile,
         htmlDirPath = htmlDirPath,
         tocEntries = tocEntries,
+        bookTitle = bookTitle,
+        ncode = ncode,
+        // 紐付けの永続化。books は hot StateFlow のため、書き込みは MainActivity → ncode 引数へ
+        // 自動で還流し、確定直後から継続導線が紐付け済み表示に切り替わる。
+        onLinkNcode = { newNcode -> viewModel.linkNcode(bookId, newNcode) },
         readingTheme = readingTheme,
         onThemeChange = onThemeChange,
         fontSize = fontSize,
@@ -282,6 +298,9 @@ private fun ChapterScreen(
     currentFile: String,
     htmlDirPath: String,
     tocEntries: List<TocEntry>,
+    bookTitle: String,
+    ncode: String?,
+    onLinkNcode: (String?) -> Unit,
     readingTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
     fontSize: Int,
@@ -342,6 +361,40 @@ private fun ChapterScreen(
         currentIndex in 0 until tocEntries.size - 1 -> tocEntries[currentIndex + 1].fileName
         else -> "index.html" // 最後の章 → 目次に戻る
     }
+
+    // ────── PDF↔Web継続読書（目玉①）──────
+    // 最終章か。tocEntries ロード完了前（empty）は false になり継続導線は出ない。
+    val isLastChapter = tocEntries.isNotEmpty() && currentIndex == tocEntries.size - 1
+
+    val context = LocalContext.current
+    val narouRepository = remember(context) {
+        (context.applicationContext as NovelReaderApplication).novelApiRepository
+    }
+
+    // 紐付け済みかつ最終章のときだけ、なろうAPIへ話数を照会する。
+    // なぜ最終章に限定するか: 読書中の無駄な通信を避けるため（照会自体も Repository の
+    // 6h TTL キャッシュに乗るため、章を行き来しても実通信は最大6時間に1回）。
+    val continuationInfo by produceState<ContinuationInfo?>(
+        initialValue = null,
+        key1 = ncode,
+        key2 = isLastChapter,
+        key3 = tocEntries.size,
+    ) {
+        value = null
+        if (ncode != null && isLastChapter) {
+            // オフライン等の失敗時は静かに何も出さない（読書の没入を通信エラーで壊さない）。
+            // 次に最終章を開き直せば produceState が再起動し自然に再試行される。
+            value = try {
+                narouRepository.novelDetail(ncode)?.let { computeContinuation(tocEntries.size, it) }
+            } catch (e: NarouApiException) {
+                null
+            }
+        }
+    }
+
+    // なろう紐付けシートの開閉状態
+    var showLinkSheet by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
 
     // バックキーはデフォルトで本棚に戻る（Navigation の popBackStack）。
     // なぜ Phase 3 では章履歴スタックを導入しないか:
@@ -452,14 +505,46 @@ private fun ChapterScreen(
                 when (val result = parseResult) {
                     is ParseResult.Loading -> CircularProgressIndicator()
 
-                    is ParseResult.Success -> ChapterContent(
-                        content = result.content,
-                        colors = colors,
-                        fontSize = fontSize,
-                        lineHeightEm = lineHeightEm,
-                        bodyMarginDp = bodyMarginDp,
-                        lazyListState = lazyListState,
-                    )
+                    is ParseResult.Success -> {
+                        // 継続導線スロット。最終章のみ: 未紐付け=静かな探索導線／紐付け済み=継続カード。
+                        // ローカル val に固めるのは produceState 委譲プロパティのスマートキャストを効かせるため。
+                        val info = continuationInfo
+                        val continuationSlot: (@Composable () -> Unit)? = when {
+                            !isLastChapter -> null
+                            ncode == null -> ({
+                                ContinuationLinkPrompt(
+                                    colors = colors,
+                                    bodyMarginDp = bodyMarginDp,
+                                    onClick = { showLinkSheet = true },
+                                )
+                            })
+                            info != null -> ({
+                                ContinuationCard(
+                                    info = info,
+                                    colors = colors,
+                                    bodyMarginDp = bodyMarginDp,
+                                    onReadContinuation = {
+                                        // 主ボタンは NewEpisodes のときしか描画されないが、防御的に型で絞る
+                                        (info as? ContinuationInfo.NewEpisodes)?.let {
+                                            uriHandler.openUri(narouEpisodeUrl(it.ncode, it.nextEpisode))
+                                        }
+                                    },
+                                    onOpenWorkPage = { uriHandler.openUri(narouWorkUrl(info.ncode)) },
+                                    onUnlink = { onLinkNcode(null) },
+                                )
+                            })
+                            else -> null // 照会中 or 照会失敗（オフライン）→ 静かに出さない
+                        }
+                        ChapterContent(
+                            content = result.content,
+                            colors = colors,
+                            fontSize = fontSize,
+                            lineHeightEm = lineHeightEm,
+                            bodyMarginDp = bodyMarginDp,
+                            lazyListState = lazyListState,
+                            continuation = continuationSlot,
+                        )
+                    }
 
                     is ParseResult.Error -> ReadingErrorScreen(
                         message = result.message,
@@ -565,6 +650,19 @@ private fun ChapterScreen(
             // scrollBehavior は heightOffsetLimit の測定のため維持する。
             scrollBehavior = scrollBehavior,
         )
+
+        if (showLinkSheet) {
+            NcodeLinkSheet(
+                bookTitle = bookTitle,
+                repository = narouRepository,
+                colors = colors,
+                onConfirm = { picked ->
+                    onLinkNcode(picked)
+                    showLinkSheet = false
+                },
+                onDismiss = { showLinkSheet = false },
+            )
+        }
 
         if (showSettings) {
             ReadingSettingsSheet(

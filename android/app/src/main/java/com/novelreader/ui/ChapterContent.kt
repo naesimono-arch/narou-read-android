@@ -49,6 +49,10 @@ internal fun ChapterContent(
     lineHeightEm: Float,
     bodyMarginDp: Int,
     lazyListState: LazyListState = rememberLazyListState(),
+    // 最終章の本文末尾に差し込む継続導線スロット（PDF↔Web継続読書）。null = 差し込まない。
+    // なぜスロット渡しか: ChapterContent を narou 層（API・紐付け状態）へ依存させず、
+    // 「何を出すか」の判断を呼び出し側（ChapterScreen）に残すため。
+    continuation: (@Composable () -> Unit)? = null,
 ) {
     val paragraphs = remember(content) { content.segments.splitIntoParagraphs() }
 
@@ -96,6 +100,12 @@ internal fun ChapterContent(
                     // ユーザー設定の左右余白（スマホ幅では実質これが行長を決める）
                     .padding(horizontal = bodyMarginDp.dp),
             )
+        }
+
+        // 継続導線（最終章のみ非null）。本文を読み切った位置に静かに現れる
+        // （モック reading-continuation-D.html: 了マークの後に継続カード）。
+        if (continuation != null) {
+            item { continuation() }
         }
         // 旧 Spacer(80dp) は上の contentPadding.bottom へ移行（バー実高＋ナビバー実高で算出）
     }

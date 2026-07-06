@@ -177,13 +177,17 @@ private fun NovelReaderApp(
             // collectAsState() で第1フレームから現在値を即時派生させることで、
             // LaunchedEffect の1フレーム遅延を排除し初期描画のちらつき（左上ジャンプ）を防ぐ。
             val books by viewModel.books.collectAsState()
-            val htmlDirPath = books.firstOrNull { it.id == bookId }?.htmlDirPath
+            val book = books.firstOrNull { it.id == bookId }
 
-            if (htmlDirPath != null) {
+            if (book != null) {
                 ReadingScreen(
                     bookId = bookId,
                     startFile = startFile,
-                    htmlDirPath = htmlDirPath,
+                    htmlDirPath = book.htmlDirPath,
+                    bookTitle = book.title,
+                    // 紐付け確定/解除は books(hot StateFlow) 経由でここへ還流し、読書画面の
+                    // 継続導線が再コンポーズで即座に切り替わる。
+                    ncode = book.ncode,
                     viewModel = viewModel,
                     readingTheme = appTheme,
                     onThemeChange = onThemeChange,
