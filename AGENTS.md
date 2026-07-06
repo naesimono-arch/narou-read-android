@@ -30,6 +30,7 @@ Jetpack Compose + Kotlin。**PDF 抽出パイプラインの実装はブラン�
 - Room DB の Entity/スキーマは勝手に変えない（Migration 手順が別管理のため、指示された場合のみ指示の範囲で）。
 - 管理ドキュメント（`STATUS.md` / `handover.md` / `task_diary.md` / `docs/`）へは指示がない限り書き込まない。
 - 一時ファイルを作ったら作業終了時に削除する。
+- **呼び出し側との境界不整合を勝手に埋めない**: 監督が編集する側とシグネチャが合わなくても、deprecated オーバーロードや互換シムを自作して整合させないこと。**コンパイルエラーのまま残す**（配線は監督がやる）。善意の互換コードは指示外＝手戻りになる。
 - 監督が **plan モードで委譲**したとき（タスク文に「plan モード」「read-only」の明示がある場合を含む）は **read-only 徹底＝ファイルの新規作成/変更/削除を一切せず read/digest のみ返す**。**なぜ**: plan モードの read-only 保証は Claude Code から agy プロセスへ伝播しない（`--yolo` を渡されなければ元々書けないが、契約でも二重に守る）。
 
 ## ビルド・テスト（WSL 固有の罠あり — この手順以外で Gradle を起動しない）
@@ -51,3 +52,4 @@ sed '/^sdk\.dir=/d' local.properties > local.properties.tmp && cat local.propert
 
 - 単体テストは `testDebugUnitTest` のみ実行してよい。**`connectedAndroidTest` と実機 adb 操作は絶対にしない**（実機の蔵書 DB を消す禁忌があるため監督が行う）。
 - このリポジトリは `/mnt/c`（Windows マウント）上にあり I/O が遅い。広い走査は対象を絞ってから。
+- **作業後に `git status` を確認し `local.properties.tmp` が残っていたら削除する**（上の sed 回避手順の副産物。gitignore 外で差分に紛れるため）。
