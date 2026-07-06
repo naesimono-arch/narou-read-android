@@ -82,6 +82,15 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun addBook(uri: Uri) {
+        // 強制終了からの再開（起動時リカバリの再投入）にはプロセスを跨いで有効な読み取り権限が
+        // 必要なため、intent の FLAG_GRANT（一時権限＝プロセス消滅で失効）に加えて永続権限を取る。
+        // picker は OpenDocument なので取得可能だが、プロバイダによっては SecurityException を
+        // 投げるため防御する（取れなくても通常の変換は一時権限で成立し、再開だけが不可になる）。
+        runCatching {
+            getApplication<Application>().contentResolver.takePersistableUriPermission(
+                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
         val intent = Intent(getApplication(), PdfProcessingService::class.java).apply {
             action = PdfProcessingService.ACTION_START
             data = uri
@@ -91,8 +100,8 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
         ContextCompat.startForegroundService(getApplication(), intent)
     }
 
-    // 変換の全体停止。キュー待ちを破棄し、処理中の1冊は完了させて停止する
-    // （Python は JNI ブロッキングで途中中断できないため）。Service へ STOP を送るだけ。
+    // 変換の全体停止。キュー待ちを破棄し、処理中の1冊もページ境界で即中断する
+    // （純 Kotlin 化で割り込みが可能になった）。Service へ STOP を送るだけ。
     fun cancelProcessing() {
         val intent = Intent(getApplication(), PdfProcessingService::class.java).apply {
             action = PdfProcessingService.ACTION_STOP

@@ -15,6 +15,11 @@ interface BookDao {
     )
     fun getAllBooks(): Flow<List<BookEntity>>
 
+    /** 孤立HTML掃除（BookRepository.cleanOrphanHtmlDirs）の突合用。
+     *  Flow の getAllBooks と違い一回きりのスナップショットで足りるため suspend で返す。 */
+    @Query("SELECT id FROM books")
+    suspend fun getAllBookIds(): List<String>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBook(book: BookEntity)
 

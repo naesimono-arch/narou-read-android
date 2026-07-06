@@ -34,6 +34,7 @@ triggers:
 
 - **進捗/エラーのUI通知**: `NovelReaderApplication.processingState: StateFlow`（書き込みは `updateProcessingState()` のみ）＋ `errorEvents: Flow<String>`＝**Channel ベースの one-shot**。StateFlow だと画面回転で再表示・複数購読で重複するため Channel（受信時に消費・clearError 不要）。
 - **多重起動制御**: `ReentrantLock` + `ArrayDeque<Uri>` のキュー方式（処理中の追加PDFは無音破棄せずキューへ）。「キュー追加+ループ起動判定」と「取り出し+終了判定」を1つの lock でアトミックに保護。
-- **停止（ACTION_STOP）の粒度は PDF 境界**（キュー待ちは破棄・処理中の1冊は完走）。純 Kotlin 化で本文抽出中の割り込み中断自体は可能になったが、ページ境界への再配線は別タスク（handover 参照）。処理ループ中は `PARTIAL_WAKE_LOCK` 保持（OPPO のバックグラウンド強制停止対策）。
+- **停止（ACTION_STOP）はページ境界で即中断**（2026-07-07 再配線）: キュー待ちは破棄し、処理中の1冊も子 Job（`currentBookJob`）を cancel → `BookRepository.addBook` の進捗コールバック内 `ensureActive()`（TextProcessor 自体は coroutines 非依存）が次のページ境界で中断する。ループ Job ごと cancel しないのは cancel〜finally 間に来た ACTION_START を取りこぼすレース回避（ループは生かし次周回の空キュー検知で `stopSelf`）。処理ループ中は `PARTIAL_WAKE_LOCK` 保持（OPPO のバックグラウンド強制停止対策）。
+- **強制終了（OEM kill/OOM/onTimeout）からの再開**（2026-07-07 導入）: enqueue 時に `pending_jobs`（Room v8・`PendingJobDao`）へ記帳し成否確定で削除（明示停止は全消し＝再開しない）。次回起動時 `NovelReaderApplication.runStartupRecoveryOnce()`（MainActivity.onCreate トリガー・プロセス毎1回・Service 非稼働時のみ）が孤立HTML掃除（books に無い `novels/<id>/` を削除）→ 未完了ジョブを snackbar 通知＋権限が生きる分を FGS 再投入。プロセス跨ぎ読取のため `BookshelfViewModel.addBook` が `takePersistableUriPermission` 取得（解放は記帳削除時）・記帳の insert/全消しは `pendingJobDispatcher`（並列度1）で直列化＝「追加直後に停止」でも破棄済みジョブが復活しない。
 - **読書進捗の上書き防止**: `index.html`（目次）閲覧時は進捗を上書きしない制御が `NativeReadingScreen.kt` にある。実装は `fileName != "index.html"` の**ブロックリスト方式**（`chap_` 接頭辞の許可リスト判定ではない）。
 - OPPO/ColorOS 固有動作 → `/device-verify` スキル（症状→対処表）経由で `task_diary.md` を参照。
