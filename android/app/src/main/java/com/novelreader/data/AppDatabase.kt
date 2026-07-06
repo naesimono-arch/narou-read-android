@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [BookEntity::class, ProgressEntity::class], version = 7, exportSchema = true)
+@Database(entities = [BookEntity::class, ProgressEntity::class], version = 8, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun bookDao(): BookDao
@@ -88,10 +88,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v7→v8: books テーブルに ncode 列（なろう作品の Nコード）を追加する。
+         *  PDF↔Web継続読書（発見機能・目玉①）で「手元PDFの続きをなろうへ縫合」するための紐付けキー。
+         *  nullable TEXT＝未紐付けが既定状態のため DEFAULT 句は不要（既存行は NULL 補完）。
+         *  新規追加のみで既存カラム名に依存しないため PRAGMA 分岐は不要（MIGRATION_4_5 以降と同方針）。 */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE books ADD COLUMN ncode TEXT")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
-                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .build()
                     .also { INSTANCE = it }
             }

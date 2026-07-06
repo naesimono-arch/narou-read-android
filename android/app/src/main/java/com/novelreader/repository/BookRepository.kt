@@ -138,6 +138,11 @@ class BookRepository(
         }
     }
 
+    // PDF↔Web継続読書: なろう作品との紐付け（null で解除）。ユーザー確定操作からのみ呼ぶ。
+    suspend fun linkNcode(bookId: String, ncode: String?) = withContext(Dispatchers.IO) {
+        bookDao.updateNcode(bookId, ncode)
+    }
+
     suspend fun getLastRead(bookId: String): String? =
         withContext(Dispatchers.IO) { progressDao.getLastRead(bookId) }
 
