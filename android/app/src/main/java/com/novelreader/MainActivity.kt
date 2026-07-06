@@ -14,8 +14,8 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import com.novelreader.ui.BookshelfScreen
-import com.novelreader.ui.DiscoveryScreen
 import com.novelreader.ui.ReadingScreen
+import com.novelreader.ui.discovery.DiscoveryHomeScreen
 import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfViewModel
@@ -88,9 +88,11 @@ private fun NovelReaderApp(
         }
 
         composable("discovery") {
-            DiscoveryScreen(
+            DiscoveryHomeScreen(
                 viewModel = viewModel(),
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                // 作品詳細ルートは C4 で追加予定（それまで行タップは無反応）
+                onOpenDetail = {},
             )
         }
 

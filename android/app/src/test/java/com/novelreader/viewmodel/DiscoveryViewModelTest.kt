@@ -5,7 +5,9 @@ import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.NovelApiRepository
 import com.novelreader.narou.model.DiscoveryResult
 import com.novelreader.narou.model.NarouNovel
+import com.novelreader.narou.model.NarouOrder
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -46,7 +48,7 @@ class DiscoveryViewModelTest {
     }
 
     @Test
-    fun `初期化時 - ロードに成功した場合、uiState が Content に遷移し、取得データが格納されること`() = runTest {
+    fun `ensureHomeLoaded - ロードに成功した場合、homeState が Content に遷移し、取得データが格納されること`() = runTest {
         val dummyNovels = listOf(
             NarouNovel(title = "小説タイトル", ncode = "N1234AB", novelType = 1, end = 1)
         )
@@ -54,9 +56,10 @@ class DiscoveryViewModelTest {
         coEvery { mockRepo.discover(any()) } returns dummyResult
 
         viewModel = DiscoveryViewModel(mockApp)
+        viewModel.ensureHomeLoaded()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        val state = viewModel.uiState.value
+        val state = viewModel.homeState.value
         assertTrue(state is DiscoveryUiState.Content)
         state as DiscoveryUiState.Content
         assertEquals(120, state.allcount)
@@ -64,28 +67,81 @@ class DiscoveryViewModelTest {
     }
 
     @Test
-    fun `初期化時 - データが空だった場合、uiState が Empty に遷移すること`() = runTest {
+    fun `ensureHomeLoaded - VM生成だけでは通信せず、2回呼んでも discover は1回だけ実行されること`() = runTest {
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(NarouNovel(title = "t")))
+
+        viewModel = DiscoveryViewModel(mockApp)
+        testDispatcher.scheduler.advanceUntilIdle()
+        // VM 生成のみ（画面未表示相当）では通信しない＝上位共有 VM が本棚起動時に API を叩かない設計の要
+        coVerify(exactly = 0) { mockRepo.discover(any()) }
+
+        viewModel.ensureHomeLoaded()
+        viewModel.ensureHomeLoaded()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockRepo.discover(any()) }
+    }
+
+    @Test
+    fun `ensureHomeLoaded - データが空だった場合、homeState が Empty に遷移すること`() = runTest {
         val dummyResult = DiscoveryResult(allcount = 0, novels = emptyList())
         coEvery { mockRepo.discover(any()) } returns dummyResult
 
         viewModel = DiscoveryViewModel(mockApp)
+        viewModel.ensureHomeLoaded()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        val state = viewModel.uiState.value
+        val state = viewModel.homeState.value
         assertTrue(state is DiscoveryUiState.Empty)
     }
 
     @Test
-    fun `初期化時 - API取得が NarouApiException で失敗した場合、uiState が Error に遷移し、エラーメッセージが設定されること`() = runTest {
+    fun `ensureHomeLoaded - API取得が NarouApiException で失敗した場合、homeState が Error に遷移し、エラーメッセージが設定されること`() = runTest {
         val exception = NarouApiException("テスト用エラーメッセージ", Exception())
         coEvery { mockRepo.discover(any()) } throws exception
 
         viewModel = DiscoveryViewModel(mockApp)
+        viewModel.ensureHomeLoaded()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        val state = viewModel.uiState.value
+        val state = viewModel.homeState.value
         assertTrue(state is DiscoveryUiState.Error)
         state as DiscoveryUiState.Error
         assertEquals("テスト用エラーメッセージ", state.message)
+    }
+
+    @Test
+    fun `setHomeOrder - orderが変わると該当orderのクエリで再取得され、homeOrderとhomeStateが更新されること`() = runTest {
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(10, listOf(NarouNovel(title = "週間1位")))
+
+        viewModel = DiscoveryViewModel(mockApp)
+        viewModel.ensureHomeLoaded()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val daily = listOf(NarouNovel(title = "日間1位"))
+        coEvery { mockRepo.discover(match { it.order == NarouOrder.DAILY }) } returns DiscoveryResult(5, daily)
+
+        viewModel.setHomeOrder(NarouOrder.DAILY)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(NarouOrder.DAILY, viewModel.homeOrder.value)
+        val state = viewModel.homeState.value
+        assertTrue(state is DiscoveryUiState.Content)
+        assertEquals(daily, (state as DiscoveryUiState.Content).novels)
+        coVerify(exactly = 1) { mockRepo.discover(match { it.order == NarouOrder.DAILY }) }
+    }
+
+    @Test
+    fun `setHomeOrder - 同じorderを再選択しても再取得しないこと`() = runTest {
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(10, listOf(NarouNovel(title = "t")))
+
+        viewModel = DiscoveryViewModel(mockApp)
+        viewModel.ensureHomeLoaded()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.setHomeOrder(NarouOrder.WEEKLY) // 既定値と同じ
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockRepo.discover(any()) }
     }
 }
