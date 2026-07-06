@@ -1,0 +1,424 @@
+<!-- @dsCard group="UI-n / 発見（api-lab）" name="D. 融合本棚" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Discovery D 融合本棚 — 和モダン余白</title>
+<style>
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;        /* 藍 */
+    --seiji:#9CB3A8;     /* 青磁 */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.6}
+  .cap b{color:#2A2C28}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.24em;color:#6A6C67}
+  .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--gothic)}
+  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--ink-soft);flex-shrink:0}
+  
+  /* 本棚ヘッダー */
+  .top{padding:8px 24px 14px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
+  .top h1{font-family:var(--mincho);font-size:27px;color:var(--ink);font-weight:500;letter-spacing:.14em}
+  .top .acts{display:flex;gap:2px}
+  .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--ink);cursor:pointer}
+  .ib:hover{background:var(--line)}
+  .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.5}
+
+  .scroll{flex:1;overflow:auto;padding:0 24px 40px}
+
+  /* (c) 新しい物語を見つける 導線帯 */
+  .find-guide {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 10px 14px;
+    margin-bottom: 20px;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .find-guide:hover {
+    border-color: var(--ai);
+  }
+  .find-guide .find-icon {
+    width: 15px;
+    height: 15px;
+    stroke: var(--ink-soft);
+    fill: none;
+    stroke-width: 2;
+    margin-right: 8px;
+  }
+  .find-guide .txt {
+    font-family: var(--gothic);
+    font-size: 12.5px;
+    color: var(--ink);
+    flex: 1;
+  }
+  .find-guide .arrow-icon {
+    width: 14px;
+    height: 14px;
+    stroke: var(--ink-soft);
+    fill: none;
+    stroke-width: 2;
+  }
+
+  /* 書影 (共通) */
+  .cv{position:relative;aspect-ratio:2/3;border-radius:2px;overflow:hidden;display:flex;align-items:flex-end}
+  .cv .rule{position:absolute;left:12px;top:12px;bottom:12px;width:2px;background:var(--ai);opacity:.85}
+  .cv .ttl-in{padding:12px 12px 14px 20px;color:var(--base);z-index: 2}
+  .cv .ttl-in b{font-family:var(--mincho);font-size:13.5px;font-weight:600;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-shadow:0 1px 3px rgba(28,31,38,.4)}
+
+  /* --- グリッド本棚 --- */
+  .grid-shelf {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px 16px;
+  }
+  .bk-card {
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+  }
+  /* (b) Web由来未取込 */
+  .bk-card.narou-unimported .cv .rule {
+    background: var(--seiji);
+  }
+  .bk-card .title {
+    font-family: var(--mincho);
+    font-size: 13.5px;
+    color: var(--ink);
+    margin-top: 8px;
+    font-weight: 500;
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .bk-card .progress-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    font-size: 10.5px;
+    color: var(--ink-soft);
+  }
+  .bk-card .progress-bar-bg {
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+    position: relative;
+  }
+  .bk-card .progress-bar-fill {
+    position: absolute;
+    left: 0; top: -0.5px;
+    height: 2px;
+    background: var(--ai);
+  }
+  /* (a) 続きあり */
+  .bk-card .new-chapters {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .bk-card .new-chapters .dot {
+    width: 6px;
+    height: 6px;
+    background: var(--seiji);
+    border-radius: 50%;
+  }
+  .bk-card .new-chapters .txt {
+    font-size: 10.5px;
+    color: var(--ai);
+    font-weight: 500;
+  }
+  .bk-card.narou-unimported .meta-row {
+    font-size: 10.5px;
+    color: var(--seiji);
+    margin-top: 4px;
+    font-weight: 500;
+  }
+
+  /* --- リスト本棚 --- */
+  .list-shelf {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .list-item {
+    display: flex;
+    gap: 14px;
+    cursor: pointer;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .list-item:last-child {
+    border-bottom: none;
+  }
+  .list-item .cv {
+    width: 46px;
+    height: 69px;
+    flex-shrink: 0;
+  }
+  .list-item .cv .rule {
+    left: 6px; top: 6px; bottom: 6px;
+    width: 1.5px;
+  }
+  .list-item.narou-unimported .cv .rule {
+    background: var(--seiji);
+  }
+  .list-item .bd {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .list-item .title {
+    font-family: var(--mincho);
+    font-size: 14px;
+    color: var(--ink);
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .list-item .author {
+    font-size: 11px;
+    color: var(--ink-soft);
+    margin-top: 2px;
+  }
+  .list-item .progress-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 10.5px;
+    color: var(--ink-soft);
+  }
+  .list-item .progress-bar-bg {
+    width: 60px;
+    height: 1px;
+    background: var(--line);
+    position: relative;
+  }
+  .list-item .progress-bar-fill {
+    position: absolute;
+    left: 0; top: -0.5px;
+    height: 2px;
+    background: var(--ai);
+  }
+  .list-item .new-chapters {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 10px;
+  }
+  .list-item .new-chapters .dot {
+    width: 6px;
+    height: 6px;
+    background: var(--seiji);
+    border-radius: 50%;
+  }
+  .list-item .new-chapters .txt {
+    font-size: 10.5px;
+    color: var(--ai);
+    font-weight: 500;
+  }
+  .list-item.narou-unimported .meta-row {
+    font-size: 10.5px;
+    color: var(--seiji);
+    font-weight: 500;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+  <p class="cap"><b>D. 融合本棚</b> ／ 左＝グリッド表示 ／ 右＝リスト表示。上部の「新しい物語を見つける」導線、(a) 進捗下の「続きあり（青磁ドット＋藍文字）」、(b) 「なろう・未取込（青磁ルール＋青磁文字）」の並置が刷新点</p>
+  <div class="stage">
+    
+    <!-- グリッドフレーム -->
+    <div class="wrap"><span class="mode">本棚（グリッド）</span>
+    <div class="phone" role="img" aria-label="融合本棚 グリッド">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      
+      <div class="top">
+        <h1>本棚</h1>
+        <div class="acts">
+          <button class="ib" aria-label="見つける"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+          <button class="ib" aria-label="リストへ切替"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+          <button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button>
+        </div>
+      </div>
+
+      <div class="scroll">
+        <!-- (c) 見つける導線 -->
+        <div class="find-guide">
+          <svg viewBox="0 0 24 24" class="find-icon"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+          <span class="txt">新しい物語を見つける</span>
+          <svg viewBox="0 0 24 24" class="arrow-icon"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+
+        <div class="grid-shelf">
+          <!-- 作品1: 続きあり (a) -->
+          <div class="bk-card">
+            <div class="cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)">
+              <div class="rule"></div>
+              <div class="ttl-in"><b>追放された万能薬師、辺境でスローライフを始める</b></div>
+            </div>
+            <div class="title">追放された万能薬師、辺境でスローライフを始める</div>
+            <div class="progress-row">
+              <span>127話</span>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: 62%;"></div></div>
+              <span>62%</span>
+            </div>
+            <div class="new-chapters">
+              <span class="dot"></span>
+              <span class="txt">続き 12話</span>
+            </div>
+          </div>
+
+          <!-- 作品2: Web由来・未取込 (b) -->
+          <div class="bk-card narou-unimported">
+            <div class="cv" style="background:linear-gradient(160deg,#43554C,#2C3631)">
+              <div class="rule"></div>
+              <div class="ttl-in"><b>黒の魔王と契約した俺、気づけば最強の従者に</b></div>
+            </div>
+            <div class="title">黒の魔王と契約した俺、気づけば最強の従者に</div>
+            <div class="meta-row">なろう・未取込</div>
+          </div>
+
+          <!-- 作品3: 既読100% -->
+          <div class="bk-card">
+            <div class="cv" style="background:linear-gradient(160deg,#5E4C46,#3B2F2B)">
+              <div class="rule"></div>
+              <div class="ttl-in"><b>公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</b></div>
+            </div>
+            <div class="title">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+            <div class="progress-row">
+              <span>88話</span>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: 100%;"></div></div>
+              <span>100%</span>
+            </div>
+          </div>
+
+          <!-- 作品4: 進行中 -->
+          <div class="bk-card">
+            <div class="cv" style="background:linear-gradient(160deg,#554C59,#362F3A)">
+              <div class="rule"></div>
+              <div class="ttl-in"><b>転生したら最弱スキルだったので草むしりしていた</b></div>
+            </div>
+            <div class="title">転生したら最弱スキルだったので草むしりしていた</div>
+            <div class="progress-row">
+              <span>210話</span>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: 80%;"></div></div>
+              <span>80%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+    <!-- リストフレーム -->
+    <div class="wrap"><span class="mode">本棚（リスト）</span>
+    <div class="phone" role="img" aria-label="融合本棚 リスト">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      
+      <div class="top">
+        <h1>本棚</h1>
+        <div class="acts">
+          <button class="ib" aria-label="見つける"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+          <button class="ib" aria-label="グリッドへ切替"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></button>
+          <button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button>
+        </div>
+      </div>
+
+      <div class="scroll">
+        <!-- (c) 見つける導線 -->
+        <div class="find-guide">
+          <svg viewBox="0 0 24 24" class="find-icon"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+          <span class="txt">新しい物語を見つける</span>
+          <svg viewBox="0 0 24 24" class="arrow-icon"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+
+        <div class="list-shelf">
+          <!-- 作品1: 続きあり (a) -->
+          <div class="list-item">
+            <div class="cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)">
+              <div class="rule"></div>
+            </div>
+            <div class="bd">
+              <div class="title">追放された万能薬師、辺境でスローライフを始める</div>
+              <div class="author">霧島あおい</div>
+              <div class="progress-row">
+                <span>127話</span>
+                <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: 62%;"></div></div>
+                <span>62%</span>
+                <div class="new-chapters">
+                  <span class="dot"></span>
+                  <span class="txt">続き 12話</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 作品2: Web由来・未取込 (b) -->
+          <div class="list-item narou-unimported">
+            <div class="cv" style="background:linear-gradient(160deg,#43554C,#2C3631)">
+              <div class="rule"></div>
+            </div>
+            <div class="bd">
+              <div class="title">黒の魔王と契約した俺、気づけば最強の従者に</div>
+              <div class="author">夜灯すばる</div>
+              <div class="meta-row">なろう・未取込</div>
+            </div>
+          </div>
+
+          <!-- 作品3: 既読100% -->
+          <div class="list-item">
+            <div class="cv" style="background:linear-gradient(160deg,#5E4C46,#3B2F2B)">
+              <div class="rule"></div>
+            </div>
+            <div class="bd">
+              <div class="title">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+              <div class="author">白河すずら</div>
+              <div class="progress-row">
+                <span>88話</span>
+                <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: 100%;"></div></div>
+                <span>100%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 作品4: 進行中 -->
+          <div class="list-item">
+            <div class="cv" style="background:linear-gradient(160deg,#554C59,#362F3A)">
+              <div class="rule"></div>
+            </div>
+            <div class="bd">
+              <div class="title">転生したら最弱スキルだったので草むしりしていた</div>
+              <div class="author">青葉みのり</div>
+              <div class="progress-row">
+                <span>210話</span>
+                <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: 80%;"></div></div>
+                <span>80%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+  </div>
+</body>
+</html>
