@@ -14,3 +14,4 @@
 | [0004](0004-branch-aware-memory-and-doc-architecture.md) | ブランチ非依存 auto-memory への対処＋doc アーキテクチャ | — |
 | [0005](0005-ui-n-visual-language-D.md) | UI-n 視覚言語に D「和モダン・余白」採用（スコープ・Why-not 含む） | — |
 | [0006](0006-detect-fabricated-execution-static-analysis.md) | 実行捏造ハルシネーションのトランスクリプト静的解析検知（スコープ・Why-not） | — |
+| [0007](0007-no-hook-dispatcher.md) | コミット系フックの単一ディスパッチャ不採用（フックは並列実行・共有は定義モジュール hooks_common.py のみ） | — |
