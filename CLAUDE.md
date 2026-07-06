@@ -9,7 +9,6 @@ Jetpack Compose + Kotlin ネイティブ PDF 抽出（PDFBox-Android）。
 
 ## 開発ルール
 
-- **思考の構造化**: コードを書く前に `<thinking>` タグで「要求の分解」「アプローチと理由」「副作用」を言語化すること。
 - **コードダンプ禁止**: チャットへのコード出力は10行以内。全体確認は `code <ファイルパス>` でエディターを開く。
 - **Atomic Commit**: 1論理的変更＝1コミット。形式は `fix/feat/refactor: 要約（日本語可）`。`git commit` 前に変更内容を提示して人間の承認を得ること。`Co-Authored-By` トレーラーは付けないこと。
 - **UIコメントは日本語**
@@ -27,15 +26,12 @@ Jetpack Compose + Kotlin ネイティブ PDF 抽出（PDFBox-Android）。
   - **整理済みの doc アーキ（`STATUS.md` ＋規約準拠 `handover.md` ＋ `docs/decisions`・`docs/patterns`）は main が正本**。handover/docs の整理分割（完了済み項目→`STATUS.md` 移動・冒頭の思いつき欄・`docs/decisions/` への ADR 化）は **main で行う**（かつて lab を正本とし main 先行整理との乖離が宿題だったが、2026-07-02 の統合で main へ一本化して解消）。
   - **コード変更・コミット前に必ず `git branch --show-current` を確認**し、active な plan ファイル冒頭に対象ブランチを記録する（コンテキスト圧縮で現在ブランチが脱落しても参照可能なデータとして残すため）。`main` への直接コミットは **Bash ツール経由の一般的な `git commit`（改行区切り・`git -C/-c …` 等のグローバルオプション付き）に加え、コミットを生成する merge/rebase/cherry-pick も `guard_commit_branch.py` が検知してブロック**する（2026-07-06 拡張）＝**ソフトな防御網であり完全な防止ではない**（PowerShell ツール経由・難読化形・`git pull` は対象外。既存コミット系フックが `matcher:"Bash"` のため PowerShell 実ゲート化は波及の大きい別タスク）。最終防壁は作業ブランチ運用と「未 push の main コミットは可逆」である事実。
   - ブランチ固有の内容を `@import` で `~/.claude` や親パスから引かないこと（worktree 越境でパスが誤解決する既知問題を避けるため、参照はリポジトリ内の相対パスに留める）。
-- **委譲判断 / plan運用（agy＝実行者・Claude＝監督。コスト方針は「agy側は無料扱い・Claude側の節約を最大化」）**: サブエージェント／委譲の**主戦場は「仕様を固めた後の bulk 生成」**（2026-07-07 実測: 実装 ~3,700行/10コミットを agy が生成し監督 context ~430k で完走＝in-context なら生成 output 100k超＋滞留でセッション分割が確実だった）。原則は「**生成＝agy（仕様固定後）・判断＝Claude**」。旧来の「読み＝agy」第一は実態と逆で、〈読み＝agy〉は**限定的レバーへ降格**する（下記①）。
-  - **①生成委譲が第一レバー・損益分岐は生成量で見る**＝仕様/シグネチャ/正本パターンを固めてから bulk 生成を agy へ。実測の勝ち筋は「**生成 ~300行以上、または自分の context に載せたくない読み物**」で〈files≥2〉より閾値は高い＝**監視サブエージェント自体が1往復 25〜35k トークン（Claude課金）の固定費**、小口委譲はこれを吸収できず損（2026-07-07 は生成4件が全勝＝各数百〜千行級だから回収できた。経済の詳細は memory `agy-objective-minimize-claude-agy-free`）。生成品質は **flash** で実用（同一タスク4モデル採点で **9.0/10**・幻覚ゼロ・行番号引用ほぼ正確）。**読みの委譲は限定的**＝digest が効くのは**編集しないファイルの周辺把握のみ**（テストの書き方・DataStore 有無等）。**編集起点のファイルは spot-check で監督がどのみち再読する＝委譲すると二重読み**で損（「read 実体は全コスト約9%＝未回収レバー」は真だが回収できるのは非編集の読みに限る）。普段使い tier は **flash**（pro/Sonnet 4.6 の使い所は memory `agy-model-selection-guideline`）。
-  - **②統合・設計判断・trade-off 評価は Claude に残す**。**なぜ**: digest はコードと違いゲートで機械検証できず、かつ plan の質＝実行コストの源泉だから。委譲時の条件は〈**file:line 引用必須→Claude が引用行を spot-check**／網羅が要るなら観点を分けて複数回投げる（上位N制約で細部が落ちるため）／**verification は agy が無料でも Claude が必ず払う**＝自己申告 GREEN を信じずゲートを自分で回す／**完了判定も報告でなく成果物の存在（`git status`・grep・`ps`）で確認する**（監視サブエージェントが agy をバックグラウンド起動したまま『待機中』で終了する事象が頻発＝2026-07-07 は5件中3件・SendMessage 再開でも再発）／**委譲文に定型で「呼び出し側の境界不整合はコンパイルエラーのまま残せ（配線は監督）」を入れる**（agy の善意の互換シム自作による手戻りを止める）〉。**この検証条件（引用spot-check・GREEN不信）は agy(Gemini) 等の外部モデル委譲に向けたもの**。Claude 自身のサブエージェント（Explore / general-purpose 等＝同系モデル）への委譲は正確性が期待できるため全数 spot-check は必須でない（ただし編集・削除・コミット等の不可逆操作の根拠に使う引用は現物確認してから使う）。**例外＝UI/意匠の「翻訳」は委譲解禁**（2026-07-07・4委譲で実証）: 意匠の *設計* は Claude 領域のままだが、決定済みの見た目の Compose *翻訳* は3点セット〈①モック現物 ②監督が先に自分で書いた Compose 正本1画面 ③色対応表込みの厳密シグネチャ（藍=primary 等）〉で縛れば flash で崩れない（色直書きゼロ・シグネチャ完全一致）。**錨は「正本1画面を監督が先に書く」工程＝これは省けない**（memory `agy-delegate-bulk-cost-savings`）。
-  - **③plan 作成時**は各フェーズを〈機械的バッチ〉〈判断ループ〉に二分し、**バッチ側の agy 委譲可否を plan 冒頭に明記**する。
-  - **④plan 末尾に「実行セッション起動ブロック」を必須化**（対象ブランチ・★次はここから・最小読みセット＝実行に要るファイル+行範囲・検証ゲートのコマンド）。「最小読みセットが書けない」＝plan の圧縮が未完のシグナル。
-  - **⑤実行見込み ~10ターン以上の plan は fresh セッションで実行**。**なぜ**: cache 非対称（読み直しは一回課金・太った context の持ち越しは毎ターン課金＋5分TTL 失効で全量再 write）で分岐点≈実行10ターン。
-  - **⑥edit-streak ゲート**（`AGY_FORCE_DELEGATE_EDITS=1`・`.bashrc` 設定済み・次回 claude 起動から有効）が誤発火したら、**Bash の sed/heredoc へ迂回せずユーザーへ申告**する（env の逃げ道はセッション起動時固定でセッション中に設定できないため）。
-  - **⑦plan モード中の探索委譲**: 既定は Explore（harness の Phase-1 が「Explore のみ」を明示）。だが〈ユーザー明示〉または〈明らかに break-even 超の read-only 探索（多ファイル read→小 digest）〉は **agy へ委譲してよい**。**絶対条件**: Claude Code は plan モードをプラグイン subagent の権限層へ**伝播させない**（`permissionMode`/`hooks` frontmatter もサイレント破棄＝2026-07-06 の実機 probe で確認・issue #4750 のギャップ）ため **plan モードは agy の書き込みを守らない** → **plan 中の agy 委譲は `--yolo` 厳禁・read-only digest のみ**（read-only は「`--yolo` を渡さない＝agy が書き込み不能」で構造的に担保）。割に合わない小さな読みは Explore にフォールバック。機序の詳細は `task_diary.md`「Claude Code フック」節。
-  - **根拠**: 53セッション/$987 の transcript 解剖で、委譲の価値は「タイピングの肩代わり」（コード出力実体は総額0.8%）ではなく「太った context に居座るターン数の削減」（cache churn 回避）と確定。実測の全容は memory `agy-objective-minimize-claude-agy-free`／`workflow-plan-fresh-session-execution`。agy の作業空間・`--dir` 運用は `AGENTS.md`＋memory `agy-workspace-agents-md-two-layers`。
+- **委譲判断 / plan運用（agy＝実行者・Claude＝監督。agy側は無料扱い・Claude側の節約を最大化）**: 原則は「**生成＝agy（仕様固定後）・判断＝Claude**」。
+  - **委譲する**: 仕様・シグネチャ・正本パターンを固めた後の bulk 生成（目安＝**生成 ~300行以上**、または自分の context に載せたくない**非編集**の読み物。小口は監視サブエージェントの固定費で損＝直接やる）。UI/意匠の Compose 翻訳も3点セット〈モック現物・監督自作の Compose 正本1画面・厳密シグネチャ+色対応表〉で可（正本1画面を監督が先に書く工程は省けない）。普段使い tier は flash。
+  - **委譲しない**: 統合・設計判断・trade-off 評価・編集起点ファイルの読み（spot-check でどのみち再読＝二重読みで損）。
+  - **検証（agy 等の外部モデル委譲時）**: 自己申告 GREEN を信じずゲートは自分で回す／完了判定は報告でなく成果物の存在（`git status`・grep）で確認／外部API境界のパラメータは仕様書と突合レビュー／委譲文に定型で「呼び出し側の境界不整合はコンパイルエラーのまま残せ（配線は監督）」を入れる。Claude 系サブエージェント（Explore 等）は全数 spot-check 不要（ただし不可逆操作の根拠に使う引用は現物確認）。
+  - **plan運用**: 各フェーズを〈機械的バッチ／判断ループ〉に二分しバッチの委譲可否を plan 冒頭に明記／plan 末尾に「実行セッション起動ブロック」（対象ブランチ・★次はここから・最小読みセット・検証ゲート）を必須化／実行見込み ~10ターン以上は fresh セッションで実行。**plan モード中の agy 委譲は `--yolo` 厳禁・read-only digest のみ**（plan モードはプラグイン subagent の権限層へ伝播しないため。機序は `task_diary.md` #40）。edit-streak ゲート誤発火は Bash 迂回せずユーザーへ申告。
+  - 実測根拠・経済・モデル選定の詳細は auto-memory が正本: `agy-objective-minimize-claude-agy-free`・`agy-delegate-bulk-cost-savings`・`workflow-plan-fresh-session-execution`・`agy-model-selection-guideline`。作業空間は `AGENTS.md`＋memory `agy-workspace-agents-md-two-layers`。
 
 ## ドメイン知識
 
@@ -50,17 +46,9 @@ Jetpack Compose + Kotlin ネイティブ PDF 抽出（PDFBox-Android）。
 - Claude Code のフック（`.claude/hooks/`）を新規作成・改修するときは → 先に `task_diary.md` の「Claude Code フック」節（#26 stdin cp932 文字化け・#28 PostToolUse stdout 不達）と `docs/decisions/0004`（matcher範囲・ブランチ跨ぎ破綻）を必ず確認すること（いずれも**サイレント失敗クラス**＝踏むと長期間気づけないため、既存フックの雛形コピーだけで書き始めない）
 - **agy(Antigravity) 委譲の実行者向けブリーフィング → `AGENTS.md`（agy が自動注入で読む）＋ `.agents/`（hooks＝禁忌コマンドの機械的ガード）**。監督側の委譲運用（--dir 必須・モデル選定）は auto-memory の `agy-*` 系を参照
 - 実行捏造ハルシネーション検知器（トランスクリプト静的解析）→ エンジン `.claude/hooks/detect_fabricated_execution_core.py`／CLI `analyze_transcript.py`。既知の実ハルシネーション正解データ（検証・回帰用）→ `docs/reference/hallucination-ground-truth.md`
-  - **ユーザーから「（このセッションの）ハルシネーションを記載して」と頼まれたら → `docs/reference/hallucination-ground-truth.md` に追記する**（正本はここ。他所には書かない）。手順: ①該当セッション JSONL（`~/.claude/projects/<slug>/*.jsonl`）を特定 → ②`analyze_transcript.py` を先にかける（**ただし静的検知器が拾うのは「実行の捏造」だけ**。存在しない対話・話題逸脱・帰属誤り・生成コード不具合などは 0 件で通るので、**JSONL を直読して一次情報で幻覚を確定**する）→ ③既存フォーマットに倣い〈確度・場所（JSONLパス）・`行/uuid` 表・※根拠note〉のセクションを追加し、冒頭の「確認済み実幻覚セクション: N件（M事象）」を更新。同事象の HANDOFF/MEMORY エコーは重複参照として非掲載にする。
+  - **ユーザーから「（このセッションの）ハルシネーションを記載して」と頼まれたら → `docs/reference/hallucination-ground-truth.md` に追記する**（正本はここ。他所には書かない。追記手順は同ファイル冒頭「追記手順」を参照）。
 - **管理ドキュメントの体系**（役割で分離。混ぜないこと）:
   - **今どうなっているか（状態・完了・既知不具合）→ `STATUS.md`**（現況台帳＝正本）
   - **次に何をやるか（backlog・思いつき・取りこぼし）→ `handover.md`**（やること台帳。**作業に悩んだらまず見る**／拾った宿題はここへ追記）
   - 腐りにくい知見（外部事実→ `task_diary.md` ／ 実装パターン→ `docs/patterns/` ／ 設計判断・Why-not→ `docs/decisions/`(ADR)） ／ 外部API等の参照資料 → `docs/reference/` ／ 過去プランの一次情報アーカイブ → `.claude/plans/`
   - 運用ルール詳細は memory `docs-status-vs-handover-split`。整合点検は `/stale-check` スキル。
-- **ホットスポット分析**（頻繁変更ファイルの特定）:
-  ```bash
-  # ファイル別変更回数ランキング（上位20件）
-  git log --name-only --format="" | sort | uniq -c | sort -rn | head -20
-  # 特定ファイルの変更回数
-  git log --oneline -- <file_path> | wc -l
-  ```
-  AIへの提示例: 「上記コマンドの結果を渡して、なぜ頻繁に変更されるのか・設計上の問題がないかを分析させる」
