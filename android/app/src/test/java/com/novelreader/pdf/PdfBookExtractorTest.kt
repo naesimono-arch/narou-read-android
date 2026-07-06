@@ -23,6 +23,7 @@ class PdfBookExtractorTest {
     private class FakeHandle(
         val meta: BookMeta,
         val paragraphs: List<String>,
+        val loadTicks: List<Pair<Int, Int>> = emptyList(),
         val pageTicks: List<Pair<Int, Int>> = emptyList(),
         val metaError: Throwable? = null,
         val engineError: Throwable? = null,
@@ -32,9 +33,11 @@ class PdfBookExtractorTest {
             metaError?.let { throw it }
             return meta
         }
-        override fun runEngine(onPageProgress: (Int, Int) -> Unit): List<String> {
+        override fun runEngine(onProgress: (EnginePhase, Int, Int) -> Unit): List<String> {
             engineError?.let { throw it }
-            pageTicks.forEach { (processed, total) -> onPageProgress(processed, total) }
+            // 実装(runFinalEngine)と同順＝load(全ページ抽出)を先に、process(段落化)を後に発火する。
+            loadTicks.forEach { (loaded, total) -> onProgress(EnginePhase.LOAD, loaded, total) }
+            pageTicks.forEach { (processed, total) -> onProgress(EnginePhase.PROCESS, processed, total) }
             return paragraphs
         }
         override fun close() { closed = true }
@@ -53,11 +56,12 @@ class PdfBookExtractorTest {
         ) { step, local, phase, title -> events?.add(Ev(step, local, phase, title)) }
 
     @Test fun happyPathEmitsFourStepProgressAndReturnsMeta() {
-        // 1章分の段落（【題名】マーカーで章が立つ）＋ページ進捗2ティック。
+        // 1章分の段落（【題名】マーカーで章が立つ）＋ load 2ティック・process 2ティック。
         val handle = FakeHandle(
             meta = BookMeta("テスト小説", "テスト作者"),
             paragraphs = listOf("【題名】第一話", "本文1", "本文2"),
-            pageTicks = listOf(0 to 4, 1 to 4),
+            loadTicks = listOf(0 to 4, 2 to 4),
+            pageTicks = listOf(0 to 4, 2 to 4),
         )
         val events = mutableListOf<Ev>()
         val result = run(handle, events)
@@ -66,18 +70,27 @@ class PdfBookExtractorTest {
         assertEquals(BookMeta("テスト小説", "テスト作者"), result)
         assertTrue(handle.closed)
 
-        // step の並び: 0 / 1(開始)+1(tick)+1(tick) / 2(章)+2(前後書き) / 3(開始)+3(HTML1章分)
-        assertEquals(listOf(0, 1, 1, 1, 2, 2, 3, 3), events.map { it.step })
+        // step の並び: 0 / 1(開始)+1(load×2)+1(process×2) / 2(章)+2(前後書き) / 3(開始)+3(HTML1章分)
+        assertEquals(listOf(0, 1, 1, 1, 1, 1, 2, 2, 3, 3), events.map { it.step })
 
         // step0 はタイトル未確定＝空。以後は確定タイトルを載せる。
         assertEquals(Ev(0, 0f, "タイトルを読み取っています…", ""), events.first())
         assertTrue(events.drop(1).all { it.title == "テスト小説" })
 
-        // 本文ページ進捗の step-local と件数表記（processed+1 / total）。
+        // step-1 開始は load フェーズ文言・local=0。
+        assertEquals(Ev(1, 0f, "本文を読み込んでいます…", "テスト小説"), events[1])
+
+        // load フェーズ: local = LOAD_WEIGHT(0.75) × loaded/total。文言は「読み込んでいます (loaded/total)」。
         assertEquals(0f, events[2].local, 0f)
-        assertEquals("本文を抽出しています… (1/4ページ)", events[2].phase)
-        assertEquals(0.25f, events[3].local, 0f)
-        assertEquals("本文を抽出しています… (2/4ページ)", events[3].phase)
+        assertEquals("本文を読み込んでいます… (0/4ページ)", events[2].phase)
+        assertEquals(0.375f, events[3].local, 1e-6f)   // 0.75 × 2/4
+        assertEquals("本文を読み込んでいます… (2/4ページ)", events[3].phase)
+
+        // process フェーズ: local = LOAD_WEIGHT + (1-LOAD_WEIGHT) × processed/total。件数表記は processed+1。
+        assertEquals(0.75f, events[4].local, 1e-6f)    // 0.75 + 0.25×0/4
+        assertEquals("本文を抽出しています… (1/4ページ)", events[4].phase)
+        assertEquals(0.875f, events[5].local, 1e-6f)   // 0.75 + 0.25×2/4
+        assertEquals("本文を抽出しています… (3/4ページ)", events[5].phase)
 
         // HTML が実際に書き出されている（export 経路まで通っている）。
         val outDirs = tmp.root.listFiles()?.firstOrNull { it.isDirectory }

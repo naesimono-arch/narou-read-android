@@ -38,7 +38,12 @@ internal fun normalizeGlyphUnicode(s: String): String =
  * 移植元 submission-B GlyphStripper と同一。import のみ apache→tom_roush へ差し替え
  * （TextPosition.{unicode,xDirAdj,yDirAdj,heightDir,font,fontSizeInPt} は 2.0.x 系で同名同義）。
  */
-class GlyphStripper : PDFTextStripper() {
+class GlyphStripper(
+    // ページ開始ごとに「開始済みページ数(1始まり)」を通知する省略可のフック。
+    // なぜ: 本文グリフ抽出は getText(doc) の単一走査で、そのままでは進捗を出さない。
+    // load フェーズの進捗バー連動に使う（未指定＝通知なし＝オラクル/1ページ抽出など通知不要な用途）。
+    private val onPageStart: ((loaded: Int) -> Unit)? = null,
+) : PDFTextStripper() {
 
     val pages: MutableList<MutableList<CharBox>> = mutableListOf()
     private var current: MutableList<CharBox> = mutableListOf()
@@ -46,6 +51,9 @@ class GlyphStripper : PDFTextStripper() {
     override fun startPage(page: PDPage) {
         current = mutableListOf()
         pages.add(current)
+        // pages.size ＝ 開始済みページ数。getText の全ページ単一走査中にページ毎に発火するため、
+        // 支配的コストの本文抽出中も進捗バーを前進させられる（handover の UX ギャップ対策）。
+        onPageStart?.invoke(pages.size)
         super.startPage(page)
     }
 
@@ -72,9 +80,16 @@ class GlyphStripper : PDFTextStripper() {
 
 object PdfExtractor {
 
-    /** 全ページの文字を取得する（list[list[CharBox]]）。 */
-    fun loadPages(doc: PDDocument): List<List<CharBox>> {
-        val stripper = GlyphStripper().apply {
+    /**
+     * 全ページの文字を取得する（list[list[CharBox]]）。
+     * onPageLoaded はページ開始ごとに (開始済みページ数, 総ページ数) を通知する（既定＝無通知）。
+     */
+    fun loadPages(
+        doc: PDDocument,
+        onPageLoaded: (loaded: Int, total: Int) -> Unit = { _, _ -> },
+    ): List<List<CharBox>> {
+        val total = doc.numberOfPages
+        val stripper = GlyphStripper(onPageStart = { loaded -> onPageLoaded(loaded, total) }).apply {
             sortByPosition = false
             startPage = 1
             endPage = Int.MAX_VALUE
@@ -146,15 +161,21 @@ object PdfExtractor {
     /**
      * 全ページを読み込み TextProcessor で段落列（章マーカー・ルビマーカー入り）へ変換する。
      *
-     * progressCallback は processPages へそのまま前送りする。facade(PdfBookExtractor) が本文抽出
-     * step のページ進捗をライブ更新するために渡す（未指定＝null なら通知しない＝オラクル/テスト用途）。
+     * onProgress は load(全ページのグリフ抽出＝超長編の支配的コスト)と process(段落化)を [EnginePhase]
+     * で区別して通知する。facade(PdfBookExtractor) が両フェーズを重み合成し、load 中も進捗バーを前進
+     * させるために渡す（未指定＝null なら通知しない＝オラクル/テスト用途）。
      */
     fun runFinalEngine(
         doc: PDDocument,
-        progressCallback: ((pct: Int, processed: Int, bodyTotal: Int) -> Unit)? = null,
+        onProgress: ((phase: EnginePhase, current: Int, total: Int) -> Unit)? = null,
     ): List<String> {
         val totalPages = doc.numberOfPages
-        val charListsByPage = loadPages(doc)
-        return TextProcessor.processPages(charListsByPage, totalPages, progressCallback)
+        val charListsByPage = loadPages(doc) { loaded, total ->
+            onProgress?.invoke(EnginePhase.LOAD, loaded, total)
+        }
+        // processPages が出す pct(10-60) は元々未使用のため捨て、(processed, bodyTotal) のみ前送りする。
+        return TextProcessor.processPages(charListsByPage, totalPages) { _, processed, bodyTotal ->
+            onProgress?.invoke(EnginePhase.PROCESS, processed, bodyTotal)
+        }
     }
 }
