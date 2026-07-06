@@ -7,12 +7,32 @@
 
 ## 0. 現在地（★次はここから）
 
-- **branch=`api-lab`**（worktree `/home/qingj/wt/api-lab`、base=main）。**縦スライス第1本は5コミット済み**（2026-07-06）: `e19fe50`(依存＋権限)→`6783d9a`(メタ取得サブシステム＋テスト)→`ac2d575`(画面＋導線)→`3a4ec46`(調査資料docs)→`8b267c8`(ディスカバリVMテスト)。
+- **Phase 0〜2 完遂（2026-07-07・branch=`api-lab-ai`・worktree `/home/qingj/wt/api-lab-ai`）**: 発見体験の意匠モック6画面＋発見コアC1〜C4＋発見強化D1〜D5 を実装。**テスト150件 GREEN・assembleDebug 25.4MiB・実機(PGEM10)スモーク全経路OK**（本棚→見つける→orderタブ→詳細→なろうで読む／検索→条件シート→条件のみ検索→結果一覧。条件チップ・総件数・type絞り込みの実効を実データで確認）。コミット表は §1。
+- **★次アクション**: **Phase 3＝PDF↔Web継続読書（目玉①）**。`BookEntity` に ncode 列追加＝**Room version 7→8 のため着手前に `/db-migration` スキル必須**。実装詳細は plan `~/.claude/plans/api-agy-woolly-swan.md` の Phase 3 節（話数突き合わせ・継続導線の差し込み点 file:line 付き）。
+- **旧記録（縦スライス第1本・5コミット済み 2026-07-06）**: `e19fe50`(依存＋権限)→`6783d9a`(メタ取得サブシステム＋テスト)→`ac2d575`(画面＋導線)→`3a4ec46`(調査資料docs)→`8b267c8`(ディスカバリVMテスト)。
 - **やっていること**: なろう公式APIの**発見機能を「第2の柱」に育てる**。案A（本文は取らずメタのみ）を堅持しつつ、発見機能を「公式より丁寧・アプリ内で完結するレベル」に作り込む。目玉＝**PDF↔Web継続読書**と**静かな没入意匠**。競合5アプリ解析（`docs/reference/04-competitor-app-features.md`）が裏付け＝競合はどれも発見が弱い。**計画を策定・ユーザー承認済み（2026-07-06）**＝§3 の目標ロードマップが現在地・目標の正本、実装詳細の一次情報は plan `~/.claude/plans/api-agy-woolly-swan.md`。
-- **★次アクション**: **Phase 0＝発見画面群の /design モック先行**（ランキング/検索/ジャンル/作品カード/融合本棚/継続読書導線）→ Phase 1 コア。**大規模なので fresh セッションで実行推奨**（cache 非対称・CLAUDE.md ⑤）。**コミットは worktree 内で起動した `claude` セッションから**（`guard_commit_branch` は cwd ブランチで判定）。
-- **並行検討＝デフォルト本棚UIの見直し**: 既存 `BookshelfScreen` の意匠も刷新したい。融合本棚（目玉②＝発見と所有を同じ視覚言語に揃える）と地続きのため、**Phase 0 の /design モック設計に既存本棚も含める**（発見画面だけ作り込むと既存本棚との段差が出るのを避ける）。見た目の正本は ADR0005＋HTMLモック（直書き禁止・`theme/Color.kt`／`MinchoFamily` 経由）。
+- **既存本棚UIの刷新（融合本棚・目玉②）**: Phase 0 でモック `bookshelf-fusion-D.html`（見つける導線帯・続きありバッジ・Web由来カード並置）を作成済み。**Compose 実装は Phase 4**（Phase 3 の ncode 紐付けが前提のため）。見た目の正本は ADR0005＋HTMLモック（直書き禁止・`theme/Color.kt`／`MinchoFamily` 経由）。
 
-## 1. 完了（縦スライス第1本＝「週間ランキング一覧が出る」）
+## 1a. 完了（Phase 0〜2＝発見体験の意匠＋発見コア＋発見強化・2026-07-07）
+
+実装・単体テスト150件・assembleDebug・実機スモークの全レベルで GREEN。コミット表（新しい順）:
+
+| Phase | commit | 内容 |
+|---|---|---|
+| D3 | `df91e4d` | 気分プリセット「きょうの気分」4種をホーム最上段に（範囲絞り込みの体験昇華・BINGEのみ累計順） |
+| D1/D2/D4/D5 | `b2f7bfa` | 条件シート（type/期間/属性/文字数/読了時間/会話率/挿絵＝段階チップ）＋検索履歴・ピン留め（DataStore別系統・純関数ロジック） |
+| C4 | `b89de20` | 作品詳細（BookCover流用ヒーロー・ステータス表・評価表）＋「なろうで読む」外部ブラウザ送客（B2先取り） |
+| C2 | `114abc6` | フリーワード検索＋範囲チップ（BasicTextFieldの静かな入力欄） |
+| C3 | `6690f64` | ジャンル画面＋結果一覧の共通着地（文脈見出し・条件チップ自動派生・総件数青磁）＋ホームのジャンル入口 |
+| C1 | `c4d49a8` | 発見ホーム刷新（orderタブ6種=stickyHeader・明朝順位・読了目安併記・orderに応じたptラベル） |
+| 土台 | `993b06f` | API層一般化（DiscoveryQuery・novelDetail・ジャンル表・キャッシュ上限50・全@Query） |
+| Phase 0 | `c11ec02` | D意匠モック6画面（発見ホーム/検索/ジャンル/詳細/融合本棚/継続導線）＝以降の翻訳正本 |
+
+- **画面構成**: `ui/discovery/` に Home/Search/Genre/Result/Detail の5画面＋Common（一覧行・状態表示）＋QueryLabels（条件チップ派生・純関数）。VM=DiscoveryViewModel（ホーム/結果/検索ドラフト/履歴を共有・遅延ロード）＋NovelDetailViewModel（ncode独立）。
+- **実機スモーク（2026-07-07・上書きinstallで蔵書保持確認済み）**: 発見ホーム実APIランキング／タブ切替／詳細（ヒーロー・評価表・なろうで読むバー）／条件シート→「短編」のみで検索→結果一覧（チップ「短編」「週間順」・594,168作品・全行短編）を目視確認。
+- **未検証（実機フィードバック待ち・優先度低)**: ライト/セピアテーマでの発見画面の見え方（スモークはダークのみ）／履歴チップのピン留め操作感／モックとの意匠突合の細部（余白・字間）。
+
+## 1b. 完了（縦スライス第1本＝「週間ランキング一覧が出る」）
 
 **実装・単体テスト・実機の全レベルで検証GREEN**（2026-07-06）。
 
@@ -36,6 +56,13 @@
 - **VMで `withContext(Dispatchers.IO)` は不要**: Retrofit の suspend は main-safe。実IOへ切替えるとTestDispatcherの制御が及ばずテストが `Loading` のまま失敗する（この修正で解決）。
 - **`assertThrows` に `runTest` を入れ子にしない**（`IllegalStateException`）。runTestスコープ内で直接 try/catch。
 - 技術選定の理由（Moshi codegen＝KSP相乗り・reflect回避／別系統隔離／キャッシュ方式）は plan と（昇格予定の）ADR 参照。
+- **（Phase 1〜2 で追加）検索範囲 `title/ex/keyword/wname` に 0 を送らない**: マニュアル§4.1は「1で指定・全未指定なら全項目」としか定義せず 0 送信は未定義＝選択項目のみ 1 を送る（`NovelApiRepository.kt` の why コメント参照）。
+- **転生＋転移の同時指定は `istt=1` へ振替**: `istensei=1&istenni=1` は AND になり両立作品のみに絞られてしまうため、OR の意味を持つ istt を使う。
+- **order は `weekly`（週間UU順）→`weeklypoint`（週間pt順）へ変更**: タブごとの表示pt（週間 N pt）と順位根拠を一致させるため。
+- **ランキング一覧の of から story を外した**（`OF_LIST`）: 一覧はあらすじ非表示の意匠のため転送しない。詳細は `novelDetail(ncode)` が of 無指定で全項目取得。
+- **意匠モックの置き場所（Phase 0 で二重化）**: 発見系モックの一次はリポジトリ `docs/design-candidates/discovery/*.html`（git管理）。claude.ai/design の `Novel Reader UI` プロジェクト `ui-n-phase0/` へも DesignSync で収蔵済み（Design System ペインで閲覧可）。従来の「モック現物はリポジトリに無い」前提は発見系については変わった。
+- **モックのレンジスライダーは段階チップへ翻訳**: 文字数等はダイナミックレンジが広く線形スライダーは実用に耐えないため（操作系差分は ADR 0005 スコープ外規定）。
+- **検索履歴は DataStore Preferences**（`narou_search_history`・蔵書Roomと別系統）。並び・上限の操作ロジックは `SearchHistory` 拡張の純関数に分離し純JVMテストで担保。VM 側は lazy＋WhileSubscribed で検索画面を開くまでディスク非接触。
 
 ## 3. 目標ロードマップ（承認済み計画・2026-07-06）
 
@@ -44,10 +71,10 @@
 **作る機能**: 発見コア（C1 order切替タブ／C2 検索〔word/notword＋範囲 title/ex/keyword/wname〕／C3 ジャンル〔biggenre/genre〕／C4 作品カード詳細）・発見強化（D1 検索履歴＋ピン留め／D2 属性フラグ〔異世界転生/転移等〕／D3 範囲絞り込み＝気分プリセット／D4 type／D5 期間）・目玉（①PDF↔Web継続読書／④静かな没入意匠／②融合本棚／③気分で探す導線）・橋渡し（B1 PDF取込接続／B2 Webで読む導線）・育成（U1 新着話チェック＋通知／U2 整理）。**あわせて既存デフォルト本棚UIの意匠も見直す（§0）**。
 
 **Phase 進捗**:
-- [ ] **Phase 0** 発見体験の意匠設計（全画面 /design モック先行・**既存本棚UIも含む**）★次
-- [ ] **Phase 1** 発見コア C1〜C4
-- [ ] **Phase 2** 発見強化 D1〜D5
-- [ ] **Phase 3** ★PDF↔Web継続読書（目玉①・Room version 7→8 で `/db-migration` 必須）
+- [x] **Phase 0** 発見体験の意匠設計（全画面モック6枚・2026-07-07 完了。※融合本棚/継続導線モックは Phase 3〜4 の翻訳元として作成済み・Compose 実装は未着手）
+- [x] **Phase 1** 発見コア C1〜C4（2026-07-07 完了・§1a）
+- [x] **Phase 2** 発見強化 D1〜D5（2026-07-07 完了・§1a）
+- [ ] **Phase 3** ★PDF↔Web継続読書（目玉①・Room version 7→8 で `/db-migration` 必須）★次
 - [ ] **Phase 4** 融合本棚②＋整理 U2＋新着通知 U1
 - [ ] **Phase 5** doc昇格（ADR・handover §D・03↔04 相互リンク）
 
