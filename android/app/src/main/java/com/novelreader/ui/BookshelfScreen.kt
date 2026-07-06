@@ -14,15 +14,20 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
@@ -33,6 +38,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -306,6 +312,12 @@ fun BookshelfScreen(
                     verticalArrangement = Arrangement.spacedBy(26.dp),
                     horizontalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
+                    // 見つける導線帯（モック fusion .find-guide）。空棚では EmptyBookshelf と重なるため出さない。
+                    if (books.isNotEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            FindGuideBand(onClick = onOpenDiscovery)
+                        }
+                    }
                     items(books, key = { it.id }) { book ->
                         GridBookCard(
                             book = book,
@@ -334,6 +346,15 @@ fun BookshelfScreen(
                     // 行間スペーシングは置かない: 各行が自前の縦余白＋下ヘアラインで区切るモック .li 準拠のため。
                     contentPadding = PaddingValues(start = 24.dp, top = 4.dp, end = 24.dp, bottom = 96.dp),
                 ) {
+                    // 見つける導線帯（グリッドと同一・リストは行間スペーシングが無いため下余白を帯側に持たせる）
+                    if (books.isNotEmpty()) {
+                        item {
+                            FindGuideBand(
+                                onClick = onOpenDiscovery,
+                                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                            )
+                        }
+                    }
                     items(books, key = { it.id }) { book ->
                         ListBookCard(
                             book = book,
@@ -420,6 +441,47 @@ fun BookshelfScreen(
             dismissButton = {
                 TextButton(onClick = { bookToDelete = null }) { Text("キャンセル") }
             },
+        )
+    }
+}
+
+// ============================================================
+// 見つける導線帯（モック bookshelf-fusion-D .find-guide）
+// 本棚先頭に置く静かな発見入口。TopAppBar の🔍と役割が重なるが、モックは両方持つ
+// （帯＝発見機能を知らない人への明示導線／🔍＝知っている人の常設ショートカット）。
+// ============================================================
+@Composable
+private fun FindGuideBand(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(2.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(2.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Search,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(15.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = "新しい物語を見つける",
+            fontSize = 12.5.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(14.dp),
         )
     }
 }
