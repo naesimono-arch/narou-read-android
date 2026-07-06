@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -51,6 +52,7 @@ fun BookshelfScreen(
     appTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
     onOpenBook: (bookId: String, startFile: String) -> Unit,
+    onOpenDiscovery: () -> Unit,
 ) {
     val books by viewModel.books.collectAsState()
     val progressMap by viewModel.progressMap.collectAsState()
@@ -174,6 +176,12 @@ fun BookshelfScreen(
                         )
                     },
                     actions = {
+                        IconButton(onClick = onOpenDiscovery) {
+                            Icon(
+                                imageVector = Icons.Filled.Search,
+                                contentDescription = "小説を探す",
+                            )
+                        }
                         // グリッド/リスト切り替え（モック .top の第1アクション）
                         IconButton(onClick = {
                             isGridView = !isGridView

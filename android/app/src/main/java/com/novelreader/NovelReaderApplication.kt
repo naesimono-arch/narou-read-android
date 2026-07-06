@@ -3,6 +3,7 @@ package com.novelreader
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import com.novelreader.narou.NovelApiRepository
 import com.novelreader.repository.BookRepository
 import com.novelreader.viewmodel.ProcessingState
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
@@ -17,6 +18,9 @@ class NovelReaderApplication : Application() {
 
     /** 書籍データアクセス層のシングルトン（Service/ViewModel 共用） */
     val repository: BookRepository by lazy { BookRepository(this) }
+
+    /** なろうAPIを利用したディスカバリ用リポジトリのシングルトン（既存 repository と別系統） */
+    val novelApiRepository: NovelApiRepository by lazy { NovelApiRepository() }
 
     /** サービス↔ViewModel間の処理状態共有（書き込みは updateProcessingState のみ） */
     private val _processingState = MutableStateFlow<ProcessingState?>(null)

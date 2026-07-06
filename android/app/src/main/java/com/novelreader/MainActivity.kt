@@ -14,6 +14,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import com.novelreader.ui.BookshelfScreen
+import com.novelreader.ui.DiscoveryScreen
 import com.novelreader.ui.ReadingScreen
 import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.ui.theme.ReadingTheme
@@ -80,6 +81,16 @@ private fun NovelReaderApp(
                 onOpenBook = { bookId, startFile ->
                     navController.navigate("reading/$bookId/$startFile")
                 },
+                onOpenDiscovery = {
+                    navController.navigate("discovery")
+                },
+            )
+        }
+
+        composable("discovery") {
+            DiscoveryScreen(
+                viewModel = viewModel(),
+                onBack = { navController.popBackStack() }
             )
         }
 
