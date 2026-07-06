@@ -20,6 +20,7 @@ stale-check の「機械チェック実体」。
   ※ これはレポート用途であり hook ではない。コミット等はブロックしない。
 """
 import ast
+import collections
 import datetime
 import io
 import json
@@ -41,8 +42,9 @@ STATE_FILE = ROOT / ".claude/.stale_check_state.json"
 # 軽量モードで「前回チェック以降に変わった管理ファイル」を絞り込むための対象プレフィックス。
 # これに該当する差分だけ Claude が意味確認すればよい（コア12チェックは常に全件実行）。
 MANAGED_PREFIXES = (
-    "CLAUDE.md", "STATUS.md", "handover.md", "task_diary.md",
+    "CLAUDE.md", "STATUS.md", "handover.md", "task_diary.md", "AGENTS.md",
     ".claude/skills/", ".claude/hooks/", ".claude/settings", ".mcp.json", "docs/",
+    ".agents/",
 )
 
 findings = []  # 各要素: {"check", "status", "severity", "detail"}
@@ -449,6 +451,34 @@ def update_state(high, total):
         pass
 
 
+# ── 13. task_diary 固定IDの一意性 ─────────────────────────────────────────
+def check_diary_id_unique():
+    """task_diary.md のエントリID（`#N.` 見出し）が重複していないか。
+
+    なぜ要るか: エントリ番号は固定IDで、他ドキュメントが `#N` で参照する規約
+    （リナンバー禁止）。だが並行ブランチが各自「次の番号」を採番するとマージで
+    衝突し、参照がどちらを指すか曖昧になる（2026-07-07 に #30 の二重採番を実際に
+    検出・解消済み）。リナンバー禁止ゆえ事後修正は移設マッピング表込みで高コスト
+    ＝早期の機械検知だけが実効的な防御になる。
+    """
+    txt = read_text("task_diary.md")
+    if txt is None:
+        add("diary_id", "error", "info", "task_diary.md が読めず ID 一意性チェックをスキップ")
+        return
+    # fenced code block 内の見出し例（フック解説の ```md 等）を ID と誤認しないよう先に除去する。
+    prose = re.sub(r"(?ms)^```.*?^```", "", txt)
+    # 見出しは H3/H4 混在（`### 19.` と `#### 30.` が実在）のため両方拾う。
+    # int 化するのは `030` と `30` のような表記揺れを同一 ID として突合するため（str のままだと見逃す）。
+    ids = [int(i) for i in re.findall(r"^#{3,4}\s+(\d+)\.", prose, re.MULTILINE)]
+    dupes = sorted(i for i, c in collections.Counter(ids).items() if c > 1)
+    if dupes:
+        add(
+            "diary_id", "stale", "high",
+            "task_diary.md のエントリIDが重複: " + ", ".join(f"#{i}" for i in dupes)
+            + "（固定ID規約と衝突。後発側を未使用IDへ移し、末尾の移設マッピング表へ記録すること）",
+        )
+
+
 CHECKS = [
     check_versions,
     check_db,
@@ -462,6 +492,7 @@ CHECKS = [
     check_plans_references,
     check_permission_paths,
     check_hook_smoke,
+    check_diary_id_unique,
 ]
 
 
