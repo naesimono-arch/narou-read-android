@@ -7,7 +7,11 @@ PreToolUse hook: git commit 前に Room スキーマ変更を検知して確認�
   A) schemas/*.json がステージ済み → Migrationオブジェクト・バージョン番号の確認を促す
   B) *Entity.kt がステージ済みだが schemas/ がステージされていない
      → ビルド前にスキーマが再生成されていない可能性を警告
+
+出力方式: 情報提示は hookSpecificOutput.additionalContext（PreToolUse の plain stdout は
+モデルに届かない＝task_diary #28）。
 """
+import json
 import subprocess
 import sys
 
@@ -16,6 +20,19 @@ import sys
 from hooks_common import COMMIT_CMD_RE, read_payload, wrap_stdio
 
 wrap_stdio()
+
+
+def emit_context(lines):
+    """確認提示を hookSpecificOutput.additionalContext(JSON) で注入する。
+    なぜ: PreToolUse の plain stdout(exit 0) はデバッグログ止まりでモデルに届かない
+    （task_diary #28）。旧実装は plain print で、本フックの主機能（Migration 確認の促し）が
+    一度もモデルに届いていなかった（2026-07-07 メタ監修の横展開で顕在化）。"""
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "additionalContext": "\n".join(lines),
+        }
+    }, ensure_ascii=False))
 
 data = read_payload()
 if data is None:
@@ -45,26 +62,29 @@ schema_files = [f for f in staged if "schemas/" in f and f.endswith(".json")]
 entity_files = [f for f in staged if f.endswith("Entity.kt")]
 
 if schema_files:
-    print("[Room スキーマ変更検知]")
-    print("以下のスキーマJSONがステージされています:")
-    for f in schema_files:
-        print(f"  - {f}")
-    print()
-    print("コミット前に以下を確認してください:")
-    print("  1. AppDatabase.kt の version が +1 されているか")
-    print("  2. 対応する Migration オブジェクト（MIGRATION_N_M）が追加されているか")
-    print("  3. AppDatabase.kt の migrations リストに登録されているか")
-    print("  → 詳細手順: /db-migration スキルを参照")
+    out = ["[Room スキーマ変更検知]", "以下のスキーマJSONがステージされています:"]
+    out.extend(f"  - {f}" for f in schema_files)
+    out.extend([
+        "",
+        "コミット前に以下を確認してください:",
+        "  1. AppDatabase.kt の version が +1 されているか",
+        "  2. 対応する Migration オブジェクト（MIGRATION_N_M）が追加されているか",
+        "  3. AppDatabase.kt の migrations リストに登録されているか",
+        "  → 詳細手順: /db-migration スキルを参照",
+    ])
+    emit_context(out)
     sys.exit(0)
 
 if entity_files and not schema_files:
-    print("[Room スキーマ未更新の疑い]")
-    print("以下の Entity ファイルがステージされていますが、schemas/*.json が含まれていません:")
-    for f in entity_files:
-        print(f"  - {f}")
-    print()
-    print("スキーマJSONはビルド時にKSPが自動生成します。")
-    print("  ./gradlew compileDebugKotlin を実行して schemas/ を再生成してからステージしてください。")
+    out = ["[Room スキーマ未更新の疑い]",
+           "以下の Entity ファイルがステージされていますが、schemas/*.json が含まれていません:"]
+    out.extend(f"  - {f}" for f in entity_files)
+    out.extend([
+        "",
+        "スキーマJSONはビルド時にKSPが自動生成します。",
+        "  ./gradlew compileDebugKotlin を実行して schemas/ を再生成してからステージしてください。",
+    ])
+    emit_context(out)
     sys.exit(0)
 
 sys.exit(0)

@@ -22,6 +22,24 @@ from hooks_common import COMMIT_CMD_RE, read_payload, wrap_stdio
 
 wrap_stdio()
 
+# モデルへ届ける情報提示のバッファ。終了時に additionalContext(JSON) で一括注入する。
+# なぜ: PreToolUse の plain stdout(exit 0) はデバッグログ止まりでモデルに届かない（task_diary #28）。
+# 旧実装は plain print で、スキップ理由・Lint 集計・ベースライン記録がモデルに一度も届いて
+# いなかった（2026-07-07 メタ監修の横展開で顕在化）。ブロック(exit 2)の理由は従来どおり stderr。
+notes = []
+
+
+def finish(exit_code=0):
+    if notes:
+        print(json.dumps({
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "additionalContext": "\n".join(notes),
+            }
+        }, ensure_ascii=False))
+    sys.exit(exit_code)
+
+
 data = read_payload()
 if data is None:
     sys.exit(0)
@@ -60,7 +78,7 @@ ANDROID_DIR = os.path.join(PROJECT_DIR, "android")
 REPORT_XML = os.path.join(ANDROID_DIR, "app", "build", "reports", "lint-results-debug.xml")
 BASELINE_FILE = os.path.join(PROJECT_DIR, ".claude", "lint_baseline.json")
 
-print("[Android Lint] Kotlin/XMLファイルがステージされているため Lint を実行中...")
+notes.append("[Android Lint] Kotlin/XML ファイルがステージされているため Lint を実行")
 # なぜ OS／ファイルシステムで起動方式を分けるか:
 # - Windows: Unix シェルスクリプト ./gradlew は subprocess から直接起動できず
 #   WinError 193（FileNotFoundError で捕捉不能＝未捕捉クラッシュだった）→ gradlew.bat で解決。
@@ -77,14 +95,14 @@ else:
     # ドライブレター1文字（/mnt/c/ 等）に限定して drvfs と判定する。/mnt/data のような
     # ext4 マウントまで startswith("/mnt/") で巻き込むとゲートを不必要に無効化するため。
     if re.match(r"/mnt/[a-z]/", PROJECT_DIR):
-        print("[Android Lint] drvfs(/mnt/<drive>/) 上のリポジトリでは Lint を実行できません"
-              "（AAPT2 EPERM・既知）。スキップします。ext4 上の worktree ではゲートが有効です。")
-        sys.exit(0)
+        notes.append("[Android Lint] drvfs(/mnt/<drive>/) 上のリポジトリでは Lint を実行できません"
+                     "（AAPT2 EPERM・既知）。スキップします。ext4 上の worktree ではゲートが有効です。")
+        finish()
     java_home = os.environ.get("JAVA_HOME") or os.path.expanduser("~/opt/jdk-17")
     java_bin = os.path.join(java_home, "bin", "java")
     if not os.path.exists(java_bin):
-        print(f"[Android Lint] java が見つかりません（{java_bin}）。スキップします。")
-        sys.exit(0)
+        notes.append(f"[Android Lint] java が見つかりません（{java_bin}）。スキップします。")
+        finish()
     lint_env = {
         **os.environ,
         "JAVA_HOME": java_home,
@@ -104,18 +122,18 @@ try:
         env=lint_env,
     )
 except subprocess.TimeoutExpired:
-    print("[Android Lint] タイムアウト（5分）。スキップします。")
-    sys.exit(0)
+    notes.append("[Android Lint] タイムアウト（5分）。スキップします。")
+    finish()
 except OSError as e:
     # FileNotFoundError / WinError193 等いずれも Lint をスキップ（コミットは妨げない）。
     # ここで sys.exit(2) するとビルド未整備の端末でコミット不能になるため握り潰す。
-    print(f"[Android Lint] gradlew を起動できません（{e}）。スキップします。")
-    sys.exit(0)
+    notes.append(f"[Android Lint] gradlew を起動できません（{e}）。スキップします。")
+    finish()
 
 # ── レポート解析 ──
 if not os.path.exists(REPORT_XML):
-    print(f"[Android Lint] レポートが見つかりません: {REPORT_XML}")
-    sys.exit(0)
+    notes.append(f"[Android Lint] レポートが見つかりません: {REPORT_XML}")
+    finish()
 
 try:
     tree = ET.parse(REPORT_XML)
@@ -125,8 +143,8 @@ try:
     warnings = sum(1 for i in issues if i.get("severity") == "Warning")
     total = errors + warnings
 except Exception as e:
-    print(f"[Android Lint] レポート解析失敗: {e}")
-    sys.exit(0)
+    notes.append(f"[Android Lint] レポート解析失敗: {e}")
+    finish()
 
 # ── ベースラインと比較 ──
 baseline: dict = {}
@@ -141,13 +159,13 @@ prev_errors = baseline.get("errors", errors)  # 初回はエラーなし扱い�
 prev_total = baseline.get("total", total)
 first_run = not baseline  # ベースラインファイルが存在しなかった場合
 
-print(
+notes.append(
     f"[Android Lint] Errors: {errors} (前回: {prev_errors})  "
     f"Warnings: {warnings}  Total: {total} (前回: {prev_total})"
 )
 
 if first_run:
-    print("[Android Lint] 初回実行のためベースラインを記録しました。次回から回帰を検知します。")
+    notes.append("[Android Lint] 初回実行のためベースラインを記録しました。次回から回帰を検知します。")
 elif errors > prev_errors:
     diff = errors - prev_errors
     # なぜ stderr か: PreToolUse の exit 2 でモデルに届くのは stderr のみ（task_diary #28）。
@@ -160,7 +178,7 @@ elif errors > prev_errors:
     sys.exit(2)
 elif total > prev_total:
     diff = total - prev_total
-    print(f"[Android Lint] 警告が {diff} 件増加しました（エラーなし）。続行しますが確認を推奨します。")
+    notes.append(f"[Android Lint] 警告が {diff} 件増加しました（エラーなし）。続行しますが確認を推奨します。")
 
 # ベースラインを更新（改善または初回）
 try:
@@ -174,4 +192,4 @@ try:
 except Exception:
     pass
 
-sys.exit(0)
+finish()
