@@ -2,6 +2,9 @@
 """
 PreToolUse hook: git commit 前に最新プランのコミット計画とステージ済みファイルを提示する。
 対象ツール: Bash
+
+出力方式: ブロック理由は exit 2 + stderr、情報提示は hookSpecificOutput.additionalContext。
+plain stdout はどちらの用途でもモデルに届かない（task_diary #28）。
 """
 import glob
 import io
@@ -86,7 +89,17 @@ KOTLIN_SENTINEL = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     ".kotlin_tests_passed"
 )
-KOTLIN_TEST_CMD = "cd android && ./gradlew testDebugUnitTest"
+# なぜ OS で案内コマンドを分けるか: Linux/WSL では gradlew が CRLF 改行で直接実行できず、
+# 非対話シェルは .bashrc 非ロードで java も PATH に無い。従来の "./gradlew" 案内は
+# ブロック時にモデルが実行不能なコマンドへ誘導されて空回りする（AGENTS.md の実証済み手順に揃える）。
+if os.name == "nt":
+    KOTLIN_TEST_CMD = "cd android && ./gradlew testDebugUnitTest"
+else:
+    KOTLIN_TEST_CMD = (
+        'export JAVA_HOME=$HOME/opt/jdk-17 ANDROID_HOME=$HOME/Android/Sdk && cd android && '
+        '"$JAVA_HOME/bin/java" -classpath gradle/wrapper/gradle-wrapper.jar '
+        "org.gradle.wrapper.GradleWrapperMain --no-daemon --console=plain testDebugUnitTest"
+    )
 
 kotlin_staged = [
     f for f in gate_targets
@@ -95,12 +108,14 @@ kotlin_staged = [
 
 if kotlin_staged:
     if not os.path.exists(KOTLIN_SENTINEL):
-        print("[Kotlinテスト未実行] コミットをブロックします")
-        print("以下のKotlinファイルがステージされています:")
+        # なぜ stderr か: PreToolUse の exit 2 でモデルに届くのは stderr のみ（task_diary #28）。
+        # stdout だと「理由の無いブロック」になり、どのテストを実行すべきかが伝わらない。
+        print("[Kotlinテスト未実行] コミットをブロックします", file=sys.stderr)
+        print("以下のKotlinファイルがステージされています:", file=sys.stderr)
         for f in kotlin_staged:
-            print(f"  - {f}")
-        print("\n先に実行してください:")
-        print(f"  {KOTLIN_TEST_CMD}")
+            print(f"  - {f}", file=sys.stderr)
+        print("\n先に実行してください:", file=sys.stderr)
+        print(f"  {KOTLIN_TEST_CMD}", file=sys.stderr)
         sys.exit(2)
 
     kotlin_sentinel_mtime = os.path.getmtime(KOTLIN_SENTINEL)
@@ -118,12 +133,13 @@ if kotlin_staged:
         and os.path.getmtime(os.path.join(repo_root, f)) > kotlin_sentinel_mtime
     ]
     if kotlin_stale:
-        print("[Kotlinテスト古い] コミットをブロックします")
-        print("センチネルより新しいKotlinファイルがあります:")
+        # stderr の理由は上の未実行ブロックと同じ（task_diary #28）。
+        print("[Kotlinテスト古い] コミットをブロックします", file=sys.stderr)
+        print("センチネルより新しいKotlinファイルがあります:", file=sys.stderr)
         for f in kotlin_stale:
-            print(f"  - {f}")
-        print("\n再度テストを実行してください:")
-        print(f"  {KOTLIN_TEST_CMD}")
+            print(f"  - {f}", file=sys.stderr)
+        print("\n再度テストを実行してください:", file=sys.stderr)
+        print(f"  {KOTLIN_TEST_CMD}", file=sys.stderr)
         sys.exit(2)
 # ──── ここまで ────
 
@@ -160,22 +176,30 @@ if plan_files:
     except OSError:
         pass
 
-# 出力
-print("[コミット粒度チェック]")
+# 出力: PreToolUse の plain stdout はデバッグログ止まりでモデルに届かない（task_diary #28）ため、
+# 本フックの主機能（ステージ内容↔コミット計画の突合をモデルに促す）は
+# hookSpecificOutput.additionalContext(JSON) で注入する。旧実装は plain print だったため
+# この提示が一度もモデルに届いていなかった（2026-07-07 横展開監査で顕在化）。
+out = ["[コミット粒度チェック]"]
 if staged:
-    print(f"ステージ済みファイル ({len(staged)}件):")
-    for f in staged:
-        print(f"  - {f}")
+    out.append(f"ステージ済みファイル ({len(staged)}件):")
+    out.extend(f"  - {f}" for f in staged)
 else:
-    print("ステージ済みファイル: なし")
+    out.append("ステージ済みファイル: なし")
 
 if plan_name:
-    print(f"\nアクティブプラン: {plan_name}")
+    out.append(f"\nアクティブプラン: {plan_name}")
     if commit_section:
-        print("コミット計画:")
-        print(commit_section)
+        out.append("コミット計画:")
+        out.append(commit_section)
     else:
-        print("（このプランにコミット計画セクションはありません）")
+        out.append("（このプランにコミット計画セクションはありません）")
 
-print("\nこのステージ内容はコミット計画の何番に対応しますか？")
+out.append("\nこのステージ内容はコミット計画の何番に対応しますか？")
+print(json.dumps({
+    "hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "additionalContext": "\n".join(out),
+    }
+}, ensure_ascii=False))
 sys.exit(0)
