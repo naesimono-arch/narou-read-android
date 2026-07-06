@@ -83,6 +83,16 @@ dependencies {
     implementation "androidx.room:room-ktx:$room_version"
     ksp "androidx.room:room-compiler:$room_version"
 
+    // なろう公式API ディスカバリ (メタデータ取得のみ・本文は扱わない)。HTTP=Retrofit/OkHttp, JSON=Moshi codegen。
+    // なぜ Moshi codegen: 既存の Room 用 KSP に相乗りでき settings.gradle 変更不要。かつ moshi-kotlin(リフレクション版)を
+    // 避けることで kotlin-reflect(約3MB) の混入を防ぐ。minifyEnabled=false で R8 収縮が効かない本プロジェクトでは
+    // 追加 dep がそのまま APK に乗るため、reflect 回避が APK サイズ維持に直結する。
+    implementation 'com.squareup.retrofit2:retrofit:2.11.0'
+    implementation 'com.squareup.retrofit2:converter-moshi:2.11.0'
+    implementation 'com.squareup.moshi:moshi:1.15.1'
+    ksp 'com.squareup.moshi:moshi-kotlin-codegen:1.15.1'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0' // User-Agent インターセプタ用に版を明示固定
+
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'io.mockk:mockk:1.13.10'
     testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3'
