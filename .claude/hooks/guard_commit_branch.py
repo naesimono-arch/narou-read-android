@@ -59,6 +59,29 @@ COMMIT_GENERATING_RE = re.compile(
     r"\s+(?:merge|rebase|cherry-pick)\b(?!-)(?![^\n;|&]*--(?:abort|quit|no-commit)\b)"
 )
 
+# コマンド文字列内で保護ブランチへ `switch`/`checkout` する箇所を検知する（実効ブランチ判定用）。
+# なぜ要るか（2026-07-07 実地で判明）: `git switch main && git merge …` のように switch と
+# commit/merge を1つの Bash コマンドにまとめると、PreToolUse 時点の `git branch --show-current` は
+# まだ切替前の（非保護）ブランチを返すため、カレントブランチだけの判定ではガードを素通りする。
+# コマンド内で保護ブランチへ移動していれば実効的なコミット先は保護ブランチなので、それも保護扱いにする。
+# 設計メモ:
+#  - `switch` はブランチ専用（pathspec を取らない）ため常に安全に検知できる。`checkout` は
+#    `checkout <branch> -- <path>`（ファイル復元＝ブランチ移動でない）があるため、直後が ` -- ` の
+#    形だけ除外する（それ以外の稀な誤検知は「センチネルを一度要求するだけ」で実害小＝guard は
+#    過剰側に倒す方針。guard_sentinel_creation.py の docstring と同じ思想）。
+#  - ブランチ名は完全トークン一致（直後が空白/終端/区切り）に限定し、`main~1`/`main.foo`/
+#    `feature/main` 等のリビジョン・別ブランチ名を誤検知しない。
+_PROTECTED_ALT = "|".join(re.escape(b) for b in sorted(PROTECTED))
+SWITCH_TO_PROTECTED_RE = re.compile(
+    r"(?:^|\n|&&|\|\||[;|&])\s*git"
+    r"(?:\s+(?:-[Cc]\s+\S+|-{1,2}[\w.-]+(?:=\S+)?))*"   # git のグローバルオプション
+    r"\s+(?:switch|checkout)\b"
+    r"(?:\s+-[\w-]+(?:=\S+)?)*"                          # switch/checkout のオプション（-q/-c/-b 等）
+    r"\s+(" + _PROTECTED_ALT + r")"                      # 移動先の保護ブランチ名（group 1）
+    r"(?=\s|$|[;&|])"                                    # 完全トークン境界（~^. 等が続く rev は弾く）
+    r"(?!\s+--(?:\s|$))"                                 # 直後が ` -- <path>` の checkout はブランチ移動でない
+)
+
 try:
     data = json.load(sys.stdin)
 except (json.JSONDecodeError, EOFError, ValueError):
@@ -79,8 +102,16 @@ try:
 except Exception:
     branch = ""
 
-# detached HEAD（空文字）や非保護ブランチは通す
-if branch not in PROTECTED:
+# 実効ブランチ判定: カレントが保護対象、または「コマンド内で保護ブランチへ switch/checkout する」なら
+# 保護扱い。後者は `git switch main && git merge …` 型の複合コマンド対策（2026-07-07 実地の素通しを塞ぐ。
+# PreToolUse 時点のカレントは切替前で非保護に見えるため、コマンド文字列から実効コミット先を補う）。
+switch_match = SWITCH_TO_PROTECTED_RE.search(command)
+if branch in PROTECTED:
+    effective_branch = branch
+elif switch_match:
+    effective_branch = switch_match.group(1)
+else:
+    # detached HEAD（空文字）や非保護ブランチで、コマンド内の保護ブランチ移動も無ければ通す
     sys.exit(0)
 
 # .claude/.allow_protected_commit があれば許可（ただし削除しない＝消費は PostToolUse 側）
@@ -89,11 +120,11 @@ claude_dir = os.path.dirname(hooks_dir)
 sentinel = os.path.join(claude_dir, ".allow_protected_commit")
 
 if os.path.exists(sentinel):
-    print(f"[ブランチガード] 保護ブランチ '{branch}' への明示コミットを許可（センチネル検出）。"
+    print(f"[ブランチガード] 保護ブランチ '{effective_branch}' への明示コミットを許可（センチネル検出）。"
           "コミット成功時に自動消費されます。")
     sys.exit(0)
 
-print(f"[ブランチガード] 保護ブランチ '{branch}' への直接コミット"
+print(f"[ブランチガード] 保護ブランチ '{effective_branch}' への直接コミット"
       "（またはコミットを生成する merge/rebase/cherry-pick）をブロックします。", file=sys.stderr)
 print("作業ブランチ（lab / UI-* など）へ切替えてコミットしてください。", file=sys.stderr)
 print("意図的に main へコミットする場合のみ（センチネルは AI では作成できません）:", file=sys.stderr)
