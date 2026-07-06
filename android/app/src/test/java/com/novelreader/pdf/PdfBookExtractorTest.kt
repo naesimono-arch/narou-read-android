@@ -77,20 +77,20 @@ class PdfBookExtractorTest {
         assertEquals(Ev(0, 0f, "タイトルを読み取っています…", ""), events.first())
         assertTrue(events.drop(1).all { it.title == "テスト小説" })
 
-        // step-1 開始は load フェーズ文言・local=0。
-        assertEquals(Ev(1, 0f, "本文を読み込んでいます…", "テスト小説"), events[1])
+        // step-1 開始は統合ラベル・local=0（読み込み/抽出を1つの連続進捗として提示）。
+        assertEquals(Ev(1, 0f, "本文を処理しています… 0%", "テスト小説"), events[1])
 
-        // load フェーズ: local = LOAD_WEIGHT(0.75) × loaded/total。文言は「読み込んでいます (loaded/total)」。
+        // LOAD(読み込み): local = LOAD_WEIGHT(0.75) × loaded/total。ラベルはバー(step-local)と一致する通し%。
         assertEquals(0f, events[2].local, 0f)
-        assertEquals("本文を読み込んでいます… (0/4ページ)", events[2].phase)
-        assertEquals(0.375f, events[3].local, 1e-6f)   // 0.75 × 2/4
-        assertEquals("本文を読み込んでいます… (2/4ページ)", events[3].phase)
+        assertEquals("本文を処理しています… 0%", events[2].phase)
+        assertEquals(0.375f, events[3].local, 1e-6f)   // 0.75 × 2/4 → 37%
+        assertEquals("本文を処理しています… 37%", events[3].phase)
 
-        // process フェーズ: local = LOAD_WEIGHT + (1-LOAD_WEIGHT) × processed/total。件数表記は processed+1。
-        assertEquals(0.75f, events[4].local, 1e-6f)    // 0.75 + 0.25×0/4
-        assertEquals("本文を抽出しています… (1/4ページ)", events[4].phase)
-        assertEquals(0.875f, events[5].local, 1e-6f)   // 0.75 + 0.25×2/4
-        assertEquals("本文を抽出しています… (3/4ページ)", events[5].phase)
+        // PROCESS(整形): local = LOAD_WEIGHT + (1-LOAD_WEIGHT) × processed/total。同じラベル・カウンタのリセット無し。
+        assertEquals(0.75f, events[4].local, 1e-6f)    // 0.75 + 0.25×0/4 → 75%
+        assertEquals("本文を処理しています… 75%", events[4].phase)
+        assertEquals(0.875f, events[5].local, 1e-6f)   // 0.75 + 0.25×2/4 → 87%
+        assertEquals("本文を処理しています… 87%", events[5].phase)
 
         // HTML が実際に書き出されている（export 経路まで通っている）。
         val outDirs = tmp.root.listFiles()?.firstOrNull { it.isDirectory }

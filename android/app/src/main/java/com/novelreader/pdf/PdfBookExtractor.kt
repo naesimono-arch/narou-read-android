@@ -3,7 +3,6 @@ package com.novelreader.pdf
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import java.io.Closeable
 import java.io.File
-import java.util.Locale
 import kotlin.math.max
 
 /**
@@ -90,23 +89,19 @@ object PdfBookExtractor {
                 val meta = handle.extractMeta()
                 currentTitle = meta.title
 
-                onProgress(1, 0f, "本文を読み込んでいます…", currentTitle)
+                // 本文抽出は「読み込み(全ページのグリフ抽出)＋整形(段落化)」の2パスだが、UI では1つの連続進捗
+                // として提示する。なぜ＝2パスを別ラベル・別カウンタで見せると、カウンタが 0→N を2度満ちて
+                // 「一度終わって2周目に入った」ように誤認される（実機フィードバック）。表示とバーを常に一致させる。
+                onProgress(1, 0f, "本文を処理しています… 0%", currentTitle)
                 val paragraphs = handle.runEngine { phase, current, total ->
-                    // load(重み大)→process(重み小)を単調前進で合成する。step-1 local は
-                    // LOAD 中 0→LOAD_WEIGHT、PROCESS 中 LOAD_WEIGHT→1.0 と進む。
-                    // なぜ2フェーズを分けるか＝旧実装は process のページ tick だけで local を出し、
-                    // 支配的コストの load(getText 単一呼び出し)中はバーが 0f で固まって見えた（handover の UX ギャップ）。
-                    val (local, phaseMsg) = when (phase) {
-                        EnginePhase.LOAD -> Pair(
-                            LOAD_WEIGHT * (current.toFloat() / max(total, 1)),
-                            "本文を読み込んでいます… (${grouped(current)}/${grouped(total)}ページ)",
-                        )
-                        EnginePhase.PROCESS -> Pair(
-                            LOAD_WEIGHT + (1f - LOAD_WEIGHT) * (current.toFloat() / max(total, 1)),
-                            "本文を抽出しています… (${grouped(current + 1)}/${grouped(total)}ページ)",
-                        )
+                    // step-1 local: LOAD(読み込み)中 0→LOAD_WEIGHT、PROCESS(整形)中 LOAD_WEIGHT→1.0 と単調前進。
+                    // load を重み大に＝超長編では全ページ getText が支配的コストで、以前は load 中バーが 0f で固まって見えた。
+                    val local = when (phase) {
+                        EnginePhase.LOAD -> LOAD_WEIGHT * (current.toFloat() / max(total, 1))
+                        EnginePhase.PROCESS -> LOAD_WEIGHT + (1f - LOAD_WEIGHT) * (current.toFloat() / max(total, 1))
                     }
-                    onProgress(1, local, phaseMsg, currentTitle)
+                    // ラベルにも同じ % を載せ、下のバー(step-local)と数字を常に一致させる（リセット無しの通し進捗）。
+                    onProgress(1, local, "本文を処理しています… ${(local * 100).toInt()}%", currentTitle)
                 }
 
                 onProgress(2, 0f, "章を分割しています…", currentTitle)
@@ -133,7 +128,4 @@ object PdfBookExtractor {
     // なぜ大きく取るか＝超長編では全ページのグリフ抽出(getText)が支配的コストで、段落化(PROCESS)は
     // 相対的に軽い。実機(N6169DZ)で load 中にバーが 0 で固まって見えた UX の主因がここ。実機目視で調整可。
     private const val LOAD_WEIGHT = 0.75f
-
-    // Python f"{n:,}" 相当（3 桁区切りカンマ・ロケール非依存に US 固定）。
-    private fun grouped(n: Int): String = String.format(Locale.US, "%,d", n)
 }
