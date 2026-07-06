@@ -46,8 +46,12 @@ if isinstance(tool_response, str):
     output = tool_response
 elif isinstance(tool_response, dict):
     raw = tool_response.get("output", "")
-    if not isinstance(raw, str):
+    if isinstance(raw, dict):
         raw = raw.get("stdout", "") + raw.get("stderr", "")
+    elif not isinstance(raw, str):
+        # None 等の想定外型だと raw.get() が AttributeError でフックごと落ち、fail-open 設計が
+        # 崩れるため防御（実ペイロードでは未観測＝推定リスク。consume_protected_sentinel と同方針）。
+        raw = ""
     output = raw or (tool_response.get("stdout", "") + tool_response.get("stderr", ""))
 else:
     output = ""
@@ -65,7 +69,12 @@ try:
     with open(sentinel, "a", encoding="utf-8"):
         pass
     os.utime(sentinel, None)
-    print(f"[Kotlinテスト成功] センチネルを更新しました: {sentinel}")
+    # PostToolUse の plain stdout はモデルに届かない（task_diary #28）。「テストゲート通過済み＝
+    # .kt のコミットが可能」という状態は次の行動判断に直結するため additionalContext で注入する。
+    print(json.dumps({"hookSpecificOutput": {
+        "hookEventName": "PostToolUse",
+        "additionalContext": "[Kotlinテスト成功] コミットゲートのセンチネルを更新しました（.kt のコミットが可能です）。",
+    }}, ensure_ascii=False))
 except OSError as e:
     print(f"[Kotlinテスト成功] 警告: センチネルの更新に失敗しました: {e}", file=sys.stderr)
 
