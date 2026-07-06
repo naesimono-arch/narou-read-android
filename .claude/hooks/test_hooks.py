@@ -68,6 +68,11 @@ GENERATING_RE_HOOKS = [
 ]
 GENERATING_RE = load_constant("guard_commit_branch.py", "COMMIT_GENERATING_RE")
 
+# 保護ブランチへの in-command switch/checkout 検知（guard_commit_branch.py 固有＝共有しない）。
+# `git switch main && git merge …` 型の複合コマンドがブランチガードを素通りした穴への対処
+# （2026-07-07 実地）。この正規表現は他フックに複製しないため一致テストの対象外。
+SWITCH_TO_PROTECTED_RE = load_constant("guard_commit_branch.py", "SWITCH_TO_PROTECTED_RE")
+
 # 実行コマンドとしての git commit ＝検知すべき（block / consume 対象）
 SHOULD_MATCH = [
     "git commit -m x",
@@ -120,6 +125,30 @@ GENERATING_SHOULD_NOT_MATCH = [
 ]
 
 
+# コマンド内で保護ブランチ(main)へ switch/checkout する＝実効コミット先が main ＝検知すべき
+SWITCH_SHOULD_MATCH = [
+    "git switch main && git merge x",         # 実地で素通しした型（handover の穴）
+    "git checkout main && git commit -m x",
+    "git switch -q main && git commit -m x",  # switch のオプション
+    "git switch -c main && git commit",       # -c で main を作成＆切替
+    "git checkout -b main && git merge x",     # -b で main を作成＆切替
+    "git -C /repo switch main && git commit",  # git グローバルオプション付き
+    "git switch main\ngit commit -m x",       # 改行区切り
+    "cd x; git checkout main && git commit -m x",
+]
+# ブランチ移動でない・別ブランチ・言及＝検知してはならない（偽陽性で通常作業を阻害しない）
+SWITCH_SHOULD_NOT_MATCH = [
+    "git switch feature && git commit",       # 非保護ブランチへの切替
+    "git checkout main -- file.txt",          # ファイル復元（ブランチ移動でない）
+    "git checkout main~1 -- file",            # リビジョン指定（ブランチ名一致でない）
+    "git merge main",                         # main は「マージ元」＝ switch/checkout ではない
+    "git switch feature/main",                # 'main' を含むが別ブランチ
+    "git checkout mainline",                  # 'main' で始まる別ブランチ
+    "git log main",                           # 読み取り系
+    "echo 'git switch main'",                 # クォート内の言及（コマンド境界に git が来ない）
+]
+
+
 class CommitDetectRegex(unittest.TestCase):
     def test_guard_and_consume_identical(self):
         # 検知整合: 片方だけ直す事故を防ぐため両フックの定義は完全一致であること
@@ -165,6 +194,20 @@ class CommitGeneratingRegex(unittest.TestCase):
         for cmd in GENERATING_SHOULD_NOT_MATCH:
             with self.subTest(cmd=cmd):
                 self.assertIsNone(GENERATING_RE.search(cmd), f"誤検知（偽陽性）: {cmd!r}")
+
+
+class SwitchToProtectedRegex(unittest.TestCase):
+    """`git switch/checkout main` の in-command 検知（複合コマンドによるガード素通し対策）。"""
+
+    def test_should_match(self):
+        for cmd in SWITCH_SHOULD_MATCH:
+            with self.subTest(cmd=cmd):
+                self.assertTrue(SWITCH_TO_PROTECTED_RE.search(cmd), f"検知漏れ（偽陰性）: {cmd!r}")
+
+    def test_should_not_match(self):
+        for cmd in SWITCH_SHOULD_NOT_MATCH:
+            with self.subTest(cmd=cmd):
+                self.assertIsNone(SWITCH_TO_PROTECTED_RE.search(cmd), f"誤検知（偽陽性）: {cmd!r}")
 
 
 if __name__ == "__main__":
