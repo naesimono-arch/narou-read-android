@@ -1,0 +1,36 @@
+[
+  { "allcount": 1043215 },
+  {
+    "title": "転生賢者の異世界ライフ",
+    "ncode": "N1234AB",
+    "writer": "山田太郎",
+    "story": "異世界に転生した主人公が、最弱スキルで最強を目指す物語。",
+    "global_point": 987654,
+    "general_all_no": 320,
+    "end": 1,
+    "length": 1250000,
+    "noveltype": 1
+  },
+  {
+    "title": "完結した勇者の物語",
+    "ncode": "N5678CD",
+    "writer": "鈴木花子",
+    "story": "全10章で綺麗に完結した王道ファンタジー。",
+    "global_point": 543210,
+    "general_all_no": 152,
+    "end": 0,
+    "length": 680000,
+    "noveltype": 1
+  },
+  {
+    "title": "たった一夜の短編",
+    "ncode": "N9999ZZ",
+    "writer": "佐藤次郎",
+    "story": "一話完結の短編小説。",
+    "global_point": 12000,
+    "general_all_no": 1,
+    "end": 0,
+    "length": 8500,
+    "noveltype": 2
+  }
+]
