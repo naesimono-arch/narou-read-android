@@ -7,11 +7,16 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [BookEntity::class, ProgressEntity::class], version = 7, exportSchema = true)
+@Database(
+    entities = [BookEntity::class, ProgressEntity::class, PendingJobEntity::class],
+    version = 8,
+    exportSchema = true,
+)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun bookDao(): BookDao
     abstract fun progressDao(): ProgressDao
+    abstract fun pendingJobDao(): PendingJobDao
 
     companion object {
         @Volatile
@@ -88,10 +93,24 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v7→v8: 処理キューの永続テーブル pending_jobs を新設する（強制終了からの再開材料）。
+         *  既存テーブルへは一切触れない新規 CREATE のみのため PRAGMA 分岐は不要。
+         *  DDL は Room が Entity から期待するスキーマ（NOT NULL・主キー）と厳密一致させること
+         *  （不一致は起動時の schema validation でクラッシュする）。 */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `pending_jobs` " +
+                    "(`uri` TEXT NOT NULL, `displayName` TEXT NOT NULL, `enqueuedAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`uri`))"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
-                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .build()
                     .also { INSTANCE = it }
             }

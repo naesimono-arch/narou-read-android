@@ -24,6 +24,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // 強制終了リカバリ（孤立HTML掃除＋未完了ジョブの通知・再開）。Activity 起動時に
+        // 呼ぶのは FGS のバックグラウンド起動制限を避けるため（詳細は実装側の doc コメント）。
+        // 実処理はプロセスごとに1回・IO スレッドで走る。
+        (application as NovelReaderApplication).runStartupRecoveryOnce()
+
         // Edge-to-Edge 表示を有効化（ステータスバー・ナビバー領域までコンテンツを描画）
         // NovelReaderTheme 内で WindowCompat.getInsetsController を使うため、
         // setDecorFitsSystemWindows は setContent より前に呼ぶ必要がある

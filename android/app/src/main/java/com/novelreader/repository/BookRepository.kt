@@ -1,11 +1,14 @@
 package com.novelreader.repository
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import com.novelreader.data.AppDatabase
 import com.novelreader.data.BookDao
 import com.novelreader.data.BookEntity
+import com.novelreader.data.PendingJobDao
+import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressDao
 import com.novelreader.data.ProgressEntity
 import com.novelreader.pdf.CorruptedPdfError
@@ -26,6 +29,7 @@ class BookRepository(
     private val context: Context,
     private val bookDao: BookDao = AppDatabase.getDatabase(context).bookDao(),
     private val progressDao: ProgressDao = AppDatabase.getDatabase(context).progressDao(),
+    private val pendingJobDao: PendingJobDao = AppDatabase.getDatabase(context).pendingJobDao(),
 ) {
 
     val allBooks: Flow<List<BookEntity>> = bookDao.getAllBooks()
@@ -107,6 +111,12 @@ class BookRepository(
                     // addedAt に追加時刻をスタンプし、本棚の最近活動順ソート（未読本の基準）に使う。
                     val b = BookEntity(bookId, meta.title, outputDir.absolutePath, meta.author, addedAt = System.currentTimeMillis())
                     bookDao.insertBook(b)
+                    // 変換が確定したので永続キュー（pending_jobs）の記帳を落とす。insertBook と同じ
+                    // NonCancellable 内で連続実行し、「本は登録されたのに pending が残る」→ 次回起動の
+                    // リカバリが同じ本を再変換して重複登録する窓を最小化する（完全排他には DAO 跨ぎの
+                    // トランザクション統合が要るが、テスト用の DAO 分離注入を保つため窓の最小化で妥協。
+                    // この数msにプロセス kill が当たる確率は実用上無視できる）。
+                    settlePendingJob(pdfUri)
                     b
                 }
                 // NonCancellable ブロック完了後にキャンセルを確認
@@ -125,9 +135,74 @@ class BookRepository(
                 // 呼び出し側で不要なエラー通知が出てキャンセルの静かな伝播が壊れる。
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.e(TAG, "addBook 失敗", e)
+                // 失敗が確定した本は再開対象から外す（破損PDF等は再試行しても失敗を繰り返すだけで、
+                // 起動のたびに同じエラーが再走するループになる。ユーザーにはこの直後エラー通知が
+                // 出るので、必要なら選び直してもらう）。キャンセルは上で rethrow 済み＝対象外で、
+                // 停止操作時の扱いは Service の ACTION_STOP（全消し）が決める。
+                withContext(NonCancellable) { settlePendingJob(pdfUri) }
                 Result.failure(classifyError(e))
             },
         )
+    }
+
+    // ── 処理キューの永続化（pending_jobs）───────────────────────────────
+    // enqueue 時に記帳し、変換の成否確定時に削除する。残っている行 = 強制終了
+    // （OEM kill/OOM/onTimeout）で中断された未完了ジョブとして起動時リカバリが検出する。
+
+    /** enqueue の記帳。REPLACE のため再開時の再投入でも二重行にならない。 */
+    suspend fun addPendingJob(uri: String, displayName: String) = withContext(Dispatchers.IO) {
+        pendingJobDao.insert(PendingJobEntity(uri, displayName, System.currentTimeMillis()))
+    }
+
+    /** 未完了ジョブ一覧（enqueue 順）。起動時リカバリの検出用。 */
+    suspend fun getPendingJobs(): List<PendingJobEntity> =
+        withContext(Dispatchers.IO) { pendingJobDao.getAll() }
+
+    /** 再開不能と判明したジョブの除去（権限喪失時など）。永続権限も返す。 */
+    suspend fun removePendingJob(uri: String) = withContext(Dispatchers.IO) {
+        settlePendingJob(Uri.parse(uri))
+    }
+
+    /** 全ジョブの除去（ユーザーの明示停止＝「再開してほしくない」意思の反映）。 */
+    suspend fun clearPendingJobs() = withContext(Dispatchers.IO) {
+        // deleteAll の前に各行の永続権限を返す（行を先に消すと解放対象の URI が分からなくなる）
+        pendingJobDao.getAll().forEach { releasePersistedPermission(Uri.parse(it.uri)) }
+        pendingJobDao.deleteAll()
+    }
+
+    /** books テーブルに存在しない bookId の HTML ディレクトリを削除する（孤立HTML掃除）。
+     *  強制終了（OEM kill/OOM）ではプロセスごと消えるため addBook 内 catch のクリーンアップが
+     *  走らず、書きかけの novels/<bookId>/ が残り得る。DB 登録（NonCancellable の最終確定）が
+     *  完了の境界なので「DB に無い = 未完了の書きかけ」と判定して安全に消せる。
+     *  【前提】Service 非稼働時に呼ぶこと（処理中の本の出力ディレクトリを誤削除しないため。
+     *  呼び出し側 runStartupRecoveryOnce が processingState で判定する）。 */
+    suspend fun cleanOrphanHtmlDirs() = withContext(Dispatchers.IO) {
+        val novelsDir = File(context.filesDir, "novels")
+        val validIds = bookDao.getAllBookIds().toSet()
+        novelsDir.listFiles()?.forEach { dir ->
+            if (dir.isDirectory && dir.name !in validIds) {
+                if (dir.deleteRecursively()) Log.i(TAG, "孤立HTMLを掃除: ${dir.name}")
+                else Log.w(TAG, "孤立HTMLの削除に失敗: ${dir.absolutePath}")
+            }
+        }
+    }
+
+    /** pending_jobs の記帳を消し、再開用に取得した永続 URI 権限も返す。
+     *  変換の成否が確定した時点（成功=Room 登録済み／失敗=エラー通知確定）で呼ぶ。 */
+    private suspend fun settlePendingJob(pdfUri: Uri) {
+        pendingJobDao.deleteByUri(pdfUri.toString())
+        releasePersistedPermission(pdfUri)
+    }
+
+    /** takePersistableUriPermission（BookshelfViewModel.addBook）の対。永続権限は端末全体で
+     *  上限があるため用が済んだら返す。未取得（プロバイダ非対応等）だと SecurityException に
+     *  なるので防御する（返せなくても実害は上限消費のみ）。 */
+    private fun releasePersistedPermission(pdfUri: Uri) {
+        runCatching {
+            context.contentResolver.releasePersistableUriPermission(
+                pdfUri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
     }
 
     suspend fun deleteBook(book: BookEntity) = withContext(Dispatchers.IO) {

@@ -50,6 +50,15 @@ class PdfProcessingService : Service() {
         //   停止しかできなかった）。中断後はループ次周回が空キューを検知して正常終了→stopSelf する。
         // 実行中でなければ何も処理が無いので、自前で foreground を片付けて停止する。
         if (intent?.action == ACTION_STOP) {
+            // ユーザーの明示停止＝「再開してほしくない」意思なので、永続キュー（pending_jobs）も
+            // 全消しする（残すと次回起動のリカバリが破棄済みの変換を勝手に再開してしまう）。
+            // Service の scope ではなく applicationScope で走らせる: この直後の stopSelf →
+            // onDestroy の scope.cancel に巻き込まれると全消しが中断されるため。
+            (application as? NovelReaderApplication)?.let { app ->
+                // pendingJobDispatcher（並列度1）で enqueue の記帳と直列化する。素の IO だと
+                // 「追加直後に停止」で insert が全消しの後に着地し、破棄済みジョブが復活する。
+                app.applicationScope.launch(app.pendingJobDispatcher) { app.repository.clearPendingJobs() }
+            }
             val running = lock.withLock {
                 uriQueue.clear()
                 isStopping = true
@@ -77,6 +86,17 @@ class PdfProcessingService : Service() {
 
         if (intent?.action != ACTION_START) return START_NOT_STICKY
         val uri = intent.data ?: return START_NOT_STICKY
+
+        // 再開用に処理キューへ記帳する（OEM kill/OOM/onTimeout からの復元材料。削除は変換の
+        // 成否確定時に BookRepository 側で、明示停止時は上の ACTION_STOP で行う）。
+        // applicationScope で走らせるのは ACTION_STOP の全消しと同じ理由（scope.cancel 非依存）。
+        // resolveDisplayName は ContentProvider への query のためメインスレッドの
+        // onStartCommand では呼ばず、IO の launch 内で解決する。
+        (application as? NovelReaderApplication)?.let { app ->
+            app.applicationScope.launch(app.pendingJobDispatcher) {
+                app.repository.addPendingJob(uri.toString(), resolveDisplayName(uri))
+            }
+        }
 
         // キューへの追加とループ起動判定をアトミックに行う
         val shouldStart = lock.withLock {
@@ -134,9 +154,11 @@ class PdfProcessingService : Service() {
             doneCount = 0
             isStopping = false
         }
+        // pending_jobs は意図的に残す: onTimeout はユーザー意思でない中断なので、記帳が残って
+        // いれば次回アプリ起動時のリカバリが検出して再開できる（ACTION_STOP の全消しとは逆の扱い）。
         (application as? NovelReaderApplication)?.let {
             it.updateProcessingState(null)
-            it.emitError("変換が時間制限により中断されました。アプリを開いて再度お試しください。")
+            it.emitError("変換が時間制限により中断されました。アプリを開き直すと再開します。")
         }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
