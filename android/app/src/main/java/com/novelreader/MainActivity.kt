@@ -115,22 +115,9 @@ private fun NovelReaderApp(
 
         composable("discovery/search") {
             DiscoverySearchScreen(
+                viewModel = discoveryViewModel,
                 onBack = { navController.popBackStack() },
-                onSearch = { word, inTitle, inStory, inKeyword, inWriter ->
-                    discoveryViewModel.openResult(
-                        ResultContext(
-                            title = "「$word」",
-                            query = DiscoveryQuery(
-                                word = word,
-                                inTitle = inTitle,
-                                inStory = inStory,
-                                inKeyword = inKeyword,
-                                inWriter = inWriter,
-                            ),
-                        )
-                    )
-                    navController.navigate("discovery/result")
-                },
+                onSearchExecuted = { navController.navigate("discovery/result") },
             )
         }
 

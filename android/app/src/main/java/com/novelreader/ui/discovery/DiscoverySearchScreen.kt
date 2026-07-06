@@ -2,6 +2,8 @@ package com.novelreader.ui.discovery
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,9 +11,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -20,7 +26,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -28,15 +38,17 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,7 +59,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.novelreader.narou.model.NarouLastup
+import com.novelreader.narou.model.NarouNovelType
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.viewmodel.DiscoveryViewModel
+import com.novelreader.viewmodel.SearchFilters
 
 /**
  * 検索ホーム画面（モック discovery-search-D.html のフレーム1）。
@@ -56,21 +73,19 @@ import com.novelreader.ui.theme.MinchoFamily
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DiscoverySearchScreen(
+    viewModel: DiscoveryViewModel,
     onBack: () -> Unit,
-    onSearch: (word: String, inTitle: Boolean, inStory: Boolean, inKeyword: Boolean, inWriter: Boolean) -> Unit,
+    onSearchExecuted: () -> Unit,
 ) {
-    var word by rememberSaveable { mutableStateOf("") }
-    var inTitle by rememberSaveable { mutableStateOf(false) }
-    var inStory by rememberSaveable { mutableStateOf(false) }
-    var inKeyword by rememberSaveable { mutableStateOf(false) }
-    var inWriter by rememberSaveable { mutableStateOf(false) }
-
+    // なぜ VM 巻き上げか: 条件シートを閉じても・結果一覧から戻っても状態を残すため
+    // （SearchDraft.kt の doc コメント参照）。
+    val draft by viewModel.searchDraft.collectAsState()
     var isFocused by remember { mutableStateOf(false) }
+    var showSheet by remember { mutableStateOf(false) }
 
     val executeSearch = {
-        val trimmed = word.trim()
-        if (trimmed.isNotEmpty()) {
-            onSearch(trimmed, inTitle, inStory, inKeyword, inWriter)
+        if (viewModel.executeSearch()) {
+            onSearchExecuted()
         }
     }
 
@@ -111,8 +126,8 @@ fun DiscoverySearchScreen(
             // なぜ BasicTextField を使うか: マテリアルデザイン標準の TextField では、
             // 背景や枠線の主張が強く、モックの「ヘアライン下線のみの静かな入力欄」を表現しづらいため。
             BasicTextField(
-                value = word,
-                onValueChange = { word = it },
+                value = draft.word,
+                onValueChange = { viewModel.setSearchDraft(draft.copy(word = it)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .onFocusChanged { isFocused = it.isFocused }
@@ -132,7 +147,7 @@ fun DiscoverySearchScreen(
                             modifier = Modifier.padding(bottom = 8.dp)
                         ) {
                             Box(modifier = Modifier.weight(1f)) {
-                                if (word.isEmpty()) {
+                                if (draft.word.isEmpty()) {
                                     Text(
                                         text = "作品名・作者・キーワード",
                                         fontSize = 15.sp,
@@ -180,83 +195,535 @@ fun DiscoverySearchScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    val chipShape = RoundedCornerShape(2.dp)
-                    val chipColors = FilterChipDefaults.filterChipColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                        selectedContainerColor = MaterialTheme.colorScheme.background,
-                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        selectedLabelColor = MaterialTheme.colorScheme.primary
+                    FilterChipItem(
+                        selected = draft.inTitle,
+                        label = "タイトル",
+                        onClick = { viewModel.setSearchDraft(draft.copy(inTitle = !draft.inTitle)) }
                     )
-
-                    FilterChip(
-                        selected = inTitle,
-                        onClick = { inTitle = !inTitle },
-                        label = { Text("タイトル", fontSize = 11.5.sp) },
-                        shape = chipShape,
-                        colors = chipColors,
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = inTitle,
-                            borderColor = MaterialTheme.colorScheme.outlineVariant,
-                            selectedBorderColor = MaterialTheme.colorScheme.primary,
-                            borderWidth = 1.dp,
-                            selectedBorderWidth = 1.dp
-                        ),
-                        leadingIcon = null
+                    FilterChipItem(
+                        selected = draft.inStory,
+                        label = "あらすじ",
+                        onClick = { viewModel.setSearchDraft(draft.copy(inStory = !draft.inStory)) }
                     )
-
-                    FilterChip(
-                        selected = inStory,
-                        onClick = { inStory = !inStory },
-                        label = { Text("あらすじ", fontSize = 11.5.sp) },
-                        shape = chipShape,
-                        colors = chipColors,
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = inStory,
-                            borderColor = MaterialTheme.colorScheme.outlineVariant,
-                            selectedBorderColor = MaterialTheme.colorScheme.primary,
-                            borderWidth = 1.dp,
-                            selectedBorderWidth = 1.dp
-                        ),
-                        leadingIcon = null
+                    FilterChipItem(
+                        selected = draft.inKeyword,
+                        label = "キーワード",
+                        onClick = { viewModel.setSearchDraft(draft.copy(inKeyword = !draft.inKeyword)) }
                     )
-
-                    FilterChip(
-                        selected = inKeyword,
-                        onClick = { inKeyword = !inKeyword },
-                        label = { Text("キーワード", fontSize = 11.5.sp) },
-                        shape = chipShape,
-                        colors = chipColors,
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = inKeyword,
-                            borderColor = MaterialTheme.colorScheme.outlineVariant,
-                            selectedBorderColor = MaterialTheme.colorScheme.primary,
-                            borderWidth = 1.dp,
-                            selectedBorderWidth = 1.dp
-                        ),
-                        leadingIcon = null
+                    FilterChipItem(
+                        selected = draft.inWriter,
+                        label = "作者名",
+                        onClick = { viewModel.setSearchDraft(draft.copy(inWriter = !draft.inWriter)) }
                     )
+                }
 
-                    FilterChip(
-                        selected = inWriter,
-                        onClick = { inWriter = !inWriter },
-                        label = { Text("作者名", fontSize = 11.5.sp) },
-                        shape = chipShape,
-                        colors = chipColors,
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = inWriter,
-                            borderColor = MaterialTheme.colorScheme.outlineVariant,
-                            selectedBorderColor = MaterialTheme.colorScheme.primary,
-                            borderWidth = 1.dp,
-                            selectedBorderWidth = 1.dp
-                        ),
-                        leadingIcon = null
+                // 「条件を調整」ボタン
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp)
+                        .border(
+                            width = 1.dp,
+                            color = if (draft.filters.activeCount() > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                            shape = RoundedCornerShape(2.dp)
+                        )
+                        .clickable { showSheet = true }
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    val tint = if (draft.filters.activeCount() > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    Icon(
+                        imageVector = Icons.Filled.Tune,
+                        contentDescription = "条件調整",
+                        tint = tint,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Text(
+                        text = if (draft.filters.activeCount() > 0) "条件を調整（${draft.filters.activeCount()}）" else "条件を調整",
+                        fontSize = 12.5.sp,
+                        color = tint
+                    )
+                }
+
+                // ── 検索履歴（D1・モック「ピン留め」「最近の検索」節） ──
+                val history by viewModel.searchHistory.collectAsState()
+
+                if (history.pinned.isNotEmpty()) {
+                    Text(
+                        text = "ピン留め",
+                        fontSize = 10.5.sp,
+                        letterSpacing = 3.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(top = 28.dp, bottom = 12.dp)
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        history.pinned.forEach { word ->
+                            HistoryChip(
+                                word = word,
+                                pinned = true,
+                                onWordClick = { if (viewModel.searchFromHistory(word)) onSearchExecuted() },
+                                onPinClick = { viewModel.unpinWord(word) },
+                            )
+                        }
+                    }
+                }
+
+                if (history.recent.isNotEmpty()) {
+                    Text(
+                        text = "最近の検索",
+                        fontSize = 10.5.sp,
+                        letterSpacing = 3.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(top = 28.dp, bottom = 12.dp)
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        history.recent.forEach { word ->
+                            HistoryChip(
+                                word = word,
+                                pinned = false,
+                                onWordClick = { if (viewModel.searchFromHistory(word)) onSearchExecuted() },
+                                onPinClick = { viewModel.pinWord(word) },
+                                onDelete = { viewModel.removeRecentWord(word) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSheet = false },
+            containerColor = MaterialTheme.colorScheme.background,
+            dragHandle = {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .width(36.dp)
+                        .height(4.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                            shape = RoundedCornerShape(2.dp)
+                        )
+                )
+            }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 18.dp)
+            ) {
+                Text(
+                    text = "条件",
+                    fontFamily = MinchoFamily,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 1.5.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                // a. 作品の形
+                SectionHeader(text = "作品の形")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val current = draft.filters.type
+                    FilterChipItem(
+                        selected = current == null,
+                        label = "すべて",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(type = null)))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = current == NarouNovelType.SHORT,
+                        label = "短編",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(type = if (current == NarouNovelType.SHORT) null else NarouNovelType.SHORT)))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = current == NarouNovelType.RENSAI,
+                        label = "連載中",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(type = if (current == NarouNovelType.RENSAI) null else NarouNovelType.RENSAI)))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = current == NarouNovelType.KANKETSU,
+                        label = "完結済",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(type = if (current == NarouNovelType.KANKETSU) null else NarouNovelType.KANKETSU)))
+                        }
+                    )
+                }
+
+                // b. 期間
+                SectionHeader(text = "期間")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val current = draft.filters.lastup
+                    FilterChipItem(
+                        selected = current == null,
+                        label = "すべて",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastup = null)))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = current == NarouLastup.THISWEEK,
+                        label = "今週",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastup = if (current == NarouLastup.THISWEEK) null else NarouLastup.THISWEEK)))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = current == NarouLastup.THISMONTH,
+                        label = "今月",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastup = if (current == NarouLastup.THISMONTH) null else NarouLastup.THISMONTH)))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = current == NarouLastup.LASTMONTH,
+                        label = "先月",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastup = if (current == NarouLastup.LASTMONTH) null else NarouLastup.LASTMONTH)))
+                        }
+                    )
+                }
+
+                // c. 属性
+                SectionHeader(text = "属性")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    FilterChipItem(
+                        selected = draft.filters.tensei,
+                        label = "異世界転生",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(tensei = !draft.filters.tensei)))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = draft.filters.tenni,
+                        label = "異世界転移",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(tenni = !draft.filters.tenni)))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = draft.filters.excludeZankoku,
+                        label = "残酷描写を除く",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(excludeZankoku = !draft.filters.excludeZankoku)))
+                        }
+                    )
+                }
+
+                // d. 文字数
+                // なぜモックのレンジスライダーでなく段階チップか: 文字数・読了時間はダイナミックレンジが広く線形スライダーは実用に耐えないため、段階選択に置き換える（見た目の節構成・チップ様式はモック準拠。操作系の差分は ADR 0005 のスコープ外規定＝実機フィードバックで後詰め）。
+                SectionHeader(text = "文字数")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val current = draft.filters.length
+                    FilterChipItem(
+                        selected = current == null,
+                        label = "すべて",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(length = null)))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = current == "-10000",
+                        label = "〜1万字",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(length = if (current == "-10000") null else "-10000")))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = current == "10000-100000",
+                        label = "1万〜10万字",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(length = if (current == "10000-100000") null else "10000-100000")))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = current == "100000-",
+                        label = "10万字〜",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(length = if (current == "100000-") null else "100000-")))
+                        }
+                    )
+                }
+
+                // e. 読了時間
+                // なぜモックのレンジスライダーでなく段階チップか: 文字数・読了時間はダイナミックレンジが広く線形スライダーは実用に耐えないため、段階選択に置き換える（見た目の節構成・チップ様式はモック準拠。操作系の差分は ADR 0005 のスコープ外規定＝実機フィードバックで後詰め）。
+                SectionHeader(text = "読了時間")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val current = draft.filters.time
+                    FilterChipItem(
+                        selected = current == null,
+                        label = "すべて",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(time = null)))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = current == "-30",
+                        label = "〜30分",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(time = if (current == "-30") null else "-30")))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = current == "30-120",
+                        label = "30分〜2時間",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(time = if (current == "30-120") null else "30-120")))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = current == "120-",
+                        label = "2時間〜",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(time = if (current == "120-") null else "120-")))
+                        }
+                    )
+                }
+
+                // f. 会話率
+                // なぜモックのレンジスライダーでなく段階チップか: 文字数・読了時間はダイナミックレンジが広く線形スライダーは実用に耐えないため、段階選択に置き換える（見た目の節構成・チップ様式はモック準拠。操作系の差分は ADR 0005 のスコープ外規定＝実機フィードバックで後詰め）。
+                SectionHeader(text = "会話率")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val current = draft.filters.kaiwaritu
+                    FilterChipItem(
+                        selected = current == null,
+                        label = "すべて",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(kaiwaritu = null)))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = current == "60-",
+                        label = "会話多め・60%〜",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(kaiwaritu = if (current == "60-") null else "60-")))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = current == "-40",
+                        label = "地の文多め・〜40%",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(kaiwaritu = if (current == "-40") null else "-40")))
+                        }
+                    )
+                }
+
+                // g. 挿絵
+                // なぜモックのレンジスライダーでなく段階チップか: 文字数・読了時間はダイナミックレンジが広く線形スライダーは実用に耐えないため、段階選択に置き換える（見た目の節構成・チップ様式はモック準拠。操作系の差分は ADR 0005 のスコープ外規定＝実機フィードバックで後詰め）。
+                SectionHeader(text = "挿絵")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val current = draft.filters.sasie
+                    FilterChipItem(
+                        selected = current == null,
+                        label = "すべて",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(sasie = null)))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = current == "1-",
+                        label = "あり",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(sasie = if (current == "1-") null else "1-")))
+                        }
+                    )
+                }
+
+                // ボタン群
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 24.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            showSheet = false
+                            executeSearch()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(2.dp),
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text(
+                            text = "この条件で探す",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 1.5.sp,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
+
+                    TextButton(
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = SearchFilters()))
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ) {
+                        Text(
+                            text = "リセット",
+                            fontSize = 12.sp,
+                            letterSpacing = 1.5.sp
+                        )
+                    }
+
+                    Spacer(
+                        modifier = Modifier
+                            .height(24.dp)
+                            .navigationBarsPadding()
                     )
                 }
             }
         }
     }
+}
+
+/**
+ * 検索履歴チップ（モック .pchip / .rchip-hist）。
+ * ピンアイコン: ピン留め済み=藍（タップで解除）／未ピン=薄い補助色（タップでピン留め）。
+ * 語タップ=その語で即検索。onDelete があれば右端に薄い×（履歴から削除）。
+ */
+@Composable
+private fun HistoryChip(
+    word: String,
+    pinned: Boolean,
+    onWordClick: () -> Unit,
+    onPinClick: () -> Unit,
+    onDelete: (() -> Unit)? = null,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
+                shape = RoundedCornerShape(2.dp),
+            )
+            .padding(start = 8.dp, end = if (onDelete != null) 6.dp else 12.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Filled.PushPin,
+            contentDescription = if (pinned) "ピン留めを解除" else "ピン留めする",
+            tint = if (pinned) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.outlineVariant,
+            modifier = Modifier
+                .clickable(onClick = onPinClick)
+                .padding(vertical = 7.dp)
+                .size(13.dp),
+        )
+        Text(
+            text = word,
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier
+                .clickable(onClick = onWordClick)
+                .padding(horizontal = 8.dp, vertical = 7.dp),
+        )
+        if (onDelete != null) {
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = "履歴から削除",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier
+                    .clickable(onClick = onDelete)
+                    .padding(vertical = 7.dp)
+                    .size(13.dp),
+            )
+        }
+    }
+}
+
+@Composable
+fun SectionHeader(text: String) {
+    Text(
+        text = text,
+        fontSize = 10.5.sp,
+        letterSpacing = 3.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(top = 22.dp, bottom = 10.dp)
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FilterChipItem(
+    selected: Boolean,
+    label: String,
+    onClick: () -> Unit
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, fontSize = 11.5.sp) },
+        shape = RoundedCornerShape(2.dp),
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.background,
+            selectedContainerColor = MaterialTheme.colorScheme.background,
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            selectedLabelColor = MaterialTheme.colorScheme.primary
+        ),
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = true,
+            selected = selected,
+            borderColor = MaterialTheme.colorScheme.outlineVariant,
+            selectedBorderColor = MaterialTheme.colorScheme.primary,
+            borderWidth = 1.dp,
+            selectedBorderWidth = 1.dp
+        ),
+        leadingIcon = null
+    )
 }

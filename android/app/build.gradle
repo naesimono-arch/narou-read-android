@@ -93,6 +93,9 @@ dependencies {
     ksp 'com.squareup.moshi:moshi-kotlin-codegen:1.15.1'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0' // User-Agent インターセプタ用に版を明示固定
 
+    // 検索履歴＋ピン留め（発見機能 D1）のローカル永続。蔵書 Room を汚さない軽量ストア。
+    implementation 'androidx.datastore:datastore-preferences:1.1.1'
+
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'io.mockk:mockk:1.13.10'
     testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3'

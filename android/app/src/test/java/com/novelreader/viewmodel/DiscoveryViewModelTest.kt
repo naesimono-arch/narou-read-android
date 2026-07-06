@@ -166,6 +166,61 @@ class DiscoveryViewModelTest {
     }
 
     @Test
+    fun `executeSearch - ドラフトが実行可能なら結果文脈が差し替わり、不可なら何も起きないこと`() = runTest {
+        val hits = listOf(NarouNovel(title = "ヒット"))
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, hits)
+
+        viewModel = DiscoveryViewModel(mockApp)
+
+        // 空ドラフト（word 空・フィルタなし）は実行不可
+        assertEquals(false, viewModel.executeSearch())
+        assertEquals(null, viewModel.resultContext.value)
+
+        viewModel.setSearchDraft(SearchDraft(word = "薬師", inTitle = true))
+        assertEquals(true, viewModel.executeSearch())
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("「薬師」", viewModel.resultContext.value?.title)
+        assertEquals("薬師", viewModel.resultContext.value?.query?.word)
+        assertTrue(viewModel.resultState.value is DiscoveryUiState.Content)
+    }
+
+    @Test
+    fun `executeSearch - 検索語が履歴ストアへ追加され、条件のみの検索では追加されないこと`() = runTest {
+        val mockStore = mockk<com.novelreader.narou.SearchHistoryStore>(relaxed = true)
+        every { mockApp.searchHistoryStore } returns mockStore
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(NarouNovel(title = "t")))
+
+        viewModel = DiscoveryViewModel(mockApp)
+        viewModel.setSearchDraft(SearchDraft(word = " 薬師 "))
+        viewModel.executeSearch()
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 1) { mockStore.addRecent("薬師") }
+
+        // 条件のみ（語なし）は履歴に残さない
+        viewModel.setSearchDraft(
+            SearchDraft(filters = SearchFilters(sasie = "1-"))
+        )
+        viewModel.executeSearch()
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 1) { mockStore.addRecent(any()) }
+    }
+
+    @Test
+    fun `searchFromHistory - 履歴語がドラフトへ移り即実行されること`() = runTest {
+        val mockStore = mockk<com.novelreader.narou.SearchHistoryStore>(relaxed = true)
+        every { mockApp.searchHistoryStore } returns mockStore
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(NarouNovel(title = "t")))
+
+        viewModel = DiscoveryViewModel(mockApp)
+        assertEquals(true, viewModel.searchFromHistory("辺境"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals("辺境", viewModel.searchDraft.value.word)
+        assertEquals("「辺境」", viewModel.resultContext.value?.title)
+    }
+
+    @Test
     fun `openResult - 取得失敗時は resultState が Error になり refreshResult で再試行されること`() = runTest {
         coEvery { mockRepo.discover(any()) } throws NarouApiException("通信エラー", Exception())
 

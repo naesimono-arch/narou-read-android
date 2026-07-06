@@ -5,12 +5,16 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.novelreader.NovelReaderApplication
 import com.novelreader.narou.NarouApiException
+import com.novelreader.narou.SearchHistory
+import com.novelreader.narou.SearchHistoryStore
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouOrder
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 sealed interface DiscoveryUiState {
@@ -90,6 +94,61 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
             _resultState.value = DiscoveryUiState.Loading
             _resultState.value = fetch(ctx.query)
         }
+    }
+
+    // ── 検索ドラフト（検索語＋範囲＋条件シート） ──
+
+    private val _searchDraft = MutableStateFlow(SearchDraft())
+    val searchDraft: StateFlow<SearchDraft> = _searchDraft.asStateFlow()
+
+    fun setSearchDraft(draft: SearchDraft) {
+        _searchDraft.value = draft
+    }
+
+    /** 現在のドラフトで検索を実行し、結果一覧の文脈を差し替える。実行できたら true。 */
+    fun executeSearch(): Boolean {
+        val draft = _searchDraft.value
+        if (!draft.canSearch) return false
+        openResult(ResultContext(title = draft.resultTitle(), query = draft.toQuery()))
+        // 検索語があれば履歴へ（条件のみの検索は語が無いので残さない）
+        draft.word.trim().takeIf { it.isNotBlank() }?.let { word ->
+            viewModelScope.launch { historyStore.addRecent(word) }
+        }
+        return true
+    }
+
+    // ── 検索履歴＋ピン留め（D1） ──
+
+    private val historyStore: SearchHistoryStore get() = app.searchHistoryStore
+
+    /**
+     * なぜ lazy＋WhileSubscribed か: 検索画面が collect するまで DataStore を読まないようにするため
+     * （このVMは上位共有で本棚起動時にも生成される。ホームだけ使う限りディスクにも触れない）。
+     */
+    val searchHistory: StateFlow<SearchHistory> by lazy {
+        historyStore.history.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            SearchHistory(),
+        )
+    }
+
+    fun pinWord(word: String) {
+        viewModelScope.launch { historyStore.pin(word) }
+    }
+
+    fun unpinWord(word: String) {
+        viewModelScope.launch { historyStore.unpin(word) }
+    }
+
+    fun removeRecentWord(word: String) {
+        viewModelScope.launch { historyStore.removeRecent(word) }
+    }
+
+    /** 履歴チップのタップ: 検索語をドラフトへ移して即実行する。 */
+    fun searchFromHistory(word: String): Boolean {
+        _searchDraft.value = _searchDraft.value.copy(word = word)
+        return executeSearch()
     }
 
     private fun loadHome() {
