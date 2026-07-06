@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,6 +60,7 @@ fun DiscoveryHomeScreen(
     onOpenDetail: (ncode: String) -> Unit,
     onOpenGenre: () -> Unit,
     onPickBiggenre: (code: Int, label: String) -> Unit,
+    onOpenSearch: () -> Unit,
 ) {
     val order by viewModel.homeOrder.collectAsState()
     val state by viewModel.homeState.collectAsState()
@@ -83,6 +85,14 @@ fun DiscoveryHomeScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "戻る"
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onOpenSearch) {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = "検索"
                         )
                     }
                 },

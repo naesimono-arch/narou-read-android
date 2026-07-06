@@ -19,6 +19,7 @@ import com.novelreader.ui.ReadingScreen
 import com.novelreader.ui.discovery.DiscoveryGenreScreen
 import com.novelreader.ui.discovery.DiscoveryHomeScreen
 import com.novelreader.ui.discovery.DiscoveryResultScreen
+import com.novelreader.ui.discovery.DiscoverySearchScreen
 import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfViewModel
@@ -105,6 +106,28 @@ private fun NovelReaderApp(
                 onPickBiggenre = { code, label ->
                     discoveryViewModel.openResult(
                         ResultContext(title = label, query = DiscoveryQuery(biggenres = setOf(code)))
+                    )
+                    navController.navigate("discovery/result")
+                },
+                onOpenSearch = { navController.navigate("discovery/search") },
+            )
+        }
+
+        composable("discovery/search") {
+            DiscoverySearchScreen(
+                onBack = { navController.popBackStack() },
+                onSearch = { word, inTitle, inStory, inKeyword, inWriter ->
+                    discoveryViewModel.openResult(
+                        ResultContext(
+                            title = "「$word」",
+                            query = DiscoveryQuery(
+                                word = word,
+                                inTitle = inTitle,
+                                inStory = inStory,
+                                inKeyword = inKeyword,
+                                inWriter = inWriter,
+                            ),
+                        )
                     )
                     navController.navigate("discovery/result")
                 },
