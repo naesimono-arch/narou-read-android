@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.novelreader.NovelReaderApplication
 import com.novelreader.narou.NarouApiException
+import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.NarouNovel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,7 +42,7 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
                 // ディスパッチャへ退避し結果だけ再開する）ため、ここで withContext(Dispatchers.IO) は不要。
                 // 逆に実 IO ディスパッチャへ切り替えると、テストの TestDispatcher の制御が及ばず状態遷移を
                 // 検証できなくなる（＝機能上もテスト容易性上も、既定ディスパッチャ上で待つのが正しい）。
-                val result = repository.weeklyRanking()
+                val result = repository.discover(DiscoveryQuery())
                 _uiState.value = if (result.novels.isEmpty()) {
                     DiscoveryUiState.Empty
                 } else {

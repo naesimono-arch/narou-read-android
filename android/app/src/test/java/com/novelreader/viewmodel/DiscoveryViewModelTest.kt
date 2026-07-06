@@ -51,7 +51,7 @@ class DiscoveryViewModelTest {
             NarouNovel(title = "小説タイトル", ncode = "N1234AB", novelType = 1, end = 1)
         )
         val dummyResult = DiscoveryResult(allcount = 120, novels = dummyNovels)
-        coEvery { mockRepo.weeklyRanking(any()) } returns dummyResult
+        coEvery { mockRepo.discover(any()) } returns dummyResult
 
         viewModel = DiscoveryViewModel(mockApp)
         testDispatcher.scheduler.advanceUntilIdle()
@@ -66,7 +66,7 @@ class DiscoveryViewModelTest {
     @Test
     fun `初期化時 - データが空だった場合、uiState が Empty に遷移すること`() = runTest {
         val dummyResult = DiscoveryResult(allcount = 0, novels = emptyList())
-        coEvery { mockRepo.weeklyRanking(any()) } returns dummyResult
+        coEvery { mockRepo.discover(any()) } returns dummyResult
 
         viewModel = DiscoveryViewModel(mockApp)
         testDispatcher.scheduler.advanceUntilIdle()
@@ -78,7 +78,7 @@ class DiscoveryViewModelTest {
     @Test
     fun `初期化時 - API取得が NarouApiException で失敗した場合、uiState が Error に遷移し、エラーメッセージが設定されること`() = runTest {
         val exception = NarouApiException("テスト用エラーメッセージ", Exception())
-        coEvery { mockRepo.weeklyRanking(any()) } throws exception
+        coEvery { mockRepo.discover(any()) } throws exception
 
         viewModel = DiscoveryViewModel(mockApp)
         testDispatcher.scheduler.advanceUntilIdle()

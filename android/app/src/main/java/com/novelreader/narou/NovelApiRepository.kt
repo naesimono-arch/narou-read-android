@@ -1,5 +1,6 @@
 package com.novelreader.narou
 
+import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.DiscoveryResult
 import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.network.NarouApiService
@@ -13,7 +14,7 @@ class NovelApiRepository(
     private val service: NarouApiService = NarouNetwork.service,
     private val timeSource: () -> Long = System::currentTimeMillis
 ) {
-    // インメモリ TTL キャッシュ。キーは "order_limit" とする。
+    // インメモリ TTL キャッシュ。キーはクエリキャッシュキーまたは "detail_" + ncode。
     private val cache = mutableMapOf<String, CacheEntry>()
 
     private data class CacheEntry(
@@ -22,17 +23,57 @@ class NovelApiRepository(
     )
 
     companion object {
-        // なぜ6時間キャッシュにするか: なろうのランキングは日次更新で頻繁に変更されないため、
+        // なぜ6時間キャッシュにするか: なろうのランキングや各種検索データは頻繁に変更されないため、
         // 頻繁なAPIアクセスを防ぎ転送量制限を回避するなろうAPIのマナーに従うため。
         const val RANKING_TTL_MS = 6 * 60 * 60 * 1000L // 6時間
+
+        // なぜ of で項目を絞るか:
+        // (1) あらすじ(story)はあらすじ非表示の一覧では転送しないことでデータ転送量を大幅に削減するため。
+        // (2) genreは詳細ジャンルのラベル表示、timeは読了目安時間の表示に必要であるため。
+        const val OF_LIST = "t-n-w-gp-dp-wp-mp-qp-ga-e-l-nt-g-ti"
+
+        // なぜキャッシュ上限を50にするか:
+        // 週間ランキングと異なり、ディスカバリ検索ではクエリの種類が多様になり、
+        // インメモリキャッシュが際限なく膨らんでメモリを圧迫するのを防ぐため。
+        const val MAX_CACHE_SIZE = 50
     }
 
     /**
-     * なろう週間ランキングを取得する。
+     * キャッシュに結果を保存する。上限50を超えた場合は最古のエントリを削除する。
+     */
+    private fun putCache(key: String, result: DiscoveryResult, now: Long) {
+        // なぜ最古のエントリを削除するか:
+        // キャッシュ件数が上限を超えた場合、タイムスタンプが最も古い（最後に取得されたのが最も古い）
+        // エントリを追い出すことで、直近に利用されたクエリキャッシュを効果的に保持するため。
+        if (cache.size >= MAX_CACHE_SIZE && !cache.containsKey(key)) {
+            val oldestKey = cache.minByOrNull { it.value.cachedTimeMs }?.key
+            if (oldestKey != null) {
+                cache.remove(oldestKey)
+            }
+        }
+        cache[key] = CacheEntry(now, result)
+    }
+
+    /**
+     * APIコールの例外をなろうAPIのドメイン例外に正規化する。
+     */
+    private inline fun <T> wrapApiException(block: () -> T): T {
+        try {
+            return block()
+        } catch (e: HttpException) {
+            throw NarouApiException("なろうサーバとの通信に失敗しました（コード: ${e.code()}）。", e)
+        } catch (e: IOException) {
+            // UnknownHostException も IOException のサブクラス
+            throw NarouApiException("ネットワークに接続できません。通信環境を確認して再試行してください。", e)
+        }
+    }
+
+    /**
+     * 汎用ディスカバリ検索を実行する。
      * キャッシュがあればそれを返し、無ければAPIから取得してキャッシュする。
      */
-    suspend fun weeklyRanking(limit: Int = 30): DiscoveryResult {
-        val cacheKey = "weekly_$limit"
+    suspend fun discover(query: DiscoveryQuery): DiscoveryResult {
+        val cacheKey = query.cacheKey()
         val now = timeSource()
         val cached = cache[cacheKey]
 
@@ -40,13 +81,53 @@ class NovelApiRepository(
             return cached.result
         }
 
-        try {
-            // なぜ of で項目を絞るか: なろう小説API利用マニュアル§6.1に従い、
-            // 必要な項目のみを絞り込むことでデータ転送量を軽減し、利用制限を回避するため。
+        val result = wrapApiException {
+            // DiscoveryQuery から API パラメータへのマッピング
+            val wordParam = query.word?.takeIf { it.isNotBlank() }
+            val notWordParam = query.notWord?.takeIf { it.isNotBlank() }
+
+            // 検索範囲。選択した項目のみ 1 を送り、非選択は送らない（全て非選択なら全項目対象）。
+            // なぜ 0 を明示送信しないか: なろうAPIマニュアル§4.1は「1を指定して抽出対象にする／
+            // 4項目すべて未指定なら全項目対象」としか定義しておらず、0 送信時の挙動は未定義のため
+            // （実装によっては「0でも指定あり」と誤解釈されるリスクがある）。
+            val titleParam = if (query.inTitle) 1 else null
+            val exParam = if (query.inStory) 1 else null
+            val keywordParam = if (query.inKeyword) 1 else null
+            val wnameParam = if (query.inWriter) 1 else null
+
+            val biggenreParam = query.biggenres.takeIf { it.isNotEmpty() }?.sorted()?.joinToString("-")
+            val genreParam = query.genres.takeIf { it.isNotEmpty() }?.sorted()?.joinToString("-")
+
+            // なぜ istt を特別に判定するか:
+            // なろうAPIでは istensei=1 と istenni=1 を同時に指定すると「かつ(AND)」になってしまい、
+            // どちらか一方のみを満たす作品が除外されるため、両方 true の場合は「または(OR)」を意味する istt=1 を使用する。
+            val isttParam = if (query.tensei && query.tenni) 1 else null
+            val istenseiParam = if (query.tensei && !query.tenni) 1 else null
+            val istenniParam = if (query.tenni && !query.tensei) 1 else null
+            val notzankokuParam = if (query.excludeZankoku) 1 else null
+
             val list = service.search(
-                of = "t-n-w-s-gp-ga-e-l-nt",
-                order = "weekly",
-                lim = limit
+                of = OF_LIST,
+                order = query.order.apiValue,
+                lim = query.limit,
+                word = wordParam,
+                notword = notWordParam,
+                title = titleParam,
+                ex = exParam,
+                keyword = keywordParam,
+                wname = wnameParam,
+                biggenre = biggenreParam,
+                genre = genreParam,
+                istensei = istenseiParam,
+                istenni = istenniParam,
+                istt = isttParam,
+                notzankoku = notzankokuParam,
+                type = query.type?.apiValue,
+                lastup = query.lastup?.apiValue,
+                time = query.time,
+                length = query.length,
+                kaiwaritu = query.kaiwaritu,
+                sasie = query.sasie
             )
 
             // なぜ allcount を分離するか:
@@ -55,15 +136,46 @@ class NovelApiRepository(
             val allcount = list.firstOrNull()?.allcount ?: 0
             val novels = list.drop(1)
 
-            val result = DiscoveryResult(allcount, novels)
-            cache[cacheKey] = CacheEntry(now, result)
-            return result
-        } catch (e: HttpException) {
-            throw NarouApiException("なろうサーバとの通信に失敗しました（コード: ${e.code()}）。", e)
-        } catch (e: IOException) {
-            // UnknownHostException も IOException のサブクラス
-            throw NarouApiException("ネットワークに接続できません。通信環境を確認して再試行してください。", e)
+            DiscoveryResult(allcount, novels)
         }
+
+        putCache(cacheKey, result, now)
+        return result
+    }
+
+    /**
+     * Nコードを指定して、1件の小説詳細を取得する。
+     * キャッシュがあればそれを返し、無ければAPIから取得してキャッシュする。
+     */
+    suspend fun novelDetail(ncode: String): NarouNovel? {
+        val trimmedNcode = ncode.trim()
+        val cacheKey = "detail_$trimmedNcode"
+        val now = timeSource()
+        val cached = cache[cacheKey]
+
+        if (cached != null && (now - cached.cachedTimeMs) < RANKING_TTL_MS) {
+            return cached.result.novels.firstOrNull()
+        }
+
+        val result = wrapApiException {
+            // なぜ of = null (全項目)を指定するか:
+            // 小説詳細画面や本文リーダーなどで、小説の全情報（あらすじや各種ポイント含む）
+            // を不足なく取得して表示に利用するため。
+            val list = service.search(
+                ncode = trimmedNcode,
+                lim = 1,
+                of = null
+            )
+            val allcount = list.firstOrNull()?.allcount ?: 0
+            val novels = list.drop(1)
+            DiscoveryResult(allcount, novels)
+        }
+
+        val novel = result.novels.firstOrNull()
+        if (novel != null) {
+            putCache(cacheKey, result, now)
+        }
+        return novel
     }
 
     fun clearCache() {

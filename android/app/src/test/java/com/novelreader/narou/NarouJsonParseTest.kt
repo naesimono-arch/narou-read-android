@@ -84,4 +84,65 @@ class NarouJsonParseTest {
         assertEquals(8500, novel3.length)
         assertEquals(2, novel3.novelType) // novelType (2 = 短編)
     }
+
+    @Test
+    fun `新フィールドを含むJSONが正しくパースされること`() {
+        val moshi = Moshi.Builder().build()
+        val listType = Types.newParameterizedType(List::class.java, NarouNovel::class.java)
+        val jsonAdapter = moshi.adapter<List<NarouNovel>>(listType)
+
+        val jsonString = """
+            [
+              {"allcount": 1},
+              {
+                "title": "新フィールドテスト",
+                "ncode": "N1111AA",
+                "genre": 101,
+                "keyword": "キーワード1 キーワード2",
+                "general_firstup": "2026-07-01 12:00:00",
+                "general_lastup": "2026-07-07 18:00:00",
+                "time": 45,
+                "fav_novel_cnt": 1500,
+                "review_cnt": 15,
+                "all_hyoka_cnt": 80,
+                "sasie_cnt": 12,
+                "kaiwaritu": 35,
+                "daily_point": 100,
+                "weekly_point": 700,
+                "monthly_point": 3000,
+                "quarter_point": 9000,
+                "istensei": 1,
+                "istenni": 0,
+                "iszankoku": 1,
+                "isstop": 0
+              }
+            ]
+        """.trimIndent()
+
+        val result = jsonAdapter.fromJson(jsonString)
+        requireNotNull(result)
+        assertEquals(2, result.size)
+
+        val novel = result[1]
+        assertEquals("新フィールドテスト", novel.title)
+        assertEquals("N1111AA", novel.ncode)
+        assertEquals(101, novel.genre)
+        assertEquals("キーワード1 キーワード2", novel.keyword)
+        assertEquals("2026-07-01 12:00:00", novel.generalFirstup)
+        assertEquals("2026-07-07 18:00:00", novel.generalLastup)
+        assertEquals(45, novel.time)
+        assertEquals(1500, novel.favNovelCnt)
+        assertEquals(15, novel.reviewCnt)
+        assertEquals(80, novel.allHyokaCnt)
+        assertEquals(12, novel.sasieCnt)
+        assertEquals(35, novel.kaiwaritu)
+        assertEquals(100, novel.dailyPoint)
+        assertEquals(700, novel.weeklyPoint)
+        assertEquals(3000, novel.monthlyPoint)
+        assertEquals(9000, novel.quarterPoint)
+        assertEquals(1, novel.istensei)
+        assertEquals(0, novel.istenni)
+        assertEquals(1, novel.iszankoku)
+        assertEquals(0, novel.isstop)
+    }
 }

@@ -43,4 +43,22 @@ data class NarouNovel(
      * （narou_api_manual.md §5 の注記）。ここは of 指定前提なので `noveltype` に合わせる。
      */
     @Json(name = "noveltype") val novelType: Int? = null,
+    @Json(name = "genre") val genre: Int? = null,
+    @Json(name = "keyword") val keyword: String? = null,
+    @Json(name = "general_firstup") val generalFirstup: String? = null,
+    @Json(name = "general_lastup") val generalLastup: String? = null,
+    @Json(name = "time") val time: Int? = null,
+    @Json(name = "fav_novel_cnt") val favNovelCnt: Int? = null,
+    @Json(name = "review_cnt") val reviewCnt: Int? = null,
+    @Json(name = "all_hyoka_cnt") val allHyokaCnt: Int? = null,
+    @Json(name = "sasie_cnt") val sasieCnt: Int? = null,
+    @Json(name = "kaiwaritu") val kaiwaritu: Int? = null,
+    @Json(name = "daily_point") val dailyPoint: Int? = null,
+    @Json(name = "weekly_point") val weeklyPoint: Int? = null,
+    @Json(name = "monthly_point") val monthlyPoint: Int? = null,
+    @Json(name = "quarter_point") val quarterPoint: Int? = null,
+    @Json(name = "istensei") val istensei: Int? = null,
+    @Json(name = "istenni") val istenni: Int? = null,
+    @Json(name = "iszankoku") val iszankoku: Int? = null,
+    @Json(name = "isstop") val isstop: Int? = null,
 )
