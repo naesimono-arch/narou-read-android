@@ -1,133 +1,39 @@
 ---
 name: architecture
-description: アプリ全体のアーキテクチャを説明するスキル。PDF処理パイプライン・UI層・Service層・DB・ファイル構造を網羅する。
+description: アプリ全体構成の入口。タスク→場所→罠の早見表と「コードから読み取れない設計判断・罠」だけを持つ（構造の詳細はコード/KDocが正本）。
 triggers:
   - "アーキテクチャを教えて"
   - "全体構成を確認したい"
   - "どのファイルがどの役割か"
 ---
 
-# アーキテクチャ概要
+# アーキテクチャ早見表（WHERE-TO-LOOK）
 
-日本語Web小説（なろう系）のPDFを、ふりがな対応HTMLに変換する Androidアプリ。
+日本語Web小説（なろう系）のPDFを、ふりがな対応HTMLに変換する Androidアプリ
+（Jetpack Compose + 純 Kotlin PDF 抽出＝PDFBox-Android。旧 Chaquopy/Python 経路は 2026-07-05 Phase 5 で完全撤去。
+精度オラクルの双子 `ab-review/submission-B` は残置）。
 
-## PDF処理パイプライン
+**構造の詳細（パイプラインのステップ構成・クラス関係）はコード/KDoc が正本**。
+このスキルは「どこを見るか」と「コードから読み取れない罠・設計判断」だけを持つ。
 
-Kotlin ネイティブ実装（PDFBox-Android `com.tom-roush:pdfbox-android`）。配置は
-`android/app/src/main/java/com/novelreader/pdf/`。進捗は4ステップ（step 0〜3）で通知される。
-（旧 Chaquopy(Python 3.12)+pdfminer 経路は **2026-07-05 Phase 5 で完全撤去**。移植の経緯・A/B評価は STATUS.md と
-`handover.md` §D 参照。精度オラクルの双子 `ab-review/submission-B` は残置）
+## タスク → 場所 → 罠
 
-```
-BookRepository.kt（Kotlin）
-  └─ PdfBookExtractor.process(pdf, bookId, outputDir, onProgress)   ← facade
-        step0: PdfExtractor.extractBookMeta()                          タイトル・著者を一括抽出（BookMeta）
-        step1: PdfExtractor.runFinalEngine()                          本文抽出
-                 文字座標・フォント情報から縦書きPDFを解析
-                 （PDDocument.load 前に PDFBoxResourceLoader.init(context) 必須＝CID→Unicode 解決／task_diary #31。
-                   波ダッシュは pdfminer に揃えて正規化 U+FF5E→U+301C／#35）
-        step2: ChapterProcessor.splitIntoChapters()          【題名】マーカーで章分割
-               ChapterProcessor.processForewordAfterword()   前書き・後書き処理、
-                                                             |base《ruby》 → <ruby> HTML変換
-        step3: HtmlExporter.exportToPwa()   index.html + chap_N.html を生成（旧 Python 出力とバイト等価）
-        return BookMeta（title, author）
-```
+| タスク | 場所 | 罠・注意 |
+|---|---|---|
+| PDF抽出ロジック | `android/app/src/main/java/com/novelreader/pdf/`（入口は facade `PdfBookExtractor.kt`＝4ステップ進捗・例外分類。ステップ構成は同ファイル KDoc） | `PDDocument.load` 前に `PDFBoxResourceLoader.init` 必須＝CID→Unicode 解決（`NovelReaderApplication.onCreate` で配線済み・task_diary #31）。グリフ正規化（波ダッシュ等）は `PdfExtractor` の `normalizeGlyphUnicode`（#35/#38） |
+| 抽出の定数・ルール | `pdf/ParserRules.kt` | — |
+| 精度の基準・回帰 | `ab-review/golden_regression/`＋実機ゲート `androidTest/…/pdf/PdfExtractorDeviceSpikeTest.kt`／HTMLバイト等価ゴールデン `src/test/resources/golden_html/` | 実機テストは `/device-verify` スキル必読（`connectedAndroidTest` 直叩きは蔵書DB消失＝task_diary #36） |
+| UI（本棚/読書/目次） | `ui/BookshelfScreen.kt`（カード=`BookCard.kt`・バナー=`ProcessingBanner.kt`）／`ui/NativeReadingScreen.kt`（公開名 ReadingScreen。本文=`ChapterContent.kt`・設定=`ReadingSettingsSheet.kt`・エラー=`ReadingErrorScreen.kt`）。NavHost は2ルート（"bookshelf"・"reading/{bookId}/{startFile}"） | 読書画面は **WebView ではなく Compose ネイティブ**（HTML解析=`parser/ChapterHtmlParser.kt`・ルビ=`ui/compose/RubyText.kt`）。目次 `NativeTableOfContentsScreen` は NavHost ルートでなく ReadingScreen 内から表示 |
+| 見た目（配色・タイポ・余白）の変更 | まず `docs/decisions/0005-ui-n-visual-language-D.md`＋claude.ai/design のモック現物（`ui-n-phase0/*-D.html`・取得は `DesignSync: get_file`・入口は handover.md） | **HTMLモックが正本・Compose は翻訳**＝Compose 側で意匠を自己判断しない。色=`theme/Color.kt`・明朝=`theme/Typography.kt` の `MinchoFamily` 経由（直書き禁止） |
+| 変換サービス | `PdfProcessingService`（Foreground）→ `BookRepository.addBook` → `PdfBookExtractor.process` | 下記「コードから読み取りにくい設計判断」 |
+| データアクセス | `repository/BookRepository.kt`（Room + 抽出呼び出し。`NovelReaderApplication` がシングルトン保持し Service/ViewModel 共用） | DB操作は IO Dispatcher |
+| DBスキーマ | `AppDatabase.kt`＋各 Entity が正典（version・Migration 含む） | 変更は必ず `/db-migration` スキルを先に実行 |
+| 生成物の保存先 | `context.filesDir/novels/{bookId}/`（`index.html`＋`chap_N.html`） | — |
 
-構成ファイル（`java/com/novelreader/pdf/`）:
-- `PdfBookExtractor.kt` — facade。4ステップ進捗（typealias PdfProgress）＋例外分類（classifyPdfError）
-- `PdfExtractor.kt` — PDFBox で文字座標抽出（CharBox）。`PDFBoxResourceLoader.init` は
-  `NovelReaderApplication.onCreate` で1回（Service が Activity 無しでも走るため Application で先行初期化）
-- `TextProcessor.kt` — 本文抽出コア（縦書き列復元・ルビ紐付け・ページ進捗）
-- `ChapterProcessor.kt` — 章分割・前後書き HTML 整形
-- `HtmlExporter.kt` — HTML 出力（バイト等価ゴールデン = `src/test/resources/golden_html/`）
-- `CharBox / ParserRules / HtmlEscape / PdfExtractionException`（sealed 3型）
+## コードから読み取りにくい設計判断・罠
 
-- 実機テスト harness は `androidTest/…/pdf/PdfExtractorDeviceSpikeTest.kt`（精度回帰ゲート）・`PdfPipelineDeviceTest.kt`。
-  実行作法は `/device-verify` スキル参照（`connectedAndroidTest` 直叩きは蔵書DB消失＝task_diary #36）。
-
-## UI層（Jetpack Compose）
-
-```
-MainActivity
-  └─ NavHost（2ルート: "bookshelf" と "reading/{bookId}/{startFile}"）
-       ├─ ui/BookshelfScreen.kt       — 書籍一覧、PDF選択（2026-07-02 分割:
-       │    カード= ui/BookCard.kt ／ 処理バナー・空状態= ui/ProcessingBanner.kt）
-       └─ ui/NativeReadingScreen.kt   — 読書画面（公開Composable名は ReadingScreen。2026-07-02 分割:
-            │    本文描画= ui/ChapterContent.kt ／ 設定シート= ui/ReadingSettingsSheet.kt ／
-            │    エラー画面= ui/ReadingErrorScreen.kt）
-            ├─ Compose ネイティブ描画（WebViewではない）:
-            │    ChapterHtmlParser で HTML をパース → LazyColumn + RubyText でルビ描画
-            └─ index.html を開いたときは ui/NativeTableOfContentsScreen（目次）を表示
-viewmodel/BookshelfViewModel
-  └─ repository/BookRepository   — データアクセス層（Room + PdfBookExtractor 呼び出し）
-NovelReaderApplication
-  ├─ repository（シングルトン）   — Service/ViewModel 共用
-  ├─ processingState: StateFlow<ProcessingState?>（書き込みは updateProcessingState() のみ）
-  └─ errorEvents:     Flow<String> — Channel ベースの one-shot イベント（emitError() で送出）。
-       StateFlow だと画面回転で再表示・複数購読で重複するため Channel（受信時に消費・clearError 不要）
-```
-
-**重要**: 読書画面は WebView ではなく **Compose ネイティブ描画**（`e82df4a` で WebView 版を削除し
-`NativeReadingScreen` に一本化）。ルビ描画は `ui/compose/RubyText.kt`、HTML解析は
-`parser/ChapterHtmlParser.kt`。目次は NavHost のルートではなく ReadingScreen 内から表示される。
-
-**見た目の正本 ＝ /design の HTMLモック**: 配色・タイポ・余白・レイアウトといった静的視覚は、
-claude.ai `/design`（HTMLデザインシステム）で作った HTMLモック（`ui-n-phase0/*-D.html`）が正本で、
-上記 Compose 実装はその**翻訳**にすぎない。**見た目を変えるときは Compose 単独で決めず、
-設計判断 `docs/decisions/0005-ui-n-visual-language-D.md` とモックを先に見る**こと。
-色は `theme/Color.kt`、明朝は `theme/Typography.kt` の `MinchoFamily` 経由（トークン直書き禁止）。
-モック現物は**リポジトリ内には無い**＝claude.ai/design プロジェクト `Novel Reader UI` の `ui-n-phase0/` 配下にあり
-`DesignSync: get_file` で取得（入口は `handover.md`）。
-（操作感・組版・アニメ・没入クロームはこのワークフローのスコープ外＝実機フィードバックで後詰め。ADR 0005 §B）
-
-## Service層
-
-```
-PdfProcessingService（Foreground Service）
-  └─ 処理ループ → BookRepository.addBook()
-       └─ PdfBookExtractor.process → HTML生成（純 Kotlin / PDFBox）
-```
-
-- 進捗は `onProgress` ラムダ（`PdfBookExtractor.process` → `BookRepository`）→ `NovelReaderApplication.updateProcessingState()` → `processingState: StateFlow` 経由でUIに通知（`ProgressListener` 型は Phase 3 の直結化で廃止済み）
-- **多重起動制御は `ReentrantLock` + `ArrayDeque<Uri>` のキュー方式**（`65abfe4` で導入）。
-  処理中に別PDFが追加されてもキューに積まれ、ループが順次処理する（無音破棄しない）。
-  「キュー追加+ループ起動判定」と「取り出し+終了判定」を1つの lock でアトミックに保護。
-- OPPO のバックグラウンド強制停止対策として処理ループ中は `PARTIAL_WAKE_LOCK` を保持
-- **全体停止**は `ACTION_STOP`（通知/本棚バナーの「停止」）→ キュー待ちを破棄し停止フラグ `isStopping` を立てる。
-  停止ボタンのキャンセル粒度は現状 **PDF境界**（処理中の1冊は完走し、ループ次周回が空キューを検知して `stopSelf`）。
-  ※ 純 Kotlin 化（Phase 3 の NonCancellable 緩和）で `processPages` のページ毎進捗を受けた
-    `BookRepository` 側の onProgress が `ensureActive()` を呼ぶため（TextProcessor 自体は coroutines 非依存）、
-    本文抽出中の割り込み中断**自体は可能**になった（旧 Chaquopy/JNI では原理的に不可能だった）。
-    停止ボタンをページ境界の即中断へ再配線するのは別タスク（handover 参照）。
-
-## データベース（Room）
-
-```
-AppDatabase（versionはAppDatabase.ktを直接参照）
-  ├─ BookDao    → books テーブル
-  └─ ProgressDao → progress テーブル（bookId, lastReadFilename）
-```
-
-現在のversion・カラム定義・Migrationリストは `AppDatabase.kt` と各 Entity ファイルが正典。
-スキーマ変更手順 → `/db-migration` スキルを参照。
-
-DB操作はすべて IO Dispatcher（Coroutines）で実行。
-
-## ファイル保存先
-
-```
-context.filesDir/novels/{bookId}/
-  ├─ index.html    — 目次
-  ├─ chap_1.html
-  ├─ chap_2.html
-  └─ ...
-```
-
-## 特記事項
-
-- `index.html`（目次ページ）閲覧時は読書進捗を上書きしない制御が `NativeReadingScreen.kt` に入っている
-  （実装は `fileName != "index.html"` のブロックリスト方式。`chap_` 接頭辞の許可リスト判定ではない）
-- OPPO/ColorOS 固有の動作については `/device-verify` スキル経由で `task_diary.md` を参照
-- PDF抽出ロジックは `java/com/novelreader/pdf/` の Kotlin 実装が**唯一の正本**（旧 Python `src/main/python/` は
-  2026-07-05 Phase 5 で撤去し二重構造を解消）。精度基準の一次情報は `ab-review/golden_regression/`＋
-  実機ゲート `PdfExtractorDeviceSpikeTest`／HTML バイト等価ゴールデンは `src/test/resources/golden_html/`。
+- **進捗/エラーのUI通知**: `NovelReaderApplication.processingState: StateFlow`（書き込みは `updateProcessingState()` のみ）＋ `errorEvents: Flow<String>`＝**Channel ベースの one-shot**。StateFlow だと画面回転で再表示・複数購読で重複するため Channel（受信時に消費・clearError 不要）。
+- **多重起動制御**: `ReentrantLock` + `ArrayDeque<Uri>` のキュー方式（処理中の追加PDFは無音破棄せずキューへ）。「キュー追加+ループ起動判定」と「取り出し+終了判定」を1つの lock でアトミックに保護。
+- **停止（ACTION_STOP）の粒度は PDF 境界**（キュー待ちは破棄・処理中の1冊は完走）。純 Kotlin 化で本文抽出中の割り込み中断自体は可能になったが、ページ境界への再配線は別タスク（handover 参照）。処理ループ中は `PARTIAL_WAKE_LOCK` 保持（OPPO のバックグラウンド強制停止対策）。
+- **読書進捗の上書き防止**: `index.html`（目次）閲覧時は進捗を上書きしない制御が `NativeReadingScreen.kt` にある。実装は `fileName != "index.html"` の**ブロックリスト方式**（`chap_` 接頭辞の許可リスト判定ではない）。
+- OPPO/ColorOS 固有動作 → `/device-verify` スキル（症状→対処表）経由で `task_diary.md` を参照。
