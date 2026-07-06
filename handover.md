@@ -52,7 +52,7 @@
 
 ## B. 本棚
 
-- **案B 詰め直しアニメ復活**: 案Aで `animateItemPlacement()` を削除し重なりバグは解消済（代償で削除時の詰め直しアニメが消えた）。Compose BOM `2024.04.01`→`2024.09+` に上げ、削除箇所を新API `Modifier.animateItem()` で置換。**リスク大＝全画面回帰必須**（BOMは全Composeモジュールの版を一括決定）。対象 `android/app/build.gradle`(BOM 2か所), `BookshelfScreen.kt:252` 付近の理由コメントが正本。
+- ~~**案B 詰め直しアニメ復活**~~ → **解消済み（2026-07-07・`bcb5216`(BOM 2025.02.00＝1.7系最終)＋`144490b`(animateItem置換)）**: Foundation 1.7系で stable 化した `Modifier.animateItem()` をグリッド/リストの2箇所へ適用し、削除時の詰め直しアニメを復活。受入=①詰め直しアニメ動作 ②高速フリング重なり非再発（案Aで消した1.6系バグ） ③全画面回帰（本棚list/grid・読書・目次・設定シート・テーマメニュー）を実機目視OK。副次の見た目差分: material3 1.2.1→1.3.1 で設定シートのスライダーが新標準意匠（太トラック＋バー型つまみ）に変化＝機能正常・意匠を旧様式/モック準拠へ寄せるかは別途判断（thumb/track スロットAPIで変更可能）。一次情報=`.claude/plans/bookshelf-reflow-anim-HANDOVER-archived-2026-07-07.md`。
 - ~~**11 本棚テーマ追従**（見送り）~~ → **解消済み（2026-07-01・`e93d2eb`）**: テーマ正本を `MainActivity` へ巻き上げ、本棚(`NovelReaderTheme(darkTheme=theme==DARK)`)も読書も単一の `ReadingTheme` 正本に追従。本棚⋮メニュー/読書設定シートのどちらで変えても全体同期。セピアは本棚ライト流用（専用セピア本棚は将来拡張の余地）。
 
 ## C. UI見送りサブ（2026-06-25 スコープ外決定）
