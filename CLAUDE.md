@@ -30,7 +30,7 @@ Jetpack Compose + Kotlin ネイティブ PDF 抽出（PDFBox-Android）。
   - **委譲する**: 仕様・シグネチャ・正本パターンを固めた後の bulk 生成（目安＝**生成 ~300行以上**、または自分の context に載せたくない**非編集**の読み物。小口は監視サブエージェントの固定費で損＝直接やる）。UI/意匠の Compose 翻訳も3点セット〈モック現物・監督自作の Compose 正本1画面・厳密シグネチャ+色対応表〉で可（正本1画面を監督が先に書く工程は省けない）。普段使い tier は flash。
   - **委譲しない**: 統合・設計判断・trade-off 評価・編集起点ファイルの読み（spot-check でどのみち再読＝二重読みで損）。
   - **検証（agy 等の外部モデル委譲時）**: 自己申告 GREEN を信じずゲートは自分で回す／完了判定は報告でなく成果物の存在（`git status`・grep）で確認／外部API境界のパラメータは仕様書と突合レビュー／委譲文に定型で「呼び出し側の境界不整合はコンパイルエラーのまま残せ（配線は監督）」を入れる。Claude 系サブエージェント（Explore 等）は全数 spot-check 不要（ただし不可逆操作の根拠に使う引用は現物確認）。
-  - **plan運用**: 各フェーズを〈機械的バッチ／判断ループ〉に二分しバッチの委譲可否を plan 冒頭に明記／plan 末尾に「実行セッション起動ブロック」（対象ブランチ・★次はここから・最小読みセット・検証ゲート）を必須化／実行見込み ~10ターン以上は fresh セッションで実行。**plan モード中の agy 委譲は `--yolo` 厳禁・read-only digest のみ**（plan モードはプラグイン subagent の権限層へ伝播しないため。機序は `task_diary.md` #40）。edit-streak ゲート誤発火は Bash 迂回せずユーザーへ申告。
+  - **plan運用**: 各フェーズを〈機械的バッチ／判断ループ〉に二分しバッチの委譲可否を plan 冒頭に明記／plan 末尾に「実行セッション起動ブロック」（対象ブランチ・★次はここから・最小読みセット・検証ゲート）を必須化／plan で比較して不採用にした代替案があれば ADR 化（`docs/decisions/`）をコミット計画に含める／実行見込み ~10ターン以上は fresh セッションで実行。**plan モード中の agy 委譲は `--yolo` 厳禁・read-only digest のみ**（plan モードはプラグイン subagent の権限層へ伝播しないため。機序は `task_diary.md` #40）。edit-streak ゲート誤発火は Bash 迂回せずユーザーへ申告。
   - 実測根拠・経済・モデル選定の詳細は auto-memory が正本: `agy-objective-minimize-claude-agy-free`・`agy-delegate-bulk-cost-savings`・`workflow-plan-fresh-session-execution`・`agy-model-selection-guideline`。作業空間は `AGENTS.md`＋memory `agy-workspace-agents-md-two-layers`。
 
 ## ドメイン知識
@@ -47,6 +47,7 @@ Jetpack Compose + Kotlin ネイティブ PDF 抽出（PDFBox-Android）。
 - **agy(Antigravity) 委譲の実行者向けブリーフィング → `AGENTS.md`（agy が自動注入で読む）＋ `.agents/`（hooks＝禁忌コマンドの機械的ガード）**。監督側の委譲運用（--dir 必須・モデル選定）は auto-memory の `agy-*` 系を参照
 - 実行捏造ハルシネーション検知器（トランスクリプト静的解析）→ エンジン `.claude/hooks/detect_fabricated_execution_core.py`／CLI `analyze_transcript.py`。既知の実ハルシネーション正解データ（検証・回帰用）→ `docs/reference/hallucination-ground-truth.md`
   - **ユーザーから「（このセッションの）ハルシネーションを記載して」と頼まれたら → `docs/reference/hallucination-ground-truth.md` に追記する**（正本はここ。他所には書かない。追記手順は同ファイル冒頭「追記手順」を参照）。
+- **方式選定・アーキ判断で代替案を比較するときは → まず `docs/decisions/`（README 索引）で既存の判断・Why-not を確認すること**。判断が下りたら（**不採用の判断・コミットを生まない判断も含め**）ADR 化を検討する——「採用しなかった理由」も1件の ADR（例: 0007）。
 - **管理ドキュメントの体系**（役割で分離。混ぜないこと）:
   - **今どうなっているか（状態・完了・既知不具合）→ `STATUS.md`**（現況台帳＝正本）
   - **次に何をやるか（backlog・思いつき・取りこぼし）→ `handover.md`**（やること台帳。**作業に悩んだらまず見る**／拾った宿題はここへ追記）
