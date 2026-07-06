@@ -161,7 +161,7 @@ RubyText(
 
 ---
 
-#### 28. getLineTop は「行ボックス上端」であり字面上端ではない（lineHeight 余剰の分配）  ★★★
+#### 43. getLineTop は「行ボックス上端」であり字面上端ではない（lineHeight 余剰の分配）  ★★★
 
 Compose の `lineHeight`（em）の余剰スペースは**行上端と字面（グリフ）の間に分配される**。
 そのため `TextLayoutResult.getLineTop()` を基準にオーバーレイ描画（ルビ等）をすると、
@@ -341,7 +341,13 @@ print(json.dumps({"hookSpecificOutput": {
 つもりでもモデルにもユーザーにも実質届かない（debug ログのみ）。「誰に届けたいか」でイベントと
 出力方式を選ぶこと（#26 の stdin 文字化けと並ぶ、フック自作時の二大ハマりどころ）。
 
-#### 30. セッション・トランスクリプト JSONL の構造と「実行捏造」ハルシネーションの形  ★★★
+**追補（2026-07-07 実測）**: `hookSpecificOutput.additionalContext` は **PreToolUse でも有効**
+（check_commit_granularity.py を JSON 出力化し、`git commit --dry-run` の発火で system-reminder
+注入をライブ実測）。PreToolUse で「ブロックせずに情報だけモデルへ渡す」唯一の手段
+（exit 2 の stderr はブロックとセット・plain stdout は不達のため）。`hookEventName` は
+`"PreToolUse"` を指定する。
+
+#### 42. セッション・トランスクリプト JSONL の構造と「実行捏造」ハルシネーションの形  ★★★
 
 **用途**: フック/ツールがトランスクリプトを静的解析するときの不変点（詳細な設計判断は ADR 0006、実装は `.claude/hooks/detect_fabricated_execution_core.py`）。
 
@@ -374,7 +380,7 @@ print(json.dumps({"hookSpecificOutput": {
 **事実**: Claude Code は (a) プラグイン subagent の `permissionMode`/`hooks`/`mcpServers` frontmatter を security 上**サイレント破棄**し、(b) main セッションの **plan モード（read-only）を subagent の権限層へ伝播させない**。結果、**plan モード中でも `antigravity-delegate` を spawn でき、`--yolo` なしの `agy-delegate` はそのまま実行される**。web の issue #4750（plan 中の subagent 挙動は未定義）がこの環境で現実化したもの。
 **なぜ危険か（サイレント失敗クラス）**: plan モードの read-only 保証は **agy プロセスに及ばない**（agy は別プロセスの Gemini CLI で、監視するのは agy 自身の `.agents/scripts/guard_forbidden.py` deny フックのみ・fail-open）。read-only は「`--yolo`（= `agy --dangerously-skip-permissions`）を渡さない」ことだけで構造的に担保されており、**plan 中にうっかり `--yolo` を付ければ agy は plan モードを無視してファイルを書く**＝「plan だから安全」の前提が無言で破れる。
 **実測（2026-07-06 probe）**: plan モードのまま `antigravity-delegate` に read-only digest タスク（`--yolo` 無し・`--dir` でリポジトリ指定）を投げ → agy が pdf/ パッケージを実読し正確な digest を返却（cited `file:line` を spot-check、幻覚なし）→ `git status --porcelain` clean で**書き込みゼロを独立確認**。ブロックしたのは subagent 自身の no-chaining ガード（`; echo` を足した時）だけで、plan モードや permission deny は一切発火しなかった。
-**対処**: plan モード中の agy 委譲は **read-only（`--yolo` 厳禁）限定**。運用ルールは `CLAUDE.md`「委譲判断 / plan運用」⑦。書き込みを伴う探索/生成は plan の外で行う。**機械ガード実装済み（2026-07-06）**: plugin hook `validate-delegate-bash.sh` に「`permission_mode=="plan"` かつ引用除去後 command に `--yolo`/`--dangerously-skip-permissions` を含むなら deny」を追加＝お願い→機械保証へ昇格（**ただしサブエージェント経路のみ**＝下記スコープ）。単体8/8＋plan 再突入の `--yolo` 委譲 block で end-to-end 検証済み（**PreToolUse payload の `permission_mode` は plan モードで subagent の Bash payload にも `"plan"` が届く**ことを同時確認。docs 記載どおり）。
+**対処**: plan モード中の agy 委譲は **read-only（`--yolo` 厳禁）限定**。運用ルールは `CLAUDE.md`「委譲判断 / plan運用」節（plan 中の agy 委譲は read-only／`--yolo` 厳禁）。書き込みを伴う探索/生成は plan の外で行う。**機械ガード実装済み（2026-07-06）**: plugin hook `validate-delegate-bash.sh` に「`permission_mode=="plan"` かつ引用除去後 command に `--yolo`/`--dangerously-skip-permissions` を含むなら deny」を追加＝お願い→機械保証へ昇格（**ただしサブエージェント経路のみ**＝下記スコープ）。単体8/8＋plan 再突入の `--yolo` 委譲 block で end-to-end 検証済み（**PreToolUse payload の `permission_mode` は plan モードで subagent の Bash payload にも `"plan"` が届く**ことを同時確認。docs 記載どおり）。
 **⚠ スコープ＆--yolo 不使用の再検証（2026-07-06）**: 機械 deny は hook が `agent_type` で自己スコープする（`validate-delegate-bash.sh` 38–47行）ため **`antigravity-delegate` サブエージェント経路のみ**に効く。**メインセッションから直接叩く `agy-delegate`**（`bash -ic` ラッパ・直叩き・`/antigravity:delegate` slash＝`commands/delegate.md` step 2 で main が直接 `agy-delegate [--yolo]` を実行する設計・書き込みタスクには step 1 で `--yolo` を明示）は agent_type が無く **scope guard で素通り（対象外）**＝plan 中の `--yolo` を止めない。よって「機械保証へ昇格」は subagent 経路に限る backstop で、**primary の担保は依然「Claude が --yolo を渡さない規律」**。再検証は **`--yolo` を一切使わず**実施＝source hook に一時 probe を差し、subagent 経由で `source-hook-live=YES`／非plan時 `permission_mode='auto'`・plan時 `permission_mode='plan'` を実測し、静的8/8（`plan`+`--yolo`→deny）と合成して「plan＋subagent＋--yolo は deny」を立証（probe は検証後 revert）。別セッションが `bash -ic 'agy-delegate …'`（＝main 経路）で read-only 委譲を投げ**ゲート素通り**したのが、この scope 限界の実証。
 **実装ノート（ハマり所）**: ①**hook はサンドボックス実行**＝hook 外で作った sentinel ファイルを `[ -f ]` で見えない → gate は stdin(JSON) payload と `tool_input.command` だけで判定すること。②**この directory-marketplace 版では live な hook は cache でなく git-test source**（`CLAUDE_PLUGIN_ROOT`→source。source に入れたゲートが発火した実測で確定）。編集・commit 対象は git-test source（[[antigravity-plugin-cache-vs-source-cost-gate]] を要更新）。
 関連: #28（PostToolUse stdout 不達）／`docs/decisions/0004`（hook の matcher 範囲・起動時固定）／agy 安全機構は `.agents/scripts/guard_forbidden.py`・`AGENTS.md`。
@@ -387,6 +393,14 @@ print(json.dumps({"hookSpecificOutput": {
 **落とし穴（盲点）**: 逆に言うと「フックで全 Bash を捕捉している」つもりでも **`!` 経由は監査・ガードの盲点として素通り**する。コミットガード等が `!` で回避されうる点は設計時に意識する（＝ソフト境界。ADR 0004 の限界と同根）。加えて **新規フック配線はセッション中無反映**（#39）なので、この種の実測は「既存配線フックの本体編集（即時反映）」で行うのが速い。
 **運用注意（センチネル手順は絶対パスで案内する・2026-07-07 実地で判明）**: `!` シェルの cwd は**リポジトリルートである保証がない**（実際にサブディレクトリから叩かれ、相対 `.claude/.allow_protected_commit` が `No such file or directory` で失敗した）。フックが AI に返す発行手順が相対パスだと、AI がそれを中継 → user が cwd 次第で失敗する。対処: `guard_commit_branch.py`／`guard_sentinel_creation.py` の案内メッセージを **`__file__` から算出した絶対パス**で出すよう修正済み（cwd 非依存で一発成功）。判定ロジックは従来どおり（前者=絶対パス存在チェック／後者=basename 一致）で、変えたのは**案内文の表記だけ**。
 関連: #39（配線＝起動時固定／本体＝毎回読込の非対称）／`docs/decisions/0004`（この事実を利用した guard_sentinel_creation の設計判断＝Decision B-5）。
+
+#### 44. fail-open 設計のフックは壊れていても「全通し」で無症状 → 新設・改修時に陽性コントロール1回が必須  ★★★
+
+**実例（2026-07-07 顕在化）**: `check_lint_on_commit.py` が `PROJECT_DIR` を dirname 2回で算出しており（`<root>/.claude/hooks/…` からルートまでは3回が正）、存在しない `<root>/.claude/android` を cwd に subprocess 起動 → OSError → fail-open スキップ。**導入以来どの OS でも一度も Lint が走っていなかった**（WSL の gradlew CRLF 問題を調べる過程で e2e を取って発覚＝それ以前の階層で死んでいた）。コミットは全て素通りするため、外形上は「ゲートが健全に沈黙している」ように見える。
+
+**なぜ起きるか**: ブロック系フックは「鳴らない＝健全」と「鳴らない＝壊れている」が外形上区別できない。fail-open（ゲート故障でコミットを妨げない）設計自体は正しい判断でも、その代償として故障が無症状化する。
+
+**教訓**: フックを新設・改修したら、**わざと違反状態を作って一度発火させる陽性コントロールを取る**（本件は baseline 偽装で exit 2 ＋ stderr 理由を実測）。可能なら `test_*.py` に固定する（stale-check 項目12 が回帰実行する）。`test_stop_guard_fabrication.py` の陽性コントロール5ケースが先行の同型対策。関連: #39（配線のセッション固定）・#28（出力の届き方）＝いずれも同じサイレント失敗クラス。
 
 ---
 
@@ -506,10 +520,12 @@ Phase 4 精度回帰ゲート(`PdfExtractorDeviceSpikeTest`)の ≤15版クリ�
 
 ## 移設マッピング（旧 Part II / Part III の固定ID対応）
 
-> 旧エントリ番号（`§N`）は固定ID。本ファイルから `docs/` へ移設したものは下表で追跡する（移設先での再採番はしない）。
+> 旧エントリ番号（`§N`）は固定ID。本ファイルから `docs/` へ移設したもの、および重複採番の解消で再採番したものは下表で追跡する（移設先での再採番はしない）。
 
 | 旧ID | 内容 | 移設先 |
 |---|---|---|
+| #30（重複・後発側） | セッション・トランスクリプト JSONL の構造と「実行捏造」の形 | 同ファイル `#42` へ再採番（2026-07-05 に別ブランチで #30 が二重採番されマージで衝突→2026-07-07 解消。既存参照「#30-32」は全て先発の pdfbox 側を指すため先発側を維持） |
+| #28（重複・Compose側） | getLineTop は「行ボックス上端」であり字面上端ではない | 同ファイル `#43` へ再採番（2026-07-02 の別ライン採番（単発修正バッチ↔lab知見移植）が衝突→2026-07-07 解消。フック側 #28 が先発（178f1fd）かつ CLAUDE.md 規約・ADR 0004/0006・hook コード注釈の計8箇所に定着済みのため維持し、STATUS 参照3件のみの Compose 側を移動・張り替え） |
 | §20 | Atomic Commit は実装順序から設計する | `docs/decisions/0003-atomic-commit-from-impl-order.md` |
 | §21 | ProcessingState への一本化 | `docs/patterns/processing-state.md` |
 | §22 | Hilt / UseCase 層 不採用（Why-not） | `docs/decisions/0001-no-hilt.md` ・ `docs/decisions/0002-no-usecase-layer.md` |

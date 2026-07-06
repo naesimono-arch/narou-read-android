@@ -7,8 +7,8 @@ Claude Code（監督）から委譲されたサブタスクをこのリポジト
 ## このリポジトリ
 
 日本語 Web 小説（なろう系）の PDF を、ふりがな対応 HTML に変換する **Android アプリ**。
-Jetpack Compose + Kotlin。**PDF 抽出パイプラインの実装はブランチで異なる**
-（main = Chaquopy/Python + pdfminer ／ kotlin = PDFBox-Android ネイティブ）。
+Jetpack Compose + Kotlin。PDF 抽出パイプラインは **純 Kotlin（PDFBox-Android）ネイティブ実装**
+（旧 Chaquopy/Python + pdfminer は 2026-07-05 に完全撤去。旧 `kotlin` ブランチは 2026-07-06 に main へ統合済み）。
 今いるブランチの実態は `STATUS.md`（現況台帳）と `android/app/build.gradle` で確認すること。
 
 ## リポジトリ地図
