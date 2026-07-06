@@ -34,6 +34,7 @@ Jetpack Compose + Kotlin ネイティブ PDF 抽出（PDFBox-Android）。
   - **④plan 末尾に「実行セッション起動ブロック」を必須化**（対象ブランチ・★次はここから・最小読みセット＝実行に要るファイル+行範囲・検証ゲートのコマンド）。「最小読みセットが書けない」＝plan の圧縮が未完のシグナル。
   - **⑤実行見込み ~10ターン以上の plan は fresh セッションで実行**。**なぜ**: cache 非対称（読み直しは一回課金・太った context の持ち越しは毎ターン課金＋5分TTL 失効で全量再 write）で分岐点≈実行10ターン。
   - **⑥edit-streak ゲート**（`AGY_FORCE_DELEGATE_EDITS=1`・`.bashrc` 設定済み・次回 claude 起動から有効）が誤発火したら、**Bash の sed/heredoc へ迂回せずユーザーへ申告**する（env の逃げ道はセッション起動時固定でセッション中に設定できないため）。
+  - **⑦plan モード中の探索委譲**: 既定は Explore（harness の Phase-1 が「Explore のみ」を明示）。だが〈ユーザー明示〉または〈明らかに break-even 超の read-only 探索（多ファイル read→小 digest）〉は **agy へ委譲してよい**。**絶対条件**: Claude Code は plan モードをプラグイン subagent の権限層へ**伝播させない**（`permissionMode`/`hooks` frontmatter もサイレント破棄＝2026-07-06 の実機 probe で確認・issue #4750 のギャップ）ため **plan モードは agy の書き込みを守らない** → **plan 中の agy 委譲は `--yolo` 厳禁・read-only digest のみ**（read-only は「`--yolo` を渡さない＝agy が書き込み不能」で構造的に担保）。割に合わない小さな読みは Explore にフォールバック。機序の詳細は `task_diary.md`「Claude Code フック」節。
   - **根拠**: 53セッション/$987 の transcript 解剖で、委譲の価値は「タイピングの肩代わり」（コード出力実体は総額0.8%）ではなく「太った context に居座るターン数の削減」（cache churn 回避）と確定。実測の全容は memory `agy-objective-minimize-claude-agy-free`／`workflow-plan-fresh-session-execution`。agy の作業空間・`--dir` 運用は `AGENTS.md`＋memory `agy-workspace-agents-md-two-layers`。
 
 ## ドメイン知識
