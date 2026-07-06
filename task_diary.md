@@ -341,6 +341,12 @@ print(json.dumps({"hookSpecificOutput": {
 つもりでもモデルにもユーザーにも実質届かない（debug ログのみ）。「誰に届けたいか」でイベントと
 出力方式を選ぶこと（#26 の stdin 文字化けと並ぶ、フック自作時の二大ハマりどころ）。
 
+**追補（2026-07-07 実測）**: `hookSpecificOutput.additionalContext` は **PreToolUse でも有効**
+（check_commit_granularity.py を JSON 出力化し、`git commit --dry-run` の発火で system-reminder
+注入をライブ実測）。PreToolUse で「ブロックせずに情報だけモデルへ渡す」唯一の手段
+（exit 2 の stderr はブロックとセット・plain stdout は不達のため）。`hookEventName` は
+`"PreToolUse"` を指定する。
+
 #### 42. セッション・トランスクリプト JSONL の構造と「実行捏造」ハルシネーションの形  ★★★
 
 **用途**: フック/ツールがトランスクリプトを静的解析するときの不変点（詳細な設計判断は ADR 0006、実装は `.claude/hooks/detect_fabricated_execution_core.py`）。
