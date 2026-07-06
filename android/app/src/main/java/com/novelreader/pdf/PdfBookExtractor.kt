@@ -3,7 +3,6 @@ package com.novelreader.pdf
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import java.io.Closeable
 import java.io.File
-import java.util.Locale
 import kotlin.math.max
 
 /**
@@ -13,12 +12,19 @@ import kotlin.math.max
 typealias PdfProgress = (step: Int, stepLocal: Float, phase: String, title: String) -> Unit
 
 /**
+ * 本文抽出エンジンのフェーズ。LOAD=全ページのグリフ抽出(getText・超長編の支配的コスト)、PROCESS=段落化。
+ * 進捗バーの step-1 local を両フェーズの重み合成で単調前進させるために区別する。
+ * public なのは public な [PdfExtractor.runFinalEngine] のシグネチャに現れるため（PdfProgress と同流儀）。
+ */
+enum class EnginePhase { LOAD, PROCESS }
+
+/**
  * 開いた PDF に対する抽出操作。PDDocument のライフサイクルを隠すテスト継ぎ目。
  * 本番は PDFBox を包み、ユニットテストは fake を差し込む（実 PDF/実機フォント資産なしで facade を検証するため）。
  */
 internal interface PdfHandle : Closeable {
     fun extractMeta(): BookMeta
-    fun runEngine(onPageProgress: (processed: Int, bodyTotal: Int) -> Unit): List<String>
+    fun runEngine(onProgress: (phase: EnginePhase, current: Int, total: Int) -> Unit): List<String>
 }
 
 /** PDF を開くエンジン。 */
@@ -38,10 +44,9 @@ internal object PdfBoxEngine : PdfEngine {
         return object : PdfHandle {
             override fun extractMeta(): BookMeta = PdfExtractor.extractBookMeta(doc)
 
-            override fun runEngine(onPageProgress: (Int, Int) -> Unit): List<String> =
-                // PdfExtractor の (pct, processed, bodyTotal) から pct を捨て、facade が必要とする
-                // (processed, bodyTotal) だけを前送りする。
-                PdfExtractor.runFinalEngine(doc) { _, processed, bodyTotal -> onPageProgress(processed, bodyTotal) }
+            override fun runEngine(onProgress: (EnginePhase, Int, Int) -> Unit): List<String> =
+                // runFinalEngine が LOAD/PROCESS を phase 付きで通知する。facade がそれを重み合成する。
+                PdfExtractor.runFinalEngine(doc, onProgress)
 
             override fun close() = doc.close()
         }
@@ -84,15 +89,19 @@ object PdfBookExtractor {
                 val meta = handle.extractMeta()
                 currentTitle = meta.title
 
-                onProgress(1, 0f, "本文を抽出しています…", currentTitle)
-                val paragraphs = handle.runEngine { processed, bodyTotal ->
-                    // app.py: _notify(1, cur / max(tot, 1), f"…({cur+1:,}/{tot:,}ページ)")
-                    onProgress(
-                        1,
-                        processed.toFloat() / max(bodyTotal, 1),
-                        "本文を抽出しています… (${grouped(processed + 1)}/${grouped(bodyTotal)}ページ)",
-                        currentTitle,
-                    )
+                // 本文抽出は「読み込み(全ページのグリフ抽出)＋整形(段落化)」の2パスだが、UI では1つの連続進捗
+                // として提示する。なぜ＝2パスを別ラベル・別カウンタで見せると、カウンタが 0→N を2度満ちて
+                // 「一度終わって2周目に入った」ように誤認される（実機フィードバック）。表示とバーを常に一致させる。
+                onProgress(1, 0f, "本文を処理しています… 0%", currentTitle)
+                val paragraphs = handle.runEngine { phase, current, total ->
+                    // step-1 local: LOAD(読み込み)中 0→LOAD_WEIGHT、PROCESS(整形)中 LOAD_WEIGHT→1.0 と単調前進。
+                    // load を重み大に＝超長編では全ページ getText が支配的コストで、以前は load 中バーが 0f で固まって見えた。
+                    val local = when (phase) {
+                        EnginePhase.LOAD -> LOAD_WEIGHT * (current.toFloat() / max(total, 1))
+                        EnginePhase.PROCESS -> LOAD_WEIGHT + (1f - LOAD_WEIGHT) * (current.toFloat() / max(total, 1))
+                    }
+                    // ラベルにも同じ % を載せ、下のバー(step-local)と数字を常に一致させる（リセット無しの通し進捗）。
+                    onProgress(1, local, "本文を処理しています… ${(local * 100).toInt()}%", currentTitle)
                 }
 
                 onProgress(2, 0f, "章を分割しています…", currentTitle)
@@ -115,6 +124,8 @@ object PdfBookExtractor {
         }
     }
 
-    // Python f"{n:,}" 相当（3 桁区切りカンマ・ロケール非依存に US 固定）。
-    private fun grouped(n: Int): String = String.format(Locale.US, "%,d", n)
+    // 本文抽出 step-1 における load フェーズの進捗重み（0.0-1.0）。
+    // なぜ大きく取るか＝超長編では全ページのグリフ抽出(getText)が支配的コストで、段落化(PROCESS)は
+    // 相対的に軽い。実機(N6169DZ)で load 中にバーが 0 で固まって見えた UX の主因がここ。実機目視で調整可。
+    private const val LOAD_WEIGHT = 0.75f
 }

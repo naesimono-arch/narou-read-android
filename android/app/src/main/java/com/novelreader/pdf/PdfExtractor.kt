@@ -11,18 +11,31 @@ data class BookMeta(val title: String, val author: String)
 /**
  * PDFBox-android の CID→Unicode 出力を pdfminer（移植のオラクル）に揃える 1 文字正規化。
  *
- * なぜ: PDFBox-android は波ダッシュのグリフを FULLWIDTH TILDE(U+FF5E) に写すが、
- * pdfminer / Adobe-Japan1 は WAVE DASH(U+301C) を返す（有名な「波ダッシュ問題」の CMap 版・task_diary #35）。
- * これを放置すると title・本文の記号が実機とオラクルでズレ、ゴールデン回帰が波ダッシュだけで不一致になる。
- * なろう小説では波ダッシュが正で U+FF5E の正当な用例はほぼ無いため、オラクルに合わせ 301C へ寄せるのは低リスク。
+ * なぜ: PDFBox-android は一部グリフを Adobe-Japan1/pdfminer と別コードポイントへ写す。放置すると
+ * title・本文・章題が実機とオラクルでズレ、ゴールデン回帰がグリフ差だけで不一致になる。1:1 で対応が
+ * 付くものをオラクル側へ寄せる（N6169DZ 章題ドリフト・task_diary #35）。写像:
+ *   - FF5E FULLWIDTH TILDE → 301C WAVE DASH（有名な「波ダッシュ問題」の CMap 版。なろうでは波ダッシュが
+ *     正で FF5E の正当用例はほぼ無く低リスク）
+ *   - FF0D FULLWIDTH HYPHEN-MINUS → 2212 MINUS SIGN（章題6件）
+ *   - 2191/2193 UP/DOWN ARROW → 2190/2192 LEFT/RIGHT ARROW（PDFBox が矢印を 90° 回転誤読するのを補正・章題3件）
  *
- * indexOf ガードで「FF5E を含まない大多数のグリフ」では新規文字列を確保しない
- * （processTextPosition は 1 グリフ毎＝超長編で数百万回走るホットパスのため）。
+ * ⚠ FF0D→2212 は body にも同グリフが出れば正規化され、短中編の body_sha256（現状 pdfminer と完全一致）を
+ *   破壊しうる＝pdfminer が本文では FF0D のまま出す証拠になる。実機ゲート(PdfExtractorDeviceSpikeTest)で
+ *   検証し、短中編 body_sha256 が壊れたら FF0D→2212 は取り下げる（golden から離れる写像は入れない）。
+ *   矢印は本文に出にくく低リスク。
+ *
+ * 各写像は個別 indexOf ガードで包み、対象を含まない大多数のグリフでは新規文字列を確保しない
+ * （processTextPosition は 1 グリフ毎＝超長編で数百万回走るホットパス。PdfExtractorTest の assertSame 契約）。
+ * 見た目が酷似する文字が多いため取り違え防止にエスケープで明示する。
  */
-internal fun normalizeGlyphUnicode(s: String): String =
-    // '\uFF5E' FULLWIDTH TILDE(PDFBoxが返す) → '\u301C' WAVE DASH(pdfminerが返す)。
-    // 見た目がほぼ同一のため取り違え防止にエスケープで明示する。
-    if (s.indexOf('\uFF5E') >= 0) s.replace('\uFF5E', '\u301C') else s
+internal fun normalizeGlyphUnicode(s: String): String {
+    var r = s
+    if (r.indexOf('\uFF5E') >= 0) r = r.replace('\uFF5E', '\u301C')  // FULLWIDTH TILDE → WAVE DASH
+    if (r.indexOf('\uFF0D') >= 0) r = r.replace('\uFF0D', '\u2212')  // FULLWIDTH HYPHEN-MINUS → MINUS SIGN
+    if (r.indexOf('\u2191') >= 0) r = r.replace('\u2191', '\u2190')  // UPWARDS → LEFTWARDS ARROW
+    if (r.indexOf('\u2193') >= 0) r = r.replace('\u2193', '\u2192')  // DOWNWARDS → RIGHTWARDS ARROW
+    return r
+}
 
 /**
  * PDFTextStripper をカスタマイズし、processTextPosition で 1 文字ずつ座標付きで収集する。
@@ -38,7 +51,12 @@ internal fun normalizeGlyphUnicode(s: String): String =
  * 移植元 submission-B GlyphStripper と同一。import のみ apache→tom_roush へ差し替え
  * （TextPosition.{unicode,xDirAdj,yDirAdj,heightDir,font,fontSizeInPt} は 2.0.x 系で同名同義）。
  */
-class GlyphStripper : PDFTextStripper() {
+class GlyphStripper(
+    // ページ開始ごとに「開始済みページ数(1始まり)」を通知する省略可のフック。
+    // なぜ: 本文グリフ抽出は getText(doc) の単一走査で、そのままでは進捗を出さない。
+    // load フェーズの進捗バー連動に使う（未指定＝通知なし＝オラクル/1ページ抽出など通知不要な用途）。
+    private val onPageStart: ((loaded: Int) -> Unit)? = null,
+) : PDFTextStripper() {
 
     val pages: MutableList<MutableList<CharBox>> = mutableListOf()
     private var current: MutableList<CharBox> = mutableListOf()
@@ -46,6 +64,9 @@ class GlyphStripper : PDFTextStripper() {
     override fun startPage(page: PDPage) {
         current = mutableListOf()
         pages.add(current)
+        // pages.size ＝ 開始済みページ数。getText の全ページ単一走査中にページ毎に発火するため、
+        // 支配的コストの本文抽出中も進捗バーを前進させられる（handover の UX ギャップ対策）。
+        onPageStart?.invoke(pages.size)
         super.startPage(page)
     }
 
@@ -72,9 +93,16 @@ class GlyphStripper : PDFTextStripper() {
 
 object PdfExtractor {
 
-    /** 全ページの文字を取得する（list[list[CharBox]]）。 */
-    fun loadPages(doc: PDDocument): List<List<CharBox>> {
-        val stripper = GlyphStripper().apply {
+    /**
+     * 全ページの文字を取得する（list[list[CharBox]]）。
+     * onPageLoaded はページ開始ごとに (開始済みページ数, 総ページ数) を通知する（既定＝無通知）。
+     */
+    fun loadPages(
+        doc: PDDocument,
+        onPageLoaded: (loaded: Int, total: Int) -> Unit = { _, _ -> },
+    ): List<List<CharBox>> {
+        val total = doc.numberOfPages
+        val stripper = GlyphStripper(onPageStart = { loaded -> onPageLoaded(loaded, total) }).apply {
             sortByPosition = false
             startPage = 1
             endPage = Int.MAX_VALUE
@@ -146,15 +174,21 @@ object PdfExtractor {
     /**
      * 全ページを読み込み TextProcessor で段落列（章マーカー・ルビマーカー入り）へ変換する。
      *
-     * progressCallback は processPages へそのまま前送りする。facade(PdfBookExtractor) が本文抽出
-     * step のページ進捗をライブ更新するために渡す（未指定＝null なら通知しない＝オラクル/テスト用途）。
+     * onProgress は load(全ページのグリフ抽出＝超長編の支配的コスト)と process(段落化)を [EnginePhase]
+     * で区別して通知する。facade(PdfBookExtractor) が両フェーズを重み合成し、load 中も進捗バーを前進
+     * させるために渡す（未指定＝null なら通知しない＝オラクル/テスト用途）。
      */
     fun runFinalEngine(
         doc: PDDocument,
-        progressCallback: ((pct: Int, processed: Int, bodyTotal: Int) -> Unit)? = null,
+        onProgress: ((phase: EnginePhase, current: Int, total: Int) -> Unit)? = null,
     ): List<String> {
         val totalPages = doc.numberOfPages
-        val charListsByPage = loadPages(doc)
-        return TextProcessor.processPages(charListsByPage, totalPages, progressCallback)
+        val charListsByPage = loadPages(doc) { loaded, total ->
+            onProgress?.invoke(EnginePhase.LOAD, loaded, total)
+        }
+        // processPages が出す pct(10-60) は元々未使用のため捨て、(processed, bodyTotal) のみ前送りする。
+        return TextProcessor.processPages(charListsByPage, totalPages) { _, processed, bodyTotal ->
+            onProgress?.invoke(EnginePhase.PROCESS, processed, bodyTotal)
+        }
     }
 }
