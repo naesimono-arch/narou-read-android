@@ -39,7 +39,7 @@ class PdfExtractorTest {
         assertEquals("著者", PdfExtractor.authorFromChars(chars))
     }
 
-    // --- 波ダッシュ正規化（task_diary #35）: PDFBox-android の FULLWIDTH TILDE を pdfminer の WAVE DASH へ ---
+    // --- グリフ正規化（task_diary #35）: PDFBox-android の CID→Unicode を pdfminer(オラクル)へ揃える ---
 
     @Test fun normalizeMapsFullwidthTildeToWaveDash() {
         // '\uFF5E'(PDFBoxが返す) → '\u301C'(pdfminerが返す)
@@ -47,10 +47,21 @@ class PdfExtractorTest {
         assertEquals("前世を思い出しました　\u301Cあれ", normalizeGlyphUnicode("前世を思い出しました　\uFF5Eあれ"))
     }
 
-    @Test fun normalizeLeavesWaveDashAndOthersUntouched() {
-        // 既に WAVE DASH のものは不変（二重変換しない）
+    @Test fun normalizeMapsDashAndArrowsToGolden() {
+        // 1:1 コードポイント写像（N6169DZ 章題ドリフトを golden へ寄せる）
+        assertEquals("\u2212", normalizeGlyphUnicode("\uFF0D"))   // FULLWIDTH HYPHEN-MINUS → MINUS SIGN
+        assertEquals("\u2190", normalizeGlyphUnicode("\u2191"))   // UP → LEFT ARROW
+        assertEquals("\u2192", normalizeGlyphUnicode("\u2193"))   // DOWN → RIGHT ARROW
+        // 文中混在・複数写像の同時適用（章題「第－1話　↑戻る」相当）
+        assertEquals("第\u22121話　\u2190戻る", normalizeGlyphUnicode("第\uFF0D1話　\u2191戻る"))
+    }
+
+    @Test fun normalizeLeavesUnmappedUntouched() {
+        // 既に写像先のものは不変（二重変換しない）
         assertEquals("\u301C", normalizeGlyphUnicode("\u301C"))
-        // 無関係な文字は不変（同一インスタンスを返す＝ホットパスで新規確保しない設計）
+        assertEquals("\u2212", normalizeGlyphUnicode("\u2212"))
+        assertEquals("\u2190\u2192", normalizeGlyphUnicode("\u2190\u2192"))
+        // 無関係な文字は不変かつ同一インスタンス（ホットパスで新規確保しない設計＝assertSame 契約）
         val plain = "婚約の継続"
         assertEquals(plain, normalizeGlyphUnicode(plain))
         assertSame(plain, normalizeGlyphUnicode(plain))

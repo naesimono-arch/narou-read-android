@@ -11,18 +11,31 @@ data class BookMeta(val title: String, val author: String)
 /**
  * PDFBox-android の CID→Unicode 出力を pdfminer（移植のオラクル）に揃える 1 文字正規化。
  *
- * なぜ: PDFBox-android は波ダッシュのグリフを FULLWIDTH TILDE(U+FF5E) に写すが、
- * pdfminer / Adobe-Japan1 は WAVE DASH(U+301C) を返す（有名な「波ダッシュ問題」の CMap 版・task_diary #35）。
- * これを放置すると title・本文の記号が実機とオラクルでズレ、ゴールデン回帰が波ダッシュだけで不一致になる。
- * なろう小説では波ダッシュが正で U+FF5E の正当な用例はほぼ無いため、オラクルに合わせ 301C へ寄せるのは低リスク。
+ * なぜ: PDFBox-android は一部グリフを Adobe-Japan1/pdfminer と別コードポイントへ写す。放置すると
+ * title・本文・章題が実機とオラクルでズレ、ゴールデン回帰がグリフ差だけで不一致になる。1:1 で対応が
+ * 付くものをオラクル側へ寄せる（N6169DZ 章題ドリフト・task_diary #35）。写像:
+ *   - FF5E FULLWIDTH TILDE → 301C WAVE DASH（有名な「波ダッシュ問題」の CMap 版。なろうでは波ダッシュが
+ *     正で FF5E の正当用例はほぼ無く低リスク）
+ *   - FF0D FULLWIDTH HYPHEN-MINUS → 2212 MINUS SIGN（章題6件）
+ *   - 2191/2193 UP/DOWN ARROW → 2190/2192 LEFT/RIGHT ARROW（PDFBox が矢印を 90° 回転誤読するのを補正・章題3件）
  *
- * indexOf ガードで「FF5E を含まない大多数のグリフ」では新規文字列を確保しない
- * （processTextPosition は 1 グリフ毎＝超長編で数百万回走るホットパスのため）。
+ * ⚠ FF0D→2212 は body にも同グリフが出れば正規化され、短中編の body_sha256（現状 pdfminer と完全一致）を
+ *   破壊しうる＝pdfminer が本文では FF0D のまま出す証拠になる。実機ゲート(PdfExtractorDeviceSpikeTest)で
+ *   検証し、短中編 body_sha256 が壊れたら FF0D→2212 は取り下げる（golden から離れる写像は入れない）。
+ *   矢印は本文に出にくく低リスク。
+ *
+ * 各写像は個別 indexOf ガードで包み、対象を含まない大多数のグリフでは新規文字列を確保しない
+ * （processTextPosition は 1 グリフ毎＝超長編で数百万回走るホットパス。PdfExtractorTest の assertSame 契約）。
+ * 見た目が酷似する文字が多いため取り違え防止にエスケープで明示する。
  */
-internal fun normalizeGlyphUnicode(s: String): String =
-    // '\uFF5E' FULLWIDTH TILDE(PDFBoxが返す) → '\u301C' WAVE DASH(pdfminerが返す)。
-    // 見た目がほぼ同一のため取り違え防止にエスケープで明示する。
-    if (s.indexOf('\uFF5E') >= 0) s.replace('\uFF5E', '\u301C') else s
+internal fun normalizeGlyphUnicode(s: String): String {
+    var r = s
+    if (r.indexOf('\uFF5E') >= 0) r = r.replace('\uFF5E', '\u301C')  // FULLWIDTH TILDE → WAVE DASH
+    if (r.indexOf('\uFF0D') >= 0) r = r.replace('\uFF0D', '\u2212')  // FULLWIDTH HYPHEN-MINUS → MINUS SIGN
+    if (r.indexOf('\u2191') >= 0) r = r.replace('\u2191', '\u2190')  // UPWARDS → LEFTWARDS ARROW
+    if (r.indexOf('\u2193') >= 0) r = r.replace('\u2193', '\u2192')  // DOWNWARDS → RIGHTWARDS ARROW
+    return r
+}
 
 /**
  * PDFTextStripper をカスタマイズし、processTextPosition で 1 文字ずつ座標付きで収集する。
