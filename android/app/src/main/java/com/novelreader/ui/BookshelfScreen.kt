@@ -310,10 +310,10 @@ fun BookshelfScreen(
                             },
                             onDelete = { bookToDelete = book },
                             deleteUiMode = deleteUiMode,
-                            // Foundation1.6系(BOM 2024.04.01)のanimateItemPlacementは高速フリング中に
-                            // カバーが画面外の古い位置から補間され重なる既知不具合があるため使用しない。
-                            // 詰め直しアニメは案B(BOM 2024.09+へ更新しanimateItem()へ置換)で別タスク復活予定。
-                            modifier = Modifier,
+                            // 削除時の詰め直しアニメ。旧animateItemPlacementはFoundation1.6系で高速フリング中に
+                            // カバーが画面外の古い位置から補間され重なる既知不具合があり一時撤去していたが、
+                            // BOM 2025.02.00(Foundation 1.7系)でstable化したanimateItem()に置き換えて復活（案B）。
+                            modifier = Modifier.animateItem(),
                         )
                     }
                 }
@@ -338,8 +338,8 @@ fun BookshelfScreen(
                             },
                             onDelete = { bookToDelete = book },
                             deleteUiMode = deleteUiMode,
-                            // グリッドと同理由でanimateItemPlacementは使用しない（案B参照）。
-                            modifier = Modifier,
+                            // グリッドと同理由: 1.7系でstable化したanimateItem()で詰め直しアニメを復活（案B）。
+                            modifier = Modifier.animateItem(),
                         )
                     }
                 }
