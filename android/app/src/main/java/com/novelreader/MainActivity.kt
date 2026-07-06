@@ -20,6 +20,7 @@ import com.novelreader.ui.discovery.DiscoveryGenreScreen
 import com.novelreader.ui.discovery.DiscoveryHomeScreen
 import com.novelreader.ui.discovery.DiscoveryResultScreen
 import com.novelreader.ui.discovery.DiscoverySearchScreen
+import com.novelreader.ui.discovery.NovelDetailScreen
 import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfViewModel
@@ -100,8 +101,7 @@ private fun NovelReaderApp(
             DiscoveryHomeScreen(
                 viewModel = discoveryViewModel,
                 onBack = { navController.popBackStack() },
-                // 作品詳細ルートは C4 で追加予定（それまで行タップは無反応）
-                onOpenDetail = {},
+                onOpenDetail = { ncode -> navController.navigate("discovery/detail/$ncode") },
                 onOpenGenre = { navController.navigate("discovery/genre") },
                 onPickBiggenre = { code, label ->
                     discoveryViewModel.openResult(
@@ -156,8 +156,19 @@ private fun NovelReaderApp(
             DiscoveryResultScreen(
                 viewModel = discoveryViewModel,
                 onBack = { navController.popBackStack() },
-                // 作品詳細ルートは C4 で追加予定
-                onOpenDetail = {},
+                onOpenDetail = { ncode -> navController.navigate("discovery/detail/$ncode") },
+            )
+        }
+
+        composable(
+            route = "discovery/detail/{ncode}",
+            arguments = listOf(navArgument("ncode") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val ncode = backStackEntry.arguments?.getString("ncode") ?: return@composable
+            NovelDetailScreen(
+                ncode = ncode,
+                viewModel = viewModel(),
+                onBack = { navController.popBackStack() },
             )
         }
 
