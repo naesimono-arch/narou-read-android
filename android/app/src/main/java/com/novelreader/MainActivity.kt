@@ -110,6 +110,10 @@ private fun NovelReaderApp(
                     navController.navigate("discovery/result")
                 },
                 onOpenSearch = { navController.navigate("discovery/search") },
+                onPickMood = { preset ->
+                    discoveryViewModel.openResult(preset.toResultContext())
+                    navController.navigate("discovery/result")
+                },
             )
         }
 

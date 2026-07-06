@@ -5,11 +5,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -45,6 +48,7 @@ import com.novelreader.narou.model.NarouOrder
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.DiscoveryUiState
 import com.novelreader.viewmodel.DiscoveryViewModel
+import com.novelreader.viewmodel.MoodPreset
 
 // ============================================================
 // 発見ホーム（モック discovery-home-D.html の翻訳）。
@@ -61,6 +65,7 @@ fun DiscoveryHomeScreen(
     onOpenGenre: () -> Unit,
     onPickBiggenre: (code: Int, label: String) -> Unit,
     onOpenSearch: () -> Unit,
+    onPickMood: (MoodPreset) -> Unit,
 ) {
     val order by viewModel.homeOrder.collectAsState()
     val state by viewModel.homeState.collectAsState()
@@ -108,6 +113,8 @@ fun DiscoveryHomeScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            item { MoodSection(onPickMood = onPickMood) }
+
             item { GenreEntrySection(onOpenGenre = onOpenGenre, onPickBiggenre = onPickBiggenre) }
 
             // タブはスクロールしても上端に残す（長いランキングの途中でも order を切替できるように）
@@ -152,6 +159,84 @@ fun DiscoveryHomeScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * 気分プリセット（モック「きょうの気分」節）: 2列カード。
+ * ヘアライン枠＋左に青磁2pxルール＋明朝タイトル＝モック .md の翻訳。
+ */
+@Composable
+private fun MoodSection(onPickMood: (MoodPreset) -> Unit) {
+    Column(modifier = Modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp)) {
+        Text(
+            text = "きょうの気分",
+            fontSize = 10.5.sp,
+            letterSpacing = 3.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        val presets = MoodPreset.entries
+        // 4プリセット固定の2列（LazyGrid をネストしない: 親が LazyColumn のため固定 Row で組む）
+        presets.chunked(2).forEach { rowPresets ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                rowPresets.forEach { preset ->
+                    MoodCard(
+                        preset = preset,
+                        onClick = { onPickMood(preset) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoodCard(
+    preset: MoodPreset,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
+                shape = RoundedCornerShape(2.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(vertical = 13.dp),
+    ) {
+        // 左の青磁ルール（モック .md::before）
+        Box(
+            modifier = Modifier
+                .padding(top = 2.dp)
+                .width(2.dp)
+                .height(30.dp)
+                .background(MaterialTheme.colorScheme.secondary),
+        )
+        Column(modifier = Modifier.padding(start = 12.dp, end = 8.dp)) {
+            Text(
+                text = preset.title,
+                fontFamily = MinchoFamily,
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 20.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = preset.cardLabel,
+                fontSize = 10.sp,
+                letterSpacing = 0.4.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 5.dp),
+            )
         }
     }
 }
