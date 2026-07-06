@@ -18,8 +18,10 @@ import com.novelreader.viewmodel.BookImportError
 import com.novelreader.viewmodel.ProcessingState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -35,18 +37,25 @@ class PdfProcessingService : Service() {
     private var totalCount = 0          // 現バッチの総件数（通知用、lock で保護）
     private var doneCount = 0           // 現バッチの完了件数（通知用、lock で保護）
     private var isStopping = false      // 全体停止操作後の「停止しています…」状態（lock で保護）
+    // 処理中の1冊を包む子 Job（lock で保護）。ACTION_STOP はこれを cancel することで、
+    // 進捗コールバック経由の ensureActive()（BookRepository.addBook 内）に次のページ境界で
+    // CancellationException を投げさせ、処理中の PDF を即中断する。
+    private var currentBookJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // 全体停止: キュー待ちを破棄し停止フラグを立てる。
-        // 処理中の1冊は NonCancellable（Python は JNI 割り込み不可）で完了後、
-        // ループ次周回が空キューを検知して正常終了→stopSelf する。
+        // 全体停止: キュー待ちを破棄し、処理中の1冊はページ境界で即中断する
+        // （純 Kotlin 化で可能になった割り込み。旧 Chaquopy/JNI は割り込み不能で PDF 境界
+        //   停止しかできなかった）。中断後はループ次周回が空キューを検知して正常終了→stopSelf する。
         // 実行中でなければ何も処理が無いので、自前で foreground を片付けて停止する。
         if (intent?.action == ACTION_STOP) {
             val running = lock.withLock {
                 uriQueue.clear()
                 isStopping = true
+                // 処理中の1冊を即中断。cancel はフラグを立てるだけ（join しない）ので lock 内で安全。
+                // 実際の中断は次のページ境界（onProgress → ensureActive）で起こる。
+                currentBookJob?.cancel()
                 isLoopRunning
             }
             if (running) {
@@ -164,8 +173,23 @@ class PdfProcessingService : Service() {
                         null
                     }
                     try {
-                        processSingleUri(uri)
+                        // processSingleUri を子 Job として起動し currentBookJob へ登録する。
+                        // なぜ子 Job か: ACTION_STOP はループ全体ではなく「処理中の1冊」だけを
+                        // cancel したい。ループ Job ごと cancel すると、cancel〜finally の隙間に
+                        // ACTION_START が来た場合（isLoopRunning がまだ true で新ループが起動されない）
+                        // に積まれた URI を取りこぼすレースがあるため。子 Job 方式ならループ自体は
+                        // 生き続け、次周回が空キュー（STOP が clear 済み）を検知して正常終了する。
+                        coroutineScope {
+                            val bookJob = launch { processSingleUri(uri) }
+                            // 登録と停止済み再確認をアトミックに行う（launch 直後・登録前に
+                            // ACTION_STOP が来た場合の cancel 取り逃しを防ぐ）。
+                            lock.withLock {
+                                currentBookJob = bookJob
+                                if (isStopping) bookJob.cancel()
+                            }
+                        } // coroutineScope が子の完了を待つ。子のキャンセルは親に伝播しない
                     } finally {
+                        lock.withLock { currentBookJob = null }
                         wl?.release()
                     }
                 }
@@ -181,7 +205,17 @@ class PdfProcessingService : Service() {
                     }
                 }
                 if (shouldStopSelf) {
-                    lock.withLock { totalCount = 0; doneCount = 0; isStopping = false }
+                    val wasStopping = lock.withLock {
+                        val s = isStopping
+                        totalCount = 0; doneCount = 0; isStopping = false
+                        s
+                    }
+                    // 停止操作で終わった場合は「停止しています…」の ongoing 通知を確実に消す。
+                    // 正常終了時は REMOVE しない: 完了/エラー通知（非 ongoing・NOTIFICATION_ID
+                    // 上書き済み）をユーザーが後から確認できるよう残す既存挙動を維持するため。
+                    if (wasStopping) {
+                        ServiceCompat.stopForeground(this@PdfProcessingService, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                    }
                     stopSelf()
                 }
             }
@@ -234,7 +268,11 @@ class PdfProcessingService : Service() {
             )
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) {
-                throw e // コルーチンのキャンセルはそのまま上位に伝播させる（ここでループ処理が終了する）
+                // 停止操作（ACTION_STOP → currentBookJob.cancel）による中断。書きかけの出力
+                // ディレクトリは addBook 側の catch が掃除済み。バナーはここで畳む
+                // （fold に到達しないため onSuccess/onFailure の updateProcessingState(null) が走らない）。
+                app.updateProcessingState(null)
+                throw e // キャンセルはそのまま伝播させ子 Job を終了させる（ループ自体は継続する）
             }
             // 予期しない例外: ログして次の URI の処理に継続
             Log.e(TAG, "予期しないエラー（処理継続）", e)
@@ -272,7 +310,7 @@ class PdfProcessingService : Service() {
         val subject = if (title.isNotEmpty()) "「$title」を" else "小説を"
         val builder = NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
             .setContentTitle(if (isStopping) "停止しています…" else "${subject}変換中...$queueInfo")
-            .setContentText(if (isStopping) "処理中の本が完了すると停止します" else text)
+            .setContentText(if (isStopping) "現在のページの処理を終えて停止します" else text)
             .setSmallIcon(R.drawable.ic_notification)
             // 停止中は残り時間が読めないため不確定バーにする
             .setProgress(100, progress, isStopping)

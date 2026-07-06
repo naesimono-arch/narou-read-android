@@ -91,8 +91,8 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
         ContextCompat.startForegroundService(getApplication(), intent)
     }
 
-    // 変換の全体停止。キュー待ちを破棄し、処理中の1冊は完了させて停止する
-    // （Python は JNI ブロッキングで途中中断できないため）。Service へ STOP を送るだけ。
+    // 変換の全体停止。キュー待ちを破棄し、処理中の1冊もページ境界で即中断する
+    // （純 Kotlin 化で割り込みが可能になった）。Service へ STOP を送るだけ。
     fun cancelProcessing() {
         val intent = Intent(getApplication(), PdfProcessingService::class.java).apply {
             action = PdfProcessingService.ACTION_STOP
