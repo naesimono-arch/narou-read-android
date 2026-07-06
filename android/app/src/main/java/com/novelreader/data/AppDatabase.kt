@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [BookEntity::class, ProgressEntity::class], version = 8, exportSchema = true)
+@Database(entities = [BookEntity::class, ProgressEntity::class], version = 9, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun bookDao(): BookDao
@@ -88,11 +88,30 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        /** v7→v8: books テーブルに ncode 列（なろう作品の Nコード）を追加する。
+        /** v7→v8: pending_jobs テーブル（変換キューの永続化）を作成する。
+         *  ⚠️ この移行の正本は並列ブランチ `feat/processing-resilience`（version 8 を先に消費し
+         *  実機検証済み）。本ブランチには PendingJob エンティティが無いが、v8 を「歯抜け」に
+         *  しないため CREATE 文だけ同一内容で複製している。なぜ必要か: v7 端末が本ブランチの
+         *  ビルドを直接インストールしたとき 7→8→9 の migration パスが繋がらないと起動不能になる
+         *  ため。Room は自分の管理外テーブルを検証しないので、未使用の pending_jobs が
+         *  存在しても無害（マージ時に resilience 側の定義と一致していることが前提＝変更禁止）。 */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `pending_jobs` " +
+                    "(`uri` TEXT NOT NULL, `displayName` TEXT NOT NULL, `enqueuedAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`uri`))"
+                )
+            }
+        }
+
+        /** v8→v9: books テーブルに ncode 列（なろう作品の Nコード）を追加する。
          *  PDF↔Web継続読書（発見機能・目玉①）で「手元PDFの続きをなろうへ縫合」するための紐付けキー。
          *  nullable TEXT＝未紐付けが既定状態のため DEFAULT 句は不要（既存行は NULL 補完）。
-         *  新規追加のみで既存カラム名に依存しないため PRAGMA 分岐は不要（MIGRATION_4_5 以降と同方針）。 */
-        private val MIGRATION_7_8 = object : Migration(7, 8) {
+         *  新規追加のみで既存カラム名に依存しないため PRAGMA 分岐は不要（MIGRATION_4_5 以降と同方針）。
+         *  なぜ v8 でなく v9 か: version 8 は並列ブランチ feat/processing-resilience が先に消費し
+         *  実機 DB も既にそのスキーマで v8 になっているため（identity hash 衝突の実測クラッシュあり）。 */
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE books ADD COLUMN ncode TEXT")
             }
@@ -101,7 +120,10 @@ abstract class AppDatabase : RoomDatabase() {
         fun getDatabase(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
-                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(
+                        MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
+                        MIGRATION_7_8, MIGRATION_8_9,
+                    )
                     .build()
                     .also { INSTANCE = it }
             }
