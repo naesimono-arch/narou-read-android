@@ -20,6 +20,16 @@ sealed interface DiscoveryUiState {
     data class Error(val message: String) : DiscoveryUiState
 }
 
+/**
+ * 結果一覧（discovery/result）の文脈。検索・ジャンル・気分プリセットの共通着地に
+ * 「何の結果を見ているか」（明朝見出し＋補足＋実クエリ）を運ぶ。
+ */
+data class ResultContext(
+    val title: String,
+    val subtitle: String? = null,
+    val query: DiscoveryQuery,
+)
+
 class DiscoveryViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application as NovelReaderApplication
     private val repository = app.novelApiRepository
@@ -54,6 +64,32 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun refreshHome() {
         loadHome()
+    }
+
+    // ── 結果一覧（検索/ジャンル/気分プリセットの共通着地） ──
+
+    private val _resultContext = MutableStateFlow<ResultContext?>(null)
+    val resultContext: StateFlow<ResultContext?> = _resultContext.asStateFlow()
+
+    private val _resultState = MutableStateFlow<DiscoveryUiState>(DiscoveryUiState.Loading)
+    val resultState: StateFlow<DiscoveryUiState> = _resultState.asStateFlow()
+
+    /** 結果一覧の文脈を差し替えてロードする（呼び出し側はこのあと discovery/result へ navigate する）。 */
+    fun openResult(context: ResultContext) {
+        _resultContext.value = context
+        loadResult()
+    }
+
+    fun refreshResult() {
+        loadResult()
+    }
+
+    private fun loadResult() {
+        val ctx = _resultContext.value ?: return
+        viewModelScope.launch {
+            _resultState.value = DiscoveryUiState.Loading
+            _resultState.value = fetch(ctx.query)
+        }
     }
 
     private fun loadHome() {

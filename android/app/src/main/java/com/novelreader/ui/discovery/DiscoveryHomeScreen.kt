@@ -1,13 +1,20 @@
 package com.novelreader.ui.discovery
 
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.HorizontalDivider
@@ -27,10 +34,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.DiscoveryUiState
@@ -38,15 +47,18 @@ import com.novelreader.viewmodel.DiscoveryViewModel
 
 // ============================================================
 // 発見ホーム（モック discovery-home-D.html の翻訳）。
-// C1: order切替タブ＋ランキング一覧。タブはヘアライン上に藍の下線（モック .tabs/.tab.on）。
+// ジャンル入口チップ＋order切替タブ＋ランキング一覧。
+// モック同様ホーム全体が1本のスクロール（タブは stickyHeader で切替可能性を保つ）。
 // ============================================================
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun DiscoveryHomeScreen(
     viewModel: DiscoveryViewModel,
     onBack: () -> Unit,
     onOpenDetail: (ncode: String) -> Unit,
+    onOpenGenre: () -> Unit,
+    onPickBiggenre: (code: Int, label: String) -> Unit,
 ) {
     val order by viewModel.homeOrder.collectAsState()
     val state by viewModel.homeState.collectAsState()
@@ -81,40 +93,105 @@ fun DiscoveryHomeScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            OrderTabRow(
-                selected = order,
-                onSelect = { viewModel.setHomeOrder(it) },
-            )
-            Box(modifier = Modifier.weight(1f)) {
-                when (val s = state) {
-                    is DiscoveryUiState.Loading -> DiscoveryStatusBox(isLoading = true)
-                    is DiscoveryUiState.Empty -> DiscoveryStatusBox(emptyMessage = "作品が見つかりませんでした")
-                    is DiscoveryUiState.Error -> DiscoveryStatusBox(
+            item { GenreEntrySection(onOpenGenre = onOpenGenre, onPickBiggenre = onPickBiggenre) }
+
+            // タブはスクロールしても上端に残す（長いランキングの途中でも order を切替できるように）
+            stickyHeader {
+                OrderTabRow(
+                    selected = order,
+                    onSelect = { viewModel.setHomeOrder(it) },
+                )
+            }
+
+            when (val s = state) {
+                is DiscoveryUiState.Loading -> item {
+                    DiscoveryStatusBox(
+                        isLoading = true,
+                        modifier = Modifier.fillParentMaxHeight(0.5f),
+                    )
+                }
+                is DiscoveryUiState.Empty -> item {
+                    DiscoveryStatusBox(
+                        emptyMessage = "作品が見つかりませんでした",
+                        modifier = Modifier.fillParentMaxHeight(0.5f),
+                    )
+                }
+                is DiscoveryUiState.Error -> item {
+                    DiscoveryStatusBox(
                         errorMessage = s.message,
                         onRetry = { viewModel.refreshHome() },
+                        modifier = Modifier.fillParentMaxHeight(0.5f),
                     )
-                    is DiscoveryUiState.Content -> {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 24.dp),
-                        ) {
-                            itemsIndexed(s.novels) { index, novel ->
-                                NovelListRow(
-                                    rank = index + 1,
-                                    novel = novel,
-                                    order = order,
-                                    onClick = { novel.ncode?.let(onOpenDetail) },
-                                )
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                            }
+                }
+                is DiscoveryUiState.Content -> {
+                    itemsIndexed(s.novels) { index, novel ->
+                        Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                            NovelListRow(
+                                rank = index + 1,
+                                novel = novel,
+                                order = order,
+                                onClick = { novel.ncode?.let(onOpenDetail) },
+                            )
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** ジャンル入口（モック「ジャンルから」節）: 大ジャンルの丸チップ＋ジャンル画面への「すべて →」。 */
+@Composable
+private fun GenreEntrySection(
+    onOpenGenre: () -> Unit,
+    onPickBiggenre: (code: Int, label: String) -> Unit,
+) {
+    Column(modifier = Modifier.padding(top = 8.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "ジャンルから",
+                fontSize = 10.5.sp,
+                letterSpacing = 3.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = "すべて →",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable(onClick = onOpenGenre),
+            )
+        }
+        LazyRow(
+            modifier = Modifier.padding(top = 10.dp, bottom = 6.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(NarouGenres.BIGGENRES) { (code, label) ->
+                Text(
+                    text = label,
+                    fontSize = 11.5.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                            shape = RoundedCornerShape(50),
+                        )
+                        .clickable { onPickBiggenre(code, label) }
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                )
             }
         }
     }
@@ -132,7 +209,8 @@ private fun OrderTabRow(
 ) {
     val orders = NarouOrder.entries
     val selectedIndex = orders.indexOf(selected)
-    Column {
+    // stickyHeader として背後のリストが透けないよう素地色を敷く
+    Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
         ScrollableTabRow(
             selectedTabIndex = selectedIndex,
             containerColor = MaterialTheme.colorScheme.background,

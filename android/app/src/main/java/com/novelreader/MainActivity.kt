@@ -13,12 +13,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
+import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.ui.BookshelfScreen
 import com.novelreader.ui.ReadingScreen
+import com.novelreader.ui.discovery.DiscoveryGenreScreen
 import com.novelreader.ui.discovery.DiscoveryHomeScreen
+import com.novelreader.ui.discovery.DiscoveryResultScreen
 import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfViewModel
+import com.novelreader.viewmodel.DiscoveryViewModel
+import com.novelreader.viewmodel.ResultContext
 
 class MainActivity : ComponentActivity() {
 
@@ -70,6 +75,9 @@ private fun NovelReaderApp(
 ) {
     val navController = rememberNavController()
     val viewModel: BookshelfViewModel = viewModel()
+    // 発見系（ホーム/ジャンル/結果一覧）はクエリ文脈を画面間で受け渡すため単一VMを共有する。
+    // ロードは ensureHomeLoaded の遅延型なので、ここで生成しても本棚起動時に通信は発生しない。
+    val discoveryViewModel: DiscoveryViewModel = viewModel()
 
     NavHost(navController = navController, startDestination = "bookshelf") {
 
@@ -89,9 +97,43 @@ private fun NovelReaderApp(
 
         composable("discovery") {
             DiscoveryHomeScreen(
-                viewModel = viewModel(),
+                viewModel = discoveryViewModel,
                 onBack = { navController.popBackStack() },
                 // 作品詳細ルートは C4 で追加予定（それまで行タップは無反応）
+                onOpenDetail = {},
+                onOpenGenre = { navController.navigate("discovery/genre") },
+                onPickBiggenre = { code, label ->
+                    discoveryViewModel.openResult(
+                        ResultContext(title = label, query = DiscoveryQuery(biggenres = setOf(code)))
+                    )
+                    navController.navigate("discovery/result")
+                },
+            )
+        }
+
+        composable("discovery/genre") {
+            DiscoveryGenreScreen(
+                onBack = { navController.popBackStack() },
+                onPickBiggenre = { code, label ->
+                    discoveryViewModel.openResult(
+                        ResultContext(title = label, query = DiscoveryQuery(biggenres = setOf(code)))
+                    )
+                    navController.navigate("discovery/result")
+                },
+                onPickGenre = { code, label ->
+                    discoveryViewModel.openResult(
+                        ResultContext(title = label, query = DiscoveryQuery(genres = setOf(code)))
+                    )
+                    navController.navigate("discovery/result")
+                },
+            )
+        }
+
+        composable("discovery/result") {
+            DiscoveryResultScreen(
+                viewModel = discoveryViewModel,
+                onBack = { navController.popBackStack() },
+                // 作品詳細ルートは C4 で追加予定
                 onOpenDetail = {},
             )
         }

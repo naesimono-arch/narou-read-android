@@ -144,4 +144,44 @@ class DiscoveryViewModelTest {
 
         coVerify(exactly = 1) { mockRepo.discover(any()) }
     }
+
+    @Test
+    fun `openResult - 文脈が保存され、そのクエリで取得した結果が resultState に入ること`() = runTest {
+        val hits = listOf(NarouNovel(title = "検索ヒット"))
+        coEvery { mockRepo.discover(match { it.word == "薬師" }) } returns DiscoveryResult(42, hits)
+
+        viewModel = DiscoveryViewModel(mockApp)
+        val ctx = ResultContext(
+            title = "「薬師」",
+            query = com.novelreader.narou.model.DiscoveryQuery(word = "薬師"),
+        )
+        viewModel.openResult(ctx)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(ctx, viewModel.resultContext.value)
+        val state = viewModel.resultState.value
+        assertTrue(state is DiscoveryUiState.Content)
+        assertEquals(hits, (state as DiscoveryUiState.Content).novels)
+        assertEquals(42, state.allcount)
+    }
+
+    @Test
+    fun `openResult - 取得失敗時は resultState が Error になり refreshResult で再試行されること`() = runTest {
+        coEvery { mockRepo.discover(any()) } throws NarouApiException("通信エラー", Exception())
+
+        viewModel = DiscoveryViewModel(mockApp)
+        viewModel.openResult(ResultContext(title = "t", query = com.novelreader.narou.model.DiscoveryQuery()))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(viewModel.resultState.value is DiscoveryUiState.Error)
+
+        val recovered = listOf(NarouNovel(title = "復帰"))
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, recovered)
+        viewModel.refreshResult()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.resultState.value
+        assertTrue(state is DiscoveryUiState.Content)
+        assertEquals(recovered, (state as DiscoveryUiState.Content).novels)
+    }
 }
