@@ -83,7 +83,12 @@ sentinel = os.path.join(claude_dir, ".allow_protected_commit")
 if os.path.exists(sentinel):
     try:
         os.remove(sentinel)
-        print("[ブランチガード] 保護ブランチへのコミット成功を確認。上書きセンチネルを消費しました。")
+        # PostToolUse の plain stdout はモデルに届かない（task_diary #28）。「センチネルは消費済み＝
+        # 次の保護ブランチコミットには人間の再発行が要る」という状態遷移を additionalContext で知らせる。
+        print(json.dumps({"hookSpecificOutput": {
+            "hookEventName": "PostToolUse",
+            "additionalContext": "[ブランチガード] 保護ブランチへのコミット成功を確認し、上書きセンチネルを消費しました（次の保護ブランチコミットにはユーザーの再発行が必要）。",
+        }}, ensure_ascii=False))
     except OSError as e:
         print(f"[ブランチガード] 警告: センチネル削除に失敗: {e}", file=sys.stderr)
 

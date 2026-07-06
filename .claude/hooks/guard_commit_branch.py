@@ -120,8 +120,14 @@ claude_dir = os.path.dirname(hooks_dir)
 sentinel = os.path.join(claude_dir, ".allow_protected_commit")
 
 if os.path.exists(sentinel):
-    print(f"[ブランチガード] 保護ブランチ '{effective_branch}' への明示コミットを許可（センチネル検出）。"
-          "コミット成功時に自動消費されます。")
+    # PreToolUse の plain stdout はモデルに届かない（task_diary #28）。許可の事実と「成功時に
+    # 自動消費される」ことは次の行動判断に要るため additionalContext で注入する
+    # （PreToolUse でも additionalContext が届くことは 2026-07-07 の probe で実測済み）。
+    print(json.dumps({"hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "additionalContext": f"[ブランチガード] 保護ブランチ '{effective_branch}' への明示コミットを許可"
+                             "（センチネル検出）。コミット成功時に自動消費されます。",
+    }}, ensure_ascii=False))
     sys.exit(0)
 
 print(f"[ブランチガード] 保護ブランチ '{effective_branch}' への直接コミット"
