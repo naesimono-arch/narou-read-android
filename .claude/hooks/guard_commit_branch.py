@@ -99,6 +99,9 @@ print("作業ブランチ（lab / UI-* など）へ切替えてコミットし�
 print("意図的に main へコミットする場合のみ（センチネルは AI では作成できません）:", file=sys.stderr)
 print("  → コミット内容をユーザーに提示して承認を得たうえで、ユーザーに入力欄で", file=sys.stderr)
 print("    次を先頭の `!` ごと実行してもらう（`!`=bash mode だけがフックを迂回する）:", file=sys.stderr)
-print(r"      ! echo > .claude/.allow_protected_commit", file=sys.stderr)
+# cwd 非依存の絶対パスで案内する: `!`(bash mode) のシェル cwd はリポジトリルートである保証がなく、
+# サブディレクトリから相対 `.claude/…` を叩くと "No such file or directory" で失敗する（2026-07-07 実地）。
+# sentinel は上で算出済みの絶対パス（`.claude/.allow_protected_commit`）。
+print(f"      ! echo > {sentinel}", file=sys.stderr)
 print("  （guard_sentinel_creation.py が AI のツール経由作成を塞ぐ。作成後に再度コミットを実行）", file=sys.stderr)
 sys.exit(2)

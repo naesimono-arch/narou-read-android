@@ -38,6 +38,14 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="repla
 # ここは basename のみで判定する（AI が相対でも絶対でも同名ファイルを作れば捕捉するため）。
 SENTINEL_BASENAME = ".allow_protected_commit"
 
+# 案内メッセージ用の絶対パス（cwd 非依存）。`!`(bash mode) のシェル cwd はリポジトリルートである
+# 保証がなく、相対 `.claude/…` はサブディレクトリから叩くと "No such file or directory" で失敗する
+# （2026-07-07 実地）。手順は必ず絶対パスで出す。判定は上記 basename、案内はこの絶対パスと役割が別。
+SENTINEL_ABS = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    SENTINEL_BASENAME,
+)
+
 
 def block() -> None:
     # なぜ stderr か: PreToolUse の plain stdout はモデルに届かないが、exit 2 でブロックした際の
@@ -46,7 +54,7 @@ def block() -> None:
     print("これは main への明示コミット許可を『人間だけが発行する』ための仕組みです。", file=sys.stderr)
     print("コミット内容をユーザーに提示し、承認を得たうえで、ユーザーに入力欄で次を", file=sys.stderr)
     print("先頭の `!` ごと実行してもらってください（`!`=bash mode はこのフックを迂回します）:", file=sys.stderr)
-    print(r"  ! echo > .claude/.allow_protected_commit", file=sys.stderr)
+    print(f"  ! echo > {SENTINEL_ABS}", file=sys.stderr)
     sys.exit(2)
 
 
