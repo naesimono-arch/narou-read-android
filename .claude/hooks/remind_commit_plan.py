@@ -39,5 +39,11 @@ except OSError:
 if re.search(r"^##\s+.*?(コミット|commit)", content, re.MULTILINE | re.IGNORECASE):
     sys.exit(0)
 
-print(f"[コミット計画チェック] `## コミット計画` セクションが {os.path.basename(normalized)} にありません。追加してください。")
+# なぜ stderr か: PostToolUse の exit 2 でモデルに届くのは stderr のみで、stdout は
+# デバッグログ止まり（公式仕様・task_diary #28）。stdout に出すと「理由の無いブロック信号」
+# だけが返り、何を直せばよいかがモデルに伝わらない（B6 アンチパターン）。
+print(
+    f"[コミット計画チェック] `## コミット計画` セクションが {os.path.basename(normalized)} にありません。追加してください。",
+    file=sys.stderr,
+)
 sys.exit(2)
