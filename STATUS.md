@@ -6,7 +6,7 @@
 
 ## 0. 現在の状態（一次情報）
 
-- branch=`main` / HEAD=`75de07c`（2026-07-06 に `feat/exec-fabrication-detector`＝実行捏造検知フック＋`kotlin`＝Chaquopy→PDFBox 移植を --no-ff で統合。未push＝origin より ahead 75。統合済みの旧ローカルブランチは削除済み）
+- branch=`main` / 統合ノード=`788a18f`（2026-07-07 に完了3ブランチを --no-ff 統合＝`meta/tooling-improvements`(フック情報提示修正・architectureスキル圧縮・ADR0007)＋`feat/processing-resilience`(停止のページ境界即中断・強制終了リカバリ・Room v7→v8)＋`feat/bookshelf-reflow-anim`(animateItem詰め直しアニメ・Compose BOM 2025.02.00)。統合後にこの3本のローカルブランチ・worktree は削除済み。API系 `api-lab`/`api-lab-ai` は開発中のため不可侵で残置。未push＝origin より ahead 130。前身の 2026-07-06 統合＝`feat/exec-fabrication-detector`＝実行捏造検知フック＋`kotlin`＝Chaquopy→PDFBox 移植）
 - **✅ `feat/processing-resilience`（2026-07-07 統合）＝handover A の残り2件を実装（JVM113緑＋実機3/3合格・OPPO PGEM10）**:
   ① **停止ボタンをページ境界の即中断へ再配線**: 処理中の1冊を子 Job（`currentBookJob`）で起動し `ACTION_STOP` が cancel → `addBook` の進捗コールバック内 `ensureActive()` が次のページ境界で中断（ループ Job ごと cancel しないのは cancel〜finally 間の ACTION_START 取りこぼしレース回避）。停止時は ongoing 通知を `STOP_FOREGROUND_REMOVE` で確実に除去。
   ② **強制終了（OEM kill/OOM/onTimeout）時の通知＋再開**: Room **v7→v8** で `pending_jobs` 新設（enqueue で記帳／成否確定で削除／明示停止は全消し／記帳は `pendingJobDispatcher`(並列度1)で直列化）。SAF 選択時に `takePersistableUriPermission` 取得。起動時リカバリ `runStartupRecoveryOnce`（MainActivity.onCreate トリガー・プロセス毎1回）＝孤立HTML掃除→未完了ジョブ検出→snackbar 通知＋権限が生きる分を FGS 再投入。
