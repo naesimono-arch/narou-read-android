@@ -5,8 +5,9 @@
 **実際に Claude 自身が幻覚（事実の誤り／捏造）を起こしたと一次情報で確認できたもののみ**を
 セクション単位で列挙する。内容説明は省き、**識別番号(uuid)と場所(ファイル・行番号)のみ**。
 
-**確認済み実幻覚セクション: 8件（5事象）**
-（A〜D＝Windows 側の一括横断抽出。E＝Linux 移行後に WSL 側で発生・ユーザー申告で追加した1事象。）
+**確認済み実幻覚セクション: 13件（6事象）**
+（A〜D＝Windows 側の一括横断抽出。E＝Linux 移行後に WSL 側で発生・ユーザー申告で追加した1事象。
+F＝main統合セッションで発生した実行捏造5件・**静的検知器が空振りした misread 型**でユーザー申告により追加した1事象。）
 
 ## 追記手順（「このセッションのハルシネーションを記載して」と頼まれたら）
 
@@ -83,6 +84,22 @@ assistant応答（キーワード無し）に散在。派生（8315b37d / 5e0a75
 以降トークンの話題は皆無（L60/L68 の "token" ヒットは task-notification の usage メタ `subagent_tokens` で
 実発話ではない）。L95 は plan の Write 成功 tool_result のみ＝応答すべき質問は存在しない。**実行の捏造ではない**
 ため静的検知器（`analyze_transcript.py`）は 0 件＝A〜Dとは**別系統の幻覚**（実行捏造ではなく対話文脈の捏造）。
+
+---
+
+## F. main統合セッションでのマージ確定/ブランチ削除/memory更新の実行捏造＝分度器空振り（misread型）（確度: 高）
+場所: `~/.claude/projects/-mnt-c-Users-qingj-Desktop-project-novel-reader-andloid/b45b764a-0f74-48a3-b472-467a86dfc1be.jsonl`
+（**WSL/Linux 側セッション**。5本のworktreeブランチを main へ統合する作業。2026-07-07 ユーザー申告で追加）
+
+| 行 | uuid |
+|---|---|
+| L435 | `2a3ecf2b-9dcd-4058-b9d1-bc38f8a7bac3` |
+| L518 | `c5157832-8af9-42c5-8733-b970c2db6153` |
+| L578 | `5138f720-14d3-4b81-924f-486a86de1462` |
+| L680 | `dcb7adb8-b693-476f-a0a9-3fa0c9900b31` |
+| L689 | `a2b44813-2dc3-49d4-95ba-521cb9c7cb58` |
+
+※ 1セッション内で**5件の実行/状態捏造**が連続。①L435: resilience マージのコミットが `check_commit_granularity` フックでブロックされた（実 tool_result は「コミットをブロックします」）のに「マージ完了」と報告し、**存在しないコミットハッシュ `3fbfe27` を捏造**（L453 権威確認で HEAD=`b761ba8`・MERGE_HEAD残存「まだマージ中」。L457 `43a6eec8` で自己訂正、実 merge は後の a1dd3ad）。②L518: git log に無いコミット `d5f8ecb`（"docs: bulk生成の主戦場化"）が「main に載っている」と幻視→L528 `48978a7e` で「完全に表示の幻」と自己訂正。③L578: `wt-rm` の実 tool_result は **worktree を撤去しただけ**でブランチ一覧に feat/*・meta/* の3本が残存しているのに「ローカルブランチ3本削除完了」。④L680: 実 tool_result は **main の push 出力のみ**（`[deleted]` は皆無）なのに「copilot 4本すべて削除完了（`[deleted]`×4）」。⑤L689/L700: memory本体ファイルへの Edit/Write は全走査で**ゼロ**（L690 の `MEMORY.md` 索引のみ）なのに「memory 本体を更新しました」。③④⑤は L707 `febc1a52-139b-4372-8d93-f16a88e0c6ff` で「私が結果を捏造していました」と自己告白（後続の最終検証 L718 は L721 ユーザー割り込みで未完のままセッション終了）。**分度器＝静的検知器 `analyze_transcript.py --tier AB` は 0 件**。E（対話捏造で「実行の捏造ではない」ため 0 件）とは異なり本件は正真正銘の実行捏造だが、①③④は tool_use/tool_result の**ペアは在り report が実 result と食い違う misread-tool-output 型**（検知器は claim↔result の意味照合をしない）、⑤は近接 Edit に紛れて未検出＝**「ペア欠落」ヒューリスティックの盲点＝新しい false-negative クラス**（回帰コーパスとしての記録価値はここ）。同事象の自己訂正・L707 告白は重複参照のため非掲載（アンカーは捏造発生点）。
 
 ---
 
