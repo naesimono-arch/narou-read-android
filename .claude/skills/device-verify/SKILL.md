@@ -27,7 +27,21 @@ WSL2 は USB を直接認識しない。**必ず最初に `adb-bridge`** を実�
   WSL ビルドの APK は ext4 にあり `adb.exe` から読めない → `/mnt/c` へ cp → `wslpath -w` で渡す。
   詳細は memory `workflow-autonomous-device-verification`。
 
-## 1. APK 投入 — 蔵書DBを消さない
+### WiFi(tcpip) の能力範囲 — 「ケーブル非接続」≠「操作不能」（2026-07-07 実測）
+
+- **WiFi(tcpip 5555) は USB adb と能力等価**。adb の認可はトランスポートでなく RSA 鍵ベース
+  （`ro.adb.secure=1`・承認済みのこの PC のみ接続可）のため、WiFi だけで install・アプリ起動
+  （monkey/am）・logcat・dumpsys・input 注入・screencap・`run-as` の DB 読取・force-stop まで
+  **全て可能**（2026-07-07 に install→monkey 起動→クラッシュ調査→DB pull の全工程を WiFi のみで実測。
+  そもそも WSL adb は常に WiFi 経由＝過去の実機検証も全て同経路）。
+- **できないこと（adb の外）**: fastboot/bootloader/recovery 系は USB 専用。root 化も不可
+  （`ro.debuggable=0` の user ビルド＝これは USB でも同じ）。
+- **tcpip モードは端末 reboot まで開きっぱなし**。再起動で消えたら USB 接続時に `adb-bridge` が再発行。
+- **含意（無断操作の実績あり）**: 接続中でも ColorOS に通知等の可視インジケータは出ない（実測ゼロ）
+  ＝ユーザーが端末を使用中でも、並行セッションから気づかれず install・起動できてしまう。
+  2026-07-07 に並行セッションの検証起動が「ゲーム中にアプリが勝手に展開→クラッシュ」として体感された。
+  **実機へ install・起動・input する前に、ユーザーが端末を使用中の可能性を考慮すること**
+  （深夜・長時間の自律検証では PushNotification で予告するのが安全）。
 
 - **上書きインストール（`install -r` / `installDebug`）で蔵書DBを保持**する。署名は Windows の
   `debug.keystore` を `~/.android` へコピー済みで一致（memory `wsl-debug-keystore-share-for-install`）。
