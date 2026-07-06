@@ -15,49 +15,19 @@ PreToolUse hook: 保護ブランチ（main）への直接コミットをブロ�
   `git branch --show-current` が空を返し PROTECTED に一致しないため、ここではブロックしない。
   防御的に広げないのは意図的（過剰ブロックで通常作業を阻害しないため）。
 """
-import io
 import json
 import os
 import re
 import subprocess
 import sys
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+# git commit／コミットを生成する merge/rebase/cherry-pick の検知は hooks_common.py の
+# 単一定義を共有する（定義と設計理由は同ファイル参照。共有を identity で固定するのは test_hooks.py）。
+from hooks_common import COMMIT_CMD_RE, COMMIT_GENERATING_RE, read_payload, wrap_stdio
+
+wrap_stdio()
 
 PROTECTED = {"main"}
-
-# 実行コマンドとしての `git commit` を検知する正規表現。
-# 【重要】consume_protected_sentinel.py と同一定義（検知整合のため）。変更時は両ファイルを更新すること。
-# なぜコマンド境界に限定するか:
-#   本フックは exit 2 で実際にブロックするため精度が要る。素朴な \bgit\s+commit\b だと
-#   `echo '...git commit...'`（クォート内の単なる言及）まで誤ブロックする（実際に検証中に巻き込まれた）。
-# なぜ境界に改行 \n を含めるか:
-#   `git add -A`⏎`git commit ...` のような複数行コマンド（heredoc 等）では commit が行頭に来る。
-#   改行を境界に含めないと、この最頻パターンの直接コミットを取りこぼす（監査で実証）。
-# なぜ git と commit の間にグローバルオプションを許容するか:
-#   `git -C <path> commit` / `git -c k=v commit` / `git --git-dir=… commit` も実コミット。
-#   オプションを許容しないと取りこぼす（監査で実証）。引数・メッセージ内の言及は引き続き無視する。
-COMMIT_CMD_RE = re.compile(
-    r"(?:^|\n|&&|\|\||[;|&])\s*git"
-    r"(?:\s+(?:-[Cc]\s+\S+|-{1,2}[\w.-]+(?:=\S+)?))*"
-    r"\s+commit\b"
-)
-
-# コミットを生成する merge/rebase/cherry-pick も保護対象にする。
-# なぜ: 競合しない `git merge <branch>` やマージ/リベースの `--continue` は "commit" トークンを
-# 含まずに保護ブランチの HEAD を進める＝リテラル git commit 検知だけでは branch guard を素通り
-# していた（2026-07-06 の feat+kotlin 統合で実地に露呈＝handover hooks/fix ②）。
-# --abort/--quit はコミットを生成しない回復コマンドのため除外（誤ブロックすると main 上での
-# マージ中断すらセンチネルが要る本末転倒になる）。--no-commit も生成しない（後続の明示
-# git commit が COMMIT_CMD_RE で捕まる）ため除外。
-# 【重要】consume_protected_sentinel.py / check_commit_granularity.py と同一定義。
-COMMIT_GENERATING_RE = re.compile(
-    r"(?:^|\n|&&|\|\||[;|&])\s*git"
-    r"(?:\s+(?:-[Cc]\s+\S+|-{1,2}[\w.-]+(?:=\S+)?))*"
-    # (?!-) は merge-base / merge-file 等の読み取り系サブコマンドへの誤発火防止
-    r"\s+(?:merge|rebase|cherry-pick)\b(?!-)(?![^\n;|&]*--(?:abort|quit|no-commit)\b)"
-)
 
 # コマンド文字列内で保護ブランチへ `switch`/`checkout` する箇所を検知する（実効ブランチ判定用）。
 # なぜ要るか（2026-07-07 実地で判明）: `git switch main && git merge …` のように switch と
@@ -82,9 +52,8 @@ SWITCH_TO_PROTECTED_RE = re.compile(
     r"(?!\s+--(?:\s|$))"                                 # 直後が ` -- <path>` の checkout はブランチ移動でない
 )
 
-try:
-    data = json.load(sys.stdin)
-except (json.JSONDecodeError, EOFError, ValueError):
+data = read_payload()
+if data is None:
     sys.exit(0)
 
 if data.get("tool_name", "") != "Bash":

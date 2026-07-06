@@ -9,39 +9,21 @@ PostToolUse hook: 保護ブランチへの明示コミットが「実際に成�
   確認してから削除するため、git レベルで失敗（nothing to commit 等）したケースでもセンチネルは残る。
   これにより「コミット失敗なのにセンチネルだけ消える」穴を塞ぐ。
 """
-import io
 import json
 import os
 import re
 import sys
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+# git commit／コミットを生成する merge/rebase/cherry-pick の検知は hooks_common.py の
+# 単一定義を共有する（定義と設計理由は同ファイル参照。共有を identity で固定するのは test_hooks.py）。
+# guard(Pre) と consume(Post) が同一定義であることは「guard が許可・実行したコミットを consume 側でも
+# 確実に検知してセンチネルを消費できる」ための整合条件＝共有化でズレようがなくなった。
+from hooks_common import COMMIT_CMD_RE, COMMIT_GENERATING_RE, read_payload, wrap_stdio
 
-# 実行コマンドとしての `git commit` を検知する正規表現。
-# 【重要】guard_commit_branch.py と同一定義（検知整合のため）。詳細な理由は同ファイルのコメント参照。
-# 改行区切り・グローバルオプション付き（git -C/-c … commit）も対象にし、guard が許可・実行した
-# コミットを consume 側でも確実に検知して、上書きセンチネルを消費できるようにする。
-COMMIT_CMD_RE = re.compile(
-    r"(?:^|\n|&&|\|\||[;|&])\s*git"
-    r"(?:\s+(?:-[Cc]\s+\S+|-{1,2}[\w.-]+(?:=\S+)?))*"
-    r"\s+commit\b"
-)
+wrap_stdio()
 
-# コミットを生成する merge/rebase/cherry-pick も消費対象にする。
-# なぜ: guard 側が同コマンドをブロック対象に加えたため、センチネルで許可されたマージ完了後にも
-# 消費が走らないと「1回限りの上書き」が使い回せてしまう。
-# 【重要】guard_commit_branch.py / check_commit_granularity.py と同一定義。詳細は guard のコメント参照。
-COMMIT_GENERATING_RE = re.compile(
-    r"(?:^|\n|&&|\|\||[;|&])\s*git"
-    r"(?:\s+(?:-[Cc]\s+\S+|-{1,2}[\w.-]+(?:=\S+)?))*"
-    # (?!-) は merge-base / merge-file 等の読み取り系サブコマンドへの誤発火防止
-    r"\s+(?:merge|rebase|cherry-pick)\b(?!-)(?![^\n;|&]*--(?:abort|quit|no-commit)\b)"
-)
-
-try:
-    data = json.load(sys.stdin)
-except (json.JSONDecodeError, EOFError, ValueError):
+data = read_payload()
+if data is None:
     sys.exit(0)
 
 if data.get("tool_name", "") != "Bash":

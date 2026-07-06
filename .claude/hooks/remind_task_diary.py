@@ -19,29 +19,20 @@ PostToolUse hook: `fix:` コミット時に task_diary.md への追記要否を�
   - コマンドが `git commit` を含み、コミットメッセージが `fix:`（または `feat:`）で始まる
   - `docs:`/`refactor:`/`chore:`/`style:`/`test:` 等はスルー（ノイズを出さない）
 """
-import io
 import json
 import re
 import sys
 
-# 文字化け対策（既存 hook と同じ作法）。
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+# git commit の検知は hooks_common.py の単一定義を共有する
+# （定義と設計理由は同ファイル参照。共有を identity で固定するのは test_hooks.py）。
+# 本フック固有の背景: 旧・単純部分文字列判定はクォート内言及にも誤発火し、
+# -m 抽出が echo 内の疑似メッセージを拾うノイズ源だった。
+from hooks_common import COMMIT_CMD_RE, read_payload, wrap_stdio
 
-# 実行コマンドとしての `git commit` を検知する正規表現。
-# 【重要】guard_commit_branch.py と同一定義（test_hooks.py が一致を回帰固定）。
-# なぜ単純部分文字列（"git commit" in command）から置き換えたか: クォート内言及にも誤発火するため
-# （本フックは無害な想起のみだが、-m 抽出が echo 内の疑似メッセージを拾うノイズ源になる）。
-# なぜ stdin 読込より前に定義するか: test_hooks.py が実ファイルを exec して定数を回収する設計のため。
-COMMIT_CMD_RE = re.compile(
-    r"(?:^|\n|&&|\|\||[;|&])\s*git"
-    r"(?:\s+(?:-[Cc]\s+\S+|-{1,2}[\w.-]+(?:=\S+)?))*"
-    r"\s+commit\b"
-)
+wrap_stdio()
 
-try:
-    data = json.load(sys.stdin)
-except (json.JSONDecodeError, EOFError):
+data = read_payload()
+if data is None:
     sys.exit(0)
 
 if data.get("tool_name", "") != "Bash":

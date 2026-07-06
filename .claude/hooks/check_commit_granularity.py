@@ -7,44 +7,22 @@ PreToolUse hook: git commit 前に最新プランのコミット計画とステ�
 plain stdout はどちらの用途でもモデルに届かない（task_diary #28）。
 """
 import glob
-import io
 import json
 import os
 import re
 import subprocess
 import sys
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+# git commit／コミットを生成する merge/rebase/cherry-pick の検知は hooks_common.py の
+# 単一定義を共有する（定義と設計理由は同ファイル参照。共有を identity で固定するのは test_hooks.py）。
+# 本フック固有の背景: 旧・緩い検知（\bgit\s+commit\b）はクォート内言及にも誤発火し、
+# Kotlin ステージ×センチネル不在の状況では exit 2 の誤ブロックまで到達しえた（2026-07-06 指摘）。
+from hooks_common import COMMIT_CMD_RE, COMMIT_GENERATING_RE, read_payload, wrap_stdio
 
-# 実行コマンドとしての `git commit` を検知する正規表現。
-# 【重要】guard_commit_branch.py / consume_protected_sentinel.py と同一定義（検知整合のため）。
-# 変更時は全ファイルを更新すること（test_hooks.py が一致を回帰固定）。
-# なぜ緩い \bgit\s+commit\b から置き換えたか: `echo '...git commit...'` 等のクォート内言及にも
-# 誤発火し、Kotlin ステージ×センチネル不在の状況では exit 2 の誤ブロックまで到達しうるため
-# （2026-07-06 stale-check フル照合で指摘）。
-# なぜ stdin 読込より前に定義するか: test_hooks.py が実ファイルを exec して定数を回収する設計のため。
-COMMIT_CMD_RE = re.compile(
-    r"(?:^|\n|&&|\|\||[;|&])\s*git"
-    r"(?:\s+(?:-[Cc]\s+\S+|-{1,2}[\w.-]+(?:=\S+)?))*"
-    r"\s+commit\b"
-)
-# コミットを生成する merge/rebase/cherry-pick も対象にする（--abort/--quit/--no-commit は
-# コミットを生成しないため除外）。
-# なぜ: 競合解決後の `git merge --continue` 等は "commit" トークンを含まずにコミットを生成し、
-# リテラル git commit 検知だけではテストゲートを素通りしていた
-# （2026-07-06 の feat+kotlin 統合で実地に露呈＝handover hooks/fix ②）。
-# 【重要】guard_commit_branch.py / consume_protected_sentinel.py と同一定義。
-COMMIT_GENERATING_RE = re.compile(
-    r"(?:^|\n|&&|\|\||[;|&])\s*git"
-    r"(?:\s+(?:-[Cc]\s+\S+|-{1,2}[\w.-]+(?:=\S+)?))*"
-    # (?!-) は merge-base / merge-file 等の読み取り系サブコマンドへの誤発火防止
-    r"\s+(?:merge|rebase|cherry-pick)\b(?!-)(?![^\n;|&]*--(?:abort|quit|no-commit)\b)"
-)
+wrap_stdio()
 
-try:
-    data = json.load(sys.stdin)
-except (json.JSONDecodeError, EOFError):
+data = read_payload()
+if data is None:
     sys.exit(0)
 
 tool_name = data.get("tool_name", "")

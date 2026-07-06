@@ -8,28 +8,17 @@ PreToolUse hook: git commit 前に Room スキーマ変更を検知して確認�
   B) *Entity.kt がステージ済みだが schemas/ がステージされていない
      → ビルド前にスキーマが再生成されていない可能性を警告
 """
-import io
-import json
-import re
 import subprocess
 import sys
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+# git commit の検知は hooks_common.py の単一定義を共有する
+# （定義と設計理由は同ファイル参照。共有を identity で固定するのは test_hooks.py）。
+from hooks_common import COMMIT_CMD_RE, read_payload, wrap_stdio
 
-# 実行コマンドとしての `git commit` を検知する正規表現。
-# 【重要】guard_commit_branch.py と同一定義（test_hooks.py が一致を回帰固定）。
-# なぜ緩い \bgit\s+commit\b から置き換えたか: クォート内言及（echo/grep 等）にも誤発火するため。
-# なぜ stdin 読込より前に定義するか: test_hooks.py が実ファイルを exec して定数を回収する設計のため。
-COMMIT_CMD_RE = re.compile(
-    r"(?:^|\n|&&|\|\||[;|&])\s*git"
-    r"(?:\s+(?:-[Cc]\s+\S+|-{1,2}[\w.-]+(?:=\S+)?))*"
-    r"\s+commit\b"
-)
+wrap_stdio()
 
-try:
-    data = json.load(sys.stdin)
-except (json.JSONDecodeError, EOFError):
+data = read_payload()
+if data is None:
     sys.exit(0)
 
 tool_name = data.get("tool_name", "")
