@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -135,22 +136,121 @@ fun DiscoveryResultScreen(
                 val genreLabel = ctx.query.genres.firstOrNull()?.let { NarouGenres.genreLabel(it) }
 
                 labels.forEachIndexed { index, label ->
-                    // why: conditionChipLabels は末尾に必ず並び順を add するため、最後が並び順チップである。
-                    val isOrderChip = index == labels.lastIndex
-                    val isBiggenreChip = ctx.query.biggenres.size == 1 && label == biggenreLabel
-                    val isGenreChip = ctx.query.genres.size == 1 && label == genreLabel
-                    val isGenrePlaceholderChip = ctx.query.biggenres.isEmpty() && ctx.query.genres.isEmpty() && label == "ジャンル"
+                    // なぜ key(label) か: 下の clickable チップは expanded を remember する。remember は
+                    // スロット位置に紐づくため、条件変更でチップ集合が増減・並び替わると、開いていた
+                    // ドロップダウンの expanded が別チップへ誤流用される。label は人間可読で一意な文言
+                    // （並び順は「〜順」・ジャンル名等）なので、これを識別子にして状態を各チップに固定する。
+                    key(label) {
+                        // why: conditionChipLabels は末尾に必ず並び順を add するため、最後が並び順チップである。
+                        val isOrderChip = index == labels.lastIndex
+                        val isBiggenreChip = ctx.query.biggenres.size == 1 && label == biggenreLabel
+                        val isGenreChip = ctx.query.genres.size == 1 && label == genreLabel
+                        val isGenrePlaceholderChip = ctx.query.biggenres.isEmpty() && ctx.query.genres.isEmpty() && label == "ジャンル"
 
-                    val isGenreFilterChip = isBiggenreChip || isGenreChip || isGenrePlaceholderChip
-                    val isClickable = isOrderChip || isGenreFilterChip
+                        val isGenreFilterChip = isBiggenreChip || isGenreChip || isGenrePlaceholderChip
+                        val isClickable = isOrderChip || isGenreFilterChip
 
-                    if (isClickable) {
-                        var expanded by remember { mutableStateOf(false) }
-                        val displayLabel = "$label ⌄"
+                        if (isClickable) {
+                            var expanded by remember { mutableStateOf(false) }
+                            val displayLabel = "$label ⌄"
 
-                        Box {
+                            Box {
+                                Text(
+                                    text = displayLabel,
+                                    fontSize = 10.5.sp,
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                                    modifier = Modifier
+                                        .border(
+                                            width = 1.dp,
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                            shape = RoundedCornerShape(50),
+                                        )
+                                        .clickable { expanded = true }
+                                        .padding(horizontal = 11.dp, vertical = 5.dp),
+                                )
+
+                                if (isOrderChip) {
+                                    DropdownMenu(
+                                        expanded = expanded,
+                                        onDismissRequest = { expanded = false }
+                                    ) {
+                                        NarouOrder.entries.forEach { order ->
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = order.uiLabel,
+                                                        fontWeight = if (ctx.query.order == order) FontWeight.Bold else FontWeight.Normal,
+                                                        fontSize = 14.sp
+                                                    )
+                                                },
+                                                onClick = {
+                                                    expanded = false
+                                                    viewModel.changeResultOrder(order)
+                                                }
+                                            )
+                                        }
+                                    }
+                                } else if (isGenreFilterChip) {
+                                    DropdownMenu(
+                                        expanded = expanded,
+                                        onDismissRequest = { expanded = false }
+                                    ) {
+                                        // 1. すべてのジャンル
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    text = "すべてのジャンル",
+                                                    fontWeight = if (ctx.query.biggenres.isEmpty() && ctx.query.genres.isEmpty()) FontWeight.Bold else FontWeight.Normal,
+                                                    fontSize = 14.sp
+                                                )
+                                            },
+                                            onClick = {
+                                                expanded = false
+                                                viewModel.changeResultGenreFilter(emptySet(), emptySet())
+                                            }
+                                        )
+                                        // 2. 大ジャンル＋配下小ジャンル
+                                        NarouGenres.BIGGENRES.forEach { (bigCode, bigName) ->
+                                            val isCurrentBig = ctx.query.biggenres.size == 1 && ctx.query.biggenres.first() == bigCode
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = bigName,
+                                                        fontWeight = if (isCurrentBig) FontWeight.Bold else FontWeight.SemiBold,
+                                                        color = if (isCurrentBig) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Unspecified,
+                                                        fontSize = 14.sp
+                                                    )
+                                                },
+                                                onClick = {
+                                                    expanded = false
+                                                    viewModel.changeResultGenreFilter(setOf(bigCode), emptySet())
+                                                }
+                                            )
+                                            NarouGenres.GENRES_BY_BIG[bigCode]?.forEach { (genreCode, genreName) ->
+                                                val isCurrentGenre = ctx.query.genres.size == 1 && ctx.query.genres.first() == genreCode
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            text = genreName,
+                                                            modifier = Modifier.padding(start = 16.dp),
+                                                            fontWeight = if (isCurrentGenre) FontWeight.Bold else FontWeight.Normal,
+                                                            color = if (isCurrentGenre) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Unspecified,
+                                                            fontSize = 13.sp
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        expanded = false
+                                                        viewModel.changeResultGenreFilter(emptySet(), setOf(genreCode))
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
                             Text(
-                                text = displayLabel,
+                                text = label,
                                 fontSize = 10.5.sp,
                                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
                                 modifier = Modifier
@@ -159,102 +259,9 @@ fun DiscoveryResultScreen(
                                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
                                         shape = RoundedCornerShape(50),
                                     )
-                                    .clickable { expanded = true }
                                     .padding(horizontal = 11.dp, vertical = 5.dp),
                             )
-
-                            if (isOrderChip) {
-                                DropdownMenu(
-                                    expanded = expanded,
-                                    onDismissRequest = { expanded = false }
-                                ) {
-                                    NarouOrder.entries.forEach { order ->
-                                        DropdownMenuItem(
-                                            text = {
-                                                Text(
-                                                    text = order.uiLabel,
-                                                    fontWeight = if (ctx.query.order == order) FontWeight.Bold else FontWeight.Normal,
-                                                    fontSize = 14.sp
-                                                )
-                                            },
-                                            onClick = {
-                                                expanded = false
-                                                viewModel.changeResultOrder(order)
-                                            }
-                                        )
-                                    }
-                                }
-                            } else if (isGenreFilterChip) {
-                                DropdownMenu(
-                                    expanded = expanded,
-                                    onDismissRequest = { expanded = false }
-                                ) {
-                                    // 1. すべてのジャンル
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = "すべてのジャンル",
-                                                fontWeight = if (ctx.query.biggenres.isEmpty() && ctx.query.genres.isEmpty()) FontWeight.Bold else FontWeight.Normal,
-                                                fontSize = 14.sp
-                                            )
-                                        },
-                                        onClick = {
-                                            expanded = false
-                                            viewModel.changeResultGenreFilter(emptySet(), emptySet())
-                                        }
-                                    )
-                                    // 2. 大ジャンル＋配下小ジャンル
-                                    NarouGenres.BIGGENRES.forEach { (bigCode, bigName) ->
-                                        val isCurrentBig = ctx.query.biggenres.size == 1 && ctx.query.biggenres.first() == bigCode
-                                        DropdownMenuItem(
-                                            text = {
-                                                Text(
-                                                    text = bigName,
-                                                    fontWeight = if (isCurrentBig) FontWeight.Bold else FontWeight.SemiBold,
-                                                    color = if (isCurrentBig) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Unspecified,
-                                                    fontSize = 14.sp
-                                                )
-                                            },
-                                            onClick = {
-                                                expanded = false
-                                                viewModel.changeResultGenreFilter(setOf(bigCode), emptySet())
-                                            }
-                                        )
-                                        NarouGenres.GENRES_BY_BIG[bigCode]?.forEach { (genreCode, genreName) ->
-                                            val isCurrentGenre = ctx.query.genres.size == 1 && ctx.query.genres.first() == genreCode
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        text = genreName,
-                                                        modifier = Modifier.padding(start = 16.dp),
-                                                        fontWeight = if (isCurrentGenre) FontWeight.Bold else FontWeight.Normal,
-                                                        color = if (isCurrentGenre) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Unspecified,
-                                                        fontSize = 13.sp
-                                                    )
-                                                },
-                                                onClick = {
-                                                    expanded = false
-                                                    viewModel.changeResultGenreFilter(emptySet(), setOf(genreCode))
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
                         }
-                    } else {
-                        Text(
-                            text = label,
-                            fontSize = 10.5.sp,
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-                            modifier = Modifier
-                                .border(
-                                    width = 1.dp,
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                                    shape = RoundedCornerShape(50),
-                                )
-                                .padding(horizontal = 11.dp, vertical = 5.dp),
-                        )
                     }
                 }
 
@@ -274,13 +281,15 @@ fun DiscoveryResultScreen(
             }
             Box(modifier = Modifier.weight(1f)) {
                 when (val s = state) {
-                    is DiscoveryUiState.Loading -> DiscoveryStatusBox(isLoading = true)
+                    is DiscoveryUiState.Loading ->
+                        DiscoveryStatusBox(DiscoveryStatus.Loading, modifier = Modifier.fillMaxSize())
                     is DiscoveryUiState.Empty -> DiscoveryStatusBox(
-                        emptyMessage = "条件に合う作品が見つかりませんでした"
+                        DiscoveryStatus.Empty("条件に合う作品が見つかりませんでした"),
+                        modifier = Modifier.fillMaxSize(),
                     )
                     is DiscoveryUiState.Error -> DiscoveryStatusBox(
-                        errorMessage = s.message,
-                        onRetry = { viewModel.refreshResult() },
+                        DiscoveryStatus.Error(s.message, onRetry = { viewModel.refreshResult() }),
+                        modifier = Modifier.fillMaxSize(),
                     )
                     is DiscoveryUiState.Content -> {
                         LazyColumn(
@@ -297,7 +306,14 @@ fun DiscoveryResultScreen(
                                     modifier = Modifier.padding(top = 2.dp, bottom = 4.dp),
                                 )
                             }
-                            itemsIndexed(s.novels) { index, novel ->
+                            itemsIndexed(
+                                s.novels,
+                                // なぜ ncode をキーにするか: 並び順・ジャンル変更や再取得でリスト内容が入れ替わっても
+                                // 各行の識別を安定させ、状態・アニメの誤流用を防ぐ（本棚 items(key = { it.id }) と同方針）。
+                                // ncode はモデル上 null 許容だが発見結果には常に存在する。防御的に欠損時のみ index
+                                // へ退避する（型が違うため ncode 文字列と index の衝突は起きない）。
+                                key = { index, novel -> novel.ncode ?: index },
+                            ) { index, novel ->
                                 NovelListRow(
                                     rank = index + 1,
                                     novel = novel,

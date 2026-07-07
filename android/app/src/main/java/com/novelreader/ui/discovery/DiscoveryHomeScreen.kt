@@ -127,26 +127,40 @@ fun DiscoveryHomeScreen(
 
             when (val s = state) {
                 is DiscoveryUiState.Loading -> item {
+                    // fillMaxWidth は旧 DiscoveryStatusBox 内部の fillMaxSize が担っていた横いっぱい＝
+                    // 中央寄せの前提。box からサイズ固定を外したので呼び出し側で明示する（見た目維持）。
                     DiscoveryStatusBox(
-                        isLoading = true,
-                        modifier = Modifier.fillParentMaxHeight(0.5f),
+                        DiscoveryStatus.Loading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillParentMaxHeight(0.5f),
                     )
                 }
                 is DiscoveryUiState.Empty -> item {
                     DiscoveryStatusBox(
-                        emptyMessage = "作品が見つかりませんでした",
-                        modifier = Modifier.fillParentMaxHeight(0.5f),
+                        DiscoveryStatus.Empty("作品が見つかりませんでした"),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillParentMaxHeight(0.5f),
                     )
                 }
                 is DiscoveryUiState.Error -> item {
                     DiscoveryStatusBox(
-                        errorMessage = s.message,
-                        onRetry = { viewModel.refreshHome() },
-                        modifier = Modifier.fillParentMaxHeight(0.5f),
+                        DiscoveryStatus.Error(s.message, onRetry = { viewModel.refreshHome() }),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillParentMaxHeight(0.5f),
                     )
                 }
                 is DiscoveryUiState.Content -> {
-                    itemsIndexed(s.novels) { index, novel ->
+                    itemsIndexed(
+                        s.novels,
+                        // なぜ ncode をキーにするか: order 切替や再取得でリスト内容が入れ替わっても各行の
+                        // 識別を安定させ、状態・アニメの誤流用を防ぐ（本棚 items(key = { it.id }) と同方針）。
+                        // ncode はモデル上 null 許容だが発見結果には常に存在する。防御的に欠損時のみ index
+                        // へ退避する（型が違うため ncode 文字列と index の衝突は起きない）。
+                        key = { index, novel -> novel.ncode ?: index },
+                    ) { index, novel ->
                         Column(modifier = Modifier.padding(horizontal = 24.dp)) {
                             NovelListRow(
                                 rank = index + 1,
@@ -168,8 +182,11 @@ fun DiscoveryHomeScreen(
  * ヘアライン枠＋左に青磁2pxルール＋明朝タイトル＝モック .md の翻訳。
  */
 @Composable
-private fun MoodSection(onPickMood: (MoodPreset) -> Unit) {
-    Column(modifier = Modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp)) {
+private fun MoodSection(
+    onPickMood: (MoodPreset) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp)) {
         Text(
             text = "きょうの気分",
             fontSize = 10.5.sp,
@@ -246,8 +263,9 @@ private fun MoodCard(
 private fun GenreEntrySection(
     onOpenGenre: () -> Unit,
     onPickBiggenre: (code: Int, label: String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Column(modifier = Modifier.padding(top = 8.dp)) {
+    Column(modifier = modifier.padding(top = 8.dp)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -301,11 +319,12 @@ private fun GenreEntrySection(
 private fun OrderTabRow(
     selected: NarouOrder,
     onSelect: (NarouOrder) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val orders = NarouOrder.entries
     val selectedIndex = orders.indexOf(selected)
     // stickyHeader として背後のリストが透けないよう素地色を敷く
-    Column(modifier = Modifier.background(MaterialTheme.colorScheme.background)) {
+    Column(modifier = modifier.background(MaterialTheme.colorScheme.background)) {
         ScrollableTabRow(
             selectedTabIndex = selectedIndex,
             containerColor = MaterialTheme.colorScheme.background,

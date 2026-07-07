@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -153,19 +152,34 @@ fun NovelListRow(
     }
 }
 
+/**
+ * 発見系リスト領域の「本体でない」表示状態（読込中／空／エラー）。
+ * なぜ専用 sealed 型か: DiscoveryStatusBox は DiscoveryUiState（ホーム・結果一覧）と
+ * NovelDetailUiState（作品詳細）の2つの状態型から共有され、いずれも Content 相当（一覧本体・
+ * 詳細本体）は各画面が自前で描く。box が受け持つのはこの3状態だけなので、両状態型の共通部分を
+ * ここへ切り出す。旧 API の bool＋nullable 併用（isLoading/emptyMessage/errorMessage）だと
+ * 「読込中かつエラー」のような不正な組合せが型上表現できてしまうため、排他を型で保証する。
+ */
+sealed interface DiscoveryStatus {
+    object Loading : DiscoveryStatus
+    data class Empty(val message: String) : DiscoveryStatus
+    data class Error(val message: String, val onRetry: (() -> Unit)? = null) : DiscoveryStatus
+}
+
 /** Loading / Empty / Error の共通表示（発見系画面のリスト領域用）。 */
 @Composable
 fun DiscoveryStatusBox(
-    isLoading: Boolean = false,
-    emptyMessage: String? = null,
-    errorMessage: String? = null,
-    onRetry: (() -> Unit)? = null,
+    status: DiscoveryStatus,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier.fillMaxSize()) {
-        when {
-            isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            errorMessage != null -> {
+    // なぜ fillMaxSize を内部固定しないか: 呼び出し側でサイズ要求が実際に分岐する
+    // （結果一覧・詳細は領域いっぱい＝fillMaxSize、ホームは LazyColumn item 内で半分の高さ）。
+    // サイズは配置を決める親の責務なので modifier で受け取り、ここでは素の Box に適用する。
+    Box(modifier = modifier) {
+        when (status) {
+            is DiscoveryStatus.Loading ->
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            is DiscoveryStatus.Error -> {
                 Column(
                     modifier = Modifier
                         .align(Alignment.Center)
@@ -173,18 +187,18 @@ fun DiscoveryStatusBox(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
-                        text = errorMessage,
+                        text = status.message,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.padding(bottom = 16.dp),
                     )
-                    if (onRetry != null) {
+                    status.onRetry?.let { onRetry ->
                         Button(onClick = onRetry) { Text("再試行") }
                     }
                 }
             }
-            emptyMessage != null -> Text(
-                text = emptyMessage,
+            is DiscoveryStatus.Empty -> Text(
+                text = status.message,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.Center),

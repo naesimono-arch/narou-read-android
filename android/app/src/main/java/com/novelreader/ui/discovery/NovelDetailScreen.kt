@@ -142,15 +142,18 @@ fun NovelDetailScreen(
         ) {
             when (val state = uiState) {
                 is NovelDetailUiState.Loading -> {
-                    DiscoveryStatusBox(isLoading = true)
+                    DiscoveryStatusBox(DiscoveryStatus.Loading, modifier = Modifier.fillMaxSize())
                 }
                 is NovelDetailUiState.NotFound -> {
-                    DiscoveryStatusBox(emptyMessage = "作品が見つかりませんでした（削除または検索除外の可能性）")
+                    DiscoveryStatusBox(
+                        DiscoveryStatus.Empty("作品が見つかりませんでした（削除または検索除外の可能性）"),
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
                 is NovelDetailUiState.Error -> {
                     DiscoveryStatusBox(
-                        errorMessage = state.message,
-                        onRetry = { viewModel.retry() }
+                        DiscoveryStatus.Error(state.message, onRetry = { viewModel.retry() }),
+                        modifier = Modifier.fillMaxSize(),
                     )
                 }
                 is NovelDetailUiState.Content -> {

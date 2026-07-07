@@ -1130,11 +1130,13 @@ private fun HistoryChip(
     pinned: Boolean,
     onWordClick: () -> Unit,
     onPinClick: () -> Unit,
+    // modifier は最初の任意引数に置く（ModifierParameter 規約）。onDelete は任意の後続スロット。
+    modifier: Modifier = Modifier,
     onDelete: (() -> Unit)? = null,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
+        modifier = modifier
             .border(
                 width = 1.dp,
                 color = MaterialTheme.colorScheme.outlineVariant,
@@ -1175,14 +1177,14 @@ private fun HistoryChip(
 }
 
 @Composable
-fun SectionHeader(text: String) {
+fun SectionHeader(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
         fontSize = 10.5.sp,
         letterSpacing = 3.sp,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(top = 22.dp, bottom = 10.dp)
+        modifier = modifier.padding(top = 22.dp, bottom = 10.dp)
     )
 }
 
@@ -1195,10 +1197,11 @@ fun CollapsibleCategoryHeader(
     title: String,
     expanded: Boolean,
     onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onToggle)
             .padding(top = 22.dp, bottom = 10.dp)
@@ -1224,12 +1227,14 @@ fun CollapsibleCategoryHeader(
 fun FilterChipItem(
     selected: Boolean,
     label: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     FilterChip(
         selected = selected,
         onClick = onClick,
         label = { Text(label, fontSize = 11.5.sp) },
+        modifier = modifier,
         shape = RoundedCornerShape(2.dp),
         colors = FilterChipDefaults.filterChipColors(
             containerColor = MaterialTheme.colorScheme.background,
