@@ -77,6 +77,11 @@ import com.novelreader.viewmodel.SearchRange
 import com.novelreader.viewmodel.withRangeToggled
 import com.novelreader.viewmodel.toggleType
 import com.novelreader.viewmodel.toggleLastup
+import com.novelreader.viewmodel.LENGTH_STEPS
+import com.novelreader.viewmodel.TIME_STEPS
+import com.novelreader.viewmodel.selectedStepIndices
+import com.novelreader.viewmodel.toggleRangeStep
+
 
 /**
  * 検索ホーム画面（モック discovery-search-D.html のフレーム1）。
@@ -374,8 +379,9 @@ fun DiscoverySearchScreen(
                 )
             }
         ) {
-            val lengthPresets = setOf("-10000", "10000-100000", "100000-500000", "500000-1000000", "1000000-")
-            val isLengthCustom = draft.filters.length != null && draft.filters.length !in lengthPresets
+            // カスタム判定は「ステップ列に分解できない値」で行う。単段プリセット集合との不一致で判定すると、
+            // 複数選択の合成レンジ（例 "10000-500000"）までカスタム入力扱いになりチップが点灯しなくなるため。
+            val isLengthCustom = draft.filters.length != null && selectedStepIndices(draft.filters.length, LENGTH_STEPS).isEmpty()
             var lengthCustomActive by remember(isLengthCustom) { mutableStateOf(isLengthCustom) }
 
             var minLengthText by remember { mutableStateOf("") }
@@ -383,7 +389,7 @@ fun DiscoverySearchScreen(
 
             LaunchedEffect(draft.filters.length) {
                 val len = draft.filters.length
-                if (len != null && len !in lengthPresets) {
+                if (len != null && selectedStepIndices(len, LENGTH_STEPS).isEmpty()) {
                     val (min, max) = parseCustomRange(len, 10000)
                     val currentBuild = buildCustomRange(minLengthText, maxLengthText, 10000)
                     if (currentBuild != len) {
@@ -403,8 +409,8 @@ fun DiscoverySearchScreen(
                 viewModel.setSearchDraft(draft.copy(filters = draft.filters.withLength(range)))
             }
 
-            val timePresets = setOf("-30", "30-120", "120-600", "600-")
-            val isTimeCustom = draft.filters.time != null && draft.filters.time !in timePresets
+            // 同上: 合成レンジをカスタム扱いにしないため、分解可能性で判定する。
+            val isTimeCustom = draft.filters.time != null && selectedStepIndices(draft.filters.time, TIME_STEPS).isEmpty()
             var timeCustomActive by remember(isTimeCustom) { mutableStateOf(isTimeCustom) }
 
             var minTimeText by remember { mutableStateOf("") }
@@ -412,7 +418,7 @@ fun DiscoverySearchScreen(
 
             LaunchedEffect(draft.filters.time) {
                 val t = draft.filters.time
-                if (t != null && t !in timePresets) {
+                if (t != null && selectedStepIndices(t, TIME_STEPS).isEmpty()) {
                     val (min, max) = parseCustomRange(t, 60)
                     val currentBuild = buildCustomRange(minTimeText, maxTimeText, 60)
                     if (currentBuild != t) {
@@ -585,6 +591,7 @@ fun DiscoverySearchScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     val current = draft.filters.length
+                    val lengthStepIndices = selectedStepIndices(current, LENGTH_STEPS)
                     FilterChipItem(
                         selected = current == null && !lengthCustomActive,
                         label = "すべて",
@@ -596,47 +603,47 @@ fun DiscoverySearchScreen(
                         }
                     )
                     FilterChipItem(
-                        selected = current == "-10000",
+                        selected = !lengthCustomActive && !isLengthCustom && 0 in lengthStepIndices,
                         label = "〜1万字",
                         onClick = {
                             lengthCustomActive = false
-                            val next = if (current == "-10000") null else "-10000"
+                            val next = toggleRangeStep(current, 0, LENGTH_STEPS)
                             viewModel.setSearchDraft(draft.copy(filters = draft.filters.withLength(next)))
                         }
                     )
                     FilterChipItem(
-                        selected = current == "10000-100000",
+                        selected = !lengthCustomActive && !isLengthCustom && 1 in lengthStepIndices,
                         label = "1万〜10万字",
                         onClick = {
                             lengthCustomActive = false
-                            val next = if (current == "10000-100000") null else "10000-100000"
+                            val next = toggleRangeStep(current, 1, LENGTH_STEPS)
                             viewModel.setSearchDraft(draft.copy(filters = draft.filters.withLength(next)))
                         }
                     )
                     FilterChipItem(
-                        selected = current == "100000-500000",
+                        selected = !lengthCustomActive && !isLengthCustom && 2 in lengthStepIndices,
                         label = "10万〜50万字",
                         onClick = {
                             lengthCustomActive = false
-                            val next = if (current == "100000-500000") null else "100000-500000"
+                            val next = toggleRangeStep(current, 2, LENGTH_STEPS)
                             viewModel.setSearchDraft(draft.copy(filters = draft.filters.withLength(next)))
                         }
                     )
                     FilterChipItem(
-                        selected = current == "500000-1000000",
+                        selected = !lengthCustomActive && !isLengthCustom && 3 in lengthStepIndices,
                         label = "50万〜100万字",
                         onClick = {
                             lengthCustomActive = false
-                            val next = if (current == "500000-1000000") null else "500000-1000000"
+                            val next = toggleRangeStep(current, 3, LENGTH_STEPS)
                             viewModel.setSearchDraft(draft.copy(filters = draft.filters.withLength(next)))
                         }
                     )
                     FilterChipItem(
-                        selected = current == "1000000-",
+                        selected = !lengthCustomActive && !isLengthCustom && 4 in lengthStepIndices,
                         label = "100万字〜",
                         onClick = {
                             lengthCustomActive = false
-                            val next = if (current == "1000000-") null else "1000000-"
+                            val next = toggleRangeStep(current, 4, LENGTH_STEPS)
                             viewModel.setSearchDraft(draft.copy(filters = draft.filters.withLength(next)))
                         }
                     )
@@ -762,6 +769,7 @@ fun DiscoverySearchScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     val current = draft.filters.time
+                    val timeStepIndices = selectedStepIndices(current, TIME_STEPS)
                     FilterChipItem(
                         selected = current == null && !timeCustomActive,
                         label = "すべて",
@@ -773,38 +781,38 @@ fun DiscoverySearchScreen(
                         }
                     )
                     FilterChipItem(
-                        selected = current == "-30",
+                        selected = !timeCustomActive && !isTimeCustom && 0 in timeStepIndices,
                         label = "〜30分",
                         onClick = {
                             timeCustomActive = false
-                            val next = if (current == "-30") null else "-30"
+                            val next = toggleRangeStep(current, 0, TIME_STEPS)
                             viewModel.setSearchDraft(draft.copy(filters = draft.filters.withTime(next)))
                         }
                     )
                     FilterChipItem(
-                        selected = current == "30-120",
+                        selected = !timeCustomActive && !isTimeCustom && 1 in timeStepIndices,
                         label = "30分〜2時間",
                         onClick = {
                             timeCustomActive = false
-                            val next = if (current == "30-120") null else "30-120"
+                            val next = toggleRangeStep(current, 1, TIME_STEPS)
                             viewModel.setSearchDraft(draft.copy(filters = draft.filters.withTime(next)))
                         }
                     )
                     FilterChipItem(
-                        selected = current == "120-600",
+                        selected = !timeCustomActive && !isTimeCustom && 2 in timeStepIndices,
                         label = "2時間〜10時間",
                         onClick = {
                             timeCustomActive = false
-                            val next = if (current == "120-600") null else "120-600"
+                            val next = toggleRangeStep(current, 2, TIME_STEPS)
                             viewModel.setSearchDraft(draft.copy(filters = draft.filters.withTime(next)))
                         }
                     )
                     FilterChipItem(
-                        selected = current == "600-",
+                        selected = !timeCustomActive && !isTimeCustom && 3 in timeStepIndices,
                         label = "10時間〜",
                         onClick = {
                             timeCustomActive = false
-                            val next = if (current == "600-") null else "600-"
+                            val next = toggleRangeStep(current, 3, TIME_STEPS)
                             viewModel.setSearchDraft(draft.copy(filters = draft.filters.withTime(next)))
                         }
                     )

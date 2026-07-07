@@ -216,5 +216,63 @@ class SearchDraftTest {
             toggleLastup(setOf(NarouLastup.SEVENDAY, NarouLastup.THISMONTH), NarouLastup.LASTMONTH)
         )
     }
+
+    @Test
+    fun `selectedStepIndices - プリセット単段・合成2段・開端含む合成・カスタム値・nullのパースが正しいこと`() {
+        // プリセット単段
+        assertEquals(setOf(0), selectedStepIndices("-10000", LENGTH_STEPS))
+        assertEquals(setOf(1), selectedStepIndices("10000-100000", LENGTH_STEPS))
+        assertEquals(setOf(4), selectedStepIndices("1000000-", LENGTH_STEPS))
+
+        // 合成2段
+        assertEquals(setOf(1, 2), selectedStepIndices("10000-500000", LENGTH_STEPS))
+        assertEquals(setOf(2, 3), selectedStepIndices("100000-1000000", LENGTH_STEPS))
+
+        // 開端含む合成
+        assertEquals(setOf(0, 1), selectedStepIndices("-100000", LENGTH_STEPS))
+        assertEquals(setOf(3, 4), selectedStepIndices("500000-", LENGTH_STEPS))
+
+        // カスタム値 -> 空
+        assertEquals(emptySet<Int>(), selectedStepIndices("25000-80000", LENGTH_STEPS))
+        // null -> 空
+        assertEquals(emptySet<Int>(), selectedStepIndices(null, LENGTH_STEPS))
+    }
+
+    @Test
+    fun `toggleRangeStep - 隣接追加・非隣接追加・端の消灯・中抜き消灯・全段点灯・全消しが正しく機能すること`() {
+        // 隣接追加
+        assertEquals("10000-500000", toggleRangeStep("10000-100000", 2, LENGTH_STEPS))
+
+        // 非隣接追加で間の段が点灯
+        // 10000-100000 (index=1) と 500000-1000000 (index=3) -> index=2も点灯し 10000-1000000
+        assertEquals("10000-1000000", toggleRangeStep("10000-100000", 3, LENGTH_STEPS))
+
+        // 端の消灯 (上端消去で下側が残る)
+        // 10000-500000 (index=1,2) から index=2 を消去 -> 10000-100000 (index=1のみ残る)
+        assertEquals("10000-100000", toggleRangeStep("10000-500000", 2, LENGTH_STEPS))
+
+        // 中抜き消灯 (kを境に下側 [i..k-1] を残す)
+        // 10000-1000000 (index=1,2,3) から index=2 を消去 -> 10000-100000 (index=1のみ残る)
+        assertEquals("10000-100000", toggleRangeStep("10000-1000000", 2, LENGTH_STEPS))
+
+        // 下端の消灯 (残る上側を保つ。下端を外して選択全体が消えるのは期待に反する)
+        // 10000-500000 (index=1,2) から index=1 を消去 -> 100000-500000 (index=2が残る)
+        assertEquals("100000-500000", toggleRangeStep("10000-500000", 1, LENGTH_STEPS))
+
+        // 全段点灯 -> null
+        // -10000 (index=0) から index=4 を点灯 -> 全段点灯となり null へ正規化
+        assertNull(toggleRangeStep("-10000", 4, LENGTH_STEPS))
+
+        // 全消し -> null
+        // 100000-500000 (index=2 of 単段) から index=2 を消去 -> 空となり null
+        assertNull(toggleRangeStep("100000-500000", 2, LENGTH_STEPS))
+    }
+
+    @Test
+    fun `toggleRangeStep - カスタム値からの切り替えで干渉がなくタップしたチップが選択されること`() {
+        // カスタム値 "25000-80000" に index=1 (10000-100000) をトグル
+        // カスタム値は selectedStepIndices で emptySet() になるため、新規に index=1 のみが選択される
+        assertEquals("10000-100000", toggleRangeStep("25000-80000", 1, LENGTH_STEPS))
+    }
 }
 

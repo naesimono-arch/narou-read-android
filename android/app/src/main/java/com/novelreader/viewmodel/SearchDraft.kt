@@ -218,3 +218,99 @@ fun toggleLastup(current: Set<NarouLastup>, tapped: NarouLastup): Set<NarouLastu
     return next
 }
 
+// 連続階段（境界値が隣接段と一致していることが selectedStepIndices の分解可能性の前提）
+val LENGTH_STEPS = listOf("-10000", "10000-100000", "100000-500000", "500000-1000000", "1000000-")
+val TIME_STEPS = listOf("-30", "30-120", "120-600", "600-")
+
+/** ステップ文字列 "min-max"（開端は "-max"/"min-"）を (min, max) に分解する。 */
+private fun parseStepBounds(step: String): Pair<String?, String?> {
+    val parts = step.split("-")
+    return when {
+        step.startsWith("-") -> Pair(null, parts.getOrNull(1))
+        step.endsWith("-") -> Pair(parts.getOrNull(0), null)
+        else -> Pair(parts.getOrNull(0), parts.getOrNull(1))
+    }
+}
+
+/**
+ * 合成レンジ文字列 → 選択中ステップの添字集合。ステップ列の連続部分列 i..j の外周
+ * （i の下端〜j の上端。開端は "-"）と一致しない文字列（カスタム入力値）は空集合。
+ * なぜ: なろうAPIの length/time は単一レンジしか受けない（minlen/maxlen 併用不可・マニュアル§4.4）ため、複数選択は連続区間の結合として表現する。非隣接選択は間の段を自動点灯し、点灯チップ＝実際に送る範囲を一致させる（ADR 0007 原則2）。
+ */
+fun selectedStepIndices(raw: String?, steps: List<String>): Set<Int> {
+    if (raw == null || steps.isEmpty()) return emptySet()
+
+    val n = steps.size
+    for (i in 0 until n) {
+        for (j in i until n) {
+            // 全選択は除外する（全選択のときは raw は null になり、この関数には raw!=null で入るため）
+            if (i == 0 && j == n - 1) continue
+
+            val min = if (i == 0) null else parseStepBounds(steps[i]).first
+            val max = if (j == n - 1) null else parseStepBounds(steps[j]).second
+
+            val target = when {
+                min == null && max != null -> "-$max"
+                min != null && max == null -> "$min-"
+                min != null && max != null -> "$min-$max"
+                else -> null
+            }
+
+            if (raw == target) {
+                return (i..j).toSet()
+            }
+        }
+    }
+    return emptySet()
+}
+
+/**
+ * 添字 index をトグルし、非隣接になったら間の段を全て点灯してから外周を合成。
+ * 全段点灯は null（=すべて）へ正規化。空も null。
+ * なぜ: なろうAPIの length/time は単一レンジしか受けない（minlen/maxlen 併用不可・マニュアル§4.4）ため、複数選択は連続区間の結合として表現する。非隣接選択は間の段を自動点灯し、点灯チップ＝実際に送る範囲を一致させる（ADR 0007 原則2）。
+ */
+fun toggleRangeStep(raw: String?, index: Int, steps: List<String>): String? {
+    if (steps.isEmpty()) return null
+
+    val currentIndices = selectedStepIndices(raw, steps)
+
+    val nextIndices = if (currentIndices.contains(index)) {
+        val i = currentIndices.minOrNull() ?: 0
+        val j = currentIndices.maxOrNull() ?: 0
+        when {
+            // 下端の消灯: 残る上側 [index+1..j] を保つ（下端を外して選択全体が消えるのは期待に反する）
+            index == i && index < j -> ((index + 1)..j).toSet()
+            // 上端・中抜きの消灯: 下側 [i..index-1] を残す
+            // なぜ: 中抜きは連続制約上どちらかを捨てるしかなく、決定的で予測可能な挙動にする
+            else -> (i until index).toSet()
+        }
+    } else {
+        // 点灯処理: 非隣接になったら間の段を全て点灯
+        if (currentIndices.isEmpty()) {
+            setOf(index)
+        } else {
+            val i = currentIndices.min()
+            val j = currentIndices.max()
+            val newMin = minOf(i, index)
+            val newMax = maxOf(j, index)
+            (newMin..newMax).toSet()
+        }
+    }
+
+    if (nextIndices.isEmpty() || nextIndices.size == steps.size) {
+        return null
+    }
+
+    val newI = nextIndices.min()
+    val newJ = nextIndices.max()
+    val min = if (newI == 0) null else parseStepBounds(steps[newI]).first
+    val max = if (newJ == steps.size - 1) null else parseStepBounds(steps[newJ]).second
+
+    return when {
+        min == null && max != null -> "-$max"
+        min != null && max == null -> "$min-"
+        min != null && max != null -> "$min-$max"
+        else -> null
+    }
+}
+
