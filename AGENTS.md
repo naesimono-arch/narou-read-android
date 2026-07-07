@@ -7,8 +7,9 @@ Claude Code（監督）から委譲されたサブタスクをこのリポジト
 ## このリポジトリ
 
 日本語 Web 小説（なろう系）の PDF を、ふりがな対応 HTML に変換する **Android アプリ**。
-Jetpack Compose + Kotlin。**PDF 抽出パイプラインの実装はブランチで異なる**
-（main = Chaquopy/Python + pdfminer ／ kotlin = PDFBox-Android ネイティブ）。
+Jetpack Compose + Kotlin。PDF 抽出は **PDFBox-Android ネイティブ**（旧 Chaquopy/Python+pdfminer は
+2026-07-05 に撤去済み。かつては「ブランチで実装が異なる」状態だったが現在は解消）。
+あわせて **なろう公式APIによる作品の発見・検索** を第2の柱として持つ（`narou/`・`ui/discovery/`）。
 今いるブランチの実態は `STATUS.md`（現況台帳）と `android/app/build.gradle` で確認すること。
 
 ## リポジトリ地図
@@ -16,7 +17,7 @@ Jetpack Compose + Kotlin。**PDF 抽出パイプラインの実装はブラン�
 | パス | 中身 |
 |---|---|
 | `android/` | Android プロジェクト本体（Gradle） |
-| `android/app/src/main/java/com/novelreader/` | Kotlin ソース（ui=Compose / pdf=抽出パイプライン / data=Room） |
+| `android/app/src/main/java/com/novelreader/` | Kotlin ソース（ui=Compose ／ pdf=抽出パイプライン ／ data=Room ／ narou=なろうAPI連携〔Room非依存の別系統〕／ ui/discovery=発見・検索の画面群。層構造の地図は `/architecture` スキル） |
 | `STATUS.md` | 現況台帳（今どうなっているか）＝正本 |
 | `handover.md` | やること台帳（backlog） |
 | `task_diary.md` | 外部プラットフォーム知見（OPPO/ColorOS の罠など） |
