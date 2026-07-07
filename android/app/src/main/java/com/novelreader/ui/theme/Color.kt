@@ -48,6 +48,26 @@ val InverseOnSurfaceLight    = Color(0xFFF2F1EE)
 val InversePrimaryLight      = Color(0xFF9DB6CC)
 
 // ============================================================
+// セピア（読書テーマ SEPIA 用の暖色ライト変種。ReadingColors.SEPIA と同じ琥珀紙に Material 面を揃える）
+// なぜ追加するか: かつてセピア選択時の本棚・発見系はライト配色を流用しており（darkTheme=false 扱い）、
+// 「ライトとセピアの色味に差がなく同じ色に見える」実機フィードバック（2026-07-07）の主因だった。
+// 素地・墨・面・ヘアラインだけを琥珀紙へ寄せ、secondary（青磁＝未読の意味色）と error はライトと
+// 共有して意味色のブレを避ける（残りのトークンは SepiaColorScheme が LightColorScheme.copy で継承）。
+// ============================================================
+
+val PrimarySepia             = Color(0xFF2E4A60)   // 藍鼠（読書 SEPIA の accent と同値・暖色背景と調和）
+val PrimaryContainerSepia    = Color(0xFFD8DFE2)   // 淡い藍鼠（処理中バナー背景の暖色変種）
+val OnPrimaryContainerSepia  = Color(0xFF14293A)
+
+val BackgroundSepia          = Color(0xFFF2E7CE)   // 琥珀の紙（ReadingColors.SEPIA.background と同値）
+val OnBackgroundSepia        = Color(0xFF3D3121)   // 焦茶の墨
+val SurfaceVariantSepia      = Color(0xFFEBDEBE)   // カード面
+val OnSurfaceVariantSepia    = Color(0xFF8C7D5D)   // 補助テキスト
+val SurfaceContainerSepia    = Color(0xFFECDFC0)
+val OutlineSepia             = Color(0xFF9A8C6C)
+val OutlineVariantSepia      = Color(0xFFE0D3B0)   // ヘアライン・進捗トラック
+
+// ============================================================
 // ダークモード（D の寒色を保った冷たい暗面）
 // background は青みのある暗色。primary は暗背景で沈まない明るい藍。
 // ============================================================

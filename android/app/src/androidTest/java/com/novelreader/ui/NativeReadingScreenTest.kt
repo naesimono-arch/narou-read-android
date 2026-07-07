@@ -64,6 +64,9 @@ class NativeReadingScreenTest {
                 bookId = "test",
                 startFile = "chap_1.html",
                 htmlDirPath = htmlDir.absolutePath,
+                // 継続導線（PDF↔Web）はテスト対象外のため未紐付け固定（ncode=null なら通信は発生しない）
+                bookTitle = "テスト書",
+                ncode = null,
                 viewModel = viewModel,
                 // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
                 readingTheme = ReadingTheme.LIGHT,
@@ -89,6 +92,9 @@ class NativeReadingScreenTest {
                 bookId = "test",
                 startFile = "chap_1.html",
                 htmlDirPath = htmlDir.absolutePath,
+                // 継続導線（PDF↔Web）はテスト対象外のため未紐付け固定（ncode=null なら通信は発生しない）
+                bookTitle = "テスト書",
+                ncode = null,
                 viewModel = viewModel,
                 // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
                 readingTheme = ReadingTheme.LIGHT,
@@ -115,6 +121,9 @@ class NativeReadingScreenTest {
                 bookId = "test",
                 startFile = "chap_1.html",
                 htmlDirPath = htmlDir.absolutePath,
+                // 継続導線（PDF↔Web）はテスト対象外のため未紐付け固定（ncode=null なら通信は発生しない）
+                bookTitle = "テスト書",
+                ncode = null,
                 viewModel = viewModel,
                 // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
                 readingTheme = ReadingTheme.LIGHT,
@@ -140,6 +149,9 @@ class NativeReadingScreenTest {
                 bookId = "test",
                 startFile = "index.html",
                 htmlDirPath = htmlDir.absolutePath,
+                // 継続導線（PDF↔Web）はテスト対象外のため未紐付け固定（ncode=null なら通信は発生しない）
+                bookTitle = "テスト書",
+                ncode = null,
                 viewModel = viewModel,
                 // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
                 readingTheme = ReadingTheme.LIGHT,
@@ -166,6 +178,9 @@ class NativeReadingScreenTest {
                 bookId = "test",
                 startFile = "nonexistent_999.html",
                 htmlDirPath = htmlDir.absolutePath,
+                // 継続導線（PDF↔Web）はテスト対象外のため未紐付け固定（ncode=null なら通信は発生しない）
+                bookTitle = "テスト書",
+                ncode = null,
                 viewModel = viewModel,
                 // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
                 readingTheme = ReadingTheme.LIGHT,
@@ -190,6 +205,9 @@ class NativeReadingScreenTest {
                 bookId = "test",
                 startFile = "chap_1.html",
                 htmlDirPath = emptyDir.absolutePath,
+                // 継続導線（PDF↔Web）はテスト対象外のため未紐付け固定（ncode=null なら通信は発生しない）
+                bookTitle = "テスト書",
+                ncode = null,
                 viewModel = viewModel,
                 // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
                 readingTheme = ReadingTheme.LIGHT,
@@ -215,6 +233,9 @@ class NativeReadingScreenTest {
                 bookId = "test",
                 startFile = "chap_3.html",
                 htmlDirPath = htmlDir.absolutePath,
+                // 継続導線（PDF↔Web）はテスト対象外のため未紐付け固定（ncode=null なら通信は発生しない）
+                bookTitle = "テスト書",
+                ncode = null,
                 viewModel = viewModel,
                 // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
                 readingTheme = ReadingTheme.LIGHT,
@@ -238,6 +259,9 @@ class NativeReadingScreenTest {
                 bookId = "test",
                 startFile = "chap_1.html",
                 htmlDirPath = htmlDir.absolutePath,
+                // 継続導線（PDF↔Web）はテスト対象外のため未紐付け固定（ncode=null なら通信は発生しない）
+                bookTitle = "テスト書",
+                ncode = null,
                 viewModel = viewModel,
                 // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
                 readingTheme = ReadingTheme.LIGHT,

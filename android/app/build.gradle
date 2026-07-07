@@ -75,6 +75,9 @@ dependencies {
     // HTMLパーサー (Jsoup)
     implementation 'org.jsoup:jsoup:1.17.2'
 
+    // なぜ: List<TextSegment> は Compose stability 推論で不安定→読書 LazyColumn の項目が skippable にならないため（strong skipping 無効の Kotlin 1.9 環境）
+    implementation 'org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.7'
+
     // PDF抽出 (PDFBox-Android / Tom Roush 版)。旧 Chaquopy(Python+pdfminer) から移植した唯一の抽出経路。
     // なぜ 2.0.x 系で固定: Android 版 PDFBox-Android は upstream apache-pdfbox 2.0.x をベースにしており、
     // 移植元プロト (ab-review/submission-B) が apache 2.0.31 で精度検証済みのため API を 1:1 に保てる。
@@ -85,6 +88,19 @@ dependencies {
     implementation "androidx.room:room-runtime:$room_version"
     implementation "androidx.room:room-ktx:$room_version"
     ksp "androidx.room:room-compiler:$room_version"
+
+    // なろう公式API ディスカバリ (メタデータ取得のみ・本文は扱わない)。HTTP=Retrofit/OkHttp, JSON=Moshi codegen。
+    // なぜ Moshi codegen: 既存の Room 用 KSP に相乗りでき settings.gradle 変更不要。かつ moshi-kotlin(リフレクション版)を
+    // 避けることで kotlin-reflect(約3MB) の混入を防ぐ。minifyEnabled=false で R8 収縮が効かない本プロジェクトでは
+    // 追加 dep がそのまま APK に乗るため、reflect 回避が APK サイズ維持に直結する。
+    implementation 'com.squareup.retrofit2:retrofit:2.11.0'
+    implementation 'com.squareup.retrofit2:converter-moshi:2.11.0'
+    implementation 'com.squareup.moshi:moshi:1.15.1'
+    ksp 'com.squareup.moshi:moshi-kotlin-codegen:1.15.1'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0' // User-Agent インターセプタ用に版を明示固定
+
+    // 検索履歴＋ピン留め（発見機能 D1）のローカル永続。蔵書 Room を汚さない軽量ストア。
+    implementation 'androidx.datastore:datastore-preferences:1.1.1'
 
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'io.mockk:mockk:1.13.10'

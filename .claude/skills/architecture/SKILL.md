@@ -12,6 +12,7 @@ triggers:
 日本語Web小説（なろう系）のPDFを、ふりがな対応HTMLに変換する Androidアプリ
 （Jetpack Compose + 純 Kotlin PDF 抽出＝PDFBox-Android。旧 Chaquopy/Python 経路は 2026-07-05 Phase 5 で完全撤去。
 精度オラクルの双子 `ab-review/submission-B` は残置）。
+あわせて、**なろう公式APIによる作品の発見・検索**を第2の柱として持つ（下記「発見・検索層（なろうAPI）」）。
 
 **構造の詳細（パイプラインのステップ構成・クラス関係）はコード/KDoc が正本**。
 このスキルは「どこを見るか」と「コードから読み取れない罠・設計判断」だけを持つ。
@@ -23,12 +24,13 @@ triggers:
 | PDF抽出ロジック | `android/app/src/main/java/com/novelreader/pdf/`（入口は facade `PdfBookExtractor.kt`＝4ステップ進捗・例外分類。ステップ構成は同ファイル KDoc） | `PDDocument.load` 前に `PDFBoxResourceLoader.init` 必須＝CID→Unicode 解決（`NovelReaderApplication.onCreate` で配線済み・task_diary #31）。グリフ正規化（波ダッシュ等）は `PdfExtractor` の `normalizeGlyphUnicode`（#35/#38） |
 | 抽出の定数・ルール | `pdf/ParserRules.kt` | — |
 | 精度の基準・回帰 | `ab-review/golden_regression/`＋実機ゲート `androidTest/…/pdf/PdfExtractorDeviceSpikeTest.kt`／HTMLバイト等価ゴールデン `src/test/resources/golden_html/` | 実機テストは `/device-verify` スキル必読（`connectedAndroidTest` 直叩きは蔵書DB消失＝task_diary #36） |
-| UI（本棚/読書/目次） | `ui/BookshelfScreen.kt`（カード=`BookCard.kt`・バナー=`ProcessingBanner.kt`）／`ui/NativeReadingScreen.kt`（公開名 ReadingScreen。本文=`ChapterContent.kt`・設定=`ReadingSettingsSheet.kt`・エラー=`ReadingErrorScreen.kt`）。NavHost は2ルート（"bookshelf"・"reading/{bookId}/{startFile}"） | 読書画面は **WebView ではなく Compose ネイティブ**（HTML解析=`parser/ChapterHtmlParser.kt`・ルビ=`ui/compose/RubyText.kt`）。目次 `NativeTableOfContentsScreen` は NavHost ルートでなく ReadingScreen 内から表示 |
+| UI（本棚/読書/目次） | `ui/BookshelfScreen.kt`（カード=`BookCard.kt`・バナー=`ProcessingBanner.kt`）／`ui/NativeReadingScreen.kt`（公開名 ReadingScreen。本文=`ChapterContent.kt`・設定=`ReadingSettingsSheet.kt`・エラー=`ReadingErrorScreen.kt`）。NavHost は本棚・読書の2ルート（"bookshelf"・"reading/{bookId}/{startFile}"）＋発見系5ルート（"discovery"・"discovery/search"・"discovery/genre"・"discovery/result"・"discovery/detail/{ncode}"） | 読書画面は **WebView ではなく Compose ネイティブ**（HTML解析=`parser/ChapterHtmlParser.kt`・ルビ=`ui/compose/RubyText.kt`）。目次 `NativeTableOfContentsScreen` は NavHost ルートでなく ReadingScreen 内から表示 |
 | 見た目（配色・タイポ・余白）の変更 | まず `docs/decisions/0005-ui-n-visual-language-D.md`＋claude.ai/design のモック現物（`ui-n-phase0/*-D.html`・取得は `DesignSync: get_file`・入口は handover.md） | **HTMLモックが正本・Compose は翻訳**＝Compose 側で意匠を自己判断しない。色=`theme/Color.kt`・明朝=`theme/Typography.kt` の `MinchoFamily` 経由（直書き禁止） |
 | 変換サービス | `PdfProcessingService`（Foreground）→ `BookRepository.addBook` → `PdfBookExtractor.process` | 下記「コードから読み取りにくい設計判断」 |
 | データアクセス | `repository/BookRepository.kt`（Room + 抽出呼び出し。`NovelReaderApplication` がシングルトン保持し Service/ViewModel 共用） | DB操作は IO Dispatcher |
 | DBスキーマ | `AppDatabase.kt`＋各 Entity が正典（version・Migration 含む） | 変更は必ず `/db-migration` スキルを先に実行 |
 | 生成物の保存先 | `context.filesDir/novels/{bookId}/`（`index.html`＋`chap_N.html`） | — |
+| 発見・検索（なろうAPI） | API層=`narou/`／VM=`viewmodel/Discovery*` 等／UI=`ui/discovery/`（詳細は下記「発見・検索層（なろうAPI）」） | 命名の非対称（傘は Discovery・テキスト検索部分だけ Search）＝`search` だけの grep は取りこぼす。検索履歴は Room でなく DataStore 別系統 |
 
 ## コードから読み取りにくい設計判断・罠
 
@@ -38,3 +40,61 @@ triggers:
 - **強制終了（OEM kill/OOM/onTimeout）からの再開**（2026-07-07 導入）: enqueue 時に `pending_jobs`（Room v8・`PendingJobDao`）へ記帳し成否確定で削除（明示停止は全消し＝再開しない）。次回起動時 `NovelReaderApplication.runStartupRecoveryOnce()`（MainActivity.onCreate トリガー・プロセス毎1回・Service 非稼働時のみ）が孤立HTML掃除（books に無い `novels/<id>/` を削除）→ 未完了ジョブを snackbar 通知＋権限が生きる分を FGS 再投入。プロセス跨ぎ読取のため `BookshelfViewModel.addBook` が `takePersistableUriPermission` 取得（解放は記帳削除時）・記帳の insert/全消しは `pendingJobDispatcher`（並列度1）で直列化＝「追加直後に停止」でも破棄済みジョブが復活しない。
 - **読書進捗の上書き防止**: `index.html`（目次）閲覧時は進捗を上書きしない制御が `NativeReadingScreen.kt` にある。実装は `fileName != "index.html"` の**ブロックリスト方式**（`chap_` 接頭辞の許可リスト判定ではない）。
 - OPPO/ColorOS 固有動作 → `/device-verify` スキル（症状→対処表）経由で `task_diary.md` を参照。
+
+## 発見・検索層（なろうAPI）
+
+第2の柱＝作品**発見**機能（テキスト検索はその一部）。100% なろう公式API（`https://api.syosetu.com/`）の
+メタデータ取得のみで、**本文は取得しない**（キーレス・案A）。蔵書の Room とは**別系統**で Room には触れない
+（検索履歴だけ DataStore `narou_search_history` に永続）。
+**命名の非対称に注意**: 傘の機能名は Discovery だがテキスト検索の部分だけ Search（リポジトリのメソッドは `discover()`、
+ネットワーク層は `search()`）＝`search` だけで grep すると Home/Genre/Result/Detail を取りこぼす。
+（ブランチ名の "ai" は生成AIではなく api-lab の意）
+
+**API層**（`java/com/novelreader/narou/`＝実質「API層」。`network`/`remote` 等の一般名ディレクトリは無い）:
+- `network/NarouNetwork.kt` — Retrofit+OkHttp+Moshi(codegen) 配線・`BASE_URL`(api.syosetu.com)・UAインターセプタ(`NovelReader-Android/1.0`)
+- `network/NarouApiService.kt` — 唯一のエンドポイント `@GET("novelapi/api/")` の `search(...)`。一覧も詳細もこの1本を引数で呼び分ける
+- `NovelApiRepository.kt` — API層の中核。`discover()`/`novelDetail()`・6h TTL インメモリキャッシュ(上限50)・
+  例外正規化(`NarouApiException`)・パラメータ組立・SHORT+RENSAI の2クエリマージ
+- `model/DiscoveryQuery.kt` — 検索条件 DTO＋enum4種(`NarouOrder`/`NarouNovelType`/`NarouLastup`/`NarouAttr`)＋
+  変換関数(`typeApiParam`/`lastupApiParam`)を**同一ファイルに同居**
+- `model/`（他）— `NarouNovel`(APIレスポンス1件)・`DiscoveryResult`・`NarouGenres`(ジャンルコード表)・`NarouCuratedKeywords`(公式おすすめ語)
+- `SearchHistoryStore.kt` — 検索履歴＋ピン留めの DataStore(`narou_search_history`)。合成は純関数
+- `ContinuationLogic.kt` — なろう外部URL生成(`narouWorkUrl`/`narouEpisodeUrl`)＋PDF↔Web話数突合(`computeContinuation`)の純関数。
+  ※`narou/` に在るが**突合本体は継続読書フロー(NativeReadingScreen/BookCard)側**で使う。発見側からは NovelDetailScreen が `narouWorkUrl`（Webで読む導線）のみ使用
+
+**VM/State層**（`viewmodel/`）:
+- `DiscoveryViewModel` — ホーム／結果一覧／検索ドラフト／履歴を**単一VMで共有**（着地の共通コンテキスト `ResultContext`・`ResultSource` は同ファイル内）
+- `NovelDetailViewModel` — 作品詳細（ncode）用に独立
+- `SearchDraft` — 検索条件の下書き（`SearchFilters`/`SearchRange`＋トグル/レンジ合成の純関数群を同居）
+- `MoodPreset` — 「気分で探す」プリセット→Query
+
+**UI層**（`ui/discovery/`＝7ファイル）:
+- `DiscoveryHomeScreen`（order 切替タブ）／`DiscoverySearchScreen`（条件シート）／`DiscoveryGenreScreen`（唯一VM非依存・静的 `NarouGenres` 依存）
+- `DiscoveryResultScreen`（検索/ジャンル/気分の**共通着地**）／`NovelDetailScreen`（作品カード詳細）
+- `DiscoveryCommon`（Loading/Empty/Error 共通部品）／`DiscoveryQueryLabels`（条件チップ文言）
+- ※本棚↔なろう紐付けシート `ui/NcodeLinkSheet.kt` は `ui/discovery/` ではなく `ui/` 直下＝**発見層ではなく読書画面(NativeReadingScreen)の継続読書フロー部品**
+
+制御フロー（複数の別入口 → 同一の終着を1本で）:
+
+```
+検索実行 / ジャンル / 気分プリセット / 詳細キーワードタップ
+  └─ すべて ResultContext を作り
+       DiscoveryViewModel.openResult() → loadResult() → fetch(query)
+         └─ NovelApiRepository.discover(query)   ← キャッシュ判定→パラメータ組立
+              └─ NarouApiService.search(...)      ← Retrofit→なろうAPI→List<NarouNovel>
+                   （先頭要素の allcount を list.drop(1) で分離）
+作品詳細: NovelDetailViewModel.load(ncode) / BookCard / NativeReadingScreen
+  └─ NovelApiRepository.novelDetail(ncode) → search(ncode=, lim=1) 同経路
+```
+
+**why 注記**（地図が無いと踏む罠）:
+- 検索下書き(`SearchDraft`)は画面 `remember` でなく **VM 保持**＝画面を離れても条件が残る（意図的挙動）
+- API制約由来の非自明ロジック（length/time 併用不可・lastup の連続レンジ合成・SHORT+RENSAI の2クエリマージ・属性 istt=OR）は `SearchDraft`/`DiscoveryQuery` に集中
+- レスポンスの `allcount` は配列**先頭要素専用**（本体は `drop(1)`）／作品種別は `of` 指定有無で `noveltype`↔`novel_type` の**二重キー**（`NarouNovel.novelType` 合流アクセサで吸収）
+- インメモリキャッシュは「全呼び出しが Main dispatcher」の暗黙不変条件に依存（Worker 化すると壊れる）
+
+詳細の正本（この節は所在の地図に徹し、churny な現況・仕様はこれらを見る）:
+- 現況・進捗 → `STATUS-api-lab.md`
+- API仕様 → `docs/reference/narou_api_manual.md`（正本）・`02-narou-api-digest.md`（要点）／機能検討(案A) → `03-api-feature-analysis.md`
+- 検索UX設計原則 → `docs/decisions/0007-search-ux-three-principles.md`
+- なろうAPI固有の落とし穴 → `task_diary.md`「なろう小説API（検索パラメータ）」節（#46 type の OR サイレント無視・#47 noveltype↔novel_type キー名）

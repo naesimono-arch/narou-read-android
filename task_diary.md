@@ -274,6 +274,12 @@ Kotlinエラーではないため原因が分かりにくい。
 
 ---
 
+### 43. KDoc 内の `[...]` はリンク構文としてパースされ、範囲表記がコンパイルエラーになる（コメントがビルドを壊す）  ★★
+
+Kotlin(K2) は KDoc（`/** */`）内の `[...]` を要素リンクとして構文解析する。範囲のつもりで `[i..j]`（iドットドットj をブラケットで囲む）と書くと `e: ... Closing bracket expected` の**コンパイルエラー**で kspDebugKotlin/compileKotlin が落ちる（2026-07-07 `SearchDraft.kt` で実測）。行コメント `//` 内は自由。KDoc で範囲・添字を書くときはブラケットを外す。エラー行番号が KDoc の行を指していても「コメントは無害」という思い込みがあると原因特定が遅れる。
+
+---
+
 ### 実機検証 / adb（Windows）
 
 #### 25. Git Bash は adb の `/sdcard` 絶対パスを変換して push/pull/dump を壊す  ★★★
@@ -383,7 +389,7 @@ print(json.dumps({"hookSpecificOutput": {
 **なぜ危険か（サイレント失敗クラス）**: plan モードの read-only 保証は **agy プロセスに及ばない**（agy は別プロセスの Gemini CLI で、監視するのは agy 自身の `.agents/scripts/guard_forbidden.py` deny フックのみ・fail-open）。read-only は「`--yolo`（= `agy --dangerously-skip-permissions`）を渡さない」ことだけで構造的に担保されており、**plan 中にうっかり `--yolo` を付ければ agy は plan モードを無視してファイルを書く**＝「plan だから安全」の前提が無言で破れる。
 **実測（2026-07-06 probe）**: plan モードのまま `antigravity-delegate` に read-only digest タスク（`--yolo` 無し・`--dir` でリポジトリ指定）を投げ → agy が pdf/ パッケージを実読し正確な digest を返却（cited `file:line` を spot-check、幻覚なし）→ `git status --porcelain` clean で**書き込みゼロを独立確認**。ブロックしたのは subagent 自身の no-chaining ガード（`; echo` を足した時）だけで、plan モードや permission deny は一切発火しなかった。
 **対処**: plan モード中の agy 委譲は **read-only（`--yolo` 厳禁）限定**。運用ルールは `CLAUDE.md`「委譲判断 / plan運用」節（plan 中の agy 委譲は read-only／`--yolo` 厳禁）。書き込みを伴う探索/生成は plan の外で行う。**機械ガード実装済み（2026-07-06）**: plugin hook `validate-delegate-bash.sh` に「`permission_mode=="plan"` かつ引用除去後 command に `--yolo`/`--dangerously-skip-permissions` を含むなら deny」を追加＝お願い→機械保証へ昇格（**ただしサブエージェント経路のみ**＝下記スコープ）。単体8/8＋plan 再突入の `--yolo` 委譲 block で end-to-end 検証済み（**PreToolUse payload の `permission_mode` は plan モードで subagent の Bash payload にも `"plan"` が届く**ことを同時確認。docs 記載どおり）。
-**⚠ スコープ＆--yolo 不使用の再検証（2026-07-06）**: 機械 deny は hook が `agent_type` で自己スコープする（`validate-delegate-bash.sh` 38–47行）ため **`antigravity-delegate` サブエージェント経路のみ**に効く。**メインセッションから直接叩く `agy-delegate`**（`bash -ic` ラッパ・直叩き・`/antigravity:delegate` slash＝`commands/delegate.md` step 2 で main が直接 `agy-delegate [--yolo]` を実行する設計・書き込みタスクには step 1 で `--yolo` を明示）は agent_type が無く **scope guard で素通り（対象外）**＝plan 中の `--yolo` を止めない。よって「機械保証へ昇格」は subagent 経路に限る backstop で、**primary の担保は依然「Claude が --yolo を渡さない規律」**。再検証は **`--yolo` を一切使わず**実施＝source hook に一時 probe を差し、subagent 経由で `source-hook-live=YES`／非plan時 `permission_mode='auto'`・plan時 `permission_mode='plan'` を実測し、静的8/8（`plan`+`--yolo`→deny）と合成して「plan＋subagent＋--yolo は deny」を立証（probe は検証後 revert）。別セッションが `bash -ic 'agy-delegate …'`（＝main 経路）で read-only 委譲を投げ**ゲート素通り**したのが、この scope 限界の実証。
+**⚠ スコープ＆--yolo 不使用の再検証（2026-07-06）**: 機械 deny は hook が `agent_type` で自己スコープする（`validate-delegate-bash.sh` 38–47行）ため **`antigravity-delegate` サブエージェント経路のみ**に効く。**メインセッションから直接叩く `agy-delegate`**（`bash -ic` ラッパ・直叩き・`/antigravity:delegate` slash＝**antigravity プラグインの delegate command 定義**の step 2 で main が直接 `agy-delegate [--yolo]` を実行する設計・書き込みタスクには step 1 で `--yolo` を明示）は agent_type が無く **scope guard で素通り（対象外）**＝plan 中の `--yolo` を止めない。よって「機械保証へ昇格」は subagent 経路に限る backstop で、**primary の担保は依然「Claude が --yolo を渡さない規律」**。再検証は **`--yolo` を一切使わず**実施＝source hook に一時 probe を差し、subagent 経由で `source-hook-live=YES`／非plan時 `permission_mode='auto'`・plan時 `permission_mode='plan'` を実測し、静的8/8（`plan`+`--yolo`→deny）と合成して「plan＋subagent＋--yolo は deny」を立証（probe は検証後 revert）。別セッションが `bash -ic 'agy-delegate …'`（＝main 経路）で read-only 委譲を投げ**ゲート素通り**したのが、この scope 限界の実証。
 **実装ノート（ハマり所）**: ①**hook はサンドボックス実行**＝hook 外で作った sentinel ファイルを `[ -f ]` で見えない → gate は stdin(JSON) payload と `tool_input.command` だけで判定すること。②**この directory-marketplace 版では live な hook は cache でなく git-test source**（`CLAUDE_PLUGIN_ROOT`→source。source に入れたゲートが発火した実測で確定）。編集・commit 対象は git-test source（[[antigravity-plugin-cache-vs-source-cost-gate]] を要更新）。
 関連: #28（PostToolUse stdout 不達）／`docs/decisions/0004`（hook の matcher 範囲・起動時固定）／agy 安全機構は `.agents/scripts/guard_forbidden.py`・`AGENTS.md`。
 
@@ -423,6 +429,28 @@ Migration SQL を書く前に端末 DB の実際のカラム名を `PRAGMA table
 4. コードを revert → デバイス DB とバージョン不一致でさらにクラッシュ
 
 → コードを revert する前に「端末 DB が何バージョンか」を必ず確認すること。
+
+#### 39. 並列ブランチが同じ Room version を別スキーマで宣言すると identity hash クラッシュ（migration は走らない）  ★★★
+
+Room は起動時、端末 DB の `user_version` が宣言 version と**同値**だと migration を一切走らせず、
+`room_master_table` の identity_hash 照合だけを行う。並列 worktree の2ブランチがそれぞれ
+「version 8」を**別のスキーマ変更**で宣言すると、片方のビルドで v8 化した端末にもう片方を
+インストールした瞬間 `Room cannot verify the data integrity`（identity hash 不一致）でクラッシュする。
+**migration 不足系と違いエラーメッセージが「version を上げ忘れた」と誤誘導してくる**のが罠
+（実際は version の上げ方ではなく「同じ番号の取り合い」が原因）。
+
+**実測（2026-07-07）**: `feat/processing-resilience`（v8＝`pending_jobs` テーブル・実機検証済み）と
+`api-lab-ai`（v8＝`books.ncode` 列）が PGEM10 上で衝突。端末 DB は resilience 側の v8 になっており、
+api-lab-ai ビルドが起動即クラッシュ（user_version=8 なので MIGRATION_7_8 は呼ばれもしない）。
+
+**対処（後発側が退避する）**: 後発ブランチは version 9（`MIGRATION_8_9`）へ退避し、先行側の 7→8 を
+**同一内容で複製**して 7→8→9 のパスを繋ぐ（Room は自分の管理外テーブルを検証しないので、
+エンティティ未定義の `pending_jobs` が存在しても無害）。マージ時は「version 9＋両 migration＋
+両エンティティの合併」で解決する。
+
+**予防**: スキーマを触る前に**全 worktree の宣言 version を確認**する
+（`grep -h "version = " ~/wt/*/android/app/src/main/java/com/novelreader/data/AppDatabase.kt`）。
+`/db-migration` スキルの手順にも組み込み済み。
 
 ---
 
@@ -520,6 +548,24 @@ Phase 4 精度回帰ゲート(`PdfExtractorDeviceSpikeTest`)の ≤15版クリ�
   PASS は有効（本ランの wall time 1784s は凍結分が大半で、実 CPU は約1分）。関連: #37・#4（FGS でも停止）・
   [[workflow-autonomous-device-verification]]。
 
+---
+
+### なろう小説API（検索パラメータ）
+
+#### 46. type のハイフンOR指定はサイレントに無視され「全件」へフォールバックする（絞ったつもりが無絞り込み）  ★★★
+
+なろう小説APIの複数値ORはパラメータごとに対応がバラバラで、**非対応パラメータに `-` 区切りを渡してもエラーにならず、そのパラメータ自体が無視される**（2026-07-07 実測: `type=t-r` の allcount 1,222,053 ＝ type 無指定と一致。t=594,243 / r=435,539 / er=192,254）。UI で「短編+連載中」を選んだつもりが全作品を検索する、という気づきにくい欠陥クラスになる。
+- OR可: `ncode`・`userid`・`buntai`（マニュアル明記）と `genre`/`biggenre`（実装で使用中・動作確認済み）。
+- `type` は不可。ただし公式複合値 `re`（連載中+完結済＝全連載）・`ter`（短編+完結済）が用意されている。**短編+連載中だけは単一クエリで表現不可**＝2クエリに分けてクライアントマージする（短編と連載中は排反なので allcount は単純加算で正確・同一 order のソート済みリスト同士のマージで上位N件も正確）。
+- `lastup`/`lastupdate` はプリセット文字列（sevenday 等）のほか **UNIX秒の `開始-終了` レンジを受ける**ため、複数時期のORは連続レンジへ合成すれば表現できる。プリセットの暦はサーバ＝日本時間基準なので、クライアント計算は Asia/Tokyo 固定で行うこと。
+実装の所在: `narou/model/DiscoveryQuery.kt` の `typeApiParam`/`lastupApiParam`・`NovelApiRepository.discover` のマージ経路（`8d09e7a`）。
+
+#### 47. レスポンスのキー名が `of` 指定の有無で変わる項目がある（noveltype ↔ novel_type）＝片方だけマップすると「常に null」のサイレント無効  ★★★
+
+なろう小説APIの作品種別は、**`of` でフィールドを絞ったときはキー `noveltype`、`of` 無指定（全項目）ではキー `novel_type`** で返る（マニュアル§5 の注記＋2026-07-07 実API実測で確定。他のフィールドはフルネームで一貫しており、この項目だけが例外）。
+- 罠の型: JSON マッピングを片方のキーだけにすると、もう一方の経路では**例外にならず黙って null** になる。実際に `novelDetail`（of 無指定）経路で `novelType` が常に null → 詳細画面の短編が「完結 1話」誤表示・継続読書の短編ガードがサイレント無効、という実回帰が起きた（一覧＝of 指定経路は正常なので実機スモークでも気づけない）。
+- 対処: Moshi は1フィールドに複数キーを張れないため、両キーを別フィールドで受けて算出プロパティで合流させる（`NarouNovel.kt` の `noveltypeCompact`/`novelTypeFull`→`novelType`）。**新しいフィールドを of 有無の両経路で使うときは、両形のレスポンスでキー名が同じか必ずマニュアル§5で確認すること。**
+
 ## 移設マッピング（旧 Part II / Part III の固定ID対応）
 
 > 旧エントリ番号（`§N`）は固定ID。本ファイルから `docs/` へ移設したもの、および重複採番の解消で再採番したものは下表で追跡する（移設先での再採番はしない）。
@@ -528,6 +574,8 @@ Phase 4 精度回帰ゲート(`PdfExtractorDeviceSpikeTest`)の ≤15版クリ�
 |---|---|---|
 | #30（重複・後発側） | セッション・トランスクリプト JSONL の構造と「実行捏造」の形 | 同ファイル `#42` へ再採番（2026-07-05 に別ブランチで #30 が二重採番されマージで衝突→2026-07-07 解消。既存参照「#30-32」は全て先発の pdfbox 側を指すため先発側を維持） |
 | #28（重複・Compose側） | getLineTop は「行ボックス上端」であり字面上端ではない | 同ファイル `#43` へ再採番（2026-07-02 の別ライン採番（単発修正バッチ↔lab知見移植）が衝突→2026-07-07 解消。フック側 #28 が先発（178f1fd）かつ CLAUDE.md 規約・ADR 0004/0006・hook コード注釈の計8箇所に定着済みのため維持し、STATUS 参照3件のみの Compose 側を移動・張り替え） |
+| #42（重複・なろうAPI側） | type のハイフンOR指定はサイレント無視 | 同ファイル `#46` へ再採番（2026-07-07 に main メタ系（eaa4b23 02:56＝JSONL構造）と api-lab 系（8d09e7a 12:01）が同日別ラインで #42 を採番→2026-07-08 の main 統合で衝突。先発の main 側を維持し、参照2件（STATUS-api-lab・architecture スキル）を張り替え） |
+| #44（重複・なろうAPI側） | レスポンスキー名が of 指定で変わる（noveltype↔novel_type） | 同ファイル `#47` へ再採番（同上＝main 側 #44（fail-open 陽性コントロール）が先発のため維持。#45 は api-lab-ai-3 のなろう規約エントリが使用済みのため欠番にしない） |
 | §20 | Atomic Commit は実装順序から設計する | `docs/decisions/0003-atomic-commit-from-impl-order.md` |
 | §21 | ProcessingState への一本化 | `docs/patterns/processing-state.md` |
 | §22 | Hilt / UseCase 層 不採用（Why-not） | `docs/decisions/0001-no-hilt.md` ・ `docs/decisions/0002-no-usecase-layer.md` |

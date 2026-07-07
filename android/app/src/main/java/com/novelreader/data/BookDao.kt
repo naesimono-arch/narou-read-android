@@ -25,4 +25,10 @@ interface BookDao {
 
     @Query("DELETE FROM books WHERE id = :bookId")
     suspend fun deleteById(bookId: String)
+
+    // PDF↔Web継続読書: なろう作品との紐付け（null で解除）。
+    // なぜ部分 UPDATE か: insertBook(REPLACE) で全列上書きすると、読書中に保持している
+    // 古い BookEntity スナップショットで他列（addedAt 等）を巻き戻すリスクがあるため。
+    @Query("UPDATE books SET ncode = :ncode WHERE id = :bookId")
+    suspend fun updateNcode(bookId: String, ncode: String?)
 }

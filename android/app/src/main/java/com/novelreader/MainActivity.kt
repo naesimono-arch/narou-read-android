@@ -13,11 +13,20 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
+import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.ui.BookshelfScreen
 import com.novelreader.ui.ReadingScreen
+import com.novelreader.ui.discovery.DiscoveryGenreScreen
+import com.novelreader.ui.discovery.DiscoveryHomeScreen
+import com.novelreader.ui.discovery.DiscoveryResultScreen
+import com.novelreader.ui.discovery.DiscoverySearchScreen
+import com.novelreader.ui.discovery.NovelDetailScreen
 import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfViewModel
+import com.novelreader.viewmodel.DiscoveryViewModel
+import com.novelreader.viewmodel.ResultContext
+import com.novelreader.viewmodel.ResultSource
 
 class MainActivity : ComponentActivity() {
 
@@ -48,9 +57,11 @@ class MainActivity : ComponentActivity() {
                 prefs.edit().putString("reading_theme", theme.name).apply()
             }
 
-            // 本棚の Material3 配色は darkTheme に追従する。セピアは暖色ライトのため本棚はライト配色を
-            // 流用し（darkTheme=false）、ダークのときのみ暗配色にする。読書側はセピア固有色を別途持つ。
-            NovelReaderTheme(darkTheme = appTheme == ReadingTheme.DARK) {
+            // Material3 配色もテーマ3値（ライト/セピア/ダーク）へ追従させる。
+            // 旧実装はセピア時にライト配色を流用しており、本棚・発見系で「ライトとセピアの
+            // 色味に差がない」実機フィードバック（2026-07-07）の主因だった。読書側の固有色
+            // （ReadingColors）とは別系統だが、同じ琥珀紙トーンに揃えている（Theme.kt 参照）。
+            NovelReaderTheme(theme = appTheme) {
                 NovelReaderApp(appTheme = appTheme, onThemeChange = onThemeChange)
             }
         }
@@ -74,6 +85,9 @@ private fun NovelReaderApp(
 ) {
     val navController = rememberNavController()
     val viewModel: BookshelfViewModel = viewModel()
+    // 発見系（ホーム/ジャンル/結果一覧）はクエリ文脈を画面間で受け渡すため単一VMを共有する。
+    // ロードは ensureHomeLoaded の遅延型なので、ここで生成しても本棚起動時に通信は発生しない。
+    val discoveryViewModel: DiscoveryViewModel = viewModel()
 
     NavHost(navController = navController, startDestination = "bookshelf") {
 
@@ -85,6 +99,86 @@ private fun NovelReaderApp(
                 onOpenBook = { bookId, startFile ->
                     navController.navigate("reading/$bookId/$startFile")
                 },
+                onOpenDiscovery = {
+                    navController.navigate("discovery")
+                },
+            )
+        }
+
+        composable("discovery") {
+            DiscoveryHomeScreen(
+                viewModel = discoveryViewModel,
+                onBack = { navController.popBackStack() },
+                onOpenDetail = { ncode -> navController.navigate("discovery/detail/$ncode") },
+                onOpenGenre = { navController.navigate("discovery/genre") },
+                onPickBiggenre = { code, label ->
+                    discoveryViewModel.openResult(
+                        ResultContext(title = label, query = DiscoveryQuery(biggenres = setOf(code)), source = ResultSource.GENRE)
+                    )
+                    navController.navigate("discovery/result")
+                },
+                onOpenSearch = { navController.navigate("discovery/search") },
+                onPickMood = { preset ->
+                    discoveryViewModel.openResult(preset.toResultContext())
+                    navController.navigate("discovery/result")
+                },
+            )
+        }
+
+        composable("discovery/search") {
+            DiscoverySearchScreen(
+                viewModel = discoveryViewModel,
+                onBack = { navController.popBackStack() },
+                onSearchExecuted = { navController.navigate("discovery/result") },
+            )
+        }
+
+        composable("discovery/genre") {
+            DiscoveryGenreScreen(
+                onBack = { navController.popBackStack() },
+                onPickBiggenre = { code, label ->
+                    discoveryViewModel.openResult(
+                        ResultContext(title = label, query = DiscoveryQuery(biggenres = setOf(code)), source = ResultSource.GENRE)
+                    )
+                    navController.navigate("discovery/result")
+                },
+                onPickGenre = { code, label ->
+                    discoveryViewModel.openResult(
+                        ResultContext(title = label, query = DiscoveryQuery(genres = setOf(code)), source = ResultSource.GENRE)
+                    )
+                    navController.navigate("discovery/result")
+                },
+            )
+        }
+
+        composable("discovery/result") {
+            DiscoveryResultScreen(
+                viewModel = discoveryViewModel,
+                onBack = { navController.popBackStack() },
+                onOpenDetail = { ncode -> navController.navigate("discovery/detail/$ncode") },
+            )
+        }
+
+        composable(
+            route = "discovery/detail/{ncode}",
+            arguments = listOf(navArgument("ncode") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val ncode = backStackEntry.arguments?.getString("ncode") ?: return@composable
+            NovelDetailScreen(
+                ncode = ncode,
+                viewModel = viewModel(),
+                onKeywordTap = { kw ->
+                    discoveryViewModel.openResult(ResultContext(
+                        title = "「$kw」", subtitle = "キーワードから",
+                        source = ResultSource.KEYWORD,
+                        query = DiscoveryQuery(word = kw, inKeyword = true),
+                    ))
+                    navController.navigate("discovery/result") {
+                        // why: resultContext は VM 単一保持のため、result をスタックに重ねると戻ったとき別の結果が表示される。popUpTo で result を常に1枚に保ち、状態と画面スタックを整合させる。
+                        popUpTo("discovery/result") { inclusive = true }
+                    }
+                },
+                onBack = { navController.popBackStack() },
             )
         }
 
@@ -102,13 +196,17 @@ private fun NovelReaderApp(
             // collectAsState() で第1フレームから現在値を即時派生させることで、
             // LaunchedEffect の1フレーム遅延を排除し初期描画のちらつき（左上ジャンプ）を防ぐ。
             val books by viewModel.books.collectAsState()
-            val htmlDirPath = books.firstOrNull { it.id == bookId }?.htmlDirPath
+            val book = books.firstOrNull { it.id == bookId }
 
-            if (htmlDirPath != null) {
+            if (book != null) {
                 ReadingScreen(
                     bookId = bookId,
                     startFile = startFile,
-                    htmlDirPath = htmlDirPath,
+                    htmlDirPath = book.htmlDirPath,
+                    bookTitle = book.title,
+                    // 紐付け確定/解除は books(hot StateFlow) 経由でここへ還流し、読書画面の
+                    // 継続導線が再コンポーズで即座に切り替わる。
+                    ncode = book.ncode,
                     viewModel = viewModel,
                     readingTheme = appTheme,
                     onThemeChange = onThemeChange,

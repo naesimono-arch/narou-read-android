@@ -6,6 +6,9 @@ import android.app.NotificationManager
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.ContextCompat
+import com.novelreader.narou.DataStoreSearchHistoryStore
+import com.novelreader.narou.NovelApiRepository
+import com.novelreader.narou.SearchHistoryStore
 import com.novelreader.repository.BookRepository
 import com.novelreader.viewmodel.ProcessingState
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
@@ -38,6 +41,12 @@ class NovelReaderApplication : Application() {
      *  から本ディスパッチャへ投入することで、命令の到着順どおりに記帳を直列実行させる。 */
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val pendingJobDispatcher = Dispatchers.IO.limitedParallelism(1)
+
+    /** なろうAPIを利用したディスカバリ用リポジトリのシングルトン（既存 repository と別系統） */
+    val novelApiRepository: NovelApiRepository by lazy { NovelApiRepository() }
+
+    /** 検索履歴＋ピン留め（発見機能 D1）のシングルトン。 */
+    val searchHistoryStore: SearchHistoryStore by lazy { DataStoreSearchHistoryStore(this) }
 
     /** サービス↔ViewModel間の処理状態共有（書き込みは updateProcessingState のみ） */
     private val _processingState = MutableStateFlow<ProcessingState?>(null)

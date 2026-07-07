@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- なろう公式API(api.syosetu.com)からランキング/検索/作品情報メタを取得するため。本文取得はしない。 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!--
       allowBackup を false にする理由:
       蔵書の本文は filesDir/novels/{bookId}/*.html に保存され、DB(books) はその絶対パスを持つ。

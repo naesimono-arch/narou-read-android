@@ -1,0 +1,313 @@
+<!-- @dsCard group="UI-n / 発見（api-lab）" name="D. 作品詳細" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Discovery D 作品詳細 — 和モダン余白</title>
+<style>
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;        /* 藍 */
+    --seiji:#9CB3A8;     /* 青磁 */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.6}
+  .cap b{color:#2A2C28}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.24em;color:#6A6C67}
+  .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--gothic)}
+  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--ink-soft);flex-shrink:0}
+  
+  /* Scrollable view */
+  .scroll{flex:1;overflow:auto;padding-bottom:150px} /* Extra space for fixed action bar */
+
+  /* 戻るボタン */
+  .back{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);padding:2px 24px 8px;cursor:pointer;flex-shrink:0}
+  .back svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5}
+
+  /* 書影風ヒーロー */
+  .cv{position:relative;aspect-ratio:2/3;border-radius:2px;overflow:hidden;display:flex;align-items:flex-end}
+  .cv .rule{position:absolute;left:24px;top:20px;bottom:20px;width:2px;background:var(--ai);opacity:.85}
+  .cv .ttl-in{padding:20px 24px 24px 34px;color:#base} /* text color uses white/base */
+  .cv .ttl-in b{font-family:var(--mincho);font-size:17px;font-weight:600;line-height:1.4;color:var(--base);text-shadow:0 1px 3px rgba(28,31,38,.4);display:block}
+  
+  .hero-cv {
+    width: 100%;
+    height: 190px;
+    border-radius: 0;
+    aspect-ratio: auto;
+    flex-shrink: 0;
+  }
+
+  /* メタ情報 */
+  .detail-meta-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+  }
+  .author {
+    font-size: 13.5px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .genre-label {
+    font-size: 11px;
+    color: var(--seiji);
+    border: 1px solid var(--seiji);
+    padding: 3px 8px;
+    border-radius: 2px;
+    font-weight: 500;
+  }
+
+  /* ステータス表 */
+  .status-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    margin-top: 18px;
+  }
+  .status-item {
+    padding: 12px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .status-item:nth-child(odd) {
+    border-right: 1px solid var(--line);
+    padding-right: 14px;
+  }
+  .status-item:nth-child(even) {
+    padding-left: 14px;
+  }
+  .status-item:nth-child(1), .status-item:nth-child(2) {
+    border-bottom: 1px solid var(--line);
+  }
+  .status-item .lbl {
+    font-size: 10px;
+    color: var(--ink-soft);
+    letter-spacing: .06em;
+  }
+  .status-item .val {
+    font-size: 12.5px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .status-item .val small {
+    font-size: 11px;
+    color: var(--ink-soft);
+  }
+
+  /* セクション */
+  .sec{font-size:10.5px;letter-spacing:.28em;color:var(--ink-soft);margin:24px 0 10px}
+
+  /* あらすじ */
+  .summary-p {
+    font-family: var(--mincho);
+    font-size: 14px;
+    line-height: 1.9;
+    color: var(--ink);
+    text-align: justify;
+  }
+
+  /* キーワード */
+  .kw-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .kw-chip {
+    font-size: 11px;
+    color: var(--seiji);
+    border: 1px solid var(--seiji);
+    border-radius: 2px;
+    padding: 4px 8px;
+    letter-spacing: .02em;
+  }
+
+  /* 評価表 */
+  .eval-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .eval-item {
+    padding: 10px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .eval-item:nth-child(odd) {
+    border-right: 1px solid var(--line);
+    padding-right: 14px;
+  }
+  .eval-item:nth-child(even) {
+    padding-left: 14px;
+  }
+  .eval-item:nth-child(1), .eval-item:nth-child(2) {
+    border-bottom: 1px solid var(--line);
+  }
+  .eval-lbl {
+    font-size: 10px;
+    color: var(--ink-soft);
+  }
+  .eval-val {
+    font-size: 13.5px;
+    font-family: var(--mincho);
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  /* 更新日 */
+  .last-updated {
+    font-size: 11px;
+    color: var(--ink-soft);
+    margin-top: 16px;
+    text-align: right;
+  }
+
+  /* 下端固定バー */
+  .fixed-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--base);
+    border-top: 1px solid var(--line);
+    padding: 12px 24px 20px;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+  }
+  .btn-primary {
+    width: 100%;
+    padding: 12px;
+    background: var(--ai);
+    color: var(--base);
+    border: none;
+    border-radius: 2px;
+    font-family: var(--gothic);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    letter-spacing: 0.1em;
+  }
+  .btn-ghost {
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    color: var(--ink-soft);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    font-family: var(--gothic);
+    font-size: 12px;
+    cursor: pointer;
+    text-align: center;
+    letter-spacing: 0.1em;
+  }
+</style>
+</head>
+<body>
+  <p class="cap"><b>D. 作品詳細</b> ／ 上部にヘッダー化された書影風デザイン、ステータス＆評価の２列ヘアライン表、そして浮き上がらない下部固定アクションエリア</p>
+  <div class="stage">
+    <!-- 作品詳細 -->
+    <div class="wrap"><span class="mode">作品詳細</span>
+    <div class="phone" role="img" aria-label="作品詳細">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>作品一覧</div>
+      
+      <div class="scroll">
+        <!-- 書影風ヒーロー -->
+        <div class="cv hero-cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)">
+          <div class="rule"></div>
+          <div class="ttl-in">
+            <b>追放された万能薬師、辺境でスローライフを始める</b>
+          </div>
+        </div>
+
+        <div style="padding: 0 24px;">
+          <!-- 作者とジャンル -->
+          <div class="detail-meta-top">
+            <span class="author">霧島あおい</span>
+            <span class="genre-label">ハイファンタジー</span>
+          </div>
+
+          <!-- ステータス 2列表 -->
+          <div class="status-grid">
+            <div class="status-item">
+              <span class="lbl">状態</span>
+              <span class="val">連載中・127話</span>
+            </div>
+            <div class="status-item">
+              <span class="lbl">読了目安</span>
+              <span class="val">約8時間 <small>(24.1万字)</small></span>
+            </div>
+            <div class="status-item">
+              <span class="lbl">会話率</span>
+              <span class="val">42%</span>
+            </div>
+            <div class="status-item">
+              <span class="lbl">挿絵</span>
+              <span class="val">3枚</span>
+            </div>
+          </div>
+
+          <!-- あらすじ -->
+          <div class="sec">あらすじ</div>
+          <p class="summary-p">
+            調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。そこで出会った人々との穏やかな日常を描くファンタジー。
+          </p>
+
+          <!-- キーワード -->
+          <div class="sec" style="margin-top: 24px;">キーワード</div>
+          <div class="kw-chips">
+            <span class="kw-chip">異世界転生</span>
+            <span class="kw-chip">ハーレム</span>
+            <span class="kw-chip">チート</span>
+            <span class="kw-chip">成り上がり</span>
+            <span class="kw-chip">スローライフ</span>
+          </div>
+
+          <!-- 評価表 -->
+          <div class="sec" style="margin-top: 24px;">評価</div>
+          <div class="eval-grid">
+            <div class="eval-item">
+              <span class="eval-lbl">総合評価</span>
+              <span class="eval-val">123,456 pt</span>
+            </div>
+            <div class="eval-item">
+              <span class="eval-lbl">ブックマーク</span>
+              <span class="eval-val">45,678 件</span>
+            </div>
+            <div class="eval-item">
+              <span class="eval-lbl">評価者数</span>
+              <span class="eval-val">8,901 人</span>
+            </div>
+            <div class="eval-item">
+              <span class="eval-lbl">週間ポイント</span>
+              <span class="eval-val">12,345 pt</span>
+            </div>
+          </div>
+
+          <div class="last-updated">2026年7月6日 更新</div>
+        </div>
+      </div>
+
+      <!-- 固定フッター -->
+      <div class="fixed-bar">
+        <button class="btn-primary">なろうで読む</button>
+        <button class="btn-ghost" style="margin-top: 8px;">本棚に憶える</button>
+      </div>
+    </div></div>
+  </div>
+</body>
+</html>

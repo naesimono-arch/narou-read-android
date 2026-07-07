@@ -1,0 +1,145 @@
+<!-- @dsCard group="UI-n / 発見（api-lab）" name="D. 継続導線" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Discovery D 継続導線 — 和モダン余白</title>
+<style>
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;        /* 藍 */
+    --seiji:#9CB3A8;     /* 青磁 */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.6}
+  .cap b{color:#2A2C28}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.24em;color:#6A6C67}
+  .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--gothic)}
+  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--ink-soft);flex-shrink:0}
+  .scroll{flex:1;overflow:auto}
+
+  /* 本文 */
+  .reading-text {
+    font-family: var(--mincho);
+    font-size: 15px;
+    line-height: 2.0;
+    color: var(--ink);
+    padding: 10px 24px 0;
+    text-align: justify;
+  }
+  .reading-text p {
+    margin-bottom: 24px;
+  }
+
+  /* 了 */
+  .end-mark {
+    text-align: center;
+    font-family: var(--gothic);
+    font-size: 12px;
+    color: var(--ink-soft);
+    letter-spacing: .3em;
+    margin: 40px 0 50px;
+    padding-left: .3em; /* to balance letter-spacing */
+  }
+
+  /* 継続カード */
+  .continuation-card {
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 20px;
+    margin: 0 24px 60px;
+    position: relative;
+  }
+  .continuation-card::before {
+    content: "";
+    position: absolute;
+    left: -1px; top: 18px; bottom: 18px;
+    width: 2px;
+    background: var(--ai);
+  }
+  .continuation-card h4 {
+    font-family: var(--mincho);
+    font-size: 16px;
+    color: var(--ink);
+    font-weight: 600;
+    margin-bottom: 10px;
+    letter-spacing: .02em;
+  }
+  .continuation-card p {
+    font-family: var(--gothic);
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    line-height: 1.8;
+    margin-bottom: 20px;
+  }
+  .btn-primary {
+    width: 100%;
+    padding: 12px;
+    background: var(--ai);
+    color: var(--base);
+    border: none;
+    border-radius: 2px;
+    font-family: var(--gothic);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    letter-spacing: 0.1em;
+  }
+  .btn-ghost {
+    width: 100%;
+    padding: 12px;
+    background: transparent;
+    color: var(--ink-soft);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    font-family: var(--gothic);
+    font-size: 12px;
+    cursor: pointer;
+    text-align: center;
+    letter-spacing: 0.1em;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+  <p class="cap"><b>D. 継続導線</b> ／ 読書画面の章末尾。手元PDF（第127話）の読了後に、Web（なろう）側の最新話（新着12話）の存在を検知しスムーズに誘導するカード</p>
+  <div class="stage">
+    
+    <!-- 継続導線 -->
+    <div class="wrap"><span class="mode">継続導線</span>
+    <div class="phone" role="img" aria-label="読書末尾 継続導線">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      
+      <div class="scroll">
+        <!-- 本文段落 (全角インデント) -->
+        <div class="reading-text">
+          <p>　こうして、アルスは最果ての辺境での新しい生活を始めることとなった。</p>
+          <p>　かつての王都での騒がしい日々が嘘のように、ここには穏やかに流れる風と、あたたかい一杯の薬草茶がある。</p>
+          <p>「明日は、裏庭の畑をもう少し広げてみることにしようか」</p>
+          <p>　コップをそっと木製のテーブルに置き、アルスは満足そうに微笑みながら、ゆっくりと目を閉じた。</p>
+        </div>
+
+        <!-- 了マーク -->
+        <div class="end-mark">第百二十七話　了</div>
+
+        <!-- 継続カード -->
+        <div class="continuation-card">
+          <h4>ここから先は、なろうで</h4>
+          <p>手元のPDFは第127話まで。なろうには第128〜139話（新着12話）が公開されています。</p>
+          <button class="btn-primary">第128話から続きを読む</button>
+          <button class="btn-ghost">作品ページを見る</button>
+        </div>
+      </div>
+    </div></div>
+
+  </div>
+</body>
+</html>

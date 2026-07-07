@@ -15,4 +15,9 @@ data class BookEntity(
     // 未読の本はこの値で、既読の本は progress.lastReadAt で並ぶ（BookDao 参照）。
     // default 0 は Migration 補完値（既存行は 0＝最後尾クラスタでタイトル順）。
     val addedAt: Long = 0L,
+    // PDF↔Web継続読書（目玉①）: この蔵書に対応するなろう作品の Nコード。
+    // null = 未紐付け。紐付けはユーザー確定操作（候補選択 or 手動入力）でのみ行う。
+    // なぜ自動判定で埋めないか: title 一致だけでは同名別作品の誤紐付けリスクがあり、
+    // 誤った「続き」へ誘導すると読書体験を壊すため（候補提示→人間の確定を必須にする）。
+    val ncode: String? = null,
 )

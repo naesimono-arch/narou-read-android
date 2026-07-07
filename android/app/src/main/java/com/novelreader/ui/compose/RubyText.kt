@@ -31,6 +31,8 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.unit.Dp
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 
 /** AnnotatedString 上のルビアノテーション tag */
 private const val RUBY_TAG = "ruby"
@@ -53,7 +55,7 @@ private const val RUBY_TAG = "ruby"
  */
 @Composable
 fun RubyText(
-    segments: List<TextSegment>,
+    segments: ImmutableList<TextSegment>,
     modifier: Modifier = Modifier,
     style: TextStyle = TextStyle(
         fontSize = 18.sp,
@@ -182,7 +184,7 @@ private fun AnnotatedString.Builder.appendSegment(
 @Composable
 private fun RubyTextPreview_Normal() {
     RubyText(
-        segments = listOf(
+        segments = persistentListOf(
             TextSegment.Plain("この"),
             TextSegment.Ruby("物語", "ものがたり"),
             TextSegment.Plain("は始まる。"),
@@ -195,7 +197,7 @@ private fun RubyTextPreview_Normal() {
 @Composable
 private fun RubyTextPreview_Bold() {
     RubyText(
-        segments = listOf(
+        segments = persistentListOf(
             TextSegment.Plain("通常テキスト、"),
             TextSegment.Ruby("漢字", "かんじ"),
             TextSegment.Plain("が続く。"),
@@ -216,7 +218,7 @@ private fun RubyTextPreview_Bold() {
 private fun RubyTextPreview_LineWrap() {
     // 幅を狭くして行またぎルビを強制発生させる
     RubyText(
-        segments = listOf(
+        segments = persistentListOf(
             TextSegment.Plain("長い文章で"),
             TextSegment.Ruby("物語", "ものがたり"),
             TextSegment.Plain("が行をまたいで折り返す場合のプレビュー。"),

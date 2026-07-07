@@ -3,6 +3,8 @@ package com.novelreader.parser
 import com.novelreader.model.ChapterContent
 import com.novelreader.model.TextSegment
 import com.novelreader.model.TocEntry
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
@@ -20,18 +22,18 @@ object ChapterHtmlParser {
         if (!file.exists()) return null
         val doc = Jsoup.parse(file, "UTF-8")
         val title = doc.selectFirst("h1")?.text().orEmpty()
-        val contentDiv = doc.selectFirst("div.content") ?: return ChapterContent(title, emptyList())
+        val contentDiv = doc.selectFirst("div.content") ?: return ChapterContent(title, persistentListOf())
         val segments = parseNodes(contentDiv.childNodes())
-        return ChapterContent(title, trimEdgeBreaks(segments))
+        return ChapterContent(title, trimEdgeBreaks(segments).toImmutableList())
     }
 
     /** 章HTMLを文字列からパースする（テスト用）。 */
     fun parseHtml(html: String): ChapterContent {
         val doc = Jsoup.parse(html)
         val title = doc.selectFirst("h1")?.text().orEmpty()
-        val contentDiv = doc.selectFirst("div.content") ?: return ChapterContent(title, emptyList())
+        val contentDiv = doc.selectFirst("div.content") ?: return ChapterContent(title, persistentListOf())
         val segments = parseNodes(contentDiv.childNodes())
-        return ChapterContent(title, trimEdgeBreaks(segments))
+        return ChapterContent(title, trimEdgeBreaks(segments).toImmutableList())
     }
 
     /** index.html をパースして目次エントリのリストを返す。 */
@@ -102,7 +104,7 @@ object ChapterHtmlParser {
                         !(child is Element && child.tagName() == "b")
                     }
                     val innerSegments = parseNodes(innerNodes)
-                    segments.add(TextSegment.StyledBlock(label, trimEdgeBreaks(innerSegments)))
+                    segments.add(TextSegment.StyledBlock(label, trimEdgeBreaks(innerSegments).toImmutableList()))
                 } else if (element.hasClass("nav-footer")) {
                     // nav-footer は無視（Compose側で再実装するため）
                 } else {

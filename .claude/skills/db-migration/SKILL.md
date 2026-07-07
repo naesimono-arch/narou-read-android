@@ -20,6 +20,16 @@ android/app/src/main/java/com/novelreader/data/AppDatabase.kt
 
 現在の version 番号はすぐ古くなるため、この手順書には固定値で書かない（AppDatabase.kt が唯一の正典）。末尾の「既存の Migration 履歴」表は過去の移行記録であり、最新 version の確認には使わないこと。
 
+**あわせて並列 worktree の version 先取りも必ず確認する**（task_diary #39・実測クラッシュあり）:
+
+```bash
+grep -h "version = " ~/wt/*/android/app/src/main/java/com/novelreader/data/AppDatabase.kt | sort -u
+```
+
+別ブランチが同じ次期番号を別スキーマで既に消費している（＝実機がそのスキーマで migrate 済みの）場合、
+同番号を名乗ると identity hash 不一致で起動即クラッシュする。その場合は**さらに +1 した番号へ退避し、
+先行ブランチの Migration を同一内容で複製してパスを繋ぐ**こと（詳細は task_diary #39）。
+
 ## 手順
 
 1. Entity クラスのフィールドを変更する
@@ -73,3 +83,4 @@ Androidの `SupportSQLiteDatabase` でも `execSQL("PRAGMA table_info(books)")` 
 | v5 → v6   | progress テーブルに scrollIndex / scrollOffset 列を追加（MIGRATION_5_6、ADD COLUMN INTEGER DEFAULT 0、章内スクロール位置の永続化）|
 | v6 → v7   | books に addedAt / progress に lastReadAt 列を追加（MIGRATION_6_7、ADD COLUMN INTEGER NOT NULL DEFAULT 0、蔵書追加日時・最終読書日時の記録）|
 | v7 → v8   | pending_jobs テーブルを新設（MIGRATION_7_8、CREATE TABLE のみ＝既存テーブル無変更、処理キューの永続化＝強制終了からの再開材料）|
+| v8 → v9   | books に ncode 列を追加（MIGRATION_8_9、ADD COLUMN TEXT nullable。なろう作品の Nコード＝PDF↔Web継続読書〔発見機能の目玉①〕の紐付けキー。未紐付けが既定のため DEFAULT 句なし。version 8 を並列ブランチが先に消費していたため v9 へ退避した経緯は task_diary #39）|

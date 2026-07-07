@@ -1,0 +1,156 @@
+<!-- @dsCard group="UI-n / 発見（api-lab）" name="D. ジャンル選択" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Discovery D ジャンル選択 — 和モダン余白</title>
+<style>
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;        /* 藍 */
+    --seiji:#9CB3A8;     /* 青磁 */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.6}
+  .cap b{color:#2A2C28}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.24em;color:#6A6C67}
+  .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--gothic)}
+  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--ink-soft);flex-shrink:0}
+  .scroll{flex:1;overflow:auto;padding:0 24px 40px}
+
+  /* 戻るボタン */
+  .back{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);padding:2px 24px 0;cursor:pointer;flex-shrink:0}
+  .back svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5}
+
+  /* 文脈ヘッダ */
+  .ctx{padding:6px 24px 0;flex-shrink:0}
+  .ctx h2{font-family:var(--mincho);font-size:21px;color:var(--ink);font-weight:500;letter-spacing:.1em}
+
+  /* ジャンル見出し行 */
+  .genre-sec-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 24px 0 10px;
+  }
+  .genre-sec-header .sec-ttl {
+    font-size: 10.5px;
+    letter-spacing: .28em;
+    color: var(--ink-soft);
+    font-weight: 600;
+  }
+  .genre-all-link {
+    font-size: 11px;
+    color: var(--ai);
+    text-decoration: none;
+    font-family: var(--gothic);
+    letter-spacing: .05em;
+  }
+  .genre-all-link:hover {
+    text-decoration: underline;
+  }
+
+  /* チップ */
+  .genre-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .gc{font-size: 11.5px;color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:7px 14px;cursor:pointer}
+  .gc:hover{border-color:var(--ai);color:var(--ai)}
+</style>
+</head>
+<body>
+  <p class="cap"><b>D. ジャンル選択</b> ／ 見つければ戻る導線、大ジャンルごとの「すべて →」リンク、および詳細ジャンルのチップ選択肢</p>
+  <div class="stage">
+    <!-- ジャンル選択 -->
+    <div class="wrap"><span class="mode">ジャンル選択</span>
+    <div class="phone" role="img" aria-label="ジャンル選択">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>見つける</div>
+      
+      <div class="ctx">
+        <h2>ジャンルから</h2>
+      </div>
+
+      <div class="scroll" style="padding-top: 0;">
+        <!-- 恋愛 -->
+        <div class="genre-sec-header">
+          <span class="sec-ttl">恋愛</span>
+          <a href="#" class="genre-all-link">すべて →</a>
+        </div>
+        <div class="genre-chips">
+          <span class="gc">異世界〔恋愛〕</span>
+          <span class="gc">現実世界〔恋愛〕</span>
+        </div>
+
+        <!-- ファンタジー -->
+        <div class="genre-sec-header">
+          <span class="sec-ttl">ファンタジー</span>
+          <a href="#" class="genre-all-link">すべて →</a>
+        </div>
+        <div class="genre-chips">
+          <span class="gc">ハイファンタジー</span>
+          <span class="gc">ローファンタジー</span>
+        </div>
+
+        <!-- 文芸 -->
+        <div class="genre-sec-header">
+          <span class="sec-ttl">文芸</span>
+          <a href="#" class="genre-all-link">すべて →</a>
+        </div>
+        <div class="genre-chips">
+          <span class="gc">純文学</span>
+          <span class="gc">ヒューマンドラマ</span>
+          <span class="gc">歴史</span>
+          <span class="gc">推理</span>
+          <span class="gc">ホラー</span>
+          <span class="gc">アクション</span>
+          <span class="gc">コメディー</span>
+        </div>
+
+        <!-- SF -->
+        <div class="genre-sec-header">
+          <span class="sec-ttl">SF</span>
+          <a href="#" class="genre-all-link">すべて →</a>
+        </div>
+        <div class="genre-chips">
+          <span class="gc">VRゲーム</span>
+          <span class="gc">宇宙</span>
+          <span class="gc">空想科学</span>
+          <span class="gc">パニック</span>
+        </div>
+
+        <!-- その他 -->
+        <div class="genre-sec-header">
+          <span class="sec-ttl">その他</span>
+          <a href="#" class="genre-all-link">すべて →</a>
+        </div>
+        <div class="genre-chips">
+          <span class="gc">童話</span>
+          <span class="gc">詩</span>
+          <span class="gc">エッセイ</span>
+          <span class="gc">リプレイ</span>
+          <span class="gc">その他</span>
+        </div>
+
+        <!-- ノンジャンル -->
+        <div class="genre-sec-header">
+          <span class="sec-ttl">ノンジャンル</span>
+          <a href="#" class="genre-all-link">すべて →</a>
+        </div>
+        <div class="genre-chips">
+          <span class="gc">ノンジャンル</span>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</body>
+</html>

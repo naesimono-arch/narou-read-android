@@ -1,0 +1,60 @@
+package com.novelreader.viewmodel
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.novelreader.NovelReaderApplication
+import com.novelreader.narou.NarouApiException
+import com.novelreader.narou.model.NarouNovel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+sealed interface NovelDetailUiState {
+    object Loading : NovelDetailUiState
+    data class Content(val novel: NarouNovel) : NovelDetailUiState
+    /** ncode に該当する作品が API に存在しない（削除・検索除外設定など）。 */
+    object NotFound : NovelDetailUiState
+    data class Error(val message: String) : NovelDetailUiState
+}
+
+/**
+ * 作品詳細（discovery/detail/{ncode}）。ナビ引数の ncode を load() で受けて全項目を取得する。
+ * DiscoveryViewModel から分離している理由: 詳細はルート引数だけで自己完結し、
+ * 発見系の共有状態（ホーム/結果一覧）と寿命が異なるため。
+ */
+class NovelDetailViewModel(application: Application) : AndroidViewModel(application) {
+    private val app = application as NovelReaderApplication
+    private val repository = app.novelApiRepository
+
+    private val _uiState = MutableStateFlow<NovelDetailUiState>(NovelDetailUiState.Loading)
+    val uiState: StateFlow<NovelDetailUiState> = _uiState.asStateFlow()
+
+    private var loadedNcode: String? = null
+
+    /** 同一 ncode の再呼び出し（再コンポーズ等）ではロードし直さない。 */
+    fun load(ncode: String) {
+        if (loadedNcode == ncode && _uiState.value !is NovelDetailUiState.Error) return
+        loadedNcode = ncode
+        viewModelScope.launch {
+            _uiState.value = NovelDetailUiState.Loading
+            _uiState.value = try {
+                val novel = repository.novelDetail(ncode)
+                if (novel != null) {
+                    NovelDetailUiState.Content(novel)
+                } else {
+                    NovelDetailUiState.NotFound
+                }
+            } catch (e: NarouApiException) {
+                NovelDetailUiState.Error(e.userMessage)
+            }
+        }
+    }
+
+    fun retry() {
+        val ncode = loadedNcode ?: return
+        loadedNcode = null
+        load(ncode)
+    }
+}

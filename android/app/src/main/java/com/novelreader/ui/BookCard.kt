@@ -20,11 +20,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.novelreader.NovelReaderApplication
 import com.novelreader.data.BookEntity
+import com.novelreader.narou.ContinuationInfo
+import com.novelreader.narou.NarouApiException
+import com.novelreader.narou.computeContinuation
 import com.novelreader.ui.components.BookCover
 import com.novelreader.ui.theme.MinchoFamily
 import java.io.File
@@ -75,6 +80,56 @@ private fun BookProgressRow(
             color = MaterialTheme.colorScheme.secondary,
         )
     }
+}
+
+// ============================================================
+// 続きありバッジ（モック fusion .new-chapters）: 青磁ドット＋藍文字「続き N話」。
+// PDF↔Web継続読書の「新着の気配」を本棚でも静かに知らせる。
+// ============================================================
+@Composable
+private fun NewChaptersBadge(newCount: Int, modifier: Modifier = Modifier) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .background(MaterialTheme.colorScheme.secondary, CircleShape),
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = "続き ${newCount}話",
+            fontSize = 10.5.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
+/**
+ * 紐付け済み（ncode 非null）の本だけ、なろうの総話数と突き合わせて新着話数を返す。null=バッジ非表示。
+ * なぜカード単位の produceState か: totalChaps（章数のファイル走査）と同じ既存様式に合わせるため。
+ * 実通信は Repository の 6h TTL キャッシュに乗るので、再コンポーズ・画面往復で毎回は飛ばない。
+ * オフライン等の失敗時は静かに非表示（本棚を通信エラーで騒がせない）。
+ */
+@Composable
+private fun rememberNewEpisodeCount(book: BookEntity, totalChaps: Int): Int? {
+    val context = LocalContext.current
+    val newCount by produceState<Int?>(initialValue = null, key1 = book.ncode, key2 = totalChaps) {
+        val ncode = book.ncode
+        value = if (ncode == null || totalChaps <= 0) {
+            null
+        } else {
+            try {
+                val repository =
+                    (context.applicationContext as NovelReaderApplication).novelApiRepository
+                repository.novelDetail(ncode)?.let { novel ->
+                    (computeContinuation(totalChaps, novel) as? ContinuationInfo.NewEpisodes)?.newCount
+                }
+            } catch (e: NarouApiException) {
+                null
+            }
+        }
+    }
+    return newCount
 }
 
 // ============================================================
@@ -192,6 +247,10 @@ internal fun GridBookCard(
             progressFraction = progressFraction,
             flexBar = true,
         )
+        // 続きあり（モックは進捗行の下・上4px）
+        rememberNewEpisodeCount(book, totalChaps)?.let { newCount ->
+            NewChaptersBadge(newCount = newCount, modifier = Modifier.padding(top = 4.dp))
+        }
     }
 }
 
@@ -282,11 +341,17 @@ internal fun ListBookCard(
                     )
                 }
                 Spacer(Modifier.height(9.dp))
-                BookProgressRow(
-                    totalChaps = totalChaps,
-                    progressFraction = progressFraction,
-                    flexBar = false,
-                )
+                // モック fusion のリストは進捗行の右に続きありバッジを並べる（margin-left:10px）
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    BookProgressRow(
+                        totalChaps = totalChaps,
+                        progressFraction = progressFraction,
+                        flexBar = false,
+                    )
+                    rememberNewEpisodeCount(book, totalChaps)?.let { newCount ->
+                        NewChaptersBadge(newCount = newCount, modifier = Modifier.padding(start = 10.dp))
+                    }
+                }
             }
             // 削除アフォーダンス。⋮方式(1)のみ行末にボタン。既定0は非表示（長押しで開く）。
             // Box は方式に関わらず DropdownMenu のアンカーとして常設する。

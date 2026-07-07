@@ -114,6 +114,12 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch(Dispatchers.IO) { repository.deleteBook(book) }
     }
 
+    // PDF↔Web継続読書: なろう作品との紐付け（null で解除）。
+    // books は hot StateFlow のため、書き込めば読書画面の継続導線へ自動で反映される。
+    fun linkNcode(bookId: String, ncode: String?) {
+        viewModelScope.launch(Dispatchers.IO) { repository.linkNcode(bookId, ncode) }
+    }
+
     suspend fun getLastRead(bookId: String): String? = repository.getLastRead(bookId)
 
     suspend fun getProgress(bookId: String): ProgressEntity? = repository.getProgress(bookId)
