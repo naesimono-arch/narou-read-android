@@ -26,7 +26,9 @@ import kotlin.concurrent.withLock
 
 class PdfProcessingService : Service() {
 
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    // var: onTimeout がキャンセル後に再生成して差し替えるため（理由は onTimeout 内コメント参照）。
+    // アクセスは全て main スレッド（onStartCommand/onTimeout/onDestroy）なので同期は不要。
+    private var scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     // キューと状態を1つの lock で保護（「追加+起動判定」と「取り出し+終了判定」をアトミックにし競合ゼロにする）
     private val lock = ReentrantLock()
@@ -118,6 +120,12 @@ class PdfProcessingService : Service() {
     override fun onTimeout(startId: Int) {
         Log.w(TAG, "FGS タイムアウト(dataSync 実行時間上限)により処理を中断")
         scope.cancel()
+        // なぜ cancel 直後に再生成するか: stopSelf() は非同期で、onDestroy 前に新しい
+        // ACTION_START が同一 Service インスタンスへ届き得る。キャンセル済みスコープへの
+        // launch は例外もログも出さず何も実行しない（コルーチンの仕様＝サイレント失敗）ため、
+        // 再生成しないと次回起動が isLoopRunning=true・通知「準備中…」のまま永久に処理されない。
+        // onDestroy 経由の cancel は再生成不要（インスタンスごと破棄され次回は新スコープ）。
+        scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         lock.withLock {
             uriQueue.clear()
             isLoopRunning = false
