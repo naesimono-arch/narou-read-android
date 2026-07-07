@@ -51,13 +51,13 @@ class DiscoveryQueryLabelsTest {
                 tensei = true,
                 tenni = true,
                 excludeZankoku = true,
-                lastup = NarouLastup.THISWEEK,
+                lastup = NarouLastup.SEVENDAY,
                 length = "100000-",
                 sasie = "1-",
             )
         )
         assertEquals(
-            listOf("転生・転移", "残酷描写を除く", "今週更新", "10万字〜", "挿絵あり", "累計順"),
+            listOf("転生・転移", "残酷描写を除く", "7日以内に更新", "10万字〜", "挿絵あり", "累計順"),
             labels
         )
     }

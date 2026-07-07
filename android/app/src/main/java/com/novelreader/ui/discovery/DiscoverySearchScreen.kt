@@ -65,6 +65,8 @@ import com.novelreader.narou.model.NarouNovelType
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.DiscoveryViewModel
 import com.novelreader.viewmodel.SearchFilters
+import com.novelreader.viewmodel.SearchRange
+import com.novelreader.viewmodel.withRangeToggled
 
 /**
  * 検索ホーム画面（モック discovery-search-D.html のフレーム1）。
@@ -198,22 +200,22 @@ fun DiscoverySearchScreen(
                     FilterChipItem(
                         selected = draft.inTitle,
                         label = "タイトル",
-                        onClick = { viewModel.setSearchDraft(draft.copy(inTitle = !draft.inTitle)) }
-                    )
-                    FilterChipItem(
-                        selected = draft.inStory,
-                        label = "あらすじ",
-                        onClick = { viewModel.setSearchDraft(draft.copy(inStory = !draft.inStory)) }
+                        onClick = { viewModel.setSearchDraft(draft.withRangeToggled(SearchRange.TITLE)) }
                     )
                     FilterChipItem(
                         selected = draft.inKeyword,
                         label = "キーワード",
-                        onClick = { viewModel.setSearchDraft(draft.copy(inKeyword = !draft.inKeyword)) }
+                        onClick = { viewModel.setSearchDraft(draft.withRangeToggled(SearchRange.KEYWORD)) }
                     )
                     FilterChipItem(
                         selected = draft.inWriter,
                         label = "作者名",
-                        onClick = { viewModel.setSearchDraft(draft.copy(inWriter = !draft.inWriter)) }
+                        onClick = { viewModel.setSearchDraft(draft.withRangeToggled(SearchRange.WRITER)) }
+                    )
+                    FilterChipItem(
+                        selected = draft.inStory,
+                        label = "あらすじ",
+                        onClick = { viewModel.setSearchDraft(draft.withRangeToggled(SearchRange.STORY)) }
                     )
                 }
 
@@ -373,8 +375,8 @@ fun DiscoverySearchScreen(
                     )
                 }
 
-                // b. 期間
-                SectionHeader(text = "期間")
+                // b. 更新された時期
+                SectionHeader(text = "更新された時期")
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -389,10 +391,10 @@ fun DiscoverySearchScreen(
                         }
                     )
                     FilterChipItem(
-                        selected = current == NarouLastup.THISWEEK,
-                        label = "今週",
+                        selected = current == NarouLastup.SEVENDAY,
+                        label = "7日以内",
                         onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastup = if (current == NarouLastup.THISWEEK) null else NarouLastup.THISWEEK)))
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastup = if (current == NarouLastup.SEVENDAY) null else NarouLastup.SEVENDAY)))
                         }
                     )
                     FilterChipItem(

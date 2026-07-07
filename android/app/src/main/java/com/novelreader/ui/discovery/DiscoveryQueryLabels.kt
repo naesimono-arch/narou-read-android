@@ -66,7 +66,7 @@ fun conditionChipLabels(query: DiscoveryQuery): List<String> {
     }
     if (query.excludeZankoku) labels.add("残酷描写を除く")
 
-    query.lastup?.let { labels.add("${it.uiLabel}更新") }
+    query.lastup?.let { labels.add("${it.uiLabel}に更新") }
 
     rangeText(query.length, "字", ::charCountText)?.let(labels::add)
     rangeText(query.time, "分")?.let { labels.add("読了$it") }

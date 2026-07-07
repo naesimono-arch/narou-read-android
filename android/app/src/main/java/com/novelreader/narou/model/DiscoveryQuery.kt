@@ -16,7 +16,7 @@ enum class NarouNovelType(val apiValue: String, val uiLabel: String) {
 }
 
 enum class NarouLastup(val apiValue: String, val uiLabel: String) {
-    THISWEEK("thisweek", "今週"),
+    SEVENDAY("sevenday", "7日以内"),
     THISMONTH("thismonth", "今月"),
     LASTMONTH("lastmonth", "先月"),
 }

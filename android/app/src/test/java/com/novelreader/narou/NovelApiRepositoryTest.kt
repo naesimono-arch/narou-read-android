@@ -122,7 +122,7 @@ class NovelApiRepositoryTest {
             genres = setOf(101, 201),
             tensei = true,
             type = NarouNovelType.KANKETSU,
-            lastup = NarouLastup.THISWEEK,
+            lastup = NarouLastup.SEVENDAY,
             time = "30-"
         )
         repository.discover(query1)
@@ -145,7 +145,7 @@ class NovelApiRepositoryTest {
                 istenni = null,
                 istt = null,
                 type = "er",
-                lastup = "thisweek",
+                lastup = "sevenday",
                 time = "30-",
                 st = null,
                 notword = null,

@@ -38,6 +38,10 @@ data class SearchFilters(
     }
 }
 
+enum class SearchRange {
+    TITLE, STORY, KEYWORD, WRITER
+}
+
 /**
  * 検索画面の下書き状態（検索語＋範囲＋絞り込み）。
  * なぜ VM に持つか: 条件シートを閉じても・結果一覧から戻っても状態が残るように
@@ -45,7 +49,7 @@ data class SearchFilters(
  */
 data class SearchDraft(
     val word: String = "",
-    val inTitle: Boolean = false,
+    val inTitle: Boolean = true,
     val inStory: Boolean = false,
     val inKeyword: Boolean = false,
     val inWriter: Boolean = false,
@@ -74,4 +78,34 @@ data class SearchDraft(
     /** 結果一覧の見出し。検索語があれば「「word」」、条件のみなら固定文言。 */
     fun resultTitle(): String =
         word.trim().takeIf { it.isNotBlank() }?.let { "「$it」" } ?: "条件で探す"
+}
+
+/**
+ * 指定した検索範囲のトグルを適用した新しい [SearchDraft] を返す。
+ * 最後の1つをオフにしようとした場合はトグルを無視して自身を返す。
+ */
+fun SearchDraft.withRangeToggled(range: SearchRange): SearchDraft {
+    val currentOnCount = (if (inTitle) 1 else 0) +
+            (if (inStory) 1 else 0) +
+            (if (inKeyword) 1 else 0) +
+            (if (inWriter) 1 else 0)
+
+    val isTargetOn = when (range) {
+        SearchRange.TITLE -> inTitle
+        SearchRange.STORY -> inStory
+        SearchRange.KEYWORD -> inKeyword
+        SearchRange.WRITER -> inWriter
+    }
+
+    if (currentOnCount == 1 && isTargetOn) {
+        // 全解除＝なろうAPI仕様で暗黙の全項目対象（あらすじ・キーワード含む）となり、「なぜこの作品が出たか分からない」不透明が再発するため、最後の1つは外せない（ADR 0007 原則2）。
+        return this
+    }
+
+    return when (range) {
+        SearchRange.TITLE -> copy(inTitle = !inTitle)
+        SearchRange.STORY -> copy(inStory = !inStory)
+        SearchRange.KEYWORD -> copy(inKeyword = !inKeyword)
+        SearchRange.WRITER -> copy(inWriter = !inWriter)
+    }
 }
