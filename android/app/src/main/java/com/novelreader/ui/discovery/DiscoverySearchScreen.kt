@@ -505,6 +505,20 @@ fun DiscoverySearchScreen(
                             viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastup = if (current == NarouLastup.SEVENDAY) null else NarouLastup.SEVENDAY)))
                         }
                     )
+                    FilterChipItem(
+                        selected = current == NarouLastup.THISMONTH,
+                        label = "今月",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastup = if (current == NarouLastup.THISMONTH) null else NarouLastup.THISMONTH)))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = current == NarouLastup.LASTMONTH,
+                        label = "先月",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastup = if (current == NarouLastup.LASTMONTH) null else NarouLastup.LASTMONTH)))
+                        }
+                    )
                 }
 
                 // c. 属性
