@@ -102,7 +102,7 @@ def main() -> int:
     ap.add_argument("path", nargs="?", help="解析対象の <session.jsonl>")
     ap.add_argument("--slug", help="~/.claude/projects/<slug>/*.jsonl を全走査")
     ap.add_argument("--format", choices=["human", "json"], default="human")
-    ap.add_argument("--tier", default="AB", help="検査する Tier（例 'B' / 'AB'）")
+    ap.add_argument("--tier", default="ABC", help="検査する Tier（例 'B' / 'AB' / 'ABC'。C=misread型）")
     ap.add_argument("--scope", choices=["all", "last_turn"], default="all")
     ap.add_argument("--sentinel-dir", default=None,
                     help="センチネル(.python_tests_passed 等)のあるディレクトリ（live 裏取り用）")
