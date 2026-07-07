@@ -8,15 +8,20 @@ import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouNovelType
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.network.NarouApiService
+import com.squareup.moshi.JsonDataException
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import retrofit2.HttpException
+import retrofit2.Response
 import java.io.IOException
 
 class NovelApiRepositoryTest {
@@ -34,8 +39,8 @@ class NovelApiRepositoryTest {
     private fun createMockResponse(): List<NarouNovel> {
         return listOf(
             NarouNovel(allcount = 100),
-            NarouNovel(title = "作品1", ncode = "N1111A", novelType = 1, end = 1),
-            NarouNovel(title = "作品2", ncode = "N2222A", novelType = 2, end = 0)
+            NarouNovel(title = "作品1", ncode = "N1111A", noveltypeCompact = 1, end = 1),
+            NarouNovel(title = "作品2", ncode = "N2222A", noveltypeCompact = 2, end = 0)
         )
     }
 
@@ -415,6 +420,14 @@ class NovelApiRepositoryTest {
         // min は now の日付に依存する（月初7日以内なら 7日前・8日以降なら月初）ため minOf で普遍化する
         // max(SEVENDAY.end, THISMONTH.end) = tEnd
         assertEquals("${minOf(t7dayStart, tThisMonthStart)}-$tEnd", com.novelreader.narou.model.lastupApiParam(setOf(SEVENDAY, THISMONTH), nowMs, zone))
+
+        // 3種全選択（toggleLastup は全点灯を許す＝UIから到達可能な経路）
+        // min は先月1日・max は now
+        assertEquals("$tLastMonthStart-$tEnd", com.novelreader.narou.model.lastupApiParam(setOf(SEVENDAY, THISMONTH, LASTMONTH), nowMs, zone))
+
+        // 非連続組 {SEVENDAY, LASTMONTH}（UI は間を自動点灯して防ぐが、万一漏れた場合の
+        // 「min-max の広い側へ倒す」防御が仕様どおり動くことを固定する）
+        assertEquals("$tLastMonthStart-$tEnd", com.novelreader.narou.model.lastupApiParam(setOf(SEVENDAY, LASTMONTH), nowMs, zone))
     }
 
     @Test
@@ -487,5 +500,99 @@ class NovelApiRepositoryTest {
                 time = any(), length = any(), kaiwaritu = any(), sasie = any()
             )
         }
+    }
+
+    @Test
+    fun `discover - SHORTとRENSAIの新着順マージが novelupdated_at 降順になること（nullは最下位）`() = runTest {
+        // なぜこの回帰テストか: OF_LIST に nu(novelupdated_at) が無かった時期、NEW順マージのキーが
+        // 全件 null になり安定ソートが連結順のまま take で短編だけを残す破綻が実在した。
+        // OF_LIST の nu 欠落とマージキーの両方をここで固定する。
+        assertTrue("OF_LIST は新着順マージのソートキー nu を転送すること",
+            NovelApiRepository.OF_LIST.split("-").contains("nu"))
+
+        val shortNovels = listOf(
+            NarouNovel(allcount = 10),
+            NarouNovel(ncode = "NS1", novelupdatedAt = "2026-07-07 10:00:00"),
+            NarouNovel(ncode = "NS2", novelupdatedAt = "2026-07-05 10:00:00")
+        )
+        val rensaiNovels = listOf(
+            NarouNovel(allcount = 20),
+            NarouNovel(ncode = "NR1", novelupdatedAt = "2026-07-06 10:00:00"),
+            NarouNovel(ncode = "NR2", novelupdatedAt = null)
+        )
+        coEvery {
+            service.search(
+                of = any(), order = any(), lim = 4, type = "t", lastup = any(), word = any(), title = any(), ex = any(), keyword = any(), wname = any(), genre = any(),
+                istensei = any(), istenni = any(), istt = any(), nottensei = any(), nottenni = any(),
+                iszankoku = any(), notzankoku = any(), isr15 = any(), notr15 = any(), isbl = any(), notbl = any(), isgl = any(), notgl = any(),
+                time = any(), length = any(), kaiwaritu = any(), sasie = any()
+            )
+        } returns shortNovels
+        coEvery {
+            service.search(
+                of = any(), order = any(), lim = 4, type = "r", lastup = any(), word = any(), title = any(), ex = any(), keyword = any(), wname = any(), genre = any(),
+                istensei = any(), istenni = any(), istt = any(), nottensei = any(), nottenni = any(),
+                iszankoku = any(), notzankoku = any(), isr15 = any(), notr15 = any(), isbl = any(), notbl = any(), isgl = any(), notgl = any(),
+                time = any(), length = any(), kaiwaritu = any(), sasie = any()
+            )
+        } returns rensaiNovels
+
+        val result = repository.discover(
+            DiscoveryQuery(
+                types = setOf(NarouNovelType.SHORT, NarouNovelType.RENSAI),
+                order = NarouOrder.NEW,
+                limit = 4
+            )
+        )
+
+        // 短編・連載が更新日時順に交互へ混ざること（連結順のままなら NS1,NS2,NR1,NR2 になる）
+        assertEquals(listOf("NS1", "NR1", "NS2", "NR2"), result.novels.map { it.ncode })
+    }
+
+    @Test
+    fun `discover - HttpException がコード入りメッセージの NarouApiException に正規化されること`() = runTest {
+        coEvery { service.search(of = any(), order = any(), lim = any()) } throws
+            HttpException(Response.error<List<NarouNovel>>(503, "server error".toResponseBody(null)))
+
+        var thrown: NarouApiException? = null
+        try {
+            repository.discover(DiscoveryQuery())
+        } catch (e: NarouApiException) {
+            thrown = e
+        }
+
+        assertNotNull(thrown)
+        assertEquals("なろうサーバとの通信に失敗しました（コード: 503）。", thrown!!.userMessage)
+    }
+
+    @Test
+    fun `discover - JSON型不一致(JsonDataException)が解釈エラーの NarouApiException に正規化されること`() = runTest {
+        // なぜ固定するか: レスポンスの形はサーバ都合で変わる外部入力。素通しすると
+        // NarouApiException だけを握る本棚バッジ・読書画面までクラッシュが波及する。
+        coEvery { service.search(of = any(), order = any(), lim = any()) } throws
+            JsonDataException("Expected an int but was STRING at path \$[1].kaiwaritu")
+
+        var thrown: NarouApiException? = null
+        try {
+            repository.discover(DiscoveryQuery())
+        } catch (e: NarouApiException) {
+            thrown = e
+        }
+
+        assertNotNull(thrown)
+        assertEquals("なろうの応答を解釈できませんでした。時間をおいて再試行してください。", thrown!!.userMessage)
+    }
+
+    @Test
+    fun `novelDetail - 見つからない結果も負キャッシュされ再照会しないこと`() = runTest {
+        // なぜ負キャッシュか: なろう側で削除された紐付け作品は空応答が続く。非キャッシュだと
+        // 本棚バッジが表示のたびに実リクエストを発行し続け転送量マナーに反する。
+        coEvery { service.search(ncode = "N9999XX", lim = 1, of = null) } returns
+            listOf(NarouNovel(allcount = 0))
+
+        assertNull(repository.novelDetail("N9999XX"))
+        assertNull(repository.novelDetail("N9999XX"))
+
+        coVerify(exactly = 1) { service.search(ncode = "N9999XX", lim = 1, of = null) }
     }
 }

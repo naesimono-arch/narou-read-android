@@ -50,7 +50,7 @@ class DiscoveryViewModelTest {
     @Test
     fun `ensureHomeLoaded - ロードに成功した場合、homeState が Content に遷移し、取得データが格納されること`() = runTest {
         val dummyNovels = listOf(
-            NarouNovel(title = "小説タイトル", ncode = "N1234AB", novelType = 1, end = 1)
+            NarouNovel(title = "小説タイトル", ncode = "N1234AB", noveltypeCompact = 1, end = 1)
         )
         val dummyResult = DiscoveryResult(allcount = 120, novels = dummyNovels)
         coEvery { mockRepo.discover(any()) } returns dummyResult

@@ -38,15 +38,20 @@ data class NarouNovel(
     /** 作品文字数（実質文字数）。=length。 */
     @Json(name = "length") val length: Int? = null,
     /**
-     * 作品種別。1=連載, 2=短編。
+     * 作品種別（of 指定時のキー）。読み取りは [novelType] を使うこと（直接読むと of 無指定経路で常に null）。
      * ⚠️ 元の項目名は `novel_type` だが、`of` 指定時のレスポンスでは `noveltype` として返る
-     * （narou_api_manual.md §5 の注記）。ここは of 指定前提なので `noveltype` に合わせる。
+     * （narou_api_manual.md §5 の注記。of 無指定＝novelDetail 経路は `novel_type` で返ることを実APIで確認済み 2026-07-07）。
+     * Moshi は1フィールドに複数キーを張れないため、両キーを別フィールドで受けて [novelType] で合流させる。
      */
-    @Json(name = "noveltype") val novelType: Int? = null,
+    @Json(name = "noveltype") val noveltypeCompact: Int? = null,
+    /** 作品種別（of 無指定時のキー）。読み取りは [novelType] を使うこと。 */
+    @Json(name = "novel_type") val novelTypeFull: Int? = null,
     @Json(name = "genre") val genre: Int? = null,
     @Json(name = "keyword") val keyword: String? = null,
     @Json(name = "general_firstup") val generalFirstup: String? = null,
     @Json(name = "general_lastup") val generalLastup: String? = null,
+    /** 作品の更新日時。order=new（新着更新順）のソート根拠（narou_api_manual.md §3・§5 の nu）。 */
+    @Json(name = "novelupdated_at") val novelupdatedAt: String? = null,
     @Json(name = "time") val time: Int? = null,
     @Json(name = "fav_novel_cnt") val favNovelCnt: Int? = null,
     @Json(name = "review_cnt") val reviewCnt: Int? = null,
@@ -61,4 +66,10 @@ data class NarouNovel(
     @Json(name = "istenni") val istenni: Int? = null,
     @Json(name = "iszankoku") val iszankoku: Int? = null,
     @Json(name = "isstop") val isstop: Int? = null,
-)
+) {
+    /**
+     * 作品種別。1=連載, 2=短編。of 指定/無指定のどちらの経路でも読める合流アクセサ
+     * （キーの二重性は [noveltypeCompact] の KDoc 参照）。
+     */
+    val novelType: Int? get() = noveltypeCompact ?: novelTypeFull
+}

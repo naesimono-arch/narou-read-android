@@ -145,4 +145,28 @@ class NarouJsonParseTest {
         assertEquals(1, novel.iszankoku)
         assertEquals(0, novel.isstop)
     }
+
+    @Test
+    fun `作品種別は of指定時のnoveltypeキーと of無指定時のnovel_typeキーのどちらでも novelType に合流すること`() {
+        // なぜ両キーを検証するか: マニュアル§5 注記のとおり同じ項目がリクエスト形態でキー名を変える
+        // （of指定=noveltype / of無指定=novel_type。後者は 2026-07-07 実APIで確認）。
+        // 片方しかマップしないと novelDetail 経路で常に null になり、短編の誤表示・短編ガードの
+        // サイレント無効が起きる（実際に起きていた回帰）。
+        val moshi = Moshi.Builder().build()
+        val listType = Types.newParameterizedType(List::class.java, NarouNovel::class.java)
+        val jsonAdapter = moshi.adapter<List<NarouNovel>>(listType)
+
+        val jsonString = """
+            [
+              {"allcount": 2},
+              {"ncode": "N1111AA", "noveltype": 2},
+              {"ncode": "N2222BB", "novel_type": 2, "novelupdated_at": "2026-07-07 18:00:00"}
+            ]
+        """.trimIndent()
+
+        val result = requireNotNull(jsonAdapter.fromJson(jsonString))
+        assertEquals(2, result[1].novelType) // of 指定形（一覧）
+        assertEquals(2, result[2].novelType) // of 無指定形（詳細）
+        assertEquals("2026-07-07 18:00:00", result[2].novelupdatedAt)
+    }
 }

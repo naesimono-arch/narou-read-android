@@ -11,7 +11,7 @@ class ContinuationLogicTest {
 
     @Test
     fun testComputeContinuation_newEpisodes() {
-        val novel = NarouNovel(ncode = "N2959KI", generalAllNo = 139, novelType = 1)
+        val novel = NarouNovel(ncode = "N2959KI", generalAllNo = 139, noveltypeCompact = 1)
         val result = computeContinuation(pdfChapterCount = 127, novel = novel)
         assertTrue(result is ContinuationInfo.NewEpisodes)
         val newEpisodes = result as ContinuationInfo.NewEpisodes
@@ -24,7 +24,7 @@ class ContinuationLogicTest {
 
     @Test
     fun testComputeContinuation_upToDate() {
-        val novel = NarouNovel(ncode = "N2959KI", generalAllNo = 139, novelType = 1)
+        val novel = NarouNovel(ncode = "N2959KI", generalAllNo = 139, noveltypeCompact = 1)
         val result = computeContinuation(pdfChapterCount = 139, novel = novel)
         assertTrue(result is ContinuationInfo.UpToDate)
         val upToDate = result as ContinuationInfo.UpToDate
@@ -34,7 +34,7 @@ class ContinuationLogicTest {
 
     @Test
     fun testComputeContinuation_pdfMoreThanTotal() {
-        val novel = NarouNovel(ncode = "N2959KI", generalAllNo = 139, novelType = 1)
+        val novel = NarouNovel(ncode = "N2959KI", generalAllNo = 139, noveltypeCompact = 1)
         val result = computeContinuation(pdfChapterCount = 140, novel = novel)
         assertTrue(result is ContinuationInfo.UpToDate)
         val upToDate = result as ContinuationInfo.UpToDate
@@ -44,7 +44,7 @@ class ContinuationLogicTest {
 
     @Test
     fun testComputeContinuation_shortStoryUpToDate() {
-        val novel = NarouNovel(ncode = "N2959KI", generalAllNo = 1, novelType = 2)
+        val novel = NarouNovel(ncode = "N2959KI", generalAllNo = 1, noveltypeCompact = 2)
         val result = computeContinuation(pdfChapterCount = 1, novel = novel)
         assertTrue(result is ContinuationInfo.UpToDate)
         val upToDate = result as ContinuationInfo.UpToDate
@@ -55,7 +55,7 @@ class ContinuationLogicTest {
     @Test
     fun testComputeContinuation_shortStoryTotalMoreThanPdf() {
         // 短編設定（novelType=2）であるため、なろう側の話数が多くても UpToDate になる
-        val novel = NarouNovel(ncode = "N2959KI", generalAllNo = 5, novelType = 2)
+        val novel = NarouNovel(ncode = "N2959KI", generalAllNo = 5, noveltypeCompact = 2)
         val result = computeContinuation(pdfChapterCount = 3, novel = novel)
         assertTrue(result is ContinuationInfo.UpToDate)
         val upToDate = result as ContinuationInfo.UpToDate
@@ -65,35 +65,35 @@ class ContinuationLogicTest {
 
     @Test
     fun testComputeContinuation_generalAllNoNull() {
-        val novel = NarouNovel(ncode = "N2959KI", generalAllNo = null, novelType = 1)
+        val novel = NarouNovel(ncode = "N2959KI", generalAllNo = null, noveltypeCompact = 1)
         val result = computeContinuation(pdfChapterCount = 10, novel = novel)
         assertNull(result)
     }
 
     @Test
     fun testComputeContinuation_ncodeNull() {
-        val novel = NarouNovel(ncode = null, generalAllNo = 100, novelType = 1)
+        val novel = NarouNovel(ncode = null, generalAllNo = 100, noveltypeCompact = 1)
         val result = computeContinuation(pdfChapterCount = 10, novel = novel)
         assertNull(result)
     }
 
     @Test
     fun testComputeContinuation_ncodeBlank() {
-        val novel = NarouNovel(ncode = "   ", generalAllNo = 100, novelType = 1)
+        val novel = NarouNovel(ncode = "   ", generalAllNo = 100, noveltypeCompact = 1)
         val result = computeContinuation(pdfChapterCount = 10, novel = novel)
         assertNull(result)
     }
 
     @Test
     fun testComputeContinuation_pdfZero() {
-        val novel = NarouNovel(ncode = "N2959KI", generalAllNo = 100, novelType = 1)
+        val novel = NarouNovel(ncode = "N2959KI", generalAllNo = 100, noveltypeCompact = 1)
         val result = computeContinuation(pdfChapterCount = 0, novel = novel)
         assertNull(result)
     }
 
     @Test
     fun testComputeContinuation_pdfNegative() {
-        val novel = NarouNovel(ncode = "N2959KI", generalAllNo = 100, novelType = 1)
+        val novel = NarouNovel(ncode = "N2959KI", generalAllNo = 100, noveltypeCompact = 1)
         val result = computeContinuation(pdfChapterCount = -5, novel = novel)
         assertNull(result)
     }

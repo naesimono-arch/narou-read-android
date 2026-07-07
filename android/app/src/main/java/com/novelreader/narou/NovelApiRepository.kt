@@ -10,6 +10,8 @@ import com.novelreader.narou.model.lastupApiParam
 import com.novelreader.narou.model.typeApiParam
 import com.novelreader.narou.network.NarouApiService
 import com.novelreader.narou.network.NarouNetwork
+import com.squareup.moshi.JsonDataException
+import com.squareup.moshi.JsonEncodingException
 import retrofit2.HttpException
 import java.io.IOException
 
@@ -35,7 +37,10 @@ class NovelApiRepository(
         // なぜ of で項目を絞るか:
         // (1) あらすじ(story)はあらすじ非表示の一覧では転送しないことでデータ転送量を大幅に削減するため。
         // (2) genreは詳細ジャンルのラベル表示、timeは読了目安時間の表示に必要であるため。
-        const val OF_LIST = "t-n-w-gp-dp-wp-mp-qp-ga-e-l-nt-g-ti"
+        // (3) nu(novelupdated_at)は「新着」順×短編+連載中の2クエリマージのソートキーに必要
+        //     （order=new は新着更新順＝novelupdated_at 降順。欠くとキーが全件 null になり
+        //       安定ソートが連結順のまま take で片側だけ残す破綻を起こす）。
+        const val OF_LIST = "t-n-w-gp-dp-wp-mp-qp-ga-e-l-nt-g-ti-nu"
 
         // なぜキャッシュ上限を50にするか:
         // 週間ランキングと異なり、ディスカバリ検索ではクエリの種類が多様になり、
@@ -67,6 +72,17 @@ class NovelApiRepository(
             return block()
         } catch (e: HttpException) {
             throw NarouApiException("なろうサーバとの通信に失敗しました（コード: ${e.code()}）。", e)
+        } catch (e: JsonDataException) {
+            // なぜ捕捉するか: レスポンスの形はサーバ都合でアプリ更新と独立に変わる外部入力であり、
+            // 「想定外」ではなく期待すべき失敗系。RuntimeException のまま素通しすると、
+            // 静かに非表示へ倒す前提の本棚バッジ・読書画面（NarouApiException だけを握る）まで
+            // クラッシュが波及するため、ここでドメイン例外へ正規化する（cause 保持で診断可能性は残る）。
+            throw NarouApiException("なろうの応答を解釈できませんでした。時間をおいて再試行してください。", e)
+        } catch (e: JsonEncodingException) {
+            // なぜ IOException より先に分けるか: JsonEncodingException は IOException のサブクラスで、
+            // メンテページ等の非JSON応答（HTTP 200+HTML）がこれに落ちる。下の汎用 IOException に
+            // 流すと「ネットワークに接続できません」と誤案内し、再試行しても直らない原因切り分けを妨げるため。
+            throw NarouApiException("なろうの応答を解釈できませんでした。時間をおいて再試行してください。", e)
         } catch (e: IOException) {
             // UnknownHostException も IOException のサブクラス
             throw NarouApiException("ネットワークに接続できません。通信環境を確認して再試行してください。", e)
@@ -88,7 +104,9 @@ class NovelApiRepository(
             NarouOrder.MONTHLY -> compareByDescending<NarouNovel> { it.monthlyPoint ?: 0 }
             NarouOrder.QUARTER -> compareByDescending<NarouNovel> { it.quarterPoint ?: 0 }
             NarouOrder.TOTAL -> compareByDescending<NarouNovel> { it.globalPoint ?: 0 }
-            NarouOrder.NEW -> compareByDescending<NarouNovel> { it.generalLastup ?: "" }
+            // なぜ novelupdatedAt か: API の order=new は「新着更新順」＝novelupdated_at 降順
+            // （narou_api_manual.md §3）。日時文字列 "yyyy-MM-dd HH:mm:ss" は辞書順＝時系列順。
+            NarouOrder.NEW -> compareByDescending<NarouNovel> { it.novelupdatedAt ?: "" }
         }
         return (a + b).sortedWith(comparator)
     }
@@ -235,14 +253,11 @@ class NovelApiRepository(
             DiscoveryResult(allcount, novels)
         }
 
-        val novel = result.novels.firstOrNull()
-        if (novel != null) {
-            putCache(cacheKey, result, now)
-        }
-        return novel
-    }
-
-    fun clearCache() {
-        cache.clear()
+        // なぜ空結果（NotFound）もキャッシュするか: なろう側で削除・検索除外された作品に紐付いた本があると、
+        // novelDetail は空を返し続ける。非キャッシュのままだと本棚バッジ等が表示のたびに実リクエストを
+        // 発行し続け、6h TTL で守っている転送量マナー（narou_api_manual.md §6）に反するため、
+        // 成功応答である限り空でも TTL 付きで負キャッシュする（通信失敗は wrapApiException で throw 済み＝ここに来ない）。
+        putCache(cacheKey, result, now)
+        return result.novels.firstOrNull()
     }
 }
