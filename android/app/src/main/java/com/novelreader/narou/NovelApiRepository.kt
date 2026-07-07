@@ -4,6 +4,10 @@ import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.DiscoveryResult
 import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouAttr
+import com.novelreader.narou.model.NarouNovelType
+import com.novelreader.narou.model.NarouOrder
+import com.novelreader.narou.model.lastupApiParam
+import com.novelreader.narou.model.typeApiParam
 import com.novelreader.narou.network.NarouApiService
 import com.novelreader.narou.network.NarouNetwork
 import retrofit2.HttpException
@@ -70,10 +74,39 @@ class NovelApiRepository(
     }
 
     /**
+     * 両リストを order のソートキーで降順マージする。
+     */
+    internal fun mergeByOrder(
+        a: List<NarouNovel>,
+        b: List<NarouNovel>,
+        order: NarouOrder
+    ): List<NarouNovel> {
+        // なぜ: 両サブクエリは API 側で既に同一 order でソート済みのため、同じキーでマージすれば全体の上位 limit 件が正しく得られる。
+        val comparator = when (order) {
+            NarouOrder.DAILY -> compareByDescending<NarouNovel> { it.dailyPoint ?: 0 }
+            NarouOrder.WEEKLY -> compareByDescending<NarouNovel> { it.weeklyPoint ?: 0 }
+            NarouOrder.MONTHLY -> compareByDescending<NarouNovel> { it.monthlyPoint ?: 0 }
+            NarouOrder.QUARTER -> compareByDescending<NarouNovel> { it.quarterPoint ?: 0 }
+            NarouOrder.TOTAL -> compareByDescending<NarouNovel> { it.globalPoint ?: 0 }
+            NarouOrder.NEW -> compareByDescending<NarouNovel> { it.generalLastup ?: "" }
+        }
+        return (a + b).sortedWith(comparator)
+    }
+
+    /**
      * 汎用ディスカバリ検索を実行する。
      * キャッシュがあればそれを返し、無ければAPIから取得してキャッシュする。
      */
     suspend fun discover(query: DiscoveryQuery): DiscoveryResult {
+        // SHORT+RENSAI マージ経路
+        if (query.types == setOf(NarouNovelType.SHORT, NarouNovelType.RENSAI)) {
+            // なぜ: allcount は短編と連載中が排反なので単純加算で正確。
+            val short = discover(query.copy(types = setOf(NarouNovelType.SHORT)))
+            val rensai = discover(query.copy(types = setOf(NarouNovelType.RENSAI)))
+            val mergedNovels = mergeByOrder(short.novels, rensai.novels, query.order).take(query.limit)
+            return DiscoveryResult(short.allcount + rensai.allcount, mergedNovels)
+        }
+
         val cacheKey = query.cacheKey()
         val now = timeSource()
         val cached = cache[cacheKey]
@@ -153,8 +186,8 @@ class NovelApiRepository(
                 notbl = notblParam,
                 isgl = isglParam,
                 notgl = notglParam,
-                type = query.type?.apiValue,
-                lastup = query.lastup?.apiValue,
+                type = typeApiParam(query.types),
+                lastup = lastupApiParam(query.lastups, now),
                 time = query.time,
                 length = query.length,
                 kaiwaritu = query.kaiwaritu,

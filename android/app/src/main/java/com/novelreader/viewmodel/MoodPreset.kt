@@ -39,10 +39,10 @@ enum class MoodPreset(
     ;
 
     fun toQuery(): DiscoveryQuery = when (this) {
-        SHORT_TRIP -> DiscoveryQuery(type = NarouNovelType.SHORT, time = "-30")
+        SHORT_TRIP -> DiscoveryQuery(types = setOf(NarouNovelType.SHORT), time = "-30")
         // なぜ累計順か: 「一気読み」は積み上がった評価の完結作を薦めるのが自然で、
         // 週間の勢い（連載中心）とは求める軸が違うため。
-        BINGE -> DiscoveryQuery(type = NarouNovelType.KANKETSU, length = "100000-", order = NarouOrder.TOTAL)
+        BINGE -> DiscoveryQuery(types = setOf(NarouNovelType.KANKETSU), length = "100000-", order = NarouOrder.TOTAL)
         DIALOGUE -> DiscoveryQuery(kaiwaritu = "60-")
         ILLUSTRATED -> DiscoveryQuery(sasie = "1-")
     }

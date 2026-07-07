@@ -75,6 +75,8 @@ import com.novelreader.viewmodel.DiscoveryViewModel
 import com.novelreader.viewmodel.SearchFilters
 import com.novelreader.viewmodel.SearchRange
 import com.novelreader.viewmodel.withRangeToggled
+import com.novelreader.viewmodel.toggleType
+import com.novelreader.viewmodel.toggleLastup
 
 /**
  * 検索ホーム画面（モック discovery-search-D.html のフレーム1）。
@@ -452,33 +454,33 @@ fun DiscoverySearchScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    val current = draft.filters.type
+                    val current = draft.filters.types
                     FilterChipItem(
-                        selected = current == null,
+                        selected = current.isEmpty(),
                         label = "すべて",
                         onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(type = null)))
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(types = emptySet())))
                         }
                     )
                     FilterChipItem(
-                        selected = current == NarouNovelType.SHORT,
+                        selected = NarouNovelType.SHORT in current,
                         label = "短編",
                         onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(type = if (current == NarouNovelType.SHORT) null else NarouNovelType.SHORT)))
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(types = toggleType(current, NarouNovelType.SHORT))))
                         }
                     )
                     FilterChipItem(
-                        selected = current == NarouNovelType.RENSAI,
+                        selected = NarouNovelType.RENSAI in current,
                         label = "連載中",
                         onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(type = if (current == NarouNovelType.RENSAI) null else NarouNovelType.RENSAI)))
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(types = toggleType(current, NarouNovelType.RENSAI))))
                         }
                     )
                     FilterChipItem(
-                        selected = current == NarouNovelType.KANKETSU,
+                        selected = NarouNovelType.KANKETSU in current,
                         label = "完結済",
                         onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(type = if (current == NarouNovelType.KANKETSU) null else NarouNovelType.KANKETSU)))
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(types = toggleType(current, NarouNovelType.KANKETSU))))
                         }
                     )
                 }
@@ -490,33 +492,33 @@ fun DiscoverySearchScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    val current = draft.filters.lastup
+                    val current = draft.filters.lastups
                     FilterChipItem(
-                        selected = current == null,
+                        selected = current.isEmpty(),
                         label = "すべて",
                         onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastup = null)))
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastups = emptySet())))
                         }
                     )
                     FilterChipItem(
-                        selected = current == NarouLastup.SEVENDAY,
+                        selected = NarouLastup.SEVENDAY in current,
                         label = "7日以内",
                         onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastup = if (current == NarouLastup.SEVENDAY) null else NarouLastup.SEVENDAY)))
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastups = toggleLastup(current, NarouLastup.SEVENDAY))))
                         }
                     )
                     FilterChipItem(
-                        selected = current == NarouLastup.THISMONTH,
+                        selected = NarouLastup.THISMONTH in current,
                         label = "今月",
                         onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastup = if (current == NarouLastup.THISMONTH) null else NarouLastup.THISMONTH)))
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastups = toggleLastup(current, NarouLastup.THISMONTH))))
                         }
                     )
                     FilterChipItem(
-                        selected = current == NarouLastup.LASTMONTH,
+                        selected = NarouLastup.LASTMONTH in current,
                         label = "先月",
                         onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastup = if (current == NarouLastup.LASTMONTH) null else NarouLastup.LASTMONTH)))
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastups = toggleLastup(current, NarouLastup.LASTMONTH))))
                         }
                     )
                 }

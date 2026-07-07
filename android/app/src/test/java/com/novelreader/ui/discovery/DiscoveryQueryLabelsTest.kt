@@ -39,7 +39,7 @@ class DiscoveryQueryLabelsTest {
     @Test
     fun `conditionChipLabels - 気分プリセット相当（短編×読了30分以内）のチップが人の言葉になること`() {
         val labels = conditionChipLabels(
-            DiscoveryQuery(type = NarouNovelType.SHORT, time = "-30")
+            DiscoveryQuery(types = setOf(NarouNovelType.SHORT), time = "-30")
         )
         assertEquals(listOf("短編", "読了〜30分", "週間順"), labels)
     }
@@ -51,7 +51,7 @@ class DiscoveryQueryLabelsTest {
                 order = NarouOrder.TOTAL,
                 attrsInclude = setOf(NarouAttr.TENSEI, NarouAttr.TENNI),
                 attrsExclude = setOf(NarouAttr.ZANKOKU),
-                lastup = NarouLastup.SEVENDAY,
+                lastups = setOf(NarouLastup.SEVENDAY),
                 length = "100000-",
                 sasie = "1-",
             )
@@ -81,5 +81,18 @@ class DiscoveryQueryLabelsTest {
             DiscoveryQuery(genres = setOf(201), biggenres = setOf(1))
         )
         assertEquals(listOf("恋愛", "ハイファンタジー", "週間順"), labels)
+    }
+
+    @Test
+    fun `conditionChipLabels - 複数選択されたtypeとlastupが「・」で連結されて1枚のチップになること`() {
+        val labels = conditionChipLabels(
+            DiscoveryQuery(
+                types = setOf(NarouNovelType.SHORT, NarouNovelType.KANKETSU),
+                lastups = setOf(NarouLastup.THISMONTH, NarouLastup.LASTMONTH)
+            )
+        )
+        // 宣言順：SHORT("短編"), KANKETSU("完結済") -> "短編・完結済"
+        // 宣言順：THISMONTH("今月"), LASTMONTH("先月") -> "今月・先月に更新"
+        assertEquals(listOf("短編・完結済", "今月・先月に更新", "週間順"), labels)
     }
 }

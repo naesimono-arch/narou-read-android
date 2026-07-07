@@ -11,8 +11,8 @@ import com.novelreader.narou.model.NarouNovelType
  * （UI は段階チップで選ぶため、値の組み立てはチップ定義側が担う）。
  */
 data class SearchFilters(
-    val type: NarouNovelType? = null,       // D4 作品の形
-    val lastup: NarouLastup? = null,        // D5 期間
+    val types: Set<NarouNovelType> = emptySet(),       // D4 作品の形
+    val lastups: Set<NarouLastup> = emptySet(),        // D5 期間
     val attrsInclude: Set<NarouAttr> = emptySet(),
     val attrsExclude: Set<NarouAttr> = emptySet(),
     val length: String? = null,             // D3 文字数
@@ -25,8 +25,8 @@ data class SearchFilters(
     /** 有効な条件の数（「条件を調整」ボタンのバッジ表示用）。 */
     fun activeCount(): Int {
         var n = 0
-        if (type != null) n++
-        if (lastup != null) n++
+        n += types.size
+        n += lastups.size
         n += attrsInclude.size
         n += attrsExclude.size
         if (length != null) n++
@@ -73,8 +73,8 @@ data class SearchDraft(
         inStory = inStory,
         inKeyword = inKeyword,
         inWriter = inWriter,
-        type = filters.type,
-        lastup = filters.lastup,
+        types = filters.types,
+        lastups = filters.lastups,
         attrsInclude = filters.attrsInclude,
         attrsExclude = filters.attrsExclude,
         length = filters.length,
@@ -181,5 +181,40 @@ fun toggleWordToken(word: String, token: String): String {
         tokens.add(token)
     }
     return tokens.joinToString(" ")
+}
+
+/**
+ * 全3種を選んだら空集合（=すべて）へ正規化。
+ * why: 全選択と未指定は同義であり、チップ表示も「すべて」に畳む。
+ */
+fun toggleType(current: Set<NarouNovelType>, tapped: NarouNovelType): Set<NarouNovelType> {
+    val next = if (current.contains(tapped)) {
+        current - tapped
+    } else {
+        current + tapped
+    }
+    return if (next.size == 3) emptySet() else next
+}
+
+/**
+ * 非連続な組（SEVENDAY+LASTMONTH）を作らない: 追加でギャップが生まれるなら THISMONTH も点灯。
+ * THISMONTH の消灯で非連続になるなら LASTMONTH も消灯（直近側を残す方が「新しい作品を探す」文脈で自然）。
+ * 全3種選択は（先月1日〜now の連続レンジとして意味があるので）空へは畳まない。
+ */
+fun toggleLastup(current: Set<NarouLastup>, tapped: NarouLastup): Set<NarouLastup> {
+    val added = !current.contains(tapped)
+    val next = if (added) current + tapped else current - tapped
+
+    if (next.size <= 1 || next.size == 3) {
+        return next
+    }
+    if (next.contains(NarouLastup.SEVENDAY) && next.contains(NarouLastup.LASTMONTH)) {
+        return if (added) {
+            next + NarouLastup.THISMONTH
+        } else {
+            next - NarouLastup.LASTMONTH
+        }
+    }
+    return next
 }
 

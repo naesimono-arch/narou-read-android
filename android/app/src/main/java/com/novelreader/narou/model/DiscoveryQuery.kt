@@ -1,5 +1,10 @@
 package com.novelreader.narou.model
 
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.temporal.TemporalAdjusters
+
 enum class NarouOrder(val apiValue: String, val uiLabel: String) {
     DAILY("dailypoint", "日間"),
     WEEKLY("weeklypoint", "週間"),
@@ -43,8 +48,8 @@ data class DiscoveryQuery(
     val genres: Set<Int> = emptySet(),
     val attrsInclude: Set<NarouAttr> = emptySet(),
     val attrsExclude: Set<NarouAttr> = emptySet(),
-    val type: NarouNovelType? = null,
-    val lastup: NarouLastup? = null,
+    val types: Set<NarouNovelType> = emptySet(),
+    val lastups: Set<NarouLastup> = emptySet(),
     val time: String? = null,       // 読了時間(分)。"30-100"/"−30"は"-30"/"30-" 形式
     val length: String? = null,     // 文字数。同形式
     val kaiwaritu: String? = null,  // 会話率%。同形式
@@ -70,8 +75,8 @@ data class DiscoveryQuery(
         parts.add("genres:${genres.sorted().joinToString(",")}")
         parts.add("attrsInclude:${attrsInclude.map { it.name }.sorted().joinToString(",")}")
         parts.add("attrsExclude:${attrsExclude.map { it.name }.sorted().joinToString(",")}")
-        parts.add("type:${type?.name.orEmpty()}")
-        parts.add("lastup:${lastup?.name.orEmpty()}")
+        parts.add("types:${types.map { it.name }.sorted().joinToString(",")}")
+        parts.add("lastups:${lastups.map { it.name }.sorted().joinToString(",")}")
         parts.add("time:${time.orEmpty()}")
         parts.add("length:${length.orEmpty()}")
         parts.add("kaiwaritu:${kaiwaritu.orEmpty()}")
@@ -79,4 +84,65 @@ data class DiscoveryQuery(
         parts.add("limit:$limit")
         return parts.joinToString("|")
     }
+}
+
+/**
+ * types → API type パラメータ。null は「パラメータ無し」。SHORT+RENSAI だけは API に複合値が無いため
+ * 特別扱いが要る（NovelApiRepository 側で2クエリマージ）。ここでは null を返す。
+ */
+fun typeApiParam(types: Set<NarouNovelType>): String? {
+    // なぜ: type にハイフンOR は使えない＝ type=t-r は無効値として無視され全件が返る（2026-07-07 実測: allcount が無指定と一致）。
+    // 公式複合値 re/ter で表現できない SHORT+RENSAI のみ、呼び出し側で2クエリに分けてマージする。
+    if (types.isEmpty() || types.size == 3) return null
+    if (types.size == 1) {
+        return types.first().apiValue
+    }
+    // size == 2
+    return when {
+        types.contains(NarouNovelType.SHORT) && types.contains(NarouNovelType.KANKETSU) -> "ter"
+        types.contains(NarouNovelType.RENSAI) && types.contains(NarouNovelType.KANKETSU) -> "re"
+        else -> null // SHORT + RENSAI の組み合わせ
+    }
+}
+
+/**
+ * lastups → API lastup パラメータ。単一はプリセット文字列、複数は UNIX 秒の "start-end" 連続レンジ。
+ */
+fun lastupApiParam(
+    lastups: Set<NarouLastup>,
+    nowMs: Long,
+    zone: ZoneId = ZoneId.of("Asia/Tokyo")
+): String? {
+    // なぜ: zone を Asia/Tokyo 固定にするのは、なろうのプリセット（thismonth 等）がサーバ＝日本時間の暦で解釈されるため。端末のタイムゾーンに依らず意味を揃える。
+    // なぜ: 複数時期の OR はプリセット文字列では表現できないが、lastup は UNIXタイムスタンプのハイフン区切りを受ける（マニュアル§4.5）ため連続レンジへ合成する。
+    // 非連続な組（7日以内+先月）は UI 側で間（今月）を自動点灯して構造的に防ぐが、万一漏れても min-max の広い側に倒す（絞りすぎて作品が消えるより害が小さい）。
+    if (lastups.isEmpty()) return null
+    if (lastups.size == 1) return lastups.first().apiValue
+
+    val now = ZonedDateTime.ofInstant(Instant.ofEpochMilli(nowMs), zone)
+    val intervals = lastups.map { lastup ->
+        when (lastup) {
+            NarouLastup.SEVENDAY -> {
+                val start = now.minusDays(7).toEpochSecond()
+                val end = now.toEpochSecond()
+                start to end
+            }
+            NarouLastup.THISMONTH -> {
+                val start = now.with(TemporalAdjusters.firstDayOfMonth())
+                    .truncatedTo(java.time.temporal.ChronoUnit.DAYS).toEpochSecond()
+                val end = now.toEpochSecond()
+                start to end
+            }
+            NarouLastup.LASTMONTH -> {
+                val start = now.minusMonths(1).with(TemporalAdjusters.firstDayOfMonth())
+                    .truncatedTo(java.time.temporal.ChronoUnit.DAYS).toEpochSecond()
+                val end = now.with(TemporalAdjusters.firstDayOfMonth())
+                    .truncatedTo(java.time.temporal.ChronoUnit.DAYS).minusSeconds(1).toEpochSecond()
+                start to end
+            }
+        }
+    }
+    val minStart = intervals.minOf { it.first }
+    val maxEnd = intervals.maxOf { it.second }
+    return "$minStart-$maxEnd"
 }

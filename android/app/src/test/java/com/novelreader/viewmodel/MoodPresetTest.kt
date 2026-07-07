@@ -10,11 +10,11 @@ class MoodPresetTest {
     @Test
     fun `toQuery - 各プリセットがAPI仕様どおりの範囲条件へ変換されること`() {
         MoodPreset.SHORT_TRIP.toQuery().let {
-            assertEquals(NarouNovelType.SHORT, it.type)
+            assertEquals(setOf(NarouNovelType.SHORT), it.types)
             assertEquals("-30", it.time)
         }
         MoodPreset.BINGE.toQuery().let {
-            assertEquals(NarouNovelType.KANKETSU, it.type)
+            assertEquals(setOf(NarouNovelType.KANKETSU), it.types)
             assertEquals("100000-", it.length)
             assertEquals(NarouOrder.TOTAL, it.order)
         }

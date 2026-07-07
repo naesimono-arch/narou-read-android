@@ -16,7 +16,7 @@ class SearchDraftTest {
         assertFalse(SearchDraft().canSearch)
         assertFalse(SearchDraft(word = "   ").canSearch)
         assertTrue(SearchDraft(word = "薬師").canSearch)
-        assertTrue(SearchDraft(filters = SearchFilters(type = NarouNovelType.SHORT)).canSearch)
+        assertTrue(SearchDraft(filters = SearchFilters(types = setOf(NarouNovelType.SHORT))).canSearch)
     }
 
     @Test
@@ -25,8 +25,8 @@ class SearchDraftTest {
             word = " 薬師 ",
             inTitle = true,
             filters = SearchFilters(
-                type = NarouNovelType.KANKETSU,
-                lastup = NarouLastup.THISMONTH,
+                types = setOf(NarouNovelType.KANKETSU),
+                lastups = setOf(NarouLastup.THISMONTH),
                 attrsInclude = setOf(NarouAttr.TENSEI),
                 attrsExclude = setOf(NarouAttr.ZANKOKU),
                 length = "100000-",
@@ -37,8 +37,8 @@ class SearchDraftTest {
         assertEquals("薬師", query.word)
         assertTrue(query.inTitle)
         assertFalse(query.inStory)
-        assertEquals(NarouNovelType.KANKETSU, query.type)
-        assertEquals(NarouLastup.THISMONTH, query.lastup)
+        assertEquals(setOf(NarouNovelType.KANKETSU), query.types)
+        assertEquals(setOf(NarouLastup.THISMONTH), query.lastups)
         assertTrue(NarouAttr.TENSEI in query.attrsInclude)
         assertFalse(NarouAttr.TENNI in query.attrsInclude)
         assertTrue(NarouAttr.ZANKOKU in query.attrsExclude)
@@ -95,7 +95,7 @@ class SearchDraftTest {
         assertEquals(0, SearchFilters().activeCount())
         assertEquals(
             3,
-            SearchFilters(type = NarouNovelType.SHORT, attrsInclude = setOf(NarouAttr.TENSEI), time = "-30").activeCount()
+            SearchFilters(types = setOf(NarouNovelType.SHORT), attrsInclude = setOf(NarouAttr.TENSEI), time = "-30").activeCount()
         )
     }
 
@@ -168,6 +168,53 @@ class SearchDraftTest {
 
         // 重複追加なし（トグルなので、すでにあるものは除去される）
         assertEquals("aa cc", toggleWordToken("aa bb cc", "bb"))
+    }
+
+    @Test
+    fun `toggleType - 全選択は空へ畳み、単純トグルも正しく機能すること`() {
+        // 空から追加
+        assertEquals(setOf(NarouNovelType.SHORT), toggleType(emptySet(), NarouNovelType.SHORT))
+        // 既存から追加
+        assertEquals(setOf(NarouNovelType.SHORT, NarouNovelType.RENSAI), toggleType(setOf(NarouNovelType.SHORT), NarouNovelType.RENSAI))
+        // 既存から削除
+        assertEquals(emptySet<NarouNovelType>(), toggleType(setOf(NarouNovelType.SHORT), NarouNovelType.SHORT))
+        // 全3種選択は空集合へ正規化
+        assertEquals(emptySet<NarouNovelType>(), toggleType(setOf(NarouNovelType.SHORT, NarouNovelType.RENSAI), NarouNovelType.KANKETSU))
+    }
+
+    @Test
+    fun `toggleLastup - 非連続防止が正しく機能すること`() {
+        // ギャップ点灯: SEVENDAY + LASTMONTH -> THISMONTH も点灯して3種全点灯
+        assertEquals(
+            setOf(NarouLastup.SEVENDAY, NarouLastup.THISMONTH, NarouLastup.LASTMONTH),
+            toggleLastup(setOf(NarouLastup.SEVENDAY), NarouLastup.LASTMONTH)
+        )
+        assertEquals(
+            setOf(NarouLastup.SEVENDAY, NarouLastup.THISMONTH, NarouLastup.LASTMONTH),
+            toggleLastup(setOf(NarouLastup.LASTMONTH), NarouLastup.SEVENDAY)
+        )
+
+        // 3種全点灯から THISMONTH 消灯 -> ギャップ解消のため LASTMONTH も消灯して SEVENDAY だけが残る
+        assertEquals(
+            setOf(NarouLastup.SEVENDAY),
+            toggleLastup(setOf(NarouLastup.SEVENDAY, NarouLastup.THISMONTH, NarouLastup.LASTMONTH), NarouLastup.THISMONTH)
+        )
+
+        // 連続する消去
+        assertEquals(
+            setOf(NarouLastup.SEVENDAY),
+            toggleLastup(setOf(NarouLastup.SEVENDAY, NarouLastup.THISMONTH), NarouLastup.THISMONTH)
+        )
+        assertEquals(
+            setOf(NarouLastup.LASTMONTH),
+            toggleLastup(setOf(NarouLastup.THISMONTH, NarouLastup.LASTMONTH), NarouLastup.THISMONTH)
+        )
+        
+        // 全3種選択は空集合へは畳まない
+        assertEquals(
+            setOf(NarouLastup.SEVENDAY, NarouLastup.THISMONTH, NarouLastup.LASTMONTH),
+            toggleLastup(setOf(NarouLastup.SEVENDAY, NarouLastup.THISMONTH), NarouLastup.LASTMONTH)
+        )
     }
 }
 

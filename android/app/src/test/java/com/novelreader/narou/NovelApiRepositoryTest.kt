@@ -129,8 +129,8 @@ class NovelApiRepositoryTest {
             inTitle = true,
             genres = setOf(101, 201),
             attrsInclude = setOf(NarouAttr.TENSEI),
-            type = NarouNovelType.KANKETSU,
-            lastup = NarouLastup.SEVENDAY,
+            types = setOf(NarouNovelType.KANKETSU),
+            lastups = setOf(NarouLastup.SEVENDAY),
             time = "30-"
         )
         repository.discover(query1)
@@ -357,6 +357,134 @@ class NovelApiRepositoryTest {
                 istt = null,
                 nottensei = 1,
                 nottenni = 1
+            )
+        }
+    }
+
+    @Test
+    fun `typeApiParam - 全8通りの組合せに対して正しいAPIパラメータまたはnullが返ること`() {
+        val SHORT = NarouNovelType.SHORT
+        val RENSAI = NarouNovelType.RENSAI
+        val KANKETSU = NarouNovelType.KANKETSU
+
+        // 0種
+        assertNull(com.novelreader.narou.model.typeApiParam(emptySet()))
+        // 1種
+        assertEquals("t", com.novelreader.narou.model.typeApiParam(setOf(SHORT)))
+        assertEquals("r", com.novelreader.narou.model.typeApiParam(setOf(RENSAI)))
+        assertEquals("er", com.novelreader.narou.model.typeApiParam(setOf(KANKETSU)))
+        // 2種
+        assertEquals("ter", com.novelreader.narou.model.typeApiParam(setOf(SHORT, KANKETSU)))
+        assertEquals("re", com.novelreader.narou.model.typeApiParam(setOf(RENSAI, KANKETSU)))
+        assertNull(com.novelreader.narou.model.typeApiParam(setOf(SHORT, RENSAI))) // マージ対象
+        // 3種
+        assertNull(com.novelreader.narou.model.typeApiParam(setOf(SHORT, RENSAI, KANKETSU)))
+    }
+
+    @Test
+    fun `lastupApiParam - 単一指定はプリセット文字列を返し、複数指定はJST基準で連続レンジに合成されること`() {
+        val zone = java.time.ZoneId.of("Asia/Tokyo")
+        val now = java.time.ZonedDateTime.of(2026, 7, 7, 12, 0, 0, 0, zone)
+        val nowMs = now.toInstant().toEpochMilli()
+
+        val SEVENDAY = NarouLastup.SEVENDAY
+        val THISMONTH = NarouLastup.THISMONTH
+        val LASTMONTH = NarouLastup.LASTMONTH
+
+        // 空
+        assertNull(com.novelreader.narou.model.lastupApiParam(emptySet(), nowMs, zone))
+        // 単一
+        assertEquals("sevenday", com.novelreader.narou.model.lastupApiParam(setOf(SEVENDAY), nowMs, zone))
+        assertEquals("thismonth", com.novelreader.narou.model.lastupApiParam(setOf(THISMONTH), nowMs, zone))
+        assertEquals("lastmonth", com.novelreader.narou.model.lastupApiParam(setOf(LASTMONTH), nowMs, zone))
+
+        // 複数
+        val t7dayStart = now.minusDays(7).toEpochSecond()
+        val tThisMonthStart = now.with(java.time.temporal.TemporalAdjusters.firstDayOfMonth())
+            .truncatedTo(java.time.temporal.ChronoUnit.DAYS).toEpochSecond()
+        val tLastMonthStart = now.minusMonths(1).with(java.time.temporal.TemporalAdjusters.firstDayOfMonth())
+            .truncatedTo(java.time.temporal.ChronoUnit.DAYS).toEpochSecond()
+        val tEnd = now.toEpochSecond()
+
+        // {THISMONTH, LASTMONTH}
+        // min(LASTMONTH.start, THISMONTH.start) = tLastMonthStart
+        // max(LASTMONTH.end, THISMONTH.end) = tEnd
+        assertEquals("$tLastMonthStart-$tEnd", com.novelreader.narou.model.lastupApiParam(setOf(THISMONTH, LASTMONTH), nowMs, zone))
+
+        // {SEVENDAY, THISMONTH}
+        // min は now の日付に依存する（月初7日以内なら 7日前・8日以降なら月初）ため minOf で普遍化する
+        // max(SEVENDAY.end, THISMONTH.end) = tEnd
+        assertEquals("${minOf(t7dayStart, tThisMonthStart)}-$tEnd", com.novelreader.narou.model.lastupApiParam(setOf(SEVENDAY, THISMONTH), nowMs, zone))
+    }
+
+    @Test
+    fun `discover - SHORTとRENSAIが両方指定されたとき2回APIが呼ばれて結果が降順マージかつlimit切りされること`() = runTest {
+        // 短編用APIモック（order=WEEKLY, type="t", lim=3）
+        val shortNovels = listOf(
+            NarouNovel(allcount = 40),
+            NarouNovel(title = "短編1", ncode = "NS1", weeklyPoint = 300),
+            NarouNovel(title = "短編2", ncode = "NS2", weeklyPoint = 100)
+        )
+        // 連載用APIモック（order=WEEKLY, type="r", lim=3）
+        val rensaiNovels = listOf(
+            NarouNovel(allcount = 60),
+            NarouNovel(title = "連載1", ncode = "NR1", weeklyPoint = 400),
+            NarouNovel(title = "連載2", ncode = "NR2", weeklyPoint = 200)
+        )
+
+        coEvery {
+            service.search(
+                of = any(), order = any(), lim = 3,
+                type = "t", lastup = any(), word = any(), title = any(), ex = any(), keyword = any(), wname = any(), genre = any(),
+                istensei = any(), istenni = any(), istt = any(), nottensei = any(), nottenni = any(),
+                iszankoku = any(), notzankoku = any(), isr15 = any(), notr15 = any(), isbl = any(), notbl = any(), isgl = any(), notgl = any(),
+                time = any(), length = any(), kaiwaritu = any(), sasie = any()
+            )
+        } returns shortNovels
+
+        coEvery {
+            service.search(
+                of = any(), order = any(), lim = 3,
+                type = "r", lastup = any(), word = any(), title = any(), ex = any(), keyword = any(), wname = any(), genre = any(),
+                istensei = any(), istenni = any(), istt = any(), nottensei = any(), nottenni = any(),
+                iszankoku = any(), notzankoku = any(), isr15 = any(), notr15 = any(), isbl = any(), notbl = any(), isgl = any(), notgl = any(),
+                time = any(), length = any(), kaiwaritu = any(), sasie = any()
+            )
+        } returns rensaiNovels
+
+        val query = DiscoveryQuery(
+            types = setOf(NarouNovelType.SHORT, NarouNovelType.RENSAI),
+            order = NarouOrder.WEEKLY,
+            limit = 3
+        )
+
+        val result = repository.discover(query)
+
+        // allcount は単純加算 40 + 60 = 100
+        assertEquals(100, result.allcount)
+
+        // novels はマージかつ降順ソート
+        // NR1(400) > NS1(300) > NR2(200) > NS2(100) の上位3件
+        assertEquals(3, result.novels.size)
+        assertEquals("NR1", result.novels[0].ncode) // 連載1 (400)
+        assertEquals("NS1", result.novels[1].ncode) // 短編1 (300)
+        assertEquals("NR2", result.novels[2].ncode) // 連載2 (200)
+
+        // service.search がそれぞれ 1 回ずつ呼ばれたことを確認
+        coVerify(exactly = 1) {
+            service.search(
+                of = any(), order = any(), lim = 3, type = "t", lastup = any(), word = any(), title = any(), ex = any(), keyword = any(), wname = any(), genre = any(),
+                istensei = any(), istenni = any(), istt = any(), nottensei = any(), nottenni = any(),
+                iszankoku = any(), notzankoku = any(), isr15 = any(), notr15 = any(), isbl = any(), notbl = any(), isgl = any(), notgl = any(),
+                time = any(), length = any(), kaiwaritu = any(), sasie = any()
+            )
+        }
+        coVerify(exactly = 1) {
+            service.search(
+                of = any(), order = any(), lim = 3, type = "r", lastup = any(), word = any(), title = any(), ex = any(), keyword = any(), wname = any(), genre = any(),
+                istensei = any(), istenni = any(), istt = any(), nottensei = any(), nottenni = any(),
+                iszankoku = any(), notzankoku = any(), isr15 = any(), notr15 = any(), isbl = any(), notbl = any(), isgl = any(), notgl = any(),
+                time = any(), length = any(), kaiwaritu = any(), sasie = any()
             )
         }
     }

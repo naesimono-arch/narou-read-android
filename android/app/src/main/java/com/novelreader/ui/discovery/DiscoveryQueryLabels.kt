@@ -3,6 +3,8 @@ package com.novelreader.ui.discovery
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.NarouAttr
 import com.novelreader.narou.model.NarouGenres
+import com.novelreader.narou.model.NarouNovelType
+import com.novelreader.narou.model.NarouLastup
 import java.util.Locale
 
 // ============================================================
@@ -43,7 +45,10 @@ internal fun charCountText(n: Int): String =
 fun conditionChipLabels(query: DiscoveryQuery): List<String> {
     val labels = mutableListOf<String>()
 
-    query.type?.let { labels.add(it.uiLabel) }
+    if (query.types.isNotEmpty()) {
+        val label = NarouNovelType.values().filter { it in query.types }.joinToString("・") { it.uiLabel }
+        labels.add(label)
+    }
 
     // 検索範囲（word があるときのみ意味を持つ）
     if (!query.word.isNullOrBlank()) {
@@ -82,7 +87,10 @@ fun conditionChipLabels(query: DiscoveryQuery): List<String> {
         }
     }
 
-    query.lastup?.let { labels.add("${it.uiLabel}に更新") }
+    if (query.lastups.isNotEmpty()) {
+        val label = NarouLastup.values().filter { it in query.lastups }.joinToString("・") { it.uiLabel }
+        labels.add("${label}に更新")
+    }
 
     rangeText(query.length, "字", ::charCountText)?.let(labels::add)
     rangeText(query.time, "分")?.let { labels.add("読了$it") }
