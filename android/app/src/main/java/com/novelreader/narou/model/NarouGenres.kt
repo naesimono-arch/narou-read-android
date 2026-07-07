@@ -48,8 +48,12 @@ object NarouGenres {
         )
     )
 
+    val ALL_GENRES: List<Pair<Int, String>> by lazy {
+        GENRES_BY_BIG.values.flatten()
+    }
+
     private val GENRES_MAP: Map<Int, String> by lazy {
-        GENRES_BY_BIG.values.flatten().toMap()
+        ALL_GENRES.toMap()
     }
 
     private val BIGGENRES_MAP: Map<Int, String> by lazy {

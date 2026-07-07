@@ -153,6 +153,7 @@ class DiscoveryViewModelTest {
         viewModel = DiscoveryViewModel(mockApp)
         val ctx = ResultContext(
             title = "「薬師」",
+            source = ResultSource.SEARCH,
             query = com.novelreader.narou.model.DiscoveryQuery(word = "薬師"),
         )
         viewModel.openResult(ctx)
@@ -225,7 +226,7 @@ class DiscoveryViewModelTest {
         coEvery { mockRepo.discover(any()) } throws NarouApiException("通信エラー", Exception())
 
         viewModel = DiscoveryViewModel(mockApp)
-        viewModel.openResult(ResultContext(title = "t", query = com.novelreader.narou.model.DiscoveryQuery()))
+        viewModel.openResult(ResultContext(title = "t", source = ResultSource.SEARCH, query = com.novelreader.narou.model.DiscoveryQuery()))
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(viewModel.resultState.value is DiscoveryUiState.Error)
@@ -238,5 +239,80 @@ class DiscoveryViewModelTest {
         val state = viewModel.resultState.value
         assertTrue(state is DiscoveryUiState.Content)
         assertEquals(recovered, (state as DiscoveryUiState.Content).novels)
+    }
+
+    @Test
+    fun `changeResultOrder - 並び順のみ変更され、再ロードされること`() = runTest {
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(NarouNovel(title = "t")))
+        viewModel = DiscoveryViewModel(mockApp)
+        val ctx = ResultContext(
+            title = "「薬師」",
+            subtitle = "サブタイトル",
+            source = ResultSource.SEARCH,
+            query = com.novelreader.narou.model.DiscoveryQuery(word = "薬師", order = NarouOrder.WEEKLY)
+        )
+        viewModel.openResult(ctx)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.changeResultOrder(NarouOrder.TOTAL)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val updatedCtx = viewModel.resultContext.value
+        assertEquals("「薬師」", updatedCtx?.title)
+        assertEquals("サブタイトル", updatedCtx?.subtitle)
+        assertEquals(ResultSource.SEARCH, updatedCtx?.source)
+        assertEquals(NarouOrder.TOTAL, updatedCtx?.query?.order)
+        assertEquals("薬師", updatedCtx?.query?.word)
+        coVerify { mockRepo.discover(match { it.order == NarouOrder.TOTAL }) }
+    }
+
+    @Test
+    fun `changeResultBiggenre - 大ジャンルのみ変更され、タイトルが更新され、再ロードされること`() = runTest {
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(NarouNovel(title = "t")))
+        viewModel = DiscoveryViewModel(mockApp)
+        val ctx = ResultContext(
+            title = "「薬師」",
+            subtitle = "サブタイトル",
+            source = ResultSource.SEARCH,
+            query = com.novelreader.narou.model.DiscoveryQuery(word = "薬師")
+        )
+        viewModel.openResult(ctx)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.changeResultBiggenre(1) // 恋愛
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val updatedCtx = viewModel.resultContext.value
+        assertEquals("恋愛", updatedCtx?.title)
+        assertEquals("サブタイトル", updatedCtx?.subtitle)
+        assertEquals(ResultSource.SEARCH, updatedCtx?.source)
+        assertEquals(setOf(1), updatedCtx?.query?.biggenres)
+        assertEquals(emptySet<Int>(), updatedCtx?.query?.genres)
+        coVerify { mockRepo.discover(match { it.biggenres == setOf(1) }) }
+    }
+
+    @Test
+    fun `changeResultGenre - 詳細ジャンルのみ変更され、タイトルが更新され、再ロードされること`() = runTest {
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(NarouNovel(title = "t")))
+        viewModel = DiscoveryViewModel(mockApp)
+        val ctx = ResultContext(
+            title = "「薬師」",
+            subtitle = "サブタイトル",
+            source = ResultSource.SEARCH,
+            query = com.novelreader.narou.model.DiscoveryQuery(word = "薬師")
+        )
+        viewModel.openResult(ctx)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        viewModel.changeResultGenre(101) // 異世界〔恋愛〕
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val updatedCtx = viewModel.resultContext.value
+        assertEquals("異世界〔恋愛〕", updatedCtx?.title)
+        assertEquals("サブタイトル", updatedCtx?.subtitle)
+        assertEquals(ResultSource.SEARCH, updatedCtx?.source)
+        assertEquals(setOf(101), updatedCtx?.query?.genres)
+        assertEquals(emptySet<Int>(), updatedCtx?.query?.biggenres)
+        coVerify { mockRepo.discover(match { it.genres == setOf(101) }) }
     }
 }

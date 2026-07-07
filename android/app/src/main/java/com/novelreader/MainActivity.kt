@@ -26,6 +26,7 @@ import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.DiscoveryViewModel
 import com.novelreader.viewmodel.ResultContext
+import com.novelreader.viewmodel.ResultSource
 
 class MainActivity : ComponentActivity() {
 
@@ -105,7 +106,7 @@ private fun NovelReaderApp(
                 onOpenGenre = { navController.navigate("discovery/genre") },
                 onPickBiggenre = { code, label ->
                     discoveryViewModel.openResult(
-                        ResultContext(title = label, query = DiscoveryQuery(biggenres = setOf(code)))
+                        ResultContext(title = label, query = DiscoveryQuery(biggenres = setOf(code)), source = ResultSource.GENRE)
                     )
                     navController.navigate("discovery/result")
                 },
@@ -130,13 +131,13 @@ private fun NovelReaderApp(
                 onBack = { navController.popBackStack() },
                 onPickBiggenre = { code, label ->
                     discoveryViewModel.openResult(
-                        ResultContext(title = label, query = DiscoveryQuery(biggenres = setOf(code)))
+                        ResultContext(title = label, query = DiscoveryQuery(biggenres = setOf(code)), source = ResultSource.GENRE)
                     )
                     navController.navigate("discovery/result")
                 },
                 onPickGenre = { code, label ->
                     discoveryViewModel.openResult(
-                        ResultContext(title = label, query = DiscoveryQuery(genres = setOf(code)))
+                        ResultContext(title = label, query = DiscoveryQuery(genres = setOf(code)), source = ResultSource.GENRE)
                     )
                     navController.navigate("discovery/result")
                 },

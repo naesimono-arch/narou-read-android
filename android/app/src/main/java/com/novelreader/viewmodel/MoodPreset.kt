@@ -48,5 +48,5 @@ enum class MoodPreset(
     }
 
     fun toResultContext(): ResultContext =
-        ResultContext(title = title, subtitle = description, query = toQuery())
+        ResultContext(title = title, subtitle = description, source = ResultSource.MOOD, query = toQuery())
 }

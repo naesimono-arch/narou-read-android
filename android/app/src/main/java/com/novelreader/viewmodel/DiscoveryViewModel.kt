@@ -8,6 +8,7 @@ import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.SearchHistory
 import com.novelreader.narou.SearchHistoryStore
 import com.novelreader.narou.model.DiscoveryQuery
+import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouOrder
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +25,8 @@ sealed interface DiscoveryUiState {
     data class Error(val message: String) : DiscoveryUiState
 }
 
+enum class ResultSource { SEARCH, KEYWORD, GENRE, MOOD }
+
 /**
  * 結果一覧（discovery/result）の文脈。検索・ジャンル・気分プリセットの共通着地に
  * 「何の結果を見ているか」（明朝見出し＋補足＋実クエリ）を運ぶ。
@@ -31,6 +34,7 @@ sealed interface DiscoveryUiState {
 data class ResultContext(
     val title: String,
     val subtitle: String? = null,
+    val source: ResultSource,
     val query: DiscoveryQuery,
 )
 
@@ -88,6 +92,32 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
         loadResult()
     }
 
+    fun changeResultOrder(order: NarouOrder) {
+        val current = _resultContext.value ?: return
+        _resultContext.value = current.copy(
+            query = current.query.copy(order = order)
+        )
+        loadResult()
+    }
+
+    fun changeResultBiggenre(code: Int) {
+        val current = _resultContext.value ?: return
+        _resultContext.value = current.copy(
+            title = NarouGenres.biggenreLabel(code) ?: current.title,
+            query = current.query.copy(biggenres = setOf(code), genres = emptySet())
+        )
+        loadResult()
+    }
+
+    fun changeResultGenre(code: Int) {
+        val current = _resultContext.value ?: return
+        _resultContext.value = current.copy(
+            title = NarouGenres.genreLabel(code) ?: current.title,
+            query = current.query.copy(genres = setOf(code), biggenres = emptySet())
+        )
+        loadResult()
+    }
+
     private fun loadResult() {
         val ctx = _resultContext.value ?: return
         viewModelScope.launch {
@@ -109,7 +139,7 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
     fun executeSearch(): Boolean {
         val draft = _searchDraft.value
         if (!draft.canSearch) return false
-        openResult(ResultContext(title = draft.resultTitle(), query = draft.toQuery()))
+        openResult(ResultContext(title = draft.resultTitle(), query = draft.toQuery(), source = ResultSource.SEARCH))
         // 検索語があれば履歴へ（条件のみの検索は語が無いので残さない）
         draft.word.trim().takeIf { it.isNotBlank() }?.let { word ->
             viewModelScope.launch { historyStore.addRecent(word) }

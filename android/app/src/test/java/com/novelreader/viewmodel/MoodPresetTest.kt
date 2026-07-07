@@ -31,6 +31,7 @@ class MoodPresetTest {
         val ctx = MoodPreset.SHORT_TRIP.toResultContext()
         assertEquals("30分の小さな旅", ctx.title)
         assertEquals("短い時間で完結する物語。読了目安30分まで・短編のみ。", ctx.subtitle)
+        assertEquals(ResultSource.MOOD, ctx.source)
         assertEquals(MoodPreset.SHORT_TRIP.toQuery(), ctx.query)
     }
 }

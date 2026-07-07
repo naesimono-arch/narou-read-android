@@ -1,6 +1,7 @@
 package com.novelreader.ui.discovery
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -14,6 +15,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -27,13 +30,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.novelreader.narou.model.NarouGenres
+import com.novelreader.narou.model.NarouOrder
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.DiscoveryUiState
 import com.novelreader.viewmodel.DiscoveryViewModel
+import com.novelreader.viewmodel.ResultSource
 import java.util.Locale
 
 // ============================================================
@@ -109,17 +118,130 @@ fun DiscoveryResultScreen(
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(7.dp),
                 verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(7.dp),
             ) {
-                conditionChipLabels(ctx.query).forEach { label ->
-                    Text(
-                        text = label,
-                        fontSize = 10.5.sp,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-                        modifier = Modifier
-                            .border(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                                shape = RoundedCornerShape(50),
+                val labels = conditionChipLabels(ctx.query)
+                val biggenreLabel = ctx.query.biggenres.firstOrNull()?.let { NarouGenres.biggenreLabel(it) }
+                val genreLabel = ctx.query.genres.firstOrNull()?.let { NarouGenres.genreLabel(it) }
+
+                labels.forEachIndexed { index, label ->
+                    // why: conditionChipLabels は末尾に必ず並び順を add するため、lastIndex が並び順チップである。
+                    val isOrderChip = index == labels.lastIndex
+                    val isBiggenreChip = ctx.query.biggenres.size == 1 && label == biggenreLabel
+                    val isGenreChip = ctx.query.genres.size == 1 && label == genreLabel
+
+                    val isClickable = isOrderChip || isBiggenreChip || isGenreChip
+
+                    if (isClickable) {
+                        var expanded by remember { mutableStateOf(false) }
+                        val displayLabel = "$label ⌄"
+
+                        Box {
+                            Text(
+                                text = displayLabel,
+                                fontSize = 10.5.sp,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                                modifier = Modifier
+                                    .border(
+                                        width = 1.dp,
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                        shape = RoundedCornerShape(50),
+                                    )
+                                    .clickable { expanded = true }
+                                    .padding(horizontal = 11.dp, vertical = 5.dp),
                             )
+
+                            if (isOrderChip) {
+                                DropdownMenu(
+                                    expanded = expanded,
+                                    onDismissRequest = { expanded = false }
+                                ) {
+                                    NarouOrder.entries.forEach { order ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    text = order.uiLabel,
+                                                    fontWeight = if (ctx.query.order == order) FontWeight.Bold else FontWeight.Normal,
+                                                    fontSize = 14.sp
+                                                )
+                                            },
+                                            onClick = {
+                                                expanded = false
+                                                viewModel.changeResultOrder(order)
+                                            }
+                                        )
+                                    }
+                                }
+                            } else if (isBiggenreChip) {
+                                val currentBiggenre = ctx.query.biggenres.first()
+                                DropdownMenu(
+                                    expanded = expanded,
+                                    onDismissRequest = { expanded = false }
+                                ) {
+                                    NarouGenres.BIGGENRES.forEach { (code, name) ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    text = name,
+                                                    fontWeight = if (currentBiggenre == code) FontWeight.Bold else FontWeight.Normal,
+                                                    fontSize = 14.sp
+                                                )
+                                            },
+                                            onClick = {
+                                                expanded = false
+                                                viewModel.changeResultBiggenre(code)
+                                            }
+                                        )
+                                    }
+                                }
+                            } else if (isGenreChip) {
+                                val currentGenre = ctx.query.genres.first()
+                                DropdownMenu(
+                                    expanded = expanded,
+                                    onDismissRequest = { expanded = false }
+                                ) {
+                                    NarouGenres.ALL_GENRES.forEach { (code, name) ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    text = name,
+                                                    fontWeight = if (currentGenre == code) FontWeight.Bold else FontWeight.Normal,
+                                                    fontSize = 14.sp
+                                                )
+                                            },
+                                            onClick = {
+                                                expanded = false
+                                                viewModel.changeResultGenre(code)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = label,
+                            fontSize = 10.5.sp,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                            modifier = Modifier
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                    shape = RoundedCornerShape(50),
+                                )
+                                .padding(horizontal = 11.dp, vertical = 5.dp),
+                        )
+                    }
+                }
+
+                if (ctx.source == ResultSource.SEARCH) {
+                    // why: 「条件を変更」で戻る先はDiscoverySearchScreen(検索画面)。
+                    // ジャンル・気分等で出すと戻り先に条件シートがなく騙し導線になるため、SEARCH のみに限定する。
+                    Text(
+                        text = "条件を変更",
+                        fontSize = 10.5.sp,
+                        color = MaterialTheme.colorScheme.secondary,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier
+                            .clickable { onBack() }
                             .padding(horizontal = 11.dp, vertical = 5.dp),
                     )
                 }
