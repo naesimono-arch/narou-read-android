@@ -358,6 +358,8 @@ print(json.dumps({"hookSpecificOutput": {
 - **Bash に数値 exit code フィールドは無い**。失敗時のみ `tool_result.content` 先頭が `"Exit code N"`＋`is_error:true`。成功は接頭辞なし stdout。`toolUseResult` は成功=dict{stdout,stderr,…}／失敗・拒否=str。
 - **大容量出力はオフロード**され、`<session-id>/tool-results/<toolu_id>.txt` に全文、transcript 側は 2KB プレビュー＋`persistedOutputSize` に置換。
 - **サブエージェント委譲の実体は別ファイル** `<session-id>/subagents/agent-<agentId>.jsonl`（全行 `isSidechain:true`）。メイン transcript に委譲先のツール実行は出ない。`agentId` は起動 `Agent` tool の `toolUseResult.agentId`。
+- **「人間入力」の識別（2026-07-07 v3・Tier D 実装で確定）**: ①user 行 `content=str` でも中身が `<task-notification>`/`<system-reminder>`/`Caveat:` 等ならハーネス著者＝人間入力ではない ②`queued_command` attachment は `origin.kind=="human"` が人間発の判別キー（task-notification 由来の queued_command には origin が無い） ③**AskUserQuestion の回答はユーザー発話だが `tool_result`（`Your questions have been answered: …`）として届く**＝tool_use の name で判別しないと人間入力の索引から漏れる ④interrupt 直後のユーザー入力は user 行 `content=list` 内の text ブロックに入る。
+- **thinking ブロックは本文が空**（`thinking:""`）で **`signature` 文字列長だけが情報量の代理指標**として残る（thinking トークン数とは単位が違う点に注意）。暴走 thinking（通常比5〜30倍）は幻覚事象 G/H/I の共通前兆だった。
 
 **実際に起きた「実行捏造」ハルシネーションの形（`docs/reference/hallucination-ground-truth.md`）**:
 - **ハーネスブロックの地の文化**: Claude が会話の続きを自分で捏造し、**偽の `user<background-task-status>…<exit-code>1</exit-code>`／`system<total_tokens>`／`<invoke name=…>`** を assistant の text に生成した（c2e7a254・事象D）。これらのタグはハーネス/ツール層のみが著者で、正当な散文には現れない＝生（バッククォート引用でない）出現は捏造の強シグナル。
