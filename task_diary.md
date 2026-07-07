@@ -274,6 +274,12 @@ Kotlinエラーではないため原因が分かりにくい。
 
 ---
 
+### 43. KDoc 内の `[...]` はリンク構文としてパースされ、範囲表記がコンパイルエラーになる（コメントがビルドを壊す）  ★★
+
+Kotlin(K2) は KDoc（`/** */`）内の `[...]` を要素リンクとして構文解析する。範囲のつもりで `[i..j]`（iドットドットj をブラケットで囲む）と書くと `e: ... Closing bracket expected` の**コンパイルエラー**で kspDebugKotlin/compileKotlin が落ちる（2026-07-07 `SearchDraft.kt` で実測）。行コメント `//` 内は自由。KDoc で範囲・添字を書くときはブラケットを外す。エラー行番号が KDoc の行を指していても「コメントは無害」という思い込みがあると原因特定が遅れる。
+
+---
+
 ### 実機検証 / adb（Windows）
 
 #### 25. Git Bash は adb の `/sdcard` 絶対パスを変換して push/pull/dump を壊す  ★★★
@@ -523,6 +529,18 @@ Phase 4 精度回帰ゲート(`PdfExtractorDeviceSpikeTest`)の ≤15版クリ�
 - freeze/thaw は cgroup freezer のクリーンな中断・再開なので抽出結果は無破損（決定的）＝凍結を挟んでも
   PASS は有効（本ランの wall time 1784s は凍結分が大半で、実 CPU は約1分）。関連: #37・#4（FGS でも停止）・
   [[workflow-autonomous-device-verification]]。
+
+---
+
+### なろう小説API（検索パラメータ）
+
+#### 42. type のハイフンOR指定はサイレントに無視され「全件」へフォールバックする（絞ったつもりが無絞り込み）  ★★★
+
+なろう小説APIの複数値ORはパラメータごとに対応がバラバラで、**非対応パラメータに `-` 区切りを渡してもエラーにならず、そのパラメータ自体が無視される**（2026-07-07 実測: `type=t-r` の allcount 1,222,053 ＝ type 無指定と一致。t=594,243 / r=435,539 / er=192,254）。UI で「短編+連載中」を選んだつもりが全作品を検索する、という気づきにくい欠陥クラスになる。
+- OR可: `ncode`・`userid`・`buntai`（マニュアル明記）と `genre`/`biggenre`（実装で使用中・動作確認済み）。
+- `type` は不可。ただし公式複合値 `re`（連載中+完結済＝全連載）・`ter`（短編+完結済）が用意されている。**短編+連載中だけは単一クエリで表現不可**＝2クエリに分けてクライアントマージする（短編と連載中は排反なので allcount は単純加算で正確・同一 order のソート済みリスト同士のマージで上位N件も正確）。
+- `lastup`/`lastupdate` はプリセット文字列（sevenday 等）のほか **UNIX秒の `開始-終了` レンジを受ける**ため、複数時期のORは連続レンジへ合成すれば表現できる。プリセットの暦はサーバ＝日本時間基準なので、クライアント計算は Asia/Tokyo 固定で行うこと。
+実装の所在: `narou/model/DiscoveryQuery.kt` の `typeApiParam`/`lastupApiParam`・`NovelApiRepository.discover` のマージ経路（`8d09e7a`）。
 
 ## 移設マッピング（旧 Part II / Part III の固定ID対応）
 

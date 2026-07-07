@@ -10,6 +10,8 @@
 > レビュー中・実装中に出た宿題や着想で、まだ正式バックログに整理していないものをここへ。
 > 育ったら下のA〜Dへ移す。
 
+- **[UI/宿題] reading-D モックへセピア新値を逆反映**（2026-07-07・検索UX第2ラウンドで発生）: 実機フィードバック「ライトとセピアの色味に差がない」を受け、`Theme.kt` の `ReadingColors.SEPIA` をモック `.t-sepia` 写経値（#F3ECDD 系）から琥珀紙（bg #F2E7CE・墨 #3D3121・彩度約15%）へ意図的に逸脱させ、Material 側にも `SepiaColorScheme` を新設した（`ccca2fa`・`fa24366`）。**現状はコード側が正本**。claude.ai/design の `ui-n-phase0/reading-D.html`（.t-sepia）と、必要なら bookshelf-D にもセピア変種を逆反映してモック正本性を回復する（DesignSync 経由・任意・非ブロッキング）。
+
 - **[workflow] plan モード中の read-only 探索を agy へ開放（2026-07-06 実機検証で確定）**: 「plan 内で agy は不可」は誤りだった＝plan モードはプラグイン subagent の権限層へ伝播せず、`--yolo` 無しの `agy-delegate` は plan 中でも実行され書き込みゼロ（根拠 task_diary #40／運用ルール CLAUDE.md「委譲判断 / plan運用」⑦）。**運用**: 〈ユーザー明示〉or〈break-even 超の read-only 探索〉は agy へ、割に合わない小さな読みは Explore にフォールバック。**plan 外での agy 探索**は「書き込みを伴う探索/生成」を plan の read-only 保証から切り離したいとき用の選択肢として残す。派生タスク:
   - ~~**[調査/hardening] plan 中 `--yolo` の機械 deny 可否**~~ → **実装・検証済み（2026-07-06）**: PreToolUse payload に `permission_mode` が露出し、plan モードでは subagent の Bash payload にも `"plan"` が届くことを実機確認 → plugin hook `validate-delegate-bash.sh`（git-test source＝live）に「`permission_mode=="plan"` かつ引用除去後 command に `--yolo`/`--dangerously-skip-permissions` を含む委譲を deny」を追加。単体8/8＋**--yolo 不使用の再検証（2026-07-06）**で end-to-end 立証（source-live／`permission_mode='plan'` 実測＋静的8/8 の合成・task_diary #40）。**⚠ カバー範囲**: この deny は **antigravity-delegate サブエージェント経路のみ**（hook が agent_type で自己スコープ）。**メインセッション直叩き・`/antigravity:delegate` slash（書き込みタスクに --yolo を明示する設計）は対象外**＝plan 中でも止まらない → primary の担保は依然「--yolo 不使用の規律」。**残**: git-test の gate commit は済（`bee18ad`）。cache(0.15.1) は gate 未搭載だが実行時は `CLAUDE_PLUGIN_ROOT`→source が live のため**動作に影響なし**＝`/plugin marketplace update`＋version bump は整合維持の hygiene（任意・非ブロッキング）。
   - **[任意・別レバー・未着手] Explore→Haiku フォールバック**: `~/.claude/agents/Explore.md`（Linux 側 ext4・Windows 非共有）に `model: haiku`。v2.1.198 以降 Explore はメイン(Opus)継承で高くなるため、agy に出すほどでない小さな plan 探索を安く回す。built-in Explore を user agent で上書きできることは公式 docs で確認済み。※ブランチ不変の Linux ローカル設定だが「採否メモ」はブランチ追従の handover が置き場。
@@ -52,7 +54,7 @@
 ## B. 本棚
 
 - **案B 詰め直しアニメ復活**: 案Aで `animateItemPlacement()` を削除し重なりバグは解消済（代償で削除時の詰め直しアニメが消えた）。Compose BOM `2024.04.01`→`2024.09+` に上げ、削除箇所を新API `Modifier.animateItem()` で置換。**リスク大＝全画面回帰必須**（BOMは全Composeモジュールの版を一括決定）。対象 `android/app/build.gradle`(BOM 2か所), `BookshelfScreen.kt:252` 付近の理由コメントが正本。
-- ~~**11 本棚テーマ追従**（見送り）~~ → **解消済み（2026-07-01・`e93d2eb`）**: テーマ正本を `MainActivity` へ巻き上げ、本棚(`NovelReaderTheme(darkTheme=theme==DARK)`)も読書も単一の `ReadingTheme` 正本に追従。本棚⋮メニュー/読書設定シートのどちらで変えても全体同期。セピアは本棚ライト流用（専用セピア本棚は将来拡張の余地）。
+- ~~**11 本棚テーマ追従**（見送り）~~ → **解消済み（2026-07-01・`e93d2eb`）**: テーマ正本を `MainActivity` へ巻き上げ、本棚(`NovelReaderTheme(darkTheme=theme==DARK)`)も読書も単一の `ReadingTheme` 正本に追従。本棚⋮メニュー/読書設定シートのどちらで変えても全体同期。~~セピアは本棚ライト流用（専用セピア本棚は将来拡張の余地）~~ → **セピア追従も解消済み（2026-07-07・`fa24366`）**: ライト流用が「ライトとセピアの差がない」フィードバックの主因と判明し、`SepiaColorScheme` で本棚・発見系も琥珀紙へ追従。
 
 ## C. UI見送りサブ（2026-06-25 スコープ外決定）
 
