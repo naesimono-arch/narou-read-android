@@ -54,6 +54,11 @@ android {
             returnDefaultValues true
         }
     }
+    sourceSets {
+        // Room の schemaLocation 出力（git 管理済み JSON）を androidTest から MigrationTestHelper で
+        // 読めるようにする。過去版スキーマを assets として同梱しないと migration テストが書けない。
+        androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
+    }
     packagingOptions {
         resources {
             excludes += '/META-INF/{AL2.0,LGPL2.1}'
@@ -69,6 +74,11 @@ ksp {
 dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
+    // collectAsStateWithLifecycle 提供。ライフサイクル STOPPED 以下で StateFlow の collect を止め、
+    // バックグラウンドでの無駄な購読/再コンポーズを避ける（従来の collectAsState は常時 collect）。
+    // なぜ 2.6.2 固定: lifecycle-runtime-ktx と版を揃える。かつ compileSdk 34 制約下では 2.7+ を避ける
+    // （2.8.x は compileSdk 35 前提で本プロジェクトでは解決できないため）。
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.6.2'
     implementation 'androidx.activity:activity-compose:1.8.1'
     // なぜ 2025.02.00: 案B（削除時の詰め直しアニメ復活）に必要な Modifier.animateItem() が
     // foundation 1.7.0+ のため。1.7 系の最終パッチ(1.7.8/material3 1.3.1)を採り、
@@ -83,11 +93,6 @@ dependencies {
 
     // HTMLパーサー (Jsoup)
     implementation 'org.jsoup:jsoup:1.17.2'
-    // collectAsStateWithLifecycle 提供。ライフサイクル STOPPED 以下で StateFlow の collect を止め、
-    // バックグラウンドでの無駄な購読/再コンポーズを避ける（従来の collectAsState は常時 collect）。
-    // なぜ 2.6.2 固定: lifecycle-runtime-ktx と版を揃える。かつ compileSdk 34 制約下では 2.7+ を避ける
-    // （2.8.x は compileSdk 35 前提で本プロジェクトでは解決できないため）。
-    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.6.2'
 
     // なぜ: List<TextSegment> は Compose stability 推論で不安定→読書 LazyColumn の項目が skippable にならないため（strong skipping 無効の Kotlin 1.9 環境）
     implementation 'org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.7'
@@ -127,6 +132,9 @@ dependencies {
     testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    // Room migration の実機検証（MigrationTestHelper）。identity hash 起因の起動即クラッシュを
+    // 2度実測したプロジェクトのため（task_diary #39）、「実機で踏む」を「テストで捕まえる」に変える。
+    androidTestImplementation "androidx.room:room-testing:$room_version"
     androidTestImplementation platform('androidx.compose:compose-bom:2025.02.00')
     androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
     debugImplementation 'androidx.compose.ui:ui-tooling'

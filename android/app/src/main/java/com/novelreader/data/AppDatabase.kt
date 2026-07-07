@@ -97,7 +97,8 @@ abstract class AppDatabase : RoomDatabase() {
          *  既存テーブルへは一切触れない新規 CREATE のみのため PRAGMA 分岐は不要。
          *  DDL は Room が Entity から期待するスキーマ（NOT NULL・主キー）と厳密一致させること
          *  （不一致は起動時の schema validation でクラッシュする）。 */
-        private val MIGRATION_7_8 = object : Migration(7, 8) {
+        // なぜ internal か: androidTest の MigrationTest が本物の Migration を検証するため（複製だと本体変更にテストが追従しない）。
+        internal val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL(
                     "CREATE TABLE IF NOT EXISTS `pending_jobs` " +
@@ -113,7 +114,8 @@ abstract class AppDatabase : RoomDatabase() {
          *  新規追加のみで既存カラム名に依存しないため PRAGMA 分岐は不要（MIGRATION_4_5 以降と同方針）。
          *  なぜ v8 でなく v9 か: version 8 は並列ブランチ feat/processing-resilience が先に消費し
          *  実機 DB も既にそのスキーマで v8 になっているため（identity hash 衝突の実測クラッシュあり）。 */
-        private val MIGRATION_8_9 = object : Migration(8, 9) {
+        // なぜ internal か: androidTest の MigrationTest が本物の Migration を検証するため（複製だと本体変更にテストが追従しない）。
+        internal val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE books ADD COLUMN ncode TEXT")
             }
@@ -126,7 +128,8 @@ abstract class AppDatabase : RoomDatabase() {
          *  起動即クラッシュする（task_diary #39 と同機序の「マージ時」変種＝同 #39 追補）。
          *  v10 へ上げるとこの no-op が走り、実テーブル（7→8 の pending_jobs／8→9 の ncode）は
          *  そのまま検証を通って新 hash が再記録される。 */
-        private val MIGRATION_9_10 = object : Migration(9, 10) {
+        // なぜ internal か: androidTest の MigrationTest が本物の Migration を検証するため（複製だと本体変更にテストが追従しない）。
+        internal val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 // 意図的に何もしない（上記コメント参照）
             }
