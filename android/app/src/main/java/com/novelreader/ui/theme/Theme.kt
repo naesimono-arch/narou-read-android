@@ -64,21 +64,25 @@ val ReadingTheme.colors: ReadingColors
             isLight          = true,
         )
         // SEPIA は D の寒色を温かい紙トーンへ寄せた変種。藍アクセントは骨格として残しつつ
-        // やや深い藍鼠 #2E4A60 にして暖色背景と調和させる（モック reading-D.html の .t-sepia）。
+        // やや深い藍鼠 #2E4A60 にして暖色背景と調和させる。
+        // なぜモック reading-D.html の .t-sepia 写経値（#F3ECDD 系）から逸脱するか:
+        // 実機フィードバック（2026-07-07「ライトとセピアの色味に差がなく同じ色に見える」）を受け、
+        // 彩度を約15%まで上げた琥珀の紙・焦茶の墨へ再調律してライト（寒色白・ほぼ無彩色）との
+        // 知覚差を保証するため。モック側への逆反映は handover の宿題（実装がこの値の正本）。
         ReadingTheme.SEPIA -> ReadingColors(
-            background       = Color(0xFFF3ECDD),
-            text             = Color(0xFF2B2620),
-            textSecondary    = Color(0xFF8A7E68),
-            navBackground    = Color(0xFFEFE7D6),
+            background       = Color(0xFFF2E7CE),
+            text             = Color(0xFF3D3121),
+            textSecondary    = Color(0xFF8C7D5D),
+            navBackground    = Color(0xFFECDFC0),
             // LIGHT と同方針: 上下バーを本文紙トーンに揃え、ヘアラインで境界を示す。
-            topBarBackground = Color(0xFFEFE7D6),
-            topBarTitle      = Color(0xFF2B2620),
-            topBarIcon       = Color(0xFF5C5240),
-            ruby             = Color(0xFF9A8C72),
-            hr               = Color(0xFFB0A890),
-            divider          = Color(0xFFE3D9C2),
-            blockBackground  = Color(0xFFEDE4D0),
-            blockBorder      = Color(0xFFE0D6BE),
+            topBarBackground = Color(0xFFECDFC0),
+            topBarTitle      = Color(0xFF3D3121),
+            topBarIcon       = Color(0xFF6A5B3C),
+            ruby             = Color(0xFFA3906A),
+            hr               = Color(0xFFB4A379),
+            divider          = Color(0xFFE0D3B0),
+            blockBackground  = Color(0xFFEBDEBE),
+            blockBorder      = Color(0xFFDCCC9F),
             accent           = Color(0xFF2E4A60), // 暖色背景に合わせやや深めの藍鼠
             isLight          = true,
         )
