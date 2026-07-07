@@ -100,20 +100,22 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
         loadResult()
     }
 
-    fun changeResultBiggenre(code: Int) {
+    fun changeResultGenreFilter(biggenres: Set<Int>, genres: Set<Int>) {
         val current = _resultContext.value ?: return
+        // なぜ: SEARCH/KEYWORD 発の結果の見出しは検索語（『「最強」』等）であり、ジャンルをその場変更しても“何を検索したか”は変わらないため見出しは維持する。GENRE 発のみ見出し＝ジャンル名なので追従させる。
+        val nextTitle = if (current.source == ResultSource.GENRE) {
+            when {
+                genres.size == 1 -> NarouGenres.genreLabel(genres.first()) ?: current.title
+                biggenres.size == 1 -> NarouGenres.biggenreLabel(biggenres.first()) ?: current.title
+                genres.isEmpty() && biggenres.isEmpty() -> "すべての作品"
+                else -> current.title
+            }
+        } else {
+            current.title
+        }
         _resultContext.value = current.copy(
-            title = NarouGenres.biggenreLabel(code) ?: current.title,
-            query = current.query.copy(biggenres = setOf(code), genres = emptySet())
-        )
-        loadResult()
-    }
-
-    fun changeResultGenre(code: Int) {
-        val current = _resultContext.value ?: return
-        _resultContext.value = current.copy(
-            title = NarouGenres.genreLabel(code) ?: current.title,
-            query = current.query.copy(genres = setOf(code), biggenres = emptySet())
+            title = nextTitle,
+            query = current.query.copy(biggenres = biggenres, genres = genres)
         )
         loadResult()
     }

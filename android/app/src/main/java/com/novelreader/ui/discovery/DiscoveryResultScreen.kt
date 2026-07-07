@@ -118,17 +118,31 @@ fun DiscoveryResultScreen(
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(7.dp),
                 verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(7.dp),
             ) {
-                val labels = conditionChipLabels(ctx.query)
+                val baseLabels = conditionChipLabels(ctx.query)
+                val labels = if (ctx.query.biggenres.isEmpty() && ctx.query.genres.isEmpty()) {
+                    // なぜ: ジャンル未指定時は、並び順チップ（baseLabels の最後）の直前に「ジャンル ⌄」チップを追加し、その場変更を可能にする。
+                    val mutable = baseLabels.toMutableList()
+                    if (mutable.isNotEmpty()) {
+                        mutable.add(mutable.lastIndex, "ジャンル")
+                    } else {
+                        mutable.add("ジャンル")
+                    }
+                    mutable
+                } else {
+                    baseLabels
+                }
                 val biggenreLabel = ctx.query.biggenres.firstOrNull()?.let { NarouGenres.biggenreLabel(it) }
                 val genreLabel = ctx.query.genres.firstOrNull()?.let { NarouGenres.genreLabel(it) }
 
                 labels.forEachIndexed { index, label ->
-                    // why: conditionChipLabels は末尾に必ず並び順を add するため、lastIndex が並び順チップである。
+                    // why: conditionChipLabels は末尾に必ず並び順を add するため、最後が並び順チップである。
                     val isOrderChip = index == labels.lastIndex
                     val isBiggenreChip = ctx.query.biggenres.size == 1 && label == biggenreLabel
                     val isGenreChip = ctx.query.genres.size == 1 && label == genreLabel
+                    val isGenrePlaceholderChip = ctx.query.biggenres.isEmpty() && ctx.query.genres.isEmpty() && label == "ジャンル"
 
-                    val isClickable = isOrderChip || isBiggenreChip || isGenreChip
+                    val isGenreFilterChip = isBiggenreChip || isGenreChip || isGenrePlaceholderChip
+                    val isClickable = isOrderChip || isGenreFilterChip
 
                     if (isClickable) {
                         var expanded by remember { mutableStateOf(false) }
@@ -170,48 +184,60 @@ fun DiscoveryResultScreen(
                                         )
                                     }
                                 }
-                            } else if (isBiggenreChip) {
-                                val currentBiggenre = ctx.query.biggenres.first()
+                            } else if (isGenreFilterChip) {
                                 DropdownMenu(
                                     expanded = expanded,
                                     onDismissRequest = { expanded = false }
                                 ) {
-                                    NarouGenres.BIGGENRES.forEach { (code, name) ->
+                                    // 1. すべてのジャンル
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = "すべてのジャンル",
+                                                fontWeight = if (ctx.query.biggenres.isEmpty() && ctx.query.genres.isEmpty()) FontWeight.Bold else FontWeight.Normal,
+                                                fontSize = 14.sp
+                                            )
+                                        },
+                                        onClick = {
+                                            expanded = false
+                                            viewModel.changeResultGenreFilter(emptySet(), emptySet())
+                                        }
+                                    )
+                                    // 2. 大ジャンル＋配下小ジャンル
+                                    NarouGenres.BIGGENRES.forEach { (bigCode, bigName) ->
+                                        val isCurrentBig = ctx.query.biggenres.size == 1 && ctx.query.biggenres.first() == bigCode
                                         DropdownMenuItem(
                                             text = {
                                                 Text(
-                                                    text = name,
-                                                    fontWeight = if (currentBiggenre == code) FontWeight.Bold else FontWeight.Normal,
+                                                    text = bigName,
+                                                    fontWeight = if (isCurrentBig) FontWeight.Bold else FontWeight.SemiBold,
+                                                    color = if (isCurrentBig) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Unspecified,
                                                     fontSize = 14.sp
                                                 )
                                             },
                                             onClick = {
                                                 expanded = false
-                                                viewModel.changeResultBiggenre(code)
+                                                viewModel.changeResultGenreFilter(setOf(bigCode), emptySet())
                                             }
                                         )
-                                    }
-                                }
-                            } else if (isGenreChip) {
-                                val currentGenre = ctx.query.genres.first()
-                                DropdownMenu(
-                                    expanded = expanded,
-                                    onDismissRequest = { expanded = false }
-                                ) {
-                                    NarouGenres.ALL_GENRES.forEach { (code, name) ->
-                                        DropdownMenuItem(
-                                            text = {
-                                                Text(
-                                                    text = name,
-                                                    fontWeight = if (currentGenre == code) FontWeight.Bold else FontWeight.Normal,
-                                                    fontSize = 14.sp
-                                                )
-                                            },
-                                            onClick = {
-                                                expanded = false
-                                                viewModel.changeResultGenre(code)
-                                            }
-                                        )
+                                        NarouGenres.GENRES_BY_BIG[bigCode]?.forEach { (genreCode, genreName) ->
+                                            val isCurrentGenre = ctx.query.genres.size == 1 && ctx.query.genres.first() == genreCode
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = genreName,
+                                                        modifier = Modifier.padding(start = 16.dp),
+                                                        fontWeight = if (isCurrentGenre) FontWeight.Bold else FontWeight.Normal,
+                                                        color = if (isCurrentGenre) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Unspecified,
+                                                        fontSize = 13.sp
+                                                    )
+                                                },
+                                                onClick = {
+                                                    expanded = false
+                                                    viewModel.changeResultGenreFilter(emptySet(), setOf(genreCode))
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
