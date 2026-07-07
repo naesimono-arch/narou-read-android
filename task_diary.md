@@ -542,6 +542,12 @@ Phase 4 精度回帰ゲート(`PdfExtractorDeviceSpikeTest`)の ≤15版クリ�
 - `lastup`/`lastupdate` はプリセット文字列（sevenday 等）のほか **UNIX秒の `開始-終了` レンジを受ける**ため、複数時期のORは連続レンジへ合成すれば表現できる。プリセットの暦はサーバ＝日本時間基準なので、クライアント計算は Asia/Tokyo 固定で行うこと。
 実装の所在: `narou/model/DiscoveryQuery.kt` の `typeApiParam`/`lastupApiParam`・`NovelApiRepository.discover` のマージ経路（`8d09e7a`）。
 
+#### 44. レスポンスのキー名が `of` 指定の有無で変わる項目がある（noveltype ↔ novel_type）＝片方だけマップすると「常に null」のサイレント無効  ★★★
+
+なろう小説APIの作品種別は、**`of` でフィールドを絞ったときはキー `noveltype`、`of` 無指定（全項目）ではキー `novel_type`** で返る（マニュアル§5 の注記＋2026-07-07 実API実測で確定。他のフィールドはフルネームで一貫しており、この項目だけが例外）。
+- 罠の型: JSON マッピングを片方のキーだけにすると、もう一方の経路では**例外にならず黙って null** になる。実際に `novelDetail`（of 無指定）経路で `novelType` が常に null → 詳細画面の短編が「完結 1話」誤表示・継続読書の短編ガードがサイレント無効、という実回帰が起きた（一覧＝of 指定経路は正常なので実機スモークでも気づけない）。
+- 対処: Moshi は1フィールドに複数キーを張れないため、両キーを別フィールドで受けて算出プロパティで合流させる（`NarouNovel.kt` の `noveltypeCompact`/`novelTypeFull`→`novelType`）。**新しいフィールドを of 有無の両経路で使うときは、両形のレスポンスでキー名が同じか必ずマニュアル§5で確認すること。**
+
 ## 移設マッピング（旧 Part II / Part III の固定ID対応）
 
 > 旧エントリ番号（`§N`）は固定ID。本ファイルから `docs/` へ移設したものは下表で追跡する（移設先での再採番はしない）。

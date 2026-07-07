@@ -18,7 +18,20 @@
   - ③**複数選択OR**: 作品の形態（type複合値 re/ter へマップ・**短編+連載中のみAPI表現不可→2クエリのクライアントマージ**・task_diary #42）／更新された時期（UNIX秒レンジ合成・JST固定・非連続組はトグルで間を自動点灯）＝`8d09e7a`。文字数・読了時間はプリセット連続段の結合（非隣接タップは間も点灯＝送る範囲とチップ点灯を一致）＝`088de15`。
   - ④**ジャンルドリルダウン**: 結果画面のジャンルチップを常設＋「すべてのジャンル→大→小」階層メニュー化。大ジャンル直選択後の小ジャンル選択と、キーワード検索発への後付けジャンル絞り込みの両課題を解消。SEARCH/KEYWORD発は見出し（検索語）維持（`0fb97e6`）。
   - **agy 委譲の品質欠陥を監督レビューで2件検出・修正**（`088de15` に含む）: (a)レンジ下端の段の消灯が全消しになる (b)合成レンジがカスタム入力誤判定でチップ非点灯。ほか KDoc 内 `[i..j]` のコンパイルエラー（task_diary #43）も検出・修正。仕様書=`.claude/plans/search-ux-round2-impl-2026-07-07.md`。
-- **★次アクション**: **Phase 4 残り＝(b) Web由来・未取込カード（新データ概念＝Web作品を本棚に置く・DB変更を伴う）／U1 新着話チェック＋通知／U2 整理**。⚠️ DB 変更時は次版=v10 だが、**着手前に必ず全 worktree の version 先取りを確認**（task_diary #39・`/db-migration` 更新済み）。B2 実装時は上記方針＝アプリ内 WebView を適用。
+- **コード健全性監査（2026-07-07・5軸並列＝突貫の名残/アーキ整合/テスト網羅/エラー境界/依存規約）完了**: 検索・API系全ファイル＋既存画面への配線差分を監査。**確定バグ4件を修正済み（テスト200件全緑・assembleDebug 成功）**:
+  - ①**詳細経路の novel_type キー不一致**: of 無指定（novelDetail）のレスポンスキーは `novel_type`（マニュアル§5注記・実API実測で確定）だが `noveltype` しかマップせず **novelType が詳細経路で常に null**＝詳細画面で短編が「完結 1話」誤表示・ContinuationLogic の短編ガードがサイレント無効。→ 両キーを別フィールドで受け `novelType` を合流アクセサ化（NarouNovel.kt）。
+  - ②**JsonDataException 素通りクラッシュ**: wrapApiException が HttpException/IOException しか正規化せず、API の型不一致 JSON（RuntimeException 系）が「静かに非表示」前提の本棚バッジ・読書画面までクラッシュ波及。→ JsonDataException/JsonEncodingException を NarouApiException へ正規化（HTML応答の「ネットワークに接続できません」誤案内も解消）。
+  - ③**「短編+連載中」×新着順マージ破綻**: OF_LIST にソートキー（novelupdated_at）が無く全件 null → 安定ソートが連結順のまま take で**短編だけ残り連載中が全滅**。→ OF_LIST へ `nu` 追加＋NEW マージキーを `novelupdatedAt` に（order=new は「新着更新順」＝novelupdated_at 降順のミラー）。
+  - ④**ロード非キャンセルの応答逆転**: loadHome/loadResult が前ジョブを保持せず、遅い旧クエリの後着で「タブ・見出しは新、リストは旧」の食い違い。→ Job 保持＋cancel（DiscoveryViewModel）。
+  - あわせて: カスタム数値入力の負数/Int桁あふれ/全角数字のサイレント無効を入力正規化＋Long計算で構造的に防止（`normalizeCustomRangeInput`・buildCustomRange 堅牢化）／novelDetail の NotFound を負キャッシュ化（削除済み作品で本棚表示のたび再通信するマナー違反を解消）／死コード・衛生（ACCESS_NETWORK_STATE 未使用権限・clearCache()・宙に浮いたコメント・陳腐化コメント・未使用 import・なろうURL手組み重複→narouWorkUrl 統一）。回帰テスト14件追加（二重キー・NEW順マージ・HttpException/JsonDataException 正規化・負キャッシュ・lastup 3種/非連続・DiscoveryCommon 純関数3つ・stale応答競合・カスタム入力境界）＝**計200件**。
+- **監査残課題（構造系＝次にこの面を触るときに。優先度順）**:
+  1. **[アーキ] PDF↔Web継続読書系だけ VM 不在**: `NcodeLinkSheet` が Repository をコンストラクタ引数で受け検索ステートマシンを remember で内蔵（**回転で検索結果・入力途中 ncode・シート開閉が全損**）／`BookCard` の続きありバッジが produceState から Repository 直撃（カード毎に novelDetail が発火・テスト不能）。→ NcodeLinkViewModel 新設＋バッジは BookshelfViewModel で一括照会し Map 配布へ。
+  2. **[構造] DiscoverySearchScreen.kt 1187行の god file**: 条件シート約680行の抽出（`SearchConditionSheet.kt`）・カスタム範囲入力の約90行×2コピペの部品化・段階チップ値とラベルの平行定義統合（LENGTH_STEPS/TIME_STEPS とチップ文言が別ファイル）・カスタム2重フラグ（isXCustom×xCustomActive）の SearchDraft への一本化（第2ラウンド欠陥2件の震源）。
+  3. **[型] 結果画面の条件チップが表示文字列マッチ＋位置規約で種別判定**（DiscoveryResultScreen）: `conditionChipLabels` を `List<ConditionChip(label, kind)>` へ格上げ。
+  4. **[機能ずれ] notword が UI 未配線のデッドパス**（モデル・API・チップ文言だけ存在。§3 の C2 完了表記は「除外語UIを除き完了」が実態）／**ページング未実装**（`st` はサービス定義だけ・結果は30件打ち切りのまま総件数を提示。実装時に `@Query("st")` を活用）。
+  5. **[将来の罠] NovelApiRepository のキャッシュは「全呼び出しが Main dispatcher」という暗黙不変条件で成立**（素の mutableMap）。U1 新着チェック（Worker 化が濃厚）で踏む→ ConcurrentHashMap 化 or Main 限定の why 明記が先。／cacheKey は trim・送信は非 trim の非対称（NcodeLinkSheet 経由の word が素通し）。
+  6. **[小粒] SearchDraft の SavedStateHandle 非対応（プロセス死でドラフト全損＝外部ブラウザ遷移の多いアプリでは起きやすい）／NcodeLinkSheet「全0話」・DiscoveryCommon「連載中 1話」の欠損値捏造表示／NovelDetailScreen の日付手書きパース（catch(Exception) why なし・切り出してテスト可能に）／UA "NovelReader-Android/1.0" の BuildConfig 非連動（buildConfig 機能自体が無効のため見送り）／MockWebServer で実 URL エンコードを固定するテスト1本（全テストが mockk 差し替えで Retrofit 実エンコード未検証）。
+- **★次アクション**: **Phase 4 残り＝(b) Web由来・未取込カード（新データ概念＝Web作品を本棚に置く・DB変更を伴う）／U1 新着話チェック＋通知／U2 整理**。⚠️ DB 変更時は次版=v10 だが、**着手前に必ず全 worktree の version 先取りを確認**（task_diary #39・`/db-migration` 更新済み）。B2 実装時は上記方針＝アプリ内 WebView を適用。⚠️ U1 着手時は監査残課題5（キャッシュの Main 前提）を先に解消すること。
 - **旧記録（縦スライス第1本・5コミット済み 2026-07-06）**: `e19fe50`(依存＋権限)→`6783d9a`(メタ取得サブシステム＋テスト)→`ac2d575`(画面＋導線)→`3a4ec46`(調査資料docs)→`8b267c8`(ディスカバリVMテスト)。
 - **やっていること**: なろう公式APIの**発見機能を「第2の柱」に育てる**。案A（本文は取らずメタのみ）を堅持しつつ、発見機能を「公式より丁寧・アプリ内で完結するレベル」に作り込む。目玉＝**PDF↔Web継続読書**と**静かな没入意匠**。競合5アプリ解析（`docs/reference/04-competitor-app-features.md`）が裏付け＝競合はどれも発見が弱い。**計画を策定・ユーザー承認済み（2026-07-06）**＝§3 の目標ロードマップが現在地・目標の正本、実装詳細の一次情報は plan `~/.claude/plans/api-agy-woolly-swan.md`。
 - **既存本棚UIの刷新（融合本棚・目玉②）**: Phase 0 でモック `bookshelf-fusion-D.html`（見つける導線帯・続きありバッジ・Web由来カード並置）を作成済み。**Compose 実装は Phase 4**（Phase 3 の ncode 紐付けが前提のため）。見た目の正本は ADR0005＋HTMLモック（直書き禁止・`theme/Color.kt`／`MinchoFamily` 経由）。
@@ -95,7 +108,7 @@
 
 **Phase 進捗**:
 - [x] **Phase 0** 発見体験の意匠設計（全画面モック6枚・2026-07-07 完了。※融合本棚/継続導線モックは Phase 3〜4 の翻訳元として作成済み・Compose 実装は未着手）
-- [x] **Phase 1** 発見コア C1〜C4（2026-07-07 完了・§1a）
+- [x] **Phase 1** 発見コア C1〜C4（2026-07-07 完了・§1a。※C2 の notword は UI 未配線＝除外語入力は未実装。監査残課題4）
 - [x] **Phase 2** 発見強化 D1〜D5（2026-07-07 完了・§1a）
 - [x] **Phase 3** ★PDF↔Web継続読書（2026-07-07 完了・§0/§1a。Room は v8 衝突により **version 9** で実装。遷移先は暫定＝外部ブラウザ、B2 実装時にアプリ内 WebView へ統一の方針）
 - [~] **Phase 4** 融合本棚②＋整理 U2＋新着通知 U1 ★次（スライス1＝導線帯・続きありバッジ完了 `92da396`。残＝Web由来カード(b)・U1・U2）
