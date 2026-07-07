@@ -1,12 +1,10 @@
 package com.novelreader.ui
 
-import android.app.Activity
 import android.content.Context
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -32,7 +30,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -46,7 +43,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -57,7 +53,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.sp
-import androidx.core.view.WindowCompat
 import com.novelreader.NovelReaderApplication
 import com.novelreader.model.ParseResult
 import com.novelreader.model.TocEntry
@@ -177,21 +172,11 @@ fun ReadingScreen(
         prefs.edit().putInt("reading_body_margin", v).apply()
     }
 
-    // ステータスバーアイコン色を読書テーマに合わせる。
-    // なぜ DisposableEffect か: NovelReaderTheme 側の SideEffect は読書画面から
-    // 本棚へ戻ったときに再実行される保証がないため、onDispose で必ず
-    // システムテーマ準拠（ライト=暗アイコン）へ復元する必要がある。
-    val view = LocalView.current
-    val systemDark = isSystemInDarkTheme()
-    if (!view.isInEditMode) {
-        DisposableEffect(readingTheme, systemDark) {
-            val controller = WindowCompat.getInsetsController(
-                (view.context as Activity).window, view
-            )
-            controller.isAppearanceLightStatusBars = readingColors.isLight
-            onDispose { controller.isAppearanceLightStatusBars = !systemDark }
-        }
-    }
+    // ステータスバーアイコン明暗はここでは設定しない（所有権は NovelReaderTheme の SideEffect に一本化）。
+    // なぜ: テーマは MainActivity の appTheme 単一正本で本棚と読書が常に同値のため、画面側での
+    // 設定は冗長で、かつて在った onDispose の「システム準拠へ復元」は手動テーマ選択時に本棚へ
+    // 戻るとステータスバーが誤った明暗になる実バグだった（旧・本棚=システム追従／読書=独立pref
+    // の2系統時代の残骸。単一正本化＝handover B「11 本棚テーマ追従」解消後は復元自体が不要）。
 
     // パストラバーサル防御: currentFile が htmlDirPath 配下に収まることを保証。
     // なぜ canonicalPath で検証するか: "../../etc/passwd" のような相対パスが

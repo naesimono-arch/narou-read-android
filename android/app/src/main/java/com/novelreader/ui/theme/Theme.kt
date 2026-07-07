@@ -206,6 +206,9 @@ fun NovelReaderTheme(
 
     // ステータスバーアイコンの色をテーマに合わせる（ライト/セピア=暗いアイコン、ダーク=明るいアイコン）
     // setDecorFitsSystemWindows は MainActivity で呼んでいるためここでは行わない
+    // なぜここが唯一の所有者か: theme は appTheme 単一正本のため全画面でこの1式が常に正しい。
+    // 画面側で個別に設定・復元すると正本とズレた値を書き戻す余地が生まれる
+    // （実例: 読書画面の旧 DisposableEffect がシステム準拠へ「復元」し誤明暗になるバグ＝2026-07-08 撤去）。
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
