@@ -48,6 +48,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -327,55 +328,20 @@ fun DiscoverySearchScreen(
                     modifier = Modifier.padding(top = 28.dp, bottom = 12.dp)
                 )
 
+                // why: カテゴリ単位の展開状態を category.title をキーに保持する（basic/genre で
+                // title は一意なので両ループで1つの map を共有できる）。未登録キーは false 扱い＝
+                // 既定は全カテゴリ畳み。狙いは「要素」22語・「リプレイ（TRPG）」26語のような長大な
+                // カテゴリで検索画面が縦に伸びるのを抑え、見出しだけの一覧まで圧縮すること。
+                val expandedCategories = remember { mutableStateMapOf<String, Boolean>() }
+
                 NarouCuratedKeywords.basicCategories.forEach { category ->
-                    SectionHeader(text = category.title)
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        category.words.forEach { word ->
-                            val selected = containsWordToken(draft.word, word)
-                            FilterChipItem(
-                                selected = selected,
-                                label = word,
-                                onClick = {
-                                    val nextWord = toggleWordToken(draft.word, word)
-                                    val isAdding = !selected
-                                    val nextInKeyword = if (isAdding) {
-                                        // why: キュレーション語は作者タグの語彙のため、範囲に keyword を含めないとタイトル一致のみとなり大半を取りこぼす。範囲チップの状態変化として見える形で広げる（ADR 0007 原則2と両立）
-                                        true
-                                    } else {
-                                        draft.inKeyword
-                                    }
-                                    viewModel.setSearchDraft(
-                                        draft.copy(
-                                            word = nextWord,
-                                            inKeyword = nextInKeyword
-                                        )
-                                    )
-                                }
-                            )
-                        }
-                    }
-                }
-
-                var showGenreKeywords by remember { mutableStateOf(false) }
-
-                // why: 公式パネルは①作品内容と②ジャンル別の2段構成。②＋TRPG系は約80語あり常時表示すると検索画面が長大化するため、公式と同じ段構成のまま既定は畳む（全数収載と画面の静けさの両立）
-                Text(
-                    text = if (showGenreKeywords) "たたむ ⌃" else "ジャンル別のキーワードを見る ⌄",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier
-                        .clickable { showGenreKeywords = !showGenreKeywords }
-                        .padding(top = 16.dp, bottom = 8.dp)
-                )
-
-                if (showGenreKeywords) {
-                    NarouCuratedKeywords.genreCategories.forEach { category ->
-                        SectionHeader(text = category.title)
+                    val expanded = expandedCategories[category.title] == true
+                    CollapsibleCategoryHeader(
+                        title = category.title,
+                        expanded = expanded,
+                        onToggle = { expandedCategories[category.title] = !expanded },
+                    )
+                    if (expanded) {
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -403,6 +369,61 @@ fun DiscoverySearchScreen(
                                         )
                                     }
                                 )
+                            }
+                        }
+                    }
+                }
+
+                var showGenreKeywords by remember { mutableStateOf(false) }
+
+                // why: 公式パネルは①作品内容と②ジャンル別の2段構成。②＋TRPG系は約80語あり常時表示すると検索画面が長大化するため、公式と同じ段構成のまま既定は畳む（全数収載と画面の静けさの両立）
+                Text(
+                    text = if (showGenreKeywords) "たたむ ⌃" else "ジャンル別のキーワードを見る ⌄",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .clickable { showGenreKeywords = !showGenreKeywords }
+                        .padding(top = 16.dp, bottom = 8.dp)
+                )
+
+                if (showGenreKeywords) {
+                    NarouCuratedKeywords.genreCategories.forEach { category ->
+                        val expanded = expandedCategories[category.title] == true
+                        CollapsibleCategoryHeader(
+                            title = category.title,
+                            expanded = expanded,
+                            onToggle = { expandedCategories[category.title] = !expanded },
+                        )
+                        if (expanded) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                category.words.forEach { word ->
+                                    val selected = containsWordToken(draft.word, word)
+                                    FilterChipItem(
+                                        selected = selected,
+                                        label = word,
+                                        onClick = {
+                                            val nextWord = toggleWordToken(draft.word, word)
+                                            val isAdding = !selected
+                                            val nextInKeyword = if (isAdding) {
+                                                // why: キュレーション語は作者タグの語彙のため、範囲に keyword を含めないとタイトル一致のみとなり大半を取りこぼす。範囲チップの状態変化として見える形で広げる（ADR 0007 原則2と両立）
+                                                true
+                                            } else {
+                                                draft.inKeyword
+                                            }
+                                            viewModel.setSearchDraft(
+                                                draft.copy(
+                                                    word = nextWord,
+                                                    inKeyword = nextInKeyword
+                                                )
+                                            )
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -1163,6 +1184,39 @@ fun SectionHeader(text: String) {
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier.padding(top = 22.dp, bottom = 10.dp)
     )
+}
+
+// why: 「キーワードから選ぶ」の各カテゴリ見出しを開閉トグル化するための専用ヘッダ。
+// 静的な SectionHeader はフィルターシート側の見出し（作品の形/文字数 等）でも使い回すため、
+// そちらまで折りたたみ化しないよう別 composable に分ける。見た目トークン（型・字間・色）は
+// SectionHeader に揃え、開閉記号は同画面の「ジャンル別を見る」トグルと同じ ⌄/⌃ で統一する。
+@Composable
+fun CollapsibleCategoryHeader(
+    title: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(top = 22.dp, bottom = 10.dp)
+    ) {
+        Text(
+            text = title,
+            fontSize = 10.5.sp,
+            letterSpacing = 3.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = if (expanded) "⌃" else "⌄",
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
