@@ -161,24 +161,30 @@ private fun ParagraphItem(
     lineHeightEm: Float,
     modifier: Modifier = Modifier,
 ) {
-    val bodyStyle = TextStyle(
-        color = colors.text,
-        // ユーザー設定の文字サイズ。lineHeight が em（相対値）のため行間も自動でスケールする
-        fontSize = fontSize.sp,
-        // ユーザー設定の行間（em）。RubyText も style=bodyStyle 経由でこの lineHeight を受け取るため、
-        // ここ1か所の変更でルビ行にも反映される。可変幅は 2.3〜2.8em に絞って前行とのルビ被りを抑制。
-        lineHeight = lineHeightEm.em,
-        fontFamily = MinchoFamily,
-        letterSpacing = 0.sp,
-        // なぜ Trim.LastLineBottom か:
-        // lineHeight を RubyText 内折り返しとParagraphItem 間で統一するため。
-        // LastLineBottom のみ除去することで上 leading（ルビ描画領域）を保ちつつ
-        // composable 高さを確定させる（em 指定のため文字サイズ・行間変更時も比率は維持される）。
-        lineHeightStyle = LineHeightStyle(
-            alignment = LineHeightStyle.Alignment.Proportional,
-            trim = LineHeightStyle.Trim.LastLineBottom,
-        ),
-    )
+    // なぜ remember 化するか: ParagraphItem は LazyColumn の各段落・スクロール中の再コンポジションで
+    // 何度も呼ばれるが、TextStyle は色・文字サイズ・行間が変わらない限り同一で良い。
+    // 毎回 new TextStyle(...) すると本文行数ぶんアロケートが走るため、実際に見た目を決める
+    // 3入力（colors.text/fontSize/lineHeightEm）を key にして変化時のみ作り直す。
+    val bodyStyle = remember(colors.text, fontSize, lineHeightEm) {
+        TextStyle(
+            color = colors.text,
+            // ユーザー設定の文字サイズ。lineHeight が em（相対値）のため行間も自動でスケールする
+            fontSize = fontSize.sp,
+            // ユーザー設定の行間（em）。RubyText も style=bodyStyle 経由でこの lineHeight を受け取るため、
+            // ここ1か所の変更でルビ行にも反映される。可変幅は 2.3〜2.8em に絞って前行とのルビ被りを抑制。
+            lineHeight = lineHeightEm.em,
+            fontFamily = MinchoFamily,
+            letterSpacing = 0.sp,
+            // なぜ Trim.LastLineBottom か:
+            // lineHeight を RubyText 内折り返しとParagraphItem 間で統一するため。
+            // LastLineBottom のみ除去することで上 leading（ルビ描画領域）を保ちつつ
+            // composable 高さを確定させる（em 指定のため文字サイズ・行間変更時も比率は維持される）。
+            lineHeightStyle = LineHeightStyle(
+                alignment = LineHeightStyle.Alignment.Proportional,
+                trim = LineHeightStyle.Trim.LastLineBottom,
+            ),
+        )
+    }
 
     when {
         paragraph.isEmpty() -> {

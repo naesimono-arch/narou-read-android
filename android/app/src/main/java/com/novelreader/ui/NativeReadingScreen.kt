@@ -37,6 +37,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -64,7 +65,7 @@ import com.novelreader.narou.narouWorkUrl
 import com.novelreader.parser.ChapterHtmlParser
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingTheme
-import com.novelreader.ui.theme.colors
+import com.novelreader.ui.theme.rememberReadingColors
 import com.novelreader.viewmodel.BookshelfViewModel
 
 import kotlinx.coroutines.Dispatchers
@@ -133,7 +134,13 @@ fun ReadingScreen(
     // context/prefs は文字サイズ・行間（読書固有設定）の読み書きに引き続き使う。
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
-    val readingColors = readingTheme.colors
+    val readingColors = rememberReadingColors(readingTheme)
+
+    // なぜ「UI状態の更新」と「永続化」を2つのコールバックに分けるか:
+    // スライダーのドラッグ中は毎値 onValueChange が発火する。状態更新は本文プレビューを
+    // リアルタイム追従させるため毎値で必要だが、prefs 書き込みまで毎値行うと無駄な
+    // ディスク I/O が連続する。永続化は確定時（onValueChangeFinished）に一度だけにする。
+    // 確定時点で下記 state は最終値を保持しているため、persist 側は現在の state 値を読んで書く。
 
     // 本文フォントサイズ（sp）。lineHeight は em 指定のため自動追従する。
     // なぜ coerceIn か: 将来レンジを狭めた場合に保存済みの範囲外値で
@@ -141,11 +148,11 @@ fun ReadingScreen(
     var fontSize by remember {
         mutableIntStateOf(prefs.getInt("reading_font_size", 18).coerceIn(14, 24))
     }
-    val onFontSizeChange: (Int) -> Unit = { size ->
-        fontSize = size
-        // apply はメモリ即時反映＋非同期ディスク書込のため、
-        // スライダードラッグ中に連続発火しても UI をブロックしない
-        prefs.edit().putInt("reading_font_size", size).apply()
+    // ドラッグ中の毎値：本文プレビュー追従のため状態のみ更新（永続化しない）
+    val onFontSizeChange: (Int) -> Unit = { size -> fontSize = size }
+    // 確定時のみ：現在の fontSize を永続化する。apply は非同期ディスク書込のため UI をブロックしない
+    val onFontSizePersist: () -> Unit = {
+        prefs.edit().putInt("reading_font_size", fontSize).apply()
     }
 
     // 本文の行間（em）。
@@ -156,9 +163,10 @@ fun ReadingScreen(
     var lineHeightEm by remember {
         mutableFloatStateOf(prefs.getFloat("reading_line_height", 2.5f).coerceIn(2.3f, 2.8f))
     }
-    val onLineHeightChange: (Float) -> Unit = { v ->
-        lineHeightEm = v
-        prefs.edit().putFloat("reading_line_height", v).apply()
+    // フォントサイズと同型：ドラッグ中は状態のみ・永続化は確定時に一度だけ
+    val onLineHeightChange: (Float) -> Unit = { v -> lineHeightEm = v }
+    val onLineHeightPersist: () -> Unit = {
+        prefs.edit().putFloat("reading_line_height", lineHeightEm).apply()
     }
 
     // 本文の左右余白（dp）。既定 15 は設定化前の固定値と同じ＝既存ユーザーの見た目を変えない。
@@ -167,9 +175,10 @@ fun ReadingScreen(
     var bodyMarginDp by remember {
         mutableIntStateOf(prefs.getInt("reading_body_margin", 15).coerceIn(10, 40))
     }
-    val onBodyMarginChange: (Int) -> Unit = { v ->
-        bodyMarginDp = v
-        prefs.edit().putInt("reading_body_margin", v).apply()
+    // フォントサイズと同型：ドラッグ中は状態のみ・永続化は確定時に一度だけ
+    val onBodyMarginChange: (Int) -> Unit = { v -> bodyMarginDp = v }
+    val onBodyMarginPersist: () -> Unit = {
+        prefs.edit().putInt("reading_body_margin", bodyMarginDp).apply()
     }
 
     // ステータスバーアイコン明暗はここでは設定しない（所有権は NovelReaderTheme の SideEffect に一本化）。
@@ -248,10 +257,13 @@ fun ReadingScreen(
         onThemeChange = onThemeChange,
         fontSize = fontSize,
         onFontSizeChange = onFontSizeChange,
+        onFontSizePersist = onFontSizePersist,
         lineHeightEm = lineHeightEm,
         onLineHeightChange = onLineHeightChange,
+        onLineHeightPersist = onLineHeightPersist,
         bodyMarginDp = bodyMarginDp,
         onBodyMarginChange = onBodyMarginChange,
+        onBodyMarginPersist = onBodyMarginPersist,
         // resolvedFile が「最後に読んだ章」と一致する場合のみスクロール位置を復元する
         initialScrollIndex = if (resolvedFile == restore.targetFile) restore.scrollIndex else 0,
         initialScrollOffset = if (resolvedFile == restore.targetFile) restore.scrollOffset else 0,
@@ -290,17 +302,21 @@ private fun ChapterScreen(
     onThemeChange: (ReadingTheme) -> Unit,
     fontSize: Int,
     onFontSizeChange: (Int) -> Unit,
+    // 永続化はスライダー確定時のみ呼ぶ（ドラッグ中の毎値書き込みを避ける）
+    onFontSizePersist: () -> Unit,
     lineHeightEm: Float,
     onLineHeightChange: (Float) -> Unit,
+    onLineHeightPersist: () -> Unit,
     bodyMarginDp: Int,
     onBodyMarginChange: (Int) -> Unit,
+    onBodyMarginPersist: () -> Unit,
     initialScrollIndex: Int,
     initialScrollOffset: Int,
     onSaveScroll: (index: Int, offset: Int) -> Unit,
     onNavigateToBookshelf: () -> Unit,
     onNavigateTo: (String) -> Unit,
 ) {
-    val colors = readingTheme.colors
+    val colors = rememberReadingColors(readingTheme)
     val scope = rememberCoroutineScope()
 
     // 表示設定ボトムシートの開閉状態
@@ -408,12 +424,18 @@ private fun ChapterScreen(
 
     // スクロール位置を継続保存する（読書中にプロセスが kill されても続きから読めるように）。
     // 読書中の連続発火を debounce で間引き、DB 書き込みを最小化する。
+    // なぜ rememberUpdatedState か: onSaveScroll は呼び出し側（ReadingScreen）で
+    // resolvedFile 等を capture して毎コンポジション新しく生成されるラムダ。これを
+    // LaunchedEffect のキーに含めると章移動でもないのに保存コルーチンが再起動してしまい、
+    // 含めなければ最初に捕捉した古い参照（陳腐化した resolvedFile capture）を呼び続ける。
+    // 最新参照へ更新する State 越しに呼ぶことで、コルーチンは再起動せず常に最新の onSaveScroll を呼ぶ。
+    val latestOnSaveScroll by rememberUpdatedState(onSaveScroll)
     LaunchedEffect(lazyListState, currentFile) {
         snapshotFlow {
             lazyListState.firstVisibleItemIndex to lazyListState.firstVisibleItemScrollOffset
         }
             .debounce(400)
-            .collect { (index, offset) -> onSaveScroll(index, offset) }
+            .collect { (index, offset) -> latestOnSaveScroll(index, offset) }
     }
 
     val nonStealingConnection = remember(topAppBarState) {
@@ -662,10 +684,13 @@ private fun ChapterScreen(
                 onThemeChange = onThemeChange,
                 fontSize = fontSize,
                 onFontSizeChange = onFontSizeChange,
+                onFontSizePersist = onFontSizePersist,
                 lineHeightEm = lineHeightEm,
                 onLineHeightChange = onLineHeightChange,
+                onLineHeightPersist = onLineHeightPersist,
                 bodyMarginDp = bodyMarginDp,
                 onBodyMarginChange = onBodyMarginChange,
+                onBodyMarginPersist = onBodyMarginPersist,
                 onDismiss = { showSettings = false },
             )
         }

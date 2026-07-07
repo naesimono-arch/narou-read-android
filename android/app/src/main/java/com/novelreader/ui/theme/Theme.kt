@@ -7,6 +7,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
@@ -105,6 +106,17 @@ val ReadingTheme.colors: ReadingColors
             isLight          = false,
         )
     }
+
+/**
+ * テーマから読書配色を取得する @Composable アクセサ。
+ * なぜ remember 化するか: 上の ReadingTheme.colors getter は呼ぶたびに 14 色分の
+ * ReadingColors を新規生成するため、読書画面の再コンポジション（スクロール保存・設定変更等）の
+ * たびにアロケートが走る。テーマ切替（theme）を key にして、テーマが変わらない限り同一
+ * インスタンスを再利用し、アロケートと下流の等値比較コストを避ける。
+ */
+@Composable
+fun rememberReadingColors(theme: ReadingTheme): ReadingColors =
+    remember(theme) { theme.colors }
 
 // ============================================================
 // Material3 カラースキーム

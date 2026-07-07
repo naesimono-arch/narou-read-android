@@ -38,10 +38,15 @@ internal fun ReadingSettingsSheet(
     onThemeChange: (ReadingTheme) -> Unit,
     fontSize: Int,
     onFontSizeChange: (Int) -> Unit,
+    // 永続化コールバック（スライダー確定時のみ呼ぶ）。onXxxChange はドラッグ中の毎値で
+    // 状態を更新して本文プレビューを追従させ、書き込みはこの確定時コールバックに集約する。
+    onFontSizePersist: () -> Unit,
     lineHeightEm: Float,
     onLineHeightChange: (Float) -> Unit,
+    onLineHeightPersist: () -> Unit,
     bodyMarginDp: Int,
     onBodyMarginChange: (Int) -> Unit,
+    onBodyMarginPersist: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     // なぜ containerColor/contentColor を読書テーマで明示するか:
@@ -128,6 +133,8 @@ internal fun ReadingSettingsSheet(
                 Slider(
                     value = fontSize.toFloat(),
                     onValueChange = { onFontSizeChange(it.roundToInt()) },
+                    // ドラッグ確定時に一度だけ永続化（ドラッグ中の毎値 prefs 書き込みを避ける）
+                    onValueChangeFinished = onFontSizePersist,
                     valueRange = 14f..24f,
                     // steps = 9 で 14〜24sp を 1sp 刻みの離散値にする（中間刻み = 範囲幅 - 1）
                     steps = 9,
@@ -160,6 +167,8 @@ internal fun ReadingSettingsSheet(
                     value = lineHeightEm,
                     // 0.1em 刻みに丸める。前行とのルビ被りを避けるため狭めレンジ(2.3〜2.8)に固定。
                     onValueChange = { onLineHeightChange((it * 10).roundToInt() / 10f) },
+                    // ドラッグ確定時に一度だけ永続化
+                    onValueChangeFinished = onLineHeightPersist,
                     valueRange = 2.3f..2.8f,
                     // steps = 4 で 2.3〜2.8em を 0.1em 刻みの離散値にする（中間刻み = 区切り数 - 1）
                     steps = 4,
@@ -189,6 +198,8 @@ internal fun ReadingSettingsSheet(
                 Slider(
                     value = bodyMarginDp.toFloat(),
                     onValueChange = { onBodyMarginChange(it.roundToInt()) },
+                    // ドラッグ確定時に一度だけ永続化
+                    onValueChangeFinished = onBodyMarginPersist,
                     // 10〜40dp を 5dp 刻み（steps=5）。既定 15 がグリッドに乗るレンジ設計
                     valueRange = 10f..40f,
                     steps = 5,
