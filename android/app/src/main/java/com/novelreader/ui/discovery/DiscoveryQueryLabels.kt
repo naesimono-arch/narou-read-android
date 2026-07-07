@@ -1,6 +1,7 @@
 package com.novelreader.ui.discovery
 
 import com.novelreader.narou.model.DiscoveryQuery
+import com.novelreader.narou.model.NarouAttr
 import com.novelreader.narou.model.NarouGenres
 import java.util.Locale
 
@@ -59,12 +60,27 @@ fun conditionChipLabels(query: DiscoveryQuery): List<String> {
     query.biggenres.forEach { code -> NarouGenres.biggenreLabel(code)?.let(labels::add) }
     query.genres.forEach { code -> NarouGenres.genreLabel(code)?.let(labels::add) }
 
-    when {
-        query.tensei && query.tenni -> labels.add("転生・転移")
-        query.tensei -> labels.add("異世界転生")
-        query.tenni -> labels.add("異世界転移")
+    val hasTensei = NarouAttr.TENSEI in query.attrsInclude
+    val hasTenni = NarouAttr.TENNI in query.attrsInclude
+    if (hasTensei && hasTenni) {
+        labels.add("転生・転移")
+    } else if (hasTensei) {
+        labels.add("異世界転生")
+    } else if (hasTenni) {
+        labels.add("異世界転移")
     }
-    if (query.excludeZankoku) labels.add("残酷描写を除く")
+
+    NarouAttr.values().forEach { attr ->
+        if (attr != NarouAttr.TENSEI && attr != NarouAttr.TENNI && attr in query.attrsInclude) {
+            labels.add(attr.uiLabel)
+        }
+    }
+
+    NarouAttr.values().forEach { attr ->
+        if (attr in query.attrsExclude) {
+            labels.add("${attr.uiLabel}を除く")
+        }
+    }
 
     query.lastup?.let { labels.add("${it.uiLabel}に更新") }
 

@@ -1,5 +1,6 @@
 package com.novelreader.narou
 
+import com.novelreader.narou.model.NarouAttr
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.DiscoveryResult
 import com.novelreader.narou.model.NarouLastup
@@ -108,7 +109,14 @@ class NovelApiRepositoryTest {
                 istensei = any(),
                 istenni = any(),
                 istt = any(),
+                iszankoku = any(),
                 notzankoku = any(),
+                isr15 = any(),
+                notr15 = any(),
+                isbl = any(),
+                notbl = any(),
+                isgl = any(),
+                notgl = any(),
                 type = any(),
                 lastup = any(),
                 time = any()
@@ -120,7 +128,7 @@ class NovelApiRepositoryTest {
             word = "異世界",
             inTitle = true,
             genres = setOf(101, 201),
-            tensei = true,
+            attrsInclude = setOf(NarouAttr.TENSEI),
             type = NarouNovelType.KANKETSU,
             lastup = NarouLastup.SEVENDAY,
             time = "30-"
@@ -144,14 +152,20 @@ class NovelApiRepositoryTest {
                 istensei = 1,
                 istenni = null,
                 istt = null,
+                iszankoku = null,
+                notzankoku = null,
+                isr15 = null,
+                notr15 = null,
+                isbl = null,
+                notbl = null,
+                isgl = null,
+                notgl = null,
                 type = "er",
                 lastup = "sevenday",
                 time = "30-",
                 st = null,
                 notword = null,
                 biggenre = null,
-                iszankoku = null,
-                notzankoku = null,
                 length = null,
                 kaiwaritu = null,
                 sasie = null,
@@ -161,9 +175,8 @@ class NovelApiRepositoryTest {
 
         // ケース2: 転生+転移(istt)かつ残酷描写除外
         val query2 = DiscoveryQuery(
-            tensei = true,
-            tenni = true,
-            excludeZankoku = true
+            attrsInclude = setOf(NarouAttr.TENSEI, NarouAttr.TENNI),
+            attrsExclude = setOf(NarouAttr.ZANKOKU)
         )
         repository.discover(query2)
 
@@ -181,14 +194,20 @@ class NovelApiRepositoryTest {
                 istensei = null,
                 istenni = null,
                 istt = 1,
+                iszankoku = null,
+                notzankoku = 1,
+                isr15 = null,
+                notr15 = null,
+                isbl = null,
+                notbl = null,
+                isgl = null,
+                notgl = null,
                 type = null,
                 lastup = null,
                 time = null,
                 st = null,
                 notword = null,
                 biggenre = null,
-                iszankoku = null,
-                notzankoku = 1,
                 length = null,
                 kaiwaritu = null,
                 sasie = null,
@@ -258,5 +277,87 @@ class NovelApiRepositoryTest {
 
         assertNull(result)
         coVerify(exactly = 1) { service.search(ncode = "N9999XX", lim = 1, of = null) }
+    }
+
+    @Test
+    fun `discover - 属性指定の矛盾無害化、istt振替、not系送出が正しく機能すること`() = runTest {
+        coEvery {
+            service.search(
+                of = any(),
+                order = any(),
+                lim = any(),
+                istensei = any(),
+                istenni = any(),
+                istt = any(),
+                iszankoku = any(),
+                notzankoku = any(),
+                isr15 = any(),
+                notr15 = any(),
+                isbl = any(),
+                notbl = any(),
+                isgl = any(),
+                notgl = any()
+            )
+        } returns createMockResponse()
+
+        // 1. 同一属性 (R15) の include/exclude 矛盾指定は、両側から除外（無害化）されること
+        // 2. TENSEI と TENNI が include に両方あるとき istt=1 が送られ istensei/istenni は null になること
+        // 3. 除外属性 (ZANKOKU) が attrsExclude にあるとき notzankoku = 1 が送られること
+        val query = DiscoveryQuery(
+            attrsInclude = setOf(NarouAttr.TENSEI, NarouAttr.TENNI, NarouAttr.R15),
+            attrsExclude = setOf(NarouAttr.ZANKOKU, NarouAttr.R15) // R15 が矛盾
+        )
+
+        repository.discover(query)
+
+        coVerify(exactly = 1) {
+            service.search(
+                of = any(),
+                order = any(),
+                lim = any(),
+                istensei = null,
+                istenni = null,
+                istt = 1,
+                iszankoku = null,
+                notzankoku = 1,
+                isr15 = null, // 矛盾のため null
+                notr15 = null // 矛盾のため null
+            )
+        }
+    }
+
+    @Test
+    fun `discover - 転生・転移の除外が nottensei nottenni として送られること`() = runTest {
+        coEvery {
+            service.search(
+                of = any(),
+                order = any(),
+                lim = any(),
+                nottensei = any(),
+                nottenni = any()
+            )
+        } returns createMockResponse()
+
+        // なぜこのケースを固定するか: UI の除外行には NarouAttr 全種（転生・転移含む）が並ぶ。
+        // ここが送られないと「チップは選択表示されるのに絞り込みが効かない」サイレント無効になる
+        // （バッチ2実装時に実際に欠落していた回帰）。
+        val query = DiscoveryQuery(
+            attrsExclude = setOf(NarouAttr.TENSEI, NarouAttr.TENNI)
+        )
+
+        repository.discover(query)
+
+        coVerify(exactly = 1) {
+            service.search(
+                of = any(),
+                order = any(),
+                lim = any(),
+                istensei = null,
+                istenni = null,
+                istt = null,
+                nottensei = 1,
+                nottenni = 1
+            )
+        }
     }
 }

@@ -57,6 +57,11 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.runtime.LaunchedEffect
+import com.novelreader.narou.model.NarouAttr
+import com.novelreader.viewmodel.buildCustomRange
+import com.novelreader.viewmodel.parseCustomRange
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -322,6 +327,64 @@ fun DiscoverySearchScreen(
                 )
             }
         ) {
+            val lengthPresets = setOf("-10000", "10000-100000", "100000-500000", "500000-1000000", "1000000-")
+            val isLengthCustom = draft.filters.length != null && draft.filters.length !in lengthPresets
+            var lengthCustomActive by remember(isLengthCustom) { mutableStateOf(isLengthCustom) }
+
+            var minLengthText by remember { mutableStateOf("") }
+            var maxLengthText by remember { mutableStateOf("") }
+
+            LaunchedEffect(draft.filters.length) {
+                val len = draft.filters.length
+                if (len != null && len !in lengthPresets) {
+                    val (min, max) = parseCustomRange(len, 10000)
+                    val currentBuild = buildCustomRange(minLengthText, maxLengthText, 10000)
+                    if (currentBuild != len) {
+                        minLengthText = min
+                        maxLengthText = max
+                    }
+                } else if (len == null && !lengthCustomActive) {
+                    minLengthText = ""
+                    maxLengthText = ""
+                }
+            }
+
+            fun onLengthTextsChanged(min: String, max: String) {
+                minLengthText = min
+                maxLengthText = max
+                val range = buildCustomRange(min, max, 10000)
+                viewModel.setSearchDraft(draft.copy(filters = draft.filters.withLength(range)))
+            }
+
+            val timePresets = setOf("-30", "30-120", "120-600", "600-")
+            val isTimeCustom = draft.filters.time != null && draft.filters.time !in timePresets
+            var timeCustomActive by remember(isTimeCustom) { mutableStateOf(isTimeCustom) }
+
+            var minTimeText by remember { mutableStateOf("") }
+            var maxTimeText by remember { mutableStateOf("") }
+
+            LaunchedEffect(draft.filters.time) {
+                val t = draft.filters.time
+                if (t != null && t !in timePresets) {
+                    val (min, max) = parseCustomRange(t, 60)
+                    val currentBuild = buildCustomRange(minTimeText, maxTimeText, 60)
+                    if (currentBuild != t) {
+                        minTimeText = min
+                        maxTimeText = max
+                    }
+                } else if (t == null && !timeCustomActive) {
+                    minTimeText = ""
+                    maxTimeText = ""
+                }
+            }
+
+            fun onTimeTextsChanged(min: String, max: String) {
+                minTimeText = min
+                maxTimeText = max
+                val range = buildCustomRange(min, max, 60)
+                viewModel.setSearchDraft(draft.copy(filters = draft.filters.withTime(range)))
+            }
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -397,50 +460,59 @@ fun DiscoverySearchScreen(
                             viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastup = if (current == NarouLastup.SEVENDAY) null else NarouLastup.SEVENDAY)))
                         }
                     )
-                    FilterChipItem(
-                        selected = current == NarouLastup.THISMONTH,
-                        label = "今月",
-                        onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastup = if (current == NarouLastup.THISMONTH) null else NarouLastup.THISMONTH)))
-                        }
-                    )
-                    FilterChipItem(
-                        selected = current == NarouLastup.LASTMONTH,
-                        label = "先月",
-                        onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(lastup = if (current == NarouLastup.LASTMONTH) null else NarouLastup.LASTMONTH)))
-                        }
-                    )
                 }
 
                 // c. 属性
-                SectionHeader(text = "属性")
+                SectionHeader(text = "テーマ（含める）")
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    FilterChipItem(
-                        selected = draft.filters.tensei,
-                        label = "異世界転生",
-                        onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(tensei = !draft.filters.tensei)))
-                        }
-                    )
-                    FilterChipItem(
-                        selected = draft.filters.tenni,
-                        label = "異世界転移",
-                        onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(tenni = !draft.filters.tenni)))
-                        }
-                    )
-                    FilterChipItem(
-                        selected = draft.filters.excludeZankoku,
-                        label = "残酷描写を除く",
-                        onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(excludeZankoku = !draft.filters.excludeZankoku)))
-                        }
-                    )
+                    NarouAttr.values().forEach { attr ->
+                        val selected = attr in draft.filters.attrsInclude
+                        FilterChipItem(
+                            selected = selected,
+                            label = attr.uiLabel,
+                            onClick = {
+                                val nextFilters = if (selected) {
+                                    draft.filters.copy(attrsInclude = draft.filters.attrsInclude - attr)
+                                } else {
+                                    draft.filters.copy(
+                                        attrsInclude = draft.filters.attrsInclude + attr,
+                                        attrsExclude = draft.filters.attrsExclude - attr
+                                    )
+                                }
+                                viewModel.setSearchDraft(draft.copy(filters = nextFilters))
+                            }
+                        )
+                    }
+                }
+
+                SectionHeader(text = "除外する")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    NarouAttr.values().forEach { attr ->
+                        val selected = attr in draft.filters.attrsExclude
+                        FilterChipItem(
+                            selected = selected,
+                            label = attr.uiLabel,
+                            onClick = {
+                                val nextFilters = if (selected) {
+                                    draft.filters.copy(attrsExclude = draft.filters.attrsExclude - attr)
+                                } else {
+                                    draft.filters.copy(
+                                        attrsExclude = draft.filters.attrsExclude + attr,
+                                        attrsInclude = draft.filters.attrsInclude - attr
+                                    )
+                                }
+                                viewModel.setSearchDraft(draft.copy(filters = nextFilters))
+                            }
+                        )
+                    }
                 }
 
                 // d. 文字数
@@ -453,33 +525,171 @@ fun DiscoverySearchScreen(
                 ) {
                     val current = draft.filters.length
                     FilterChipItem(
-                        selected = current == null,
+                        selected = current == null && !lengthCustomActive,
                         label = "すべて",
                         onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(length = null)))
+                            lengthCustomActive = false
+                            minLengthText = ""
+                            maxLengthText = ""
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.withLength(null)))
                         }
                     )
                     FilterChipItem(
                         selected = current == "-10000",
                         label = "〜1万字",
                         onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(length = if (current == "-10000") null else "-10000")))
+                            lengthCustomActive = false
+                            val next = if (current == "-10000") null else "-10000"
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.withLength(next)))
                         }
                     )
                     FilterChipItem(
                         selected = current == "10000-100000",
                         label = "1万〜10万字",
                         onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(length = if (current == "10000-100000") null else "10000-100000")))
+                            lengthCustomActive = false
+                            val next = if (current == "10000-100000") null else "10000-100000"
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.withLength(next)))
                         }
                     )
                     FilterChipItem(
-                        selected = current == "100000-",
-                        label = "10万字〜",
+                        selected = current == "100000-500000",
+                        label = "10万〜50万字",
                         onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(length = if (current == "100000-") null else "100000-")))
+                            lengthCustomActive = false
+                            val next = if (current == "100000-500000") null else "100000-500000"
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.withLength(next)))
                         }
                     )
+                    FilterChipItem(
+                        selected = current == "500000-1000000",
+                        label = "50万〜100万字",
+                        onClick = {
+                            lengthCustomActive = false
+                            val next = if (current == "500000-1000000") null else "500000-1000000"
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.withLength(next)))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = current == "1000000-",
+                        label = "100万字〜",
+                        onClick = {
+                            lengthCustomActive = false
+                            val next = if (current == "1000000-") null else "1000000-"
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.withLength(next)))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = lengthCustomActive || isLengthCustom,
+                        label = "カスタム",
+                        onClick = {
+                            if (lengthCustomActive) {
+                                lengthCustomActive = false
+                                minLengthText = ""
+                                maxLengthText = ""
+                                viewModel.setSearchDraft(draft.copy(filters = draft.filters.withLength(null)))
+                            } else {
+                                lengthCustomActive = true
+                                val range = buildCustomRange(minLengthText, maxLengthText, 10000)
+                                viewModel.setSearchDraft(draft.copy(filters = draft.filters.withLength(range)))
+                            }
+                        }
+                    )
+                }
+
+                if (lengthCustomActive || isLengthCustom) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                    ) {
+                        var isMinFocused by remember { mutableStateOf(false) }
+                        BasicTextField(
+                            value = minLengthText,
+                            onValueChange = { onLengthTextsChanged(it, maxLengthText) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .onFocusChanged { isMinFocused = it.isFocused },
+                            singleLine = true,
+                            textStyle = TextStyle(
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                            decorationBox = { innerTextField ->
+                                Column {
+                                    Box(
+                                        modifier = Modifier.padding(bottom = 4.dp),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        if (minLengthText.isEmpty()) {
+                                            Text(
+                                                text = "下限なし",
+                                                fontSize = 14.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
+                                    HorizontalDivider(
+                                        thickness = 1.dp,
+                                        color = if (isMinFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                                    )
+                                }
+                            }
+                        )
+
+                        Text(
+                            text = "〜",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        var isMaxFocused by remember { mutableStateOf(false) }
+                        BasicTextField(
+                            value = maxLengthText,
+                            onValueChange = { onLengthTextsChanged(minLengthText, it) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .onFocusChanged { isMaxFocused = it.isFocused },
+                            singleLine = true,
+                            textStyle = TextStyle(
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                            decorationBox = { innerTextField ->
+                                Column {
+                                    Box(
+                                        modifier = Modifier.padding(bottom = 4.dp),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        if (maxLengthText.isEmpty()) {
+                                            Text(
+                                                text = "上限なし",
+                                                fontSize = 14.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
+                                    HorizontalDivider(
+                                        thickness = 1.dp,
+                                        color = if (isMaxFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                                    )
+                                }
+                            }
+                        )
+
+                        Text(
+                            text = "万字",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
                 }
 
                 // e. 読了時間
@@ -492,33 +702,162 @@ fun DiscoverySearchScreen(
                 ) {
                     val current = draft.filters.time
                     FilterChipItem(
-                        selected = current == null,
+                        selected = current == null && !timeCustomActive,
                         label = "すべて",
                         onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(time = null)))
+                            timeCustomActive = false
+                            minTimeText = ""
+                            maxTimeText = ""
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.withTime(null)))
                         }
                     )
                     FilterChipItem(
                         selected = current == "-30",
                         label = "〜30分",
                         onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(time = if (current == "-30") null else "-30")))
+                            timeCustomActive = false
+                            val next = if (current == "-30") null else "-30"
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.withTime(next)))
                         }
                     )
                     FilterChipItem(
                         selected = current == "30-120",
                         label = "30分〜2時間",
                         onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(time = if (current == "30-120") null else "30-120")))
+                            timeCustomActive = false
+                            val next = if (current == "30-120") null else "30-120"
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.withTime(next)))
                         }
                     )
                     FilterChipItem(
-                        selected = current == "120-",
-                        label = "2時間〜",
+                        selected = current == "120-600",
+                        label = "2時間〜10時間",
                         onClick = {
-                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.copy(time = if (current == "120-") null else "120-")))
+                            timeCustomActive = false
+                            val next = if (current == "120-600") null else "120-600"
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.withTime(next)))
                         }
                     )
+                    FilterChipItem(
+                        selected = current == "600-",
+                        label = "10時間〜",
+                        onClick = {
+                            timeCustomActive = false
+                            val next = if (current == "600-") null else "600-"
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.withTime(next)))
+                        }
+                    )
+                    FilterChipItem(
+                        selected = timeCustomActive || isTimeCustom,
+                        label = "カスタム",
+                        onClick = {
+                            if (timeCustomActive) {
+                                timeCustomActive = false
+                                minTimeText = ""
+                                maxTimeText = ""
+                                viewModel.setSearchDraft(draft.copy(filters = draft.filters.withTime(null)))
+                            } else {
+                                timeCustomActive = true
+                                val range = buildCustomRange(minTimeText, maxTimeText, 60)
+                                viewModel.setSearchDraft(draft.copy(filters = draft.filters.withTime(range)))
+                            }
+                        }
+                    )
+                }
+
+                if (timeCustomActive || isTimeCustom) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                    ) {
+                        var isMinFocused by remember { mutableStateOf(false) }
+                        BasicTextField(
+                            value = minTimeText,
+                            onValueChange = { onTimeTextsChanged(it, maxTimeText) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .onFocusChanged { isMinFocused = it.isFocused },
+                            singleLine = true,
+                            textStyle = TextStyle(
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                            decorationBox = { innerTextField ->
+                                Column {
+                                    Box(
+                                        modifier = Modifier.padding(bottom = 4.dp),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        if (minTimeText.isEmpty()) {
+                                            Text(
+                                                text = "下限なし",
+                                                fontSize = 14.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
+                                    HorizontalDivider(
+                                        thickness = 1.dp,
+                                        color = if (isMinFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                                    )
+                                }
+                            }
+                        )
+
+                        Text(
+                            text = "〜",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        var isMaxFocused by remember { mutableStateOf(false) }
+                        BasicTextField(
+                            value = maxTimeText,
+                            onValueChange = { onTimeTextsChanged(minTimeText, it) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .onFocusChanged { isMaxFocused = it.isFocused },
+                            singleLine = true,
+                            textStyle = TextStyle(
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                            decorationBox = { innerTextField ->
+                                Column {
+                                    Box(
+                                        modifier = Modifier.padding(bottom = 4.dp),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        if (maxTimeText.isEmpty()) {
+                                            Text(
+                                                text = "上限なし",
+                                                fontSize = 14.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
+                                    HorizontalDivider(
+                                        thickness = 1.dp,
+                                        color = if (isMaxFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                                    )
+                                }
+                            }
+                        )
+
+                        Text(
+                            text = "時間",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
                 }
 
                 // f. 会話率

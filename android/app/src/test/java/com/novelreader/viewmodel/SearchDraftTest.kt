@@ -1,5 +1,6 @@
 package com.novelreader.viewmodel
 
+import com.novelreader.narou.model.NarouAttr
 import com.novelreader.narou.model.NarouLastup
 import com.novelreader.narou.model.NarouNovelType
 import org.junit.Assert.assertEquals
@@ -26,8 +27,8 @@ class SearchDraftTest {
             filters = SearchFilters(
                 type = NarouNovelType.KANKETSU,
                 lastup = NarouLastup.THISMONTH,
-                tensei = true,
-                excludeZankoku = true,
+                attrsInclude = setOf(NarouAttr.TENSEI),
+                attrsExclude = setOf(NarouAttr.ZANKOKU),
                 length = "100000-",
                 kaiwaritu = "60-",
             ),
@@ -38,9 +39,9 @@ class SearchDraftTest {
         assertFalse(query.inStory)
         assertEquals(NarouNovelType.KANKETSU, query.type)
         assertEquals(NarouLastup.THISMONTH, query.lastup)
-        assertTrue(query.tensei)
-        assertFalse(query.tenni)
-        assertTrue(query.excludeZankoku)
+        assertTrue(NarouAttr.TENSEI in query.attrsInclude)
+        assertFalse(NarouAttr.TENNI in query.attrsInclude)
+        assertTrue(NarouAttr.ZANKOKU in query.attrsExclude)
         assertEquals("100000-", query.length)
         assertEquals("60-", query.kaiwaritu)
         assertNull(SearchDraft(word = "  ").toQuery().word)
@@ -94,7 +95,40 @@ class SearchDraftTest {
         assertEquals(0, SearchFilters().activeCount())
         assertEquals(
             3,
-            SearchFilters(type = NarouNovelType.SHORT, tensei = true, time = "-30").activeCount()
+            SearchFilters(type = NarouNovelType.SHORT, attrsInclude = setOf(NarouAttr.TENSEI), time = "-30").activeCount()
         )
+    }
+
+    @Test
+    fun `buildCustomRange - 正常値・空欄・非数値・minとmaxの反転救済が正しく機能すること`() {
+        assertEquals("10000-100000", buildCustomRange("1", "10", 10000))
+        assertEquals("10000-100000", buildCustomRange("10", "1", 10000)) // 反転救済
+        assertEquals("50000-", buildCustomRange("5", "", 10000))
+        assertEquals("-50000", buildCustomRange("", "5", 10000))
+        assertNull(buildCustomRange("", "", 10000))
+        assertNull(buildCustomRange("abc", "def", 10000))
+    }
+
+    @Test
+    fun `parseCustomRange - 範囲文字列からUI用の値に正しく復元できること`() {
+        assertEquals(Pair("1", "10"), parseCustomRange("10000-100000", 10000))
+        assertEquals(Pair("5", ""), parseCustomRange("50000-", 10000))
+        assertEquals(Pair("", "5"), parseCustomRange("-50000", 10000))
+        assertEquals(Pair("", ""), parseCustomRange(null, 10000))
+        assertEquals(Pair("", ""), parseCustomRange("", 10000))
+        assertEquals(Pair("", ""), parseCustomRange("invalid", 10000))
+    }
+
+    @Test
+    fun `SearchFilters - lengthとtimeが相互排他されること`() {
+        // なぜ time と文字数指定の併用不可（マニュアル§4.4）＝両方送ったときの挙動が未定義のため、モデル層で同時に立たないことを保証する。
+        val f1 = SearchFilters(length = "10000-100000")
+        val f2 = f1.withTime("30-120")
+        assertNull(f2.length)
+        assertEquals("30-120", f2.time)
+
+        val f3 = f2.withLength("100000-")
+        assertNull(f3.time)
+        assertEquals("100000-", f3.length)
     }
 }

@@ -1,5 +1,6 @@
 package com.novelreader.ui.discovery
 
+import com.novelreader.narou.model.NarouAttr
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.NarouLastup
 import com.novelreader.narou.model.NarouNovelType
@@ -48,16 +49,15 @@ class DiscoveryQueryLabelsTest {
         val labels = conditionChipLabels(
             DiscoveryQuery(
                 order = NarouOrder.TOTAL,
-                tensei = true,
-                tenni = true,
-                excludeZankoku = true,
+                attrsInclude = setOf(NarouAttr.TENSEI, NarouAttr.TENNI),
+                attrsExclude = setOf(NarouAttr.ZANKOKU),
                 lastup = NarouLastup.SEVENDAY,
                 length = "100000-",
                 sasie = "1-",
             )
         )
         assertEquals(
-            listOf("転生・転移", "残酷描写を除く", "7日以内に更新", "10万字〜", "挿絵あり", "累計順"),
+            listOf("転生・転移", "残酷な描写を除く", "7日以内に更新", "10万字〜", "挿絵あり", "累計順"),
             labels
         )
     }

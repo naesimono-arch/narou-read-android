@@ -21,6 +21,15 @@ enum class NarouLastup(val apiValue: String, val uiLabel: String) {
     LASTMONTH("lastmonth", "先月"),
 }
 
+enum class NarouAttr(val isParam: String, val notParam: String, val uiLabel: String) {
+    TENSEI("istensei", "nottensei", "異世界転生"),
+    TENNI("istenni", "nottenni", "異世界転移"),
+    R15("isr15", "notr15", "R15"),
+    BL("isbl", "notbl", "ボーイズラブ"),
+    GL("isgl", "notgl", "ガールズラブ"),
+    ZANKOKU("iszankoku", "notzankoku", "残酷な描写"),
+}
+
 data class DiscoveryQuery(
     val order: NarouOrder = NarouOrder.WEEKLY,
     val word: String? = null,
@@ -32,9 +41,8 @@ data class DiscoveryQuery(
     val inWriter: Boolean = false,
     val biggenres: Set<Int> = emptySet(),
     val genres: Set<Int> = emptySet(),
-    val tensei: Boolean = false,       // istensei=1
-    val tenni: Boolean = false,        // istenni=1
-    val excludeZankoku: Boolean = false, // notzankoku=1
+    val attrsInclude: Set<NarouAttr> = emptySet(),
+    val attrsExclude: Set<NarouAttr> = emptySet(),
     val type: NarouNovelType? = null,
     val lastup: NarouLastup? = null,
     val time: String? = null,       // 読了時間(分)。"30-100"/"−30"は"-30"/"30-" 形式
@@ -60,9 +68,8 @@ data class DiscoveryQuery(
         parts.add("inWriter:$inWriter")
         parts.add("biggenres:${biggenres.sorted().joinToString(",")}")
         parts.add("genres:${genres.sorted().joinToString(",")}")
-        parts.add("tensei:$tensei")
-        parts.add("tenni:$tenni")
-        parts.add("excludeZankoku:$excludeZankoku")
+        parts.add("attrsInclude:${attrsInclude.map { it.name }.sorted().joinToString(",")}")
+        parts.add("attrsExclude:${attrsExclude.map { it.name }.sorted().joinToString(",")}")
         parts.add("type:${type?.name.orEmpty()}")
         parts.add("lastup:${lastup?.name.orEmpty()}")
         parts.add("time:${time.orEmpty()}")

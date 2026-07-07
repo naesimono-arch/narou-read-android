@@ -1,5 +1,6 @@
 package com.novelreader.viewmodel
 
+import com.novelreader.narou.model.NarouAttr
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.NarouLastup
 import com.novelreader.narou.model.NarouNovelType
@@ -12,9 +13,8 @@ import com.novelreader.narou.model.NarouNovelType
 data class SearchFilters(
     val type: NarouNovelType? = null,       // D4 作品の形
     val lastup: NarouLastup? = null,        // D5 期間
-    val tensei: Boolean = false,            // D2 異世界転生
-    val tenni: Boolean = false,             // D2 異世界転移
-    val excludeZankoku: Boolean = false,    // D2 残酷描写を除く
+    val attrsInclude: Set<NarouAttr> = emptySet(),
+    val attrsExclude: Set<NarouAttr> = emptySet(),
     val length: String? = null,             // D3 文字数
     val time: String? = null,               // D3 読了時間
     val kaiwaritu: String? = null,          // D3 会話率
@@ -27,14 +27,23 @@ data class SearchFilters(
         var n = 0
         if (type != null) n++
         if (lastup != null) n++
-        if (tensei) n++
-        if (tenni) n++
-        if (excludeZankoku) n++
+        n += attrsInclude.size
+        n += attrsExclude.size
         if (length != null) n++
         if (time != null) n++
         if (kaiwaritu != null) n++
         if (sasie != null) n++
         return n
+    }
+
+    // なぜ time と文字数指定の併用不可（マニュアル§4.4）＝両方送ったときの挙動が未定義のため、モデル層で同時に立たないことを保証する。
+    fun withLength(v: String?): SearchFilters {
+        return copy(length = v, time = null)
+    }
+
+    // なぜ time と文字数指定の併用不可（マニュアル§4.4）＝両方送ったときの挙動が未定義のため、モデル層で同時に立たないことを保証する。
+    fun withTime(v: String?): SearchFilters {
+        return copy(time = v, length = null)
     }
 }
 
@@ -66,9 +75,8 @@ data class SearchDraft(
         inWriter = inWriter,
         type = filters.type,
         lastup = filters.lastup,
-        tensei = filters.tensei,
-        tenni = filters.tenni,
-        excludeZankoku = filters.excludeZankoku,
+        attrsInclude = filters.attrsInclude,
+        attrsExclude = filters.attrsExclude,
         length = filters.length,
         time = filters.time,
         kaiwaritu = filters.kaiwaritu,
@@ -78,6 +86,49 @@ data class SearchDraft(
     /** 結果一覧の見出し。検索語があれば「「word」」、条件のみなら固定文言。 */
     fun resultTitle(): String =
         word.trim().takeIf { it.isNotBlank() }?.let { "「$it」" } ?: "条件で探す"
+}
+
+/**
+ * カスタム範囲の文字列表現を組み立てる。
+ * 数値化できない入力は無視。min>maxの場合は入れ替えて救済する。
+ */
+fun buildCustomRange(minText: String, maxText: String, unitMultiplier: Int): String? {
+    val minVal = minText.trim().toIntOrNull()
+    val maxVal = maxText.trim().toIntOrNull()
+
+    if (minVal == null && maxVal == null) return null
+
+    val resolvedMin = minVal?.let { it * unitMultiplier }
+    val resolvedMax = maxVal?.let { it * unitMultiplier }
+
+    return when {
+        resolvedMin != null && resolvedMax != null -> {
+            if (resolvedMin > resolvedMax) {
+                "$resolvedMax-$resolvedMin"
+            } else {
+                "$resolvedMin-$resolvedMax"
+            }
+        }
+        resolvedMin != null -> "$resolvedMin-"
+        resolvedMax != null -> "-$resolvedMax"
+        else -> null
+    }
+}
+
+/**
+ * 組み立てられた範囲文字列を元のUI用数値テキストのペアに分解する。
+ */
+fun parseCustomRange(raw: String?, unitDivisor: Int): Pair<String, String> {
+    if (raw == null) return Pair("", "")
+    val parts = raw.split("-")
+    if (parts.size != 2) return Pair("", "")
+
+    val minVal = parts[0].toIntOrNull()?.let { it / unitDivisor }
+    val maxVal = parts[1].toIntOrNull()?.let { it / unitDivisor }
+
+    val minText = minVal?.toString() ?: ""
+    val maxText = maxVal?.toString() ?: ""
+    return Pair(minText, maxText)
 }
 
 /**

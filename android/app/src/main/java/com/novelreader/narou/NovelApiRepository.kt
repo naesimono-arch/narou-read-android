@@ -3,6 +3,7 @@ package com.novelreader.narou
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.DiscoveryResult
 import com.novelreader.narou.model.NarouNovel
+import com.novelreader.narou.model.NarouAttr
 import com.novelreader.narou.network.NarouApiService
 import com.novelreader.narou.network.NarouNetwork
 import retrofit2.HttpException
@@ -98,13 +99,34 @@ class NovelApiRepository(
             val biggenreParam = query.biggenres.takeIf { it.isNotEmpty() }?.sorted()?.joinToString("-")
             val genreParam = query.genres.takeIf { it.isNotEmpty() }?.sorted()?.joinToString("-")
 
+            // 同一属性が include と exclude の両方にある場合、無害化のため両側から除外する
+            // なぜ：UI側でガードするが、万一混入すると isX=1&notX=1 で結果が空になり原因を追えないため防御的に落とす。
+            val resolvedInclude = query.attrsInclude.filter { it !in query.attrsExclude }.toSet()
+            val resolvedExclude = query.attrsExclude.filter { it !in query.attrsInclude }.toSet()
+
             // なぜ istt を特別に判定するか:
             // なろうAPIでは istensei=1 と istenni=1 を同時に指定すると「かつ(AND)」になってしまい、
             // どちらか一方のみを満たす作品が除外されるため、両方 true の場合は「または(OR)」を意味する istt=1 を使用する。
-            val isttParam = if (query.tensei && query.tenni) 1 else null
-            val istenseiParam = if (query.tensei && !query.tenni) 1 else null
-            val istenniParam = if (query.tenni && !query.tensei) 1 else null
-            val notzankokuParam = if (query.excludeZankoku) 1 else null
+            val hasTensei = NarouAttr.TENSEI in resolvedInclude
+            val hasTenni = NarouAttr.TENNI in resolvedInclude
+            val isttParam = if (hasTensei && hasTenni) 1 else null
+            val istenseiParam = if (hasTensei && !hasTenni) 1 else null
+            val istenniParam = if (hasTenni && !hasTensei) 1 else null
+
+            val nottenseiParam = if (NarouAttr.TENSEI in resolvedExclude) 1 else null
+            val nottenniParam = if (NarouAttr.TENNI in resolvedExclude) 1 else null
+
+            val iszankokuParam = if (NarouAttr.ZANKOKU in resolvedInclude) 1 else null
+            val notzankokuParam = if (NarouAttr.ZANKOKU in resolvedExclude) 1 else null
+
+            val isr15Param = if (NarouAttr.R15 in resolvedInclude) 1 else null
+            val notr15Param = if (NarouAttr.R15 in resolvedExclude) 1 else null
+
+            val isblParam = if (NarouAttr.BL in resolvedInclude) 1 else null
+            val notblParam = if (NarouAttr.BL in resolvedExclude) 1 else null
+
+            val isglParam = if (NarouAttr.GL in resolvedInclude) 1 else null
+            val notglParam = if (NarouAttr.GL in resolvedExclude) 1 else null
 
             val list = service.search(
                 of = OF_LIST,
@@ -121,7 +143,16 @@ class NovelApiRepository(
                 istensei = istenseiParam,
                 istenni = istenniParam,
                 istt = isttParam,
+                nottensei = nottenseiParam,
+                nottenni = nottenniParam,
+                iszankoku = iszankokuParam,
                 notzankoku = notzankokuParam,
+                isr15 = isr15Param,
+                notr15 = notr15Param,
+                isbl = isblParam,
+                notbl = notblParam,
+                isgl = isglParam,
+                notgl = notglParam,
                 type = query.type?.apiValue,
                 lastup = query.lastup?.apiValue,
                 time = query.time,
