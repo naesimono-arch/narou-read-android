@@ -6,7 +6,7 @@
 
 ## 0. 現在の状態（一次情報）
 
-- branch=`main` / 統合ノード=`788a18f`（2026-07-07 に完了3ブランチを --no-ff 統合＝`meta/tooling-improvements`(フック情報提示修正・architectureスキル圧縮・ADR0007)＋`feat/processing-resilience`(停止のページ境界即中断・強制終了リカバリ・Room v7→v8)＋`feat/bookshelf-reflow-anim`(animateItem詰め直しアニメ・Compose BOM 2025.02.00)。統合後にこの3本のローカルブランチ・worktree は削除済み。API系 `api-lab`/`api-lab-ai` は開発中のため不可侵で残置。未push＝origin より ahead 130。前身の 2026-07-06 統合＝`feat/exec-fabrication-detector`＝実行捏造検知フック＋`kotlin`＝Chaquopy→PDFBox 移植）
+- branch=`main` / 統合ノード=`fd758df`＋後続docs2件（2026-07-08 に API系全ブランチを `integrate/merge-all-20260708` 経由で --no-ff 統合＝`api-lab-ai-2`(発見・検索の全実装＝トランク＋chrisbanes残指摘対応6コミット)＋`api-lab-ai`(Custom Tabs導線)＋`api-lab-ai-3`(なろう規約線docs)。`api-lab` は api-lab-ai に完全包含。統合に伴い **Room を v10 へ再退避**（実機の branch 版 v9 hash との合併衝突回避＝`236b32c`・task_diary #39 追補）、task_diary の二重採番3件を解消（なろうAPI系 #42→#46・#44→#47／フック配線側 #39→#48＝移設マッピング表）。未push＝origin より ahead 76。前身の統合ノード＝`788a18f`（2026-07-07・meta/tooling-improvements＋processing-resilience＋bookshelf-reflow-anim）・2026-07-06＝exec-fabrication-detector＋kotlin）
 - **✅ `meta/hallucination-classifier-v3`（2026-07-07）＝実行捏造検知器 v3: 入力側捏造（正解データ事象H・I）対応の Tier D 新設**:
   存在しないユーザー発話を捏造しそれを根拠に行動する新型（幻の叱責への謝罪・不存在発話の引用符付き引用・幻の不具合報告での指示違反ピボット）への対応。v1/v2 の Tier A/B/C は全て出力側（実行報告⇄実結果）の照合で、入力側は構造的にカバー外だった。①実在人間入力の索引化 `collect_human_inputs`（user human 入力［task-notification 等ハーネス著者の user-str は除外］／queued_command(origin.kind=human)／**AskUserQuestion 回答**［含めないと正当応答が偽陽性化＝較正実測］／summary）②Tier D 3ルール（D1 `fabricated_user_quote`＝引用の正規化部分一致突合／D2 `fabricated_user_report`＝重要数値[2桁以上 or 小数]を human∪主張以前の result 層と突合／D3 `phantom_user_response`＝冒頭の同意・謝罪マーカー×直前入力区間の human 欠落）③軸2＝thinking signature 異常（G/H/I 共通前兆・通常比5〜30倍）は較正実測により**単独ルール化せず** D3 の active 昇格条件（baseline=先行発話 sig の p25、`sig≥max(15000, baseline×8)`）に限定 ④メタ議論降格（台帳・検知器を扱う本リポジトリでは実例引用が最大 FP 源）とクロスセッション参照降格。**検証**: 正解データ H 2/3（L43 パラフレーズ型は突合不能で設計上対象外＝台帳も加点扱い）・I 1/1・slug 全128ファイル走査（8MB超7本含む）で偽陽性ゼロ・**新規検知1件（177f88f3 L195＝人間レビューで確定し台帳 J 事象として登録・検知器起点の初事例・入力側捏造の初出は 2026-07-02 に遡ると判明）**・既存 A/B/C 判定は全セッションで不変・フックテスト97件緑。Stop フック昇格は未実施（CLI 運用実績を見てから＝段階導入）。詳細=ADR 0006 増補2／handover 検知器節。
 - **✅ `meta/hallucination-detector-tune`（2026-07-07）＝実行捏造検知器 v2: misread 型（正解データ事象F）対応の Tier C 新設**:
@@ -17,7 +17,7 @@
   実機3/3（v7→v8 migration・停止2秒以内即中断・強制終了→再起動で自動再開完走）の詳細ログ・機序は handover A／task_diary 参照。
 - **抽出パイプライン＝純 Kotlin（PDFBox-Android）単独**。Chaquopy/Python は Phase 5（2026-07-05）で完全撤去＝`git revert` での即復旧は不可（git 履歴からの復元は可能）。APK 67.3→24.2MiB。
 - テスト: `testDebugUnitTest` 113件緑（統合済みツリーで確認）。実機の恒久精度回帰ゲート＝`PdfExtractorDeviceSpikeTest`（N6169DZ 含む3件通過済み）。
-- 端末DB=`user_version 7`→**コードは v8**（`pending_jobs` 新設・上記②）＝次回実機 install で v7→v8 migration が走る（v6→v7 で `books.addedAt`／`progress.lastReadAt` 追加済み）。⚠️ **旧APKへ逆走すると `migration N→N-1 not found` でクラッシュ＝逆走禁止**（古い→新しいの一方向のみ）。
+- 端末DB=`user_version 9`（api-lab-ai 系ビルドで v9 化済み＝schemas/9.json がその identity hash の記録）→**コードは v10**（2026-07-08 統合で PendingJobEntity＋ncode を合併し、hash 再スタンプの no-op `MIGRATION_9_10` で v10 へ退避）＝次回実機 install で 9→10 migration が走る。⚠️ **旧APKへ逆走すると `migration N→N-1 not found` でクラッシュ＝逆走禁止**（古い→新しいの一方向のみ）。
 - 既知バグ: なし（**#1 ルビ位置ずれは 2026-07-02 解消**＝`90d037a`。根本原因と1.6系APIの制約は `task_diary.md` #43）。
 - 実機: OPPO PGEM10 `192.168.1.210:5555` 接続済み（切れたら `adb-bridge`）。検証ワークフローは `[[workflow-autonomous-device-verification]]`（Claudeがadb自律駆動）/ `[[workflow-notify-each-step-visual-check]]`（各ステップで目視関門）。
 - Kotlin 移植（Phase 1〜5）の経緯・実機検証の詳細 → §1 先頭項＋一次情報 plan `.claude/plans/kotrin-branch-python-kotrin-graceful-flute-archived-2026-07-06.md`。
