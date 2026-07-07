@@ -46,10 +46,13 @@ private fun BookProgressRow(
     totalChaps: Int,
     progressFraction: Float?,
     flexBar: Boolean,
+    modifier: Modifier = Modifier,
 ) {
+    // 進捗の有無で描画ルート（Row/Text）が分岐するため、呼び出し側の modifier は
+    // 実際に描画される側のルートへ適用する（どちらが出ても配置指定が効くように）。
     if (progressFraction != null) {
         val percent = (progressFraction * 100).toInt()
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "${totalChaps}話",
                 fontSize = 11.sp,
@@ -75,6 +78,7 @@ private fun BookProgressRow(
         // 未読は青磁。素地上で低コントラスト（モック意図の「静かに沈める」）＝完全準拠のトレードオフ。
         Text(
             text = "未読",
+            modifier = modifier,
             fontSize = 11.sp,
             letterSpacing = 0.8.sp,
             color = MaterialTheme.colorScheme.secondary,

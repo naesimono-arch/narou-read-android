@@ -24,9 +24,11 @@ import com.novelreader.viewmodel.ProcessingState
 // 空状態（本が1冊もないとき）
 // ============================================================
 @Composable
-internal fun EmptyBookshelf(onAddClick: () -> Unit) {
+internal fun EmptyBookshelf(onAddClick: () -> Unit, modifier: Modifier = Modifier) {
+    // サイズ（fillMaxSize 等）は配置を決める親の責務のため呼び出し側から渡す。
+    // 内部で固定すると別の余白・配置で再利用できなくなるため root では固定しない。
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier,
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -80,10 +82,15 @@ internal fun EmptyBookshelf(onAddClick: () -> Unit) {
 // 処理中バナー（TopAppBar直下からスライドイン）
 // ============================================================
 @Composable
-internal fun ProcessingBanner(processingState: ProcessingState, onStop: () -> Unit) {
+internal fun ProcessingBanner(
+    processingState: ProcessingState,
+    onStop: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // 幅（fillMaxWidth）は親が決める配置の責務のため呼び出し側から渡す。root では固定しない。
     Surface(
         color = MaterialTheme.colorScheme.primaryContainer,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),

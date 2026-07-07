@@ -272,6 +272,8 @@ fun BookshelfScreen(
                         processingState = processingState,
                         onStop = { viewModel.cancelProcessing() },
                     )
+                        // 幅指定は呼び出し側の責務。従来の内部 fillMaxWidth と同じ描画を維持。
+                        modifier = Modifier.fillMaxWidth(),
                 }
             }
         },
@@ -294,8 +296,8 @@ fun BookshelfScreen(
                 .padding(padding),
         ) {
             if (books.isEmpty() && !isProcessing) {
-                // 空状態
-                EmptyBookshelf(onAddClick = onFabClick)
+                // 空状態。サイズ指定は呼び出し側の責務。従来の内部 fillMaxSize と同じ描画を維持。
+                EmptyBookshelf(onAddClick = onFabClick, modifier = Modifier.fillMaxSize())
             }
 
             if (isGridView) {
