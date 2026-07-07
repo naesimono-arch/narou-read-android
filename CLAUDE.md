@@ -47,11 +47,11 @@ Jetpack Compose + Kotlin ネイティブ PDF 抽出（PDFBox-Android）。
 - **実機で検証する作業（adb操作・APK投入・androidTest実行・実機DB確認）が発生したら → 必ず `/device-verify` スキルを最初に実行すること**（connectedAndroidTest 直叩きによる蔵書DB消失などの禁忌を含む）
 - PDF解析の定数・ルール → `android/app/src/main/java/com/novelreader/pdf/ParserRules.kt` を直接参照
 - OPPO/ColorOS 固有動作 → `/device-verify` スキル（§4 の症状→対処表）経由で `task_diary.md` を参照
-- Claude Code のフック（`.claude/hooks/`）を新規作成・改修するときは → 先に `task_diary.md` の「Claude Code フック」節（#26 stdin cp932 文字化け・#28 PostToolUse stdout 不達）と `docs/decisions/0004`（matcher範囲・ブランチ跨ぎ破綻）・`0007`（フックは並列実行・検知正規表現は hooks_common.py の単一定義）を必ず確認すること（いずれも**サイレント失敗クラス**＝踏むと長期間気づけないため、既存フックの雛形コピーだけで書き始めない）
+- Claude Code のフック（`.claude/hooks/`）を新規作成・改修するときは → 先に `task_diary.md` の「Claude Code フック」節（#26 stdin cp932 文字化け・#28 PostToolUse stdout 不達）と `docs/decisions/0004`（matcher範囲・ブランチ跨ぎ破綻）・`0008`（フックは並列実行・検知正規表現は hooks_common.py の単一定義。旧0007）を必ず確認すること（いずれも**サイレント失敗クラス**＝踏むと長期間気づけないため、既存フックの雛形コピーだけで書き始めない）
 - **agy(Antigravity) 委譲の実行者向けブリーフィング → `AGENTS.md`（agy が自動注入で読む）＋ `.agents/`（hooks＝禁忌コマンドの機械的ガード）**。監督側の委譲運用（--dir 必須・モデル選定）は auto-memory の `agy-*` 系を参照
 - 実行捏造ハルシネーション検知器（トランスクリプト静的解析）→ エンジン `.claude/hooks/detect_fabricated_execution_core.py`／CLI `analyze_transcript.py`。既知の実ハルシネーション正解データ（検証・回帰用）→ `docs/reference/hallucination-ground-truth.md`
   - **ユーザーから「（このセッションの）ハルシネーションを記載して」と頼まれたら → `docs/reference/hallucination-ground-truth.md` に追記する**（正本はここ。他所には書かない。追記手順は同ファイル冒頭「追記手順」を参照）。
-- **方式選定・アーキ判断で代替案を比較するときは → まず `docs/decisions/`（README 索引）で既存の判断・Why-not を確認すること**。判断が下りたら（**不採用の判断・コミットを生まない判断も含め**）ADR 化を検討する——「採用しなかった理由」も1件の ADR（例: 0007）。
+- **方式選定・アーキ判断で代替案を比較するときは → まず `docs/decisions/`（README 索引）で既存の判断・Why-not を確認すること**。判断が下りたら（**不採用の判断・コミットを生まない判断も含め**）ADR 化を検討する——「採用しなかった理由」も1件の ADR（例: 0008）。
 - **管理ドキュメントの体系**（役割で分離。混ぜないこと）:
   - **今どうなっているか（状態・完了・既知不具合）→ `STATUS.md`**（現況台帳＝正本）
   - **次に何をやるか（backlog・思いつき・取りこぼし）→ `handover.md`**（やること台帳。**作業に悩んだらまず見る**／拾った宿題はここへ追記）

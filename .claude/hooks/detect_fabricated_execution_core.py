@@ -28,7 +28,7 @@ import re
 from dataclasses import dataclass, field, asdict
 from typing import Any, Dict, List, Optional, Tuple
 
-# コミット系コマンドの検知は hooks_common の単一定義を流用（ADR 0007: 検知正規表現の複製禁止）。
+# コミット系コマンドの検知は hooks_common の単一定義を流用（ADR 0008（旧0007）: 検知正規表現の複製禁止）。
 # hooks_common は import 副作用なし（wrap_stdio を呼ばない限り stdio を触らない）。
 import hooks_common
 

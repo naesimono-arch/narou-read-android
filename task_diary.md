@@ -274,7 +274,9 @@ Kotlinエラーではないため原因が分かりにくい。
 
 ---
 
-### 43. KDoc 内の `[...]` はリンク構文としてパースされ、範囲表記がコンパイルエラーになる（コメントがビルドを壊す）  ★★
+### 49. KDoc 内の `[...]` はリンク構文としてパースされ、範囲表記がコンパイルエラーになる（コメントがビルドを壊す）  ★★
+
+> ※ 旧 `#43`。Compose 側 #43（getLineTop・#28 からの再採番先）と番号が重複していたため `#49` へ再採番（移設マッピング表参照）。
 
 Kotlin(K2) は KDoc（`/** */`）内の `[...]` を要素リンクとして構文解析する。範囲のつもりで `[i..j]`（iドットドットj をブラケットで囲む）と書くと `e: ... Closing bracket expected` の**コンパイルエラー**で kspDebugKotlin/compileKotlin が落ちる（2026-07-07 `SearchDraft.kt` で実測）。行コメント `//` 内は自由。KDoc で範囲・添字を書くときはブラケットを外す。エラー行番号が KDoc の行を指していても「コメントは無害」という思い込みがあると原因特定が遅れる。
 
@@ -594,6 +596,7 @@ Phase 4 精度回帰ゲート(`PdfExtractorDeviceSpikeTest`)の ≤15版クリ�
 | #42（重複・なろうAPI側） | type のハイフンOR指定はサイレント無視 | 同ファイル `#46` へ再採番（2026-07-07 に main メタ系（eaa4b23 02:56＝JSONL構造）と api-lab 系（8d09e7a 12:01）が同日別ラインで #42 を採番→2026-07-08 の main 統合で衝突。先発の main 側を維持し、参照2件（STATUS-api-lab・architecture スキル）を張り替え） |
 | #44（重複・なろうAPI側） | レスポンスキー名が of 指定で変わる（noveltype↔novel_type） | 同ファイル `#47` へ再採番（同上＝main 側 #44（fail-open 陽性コントロール）が先発のため維持。#45 は api-lab-ai-3 のなろう規約エントリが使用済みのため欠番にしない） |
 | #39（重複・フック配線側） | settings.json の hooks 配線変更はセッション再起動まで無反映 | 同ファイル `#48` へ再採番（2026-07-08 統合で main（a22cccb・先発）と api-lab 系（4aaf14e・Room version 衝突）の二重採番が衝突。フック側が先発だが参照は台帳内4件のみで、Room 側はコード注釈（AppDatabase.kt）・db-migration スキル・STATUS-api-lab・不変のコミットメッセージ（06d0fe7 等）に定着済みのため、**例外的に先発側を移動**（張り替えゼロ＝参照切れ最小化を優先） |
+| #43（重複・なろうAPI側） | KDoc 内の `[...]` はリンク構文としてパースされ範囲表記がコンパイルエラー | 同ファイル `#49` へ再採番（2026-07-07 に Compose 側の #28→#43 **再採番**と api-lab 系の #43 **新規採番**が同日別レーンで発生し統合で衝突→2026-07-08 stale-check の diary_id 検査で検出・解消。getLineTop 側は STATUS 参照3件＋本表 #28 行に定着済みのため維持し、STATUS-api-lab 参照1件のみのなろう側を移動。教訓＝**再採番の移動先も新規採番と同じく全レーン確認の対象**） |
 | §20 | Atomic Commit は実装順序から設計する | `docs/decisions/0003-atomic-commit-from-impl-order.md` |
 | §21 | ProcessingState への一本化 | `docs/patterns/processing-state.md` |
 | §22 | Hilt / UseCase 層 不採用（Why-not） | `docs/decisions/0001-no-hilt.md` ・ `docs/decisions/0002-no-usecase-layer.md` |

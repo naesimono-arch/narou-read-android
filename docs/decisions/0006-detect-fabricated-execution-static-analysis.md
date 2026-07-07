@@ -62,7 +62,7 @@ v1 は 5件全てを空振りした。空振りの機序は2つで、いずれ�
 
 **Tier C（4ルール・すべて「操作カテゴリ別の物証」の存在照合）**:
 - `completion_after_blocked_commit`（F①）: フックにブロックされた `git commit/merge`（コマンド判定は
-  hooks_common の単一定義を流用＝ADR 0007）が、成功の再試行なしに「完了」報告される。
+  hooks_common の単一定義を流用＝ADR 0008（旧0007））が、成功の再試行なしに「完了」報告される。
 - `fabricated_output_signature`（F④）: git 実出力にしか現れないシグネチャ（`[deleted]`・`Deleted branch`
   等）の引用が、主張以前の実 result のどこにも無い。
 - `unverified_write_claim`（F⑤）: 対象を特定できる「書き込み完了」断言（ファイル名明示 or auto-memory）

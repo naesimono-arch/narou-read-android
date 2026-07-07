@@ -15,7 +15,7 @@ PostToolUse hook: fix:/feat:/refactor: コミット時に「知見の置き場�
   「不採用にした代替案（Why-not）」はコミットを生まないか refactor: に乗ることが多く、
   fix:/feat: 限定では想起が一度も発火しない＝ADR 化の取りこぼしが実地で発生した
   （フック単一ディスパッチャ不採用の判断が refactor コミット e4ff7f7 に乗り、
-  人間レビューで初めて ADR 0007 として回収された）。docs:/chore:/style:/test: は
+  人間レビューで初めて ADR 0008（旧0007）として回収された）。docs:/chore:/style:/test: は
   知見が生まれにくくノイズ源になるため引き続き対象外。
 
 出力方式（重要）:
