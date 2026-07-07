@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -38,6 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -410,8 +412,13 @@ fun DiscoverySearchScreen(
     }
 
     if (showSheet) {
+        // why: 中間アンカー(PartiallyExpanded)を消す。残すと ①高速フリックで中間を飛び越え/行き過ぎる
+        // ②カスタム入力でIMEが出て adjustResize によりウィンドウが縮むと、アンカー再計算で全開から
+        // 中間へ勝手に settle して「最上位まで開いたシートが真ん中まで落ちる」不具合になるため。
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ModalBottomSheet(
             onDismissRequest = { showSheet = false },
+            sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.background,
             dragHandle = {
                 Box(
@@ -488,6 +495,9 @@ fun DiscoverySearchScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    // why: 文字数/読了時間のカスタム入力でIMEが出た際、IME inset分をシート内容側で吸収し
+                    // 入力欄がキーボードに隠れないようにする（NcodeLinkSheet と同じ対処。この画面だけ抜けていた）。
+                    .imePadding()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 24.dp, vertical = 18.dp)
             ) {
