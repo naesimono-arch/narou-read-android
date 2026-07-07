@@ -12,6 +12,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -364,5 +365,26 @@ class DiscoveryViewModelTest {
         assertEquals(emptySet<Int>(), updatedCtx?.query?.biggenres)
         assertEquals(emptySet<Int>(), updatedCtx?.query?.genres)
         coVerify { mockRepo.discover(match { it.biggenres.isEmpty() && it.genres.isEmpty() }) }
+    }
+
+    @Test
+    fun `setHomeOrder - 先行ロードの遅い応答が後発タブの結果を上書きしないこと`() = runTest {
+        // なぜこの回帰テストか: ロードが前ジョブをキャンセルしないと、遅い旧クエリの応答が後着して
+        // 「タブは新・リスト本体は旧」の食い違い表示になる（応答の完了順は要求順を保証しない）。
+        coEvery { mockRepo.discover(match { it.order == NarouOrder.WEEKLY }) } coAnswers {
+            delay(1_000) // 旧クエリ＝低速応答を模す
+            DiscoveryResult(1, listOf(NarouNovel(title = "週間の結果")))
+        }
+        coEvery { mockRepo.discover(match { it.order == NarouOrder.DAILY }) } returns
+            DiscoveryResult(1, listOf(NarouNovel(title = "日間の結果")))
+
+        viewModel = DiscoveryViewModel(mockApp)
+        viewModel.ensureHomeLoaded()                // WEEKLY 発火（delay で保留中）
+        viewModel.setHomeOrder(NarouOrder.DAILY)    // 切替＝DAILY は即完了
+        testDispatcher.scheduler.advanceUntilIdle() // 保留中の WEEKLY を進める（キャンセル済なら状態を書かない）
+
+        val state = viewModel.homeState.value
+        assertTrue(state is DiscoveryUiState.Content)
+        assertEquals("日間の結果", (state as DiscoveryUiState.Content).novels.first().title)
     }
 }

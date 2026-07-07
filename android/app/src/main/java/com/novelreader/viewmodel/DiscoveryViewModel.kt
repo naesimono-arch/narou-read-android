@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -51,6 +52,12 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
     val homeState: StateFlow<DiscoveryUiState> = _homeState.asStateFlow()
 
     private var homeLoadRequested = false
+
+    // なぜ Job を保持してキャンセルするか: 先行ロードを走らせたまま新ロードを launch すると、
+    // 遅い旧クエリの応答が後着したとき「タブ・見出しは新、リスト本体は旧」の食い違い表示になる
+    // （応答の完了順は要求順を保証しない）。キャンセルで「最後の要求だけが状態を書く」を構造的に保証する。
+    private var homeLoadJob: Job? = null
+    private var resultLoadJob: Job? = null
 
     /**
      * ホームのランキングを初回のみロードする（画面表示時に呼ぶ）。
@@ -122,7 +129,8 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun loadResult() {
         val ctx = _resultContext.value ?: return
-        viewModelScope.launch {
+        resultLoadJob?.cancel()
+        resultLoadJob = viewModelScope.launch {
             _resultState.value = DiscoveryUiState.Loading
             _resultState.value = fetch(ctx.query)
         }
@@ -184,7 +192,8 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun loadHome() {
-        viewModelScope.launch {
+        homeLoadJob?.cancel()
+        homeLoadJob = viewModelScope.launch {
             _homeState.value = DiscoveryUiState.Loading
             _homeState.value = fetch(DiscoveryQuery(order = _homeOrder.value))
         }
