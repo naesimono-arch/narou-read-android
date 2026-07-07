@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [BookEntity::class, ProgressEntity::class, PendingJobEntity::class],
-    version = 9,
+    version = 10,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -119,12 +119,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v9→v10: スキーマ無変更の identity hash 再スタンプ専用（DDL なし）。
+         *  なぜ必要か: version 9 は api-lab-ai 系（PendingJobEntity 未登録＝schemas/9.json がその記録）が
+         *  先に消費し、実機は既にその identity hash で v9 化済み。マージ合併で PendingJobEntity を登録した
+         *  本スキーマを同じ version 9 のまま入れると、migration は走らず hash 照合だけが行われ
+         *  起動即クラッシュする（task_diary #39 と同機序の「マージ時」変種＝同 #39 追補）。
+         *  v10 へ上げるとこの no-op が走り、実テーブル（7→8 の pending_jobs／8→9 の ncode）は
+         *  そのまま検証を通って新 hash が再記録される。 */
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // 意図的に何もしない（上記コメント参照）
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
                     .addMigrations(
                         MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
-                        MIGRATION_7_8, MIGRATION_8_9,
+                        MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
                     )
                     .build()
                     .also { INSTANCE = it }
