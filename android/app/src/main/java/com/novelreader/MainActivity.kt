@@ -160,6 +160,17 @@ private fun NovelReaderApp(
             NovelDetailScreen(
                 ncode = ncode,
                 viewModel = viewModel(),
+                onKeywordTap = { kw ->
+                    discoveryViewModel.openResult(ResultContext(
+                        title = "「$kw」", subtitle = "キーワードから",
+                        source = ResultSource.KEYWORD,
+                        query = DiscoveryQuery(word = kw, inKeyword = true),
+                    ))
+                    navController.navigate("discovery/result") {
+                        // why: resultContext は VM 単一保持のため、result をスタックに重ねると戻ったとき別の結果が表示される。popUpTo で result を常に1枚に保ち、状態と画面スタックを整合させる。
+                        popUpTo("discovery/result") { inclusive = true }
+                    }
+                },
                 onBack = { navController.popBackStack() },
             )
         }

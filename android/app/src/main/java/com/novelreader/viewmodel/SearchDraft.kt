@@ -160,3 +160,26 @@ fun SearchDraft.withRangeToggled(range: SearchRange): SearchDraft {
         SearchRange.WRITER -> copy(inWriter = !inWriter)
     }
 }
+
+/**
+ * 半角・全角スペース区切りのトークン集合として、指定したトークンが含まれているか判定する。
+ */
+fun containsWordToken(word: String, token: String): Boolean {
+    val tokens = word.split(Regex("[\\s　]+")).filter { it.isNotEmpty() }
+    return tokens.contains(token)
+}
+
+/**
+ * 半角・全角スペース区切りのトークン集合から、指定したトークンをトグル（追加・除去）する。
+ * 追加時は末尾に半角スペース区切りで追加し、除去時は余分な空白を正規化する。
+ */
+fun toggleWordToken(word: String, token: String): String {
+    val tokens = word.split(Regex("[\\s　]+")).filter { it.isNotEmpty() }.toMutableList()
+    if (tokens.contains(token)) {
+        tokens.remove(token)
+    } else {
+        tokens.add(token)
+    }
+    return tokens.joinToString(" ")
+}
+

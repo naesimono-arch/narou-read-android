@@ -68,6 +68,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.novelreader.narou.model.NarouLastup
 import com.novelreader.narou.model.NarouNovelType
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.narou.model.NarouCuratedKeywords
+import com.novelreader.viewmodel.containsWordToken
+import com.novelreader.viewmodel.toggleWordToken
 import com.novelreader.viewmodel.DiscoveryViewModel
 import com.novelreader.viewmodel.SearchFilters
 import com.novelreader.viewmodel.SearchRange
@@ -302,6 +305,48 @@ fun DiscoverySearchScreen(
                                 onWordClick = { if (viewModel.searchFromHistory(word)) onSearchExecuted() },
                                 onPinClick = { viewModel.pinWord(word) },
                                 onDelete = { viewModel.removeRecentWord(word) },
+                            )
+                        }
+                    }
+                }
+
+                Text(
+                    text = "キーワードから選ぶ",
+                    fontSize = 10.5.sp,
+                    letterSpacing = 3.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 28.dp, bottom = 12.dp)
+                )
+
+                NarouCuratedKeywords.categories.forEach { category ->
+                    SectionHeader(text = category.title)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        category.words.forEach { word ->
+                            val selected = containsWordToken(draft.word, word)
+                            FilterChipItem(
+                                selected = selected,
+                                label = word,
+                                onClick = {
+                                    val nextWord = toggleWordToken(draft.word, word)
+                                    val isAdding = !selected
+                                    val nextInKeyword = if (isAdding) {
+                                        // why: キュレーション語は作者タグの語彙のため、範囲に keyword を含めないとタイトル一致のみとなり大半を取りこぼす。範囲チップの状態変化として見える形で広げる（ADR 0007 原則2と両立）
+                                        true
+                                    } else {
+                                        draft.inKeyword
+                                    }
+                                    viewModel.setSearchDraft(
+                                        draft.copy(
+                                            word = nextWord,
+                                            inKeyword = nextInKeyword
+                                        )
+                                    )
+                                }
                             )
                         }
                     }

@@ -1,6 +1,7 @@
 package com.novelreader.ui.discovery
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +57,7 @@ import java.util.Locale
 fun NovelDetailScreen(
     ncode: String,
     viewModel: NovelDetailViewModel,
+    onKeywordTap: (String) -> Unit,
     onBack: () -> Unit,
 ) {
     LaunchedEffect(ncode) {
@@ -325,6 +327,7 @@ fun NovelDetailScreen(
                                                     color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
                                                     shape = RoundedCornerShape(2.dp)
                                                 )
+                                                .clickable { onKeywordTap(keyword) }
                                                 .padding(horizontal = 10.dp, vertical = 5.dp)
                                         ) {
                                             Text(

@@ -131,4 +131,43 @@ class SearchDraftTest {
         assertNull(f3.time)
         assertEquals("100000-", f3.length)
     }
+
+    @Test
+    fun `containsWordToken - トークン判定が正しく行われること`() {
+        // 半角スペース区切り
+        assertTrue(containsWordToken("aa bb cc", "bb"))
+        assertFalse(containsWordToken("aa bb cc", "dd"))
+
+        // 全角スペース区切り
+        assertTrue(containsWordToken("aa　bb　cc", "bb"))
+        assertFalse(containsWordToken("aa　bb　cc", "dd"))
+
+        // 混在
+        assertTrue(containsWordToken("aa bb　cc", "cc"))
+
+        // 空
+        assertFalse(containsWordToken("", "aa"))
+    }
+
+    @Test
+    fun `toggleWordToken - トークンが正しく追加・除去され、空白が正規化されること`() {
+        // 追加: 末尾へ半角スペース区切り
+        assertEquals("aa bb", toggleWordToken("aa", "bb"))
+
+        // 除去: 指定トークンが消え、余分な空白が正規化される
+        assertEquals("aa cc", toggleWordToken("aa bb cc", "bb"))
+
+        // 全角スペース混在でのトグル
+        // 除去
+        assertEquals("aa cc", toggleWordToken("aa　bb　cc", "bb"))
+        // 追加（全角スペースを分割したうえで、末尾に半角スペースで追加）
+        assertEquals("aa bb cc dd", toggleWordToken("aa　bb　cc", "dd"))
+
+        // 除去後の空白正規化（連続スペースなどのクリーンアップ）
+        assertEquals("aa cc", toggleWordToken("  aa   bb   cc  ", "bb"))
+
+        // 重複追加なし（トグルなので、すでにあるものは除去される）
+        assertEquals("aa cc", toggleWordToken("aa bb cc", "bb"))
+    }
 }
+
