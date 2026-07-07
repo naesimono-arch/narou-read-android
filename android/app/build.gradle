@@ -102,6 +102,12 @@ dependencies {
     // 検索履歴＋ピン留め（発見機能 D1）のローカル永続。蔵書 Room を汚さない軽量ストア。
     implementation 'androidx.datastore:datastore-preferences:1.1.1'
 
+    // Custom Tabs（外部Web導線＝なろう作品/話ページをアプリ内オーバーレイ表示）。
+    // なぜ WebView ではなく Custom Tabs か: 「アプリで完結」方針を、WebView の保守負担・
+    // 規約リスク（本アプリは意図的に WebView を捨ててネイティブ化した経緯がある）を負わずに満たすため。
+    // launchUrl の暗黙 ACTION_VIEW のみ使用しサービスバインドはしないため <queries> 追加は不要。
+    implementation 'androidx.browser:browser:1.8.0'
+
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'io.mockk:mockk:1.13.10'
     testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3'
