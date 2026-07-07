@@ -11,3 +11,4 @@
 | [processing-state](processing-state.md) | ProcessingState への一本化 | §21 |
 | [service-queue-loop](service-queue-loop.md) | Service 内キュー + シングルループ処理 | §23 |
 | [topappbar-overlay](topappbar-overlay.md) | TopAppBar オーバーレイ化 + NestedScrollConnection 非消費 | §24 |
+| [multi-branch-integration](multi-branch-integration.md) | 多ブランチ統合＝統合ブランチ --no-ff → main へ ff-only（スキーマJSON保全の罠込み） | —（2026-07-08 新規） |
