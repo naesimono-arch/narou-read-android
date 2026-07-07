@@ -3,12 +3,16 @@
 Stop フック: ターン終了時に、直近の assistant 発話の「実行捏造」を検知したらブロックして
 自己修正を促す（アダプタ2・ライブゲート）。エンジンは detect_fabricated_execution_core。
 
-設計（ADR 0006）:
+設計（ADR 0006。Tier C と A2 昇格は 2026-07-07 の misread 型対応＝正解データ事象F）:
   - Stop フックは additionalContext を持てない（task_diary #28）ため「ブロック or 素通し」の二択。
   - ブロックは高精度シグナルのみ:
       Tier B unverified_test_claim（成功実行なし ∧ センチネル不在/古い ∧ 非降格・conf≥0.8）
       Tier A3 fabricated_harness_block（ハーネス/ツール構文の地の文化・非降格）
-  - A1/A2 は構造レビュー向きで自己修正に不向きなのでブロックしない（CLI に委ねる）。
+      Tier A2 fabricated_concrete_token（存在しない SHA の断言。証拠の result 層化・エコーバック
+        除外・git 文脈語拡張で精度が上がり、全セッション走査で偽陽性ゼロを確認して昇格）
+      Tier C 全4ルール（misread 型: ブロック済みコミットの完了報告／出力シグネチャ捏造／
+        書き込み完了の捏造／ブランチ削除の捏造。同走査で偽陽性ゼロ・正解データFの5事象を検知）
+  - A1 は構造レビュー向きで自己修正に不向きなのでブロックしない（CLI に委ねる）。
   - 偽陽性・例外・transcript 不在は必ず exit 0（ユーザー作業を妨げない）。
 
 なぜ scope=last_turn か: 直近の発話の主張だけを対象にする（証拠・成功実行はセッション全域から
@@ -61,26 +65,32 @@ def main() -> int:
 
     try:
         report = core.analyze(text, transcript_path=tpath, scope="last_turn",
-                              sentinel_dir=claude_dir, tiers="AB")
+                              sentinel_dir=claude_dir, tiers="ABC")
     except Exception:
         # 解析中の想定外例外でユーザーを止めない（非妨害の原則）
         return 0
 
+    # misread 型（Tier C）＝ペアは在るが報告が実結果と食い違うルール群（正解データ事象F）
+    tier_c_rules = {"completion_after_blocked_commit", "fabricated_output_signature",
+                    "unverified_write_claim", "unverified_branch_delete_claim"}
     blockers = [
         f for f in report.findings
         if f.suppressed_reason is None and (
             (f.rule == "unverified_test_claim" and f.confidence >= 0.8)
             or f.rule == "fabricated_harness_block"
+            or (f.rule == "fabricated_concrete_token" and f.confidence >= 0.8)
+            or (f.rule in tier_c_rules and f.confidence >= 0.8)
         )
     ]
     if not blockers:
         return 0
 
-    lines = ["[実行捏造の疑い] 直近の応答に、実ツール記録で裏付けられない実行報告があります:"]
+    lines = ["[実行捏造の疑い] 直近の応答に、実ツール記録で裏付けられない・"
+             "または実際のツール結果と食い違う実行報告があります:"]
     for f in blockers[:4]:
         lines.append(f"  ・{f.rule}: 「{f.claim_excerpt[:80]}」")
-    lines.append("実際に該当コマンド（テスト等）を実行し、その tool_result で確認してから"
-                 "完了報告してください。捏造・未検証の主張なら訂正してください。")
+    lines.append("直近の tool_result を読み直し、実際の結果に基づいて報告を訂正してください。"
+                 "未実行なら該当コマンドを実行し、その tool_result で確認してから完了報告してください。")
     reason = "\n".join(lines)
 
     # decision:block は Stop 停止を差し止め、reason をモデルに渡して続行（自己修正）させる
