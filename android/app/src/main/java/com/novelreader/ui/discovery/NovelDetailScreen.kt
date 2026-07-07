@@ -36,13 +36,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.narouWorkUrl
 import com.novelreader.ui.components.BookCover
+import com.novelreader.ui.openInAppBrowser
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.NovelDetailUiState
 import com.novelreader.viewmodel.NovelDetailViewModel
@@ -94,7 +96,9 @@ fun NovelDetailScreen(
         },
         bottomBar = {
             if (uiState is NovelDetailUiState.Content) {
-                val uriHandler = LocalUriHandler.current
+                val context = LocalContext.current
+                // Custom Tabs のツールバーを画面の面色に合わせ、外部サイトへの遷移感を和らげる。
+                val toolbarColor = MaterialTheme.colorScheme.background.toArgb()
                 Surface(
                     color = MaterialTheme.colorScheme.background,
                     modifier = Modifier.fillMaxWidth()
@@ -108,9 +112,9 @@ fun NovelDetailScreen(
                         ) {
                             Button(
                                 onClick = {
-                                    // なぜ外部ブラウザか: 暫定措置。B2「Webで読む」導線の実装時に
-                                    // アプリ内 WebView へ統一する方針（STATUS-api-lab.md §0 の設計方針）。
-                                    uriHandler.openUri(narouWorkUrl(ncode))
+                                    // なろう作品ページを Custom Tabs でアプリ内オーバーレイ表示する
+                                    // （外部ブラウザへ送客せず「アプリで完結」させる）。
+                                    openInAppBrowser(context, narouWorkUrl(ncode), toolbarColor)
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.buttonColors(

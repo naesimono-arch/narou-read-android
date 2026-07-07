@@ -45,10 +45,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -394,7 +394,6 @@ private fun ChapterScreen(
 
     // なろう紐付けシートの開閉状態
     var showLinkSheet by remember { mutableStateOf(false) }
-    val uriHandler = LocalUriHandler.current
 
     // バックキーはデフォルトで本棚に戻る（Navigation の popBackStack）。
     // なぜ Phase 3 では章履歴スタックを導入しないか:
@@ -524,12 +523,19 @@ private fun ChapterScreen(
                                     colors = colors,
                                     bodyMarginDp = bodyMarginDp,
                                     onReadContinuation = {
-                                        // 主ボタンは NewEpisodes のときしか描画されないが、防御的に型で絞る
+                                        // 主ボタンは NewEpisodes のときしか描画されないが、防御的に型で絞る。
+                                        // Custom Tabs でアプリ内表示し、ツールバーは読書背景色に合わせて没入を保つ。
                                         (info as? ContinuationInfo.NewEpisodes)?.let {
-                                            uriHandler.openUri(narouEpisodeUrl(it.ncode, it.nextEpisode))
+                                            openInAppBrowser(
+                                                context,
+                                                narouEpisodeUrl(it.ncode, it.nextEpisode),
+                                                colors.background.toArgb(),
+                                            )
                                         }
                                     },
-                                    onOpenWorkPage = { uriHandler.openUri(narouWorkUrl(info.ncode)) },
+                                    onOpenWorkPage = {
+                                        openInAppBrowser(context, narouWorkUrl(info.ncode), colors.background.toArgb())
+                                    },
                                     onUnlink = { onLinkNcode(null) },
                                 )
                             })
