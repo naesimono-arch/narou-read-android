@@ -372,7 +372,7 @@ print(json.dumps({"hookSpecificOutput": {
 - **未実行の成功報告**: テスト/ビルドの成功を実行せず断言（事象D の CP3–5「unittest 28件 OK」等）。
 - 検知は「text は証拠にせず tool_use/tool_result ペアに突き合わせる」＝ハーネス著者と assistant 著者の**構造的分離**が根拠。
 
-#### 39. settings.json の hooks 配線変更はセッション再起動まで反映されない（削除した hook が呼ばれ続ける）  ★★
+#### 48. settings.json の hooks 配線変更はセッション再起動まで反映されない（削除した hook が呼ばれ続ける）  ★★
 
 **根本原因**: Claude Code は hooks の登録（settings.json の `hooks` ブロック）を**セッション起動時に読み込んで固定**する。
 セッション中に settings.json から hook を外しても旧配線のまま呼び続け、逆に新規追加した hook はそのセッションでは発火しない。
@@ -396,11 +396,11 @@ print(json.dumps({"hookSpecificOutput": {
 #### 41. `!`（bash mode）で実行するコマンドはツールフックを一切通らない → 「AIは作れない・人間は作れる」を機構化できる  ★★
 
 **事実**: ユーザーが入力欄で `! <cmd>`（bang-command / bash mode）を実行しても、`PreToolUse`/`PostToolUse`（matcher "Bash"）は**一切発火しない**。フックを通るのは **AI が Bash ツールで実行したコマンドだけ**で、その stdin JSON は `tool_name:"Bash"` と `tool_use_id` を持つ。公式ドキュメントに bash mode の記載は無く、挙動として実測でのみ確定できる。
-**実測（2026-07-06）**: 既存 PreToolUse(Bash) フック本体に stdin JSON を丸ごと記録するプローブを仕込み（本体編集は即時反映＝#39）、①AI の `echo` → 記録あり（`tool_use_id` 付き）②ユーザーの `! echo …` → **記録ゼロ**。3 発火すべて AI ツール由来で、bang 由来のエントリは現れなかった。
+**実測（2026-07-06）**: 既存 PreToolUse(Bash) フック本体に stdin JSON を丸ごと記録するプローブを仕込み（本体編集は即時反映＝#48）、①AI の `echo` → 記録あり（`tool_use_id` 付き）②ユーザーの `! echo …` → **記録ゼロ**。3 発火すべて AI ツール由来で、bang 由来のエントリは現れなかった。
 **活用（レバー）**: この非対称性で「**AI はツール経由でファイルを作れない／人間は `!` で作れる**」を機構的に成立させられる。初適用が `guard_sentinel_creation.py`＝main コミット許可センチネル `.allow_protected_commit` を人間発行のみに限定（Write/Edit/Bash 経由の生成を PreToolUse でブロック）。「AI 由来か人間由来か」をフックで判別する必要すら無い（`!` はそもそも来ない）ため実装は単純な文字列/パス一致で済む。
-**落とし穴（盲点）**: 逆に言うと「フックで全 Bash を捕捉している」つもりでも **`!` 経由は監査・ガードの盲点として素通り**する。コミットガード等が `!` で回避されうる点は設計時に意識する（＝ソフト境界。ADR 0004 の限界と同根）。加えて **新規フック配線はセッション中無反映**（#39）なので、この種の実測は「既存配線フックの本体編集（即時反映）」で行うのが速い。
+**落とし穴（盲点）**: 逆に言うと「フックで全 Bash を捕捉している」つもりでも **`!` 経由は監査・ガードの盲点として素通り**する。コミットガード等が `!` で回避されうる点は設計時に意識する（＝ソフト境界。ADR 0004 の限界と同根）。加えて **新規フック配線はセッション中無反映**（#48）なので、この種の実測は「既存配線フックの本体編集（即時反映）」で行うのが速い。
 **運用注意（センチネル手順は絶対パスで案内する・2026-07-07 実地で判明）**: `!` シェルの cwd は**リポジトリルートである保証がない**（実際にサブディレクトリから叩かれ、相対 `.claude/.allow_protected_commit` が `No such file or directory` で失敗した）。フックが AI に返す発行手順が相対パスだと、AI がそれを中継 → user が cwd 次第で失敗する。対処: `guard_commit_branch.py`／`guard_sentinel_creation.py` の案内メッセージを **`__file__` から算出した絶対パス**で出すよう修正済み（cwd 非依存で一発成功）。判定ロジックは従来どおり（前者=絶対パス存在チェック／後者=basename 一致）で、変えたのは**案内文の表記だけ**。
-関連: #39（配線＝起動時固定／本体＝毎回読込の非対称）／`docs/decisions/0004`（この事実を利用した guard_sentinel_creation の設計判断＝Decision B-5）。
+関連: #48（配線＝起動時固定／本体＝毎回読込の非対称）／`docs/decisions/0004`（この事実を利用した guard_sentinel_creation の設計判断＝Decision B-5）。
 
 #### 44. fail-open 設計のフックは壊れていても「全通し」で無症状 → 新設・改修時に陽性コントロール1回が必須  ★★★
 
@@ -408,7 +408,7 @@ print(json.dumps({"hookSpecificOutput": {
 
 **なぜ起きるか**: ブロック系フックは「鳴らない＝健全」と「鳴らない＝壊れている」が外形上区別できない。fail-open（ゲート故障でコミットを妨げない）設計自体は正しい判断でも、その代償として故障が無症状化する。
 
-**教訓**: フックを新設・改修したら、**わざと違反状態を作って一度発火させる陽性コントロールを取る**（本件は baseline 偽装で exit 2 ＋ stderr 理由を実測）。可能なら `test_*.py` に固定する（stale-check 項目12 が回帰実行する）。`test_stop_guard_fabrication.py` の陽性コントロール5ケースが先行の同型対策。関連: #39（配線のセッション固定）・#28（出力の届き方）＝いずれも同じサイレント失敗クラス。
+**教訓**: フックを新設・改修したら、**わざと違反状態を作って一度発火させる陽性コントロールを取る**（本件は baseline 偽装で exit 2 ＋ stderr 理由を実測）。可能なら `test_*.py` に固定する（stale-check 項目12 が回帰実行する）。`test_stop_guard_fabrication.py` の陽性コントロール5ケースが先行の同型対策。関連: #48（配線のセッション固定）・#28（出力の届き方）＝いずれも同じサイレント失敗クラス。
 
 ---
 
@@ -593,6 +593,7 @@ Phase 4 精度回帰ゲート(`PdfExtractorDeviceSpikeTest`)の ≤15版クリ�
 | #28（重複・Compose側） | getLineTop は「行ボックス上端」であり字面上端ではない | 同ファイル `#43` へ再採番（2026-07-02 の別ライン採番（単発修正バッチ↔lab知見移植）が衝突→2026-07-07 解消。フック側 #28 が先発（178f1fd）かつ CLAUDE.md 規約・ADR 0004/0006・hook コード注釈の計8箇所に定着済みのため維持し、STATUS 参照3件のみの Compose 側を移動・張り替え） |
 | #42（重複・なろうAPI側） | type のハイフンOR指定はサイレント無視 | 同ファイル `#46` へ再採番（2026-07-07 に main メタ系（eaa4b23 02:56＝JSONL構造）と api-lab 系（8d09e7a 12:01）が同日別ラインで #42 を採番→2026-07-08 の main 統合で衝突。先発の main 側を維持し、参照2件（STATUS-api-lab・architecture スキル）を張り替え） |
 | #44（重複・なろうAPI側） | レスポンスキー名が of 指定で変わる（noveltype↔novel_type） | 同ファイル `#47` へ再採番（同上＝main 側 #44（fail-open 陽性コントロール）が先発のため維持。#45 は api-lab-ai-3 のなろう規約エントリが使用済みのため欠番にしない） |
+| #39（重複・フック配線側） | settings.json の hooks 配線変更はセッション再起動まで無反映 | 同ファイル `#48` へ再採番（2026-07-08 統合で main（a22cccb・先発）と api-lab 系（4aaf14e・Room version 衝突）の二重採番が衝突。フック側が先発だが参照は台帳内4件のみで、Room 側はコード注釈（AppDatabase.kt）・db-migration スキル・STATUS-api-lab・不変のコミットメッセージ（06d0fe7 等）に定着済みのため、**例外的に先発側を移動**（張り替えゼロ＝参照切れ最小化を優先） |
 | §20 | Atomic Commit は実装順序から設計する | `docs/decisions/0003-atomic-commit-from-impl-order.md` |
 | §21 | ProcessingState への一本化 | `docs/patterns/processing-state.md` |
 | §22 | Hilt / UseCase 層 不採用（Why-not） | `docs/decisions/0001-no-hilt.md` ・ `docs/decisions/0002-no-usecase-layer.md` |
