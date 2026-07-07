@@ -52,9 +52,11 @@ class MainActivity : ComponentActivity() {
                 prefs.edit().putString("reading_theme", theme.name).apply()
             }
 
-            // 本棚の Material3 配色は darkTheme に追従する。セピアは暖色ライトのため本棚はライト配色を
-            // 流用し（darkTheme=false）、ダークのときのみ暗配色にする。読書側はセピア固有色を別途持つ。
-            NovelReaderTheme(darkTheme = appTheme == ReadingTheme.DARK) {
+            // Material3 配色もテーマ3値（ライト/セピア/ダーク）へ追従させる。
+            // 旧実装はセピア時にライト配色を流用しており、本棚・発見系で「ライトとセピアの
+            // 色味に差がない」実機フィードバック（2026-07-07）の主因だった。読書側の固有色
+            // （ReadingColors）とは別系統だが、同じ琥珀紙トーンに揃えている（Theme.kt 参照）。
+            NovelReaderTheme(theme = appTheme) {
                 NovelReaderApp(appTheme = appTheme, onThemeChange = onThemeChange)
             }
         }

@@ -171,20 +171,46 @@ private val DarkColorScheme = darkColorScheme(
     inversePrimary       = InversePrimaryDark,
 )
 
+// セピアはライトの暖色変種＝素地・墨・面・ヘアライン・藍だけを琥珀紙トーンへ差し替え、
+// secondary（青磁＝未読の意味色）や error はライトと共有して意味色のブレを避ける。
+// なぜ用意するか: かつてセピア選択時はライト配色を流用しており、本棚・発見系で
+// 「ライトとセピアの差がない」実機フィードバック（2026-07-07）の主因だったため。
+private val SepiaColorScheme = LightColorScheme.copy(
+    primary              = PrimarySepia,
+    primaryContainer     = PrimaryContainerSepia,
+    onPrimaryContainer   = OnPrimaryContainerSepia,
+    tertiary             = PrimarySepia,
+    tertiaryContainer    = PrimaryContainerSepia,
+    onTertiaryContainer  = OnPrimaryContainerSepia,
+    background           = BackgroundSepia,
+    onBackground         = OnBackgroundSepia,
+    surface              = BackgroundSepia,
+    onSurface            = OnBackgroundSepia,
+    surfaceVariant       = SurfaceVariantSepia,
+    onSurfaceVariant     = OnSurfaceVariantSepia,
+    surfaceContainer     = SurfaceContainerSepia,
+    outline              = OutlineSepia,
+    outlineVariant       = OutlineVariantSepia,
+)
+
 @Composable
 fun NovelReaderTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    theme: ReadingTheme = if (isSystemInDarkTheme()) ReadingTheme.DARK else ReadingTheme.LIGHT,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = when (theme) {
+        ReadingTheme.LIGHT -> LightColorScheme
+        ReadingTheme.SEPIA -> SepiaColorScheme
+        ReadingTheme.DARK -> DarkColorScheme
+    }
 
-    // ステータスバーアイコンの色をテーマに合わせる（ライト=暗いアイコン、ダーク=明るいアイコン）
+    // ステータスバーアイコンの色をテーマに合わせる（ライト/セピア=暗いアイコン、ダーク=明るいアイコン）
     // setDecorFitsSystemWindows は MainActivity で呼んでいるためここでは行わない
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = theme != ReadingTheme.DARK
         }
     }
 
