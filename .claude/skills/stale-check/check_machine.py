@@ -166,7 +166,8 @@ def check_hooks_registration():
         add("hooks", "stale", "high", f"settings が参照する '{r}' が .claude/hooks/ に実在しない（壊れた参照）")
     # hook ではない同居ライブラリ/CLI（ADR 0006: 捏造検知は「純ロジックのエンジン＋薄いアダプタ」構成で、
     # エンジンは Stop フックと CLI が import して使い、CLI は配線ゼロが設計）。settings 未登録が正。
-    non_hook_libs = {"detect_fabricated_execution_core.py", "analyze_transcript.py"}
+    # hooks_common.py はコミット系フックが import する共有定義モジュール（ADR 0008）＝これも配線ゼロが正。
+    non_hook_libs = {"detect_fabricated_execution_core.py", "analyze_transcript.py", "hooks_common.py"}
     for a in sorted(actual - registered):
         # test_*.py は hook 本体ではなく回帰テスト（guard/consume の正規表現整合を守る test_hooks.py 等）。
         # settings に登録しないのが正なので死 hook 判定から除外する（誤検知回避）。
