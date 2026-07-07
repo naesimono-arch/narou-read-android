@@ -92,14 +92,35 @@ data class SearchDraft(
  * カスタム範囲の文字列表現を組み立てる。
  * 数値化できない入力は無視。min>maxの場合は入れ替えて救済する。
  */
+/**
+ * カスタム範囲入力欄のテキストを「半角数字のみ」へ正規化する（全角数字は半角へ写像して受け入れる）。
+ * なぜ入力層で正規化するか: IME・貼り付け経由で全角数字や記号が入ると、欄には値が見えているのに
+ * toIntOrNull が null になり「見えている条件が送出されない」サイレント無効になるため
+ * （ADR 0007 原則2違反。nottensei 送出欠落と同族の欠陥クラス）、数字以外を構造的に入れない。
+ */
+fun normalizeCustomRangeInput(text: String): String =
+    buildString {
+        for (ch in text) {
+            when (ch) {
+                in '0'..'9' -> append(ch)
+                in '０'..'９' -> append('0' + (ch - '０'))
+            }
+        }
+    }
+
 fun buildCustomRange(minText: String, maxText: String, unitMultiplier: Int): String? {
-    val minVal = minText.trim().toIntOrNull()
-    val maxVal = maxText.trim().toIntOrNull()
+    // なぜ負数を弾き Long で乗算するか: 文字数・分数は非負が定義域。貼り付け等で負数が入ると
+    // "-50000-50000" のようなハイフン3連の不正レンジ文字列を API 挙動未定義のまま送出してしまう。
+    // また Int 乗算は 30万(万字)=3×10^9 で桁あふれして負数化する（同じ不正形の別入口）ため、
+    // Long で計算して Int 上限へ丸める。
+    val minVal = minText.trim().toIntOrNull()?.takeIf { it >= 0 }
+    val maxVal = maxText.trim().toIntOrNull()?.takeIf { it >= 0 }
 
     if (minVal == null && maxVal == null) return null
 
-    val resolvedMin = minVal?.let { it * unitMultiplier }
-    val resolvedMax = maxVal?.let { it * unitMultiplier }
+    fun scale(v: Int): Int = (v.toLong() * unitMultiplier).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    val resolvedMin = minVal?.let { scale(it) }
+    val resolvedMax = maxVal?.let { scale(it) }
 
     return when {
         resolvedMin != null && resolvedMax != null -> {

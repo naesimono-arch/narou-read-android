@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,10 +60,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.LaunchedEffect
 import com.novelreader.narou.model.NarouAttr
 import com.novelreader.viewmodel.buildCustomRange
+import com.novelreader.viewmodel.normalizeCustomRangeInput
 import com.novelreader.viewmodel.parseCustomRange
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.novelreader.narou.model.NarouLastup
 import com.novelreader.narou.model.NarouNovelType
 import com.novelreader.ui.theme.MinchoFamily
@@ -451,9 +450,9 @@ fun DiscoverySearchScreen(
             }
 
             fun onLengthTextsChanged(min: String, max: String) {
-                minLengthText = min
-                maxLengthText = max
-                val range = buildCustomRange(min, max, 10000)
+                minLengthText = normalizeCustomRangeInput(min)
+                maxLengthText = normalizeCustomRangeInput(max)
+                val range = buildCustomRange(minLengthText, maxLengthText, 10000)
                 viewModel.setSearchDraft(draft.copy(filters = draft.filters.withLength(range)))
             }
 
@@ -480,9 +479,9 @@ fun DiscoverySearchScreen(
             }
 
             fun onTimeTextsChanged(min: String, max: String) {
-                minTimeText = min
-                maxTimeText = max
-                val range = buildCustomRange(min, max, 60)
+                minTimeText = normalizeCustomRangeInput(min)
+                maxTimeText = normalizeCustomRangeInput(max)
+                val range = buildCustomRange(minTimeText, maxTimeText, 60)
                 viewModel.setSearchDraft(draft.copy(filters = draft.filters.withTime(range)))
             }
 

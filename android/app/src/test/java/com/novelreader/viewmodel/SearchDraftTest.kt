@@ -274,5 +274,27 @@ class SearchDraftTest {
         // カスタム値は selectedStepIndices で emptySet() になるため、新規に index=1 のみが選択される
         assertEquals("10000-100000", toggleRangeStep("25000-80000", 1, LENGTH_STEPS))
     }
+
+    @Test
+    fun `buildCustomRange - 負数入力は不正なレンジ文字列を生成せず無視されること`() {
+        // なぜ: 負数を通すと "-50000-50000" のようなハイフン3連の不正形を API 挙動未定義のまま送出してしまう
+        assertNull(buildCustomRange("-5", "", 10000))
+        assertEquals("-50000", buildCustomRange("-5", "5", 10000)) // 負数側だけ無視され max のみの開レンジになる
+    }
+
+    @Test
+    fun `buildCustomRange - Int上限を超える乗算は桁あふれで負数化せず上限へ丸められること`() {
+        // なぜ: 30万(万字)=3×10^9 は Int を溢れて負数になり不正形を送出する（Long 計算＋上限丸めで防ぐ）
+        assertEquals("${Int.MAX_VALUE}-", buildCustomRange("300000", "", 10000))
+    }
+
+    @Test
+    fun `normalizeCustomRangeInput - 全角数字は半角へ写像され数字以外は除去されること`() {
+        // なぜ: 欄に見えているのに toIntOrNull が null になる「見えている条件が送出されない」
+        // サイレント無効（ADR 0007 原則2違反・nottensei 欠落と同族）を入力層で構造的に防ぐ
+        assertEquals("100", normalizeCustomRangeInput("１００"))
+        assertEquals("15", normalizeCustomRangeInput("1O5万字-")) // 英字 O（数字でない）・単位・記号は落ちる
+        assertEquals("", normalizeCustomRangeInput("abc-"))
+    }
 }
 
