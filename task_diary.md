@@ -452,6 +452,14 @@ api-lab-ai ビルドが起動即クラッシュ（user_version=8 なので MIGRA
 （`grep -h "version = " ~/wt/*/android/app/src/main/java/com/novelreader/data/AppDatabase.kt`）。
 `/db-migration` スキルの手順にも組み込み済み。
 
+**追補（2026-07-08・マージ時の変種）**: 退避した後発側（v9）が実機検証済みのままマージへ進むと、
+本文の処方「version 9＋両 migration＋両エンティティの合併」だけでは不足する。合併でエンティティが
+増えた時点で v9 の identity hash が変わるため、**後発側 v9 で migrate 済みの実機に合併ビルドを入れると
+同 version 同士の hash 照合でクラッシュする**（＝本エントリと同機序が一段上で再発。migration は走らない）。
+対処＝合併時に**さらに +1（v10）し no-op migration で hash を再スタンプ**する（実テーブルは両系の
+migration で作成済みのため DDL 不要。`MIGRATION_9_10` が実例。旧 9.json は実機が保持する hash の記録として
+上書きせず残す）。並列ブランチの双方が実機検証を挟む開発では、この「合併でもう一段 +1」を既定とすること。
+
 ---
 
 ### PDFBox-Android 移植（Chaquopy→Kotlin ネイティブ化）

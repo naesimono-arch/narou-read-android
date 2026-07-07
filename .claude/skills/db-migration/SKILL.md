@@ -84,3 +84,4 @@ Androidの `SupportSQLiteDatabase` でも `execSQL("PRAGMA table_info(books)")` 
 | v6 → v7   | books に addedAt / progress に lastReadAt 列を追加（MIGRATION_6_7、ADD COLUMN INTEGER NOT NULL DEFAULT 0、蔵書追加日時・最終読書日時の記録）|
 | v7 → v8   | pending_jobs テーブルを新設（MIGRATION_7_8、CREATE TABLE のみ＝既存テーブル無変更、処理キューの永続化＝強制終了からの再開材料）|
 | v8 → v9   | books に ncode 列を追加（MIGRATION_8_9、ADD COLUMN TEXT nullable。なろう作品の Nコード＝PDF↔Web継続読書〔発見機能の目玉①〕の紐付けキー。未紐付けが既定のため DEFAULT 句なし。version 8 を並列ブランチが先に消費していたため v9 へ退避した経緯は task_diary #39）|
+| v9 → v10  | スキーマ無変更の identity hash 再スタンプ（MIGRATION_9_10、no-op＝DDL なし。並列ブランチのマージ合併でエンティティが増えると v9 の hash が変わり、branch 版 v9 で migrate 済みの実機と同 version 衝突するため +1 で回避。task_diary #39 追補）|
