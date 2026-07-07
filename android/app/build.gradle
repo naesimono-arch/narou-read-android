@@ -33,6 +33,15 @@ android {
     }
     kotlinOptions {
         jvmTarget = '17'
+        // Compose compiler の stability/skippability レポート出力。
+        // なぜオプトイン(-PcomposeCompilerReports=true): 常時出力はビルド時間を無駄に増やすため、
+        // skippable 化の機械検証をしたいときだけ有効化する（従来は検証手段ゼロだった）。
+        // layout.buildDirectory 経由なので canonical ビルドの ext4 退避 buildDir にも追従する。
+        if (project.findProperty('composeCompilerReports') == 'true') {
+            def dest = project.layout.buildDirectory.dir('compose_compiler').get().asFile.absolutePath
+            freeCompilerArgs += ['-P', "plugin:androidx.compose.compiler.plugins.kotlin:reportsDestination=${dest}".toString(),
+                                 '-P', "plugin:androidx.compose.compiler.plugins.kotlin:metricsDestination=${dest}".toString()]
+        }
     }
     buildFeatures {
         compose true
