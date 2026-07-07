@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,9 +61,9 @@ fun BookshelfScreen(
     onOpenBook: (bookId: String, startFile: String) -> Unit,
     onOpenDiscovery: () -> Unit,
 ) {
-    val books by viewModel.books.collectAsState()
-    val progressMap by viewModel.progressMap.collectAsState()
-    val processingState by viewModel.processingState.collectAsState()
+    val books by viewModel.books.collectAsStateWithLifecycle()
+    val progressMap by viewModel.progressMap.collectAsStateWithLifecycle()
+    val processingState by viewModel.processingState.collectAsStateWithLifecycle()
     val isProcessing = processingState.isProcessing
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -271,9 +272,9 @@ fun BookshelfScreen(
                     ProcessingBanner(
                         processingState = processingState,
                         onStop = { viewModel.cancelProcessing() },
-                    )
                         // 幅指定は呼び出し側の責務。従来の内部 fillMaxWidth と同じ描画を維持。
                         modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
         },

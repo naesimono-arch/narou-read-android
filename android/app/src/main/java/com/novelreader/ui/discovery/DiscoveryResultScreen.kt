@@ -28,7 +28,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -59,8 +59,8 @@ fun DiscoveryResultScreen(
     onBack: () -> Unit,
     onOpenDetail: (ncode: String) -> Unit,
 ) {
-    val context by viewModel.resultContext.collectAsState()
-    val state by viewModel.resultState.collectAsState()
+    val context by viewModel.resultContext.collectAsStateWithLifecycle()
+    val state by viewModel.resultState.collectAsStateWithLifecycle()
 
     // プロセス再生成などで文脈が失われてこの画面に着地した場合は戻る
     // （resultContext は VM のメモリ上にしか無く、復元して見せる意味のある状態ではないため）。

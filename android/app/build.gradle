@@ -74,6 +74,11 @@ dependencies {
 
     // HTMLパーサー (Jsoup)
     implementation 'org.jsoup:jsoup:1.17.2'
+    // collectAsStateWithLifecycle 提供。ライフサイクル STOPPED 以下で StateFlow の collect を止め、
+    // バックグラウンドでの無駄な購読/再コンポーズを避ける（従来の collectAsState は常時 collect）。
+    // なぜ 2.6.2 固定: lifecycle-runtime-ktx と版を揃える。かつ compileSdk 34 制約下では 2.7+ を避ける
+    // （2.8.x は compileSdk 35 前提で本プロジェクトでは解決できないため）。
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.6.2'
 
     // なぜ: List<TextSegment> は Compose stability 推論で不安定→読書 LazyColumn の項目が skippable にならないため（strong skipping 無効の Kotlin 1.9 環境）
     implementation 'org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.7'

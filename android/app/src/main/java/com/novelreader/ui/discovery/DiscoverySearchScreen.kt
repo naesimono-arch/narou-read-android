@@ -46,7 +46,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -98,7 +98,7 @@ fun DiscoverySearchScreen(
 ) {
     // なぜ VM 巻き上げか: 条件シートを閉じても・結果一覧から戻っても状態を残すため
     // （SearchDraft.kt の doc コメント参照）。
-    val draft by viewModel.searchDraft.collectAsState()
+    val draft by viewModel.searchDraft.collectAsStateWithLifecycle()
     var isFocused by remember { mutableStateOf(false) }
     var showSheet by remember { mutableStateOf(false) }
 
@@ -266,7 +266,7 @@ fun DiscoverySearchScreen(
                 }
 
                 // ── 検索履歴（D1・モック「ピン留め」「最近の検索」節） ──
-                val history by viewModel.searchHistory.collectAsState()
+                val history by viewModel.searchHistory.collectAsStateWithLifecycle()
 
                 if (history.pinned.isNotEmpty()) {
                     Text(

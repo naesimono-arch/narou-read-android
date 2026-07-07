@@ -9,6 +9,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
@@ -193,9 +194,9 @@ private fun NovelReaderApp(
             val startFile = backStackEntry.arguments?.getString("startFile") ?: return@composable
 
             // books は BookshelfScreenがバックスタック上で subscribe 中のため hot StateFlow。
-            // collectAsState() で第1フレームから現在値を即時派生させることで、
+            // collectAsStateWithLifecycle() で第1フレームから現在値（StateFlow.value）を即時派生させることで、
             // LaunchedEffect の1フレーム遅延を排除し初期描画のちらつき（左上ジャンプ）を防ぐ。
-            val books by viewModel.books.collectAsState()
+            val books by viewModel.books.collectAsStateWithLifecycle()
             val book = books.firstOrNull { it.id == bookId }
 
             if (book != null) {

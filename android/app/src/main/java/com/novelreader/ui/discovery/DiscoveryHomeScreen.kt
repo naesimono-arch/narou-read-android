@@ -36,7 +36,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,8 +67,8 @@ fun DiscoveryHomeScreen(
     onOpenSearch: () -> Unit,
     onPickMood: (MoodPreset) -> Unit,
 ) {
-    val order by viewModel.homeOrder.collectAsState()
-    val state by viewModel.homeState.collectAsState()
+    val order by viewModel.homeOrder.collectAsStateWithLifecycle()
+    val state by viewModel.homeState.collectAsStateWithLifecycle()
 
     // 画面を開いたときに初回ロード（VM は上位共有のため init ロードしない設計）
     LaunchedEffect(Unit) { viewModel.ensureHomeLoaded() }
