@@ -6,7 +6,9 @@ import org.junit.Test
 
 /**
  * RubyLayoutHelper の純粋関数部分（書記素分割・ルビ分割）のユニットテスト。
- * TextLayoutResult に依存する calculateRubyPositions は Instrumented test で別途検証。
+ * TextLayoutResult に依存する calculateRubyPositions は実 TextLayoutResult が必要なため
+ * JVM では検証できず、対応する Instrumented/screenshot テストは未整備（宿題は handover 台帳参照）。
+ * ※かつて「Instrumented test で別途検証」と書かれていたが該当テストは実在しなかった（2026-07-08 訂正）。
  */
 class RubyLayoutHelperTest {
 
