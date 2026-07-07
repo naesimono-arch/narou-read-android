@@ -36,6 +36,4 @@ object NarouCuratedKeywords {
         CuratedKeywordCategory("パニック", listOf("怪獣", "天災", "バイオハザード", "パンデミック")),
         CuratedKeywordCategory("リプレイ（TRPG）", listOf("SW2.0", "AR2E", "ダブルクロス3rd", "MGR", "グランクレスト", "ガーデンオーダー", "ナイトウィザード", "アルシャード", "NOVA", "dragonarms", "モノトーン", "BoA", "セブンフォートレス", "エースキラージーン", "MAG", "片道勇者", "アマデウス", "DLH", "ドラクルージュ", "コロッサルハンター", "スクハイ", "トワハイ", "ＴＮＭ", "アニマアニムス", "拳禅無双", "ルイブレ")),
     )
-
-    /** 後方互換が要る場合のみ。既存参照は basic/genre へ置換するのでこの val は残さない。 */
 }

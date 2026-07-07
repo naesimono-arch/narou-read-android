@@ -10,8 +10,8 @@ interface NarouApiService {
         @Query("out") out: String = "json",
         // なぜ of/order/lim を Nullable にしているか:
         // Retrofit はクエリパラメータの引数が null の場合、そのクエリパラメータをリクエストURLから自動的に省略する仕様であるため。
-        @Query("of") of: String? = null,       // 縦スライスは "t-n-w-s-gp-ga-e-l-nt"
-        @Query("order") order: String? = null, // 縦スライスは "weekly"
+        @Query("of") of: String? = null,       // 一覧は NovelApiRepository.OF_LIST、詳細は null(全項目)
+        @Query("order") order: String? = null, // NarouOrder.apiValue（週間なら "weeklypoint"）
         @Query("lim") lim: Int? = null,
         @Query("st") st: Int? = null,
         @Query("word") word: String? = null,

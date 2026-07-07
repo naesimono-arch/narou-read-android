@@ -8,7 +8,6 @@
 
     <!-- なろう公式API(api.syosetu.com)からランキング/検索/作品情報メタを取得するため。本文取得はしない。 -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!--
       allowBackup を false にする理由:

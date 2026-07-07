@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
+import com.novelreader.narou.narouWorkUrl
 import com.novelreader.ui.components.BookCover
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.NovelDetailUiState
@@ -107,8 +108,9 @@ fun NovelDetailScreen(
                         ) {
                             Button(
                                 onClick = {
-                                    // なぜ外部ブラウザか: アプリ内WebViewはPhase 3の継続読書で導入予定のため、現段階は既定ブラウザへ送客
-                                    uriHandler.openUri("https://ncode.syosetu.com/${ncode.lowercase(Locale.ROOT)}/")
+                                    // なぜ外部ブラウザか: 暫定措置。B2「Webで読む」導線の実装時に
+                                    // アプリ内 WebView へ統一する方針（STATUS-api-lab.md §0 の設計方針）。
+                                    uriHandler.openUri(narouWorkUrl(ncode))
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.buttonColors(
