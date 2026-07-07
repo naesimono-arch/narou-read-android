@@ -326,7 +326,7 @@ fun DiscoverySearchScreen(
                     modifier = Modifier.padding(top = 28.dp, bottom = 12.dp)
                 )
 
-                NarouCuratedKeywords.categories.forEach { category ->
+                NarouCuratedKeywords.basicCategories.forEach { category ->
                     SectionHeader(text = category.title)
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -355,6 +355,54 @@ fun DiscoverySearchScreen(
                                     )
                                 }
                             )
+                        }
+                    }
+                }
+
+                var showGenreKeywords by remember { mutableStateOf(false) }
+
+                // why: 公式パネルは①作品内容と②ジャンル別の2段構成。②＋TRPG系は約80語あり常時表示すると検索画面が長大化するため、公式と同じ段構成のまま既定は畳む（全数収載と画面の静けさの両立）
+                Text(
+                    text = if (showGenreKeywords) "たたむ ⌃" else "ジャンル別のキーワードを見る ⌄",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .clickable { showGenreKeywords = !showGenreKeywords }
+                        .padding(top = 16.dp, bottom = 8.dp)
+                )
+
+                if (showGenreKeywords) {
+                    NarouCuratedKeywords.genreCategories.forEach { category ->
+                        SectionHeader(text = category.title)
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            category.words.forEach { word ->
+                                val selected = containsWordToken(draft.word, word)
+                                FilterChipItem(
+                                    selected = selected,
+                                    label = word,
+                                    onClick = {
+                                        val nextWord = toggleWordToken(draft.word, word)
+                                        val isAdding = !selected
+                                        val nextInKeyword = if (isAdding) {
+                                            // why: キュレーション語は作者タグの語彙のため、範囲に keyword を含めないとタイトル一致のみとなり大半を取りこぼす。範囲チップの状態変化として見える形で広げる（ADR 0007 原則2と両立）
+                                            true
+                                        } else {
+                                            draft.inKeyword
+                                        }
+                                        viewModel.setSearchDraft(
+                                            draft.copy(
+                                                word = nextWord,
+                                                inKeyword = nextInKeyword
+                                            )
+                                        )
+                                    }
+                                )
+                            }
                         }
                     }
                 }
