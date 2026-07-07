@@ -1,5 +1,6 @@
 package com.novelreader
 
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -46,6 +47,12 @@ class PdfProcessingService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    // なぜ InlinedApi 抑制が安全か: FOREGROUND_SERVICE_TYPE_DATA_SYNC は API 29+ の定数だが
+    // コンパイル時に int へインライン化され、ServiceCompat.startForeground は SDK<29 では
+    // 2引数版 Service.startForeground(id, notification) へフォールバックして type 引数を
+    // 参照しない（core-1.12.0 のバイトコードを javap で実証済み・2026-07-08）。
+    // よって API 26-28 端末でもこの定数が評価される経路は存在しない。
+    @SuppressLint("InlinedApi")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // 全体停止: キュー待ちを破棄し、処理中の1冊はページ境界で即中断する
         // （純 Kotlin 化で可能になった割り込み。旧 Chaquopy/JNI は割り込み不能で PDF 境界
