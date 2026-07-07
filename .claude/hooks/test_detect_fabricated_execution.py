@@ -736,5 +736,246 @@ class HookBlockResultRegex(unittest.TestCase):
                 self.assertIsNone(core.HOOK_BLOCK_RESULT_RE.search(s), f"誤検知: {s!r}")
 
 
+# ─── Tier D フィクスチャ・ビルダ（入力側捏造） ─────────────────────────────────
+
+def asst_text_sig(mid, text, sig_len):
+    """thinking(signature) 行と text 行に分割された発話（実 transcript の構造を模す）。"""
+    return [
+        {"type": "assistant", "uuid": mid + "_th",
+         "message": {"id": mid, "role": "assistant",
+                     "content": [{"type": "thinking", "thinking": "",
+                                  "signature": "x" * sig_len}]},
+         "timestamp": TS, "isSidechain": False},
+        asst_text(mid, text),
+    ]
+
+
+def queued_human(text):
+    return {"type": "attachment", "uuid": "q_" + text[:8],
+            "attachment": {"type": "queued_command", "prompt": text,
+                           "origin": {"kind": "human"}},
+            "timestamp": TS, "isSidechain": False}
+
+
+def ask_user_answered(mid, tool_id, answer):
+    """AskUserQuestion の tool_use＋回答 tool_result（回答は人間由来入力）。"""
+    return [
+        asst_tool(mid, tool_id, "AskUserQuestion", {"questions": []}),
+        tool_result(tool_id, f'Your questions have been answered: "Q"="{answer}"'),
+    ]
+
+
+# 正当作業の baseline を作る先行発話（sig=2,000 が3発話）。
+# boost 条件は sig ≥ max(15000, baseline×8)＝16,000 以上で発火する。
+def normal_prefix():
+    recs = []
+    for i in range(3):
+        recs += asst_text_sig(f"pre{i}", f"作業ステップ{i}を続けます。", 2000)
+    return recs
+
+
+class TierD1FabricatedQuote(unittest.TestCase):
+    def test_phantom_quote_flagged(self):
+        # 実在入力は「地図を作るべき？」のみなのに、不存在の発話を引用符付きで“引用”（事象H③）
+        rep = run([human("地図を作るべき？"),
+                   asst_text("m1", "あなたが「ツールを叩く前に」と言ったので、ここで止めます。")])
+        self.assertIn("fabricated_user_quote", active_rules(rep))
+
+    def test_real_quote_not_flagged(self):
+        rep = run([human("ツールを叩く前に一度止まってください"),
+                   asst_text("m1", "あなたが「ツールを叩く前に」と言ったので、止めます。")])
+        self.assertEqual(rep.findings, [])
+
+    def test_queued_human_quote_not_flagged(self):
+        # queued_command(origin.kind=human) も実在入力（キュー経由のユーザー発話）
+        rep = run([queued_human("日本語でね、と言ったはず"),
+                   asst_text("m1", "あなたが「日本語でね」と言ったので日本語で続けます。")])
+        self.assertEqual(rep.findings, [])
+
+    def test_meta_discussion_suppressed(self):
+        # 幻覚分析の実例引用（較正実測: 94a08b11 の台帳分析）は降格
+        rep = run([human("台帳に追記して"),
+                   asst_text("m1", "この事象では、あなたが「ツールを叩く前に」と言ったと捏造しています。")])
+        self.assertNotIn("fabricated_user_quote", active_rules(rep))
+        self.assertIn("fabricated_user_quote", suppressed_rules(rep))
+
+    def test_cross_session_suppressed(self):
+        # 別セッションの発話への言及は当該 transcript 単体で裏取り不能 → 降格
+        rep = run([human("続きをやって"),
+                   asst_text("m1", "あなたが「作業空間を整えたい」と指示したセッションの続きです。")])
+        self.assertNotIn("fabricated_user_quote", active_rules(rep))
+        self.assertIn("fabricated_user_quote", suppressed_rules(rep))
+
+
+class TierD2FabricatedReport(unittest.TestCase):
+    def test_phantom_numeric_report_flagged(self):
+        # 全記録に不存在の数値報告を「そちらの」と帰属（事象I①）
+        rep = run([human("コミット後5へ"),
+                   asst_text("m1", "そちらの①の不具合を先に調べます。重要な情報です。"
+                                   "約2000件中5〜6件（約0.3%）だけ連載中が混じるとのことなので。")])
+        self.assertIn("fabricated_user_report", active_rules(rep))
+        f = [x for x in rep.findings if x.rule == "fabricated_user_report"][0]
+        self.assertIn("2000", f.missing_token)
+
+    def test_numbers_from_user_not_flagged(self):
+        rep = run([human("約2000件中5〜6件だけ連載中が混じる不具合がある"),
+                   asst_text("m1", "そちらの①の不具合（約2000件中5〜6件の混入）を調べます。")])
+        self.assertEqual([f for f in rep.findings if f.suppressed_reason is None], [])
+
+    def test_numbers_from_prior_result_not_flagged(self):
+        # 主張以前の実 tool_result 由来の数値は誤帰属ではあっても捏造ではない → 免罪
+        rep = run([human("調査して"),
+                   asst_tool("m0", "t1", "Bash", {"command": "count.sh"}),
+                   tool_result("t1", "総数 4874 件中 12 件が該当"),
+                   asst_text("m1", "そちらの環境の不具合報告があり、4874件中12件が該当します。")])
+        self.assertEqual([f for f in rep.findings if f.suppressed_reason is None], [])
+
+    def test_later_result_does_not_vaccinate(self):
+        # 主張の「後」の実出力では免罪しない（時系列条件＝Tier C と同じ設計）
+        rep = run([human("調査して"),
+                   asst_text("m1", "そちらの①の不具合報告（4874件中12件が該当）を先に調べます。"),
+                   asst_tool("m2", "t1", "Bash", {"command": "count.sh"}),
+                   tool_result("t1", "総数 4874 件中 12 件が該当")])
+        self.assertIn("fabricated_user_report", active_rules(rep))
+
+    def test_no_number_suppressed(self):
+        # 数値の無い帰属主張は突合不能 → 降格（検査しない・精度優先）
+        rep = run([human("調査して"),
+                   asst_text("m1", "そちらの不具合について、という報告があるため確認します。")])
+        self.assertNotIn("fabricated_user_report", active_rules(rep))
+
+
+class TierD3PhantomResponse(unittest.TestCase):
+    def test_phantom_apology_with_runaway_thinking_flagged(self):
+        # 誰も発していない叱責への謝罪＋直前 thinking 異常（事象H②: sig が通常比8倍超）
+        recs = [human("地図を作るべき？")] + normal_prefix() + \
+            asst_text_sig("m9", "…完全に、その通りです。言い訳できません。", 170000)
+        rep = run(recs)
+        self.assertIn("phantom_user_response", active_rules(rep))
+
+    def test_normal_thinking_suppressed(self):
+        # 入力欠落だけで thinking 正常（自己訂正の謝罪等）はブロックせず CLI レビューへ
+        recs = [human("進めて")] + normal_prefix() + \
+            asst_text_sig("m9", "申し訳ありません。コミットは未実行でした。やり直します。", 3000)
+        rep = run(recs)
+        self.assertNotIn("phantom_user_response", active_rules(rep))
+        self.assertIn("phantom_user_response", suppressed_rules(rep))
+
+    def test_recent_human_input_not_flagged(self):
+        # 直前に実ユーザー入力 → 正当応答（sig 異常でも検査対象にしない）
+        recs = normal_prefix() + [human("それは順序が違うのでは？")] + \
+            asst_text_sig("m9", "…ご指摘の通りです。完全に順序を間違えました。", 170000)
+        rep = run(recs)
+        self.assertNotIn("phantom_user_response", [f.rule for f in rep.findings])
+
+    def test_ask_user_answer_counts_as_input(self):
+        # AskUserQuestion の回答は人間由来入力（較正実測: 含めないと正当応答が偽陽性化）
+        recs = normal_prefix() + ask_user_answered("m8", "t8", "いや、別々の表示にして") + \
+            asst_text_sig("m9", "まさにその通りです。表示を分けます。", 170000)
+        rep = run(recs)
+        self.assertNotIn("phantom_user_response", [f.rule for f in rep.findings])
+
+
+class QuoteUserSaidRegex(unittest.TestCase):
+    SHOULD_MATCH = [
+        "あなたが「ツールを叩く前に」と言ったので",
+        "ユーザーが「日本語でね」と指示した",
+        "あなたは「やり直して」とおっしゃいました",
+    ]
+    SHOULD_NOT_MATCH = [
+        "あなたが言ったことは正しい",          # 引用符なし＝突合対象が取れない
+        "私が「完了しました」と言った",          # 自分の発話
+        "ドキュメントが「必須」と言っている",    # 無生物主語
+    ]
+
+    def test_match(self):
+        for s in self.SHOULD_MATCH:
+            with self.subTest(s=s):
+                self.assertTrue(core.QUOTE_USER_SAID_RE.search(s), f"検知漏れ: {s!r}")
+
+    def test_not_match(self):
+        for s in self.SHOULD_NOT_MATCH:
+            with self.subTest(s=s):
+                self.assertIsNone(core.QUOTE_USER_SAID_RE.search(s), f"誤検知: {s!r}")
+
+
+class UserReportMarkerRegex(unittest.TestCase):
+    SHOULD_MATCH = [
+        "そちらの①の不具合を調べます",
+        "混入するという不具合報告がある",
+        "重要な情報です",
+        "遅い、という指摘を受けた",
+    ]
+    SHOULD_NOT_MATCH = [
+        "あなたの指摘どおり、揃えるべきです",   # パラフレーズ同意（較正で偽陽性化）は対象外
+        "そちらのファイルを確認します",          # 「そちらの」＋情報語以外
+        "報告書を作成します",
+    ]
+
+    def test_match(self):
+        for s in self.SHOULD_MATCH:
+            with self.subTest(s=s):
+                self.assertTrue(core.USER_REPORT_MARKER_RE.search(s), f"検知漏れ: {s!r}")
+
+    def test_not_match(self):
+        for s in self.SHOULD_NOT_MATCH:
+            with self.subTest(s=s):
+                self.assertIsNone(core.USER_REPORT_MARKER_RE.search(s), f"誤検知: {s!r}")
+
+
+class PhantomResponseRegex(unittest.TestCase):
+    SHOULD_MATCH = [
+        "…完全に、その通りです。言い訳できません。",
+        "ご指摘の通りです。",
+        "申し訳ありません。",
+    ]
+    SHOULD_NOT_MATCH = [
+        "了解しました。進めます。",   # 受諾系は正当応答が大半（較正実測54件）＝対象外
+        "その通りに実行します",       # 「その通りです」の断言形のみ対象
+    ]
+
+    def test_match(self):
+        for s in self.SHOULD_MATCH:
+            with self.subTest(s=s):
+                self.assertTrue(core.PHANTOM_RESPONSE_RE.search(s), f"検知漏れ: {s!r}")
+
+    def test_not_match(self):
+        for s in self.SHOULD_NOT_MATCH:
+            with self.subTest(s=s):
+                self.assertIsNone(core.PHANTOM_RESPONSE_RE.search(s), f"誤検知: {s!r}")
+
+
+class HarnessInputPrefixRegex(unittest.TestCase):
+    SHOULD_MATCH = [
+        "<task-notification>\n<task-id>abc</task-id>",
+        "<system-reminder>注意</system-reminder>",
+        "Caveat: The messages below were generated",
+    ]
+    SHOULD_NOT_MATCH = [
+        "地図を作るべき？",
+        "コミット後5へ",
+    ]
+
+    def test_match(self):
+        for s in self.SHOULD_MATCH:
+            with self.subTest(s=s):
+                self.assertTrue(core.HARNESS_INPUT_PREFIX_RE.search(s), f"検知漏れ: {s!r}")
+
+    def test_not_match(self):
+        for s in self.SHOULD_NOT_MATCH:
+            with self.subTest(s=s):
+                self.assertIsNone(core.HARNESS_INPUT_PREFIX_RE.search(s), f"誤検知: {s!r}")
+
+
+class ImportantNumRegex(unittest.TestCase):
+    def test_extracts_multi_digit_and_decimals(self):
+        self.assertEqual(set(core.IMPORTANT_NUM_RE.findall("約2000件中5〜6件（約0.3%）")),
+                         {"2000", "0.3"})
+
+    def test_single_digits_ignored(self):
+        # 1桁整数は指示番号（「コミット後5へ」）で頻出しノイズ＝突合対象外（較正実測）
+        self.assertEqual(core.IMPORTANT_NUM_RE.findall("コミット後5へ、次は3を"), [])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

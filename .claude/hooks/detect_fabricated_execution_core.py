@@ -190,6 +190,80 @@ BASH_WRITE_HINT_RE = re.compile(r">|\btee\b|\bsed\s+-i\b|\bcp\b|\bmv\b|\btouch\b
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Tier D 定数（入力側捏造: phantom user input）
+# 正解データ事象H・I（2026-07-07・wt:api-lab-ai の Opus 4.8 2セッション）で確立した新クラス。
+# 存在しないユーザー発話を捏造し、それを根拠に行動する（幻の叱責への謝罪・幻の引用・
+# 幻の不具合報告に基づく指示違反ピボット）。A/B/C は全て「出力側」（実行報告の捏造・誤読）で、
+# 「入力側」（ユーザーが言っていないことを言ったことにする）は構造的にカバー外だった。
+# 検知原理: アシスタント発話中の〈ユーザー発話への言及・引用〉を抽出し、実在する入力
+# （user human 入力／queued_command(origin.kind=human)／AskUserQuestion の回答）と突合する。
+# ─────────────────────────────────────────────────────────────────────────────
+
+# D1: ユーザー発話の直接引用構文。「あなたが「X」と言った」の X を実入力と突合できる
+# （引用は実発話の部分文字列のはず＝正規化部分一致で存在照合できる）。
+QUOTE_USER_SAID_RE = re.compile(
+    r"(?:あなた|ユーザー)(?:様|さん)?\s*(?:が|は|から)\s*「([^」]{2,80})」\s*"
+    r"(?:と(?:言|い|仰|おっしゃ|指示|指摘|報告|伝え)|を(?:指示|指摘|要求))")
+
+# D2: 「ユーザー由来の新情報が存在する」と主張するマーカー。
+# なぜ「あなたの指摘どおり」系を含めないか（較正実測 2026-07-07）: パラフレーズされた同意は
+# 内容突合が構造的に不可能で、実在指摘への正当応答（160153ad L717「あなたの指摘どおり、
+# 揃えるべきです」）が偽陽性化した。突合可能な「新情報の存在主張」だけに絞る。
+USER_REPORT_MARKER_RE = re.compile(
+    r"という(?:不具合)?(?:報告|指摘|申告|フィードバック)(?:がある|があった|があり|を受け|をもら)"
+    r"|そちらの(?:[①②③④⑤⑥⑦⑧⑨⑩\d]|不具合|報告|指摘|情報|件)"
+    r"|重要な(?:情報|報告)です")
+
+# D3: 発話冒頭の応答マーカー（同意・謝罪）。「了解しました/承知しました」の受諾系は含めない:
+# 較正実測でヒット54件の大半が正当応答（ツール実行を挟んだ指示への応答）＝情報量ゼロの偽陽性源。
+# 同意・謝罪は「叱責・訂正という入力」を前提にするため、入力欠落との組合せで判定力を持つ。
+PHANTOM_RESPONSE_RE = re.compile(
+    r"その通りです|おっしゃる通り|ご指摘の通り|ご指摘どおり|完全に、?その通り|全くその通り"
+    r"|申し訳|言い訳できません|すみません(?:でした)?")
+
+# 幻覚分析・検知器開発のメタ議論（ADR 0006「既知の限界」の実体化）。本リポジトリでは
+# ハルシネーション台帳・検知器を扱うため、実例の引用がD検知の最大の偽陽性源になる
+# （較正実測: 94a08b11 の分析セッションが台帳H/Iの引用で誤爆）。語彙は較正で実測した
+# 誤爆文面から採取（「存在しない多観点議論」「幻の数値報告」「全記録に不存在」等）。
+META_DISCUSSION_RE = re.compile(
+    r"捏造|幻覚|幻の|ハルシネーション|hallucination|不存在|存在しない|実在しない|偽の"
+    r"|検知|正解データ|台帳|全記録|記録に(?:無|な)い|記録なし",
+    re.IGNORECASE)
+# 発話全体でメタ語彙がこの回数以上 → 発話まるごと分析文書とみなし D 検査から降格。
+# なぜ文脈単位だけでは足りないか: 分析表・箇条書きでは引用行の近傍にメタ語が無いことがある
+# （較正実測: 94a08b11 L266 の表行）。
+META_UTTERANCE_MIN_HITS = 3
+
+# 別セッションの発話への言及（クロスセッション参照）。当該トランスクリプト単体では
+# 裏取りできない＝ADR 0006 の既知盲点と同型なので降格する（較正実測: 6bb04439 L114
+# 「あなたが「…」と指示したセッション」が該当）。
+CROSS_SESSION_RE = re.compile(r"セッション|前回の会話|過去の会話|別の会話")
+
+# user 行 content=str のうちハーネスが著者のもの（人間入力ではない）。
+# task-notification は queued 経由でも user-str としても届く（実測）。
+HARNESS_INPUT_PREFIX_RE = re.compile(
+    r"^\s*(?:<task-notification>|<system-reminder>|<local-command|<command-name>|Caveat:)")
+
+# D2 の突合対象「重要数値」＝2桁以上または小数。なぜ1桁整数を外すか（較正実測）:
+# 指示番号等で頻出し（「コミット後5へ」の「5」）、幻の報告数値「約2000件中5〜6件」の
+# 「5」「6」が実指示の「5」と衝突して誤免罪された。
+IMPORTANT_NUM_RE = re.compile(r"\d+\.\d+|\d{2,}")
+
+# 軸2（thinking 異常）: 単独検知ルールにはしない（較正実測: 中央値×5 は正当作業で20%誤発火・
+# 絶対30Kは事象I=34Kと余白4K）。役割は D3 発火時の確度ブースト（active 昇格）のみ。
+# baseline は「当該発話より前の発話の thinking signature 長」の p25（n<4 は最小値）:
+# 暴走 thinking はセッション内で複数回続く（事象H は 165K/172K が連続）ため中央値は自己汚染
+# する。p25/最小値は汚染に頑健（較正実測: H baseline 5,708 に対し TP は 8〜30倍、
+# 正当作業の最大は b8b8b382 の 37K だが直前に実 AskUserQuestion 回答があり D3 対象外）。
+# ※ signature 文字長は thinking トークン数の代理指標（単位が違う）。較正は sig 長で統一。
+THINKING_BOOST_RATIO = 8.0
+THINKING_BOOST_MIN_ABS = 15000
+
+# D3 の応答マーカー検査は発話冒頭のみ（本文中の言及は「応答」ではない）。
+PHANTOM_HEAD_CHARS = 200
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # データ構造
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -220,6 +294,11 @@ class Utterance:
     timestamp: str
     order: int
     is_last_turn: bool = False
+    # Tier D 用: 発話束（thinking→text→tool_use の分割行）内の thinking signature 最大長。
+    # thinking 本文は transcript に残らない（実測: 全て空）ため signature 長が唯一の代理指標。
+    thinking_sig_max: int = 0
+    # Tier D3 用: 直前入力区間（前の assistant 発話以降〜当発話）に人間由来入力があるか。
+    human_input_precedes: bool = False
 
 
 @dataclass
@@ -435,6 +514,16 @@ class EvidenceCorpus:
             return t in self._result_blob
         return any(o < before and t in s for o, s in self._result_norm)
 
+    def result_numbers_before(self, before: int) -> set:
+        """result 層（エコーバック除去済み実出力）由来の重要数値集合を「before より前」に限定して
+        返す（Tier D2 の数値突合用）。tool_use.input を含まない result 層を使う理由は
+        result_contains と同じ: 捏造数値を自分で委譲文・コマンドに書くと自己免罪される。"""
+        out: set = set()
+        for o, s in self._result_chunks:
+            if o < before:
+                out.update(IMPORTANT_NUM_RE.findall(s))
+        return out
+
     @property
     def numbers(self) -> set:
         if self._numbers is None:
@@ -487,7 +576,8 @@ def build_utterances(records: List[dict]) -> List[Utterance]:
         msg = rec.get("message") or {}
         # message.id が無い異常行は uuid で代替（束ねられず単独発話になるが安全）。
         mid = msg.get("id") or rec.get("uuid") or f"_anon{idx}"
-        g = groups.setdefault(mid, {"text": [], "tools": [], "ts": rec.get("timestamp", "")})
+        g = groups.setdefault(mid, {"text": [], "tools": [], "ts": rec.get("timestamp", ""),
+                                    "sig": 0})
         if mid not in order_of:
             order_of[mid] = idx
         content = msg.get("content")
@@ -497,6 +587,9 @@ def build_utterances(records: List[dict]) -> List[Utterance]:
                     continue
                 if blk.get("type") == "text" and isinstance(blk.get("text"), str):
                     g["text"].append(blk["text"])
+                elif blk.get("type") == "thinking":
+                    # Tier D の軸2（thinking 異常）用に signature 長を発話束へ集約
+                    g["sig"] = max(g["sig"], len(blk.get("signature") or ""))
                 elif blk.get("type") == "tool_use":
                     g["tools"].append(ToolUse(
                         id=blk.get("id", ""),
@@ -510,7 +603,7 @@ def build_utterances(records: List[dict]) -> List[Utterance]:
 
     utterances = [
         Utterance(msg_id=mid, text="\n".join(g["text"]), tool_uses=g["tools"],
-                  timestamp=g["ts"], order=order_of[mid])
+                  timestamp=g["ts"], order=order_of[mid], thinking_sig_max=g["sig"])
         for mid, g in groups.items()
     ]
     utterances.sort(key=lambda u: u.order)
@@ -567,6 +660,67 @@ def collect_tool_use_inputs(records: List[dict]) -> Dict[str, str]:
             if isinstance(blk, dict) and blk.get("type") == "tool_use" and blk.get("id"):
                 m[blk["id"]] = json.dumps(blk.get("input") or {}, ensure_ascii=False)
     return m
+
+
+def collect_human_inputs(records: List[dict]) -> List[Tuple[int, str]]:
+    """
+    「実在する人間入力」を（全レコード軸の順序, テキスト）で列挙する（Tier D の突合正本）。
+    含めるもの:
+      ・user 行 content=str（ただしハーネス著者の task-notification / system-reminder 等は除外）
+      ・user 行 content=list 内の text ブロック（interrupt 直後のユーザー入力等）
+      ・queued_command attachment で origin.kind=="human" の prompt
+        （task-notification も queued_command として届くが origin が無い＝実測で判別可能）
+      ・AskUserQuestion の tool_result（ユーザーが選択肢に回答した内容＝人間由来。
+        較正実測: これを含めないと「回答→ツール実行→同意」の正当応答が偽陽性化する）
+      ・summary レコード（コンパクション要約は過去の人間発話を含む。order=-1＝
+        「常に以前」扱いで引用突合のみに効き、D3 の直前区間判定には掛からない）
+    """
+    # AskUserQuestion 判定用に tool_use id → name を索引化（sidechain 含む全レコード）
+    tu_names: Dict[str, str] = {}
+    for rec in records:
+        if rec.get("type") != "assistant":
+            continue
+        content = _content_of(rec)
+        if isinstance(content, list):
+            for blk in content:
+                if isinstance(blk, dict) and blk.get("type") == "tool_use" and blk.get("id"):
+                    tu_names[blk["id"]] = blk.get("name", "")
+
+    humans: List[Tuple[int, str]] = []
+    for idx, rec in enumerate(records):
+        if rec.get("isSidechain"):
+            continue
+        t = rec.get("type")
+        if t == "summary" and isinstance(rec.get("summary"), str):
+            humans.append((-1, rec["summary"]))
+            continue
+        if t == "attachment":
+            att = rec.get("attachment") or {}
+            if (att.get("type") == "queued_command"
+                    and isinstance(att.get("origin"), dict)
+                    and att["origin"].get("kind") == "human"):
+                p = att.get("prompt") or ""
+                if p:
+                    humans.append((idx, p))
+            continue
+        if t != "user":
+            continue
+        content = _content_of(rec)
+        if isinstance(content, str):
+            if content and not HARNESS_INPUT_PREFIX_RE.search(content):
+                humans.append((idx, content))
+        elif isinstance(content, list):
+            for blk in content:
+                if not isinstance(blk, dict):
+                    continue
+                if blk.get("type") == "text" and blk.get("text"):
+                    humans.append((idx, blk["text"]))
+                elif (blk.get("type") == "tool_result"
+                      and tu_names.get(blk.get("tool_use_id", "")) == "AskUserQuestion"):
+                    txt = flatten_tool_output(blk.get("content"), rec.get("toolUseResult"))
+                    if txt:
+                        humans.append((idx, txt))
+    return humans
 
 
 def build_evidence_corpus(records: List[dict], tool_index: Dict[str, ToolResult],
@@ -1118,17 +1272,178 @@ def detect_tier_c4(utterances: List[Utterance], corpus: EvidenceCorpus) -> List[
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Tier D 検出（入力側捏造: 幻のユーザー発話への言及・引用・応答）
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _human_blob(humans: List[Tuple[int, str]]) -> str:
+    """人間入力の引用突合用ブロブ（空白除去正規化）。引用は表記ゆれで空白が変わるため。"""
+    return re.sub(r"\s+", "", "\n".join(t for _, t in humans))
+
+
+def _prior_sig_baseline(u: Utterance, all_utterances: List[Utterance]) -> int:
+    """当該発話より前の発話の thinking sig 長の p25（n<4 は最小値）。
+    なぜ中央値でないか: 暴走 thinking はセッション内で連続する（事象H は 165K/172K が連続）
+    ため中央値は自己汚染する。p25/最小値は汚染に頑健（定数ブロックの較正実測を参照）。"""
+    prior = sorted(x.thinking_sig_max for x in all_utterances
+                   if x.order < u.order and x.thinking_sig_max > 0)
+    if not prior:
+        return 0
+    return prior[len(prior) // 4] if len(prior) >= 4 else prior[0]
+
+
+def _thinking_boosted(u: Utterance, all_utterances: List[Utterance]) -> bool:
+    """軸2: 当該発話の thinking sig が先行 baseline 比で異常か（D3 の active 昇格条件）。
+    単独ルールにはしない（較正実測: 中央値×5 は正当作業で20%誤発火）。"""
+    base = _prior_sig_baseline(u, all_utterances)
+    return (base > 0 and u.thinking_sig_max >= THINKING_BOOST_MIN_ABS
+            and u.thinking_sig_max >= base * THINKING_BOOST_RATIO)
+
+
+def _is_meta_utterance(text: str) -> bool:
+    """発話全体が幻覚分析等のメタ文書か（分析表では引用行の近傍にメタ語が無いため発話単位）。"""
+    return len(META_DISCUSSION_RE.findall(text)) >= META_UTTERANCE_MIN_HITS
+
+
+def detect_tier_d1(utterances: List[Utterance], all_utterances: List[Utterance],
+                   humans: List[Tuple[int, str]]) -> List[Finding]:
+    """
+    ユーザー発話の引用「あなたが「X」と言った」の X が、実在する人間入力のどこにも無い
+    → 幻の発話の引用（事象H③: 全記録に不存在の「ツールを叩く前に」を引用符付きで“引用”）。
+    証拠は人間入力のみ（tool_result は無関係）なので truncation 降格は不要。
+    """
+    blob = _human_blob(humans)
+    findings: List[Finding] = []
+    for u in utterances:
+        if not u.text:
+            continue
+        meta = _is_meta_utterance(u.text)
+        for m in QUOTE_USER_SAID_RE.finditer(u.text):
+            quote = re.sub(r"\s+", "", m.group(1))
+            if quote and quote in blob:
+                continue  # 実在発話の再引用 → セーフ
+            ctx = u.text[max(0, m.start() - 120):m.end() + 120]
+            if meta or META_DISCUSSION_RE.search(ctx):
+                suppressed = "meta_discussion"
+            elif CROSS_SESSION_RE.search(ctx):
+                # 別セッションの発話への言及は当該 transcript 単体で裏取り不能（既知盲点と同型）
+                suppressed = "cross_session_reference"
+            else:
+                suppressed = None
+            conf = 0.85 if not suppressed else 0.5
+            if not suppressed and _thinking_boosted(u, all_utterances):
+                conf = 0.9  # 軸2: 暴走 thinking 直後（G/H/I 共通の前兆）は確度を上げる
+            findings.append(Finding(
+                tier="D", rule="fabricated_user_quote",
+                confidence=conf,
+                msg_id=u.msg_id, timestamp=u.timestamp,
+                claim_excerpt=m.group(0).strip()[:200],
+                missing_token=m.group(1)[:60],
+                expected_tool_pattern="実在する人間入力（user/queued_command(human)/AskUserQuestion回答）",
+                suppressed_reason=suppressed,
+            ))
+    return findings
+
+
+def detect_tier_d2(utterances: List[Utterance], all_utterances: List[Utterance],
+                   humans: List[Tuple[int, str]], corpus: EvidenceCorpus) -> List[Finding]:
+    """
+    「ユーザー由来の新情報がある」と主張する発話（「そちらの①の不具合」「という報告がある」）
+    の重要数値が、実在する人間入力にも「主張以前の」実 tool_result にも無い → 幻の報告
+    （事象I①: 全記録に不存在の「約2000件中5〜6件（約0.3%）」を根拠に指示違反ピボット）。
+    数値を発話全体から取る理由（較正実測）: マーカー文と数値文が離れる（I は文3に数値）。
+    result 層も突合に加える理由: 実出力由来の数値なら誤帰属ではあっても捏造ではない（精度優先）。
+    """
+    human_nums = set()
+    for _, t in humans:
+        human_nums.update(IMPORTANT_NUM_RE.findall(t))
+
+    findings: List[Finding] = []
+    for u in utterances:
+        if not u.text:
+            continue
+        m = USER_REPORT_MARKER_RE.search(u.text)
+        if not m:
+            continue
+        ctx = u.text[max(0, m.start() - 150):m.end() + 150]
+        if _is_meta_utterance(u.text) or META_DISCUSSION_RE.search(ctx):
+            suppressed = "meta_discussion"
+            missing: List[str] = []
+        else:
+            nums = set(IMPORTANT_NUM_RE.findall(u.text))
+            if not nums:
+                # 数値の無い帰属主張は突合不能 → 検査しない（精度優先）
+                suppressed = "no_concrete_token"
+                missing = []
+            else:
+                grounded = human_nums | corpus.result_numbers_before(u.order)
+                missing = sorted(nums - grounded)
+                if not missing:
+                    continue  # 全数値がどこかに実在 → 免罪
+                # result 層が不完全なら「無い」判定を信用できないので降格
+                suppressed = _suppression(corpus)
+        conf = 0.8 if not suppressed else 0.5
+        if not suppressed and _thinking_boosted(u, all_utterances):
+            conf = 0.85
+        findings.append(Finding(
+            tier="D", rule="fabricated_user_report",
+            confidence=conf,
+            msg_id=u.msg_id, timestamp=u.timestamp,
+            claim_excerpt=m.group(0).strip()[:200],
+            missing_token=",".join(missing)[:60] or None,
+            expected_tool_pattern="人間入力または主張以前の実 tool_result に同じ数値",
+            suppressed_reason=suppressed,
+        ))
+    return findings
+
+
+def detect_tier_d3(utterances: List[Utterance], all_utterances: List[Utterance]) -> List[Finding]:
+    """
+    発話冒頭の同意・謝罪マーカーなのに、直前入力区間に人間由来入力が無い → 幻の叱責への応答
+    候補（事象H②: 誰も発していない叱責へ「完全に、その通りです。言い訳できません」）。
+    単独では suppressed（正当応答でも「指示→ツール実行→同意」の並びで直前区間が空になりうる）。
+    軸2（暴走 thinking 直後）が重なったときのみ active 昇格する——G/H/I で共通観測された
+    「幻テキスト直前の thinking signature 異常（同セッション通常比5〜30倍）」を確度に使う。
+    """
+    findings: List[Finding] = []
+    for u in utterances:
+        head = u.text[:PHANTOM_HEAD_CHARS] if u.text else ""
+        if not head or not PHANTOM_RESPONSE_RE.search(head):
+            continue
+        if u.human_input_precedes:
+            continue  # 直前に実入力あり → 正当応答
+        if _is_meta_utterance(u.text) or META_DISCUSSION_RE.search(
+                u.text[:PHANTOM_HEAD_CHARS + 200]):
+            suppressed = "meta_discussion"
+        elif not _thinking_boosted(u, all_utterances):
+            # 応答マーカー＋入力欠落だけでは正当応答と区別しきれない（較正実測: 自己訂正の
+            # 謝罪等）。thinking 異常の共起が無ければブロック対象から外し CLI レビューに委ねる。
+            suppressed = "no_thinking_anomaly"
+        else:
+            suppressed = None
+        findings.append(Finding(
+            tier="D", rule="phantom_user_response",
+            confidence=0.8 if not suppressed else 0.5,
+            msg_id=u.msg_id, timestamp=u.timestamp,
+            claim_excerpt=head.strip()[:200],
+            expected_tool_pattern="直前入力区間の人間由来入力",
+            suppressed_reason=suppressed,
+        ))
+    return findings
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # エントリポイント
 # ─────────────────────────────────────────────────────────────────────────────
 
 def analyze(text: str, transcript_path: Optional[str] = None,
             scope: str = "all", sentinel_dir: Optional[str] = None,
-            tiers: str = "ABC") -> Report:
+            tiers: str = "ABCD") -> Report:
     """
     トランスクリプト JSONL 文字列を解析し Report を返す。唯一のエントリ。
       scope="all"       … 全 assistant 発話の主張を検査
       scope="last_turn" … 最後の assistant 発話の主張のみ検査（証拠・成功実行は全域から集める）
       tiers             … A=ペア欠落系 / B=未検証テスト主張 / C=misread（報告と実結果の食い違い）
+                          / D=入力側捏造（幻のユーザー発話への言及・引用・応答）
     """
     records = parse_records(text)
 
@@ -1136,6 +1451,15 @@ def analyze(text: str, transcript_path: Optional[str] = None,
     all_utterances = build_utterances(records)
     tool_index = index_tool_results(records, transcript_path)  # main＋sidechain 両方索引
     corpus = build_evidence_corpus(records, tool_index, all_utterances, transcript_path)
+
+    # Tier D 用: 実在する人間入力を索引化し、各発話に「直前入力区間の人間入力有無」を注釈する。
+    # 区間は〈前の発話の開始 order, 当発話の開始 order〉: 前発話の tool_result 等が挟まっても
+    # それは人間入力ではないので判定に影響しない。
+    humans = collect_human_inputs(records)
+    prev_order = -1
+    for u in all_utterances:  # build_utterances が order 昇順ソート済み
+        u.human_input_precedes = any(prev_order < h < u.order for h, _ in humans)
+        prev_order = u.order
 
     # 検査対象の発話（claims）を scope で絞る
     if scope == "last_turn":
@@ -1156,6 +1480,10 @@ def analyze(text: str, transcript_path: Optional[str] = None,
         findings += detect_tier_c3(target, all_utterances, records, tool_index, corpus,
                                    transcript_path)
         findings += detect_tier_c4(target, corpus)
+    if "D" in tiers:
+        findings += detect_tier_d1(target, all_utterances, humans)
+        findings += detect_tier_d2(target, all_utterances, humans, corpus)
+        findings += detect_tier_d3(target, all_utterances)
 
     # 信頼度降順で安定ソート
     findings.sort(key=lambda f: (f.suppressed_reason is not None, -f.confidence))
