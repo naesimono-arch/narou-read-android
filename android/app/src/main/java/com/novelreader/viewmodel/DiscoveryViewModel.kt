@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 sealed interface DiscoveryUiState {
@@ -100,30 +101,40 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun changeResultOrder(order: NarouOrder) {
-        val current = _resultContext.value ?: return
-        _resultContext.value = current.copy(
-            query = current.query.copy(order = order)
-        )
+        // なぜ update か: 最新値を基点に read-modify-write をアトミックに行い、並行更新の取りこぼしを防ぐ。
+        // 文脈未確立（null）なら変更もロードもしないので事前に弾く。
+        if (_resultContext.value == null) return
+        _resultContext.update { current ->
+            if (current == null) return@update null
+            current.copy(query = current.query.copy(order = order))
+        }
         loadResult()
     }
 
     fun changeResultGenreFilter(biggenres: Set<Int>, genres: Set<Int>) {
-        val current = _resultContext.value ?: return
-        // なぜ: SEARCH/KEYWORD 発の結果の見出しは検索語（『「最強」』等）であり、ジャンルをその場変更しても“何を検索したか”は変わらないため見出しは維持する。GENRE 発のみ見出し＝ジャンル名なので追従させる。
-        val nextTitle = if (current.source == ResultSource.GENRE) {
-            when {
-                genres.size == 1 -> NarouGenres.genreLabel(genres.first()) ?: current.title
-                biggenres.size == 1 -> NarouGenres.biggenreLabel(biggenres.first()) ?: current.title
-                genres.isEmpty() && biggenres.isEmpty() -> "すべての作品"
-                else -> current.title
+        // なぜ update か: 最新値を基点に read-modify-write をアトミックに行い、並行更新の取りこぼしを防ぐ。
+        // 文脈未確立（null）なら変更もロードもしないので事前に弾く。
+        if (_resultContext.value == null) return
+        _resultContext.update { current ->
+            // なぜ nextTitle を update 内で算出するか: 見出しは current の source/title から導く派生値のため、
+            // update が再試行されても常に最新状態を基点に計算する（副作用なし・冪等なので再実行しても安全）。
+            if (current == null) return@update null
+            // なぜ: SEARCH/KEYWORD 発の結果の見出しは検索語（『「最強」』等）であり、ジャンルをその場変更しても“何を検索したか”は変わらないため見出しは維持する。GENRE 発のみ見出し＝ジャンル名なので追従させる。
+            val nextTitle = if (current.source == ResultSource.GENRE) {
+                when {
+                    genres.size == 1 -> NarouGenres.genreLabel(genres.first()) ?: current.title
+                    biggenres.size == 1 -> NarouGenres.biggenreLabel(biggenres.first()) ?: current.title
+                    genres.isEmpty() && biggenres.isEmpty() -> "すべての作品"
+                    else -> current.title
+                }
+            } else {
+                current.title
             }
-        } else {
-            current.title
+            current.copy(
+                title = nextTitle,
+                query = current.query.copy(biggenres = biggenres, genres = genres)
+            )
         }
-        _resultContext.value = current.copy(
-            title = nextTitle,
-            query = current.query.copy(biggenres = biggenres, genres = genres)
-        )
         loadResult()
     }
 
@@ -187,7 +198,8 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
 
     /** 履歴チップのタップ: 検索語をドラフトへ移して即実行する。 */
     fun searchFromHistory(word: String): Boolean {
-        _searchDraft.value = _searchDraft.value.copy(word = word)
+        // なぜ update か: 最新のドラフトを基点に word だけ差し替える read-modify-write をアトミックに行う。
+        _searchDraft.update { it.copy(word = word) }
         return executeSearch()
     }
 

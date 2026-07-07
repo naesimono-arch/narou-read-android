@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.novelreader.NovelReaderApplication
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.model.NarouNovel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,11 +34,17 @@ class NovelDetailViewModel(application: Application) : AndroidViewModel(applicat
 
     private var loadedNcode: String? = null
 
+    // なぜ Job を保持してキャンセルするか: 別 ncode で load() を連打すると、遅い旧リクエストの応答が
+    // 後着して新しい結果を上書きしうる（応答の完了順は要求順を保証しない）。先行ロードをキャンセルして
+    // 「最後の要求だけが状態を書く」を DiscoveryViewModel（homeLoadJob/resultLoadJob）と同じ方式で構造的に保証する。
+    private var loadJob: Job? = null
+
     /** 同一 ncode の再呼び出し（再コンポーズ等）ではロードし直さない。 */
     fun load(ncode: String) {
         if (loadedNcode == ncode && _uiState.value !is NovelDetailUiState.Error) return
         loadedNcode = ncode
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             _uiState.value = NovelDetailUiState.Loading
             _uiState.value = try {
                 val novel = repository.novelDetail(ncode)
