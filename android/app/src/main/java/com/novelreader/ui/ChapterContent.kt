@@ -39,6 +39,8 @@ import com.novelreader.model.TextSegment
 import com.novelreader.ui.compose.RubyText
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
 
 /** 章本文を LazyColumn でレンダリングする */
 @Composable
@@ -153,7 +155,7 @@ private fun ChapterHeader(
 /** 1段落分を描画する。空段落は Spacer、StyledBlock は背景付き Surface で描画 */
 @Composable
 private fun ParagraphItem(
-    paragraph: List<TextSegment>,
+    paragraph: ImmutableList<TextSegment>,
     colors: ReadingColors,
     fontSize: Int,
     lineHeightEm: Float,
@@ -260,36 +262,36 @@ private fun ParagraphItem(
  * 空段落（LineBreak 連続）はフィルタリングせず保持する。
  * なぜか: なろう系小説では連続空行によるシーン転換演出が頻出するため。
  */
-private fun List<TextSegment>.splitIntoParagraphs(): List<List<TextSegment>> {
-    val result = mutableListOf<List<TextSegment>>()
+private fun List<TextSegment>.splitIntoParagraphs(): List<ImmutableList<TextSegment>> {
+    val result = mutableListOf<ImmutableList<TextSegment>>()
     val current = mutableListOf<TextSegment>()
 
     for (segment in this) {
         when {
             segment is TextSegment.LineBreak -> {
-                result.add(current.toList())
+                result.add(current.toImmutableList())
                 current.clear()
             }
             segment is TextSegment.HorizontalRule -> {
                 // 水平線は独立した段落として扱う
                 if (current.isNotEmpty()) {
-                    result.add(current.toList())
+                    result.add(current.toImmutableList())
                     current.clear()
                 }
-                result.add(listOf(segment))
+                result.add(listOf(segment).toImmutableList())
             }
             segment is TextSegment.StyledBlock -> {
                 // 前書き・後書きも独立した段落として扱う
                 if (current.isNotEmpty()) {
-                    result.add(current.toList())
+                    result.add(current.toImmutableList())
                     current.clear()
                 }
-                result.add(listOf(segment))
+                result.add(listOf(segment).toImmutableList())
             }
             else -> current.add(segment)
         }
     }
-    if (current.isNotEmpty()) result.add(current.toList())
+    if (current.isNotEmpty()) result.add(current.toImmutableList())
 
     return result
 }

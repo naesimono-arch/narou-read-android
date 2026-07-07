@@ -72,6 +72,9 @@ dependencies {
     // HTMLパーサー (Jsoup)
     implementation 'org.jsoup:jsoup:1.17.2'
 
+    // なぜ: List<TextSegment> は Compose stability 推論で不安定→読書 LazyColumn の項目が skippable にならないため（strong skipping 無効の Kotlin 1.9 環境）
+    implementation 'org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.7'
+
     // PDF抽出 (PDFBox-Android / Tom Roush 版)。旧 Chaquopy(Python+pdfminer) から移植した唯一の抽出経路。
     // なぜ 2.0.x 系で固定: Android 版 PDFBox-Android は upstream apache-pdfbox 2.0.x をベースにしており、
     // 移植元プロト (ab-review/submission-B) が apache 2.0.31 で精度検証済みのため API を 1:1 に保てる。
