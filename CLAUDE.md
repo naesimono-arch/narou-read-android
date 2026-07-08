@@ -9,7 +9,7 @@ Jetpack Compose + Kotlin ネイティブ PDF 抽出（PDFBox-Android）。
 
 ## 開発ルール
 
-- **コードダンプ禁止**: チャットへのコード出力は10行以内。全体確認は `code <ファイルパス>` でエディターを開く。
+- **コードダンプ禁止**: チャットへのコード出力は10行以内。
 - **Atomic Commit**: 1論理的変更＝1コミット。形式は `fix/feat/refactor: 要約（日本語可）`。`git commit` 前に変更内容を提示して人間の承認を得ること。`Co-Authored-By` トレーラーは付けないこと。
 - **UIコメントは日本語**
 - **自己検証必須**: Kotlin の `src/main` または `src/test` を変更した場合は必ず `cd android && ./gradlew testDebugUnitTest` を実行してからコミット計画を提示すること（`androidTest` は端末必須のため対象外）。PDF抽出ロジック（`java/com/novelreader/pdf/` の `PdfExtractor`/`TextProcessor`/`ChapterProcessor`/`HtmlExporter` 等）もこの Kotlin テストで担保される（旧 Python 版の単体テスト test_logic.py は Phase 5 で撤去済み）。

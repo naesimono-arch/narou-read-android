@@ -21,15 +21,6 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/open_in_vscode.py\""
-          }
-        ]
-      },
-      {
         "matcher": "Write|Edit",
         "hooks": [
           {
