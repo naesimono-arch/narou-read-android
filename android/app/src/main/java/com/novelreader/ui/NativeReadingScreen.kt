@@ -395,8 +395,11 @@ private fun ChapterScreen(
     val colors = rememberReadingColors(readingTheme)
     val scope = rememberCoroutineScope()
 
-    // 表示設定ボトムシートの開閉状態
-    var showSettings by remember { mutableStateOf(false) }
+    // 表示設定ボトムシートの開閉状態。
+    // なぜ rememberSaveable か: 素の remember だとプロセス再生成（回転・background kill）で
+    // シートだけ閉じてしまい、開いていた文脈が飛ぶ。検索シート（DiscoverySearchScreen）と
+    // 同様に開閉を Saveable 化して復元する（Boolean は既定 Saver で保存可＝Saver 不要）。
+    var showSettings by rememberSaveable { mutableStateOf(false) }
 
     // ボトムバーの実測高さ（px）。退避スライド量に使う。
     // なぜ固定値にしないか: ナビゲーションバー実高（ボタン式/ジェスチャー式）でバー総高が
@@ -475,8 +478,10 @@ private fun ChapterScreen(
         }
     }
 
-    // なろう紐付けシートの開閉状態
-    var showLinkSheet by remember { mutableStateOf(false) }
+    // なろう紐付けシートの開閉状態。
+    // なぜ rememberSaveable か: 上の表示設定シートと同じく、プロセス再生成でシートだけ
+    // 閉じる不整合を避けるため開閉を Saveable 化する（Boolean は既定 Saver で保存可）。
+    var showLinkSheet by rememberSaveable { mutableStateOf(false) }
 
     // 継続カードからの外部遷移（Custom Tabs 起動）の再入ガード用タイムスタンプ（M1/公理3）。
     // なぜ必要か: Custom Tabs はブラウザ別プロセスの起動待ちがあり、反応が無いと利用者が連打しやすい。
@@ -588,8 +593,13 @@ private fun ChapterScreen(
     // クローム（上下バー）が初めて画面外へ退避したとき、復帰操作（中央タップ）を数秒だけ
     // 一過性ラベルで示す。なぜ一度きり・自動消灯か: 常時の帯は没入を削ぐため、初回消灯時の
     // 学習機会だけを与え以後は出さない（M12＝復帰手段が不可視だった問題への最小介入）。
-    // セッション内 remember で一度だけ＝設定/prefs を増やさない（過剰にならない範囲に留める）。
-    var chromeHintConsumed by remember { mutableStateOf(false) }
+    // なぜ prefs で永続化しアプリ通算初回のみにするか: セッション毎の表示は、復帰操作を既に
+    // 学習済みのユーザーには冗長。ヒントの目的（復帰手段の可視化）は一度の学習で達成されるため、
+    // 表示済みフラグを prefs に持たせて通算初回だけに絞る。他の読書設定と同じ app_prefs に置く。
+    val chromeHintPrefs = remember { context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
+    var chromeHintConsumed by remember {
+        mutableStateOf(chromeHintPrefs.getBoolean("immersive_hint_shown", false))
+    }
     var showChromeHint by remember { mutableStateOf(false) }
     LaunchedEffect(topAppBarState) {
         snapshotFlow { topAppBarState.collapsedFraction > 0.9f }
@@ -597,6 +607,9 @@ private fun ChapterScreen(
             .collect { hidden ->
                 if (hidden && !chromeHintConsumed) {
                     chromeHintConsumed = true
+                    // 表示に踏み切った時点で永続フラグを立てる＝以後のセッションでは二度と出さない。
+                    // apply は非同期ディスク書込のため UI をブロックしない。
+                    chromeHintPrefs.edit().putBoolean("immersive_hint_shown", true).apply()
                     showChromeHint = true
                     delay(2600)
                     showChromeHint = false
