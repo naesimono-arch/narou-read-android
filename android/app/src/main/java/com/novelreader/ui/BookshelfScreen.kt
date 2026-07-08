@@ -14,6 +14,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,9 +47,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import com.novelreader.data.BookEntity
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingTheme
+import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.BookshelfViewModel
 import kotlinx.coroutines.launch
 
@@ -61,7 +63,11 @@ fun BookshelfScreen(
     onOpenBook: (bookId: String, startFile: String) -> Unit,
     onOpenDiscovery: () -> Unit,
 ) {
-    val books by viewModel.books.collectAsStateWithLifecycle()
+    // Loading と Empty を型で区別する（F-O）。Loading 中はスケルトンを出し、
+    // DB から Content(空) が確定して初めて空状態を表示することで cold start の空フラッシュを防ぐ。
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isLoading = uiState is BookshelfUiState.Loading
+    val books = (uiState as? BookshelfUiState.Content)?.books ?: emptyList()
     val progressMap by viewModel.progressMap.collectAsStateWithLifecycle()
     val processingState by viewModel.processingState.collectAsStateWithLifecycle()
     val isProcessing = processingState.isProcessing
@@ -87,9 +93,11 @@ fun BookshelfScreen(
     val prefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
     var batteryDialogDismissed by remember { mutableStateOf(prefs.getBoolean("battery_dialog_dismissed", false)) }
 
-    // バッテリー最適化除外ダイアログの表示フラグ（onFabClickより先に宣言必須）
-    var showBatteryOptDialog by remember { mutableStateOf(false) }
-    var doNotShowAgain by remember { mutableStateOf(false) }
+    // バッテリー最適化除外ダイアログの表示フラグ（onFabClickより先に宣言必須）。
+    // rememberSaveable: 回転・ダーク切替（Activity 再生成）でダイアログと「二度と表示しない」
+    // チェック入力が消えないよう保持する（M4）。
+    var showBatteryOptDialog by rememberSaveable { mutableStateOf(false) }
+    var doNotShowAgain by rememberSaveable { mutableStateOf(false) }
 
     // グリッド/リスト表示の切り替え状態（SharedPreferencesで永続化）
     var isGridView by remember { mutableStateOf(prefs.getBoolean("is_grid_view", true)) }
@@ -97,9 +105,11 @@ fun BookshelfScreen(
     // 削除UIの方式（SharedPreferencesで永続化）。0=長押しメニュー / 1=⋮メニュー。
     // なぜトグルで両方式を残すか: 2方式を実機で触り比べて採用方式を決めるための一時機構。
     // 採用方式が確定したら、他方の分岐とこのトグル自体を削除する。
-    // 既定を 0(長押し) にした理由: 視覚言語D（モック bookshelf-D）は削除アフォーダンスを持たない
-    // フラットな構図のため、既定で⋮を出さない長押し方式がモック準拠。⋮方式はトグルで opt-in。
-    var deleteUiMode by remember { mutableStateOf(prefs.getInt("delete_ui_mode", 0)) }
+    // 既定を 1(⋮メニュー) にした理由（UX監査 M5）: 既定 0(長押しのみ) は削除手段に可視の
+    // 手がかりが無く、長押しを知らないユーザーは本を削除できない（発見不能）。視覚言語D の
+    // フラット構図は崩したくないが、削除の発見性を優先し、既存トークンの控えめな⋮を既定で出す。
+    // 長押し経路も残す（⋮に気づかない層のフォールバック）。トグルで長押しのみへ戻せる。
+    var deleteUiMode by remember { mutableStateOf(prefs.getInt("delete_ui_mode", 1)) }
 
     // 本棚トップバーの⋮オーバーフロー（テーマ切替＋開発トグル）の開閉状態
     var showOverflowMenu by remember { mutableStateOf(false) }
@@ -136,8 +146,11 @@ fun BookshelfScreen(
         }
     }
 
-    // 削除確認ダイアログ用の状態
-    var bookToDelete by remember { mutableStateOf<BookEntity?>(null) }
+    // 削除確認ダイアログの対象。回転・ダーク切替（Activity 再生成）で確認ダイアログが消えないよう
+    // rememberSaveable で保持する（M4）。BookEntity は Saveable でないため bookId(String) だけ保存し、
+    // 実体は books から都度解決する（対象が一覧から消えたら null＝ダイアログは自然に閉じる）。
+    var bookToDeleteId by rememberSaveable { mutableStateOf<String?>(null) }
+    val bookToDelete = bookToDeleteId?.let { id -> books.firstOrNull { it.id == id } }
 
     val gridState = rememberLazyGridState()
     val listState = rememberLazyListState()
@@ -296,12 +309,17 @@ fun BookshelfScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            if (books.isEmpty() && !isProcessing) {
+            if (isLoading) {
+                // 初回DB発行前は表紙スケルトンを出す（F-O）。Content(空) が確定するまで空状態を出さない
+                // ことで cold start の空フラッシュ（Loading と Empty の混同）を防ぐ。
+                BookshelfSkeleton(isGridView = isGridView, modifier = Modifier.fillMaxSize())
+            } else {
+              if (books.isEmpty() && !isProcessing) {
                 // 空状態。サイズ指定は呼び出し側の責務。従来の内部 fillMaxSize と同じ描画を維持。
                 EmptyBookshelf(onAddClick = onFabClick, modifier = Modifier.fillMaxSize())
-            }
+              }
 
-            if (isGridView) {
+              if (isGridView) {
                 // ────── グリッドレイアウト ──────
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
@@ -324,14 +342,14 @@ fun BookshelfScreen(
                     items(books, key = { it.id }) { book ->
                         GridBookCard(
                             book = book,
-                            lastRead = progressMap[book.id],
+                            progress = progressMap[book.id],
                             onOpen = {
                                 scope.launch {
                                     val lastReadFile = viewModel.getLastRead(book.id) ?: "index.html"
                                     onOpenBook(book.id, lastReadFile)
                                 }
                             },
-                            onDelete = { bookToDelete = book },
+                            onDelete = { bookToDeleteId = book.id },
                             deleteUiMode = deleteUiMode,
                             // 削除時の詰め直しアニメ。旧animateItemPlacementはFoundation1.6系で高速フリング中に
                             // カバーが画面外の古い位置から補間され重なる既知不具合があり一時撤去していたが、
@@ -361,20 +379,21 @@ fun BookshelfScreen(
                     items(books, key = { it.id }) { book ->
                         ListBookCard(
                             book = book,
-                            lastRead = progressMap[book.id],
+                            progress = progressMap[book.id],
                             onOpen = {
                                 scope.launch {
                                     val lastReadFile = viewModel.getLastRead(book.id) ?: "index.html"
                                     onOpenBook(book.id, lastReadFile)
                                 }
                             },
-                            onDelete = { bookToDelete = book },
+                            onDelete = { bookToDeleteId = book.id },
                             deleteUiMode = deleteUiMode,
                             // グリッドと同理由: 1.7系でstable化したanimateItem()で詰め直しアニメを復活（案B）。
                             modifier = Modifier.animateItem(),
                         )
                     }
                 }
+              }
             }
         }
     }
@@ -432,17 +451,17 @@ fun BookshelfScreen(
     // 削除確認ダイアログ
     bookToDelete?.let { book ->
         AlertDialog(
-            onDismissRequest = { bookToDelete = null },
+            onDismissRequest = { bookToDeleteId = null },
             title = { Text("削除の確認") },
             text = { Text("「${book.title}」を削除しますか？\n読書進捗も削除されます。") },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteBook(book)
-                    bookToDelete = null
+                    bookToDeleteId = null
                 }) { Text("削除", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { bookToDelete = null }) { Text("キャンセル") }
+                TextButton(onClick = { bookToDeleteId = null }) { Text("キャンセル") }
             },
         )
     }
@@ -487,4 +506,95 @@ private fun FindGuideBand(
             modifier = Modifier.size(14.dp),
         )
     }
+}
+
+// ============================================================
+// 本棚スケルトン（F-O）: DB 初回発行前に表紙の場所取りを出し、cold start の空フラッシュを防ぐ。
+// 既存カード寸法（グリッド=2列・書影2:3／リスト=46×69）に合わせた静的プレースホルダ。
+// 意匠を発明しないため新規色は使わず surfaceVariant/outlineVariant トークンのみで構成する。
+// シマー等のアニメは付けない（既存画面に同型の演出が無く、最小の同型要素に留めるため）。
+// ============================================================
+@Composable
+private fun BookshelfSkeleton(
+    isGridView: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    // プレースホルダの塗り（トークン経由・直書き回避）。書影は少し濃く、文字行は薄く。
+    val blockColor = MaterialTheme.colorScheme.surfaceVariant
+    val lineColor = MaterialTheme.colorScheme.outlineVariant
+
+    if (isGridView) {
+        // グリッド: 実カードと同じ左右24dp・列間20dp・行間26dp。3行ぶん(6枚)出す。
+        Column(
+            modifier = modifier.padding(start = 24.dp, top = 12.dp, end = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(26.dp),
+        ) {
+            repeat(3) {
+                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    repeat(2) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            // 書影（2:3・角丸2px）
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(2f / 3f)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(blockColor),
+                            )
+                            Spacer(Modifier.height(11.dp))
+                            // タイトル2行ぶん
+                            SkeletonLine(color = lineColor, widthFraction = 0.9f)
+                            Spacer(Modifier.height(6.dp))
+                            SkeletonLine(color = lineColor, widthFraction = 0.6f)
+                            Spacer(Modifier.height(9.dp))
+                            // 進捗行
+                            SkeletonLine(color = lineColor, widthFraction = 0.7f)
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        // リスト: 実行と同じ左右24dp。6行ぶん出す。
+        Column(modifier = modifier.padding(start = 24.dp, top = 4.dp, end = 24.dp)) {
+            repeat(6) {
+                Row(
+                    modifier = Modifier.padding(top = 18.dp, bottom = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(46.dp)
+                            .height(69.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(blockColor),
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        SkeletonLine(color = lineColor, widthFraction = 0.8f)
+                        Spacer(Modifier.height(8.dp))
+                        SkeletonLine(color = lineColor, widthFraction = 0.4f)
+                        Spacer(Modifier.height(10.dp))
+                        SkeletonLine(color = lineColor, widthFraction = 0.6f)
+                    }
+                }
+                HorizontalDivider(thickness = 1.dp, color = lineColor)
+            }
+        }
+    }
+}
+
+/** スケルトンの1行分プレースホルダ（角丸の細い横棒）。 */
+@Composable
+private fun SkeletonLine(
+    color: androidx.compose.ui.graphics.Color,
+    widthFraction: Float,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth(widthFraction)
+            .height(11.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(color),
+    )
 }

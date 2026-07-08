@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.NovelReaderApplication
 import com.novelreader.data.BookEntity
+import com.novelreader.data.ProgressEntity
 import com.novelreader.narou.ContinuationInfo
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.computeContinuation
@@ -87,6 +88,36 @@ private fun BookProgressRow(
 }
 
 // ============================================================
+// 本棚カードの進捗割合を、章位置＋（最終章のみ）章内スクロール位置から算出する。
+//
+// なぜ単純な chapNum/totalChaps を使わないか（F-N）:
+// それだと最終章のファイルを開いた瞬間、章内を1行も読んでいなくても progress=1.0 になり
+// 「100%」と嘘表示していた（章 index 単独算出でスクロール実位置を無視していたのが根因）。
+// 章の総量（総アイテム数・総高さ）は DB に保存しておらず（ProgressEntity が持つのは
+// LazyList の firstVisibleItemIndex/Offset だけ）、厳密な章内% は原理的に出せない。
+// そこで最終章に限り、確実に判る「先頭か否か」だけを使って過大表示を避ける:
+//   ・先頭（未スクロール）＝まだ最終章を読み始めていない → (N-1)/N（あと1章ぶん未読）
+//   ・少しでもスクロール済み＝読み進めている → 1.0（読了間近とみなす）
+// 中間章は従来どおり chapNum/totalChaps（そこは嘘にならないため挙動を変えない）。
+// 進捗の書込側は一切変更せず、表示計算のみで嘘を消す。
+// ============================================================
+internal fun progressFractionFor(
+    chapNum: Int?,
+    totalChaps: Int,
+    scrollIndex: Int,
+    scrollOffset: Int,
+): Float? {
+    if (chapNum == null || totalChaps <= 0) return null
+    return if (chapNum >= totalChaps) {
+        // 最終章。章内スクロールを加味する。
+        val atTop = scrollIndex == 0 && scrollOffset == 0
+        if (atTop) (totalChaps - 1).toFloat() / totalChaps else 1f
+    } else {
+        chapNum.toFloat() / totalChaps
+    }
+}
+
+// ============================================================
 // 続きありバッジ（モック fusion .new-chapters）: 青磁ドット＋藍文字「続き N話」。
 // PDF↔Web継続読書の「新着の気配」を本棚でも静かに知らせる。
 // ============================================================
@@ -143,7 +174,7 @@ private fun rememberNewEpisodeCount(book: BookEntity, totalChaps: Int): Int? {
 @Composable
 internal fun GridBookCard(
     book: BookEntity,
-    lastRead: String?,
+    progress: ProgressEntity?,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
     deleteUiMode: Int,
@@ -160,13 +191,14 @@ internal fun GridBookCard(
         }
     }
 
-    val chapNum = lastRead
+    val chapNum = progress?.lastReadFilename
         ?.takeIf { it.startsWith("chap_") }
         ?.removePrefix("chap_")?.removeSuffix(".html")?.toIntOrNull()
 
-    val progressFraction = if (chapNum != null && totalChaps > 0) {
-        chapNum.toFloat() / totalChaps.toFloat()
-    } else null
+    // 最終章の章内スクロールを加味して「開いた瞬間100%」の嘘を消す（F-N・詳細は progressFractionFor）。
+    val progressFraction = progressFractionFor(
+        chapNum, totalChaps, progress?.scrollIndex ?: 0, progress?.scrollOffset ?: 0,
+    )
 
     // タップ時にスケールダウンするアニメーション（Apple Books 的な触感）
     val interactionSource = remember { MutableInteractionSource() }
@@ -178,7 +210,9 @@ internal fun GridBookCard(
     )
 
     // モック .bk: カード地・影・角丸チップを廃したフラット構図。書影＋メタを地に直接置く。
-    // クリック=開く / 長押し=削除メニュー（モックは削除アフォーダンスを持たないため既定は長押しに集約）。
+    // クリック=開く / 長押し=削除メニュー。
+    // 長押しは方式に依らず常時有効にする（M5: ⋮に気づかない層のフォールバックとして必ず残す）。
+    // deleteUiMode は「可視の⋮を出すか」だけを制御する（既定1で⋮を出す）。
     Column(
         modifier = modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
@@ -186,8 +220,7 @@ internal fun GridBookCard(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current,
                 onClick = onOpen,
-                // 既定(0)は長押しで削除メニュー。⋮方式(1)を選んだ場合は書影上の⋮で開くため長押しは無効。
-                onLongClick = if (deleteUiMode == 0) ({ menuExpanded = true }) else null,
+                onLongClick = { menuExpanded = true },
             ),
     ) {
         // 書影（縦横比 2:3・角丸2px・下部に明朝タイトル焼き込み）
@@ -201,7 +234,7 @@ internal fun GridBookCard(
                     .aspectRatio(2f / 3f)
                     .clip(RoundedCornerShape(2.dp)),
             )
-            // ⋮方式(1)のみ書影右上に削除ボタン（既定0では非表示＝モック準拠のフラット）。
+            // ⋮方式(1・既定)のみ書影右上に削除ボタンを出す（M5: 削除の可視手がかり）。0は長押しのみ。
             // Box は方式に関わらず DropdownMenu のアンカーとして常設する。
             Box(modifier = Modifier.align(Alignment.TopEnd)) {
                 if (deleteUiMode == 1) {
@@ -265,7 +298,7 @@ internal fun GridBookCard(
 @Composable
 internal fun ListBookCard(
     book: BookEntity,
-    lastRead: String?,
+    progress: ProgressEntity?,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
     deleteUiMode: Int,
@@ -282,13 +315,14 @@ internal fun ListBookCard(
         }
     }
 
-    val chapNum = lastRead
+    val chapNum = progress?.lastReadFilename
         ?.takeIf { it.startsWith("chap_") }
         ?.removePrefix("chap_")?.removeSuffix(".html")?.toIntOrNull()
 
-    val progressFraction = if (chapNum != null && totalChaps > 0) {
-        chapNum.toFloat() / totalChaps.toFloat()
-    } else null
+    // 最終章の章内スクロールを加味して「開いた瞬間100%」の嘘を消す（F-N・詳細は progressFractionFor）。
+    val progressFraction = progressFractionFor(
+        chapNum, totalChaps, progress?.scrollIndex ?: 0, progress?.scrollOffset ?: 0,
+    )
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -308,7 +342,8 @@ internal fun ListBookCard(
                     interactionSource = interactionSource,
                     indication = LocalIndication.current,
                     onClick = onOpen,
-                    onLongClick = if (deleteUiMode == 0) ({ menuExpanded = true }) else null,
+                    // 長押しは方式に依らず常時有効（M5: ⋮のフォールバック）。deleteUiMode は⋮の可視のみ制御。
+                    onLongClick = { menuExpanded = true },
                 )
                 .padding(top = 18.dp, bottom = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -357,7 +392,7 @@ internal fun ListBookCard(
                     }
                 }
             }
-            // 削除アフォーダンス。⋮方式(1)のみ行末にボタン。既定0は非表示（長押しで開く）。
+            // 削除アフォーダンス。⋮方式(1・既定)のみ行末にボタン（M5: 削除の可視手がかり）。0は長押しのみ。
             // Box は方式に関わらず DropdownMenu のアンカーとして常設する。
             Box {
                 if (deleteUiMode == 1) {

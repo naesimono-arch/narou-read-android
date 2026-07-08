@@ -63,6 +63,13 @@ class BookshelfViewModelTest {
         assertEquals(emptyList<BookEntity>(), viewModel.books.value)
     }
 
+    // F-O: cold start の空フラッシュ対策。DB 初回発行前は Loading であり、
+    // Content(空) と区別できること（未購読時の初期値 .value で確認）。
+    @Test
+    fun `初期状態 - uiState が Loading を返す`() {
+        assertTrue(viewModel.uiState.value is BookshelfUiState.Loading)
+    }
+
     @Test
     fun `初期状態 - processingState が ProcessingState() を返す`() {
         assertEquals(ProcessingState(), viewModel.processingState.value)

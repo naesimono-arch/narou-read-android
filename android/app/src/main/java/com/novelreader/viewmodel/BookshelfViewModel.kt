@@ -25,6 +25,20 @@ sealed class BookImportError(val userMessage: String) : Exception(userMessage) {
     class Unknown(val detail: String?) : BookImportError("PDF処理に失敗しました")
 }
 
+/**
+ * 本棚の一覧状態。Loading（DB 初回発行前）と Content（発行後の確定）を型で区別する。
+ * なぜ必要か（F-O）: 旧実装は books を初期値 emptyList の StateFlow で公開していたため、
+ * cold start の「DB 初回発行前」と「蔵書ゼロ」が両方 emptyList になり見分けられず、
+ * 起動直後に空状態がフラッシュしていた。Loading を初期値にすることで初回発行前を明示する。
+ * MainActivity 側（読書画面 book==null の白画面対策）もこの区別を利用する。
+ */
+sealed interface BookshelfUiState {
+    /** DB からの初回発行前。この間はスケルトンを出し、空状態フラッシュを避ける。 */
+    data object Loading : BookshelfUiState
+    /** DB 発行後の確定状態。books が空なら「蔵書ゼロ」を表す（Loading とは別物）。 */
+    data class Content(val books: List<BookEntity>) : BookshelfUiState
+}
+
 data class ProcessingState(
     val isProcessing: Boolean = false,
     val stepIndex: Int = 0,
@@ -45,12 +59,21 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     private val app = application as NovelReaderApplication
     private val repository = app.repository
 
-    val books: StateFlow<List<BookEntity>> = repository.allBooks
+    // 一覧の正本。Loading を初期値にして「DB 初回発行前」を明示する（F-O）。
+    val uiState: StateFlow<BookshelfUiState> = repository.allBooks
+        .map<List<BookEntity>, BookshelfUiState> { BookshelfUiState.Content(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BookshelfUiState.Loading)
+
+    // 既存の呼び出し側（MainActivity の読書画面ルート等）向けの素の books ビュー。
+    // uiState から派生させて上流の DB 購読を一本化する（Content 以外は空リスト）。
+    val books: StateFlow<List<BookEntity>> = uiState
+        .map { (it as? BookshelfUiState.Content)?.books ?: emptyList() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val progressMap: StateFlow<Map<String, String>> = repository.allProgress
-        .map { list -> list.associate { it.bookId to it.lastReadFilename } }
-        //                                                    ↑ mainのフィールド名（labの lastRead ではない）
+    // 進捗行の割合計算（F-N）にスクロール位置も要るため、値を lastReadFilename 文字列ではなく
+    // ProgressEntity 全体（scrollIndex/scrollOffset を含む）で公開する。
+    val progressMap: StateFlow<Map<String, ProgressEntity>> = repository.allProgress
+        .map { list -> list.associateBy { it.bookId } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
         // WhileSubscribed(5_000) に統一（Lazily はサブスクライバーゼロでもDBクエリが流れ続けるため）
 
