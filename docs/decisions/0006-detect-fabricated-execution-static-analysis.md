@@ -158,3 +158,52 @@ sig 37,932＝baseline 23倍。2026-07-07 人間レビューで実幻覚と確定
 **段階導入の踏襲**: Stop フックへの Tier D 昇格は未実施（`stop_guard_fabrication.py` は
 `tiers="ABC"` を明示指定済みで影響なし）。CLI 事後アナライザでの運用実績を見てから判断する
 （§6 の方針どおり）。エンジン既定と CLI 既定は "ABCD"。
+
+## 増補3（2026-07-08）: Tier D4＝割込マーカーの自己生成と Stop 即時昇格
+
+正解データ事象K（`aed2e31e`・kotlin-lsp セッション・Opus 4.8）で、Tier D の較正前提を破る
+新亜種が実証された: **応答継続中に、assistant 自身の text ブロックの地の文へハーネス著者の
+割込マーカー `user[Request interrupted by user]`＋幻の叱責をロールマーカー込みで自己生成**し、
+それに謝罪して作業を自己停止した（会話テンプレートの次ターン予測）。実ユーザーの中断は別
+user レコードとして現れるため、**assistant 発話内に本マーカーが在ること自体が構造的に幻**。
+
+**Tier D4 `phantom_turn_marker`（新ルール）**: `PHANTOM_TURN_MARKER_RE`（`[Request interrupted
+by user]` ＋ "for tool use" 変種）を assistant text に適用。active conf=0.9。
+
+**軸2（thinking 異常）を昇格条件にしない＝D3 との本質差（Why）**: 事象K の幻テキスト直前 sig は
+1,240＝セッション p25=1,244・中央値 2,720 の**通常域**で、G〜J 共通の暴走 thinking 前兆を**伴わ
+ない初の入力側捏造**だった。増補2 の D3 は「軸2 の共起でのみ active 昇格」する設計だったため、
+D4 を D3 と同じ枠に置くと事象K を active 化できない（実際 v3 Tier D は事象K の謝罪発話 L328 を
+`phantom_user_response` で発見するが `no_thinking_anomaly` 降格）。**マーカーリテラルの特異性
+そのもの**が強シグナルなので、D4 は軸2 に依らず単独で昇格させる。
+
+**降格は「生成でなく言及・引用」の文脈のみ（`_d4_is_reference`）**: ①幻覚メタ語彙（近傍/発話全体）
+→ `meta_discussion` ②inline code（直前 backtick）/fenced code の内側 → `marker_reference`
+③「マーカー/marker/割込」の名指し（マーカー span を除いた近傍。"interrupted" 自己一致を避ける）
+→ `marker_reference` ④別セッションの割込の要約参照 → `cross_session_reference`。**②③を足した
+経緯（実測）**: メタ語彙降格（①のみ）では足りず、**本 D4 を実装したセッション自身**が
+「marker \`[Request interrupted by user]\` が…」と backtick 引用して active 誤爆した（メタ語彙
+密度ゼロの散文）＝**既知の「Tier B メタ議論免罪欠落」と同型の穴**。真の自己生成（K）はマーカーを
+地の文にベタ書きするのに対し、検知器開発・台帳分析は inline/fenced code 化・名指しする、という
+体裁差を降格根拠にした。**Why-not（軸2を降格に使わない）**: 降格を meta/参照体裁に限れば、事象K
+（軸2 前兆なし）も将来の軸2 共起型も同一ルールで拾える。
+
+**Stop フックへ D4 のみ即時昇格（段階導入からの逸脱の判断）**: 増補2 の「CLI 実績を見てから」
+方針に対し、D4 は**マーカーリテラルの特異性で偽陽性が構造的に希少**（コーパス全 155 ファイル走査で
+active は事象K の1件のみ・他は全て meta/marker_reference 降格）なため、**D4 に限り即時に Stop
+ブロック昇格**する（`stop_guard_fabrication.py` を `tiers="ABCD"` 化し blockers に
+`phantom_turn_marker`(conf≥0.8) を追加）。**D1〜D3 は従来どおり非ブロック**＝段階導入は維持する。
+D4 だけを先行昇格する根拠は「照合の突合精度」ではなく「マーカーが会話プロトコルの内部表現＝
+正当な生成理由が存在しない特異リテラル」という質の違い。
+
+**付随の頑健性修正（全走査で発覚した連鎖障害）**: `collect_human_inputs` が queued_command の
+prompt（origin.kind=human）を str 前提で humans に積んでいたが、**画像貼付では prompt が
+`[{type:text},{type:image}]` の block リスト**になり、`_human_blob` の `str.join` が TypeError で
+**CLI の slug 全走査を丸ごと中断**させていた（1セッションの画像貼付で全体が落ちる）。`_human_text_of`
+で text ブロックを抽出・str 正規化して修正（Tier D の検証ゲート「slug 全走査」を回すのに必須だった）。
+
+**残す既知の限界**: 事象K の謝罪発話 L328（幻応答側）は引き続き `no_thinking_anomaly` 降格のまま
+（L320 の D4 検知で live block できるので実害なし）。事象L の①③④（ツール名参照を伴わない編集・
+再実行・掃除の捏造）は Tier A/B 対象外＝Tier B 汎用主張課題と同根（handover に登録済み）。
+Stop 検査窓の穴（多ツールターン内捏造が scope=last_turn から漏れる。事象L で実測）も未対処
+（handover 登録済み）。
