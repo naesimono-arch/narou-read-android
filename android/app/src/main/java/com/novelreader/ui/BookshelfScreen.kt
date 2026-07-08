@@ -444,11 +444,14 @@ internal fun BookshelfContent(
                 BookshelfSkeleton(isGridView = isGridView, modifier = Modifier.fillMaxSize())
             } else {
               if (books.isEmpty() && !isProcessing) {
-                // 空状態。サイズ指定は呼び出し側の責務。従来の内部 fillMaxSize と同じ描画を維持。
+                // 空状態。サイズ指定は呼び出し側の責務（fillMaxSize は従来と同じ描画）。
+                // なぜ else-if で空のグリッド/リストを合成しないか: 以前は空状態の上にも
+                // fillMaxSize の Lazy コンテナが重なっており、scrollable が hit test 上で
+                // 下層の「PDFを追加する」ボタンを遮蔽してタップ不能だった（Robolectric の
+                // 結線テストで検出した実バグ）。空棚では Lazy 側に描くものが無いため、
+                // 排他分岐にして遮蔽を根元から無くす。
                 EmptyBookshelf(onAddClick = onFabClick, modifier = Modifier.fillMaxSize())
-              }
-
-              if (isGridView) {
+              } else if (isGridView) {
                 // ────── グリッドレイアウト ──────
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
