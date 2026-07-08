@@ -30,15 +30,18 @@ class DiscoveryQueryLabelsTest {
         assertEquals("15,000", charCountText(15000)) // 1.5万は万の倍数でないので桁区切り
     }
 
+    // conditionChipLabels は ConditionChip のリストを返すため、文言の検証は label 列で行う。
+    private fun labelsOf(query: DiscoveryQuery): List<String> =
+        conditionChipLabels(query).map { it.label }
+
     @Test
     fun `conditionChipLabels - デフォルトクエリは並び順チップのみになること`() {
-        val labels = conditionChipLabels(DiscoveryQuery())
-        assertEquals(listOf("週間順"), labels)
+        assertEquals(listOf("週間順"), labelsOf(DiscoveryQuery()))
     }
 
     @Test
     fun `conditionChipLabels - 気分プリセット相当（短編×読了30分以内）のチップが人の言葉になること`() {
-        val labels = conditionChipLabels(
+        val labels = labelsOf(
             DiscoveryQuery(types = setOf(NarouNovelType.SHORT), time = "-30")
         )
         assertEquals(listOf("短編", "読了〜30分", "週間順"), labels)
@@ -46,7 +49,7 @@ class DiscoveryQueryLabelsTest {
 
     @Test
     fun `conditionChipLabels - 複合条件（転生転移・残酷除外・期間・文字数・挿絵あり）が全て出ること`() {
-        val labels = conditionChipLabels(
+        val labels = labelsOf(
             DiscoveryQuery(
                 order = NarouOrder.TOTAL,
                 attrsInclude = setOf(NarouAttr.TENSEI, NarouAttr.TENNI),
@@ -64,7 +67,7 @@ class DiscoveryQueryLabelsTest {
 
     @Test
     fun `conditionChipLabels - word検索では選択した範囲が1チップに束ねられ、除外語も出ること`() {
-        val labels = conditionChipLabels(
+        val labels = labelsOf(
             DiscoveryQuery(
                 word = "スローライフ",
                 notWord = "残酷",
@@ -77,7 +80,7 @@ class DiscoveryQueryLabelsTest {
 
     @Test
     fun `conditionChipLabels - ジャンル指定はラベル化されること`() {
-        val labels = conditionChipLabels(
+        val labels = labelsOf(
             DiscoveryQuery(genres = setOf(201), biggenres = setOf(1))
         )
         assertEquals(listOf("恋愛", "ハイファンタジー", "週間順"), labels)
@@ -85,7 +88,7 @@ class DiscoveryQueryLabelsTest {
 
     @Test
     fun `conditionChipLabels - 複数選択されたtypeとlastupが「・」で連結されて1枚のチップになること`() {
-        val labels = conditionChipLabels(
+        val labels = labelsOf(
             DiscoveryQuery(
                 types = setOf(NarouNovelType.SHORT, NarouNovelType.KANKETSU),
                 lastups = setOf(NarouLastup.THISMONTH, NarouLastup.LASTMONTH)
@@ -94,5 +97,26 @@ class DiscoveryQueryLabelsTest {
         // 宣言順：SHORT("短編"), KANKETSU("完結済") -> "短編・完結済"
         // 宣言順：THISMONTH("今月"), LASTMONTH("先月") -> "今月・先月に更新"
         assertEquals(listOf("短編・完結済", "今月・先月に更新", "週間順"), labels)
+    }
+
+    @Test
+    fun `conditionChipLabels - 各チップに正しい種別（ChipKind）が付くこと`() {
+        // 大ジャンル・小ジャンル・通常条件・並び順が、位置や文言でなく種別で識別できることを担保する。
+        val chips = conditionChipLabels(
+            DiscoveryQuery(
+                biggenres = setOf(1),        // 恋愛 -> BIG_GENRE
+                genres = setOf(201),          // ハイファンタジー -> GENRE
+                lastups = setOf(NarouLastup.SEVENDAY), // 通常条件 -> CONDITION
+            )
+        )
+        assertEquals(
+            listOf(
+                ConditionChip("恋愛", ChipKind.BIG_GENRE),
+                ConditionChip("ハイファンタジー", ChipKind.GENRE),
+                ConditionChip("7日以内に更新", ChipKind.CONDITION),
+                ConditionChip("週間順", ChipKind.ORDER),
+            ),
+            chips
+        )
     }
 }

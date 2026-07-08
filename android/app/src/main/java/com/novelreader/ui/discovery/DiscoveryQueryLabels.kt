@@ -38,16 +38,47 @@ internal fun charCountText(n: Int): String =
     else String.format(Locale.JAPAN, "%,d", n)
 
 /**
- * 結果一覧ヘッダの条件チップ文言を組み立てる。
+ * 条件チップの種別。
+ *
+ * なぜ enum を導入したか: 以前は結果画面（[DiscoveryResultScreen]）側が「表示文字列と
+ * 一致するか」「末尾の位置か」でチップ種別を推測していた（例: ラベルが biggenreLabel と
+ * 一致すれば大ジャンルチップ、index==lastIndex なら並び順チップ）。文言や並び順を変えると
+ * 種別判定が静かに壊れる脆い設計だったため、生成時点で種別を型として持たせる。
+ *
+ * 値は消費側（[DiscoveryResultScreen]）の分岐から実際に使われている区別を逆抽出したもの:
+ * - [ORDER] / [BIG_GENRE] / [GENRE] / [GENRE_PLACEHOLDER] はクリックでドロップダウンを開く
+ * - [CONDITION] は表示のみ（クリック不可）
+ */
+enum class ChipKind {
+    /** 通常の条件チップ（作品種別・検索範囲・属性・期間・文字数など）。表示のみ。 */
+    CONDITION,
+    /** 大ジャンル。1件のみ選択時はクリックでジャンル変更ドロップダウンを開く。 */
+    BIG_GENRE,
+    /** 小ジャンル。1件のみ選択時はクリックでジャンル変更ドロップダウンを開く。 */
+    GENRE,
+    /** ジャンル未指定時に消費側が差し込むプレースホルダ「ジャンル」チップ。クリック可。 */
+    GENRE_PLACEHOLDER,
+    /** 末尾の並び順チップ。クリックで並び順ドロップダウンを開く。 */
+    ORDER,
+}
+
+/** 結果一覧ヘッダの条件チップ1枚（表示文言＋種別）。 */
+data class ConditionChip(val label: String, val kind: ChipKind)
+
+/**
+ * 結果一覧ヘッダの条件チップを組み立てる。
  * word そのもの（見出しに出る）とジャンル単独指定（見出しがジャンル名になる）以外の
  * 有効条件を、人が読める短い言葉で並べる。末尾は常に並び順。
  */
-fun conditionChipLabels(query: DiscoveryQuery): List<String> {
-    val labels = mutableListOf<String>()
+fun conditionChipLabels(query: DiscoveryQuery): List<ConditionChip> {
+    val chips = mutableListOf<ConditionChip>()
+    // なぜ addChip 命名か: `add` にすると下の buildList ラムダ内でレシーバの MutableList.add を
+    // ローカル関数がシャドウし（ローカル関数優先）、型推論不能＋チップ誤追加の罠になるため。
+    fun addChip(label: String, kind: ChipKind = ChipKind.CONDITION) = chips.add(ConditionChip(label, kind))
 
     if (query.types.isNotEmpty()) {
         val label = NarouNovelType.values().filter { it in query.types }.joinToString("・") { it.uiLabel }
-        labels.add(label)
+        addChip(label)
     }
 
     // 検索範囲（word があるときのみ意味を持つ）
@@ -58,47 +89,47 @@ fun conditionChipLabels(query: DiscoveryQuery): List<String> {
             if (query.inKeyword) add("キーワード")
             if (query.inWriter) add("作者名")
         }
-        if (ranges.isNotEmpty()) labels.add(ranges.joinToString("・"))
+        if (ranges.isNotEmpty()) addChip(ranges.joinToString("・"))
     }
-    if (!query.notWord.isNullOrBlank()) labels.add("除外: ${query.notWord}")
+    if (!query.notWord.isNullOrBlank()) addChip("除外: ${query.notWord}")
 
-    query.biggenres.forEach { code -> NarouGenres.biggenreLabel(code)?.let(labels::add) }
-    query.genres.forEach { code -> NarouGenres.genreLabel(code)?.let(labels::add) }
+    query.biggenres.forEach { code -> NarouGenres.biggenreLabel(code)?.let { addChip(it, ChipKind.BIG_GENRE) } }
+    query.genres.forEach { code -> NarouGenres.genreLabel(code)?.let { addChip(it, ChipKind.GENRE) } }
 
     val hasTensei = NarouAttr.TENSEI in query.attrsInclude
     val hasTenni = NarouAttr.TENNI in query.attrsInclude
     if (hasTensei && hasTenni) {
-        labels.add("転生・転移")
+        addChip("転生・転移")
     } else if (hasTensei) {
-        labels.add("異世界転生")
+        addChip("異世界転生")
     } else if (hasTenni) {
-        labels.add("異世界転移")
+        addChip("異世界転移")
     }
 
     NarouAttr.values().forEach { attr ->
         if (attr != NarouAttr.TENSEI && attr != NarouAttr.TENNI && attr in query.attrsInclude) {
-            labels.add(attr.uiLabel)
+            addChip(attr.uiLabel)
         }
     }
 
     NarouAttr.values().forEach { attr ->
         if (attr in query.attrsExclude) {
-            labels.add("${attr.uiLabel}を除く")
+            addChip("${attr.uiLabel}を除く")
         }
     }
 
     if (query.lastups.isNotEmpty()) {
         val label = NarouLastup.values().filter { it in query.lastups }.joinToString("・") { it.uiLabel }
-        labels.add("${label}に更新")
+        addChip("${label}に更新")
     }
 
-    rangeText(query.length, "字", ::charCountText)?.let(labels::add)
-    rangeText(query.time, "分")?.let { labels.add("読了$it") }
-    rangeText(query.kaiwaritu, "%")?.let { labels.add("会話率$it") }
+    rangeText(query.length, "字", ::charCountText)?.let { addChip(it) }
+    rangeText(query.time, "分")?.let { addChip("読了$it") }
+    rangeText(query.kaiwaritu, "%")?.let { addChip("会話率$it") }
     // 挿絵は「1枚以上」指定が実質「挿絵あり」なので特例で言い換える
-    if (query.sasie == "1-") labels.add("挿絵あり")
-    else rangeText(query.sasie, "枚")?.let { labels.add("挿絵$it") }
+    if (query.sasie == "1-") addChip("挿絵あり")
+    else rangeText(query.sasie, "枚")?.let { addChip("挿絵$it") }
 
-    labels.add("${query.order.uiLabel}順")
-    return labels
+    addChip("${query.order.uiLabel}順", ChipKind.ORDER)
+    return chips
 }
