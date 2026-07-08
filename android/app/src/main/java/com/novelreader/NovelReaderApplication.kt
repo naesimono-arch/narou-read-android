@@ -10,6 +10,7 @@ import com.novelreader.narou.DataStoreSearchHistoryStore
 import com.novelreader.narou.NovelApiRepository
 import com.novelreader.narou.SearchHistoryStore
 import com.novelreader.repository.BookRepository
+import com.novelreader.viewmodel.AppErrorEvent
 import com.novelreader.viewmodel.ProcessingState
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import kotlinx.coroutines.CoroutineScope
@@ -55,11 +56,14 @@ class NovelReaderApplication : Application() {
     // エラーは一度きりのイベント。StateFlow だと構成変更（画面回転）で再表示され、
     // 複数購読時に重複する恐れがあるため、単一コンシューマ向けの Channel で配送する。
     // 受信時に消費され状態として残らないので clearError は不要。
-    private val _errorEvents = Channel<String>(Channel.BUFFERED)
-    val errorEvents: Flow<String> = _errorEvents.receiveAsFlow()
+    // 取込失敗は retryUri を伴い、UI が Snackbar に「再試行」を出せるようにする（M7）。
+    private val _errorEvents = Channel<AppErrorEvent>(Channel.BUFFERED)
+    val errorEvents: Flow<AppErrorEvent> = _errorEvents.receiveAsFlow()
 
     fun updateProcessingState(state: ProcessingState?) { _processingState.value = state }
-    fun emitError(msg: String) { _errorEvents.trySend(msg) }
+    /** retryUri を渡すと UI 側で「再試行」アクション付き Snackbar になる（取込失敗時）。
+     *  復元系の情報通知は retryUri=null（従来どおり文言のみ）。 */
+    fun emitError(msg: String, retryUri: String? = null) { _errorEvents.trySend(AppErrorEvent(msg, retryUri)) }
 
     // 起動時リカバリの多重実行ガード。Activity 再作成のたびに呼ばれても実処理はプロセスごとに1回。
     private val recoveryStarted = AtomicBoolean(false)

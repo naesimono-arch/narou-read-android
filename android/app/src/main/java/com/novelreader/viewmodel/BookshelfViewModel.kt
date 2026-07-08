@@ -39,6 +39,14 @@ sealed interface BookshelfUiState {
     data class Content(val books: List<BookEntity>) : BookshelfUiState
 }
 
+/**
+ * UI へ配送する一度きりのエラー通知（Snackbar）。
+ * なぜ String でなくデータクラスか（M7）: 取込失敗の Snackbar に「再試行」を出すには、どの URI が
+ * 失敗したかを UI まで運ぶ必要がある。retryUri が非 null のときだけ再試行アクションを出し、同一 URI で
+ * 取込を再投入する。復元系の情報通知（retryUri=null）は従来どおり文言のみを表示する。
+ */
+data class AppErrorEvent(val message: String, val retryUri: String? = null)
+
 data class ProcessingState(
     val isProcessing: Boolean = false,
     val stepIndex: Int = 0,
@@ -83,7 +91,7 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProcessingState())
 
     // エラーは一度きりのイベント。Application の Channel を購読してそのまま UI へ流す。
-    val errorEvents: Flow<String> = app.errorEvents
+    val errorEvents: Flow<AppErrorEvent> = app.errorEvents
 
     // 進捗（章移動＋章内スクロール位置）の保存要求を単一チャネルに集約する。
     // なぜ1本に統合するか: 以前は章移動用とスクロール用で2本のチャネル＋2コルーチンに
@@ -131,6 +139,13 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
         }
         // 既に前面で動作中の FGS への命令送信。新規起動が不要なため startService を使う。
         getApplication<Application>().startService(intent)
+    }
+
+    // 取込失敗 Snackbar の「再試行」（M7）。失敗した URI をそのまま再投入する。
+    // Service 側のべき等ガード（ActiveUriTracker）は失敗確定時に該当 URI を release 済みのため、
+    // この再投入は「重複」で弾かれず新規変換として受け付けられる（processSingleUri の finally で release）。
+    fun retryImport(uriString: String) {
+        addBook(Uri.parse(uriString))
     }
 
     fun deleteBook(book: BookEntity) {

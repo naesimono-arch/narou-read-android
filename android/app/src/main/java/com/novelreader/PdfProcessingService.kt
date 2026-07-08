@@ -330,11 +330,13 @@ class PdfProcessingService : Service() {
                     app.updateProcessingState(null)
                 },
                 onFailure = { e ->
+                    // 原文はログに残す（握り潰さず診断性を維持）。ユーザーには平易な日本語のみ出す（M8）。
                     Log.e(TAG, "PDF処理失敗", e)
-                    val msg = if (e is BookImportError) e.userMessage
-                              else e.message ?: "PDF処理に失敗しました"
+                    val msg = normalizeImportErrorMessage(e)
                     showErrorNotification(msg)
-                    app.emitError(msg)
+                    // retryUri を添えて Snackbar に「再試行」を出す（M7）。この URI は finally で
+                    // activeUris から release されるため、再投入は重複扱いにならない。
+                    app.emitError(msg, uri.toString())
                     app.updateProcessingState(null)
                 },
             )
@@ -394,6 +396,24 @@ class PdfProcessingService : Service() {
             this, 2, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
+    }
+
+    /** 取込失敗を平易な日本語へ正規化する（M8）。生の例外メッセージ（"No such file…" 等）を
+     *  ユーザーに晒さないための emit 境界。原文は呼び出し側で Log 済み（診断性維持・握り潰さない）。
+     *  addBook の失敗は BookRepository.classifyError が BookImportError へ分類済みのため通常は
+     *  userMessage を返す。想定外の非分類例外に備え、既知の生メッセージも防御的にマップして raw を漏らさない。 */
+    private fun normalizeImportErrorMessage(e: Throwable): String {
+        if (e is BookImportError) return e.userMessage
+        val raw = e.message.orEmpty()
+        return when {
+            raw.contains("No space left", ignoreCase = true) ->
+                "ストレージの空き容量が不足しています"
+            raw.contains("No such file", ignoreCase = true) || raw.contains("ENOENT", ignoreCase = true) ->
+                "ファイルが見つかりません。もう一度ファイルを選択してください"
+            raw.contains("Permission denied", ignoreCase = true) || raw.contains("EACCES", ignoreCase = true) ->
+                "ファイルへのアクセス権限がありません。もう一度ファイルを選択してください"
+            else -> "PDF処理に失敗しました"
+        }
     }
 
     private fun buildProgressNotification(progress: Int, text: String, current: Int = 1, total: Int = 1, title: String = "", isStopping: Boolean = false): Notification {

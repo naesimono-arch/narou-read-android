@@ -401,8 +401,22 @@ fun BookshelfScreen(
     // エラーは一度きりのイベントとして Channel から受信し Snackbar 表示する。
     // collect は画面の生存期間中ずっと購読し続ければよいので key は Unit。
     LaunchedEffect(Unit) {
-        viewModel.errorEvents.collect { msg ->
-            snackbarHostState.showSnackbar(message = msg, actionLabel = "閉じる")
+        viewModel.errorEvents.collect { event ->
+            // 取込失敗（retryUri あり）は「再試行」を出し、押されたら同一 URI を再投入する（M7）。
+            // それ以外（強制終了リカバリ等の情報通知）は従来どおり「閉じる」のみ。
+            if (event.retryUri != null) {
+                val result = snackbarHostState.showSnackbar(
+                    message = event.message,
+                    actionLabel = "再試行",
+                    // 失敗の再試行は見落とすと復旧手段を失うため長め表示にする。
+                    duration = SnackbarDuration.Long,
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    viewModel.retryImport(event.retryUri)
+                }
+            } else {
+                snackbarHostState.showSnackbar(message = event.message, actionLabel = "閉じる")
+            }
         }
     }
 

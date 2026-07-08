@@ -165,10 +165,15 @@ class BookRepository(
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.e(TAG, "addBook 失敗", e)
                 // 失敗が確定した本は再開対象から外す（破損PDF等は再試行しても失敗を繰り返すだけで、
-                // 起動のたびに同じエラーが再走するループになる。ユーザーにはこの直後エラー通知が
-                // 出るので、必要なら選び直してもらう）。キャンセルは上で rethrow 済み＝対象外で、
+                // 起動のたびに同じエラーが再走するループになる）。キャンセルは上で rethrow 済み＝対象外で、
                 // 停止操作時の扱いは Service の ACTION_STOP（全消し）が決める。
-                withContext(NonCancellable) { settlePendingJob(pdfUri) }
+                // なぜ settlePendingJob ではなく pending_jobs 行の削除のみか（M7 再試行の成立）:
+                // settlePendingJob は永続 URI 権限も返すが、それだと失敗 Snackbar の「再試行」が
+                // 同一 URI を再投入したとき openInputStream が権限喪失で必ず再失敗する（＝再試行が形骸化）。
+                // 権限を残せばユーザー起点の再試行が機能する。再試行しない場合に権限が1件残るのは
+                // 端末上限内の軽微なコストで、権限リーク回避より再試行の成立を優先する。
+                // （成功/重複/停止時は従来どおり settlePendingJob で権限も返す＝ここだけの例外扱い。）
+                withContext(NonCancellable) { pendingJobDao.deleteByUri(pdfUri.toString()) }
                 Result.failure(classifyError(e))
             },
         )
