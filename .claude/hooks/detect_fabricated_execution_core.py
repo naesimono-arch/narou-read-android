@@ -662,6 +662,21 @@ def collect_tool_use_inputs(records: List[dict]) -> Dict[str, str]:
     return m
 
 
+def _human_text_of(value: Any) -> str:
+    """人間入力の content（str または マルチモーダルな block リスト）から text を抽出・連結する。
+    なぜ必要か（実測・全走査で発覚）: 画像貼付だと queued_command の prompt や user 行 content が
+    `[{"type":"text",...},{"type":"image",...}]` のブロックリスト化する。この正規化を欠くと
+    collect_human_inputs が list を humans に混ぜ、_human_blob の str.join が TypeError を投げて
+    CLI の slug 全走査が丸ごと中断する（1セッションの画像貼付で全体が落ちる連鎖障害）。"""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return "\n".join(
+            b["text"] for b in value
+            if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str))
+    return ""
+
+
 def collect_human_inputs(records: List[dict]) -> List[Tuple[int, str]]:
     """
     「実在する人間入力」を（全レコード軸の順序, テキスト）で列挙する（Tier D の突合正本）。
@@ -699,7 +714,8 @@ def collect_human_inputs(records: List[dict]) -> List[Tuple[int, str]]:
             if (att.get("type") == "queued_command"
                     and isinstance(att.get("origin"), dict)
                     and att["origin"].get("kind") == "human"):
-                p = att.get("prompt") or ""
+                # prompt は画像貼付で block リスト化しうる → text 抽出して str に正規化
+                p = _human_text_of(att.get("prompt"))
                 if p:
                     humans.append((idx, p))
             continue
@@ -713,7 +729,7 @@ def collect_human_inputs(records: List[dict]) -> List[Tuple[int, str]]:
             for blk in content:
                 if not isinstance(blk, dict):
                     continue
-                if blk.get("type") == "text" and blk.get("text"):
+                if blk.get("type") == "text" and isinstance(blk.get("text"), str) and blk["text"]:
                     humans.append((idx, blk["text"]))
                 elif (blk.get("type") == "tool_result"
                       and tu_names.get(blk.get("tool_use_id", "")) == "AskUserQuestion"):

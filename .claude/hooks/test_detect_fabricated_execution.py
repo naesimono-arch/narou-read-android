@@ -757,6 +757,18 @@ def queued_human(text):
             "timestamp": TS, "isSidechain": False}
 
 
+def queued_human_multimodal(text):
+    """画像貼付の queued_command＝prompt が [{text},{image}] のブロックリスト（実データ形）。"""
+    return {"type": "attachment", "uuid": "qm_" + text[:8],
+            "attachment": {"type": "queued_command",
+                           "prompt": [{"type": "text", "text": text},
+                                      {"type": "image",
+                                       "source": {"type": "base64", "media_type": "image/png",
+                                                  "data": "iVBORw0KGgoAAAANSUhEUg=="}}],
+                           "origin": {"kind": "human"}},
+            "timestamp": TS, "isSidechain": False}
+
+
 def ask_user_answered(mid, tool_id, answer):
     """AskUserQuestion の tool_use＋回答 tool_result（回答は人間由来入力）。"""
     return [
@@ -798,6 +810,13 @@ class TierD1FabricatedQuote(unittest.TestCase):
                    asst_text("m1", "この事象では、あなたが「ツールを叩く前に」と言ったと捏造しています。")])
         self.assertNotIn("fabricated_user_quote", active_rules(rep))
         self.assertIn("fabricated_user_quote", suppressed_rules(rep))
+
+    def test_multimodal_queued_prompt_no_crash_and_grounds_quote(self):
+        # 画像貼付の queued_command（prompt=block リスト）で全走査が落ちない＋その text は
+        # 実在入力として引用突合に効く（回帰: _human_blob の str.join TypeError で全 slug 中断）
+        rep = run([queued_human_multimodal("君なんか開いている？"),
+                   asst_text("m1", "あなたが「君なんか開いている？」と言ったので確認します。")])
+        self.assertEqual(rep.findings, [])
 
     def test_cross_session_suppressed(self):
         # 別セッションの発話への言及は当該 transcript 単体で裏取り不能 → 降格
