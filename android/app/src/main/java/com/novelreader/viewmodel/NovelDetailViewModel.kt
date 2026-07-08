@@ -14,7 +14,12 @@ import kotlinx.coroutines.launch
 
 sealed interface NovelDetailUiState {
     object Loading : NovelDetailUiState
-    data class Content(val novel: NarouNovel) : NovelDetailUiState
+    /**
+     * @param fetchedAtMillis この詳細を API から取得し終えた時刻（epoch ms）。
+     *   なぜ保持するか（M6/公理5 SSOT）: 詳細は一覧値の写しではなく取り直した最新値であり、
+     *   画面に「いつ時点の情報か」を出して一覧との別取得由来の食い違いを判別可能にするため。
+     */
+    data class Content(val novel: NarouNovel, val fetchedAtMillis: Long) : NovelDetailUiState
     /** ncode に該当する作品が API に存在しない（削除・検索除外設定など）。 */
     object NotFound : NovelDetailUiState
     data class Error(val message: String) : NovelDetailUiState
@@ -49,7 +54,7 @@ class NovelDetailViewModel(application: Application) : AndroidViewModel(applicat
             _uiState.value = try {
                 val novel = repository.novelDetail(ncode)
                 if (novel != null) {
-                    NovelDetailUiState.Content(novel)
+                    NovelDetailUiState.Content(novel, System.currentTimeMillis())
                 } else {
                     NovelDetailUiState.NotFound
                 }

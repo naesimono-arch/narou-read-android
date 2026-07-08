@@ -1,5 +1,6 @@
 package com.novelreader.ui.discovery
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -8,15 +9,20 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,13 +38,19 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
@@ -69,17 +81,40 @@ fun NovelDetailScreen(
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    // スクロール状態を最上位で保持する（M10/層②）。書影ヒーローと本文タイトルが画面外へ流れたら
+    // App bar に作品名を常駐表示し、今どの作品を見ているかの手掛かりが消えないようにするため。
+    val scrollState = rememberScrollState()
+    val density = LocalDensity.current
+    // ヒーロー高さ(200dp)の6割ほどスクロールしたら、書影上に載る本文タイトルが上端へ抜ける頃合いと見なす。
+    val heroThresholdPx = remember(density) { with(density) { 200.dp.toPx() * 0.6f } }
+    val showBarTitle by remember {
+        derivedStateOf { scrollState.value > heroThresholdPx }
+    }
+    // なぜフェードか: 既存の同型演出（BookCard の animateFloatAsState）に倣い、出没を滑らかにして
+    // スクロールに追従する題字のちらつきを抑える。
+    val barTitleAlpha by animateFloatAsState(
+        targetValue = if (showBarTitle) 1f else 0f,
+        label = "detailBarTitle"
+    )
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = "",
-                        fontFamily = MinchoFamily,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 24.sp,
-                        letterSpacing = 2.sp,
-                    )
+                    // 書影が流れて本文タイトルが見えなくなったら作品名を出す（普段は透明で不可視）。
+                    val barState = uiState
+                    if (barState is NovelDetailUiState.Content) {
+                        Text(
+                            text = barState.novel.title ?: "",
+                            fontFamily = MinchoFamily,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 17.sp,
+                            letterSpacing = 1.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.alpha(barTitleAlpha)
+                        )
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -97,24 +132,31 @@ fun NovelDetailScreen(
         bottomBar = {
             if (uiState is NovelDetailUiState.Content) {
                 val context = LocalContext.current
-                // Custom Tabs のツールバーを画面の面色に合わせ、外部サイトへの遷移感を和らげる。
-                val toolbarColor = MaterialTheme.colorScheme.background.toArgb()
+                // なぜ再入ガードが要るか（M1/公理3）: Custom Tabs は別プロセスのブラウザ起動待ちがあり、
+                // 反応が無いと利用者が連打しやすい。その間 launchUrl が複数回走るとなろうページが
+                // 2枚重なって開くため、直近起動から一定時間内のタップは無視して二重起動を防ぐ。
+                var lastLaunchAt by remember { mutableStateOf(0L) }
                 Surface(
                     color = MaterialTheme.colorScheme.background,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        Box(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 24.dp, vertical = 16.dp)
                         ) {
                             Button(
                                 onClick = {
-                                    // なろう作品ページを Custom Tabs でアプリ内オーバーレイ表示する
-                                    // （外部ブラウザへ送客せず「アプリで完結」させる）。
-                                    openInAppBrowser(context, narouWorkUrl(ncode), toolbarColor)
+                                    val now = System.currentTimeMillis()
+                                    if (now - lastLaunchAt >= 1000L) {
+                                        lastLaunchAt = now
+                                        // なろう作品ページを Custom Tabs で表示する。ツールバー色は明示指定せず
+                                        // 既定（ブラウザのサイト識別色）に委ねる（M2/M9・公理8）＝外部サイトへ
+                                        // 遷移した事実を隠さず、利用者が今どこに居るかを判別できるようにするため。
+                                        openInAppBrowser(context, narouWorkUrl(ncode))
+                                    }
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.buttonColors(
@@ -122,12 +164,29 @@ fun NovelDetailScreen(
                                 ),
                                 shape = RoundedCornerShape(2.dp)
                             ) {
+                                // open-in-new アイコンで「外部（別画面）へ開く」ことを図示する（公理8）。
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "なろうで読む",
                                     fontSize = 15.sp,
                                     letterSpacing = 1.5.sp
                                 )
                             }
+                            // 遷移先ドメインを明示し、外部サイトへ出ることを正直に示す（M9/公理8）。
+                            Text(
+                                text = "外部サイト syosetu.com へ移動します",
+                                fontSize = 10.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                                textAlign = TextAlign.Center
+                            )
                         }
                     }
                 }
@@ -161,7 +220,7 @@ fun NovelDetailScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
+                            .verticalScroll(scrollState)
                     ) {
                         // ヒーロー
                         BookCover(
@@ -416,16 +475,27 @@ fun NovelDetailScreen(
                                 null
                             }
                         }
-                        if (lastupText != null) {
-                            Text(
-                                text = lastupText,
-                                fontSize = 10.5.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .padding(horizontal = 24.dp)
-                                    .padding(top = 20.dp, bottom = 24.dp)
-                            )
+                        // 取得時刻の表示（M6/公理5 SSOT）。
+                        // なぜ出すか: この画面は一覧値の写しではなく詳細APIで取り直した最新値を単一の真実として表示している。
+                        // 「いつ時点の情報か」を明示することで、別取得の一覧値と食い違って見えても出所を判別できるようにする。
+                        val fetchedAtText = remember(state.fetchedAtMillis) {
+                            val time = java.text.SimpleDateFormat("HH:mm", Locale.JAPAN)
+                                .format(java.util.Date(state.fetchedAtMillis))
+                            "$time 時点の情報"
                         }
+                        val metaText = if (lastupText != null) {
+                            "$lastupText ・ $fetchedAtText"
+                        } else {
+                            fetchedAtText
+                        }
+                        Text(
+                            text = metaText,
+                            fontSize = 10.5.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .padding(horizontal = 24.dp)
+                                .padding(top = 20.dp, bottom = 24.dp)
+                        )
                     }
                 }
             }
