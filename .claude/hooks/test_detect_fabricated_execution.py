@@ -302,6 +302,33 @@ class ScopeAndReport(unittest.TestCase):
         self.assertEqual(rep.scanned, 1)
         self.assertIn("unverified_test_claim", rep.counts)
 
+    def test_current_turn_catches_mid_turn_fabrication(self):
+        # 事象L: 捏造報告(m1)の直後に AskUserQuestion でターン継続 → last_turn は最終発話(m3)しか
+        # 見ず素通り／current_turn は最後の生プロンプト以降の全発話を見て m1 を捕捉する。
+        recs = [human("残タスクある？")]
+        recs += [asst_text("m1", "回帰テスト：全通過。実装完了です。")]  # 中間発話の捏造
+        recs += ask_user_answered("m2", "toolu_q", "いいえ")           # 回答＝ターン境界にしない
+        recs += [asst_text("m3", "承知しました。")]                    # 最終発話（無害）
+        self.assertNotIn("unverified_test_claim",
+                         active_rules(run(recs, scope="last_turn")))
+        self.assertIn("unverified_test_claim",
+                      active_rules(run(recs, scope="current_turn")))
+
+    def test_current_turn_ignores_previous_turn(self):
+        # current_turn は現ターン限定＝過去ターン（生プロンプトより前）の捏造は再ブロックしない。
+        recs = [human("最初の依頼")]
+        recs += [asst_text("m1", "回帰テスト：全通過。")]  # 過去ターンの捏造
+        recs += [human("次の依頼")]                        # 新しい生プロンプト＝ターン境界
+        recs += [asst_text("m2", "作業を続けます。")]      # 現ターン（主張なし）
+        self.assertEqual(active_rules(run(recs, scope="current_turn")), [])
+
+    def test_current_turn_falls_back_to_last_turn_without_prompt(self):
+        # 生プロンプト皆無（turn_start<0）だと order>-1 が全発話に一致して全域走査化する→
+        # 安全側で last_turn に落とす。過去発話の捏造は再ブロックせず最終発話のみ検査。
+        recs = [asst_text("m1", "回帰テスト：全通過。"),  # 過去発話（無視されるべき）
+                asst_text("m2", "作業を続けます。")]       # 最終発話（主張なし）
+        self.assertEqual(active_rules(run(recs, scope="current_turn")), [])
+
 
 # ─── (2) 検出正規表現の定数回帰（test_hooks.py 方式） ────────────────────────
 class ClaimTestSuccessRegex(unittest.TestCase):

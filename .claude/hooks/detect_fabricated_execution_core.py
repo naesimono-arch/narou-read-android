@@ -755,6 +755,31 @@ def collect_human_inputs(records: List[dict]) -> List[Tuple[int, str]]:
     return humans
 
 
+def _last_user_turn_order(records: List[dict]) -> int:
+    """現ターンの起点＝最後の『生ユーザープロンプト』の order（全レコード軸 index）を返す（無ければ -1）。
+    生プロンプト = 人間著者の user 行で content=str（ハーネス著者 task-notification 等を除く）
+    または content=list に text ブロックを含むもの。**AskUserQuestion への回答（tool_result で届く）は
+    ターン境界にしない**——質問はターン内の対話であって新規指示ではない。
+    なぜ必要か（Stop 検査窓の穴・正解データ事象L）: 捏造報告（L123）の直後に AskUserQuestion が続くと
+    その回答が別 user レコードとして入り、素朴に「最後の人間入力」を境界にすると捏造発話が現ターンから
+    抜け落ちて Stop の scope=current_turn を素通りする。回答を境界に含めないことでこの穴を塞ぐ。"""
+    last = -1
+    for idx, rec in enumerate(records):
+        if rec.get("isSidechain") or rec.get("type") != "user":
+            continue
+        content = _content_of(rec)
+        if isinstance(content, str):
+            if content and not HARNESS_INPUT_PREFIX_RE.search(content):
+                last = idx
+        elif isinstance(content, list):
+            # text ブロックがあれば生プロンプト。tool_result のみ（AskUserQuestion 回答・
+            # ツール結果の差し戻し等）は新規指示ではないので境界にしない。
+            if any(isinstance(b, dict) and b.get("type") == "text" and b.get("text")
+                   for b in content):
+                last = idx
+    return last
+
+
 def build_evidence_corpus(records: List[dict], tool_index: Dict[str, ToolResult],
                           main_utterances: List[Utterance],
                           transcript_path: Optional[str]) -> EvidenceCorpus:
@@ -1565,8 +1590,10 @@ def analyze(text: str, transcript_path: Optional[str] = None,
             tiers: str = "ABCD") -> Report:
     """
     トランスクリプト JSONL 文字列を解析し Report を返す。唯一のエントリ。
-      scope="all"       … 全 assistant 発話の主張を検査
-      scope="last_turn" … 最後の assistant 発話の主張のみ検査（証拠・成功実行は全域から集める）
+      scope="all"          … 全 assistant 発話の主張を検査
+      scope="last_turn"    … 最後の assistant 発話の主張のみ検査（証拠・成功実行は全域から集める）
+      scope="current_turn" … 最後の生ユーザープロンプト以降の全 assistant 発話を検査。多ツール
+                             ターン内（AskUserQuestion 等で継続）の中間発話の捏造も拾う（事象L）
       tiers             … A=ペア欠落系 / B=未検証テスト主張 / C=misread（報告と実結果の食い違い）
                           / D=入力側捏造（幻のユーザー発話への言及・引用・応答・割込ターンの自己生成）
     """
@@ -1589,6 +1616,18 @@ def analyze(text: str, transcript_path: Optional[str] = None,
     # 検査対象の発話（claims）を scope で絞る
     if scope == "last_turn":
         target = [u for u in all_utterances if u.is_last_turn]
+    elif scope == "current_turn":
+        # 現ターン全 assistant 発話（最後の生プロンプト以降）。多ツールターン内の中間発話に
+        # 潜む捏造を Stop で拾う（scope=last_turn の穴＝事象L）。生プロンプトが見つからない
+        # （turn_start<0）と `order > -1` が全発話に一致してセッション全域走査化するので、
+        # その場合は安全側で最終発話にフォールバック（Stop で過去ターンを再ブロックしない）。
+        turn_start = _last_user_turn_order(records)
+        if turn_start < 0:
+            target = [u for u in all_utterances if u.is_last_turn]
+        else:
+            target = [u for u in all_utterances if u.order > turn_start]
+            if not target:
+                target = [u for u in all_utterances if u.is_last_turn]
     else:
         target = all_utterances
 

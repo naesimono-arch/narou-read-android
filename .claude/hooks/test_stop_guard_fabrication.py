@@ -30,7 +30,8 @@ if HOOKS_DIR not in sys.path:
     sys.path.insert(0, HOOKS_DIR)
 
 # エンジンテストのビルダを流用（合成 JSONL レコード生成）。
-from test_detect_fabricated_execution import asst_text, asst_tool, tool_result, GRADLE_OK
+from test_detect_fabricated_execution import (
+    asst_text, asst_tool, tool_result, human, ask_user_answered, GRADLE_OK)
 
 # Tier B の block を決定化するための遠未来タイムスタンプ。
 # なぜ: フックは sentinel_dir を実 .claude/（HOOKS_DIR の親）に固定算出する＝stdin で
@@ -84,6 +85,20 @@ class StopGuardAdapter(unittest.TestCase):
         rec = asst_text("m1", "テストは全部通りました。問題ありません。")
         rec["timestamp"] = FUTURE_TS
         rc, out = self._run_with_transcript([rec])
+        self.assertEqual(rc, 0)
+        self.assertEqual(json.loads(out)["decision"], "block")
+        self.assertIn("unverified_test_claim", out)
+
+    def test_mid_turn_fabrication_blocked_via_current_turn(self):
+        # 事象L の穴の回帰: 捏造報告(m1)の直後に AskUserQuestion でターン継続 → 最終発話(m3)は
+        # 無害。旧 scope=last_turn は m3 しか見ず素通りしたが、scope=current_turn は最後の生
+        # プロンプト以降の全発話を見て m1 の捏造を block する（アダプタ配線の回帰）。
+        rec = asst_text("m1", "回帰テスト：全通過。実装完了です。")
+        rec["timestamp"] = FUTURE_TS  # センチネル fresh 減衰を無効化（Tier B conf 0.8 維持）
+        records = [human("残タスクある？"), rec]
+        records += ask_user_answered("m2", "toolu_q", "いいえ")
+        records += [asst_text("m3", "承知しました。")]
+        rc, out = self._run_with_transcript(records)
         self.assertEqual(rc, 0)
         self.assertEqual(json.loads(out)["decision"], "block")
         self.assertIn("unverified_test_claim", out)

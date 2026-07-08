@@ -19,8 +19,11 @@ Stop フック: ターン終了時に、直近の assistant 発話の「実行�
   - A1 は構造レビュー向きで自己修正に不向きなのでブロックしない（CLI に委ねる）。
   - 偽陽性・例外・transcript 不在は必ず exit 0（ユーザー作業を妨げない）。
 
-なぜ scope=last_turn か: 直近の発話の主張だけを対象にする（証拠・成功実行はセッション全域から
-集める）。センチネル(.kotlin_tests_passed)は現行セッションの実行痕跡なので裏取りに使える。
+なぜ scope=current_turn か（旧 last_turn からの変更・事象L）: 最後の生ユーザープロンプト以降の
+全 assistant 発話を対象にする。last_turn（最終発話のみ）だと、捏造報告の直後に AskUserQuestion 等で
+ターンが継続すると検査窓から捏造発話が抜け落ちて素通りした（多ツールターン内捏造の穴）。証拠・成功
+実行はセッション全域から集める。センチネル(.kotlin_tests_passed)は現行セッションの実行痕跡なので
+裏取りに使える。
 """
 import io
 import json
@@ -68,7 +71,10 @@ def main() -> int:
     claude_dir = os.path.dirname(HOOKS_DIR)
 
     try:
-        report = core.analyze(text, transcript_path=tpath, scope="last_turn",
+        # scope=current_turn: 最後の生ユーザープロンプト以降の全 assistant 発話を検査する。
+        # last_turn（最終発話のみ）だと、捏造報告の直後に AskUserQuestion 等でターンが継続すると
+        # 検査窓から捏造発話が抜け落ちて素通りした（正解データ事象L＝多ツールターン内捏造の穴）。
+        report = core.analyze(text, transcript_path=tpath, scope="current_turn",
                               sentinel_dir=claude_dir, tiers="ABCD")
     except Exception:
         # 解析中の想定外例外でユーザーを止めない（非妨害の原則）
