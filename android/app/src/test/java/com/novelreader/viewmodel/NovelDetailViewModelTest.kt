@@ -4,6 +4,7 @@ import com.novelreader.NovelReaderApplication
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.NovelApiRepository
 import com.novelreader.narou.model.NarouNovel
+import com.novelreader.narou.model.Ncode
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -48,9 +49,9 @@ class NovelDetailViewModelTest {
     @Test
     fun `load - 取得成功で Content に遷移し、同一ncodeの再loadは再取得しないこと`() = runTest {
         val novel = NarouNovel(title = "詳細作品", ncode = "N1234AB", story = "あらすじ")
-        coEvery { mockRepo.novelDetail("N1234AB") } returns novel
+        coEvery { mockRepo.novelDetail(Ncode("N1234AB")) } returns novel
 
-        viewModel.load("N1234AB")
+        viewModel.load(Ncode("N1234AB"))
         testDispatcher.scheduler.advanceUntilIdle()
 
         val state = viewModel.uiState.value
@@ -58,16 +59,16 @@ class NovelDetailViewModelTest {
         assertEquals(novel, (state as NovelDetailUiState.Content).novel)
 
         // 再コンポーズ相当の再呼び出し
-        viewModel.load("N1234AB")
+        viewModel.load(Ncode("N1234AB"))
         testDispatcher.scheduler.advanceUntilIdle()
-        coVerify(exactly = 1) { mockRepo.novelDetail("N1234AB") }
+        coVerify(exactly = 1) { mockRepo.novelDetail(Ncode("N1234AB")) }
     }
 
     @Test
     fun `load - 作品が存在しない場合は NotFound に遷移すること`() = runTest {
         coEvery { mockRepo.novelDetail(any()) } returns null
 
-        viewModel.load("N9999ZZ")
+        viewModel.load(Ncode("N9999ZZ"))
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value is NovelDetailUiState.NotFound)
@@ -77,7 +78,7 @@ class NovelDetailViewModelTest {
     fun `load - 通信失敗で Error に遷移し、retry で再取得されること`() = runTest {
         coEvery { mockRepo.novelDetail(any()) } throws NarouApiException("通信エラー", Exception())
 
-        viewModel.load("N1234AB")
+        viewModel.load(Ncode("N1234AB"))
         testDispatcher.scheduler.advanceUntilIdle()
 
         val state = viewModel.uiState.value
@@ -90,6 +91,6 @@ class NovelDetailViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value is NovelDetailUiState.Content)
-        coVerify(exactly = 2) { mockRepo.novelDetail("N1234AB") }
+        coVerify(exactly = 2) { mockRepo.novelDetail(Ncode("N1234AB")) }
     }
 }

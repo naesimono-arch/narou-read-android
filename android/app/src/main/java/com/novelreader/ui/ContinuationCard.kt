@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.ContinuationInfo
+import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
@@ -259,7 +260,7 @@ internal fun ContinuationLinkPrompt(
 private fun ContinuationCardPreview_NewEpisodes() {
     ContinuationCard(
         info = ContinuationInfo.NewEpisodes(
-            ncode = "n1234ab",
+            ncode = Ncode("n1234ab"),
             totalEpisodes = 130,
             pdfEpisodes = 127,
             nextEpisode = 128,
@@ -277,7 +278,7 @@ private fun ContinuationCardPreview_NewEpisodes() {
 @Composable
 private fun ContinuationCardPreview_UpToDate() {
     ContinuationCard(
-        info = ContinuationInfo.UpToDate(ncode = "n1234ab", totalEpisodes = 130),
+        info = ContinuationInfo.UpToDate(ncode = Ncode("n1234ab"), totalEpisodes = 130),
         colors = ReadingTheme.LIGHT.colors,
         bodyMarginDp = 15,
         onReadContinuation = {},

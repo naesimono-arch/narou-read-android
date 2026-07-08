@@ -8,6 +8,7 @@ import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouAttr
 import com.novelreader.narou.model.NarouNovelType
 import com.novelreader.narou.model.NarouOrder
+import com.novelreader.narou.model.Ncode
 import com.novelreader.narou.model.lastupApiParam
 import com.novelreader.narou.model.typeApiParam
 import com.novelreader.narou.network.NarouApiService
@@ -304,8 +305,9 @@ class NovelApiRepository(
      * Nコードを指定して、1件の小説詳細を取得する。
      * キャッシュがあればそれを返し、無ければAPIから取得してキャッシュする。
      */
-    suspend fun novelDetail(ncode: String): NarouNovel? {
-        val trimmedNcode = ncode.trim()
+    suspend fun novelDetail(ncode: Ncode): NarouNovel? {
+        // 境界変換点: Retrofit(NarouApiService) は生 String を要求するため .value をここでほどく。
+        val trimmedNcode = ncode.value.trim()
         val cacheKey = "detail_$trimmedNcode"
         val now = timeSource()
         val cached = cache[cacheKey]

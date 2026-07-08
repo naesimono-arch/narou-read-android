@@ -74,6 +74,7 @@ import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.computeContinuation
 import com.novelreader.narou.narouEpisodeUrl
 import com.novelreader.narou.narouWorkUrl
+import com.novelreader.narou.model.Ncode
 import com.novelreader.parser.ChapterHtmlParser
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingTheme
@@ -109,7 +110,7 @@ fun ReadingScreen(
     startFile: String,
     htmlDirPath: String,
     bookTitle: String,
-    ncode: String?,
+    ncode: Ncode?,
     viewModel: BookshelfViewModel,
     // テーマは MainActivity が持つ単一正本を受け取る（本棚と共有して全体を同期させるため）。
     readingTheme: ReadingTheme,
@@ -381,8 +382,8 @@ private fun ChapterScreen(
     htmlDirPath: String,
     tocEntries: List<TocEntry>,
     bookTitle: String,
-    ncode: String?,
-    onLinkNcode: (String?) -> Unit,
+    ncode: Ncode?,
+    onLinkNcode: (Ncode?) -> Unit,
     // なろう紐付けシートの候補検索（state は VM の単一正本／検索・再試行は VM へ依頼）。
     ncodeSearchState: NcodeSearchUiState,
     onSearchNcode: (query: String) -> Unit,

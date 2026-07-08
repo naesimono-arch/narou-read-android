@@ -22,6 +22,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import com.novelreader.narou.model.DiscoveryQuery
+import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.BookshelfScreen
 import com.novelreader.ui.ReadingErrorScreen
 import com.novelreader.ui.ReadingScreen
@@ -182,7 +183,8 @@ private fun NovelReaderApp(
             DiscoveryHomeScreen(
                 viewModel = discoveryViewModel,
                 onBack = { navController.popBackStack() },
-                onOpenDetail = { ncode -> navController.navigate("discovery/detail/$ncode") { launchSingleTop = true } },
+                // 境界: nav ルートは String。Ncode を .value でほどいてパスへ載せる。
+                onOpenDetail = { ncode -> navController.navigate("discovery/detail/${ncode.value}") { launchSingleTop = true } },
                 onOpenGenre = { navController.navigate("discovery/genre") { launchSingleTop = true } },
                 onPickBiggenre = { code, label ->
                     discoveryViewModel.openResult(
@@ -232,7 +234,8 @@ private fun NovelReaderApp(
                 // pop すれば一段上の親へ一貫して戻れる。履歴 Back（onBack）は端末 Back と「条件を変更」に委ねる。
                 onUp = { navController.popBackStack("discovery", false) },
                 onBack = { navController.popBackStack() },
-                onOpenDetail = { ncode -> navController.navigate("discovery/detail/$ncode") { launchSingleTop = true } },
+                // 境界: nav ルートは String。Ncode を .value でほどいてパスへ載せる。
+                onOpenDetail = { ncode -> navController.navigate("discovery/detail/${ncode.value}") { launchSingleTop = true } },
             )
         }
 
@@ -242,7 +245,8 @@ private fun NovelReaderApp(
         ) { backStackEntry ->
             val ncode = backStackEntry.arguments?.getString("ncode") ?: return@composable
             NovelDetailScreen(
-                ncode = ncode,
+                // 境界: nav 引数は String。詳細画面へは型付き Ncode へ包んで渡す。
+                ncode = Ncode(ncode),
                 viewModel = viewModel(),
                 onKeywordTap = { kw ->
                     discoveryViewModel.openResult(ResultContext(
@@ -296,7 +300,8 @@ private fun NovelReaderApp(
                             bookTitle = book.title,
                             // 紐付け確定/解除は uiState(hot StateFlow) 経由でここへ還流し、読書画面の
                             // 継続導線が再コンポーズで即座に切り替わる。
-                            ncode = book.ncode,
+                            // 境界: book.ncode は Room 由来の String?。読書画面へは型付き Ncode? へ包んで渡す。
+                            ncode = book.ncode?.let { Ncode(it) },
                             viewModel = viewModel,
                             readingTheme = appTheme,
                             onThemeChange = onThemeChange,

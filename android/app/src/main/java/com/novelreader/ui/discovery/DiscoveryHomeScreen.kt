@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouOrder
+import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.DiscoveryUiState
 import com.novelreader.viewmodel.DiscoveryViewModel
@@ -61,7 +62,7 @@ import com.novelreader.viewmodel.MoodPreset
 fun DiscoveryHomeScreen(
     viewModel: DiscoveryViewModel,
     onBack: () -> Unit,
-    onOpenDetail: (ncode: String) -> Unit,
+    onOpenDetail: (ncode: Ncode) -> Unit,
     onOpenGenre: () -> Unit,
     onPickBiggenre: (code: Int, label: String) -> Unit,
     onOpenSearch: () -> Unit,
@@ -166,7 +167,8 @@ fun DiscoveryHomeScreen(
                                 rank = index + 1,
                                 novel = novel,
                                 order = order,
-                                onClick = { novel.ncode?.let(onOpenDetail) },
+                                // 境界: novel.ncode は Moshi 由来の String。詳細遷移の引数は型付き Ncode へ包む。
+                                onClick = { novel.ncode?.let { onOpenDetail(Ncode(it)) } },
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }

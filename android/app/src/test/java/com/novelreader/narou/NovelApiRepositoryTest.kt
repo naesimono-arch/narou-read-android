@@ -7,6 +7,7 @@ import com.novelreader.narou.model.NarouLastup
 import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouNovelType
 import com.novelreader.narou.model.NarouOrder
+import com.novelreader.narou.model.Ncode
 import com.novelreader.narou.network.NarouApiService
 import com.squareup.moshi.JsonDataException
 import io.mockk.coEvery
@@ -261,14 +262,14 @@ class NovelApiRepositoryTest {
             mockNovel
         )
 
-        val result = repository.novelDetail("N1234AB")
+        val result = repository.novelDetail(Ncode("N1234AB"))
 
         assertNotNull(result)
         assertEquals("詳細作品", result!!.title)
         assertEquals("N1234AB", result.ncode)
 
         // キャッシュの検証：2回目は API が呼ばれない
-        val cachedResult = repository.novelDetail("N1234AB")
+        val cachedResult = repository.novelDetail(Ncode("N1234AB"))
         assertEquals(result, cachedResult)
         coVerify(exactly = 1) { service.search(ncode = "N1234AB", lim = 1, of = null) }
     }
@@ -279,7 +280,7 @@ class NovelApiRepositoryTest {
             NarouNovel(allcount = 0)
         )
 
-        val result = repository.novelDetail("N9999XX")
+        val result = repository.novelDetail(Ncode("N9999XX"))
 
         assertNull(result)
         coVerify(exactly = 1) { service.search(ncode = "N9999XX", lim = 1, of = null) }
@@ -638,8 +639,8 @@ class NovelApiRepositoryTest {
         coEvery { service.search(ncode = "N9999XX", lim = 1, of = null) } returns
             listOf(NarouNovel(allcount = 0))
 
-        assertNull(repository.novelDetail("N9999XX"))
-        assertNull(repository.novelDetail("N9999XX"))
+        assertNull(repository.novelDetail(Ncode("N9999XX")))
+        assertNull(repository.novelDetail(Ncode("N9999XX")))
 
         coVerify(exactly = 1) { service.search(ncode = "N9999XX", lim = 1, of = null) }
     }

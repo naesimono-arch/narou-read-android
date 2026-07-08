@@ -1,20 +1,21 @@
 package com.novelreader.narou
 
 import com.novelreader.narou.model.NarouNovel
+import com.novelreader.narou.model.Ncode
 import java.util.Locale
 
 sealed interface ContinuationInfo {
-    val ncode: String
+    val ncode: Ncode
     val totalEpisodes: Int
     data class NewEpisodes(
-        override val ncode: String,
+        override val ncode: Ncode,
         override val totalEpisodes: Int,
         val pdfEpisodes: Int,
         val nextEpisode: Int,  // = pdfEpisodes + 1
         val newCount: Int,     // = totalEpisodes - pdfEpisodes
     ) : ContinuationInfo
     data class UpToDate(
-        override val ncode: String,
+        override val ncode: Ncode,
         override val totalEpisodes: Int,
     ) : ContinuationInfo
 }
@@ -36,6 +37,9 @@ fun computeContinuation(pdfChapterCount: Int, novel: NarouNovel): ContinuationIn
     if (ncode.isNullOrEmpty()) {
         return null
     }
+    // 境界変換点: Moshi 由来の生 String（trim 済み）をここで一度だけ Ncode へ包み、
+    // 以降のドメイン戻り値（ContinuationInfo）は型付き ncode で扱う（挙動不変＝正規化は素通し）。
+    val id = Ncode(ncode)
 
     val total = novel.generalAllNo
     // なぜ総話数をバリデーションするか: 総エピソード数が未取得、または不正な値（0以下）の場合は、
@@ -53,7 +57,7 @@ fun computeContinuation(pdfChapterCount: Int, novel: NarouNovel): ContinuationIn
     // なぜ短編の特別扱いが必要か: なろうの短編（novelType=2）は一話完結であり、
     // generalAllNo が 1 であるものの「続きの話」という概念自体が存在しないため、常に追いつき済み(UpToDate)とする。
     if (novel.novelType == 2) {
-        return ContinuationInfo.UpToDate(ncode, total)
+        return ContinuationInfo.UpToDate(id, total)
     }
 
     // なぜ引き算で判定するか: なろう上の総エピソード数から手元のPDF章数を引き、
@@ -61,34 +65,36 @@ fun computeContinuation(pdfChapterCount: Int, novel: NarouNovel): ContinuationIn
     // それ以外（追いつき、またはなろう側で話数削減が発生して手元PDFの方が多い場合）は追いつき済みとする。
     return if (total - pdfChapterCount > 0) {
         ContinuationInfo.NewEpisodes(
-            ncode = ncode,
+            ncode = id,
             totalEpisodes = total,
             pdfEpisodes = pdfChapterCount,
             nextEpisode = pdfChapterCount + 1,
             newCount = total - pdfChapterCount
         )
     } else {
-        ContinuationInfo.UpToDate(ncode, total)
+        ContinuationInfo.UpToDate(id, total)
     }
 }
 
 /**
  * なろうの特定話（エピソード）ページURLを生成する。
  */
-fun narouEpisodeUrl(ncode: String, episode: Int): String {
+fun narouEpisodeUrl(ncode: Ncode, episode: Int): String {
     // なぜ小文字化するか: なろうのWebサーバーはURLパスに含まれるNコードを
     // 小文字で要求するため、安全のために Locale.ROOT で小文字化して結合する。
-    val lowerNcode = ncode.trim().lowercase(Locale.ROOT)
+    // 正規化は Ncode 集約でなくこのサイトで従来どおり施す（用途別正規化のため。Ncode の KDoc 参照）。
+    val lowerNcode = ncode.value.trim().lowercase(Locale.ROOT)
     return "https://ncode.syosetu.com/$lowerNcode/$episode/"
 }
 
 /**
  * なろうの作品（作品トップ）ページURLを生成する。
  */
-fun narouWorkUrl(ncode: String): String {
+fun narouWorkUrl(ncode: Ncode): String {
     // なぜ小文字化するか: なろうのWebサーバーはURLパスに含まれるNコードを
     // 小文字で要求するため、安全のために Locale.ROOT で小文字化して結合する。
-    val lowerNcode = ncode.trim().lowercase(Locale.ROOT)
+    // 正規化は Ncode 集約でなくこのサイトで従来どおり施す（用途別正規化のため。Ncode の KDoc 参照）。
+    val lowerNcode = ncode.value.trim().lowercase(Locale.ROOT)
     return "https://ncode.syosetu.com/$lowerNcode/"
 }
 

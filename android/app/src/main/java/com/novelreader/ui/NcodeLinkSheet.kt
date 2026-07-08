@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.isValidNcode
+import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.viewmodel.NcodeSearchUiState
@@ -79,7 +80,7 @@ internal fun NcodeLinkSheet(
     colors: ReadingColors,
     onSearch: (query: String) -> Unit,
     onRetry: () -> Unit,
-    onConfirm: (ncode: String) -> Unit,
+    onConfirm: (ncode: Ncode) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var inputText by remember { mutableStateOf(bookTitle) }
@@ -264,7 +265,8 @@ internal fun NcodeLinkSheet(
                                                 val ncode = novel.ncode?.trim()
                                                 if (ncode != null) {
                                                     // なろう公式の標準Nコード表記に合わせて大文字化して確定させる
-                                                    onConfirm(ncode.uppercase(Locale.ROOT))
+                                                    // （正規化は Ncode 集約でなくこのサイトで施す＝用途別正規化。Ncode の KDoc 参照）
+                                                    onConfirm(Ncode(ncode.uppercase(Locale.ROOT)))
                                                 }
                                             }
                                             .padding(vertical = 12.dp)
@@ -370,7 +372,8 @@ internal fun NcodeLinkSheet(
                             shape = RoundedCornerShape(2.dp)
                         )
                         .clickable(enabled = isValid) {
-                            onConfirm(manualNcode.trim().uppercase(Locale.ROOT))
+                            // 手動入力も大文字化して確定（正規化はこのサイト。Ncode の KDoc 参照）。
+                            onConfirm(Ncode(manualNcode.trim().uppercase(Locale.ROOT)))
                         }
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                     contentAlignment = Alignment.Center

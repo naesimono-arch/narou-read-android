@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
+import com.novelreader.narou.model.Ncode
 import com.novelreader.narou.narouWorkUrl
 import com.novelreader.ui.components.BookCover
 import com.novelreader.ui.openInAppBrowser
@@ -70,7 +71,7 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun NovelDetailScreen(
-    ncode: String,
+    ncode: Ncode,
     viewModel: NovelDetailViewModel,
     onKeywordTap: (String) -> Unit,
     onBack: () -> Unit,
@@ -224,7 +225,8 @@ fun NovelDetailScreen(
                     ) {
                         // ヒーロー
                         BookCover(
-                            bookId = ncode,
+                            // 境界: BookCover.bookId は String（書影キャッシュキー）。ncode を id として使う既存挙動を .value で維持。
+                            bookId = ncode.value,
                             title = novel.title ?: "",
                             showTitle = true,
                             modifier = Modifier

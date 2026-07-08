@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouOrder
+import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.DiscoveryUiState
 import com.novelreader.viewmodel.DiscoveryViewModel
@@ -63,7 +64,7 @@ fun DiscoveryResultScreen(
     viewModel: DiscoveryViewModel,
     onUp: () -> Unit,
     onBack: () -> Unit,
-    onOpenDetail: (ncode: String) -> Unit,
+    onOpenDetail: (ncode: Ncode) -> Unit,
 ) {
     val context by viewModel.resultContext.collectAsStateWithLifecycle()
     val state by viewModel.resultState.collectAsStateWithLifecycle()
@@ -354,7 +355,8 @@ fun DiscoveryResultScreen(
                                     rank = index + 1,
                                     novel = novel,
                                     order = ctx.query.order,
-                                    onClick = { novel.ncode?.let(onOpenDetail) },
+                                    // 境界: novel.ncode は Moshi 由来の String。詳細遷移の引数は型付き Ncode へ包む。
+                                    onClick = { novel.ncode?.let { onOpenDetail(Ncode(it)) } },
                                 )
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             }

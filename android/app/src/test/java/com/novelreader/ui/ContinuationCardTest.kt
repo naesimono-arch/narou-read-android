@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.novelreader.narou.ContinuationInfo
+import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.colors
 import org.junit.Assert.assertTrue
@@ -29,7 +30,7 @@ class ContinuationCardTest {
     private val colors = ReadingTheme.LIGHT.colors
 
     private val newEpisodes = ContinuationInfo.NewEpisodes(
-        ncode = "n1234ab",
+        ncode = Ncode("n1234ab"),
         totalEpisodes = 130,
         pdfEpisodes = 127,
         nextEpisode = 128,
@@ -64,7 +65,7 @@ class ContinuationCardTest {
 
     @Test
     fun `UpToDateでは主ボタンを出さず追いついた旨を表示する`() {
-        setCard(ContinuationInfo.UpToDate(ncode = "n1234ab", totalEpisodes = 130))
+        setCard(ContinuationInfo.UpToDate(ncode = Ncode("n1234ab"), totalEpisodes = 130))
         composeTestRule.onNodeWithText("追いついています", substring = true).assertIsDisplayed()
         // 主ボタンは NewEpisodes 専用なので存在しないこと
         composeTestRule.onNodeWithText("続きを読む", substring = true).assertDoesNotExist()

@@ -1,6 +1,7 @@
 package com.novelreader.narou
 
 import com.novelreader.narou.model.NarouNovel
+import com.novelreader.narou.model.Ncode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -15,7 +16,7 @@ class ContinuationLogicTest {
         val result = computeContinuation(pdfChapterCount = 127, novel = novel)
         assertTrue(result is ContinuationInfo.NewEpisodes)
         val newEpisodes = result as ContinuationInfo.NewEpisodes
-        assertEquals("N2959KI", newEpisodes.ncode)
+        assertEquals(Ncode("N2959KI"), newEpisodes.ncode)
         assertEquals(139, newEpisodes.totalEpisodes)
         assertEquals(127, newEpisodes.pdfEpisodes)
         assertEquals(128, newEpisodes.nextEpisode)
@@ -28,7 +29,7 @@ class ContinuationLogicTest {
         val result = computeContinuation(pdfChapterCount = 139, novel = novel)
         assertTrue(result is ContinuationInfo.UpToDate)
         val upToDate = result as ContinuationInfo.UpToDate
-        assertEquals("N2959KI", upToDate.ncode)
+        assertEquals(Ncode("N2959KI"), upToDate.ncode)
         assertEquals(139, upToDate.totalEpisodes)
     }
 
@@ -38,7 +39,7 @@ class ContinuationLogicTest {
         val result = computeContinuation(pdfChapterCount = 140, novel = novel)
         assertTrue(result is ContinuationInfo.UpToDate)
         val upToDate = result as ContinuationInfo.UpToDate
-        assertEquals("N2959KI", upToDate.ncode)
+        assertEquals(Ncode("N2959KI"), upToDate.ncode)
         assertEquals(139, upToDate.totalEpisodes)
     }
 
@@ -48,7 +49,7 @@ class ContinuationLogicTest {
         val result = computeContinuation(pdfChapterCount = 1, novel = novel)
         assertTrue(result is ContinuationInfo.UpToDate)
         val upToDate = result as ContinuationInfo.UpToDate
-        assertEquals("N2959KI", upToDate.ncode)
+        assertEquals(Ncode("N2959KI"), upToDate.ncode)
         assertEquals(1, upToDate.totalEpisodes)
     }
 
@@ -59,7 +60,7 @@ class ContinuationLogicTest {
         val result = computeContinuation(pdfChapterCount = 3, novel = novel)
         assertTrue(result is ContinuationInfo.UpToDate)
         val upToDate = result as ContinuationInfo.UpToDate
-        assertEquals("N2959KI", upToDate.ncode)
+        assertEquals(Ncode("N2959KI"), upToDate.ncode)
         assertEquals(5, upToDate.totalEpisodes)
     }
 
@@ -100,12 +101,12 @@ class ContinuationLogicTest {
 
     @Test
     fun testNarouUrls() {
-        assertEquals("https://ncode.syosetu.com/n2959ki/", narouWorkUrl("N2959KI"))
-        assertEquals("https://ncode.syosetu.com/n2959ki/128/", narouEpisodeUrl("N2959KI", 128))
-        
-        // トリムおよび小文字化の確認
-        assertEquals("https://ncode.syosetu.com/n2959ki/", narouWorkUrl("  N2959KI  "))
-        assertEquals("https://ncode.syosetu.com/n2959ki/128/", narouEpisodeUrl("  N2959KI  ", 128))
+        assertEquals("https://ncode.syosetu.com/n2959ki/", narouWorkUrl(Ncode("N2959KI")))
+        assertEquals("https://ncode.syosetu.com/n2959ki/128/", narouEpisodeUrl(Ncode("N2959KI"), 128))
+
+        // トリムおよび小文字化の確認（正規化はサイト側で従来どおり施すため Ncode 生値に空白があってもよい）
+        assertEquals("https://ncode.syosetu.com/n2959ki/", narouWorkUrl(Ncode("  N2959KI  ")))
+        assertEquals("https://ncode.syosetu.com/n2959ki/128/", narouEpisodeUrl(Ncode("  N2959KI  "), 128))
     }
 
     @Test

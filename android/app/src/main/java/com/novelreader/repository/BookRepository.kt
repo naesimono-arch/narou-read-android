@@ -11,6 +11,7 @@ import com.novelreader.data.PendingJobDao
 import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressDao
 import com.novelreader.data.ProgressEntity
+import com.novelreader.narou.model.Ncode
 import com.novelreader.pdf.CorruptedPdfError
 import com.novelreader.pdf.EncryptedPdfError
 import com.novelreader.pdf.InsufficientStorageError
@@ -309,8 +310,9 @@ class BookRepository(
     }
 
     // PDF↔Web継続読書: なろう作品との紐付け（null で解除）。ユーザー確定操作からのみ呼ぶ。
-    suspend fun linkNcode(bookId: String, ncode: String?) = withContext(Dispatchers.IO) {
-        bookDao.updateNcode(bookId, ncode)
+    suspend fun linkNcode(bookId: String, ncode: Ncode?) = withContext(Dispatchers.IO) {
+        // 境界変換点: Room(BookDao) の ncode 列は String のまま。null（解除）は null のまま渡す。
+        bookDao.updateNcode(bookId, ncode?.value)
     }
 
     suspend fun getLastRead(bookId: String): String? =

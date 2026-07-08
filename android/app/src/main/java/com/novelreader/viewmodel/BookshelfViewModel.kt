@@ -14,6 +14,7 @@ import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.DiscoveryResult
 import com.novelreader.narou.model.NarouOrder
+import com.novelreader.narou.model.Ncode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -178,7 +179,7 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
 
     // PDF↔Web継続読書: なろう作品との紐付け（null で解除）。
     // books は hot StateFlow のため、書き込めば読書画面の継続導線へ自動で反映される。
-    fun linkNcode(bookId: String, ncode: String?) {
+    fun linkNcode(bookId: String, ncode: Ncode?) {
         viewModelScope.launch(Dispatchers.IO) { repository.linkNcode(bookId, ncode) }
     }
 

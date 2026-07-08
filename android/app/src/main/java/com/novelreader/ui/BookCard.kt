@@ -31,6 +31,7 @@ import com.novelreader.data.ProgressEntity
 import com.novelreader.narou.ContinuationInfo
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.computeContinuation
+import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.components.BookCover
 import com.novelreader.ui.theme.MinchoFamily
 import java.io.File
@@ -156,7 +157,8 @@ private fun rememberNewEpisodeCount(book: BookEntity, totalChaps: Int): Int? {
             try {
                 val repository =
                     (context.applicationContext as NovelReaderApplication).novelApiRepository
-                repository.novelDetail(ncode)?.let { novel ->
+                // 境界: book.ncode は Room 由来の String（非 null 確定）。詳細取得の引数は型付き Ncode へ包む。
+                repository.novelDetail(Ncode(ncode))?.let { novel ->
                     (computeContinuation(totalChaps, novel) as? ContinuationInfo.NewEpisodes)?.newCount
                 }
             } catch (e: NarouApiException) {
