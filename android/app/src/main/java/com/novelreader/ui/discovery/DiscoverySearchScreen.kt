@@ -51,6 +51,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,8 +101,11 @@ fun DiscoverySearchScreen(
     // なぜ VM 巻き上げか: 条件シートを閉じても・結果一覧から戻っても状態を残すため
     // （SearchDraft.kt の doc コメント参照）。
     val draft by viewModel.searchDraft.collectAsStateWithLifecycle()
+    // isFocused は一過性（構成変更で入力欄が再フォーカスされ得る）ため素の remember のまま。
     var isFocused by remember { mutableStateOf(false) }
-    var showSheet by remember { mutableStateOf(false) }
+    // F-F: 条件シートの開閉は構成変更（回転・ダーク切替）でも維持する。縦スクロール位置は残るのに
+    // シートだけ閉じるのは不整合なため rememberSaveable 化する。
+    var showSheet by rememberSaveable { mutableStateOf(false) }
 
     val executeSearch = {
         if (viewModel.executeSearch()) {
@@ -175,11 +180,17 @@ fun DiscoverySearchScreen(
                                 }
                                 innerTextField()
                             }
-                            IconButton(onClick = { executeSearch() }) {
+                            // M2: 検索語も条件も空だと executeSearch は false を返し無反応になる（死んだ押下）。
+                            // 送信不能を「押せなさ」で予告するため、canSearch が false のときはボタンを disabled 見た目にする。
+                            IconButton(onClick = { executeSearch() }, enabled = draft.canSearch) {
                                 Icon(
                                     imageVector = Icons.Filled.Search,
                                     contentDescription = "検索する",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    tint = if (draft.canSearch) {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                    }
                                 )
                             }
                         }
@@ -209,6 +220,10 @@ fun DiscoverySearchScreen(
                 // 範囲チップ4つ
                 // なぜ FilterChip の leadingIcon を使わないか: チェックマークなどの余計な装飾を省き、
                 // モックの「枠と背景の反転のみで状態を示す静かなチップ」の意匠に合わせるため。
+                // F-H: 検索範囲は最低1つ必要（全解除＝なろうAPI仕様で全項目対象となり不透明化する。SearchDraft
+                // 側の withRangeToggled が最後の1つを保護する）。残り1つになったチップは onClick が無反応になり
+                // 「死んだアフォーダンス」になるため、その最後の1つは selected+disabled にして制約を「押せなさ」で示す。
+                val selectedRangeCount = listOf(draft.inTitle, draft.inKeyword, draft.inWriter, draft.inStory).count { it }
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -217,22 +232,35 @@ fun DiscoverySearchScreen(
                     FilterChipItem(
                         selected = draft.inTitle,
                         label = "タイトル",
+                        enabled = !(draft.inTitle && selectedRangeCount == 1),
                         onClick = { viewModel.setSearchDraft(draft.withRangeToggled(SearchRange.TITLE)) }
                     )
                     FilterChipItem(
                         selected = draft.inKeyword,
                         label = "キーワード",
+                        enabled = !(draft.inKeyword && selectedRangeCount == 1),
                         onClick = { viewModel.setSearchDraft(draft.withRangeToggled(SearchRange.KEYWORD)) }
                     )
                     FilterChipItem(
                         selected = draft.inWriter,
                         label = "作者名",
+                        enabled = !(draft.inWriter && selectedRangeCount == 1),
                         onClick = { viewModel.setSearchDraft(draft.withRangeToggled(SearchRange.WRITER)) }
                     )
                     FilterChipItem(
                         selected = draft.inStory,
                         label = "あらすじ",
+                        enabled = !(draft.inStory && selectedRangeCount == 1),
                         onClick = { viewModel.setSearchDraft(draft.withRangeToggled(SearchRange.STORY)) }
+                    )
+                }
+                // なぜチップを押せないのかを明示する注記（disabled の理由提示）。
+                if (selectedRangeCount == 1) {
+                    Text(
+                        text = "検索範囲は1つ以上必要です",
+                        fontSize = 10.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(top = 8.dp)
                     )
                 }
 
@@ -332,7 +360,18 @@ fun DiscoverySearchScreen(
                 // title は一意なので両ループで1つの map を共有できる）。未登録キーは false 扱い＝
                 // 既定は全カテゴリ畳み。狙いは「要素」22語・「リプレイ（TRPG）」26語のような長大な
                 // カテゴリで検索画面が縦に伸びるのを抑え、見出しだけの一覧まで圧縮すること。
-                val expandedCategories = remember { mutableStateMapOf<String, Boolean>() }
+                // F-F: カテゴリ展開状態も構成変更で維持する。SnapshotStateMap には既製 saver が無いため、
+                // 展開中（value==true）のキー一覧だけを保存し復元する listSaver を付ける（false は既定なので保存不要）。
+                val expandedCategories = rememberSaveable(
+                    saver = listSaver(
+                        save = { map -> map.filterValues { it }.keys.toList() },
+                        restore = { keys ->
+                            mutableStateMapOf<String, Boolean>().apply {
+                                keys.forEach { put(it, true) }
+                            }
+                        }
+                    )
+                ) { mutableStateMapOf<String, Boolean>() }
 
                 NarouCuratedKeywords.basicCategories.forEach { category ->
                     val expanded = expandedCategories[category.title] == true
@@ -374,7 +413,8 @@ fun DiscoverySearchScreen(
                     }
                 }
 
-                var showGenreKeywords by remember { mutableStateOf(false) }
+                // F-F: 「ジャンル別を見る」の展開も構成変更で維持する。
+                var showGenreKeywords by rememberSaveable { mutableStateOf(false) }
 
                 // why: 公式パネルは①作品内容と②ジャンル別の2段構成。②＋TRPG系は約80語あり常時表示すると検索画面が長大化するため、公式と同じ段構成のまま既定は畳む（全数収載と画面の静けさの両立）
                 Text(
@@ -457,7 +497,8 @@ fun DiscoverySearchScreen(
             // カスタム判定は「ステップ列に分解できない値」で行う。単段プリセット集合との不一致で判定すると、
             // 複数選択の合成レンジ（例 "10000-500000"）までカスタム入力扱いになりチップが点灯しなくなるため。
             val isLengthCustom = draft.filters.length != null && selectedStepIndices(draft.filters.length, LENGTH_STEPS).isEmpty()
-            var lengthCustomActive by remember(isLengthCustom) { mutableStateOf(isLengthCustom) }
+            // F-F: カスタム入力欄の開閉も構成変更で維持する（isLengthCustom をキーに保持＝draft 側の変化では再初期化）。
+            var lengthCustomActive by rememberSaveable(isLengthCustom) { mutableStateOf(isLengthCustom) }
 
             var minLengthText by remember { mutableStateOf("") }
             var maxLengthText by remember { mutableStateOf("") }
@@ -486,7 +527,8 @@ fun DiscoverySearchScreen(
 
             // 同上: 合成レンジをカスタム扱いにしないため、分解可能性で判定する。
             val isTimeCustom = draft.filters.time != null && selectedStepIndices(draft.filters.time, TIME_STEPS).isEmpty()
-            var timeCustomActive by remember(isTimeCustom) { mutableStateOf(isTimeCustom) }
+            // F-F: カスタム入力欄の開閉も構成変更で維持する。
+            var timeCustomActive by rememberSaveable(isTimeCustom) { mutableStateOf(isTimeCustom) }
 
             var minTimeText by remember { mutableStateOf("") }
             var maxTimeText by remember { mutableStateOf("") }
@@ -662,7 +704,21 @@ fun DiscoverySearchScreen(
 
                 // d. 文字数
                 // なぜモックのレンジスライダーでなく段階チップか: 文字数・読了時間はダイナミックレンジが広く線形スライダーは実用に耐えないため、段階選択に置き換える（見た目の節構成・チップ様式はモック準拠。操作系の差分は ADR 0005 のスコープ外規定＝実機フィードバックで後詰め）。
+                // F-I: 文字数と読了時間は併用不可（なろうAPIの制約。SearchFilters.withLength/withTime が
+                // 一方を選ぶと他方を null にして排他を保証する）。だが排他が UI 上未提示だと「一方を選ぶと他方が
+                // 黙って消える」不透明になるため、committed 値で「今どちらが有効か」を判定し、無効側の節をグレーアウト
+                // ＋注記で事前提示する。判定を committed 値（time!=null / length!=null）に限るのは、両者が同時に
+                // 非 null になり得ない不変条件があり、*CustomActive の残留 true では両節同時 disabled の詰みを招くため。
+                val timeEngaged = draft.filters.time != null
                 SectionHeader(text = "文字数")
+                if (timeEngaged) {
+                    Text(
+                        text = "読了時間と併用できません（なろうAPIの制約）",
+                        fontSize = 10.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+                }
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -673,6 +729,7 @@ fun DiscoverySearchScreen(
                     FilterChipItem(
                         selected = current == null && !lengthCustomActive,
                         label = "すべて",
+                        enabled = !timeEngaged,
                         onClick = {
                             lengthCustomActive = false
                             minLengthText = ""
@@ -683,6 +740,7 @@ fun DiscoverySearchScreen(
                     FilterChipItem(
                         selected = !lengthCustomActive && !isLengthCustom && 0 in lengthStepIndices,
                         label = "〜1万字",
+                        enabled = !timeEngaged,
                         onClick = {
                             lengthCustomActive = false
                             val next = toggleRangeStep(current, 0, LENGTH_STEPS)
@@ -692,6 +750,7 @@ fun DiscoverySearchScreen(
                     FilterChipItem(
                         selected = !lengthCustomActive && !isLengthCustom && 1 in lengthStepIndices,
                         label = "1万〜10万字",
+                        enabled = !timeEngaged,
                         onClick = {
                             lengthCustomActive = false
                             val next = toggleRangeStep(current, 1, LENGTH_STEPS)
@@ -701,6 +760,7 @@ fun DiscoverySearchScreen(
                     FilterChipItem(
                         selected = !lengthCustomActive && !isLengthCustom && 2 in lengthStepIndices,
                         label = "10万〜50万字",
+                        enabled = !timeEngaged,
                         onClick = {
                             lengthCustomActive = false
                             val next = toggleRangeStep(current, 2, LENGTH_STEPS)
@@ -710,6 +770,7 @@ fun DiscoverySearchScreen(
                     FilterChipItem(
                         selected = !lengthCustomActive && !isLengthCustom && 3 in lengthStepIndices,
                         label = "50万〜100万字",
+                        enabled = !timeEngaged,
                         onClick = {
                             lengthCustomActive = false
                             val next = toggleRangeStep(current, 3, LENGTH_STEPS)
@@ -719,6 +780,7 @@ fun DiscoverySearchScreen(
                     FilterChipItem(
                         selected = !lengthCustomActive && !isLengthCustom && 4 in lengthStepIndices,
                         label = "100万字〜",
+                        enabled = !timeEngaged,
                         onClick = {
                             lengthCustomActive = false
                             val next = toggleRangeStep(current, 4, LENGTH_STEPS)
@@ -728,6 +790,7 @@ fun DiscoverySearchScreen(
                     FilterChipItem(
                         selected = lengthCustomActive || isLengthCustom,
                         label = "カスタム",
+                        enabled = !timeEngaged,
                         onClick = {
                             if (lengthCustomActive) {
                                 lengthCustomActive = false
@@ -743,7 +806,9 @@ fun DiscoverySearchScreen(
                     )
                 }
 
-                if (lengthCustomActive || isLengthCustom) {
+                // 読了時間が有効なとき文字数節は無効なので、カスタム入力欄も隠す（残留 lengthCustomActive で
+                // 入力欄だけ生き残り、グレーアウトを迂回して length を再設定できてしまうのを防ぐ）。
+                if ((lengthCustomActive || isLengthCustom) && !timeEngaged) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -840,7 +905,17 @@ fun DiscoverySearchScreen(
 
                 // e. 読了時間
                 // なぜモックのレンジスライダーでなく段階チップか: 文字数・読了時間はダイナミックレンジが広く線形スライダーは実用に耐えないため、段階選択に置き換える（見た目の節構成・チップ様式はモック準拠。操作系の差分は ADR 0005 のスコープ外規定＝実機フィードバックで後詰め）。
+                // F-I: 文字数が有効なら読了時間節を無効化＋注記（上記 timeEngaged と対の排他提示）。
+                val lengthEngaged = draft.filters.length != null
                 SectionHeader(text = "読了時間")
+                if (lengthEngaged) {
+                    Text(
+                        text = "文字数と併用できません（なろうAPIの制約）",
+                        fontSize = 10.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+                }
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -851,6 +926,7 @@ fun DiscoverySearchScreen(
                     FilterChipItem(
                         selected = current == null && !timeCustomActive,
                         label = "すべて",
+                        enabled = !lengthEngaged,
                         onClick = {
                             timeCustomActive = false
                             minTimeText = ""
@@ -861,6 +937,7 @@ fun DiscoverySearchScreen(
                     FilterChipItem(
                         selected = !timeCustomActive && !isTimeCustom && 0 in timeStepIndices,
                         label = "〜30分",
+                        enabled = !lengthEngaged,
                         onClick = {
                             timeCustomActive = false
                             val next = toggleRangeStep(current, 0, TIME_STEPS)
@@ -870,6 +947,7 @@ fun DiscoverySearchScreen(
                     FilterChipItem(
                         selected = !timeCustomActive && !isTimeCustom && 1 in timeStepIndices,
                         label = "30分〜2時間",
+                        enabled = !lengthEngaged,
                         onClick = {
                             timeCustomActive = false
                             val next = toggleRangeStep(current, 1, TIME_STEPS)
@@ -879,6 +957,7 @@ fun DiscoverySearchScreen(
                     FilterChipItem(
                         selected = !timeCustomActive && !isTimeCustom && 2 in timeStepIndices,
                         label = "2時間〜10時間",
+                        enabled = !lengthEngaged,
                         onClick = {
                             timeCustomActive = false
                             val next = toggleRangeStep(current, 2, TIME_STEPS)
@@ -888,6 +967,7 @@ fun DiscoverySearchScreen(
                     FilterChipItem(
                         selected = !timeCustomActive && !isTimeCustom && 3 in timeStepIndices,
                         label = "10時間〜",
+                        enabled = !lengthEngaged,
                         onClick = {
                             timeCustomActive = false
                             val next = toggleRangeStep(current, 3, TIME_STEPS)
@@ -897,6 +977,7 @@ fun DiscoverySearchScreen(
                     FilterChipItem(
                         selected = timeCustomActive || isTimeCustom,
                         label = "カスタム",
+                        enabled = !lengthEngaged,
                         onClick = {
                             if (timeCustomActive) {
                                 timeCustomActive = false
@@ -912,7 +993,8 @@ fun DiscoverySearchScreen(
                     )
                 }
 
-                if (timeCustomActive || isTimeCustom) {
+                // 文字数が有効なとき読了時間節は無効なので、カスタム入力欄も隠す（残留 timeCustomActive 対策）。
+                if ((timeCustomActive || isTimeCustom) && !lengthEngaged) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1229,10 +1311,14 @@ fun FilterChipItem(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    // enabled=false: 制約（最後の1つ・排他）を「押せなさ」で示す。選択済みなら「選択のまま淡く」
+    // 見せて「これが選ばれているが今は動かせない」を伝える（disabled 見た目でも選択の履歴を残す）。
+    enabled: Boolean = true,
 ) {
     FilterChip(
         selected = selected,
         onClick = onClick,
+        enabled = enabled,
         label = { Text(label, fontSize = 11.5.sp) },
         modifier = modifier,
         shape = RoundedCornerShape(2.dp),
@@ -1240,13 +1326,20 @@ fun FilterChipItem(
             containerColor = MaterialTheme.colorScheme.background,
             selectedContainerColor = MaterialTheme.colorScheme.background,
             labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            selectedLabelColor = MaterialTheme.colorScheme.primary
+            selectedLabelColor = MaterialTheme.colorScheme.primary,
+            // disabled は背景を保ちラベルだけ淡く（トークン由来色の透過で意匠発明を避ける）。
+            disabledContainerColor = MaterialTheme.colorScheme.background,
+            disabledSelectedContainerColor = MaterialTheme.colorScheme.background,
+            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
         ),
         border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
+            // enabled を渡し、disabled 時は枠色も淡くする（選択中は淡い藍＝選択の履歴を保つ）。
+            enabled = enabled,
             selected = selected,
             borderColor = MaterialTheme.colorScheme.outlineVariant,
             selectedBorderColor = MaterialTheme.colorScheme.primary,
+            disabledBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+            disabledSelectedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
             borderWidth = 1.dp,
             selectedBorderWidth = 1.dp
         ),
