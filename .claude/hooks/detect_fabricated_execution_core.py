@@ -978,6 +978,40 @@ def _sentinel_state(sentinel_dir: Optional[str], claim_ts: str) -> Optional[dict
     return state
 
 
+def _tier_b_reference(text: str, sent: str) -> Optional[str]:
+    """テスト成功主張が『引用・分析』の文脈かを判定し降格理由を返す（生成なら None）。
+    D4 の `_d4_is_reference` の移植だが Tier B 固有の調整が要る＝**発話全体のメタ語彙密度は
+    使えない**: 事象L の真の捏造（b4087931「- 回帰テスト：全通過」）は検知器開発セッション内で
+    起きたため発話全体のメタ語彙が6件（≥3＝_is_meta_utterance が True）に達し、それを引用・分析
+    するメタ発話（d2096baa の14〜20件）と発話全体では分離できない。分離できるのは
+    〈主張文**近傍**のメタ語彙密度〉と〈主張文自体の引用体裁〉——実測:
+      real  : near-context meta=0・「」/backtick 非包含（完了報告の素の箇条書き）
+      meta  : near-context meta=3〜5・「」/inline code で引用（分析表・引用解説）
+    よって whole-utterance ではなく〈近傍メタ密度 ∨ fenced code 内 ∨ 成功語トークンの
+    「」/backtick 引用〉で判定する。すべて「裏取り不能 or 引用」＝Stop ブロック対象から外す降格。"""
+    idx = text.find(sent)
+    if idx < 0:
+        idx = 0
+    start, end = idx, idx + len(sent)
+    # (a) 主張文の近傍にメタ語彙が密（引用・分析の地の文）。閾値≥2＝実測ギャップ（0 対 3〜5）の中央。
+    ctx = text[max(0, start - 120):end + 120]
+    if len(META_DISCUSSION_RE.findall(ctx)) >= 2:
+        return "meta_discussion"
+    # (b) 主張文が fenced code の内側（実出力の貼り直し・引用ブロック）。
+    if text.count("```", 0, start) % 2 == 1:
+        return "claim_reference"
+    # (c) 主張の成功語トークンが「」で引用されている（「回帰テスト：全通過」等）。成功語マッチ
+    #     span の直近（前後30字・改行跨ぎしない）に鉤括弧の対があるかを見る＝引用の存在照合。
+    m = CLAIM_TEST_SUCCESS_RE.search(sent)
+    if m:
+        gs, ge = start + m.start(), start + m.end()
+        pre = text[max(0, gs - 30):gs].rsplit("\n", 1)[-1]
+        post = text[ge:ge + 30].split("\n", 1)[0]
+        if "「" in pre and "」" in post:
+            return "claim_reference"
+    return None
+
+
 def detect_tier_b(utterances: List[Utterance], all_utterances: List[Utterance],
                   tool_index: Dict[str, ToolResult], corpus: EvidenceCorpus,
                   sentinel_dir: Optional[str]) -> List[Finding]:
@@ -1043,8 +1077,13 @@ def detect_tier_b(utterances: List[Utterance], all_utterances: List[Utterance],
                     continue
 
             # 裏取りなし。降格条件を先に判定（Stop ブロック対象から外す）。
-            suppressed = None
-            if corpus.has_truncation:
+            # メタ議論・引用文脈の免罪を最初に見る（最も特定的な降格理由＝ラベル精度）:
+            # 本リポジトリは検知器・台帳を扱うため、捏造テスト主張の「引用・分析」が最大の偽陽性源
+            # （K/L 検証セッション d2096baa で unverified_test_claim が3件誤爆＝Tier B メタ議論免罪欠落）。
+            suppressed = _tier_b_reference(u.text, sent)
+            if suppressed:
+                pass
+            elif corpus.has_truncation:
                 suppressed = "truncation"
             elif corpus.agent_unresolved:
                 suppressed = "subagent_unresolved"

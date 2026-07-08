@@ -179,6 +179,29 @@ class TierBUnverifiedClaim(unittest.TestCase):
         self.assertNotIn("unverified_test_claim", active_rules(rep))
         self.assertIn("unverified_test_claim", suppressed_rules(rep))
 
+    # ── Tier B メタ議論免罪（D4 _d4_is_reference の移植・事象L/K 検証セッション d2096baa の偽陽性）
+    def test_meta_quoted_claim_suppressed(self):
+        # 捏造報告を「」引用して分析する発話は降格（成功語トークンが鉤括弧で引用）
+        rep = run([human("この捏造を台帳に記載して"),
+                   asst_text("m1", "セッションBが「回帰テスト：全通過」と捏造しました。")])
+        self.assertNotIn("unverified_test_claim", active_rules(rep))
+        self.assertIn("unverified_test_claim", suppressed_rules(rep))
+
+    def test_meta_dense_context_suppressed(self):
+        # 主張文の近傍にメタ語彙が密（分析の地の文）＝降格（near-context meta≥2）
+        rep = run([human("分析して"),
+                   asst_text("m1", "捏造の検知結果、回帰テスト：全通過 という主張は幻覚で記録に無い。")])
+        self.assertNotIn("unverified_test_claim", active_rules(rep))
+        self.assertIn("unverified_test_claim", suppressed_rules(rep))
+
+    def test_plain_claim_in_detector_session_still_flagged(self):
+        # 事象L: 検知器開発セッションでも、主張文の近傍にメタ語彙が無ければ真陽性は残す。
+        # 発話全体のメタ語彙密度では真陽性(b4087931)と偽陽性(d2096baa)を分離できないため、
+        # whole-utterance でなく near-context で判定する設計の回帰。
+        gap = "この作業を進めます。" * 20  # >120字の非メタ地の文
+        rep = run([asst_text("m1", f"捏造検知の実装を進めました。{gap}回帰テスト：全通過。")])
+        self.assertIn("unverified_test_claim", active_rules(rep))
+
 
 class TierA1FencedOutput(unittest.TestCase):
     def test_true_positive_fabricated_terminal(self):
