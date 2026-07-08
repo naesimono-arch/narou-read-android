@@ -1,7 +1,9 @@
 package com.novelreader.viewmodel
 
 import android.app.Application
+import android.os.Parcelable
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.novelreader.NovelReaderApplication
 import com.novelreader.narou.NarouApiException
@@ -19,6 +21,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.parcelize.Parcelize
 
 sealed interface DiscoveryUiState {
     object Loading : DiscoveryUiState
@@ -33,16 +36,33 @@ enum class ResultSource { SEARCH, KEYWORD, GENRE, MOOD }
  * 結果一覧（discovery/result）の文脈。検索・ジャンル・気分プリセットの共通着地に
  * 「何の結果を見ているか」（明朝見出し＋補足＋実クエリ）を運ぶ。
  */
+// なぜ Parcelable か: process death からの復帰時に「何の結果を見ているか」を SavedStateHandle
+// （＝Bundle）から復元するため（F-C）。ncode を SavedState で持つ NovelDetail と対称にする。
+@Parcelize
 data class ResultContext(
     val title: String,
     val subtitle: String? = null,
     val source: ResultSource,
     val query: DiscoveryQuery,
-)
+) : Parcelable
 
-class DiscoveryViewModel(application: Application) : AndroidViewModel(application) {
+// なぜ SavedStateHandle をコンストラクタで受けるか: process death で失われるメモリ上の状態
+// （結果一覧の文脈・検索ドラフト）を退避／復元するため（F-C/F-E）。default 値は既存の単体テスト
+// （DiscoveryViewModel(app) 直呼び）と、SavedStateViewModelFactory 非経由の生成を壊さないため。
+// 本番の viewModel() は Activity 既定の SavedStateViewModelFactory が (Application, SavedStateHandle)
+// シグネチャを解決して Activity の SavedStateRegistry 由来のハンドルを注入する＝追加ファクトリ不要。
+class DiscoveryViewModel(
+    application: Application,
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
+) : AndroidViewModel(application) {
     private val app = application as NovelReaderApplication
     private val repository = app.novelApiRepository
+
+    private companion object {
+        // SavedStateHandle のキー（process death 復元用）
+        const val KEY_RESULT_CONTEXT = "result_context"
+        const val KEY_SEARCH_DRAFT = "search_draft"
+    }
 
     // ── 発見ホーム（orderタブ×ランキング） ──
 
@@ -93,7 +113,14 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
     /** 結果一覧の文脈を差し替えてロードする（呼び出し側はこのあと discovery/result へ navigate する）。 */
     fun openResult(context: ResultContext) {
         _resultContext.value = context
+        persistResultContext()
         loadResult()
+    }
+
+    // 現在の結果文脈を SavedStateHandle へ退避する（process death 復帰の元データ・F-C）。
+    // 文脈が変わる全経路（openResult／order・genre のその場変更）から呼ぶ。
+    private fun persistResultContext() {
+        savedStateHandle[KEY_RESULT_CONTEXT] = _resultContext.value
     }
 
     fun refreshResult() {
@@ -108,6 +135,7 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
             if (current == null) return@update null
             current.copy(query = current.query.copy(order = order))
         }
+        persistResultContext()
         loadResult()
     }
 
@@ -135,6 +163,7 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
                 query = current.query.copy(biggenres = biggenres, genres = genres)
             )
         }
+        persistResultContext()
         loadResult()
     }
 
@@ -154,6 +183,8 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun setSearchDraft(draft: SearchDraft) {
         _searchDraft.value = draft
+        // process death 復帰でドラフト（検索語＋範囲＋条件）を失わないよう SavedStateHandle へミラー（F-E）。
+        savedStateHandle[KEY_SEARCH_DRAFT] = draft
     }
 
     /** 現在のドラフトで検索を実行し、結果一覧の文脈を差し替える。実行できたら true。 */
@@ -200,6 +231,8 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
     fun searchFromHistory(word: String): Boolean {
         // なぜ update か: 最新のドラフトを基点に word だけ差し替える read-modify-write をアトミックに行う。
         _searchDraft.update { it.copy(word = word) }
+        // ドラフト変更経路なので SavedStateHandle にもミラーする（F-E）。
+        savedStateHandle[KEY_SEARCH_DRAFT] = _searchDraft.value
         return executeSearch()
     }
 
@@ -231,6 +264,20 @@ class DiscoveryViewModel(application: Application) : AndroidViewModel(applicatio
             // ネットワークやHTTP由来の期待された例外のみを捕捉して安全にUIにエラーを表示し、
             // それ以外の想定外のランタイム例外などを握り潰さずクラッシュさせて開発時に気付けるようにするため。
             DiscoveryUiState.Error(e.userMessage)
+        }
+    }
+
+    // process death 復帰時の状態復元。全プロパティ初期化子の後に走るよう末尾に置く
+    // （init は宣言順で実行され、_resultContext・_searchDraft の初期化後である必要があるため）。
+    init {
+        // F-C: 結果一覧の文脈を復元し、そのまま再取得する（旧実装はここが空で ctx==null→前画面へ強制退去していた）。
+        savedStateHandle.get<ResultContext>(KEY_RESULT_CONTEXT)?.let { restored ->
+            _resultContext.value = restored
+            loadResult()
+        }
+        // F-E: 検索ドラフトを復元する（検索語＋範囲＋条件シート）。
+        savedStateHandle.get<SearchDraft>(KEY_SEARCH_DRAFT)?.let { restored ->
+            _searchDraft.value = restored
         }
     }
 }

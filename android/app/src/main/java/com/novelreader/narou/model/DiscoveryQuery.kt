@@ -1,5 +1,7 @@
 package com.novelreader.narou.model
 
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -35,6 +37,9 @@ enum class NarouAttr(val isParam: String, val notParam: String, val uiLabel: Str
     ZANKOKU("iszankoku", "notzankoku", "残酷な描写"),
 }
 
+// なぜ Parcelable か: ResultContext ごと SavedStateHandle へ退避して process death 復帰させるため（F-C）。
+// enum・Set<enum>・nullable を含むが @Parcelize が構造追従を自動生成する。
+@Parcelize
 data class DiscoveryQuery(
     val order: NarouOrder = NarouOrder.WEEKLY,
     val word: String? = null,
@@ -55,7 +60,7 @@ data class DiscoveryQuery(
     val kaiwaritu: String? = null,  // 会話率%。同形式
     val sasie: String? = null,      // 挿絵数。同形式
     val limit: Int = 30,
-) {
+) : Parcelable {
     /**
      * キャッシュキー。全フィールドを正規化した文字列（Set はソートして連結）。
      */

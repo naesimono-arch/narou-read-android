@@ -22,18 +22,20 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -63,11 +65,12 @@ fun DiscoveryResultScreen(
     val context by viewModel.resultContext.collectAsStateWithLifecycle()
     val state by viewModel.resultState.collectAsStateWithLifecycle()
 
-    // プロセス再生成などで文脈が失われてこの画面に着地した場合は戻る
-    // （resultContext は VM のメモリ上にしか無く、復元して見せる意味のある状態ではないため）。
+    // F-C: process death 復帰中は VM の init が SavedStateHandle から文脈を復元する。旧実装はここで
+    // onBack して前画面へ強制退去していた（公理6/9違反＝操作なしに一覧が消え1つ前へ飛ばされる）。
+    // 復元されるまでは退去せず最小のローディングを描いて待つ（NovelDetail の ncode 復元と対称）。
     val ctx = context
     if (ctx == null) {
-        LaunchedEffect(Unit) { onBack() }
+        DiscoveryStatusBox(DiscoveryStatus.Loading, modifier = Modifier.fillMaxSize())
         return
     }
 

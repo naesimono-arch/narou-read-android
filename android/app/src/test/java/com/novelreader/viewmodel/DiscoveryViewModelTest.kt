@@ -1,8 +1,10 @@
 package com.novelreader.viewmodel
 
+import androidx.lifecycle.SavedStateHandle
 import com.novelreader.NovelReaderApplication
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.NovelApiRepository
+import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.DiscoveryResult
 import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouOrder
@@ -386,5 +388,67 @@ class DiscoveryViewModelTest {
         val state = viewModel.homeState.value
         assertTrue(state is DiscoveryUiState.Content)
         assertEquals("日間の結果", (state as DiscoveryUiState.Content).novels.first().title)
+    }
+
+    // ── process death 復元（F-C / F-E）──
+
+    @Test
+    fun `F-C - openResult が ResultContext を SavedStateHandle へ退避すること`() = runTest {
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(NarouNovel(title = "t")))
+        val handle = SavedStateHandle()
+        viewModel = DiscoveryViewModel(mockApp, handle)
+        val ctx = ResultContext(
+            title = "「薬師」",
+            source = ResultSource.SEARCH,
+            query = DiscoveryQuery(word = "薬師", order = NarouOrder.TOTAL),
+        )
+        viewModel.openResult(ctx)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // SavedStateHandle に同値の文脈が退避されている
+        assertEquals(ctx, handle.get<ResultContext>("result_context"))
+    }
+
+    @Test
+    fun `F-C - SavedStateHandle に文脈があれば init で復元し再ロードすること（process death 復帰）`() = runTest {
+        val restored = ResultContext(
+            title = "「薬師」",
+            source = ResultSource.SEARCH,
+            query = DiscoveryQuery(word = "薬師"),
+        )
+        val recovered = listOf(NarouNovel(title = "復帰した結果"))
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(7, recovered)
+
+        // process death 相当: 文脈が入った SavedStateHandle で VM を再生成
+        val handle = SavedStateHandle(mapOf("result_context" to restored))
+        viewModel = DiscoveryViewModel(mockApp, handle)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // 旧実装は文脈がメモリのみで復元不能→画面が前へ強制退去だった。復元されて再取得されること。
+        assertEquals(restored, viewModel.resultContext.value)
+        val state = viewModel.resultState.value
+        assertTrue(state is DiscoveryUiState.Content)
+        assertEquals(recovered, (state as DiscoveryUiState.Content).novels)
+        coVerify { mockRepo.discover(match { it.word == "薬師" }) }
+    }
+
+    @Test
+    fun `F-E - setSearchDraft が SavedStateHandle へ退避し init で復元されること`() = runTest {
+        val handle = SavedStateHandle()
+        viewModel = DiscoveryViewModel(mockApp, handle)
+        val draft = SearchDraft(
+            word = "辺境",
+            inTitle = true,
+            inKeyword = true,
+            filters = SearchFilters(sasie = "1-"),
+        )
+        viewModel.setSearchDraft(draft)
+
+        // 退避されている
+        assertEquals(draft, handle.get<SearchDraft>("search_draft"))
+
+        // process death 相当: 同じハンドルで再生成すると復元される
+        val revived = DiscoveryViewModel(mockApp, handle)
+        assertEquals(draft, revived.searchDraft.value)
     }
 }

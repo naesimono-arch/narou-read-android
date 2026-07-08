@@ -1,6 +1,10 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
+    // なぜ parcelize: 発見系の画面状態（ResultContext・DiscoveryQuery・SearchDraft）を SavedStateHandle へ
+    // 退避して process death 復帰させるため（F-C/F-E）。Set<enum> や入れ子 data class を含むため手書き
+    // シリアライズは分岐が多く退行しやすい。@Parcelize なら構造追従が自動で、フィールド追加時の更新漏れも防げる。
+    id 'org.jetbrains.kotlin.plugin.parcelize'
     id 'com.google.devtools.ksp'
 }
 

@@ -1,15 +1,19 @@
 package com.novelreader.viewmodel
 
+import android.os.Parcelable
 import com.novelreader.narou.model.NarouAttr
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.NarouLastup
 import com.novelreader.narou.model.NarouNovelType
+import kotlinx.parcelize.Parcelize
 
 /**
  * 検索の絞り込み条件（条件シートの状態）。
  * range系（length/time/kaiwaritu/sasie）はなろうAPIの "min-max" 文字列をそのまま持つ
  * （UI は段階チップで選ぶため、値の組み立てはチップ定義側が担う）。
  */
+// なぜ Parcelable か: SearchDraft ごと SavedStateHandle へ退避して process death 復帰させるため（F-E）。
+@Parcelize
 data class SearchFilters(
     val types: Set<NarouNovelType> = emptySet(),       // D4 作品の形
     val lastups: Set<NarouLastup> = emptySet(),        // D5 期間
@@ -19,7 +23,7 @@ data class SearchFilters(
     val time: String? = null,               // D3 読了時間
     val kaiwaritu: String? = null,          // D3 会話率
     val sasie: String? = null,              // D3 挿絵
-) {
+) : Parcelable {
     val isActive: Boolean get() = this != SearchFilters()
 
     /** 有効な条件の数（「条件を調整」ボタンのバッジ表示用）。 */
@@ -56,6 +60,7 @@ enum class SearchRange {
  * なぜ VM に持つか: 条件シートを閉じても・結果一覧から戻っても状態が残るように
  * （検索は「条件を練る」往復が多い操作のため、画面ローカル remember では失われて不便）。
  */
+@Parcelize
 data class SearchDraft(
     val word: String = "",
     val inTitle: Boolean = true,
@@ -63,7 +68,7 @@ data class SearchDraft(
     val inKeyword: Boolean = false,
     val inWriter: Boolean = false,
     val filters: SearchFilters = SearchFilters(),
-) {
+) : Parcelable {
     /** 検索語が空でも絞り込み条件があれば実行できる（条件だけで探す使い方を許す）。 */
     val canSearch: Boolean get() = word.isNotBlank() || filters.isActive
 

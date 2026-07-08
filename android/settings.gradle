@@ -7,6 +7,8 @@ pluginManagement {
     plugins {
         id 'com.android.application' version '8.6.1' apply false
         id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
+        // なぜ Kotlin 本体と同一 version: parcelize は Kotlin コンパイラプラグインのため版ズレは即ビルド破綻する
+        id 'org.jetbrains.kotlin.plugin.parcelize' version '1.9.22' apply false
         id 'com.google.devtools.ksp' version '1.9.22-1.0.17' apply false
     }
 }
