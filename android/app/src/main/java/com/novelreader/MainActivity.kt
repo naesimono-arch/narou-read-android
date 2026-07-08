@@ -109,10 +109,11 @@ private fun NovelReaderApp(
                 appTheme = appTheme,
                 onThemeChange = onThemeChange,
                 onOpenBook = { bookId, startFile ->
-                    navController.navigate("reading/$bookId/$startFile")
+                    // launchSingleTop: 二度押しで同一読書画面がバックスタックに二重 push されるのを防ぐ（M1）。
+                    navController.navigate("reading/$bookId/$startFile") { launchSingleTop = true }
                 },
                 onOpenDiscovery = {
-                    navController.navigate("discovery")
+                    navController.navigate("discovery") { launchSingleTop = true }
                 },
             )
         }
@@ -121,18 +122,18 @@ private fun NovelReaderApp(
             DiscoveryHomeScreen(
                 viewModel = discoveryViewModel,
                 onBack = { navController.popBackStack() },
-                onOpenDetail = { ncode -> navController.navigate("discovery/detail/$ncode") },
-                onOpenGenre = { navController.navigate("discovery/genre") },
+                onOpenDetail = { ncode -> navController.navigate("discovery/detail/$ncode") { launchSingleTop = true } },
+                onOpenGenre = { navController.navigate("discovery/genre") { launchSingleTop = true } },
                 onPickBiggenre = { code, label ->
                     discoveryViewModel.openResult(
                         ResultContext(title = label, query = DiscoveryQuery(biggenres = setOf(code)), source = ResultSource.GENRE)
                     )
-                    navController.navigate("discovery/result")
+                    navController.navigate("discovery/result") { launchSingleTop = true }
                 },
-                onOpenSearch = { navController.navigate("discovery/search") },
+                onOpenSearch = { navController.navigate("discovery/search") { launchSingleTop = true } },
                 onPickMood = { preset ->
                     discoveryViewModel.openResult(preset.toResultContext())
-                    navController.navigate("discovery/result")
+                    navController.navigate("discovery/result") { launchSingleTop = true }
                 },
             )
         }
@@ -141,7 +142,7 @@ private fun NovelReaderApp(
             DiscoverySearchScreen(
                 viewModel = discoveryViewModel,
                 onBack = { navController.popBackStack() },
-                onSearchExecuted = { navController.navigate("discovery/result") },
+                onSearchExecuted = { navController.navigate("discovery/result") { launchSingleTop = true } },
             )
         }
 
@@ -152,13 +153,13 @@ private fun NovelReaderApp(
                     discoveryViewModel.openResult(
                         ResultContext(title = label, query = DiscoveryQuery(biggenres = setOf(code)), source = ResultSource.GENRE)
                     )
-                    navController.navigate("discovery/result")
+                    navController.navigate("discovery/result") { launchSingleTop = true }
                 },
                 onPickGenre = { code, label ->
                     discoveryViewModel.openResult(
                         ResultContext(title = label, query = DiscoveryQuery(genres = setOf(code)), source = ResultSource.GENRE)
                     )
-                    navController.navigate("discovery/result")
+                    navController.navigate("discovery/result") { launchSingleTop = true }
                 },
             )
         }
@@ -166,8 +167,12 @@ private fun NovelReaderApp(
         composable("discovery/result") {
             DiscoveryResultScreen(
                 viewModel = discoveryViewModel,
+                // F-D: App bar の ← は経路に依らず発見ホームへ固定 Up する。全ての結果経路
+                // （検索/ジャンル/気分/キーワード）が discovery を必ず下位に持つため、discovery まで
+                // pop すれば一段上の親へ一貫して戻れる。履歴 Back（onBack）は端末 Back と「条件を変更」に委ねる。
+                onUp = { navController.popBackStack("discovery", false) },
                 onBack = { navController.popBackStack() },
-                onOpenDetail = { ncode -> navController.navigate("discovery/detail/$ncode") },
+                onOpenDetail = { ncode -> navController.navigate("discovery/detail/$ncode") { launchSingleTop = true } },
             )
         }
 
@@ -186,8 +191,13 @@ private fun NovelReaderApp(
                         query = DiscoveryQuery(word = kw, inKeyword = true),
                     ))
                     navController.navigate("discovery/result") {
-                        // why: resultContext は VM 単一保持のため、result をスタックに重ねると戻ったとき別の結果が表示される。popUpTo で result を常に1枚に保ち、状態と画面スタックを整合させる。
-                        popUpTo("discovery/result") { inclusive = true }
+                        launchSingleTop = true
+                        // why(F-A): キーワードタップの結果一覧は「どの経路で detail に来たか」で Back 先が
+                        // 割れていた（result 経由なら result が隠れて残り、home 直行なら残らない）。
+                        // popUpTo("discovery", inclusive=false) で discovery より上（既存 result・detail）を
+                        // 全て畳んでから result を1枚積むことで、両経路とも [bookshelf, discovery, result] に固定する。
+                        // resultContext は VM 単一保持のため、result を常に1枚に保つ SSOT もこれで維持される。
+                        popUpTo("discovery") { inclusive = false }
                     }
                 },
                 onBack = { navController.popBackStack() },

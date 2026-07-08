@@ -56,6 +56,7 @@ import java.util.Locale
 @Composable
 fun DiscoveryResultScreen(
     viewModel: DiscoveryViewModel,
+    onUp: () -> Unit,
     onBack: () -> Unit,
     onOpenDetail: (ncode: String) -> Unit,
 ) {
@@ -83,10 +84,13 @@ fun DiscoveryResultScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    // F-D（公理1）: App bar の ← は経路に依らず「発見ホーム」への固定 Up にする。
+                    // 旧実装は onBack(履歴 pop)で、検索/ジャンル経由だと検索画面・ジャンル画面へ落ち Up が
+                    // 経路で別階層へ割れていた。履歴 Back は端末 Back に委ね、Up は常に一段上の親へ揃える。
+                    IconButton(onClick = onUp) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "戻る"
+                            contentDescription = "発見に戻る"
                         )
                     }
                 },
