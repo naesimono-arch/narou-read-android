@@ -596,6 +596,14 @@ Robolectric（4.11.1・sdk34・createComposeRule）で `ModalBottomSheet` を含
 - 対処（採用）: シート内容を `XxxSheetContent`（state+callback の葉）へ純抽出し、**テストは枠を剥がした Content を直接組む**（`ReadingSettingsSheet` → `ReadingSettingsSheetContent` が先例）。`assertExists` への緩和は「表示されていない退行」を見逃すため不採用。
 - 一般則: Robolectric で新しく葉 Composable テストを書くときは、**ModalBottomSheet / Dialog / Popup を跨いだノードの可視判定・クリックを避け**、内容 Composable を検証単位に切ること（ADR 0009 の運用細則）。
 
+#### 51. ModalBottomSheet 内蔵の NestedScrollConnection が境界フリング残速度を settle へ渡し枠がオーバーシュートする（material3 1.2.1）  ★★
+
+「条件を調整」シート内を高速フリックして手を離すと、慣性で**シート枠全体が Expanded 上限を超えてオーバーシュート→復帰**し、上端に裏画面が一瞬覗く不具合の調査結果（2026-07-08・逆コンパイルで確定。**未修正・不具合残置**＝現状は素の `ModalBottomSheet`+`verticalScroll`。再挑戦の出発点として保全）。
+- **真因**: `ModalBottomSheet` 内蔵の `ConsumeSwipeWithinBottomSheetBoundsNestedScrollConnection` が内容スクロールの境界フリング残速度を `onPostFling`→`anchoredDraggableState.settle` へ渡し、そのバネアニメが `minAnchor` を超えてオーバーシュートする（`ModalBottomSheet_androidKt`/`SheetDefaultsKt` を逆コンパイルして確認）。**内容ピクセルは漏れていない**＝`verticalScroll` は foundation 1.6.6 の `clipScrollableContainer` で上下端を厳密クリップ（Vertical=`Rect(-30dp,0,w+30dp,h)`／clip が `overscroll` の外側・`Surface(shape=ExpandedShape)` も角丸クリップ）。sheetState 側は正しい（中間落下・アンカー飛び越えは `1753211`＝`skipPartiallyExpanded=true`+`imePadding` で解消済み）＝**触らない**。
+- **棄却済み候補A〜D（再試行の無駄防止）**: (A) 自前 `NestedScrollConnection` で `onPostFling` 上下両方向消費＋`onPostScroll` 下方向消費→**枠固定は成功**だが速いフリック端で内容の弾みが消え「スッと止まる」＝使用感低下で撤去。(B) (A)＋自前 overscroll へ `applyToFling` で残速度→ビルド可も実機で感触届かず撤去。(C) `scrimColor=background` で覗きを覆う→シートの tonalElevation と地色の差で二枚重ねに見え違和感で撤去。(D) シート下方拡張で隙間を覆う→ModalBottomSheet は内容縦スクロール時に Surface 高を fullHeight でキャップするため画面下端より下へ伸ばせず不可。（誤）`onPostFling` を下方向だけ消費→症状は上方向のため無効果。
+- **本命の解**: 「上部の枠は固定・内容だけ自然に弾ませる」＝内容スクロールの overscroll/ディスパッチをシート内蔵接続から分離（`verticalScroll` を独自 `overscrollEffect`＋分離 dispatcher の `scrollable` に置換等）。内蔵接続が境界フリングを必ず奪う仕様上、素直には両立しない踏み込んだ実装。要 UI-n 意匠確認（静けさ意匠との整合）。
+- ⚠️ 上記知見は **material3 1.2.1／foundation 1.6.6 時点**。2026-07-08 の main 統合で **BOM 2025.02.00（material3 1.3.1・foundation 1.7系＝`bcb5216`）** へ更新済み → 再挑戦時はまず 1.3.1 での現象再現と内蔵 NestedScrollConnection 実装の差分確認から始めること。
+
 ## 移設マッピング（旧 Part II / Part III の固定ID対応）
 
 > 旧エントリ番号（`§N`）は固定ID。本ファイルから `docs/` へ移設したもの、および重複採番の解消で再採番したものは下表で追跡する（移設先での再採番はしない）。
