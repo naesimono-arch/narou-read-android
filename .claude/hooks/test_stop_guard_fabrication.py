@@ -158,6 +158,18 @@ class StopGuardAdapter(unittest.TestCase):
         self.assertEqual(json.loads(out)["decision"], "block")
         self.assertIn("fabricated_concrete_token", out)
 
+    def test_d4_phantom_turn_marker_is_blocked(self):
+        # D4 昇格（正解データK・L320）: 自分の text ブロックにハーネス割込マーカーを自己生成
+        # ＝幻のユーザーターン → block。マーカーリテラルの特異性で conf 0.9・センチネル非依存
+        # （FUTURE_TS 不要）。D1〜D3 は非ブロックのまま（tiers=ABCD だが blockers は D4 のみ）。
+        rc, out = self._run_with_transcript(
+            [asst_text("m1", "確認します。\n\nuser[Request interrupted by user]\n\n"
+                             "勝手にすすめないで！何をどう変更したのか説明を求めます")]
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual(json.loads(out)["decision"], "block")
+        self.assertIn("phantom_turn_marker", out)
+
 
 if __name__ == "__main__":
     unittest.main()

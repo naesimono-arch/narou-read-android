@@ -12,6 +12,10 @@ Stop フック: ターン終了時に、直近の assistant 発話の「実行�
         除外・git 文脈語拡張で精度が上がり、全セッション走査で偽陽性ゼロを確認して昇格）
       Tier C 全4ルール（misread 型: ブロック済みコミットの完了報告／出力シグネチャ捏造／
         書き込み完了の捏造／ブランチ削除の捏造。同走査で偽陽性ゼロ・正解データFの5事象を検知）
+      Tier D4 phantom_turn_marker（入力側捏造: assistant 自身の text ブロックにハーネス割込
+        マーカー `[Request interrupted by user]` を自己生成＝幻のユーザーターン。正解データK。
+        マーカーリテラルの特異性で conf 0.9・コーパス全走査で active は K のみ＝偽陽性ゼロ実測。
+        **D1〜D3 は従来どおり非ブロック**＝段階導入の維持。判断は ADR 0006 増補3）。
   - A1 は構造レビュー向きで自己修正に不向きなのでブロックしない（CLI に委ねる）。
   - 偽陽性・例外・transcript 不在は必ず exit 0（ユーザー作業を妨げない）。
 
@@ -65,7 +69,7 @@ def main() -> int:
 
     try:
         report = core.analyze(text, transcript_path=tpath, scope="last_turn",
-                              sentinel_dir=claude_dir, tiers="ABC")
+                              sentinel_dir=claude_dir, tiers="ABCD")
     except Exception:
         # 解析中の想定外例外でユーザーを止めない（非妨害の原則）
         return 0
@@ -80,6 +84,9 @@ def main() -> int:
             or f.rule == "fabricated_harness_block"
             or (f.rule == "fabricated_concrete_token" and f.confidence >= 0.8)
             or (f.rule in tier_c_rules and f.confidence >= 0.8)
+            # Tier D4: 幻の割込ターンの自己生成（正解データK）。D1〜D3 は非ブロックのまま
+            # ＝マーカーリテラルの特異性で D4 だけを段階昇格する（ADR 0006 増補3）。
+            or (f.rule == "phantom_turn_marker" and f.confidence >= 0.8)
         )
     ]
     if not blockers:

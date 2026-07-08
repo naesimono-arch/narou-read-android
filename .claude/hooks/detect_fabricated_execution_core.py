@@ -221,6 +221,22 @@ PHANTOM_RESPONSE_RE = re.compile(
     r"その通りです|おっしゃる通り|ご指摘の通り|ご指摘どおり|完全に、?その通り|全くその通り"
     r"|申し訳|言い訳できません|すみません(?:でした)?")
 
+# D4: ハーネス著者の割込マーカーが assistant の text ブロックの地の文に出現（事象K・L320）。
+# 実ユーザーの中断は別 user レコード（type=user）として現れる＝assistant の text 内に本マーカーが
+# 在る時点で「幻のユーザーターンの自己生成」（会話テンプレートの次ターン予測）を構造的に示す。
+# D1〜D3 と本質が違う点: 軸2（暴走 thinking 共起）を昇格条件にしない——事象K は前兆 thinking 異常を
+# 伴わない初の入力側捏造（sig=1,240＝通常域）で、軸2昇格前提を破ったから。マーカーリテラルの特異性
+# 自体が強シグナルで昇格に足る。ハーネスが出す2形（素の割込・"for tool use" 変種）を拾う。
+PHANTOM_TURN_MARKER_RE = re.compile(r"\[Request interrupted by user(?: for tool use)?\]")
+
+# D4 の参照降格語彙: マーカーを「生成」でなく「言及・引用」する文脈を免罪する。真の自己生成
+# （事象K）はマーカーを地の文にベタ書きする（`user[Request interrupted by user]`＝ロールトークン付き）
+# のに対し、検知器開発・台帳分析はマーカーを inline/fenced code に入れる・「マーカー/marker/割込」と
+# 名指す。実測: 本検知器の開発セッション自身が backtick 引用（「marker `[Request…]` が…」）で
+# active 誤爆した＝既知の Tier B メタ議論免罪欠落と同型の穴。マーカー自身の語 "interrupted" と
+# 自己一致しないよう、参照語の探索はマーカー span を除いた近傍のみに掛ける（下の _d4_is_reference）。
+D4_REFERENCE_RE = re.compile(r"マーカー|marker|割込|割り込み", re.IGNORECASE)
+
 # 幻覚分析・検知器開発のメタ議論（ADR 0006「既知の限界」の実体化）。本リポジトリでは
 # ハルシネーション台帳・検知器を扱うため、実例の引用がD検知の最大の偽陽性源になる
 # （較正実測: 94a08b11 の分析セッションが台帳H/Iの引用で誤爆）。語彙は較正で実測した
@@ -1447,6 +1463,60 @@ def detect_tier_d3(utterances: List[Utterance], all_utterances: List[Utterance])
     return findings
 
 
+def _d4_is_reference(text: str, start: int, end: int) -> Optional[str]:
+    """D4 マーカーが『生成』でなく『言及・引用』かを判定し降格理由を返す（生成なら None）。
+    真の自己生成（事象K）はマーカーを地の文にベタ書きするのに対し、検知器開発・台帳分析は
+    (a) 幻覚メタ語彙を伴う、(b) inline/fenced code へ入れる、(c)「マーカー/marker/割込」と
+    名指す、(d) 別セッションの割込を要約参照する——これらを免罪する（すべて裏取り不能 or
+    引用）。start/end はマーカー span。参照語探索は span を除いた近傍のみ（"interrupted" と
+    自己一致させないため）。"""
+    ctx_full = text[max(0, start - 120):end + 120]
+    if _is_meta_utterance(text) or META_DISCUSSION_RE.search(ctx_full):
+        return "meta_discussion"
+    # inline code（直前が backtick）／fenced code（当該位置までの ``` が奇数＝フェンス内側）
+    if start > 0 and text[start - 1] == "`":
+        return "marker_reference"
+    if text.count("```", 0, start) % 2 == 1:
+        return "marker_reference"
+    around = text[max(0, start - 120):start] + text[end:end + 120]
+    if D4_REFERENCE_RE.search(around):
+        return "marker_reference"
+    if CROSS_SESSION_RE.search(ctx_full):
+        return "cross_session_reference"
+    return None
+
+
+def detect_tier_d4(utterances: List[Utterance]) -> List[Finding]:
+    """
+    assistant の text ブロックの地の文にハーネス著者の割込マーカー
+    `[Request interrupted by user]` が出現 → 幻のユーザーターンの自己生成（事象K・L320:
+    自分の text ブロック末尾に `user[Request interrupted by user]`＋幻の叱責を生成し、それへ
+    謝罪して作業を自己停止した）。実ユーザーの中断は別 user レコードとして現れるので、
+    assistant 発話内の本マーカーは構造的に「会話テンプレートの次ターン予測」を示す。
+    軸2（thinking 異常）を昇格条件にしない点が D3 との本質差＝K は暴走 thinking 前兆を
+    伴わない初の実例で、マーカーリテラルの特異性そのものが強シグナルだから（active conf=0.9）。
+    降格は「マーカーの生成でなく言及・引用」の文脈のみ（_d4_is_reference。検知器開発・台帳
+    分析でマーカーを引用すると誤爆する既知の穴を塞ぐ＝コーパス全走査で本 slug の唯一の誤爆を実証）。
+    """
+    findings: List[Finding] = []
+    for u in utterances:
+        if not u.text:
+            continue
+        for m in PHANTOM_TURN_MARKER_RE.finditer(u.text):
+            suppressed = _d4_is_reference(u.text, m.start(), m.end())
+            ctx = u.text[max(0, m.start() - 120):m.end() + 120]
+            findings.append(Finding(
+                tier="D", rule="phantom_turn_marker",
+                confidence=0.9 if not suppressed else 0.5,
+                msg_id=u.msg_id, timestamp=u.timestamp,
+                claim_excerpt=ctx.strip()[:200],
+                missing_token=m.group(0),
+                expected_tool_pattern="実ユーザーの中断は別 user レコードに現れる（assistant text 内は幻）",
+                suppressed_reason=suppressed,
+            ))
+    return findings
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # エントリポイント
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1459,7 +1529,7 @@ def analyze(text: str, transcript_path: Optional[str] = None,
       scope="all"       … 全 assistant 発話の主張を検査
       scope="last_turn" … 最後の assistant 発話の主張のみ検査（証拠・成功実行は全域から集める）
       tiers             … A=ペア欠落系 / B=未検証テスト主張 / C=misread（報告と実結果の食い違い）
-                          / D=入力側捏造（幻のユーザー発話への言及・引用・応答）
+                          / D=入力側捏造（幻のユーザー発話への言及・引用・応答・割込ターンの自己生成）
     """
     records = parse_records(text)
 
@@ -1500,6 +1570,7 @@ def analyze(text: str, transcript_path: Optional[str] = None,
         findings += detect_tier_d1(target, all_utterances, humans)
         findings += detect_tier_d2(target, all_utterances, humans, corpus)
         findings += detect_tier_d3(target, all_utterances)
+        findings += detect_tier_d4(target)
 
     # 信頼度降順で安定ソート
     findings.sort(key=lambda f: (f.suppressed_reason is not None, -f.confidence))

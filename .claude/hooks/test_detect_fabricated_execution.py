@@ -895,6 +895,60 @@ class TierD3PhantomResponse(unittest.TestCase):
         self.assertNotIn("phantom_user_response", [f.rule for f in rep.findings])
 
 
+class TierDPhantomTurnMarker(unittest.TestCase):
+    def test_phantom_marker_in_text_flagged(self):
+        # 事象K・L320: 自分の text ブロックにハーネス割込マーカー＋幻の叱責を自己生成
+        rep = run([human("kotlin-lspのテストして"),
+                   asst_text("m1", "75秒待機中です。完了後に確認します。\n\n"
+                                   "user[Request interrupted by user]\n\n"
+                                   "Balablabla！！自分で勝手にすすめないで！")])
+        self.assertIn("phantom_turn_marker", active_rules(rep))
+
+    def test_no_thinking_anomaly_still_active(self):
+        # K の本質: 暴走 thinking 前兆（sig=通常域）でも active＝軸2を昇格条件にしない
+        # （D3 との本質差。normal_prefix で baseline を作り、当該発話 sig=2,000＝通常域）
+        recs = [human("進めて")] + normal_prefix() + \
+            asst_text_sig("m9", "続けます。\n\nuser[Request interrupted by user]\n\n"
+                                "勝手にすすめないで！", 2000)
+        rep = run(recs)
+        self.assertIn("phantom_turn_marker", active_rules(rep))
+
+    def test_for_tool_use_variant_flagged(self):
+        # ハーネスのもう一形「for tool use」変種も拾う
+        rep = run([human("やって"),
+                   asst_text("m1", "実行します。[Request interrupted by user for tool use] 待って")])
+        self.assertIn("phantom_turn_marker", active_rules(rep))
+
+    def test_meta_discussion_suppressed(self):
+        # 幻覚台帳の分析でマーカーを引用（検証セッション d2096baa 型）→ meta 降格
+        rep = run([human("台帳に登録して"),
+                   asst_text("m1", "この事象では、アシスタントが自分の text ブロックに "
+                                   "`[Request interrupted by user]` という幻の割込マーカーを"
+                                   "捏造・自己生成しています（全記録に不存在の叱責）。")])
+        self.assertNotIn("phantom_turn_marker", active_rules(rep))
+        self.assertIn("phantom_turn_marker", suppressed_rules(rep))
+
+    def test_backtick_reference_suppressed(self):
+        # 検知器開発セッション自身の誤爆（実測: 本 D4 実装セッションが backtick 引用で active
+        # 誤爆）→ inline code 化＋「marker」名指しで marker_reference 降格。メタ語彙は無くてよい。
+        rep = run([human("検知して"),
+                   asst_text("m1", "K事象の marker `[Request interrupted by user]` が "
+                                   "L320 の text ブロック内に自己生成されていることを確認。")])
+        self.assertNotIn("phantom_turn_marker", active_rules(rep))
+        self.assertIn("phantom_turn_marker", suppressed_rules(rep))
+
+    def test_fenced_code_reference_suppressed(self):
+        # fenced code で K の再現片を貼る（台帳原文の引用等）→ フェンス内側で marker_reference 降格
+        rep = run([human("台帳の原文を見せて"),
+                   asst_text("m1", "台帳の付録より:\n```\nuser[Request interrupted by user]\n"
+                                   "勝手にすすめないで\n```\n以上が事象の再現です。")])
+        self.assertNotIn("phantom_turn_marker", active_rules(rep))
+
+    def test_clean_no_marker_not_flagged(self):
+        rep = run([human("やって"), asst_text("m1", "実行して結果を確認しました。")])
+        self.assertNotIn("phantom_turn_marker", [f.rule for f in rep.findings])
+
+
 class QuoteUserSaidRegex(unittest.TestCase):
     SHOULD_MATCH = [
         "あなたが「ツールを叩く前に」と言ったので",
@@ -962,6 +1016,29 @@ class PhantomResponseRegex(unittest.TestCase):
         for s in self.SHOULD_NOT_MATCH:
             with self.subTest(s=s):
                 self.assertIsNone(core.PHANTOM_RESPONSE_RE.search(s), f"誤検知: {s!r}")
+
+
+class PhantomTurnMarkerRegex(unittest.TestCase):
+    SHOULD_MATCH = [
+        "user[Request interrupted by user]",
+        "[Request interrupted by user for tool use]",
+        "…します。[Request interrupted by user] 止まって",
+    ]
+    SHOULD_NOT_MATCH = [
+        "Request interrupted by user",   # 角括弧なし＝ハーネスマーカーの形ではない
+        "[Request completed by user]",   # 別語（interrupted でない）
+        "[Interrupted by user]",         # ハーネスの正確なリテラルでない
+    ]
+
+    def test_match(self):
+        for s in self.SHOULD_MATCH:
+            with self.subTest(s=s):
+                self.assertTrue(core.PHANTOM_TURN_MARKER_RE.search(s), f"検知漏れ: {s!r}")
+
+    def test_not_match(self):
+        for s in self.SHOULD_NOT_MATCH:
+            with self.subTest(s=s):
+                self.assertIsNone(core.PHANTOM_TURN_MARKER_RE.search(s), f"誤検知: {s!r}")
 
 
 class HarnessInputPrefixRegex(unittest.TestCase):
