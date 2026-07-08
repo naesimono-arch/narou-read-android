@@ -1,9 +1,13 @@
 package com.novelreader.ui
 
 import android.content.Context
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.material.icons.Icons
@@ -38,14 +44,16 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -53,7 +61,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.novelreader.NovelReaderApplication
 import com.novelreader.model.ParseResult
 import com.novelreader.model.TocEntry
@@ -70,7 +81,9 @@ import com.novelreader.viewmodel.BookshelfViewModel
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -101,19 +114,51 @@ fun ReadingScreen(
     onThemeChange: (ReadingTheme) -> Unit,
     onNavigateToBookshelf: () -> Unit,
 ) {
+    // 章⇄目次の内部遷移履歴（Back で1段ずつ遡るためのスタック）。末尾が現在表示中のファイル。
+    // なぜ currentFile を単独 state にせず履歴の末尾から導出するか: Back キーで「章・目次を
+    // 1段遡ってから本棚へ」を実現するには過去の遷移列が必要で、現在位置と履歴を二重管理すると
+    // 齟齬の温床になるため単一正本（navHistory）に統一する（公理1＝Back の予測可能性）。
     // なぜ rememberSaveable に bookId をキーとして含めるか:
     // ルートが reading/{bookId}/{startFile} なので NavBackStackEntry 単位でスコープされるが、
-    // Navigation の実装詳細に依存しないよう bookId を明示的にキーに含めて
-    // 書籍切替時の状態混線を防ぐ。
-    var currentFile by rememberSaveable(key = "currentFile_$bookId") {
-        mutableStateOf(startFile)
-    }
+    // Navigation の実装詳細に依存しないよう bookId を明示的にキーに含めて書籍切替時の状態混線を防ぐ。
+    // 履歴はプロセス再生成後も遡行できるよう listSaver で永続化する。
+    var navHistory by rememberSaveable(
+        key = "navHistory_$bookId",
+        stateSaver = listSaver<List<String>, String>(save = { it }, restore = { it }),
+    ) { mutableStateOf(listOf(startFile)) }
+    val currentFile = navHistory.last()
 
     // 最後に表示していた章。目次表示中の「現在章ハイライト」に使う。
     // なぜ currentFile と別に持つか: 目次を開くと currentFile は "index.html" に
-    // 上書きされ、どの章から来たかが失われるため。
+    // なるため、どの章から来たかを別途保持する必要があるため。
     var lastChapterFile by rememberSaveable(key = "lastChapter_$bookId") {
         mutableStateOf(startFile.takeIf { it != "index.html" })
+    }
+
+    // 章/目次へ「進む」共通処理。履歴を1段積み、章なら現在章更新＋進捗保存する。
+    // 【生命線】index.html（目次）への遷移は進捗を保存しない（ブロックリスト方式の既存保証を踏襲）。
+    // なぜ: 目次を開いただけで lastReadFilename が index.html に上書きされると読書再開位置が壊れるため。
+    val navigateForward: (String) -> Unit = { target ->
+        navHistory = pushNavHistory(navHistory, target)
+        if (target != "index.html") {
+            lastChapterFile = target
+            viewModel.saveProgress(bookId, target)
+        }
+    }
+
+    // Back キー: 内部遷移履歴があれば1段遡り、無ければ無効化してシステム既定（本棚へ pop）に委ねる。
+    // App bar の ←（Up）は従来どおり常に本棚へ戻す（Back と Up の分離）。
+    // 【生命線】戻り時に saveProgress を呼ばない理由: 章へ戻ると saveProgress は scrollIndex=0 を書き、
+    // その章の保存済みスクロールを先頭へ潰してしまう。戻り先の章は ChapterScreen 再表示時の debounce/
+    // onStop フラッシュで正しい現在位置が保存されるため、ここでは currentFile と現在章ハイライトの
+    // 更新に留め、進捗の破壊的上書きを避ける（前進時のみ「新しく開いた章＝先頭から」を保存する非対称設計）。
+    BackHandler(enabled = navHistory.size > 1) {
+        val popped = navHistory.dropLast(1)
+        navHistory = popped
+        val target = popped.last()
+        if (target != "index.html") {
+            lastChapterFile = target
+        }
     }
 
     // 読書再開位置。画面初回に一度だけ DB から取得する（章の途中から復元するため）。
@@ -202,12 +247,29 @@ fun ReadingScreen(
         }
     }
 
-    // 目次を非同期でロード（画面ライフサイクル中1回のみ）
-    val tocEntries by produceState<List<TocEntry>>(initialValue = emptyList()) {
-        value = withContext(Dispatchers.IO) {
-            ChapterHtmlParser.parseToc(File(htmlDirPath, "index.html"))
+    // 目次パースの再試行カウンタ。インクリメントで下記 produceState を再起動させる。
+    var tocRetryKey by remember { mutableIntStateOf(0) }
+
+    // 目次を非同期でロード（Loading→Content/Empty/Error の状態遷移を保持）。
+    // なぜ initialValue を Loading にし例外を捕捉するか: 旧実装は initialValue=emptyList で
+    // 「パース未完了の一瞬」と「真の空」を区別できず、目次画面が誤って「章が見つかりません」を
+    // 出していた（公理8）。状態を明示化してロード中はスケルトン・例外は再試行に振り分ける。
+    val tocState by produceState<TocState>(initialValue = TocState.Loading, key1 = tocRetryKey) {
+        value = TocState.Loading
+        value = try {
+            val entries = withContext(Dispatchers.IO) {
+                ChapterHtmlParser.parseToc(File(htmlDirPath, "index.html"))
+            }
+            if (entries.isEmpty()) TocState.Empty else TocState.Content(entries)
+        } catch (e: Exception) {
+            // 例外時は静かに空表示せず原因を出して再試行導線を与える（読者が復帰できるように）
+            TocState.Error(e.message ?: "目次の読み込みに失敗しました")
         }
     }
+
+    // 章の前後ナビゲーション・継続導線ロジックは章リストの実体（List<TocEntry>）を必要とする。
+    // Content のときだけ中身を渡し、それ以外（Loading/Empty/Error）は空リスト＝「未ロード」として扱う。
+    val tocEntries = (tocState as? TocState.Content)?.entries ?: emptyList()
 
     if (resolvedFile == null) {
         // htmlDirPath 自体が存在しない致命的エラー（再試行不可）
@@ -221,15 +283,13 @@ fun ReadingScreen(
 
     if (resolvedFile == "index.html") {
         NativeTableOfContentsScreen(
-            tocEntries = tocEntries,
+            tocState = tocState,
             colors = readingColors,
             currentChapterFile = lastChapterFile,
-            onSelectChapter = { fileName ->
-                currentFile = fileName
-                lastChapterFile = fileName
-                viewModel.saveProgress(bookId, fileName)
-            },
+            // 章選択は「進む」遷移＝履歴を積み進捗も保存する（navigateForward が index 以外を保存）
+            onSelectChapter = navigateForward,
             onNavigateToBookshelf = onNavigateToBookshelf,
+            onRetry = { tocRetryKey++ },
         )
         return
     }
@@ -271,13 +331,8 @@ fun ReadingScreen(
             viewModel.saveScrollPosition(bookId, resolvedFile, index, offset)
         },
         onNavigateToBookshelf = onNavigateToBookshelf,
-        onNavigateTo = { fileName ->
-            currentFile = fileName
-            if (fileName != "index.html") {
-                lastChapterFile = fileName
-                viewModel.saveProgress(bookId, fileName)
-            }
-        },
+        // 前後章・目次ボタンからの遷移も「進む」＝履歴を積む（Back で1段ずつ遡れる）
+        onNavigateTo = navigateForward,
     )
 }
 
@@ -287,6 +342,27 @@ private data class ChapterRestore(
     val scrollIndex: Int,
     val scrollOffset: Int,
 )
+
+/** 内部遷移履歴の上限。長い読書セッションで際限なく伸びるのを防ぐ（超過分は最古から捨てる）。 */
+private const val MAX_NAV_HISTORY = 32
+
+/**
+ * 章⇄目次の内部遷移履歴に1段追加する純関数（重複排除＋上限管理）。テスト対象。
+ * なぜ純関数に切り出すか: Back の遡行順に直結するロジックを UI 非依存で単体テストするため。
+ *
+ * @return 追加後の履歴。直前と同じ遷移先なら積まず（連打・現在章の再選択で無駄に伸ばさない）、
+ *         上限超過時は先頭（最古）を落とす。履歴は進捗保存とは独立なので古い要素の破棄は安全。
+ */
+internal fun pushNavHistory(
+    history: List<String>,
+    target: String,
+    max: Int = MAX_NAV_HISTORY,
+): List<String> {
+    if (history.lastOrNull() == target) return history
+    val appended = history + target
+    return if (appended.size > max) appended.subList(appended.size - max, appended.size).toList()
+    else appended
+}
 
 /** 章本文を表示する内部 Composable */
 @OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
@@ -354,6 +430,12 @@ private fun ChapterScreen(
 
     // TOC から現在の章インデックスを特定して前後ナビゲーション先を決定
     val currentIndex = tocEntries.indexOfFirst { it.fileName == currentFile }
+
+    // 目次がまだロードされていない（tocEntries が空）間は前後の隣章を決定できない。
+    // なぜ enabled で制御するか: 未ロード時は currentIndex=-1 となり prev/next が index.html へ
+    // フォールバックしていたため、隣章のつもりで押すと目次へ飛ぶ非決定的挙動だった（公理2）。
+    // ロード完了までボタンを disabled にして「押せば必ず隣章」を保証する。
+    val navEnabled = tocEntries.isNotEmpty()
     val prevFile = when {
         currentIndex > 0 -> tocEntries[currentIndex - 1].fileName
         else -> "index.html" // 最初の章 → 目次に戻る
@@ -396,14 +478,15 @@ private fun ChapterScreen(
     // なろう紐付けシートの開閉状態
     var showLinkSheet by remember { mutableStateOf(false) }
 
-    // バックキーはデフォルトで本棚に戻る（Navigation の popBackStack）。
-    // なぜ Phase 3 では章履歴スタックを導入しないか:
-    // 章履歴の上限管理・永続化・プロセス再生成時の復元はネイティブ化の本質ではなく
-    // 複雑度が高いため Phase 3 では省略する。将来の拡張ポイント:
-    // BackHandler(enabled = chapterHistory.size > 1) {
-    //     chapterHistory.removeLast()
-    //     currentFile = chapterHistory.last()
-    // }
+    // 継続カードからの外部遷移（Custom Tabs 起動）の再入ガード用タイムスタンプ（M1/公理3）。
+    // なぜ必要か: Custom Tabs はブラウザ別プロセスの起動待ちがあり、反応が無いと利用者が連打しやすい。
+    // その間 launchUrl が複数回走ると続き/作品ページが2枚重なって開くため、直近起動から一定時間内の
+    // タップを無視して二重起動を防ぐ。「続きを読む」「作品ページ」の両ボタンで共有し、跨ぎ連打も抑える。
+    var lastLaunchAt by remember { mutableStateOf(0L) }
+
+    // Back キーの段階化（章⇄目次を1段ずつ遡り、履歴が尽きたら本棚へ）は親の ReadingScreen が
+    // navHistory＋BackHandler で一元管理する。currentFile を所有するのが ReadingScreen のため、
+    // 履歴の上限管理・rememberSaveable 永続化もそちらに集約した（ここでは扱わない）。
 
     // snapAnimationSpec = null: デフォルトのスナップを無効化する。
     // スナップが有効だとわずかなスクロールでバーが「自走」し、
@@ -436,6 +519,32 @@ private fun ChapterScreen(
         }
             .debounce(400)
             .collect { (index, offset) -> latestOnSaveScroll(index, offset) }
+    }
+
+    // 離脱時（アプリ background 化＝ON_STOP）に最終スクロール位置を即時フラッシュする。
+    // なぜ必要か（公理6）: 上の debounce(400) は「最後の 400ms 分」を溜めてから書くため、
+    // スクロール直後にホーム/アプリ切替で離脱するとその 400ms 分が未保存のまま失われ、
+    // 再開時に位置がわずかに巻き戻る。ON_STOP で現在の LazyListState を直接書いて取りこぼしを消す。
+    // 【生命線の安全性】
+    //  ・この DisposableEffect は ChapterScreen 内＝実章表示中のみ構成される（目次 index.html 表示中は
+    //    ReadingScreen が NativeTableOfContentsScreen を描き ChapterScreen 自体が構成されない）。
+    //    ゆえにフラッシュ対象は必ず実章で、目次を「読書位置」として書く事故は構造的に起きない
+    //    （ブロックリスト方式と非干渉）。latestOnSaveScroll→onSaveScroll は resolvedFile（実章）を保存する。
+    //  ・書く値は実際の firstVisibleItem 位置なので、章先頭に居るとき以外に 0 を書く「ゼロ上書き」は起きない。
+    //  ・debounce と ON_STOP が同値を二重送出しても保存先は CONFLATED チャネル＋単一行 REPLACE のため
+    //    冪等で、順序破綻や巻き戻りは生じない。
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, lazyListState) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                latestOnSaveScroll(
+                    lazyListState.firstVisibleItemIndex,
+                    lazyListState.firstVisibleItemScrollOffset,
+                )
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val nonStealingConnection = remember(topAppBarState) {
@@ -473,6 +582,26 @@ private fun ChapterScreen(
                 return Velocity.Zero
             }
         }
+    }
+
+    // ────── 没入クローム復帰ヒント（層②）──────
+    // クローム（上下バー）が初めて画面外へ退避したとき、復帰操作（中央タップ）を数秒だけ
+    // 一過性ラベルで示す。なぜ一度きり・自動消灯か: 常時の帯は没入を削ぐため、初回消灯時の
+    // 学習機会だけを与え以後は出さない（M12＝復帰手段が不可視だった問題への最小介入）。
+    // セッション内 remember で一度だけ＝設定/prefs を増やさない（過剰にならない範囲に留める）。
+    var chromeHintConsumed by remember { mutableStateOf(false) }
+    var showChromeHint by remember { mutableStateOf(false) }
+    LaunchedEffect(topAppBarState) {
+        snapshotFlow { topAppBarState.collapsedFraction > 0.9f }
+            .distinctUntilChanged()
+            .collect { hidden ->
+                if (hidden && !chromeHintConsumed) {
+                    chromeHintConsumed = true
+                    showChromeHint = true
+                    delay(2600)
+                    showChromeHint = false
+                }
+            }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -530,18 +659,29 @@ private fun ChapterScreen(
                                     colors = colors,
                                     bodyMarginDp = bodyMarginDp,
                                     onReadContinuation = {
-                                        // 主ボタンは NewEpisodes のときしか描画されないが、防御的に型で絞る。
-                                        // Custom Tabs でアプリ内表示し、ツールバーは読書背景色に合わせて没入を保つ。
-                                        (info as? ContinuationInfo.NewEpisodes)?.let {
-                                            openInAppBrowser(
-                                                context,
-                                                narouEpisodeUrl(it.ncode, it.nextEpisode),
-                                                colors.background.toArgb(),
-                                            )
+                                        // 再入ガード（M1/公理3）: 連打で Custom Tabs が2枚開くのを防ぐ。
+                                        val now = System.currentTimeMillis()
+                                        if (now - lastLaunchAt >= 1000L) {
+                                            lastLaunchAt = now
+                                            // 主ボタンは NewEpisodes のときしか描画されないが、防御的に型で絞る。
+                                            // ツールバー色は明示指定せず既定（ブラウザのサイト識別色）に委ねる
+                                            // （M9・公理8）＝なろうへ外部遷移した事実を隠さず、今どこに居るかを
+                                            // 判別できるようにするため（背景同化＝没入優先は M2 指摘で撤回）。
+                                            (info as? ContinuationInfo.NewEpisodes)?.let {
+                                                openInAppBrowser(
+                                                    context,
+                                                    narouEpisodeUrl(it.ncode, it.nextEpisode),
+                                                )
+                                            }
                                         }
                                     },
                                     onOpenWorkPage = {
-                                        openInAppBrowser(context, narouWorkUrl(info.ncode), colors.background.toArgb())
+                                        // 同上: 再入ガード＋ツールバー色は既定（サイト識別可能）に委ねる。
+                                        val now = System.currentTimeMillis()
+                                        if (now - lastLaunchAt >= 1000L) {
+                                            lastLaunchAt = now
+                                            openInAppBrowser(context, narouWorkUrl(info.ncode))
+                                        }
                                     },
                                     onUnlink = { onLinkNcode(null) },
                                 )
@@ -587,6 +727,8 @@ private fun ChapterScreen(
         ) {
             IconButton(
                 onClick = { onNavigateTo(prevFile) },
+                // 目次未ロード中は無効化（disabled トークンで淡色化）。押下時の目次フォールバックを防ぐ
+                enabled = navEnabled,
                 modifier = Modifier.weight(1f),
             ) {
                 Icon(
@@ -594,6 +736,7 @@ private fun ChapterScreen(
                     contentDescription = "前の章",
                 )
             }
+            // 目次ボタンは常に有効（ロード状況に関わらず目次を開ける＝開けばスケルトン表示）
             IconButton(
                 onClick = { onNavigateTo("index.html") },
                 modifier = Modifier.weight(1f),
@@ -605,6 +748,8 @@ private fun ChapterScreen(
             }
             IconButton(
                 onClick = { onNavigateTo(nextFile) },
+                // 目次未ロード中は無効化（disabled トークンで淡色化）。押下時の目次フォールバックを防ぐ
+                enabled = navEnabled,
                 modifier = Modifier.weight(1f),
             ) {
                 Icon(
@@ -663,6 +808,31 @@ private fun ChapterScreen(
             // scrollBehavior は heightOffsetLimit の測定のため維持する。
             scrollBehavior = scrollBehavior,
         )
+
+        // 没入クローム復帰ヒント（初回消灯時に数秒フェード）。タップは奪わない純表示。
+        AnimatedVisibility(
+            visible = showChromeHint,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 96.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    // 半透明のナビ背景色で本文に沈める丸ピル（色は必ずテーマトークン経由）
+                    .clip(RoundedCornerShape(50))
+                    .background(colors.navBackground.copy(alpha = 0.92f))
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                Text(
+                    text = "画面中央をタップでメニュー表示",
+                    color = colors.topBarIcon,
+                    fontFamily = MinchoFamily,
+                    fontSize = 13.sp,
+                )
+            }
+        }
 
         if (showLinkSheet) {
             NcodeLinkSheet(

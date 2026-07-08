@@ -3,16 +3,24 @@ package com.novelreader.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -89,39 +97,71 @@ internal fun ContinuationCard(
             // 主ボタン (NewEpisodes のときのみ表示。モック .btn-primary)
             if (info is ContinuationInfo.NewEpisodes) {
                 Box(
+                    // A11y: タップ高さを最小48dpに（背景・文字・余白は現状維持、文言は中央のまま）
                     modifier = Modifier
                         .fillMaxWidth()
+                        .heightIn(min = 48.dp)
                         .background(color = colors.accent, shape = RoundedCornerShape(2.dp))
                         .clickable(onClick = onReadContinuation)
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "第${info.nextEpisode}話から続きを読む",
-                        color = colors.background, // 藍背景に対してベース（背景）の文字色
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 0.1.em
-                    )
+                    // 外部（なろう）へ開くボタンには open-in-new アイコンを添え、別画面へ遷移することを
+                    // 図示する（M9/公理8・NovelDetailScreen の外部連携ボタンと同流儀）。当たり判定48dpは
+                    // 外側 Box の heightIn(min=48dp) が担うため、中身を Row 化してもタップ域は不変。
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                            contentDescription = null,
+                            tint = colors.background, // ボタン文字色（藍背景に対するベース色）に揃える
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "第${info.nextEpisode}話から続きを読む",
+                            color = colors.background, // 藍背景に対してベース（背景）の文字色
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 0.1.em
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
             // ゴーストボタン (常時表示。モック .btn-ghost)
             Box(
+                // A11y: タップ高さを最小48dpに（枠線・文字・余白は現状維持、文言は中央のまま）
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(min = 48.dp)
                     .border(width = 1.dp, color = colors.blockBorder, shape = RoundedCornerShape(2.dp))
                     .clickable(onClick = onOpenWorkPage)
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "作品ページを見る",
-                    color = colors.textSecondary,
-                    fontSize = 12.sp,
-                    letterSpacing = 0.1.em
-                )
+                // 作品ページも外部（なろう）遷移なので open-in-new アイコンを添える（主ボタンと同流儀）。
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                        contentDescription = null,
+                        tint = colors.textSecondary, // ゴーストボタンの文字色に揃える
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "作品ページを見る",
+                        color = colors.textSecondary,
+                        fontSize = 12.sp,
+                        letterSpacing = 0.1.em
+                    )
+                }
             }
 
             // 解除導線（常時。モック外だが誤紐付け救済に必須）
@@ -133,14 +173,21 @@ internal fun ContinuationCard(
                     .padding(top = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "紐付けを解除",
-                    color = colors.textSecondary,
-                    fontSize = 11.sp,
+                // A11y: 表示テキストは現寸のまま、当たり判定だけ最小48dpに拡大する
+                // （外側Boxをclickable＋最小48dpにし、文字は中央に据え置く）。
+                Box(
                     modifier = Modifier
                         .clickable(onClick = onUnlink)
-                        .padding(vertical = 8.dp, horizontal = 12.dp)
-                )
+                        .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "紐付けを解除",
+                        color = colors.textSecondary,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(horizontal = 12.dp)
+                    )
+                }
             }
         }
 
@@ -183,8 +230,10 @@ internal fun ContinuationLinkPrompt(
     ) {
         // ゴーストボタン様式1個
         Box(
+            // A11y: タップ高さを最小48dpに（枠線・文字・余白は現状維持、文言は中央のまま）
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = 48.dp)
                 .border(width = 1.dp, color = colors.blockBorder, shape = RoundedCornerShape(2.dp))
                 .clickable(onClick = onClick)
                 .padding(vertical = 12.dp),
