@@ -240,4 +240,30 @@ class BookRepositoryTest {
             filesDir.deleteRecursively()
         }
     }
+
+    // ── 失敗取込の権限リーク回収（孤児の永続 URI 権限判定）─────────────────────
+    // 取込失敗時は M7 再試行のため pending_jobs 行だけ消し永続権限を残す。再試行されず終わった分が
+    // 次回起動時に「pending_jobs 非紐付け」の孤児として残るのを、この純関数が差集合で回収対象に選ぶ。
+
+    @Test
+    fun `orphanedPermissionUris - pending 非紐付けの権限だけを回収対象にする`() {
+        val persisted = setOf("content://docs/failed", "content://docs/resuming")
+        val keep = setOf("content://docs/resuming") // 再開待ちで pending_jobs に残る URI
+        // 失敗して再試行されなかった URI だけが孤児として解放対象になる
+        assertEquals(setOf("content://docs/failed"), orphanedPermissionUris(persisted, keep))
+    }
+
+    @Test
+    fun `orphanedPermissionUris - pending が空なら全ての永続権限が孤児`() {
+        // リークの典型形: pending_jobs 行ゼロ＋失敗取込の権限だけが残ったケース
+        val persisted = setOf("content://docs/1", "content://docs/2")
+        assertEquals(persisted, orphanedPermissionUris(persisted, emptySet()))
+    }
+
+    @Test
+    fun `orphanedPermissionUris - 全て pending 紐付けなら回収対象なし（誤解放しない）`() {
+        // 再開対象の権限を誤って解放しないことの回帰: keep に全て含まれれば差集合は空
+        val persisted = setOf("content://docs/a", "content://docs/b")
+        assertTrue(orphanedPermissionUris(persisted, persisted).isEmpty())
+    }
 }

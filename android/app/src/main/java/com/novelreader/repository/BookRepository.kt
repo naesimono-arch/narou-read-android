@@ -239,6 +239,38 @@ class BookRepository(
         }
     }
 
+    /**
+     * 起動時クリーンアップ: pending_jobs にも紐付かない「孤児」の永続 URI 権限を解放する（恒久リーク回収）。
+     *
+     * なぜこれが必要か（root cause）: 取込失敗時は M7 の「再試行」を成立させるため、addBook の失敗経路が
+     * settlePendingJob（権限解放込み）ではなく pending_jobs 行の削除のみを行い、永続 URI 権限を意図的に
+     * 残す。しかし再試行 Snackbar はプロセス生存中にしか出せないため、再試行されないまま終わった失敗分の
+     * 権限は「pending_jobs 行が無い＝どの経路でも解放されない」恒久リークになり、端末上限(128件)へ向けて
+     * 溜まり続ける。そこで次回アプリ起動時に「pending_jobs 非紐付けの永続権限＝もう再試行され得ない失敗
+     * 取込の置き土産」として回収する。
+     *
+     * なぜ pending_jobs 非紐付けだけで孤児と断定できるか: 永続権限を取るのは PDF 取込の1経路のみ
+     * （BookshelfViewModel.addBook の takePersistableUriPermission）。books は取込元 URI を持たない
+     * （スキーマに無い）ため、変換完了済みの本は元 URI の権限を二度と要さない（成功時に settle 済み）。
+     * よって「まだ処理が要る URI は必ず pending_jobs 行を持つ」不変条件が成り立ち、行が無ければ孤児。
+     *
+     * 【誤解放しない根拠】変換中の URI を誤って解放しないこと: 本メソッドは runStartupRecoveryOnce の
+     * processingState==null ガード下（Service 非稼働）でのみ呼ばれ、かつ起動直後で新規取込より前に走る。
+     * 稼働中に処理される URI は enqueue 時に必ず pending_jobs 行を持つため keepUris に含まれ、解放対象外。
+     * 再開対象（resumable）の URI も pending_jobs 行を持つので keepUris で保護される。
+     *
+     * @param keepUris 現在の pending_jobs が保持する URI 集合（この集合に含まれる権限は残す）。
+     */
+    suspend fun releaseOrphanedPermissions(keepUris: Set<String>) = withContext(Dispatchers.IO) {
+        val persistedReadUris = context.contentResolver.persistedUriPermissions
+            .filter { it.isReadPermission }
+            .map { it.uri.toString() }
+            .toSet()
+        orphanedPermissionUris(persistedReadUris, keepUris).forEach { uri ->
+            releasePersistedPermission(Uri.parse(uri))
+        }
+    }
+
     suspend fun deleteBook(book: BookEntity) = withContext(Dispatchers.IO) {
         bookDao.deleteById(book.id)
         progressDao.deleteByBookId(book.id)
@@ -283,3 +315,14 @@ class BookRepository(
         private const val TAG = "BookRepository"
     }
 }
+
+/**
+ * 起動時に解放すべき「孤児」の永続 URI 権限を判定する純関数（テスト対象）。
+ * 持続化された読み取り権限のうち pending_jobs 非紐付けのもの＝もう再試行され得ない失敗取込の
+ * 置き土産を差集合で選ぶ。UI・contentResolver 非依存で回収ロジックの中核を単体テストするため分離する
+ * （releaseOrphanedPermissions が persistedUriPermissions 取得と実解放の副作用を担い、判定はここ）。
+ */
+internal fun orphanedPermissionUris(
+    persistedReadUris: Set<String>,
+    keepUris: Set<String>,
+): Set<String> = persistedReadUris - keepUris

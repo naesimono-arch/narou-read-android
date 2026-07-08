@@ -88,6 +88,13 @@ class NovelReaderApplication : Application() {
             if (processingState.value != null) return@launch
             repository.cleanOrphanHtmlDirs()
             val pending = repository.getPendingJobs()
+            // 失敗取込の権限リーク回収（恒久リーク対策・root cause）: 取込失敗時は M7 の再試行成立の
+            // ため addBook が pending_jobs 行だけ消し永続 URI 権限を残すが、再試行 Snackbar はプロセス
+            // 生存中しか出せないため、再試行されずに終わった分の権限が次回起動時に「pending_jobs 非紐付け」
+            // として孤立し恒久リークする（端末上限128件へ）。ここで解放する。pending が空でも走らせる必要が
+            // あるため、下の early return より前に置く（リークの典型形＝pending_jobs 行ゼロ＋孤児権限1件）。
+            // keepUris に現在の pending URI を渡すことで、再開対象（resumable）の権限は解放しない。
+            repository.releaseOrphanedPermissions(pending.map { it.uri }.toSet())
             if (pending.isEmpty()) return@launch
             // 再開にはプロセスを跨いで有効な読み取り権限が要る。takePersistableUriPermission は
             // addBook 時に取得済みのはずだが、プロバイダ非対応・ユーザーによる権限取消で
