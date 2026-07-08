@@ -206,11 +206,19 @@ fun SearchDraft.withRangeToggled(range: SearchRange): SearchDraft {
 }
 
 /**
+ * 検索語を半角・全角スペース区切りのトークン列へ分解する。
+ * なぜ独立関数か: 選択キーワードは独立した Set ではなく word（単一String）へ畳み込む方式のため、
+ * 「今どのトークンが選択中か」を UI が列挙する必要がある（選択中キーワードバー）。分割規則は
+ * containsWordToken / toggleWordToken と一致させねばならず、規則の二重定義を避けるため両者もこれを介す。
+ */
+fun wordTokens(word: String): List<String> =
+    word.split(Regex("[\\s　]+")).filter { it.isNotEmpty() }
+
+/**
  * 半角・全角スペース区切りのトークン集合として、指定したトークンが含まれているか判定する。
  */
 fun containsWordToken(word: String, token: String): Boolean {
-    val tokens = word.split(Regex("[\\s　]+")).filter { it.isNotEmpty() }
-    return tokens.contains(token)
+    return wordTokens(word).contains(token)
 }
 
 /**
@@ -218,7 +226,7 @@ fun containsWordToken(word: String, token: String): Boolean {
  * 追加時は末尾に半角スペース区切りで追加し、除去時は余分な空白を正規化する。
  */
 fun toggleWordToken(word: String, token: String): String {
-    val tokens = word.split(Regex("[\\s　]+")).filter { it.isNotEmpty() }.toMutableList()
+    val tokens = wordTokens(word).toMutableList()
     if (tokens.contains(token)) {
         tokens.remove(token)
     } else {

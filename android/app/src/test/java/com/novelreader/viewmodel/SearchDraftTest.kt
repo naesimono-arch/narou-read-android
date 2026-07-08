@@ -141,6 +141,19 @@ class SearchDraftTest {
     }
 
     @Test
+    fun `wordTokens - 半角・全角スペースで分割され空トークンが除去されること`() {
+        // 半角・全角スペース区切り（containsWordToken/toggleWordToken と同一規則）
+        assertEquals(listOf("aa", "bb", "cc"), wordTokens("aa bb　cc"))
+        // 連続・前後空白は空トークンとして除去され、順序は保持される
+        assertEquals(listOf("aa", "bb"), wordTokens("  aa   bb  "))
+        // 空文字列・空白のみは空リスト
+        assertTrue(wordTokens("").isEmpty())
+        assertTrue(wordTokens("   　 ").isEmpty())
+        // 単一トークン
+        assertEquals(listOf("薬師"), wordTokens("薬師"))
+    }
+
+    @Test
     fun `containsWordToken - トークン判定が正しく行われること`() {
         // 半角スペース区切り
         assertTrue(containsWordToken("aa bb cc", "bb"))
