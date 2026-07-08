@@ -77,7 +77,10 @@
 ## D. 長期・品質（backlog）
 
 - **左右スワイプで章遷移**: 旧 `experiment`/`lab-old` は WebView 実装で流用不可。`HorizontalPager`/`pointerInput` で新規。チューニング知見＝軸ロック(`de60869`)/EMA+isDragging(`a07dd3e`)/距離OR速度複合(`4a0719b`)。元コミット `23b5f33`（main 未取り込み）。
-- **Phase3 外部連携の残**: ①内部ブラウザから PDF 直接取込＆動線追加（②「小説家になろう」公式API連携・ランキング表示は api-lab 系で実装済み。詳細 `docs/reference/narou_api_manual.md`／`docs/reference/03-api-feature-analysis.md`）。
+- **作品詳細→なろう公式縦書きPDF取り込み導線（方式決定＝案B: WebView 再導入）**（2026-07-09 ユーザーと方式合意・重い作業のため未着手でバックログ化。旧「Phase3 外部連携の残①内部ブラウザから PDF 直接取込」を統合）: なろうで発見した作品を、なろう公式の**縦書きPDF機能**（目次ページ下部「縦書きPDF」リンク→生成ページ〔広告・出だし200字〕→「縦書きPDFダウンロード」ボタン。ヘルプ99 `helppageid/99`）で DL し、その場で蔵書化する導線。**抽出互換性は実証済み**＝ゴールデン本 `N2959KI/N1453LW/N6169DZ.pdf` がまさになろう公式縦書きPDF（`ParserRules.kt` の座標/フォント判定はこれ前提）。
+  - **決定＝案B（WebView 再導入）**: `NovelDetailScreen.kt` に「縦書きPDFを取り込む」ボタン→WebView で `narouWorkUrl(ncode)`（目次）をロード→縦書きPDFリンク位置まで**自動スクロール**→ユーザーが DL ボタンをタップ→`setDownloadListener` で DL 捕捉→`BookshelfViewModel.addBook(uri)`（既存合流点）で変換〜Room 登録を再利用。取り込んだ本に **ncode を紐付け**（`BookEntity.ncode` 既存列）＝継続読書と接続。**却下＝案A**（Custom Tabs＋共有受信＝WebView 不要・規約完全セーフだが DL 後に共有の一手間）／**案C**（WebView＋手動スクロール）。**却下理由は着手時に ADR 化**（`docs/decisions/`）。
+  - ⚠️ **規約（ADR 0010 の方針転換）**: 本アプリは WebView を意図的に廃止し「加工なし送客（Custom Tabs）」を既定にした経緯（`InAppBrowser.kt`・ADR 0010・task_diary #45）。案Bは WebView 再導入＝**着手時に ADR 新設/更新が必須**。公式PDF機能の利用自体は規約セーフだが、**「加工」禁止を厳守**＝広告は絶対に残す・注入する JS は**スクロール（ビューポート移動）のみ**に限定（CSS 注入/DOM 改変/広告除去は一切しない）。
+  - **実装前の要確認（実機）**: ①縦書きPDF生成ページの URL/DL 方式（直リンクか動的生成か・**ログイン要否**）②WebView の DL が `DownloadManager` 経由になる場合の URI 正規化（既存 addBook は `content://`＋`takePersistableUriPermission` 前提／WebView DL は別経路→完了受信→URI 変換の配線が要る）。`INTERNET` 権限は既存。**重い作業＝fresh session 推奨**（memory `workflow-plan-fresh-session-execution`）。
 - **超長編抽出エッジ残差の③アポストロフィ座標順**（N6169DZ・章題ドリフト残2件）: `兎'ｓ`↔`'鳥…` の座標順ずれで**1:1コードポイント置換不可**＝実質 won't-fix。基準＝`ab-review/golden_regression`、詳細＝task_diary #35。①②のダッシュ/矢印9件は 2026-07-06 に `normalizeGlyphUnicode` で解消済み。
 
 ## A2. UIスキン着せ替え（将来送り・保留）
