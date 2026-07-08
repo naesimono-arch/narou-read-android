@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.narou.model.NarouNovel
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfUiState
@@ -77,6 +78,8 @@ fun BookshelfScreen(
     // DB から Content(空) が確定して初めて空状態を表示することで cold start の空フラッシュを防ぐ。
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val progressMap by viewModel.progressMap.collectAsStateWithLifecycle()
+    // 続きありバッジ用のなろう詳細（key=ncode）。VM が本棚一覧の紐付け作品をまとめて照会し配布する。
+    val newEpisodeNovelMap by viewModel.newEpisodeNovelMap.collectAsStateWithLifecycle()
     val processingState by viewModel.processingState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -154,6 +157,7 @@ fun BookshelfScreen(
     BookshelfContent(
         uiState = uiState,
         progressMap = progressMap,
+        newEpisodeNovelMap = newEpisodeNovelMap,
         processingState = processingState,
         appTheme = appTheme,
         onThemeChange = onThemeChange,
@@ -258,6 +262,8 @@ fun BookshelfScreen(
 internal fun BookshelfContent(
     uiState: BookshelfUiState,
     progressMap: Map<String, ProgressEntity>,
+    // 続きありバッジ用のなろう詳細（key=ncode）。カードは自分の book.ncode 分を引いて突き合わせる。
+    newEpisodeNovelMap: Map<String, NarouNovel>,
     processingState: ProcessingState,
     appTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
@@ -475,6 +481,7 @@ internal fun BookshelfContent(
                         GridBookCard(
                             book = book,
                             progress = progressMap[book.id],
+                            novelDetail = book.ncode?.let { newEpisodeNovelMap[it] },
                             onOpen = { onOpenBook(book) },
                             onDelete = { bookToDeleteId = book.id },
                             deleteUiMode = deleteUiMode,
@@ -507,6 +514,7 @@ internal fun BookshelfContent(
                         ListBookCard(
                             book = book,
                             progress = progressMap[book.id],
+                            novelDetail = book.ncode?.let { newEpisodeNovelMap[it] },
                             onOpen = { onOpenBook(book) },
                             onDelete = { bookToDeleteId = book.id },
                             deleteUiMode = deleteUiMode,

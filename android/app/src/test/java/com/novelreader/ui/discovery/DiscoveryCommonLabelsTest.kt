@@ -18,8 +18,9 @@ class DiscoveryCommonLabelsTest {
         assertEquals("短編", novelStatusLabel(NarouNovel(noveltypeCompact = 2, end = 0, generalAllNo = 1)))
         assertEquals("完結 88話", novelStatusLabel(NarouNovel(noveltypeCompact = 1, end = 0, generalAllNo = 88)))
         assertEquals("連載中 127話", novelStatusLabel(NarouNovel(noveltypeCompact = 1, end = 1, generalAllNo = 127)))
-        // 話数欠損はフォールバック 1話（of で general_all_no を外した場合の保険）
-        assertEquals("連載中 1話", novelStatusLabel(NarouNovel(noveltypeCompact = 1, end = 1)))
+        // 話数欠損時は話数を捏造せず状態のみ表示（of で general_all_no を外した場合も「全0話/1話」等を出さない）
+        assertEquals("連載中", novelStatusLabel(NarouNovel(noveltypeCompact = 1, end = 1)))
+        assertEquals("完結", novelStatusLabel(NarouNovel(noveltypeCompact = 1, end = 0)))
     }
 
     @Test

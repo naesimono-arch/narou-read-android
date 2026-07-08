@@ -48,6 +48,14 @@ class SearchDraftTest {
     }
 
     @Test
+    fun `toQuery - notWordがtrimされ空白のみはnullとして送出されないこと`() {
+        // なぜ: 除外語も word と同じ trim→空→null 変換で一貫させ、空白のみの入力で notword を送らない
+        assertEquals("R15", SearchDraft(notWord = "  R15 ").toQuery().notWord)
+        assertNull(SearchDraft(notWord = "   ").toQuery().notWord)
+        assertNull(SearchDraft().toQuery().notWord)
+    }
+
+    @Test
     fun `default - SearchDraftのデフォルト値でinTitleがtrueでありtoQueryに引き継がれること`() {
         val draft = SearchDraft()
         assertTrue(draft.inTitle)

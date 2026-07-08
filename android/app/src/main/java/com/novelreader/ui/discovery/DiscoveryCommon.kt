@@ -34,11 +34,16 @@ import java.util.Locale
 // 色は MaterialTheme.colorScheme（Color.kt トークン）経由・直書き禁止（ADR 0005）。
 // ============================================================
 
-/** 「連載中 127話」「完結 88話」「短編」。end の意味は仕様書どおり直感と逆（0=短編・完結済）。 */
+/**
+ * 「連載中 127話」「完結 88話」「短編」。end の意味は仕様書どおり直感と逆（0=短編・完結済）。
+ * 話数（generalAllNo）が欠損（null）のときは話数を出さず状態のみ表示する。
+ * なぜ 0/1 で埋めないか: of で general_all_no を外すと欠損しうるが、そこを 1 等で補うと
+ * 「連載中 1話」のような実データに無い話数を捏造表示してしまうため（欠損は正直に伏せる）。
+ */
 fun novelStatusLabel(novel: NarouNovel): String {
     if (novel.novelType == 2) return "短編"
-    val episodes = novel.generalAllNo ?: 1
-    return if (novel.end == 0) "完結 ${episodes}話" else "連載中 ${episodes}話"
+    val status = if (novel.end == 0) "完結" else "連載中"
+    return novel.generalAllNo?.let { "$status ${it}話" } ?: status
 }
 
 /** 読了時間（分）→「約12分」「約8時間」。time 欠損時は length から導出（読了時間＝文字数÷500 切り上げ）。 */
@@ -115,6 +120,12 @@ fun NovelListRow(
                     text = novel.writer ?: "",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // なぜ weight(1f)+ellipsis: 作者名が長い作品（例「藍銅 紅@『お姉様は…』」）だと
+                    // 右のジャンルタグが狭いカラムに押し出され1文字ずつ縦積みになる実機バグが出るため、
+                    // 作者名側を可変幅で詰めてタグ用の横幅を確保する。
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
                 NarouGenres.genreLabel(novel.genre)?.let { genre ->
                     Text(
@@ -122,6 +133,10 @@ fun NovelListRow(
                         fontSize = 11.sp,
                         letterSpacing = 0.5.sp,
                         color = MaterialTheme.colorScheme.secondary,
+                        // なぜ maxLines=1+softWrap=false: タグ自体が改行して縦積みになるのを防ぎ、
+                        // 常に横一列で表示させる（タグは固定内容なので折返し不要）。
+                        maxLines = 1,
+                        softWrap = false,
                     )
                 }
             }

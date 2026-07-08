@@ -26,7 +26,6 @@
 
 ## UI/UX 宿題
 
-- **発見ランキングのジャンルタグが縦に1文字ずつ折り返す**（2026-07-08 実機スイープで発見・**軽微だが実バグ寄り**）: 作者名が長い作品（例: 週間 rank29「青春のこじらせヤロウを許す義務はない【長編版】」＝作者「藍銅 紅@『お姉様はずるい』コミカライズ連載中」）で、行末の `異世界〔恋愛〕` タグが右端カラムに押し出され**1文字ずつ縦積み**になり窮屈で読みにくい。作者名＋ジャンルタグが1行に収まらない時の折返し方針を見直す（タグを次行送り／作者名を ellipsis で詰める等）。実装点は発見ランキングの行 Composable（`DiscoveryHome`/ランキング項目）。
 - **補助テキストのコントラストが通常文字 AA(4.5:1) 未達**（2026-07-08 実機＋`theme/Color.kt` 実測）: 著者名・進捗% の `OnSurfaceVariant #7C808B` は **Light 3.79 / Sepia 3.02 / card上 3.46**＝大字のみ合格・通常文字 AA 未達。青磁未読ラベルは Light **2.14**（コード L18-21 に「意図的・後日再検証」と既記載）。本文・藍アクセント・ダーク各テーマは全て合格。**意匠上「静かに沈める」意図は理解しつつ、進捗% など情報性のある要素だけ視認性を一段上げる余地**。要 UI-n 意匠判断。
 - **フォントスケール200%で発見バーの「>」が窮屈**（2026-07-08 実機・軽微）: 「新しい物語を見つける」拡大時に右端シェブロンとテキストが接近（崩れはしない）。
 - **本棚画面の見た目を再設計する（2026-07-08・意匠オーナー「正直満足していない」）**: D 採用（ADR 0005）は維持したまま、本棚の意匠に不満が残っている状態。**まず不満点の言語化から始める**（どの要素か: 書影グラデの色味・⋮スクリム・タイトル重複・構図…）→ bookshelf-D モック改訂（必要なら A〜J 資産の再参照・新案）→ Compose 翻訳、の順。2026-07-08 実機目視で観察した緊張点（仮説候補・確定ではない）: ①カード⋮スクリム円×4 が画面で最も視覚的に強く「一画面一強調」と競合、かつダークテーマではほぼ不可視＝アフォーダンス非一貫（下記「意匠オーナー目視確認」M5 と同根） ②書影下部タイトルとカード下タイトルの重複表示 ③書影の縦グラデ（緑/紫系）の彩度が D の静謐基調から浮き気味。下記「デザイン正本の層構造整備」①（原則逆抽出）を先行させると、再設計の議論が好みでなく採点になる。
@@ -53,16 +52,11 @@
 
 ## リファクタ / 技術的負債（deferred）
 
-- **[発見系・アーキ] 続きありバッジの produceState が Repository 直撃**（監査残課題1の残り）: `BookCard` の続きありバッジがカード毎に `novelDetail` を発火（テスト不能）→ `BookshelfViewModel` で一括照会し Map 配布へ。※`NcodeLinkSheet` の検索ステートマシンの VM 吊り上げ（回転で全損の解消）は task-sweep `2cd372e` で完了済み。
 - **[発見系・構造] `SearchConditionSheet` の残リファクタ**（監査残課題2の残り）: カスタム範囲入力の約90行×2コピペの部品化・段階チップ値とラベルの平行定義統合（`LENGTH_STEPS`/`TIME_STEPS` とチップ文言が別ファイル）。※主要部＝`SearchConditionSheet.kt` 抽出（1348→606行）＋カスタム2重フラグの `SearchDraft` 一本化は task-sweep `7d135ba` で解消済み。**実施タイミング＝上「discovery-search-D すり合わせ→案B翻訳」で同ファイルを触るとき**。
-- **[発見系・型] 結果画面の条件チップが表示文字列マッチ＋位置規約で種別判定**（`DiscoveryResultScreen`・監査残課題3）: `conditionChipLabels` を `List<ConditionChip(label, kind)>` へ格上げ。
-- **[発見系・機能ずれ] notword が UI 未配線のデッドパス**（監査残課題4・モデル/API/チップ文言だけ存在＝除外語入力が未実装）: `@Query("notword")` は在るので UI 配線のみ。※ページング（旧「30件打ち切り」）は F-J `c66c913` で解消済み。
 - **[発見系・将来の罠] `NovelApiRepository` のインメモリキャッシュが「全呼び出しが Main dispatcher」の暗黙不変条件で成立**（監査残課題5・素の mutableMap）: U1 新着チェック（Worker化）で踏む→ ConcurrentHashMap 化 or Main 限定の why 明記が先（上「Phase 4 U1」に紐付け）。あわせて cacheKey は trim・送信は非 trim の非対称（`NcodeLinkSheet` 経由の word が素通し）。
-- **[発見系・小粒]**（監査残課題6の残り）: `NcodeLinkSheet`「全0話」・`DiscoveryCommon`「連載中 1話」の欠損値捏造表示／`NovelDetailScreen` の日付手書きパース（`catch(Exception)` why なし・切り出してテスト可能に）／UA "NovelReader-Android/1.0" の BuildConfig 非連動（buildConfig 機能自体が無効のため見送り）／MockWebServer で実 URL エンコードを固定するテスト1本（全テストが mockk 差し替えで Retrofit 実エンコード未検証）。※`SearchDraft` の SavedStateHandle 対応（プロセス死でドラフト全損）は ui/polish の kotlin-parcelize 導入で解消済み。
 
 - **`NativeReadingScreen`（892行）の route/Content 分割**: 系統1リファクタで唯一の残り。没入クローム・Custom Tabs 再入ガード・navHistory 等の副作用が濃く、純移動でも実機目視なしに畳むリスクが高いため見送り＝**実機検証を伴う機会に実施**。
 - **`saveScrollPosition(bookId, filename)` 等の String 連続の型付け**: 系統4 Ncode 型付け（`@JvmInline value class`）の続きの適用候補として保全。
-- **`BookRepository` インターフェース化**（テスト可能化）: 具象直参照＋static シングルトン（PDFBoxResourceLoader の Application 初期化/Room）で JVM 単体テスト不可。interface 抽出＋`FakeBookRepository`。影響 `BookRepository.kt`/`NovelReaderApplication.kt`。
 - **worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す運用**: Lint コミットゲート（`check_lint_on_commit.py`）は drvfs でスキップされる設計＝canonical 作業が続く限り事実上無効。ext4 worktree なら in-tree で回るので冒頭で1回スイープする（直近スイープ＝2026-07-08・0 errors/21 warnings＝新規起因の実質指摘は解消済み・残はノイズ）。
 
 ## workflow / tooling
@@ -76,6 +70,7 @@
 - **Tier B 汎用主張の免罪の限界**（事象D）: 「セッション内に成功実行が1回でもあれば免罪」で後半の汎用捏造を取りこぼす。具体値主張は具体照合に絞ったが汎用主張の掘り下げは将来課題。
 - **サブエージェント/オフロード全文の裏取り強化**（現状は読めなければ降格）。
 - **Tier D の K型盲点**（2026-07-08 台帳K）: 暴走 thinking 前兆を伴わない入力側捏造（応答継続中に幻のユーザーターンをロールマーカー込みで生成）は `no_thinking_anomaly` で降格し active 化できない。対策候補: ①assistant text 内の `[Request interrupted by user]`／ロールマーカー出現を拾う高精度新ルール ②降格ゲート再設計（thinking 空記録セッションでは軸2が原理的に発火不能な点も考慮）。
+- **Tier B の将来計画文の偽陽性**（2026-07-09 実測・Stop ライブで発火）: 「実機の見た目最終確認は**テスト通過後**の実機スイープ項目として**残します**」という**未来の作業計画の宣言**を `unverified_test_claim` が「テスト実行の完了報告」と誤認して発火。実行主張（過去形・完了形）と計画宣言（〜する予定・〜として残す・〜後に実施）の時制・モダリティ判別が無い。対策候補: 計画表現（「予定」「残す」「後に」「これから」等）を伴う文の免罪、または主張検知を完了形動詞に限定。メタ議論免罪欠落（下記）と同じ「発話の語用論を見ない」クラス。
 - **Tier B のメタ議論免罪欠落**（2026-07-08 実測）: 捏造を検証・報告する発話が捏造文言（「回帰テスト：全通過」等）を引用すると `unverified_test_claim` が偽陽性発火。Tier D の `meta_discussion` 降格に相当する免罪が Tier B に無い。引用・表組み文脈の認識が課題。
 - **Stop ゲート検査窓の穴**（2026-07-08 台帳L）: 捏造報告の直後に AskUserQuestion 等の tool_use が続くとターンが継続し、Stop 発火時点の検査窓（scope=last_turn）に捏造発話が入らず素通り（同じ発話を事後 CLI は Tier B で検知＝ルールでなく窓の問題）。対策候補: last_turn をターン内全 text ブロックへ拡張、または PostToolUse 側の逐次検査。
 - **意味照合系検知器**（着想段階・スコープ外構想）＝生成コード不具合・外部リサーチ捏造（正解データ事象B/C）。

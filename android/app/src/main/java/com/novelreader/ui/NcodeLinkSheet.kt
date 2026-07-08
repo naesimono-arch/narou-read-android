@@ -281,10 +281,13 @@ internal fun NcodeLinkSheet(
                                         Spacer(modifier = Modifier.height(4.dp))
                                         
                                         // 状態ラベルの作成（短編/連載中/完結済）
+                                        // なぜ話数を条件付きにするか: generalAllNo が欠損（null）のとき 0 で埋めると
+                                        // 「全0話」という実在しない話数を捏造表示してしまうため、欠損時は話数を伏せて状態のみ出す。
+                                        val episodeSuffix = novel.generalAllNo?.let { "（全${it}話）" } ?: ""
                                         val typeLabel = when {
                                             novel.novelType == 2 -> "短編"
-                                            novel.end == 1 -> "連載中（全${novel.generalAllNo ?: 0}話）"
-                                            else -> "完結済（全${novel.generalAllNo ?: 0}話）"
+                                            novel.end == 1 -> "連載中$episodeSuffix"
+                                            else -> "完結済$episodeSuffix"
                                         }
                                         val writer = novel.writer.orEmpty()
                                         val infoText = if (writer.isNotEmpty()) {

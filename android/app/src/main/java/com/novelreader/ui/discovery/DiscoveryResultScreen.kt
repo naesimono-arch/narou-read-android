@@ -168,33 +168,35 @@ internal fun DiscoveryResultContent(
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(7.dp),
                 verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(7.dp),
             ) {
-                val baseLabels = conditionChipLabels(ctx.query)
-                val labels = if (ctx.query.biggenres.isEmpty() && ctx.query.genres.isEmpty()) {
-                    // なぜ: ジャンル未指定時は、並び順チップ（baseLabels の最後）の直前に「ジャンル ⌄」チップを追加し、その場変更を可能にする。
-                    val mutable = baseLabels.toMutableList()
+                val baseChips = conditionChipLabels(ctx.query)
+                val chips = if (ctx.query.biggenres.isEmpty() && ctx.query.genres.isEmpty()) {
+                    // なぜ: ジャンル未指定時は、並び順チップ（baseChips の最後）の直前に「ジャンル ⌄」チップを追加し、その場変更を可能にする。
+                    val mutable = baseChips.toMutableList()
+                    val placeholder = ConditionChip("ジャンル", ChipKind.GENRE_PLACEHOLDER)
                     if (mutable.isNotEmpty()) {
-                        mutable.add(mutable.lastIndex, "ジャンル")
+                        mutable.add(mutable.lastIndex, placeholder)
                     } else {
-                        mutable.add("ジャンル")
+                        mutable.add(placeholder)
                     }
                     mutable
                 } else {
-                    baseLabels
+                    baseChips
                 }
-                val biggenreLabel = ctx.query.biggenres.firstOrNull()?.let { NarouGenres.biggenreLabel(it) }
-                val genreLabel = ctx.query.genres.firstOrNull()?.let { NarouGenres.genreLabel(it) }
 
-                labels.forEachIndexed { index, label ->
+                chips.forEach { chip ->
+                    val label = chip.label
                     // なぜ key(label) か: 下の clickable チップは expanded を remember する。remember は
                     // スロット位置に紐づくため、条件変更でチップ集合が増減・並び替わると、開いていた
                     // ドロップダウンの expanded が別チップへ誤流用される。label は人間可読で一意な文言
                     // （並び順は「〜順」・ジャンル名等）なので、これを識別子にして状態を各チップに固定する。
                     key(label) {
-                        // why: conditionChipLabels は末尾に必ず並び順を add するため、最後が並び順チップである。
-                        val isOrderChip = index == labels.lastIndex
-                        val isBiggenreChip = ctx.query.biggenres.size == 1 && label == biggenreLabel
-                        val isGenreChip = ctx.query.genres.size == 1 && label == genreLabel
-                        val isGenrePlaceholderChip = ctx.query.biggenres.isEmpty() && ctx.query.genres.isEmpty() && label == "ジャンル"
+                        // なぜ ChipKind で判定するか: 以前は表示文字列一致・末尾位置でチップ種別を推測していたが、
+                        // 文言や並び順を変えると静かに壊れるため、生成時に付与した種別（型）で分岐する。
+                        // 大／小ジャンルのクリック可否は「1件のみ選択時」に限る従来仕様を size 条件で維持する。
+                        val isOrderChip = chip.kind == ChipKind.ORDER
+                        val isBiggenreChip = chip.kind == ChipKind.BIG_GENRE && ctx.query.biggenres.size == 1
+                        val isGenreChip = chip.kind == ChipKind.GENRE && ctx.query.genres.size == 1
+                        val isGenrePlaceholderChip = chip.kind == ChipKind.GENRE_PLACEHOLDER
 
                         val isGenreFilterChip = isBiggenreChip || isGenreChip || isGenrePlaceholderChip
                         val isClickable = isOrderChip || isGenreFilterChip
