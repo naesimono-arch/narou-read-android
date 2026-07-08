@@ -37,7 +37,25 @@
 - **discovery-search-D モックを現状機能とすり合わせ →「キーワードから選ぶ」を採用案Bの意匠へ**（2026-07-07 発生）: 「キーワードから選ぶ」（`NarouCuratedKeywords` 計22カテゴリ）の折りたたみを Compose 実装済み（`9ba5049`）だが**モックに存在せず mock 無しで足された**＝意匠が定まらない実機フィードバックの根本原因。条件調整シートもモックと現状がズレ。**やること**: ①一次正本 `docs/design-candidates/discovery/discovery-search-D.html`（リポジトリ側が正本・claude.ai `ui-n-phase0/` は収蔵コピー）を現状機能へすり合わせ→ DesignSync で収蔵側へ同期 ②キーワード見出しを採用済みの**案B**（ヘアライン「開ける行」＋濃色見出し＋畳んでも代表語を淡色プレビュー）へ意匠更新 → Compose へ翻訳（現状 Compose は機能のみで案Bの2段プレビュー未反映）。**なぜ分離**: モックが現状を反映しておらず意匠正本を先に整えないと翻訳の拠り所が無いため。※god file 分割（`SearchConditionSheet.kt` 抽出）は `handover/task-sweep` で完了済み＝この便で触るのはモック追従＋案B翻訳のみ。
 - **本文処理の進捗にページ数もリアルタイム併記**（2026-07-06 実機でユーザー要望・優先度低）: 現状は通し%表示（%表記はユーザー評価「完璧」）。ページ n/m も併記できれば体験向上。**設計注意**: load(全ページ)と process(本文=全−4)は分母が違い、単純2カウンタ併記は「2周目に入った」錯覚が再発する→単一の連続ページ尺にするか %主・ページ副に。実装点は `PdfBookExtractor` の step-1 phase 文言（＋必要なら `ProcessingBanner`）。
 
+## なろうAPI 発見・検索機能（第2の柱・Phase 4/5 残り）
+
+> なろう公式APIの発見機能を「第2の柱」に育てる計画（案A＝本文非取得・メタのみ）。Phase 0〜3＋Phase 4 スライス1 は完了・main 統合済み（現況は `STATUS.md` §1）。
+> 目標ロードマップ・作る機能一覧の一次情報は plan `~/.claude/plans/api-agy-woolly-swan.md`。監査残課題（構造系）は下の「リファクタ / 技術的負債」へ移設済み。
+
+- **Phase 4 残り（融合本棚②＋育成 U1/U2）** ★次アクション:
+  - **(b) Web由来・未取込カード**（新データ概念＝Web作品を本棚に置く・**DB変更を伴う**）。⚠️ DB 変更時は次版=**v12**（v11 は task-sweep の `contentSha256` が消費済み＝`STATUS.md` §0）だが、**着手前に必ず全 worktree の宣言 version を先取り確認**（`grep -h "version = " ~/wt/*/android/app/src/main/java/com/novelreader/data/AppDatabase.kt`＝task_diary #39・`/db-migration` スキル）。実装時は**加工なし送客（Chrome Custom Tabs）**を適用（独自UIを被せる WebView 内包はなろう規約NG＝ADR 0010・task_diary #45）。
+  - **U1 新着話チェック＋通知**（Worker 化が濃厚）。⚠️ 本質的にバックグラウンド実行＝下の技術的負債「NovelApiRepository キャッシュの Main dispatcher 前提」と正面衝突するため、「事前の別作業」ではなく **U1 設計の一部として最初に**潰すこと（Mutex 化 or ConcurrentHashMap＋TTL で小さく済む）。
+  - **U2 整理**。
+- **Phase 5 doc昇格**: 本タスク（STATUS-api-lab 解体・2026-07-08）で大半消化（ADR 0010 化・architecture スキルへ発見/検索層の所在追記・なろうAPI実装 why を `docs/patterns/narou-api-discovery.md` へ集約）。残＝`docs/reference/03-api-feature-analysis.md`↔`04-competitor-app-features.md` の相互リンク程度（優先度低）。
+
 ## リファクタ / 技術的負債（deferred）
+
+- **[発見系・アーキ] 続きありバッジの produceState が Repository 直撃**（監査残課題1の残り）: `BookCard` の続きありバッジがカード毎に `novelDetail` を発火（テスト不能）→ `BookshelfViewModel` で一括照会し Map 配布へ。※`NcodeLinkSheet` の検索ステートマシンの VM 吊り上げ（回転で全損の解消）は task-sweep `2cd372e` で完了済み。
+- **[発見系・構造] `SearchConditionSheet` の残リファクタ**（監査残課題2の残り）: カスタム範囲入力の約90行×2コピペの部品化・段階チップ値とラベルの平行定義統合（`LENGTH_STEPS`/`TIME_STEPS` とチップ文言が別ファイル）。※主要部＝`SearchConditionSheet.kt` 抽出（1348→606行）＋カスタム2重フラグの `SearchDraft` 一本化は task-sweep `7d135ba` で解消済み。**実施タイミング＝上「discovery-search-D すり合わせ→案B翻訳」で同ファイルを触るとき**。
+- **[発見系・型] 結果画面の条件チップが表示文字列マッチ＋位置規約で種別判定**（`DiscoveryResultScreen`・監査残課題3）: `conditionChipLabels` を `List<ConditionChip(label, kind)>` へ格上げ。
+- **[発見系・機能ずれ] notword が UI 未配線のデッドパス**（監査残課題4・モデル/API/チップ文言だけ存在＝除外語入力が未実装）: `@Query("notword")` は在るので UI 配線のみ。※ページング（旧「30件打ち切り」）は F-J `c66c913` で解消済み。
+- **[発見系・将来の罠] `NovelApiRepository` のインメモリキャッシュが「全呼び出しが Main dispatcher」の暗黙不変条件で成立**（監査残課題5・素の mutableMap）: U1 新着チェック（Worker化）で踏む→ ConcurrentHashMap 化 or Main 限定の why 明記が先（上「Phase 4 U1」に紐付け）。あわせて cacheKey は trim・送信は非 trim の非対称（`NcodeLinkSheet` 経由の word が素通し）。
+- **[発見系・小粒]**（監査残課題6の残り）: `NcodeLinkSheet`「全0話」・`DiscoveryCommon`「連載中 1話」の欠損値捏造表示／`NovelDetailScreen` の日付手書きパース（`catch(Exception)` why なし・切り出してテスト可能に）／UA "NovelReader-Android/1.0" の BuildConfig 非連動（buildConfig 機能自体が無効のため見送り）／MockWebServer で実 URL エンコードを固定するテスト1本（全テストが mockk 差し替えで Retrofit 実エンコード未検証）。※`SearchDraft` の SavedStateHandle 対応（プロセス死でドラフト全損）は ui/polish の kotlin-parcelize 導入で解消済み。
 
 - **`NativeReadingScreen`（892行）の route/Content 分割**: 系統1リファクタで唯一の残り。没入クローム・Custom Tabs 再入ガード・navHistory 等の副作用が濃く、純移動でも実機目視なしに畳むリスクが高いため見送り＝**実機検証を伴う機会に実施**。
 - **`saveScrollPosition(bookId, filename)` 等の String 連続の型付け**: 系統4 Ncode 型付け（`@JvmInline value class`）の続きの適用候補として保全。
