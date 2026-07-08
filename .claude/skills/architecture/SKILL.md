@@ -94,7 +94,7 @@ triggers:
 - インメモリキャッシュは「全呼び出しが Main dispatcher」の暗黙不変条件に依存（Worker 化すると壊れる）
 
 詳細の正本（この節は所在の地図に徹し、churny な現況・仕様はこれらを見る）:
-- 現況・進捗 → `STATUS-api-lab.md`
+- 現況・進捗 → `STATUS.md`（発見・検索を含む全体の現況）／次アクション・技術的負債 → `handover.md`／実装 why → `docs/patterns/narou-api-discovery.md`
 - API仕様 → `docs/reference/narou_api_manual.md`（正本）・`02-narou-api-digest.md`（要点）／機能検討(案A) → `03-api-feature-analysis.md`
 - 検索UX設計原則 → `docs/decisions/0007-search-ux-three-principles.md`
 - なろうAPI固有の落とし穴 → `task_diary.md`「なろう小説API（検索パラメータ）」節（#46 type の OR サイレント無視・#47 noveltype↔novel_type キー名）
