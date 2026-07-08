@@ -34,11 +34,16 @@ import java.util.Locale
 // 色は MaterialTheme.colorScheme（Color.kt トークン）経由・直書き禁止（ADR 0005）。
 // ============================================================
 
-/** 「連載中 127話」「完結 88話」「短編」。end の意味は仕様書どおり直感と逆（0=短編・完結済）。 */
+/**
+ * 「連載中 127話」「完結 88話」「短編」。end の意味は仕様書どおり直感と逆（0=短編・完結済）。
+ * 話数（generalAllNo）が欠損（null）のときは話数を出さず状態のみ表示する。
+ * なぜ 0/1 で埋めないか: of で general_all_no を外すと欠損しうるが、そこを 1 等で補うと
+ * 「連載中 1話」のような実データに無い話数を捏造表示してしまうため（欠損は正直に伏せる）。
+ */
 fun novelStatusLabel(novel: NarouNovel): String {
     if (novel.novelType == 2) return "短編"
-    val episodes = novel.generalAllNo ?: 1
-    return if (novel.end == 0) "完結 ${episodes}話" else "連載中 ${episodes}話"
+    val status = if (novel.end == 0) "完結" else "連載中"
+    return novel.generalAllNo?.let { "$status ${it}話" } ?: status
 }
 
 /** 読了時間（分）→「約12分」「約8時間」。time 欠損時は length から導出（読了時間＝文字数÷500 切り上げ）。 */
