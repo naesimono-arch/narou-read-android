@@ -248,20 +248,26 @@ private fun NovelReaderApp(
                 // 境界: nav 引数は String。詳細画面へは型付き Ncode へ包んで渡す。
                 ncode = Ncode(ncode),
                 viewModel = viewModel(),
-                onKeywordTap = { kw ->
-                    discoveryViewModel.openResult(ResultContext(
-                        title = "「$kw」", subtitle = "キーワードから",
-                        source = ResultSource.KEYWORD,
-                        query = DiscoveryQuery(word = kw, inKeyword = true),
-                    ))
-                    navController.navigate("discovery/result") {
-                        launchSingleTop = true
-                        // why(F-A): キーワードタップの結果一覧は「どの経路で detail に来たか」で Back 先が
-                        // 割れていた（result 経由なら result が隠れて残り、home 直行なら残らない）。
-                        // popUpTo("discovery", inclusive=false) で discovery より上（既存 result・detail）を
-                        // 全て畳んでから result を1枚積むことで、両経路とも [bookshelf, discovery, result] に固定する。
-                        // resultContext は VM 単一保持のため、result を常に1枚に保つ SSOT もこれで維持される。
-                        popUpTo("discovery") { inclusive = false }
+                onSearchKeywords = { words ->
+                    // 複数キーワード（フィードバック2）: word へ半角スペース連結して inKeyword で検索する。
+                    // 選択0件で呼ばれることはない（アクションは1件以上のときのみ表示）が、防御的に空を弾く。
+                    if (words.isNotEmpty()) {
+                        // title は1件なら従来どおり「「語」」、複数件は語の羅列だと見切れるため件数表記に畳む。
+                        val title = if (words.size == 1) "「${words.first()}」" else "キーワード${words.size}件"
+                        discoveryViewModel.openResult(ResultContext(
+                            title = title, subtitle = "キーワードから",
+                            source = ResultSource.KEYWORD,
+                            query = DiscoveryQuery(word = words.joinToString(" "), inKeyword = true),
+                        ))
+                        navController.navigate("discovery/result") {
+                            launchSingleTop = true
+                            // why(F-A): キーワードタップの結果一覧は「どの経路で detail に来たか」で Back 先が
+                            // 割れていた（result 経由なら result が隠れて残り、home 直行なら残らない）。
+                            // popUpTo("discovery", inclusive=false) で discovery より上（既存 result・detail）を
+                            // 全て畳んでから result を1枚積むことで、両経路とも [bookshelf, discovery, result] に固定する。
+                            // resultContext は VM 単一保持のため、result を常に1枚に保つ SSOT もこれで維持される。
+                            popUpTo("discovery") { inclusive = false }
+                        }
                     }
                 },
                 onBack = { navController.popBackStack() },
