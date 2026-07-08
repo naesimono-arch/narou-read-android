@@ -20,12 +20,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
+import com.novelreader.ui.theme.colors
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -58,158 +60,215 @@ internal fun ReadingSettingsSheet(
         containerColor = colors.background,
         contentColor = colors.text,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp),
-        ) {
-            Text(
-                text = "表示設定",
-                style = MaterialTheme.typography.titleMedium,
-                // モック settings-D .sheet h2: 明朝・weight600・字間.08em
-                fontFamily = MinchoFamily,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.08.em,
-            )
-            Spacer(Modifier.height(16.dp))
-            Text(
-                text = "テーマ",
-                style = MaterialTheme.typography.labelMedium,
-            )
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // values() を使うのは Kotlin バージョン非依存のため（entries は 1.9+）
-                ReadingTheme.values().forEach { theme ->
-                    FilterChip(
-                        selected = readingTheme == theme,
-                        onClick = { onThemeChange(theme) },
-                        label = {
-                            Text(
-                                when (theme) {
-                                    ReadingTheme.LIGHT -> "ライト"
-                                    ReadingTheme.SEPIA -> "セピア"
-                                    ReadingTheme.DARK -> "ダーク"
-                                }
-                            )
-                        },
-                        // 選択色をアクセント(朱)に統一する。
-                        // M3 既定だと secondaryContainer（青鼠）になりアプリの主役色から外れるため。
-                        // システムテーマではなく読書テーマの colors を使い、シート背景(colors.background)と調和させる。
-                        colors = FilterChipDefaults.filterChipColors(
-                            labelColor = colors.text,
-                            selectedContainerColor = colors.accent,
-                            selectedLabelColor = colors.background,
-                        ),
-                    )
-                }
-            }
-            // スライダー共通色。モック settings-D は目盛りドットを持たない細線＋藍フィルのため、
-            // steps のスナップは維持したまま tick 色だけ透明化して視覚的に消す。
-            // フィル/つまみはシート全体と同じく読書テーマの藍（colors.accent）に追従させる。
-            val sliderColors = SliderDefaults.colors(
-                thumbColor = colors.accent,
-                activeTrackColor = colors.accent,
-                activeTickColor = Color.Transparent,
-                inactiveTickColor = Color.Transparent,
-            )
-            Spacer(Modifier.height(24.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "文字サイズ",
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.weight(1f),
+        ReadingSettingsSheetContent(
+            colors = colors,
+            readingTheme = readingTheme,
+            onThemeChange = onThemeChange,
+            fontSize = fontSize,
+            onFontSizeChange = onFontSizeChange,
+            onFontSizePersist = onFontSizePersist,
+            lineHeightEm = lineHeightEm,
+            onLineHeightChange = onLineHeightChange,
+            onLineHeightPersist = onLineHeightPersist,
+            bodyMarginDp = bodyMarginDp,
+            onBodyMarginChange = onBodyMarginChange,
+            onBodyMarginPersist = onBodyMarginPersist,
+        )
+    }
+}
+
+/** シート内容（見出し・テーマ3択・スライダー3本）。ReadingSettingsSheet からの純移動。
+ *  なぜ ModalBottomSheet と分離するか: 内容は state+callback の純粋な葉で、シート枠
+ *  （別ウィンドウ描画・開閉アニメ・部分展開で下部が画面外に出る）と切り離すことで
+ *  Robolectric の JVM UI テスト（ADR 0009）が可視判定・クリック注入を安定検証できるため。 */
+@Composable
+internal fun ReadingSettingsSheetContent(
+    colors: ReadingColors,
+    readingTheme: ReadingTheme,
+    onThemeChange: (ReadingTheme) -> Unit,
+    fontSize: Int,
+    onFontSizeChange: (Int) -> Unit,
+    onFontSizePersist: () -> Unit,
+    lineHeightEm: Float,
+    onLineHeightChange: (Float) -> Unit,
+    onLineHeightPersist: () -> Unit,
+    bodyMarginDp: Int,
+    onBodyMarginChange: (Int) -> Unit,
+    onBodyMarginPersist: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
+            .padding(bottom = 32.dp),
+    ) {
+        Text(
+            text = "表示設定",
+            style = MaterialTheme.typography.titleMedium,
+            // モック settings-D .sheet h2: 明朝・weight600・字間.08em
+            fontFamily = MinchoFamily,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.08.em,
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = "テーマ",
+            style = MaterialTheme.typography.labelMedium,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // values() を使うのは Kotlin バージョン非依存のため（entries は 1.9+）
+            ReadingTheme.values().forEach { theme ->
+                FilterChip(
+                    selected = readingTheme == theme,
+                    onClick = { onThemeChange(theme) },
+                    label = {
+                        Text(
+                            when (theme) {
+                                ReadingTheme.LIGHT -> "ライト"
+                                ReadingTheme.SEPIA -> "セピア"
+                                ReadingTheme.DARK -> "ダーク"
+                            }
+                        )
+                    },
+                    // 選択色をアクセント(朱)に統一する。
+                    // M3 既定だと secondaryContainer（青鼠）になりアプリの主役色から外れるため。
+                    // システムテーマではなく読書テーマの colors を使い、シート背景(colors.background)と調和させる。
+                    colors = FilterChipDefaults.filterChipColors(
+                        labelColor = colors.text,
+                        selectedContainerColor = colors.accent,
+                        selectedLabelColor = colors.background,
+                    ),
                 )
-                // 現在値は右端の藍数字（モック settings-D の値表示）。ラベル連結より視線移動が少ない
-                Text(
-                    text = "${fontSize}sp",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.accent,
-                )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // 両端の「あ」はスライダーの効果（最小・最大の文字サイズ）を視覚的に示す
-                Text("あ", fontSize = 14.sp, fontFamily = MinchoFamily)
-                Slider(
-                    value = fontSize.toFloat(),
-                    onValueChange = { onFontSizeChange(it.roundToInt()) },
-                    // ドラッグ確定時に一度だけ永続化（ドラッグ中の毎値 prefs 書き込みを避ける）
-                    onValueChangeFinished = onFontSizePersist,
-                    valueRange = 14f..24f,
-                    // steps = 9 で 14〜24sp を 1sp 刻みの離散値にする（中間刻み = 範囲幅 - 1）
-                    steps = 9,
-                    colors = sliderColors,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 12.dp),
-                )
-                Text("あ", fontSize = 24.sp, fontFamily = MinchoFamily)
-            }
-            Spacer(Modifier.height(24.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "行間",
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    // なぜ Locale.US を明示するか: 既定ロケールだと欧州端末等で小数点が
-                    // 「2,5」のようにカンマ表記に化けるため、表示を一貫させる。
-                    text = String.format(Locale.US, "%.1f", lineHeightEm),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.accent,
-                )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // 両端の「狭／広」で行間スライダーの効果を視覚的に示す
-                Text("狭", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
-                Slider(
-                    value = lineHeightEm,
-                    // 0.1em 刻みに丸める。前行とのルビ被りを避けるため狭めレンジ(2.3〜2.8)に固定。
-                    onValueChange = { onLineHeightChange((it * 10).roundToInt() / 10f) },
-                    // ドラッグ確定時に一度だけ永続化
-                    onValueChangeFinished = onLineHeightPersist,
-                    valueRange = 2.3f..2.8f,
-                    // steps = 4 で 2.3〜2.8em を 0.1em 刻みの離散値にする（中間刻み = 区切り数 - 1）
-                    steps = 4,
-                    colors = sliderColors,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 12.dp),
-                )
-                Text("広", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
-            }
-            Spacer(Modifier.height(24.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "本文余白",
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = "${bodyMarginDp}dp",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.accent,
-                )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // 両端の「狭／広」で余白スライダーの効果を視覚的に示す
-                Text("狭", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
-                Slider(
-                    value = bodyMarginDp.toFloat(),
-                    onValueChange = { onBodyMarginChange(it.roundToInt()) },
-                    // ドラッグ確定時に一度だけ永続化
-                    onValueChangeFinished = onBodyMarginPersist,
-                    // 10〜40dp を 5dp 刻み（steps=5）。既定 15 がグリッドに乗るレンジ設計
-                    valueRange = 10f..40f,
-                    steps = 5,
-                    colors = sliderColors,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 12.dp),
-                )
-                Text("広", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
             }
         }
+        // スライダー共通色。モック settings-D は目盛りドットを持たない細線＋藍フィルのため、
+        // steps のスナップは維持したまま tick 色だけ透明化して視覚的に消す。
+        // フィル/つまみはシート全体と同じく読書テーマの藍（colors.accent）に追従させる。
+        val sliderColors = SliderDefaults.colors(
+            thumbColor = colors.accent,
+            activeTrackColor = colors.accent,
+            activeTickColor = Color.Transparent,
+            inactiveTickColor = Color.Transparent,
+        )
+        Spacer(Modifier.height(24.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "文字サイズ",
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.weight(1f),
+            )
+            // 現在値は右端の藍数字（モック settings-D の値表示）。ラベル連結より視線移動が少ない
+            Text(
+                text = "${fontSize}sp",
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.accent,
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // 両端の「あ」はスライダーの効果（最小・最大の文字サイズ）を視覚的に示す
+            Text("あ", fontSize = 14.sp, fontFamily = MinchoFamily)
+            Slider(
+                value = fontSize.toFloat(),
+                onValueChange = { onFontSizeChange(it.roundToInt()) },
+                // ドラッグ確定時に一度だけ永続化（ドラッグ中の毎値 prefs 書き込みを避ける）
+                onValueChangeFinished = onFontSizePersist,
+                valueRange = 14f..24f,
+                // steps = 9 で 14〜24sp を 1sp 刻みの離散値にする（中間刻み = 範囲幅 - 1）
+                steps = 9,
+                colors = sliderColors,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp),
+            )
+            Text("あ", fontSize = 24.sp, fontFamily = MinchoFamily)
+        }
+        Spacer(Modifier.height(24.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "行間",
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                // なぜ Locale.US を明示するか: 既定ロケールだと欧州端末等で小数点が
+                // 「2,5」のようにカンマ表記に化けるため、表示を一貫させる。
+                text = String.format(Locale.US, "%.1f", lineHeightEm),
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.accent,
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // 両端の「狭／広」で行間スライダーの効果を視覚的に示す
+            Text("狭", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
+            Slider(
+                value = lineHeightEm,
+                // 0.1em 刻みに丸める。前行とのルビ被りを避けるため狭めレンジ(2.3〜2.8)に固定。
+                onValueChange = { onLineHeightChange((it * 10).roundToInt() / 10f) },
+                // ドラッグ確定時に一度だけ永続化
+                onValueChangeFinished = onLineHeightPersist,
+                valueRange = 2.3f..2.8f,
+                // steps = 4 で 2.3〜2.8em を 0.1em 刻みの離散値にする（中間刻み = 区切り数 - 1）
+                steps = 4,
+                colors = sliderColors,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp),
+            )
+            Text("広", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
+        }
+        Spacer(Modifier.height(24.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "本文余白",
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = "${bodyMarginDp}dp",
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.accent,
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // 両端の「狭／広」で余白スライダーの効果を視覚的に示す
+            Text("狭", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
+            Slider(
+                value = bodyMarginDp.toFloat(),
+                onValueChange = { onBodyMarginChange(it.roundToInt()) },
+                // ドラッグ確定時に一度だけ永続化
+                onValueChangeFinished = onBodyMarginPersist,
+                // 10〜40dp を 5dp 刻み（steps=5）。既定 15 がグリッドに乗るレンジ設計
+                valueRange = 10f..40f,
+                steps = 5,
+                colors = sliderColors,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp),
+            )
+            Text("広", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
+        }
     }
+}
+
+// ── Preview ──────────────────────────────────────────────
+// なぜ Content を直接 Preview するか: シート内容（テーマ3択・各スライダーと値ラベル）の意匠を
+// 確認するのが目的で、シート枠（別ウィンドウ・開閉アニメ）は Preview 対象外のため。
+@Preview(showBackground = true)
+@Composable
+private fun ReadingSettingsSheetPreview() {
+    ReadingSettingsSheetContent(
+        colors = ReadingTheme.LIGHT.colors,
+        readingTheme = ReadingTheme.LIGHT,
+        onThemeChange = {},
+        fontSize = 18,
+        onFontSizeChange = {},
+        onFontSizePersist = {},
+        lineHeightEm = 2.5f,
+        onLineHeightChange = {},
+        onLineHeightPersist = {},
+        bodyMarginDp = 20,
+        onBodyMarginChange = {},
+        onBodyMarginPersist = {},
+    )
 }

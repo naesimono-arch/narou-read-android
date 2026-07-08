@@ -38,12 +38,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.model.TocEntry
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
+import com.novelreader.ui.theme.ReadingTheme
+import com.novelreader.ui.theme.colors
 
 /**
  * 目次のロード状態。
@@ -279,4 +282,64 @@ private fun TocSkeleton(colors: ReadingColors, modifier: Modifier = Modifier) {
             HorizontalDivider(color = colors.divider, thickness = 0.5.dp)
         }
     }
+}
+
+// ── Preview ──────────────────────────────────────────────
+
+@Preview(showBackground = true)
+@Composable
+private fun NativeTocPreview_Content() {
+    NativeTableOfContentsScreen(
+        tocState = TocState.Content(
+            listOf(
+                TocEntry(title = "第一章 出会い", fileName = "chap_1.html"),
+                TocEntry(title = "第二章 旅立ち", fileName = "chap_2.html"),
+                TocEntry(title = "第三章 決戦", fileName = "chap_3.html"),
+            )
+        ),
+        colors = ReadingTheme.LIGHT.colors,
+        currentChapterFile = "chap_2.html",
+        onSelectChapter = {},
+        onNavigateToBookshelf = {},
+        onRetry = {},
+    )
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun NativeTocPreview_Loading() {
+    NativeTableOfContentsScreen(
+        tocState = TocState.Loading,
+        colors = ReadingTheme.LIGHT.colors,
+        currentChapterFile = null,
+        onSelectChapter = {},
+        onNavigateToBookshelf = {},
+        onRetry = {},
+    )
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun NativeTocPreview_Empty() {
+    NativeTableOfContentsScreen(
+        tocState = TocState.Empty,
+        colors = ReadingTheme.LIGHT.colors,
+        currentChapterFile = null,
+        onSelectChapter = {},
+        onNavigateToBookshelf = {},
+        onRetry = {},
+    )
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun NativeTocPreview_Error() {
+    NativeTableOfContentsScreen(
+        tocState = TocState.Error("index.html が見つかりません"),
+        colors = ReadingTheme.DARK.colors,
+        currentChapterFile = null,
+        onSelectChapter = {},
+        onNavigateToBookshelf = {},
+        onRetry = {},
+    )
 }

@@ -11,10 +11,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
+import com.novelreader.ui.theme.ReadingTheme
+import com.novelreader.ui.theme.colors
 
 /** エラー表示UI（ファイル欠損・パース失敗時）*/
 @Composable
@@ -59,4 +62,28 @@ internal fun ReadingErrorScreen(
             }
         }
     }
+}
+
+// ── Preview ──────────────────────────────────────────────
+
+@Preview(showBackground = true)
+@Composable
+private fun ReadingErrorScreenPreview_WithRetry() {
+    ReadingErrorScreen(
+        message = "ファイルが見つかりません",
+        colors = ReadingTheme.LIGHT.colors,
+        onNavigateToBookshelf = {},
+        onRetry = {},
+    )
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun ReadingErrorScreenPreview_NoRetry() {
+    ReadingErrorScreen(
+        message = "index.html の解析に失敗しました",
+        colors = ReadingTheme.DARK.colors,
+        onNavigateToBookshelf = {},
+        onRetry = null,
+    )
 }

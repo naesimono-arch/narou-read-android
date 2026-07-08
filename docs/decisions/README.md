@@ -16,3 +16,4 @@
 | [0006](0006-detect-fabricated-execution-static-analysis.md) | 実行捏造ハルシネーションのトランスクリプト静的解析検知（スコープ・Why-not） | — |
 | [0007](0007-search-ux-three-principles.md) | 検索UXの3原則（①見えている条件はその場で変えられる ②検索の仕組みを隠さない ③語彙を知らなくても絞り込める） | — |
 | [0008](0008-no-hook-dispatcher.md) | コミット系フックの単一ディスパッチャ不採用（フックは並列実行・共有は定義モジュール hooks_common.py のみ）。旧 0007＝二重採番解消で移動（2026-07-08） | — |
+| [0009](0009-robolectric-for-compose-ui-tests.md) | 葉 Composable の UI テストは Robolectric（JVM・testDebugUnitTest 同乗）で回す（androidTest 非採用＝ColorOS freeze/kill・実機必須／スクショ非採用＝ADR 0005 §B） | — |

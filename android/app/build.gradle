@@ -56,6 +56,10 @@ android {
     testOptions {
         unitTests {
             returnDefaultValues true
+            // Robolectric + Compose UI テスト（葉 Composable の semantics 検証）に必須。
+            // includeAndroidResources=false のままだと Robolectric が merged manifest/リソースを
+            // 読めず createComposeRule が起動時に落ちるため。純JVMテスト（PDF/parser 等）には無影響。
+            includeAndroidResources true
         }
     }
     sourceSets {
@@ -134,6 +138,17 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'io.mockk:mockk:1.13.10'
     testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3'
+    // 葉 Composable の UI テストを JVM（Robolectric）で回すための基盤（ADR 0009）。
+    // なぜ androidTest ではなく Robolectric か: 実機不要で testDebugUnitTest ゲートに同乗でき、
+    // ColorOS の freeze/kill 問題（task_diary #36-38）を避けられるため。
+    // 版固定 4.11.1: compileSdk/targetSdk 34 を正式サポートする安定版（4.12 系は不要な追従リスク）。
+    testImplementation 'org.robolectric:robolectric:4.11.1'
+    // BOM 管理下なので ui-test の版指定は不要（compose-bom 2025.02.00 が解決）。
+    testImplementation platform('androidx.compose:compose-bom:2025.02.00')
+    testImplementation 'androidx.compose.ui:ui-test-junit4'
+    // createComposeRule が起動する ComponentActivity の宣言を unit test の manifest に供給する。
+    // debugImplementation 側にも在るが、testDebugUnitTest のクラスパスへ確実に載せるため明示追加。
+    testImplementation 'androidx.compose.ui:ui-test-manifest'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     // Room migration の実機検証（MigrationTestHelper）。identity hash 起因の起動即クラッシュを

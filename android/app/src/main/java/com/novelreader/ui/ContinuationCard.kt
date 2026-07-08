@@ -26,12 +26,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.ContinuationInfo
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
+import com.novelreader.ui.theme.ReadingTheme
+import com.novelreader.ui.theme.colors
 
 /**
  * なろうで続きが公開されている場合に、章末尾に表示する継続案内カード。
@@ -247,4 +250,48 @@ internal fun ContinuationLinkPrompt(
             )
         }
     }
+}
+
+// ── Preview ──────────────────────────────────────────────
+
+@Preview(showBackground = true, backgroundColor = 0xFFFBFAF8)
+@Composable
+private fun ContinuationCardPreview_NewEpisodes() {
+    ContinuationCard(
+        info = ContinuationInfo.NewEpisodes(
+            ncode = "n1234ab",
+            totalEpisodes = 130,
+            pdfEpisodes = 127,
+            nextEpisode = 128,
+            newCount = 3,
+        ),
+        colors = ReadingTheme.LIGHT.colors,
+        bodyMarginDp = 15,
+        onReadContinuation = {},
+        onOpenWorkPage = {},
+        onUnlink = {},
+    )
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFFFBFAF8)
+@Composable
+private fun ContinuationCardPreview_UpToDate() {
+    ContinuationCard(
+        info = ContinuationInfo.UpToDate(ncode = "n1234ab", totalEpisodes = 130),
+        colors = ReadingTheme.LIGHT.colors,
+        bodyMarginDp = 15,
+        onReadContinuation = {},
+        onOpenWorkPage = {},
+        onUnlink = {},
+    )
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFFFBFAF8)
+@Composable
+private fun ContinuationLinkPromptPreview() {
+    ContinuationLinkPrompt(
+        colors = ReadingTheme.LIGHT.colors,
+        bodyMarginDp = 15,
+        onClick = {},
+    )
 }
