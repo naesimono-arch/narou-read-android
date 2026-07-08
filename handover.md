@@ -10,6 +10,7 @@
 > レビュー中・実装中に出た宿題や着想で、まだ正式バックログに整理していないものをここへ。
 > 育ったら下のA〜Dへ移す。
 
+- **[UX/監査 2026-07-08] UX・導線フル監査 → 指摘28件を §E に整理**: 原典9不変則×層②×4状態を判定基準に8観点fan-out＋各Critical/Major指摘を敵対的検証（43エージェント・生47指摘→CONFIRMED 35/REFUTED 0/Minor降格13→重複統合で28件）。**Critical 2**〔F-G 同一PDF二重取込で蔵書2冊／F-C 結果一覧がprocess deathで消え自動退去〕・Major 14・Minor 12。芯＝①ナビ戻り先の経路依存（Back/Up未分離） ②VM状態のSavedStateHandle未対応（process death喪失） ③目次・本棚・読書ルートで4状態（Loading/Error）欠落。いずれも局所修正で解消可能。**読書位置＝生命線は堅牢＝退行させないこと**。詳細・修正案・要検証10件は §E／全文レポートは本セッションの Artifact（`https://claude.ai/code/artifact/f56cbe66-0477-4b5c-9f1d-5b04e22fefff`）。
 - ~~**[実機/最優先] 2026-07-08 統合ツリーの実機スモーク**~~ → **①②④＋MigrationTest 消化済み（2026-07-08 実機 PGEM10）／残=③のみ（ユーザー判断で見送り）**。〈実機検証サマリ〉**①発見系＋外部/継続読書 ✅**＝発見5系統（ホーム/結果/詳細/検索入力/空結果=DiscoveryStatus.Empty）なろうAPIライブ描画・「なろうで読む」Custom Tab で正ncodeページ起動・PDF↔Web継続（第951話末に新着4話検出「第952話から続きを読む」カード）が全て正常。**②v9→v10 migration ✅**＝実機・実DB(v9・8冊)で起動即クラッシュなし・DB→v10・蔵書8/progress4/pending_jobs0 生存。**④UI粒リファクタ ✅**＝設定シート3スライダー・ドラッグ中プレビュー追従(文字16→22sp即再レイアウト)・`onValueChangeFinished`永続化が強制終了→再起動を越えて保持・スクロール位置保存(通常back/force-kill両方で復元)・本棚⋮テーマメニュー・DiscoveryStatus content+empty。**BOM 2025.02.00/material3 1.3.1 下でチップ/カード/ModalBottomSheet 描画正常**。**残 ③ resilience(applicationScope)×FGSスコープ再生成fix(`810f2dd`)の共存動作＝未検証（見送り）**＝実PDF処理ジョブ+強制killが要りinvasive／`feat/processing-resilience`で既に実機3/3緑・今回マージの変更はRoom v9→v10層(＝migration検証済)ゆえ優先度低。**変換の停止/再開の再目視**も同便(同じく実PDF要・再開時は本棚に本を増やさぬよう既存spike-*本 or 短編PDFで)。以下は元の詳細メモ（残③実施時に参照）: 次の実機作業の最初にやること。①発見系5画面＋PDF↔Web継続読書＋変換の停止/再開の統合スモーク ②v9→v10 migration の実機通過（起動即クラッシュ監視＝task_diary #39 追補の機序） ③resilience（applicationScope）× FGS スコープ再生成 fix（`810f2dd`）の共存動作。**特に注意**: 発見UIの実機検証は全て旧 BOM（material3 1.2.1）時代のもので、統合により BOM 2025.02.00（material3 1.3.1）が発見UIへ初適用＝ModalBottomSheet を多用する条件シート・紐付けシートは挙動/見た目が変わりうる層（スライダー意匠が変わった前例＝§B）。**④同便で追加（2026-07-08 `refactor/handover-light-batch` 分）**: UI粒リファクタは「見た目不変」を静的検証済みだが実機目視は未実施 → スモーク時に〈発見系3画面の Loading/空/エラー表示（DiscoveryStatus 化）・本棚の空状態/処理中バナー・読書設定シートのスライダー3本（ドラッグ中プレビュー追従＋離した後の永続化＝アプリ強制終了→再起動で値が残るか）・スクロール位置保存〉を通常操作の範囲で確認。あわせて Room Migration androidTest（本ブランチで新規作成・未実行）を /device-verify 作法で回す。
 - **[品質/lint] 統合1万行の Android Lint 初回スイープ完了（2026-07-08・ext4 一時worktreeで実施）**: **0 errors / 21 warnings**。~~新規コード起因の実質指摘は2件のみ~~ → **実質指摘2件は解消済み（2026-07-08・`refactor/handover-light-batch`）**: ①`PdfProcessingService.kt` InlinedApi＝`ServiceCompat.startForeground` が SDK<29 で type 引数を捨てる2引数版へフォールバックすることを core-1.12.0 バイトコードの javap で実証し、根拠コメント付き `@SuppressLint("InlinedApi")`（API 26-28 で定数が評価される経路は存在しない＝「未検証」は解消） ②`DiscoveryCommon.kt` ModifierParameter＝系統2/3 リファクタと同時解消。残りはノイズ＝GradleDependency 12件（新版通知・意図的据え置き）／外部jar bouncycastle 3件／積年リソース系（DataExtractionRules・MonochromeLauncherIcon×2・ObsoleteSdkInt）。**構造メモ**: Lint コミットゲート（`check_lint_on_commit.py`）は drvfs でスキップされる設計＝canonical 作業が続く限り事実上無効 → **worktree（ext4）作業の冒頭で `gw :app:lintDebug` を回す**のを運用に組み込む。
 - **[テスト投資] Room Migration の instrumented テスト** → **作成済み・実行のみ残（2026-07-08・`refactor/handover-light-batch`）**: `androidTest/java/com/novelreader/data/MigrationTest.kt` 新規（3テスト＝①7→8→9→10 を1段ずつ `runMigrationsAndValidate`（**v9 段のみ `validateDroppedTables=false`**＝9.json は並列レーン採番の系譜で pending_jobs を含まないが実 DB には 7→8 で作った同テーブルが正しく残る、という統合系譜の歪みをテストが明示 encode） ②v7 投入データの 7→10 生存検証 ③fresh install の identity hash 照合＝task_diary #39 の起動即クラッシュを実機前に捕まえる）。**本番 AppDatabase の Migration を直接参照**（private→internal 化で写経複製を排除＝二重真実源なし）。`room-testing` 依存＋schemas の androidTest assets 公開も済み。`compileDebugAndroidTestKotlin` 緑まで確認済み。**→ 実行済み・3/3 緑（2026-07-08 実機 PGEM10・`am instrument -w -e class com.novelreader.data.MigrationTest com.novelreader.test/androidx.test.runner.AndroidJUnitRunner`＝Time 0.109s／`OK (3 tests)`）。本番DB "novel_reader_db" 無傷を実証（実行後も user_version 9・8冊維持）＝独立の使い捨てDBのみ使用・残骸(migration-chain/data-test.db)は掃除済み**。`gw connectedAndroidTest` 直叩きは禁忌（task_diary #36）のため am instrument で回避。
@@ -106,3 +107,61 @@
 - **BookRepository インターフェース化**（テスト可能化）: 具象直参照＋static シングルトン(PDFBoxResourceLoader の Application 初期化/Room)で JVM単体テスト不可。interface 抽出＋`FakeBookRepository`。影響 `BookRepository.kt`/`NovelReaderApplication.kt`。
 - **Phase3 外部連携**: ①内部ブラウザからPDF直接取込＆動線追加 ②「小説家になろう」公式API連携・ランキング表示（`docs/reference/narou_api_manual.md` 参照）。
 - ~~**doc アーキの main↔lab 乖離**（2026-07-02 発覚）~~ → **解消済み（2026-07-02）**: lab の実質新規（変換 A①③④・DB v7・想起フック修正・実装知見）を main へ論理単位で統合し、doc 正本を main へ一本化・lab を廃止した。規約と実態の逆転（旧「整頓は lab で」）は解消し、以後 doc 整理は main で行う。※main 側の綻び（STATUS.md デッドリンク・ADR 0001 二重採番）も 2026-07-02 に解消済み。
+
+---
+
+## E. UX監査バックログ（2026-07-08・原典9不変則×層②×4状態）
+
+> **出典**: UX原則体系（`/mnt/c/Users/qingj/Desktop/project/UX/01〜06`）を判定基準に、8観点fan-out＋各Critical/Major指摘をコード実体で敵対的検証（43エージェント・生47指摘→CONFIRMED 35/REFUTED 0/Minor降格13→重複統合で28件）。全文レポート＝本セッションの Artifact `https://claude.ai/code/artifact/f56cbe66-0477-4b5c-9f1d-5b04e22fefff`。
+> **芯は3つ**（いずれも局所修正で解消可能）: ①ナビ戻り先が経路依存（Back/Up未分離） ②VM状態が SavedStateHandle 未対応で process death に弱い ③目次・本棚・読書ルートで4状態（特に Loading/Error）欠落。
+> **壊してはいけない良い点**（修正時に退行させない）: 〈読書位置＝生命線〉Room永続＋`rememberSaveable`で process death 耐性・目次閲覧は進捗非上書き（ブロックリスト方式）／〈SSOT・UDF〉先行Job cancel で「最後の要求だけが状態を書く」を構造保証／〈ナビ骨格〉固定起点(bookshelf)＋Back握りつぶし皆無で袋小路が無い。
+> file:line はいずれも `android/app/src/main/java/com/novelreader/` 配下（監査時点 ui/polish）。
+
+### E-Critical（層①違反・実害あり）
+
+- **F-G 公理3 べき等性 — 同一PDF二重取込で蔵書2冊＋変換二重実行**（`repository/BookRepository.kt:71` が毎回 `UUID.randomUUID()` 採番／`PdfProcessingService.kt:111` の `uriQueue.add` が重複チェック無）。`pending_jobs` は REPLACE で冪等だが本体登録が非冪等。**修正**: 取込前に URI（または表示名＋サイズ／内容ハッシュ）で既存蔵書・処理中キューを照合し重複はスキップ（upsert・冪等キー）。最低限 add 前に contains 判定。
+- **F-C 公理6＋公理9 — 結果一覧が process death で消え、操作なしに前画面へ強制退去**（`viewmodel/DiscoveryViewModel.kt:87` `_resultContext` がメモリのみ／`ui/discovery/DiscoveryResultScreen.kt:69` `ctx==null` で自動 `onBack`）。ncode を SavedState で持つ NovelDetailScreen が復元できるのと非対称。**修正**: ResultContext(query/source/title) を Parcelable 化し SavedStateHandle へ保存、復帰時 `loadResult()` で再取得。自動 pop 退避を廃止。
+
+### E-Major
+
+**【ナビ経路依存（Back/Up未分離）】**
+- **F-A 公理1/2 — キーワード→結果一覧の Back が経路依存**（`MainActivity.kt:177-179`）。`popUpTo` 対象の在否（隠れた履歴）で Back 先が詳細/発見ホームに割れる。**修正**: `popUpTo("discovery"){inclusive=false}` で両経路とも `[bookshelf,discovery,result]` に固定（result単一化=SSOTは維持）。
+- **F-B 公理1/Android §A/公理4 — 読書 Back が章・目次を1段も遡らず本棚へ overshoot**（`ui/NativeReadingScreen.kt:399-406` BackHandler 意図的見送り／`MainActivity.kt:214`）。章送り・目次遷移が内部state `currentFile` 書換のみで Back スタック不介入。**修正**: 章⇄目次の履歴を `rememberSaveable` で持ち BackHandler で「履歴があれば1つ前へ、無ければ本棚」に段階化（Up=←は本棚のまま）。
+- **F-D 公理1 Up/Back — 結果一覧 App bar の←が経路で別階層へ**（`ui/discovery/DiscoveryResultScreen.kt:85-92`／`MainActivity.kt:158`）。**修正**: ←を固定Up（例:発見ホーム）に統一し、履歴Backは端末Backへ委ねる。
+
+**【状態永続（SavedStateHandle / rememberSaveable）】**
+- **F-E 公理6 — 検索ドラフトが process death で全消失**（`viewmodel/DiscoveryViewModel.kt:152` `searchDraft=MutableStateFlow`）。VM保持で回転は生きるが SavedStateHandle 未使用（doc自身「往復で残す」意図を明記）。**修正**: word・filters を SavedStateHandle にミラー。
+- **F-F 公理6 — 検索シート・展開/折りたたみが構成変更で閉じる**（`ui/discovery/DiscoverySearchScreen.kt:103/335/377` が素の `remember`）。縦スクロールは残るのに展開だけ消える不整合。**修正**: `rememberSaveable`化（Mapはsaver付き）。※読書の設定/紐付けシート開閉（`ui/NativeReadingScreen.kt:323/397`）も同型＝E-Minorに再掲。
+
+**【4状態欠落】**
+- **F-K 公理8/4状態 — 目次が Loading/Error 欠落・パース中に「章が見つかりません」誤表示**（`ui/NativeReadingScreen.kt:206-210` produceState initialValue=emptyList／`ui/NativeTableOfContentsScreen.kt:93-106` isEmpty一点判定）。**修正**: `TocState=Loading/Empty/Error/Content` を渡す（Loadingはスケルトン・真EmptyのみCTA・例外はError＋再試行）。
+- **F-M 公理8/6 — process death復元/削除本で読書画面が白画面デッドエンド**（`MainActivity.kt:199-217` の `if(book!=null)` に else 無し／`viewmodel/BookshelfViewModel.kt:49` 初期emptyList）。**修正**: book==null 分岐（ロード中=Loading・欠落=ReadingErrorScreen流用＋本棚導線）。
+- **F-O 公理8/4状態 — 本棚 cold start の空フラッシュ**（`ui/BookshelfScreen.kt:299` が Loading と Empty を区別しない／`viewmodel/BookshelfViewModel.kt:48-49` stateIn初期emptyList）。**修正**: UiStateにLoading導入・表紙スケルトン、emptyList確定時のみEmpty表示。
+
+**【嘘/決定性/その他】**
+- **F-H 公理8 — 検索範囲チップ最後の1つが無反応＝死んだアフォーダンス**（`viewmodel/SearchDraft.kt:172-175` が「最後の1つ」条件で `return this`／`ui/discovery/DiscoverySearchScreen.kt:217-236,1227-1255`）。**修正**: 最後の1つは selected+disabled 見た目＋「1つは残す必要があります」のフィードバック（制約を「押せなさ」で示す）。
+- **F-I 公理9 フィードフォワード — 文字数↔読了時間が暗黙排他で他方が黙って消える**（`viewmodel/SearchDraft.kt:40-47`／`ui/discovery/DiscoverySearchScreen.kt:665,843`）。併用不可(なろう§4.4)自体は正だが排他がUI上未提示。**修正**: 排他ラジオに束ねる/一方選択で他方グレーアウト/注記。
+- **F-J 公理8/4状態Partial欠落 — allcount大表示だが実30件のみ・到達導線なし**（`ui/discovery/DiscoveryResultScreen.kt:302`／`narou/model/DiscoveryQuery.kt:57` limit既定30・paging全経路不在）。**修正**: 「N件中 上位30件」限定子 or ページング(Partial状態)。
+- **F-L 公理2 決定性 — 前後章ボタンが目次ロード前は隣章でなく目次へ飛ぶ**（`ui/NativeReadingScreen.kt:356-364,588-614` 未ロード時 currentIndex=-1 で index.html にフォールバック）。**修正**: tocEntries未ロード中は前後ボタン disabled。
+- **F-N 公理8/5 — 本棚 progress% が嘘（最終章を開いた瞬間100%）**（`ui/BookCard.kt:167-169,289-291` が章index単独算出・読書画面のscroll実位置を無視）。**修正**: 最終章は章内スクロール割合を加味/位置ラベル化、DBの scrollIndex/offset を割合計算へ取込。
+- **F-P Android §C/A11y — タッチ標的48dp未満**（発見条件チップ `ui/discovery/DiscoveryResultScreen.kt:158-169,271-279`・詳細キーワード `ui/discovery/NovelDetailScreen.kt:332-341`・紐付け検索 `ui/NcodeLinkSheet.kt:182-184`・継続カード `ui/ContinuationCard.kt:91-143,185-199`）。素のBox/Text+clickable で minimumInteractiveComponentSize が効かない。**修正**: `Modifier.sizeIn(minHeight=48.dp)`/`minimumInteractiveComponentSize` or Material 部品へ置換（見た目はモック準拠のまま当たり判定だけ48dp）。
+
+### E-Minor
+
+- **M1 公理3** 二度押しで同一画面がバックスタック二重push（`launchSingleTop` 不在・grep0件／本棚カード・検索/カード/行タップ・Custom Tabs 2枚）。→主要navigateに `launchSingleTop=true`・外部起動は起動中フラグガード。［要実機再現］
+- **M2 公理8** 空検索の押下が無反応・理由提示なし。→無効時は検索アイコン disabled 見た目 or 促し。
+- **M3 公理6** 章内スクロールが `debounce(400ms)` のみで離脱時フラッシュ無く直近~400ms巻き戻る。→onStop相当で最終位置を即フラッシュ（生命線の周辺・軽微）。
+- **M4 公理6** 削除確認/⋮/バッテリー最適化ダイアログが回転・ダーク切替で消え「二度と表示しない」入力も失う。→ダイアログ表示状態を `rememberSaveable`。
+- **M5 層②発見可能性** 本の削除手段が既定でカード長押しのみ（可視手がかり無し）。→⋮/スワイプの可視化を既定に。
+- **M6 公理5 SSOT** 一覧の話数/pt と詳細の同値が食い違い得る（別取得）。→詳細を単一真実に/取得時刻明示。
+- **M7 4状態** 結果0件・取込失敗の Empty/Error に次の一手CTAが弱/無（気分・ジャンル発の空に調整導線無・取込失敗Snackbarに再試行無）。→全経路にCTA。
+- **M8 Nielsen#9** Error に生HTTPコード(503)/例外メッセージ(No such file…)露出。→平易日本語へ正規化。
+- **M9 公理8** 「なろうで読む」の外部遷移が正直に示されない（Custom Tabs色を背景同化）。→open-in-new/ドメイン可視化。
+- **M10 層②現在地** 詳細 App bar タイトルが空で書影が流れると作品名の常駐表示が消える。→スクロールで作品名表示。
+- **M11 Android §I** 変換完了通知が新規追加の本へ飛ばず着地が状態依存で非決定。→bookId extra 明示Intent＋疑似バックスタック、最低限固定起点(本棚)着地。
+- **M12 層②発見可能性** 没入クローム復帰手段（中央タップ/上スクロール）に可視ヒント無。→一過性ヒント/常時細い復帰帯。
+
+### E-要検証（実機・静的で確定不能／Artifact §4 に10項目＋手順）
+
+- 主要10件: F-A 経路依存Back（2経路比較）・F-B 読書Back overshoot・F-C/F-E process death耐性・F-G 二重取込・M1 二重push・F-P/M タッチ標的実寸（Layout Inspector）・コントラスト比 WCAG 4.5:1（`theme/Color.kt` 各テーマ）・フォントスケール200%崩れ・6h TTLキャッシュ Stale（`NovelApiRepository.kt:132-134,238`）・cold start空フラッシュ計測。
+- process death 系は開発者オプション「アクティビティを保持しない」ON で。実施は `/device-verify` 作法（`adb-bridge`一発・connectedAndroidTest 直叩き禁忌＝task_diary #36）。
