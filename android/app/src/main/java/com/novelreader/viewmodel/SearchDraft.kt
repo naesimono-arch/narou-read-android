@@ -106,9 +106,18 @@ data class SearchDraft(
         sasie = filters.sasie,
     )
 
-    /** 結果一覧の見出し。検索語があれば「「word」」、条件のみなら固定文言。 */
-    fun resultTitle(): String =
-        word.trim().takeIf { it.isNotBlank() }?.let { "「$it」" } ?: "条件で探す"
+    /** 結果一覧の見出し。検索語1語なら「「word」」、複数語なら件数表記、条件のみなら固定文言。 */
+    fun resultTitle(): String {
+        val tokens = wordTokens(word)
+        return when {
+            tokens.isEmpty() -> "条件で探す"
+            // なぜ件数表記か: 複数語を鉤括弧のまま並べると見出しが1行に収まらず見切れる（実機
+            // フィードバック）。各語は結果一覧の KEYWORD チップに個別表示されるため、見出しは
+            // 件数の要約で足りる（作品詳細からの複数キーワード検索の title とも同形式）。
+            tokens.size >= 2 -> "キーワード${tokens.size}件"
+            else -> "「${tokens.first()}」"
+        }
+    }
 }
 
 /**
