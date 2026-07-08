@@ -5,6 +5,10 @@ import androidx.core.content.ContextCompat
 import com.novelreader.NovelReaderApplication
 import com.novelreader.PdfProcessingService
 import com.novelreader.data.BookEntity
+import com.novelreader.narou.NarouApiException
+import com.novelreader.narou.NovelApiRepository
+import com.novelreader.narou.model.DiscoveryResult
+import com.novelreader.narou.model.NarouOrder
 import com.novelreader.repository.BookRepository
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +37,7 @@ class BookshelfViewModelTest {
     private val testDispatcher = UnconfinedTestDispatcher()
     private lateinit var mockApp: NovelReaderApplication
     private lateinit var mockRepository: BookRepository
+    private lateinit var mockNovelApiRepository: NovelApiRepository
     private lateinit var viewModel: BookshelfViewModel
 
     @Before
@@ -40,9 +45,11 @@ class BookshelfViewModelTest {
         Dispatchers.setMain(testDispatcher)
 
         mockRepository = mockk(relaxed = true)
+        mockNovelApiRepository = mockk(relaxed = true)
         mockApp = mockk(relaxed = true)
 
         every { mockApp.repository } returns mockRepository
+        every { mockApp.novelApiRepository } returns mockNovelApiRepository
         every { mockApp.processingState } returns MutableStateFlow<ProcessingState?>(null).asStateFlow()
         every { mockApp.errorEvents } returns emptyFlow()
         every { mockRepository.allBooks } returns flowOf(emptyList())
@@ -139,6 +146,68 @@ class BookshelfViewModelTest {
         } finally {
             unmockkConstructor(Intent::class)
             unmockkStatic(ContextCompat::class)
+        }
+    }
+
+    // ── なろう紐付け候補検索（旧 NcodeLinkSheet の produceState を VM へ移設）─────────────
+
+    @Test
+    fun `searchNcodeCandidates - 成功時に Success となり inTitle=title順=件数20 で discover を叩く`() = runTest {
+        val result = DiscoveryResult(allcount = 5, novels = emptyList())
+        coEvery { mockNovelApiRepository.discover(any()) } returns result
+
+        viewModel.searchNcodeCandidates("転生")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.ncodeSearchState.value
+        assertTrue(state is NcodeSearchUiState.Success)
+        assertEquals(result, (state as NcodeSearchUiState.Success).result)
+        // 旧 produceState と同一のクエリ形（word=入力・inTitle=true・order=TOTAL・limit=20）で叩くこと
+        coVerify {
+            mockNovelApiRepository.discover(match {
+                it.word == "転生" && it.inTitle && it.order == NarouOrder.TOTAL && it.limit == 20
+            })
+        }
+    }
+
+    @Test
+    fun `searchNcodeCandidates - 空白クエリは通信せず空の Success を返す`() = runTest {
+        viewModel.searchNcodeCandidates("   ")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.ncodeSearchState.value
+        assertTrue(state is NcodeSearchUiState.Success)
+        state as NcodeSearchUiState.Success
+        assertEquals(0, state.result.allcount)
+        assertTrue(state.result.novels.isEmpty())
+        coVerify(exactly = 0) { mockNovelApiRepository.discover(any()) }
+    }
+
+    @Test
+    fun `searchNcodeCandidates - NarouApiException は Error に落とし userMessage を保持する`() = runTest {
+        coEvery { mockNovelApiRepository.discover(any()) } throws
+            NarouApiException("ネットワークに接続できません", RuntimeException())
+
+        viewModel.searchNcodeCandidates("なろう")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = viewModel.ncodeSearchState.value
+        assertTrue(state is NcodeSearchUiState.Error)
+        assertEquals("ネットワークに接続できません", (state as NcodeSearchUiState.Error).message)
+    }
+
+    @Test
+    fun `retryNcodeSearch - 直近クエリで検索し直す`() = runTest {
+        coEvery { mockNovelApiRepository.discover(any()) } returns DiscoveryResult(1, emptyList())
+
+        viewModel.searchNcodeCandidates("最遊記")
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.retryNcodeSearch()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // 再試行は直近クエリ（最遊記）でもう一度叩く＝計2回
+        coVerify(exactly = 2) {
+            mockNovelApiRepository.discover(match { it.word == "最遊記" })
         }
     }
 }

@@ -42,6 +42,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.listSaver
@@ -78,6 +79,7 @@ import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.rememberReadingColors
 import com.novelreader.viewmodel.BookshelfViewModel
+import com.novelreader.viewmodel.NcodeSearchUiState
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -304,6 +306,10 @@ fun ReadingScreen(
         return
     }
 
+    // なろう紐付けシートの候補検索の状態。検索実行は VM が持つ単一正本を collect して ChapterScreen へ渡す
+    // （旧: シートが NovelApiRepository を直接受け produceState で回していた依存注入漏れを解消）。
+    val ncodeSearchState by viewModel.ncodeSearchState.collectAsStateWithLifecycle()
+
     ChapterScreen(
         currentFile = resolvedFile,
         htmlDirPath = htmlDirPath,
@@ -313,6 +319,9 @@ fun ReadingScreen(
         // 紐付けの永続化。books は hot StateFlow のため、書き込みは MainActivity → ncode 引数へ
         // 自動で還流し、確定直後から継続導線が紐付け済み表示に切り替わる。
         onLinkNcode = { newNcode -> viewModel.linkNcode(bookId, newNcode) },
+        ncodeSearchState = ncodeSearchState,
+        onSearchNcode = { query -> viewModel.searchNcodeCandidates(query) },
+        onRetryNcodeSearch = { viewModel.retryNcodeSearch() },
         readingTheme = readingTheme,
         onThemeChange = onThemeChange,
         fontSize = fontSize,
@@ -374,6 +383,10 @@ private fun ChapterScreen(
     bookTitle: String,
     ncode: String?,
     onLinkNcode: (String?) -> Unit,
+    // なろう紐付けシートの候補検索（state は VM の単一正本／検索・再試行は VM へ依頼）。
+    ncodeSearchState: NcodeSearchUiState,
+    onSearchNcode: (query: String) -> Unit,
+    onRetryNcodeSearch: () -> Unit,
     readingTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
     fontSize: Int,
@@ -848,10 +861,15 @@ private fun ChapterScreen(
         }
 
         if (showLinkSheet) {
+            // シートを開いた瞬間に書名を初期クエリとして検索する（旧: シート内 produceState が
+            // activeQuery=bookTitle で初期照会していたのと等価。検索実行は VM へ移設済み）。
+            LaunchedEffect(Unit) { onSearchNcode(bookTitle) }
             NcodeLinkSheet(
                 bookTitle = bookTitle,
-                repository = narouRepository,
+                searchState = ncodeSearchState,
                 colors = colors,
+                onSearch = onSearchNcode,
+                onRetry = onRetryNcodeSearch,
                 onConfirm = { picked ->
                     onLinkNcode(picked)
                     showLinkSheet = false

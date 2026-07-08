@@ -33,9 +33,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,21 +47,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.novelreader.narou.NarouApiException
-import com.novelreader.narou.NovelApiRepository
 import com.novelreader.narou.isValidNcode
-import com.novelreader.narou.model.DiscoveryQuery
-import com.novelreader.narou.model.DiscoveryResult
-import com.novelreader.narou.model.NarouOrder
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
+import com.novelreader.viewmodel.NcodeSearchUiState
 import java.util.Locale
-
-private sealed interface SearchState {
-    object Loading : SearchState
-    data class Success(val result: DiscoveryResult) : SearchState
-    data class Error(val message: String) : SearchState
-}
 
 /**
  * 手元の書籍（PDF）となろう上の作品を紐付けるためのボトムシート。
@@ -71,51 +59,31 @@ private sealed interface SearchState {
  * なぜここで ModalBottomSheet を使うか:
  * 読書の流れを遮らず、現在のコンテキスト（書籍タイトル）を維持したまま、
  * シームレスになろう側の作品候補を検索・選択・入力できるようにするため。
+ *
+ * state-holder / UI 分割（依存注入漏れの解消）:
+ * 以前はこのシートが NovelApiRepository を直接受け取り produceState で検索まで回していたが、
+ * これは Composable への依存注入漏れ（テスト不能・関心の混在）だった。検索実行は VM
+ * （BookshelfViewModel）へ吊り上げ、このシートは [searchState] を受け取って描画し、検索・再試行は
+ * [onSearch]/[onRetry] コールバックで依頼するだけの葉にした。入力欄の文字・手動 N コード等の
+ * 画面ローカルな UI 状態のみ、過剰な hoisting を避けてここに残す。
+ *
+ * @param searchState 候補検索の状態（VM が保持する単一正本を呼び出し側が collect して渡す）。
+ * @param onSearch 検索実行の依頼（検索欄の確定文字列を渡す）。
+ * @param onRetry 直近クエリでの再検索依頼（ネットワークエラー時のワンタップ復旧）。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun NcodeLinkSheet(
     bookTitle: String,
-    repository: NovelApiRepository,
+    searchState: NcodeSearchUiState,
     colors: ReadingColors,
+    onSearch: (query: String) -> Unit,
+    onRetry: () -> Unit,
     onConfirm: (ncode: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var inputText by remember { mutableStateOf(bookTitle) }
-    var activeQuery by remember { mutableStateOf(bookTitle) }
-    var retryKey by remember { mutableIntStateOf(0) }
     var manualNcode by remember { mutableStateOf("") }
-
-    // なぜ produceState を使うか:
-    // 検索クエリや再試行キー(retryKey)の変更を自動で検知して非同期のAPIコールを再トリガーし、
-    // ローディング/エラー/結果表示のステートマシンを簡潔に表現するため。
-    val searchState by produceState<SearchState>(
-        initialValue = SearchState.Loading,
-        key1 = activeQuery,
-        key2 = retryKey
-    ) {
-        if (activeQuery.isBlank()) {
-            value = SearchState.Success(DiscoveryResult(0, emptyList()))
-            return@produceState
-        }
-        value = SearchState.Loading
-        // NarouApiException のみ捕捉する（NovelDetailViewModel と同じ方針）。
-        // なぜ Exception 全捕捉にしないか: produceState のキー変更・破棄時の
-        // CancellationException まで飲み込み、一瞬エラー表示が挟まる原因になるため。
-        value = try {
-            val res = repository.discover(
-                DiscoveryQuery(
-                    word = activeQuery,
-                    inTitle = true,
-                    order = NarouOrder.TOTAL,
-                    limit = 20
-                )
-            )
-            SearchState.Success(res)
-        } catch (e: NarouApiException) {
-            SearchState.Error(e.userMessage)
-        }
-    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -162,7 +130,7 @@ internal fun NcodeLinkSheet(
                 ),
                 cursorBrush = SolidColor(colors.accent),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { activeQuery = inputText }),
+                keyboardActions = KeyboardActions(onSearch = { onSearch(inputText) }),
                 decorationBox = { innerTextField ->
                     Column {
                         // なぜ Row の bottom padding を外したか:
@@ -183,7 +151,7 @@ internal fun NcodeLinkSheet(
                             }
                             // A11y: 当たり判定を48dpに拡大（アイコン自体は24dpのまま中央描画）
                             IconButton(
-                                onClick = { activeQuery = inputText },
+                                onClick = { onSearch(inputText) },
                                 modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
@@ -212,7 +180,7 @@ internal fun NcodeLinkSheet(
                     .padding(vertical = 12.dp)
             ) {
                 when (val state = searchState) {
-                    is SearchState.Loading -> {
+                    is NcodeSearchUiState.Loading -> {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -226,7 +194,7 @@ internal fun NcodeLinkSheet(
                             )
                         }
                     }
-                    is SearchState.Error -> {
+                    is NcodeSearchUiState.Error -> {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -248,7 +216,7 @@ internal fun NcodeLinkSheet(
                             // 外側を48dpにしてもピル外観も周囲レイアウトも一切押し広げずに済むため。
                             Box(
                                 modifier = Modifier
-                                    .clickable { retryKey++ }
+                                    .clickable { onRetry() }
                                     .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -271,7 +239,7 @@ internal fun NcodeLinkSheet(
                             }
                         }
                     }
-                    is SearchState.Success -> {
+                    is NcodeSearchUiState.Success -> {
                         val novels = state.result.novels
                         if (novels.isEmpty()) {
                             Box(

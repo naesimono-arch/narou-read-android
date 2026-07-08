@@ -10,7 +10,12 @@ import com.novelreader.NovelReaderApplication
 import com.novelreader.PdfProcessingService
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.narou.NarouApiException
+import com.novelreader.narou.model.DiscoveryQuery
+import com.novelreader.narou.model.DiscoveryResult
+import com.novelreader.narou.model.NarouOrder
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -47,6 +52,22 @@ sealed interface BookshelfUiState {
  */
 data class AppErrorEvent(val message: String, val retryUri: String? = null)
 
+/**
+ * なろう紐付けシート（NcodeLinkSheet）の候補検索の状態。
+ * なぜ VM 側の型として公開するか（依存注入漏れの解消）: 以前はシート Composable が
+ * NovelApiRepository を直接受け取り produceState で検索まで回していた（テスト不能・依存注入漏れ）。
+ * 検索実行を VM へ吊り上げ、シートは「この state ＋ callback」を受け取るだけの葉にするため、
+ * 状態表現を VM とシートで共有できるようここに置く。
+ */
+sealed interface NcodeSearchUiState {
+    /** 検索実行中（初回照会・再検索・再試行のいずれも一旦ここを通す）。 */
+    data object Loading : NcodeSearchUiState
+    /** 検索成功。空クエリのときは allcount=0・novels=空の Success を表す（旧 produceState と同一）。 */
+    data class Success(val result: DiscoveryResult) : NcodeSearchUiState
+    /** なろう API 由来の失敗（NarouApiException.userMessage を保持）。 */
+    data class Error(val message: String) : NcodeSearchUiState
+}
+
 data class ProcessingState(
     val isProcessing: Boolean = false,
     val stepIndex: Int = 0,
@@ -66,6 +87,9 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val app = application as NovelReaderApplication
     private val repository = app.repository
+
+    // なろう紐付けシートの候補検索に使う（旧: シート Composable が直接受け取っていた依存を VM へ移設）。
+    private val novelApiRepository = app.novelApiRepository
 
     // 一覧の正本。Loading を初期値にして「DB 初回発行前」を明示する（F-O）。
     val uiState: StateFlow<BookshelfUiState> = repository.allBooks
@@ -157,6 +181,63 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     fun linkNcode(bookId: String, ncode: String?) {
         viewModelScope.launch(Dispatchers.IO) { repository.linkNcode(bookId, ncode) }
     }
+
+    // ────── なろう紐付けシートの候補検索（旧 NcodeLinkSheet の produceState を VM へ移設）──────
+    // なぜ紐付け系メソッド（linkNcode）の隣に置くか: 候補検索は「紐付け候補の提示」＝linkNcode と同じ
+    // 「なろう紐付け」ドメインの一部で、新規 VM を増やさずここへ集約するのが自然なため。
+    private val _ncodeSearchState = MutableStateFlow<NcodeSearchUiState>(NcodeSearchUiState.Loading)
+    val ncodeSearchState: StateFlow<NcodeSearchUiState> = _ncodeSearchState.asStateFlow()
+
+    // 直近のクエリ（再試行が「同じクエリでの再実行」になるよう保持する。旧 retryKey 相当）。
+    private var lastNcodeQuery: String = ""
+
+    // 実行中の検索ジョブ。新しい検索・再試行のたびに前回をキャンセルする
+    // （旧 produceState はキー(activeQuery/retryKey)変更時に前コルーチンを自動キャンセルしていた＝それと等価）。
+    private var ncodeSearchJob: Job? = null
+
+    /**
+     * なろう作品候補を検索して [ncodeSearchState] に反映する。
+     * 旧 NcodeLinkSheet の produceState と挙動を等価に保つ:
+     * - 空クエリは通信せず Success(空) を返す（初期の bookTitle が空でも一覧が空表示になるだけ）。
+     * - 検索前に Loading を出す。
+     * - NarouApiException のみ捕捉して Error に落とす。CancellationException は捕捉せず伝播させ、
+     *   ジョブキャンセル時に一瞬エラー表示が挟まらないようにする（旧実装のコメントと同じ理由）。
+     */
+    fun searchNcodeCandidates(query: String) {
+        lastNcodeQuery = query
+        // 先行検索が走っていればキャンセル（キー変更時の produceState 自動キャンセルの再現）。
+        ncodeSearchJob?.cancel()
+        // 空クエリは通信せず即座に空 Success（旧 produceState と同一：Loading を挟まない）。
+        if (query.isBlank()) {
+            _ncodeSearchState.value = NcodeSearchUiState.Success(DiscoveryResult(0, emptyList()))
+            return
+        }
+        // 非空クエリは Loading を「同期的に」反映する。なぜ launch 内でなく手前で更新するか:
+        // シート再オープン時、VM の状態は前回の検索結果を保持している。Loading を launch（次の
+        // ディスパッチ）まで遅らせると前回結果が一瞬ちらつくため、ここで即座に Loading へ落とす
+        // （旧実装は再オープンごとに produceState が initialValue=Loading で作り直され残像が出なかった）。
+        _ncodeSearchState.value = NcodeSearchUiState.Loading
+        ncodeSearchJob = viewModelScope.launch {
+            // NarouApiException のみ捕捉（NovelDetailViewModel と同じ方針）。CancellationException は
+            // 捕捉せず伝播させ、ジョブキャンセル時に一瞬エラー表示が挟まらないようにする（旧実装と同理由）。
+            _ncodeSearchState.value = try {
+                val res = novelApiRepository.discover(
+                    DiscoveryQuery(
+                        word = query,
+                        inTitle = true,
+                        order = NarouOrder.TOTAL,
+                        limit = 20,
+                    )
+                )
+                NcodeSearchUiState.Success(res)
+            } catch (e: NarouApiException) {
+                NcodeSearchUiState.Error(e.userMessage)
+            }
+        }
+    }
+
+    /** 直近クエリで検索し直す（旧 retryKey++ 相当。ネットワークエラー時のワンタップ復旧）。 */
+    fun retryNcodeSearch() = searchNcodeCandidates(lastNcodeQuery)
 
     suspend fun getLastRead(bookId: String): String? = repository.getLastRead(bookId)
 

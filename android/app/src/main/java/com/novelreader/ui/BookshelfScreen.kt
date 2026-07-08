@@ -47,12 +47,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.novelreader.data.BookEntity
+import com.novelreader.data.ProgressEntity
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.BookshelfViewModel
+import com.novelreader.viewmodel.ProcessingState
 import kotlinx.coroutines.launch
 
+/**
+ * 本棚画面のルート層（state-holder / UI 分割の route）。
+ * ViewModel の受け取り・状態の collect・エラーイベントの購読・PDF 選択/通知権限/バッテリー最適化ダイアログ
+ * といったプラットフォーム副作用と永続化（SharedPreferences）を担い、純粋な描画は [BookshelfContent] に委ねる。
+ * なぜ分割するか: 描画層を state+callback の葉にして VM 非依存にすることで、Robolectric の JVM UI テスト
+ * （ADR 0009）で空/一覧の分岐やコールバック結線を検証できるようにするため（chrisbanes state-holder-ui-split）。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookshelfScreen(
@@ -66,11 +76,8 @@ fun BookshelfScreen(
     // Loading と Empty を型で区別する（F-O）。Loading 中はスケルトンを出し、
     // DB から Content(空) が確定して初めて空状態を表示することで cold start の空フラッシュを防ぐ。
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val isLoading = uiState is BookshelfUiState.Loading
-    val books = (uiState as? BookshelfUiState.Content)?.books ?: emptyList()
     val progressMap by viewModel.progressMap.collectAsStateWithLifecycle()
     val processingState by viewModel.processingState.collectAsStateWithLifecycle()
-    val isProcessing = processingState.isProcessing
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -99,7 +106,8 @@ fun BookshelfScreen(
     var showBatteryOptDialog by rememberSaveable { mutableStateOf(false) }
     var doNotShowAgain by rememberSaveable { mutableStateOf(false) }
 
-    // グリッド/リスト表示の切り替え状態（SharedPreferencesで永続化）
+    // グリッド/リスト表示の切り替え状態（SharedPreferencesで永続化）。
+    // 永続化を伴うためルート層で所有し、値とトグルを描画層へ渡す（描画層は VM/prefs 非依存に保つ）。
     var isGridView by remember { mutableStateOf(prefs.getBoolean("is_grid_view", true)) }
 
     // 削除UIの方式（SharedPreferencesで永続化）。0=長押しメニュー / 1=⋮メニュー。
@@ -110,9 +118,6 @@ fun BookshelfScreen(
     // フラット構図は崩したくないが、削除の発見性を優先し、既存トークンの控えめな⋮を既定で出す。
     // 長押し経路も残す（⋮に気づかない層のフォールバック）。トグルで長押しのみへ戻せる。
     var deleteUiMode by remember { mutableStateOf(prefs.getInt("delete_ui_mode", 1)) }
-
-    // 本棚トップバーの⋮オーバーフロー（テーマ切替＋開発トグル）の開閉状態
-    var showOverflowMenu by remember { mutableStateOf(false) }
 
     // PDF選択を実際に開始するヘルパー（通知権限チェック後に呼ぶ）
     val launchPdfPicker: () -> Unit = {
@@ -145,6 +150,134 @@ fun BookshelfScreen(
             launchPdfPicker()
         }
     }
+
+    BookshelfContent(
+        uiState = uiState,
+        progressMap = progressMap,
+        processingState = processingState,
+        appTheme = appTheme,
+        onThemeChange = onThemeChange,
+        isGridView = isGridView,
+        onToggleView = {
+            isGridView = !isGridView
+            prefs.edit().putBoolean("is_grid_view", isGridView).apply()
+        },
+        deleteUiMode = deleteUiMode,
+        onToggleDeleteMode = {
+            deleteUiMode = if (deleteUiMode == 1) 0 else 1
+            prefs.edit().putInt("delete_ui_mode", deleteUiMode).apply()
+        },
+        onFabClick = onFabClick,
+        // 開く際の再開ファイル解決（suspend の DB 参照）はルート層の責務。描画層は BookEntity を渡すだけ。
+        onOpenBook = { book ->
+            scope.launch {
+                val lastReadFile = viewModel.getLastRead(book.id) ?: "index.html"
+                onOpenBook(book.id, lastReadFile)
+            }
+        },
+        onDeleteBook = { viewModel.deleteBook(it) },
+        onOpenDiscovery = onOpenDiscovery,
+        onCancelProcessing = { viewModel.cancelProcessing() },
+        snackbarHostState = snackbarHostState,
+    )
+
+    // エラーは一度きりのイベントとして Channel から受信し Snackbar 表示する（VM イベント購読＝ルート層の責務）。
+    // collect は画面の生存期間中ずっと購読し続ければよいので key は Unit。
+    LaunchedEffect(Unit) {
+        viewModel.errorEvents.collect { event ->
+            // 取込失敗（retryUri あり）は「再試行」を出し、押されたら同一 URI を再投入する（M7）。
+            // それ以外（強制終了リカバリ等の情報通知）は従来どおり「閉じる」のみ。
+            if (event.retryUri != null) {
+                val result = snackbarHostState.showSnackbar(
+                    message = event.message,
+                    actionLabel = "再試行",
+                    // 失敗の再試行は見落とすと復旧手段を失うため長め表示にする。
+                    duration = SnackbarDuration.Long,
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    viewModel.retryImport(event.retryUri)
+                }
+            } else {
+                snackbarHostState.showSnackbar(message = event.message, actionLabel = "閉じる")
+            }
+        }
+    }
+
+    // バッテリー最適化除外ダイアログ（プラットフォーム設定への遷移を伴うためルート層に置く）
+    if (showBatteryOptDialog) {
+        val dismiss: (openSettings: Boolean) -> Unit = { openSettings ->
+            if (doNotShowAgain) {
+                prefs.edit().putBoolean("battery_dialog_dismissed", true).apply()
+                batteryDialogDismissed = true  // リアルタイムで状態に反映
+            }
+            showBatteryOptDialog = false
+            if (openSettings) {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                }
+                context.startActivity(intent)
+            } else {
+                launchPdfPicker()
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { dismiss(false) },
+            title = { Text("バックグラウンド処理について") },
+            text = {
+                Column {
+                    Text("ホーム画面に移動するとPDF変換が途中で止まる場合があります。\n\n【推奨設定】\n設定 → バッテリー → アプリごとの消費管理 → NovelReader → バックグラウンドアクティビティを許可\n\n「設定を開く」でバッテリー設定画面に移動します。")
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = doNotShowAgain,
+                            onCheckedChange = { doNotShowAgain = it },
+                        )
+                        Text("二度と表示しない", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { dismiss(true) }) { Text("設定を開く") }
+            },
+            dismissButton = {
+                TextButton(onClick = { dismiss(false) }) { Text("このまま続ける") }
+            },
+        )
+    }
+}
+
+/**
+ * 本棚の描画層（stateless / UI 分割の content）。BookshelfScreen からの純移動。
+ * VM や SharedPreferences・ランチャー等のプラットフォーム依存を持たず、[uiState]＋コールバックだけで
+ * 一覧/空/スケルトンの分岐と各操作の結線を描画する葉。これにより Robolectric UI テスト（ADR 0009）が
+ * VM 抜きで組める。メニュー開閉・FAB 展開・削除確認の対象といった画面ローカルな UI 状態のみ内部に残す
+ * （過剰な hoisting は避ける）。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun BookshelfContent(
+    uiState: BookshelfUiState,
+    progressMap: Map<String, ProgressEntity>,
+    processingState: ProcessingState,
+    appTheme: ReadingTheme,
+    onThemeChange: (ReadingTheme) -> Unit,
+    isGridView: Boolean,
+    onToggleView: () -> Unit,
+    deleteUiMode: Int,
+    onToggleDeleteMode: () -> Unit,
+    onFabClick: () -> Unit,
+    onOpenBook: (BookEntity) -> Unit,
+    onDeleteBook: (BookEntity) -> Unit,
+    onOpenDiscovery: () -> Unit,
+    onCancelProcessing: () -> Unit,
+    snackbarHostState: SnackbarHostState,
+) {
+    val isLoading = uiState is BookshelfUiState.Loading
+    val books = (uiState as? BookshelfUiState.Content)?.books ?: emptyList()
+    val isProcessing = processingState.isProcessing
+
+    // 本棚トップバーの⋮オーバーフロー（テーマ切替＋開発トグル）の開閉状態
+    var showOverflowMenu by remember { mutableStateOf(false) }
 
     // 削除確認ダイアログの対象。回転・ダーク切替（Activity 再生成）で確認ダイアログが消えないよう
     // rememberSaveable で保持する（M4）。BookEntity は Saveable でないため bookId(String) だけ保存し、
@@ -202,11 +335,8 @@ fun BookshelfScreen(
                                 contentDescription = "小説を探す",
                             )
                         }
-                        // グリッド/リスト切り替え（モック .top の第1アクション）
-                        IconButton(onClick = {
-                            isGridView = !isGridView
-                            prefs.edit().putBoolean("is_grid_view", isGridView).apply()
-                        }) {
+                        // グリッド/リスト切り替え（モック .top の第1アクション）。永続化はルート層の onToggleView に委譲。
+                        IconButton(onClick = onToggleView) {
                             Icon(
                                 imageVector = if (isGridView) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView,
                                 contentDescription = if (isGridView) "リスト表示" else "グリッド表示",
@@ -263,8 +393,7 @@ fun BookshelfScreen(
                                 DropdownMenuItem(
                                     text = { Text("削除方式: " + if (deleteUiMode == 1) "⋮メニュー" else "長押し") },
                                     onClick = {
-                                        deleteUiMode = if (deleteUiMode == 1) 0 else 1
-                                        prefs.edit().putInt("delete_ui_mode", deleteUiMode).apply()
+                                        onToggleDeleteMode()
                                         showOverflowMenu = false
                                     },
                                 )
@@ -284,7 +413,7 @@ fun BookshelfScreen(
                 ) {
                     ProcessingBanner(
                         processingState = processingState,
-                        onStop = { viewModel.cancelProcessing() },
+                        onStop = onCancelProcessing,
                         // 幅指定は呼び出し側の責務。従来の内部 fillMaxWidth と同じ描画を維持。
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -343,12 +472,7 @@ fun BookshelfScreen(
                         GridBookCard(
                             book = book,
                             progress = progressMap[book.id],
-                            onOpen = {
-                                scope.launch {
-                                    val lastReadFile = viewModel.getLastRead(book.id) ?: "index.html"
-                                    onOpenBook(book.id, lastReadFile)
-                                }
-                            },
+                            onOpen = { onOpenBook(book) },
                             onDelete = { bookToDeleteId = book.id },
                             deleteUiMode = deleteUiMode,
                             // 削除時の詰め直しアニメ。旧animateItemPlacementはFoundation1.6系で高速フリング中に
@@ -380,12 +504,7 @@ fun BookshelfScreen(
                         ListBookCard(
                             book = book,
                             progress = progressMap[book.id],
-                            onOpen = {
-                                scope.launch {
-                                    val lastReadFile = viewModel.getLastRead(book.id) ?: "index.html"
-                                    onOpenBook(book.id, lastReadFile)
-                                }
-                            },
+                            onOpen = { onOpenBook(book) },
                             onDelete = { bookToDeleteId = book.id },
                             deleteUiMode = deleteUiMode,
                             // グリッドと同理由: 1.7系でstable化したanimateItem()で詰め直しアニメを復活（案B）。
@@ -398,71 +517,7 @@ fun BookshelfScreen(
         }
     }
 
-    // エラーは一度きりのイベントとして Channel から受信し Snackbar 表示する。
-    // collect は画面の生存期間中ずっと購読し続ければよいので key は Unit。
-    LaunchedEffect(Unit) {
-        viewModel.errorEvents.collect { event ->
-            // 取込失敗（retryUri あり）は「再試行」を出し、押されたら同一 URI を再投入する（M7）。
-            // それ以外（強制終了リカバリ等の情報通知）は従来どおり「閉じる」のみ。
-            if (event.retryUri != null) {
-                val result = snackbarHostState.showSnackbar(
-                    message = event.message,
-                    actionLabel = "再試行",
-                    // 失敗の再試行は見落とすと復旧手段を失うため長め表示にする。
-                    duration = SnackbarDuration.Long,
-                )
-                if (result == SnackbarResult.ActionPerformed) {
-                    viewModel.retryImport(event.retryUri)
-                }
-            } else {
-                snackbarHostState.showSnackbar(message = event.message, actionLabel = "閉じる")
-            }
-        }
-    }
-
-    // バッテリー最適化除外ダイアログ
-    if (showBatteryOptDialog) {
-        val dismiss: (openSettings: Boolean) -> Unit = { openSettings ->
-            if (doNotShowAgain) {
-                prefs.edit().putBoolean("battery_dialog_dismissed", true).apply()
-                batteryDialogDismissed = true  // リアルタイムで状態に反映
-            }
-            showBatteryOptDialog = false
-            if (openSettings) {
-                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                    data = Uri.parse("package:${context.packageName}")
-                }
-                context.startActivity(intent)
-            } else {
-                launchPdfPicker()
-            }
-        }
-        AlertDialog(
-            onDismissRequest = { dismiss(false) },
-            title = { Text("バックグラウンド処理について") },
-            text = {
-                Column {
-                    Text("ホーム画面に移動するとPDF変換が途中で止まる場合があります。\n\n【推奨設定】\n設定 → バッテリー → アプリごとの消費管理 → NovelReader → バックグラウンドアクティビティを許可\n\n「設定を開く」でバッテリー設定画面に移動します。")
-                    Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = doNotShowAgain,
-                            onCheckedChange = { doNotShowAgain = it },
-                        )
-                        Text("二度と表示しない", style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { dismiss(true) }) { Text("設定を開く") }
-            },
-            dismissButton = {
-                TextButton(onClick = { dismiss(false) }) { Text("このまま続ける") }
-            },
-        )
-    }
-
-    // 削除確認ダイアログ
+    // 削除確認ダイアログ（books＋onDeleteBook のみに依存する純 UI のため描画層に残す）
     bookToDelete?.let { book ->
         AlertDialog(
             onDismissRequest = { bookToDeleteId = null },
@@ -470,7 +525,7 @@ fun BookshelfScreen(
             text = { Text("「${book.title}」を削除しますか？\n読書進捗も削除されます。") },
             confirmButton = {
                 TextButton(onClick = {
-                    viewModel.deleteBook(book)
+                    onDeleteBook(book)
                     bookToDeleteId = null
                 }) { Text("削除", color = MaterialTheme.colorScheme.error) }
             },
