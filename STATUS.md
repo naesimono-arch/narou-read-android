@@ -25,6 +25,8 @@
 
 ## 1. 完了済み
 
+- **UX監査バックログ28件 全件修正・検証完了（2026-07-08・ui/polish）**: UX・導線フル監査で確定した指摘 **Critical 2/Major 14/Minor 12** を8実装エージェント＋検証2（全数突合・敵対的退行レビュー）＋フィックスアップ1で解消。**検証体制**: 全数突合で28件全て CONFIRMED（当初 PARTIAL の M1/M9＝読書画面継続カードの Custom Tabs 残件もフィックスアップで再入ガード＋背景同化解除＋open-in-new でクローズ）／敵対的退行レビューで Critical/Major 退行ゼロ（読書位置＝生命線・SSOT job cancel・ナビ骨格・取込パイプライン・Parcelize 型安全・BookshelfUiState 追随を現物確認）／`testDebugUnitTest` GREEN（新規 ActiveUriTrackerTest・BookCardProgressTest・NavHistoryTest＋既存4ファイルへ F-C/F-E/F-O/M8/権限回収の回帰追加）。**レビュー発見の恒久バグ1件も修正**＝取込失敗→再試行せず再起動で persistable URI permission がリーク → 起動時 `releaseOrphanedPermissions`（pending_jobs 非紐付き権限の回収）で根本対処。**主な構造変化**: kotlin-parcelize 導入（ResultContext/SearchDraft/DiscoveryQuery を SavedStateHandle 退避）／BookshelfUiState(Loading/Content)／TocState 4状態／AppErrorEvent(message, retryUri) 化／通知 deep link（EXTRA_BOOK_ID・launchMode=singleTop）／読書画面の内部 Back 履歴（navHistory・上限32）。**残タスク**（実機確認10項目＋繰り越し5件＝F-G 恒久策／F-J ページング／M12 ヒント永続化／意匠オーナー確認2点／F-F 軽微）は `handover.md` §E 参照。
+
 - **Kotlin+PDFBox 移植（Chaquopy→ネイティブ・handover D）Phase 1〜5 完了・main へ統合（2026-07-06・--no-ff `75de07c`）**。
   一次情報 plan＝`.claude/plans/kotrin-branch-python-kotrin-graceful-flute-archived-2026-07-06.md`（再開手順・WSLビルドコマンド・環境メモ）／Phase 3 設計判断＝`.claude/plans/pure-juggling-hamming-archived-2026-07-06.md`／腐りにくい知見＝`task_diary.md` #30〜#38。
   - **Phase 1（純ロジック移植・9コミット全緑）**: `0a23d53` PDFBox依存追加 → `41c3b24` ParserRules・CharBox → `eae9892` TextProcessor → `53825f4` PdfExtractor → `dc7a090` splitIntoChapters → `cd6470e` ChapterProcessor → `c477d2d` HtmlExporter（**バイト等価ゴールデン＝穴1 KILL**） → `d40a225` PdfExtractionException → `12318eb` PdfBookExtractor facade。
