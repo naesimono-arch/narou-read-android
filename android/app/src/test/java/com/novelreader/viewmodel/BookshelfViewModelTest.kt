@@ -8,7 +8,9 @@ import com.novelreader.data.BookEntity
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.NovelApiRepository
 import com.novelreader.narou.model.DiscoveryResult
+import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouOrder
+import com.novelreader.narou.model.Ncode
 import com.novelreader.repository.BookRepository
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -209,5 +212,48 @@ class BookshelfViewModelTest {
         coVerify(exactly = 2) {
             mockNovelApiRepository.discover(match { it.word == "最遊記" })
         }
+    }
+
+    // ── 続きありバッジ用の詳細一括照会（旧 BookCard の produceState を VM へ移設）───────────
+
+    @Test
+    fun `newEpisodeNovelMap - 紐付け済みの本ごとに novelDetail を照会し ncode 別のMapを作る`() = runTest {
+        val novelA = mockk<NarouNovel>()
+        val books = listOf(
+            BookEntity("id01", "本A", "/p/a", ncode = "N1111AA"),
+            BookEntity("id02", "本B", "/p/b"), // ncode null → 照会対象外
+        )
+        every { mockRepository.allBooks } returns flowOf(books)
+        coEvery { mockNovelApiRepository.novelDetail(Ncode("N1111AA")) } returns novelA
+        viewModel = BookshelfViewModel(mockApp)
+
+        // WhileSubscribed のため能動的に購読して上流の一括照会を起動する
+        val job = launch { viewModel.newEpisodeNovelMap.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(mapOf("N1111AA" to novelA), viewModel.newEpisodeNovelMap.value)
+        coVerify(exactly = 1) { mockNovelApiRepository.novelDetail(Ncode("N1111AA")) }
+        job.cancel()
+    }
+
+    @Test
+    fun `newEpisodeNovelMap - NarouApiException は握り潰しその ncode を除外する`() = runTest {
+        val novelA = mockk<NarouNovel>()
+        val books = listOf(
+            BookEntity("id01", "本A", "/p/a", ncode = "N1111AA"),
+            BookEntity("id02", "本B", "/p/b", ncode = "N2222BB"), // 失敗する
+        )
+        every { mockRepository.allBooks } returns flowOf(books)
+        coEvery { mockNovelApiRepository.novelDetail(Ncode("N1111AA")) } returns novelA
+        coEvery { mockNovelApiRepository.novelDetail(Ncode("N2222BB")) } throws
+            NarouApiException("オフライン", RuntimeException())
+        viewModel = BookshelfViewModel(mockApp)
+
+        val job = launch { viewModel.newEpisodeNovelMap.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // 失敗した ncode は落ち、成功分だけが残る（本棚を通信エラーで騒がせない）
+        assertEquals(mapOf("N1111AA" to novelA), viewModel.newEpisodeNovelMap.value)
+        job.cancel()
     }
 }

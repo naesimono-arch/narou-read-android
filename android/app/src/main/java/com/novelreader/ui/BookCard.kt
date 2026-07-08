@@ -20,18 +20,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.novelreader.NovelReaderApplication
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.narou.ContinuationInfo
-import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.computeContinuation
-import com.novelreader.narou.model.Ncode
+import com.novelreader.narou.model.NarouNovel
 import com.novelreader.ui.components.BookCover
 import com.novelreader.ui.theme.MinchoFamily
 import java.io.File
@@ -141,32 +138,17 @@ private fun NewChaptersBadge(newCount: Int, modifier: Modifier = Modifier) {
 }
 
 /**
- * 紐付け済み（ncode 非null）の本だけ、なろうの総話数と突き合わせて新着話数を返す。null=バッジ非表示。
- * なぜカード単位の produceState か: totalChaps（章数のファイル走査）と同じ既存様式に合わせるため。
- * 実通信は Repository の 6h TTL キャッシュに乗るので、再コンポーズ・画面往復で毎回は飛ばない。
- * オフライン等の失敗時は静かに非表示（本棚を通信エラーで騒がせない）。
+ * 手元PDFの章数（totalChaps）となろう詳細（novelDetail）を突き合わせ、新着話数を返す。null=バッジ非表示。
+ *
+ * なぜ Repository を直接叩かず引数の novelDetail を使うか（アーキ監査残課題1）:
+ * 以前はカードごとに produceState で novelApiRepository.novelDetail を直撃しており、カード枚数ぶん
+ * Repository を直撃＝テスト不能・本棚を開くたび並列発火だった。照会は BookshelfViewModel へ一括で吊り上げ、
+ * カードは配布された詳細を受け取って突き合わせるだけの純粋関数に落とした（通信・キャッシュ・失敗握り潰しは VM 側）。
+ * これは純 Kotlin の純粋計算なので Compose 非依存で単体テストできる。
  */
-@Composable
-private fun rememberNewEpisodeCount(book: BookEntity, totalChaps: Int): Int? {
-    val context = LocalContext.current
-    val newCount by produceState<Int?>(initialValue = null, key1 = book.ncode, key2 = totalChaps) {
-        val ncode = book.ncode
-        value = if (ncode == null || totalChaps <= 0) {
-            null
-        } else {
-            try {
-                val repository =
-                    (context.applicationContext as NovelReaderApplication).novelApiRepository
-                // 境界: book.ncode は Room 由来の String（非 null 確定）。詳細取得の引数は型付き Ncode へ包む。
-                repository.novelDetail(Ncode(ncode))?.let { novel ->
-                    (computeContinuation(totalChaps, novel) as? ContinuationInfo.NewEpisodes)?.newCount
-                }
-            } catch (e: NarouApiException) {
-                null
-            }
-        }
-    }
-    return newCount
+internal fun newEpisodeCountFor(novelDetail: NarouNovel?, totalChaps: Int): Int? {
+    if (novelDetail == null || totalChaps <= 0) return null
+    return (computeContinuation(totalChaps, novelDetail) as? ContinuationInfo.NewEpisodes)?.newCount
 }
 
 // ============================================================
@@ -177,6 +159,8 @@ private fun rememberNewEpisodeCount(book: BookEntity, totalChaps: Int): Int? {
 internal fun GridBookCard(
     book: BookEntity,
     progress: ProgressEntity?,
+    // 続きありバッジ用のなろう詳細（VM が一括照会し配布。null=未紐付け/未取得/失敗）。
+    novelDetail: NarouNovel?,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
     deleteUiMode: Int,
@@ -287,7 +271,7 @@ internal fun GridBookCard(
             flexBar = true,
         )
         // 続きあり（モックは進捗行の下・上4px）
-        rememberNewEpisodeCount(book, totalChaps)?.let { newCount ->
+        newEpisodeCountFor(novelDetail, totalChaps)?.let { newCount ->
             NewChaptersBadge(newCount = newCount, modifier = Modifier.padding(top = 4.dp))
         }
     }
@@ -301,6 +285,8 @@ internal fun GridBookCard(
 internal fun ListBookCard(
     book: BookEntity,
     progress: ProgressEntity?,
+    // 続きありバッジ用のなろう詳細（VM が一括照会し配布。null=未紐付け/未取得/失敗）。
+    novelDetail: NarouNovel?,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
     deleteUiMode: Int,
@@ -389,7 +375,7 @@ internal fun ListBookCard(
                         progressFraction = progressFraction,
                         flexBar = false,
                     )
-                    rememberNewEpisodeCount(book, totalChaps)?.let { newCount ->
+                    newEpisodeCountFor(novelDetail, totalChaps)?.let { newCount ->
                         NewChaptersBadge(newCount = newCount, modifier = Modifier.padding(start = 10.dp))
                     }
                 }

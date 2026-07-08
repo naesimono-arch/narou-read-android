@@ -13,9 +13,11 @@ import com.novelreader.data.ProgressEntity
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.DiscoveryResult
+import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -109,6 +111,39 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
         .map { list -> list.associateBy { it.bookId } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
         // WhileSubscribed(5_000) に統一（Lazily はサブスクライバーゼロでもDBクエリが流れ続けるため）
+
+    // 本棚カードの「続きありバッジ」用に、紐付け済み作品（ncode 非null）の詳細をまとめて照会する。
+    // key = ncode（String）／value = なろう詳細。バッジの新着話数はカード側で
+    // computeContinuation(手元PDFの章数, 詳細) により算出する（章数のファイル走査はカードが持つため）。
+    //
+    // なぜカード単位の produceState から VM の一括照会へ移したか（アーキ監査残課題1・テスト容易性）:
+    // 旧実装は BookCard が produceState 内で novelApiRepository.novelDetail を直接叩いており、
+    // カード枚数ぶん Repository を直撃していた（テスト不能・本棚を開くたびカードごとに並列発火）。
+    // 照会を VM へ吊り上げ、カードは Map から自分の ncode 分を引くだけの純粋表示にする。
+    //
+    // 【重要】なぜ IO 等へ切り替えず viewModelScope 既定（Main dispatcher）で逐次照会するか:
+    // NovelApiRepository のインメモリキャッシュは「全呼び出しが Main で直列化される」前提で
+    // スレッド安全性が成立している（既知負債。解消は別タスク U1）。ここで dispatcher を変えると
+    // キャッシュ競合を招くため、意図的に Main のまま逐次で回す（dispatcher を変えないこと）。
+    // 失敗（NarouApiException＝オフライン等）は静かに無視しバッジ非表示にする（旧 produceState と同一方針）。
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val newEpisodeNovelMap: StateFlow<Map<String, NarouNovel>> = books
+        .map { list -> list.mapNotNull { it.ncode }.distinct() }
+        // 本棚の並び替え等で ncode 集合が不変なら再照会しない（6h TTL キャッシュへの無駄叩き回避）。
+        .distinctUntilChanged()
+        // 本棚リスト（ncode 集合）変化時に前回の照会を破棄して最新集合で回し直す。
+        .mapLatest { ncodes ->
+            val result = LinkedHashMap<String, NarouNovel>()
+            for (ncode in ncodes) {
+                try {
+                    novelApiRepository.novelDetail(Ncode(ncode))?.let { result[ncode] = it }
+                } catch (e: NarouApiException) {
+                    // オフライン等の失敗はバッジ非表示で静かに握り潰す（本棚を通信エラーで騒がせない）。
+                }
+            }
+            result
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     // Application の StateFlow を購読して processingState を提供
     val processingState: StateFlow<ProcessingState> = app.processingState

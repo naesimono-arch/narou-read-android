@@ -48,6 +48,7 @@ class BookshelfContentTest {
                 BookshelfContent(
                     uiState = uiState,
                     progressMap = emptyMap(),
+                    newEpisodeNovelMap = emptyMap(),
                     processingState = ProcessingState(),
                     appTheme = ReadingTheme.LIGHT,
                     onThemeChange = {},
