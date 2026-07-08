@@ -2,7 +2,7 @@
 
 - ステータス: Accepted（一部**要スパイク**＝下記「未確定事項」）
 - 日付: 2026-07-09
-- 関連実装（予定）: `NovelDetailScreen.kt`（取り込みボタン）／取り込み用 WebView 1画面（`setDownloadListener`）／`BookshelfViewModel.addBook(uri)`（既存合流点）／`BookEntity.ncode`（既存列・作品紐付け）／`narouWorkUrl(ncode)`（既存・目次URL）
+- 関連実装（2026-07-09 実装・実機通し検証済み）: `NovelDetailScreen.kt`（取り込みボタン・仮意匠）／`ui/discovery/PdfImportScreen.kt`＋`viewmodel/PdfImportViewModel.kt`（取り込み用 WebView・`setDownloadListener`→OkHttp DL→FileProvider `content://` 化）／`PdfProcessingService`・`BookRepository.addBook(uri, ncode)`（既存合流点＋insert 時 ncode 紐付け）／`narouWorkUrl(ncode)`（既存・目次URL）
 - 関連知見: `task_diary.md` #45（なろうヘルプ183「よくある違反行為」の原文・根拠条項）／なろうヘルプ99 `helppageid/99`（縦書きPDF機能）／`handover.md`「PDF取り込み導線」節（実機偵察の一次情報）
 - 関連ADR: [0010](0010-narou-unmodified-handoff-custom-tabs.md)（WebView 廃止・加工なし送客を既定化。**本 ADR は 0010 を覆さず、"取り込み"という別用途に限り WebView 再導入の例外を定義する**）／[0005](0005-ui-n-visual-language-D.md)（没入意匠は権利を自前で持つ PDF 読書面に集中）
 
