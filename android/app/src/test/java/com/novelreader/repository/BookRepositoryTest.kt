@@ -33,7 +33,9 @@ class BookRepositoryTest {
     private lateinit var progressDao: ProgressDao
     private lateinit var pendingJobDao: PendingJobDao
     private lateinit var context: Context
-    private lateinit var repository: BookRepository
+    // 実装クラスを直接組み立てる（internal な findExistingBook/classifyError 等を検証するため）。
+    // interface BookRepository には出さない実装詳細メソッドなので DefaultBookRepository 型で受ける。
+    private lateinit var repository: DefaultBookRepository
 
     @Before
     fun setUp() {
@@ -41,7 +43,7 @@ class BookRepositoryTest {
         bookDao = mockk(relaxed = true)
         progressDao = mockk(relaxed = true)
         pendingJobDao = mockk(relaxed = true)
-        repository = BookRepository(context, bookDao, progressDao, pendingJobDao)
+        repository = DefaultBookRepository(context, bookDao, progressDao, pendingJobDao)
     }
 
     // ── classifyError: PdfExtractionException 型分岐 ──────────────────────

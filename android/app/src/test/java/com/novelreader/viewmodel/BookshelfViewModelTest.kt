@@ -5,6 +5,7 @@ import androidx.core.content.ContextCompat
 import com.novelreader.NovelReaderApplication
 import com.novelreader.PdfProcessingService
 import com.novelreader.data.BookEntity
+import com.novelreader.data.ProgressEntity
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.NovelApiRepository
 import com.novelreader.narou.model.DiscoveryResult
@@ -93,6 +94,25 @@ class BookshelfViewModelTest {
         viewModel.deleteBook(book)
         testDispatcher.scheduler.advanceUntilIdle()
         coVerify { mockRepository.deleteBook(book) }
+    }
+
+    // ── Fake 実装での結線確認 ────────────────────────────────────────────
+    // interface BookRepository 抽出により、Room/PDFBox 非依存の FakeBookRepository を差し込んで
+    // ViewModel を実データフローで検証できることを示す（mockk のスタブ検証とは別の担保）。
+    @Test
+    fun `FakeBookRepository - getLastRead が Fake のインメモリ進捗を返す`() = runTest {
+        val fake = com.novelreader.repository.FakeBookRepository()
+        fake.setProgress(listOf(ProgressEntity("id01", "chapter_03.html")))
+        val fakeApp = mockk<NovelReaderApplication>(relaxed = true)
+        every { fakeApp.repository } returns fake
+        every { fakeApp.novelApiRepository } returns mockNovelApiRepository
+        every { fakeApp.processingState } returns MutableStateFlow<ProcessingState?>(null).asStateFlow()
+        every { fakeApp.errorEvents } returns emptyFlow()
+
+        val vm = BookshelfViewModel(fakeApp)
+        // getLastRead は repository.getLastRead への素の委譲＝Fake のインメモリ状態がそのまま返る
+        assertEquals("chapter_03.html", vm.getLastRead("id01"))
+        assertNull(vm.getLastRead("unknown"))
     }
 
     @Test

@@ -10,6 +10,7 @@ import com.novelreader.narou.DataStoreSearchHistoryStore
 import com.novelreader.narou.NovelApiRepository
 import com.novelreader.narou.SearchHistoryStore
 import com.novelreader.repository.BookRepository
+import com.novelreader.repository.DefaultBookRepository
 import com.novelreader.viewmodel.AppErrorEvent
 import com.novelreader.viewmodel.ProcessingState
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
@@ -28,7 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class NovelReaderApplication : Application() {
 
     /** 書籍データアクセス層のシングルトン（Service/ViewModel 共用） */
-    val repository: BookRepository by lazy { BookRepository(this) }
+    val repository: BookRepository by lazy { DefaultBookRepository(this) }
 
     /** プロセス生存期間のバックグラウンド作業用スコープ。Service の scope は onDestroy/onTimeout で
      *  cancel されるため、Service 破棄と無関係に完遂させたい書き込み（pending_jobs の記帳・全消し）と
