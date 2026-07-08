@@ -15,6 +15,7 @@ import android.provider.OpenableColumns
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import com.novelreader.narou.model.Ncode
 import com.novelreader.viewmodel.BookImportError
 import com.novelreader.viewmodel.ProcessingState
 import kotlinx.coroutines.CoroutineScope
@@ -35,7 +36,10 @@ class PdfProcessingService : Service() {
 
     // キューと状態を1つの lock で保護（「追加+起動判定」と「取り出し+終了判定」をアトミックにし競合ゼロにする）
     private val lock = ReentrantLock()
-    private val uriQueue = ArrayDeque<Uri>()
+    // キュー要素は URI に加え「紐付ける ncode（縦書きPDF取り込み ADR 0011 経由のみ非 null）」を持つ。
+    // なぜ Uri 単独から拡張したか: 取り込み経路では DL 元作品の ncode を新規登録時に紐付けたいが、
+    // Service は bookId を UI に返さないため insert 時に一緒に運ぶ必要がある（手動 UPDATE 経路しかない現状の穴埋め）。
+    private val uriQueue = ArrayDeque<QueuedUri>()
     // 二重取込のべき等ガード（UX監査 F-G 公理3）: キュー待ち＋処理中（未完了）の URI 集合。
     // 同一 URI の再投入を変換前に弾く。lock で保護（uriQueue と同じ排他下で読み書きする）。
     private val activeUris = ActiveUriTracker()
@@ -99,6 +103,8 @@ class PdfProcessingService : Service() {
 
         if (intent?.action != ACTION_START) return START_NOT_STICKY
         val uri = intent.data ?: return START_NOT_STICKY
+        // 縦書きPDF取り込み（ADR 0011）から渡る紐付け対象 ncode。通常のファイル選択取り込みでは未指定＝null。
+        val ncode = intent.getStringExtra(EXTRA_NCODE)
 
         // べき等ガード（UX監査 F-G 公理3）: 既にキュー待ち／処理中の同一 URI は変換前に弾く。
         // これで「同じ PDF を連続で追加」→ 蔵書2冊＋変換二重実行（旧 uriQueue.add の重複チェック無）を防ぐ。
@@ -109,7 +115,7 @@ class PdfProcessingService : Service() {
             if (!activeUris.register(uri.toString())) {
                 Pair(true, false)
             } else {
-                uriQueue.add(uri)
+                uriQueue.add(QueuedUri(uri, ncode))
                 totalCount++
                 isStopping = false  // 新規追加で停止状態を解除（同一インスタンス再利用時の取りこぼし防止）
                 val start = if (!isLoopRunning) { isLoopRunning = true; true } else false
@@ -132,6 +138,10 @@ class PdfProcessingService : Service() {
         // applicationScope で走らせるのは ACTION_STOP の全消しと同じ理由（scope.cancel 非依存）。
         // resolveDisplayName は ContentProvider への query のためメインスレッドの
         // onStartCommand では呼ばず、IO の launch 内で解決する。
+        // 妥協（ADR 0011）: pending_jobs には ncode を記帳しない。記帳すると列追加＝Room migration が要るが、
+        // 縦書きPDF取り込みの ncode 紐付けのためだけに DB スキーマを変える価値は薄い。帰結として
+        // 「取り込み中に強制終了→次回起動リカバリで再開」した本は ncode 無しで登録される（稀なケース）。
+        // その本は既存の手動紐付け（NcodeLinkSheet）で回復可能なため、この欠落は許容する。
         (application as? NovelReaderApplication)?.let { app ->
             app.applicationScope.launch(app.pendingJobDispatcher) {
                 app.repository.addPendingJob(uri.toString(), resolveDisplayName(uri))
@@ -211,7 +221,7 @@ class PdfProcessingService : Service() {
             try {
                 while (true) {
                     // キューからの取り出しと、空の場合の isLoopRunning リセットをアトミックに行う
-                    val uri = lock.withLock {
+                    val item = lock.withLock {
                         if (uriQueue.isEmpty()) {
                             isLoopRunning = false
                             isNormalExit = true
@@ -219,6 +229,7 @@ class PdfProcessingService : Service() {
                         }
                         else uriQueue.removeFirst()
                     } ?: break
+                    val uri = item.uri
 
                     // WakeLock は PDF 1件ごとに取得・解放する。
                     // なぜループ単位でなく PDF 単位か: キューに複数 PDF を積むと合計処理が
@@ -243,7 +254,7 @@ class PdfProcessingService : Service() {
                         // に積まれた URI を取りこぼすレースがあるため。子 Job 方式ならループ自体は
                         // 生き続け、次周回が空キュー（STOP が clear 済み）を検知して正常終了する。
                         coroutineScope {
-                            val bookJob = launch { processSingleUri(uri) }
+                            val bookJob = launch { processSingleUri(uri, item.ncode) }
                             // 登録と停止済み再確認をアトミックに行う（launch 直後・登録前に
                             // ACTION_STOP が来た場合の cancel 取り逃しを防ぐ）。
                             lock.withLock {
@@ -285,7 +296,7 @@ class PdfProcessingService : Service() {
         }
     }
 
-    private suspend fun processSingleUri(uri: Uri) {
+    private suspend fun processSingleUri(uri: Uri, ncode: String? = null) {
         val app = application as NovelReaderApplication
         val repository = app.repository
         // この本の位置（分子）は開始時点のスナップショットで固定する。
@@ -299,7 +310,8 @@ class PdfProcessingService : Service() {
         )
 
         try {
-            val result = repository.addBook(uri, onProgress = { step, stepLocalPercent, phase, title ->
+            // ncode（縦書きPDF取り込み ADR 0011 経由のみ非 null）を新規登録時の紐付けとして伝搬する。
+            val result = repository.addBook(uri, ncode?.let { Ncode(it) }, onProgress = { step, stepLocalPercent, phase, title ->
                 val progress = (step * 25 + stepLocalPercent * 25).toInt().coerceIn(0, 100)
                 // 分母（総件数）は毎回ライブ読みする。なぜスナップショットにしないか:
                 // この本の処理中にキューへ追加された分（totalCount 増加）を即座に「n/m」へ
@@ -503,12 +515,20 @@ class PdfProcessingService : Service() {
     companion object {
         const val ACTION_START = "com.novelreader.action.START_PROCESSING"
         const val ACTION_STOP = "com.novelreader.action.STOP_PROCESSING"
+        // 縦書きPDF取り込み（ADR 0011）で、取り込む本に紐付ける ncode を Intent で運ぶ extra キー。
+        const val EXTRA_NCODE = "com.novelreader.extra.NCODE"
         const val NOTIFICATION_ID = 1001
         // 二重取込の通知は進行中変換の ongoing 通知（NOTIFICATION_ID）を潰さないよう別 ID にする。
         const val DUPLICATE_NOTIFICATION_ID = 1002
         private const val TAG = "PdfProcessingService"
     }
 }
+
+/**
+ * 処理キューの1要素。取り込み対象 URI と、それに紐付ける ncode（縦書きPDF取り込み ADR 0011 経由のみ非 null）。
+ * べき等ガード（activeUris）は URI キーのままにし、ncode は insert 時の付帯情報としてのみ運ぶ。
+ */
+private data class QueuedUri(val uri: Uri, val ncode: String?)
 
 /**
  * 取込中（キュー待ち＋変換中）の URI 集合を管理する純ロジック。二重取込のべき等ガード

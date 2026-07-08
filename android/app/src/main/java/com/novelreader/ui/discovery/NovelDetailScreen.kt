@@ -23,8 +23,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -106,6 +108,7 @@ fun NovelDetailScreen(
     ncode: Ncode,
     viewModel: NovelDetailViewModel,
     onKeywordTap: (String) -> Unit,
+    onImportPdf: () -> Unit,
     onBack: () -> Unit,
 ) {
     LaunchedEffect(ncode) {
@@ -125,6 +128,7 @@ fun NovelDetailScreen(
         ncode = ncode,
         uiState = uiState,
         onKeywordTap = onKeywordTap,
+        onImportPdf = onImportPdf,
         onBack = onBack,
         onRetry = { viewModel.retry() },
         onReadOnNarou = {
@@ -152,6 +156,7 @@ internal fun NovelDetailContent(
     ncode: Ncode,
     uiState: NovelDetailUiState,
     onKeywordTap: (String) -> Unit,
+    onImportPdf: () -> Unit,
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onReadOnNarou: () -> Unit,
@@ -248,6 +253,29 @@ internal fun NovelDetailContent(
                                     .padding(top = 8.dp),
                                 textAlign = TextAlign.Center
                             )
+                            // 縦書きPDF取り込み導線（ADR 0011）。
+                            // 【意匠は仮】このボタンはモック正本 discovery-detail-D.html に未収載のため、意匠を自前で
+                            // 発明せず既存「なろうで読む」Button と同じ形の系（RoundedCornerShape(2.dp)・fillMaxWidth）に
+                            // 留める。差別化のため塗り(Button)でなく OutlinedButton にした。正式な意匠は後日
+                            // モック先行（ADR 0005 の UI-n ワークフロー）でやり直す宿題（＝ここは繋ぎ）。
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedButton(
+                                onClick = onImportPdf,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Download,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "縦書きPDFを取り込む",
+                                    fontSize = 15.sp,
+                                    letterSpacing = 1.5.sp
+                                )
+                            }
                         }
                     }
                 }

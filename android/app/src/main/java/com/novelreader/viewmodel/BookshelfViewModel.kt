@@ -172,11 +172,15 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun addBook(uri: Uri) {
+    // ncode: 縦書きPDF取り込み（ADR 0011）から呼ぶときのみ非 null。取り込む本になろう作品を紐付ける。
+    // 通常のファイル選択取り込みでは省略（null）＝従来どおり紐付けはユーザーが後から NcodeLinkSheet で行う。
+    fun addBook(uri: Uri, ncode: Ncode? = null) {
         // 強制終了からの再開（起動時リカバリの再投入）にはプロセスを跨いで有効な読み取り権限が
         // 必要なため、intent の FLAG_GRANT（一時権限＝プロセス消滅で失効）に加えて永続権限を取る。
         // picker は OpenDocument なので取得可能だが、プロバイダによっては SecurityException を
         // 投げるため防御する（取れなくても通常の変換は一時権限で成立し、再開だけが不可になる）。
+        // なお FileProvider の content:// URI（取り込み経路）は persistable permission を取れず
+        // ここは runCatching で無害に失敗する＝その本の再開が効かないだけ（PdfImportViewModel 側と同じ前提）。
         runCatching {
             getApplication<Application>().contentResolver.takePersistableUriPermission(
                 uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -185,6 +189,8 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
         val intent = Intent(getApplication(), PdfProcessingService::class.java).apply {
             action = PdfProcessingService.ACTION_START
             data = uri
+            // ncode を積むのは新規登録時の紐付け用（Service→repository.addBook へ伝搬）。null なら積まない。
+            ncode?.let { putExtra(PdfProcessingService.EXTRA_NCODE, it.value) }
             // content:// URI の読み取り権限を Service に委譲
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }

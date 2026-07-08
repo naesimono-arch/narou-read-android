@@ -32,6 +32,7 @@ class NovelDetailContentTest {
     private fun setContent(
         uiState: NovelDetailUiState,
         onReadOnNarou: () -> Unit = {},
+        onImportPdf: () -> Unit = {},
     ) {
         composeTestRule.setContent {
             MaterialTheme {
@@ -39,6 +40,7 @@ class NovelDetailContentTest {
                     ncode = Ncode("N1234AB"),
                     uiState = uiState,
                     onKeywordTap = {},
+                    onImportPdf = onImportPdf,
                     onBack = {},
                     onRetry = {},
                     onReadOnNarou = onReadOnNarou,
@@ -79,5 +81,20 @@ class NovelDetailContentTest {
         )
         composeTestRule.onNodeWithText("なろうで読む").performClick()
         assertTrue(read)
+    }
+
+    // 縦書きPDF取り込みボタン（ADR 0011・仮意匠）の描画とコールバック結線がサイレント退行しないことを固定する。
+    @Test
+    fun `縦書きPDF取り込みの押下でonImportPdfが呼ばれる`() {
+        var imported = false
+        setContent(
+            NovelDetailUiState.Content(
+                novel = NarouNovel(title = "詳細作品", writer = "作者名テスト"),
+                fetchedAtMillis = 0L,
+            ),
+            onImportPdf = { imported = true },
+        )
+        composeTestRule.onNodeWithText("縦書きPDFを取り込む").performClick()
+        assertTrue(imported)
     }
 }

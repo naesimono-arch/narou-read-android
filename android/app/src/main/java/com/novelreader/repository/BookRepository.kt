@@ -30,9 +30,13 @@ interface BookRepository {
         data class Duplicate(val existing: BookEntity) : AddBookResult
     }
 
-    /** PDFをキャッシュにコピーし、ネイティブ(PDFBox)抽出でHTML生成後にRoomへ登録する。 */
+    /** PDFをキャッシュにコピーし、ネイティブ(PDFBox)抽出でHTML生成後にRoomへ登録する。
+     *  ncode: なろう縦書きPDF取り込み（ADR 0011）で、取り込む本に紐付ける Nコード。通常のファイル選択
+     *  取り込みでは null（従来どおり紐付けはユーザーが後から NcodeLinkSheet で行う）。新規登録時のみ
+     *  BookEntity.ncode へ書き込む（重複スキップ時は既存本を上書きしない＝下記実装コメント参照）。 */
     suspend fun addBook(
         pdfUri: Uri,
+        ncode: Ncode? = null,
         onProgress: (step: Int, stepLocalPercent: Float, phase: String, title: String) -> Unit = { _, _, _, _ -> },
     ): Result<AddBookResult>
 

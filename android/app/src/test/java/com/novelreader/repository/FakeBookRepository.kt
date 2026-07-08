@@ -40,8 +40,11 @@ class FakeBookRepository : BookRepository {
     /** テストのための進捗プリセット（allProgress へ即時反映）。 */
     fun setProgress(progress: List<ProgressEntity>) { progressState.value = progress }
 
+    // ncode 引数は ADR 0011 の縦書きPDF取り込み経路で使うが、Fake は addBookResult を返すだけの
+    // スタブのため受け取っても副作用は持たない（挙動検証は DefaultBookRepository/Service 側で行う）。
     override suspend fun addBook(
         pdfUri: Uri,
+        ncode: Ncode?,
         onProgress: (step: Int, stepLocalPercent: Float, phase: String, title: String) -> Unit,
     ): Result<BookRepository.AddBookResult> = addBookResult
 

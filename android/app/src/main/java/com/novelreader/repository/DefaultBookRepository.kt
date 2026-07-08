@@ -85,6 +85,7 @@ class DefaultBookRepository(
     /** PDFをキャッシュにコピーし、ネイティブ(PDFBox)抽出でHTML生成後にRoomへ登録する。 */
     override suspend fun addBook(
         pdfUri: Uri,
+        ncode: Ncode?,
         onProgress: (step: Int, stepLocalPercent: Float, phase: String, title: String) -> Unit,
     ): Result<AddBookResult> = withContext(Dispatchers.IO) {
         // withContext(Dispatchers.IO) の CoroutineScope を捕捉する。抽出の進捗コールバック（非 suspend）から
@@ -167,7 +168,12 @@ class DefaultBookRepository(
                         // addedAt に追加時刻をスタンプし、本棚の最近活動順ソート（未読本の基準）に使う。
                         // contentSha256 に①'で計算した内容指紋を保存する（次回以降の別URI・同内容の
                         // 再取込を、この本の存在によって変換前に遮断できるようにする＝F-G 恒久策の記録）。
-                        val b = BookEntity(bookId, meta.title, outputDir.absolutePath, meta.author, addedAt = System.currentTimeMillis(), contentSha256 = contentSha256)
+                        // ncode は「新規登録時のみ」書き込む（ADR 0011 の縦書きPDF取り込み経路から渡る）。
+                        // なぜ Duplicate 経路（上の hash 照合／下の title+author 照合）では設定しないか:
+                        // 既にある本を上書きすると、ユーザーが手動で別作品へ紐付け直した ncode を勝手に潰しうる。
+                        // 重複時は既存本をそのまま返し ncode に触れない（＝既存の紐付けを尊重する）。取り込み側は
+                        // 必要なら NcodeLinkSheet で手動修正できるため、これで実害はない。
+                        val b = BookEntity(bookId, meta.title, outputDir.absolutePath, meta.author, addedAt = System.currentTimeMillis(), contentSha256 = contentSha256, ncode = ncode?.value)
                         bookDao.insertBook(b)
                         // 変換が確定したので永続キュー（pending_jobs）の記帳を落とす。insertBook と同じ
                         // NonCancellable 内で連続実行し、「本は登録されたのに pending が残る」→ 次回起動の

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider の公開範囲定義。
+  なぜ cache-path の pdf_import/ 一点だけに絞るか（最小公開の原則）:
+    なろう縦書きPDF取り込み（ADR 0011）で WebView の DL を受けた一時ファイルを、
+    既存の取り込み経路（PdfProcessingService＝content:// 前提）へ content:// URI で渡すためだけに
+    FileProvider を使う。公開が広いほど他アプリ／他コンポーネントに晒す面が増えるため、
+    DL 一時領域（cacheDir/pdf_import/）以外は一切公開しない。蔵書本体（filesDir/novels/）や
+    その他の内部ストレージは FileProvider 経由で外へ出す必要がないため対象にしない。
+  path="pdf_import/" は PdfImportViewModel の保存先 context.cacheDir/pdf_import/ と一致させること。
+-->
+<paths>
+    <cache-path name="pdf_import" path="pdf_import/" />
+</paths>
