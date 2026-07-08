@@ -290,8 +290,10 @@ fun DiscoveryResultScreen(
                 when (val s = state) {
                     is DiscoveryUiState.Loading ->
                         DiscoveryStatusBox(DiscoveryStatus.Loading, modifier = Modifier.fillMaxSize())
-                    is DiscoveryUiState.Empty -> DiscoveryStatusBox(
-                        DiscoveryStatus.Empty("条件に合う作品が見つかりませんでした"),
+                    is DiscoveryUiState.Empty -> ResultEmpty(
+                        source = ctx.source,
+                        onAdjust = onBack,          // SEARCH: 条件シート（検索画面）へ戻す
+                        onBackToDiscovery = onUp,   // GENRE/MOOD/KEYWORD: 戻り先に条件シートが無いので発見ホームへ
                         modifier = Modifier.fillMaxSize(),
                     )
                     is DiscoveryUiState.Error -> DiscoveryStatusBox(
@@ -305,8 +307,19 @@ fun DiscoveryResultScreen(
                         ) {
                             item {
                                 // 総件数（モック .cnt・青磁）
+                                // F-J（公理8）: allcount(総数)だけ大表示すると「全件見られる」と誤認させるが、
+                                // 実表示は上位 shown 件のみ（なろうAPI limit=30・ページング未実装）。総数だけを見せて
+                                // 到達手段が無い齟齬を避け、Partial であることを「N件中 上位M件を表示」で明示する。
+                                // 将来ページングを入れても文言は活き続ける（上位M件が総数へ近づくだけ）。
+                                val shown = s.novels.size
+                                val allcountText = String.format(Locale.JAPAN, "%,d", s.allcount)
+                                val countText = if (s.allcount > shown) {
+                                    "$allcountText 件中 上位 $shown 件を表示"
+                                } else {
+                                    "$allcountText 作品"
+                                }
                                 Text(
-                                    text = "${String.format(Locale.JAPAN, "%,d", s.allcount)} 作品",
+                                    text = countText,
                                     fontSize = 11.sp,
                                     letterSpacing = 1.sp,
                                     color = MaterialTheme.colorScheme.secondary,
@@ -332,6 +345,38 @@ fun DiscoveryResultScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 結果0件の「次の一手」つき空状態（M7）。DiscoveryStatusBox.Empty はメッセージのみで CTA が無いため、
+ * 結果画面固有の到達導線をここで添える。検索発（SEARCH）は条件シートへ戻すのが最短の是正、
+ * ジャンル/気分/キーワード発は戻り先に条件シートが無いため発見ホームへ導く。
+ * 意匠は Error 状態（中央 Column＋メッセージ＋ボタン）に揃え、色はトークン経由（発明しない）。
+ */
+@Composable
+private fun ResultEmpty(
+    source: ResultSource,
+    onAdjust: () -> Unit,
+    onBackToDiscovery: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val isSearch = source == ResultSource.SEARCH
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "条件に合う作品が見つかりませんでした",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 16.dp),
+            )
+            OutlinedButton(onClick = if (isSearch) onAdjust else onBackToDiscovery) {
+                Text(if (isSearch) "検索条件を変える" else "ほかの条件で探す")
             }
         }
     }
