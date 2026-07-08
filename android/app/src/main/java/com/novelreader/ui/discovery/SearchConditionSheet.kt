@@ -255,6 +255,48 @@ fun SearchConditionSheet(
                 }
             }
 
+            // c-2. 除外語（なろうAPI notword）。テーマ属性の「除外する」と意味的に同じ「除外」文脈のため直後に置く。
+            // 入力欄の意匠は本シートのカスタム文字数/読了時間欄（ヘアライン下線のみの静かな入力欄）に完全に合わせる。
+            SectionHeader(text = "除外語")
+            var isNotWordFocused by remember { mutableStateOf(false) }
+            BasicTextField(
+                value = draft.notWord,
+                // 生入力をそのまま draft へ。trim→空→null 化は送出時（toQuery）に一括で行い、word と経路をそろえる。
+                onValueChange = { viewModel.setSearchDraft(draft.copy(notWord = it)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp)
+                    .onFocusChanged { isNotWordFocused = it.isFocused },
+                singleLine = true,
+                textStyle = TextStyle(
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                decorationBox = { innerTextField ->
+                    Column {
+                        Box(
+                            modifier = Modifier.padding(bottom = 4.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            if (draft.notWord.isEmpty()) {
+                                Text(
+                                    text = "含めたくない語（スペース区切り）",
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                            }
+                            innerTextField()
+                        }
+                        HorizontalDivider(
+                            thickness = 1.dp,
+                            color = if (isNotWordFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                        )
+                    }
+                }
+            )
+
             // d. 文字数
             // なぜモックのレンジスライダーでなく段階チップか: 文字数・読了時間はダイナミックレンジが広く線形スライダーは実用に耐えないため、段階選択に置き換える（見た目の節構成・チップ様式はモック準拠。操作系の差分は ADR 0005 のスコープ外規定＝実機フィードバックで後詰め）。
             // F-I: 文字数と読了時間は併用不可（なろうAPIの制約。SearchFilters.withLength/withTime が

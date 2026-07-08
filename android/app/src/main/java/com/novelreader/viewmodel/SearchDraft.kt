@@ -63,6 +63,8 @@ enum class SearchRange {
 @Parcelize
 data class SearchDraft(
     val word: String = "",
+    // 除外語（なろうAPI notword）。空白のみは未指定として扱い、送出時に trim→空なら null 化する（word と同じ流儀）。
+    val notWord: String = "",
     val inTitle: Boolean = true,
     val inStory: Boolean = false,
     val inKeyword: Boolean = false,
@@ -88,6 +90,8 @@ data class SearchDraft(
 
     fun toQuery(): DiscoveryQuery = DiscoveryQuery(
         word = word.trim().takeIf { it.isNotBlank() },
+        // 未指定（空白のみ）は notword を送らない＝word と同じ trim→空→null 変換で一貫させる。
+        notWord = notWord.trim().takeIf { it.isNotBlank() },
         inTitle = inTitle,
         inStory = inStory,
         inKeyword = inKeyword,
