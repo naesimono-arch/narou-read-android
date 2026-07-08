@@ -1,6 +1,7 @@
 package com.novelreader.narou
 
 import android.util.Log
+import com.novelreader.narou.model.DiscoveryPage
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.DiscoveryResult
 import com.novelreader.narou.model.NarouNovel
@@ -49,6 +50,13 @@ class NovelApiRepository(
         // 週間ランキングと異なり、ディスカバリ検索ではクエリの種類が多様になり、
         // インメモリキャッシュが際限なく膨らんでメモリを圧迫するのを防ぐため。
         const val MAX_CACHE_SIZE = 50
+
+        // なろうAPIの取得エンベロープ（narou_api_manual.md §3.2）。
+        //   lim（最大出力数）は 1〜500、st（表示開始位置）は 1〜2000。
+        // つまり通常検索は st=2000 までしかページを進められず、全件がこれを超える場合は途中で頭打ちになる。
+        // フルページング（F-J）はこの上限を検出して「取得上限に達しました」を明示するために使う。
+        const val API_LIM_MAX = 500
+        const val API_ST_MAX = 2000
     }
 
     /**
@@ -125,25 +133,66 @@ class NovelApiRepository(
     }
 
     /**
-     * 汎用ディスカバリ検索を実行する。
+     * 汎用ディスカバリ検索を実行する（先頭ページ）。
      * キャッシュがあればそれを返し、無ければAPIから取得してキャッシュする。
+     * 既存呼び出し（ホーム・結果一覧の初回・作品バッジ等）の互換のため DiscoveryResult を返す薄いラッパー。
      */
     suspend fun discover(query: DiscoveryQuery): DiscoveryResult {
+        val page = discoverPage(query, offset = 0)
+        return DiscoveryResult(page.allcount, page.novels)
+    }
+
+    /**
+     * ページ単位のディスカバリ取得（フルページング＝F-J）。
+     * @param offset これまでに読み込み済みの件数（0始まり）。次ページは st=offset+1（narou_api_manual.md §3.2:
+     *   「3作品目以降なら3」＝st は1始まりの表示開始位置）で取得する。offset==0 は st を送らず先頭に委ねる
+     *   （既存の一覧・ホーム経路と同一リクエストにし、キャッシュとテスト互換を保つため）。
+     * 返り値の reachedApiLimit は「次ページが API エンベロープ（st>2000／マージ経路は累計>500）に阻まれて
+     * 取得不能」を表し、VM が全件到達(Complete)と取得上限(ApiLimit)を判別するのに使う。
+     */
+    suspend fun discoverPage(query: DiscoveryQuery, offset: Int): DiscoveryPage {
         // SHORT+RENSAI マージ経路
         if (query.types == setOf(NarouNovelType.SHORT, NarouNovelType.RENSAI)) {
+            // なぜ st でオフセットできないか: API に複合 type が無く2クエリを都度マージするため、st は
+            // 各サブクエリ個別の開始位置にしかならずマージ列のオフセットにならない。代わりに各サブを
+            // 「先頭から累計(offset+limit)件」取り直してマージし直し、[offset, offset+limit) を切り出す。
+            // なぜ正確（近似でない）か: order でソート済みの2列 A,B について「マージ後の上位K件」は必ず
+            // A[0,K)∪B[0,K) に含まれるため、累計K件ずつ取れば境界のK件目まで正しく決まる。
+            if (offset >= API_LIM_MAX) {
+                // 累計が lim 上限(500)に達しており、これ以上は取得不能。allcount は VM が初回ページで
+                // 保持済みのため 0 でも害はない（load-more では allcount を上書きしない設計）。
+                return DiscoveryPage(allcount = 0, novels = emptyList(), reachedApiLimit = true)
+            }
+            val fetchCount = (offset + query.limit).coerceAtMost(API_LIM_MAX)
+            val short = discoverPage(query.copy(types = setOf(NarouNovelType.SHORT), limit = fetchCount), 0)
+            val rensai = discoverPage(query.copy(types = setOf(NarouNovelType.RENSAI), limit = fetchCount), 0)
+            val mergedNovels = mergeByOrder(short.novels, rensai.novels, query.order).take(fetchCount)
+            val page = mergedNovels.drop(offset)
             // なぜ: allcount は短編と連載中が排反なので単純加算で正確。
-            val short = discover(query.copy(types = setOf(NarouNovelType.SHORT)))
-            val rensai = discover(query.copy(types = setOf(NarouNovelType.RENSAI)))
-            val mergedNovels = mergeByOrder(short.novels, rensai.novels, query.order).take(query.limit)
-            return DiscoveryResult(short.allcount + rensai.allcount, mergedNovels)
+            val allcount = short.allcount + rensai.allcount
+            val loadedAfter = offset + page.size
+            // 累計が 500 に張り付き、かつ総数がそれを超えていれば以降は lim 上限で取得不能＝取得上限。
+            val reached = loadedAfter >= API_LIM_MAX && loadedAfter < allcount
+            return DiscoveryPage(allcount, page, reached)
         }
 
-        val cacheKey = query.cacheKey()
+        // st は1始まりの表示開始位置。offset==0 は既定（先頭）に委ねて省略する。
+        val st = if (offset <= 0) null else offset + 1
+        // st が API 上限(2000)を超える要求は投げられない＝ここで取得上限として返す
+        // （通常この分岐は VM 側の再入で来る前に reachedApiLimit で止まるが、防御的に弾く）。
+        if (st != null && st > API_ST_MAX) {
+            return DiscoveryPage(allcount = 0, novels = emptyList(), reachedApiLimit = true)
+        }
+
+        // なぜ offset をキャッシュキーに含めるか: ページごとに返る作品スライスが異なるため、offset を
+        // 混ぜないと 2ページ目に 1ページ目の結果を返してしまう。追加ページも 6h TTL でキャッシュするのは、
+        // 同一クエリの再ページングや再訪時に無駄な再取得を避け、なろうAPIの転送量マナー（§6）に沿うため。
+        val cacheKey = query.cacheKey() + "|off:$offset"
         val now = timeSource()
         val cached = cache[cacheKey]
 
         if (cached != null && (now - cached.cachedTimeMs) < RANKING_TTL_MS) {
-            return cached.result
+            return toPage(cached.result, offset)
         }
 
         val result = wrapApiException {
@@ -196,6 +245,7 @@ class NovelApiRepository(
                 of = OF_LIST,
                 order = query.order.apiValue,
                 lim = query.limit,
+                st = st,
                 word = wordParam,
                 notword = notWordParam,
                 title = titleParam,
@@ -235,7 +285,19 @@ class NovelApiRepository(
         }
 
         putCache(cacheKey, result, now)
-        return result
+        return toPage(result, offset)
+    }
+
+    /**
+     * 取得済み DiscoveryResult を、offset を踏まえた DiscoveryPage（reachedApiLimit 付き）へ変換する。
+     * 通常経路の取得上限判定: 次ページ開始位置 st'=(offset+size)+1 が 2000 を超える、かつ総数に未達なら取得上限。
+     * なぜ result 由来で再計算するか: キャッシュには生の result のみ保持し、reachedApiLimit は
+     * offset 依存の派生値なので都度計算する（キャッシュヒット時も正しく求まる）。
+     */
+    private fun toPage(result: DiscoveryResult, offset: Int): DiscoveryPage {
+        val loadedAfter = offset + result.novels.size
+        val reached = loadedAfter >= API_ST_MAX && loadedAfter < result.allcount
+        return DiscoveryPage(result.allcount, result.novels, reached)
     }
 
     /**

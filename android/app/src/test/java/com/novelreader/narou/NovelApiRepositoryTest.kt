@@ -643,4 +643,138 @@ class NovelApiRepositoryTest {
 
         coVerify(exactly = 1) { service.search(ncode = "N9999XX", lim = 1, of = null) }
     }
+
+    // ── フルページング（F-J） ──
+
+    @Test
+    fun `discoverPage - offset=0 では st を送らず（st=null）先頭ページを返すこと`() = runTest {
+        coEvery { service.search(of = any(), order = any(), lim = any(), st = null) } returns createMockResponse()
+
+        val page = repository.discoverPage(DiscoveryQuery(), offset = 0)
+
+        assertEquals(100, page.allcount)
+        assertEquals(2, page.novels.size)
+        assertFalse(page.reachedApiLimit)
+        coVerify(exactly = 1) { service.search(of = any(), order = any(), lim = any(), st = null) }
+    }
+
+    @Test
+    fun `discoverPage - offset 指定で st=offset+1 を送りそのページを返すこと`() = runTest {
+        val page2 = listOf(
+            NarouNovel(allcount = 100),
+            NarouNovel(title = "31番目", ncode = "N31"),
+            NarouNovel(title = "32番目", ncode = "N32"),
+        )
+        coEvery { service.search(of = any(), order = any(), lim = any(), st = 31) } returns page2
+
+        val page = repository.discoverPage(DiscoveryQuery(), offset = 30)
+
+        assertEquals(100, page.allcount)
+        assertEquals("N31", page.novels[0].ncode)
+        assertFalse(page.reachedApiLimit)
+        coVerify(exactly = 1) { service.search(of = any(), order = any(), lim = any(), st = 31) }
+    }
+
+    @Test
+    fun `discoverPage - 次ページ開始位置が st 上限(2000)を超えると reachedApiLimit=true になること`() = runTest {
+        // st=1986 での取得は可能（<=2000）だが、取得後の累計 1985+30=2015 は 2000 を超え、
+        // 総数(5000)にも未達＝次ページは st>2000 で取得不能。
+        val novels = (1..30).map { NarouNovel(ncode = "N$it") }
+        val resp = listOf(NarouNovel(allcount = 5000)) + novels
+        coEvery { service.search(of = any(), order = any(), lim = any(), st = 1986) } returns resp
+
+        val page = repository.discoverPage(DiscoveryQuery(), offset = 1985)
+
+        assertEquals(30, page.novels.size)
+        assertTrue(page.reachedApiLimit)
+    }
+
+    @Test
+    fun `discoverPage - st 上限(2000)を超える要求は API を呼ばず取得上限として空を返すこと`() = runTest {
+        // offset=2000 → st=2001 > 2000。防御的に API を叩かず reachedApiLimit=true・空で返す。
+        val page = repository.discoverPage(DiscoveryQuery(), offset = 2000)
+
+        assertTrue(page.novels.isEmpty())
+        assertTrue(page.reachedApiLimit)
+        coVerify(exactly = 0) { service.search(of = any(), order = any(), lim = any(), st = any()) }
+    }
+
+    @Test
+    fun `discoverPage - offset をキャッシュキーに含み、別 offset は別リクエスト・同 offset はキャッシュになること`() = runTest {
+        coEvery { service.search(of = any(), order = any(), lim = any(), st = null) } returns createMockResponse()
+        coEvery { service.search(of = any(), order = any(), lim = any(), st = 31) } returns createMockResponse()
+
+        repository.discoverPage(DiscoveryQuery(), offset = 0)
+        repository.discoverPage(DiscoveryQuery(), offset = 0)   // キャッシュヒット
+        repository.discoverPage(DiscoveryQuery(), offset = 30)
+        repository.discoverPage(DiscoveryQuery(), offset = 30)  // キャッシュヒット
+
+        coVerify(exactly = 1) { service.search(of = any(), order = any(), lim = any(), st = null) }
+        coVerify(exactly = 1) { service.search(of = any(), order = any(), lim = any(), st = 31) }
+    }
+
+    /** SHORT/RENSAI サブクエリを type・lim で個別にモックする（他の全パラメータは既定/任意にマッチ）。 */
+    private fun mockMergeSub(type: String, lim: Int, novels: List<NarouNovel>) {
+        coEvery {
+            service.search(
+                of = any(), order = any(), lim = lim, st = any(), type = type,
+                lastup = any(), word = any(), title = any(), ex = any(), keyword = any(), wname = any(), genre = any(),
+                istensei = any(), istenni = any(), istt = any(), nottensei = any(), nottenni = any(),
+                iszankoku = any(), notzankoku = any(), isr15 = any(), notr15 = any(), isbl = any(), notbl = any(), isgl = any(), notgl = any(),
+                time = any(), length = any(), kaiwaritu = any(), sasie = any()
+            )
+        } returns novels
+    }
+
+    @Test
+    fun `discoverPage - SHORT+RENSAI マージ経路が累計取得で offset スライスを返すこと`() = runTest {
+        // 短編 weeklyPoint: S1=350,S2=250,S3=150,S4=50 / 連載: R1=400,R2=300,R3=200,R4=100
+        // マージ降順: R1,S1,R2,S2,R3,S3,R4,S4
+        val shortLim2 = listOf(NarouNovel(allcount = 40),
+            NarouNovel(ncode = "S1", weeklyPoint = 350), NarouNovel(ncode = "S2", weeklyPoint = 250))
+        val rensaiLim2 = listOf(NarouNovel(allcount = 60),
+            NarouNovel(ncode = "R1", weeklyPoint = 400), NarouNovel(ncode = "R2", weeklyPoint = 300))
+        val shortLim4 = listOf(NarouNovel(allcount = 40),
+            NarouNovel(ncode = "S1", weeklyPoint = 350), NarouNovel(ncode = "S2", weeklyPoint = 250),
+            NarouNovel(ncode = "S3", weeklyPoint = 150), NarouNovel(ncode = "S4", weeklyPoint = 50))
+        val rensaiLim4 = listOf(NarouNovel(allcount = 60),
+            NarouNovel(ncode = "R1", weeklyPoint = 400), NarouNovel(ncode = "R2", weeklyPoint = 300),
+            NarouNovel(ncode = "R3", weeklyPoint = 200), NarouNovel(ncode = "R4", weeklyPoint = 100))
+        mockMergeSub("t", 2, shortLim2)
+        mockMergeSub("r", 2, rensaiLim2)
+        mockMergeSub("t", 4, shortLim4)
+        mockMergeSub("r", 4, rensaiLim4)
+
+        val query = DiscoveryQuery(
+            types = setOf(NarouNovelType.SHORT, NarouNovelType.RENSAI),
+            order = NarouOrder.WEEKLY,
+            limit = 2,
+        )
+
+        // 1ページ目（offset=0, 累計2）: マージ上位2 = R1,S1
+        val page0 = repository.discoverPage(query, offset = 0)
+        assertEquals(100, page0.allcount) // 40+60
+        assertEquals(listOf("R1", "S1"), page0.novels.map { it.ncode })
+        assertFalse(page0.reachedApiLimit)
+
+        // 2ページ目（offset=2, 累計4→take4→drop2）: R2,S2
+        val page1 = repository.discoverPage(query, offset = 2)
+        assertEquals(listOf("R2", "S2"), page1.novels.map { it.ncode })
+        assertFalse(page1.reachedApiLimit)
+    }
+
+    @Test
+    fun `discoverPage - マージ経路は offset が lim 上限(500)以上で API を呼ばず取得上限になること`() = runTest {
+        val query = DiscoveryQuery(
+            types = setOf(NarouNovelType.SHORT, NarouNovelType.RENSAI),
+            order = NarouOrder.WEEKLY,
+            limit = 30,
+        )
+
+        val page = repository.discoverPage(query, offset = 500)
+
+        assertTrue(page.novels.isEmpty())
+        assertTrue(page.reachedApiLimit)
+        coVerify(exactly = 0) { service.search(of = any(), order = any(), lim = any(), type = "t", st = any()) }
+    }
 }

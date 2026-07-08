@@ -25,9 +25,33 @@ import kotlinx.parcelize.Parcelize
 
 sealed interface DiscoveryUiState {
     object Loading : DiscoveryUiState
-    data class Content(val allcount: Int, val novels: List<NarouNovel>) : DiscoveryUiState
+    // paging は結果一覧のフルページング（F-J）用のフッタ状態。ページングを持たない経路（ホーム等）は
+    // 既定の Complete＝フッタ非表示のまま。
+    data class Content(
+        val allcount: Int,
+        val novels: List<NarouNovel>,
+        val paging: PagingState = PagingState.Complete,
+    ) : DiscoveryUiState
     object Empty : DiscoveryUiState
     data class Error(val message: String) : DiscoveryUiState
+}
+
+/**
+ * 結果一覧の追加読み込み（フルページング）フッタ状態。Content に内包し、既存結果を保持したまま遷移する。
+ * なぜ Content 内包か: 追加読み込み中・追加失敗でも「取得済みの一覧」を捨てないため
+ *（失敗時は Idle/Error へ戻して再試行可能に保つ）。
+ */
+sealed interface PagingState {
+    /** 続きがある＝「さらに読み込む」ボタンを出す。 */
+    object Idle : PagingState
+    /** 追加ページを取得中。 */
+    object LoadingMore : PagingState
+    /** 追加取得に失敗（既存結果は保持。message を出して再試行可能に）。 */
+    data class LoadMoreError(val message: String) : PagingState
+    /** 全件表示済み＝フッタなし。 */
+    object Complete : PagingState
+    /** なろうAPIの取得上限（st>2000 等）に到達＝全件には届かないが以降は取得できない旨を明示。 */
+    object ApiLimitReached : PagingState
 }
 
 enum class ResultSource { SEARCH, KEYWORD, GENRE, MOOD }
@@ -167,13 +191,106 @@ class DiscoveryViewModel(
         loadResult()
     }
 
+    // 追加読み込み（フルページング）のジョブ。新クエリのロード時にキャンセルして無効化する。
+    private var loadMoreJob: Job? = null
+
     private fun loadResult() {
         val ctx = _resultContext.value ?: return
         resultLoadJob?.cancel()
+        // なぜ loadMoreJob もキャンセルするか: 並び順・ジャンル変更や再取得でクエリが変わると、進行中の
+        // 追加読み込み（旧クエリの続き）は無効。放置すると旧ページが新結果へ後着追記される破綻を招く。
+        loadMoreJob?.cancel()
         resultLoadJob = viewModelScope.launch {
             _resultState.value = DiscoveryUiState.Loading
-            _resultState.value = fetch(ctx.query)
+            _resultState.value = fetchResultFirstPage(ctx.query)
         }
+    }
+
+    /**
+     * 結果一覧の初回ページを取得して UiState へ畳む。ページング用に paging を初期化する。
+     * 初回は offset=0（st 省略）＝通常取得のため、件数上限(30)<APIオフセット上限(2000)で
+     * 初回に取得上限へ達することはない（reachedApiLimit=false 固定）。
+     */
+    private suspend fun fetchResultFirstPage(query: DiscoveryQuery): DiscoveryUiState {
+        return try {
+            val result = repository.discover(query)
+            if (result.novels.isEmpty()) {
+                DiscoveryUiState.Empty
+            } else {
+                DiscoveryUiState.Content(
+                    allcount = result.allcount,
+                    novels = result.novels,
+                    paging = resolvePaging(
+                        loaded = result.novels.size,
+                        allcount = result.allcount,
+                        gotItems = true,
+                        reachedApiLimit = false,
+                    ),
+                )
+            }
+        } catch (e: NarouApiException) {
+            DiscoveryUiState.Error(e.userMessage)
+        }
+    }
+
+    /**
+     * 追加読み込みの一手。結果一覧フッタ「さらに読み込む」／追加失敗の再試行から呼ぶ。
+     * なぜ明示ボタン方式（スクロール末尾検知でない）か: 末尾検知は高速スクロールやレイアウト再測定で
+     * 多重発火しやすく、余分なページ取得を誘発する（なろうAPIの転送量マナーに反する）。明示ボタンは
+     * 発火点が一意で再入も自明に閉じられ、UX原則（ユーザー主導・予測可能）と API マナーの双方に適う。
+     */
+    fun loadMoreResults() {
+        val current = _resultState.value
+        // Content 以外（Loading/Empty/Error）では追加読み込みしない。
+        if (current !is DiscoveryUiState.Content) return
+        // 追加できるのは Idle（続きがある）か LoadMoreError（失敗後の再試行）だけ。
+        // LoadingMore/Complete/ApiLimitReached からは発火させない＝連打での二重取得を型で弾く。
+        if (current.paging != PagingState.Idle && current.paging !is PagingState.LoadMoreError) return
+        // 進行中ジョブがあれば無視（高速スクロール・連打で loadMore が二重に走る再入を防ぐ）。
+        if (loadMoreJob?.isActive == true) return
+        val ctx = _resultContext.value ?: return
+
+        val offset = current.novels.size
+        _resultState.value = current.copy(paging = PagingState.LoadingMore)
+        loadMoreJob = viewModelScope.launch {
+            val next = try {
+                repository.discoverPage(ctx.query, offset = offset)
+            } catch (e: NarouApiException) {
+                // なぜ current を基点に戻すか: 追加取得の失敗で既存の取得済み結果を捨てない（再試行可能に保つ）。
+                _resultState.value = current.copy(paging = PagingState.LoadMoreError(e.userMessage))
+                return@launch
+            }
+            val mergedNovels = current.novels + next.novels
+            _resultState.value = current.copy(
+                novels = mergedNovels,
+                // 総数はページングで変わらない＝初回ページの allcount を維持（総件数表示が自然に追従する）。
+                paging = resolvePaging(
+                    loaded = mergedNovels.size,
+                    allcount = current.allcount,
+                    gotItems = next.novels.isNotEmpty(),
+                    reachedApiLimit = next.reachedApiLimit,
+                ),
+            )
+        }
+    }
+
+    /**
+     * ページ取得後の次フッタ状態を決める。
+     * 優先順位: 取得上限 > 全件到達 > サーバ打ち止め > まだ続く。
+     */
+    private fun resolvePaging(
+        loaded: Int,
+        allcount: Int,
+        gotItems: Boolean,
+        reachedApiLimit: Boolean,
+    ): PagingState = when {
+        // API エンベロープ（st>2000／マージ経路 500）で続きが取れない＝全件には届かないが打ち止め。
+        reachedApiLimit -> PagingState.ApiLimitReached
+        // 取得済みが総数に到達＝全件表示済み。
+        loaded >= allcount -> PagingState.Complete
+        // 総数上は続きがあるはずだがサーバが空を返した（allcount の遅延・揺れ）＝これ以上は増えないので打ち止め。
+        !gotItems -> PagingState.Complete
+        else -> PagingState.Idle
     }
 
     // ── 検索ドラフト（検索語＋範囲＋条件シート） ──

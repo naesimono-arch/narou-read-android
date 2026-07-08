@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,6 +47,7 @@ import com.novelreader.narou.model.NarouOrder
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.DiscoveryUiState
 import com.novelreader.viewmodel.DiscoveryViewModel
+import com.novelreader.viewmodel.PagingState
 import com.novelreader.viewmodel.ResultSource
 import java.util.Locale
 
@@ -320,10 +323,10 @@ fun DiscoveryResultScreen(
                         ) {
                             item {
                                 // 総件数（モック .cnt・青磁）
-                                // F-J（公理8）: allcount(総数)だけ大表示すると「全件見られる」と誤認させるが、
-                                // 実表示は上位 shown 件のみ（なろうAPI limit=30・ページング未実装）。総数だけを見せて
-                                // 到達手段が無い齟齬を避け、Partial であることを「N件中 上位M件を表示」で明示する。
-                                // 将来ページングを入れても文言は活き続ける（上位M件が総数へ近づくだけ）。
+                                // F-J（公理8）: allcount(総数)だけ大表示すると「全件見られる」と誤認させるため、
+                                // 現在表示している shown 件を「N件中 上位M件を表示」で明示する。フルページング実装後は
+                                // フッタ「さらに読み込む」で shown が総数へ近づき、全件到達で「N作品」表記へ自然に切り替わる
+                                // （API 取得上限で全件に届かない場合はフッタが取得上限を明示する）。
                                 val shown = s.novels.size
                                 val allcountText = String.format(Locale.JAPAN, "%,d", s.allcount)
                                 val countText = if (s.allcount > shown) {
@@ -355,11 +358,73 @@ fun DiscoveryResultScreen(
                                 )
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                             }
+                            // F-J: フルページングのフッタ（追加読み込み／読み込み中／失敗再試行／取得上限）。
+                            item {
+                                PagingFooter(
+                                    paging = s.paging,
+                                    onLoadMore = { viewModel.loadMoreResults() },
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * フルページング（F-J）の一覧末尾フッタ。paging 状態に応じて出し分ける。
+ * Complete のときは何も描かない（全件表示済み＝件数表示が「N作品」に切り替わっているため冗長）。
+ * ApiLimitReached は「全件は見せられない」ことを正直に明示する（なろうAPIの st 上限で到達不能）。
+ */
+@Composable
+private fun PagingFooter(
+    paging: PagingState,
+    onLoadMore: () -> Unit,
+) {
+    when (paging) {
+        PagingState.Idle -> Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            OutlinedButton(onClick = onLoadMore) { Text("さらに読み込む") }
+        }
+        PagingState.LoadingMore -> Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            CircularProgressIndicator(modifier = Modifier.size(28.dp))
+        }
+        is PagingState.LoadMoreError -> Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = paging.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            OutlinedButton(onClick = onLoadMore) { Text("再試行") }
+        }
+        PagingState.ApiLimitReached -> Text(
+            text = "これ以上は取得できません（APIの取得上限に達しました）",
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 20.dp),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        // 全件表示済み＝フッタなし。
+        PagingState.Complete -> Unit
     }
 }
 

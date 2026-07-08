@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import com.novelreader.NovelReaderApplication
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.NovelApiRepository
+import com.novelreader.narou.model.DiscoveryPage
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.DiscoveryResult
 import com.novelreader.narou.model.NarouNovel
@@ -494,5 +495,143 @@ class DiscoveryViewModelTest {
         assertNull(d.filters.length)
         assertEquals("", d.lengthCustomMin)
         assertEquals("", d.lengthCustomMax)
+    }
+
+    // ── フルページング（F-J） ──
+
+    private fun novelList(count: Int, prefix: String): List<NarouNovel> =
+        (1..count).map { NarouNovel(title = "$prefix$it", ncode = "$prefix$it") }
+
+    private fun openSearchResult(vm: DiscoveryViewModel) {
+        vm.openResult(
+            ResultContext(
+                title = "「薬師」",
+                source = ResultSource.SEARCH,
+                query = DiscoveryQuery(word = "薬師"),
+            )
+        )
+    }
+
+    @Test
+    fun `初回ロード - 続きがあれば paging=Idle、全件なら Complete になること`() = runTest {
+        // 続きがある（総数 > 取得数）
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(100, novelList(2, "a"))
+        viewModel = DiscoveryViewModel(mockApp)
+        openSearchResult(viewModel)
+        testDispatcher.scheduler.advanceUntilIdle()
+        val idle = viewModel.resultState.value
+        assertTrue(idle is DiscoveryUiState.Content)
+        assertEquals(PagingState.Idle, (idle as DiscoveryUiState.Content).paging)
+
+        // 全件（総数 == 取得数）
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(2, novelList(2, "a"))
+        viewModel.refreshResult()
+        testDispatcher.scheduler.advanceUntilIdle()
+        val complete = viewModel.resultState.value
+        assertTrue(complete is DiscoveryUiState.Content)
+        assertEquals(PagingState.Complete, (complete as DiscoveryUiState.Content).paging)
+    }
+
+    @Test
+    fun `loadMoreResults - 追加ページが既存結果へ追記され総数到達で Complete になること`() = runTest {
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(5, novelList(2, "a"))
+        viewModel = DiscoveryViewModel(mockApp)
+        openSearchResult(viewModel)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // 2ページ目（offset=2）: まだ続く
+        coEvery { mockRepo.discoverPage(any(), 2) } returns DiscoveryPage(5, novelList(2, "b"), false)
+        viewModel.loadMoreResults()
+        testDispatcher.scheduler.advanceUntilIdle()
+        val s2 = viewModel.resultState.value as DiscoveryUiState.Content
+        assertEquals(4, s2.novels.size)
+        assertEquals(listOf("a1", "a2", "b1", "b2"), s2.novels.map { it.ncode })
+        assertEquals(PagingState.Idle, s2.paging)
+        assertEquals(5, s2.allcount) // 総数はページングで変わらない
+
+        // 3ページ目（offset=4）: これで全件到達
+        coEvery { mockRepo.discoverPage(any(), 4) } returns DiscoveryPage(5, novelList(1, "c"), false)
+        viewModel.loadMoreResults()
+        testDispatcher.scheduler.advanceUntilIdle()
+        val s3 = viewModel.resultState.value as DiscoveryUiState.Content
+        assertEquals(5, s3.novels.size)
+        assertEquals(PagingState.Complete, s3.paging)
+    }
+
+    @Test
+    fun `loadMoreResults - API取得上限に達すると ApiLimitReached になり結果は保持されること`() = runTest {
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(5000, novelList(30, "a"))
+        viewModel = DiscoveryViewModel(mockApp)
+        openSearchResult(viewModel)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // 追加ページで reachedApiLimit=true（st>2000 相当を Repository が通知）
+        coEvery { mockRepo.discoverPage(any(), 30) } returns DiscoveryPage(5000, novelList(30, "b"), true)
+        viewModel.loadMoreResults()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val s = viewModel.resultState.value as DiscoveryUiState.Content
+        assertEquals(60, s.novels.size) // 取得済みは追記され保持
+        assertEquals(PagingState.ApiLimitReached, s.paging)
+    }
+
+    @Test
+    fun `loadMoreResults - 追加失敗時は既存結果を保持し LoadMoreError で再試行できること`() = runTest {
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(100, novelList(2, "a"))
+        viewModel = DiscoveryViewModel(mockApp)
+        openSearchResult(viewModel)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // 追加取得が失敗
+        coEvery { mockRepo.discoverPage(any(), 2) } throws NarouApiException("追加失敗", Exception())
+        viewModel.loadMoreResults()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val failed = viewModel.resultState.value as DiscoveryUiState.Content
+        assertEquals(2, failed.novels.size) // 既存結果は捨てない
+        assertTrue(failed.paging is PagingState.LoadMoreError)
+        assertEquals("追加失敗", (failed.paging as PagingState.LoadMoreError).message)
+
+        // 再試行（LoadMoreError からも発火できる）で成功
+        coEvery { mockRepo.discoverPage(any(), 2) } returns DiscoveryPage(100, novelList(2, "b"), false)
+        viewModel.loadMoreResults()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val recovered = viewModel.resultState.value as DiscoveryUiState.Content
+        assertEquals(4, recovered.novels.size)
+        assertEquals(PagingState.Idle, recovered.paging)
+    }
+
+    @Test
+    fun `loadMoreResults - 読み込み中の再発火は無視され discoverPage は1回だけ呼ばれること`() = runTest {
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(100, novelList(2, "a"))
+        viewModel = DiscoveryViewModel(mockApp)
+        openSearchResult(viewModel)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // 応答を遅延させ、LoadingMore 中に連打しても二重取得しないことを固定する（高速スクロール・連打）
+        coEvery { mockRepo.discoverPage(any(), 2) } coAnswers {
+            delay(1_000)
+            DiscoveryPage(100, novelList(2, "b"), false)
+        }
+        viewModel.loadMoreResults() // LoadingMore へ→launch
+        viewModel.loadMoreResults() // 再入ガードで無視されるべき
+        viewModel.loadMoreResults()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockRepo.discoverPage(any(), 2) }
+    }
+
+    @Test
+    fun `loadMoreResults - Content でない状態では何もしないこと`() = runTest {
+        coEvery { mockRepo.discover(any()) } throws NarouApiException("通信エラー", Exception())
+        viewModel = DiscoveryViewModel(mockApp)
+        openSearchResult(viewModel)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertTrue(viewModel.resultState.value is DiscoveryUiState.Error)
+
+        viewModel.loadMoreResults() // Error 状態からは何も起きない
+        testDispatcher.scheduler.advanceUntilIdle()
+        coVerify(exactly = 0) { mockRepo.discoverPage(any(), any()) }
     }
 }
