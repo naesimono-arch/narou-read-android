@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  debug 専用マニフェスト（メインへマージされる）。
+  なぜ debug ソースセットに置くか: PDF取り込み導線 案B（WebView 再導入）の技術検証用スパイクであり、
+  本番 APK には絶対に混入させたくないため。debug ビルドでのみ AndroidManifest がマージされ Activity が登録される。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!--
+          使い捨てスパイク Activity。
+          exported=true の理由: adb `am start` から intent extra（ncode）付きで直接起動して実機検証するため。
+          launcher intent-filter は付けない（アプリ一覧に出す必要はなく、adb 起動のみで足りる）。
+        -->
+        <activity
+            android:name="com.novelreader.spike.PdfDownloadSpikeActivity"
+            android:exported="true"
+            android:label="PDF DL Spike" />
+    </application>
+
+</manifest>
