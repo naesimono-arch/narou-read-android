@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [BookEntity::class, ProgressEntity::class, PendingJobEntity::class],
-    version = 10,
+    version = 11,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -135,12 +135,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v10→v11: books テーブルに contentSha256 列（取込元 PDF の内容ハッシュ）を追加する。
+         *  F-G 恒久策＝同一内容 PDF の別 URI 再取込を「重い変換の前」に弾くための内容指紋を保存する列。
+         *  nullable TEXT＝旧取込分（本列を持たない v11 未満で登録された蔵書）は判定不能が既定のため
+         *  DEFAULT 句なし（既存行は NULL 補完＝ハッシュ照合に一致せず、従来の title＋author 照合へ委ねる）。
+         *  新規追加のみで既存カラム名に依存しないため PRAGMA 分岐は不要（MIGRATION_4_5 以降と同方針）。
+         *  minSdk 26 の SQLite 3.18.x は ADD COLUMN をサポートしている。 */
+        // なぜ internal か: androidTest の MigrationTest が本物の Migration を検証するため（複製だと本体変更にテストが追従しない）。
+        internal val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE books ADD COLUMN contentSha256 TEXT")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
                     .addMigrations(
                         MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
-                        MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10,
+                        MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                     )
                     .build()
                     .also { INSTANCE = it }

@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
+import java.security.MessageDigest
 import java.util.UUID
 
 class BookRepository(
@@ -48,6 +50,12 @@ class BookRepository(
      *  （無ければ null）。実 PDF 抽出を挟まず単体テストできるよう addBook 本体から分離する。 */
     internal suspend fun findExistingBook(title: String, author: String): BookEntity? =
         bookDao.findByTitleAndAuthor(title, author)
+
+    /** 内容ハッシュ照合の純判定を切り出したもの（addBook の「変換前遮断」で使う）。
+     *  実 PDF 抽出を挟まず単体テストできるよう addBook 本体から分離する（title＋author 版
+     *  findExistingBook と対）。同一 SHA-256 を持つ既存蔵書があれば返す（無ければ null）。 */
+    internal suspend fun findExistingBookByHash(contentSha256: String): BookEntity? =
+        bookDao.findByContentSha256(contentSha256)
 
     /**
      * 抽出例外・IO 例外をユーザー向けエラー種別に変換する。
@@ -95,6 +103,24 @@ class BookRepository(
                     tempFile.outputStream().use { output -> input.copyTo(output) }
                 }
 
+                // ①' 内容ハッシュによる変換前遮断（F-G 恒久策）: 取込元 PDF バイト列の SHA-256 を計算し、
+                // 同一内容の本が既に蔵書にあれば「重い抽出（分オーダー）を一切走らせずに」重複確定する。
+                // なぜここ（抽出前・最速地点）か: 既存の title＋author 照合（④）は抽出後にしか判定できず、
+                // URI が変わる同一 PDF の再選択でも毎回フル変換が走ってしまう（F-G の旧修正の穴）。
+                // ハッシュはコピー済み temp を1回読み直して計算する。なぜ DigestInputStream でコピーに
+                // 相乗りする単一パスにしないか: ハッシュ計算を純関数 sha256Hex に閉じてテスト可能にする方を
+                // 優先したため。cacheDir 上の temp を数十MB 読み直す実コストは変換の分オーダーに対し無視できる。
+                val contentSha256 = tempFile.inputStream().use { sha256Hex(it) }
+                val existingByHash = findExistingBookByHash(contentSha256)
+                if (existingByHash != null) {
+                    // outputDir はまだ mkdirs していないので掃除不要。変換の成否が確定した（＝重複）ので
+                    // 成功/重複時と同じく pending_jobs を落とし永続権限も返す（NonCancellable で保護）。
+                    withContext(NonCancellable) { settlePendingJob(pdfUri) }
+                    extractionScope.ensureActive()
+                    // try 内から return しても finally（tempFile.delete）は走る＝一時ファイルはリークしない。
+                    return@runCatching AddBookResult.Duplicate(existingByHash)
+                }
+
                 // ② 出力先ディレクトリを確定
                 if (!outputDir.mkdirs() && !outputDir.exists()) {
                     throw IOException("出力ディレクトリの作成に失敗しました: ${outputDir.absolutePath}")
@@ -119,10 +145,11 @@ class BookRepository(
                 }
 
                 // ④ べき等ガード（UX監査 F-G 公理3）: 抽出後のタイトル＋著者で既存蔵書を照合する。
-                // 既に同じ本があれば二重登録しない。books は取込元 URI/サイズを持たない（スキーマに無い）ため
-                // 変換完了まで判定できず、この段階で書きかけ HTML を破棄する（本棚に孤立本を残さない）。
-                // なお同一 URL の連続投入は Service 側のキュー重複ガードで変換前に弾く（本ガードは URI が
-                // 変わる再選択・別セッション再取込の受け皿）。
+                // 既に同じ本があれば二重登録しない。この段階で書きかけ HTML を破棄する（本棚に孤立本を残さない）。
+                // 多層防御の最終層: ①Service のキュー重複ガード（同一 URI の連続投入を変換前に弾く）→
+                // ①'内容ハッシュの変換前遮断（別 URI・同内容を変換前に弾く＝F-G 恒久策）→ ④ここ。
+                // ①' を潜り抜けるのは「旧取込分（contentSha256 が NULL で照合不能）」の再取込のみで、
+                // その受け皿としてタイトル＋著者で弾く（＝ハッシュ列導入前に入れた本の再取込も従来どおり弾ける）。
                 val existing = bookDao.findByTitleAndAuthor(meta.title, meta.author)
                 if (existing != null) {
                     outputDir.deleteRecursively()
@@ -137,7 +164,9 @@ class BookRepository(
                     // だけは中断不能に保つ（抽出全体を包んでいた旧 NonCancellable の縮小）。
                     val book = withContext(NonCancellable) {
                         // addedAt に追加時刻をスタンプし、本棚の最近活動順ソート（未読本の基準）に使う。
-                        val b = BookEntity(bookId, meta.title, outputDir.absolutePath, meta.author, addedAt = System.currentTimeMillis())
+                        // contentSha256 に①'で計算した内容指紋を保存する（次回以降の別URI・同内容の
+                        // 再取込を、この本の存在によって変換前に遮断できるようにする＝F-G 恒久策の記録）。
+                        val b = BookEntity(bookId, meta.title, outputDir.absolutePath, meta.author, addedAt = System.currentTimeMillis(), contentSha256 = contentSha256)
                         bookDao.insertBook(b)
                         // 変換が確定したので永続キュー（pending_jobs）の記帳を落とす。insertBook と同じ
                         // NonCancellable 内で連続実行し、「本は登録されたのに pending が残る」→ 次回起動の
@@ -326,3 +355,33 @@ internal fun orphanedPermissionUris(
     persistedReadUris: Set<String>,
     keepUris: Set<String>,
 ): Set<String> = persistedReadUris - keepUris
+
+/**
+ * InputStream 全体の SHA-256 を小文字16進文字列で返す（取込 PDF の内容指紋）。
+ *
+ * F-G 恒久策（内容ハッシュによる二重変換の変換前遮断）の中核。8KiB バッファのストリーミングで
+ * 読むため数十MB でも定数メモリで済み、ワンパスで digest を確定する。ストリームの close は
+ * 呼び出し側の責務（addBook は `tempFile.inputStream().use { sha256Hex(it) }` で閉じる）。
+ * Android 非依存の純関数として切り出し、既知テストベクタで JVM 単体テストできるようにする。
+ *
+ * **pending_jobs（強制終了リカバリ）との相互作用に自己除外は不要**（設計判断の記録）:
+ * contentSha256 は変換が成功して BookEntity を insert する時にしか books へ書かれない（addBook ⑤ の
+ * NonCancellable 内で insertBook と一緒に確定）。未完了のまま kill されたジョブは自分のハッシュを
+ * まだ books に持たないため、リカバリ再投入時に findExistingBookByHash は null を返し、自分自身を
+ * 誤って遮断することはない。逆に「insert 済みだが settlePendingJob 直前に kill」された極小窓
+ * （BookRepository ④/⑤ のコメント参照）では、リカバリ再投入がこのハッシュ照合でヒットして
+ * 変換前に Duplicate 確定する＝旧実装（抽出後に title＋author で弾く）より二重変換窓が縮む改善であり、
+ * 誤ブロックではない。よって「自分のジョブを除外」する防御は追加しない。
+ */
+internal fun sha256Hex(input: InputStream): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    val buffer = ByteArray(8 * 1024)
+    while (true) {
+        val read = input.read(buffer)
+        if (read < 0) break
+        digest.update(buffer, 0, read)
+    }
+    // 各バイトを符号なし2桁16進へ。and 0xFF で符号拡張を潰す（Byte は符号付きのため、
+    // これが無いと 0x80 以上のバイトが "ffffffxx" に化ける＝ハッシュ文字列が壊れる）。
+    return digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xFF) }
+}

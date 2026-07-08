@@ -27,6 +27,16 @@ interface BookDao {
     @Query("SELECT * FROM books WHERE title = :title AND author = :author LIMIT 1")
     suspend fun findByTitleAndAuthor(title: String, author: String): BookEntity?
 
+    /** 内容ハッシュによる二重変換の変換前遮断（F-G 恒久策）用の既存蔵書照合。
+     *  なぜ title＋author 照合（findByTitleAndAuthor）と別に要るか: URI が変わる再取込は
+     *  変換前にはタイトル/著者が未判明（抽出しないと得られない）だが、PDF バイト列の SHA-256 は
+     *  ファイル選択直後に計算できる。同一内容の PDF を別パスから選び直した場合を「重い変換を
+     *  走らせる前」に弾くための指紋照合。既存行（v11 未満で取り込んだ蔵書）は contentSha256 が
+     *  NULL のため SQL の NULL 比較で一致せず、その場合は従来の title＋author 照合へ委ねる。
+     *  完全一致 1 件で足りるため LIMIT 1。 */
+    @Query("SELECT * FROM books WHERE contentSha256 = :hash LIMIT 1")
+    suspend fun findByContentSha256(hash: String): BookEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBook(book: BookEntity)
 

@@ -91,3 +91,4 @@ Androidの `SupportSQLiteDatabase` でも `execSQL("PRAGMA table_info(books)")` 
 | v7 → v8   | pending_jobs テーブルを新設（MIGRATION_7_8、CREATE TABLE のみ＝既存テーブル無変更、処理キューの永続化＝強制終了からの再開材料）|
 | v8 → v9   | books に ncode 列を追加（MIGRATION_8_9、ADD COLUMN TEXT nullable。なろう作品の Nコード＝PDF↔Web継続読書〔発見機能の目玉①〕の紐付けキー。未紐付けが既定のため DEFAULT 句なし。version 8 を並列ブランチが先に消費していたため v9 へ退避した経緯は task_diary #39）|
 | v9 → v10  | スキーマ無変更の identity hash 再スタンプ（MIGRATION_9_10、no-op＝DDL なし。並列ブランチのマージ合併でエンティティが増えると v9 の hash が変わり、branch 版 v9 で migrate 済みの実機と同 version 衝突するため +1 で回避。task_diary #39 追補）|
+| v10 → v11 | books に contentSha256 列を追加（MIGRATION_10_11、ADD COLUMN TEXT nullable。取込元 PDF の内容ハッシュ＝F-G 恒久策で「別 URI・同内容」の再取込を変換前に遮断する内容指紋。旧取込分は NULL＝判定不能で従来の title＋author 照合に委ねる。DEFAULT 句なし）|

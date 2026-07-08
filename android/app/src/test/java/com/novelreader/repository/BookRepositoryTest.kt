@@ -207,6 +207,41 @@ class BookRepositoryTest {
         assertNull(repository.findExistingBook("未登録タイトル", "著者X"))
     }
 
+    // ── 内容ハッシュによる二重変換の変換前遮断（F-G 恒久策）─────────────────────
+    // 別 URI・同内容の再取込を「抽出前」に弾くため、PDF バイト列の SHA-256 で既存蔵書を照合する
+    // 純判定（addBook の①' から切り出し）。ここが「別URI・同内容 → 変換前に遮断」の判定核。
+
+    @Test
+    fun `findExistingBookByHash - 同一ハッシュの蔵書があれば変換前に遮断できる`() = runTest {
+        // 別パス（別URI）から取り込んだが中身が同一の PDF ＝ 同じ contentSha256 を持つ既存蔵書がヒットする。
+        val existing = BookEntity("id01", "タイトルA", "/path/a", "著者A", contentSha256 = "deadbeef")
+        coEvery { bookDao.findByContentSha256("deadbeef") } returns existing
+        assertEquals(existing, repository.findExistingBookByHash("deadbeef"))
+    }
+
+    @Test
+    fun `findExistingBookByHash - 一致が無ければ null（新規として変換に進む）`() = runTest {
+        coEvery { bookDao.findByContentSha256(any()) } returns null
+        assertNull(repository.findExistingBookByHash("0011223344"))
+    }
+
+    // ── SHA-256 ハッシュ計算（内容指紋の純関数）───────────────────────────────
+    // ストリーミングで digest を確定する。既知テストベクタで正しさを固定する。
+
+    @Test
+    fun `sha256Hex - 空入力は SHA-256 の既知ベクタを返す`() {
+        // SHA-256("") = e3b0c442...b855（RFC/NIST 既知ベクタ）
+        val hex = sha256Hex(byteArrayOf().inputStream())
+        assertEquals("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", hex)
+    }
+
+    @Test
+    fun `sha256Hex - abc は SHA-256 の既知ベクタを返す（バッファ境界跨ぎの担保も兼ねる）`() {
+        // SHA-256("abc") = ba7816bf...15ad（NIST 既知ベクタ）。小文字16進・64桁で返ること。
+        val hex = sha256Hex("abc".toByteArray(Charsets.US_ASCII).inputStream())
+        assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", hex)
+    }
+
     // ── 孤立HTML掃除 ──────────────────────────────────────────────────────
 
     @Test
