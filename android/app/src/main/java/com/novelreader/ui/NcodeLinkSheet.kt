@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -153,8 +154,7 @@ internal fun NcodeLinkSheet(
                 onValueChange = { inputText = it },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .onFocusChanged { isFocused = it.isFocused }
-                    .padding(vertical = 8.dp),
+                    .onFocusChanged { isFocused = it.isFocused },
                 singleLine = true,
                 textStyle = TextStyle(
                     fontSize = 15.sp,
@@ -165,9 +165,11 @@ internal fun NcodeLinkSheet(
                 keyboardActions = KeyboardActions(onSearch = { activeQuery = inputText }),
                 decorationBox = { innerTextField ->
                     Column {
+                        // なぜ Row の bottom padding を外したか:
+                        // 検索アイコンの当たり判定を 48dp 化すると Row 高が 24→48dp に増える。
+                        // 検索欄全体の見た目の高さを保つため、行の下 padding とフィールド縦 padding を相殺で削っている。
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(bottom = 8.dp)
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(modifier = Modifier.weight(1f)) {
                                 if (inputText.isEmpty()) {
@@ -179,14 +181,16 @@ internal fun NcodeLinkSheet(
                                 }
                                 innerTextField()
                             }
+                            // A11y: 当たり判定を48dpに拡大（アイコン自体は24dpのまま中央描画）
                             IconButton(
                                 onClick = { activeQuery = inputText },
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(48.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Search,
                                     contentDescription = "検索",
-                                    tint = colors.textSecondary
+                                    tint = colors.textSecondary,
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
                         }
@@ -239,22 +243,31 @@ internal fun NcodeLinkSheet(
                             Spacer(modifier = Modifier.height(12.dp))
                             // なぜカスタム再試行ボタンか: ネットワークエラー時などに、
                             // シートを閉じ直すことなく、その場でワンタップで通信を復旧できるようにするため。
+                            // A11y: 枠線ピルは現寸のまま、当たり判定だけ最小48dpへ拡大する。
+                            // なぜ外側Boxをclickableにするか: ここは固定高120dpの中央寄せ領域内なので、
+                            // 外側を48dpにしてもピル外観も周囲レイアウトも一切押し広げずに済むため。
                             Box(
                                 modifier = Modifier
-                                    .border(
-                                        width = 1.dp,
-                                        color = colors.blockBorder,
-                                        shape = RoundedCornerShape(2.dp)
-                                    )
                                     .clickable { retryKey++ }
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = "再試行",
-                                    fontSize = 12.sp,
-                                    color = colors.textSecondary
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .border(
+                                            width = 1.dp,
+                                            color = colors.blockBorder,
+                                            shape = RoundedCornerShape(2.dp)
+                                        )
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "再試行",
+                                        fontSize = 12.sp,
+                                        color = colors.textSecondary
+                                    )
+                                }
                             }
                         }
                     }
@@ -381,7 +394,9 @@ internal fun NcodeLinkSheet(
                 // 紐付けボタン（isValidNcodeのときのみ有効）
                 val isValid = isValidNcode(manualNcode)
                 Box(
+                    // A11y: タップ高さを最小48dpに（背景・文字・余白は現状維持、文言は中央のまま）
                     modifier = Modifier
+                        .heightIn(min = 48.dp)
                         .background(
                             color = if (isValid) colors.accent else colors.blockBorder,
                             shape = RoundedCornerShape(2.dp)

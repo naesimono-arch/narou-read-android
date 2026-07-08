@@ -388,21 +388,30 @@ fun NovelDetailScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     keywords.forEach { keyword ->
+                                        // A11y（F-P/Android §C）: 枠線チップの見た目は現寸のまま、
+                                        // タップ判定だけ最小48dpへ拡げる。外側の透明Boxを clickable+sizeIn にし、
+                                        // 内側の枠線チップは元の寸法で中央寄せする（外側Box分離＝NcodeLinkSheet と同型）。
                                         Box(
                                             modifier = Modifier
-                                                .border(
-                                                    width = 1.dp,
-                                                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
-                                                    shape = RoundedCornerShape(2.dp)
-                                                )
                                                 .clickable { onKeywordTap(keyword) }
-                                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Text(
-                                                text = keyword,
-                                                fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.secondary
-                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .border(
+                                                        width = 1.dp,
+                                                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
+                                                        shape = RoundedCornerShape(2.dp)
+                                                    )
+                                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                                            ) {
+                                                Text(
+                                                    text = keyword,
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.secondary
+                                                )
+                                            }
                                         }
                                     }
                                 }

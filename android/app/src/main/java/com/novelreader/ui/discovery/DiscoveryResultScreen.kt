@@ -161,7 +161,15 @@ fun DiscoveryResultScreen(
                             var expanded by remember { mutableStateOf(false) }
                             val displayLabel = "$label ⌄"
 
-                            Box {
+                            // F-P: 当たり判定を 48dp へ。clickable と minimumInteractiveComponentSize を
+                            // 外側 Box に移し、ピル（枠+文字）は中央寄せで見た目のサイズを保つ
+                            // （タップ領域だけ不可視に広がる。DropdownMenu もこの Box を基準に開く）。
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .clickable { expanded = true },
+                            ) {
                                 Text(
                                     text = displayLabel,
                                     fontSize = 10.5.sp,
@@ -172,7 +180,6 @@ fun DiscoveryResultScreen(
                                             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
                                             shape = RoundedCornerShape(50),
                                         )
-                                        .clickable { expanded = true }
                                         .padding(horizontal = 11.dp, vertical = 5.dp),
                                 )
 
@@ -275,15 +282,21 @@ fun DiscoveryResultScreen(
                 if (ctx.source == ResultSource.SEARCH) {
                     // why: 「条件を変更」で戻る先はDiscoverySearchScreen(検索画面)。
                     // ジャンル・気分等で出すと戻り先に条件シートがなく騙し導線になるため、SEARCH のみに限定する。
-                    Text(
-                        text = "条件を変更",
-                        fontSize = 10.5.sp,
-                        color = MaterialTheme.colorScheme.secondary,
-                        fontWeight = FontWeight.Medium,
+                    // F-P: 当たり判定を 48dp へ（clickable を外側 Box に移し文言サイズは維持）。
+                    Box(
+                        contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .clickable { onBack() }
-                            .padding(horizontal = 11.dp, vertical = 5.dp),
-                    )
+                            .minimumInteractiveComponentSize()
+                            .clickable { onBack() },
+                    ) {
+                        Text(
+                            text = "条件を変更",
+                            fontSize = 10.5.sp,
+                            color = MaterialTheme.colorScheme.secondary,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
+                        )
+                    }
                 }
             }
             Box(modifier = Modifier.weight(1f)) {
