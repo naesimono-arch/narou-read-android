@@ -587,6 +587,15 @@ Phase 4 精度回帰ゲート(`PdfExtractorDeviceSpikeTest`)の ≤15版クリ�
 - **根拠条項**: 14条20項（運営・ネットワーク・システムへの支障）・23項（API以外の自動化手段によるアクセス／データ収集）＋包括の 24項（不適切と判断する行為）・22項（規約違反・権利侵害と運営が判断する行為）。ヘルプ183 はページ全体をこれらに紐づけて説明。
 - **設計含意**: 「アプリ内完結」で許されるのは**加工なし表示のみ**＝体験は Custom Tabs と等価。**構造的に加工不能な Chrome Custom Tabs が最も安全**（素の WebView は後から `evaluateJavascript` で"加工"でき、運営に対し"無加工"を仕組みで保証しにくい）。本文をネイティブ描画する道も「本文の機械的取得」で違反＝**案A（本文非取得・メタのみ）が規約的に正しい**ことの裏付け。方針への反映は `STATUS-api-lab.md §0`。
 
+### テスト基盤（Robolectric / Compose UI Test）
+
+#### 50. Robolectric では ModalBottomSheet 内の Composable に対する assertIsDisplayed / performClick が不安定に落ちる（内容を Content 分離してテストする）  ★★
+
+Robolectric（4.11.1・sdk34・createComposeRule）で `ModalBottomSheet` を含む Composable を `setContent` すると、シート上部の要素は検証できるが、**下方の要素の `assertIsDisplayed` とチップの `performClick`→callback 検証が AssertionError で落ちる**（2026-07-08 実測＝ReadingSettingsSheetTest。テキスト書式・セマンティクスは正しいのに落ちる）。
+- 機序: ModalBottomSheet は**別ウィンドウ描画＋部分展開**（既定 sheetState はまず部分高で開く）のため、シート下部が「存在するが画面外」となり可視判定に失敗する。別ウィンドウへの入力注入も JVM 環境では信頼できない。
+- 対処（採用）: シート内容を `XxxSheetContent`（state+callback の葉）へ純抽出し、**テストは枠を剥がした Content を直接組む**（`ReadingSettingsSheet` → `ReadingSettingsSheetContent` が先例）。`assertExists` への緩和は「表示されていない退行」を見逃すため不採用。
+- 一般則: Robolectric で新しく葉 Composable テストを書くときは、**ModalBottomSheet / Dialog / Popup を跨いだノードの可視判定・クリックを避け**、内容 Composable を検証単位に切ること（ADR 0009 の運用細則）。
+
 ## 移設マッピング（旧 Part II / Part III の固定ID対応）
 
 > 旧エントリ番号（`§N`）は固定ID。本ファイルから `docs/` へ移設したもの、および重複採番の解消で再採番したものは下表で追跡する（移設先での再採番はしない）。
