@@ -15,6 +15,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -550,7 +551,7 @@ class NovelApiRepositoryTest {
     }
 
     @Test
-    fun `discover - HttpException がコード入りメッセージの NarouApiException に正規化されること`() = runTest {
+    fun `discover - 5xx が平易な日本語へ正規化され生の HTTPコードを含まないこと（M8）`() = runTest {
         coEvery { service.search(of = any(), order = any(), lim = any()) } throws
             HttpException(Response.error<List<NarouNovel>>(503, "server error".toResponseBody(null)))
 
@@ -562,7 +563,54 @@ class NovelApiRepositoryTest {
         }
 
         assertNotNull(thrown)
-        assertEquals("なろうサーバとの通信に失敗しました（コード: 503）。", thrown!!.userMessage)
+        assertEquals(
+            "なろうのサーバが一時的に混み合っているようです。時間をおいて再試行してください。",
+            thrown!!.userMessage
+        )
+        // M8 回帰防止の本質: UI 文言に生の HTTPコード（503）が漏れないこと。原コードは cause/Log に保全。
+        assertFalse(thrown.userMessage.contains("503"))
+        assertTrue(thrown.cause is HttpException)
+    }
+
+    @Test
+    fun `discover - 429 が混雑を伝える平易な文言へ正規化され生コードを含まないこと（M8）`() = runTest {
+        coEvery { service.search(of = any(), order = any(), lim = any()) } throws
+            HttpException(Response.error<List<NarouNovel>>(429, "too many".toResponseBody(null)))
+
+        var thrown: NarouApiException? = null
+        try {
+            repository.discover(DiscoveryQuery())
+        } catch (e: NarouApiException) {
+            thrown = e
+        }
+
+        assertNotNull(thrown)
+        assertEquals(
+            "アクセスが集中しています。少し時間をおいて再試行してください。",
+            thrown!!.userMessage
+        )
+        assertFalse(thrown.userMessage.contains("429"))
+    }
+
+    @Test
+    fun `discover - 4xx が平易な文言へ正規化され生コードを含まないこと（M8）`() = runTest {
+        // 429 は専用分岐なので、それ以外の 4xx（404）が汎用 4xx 文言へ落ちることを確認する。
+        coEvery { service.search(of = any(), order = any(), lim = any()) } throws
+            HttpException(Response.error<List<NarouNovel>>(404, "not found".toResponseBody(null)))
+
+        var thrown: NarouApiException? = null
+        try {
+            repository.discover(DiscoveryQuery())
+        } catch (e: NarouApiException) {
+            thrown = e
+        }
+
+        assertNotNull(thrown)
+        assertEquals(
+            "リクエストを処理できませんでした。時間をおいて再試行してください。",
+            thrown!!.userMessage
+        )
+        assertFalse(thrown.userMessage.contains("404"))
     }
 
     @Test

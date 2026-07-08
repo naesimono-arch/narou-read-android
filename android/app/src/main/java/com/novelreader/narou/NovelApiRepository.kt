@@ -1,5 +1,6 @@
 package com.novelreader.narou
 
+import android.util.Log
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.DiscoveryResult
 import com.novelreader.narou.model.NarouNovel
@@ -30,6 +31,8 @@ class NovelApiRepository(
     )
 
     companion object {
+        private const val TAG = "NovelApiRepository"
+
         // なぜ6時間キャッシュにするか: なろうのランキングや各種検索データは頻繁に変更されないため、
         // 頻繁なAPIアクセスを防ぎ転送量制限を回避するなろうAPIのマナーに従うため。
         const val RANKING_TTL_MS = 6 * 60 * 60 * 1000L // 6時間
@@ -71,7 +74,17 @@ class NovelApiRepository(
         try {
             return block()
         } catch (e: HttpException) {
-            throw NarouApiException("なろうサーバとの通信に失敗しました（コード: ${e.code()}）。", e)
+            // Nielsen#9（M8）: 生の HTTP コード(503 等)はユーザーに意味を持たない技術用語なので UI へ出さない。
+            // 状態カテゴリごとに「次にどうすればよいか」が伝わる平易な日本語へ正規化する。診断に要る原コードは
+            // Log へ残す（症状隠しではなく「機械語→人語」の翻訳＝根本の失敗事実は cause と Log に保全）。
+            Log.w(TAG, "なろうAPI HTTPエラー: code=${e.code()}", e)
+            val message = when (e.code()) {
+                429 -> "アクセスが集中しています。少し時間をおいて再試行してください。"
+                in 500..599 -> "なろうのサーバが一時的に混み合っているようです。時間をおいて再試行してください。"
+                in 400..499 -> "リクエストを処理できませんでした。時間をおいて再試行してください。"
+                else -> "なろうサーバとの通信に失敗しました。時間をおいて再試行してください。"
+            }
+            throw NarouApiException(message, e)
         } catch (e: JsonDataException) {
             // なぜ捕捉するか: レスポンスの形はサーバ都合でアプリ更新と独立に変わる外部入力であり、
             // 「想定外」ではなく期待すべき失敗系。RuntimeException のまま素通しすると、
