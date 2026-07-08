@@ -115,6 +115,12 @@ fun NovelListRow(
                     text = novel.writer ?: "",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // なぜ weight(1f)+ellipsis: 作者名が長い作品（例「藍銅 紅@『お姉様は…』」）だと
+                    // 右のジャンルタグが狭いカラムに押し出され1文字ずつ縦積みになる実機バグが出るため、
+                    // 作者名側を可変幅で詰めてタグ用の横幅を確保する。
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
                 NarouGenres.genreLabel(novel.genre)?.let { genre ->
                     Text(
@@ -122,6 +128,10 @@ fun NovelListRow(
                         fontSize = 11.sp,
                         letterSpacing = 0.5.sp,
                         color = MaterialTheme.colorScheme.secondary,
+                        // なぜ maxLines=1+softWrap=false: タグ自体が改行して縦積みになるのを防ぎ、
+                        // 常に横一列で表示させる（タグは固定内容なので折返し不要）。
+                        maxLines = 1,
+                        softWrap = false,
                     )
                 }
             }
