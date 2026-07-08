@@ -64,6 +64,32 @@ import com.novelreader.viewmodel.NovelDetailViewModel
 import java.util.Locale
 
 /**
+ * なろうAPIの日付文字列（`general_lastup`＝"2024-01-05 12:34:56" 形式想定）を
+ * 「2024年1月5日 更新」ラベルへ整形する。整形できなければ null（呼び出し側は表示を省く）。
+ *
+ * なぜ手書きパースか: 表示は年月日だけで足り、SimpleDateFormat 等でパース→再フォーマットする必要が無く、
+ * また時刻・タイムゾーンの解釈も不要なため、先頭の日付部を "-" で割って和暦風表記へ組むだけで済む。
+ *
+ * なぜ NumberFormatException を握り潰すか: なろうAPIはこの日付文字列の形式を公式に保証しておらず、
+ * 想定外の形（数値でない・欠損・区切り違い）が来うる。ここは付帯的なメタ表示であり、
+ * 解釈できない値で画面を落とすより表示スキップに倒すのが妥当なため、数値変換失敗のみを捕えて null にする。
+ * 握り潰す範囲は toInt() の失敗（NumberFormatException）に限定し、他の想定外例外は覆い隠さない。
+ */
+internal fun formatLastupLabel(raw: String?): String? {
+    val datePart = raw?.split(" ")?.firstOrNull() ?: return null
+    val ymd = datePart.split("-")
+    if (ymd.size < 3) return null
+    return try {
+        val year = ymd[0].toInt()
+        val month = ymd[1].toInt()
+        val day = ymd[2].toInt()
+        "${year}年${month}月${day}日 更新"
+    } catch (e: NumberFormatException) {
+        null
+    }
+}
+
+/**
  * 作品詳細画面（モック discovery-detail-D.html）。
  * 書影ヒーロー表示、作者情報、作品ステータス、あらすじ、キーワード、評価項目などを
  * 和モダンの静謐なレイアウトで構築し、最下部に「なろうで読む」外部連携導線を常駐させる。
@@ -505,20 +531,7 @@ internal fun NovelDetailContent(
 
                         // 最終更新表示
                         val lastupText = remember(novel.generalLastup) {
-                            try {
-                                val datePart = novel.generalLastup?.split(" ")?.firstOrNull() ?: ""
-                                val ymd = datePart.split("-")
-                                if (ymd.size >= 3) {
-                                    val year = ymd[0].toInt()
-                                    val month = ymd[1].toInt()
-                                    val day = ymd[2].toInt()
-                                    "${year}年${month}月${day}日 更新"
-                                } else {
-                                    null
-                                }
-                            } catch (e: Exception) {
-                                null
-                            }
+                            formatLastupLabel(novel.generalLastup)
                         }
                         // 取得時刻の表示（M6/公理5 SSOT）。
                         // なぜ出すか: この画面は一覧値の写しではなく詳細APIで取り直した最新値を単一の真実として表示している。
