@@ -68,6 +68,20 @@ data class SearchDraft(
     val inKeyword: Boolean = false,
     val inWriter: Boolean = false,
     val filters: SearchFilters = SearchFilters(),
+    // なぜ カスタム文字数/読了時間の「生入力テキスト」を draft に持つか（単一真実源＝SSOT）:
+    // これらの欄はユーザーが打った生の数値文字列（例 "1"）で、filters.length/time はそれを
+    // 万字/分へスケールした送出用レンジ文字列（例 "10000-"）＝別表現。以前は画面側の remember に
+    // 生テキストを持ち LaunchedEffect で filters.length/time と双方向同期していたが、length からの
+    // 逆算（parseCustomRange）は "01"→"1" 等で桁を落とし IME 入力中の値を壊し得る二重真実源だった。
+    // 生テキストを draft 側の唯一の保持先へ畳むことで逆算同期を廃し、process death 復帰でも
+    // filters と一緒に生入力が復元される（型は String のまま＝現状の入力体験を保つ）。
+    // なぜ SearchFilters ではなく SearchDraft へ置くか: SearchFilters.isActive（全等値判定）/
+    // activeCount（length!=null 判定）の意味を変えないため（生テキストの残留が「条件あり」を誤検知
+    // し canSearch を誤って true にするのを避ける。生テキストは送出条件ではなく UI 入力の途中状態）。
+    val lengthCustomMin: String = "",
+    val lengthCustomMax: String = "",
+    val timeCustomMin: String = "",
+    val timeCustomMax: String = "",
 ) : Parcelable {
     /** 検索語が空でも絞り込み条件があれば実行できる（条件だけで探す使い方を許す）。 */
     val canSearch: Boolean get() = word.isNotBlank() || filters.isActive

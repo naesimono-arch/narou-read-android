@@ -21,6 +21,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -450,5 +451,48 @@ class DiscoveryViewModelTest {
         // process death 相当: 同じハンドルで再生成すると復元される
         val revived = DiscoveryViewModel(mockApp, handle)
         assertEquals(draft, revived.searchDraft.value)
+    }
+
+    // ── カスタム文字数/読了時間の SSOT（生入力テキストを draft へ畳んだ後の不変条件） ──
+
+    @Test
+    fun `setLengthCustomText - 生入力テキストと filters_length を一括更新すること`() = runTest {
+        viewModel = DiscoveryViewModel(mockApp)
+        // "1"〜"10"（万字）→ 10000-100000 へスケールして送出値に組み立てる
+        viewModel.setLengthCustomText("1", "10")
+        val d = viewModel.searchDraft.value
+        assertEquals("1", d.lengthCustomMin)
+        assertEquals("10", d.lengthCustomMax)
+        assertEquals("10000-100000", d.filters.length)
+    }
+
+    @Test
+    fun `setLengthCustomText - 全角数字を正規化し time を排他クリアすること`() = runTest {
+        viewModel = DiscoveryViewModel(mockApp)
+        viewModel.setSearchDraft(SearchDraft(filters = SearchFilters(time = "-30")))
+        viewModel.setLengthCustomText("１", "") // 全角の1
+        val d = viewModel.searchDraft.value
+        assertEquals("1", d.lengthCustomMin)
+        assertEquals("10000-", d.filters.length)
+        // withLength が文字数/読了時間の排他を保証する（time を null に落とす）
+        assertNull(d.filters.time)
+    }
+
+    @Test
+    fun `toggleLengthStep - 段の消灯で length が null に戻るとき生入力テキストも掃くこと`() = runTest {
+        viewModel = DiscoveryViewModel(mockApp)
+        // 真にカスタムな値 "3"（=30000-。段境界に一致しない）を入れて生テキストを残す
+        viewModel.setLengthCustomText("3", "")
+        assertEquals("30000-", viewModel.searchDraft.value.filters.length)
+        // 段 0（"-10000"）を点灯 → 生テキストは保持（next!=null）
+        viewModel.toggleLengthStep(0)
+        assertEquals("-10000", viewModel.searchDraft.value.filters.length)
+        assertEquals("3", viewModel.searchDraft.value.lengthCustomMin)
+        // 段 0 を消灯 → length=null。旧 LaunchedEffect が担っていた生テキストの掃き取りを VM が代替する
+        viewModel.toggleLengthStep(0)
+        val d = viewModel.searchDraft.value
+        assertNull(d.filters.length)
+        assertEquals("", d.lengthCustomMin)
+        assertEquals("", d.lengthCustomMax)
     }
 }

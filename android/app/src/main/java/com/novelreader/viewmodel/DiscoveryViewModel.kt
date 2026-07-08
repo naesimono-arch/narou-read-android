@@ -187,6 +187,72 @@ class DiscoveryViewModel(
         savedStateHandle[KEY_SEARCH_DRAFT] = draft
     }
 
+    // ── カスタム文字数/読了時間の入力（SSOT: draft が生入力テキストの唯一の保持先） ──
+    // なぜ VM 経由か: 以前は画面 remember＋LaunchedEffect で filters.length/time と生テキストを
+    // 双方向同期していた二重真実源を draft 一本へ畳むため（SearchDraft のフィールド説明参照）。
+    // 入力を正規化（半角数字のみ）→ 送出用レンジへ組み立て → 生テキストと length/time を一括更新する。
+
+    /** カスタム文字数の生入力テキストを更新する（10000＝万字への係数）。 */
+    fun setLengthCustomText(min: String, max: String) {
+        val normMin = normalizeCustomRangeInput(min)
+        val normMax = normalizeCustomRangeInput(max)
+        val range = buildCustomRange(normMin, normMax, 10000)
+        val current = _searchDraft.value
+        setSearchDraft(
+            current.copy(
+                lengthCustomMin = normMin,
+                lengthCustomMax = normMax,
+                filters = current.filters.withLength(range),
+            )
+        )
+    }
+
+    /** カスタム読了時間の生入力テキストを更新する（60＝分への係数）。 */
+    fun setTimeCustomText(min: String, max: String) {
+        val normMin = normalizeCustomRangeInput(min)
+        val normMax = normalizeCustomRangeInput(max)
+        val range = buildCustomRange(normMin, normMax, 60)
+        val current = _searchDraft.value
+        setSearchDraft(
+            current.copy(
+                timeCustomMin = normMin,
+                timeCustomMax = normMax,
+                filters = current.filters.withTime(range),
+            )
+        )
+    }
+
+    /**
+     * 文字数の段階プリセットをトグルする。
+     * なぜ next==null（トグルで単一レンジが解消）時に生テキストも掃くか: 旧実装は LaunchedEffect が
+     * length→生テキストを一方向で追随して掃いていた。SSOT 化でその追随を廃するため、length を null に
+     * 戻すこの経路自身が生テキストを掃く責務を負う（掃かないと再度カスタムを開いた際に残骸が復活する）。
+     */
+    fun toggleLengthStep(index: Int) {
+        val current = _searchDraft.value
+        val next = toggleRangeStep(current.filters.length, index, LENGTH_STEPS)
+        setSearchDraft(
+            current.copy(
+                lengthCustomMin = if (next == null) "" else current.lengthCustomMin,
+                lengthCustomMax = if (next == null) "" else current.lengthCustomMax,
+                filters = current.filters.withLength(next),
+            )
+        )
+    }
+
+    /** 読了時間の段階プリセットをトグルする（[toggleLengthStep] の時間版）。 */
+    fun toggleTimeStep(index: Int) {
+        val current = _searchDraft.value
+        val next = toggleRangeStep(current.filters.time, index, TIME_STEPS)
+        setSearchDraft(
+            current.copy(
+                timeCustomMin = if (next == null) "" else current.timeCustomMin,
+                timeCustomMax = if (next == null) "" else current.timeCustomMax,
+                filters = current.filters.withTime(next),
+            )
+        )
+    }
+
     /** 現在のドラフトで検索を実行し、結果一覧の文脈を差し替える。実行できたら true。 */
     fun executeSearch(): Boolean {
         val draft = _searchDraft.value
