@@ -50,7 +50,7 @@ Jetpack Compose + Kotlin ネイティブ PDF 抽出（PDFBox-Android）。
 - Claude Code のフック（`.claude/hooks/`）を新規作成・改修するときは → 先に `task_diary.md` の「Claude Code フック」節（#26 stdin cp932 文字化け・#28 PostToolUse stdout 不達）と `docs/decisions/0004`（matcher範囲・ブランチ跨ぎ破綻）・`0008`（フックは並列実行・検知正規表現は hooks_common.py の単一定義。旧0007）を必ず確認すること（いずれも**サイレント失敗クラス**＝踏むと長期間気づけないため、既存フックの雛形コピーだけで書き始めない）
 - **agy(Antigravity) 委譲の実行者向けブリーフィング → `AGENTS.md`（agy が自動注入で読む）＋ `.agents/`（hooks＝禁忌コマンドの機械的ガード）**。監督側の委譲運用（--dir 必須・モデル選定）は auto-memory の `agy-*` 系を参照
 - 実行捏造ハルシネーション検知器（トランスクリプト静的解析）→ エンジン `.claude/hooks/detect_fabricated_execution_core.py`／CLI `analyze_transcript.py`。既知の実ハルシネーション正解データ（検証・回帰用）→ `docs/reference/hallucination-ground-truth.md`
-  - **ユーザーから「（このセッションの）ハルシネーションを記載して」と頼まれたら → `docs/reference/hallucination-ground-truth.md` に追記する**（正本はここ。他所には書かない。追記手順は同ファイル冒頭「追記手順」を参照）。
+  - **ハルシネーションの台帳登録は `/hallucination`**: ユーザーが打った瞬間に UserPromptSubmit フック `record_hallucination.py` が transcript を機械的にスナップショット保全＋台帳の未確定キューへ記載する（モデル推論を介さない＝幻覚直後の Claude を信用しない設計）。Claude の仕事は後段＝`/hallucination` スキルに従い分類・一次情報確定・正式セクション化。正本は `docs/reference/hallucination-ground-truth.md`（他所には書かない。フォーマットは同ファイル冒頭「追記手順」）。
 - **方式選定・アーキ判断で代替案を比較するときは → まず `docs/decisions/`（README 索引）で既存の判断・Why-not を確認すること**。判断が下りたら（**不採用の判断・コミットを生まない判断も含め**）ADR 化を検討する——「採用しなかった理由」も1件の ADR（例: 0008）。
 - **管理ドキュメントの体系**（役割で分離。混ぜないこと）:
   - **今どうなっているか（状態・完了・既知不具合）→ `STATUS.md`**（現況台帳＝正本）

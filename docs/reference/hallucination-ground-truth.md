@@ -17,7 +17,12 @@ L＝2026-07-07 発生の実行捏造（F型の極端例）。K の検知を依�
 
 ## 追記手順（「このセッションのハルシネーションを記載して」と頼まれたら）
 
-1. 該当セッション JSONL（`~/.claude/projects/<slug>/*.jsonl`）を特定する。
+0. **入口は `/hallucination`（2026-07-09〜）**: ユーザーが打った瞬間に UserPromptSubmit フック
+   `record_hallucination.py` が transcript を `~/.claude/hallucination-archive/` へスナップショットし、
+   本ファイル末尾の「⏳ 未確定キュー」へ機械的に1行記載する（モデル推論を介さない証拠保全）。
+   以降の手順はスナップショットに対して行い、確定したらキュー行を正式セクションへ昇格して消す
+   （運用詳細は `.claude/skills/hallucination/SKILL.md`）。
+1. 該当セッション JSONL（`~/.claude/projects/<slug>/*.jsonl`）を特定する（キュー行があればその `snapshot=` が正）。
 2. `analyze_transcript.py`（`.claude/hooks/`）を先にかける。**ただし静的検知器が拾うのは「実行の捏造」（ペア欠落型＝Tier A/B と misread 型＝Tier C）だけ**——存在しない対話・話題逸脱・帰属誤り・生成コード不具合などは 0 件で通るので、**JSONL を直読して一次情報で幻覚を確定**する。
 3. 静的 0 件でも E型（対話文脈の捏造＝存在しない質問への回答・話題の脈絡なき切替）を疑う場合は、
    **agy へ read-only の意味監査を委譲**する（2026-07-07 ブラインド実証済み: agy flash が正解非開示で
