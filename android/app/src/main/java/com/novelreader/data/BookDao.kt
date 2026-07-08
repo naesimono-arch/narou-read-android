@@ -20,6 +20,13 @@ interface BookDao {
     @Query("SELECT id FROM books")
     suspend fun getAllBookIds(): List<String>
 
+    /** 同一PDF二重取込のべき等ガード（UX監査 F-G 公理3）用の既存蔵書照合。
+     *  なぜ title＋author か: books は取込元の content URI もファイルサイズも持たない
+     *  （スキーマに無い）ため、抽出後に必ず得られる安定属性の組で「同じ本が既にあるか」を
+     *  判定する。完全一致 1 件で足りるため LIMIT 1。 */
+    @Query("SELECT * FROM books WHERE title = :title AND author = :author LIMIT 1")
+    suspend fun findByTitleAndAuthor(title: String, author: String): BookEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBook(book: BookEntity)
 

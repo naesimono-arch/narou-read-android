@@ -35,6 +35,20 @@ class BookRepository(
     val allBooks: Flow<List<BookEntity>> = bookDao.getAllBooks()
     val allProgress: Flow<List<ProgressEntity>> = progressDao.getAllProgress()
 
+    /** addBook の取込結果。同一PDFの二重取込（UX監査 F-G 公理3べき等性）を呼び出し側で
+     *  区別できるよう、新規登録と重複スキップを型で分ける（Service の通知文面を分岐させる）。 */
+    sealed interface AddBookResult {
+        /** 新規に蔵書登録した本。 */
+        data class Added(val book: BookEntity) : AddBookResult
+        /** 既に同一の本が蔵書済みのため登録をスキップした（変換成果は破棄済み）。既存の本を返す。 */
+        data class Duplicate(val existing: BookEntity) : AddBookResult
+    }
+
+    /** べき等ガードの純判定を切り出したもの: 抽出後のタイトル＋著者に一致する既存蔵書を返す
+     *  （無ければ null）。実 PDF 抽出を挟まず単体テストできるよう addBook 本体から分離する。 */
+    internal suspend fun findExistingBook(title: String, author: String): BookEntity? =
+        bookDao.findByTitleAndAuthor(title, author)
+
     /**
      * 抽出例外・IO 例外をユーザー向けエラー種別に変換する。
      *
@@ -63,7 +77,7 @@ class BookRepository(
     suspend fun addBook(
         pdfUri: Uri,
         onProgress: (step: Int, stepLocalPercent: Float, phase: String, title: String) -> Unit = { _, _, _, _ -> },
-    ): Result<BookEntity> = withContext(Dispatchers.IO) {
+    ): Result<AddBookResult> = withContext(Dispatchers.IO) {
         // withContext(Dispatchers.IO) の CoroutineScope を捕捉する。抽出の進捗コールバック（非 suspend）から
         // キャンセルを確認するために使う（下記 ③）。
         val extractionScope = this
@@ -104,25 +118,40 @@ class BookRepository(
                     throw e
                 }
 
-                // ④ Room 登録のみ NonCancellable で保護する。
-                // HTML 生成済み→DB 登録前の一瞬でキャンセルされると本棚に出ない孤立本になるため、この最終確定
-                // だけは中断不能に保つ（抽出全体を包んでいた旧 NonCancellable の縮小）。
-                val book = withContext(NonCancellable) {
-                    // addedAt に追加時刻をスタンプし、本棚の最近活動順ソート（未読本の基準）に使う。
-                    val b = BookEntity(bookId, meta.title, outputDir.absolutePath, meta.author, addedAt = System.currentTimeMillis())
-                    bookDao.insertBook(b)
-                    // 変換が確定したので永続キュー（pending_jobs）の記帳を落とす。insertBook と同じ
-                    // NonCancellable 内で連続実行し、「本は登録されたのに pending が残る」→ 次回起動の
-                    // リカバリが同じ本を再変換して重複登録する窓を最小化する（完全排他には DAO 跨ぎの
-                    // トランザクション統合が要るが、テスト用の DAO 分離注入を保つため窓の最小化で妥協。
-                    // この数msにプロセス kill が当たる確率は実用上無視できる）。
-                    settlePendingJob(pdfUri)
-                    b
+                // ④ べき等ガード（UX監査 F-G 公理3）: 抽出後のタイトル＋著者で既存蔵書を照合する。
+                // 既に同じ本があれば二重登録しない。books は取込元 URI/サイズを持たない（スキーマに無い）ため
+                // 変換完了まで判定できず、この段階で書きかけ HTML を破棄する（本棚に孤立本を残さない）。
+                // なお同一 URL の連続投入は Service 側のキュー重複ガードで変換前に弾く（本ガードは URI が
+                // 変わる再選択・別セッション再取込の受け皿）。
+                val existing = bookDao.findByTitleAndAuthor(meta.title, meta.author)
+                if (existing != null) {
+                    outputDir.deleteRecursively()
+                    // 変換の成否が確定した（＝重複と判明）ので pending_jobs を落とす。DB 書き込みを伴わない
+                    // が settlePendingJob は権限解放も行うため、登録成功時と同じく NonCancellable で保護する。
+                    withContext(NonCancellable) { settlePendingJob(pdfUri) }
+                    extractionScope.ensureActive()
+                    AddBookResult.Duplicate(existing)
+                } else {
+                    // ⑤ Room 登録のみ NonCancellable で保護する。
+                    // HTML 生成済み→DB 登録前の一瞬でキャンセルされると本棚に出ない孤立本になるため、この最終確定
+                    // だけは中断不能に保つ（抽出全体を包んでいた旧 NonCancellable の縮小）。
+                    val book = withContext(NonCancellable) {
+                        // addedAt に追加時刻をスタンプし、本棚の最近活動順ソート（未読本の基準）に使う。
+                        val b = BookEntity(bookId, meta.title, outputDir.absolutePath, meta.author, addedAt = System.currentTimeMillis())
+                        bookDao.insertBook(b)
+                        // 変換が確定したので永続キュー（pending_jobs）の記帳を落とす。insertBook と同じ
+                        // NonCancellable 内で連続実行し、「本は登録されたのに pending が残る」→ 次回起動の
+                        // リカバリが同じ本を再変換して重複登録する窓を最小化する（完全排他には DAO 跨ぎの
+                        // トランザクション統合が要るが、テスト用の DAO 分離注入を保つため窓の最小化で妥協。
+                        // この数msにプロセス kill が当たる確率は実用上無視できる）。
+                        settlePendingJob(pdfUri)
+                        b
+                    }
+                    // NonCancellable ブロック完了後にキャンセルを確認
+                    // （NonCancellable 内では ensureActive() が機能しないため必ず外側で呼ぶ）
+                    extractionScope.ensureActive()
+                    AddBookResult.Added(book)
                 }
-                // NonCancellable ブロック完了後にキャンセルを確認
-                // （NonCancellable 内では ensureActive() が機能しないため必ず外側で呼ぶ）
-                extractionScope.ensureActive()
-                book
             } finally {
                 if (!tempFile.delete()) Log.w(TAG, "一時ファイルの削除に失敗: ${tempFile.absolutePath}")
             }

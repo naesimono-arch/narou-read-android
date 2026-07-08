@@ -42,8 +42,23 @@ import kotlinx.coroutines.flow.first
 
 class MainActivity : ComponentActivity() {
 
+    // 変換完了通知タップの deep link 対象 bookId（M11）。onCreate/onNewIntent で更新し、
+    // Compose 側（NovelReaderApp）が消費して該当の本の読書画面へ着地する。
+    // なぜ State か: launchMode=singleTop で既存インスタンスへ onNewIntent 経由で新しい対象が
+    // 届くため、値の変化を Compose ツリーへ伝える必要がある。消費後は null に戻す（再ナビ防止）。
+    private val deepLinkBookId = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 通知（プロセス再生成を伴う cold start 含む）からの deep link 対象を取り込む。
+        // savedInstanceState==null に限定する理由: 構成変更（回転）や process death 復元では
+        // 同じ起動 Intent が再配達され getStringExtra が再び非 null になるため、毎回 deep link を
+        // 再発火してしまう（復元中の読書画面を勝手に置き換える）。初回生成のみ処理し、以後の
+        // 復元は Navigation のバックスタック復元に委ねる。稼働中の再タップは onNewIntent が拾う。
+        if (savedInstanceState == null) {
+            deepLinkBookId.value = intent?.getStringExtra(EXTRA_BOOK_ID)
+        }
 
         // 強制終了リカバリ（孤立HTML掃除＋未完了ジョブの通知・再開）。Activity 起動時に
         // 呼ぶのは FGS のバックグラウンド起動制限を避けるため（詳細は実装側の doc コメント）。
@@ -74,9 +89,28 @@ class MainActivity : ComponentActivity() {
             // 色味に差がない」実機フィードバック（2026-07-07）の主因だった。読書側の固有色
             // （ReadingColors）とは別系統だが、同じ琥珀紙トーンに揃えている（Theme.kt 参照）。
             NovelReaderTheme(theme = appTheme) {
-                NovelReaderApp(appTheme = appTheme, onThemeChange = onThemeChange)
+                NovelReaderApp(
+                    appTheme = appTheme,
+                    onThemeChange = onThemeChange,
+                    // .value の読み取りを composable 内で行うことで onNewIntent の更新が再コンポーズを誘発する。
+                    deepLinkBookId = deepLinkBookId.value,
+                    onDeepLinkConsumed = { deepLinkBookId.value = null },
+                )
             }
         }
+    }
+
+    // launchMode=singleTop のため、Activity 稼働中に通知タップが来ると新規インスタンスを作らず
+    // ここへ届く。setIntent で getIntent を最新化しつつ deep link 対象を差し替える。
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra(EXTRA_BOOK_ID)?.let { deepLinkBookId.value = it }
+    }
+
+    companion object {
+        /** 変換完了通知 → 読書画面 deep link 用の bookId extra キー（M11）。 */
+        const val EXTRA_BOOK_ID = "com.novelreader.extra.BOOK_ID"
     }
 }
 
@@ -94,12 +128,38 @@ private fun loadInitialTheme(prefs: SharedPreferences, systemDark: Boolean): Rea
 private fun NovelReaderApp(
     appTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
+    deepLinkBookId: String?,
+    onDeepLinkConsumed: () -> Unit,
 ) {
     val navController = rememberNavController()
     val viewModel: BookshelfViewModel = viewModel()
     // 発見系（ホーム/ジャンル/結果一覧）はクエリ文脈を画面間で受け渡すため単一VMを共有する。
     // ロードは ensureHomeLoaded の遅延型なので、ここで生成しても本棚起動時に通信は発生しない。
     val discoveryViewModel: DiscoveryViewModel = viewModel()
+
+    // 変換完了通知タップからの deep link 着地（M11）。状態依存の非決定な着地を排し、
+    // 常に「本棚を起点に該当の本の読書画面」へ疑似バックスタックで着地させる。
+    LaunchedEffect(deepLinkBookId) {
+        val bookId = deepLinkBookId ?: return@LaunchedEffect
+        // Content 確定（DB 初回発行後）まで待つ。Loading のまま解決すると存在する本でも
+        // 「無い」と誤判定して本棚に落ちるため。books は hot StateFlow で cold start でも収束する。
+        val content = viewModel.uiState.first { it is BookshelfUiState.Content } as BookshelfUiState.Content
+        val book = content.books.firstOrNull { it.id == bookId }
+        if (book != null) {
+            // 読書位置は保存済み進捗を尊重する（生命線）。未読なら index.html。
+            val startFile = viewModel.getLastRead(bookId) ?: "index.html"
+            navController.navigate("reading/$bookId/$startFile") {
+                launchSingleTop = true
+                // bookshelf を残して起点を固定＝Back が必ず本棚へ戻る（固定起点の保証）。
+                popUpTo("bookshelf") { inclusive = false }
+            }
+        } else {
+            // 削除済み等で本が無い確定ケース: 最低限の保証として固定起点（本棚）へ着地する。
+            navController.popBackStack("bookshelf", false)
+        }
+        // ナビ後に消費済みへ（null で再ナビを防ぐ。key 変化で本 Effect は即再実行され早期 return する）。
+        onDeepLinkConsumed()
+    }
 
     NavHost(navController = navController, startDestination = "bookshelf") {
 

@@ -36,6 +36,9 @@ class PdfProcessingService : Service() {
     // キューと状態を1つの lock で保護（「追加+起動判定」と「取り出し+終了判定」をアトミックにし競合ゼロにする）
     private val lock = ReentrantLock()
     private val uriQueue = ArrayDeque<Uri>()
+    // 二重取込のべき等ガード（UX監査 F-G 公理3）: キュー待ち＋処理中（未完了）の URI 集合。
+    // 同一 URI の再投入を変換前に弾く。lock で保護（uriQueue と同じ排他下で読み書きする）。
+    private val activeUris = ActiveUriTracker()
     private var isLoopRunning = false   // lock で保護
     private var totalCount = 0          // 現バッチの総件数（通知用、lock で保護）
     private var doneCount = 0           // 現バッチの完了件数（通知用、lock で保護）
@@ -70,6 +73,7 @@ class PdfProcessingService : Service() {
             }
             val running = lock.withLock {
                 uriQueue.clear()
+                activeUris.clear()  // べき等ガードの在庫も破棄（停止後の同一URI再投入は新規扱い）
                 isStopping = true
                 // 処理中の1冊を即中断。cancel はフラグを立てるだけ（join しない）ので lock 内で安全。
                 // 実際の中断は次のページ境界（onProgress → ensureActive）で起こる。
@@ -96,6 +100,33 @@ class PdfProcessingService : Service() {
         if (intent?.action != ACTION_START) return START_NOT_STICKY
         val uri = intent.data ?: return START_NOT_STICKY
 
+        // べき等ガード（UX監査 F-G 公理3）: 既にキュー待ち／処理中の同一 URI は変換前に弾く。
+        // これで「同じ PDF を連続で追加」→ 蔵書2冊＋変換二重実行（旧 uriQueue.add の重複チェック無）を防ぐ。
+        // OpenDocument の永続 URI は同一ファイルなら安定するため URI 一致で重複判定できる。URI が変わる
+        // 再選択・別セッション再取込は変換後にタイトル＋著者で BookRepository がさらに弾く（多層防御）。
+        // register/add とループ起動判定は uriQueue と同一 lock 下でアトミックに行う。
+        val (isDuplicate, shouldStart) = lock.withLock {
+            if (!activeUris.register(uri.toString())) {
+                Pair(true, false)
+            } else {
+                uriQueue.add(uri)
+                totalCount++
+                isStopping = false  // 新規追加で停止状態を解除（同一インスタンス再利用時の取りこぼし防止）
+                val start = if (!isLoopRunning) { isLoopRunning = true; true } else false
+                Pair(false, start)
+            }
+        }
+
+        if (isDuplicate) {
+            // 黙って捨てず「取込済み」を通知でフィードバックする（UX監査要件）。表示名の解決は
+            // ContentProvider への query のためメインスレッドを避け IO で行い、進行中の変換の
+            // ongoing 通知を潰さないよう専用 ID（DUPLICATE_NOTIFICATION_ID）で出す。
+            (application as? NovelReaderApplication)?.applicationScope?.launch {
+                showDuplicateNotification(resolveDisplayName(uri), DUPLICATE_NOTIFICATION_ID)
+            }
+            return START_NOT_STICKY
+        }
+
         // 再開用に処理キューへ記帳する（OEM kill/OOM/onTimeout からの復元材料。削除は変換の
         // 成否確定時に BookRepository 側で、明示停止時は上の ACTION_STOP で行う）。
         // applicationScope で走らせるのは ACTION_STOP の全消しと同じ理由（scope.cancel 非依存）。
@@ -105,14 +136,6 @@ class PdfProcessingService : Service() {
             app.applicationScope.launch(app.pendingJobDispatcher) {
                 app.repository.addPendingJob(uri.toString(), resolveDisplayName(uri))
             }
-        }
-
-        // キューへの追加とループ起動判定をアトミックに行う
-        val shouldStart = lock.withLock {
-            uriQueue.add(uri)
-            totalCount++
-            isStopping = false  // 新規追加で停止状態を解除（同一インスタンス再利用時の取りこぼし防止）
-            if (!isLoopRunning) { isLoopRunning = true; true } else false
         }
 
         if (shouldStart) {
@@ -133,6 +156,7 @@ class PdfProcessingService : Service() {
                 Log.e(TAG, "フォアグラウンド開始に失敗（処理を中止）", e)
                 lock.withLock {
                     uriQueue.clear()
+                    activeUris.clear()  // 破棄するキューと在庫を揃える（次回投入を新規扱いに戻す）
                     isLoopRunning = false
                     totalCount = 0
                     doneCount = 0
@@ -164,6 +188,8 @@ class PdfProcessingService : Service() {
         scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         lock.withLock {
             uriQueue.clear()
+            activeUris.clear()  // タイムアウトで捨てるキューと在庫を揃える。pending_jobs は残すため
+                                // 次回起動リカバリの再投入は新規 URI 扱いで正しく通る
             isLoopRunning = false
             totalCount = 0
             doneCount = 0
@@ -290,8 +316,17 @@ class PdfProcessingService : Service() {
             })
 
             result.fold(
-                onSuccess = { book ->
-                    showCompletionNotification(book.title)
+                onSuccess = { outcome ->
+                    when (outcome) {
+                        // 新規登録は従来どおり「変換完了」を通知する。タップで該当の本の
+                        // 読書画面へ deep link するため bookId も渡す（M11）。
+                        is com.novelreader.repository.BookRepository.AddBookResult.Added ->
+                            showCompletionNotification(outcome.book.id, outcome.book.title)
+                        // 既に蔵書済み（べき等スキップ）は完了ではなく「取込済み」を通知する。
+                        // この URI の処理スロットは終わったので進行中通知と同じ ID で上書きしてよい。
+                        is com.novelreader.repository.BookRepository.AddBookResult.Duplicate ->
+                            showDuplicateNotification(outcome.existing.title, NOTIFICATION_ID)
+                    }
                     app.updateProcessingState(null)
                 },
                 onFailure = { e ->
@@ -315,7 +350,10 @@ class PdfProcessingService : Service() {
             Log.e(TAG, "予期しないエラー（処理継続）", e)
             app.updateProcessingState(null)
         } finally {
-            lock.withLock { doneCount++ }
+            // この URI の処理が完了（成功/重複/失敗/キャンセル）したのでべき等ガードの在庫から外す。
+            // これ以降に同一 URI が再投入されたら新規変換として受け付ける（＝キュー重複ガードは
+            // あくまで「取込中の二重投入」を防ぐもので、完了後の再取込は蔵書照合側に委ねる）。
+            lock.withLock { doneCount++; activeUris.release(uri.toString()) }
         }
     }
 
@@ -336,6 +374,24 @@ class PdfProcessingService : Service() {
             ?: Intent(this, MainActivity::class.java)
         return PendingIntent.getActivity(
             this, 0, intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+    }
+
+    /** 変換完了通知のタップ着地を決定化する（M11）。従来の openAppIntent は「アプリを開く」だけで
+     *  着地先が直前の画面状態に依存して非決定だった。ここでは MainActivity へ bookId を明示 Intent で
+     *  渡し、該当の本の読書画面へ deep link させる（MainActivity 側が疑似バックスタックで本棚起点を保証）。
+     *  requestCode を openApp(0)/stop(1) と分けて PendingIntent の取り違えを防ぐ。
+     *  FLAG_ACTIVITY_SINGLE_TOP|CLEAR_TOP＋launchMode=singleTop で新規インスタンスを積まず多重起動を避け、
+     *  既に前面なら onNewIntent 経由で対象を差し替える。FLAG_UPDATE_CURRENT で最新完了の bookId を反映する
+     *  （完了通知は NOTIFICATION_ID 単一で上書きされるため同時併存はしない）。 */
+    private fun openBookIntent(bookId: String): PendingIntent {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            putExtra(MainActivity.EXTRA_BOOK_ID, bookId)
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+        return PendingIntent.getActivity(
+            this, 2, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
     }
@@ -387,15 +443,30 @@ class PdfProcessingService : Service() {
         return raw.removeSuffix(".pdf").removeSuffix(".PDF")
     }
 
-    private fun showCompletionNotification(title: String) {
+    private fun showCompletionNotification(bookId: String, title: String) {
         val notification = NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
             .setContentTitle("変換完了")
             .setContentText("$title を追加しました")
             .setSmallIcon(R.drawable.ic_notification)
             .setAutoCancel(true)
-            .setContentIntent(openAppIntent())
+            // タップで該当の本の読書画面へ deep link する（M11）。
+            .setContentIntent(openBookIntent(bookId))
             .build()
         notificationManager().notify(NOTIFICATION_ID, notification)
+    }
+
+    /** 二重取込のフィードバック（UX監査 F-G）。「変換完了」と誤解させないよう文面を分ける。
+     *  通知 ID は呼び出し側が指定する: 進行中変換中の重複投入は専用 ID で ongoing 通知を潰さず、
+     *  処理スロット完了時（蔵書照合ヒット）は進行中通知の ID を上書きする。 */
+    private fun showDuplicateNotification(title: String, notificationId: Int) {
+        val notification = NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
+            .setContentTitle("取込済み")
+            .setContentText("「$title」は既に取り込み済みです")
+            .setSmallIcon(R.drawable.ic_notification)
+            .setAutoCancel(true)
+            .setContentIntent(openAppIntent())
+            .build()
+        notificationManager().notify(notificationId, notification)
     }
 
     private fun showErrorNotification(message: String) {
@@ -413,6 +484,26 @@ class PdfProcessingService : Service() {
         const val ACTION_START = "com.novelreader.action.START_PROCESSING"
         const val ACTION_STOP = "com.novelreader.action.STOP_PROCESSING"
         const val NOTIFICATION_ID = 1001
+        // 二重取込の通知は進行中変換の ongoing 通知（NOTIFICATION_ID）を潰さないよう別 ID にする。
+        const val DUPLICATE_NOTIFICATION_ID = 1002
         private const val TAG = "PdfProcessingService"
     }
+}
+
+/**
+ * 取込中（キュー待ち＋変換中）の URI 集合を管理する純ロジック。二重取込のべき等ガード
+ * （UX監査 F-G 公理3）の中核で、Android 依存を持たず単体テスト可能にするため Service から分離する。
+ * スレッド安全性は持たない（呼び出し側 PdfProcessingService が既存の lock 下で使う前提）。
+ */
+internal class ActiveUriTracker {
+    private val active = HashSet<String>()
+
+    /** 新規なら登録して true を返す。既に取込中なら false（＝重複でスキップすべき）。 */
+    fun register(uri: String): Boolean = active.add(uri)
+
+    /** 処理完了で在庫から外す（以降の同一 URI 再投入は新規扱いになる）。 */
+    fun release(uri: String) { active.remove(uri) }
+
+    /** 全消し（停止・タイムアウト・foreground 起動失敗でキューごと破棄するとき）。 */
+    fun clear() { active.clear() }
 }

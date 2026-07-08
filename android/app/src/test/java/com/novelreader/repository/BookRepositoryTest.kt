@@ -191,6 +191,22 @@ class BookRepositoryTest {
         }
     }
 
+    // ── べき等ガード（同一PDF二重取込・UX監査 F-G 公理3）───────────────────
+    // 抽出後のタイトル＋著者で既存蔵書を照合する純判定（addBook から切り出し）。
+
+    @Test
+    fun `findExistingBook - 一致する蔵書があればそれを返す`() = runTest {
+        val existing = BookEntity("id01", "タイトルA", "/path/a", "著者A")
+        coEvery { bookDao.findByTitleAndAuthor("タイトルA", "著者A") } returns existing
+        assertEquals(existing, repository.findExistingBook("タイトルA", "著者A"))
+    }
+
+    @Test
+    fun `findExistingBook - 一致が無ければ null を返す`() = runTest {
+        coEvery { bookDao.findByTitleAndAuthor(any(), any()) } returns null
+        assertNull(repository.findExistingBook("未登録タイトル", "著者X"))
+    }
+
     // ── 孤立HTML掃除 ──────────────────────────────────────────────────────
 
     @Test
