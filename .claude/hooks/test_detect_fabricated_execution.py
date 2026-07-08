@@ -266,13 +266,27 @@ class TierA2FabricatedSha(unittest.TestCase):
 
 class ScopeAndReport(unittest.TestCase):
     def test_last_turn_scope_ignores_earlier_claims(self):
-        # scope=last_turn は最後の発話の主張のみ検査
+        # scope=last_turn は最終ターンより前（人間入力の前）の主張を検査しない
         recs = [
             asst_text("m1", "テストは全部通りました。"),   # 過去ターンの捏造（無視される）
+            human("次の作業へ進んでください"),             # ターン境界
             asst_text("m2", "作業を続けます。"),           # 最後のターン（主張なし）
         ]
         rep = run(recs, scope="last_turn")
         self.assertEqual(active_rules(rep), [])
+
+    def test_last_turn_covers_whole_turn_after_tool_use(self):
+        # 台帳L: 捏造発話の直後に AskUserQuestion が続きターンが継続しても、
+        # 同一ターン内の捏造発話は検査窓に入る（従来は最終発話のみで素通りした）。
+        recs = [
+            human("テストを直してください"),
+            asst_text("m1", "テストは全部通りました。"),   # 捏造（ターン途中）
+            asst_tool("m1b", "t1", "AskUserQuestion", {"questions": []}),
+            tool_result("t1", "はい"),                      # 回答＝ターン境界にしない
+            asst_text("m2", "作業を続けます。"),
+        ]
+        rep = run(recs, scope="last_turn")
+        self.assertIn("unverified_test_claim", active_rules(rep))
 
     def test_report_shape(self):
         rep = run([asst_text("m1", "テストは全部通りました。")])
@@ -323,7 +337,10 @@ class ConditionalExcludeRegex(unittest.TestCase):
                     "確認する必要がある", "テストしましょう", "実行する予定です",
                     "テスト緑を確認します", "結果を検証する",
                     "実テスト通過時に自動再生成される",   # 条件・時制節（when passing）
-                    "通ったと誤認して壊れる恐れがある"]   # メタ議論・リスク説明
+                    "通ったと誤認して壊れる恐れがある",   # メタ議論・リスク説明
+                    # 将来計画の宣言（2026-07-09 Stop ライブ実測FP）
+                    "実機の見た目最終確認はテスト通過後の実機スイープ項目として残します",
+                    "テスト通過後に実機で確認する"]
     # 実際の過去形の断言は除外してはならない（＝これらは claim のまま Tier B に渡す）
     SHOULD_NOT_MATCH = ["テストは通りました", "コミットしました", "成功しました",
                         "テストが通ったことを確認しました"]
@@ -975,6 +992,63 @@ class ImportantNumRegex(unittest.TestCase):
     def test_single_digits_ignored(self):
         # 1桁整数は指示番号（「コミット後5へ」）で頻出しノイズ＝突合対象外（較正実測）
         self.assertEqual(core.IMPORTANT_NUM_RE.findall("コミット後5へ、次は3を"), [])
+
+
+class TierBPragmatics(unittest.TestCase):
+    """発話の語用論クラス（2026-07-08/09 実測FP群）: 計画宣言・メタ議論は完了報告ではない。"""
+
+    def test_plan_declaration_not_flagged(self):
+        # 2026-07-09 Stop ライブ実測: 未来の作業計画の宣言を完了報告と誤認していた
+        recs = [asst_text("m1", "実機の見た目最終確認はテスト通過後の実機スイープ項目として残します。")]
+        rep = run(recs)
+        self.assertEqual(active_rules(rep), [])
+        self.assertEqual(suppressed_rules(rep), [])  # claim 化自体をしない（除外層）
+
+    def test_meta_discussion_suppressed(self):
+        # 2026-07-08 実測: 捏造を検証・報告する発話が捏造文言を引用すると偽陽性発火していた
+        recs = [asst_text(
+            "m1",
+            "捏造の検知結果を報告します。該当セッションの記録には「回帰テスト：全通過しました」"
+            "というハルシネーション文言が残っていましたが、実行の裏付けは不存在でした。")]
+        rep = run(recs)
+        self.assertNotIn("unverified_test_claim", active_rules(rep))
+        sup = [f for f in rep.findings if f.rule == "unverified_test_claim"]
+        self.assertTrue(sup and sup[0].suppressed_reason == "meta_discussion")
+
+    def test_real_claim_still_flagged(self):
+        # 免罪の追加で本来の検知（裏取りなしの完了断言）が死んでいないことの陽性コントロール
+        recs = [asst_text("m1", "テストは全部通りました。")]
+        rep = run(recs)
+        self.assertIn("unverified_test_claim", active_rules(rep))
+
+
+class TierA3InterruptedMarker(unittest.TestCase):
+    """台帳K の高精度部分対応: 中断マーカーの地の文化＝幻ユーザーターン生成の構造シグナル。"""
+
+    def test_raw_interrupted_marker_flagged(self):
+        recs = [asst_text("m1", "処理を続けます。\n[Request interrupted by user]\nはい、了解しました。")]
+        rep = run(recs)
+        self.assertIn("fabricated_harness_block", active_rules(rep))
+
+    def test_quoted_interrupted_marker_not_flagged(self):
+        recs = [asst_text("m1", "中断時は `[Request interrupted by user]` が記録されます。")]
+        rep = run(recs)
+        self.assertNotIn("fabricated_harness_block", active_rules(rep))
+
+
+class HumanInputRobustness(unittest.TestCase):
+    def test_queued_command_list_prompt_no_crash(self):
+        # 2026-07-09 実測クラッシュ: 画像添付付き入力は prompt が content ブロック list になる
+        recs = [
+            {"type": "attachment", "attachment": {
+                "type": "queued_command", "origin": {"kind": "human"},
+                "prompt": [{"type": "text", "text": "君なんか開いている？[Image #2]"},
+                           {"type": "image", "source": {"type": "base64", "data": "xx"}}]},
+             "timestamp": TS},
+            asst_text("m1", "あなたが「なんか開いている」と言った件を確認します。"),
+        ]
+        rep = run(recs)  # クラッシュしないこと＋text ブロックが突合に効くこと
+        self.assertNotIn("fabricated_user_quote", active_rules(rep))
 
 
 if __name__ == "__main__":

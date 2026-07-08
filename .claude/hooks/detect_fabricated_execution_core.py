@@ -67,7 +67,11 @@ CONDITIONAL_EXCLUDE_RE = re.compile(
     # 例「テストが直近で通ったと誤認して…する恐れがある」＝捏造ではなく挙動の懸念説明。
     r"誤認|恐れ|懸念|かのよう|risk\b|"
     # 成功語が条件・時制節にある場合（「テスト通過時に自動再生成」＝when passing、機構説明）。
-    r"通過(?:時|で自動|次第)|通った(?:時|ら)|通り次第|パス次第|成功次第|"
+    r"通過(?:時|後|で自動|次第)|通った(?:時|ら|後)|通り次第|パス次第|成功次第|"
+    # 将来計画の宣言（2026-07-09 Stop ライブ実測FP: 「実機の見た目最終確認はテスト通過後の
+    # 実機スイープ項目として残します」）。「テスト通過」を時制節に含む計画文は完了報告ではない。
+    # 「残します/として残す」は backlog への繰り延べ宣言の定型で、成功断言と共起しない。
+    r"として残(?:す|し)|残します|これから|"
     r"\bshould\b|\bwould\b|\bif\b|\bexpect|\bassume|\bplan\s+to\b|\bwill\b|\blet'?s\b",
     re.IGNORECASE,
 )
@@ -127,6 +131,11 @@ HARNESS_BLOCK_RE = re.compile(
     r"|<exit-code>\s*\d+\s*</exit-code>"
     r"|<tool-use-id>[^<>\n]{1,80}</tool-use-id>"
     r"|</?total_tokens>\s*\d"
+    # 中断マーカーの偽造（台帳K・入力側捏造の高精度部分対応）: "[Request interrupted by user]"
+    # はハーネスのみが著者で、assistant の正当な散文には現れない。K型（thinking 異常を伴わない
+    # 幻ユーザーターン生成）は Tier D3 の降格ゲートで active 化できないため、この構造マーカー
+    # だけでも A3 で拾う。引用議論は strip_code_spans で除外済み。
+    r"|\[Request interrupted by user(?: for tool use)?\]"
     # ツール呼び出し構文の地の文化（＝ツール実行を偽装）。これらは assistant の
     # 正当な散文には現れない（本物の tool_use は構造化ブロックとして別レコードになる）。
     r"|<invoke\s+name=|</invoke>|<function_calls>|<parameter\s+name=|antml:invoke",
@@ -699,8 +708,14 @@ def collect_human_inputs(records: List[dict]) -> List[Tuple[int, str]]:
             if (att.get("type") == "queued_command"
                     and isinstance(att.get("origin"), dict)
                     and att["origin"].get("kind") == "human"):
+                # 画像添付付き入力では prompt が str でなく content ブロックの list になる
+                # （2026-07-09 実測: 「[Image #2]」付き入力で _human_blob の join がクラッシュ）。
+                # text ブロックのみ抽出して文字列化する（画像バイナリは突合対象外）。
                 p = att.get("prompt") or ""
-                if p:
+                if isinstance(p, list):
+                    p = "\n".join(b.get("text", "") for b in p
+                                  if isinstance(b, dict) and b.get("type") == "text")
+                if isinstance(p, str) and p:
                     humans.append((idx, p))
             continue
         if t != "user":
@@ -721,6 +736,41 @@ def collect_human_inputs(records: List[dict]) -> List[Tuple[int, str]]:
                     if txt:
                         humans.append((idx, txt))
     return humans
+
+
+def last_turn_start_order(records: List[dict]) -> int:
+    """
+    最後の「ターン開始」人間入力の全レコード軸 order を返す（無ければ -1）。
+    含めるもの: user 行 content=str（ハーネス著者除外）／user 行 list 内の text ブロック
+    （interrupt 直後の入力）／queued_command(origin.kind=human)。
+    AskUserQuestion の回答を**含めない理由**（台帳L）: 回答はターン途中の入力であり、これを
+    境界にすると「捏造発話 → AskUserQuestion → 回答 → 継続」の並びで回答前の捏造発話が
+    Stop の検査窓から漏れる（scope=last_turn の穴の機序そのもの）。
+    """
+    last = -1
+    for idx, rec in enumerate(records):
+        if rec.get("isSidechain"):
+            continue
+        t = rec.get("type")
+        if t == "attachment":
+            att = rec.get("attachment") or {}
+            if (att.get("type") == "queued_command"
+                    and isinstance(att.get("origin"), dict)
+                    and att["origin"].get("kind") == "human"
+                    and att.get("prompt")):
+                last = idx
+            continue
+        if t != "user":
+            continue
+        content = _content_of(rec)
+        if isinstance(content, str):
+            if content and not HARNESS_INPUT_PREFIX_RE.search(content):
+                last = idx
+        elif isinstance(content, list):
+            if any(isinstance(b, dict) and b.get("type") == "text" and b.get("text")
+                   for b in content):
+                last = idx
+    return last
 
 
 def build_evidence_corpus(records: List[dict], tool_index: Dict[str, ToolResult],
@@ -1011,8 +1061,13 @@ def detect_tier_b(utterances: List[Utterance], all_utterances: List[Utterance],
                     continue
 
             # 裏取りなし。降格条件を先に判定（Stop ブロック対象から外す）。
+            # meta_discussion（2026-07-08 実測FP）: 捏造の検証・報告をする発話が捏造文言
+            # （「回帰テスト：全通過」等）を引用すると、引用が claim 化して偽陽性になる。
+            # Tier D の meta_discussion 降格と同型の免罪を Tier B にも適用（発話単位＋文近傍）。
             suppressed = None
-            if corpus.has_truncation:
+            if _is_meta_utterance(u.text) or META_DISCUSSION_RE.search(sent):
+                suppressed = "meta_discussion"
+            elif corpus.has_truncation:
                 suppressed = "truncation"
             elif corpus.agent_unresolved:
                 suppressed = "subagent_unresolved"
@@ -1463,7 +1518,14 @@ def analyze(text: str, transcript_path: Optional[str] = None,
 
     # 検査対象の発話（claims）を scope で絞る
     if scope == "last_turn":
-        target = [u for u in all_utterances if u.is_last_turn]
+        # 台帳L対策: 「最後の発話のみ」だと、捏造発話の直後に AskUserQuestion 等の tool_use が
+        # 続いてターンが継続した場合に検査窓から漏れる。最終ターン（最後のターン開始入力より後）
+        # の全発話を検査する。ターン開始入力が見つからない異常系のみ従来の最終発話へフォールバック。
+        boundary = last_turn_start_order(records)
+        if boundary >= 0:
+            target = [u for u in all_utterances if u.order > boundary]
+        else:
+            target = [u for u in all_utterances if u.is_last_turn]
     else:
         target = all_utterances
 
