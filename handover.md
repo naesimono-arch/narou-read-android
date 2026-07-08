@@ -71,6 +71,7 @@
 - **サブエージェント/オフロード全文の裏取り強化**（現状は読めなければ降格）。
 - **Tier D の K型盲点・残り**（2026-07-08 台帳K。うち `[Request interrupted by user]` の地の文検知は 2026-07-09 v3.1 で Tier A3 へ実装済み＝STATUS §0 参照。同便で Tier B 将来計画文FP・Tier B メタ議論免罪・Stop 検査窓の穴（台帳L）も解消）: 暴走 thinking 前兆を伴わない入力側捏造（応答継続中に幻のユーザーターンをロールマーカー込みで生成）は `no_thinking_anomaly` で降格し active 化できない。残る対策候補: ①ロールマーカー（`user:`/`Human:` 等）出現を拾う高精度新ルール（中断マーカーより偽陽性リスクが高く要較正） ②降格ゲート再設計（thinking 空記録セッションでは軸2が原理的に発火不能な点も考慮）。
 - **メタ議論免罪の Tier A2/C1 への未適用**（2026-07-09 2日分スイープ実測）: 捏造の事後検証セッション（c4b78e7d）で「`20d5aa3` マージは完全な捏造でした」等の**検証発話が引用する捏造 SHA・完了文言**が A2 `fabricated_concrete_token`／C1 `completion_after_blocked_commit` に active 発火。Tier B/D にはある `meta_discussion` 降格が A2/C1 に無い。同スイープで Tier B の**引用列挙型**（e4367031「完了主張の束: ②『回帰テスト：全通過』」＝メタ語彙3ヒット未満の分析表）も残存FP＝引用・表組み文脈の認識が引き続き課題。
+- **Tier A2 の直前 tool_result 由来トークンFP**（2026-07-09 Stop ライブ実測・人間が偽陽性確定）: 「| **ブランチ** | `task/device-feedback`（base: `main` @ 5c3f32b） |」が `fabricated_concrete_token` で active 発火しStopブロック。ブランチ名・base・SHA はすべて**直前の `wt-new` tool_result 出力に実在**（`git worktree list` 再確認でも一致）＝実記録裏付きの具体値を捏造扱いした。表組みセルで tool_result の値を再掲するパターンの照合漏れ（tool_result 本文との突合が `5c3f32b` 等を拾えていない）を調査し、直近 tool_result 内に出現する具体値は免罪する方向を検討。
 - **実機テストランナーの非認識（要確認）**（2026-07-09 スイープ実測・441b9875）: 「MigrationTest 3テスト全通過（OK, 0.109s）」が Tier B active 発火。androidTest（adb instrument 経由）は `TEST_RUNNER_CMD_RE`（`test\w*UnitTest`/unittest/pytest）に含まれず、実機テストの成功実行が構造的に裏取り不能の可能性。当該発話が本当に実機テスト裏付きだったかの人間確認と、instrument 系コマンド・出力（`OK (3 tests)`）の認識追加を検討。
 - **意味照合系検知器**（着想段階・スコープ外構想）＝生成コード不具合・外部リサーチ捏造（正解データ事象B/C）。
 

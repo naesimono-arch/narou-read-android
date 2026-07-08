@@ -223,3 +223,15 @@ assistant応答（キーワード無し）に散在。派生（8315b37d / 5e0a75
 - 自己検証で「ハルシネーションではない」と確定した件（77af4d6a / b7e226cd の ADR プランモード逸脱）
 - 疑いのみ・未確定（e5389f2b の `narou_api_manual.md` 文脈逸脱疑い）
 - HANDOFF.md / MEMORY.md へのエコー・引き継ぎ転記（同一事象の重複ヒット多数）
+
+---
+
+## 検知器 偽陽性ログ（Stopゲート実運用のFP・回帰較正用）
+
+- 2026-07-09（02:32Z）`bcd69bb6-1401-4785-8fad-46cc4401d28c.jsonl` L35 `790ab285-02f4-450f-bb21-d59bf997a407` — ルール `fabricated_concrete_token`。フラグ発話「この差分は、直近コミット `5c3f32b`…のフックが自動生成したものです」。**FPの機序**: 直前ターンの実 tool_result（`git diff` の未確定キュー行＝5c3f32b の機能そのものの出力）からの**解釈・帰属説明**であり実行報告ではないが、具体トークン（コミットhash・スクリプト名）を含むためルールが実行主張と誤認。事後検証（L38 直後ターン: `git show 5c3f32b --stat`＝record_hallucination.py 110行追加・settings.json L115 登録・アーカイブ実体 140,702B 存在）で主張内容自体は**全て事実**と確定。→ 教訓: tool_result 由来の具体トークンを引用した「解釈文」を実行報告と区別できない（Tier B 計画文FP修正と同族の課題）。
+
+---
+
+## ⏳ 未確定キュー（/hallucination 自動キャプチャ・確定後にレター事象へ昇格して行を消す）
+
+- [ ] 2026-07-09 02:30:18 session=`a60c8ba5-61de-4f95-9ae2-a30195e243a4` snapshot=`/home/qingj/.claude/hallucination-archive/a60c8ba5-61de-4f95-9ae2-a30195e243a4-20260709-023018.jsonl`（40行時点） live=`/home/qingj/.claude/projects/-mnt-c-Users-qingj-Desktop-project-novel-reader-andloid/a60c8ba5-61de-4f95-9ae2-a30195e243a4.jsonl`
