@@ -53,8 +53,8 @@ triggers:
 **API層**（`java/com/novelreader/narou/`＝実質「API層」。`network`/`remote` 等の一般名ディレクトリは無い）:
 - `network/NarouNetwork.kt` — Retrofit+OkHttp+Moshi(codegen) 配線・`BASE_URL`(api.syosetu.com)・UAインターセプタ(`NovelReader-Android/1.0`)
 - `network/NarouApiService.kt` — 唯一のエンドポイント `@GET("novelapi/api/")` の `search(...)`。一覧も詳細もこの1本を引数で呼び分ける
-- `NovelApiRepository.kt` — API層の中核。`discover()`/`novelDetail()`・6h TTL インメモリキャッシュ(上限50)・
-  例外正規化(`NarouApiException`)・パラメータ組立・SHORT+RENSAI の2クエリマージ
+- `NovelApiRepository.kt` — API層の中核。`discover()`/`discoverPage()`(結果一覧のページング＝st/lim上限の検出込み)/`novelDetail()`・6h TTL インメモリキャッシュ(上限50・offset込みキー)・
+  例外正規化(`NarouApiException`)・パラメータ組立・SHORT+RENSAI の2クエリマージ。ncode はドメイン/VM/UI層では `model/Ncode.kt`（@JvmInline value class）で受け渡し（Room/Moshi/Retrofit 境界のみ生 String）
 - `model/DiscoveryQuery.kt` — 検索条件 DTO＋enum4種(`NarouOrder`/`NarouNovelType`/`NarouLastup`/`NarouAttr`)＋
   変換関数(`typeApiParam`/`lastupApiParam`)を**同一ファイルに同居**
 - `model/`（他）— `NarouNovel`(APIレスポンス1件)・`DiscoveryResult`・`NarouGenres`(ジャンルコード表)・`NarouCuratedKeywords`(公式おすすめ語)
@@ -68,8 +68,8 @@ triggers:
 - `SearchDraft` — 検索条件の下書き（`SearchFilters`/`SearchRange`＋トグル/レンジ合成の純関数群を同居）
 - `MoodPreset` — 「気分で探す」プリセット→Query
 
-**UI層**（`ui/discovery/`＝7ファイル）:
-- `DiscoveryHomeScreen`（order 切替タブ）／`DiscoverySearchScreen`（条件シート）／`DiscoveryGenreScreen`（唯一VM非依存・静的 `NarouGenres` 依存）
+**UI層**（`ui/discovery/`＝8ファイル。VM直結画面は route(VM結線)/Content(stateless描画) の2層分割＝`BookshelfScreen`/`BookshelfContent` と同型・Content は Robolectric でテスト＝ADR 0009）:
+- `DiscoveryHomeScreen`（order 切替タブ）／`DiscoverySearchScreen`（条件シートは `SearchConditionSheet.kt` へ分離済み）／`DiscoveryGenreScreen`（唯一VM非依存・静的 `NarouGenres` 依存）
 - `DiscoveryResultScreen`（検索/ジャンル/気分の**共通着地**）／`NovelDetailScreen`（作品カード詳細）
 - `DiscoveryCommon`（Loading/Empty/Error 共通部品）／`DiscoveryQueryLabels`（条件チップ文言）
 - ※本棚↔なろう紐付けシート `ui/NcodeLinkSheet.kt` は `ui/discovery/` ではなく `ui/` 直下＝**発見層ではなく読書画面(NativeReadingScreen)の継続読書フロー部品**

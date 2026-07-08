@@ -17,13 +17,28 @@
   ② **強制終了（OEM kill/OOM/onTimeout）時の通知＋再開**: Room **v7→v8** で `pending_jobs` 新設（enqueue で記帳／成否確定で削除／明示停止は全消し／記帳は `pendingJobDispatcher`(並列度1)で直列化）。SAF 選択時に `takePersistableUriPermission` 取得。起動時リカバリ `runStartupRecoveryOnce`（MainActivity.onCreate トリガー・プロセス毎1回）＝孤立HTML掃除→未完了ジョブ検出→snackbar 通知＋権限が生きる分を FGS 再投入。
   実機3/3（v7→v8 migration・停止2秒以内即中断・強制終了→再起動で自動再開完走）の詳細ログ・機序は handover A／task_diary 参照。
 - **抽出パイプライン＝純 Kotlin（PDFBox-Android）単独**。Chaquopy/Python は Phase 5（2026-07-05）で完全撤去＝`git revert` での即復旧は不可（git 履歴からの復元は可能）。APK 67.3→24.2MiB。
-- テスト: `testDebugUnitTest` 113件緑（統合済みツリーで確認）。実機の恒久精度回帰ゲート＝`PdfExtractorDeviceSpikeTest`（N6169DZ 含む3件通過済み）。
-- 端末DB=`user_version 9`（api-lab-ai 系ビルドで v9 化済み＝schemas/9.json がその identity hash の記録）→**コードは v10**（2026-07-08 統合で PendingJobEntity＋ncode を合併し、hash 再スタンプの no-op `MIGRATION_9_10` で v10 へ退避）＝次回実機 install で 9→10 migration が走る。⚠️ **旧APKへ逆走すると `migration N→N-1 not found` でクラッシュ＝逆走禁止**（古い→新しいの一方向のみ）。
+- テスト: `testDebugUnitTest` **301件緑**（2026-07-08 `handover/task-sweep` 時点。Robolectric の Compose UI テスト＝ADR 0009 を含む。統合直後時点は 113件）。実機の恒久精度回帰ゲート＝`PdfExtractorDeviceSpikeTest`（N6169DZ 含む3件通過済み）。
+- 端末DB=`user_version 10`（2026-07-08 実機スモークで 9→10 通過・蔵書生存確認済み）→**コードは v11**（2026-07-08 `handover/task-sweep`＝F-G 恒久策で `books.contentSha256` を追加・`MIGRATION_10_11`＝ADD COLUMN のみ）＝次回実機 install で 10→11 migration が走る（**実機通過は未確認**＝handover「実機スモーク」項参照）。⚠️ **旧APKへ逆走すると `migration N→N-1 not found` でクラッシュ＝逆走禁止**（古い→新しいの一方向のみ）。
 - 既知バグ: なし（**#1 ルビ位置ずれは 2026-07-02 解消**＝`90d037a`。根本原因と1.6系APIの制約は `task_diary.md` #43）。
 - 実機: OPPO PGEM10 `192.168.1.210:5555` 接続済み（切れたら `adb-bridge`）。検証ワークフローは `[[workflow-autonomous-device-verification]]`（Claudeがadb自律駆動）/ `[[workflow-notify-each-step-visual-check]]`（各ステップで目視関門）。
 - Kotlin 移植（Phase 1〜5）の経緯・実機検証の詳細 → §1 先頭項＋一次情報 plan `.claude/plans/kotrin-branch-python-kotrin-graceful-flute-archived-2026-07-06.md`。
 
 ## 1. 完了済み
+
+- **handover 一括消化スイープ（2026-07-08・`handover/task-sweep`・並列サブエージェント4ウェーブ＝計10コミット・`testDebugUnitTest` 301件緑）**: UX監査繰り越し4件（F-G恒久策/F-J/M12/F-F）＋chrisbanes 系統レビュー残（系統1※読書画面除く・系統4・系統5）＋テスト投資①②③を消化。**副産物＝実バグ1件発見・修正**（空の本棚で透明な Lazy コンテナが「PDFを追加する」CTA のタップを hit test で遮蔽＝新設 Robolectric テストが検出。`c006f51`）。実機確認の残りは handover「実機スモーク」項。コミット表（新しい順）:
+
+  | 項目 | commit | 内容 |
+  |---|---|---|
+  | 系統1完遂(discovery) | `3234716` | discovery 4画面を route/Content 分割＋Content UIテスト12本（Genre は元から stateless） |
+  | 系統4 Ncode | `07050ea` | `@JvmInline value class Ncode` 導入（Room/Moshi/Retrofit 境界は String 維持の段階導入） |
+  | 空棚CTA遮蔽 fix | `c006f51` | 空棚時に Lazy コンテナがタップを奪う実バグを排他分岐で解消＋BookshelfContent テスト |
+  | 系統1第一弾(本棚) | `2cd372e` | BookshelfScreen→route/Content 分割・NcodeLinkSheet の検索を BookshelfViewModel へ吊り上げ |
+  | F-J ページング | `c66c913` | 「さらに読み込む」フッタ・`discoverPage`(st≤2000/lim≤500 上限検出)・PagingState 5状態・offset込み6hキャッシュ |
+  | task_diary #50 | `9e5d51e` | Robolectric×ModalBottomSheet 不安定の機序と Content 分離の対処 |
+  | テスト投資①②③ | `89fbe7a` | Robolectric 導入（ADR 0009）＋葉Composable UIテスト21本＋分岐@Preview 13本 |
+  | 系統5 SSOT | `7d135ba` | 検索カスタム文字数/読了時間を SearchDraft へ一本化＋条件シートを SearchConditionSheet.kt へ純抽出（1348→606行） |
+  | F-G 恒久策 | `5e1ec82` | Room v10→v11（`contentSha256`）・PDF内容ハッシュで別URI同内容の再取込を変換前遮断・MigrationTest 7→11 追従 |
+  | F-F/M12 | `3b88075` | 読書画面シート開閉 rememberSaveable 化・没入ヒントを prefs で通算初回のみへ |
 
 - **UX監査バックログ28件 全件修正・検証完了（2026-07-08・ui/polish）**: UX・導線フル監査で確定した指摘 **Critical 2/Major 14/Minor 12** を8実装エージェント＋検証2（全数突合・敵対的退行レビュー）＋フィックスアップ1で解消。**検証体制**: 全数突合で28件全て CONFIRMED（当初 PARTIAL の M1/M9＝読書画面継続カードの Custom Tabs 残件もフィックスアップで再入ガード＋背景同化解除＋open-in-new でクローズ）／敵対的退行レビューで Critical/Major 退行ゼロ（読書位置＝生命線・SSOT job cancel・ナビ骨格・取込パイプライン・Parcelize 型安全・BookshelfUiState 追随を現物確認）／`testDebugUnitTest` GREEN（新規 ActiveUriTrackerTest・BookCardProgressTest・NavHistoryTest＋既存4ファイルへ F-C/F-E/F-O/M8/権限回収の回帰追加）。**レビュー発見の恒久バグ1件も修正**＝取込失敗→再試行せず再起動で persistable URI permission がリーク → 起動時 `releaseOrphanedPermissions`（pending_jobs 非紐付き権限の回収）で根本対処。**主な構造変化**: kotlin-parcelize 導入（ResultContext/SearchDraft/DiscoveryQuery を SavedStateHandle 退避）／BookshelfUiState(Loading/Content)／TocState 4状態／AppErrorEvent(message, retryUri) 化／通知 deep link（EXTRA_BOOK_ID・launchMode=singleTop）／読書画面の内部 Back 履歴（navHistory・上限32）。**残タスク**（実機確認10項目＋繰り越し5件＝F-G 恒久策／F-J ページング／M12 ヒント永続化／意匠オーナー確認2点／F-F 軽微）は `handover.md` §E 参照。
 
