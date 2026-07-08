@@ -68,6 +68,12 @@ import java.util.Locale
  * 書影ヒーロー表示、作者情報、作品ステータス、あらすじ、キーワード、評価項目などを
  * 和モダンの静謐なレイアウトで構築し、最下部に「なろうで読む」外部連携導線を常駐させる。
  */
+/**
+ * 作品詳細のルート層（state-holder / UI 分割の route）。
+ * ViewModel の受け取り・詳細ロードの起動・状態の collect と、「なろうで読む」の外部ブラウザ起動という
+ * プラットフォーム副作用（Custom Tabs＋二重起動ガード）を担い、純粋な描画は [NovelDetailContent] に委ねる
+ * （BookshelfScreen と同じ分割方針。プラットフォーム副作用はルート層に置く＝描画層を VM/Context 非依存に保つ）。
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun NovelDetailScreen(
@@ -82,6 +88,48 @@ fun NovelDetailScreen(
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    val context = LocalContext.current
+    // なぜ再入ガードが要るか（M1/公理3）: Custom Tabs は別プロセスのブラウザ起動待ちがあり、
+    // 反応が無いと利用者が連打しやすい。その間 launchUrl が複数回走るとなろうページが
+    // 2枚重なって開くため、直近起動から一定時間内のタップは無視して二重起動を防ぐ。
+    // 外部起動はプラットフォーム副作用のためルート層に置く（描画層は onReadOnNarou を叩くだけ）。
+    var lastLaunchAt by remember { mutableStateOf(0L) }
+
+    NovelDetailContent(
+        ncode = ncode,
+        uiState = uiState,
+        onKeywordTap = onKeywordTap,
+        onBack = onBack,
+        onRetry = { viewModel.retry() },
+        onReadOnNarou = {
+            val now = System.currentTimeMillis()
+            if (now - lastLaunchAt >= 1000L) {
+                lastLaunchAt = now
+                // なろう作品ページを Custom Tabs で表示する。ツールバー色は明示指定せず
+                // 既定（ブラウザのサイト識別色）に委ねる（M2/M9・公理8）＝外部サイトへ
+                // 遷移した事実を隠さず、利用者が今どこに居るかを判別できるようにするため。
+                openInAppBrowser(context, narouWorkUrl(ncode))
+            }
+        },
+    )
+}
+
+/**
+ * 作品詳細の描画層（stateless / UI 分割の content）。NovelDetailScreen からの純移動。
+ * VM や Context を持たず [ncode]＋[uiState]＋コールバックだけで Loading/NotFound/Error/Content の分岐と
+ * ヒーロー・ステータス・あらすじ・キーワード・評価・外部連携導線を描画する葉。スクロール追従の題字表示
+ * といった画面ローカル UI 状態のみ内部に残す。外部ブラウザ起動は [onReadOnNarou]、再試行は [onRetry] へ委譲。
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+internal fun NovelDetailContent(
+    ncode: Ncode,
+    uiState: NovelDetailUiState,
+    onKeywordTap: (String) -> Unit,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+    onReadOnNarou: () -> Unit,
+) {
     // スクロール状態を最上位で保持する（M10/層②）。書影ヒーローと本文タイトルが画面外へ流れたら
     // App bar に作品名を常駐表示し、今どの作品を見ているかの手掛かりが消えないようにするため。
     val scrollState = rememberScrollState()
@@ -132,11 +180,6 @@ fun NovelDetailScreen(
         },
         bottomBar = {
             if (uiState is NovelDetailUiState.Content) {
-                val context = LocalContext.current
-                // なぜ再入ガードが要るか（M1/公理3）: Custom Tabs は別プロセスのブラウザ起動待ちがあり、
-                // 反応が無いと利用者が連打しやすい。その間 launchUrl が複数回走るとなろうページが
-                // 2枚重なって開くため、直近起動から一定時間内のタップは無視して二重起動を防ぐ。
-                var lastLaunchAt by remember { mutableStateOf(0L) }
                 Surface(
                     color = MaterialTheme.colorScheme.background,
                     modifier = Modifier.fillMaxWidth()
@@ -149,16 +192,7 @@ fun NovelDetailScreen(
                                 .padding(horizontal = 24.dp, vertical = 16.dp)
                         ) {
                             Button(
-                                onClick = {
-                                    val now = System.currentTimeMillis()
-                                    if (now - lastLaunchAt >= 1000L) {
-                                        lastLaunchAt = now
-                                        // なろう作品ページを Custom Tabs で表示する。ツールバー色は明示指定せず
-                                        // 既定（ブラウザのサイト識別色）に委ねる（M2/M9・公理8）＝外部サイトへ
-                                        // 遷移した事実を隠さず、利用者が今どこに居るかを判別できるようにするため。
-                                        openInAppBrowser(context, narouWorkUrl(ncode))
-                                    }
-                                },
+                                onClick = onReadOnNarou,
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primary
@@ -212,7 +246,7 @@ fun NovelDetailScreen(
                 }
                 is NovelDetailUiState.Error -> {
                     DiscoveryStatusBox(
-                        DiscoveryStatus.Error(state.message, onRetry = { viewModel.retry() }),
+                        DiscoveryStatus.Error(state.message, onRetry = onRetry),
                         modifier = Modifier.fillMaxSize(),
                     )
                 }

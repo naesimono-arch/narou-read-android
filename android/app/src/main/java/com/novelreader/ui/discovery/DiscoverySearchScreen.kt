@@ -54,10 +54,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.narou.SearchHistory
 import com.novelreader.narou.model.NarouCuratedKeywords
 import com.novelreader.viewmodel.containsWordToken
 import com.novelreader.viewmodel.toggleWordToken
 import com.novelreader.viewmodel.DiscoveryViewModel
+import com.novelreader.viewmodel.SearchDraft
 import com.novelreader.viewmodel.SearchRange
 import com.novelreader.viewmodel.withRangeToggled
 
@@ -65,6 +67,14 @@ import com.novelreader.viewmodel.withRangeToggled
 /**
  * 検索ホーム画面（モック discovery-search-D.html のフレーム1）。
  * 静かな入力欄と検索範囲の複数選択チップを提供し、決定時に親へ検索条件を通知する。
+ */
+/**
+ * 検索ホームのルート層（state-holder / UI 分割の route）。
+ * ViewModel の受け取り・ドラフト/履歴の collect・検索実行の判定と、「条件を調整」シートの表示を担い、
+ * 純粋な描画は [DiscoverySearchContent] に委ねる（BookshelfScreen と同じ分割方針）。
+ * なぜシート呼び出しだけ route に残すか: SearchConditionSheet は viewModel を直接受け取る確定物のため、
+ * これを Content に置くと Content から VM 依存を排除しきれない。シート表示フラグ showSheet を route が所有し、
+ * Content からは onOpenConditionSheet イベントだけ受けることで、描画層を VM 非依存の葉に保つ（テスト可能化）。
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -76,10 +86,9 @@ fun DiscoverySearchScreen(
     // なぜ VM 巻き上げか: 条件シートを閉じても・結果一覧から戻っても状態を残すため
     // （SearchDraft.kt の doc コメント参照）。
     val draft by viewModel.searchDraft.collectAsStateWithLifecycle()
-    // isFocused は一過性（構成変更で入力欄が再フォーカスされ得る）ため素の remember のまま。
-    var isFocused by remember { mutableStateOf(false) }
+    val history by viewModel.searchHistory.collectAsStateWithLifecycle()
     // F-F: 条件シートの開閉は構成変更（回転・ダーク切替）でも維持する。縦スクロール位置は残るのに
-    // シートだけ閉じるのは不整合なため rememberSaveable 化する。
+    // シートだけ閉じるのは不整合なため rememberSaveable 化する。シート呼び出しは route の責務。
     var showSheet by rememberSaveable { mutableStateOf(false) }
 
     val executeSearch = {
@@ -87,6 +96,57 @@ fun DiscoverySearchScreen(
             onSearchExecuted()
         }
     }
+
+    DiscoverySearchContent(
+        draft = draft,
+        history = history,
+        onBack = onBack,
+        onSetDraft = { viewModel.setSearchDraft(it) },
+        onExecuteSearch = executeSearch,
+        // 履歴語タップは searchFromHistory が成功（＝送信可能）を返したときだけ結果一覧へ進む。
+        onSearchHistoryWord = { word -> if (viewModel.searchFromHistory(word)) onSearchExecuted() },
+        onPinWord = { viewModel.pinWord(it) },
+        onUnpinWord = { viewModel.unpinWord(it) },
+        onRemoveRecentWord = { viewModel.removeRecentWord(it) },
+        onOpenConditionSheet = { showSheet = true },
+    )
+
+    if (showSheet) {
+        // 「条件を調整」シートは SearchConditionSheet.kt へ純移動済み（god file 分割）。閉じる・確定は親が持つ
+        // showSheet / executeSearch へ委譲する（sheetState 等シート内部状態は移動先が自前で保持）。
+        // 分割方針上ここに残す＝Content から viewModel を排除するためのトレードオフ（doc 参照）。
+        SearchConditionSheet(
+            draft = draft,
+            viewModel = viewModel,
+            onDismiss = { showSheet = false },
+            onSearch = executeSearch,
+        )
+    }
+}
+
+/**
+ * 検索ホームの描画層（stateless / UI 分割の content）。DiscoverySearchScreen からの純移動。
+ * VM を持たず [draft]＋[history]＋コールバックだけで入力欄・検索範囲チップ・条件調整導線・検索履歴・
+ * キュレーションキーワードを描画する葉。フォーカス・カテゴリ展開・「ジャンル別を見る」開閉といった
+ * 画面ローカル UI 状態は内部に残す（過剰 hoisting しない）。「条件を調整」は [onOpenConditionSheet] で
+ * ルート層へ委譲し、シート自体（VM 依存）は route が描く。
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+internal fun DiscoverySearchContent(
+    draft: SearchDraft,
+    history: SearchHistory,
+    onBack: () -> Unit,
+    onSetDraft: (SearchDraft) -> Unit,
+    onExecuteSearch: () -> Unit,
+    onSearchHistoryWord: (String) -> Unit,
+    onPinWord: (String) -> Unit,
+    onUnpinWord: (String) -> Unit,
+    onRemoveRecentWord: (String) -> Unit,
+    onOpenConditionSheet: () -> Unit,
+) {
+    // isFocused は一過性（構成変更で入力欄が再フォーカスされ得る）ため素の remember のまま。
+    var isFocused by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -126,7 +186,7 @@ fun DiscoverySearchScreen(
             // 背景や枠線の主張が強く、モックの「ヘアライン下線のみの静かな入力欄」を表現しづらいため。
             BasicTextField(
                 value = draft.word,
-                onValueChange = { viewModel.setSearchDraft(draft.copy(word = it)) },
+                onValueChange = { onSetDraft(draft.copy(word = it)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .onFocusChanged { isFocused = it.isFocused }
@@ -138,7 +198,7 @@ fun DiscoverySearchScreen(
                 ),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { executeSearch() }),
+                keyboardActions = KeyboardActions(onSearch = { onExecuteSearch() }),
                 decorationBox = { innerTextField ->
                     Column {
                         Row(
@@ -157,7 +217,7 @@ fun DiscoverySearchScreen(
                             }
                             // M2: 検索語も条件も空だと executeSearch は false を返し無反応になる（死んだ押下）。
                             // 送信不能を「押せなさ」で予告するため、canSearch が false のときはボタンを disabled 見た目にする。
-                            IconButton(onClick = { executeSearch() }, enabled = draft.canSearch) {
+                            IconButton(onClick = { onExecuteSearch() }, enabled = draft.canSearch) {
                                 Icon(
                                     imageVector = Icons.Filled.Search,
                                     contentDescription = "検索する",
@@ -208,25 +268,25 @@ fun DiscoverySearchScreen(
                         selected = draft.inTitle,
                         label = "タイトル",
                         enabled = !(draft.inTitle && selectedRangeCount == 1),
-                        onClick = { viewModel.setSearchDraft(draft.withRangeToggled(SearchRange.TITLE)) }
+                        onClick = { onSetDraft(draft.withRangeToggled(SearchRange.TITLE)) }
                     )
                     FilterChipItem(
                         selected = draft.inKeyword,
                         label = "キーワード",
                         enabled = !(draft.inKeyword && selectedRangeCount == 1),
-                        onClick = { viewModel.setSearchDraft(draft.withRangeToggled(SearchRange.KEYWORD)) }
+                        onClick = { onSetDraft(draft.withRangeToggled(SearchRange.KEYWORD)) }
                     )
                     FilterChipItem(
                         selected = draft.inWriter,
                         label = "作者名",
                         enabled = !(draft.inWriter && selectedRangeCount == 1),
-                        onClick = { viewModel.setSearchDraft(draft.withRangeToggled(SearchRange.WRITER)) }
+                        onClick = { onSetDraft(draft.withRangeToggled(SearchRange.WRITER)) }
                     )
                     FilterChipItem(
                         selected = draft.inStory,
                         label = "あらすじ",
                         enabled = !(draft.inStory && selectedRangeCount == 1),
-                        onClick = { viewModel.setSearchDraft(draft.withRangeToggled(SearchRange.STORY)) }
+                        onClick = { onSetDraft(draft.withRangeToggled(SearchRange.STORY)) }
                     )
                 }
                 // なぜチップを押せないのかを明示する注記（disabled の理由提示）。
@@ -249,7 +309,7 @@ fun DiscoverySearchScreen(
                             color = if (draft.filters.activeCount() > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
                             shape = RoundedCornerShape(2.dp)
                         )
-                        .clickable { showSheet = true }
+                        .clickable { onOpenConditionSheet() }
                         .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
@@ -269,8 +329,7 @@ fun DiscoverySearchScreen(
                 }
 
                 // ── 検索履歴（D1・モック「ピン留め」「最近の検索」節） ──
-                val history by viewModel.searchHistory.collectAsStateWithLifecycle()
-
+                // history はルート層が collect して渡す（Content は VM 非依存）。
                 if (history.pinned.isNotEmpty()) {
                     Text(
                         text = "ピン留め",
@@ -289,8 +348,8 @@ fun DiscoverySearchScreen(
                             HistoryChip(
                                 word = word,
                                 pinned = true,
-                                onWordClick = { if (viewModel.searchFromHistory(word)) onSearchExecuted() },
-                                onPinClick = { viewModel.unpinWord(word) },
+                                onWordClick = { onSearchHistoryWord(word) },
+                                onPinClick = { onUnpinWord(word) },
                             )
                         }
                     }
@@ -314,9 +373,9 @@ fun DiscoverySearchScreen(
                             HistoryChip(
                                 word = word,
                                 pinned = false,
-                                onWordClick = { if (viewModel.searchFromHistory(word)) onSearchExecuted() },
-                                onPinClick = { viewModel.pinWord(word) },
-                                onDelete = { viewModel.removeRecentWord(word) },
+                                onWordClick = { onSearchHistoryWord(word) },
+                                onPinClick = { onPinWord(word) },
+                                onDelete = { onRemoveRecentWord(word) },
                             )
                         }
                     }
@@ -375,7 +434,7 @@ fun DiscoverySearchScreen(
                                         } else {
                                             draft.inKeyword
                                         }
-                                        viewModel.setSearchDraft(
+                                        onSetDraft(
                                             draft.copy(
                                                 word = nextWord,
                                                 inKeyword = nextInKeyword
@@ -430,7 +489,7 @@ fun DiscoverySearchScreen(
                                             } else {
                                                 draft.inKeyword
                                             }
-                                            viewModel.setSearchDraft(
+                                            onSetDraft(
                                                 draft.copy(
                                                     word = nextWord,
                                                     inKeyword = nextInKeyword
@@ -445,17 +504,6 @@ fun DiscoverySearchScreen(
                 }
             }
         }
-    }
-
-    if (showSheet) {
-        // 「条件を調整」シートは SearchConditionSheet.kt へ純移動（god file 分割）。閉じる・確定は親が持つ
-        // showSheet / executeSearch へ委譲する（sheetState 等シート内部状態は移動先が自前で保持）。
-        SearchConditionSheet(
-            draft = draft,
-            viewModel = viewModel,
-            onDismiss = { showSheet = false },
-            onSearch = executeSearch,
-        )
     }
 }
 

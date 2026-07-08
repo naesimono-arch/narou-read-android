@@ -49,6 +49,7 @@ import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.DiscoveryUiState
 import com.novelreader.viewmodel.DiscoveryViewModel
 import com.novelreader.viewmodel.PagingState
+import com.novelreader.viewmodel.ResultContext
 import com.novelreader.viewmodel.ResultSource
 import java.util.Locale
 
@@ -58,6 +59,12 @@ import java.util.Locale
 // 文脈ヘッダ（明朝見出し＋補足）＋条件チップ＋件数＋一覧行。
 // ============================================================
 
+/**
+ * 結果一覧のルート層（state-holder / UI 分割の route）。
+ * ViewModel の受け取りと文脈・状態の collect だけを担い、純粋な描画は [DiscoveryResultContent] に委ねる
+ * （BookshelfScreen と同じ分割方針＝chrisbanes state-holder-ui-split）。並び順・ジャンル変更・再試行・
+ * 追加読み込みといった VM 操作はコールバックで下ろす。
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DiscoveryResultScreen(
@@ -69,10 +76,41 @@ fun DiscoveryResultScreen(
     val context by viewModel.resultContext.collectAsStateWithLifecycle()
     val state by viewModel.resultState.collectAsStateWithLifecycle()
 
+    DiscoveryResultContent(
+        ctx = context,
+        state = state,
+        onUp = onUp,
+        onBack = onBack,
+        onOpenDetail = onOpenDetail,
+        onChangeOrder = { viewModel.changeResultOrder(it) },
+        onChangeGenreFilter = { biggenres, genres -> viewModel.changeResultGenreFilter(biggenres, genres) },
+        onRefresh = { viewModel.refreshResult() },
+        onLoadMore = { viewModel.loadMoreResults() },
+    )
+}
+
+/**
+ * 結果一覧の描画層（stateless / UI 分割の content）。DiscoveryResultScreen からの純移動。
+ * VM を持たず [ctx]（結果文脈）＋[state]＋コールバックだけで文脈ヘッダ・条件チップ・件数・一覧・
+ * ページングフッタを描画する葉。条件チップのドロップダウン開閉といった画面ローカル UI 状態は内部に残す。
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+internal fun DiscoveryResultContent(
+    // ctx は process death 復帰中に null になり得る。復元待ちの間だけ最小ローディングを描くため nullable で受ける。
+    ctx: ResultContext?,
+    state: DiscoveryUiState,
+    onUp: () -> Unit,
+    onBack: () -> Unit,
+    onOpenDetail: (ncode: Ncode) -> Unit,
+    onChangeOrder: (NarouOrder) -> Unit,
+    onChangeGenreFilter: (biggenres: Set<Int>, genres: Set<Int>) -> Unit,
+    onRefresh: () -> Unit,
+    onLoadMore: () -> Unit,
+) {
     // F-C: process death 復帰中は VM の init が SavedStateHandle から文脈を復元する。旧実装はここで
     // onBack して前画面へ強制退去していた（公理6/9違反＝操作なしに一覧が消え1つ前へ飛ばされる）。
     // 復元されるまでは退去せず最小のローディングを描いて待つ（NovelDetail の ncode 復元と対称）。
-    val ctx = context
     if (ctx == null) {
         DiscoveryStatusBox(DiscoveryStatus.Loading, modifier = Modifier.fillMaxSize())
         return
@@ -203,7 +241,7 @@ fun DiscoveryResultScreen(
                                                 },
                                                 onClick = {
                                                     expanded = false
-                                                    viewModel.changeResultOrder(order)
+                                                    onChangeOrder(order)
                                                 }
                                             )
                                         }
@@ -224,7 +262,7 @@ fun DiscoveryResultScreen(
                                             },
                                             onClick = {
                                                 expanded = false
-                                                viewModel.changeResultGenreFilter(emptySet(), emptySet())
+                                                onChangeGenreFilter(emptySet(), emptySet())
                                             }
                                         )
                                         // 2. 大ジャンル＋配下小ジャンル
@@ -241,7 +279,7 @@ fun DiscoveryResultScreen(
                                                 },
                                                 onClick = {
                                                     expanded = false
-                                                    viewModel.changeResultGenreFilter(setOf(bigCode), emptySet())
+                                                    onChangeGenreFilter(setOf(bigCode), emptySet())
                                                 }
                                             )
                                             NarouGenres.GENRES_BY_BIG[bigCode]?.forEach { (genreCode, genreName) ->
@@ -258,7 +296,7 @@ fun DiscoveryResultScreen(
                                                     },
                                                     onClick = {
                                                         expanded = false
-                                                        viewModel.changeResultGenreFilter(emptySet(), setOf(genreCode))
+                                                        onChangeGenreFilter(emptySet(), setOf(genreCode))
                                                     }
                                                 )
                                             }
@@ -314,7 +352,7 @@ fun DiscoveryResultScreen(
                         modifier = Modifier.fillMaxSize(),
                     )
                     is DiscoveryUiState.Error -> DiscoveryStatusBox(
-                        DiscoveryStatus.Error(s.message, onRetry = { viewModel.refreshResult() }),
+                        DiscoveryStatus.Error(s.message, onRetry = onRefresh),
                         modifier = Modifier.fillMaxSize(),
                     )
                     is DiscoveryUiState.Content -> {
@@ -364,7 +402,7 @@ fun DiscoveryResultScreen(
                             item {
                                 PagingFooter(
                                     paging = s.paging,
-                                    onLoadMore = { viewModel.loadMoreResults() },
+                                    onLoadMore = onLoadMore,
                                 )
                             }
                         }

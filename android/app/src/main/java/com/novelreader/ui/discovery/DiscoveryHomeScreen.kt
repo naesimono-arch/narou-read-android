@@ -57,6 +57,13 @@ import com.novelreader.viewmodel.MoodPreset
 // モック同様ホーム全体が1本のスクロール（タブは stickyHeader で切替可能性を保つ）。
 // ============================================================
 
+/**
+ * 発見ホームのルート層（state-holder / UI 分割の route）。
+ * ViewModel の受け取り・状態の collect・初回ロードのトリガといった VM 依存だけを担い、
+ * 純粋な描画は [DiscoveryHomeContent] に委ねる（BookshelfScreen と同じ分割方針＝chrisbanes
+ * state-holder-ui-split）。なぜ分割するか: 描画層を state+callback の葉にして VM 非依存にし、
+ * Robolectric の JVM UI テスト（ADR 0009）で状態分岐・コールバック結線を検証できるようにするため。
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun DiscoveryHomeScreen(
@@ -71,9 +78,42 @@ fun DiscoveryHomeScreen(
     val order by viewModel.homeOrder.collectAsStateWithLifecycle()
     val state by viewModel.homeState.collectAsStateWithLifecycle()
 
-    // 画面を開いたときに初回ロード（VM は上位共有のため init ロードしない設計）
+    // 画面を開いたときに初回ロード（VM は上位共有のため init ロードしない設計）＝VM 依存はルート層の責務
     LaunchedEffect(Unit) { viewModel.ensureHomeLoaded() }
 
+    DiscoveryHomeContent(
+        order = order,
+        state = state,
+        onBack = onBack,
+        onOpenDetail = onOpenDetail,
+        onOpenGenre = onOpenGenre,
+        onPickBiggenre = onPickBiggenre,
+        onOpenSearch = onOpenSearch,
+        onPickMood = onPickMood,
+        onSelectOrder = { viewModel.setHomeOrder(it) },
+        onRefresh = { viewModel.refreshHome() },
+    )
+}
+
+/**
+ * 発見ホームの描画層（stateless / UI 分割の content）。DiscoveryHomeScreen からの純移動。
+ * VM を持たず [order]＋[state]＋コールバックだけでランキング一覧の Loading/Empty/Error/Content 分岐と
+ * 各導線の結線を描画する葉。order タブ切替は [onSelectOrder]、Error 再試行は [onRefresh] へ委譲する。
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+internal fun DiscoveryHomeContent(
+    order: NarouOrder,
+    state: DiscoveryUiState,
+    onBack: () -> Unit,
+    onOpenDetail: (ncode: Ncode) -> Unit,
+    onOpenGenre: () -> Unit,
+    onPickBiggenre: (code: Int, label: String) -> Unit,
+    onOpenSearch: () -> Unit,
+    onPickMood: (MoodPreset) -> Unit,
+    onSelectOrder: (NarouOrder) -> Unit,
+    onRefresh: () -> Unit,
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -122,7 +162,7 @@ fun DiscoveryHomeScreen(
             stickyHeader {
                 OrderTabRow(
                     selected = order,
-                    onSelect = { viewModel.setHomeOrder(it) },
+                    onSelect = onSelectOrder,
                 )
             }
 
@@ -147,7 +187,7 @@ fun DiscoveryHomeScreen(
                 }
                 is DiscoveryUiState.Error -> item {
                     DiscoveryStatusBox(
-                        DiscoveryStatus.Error(s.message, onRetry = { viewModel.refreshHome() }),
+                        DiscoveryStatus.Error(s.message, onRetry = onRefresh),
                         modifier = Modifier
                             .fillMaxWidth()
                             .fillParentMaxHeight(0.5f),
