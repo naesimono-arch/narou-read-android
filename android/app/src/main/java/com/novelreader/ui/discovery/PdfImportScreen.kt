@@ -136,7 +136,7 @@ fun PdfImportScreen(
                 modifier = Modifier.fillMaxSize(),
                 factory = { ctx ->
                     WebView(ctx).apply {
-                        // スパイク（PdfDownloadSpikeActivity）踏襲: なろうの PDF 生成フローは JS・DOM storage 必須。
+                        // なろうの PDF 生成フローは JS・DOM storage 必須（実機スパイクで確定＝ADR 0011「スパイク結果」）。
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
                         // User-Agent はデフォルトのまま（ADR 0011。偽装すると挙動が実機と乖離する）。
