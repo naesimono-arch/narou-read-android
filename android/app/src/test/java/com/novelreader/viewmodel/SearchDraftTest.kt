@@ -99,6 +99,13 @@ class SearchDraftTest {
     }
 
     @Test
+    fun `resultTitle - 複数キーワードは件数表記に畳まれること`() {
+        // 複数語の羅列見出しは1行で見切れるため件数の要約形にする（各語は結果一覧の KEYWORD チップに出る）
+        assertEquals("キーワード3件", SearchDraft(word = "魔法 学園　日常").resultTitle())
+        assertEquals("キーワード2件", SearchDraft(word = " 薬師  スローライフ ").resultTitle())
+    }
+
+    @Test
     fun `SearchFilters - activeCount が有効条件の数を返すこと`() {
         assertEquals(0, SearchFilters().activeCount())
         assertEquals(
@@ -138,6 +145,19 @@ class SearchDraftTest {
         val f3 = f2.withLength("100000-")
         assertNull(f3.time)
         assertEquals("100000-", f3.length)
+    }
+
+    @Test
+    fun `wordTokens - 半角・全角スペースで分割され空トークンが除去されること`() {
+        // 半角・全角スペース区切り（containsWordToken/toggleWordToken と同一規則）
+        assertEquals(listOf("aa", "bb", "cc"), wordTokens("aa bb　cc"))
+        // 連続・前後空白は空トークンとして除去され、順序は保持される
+        assertEquals(listOf("aa", "bb"), wordTokens("  aa   bb  "))
+        // 空文字列・空白のみは空リスト
+        assertTrue(wordTokens("").isEmpty())
+        assertTrue(wordTokens("   　 ").isEmpty())
+        // 単一トークン
+        assertEquals(listOf("薬師"), wordTokens("薬師"))
     }
 
     @Test

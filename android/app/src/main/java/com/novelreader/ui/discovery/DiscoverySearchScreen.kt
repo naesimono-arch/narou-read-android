@@ -1,5 +1,6 @@
 package com.novelreader.ui.discovery
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.size
@@ -11,6 +12,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,6 +37,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -58,6 +63,7 @@ import com.novelreader.narou.SearchHistory
 import com.novelreader.narou.model.NarouCuratedKeywords
 import com.novelreader.viewmodel.containsWordToken
 import com.novelreader.viewmodel.toggleWordToken
+import com.novelreader.viewmodel.wordTokens
 import com.novelreader.viewmodel.DiscoveryViewModel
 import com.novelreader.viewmodel.SearchDraft
 import com.novelreader.viewmodel.SearchRange
@@ -148,6 +154,10 @@ internal fun DiscoverySearchContent(
     // isFocused は一過性（構成変更で入力欄が再フォーカスされ得る）ため素の remember のまま。
     var isFocused by remember { mutableStateOf(false) }
 
+    // 選択中キーワードは独立 Set ではなく draft.word へ畳み込む方式のため、バー表示のたびに word を
+    // トークン列挙する（単一真実源 draft.word から導く派生値＝別 state を持たない）。
+    val selectedTokens = wordTokens(draft.word)
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -172,6 +182,21 @@ internal fun DiscoverySearchContent(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
+        },
+        bottomBar = {
+            // 選択中キーワード追従バー: チップを下へスワイプしても「今何を選んだか」が画面下部に常駐する
+            // （フィードバック1）。トークンが1つ以上あるときだけ出す。
+            if (selectedTokens.isNotEmpty()) {
+                SelectedKeywordsBar(
+                    tokens = selectedTokens,
+                    // 個別解除は toggleWordToken（選択済みトークンを渡す＝除去側に倒れる）。範囲・条件は維持。
+                    onRemoveToken = { token ->
+                        onSetDraft(draft.copy(word = toggleWordToken(draft.word, token)))
+                    },
+                    // すべて解除は word のみ空へ。検索範囲・その他フィルタは維持する（フィードバック3）。
+                    onClearAll = { onSetDraft(draft.copy(word = "")) },
+                )
+            }
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
@@ -504,6 +529,113 @@ internal fun DiscoverySearchContent(
                 }
             }
         }
+    }
+}
+
+/**
+ * 選択中キーワード追従バー（フィードバック1・3）。Scaffold の bottomBar に据え、選択トークンが
+ * 1つ以上あるときだけ表示する。上辺ヘアライン＋背景 background で本文と地続きに見せ、ヘッダ行に件数と
+ * 「すべて解除」、その下に丸ピルの解除チップを FlowRow で並べる。
+ * なぜ navigationBarsPadding＋imePadding か: 本アプリは edge-to-edge（setDecorFitsSystemWindows=false）で
+ * インセットが自動適用されないため、素のままだとバーがナビバー／キーボードに隠れる。二重持ち上げになら
+ * ないのは自動リフトが無いためで、単一の imePadding でキーボード直上へ正しく1回だけ持ち上がる
+ * （NcodeLinkSheet と同型の対処）。
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SelectedKeywordsBar(
+    tokens: List<String>,
+    onRemoveToken: (String) -> Unit,
+    onClearAll: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+            .navigationBarsPadding()
+            .imePadding()
+    ) {
+        // 上辺 1dp ヘアライン（本文とバーの境目）。
+        HorizontalDivider(
+            thickness = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant
+        )
+        Column(
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "選択中のキーワード ${tokens.size}件",
+                    fontSize = 10.5.sp,
+                    letterSpacing = 1.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                // すべて解除（一括リセット）。テキストボタンで primary。
+                TextButton(onClick = onClearAll) {
+                    Text(
+                        text = "すべて解除",
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            }
+            // チップが多くてもバーが画面を覆わないよう、最大高さ96dpで内部スクロールに閉じ込める。
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp)
+                    .heightIn(max = 96.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                tokens.forEach { token ->
+                    SelectedKeywordChip(label = token, onRemove = { onRemoveToken(token) })
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 選択中キーワードの解除チップ（丸ピル）。primary の細枠＋primary 文字で「選択中」を示し、
+ * 末尾の × と全体タップで個別解除する（× アイコンで「これは解除操作」を明示＝HistoryChip と同じ流儀）。
+ */
+@Composable
+private fun SelectedKeywordChip(
+    label: String,
+    onRemove: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clickable(onClick = onRemove)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.primary,
+                shape = RoundedCornerShape(50)
+            )
+            .padding(start = 12.dp, end = 8.dp, top = 5.dp, bottom = 5.dp)
+    ) {
+        Text(
+            text = label,
+            fontSize = 11.5.sp,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Icon(
+            imageVector = Icons.Filled.Close,
+            contentDescription = "「$label」を解除",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .padding(start = 4.dp)
+                .size(13.dp)
+        )
     }
 }
 
