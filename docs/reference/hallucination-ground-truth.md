@@ -223,3 +223,9 @@ assistant応答（キーワード無し）に散在。派生（8315b37d / 5e0a75
 - 自己検証で「ハルシネーションではない」と確定した件（77af4d6a / b7e226cd の ADR プランモード逸脱）
 - 疑いのみ・未確定（e5389f2b の `narou_api_manual.md` 文脈逸脱疑い）
 - HANDOFF.md / MEMORY.md へのエコー・引き継ぎ転記（同一事象の重複ヒット多数）
+
+---
+
+## ⏳ 未確定キュー（/hallucination 自動キャプチャ・確定後にレター事象へ昇格して行を消す）
+
+- [ ] 2026-07-09 03:43:37 session=`52618031-d344-4d47-b217-6ff6982239a6` snapshot=`/home/qingj/.claude/hallucination-archive/52618031-d344-4d47-b217-6ff6982239a6-20260709-034337.jsonl`（71行時点） live=`/home/qingj/.claude/projects/-home-qingj-wt-feat-pdf-import-flow/52618031-d344-4d47-b217-6ff6982239a6.jsonl`
