@@ -1,6 +1,7 @@
 package com.novelreader.ui.discovery
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -44,7 +45,10 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -107,7 +111,7 @@ internal fun formatLastupLabel(raw: String?): String? {
 fun NovelDetailScreen(
     ncode: Ncode,
     viewModel: NovelDetailViewModel,
-    onKeywordTap: (String) -> Unit,
+    onSearchKeywords: (List<String>) -> Unit,
     onImportPdf: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -127,7 +131,7 @@ fun NovelDetailScreen(
     NovelDetailContent(
         ncode = ncode,
         uiState = uiState,
-        onKeywordTap = onKeywordTap,
+        onSearchKeywords = onSearchKeywords,
         onImportPdf = onImportPdf,
         onBack = onBack,
         onRetry = { viewModel.retry() },
@@ -155,7 +159,7 @@ fun NovelDetailScreen(
 internal fun NovelDetailContent(
     ncode: Ncode,
     uiState: NovelDetailUiState,
-    onKeywordTap: (String) -> Unit,
+    onSearchKeywords: (List<String>) -> Unit,
     onImportPdf: () -> Unit,
     onBack: () -> Unit,
     onRetry: () -> Unit,
@@ -459,6 +463,16 @@ internal fun NovelDetailContent(
                             novel.keyword?.split(Regex("[\\s　]+"))?.filter { it.isNotEmpty() } ?: emptyList()
                         }
                         if (keywords.isNotEmpty()) {
+                            // 複数選択（フィードバック2）: チップをトグル選択式にする。選択状態は画面ローカルで足り、
+                            // 画面離脱でのリセットは自然挙動として許容する。構成変更（回転・ダーク切替）では
+                            // 維持したいので rememberSaveable。SnapshotStateList に既製 saver が無いため listSaver で
+                            // トークン一覧を保存/復元する（Set 意味論は contains 判定で担保）。
+                            val selectedKeywords = rememberSaveable(
+                                saver = listSaver(
+                                    save = { it.toList() },
+                                    restore = { it.toMutableStateList() }
+                                )
+                            ) { emptyList<String>().toMutableStateList() }
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -478,20 +492,40 @@ internal fun NovelDetailContent(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     keywords.forEach { keyword ->
+                                        val selected = keyword in selectedKeywords
                                         // A11y（F-P/Android §C）: 枠線チップの見た目は現寸のまま、
                                         // タップ判定だけ最小48dpへ拡げる。外側の透明Boxを clickable+sizeIn にし、
                                         // 内側の枠線チップは元の寸法で中央寄せする（外側Box分離＝NcodeLinkSheet と同型）。
                                         Box(
                                             modifier = Modifier
-                                                .clickable { onKeywordTap(keyword) }
+                                                .clickable {
+                                                    // トグル。List を Set 意味論で扱うため contains で分岐し重複追加を防ぐ。
+                                                    if (selected) selectedKeywords.remove(keyword)
+                                                    else selectedKeywords.add(keyword)
+                                                }
                                                 .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Box(
                                                 modifier = Modifier
+                                                    // 選択中は primary 反転（塗り）で示す。未選択は従来の secondary 枠線のまま。
+                                                    .then(
+                                                        if (selected) {
+                                                            Modifier.background(
+                                                                MaterialTheme.colorScheme.primary,
+                                                                RoundedCornerShape(2.dp)
+                                                            )
+                                                        } else {
+                                                            Modifier
+                                                        }
+                                                    )
                                                     .border(
                                                         width = 1.dp,
-                                                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f),
+                                                        color = if (selected) {
+                                                            MaterialTheme.colorScheme.primary
+                                                        } else {
+                                                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f)
+                                                        },
                                                         shape = RoundedCornerShape(2.dp)
                                                     )
                                                     .padding(horizontal = 10.dp, vertical = 5.dp)
@@ -499,10 +533,34 @@ internal fun NovelDetailContent(
                                                 Text(
                                                     text = keyword,
                                                     fontSize = 11.sp,
-                                                    color = MaterialTheme.colorScheme.secondary
+                                                    color = if (selected) {
+                                                        MaterialTheme.colorScheme.onPrimary
+                                                    } else {
+                                                        MaterialTheme.colorScheme.secondary
+                                                    }
                                                 )
                                             }
                                         }
+                                    }
+                                }
+                                // 1件以上選択されたら、まとめて検索するアクションを出す（primary）。
+                                if (selectedKeywords.isNotEmpty()) {
+                                    // A11y（F-P/Android §C）: 上のキーワードチップと同様、見た目は文字行のまま
+                                    // タップ判定を最小48dpへ確保する（外側Box分離＝同セクションのチップと同型）。
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(top = 4.dp)
+                                            .fillMaxWidth()
+                                            .clickable { onSearchKeywords(selectedKeywords.toList()) }
+                                            .sizeIn(minHeight = 48.dp),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        Text(
+                                            text = "選択した ${selectedKeywords.size} 件のキーワードで検索",
+                                            fontSize = 12.5.sp,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Medium,
+                                        )
                                     }
                                 }
                             }

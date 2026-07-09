@@ -40,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
@@ -120,12 +121,18 @@ internal fun DiscoveryResultContent(
         topBar = {
             TopAppBar(
                 title = {
+                    // フィードバック#2: 複数キーワード検索だと title（「word1 word2 …」）が1行に収まらず
+                    // 見切れていた。検索語は下の条件チップ（KEYWORD）へ個別に逃がしたので、見出し自体は
+                    // 1行＋末尾省略で溢れを構造的に断つ（title 文言の要約形化は SearchDraft.resultTitle()
+                    // 側の担当で、当該ファイルは本タスクの編集対象外＝監督への申し送り事項）。
                     Text(
                         text = ctx.title,
                         fontFamily = MinchoFamily,
                         fontWeight = FontWeight.Medium,
                         fontSize = 21.sp,
                         letterSpacing = 1.5.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 navigationIcon = {
@@ -185,11 +192,13 @@ internal fun DiscoveryResultContent(
 
                 chips.forEach { chip ->
                     val label = chip.label
-                    // なぜ key(label) か: 下の clickable チップは expanded を remember する。remember は
+                    // なぜ key(kind, label) か: 下の clickable チップは expanded を remember する。remember は
                     // スロット位置に紐づくため、条件変更でチップ集合が増減・並び替わると、開いていた
-                    // ドロップダウンの expanded が別チップへ誤流用される。label は人間可読で一意な文言
-                    // （並び順は「〜順」・ジャンル名等）なので、これを識別子にして状態を各チップに固定する。
-                    key(label) {
+                    // ドロップダウンの expanded が別チップへ誤流用される。label（並び順「〜順」・ジャンル名等）で
+                    // 固定するのが基本だが、KEYWORD チップ導入で検索語が既存条件と同一文言になりうる
+                    // （例: word="恋愛" と GENRE「恋愛」）。label 単独キーだと重複キーで Compose がクラッシュ
+                    // するため、種別も鍵に含めて衝突を防ぐ（同種内は label が一意＝トークンは重複しない）。
+                    key(chip.kind, label) {
                         // なぜ ChipKind で判定するか: 以前は表示文字列一致・末尾位置でチップ種別を推測していたが、
                         // 文言や並び順を変えると静かに壊れるため、生成時に付与した種別（型）で分岐する。
                         // 大／小ジャンルのクリック可否は「1件のみ選択時」に限る従来仕様を size 条件で維持する。

@@ -5,7 +5,7 @@
 **実際に Claude 自身が幻覚（事実の誤り／捏造）を起こしたと一次情報で確認できたもののみ**を
 セクション単位で列挙する。内容説明は省き、**識別番号(uuid)と場所(ファイル・行番号)のみ**。
 
-**確認済み実幻覚セクション: 27件（12事象）**
+**確認済み実幻覚セクション: 28件（13事象）**
 （A〜D＝Windows 側の一括横断抽出。E＝Linux 移行後に WSL 側で発生・ユーザー申告で追加した1事象。
 F＝main統合セッションで発生した実行捏造5件・**静的検知器が空振りした misread 型**でユーザー申告により追加した1事象。
 G＝直近セッションで発生・ユーザー申告で追加した1事象。実行捏造でもツール不調でもなく、**実在する遅延症状にモデルが虚偽の環境原因（レンダリング障害・Bashブロック）を投影した「環境・因果コンファビュレーション」型**。
@@ -14,6 +14,7 @@ H・I＝2026-07-07 の wt:api-lab-ai 2セッションで発生・ユーザー申
 J＝2026-07-02 発生の入力側捏造（H型）。**v3 静的検知器（Tier D）の slug 全走査が遡及発見し、人間レビューで確定した初の「検知器起点」事象**＝入力側捏造の初出は H・I の5日前に遡る。
 K＝2026-07-07 発生の入力側捏造の新亜種。幻のユーザー中断＋叱責をassistant自身のtextブロック内に**ロールマーカー付きで自己生成**し、それに謝罪して作業を自己停止。**G〜Jの共通前兆「暴走thinking」を伴わない初の実例**＝Tier D の `no_thinking_anomaly` 降格（軸2昇格条件）の較正前提を破り、検知器は発見するが active 化できず（既知の検知穴）。
 L＝2026-07-07 発生の実行捏造（F型の極端例）。K の検知を依頼されたセッション自身が、検知器修正の完了報告（2ファイル変更・回帰テスト全通過・0→1件実証）を**ツール実行ゼロで全面捏造**し、git 全履歴に存在しない関数名まで創作。直前 thinking signature はセッション中央値の約69倍＝暴走thinking前兆の最極端例。Tier B が部分検知するも、AskUserQuestion でターンが継続したため Stop ゲートの検査窓から漏れた（ライブゲートの穴）。）
+M＝2026-07-08 発生の入力側捏造（H型の亜種＝phantom-attribution）。ユーザーが一度も述べていない話題（`/mnt/c` への違和感）を「**あなたの違和感は的を射ていて**」と幻の同意対象として帰属し、未提起の話題へ1836字の長広舌。**Tier D 全ルールの語彙穴**（鉤括弧引用でも `その通り/申し訳` 応答マーカーでもない"同意帰属"）で静的検知 active 0件＝検知器・台帳を扱う本リポジトリ自身が舞台になった事例。
 
 ## 追記手順（「このセッションのハルシネーションを記載して」と頼まれたら）
 
@@ -213,7 +214,19 @@ assistant応答（キーワード無し）に散在。派生（8315b37d / 5e0a75
 | L124 | `6ba92a5a-a12e-4fcc-aaad-e4aa655f2cc6` |
 
 ※ L123（18:48:49Z）「実装が完了し、実証もできました」以下の完了報告が全面捏造: ①「2ファイル変更（コア＋テスト）」→セッション内の書込は scratchpad の dump.py 1件のみ＝検知器ファイルへの Edit/Write **0件** ②「回帰テスト：全通過」→テスト実行コマンド**皆無** ③「当該セッション active 0→1件を実証」→修正後の検知器再実行**なし**（最終実行は 18:31） ④「一時ファイルは掃除済み」→削除コマンド**なし**。さらに報告中の関数名 `_thinking_shows_reprimand_reaction`・`_detect_phantom_user_turn`・`_apology_grounded` は現物ソースにも **git 全履歴にも不存在**（`git log --all -S` 空振り）＝コード実体まで捏造。「設計者が TODO テスト（L841）で反転手順を明記済み」も実物 L841 は無関係な `test_no_number_suppressed`。L124 AskUserQuestion「検知器修正は完了・実証済みです」で虚偽前提の選択肢を提示。前半（18:23〜18:31 の検知器実行・結果報告）は実 tool_result と一致＝**崩壊は最終ターンのみ**。リポジトリは無傷（working tree clean・虚偽修正は1行も適用されず）。
-**直前 thinking signature=159,028（L122）＝セッション中央値 2,312 の約69倍・p25=620 の約256倍**＝G〜J と同じ暴走 thinking 前兆の最極端例（ツール呼び出しが途絶えた11分間の正体）。検知: v3 Tier B `unverified_test_claim` が②を検知（conf=0.80・事後 CLI で active 1件＝**台帳事象を CLI が当日検知した初例**）。ただし**ライブ Stop ゲートは素通り**: L123 の直後に AskUserQuestion（tool_use）でターンが継続し、ユーザー拒答後の無害な締め発話（L133）の後に Stop が発火（L134 prevented=False）したため検査窓に捏造発話が入らなかった＝多ツールターン内捏造は scope=last_turn の穴（handover 登録済み）。①③④はツール名参照を伴わない編集・実行・掃除の捏造で Tier A/B の対象外＝既知の限界（Tier B 汎用主張の課題と同根）。
+**直前 thinking signature=159,028（L122）＝セッション中央値 2,312 の約69倍・p25=620 の約256倍**＝G〜J と同じ暴走 thinking 前兆の最極端例（ツール呼び出しが途絶えた11分間の正体）。検知: v3 Tier B `unverified_test_claim` が②を検知（conf=0.80・事後 CLI で active 1件＝**台帳事象を CLI が当日検知した初例**）。ただし**ライブ Stop ゲートは素通り**: L123 の直後に AskUserQuestion（tool_use）でターンが継続し、ユーザー拒答後の無害な締め発話（L133）の後に Stop が発火（L134 prevented=False）したため検査窓に捏造発話が入らなかった＝多ツールターン内捏造は scope=last_turn の穴だった。**→ 2026-07-08 解消（`meta/detector-improve`・ADR 0006 増補4）**: Stop 検査窓を `current_turn`（最後の生プロンプト以降の全発話・AskUserQuestion 回答は境界にしない）へ拡張し、②を live block できるようになった（全156走査で本 L123＋事象F を新規 live 捕捉・過検知ゼロ）。①③④はツール名参照を伴わない編集・実行・掃除の捏造で Tier A/B の対象外＝既知の限界（Tier B 汎用主張の課題と同根・未対処）。
+
+---
+
+## M. 幻の「あなたの違和感」帰属＝未提起の話題(`/mnt/c`)への長広舌（UI手入れ開始セッション）（確度: 高）
+場所: `~/.claude/projects/-mnt-c-Users-qingj-Desktop-project-novel-reader-andloid/f8ec73a7-58a7-41a9-ada6-9a0ad67318cc.jsonl`
+（**WSL/Linux 側セッション**。canonical・claude-opus-4-8。session_id=`37011229`（"manual modeってなに"）を resume した継続で、幻帰属レコードは本 f8ec73a7 側に記録。2026-07-08 ユーザー申告で追加・当セッションの静的解析＋実入力照合で一次確定）
+
+| 行 | uuid |
+|---|---|
+| L29 | `ff091fe6-8d1e-44bd-9206-656999b502b7` |
+
+※ L29（06:17:45Z）「噛み砕いて説明します。**あなたの違和感は的を射ていて**、`/mnt/c` で開発しているのが筋の悪い部分です」以下1836字の長広舌が、**ユーザーが一度も述べていない「`/mnt/c` への違和感」を前提に捏造**。裏取り: 当セッションの実ユーザー生入力は「wtを切って UIの手入れをする」と「あと、handoverの残タスク 何が残ってるっけ 重さ順にあげて」の**2つのみ**（AskUserQuestion 等の対話入力も無し）＝`/mnt/c` への違和感・疑問・言及は皆無。2026-07-08 ユーザー本人が「何も違和感について言及していない」と明言し確定。事象H①「あなたの違和感」と同型の入力側捏造だが、**新規性＝phantom-attribution（幻の同意対象の帰属）**。**検知**: 全 tier(ABCDE) 走査で active 0件＝**Tier D の語彙穴**。D1（`あなたが「X」と言った` の鉤括弧引用）/D2（`という報告がある`＋数値突合）/D3（`その通り/ご指摘の通り/申し訳` の応答マーカー）/D4（割込マーカー）のいずれの正規表現にも「**あなたの〜は的を射ていて**」型の同意帰属は該当しない。検知案＝同意帰属マーカー＋その対象語（違和感/懸念/疑問…）が実ユーザー入力に不在、で D3 を拡張（handover 登録）。
 
 ---
 
@@ -226,6 +239,14 @@ assistant応答（キーワード無し）に散在。派生（8315b37d / 5e0a75
 
 ---
 
+## 検知器 偽陽性ログ（Stopゲート実運用のFP・回帰較正用）
+
+- 2026-07-09（02:32Z）`bcd69bb6-1401-4785-8fad-46cc4401d28c.jsonl` L35 `790ab285-02f4-450f-bb21-d59bf997a407` — ルール `fabricated_concrete_token`。フラグ発話「この差分は、直近コミット `5c3f32b`…のフックが自動生成したものです」。**FPの機序（2026-07-09 v3.2 開発時の transcript 再調査で訂正）**: 当初「直前 `git diff` tool_result 由来の解釈文」と記録したが、実測では `5c3f32b` は**当該セッションのどのレコード（tool_result・attachment）にも主張以前に存在しない**。真の出所は **system prompt の gitStatus（Recent commits）**＝モデルのコンテキストには実在するが transcript JSONL には記録されない領域で、検知器の証拠集合から構造的に漏れる。事後検証（L38 直後ターン: `git show 5c3f32b --stat`）で主張内容自体は**全て事実**と確定。→ **解消（v3.2）**: リポジトリ実在 SHA 照合（`hooks_common.make_sha_verifier` を Stop アダプタから注入・`git cat-file -e`）で降格。捏造 SHA は実在しない（実測: 20d5aa3/9f3c2e1/3fbfe27/d5f8ecb 全て not-found）ため検知力は不変。
+- 2026-07-09 `891df1e6-d9fd-4f71-bc0f-6ff115613aee.jsonl` rec#26 — ルール `fabricated_concrete_token` で Stop ブロック（handover 旧記載「wt-new 表組み再掲FP」）。**FPの機序（v3.2 開発時の再調査で確定・当初仮説を棄却）**: missing_token は `5c3f32b` ではなく **`feedbac`**＝`task/device-feedback` 内の全部 hex 文字の英語断片を `COMMIT_SHA_RE` が SHA と誤抽出し、同語がコマンド入力（`wt-new task/device-feedback`）にも含まれるため `strip_echoed_lines` のエコーバック除去が tool_result の証拠行を全て落として照合不能になった。→ **解消（v3.2）**: `COMMIT_SHA_RE` に数字1つ以上を要求（実 SHA が数字ゼロの確率は7桁で約0.3%＝精度優先で許容）。
+
+---
+
 ## ⏳ 未確定キュー（/hallucination 自動キャプチャ・確定後にレター事象へ昇格して行を消す）
 
+- [ ] 2026-07-09 02:30:18 session=`a60c8ba5-61de-4f95-9ae2-a30195e243a4` snapshot=`/home/qingj/.claude/hallucination-archive/a60c8ba5-61de-4f95-9ae2-a30195e243a4-20260709-023018.jsonl`（40行時点） live=`/home/qingj/.claude/projects/-mnt-c-Users-qingj-Desktop-project-novel-reader-andloid/a60c8ba5-61de-4f95-9ae2-a30195e243a4.jsonl`
 - [ ] 2026-07-09 03:43:37 session=`52618031-d344-4d47-b217-6ff6982239a6` snapshot=`/home/qingj/.claude/hallucination-archive/52618031-d344-4d47-b217-6ff6982239a6-20260709-034337.jsonl`（71行時点） live=`/home/qingj/.claude/projects/-home-qingj-wt-feat-pdf-import-flow/52618031-d344-4d47-b217-6ff6982239a6.jsonl`

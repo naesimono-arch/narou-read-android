@@ -26,7 +26,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
-import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
@@ -381,18 +380,22 @@ private fun OrderTabRow(
             },
         ) {
             orders.forEach { order ->
-                Tab(
-                    selected = order == selected,
-                    onClick = { onSelect(order) },
-                    selectedContentColor = MaterialTheme.colorScheme.primary,
-                    unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    text = {
-                        Text(
-                            text = order.uiLabel,
-                            fontSize = 12.5.sp,
-                            fontWeight = if (order == selected) FontWeight.SemiBold else FontWeight.Normal,
-                        )
-                    },
+                val isSelected = order == selected
+                // モック .tab（padding 10px 12px / font 12.5px / letter-spacing .06em）準拠の独自タブ。
+                // なぜ素の Material3 Tab をやめたか: 素の Tab は既定で最小高さ 48dp を強制し、モックの
+                // 約40px よりタブ帯が背高になって画面を過剰占有していた（実機フィードバック#1）。高さを
+                // パディングで決める独自タブへ回帰してモック寸法へ揃える。選択下線（2dp）は下の
+                // ScrollableTabRow の indicator にそのまま残し、配色（primary/onSurfaceVariant）も維持する。
+                Text(
+                    text = order.uiLabel,
+                    fontSize = 12.5.sp,
+                    letterSpacing = 0.75.sp, // モック .tab の letter-spacing .06em（12.5px×0.06）
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clickable { onSelect(order) }
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
                 )
             }
         }

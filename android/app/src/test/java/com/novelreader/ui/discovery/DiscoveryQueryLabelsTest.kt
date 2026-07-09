@@ -66,7 +66,7 @@ class DiscoveryQueryLabelsTest {
     }
 
     @Test
-    fun `conditionChipLabels - word検索では選択した範囲が1チップに束ねられ、除外語も出ること`() {
+    fun `conditionChipLabels - word検索では検索語チップが先頭に出て範囲が1チップに束ねられ、除外語も出ること`() {
         val labels = labelsOf(
             DiscoveryQuery(
                 word = "スローライフ",
@@ -75,7 +75,29 @@ class DiscoveryQueryLabelsTest {
                 inKeyword = true,
             )
         )
-        assertEquals(listOf("タイトル・キーワード", "除外: 残酷", "週間順"), labels)
+        // 検索語トークンは先頭に KEYWORD チップとして並ぶ（フィードバック#2）。
+        assertEquals(listOf("スローライフ", "タイトル・キーワード", "除外: 残酷", "週間順"), labels)
+    }
+
+    @Test
+    fun `conditionChipLabels - 複数の検索語トークンが半角全角スペース混在でも個別のKEYWORDチップになること`() {
+        // 分割規則は SearchDraft.kt（[\s　]+）と一致。半角・全角スペース・連続空白のどれでも同じ列になる。
+        val chips = conditionChipLabels(DiscoveryQuery(word = "魔法　学園  日常"))
+        assertEquals(
+            listOf(
+                ConditionChip("魔法", ChipKind.KEYWORD),
+                ConditionChip("学園", ChipKind.KEYWORD),
+                ConditionChip("日常", ChipKind.KEYWORD),
+                ConditionChip("週間順", ChipKind.ORDER),
+            ),
+            chips
+        )
+    }
+
+    @Test
+    fun `conditionChipLabels - 検索語が空白のみのときはKEYWORDチップを出さないこと`() {
+        // 全角スペースだけの word でトークンが空になっても空文字チップを増やさない（防御）。
+        assertEquals(listOf("週間順"), labelsOf(DiscoveryQuery(word = "　")))
     }
 
     @Test

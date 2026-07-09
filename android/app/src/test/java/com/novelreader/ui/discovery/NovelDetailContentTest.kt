@@ -39,7 +39,7 @@ class NovelDetailContentTest {
                 NovelDetailContent(
                     ncode = Ncode("N1234AB"),
                     uiState = uiState,
-                    onKeywordTap = {},
+                    onSearchKeywords = {},
                     onImportPdf = onImportPdf,
                     onBack = {},
                     onRetry = {},

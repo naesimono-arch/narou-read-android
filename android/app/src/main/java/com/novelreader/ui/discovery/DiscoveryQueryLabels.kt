@@ -5,6 +5,7 @@ import com.novelreader.narou.model.NarouAttr
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouNovelType
 import com.novelreader.narou.model.NarouLastup
+import com.novelreader.viewmodel.wordTokens
 import java.util.Locale
 
 // ============================================================
@@ -50,6 +51,13 @@ internal fun charCountText(n: Int): String =
  * - [CONDITION] は表示のみ（クリック不可）
  */
 enum class ChipKind {
+    /**
+     * 検索語 word の1トークン。表示のみ（クリック不可）。
+     * なぜチップ化するか: 従来 word は見出し（TopAppBar title）に生テキストで並ぶだけで、複数語だと
+     * 画面端で見切れ・不格好だった（実機フィードバック#2）。折り返す FlowRow の条件チップとして各語を
+     * 出すことで見切れを解消する。編集は検索画面へ戻って行う設計のため、ここでは表示専用に留める。
+     */
+    KEYWORD,
     /** 通常の条件チップ（作品種別・検索範囲・属性・期間・文字数など）。表示のみ。 */
     CONDITION,
     /** 大ジャンル。1件のみ選択時はクリックでジャンル変更ドロップダウンを開く。 */
@@ -75,6 +83,13 @@ fun conditionChipLabels(query: DiscoveryQuery): List<ConditionChip> {
     // なぜ addChip 命名か: `add` にすると下の buildList ラムダ内でレシーバの MutableList.add を
     // ローカル関数がシャドウし（ローカル関数優先）、型推論不能＋チップ誤追加の罠になるため。
     fun addChip(label: String, kind: ChipKind = ChipKind.CONDITION) = chips.add(ConditionChip(label, kind))
+
+    // 検索語トークンを先頭に個別チップとして出す（フィードバック#2）。見出しに全文を並べると
+    // 複数語で見切れるため、折り返す FlowRow のチップへ逃がす。分割は SearchDraft.kt の
+    // wordTokens（検索画面のトグルと同一規則の単一定義）を再利用し、規則ズレを構造的に防ぐ。
+    if (!query.word.isNullOrBlank()) {
+        wordTokens(query.word).forEach { addChip(it, ChipKind.KEYWORD) }
+    }
 
     if (query.types.isNotEmpty()) {
         val label = NarouNovelType.values().filter { it in query.types }.joinToString("・") { it.uiLabel }
