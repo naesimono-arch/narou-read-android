@@ -121,10 +121,10 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     // カード枚数ぶん Repository を直撃していた（テスト不能・本棚を開くたびカードごとに並列発火）。
     // 照会を VM へ吊り上げ、カードは Map から自分の ncode 分を引くだけの純粋表示にする。
     //
-    // 【重要】なぜ IO 等へ切り替えず viewModelScope 既定（Main dispatcher）で逐次照会するか:
-    // NovelApiRepository のインメモリキャッシュは「全呼び出しが Main で直列化される」前提で
-    // スレッド安全性が成立している（既知負債。解消は別タスク U1）。ここで dispatcher を変えると
-    // キャッシュ競合を招くため、意図的に Main のまま逐次で回す（dispatcher を変えないこと）。
+    // なぜ逐次照会のままにするか: Repository キャッシュは Mutex でスレッド安全化済み（U1 対応）だが、
+    // 紐付け作品ぶんの詳細照会を並列発火させると、なろうAPIの転送量マナー（narou_api_manual.md §6）に
+    // 反するため、逐次（1件ずつ）で回す方針は維持する。dispatcher は viewModelScope 既定で足りる
+    // （API 呼び出しは Retrofit suspend＝内部で IO へ逃げるため Main を塞がない）。
     // 失敗（NarouApiException＝オフライン等）は静かに無視しバッジ非表示にする（旧 produceState と同一方針）。
     @OptIn(ExperimentalCoroutinesApi::class)
     val newEpisodeNovelMap: StateFlow<Map<String, NarouNovel>> = books

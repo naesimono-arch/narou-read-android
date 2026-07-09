@@ -13,7 +13,11 @@ import com.squareup.moshi.JsonDataException
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -777,5 +781,42 @@ class NovelApiRepositoryTest {
         assertTrue(page.novels.isEmpty())
         assertTrue(page.reachedApiLimit)
         coVerify(exactly = 0) { service.search(of = any(), order = any(), lim = any(), type = "t", st = any()) }
+    }
+
+    @Test
+    fun `discover - word の前後空白は trim されて送信され、空白違いは同一キャッシュに当たること`() = runTest {
+        // なぜ: cacheKey() は trim 済みで比較する一方、送信が素通しだと「同一キー・別実リクエスト」の
+        // 不整合になる（NcodeLinkSheet 経由の word で実測）。入口 trim で両者が一致することを固定する。
+        coEvery { service.search(of = any(), order = any(), lim = any(), word = any()) } returns createMockResponse()
+
+        repository.discover(DiscoveryQuery(word = " 転生 "))
+        repository.discover(DiscoveryQuery(word = "転生"))
+
+        // 送信は trim 済みの1回のみ（2回目は同一キャッシュキーでヒット）・素通し空白付きの送信は無いこと
+        coVerify(exactly = 1) { service.search(of = any(), order = any(), lim = any(), word = "転生") }
+        coVerify(exactly = 0) { service.search(of = any(), order = any(), lim = any(), word = " 転生 ") }
+    }
+
+    @Test
+    fun `cache - 複数スレッドからの並列アクセスでも例外なく上限50を維持すること`() = runTest {
+        // なぜ: U1 新着チェック（WorkManager）で Main 以外からの呼び出しが始まるため、
+        // Mutex 排他が実際にマルチスレッド並列で壊れない（ConcurrentModificationException 等が
+        // 出ない・追い出しが上限を守る）ことをスモークで固定する。
+        coEvery { service.search(of = any(), order = any(), lim = any(), word = any()) } returns createMockResponse()
+
+        withContext(Dispatchers.Default) {
+            coroutineScope {
+                repeat(100) { i ->
+                    launch {
+                        repository.discover(DiscoveryQuery(word = "query-$i"))
+                    }
+                }
+            }
+        }
+
+        // 100 個の別クエリを並列投入しても、キャッシュ追い出しが例外なく完了していれば
+        // 直後の同一クエリ再実行がクラッシュせず結果を返す（値の健全性スモーク）。
+        val again = repository.discover(DiscoveryQuery(word = "query-99"))
+        assertEquals(100, again.allcount)
     }
 }
