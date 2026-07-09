@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [BookEntity::class, ProgressEntity::class, PendingJobEntity::class],
-    version = 11,
+    entities = [BookEntity::class, ProgressEntity::class, PendingJobEntity::class, WebNovelEntity::class],
+    version = 12,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -17,6 +17,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun bookDao(): BookDao
     abstract fun progressDao(): ProgressDao
     abstract fun pendingJobDao(): PendingJobDao
+    abstract fun webNovelDao(): WebNovelDao
 
     companion object {
         @Volatile
@@ -148,12 +149,29 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v11→v12: なろうで発見したがまだ PDF 取込していない作品を本棚に置く「Web由来・未取込カード」の永続化テーブル web_novels を新設する。
+         *  既存テーブルへは一切触れない新規 CREATE のみのため PRAGMA 分岐は不要。
+         *  DDL は Room が Entity から期待するスキーマ（NOT NULL・主キー）と厳密一致させること
+         *  （不一致は起動時の schema validation でクラッシュする）。 */
+        // なぜ internal か: androidTest の MigrationTest が本物の Migration を検証するため（複製だと本体変更にテストが追従しない）。
+        internal val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `web_novels` (" +
+                    "`ncode` TEXT NOT NULL, `title` TEXT NOT NULL, `writer` TEXT NOT NULL, " +
+                    "`generalAllNo` INTEGER NOT NULL, `addedAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`ncode`))"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
                     .addMigrations(
                         MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                         MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
+                        MIGRATION_11_12,
                     )
                     .build()
                     .also { INSTANCE = it }

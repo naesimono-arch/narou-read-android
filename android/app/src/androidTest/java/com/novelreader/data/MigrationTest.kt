@@ -34,8 +34,8 @@ import org.junit.runner.RunWith
  *     オブジェクトを `AppDatabase.MIGRATION_*` で直接渡すため、登録配線そのものは経由しない）。
  *     その層は `freshInstallAtV11_passesIdentityHashCheck`（実エンティティの hash 照合）が別角度で補う。
  *
- * **対象範囲を 7→11 に絞る理由**: identity hash 衝突を実測した版（v8/v9/v10）と最新の v11（F-G 恒久策＝
- * books.contentSha256 追加）がこの区間に集中する。MIGRATION_3_4〜6_7 も AppDatabase に実装は在るが
+ * **対象範囲を 7→12 に絞る理由**: identity hash 衝突を実測した版（v8/v9/v10）と最新の v11（F-G 恒久策＝
+ * books.contentSha256 追加）、および v12（web_novels テーブル新設）がこの区間に集中する。MIGRATION_3_4〜6_7 も AppDatabase に実装は在るが
  * （3_4 は PRAGMA 分岐を持つ）、区間外・写し増による保守負債を避けて対象外とした。3→7 への拡張が必要に
  * なれば同方式で追加できる。
  */
@@ -57,7 +57,7 @@ class MigrationTest {
      * 食い違えば実機では起動時 schema validation で即クラッシュする——それを1段ごとに前倒しで検出する。
      */
     @Test
-    fun migrate7to11_validatesSchemaAtEachStep() {
+    fun migrate7to12_validatesSchemaAtEachStep() {
         // v7 スキーマの空 DB を 7.json から作る（＝v7 で作られた実機 DB 相当の初期状態）。
         helper.createDatabase(TEST_DB_CHAIN, 7).close()
 
@@ -76,6 +76,9 @@ class MigrationTest {
 
         // 10→11: books に contentSha256 追加（F-G 恒久策）。11.json も3テーブル全部を含むので true で厳格検証。
         helper.runMigrationsAndValidate(TEST_DB_CHAIN, 11, true, AppDatabase.MIGRATION_10_11).close()
+
+        // 11→12: web_novels テーブル新設。12.json も4テーブル全部を含むので true で厳格検証。
+        helper.runMigrationsAndValidate(TEST_DB_CHAIN, 12, true, AppDatabase.MIGRATION_11_12).close()
     }
 
     /**
@@ -85,7 +88,7 @@ class MigrationTest {
      * 本区間は全て ADD COLUMN / CREATE TABLE / no-op で非破壊のはずだが、それを SELECT で実証して固定する。
      */
     @Test
-    fun migrate7to11_preservesExistingRows() {
+    fun migrate7to12_preservesExistingRows() {
         helper.createDatabase(TEST_DB_DATA, 7).apply {
             // v7 に実在する列だけを使う（ncode は v9・contentSha256 は v11 で追加されるためここでは書けない
             // ＝版ごとの列構成に厳密整合）。
@@ -100,10 +103,11 @@ class MigrationTest {
             close()
         }
 
-        // 全チェーンを一括適用。最終 v11 のみ検証すればよく、11.json は3テーブル全部を含むので validateDroppedTables=true。
+        // 全チェーンを一括適用。最終 v12 のみ検証すればよく、12.json は4テーブル全部を含むので validateDroppedTables=true。
         val db = helper.runMigrationsAndValidate(
-            TEST_DB_DATA, 11, true,
-            AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11,
+            TEST_DB_DATA, 12, true,
+            AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10,
+            AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12,
         )
 
         db.query("SELECT title, author, addedAt, ncode, contentSha256 FROM books WHERE id = 'book-1'").use { c ->
@@ -131,36 +135,42 @@ class MigrationTest {
             assertEquals("pending_jobs は新設直後で空のはず", 0, c.getInt(0))
         }
 
+        // 11→12 で新設した web_novels が存在し空であること（新設テーブルの疎通確認）。
+        db.query("SELECT COUNT(*) FROM web_novels").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("web_novels は新設直後で空のはず", 0, c.getInt(0))
+        }
+
         db.close()
     }
 
     /**
-     * 最新版 v11 の「フレッシュインストール」が identity hash 検証を通ることを検証する。
+     * 最新版 v12 の「フレッシュインストール」が identity hash 検証を通ることを検証する。
      *
-     * **何を捕まえるか**: エンティティ（BookEntity/ProgressEntity/PendingJobEntity や @Database version）を変えたのに
-     * schemas/11.json の再生成 or version 上げを忘れた退行。この乖離は実機の**起動即クラッシュ**の正体で、
+     * **何を捕まえるか**: エンティティ（BookEntity/ProgressEntity/PendingJobEntity/WebNovelEntity や @Database version）を変えたのに
+     * schemas/12.json の再生成 or version 上げを忘れた退行。この乖離は実機の**起動即クラッシュ**の正体で、
      * 本プロジェクトが2回踏んだ事象（task_diary #39）そのもの。
      *
-     * **機序**: ①11.json（checked-in の最新スキーマ）から v11 DB を作り、その identityHash を room_master_table に刻む。
+     * **機序**: ①12.json（checked-in の最新スキーマ）から v12 DB を作り、その identityHash を room_master_table に刻む。
      * ②実アプリの Room で同じファイルを開くと、Room がコンパイル時にエンティティから算出した identity hash を
-     * ①で刻まれた 11.json 由来 hash と照合する（RoomOpenHelper.checkIdentity）。両者が乖離していれば
+     * ①で刻まれた 12.json 由来 hash と照合する（RoomOpenHelper.checkIdentity）。両者が乖離していれば
      * IllegalStateException で落ちる＝テストが赤くなり、実機投入前に検出できる。
-     * （version 11 == 現行のため migration は走らず、純粋な hash 照合だけが起こる）
+     * （version 12 == 現行のため migration は走らず、純粋な hash 照合だけが起こる）
      */
     @Test
-    fun freshInstallAtV11_passesIdentityHashCheck() {
+    fun freshInstallAtV12_passesIdentityHashCheck() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.deleteDatabase(TEST_DB_FRESH) // 前回の残骸を掃除して決定的にする（createDatabase も削除するが二重の安全）
 
-        // ① 11.json から v11 DB を作り、11.json の identityHash を刻む。
-        helper.createDatabase(TEST_DB_FRESH, 11).close()
+        // ① 12.json から v12 DB を作り、12.json の identityHash を刻む。
+        helper.createDatabase(TEST_DB_FRESH, 12).close()
 
         // ② 実エンティティの Room で同じファイルを開き、コンパイル時 hash と刻まれた hash を照合させる。
         val db = Room.databaseBuilder(context, AppDatabase::class.java, TEST_DB_FRESH).build()
         try {
             // writableDatabase を触ると Room が実際に open→identity 照合を発火する。ここで例外が飛ばず開ければ一致。
             assertTrue(
-                "v11 スキーマで Room が開けない＝実エンティティと 11.json の identity hash 不一致",
+                "v12 スキーマで Room が開けない＝実エンティティと 12.json の identity hash 不一致",
                 db.openHelper.writableDatabase.isOpen,
             )
         } finally {
