@@ -22,6 +22,7 @@ import os
 import sys
 
 import detect_fabricated_execution_core as core
+import hooks_common
 
 # 非ASCIIパス・日本語出力の文字化けを防ぐ（既存フックの定型）
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
@@ -108,6 +109,9 @@ def main() -> int:
     ap.add_argument("--sentinel-dir", default=None,
                     help="センチネル(.python_tests_passed 等)のあるディレクトリ（live 裏取り用）")
     ap.add_argument("--min-confidence", type=float, default=0.0)
+    ap.add_argument("--repo", default=None,
+                    help="SHA 実在照合に使う git リポジトリ（Tier A2 の gitStatus 由来FP降格。"
+                         "未指定は照合なし。事後解析では当時より SHA が増えている＝降格は安全方向）")
     ap.add_argument("--include-suppressed", action="store_true", help="降格 finding も表示")
     ap.add_argument("--verbose", action="store_true", help="finding が無いファイルも表示")
     # なぜサイズ上限があるか: analyze() はファイル全文をメモリ展開し、証拠コーパスを
@@ -122,6 +126,14 @@ def main() -> int:
     targets = resolve_targets(args)
     if not targets:
         return 2
+
+    # SHA 実在照合（--repo 指定時のみ）。verifier の実装は Stop アダプタと共用（hooks_common）。
+    verifier = None
+    if args.repo:
+        verifier = hooks_common.make_sha_verifier(args.repo)
+        if verifier is None:
+            print(paint(f"[警告] --repo {args.repo} は git リポジトリではありません"
+                        "（SHA 実在照合なしで続行）", "yellow"), file=sys.stderr)
 
     reports = []
     skipped_big = []
@@ -143,7 +155,8 @@ def main() -> int:
             print(paint(f"[スキップ] {path}: {e}", "yellow"), file=sys.stderr)
             continue
         report = core.analyze(text, transcript_path=path, scope=args.scope,
-                              sentinel_dir=args.sentinel_dir, tiers=args.tier)
+                              sentinel_dir=args.sentinel_dir, tiers=args.tier,
+                              sha_exists=verifier)
         reports.append((path, report))
 
     if args.format == "json":

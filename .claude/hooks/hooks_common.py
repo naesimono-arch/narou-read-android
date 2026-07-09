@@ -18,6 +18,7 @@ import が成立する理由:
 import io
 import json
 import re
+import subprocess
 import sys
 
 
@@ -33,6 +34,42 @@ def read_payload():
         return json.load(sys.stdin)
     except (json.JSONDecodeError, EOFError, ValueError):
         return None
+
+
+def make_sha_verifier(cwd):
+    """
+    「SHA がリポジトリにコミットとして実在するか」の照合 callable を返す
+    （git repo でなければ None＝照合なし）。Stop フックと CLI アナライザで共用。
+    なぜ必要か: system prompt の gitStatus（Recent commits）由来の実在 SHA への言及は
+    transcript に証拠が構造的に残らず、検知器 Tier A2 が偽陽性化する
+    （2026-07-09 Stop ライブ実測・bcd69bb6）。実在照合は検知エンジン外（ここ）に置き、
+    detect_fabricated_execution_core は純ロジック（subprocess なし）を維持する。
+    """
+    try:
+        r = subprocess.run(["git", "rev-parse", "--git-dir"], cwd=cwd,
+                           capture_output=True, timeout=5)
+        if r.returncode != 0:
+            return None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+    cache = {}
+
+    def verify(sha):
+        if sha in cache:
+            return cache[sha]
+        try:
+            # ^{commit} 付き: blob/tree の hex に誤ヒットさせず「コミットとして実在」に限定
+            r2 = subprocess.run(["git", "cat-file", "-e", f"{sha}^{{commit}}"],
+                                cwd=cwd, capture_output=True, timeout=5)
+            ok = r2.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            # 照合失敗は「実在しない」側（＝検知維持）。誤降格より安全で従来動作と同じ。
+            ok = False
+        cache[sha] = ok
+        return ok
+
+    return verify
 
 
 # 実行コマンドとしての `git commit` を検知する正規表現（コミット系フック全体の単一定義）。

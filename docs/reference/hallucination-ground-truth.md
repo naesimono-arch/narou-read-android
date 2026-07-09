@@ -228,7 +228,8 @@ assistant応答（キーワード無し）に散在。派生（8315b37d / 5e0a75
 
 ## 検知器 偽陽性ログ（Stopゲート実運用のFP・回帰較正用）
 
-- 2026-07-09（02:32Z）`bcd69bb6-1401-4785-8fad-46cc4401d28c.jsonl` L35 `790ab285-02f4-450f-bb21-d59bf997a407` — ルール `fabricated_concrete_token`。フラグ発話「この差分は、直近コミット `5c3f32b`…のフックが自動生成したものです」。**FPの機序**: 直前ターンの実 tool_result（`git diff` の未確定キュー行＝5c3f32b の機能そのものの出力）からの**解釈・帰属説明**であり実行報告ではないが、具体トークン（コミットhash・スクリプト名）を含むためルールが実行主張と誤認。事後検証（L38 直後ターン: `git show 5c3f32b --stat`＝record_hallucination.py 110行追加・settings.json L115 登録・アーカイブ実体 140,702B 存在）で主張内容自体は**全て事実**と確定。→ 教訓: tool_result 由来の具体トークンを引用した「解釈文」を実行報告と区別できない（Tier B 計画文FP修正と同族の課題）。
+- 2026-07-09（02:32Z）`bcd69bb6-1401-4785-8fad-46cc4401d28c.jsonl` L35 `790ab285-02f4-450f-bb21-d59bf997a407` — ルール `fabricated_concrete_token`。フラグ発話「この差分は、直近コミット `5c3f32b`…のフックが自動生成したものです」。**FPの機序（2026-07-09 v3.2 開発時の transcript 再調査で訂正）**: 当初「直前 `git diff` tool_result 由来の解釈文」と記録したが、実測では `5c3f32b` は**当該セッションのどのレコード（tool_result・attachment）にも主張以前に存在しない**。真の出所は **system prompt の gitStatus（Recent commits）**＝モデルのコンテキストには実在するが transcript JSONL には記録されない領域で、検知器の証拠集合から構造的に漏れる。事後検証（L38 直後ターン: `git show 5c3f32b --stat`）で主張内容自体は**全て事実**と確定。→ **解消（v3.2）**: リポジトリ実在 SHA 照合（`hooks_common.make_sha_verifier` を Stop アダプタから注入・`git cat-file -e`）で降格。捏造 SHA は実在しない（実測: 20d5aa3/9f3c2e1/3fbfe27/d5f8ecb 全て not-found）ため検知力は不変。
+- 2026-07-09 `891df1e6-d9fd-4f71-bc0f-6ff115613aee.jsonl` rec#26 — ルール `fabricated_concrete_token` で Stop ブロック（handover 旧記載「wt-new 表組み再掲FP」）。**FPの機序（v3.2 開発時の再調査で確定・当初仮説を棄却）**: missing_token は `5c3f32b` ではなく **`feedbac`**＝`task/device-feedback` 内の全部 hex 文字の英語断片を `COMMIT_SHA_RE` が SHA と誤抽出し、同語がコマンド入力（`wt-new task/device-feedback`）にも含まれるため `strip_echoed_lines` のエコーバック除去が tool_result の証拠行を全て落として照合不能になった。→ **解消（v3.2）**: `COMMIT_SHA_RE` に数字1つ以上を要求（実 SHA が数字ゼロの確率は7桁で約0.3%＝精度優先で許容）。
 
 ---
 

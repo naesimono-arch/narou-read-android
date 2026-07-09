@@ -370,6 +370,7 @@ print(json.dumps({"hookSpecificOutput": {
 - **サブエージェント委譲の実体は別ファイル** `<session-id>/subagents/agent-<agentId>.jsonl`（全行 `isSidechain:true`）。メイン transcript に委譲先のツール実行は出ない。`agentId` は起動 `Agent` tool の `toolUseResult.agentId`。
 - **「人間入力」の識別（2026-07-07 v3・Tier D 実装で確定）**: ①user 行 `content=str` でも中身が `<task-notification>`/`<system-reminder>`/`Caveat:` 等ならハーネス著者＝人間入力ではない ②`queued_command` attachment は `origin.kind=="human"` が人間発の判別キー（task-notification 由来の queued_command には origin が無い） ③**AskUserQuestion の回答はユーザー発話だが `tool_result`（`Your questions have been answered: …`）として届く**＝tool_use の name で判別しないと人間入力の索引から漏れる ④interrupt 直後のユーザー入力は user 行 `content=list` 内の text ブロックに入る。
 - **thinking ブロックは本文が空**（`thinking:""`）で **`signature` 文字列長だけが情報量の代理指標**として残る（thinking トークン数とは単位が違う点に注意）。暴走 thinking（通常比5〜30倍）は幻覚事象 G/H/I の共通前兆だった。
+- **system prompt 領域は JSONL に記録されない**（2026-07-09 v3.2 開発時に実測確定）: gitStatus スナップショット（Recent commits の SHA 一覧）・CLAUDE.md・memory 注入等の system prompt 内容は**モデルのコンテキストには実在するが transcript のどのレコードにも現れない**。モデルがそこから引用した具体値（直近コミット SHA 等）は、transcript を証拠集合とする静的解析からは**構造的に裏取り不能**＝「捏造」と区別できない（検知器 v3.2 はリポジトリ実在 SHA 照合の外部注入で回避）。transcript 全文 grep で見つからない値が即捏造とは言えない、という解析全般の限界として効く。
 
 **実際に起きた「実行捏造」ハルシネーションの形（`docs/reference/hallucination-ground-truth.md`）**:
 - **ハーネスブロックの地の文化**: Claude が会話の続きを自分で捏造し、**偽の `user<background-task-status>…<exit-code>1</exit-code>`／`system<total_tokens>`／`<invoke name=…>`** を assistant の text に生成した（c2e7a254・事象D）。これらのタグはハーネス/ツール層のみが著者で、正当な散文には現れない＝生（バッククォート引用でない）出現は捏造の強シグナル。

@@ -34,6 +34,7 @@ if HOOKS_DIR not in sys.path:
 
 try:
     import detect_fabricated_execution_core as core
+    import hooks_common
 except ImportError:
     # エンジンが無いブランチへ切り替えた等 → 妨げない
     sys.exit(0)
@@ -63,9 +64,13 @@ def main() -> int:
     # センチネルは .claude/ 直下（hooks の親）
     claude_dir = os.path.dirname(HOOKS_DIR)
 
+    # SHA 実在照合はセッションの cwd（hook 入力）で行う。無ければ照合なし（従来動作）。
+    verifier = hooks_common.make_sha_verifier(data.get("cwd") or os.getcwd())
+
     try:
         report = core.analyze(text, transcript_path=tpath, scope="last_turn",
-                              sentinel_dir=claude_dir, tiers="ABC")
+                              sentinel_dir=claude_dir, tiers="ABC",
+                              sha_exists=verifier)
     except Exception:
         # 解析中の想定外例外でユーザーを止めない（非妨害の原則）
         return 0
