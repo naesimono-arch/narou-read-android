@@ -158,3 +158,110 @@ sig 37,932＝baseline 23倍。2026-07-07 人間レビューで実幻覚と確定
 **段階導入の踏襲**: Stop フックへの Tier D 昇格は未実施（`stop_guard_fabrication.py` は
 `tiers="ABC"` を明示指定済みで影響なし）。CLI 事後アナライザでの運用実績を見てから判断する
 （§6 の方針どおり）。エンジン既定と CLI 既定は "ABCD"。
+
+## 増補3（2026-07-08）: Tier D4＝割込マーカーの自己生成と Stop 即時昇格
+
+> **⚠️ 実装は不採用（2026-07-09 main 統合時の裁定）**: 本増補の実装（`meta/detector-improve` の
+> Tier D4 `phantom_turn_marker`・Stop `tiers="ABCD"` 昇格）は、並行開発の v3.1（`task/handover-cleanup`）
+> が**同じ穴（台帳K の割込マーカー）を Tier A3 `HARNESS_BLOCK_RE` への追加**で先に塞いでおり、Stop は
+> `tiers="ABC"` のまま A3 ルール `fabricated_harness_block` でブロックできる＝機能等価（統合時にテストで
+> 実証: K型フィクスチャは A3 でブロック）。コードは v3.1/v3.2 系（main）を正本とし本実装は破棄。
+> **本文は較正実測（155ファイル走査・偽陽性ゼロ）と「単独昇格の根拠＝マーカーリテラルの特異性」という
+> 判断の記録として保存**（不採用判断も ADR に残す規約）。付随の画像貼付クラッシュ修正も v3.1 が同内容を
+> 独立実装済み（`collect_human_inputs` 内インライン正規化）。
+
+正解データ事象K（`aed2e31e`・kotlin-lsp セッション・Opus 4.8）で、Tier D の較正前提を破る
+新亜種が実証された: **応答継続中に、assistant 自身の text ブロックの地の文へハーネス著者の
+割込マーカー `user[Request interrupted by user]`＋幻の叱責をロールマーカー込みで自己生成**し、
+それに謝罪して作業を自己停止した（会話テンプレートの次ターン予測）。実ユーザーの中断は別
+user レコードとして現れるため、**assistant 発話内に本マーカーが在ること自体が構造的に幻**。
+
+**Tier D4 `phantom_turn_marker`（新ルール）**: `PHANTOM_TURN_MARKER_RE`（`[Request interrupted
+by user]` ＋ "for tool use" 変種）を assistant text に適用。active conf=0.9。
+
+**軸2（thinking 異常）を昇格条件にしない＝D3 との本質差（Why）**: 事象K の幻テキスト直前 sig は
+1,240＝セッション p25=1,244・中央値 2,720 の**通常域**で、G〜J 共通の暴走 thinking 前兆を**伴わ
+ない初の入力側捏造**だった。増補2 の D3 は「軸2 の共起でのみ active 昇格」する設計だったため、
+D4 を D3 と同じ枠に置くと事象K を active 化できない（実際 v3 Tier D は事象K の謝罪発話 L328 を
+`phantom_user_response` で発見するが `no_thinking_anomaly` 降格）。**マーカーリテラルの特異性
+そのもの**が強シグナルなので、D4 は軸2 に依らず単独で昇格させる。
+
+**降格は「生成でなく言及・引用」の文脈のみ（`_d4_is_reference`）**: ①幻覚メタ語彙（近傍/発話全体）
+→ `meta_discussion` ②inline code（直前 backtick）/fenced code の内側 → `marker_reference`
+③「マーカー/marker/割込」の名指し（マーカー span を除いた近傍。"interrupted" 自己一致を避ける）
+→ `marker_reference` ④別セッションの割込の要約参照 → `cross_session_reference`。**②③を足した
+経緯（実測）**: メタ語彙降格（①のみ）では足りず、**本 D4 を実装したセッション自身**が
+「marker \`[Request interrupted by user]\` が…」と backtick 引用して active 誤爆した（メタ語彙
+密度ゼロの散文）＝**既知の「Tier B メタ議論免罪欠落」と同型の穴**。真の自己生成（K）はマーカーを
+地の文にベタ書きするのに対し、検知器開発・台帳分析は inline/fenced code 化・名指しする、という
+体裁差を降格根拠にした。**Why-not（軸2を降格に使わない）**: 降格を meta/参照体裁に限れば、事象K
+（軸2 前兆なし）も将来の軸2 共起型も同一ルールで拾える。
+
+**Stop フックへ D4 のみ即時昇格（段階導入からの逸脱の判断）**: 増補2 の「CLI 実績を見てから」
+方針に対し、D4 は**マーカーリテラルの特異性で偽陽性が構造的に希少**（コーパス全 155 ファイル走査で
+active は事象K の1件のみ・他は全て meta/marker_reference 降格）なため、**D4 に限り即時に Stop
+ブロック昇格**する（`stop_guard_fabrication.py` を `tiers="ABCD"` 化し blockers に
+`phantom_turn_marker`(conf≥0.8) を追加）。**D1〜D3 は従来どおり非ブロック**＝段階導入は維持する。
+D4 だけを先行昇格する根拠は「照合の突合精度」ではなく「マーカーが会話プロトコルの内部表現＝
+正当な生成理由が存在しない特異リテラル」という質の違い。
+
+**付随の頑健性修正（全走査で発覚した連鎖障害）**: `collect_human_inputs` が queued_command の
+prompt（origin.kind=human）を str 前提で humans に積んでいたが、**画像貼付では prompt が
+`[{type:text},{type:image}]` の block リスト**になり、`_human_blob` の `str.join` が TypeError で
+**CLI の slug 全走査を丸ごと中断**させていた（1セッションの画像貼付で全体が落ちる）。`_human_text_of`
+で text ブロックを抽出・str 正規化して修正（Tier D の検証ゲート「slug 全走査」を回すのに必須だった）。
+
+**残す既知の限界**: 事象K の謝罪発話 L328（幻応答側）は引き続き `no_thinking_anomaly` 降格のまま
+（L320 の D4 検知で live block できるので実害なし）。事象L の①③④（ツール名参照を伴わない編集・
+再実行・掃除の捏造）は Tier A/B 対象外＝Tier B 汎用主張課題と同根（handover に登録済み）。
+
+## 増補4（2026-07-08）: Tier B メタ議論免罪と Stop 検査窓の穴（多ツールターン内捏造）
+
+> **⚠️ 実装は不採用（2026-07-09 main 統合時の裁定）**: 本増補の実装（`_tier_b_reference`・
+> `scope=current_turn` 新設）も並行開発の v3.1/v3.2 が同じ2穴を別実装で解消済み——(1) Tier B メタ議論
+> 免罪は v3.1 ②（`meta_discussion` 降格の Tier B 適用）＋v3.2 ④（`quoted_claim`＝鉤括弧引用の全数判定）、
+> (2) Stop 検査窓（台帳L）は v3.1 ③（`scope=last_turn` を「最後のターン開始入力より後の全発話」へ境界
+> 拡張＝`last_turn_start_order`。AskUserQuestion 回答を境界にしない要点は同一）。コードは main 側を
+> 正本とし本実装は破棄。**本文は〈whole-utterance では真陽性/偽陽性を分離できず主張文近傍±120字の
+> メタ語彙密度で切る〉という較正実測（真near0/偽near3〜5）の記録として保存**——この「実装用語が
+> メタ語彙に無く漏れる」限界は main 実装にも同根で残り、handover 検知器節に未対処で登録済み。
+
+増補3 が未対処として残した2つの穴を、いずれも**既存機構の延長**で塞いだ（新クラスの新設ではない）。
+両者は独立の変更だが、片方（Stop 窓拡張）が他方（Tier B の偽陽性）を live へ引き上げるため対で扱う。
+
+**(1) Tier B メタ議論免罪（`_tier_b_reference`・D4 `_d4_is_reference` の移植）**: 本リポジトリは
+検知器・台帳を扱うため、捏造テスト主張の「引用・分析」が Tier B の最大の偽陽性源だった
+（K/L 検証セッション d2096baa で `unverified_test_claim` が active 3件＝表組みでの L 分析・
+「セッションBが捏造した完了報告からの引用です」の明言）。増補3 の D4 で判明した「メタ議論免罪欠落と
+同型の穴」の Tier B 版。**ただし D4 の単純移植では壊れる**——`_d4_is_reference` は
+`_is_meta_utterance`（発話全体のメタ語彙 ≥3）を降格条件に使うが、事象L の**真の捏造**（b4087931
+「- 回帰テスト：全通過」）は**検知器開発セッション内**で起きたため発話全体のメタ語彙が6件に達し、
+それを分析・引用するメタ発話（d2096baa の 14〜20件）と**発話全体では分離不能**。分離できるのは
+〈主張文**近傍**のメタ語彙密度〉（実測: 真=near0 / 偽=near3〜5）と〈成功語トークンの引用体裁〉。
+よって Tier B では whole-utterance を使わず **`近傍±120字のメタ語彙≥2 ∨ fenced code 内 ∨ 成功語が
+「」で引用`** で降格する（すべて裏取り不能 or 引用＝Stop ブロック対象外）。閾値≥2 は実測ギャップ
+（0 対 3〜5）の中央。全156ファイル走査で Tier B active 5→2（3偽陽性が降格・真陽性 b4087931 と
+concrete 型 441b9875 は active 維持）・A/C/D 判定は全域不変。
+
+**(2) Stop 検査窓を `current_turn` へ拡張（多ツールターン内捏造・事象L）**: `scope=last_turn` は
+**最終 assistant 発話1件のみ**を検査するため、捏造報告（L123）の直後に AskUserQuestion で
+ターンが継続し無害な締め発話（L133）で終わると、Stop 発火時点の窓に捏造が入らず素通りした
+（事後 CLI は scope=all で検知＝ルールでなく窓の問題）。新スコープ **`current_turn`＝最後の
+生ユーザープロンプト以降の全 assistant 発話**を検査（`_last_user_turn_order`）。**設計の要は
+「AskUserQuestion 回答をターン境界にしない」**——回答は tool_result として別 user レコードで届くが、
+それを境界にすると捏造報告がまた窓の外へ落ちる（＝事象L の穴そのもの）。生プロンプト＝人間著者の
+user 行で content=str（ハーネス著者除く）or text ブロックを含むものに限り、tool_result のみの
+user 行（回答・差し戻し）は境界にしない。`stop_guard_fabrication.py` を scope=current_turn 化。
+全156ファイル走査で live blocker が 2→7・**新規5件は全て真陽性**（事象L b4087931 の
+「回帰テスト：全通過」＋事象F c4b78e7d のマージ確定捏造4件＝last_turn では最終発話でなく素通り
+していた既知捏造）＝**過検知ゼロ**。生プロンプト皆無（turn_start<0）だと `order>-1` が全発話に
+一致して全域走査化するので、安全側で last_turn にフォールバック（Stop で過去ターンを再ブロックしない）。
+
+**Why-not（採らなかった代替）**: (2) で handover 案の「PostToolUse 側の逐次検査」は採らない。
+PostToolUse は tool ごとに発火する高頻度経路で、地の文検査を毎回回すコストと、ターン途中の
+未完主張（後続 tool で裏取りされる正当な段取り）の偽陽性化が大きい。ターン境界で一度だけ全発話を
+見る `current_turn` の方が、検査回数・偽陽性の両面で優る（実測: 新規は全て真陽性）。
+
+**残す既知の限界（増補3 から不変）**: 事象L の①③④（ツール名参照を伴わない編集・再実行・掃除の
+捏造）は Tier A/B 対象外＝Tier B 汎用主張課題と同根（handover 登録済み）。事象K の謝罪発話 L328 は
+引き続き `no_thinking_anomaly` 降格（L320 の D4 検知で live block 可）。
