@@ -49,12 +49,17 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.data.WebNovelEntity
 import com.novelreader.narou.model.NarouNovel
+import com.novelreader.narou.model.Ncode
+import com.novelreader.narou.narouWorkUrl
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.ProcessingState
+import com.novelreader.viewmodel.ShelfItem
+import com.novelreader.viewmodel.mergeShelfItems
 import kotlinx.coroutines.launch
 
 /**
@@ -73,6 +78,9 @@ fun BookshelfScreen(
     onThemeChange: (ReadingTheme) -> Unit,
     onOpenBook: (bookId: String, startFile: String) -> Unit,
     onOpenDiscovery: () -> Unit,
+    // (b) Web由来カードの「縦書きPDFを取り込む」→ 取り込み画面（discovery/detail/{ncode}/import）への
+    // ナビゲーション。navController は MainActivity が握るためコールバックで委譲する。
+    onImportWebNovel: (ncode: String) -> Unit = {},
 ) {
     // Loading と Empty を型で区別する（F-O）。Loading 中はスケルトンを出し、
     // DB から Content(空) が確定して初めて空状態を表示することで cold start の空フラッシュを防ぐ。
@@ -112,6 +120,9 @@ fun BookshelfScreen(
     // グリッド/リスト表示の切り替え状態（SharedPreferencesで永続化）。
     // 永続化を伴うためルート層で所有し、値とトグルを描画層へ渡す（描画層は VM/prefs 非依存に保つ）。
     var isGridView by remember { mutableStateOf(prefs.getBoolean("is_grid_view", true)) }
+
+    // (b) Web由来カードの Custom Tabs 二重起動ガード（NovelDetailScreen と同じ機序）。
+    var lastWebLaunchAt by remember { mutableStateOf(0L) }
 
     // 削除UIの方式（SharedPreferencesで永続化）。0=長押しメニュー / 1=⋮メニュー。
     // なぜトグルで両方式を残すか: 2方式を実機で触り比べて採用方式を決めるための一時機構。
@@ -183,6 +194,17 @@ fun BookshelfScreen(
         onOpenDiscovery = onOpenDiscovery,
         onCancelProcessing = { viewModel.cancelProcessing() },
         snackbarHostState = snackbarHostState,
+        // (b) Web由来カード: なろうを Custom Tabs で開く（加工なし送客＝ADR 0010）。
+        // 再入ガードは NovelDetailScreen の「なろうで読む」と同じ機序（連打で2枚開くのを防ぐ）。
+        onOpenWebNovel = { novel ->
+            val now = System.currentTimeMillis()
+            if (now - lastWebLaunchAt >= 1000L) {
+                lastWebLaunchAt = now
+                openInAppBrowser(context, narouWorkUrl(Ncode(novel.ncode)))
+            }
+        },
+        onImportWebNovel = { novel -> onImportWebNovel(novel.ncode) },
+        onRemoveWebNovel = { viewModel.removeWebNovel(it.ncode) },
     )
 
     // エラーは一度きりのイベントとして Channel から受信し Snackbar 表示する（VM イベント購読＝ルート層の責務）。
@@ -277,9 +299,19 @@ internal fun BookshelfContent(
     onOpenDiscovery: () -> Unit,
     onCancelProcessing: () -> Unit,
     snackbarHostState: SnackbarHostState,
+    // (b) Web由来・未取込カードの操作。既定 no-op は既存テスト・呼び出しの互換のため
+    // （Web カードが無い状態では従来の描画・結線が完全に不変であることを保つ）。
+    onOpenWebNovel: (WebNovelEntity) -> Unit = {},
+    onImportWebNovel: (WebNovelEntity) -> Unit = {},
+    onRemoveWebNovel: (WebNovelEntity) -> Unit = {},
 ) {
     val isLoading = uiState is BookshelfUiState.Loading
     val books = (uiState as? BookshelfUiState.Content)?.books ?: emptyList()
+    val webNovels = (uiState as? BookshelfUiState.Content)?.webNovels ?: emptyList()
+    // 蔵書と Web由来を「最近の活動順」で1本に混在させる（bookshelf-fusion-D の並置。純関数で合成）。
+    val shelfItems = remember(books, webNovels, progressMap) {
+        mergeShelfItems(books, progressMap, webNovels)
+    }
     val isProcessing = processingState.isProcessing
 
     // 本棚トップバーの⋮オーバーフロー（テーマ切替＋開発トグル）の開閉状態
@@ -449,7 +481,7 @@ internal fun BookshelfContent(
                 // ことで cold start の空フラッシュ（Loading と Empty の混同）を防ぐ。
                 BookshelfSkeleton(isGridView = isGridView, modifier = Modifier.fillMaxSize())
             } else {
-              if (books.isEmpty() && !isProcessing) {
+              if (shelfItems.isEmpty() && !isProcessing) {
                 // 空状態。サイズ指定は呼び出し側の責務（fillMaxSize は従来と同じ描画）。
                 // なぜ else-if で空のグリッド/リストを合成しないか: 以前は空状態の上にも
                 // fillMaxSize の Lazy コンテナが重なっており、scrollable が hit test 上で
@@ -472,24 +504,35 @@ internal fun BookshelfContent(
                     horizontalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
                     // 見つける導線帯（モック fusion .find-guide）。空棚では EmptyBookshelf と重なるため出さない。
-                    if (books.isNotEmpty()) {
+                    if (shelfItems.isNotEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             FindGuideBand(onClick = onOpenDiscovery)
                         }
                     }
-                    items(books, key = { it.id }) { book ->
-                        GridBookCard(
-                            book = book,
-                            progress = progressMap[book.id],
-                            novelDetail = book.ncode?.let { newEpisodeNovelMap[it] },
-                            onOpen = { onOpenBook(book) },
-                            onDelete = { bookToDeleteId = book.id },
-                            deleteUiMode = deleteUiMode,
-                            // 削除時の詰め直しアニメ。旧animateItemPlacementはFoundation1.6系で高速フリング中に
-                            // カバーが画面外の古い位置から補間され重なる既知不具合があり一時撤去していたが、
-                            // BOM 2025.02.00(Foundation 1.7系)でstable化したanimateItem()に置き換えて復活（案B）。
-                            modifier = Modifier.animateItem(),
-                        )
+                    items(shelfItems, key = { it.key }) { item ->
+                        when (item) {
+                            is ShelfItem.Book -> GridBookCard(
+                                book = item.book,
+                                progress = progressMap[item.book.id],
+                                novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
+                                onOpen = { onOpenBook(item.book) },
+                                onDelete = { bookToDeleteId = item.book.id },
+                                deleteUiMode = deleteUiMode,
+                                // 削除時の詰め直しアニメ。旧animateItemPlacementはFoundation1.6系で高速フリング中に
+                                // カバーが画面外の古い位置から補間され重なる既知不具合があり一時撤去していたが、
+                                // BOM 2025.02.00(Foundation 1.7系)でstable化したanimateItem()に置き換えて復活（案B）。
+                                modifier = Modifier.animateItem(),
+                            )
+                            // (b) Web由来カード。外す操作は確認ダイアログを挟まない: 蔵書削除と違い
+                            // 読書進捗等の失うものが無く、詳細画面の「本棚に置く」で即座に戻せるため。
+                            is ShelfItem.Web -> WebGridBookCard(
+                                novel = item.novel,
+                                onOpen = { onOpenWebNovel(item.novel) },
+                                onImport = { onImportWebNovel(item.novel) },
+                                onRemove = { onRemoveWebNovel(item.novel) },
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
                     }
                 }
             } else {
@@ -502,7 +545,7 @@ internal fun BookshelfContent(
                     contentPadding = PaddingValues(start = 24.dp, top = 4.dp, end = 24.dp, bottom = 96.dp),
                 ) {
                     // 見つける導線帯（グリッドと同一・リストは行間スペーシングが無いため下余白を帯側に持たせる）
-                    if (books.isNotEmpty()) {
+                    if (shelfItems.isNotEmpty()) {
                         item {
                             FindGuideBand(
                                 onClick = onOpenDiscovery,
@@ -510,17 +553,27 @@ internal fun BookshelfContent(
                             )
                         }
                     }
-                    items(books, key = { it.id }) { book ->
-                        ListBookCard(
-                            book = book,
-                            progress = progressMap[book.id],
-                            novelDetail = book.ncode?.let { newEpisodeNovelMap[it] },
-                            onOpen = { onOpenBook(book) },
-                            onDelete = { bookToDeleteId = book.id },
-                            deleteUiMode = deleteUiMode,
-                            // グリッドと同理由: 1.7系でstable化したanimateItem()で詰め直しアニメを復活（案B）。
-                            modifier = Modifier.animateItem(),
-                        )
+                    items(shelfItems, key = { it.key }) { item ->
+                        when (item) {
+                            is ShelfItem.Book -> ListBookCard(
+                                book = item.book,
+                                progress = progressMap[item.book.id],
+                                novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
+                                onOpen = { onOpenBook(item.book) },
+                                onDelete = { bookToDeleteId = item.book.id },
+                                deleteUiMode = deleteUiMode,
+                                // グリッドと同理由: 1.7系でstable化したanimateItem()で詰め直しアニメを復活（案B）。
+                                modifier = Modifier.animateItem(),
+                            )
+                            // グリッドと同じ判断（確認ダイアログ無し＝失うものが無く即座に戻せる）。
+                            is ShelfItem.Web -> WebListBookCard(
+                                novel = item.novel,
+                                onOpen = { onOpenWebNovel(item.novel) },
+                                onImport = { onImportWebNovel(item.novel) },
+                                onRemove = { onRemoveWebNovel(item.novel) },
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
                     }
                 }
               }

@@ -4,6 +4,7 @@ import android.net.Uri
 import com.novelreader.data.BookEntity
 import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.data.WebNovelEntity
 import com.novelreader.narou.model.Ncode
 import kotlinx.coroutines.flow.Flow
 
@@ -20,6 +21,17 @@ interface BookRepository {
 
     val allBooks: Flow<List<BookEntity>>
     val allProgress: Flow<List<ProgressEntity>>
+
+    /** (b) Web由来・未取込カード: 本棚に置いた Web 作品（未取込）の一覧（addedAt 降順）。 */
+    val webNovels: Flow<List<WebNovelEntity>>
+
+    /** Web 作品を本棚に置く。同一 ncode は最新情報で上書き（REPLACE）。
+     *  ncode は NcodeLinkSheet の紐付け保存と同じ `.trim().uppercase()` 正規化で渡すこと
+     *  （表記ゆれで同一作品が二重カード化するのを防ぐ）。 */
+    suspend fun putWebNovel(novel: WebNovelEntity)
+
+    /** Web 作品を本棚から外す（取込完了時の昇格削除にも使う）。 */
+    suspend fun removeWebNovel(ncode: Ncode)
 
     /** addBook の取込結果。同一PDFの二重取込（UX監査 F-G 公理3べき等性）を呼び出し側で
      *  区別できるよう、新規登録と重複スキップを型で分ける（Service の通知文面を分岐させる）。 */

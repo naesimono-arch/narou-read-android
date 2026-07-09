@@ -10,6 +10,7 @@ import com.novelreader.NovelReaderApplication
 import com.novelreader.PdfProcessingService
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.data.WebNovelEntity
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.DiscoveryResult
@@ -43,8 +44,13 @@ sealed class BookImportError(val userMessage: String) : Exception(userMessage) {
 sealed interface BookshelfUiState {
     /** DB からの初回発行前。この間はスケルトンを出し、空状態フラッシュを避ける。 */
     data object Loading : BookshelfUiState
-    /** DB 発行後の確定状態。books が空なら「蔵書ゼロ」を表す（Loading とは別物）。 */
-    data class Content(val books: List<BookEntity>) : BookshelfUiState
+    /** DB 発行後の確定状態。books が空なら「蔵書ゼロ」を表す（Loading とは別物）。
+     *  webNovels は (b) Web由来・未取込カード（融合本棚）。既定 emptyList は既存テスト・
+     *  呼び出しの互換のため（Web カード非対応の経路は蔵書のみで従来どおり成立する）。 */
+    data class Content(
+        val books: List<BookEntity>,
+        val webNovels: List<WebNovelEntity> = emptyList(),
+    ) : BookshelfUiState
 }
 
 /**
@@ -95,8 +101,12 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     private val novelApiRepository = app.novelApiRepository
 
     // 一覧の正本。Loading を初期値にして「DB 初回発行前」を明示する（F-O）。
-    val uiState: StateFlow<BookshelfUiState> = repository.allBooks
-        .map<List<BookEntity>, BookshelfUiState> { BookshelfUiState.Content(it) }
+    // (b) 融合本棚: 蔵書と Web由来（未取込）を combine で束ねる。Room の両 Flow とも初回発行は
+    // 即時のため、combine 待ちが Loading を不当に長引かせることはない。
+    val uiState: StateFlow<BookshelfUiState> =
+        combine(repository.allBooks, repository.webNovels) { books, webNovels ->
+            BookshelfUiState.Content(books, webNovels) as BookshelfUiState
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BookshelfUiState.Loading)
 
     // 既存の呼び出し側（MainActivity の読書画面ルート等）向けの素の books ビュー。
@@ -216,6 +226,12 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun deleteBook(book: BookEntity) {
         viewModelScope.launch(Dispatchers.IO) { repository.deleteBook(book) }
+    }
+
+    // (b) Web由来・未取込カードを本棚から外す。webNovels は hot に uiState へ combine 済みのため、
+    // 削除すれば本棚から即時に消える（deleteBook と同じ配送経路）。
+    fun removeWebNovel(ncode: String) {
+        viewModelScope.launch(Dispatchers.IO) { repository.removeWebNovel(Ncode(ncode)) }
     }
 
     // PDF↔Web継続読書: なろう作品との紐付け（null で解除）。

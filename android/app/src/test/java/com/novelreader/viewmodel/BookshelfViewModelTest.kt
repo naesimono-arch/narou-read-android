@@ -57,6 +57,10 @@ class BookshelfViewModelTest {
         every { mockApp.processingState } returns MutableStateFlow<ProcessingState?>(null).asStateFlow()
         every { mockApp.errorEvents } returns emptyFlow()
         every { mockRepository.allBooks } returns flowOf(emptyList())
+        // (b) uiState は allBooks と webNovels の combine になった。webNovels を stub しないと
+        // relaxed mock の Flow が emit せず combine が一度も発火しない（books 派生も止まる）ため、
+        // 既定は空リストの即時 emit にする（Web カード関連のテストは各自上書きする）。
+        every { mockRepository.webNovels } returns flowOf(emptyList())
 
         viewModel = BookshelfViewModel(mockApp)
     }

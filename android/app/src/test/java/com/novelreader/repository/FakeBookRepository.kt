@@ -4,6 +4,7 @@ import android.net.Uri
 import com.novelreader.data.BookEntity
 import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.data.WebNovelEntity
 import com.novelreader.narou.model.Ncode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +27,24 @@ class FakeBookRepository : BookRepository {
 
     override val allBooks: Flow<List<BookEntity>> = booksState
     override val allProgress: Flow<List<ProgressEntity>> = progressState
+
+    // (b) Web由来・未取込カードのインメモリ代替（Room と同じく addedAt 降順で観測させる）。
+    private val webNovelsState = MutableStateFlow<List<WebNovelEntity>>(emptyList())
+    override val webNovels: Flow<List<WebNovelEntity>> = webNovelsState
+
+    /** テストのための Web 作品プリセット（webNovels へ即時反映）。 */
+    fun setWebNovels(novels: List<WebNovelEntity>) { webNovelsState.value = novels }
+
+    override suspend fun putWebNovel(novel: WebNovelEntity) {
+        webNovelsState.value =
+            (webNovelsState.value.filterNot { it.ncode == novel.ncode } + novel)
+                .sortedByDescending { it.addedAt }
+    }
+
+    override suspend fun removeWebNovel(ncode: Ncode) {
+        val normalized = ncode.value.trim().uppercase()
+        webNovelsState.value = webNovelsState.value.filterNot { it.ncode == normalized }
+    }
 
     // pending_jobs の代替（uri をキーに保持。enqueue 順の再現は不要な粒度なので LinkedHashMap で挿入順維持）。
     private val pendingJobs = LinkedHashMap<String, PendingJobEntity>()

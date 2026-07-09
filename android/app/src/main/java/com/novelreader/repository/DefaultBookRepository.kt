@@ -11,6 +11,8 @@ import com.novelreader.data.PendingJobDao
 import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressDao
 import com.novelreader.data.ProgressEntity
+import com.novelreader.data.WebNovelDao
+import com.novelreader.data.WebNovelEntity
 import com.novelreader.narou.model.Ncode
 import com.novelreader.pdf.CorruptedPdfError
 import com.novelreader.pdf.EncryptedPdfError
@@ -42,10 +44,19 @@ class DefaultBookRepository(
     private val bookDao: BookDao = AppDatabase.getDatabase(context).bookDao(),
     private val progressDao: ProgressDao = AppDatabase.getDatabase(context).progressDao(),
     private val pendingJobDao: PendingJobDao = AppDatabase.getDatabase(context).pendingJobDao(),
+    private val webNovelDao: WebNovelDao = AppDatabase.getDatabase(context).webNovelDao(),
 ) : BookRepository {
 
     override val allBooks: Flow<List<BookEntity>> = bookDao.getAllBooks()
     override val allProgress: Flow<List<ProgressEntity>> = progressDao.getAllProgress()
+    override val webNovels: Flow<List<WebNovelEntity>> = webNovelDao.getAll()
+
+    override suspend fun putWebNovel(novel: WebNovelEntity) = webNovelDao.insert(novel)
+
+    // なぜ削除も trim().uppercase() 正規化か: 保存側（putWebNovel の契約）と同じ正規化を通さないと、
+    // 表記ゆれの ncode で削除が空振りしてカードが残り続けるため（NcodeLinkSheet の保存正規化と同系）。
+    override suspend fun removeWebNovel(ncode: Ncode) =
+        webNovelDao.deleteByNcode(ncode.value.trim().uppercase())
 
     /** べき等ガードの純判定を切り出したもの: 抽出後のタイトル＋著者に一致する既存蔵書を返す
      *  （無ければ null）。実 PDF 抽出を挟まず単体テストできるよう addBook 本体から分離する。 */

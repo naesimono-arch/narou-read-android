@@ -177,6 +177,11 @@ private fun NovelReaderApp(
                 onOpenDiscovery = {
                     navController.navigate("discovery") { launchSingleTop = true }
                 },
+                // (b) Web由来カードの「縦書きPDFを取り込む」→ 既存の取り込み画面ルートへ直行
+                // （詳細画面経由の onImportPdf と同じ着地＝ADR 0011 の WebView 取り込み）。
+                onImportWebNovel = { ncode ->
+                    navController.navigate("discovery/detail/$ncode/import") { launchSingleTop = true }
+                },
             )
         }
 
