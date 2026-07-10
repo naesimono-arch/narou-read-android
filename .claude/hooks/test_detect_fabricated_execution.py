@@ -1123,7 +1123,7 @@ class ImportantNumRegex(unittest.TestCase):
         self.assertEqual(core.IMPORTANT_NUM_RE.findall("コミット後5へ、次は3を"), [])
 
 
-# ─── Tier E（試作: 現ターン局所の完了主張束） ─────────────────────────────────
+# ─── Tier E（試作: 現ターン局所の完了主張束）＋ (c) 引用括弧拡張 ─────────────────
 
 class TierECompletionBundle(unittest.TestCase):
     """detect_tier_e1: 現ターンに完了主張が2カテゴリ以上 ∧ 対応実行ゼロ → 束検知（事象L型）。
@@ -1219,6 +1219,50 @@ class TierECompletionRegex(unittest.TestCase):
         self.assertIsNotNone(core.BASH_CLEANUP_RE.search("rm -f /tmp/x.txt"))
         self.assertIsNotNone(core.BASH_CLEANUP_RE.search("find . -name '*.tmp' -delete"))
         self.assertIsNone(core.BASH_CLEANUP_RE.search("ls -la && grep foo bar.txt"))
+
+
+class TierBReferenceQuoteBrackets(unittest.TestCase):
+    """_tier_b_reference (c) の引用括弧拡張（〈〉『』）＝2026-07-08 Stop 実誤ブロックの再発防止。
+    検知器仕様の説明文中の成功語は列挙内の言及（mention）であって完了報告（use）ではない。"""
+
+    def test_angle_bracket_enumeration_suppressed(self):
+        # 実際に Stop が誤ブロックした仕様説明文（当セッション実データの再現）
+        text = ("現ターン（最後の生プロンプト以降）に〈**編集した/テスト通過/掃除した**〉の"
+                "完了主張が**2カテゴリ以上集中**し、かつそのカテゴリに対応する実行 tool_use が"
+                "現ターンに皆無なら発火。")
+        rep = run([asst_text("m1", text)], tiers="B")
+        self.assertNotIn("unverified_test_claim", active_rules(rep))
+
+    def test_bare_assertion_still_flagged(self):
+        # 事象L の素の断言（括弧なし）は拡張後も active のまま＝真陽性の維持（陰性コントロール）
+        rep = run([asst_text("m1", "### 実証\n- 回帰テスト：全通過")], tiers="B")
+        self.assertIn("unverified_test_claim", active_rules(rep))
+
+
+class TierBReferenceDetectorImplTerms(unittest.TestCase):
+    """_tier_b_reference (a) の近傍密度に検知器の実装用語(DETECTOR_IMPL_TERM_RE)を合算＝
+    2026-07-08 Stop 実誤ブロックの再発防止（括弧なしの仕様説明文を免罪する）。"""
+
+    def test_bare_spec_explanation_suppressed(self):
+        # 実ブロック文から〈〉を外した括弧なし変形。近傍に実装用語（完了主張・カテゴリ×2・
+        # tool_use・発火）が密集＝仕様説明の地の文。免罪されるべき（誤ブロックの再発防止）。
+        text = ("現ターン（最後の生プロンプト以降）に 編集した/テスト通過/掃除した の"
+                "完了主張が2カテゴリ以上集中し、かつそのカテゴリに対応する実行 tool_use が"
+                "現ターンに皆無なら発火。")
+        rep = run([asst_text("m1", text)], tiers="B")
+        self.assertNotIn("unverified_test_claim", active_rules(rep))
+
+    def test_bare_assertion_still_flagged(self):
+        # 事象L の素の断言（実装用語ゼロ）は active のまま＝真陽性の維持（陰性コントロール）
+        rep = run([asst_text("m1", "### 実証\n- 回帰テスト：全通過")], tiers="B")
+        self.assertIn("unverified_test_claim", active_rules(rep))
+
+    def test_single_impl_term_not_suppressed(self):
+        # 実装用語が近傍に1語だけ（発火）＝密度1<2 → 免罪されない（閾値の維持）。
+        # 正当な完了報告に検知器の語が偶然1つ混じった程度では降格しない、を担保。
+        text = "この発火の件、テストは全部通りました。問題ありません。"
+        rep = run([asst_text("m1", text)], tiers="B")
+        self.assertIn("unverified_test_claim", active_rules(rep))
 
 
 if __name__ == "__main__":
