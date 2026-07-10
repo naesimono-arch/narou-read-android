@@ -55,8 +55,6 @@ import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.ui.discovery.FilterChipItem
 import com.novelreader.narou.model.NarouNovel
-import com.novelreader.narou.model.Ncode
-import com.novelreader.narou.narouWorkUrl
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfUiState
@@ -86,6 +84,9 @@ fun BookshelfScreen(
     // (b) Web由来カードの「縦書きPDFを取り込む」→ 取り込み画面（discovery/detail/{ncode}/import）への
     // ナビゲーション。navController は MainActivity が握るためコールバックで委譲する。
     onImportWebNovel: (ncode: String) -> Unit = {},
+    // 機能②: Web カードの読書導線＝なろうをアプリ内 WebView で開く（ADR 0012）。startEpisode 0=目次(初回)／
+    // >0=記録した話へ直接(続きから)。navController は MainActivity が握るためコールバックで委譲する。
+    onReadWebNovel: (ncode: String, startEpisode: Int) -> Unit = { _, _ -> },
 ) {
     // Loading と Empty を型で区別する（F-O）。Loading 中はスケルトンを出し、
     // DB から Content(空) が確定して初めて空状態を表示することで cold start の空フラッシュを防ぐ。
@@ -125,9 +126,6 @@ fun BookshelfScreen(
     // グリッド/リスト表示の切り替え状態（SharedPreferencesで永続化）。
     // 永続化を伴うためルート層で所有し、値とトグルを描画層へ渡す（描画層は VM/prefs 非依存に保つ）。
     var isGridView by remember { mutableStateOf(prefs.getBoolean("is_grid_view", true)) }
-
-    // (b) Web由来カードの Custom Tabs 二重起動ガード（NovelDetailScreen と同じ機序）。
-    var lastWebLaunchAt by remember { mutableStateOf(0L) }
 
     // 削除UIの方式（SharedPreferencesで永続化）。0=長押しメニュー / 1=⋮メニュー。
     // なぜトグルで両方式を残すか: 2方式を実機で触り比べて採用方式を決めるための一時機構。
@@ -199,15 +197,11 @@ fun BookshelfScreen(
         onOpenDiscovery = onOpenDiscovery,
         onCancelProcessing = { viewModel.cancelProcessing() },
         snackbarHostState = snackbarHostState,
-        // (b) Web由来カード: なろうを Custom Tabs で開く（加工なし送客＝ADR 0010）。
-        // 再入ガードは NovelDetailScreen の「なろうで読む」と同じ機序（連打で2枚開くのを防ぐ）。
-        onOpenWebNovel = { novel ->
-            val now = System.currentTimeMillis()
-            if (now - lastWebLaunchAt >= 1000L) {
-                lastWebLaunchAt = now
-                openInAppBrowser(context, narouWorkUrl(Ncode(novel.ncode)))
-            }
-        },
+        // (b)+機能②: Web由来カードのタップ＝なろうをアプリ内 WebView で開く（目次＝startEpisode 0・ADR 0012）。
+        // 旧 Custom Tabs 送客(0010)から WebReader へ移行し、読書位置を URL 観測で記録できるようにする。
+        onOpenWebNovel = { novel -> onReadWebNovel(novel.ncode, 0) },
+        // 続きから読む＝記録した話(episode)へ WebView で直接着地する。
+        onResumeWebNovel = { novel, episode -> onReadWebNovel(novel.ncode, episode) },
         onImportWebNovel = { novel -> onImportWebNovel(novel.ncode) },
         onRemoveWebNovel = { viewModel.removeWebNovel(it.ncode) },
         // U2 ラベル整理（作成・削除・付与はすべて VM 経由で Room へ＝uiState combine が hot に反映）。
@@ -311,6 +305,8 @@ internal fun BookshelfContent(
     // (b) Web由来・未取込カードの操作。既定 no-op は既存テスト・呼び出しの互換のため
     // （Web カードが無い状態では従来の描画・結線が完全に不変であることを保つ）。
     onOpenWebNovel: (WebNovelEntity) -> Unit = {},
+    // 機能②: カードの「続きから読む 第N話」タップ＝記録した話(episode)へ WebView で直接着地する。
+    onResumeWebNovel: (novel: WebNovelEntity, episode: Int) -> Unit = { _, _ -> },
     onImportWebNovel: (WebNovelEntity) -> Unit = {},
     onRemoveWebNovel: (WebNovelEntity) -> Unit = {},
     // U2 ラベル整理の操作。既定 no-op は同上（ラベル未使用の既存テスト・呼び出しを不変に保つ）。
@@ -324,6 +320,8 @@ internal fun BookshelfContent(
     val webNovels = (uiState as? BookshelfUiState.Content)?.webNovels ?: emptyList()
     val labels = (uiState as? BookshelfUiState.Content)?.labels ?: emptyList()
     val bookLabelIds = (uiState as? BookshelfUiState.Content)?.bookLabelIds ?: emptyMap()
+    // 機能②: Web カードの読書位置（ncode→最後に開いた話）。mergeShelfItems が各 Web カードへ載せる。
+    val webReadingProgress = (uiState as? BookshelfUiState.Content)?.webReadingProgress ?: emptyMap()
 
     // U2: チップ行の選択ラベル。回転・再生成で選択が飛ばないよう rememberSaveable（id の String だけ保存）。
     // 選択中のラベルが削除されたら「すべて」へ実質フォールバックする（takeIf で無効 id を無視＝
@@ -333,9 +331,9 @@ internal fun BookshelfContent(
 
     // 蔵書と Web由来を「最近の活動順」で1本に混在させる（bookshelf-fusion-D の並置。純関数で合成）。
     // U2: 前段でラベル絞り込みを噛ませる（選択中は該当蔵書のみ・Web カードは落とす＝filterShelfByLabel の why）。
-    val shelfItems = remember(books, webNovels, progressMap, effectiveLabelId, bookLabelIds) {
+    val shelfItems = remember(books, webNovels, progressMap, effectiveLabelId, bookLabelIds, webReadingProgress) {
         val (filteredBooks, filteredWeb) = filterShelfByLabel(books, webNovels, effectiveLabelId, bookLabelIds)
-        mergeShelfItems(filteredBooks, progressMap, filteredWeb)
+        mergeShelfItems(filteredBooks, progressMap, filteredWeb, webReadingProgress)
     }
     val isProcessing = processingState.isProcessing
 
@@ -574,7 +572,10 @@ internal fun BookshelfContent(
                             // 読書進捗等の失うものが無く、詳細画面の「本棚に置く」で即座に戻せるため。
                             is ShelfItem.Web -> WebGridBookCard(
                                 novel = item.novel,
+                                // 機能②: 記録があれば「続きから読む 第N話」を出す（0＝未読で非表示）。
+                                lastReadEpisode = item.lastReadEpisode,
                                 onOpen = { onOpenWebNovel(item.novel) },
+                                onResume = { onResumeWebNovel(item.novel, item.lastReadEpisode) },
                                 onImport = { onImportWebNovel(item.novel) },
                                 onRemove = { onRemoveWebNovel(item.novel) },
                                 modifier = Modifier.animateItem(),
@@ -631,7 +632,10 @@ internal fun BookshelfContent(
                             // グリッドと同じ判断（確認ダイアログ無し＝失うものが無く即座に戻せる）。
                             is ShelfItem.Web -> WebListBookCard(
                                 novel = item.novel,
+                                // 機能②: 記録があれば「続きから読む 第N話」を出す（0＝未読で非表示）。
+                                lastReadEpisode = item.lastReadEpisode,
                                 onOpen = { onOpenWebNovel(item.novel) },
+                                onResume = { onResumeWebNovel(item.novel, item.lastReadEpisode) },
                                 onImport = { onImportWebNovel(item.novel) },
                                 onRemove = { onRemoveWebNovel(item.novel) },
                                 modifier = Modifier.animateItem(),

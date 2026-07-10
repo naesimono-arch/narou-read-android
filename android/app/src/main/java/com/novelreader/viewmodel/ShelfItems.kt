@@ -16,7 +16,8 @@ sealed interface ShelfItem {
         override val key: String get() = "book:${book.id}"
     }
 
-    data class Web(val novel: WebNovelEntity) : ShelfItem {
+    /** lastReadEpisode: 機能②の WebView 読書位置（最後に開いた話。0＝未読）。>0 でカードに「続きから読む 第N話」を出す。 */
+    data class Web(val novel: WebNovelEntity, val lastReadEpisode: Int = 0) : ShelfItem {
         override val key: String get() = "web:${novel.ncode}"
     }
 }
@@ -57,6 +58,9 @@ fun mergeShelfItems(
     books: List<BookEntity>,
     progressMap: Map<String, ProgressEntity>,
     webNovels: List<WebNovelEntity>,
+    // 機能②: ncode(正規化済み大文字)→最後に開いた話。Web カードの「続きから読む 第N話」表示に使う。
+    // 既定 emptyList 相当（emptyMap）は既存テスト・呼び出しの互換のため（読書位置なしなら全カード未読表示で不変）。
+    webReadingProgress: Map<String, Int> = emptyMap(),
 ): List<ShelfItem> {
     val importedNcodes = books.mapNotNull { it.ncode?.trim()?.uppercase() }.toSet()
 
@@ -68,6 +72,11 @@ fun mergeShelfItems(
         .filterNot { it.ncode.trim().uppercase() in importedNcodes }
         .sortedByDescending { it.addedAt }
 
+    // Web カードに読書位置を載せる。web_novels.ncode も web_reading_progress.ncode も trim+uppercase 正規化済みで
+    // 保存されるため、同じ正規化キーで引ける（表記ゆれで「読んだのに続きが出ない」を防ぐ二重の安全として再正規化）。
+    fun webItem(n: WebNovelEntity): ShelfItem.Web =
+        ShelfItem.Web(n, webReadingProgress[n.ncode.trim().uppercase()] ?: 0)
+
     // 両列とも降順ソート済みの前提でマージする（books は DAO・webNovels は直前の sort が保証）。
     val result = ArrayList<ShelfItem>(bookItems.size + webItems.size)
     var bi = 0
@@ -76,10 +85,10 @@ fun mergeShelfItems(
         if (bookItems[bi].recencyKey >= webItems[wi].addedAt) {
             result.add(bookItems[bi]); bi++
         } else {
-            result.add(ShelfItem.Web(webItems[wi])); wi++
+            result.add(webItem(webItems[wi])); wi++
         }
     }
     while (bi < bookItems.size) { result.add(bookItems[bi]); bi++ }
-    while (wi < webItems.size) { result.add(ShelfItem.Web(webItems[wi])); wi++ }
+    while (wi < webItems.size) { result.add(webItem(webItems[wi])); wi++ }
     return result
 }

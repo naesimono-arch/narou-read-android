@@ -23,7 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.BookmarkRemove
 import androidx.compose.material.icons.filled.Download
@@ -54,7 +54,6 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -63,9 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.Ncode
-import com.novelreader.narou.narouWorkUrl
 import com.novelreader.ui.components.BookCover
-import com.novelreader.ui.openInAppBrowser
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.NovelDetailUiState
 import com.novelreader.viewmodel.NovelDetailViewModel
@@ -115,6 +112,10 @@ fun NovelDetailScreen(
     viewModel: NovelDetailViewModel,
     onSearchKeywords: (List<String>) -> Unit,
     onImportPdf: () -> Unit,
+    // 機能②: なろう作品をアプリ内 WebView で読む（読書位置の自動記録・ADR 0012）。外部ブラウザ送客(Custom Tabs)は
+    // 廃し、目次(初回)と続きから(記録話へ直接)の2着地をルート層のナビへ委ねる（描画層は callback を叩くだけ）。
+    onReadFromToc: () -> Unit,
+    onResumeReading: (episode: Int) -> Unit,
     onBack: () -> Unit,
 ) {
     LaunchedEffect(ncode) {
@@ -125,13 +126,8 @@ fun NovelDetailScreen(
     // (b) 固定バーのトグル表示状態（本棚に置く/外す・取込済みなら2アクション非表示）。
     val onShelf by viewModel.onShelf.collectAsStateWithLifecycle()
     val isImported by viewModel.isImported.collectAsStateWithLifecycle()
-
-    val context = LocalContext.current
-    // なぜ再入ガードが要るか（M1/公理3）: Custom Tabs は別プロセスのブラウザ起動待ちがあり、
-    // 反応が無いと利用者が連打しやすい。その間 launchUrl が複数回走るとなろうページが
-    // 2枚重なって開くため、直近起動から一定時間内のタップは無視して二重起動を防ぐ。
-    // 外部起動はプラットフォーム副作用のためルート層に置く（描画層は onReadOnNarou を叩くだけ）。
-    var lastLaunchAt by remember { mutableStateOf(0L) }
+    // 機能②: この作品の WebView 読書位置（最後に開いた話。>0 なら「続きから読む」を出す）。
+    val lastReadEpisode by viewModel.readingProgress.collectAsStateWithLifecycle()
 
     NovelDetailContent(
         ncode = ncode,
@@ -143,16 +139,9 @@ fun NovelDetailScreen(
         onToggleShelf = { viewModel.toggleShelf() },
         onBack = onBack,
         onRetry = { viewModel.retry() },
-        onReadOnNarou = {
-            val now = System.currentTimeMillis()
-            if (now - lastLaunchAt >= 1000L) {
-                lastLaunchAt = now
-                // なろう作品ページを Custom Tabs で表示する。ツールバー色は明示指定せず
-                // 既定（ブラウザのサイト識別色）に委ねる（M2/M9・公理8）＝外部サイトへ
-                // 遷移した事実を隠さず、利用者が今どこに居るかを判別できるようにするため。
-                openInAppBrowser(context, narouWorkUrl(ncode))
-            }
-        },
+        lastReadEpisode = lastReadEpisode,
+        onReadOnNarou = onReadFromToc,
+        onResumeReading = { onResumeReading(lastReadEpisode) },
     )
 }
 
@@ -171,7 +160,11 @@ internal fun NovelDetailContent(
     onImportPdf: () -> Unit,
     onBack: () -> Unit,
     onRetry: () -> Unit,
+    // 機能②: onReadOnNarou＝目次(最初から)をアプリ内 WebView で開く。onResumeReading＝記録した話へ直接（続きから）。
+    // lastReadEpisode>0 のとき「続きから読む（第N話）」を主導線に切り替える。既定値は既存テスト・プレビュー互換のため。
     onReadOnNarou: () -> Unit,
+    lastReadEpisode: Int = 0,
+    onResumeReading: () -> Unit = {},
     // (b) Web由来カードの入口（固定バーのトグル）。既定値は既存テスト・プレビューの互換のため。
     onShelf: Boolean = false,
     isImported: Boolean = false,
@@ -238,30 +231,67 @@ internal fun NovelDetailContent(
                                 .fillMaxWidth()
                                 .padding(horizontal = 24.dp, vertical = 16.dp)
                         ) {
-                            Button(
-                                onClick = onReadOnNarou,
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
-                                ),
-                                shape = RoundedCornerShape(2.dp)
-                            ) {
-                                // open-in-new アイコンで「外部（別画面）へ開く」ことを図示する（公理8）。
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "なろうで読む",
-                                    fontSize = 15.sp,
-                                    letterSpacing = 1.5.sp
-                                )
+                            // 機能②: 記録があれば「続きから読む（第N話）」を主導線に、無ければ「なろうで読む」（目次）。
+                            // いずれもアプリ内 WebView でなろうページを**加工せず**表示し、話遷移から読書位置を記録する（ADR 0012）。
+                            if (lastReadEpisode > 0) {
+                                Button(
+                                    onClick = onResumeReading,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary
+                                    ),
+                                    shape = RoundedCornerShape(2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "続きから読む（第${lastReadEpisode}話）",
+                                        fontSize = 15.sp,
+                                        letterSpacing = 1.5.sp
+                                    )
+                                }
+                                // 最初から読み直したいとき用に目次（作品トップ）への導線も残す（ゴースト枠）。
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedButton(
+                                    onClick = onReadOnNarou,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(2.dp)
+                                ) {
+                                    Text(
+                                        text = "最初から（目次）",
+                                        fontSize = 15.sp,
+                                        letterSpacing = 1.5.sp
+                                    )
+                                }
+                            } else {
+                                Button(
+                                    onClick = onReadOnNarou,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary
+                                    ),
+                                    shape = RoundedCornerShape(2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "なろうで読む",
+                                        fontSize = 15.sp,
+                                        letterSpacing = 1.5.sp
+                                    )
+                                }
                             }
-                            // 遷移先ドメインを明示し、外部サイトへ出ることを正直に示す（M9/公理8）。
+                            // 表示先を明示（アプリ内 WebView でなろうのページを加工せずそのまま表示する＝ADR 0012・公理8）。
                             Text(
-                                text = "外部サイト syosetu.com へ移動します",
+                                text = "なろう（syosetu.com）のページをそのまま表示します",
                                 fontSize = 10.5.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier

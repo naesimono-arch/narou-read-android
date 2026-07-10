@@ -63,6 +63,29 @@ class ShelfItemsTest {
         assertEquals(emptyList<ShelfItem>(), mergeShelfItems(emptyList(), emptyMap(), emptyList()))
     }
 
+    // ────── 機能②: Web カードへ読書位置(lastReadEpisode)を載せる ──────
+
+    @Test
+    fun `Web由来カードに読書位置がひも付く（記録あり→続きから表示の前提）`() {
+        val webs = listOf(web("N1111AA", 200), web("N2222BB", 100))
+        // 記録は正規化済み大文字キー。N1111AA=第52話まで読んだ、N2222BB=未記録。
+        val progress = mapOf("N1111AA" to 52)
+
+        val items = mergeShelfItems(emptyList(), emptyMap(), webs, progress)
+
+        val a = items.first { it.key == "web:N1111AA" } as ShelfItem.Web
+        val b = items.first { it.key == "web:N2222BB" } as ShelfItem.Web
+        assertEquals(52, a.lastReadEpisode)
+        assertEquals(0, b.lastReadEpisode)  // 未記録は 0（＝未読でカードは「なろう・未取込」表示）
+    }
+
+    @Test
+    fun `読書位置を省略すると全Webカードが未読(0)`() {
+        // 既定引数の後方互換: 4引数版の既存呼び出しは lastReadEpisode=0 で不変。
+        val items = mergeShelfItems(emptyList(), emptyMap(), listOf(web("N1111AA", 200)))
+        assertEquals(0, (items.single() as ShelfItem.Web).lastReadEpisode)
+    }
+
     // ────── U2 filterShelfByLabel（ラベル絞り込みの純関数） ──────
 
     @Test

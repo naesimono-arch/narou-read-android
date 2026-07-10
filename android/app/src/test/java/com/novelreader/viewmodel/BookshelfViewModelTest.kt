@@ -64,6 +64,9 @@ class BookshelfViewModelTest {
         // U2: combine は labels/bookLabels も束ねるため同じ理由で空の即時 emit を stub する。
         every { mockRepository.labels } returns flowOf(emptyList())
         every { mockRepository.bookLabels } returns flowOf(emptyList())
+        // 機能②: combine は webReadingProgress も束ねる（5本目）。同じ理由で空の即時 emit を stub しないと
+        // 未 emit で combine が発火せず books 派生（newEpisodeNovelMap 等）が止まる。
+        every { mockRepository.webReadingProgress } returns flowOf(emptyList())
 
         viewModel = BookshelfViewModel(mockApp)
     }
