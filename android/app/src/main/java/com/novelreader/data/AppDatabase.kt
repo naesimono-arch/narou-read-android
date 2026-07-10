@@ -14,10 +14,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PendingJobEntity::class,
         WebNovelEntity::class,
         NewEpisodeMarkEntity::class,
-        LabelEntity::class,
-        BookLabelEntity::class,
     ],
-    version = 14,
+    version = 16,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -27,8 +25,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun pendingJobDao(): PendingJobDao
     abstract fun webNovelDao(): WebNovelDao
     abstract fun newEpisodeMarkDao(): NewEpisodeMarkDao
-    abstract fun labelDao(): LabelDao
-    abstract fun bookLabelDao(): BookLabelDao
 
     companion object {
         @Volatile
@@ -221,6 +217,42 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v14→v15: 並列レーン feat/episode-nav の web_reading_progress 新設 Migration の複製（パス繋ぎ）。
+         *  なぜ本レーン（ラベル撤去）が別内容の web_reading_progress を作るのか: version 15 は並列レーン
+         *  feat/episode-nav が「なろうWebView読書の読書位置」テーブル新設で先に消費しており、実機が既に
+         *  そのスキーマで v15 化している可能性がある。同じ version 15 を別スキーマで名乗ると identity hash
+         *  不一致で起動即クラッシュする（task_diary #39 の衝突クラス）。そこで本レーンのラベル撤去は v16 へ
+         *  退避し、14→15 は先行レーンと一字一句同一の DDL を複製して migration パスを繋ぐ。
+         *  web_reading_progress は本ブランチでは Entity 未登録＝Room の検証対象外の余剰テーブルとして無害
+         *  （schema validation は @Database の entities のみを照合し、余剰テーブルは無視する）。 */
+        // なぜ internal か: androidTest の MigrationTest が本物の Migration を検証するため（複製だと本体変更にテストが追従しない）。
+        internal val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `web_reading_progress` (" +
+                    "`ncode` TEXT NOT NULL, `lastReadEpisode` INTEGER NOT NULL, `lastReadAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`ncode`))"
+                )
+            }
+        }
+
+        /** v15→v16: ラベルシステム廃止（labels / book_labels テーブルを付与データごと削除する）。
+         *  なぜ撤去か: 本棚の分類は読書状態〔よみかけ/未読/読了〕の導出値へ置き換えたため、専用テーブルは
+         *  不要になった。付与済みデータごと削除するのは「機能ごと撤去する」というユーザー判断による。
+         *  削除順は junction（book_labels）→ 親（labels）: 参照する側を先に落とす流儀（FK なし設計だが順序を守る）。
+         *  インデックス（index_labels_name / index_book_labels_labelId）は DROP TABLE に随伴して自動で消える。
+         *  なぜ IF EXISTS か: v15 経由（feat/episode-nav 側スキーマ＝labels/book_labels が存在する系譜）と、
+         *  将来の合流系譜（既に落ちている系譜）の両方を安全に通すため（無い前提で DROP すると後者で落ちる）。
+         *  なぜ MIGRATION_13_14（labels 新設）を残すのか: v13 の実機が v16 まで上がる migration パスに 13→14 が
+         *  必要なため。「14 で作って 16 で落とす」は一見無駄だが、途中版で止まった実機を段階的に前進させる正しい鎖。 */
+        // なぜ internal か: androidTest の MigrationTest が本物の Migration を検証するため（複製だと本体変更にテストが追従しない）。
+        internal val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("DROP TABLE IF EXISTS `book_labels`")
+                database.execSQL("DROP TABLE IF EXISTS `labels`")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
@@ -228,6 +260,7 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                         MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
+                        MIGRATION_14_15, MIGRATION_15_16,
                     )
                     .build()
                     .also { INSTANCE = it }

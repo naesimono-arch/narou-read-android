@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.*
@@ -33,9 +32,8 @@ import com.novelreader.narou.model.NarouNovel
 import com.novelreader.ui.components.BookCover
 import com.novelreader.ui.components.coverBarColor
 import com.novelreader.ui.theme.MinchoFamily
-import java.io.File
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.novelreader.viewmodel.chapterNumberOf
+import com.novelreader.viewmodel.progressFractionFor
 
 // ============================================================
 // 進捗行（モック .pr）: 「N話 + 細い藍バー + N%」を藍で、未読は青磁で表示。
@@ -88,36 +86,6 @@ private fun BookProgressRow(
 }
 
 // ============================================================
-// 本棚カードの進捗割合を、章位置＋（最終章のみ）章内スクロール位置から算出する。
-//
-// なぜ単純な chapNum/totalChaps を使わないか（F-N）:
-// それだと最終章のファイルを開いた瞬間、章内を1行も読んでいなくても progress=1.0 になり
-// 「100%」と嘘表示していた（章 index 単独算出でスクロール実位置を無視していたのが根因）。
-// 章の総量（総アイテム数・総高さ）は DB に保存しておらず（ProgressEntity が持つのは
-// LazyList の firstVisibleItemIndex/Offset だけ）、厳密な章内% は原理的に出せない。
-// そこで最終章に限り、確実に判る「先頭か否か」だけを使って過大表示を避ける:
-//   ・先頭（未スクロール）＝まだ最終章を読み始めていない → (N-1)/N（あと1章ぶん未読）
-//   ・少しでもスクロール済み＝読み進めている → 1.0（読了間近とみなす）
-// 中間章は従来どおり chapNum/totalChaps（そこは嘘にならないため挙動を変えない）。
-// 進捗の書込側は一切変更せず、表示計算のみで嘘を消す。
-// ============================================================
-internal fun progressFractionFor(
-    chapNum: Int?,
-    totalChaps: Int,
-    scrollIndex: Int,
-    scrollOffset: Int,
-): Float? {
-    if (chapNum == null || totalChaps <= 0) return null
-    return if (chapNum >= totalChaps) {
-        // 最終章。章内スクロールを加味する。
-        val atTop = scrollIndex == 0 && scrollOffset == 0
-        if (atTop) (totalChaps - 1).toFloat() / totalChaps else 1f
-    } else {
-        chapNum.toFloat() / totalChaps
-    }
-}
-
-// ============================================================
 // 続きありバッジ（モック fusion .new-chapters）: 青磁ドット＋藍文字「続き N話」。
 // PDF↔Web継続読書の「新着の気配」を本棚でも静かに知らせる。
 // ============================================================
@@ -163,27 +131,18 @@ internal fun GridBookCard(
     progress: ProgressEntity?,
     // 続きありバッジ用のなろう詳細（VM が一括照会し配布。null=未紐付け/未取得/失敗）。
     novelDetail: NarouNovel?,
+    // 章数（chap_N.html の枚数）。VM の chapterCountMap から渡す＝カード毎の重複IOを廃し、
+    // 状態フィルタ（readingStatusFor）と同じ値を共有する。
+    totalChaps: Int,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
-    // U2: ⋮メニュー「ラベル」→ 付与シートの起動（シート実体は本棚描画層が持つ）。
-    onAssignLabel: () -> Unit,
     deleteUiMode: Int,
     modifier: Modifier = Modifier,
 ) {
     // 削除メニューの開閉状態（⋮タップ または 長押しで開く）
     var menuExpanded by remember { mutableStateOf(false) }
 
-    val totalChaps by produceState(initialValue = 0, key1 = book.id) {
-        value = withContext(Dispatchers.IO) {
-            File(book.htmlDirPath)
-                .listFiles { f -> f.name.matches(Regex("chap_\\d+\\.html")) }
-                ?.size ?: 0
-        }
-    }
-
-    val chapNum = progress?.lastReadFilename
-        ?.takeIf { it.startsWith("chap_") }
-        ?.removePrefix("chap_")?.removeSuffix(".html")?.toIntOrNull()
+    val chapNum = chapterNumberOf(progress?.lastReadFilename)
 
     // 最終章の章内スクロールを加味して「開いた瞬間100%」の嘘を消す（F-N・詳細は progressFractionFor）。
     val progressFraction = progressFractionFor(
@@ -252,7 +211,6 @@ internal fun GridBookCard(
                     expanded = menuExpanded,
                     onDismiss = { menuExpanded = false },
                     onDelete = { menuExpanded = false; onDelete() },
-                    onAssignLabel = { menuExpanded = false; onAssignLabel() },
                 )
             }
         }
@@ -295,27 +253,18 @@ internal fun ListBookCard(
     progress: ProgressEntity?,
     // 続きありバッジ用のなろう詳細（VM が一括照会し配布。null=未紐付け/未取得/失敗）。
     novelDetail: NarouNovel?,
+    // 章数（chap_N.html の枚数）。VM の chapterCountMap から渡す＝カード毎の重複IOを廃し、
+    // 状態フィルタ（readingStatusFor）と同じ値を共有する。
+    totalChaps: Int,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
-    // U2: ⋮メニュー「ラベル」→ 付与シートの起動（シート実体は本棚描画層が持つ）。
-    onAssignLabel: () -> Unit,
     deleteUiMode: Int,
     modifier: Modifier = Modifier,
 ) {
     // 削除メニューの開閉状態（⋮タップ または 長押しで開く）
     var menuExpanded by remember { mutableStateOf(false) }
 
-    val totalChaps by produceState(initialValue = 0, key1 = book.id) {
-        value = withContext(Dispatchers.IO) {
-            File(book.htmlDirPath)
-                .listFiles { f -> f.name.matches(Regex("chap_\\d+\\.html")) }
-                ?.size ?: 0
-        }
-    }
-
-    val chapNum = progress?.lastReadFilename
-        ?.takeIf { it.startsWith("chap_") }
-        ?.removePrefix("chap_")?.removeSuffix(".html")?.toIntOrNull()
+    val chapNum = chapterNumberOf(progress?.lastReadFilename)
 
     // 最終章の章内スクロールを加味して「開いた瞬間100%」の嘘を消す（F-N・詳細は progressFractionFor）。
     val progressFraction = progressFractionFor(
@@ -419,7 +368,6 @@ internal fun ListBookCard(
                     expanded = menuExpanded,
                     onDismiss = { menuExpanded = false },
                     onDelete = { menuExpanded = false; onDelete() },
-                    onAssignLabel = { menuExpanded = false; onAssignLabel() },
                 )
             }
         }
@@ -434,27 +382,14 @@ internal fun ListBookCard(
 // ============================================================
 // カードメニュー（⋮タップ・長押し共通のドロップダウン）
 // 一時機構：削除UIの採用方式が確定したら呼び出し側の分岐ごと整理する。
-// U2 で「ラベル」を追加（付与シートの起動＝実体は本棚描画層が持つ）。
 // ============================================================
 @Composable
 private fun DeleteDropdownMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
     onDelete: () -> Unit,
-    onAssignLabel: () -> Unit,
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
-        DropdownMenuItem(
-            text = { Text("ラベル") },
-            onClick = onAssignLabel,
-            leadingIcon = {
-                Icon(
-                    Icons.AutoMirrored.Outlined.Label,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            },
-        )
         DropdownMenuItem(
             text = { Text("削除") },
             onClick = onDelete,
