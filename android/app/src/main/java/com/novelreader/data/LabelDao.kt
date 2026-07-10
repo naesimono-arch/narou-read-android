@@ -19,4 +19,9 @@ interface LabelDao {
     // なぜラベルID指定の削除なのか: ユーザーが不要になったラベルを選択して個別に削除できるようにするため（本との紐付け junction のクリーンアップは BookLabelDao で別途行う）。
     @Query("DELETE FROM labels WHERE id = :labelId")
     suspend fun delete(labelId: String)
+
+    // なぜ name 逆引きが要るのか: 「作成と同時にその本へ付与」で、IGNORE 挿入後（新規/同名既存どちらでも）
+    // 実際に紐付けるべき labelId を name から一意に解決するため（name は unique index）。
+    @Query("SELECT * FROM labels WHERE name = :name LIMIT 1")
+    suspend fun findByName(name: String): LabelEntity?
 }

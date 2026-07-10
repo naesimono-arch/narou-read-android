@@ -33,6 +33,26 @@ sealed interface ShelfItem {
  *   蔵書カードへ「自然昇格」し、二重表示しない。比較は保存時正規化（trim+uppercase）と同じ形で行う。
  * - 同値キーのときは蔵書を先に置く（読める実体がある方が優先という判断）。
  */
+/**
+ * U2 ラベル絞り込みの純関数（mergeShelfItems の前段に噛ませる）。
+ *
+ * - selectedLabelId=null（「すべて」）は無加工で素通しする。
+ * - ラベル選択中の Web由来カードは**全部落とす**。なぜ: ラベルは PDF 蔵書（books）のみ付与対象
+ *   （BookLabelEntity の why 参照）で、Web カードはどのラベルにもマッチし得ない。「すべて」以外で
+ *   マッチ不能なカードを混ぜると「ラベルを付けたのに関係ない Web カードが残る」誤解を生むため。
+ *
+ * @param bookLabelIds bookId→付与済み labelId 集合（BookshelfUiState.Content.bookLabelIds）。
+ */
+fun filterShelfByLabel(
+    books: List<BookEntity>,
+    webNovels: List<WebNovelEntity>,
+    selectedLabelId: String?,
+    bookLabelIds: Map<String, Set<String>>,
+): Pair<List<BookEntity>, List<WebNovelEntity>> {
+    if (selectedLabelId == null) return books to webNovels
+    return books.filter { bookLabelIds[it.id]?.contains(selectedLabelId) == true } to emptyList()
+}
+
 fun mergeShelfItems(
     books: List<BookEntity>,
     progressMap: Map<String, ProgressEntity>,

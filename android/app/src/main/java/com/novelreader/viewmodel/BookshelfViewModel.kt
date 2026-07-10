@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.novelreader.NovelReaderApplication
 import com.novelreader.PdfProcessingService
 import com.novelreader.data.BookEntity
+import com.novelreader.data.LabelEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.narou.NarouApiException
@@ -46,10 +47,14 @@ sealed interface BookshelfUiState {
     data object Loading : BookshelfUiState
     /** DB 発行後の確定状態。books が空なら「蔵書ゼロ」を表す（Loading とは別物）。
      *  webNovels は (b) Web由来・未取込カード（融合本棚）。既定 emptyList は既存テスト・
-     *  呼び出しの互換のため（Web カード非対応の経路は蔵書のみで従来どおり成立する）。 */
+     *  呼び出しの互換のため（Web カード非対応の経路は蔵書のみで従来どおり成立する）。
+     *  labels/bookLabelIds は U2 ラベル整理（絞り込みチップ行＋付与シート）。bookLabelIds は
+     *  bookId→付与済み labelId 集合＝付与シートのチェック状態と絞り込みの両方をこの1つで賄う。 */
     data class Content(
         val books: List<BookEntity>,
         val webNovels: List<WebNovelEntity> = emptyList(),
+        val labels: List<LabelEntity> = emptyList(),
+        val bookLabelIds: Map<String, Set<String>> = emptyMap(),
     ) : BookshelfUiState
 }
 
@@ -101,11 +106,20 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     private val novelApiRepository = app.novelApiRepository
 
     // 一覧の正本。Loading を初期値にして「DB 初回発行前」を明示する（F-O）。
-    // (b) 融合本棚: 蔵書と Web由来（未取込）を combine で束ねる。Room の両 Flow とも初回発行は
+    // (b) 融合本棚: 蔵書と Web由来（未取込）を combine で束ねる。Room の各 Flow とも初回発行は
     // 即時のため、combine 待ちが Loading を不当に長引かせることはない。
+    // U2: ラベルと付与も同じ combine に束ね、付与リストは bookId→labelId 集合へここで畳む
+    // （描画層は Map を引くだけの純粋表示にする＝カード/シート/チップの3箇所で同じ形を共有）。
     val uiState: StateFlow<BookshelfUiState> =
-        combine(repository.allBooks, repository.webNovels) { books, webNovels ->
-            BookshelfUiState.Content(books, webNovels) as BookshelfUiState
+        combine(
+            repository.allBooks, repository.webNovels, repository.labels, repository.bookLabels,
+        ) { books, webNovels, labels, bookLabels ->
+            BookshelfUiState.Content(
+                books = books,
+                webNovels = webNovels,
+                labels = labels,
+                bookLabelIds = bookLabels.groupBy({ it.bookId }, { it.labelId }).mapValues { it.value.toSet() },
+            ) as BookshelfUiState
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BookshelfUiState.Loading)
 
@@ -232,6 +246,20 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     // 削除すれば本棚から即時に消える（deleteBook と同じ配送経路）。
     fun removeWebNovel(ncode: String) {
         viewModelScope.launch(Dispatchers.IO) { repository.removeWebNovel(Ncode(ncode)) }
+    }
+
+    // ────── U2 ラベル整理（作成・削除・付与はすべて uiState の combine へ hot に反映される）──────
+    // assignToBookId: 付与シートの「作成」から呼ぶとき＝その本へ即付与（BookRepository.createLabel の why）。
+    fun createLabel(name: String, assignToBookId: String? = null) {
+        viewModelScope.launch(Dispatchers.IO) { repository.createLabel(name, assignToBookId) }
+    }
+
+    fun deleteLabel(labelId: String) {
+        viewModelScope.launch(Dispatchers.IO) { repository.deleteLabel(labelId) }
+    }
+
+    fun setBookLabel(bookId: String, labelId: String, assigned: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { repository.setBookLabel(bookId, labelId, assigned) }
     }
 
     // PDF↔Web継続読書: なろう作品との紐付け（null で解除）。

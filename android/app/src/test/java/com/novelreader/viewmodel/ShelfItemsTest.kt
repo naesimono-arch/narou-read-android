@@ -62,4 +62,40 @@ class ShelfItemsTest {
     fun `両方空なら空（本棚の空状態判定に使う）`() {
         assertEquals(emptyList<ShelfItem>(), mergeShelfItems(emptyList(), emptyMap(), emptyList()))
     }
+
+    // ────── U2 filterShelfByLabel（ラベル絞り込みの純関数） ──────
+
+    @Test
+    fun `ラベル未選択（すべて）は無加工で素通しする`() {
+        val books = listOf(book("b1", 300), book("b2", 100))
+        val webs = listOf(web("N1111AA", 200))
+
+        val (fb, fw) = filterShelfByLabel(books, webs, selectedLabelId = null, bookLabelIds = emptyMap())
+
+        assertEquals(books, fb)
+        assertEquals(webs, fw)
+    }
+
+    @Test
+    fun `ラベル選択中は付与済みの蔵書だけ残りWebカードは全部落ちる`() {
+        val books = listOf(book("b1", 300), book("b2", 100))
+        val webs = listOf(web("N1111AA", 200))
+        val assignments = mapOf("b1" to setOf("label-1", "label-2"))
+
+        val (fb, fw) = filterShelfByLabel(books, webs, selectedLabelId = "label-1", bookLabelIds = assignments)
+
+        assertEquals(listOf("b1"), fb.map { it.id })
+        assertEquals(emptyList<WebNovelEntity>(), fw)
+    }
+
+    @Test
+    fun `どの本にも付いていないラベルを選ぶと蔵書0件になる（該当なし表示の前提）`() {
+        val books = listOf(book("b1", 300))
+        val assignments = mapOf("b1" to setOf("label-1"))
+
+        val (fb, fw) = filterShelfByLabel(books, emptyList(), selectedLabelId = "label-9", bookLabelIds = assignments)
+
+        assertEquals(emptyList<BookEntity>(), fb)
+        assertEquals(emptyList<WebNovelEntity>(), fw)
+    }
 }
