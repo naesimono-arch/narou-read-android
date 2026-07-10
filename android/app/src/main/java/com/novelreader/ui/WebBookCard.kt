@@ -162,34 +162,35 @@ fun WebListBookCard(
                     onClick = onOpen,
                     onLongClick = { menuExpanded = true },
                 )
-                .padding(top = 18.dp, bottom = 18.dp),
+                // 色帯を行の高さいっぱいに伸ばすため（PDF 蔵書の目録行と同じ骨格）。
+                .height(IntrinsicSize.Min)
+                .padding(top = 16.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 小さい書影（46×69・角丸2px・文字なしの色面のみ）
-            // なぜ ruleColor に secondary を渡すか: (b) Web由来・未取込カードはモック正本で縦ルールが青磁（#9CB3A8 相当、colorScheme.secondary）のため。
-            BookCover(
-                bookId = novel.ncode,
-                title = novel.title,
-                showTitle = false,
-                ruleColor = MaterialTheme.colorScheme.secondary,
+            // 左端の色帯（本の小口メタファ）。未取込＝青磁（colorScheme.secondary）。
+            // なぜ青磁か: (b) Web由来・未取込カードはモック正本で青磁が『未取込』の視覚署名。
+            // 書影版の「青磁の縦ルール」を、文字目録では左端の青磁色帯へ引き継ぐ。
+            Box(
                 modifier = Modifier
-                    .width(46.dp)
-                    .height(69.dp)
-                    .clip(RoundedCornerShape(2.dp)),
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(MaterialTheme.colorScheme.secondary),
             )
-            Spacer(Modifier.width(16.dp))
+            Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = novel.title,
                     fontFamily = MinchoFamily,
-                    fontSize = 15.sp,
-                    lineHeight = 21.sp,
-                    maxLines = 1,
+                    fontSize = 16.5.sp,
+                    lineHeight = 25.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 if (novel.writer.isNotBlank()) {
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(6.dp))
                     Text(
                         text = novel.writer,
                         fontSize = 11.sp,
@@ -198,9 +199,9 @@ fun WebListBookCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Spacer(Modifier.height(9.dp))
+                Spacer(Modifier.height(10.dp))
                 // メタ行（なろう・未取込）：青磁、10.5sp、weight 500 (Medium)
-                // なぜ進捗行・続きバッジを出さないか: 未取り込みのため進捗が存在しない。モック bookshelf-fusion-D.html の仕様に準拠する。
+                // なぜ進捗行・続きバッジを出さないか: 未取り込みのため進捗が存在しない。
                 Text(
                     text = "なろう・未取込",
                     fontSize = 10.5.sp,

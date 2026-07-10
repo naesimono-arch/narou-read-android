@@ -12,7 +12,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.novelreader.data.BookEntity
-import com.novelreader.data.LabelEntity
+import com.novelreader.data.ProgressEntity
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.ProcessingState
@@ -40,11 +40,11 @@ class BookshelfContentTest {
     private fun book(id: String, title: String) =
         BookEntity(id = id, title = title, htmlDirPath = "/nonexistent/$id")
 
-    private fun label(id: String, name: String) =
-        LabelEntity(id = id, name = name, createdAt = 0L)
-
     private fun setContent(
         uiState: BookshelfUiState,
+        // 読書状態フィルタは progress（読了度）と章数（分母）から状態を導くため、両方を差し込めるようにする。
+        progressMap: Map<String, ProgressEntity> = emptyMap(),
+        chapterCountMap: Map<String, Int> = emptyMap(),
         onFabClick: () -> Unit = {},
         onOpenDiscovery: () -> Unit = {},
     ) {
@@ -52,7 +52,8 @@ class BookshelfContentTest {
             MaterialTheme {
                 BookshelfContent(
                     uiState = uiState,
-                    progressMap = emptyMap(),
+                    progressMap = progressMap,
+                    chapterCountMap = chapterCountMap,
                     newEpisodeNovelMap = emptyMap(),
                     processingState = ProcessingState(),
                     appTheme = ReadingTheme.LIGHT,
@@ -112,39 +113,43 @@ class BookshelfContentTest {
         assertTrue(fabClicked)
     }
 
-    // ────── U2 ラベル絞り込みチップ行 ──────
+    // ────── 読書状態フィルタのチップ行（すべて/よみかけ/未読/読了） ──────
 
     @Test
-    fun `ラベル未作成ならチップ行を行ごと出さない（モック仕様）`() {
-        setContent(BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))))
-        composeTestRule.onNodeWithText("すべて").assertDoesNotExist()
-    }
-
-    @Test
-    fun `ラベルがあればチップ行が出て「すべて」が既定選択で全カード表示`() {
+    fun `蔵書ありなら固定4状態チップが出て「すべて」既定で全カード表示`() {
+        // ラベルと違い状態チップは固定4個で常設（表示条件は FindGuideBand と同じ＝棚が非空なら出す）。
+        // なぜ両本によみかけ進捗を与えるか: 未読カードは進捗行に「未読」を描くため、チップ「未読」と文字が
+        // 衝突して onNodeWithText が複数ノードで落ちる。よみかけ進捗（N話 X%）にしてカード側の「未読」を消し、
+        // 4チップが各1ノードで数えられるようにする。
         setContent(
             BookshelfUiState.Content(
                 books = listOf(book("b1", "吾輩は猫である"), book("b2", "坊っちゃん")),
-                labels = listOf(label("l1", "異世界")),
-                bookLabelIds = mapOf("b1" to setOf("l1")),
-            )
+            ),
+            progressMap = mapOf(
+                "b1" to ProgressEntity("b1", "chap_3.html"),
+                "b2" to ProgressEntity("b2", "chap_3.html"),
+            ),
+            chapterCountMap = mapOf("b1" to 10, "b2" to 10),
         )
         composeTestRule.onNodeWithText("すべて").assertIsDisplayed()
-        composeTestRule.onNodeWithText("異世界").assertIsDisplayed()
+        composeTestRule.onNodeWithText("よみかけ").assertIsDisplayed()
+        composeTestRule.onNodeWithText("未読").assertIsDisplayed()
+        composeTestRule.onNodeWithText("読了").assertIsDisplayed()
         composeTestRule.onAllNodesWithText("吾輩は猫である").onFirst().assertIsDisplayed()
         composeTestRule.onAllNodesWithText("坊っちゃん").onFirst().assertIsDisplayed()
     }
 
     @Test
-    fun `ラベルチップ選択で付与済みの本だけに絞り込まれ「すべて」で戻る`() {
+    fun `状態チップ選択で該当状態の本だけに絞り込まれ「すべて」で戻る`() {
+        // b1=よみかけ（chap_3/全10章）・b2=未読（進捗なし）。「よみかけ」で b1 のみ残す。
         setContent(
             BookshelfUiState.Content(
                 books = listOf(book("b1", "吾輩は猫である"), book("b2", "坊っちゃん")),
-                labels = listOf(label("l1", "異世界")),
-                bookLabelIds = mapOf("b1" to setOf("l1")),
-            )
+            ),
+            progressMap = mapOf("b1" to ProgressEntity("b1", "chap_3.html")),
+            chapterCountMap = mapOf("b1" to 10, "b2" to 10),
         )
-        composeTestRule.onNodeWithText("異世界").performClick()
+        composeTestRule.onNodeWithText("よみかけ").performClick()
         composeTestRule.onAllNodesWithText("吾輩は猫である").onFirst().assertIsDisplayed()
         composeTestRule.onAllNodesWithText("坊っちゃん").assertCountEquals(0)
 
@@ -154,15 +159,14 @@ class BookshelfContentTest {
 
     @Test
     fun `絞り込み0件は蔵書ゼロ扱いにせず該当なし文言を出す`() {
+        // 進捗なし＝全て未読の棚で「読了」を選ぶと 0 件になる。
         setContent(
             BookshelfUiState.Content(
                 books = listOf(book("b1", "吾輩は猫である")),
-                labels = listOf(label("l1", "異世界"), label("l2", "あとで読む")),
-                bookLabelIds = mapOf("b1" to setOf("l1")),
             )
         )
-        composeTestRule.onNodeWithText("あとで読む").performClick()
-        composeTestRule.onNodeWithText("このラベルの本はありません").assertIsDisplayed()
+        composeTestRule.onNodeWithText("読了").performClick()
+        composeTestRule.onNodeWithText("この分類の本はありません").assertIsDisplayed()
         // 「蔵書ゼロ」の空状態と混同しない（EmptyBookshelf は出さない）
         composeTestRule.onNodeWithText("本棚はまだ空です").assertDoesNotExist()
         // チップ行は出続けて「すべて」へ戻れる

@@ -4,10 +4,6 @@ import android.content.Context
 import android.net.Uri
 import com.novelreader.data.BookDao
 import com.novelreader.data.BookEntity
-import com.novelreader.data.BookLabelDao
-import com.novelreader.data.BookLabelEntity
-import com.novelreader.data.LabelDao
-import com.novelreader.data.LabelEntity
 import com.novelreader.data.PendingJobDao
 import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressDao
@@ -36,8 +32,6 @@ class BookRepositoryTest {
     private lateinit var bookDao: BookDao
     private lateinit var progressDao: ProgressDao
     private lateinit var pendingJobDao: PendingJobDao
-    private lateinit var labelDao: LabelDao
-    private lateinit var bookLabelDao: BookLabelDao
     private lateinit var context: Context
     // 実装クラスを直接組み立てる（internal な findExistingBook/classifyError 等を検証するため）。
     // interface BookRepository には出さない実装詳細メソッドなので DefaultBookRepository 型で受ける。
@@ -49,14 +43,9 @@ class BookRepositoryTest {
         bookDao = mockk(relaxed = true)
         progressDao = mockk(relaxed = true)
         pendingJobDao = mockk(relaxed = true)
-        labelDao = mockk(relaxed = true)
-        bookLabelDao = mockk(relaxed = true)
-        // U2: deleteBook が bookLabelDao.deleteForBook を呼ぶようになったため mock を明示注入する
-        // （デフォルト引数は AppDatabase.getDatabase＝実 Room の DAO に落ち、JVM テストで実クエリが走る）。
-        repository = DefaultBookRepository(
-            context, bookDao, progressDao, pendingJobDao,
-            labelDao = labelDao, bookLabelDao = bookLabelDao,
-        )
+        // 検証対象の DAO だけ明示注入する（webNovelDao 等の残りはデフォルト引数のまま＝
+        // 本テストが触る経路では呼ばれないので実 Room に落ちても評価されない）。
+        repository = DefaultBookRepository(context, bookDao, progressDao, pendingJobDao)
     }
 
     // ── classifyError: PdfExtractionException 型分岐 ──────────────────────
@@ -117,27 +106,6 @@ class BookRepositoryTest {
         repository.deleteBook(book)
         coVerify { bookDao.deleteById("id01") }
         coVerify { progressDao.deleteByBookId("id01") }
-        // U2: ラベル付与の junction 掃除も同便で行われる（FK なし設計のアプリ層クリーンアップ）
-        coVerify { bookLabelDao.deleteForBook("id01") }
-    }
-
-    @Test
-    fun `createLabel - assignToBookId 付きなら name 逆引きでその本へ即付与する（同名既存でも付与される）`() = runTest {
-        // 同名既存を模す: insert は IGNORE で -1・findByName は既存ラベルを返す
-        coEvery { labelDao.insert(any()) } returns -1L
-        coEvery { labelDao.findByName("異世界") } returns LabelEntity("l1", "異世界", 0L)
-
-        repository.createLabel("  異世界  ", assignToBookId = "id01")
-
-        // trim された name で逆引きし、既存ラベル l1 への付与 junction が入る
-        coVerify { bookLabelDao.insert(BookLabelEntity(bookId = "id01", labelId = "l1")) }
-    }
-
-    @Test
-    fun `createLabel - 空白のみの名前は何もしない`() = runTest {
-        repository.createLabel("   ", assignToBookId = "id01")
-        coVerify(exactly = 0) { labelDao.insert(any()) }
-        coVerify(exactly = 0) { bookLabelDao.insert(any()) }
     }
 
     @Test

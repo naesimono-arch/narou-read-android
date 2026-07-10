@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.*
@@ -31,10 +30,10 @@ import com.novelreader.narou.ContinuationInfo
 import com.novelreader.narou.computeContinuation
 import com.novelreader.narou.model.NarouNovel
 import com.novelreader.ui.components.BookCover
+import com.novelreader.ui.components.coverBarColor
 import com.novelreader.ui.theme.MinchoFamily
-import java.io.File
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.novelreader.viewmodel.chapterNumberOf
+import com.novelreader.viewmodel.progressFractionFor
 
 // ============================================================
 // 進捗行（モック .pr）: 「N話 + 細い藍バー + N%」を藍で、未読は青磁で表示。
@@ -87,36 +86,6 @@ private fun BookProgressRow(
 }
 
 // ============================================================
-// 本棚カードの進捗割合を、章位置＋（最終章のみ）章内スクロール位置から算出する。
-//
-// なぜ単純な chapNum/totalChaps を使わないか（F-N）:
-// それだと最終章のファイルを開いた瞬間、章内を1行も読んでいなくても progress=1.0 になり
-// 「100%」と嘘表示していた（章 index 単独算出でスクロール実位置を無視していたのが根因）。
-// 章の総量（総アイテム数・総高さ）は DB に保存しておらず（ProgressEntity が持つのは
-// LazyList の firstVisibleItemIndex/Offset だけ）、厳密な章内% は原理的に出せない。
-// そこで最終章に限り、確実に判る「先頭か否か」だけを使って過大表示を避ける:
-//   ・先頭（未スクロール）＝まだ最終章を読み始めていない → (N-1)/N（あと1章ぶん未読）
-//   ・少しでもスクロール済み＝読み進めている → 1.0（読了間近とみなす）
-// 中間章は従来どおり chapNum/totalChaps（そこは嘘にならないため挙動を変えない）。
-// 進捗の書込側は一切変更せず、表示計算のみで嘘を消す。
-// ============================================================
-internal fun progressFractionFor(
-    chapNum: Int?,
-    totalChaps: Int,
-    scrollIndex: Int,
-    scrollOffset: Int,
-): Float? {
-    if (chapNum == null || totalChaps <= 0) return null
-    return if (chapNum >= totalChaps) {
-        // 最終章。章内スクロールを加味する。
-        val atTop = scrollIndex == 0 && scrollOffset == 0
-        if (atTop) (totalChaps - 1).toFloat() / totalChaps else 1f
-    } else {
-        chapNum.toFloat() / totalChaps
-    }
-}
-
-// ============================================================
 // 続きありバッジ（モック fusion .new-chapters）: 青磁ドット＋藍文字「続き N話」。
 // PDF↔Web継続読書の「新着の気配」を本棚でも静かに知らせる。
 // ============================================================
@@ -162,27 +131,18 @@ internal fun GridBookCard(
     progress: ProgressEntity?,
     // 続きありバッジ用のなろう詳細（VM が一括照会し配布。null=未紐付け/未取得/失敗）。
     novelDetail: NarouNovel?,
+    // 章数（chap_N.html の枚数）。VM の chapterCountMap から渡す＝カード毎の重複IOを廃し、
+    // 状態フィルタ（readingStatusFor）と同じ値を共有する。
+    totalChaps: Int,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
-    // U2: ⋮メニュー「ラベル」→ 付与シートの起動（シート実体は本棚描画層が持つ）。
-    onAssignLabel: () -> Unit,
     deleteUiMode: Int,
     modifier: Modifier = Modifier,
 ) {
     // 削除メニューの開閉状態（⋮タップ または 長押しで開く）
     var menuExpanded by remember { mutableStateOf(false) }
 
-    val totalChaps by produceState(initialValue = 0, key1 = book.id) {
-        value = withContext(Dispatchers.IO) {
-            File(book.htmlDirPath)
-                .listFiles { f -> f.name.matches(Regex("chap_\\d+\\.html")) }
-                ?.size ?: 0
-        }
-    }
-
-    val chapNum = progress?.lastReadFilename
-        ?.takeIf { it.startsWith("chap_") }
-        ?.removePrefix("chap_")?.removeSuffix(".html")?.toIntOrNull()
+    val chapNum = chapterNumberOf(progress?.lastReadFilename)
 
     // 最終章の章内スクロールを加味して「開いた瞬間100%」の嘘を消す（F-N・詳細は progressFractionFor）。
     val progressFraction = progressFractionFor(
@@ -251,7 +211,6 @@ internal fun GridBookCard(
                     expanded = menuExpanded,
                     onDismiss = { menuExpanded = false },
                     onDelete = { menuExpanded = false; onDelete() },
-                    onAssignLabel = { menuExpanded = false; onAssignLabel() },
                 )
             }
         }
@@ -282,7 +241,10 @@ internal fun GridBookCard(
 }
 
 // ============================================================
-// リスト用書籍カード
+// 文字目録の行（骨格3）: 表紙を排し、明朝の題字を主役に縦へ連ねる。
+// 作品の識別は左端 4dp の色帯（本の小口メタファ・作品識別色）だけで行う
+// ＝生成書影を捨てて存在しない装画を捏造しない（モック bookshelf-mokuroku-D.html）。
+// ※関数名は呼び出し側（BookshelfContent のリストモード）との互換のため ListBookCard を維持する。
 // ============================================================
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -291,32 +253,26 @@ internal fun ListBookCard(
     progress: ProgressEntity?,
     // 続きありバッジ用のなろう詳細（VM が一括照会し配布。null=未紐付け/未取得/失敗）。
     novelDetail: NarouNovel?,
+    // 章数（chap_N.html の枚数）。VM の chapterCountMap から渡す＝カード毎の重複IOを廃し、
+    // 状態フィルタ（readingStatusFor）と同じ値を共有する。
+    totalChaps: Int,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
-    // U2: ⋮メニュー「ラベル」→ 付与シートの起動（シート実体は本棚描画層が持つ）。
-    onAssignLabel: () -> Unit,
     deleteUiMode: Int,
     modifier: Modifier = Modifier,
 ) {
     // 削除メニューの開閉状態（⋮タップ または 長押しで開く）
     var menuExpanded by remember { mutableStateOf(false) }
 
-    val totalChaps by produceState(initialValue = 0, key1 = book.id) {
-        value = withContext(Dispatchers.IO) {
-            File(book.htmlDirPath)
-                .listFiles { f -> f.name.matches(Regex("chap_\\d+\\.html")) }
-                ?.size ?: 0
-        }
-    }
-
-    val chapNum = progress?.lastReadFilename
-        ?.takeIf { it.startsWith("chap_") }
-        ?.removePrefix("chap_")?.removeSuffix(".html")?.toIntOrNull()
+    val chapNum = chapterNumberOf(progress?.lastReadFilename)
 
     // 最終章の章内スクロールを加味して「開いた瞬間100%」の嘘を消す（F-N・詳細は progressFractionFor）。
     val progressFraction = progressFractionFor(
         chapNum, totalChaps, progress?.scrollIndex ?: 0, progress?.scrollOffset ?: 0,
     )
+
+    // 作品識別色（左端の色帯）。表紙を持たない目録では、この色帯だけが作品の視覚的な手がかり。
+    val barColor = remember(book.id) { coverBarColor(book.id) }
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -326,7 +282,7 @@ internal fun ListBookCard(
         label = "listCardScale",
     )
 
-    // モック .li: カード地・影を廃し、上下余白＋下ヘアラインで区切る静かな行。
+    // モック 文字目録 .li: カード地・影・書影を廃し、上下余白＋下ヘアラインで区切る静かな行。
     // 外側 Column が行本体(Row)と区切り線(HorizontalDivider)を束ねる。
     Column(modifier = modifier) {
         Row(
@@ -339,52 +295,62 @@ internal fun ListBookCard(
                     // 長押しは方式に依らず常時有効（M5: ⋮のフォールバック）。deleteUiMode は⋮の可視のみ制御。
                     onLongClick = { menuExpanded = true },
                 )
-                .padding(top = 18.dp, bottom = 18.dp),
+                // 色帯を行の高さいっぱいに伸ばすため、行の高さを内容の最小内在高さに合わせる。
+                .height(IntrinsicSize.Min)
+                .padding(top = 16.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 小さい書影（46×69・角丸2px・文字なしの色面のみ）
-            BookCover(
-                bookId = book.id,
-                title = book.title,
-                showTitle = false,
+            // 左端の色帯（本の小口メタファ・作品識別色）。行の高さに合わせて stretch。
+            Box(
                 modifier = Modifier
-                    .width(46.dp)
-                    .height(69.dp)
-                    .clip(RoundedCornerShape(2.dp)),
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(barColor),
             )
-            Spacer(Modifier.width(16.dp))
+            Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
+                // 明朝の題字（目録の主役）。2行まで。
                 Text(
                     text = book.title,
                     fontFamily = MinchoFamily,
-                    fontSize = 15.sp,
-                    lineHeight = 21.sp,
-                    maxLines = 1,
+                    fontSize = 16.5.sp,
+                    lineHeight = 25.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                if (book.author.isNotBlank()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = book.author,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.height(9.dp))
-                // モック fusion のリストは進捗行の右に続きありバッジを並べる（margin-left:10px）
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    BookProgressRow(
-                        totalChaps = totalChaps,
-                        progressFraction = progressFraction,
-                        flexBar = false,
-                    )
-                    newEpisodeCountFor(novelDetail, totalChaps)?.let { newCount ->
-                        NewChaptersBadge(newCount = newCount, modifier = Modifier.padding(start = 10.dp))
+                // 著者＋続きあり（青磁）。モックの目録は著者脇に「続き N話」を寄せる。
+                val newCount = newEpisodeCountFor(novelDetail, totalChaps)
+                if (book.author.isNotBlank() || newCount != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (book.author.isNotBlank()) {
+                            Text(
+                                text = book.author,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                // 続きバッジの領域を確保するため、著者が長くてもバッジを押し出さない。
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                        }
+                        newCount?.let {
+                            NewChaptersBadge(
+                                newCount = it,
+                                modifier = Modifier.padding(start = if (book.author.isNotBlank()) 10.dp else 0.dp),
+                            )
+                        }
                     }
                 }
+                Spacer(Modifier.height(10.dp))
+                BookProgressRow(
+                    totalChaps = totalChaps,
+                    progressFraction = progressFraction,
+                    flexBar = false,
+                )
             }
             // 削除アフォーダンス。⋮方式(1・既定)のみ行末にボタン（M5: 削除の可視手がかり）。0は長押しのみ。
             // Box は方式に関わらず DropdownMenu のアンカーとして常設する。
@@ -402,7 +368,6 @@ internal fun ListBookCard(
                     expanded = menuExpanded,
                     onDismiss = { menuExpanded = false },
                     onDelete = { menuExpanded = false; onDelete() },
-                    onAssignLabel = { menuExpanded = false; onAssignLabel() },
                 )
             }
         }
@@ -417,27 +382,14 @@ internal fun ListBookCard(
 // ============================================================
 // カードメニュー（⋮タップ・長押し共通のドロップダウン）
 // 一時機構：削除UIの採用方式が確定したら呼び出し側の分岐ごと整理する。
-// U2 で「ラベル」を追加（付与シートの起動＝実体は本棚描画層が持つ）。
 // ============================================================
 @Composable
 private fun DeleteDropdownMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
     onDelete: () -> Unit,
-    onAssignLabel: () -> Unit,
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
-        DropdownMenuItem(
-            text = { Text("ラベル") },
-            onClick = onAssignLabel,
-            leadingIcon = {
-                Icon(
-                    Icons.AutoMirrored.Outlined.Label,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            },
-        )
         DropdownMenuItem(
             text = { Text("削除") },
             onClick = onDelete,

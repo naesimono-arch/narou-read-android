@@ -7,10 +7,6 @@ import android.util.Log
 import com.novelreader.data.AppDatabase
 import com.novelreader.data.BookDao
 import com.novelreader.data.BookEntity
-import com.novelreader.data.BookLabelDao
-import com.novelreader.data.BookLabelEntity
-import com.novelreader.data.LabelDao
-import com.novelreader.data.LabelEntity
 import com.novelreader.data.PendingJobDao
 import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressDao
@@ -49,8 +45,6 @@ class DefaultBookRepository(
     private val progressDao: ProgressDao = AppDatabase.getDatabase(context).progressDao(),
     private val pendingJobDao: PendingJobDao = AppDatabase.getDatabase(context).pendingJobDao(),
     private val webNovelDao: WebNovelDao = AppDatabase.getDatabase(context).webNovelDao(),
-    private val labelDao: LabelDao = AppDatabase.getDatabase(context).labelDao(),
-    private val bookLabelDao: BookLabelDao = AppDatabase.getDatabase(context).bookLabelDao(),
 ) : BookRepository {
 
     override val allBooks: Flow<List<BookEntity>> = bookDao.getAllBooks()
@@ -63,39 +57,6 @@ class DefaultBookRepository(
     // 表記ゆれの ncode で削除が空振りしてカードが残り続けるため（NcodeLinkSheet の保存正規化と同系）。
     override suspend fun removeWebNovel(ncode: Ncode) =
         webNovelDao.deleteByNcode(ncode.value.trim().uppercase())
-
-    override val labels: Flow<List<LabelEntity>> = labelDao.getAll()
-    override val bookLabels: Flow<List<BookLabelEntity>> = bookLabelDao.getAll()
-
-    override suspend fun createLabel(name: String, assignToBookId: String?) = withContext(Dispatchers.IO) {
-        // 空白だけの名前は作らない（シート側も弾くが、Repository 契約としても保証する）。
-        val trimmed = name.trim()
-        if (trimmed.isEmpty()) return@withContext
-        // 同名は unique index＋IGNORE で挿入されず -1 が返るだけ（LabelDao の why 参照）。
-        labelDao.insert(LabelEntity(id = UUID.randomUUID().toString(), name = trimmed, createdAt = System.currentTimeMillis()))
-        // 作成と同時付与: 挿入結果でなく name 逆引きで labelId を解決する。なぜ: 同名既存（IGNORE で -1）
-        // でも「この本に付けたい」意図は同じで、既存ラベルへの付与として成立させるため。
-        if (assignToBookId != null) {
-            labelDao.findByName(trimmed)?.let { label ->
-                bookLabelDao.insert(BookLabelEntity(bookId = assignToBookId, labelId = label.id))
-            }
-        }
-    }
-
-    override suspend fun deleteLabel(labelId: String) = withContext(Dispatchers.IO) {
-        labelDao.delete(labelId)
-        // FK なし設計のため junction はアプリ層で掃除する（BookLabelDao.deleteForLabel の why 参照）。
-        bookLabelDao.deleteForLabel(labelId)
-    }
-
-    override suspend fun setBookLabel(bookId: String, labelId: String, assigned: Boolean) =
-        withContext(Dispatchers.IO) {
-            if (assigned) {
-                bookLabelDao.insert(BookLabelEntity(bookId = bookId, labelId = labelId))
-            } else {
-                bookLabelDao.delete(bookId, labelId)
-            }
-        }
 
     /** べき等ガードの純判定を切り出したもの: 抽出後のタイトル＋著者に一致する既存蔵書を返す
      *  （無ければ null）。実 PDF 抽出を挟まず単体テストできるよう addBook 本体から分離する。 */
@@ -361,9 +322,6 @@ class DefaultBookRepository(
     override suspend fun deleteBook(book: BookEntity) = withContext(Dispatchers.IO) {
         bookDao.deleteById(book.id)
         progressDao.deleteByBookId(book.id)
-        // U2: FK なし設計のためラベル付与の junction もここで掃除する（放置すると再作成された
-        // 同一 id の本に古いラベルが化けて付く恐れは無い＝id は UUID だが、ゴミ行は残るため）。
-        bookLabelDao.deleteForBook(book.id)
         if (!File(book.htmlDirPath).deleteRecursively()) {
             Log.w(TAG, "HTMLディレクトリの削除に失敗: ${book.htmlDirPath}")
         }

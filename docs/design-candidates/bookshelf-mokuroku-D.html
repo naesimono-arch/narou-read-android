@@ -1,0 +1,268 @@
+<!-- @dsCard group="UI-n / 本棚（文字目録・深掘り）" name="本棚 文字目録D — 3テーマ＋状態" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本棚 文字目録D — 深掘り（3テーマ＋状態）</title>
+<style>
+  /* 骨格3「文字目録」の深掘り。表紙画像を持たないアプリなので、生成書影を捨て
+     「明朝の題字」を主役に縦へ連ねる。作品の識別は左端の色帯（タイトル由来色）だけで行う
+     ＝存在しない装画を捏造しない。器の雰囲気（藍・青磁・明朝・ヘアライン・余白）は検索と共有。
+     色は Color.kt のライト／セピア／ダーク実トークンをテーマ変数として当てている。 */
+  :root{
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;color:#1C1F26;font-family:var(--gothic);padding:34px 26px 70px}
+  .page-head{max-width:1300px;margin:0 auto 26px}
+  .page-head h1{font-family:var(--mincho);font-size:25px;letter-spacing:.08em;font-weight:600}
+  .page-head p{margin-top:10px;font-size:13px;color:#5A5C57;line-height:1.9;max-width:900px}
+  .page-head .note{margin-top:10px;font-size:12px;color:#3f4a54;background:#E3EAEF;border-left:3px solid #1C3D5A;padding:9px 13px;line-height:1.75;max-width:900px}
+  .stage{max-width:1300px;margin:0 auto;display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap .mode{font-size:11px;letter-spacing:.24em;color:#6A6C67}
+  footer{max-width:1300px;margin:26px auto 0;font-size:12.5px;color:#4f5148;line-height:2.0;border-top:1px solid #cfc8bf;padding-top:20px}
+  footer b{color:#1C1F26}
+
+  /* ===== テーマ変数（Color.kt 実トークン） ===== */
+  .phone{width:346px;height:752px;border-radius:38px;overflow:hidden;position:relative;
+    box-shadow:0 18px 46px rgba(0,0,0,.26);display:flex;flex-direction:column;font-family:var(--gothic);
+    background:var(--pg);color:var(--tx)}
+  .tl{--pg:#FBFAF8;--tx:#1C1F26;--sub:#7C808B;--hl:#E4E2DB;--acc:#1C3D5A;--onacc:#fff;--sj:#9CB3A8;
+      --track:#E4E2DB;--banbg:#D6E0E9;--bantx:#1C3D5A;--ripple:#F1F0EC}
+  .ts{--pg:#F2E7CE;--tx:#3D3121;--sub:#8C7D5D;--hl:#E0D3B0;--acc:#2E4A60;--onacc:#fff;--sj:#8CA79A;
+      --track:#E0D3B0;--banbg:#E7DCC0;--bantx:#2E4A60;--ripple:#EBDEBE}
+  .td{--pg:#14171C;--tx:#C7CDD3;--sub:#868D97;--hl:#2A2F38;--acc:#8FB3D4;--onacc:#14171C;--sj:#9CB3A8;
+      --track:#2A2F38;--banbg:#22303C;--bantx:#AFcbe0;--ripple:#1B1F26}
+
+  .sb{height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--sub);flex-shrink:0}
+  .top{padding:6px 22px 10px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
+  .top h1{font-family:var(--mincho);font-size:25px;color:var(--tx);font-weight:500;letter-spacing:.14em}
+  .top .acts{display:flex;gap:1px}
+  .ib{width:36px;height:36px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--tx);cursor:pointer}
+  .ib svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.5}
+
+  /* フィルタ（状態）チップ: 検索の rchip と同型（角丸2px・選択=藍ボーダー＋藍文字） */
+  .filters{display:flex;gap:8px;overflow-x:auto;padding:2px 22px 4px;scrollbar-width:none;flex-shrink:0}
+  .filters::-webkit-scrollbar{display:none}
+  .fc{flex-shrink:0;font-size:11.5px;color:var(--sub);border:1px solid var(--hl);border-radius:2px;padding:6px 13px;cursor:pointer}
+  .fc.on{color:var(--acc);border-color:var(--acc);font-weight:600}
+
+  /* 処理中バナー: 淡い藍地。AnimatedVisibility でスライドインする想定（モックは静的） */
+  .banner{margin:8px 22px 4px;padding:11px 14px;background:var(--banbg);border-radius:2px;display:flex;align-items:center;gap:11px;flex-shrink:0}
+  .banner .sp{width:16px;height:16px;border:1.5px solid var(--bantx);border-top-color:transparent;border-radius:50%;flex-shrink:0}
+  .banner .bt{flex:1;min-width:0}
+  .banner .bt .l{font-size:11.5px;color:var(--bantx);font-weight:600}
+  .banner .bt .pb{height:1px;background:color-mix(in srgb,var(--bantx) 22%,transparent);margin-top:7px;position:relative}
+  .banner .bt .pb i{position:absolute;left:0;top:-0.5px;height:2px;background:var(--bantx)}
+
+  .scroll{flex:1;overflow:auto;padding:2px 22px 90px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+
+  /* ===== 目録の行 ===== */
+  .li{display:flex;gap:14px;padding:16px 2px;border-bottom:1px solid var(--hl);align-items:stretch;position:relative;cursor:pointer}
+  /* 左端の色帯＝本の小口メタファ。表紙画像が無いので、タイトル由来色の細帯だけで作品を見分ける */
+  .li .bar{width:4px;border-radius:2px;flex-shrink:0}
+  .li .bd{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;padding-right:20px}
+  .li .t{font-family:var(--mincho);font-size:16.5px;color:var(--tx);font-weight:600;line-height:1.5;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .li .a{font-size:11px;color:var(--sub);margin-top:6px}
+  .li .a em{font-style:normal;color:var(--sj);margin-left:8px;letter-spacing:.05em;font-weight:600}
+  .li .m{display:flex;align-items:center;gap:9px;font-size:10.5px;color:var(--sub);margin-top:10px}
+  .li .m .pb{width:96px;height:1px;background:var(--track);position:relative}
+  .li .m .pb i{position:absolute;left:0;top:-0.5px;height:2px;background:var(--acc)}
+  .li .m .pct{color:var(--acc)}
+  .li .m .u{color:var(--sj);letter-spacing:.06em}
+  .li .m .done{color:var(--acc);letter-spacing:.06em}
+  .li .more{position:absolute;right:-4px;top:50%;transform:translateY(-50%);width:26px;height:30px;display:grid;place-items:center;color:var(--sub);opacity:.55}
+  .li .more svg{width:16px;height:16px}
+
+  .fab{position:absolute;right:18px;bottom:22px;display:flex;align-items:center;gap:8px;background:var(--acc);color:var(--onacc);
+    border:none;cursor:pointer;padding:13px 18px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 8px 20px rgba(28,61,90,.34);z-index:5}
+  .fab svg{width:17px;height:17px;stroke:var(--onacc);stroke-width:2;fill:none}
+
+  /* ===== 空状態: ゴースト行を薄く敷き、中央に案内 ===== */
+  .empty{position:relative;padding-top:40px}
+  .ghost{display:flex;gap:14px;padding:16px 2px;border-bottom:1px solid var(--hl);opacity:.4}
+  .ghost .bar{width:4px;border-radius:2px;background:var(--hl)}
+  .ghost .g1{height:11px;width:70%;background:var(--track);border-radius:2px}
+  .ghost .g2{height:8px;width:40%;background:var(--track);border-radius:2px;margin-top:9px}
+  .empty .card{position:absolute;left:50%;top:150px;transform:translateX(-50%);width:270px;text-align:center;
+    background:var(--pg);padding:22px 20px;border:1px solid var(--hl);border-radius:3px}
+  .empty .card .k{font-size:10px;letter-spacing:.3em;color:var(--sj);margin-bottom:12px}
+  .empty .card h3{font-family:var(--mincho);font-size:18px;color:var(--tx);font-weight:600;letter-spacing:.06em}
+  .empty .card p{font-size:11.5px;color:var(--sub);line-height:1.8;margin-top:10px}
+  .empty .card .btn{margin-top:18px;display:inline-flex;align-items:center;gap:7px;background:var(--acc);color:var(--onacc);
+    border-radius:2px;padding:11px 18px;font-size:12.5px;font-weight:600;letter-spacing:.08em}
+  .empty .card .btn svg{width:15px;height:15px;stroke:var(--onacc);stroke-width:2;fill:none}
+</style>
+</head>
+<body>
+<header class="page-head">
+  <h1>本棚 ― 文字目録（骨格3）の深掘り</h1>
+  <p>表紙画像を持たないこのアプリに最も素直な骨格。<strong>明朝の題字を主役</strong>に縦へ連ね、作品の識別は<strong>左端の細い色帯（タイトル由来色）だけ</strong>で行います。生成書影を捨てることで“作品の顔”が嘘になりません。</p>
+  <div class="note"><b>3テーマ</b>＝ライト／セピア／ダーク（<code>Color.kt</code> 実トークン）。&nbsp;&nbsp;<b>状態の出し分け</b>＝続きあり（青磁）・未読・読了・なろう未取込・処理中バナー・空状態。&nbsp;&nbsp;上部に状態フィルタ、右に並べ替え。</div>
+</header>
+
+<div class="stage">
+
+  <!-- ライト（フル） -->
+  <div class="wrap"><span class="mode">ライト（フル）</span>
+  <div class="phone tl" role="img" aria-label="文字目録 ライト">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="top"><h1>本棚</h1><div class="acts">
+      <button class="ib" aria-label="見つける"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+      <button class="ib" aria-label="並べ替え"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="16" y2="8"/><line x1="4" y1="13" x2="12" y2="13"/><line x1="4" y1="18" x2="9" y2="18"/></svg></button>
+      <button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg></button>
+    </div></div>
+    <div class="filters">
+      <span class="fc on">すべて</span><span class="fc">よみかけ</span><span class="fc">未読</span><span class="fc">読了</span><span class="fc">お気に入り</span>
+    </div>
+    <div class="banner">
+      <span class="sp"></span>
+      <div class="bt"><div class="l">本文を解析しています ・ 2/4</div><div class="pb"><i style="width:58%"></i></div></div>
+    </div>
+    <div class="scroll">
+      <div class="li"><span class="bar" style="background:#4E8296"></span><div class="bd">
+        <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+        <div class="a">霧島あおい<em>続き 12話</em></div>
+        <div class="m"><span>127話</span><span class="pb"><i style="width:62%"></i></span><span class="pct">62%</span></div></div>
+        <span class="more"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg></span></div>
+      <div class="li"><span class="bar" style="background:#8C4B58"></span><div class="bd">
+        <div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div>
+        <div class="a">夜灯すばる</div>
+        <div class="m"><span>43話</span><span class="pb"><i style="width:28%"></i></span><span class="pct">28%</span></div></div>
+        <span class="more"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg></span></div>
+      <div class="li"><span class="bar" style="background:#5E8A6E"></span><div class="bd">
+        <div class="t">転生したら最弱スキルだったので草むしりしていた</div>
+        <div class="a">青葉みのり</div>
+        <div class="m"><span>210話</span><span class="pb"><i style="width:80%"></i></span><span class="pct">80%</span></div></div>
+        <span class="more"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg></span></div>
+      <div class="li"><span class="bar" style="background:#6E6A93"></span><div class="bd">
+        <div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+        <div class="a">白河すずら<em>なろう・未取込</em></div>
+        <div class="m"><span class="u">未読</span></div></div>
+        <span class="more"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg></span></div>
+      <div class="li"><span class="bar" style="background:#34507E"></span><div class="bd">
+        <div class="t">辺境伯家の次男は今日も書庫にこもる</div>
+        <div class="a">水無月れん</div>
+        <div class="m"><span>88話</span><span class="pb"><i style="width:100%"></i></span><span class="done">読了</span></div></div>
+        <span class="more"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg></span></div>
+      <div class="li"><span class="bar" style="background:#9E6B3E"></span><div class="bd">
+        <div class="t">雨宿りの喫茶店で魔女に出会った</div>
+        <div class="a">早瀬ことり<em>短編</em></div>
+        <div class="m"><span class="u">未読</span></div></div>
+        <span class="more"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg></span></div>
+    </div>
+    <button class="fab" aria-label="PDFを追加"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>追加</button>
+  </div></div>
+
+  <!-- セピア -->
+  <div class="wrap"><span class="mode">セピア</span>
+  <div class="phone ts" role="img" aria-label="文字目録 セピア">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="top"><h1>本棚</h1><div class="acts">
+      <button class="ib" aria-label="見つける"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+      <button class="ib" aria-label="並べ替え"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="16" y2="8"/><line x1="4" y1="13" x2="12" y2="13"/><line x1="4" y1="18" x2="9" y2="18"/></svg></button>
+      <button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg></button>
+    </div></div>
+    <div class="filters">
+      <span class="fc on">すべて</span><span class="fc">よみかけ</span><span class="fc">未読</span><span class="fc">読了</span>
+    </div>
+    <div class="scroll" style="padding-top:8px">
+      <div class="li"><span class="bar" style="background:#4E8296"></span><div class="bd">
+        <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+        <div class="a">霧島あおい<em>続き 12話</em></div>
+        <div class="m"><span>127話</span><span class="pb"><i style="width:62%"></i></span><span class="pct">62%</span></div></div></div>
+      <div class="li"><span class="bar" style="background:#8C4B58"></span><div class="bd">
+        <div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div>
+        <div class="a">夜灯すばる</div>
+        <div class="m"><span>43話</span><span class="pb"><i style="width:28%"></i></span><span class="pct">28%</span></div></div></div>
+      <div class="li"><span class="bar" style="background:#5E8A6E"></span><div class="bd">
+        <div class="t">転生したら最弱スキルだったので草むしりしていた</div>
+        <div class="a">青葉みのり</div>
+        <div class="m"><span>210話</span><span class="pb"><i style="width:80%"></i></span><span class="pct">80%</span></div></div></div>
+      <div class="li"><span class="bar" style="background:#6E6A93"></span><div class="bd">
+        <div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+        <div class="a">白河すずら</div>
+        <div class="m"><span class="u">未読</span></div></div></div>
+      <div class="li"><span class="bar" style="background:#34507E"></span><div class="bd">
+        <div class="t">辺境伯家の次男は今日も書庫にこもる</div>
+        <div class="a">水無月れん</div>
+        <div class="m"><span>88話</span><span class="pb"><i style="width:100%"></i></span><span class="done">読了</span></div></div></div>
+    </div>
+    <button class="fab" aria-label="PDFを追加"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>追加</button>
+  </div></div>
+
+  <!-- ダーク -->
+  <div class="wrap"><span class="mode">ダーク</span>
+  <div class="phone td" role="img" aria-label="文字目録 ダーク">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="top"><h1>本棚</h1><div class="acts">
+      <button class="ib" aria-label="見つける"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+      <button class="ib" aria-label="並べ替え"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="16" y2="8"/><line x1="4" y1="13" x2="12" y2="13"/><line x1="4" y1="18" x2="9" y2="18"/></svg></button>
+      <button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg></button>
+    </div></div>
+    <div class="filters">
+      <span class="fc on">すべて</span><span class="fc">よみかけ</span><span class="fc">未読</span><span class="fc">読了</span>
+    </div>
+    <div class="scroll" style="padding-top:8px">
+      <div class="li"><span class="bar" style="background:#5B93A6"></span><div class="bd">
+        <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+        <div class="a">霧島あおい<em>続き 12話</em></div>
+        <div class="m"><span>127話</span><span class="pb"><i style="width:62%"></i></span><span class="pct">62%</span></div></div></div>
+      <div class="li"><span class="bar" style="background:#A85B68"></span><div class="bd">
+        <div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div>
+        <div class="a">夜灯すばる</div>
+        <div class="m"><span>43話</span><span class="pb"><i style="width:28%"></i></span><span class="pct">28%</span></div></div></div>
+      <div class="li"><span class="bar" style="background:#6EA07E"></span><div class="bd">
+        <div class="t">転生したら最弱スキルだったので草むしりしていた</div>
+        <div class="a">青葉みのり</div>
+        <div class="m"><span>210話</span><span class="pb"><i style="width:80%"></i></span><span class="pct">80%</span></div></div></div>
+      <div class="li"><span class="bar" style="background:#807BA8"></span><div class="bd">
+        <div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+        <div class="a">白河すずら<em>なろう・未取込</em></div>
+        <div class="m"><span class="u">未読</span></div></div></div>
+      <div class="li"><span class="bar" style="background:#4C6EA0"></span><div class="bd">
+        <div class="t">辺境伯家の次男は今日も書庫にこもる</div>
+        <div class="a">水無月れん</div>
+        <div class="m"><span>88話</span><span class="pb"><i style="width:100%"></i></span><span class="done">読了</span></div></div></div>
+    </div>
+    <button class="fab" aria-label="PDFを追加"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>追加</button>
+  </div></div>
+
+  <!-- 空状態 -->
+  <div class="wrap"><span class="mode">空状態</span>
+  <div class="phone tl" role="img" aria-label="文字目録 空状態">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="top"><h1>本棚</h1><div class="acts">
+      <button class="ib" aria-label="見つける"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+      <button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg></button>
+    </div></div>
+    <div class="scroll">
+      <div class="empty">
+        <div class="ghost"><span class="bar"></span><div><div class="g1"></div><div class="g2"></div></div></div>
+        <div class="ghost"><span class="bar"></span><div><div class="g1" style="width:60%"></div><div class="g2" style="width:32%"></div></div></div>
+        <div class="ghost"><span class="bar"></span><div><div class="g1" style="width:75%"></div><div class="g2" style="width:45%"></div></div></div>
+        <div class="ghost"><span class="bar"></span><div><div class="g1" style="width:52%"></div><div class="g2" style="width:38%"></div></div></div>
+        <div class="card">
+          <div class="k">EMPTY</div>
+          <h3>本棚はまだ空です</h3>
+          <p>PDFから最初の一冊を追加すると、<br>ここに背表紙が並びはじめます。</p>
+          <div class="btn"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>PDFを追加する</div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+
+</div>
+
+<footer>
+  <b>この深掘りで決めたこと</b> ／ 左端の色帯＝タイトル由来色（生成書影の色だけを抽出＝装画は捏造しない）。続きあり＝青磁 <b>続き N話</b>／未読・未取込＝青磁／読了＝藍。処理中はスライドインの淡い藍バナー。空状態はゴースト行＋中央の案内。<br>
+  <b>確定（2026-07-11・実装反映済み）</b>：可読性＝<b>現行のまま</b>（別紙 <code>readability</code> の A ゆとり／B グループ／C 整列は不採用・現行実装を基準に据える）。左端の色帯＝<b>タイトル由来色を維持</b>（論点③の無彩色〈墨だけ〉案は却下＝表紙を持たない目録で唯一の作品識別手がかりを消さない）。細部（行高・余白）は<b>実機で最終すり合わせ</b>。Compose はこの版で翻訳済み＝<code>ListBookCard</code>／<code>WebListBookCard</code>（未取込＝青磁帯）／スケルトン／本棚の既定骨格を目録へ（<code>isGridView=false</code>）。<br>
+  <b>持ち越し（実機で詰める）</b>：①ソートの既定（最近読んだ順／追加順／五十音）②「よみかけ」を上部にまとめるか完全フラットか（現行＝フラット）。
+</footer>
+</body>
+</html>
