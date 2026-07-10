@@ -44,16 +44,16 @@
 > なろう公式APIの発見機能を「第2の柱」に育てる計画（案A＝本文非取得・メタのみ）。Phase 0〜3＋Phase 4 スライス1 は完了・main 統合済み（現況は `STATUS.md` §1）。
 > 目標ロードマップ・作る機能一覧の一次情報は plan `~/.claude/plans/api-agy-woolly-swan.md`。監査残課題（構造系）は下の「リファクタ / 技術的負債」へ移設済み。
 
-- **Phase 4 残り（融合本棚②＋育成 U1/U2）** ★次アクション:
-  - **(b) Web由来・未取込カード**（新データ概念＝Web作品を本棚に置く・**DB変更を伴う**）。⚠️ DB 変更時は次版=**v12**（v11 は task-sweep の `contentSha256` が消費済み＝`STATUS.md` §0）だが、**着手前に必ず全 worktree の宣言 version を先取り確認**（`grep -h "version = " ~/wt/*/android/app/src/main/java/com/novelreader/data/AppDatabase.kt`＝task_diary #39・`/db-migration` スキル）。実装時は**加工なし送客（Chrome Custom Tabs）**を適用（独自UIを被せる WebView 内包はなろう規約NG＝ADR 0010・task_diary #45）。
-  - **U1 新着話チェック＋通知**（Worker 化が濃厚）。⚠️ 本質的にバックグラウンド実行＝下の技術的負債「NovelApiRepository キャッシュの Main dispatcher 前提」と正面衝突するため、「事前の別作業」ではなく **U1 設計の一部として最初に**潰すこと（Mutex 化 or ConcurrentHashMap＋TTL で小さく済む）。
-  - **U2 整理**。
+- **Phase 4 残り（育成 U2）** ★次アクション:
+  - **U2 整理（ラベル分類）**。モック正本＝`bookshelf-fusion-D.html` のラベル絞り込みチップ行（`.lchip`・「すべて」既定・未作成時は行ごと非表示）。⚠️ DB 変更時は次版=**v14**（v13 は U1 の `new_episode_marks` が消費済み）・着手前に全 worktree の宣言 version を先取り確認（task_diary #39・`/db-migration` スキル）。PDF 蔵書と Web由来カードの両方に付与できる設計が必要。
+  - ~~(b) Web由来・未取込カード~~ → **完了**（2026-07-09 `a6569ee`+`15d9e1a`・実機目視OK＝STATUS §1）。
+  - ~~U1 新着話チェック＋通知~~ → **完了**（2026-07-10 `2789512`+`0b2d2b7`・実機E2E全GREEN＝STATUS §1。強制発火の罠は task_diary #53）。
 - **Phase 5 doc昇格**: 本タスク（STATUS-api-lab 解体・2026-07-08）で大半消化（ADR 0010 化・architecture スキルへ発見/検索層の所在追記・なろうAPI実装 why を `docs/patterns/narou-api-discovery.md` へ集約）。残＝`docs/reference/03-api-feature-analysis.md`↔`04-competitor-app-features.md` の相互リンク程度（優先度低）。
 
 ## リファクタ / 技術的負債（deferred）
 
 - **[発見系・構造] `SearchConditionSheet` の残リファクタ**（監査残課題2の残り）: カスタム範囲入力の約90行×2コピペの部品化・段階チップ値とラベルの平行定義統合（`LENGTH_STEPS`/`TIME_STEPS` とチップ文言が別ファイル）。※主要部＝`SearchConditionSheet.kt` 抽出（1348→606行）＋カスタム2重フラグの `SearchDraft` 一本化は task-sweep `7d135ba` で解消済み。**実施タイミング＝上「discovery-search-D すり合わせ→案B翻訳」で同ファイルを触るとき**。
-- **[発見系・将来の罠] `NovelApiRepository` のインメモリキャッシュが「全呼び出しが Main dispatcher」の暗黙不変条件で成立**（監査残課題5・素の mutableMap）: U1 新着チェック（Worker化）で踏む→ ConcurrentHashMap 化 or Main 限定の why 明記が先（上「Phase 4 U1」に紐付け）。あわせて cacheKey は trim・送信は非 trim の非対称（`NcodeLinkSheet` 経由の word が素通し）。
+- ~~[発見系・将来の罠] `NovelApiRepository` のインメモリキャッシュの Main dispatcher 前提（監査残課題5）~~ → **解消済み**（2026-07-09 `13c97f2`＝Mutex 排他＋word trim 非対称の修正。U1 Worker 化の前提として先行実施）。
 
 - **`NativeReadingScreen`（892行）の route/Content 分割**: 系統1リファクタで唯一の残り。没入クローム・Custom Tabs 再入ガード・navHistory 等の副作用が濃く、純移動でも実機目視なしに畳むリスクが高いため見送り＝**実機検証を伴う機会に実施**。
 - **`saveScrollPosition(bookId, filename)` 等の String 連続の型付け**: 系統4 Ncode 型付け（`@JvmInline value class`）の続きの適用候補として保全。
