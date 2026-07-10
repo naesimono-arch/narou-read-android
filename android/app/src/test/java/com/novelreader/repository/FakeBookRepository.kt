@@ -7,6 +7,7 @@ import com.novelreader.data.LabelEntity
 import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
+import com.novelreader.data.WebReadingProgressEntity
 import com.novelreader.narou.model.Ncode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,6 +47,26 @@ class FakeBookRepository : BookRepository {
     override suspend fun removeWebNovel(ncode: Ncode) {
         val normalized = ncode.value.trim().uppercase()
         webNovelsState.value = webNovelsState.value.filterNot { it.ncode == normalized }
+    }
+
+    // 機能②: なろうWebView読書の読書位置のインメモリ代替（ncode→最後に開いた話）。
+    private val webReadingProgressState = MutableStateFlow<List<WebReadingProgressEntity>>(emptyList())
+    override val webReadingProgress: Flow<List<WebReadingProgressEntity>> = webReadingProgressState
+
+    /** テストのための読書位置プリセット。 */
+    fun setWebReadingProgress(list: List<WebReadingProgressEntity>) { webReadingProgressState.value = list }
+
+    override suspend fun recordWebReadingEpisode(ncode: Ncode, episode: Int) {
+        // 本番と同じく trim+uppercase 正規化＋last-wins 上書き（lastReadAt はテスト決定性のため 0 固定）。
+        val normalized = ncode.value.trim().uppercase()
+        webReadingProgressState.value =
+            webReadingProgressState.value.filterNot { it.ncode == normalized } +
+                WebReadingProgressEntity(normalized, episode, lastReadAt = 0L)
+    }
+
+    override suspend fun getWebReadingProgress(ncode: Ncode): WebReadingProgressEntity? {
+        val normalized = ncode.value.trim().uppercase()
+        return webReadingProgressState.value.firstOrNull { it.ncode == normalized }
     }
 
     // U2 ラベルのインメモリ代替。本番（Room）と同じく labels は createdAt 昇順で観測させる。

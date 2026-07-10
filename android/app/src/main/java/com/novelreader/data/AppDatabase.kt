@@ -16,8 +16,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         NewEpisodeMarkEntity::class,
         LabelEntity::class,
         BookLabelEntity::class,
+        WebReadingProgressEntity::class,
     ],
-    version = 14,
+    version = 15,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -29,6 +30,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun newEpisodeMarkDao(): NewEpisodeMarkDao
     abstract fun labelDao(): LabelDao
     abstract fun bookLabelDao(): BookLabelDao
+    abstract fun webReadingProgressDao(): WebReadingProgressDao
 
     companion object {
         @Volatile
@@ -221,6 +223,21 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v14→v15: なろうWebView読書の読書位置テーブル web_reading_progress を新設する（機能②＝続きから再開）。
+         *  既存テーブルへは一切触れない新規 CREATE のみのため PRAGMA 分岐は不要。
+         *  DDL は Room が Entity から期待するスキーマ（NOT NULL・主キー）と厳密一致させること
+         *  （不一致は起動時の schema validation でクラッシュする）。 */
+        // なぜ internal か: androidTest の MigrationTest が本物の Migration を検証するため（複製だと本体変更にテストが追従しない）。
+        internal val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `web_reading_progress` (" +
+                    "`ncode` TEXT NOT NULL, `lastReadEpisode` INTEGER NOT NULL, `lastReadAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`ncode`))"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
@@ -228,6 +245,7 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                         MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
+                        MIGRATION_14_15,
                     )
                     .build()
                     .also { INSTANCE = it }
