@@ -2,6 +2,7 @@ package com.novelreader.ui.discovery
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -274,11 +275,19 @@ internal fun NovelDetailContent(
                             if (!isImported) {
                                 // 縦書きPDF取り込み導線（ADR 0011）。意匠正本＝discovery-detail-D.html の
                                 // .btn-ghost（ヘアライン枠のゴースト）。塗り(Button)でなく OutlinedButton で翻訳。
+                                // 色はモック .btn-ghost の淡色トークンを明示指定する（M3 既定の OutlinedButton は
+                                // contentColor=primary(藍)・border=outline で「静かな副次アクション」であるべき D の
+                                // ゴースト階層より主張が強くなるため）。文字=onSurfaceVariant(--ink-soft #7C808B)・
+                                // 枠=outlineVariant(--line #ECEAE4)＝モックのトークンに一致させる。
                                 Spacer(modifier = Modifier.height(12.dp))
                                 OutlinedButton(
                                     onClick = onImportPdf,
                                     modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(2.dp)
+                                    shape = RoundedCornerShape(2.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Filled.Download,
@@ -296,10 +305,15 @@ internal fun NovelDetailContent(
                                 // 置いた後は「本棚から外す」へトグルし、押し直しで取り消せる（確認ダイアログ無し
                                 // ＝失うものが無く即座に戻せる操作のため）。
                                 Spacer(modifier = Modifier.height(8.dp))
+                                // 同じ .btn-ghost 系のため取り込みボタンと同一の淡色トークンで揃える。
                                 OutlinedButton(
                                     onClick = onToggleShelf,
                                     modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(2.dp)
+                                    shape = RoundedCornerShape(2.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                                 ) {
                                     Icon(
                                         imageVector = if (onShelf) Icons.Filled.BookmarkRemove else Icons.Filled.BookmarkAdd,
