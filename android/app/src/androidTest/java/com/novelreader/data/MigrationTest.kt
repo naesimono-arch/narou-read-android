@@ -26,7 +26,7 @@ import org.junit.runner.RunWith
  * 本テストは実 DB 名 "novel_reader_db" を一切触らず、専用の使い捨て DB 名のみ使う（下記 TEST_DB_* 定数）。
  *
  * **本番 Migration を直接参照している**: 検証対象は AppDatabase.kt の companion object にある本物の
- * MIGRATION_7_8 / 8_9 / 9_10 / 10_11 / 11_12 / 12_13（`internal` 宣言＝同一モジュール・同一パッケージの androidTest から可視）。
+ * MIGRATION_7_8 / 8_9 / 9_10 / 10_11 / 11_12 / 12_13 / 13_14（`internal` 宣言＝同一モジュール・同一パッケージの androidTest から可視）。
  * かつては private ゆえ参照できず同一 SQL を本ファイル下部へ写経していたが、写しは本体変更に追従せず
  * 二重真実源になるため、可視性を internal へ上げて本物参照へ一本化した（AppDatabase.kt 側にも
  * 「なぜ internal か」を明記済み）。
@@ -34,8 +34,8 @@ import org.junit.runner.RunWith
  *     オブジェクトを `AppDatabase.MIGRATION_*` で直接渡すため、登録配線そのものは経由しない）。
  *     その層は `freshInstallAtV13_passesIdentityHashCheck`（実エンティティの hash 照合）が別角度で補う。
  *
- * **対象範囲を 7→13 に絞る理由**: identity hash 衝突を実測した版（v8/v9/v10）と最新の v11（F-G 恒久策＝
- * books.contentSha256 追加）、v12（web_novels テーブル新設）、および v13（new_episode_marks テーブル新設）がこの区間に集中する。MIGRATION_3_4〜6_7 も AppDatabase に実装は在るが
+ * **対象範囲を 7→14 に絞る理由**: identity hash 衝突を実測した版（v8/v9/v10）と最新の v11（F-G 恒久策＝
+ * books.contentSha256 追加）、v12（web_novels テーブル新設）、v13（new_episode_marks テーブル新設）、および v14（labels / book_labels 新設）がこの区間に集中する。MIGRATION_3_4〜6_7 も AppDatabase に実装は在るが
  * （3_4 は PRAGMA 分岐を持つ）、区間外・写し増による保守負債を避けて対象外とした。3→7 への拡張が必要に
  * なれば同方式で追加できる。
  */
@@ -51,13 +51,13 @@ class MigrationTest {
     )
 
     /**
-     * 7→8→9→10→11→12→13 の全パスを1段ずつ適用し、各段で結果スキーマが checked-in JSON と一致するか検証する。
+     * 7→8→9→10→11→12→13→14 の全パスを1段ずつ適用し、各段で結果スキーマが checked-in JSON と一致するか検証する。
      *
-     * **何を捕まえるか**: Migration の DDL が Room がエンティティから期待するスキーマ（8/9/10/11/12/13.json）と食い違う退行。
+     * **何を捕まえるか**: Migration の DDL が Room がエンティティから期待するスキーマ（8/9/10/11/12/13/14.json）と食い違う退行。
      * 食い違えば実機では起動時 schema validation で即クラッシュする——それを1段ごとに前倒しで検出する。
      */
     @Test
-    fun migrate7to13_validatesSchemaAtEachStep() {
+    fun migrate7to14_validatesSchemaAtEachStep() {
         // v7 スキーマの空 DB を 7.json から作る（＝v7 で作られた実機 DB 相当の初期状態）。
         helper.createDatabase(TEST_DB_CHAIN, 7).close()
 
@@ -82,16 +82,19 @@ class MigrationTest {
 
         // 12→13: new_episode_marks テーブル新設。13.json も5テーブル全部を含むので true で厳格検証。
         helper.runMigrationsAndValidate(TEST_DB_CHAIN, 13, true, AppDatabase.MIGRATION_12_13).close()
+
+        // 13→14: labels / book_labels テーブル新設。14.json も7テーブル全部を含むので true で厳格検証。
+        helper.runMigrationsAndValidate(TEST_DB_CHAIN, 14, true, AppDatabase.MIGRATION_13_14).close()
     }
 
     /**
-     * v7 で入れた代表データが 7→13 のチェーンを通っても失われないことを検証する。
+     * v7 で入れた代表データが 7→14 のチェーンを通っても失われないことを検証する。
      *
      * **何を捕まえるか**: どこかの段が破壊的（テーブル再作成でデータ取りこぼし・列消失）になっていないか。
      * 本区間は全て ADD COLUMN / CREATE TABLE / no-op で非破壊のはずだが、それを SELECT で実証して固定する。
      */
     @Test
-    fun migrate7to13_preservesExistingRows() {
+    fun migrate7to14_preservesExistingRows() {
         helper.createDatabase(TEST_DB_DATA, 7).apply {
             // v7 に実在する列だけを使う（ncode は v9・contentSha256 は v11 で追加されるためここでは書けない
             // ＝版ごとの列構成に厳密整合）。
@@ -106,11 +109,12 @@ class MigrationTest {
             close()
         }
 
-        // 全チェーンを一括適用。最終 v13 のみ検証すればよく、13.json は5テーブル全部を含むので validateDroppedTables=true。
+        // 全チェーンを一括適用。最終 v14 のみ検証すればよく、14.json は7テーブル全部を含むので validateDroppedTables=true。
         val db = helper.runMigrationsAndValidate(
-            TEST_DB_DATA, 13, true,
+            TEST_DB_DATA, 14, true,
             AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10,
             AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13,
+            AppDatabase.MIGRATION_13_14,
         )
 
         db.query("SELECT title, author, addedAt, ncode, contentSha256 FROM books WHERE id = 'book-1'").use { c ->
@@ -150,36 +154,48 @@ class MigrationTest {
             assertEquals("new_episode_marks は新設直後で空のはず", 0, c.getInt(0))
         }
 
+        // 13→14 で新設した labels が存在し空であること（新設テーブルの疎通確認）。
+        db.query("SELECT COUNT(*) FROM labels").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("labels は新設直後で空のはず", 0, c.getInt(0))
+        }
+
+        // 13→14 で新設した book_labels が存在し空であること（新設テーブルの疎通確認）。
+        db.query("SELECT COUNT(*) FROM book_labels").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("book_labels は新設直後で空のはず", 0, c.getInt(0))
+        }
+
         db.close()
     }
 
     /**
-     * 最新版 v13 の「フレッシュインストール」が identity hash 検証を通ることを検証する。
+     * 最新版 v14 の「フレッシュインストール」が identity hash 検証を通ることを検証する。
      *
-     * **何を捕まえるか**: エンティティ（BookEntity/ProgressEntity/PendingJobEntity/WebNovelEntity/NewEpisodeMarkEntity や @Database version）を変えたのに
-     * schemas/13.json の再生成 or version 上げを忘れた退行。この乖離は実機の**起動即クラッシュ**の正体で、
+     * **何を捕まえるか**: エンティティ（BookEntity/ProgressEntity/PendingJobEntity/WebNovelEntity/NewEpisodeMarkEntity/LabelEntity/BookLabelEntity や @Database version）を変えたのに
+     * schemas/14.json の再生成 or version 上げを忘れた退行。この乖離は実機の**起動即クラッシュ**の正体で、
      * 本プロジェクトが2回踏んだ事象（task_diary #39）そのもの。
      *
-     * **機序**: ①13.json（checked-in の最新スキーマ）から v13 DB を作り、その identityHash を room_master_table に刻む。
+     * **機序**: ①14.json（checked-in の最新スキーマ）から v14 DB を作り、その identityHash を room_master_table に刻む。
      * ②実アプリの Room で同じファイルを開くと、Room がコンパイル時にエンティティから算出した identity hash を
-     * ①で刻まれた 13.json 由来 hash と照合する（RoomOpenHelper.checkIdentity）。両者が乖離していれば
+     * ①で刻まれた 14.json 由来 hash と照合する（RoomOpenHelper.checkIdentity）。両者が乖離していれば
      * IllegalStateException で落ちる＝テストが赤くなり、実機投入前に検出できる。
-     * （version 13 == 現行のため migration は走らず、純粋な hash 照合だけが起こる）
+     * （version 14 == 現行のため migration は走らず、純粋な hash 照合だけが起こる）
      */
     @Test
-    fun freshInstallAtV13_passesIdentityHashCheck() {
+    fun freshInstallAtV14_passesIdentityHashCheck() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.deleteDatabase(TEST_DB_FRESH) // 前回の残骸を掃除して決定的にする（createDatabase も削除するが二重の安全）
 
-        // ① 13.json から v13 DB を作り、13.json の identityHash を刻む。
-        helper.createDatabase(TEST_DB_FRESH, 13).close()
+        // ① 14.json から v14 DB を作り、14.json の identityHash を刻む。
+        helper.createDatabase(TEST_DB_FRESH, 14).close()
 
         // ② 実エンティティの Room で同じファイルを開き、コンパイル時 hash と刻まれた hash を照合させる。
         val db = Room.databaseBuilder(context, AppDatabase::class.java, TEST_DB_FRESH).build()
         try {
             // writableDatabase を触ると Room が実際に open→identity 照合を発火する。ここで例外が飛ばず開ければ一致。
             assertTrue(
-                "v13 スキーマで Room が開けない＝実エンティティと 13.json の identity hash 不一致",
+                "v14 スキーマで Room が開けない＝実エンティティと 14.json の identity hash 不一致",
                 db.openHelper.writableDatabase.isOpen,
             )
         } finally {
