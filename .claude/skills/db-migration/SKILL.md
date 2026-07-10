@@ -95,3 +95,4 @@ Androidの `SupportSQLiteDatabase` でも `execSQL("PRAGMA table_info(books)")` 
 | v11 → v12 | web_novels テーブルを新設（MIGRATION_11_12、CREATE TABLE のみ＝既存テーブル無変更。(b) Web由来・未取込カード＝Web 作品を取込前に本棚へ置くためのメタ置き場。ncode PK・蔵書 books とは別系統）|
 | v12 → v13 | new_episode_marks テーブルを新設（MIGRATION_12_13、CREATE TABLE のみ。U1 新着話チェックの「前回通知済み話数」基準値＝章数基準だと取込むまで毎日同じ通知が再送されるため基準値方式を採る。ncode PK）|
 | v13 → v14 | labels / book_labels テーブルを新設（MIGRATION_13_14、CREATE TABLE ×2＋index ×2。U2 ラベル整理＝フラットな多対多。labels.name に unique index・book_labels は複合PK(bookId,labelId)＋labelId index。FK なし＝掃除はアプリ層の流儀）|
+| v14 → v15 | web_reading_progress テーブルを新設（MIGRATION_14_15、CREATE TABLE のみ＝既存テーブル無変更。機能②＝なろうWebView読書の読書位置。ncode PK・lastReadEpisode/lastReadAt。web_novels(本棚配置)とは直交＝検索経由で開いただけの未配置作品も記録するため別テーブル。ADR 0012）|

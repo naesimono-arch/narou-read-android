@@ -19,3 +19,4 @@
 | [0009](0009-robolectric-for-compose-ui-tests.md) | 葉 Composable の UI テストは Robolectric（JVM・testDebugUnitTest 同乗）で回す（androidTest 非採用＝ColorOS freeze/kill・実機必須／スクショ非採用＝ADR 0005 §B） | — |
 | [0010](0010-narou-unmodified-handoff-custom-tabs.md) | なろう作品は「加工なし送客（Chrome Custom Tabs）」を既定とする（WebView 内包・本文ネイティブ描画は規約NGで不採用・案A裏付け） | — |
 | [0011](0011-narou-pdf-import-webview-limited-reintroduction.md) | なろう公式縦書きPDF取り込み導線に WebView を限定再導入（案B・0010 を"取り込み"用途に限り補完／案A・C 却下・スパイクで setDownloadListener 発火確定） | — |
+| [0012](0012-narou-reading-webview-position-tracking.md) | なろう作品の"閲覧"を加工なし・URL 観測のみ・JS 注入ゼロの WebView で行い読書位置を記録し続きから再開（0010 の閲覧送客の既定を機能②で更新／自己申告 UI・番号一覧 却下） | — |

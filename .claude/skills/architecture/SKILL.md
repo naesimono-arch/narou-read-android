@@ -24,7 +24,7 @@ triggers:
 | PDF抽出ロジック | `android/app/src/main/java/com/novelreader/pdf/`（入口は facade `PdfBookExtractor.kt`＝4ステップ進捗・例外分類。ステップ構成は同ファイル KDoc） | `PDDocument.load` 前に `PDFBoxResourceLoader.init` 必須＝CID→Unicode 解決（`NovelReaderApplication.onCreate` で配線済み・task_diary #31）。グリフ正規化（波ダッシュ等）は `PdfExtractor` の `normalizeGlyphUnicode`（#35/#38） |
 | 抽出の定数・ルール | `pdf/ParserRules.kt` | — |
 | 精度の基準・回帰 | `ab-review/golden_regression/`＋実機ゲート `androidTest/…/pdf/PdfExtractorDeviceSpikeTest.kt`／HTMLバイト等価ゴールデン `src/test/resources/golden_html/` | 実機テストは `/device-verify` スキル必読（`connectedAndroidTest` 直叩きは蔵書DB消失＝task_diary #36） |
-| UI（本棚/読書/目次） | `ui/BookshelfScreen.kt`（カード=`BookCard.kt`・バナー=`ProcessingBanner.kt`）／`ui/NativeReadingScreen.kt`（公開名 ReadingScreen。本文=`ChapterContent.kt`・設定=`ReadingSettingsSheet.kt`・エラー=`ReadingErrorScreen.kt`）。NavHost は本棚・読書の2ルート（"bookshelf"・"reading/{bookId}/{startFile}"）＋発見系5ルート（"discovery"・"discovery/search"・"discovery/genre"・"discovery/result"・"discovery/detail/{ncode}"） | 読書画面は **WebView ではなく Compose ネイティブ**（HTML解析=`parser/ChapterHtmlParser.kt`・ルビ=`ui/compose/RubyText.kt`）。目次 `NativeTableOfContentsScreen` は NavHost ルートでなく ReadingScreen 内から表示 |
+| UI（本棚/読書/目次） | `ui/BookshelfScreen.kt`（カード=`BookCard.kt`・バナー=`ProcessingBanner.kt`）／`ui/NativeReadingScreen.kt`（公開名 ReadingScreen。本文=`ChapterContent.kt`・設定=`ReadingSettingsSheet.kt`・エラー=`ReadingErrorScreen.kt`）。NavHost は本棚・読書の2ルート（"bookshelf"・"reading/{bookId}/{startFile}"）＋発見系（"discovery"・"discovery/search"・"discovery/genre"・"discovery/result"・"discovery/detail/{ncode}"・取り込み "discovery/detail/{ncode}/import"・**なろうWebView読書 "web-reader/{ncode}/{startEpisode}"**） | 読書画面（PDF蔵書）は **WebView ではなく Compose ネイティブ**（HTML解析=`parser/ChapterHtmlParser.kt`・ルビ=`ui/compose/RubyText.kt`）。目次 `NativeTableOfContentsScreen` は NavHost ルートでなく ReadingScreen 内から表示。⚠️**なろう作品の"閲覧"だけは例外的に WebView**（`WebReaderScreen`・ADR 0012＝加工なし・URL 観測のみ・JS 注入ゼロ。読書位置 `web_reading_progress` を URL から自動記録し続きから再開） |
 | 見た目（配色・タイポ・余白）の変更 | まず `docs/decisions/0005-ui-n-visual-language-D.md`＋claude.ai/design のモック現物（`ui-n-phase0/*-D.html`・取得は `DesignSync: get_file`・入口は handover.md） | **HTMLモックが正本・Compose は翻訳**＝Compose 側で意匠を自己判断しない。色=`theme/Color.kt`・明朝=`theme/Typography.kt` の `MinchoFamily` 経由（直書き禁止） |
 | 変換サービス | `PdfProcessingService`（Foreground）→ `BookRepository.addBook` → `PdfBookExtractor.process` | 下記「コードから読み取りにくい設計判断」 |
 | データアクセス | `repository/BookRepository.kt`（Room + 抽出呼び出し。`NovelReaderApplication` がシングルトン保持し Service/ViewModel 共用） | DB操作は IO Dispatcher |
@@ -59,8 +59,8 @@ triggers:
   変換関数(`typeApiParam`/`lastupApiParam`)を**同一ファイルに同居**
 - `model/`（他）— `NarouNovel`(APIレスポンス1件)・`DiscoveryResult`・`NarouGenres`(ジャンルコード表)・`NarouCuratedKeywords`(公式おすすめ語)
 - `SearchHistoryStore.kt` — 検索履歴＋ピン留めの DataStore(`narou_search_history`)。合成は純関数
-- `ContinuationLogic.kt` — なろう外部URL生成(`narouWorkUrl`/`narouEpisodeUrl`)＋PDF↔Web話数突合(`computeContinuation`)の純関数。
-  ※`narou/` に在るが**突合本体は継続読書フロー(NativeReadingScreen/BookCard)側**で使う。発見側からは NovelDetailScreen が `narouWorkUrl`（Webで読む導線）のみ使用
+- `ContinuationLogic.kt` — なろうURL生成(`narouWorkUrl`/`narouEpisodeUrl`)＋PDF↔Web話数突合(`computeContinuation`)＋話ページURL→話数抽出(`parseNarouEpisodeNumber`＝機能②の WebView 読書位置観測)の純関数。
+  ※`narou/` に在るが**突合本体は継続読書フロー(NativeReadingScreen/BookCard)側**で使う。発見側の作品詳細・本棚 Web カードの「なろうで読む/続きから読む」は `WebReaderScreen`（ADR 0012・URL 観測で `web_reading_progress` 記録）へ着地。※`NativeReadingScreen` の PDF 蔵書継続カードは当面 Custom Tabs 送客のまま（0012 スコープ外）
 
 **VM/State層**（`viewmodel/`）:
 - `DiscoveryViewModel` — ホーム／結果一覧／検索ドラフト／履歴を**単一VMで共有**（着地の共通コンテキスト `ResultContext`・`ResultSource` は同ファイル内）
