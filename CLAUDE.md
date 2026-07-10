@@ -31,7 +31,7 @@ Jetpack Compose + Kotlin ネイティブ PDF 抽出（PDFBox-Android）。
   - **委譲しない**: 統合・設計判断・trade-off 評価・編集起点ファイルの読み（spot-check でどのみち再読＝二重読みで損）。
   - **検証（agy 等の外部モデル委譲時）**: 自己申告 GREEN を信じずゲートは自分で回す／**削除行込みの diff 全量レビュー**（追加行だけのレビューは削除退行を見逃す）／完了判定は報告でなく成果物の存在（`git status`・grep）で確認／外部API境界は仕様書との突合に加え〈UIに見える選択肢⇄実送信パラメータ〉の**全数突合**（未定義値の送信・送出経路の欠落という2つの実測欠陥形態を検出する）／委譲文に定型で「呼び出し側の境界不整合はコンパイルエラーのまま残せ（配線は監督）」を入れる。Claude 系サブエージェント（Explore 等）は全数 spot-check 不要（ただし不可逆操作の根拠に使う引用は現物確認）。
   - **plan運用**: 各フェーズを〈機械的バッチ／判断ループ〉に二分しバッチの委譲可否を plan 冒頭に明記／plan 末尾に「実行セッション起動ブロック」（対象ブランチ・★次はここから・最小読みセット・検証ゲート）を必須化／plan で比較して不採用にした代替案があれば ADR 化（`docs/decisions/`）をコミット計画に含める／実行見込み ~10ターン以上は fresh セッションで実行。**plan モード中の agy 委譲は `--yolo` 厳禁・read-only digest のみ**（plan モードはプラグイン subagent の権限層へ伝播しないため。機序は `task_diary.md` #40）。edit-streak ゲート誤発火は Bash 迂回せずユーザーへ申告。
-  - 実測根拠・経済・モデル選定の詳細は auto-memory が正本: `agy-objective-minimize-claude-agy-free`・`agy-delegate-bulk-cost-savings`・`workflow-plan-fresh-session-execution`・`agy-model-selection-guideline`。作業空間は `AGENTS.md`＋memory `agy-workspace-agents-md-two-layers`。
+  - 実測根拠・経済・モデル選定の詳細は auto-memory が正本: `agy-objective-minimize-claude-agy-free`・`agy-delegate-bulk-cost-savings`・`workflow-plan-fresh-session-execution`・`agy-model-selection-guideline`。作業空間の運用は memory `agy-workspace-agents-md-two-layers` が正本。
 - **Opus 運用チューニング（Fable 休止中の暫定。根拠＝2026-07-07 A/B実測 `../claude-bestpractice/models/knowledge/06-field-ab-opus-vs-fable.md`）**: Opus は「書かれた基準への追従」が最強で、「書かれていない基準の自己設定」（どこまで掘るか・検証をどこまで広げるか）が相対弱点（effort xhigh でも発現）。よってバッチ・複数項目タスクでは**完了定義を依頼側が外給**する:
   - **完了定義4行**: ①近似禁止＝API 等で表現不可なら**停止して相談**するか合成解（複数リクエスト等）を検討 ②症状でなく真因＝なぜその症状かの構造原因を特定してから項目を閉じる ③検証は影響面の**全画面・全組合せ**（スモーク範囲を明示） ④外部事実は一次ソース2点照合後に台帳へ記録。
   - **項目ごと関門**: 複数項目バッチは UI に限らず 1項目ごとに PushNotification→人間目視 OK→コミット（memory `workflow-notify-each-step-visual-check` の全バッチ種への拡張）。
@@ -48,7 +48,7 @@ Jetpack Compose + Kotlin ネイティブ PDF 抽出（PDFBox-Android）。
 - PDF解析の定数・ルール → `android/app/src/main/java/com/novelreader/pdf/ParserRules.kt` を直接参照
 - OPPO/ColorOS 固有動作 → `/device-verify` スキル（§4 の症状→対処表）経由で `task_diary.md` を参照
 - Claude Code のフック（`.claude/hooks/`）を新規作成・改修するときは → 先に `task_diary.md` の「Claude Code フック」節（#26 stdin cp932 文字化け・#28 PostToolUse stdout 不達）と `docs/decisions/0004`（matcher範囲・ブランチ跨ぎ破綻）・`0008`（フックは並列実行・検知正規表現は hooks_common.py の単一定義。旧0007）を必ず確認すること（いずれも**サイレント失敗クラス**＝踏むと長期間気づけないため、既存フックの雛形コピーだけで書き始めない）
-- **agy(Antigravity) 委譲の実行者向けブリーフィング → `AGENTS.md`（agy が自動注入で読む）＋ `.agents/`（hooks＝禁忌コマンドの機械的ガード）**。監督側の委譲運用（--dir 必須・モデル選定）は auto-memory の `agy-*` 系を参照
+- **agy(Antigravity) 委譲の運用（--dir 必須・モデル選定・委譲判断）は auto-memory の `agy-*` 系が正本**
 - 実行捏造ハルシネーション検知器（トランスクリプト静的解析）→ エンジン `.claude/hooks/detect_fabricated_execution_core.py`／CLI `analyze_transcript.py`。既知の実ハルシネーション正解データ（検証・回帰用）→ `docs/reference/hallucination-ground-truth.md`
   - **ハルシネーションの台帳登録は `/hallucination`**: ユーザーが打った瞬間に UserPromptSubmit フック `record_hallucination.py` が transcript を機械的にスナップショット保全＋台帳の未確定キューへ記載する（モデル推論を介さない＝幻覚直後の Claude を信用しない設計）。Claude の仕事は後段＝`/hallucination` スキルに従い分類・一次情報確定・正式セクション化。正本は `docs/reference/hallucination-ground-truth.md`（他所には書かない。フォーマットは同ファイル冒頭「追記手順」）。
 - **方式選定・アーキ判断で代替案を比較するときは → まず `docs/decisions/`（README 索引）で既存の判断・Why-not を確認すること**。判断が下りたら（**不採用の判断・コミットを生まない判断も含め**）ADR 化を検討する——「採用しなかった理由」も1件の ADR（例: 0008）。

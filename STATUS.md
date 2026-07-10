@@ -69,7 +69,7 @@
   - **Phase 5（Chaquopy/Python 完全撤去）**: settings.gradle／build.gradle／MainActivity／`src/main/python` を撤去。`testDebugUnitTest` 106件緑・`assembleDebug` 成功・**APK 67.3→24.2MiB（64%減）**。関連ドキュメント/スキルも同ターンで追従。
   - 3e で検出した UX 課題（進捗バー非連動・2フェーズ誤認）は 2026-07-06 `fix/handover-singles` で解消（統合%表示）。**統合表示の最終目視のみ次回接続で再確認＝handover「実機検証待ち」参照**。
 
-- **agy(Antigravity)委譲の作業空間整備 完了**（2026-07-06・`agy-workspace` ブランチで実施し main へ統合）。
+- **agy(Antigravity)委譲の作業空間整備 完了**（2026-07-06・`agy-workspace` ブランチで実施し main へ統合）。**※ `AGENTS.md`・`.agents/`（hooks.json・guard_forbidden.py）は 2026-07-10 に撤去（`integration/merge-20260710`）——agy委譲の運用ルール自体は継続（正本は auto-memory `agy-*`）。以下は導入時の記録。**
   `AGENTS.md` 新設（agy 実行者向けブリーフィング。`--dir` 登録で自動注入・記載の Gradle 手順は agy 実地検証済み＝testDebugUnitTest 50/50 パス）＋ `.agents/`（hooks.json＋guard_forbidden.py＝禁忌コマンドの PreToolUse 機械的 deny・発火実証済み）。
   モデル指針: 普段=flash（実測採点9.0/10）／pro=難解純粋推論のみ／agy経由 Claude Sonnet 4.6=深掘りレビューの第二の目。委譲運用の詳細は auto-memory `agy-workspace-agents-md-two-layers`・`agy-model-selection-guideline` が正本。**plan運用ルールの CLAUDE.md 正式化も完了（2026-07-06）**＝開発ルール「委譲判断 / plan運用」節に〈探索(read→digest)は agy／判断・統合は Claude・引用行 spot-check／plan のフェーズ二分＆実行セッション起動ブロック必須化／10ターン超は fresh 実行／edit-streak 誤発火は申告〉を明文化（実測根拠は上記 memory＋`agy-objective-minimize-claude-agy-free`・`workflow-plan-fresh-session-execution`。**2026-07-07 の指示予算減量で同節は要点のみへ圧縮**＝詳細はこれらの memory が正本）。コミット表（新しい順）:
 

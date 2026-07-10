@@ -42,9 +42,8 @@ STATE_FILE = ROOT / ".claude/.stale_check_state.json"
 # 軽量モードで「前回チェック以降に変わった管理ファイル」を絞り込むための対象プレフィックス。
 # これに該当する差分だけ Claude が意味確認すればよい（コア12チェックは常に全件実行）。
 MANAGED_PREFIXES = (
-    "CLAUDE.md", "STATUS.md", "handover.md", "task_diary.md", "AGENTS.md",
+    "CLAUDE.md", "STATUS.md", "handover.md", "task_diary.md",
     ".claude/skills/", ".claude/hooks/", ".claude/settings", ".mcp.json", "docs/",
-    ".agents/",
 )
 
 findings = []  # 各要素: {"check", "status", "severity", "detail"}
