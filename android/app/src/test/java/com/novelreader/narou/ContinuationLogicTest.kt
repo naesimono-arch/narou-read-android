@@ -120,4 +120,28 @@ class ContinuationLogicTest {
         assertFalse(isValidNcode("N29KI"))    // 数字が2桁
         assertFalse(isValidNcode("N2959KIX"))  // 英字が3桁
     }
+
+    // ── parseNarouEpisodeNumber（機能②・WebView 読書位置の URL 抽出）──────────────────────
+    @Test
+    fun testParseNarouEpisodeNumber_episodePage() {
+        // 話ページ .../<ncode>/N/ から話数を取り出す。ncode の大文字小文字は URL(小文字)と正規化して照合。
+        assertEquals(128, parseNarouEpisodeNumber("https://ncode.syosetu.com/n2959ki/128/", Ncode("N2959KI")))
+        // 末尾スラッシュ無しも許容。
+        assertEquals(1, parseNarouEpisodeNumber("https://ncode.syosetu.com/n2959ki/1", Ncode("N2959KI")))
+        // ncode を大文字で渡しても小文字化して一致する。
+        assertEquals(955, parseNarouEpisodeNumber("https://ncode.syosetu.com/n6169dz/955/", Ncode("n6169dz")))
+    }
+
+    @Test
+    fun testParseNarouEpisodeNumber_nonEpisodePages() {
+        // 目次(作品トップ)は話数ではない＝記録しない。
+        assertNull(parseNarouEpisodeNumber("https://ncode.syosetu.com/n2959ki/", Ncode("N2959KI")))
+        // 別作品の話ページは当該作品の記録対象でない。
+        assertNull(parseNarouEpisodeNumber("https://ncode.syosetu.com/n0000aa/5/", Ncode("N2959KI")))
+        // 感想・ユーザーページなど別ホストは対象外。
+        assertNull(parseNarouEpisodeNumber("https://novelcom.syosetu.com/impression/list/ncode/n2959ki/", Ncode("N2959KI")))
+        // 話数が0や非数字は不正として弾く。
+        assertNull(parseNarouEpisodeNumber("https://ncode.syosetu.com/n2959ki/0/", Ncode("N2959KI")))
+        assertNull(parseNarouEpisodeNumber("https://ncode.syosetu.com/n2959ki/abc/", Ncode("N2959KI")))
+    }
 }
