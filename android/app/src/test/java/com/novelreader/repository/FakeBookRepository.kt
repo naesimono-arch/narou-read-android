@@ -2,8 +2,11 @@ package com.novelreader.repository
 
 import android.net.Uri
 import com.novelreader.data.BookEntity
+import com.novelreader.data.BookLabelEntity
+import com.novelreader.data.LabelEntity
 import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.data.WebNovelEntity
 import com.novelreader.narou.model.Ncode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,6 +30,60 @@ class FakeBookRepository : BookRepository {
     override val allBooks: Flow<List<BookEntity>> = booksState
     override val allProgress: Flow<List<ProgressEntity>> = progressState
 
+    // (b) Web由来・未取込カードのインメモリ代替（Room と同じく addedAt 降順で観測させる）。
+    private val webNovelsState = MutableStateFlow<List<WebNovelEntity>>(emptyList())
+    override val webNovels: Flow<List<WebNovelEntity>> = webNovelsState
+
+    /** テストのための Web 作品プリセット（webNovels へ即時反映）。 */
+    fun setWebNovels(novels: List<WebNovelEntity>) { webNovelsState.value = novels }
+
+    override suspend fun putWebNovel(novel: WebNovelEntity) {
+        webNovelsState.value =
+            (webNovelsState.value.filterNot { it.ncode == novel.ncode } + novel)
+                .sortedByDescending { it.addedAt }
+    }
+
+    override suspend fun removeWebNovel(ncode: Ncode) {
+        val normalized = ncode.value.trim().uppercase()
+        webNovelsState.value = webNovelsState.value.filterNot { it.ncode == normalized }
+    }
+
+    // U2 ラベルのインメモリ代替。本番（Room）と同じく labels は createdAt 昇順で観測させる。
+    private val labelsState = MutableStateFlow<List<LabelEntity>>(emptyList())
+    private val bookLabelsState = MutableStateFlow<List<BookLabelEntity>>(emptyList())
+    override val labels: Flow<List<LabelEntity>> = labelsState
+    override val bookLabels: Flow<List<BookLabelEntity>> = bookLabelsState
+
+    /** テストのためのラベル・付与プリセット。 */
+    fun setLabels(labels: List<LabelEntity>) { labelsState.value = labels.sortedBy { it.createdAt } }
+    fun setBookLabels(assignments: List<BookLabelEntity>) { bookLabelsState.value = assignments }
+
+    override suspend fun createLabel(name: String, assignToBookId: String?) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        // 本番の unique index＋IGNORE 相当: 同名が既に在れば作成はしない。
+        if (labelsState.value.none { it.name == trimmed }) {
+            labelsState.value = labelsState.value +
+                LabelEntity(id = "label-${labelsState.value.size + 1}", name = trimmed, createdAt = labelsState.value.size.toLong())
+        }
+        // 本番と同じく作成と同時付与（同名既存でも付与は行う＝name 逆引き）。
+        if (assignToBookId != null) {
+            labelsState.value.firstOrNull { it.name == trimmed }?.let { label ->
+                setBookLabel(assignToBookId, label.id, assigned = true)
+            }
+        }
+    }
+
+    override suspend fun deleteLabel(labelId: String) {
+        labelsState.value = labelsState.value.filterNot { it.id == labelId }
+        bookLabelsState.value = bookLabelsState.value.filterNot { it.labelId == labelId }
+    }
+
+    override suspend fun setBookLabel(bookId: String, labelId: String, assigned: Boolean) {
+        val without = bookLabelsState.value.filterNot { it.bookId == bookId && it.labelId == labelId }
+        bookLabelsState.value = if (assigned) without + BookLabelEntity(bookId, labelId) else without
+    }
+
     // pending_jobs の代替（uri をキーに保持。enqueue 順の再現は不要な粒度なので LinkedHashMap で挿入順維持）。
     private val pendingJobs = LinkedHashMap<String, PendingJobEntity>()
 
@@ -40,8 +97,11 @@ class FakeBookRepository : BookRepository {
     /** テストのための進捗プリセット（allProgress へ即時反映）。 */
     fun setProgress(progress: List<ProgressEntity>) { progressState.value = progress }
 
+    // ncode 引数は ADR 0011 の縦書きPDF取り込み経路で使うが、Fake は addBookResult を返すだけの
+    // スタブのため受け取っても副作用は持たない（挙動検証は DefaultBookRepository/Service 側で行う）。
     override suspend fun addBook(
         pdfUri: Uri,
+        ncode: Ncode?,
         onProgress: (step: Int, stepLocalPercent: Float, phase: String, title: String) -> Unit,
     ): Result<BookRepository.AddBookResult> = addBookResult
 
@@ -62,6 +122,8 @@ class FakeBookRepository : BookRepository {
     override suspend fun deleteBook(book: BookEntity) {
         booksState.value = booksState.value.filterNot { it.id == book.id }
         progressState.value = progressState.value.filterNot { it.bookId == book.id }
+        // 本番 deleteBook と同じく junction も掃除する（U2）。
+        bookLabelsState.value = bookLabelsState.value.filterNot { it.bookId == book.id }
     }
 
     override suspend fun linkNcode(bookId: String, ncode: Ncode?) {

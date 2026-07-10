@@ -26,7 +26,13 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
-class NovelReaderApplication : Application() {
+class NovelReaderApplication : Application(), androidx.work.Configuration.Provider {
+
+    /** WorkManager の on-demand 初期化用設定（manifest で自動初期化を無効化済み）。
+     *  なぜ on-demand か: 自動初期化（androidx.startup）は Robolectric で走らず、
+     *  onCreate の WorkManager.getInstance が JVM UI テスト全滅を招くため（NewEpisodeCheckWorker 導入時に実測）。 */
+    override val workManagerConfiguration: androidx.work.Configuration =
+        androidx.work.Configuration.Builder().build()
 
     /** 書籍データアクセス層のシングルトン（Service/ViewModel 共用） */
     val repository: BookRepository by lazy { DefaultBookRepository(this) }
@@ -134,6 +140,27 @@ class NovelReaderApplication : Application() {
         // 処理する前に init 済みを保証する。
         PDFBoxResourceLoader.init(applicationContext)
         createNotificationChannel()
+        scheduleNewEpisodeCheck()
+    }
+
+    /** U1 新着話チェックの定期スケジュール（1日1回・ネットワーク接続時のみ）。
+     *  KEEP: 起動のたびに周期をリセットしない（REPLACE だと毎起動で「次回実行が24h後」へ
+     *  先送りされ続け、毎日開くユーザーほど一度も走らなくなる逆転が起きる）。 */
+    private fun scheduleNewEpisodeCheck() {
+        val request = androidx.work.PeriodicWorkRequestBuilder<NewEpisodeCheckWorker>(
+            24, java.util.concurrent.TimeUnit.HOURS,
+        )
+            .setConstraints(
+                androidx.work.Constraints.Builder()
+                    .setRequiredNetworkType(androidx.work.NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+        androidx.work.WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            NewEpisodeCheckWorker.UNIQUE_WORK_NAME,
+            androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+            request,
+        )
     }
 
     private fun createNotificationChannel() {
@@ -144,9 +171,19 @@ class NovelReaderApplication : Application() {
         )
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
+        // U1 新着話のお知らせは PDF変換（IMPORTANCE_LOW＝サイレント進捗）と性格が違う
+        // 「ユーザーに届けたい知らせ」のため、既定重要度の別チャネルに分ける（音/バナーの
+        // 出し方をユーザーがチャネル単位で制御できるようにする狙いも含む）。
+        val episodeChannel = NotificationChannel(
+            NEW_EPISODE_CHANNEL_ID,
+            "新着話のお知らせ",
+            NotificationManager.IMPORTANCE_DEFAULT,
+        )
+        manager.createNotificationChannel(episodeChannel)
     }
 
     companion object {
         const val CHANNEL_ID = "pdf_processing_channel"
+        const val NEW_EPISODE_CHANNEL_ID = "new_episode_channel"
     }
 }

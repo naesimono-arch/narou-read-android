@@ -77,6 +77,7 @@ fun BookCover(
     title: String,
     modifier: Modifier = Modifier,
     showTitle: Boolean = false,
+    ruleColor: Color? = null,
 ) {
     // ハッシュから色相を決定（同じIDなら毎回同じ色になる）
     val colors = remember(bookId) {
@@ -109,13 +110,14 @@ fun BookCover(
         // なぜ start を固定 dp にするか: グリッド(幅大)・リスト(幅46dp)の双方で
         // おおむね左端 7〜16% に収まり、サイズ非依存で破綻しないため。
         // 暗色スラブ上で沈まないよう、トークン藍より明るめの藍を使う。
+        // なぜ ruleColor を可能にするか: (b) Web由来・未取込カードはモック正本で縦ルールが青磁＝『未取込』の視覚署名。書影生成ロジックは共通のためルール色のみ注入可能にする。
         Box(
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .padding(start = 10.dp)
                 .width(2.dp)
                 .fillMaxHeight(0.82f)
-                .background(Color(0xFF6E96B8)),
+                .background(ruleColor ?: Color(0xFF6E96B8)),
         )
         // ────── 書影下部の明朝タイトル（グリッドのみ）──────
         // モック .cv .ttl-in: 下寄せ・左 padding は藍ルール(左10dp)を避けて 22dp、明朝 14sp・3行省略。

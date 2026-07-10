@@ -3,6 +3,7 @@ package com.novelreader.ui
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -11,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.novelreader.data.BookEntity
+import com.novelreader.data.LabelEntity
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.ProcessingState
@@ -37,6 +39,9 @@ class BookshelfContentTest {
 
     private fun book(id: String, title: String) =
         BookEntity(id = id, title = title, htmlDirPath = "/nonexistent/$id")
+
+    private fun label(id: String, name: String) =
+        LabelEntity(id = id, name = name, createdAt = 0L)
 
     private fun setContent(
         uiState: BookshelfUiState,
@@ -105,5 +110,62 @@ class BookshelfContentTest {
         // 空状態の「PDFを追加する」ボタンも FAB と同じ onFabClick を叩く
         composeTestRule.onNodeWithText("PDFを追加する").performClick()
         assertTrue(fabClicked)
+    }
+
+    // ────── U2 ラベル絞り込みチップ行 ──────
+
+    @Test
+    fun `ラベル未作成ならチップ行を行ごと出さない（モック仕様）`() {
+        setContent(BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))))
+        composeTestRule.onNodeWithText("すべて").assertDoesNotExist()
+    }
+
+    @Test
+    fun `ラベルがあればチップ行が出て「すべて」が既定選択で全カード表示`() {
+        setContent(
+            BookshelfUiState.Content(
+                books = listOf(book("b1", "吾輩は猫である"), book("b2", "坊っちゃん")),
+                labels = listOf(label("l1", "異世界")),
+                bookLabelIds = mapOf("b1" to setOf("l1")),
+            )
+        )
+        composeTestRule.onNodeWithText("すべて").assertIsDisplayed()
+        composeTestRule.onNodeWithText("異世界").assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("吾輩は猫である").onFirst().assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("坊っちゃん").onFirst().assertIsDisplayed()
+    }
+
+    @Test
+    fun `ラベルチップ選択で付与済みの本だけに絞り込まれ「すべて」で戻る`() {
+        setContent(
+            BookshelfUiState.Content(
+                books = listOf(book("b1", "吾輩は猫である"), book("b2", "坊っちゃん")),
+                labels = listOf(label("l1", "異世界")),
+                bookLabelIds = mapOf("b1" to setOf("l1")),
+            )
+        )
+        composeTestRule.onNodeWithText("異世界").performClick()
+        composeTestRule.onAllNodesWithText("吾輩は猫である").onFirst().assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("坊っちゃん").assertCountEquals(0)
+
+        composeTestRule.onNodeWithText("すべて").performClick()
+        composeTestRule.onAllNodesWithText("坊っちゃん").onFirst().assertIsDisplayed()
+    }
+
+    @Test
+    fun `絞り込み0件は蔵書ゼロ扱いにせず該当なし文言を出す`() {
+        setContent(
+            BookshelfUiState.Content(
+                books = listOf(book("b1", "吾輩は猫である")),
+                labels = listOf(label("l1", "異世界"), label("l2", "あとで読む")),
+                bookLabelIds = mapOf("b1" to setOf("l1")),
+            )
+        )
+        composeTestRule.onNodeWithText("あとで読む").performClick()
+        composeTestRule.onNodeWithText("このラベルの本はありません").assertIsDisplayed()
+        // 「蔵書ゼロ」の空状態と混同しない（EmptyBookshelf は出さない）
+        composeTestRule.onNodeWithText("本棚はまだ空です").assertDoesNotExist()
+        // チップ行は出続けて「すべて」へ戻れる
+        composeTestRule.onNodeWithText("すべて").assertIsDisplayed()
     }
 }

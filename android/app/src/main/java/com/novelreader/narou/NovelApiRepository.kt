@@ -15,6 +15,8 @@ import com.novelreader.narou.network.NarouApiService
 import com.novelreader.narou.network.NarouNetwork
 import com.squareup.moshi.JsonDataException
 import com.squareup.moshi.JsonEncodingException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import retrofit2.HttpException
 import java.io.IOException
 
@@ -25,7 +27,14 @@ class NovelApiRepository(
     private val timeSource: () -> Long = System::currentTimeMillis
 ) {
     // インメモリ TTL キャッシュ。キーはクエリキャッシュキーまたは "detail_" + ncode。
+    // なぜ Mutex で守るか: かつては「全呼び出しが Main dispatcher で直列化される」暗黙前提で
+    // 素の mutableMap のまま成立していたが、U1 新着チェック（WorkManager＝バックグラウンド実行）が
+    // この前提を破るため、読み書き・追い出しを排他し任意の dispatcher から安全に呼べるようにする。
+    // ロックは Map 操作の瞬間のみ保持し、API 呼び出し中は持たない。したがって同一クエリの同時ミスで
+    // 二重フェッチは起こり得るが、成功結果は同一で後勝ち上書きされるだけなので許容する
+    // （in-flight 重複排除は複雑さに見合わない。転送量マナーは 6h TTL と逐次呼び出し側で担保）。
     private val cache = mutableMapOf<String, CacheEntry>()
+    private val cacheMutex = Mutex()
 
     private data class CacheEntry(
         val cachedTimeMs: Long,
@@ -63,10 +72,11 @@ class NovelApiRepository(
     /**
      * キャッシュに結果を保存する。上限50を超えた場合は最古のエントリを削除する。
      */
-    private fun putCache(key: String, result: DiscoveryResult, now: Long) {
+    private suspend fun putCache(key: String, result: DiscoveryResult, now: Long) = cacheMutex.withLock {
         // なぜ最古のエントリを削除するか:
         // キャッシュ件数が上限を超えた場合、タイムスタンプが最も古い（最後に取得されたのが最も古い）
         // エントリを追い出すことで、直近に利用されたクエリキャッシュを効果的に保持するため。
+        // サイズ判定〜削除〜挿入を1つのロック区間で行う（分割すると並列 put で上限を突き破る）。
         if (cache.size >= MAX_CACHE_SIZE && !cache.containsKey(key)) {
             val oldestKey = cache.minByOrNull { it.value.cachedTimeMs }?.key
             if (oldestKey != null) {
@@ -74,6 +84,16 @@ class NovelApiRepository(
             }
         }
         cache[key] = CacheEntry(now, result)
+    }
+
+    /**
+     * TTL 内の有効なキャッシュ値を返す（無効・不在は null）。
+     * なぜ TTL 判定までロック内で行うか: 取得と判定を分けると、判定の合間に追い出し・上書きが
+     * 挟まって古い参照へ判定を下す紛れが生じるため、読み出しの一貫性をロック区間で閉じる。
+     */
+    private suspend fun getCacheValid(key: String, now: Long): DiscoveryResult? = cacheMutex.withLock {
+        val cached = cache[key] ?: return@withLock null
+        if ((now - cached.cachedTimeMs) < RANKING_TTL_MS) cached.result else null
     }
 
     /**
@@ -151,7 +171,13 @@ class NovelApiRepository(
      * 返り値の reachedApiLimit は「次ページが API エンベロープ（st>2000／マージ経路は累計>500）に阻まれて
      * 取得不能」を表し、VM が全件到達(Complete)と取得上限(ApiLimit)を判別するのに使う。
      */
-    suspend fun discoverPage(query: DiscoveryQuery, offset: Int): DiscoveryPage {
+    suspend fun discoverPage(rawQuery: DiscoveryQuery, offset: Int): DiscoveryPage {
+        // word/notWord は入口で trim し「キー生成」と「実送信」を一致させる。
+        // なぜ: cacheKey() は trim 済みで比較する一方、送信側が素通しだと前後空白付きの word
+        // （NcodeLinkSheet 経由で実測）が「同一キャッシュキー・別実リクエスト」になり、
+        // 空白違いの検索が最初の1回の結果で誤ヒットし続ける不整合の温床になるため。
+        val query = rawQuery.copy(word = rawQuery.word?.trim(), notWord = rawQuery.notWord?.trim())
+
         // SHORT+RENSAI マージ経路
         if (query.types == setOf(NarouNovelType.SHORT, NarouNovelType.RENSAI)) {
             // なぜ st でオフセットできないか: API に複合 type が無く2クエリを都度マージするため、st は
@@ -190,10 +216,9 @@ class NovelApiRepository(
         // 同一クエリの再ページングや再訪時に無駄な再取得を避け、なろうAPIの転送量マナー（§6）に沿うため。
         val cacheKey = query.cacheKey() + "|off:$offset"
         val now = timeSource()
-        val cached = cache[cacheKey]
-
-        if (cached != null && (now - cached.cachedTimeMs) < RANKING_TTL_MS) {
-            return toPage(cached.result, offset)
+        val cached = getCacheValid(cacheKey, now)
+        if (cached != null) {
+            return toPage(cached, offset)
         }
 
         val result = wrapApiException {
@@ -310,10 +335,9 @@ class NovelApiRepository(
         val trimmedNcode = ncode.value.trim()
         val cacheKey = "detail_$trimmedNcode"
         val now = timeSource()
-        val cached = cache[cacheKey]
-
-        if (cached != null && (now - cached.cachedTimeMs) < RANKING_TTL_MS) {
-            return cached.result.novels.firstOrNull()
+        val cached = getCacheValid(cacheKey, now)
+        if (cached != null) {
+            return cached.novels.firstOrNull()
         }
 
         val result = wrapApiException {
@@ -336,5 +360,23 @@ class NovelApiRepository(
         // 成功応答である限り空でも TTL 付きで負キャッシュする（通信失敗は wrapApiException で throw 済み＝ここに来ない）。
         putCache(cacheKey, result, now)
         return result.novels.firstOrNull()
+    }
+
+    /** 複数 ncode の詳細を1リクエストで取得する（U1 新着チェックのバルク照会）。 */
+    suspend fun novelDetailsBulk(ncodes: List<Ncode>): List<NarouNovel> {
+        // なぜ: 照合対象の ncode リストが空なら、なろうAPIにリクエストを投げる必要がないため即座に空リストを返す。
+        if (ncodes.isEmpty()) return emptyList()
+
+        return wrapApiException {
+            val ncodeParam = ncodes.joinToString("-") { it.value.trim() }
+            // なぜ of = "t-n-ga" なのか: U1 新着チェックにおいて必要な項目はタイトル(t)、Nコード(n)、全話数(ga)のみであり、転送量を最小限に抑えるため。
+            // なぜ意図的にキャッシュに乗せないか: 新着話の検知は情報の鮮度が本質であり、6時間TTLキャッシュに乗せると当日中の更新を翌日扱いにするなど検知の遅延を引き起こすため。また、このメソッドは1日1回等のWorkerによる呼び出しを想定しており、APIレート制限等の負荷も問題にならないため。
+            val list = service.search(
+                ncode = ncodeParam,
+                lim = ncodes.size,
+                of = "t-n-ga"
+            )
+            list.drop(1)
+        }
     }
 }

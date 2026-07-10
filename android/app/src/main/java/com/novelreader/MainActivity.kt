@@ -31,6 +31,7 @@ import com.novelreader.ui.discovery.DiscoveryHomeScreen
 import com.novelreader.ui.discovery.DiscoveryResultScreen
 import com.novelreader.ui.discovery.DiscoverySearchScreen
 import com.novelreader.ui.discovery.NovelDetailScreen
+import com.novelreader.ui.discovery.PdfImportScreen
 import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.colors
@@ -176,6 +177,11 @@ private fun NovelReaderApp(
                 onOpenDiscovery = {
                     navController.navigate("discovery") { launchSingleTop = true }
                 },
+                // (b) Web由来カードの「縦書きPDFを取り込む」→ 既存の取り込み画面ルートへ直行
+                // （詳細画面経由の onImportPdf と同じ着地＝ADR 0011 の WebView 取り込み）。
+                onImportWebNovel = { ncode ->
+                    navController.navigate("discovery/detail/$ncode/import") { launchSingleTop = true }
+                },
             )
         }
 
@@ -270,6 +276,23 @@ private fun NovelReaderApp(
                         }
                     }
                 },
+                // 縦書きPDF取り込み（ADR 0011）へ遷移。ここでの ncode は既にパス由来の String。
+                onImportPdf = { navController.navigate("discovery/detail/$ncode/import") { launchSingleTop = true } },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            route = "discovery/detail/{ncode}/import",
+            arguments = listOf(navArgument("ncode") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val ncode = backStackEntry.arguments?.getString("ncode") ?: return@composable
+            PdfImportScreen(
+                // 境界: nav 引数は String。取り込み画面へは型付き Ncode へ包んで渡す。
+                ncode = Ncode(ncode),
+                viewModel = viewModel(),
+                // 取り込み投入後／戻る のいずれも取り込み画面を pop する（詳細画面へ戻る）。
+                onImportStarted = { navController.popBackStack() },
                 onBack = { navController.popBackStack() },
             )
         }

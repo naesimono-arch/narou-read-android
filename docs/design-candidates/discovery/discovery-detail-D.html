@@ -25,7 +25,7 @@
   .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--ink-soft);flex-shrink:0}
   
   /* Scrollable view */
-  .scroll{flex:1;overflow:auto;padding-bottom:150px} /* Extra space for fixed action bar */
+  .scroll{flex:1;overflow:auto;padding-bottom:210px} /* Extra space for fixed action bar（3アクション＋注記） */
 
   /* 戻るボタン */
   .back{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);padding:2px 24px 8px;cursor:pointer;flex-shrink:0}
@@ -214,10 +214,17 @@
     text-align: center;
     letter-spacing: 0.1em;
   }
+  /* 外部遷移の注記（実装済みの UX 監査対応をモックへ追認） */
+  .bar-note {
+    font-size: 10.5px;
+    color: var(--ink-soft);
+    text-align: center;
+    margin-top: 6px;
+  }
 </style>
 </head>
 <body>
-  <p class="cap"><b>D. 作品詳細</b> ／ 上部にヘッダー化された書影風デザイン、ステータス＆評価の２列ヘアライン表、そして浮き上がらない下部固定アクションエリア</p>
+  <p class="cap"><b>D. 作品詳細</b> ／ 上部にヘッダー化された書影風デザイン、ステータス＆評価の２列ヘアライン表、そして浮き上がらない下部固定アクションエリア。<br>固定バー＝3アクション（藍プライマリ「なろうで読む」＋注記／ghost「縦書きPDFを取り込む」（宿題解消）／ghost「本棚に置く」＝(b) Web由来カードの入口・置いた後は「本棚から外す」）</p>
   <div class="stage">
     <!-- 作品詳細 -->
     <div class="wrap"><span class="mode">作品詳細</span>
@@ -302,10 +309,13 @@
         </div>
       </div>
 
-      <!-- 固定フッター -->
+      <!-- 固定フッター（未取込作品の状態。取り込み済みなら下2つの ghost は出さない／
+           「本棚に置く」は棚に置いた後「本棚から外す」へトグル） -->
       <div class="fixed-bar">
         <button class="btn-primary">なろうで読む</button>
-        <button class="btn-ghost" style="margin-top: 8px;">本棚に憶える</button>
+        <div class="bar-note">外部サイト syosetu.com へ移動します</div>
+        <button class="btn-ghost" style="margin-top: 8px;">縦書きPDFを取り込む</button>
+        <button class="btn-ghost" style="margin-top: 8px;">本棚に置く</button>
       </div>
     </div></div>
   </div>

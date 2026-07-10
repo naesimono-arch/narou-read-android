@@ -1,0 +1,267 @@
+package com.novelreader.ui
+
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.novelreader.data.WebNovelEntity
+import com.novelreader.ui.components.BookCover
+import com.novelreader.ui.theme.MinchoFamily
+
+// ============================================================
+// WebGridBookCard / WebListBookCard
+//
+// Web由来・未取り込み小説を本棚でカード表示するための Composable。
+// (b) Web由来・未取込カードはモック正本で縦ルールが青磁（MaterialTheme.colorScheme.secondary）となる。
+// ============================================================
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun WebGridBookCard(
+    novel: WebNovelEntity,
+    onOpen: () -> Unit,      // カードタップ＝なろうを Custom Tabs で開く（呼び出し側が処理）
+    onImport: () -> Unit,    // ⋮メニュー「縦書きPDFを取り込む」
+    onRemove: () -> Unit,    // ⋮メニュー「本棚から外す」
+    modifier: Modifier = Modifier,
+) {
+    // なぜ expanded を Card 内で閉じるか: 各カードの ⋮ ドロップダウンメニューの開閉は独立しており、他カードと共有しないため
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    // タップ時にスケールダウンするアニメーション（Apple Books 的な触感、BookCard.kt と共通）
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.96f else 1.0f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
+        label = "webGridCardScale",
+    )
+
+    Column(
+        modifier = modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                onClick = onOpen,
+                onLongClick = { menuExpanded = true },
+            ),
+    ) {
+        // 書影（縦横比 2:3・角丸2px・下部に明朝タイトル焼き込み）
+        // なぜ ruleColor に secondary を渡すか: (b) Web由来・未取込カードはモック正本で縦ルールが青磁（#9CB3A8 相当、colorScheme.secondary）のため。
+        Box(modifier = Modifier.fillMaxWidth()) {
+            BookCover(
+                bookId = novel.ncode,
+                title = novel.title,
+                showTitle = true,
+                ruleColor = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(2f / 3f)
+                    .clip(RoundedCornerShape(2.dp)),
+            )
+
+            // 操作メニュー用 ⋮ ボタン
+            Box(modifier = Modifier.align(Alignment.TopEnd)) {
+                IconButton(
+                    onClick = { menuExpanded = true },
+                    modifier = Modifier
+                        .padding(6.dp)
+                        .size(30.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f),
+                            shape = CircleShape,
+                        ),
+                ) {
+                    Icon(
+                        Icons.Filled.MoreVert,
+                        contentDescription = "メニュー",
+                        tint = androidx.compose.ui.graphics.Color.White,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                WebBookDropdownMenu(
+                    expanded = menuExpanded,
+                    onDismiss = { menuExpanded = false },
+                    onImport = { menuExpanded = false; onImport() },
+                    onRemove = { menuExpanded = false; onRemove() },
+                )
+            }
+        }
+
+        Spacer(Modifier.height(11.dp))
+        // メタ題字（明朝）
+        Text(
+            text = novel.title,
+            fontFamily = MinchoFamily,
+            fontSize = 13.sp,
+            lineHeight = 19.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.height(9.dp))
+        // メタ行（なろう・未取込）：青磁（colorScheme.secondary）、10.5sp、weight 500 (Medium)
+        // なぜ進捗行・続きバッジを出さないか: (b) 未取り込みカードには進捗概念およびPDFとの差分継続概念がないため。
+        Text(
+            text = "なろう・未取込",
+            fontSize = 10.5.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.secondary,
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun WebListBookCard(
+    novel: WebNovelEntity,
+    onOpen: () -> Unit,
+    onImport: () -> Unit,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // なぜ expanded を Card 内で閉じるか: 各リスト行の ⋮ ドロップダウンメニューの開閉は独立しており、他カードと共有しないため
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.98f else 1.0f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
+        label = "webListCardScale",
+    )
+
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .graphicsLayer { scaleX = scale; scaleY = scale }
+                .combinedClickable(
+                    interactionSource = interactionSource,
+                    indication = LocalIndication.current,
+                    onClick = onOpen,
+                    onLongClick = { menuExpanded = true },
+                )
+                .padding(top = 18.dp, bottom = 18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // 小さい書影（46×69・角丸2px・文字なしの色面のみ）
+            // なぜ ruleColor に secondary を渡すか: (b) Web由来・未取込カードはモック正本で縦ルールが青磁（#9CB3A8 相当、colorScheme.secondary）のため。
+            BookCover(
+                bookId = novel.ncode,
+                title = novel.title,
+                showTitle = false,
+                ruleColor = MaterialTheme.colorScheme.secondary,
+                modifier = Modifier
+                    .width(46.dp)
+                    .height(69.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+            )
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = novel.title,
+                    fontFamily = MinchoFamily,
+                    fontSize = 15.sp,
+                    lineHeight = 21.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                if (novel.writer.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = novel.writer,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Spacer(Modifier.height(9.dp))
+                // メタ行（なろう・未取込）：青磁、10.5sp、weight 500 (Medium)
+                // なぜ進捗行・続きバッジを出さないか: 未取り込みのため進捗が存在しない。モック bookshelf-fusion-D.html の仕様に準拠する。
+                Text(
+                    text = "なろう・未取込",
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(
+                        Icons.Filled.MoreVert,
+                        contentDescription = "メニュー",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                WebBookDropdownMenu(
+                    expanded = menuExpanded,
+                    onDismiss = { menuExpanded = false },
+                    onImport = { menuExpanded = false; onImport() },
+                    onRemove = { menuExpanded = false; onRemove() },
+                )
+            }
+        }
+        // 行下のヘアライン区切り（モック .li の border-bottom 1px、BookCard.kt と共通）
+        HorizontalDivider(
+            thickness = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant,
+        )
+    }
+}
+
+// なぜ WebBookDropdownMenu を private にするか: WebBookCard.kt 内の Composable からのみ呼び出すことを想定し、不要な露出を防ぐため
+@Composable
+private fun WebBookDropdownMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onImport: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = { Text("縦書きPDFを取り込む") },
+            onClick = onImport,
+            leadingIcon = {
+                Icon(
+                    Icons.Filled.Download,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            },
+        )
+        DropdownMenuItem(
+            text = { Text("本棚から外す") },
+            onClick = onRemove,
+            leadingIcon = {
+                Icon(
+                    Icons.Outlined.DeleteOutline,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            },
+        )
+    }
+}

@@ -17,7 +17,9 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -48,13 +50,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.novelreader.data.BookEntity
+import com.novelreader.data.LabelEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.data.WebNovelEntity
+import com.novelreader.ui.discovery.FilterChipItem
 import com.novelreader.narou.model.NarouNovel
+import com.novelreader.narou.model.Ncode
+import com.novelreader.narou.narouWorkUrl
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.ProcessingState
+import com.novelreader.viewmodel.ShelfItem
+import com.novelreader.viewmodel.filterShelfByLabel
+import com.novelreader.viewmodel.mergeShelfItems
 import kotlinx.coroutines.launch
 
 /**
@@ -73,6 +83,9 @@ fun BookshelfScreen(
     onThemeChange: (ReadingTheme) -> Unit,
     onOpenBook: (bookId: String, startFile: String) -> Unit,
     onOpenDiscovery: () -> Unit,
+    // (b) Web由来カードの「縦書きPDFを取り込む」→ 取り込み画面（discovery/detail/{ncode}/import）への
+    // ナビゲーション。navController は MainActivity が握るためコールバックで委譲する。
+    onImportWebNovel: (ncode: String) -> Unit = {},
 ) {
     // Loading と Empty を型で区別する（F-O）。Loading 中はスケルトンを出し、
     // DB から Content(空) が確定して初めて空状態を表示することで cold start の空フラッシュを防ぐ。
@@ -112,6 +125,9 @@ fun BookshelfScreen(
     // グリッド/リスト表示の切り替え状態（SharedPreferencesで永続化）。
     // 永続化を伴うためルート層で所有し、値とトグルを描画層へ渡す（描画層は VM/prefs 非依存に保つ）。
     var isGridView by remember { mutableStateOf(prefs.getBoolean("is_grid_view", true)) }
+
+    // (b) Web由来カードの Custom Tabs 二重起動ガード（NovelDetailScreen と同じ機序）。
+    var lastWebLaunchAt by remember { mutableStateOf(0L) }
 
     // 削除UIの方式（SharedPreferencesで永続化）。0=長押しメニュー / 1=⋮メニュー。
     // なぜトグルで両方式を残すか: 2方式を実機で触り比べて採用方式を決めるための一時機構。
@@ -183,6 +199,21 @@ fun BookshelfScreen(
         onOpenDiscovery = onOpenDiscovery,
         onCancelProcessing = { viewModel.cancelProcessing() },
         snackbarHostState = snackbarHostState,
+        // (b) Web由来カード: なろうを Custom Tabs で開く（加工なし送客＝ADR 0010）。
+        // 再入ガードは NovelDetailScreen の「なろうで読む」と同じ機序（連打で2枚開くのを防ぐ）。
+        onOpenWebNovel = { novel ->
+            val now = System.currentTimeMillis()
+            if (now - lastWebLaunchAt >= 1000L) {
+                lastWebLaunchAt = now
+                openInAppBrowser(context, narouWorkUrl(Ncode(novel.ncode)))
+            }
+        },
+        onImportWebNovel = { novel -> onImportWebNovel(novel.ncode) },
+        onRemoveWebNovel = { viewModel.removeWebNovel(it.ncode) },
+        // U2 ラベル整理（作成・削除・付与はすべて VM 経由で Room へ＝uiState combine が hot に反映）。
+        onCreateLabel = { name, bookId -> viewModel.createLabel(name, assignToBookId = bookId) },
+        onDeleteLabel = { viewModel.deleteLabel(it.id) },
+        onToggleBookLabel = { bookId, labelId, assigned -> viewModel.setBookLabel(bookId, labelId, assigned) },
     )
 
     // エラーは一度きりのイベントとして Channel から受信し Snackbar 表示する（VM イベント購読＝ルート層の責務）。
@@ -277,10 +308,41 @@ internal fun BookshelfContent(
     onOpenDiscovery: () -> Unit,
     onCancelProcessing: () -> Unit,
     snackbarHostState: SnackbarHostState,
+    // (b) Web由来・未取込カードの操作。既定 no-op は既存テスト・呼び出しの互換のため
+    // （Web カードが無い状態では従来の描画・結線が完全に不変であることを保つ）。
+    onOpenWebNovel: (WebNovelEntity) -> Unit = {},
+    onImportWebNovel: (WebNovelEntity) -> Unit = {},
+    onRemoveWebNovel: (WebNovelEntity) -> Unit = {},
+    // U2 ラベル整理の操作。既定 no-op は同上（ラベル未使用の既存テスト・呼び出しを不変に保つ）。
+    // onCreateLabel の第2引数＝作成と同時に付与する本（付与シートから作成する導線しか無いため常に対象の本がある）。
+    onCreateLabel: (name: String, assignToBookId: String) -> Unit = { _, _ -> },
+    onDeleteLabel: (LabelEntity) -> Unit = {},
+    onToggleBookLabel: (bookId: String, labelId: String, assigned: Boolean) -> Unit = { _, _, _ -> },
 ) {
     val isLoading = uiState is BookshelfUiState.Loading
     val books = (uiState as? BookshelfUiState.Content)?.books ?: emptyList()
+    val webNovels = (uiState as? BookshelfUiState.Content)?.webNovels ?: emptyList()
+    val labels = (uiState as? BookshelfUiState.Content)?.labels ?: emptyList()
+    val bookLabelIds = (uiState as? BookshelfUiState.Content)?.bookLabelIds ?: emptyMap()
+
+    // U2: チップ行の選択ラベル。回転・再生成で選択が飛ばないよう rememberSaveable（id の String だけ保存）。
+    // 選択中のラベルが削除されたら「すべて」へ実質フォールバックする（takeIf で無効 id を無視＝
+    // 状態は残るが描画・フィルタに効かないだけなので、明示リセットの副作用を持ち込まない）。
+    var selectedLabelId by rememberSaveable { mutableStateOf<String?>(null) }
+    val effectiveLabelId = selectedLabelId?.takeIf { sel -> labels.any { it.id == sel } }
+
+    // 蔵書と Web由来を「最近の活動順」で1本に混在させる（bookshelf-fusion-D の並置。純関数で合成）。
+    // U2: 前段でラベル絞り込みを噛ませる（選択中は該当蔵書のみ・Web カードは落とす＝filterShelfByLabel の why）。
+    val shelfItems = remember(books, webNovels, progressMap, effectiveLabelId, bookLabelIds) {
+        val (filteredBooks, filteredWeb) = filterShelfByLabel(books, webNovels, effectiveLabelId, bookLabelIds)
+        mergeShelfItems(filteredBooks, progressMap, filteredWeb)
+    }
     val isProcessing = processingState.isProcessing
+
+    // U2: ラベル付与シートの対象。削除確認（bookToDeleteId）と同型に bookId だけ rememberSaveable し、
+    // 実体は books から都度解決する（本が消えたらシートも自然に閉じる）。
+    var labelSheetBookId by rememberSaveable { mutableStateOf<String?>(null) }
+    val labelSheetBook = labelSheetBookId?.let { id -> books.firstOrNull { it.id == id } }
 
     // 本棚トップバーの⋮オーバーフロー（テーマ切替＋開発トグル）の開閉状態
     var showOverflowMenu by remember { mutableStateOf(false) }
@@ -449,7 +511,9 @@ internal fun BookshelfContent(
                 // ことで cold start の空フラッシュ（Loading と Empty の混同）を防ぐ。
                 BookshelfSkeleton(isGridView = isGridView, modifier = Modifier.fillMaxSize())
             } else {
-              if (books.isEmpty() && !isProcessing) {
+              // U2: ラベル絞り込み中の0件は「蔵書ゼロ」ではないため EmptyBookshelf を出さない
+              // （チップ行を出し続けて「すべて」へ戻れる導線を保つ。下の Lazy 側で該当なし文言を出す）。
+              if (shelfItems.isEmpty() && !isProcessing && effectiveLabelId == null) {
                 // 空状態。サイズ指定は呼び出し側の責務（fillMaxSize は従来と同じ描画）。
                 // なぜ else-if で空のグリッド/リストを合成しないか: 以前は空状態の上にも
                 // fillMaxSize の Lazy コンテナが重なっており、scrollable が hit test 上で
@@ -471,25 +535,51 @@ internal fun BookshelfContent(
                     verticalArrangement = Arrangement.spacedBy(26.dp),
                     horizontalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
-                    // 見つける導線帯（モック fusion .find-guide）。空棚では EmptyBookshelf と重なるため出さない。
-                    if (books.isNotEmpty()) {
+                    // 見つける導線帯（モック fusion .find-guide）。空棚では EmptyBookshelf と重なるため出さない
+                    // （U2: ラベル絞り込み中は0件でもチップ行ごと出し続ける）。
+                    if (shelfItems.isNotEmpty() || effectiveLabelId != null) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             FindGuideBand(onClick = onOpenDiscovery)
                         }
+                        // (U2) ラベル絞り込みチップ行。モックどおりラベル未作成時は行ごと非表示。
+                        if (labels.isNotEmpty()) {
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                LabelChipRow(
+                                    labels = labels,
+                                    selectedLabelId = effectiveLabelId,
+                                    onSelect = { selectedLabelId = it },
+                                )
+                            }
+                        }
+                        if (effectiveLabelId != null && shelfItems.isEmpty()) {
+                            item(span = { GridItemSpan(maxLineSpan) }) { LabelFilterEmptyText() }
+                        }
                     }
-                    items(books, key = { it.id }) { book ->
-                        GridBookCard(
-                            book = book,
-                            progress = progressMap[book.id],
-                            novelDetail = book.ncode?.let { newEpisodeNovelMap[it] },
-                            onOpen = { onOpenBook(book) },
-                            onDelete = { bookToDeleteId = book.id },
-                            deleteUiMode = deleteUiMode,
-                            // 削除時の詰め直しアニメ。旧animateItemPlacementはFoundation1.6系で高速フリング中に
-                            // カバーが画面外の古い位置から補間され重なる既知不具合があり一時撤去していたが、
-                            // BOM 2025.02.00(Foundation 1.7系)でstable化したanimateItem()に置き換えて復活（案B）。
-                            modifier = Modifier.animateItem(),
-                        )
+                    items(shelfItems, key = { it.key }) { item ->
+                        when (item) {
+                            is ShelfItem.Book -> GridBookCard(
+                                book = item.book,
+                                progress = progressMap[item.book.id],
+                                novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
+                                onOpen = { onOpenBook(item.book) },
+                                onDelete = { bookToDeleteId = item.book.id },
+                                onAssignLabel = { labelSheetBookId = item.book.id },
+                                deleteUiMode = deleteUiMode,
+                                // 削除時の詰め直しアニメ。旧animateItemPlacementはFoundation1.6系で高速フリング中に
+                                // カバーが画面外の古い位置から補間され重なる既知不具合があり一時撤去していたが、
+                                // BOM 2025.02.00(Foundation 1.7系)でstable化したanimateItem()に置き換えて復活（案B）。
+                                modifier = Modifier.animateItem(),
+                            )
+                            // (b) Web由来カード。外す操作は確認ダイアログを挟まない: 蔵書削除と違い
+                            // 読書進捗等の失うものが無く、詳細画面の「本棚に置く」で即座に戻せるため。
+                            is ShelfItem.Web -> WebGridBookCard(
+                                novel = item.novel,
+                                onOpen = { onOpenWebNovel(item.novel) },
+                                onImport = { onImportWebNovel(item.novel) },
+                                onRemove = { onRemoveWebNovel(item.novel) },
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
                     }
                 }
             } else {
@@ -502,25 +592,51 @@ internal fun BookshelfContent(
                     contentPadding = PaddingValues(start = 24.dp, top = 4.dp, end = 24.dp, bottom = 96.dp),
                 ) {
                     // 見つける導線帯（グリッドと同一・リストは行間スペーシングが無いため下余白を帯側に持たせる）
-                    if (books.isNotEmpty()) {
+                    // （U2: ラベル絞り込み中は0件でもチップ行ごと出し続ける＝グリッドと同じ判断）
+                    if (shelfItems.isNotEmpty() || effectiveLabelId != null) {
                         item {
                             FindGuideBand(
                                 onClick = onOpenDiscovery,
                                 modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
                             )
                         }
+                        // (U2) ラベル絞り込みチップ行。モックどおりラベル未作成時は行ごと非表示。
+                        if (labels.isNotEmpty()) {
+                            item {
+                                LabelChipRow(
+                                    labels = labels,
+                                    selectedLabelId = effectiveLabelId,
+                                    onSelect = { selectedLabelId = it },
+                                    modifier = Modifier.padding(top = 8.dp),
+                                )
+                            }
+                        }
+                        if (effectiveLabelId != null && shelfItems.isEmpty()) {
+                            item { LabelFilterEmptyText() }
+                        }
                     }
-                    items(books, key = { it.id }) { book ->
-                        ListBookCard(
-                            book = book,
-                            progress = progressMap[book.id],
-                            novelDetail = book.ncode?.let { newEpisodeNovelMap[it] },
-                            onOpen = { onOpenBook(book) },
-                            onDelete = { bookToDeleteId = book.id },
-                            deleteUiMode = deleteUiMode,
-                            // グリッドと同理由: 1.7系でstable化したanimateItem()で詰め直しアニメを復活（案B）。
-                            modifier = Modifier.animateItem(),
-                        )
+                    items(shelfItems, key = { it.key }) { item ->
+                        when (item) {
+                            is ShelfItem.Book -> ListBookCard(
+                                book = item.book,
+                                progress = progressMap[item.book.id],
+                                novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
+                                onOpen = { onOpenBook(item.book) },
+                                onDelete = { bookToDeleteId = item.book.id },
+                                onAssignLabel = { labelSheetBookId = item.book.id },
+                                deleteUiMode = deleteUiMode,
+                                // グリッドと同理由: 1.7系でstable化したanimateItem()で詰め直しアニメを復活（案B）。
+                                modifier = Modifier.animateItem(),
+                            )
+                            // グリッドと同じ判断（確認ダイアログ無し＝失うものが無く即座に戻せる）。
+                            is ShelfItem.Web -> WebListBookCard(
+                                novel = item.novel,
+                                onOpen = { onOpenWebNovel(item.novel) },
+                                onImport = { onImportWebNovel(item.novel) },
+                                onRemove = { onRemoveWebNovel(item.novel) },
+                                modifier = Modifier.animateItem(),
+                            )
+                        }
                     }
                 }
               }
@@ -545,6 +661,65 @@ internal fun BookshelfContent(
             },
         )
     }
+
+    // U2: ラベル付与シート（⋮メニュー「ラベル」から。状態は uiState 由来＋callback のみの葉）。
+    labelSheetBook?.let { book ->
+        LabelAssignSheet(
+            bookTitle = book.title,
+            labels = labels,
+            assignedLabelIds = bookLabelIds[book.id] ?: emptySet(),
+            onToggle = { labelId, assigned -> onToggleBookLabel(book.id, labelId, assigned) },
+            // 作成＝この本への付与を伴う（シートは本の⋮/長押しから開く＝作成の動機は「この本に付けたい」）。
+            onCreateLabel = { name -> onCreateLabel(name, book.id) },
+            onDeleteLabel = onDeleteLabel,
+            onDismiss = { labelSheetBookId = null },
+        )
+    }
+}
+
+// ============================================================
+// (U2) ラベル絞り込みチップ行（モック bookshelf-fusion-D .label-row/.lchip）
+// 「すべて」＋作成順のラベルを横スクロール1行で並べる。チップ意匠は検索画面の
+// FilterChipItem（.rchip 翻訳の正本＝11.5sp・角丸2dp・ヘアライン→選択で藍）をそのまま流用する。
+// ============================================================
+@Composable
+private fun LabelChipRow(
+    labels: List<LabelEntity>,
+    selectedLabelId: String?,
+    onSelect: (String?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // 「すべて」＝選択なし（null）。モックどおり既定選択。
+        FilterChipItem(
+            selected = selectedLabelId == null,
+            label = "すべて",
+            onClick = { onSelect(null) },
+        )
+        labels.forEach { label ->
+            FilterChipItem(
+                selected = label.id == selectedLabelId,
+                label = label.name,
+                onClick = { onSelect(label.id) },
+            )
+        }
+    }
+}
+
+// (U2) ラベル絞り込みで該当0件のときの静かな案内（EmptyBookshelf は蔵書ゼロ専用のため使わない）。
+@Composable
+private fun LabelFilterEmptyText() {
+    Text(
+        text = "このラベルの本はありません",
+        fontSize = 13.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(vertical = 16.dp),
+    )
 }
 
 // ============================================================

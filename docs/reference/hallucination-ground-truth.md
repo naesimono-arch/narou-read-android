@@ -249,3 +249,4 @@ assistant応答（キーワード無し）に散在。派生（8315b37d / 5e0a75
 ## ⏳ 未確定キュー（/hallucination 自動キャプチャ・確定後にレター事象へ昇格して行を消す）
 
 - [ ] 2026-07-09 02:30:18 session=`a60c8ba5-61de-4f95-9ae2-a30195e243a4` snapshot=`/home/qingj/.claude/hallucination-archive/a60c8ba5-61de-4f95-9ae2-a30195e243a4-20260709-023018.jsonl`（40行時点） live=`/home/qingj/.claude/projects/-mnt-c-Users-qingj-Desktop-project-novel-reader-andloid/a60c8ba5-61de-4f95-9ae2-a30195e243a4.jsonl`
+- [ ] 2026-07-09 03:43:37 session=`52618031-d344-4d47-b217-6ff6982239a6` snapshot=`/home/qingj/.claude/hallucination-archive/52618031-d344-4d47-b217-6ff6982239a6-20260709-034337.jsonl`（71行時点） live=`/home/qingj/.claude/projects/-home-qingj-wt-feat-pdf-import-flow/52618031-d344-4d47-b217-6ff6982239a6.jsonl`

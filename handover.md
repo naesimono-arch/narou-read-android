@@ -12,7 +12,11 @@
 
 > レビュー中・実装中に出た宿題や着想で、まだ下の各節に整理していないものをここへ。育ったら該当節へ移す。
 
-- （現在なし）
+- **[発見系] 検索結果/詳細から「話一覧」を表示し、各話へ直接飛びたい**（2026-07-10 U2 目視中にユーザー要望）: 現 UI のまま話一覧を出し、タップで該当話に着地。**設計論点**: ①なろう公式 API は話ごとのタイトル/一覧を返さない（取れるのは general_all_no＝総話数のみ）→ アプリ内一覧は「第1話〜第N話」の番号リスト生成が上限。話タイトル取得は本文ページのスクレイピング＝規約線（ADR 0010・加工なし送客）に抵触するため不可 ②着地は既存 `narouEpisodeUrl(ncode, n)`（継続カードと同じ Custom Tabs 送客）を流用できる。
+- **[取込] PDF の複数同時選択**（2026-07-10 ユーザー要望）: 現 picker は `OpenDocument` 単発。`OpenMultipleDocuments` 化すれば Service キュー（ArrayDeque）は複数投入に既対応。あわせて**取込順の自動ソート**（例: ファイル名の巻数/話数の自然順）を検討＝分割 PDF を順番どおり本棚に並べたい意図（addedAt が投入順に付くため、投入前に名前で自然順ソートするだけで足りる見込み）。
+- **[取込] 「PDFを取り込む」ボタンの不安定さ**（2026-07-10 ユーザー報告・**再現条件未特定**）: FAB/空状態ボタンからの picker 起動が不安定に感じられることがある。まず再現条件の聞き取り（どの画面のボタンか・無反応か遅延か・バッテリー最適化ダイアログ絡みか）→ logcat での再現観察から。推定候補: 通知権限→picker の2段ゲート・バッテリー最適化ダイアログの分岐（`launchPdfPicker` 周り）だが未確定のため決め打ち修正はしない。
+
+- **Web由来・未取込カードにも「どこまで読んだか」を記録し、続きの話数から自動再開したい**（2026-07-09 (b) 実機確認中にユーザー要望）: 現状の Web カードタップは常に作品トップ（目次）へ送客。蔵書の読書位置復元と同様に、Web 作品も「第N話まで読んだ」を永続化し、タップで `narouEpisodeUrl(ncode, N+1)` へ直接着地させたい。**設計論点**: ①Custom Tabs 内の閲覧位置はアプリから観測できない（規約上も加工不可＝ADR 0010）ため、話数の記録は自己申告 UI（「ここまで読んだ」選択）か「開いた話数=既読」の近似のどちらかになる ②`web_novels` に lastReadEpisode 列を足す DB 変更（次版採番の先取り確認必須） ③U1 新着チェックとの整合（続きあり判定の基準が generalAllNo スナップショットから既読話数へ変わる）。
 
 ---
 
@@ -44,16 +48,16 @@
 > なろう公式APIの発見機能を「第2の柱」に育てる計画（案A＝本文非取得・メタのみ）。Phase 0〜3＋Phase 4 スライス1 は完了・main 統合済み（現況は `STATUS.md` §1）。
 > 目標ロードマップ・作る機能一覧の一次情報は plan `~/.claude/plans/api-agy-woolly-swan.md`。監査残課題（構造系）は下の「リファクタ / 技術的負債」へ移設済み。
 
-- **Phase 4 残り（融合本棚②＋育成 U1/U2）** ★次アクション:
-  - **(b) Web由来・未取込カード**（新データ概念＝Web作品を本棚に置く・**DB変更を伴う**）。⚠️ DB 変更時は次版=**v12**（v11 は task-sweep の `contentSha256` が消費済み＝`STATUS.md` §0）だが、**着手前に必ず全 worktree の宣言 version を先取り確認**（`grep -h "version = " ~/wt/*/android/app/src/main/java/com/novelreader/data/AppDatabase.kt`＝task_diary #39・`/db-migration` スキル）。実装時は**加工なし送客（Chrome Custom Tabs）**を適用（独自UIを被せる WebView 内包はなろう規約NG＝ADR 0010・task_diary #45）。
-  - **U1 新着話チェック＋通知**（Worker 化が濃厚）。⚠️ 本質的にバックグラウンド実行＝下の技術的負債「NovelApiRepository キャッシュの Main dispatcher 前提」と正面衝突するため、「事前の別作業」ではなく **U1 設計の一部として最初に**潰すこと（Mutex 化 or ConcurrentHashMap＋TTL で小さく済む）。
-  - **U2 整理**。
+- **Phase 4 完了（2026-07-10）**: 全項目消化＝STATUS §1 参照。
+  - ~~(b) Web由来・未取込カード~~ → **完了**（2026-07-09 `a6569ee`+`15d9e1a`・実機目視OK＝STATUS §1）。
+  - ~~U1 新着話チェック＋通知~~ → **完了**（2026-07-10 `2789512`+`0b2d2b7`・実機E2E全GREEN＝STATUS §1。強制発火の罠は task_diary #53）。
+  - ~~U2 整理（ラベル分類）~~ → **完了**（2026-07-10 `30762aa`+`a7e403e`・Room v14・実機目視OK＝STATUS §1）。**将来拡張**: Web由来カードへのラベル付与（現状は PDF 蔵書のみ＝BookLabelEntity の why）。
 - **Phase 5 doc昇格**: 本タスク（STATUS-api-lab 解体・2026-07-08）で大半消化（ADR 0010 化・architecture スキルへ発見/検索層の所在追記・なろうAPI実装 why を `docs/patterns/narou-api-discovery.md` へ集約）。残＝`docs/reference/03-api-feature-analysis.md`↔`04-competitor-app-features.md` の相互リンク程度（優先度低）。
 
 ## リファクタ / 技術的負債（deferred）
 
 - **[発見系・構造] `SearchConditionSheet` の残リファクタ**（監査残課題2の残り）: カスタム範囲入力の約90行×2コピペの部品化・段階チップ値とラベルの平行定義統合（`LENGTH_STEPS`/`TIME_STEPS` とチップ文言が別ファイル）。※主要部＝`SearchConditionSheet.kt` 抽出（1348→606行）＋カスタム2重フラグの `SearchDraft` 一本化は task-sweep `7d135ba` で解消済み。**実施タイミング＝上「discovery-search-D すり合わせ→案B翻訳」で同ファイルを触るとき**。
-- **[発見系・将来の罠] `NovelApiRepository` のインメモリキャッシュが「全呼び出しが Main dispatcher」の暗黙不変条件で成立**（監査残課題5・素の mutableMap）: U1 新着チェック（Worker化）で踏む→ ConcurrentHashMap 化 or Main 限定の why 明記が先（上「Phase 4 U1」に紐付け）。あわせて cacheKey は trim・送信は非 trim の非対称（`NcodeLinkSheet` 経由の word が素通し）。
+- ~~[発見系・将来の罠] `NovelApiRepository` のインメモリキャッシュの Main dispatcher 前提（監査残課題5）~~ → **解消済み**（2026-07-09 `13c97f2`＝Mutex 排他＋word trim 非対称の修正。U1 Worker 化の前提として先行実施）。
 
 - **`NativeReadingScreen`（892行）の route/Content 分割**: 系統1リファクタで唯一の残り。没入クローム・Custom Tabs 再入ガード・navHistory 等の副作用が濃く、純移動でも実機目視なしに畳むリスクが高いため見送り＝**実機検証を伴う機会に実施**。
 - **`saveScrollPosition(bookId, filename)` 等の String 連続の型付け**: 系統4 Ncode 型付け（`@JvmInline value class`）の続きの適用候補として保全。
@@ -79,7 +83,17 @@
 ## D. 長期・品質（backlog）
 
 - **左右スワイプで章遷移**: 旧 `experiment`/`lab-old` は WebView 実装で流用不可。`HorizontalPager`/`pointerInput` で新規。チューニング知見＝軸ロック(`de60869`)/EMA+isDragging(`a07dd3e`)/距離OR速度複合(`4a0719b`)。元コミット `23b5f33`（main 未取り込み）。
-- **Phase3 外部連携の残**: ①内部ブラウザから PDF 直接取込＆動線追加（②「小説家になろう」公式API連携・ランキング表示は api-lab 系で実装済み。詳細 `docs/reference/narou_api_manual.md`／`docs/reference/03-api-feature-analysis.md`）。
+- **作品詳細→なろう公式縦書きPDF取り込み導線（方式決定＝案B: WebView 再導入）**（2026-07-09 ユーザーと方式合意・重い作業のため未着手でバックログ化。旧「Phase3 外部連携の残①内部ブラウザから PDF 直接取込」を統合）: なろうで発見した作品を、なろう公式の**縦書きPDF機能**（目次ページ下部「縦書きPDF」リンク→生成ページ〔広告・出だし200字〕→「縦書きPDFダウンロード」ボタン。ヘルプ99 `helppageid/99`）で DL し、その場で蔵書化する導線。**抽出互換性は実証済み**＝ゴールデン本 `N2959KI/N1453LW/N6169DZ.pdf` がまさになろう公式縦書きPDF（`ParserRules.kt` の座標/フォント判定はこれ前提）。
+  - **決定＝案B（WebView 再導入）**: `NovelDetailScreen.kt` に「縦書きPDFを取り込む」ボタン→WebView で `narouWorkUrl(ncode)`（目次）をロード→縦書きPDFリンク位置まで**自動スクロール**→ユーザーが DL ボタンをタップ→`setDownloadListener` で DL 捕捉→`BookshelfViewModel.addBook(uri)`（既存合流点）で変換〜Room 登録を再利用。取り込んだ本に **ncode を紐付け**（`BookEntity.ncode` 既存列）＝継続読書と接続。**却下＝案A**（Custom Tabs＋共有受信＝WebView 不要・規約完全セーフだが DL 後に共有の一手間）／**案C**（WebView＋手動スクロール）。**却下理由は着手時に ADR 化**（`docs/decisions/`）。
+  - ⚠️ **規約（ADR 0010 の方針転換）**: 本アプリは WebView を意図的に廃止し「加工なし送客（Custom Tabs）」を既定にした経緯（`InAppBrowser.kt`・ADR 0010・task_diary #45）。案Bは WebView 再導入＝**着手時に ADR 新設/更新が必須**。公式PDF機能の利用自体は規約セーフだが、**「加工」禁止を厳守**＝広告は絶対に残す・注入する JS は**スクロール（ビューポート移動）のみ**に限定（CSS 注入/DOM 改変/広告除去は一切しない）。
+  - **実機偵察の確定事実（2026-07-09・案B優位を補強）**:
+    - **DL方式＝静的直リンクではなく動的・多段・トークン制（確定）**: 目次最下部 `div.c-under-nav` 内の POST フォーム（`action=/novelpdf/creatingpdf/ncode/<ncode>/`・`method=post`・hidden の**ページ毎 CSRF トークン**）→ 生成完了ページ「縦書きPDFの作成が完了しました」→ DLリンク `/novelpdf/downloadend/ncode/<ncode>/pdftoken/<ワンタイム>/`（**XHR で text/html 約4KB の中間ページ**）→ 実体 `https://pdfnovels.net/<生成毎トークン>/<NCODE大文字>.pdf`。**帰結**: ①「直URLを DownloadManager で叩く近道」は不可（毎回フローを通す必要）②生成ページ（広告＋出だし200字）を必ず経由＝**広告が構造的に必ず表示＝規約上プラス**（純 HTTP で POST を機械化して広告をスキップするのは「本文の機械的取得」＋収益回避で違反＝**絶対にやらない**）。
+    - **ログイン不要（確定）**: 非ログイン状態（ログインリンク有・ログアウト無を実測）でフォーム・トークン・生成・実体リンクまで成立。ゲートは認証でなく CSRF トークン＋生成フロー。→ WebView 側の Cookie/セッション管理は不要（案Bの実装が一段軽い）。
+    - **名前付きアンカー無し（確定・先の暫定を訂正）**: `#footer`/`#main` は対象要素なし（`getElementById=null`）、`location.hash='footer'` でも `scrollY` 不動、`.../<ncode>/#footer` でも飛ばない。PDF フォームは id 無しの `c-under-nav`／`l-foot-contents` 内・最下部（≈5778/5977px）。→ **案A（Custom Tabs）ではフラグメント自動スクロール不可＝目次全体を手動スクロールする摩擦が確定**（951話等で特に重い）。案Bなら JS `scrollIntoView`（ビューポート移動のみ＝加工でない）で自動化できる＝案Aの2摩擦（手動スクロール＋DL後の共有の一手間）を両方消せる点が案B採用の根拠。
+  - **✅ make-or-break スパイク解決（2026-07-09 実機観測・発火確定）**: `setDownloadListener` は最終 PDF（`pdfnovels.net/<token>/N2959KI.pdf`・`contentDisposition=attachment`）で**発火する**＝`shouldInterceptRequest` フォールバック不要。実測詳細（downloadend→PDF はフルナビゲーション・XHR は checkpdfapi ポーリングのみ・⚠️mimetype は `application/octet-stream`＝MIME 判定不可・トークン短時間再利用可）は **ADR 0011「スパイク結果」節が正本**。スパイク現物＝debug ソースセット `spike/PdfDownloadSpikeActivity.kt`（本配線完了時に削除する使い捨て）。方式判断の ADR 化も完了＝**ADR 0011 新設**（0010 は覆さず"取り込み"限定の例外を定義・0010 に相互参照注記済み）。
+  - **✅ 本配線完了（2026-07-09 実機通し検証 OK＝発見→詳細→取り込み→変換→ncode 紐付けまでユーザー目視確認）**: ①取り込み用 WebView 画面（`PdfImportScreen`＋`PdfImportViewModel`・JS はスクロールのみ）＋`NovelDetailScreen`「縦書きPDFを取り込む」ボタン（仮意匠） ②`setDownloadListener`→OkHttp DL→`cacheDir/pdf_import/`→FileProvider `content://` 化→既存 `addBook` 合流 ③`addBook` 経路に ncode オプション引数を追加し insert 時紐付け（pending_jobs 非記帳の妥協＝再開時 ncode 消失は手動紐付けで回復可） を実装済み。スパイク Activity（debug `spike/PdfDownloadSpikeActivity.kt`）も削除済み＝コード残なし。
+  - **⚠️ 意匠は仮＝モック追従の宿題（2026-07-09 ユーザー判断「宿題にする」）**: 「縦書きPDFを取り込む」ボタンは**モック正本 `docs/design-candidates/discovery/discovery-detail-D.html` に未収載**のまま機能先行で仮実装する（既存「なろうで読む」ボタンと同型の系に留め新規意匠は発明しない）。**宿題**: モックへ取り込みボタン＋（必要なら）取り込み中表現の意匠を足す→DesignSync で収蔵側へ同期→Compose を翻訳し直す（「キーワードから選ぶ」の前科＝mock 無し追加が意匠迷子の根本原因、と同じ轍を踏まないための明示的宿題化）。
+- **[抽出] 単話（1話完結）作品の縦書きPDF変換で、本文が「作品情報（プロローグ）」側に乗り章題名も出ない**（2026-07-09 PDF取り込み導線の実機通し検証中にユーザー観測・対象 n2959ki）: 単話作品は章見出し／目次構造が無いため、章分割が本文を作品情報ページの続き扱いで流し込むと推定（**未確定**・要調査）。**やること**: ①n2959ki の抽出結果現物（`novels/<id>/index.html`・`chap_N.html` 構成）で事象を再現確認 ②単話 PDF の構造に対する分割ルール（`ParserRules`/`ChapterProcessor`）の扱いを設計 ③**ゴールデン基準との整合に注意**＝N2959KI はゴールデン本（`ab-review/golden_regression`）であり、基準自体がこの挙動を「正」として固定している可能性がある——修正はゴールデン更新とセットで判断すること。
 - **超長編抽出エッジ残差の③アポストロフィ座標順**（N6169DZ・章題ドリフト残2件）: `兎'ｓ`↔`'鳥…` の座標順ずれで**1:1コードポイント置換不可**＝実質 won't-fix。基準＝`ab-review/golden_regression`、詳細＝task_diary #35。①②のダッシュ/矢印9件は 2026-07-06 に `normalizeGlyphUnicode` で解消済み。
 
 ## A2. UIスキン着せ替え（将来送り・保留）

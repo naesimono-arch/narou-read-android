@@ -24,8 +24,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.BookmarkAdd
+import androidx.compose.material.icons.filled.BookmarkRemove
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -110,6 +114,7 @@ fun NovelDetailScreen(
     ncode: Ncode,
     viewModel: NovelDetailViewModel,
     onSearchKeywords: (List<String>) -> Unit,
+    onImportPdf: () -> Unit,
     onBack: () -> Unit,
 ) {
     LaunchedEffect(ncode) {
@@ -117,6 +122,9 @@ fun NovelDetailScreen(
     }
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    // (b) 固定バーのトグル表示状態（本棚に置く/外す・取込済みなら2アクション非表示）。
+    val onShelf by viewModel.onShelf.collectAsStateWithLifecycle()
+    val isImported by viewModel.isImported.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     // なぜ再入ガードが要るか（M1/公理3）: Custom Tabs は別プロセスのブラウザ起動待ちがあり、
@@ -129,6 +137,10 @@ fun NovelDetailScreen(
         ncode = ncode,
         uiState = uiState,
         onSearchKeywords = onSearchKeywords,
+        onImportPdf = onImportPdf,
+        onShelf = onShelf,
+        isImported = isImported,
+        onToggleShelf = { viewModel.toggleShelf() },
         onBack = onBack,
         onRetry = { viewModel.retry() },
         onReadOnNarou = {
@@ -156,9 +168,14 @@ internal fun NovelDetailContent(
     ncode: Ncode,
     uiState: NovelDetailUiState,
     onSearchKeywords: (List<String>) -> Unit,
+    onImportPdf: () -> Unit,
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onReadOnNarou: () -> Unit,
+    // (b) Web由来カードの入口（固定バーのトグル）。既定値は既存テスト・プレビューの互換のため。
+    onShelf: Boolean = false,
+    isImported: Boolean = false,
+    onToggleShelf: () -> Unit = {},
 ) {
     // スクロール状態を最上位で保持する（M10/層②）。書影ヒーローと本文タイトルが画面外へ流れたら
     // App bar に作品名を常駐表示し、今どの作品を見ているかの手掛かりが消えないようにするため。
@@ -252,6 +269,51 @@ internal fun NovelDetailContent(
                                     .padding(top = 8.dp),
                                 textAlign = TextAlign.Center
                             )
+                            // 取り込み済み（books.ncode 一致）なら以下2アクションは冗長のため出さない
+                            // （モック discovery-detail-D の固定バー注記どおり。読む手段は蔵書カードが正）。
+                            if (!isImported) {
+                                // 縦書きPDF取り込み導線（ADR 0011）。意匠正本＝discovery-detail-D.html の
+                                // .btn-ghost（ヘアライン枠のゴースト）。塗り(Button)でなく OutlinedButton で翻訳。
+                                Spacer(modifier = Modifier.height(12.dp))
+                                OutlinedButton(
+                                    onClick = onImportPdf,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Download,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "縦書きPDFを取り込む",
+                                        fontSize = 15.sp,
+                                        letterSpacing = 1.5.sp
+                                    )
+                                }
+                                // (b) Web由来・未取込カードの入口（モック .btn-ghost「本棚に置く」）。
+                                // 置いた後は「本棚から外す」へトグルし、押し直しで取り消せる（確認ダイアログ無し
+                                // ＝失うものが無く即座に戻せる操作のため）。
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedButton(
+                                    onClick = onToggleShelf,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (onShelf) Icons.Filled.BookmarkRemove else Icons.Filled.BookmarkAdd,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (onShelf) "本棚から外す" else "本棚に置く",
+                                        fontSize = 15.sp,
+                                        letterSpacing = 1.5.sp
+                                    )
+                                }
+                            }
                         }
                     }
                 }

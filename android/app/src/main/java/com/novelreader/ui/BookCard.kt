@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.*
@@ -163,6 +164,8 @@ internal fun GridBookCard(
     novelDetail: NarouNovel?,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
+    // U2: ⋮メニュー「ラベル」→ 付与シートの起動（シート実体は本棚描画層が持つ）。
+    onAssignLabel: () -> Unit,
     deleteUiMode: Int,
     modifier: Modifier = Modifier,
 ) {
@@ -248,6 +251,7 @@ internal fun GridBookCard(
                     expanded = menuExpanded,
                     onDismiss = { menuExpanded = false },
                     onDelete = { menuExpanded = false; onDelete() },
+                    onAssignLabel = { menuExpanded = false; onAssignLabel() },
                 )
             }
         }
@@ -289,6 +293,8 @@ internal fun ListBookCard(
     novelDetail: NarouNovel?,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
+    // U2: ⋮メニュー「ラベル」→ 付与シートの起動（シート実体は本棚描画層が持つ）。
+    onAssignLabel: () -> Unit,
     deleteUiMode: Int,
     modifier: Modifier = Modifier,
 ) {
@@ -396,6 +402,7 @@ internal fun ListBookCard(
                     expanded = menuExpanded,
                     onDismiss = { menuExpanded = false },
                     onDelete = { menuExpanded = false; onDelete() },
+                    onAssignLabel = { menuExpanded = false; onAssignLabel() },
                 )
             }
         }
@@ -408,16 +415,29 @@ internal fun ListBookCard(
 }
 
 // ============================================================
-// 削除メニュー（⋮タップ・長押し共通のドロップダウン）
+// カードメニュー（⋮タップ・長押し共通のドロップダウン）
 // 一時機構：削除UIの採用方式が確定したら呼び出し側の分岐ごと整理する。
+// U2 で「ラベル」を追加（付与シートの起動＝実体は本棚描画層が持つ）。
 // ============================================================
 @Composable
 private fun DeleteDropdownMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
     onDelete: () -> Unit,
+    onAssignLabel: () -> Unit,
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = { Text("ラベル") },
+            onClick = onAssignLabel,
+            leadingIcon = {
+                Icon(
+                    Icons.AutoMirrored.Outlined.Label,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+        )
         DropdownMenuItem(
             text = { Text("削除") },
             onClick = onDelete,

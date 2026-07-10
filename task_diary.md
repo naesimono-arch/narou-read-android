@@ -613,6 +613,13 @@ Robolectric（4.11.1・sdk34・createComposeRule）で `ModalBottomSheet` を含
 - **本命の解**: 「上部の枠は固定・内容だけ自然に弾ませる」＝内容スクロールの overscroll/ディスパッチをシート内蔵接続から分離（`verticalScroll` を独自 `overscrollEffect`＋分離 dispatcher の `scrollable` に置換等）。内蔵接続が境界フリングを必ず奪う仕様上、素直には両立しない踏み込んだ実装。要 UI-n 意匠確認（静けさ意匠との整合）。
 - ⚠️ 上記知見は **material3 1.2.1／foundation 1.6.6 時点**。2026-07-08 の main 統合で **BOM 2025.02.00（material3 1.3.1・foundation 1.7系＝`bcb5216`）** へ更新済み → 再挑戦時はまず 1.3.1 での現象再現と内蔵 NestedScrollConnection 実装の差分確認から始めること。
 
+#### 53. WorkManager 周期ジョブ（KEEP）は初回サイクル消化後 `cmd jobscheduler run -f` では doWork が発火しない（強制再現は workdb リセット一択）  ★★
+
+2026-07-10 U1 新着話チェック（`PeriodicWorkRequest` 24h・KEEP・WorkManager 2.9.1 / Android 16 ColorOS）の実機E2Eで確定。
+- **事実1**: `cmd jobscheduler run -f com.novelreader <id>` は `Running job [FORCED]` を返すが、**期限未到来の periodic WorkSpec は WM がディスパッチせず doWork が走らない**（logcat の WM 系タグ皆無・DB 副作用なしで確認）。JobScheduler 層の強制実行は WM 内部の周期判定（periodStartTime）を貫通しない。
+- **事実2**: 確実な即時再実行は、force-stop → `run-as` で WM 自身の状態DB `no_backup/androidx.work.workdb{,-wal,-shm}` を削除 → アプリ再起動。`Application.onCreate` の `enqueueUniquePeriodicWork(KEEP)` がフレッシュ enroll になり、**周期 Work の初回は initialDelay 無しなら即時実行**される。アプリ本体DB（novel_reader_db）とは別ファイルで蔵書無傷・workdb は WM が自動再生成。
+- **事実3（副作用の罠）**: `am instrument`（androidTest）もアプリプロセスを起動して `Application.onCreate` を走らせるため、周期 Work の登録＋初回即時実行が**テスト実行の副作用として**先回りで起こる（U1 E2E では MigrationTest 実行の数分後に無音初期化が完了済みで、後段の「marks は空のはず」前提が崩れた）。実機で「初回挙動」を検証する台本は instrument の実行順を考慮すること。
+
 ## 移設マッピング（旧 Part II / Part III の固定ID対応）
 
 > 旧エントリ番号（`§N`）は固定ID。本ファイルから `docs/` へ移設したもの、および重複採番の解消で再採番したものは下表で追跡する（移設先での再採番はしない）。

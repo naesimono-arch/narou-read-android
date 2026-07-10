@@ -9,7 +9,9 @@ import androidx.lifecycle.viewModelScope
 import com.novelreader.NovelReaderApplication
 import com.novelreader.PdfProcessingService
 import com.novelreader.data.BookEntity
+import com.novelreader.data.LabelEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.data.WebNovelEntity
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.DiscoveryResult
@@ -43,8 +45,17 @@ sealed class BookImportError(val userMessage: String) : Exception(userMessage) {
 sealed interface BookshelfUiState {
     /** DB からの初回発行前。この間はスケルトンを出し、空状態フラッシュを避ける。 */
     data object Loading : BookshelfUiState
-    /** DB 発行後の確定状態。books が空なら「蔵書ゼロ」を表す（Loading とは別物）。 */
-    data class Content(val books: List<BookEntity>) : BookshelfUiState
+    /** DB 発行後の確定状態。books が空なら「蔵書ゼロ」を表す（Loading とは別物）。
+     *  webNovels は (b) Web由来・未取込カード（融合本棚）。既定 emptyList は既存テスト・
+     *  呼び出しの互換のため（Web カード非対応の経路は蔵書のみで従来どおり成立する）。
+     *  labels/bookLabelIds は U2 ラベル整理（絞り込みチップ行＋付与シート）。bookLabelIds は
+     *  bookId→付与済み labelId 集合＝付与シートのチェック状態と絞り込みの両方をこの1つで賄う。 */
+    data class Content(
+        val books: List<BookEntity>,
+        val webNovels: List<WebNovelEntity> = emptyList(),
+        val labels: List<LabelEntity> = emptyList(),
+        val bookLabelIds: Map<String, Set<String>> = emptyMap(),
+    ) : BookshelfUiState
 }
 
 /**
@@ -95,8 +106,21 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     private val novelApiRepository = app.novelApiRepository
 
     // 一覧の正本。Loading を初期値にして「DB 初回発行前」を明示する（F-O）。
-    val uiState: StateFlow<BookshelfUiState> = repository.allBooks
-        .map<List<BookEntity>, BookshelfUiState> { BookshelfUiState.Content(it) }
+    // (b) 融合本棚: 蔵書と Web由来（未取込）を combine で束ねる。Room の各 Flow とも初回発行は
+    // 即時のため、combine 待ちが Loading を不当に長引かせることはない。
+    // U2: ラベルと付与も同じ combine に束ね、付与リストは bookId→labelId 集合へここで畳む
+    // （描画層は Map を引くだけの純粋表示にする＝カード/シート/チップの3箇所で同じ形を共有）。
+    val uiState: StateFlow<BookshelfUiState> =
+        combine(
+            repository.allBooks, repository.webNovels, repository.labels, repository.bookLabels,
+        ) { books, webNovels, labels, bookLabels ->
+            BookshelfUiState.Content(
+                books = books,
+                webNovels = webNovels,
+                labels = labels,
+                bookLabelIds = bookLabels.groupBy({ it.bookId }, { it.labelId }).mapValues { it.value.toSet() },
+            ) as BookshelfUiState
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BookshelfUiState.Loading)
 
     // 既存の呼び出し側（MainActivity の読書画面ルート等）向けの素の books ビュー。
@@ -121,10 +145,10 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     // カード枚数ぶん Repository を直撃していた（テスト不能・本棚を開くたびカードごとに並列発火）。
     // 照会を VM へ吊り上げ、カードは Map から自分の ncode 分を引くだけの純粋表示にする。
     //
-    // 【重要】なぜ IO 等へ切り替えず viewModelScope 既定（Main dispatcher）で逐次照会するか:
-    // NovelApiRepository のインメモリキャッシュは「全呼び出しが Main で直列化される」前提で
-    // スレッド安全性が成立している（既知負債。解消は別タスク U1）。ここで dispatcher を変えると
-    // キャッシュ競合を招くため、意図的に Main のまま逐次で回す（dispatcher を変えないこと）。
+    // なぜ逐次照会のままにするか: Repository キャッシュは Mutex でスレッド安全化済み（U1 対応）だが、
+    // 紐付け作品ぶんの詳細照会を並列発火させると、なろうAPIの転送量マナー（narou_api_manual.md §6）に
+    // 反するため、逐次（1件ずつ）で回す方針は維持する。dispatcher は viewModelScope 既定で足りる
+    // （API 呼び出しは Retrofit suspend＝内部で IO へ逃げるため Main を塞がない）。
     // 失敗（NarouApiException＝オフライン等）は静かに無視しバッジ非表示にする（旧 produceState と同一方針）。
     @OptIn(ExperimentalCoroutinesApi::class)
     val newEpisodeNovelMap: StateFlow<Map<String, NarouNovel>> = books
@@ -172,11 +196,15 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun addBook(uri: Uri) {
+    // ncode: 縦書きPDF取り込み（ADR 0011）から呼ぶときのみ非 null。取り込む本になろう作品を紐付ける。
+    // 通常のファイル選択取り込みでは省略（null）＝従来どおり紐付けはユーザーが後から NcodeLinkSheet で行う。
+    fun addBook(uri: Uri, ncode: Ncode? = null) {
         // 強制終了からの再開（起動時リカバリの再投入）にはプロセスを跨いで有効な読み取り権限が
         // 必要なため、intent の FLAG_GRANT（一時権限＝プロセス消滅で失効）に加えて永続権限を取る。
         // picker は OpenDocument なので取得可能だが、プロバイダによっては SecurityException を
         // 投げるため防御する（取れなくても通常の変換は一時権限で成立し、再開だけが不可になる）。
+        // なお FileProvider の content:// URI（取り込み経路）は persistable permission を取れず
+        // ここは runCatching で無害に失敗する＝その本の再開が効かないだけ（PdfImportViewModel 側と同じ前提）。
         runCatching {
             getApplication<Application>().contentResolver.takePersistableUriPermission(
                 uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -185,6 +213,8 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
         val intent = Intent(getApplication(), PdfProcessingService::class.java).apply {
             action = PdfProcessingService.ACTION_START
             data = uri
+            // ncode を積むのは新規登録時の紐付け用（Service→repository.addBook へ伝搬）。null なら積まない。
+            ncode?.let { putExtra(PdfProcessingService.EXTRA_NCODE, it.value) }
             // content:// URI の読み取り権限を Service に委譲
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
@@ -210,6 +240,26 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun deleteBook(book: BookEntity) {
         viewModelScope.launch(Dispatchers.IO) { repository.deleteBook(book) }
+    }
+
+    // (b) Web由来・未取込カードを本棚から外す。webNovels は hot に uiState へ combine 済みのため、
+    // 削除すれば本棚から即時に消える（deleteBook と同じ配送経路）。
+    fun removeWebNovel(ncode: String) {
+        viewModelScope.launch(Dispatchers.IO) { repository.removeWebNovel(Ncode(ncode)) }
+    }
+
+    // ────── U2 ラベル整理（作成・削除・付与はすべて uiState の combine へ hot に反映される）──────
+    // assignToBookId: 付与シートの「作成」から呼ぶとき＝その本へ即付与（BookRepository.createLabel の why）。
+    fun createLabel(name: String, assignToBookId: String? = null) {
+        viewModelScope.launch(Dispatchers.IO) { repository.createLabel(name, assignToBookId) }
+    }
+
+    fun deleteLabel(labelId: String) {
+        viewModelScope.launch(Dispatchers.IO) { repository.deleteLabel(labelId) }
+    }
+
+    fun setBookLabel(bookId: String, labelId: String, assigned: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { repository.setBookLabel(bookId, labelId, assigned) }
     }
 
     // PDF↔Web継続読書: なろう作品との紐付け（null で解除）。

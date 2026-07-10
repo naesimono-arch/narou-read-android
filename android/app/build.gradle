@@ -82,6 +82,9 @@ ksp {
 dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
+    // U1 新着話チェックの定期実行（24h 周期・ネットワーク制約）。2.9.1 は compileSdk 34 で解決できる安定版
+    // （2.10+ は compileSdk 35 前提のため避ける＝lifecycle 2.6.2 固定と同じ制約系）。
+    implementation 'androidx.work:work-runtime-ktx:2.9.1'
     // collectAsStateWithLifecycle 提供。ライフサイクル STOPPED 以下で StateFlow の collect を止め、
     // バックグラウンドでの無駄な購読/再コンポーズを避ける（従来の collectAsState は常時 collect）。
     // なぜ 2.6.2 固定: lifecycle-runtime-ktx と版を揃える。かつ compileSdk 34 制約下では 2.7+ を避ける

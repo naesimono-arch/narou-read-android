@@ -7,10 +7,16 @@ import android.util.Log
 import com.novelreader.data.AppDatabase
 import com.novelreader.data.BookDao
 import com.novelreader.data.BookEntity
+import com.novelreader.data.BookLabelDao
+import com.novelreader.data.BookLabelEntity
+import com.novelreader.data.LabelDao
+import com.novelreader.data.LabelEntity
 import com.novelreader.data.PendingJobDao
 import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressDao
 import com.novelreader.data.ProgressEntity
+import com.novelreader.data.WebNovelDao
+import com.novelreader.data.WebNovelEntity
 import com.novelreader.narou.model.Ncode
 import com.novelreader.pdf.CorruptedPdfError
 import com.novelreader.pdf.EncryptedPdfError
@@ -42,10 +48,54 @@ class DefaultBookRepository(
     private val bookDao: BookDao = AppDatabase.getDatabase(context).bookDao(),
     private val progressDao: ProgressDao = AppDatabase.getDatabase(context).progressDao(),
     private val pendingJobDao: PendingJobDao = AppDatabase.getDatabase(context).pendingJobDao(),
+    private val webNovelDao: WebNovelDao = AppDatabase.getDatabase(context).webNovelDao(),
+    private val labelDao: LabelDao = AppDatabase.getDatabase(context).labelDao(),
+    private val bookLabelDao: BookLabelDao = AppDatabase.getDatabase(context).bookLabelDao(),
 ) : BookRepository {
 
     override val allBooks: Flow<List<BookEntity>> = bookDao.getAllBooks()
     override val allProgress: Flow<List<ProgressEntity>> = progressDao.getAllProgress()
+    override val webNovels: Flow<List<WebNovelEntity>> = webNovelDao.getAll()
+
+    override suspend fun putWebNovel(novel: WebNovelEntity) = webNovelDao.insert(novel)
+
+    // なぜ削除も trim().uppercase() 正規化か: 保存側（putWebNovel の契約）と同じ正規化を通さないと、
+    // 表記ゆれの ncode で削除が空振りしてカードが残り続けるため（NcodeLinkSheet の保存正規化と同系）。
+    override suspend fun removeWebNovel(ncode: Ncode) =
+        webNovelDao.deleteByNcode(ncode.value.trim().uppercase())
+
+    override val labels: Flow<List<LabelEntity>> = labelDao.getAll()
+    override val bookLabels: Flow<List<BookLabelEntity>> = bookLabelDao.getAll()
+
+    override suspend fun createLabel(name: String, assignToBookId: String?) = withContext(Dispatchers.IO) {
+        // 空白だけの名前は作らない（シート側も弾くが、Repository 契約としても保証する）。
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return@withContext
+        // 同名は unique index＋IGNORE で挿入されず -1 が返るだけ（LabelDao の why 参照）。
+        labelDao.insert(LabelEntity(id = UUID.randomUUID().toString(), name = trimmed, createdAt = System.currentTimeMillis()))
+        // 作成と同時付与: 挿入結果でなく name 逆引きで labelId を解決する。なぜ: 同名既存（IGNORE で -1）
+        // でも「この本に付けたい」意図は同じで、既存ラベルへの付与として成立させるため。
+        if (assignToBookId != null) {
+            labelDao.findByName(trimmed)?.let { label ->
+                bookLabelDao.insert(BookLabelEntity(bookId = assignToBookId, labelId = label.id))
+            }
+        }
+    }
+
+    override suspend fun deleteLabel(labelId: String) = withContext(Dispatchers.IO) {
+        labelDao.delete(labelId)
+        // FK なし設計のため junction はアプリ層で掃除する（BookLabelDao.deleteForLabel の why 参照）。
+        bookLabelDao.deleteForLabel(labelId)
+    }
+
+    override suspend fun setBookLabel(bookId: String, labelId: String, assigned: Boolean) =
+        withContext(Dispatchers.IO) {
+            if (assigned) {
+                bookLabelDao.insert(BookLabelEntity(bookId = bookId, labelId = labelId))
+            } else {
+                bookLabelDao.delete(bookId, labelId)
+            }
+        }
 
     /** べき等ガードの純判定を切り出したもの: 抽出後のタイトル＋著者に一致する既存蔵書を返す
      *  （無ければ null）。実 PDF 抽出を挟まず単体テストできるよう addBook 本体から分離する。 */
@@ -85,6 +135,7 @@ class DefaultBookRepository(
     /** PDFをキャッシュにコピーし、ネイティブ(PDFBox)抽出でHTML生成後にRoomへ登録する。 */
     override suspend fun addBook(
         pdfUri: Uri,
+        ncode: Ncode?,
         onProgress: (step: Int, stepLocalPercent: Float, phase: String, title: String) -> Unit,
     ): Result<AddBookResult> = withContext(Dispatchers.IO) {
         // withContext(Dispatchers.IO) の CoroutineScope を捕捉する。抽出の進捗コールバック（非 suspend）から
@@ -167,7 +218,12 @@ class DefaultBookRepository(
                         // addedAt に追加時刻をスタンプし、本棚の最近活動順ソート（未読本の基準）に使う。
                         // contentSha256 に①'で計算した内容指紋を保存する（次回以降の別URI・同内容の
                         // 再取込を、この本の存在によって変換前に遮断できるようにする＝F-G 恒久策の記録）。
-                        val b = BookEntity(bookId, meta.title, outputDir.absolutePath, meta.author, addedAt = System.currentTimeMillis(), contentSha256 = contentSha256)
+                        // ncode は「新規登録時のみ」書き込む（ADR 0011 の縦書きPDF取り込み経路から渡る）。
+                        // なぜ Duplicate 経路（上の hash 照合／下の title+author 照合）では設定しないか:
+                        // 既にある本を上書きすると、ユーザーが手動で別作品へ紐付け直した ncode を勝手に潰しうる。
+                        // 重複時は既存本をそのまま返し ncode に触れない（＝既存の紐付けを尊重する）。取り込み側は
+                        // 必要なら NcodeLinkSheet で手動修正できるため、これで実害はない。
+                        val b = BookEntity(bookId, meta.title, outputDir.absolutePath, meta.author, addedAt = System.currentTimeMillis(), contentSha256 = contentSha256, ncode = ncode?.value)
                         bookDao.insertBook(b)
                         // 変換が確定したので永続キュー（pending_jobs）の記帳を落とす。insertBook と同じ
                         // NonCancellable 内で連続実行し、「本は登録されたのに pending が残る」→ 次回起動の
@@ -305,6 +361,9 @@ class DefaultBookRepository(
     override suspend fun deleteBook(book: BookEntity) = withContext(Dispatchers.IO) {
         bookDao.deleteById(book.id)
         progressDao.deleteByBookId(book.id)
+        // U2: FK なし設計のためラベル付与の junction もここで掃除する（放置すると再作成された
+        // 同一 id の本に古いラベルが化けて付く恐れは無い＝id は UUID だが、ゴミ行は残るため）。
+        bookLabelDao.deleteForBook(book.id)
         if (!File(book.htmlDirPath).deleteRecursively()) {
             Log.w(TAG, "HTMLディレクトリの削除に失敗: ${book.htmlDirPath}")
         }
