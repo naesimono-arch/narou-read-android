@@ -361,4 +361,22 @@ class NovelApiRepository(
         putCache(cacheKey, result, now)
         return result.novels.firstOrNull()
     }
+
+    /** 複数 ncode の詳細を1リクエストで取得する（U1 新着チェックのバルク照会）。 */
+    suspend fun novelDetailsBulk(ncodes: List<Ncode>): List<NarouNovel> {
+        // なぜ: 照合対象の ncode リストが空なら、なろうAPIにリクエストを投げる必要がないため即座に空リストを返す。
+        if (ncodes.isEmpty()) return emptyList()
+
+        return wrapApiException {
+            val ncodeParam = ncodes.joinToString("-") { it.value.trim() }
+            // なぜ of = "t-n-ga" なのか: U1 新着チェックにおいて必要な項目はタイトル(t)、Nコード(n)、全話数(ga)のみであり、転送量を最小限に抑えるため。
+            // なぜ意図的にキャッシュに乗せないか: 新着話の検知は情報の鮮度が本質であり、6時間TTLキャッシュに乗せると当日中の更新を翌日扱いにするなど検知の遅延を引き起こすため。また、このメソッドは1日1回等のWorkerによる呼び出しを想定しており、APIレート制限等の負荷も問題にならないため。
+            val list = service.search(
+                ncode = ncodeParam,
+                lim = ncodes.size,
+                of = "t-n-ga"
+            )
+            list.drop(1)
+        }
+    }
 }

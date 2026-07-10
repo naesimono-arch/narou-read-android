@@ -819,4 +819,43 @@ class NovelApiRepositoryTest {
         val again = repository.discover(DiscoveryQuery(word = "query-99"))
         assertEquals(100, again.allcount)
     }
+
+    @Test
+    fun `novelDetailsBulk - ncode がダッシュ連結され of=t-n-ga と lim=件数 で送られること`() = runTest {
+        val mockNovels = listOf(
+            NarouNovel(allcount = 2),
+            NarouNovel(title = "作品1", ncode = "N1111AA"),
+            NarouNovel(title = "作品2", ncode = "N2222BB")
+        )
+        coEvery { service.search(ncode = "N1111AA-N2222BB", lim = 2, of = "t-n-ga") } returns mockNovels
+
+        val result = repository.novelDetailsBulk(listOf(Ncode("N1111AA"), Ncode("N2222BB")))
+
+        assertEquals(2, result.size)
+        assertEquals("N1111AA", result[0].ncode)
+        assertEquals("N2222BB", result[1].ncode)
+        coVerify(exactly = 1) { service.search(ncode = "N1111AA-N2222BB", lim = 2, of = "t-n-ga") }
+    }
+
+    @Test
+    fun `novelDetailsBulk - 空リストは API を呼ばず空を返すこと`() = runTest {
+        val result = repository.novelDetailsBulk(emptyList())
+        assertTrue(result.isEmpty())
+        coVerify(exactly = 0) { service.search(ncode = any(), lim = any(), of = any()) }
+    }
+
+    @Test
+    fun `novelDetailsBulk - 2回呼ぶと2回 API が呼ばれること（キャッシュに乗らない）`() = runTest {
+        val mockNovels = listOf(
+            NarouNovel(allcount = 1),
+            NarouNovel(title = "作品1", ncode = "N1111AA")
+        )
+        coEvery { service.search(ncode = "N1111AA", lim = 1, of = "t-n-ga") } returns mockNovels
+
+        val ncodes = listOf(Ncode("N1111AA"))
+        repository.novelDetailsBulk(ncodes)
+        repository.novelDetailsBulk(ncodes)
+
+        coVerify(exactly = 2) { service.search(ncode = "N1111AA", lim = 1, of = "t-n-ga") }
+    }
 }
