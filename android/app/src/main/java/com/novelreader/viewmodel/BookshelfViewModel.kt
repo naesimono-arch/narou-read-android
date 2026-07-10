@@ -1,8 +1,10 @@
 package com.novelreader.viewmodel
 
 import android.app.Application
+import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -24,6 +26,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** PDF取込時のエラー種別。UI層でユーザー向けメッセージに変換する。 */
 sealed class BookImportError(val userMessage: String) : Exception(userMessage) {
@@ -34,6 +37,15 @@ sealed class BookImportError(val userMessage: String) : Exception(userMessage) {
     class StorageWriteFailure : BookImportError("ファイルの書き込みに失敗しました")
     class Unknown(val detail: String?) : BookImportError("PDF処理に失敗しました")
 }
+
+/**
+ * 複数PDF取込で「なろう形式でないPDF」が混在したときの確認プロンプト状態。
+ * narou＝なろう形式（Nコード名）／nonNarou＝それ以外。いずれも本棚に巻順で並ぶ投入順で保持する。
+ */
+data class PdfImportPrompt(
+    val narou: List<Uri>,
+    val nonNarou: List<Uri>,
+)
 
 /**
  * 本棚の一覧状態。Loading（DB 初回発行前）と Content（発行後の確定）を型で区別する。
@@ -220,6 +232,64 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
         }
         ContextCompat.startForegroundService(getApplication(), intent)
     }
+
+    // 複数PDF取込で「なろう形式でないPDF」が混在したときの確認プロンプト（null=非表示）。
+    // なぜ StateFlow か: エラー通知（errorEvents）と違いユーザーが選ぶまで表示を保持する必要があるため
+    // 一度きりの Channel でなく状態として持つ（回転・再購読でもダイアログが消えない）。
+    private val _importPrompt = MutableStateFlow<PdfImportPrompt?>(null)
+    val importPrompt: StateFlow<PdfImportPrompt?> = _importPrompt.asStateFlow()
+
+    /**
+     * 複数PDFの同時取込エントリ（picker=OpenMultipleDocuments から受ける）。
+     * ファイル名から「なろう公式縦書きPDF（Nコード名）」かどうかで仕分けし、なろうでないものが
+     * 混在するときだけ確認プロンプトを出す（全てなろう形式なら無摩擦で取込む）。picker はファイル名や
+     * 中身での絞り込みができない（OS 制約＝MIME のみ）ため、絞り込みは取込段のこの判定で行う。
+     * 表示名の解決は ContentProvider への query＝IO なので Dispatchers.IO で回す。
+     */
+    fun addBooks(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val resolver = getApplication<Application>().contentResolver
+            val names = uris.map { resolveDisplayName(resolver, it) }
+            val plan = planNarouPdfImport(names)
+            val narou = plan.narouOrder.map { uris[it] }
+            val nonNarou = plan.nonNarouOrder.map { uris[it] }
+            // addBook は startForegroundService＋takePersistableUriPermission＝UI 側の操作。
+            // 逐次投入の順序（＝Service のキュー順）を確定させるためメインに戻して1件ずつ呼ぶ。
+            withContext(Dispatchers.Main) {
+                if (nonNarou.isEmpty()) {
+                    narou.forEach { addBook(it) }
+                } else {
+                    _importPrompt.value = PdfImportPrompt(narou = narou, nonNarou = nonNarou)
+                }
+            }
+        }
+    }
+
+    /** 確認プロンプトでの決定。includeNonNarou=true でなろう形式でないPDFも含めて取り込む。 */
+    fun confirmImport(includeNonNarou: Boolean) {
+        val prompt = _importPrompt.value ?: return
+        _importPrompt.value = null
+        // なろう形式を先に、非なろうを後に投入する。各群内の巻順は planNarouPdfImport が
+        // 本棚（addedAt DESC）で正しく見えるよう並べ済み（群を跨いだ厳密な混在順は保証しない）。
+        prompt.narou.forEach { addBook(it) }
+        if (includeNonNarou) prompt.nonNarou.forEach { addBook(it) }
+    }
+
+    /** 確認プロンプトをキャンセル（何も取り込まない）。 */
+    fun dismissImportPrompt() {
+        _importPrompt.value = null
+    }
+
+    // 表示名（ファイル名）を ContentProvider から解決する。取れなければ URI 末尾でフォールバックし、
+    // なろう判定・ソートの材料にする。query 失敗（プロバイダ差異）を握り潰しても取込自体は成立する。
+    private fun resolveDisplayName(resolver: ContentResolver, uri: Uri): String =
+        runCatching {
+            resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                val idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (idx >= 0 && c.moveToFirst()) c.getString(idx) else null
+            }
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment.orEmpty()
 
     // 変換の全体停止。キュー待ちを破棄し、処理中の1冊もページ境界で即中断する
     // （純 Kotlin 化で割り込みが可能になった）。Service へ STOP を送るだけ。

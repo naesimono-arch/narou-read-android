@@ -94,15 +94,19 @@ fun BookshelfScreen(
     // 続きありバッジ用のなろう詳細（key=ncode）。VM が本棚一覧の紐付け作品をまとめて照会し配布する。
     val newEpisodeNovelMap by viewModel.newEpisodeNovelMap.collectAsStateWithLifecycle()
     val processingState by viewModel.processingState.collectAsStateWithLifecycle()
+    // 複数PDF取込で「なろう形式でないPDF」が混在したときの確認プロンプト（null=非表示）。
+    val importPrompt by viewModel.importPrompt.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // PDF ファイル選択ランチャー
+    // PDF ファイル選択ランチャー（複数同時選択対応）。
+    // OpenMultipleDocuments はキャンセル時 空リストを返す。取込は addBooks へ委ね、なろう形式でない
+    // PDF の仕分け・確認は VM 側で行う（OS ピッカーはファイル名/中身での絞り込み・ソート不可のため）。
     val pdfPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        uri?.let { viewModel.addBook(it) }
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNotEmpty()) viewModel.addBooks(uris)
     }
 
     // 通知権限ランチャー（Android 13+）。権限結果に関わらずPDF選択を開始
@@ -276,6 +280,48 @@ fun BookshelfScreen(
             },
             dismissButton = {
                 TextButton(onClick = { dismiss(false) }) { Text("このまま続ける") }
+            },
+        )
+    }
+
+    // 複数PDF取込で「なろう形式でないPDF」が混在したときの確認ダイアログ（プラットフォーム連携は無いが
+    // VM 状態に紐づく決定 UI のためルート層に置く）。既定＝なろう形式のみ取込（安全側）＋「すべて取り込む」
+    // で改名済みの正当ななろうPDFも救済できるようにする（取りこぼしを不可逆にしない）。
+    importPrompt?.let { prompt ->
+        val total = prompt.narou.size + prompt.nonNarou.size
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissImportPrompt() },
+            title = { Text("なろう形式でないPDFがあります") },
+            text = {
+                Text(
+                    "選択した ${total} 件のうち ${prompt.nonNarou.size} 件は、なろうの縦書きPDF" +
+                        "（ファイル名が「N＋数字＋英字」の形式）ではありません。" +
+                        "うまく変換できない場合があります。",
+                )
+            },
+            // なろう形式が1件以上あるなら既定を「なろう形式のみ」に。0件（全て非なろう）なら
+            // 主ボタンを「すべて取り込む」にして選択が無駄にならないようにする。
+            confirmButton = {
+                if (prompt.narou.isNotEmpty()) {
+                    TextButton(onClick = { viewModel.confirmImport(includeNonNarou = false) }) {
+                        Text("なろう形式のみ (${prompt.narou.size}件)")
+                    }
+                } else {
+                    TextButton(onClick = { viewModel.confirmImport(includeNonNarou = true) }) {
+                        Text("すべて取り込む (${total}件)")
+                    }
+                }
+            },
+            dismissButton = {
+                Row {
+                    // なろう形式が在るときだけ副ボタンとして「すべて取り込む」を出す（0件時は主ボタン化済み）。
+                    if (prompt.narou.isNotEmpty()) {
+                        TextButton(onClick = { viewModel.confirmImport(includeNonNarou = true) }) {
+                            Text("すべて (${total}件)")
+                        }
+                    }
+                    TextButton(onClick = { viewModel.dismissImportPrompt() }) { Text("キャンセル") }
+                }
             },
         )
     }
