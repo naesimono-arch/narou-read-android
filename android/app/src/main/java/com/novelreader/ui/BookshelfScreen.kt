@@ -124,7 +124,10 @@ fun BookshelfScreen(
 
     // グリッド/リスト表示の切り替え状態（SharedPreferencesで永続化）。
     // 永続化を伴うためルート層で所有し、値とトグルを描画層へ渡す（描画層は VM/prefs 非依存に保つ）。
-    var isGridView by remember { mutableStateOf(prefs.getBoolean("is_grid_view", true)) }
+    // 既定=false（リスト＝文字目録）: 骨格3「文字目録」を本棚の既定骨格に採用（表紙を持たない
+    // このアプリでは題字主役の目録が素直＝生成書影を捨てて装画を捏造しない）。グリッドは切替で残す
+    // （実機で要否を詰める。将来グリッドを廃するならこのトグルと GridBookCard 経路ごと整理する）。
+    var isGridView by remember { mutableStateOf(prefs.getBoolean("is_grid_view", false)) }
 
     // (b) Web由来カードの Custom Tabs 二重起動ガード（NovelDetailScreen と同じ機序）。
     var lastWebLaunchAt by remember { mutableStateOf(0L) }
@@ -810,27 +813,32 @@ private fun BookshelfSkeleton(
             }
         }
     } else {
-        // リスト: 実行と同じ左右24dp。6行ぶん出す。
+        // リスト（文字目録）: 実行と同じ左右24dp・6行ぶん。表紙は無く、左端の色帯＋題字/進捗の場所取り。
         Column(modifier = modifier.padding(start = 24.dp, top = 4.dp, end = 24.dp)) {
             repeat(6) {
                 Row(
-                    modifier = Modifier.padding(top = 18.dp, bottom = 18.dp),
+                    modifier = Modifier
+                        .height(IntrinsicSize.Min)
+                        .padding(top = 16.dp, bottom = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // 左端の色帯プレースホルダ（実カードの作品識別色の場所取り）。
                     Box(
                         modifier = Modifier
-                            .width(46.dp)
-                            .height(69.dp)
+                            .width(4.dp)
+                            .fillMaxHeight()
                             .clip(RoundedCornerShape(2.dp))
                             .background(blockColor),
                     )
-                    Spacer(Modifier.width(16.dp))
+                    Spacer(Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        SkeletonLine(color = lineColor, widthFraction = 0.8f)
-                        Spacer(Modifier.height(8.dp))
-                        SkeletonLine(color = lineColor, widthFraction = 0.4f)
-                        Spacer(Modifier.height(10.dp))
-                        SkeletonLine(color = lineColor, widthFraction = 0.6f)
+                        // 明朝題字2行ぶん
+                        SkeletonLine(color = lineColor, widthFraction = 0.85f)
+                        Spacer(Modifier.height(7.dp))
+                        SkeletonLine(color = lineColor, widthFraction = 0.55f)
+                        Spacer(Modifier.height(11.dp))
+                        // 進捗行
+                        SkeletonLine(color = lineColor, widthFraction = 0.5f)
                     }
                 }
                 HorizontalDivider(thickness = 1.dp, color = lineColor)

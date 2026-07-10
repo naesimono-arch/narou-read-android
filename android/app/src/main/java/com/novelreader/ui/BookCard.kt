@@ -31,6 +31,7 @@ import com.novelreader.narou.ContinuationInfo
 import com.novelreader.narou.computeContinuation
 import com.novelreader.narou.model.NarouNovel
 import com.novelreader.ui.components.BookCover
+import com.novelreader.ui.components.coverBarColor
 import com.novelreader.ui.theme.MinchoFamily
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -282,7 +283,10 @@ internal fun GridBookCard(
 }
 
 // ============================================================
-// リスト用書籍カード
+// 文字目録の行（骨格3）: 表紙を排し、明朝の題字を主役に縦へ連ねる。
+// 作品の識別は左端 4dp の色帯（本の小口メタファ・作品識別色）だけで行う
+// ＝生成書影を捨てて存在しない装画を捏造しない（モック bookshelf-mokuroku-D.html）。
+// ※関数名は呼び出し側（BookshelfContent のリストモード）との互換のため ListBookCard を維持する。
 // ============================================================
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -318,6 +322,9 @@ internal fun ListBookCard(
         chapNum, totalChaps, progress?.scrollIndex ?: 0, progress?.scrollOffset ?: 0,
     )
 
+    // 作品識別色（左端の色帯）。表紙を持たない目録では、この色帯だけが作品の視覚的な手がかり。
+    val barColor = remember(book.id) { coverBarColor(book.id) }
+
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -326,7 +333,7 @@ internal fun ListBookCard(
         label = "listCardScale",
     )
 
-    // モック .li: カード地・影を廃し、上下余白＋下ヘアラインで区切る静かな行。
+    // モック 文字目録 .li: カード地・影・書影を廃し、上下余白＋下ヘアラインで区切る静かな行。
     // 外側 Column が行本体(Row)と区切り線(HorizontalDivider)を束ねる。
     Column(modifier = modifier) {
         Row(
@@ -339,52 +346,62 @@ internal fun ListBookCard(
                     // 長押しは方式に依らず常時有効（M5: ⋮のフォールバック）。deleteUiMode は⋮の可視のみ制御。
                     onLongClick = { menuExpanded = true },
                 )
-                .padding(top = 18.dp, bottom = 18.dp),
+                // 色帯を行の高さいっぱいに伸ばすため、行の高さを内容の最小内在高さに合わせる。
+                .height(IntrinsicSize.Min)
+                .padding(top = 16.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 小さい書影（46×69・角丸2px・文字なしの色面のみ）
-            BookCover(
-                bookId = book.id,
-                title = book.title,
-                showTitle = false,
+            // 左端の色帯（本の小口メタファ・作品識別色）。行の高さに合わせて stretch。
+            Box(
                 modifier = Modifier
-                    .width(46.dp)
-                    .height(69.dp)
-                    .clip(RoundedCornerShape(2.dp)),
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(barColor),
             )
-            Spacer(Modifier.width(16.dp))
+            Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
+                // 明朝の題字（目録の主役）。2行まで。
                 Text(
                     text = book.title,
                     fontFamily = MinchoFamily,
-                    fontSize = 15.sp,
-                    lineHeight = 21.sp,
-                    maxLines = 1,
+                    fontSize = 16.5.sp,
+                    lineHeight = 25.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
-                if (book.author.isNotBlank()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = book.author,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(Modifier.height(9.dp))
-                // モック fusion のリストは進捗行の右に続きありバッジを並べる（margin-left:10px）
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    BookProgressRow(
-                        totalChaps = totalChaps,
-                        progressFraction = progressFraction,
-                        flexBar = false,
-                    )
-                    newEpisodeCountFor(novelDetail, totalChaps)?.let { newCount ->
-                        NewChaptersBadge(newCount = newCount, modifier = Modifier.padding(start = 10.dp))
+                // 著者＋続きあり（青磁）。モックの目録は著者脇に「続き N話」を寄せる。
+                val newCount = newEpisodeCountFor(novelDetail, totalChaps)
+                if (book.author.isNotBlank() || newCount != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (book.author.isNotBlank()) {
+                            Text(
+                                text = book.author,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                // 続きバッジの領域を確保するため、著者が長くてもバッジを押し出さない。
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                        }
+                        newCount?.let {
+                            NewChaptersBadge(
+                                newCount = it,
+                                modifier = Modifier.padding(start = if (book.author.isNotBlank()) 10.dp else 0.dp),
+                            )
+                        }
                     }
                 }
+                Spacer(Modifier.height(10.dp))
+                BookProgressRow(
+                    totalChaps = totalChaps,
+                    progressFraction = progressFraction,
+                    flexBar = false,
+                )
             }
             // 削除アフォーダンス。⋮方式(1・既定)のみ行末にボタン（M5: 削除の可視手がかり）。0は長押しのみ。
             // Box は方式に関わらず DropdownMenu のアンカーとして常設する。
