@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -43,6 +44,22 @@
             android:name=".PdfProcessingService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
+
+        <!--
+          WorkManager の自動初期化を無効化し on-demand 初期化（NovelReaderApplication が
+          Configuration.Provider を実装）へ切り替える。
+          なぜ: 自動初期化は androidx.startup の ContentProvider 経由で、Robolectric（JVM UI テスト
+          ＝ADR 0009）では走らず WorkManager.getInstance が IllegalStateException で全テストを
+          落とすため。on-demand なら本番・テストとも「最初に使う瞬間」に同じ経路で初期化される。
+        -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                tools:node="remove" />
+        </provider>
 
         <!--
           なろう縦書きPDF取り込み（ADR 0011）の DL 一時ファイルを content:// 化するための FileProvider。
