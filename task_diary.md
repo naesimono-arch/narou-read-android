@@ -620,6 +620,12 @@ Robolectric（4.11.1・sdk34・createComposeRule）で `ModalBottomSheet` を含
 - **事実2**: 確実な即時再実行は、force-stop → `run-as` で WM 自身の状態DB `no_backup/androidx.work.workdb{,-wal,-shm}` を削除 → アプリ再起動。`Application.onCreate` の `enqueueUniquePeriodicWork(KEEP)` がフレッシュ enroll になり、**周期 Work の初回は initialDelay 無しなら即時実行**される。アプリ本体DB（novel_reader_db）とは別ファイルで蔵書無傷・workdb は WM が自動再生成。
 - **事実3（副作用の罠）**: `am instrument`（androidTest）もアプリプロセスを起動して `Application.onCreate` を走らせるため、周期 Work の登録＋初回即時実行が**テスト実行の副作用として**先回りで起こる（U1 E2E では MigrationTest 実行の数分後に無音初期化が完了済みで、後段の「marks は空のはず」前提が崩れた）。実機で「初回挙動」を検証する台本は instrument の実行順を考慮すること。
 
+#### 54. Android ターゲットの Kotlin はバッククォートのテスト名でも `.` を不正文字として拒否する（純 JVM の緩和が効かない）  ★
+
+2026-07-11 ShelfItemsTest で実測（AGP 8.6.1）。テスト名に `chap_N.html` / `index.html` を含めたら `compileDebugUnitTestKotlin` が `Name contains illegal characters: .` で失敗。
+- **機序**: `testDebugUnitTest` は JVM 実行だが **Android バリアントとしてコンパイル**されるため、dex 互換の識別子制約（`.` `;` `[` `]` `/` 等の禁止）がバッククォート名にも課される。純 JVM モジュールなら通る書き方なので、他プロジェクトの流儀を持ち込むと Android 側だけ落ちる。
+- **対処**: テスト名にファイル名・拡張子・小数（「1.5倍」等）を書きたいときは `.` を外した言い換えにする（例:「chap_N 形式の章ファイル名は…」）。
+
 ## 移設マッピング（旧 Part II / Part III の固定ID対応）
 
 > 旧エントリ番号（`§N`）は固定ID。本ファイルから `docs/` へ移設したもの、および重複採番の解消で再採番したものは下表で追跡する（移設先での再採番はしない）。

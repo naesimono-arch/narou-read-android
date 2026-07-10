@@ -95,3 +95,5 @@ Androidの `SupportSQLiteDatabase` でも `execSQL("PRAGMA table_info(books)")` 
 | v11 → v12 | web_novels テーブルを新設（MIGRATION_11_12、CREATE TABLE のみ＝既存テーブル無変更。(b) Web由来・未取込カード＝Web 作品を取込前に本棚へ置くためのメタ置き場。ncode PK・蔵書 books とは別系統）|
 | v12 → v13 | new_episode_marks テーブルを新設（MIGRATION_12_13、CREATE TABLE のみ。U1 新着話チェックの「前回通知済み話数」基準値＝章数基準だと取込むまで毎日同じ通知が再送されるため基準値方式を採る。ncode PK）|
 | v13 → v14 | labels / book_labels テーブルを新設（MIGRATION_13_14、CREATE TABLE ×2＋index ×2。U2 ラベル整理＝フラットな多対多。labels.name に unique index・book_labels は複合PK(bookId,labelId)＋labelId index。FK なし＝掃除はアプリ層の流儀）|
+| v14 → v15 | web_reading_progress テーブルを新設（MIGRATION_14_15。**採番レーン＝feat/episode-nav**〔Web由来カードの読書位置記録〕。ui/vertical-pdf-import レーンには同一 DDL の複製が存在＝v16 へのパス繋ぎ・本手順書冒頭の「並列 worktree の version 先取り」運用の実例）|
+| v15 → v16 | labels / book_labels テーブルを DROP（MIGRATION_15_16、ラベルシステム廃止＝本棚分類を読書状態〔よみかけ/未読/読了〕の導出値へ置換・付与データごと削除。v15 が並列レーン消費済みのため v16 へ退避した経緯ごと AppDatabase.kt の why コメント参照）|
