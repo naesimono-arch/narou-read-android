@@ -26,18 +26,18 @@ import org.junit.runner.RunWith
  * 本テストは実 DB 名 "novel_reader_db" を一切触らず、専用の使い捨て DB 名のみ使う（下記 TEST_DB_* 定数）。
  *
  * **本番 Migration を直接参照している**: 検証対象は AppDatabase.kt の companion object にある本物の
- * MIGRATION_7_8 / 8_9 / 9_10 / 10_11 / 11_12 / 12_13 / 13_14 / 14_15 / 15_16（`internal` 宣言＝同一モジュール・同一パッケージの androidTest から可視）。
+ * MIGRATION_7_8 / 8_9 / 9_10 / 10_11 / 11_12 / 12_13 / 13_14 / 14_15 / 15_16 / 16_17（`internal` 宣言＝同一モジュール・同一パッケージの androidTest から可視）。
  * かつては private ゆえ参照できず同一 SQL を本ファイル下部へ写経していたが、写しは本体変更に追従せず
  * 二重真実源になるため、可視性を internal へ上げて本物参照へ一本化した（AppDatabase.kt 側にも
  * 「なぜ internal か」を明記済み）。
  *   → 限界: 本番の `addMigrations(...)` への登録漏れ自体は本チェーンテストでは捕まえられない（本物の
  *     オブジェクトを `AppDatabase.MIGRATION_*` で直接渡すため、登録配線そのものは経由しない）。
- *     その層は `freshInstallAtV16_passesIdentityHashCheck`（実エンティティの hash 照合）が別角度で補う。
+ *     その層は `freshInstallAtV17_passesIdentityHashCheck`（実エンティティの hash 照合）が別角度で補う。
  *
- * **対象範囲を 7→16 に絞る理由**: identity hash 衝突を実測した版（v8/v9/v10）と最新の v11（F-G 恒久策＝
+ * **対象範囲を 7→17 に絞る理由**: identity hash 衝突を実測した版（v8/v9/v10）と最新の v11（F-G 恒久策＝
  * books.contentSha256 追加）、v12（web_novels テーブル新設）、v13（new_episode_marks テーブル新設）、v14（labels / book_labels 新設）、
- * v15（web_reading_progress 新設＝並列レーン feat/episode-nav の系譜を複製して migration パスを繋ぐ）、
- * v16（ラベルシステム廃止＝labels / book_labels を DROP）がこの区間に集中する。MIGRATION_3_4〜6_7 も AppDatabase に実装は在るが
+ * v15（web_reading_progress 新設＝機能②。ADR 0012）、v16（ラベルシステム廃止＝labels / book_labels を DROP）、
+ * v17（no-op 再スタンプ＝2026-07-11 合流で WebReadingProgressEntity 登録に伴う hash 前進）がこの区間に集中する。MIGRATION_3_4〜6_7 も AppDatabase に実装は在るが
  * （3_4 は PRAGMA 分岐を持つ）、区間外・写し増による保守負債を避けて対象外とした。3→7 への拡張が必要に
  * なれば同方式で追加できる。
  */
@@ -53,13 +53,13 @@ class MigrationTest {
     )
 
     /**
-     * 7→8→9→10→11→12→13→14→(15)→16 の全パスを適用し、各段で結果スキーマが checked-in JSON と一致するか検証する。
+     * 7→8→9→10→11→12→13→14→15→16→17 の全パスを1段ずつ適用し、各段で結果スキーマが checked-in JSON と一致するか検証する。
      *
-     * **何を捕まえるか**: Migration の DDL が Room がエンティティから期待するスキーマ（8/9/10/11/12/13/14/16.json）と食い違う退行。
+     * **何を捕まえるか**: Migration の DDL が Room がエンティティから期待するスキーマ（8〜17 の各 .json）と食い違う退行。
      * 食い違えば実機では起動時 schema validation で即クラッシュする——それを1段ごとに前倒しで検出する。
      */
     @Test
-    fun migrate7to16_validatesSchemaAtEachStep() {
+    fun migrate7to17_validatesSchemaAtEachStep() {
         // v7 スキーマの空 DB を 7.json から作る（＝v7 で作られた実機 DB 相当の初期状態）。
         helper.createDatabase(TEST_DB_CHAIN, 7).close()
 
@@ -88,29 +88,31 @@ class MigrationTest {
         // 13→14: labels / book_labels テーブル新設。14.json も7テーブル全部を含むので true で厳格検証。
         helper.runMigrationsAndValidate(TEST_DB_CHAIN, 14, true, AppDatabase.MIGRATION_13_14).close()
 
-        // 14→15→16 を一括で回す（15 を単独 validate しない）。
-        //   なぜ一括か: 本ブランチの schemas/ に 15.json が無い（v15 は並列レーン feat/episode-nav が採番した版で、
-        //   本ブランチは 14→15 の DDL を複製して migration パスを繋ぐだけ＝15 の checked-in スキーマを持たない）。
-        //   15 を単独 validate しようとすると 15.json 不在で読めず落ちるため、14→16 を1回の runMigrationsAndValidate で
-        //   通し、最終 16.json のみ照合する。
-        //   なぜ validateDroppedTables=false か: 14→15 が作る web_reading_progress は本ブランチの 16.json に無い
-        //   余剰テーブル（Entity 未登録＝Room の検証対象外）。true にすると「16.json に無い余剰テーブル」で検証が
-        //   落ちる＝正しい実機挙動の誤検知。既存 8→9 ステップで pending_jobs を false で許容したのと同じ機序。
-        helper.runMigrationsAndValidate(
-            TEST_DB_CHAIN, 16, false,
-            AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16,
-        ).close()
+        // 14→15: web_reading_progress テーブル新設（機能②）。15.json（feat/episode-nav 採番＝2026-07-11 合流で
+        // 収蔵）は labels/book_labels 含む8テーブル全部を含むので true で厳格検証。
+        helper.runMigrationsAndValidate(TEST_DB_CHAIN, 15, true, AppDatabase.MIGRATION_14_15).close()
+
+        // 15→16: labels / book_labels の DROP。validateDroppedTables=**false** にする。
+        //   なぜ false か: 16.json は ui/vertical-pdf-import レーン（WebReadingProgressEntity 未登録）が採番した
+        //   系譜で web_reading_progress を含まない。だが実行時チェーンでは 14→15 で作ったそれが生きたまま。
+        //   true にすると「16.json に無い余剰テーブル」で検証が落ちる＝正しい実機挙動の誤検知
+        //   （既存 8→9 ステップで pending_jobs を false で許容したのと同じ機序）。
+        helper.runMigrationsAndValidate(TEST_DB_CHAIN, 16, false, AppDatabase.MIGRATION_15_16).close()
+
+        // 16→17: no-op 再スタンプ（合流で WebReadingProgressEntity が登録され hash が前進）。17.json は
+        // 6テーブル全部（web_reading_progress 含む・labels 系なし）を含むので true で厳格検証に戻す。
+        helper.runMigrationsAndValidate(TEST_DB_CHAIN, 17, true, AppDatabase.MIGRATION_16_17).close()
     }
 
     /**
-     * v7 で入れた代表データが 7→16 のチェーンを通っても失われないことを検証する。
+     * v7 で入れた代表データが 7→17 のチェーンを通っても失われないことを検証する。
      *
      * **何を捕まえるか**: どこかの段が破壊的（テーブル再作成でデータ取りこぼし・列消失）になっていないか。
      * 本区間の books/progress への操作は全て ADD COLUMN / CREATE TABLE / no-op で非破壊のはずだが、それを
      * SELECT で実証して固定する（15→16 の DROP は labels/book_labels のみが対象で books/progress は無関係）。
      */
     @Test
-    fun migrate7to16_preservesExistingRows() {
+    fun migrate7to17_preservesExistingRows() {
         helper.createDatabase(TEST_DB_DATA, 7).apply {
             // v7 に実在する列だけを使う（ncode は v9・contentSha256 は v11 で追加されるためここでは書けない
             // ＝版ごとの列構成に厳密整合）。
@@ -125,15 +127,14 @@ class MigrationTest {
             close()
         }
 
-        // 全チェーンを一括適用。最終 v16 のみ検証する。
-        //   なぜ validateDroppedTables=false か: 14→15 が作る web_reading_progress は本ブランチの 16.json に無い
-        //   余剰テーブル（Entity 未登録）。true にすると余剰テーブルで検証が落ちる＝正しい実機挙動の誤検知。
-        //   既存 8→9 ステップの false と同じ機序（マージ系譜分岐で生じる checked-in スキーマ外テーブルの許容）。
+        // 全チェーンを一括適用。最終 v17 のみ検証すればよく、17.json は6テーブル全部
+        // （web_reading_progress 含む・labels 系なし）を含むので validateDroppedTables=true で厳格検証。
         val db = helper.runMigrationsAndValidate(
-            TEST_DB_DATA, 16, false,
+            TEST_DB_DATA, 17, true,
             AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10,
             AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13,
             AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16,
+            AppDatabase.MIGRATION_16_17,
         )
 
         db.query("SELECT title, author, addedAt, ncode, contentSha256 FROM books WHERE id = 'book-1'").use { c ->
@@ -173,9 +174,8 @@ class MigrationTest {
             assertEquals("new_episode_marks は新設直後で空のはず", 0, c.getInt(0))
         }
 
-        // 14→15 で新設した web_reading_progress が存在し空であること（複製 migration の疎通確認）。
-        // このテーブルは本ブランチの Entity 未登録＝16.json に無い余剰テーブルだが、実 DB には存在する
-        // （validateDroppedTables=false で許容している対象そのもの）。
+        // 14→15 で新設した web_reading_progress が存在し空であること（新設テーブルの疎通確認。
+        // 2026-07-11 合流で WebReadingProgressEntity 登録済み＝17.json に含まれる正規テーブル）。
         db.query("SELECT COUNT(*) FROM web_reading_progress").use { c ->
             assertTrue(c.moveToFirst())
             assertEquals("web_reading_progress は新設直後で空のはず", 0, c.getInt(0))
@@ -193,33 +193,33 @@ class MigrationTest {
     }
 
     /**
-     * 最新版 v16 の「フレッシュインストール」が identity hash 検証を通ることを検証する。
+     * 最新版 v17 の「フレッシュインストール」が identity hash 検証を通ることを検証する。
      *
-     * **何を捕まえるか**: エンティティ（BookEntity/ProgressEntity/PendingJobEntity/WebNovelEntity/NewEpisodeMarkEntity や @Database version）を変えたのに
-     * schemas/16.json の再生成 or version 上げを忘れた退行（v16 で LabelEntity/BookLabelEntity は撤去済み＝
-     * 現行エンティティ集合から外れた）。この乖離は実機の**起動即クラッシュ**の正体で、
+     * **何を捕まえるか**: エンティティ（BookEntity/ProgressEntity/PendingJobEntity/WebNovelEntity/NewEpisodeMarkEntity/WebReadingProgressEntity や @Database version）を変えたのに
+     * schemas/17.json の再生成 or version 上げを忘れた退行（v16 で LabelEntity/BookLabelEntity は撤去済み・
+     * v17 で WebReadingProgressEntity が登録済み＝現行エンティティ集合）。この乖離は実機の**起動即クラッシュ**の正体で、
      * 本プロジェクトが2回踏んだ事象（task_diary #39）そのもの。
      *
-     * **機序**: ①16.json（checked-in の最新スキーマ）から v16 DB を作り、その identityHash を room_master_table に刻む。
+     * **機序**: ①17.json（checked-in の最新スキーマ）から v17 DB を作り、その identityHash を room_master_table に刻む。
      * ②実アプリの Room で同じファイルを開くと、Room がコンパイル時にエンティティから算出した identity hash を
-     * ①で刻まれた 16.json 由来 hash と照合する（RoomOpenHelper.checkIdentity）。両者が乖離していれば
+     * ①で刻まれた 17.json 由来 hash と照合する（RoomOpenHelper.checkIdentity）。両者が乖離していれば
      * IllegalStateException で落ちる＝テストが赤くなり、実機投入前に検出できる。
-     * （version 16 == 現行のため migration は走らず、純粋な hash 照合だけが起こる）
+     * （version 17 == 現行のため migration は走らず、純粋な hash 照合だけが起こる）
      */
     @Test
-    fun freshInstallAtV16_passesIdentityHashCheck() {
+    fun freshInstallAtV17_passesIdentityHashCheck() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.deleteDatabase(TEST_DB_FRESH) // 前回の残骸を掃除して決定的にする（createDatabase も削除するが二重の安全）
 
-        // ① 16.json から v16 DB を作り、16.json の identityHash を刻む。
-        helper.createDatabase(TEST_DB_FRESH, 16).close()
+        // ① 17.json から v17 DB を作り、17.json の identityHash を刻む。
+        helper.createDatabase(TEST_DB_FRESH, 17).close()
 
         // ② 実エンティティの Room で同じファイルを開き、コンパイル時 hash と刻まれた hash を照合させる。
         val db = Room.databaseBuilder(context, AppDatabase::class.java, TEST_DB_FRESH).build()
         try {
             // writableDatabase を触ると Room が実際に open→identity 照合を発火する。ここで例外が飛ばず開ければ一致。
             assertTrue(
-                "v16 スキーマで Room が開けない＝実エンティティと 16.json の identity hash 不一致",
+                "v17 スキーマで Room が開けない＝実エンティティと 17.json の identity hash 不一致",
                 db.openHelper.writableDatabase.isOpen,
             )
         } finally {

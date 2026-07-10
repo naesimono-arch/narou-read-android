@@ -1,7 +1,10 @@
 package com.novelreader.ui
 
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.*
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.novelreader.data.WebNovelEntity
 import org.junit.Assert.assertTrue
@@ -132,5 +135,73 @@ class WebBookCardTest {
         composeTestRule.onNodeWithText("蜘蛛ですが、なにか？").assertIsDisplayed()
         composeTestRule.onNodeWithText("馬場翁").assertIsDisplayed()
         composeTestRule.onNodeWithText("なろう・未取込").assertIsDisplayed()
+    }
+
+    // ────── 機能②: 読書位置(lastReadEpisode>0)がある Web カードの「続きから」導線 ──────
+
+    @Test
+    fun `Grid 記録があると「続きから 第N話」が出て「なろう・未取込」は消える`() {
+        val novel = webNovel("n1234a", "蜘蛛ですが、なにか？")
+        composeTestRule.setContent {
+            MaterialTheme {
+                WebGridBookCard(
+                    novel = novel,
+                    onOpen = {},
+                    onImport = {},
+                    onRemove = {},
+                    lastReadEpisode = 52,
+                    onResume = {},
+                    // グリッドカードは書影 2:3 で縦長。幅無制約だと丈がテスト viewport を超えメタ行が「未表示」判定に
+                    // なるため、実際のグリッド1枠に近い幅を与えて可視域に収める（意匠でなくテスト環境の都合）。
+                    modifier = Modifier.width(120.dp),
+                )
+            }
+        }
+        composeTestRule.onNodeWithText("続きから 第52話").assertIsDisplayed()
+        // 記録があるカードは「なろう・未取込」ではなく続き導線に差し替わる。
+        composeTestRule.onNodeWithText("なろう・未取込").assertDoesNotExist()
+    }
+
+    @Test
+    fun `Grid 「続きから 第N話」タップで onResume が呼ばれカード本体タップの onOpen とは別導線`() {
+        var openCalled = false
+        var resumeCalled = false
+        val novel = webNovel("n1234a", "蜘蛛ですが、なにか？")
+        composeTestRule.setContent {
+            MaterialTheme {
+                WebGridBookCard(
+                    novel = novel,
+                    onOpen = { openCalled = true },
+                    onImport = {},
+                    onRemove = {},
+                    lastReadEpisode = 52,
+                    onResume = { resumeCalled = true },
+                    // 上と同理由: グリッドの実寸に近い幅を与えて続き導線を可視域に収める。
+                    modifier = Modifier.width(120.dp),
+                )
+            }
+        }
+        composeTestRule.onNodeWithText("続きから 第52話").performClick()
+        assertTrue("続きから タップは onResume を呼ぶ", resumeCalled)
+        assertTrue("続きから タップはカード本体 onOpen(目次) を呼ばない", !openCalled)
+    }
+
+    @Test
+    fun `List 記録があると「続きから 第N話」が出る`() {
+        val novel = webNovel("n1234a", "蜘蛛ですが、なにか？", writer = "馬場翁")
+        composeTestRule.setContent {
+            MaterialTheme {
+                WebListBookCard(
+                    novel = novel,
+                    onOpen = {},
+                    onImport = {},
+                    onRemove = {},
+                    lastReadEpisode = 7,
+                    onResume = {},
+                )
+            }
+        }
+        composeTestRule.onNodeWithText("続きから 第7話").assertIsDisplayed()
+        composeTestRule.onNodeWithText("なろう・未取込").assertDoesNotExist()
     }
 }

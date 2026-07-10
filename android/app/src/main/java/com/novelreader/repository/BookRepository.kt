@@ -5,6 +5,7 @@ import com.novelreader.data.BookEntity
 import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
+import com.novelreader.data.WebReadingProgressEntity
 import com.novelreader.narou.model.Ncode
 import kotlinx.coroutines.flow.Flow
 
@@ -32,6 +33,17 @@ interface BookRepository {
 
     /** Web 作品を本棚から外す（取込完了時の昇格削除にも使う）。 */
     suspend fun removeWebNovel(ncode: Ncode)
+
+    /** 機能②: なろうWebView読書の読書位置一覧（ncode→最後に開いた話）。本棚カード・作品詳細の「続きから読む」表示に使う。
+     *  なぜ web_novels と別 Flow か: 検索経由で開いただけの未配置作品も記録対象のため（WebReadingProgressEntity の why）。 */
+    val webReadingProgress: Flow<List<WebReadingProgressEntity>>
+
+    /** WebView 読書で話ページ(.../N/)に到達したときに読書位置を記録する（last-wins 上書き）。
+     *  ncode は putWebNovel と同じ `.trim().uppercase()` 正規化で保存すること（表記ゆれで別作品扱いにしない）。 */
+    suspend fun recordWebReadingEpisode(ncode: Ncode, episode: Int)
+
+    /** 指定作品の現在の読書位置（未記録なら null）。WebReader 起動時の1件照会用。 */
+    suspend fun getWebReadingProgress(ncode: Ncode): WebReadingProgressEntity?
 
     /** addBook の取込結果。同一PDFの二重取込（UX監査 F-G 公理3べき等性）を呼び出し側で
      *  区別できるよう、新規登録と重複スキップを型で分ける（Service の通知文面を分岐させる）。 */

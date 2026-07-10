@@ -13,6 +13,8 @@ import com.novelreader.data.ProgressDao
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelDao
 import com.novelreader.data.WebNovelEntity
+import com.novelreader.data.WebReadingProgressDao
+import com.novelreader.data.WebReadingProgressEntity
 import com.novelreader.narou.model.Ncode
 import com.novelreader.pdf.CorruptedPdfError
 import com.novelreader.pdf.EncryptedPdfError
@@ -45,6 +47,7 @@ class DefaultBookRepository(
     private val progressDao: ProgressDao = AppDatabase.getDatabase(context).progressDao(),
     private val pendingJobDao: PendingJobDao = AppDatabase.getDatabase(context).pendingJobDao(),
     private val webNovelDao: WebNovelDao = AppDatabase.getDatabase(context).webNovelDao(),
+    private val webReadingProgressDao: WebReadingProgressDao = AppDatabase.getDatabase(context).webReadingProgressDao(),
 ) : BookRepository {
 
     override val allBooks: Flow<List<BookEntity>> = bookDao.getAllBooks()
@@ -57,6 +60,23 @@ class DefaultBookRepository(
     // 表記ゆれの ncode で削除が空振りしてカードが残り続けるため（NcodeLinkSheet の保存正規化と同系）。
     override suspend fun removeWebNovel(ncode: Ncode) =
         webNovelDao.deleteByNcode(ncode.value.trim().uppercase())
+
+    override val webReadingProgress: Flow<List<WebReadingProgressEntity>> = webReadingProgressDao.getAll()
+
+    // なぜ trim().uppercase() 正規化か: 記録側と本棚カード/紐付け側の ncode 表記を一致させ、
+    // 「読んだのに続きから読むが出ない」空振りを防ぐ（putWebNovel/removeWebNovel と同系の保存正規化）。
+    override suspend fun recordWebReadingEpisode(ncode: Ncode, episode: Int) = withContext(Dispatchers.IO) {
+        webReadingProgressDao.upsert(
+            WebReadingProgressEntity(
+                ncode = ncode.value.trim().uppercase(),
+                lastReadEpisode = episode,
+                lastReadAt = System.currentTimeMillis(),
+            )
+        )
+    }
+
+    override suspend fun getWebReadingProgress(ncode: Ncode): WebReadingProgressEntity? =
+        withContext(Dispatchers.IO) { webReadingProgressDao.get(ncode.value.trim().uppercase()) }
 
     /** べき等ガードの純判定を切り出したもの: 抽出後のタイトル＋著者に一致する既存蔵書を返す
      *  （無ければ null）。実 PDF 抽出を挟まず単体テストできるよう addBook 本体から分離する。 */

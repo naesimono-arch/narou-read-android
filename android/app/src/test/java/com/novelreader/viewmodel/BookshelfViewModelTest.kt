@@ -61,6 +61,9 @@ class BookshelfViewModelTest {
         // relaxed mock の Flow が emit せず combine が一度も発火しない（books 派生も止まる）ため、
         // 既定は空リストの即時 emit にする（Web カード関連のテストは各自上書きする）。
         every { mockRepository.webNovels } returns flowOf(emptyList())
+        // 機能②: combine は webReadingProgress も束ねる（3本目）。同じ理由で空の即時 emit を stub しないと
+        // 未 emit で combine が発火せず books 派生（newEpisodeNovelMap 等）が止まる。
+        every { mockRepository.webReadingProgress } returns flowOf(emptyList())
 
         viewModel = BookshelfViewModel(mockApp)
     }

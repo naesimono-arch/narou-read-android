@@ -5,6 +5,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -40,9 +41,12 @@ import com.novelreader.ui.theme.MinchoFamily
 @Composable
 fun WebGridBookCard(
     novel: WebNovelEntity,
-    onOpen: () -> Unit,      // カードタップ＝なろうを Custom Tabs で開く（呼び出し側が処理）
+    onOpen: () -> Unit,      // カードタップ＝なろうを WebView で開く（初回＝目次。呼び出し側が処理）
     onImport: () -> Unit,    // ⋮メニュー「縦書きPDFを取り込む」
     onRemove: () -> Unit,    // ⋮メニュー「本棚から外す」
+    // 機能②: WebView 読書位置（最後に開いた話。0＝未読）。>0 でメタ行を「続きから 第N話」導線へ差し替える。
+    lastReadEpisode: Int = 0,
+    onResume: () -> Unit = {},  // 「続きから 第N話」タップ＝記録した話へ WebView で直接（カード本体タップは目次のまま）
     modifier: Modifier = Modifier,
 ) {
     // なぜ expanded を Card 内で閉じるか: 各カードの ⋮ ドロップダウンメニューの開閉は独立しており、他カードと共有しないため
@@ -121,14 +125,27 @@ fun WebGridBookCard(
             color = MaterialTheme.colorScheme.onSurface,
         )
         Spacer(Modifier.height(9.dp))
-        // メタ行（なろう・未取込）：青磁（colorScheme.secondary）、10.5sp、weight 500 (Medium)
-        // なぜ進捗行・続きバッジを出さないか: (b) 未取り込みカードには進捗概念およびPDFとの差分継続概念がないため。
-        Text(
-            text = "なろう・未取込",
-            fontSize = 10.5.sp,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.secondary,
-        )
+        // メタ行: 機能②の読書記録があれば「続きから 第N話」導線（藍＝primary・タップで記録話へ WebView 直着地）。
+        // 無ければ従来の「なろう・未取込」（青磁＝secondary）。カード本体タップは常に目次(onOpen)＝ユーザー想定
+        // 「最初は目次・二度目以降は続きから読むボタン」に沿う。
+        if (lastReadEpisode > 0) {
+            Text(
+                text = "続きから 第${lastReadEpisode}話",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clickable(onClick = onResume)
+                    .padding(vertical = 4.dp),
+            )
+        } else {
+            Text(
+                text = "なろう・未取込",
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+        }
     }
 }
 
@@ -139,6 +156,9 @@ fun WebListBookCard(
     onOpen: () -> Unit,
     onImport: () -> Unit,
     onRemove: () -> Unit,
+    // 機能②: WebView 読書位置（最後に開いた話。0＝未読）。>0 でメタ行を「続きから 第N話」導線へ差し替える。
+    lastReadEpisode: Int = 0,
+    onResume: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // なぜ expanded を Card 内で閉じるか: 各リスト行の ⋮ ドロップダウンメニューの開閉は独立しており、他カードと共有しないため
@@ -200,14 +220,27 @@ fun WebListBookCard(
                     )
                 }
                 Spacer(Modifier.height(10.dp))
-                // メタ行（なろう・未取込）：青磁、10.5sp、weight 500 (Medium)
-                // なぜ進捗行・続きバッジを出さないか: 未取り込みのため進捗が存在しない。
-                Text(
-                    text = "なろう・未取込",
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.secondary,
-                )
+                // メタ行: 機能②の読書記録があれば「続きから 第N話」導線（藍＝primary・タップで記録話へ WebView 直着地）。
+                // 無ければ従来の「なろう・未取込」（青磁＝secondary）。行本体タップは常に目次(onOpen)。
+                // Spacer 10dp は mokuroku 意匠（ui/design-canon 後継）側を正とする。
+                if (lastReadEpisode > 0) {
+                    Text(
+                        text = "続きから 第${lastReadEpisode}話",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clickable(onClick = onResume)
+                            .padding(vertical = 4.dp),
+                    )
+                } else {
+                    Text(
+                        text = "なろう・未取込",
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
+                }
             }
             Box {
                 IconButton(onClick = { menuExpanded = true }) {

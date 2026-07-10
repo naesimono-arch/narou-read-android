@@ -99,6 +99,26 @@ fun narouWorkUrl(ncode: Ncode): String {
 }
 
 /**
+ * なろうの話ページURLから話数(N)を取り出す。話ページ(.../<ncode>/N/)以外（目次・感想・ユーザーページ・
+ * 外部リンク等）なら null。機能②の WebView 読書で、onPageFinished のURLから「今どの話を開いているか」を
+ * 割り出して読書位置に記録するために使う。
+ *
+ * なぜ ncode を照合するか: WebView 読書中に別作品ページや外部リンクへ遷移した場合に、当該作品の話ページだけを
+ * 読書位置として拾い、無関係なURLで進捗を汚さないため（記録の取り違え防止）。
+ * なぜ URL 観測のみで足りるか（規約＝ADR 0012）: 本文の機械的取得やページ加工は一切行わず、ブラウザが辿った
+ * URL 文字列を読むだけで話数が得られる（加工に当たらない）。
+ */
+fun parseNarouEpisodeNumber(url: String, ncode: Ncode): Int? {
+    // なろうは URL パスの ncode を小文字で扱う（narouWorkUrl/narouEpisodeUrl と同じ正規化で照合する）。
+    val lower = ncode.value.trim().lowercase(Locale.ROOT)
+    // https?://ncode.syosetu.com/<ncode>/<N>/ 形のみ受理。末尾スラッシュ有無を許容し、話数は正の整数。
+    // ncode は Regex.escape で literal 扱い（万一メタ文字が混じっても誤マッチしない防御）。
+    val regex = Regex("^https?://ncode\\.syosetu\\.com/${Regex.escape(lower)}/(\\d+)/?$")
+    val match = regex.find(url.trim()) ?: return null
+    return match.groupValues[1].toIntOrNull()?.takeIf { it > 0 }
+}
+
+/**
  * 入力文字列がなろうNコードの正規表現に合致するか判定する。
  */
 fun isValidNcode(input: String): Boolean {

@@ -32,6 +32,7 @@ import com.novelreader.ui.discovery.DiscoveryResultScreen
 import com.novelreader.ui.discovery.DiscoverySearchScreen
 import com.novelreader.ui.discovery.NovelDetailScreen
 import com.novelreader.ui.discovery.PdfImportScreen
+import com.novelreader.ui.discovery.WebReaderScreen
 import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.colors
@@ -182,6 +183,10 @@ private fun NovelReaderApp(
                 onImportWebNovel = { ncode ->
                     navController.navigate("discovery/detail/$ncode/import") { launchSingleTop = true }
                 },
+                // 機能②: Web カードの読書＝アプリ内 WebView（ADR 0012）。startEpisode 0=目次(初回)／>0=続きから。
+                onReadWebNovel = { ncode, startEpisode ->
+                    navController.navigate("web-reader/$ncode/$startEpisode") { launchSingleTop = true }
+                },
             )
         }
 
@@ -278,6 +283,9 @@ private fun NovelReaderApp(
                 },
                 // 縦書きPDF取り込み（ADR 0011）へ遷移。ここでの ncode は既にパス由来の String。
                 onImportPdf = { navController.navigate("discovery/detail/$ncode/import") { launchSingleTop = true } },
+                // 機能②: なろうをアプリ内 WebView で読む（ADR 0012）。目次(初回)＝0／続きから＝記録話 N を渡す。
+                onReadFromToc = { navController.navigate("web-reader/$ncode/0") { launchSingleTop = true } },
+                onResumeReading = { episode -> navController.navigate("web-reader/$ncode/$episode") { launchSingleTop = true } },
                 onBack = { navController.popBackStack() },
             )
         }
@@ -293,6 +301,25 @@ private fun NovelReaderApp(
                 viewModel = viewModel(),
                 // 取り込み投入後／戻る のいずれも取り込み画面を pop する（詳細画面へ戻る）。
                 onImportStarted = { navController.popBackStack() },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        // 機能②: なろう作品をアプリ内 WebView で読む（読書位置の自動記録＋続きから再開＝ADR 0012）。
+        // startEpisode: 0=目次(初回)／>0=その話へ直接着地(続きから)。境界: nav 引数は String/Int。
+        composable(
+            route = "web-reader/{ncode}/{startEpisode}",
+            arguments = listOf(
+                navArgument("ncode") { type = NavType.StringType },
+                navArgument("startEpisode") { type = NavType.IntType },
+            ),
+        ) { backStackEntry ->
+            val ncode = backStackEntry.arguments?.getString("ncode") ?: return@composable
+            val startEpisode = backStackEntry.arguments?.getInt("startEpisode") ?: 0
+            WebReaderScreen(
+                ncode = Ncode(ncode),
+                startEpisode = startEpisode,
+                viewModel = viewModel(),
                 onBack = { navController.popBackStack() },
             )
         }

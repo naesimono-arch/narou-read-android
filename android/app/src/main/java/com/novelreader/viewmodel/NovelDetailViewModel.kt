@@ -66,6 +66,20 @@ class NovelDetailViewModel(application: Application) : AndroidViewModel(applicat
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    /** 機能②: この作品の WebView 読書位置（最後に開いた話数。未記録＝0）。
+     *  >0 のとき作品詳細に「続きから読む 第N話」を出し、記録した話へ直接着地させる。
+     *  比較は保存時正規化（trim+uppercase）と同じ形で行う（表記ゆれで記録が引けない事故を防ぐ）。 */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val readingProgress: StateFlow<Int> = ncodeFlow
+        .flatMapLatest { nc ->
+            if (nc == null) flowOf(0)
+            else bookRepository.webReadingProgress.map { list ->
+                val normalized = nc.value.trim().uppercase()
+                list.firstOrNull { it.ncode == normalized }?.lastReadEpisode ?: 0
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
     /** 現在の作品が既に蔵書（PDF 取込済み・ncode 紐付け）か。
      *  取込済みなら「取り込む」「本棚に置く」の2アクションは冗長のため固定バーから隠す（モック注記）。 */
     @OptIn(ExperimentalCoroutinesApi::class)

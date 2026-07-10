@@ -14,8 +14,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PendingJobEntity::class,
         WebNovelEntity::class,
         NewEpisodeMarkEntity::class,
+        WebReadingProgressEntity::class,
     ],
-    version = 16,
+    // なぜ 17 か: ui/vertical-pdf-import レーンが v16 を実機投入済み（レーン専有）。episode-nav 合流で
+    // WebReadingProgressEntity が entities に加わり v16 の identity hash が変わるため、実機 v16 との
+    // 同 version 衝突を no-op 再スタンプ（MIGRATION_16_17）で回避する（前例 v9→v10＝task_diary #39 追補）。
+    version = 17,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -25,6 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun pendingJobDao(): PendingJobDao
     abstract fun webNovelDao(): WebNovelDao
     abstract fun newEpisodeMarkDao(): NewEpisodeMarkDao
+    abstract fun webReadingProgressDao(): WebReadingProgressDao
 
     companion object {
         @Volatile
@@ -217,14 +222,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        /** v14→v15: 並列レーン feat/episode-nav の web_reading_progress 新設 Migration の複製（パス繋ぎ）。
-         *  なぜ本レーン（ラベル撤去）が別内容の web_reading_progress を作るのか: version 15 は並列レーン
-         *  feat/episode-nav が「なろうWebView読書の読書位置」テーブル新設で先に消費しており、実機が既に
-         *  そのスキーマで v15 化している可能性がある。同じ version 15 を別スキーマで名乗ると identity hash
-         *  不一致で起動即クラッシュする（task_diary #39 の衝突クラス）。そこで本レーンのラベル撤去は v16 へ
-         *  退避し、14→15 は先行レーンと一字一句同一の DDL を複製して migration パスを繋ぐ。
-         *  web_reading_progress は本ブランチでは Entity 未登録＝Room の検証対象外の余剰テーブルとして無害
-         *  （schema validation は @Database の entities のみを照合し、余剰テーブルは無視する）。 */
+        /** v14→v15: なろうWebView読書の読書位置テーブル web_reading_progress を新設する（機能②＝続きから再開）。
+         *  既存テーブルへは一切触れない新規 CREATE のみのため PRAGMA 分岐は不要。
+         *  DDL は Room が Entity から期待するスキーマ（NOT NULL・主キー）と厳密一致させること
+         *  （不一致は起動時の schema validation でクラッシュする）。
+         *  採番経緯: v15 は feat/episode-nav が本 DDL で消費し、並列レーン ui/vertical-pdf-import は同一 DDL の
+         *  複製でパスを繋いで自レーンのラベル撤去を v16 へ退避した（task_diary #39 の衝突クラス回避）。
+         *  2026-07-11 の合流で両レーンの複製は本定義1本に戻った。 */
         // なぜ internal か: androidTest の MigrationTest が本物の Migration を検証するため（複製だと本体変更にテストが追従しない）。
         internal val MIGRATION_14_15 = object : Migration(14, 15) {
             override fun migrate(database: SupportSQLiteDatabase) {
@@ -253,6 +257,18 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v16→v17: スキーマ無変更の identity hash 再スタンプ（no-op＝DDL なし）。
+         *  なぜ: ui/vertical-pdf-import レーンが v16 を実機投入済みの状態で feat/episode-nav が合流し、
+         *  WebReadingProgressEntity の登録でエンティティ集合＝v16 の identity hash が変わった。実機の
+         *  branch 版 v16 と同 version を別 hash で名乗ると起動即クラッシュするため +1 で回避する
+         *  （前例 v9→v10＝task_diary #39 追補。テーブル実体は 14→15 で作成済みのため DDL 不要）。 */
+        // なぜ internal か: androidTest の MigrationTest が本物の Migration を検証するため（複製だと本体変更にテストが追従しない）。
+        internal val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // no-op: スキーマ実体は不変（entities 登録変更に伴う version 前進のみ）
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
@@ -260,7 +276,7 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                         MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
-                        MIGRATION_14_15, MIGRATION_15_16,
+                        MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
                     )
                     .build()
                     .also { INSTANCE = it }
