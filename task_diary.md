@@ -596,6 +596,16 @@ Phase 4 精度回帰ゲート(`PdfExtractorDeviceSpikeTest`)の ≤15版クリ�
 - **根拠条項**: 14条20項（運営・ネットワーク・システムへの支障）・23項（API以外の自動化手段によるアクセス／データ収集）＋包括の 24項（不適切と判断する行為）・22項（規約違反・権利侵害と運営が判断する行為）。ヘルプ183 はページ全体をこれらに紐づけて説明。
 - **設計含意**: 「アプリ内完結」で許されるのは**加工なし表示のみ**＝体験は Custom Tabs と等価。**構造的に加工不能な Chrome Custom Tabs が最も安全**（素の WebView は後から `evaluateJavascript` で"加工"でき、運営に対し"無加工"を仕組みで保証しにくい）。本文をネイティブ描画する道も「本文の機械的取得」で違反＝**案A（本文非取得・メタのみ）が規約的に正しい**ことの裏付け。方針への反映＝設計判断は **ADR 0010**（加工なし送客＝Custom Tabs を既定）、現況は `STATUS.md` §1・残タスクは `handover.md`。
 
+### WebView（アプリ内ブラウザ）
+
+#### 56. `onPageFinished` は `goBack()` の履歴遡行でも再発火する（URL 観測で「進んだページ」だけ拾いたいなら履歴スタック位置で構造判定する）  ★★
+
+URL 観測ベースの読書位置記録（機能②・ADR 0012）で、読み進めた後に戻る連打で退出すると記録がセッション先頭話へ巻き戻った（2026-07-11 実機 PGEM10 で2作品再現）。
+- **事実**: `WebViewClient.onPageFinished` は前進ナビゲーションと `goBack()` を区別せず、**戻りで表示したページでも毎回発火**する。URL だけ見ていると「最後に発火したページ＝バックスタック最古側」が最終記録になる。
+- **対処（構造判定）**: `view.copyBackForwardList()` で `currentIndex < size-1`（forward 履歴が残っている）なら**戻りで到達したページ**と判定できる。新しいリンクを踏めば forward 履歴は切り詰められ `currentIndex == size-1` に戻るため、意図的な開き直しは前進として扱われる。
+- **罠（フラグ方式は不可）**: 「goBack 発行→次の onPageFinished を1回スキップ」のフラグ方式は、戻る連打時に goBack 発行数と onPageFinished 発火数が**一致しない**（描画スキップ/合流）ため、抑制の取り逃しと残留（次の正当な前進記録を殺す）が起きる。発火数に依存しない履歴位置判定を使うこと。
+- 実装＝`WebReaderScreen.kt` の onPageFinished／設計判断＝ADR 0012 追補。
+
 ### テスト基盤（Robolectric / Compose UI Test）
 
 #### 50. Robolectric では ModalBottomSheet 内の Composable に対する assertIsDisplayed / performClick が不安定に落ちる（内容を Content 分離してテストする）  ★★

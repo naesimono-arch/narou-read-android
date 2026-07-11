@@ -12,11 +12,8 @@
 
 > レビュー中・実装中に出た宿題や着想で、まだ下の各節に整理していないものをここへ。育ったら該当節へ移す。
 
-- ~~**[発見系] 検索結果/詳細から「話一覧」を表示し、各話へ直接飛びたい**~~ → **実装済み（feat/episode-nav・機能②統合／ADR 0012・JVM352緑・実機検証待ち）**: 方式判断の結果「アプリ側の番号一覧」は作らず、**なろうの目次ページをアプリ内 WebView（加工なし・URL 観測のみ）で表示**し、各話へはなろうの目次からそのまま飛ぶ形にした（番号一覧の不自然さ＝タイトル無し・955話級の探索を回避。ユーザー合意「すべてweb」）。話遷移の URL から読書位置を記録し「続きから読む」に接続＝下の Web読書位置項と1機能に統合。**マージ＋実機検証で完了確定したらこの項を削除**。
-- ~~**[DB] `feat/episode-nav`（コード v15）は合流まで実機投入禁止**~~ → **解消（2026-07-11 統合＝v17 no-op 再スタンプ実施）**: 記帳どおり episode-nav 合流で WebReadingProgressEntity が entities に加わるため、実機 v16 との identity hash 衝突を `MIGRATION_16_17`（no-op・前例 v9→v10）で回避した。実機 v16→v17 の migration 通過確認が済んだらこの項を削除。
+- **[機能②・要判断] U1 新着チェックとの整合**: 続きあり判定は現状 PDF 蔵書の generalAllNo 突合のまま。Web カードの既読話数（web_reading_progress）を U1 基準へ組み込むかは別タスク（機能②実装時からの持ち越し）。
 - **[取込] 「PDFを取り込む」ボタンの不安定さ**（2026-07-10 ユーザー報告・**再現条件未特定**）: FAB/空状態ボタンからの picker 起動が不安定に感じられることがある。まず再現条件の聞き取り（どの画面のボタンか・無反応か遅延か・バッテリー最適化ダイアログ絡みか）→ logcat での再現観察から。推定候補: 通知権限→picker の2段ゲート・バッテリー最適化ダイアログの分岐（`launchPdfPicker` 周り）だが未確定のため決め打ち修正はしない。
-
-- ~~**Web由来・未取込カードにも「どこまで読んだか」を記録し、続きの話数から自動再開したい**~~ → **実装済み（feat/episode-nav・機能②／ADR 0012・Room v15・JVM352緑・実機検証待ち）**: Custom Tabs 送客をやめ、なろう作品の閲覧を**アプリ内 WebView（加工なし・URL 観測のみ・JS 注入ゼロ）**に載せ、`onPageFinished` の URL（`.../<ncode>/N/`）から「最後に開いた話」を自動記録（近似だが手動申告より摩擦ゼロ・自己申告案は却下＝ADR 0012 Why-not）。記録は本棚配置(`web_novels`)と直交した新テーブル `web_reading_progress` に持ち、**検索経由で開いただけの作品でも記録**（機能②は検索画面推移も対象＝ユーザー指示）。初回はカードタップ/「なろうで読む」で目次、二度目以降は「続きから読む 第N話」で記録話へ直接。着地は既存 `narouEpisodeUrl`（N+1 でなく**最後に開いた第N話そのもの**＝WebView でも読了は観測不能なため同話へ戻す方が安全）。**未対応（要判断）**: ③U1 新着チェックとの整合（続きあり判定は現状 PDF 蔵書の generalAllNo 突合のまま。Web カードの既読話数を U1 基準へ組み込むかは別タスク）／PDF 蔵書の継続カード（NativeReadingScreen）は据え置き＝0012 スコープ外。**マージ＋実機検証で完了確定したらこの項を削除**。
 
 ---
 
@@ -59,7 +56,6 @@
 - ~~[発見系・構造] `SearchConditionSheet` の残リファクタ（監査残課題2の残り）~~ → **解消済み**（2026-07-11 `1b83684`＝カスタム範囲入力 約90行×2 を `CustomRangeInput` へ部品化・段階チップの値とラベルを `RangeStep` 対定義（`SearchDraft.kt`・既存 `LENGTH_STEPS`/`TIME_STEPS` は射影で温存＝呼び出し側無改修）へ統合。764→669行・見た目/挙動不変＝STATUS §1。※当初「discovery-search-D すり合わせ時に同ファイルを触るとき」予定だったが refactor/tech-debt レーンで先行消化。**モック追従＋案B翻訳のタスク（上記）自体は残存**）。
 - ~~[発見系・将来の罠] `NovelApiRepository` のインメモリキャッシュの Main dispatcher 前提（監査残課題5）~~ → **解消済み**（2026-07-09 `13c97f2`＝Mutex 排他＋word trim 非対称の修正。U1 Worker 化の前提として先行実施）。
 
-- ~~`NativeReadingScreen`（892行）の route/Content 分割~~ → **実装済み・実機目視のみ残**（2026-07-11 `0221126`＝系統1完遂。`ChapterScreen`(route)→`ChapterScreenContent`(stateless) の in-file 純移動分割・副作用〔スクロール保存/ON_STOP flush/没入ヒント/Custom Tabs 再入ガード〕は全て route 残置・effect キー/Saveable キー文字列不変・JVM緑＝STATUS §1）。**残タスク＝実機目視スモーク7項目**（分割の回帰面）: ①没入クローム出入り（スクロール退避・中央タップトグル・スナップ）②クロームヒントピル（通算初回のみ・約2.6秒で自動消灯）③Custom Tabs 再入ガード（最終章で「続きを読む」「作品ページ」連打・交互連打でも1枚のみ・着地URL正）④なろう紐付けシート（開いた瞬間の書名自動検索・回転/Activity破棄で開いたまま維持）⑤表示設定シート（スライダーの本文ライブ追従・回転で維持）⑥navHistory/Back（章⇄目次往復後に1段ずつ遡行→本棚・目次経由で読書位置が壊れない）⑦スクロール位置保存（章中腹→home→復帰で同位置）。**次の実機検証便（v16→v17 migration・機能②）と同便で消化するのが効率的**。
 - ~~`saveScrollPosition(bookId, filename)` 等の String 連続の型付け~~ → **解消済み**（2026-07-11 `013b06a`＝`BookId`/`ChapterFilename` value class 新設（`model/BookIdentifiers.kt`・Ncode と同じ素通し方針）で saveProgress/saveScrollPosition/linkNcode/getLastRead/getProgress を Repository/VM/UI 貫通で型付け。Room Entity/DAO・Map キー・nav ルート文字列は String 維持＝境界 `.value` unwrap（線引きの why は BookIdentifiers.kt の KDoc）＝STATUS §1）。
 ### コード健全性監査の指摘（2026-07-11・`refactor/tech-debt` で6観点並列監査・挙動バグ3件は反証専門エージェントで CONFIRMED 済み）
 
@@ -75,7 +71,7 @@
 **検索画面の重さ（ユーザー実体感あり・診断確定）**
 
 - 正体＝「**カテゴリ展開状態での操作毎の全画面再コンポーズ**」（既定の全畳みは軽い＝「重いときがある」と整合）。キーワード22カテゴリ/115チップが非 Lazy Column（`DiscoverySearchScreen.kt:203-207`）上にあり、`SearchDraft` が Set 内包で unstable＋strong skipping 無効のため**毎キーストローク最大115チップ全再コンポーズ**、さらに選択判定 `containsWordToken` がチップ毎に Regex 再コンパイル（`SearchDraft.kt:223-224`・メモ化なし）。展開状態は rememberSaveable 保存→全展開のまま再訪すると**初回オープンから重い**第二経路。アニメ・履歴 DataStore・キーワード定義構築はシロ。
-- 修正順: ~~**S1** 選択判定を `remember(draft.word)` の Set 化＋Regex をトップレベル定数化~~ → **解消済み**（`a3662c2`・全ケース同値テスト付き）→ ~~**S2** `experimentalStrongSkipping=true`＋`@Immutable`~~ → **解消済み**（`b1c0bfc`・stability レポートで SearchDraft/SearchFilters=stable・DiscoverySearchContent/FilterChipItem=skippable を機械検証済み。**残＝実機の全画面スモーク**: strong skipping は全 Composable に波及するため検索・読書・本棚・設定シートで見た目/挙動不変を次の実機検証便で目視）→ **S3** 外側を LazyColumn 化（中・画面外チップの存在コストと全展開再訪の初回構成。**S1/S2 の実機体感を見てから判断**＝残）。
+- 修正順: ~~**S1** 選択判定を `remember(draft.word)` の Set 化＋Regex をトップレベル定数化~~ → **解消済み**（`a3662c2`・全ケース同値テスト付き）→ ~~**S2** `experimentalStrongSkipping=true`＋`@Immutable`~~ → **解消済み**（`b1c0bfc`・stability レポート機械検証に加え **2026-07-11 実機全画面スモーク GREEN**＝本棚フィルタ/検索チップ/結果並替/詳細キーワードトグル/発見タブ/テーマ一括切替/目次で stale UI ゼロ・検索体感は軽快）→ **S3** 外側を LazyColumn 化（中・画面外チップの存在コストと全展開再訪の初回構成。**S1/S2 実機体感=軽快（2026-07-11 実測・引っかかりなし）を踏まえ要否判断**＝残。体感問題が再報告されるまで保留が妥当）。
 
 **描画/ビルドの軽量化（読書画面以外）**
 
@@ -134,4 +130,4 @@
 
 ## 掃除
 
-- **実機の本棚にテスト用シード本が残存**（2026-07-03 `PdfPipelineDeviceTest` が投入）: `spike-N1453LW`/`spike-N2959KI`（+空 `spike-N6169DZ` dir）。掃除の可否をユーザーに確認中で未実施。掃除するなら `filesDir/novels/spike-*` と books テーブルの該当行のみ削除（手動追加のルビ本・他蔵書には触れない）。Phase 3 の実書取込で上書きされる想定でもある。
+<!-- 検証残置データ（web_reading_progress 2行）とテスト用シード本 spike-* は 2026-07-11 にユーザー裁定のうえ掃除済み（詳細=STATUS §1 実機検証スイープ項。N9754MK 1行のみ実害なしで意図的残置）。 -->
