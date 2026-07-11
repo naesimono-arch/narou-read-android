@@ -19,7 +19,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -174,12 +176,20 @@ internal fun GridBookCard(
     ) {
         // 書影＝栞（紙地＋色の棒＋先端＋表紙内の縦組み明朝題字）。角丸3px（モック .cv）。
         // 題字は表紙内で1度だけ（正本 bookshelf-shiori-final-D.html）＝本欄の横題字を廃し二重表示を解消。
+        // モック .cv の box-shadow＝表紙が棚から浮く影。ダークは背景が暗く影が沈むため強め
+        // （モック: ライト 0 6px 16px rgba(...,.12) ／ ダーク 0 8px 20px rgba(0,0,0,.5)）。
+        val coverIsDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
         Box(modifier = Modifier.fillMaxWidth()) {
             ShioriCover(
                 title = book.title,
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(2f / 3f)
+                    // shadow は clip より前＝影を要素の外周に落としてから角丸で本体をクリップする。
+                    .shadow(
+                        elevation = if (coverIsDark) 8.dp else 6.dp,
+                        shape = RoundedCornerShape(3.dp),
+                    )
                     .clip(RoundedCornerShape(3.dp)),
             )
             // ⋮方式(1・既定)のみ書影右上に削除ボタンを出す（M5: 削除の可視手がかり）。0は長押しのみ。
