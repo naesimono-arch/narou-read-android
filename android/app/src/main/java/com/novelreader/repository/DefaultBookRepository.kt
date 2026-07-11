@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import androidx.room.withTransaction
 import com.novelreader.data.AppDatabase
 import com.novelreader.data.BookDao
 import com.novelreader.data.BookEntity
@@ -52,6 +53,14 @@ class DefaultBookRepository(
     private val pendingJobDao: PendingJobDao = AppDatabase.getDatabase(context).pendingJobDao(),
     private val webNovelDao: WebNovelDao = AppDatabase.getDatabase(context).webNovelDao(),
     private val webReadingProgressDao: WebReadingProgressDao = AppDatabase.getDatabase(context).webReadingProgressDao(),
+    // なぜトランザクション実行を関数注入にするか（テスト可能な原子性）:
+    // deleteBook の books削除＋progress削除を1トランザクションに束ねて「孤児progress行」を防ぐ。だが本クラスは
+    // DAO 個別注入で JVM 単体テストする設計（クラス doc 参照）のため、実 AppDatabase.withTransaction に直接依存すると
+    // テストで Room に落ちてしまう。トランザクション境界だけ関数で受け、本番は Room の withTransaction、テストは
+    // 素通しラムダ（block を即実行）へ差し替えられるようにする（DAO 分離注入と同じ思想の延長）。
+    private val runInTransaction: suspend (block: suspend () -> Unit) -> Unit = { block ->
+        AppDatabase.getDatabase(context).withTransaction(block)
+    },
 ) : BookRepository {
 
     // pending_jobs（永続キュー）への全書き込みを直列化する排他ロック（タスク1の恒久策）。
@@ -369,8 +378,17 @@ class DefaultBookRepository(
     }
 
     override suspend fun deleteBook(book: BookEntity) = withContext(Dispatchers.IO) {
-        bookDao.deleteById(book.id)
-        progressDao.deleteByBookId(book.id)
+        // なぜトランザクションか（孤児progress行の恒久残留を防ぐ）: books 行を消してから progress 行を消すまでの間に
+        // プロセスが kill されると、本体が消えたのに progress だけ残る「孤児」になる。progress は本削除時にしか
+        // 掃除されない（books 経由でしか辿らない）ため掃除経路が無く恒久残留する。両削除を1トランザクションに束ね、
+        // どちらも commit されるか一切行われないか（原子性）にして中間状態を消す。
+        runInTransaction {
+            bookDao.deleteById(book.id)
+            progressDao.deleteByBookId(book.id)
+        }
+        // HTMLディレクトリ削除は DB 外の副作用のためトランザクション外に置く（ファイルIO は Room の
+        // トランザクションでロールバックできず、失敗しても DB 削除は成立させたい＝掃除は次回起動の
+        // cleanOrphanHtmlDirs が拾う）。
         if (!File(book.htmlDirPath).deleteRecursively()) {
             Log.w(TAG, "HTMLディレクトリの削除に失敗: ${book.htmlDirPath}")
         }
