@@ -56,12 +56,12 @@
 
 ## リファクタ / 技術的負債（deferred）
 
-- **[発見系・構造] `SearchConditionSheet` の残リファクタ**（監査残課題2の残り）: カスタム範囲入力の約90行×2コピペの部品化・段階チップ値とラベルの平行定義統合（`LENGTH_STEPS`/`TIME_STEPS` とチップ文言が別ファイル）。※主要部＝`SearchConditionSheet.kt` 抽出（1348→606行）＋カスタム2重フラグの `SearchDraft` 一本化は task-sweep `7d135ba` で解消済み。**実施タイミング＝上「discovery-search-D すり合わせ→案B翻訳」で同ファイルを触るとき**。
+- ~~[発見系・構造] `SearchConditionSheet` の残リファクタ（監査残課題2の残り）~~ → **解消済み**（2026-07-11 `1b83684`＝カスタム範囲入力 約90行×2 を `CustomRangeInput` へ部品化・段階チップの値とラベルを `RangeStep` 対定義（`SearchDraft.kt`・既存 `LENGTH_STEPS`/`TIME_STEPS` は射影で温存＝呼び出し側無改修）へ統合。764→669行・見た目/挙動不変＝STATUS §1。※当初「discovery-search-D すり合わせ時に同ファイルを触るとき」予定だったが refactor/tech-debt レーンで先行消化。**モック追従＋案B翻訳のタスク（上記）自体は残存**）。
 - ~~[発見系・将来の罠] `NovelApiRepository` のインメモリキャッシュの Main dispatcher 前提（監査残課題5）~~ → **解消済み**（2026-07-09 `13c97f2`＝Mutex 排他＋word trim 非対称の修正。U1 Worker 化の前提として先行実施）。
 
-- **`NativeReadingScreen`（892行）の route/Content 分割**: 系統1リファクタで唯一の残り。没入クローム・Custom Tabs 再入ガード・navHistory 等の副作用が濃く、純移動でも実機目視なしに畳むリスクが高いため見送り＝**実機検証を伴う機会に実施**。
-- **`saveScrollPosition(bookId, filename)` 等の String 連続の型付け**: 系統4 Ncode 型付け（`@JvmInline value class`）の続きの適用候補として保全。
-- **worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す運用**: Lint コミットゲート（`check_lint_on_commit.py`）は drvfs でスキップされる設計＝canonical 作業が続く限り事実上無効。ext4 worktree なら in-tree で回るので冒頭で1回スイープする（直近スイープ＝2026-07-08・0 errors/21 warnings＝新規起因の実質指摘は解消済み・残はノイズ）。
+- ~~`NativeReadingScreen`（892行）の route/Content 分割~~ → **実装済み・実機目視のみ残**（2026-07-11 `0221126`＝系統1完遂。`ChapterScreen`(route)→`ChapterScreenContent`(stateless) の in-file 純移動分割・副作用〔スクロール保存/ON_STOP flush/没入ヒント/Custom Tabs 再入ガード〕は全て route 残置・effect キー/Saveable キー文字列不変・JVM緑＝STATUS §1）。**残タスク＝実機目視スモーク7項目**（分割の回帰面）: ①没入クローム出入り（スクロール退避・中央タップトグル・スナップ）②クロームヒントピル（通算初回のみ・約2.6秒で自動消灯）③Custom Tabs 再入ガード（最終章で「続きを読む」「作品ページ」連打・交互連打でも1枚のみ・着地URL正）④なろう紐付けシート（開いた瞬間の書名自動検索・回転/Activity破棄で開いたまま維持）⑤表示設定シート（スライダーの本文ライブ追従・回転で維持）⑥navHistory/Back（章⇄目次往復後に1段ずつ遡行→本棚・目次経由で読書位置が壊れない）⑦スクロール位置保存（章中腹→home→復帰で同位置）。**次の実機検証便（v16→v17 migration・機能②）と同便で消化するのが効率的**。
+- ~~`saveScrollPosition(bookId, filename)` 等の String 連続の型付け~~ → **解消済み**（2026-07-11 `013b06a`＝`BookId`/`ChapterFilename` value class 新設（`model/BookIdentifiers.kt`・Ncode と同じ素通し方針）で saveProgress/saveScrollPosition/linkNcode/getLastRead/getProgress を Repository/VM/UI 貫通で型付け。Room Entity/DAO・Map キー・nav ルート文字列は String 維持＝境界 `.value` unwrap（線引きの why は BookIdentifiers.kt の KDoc）＝STATUS §1）。
+- **worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す運用**: Lint コミットゲート（`check_lint_on_commit.py`）は drvfs でスキップされる設計＝canonical 作業が続く限り事実上無効。ext4 worktree なら in-tree で回るので冒頭で1回スイープする（直近スイープ＝2026-07-11・0 errors/26 warnings＝+5 は全て `GradleDependency` の上流版ズレノイズで新規実質指摘なし。前回=2026-07-08・0/21）。
 
 ## workflow / tooling
 
