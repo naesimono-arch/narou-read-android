@@ -1,0 +1,177 @@
+<!-- @dsCard group="UI-n / 本棚（栞・色域比較）" name="本棚 栞 × 色域3案 — 現行(全周和リング) / 寒色・静 / 和の伝統色。同じ書架を色域だけ振って比較・ライト/ダーク" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本棚 栞 × 色域3案</title>
+<style>
+  /* 栞の「棒＋先端」意匠は確定。振るのは色域（生成色相の集合と彩度/明度）だけ。
+     D は寒色基調・静謐。現行カバー色域は全周（暖色を含む）なので、寒色寄せ/伝統色と並べて選ぶ。
+     基盤トークン（藍/青磁/地/墨・ADR 0005）は不変。ここで決めるのは"生成表紙の色相の出方"。 */
+  :root{
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;color:#1C1F26;font-family:var(--gothic);display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:30px 20px 70px}
+  body.pgdark{background:#0b0d11;color:#e4e3e6}
+  .cap{font-size:13px;color:#5A5C57;line-height:1.8;text-align:center;max-width:860px;margin-bottom:4px}
+  .cap b{color:#2A2C28}
+  body.pgdark .cap{color:#9a988f}body.pgdark .cap b{color:#e4e3e6}
+  .ctrl{display:flex;gap:12px;margin:14px 0 6px;flex-wrap:wrap;justify-content:center}
+  .ctrl button{font-size:12.5px;font-weight:500;cursor:pointer;border-radius:999px;padding:10px 18px;border:none;font-family:var(--gothic)}
+  .ctrl .primary{color:#fff;background:#1C3D5A}
+  .ctrl .ghost{color:#1C3D5A;background:transparent;border:1px solid #cbc4b8}
+  body.pgdark .ctrl .ghost{color:#9bbdd4;border-color:#2c3138}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center;align-items:flex-start;margin-top:16px}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:8px;width:328px}
+  .wrap .mode{font-family:var(--mincho);font-size:15px;letter-spacing:.06em;color:#3a3c37;font-weight:600}
+  .wrap .sub{font-size:11px;color:#7c7a72;text-align:center;line-height:1.6;min-height:32px}
+  body.pgdark .wrap .mode{color:#d6d4cc}body.pgdark .wrap .sub{color:#807e77}
+  .ring{display:flex;gap:4px;margin:2px 0 4px}
+  .ring i{width:14px;height:14px;border-radius:3px}
+
+  .phone{width:328px;height:600px;border-radius:36px;overflow:hidden;position:relative;
+    box-shadow:0 18px 44px rgba(0,0,0,.26);display:flex;flex-direction:column;font-family:var(--gothic);
+    background:var(--pg);color:var(--tx)}
+  .phone.tl{--pg:#FBFAF8;--tx:#1C1F26;--sub:#7C808B;--hl:#E4E2DB;--acc:#1C3D5A;--track:#E4E2DB;--cvbg:#f3f0ea}
+  .phone.td{--pg:#14171C;--tx:#C7CDD3;--sub:#868D97;--hl:#2A2F38;--acc:#8FB3D4;--track:#2A2F38;--cvbg:#20232B}
+  .sb{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:11px;color:var(--sub);flex-shrink:0}
+  .top{padding:6px 22px 10px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
+  .top h1{font-family:var(--mincho);font-size:23px;color:var(--tx);font-weight:500;letter-spacing:.14em}
+  .scroll{flex:1;overflow:hidden;padding:0 22px 20px}
+  .grid-shelf{display:grid;grid-template-columns:1fr 1fr;gap:20px 14px}
+  .bk{display:flex;flex-direction:column}
+  .cv{position:relative;aspect-ratio:2/3;border-radius:3px;overflow:hidden;background:var(--cvbg);
+    box-shadow:0 6px 16px rgba(22,26,40,.12),0 1px 3px rgba(0,0,0,.06)}
+  .phone.td .cv{box-shadow:0 8px 20px rgba(0,0,0,.5)}
+  .cv canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .bk .au{font-size:10.5px;color:var(--sub);margin-top:8px}
+  .bk .pr{display:flex;align-items:center;gap:7px;margin-top:5px;font-size:10px;color:var(--sub)}
+  .bk .bar{flex:1;height:1px;background:var(--track);position:relative}
+  .bk .bar i{position:absolute;left:0;top:-.5px;height:2px;background:var(--acc)}
+  .bk .pct{color:var(--acc)}
+</style>
+</head>
+<body>
+  <p class="cap"><b>栞 × 色域3案</b>　棒＋先端の意匠は確定。振るのは<b>生成色相の集合と彩度</b>だけ。同じ8冊を3色域で描き分け。基盤色（藍/青磁/地/墨）は不変。</p>
+  <div class="ctrl">
+    <button class="primary" id="reroll">🎲 別の蔵書に差し替え</button>
+    <button class="ghost" id="theme">◐ ライト / ダーク</button>
+  </div>
+  <div class="stage" id="stage"></div>
+
+<script>
+function hashStr(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function rand(rng,lo,hi){return lo+(hi-lo)*rng();}
+function hsl(h,s,l){return 'hsl('+h+' '+s+'% '+l+'%)';}
+function S(ctx,a){ctx.strokeStyle=a;ctx.lineCap='round';ctx.lineJoin='round';}
+function star(ctx,cx,cy,rO,rI,n,rot){ctx.beginPath();for(let i=0;i<n*2;i++){const r=i%2?rI:rO,ang=rot+i*Math.PI/n;const px=cx+r*Math.cos(ang),py=cy+r*Math.sin(ang);i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();}
+const TIPS=[
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2.6;c.beginPath();c.moveTo(x,y);c.lineTo(x-6,y+12);c.moveTo(x,y);c.lineTo(x+6,y+12);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+7,4,0,7);c.fill();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+6,6,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2.4;c.beginPath();c.moveTo(x,y);c.lineTo(x-5,y+18);c.moveTo(x,y);c.lineTo(x+5,y+18);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+3,3.2,0,7);c.fill();S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+5);c.lineTo(x-6,y+22);c.moveTo(x,y+5);c.lineTo(x,y+23);c.moveTo(x,y+5);c.lineTo(x+6,y+22);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+4,4,0,7);c.fill();S(c,a);c.lineWidth=1.6;for(let k=-2;k<=2;k++){c.beginPath();c.moveTo(x,y+7);c.lineTo(x+k*4,y+24);c.stroke();}},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+4);c.quadraticCurveTo(x-11,y-2,x-9,y+4);c.quadraticCurveTo(x-11,y+10,x,y+4);c.moveTo(x,y+4);c.quadraticCurveTo(x+11,y-2,x+9,y+4);c.quadraticCurveTo(x+11,y+10,x,y+4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+4,2,0,7);c.fill();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+5,4,0,7);c.fill();S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+9);c.lineTo(x,y+20);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;[6,13,20].forEach(d=>{c.beginPath();c.arc(x,y+d,2.6,0,7);c.fill();});},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=3;c.beginPath();c.moveTo(x-7,y+1);c.lineTo(x+7,y+1);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2;c.beginPath();c.arc(x,y+7,5,0,7);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x,y+9,8,0,7);c.stroke();c.beginPath();c.arc(x,y+9,4,0,7);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+1);c.lineTo(x+6,y+9);c.lineTo(x,y+17);c.lineTo(x-6,y+9);c.closePath();c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x-7,y+1);c.lineTo(x+7,y+1);c.lineTo(x,y+13);c.closePath();c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.strokeRect(x-6,y+2,12,12);},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;star(c,x,y+10,7,3,5,-Math.PI/2);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+2);c.lineTo(x,y+16);c.moveTo(x-7,y+9);c.lineTo(x+7,y+9);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;[[0,5],[-5,13],[5,13]].forEach(p=>{c.beginPath();c.arc(x+p[0],y+p[1],2.2,0,7);c.fill();});},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+6,y+8,x,y+15);c.quadraticCurveTo(x-6,y+8,x,y);c.fill();},
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+9,7,0,7);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x+3,y+7,7,0,7);c.fill();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-6,y+1);c.lineTo(x+6,y+1);c.lineTo(x,y+11);c.closePath();c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.arc(x,y+9,6,-0.4,Math.PI*1.4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x+4,y+5,2.4,0,7);c.fill();},
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+8,6,-0.2,Math.PI*1.5);c.quadraticCurveTo(x-3,y+13,x+1,y+10);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.arc(x+2,y+5,1.6,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+11);c.quadraticCurveTo(x-6,y+1,x,y+1);c.quadraticCurveTo(x+6,y+1,x+6,y+11);c.closePath();c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+14,1.8,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x,y+13,5,0,7);c.stroke();c.beginPath();c.arc(x,y+5,3.2,0,7);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+4);c.stroke();c.strokeRect(x-4,y+4,8,16);c.beginPath();c.arc(x,y+7,1,0,7);c.stroke();},
+  (c,x,y,a)=>{c.save();c.translate(x,y+9);c.rotate(0.06);S(c,a);c.lineWidth=1.4;c.strokeRect(-7,-7,14,14);c.fillStyle=a;c.beginPath();c.arc(0,0,1.8,0,7);c.fill();c.restore();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;for(let k=0;k<5;k++){const an=-Math.PI/2+k*2*Math.PI/5;c.beginPath();c.arc(x+6*Math.cos(an),y+9+6*Math.sin(an),3,0,7);c.stroke();}c.fillStyle=a;c.beginPath();c.arc(x,y+9,1.8,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.5;c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+6,y+8,x,y+16);c.quadraticCurveTo(x-6,y+8,x,y);c.stroke();c.beginPath();c.moveTo(x,y+2);c.lineTo(x,y+14);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+5);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+9,4,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+2);c.quadraticCurveTo(x,y+7,x+6,y+2);c.quadraticCurveTo(x+1,y+9,x+6,y+16);c.quadraticCurveTo(x,y+11,x-6,y+16);c.quadraticCurveTo(x-1,y+9,x-6,y+2);c.closePath();c.stroke();}
+];
+function drawTitle(ctx,text,w,h,ink){
+  const fs=Math.round(w*0.088), lineGap=fs*1.16, colGap=Math.round(w*0.108), yTop=fs+5, yBottom=h-11, x0=w-fs-3, maxCols=3;
+  const perCol=Math.floor((yBottom-yTop)/lineGap);
+  ctx.fillStyle=ink; ctx.font='600 '+fs+'px "Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  const chars=[...text];
+  for(let col=0;col<maxCols;col++){const start=col*perCol;if(start>=chars.length)break;const cxp=x0-col*colGap;
+    for(let i=0;i<perCol;i++){const idx=start+i;if(idx>=chars.length)break;let ch=chars[idx];
+      if(col===maxCols-1&&i===perCol-1&&idx<chars.length-1)ch='⋮';
+      ctx.fillText(ch,cxp,yTop+i*lineGap+lineGap/2);}}
+}
+
+// ===== 色域3案：hues=生成する色相集合 / s=彩度 / ll=ライトの明度 / ld=ダークの明度 =====
+const SETS={
+  now:{name:'現行（全周・和リング）', desc:'暖色〜寒色を一周。蔵書が色とりどりで賑やか＝自分の書架らしい。ただし D の寒色・静謐からは少し外れる。',
+       hues:[20,70,140,175,200,210,260,330], s:48, ll:52, ld:62},
+  cool:{name:'寒色・静', desc:'緑〜青〜菫だけ＋彩度も一段低い。D の寒色基調・静謐を厳守。落ち着くが本どうしが似やすい。',
+       hues:[150,168,186,200,212,226,248,272], s:38, ll:50, ld:60},
+  wa:{name:'和の伝統色', desc:'青磁/浅葱/藍/群青/若竹/藤/桔梗＋朽葉。HSLの機械的一周でなく"名のある和色"で一意。寒色主体＋暖色は朽葉1点のみ。',
+       hues:[168,190,208,224,140,262,285,32], s:42, ll:49, ld:60},
+};
+const ORDER=['now','cool','wa'];
+
+function drawShiori(canvas,title,dark,pset){
+  const dpr=2, cssW=canvas.clientWidth||140, w=cssW, h=Math.round(w*1.5);
+  canvas.width=w*dpr; canvas.height=h*dpr; const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const paper=dark?'#20232B':'#FBFAF8', ink=dark?'#ECE9E2':'#1C1F26';
+  const hSeed=mulberry32(hashStr(title));
+  const hue=pset.hues[Math.floor(hSeed()*pset.hues.length)];
+  const accent=hsl(hue,pset.s,dark?pset.ld:pset.ll);
+  ctx.fillStyle=paper; ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle=dark?'rgba(255,255,255,.05)':'rgba(28,31,38,.05)'; ctx.lineWidth=1; ctx.strokeRect(.5,.5,w-1,h-1);
+  const rng=mulberry32(hashStr(title+'|B'));
+  const x=Math.round(rand(rng,0.14,0.36)*w)+.5, len=Math.round(rand(rng,0.30,0.60)*h);
+  ctx.strokeStyle=accent; ctx.lineWidth=2.5; ctx.lineCap='butt';
+  ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,len); ctx.stroke();
+  TIPS[Math.floor(rng()*TIPS.length)](ctx,x,len,accent,dark,paper);
+  drawTitle(ctx,title,w,h,ink);
+}
+
+const POOL=[
+  {t:'追放された万能薬師、辺境でスローライフを始める',a:'霧島あおい',p:62},
+  {t:'黒の魔王と契約した俺、気づけば最強の従者に',a:'夜灯すばる',p:20},
+  {t:'転生したら最弱スキルだったので草むしりしていた',a:'青葉みのり',p:80},
+  {t:'公爵令嬢の嗜み 〜隣国で薬草園を開きます〜',a:'白河すずら',p:100},
+  {t:'辺境伯家の次男は今日も書庫にこもる',a:'水無月れん',p:34},
+  {t:'雨宿りの喫茶店で魔女に出会った',a:'早瀬ことり',p:45},
+  {t:'竜騎士は辺境で余生を過ごしたい',a:'霧島あおい',p:66},
+  {t:'星降る夜のパン屋と魔法使い',a:'早瀬ことり',p:12},
+];
+let dark=false, list=POOL.slice(0,8);
+
+function phone(key){
+  const set=SETS[key];
+  const ring=set.hues.map(h=>'<i style="background:'+hsl(h,set.s,dark?set.ld:set.ll)+'"></i>').join('');
+  const cards=list.map(it=>
+    '<div class="bk"><div class="cv"><canvas data-t="'+encodeURIComponent(it.t)+'" data-set="'+key+'"></canvas></div>'+
+    '<div class="au">'+it.a+'</div><div class="pr"><div class="bar"><i style="width:'+it.p+'%"></i></div><span class="pct">'+it.p+'%</span></div></div>'
+  ).join('');
+  return '<div class="wrap"><span class="mode">'+set.name+'</span><span class="sub">'+set.desc+'</span><div class="ring">'+ring+'</div>'+
+    '<div class="phone '+(dark?'td':'tl')+'"><div class="sb"><span>9:41</span><span>84%</span></div><div class="top"><h1>本棚</h1></div>'+
+    '<div class="scroll"><div class="grid-shelf">'+cards+'</div></div></div></div>';
+}
+function paint(){document.querySelectorAll('canvas[data-t]').forEach(cv=>drawShiori(cv,decodeURIComponent(cv.dataset.t),dark,SETS[cv.dataset.set]));}
+function all(){document.getElementById('stage').innerHTML=ORDER.map(phone).join('');requestAnimationFrame(paint);}
+function sample(arr,n){const a=arr.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const x=a[i];a[i]=a[j];a[j]=x;}return a.slice(0,n);}
+all();
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(paint);
+document.getElementById('reroll').addEventListener('click',()=>{list=sample(POOL,8);all();});
+document.getElementById('theme').addEventListener('click',()=>{dark=!dark;document.body.classList.toggle('pgdark',dark);all();});
+</script>
+</body>
+</html>

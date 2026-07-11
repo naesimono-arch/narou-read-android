@@ -1,0 +1,300 @@
+<!-- @dsCard group="UI-n / 本棚（栞・整合）" name="本棚 整合 × 栞 — 書架(グリッド)⇄目録(リスト)で1冊=1色相を共有（栞の棒＋先端 ⇔ 小口の色帯）。未取込署名トグル・ライト/セピア/ダーク" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本棚 整合 × 栞 — 書架⇄目録の色相共有</title>
+<style>
+  /* 狙い＝栞（書架グリッドの表紙）を、もう片方の本棚「文字目録(リスト)」および Web由来カードと"整合"させる。
+     核心ルール: 1冊 = 1色相（title→PALETTE の決定論）。
+       ・書架(グリッド) … 紙地に「色の棒＋先端(31種)」＝唯一無二の栞
+       ・文字目録(リスト) … 左端の小口色帯（栞と同じ色相）＝表紙を持たない行でも同じ本は同じ色
+       ・未取込(なろう) … 青磁で署名（トグルで A:青磁の棒/帯 か B:題字色+文字 を選べる）
+     旧 coverBarColor は色相を abs(hash)%360 で出しており栞の PALETTE と別系列だった＝同じ本が
+     書架と目録で違う色になっていた。ここで色相源を coverHue(PALETTE) に一本化して解消する。 */
+  :root{
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;color:#1C1F26;font-family:var(--gothic);display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:30px 20px 70px}
+  body.pgdark{background:#0b0d11;color:#e4e3e6}
+  .cap{font-size:13px;color:#5A5C57;line-height:1.8;text-align:center;max-width:820px;margin-bottom:6px}
+  .cap b{color:#2A2C28}
+  body.pgdark .cap{color:#9a988f}body.pgdark .cap b{color:#e4e3e6}
+  .ctrl{display:flex;gap:12px;margin:14px 0 8px;flex-wrap:wrap;justify-content:center}
+  .ctrl button{font-size:12.5px;font-weight:500;cursor:pointer;border-radius:999px;padding:10px 18px;border:none;font-family:var(--gothic)}
+  .ctrl .primary{color:#fff;background:#1C3D5A}
+  .ctrl .ghost{color:#1C3D5A;background:transparent;border:1px solid #cbc4b8}
+  body.pgdark .ctrl .ghost{color:#9bbdd4;border-color:#2c3138}
+  .ctrl .tag{font-size:11px;color:#7c7a72;align-self:center}
+  body.pgdark .ctrl .tag{color:#8a887f}
+  .stage{display:flex;gap:34px;flex-wrap:wrap;justify-content:center;align-items:flex-start;margin-top:18px}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap .mode{font-size:12px;letter-spacing:.22em;color:#6A6C67}
+  body.pgdark .wrap .mode{color:#807e77}
+
+  /* ===== テーマ変数（Color.kt 実トークン。栞の紙/墨は canvas 側で別に持つ） ===== */
+  .phone{width:352px;height:770px;border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--gothic);
+    background:var(--pg);color:var(--tx)}
+  .phone.tl{--pg:#FBFAF8;--tx:#1C1F26;--sub:#7C808B;--hl:#E4E2DB;--acc:#1C3D5A;--sj:#9CB3A8;--track:#E4E2DB;--cvbg:#f3f0ea}
+  .phone.ts{--pg:#F2E7CE;--tx:#3D3121;--sub:#8C7D5D;--hl:#E0D3B0;--acc:#2E4A60;--sj:#8CA79A;--track:#E0D3B0;--cvbg:#ece0c3}
+  .phone.td{--pg:#14171C;--tx:#C7CDD3;--sub:#868D97;--hl:#2A2F38;--acc:#8FB3D4;--sj:#9CB3A8;--track:#2A2F38;--cvbg:#20232B}
+
+  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--sub);flex-shrink:0}
+  .top{padding:8px 24px 12px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
+  .top h1{font-family:var(--mincho);font-size:26px;color:var(--tx);font-weight:500;letter-spacing:.14em}
+  .acts{display:flex;gap:2px}
+  .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--tx);cursor:pointer}
+  .ib.on{color:var(--acc)}
+  .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .scroll{flex:1;overflow:auto;padding:0 24px 40px;scrollbar-width:none}.scroll::-webkit-scrollbar{display:none}
+  .find-guide{display:flex;align-items:center;border:1px solid var(--hl);border-radius:2px;padding:10px 14px;margin-bottom:18px;cursor:pointer}
+  .find-guide .fi{width:15px;height:15px;stroke:var(--sub);fill:none;stroke-width:2;margin-right:8px}
+  .find-guide .txt{font-size:12.5px;color:var(--tx);flex:1}
+  .find-guide .ar{width:14px;height:14px;stroke:var(--sub);fill:none;stroke-width:2}
+
+  /* ===== 書架(グリッド) ===== */
+  .grid-shelf{display:grid;grid-template-columns:1fr 1fr;gap:24px 16px}
+  .bk{display:flex;flex-direction:column;cursor:pointer}
+  .cv{position:relative;aspect-ratio:2/3;border-radius:3px;overflow:hidden;background:var(--cvbg);
+    box-shadow:0 6px 16px rgba(22,26,40,.12),0 1px 3px rgba(0,0,0,.06)}
+  .phone.td .cv{box-shadow:0 8px 20px rgba(0,0,0,.5)}
+  .cv canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .cv .seal{position:absolute;right:9px;bottom:9px;width:19px;height:19px;border-radius:2px;display:grid;place-items:center;
+    font-family:var(--mincho);font-weight:600;font-size:9.5px;z-index:3;border:1.1px solid #a1573f;color:#a1573f;background:rgba(251,250,248,.5)}
+  .phone.td .cv .seal{border-color:#cc8b73;color:#cc8b73;background:rgba(16,19,25,.5)}
+  .bk .au{font-size:11px;color:var(--sub);margin-top:9px}
+  .bk .pr{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:10.5px;color:var(--sub)}
+  .bk .bar{flex:1;height:1px;background:var(--track);position:relative}
+  .bk .bar i{position:absolute;left:0;top:-.5px;height:2px;background:var(--acc)}
+  .bk .pct{color:var(--acc)}
+  .bk .nc{display:flex;align-items:center;gap:5px;margin-top:5px}
+  .bk .nc .dot{width:6px;height:6px;background:var(--sj);border-radius:50%}
+  .bk .nc .t{font-size:10.5px;color:var(--acc);font-weight:500}
+  .bk .mr{font-size:10.5px;color:var(--sj);margin-top:6px;font-weight:500}
+  .bk .sr{font-size:10.5px;color:var(--sub);margin-top:6px}
+
+  /* ===== 文字目録(リスト) ===== */
+  .li{display:flex;gap:14px;padding:16px 2px;border-bottom:1px solid var(--hl);align-items:stretch;cursor:pointer}
+  .li .lbar{width:4px;border-radius:2px;flex-shrink:0}
+  .li .bd{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;padding-right:8px}
+  .li .t{font-family:var(--mincho);font-size:16px;color:var(--tx);font-weight:600;line-height:1.5;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .li .a{font-size:11px;color:var(--sub);margin-top:6px}
+  .li .m{display:flex;align-items:center;gap:9px;font-size:10.5px;color:var(--sub);margin-top:10px}
+  .li .m .pb{width:96px;height:1px;background:var(--track);position:relative}
+  .li .m .pb i{position:absolute;left:0;top:-0.5px;height:2px;background:var(--acc)}
+  .li .m .pct{color:var(--acc)}
+  .li .m .u{color:var(--sj);letter-spacing:.06em;font-weight:600}
+  .li .m .done{color:var(--acc);letter-spacing:.06em}
+
+  /* ===== 色相の対応（書架 ⇔ 目録が同じ本＝同じ色相 の証明ストリップ） ===== */
+  .corr{max-width:1000px;margin:44px auto 0;width:100%}
+  .corr h2{font-family:var(--mincho);font-size:15px;font-weight:500;letter-spacing:.06em;color:#3a3c37;text-align:center;margin-bottom:4px}
+  body.pgdark .corr h2{color:#d6d4cc}
+  .corr p{font-size:11.5px;color:#7c7a72;text-align:center;margin-bottom:18px}
+  body.pgdark .corr p{color:#807e77}
+  .corr .row{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}
+  .pair{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.5);border:1px solid #d8d2c8;border-radius:6px;padding:9px 12px}
+  body.pgdark .pair{background:rgba(255,255,255,.03);border-color:#242a31}
+  .pair .cvm{width:44px;height:66px;border-radius:2px;overflow:hidden;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.18);background:#f3f0ea}
+  .pair .cvm canvas{width:100%;height:100%;display:block}
+  .pair .lbm{width:5px;align-self:stretch;border-radius:3px;flex-shrink:0}
+  .pair .tt{font-family:var(--mincho);font-size:11px;color:#4a4a45;line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  body.pgdark .pair .tt{color:#b9b7ae}
+</style>
+</head>
+<body>
+  <p class="cap"><b>本棚 整合 × 栞</b>　1冊 = 1色相（title→PALETTE）。<b>書架</b>は栞の棒＋先端、<b>目録</b>は小口の色帯——<b>同じ本は同じ色相</b>で両ビューが呼応する。未取込は青磁で署名（署名の出し方はトグルで比較）。</p>
+  <div class="ctrl">
+    <button class="primary" id="reroll">🎲 別の蔵書に差し替え</button>
+    <button class="ghost" id="theme">◐ ライト / セピア / ダーク</button>
+    <button class="ghost" id="untaken">未取込署名：<span id="utlabel">B 題字色＋文字</span></button>
+  </div>
+  <div class="stage" id="stage"></div>
+
+  <section class="corr">
+    <h2>色相の対応（書架 ⇔ 目録）</h2>
+    <p>左＝書架の栞（棒の色）／右＝目録の小口色帯。同じ本は必ず同じ色相＝ビューを切り替えても本の"色"が変わらない。</p>
+    <div class="row" id="corr"></div>
+  </section>
+
+<script>
+// ===== 栞エンジン（bookshelf-shiori-grid-D.html から faithful に移植・確定済み） =====
+function hashStr(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function rand(rng,lo,hi){return lo+(hi-lo)*rng();}
+function pick(rng,arr){return arr[Math.floor(rng()*arr.length)];}
+const PALETTE=[20,70,140,175,200,210,260,330];
+function coverHue(title){return pick(mulberry32(hashStr(title)),PALETTE);}
+function hsl(h,s,l,a){return a==null?'hsl('+h+' '+s+'% '+l+'%)':'hsl('+h+' '+s+'% '+l+'% / '+a+')';}
+function S(ctx,a){ctx.strokeStyle=a;ctx.lineCap='round';ctx.lineJoin='round';}
+function star(ctx,cx,cy,rO,rI,n,rot){ctx.beginPath();for(let i=0;i<n*2;i++){const r=i%2?rI:rO,ang=rot+i*Math.PI/n;const px=cx+r*Math.cos(ang),py=cy+r*Math.sin(ang);i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();}
+const TIPS=[
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2.6;c.beginPath();c.moveTo(x,y);c.lineTo(x-6,y+12);c.moveTo(x,y);c.lineTo(x+6,y+12);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+7,4,0,7);c.fill();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+6,6,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2.4;c.beginPath();c.moveTo(x,y);c.lineTo(x-5,y+18);c.moveTo(x,y);c.lineTo(x+5,y+18);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+3,3.2,0,7);c.fill();S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+5);c.lineTo(x-6,y+22);c.moveTo(x,y+5);c.lineTo(x,y+23);c.moveTo(x,y+5);c.lineTo(x+6,y+22);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+4,4,0,7);c.fill();S(c,a);c.lineWidth=1.6;for(let k=-2;k<=2;k++){c.beginPath();c.moveTo(x,y+7);c.lineTo(x+k*4,y+24);c.stroke();}},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+4);c.quadraticCurveTo(x-11,y-2,x-9,y+4);c.quadraticCurveTo(x-11,y+10,x,y+4);c.moveTo(x,y+4);c.quadraticCurveTo(x+11,y-2,x+9,y+4);c.quadraticCurveTo(x+11,y+10,x,y+4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+4,2,0,7);c.fill();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+5,4,0,7);c.fill();S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+9);c.lineTo(x,y+20);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;[6,13,20].forEach(d=>{c.beginPath();c.arc(x,y+d,2.6,0,7);c.fill();});},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=3;c.beginPath();c.moveTo(x-7,y+1);c.lineTo(x+7,y+1);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2;c.beginPath();c.arc(x,y+7,5,0,7);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x,y+9,8,0,7);c.stroke();c.beginPath();c.arc(x,y+9,4,0,7);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+1);c.lineTo(x+6,y+9);c.lineTo(x,y+17);c.lineTo(x-6,y+9);c.closePath();c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x-7,y+1);c.lineTo(x+7,y+1);c.lineTo(x,y+13);c.closePath();c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.strokeRect(x-6,y+2,12,12);},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;star(c,x,y+10,7,3,5,-Math.PI/2);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+2);c.lineTo(x,y+16);c.moveTo(x-7,y+9);c.lineTo(x+7,y+9);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;[[0,5],[-5,13],[5,13]].forEach(p=>{c.beginPath();c.arc(x+p[0],y+p[1],2.2,0,7);c.fill();});},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+6,y+8,x,y+15);c.quadraticCurveTo(x-6,y+8,x,y);c.fill();},
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+9,7,0,7);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x+3,y+7,7,0,7);c.fill();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-6,y+1);c.lineTo(x+6,y+1);c.lineTo(x,y+11);c.closePath();c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.arc(x,y+9,6,-0.4,Math.PI*1.4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x+4,y+5,2.4,0,7);c.fill();},
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+8,6,-0.2,Math.PI*1.5);c.quadraticCurveTo(x-3,y+13,x+1,y+10);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.arc(x+2,y+5,1.6,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+11);c.quadraticCurveTo(x-6,y+1,x,y+1);c.quadraticCurveTo(x+6,y+1,x+6,y+11);c.closePath();c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+14,1.8,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x,y+13,5,0,7);c.stroke();c.beginPath();c.arc(x,y+5,3.2,0,7);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+4);c.stroke();c.strokeRect(x-4,y+4,8,16);c.beginPath();c.arc(x,y+7,1,0,7);c.stroke();},
+  (c,x,y,a)=>{c.save();c.translate(x,y+9);c.rotate(0.06);S(c,a);c.lineWidth=1.4;c.strokeRect(-7,-7,14,14);c.fillStyle=a;c.beginPath();c.arc(0,0,1.8,0,7);c.fill();c.restore();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;for(let k=0;k<5;k++){const an=-Math.PI/2+k*2*Math.PI/5;c.beginPath();c.arc(x+6*Math.cos(an),y+9+6*Math.sin(an),3,0,7);c.stroke();}c.fillStyle=a;c.beginPath();c.arc(x,y+9,1.8,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.5;c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+6,y+8,x,y+16);c.quadraticCurveTo(x-6,y+8,x,y);c.stroke();c.beginPath();c.moveTo(x,y+2);c.lineTo(x,y+14);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+5);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+9,4,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+2);c.quadraticCurveTo(x,y+7,x+6,y+2);c.quadraticCurveTo(x+1,y+9,x+6,y+16);c.quadraticCurveTo(x,y+11,x-6,y+16);c.quadraticCurveTo(x-1,y+9,x-6,y+2);c.closePath();c.stroke();}
+];
+function drawTitle(ctx,text,w,h,ink){
+  const fs=Math.round(w*0.088), lineGap=fs*1.16, colGap=Math.round(w*0.108), yTop=fs+5, yBottom=h-11, x0=w-fs-3, maxCols=3;
+  const perCol=Math.floor((yBottom-yTop)/lineGap);
+  ctx.fillStyle=ink; ctx.font='600 '+fs+'px "Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  const chars=[...text];
+  for(let col=0;col<maxCols;col++){const start=col*perCol;if(start>=chars.length)break;const cxp=x0-col*colGap;
+    for(let i=0;i<perCol;i++){const idx=start+i;if(idx>=chars.length)break;let ch=chars[idx];
+      if(col===maxCols-1&&i===perCol-1&&idx<chars.length-1)ch='⋮';
+      ctx.fillText(ch,cxp,yTop+i*lineGap+lineGap/2);}}
+}
+// accent＝1冊の識別色。整合の要: 未取込(A案)は青磁で署名、それ以外は title 由来色相。
+function accentOf(theme,title,untaken){
+  if(untaken && UNTAKEN_MODE==='A') return theme.seiji;
+  return hsl(coverHue(title),48,theme.accL);
+}
+function drawShiori(canvas,title,theme,untaken){
+  const dpr=2, cssW=canvas.clientWidth||150, w=cssW, h=Math.round(w*1.5);
+  canvas.width=w*dpr; canvas.height=h*dpr; const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const paper=theme.paper, ink=theme.ink, accent=accentOf(theme,title,untaken);
+  ctx.fillStyle=paper; ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle=theme.dark?'rgba(255,255,255,.05)':'rgba(28,31,38,.05)'; ctx.lineWidth=1; ctx.strokeRect(.5,.5,w-1,h-1);
+  const rng=mulberry32(hashStr(title+'|B'));
+  const x=Math.round(rand(rng,0.14,0.36)*w)+.5, len=Math.round(rand(rng,0.30,0.60)*h);
+  ctx.strokeStyle=accent; ctx.lineWidth=2.5; ctx.lineCap='butt';
+  ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,len); ctx.stroke();
+  TIPS[Math.floor(rng()*TIPS.length)](ctx,x,len,accent,theme.dark,paper);
+  drawTitle(ctx,title,w,h,ink);
+}
+
+// ===== テーマ（Color.kt 実トークン。栞の紙/墨は canvas 用に別持ち） =====
+const THEMES={
+  tl:{cls:'tl',name:'ライト',paper:'#FBFAF8',ink:'#1C1F26',accL:52,seiji:'#9CB3A8',dark:false},
+  ts:{cls:'ts',name:'セピア',paper:'#F2E7CE',ink:'#3D3121',accL:48,seiji:'#8CA79A',dark:false},
+  td:{cls:'td',name:'ダーク',paper:'#20232B',ink:'#ECE9E2',accL:62,seiji:'#9CB3A8',dark:true},
+};
+const ORDER=['tl','ts','td'];
+let themeKey='tl';
+let UNTAKEN_MODE='B'; // A=青磁の棒/帯で署名 / B=題字色のまま＋「なろう・未取込」文字だけで署名
+
+// ===== 蔵書（p:進捗:続き / done / untaken / short） =====
+const POOL=[
+  {t:'追放された万能薬師、辺境でスローライフを始める',a:'霧島あおい',s:'p:62:12'},
+  {t:'黒の魔王と契約した俺、気づけば最強の従者に',a:'夜灯すばる',s:'untaken'},
+  {t:'転生したら最弱スキルだったので草むしりしていた',a:'青葉みのり',s:'p:80'},
+  {t:'公爵令嬢の嗜み 〜隣国で薬草園を開きます〜',a:'白河すずら',s:'done'},
+  {t:'辺境伯家の次男は今日も書庫にこもる',a:'水無月れん',s:'p:34'},
+  {t:'雨宿りの喫茶店で魔女に出会った',a:'早瀬ことり',s:'short'},
+  {t:'竜騎士は辺境で余生を過ごしたい',a:'霧島あおい',s:'p:45'},
+  {t:'星降る夜のパン屋と魔法使い',a:'早瀬ことり',s:'untaken'},
+];
+let list=POOL.slice(0,8);
+const isUntaken=s=>s==='untaken';
+
+// ---- 書架(グリッド)の状態行 ----
+function gridStatus(s){
+  const p=s.split(':');
+  if(p[0]==='p'){let h='<div class="pr"><div class="bar"><i style="width:'+p[1]+'%"></i></div><span class="pct">'+p[1]+'%</span></div>';if(p[2])h+='<div class="nc"><span class="dot"></span><span class="t">続き '+p[2]+'話</span></div>';return h;}
+  if(s==='done')return '<div class="pr"><div class="bar"><i style="width:100%"></i></div><span class="pct">100%</span></div>';
+  if(s==='untaken')return '<div class="mr">なろう・未取込</div>';
+  return '<div class="sr">短編・未読</div>';
+}
+// ---- 目録(リスト)の状態行 ----
+function listStatus(s){
+  const p=s.split(':');
+  if(p[0]==='p')return '<div class="m"><div class="pb"><i style="width:'+p[1]+'%"></i></div><span class="pct">'+p[1]+'%</span></div>';
+  if(s==='done')return '<div class="m"><span class="done">読了</span></div>';
+  if(s==='untaken')return '<div class="m"><span class="u">なろう・未取込</span></div>';
+  return '<div class="m"><span>短編・未読</span></div>';
+}
+
+function svgSearch(){return '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>';}
+function gridPhone(theme){
+  const acts='<div class="acts"><button class="ib">'+svgSearch()+'</button><button class="ib on"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button><button class="ib"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button></div>';
+  const guide='<div class="find-guide"><svg viewBox="0 0 24 24" class="fi">'+'<circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg><span class="txt">新しい物語を見つける</span><svg viewBox="0 0 24 24" class="ar"><polyline points="9 18 15 12 9 6"/></svg></div>';
+  const cards=list.map(it=>{
+    const seal=(it.s==='done')?'<span class="seal">了</span>':'';
+    return '<div class="bk"><div class="cv"><canvas data-t="'+encodeURIComponent(it.t)+'" data-u="'+(isUntaken(it.s)?1:0)+'"></canvas>'+seal+'</div><div class="au">'+it.a+'</div>'+gridStatus(it.s)+'</div>';
+  }).join('');
+  return '<div class="wrap"><span class="mode">書架（グリッド）</span><div class="phone '+theme.cls+'"><div class="sb"><span>9:41</span><span>●●● 84%</span></div><div class="top"><h1>本棚</h1>'+acts+'</div><div class="scroll">'+guide+'<div class="grid-shelf">'+cards+'</div></div></div></div>';
+}
+function listPhone(theme){
+  const acts='<div class="acts"><button class="ib">'+svgSearch()+'</button><button class="ib on"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button><button class="ib"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button></div>';
+  const guide='<div class="find-guide"><svg viewBox="0 0 24 24" class="fi"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg><span class="txt">新しい物語を見つける</span><svg viewBox="0 0 24 24" class="ar"><polyline points="9 18 15 12 9 6"/></svg></div>';
+  const rows=list.map(it=>{
+    const un=isUntaken(it.s);
+    // 小口色帯＝栞の棒と全く同じ色（accentOf でモード追従）。これで書架⇔目録で本の色が一致する。
+    // 未取込は署名モードに従う（A=青磁の帯 / B=題字色の帯＋「なろう・未取込」文字で署名）。
+    const barColor = accentOf(theme, it.t, un);
+    return '<div class="li"><div class="lbar" style="background:'+barColor+'"></div><div class="bd"><div class="t">'+it.t+'</div><div class="a">'+it.a+'</div>'+listStatus(it.s)+'</div></div>';
+  }).join('');
+  return '<div class="wrap"><span class="mode">文字目録（リスト）</span><div class="phone '+theme.cls+'"><div class="sb"><span>9:41</span><span>●●● 84%</span></div><div class="top"><h1>本棚</h1>'+acts+'</div><div class="scroll">'+guide+rows+'</div></div></div>';
+}
+function corrRows(theme){
+  return list.map(it=>{
+    const un=isUntaken(it.s);
+    const barColor = accentOf(theme, it.t, un);
+    return '<div class="pair"><div class="cvm"><canvas data-t="'+encodeURIComponent(it.t)+'" data-u="'+(un?1:0)+'"></canvas></div><div class="lbm" style="background:'+barColor+'"></div><div class="tt">'+it.t+'</div></div>';
+  }).join('');
+}
+
+function paintCanvases(){
+  const theme=THEMES[themeKey];
+  document.querySelectorAll('canvas[data-t]').forEach(cv=>{
+    drawShiori(cv, decodeURIComponent(cv.dataset.t), theme, cv.dataset.u==='1');
+  });
+}
+function renderAll(){
+  const theme=THEMES[themeKey];
+  document.getElementById('stage').innerHTML = gridPhone(theme)+listPhone(theme);
+  document.getElementById('corr').innerHTML = corrRows(theme);
+  requestAnimationFrame(paintCanvases);
+}
+function sample(arr,n){const a=arr.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const x=a[i];a[i]=a[j];a[j]=x;}return a.slice(0,n);}
+
+renderAll();
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(paintCanvases);
+document.getElementById('reroll').addEventListener('click',()=>{list=sample(POOL,8);renderAll();});
+document.getElementById('theme').addEventListener('click',()=>{
+  themeKey=ORDER[(ORDER.indexOf(themeKey)+1)%ORDER.length];
+  document.body.classList.toggle('pgdark',THEMES[themeKey].dark);
+  renderAll();
+});
+document.getElementById('untaken').addEventListener('click',()=>{
+  UNTAKEN_MODE = UNTAKEN_MODE==='A' ? 'B' : 'A';
+  document.getElementById('utlabel').textContent = UNTAKEN_MODE==='A' ? 'A 青磁の棒／帯' : 'B 題字色＋文字';
+  renderAll();
+});
+</script>
+</body>
+</html>
