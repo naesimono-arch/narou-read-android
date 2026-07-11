@@ -123,9 +123,21 @@ fun WebReaderScreen(
                                 // 【規約厳守】ここで evaluateJavascript / DOM 改変 / 広告除去は絶対にしない。
                                 // URL 文字列から話数を割り出して読書位置に記録するだけ（URL 観測＝加工に当たらない）。
                                 // 話ページ(.../<ncode>/N/)以外（目次・感想・外部リンク）は parse が null を返し記録しない。
-                                if (url != null) {
-                                    parseNarouEpisodeNumber(url, ncode)?.let { episode ->
-                                        viewModel.onEpisodeReached(ncode, episode)
+                                //
+                                // 戻り遷移（goBack で履歴を遡って表示したページ）は記録しない: onPageFinished は
+                                // goBack でも再発火するため、読み進めた後に戻る連打で退出すると記録がセッション
+                                // 先頭話へ巻き戻る（2026-07-11 実機で2作品再現・ADR 0012 追補）。判定は「戻り操作中」
+                                // フラグでなく履歴スタック位置の構造判定（currentIndex が末尾でない＝forward 履歴が
+                                // 残っている＝戻りで到達）。新しいリンクを踏めば forward 履歴は切り詰められ末尾に
+                                // 戻るので、目次等から意図的に開き直した話は従来どおり記録される。フラグ方式は
+                                // 戻る連打時に onPageFinished が発火分と一致せず抑制の漏れ/残留が起きるため不採用。
+                                if (url != null && view != null) {
+                                    val history = view.copyBackForwardList()
+                                    val reachedByBack = history.currentIndex < history.size - 1
+                                    if (!reachedByBack) {
+                                        parseNarouEpisodeNumber(url, ncode)?.let { episode ->
+                                            viewModel.onEpisodeReached(ncode, episode)
+                                        }
                                     }
                                 }
                             }
