@@ -1,0 +1,253 @@
+<!-- @dsCard group="UI-n / 本棚（書架・グリッド）" name="本棚 書架 G4動的にじみ生成（タイトル種→滲みプリミティブ動的合成で作品ごとに一意・ライト/ダーク・再生成デモ）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本棚 ― 書架 G4 動的にじみ生成</title>
+<style>
+  /* G4「墨にじみ・水彩」の動的生成版。タイトルをハッシュ→固定シードの疑似乱数→滲みプリミティブ
+     (円相・遠山・たらし込み・飛沫・二重にじみ/塊・霞)を2〜3個 動的に選び、位置/大きさ/回転/色を
+     シードで決めて合成する。＝同じ作品は常に同じ滲み(決定論的)／違う作品は必ず違う滲み。骨格AB3据置き。
+     Compose では title.hashCode()→Random(seed)→Canvas描画＋Modifier.blur で同等に移植できる。 */
+  :root{
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    --base:#FBFAF8;--ink:#1C1F26;--sub:#7C808B;--hl:#E4E2DB;--line:#ECEAE4;
+    --ai:#1C3D5A;--sj:#9CB3A8;--track:#E4E2DB;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;color:#1C1F26;font-family:var(--gothic);padding:34px 26px 70px}
+  .head{max-width:820px;margin:0 auto 18px}
+  .head h1{font-family:var(--mincho);font-size:25px;letter-spacing:.08em;font-weight:600}
+  .head p{margin-top:10px;font-size:13px;color:#4f4d47;line-height:1.9}
+  .head .note{margin-top:10px;font-size:12px;color:#3f4a54;background:#E3EAEF;border-left:3px solid #1C3D5A;padding:10px 14px;line-height:1.8}
+  .ctrl{max-width:820px;margin:0 auto 18px;display:flex;align-items:center;gap:14px}
+  .ctrl button{font-family:var(--gothic);font-size:13px;font-weight:600;color:#fff;background:#1C3D5A;border:none;border-radius:10px;padding:11px 18px;cursor:pointer;box-shadow:0 6px 16px rgba(28,61,90,.28)}
+  .ctrl .hint{font-size:11.5px;color:#5a5c57;line-height:1.6}
+  .stage{max-width:820px;margin:0 auto;display:flex;gap:34px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:11px}
+  .wrap .mode{font-size:11px;letter-spacing:.16em;color:#5a5c57;text-align:center}
+  .wrap .mode b{font-family:var(--mincho);color:#1C3D5A;font-size:13px;letter-spacing:.06em;display:block;margin-bottom:2px}
+  .legend{max-width:820px;margin:18px auto 0;font-size:11.8px;color:#4f5148;line-height:1.95}
+  .legend b{color:#2A2C28}.legend code{font-family:SFMono-Regular,Consolas,monospace;font-size:11px;background:#dcdad2;padding:1px 5px;border-radius:3px}
+  footer{max-width:820px;margin:22px auto 0;font-size:12.5px;color:#4f5148;line-height:2.0;border-top:1px solid #cfc8bf;padding-top:20px}
+  footer b{color:#1C1F26}
+
+  /* ===== 共通の器 ===== */
+  .phone{width:346px;height:752px;border-radius:38px;overflow:hidden;position:relative;background:var(--base);color:var(--ink);
+    box-shadow:0 18px 46px rgba(0,0,0,.26);display:flex;flex-direction:column;font-family:var(--gothic)}
+  .sb{height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--sub);flex-shrink:0}
+  .top{padding:6px 22px 10px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
+  .top h1{font-family:var(--mincho);font-size:24px;color:var(--ink);font-weight:500;letter-spacing:.14em}
+  .acts{display:flex;gap:1px}
+  .ib{width:35px;height:35px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--ink);cursor:pointer}
+  .ib.sel{color:var(--ai)}
+  .ib svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .filters{display:flex;gap:8px;overflow-x:auto;padding:2px 22px 6px;scrollbar-width:none;flex-shrink:0}
+  .filters::-webkit-scrollbar{display:none}
+  .fc{flex-shrink:0;font-size:11.5px;color:var(--sub);border:1px solid var(--hl);border-radius:2px;padding:6px 13px;cursor:pointer}
+  .fc.on{color:var(--ai);border-color:var(--ai);font-weight:600}
+  .scroll{flex:1;overflow:auto;scrollbar-width:none}.scroll::-webkit-scrollbar{display:none}
+  .fab{position:absolute;right:18px;bottom:22px;display:flex;align-items:center;gap:8px;background:var(--ai);color:#fff;border:none;cursor:pointer;
+    padding:13px 18px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 8px 20px rgba(28,61,90,.34);z-index:5}
+  .fab svg{width:17px;height:17px;stroke:#fff;stroke-width:2;fill:none}
+  .trk{height:1px;background:var(--track);position:relative}
+  .trk i{position:absolute;left:0;top:-.5px;height:2px;background:var(--ai)}
+
+  .grid{padding:8px 22px 90px;display:grid;grid-template-columns:1fr 1fr;gap:22px 18px}
+  .book{display:flex;flex-direction:column}
+  .cov{position:relative;aspect-ratio:2/3;border-radius:4px;overflow:hidden;box-shadow:0 8px 16px rgba(24,28,42,.18),0 2px 5px rgba(0,0,0,.09)}
+  .cov .sm{position:absolute;left:-6px;top:-6px;width:calc(100% + 12px);height:calc(100% + 12px);z-index:0}
+  .cov .sp{position:absolute;top:15px;right:13px;bottom:15px;writing-mode:vertical-rl;font-family:var(--mincho);font-weight:600;font-size:14px;line-height:1.7;letter-spacing:.06em;max-height:82%;overflow:hidden;z-index:2}
+  .cov .seal{position:absolute;right:9px;bottom:9px;width:20px;height:20px;border-radius:2px;display:grid;place-items:center;font-family:var(--mincho);font-weight:700;font-size:10px;z-index:2}
+  .newdot{position:absolute;left:8px;top:8px;width:9px;height:9px;border-radius:50%;background:var(--ai);box-shadow:0 0 0 2px rgba(251,250,248,.9);z-index:3}
+  .gcap{margin-top:9px}
+  .gcap .au{font-size:11px;color:var(--sub)}
+  .gcap .gm{display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--sub);margin-top:7px}
+  .gcap .gm .pb{flex:1}
+  .gcap .gm .pct{color:var(--ai);flex-shrink:0}
+  .gcap .gm .g{color:var(--sj);font-weight:600;flex-shrink:0}
+  .gcap .gm .done{color:var(--ai);font-weight:600;letter-spacing:.05em}
+  .gcap .gm .u{color:var(--sj);font-weight:600}
+
+  /* G4 ライト */
+  .g4l .cov{background:linear-gradient(180deg,#f6f1e8,#ece4d5)}
+  .g4l .cov .sm{filter:blur(4.5px)}
+  .g4l .cov .sp{color:#2b2620;text-shadow:0 0 5px rgba(246,241,232,.92),0 0 2px rgba(246,241,232,.95)}
+  .g4l .cov .seal{border:1.3px solid #a1402c;color:#a1402c}
+
+  /* G4 ダーク（墨地に screen で発光） */
+  .g4d.phone{background:#12151b;color:#e8e6ea}
+  .g4d .sb{color:#767c8a}
+  .g4d .top h1{color:#f0eef2}
+  .g4d .ib{color:#d6d4dc}.g4d .ib.sel{color:#7FB0D8}
+  .g4d .filters .fc{color:#868c9c;border-color:#2a2f38}
+  .g4d .filters .fc.on{color:#7FB0D8;border-color:#7FB0D8}
+  .g4d .fab{background:#3a6ea0;box-shadow:0 8px 18px rgba(0,0,0,.45)}
+  .g4d .cov{background:linear-gradient(180deg,#191d25,#0f1219);box-shadow:0 10px 22px rgba(0,0,0,.5)}
+  .g4d .cov .sm{filter:blur(5.5px);mix-blend-mode:screen}
+  .g4d .cov .sp{color:#ece6da;text-shadow:0 1px 6px rgba(8,10,15,.85),0 0 2px rgba(8,10,15,.7)}
+  .g4d .cov .seal{border:1.3px solid #d8836e;color:#d8836e}
+  .g4d .newdot{background:#7FB0D8;box-shadow:0 0 0 2px rgba(18,21,27,.9)}
+  .g4d .trk{background:#2a2f38}
+  .g4d .gcap .au{color:#868c9c}
+  .g4d .gcap .gm{color:#868c9c}
+  .g4d .gcap .gm .pct{color:#7FB0D8}
+  .g4d .gcap .gm .g{color:#8fb3a4}
+  .g4d .gcap .gm .done{color:#7FB0D8}
+  .g4d .gcap .gm .u{color:#8fb3a4}
+</style>
+</head>
+<body>
+<header class="head">
+  <h1>本棚 ― 書架：G4 動的にじみ生成</h1>
+  <p>固定の6型を手で割り当てるのではなく、<strong>タイトルをシードに滲みプリミティブを動的に組み合わせて</strong>、作品ごとに一意の滲みを自動生成します。<strong>同じ作品は常に同じ滲み／違う作品は必ず違う滲み</strong>（決定論的）。骨格＝AB3は据え置き。左＝ライト／右＝ダーク。</p>
+  <div class="note"><b>材料（墨の型）を15種に拡張</b>＝円相・塊・飛沫・霞・遠山・たらし込み・三日月・勾玉・波紋・点群・双つ玉・墨溜まり・扇・走り・かすれ雲。各作品で種から2〜3個を選び、位置・向き・大きさ・色を決めて重ねます（＝端正な型の組み合わせなので汚れず、材料が多い分 既視感が出にくい）。可読性のため題字帯（右）は避け濃度に上限。<b>下のボタン</b>で別の蔵書に差し替え＝各滲みはタイトル由来（同じ本は同じ絵）。</div>
+</header>
+
+<div class="ctrl">
+  <button id="reroll">🎲 別の蔵書で再生成</button>
+  <span class="hint">押すたびランダムな作品群に差し替え。各表紙の滲みは「タイトル→シード」で決まる＝再現性あり（同じ本＝同じ滲み）。</span>
+</div>
+
+<div class="stage">
+  <div class="wrap"><span class="mode"><b>G4 ライト</b>淡い和紙地に生成された墨のにじみ</span>
+  <div class="phone g4l">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="top"><h1>本棚</h1><div class="acts">
+      <button class="ib sel"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></button>
+      <button class="ib"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+      <button class="ib"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg></button>
+    </div></div>
+    <div class="filters"><span class="fc on">すべて</span><span class="fc">よみかけ</span><span class="fc">未読</span><span class="fc">読了</span></div>
+    <div class="scroll"><div class="grid" id="gridL"></div></div>
+    <button class="fab"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>追加</button>
+  </div></div>
+
+  <div class="wrap"><span class="mode"><b>G4 ダーク</b>墨地に screen 合成で発光する水彩</span>
+  <div class="phone g4d">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="top"><h1>本棚</h1><div class="acts">
+      <button class="ib sel"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></button>
+      <button class="ib"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+      <button class="ib"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg></button>
+    </div></div>
+    <div class="filters"><span class="fc on">すべて</span><span class="fc">よみかけ</span><span class="fc">未読</span><span class="fc">読了</span></div>
+    <div class="scroll"><div class="grid" id="gridD"></div></div>
+    <button class="fab"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>追加</button>
+  </div></div>
+</div>
+
+<div class="legend">
+  <b>仕組み</b>：① <code>title → ハッシュ → 種</code>　② 種の疑似乱数で <b>15種の墨の型から2〜3個を選び</b>、各々の位置・向き（回転）・大きさ・色（＝和トーンに彩度/明度固定で色相のみ可変）を決めて重ねる　③ <code>CSS blur</code>（ダークは <code>screen</code>）で滲ませ、可読性のため題字帯を避け濃度に上限。<b>型（材料）を増やすほど組み合わせが増え、既視感が減ります</b>。<br>
+  <b>Compose 移植</b>：<code>title.hashCode()</code> を種に <code>kotlin.random.Random(seed)</code>、<code>Canvas</code> の <code>drawPath/drawCircle</code> で同じプリミティブを描き、<code>Modifier.blur()</code> でにじませれば同一挙動になります（画像を持たずコードで生成＝容量ゼロ・無限バリエ）。
+</div>
+
+<footer>
+  <b>動的にじみ生成＝実装可能</b>（このデモが実証）。骨格AB3・目録との足並みは維持、表紙だけタイトル駆動で自動生成。<br>
+  <b>次の一手</b>：この「材料を組み合わせる」方式で確定なら Compose（<code>GridBookCard</code>）へ翻訳します。調整可＝<b>材料の追加/取捨</b>（さらに型を増やす・特定の型だけに絞る・気に入らない型を外す）、選ぶ<b>個数</b>（2〜3／常に2で静かに）、<b>濃度</b>、<b>色域</b>（全色相の低彩度／“藍・青磁・臙脂の和色だけ”に制限）、ライト/ダーク。
+</footer>
+
+<script>
+// ===== 動的にじみ生成：タイトルをシードに、滲みプリミティブを組み合わせて作品ごとに一意の滲みを作る =====
+// 決定論的＝同じタイトルなら常に同じ滲み。Compose では title.hashCode()→Random(seed)→Canvas で移植可。
+
+// タイトル→32bit種（FNV-1a）
+function h32(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)>>>0;}return h>>>0;}
+// 種固定の疑似乱数（mulberry32）
+function rng32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function hsl(h,s,l){return "hsl("+(((h%360)+360)%360).toFixed(0)+" "+s.toFixed(0)+"% "+l.toFixed(0)+"%)";}
+// 和トーンの基調色＋近縁色（彩度/明度は和色域に固定、色相だけ種で振る＝多彩だが騒がしくない）
+function palette(r,dark){
+  const H=Math.floor(r()*360);
+  const S=dark?(38+r()*12):(26+r()*11);
+  const L=dark?(58+r()*11):(40+r()*9);
+  const H2=H+(r()*46-23);
+  return {c1:hsl(H,S,L), c2:hsl(H2,S,L+(dark?8:6))};
+}
+// ===== 材料（墨の型）を15種に拡張。端正な型を種で2〜3個選び、位置/向き/大きさ/色を決めて重ねる =====
+// 中心原点プリミティブ（layer で translate/rotate/scale して配置）
+const P={
+  ring:(r,c1,c2,o)=>'<circle r="32" fill="none" stroke="'+c1+'" stroke-width="'+(8+r()*5).toFixed(1)+'" opacity="'+o.toFixed(2)+'"/><circle r="24" fill="'+c2+'" opacity="'+(o*.35).toFixed(2)+'"/>',
+  blob:(r,c1,c2,o)=>'<ellipse rx="'+(28+r()*16).toFixed(0)+'" ry="'+(34+r()*16).toFixed(0)+'" fill="'+c1+'" opacity="'+o.toFixed(2)+'"/><ellipse cx="'+(r()*16-8).toFixed(0)+'" cy="'+(r()*16-8).toFixed(0)+'" rx="16" ry="20" fill="'+c2+'" opacity="'+(o*.7).toFixed(2)+'"/>',
+  spatter:(r,c1,c2,o)=>{let s='<ellipse rx="26" ry="32" fill="'+c1+'" opacity="'+o.toFixed(2)+'"/>';for(let i=0;i<4;i++)s+='<circle cx="'+(r()*70-35).toFixed(0)+'" cy="'+(r()*80-40).toFixed(0)+'" r="'+(2+r()*4).toFixed(1)+'" fill="'+c2+'" opacity="'+(o*.9).toFixed(2)+'"/>';return s;},
+  crescent:(r,c1,c2,o)=>'<path d="M-24 16 A30 30 0 1 1 24 16" fill="none" stroke="'+c1+'" stroke-width="'+(8+r()*7).toFixed(1)+'" stroke-linecap="round" opacity="'+o.toFixed(2)+'"/>',
+  comma:(r,c1,c2,o)=>'<path d="M2 -26 C20 -22 24 -2 12 14 C4 24 -14 22 -14 6 C-14 -10 -8 -22 2 -26Z" fill="'+c1+'" opacity="'+o.toFixed(2)+'"/><circle cx="-2" cy="-2" r="7" fill="'+c2+'" opacity="'+(o*.6).toFixed(2)+'"/>',
+  ripple:(r,c1,c2,o)=>'<circle r="30" fill="none" stroke="'+c1+'" stroke-width="3" opacity="'+(o*.7).toFixed(2)+'"/><circle r="20" fill="none" stroke="'+c2+'" stroke-width="2.5" opacity="'+(o*.6).toFixed(2)+'"/><circle r="10" fill="'+c1+'" opacity="'+(o*.55).toFixed(2)+'"/>',
+  dots:(r,c1,c2,o)=>{let s='';for(let i=0;i<5;i++)s+='<circle cx="'+(r()*56-28).toFixed(0)+'" cy="'+(r()*70-35).toFixed(0)+'" r="'+(3+r()*7).toFixed(1)+'" fill="'+(i%2?c2:c1)+'" opacity="'+(o*.9).toFixed(2)+'"/>';return s;},
+  twin:(r,c1,c2,o)=>'<circle cx="-12" cy="-4" r="'+(16+r()*6).toFixed(0)+'" fill="'+c1+'" opacity="'+o.toFixed(2)+'"/><circle cx="15" cy="9" r="'+(11+r()*5).toFixed(0)+'" fill="'+c2+'" opacity="'+(o*.9).toFixed(2)+'"/>',
+  pool:(r,c1,c2,o)=>'<ellipse rx="'+(26+r()*10).toFixed(0)+'" ry="'+(20+r()*10).toFixed(0)+'" fill="'+c1+'" opacity="'+o.toFixed(2)+'"/><ellipse rx="'+(38+r()*8).toFixed(0)+'" ry="'+(30+r()*8).toFixed(0)+'" fill="none" stroke="'+c1+'" stroke-width="2" opacity="'+(o*.35).toFixed(2)+'"/>',
+  fan:(r,c1,c2,o)=>'<path d="M0 24 L-22 -18 A32 32 0 0 1 22 -18Z" fill="'+c1+'" opacity="'+o.toFixed(2)+'"/><path d="M0 24 L-11 -9 A16 16 0 0 1 11 -9Z" fill="'+c2+'" opacity="'+(o*.6).toFixed(2)+'"/>'
+};
+// 全幅プリミティブ（座標内蔵・回転なし）
+const F={
+  haze:(r,c1,c2,o)=>{const y=40+r()*100;return '<ellipse cx="70" cy="'+y.toFixed(0)+'" rx="84" ry="13" fill="'+c1+'" opacity="'+o.toFixed(2)+'"/><ellipse cx="70" cy="'+(y+38).toFixed(0)+'" rx="84" ry="11" fill="'+c2+'" opacity="'+(o*.85).toFixed(2)+'"/><ellipse cx="70" cy="'+(y+74).toFixed(0)+'" rx="84" ry="10" fill="'+c1+'" opacity="'+(o*.65).toFixed(2)+'"/>';},
+  mountains:(r,c1,c2,o)=>{const y=112+r()*66;return '<path d="M-10 '+y.toFixed(0)+' Q40 '+(y-30).toFixed(0)+' 82 '+(y-8).toFixed(0)+' T160 '+(y-16).toFixed(0)+' L160 220 L-10 220Z" fill="'+c1+'" opacity="'+o.toFixed(2)+'"/><path d="M-10 '+(y+24).toFixed(0)+' Q54 '+(y+2).toFixed(0)+' 104 '+(y+18).toFixed(0)+' T160 '+(y+10).toFixed(0)+' L160 220 L-10 220Z" fill="'+c2+'" opacity="'+(o*.9).toFixed(2)+'"/>';},
+  drip:(r,c1,c2,o)=>{const x=28+r()*70;return '<path d="M'+x.toFixed(0)+' -6 C'+(x-4).toFixed(0)+' 50 '+(x+16).toFixed(0)+' 72 '+(x+7).toFixed(0)+' 118 C'+(x+1).toFixed(0)+' 152 '+(x+13).toFixed(0)+' 170 '+(x+7).toFixed(0)+' 214 L'+(x+20).toFixed(0)+' 214 C'+(x+26).toFixed(0)+' 166 '+(x+11).toFixed(0)+' 148 '+(x+24).toFixed(0)+' 102 C'+(x+31).toFixed(0)+' 58 '+(x+16).toFixed(0)+' 34 '+(x+22).toFixed(0)+' -6Z" fill="'+c1+'" opacity="'+o.toFixed(2)+'"/><ellipse cx="'+(x+9).toFixed(0)+'" cy="180" rx="26" ry="14" fill="'+c2+'" opacity="'+(o*.95).toFixed(2)+'"/>';},
+  streak:(r,c1,c2,o)=>{const y=50+r()*110,dy=(r()*60-30);return '<path d="M-12 '+y.toFixed(0)+' Q70 '+(y+dy).toFixed(0)+' 152 '+(y+dy*0.4).toFixed(0)+'" fill="none" stroke="'+c1+'" stroke-width="'+(6+r()*9).toFixed(1)+'" stroke-linecap="round" opacity="'+o.toFixed(2)+'"/>';},
+  wisp:(r,c1,c2,o)=>{let s='';for(let i=0;i<3;i++){const y=50+i*44+r()*16;s+='<ellipse cx="'+(40+r()*60).toFixed(0)+'" cy="'+y.toFixed(0)+'" rx="'+(38+r()*26).toFixed(0)+'" ry="'+(7+r()*5).toFixed(1)+'" fill="'+(i%2?c2:c1)+'" opacity="'+(o*.6).toFixed(2)+'"/>';}return s;}
+};
+const CK=['ring','blob','spatter','crescent','comma','ripple','dots','twin','pool','fan'];
+const FK=['haze','mountains','drip','streak','wisp'];
+const ALL=CK.concat(FK);   // 材料15種
+function layer(inner,r){return '<g transform="translate('+(28+r()*66).toFixed(0)+' '+(34+r()*146).toFixed(0)+') rotate('+Math.floor(r()*360)+') scale('+(.72+r()*.7).toFixed(2)+')">'+inner+'</g>';}
+// タイトル→滲みSVG（15材料から2〜3個を種で選び合成。可読性のため題字帯=右は避け濃度に上限）
+function smudge(title,dark){
+  const r=rng32(h32(title)), pal=palette(r,dark), n=2+Math.floor(r()*2);
+  const capO=dark?0.60:0.42;
+  let inner='';
+  for(let i=0;i<n;i++){
+    const k=ALL[Math.floor(r()*ALL.length)];
+    const o=Math.min(capO,(dark?0.36:0.24)+r()*0.22);
+    const c1=i%2?pal.c2:pal.c1, c2=i%2?pal.c1:pal.c2;
+    inner+= CK.indexOf(k)>=0 ? layer(P[k](r,c1,c2,o),r) : F[k](r,c1,c2,o);
+  }
+  return '<svg class="sm" viewBox="0 0 140 210" preserveAspectRatio="xMidYMid slice">'+inner+'</svg>';
+}
+function gm(s){
+  const p=s.split(':');
+  if(p[0]==='p'){const cont=p[2]?'<span class="g">続き'+p[2]+'話</span>':'';return cont+'<span class="trk pb"><i style="width:'+p[1]+'%"></i></span><span class="pct">'+p[1]+'%</span>';}
+  if(s==='done')return '<span class="trk pb"><i style="width:100%"></i></span><span class="done">読了</span>';
+  if(s==='untaken')return '<span class="g">なろう未取込</span>';
+  return '<span class="u">短編・未読</span>';
+}
+function book(it,dark){
+  const nd=(it.s==='untaken'||it.s==='short')?'<span class="newdot"></span>':'';
+  const seal=(it.s==='done')?'<span class="seal">了</span>':'';
+  return '<div class="book"><div class="cov">'+nd+smudge(it.t,dark)+'<span class="sp">'+it.t+'</span>'+seal+'</div><div class="gcap"><div class="au">'+it.a+'</div><div class="gm">'+gm(it.s)+'</div></div></div>';
+}
+function render(list){
+  document.getElementById('gridL').innerHTML=list.map(it=>book(it,false)).join('');
+  document.getElementById('gridD').innerHTML=list.map(it=>book(it,true)).join('');
+}
+const INIT=[
+  {t:'追放された万能薬師、辺境でスローライフを始める',a:'霧島あおい',s:'p:62:12'},
+  {t:'黒の魔王と契約した俺、気づけば最強の従者に',a:'夜灯すばる',s:'p:28'},
+  {t:'転生したら最弱スキルだったので草むしりしていた',a:'青葉みのり',s:'p:80'},
+  {t:'公爵令嬢の嗜み 〜隣国で薬草園を開きます〜',a:'白河すずら',s:'untaken'},
+  {t:'辺境伯家の次男は今日も書庫にこもる',a:'水無月れん',s:'done'},
+  {t:'雨宿りの喫茶店で魔女に出会った',a:'早瀬ことり',s:'short'}
+];
+const POOL=INIT.concat([
+  {t:'竜騎士は辺境で余生を過ごしたい',a:'霧島あおい',s:'p:45'},
+  {t:'聖女様のお世話係、はじめました',a:'早瀬ことり',s:'p:12'},
+  {t:'辺境の宿屋は今日も満室です',a:'青葉みのり',s:'done'},
+  {t:'双子の魔導士と沈黙の塔',a:'夜灯すばる',s:'short'},
+  {t:'白猫亭の看板娘は元宮廷魔術師',a:'白河すずら',s:'p:33'},
+  {t:'追憶の剣士は花街で眠る',a:'水無月れん',s:'p:71'},
+  {t:'転職先の魔王軍がホワイトすぎる',a:'夜灯すばる',s:'p:54'},
+  {t:'薬師の私が城で健康診断を始めたら',a:'霧島あおい',s:'p:19'},
+  {t:'最果ての図書館と物言わぬ司書',a:'水無月れん',s:'untaken'},
+  {t:'廃村テイマー、もふもふと畑を耕す',a:'青葉みのり',s:'p:88'},
+  {t:'氷の令嬢は春を知らない',a:'白河すずら',s:'done'},
+  {t:'星詠みの少女と最後の竜',a:'早瀬ことり',s:'p:37'},
+  {t:'名もなき料理人、王宮を救う',a:'夜灯すばる',s:'short'},
+  {t:'観測者の塔から世界は青く見える',a:'水無月れん',s:'p:66'}
+]);
+function sample(arr,n){const a=arr.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const x=a[i];a[i]=a[j];a[j]=x;}return a.slice(0,n);}
+render(INIT);
+document.getElementById('reroll').addEventListener('click',()=>render(sample(POOL,6)));
+</script>
+</body>
+</html>

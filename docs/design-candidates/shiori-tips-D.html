@@ -1,0 +1,130 @@
+<!-- @dsCard group="UI-n / 本棚（書架・グリッド）" name="栞の先端ワンポイント カタログ（棒の先に付ける小意匠を約30種：結び房系/輪幾何系/和意匠系。決定論生成の型Bに増設する候補・色は比較用に藍固定・ライト/ダーク）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>栞の先端ワンポイント カタログ</title>
+<style>
+  /* /design 採用案「型B 栞」＝天から色の細棒が一本。その"先端"に付ける小さなワンポイント意匠の候補カタログ。
+     採用を選ぶための一覧なので、比較用に色は藍固定・棒/意匠を大きめに描画（実装ではタイトルで色相が変わる）。
+     すべて canvas プリミティブ（線・弧・円・矩形・path・塗り）＝Compose移植可。 */
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;--ai:#1C3D5A;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#EEEBE4;color:#2A2C30;font-family:var(--gothic);padding:44px 28px 90px;-webkit-font-smoothing:antialiased}
+  body.pgdark{background:#0c0e12;color:#e4e3e6}
+  .doc{max-width:1180px;margin:0 auto}
+  .kicker{font-size:11px;letter-spacing:.32em;color:#8a7f6e;text-transform:uppercase;font-weight:600}
+  h1{font-family:var(--mincho);font-size:26px;font-weight:600;letter-spacing:.05em;margin:10px 0 8px}
+  .lead{font-size:13px;line-height:1.95;color:#5b5850;max-width:780px}
+  body.pgdark .lead{color:#9a988f}
+  .ctrl{margin:22px 0 30px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .ctrl button{font-family:var(--gothic);font-size:12.5px;font-weight:500;cursor:pointer;border-radius:999px;padding:10px 20px;border:1px solid #cbc4b8;background:transparent;color:var(--ai)}
+  body.pgdark .ctrl button{color:#9bbdd4;border-color:#2c3138}
+  .ctrl .hint{font-size:11.5px;color:#8c887e}body.pgdark .ctrl .hint{color:#75726a}
+  h2{font-family:var(--mincho);font-size:16px;font-weight:600;letter-spacing:.04em;color:var(--ai);margin:36px 0 4px}
+  body.pgdark h2{color:#88b2d6}
+  .fam-sub{font-size:11.5px;color:#8c887e;margin-bottom:14px}body.pgdark .fam-sub{color:#75726a}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:20px 12px}
+  .card{display:flex;flex-direction:column;align-items:center;gap:7px}
+  .card .fr{background:var(--base);border-radius:6px;box-shadow:0 4px 12px rgba(22,26,40,.10),0 1px 2px rgba(0,0,0,.05);padding:2px}
+  body.pgdark .card .fr{background:#20232B;box-shadow:0 5px 14px rgba(0,0,0,.5)}
+  canvas{display:block;border-radius:5px}
+  .card .nm{font-family:var(--mincho);font-size:12px;color:#3a3c37;text-align:center;line-height:1.35}
+  body.pgdark .card .nm{color:#d6d4cc}
+  .card .no{font-size:9.5px;color:#a8a498;font-family:var(--gothic)}
+  body.pgdark .card .no{color:#6f6d66}
+</style>
+</head>
+<body>
+<div class="doc">
+  <div class="kicker">Shiori · Tip Ornaments</div>
+  <h1>栞の先端ワンポイント カタログ</h1>
+  <p class="lead">採用案「型B 栞」＝天から色の細棒が一本下りる。その<strong>先端に付ける小さなワンポイント意匠</strong>の候補を約30種、家族別に並べました。<strong>どれを採用するかはあなたが選択</strong>してください（番号で指定できます／複数可。棒＋先端の組で1冊ごとに種で選ばれる想定）。比較のため<strong>色は藍で固定</strong>（実装ではタイトルで色相が変わる）。すべて Canvas プリミティブ＝Compose 移植可。</p>
+  <div class="ctrl">
+    <button id="theme">◐ ライト / ダーク</button>
+    <span class="hint">「◯番と◯番と…を採用」「この家族ごと」等で指定してください。足りない意匠の追加リクエストも歓迎。</span>
+  </div>
+  <div id="cat"></div>
+</div>
+
+<script>
+function hsl(h,s,l,a){return a==null?'hsl('+h+' '+s+'% '+l+'%)':'hsl('+h+' '+s+'% '+l+'% / '+a+')';}
+// 先端意匠：各 draw(ctx,x,ty,a,dark,paper) は 栞の棒の先端(x,ty)を起点に小意匠を描く。
+// a=アクセント色, paper=地色（抜き/穴用）。座標は"見やすい大きさ"（実装時に微縮小）。
+function S(ctx,a){ctx.strokeStyle=a;ctx.lineCap='round';ctx.lineJoin='round';}
+function star(ctx,cx,cy,rO,rI,n,rot){ctx.beginPath();for(let i=0;i<n*2;i++){const r=i%2?rI:rO,ang=rot+i*Math.PI/n;const px=cx+r*Math.cos(ang),py=cy+r*Math.sin(ang);i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();}
+
+const TIPS=[
+// ===== 結び・房系 =====
+{f:0,nm:'魚尾',rd:'ぎょび',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=2.6;c.beginPath();c.moveTo(x,y);c.lineTo(x-6,y+12);c.moveTo(x,y);c.lineTo(x+6,y+12);c.stroke();}},
+{f:0,nm:'一粒',rd:'ひとつぶ',draw:(c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+7,4,0,7);c.fill();}},
+{f:0,nm:'結び玉',rd:'むすびだま',draw:(c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+6,6,0,7);c.fill();}},
+{f:0,nm:'二又房',rd:'ふたまた',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=2.4;c.beginPath();c.moveTo(x,y);c.lineTo(x-5,y+18);c.moveTo(x,y);c.lineTo(x+5,y+18);c.stroke();}},
+{f:0,nm:'三又房',rd:'みつまた',draw:(c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+3,3.2,0,7);c.fill();S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+5);c.lineTo(x-6,y+22);c.moveTo(x,y+5);c.lineTo(x,y+23);c.moveTo(x,y+5);c.lineTo(x+6,y+22);c.stroke();}},
+{f:0,nm:'総角',rd:'あげまき／房',draw:(c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+4,4,0,7);c.fill();S(c,a);c.lineWidth=1.6;for(let k=-2;k<=2;k++){c.beginPath();c.moveTo(x,y+7);c.lineTo(x+k*4,y+24);c.stroke();}}},
+{f:0,nm:'蝶結び',rd:'ちょうむすび',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+4);c.quadraticCurveTo(x-11,y-2,x-9,y+4);c.quadraticCurveTo(x-11,y+10,x,y+4);c.moveTo(x,y+4);c.quadraticCurveTo(x+11,y-2,x+9,y+4);c.quadraticCurveTo(x+11,y+10,x,y+4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+4,2,0,7);c.fill();}},
+{f:0,nm:'玉と尾',rd:'たまとお',draw:(c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+5,4,0,7);c.fill();S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+9);c.lineTo(x,y+20);c.stroke();}},
+{f:0,nm:'数珠',rd:'じゅず',draw:(c,x,y,a)=>{c.fillStyle=a;[6,13,20].forEach(d=>{c.beginPath();c.arc(x,y+d,2.6,0,7);c.fill();});}},
+{f:0,nm:'括り',rd:'くくり',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=3;c.beginPath();c.moveTo(x-7,y+1);c.lineTo(x+7,y+1);c.stroke();}},
+// ===== 輪・幾何系 =====
+{f:1,nm:'小輪',rd:'こわ',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=2;c.beginPath();c.arc(x,y+7,5,0,7);c.stroke();}},
+{f:1,nm:'二重丸',rd:'にじゅうまる',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x,y+9,8,0,7);c.stroke();c.beginPath();c.arc(x,y+9,4,0,7);c.stroke();}},
+{f:1,nm:'菱',rd:'ひし',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+1);c.lineTo(x+6,y+9);c.lineTo(x,y+17);c.lineTo(x-6,y+9);c.closePath();c.stroke();}},
+{f:1,nm:'逆三角',rd:'ぎゃくさんかく',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x-7,y+1);c.lineTo(x+7,y+1);c.lineTo(x,y+13);c.closePath();c.stroke();}},
+{f:1,nm:'小四角',rd:'こしかく',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.strokeRect(x-6,y+2,12,12);}},
+{f:1,nm:'星',rd:'ほし',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=1.6;star(c,x,y+10,7,3,5,-Math.PI/2);c.stroke();}},
+{f:1,nm:'十字',rd:'じゅうじ',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+2);c.lineTo(x,y+16);c.moveTo(x-7,y+9);c.lineTo(x+7,y+9);c.stroke();}},
+{f:1,nm:'三点',rd:'さんてん',draw:(c,x,y,a)=>{c.fillStyle=a;[[0,5],[-5,13],[5,13]].forEach(p=>{c.beginPath();c.arc(x+p[0],y+p[1],2.2,0,7);c.fill();});}},
+{f:1,nm:'雫',rd:'しずく',draw:(c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+6,y+8,x,y+15);c.quadraticCurveTo(x-6,y+8,x,y);c.fill();}},
+{f:1,nm:'半月',rd:'はんげつ',draw:(c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+9,7,0,7);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x+3,y+7,7,0,7);c.fill();}},
+{f:1,nm:'矢尻',rd:'やじり',draw:(c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-6,y+1);c.lineTo(x+6,y+1);c.lineTo(x,y+11);c.closePath();c.fill();}},
+// ===== 和・意匠系 =====
+{f:2,nm:'巴',rd:'ともえ',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.arc(x,y+9,6,-0.4,Math.PI*1.4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x+4,y+5,2.4,0,7);c.fill();}},
+{f:2,nm:'勾玉',rd:'まがたま',draw:(c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+8,6,-0.2,Math.PI*1.5);c.quadraticCurveTo(x-3,y+13,x+1,y+10);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.arc(x+2,y+5,1.6,0,7);c.fill();}},
+{f:2,nm:'鈴',rd:'すず',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+11);c.quadraticCurveTo(x-6,y+1,x,y+1);c.quadraticCurveTo(x+6,y+1,x+6,y+11);c.closePath();c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+14,1.8,0,7);c.fill();}},
+{f:2,nm:'瓢箪',rd:'ひょうたん',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x,y+13,5,0,7);c.stroke();c.beginPath();c.arc(x,y+5,3.2,0,7);c.stroke();}},
+{f:2,nm:'短冊',rd:'たんざく',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=1.4;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+4);c.stroke();c.strokeRect(x-4,y+4,8,16);c.beginPath();c.arc(x,y+7,1,0,7);c.strokeStyle=a;c.stroke();}},
+{f:2,nm:'蔵書印',rd:'ぞうしょいん',draw:(c,x,y,a)=>{c.save();c.translate(x,y+9);c.rotate(0.06);S(c,a);c.lineWidth=1.4;c.strokeRect(-7,-7,14,14);c.fillStyle=a;c.beginPath();c.arc(0,0,1.8,0,7);c.fill();c.restore();}},
+{f:2,nm:'梅',rd:'うめ',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=1.4;for(let k=0;k<5;k++){const an=-Math.PI/2+k*2*Math.PI/5;c.beginPath();c.arc(x+6*Math.cos(an),y+9+6*Math.sin(an),3,0,7);c.stroke();}c.fillStyle=a;c.beginPath();c.arc(x,y+9,1.8,0,7);c.fill();}},
+{f:2,nm:'木の葉',rd:'このは',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=1.5;c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+6,y+8,x,y+16);c.quadraticCurveTo(x-6,y+8,x,y);c.stroke();c.beginPath();c.moveTo(x,y+2);c.lineTo(x,y+14);c.stroke();}},
+{f:2,nm:'木の実',rd:'このみ',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=1.4;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+5);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+9,4,0,7);c.fill();}},
+{f:2,nm:'分銅',rd:'ふんどう',draw:(c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+2);c.quadraticCurveTo(x,y+7,x+6,y+2);c.quadraticCurveTo(x+1,y+9,x+6,y+16);c.quadraticCurveTo(x,y+11,x-6,y+16);c.quadraticCurveTo(x-1,y+9,x-6,y+2);c.closePath();c.stroke();}}
+];
+const FAMS=[['結び・房系','紐や房、留めの意匠。栞＝読みかけの気配と最も地続き。'],['輪・幾何系','小さな図形。素っ気ないが現代的で軽い。'],['和・意匠系','和のモチーフを一点に。少し物語性が乗る。']];
+
+let dark=false;
+function paintCard(cv,tip){
+  const dpr=2,w=84,h=150;cv.width=w*dpr;cv.height=h*dpr;cv.style.width=w+'px';cv.style.height=h+'px';
+  const c=cv.getContext('2d');c.scale(dpr,dpr);
+  const paper=dark?'#20232B':'#FBFAF8', a=hsl(210,48,dark?60:46);
+  c.fillStyle=paper;c.fillRect(0,0,w,h);
+  const x=42, ty=88;
+  S(c,a);c.lineWidth=3;c.lineCap='butt';c.beginPath();c.moveTo(x,6);c.lineTo(x,ty);c.stroke(); // 栞の棒
+  tip.draw(c,x,ty,a,dark,paper);
+}
+function build(){
+  const root=document.getElementById('cat');root.innerHTML='';let n=0;
+  FAMS.forEach((fam,fi)=>{
+    const h=document.createElement('h2');h.textContent=fam[0];root.appendChild(h);
+    const sub=document.createElement('div');sub.className='fam-sub';sub.textContent=fam[1];root.appendChild(sub);
+    const g=document.createElement('div');g.className='grid';root.appendChild(g);
+    TIPS.filter(t=>t.f===fi).forEach(t=>{
+      n++;const idx=n;
+      const card=document.createElement('div');card.className='card';
+      card.innerHTML='<div class="fr"><canvas></canvas></div><div class="nm">'+t.nm+'</div><div class="no">'+idx+'・'+t.rd+'</div>';
+      g.appendChild(card);
+      paintCard(card.querySelector('canvas'),t);
+    });
+  });
+}
+build();
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(build);
+document.getElementById('theme').addEventListener('click',()=>{dark=!dark;document.body.classList.toggle('pgdark',dark);build();});
+</script>
+</body>
+</html>

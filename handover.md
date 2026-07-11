@@ -17,6 +17,28 @@
 
 ---
 
+## 本棚 書架（グリッド）ビュー — 栞書影 ✅実装完了（次＝色相共有・色域再検討）
+
+> 2026-07-11。**根本思想＝「タイトル駆動の決定論的生成で本ごとに唯一無二＝それ自体を体験にする」**。
+> 6方向ギャラリー→③幾何・エディトリアル→**型B「栞」を採用し実装完了**。UIの見た目は /design モックが正本（ADR 0005）。
+
+**✅ 実装完了（2026-07-11・実機PGEM10 ライト/ダーク目視OK・`abe8a68`+`84359c7`）**＝完了の詳細は **STATUS §1「栞意匠」項が正本**。
+- 書架グリッドの表紙を「紙地＋天から色の細棒＋先端ワンポイント意匠（title 種で31種から1つ）」の栞書影へ置換。色相・棒のx/長さ・先端すべて title 由来の決定論生成（`ShioriGenerator` 純ロジック＝JS正本と同一系列・`ShioriGeneratorTest` でゴールデン固定）。描画＝`ShioriCover`。表紙下は著者＋状態のみ（題字は表紙内1度）・表紙浮き影あり。
+- 受け継いだ美学（③方向）＝余白主導・ミュート和トーン（彩度固定・色相のみ振る・紙/墨/和色アクセントの3系）・クリスプ作図（blur不要）。
+
+**意匠の正本（先端追加・色域調整はここを見る）**:
+- 実グリッド in-situ＝`docs/design-candidates/bookshelf-shiori-grid-D.html`（Node検証済）／先端カタログ＝`shiori-tips-D.html`／/design 側＝`ui-n-phase0/bookshelf-shiori-final-D.html`／設計判断＝`docs/decisions/0005`。
+- 生成規則: 色相 PALETTE`[20,70,140,175,200,210,260,330]`・S48・L52(light)/62(dark)。paper `#FBFAF8`/`#20232B`(dark)・ink `#1C1F26`/`#ECE9E2`(dark)。棒 x=0.14–0.36w・len=0.30–0.60h・先端 index=`floor(rng()*31)`。**先端・棒は固定px座標で、描画時に `s=w/150`（モック基準幅150px）でスケール**＝density 大の実機で意匠が潰れないため（詳細は `ShioriCover.kt` コメント）。先端は `SHIORI_TIPS` 配列に1行足すだけで拡張（"都度増やす"を構造で担保）。
+
+**次にやること（意匠の続き・未着手）**:
+1. **リスト⇄グリッドで1冊=1色相を共有**（栞の棒＋先端 ⇔ 目録側の小口色帯）＝探索モック `docs/design-candidates/bookshelf-shiori-consistency-D.html`。目録(リスト)ビューへ栞の色相を波及させる整合案。Compose 翻訳前にオーナー確認。
+2. **カバー色域の再検討（3案比較）**＝`docs/design-candidates/bookshelf-shiori-palette-D.html`（現行=全周和リング / 寒色・静 / 和の伝統色）。現行は全周8色相＝締めるか要オーナー判断。
+3. 他4型（A箔/C小口/D蔵書印/E綴じ紐）を将来スキン資産として保持するか（ADR 0005 C の A〜J スキン方針＝保持推奨）。
+
+**探索の記録（untracked・栞採用前・参考）**: `bookshelf-geo-D.html`（幾何6文法）／`bookshelf-generative-directions-D.html`（6方向メニュー）／`bookshelf-shoka-D.html`（墨にじみ材料15版）／`bookshelf-cover-D.html`（線細工16種）。正本ではない（「べた塗は品が無い」等の禁則実証として保持）。
+
+---
+
 ## 意匠オーナー目視確認（モック正本との緊張・2点）
 
 > 2026-07-08 実機スイープ（`verify/device-sweep`）で**現物を確認済み**。あとはオーナーの美的判断のみ。

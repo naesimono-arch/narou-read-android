@@ -19,7 +19,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -29,7 +31,7 @@ import com.novelreader.data.ProgressEntity
 import com.novelreader.narou.ContinuationInfo
 import com.novelreader.narou.computeContinuation
 import com.novelreader.narou.model.NarouNovel
-import com.novelreader.ui.components.BookCover
+import com.novelreader.ui.components.ShioriCover
 import com.novelreader.ui.components.coverBarColor
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.chapterNumberOf
@@ -172,16 +174,23 @@ internal fun GridBookCard(
                 onLongClick = { menuExpanded = true },
             ),
     ) {
-        // 書影（縦横比 2:3・角丸2px・下部に明朝タイトル焼き込み）
+        // 書影＝栞（紙地＋色の棒＋先端＋表紙内の縦組み明朝題字）。角丸3px（モック .cv）。
+        // 題字は表紙内で1度だけ（正本 bookshelf-shiori-final-D.html）＝本欄の横題字を廃し二重表示を解消。
+        // モック .cv の box-shadow＝表紙が棚から浮く影。ダークは背景が暗く影が沈むため強め
+        // （モック: ライト 0 6px 16px rgba(...,.12) ／ ダーク 0 8px 20px rgba(0,0,0,.5)）。
+        val coverIsDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
         Box(modifier = Modifier.fillMaxWidth()) {
-            BookCover(
-                bookId = book.id,
+            ShioriCover(
                 title = book.title,
-                showTitle = true,
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(2f / 3f)
-                    .clip(RoundedCornerShape(2.dp)),
+                    // shadow は clip より前＝影を要素の外周に落としてから角丸で本体をクリップする。
+                    .shadow(
+                        elevation = if (coverIsDark) 8.dp else 6.dp,
+                        shape = RoundedCornerShape(3.dp),
+                    )
+                    .clip(RoundedCornerShape(3.dp)),
             )
             // ⋮方式(1・既定)のみ書影右上に削除ボタンを出す（M5: 削除の可視手がかり）。0は長押しのみ。
             // Box は方式に関わらず DropdownMenu のアンカーとして常設する。
@@ -215,19 +224,19 @@ internal fun GridBookCard(
             }
         }
 
-        Spacer(Modifier.height(11.dp))
-        // メタ題字（明朝）。著者はモックのグリッドでは表示しない（リストのみ）。
-        // 書影内タイトルと本欄タイトルが重複する点は完全準拠ゆえのトレードオフ（後日検証・調整）。
-        Text(
-            text = book.title,
-            fontFamily = MinchoFamily,
-            fontSize = 13.sp,
-            lineHeight = 19.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+        // 表紙下は著者＋状態のみ（モック .au → .pr）。題字は表紙内で描くため本欄には出さない。
+        // 著者はゴシック（既定）・補助色。栞表紙が作品の識別子なので下段は静かに添えるだけ。
         Spacer(Modifier.height(9.dp))
+        if (book.author.isNotBlank()) {
+            Text(
+                text = book.author,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(6.dp))
+        }
         BookProgressRow(
             totalChaps = totalChaps,
             progressFraction = progressFraction,

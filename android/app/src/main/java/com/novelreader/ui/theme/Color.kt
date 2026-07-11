@@ -104,3 +104,12 @@ val OutlineVariantDark       = Color(0xFF2A2F38)
 val InverseSurfaceDark       = Color(0xFFC7CDD3)
 val InverseOnSurfaceDark     = Color(0xFF2A2E35)
 val InversePrimaryDark       = Color(0xFF1C3D5A)
+
+// ============================================================
+// 栞書影（本棚グリッド）専用の紙／墨（ダークのみ）。
+// なぜ surface/onSurface でなく専用値か: 栞表紙は「紙に一点」の意匠のため、暗面 surface(#14171C)
+// と同色だとダークの書架で表紙が地に沈む。表紙紙を暗面より一段持ち上げた #20232B にし、墨も
+// onSurface(#C7CDD3) より明るい #ECE9E2 にして題字を読ませる（意匠正本 bookshelf-shiori-final-D.html の
+// ダーク値と一致）。ライト／セピアは surface/onSurface がモック値と一致するためトークンを流用する。
+val ShioriCoverPaperDark     = Color(0xFF20232B)
+val ShioriCoverInkDark       = Color(0xFFECE9E2)
