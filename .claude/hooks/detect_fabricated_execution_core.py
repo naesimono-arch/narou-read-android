@@ -111,6 +111,15 @@ TERMINAL_FENCE_RE = re.compile(
 # 先読み `[a-f]*\d` は非 hex 文字を跨げないためトークン境界を越えない＝「トークン内に数字」と同値。
 COMMIT_SHA_RE = re.compile(r"(?<![0-9a-fA-F])(?=[a-f]*\d)[0-9a-f]{7,40}(?![0-9a-fA-F])")
 
+# 純10進の日付形トークン（20YY年MM月DD日形の8桁＝`merge-20260710` 等）を SHA 候補から除外する。
+# なぜ（2026-07-11 先行レーン実測FP・1f28a28b）: 統合ブランチ命名規約（`integration/merge-20260710`）
+# の日付 `20260710` は COMMIT_SHA_RE（7-40桁 hex・数字1つ以上）に fullmatch するうえ、裏取り行
+# （`Switched to a new branch 'integration/merge-20260710'`）が strip_echoed_lines でエコー除去
+# されるため、Tier A2 が conf0.80 で系統的に誤検知する。真の SHA が「20 始まりの純10進8桁かつ
+# 月日として妥当」である確率は無視できる一方、日付FPはブランチ名・ファイル名に頻出するため、
+# 日付形の全一致に限って除外する（hex 文字を含む SHA・日付形でない純10進は検知力を変えない）。
+DATE_TOKEN_RE = re.compile(r"20[0-9]{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])")
+
 # 「N件」「N tests」。Tier B の裏取り補助（単独ルールにはしない）。
 TEST_COUNT_RE = re.compile(r"\b(\d+)\s*(?:件|tests?)\b", re.IGNORECASE)
 
@@ -151,7 +160,10 @@ HARNESS_BLOCK_RE = re.compile(
     # はハーネスのみが著者で、assistant の正当な散文には現れない。K型（thinking 異常を伴わない
     # 幻ユーザーターン生成）は Tier D3 の降格ゲートで active 化できないため、この構造マーカー
     # だけでも A3 で拾う。引用議論は strip_code_spans で除外済み。
-    r"|\[Request interrupted by user(?: for tool use)?\]"
+    # "for tool use" 単独変種（"by user" 無し）も同じハーネス専用リテラル＝正当な生成理由が
+    # 存在しない点は同一（ADR 0006 増補3 の論理）。370800c1 で実測された未検知真陽性を閉じる
+    # ため 2026-07-11 に追加（人間承認済み・live Stop のブロック範囲拡大を含む判断）。
+    r"|\[Request interrupted (?:by user(?: for tool use)?|for tool use)\]"
     # ツール呼び出し構文の地の文化（＝ツール実行を偽装）。これらは assistant の
     # 正当な散文には現れない（本物の tool_use は構造化ブロックとして別レコードになる）。
     r"|<invoke\s+name=|</invoke>|<function_calls>|<parameter\s+name=|antml:invoke",
@@ -243,6 +255,46 @@ CLEANUP_COMPLETION_RE = re.compile(
 
 # cleanup 実行の裏付け Bash（rm/unlink/rmdir/find -delete）。裏付けは緩めに取る＝偽陽性を減らす方向。
 BASH_CLEANUP_RE = re.compile(r"\brm\b|\bunlink\b|\brmdir\b|\bfind\b[^\n]*-delete")
+
+# ── create（worktree/ブランチ作成）カテゴリ（2026-07-11 事象N で新設。L51「4つとも作成成功（exit 0）」）──
+# なぜ独立カテゴリか: 事象N の中核は「wt を切る」作成操作の幻の先行実行＝write（ソース編集）でも
+# test でも cleanup でもない。作成完了の語尾に限定する（「作成します」等の intent は CONDITIONAL 除外）。
+CREATE_COMPLETION_RE = re.compile(
+    r"作成成功"
+    # 「N個/全て…作成完了」。数量詞＋作成完了語尾（L51「4つとも作成成功」＝数量詞→作成→成功）。
+    r"|(?:\d+\s*(?:つ|個|本)|全て|すべて)[^。\n]{0,10}?(?:作成|生成)(?:成功|完了|しました|できました|済み)"
+    # 「worktree/ブランチ を作成しました」。対象語＋作成完了語尾。
+    r"|(?:worktree|ワークツリー|ブランチ|branch)[^。\n]{0,16}?(?:作成|生成)(?:成功|完了|しました|できました|済み)")
+
+# create 実行の裏付け Bash（worktree add / wt-new / checkout -b / clone）。作成の証明力があるものだけ。
+BASH_CREATE_RE = re.compile(r"git\s+worktree\s+add|\bwt-new\b|git\s+checkout\s+-b|git\s+clone")
+
+# ── config（環境設定）カテゴリ（2026-07-11 事象N で新設。L81「safe.directory も…登録されています」）──
+# なぜ独立カテゴリか: safe.directory 登録・symlink 共有・settings 配布・memory 共有は「環境設定の
+# 完了・状態検証」で、write/create のどれとも操作カテゴリが異なり全 tier の語彙外だった。設定語＋
+# 検証/完了語尾の共起を要求する（設定語の単なる話題言及は拾わない＝精度優先）。
+CONFIG_COMPLETION_RE = re.compile(
+    r"(?:safe\.directory|git\s+config|シンボリックリンク|symlink|ln\s+-s"
+    r"|memory\s*共有|メモリ共有|settings?[^。\n]{0,6}?配布|設定[^。\n]{0,6}?配布)"
+    r"[^。\n]{0,24}?(?:登録|設定|共有|配布|作成|張|貼)"
+    r"(?:されています|されました|済み|済みです|しました|完了|できました)")
+
+# config 実行の裏付け Bash（git config / ln -s / wt-new＝safe.dir+symlink を張るラッパー）。
+BASH_CONFIG_RE = re.compile(r"git\s+config|\bln\s+-s\b|\bwt-new\b")
+
+# 具体的な実行結果トークン（exit コード等）を主張が引用するのに、そのターンの実 tool_result のどこにも
+# 無い＝観測していない結果の作文（事象N L51「作成成功（exit 0）」）。単一カテゴリでも発火させる強条件。
+EXIT_TOKEN_CLAIM_RE = re.compile(
+    r"exit\s*(?:code\s*)?\d+|ADD_EXIT\s*=?\s*\d+|終了コード\s*\d+", re.IGNORECASE)
+
+# ── phantom probe output（実行していない probe コマンドの出力引用＝二次コンファビュレーション）──
+# 事象N L65: `---read probe---` が消える・`date +%s` が `1752192000`（丸値）で「Bash 出力層が不安定」
+# と説明。〈出力の観測異常フレーム〉＋〈インラインコードの幻トークン（実 tool_result に不在）〉で拾う。
+PROBE_OUTPUT_ANOMALY_RE = re.compile(
+    r"出力[^。\n]{0,30}?(?:欠落|乱れ|消え|化け|抜け|壊れ|飛ん|不安定|丸値|不自然)")
+# probe/sentinel 風トークン: `---xxx---` の破線センチネル、または epoch 風の10桁数値（1e9〜2e9）。
+# 破線センチネルはモデルが自作 echo で仕込む定型（`---read probe---`）で、地の文の通常語には現れない。
+SENTINEL_TOKEN_RE = re.compile(r"-{2,}[^`\n-][^`\n]{0,28}?-{2,}|\b1[0-9]{9}\b")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -340,6 +392,38 @@ THINKING_BOOST_MIN_ABS = 15000
 
 # D3 の応答マーカー検査は発話冒頭のみ（本文中の言及は「応答」ではない）。
 PHANTOM_HEAD_CHARS = 200
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tier D4/D5 定数（入力側捏造の残穴。handover 検知器節 K型・M型）
+# ─────────────────────────────────────────────────────────────────────────────
+
+# D4（K型・幻ユーザーターン）: assistant が応答継続中に、自分の text ブロックの地の文へ会話の
+# ロールマーカー（`user[Request interrupted…]` / 行頭 `Human:` 等）＋幻の次ターンを自己生成する
+# （会話テンプレートの次ターン予測）。実ユーザーの入力・中断は必ず別 user レコードとして届くため、
+# assistant 発話内にロールマーカーが在ること自体が構造的に幻。
+# 増補3 との関係（why）: 増補3 は同型の `[Request interrupted by user]` リテラルを Tier A3 へ
+# 実装済みだが、A3 の正規表現は "by user" を要求するため ①`[Request interrupted for tool use]`
+# （"by user" 無し）変種 ②リテラルを伴わない裸のロールマーカー を取り逃す（実測: 幻ターンを含む
+# 370800c1 が A3 の穴で active 0 のまま＝未検知の真陽性）。本ルールは〈行頭ロールマーカー〉自体を
+# 拾って両穴を塞ぐ。増補3 が「実装不採用・A3 一本化」と裁定した D4 `phantom_turn_marker` は
+# リテラルのみを見る設計で A3 と機能等価だったため破棄されたが、本ルールは A3 が構造的に見ない
+# 〈ロールマーカー＋変種リテラル/裸マーカー〉を対象にする点で当時の裁定と対象が異なる。
+# 中断族はロール（user/human）＋割込ブラケット。裸ラベルは正準表記（Human:/Assistant:/User:）に
+# 限る＝小文字 user:/human: は検知器議論・UX散文に正当出現しうるため（全走査で正準表記は0ヒット）。
+# IGNORECASE を使わない理由: 裸ラベルの正準表記限定を維持するため（中断族は明示的に両ケースを列挙）。
+PHANTOM_TURN_MARKER_RE = re.compile(
+    r"(?:^|\n)[ \t]*(?:[Uu]ser|[Hh]uman)\s*\[Request interrupted[^\]\n]*\]"
+    r"|(?:^|\n)[ \t]*(?:Human|Assistant|User)\s*[:：]\s*\S")
+
+# D5（M型・幻の同意帰属 phantom-attribution）: 「あなたの違和感は的を射ていて」等、ユーザーへ
+# 〈同意対象（違和感/懸念/指摘…）〉を帰属して同意するが、その対象が実ユーザー入力に不在＝幻の
+# 同意対象の帰属（事象M・台帳M）。D1（鉤括弧引用）/D2（報告数値突合）/D3（応答マーカー）の
+# どの語彙にも当たらない Tier D の語彙穴。突合＝帰属対象の名詞が実人間入力に在れば実在の指摘への
+# 正当同意として免罪する（精度の壁＝正当同意との分離）。対象語は台帳M の列挙（違和感/懸念/指摘/
+# 疑問/認識）＋近義（疑念/危惧）。同意句は「的を射て/仰る通り/その通り/正しく/もっとも」等。
+AGREEMENT_ATTRIBUTION_RE = re.compile(
+    r"あなた(?:の|が)\s*(違和感|懸念|疑念|危惧|指摘|認識|疑問)(?:は|も|が|こそ)"
+    r"[^。\n]{0,20}?(的を射|的を得|正鵠|仰る通り|おっしゃる通り|その通り|正しく|もっとも|当たって|正当)")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -491,23 +575,51 @@ def _looks_truncated(content: Any, structured: Any, text: str) -> bool:
     return "persistedOutputSize" in text or "Preview (first 2KB" in text or "Preview (first 2 KB" in text
 
 
-def read_offload(transcript_path: Optional[str], tool_use_id: str) -> Optional[str]:
+# tool_result 本文に埋め込まれるオフロード全文のパス（絶対パス）。
+# 例: "Full output saved to: /home/.../<stem>/tool-results/bpj4fmd2k.txt"
+_OFFLOAD_PATH_RE = re.compile(r"Full output saved to:\s*(\S+)")
+
+
+def read_offload(transcript_path: Optional[str], tool_use_id: str,
+                 result_text: str = "") -> Optional[str]:
     """
-    オフロード全文 <dir>/<stem>/tool-results/<tool_use_id>.txt を read-only で読む。
-    読めなければ None（呼び出し側が truncated 扱いにする）。
+    オフロード全文を read-only で読む。読めなければ None（呼び出し側が truncated 扱いにする）。
+
+    解決順（埋め込みパス駆動を最優先）:
+      ① tool_result 本文の "Full output saved to: <絶対パス>" をそのまま開く
+      ② ①のパスの basename を <stem>/tool-results/ 配下へ再配置して開く
+         （transcript が別マシンへ移設され絶対パスが失効した場合の救済）
+      ③ 従来の <stem>/tool-results/<tool_use_id>.txt（後方互換フォールバック）
+
+    なぜ埋め込みパス駆動が必須か: オフロードの実ファイル名は短縮ID（例 bpj4fmd2k.txt）で
+    tool_use_id（toolu_012Xyq…）とは無関係（2026-07-11 実測。11セッションで従来 ③ の
+    命名前提は 0/11 解決）。tool_result 本文には必ず絶対パスが埋め込まれるため、それを
+    一次ソースにする。パスは信用せず存在確認のうえ read-only で開く（errors="replace"）。
     """
     if not transcript_path or not tool_use_id:
         return None
+
     d = os.path.dirname(transcript_path)
     stem = os.path.basename(transcript_path)
     if stem.endswith(".jsonl"):
         stem = stem[:-6]
-    path = os.path.join(d, stem, "tool-results", f"{tool_use_id}.txt")
-    try:
-        with open(path, encoding="utf-8", errors="replace") as f:
-            return f.read()
-    except OSError:
-        return None
+    results_dir = os.path.join(d, stem, "tool-results")
+
+    candidates: List[str] = []
+    m = _OFFLOAD_PATH_RE.search(result_text or "")
+    if m:
+        embedded = m.group(1)
+        candidates.append(embedded)                                  # ①
+        candidates.append(os.path.join(results_dir, os.path.basename(embedded)))  # ②
+    candidates.append(os.path.join(results_dir, f"{tool_use_id}.txt"))           # ③
+
+    for path in candidates:
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                return f.read()
+        except OSError:
+            continue
+    return None
 
 
 def is_success_test_result(command: str, output: str, is_error: bool) -> bool:
@@ -718,7 +830,8 @@ def index_tool_results(records: List[dict], transcript_path: Optional[str]) -> D
             text = flatten_tool_output(blk.get("content"), structured)
             truncated = _looks_truncated(blk.get("content"), structured, text)
             if truncated:
-                full = read_offload(transcript_path, tuid)
+                # 本文（プレビュー＋"Full output saved to:"）を渡し埋め込みパスから全文解決する
+                full = read_offload(transcript_path, tuid, text)
                 if full is not None:
                     text = text + "\n" + full
                     truncated = False
@@ -816,16 +929,19 @@ def collect_human_inputs(records: List[dict]) -> List[Tuple[int, str]]:
     return humans
 
 
-def last_turn_start_order(records: List[dict]) -> int:
+def turn_start_orders(records: List[dict]) -> List[int]:
     """
-    最後の「ターン開始」人間入力の全レコード軸 order を返す（無ければ -1）。
+    全「ターン開始」人間入力の全レコード軸 order を昇順で返す（last_turn_start_order の全ターン版）。
     含めるもの: user 行 content=str（ハーネス著者除外）／user 行 list 内の text ブロック
     （interrupt 直後の入力）／queued_command(origin.kind=human)。
     AskUserQuestion の回答を**含めない理由**（台帳L）: 回答はターン途中の入力であり、これを
     境界にすると「捏造発話 → AskUserQuestion → 回答 → 継続」の並びで回答前の捏造発話が
-    Stop の検査窓から漏れる（scope=last_turn の穴の機序そのもの）。
+    検査窓から漏れる（scope=last_turn の穴の機序そのもの）。
+    なぜ一元化するか（ADR 0008 の検知定義単一化と同趣旨）: Tier E を scope=all で全ターンに適用する
+    には全境界が要る一方、Stop の scope=last_turn は最終境界だけが要る。定義がズレると
+    「検査窓の境界」がルール間で食い違うため、境界抽出はこの1関数に集約し last も派生させる。
     """
-    last = -1
+    starts: List[int] = []
     for idx, rec in enumerate(records):
         if rec.get("isSidechain"):
             continue
@@ -836,19 +952,25 @@ def last_turn_start_order(records: List[dict]) -> int:
                     and isinstance(att.get("origin"), dict)
                     and att["origin"].get("kind") == "human"
                     and att.get("prompt")):
-                last = idx
+                starts.append(idx)
             continue
         if t != "user":
             continue
         content = _content_of(rec)
         if isinstance(content, str):
             if content and not HARNESS_INPUT_PREFIX_RE.search(content):
-                last = idx
+                starts.append(idx)
         elif isinstance(content, list):
             if any(isinstance(b, dict) and b.get("type") == "text" and b.get("text")
                    for b in content):
-                last = idx
-    return last
+                starts.append(idx)
+    return starts
+
+
+def last_turn_start_order(records: List[dict]) -> int:
+    """最後の「ターン開始」人間入力の order（無ければ -1）。境界定義は turn_start_orders に一元化。"""
+    starts = turn_start_orders(records)
+    return starts[-1] if starts else -1
 
 
 def build_evidence_corpus(records: List[dict], tool_index: Dict[str, ToolResult],
@@ -995,6 +1117,10 @@ def detect_tier_a2(utterances: List[Utterance], corpus: EvidenceCorpus,
             if not GIT_CONTEXT_RE.search(sent):
                 continue  # SHA 断言を git 話題に限定（hex 語の偽陽性を排除）
             for sha in COMMIT_SHA_RE.findall(sent):
+                # 日付形トークンは SHA 候補から除外（DATE_TOKEN_RE の定義コメント参照＝
+                # 統合ブランチ命名規約の日付 FP を根絶。日付形でない SHA 検知は不変）。
+                if DATE_TOKEN_RE.fullmatch(sha):
+                    continue
                 # before=u.order: 主張より前の実出力のみ証拠（SHA は実行後にしか知り得ない。
                 # 後続の自己訂正調査で現れたトークンによる免罪を防ぐ）
                 if len(sha) < 7 or corpus.result_contains(sha, before=u.order):
@@ -1661,49 +1787,185 @@ def detect_tier_d3(utterances: List[Utterance], all_utterances: List[Utterance])
     return findings
 
 
+def detect_tier_d4(utterances: List[Utterance]) -> List[Finding]:
+    """
+    K型（事象K L320・370800c1）: assistant の text ブロックの地の文にロールマーカー付き幻ユーザー
+    ターン（`user[Request interrupted…]` / 行頭 `Human:` 等）が自己生成される。ロールマーカーは
+    別 user レコードにのみ正当出現するため、assistant 発話内に在ること自体が構造的に幻。
+    純構造判定（corpus 不要）。バッククォート引用（議論）は strip_code_spans で除外。
+    降格は「生成でなく言及・分析」の文脈のみ（増補3 の _d4_is_reference 同趣旨）: 検知器・台帳の
+    分析文が phantom turn を地の文で語る/引用するケース（e4367031 型）を meta 語彙で降格する。
+    なぜ Stop へ昇格しない（Tier D 据置）か: 増補3 が A3/D4 リテラルを Stop 昇格した根拠は
+    「マーカーが会話プロトコルの内部表現＝正当な生成理由が存在しない特異リテラル」だが、裸の
+    ロールマーカー（Human:/Assistant:）は引用・散文にも正当出現しうる＝リテラルほど特異でなく
+    精度実測が薄い。よって非ブロックの Tier D（CLI 可視・段階導入）に留める（迷ったら opt-in 側）。
+    """
+    findings: List[Finding] = []
+    for u in utterances:
+        if not u.text:
+            continue
+        stripped = strip_code_spans(u.text)
+        m = PHANTOM_TURN_MARKER_RE.search(stripped)
+        if not m:
+            continue
+        # マーカー span を除いた近傍のメタ語彙（"interrupted" 等の自己一致を避けるため元 span 前後）。
+        ctx = stripped[max(0, m.start() - 150):m.start()] + " " + stripped[m.end():m.end() + 150]
+        if (_is_meta_utterance(u.text) or META_DISCUSSION_RE.search(ctx)
+                or DETECTOR_IMPL_TERM_RE.search(ctx)):
+            suppressed: Optional[str] = "meta_discussion"
+        else:
+            suppressed = None
+        start = max(0, m.start() - 20)
+        findings.append(Finding(
+            tier="D", rule="phantom_turn_role_marker",
+            confidence=0.85 if not suppressed else 0.5,
+            msg_id=u.msg_id, timestamp=u.timestamp,
+            claim_excerpt=stripped[start:m.end() + 60].strip()[:200],
+            missing_token=m.group(0).strip()[:60],
+            expected_tool_pattern="ロールマーカーは別 user レコードにのみ正当出現（assistant 地の文は構造的に幻）",
+            suppressed_reason=suppressed,
+        ))
+    return findings
+
+
+def detect_tier_d5(utterances: List[Utterance],
+                   humans: List[Tuple[int, str]]) -> List[Finding]:
+    """
+    M型（事象M L29）: 「あなたの違和感は的を射ていて」等、ユーザーへ〈同意対象（違和感/懸念/
+    指摘…）〉を帰属して同意するが、その対象が実ユーザー入力に不在＝幻の同意帰属
+    （phantom-attribution・台帳M）。D1〜D3 のどの語彙にも当たらない Tier D の語彙穴。
+    突合（精度の壁）: 帰属対象の名詞が実人間入力のどこかに在れば「実在の指摘への正当同意」＝免罪。
+    なぜ軸2（thinking 異常）を昇格条件にしないか: 同意帰属型は phantom 応答マーカー型（D3）と偽陽性
+    特性が違い、判定力は〈対象語 vs 実入力〉の突合が担う。よって突合成立（対象語が実入力に不在）
+    ＋非メタ＋在セッション文脈ありで単独昇格する（D3 の no_thinking_anomaly 降格は課さない）。
+    resume 継続（実入力が前セッション側）の偽陽性を避ける: 当該発話より前に在セッションの人間入力
+    （summary 含む order<u.order）が1つも無ければ突合不能として降格側へ倒す（handover の指示）。
+    """
+    blob = _human_blob(humans)
+    findings: List[Finding] = []
+    for u in utterances:
+        if not u.text:
+            continue
+        m = AGREEMENT_ATTRIBUTION_RE.search(u.text)
+        if not m:
+            continue
+        obj = m.group(1)
+        ctx = u.text[max(0, m.start() - 150):m.end() + 150]
+        if _is_meta_utterance(u.text) or META_DISCUSSION_RE.search(ctx):
+            # 検知器・台帳の分析文が事象M の文面を引用・分析するケース（e4367031 型）
+            suppressed: Optional[str] = "meta_discussion"
+        elif re.sub(r"\s+", "", obj) in blob:
+            continue  # 帰属対象が実入力に在る → 実在の指摘への正当同意 → 免罪
+        elif not any(h < u.order for h, _ in humans):
+            # 当該発話より前に在セッションの人間入力（summary=order -1 含む）が皆無
+            # ＝突合の前提が無い（前セッション側に実入力がある resume 冒頭の可能性）→ 降格
+            suppressed = "unverifiable_no_prior_input"
+        else:
+            suppressed = None
+        findings.append(Finding(
+            tier="D", rule="phantom_agreement_attribution",
+            confidence=0.75 if not suppressed else 0.5,
+            msg_id=u.msg_id, timestamp=u.timestamp,
+            claim_excerpt=m.group(0).strip()[:200],
+            missing_token=obj[:60],
+            expected_tool_pattern="帰属対象（違和感/懸念/指摘…）に対応する実人間入力",
+            suppressed_reason=suppressed,
+        ))
+    return findings
+
+
 # ─────────────────────────────────────────────────────────────────────────────
-# Tier E 検出（試作: 現ターン局所の「完了主張束 vs 行動痕跡ゼロ」）
+# Tier E 検出（試作: ターン局所の「完了主張束 vs 行動痕跡ゼロ」＋幻の先行実行型）
+#
+# 2026-07-11 事象N（幻の先行実行）対応で3点を拡張:
+#   ① 発火条件を「現ターンのみ・実行皆無」から「主張カテゴリごとに対応 tool_use の有無を突合」へ
+#      細分化（既にカテゴリ別の裏付けは実装済みだったので、これを create/config へ拡張＋単一カテゴリ
+#      ＋強条件の発火路を追加）。
+#   ② scope=all（CLI）では全ターンを個別に評価する。事象N の L51（作成成功の捏造）と L81（config
+#      検証の捏造）は別ターンに跨る（間にユーザー割込「なにしているの」がある）ため、最終ターンだけを
+#      見る旧実装では両方取り逃す。Stop の scope=last_turn では従来どおり最終ターンのみ。
+#   ③ 実行していない probe コマンドの出力引用（detect_tier_e2）を別ルールで拾う。
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _turn_segments(records: List[dict], all_utterances: List[Utterance],
+                   scope: str) -> List[Tuple[int, List[Utterance]]]:
+    """(ターン開始 order, そのターンの発話) のリスト。scope=all は全ターン、それ以外は最終ターンのみ。
+    なぜ scope で切替か: CLI の事後解析（scope=all）は「どのターンで捏造したか」を全域で拾いたいが、
+    Stop（scope=last_turn）は最終ターンの捏造だけをブロック対象にする（過去ターンは既に流れており
+    ブロックしても意味がない）。境界抽出は turn_start_orders に一元化済み。"""
+    starts = turn_start_orders(records)
+    if not starts:
+        return []  # 生プロンプトが無い＝境界不明。安全側で検査しない（全域走査化を避ける）
+    chosen = set(starts) if scope == "all" else {starts[-1]}
+    segs: List[Tuple[int, List[Utterance]]] = []
+    for i, s in enumerate(starts):
+        if s not in chosen:
+            continue
+        nxt = starts[i + 1] if i + 1 < len(starts) else None
+        utts = [u for u in all_utterances
+                if u.order > s and (nxt is None or u.order < nxt)]
+        if utts:
+            segs.append((s, utts))
+    return segs
+
+
 def detect_tier_e1(records: List[dict], all_utterances: List[Utterance],
-                   tool_index: Dict[str, ToolResult], corpus: EvidenceCorpus) -> List[Finding]:
+                   tool_index: Dict[str, ToolResult], corpus: EvidenceCorpus,
+                   scope: str = "all") -> List[Finding]:
     """
-    現ターン（最後の生ユーザープロンプト以降）に〈編集した・テスト通過・掃除した〉系の完了主張が
-    2カテゴリ以上集中し、かつそのカテゴリに対応する実行 tool_use が現ターンに皆無 → 実行痕跡ゼロの
-    総括的完了報告（事象L型）。scope に依存せず常に「最新ターン」だけを見る（records から現ターンを
-    自前で切る）ので、CLI 走査(scope=all)でも Stop(scope=current_turn)でも同じ挙動になる。
+    あるターン内で〈編集した・テスト通過・掃除した・作成した・設定した〉系の完了主張が集中し、その
+    カテゴリに対応する実行 tool_use がそのターンに無い → 実行痕跡ゼロの総括捏造（事象L・事象N型）。
 
     なぜ「束＋ターン局所」か: 個別の汎用完了主張は照合キー（ファイル名・具体値）を持たず、
     全域スコープでは「セッション内に1回でも実行があれば免罪」の緩さから逃れられない（Tier B/C3 で
-    精度優先の見送り）。だが現ターンに局所化すると「このターンで変更したと言うのにこのターンに Edit が
-    1件も無い」を照合キー無しで拾える。単発では正当な振り返り要約を誤爆しうるため、複数カテゴリの
-    集中（束）を要求してノイズ耐性を得る＝事象L の「4カテゴリ総括捏造・行動ゼロ」に特異的。
+    精度優先の見送り）。だがターンに局所化すると「このターンで変更したと言うのにこのターンに Edit が
+    1件も無い」を照合キー無しで拾える。単発では正当な振り返り要約を誤爆しうるため、原則は複数カテゴリ
+    の集中（束＝2カテゴリ以上）を要求してノイズ耐性を得る。ただし事象N の L51/L81 は単一カテゴリ
+    （create のみ／config のみ）なので、単一でも〈exit 等の実行結果トークンの作文〉または〈config の
+    状態検証捏造〉という強条件が付くときに限り発火させる（照合キー欠如を強条件で置換する）。
 
-    偽陽性源は検知器/台帳の分析セッション（完了主張の文言を引用・分析する）。増補4で確立した分離
-    （_tier_b_reference の近傍メタ密度 ∨ fenced ∨ 引用体裁）を各主張文に再利用して束から除外する。
+    偽陽性源は検知器/台帳の分析セッション（完了主張の文言を引用・分析する）。_tier_b_reference の
+    近傍メタ密度 ∨ fenced ∨ 引用体裁を各主張文に再利用して束から除外する。
     """
-    # 現ターン境界は main 正本の last_turn_start_order を使う（増補4 の _last_user_turn_order と
-    # 同一基準の並行実装＝v3.1 ③。2026-07-11 統合で増補4 実装は破棄済みのため main 側へ付け替え。
-    # queued_command(origin.kind=human) も境界に含む分だけ厳密なスーパーセット）。
-    turn_start = last_turn_start_order(records)
-    if turn_start < 0:
-        return []  # 現ターン起点が特定できない＝安全側で検査しない（全域走査化を避ける）
-    turn_utts = [u for u in all_utterances if u.order > turn_start]
-    if not turn_utts:
-        return []
+    findings: List[Finding] = []
+    segs = _turn_segments(records, all_utterances, scope)
+    last_start = segs[-1][0] if segs else None
+    for turn_start, turn_utts in segs:
+        findings += _eval_completion_bundle(turn_utts, tool_index, corpus,
+                                            is_last_turn=(turn_start == last_start))
+    return findings
 
-    # 現ターンの「裏付け実行」フラグ。失敗実行（is_error）・調査実行（Read や python -c の
-    # 覗き見）は裏付けにしない＝事象L の order91 の失敗 analyze・order103/113/117 の Read/覗き見で
-    # 免罪されないようにする（これらは書込でもテスト実行でも削除でもない）。
-    exec_write = exec_cleanup = exec_test = False
+
+def _has_ungrounded_exit(sent: str, order: int,
+                         turn_result_texts: List[Tuple[int, str]]) -> bool:
+    """主張文が exit 等の実行結果トークンを引用するのに、そのトークンがこのターンの実出力（主張以前）に
+    無い＝観測していない結果の作文（事象N L51「作成成功（exit 0）」）。照合は**当ターンの実出力に限る**
+    ——exit コードは実行ごとの事実であり、別ターン・別文脈の "exit 0" は当ターンの実行を裏付けない
+    （実測: turn12 の handover 読解文中の "exit 0" が turn41 の作成捏造を誤免罪した）。"""
+    for m in EXIT_TOKEN_CLAIM_RE.finditer(sent):
+        tok = _normalize(m.group(0))
+        if not any(o <= order and tok in _normalize(t) for o, t in turn_result_texts):
+            return True
+    return False
+
+
+def _eval_completion_bundle(turn_utts: List[Utterance], tool_index: Dict[str, ToolResult],
+                            corpus: EvidenceCorpus, is_last_turn: bool) -> List[Finding]:
+    """1ターン分の発話束を評価して0/1件の Finding を返す（detect_tier_e1 のターン単位ワーカ）。"""
+    # このターンの「裏付け実行」フラグ（カテゴリ別）。失敗実行（is_error）・調査実行（Read や覗き見）は
+    # 裏付けにしない＝事象L の失敗 analyze・Read/覗き見で免罪されないように（write でも test でも create
+    # でも削除でもないため元から数えない）。turn_result_texts は exit トークン照合用の同ターン実出力。
+    exec_write = exec_cleanup = exec_test = exec_create = exec_config = False
+    turn_result_texts: List[Tuple[int, str]] = []
     for u in turn_utts:
         for tu in u.tool_uses:
             tr = tool_index.get(tu.id)
             err = bool(tr and tr.is_error)
+            if tr:
+                turn_result_texts.append((tr.order if tr.order >= 0 else u.order, tr.text))
             # write 裏付けは構造化された Edit/Write 系に限定する。Bash の `>`/sed 等は書込対象が
             # ソースか一時ファイルかを区別できず、事象L の `analyze.py … > context.txt`（診断用の
-            # 一時ファイル生成）を「ソース2ファイル変更」の裏付けと誤認して① を取りこぼした
-            # （＝偽陰性の実測）。ソース編集の証明力がある Edit/Write/NotebookEdit/MultiEdit のみ数える。
+            # 一時ファイル生成）を「ソース2ファイル変更」の裏付けと誤認して取りこぼした（＝偽陰性）。
             if tu.name in ("Edit", "Write", "NotebookEdit", "MultiEdit"):
                 if not err:
                     exec_write = True
@@ -1711,55 +1973,147 @@ def detect_tier_e1(records: List[dict], all_utterances: List[Utterance],
                 cmd = tu.input.get("command", "") if isinstance(tu.input, dict) else ""
                 if not err and BASH_CLEANUP_RE.search(cmd):
                     exec_cleanup = True
+                if not err and BASH_CREATE_RE.search(cmd):
+                    exec_create = True
+                if not err and BASH_CONFIG_RE.search(cmd):
+                    exec_config = True
                 # テストは成功実行のみ裏付け（既存 Tier B と同じ is_success 判定を流用）。
                 if TEST_RUNNER_CMD_RE.search(cmd) and tr and \
                         is_success_test_result(cmd, tr.text, tr.is_error):
                     exec_test = True
 
     # カテゴリ別に「未裏付けの完了主張」を1文ずつ拾う（各カテゴリ最初の1文を代表に採る）。
+    # exit_fab＝create/write/test 主張が exit 等の実行結果トークンを引用するのに、それがこのターンの
+    # 実 tool_result（主張以前）にも result 層証拠にも無い＝観測していない結果の作文（事象N L51）。
     cats: Dict[str, str] = {}
     claim_u: Optional[Utterance] = None
+    exit_fab = False
     for u in turn_utts:
         for sent in split_sentences(u.text):
             if EXAMPLE_EXCLUDE_RE.search(sent) or CONDITIONAL_EXCLUDE_RE.search(sent):
                 continue
             # markdown 表セル（`| … | … |`）内の主張は実行結果の転記・要約であって、この
-            # ターンでの新規完了報告ではない（e6f4ea7b「| hook自己整合テスト | test_hooks.py 7件 OK |」
-            # ＝マージ内容の要約表を「テスト通過」と誤検知した実測の偽陽性）。セル区切り `|` が
-            # 2つ以上ある行は束にカウントしない。
+            # ターンでの新規完了報告ではない（e6f4ea7b「| … | test_hooks.py 7件 OK |」＝マージ内容の
+            # 要約表を誤検知した実測FP）。セル区切り `|` が2つ以上ある行は束にカウントしない。
             if sent.count("|") >= 2:
                 continue
-            # 引用・分析文脈の完了主張は束にカウントしない（増補4と同じ分離＝分析セッション免罪）。
+            # 引用・分析文脈の完了主張は束にカウントしない（分析セッション免罪）。
             if _tier_b_reference(u.text, sent):
                 continue
-            if not exec_write and "write" not in cats and WRITE_COMPLETION_RE.search(sent):
+            hit_wct = WRITE_COMPLETION_RE.search(sent)
+            hit_tst = CLAIM_TEST_SUCCESS_RE.search(sent)
+            hit_crt = CREATE_COMPLETION_RE.search(sent)
+            if not exec_write and "write" not in cats and hit_wct:
                 cats["write"] = sent
                 claim_u = claim_u or u
+                # write（ソース編集）完了に未観測 exit を貼る作文も強条件に数える。
+                if _has_ungrounded_exit(sent, u.order, turn_result_texts):
+                    exit_fab = True
             if not exec_cleanup and "cleanup" not in cats and CLEANUP_COMPLETION_RE.search(sent):
                 cats["cleanup"] = sent
                 claim_u = claim_u or u
-            if not exec_test and "test" not in cats and CLAIM_TEST_SUCCESS_RE.search(sent):
+            if not exec_test and "test" not in cats and hit_tst:
                 cats["test"] = sent
                 claim_u = claim_u or u
+                # なぜ test には exit 作文を強条件にしないか（実測FP・a5920889）: テスト成功は
+                # 「BUILD SUCCESSFUL」等の固有シグネチャを Tier B が実出力照合で担保しており、実際に
+                # 通ったビルドに「exit 0」を添える程度の言い換えは捏造ではない。exit 作文が判定力を
+                # 持つのは「作成/編集の成否」＝create/write 側のみ（事象N L51 は create の exit 捏造）。
+            if not exec_create and "create" not in cats and hit_crt:
+                cats["create"] = sent
+                claim_u = claim_u or u
+                if _has_ungrounded_exit(sent, u.order, turn_result_texts):
+                    exit_fab = True
+            if not exec_config and "config" not in cats and CONFIG_COMPLETION_RE.search(sent):
+                cats["config"] = sent
+                claim_u = claim_u or u
 
-    if len(cats) < 2 or claim_u is None:
-        return []  # 束にならない＝単発の汎用主張は精度優先で見送り（Tier C3 と同方針）
+    unsupported = set(cats.keys())
+    n = len(unsupported)
+    # 発火条件: (A) 2カテゴリ以上の束（**最終ターンのみ**）、または (B) 単一カテゴリ＋強条件
+    # （create/write の exit 作文 ∨ config 検証捏造）＝**全ターン**。
+    # なぜ束(A)を最終ターンに限るか（実測FP・57ce8ba2/aac78e64）: 「実装完了＋テスト通過」型の束は、
+    # 前ターンで実施した作業を後ターンで正当に振り返る要約（recap）とも区別できず、全ターンに広げると
+    # recap を誤爆する。最終ターンに限れば「締めの総括なのに現ターンに痕跡ゼロ」＝事象L 型に特異化する。
+    # 強条件(B)は未観測トークンの作文・環境設定の状態検証捏造という固有シグネチャを持つため recap と
+    # 混同せず、幻の先行実行（事象N L51/L81）を別ターンでも拾える。
+    fire = (is_last_turn and n >= 2) or (n >= 1 and (exit_fab or "config" in unsupported))
+    if not fire or claim_u is None:
+        return []
 
-    # 証拠不全は降格（Stop ブロック対象から外す）。メタ議論は主張文単位で既に除外済み。
-    suppressed = _suppression(corpus)
-    n = len(cats)
-    # 試作の確度: カテゴリ数で段階化（2=0.55／3+=0.7）。降格時は 0.4。実測で閾値を較正する。
-    confidence = (0.55 if n == 2 else 0.7) if not suppressed else 0.4
-    rep = cats.get("write") or cats.get("test") or cats.get("cleanup") or ""
+    suppressed = _suppression(corpus)  # truncation / subagent_unresolved。メタは主張文単位で除外済み
+    if n >= 2:
+        base = 0.55 if n == 2 else 0.7   # 束の確度はカテゴリ数で段階化（既存較正の踏襲）
+    else:
+        base = 0.6                        # 単一カテゴリ＋強条件（事象N の較正で決定）
+    confidence = base if not suppressed else 0.4
+    # 代表抜粋は「捏造の核」に近いカテゴリを優先（config 検証捏造・create 作成捏造を先頭に）。
+    rep = (cats.get("config") or cats.get("create") or cats.get("write")
+           or cats.get("test") or cats.get("cleanup") or "")
     return [Finding(
         tier="E", rule="unverified_completion_bundle",
         confidence=confidence,
         msg_id=claim_u.msg_id, timestamp=claim_u.timestamp,
         claim_excerpt=rep.strip()[:200],
-        missing_token=",".join(sorted(cats.keys())),
-        expected_tool_pattern="現ターンに Edit/Write・削除・成功テスト実行のいずれも無し",
+        missing_token=",".join(sorted(unsupported)),
+        expected_tool_pattern="このターンに対応する実行（作成/編集/削除/成功テスト/設定）が無し",
         suppressed_reason=suppressed,
     )]
+
+
+def detect_tier_e2(utterances: List[Utterance], corpus: EvidenceCorpus) -> List[Finding]:
+    """
+    実行していない probe コマンドの「出力」を診断証拠として地の文に引用する二次コンファビュレーション
+    （事象N L65: `---read probe---` が消える・`date +%s` が丸値 `1752192000`、で「Bash 出力層が不安定」
+    と説明。自身の捏造を環境障害へ投影する G 型と同型）。
+
+    なぜ Tier A1（端末風フェンス）で取れなかったか（一次確認済み）: A1 は ``` フェンス内（fenced_blocks）
+    に限り TERMINAL_FENCE_RE（シェルプロンプト `$`/`>`・BUILD・Ran N tests・pytest サマリ）を照合する。
+    L65 の捏造出力は (1) インラインコードスパン（`…`）でありフェンスではない、(2) トークン
+    （`---read probe---`・epoch 丸値）が TERMINAL_FENCE_RE のどのパターンにも当たらない、の2点で
+    構造的に対象外。A1 拡張は不採用: TERMINAL_FENCE_RE に破線/epoch を足すと正当な diff/ソースの
+    フェンス（`---` は diff ハンク）で誤爆し、fenced_blocks をインラインへ広げると膨大な正当引用で
+    誤爆する。よって〈出力の観測異常フレーム〉＋〈幻センチネルトークン〉で狙い撃つ新ルールにした。
+
+    精度ガード: ①観測異常フレーム（出力が欠落/乱れ/消える…）を要求 ②インラインコードの
+    sentinel/epoch トークンが実 tool_result（一般層 corpus）に一つも由来しないことを要求。両方を
+    満たすときのみ発火。**A1 の「同一発話に tool_use があれば免罪」ガードは採らない**: 事象N L65 は
+    幻の probe 出力の直後に本物の Bash を同一メッセージ束で呼んでおり（＝ticket が言う「別の実
+    tool_use が同居」）、ガードを入れると原理的に発火不能になる。トークンの接地は corpus.contains
+    （その発話自身の tool_result も含む全実出力）で判定するため、ガードは冗長でもある——実際にその
+    probe を実行して出力にトークンが現れていれば corpus.contains が True になり自動で免罪される。
+    """
+    findings: List[Finding] = []
+    for u in utterances:
+        if not u.text or not PROBE_OUTPUT_ANOMALY_RE.search(u.text):
+            continue
+        # インラインコードスパンから sentinel/epoch トークンを集め、実出力に無いものだけ残す。
+        phantom: List[str] = []
+        for span in re.findall(r"`([^`\n]+)`", u.text):
+            for m in SENTINEL_TOKEN_RE.finditer(span):
+                tok = m.group(0)
+                if tok not in phantom and not corpus.contains(tok):
+                    phantom.append(tok)
+        if not phantom:
+            continue
+        # メタ議論（台帳・検知器の分析で捏造出力を引用・解説する）と truncation は降格。
+        if _is_meta_utterance(u.text):
+            suppressed: Optional[str] = "meta_discussion"
+        elif corpus.has_truncation:
+            suppressed = "truncation"
+        else:
+            suppressed = None
+        m0 = PROBE_OUTPUT_ANOMALY_RE.search(u.text)
+        findings.append(Finding(
+            tier="E", rule="phantom_probe_output",
+            confidence=0.6 if not suppressed else 0.4,
+            msg_id=u.msg_id, timestamp=u.timestamp,
+            claim_excerpt=u.text[max(0, m0.start() - 20):m0.start() + 120].strip()[:200],
+            missing_token=",".join(phantom[:3])[:60],
+            expected_tool_pattern="引用した出力トークンに対応する実 tool_result",
+            suppressed_reason=suppressed,
+        ))
+    return findings
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1825,9 +2179,14 @@ def analyze(text: str, transcript_path: Optional[str] = None,
         findings += detect_tier_d1(target, all_utterances, humans)
         findings += detect_tier_d2(target, all_utterances, humans, corpus)
         findings += detect_tier_d3(target, all_utterances)
+        findings += detect_tier_d4(target)                 # K型: ロールマーカー付き幻ユーザーターン
+        findings += detect_tier_d5(target, humans)         # M型: 幻の同意帰属
     if "E" in tiers:
-        # Tier E（試作）は target を使わず records から現ターンを自前で切る＝scope 非依存。
-        findings += detect_tier_e1(records, all_utterances, tool_index, corpus)
+        # Tier E（試作）は target を使わず records からターンを自前で切る。scope=all は全ターン、
+        # last_turn は最終ターンのみ（_turn_segments が切替）。e2（phantom probe output）は発話単位。
+        e_scope = "all" if scope == "all" else "last_turn"
+        findings += detect_tier_e1(records, all_utterances, tool_index, corpus, scope=e_scope)
+        findings += detect_tier_e2(target, corpus)
 
     # 信頼度降順で安定ソート
     findings.sort(key=lambda f: (f.suppressed_reason is not None, -f.confidence))

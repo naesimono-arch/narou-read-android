@@ -103,8 +103,11 @@ def main() -> int:
     ap.add_argument("path", nargs="?", help="解析対象の <session.jsonl>")
     ap.add_argument("--slug", help="~/.claude/projects/<slug>/*.jsonl を全走査")
     ap.add_argument("--format", choices=["human", "json"], default="human")
-    ap.add_argument("--tier", default="ABCD",
-                    help="検査する Tier（例 'B' / 'AB' / 'ABCD'。C=misread型 / D=入力側捏造）")
+    # なぜ E を既定に含めるか: Tier E は試作時 opt-in（真陽性 n=1）だったが、2026-07-11 の
+    # カテゴリ別突合への細分化で真陽性4件（事象L＋N×3）・全コーパス FP 0 の較正実績が揃い、
+    # 人間承認のうえ CLI 既定へ格上げした。Stop 昇格は見送り（conf 0.55-0.7 は Stop 閾値 0.8 未満）。
+    ap.add_argument("--tier", default="ABCDE",
+                    help="検査する Tier（例 'B' / 'AB' / 'ABCDE'。C=misread型 / D=入力側捏造 / E=完了主張束）")
     ap.add_argument("--scope", choices=["all", "last_turn"], default="all")
     ap.add_argument("--sentinel-dir", default=None,
                     help="センチネル(.python_tests_passed 等)のあるディレクトリ（live 裏取り用）")
