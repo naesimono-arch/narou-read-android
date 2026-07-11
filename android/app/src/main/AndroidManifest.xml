@@ -7,7 +7,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
-    <!-- なろう公式API(api.syosetu.com)からランキング/検索/作品情報メタを取得するため。本文取得はしない。 -->
+    <!-- なろう公式API(api.syosetu.com)からのランキング/検索/作品情報メタ取得に加え、WebViewでのWeb小説表示、および縦書きPDFのダウンロードに使用する。 -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
