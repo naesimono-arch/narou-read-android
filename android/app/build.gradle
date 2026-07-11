@@ -6,6 +6,9 @@ plugins {
     // シリアライズは分岐が多く退行しやすい。@Parcelize なら構造追従が自動で、フィールド追加時の更新漏れも防げる。
     id 'org.jetbrains.kotlin.plugin.parcelize'
     id 'com.google.devtools.ksp'
+    // Roborazzi: 葉 Composable のスクリーンショット回帰（テーマ退行・トークン波及・フォントスケール破綻の機械検知）。
+    // recordRoborazziDebug / verifyRoborazziDebug タスクを供給する（ADR 0009 増補1）。
+    id 'io.github.takahirom.roborazzi'
 }
 
 android {
@@ -163,6 +166,12 @@ dependencies {
     // createComposeRule が起動する ComponentActivity の宣言を unit test の manifest に供給する。
     // debugImplementation 側にも在るが、testDebugUnitTest のクラスパスへ確実に載せるため明示追加。
     testImplementation 'androidx.compose.ui:ui-test-manifest'
+    // Roborazzi スクリーンショットテスト（ADR 0009 増補1）。版は Roborazzi プラグインと一致させる（1.30.1）。
+    // roborazzi=キャプチャ/比較の中核、roborazzi-compose=onRoot().captureRoboImage 等 Compose 拡張、
+    // roborazzi-junit-rule=RoborazziRule（本実装では未使用だが将来の自動命名運用に備え依存だけ入れる）。
+    testImplementation 'io.github.takahirom.roborazzi:roborazzi:1.30.1'
+    testImplementation 'io.github.takahirom.roborazzi:roborazzi-compose:1.30.1'
+    testImplementation 'io.github.takahirom.roborazzi:roborazzi-junit-rule:1.30.1'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     // Room migration の実機検証（MigrationTestHelper）。identity hash 起因の起動即クラッシュを

@@ -35,3 +35,11 @@ Compose UI テストの実行環境は実質2択だった:
 
 - 既存の `testDebugUnitTest`（PDF 抽出・parser・ViewModel 等の純JVMテスト多数）を壊さないことが絶対条件。Robolectric テストは `@RunWith(RobolectricTestRunner::class)` を付けたクラスにのみ効き、既存の素の JUnit テストの実行系には介入しない。
 - 今後、葉 Composable を追加・改修する際は本方式でテストを足す。実機ランタイム依存（`TextLayoutResult` 実測が要るルビ配置 `calculateRubyPositions` 等）は Robolectric でも賄えないため対象外（宿題は handover 台帳参照）。
+
+## 増補1（2026-07-12）: スクリーンショットテストの Why-not を部分撤回し Roborazzi を増分導入
+
+当初 Why-not で「見た目の画素比較はスコープ外（意匠の目視は @Preview が担う）」としたが、デザイン正本の層構造整備（ADR 0014 §A）で「④コードは③モックとの乖離をスクリーンショットテストで検出する」層を正式化したため、**本 ADR の Robolectric 基盤に Roborazzi を同乗させる形で部分撤回**する。
+
+- **何を検知するか**: 「ライトとセピアが同色」級のテーマ退行・トークン変更の意図せぬ波及・フォントスケール拡大時のレイアウト破綻。ピクセル単位の意匠美の判定は引き続き人間の目視（ADR 0005 §B の後詰め層は対象外のまま）。
+- **ゲート方針**: golden 比較は既定の `testDebugUnitTest` ゲートに**載せない**（Roborazzi はプロパティ未指定なら素通し＝既存ゲートの速度・安定性を守る）。記録は `recordRoborazziDebug`・検証は `verifyRoborazziDebug` を明示実行する運用。
+- **golden の環境依存**: JVM のフォントレンダリングは環境依存のため、golden は WSL(Linux) 記録を正とする。Windows 側で verify が乖離しても即退行ではない（再記録で判断）。
