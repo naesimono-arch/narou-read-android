@@ -3,9 +3,7 @@ package com.novelreader.ui
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -80,6 +78,7 @@ import com.novelreader.narou.narouWorkUrl
 import com.novelreader.narou.model.Ncode
 import com.novelreader.parser.ChapterHtmlParser
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.MotionSpringBarSettle
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.rememberReadingColors
@@ -1024,7 +1023,7 @@ private suspend fun settleTopBar(
         targetValue = target,
         // なぜ StiffnessMediumLow か: オーバーレイ化によりバーの動きが本文レイアウトに
         // 伝わらなくなったため、デフォルトのバウンシー挙動を復元して軽快な触感にする。
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        animationSpec = MotionSpringBarSettle,
     ) { value, _ ->
         state.heightOffset = value
     }

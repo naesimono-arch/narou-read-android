@@ -1,7 +1,6 @@
 package com.novelreader.ui
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -37,6 +36,7 @@ import com.novelreader.ui.components.shioriAccentFor
 import com.novelreader.ui.components.shioriHue
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.MotionSpringCard
 import com.novelreader.ui.theme.ShioriSealScrimDark
 import com.novelreader.ui.theme.ShioriSealVermilion
 import com.novelreader.ui.theme.ShioriSealVermilionDark
@@ -168,7 +168,7 @@ internal fun GridBookCard(
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.96f else 1.0f,
-        animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
+        animationSpec = MotionSpringCard,
         label = "gridCardScale",
     )
 
@@ -306,7 +306,7 @@ internal fun ListBookCard(
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.98f else 1.0f,
-        animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
+        animationSpec = MotionSpringCard,
         label = "listCardScale",
     )
 

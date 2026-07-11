@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.novelreader.ui.theme.MotionDurationProgress
 import com.novelreader.viewmodel.ProcessingState
 
 // ============================================================
@@ -173,7 +174,7 @@ internal fun ProcessingBanner(
                 }
                 progress.animateTo(
                     targetValue = processingState.stepLocalPercent,
-                    animationSpec = tween(durationMillis = 400),
+                    animationSpec = tween(durationMillis = MotionDurationProgress),
                 )
             }
             LinearProgressIndicator(
