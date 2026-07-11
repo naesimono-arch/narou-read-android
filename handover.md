@@ -26,11 +26,8 @@
 
 ## UI/UX 宿題
 
-- **補助テキストのコントラストが通常文字 AA(4.5:1) 未達**（2026-07-08 実機＋`theme/Color.kt` 実測）: 著者名・進捗% の `OnSurfaceVariant #7C808B` は **Light 3.79 / Sepia 3.02 / card上 3.46**＝大字のみ合格・通常文字 AA 未達。本文・藍アクセント・ダーク各テーマは全て合格。**意匠上「静かに沈める」意図は理解しつつ、進捗% など情報性のある要素だけ視認性を一段上げる余地**。要 UI-n 意匠判断（審級は ADR 0014-D「意味を運ぶ文字は4.5:1＞美学」。※青磁「未読」ラベル分は 2026-07-12 に `UnreadSeiji #50685C` で裁定済み＝STATUS §1）。
-- **[裁定待ち] reading-D の章見出しルール `--rule` ダーク値の突合**（2026-07-12 層構造整備の副産物）: reading-D は `--rule` を3テーマ持つ（LIGHT #1C3D5A / SEPIA #2E4A60 / DARK **#5E7E9C**）が、ReadingColors に対応フィールドが無く実装の章見出しルールは `accent` を使うと推定（DARK accent は #6E96B8 ≠ #5E7E9C）。実装がどの色で描いているかの現物確認→乖離ならどちらを正とするか裁定→`tools/check_design_tokens.py` の対象外注記（READING_VARS コメント）を解消。
-- **[小粒] ピン留めアイコン（未ピン時）の視認性**（2026-07-12 監査の副産物・`DiscoverySearchScreen.kt:686` 付近）: 未ピン時 tint が `outlineVariant`（素地比 約1.1:1＝ほぼ不可視）。線トークンのアイコン塗り流用でモック根拠なし。可視にするなら `outline` へ、意図的ゴーストなら why コメント化。
+- **[モック追従・構造] 発見系モックの情報/装飾テキスト再分類**（2026-07-12 `a9a6a5c` 実装時に留置）: `InfoText` トークン（実装済み＝発見系の情報メタ6箇所を AA(4.5:1) へ引き上げ・Light #5C606D／Sepia #6C6148／Dark #8A929B）の discovery/*.html モックへの追従は、`--ink-soft` を共有する **10〜16箇所/ファイルの情報・装飾テキストの個別再分類**＋`--info-ink` 変数の新設＋`tools/check_design_tokens.py` へのマッピング追加が必要＝構造的大改修と判定し留置。**現状の一致検査は InfoText を未トラッキングで PASS＝この層ズレ（コードが AA へ引き上げた面をモックが `--ink-soft` のまま持つ）は未検知**になる点に注意。
 - **条件を調整シートの高速フリック「枠オーバーシュート」**（2026-07-08・**未修正・不具合残置**）: 高速フリックで手を離すとシート枠が Expanded 上限を超えオーバーシュート→復帰し上端に裏画面が覗く。真因（ModalBottomSheet 内蔵接続が境界フリング残速度を settle へ渡す）・棄却済み候補A〜D・本命の解・BOM 1.3.1 での再現から始める旨は **task_diary #51** が正本。要 UI-n 意匠確認。
-- **本文処理の進捗にページ数もリアルタイム併記**（2026-07-06 実機でユーザー要望・優先度低）: 現状は通し%表示（%表記はユーザー評価「完璧」）。ページ n/m も併記できれば体験向上。**設計注意**: load(全ページ)と process(本文=全−4)は分母が違い、単純2カウンタ併記は「2周目に入った」錯覚が再発する→単一の連続ページ尺にするか %主・ページ副に。実装点は `PdfBookExtractor` の step-1 phase 文言（＋必要なら `ProcessingBanner`）。
 
 ## なろうAPI 発見・検索機能（第2の柱・Phase 4/5 残り）
 
@@ -57,7 +54,6 @@
 - ~~**[クラッシュ経路] 検索履歴 DataStore の IOException 未処理**~~ → **解消済み**（`5815802`＝corruptionHandler＋読み Flow の IOException 空履歴フォールバック＋書き込み側許容。※監査記述と異なり CorruptionException は IOException のサブクラスだが、`.catch` では破損ファイルが残り毎回失敗し続けるため恒久復旧に corruptionHandler が別途必要——両対策で正）。
 - ~~**[レース] pending_jobs 記帳の直列化が実は不成立**~~ → **解消済み**（`cccb4dc`＝DAO 呼び出し完了までロックを保持する `pendingJobMutex` で全 pending_jobs 書き込みを排他・`limitedParallelism(1)` 撤去。機序の一般知見は task_diary #55）。
 - ~~**[FGS] onTimeout 後の旧ループ finally が新ループを道連れ**~~ → **解消済み**（`f70b937`＝ループ世代カウンタ。採番を launch 前の main スレッドで確定・閉じ込め、旧世代の finally は新世代の isLoopRunning/stopSelf に触れず退場。通常経路は世代が進まず挙動完全一致）。
-- **[小粒・新規＝上記修正の副産物指摘] `processSingleUri` 側 finally の通知カウントに世代ガード無し**: onTimeout が `doneCount=0` リセット後、旧ループ在籍中の1冊が遅延キャンセルされると `doneCount` が進み、新バッチ初冊の通知が「2/1」等と一時表示されうる（表示のみ・実害小）。`f70b937` と同じ世代照合の横展開で対処可。
 
 **検索画面の重さ（ユーザー実体感あり・診断確定）**
 
@@ -80,7 +76,7 @@
 - MigrationTest が「16.json 形状（web_reading_progress 無し）→17」経路を構造的に検証できない（chain テストは 14→15 でテーブルが生まれる系譜のみ通過）。既知の実機 v16→v17 未検証と同根の coverage-hole として記録。
 - ~~`AndroidManifest.xml` INTERNET permission コメントの実態不整合~~ → **解消済み**（`20bf2ca`・文言のみ修正）。
 
-- **worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す運用**: Lint コミットゲート（`check_lint_on_commit.py`）は drvfs でスキップされる設計＝canonical 作業が続く限り事実上無効。ext4 worktree なら in-tree で回るので冒頭で1回スイープする（直近スイープ＝2026-07-11・監査指摘12コミット後も 0 errors/26 warnings＝基準同一で新規指摘なし。前々回=2026-07-08・0/21）。
+- **worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す運用**: Lint コミットゲート（`check_lint_on_commit.py`）は drvfs でスキップされる設計＝canonical 作業が続く限り事実上無効。ext4 worktree なら in-tree で回るので冒頭で1回スイープする（直近スイープ＝2026-07-12・UI/UX 宿題4件消化後も 0 errors/26 warnings＝基準同一で新規指摘なし。前回=2026-07-11・監査指摘12コミット後も 0/26。前々回=2026-07-08・0/21）。
 
 ## workflow / tooling
 
