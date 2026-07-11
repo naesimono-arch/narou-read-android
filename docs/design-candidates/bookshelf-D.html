@@ -1,0 +1,112 @@
+<!-- @dsCard group="UI-n / 本棚（追加案）" name="D. 和モダン・余白（寒色白×藍／グリッド・リスト）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n D 本棚 — 和モダン余白</title>
+<style>
+  /* D案: 和モダン・余白。寒色の白×藍のヘアライン×青磁の補助。余白そのものが構図。
+     避けた定番: 暖色クリーム＋セリフ＋テラコッタ。Aとは対極の静かな寒色エディトリアル。
+     署名: 大胆な余白＋藍の1pxヘアライン体系。書影=静かな縦グラデ＋縦の藍ルール。 */
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;        /* 藍 */
+    --seiji:#9CB3A8;     /* 青磁 */
+    --seiji-ink:#50685C; /* 未読=意味を運ぶ文字は4.5:1（ADR 0014-D 裁定 2026-07-12） */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.6}
+  .cap b{color:#2A2C28}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.24em;color:#6A6C67}
+  .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--gothic)}
+  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--ink-soft)}
+  .top{padding:8px 24px 16px;display:flex;align-items:flex-end;justify-content:space-between}
+  .top h1{font-family:var(--mincho);font-size:27px;color:var(--ink);font-weight:500;letter-spacing:.14em}
+  .top .acts{display:flex;gap:2px}
+  .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--ink);cursor:pointer}
+  .ib:hover{background:var(--line)}
+  .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .scroll{flex:1;overflow:auto;padding:0 24px 96px}
+  /* グリッド: 余白広め2列 */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:26px 20px;margin-top:4px}
+  .bk{cursor:pointer}
+  .cv{position:relative;aspect-ratio:2/3;border-radius:2px;overflow:hidden;display:flex;align-items:flex-end}
+  .cv .rule{position:absolute;left:14px;top:14px;bottom:14px;width:2px;background:var(--ai);opacity:.85}
+  .cv .ttl-in{padding:14px 14px 16px 22px;color:#fff}
+  .cv .ttl-in b{font-family:var(--mincho);font-size:14px;font-weight:600;line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-shadow:0 1px 3px rgba(0,0,0,.3)}
+  .meta{margin-top:11px}
+  .meta .t{font-family:var(--mincho);font-size:13px;color:var(--ink);line-height:1.45;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .meta .pr{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:10.5px;color:var(--ai)}
+  .meta .pr .pb{flex:1;height:1px;background:var(--line);position:relative}
+  .meta .pr .pb i{position:absolute;left:0;top:-0.5px;height:2px;background:var(--ai)}
+  .meta .u{font-size:10.5px;color:var(--seiji-ink);margin-top:9px;letter-spacing:.08em}
+  /* リスト: ヘアライン区切りの静かな行 */
+  .list{margin-top:6px}
+  .li{display:flex;gap:16px;padding:18px 0;border-bottom:1px solid var(--line);cursor:pointer;align-items:center}
+  .li .lc{width:46px;height:69px;border-radius:2px;flex-shrink:0;position:relative;overflow:hidden}
+  .li .lc i{position:absolute;left:7px;top:7px;bottom:7px;width:2px;background:var(--ai);opacity:.85}
+  .li .lt{flex:1;min-width:0}
+  .li .lt .t{font-family:var(--mincho);font-size:15px;color:var(--ink);line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .li .lt .a{font-size:11px;color:var(--ink-soft);margin-top:4px}
+  .li .lt .pr{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:10.5px;color:var(--ai)}
+  .li .lt .pr .pb{width:80px;height:1px;background:var(--line);position:relative}
+  .li .lt .pr .pb i{position:absolute;left:0;top:-0.5px;height:2px;background:var(--ai)}
+  .li .lt .u{font-size:10.5px;color:var(--seiji-ink);margin-top:9px}
+  .fab{position:absolute;right:20px;bottom:24px;display:flex;align-items:center;gap:8px;background:var(--ai);color:#fff;
+    border:none;cursor:pointer;padding:14px 19px;border-radius:12px;font-size:13.5px;font-weight:600;box-shadow:0 8px 20px rgba(28,61,90,.4)}
+  .fab svg{width:18px;height:18px;stroke:#fff;stroke-width:2;fill:none}
+</style>
+</head>
+<body>
+  <p class="cap"><b>D. 和モダン・余白</b> ／ 寒色の白×藍のヘアライン×青磁。余白主導の静かなエディトリアル。本文ではなく「間」で読ませる方向。</p>
+  <div class="stage">
+    <!-- グリッド -->
+    <div class="wrap"><span class="mode">グリッド</span>
+    <div class="phone" role="img" aria-label="D案 グリッド">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="top"><h1>本棚</h1><div class="acts">
+        <button class="ib" aria-label="リスト表示"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
+        <button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg></button>
+      </div></div>
+      <div class="scroll"><div class="grid">
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)"><span class="rule"></span><div class="ttl-in"><b>追放された万能薬師</b></div></div>
+          <div class="meta"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="pr"><span>127話</span><span class="pb"><i style="width:62%"></i></span><span>62%</span></div></div></div>
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><span class="rule"></span><div class="ttl-in"><b>黒の魔王と契約した俺</b></div></div>
+          <div class="meta"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="pr"><span>43話</span><span class="pb"><i style="width:28%"></i></span><span>28%</span></div></div></div>
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#46584C,#2C362F)"><span class="rule"></span><div class="ttl-in"><b>草むしりと世界樹</b></div></div>
+          <div class="meta"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="u">未読</div></div></div>
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#4F4A63,#312E3D)"><span class="rule"></span><div class="ttl-in"><b>公爵令嬢の嗜み</b></div></div>
+          <div class="meta"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="pr"><span>8話</span><span class="pb"><i style="width:11%"></i></span><span>11%</span></div></div></div>
+      </div></div>
+      <button class="fab" aria-label="PDFを追加"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>追加</button>
+    </div></div>
+
+    <!-- リスト -->
+    <div class="wrap"><span class="mode">リスト</span>
+    <div class="phone" role="img" aria-label="D案 リスト">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="top"><h1>本棚</h1><div class="acts">
+        <button class="ib" aria-label="グリッド表示"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg></button>
+        <button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg></button>
+      </div></div>
+      <div class="scroll"><div class="list">
+        <div class="li"><div class="lc" style="background:linear-gradient(160deg,#3A4F63,#28323E)"><i></i></div><div class="lt"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="a">霧島あおい</div><div class="pr"><span>127話</span><span class="pb"><i style="width:62%"></i></span><span>62%</span></div></div></div>
+        <div class="li"><div class="lc" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><i></i></div><div class="lt"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="a">夜灯すばる</div><div class="pr"><span>43話</span><span class="pb"><i style="width:28%"></i></span><span>28%</span></div></div></div>
+        <div class="li"><div class="lc" style="background:linear-gradient(160deg,#46584C,#2C362F)"><i></i></div><div class="lt"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="a">青葉みのり</div><div class="u">未読</div></div></div>
+        <div class="li"><div class="lc" style="background:linear-gradient(160deg,#4F4A63,#312E3D)"><i></i></div><div class="lt"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="a">白河すずら</div><div class="pr"><span>8話</span><span class="pb"><i style="width:11%"></i></span><span>11%</span></div></div></div>
+      </div></div>
+      <button class="fab" aria-label="PDFを追加"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>追加</button>
+    </div></div>
+  </div>
+</body>
+</html>

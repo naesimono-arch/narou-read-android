@@ -89,19 +89,28 @@ object PdfBookExtractor {
                 val meta = handle.extractMeta()
                 currentTitle = meta.title
 
-                // 本文抽出は「読み込み(全ページのグリフ抽出)＋整形(段落化)」の2パスだが、UI では1つの連続進捗
-                // として提示する。なぜ＝2パスを別ラベル・別カウンタで見せると、カウンタが 0→N を2度満ちて
-                // 「一度終わって2周目に入った」ように誤認される（実機フィードバック）。表示とバーを常に一致させる。
-                onProgress(1, 0f, "本文を処理しています… 0%", currentTitle)
+                // 本文抽出は「読み込み(全ページのグリフ抽出)＋整形(段落化)」の2パスだが、% は 0.75/0.25 の
+                // 重み合成で通し単調前進として1つの連続進捗として提示する（%が巻き戻らない主表示）。
+                // 副表示のページ n/m はフェーズ内カウントのため PROCESS 開始時に 0 へ戻るが、なぜそれで
+                // 錯覚しないか＝フェーズ語を「読み込んでいます」「整形しています」と変えることで「別工程に
+                // 入った」と読ませ、同じ語のままカウンタだけ 0→N を2度満ちる「2周目に入った」誤認
+                // （過去に実機で発生）を構造的に解消する。開始時（tick 前）は総ページ未確定のためページ数を付けない。
+                onProgress(1, 0f, "本文を読み込んでいます… 0%", currentTitle)
                 val paragraphs = handle.runEngine { phase, current, total ->
                     // step-1 local: LOAD(読み込み)中 0→LOAD_WEIGHT、PROCESS(整形)中 LOAD_WEIGHT→1.0 と単調前進。
                     // load を重み大に＝超長編では全ページ getText が支配的コストで、以前は load 中バーが 0f で固まって見えた。
+                    // % 計算は一切変えない。フェーズ語だけをここで切り替える（副表示の巻き戻り錯覚回避）。
                     val local = when (phase) {
                         EnginePhase.LOAD -> LOAD_WEIGHT * (current.toFloat() / max(total, 1))
                         EnginePhase.PROCESS -> LOAD_WEIGHT + (1f - LOAD_WEIGHT) * (current.toFloat() / max(total, 1))
                     }
-                    // ラベルにも同じ % を載せ、下のバー(step-local)と数字を常に一致させる（リセット無しの通し進捗）。
-                    onProgress(1, local, "本文を処理しています… ${(local * 100).toInt()}%", currentTitle)
+                    // フェーズ語（LOAD=読み込み/PROCESS=整形）。同語のままカウンタが 0→N を2度満ちる誤認を避ける。
+                    val phaseWord = when (phase) {
+                        EnginePhase.LOAD -> "本文を読み込んでいます"
+                        EnginePhase.PROCESS -> "本文を整形しています"
+                    }
+                    // ラベルは %（主・通し進捗）＋ページ n/m（副・フェーズ内カウント）。% は下のバー(step-local)と常に一致。
+                    onProgress(1, local, "$phaseWord… ${(local * 100).toInt()}%（$current/${total}ページ）", currentTitle)
                 }
 
                 onProgress(2, 0f, "章を分割しています…", currentTitle)

@@ -10,6 +10,10 @@ pluginManagement {
         // なぜ Kotlin 本体と同一 version: parcelize は Kotlin コンパイラプラグインのため版ズレは即ビルド破綻する
         id 'org.jetbrains.kotlin.plugin.parcelize' version '1.9.22' apply false
         id 'com.google.devtools.ksp' version '1.9.22-1.0.17' apply false
+        // Roborazzi スクリーンショットテスト（ADR 0009 増補1）。version 1.30.1 は Kotlin 1.9.22・AGP 8.6.1
+        // でビルドされた版で本プロジェクトのツールチェーンと完全一致するため、metadata バージョン不整合の
+        // リスクがない（新しい版は Kotlin 2.0 でビルドされ 1.9.22 コンパイラでの読み取りに難がある）。
+        id 'io.github.takahirom.roborazzi' version '1.30.1' apply false
     }
 }
 dependencyResolutionManagement {

@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.theme.MinchoFamily
@@ -348,7 +349,11 @@ internal fun DiscoverySearchContent(
                         imageVector = Icons.Filled.Tune,
                         contentDescription = "条件調整",
                         tint = tint,
-                        modifier = Modifier.padding(end = 8.dp)
+                        // モック .cond-btn の svg 15px 準拠。size 未指定だと Material 既定24dpで
+                        // 12.5sp テキストに対し過大になり行の見た目がずれるため 15.dp に固定。
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .size(15.dp)
                     )
                     Text(
                         text = if (draft.filters.activeCount() > 0) "条件を調整（${draft.filters.activeCount()}）" else "条件を調整",
@@ -442,12 +447,15 @@ internal fun DiscoverySearchContent(
                         title = category.title,
                         expanded = expanded,
                         onToggle = { expandedCategories[category.title] = !expanded },
+                        previewWords = category.words,
                     )
                     if (expanded) {
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp)
                         ) {
                             category.words.forEach { word ->
                                 val selected = word in selectedTokenSet
@@ -474,6 +482,8 @@ internal fun DiscoverySearchContent(
                             }
                         }
                     }
+                    // 案B: カテゴリ行はヘアラインで区切る「開ける行」（モック .kw-cat の border-bottom）
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
 
                 // F-F: 「ジャンル別を見る」の展開も構成変更で維持する。
@@ -497,12 +507,15 @@ internal fun DiscoverySearchContent(
                             title = category.title,
                             expanded = expanded,
                             onToggle = { expandedCategories[category.title] = !expanded },
+                            previewWords = category.words,
                         )
                         if (expanded) {
                             FlowRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 12.dp)
                             ) {
                                 category.words.forEach { word ->
                                     val selected = word in selectedTokenSet
@@ -529,6 +542,8 @@ internal fun DiscoverySearchContent(
                                 }
                             }
                         }
+                        // 案B: ジャンル別も同じ「開ける行」の区切り（モック .kw-cat の border-bottom）
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
                 }
             }
@@ -645,7 +660,7 @@ private fun SelectedKeywordChip(
 
 /**
  * 検索履歴チップ（モック .pchip / .rchip-hist）。
- * ピンアイコン: ピン留め済み=藍（タップで解除）／未ピン=薄い補助色（タップでピン留め）。
+ * ピンアイコン: ピン留め済み=藍（タップで解除）／未ピン=補助色 onSurfaceVariant（タップでピン留め）。
  * 語タップ=その語で即検索。onDelete があれば右端に薄い×（履歴から削除）。
  */
 @Composable
@@ -671,8 +686,10 @@ private fun HistoryChip(
         Icon(
             imageVector = Icons.Filled.PushPin,
             contentDescription = if (pinned) "ピン留めを解除" else "ピン留めする",
+            // 未ピン時: 線トークン outlineVariant の流用は素地比約1.1:1でほぼ不可視だった
+            // →同画面のアイコン慣行かつモックのピンSVG色（--ink-soft）と同値の onSurfaceVariant へ。
             tint = if (pinned) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.outlineVariant,
+            else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .clickable(onClick = onPinClick)
                 .padding(vertical = 7.dp)
@@ -682,7 +699,12 @@ private fun HistoryChip(
             text = word,
             fontSize = 12.sp,
             color = MaterialTheme.colorScheme.onSurface,
+            // 長文履歴が weight 無しだと行全幅を占有し末尾の×を幅0へ押し出してタップ不能になるため、
+            // テキスト側を weight で縮退させて×の幅を先に確保する（fill=false で短語チップは従来幅のまま）。
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier
+                .weight(1f, fill = false)
                 .clickable(onClick = onWordClick)
                 .padding(horizontal = 8.dp, vertical = 7.dp),
         )
@@ -714,35 +736,50 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier) {
 
 // why: 「キーワードから選ぶ」の各カテゴリ見出しを開閉トグル化するための専用ヘッダ。
 // 静的な SectionHeader はフィルターシート側の見出し（作品の形/文字数 等）でも使い回すため、
-// そちらまで折りたたみ化しないよう別 composable に分ける。見た目トークン（型・字間・色）は
-// SectionHeader に揃え、開閉記号は同画面の「ジャンル別を見る」トグルと同じ ⌄/⌃ で統一する。
+// そちらまで折りたたみ化しないよう別 composable に分ける。
+// 意匠は案B（モック正本 docs/design-candidates/discovery/discovery-search-D.html .kw-cat）＝
+// ヘアラインで区切る「開ける行」・濃色見出し・畳み時は代表語を淡色で1行プレビュー。
+// なぜプレビューを出すか: 見出し語だけでは中身の語彙が想像できず「開けるだけの行」が並ぶため、
+// 畳んだままでもカテゴリの中身を予告する（展開すればチップ群に置き換わるので二重表示にならない）。
 @Composable
 fun CollapsibleCategoryHeader(
     title: String,
     expanded: Boolean,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
+    previewWords: List<String> = emptyList(),
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onToggle)
-            .padding(top = 22.dp, bottom = 10.dp)
+            .padding(top = 14.dp, bottom = 12.dp)
     ) {
-        Text(
-            text = title,
-            fontSize = 10.5.sp,
-            letterSpacing = 3.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            text = if (expanded) "⌃" else "⌄",
-            fontSize = 11.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = title,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = if (expanded) "⌃" else "⌄",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (!expanded && previewWords.isNotEmpty()) {
+            // 代表語プレビュー＝先頭3語を「・」区切り・4語以上は「…」（モック .kw-cat-preview）
+            Text(
+                text = previewWords.take(3).joinToString("・") + if (previewWords.size > 3) "…" else "",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 5.dp)
+            )
+        }
     }
 }
 

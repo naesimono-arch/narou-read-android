@@ -6,8 +6,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
@@ -35,6 +37,10 @@ data class ReadingColors(
     val blockBackground: Color,   // 前書き・後書きブロック背景
     val blockBorder: Color,       // 前書き・後書きブロック枠線
     val accent: Color,            // 強調色（目次の現在章ハイライトなど）
+    // 章見出しの短いルール色＝モック reading-D.html の --rule に対応。
+    // なぜ accent と別トークンにするか: LIGHT/SEPIA は accent と同値だが DARK だけ
+    // --rule #5E7E9C ≠ accent #6E96B8 で乖離するため、accent 流用では DARK が再現できない。
+    val rule: Color,              // 章見出しルール（モック --rule）
     val isLight: Boolean,         // true ならステータスバーアイコンを暗色にする
 )
 
@@ -62,6 +68,7 @@ val ReadingTheme.colors: ReadingColors
             blockBackground  = Color(0xFFF1F0EC),
             blockBorder      = Color(0xFFE4E2DB),
             accent           = Color(0xFF1C3D5A), // D の藍（現在章ハイライト・チップ選択色）
+            rule             = Color(0xFF1C3D5A), // 章見出しルール（モック --rule）＝LIGHT は accent と同値
             isLight          = true,
         )
         // SEPIA は D の寒色を温かい紙トーンへ寄せた変種。藍アクセントは骨格として残しつつ
@@ -85,6 +92,7 @@ val ReadingTheme.colors: ReadingColors
             blockBackground  = Color(0xFFEBDEBE),
             blockBorder      = Color(0xFFDCCC9F),
             accent           = Color(0xFF2E4A60), // 暖色背景に合わせやや深めの藍鼠
+            rule             = Color(0xFF2E4A60), // 章見出しルール（モック --rule）＝SEPIA は accent と同値
             isLight          = true,
         )
         // DARK は D の寒色を保った冷たい暗面（旧の温かい黒 #1C1916 から転換）。
@@ -103,6 +111,7 @@ val ReadingTheme.colors: ReadingColors
             blockBackground  = Color(0xFF1B1F26),
             blockBorder      = Color(0xFF2A2F38),
             accent           = Color(0xFF6E96B8), // 暗背景で沈まない明るい藍
+            rule             = Color(0xFF5E7E9C), // 章見出しルール（モック --rule）＝DARK のみ accent #6E96B8 と乖離
             isLight          = false,
         )
     }
@@ -117,6 +126,25 @@ val ReadingTheme.colors: ReadingColors
 @Composable
 fun rememberReadingColors(theme: ReadingTheme): ReadingColors =
     remember(theme) { theme.colors }
+
+// ============================================================
+// 本棚系の追加色（Material スロットに収まらない画面家系トークン）。
+// なぜ CompositionLocal か: ヘアラインは「役割」でなく「正本モックの家系」で値が分かれる
+// （発見系 --line #ECEAE4 ＝ outlineVariant／本棚系 --hl/--track #E4E2DB）ため、
+// colorScheme とは別口でテーマ追従させる（ReadingColors と同じ流儀・ADR 0014）。
+// unreadLabel: 未読は意味を運ぶ文字＝4.5:1 最低線（ADR 0014-D）。ダークは既存 SecondaryDark を継続。
+// infoText: 発見系の情報メタ（順位番号・連載状態・読了目安・最終更新・結果サブタイトル・未選択タブ）用。
+//   OnSurfaceVariant（装飾的補助）は 4.5:1 未達のため情報用途だけを役割別トークンへ分離（同 ADR 0014-D 裁定）。
+// ============================================================
+data class ShelfColors(
+    val hairline: Color,     // 目録区切り線・進捗トラック・スケルトン線（--hl/--track）
+    val unreadLabel: Color,  // 「未読」ラベル文字
+    val infoText: Color,     // 情報を運ぶ補助テキスト（発見系メタ）
+)
+
+val LocalShelfColors = staticCompositionLocalOf {
+    ShelfColors(hairline = ShelfHairlineLight, unreadLabel = UnreadSeiji, infoText = InfoTextLight)
+}
 
 // ============================================================
 // Material3 カラースキーム
@@ -216,6 +244,17 @@ fun NovelReaderTheme(
         ReadingTheme.DARK -> DarkColorScheme
     }
 
+    // 本棚系の家系トークン（ヘアライン／未読ラベル）をテーマに応じて provide する。
+    // ヘアラインはセピア/ダークで OutlineVariant と同値だが、ライトは本棚系専用値（#E4E2DB）へ分岐。
+    // 未読ラベルはライト/セピア=濃青磁 UnreadSeiji、ダークは暗面で合格済みの SecondaryDark を継続。
+    val shelfColors = remember(theme) {
+        when (theme) {
+            ReadingTheme.LIGHT -> ShelfColors(ShelfHairlineLight, UnreadSeiji, InfoTextLight)
+            ReadingTheme.SEPIA -> ShelfColors(OutlineVariantSepia, UnreadSeiji, InfoTextSepia)
+            ReadingTheme.DARK -> ShelfColors(OutlineVariantDark, SecondaryDark, InfoTextDark)
+        }
+    }
+
     // ステータスバーアイコンの色をテーマに合わせる（ライト/セピア=暗いアイコン、ダーク=明るいアイコン）
     // setDecorFitsSystemWindows は MainActivity で呼んでいるためここでは行わない
     // なぜここが唯一の所有者か: theme は appTheme 単一正本のため全画面でこの1式が常に正しい。
@@ -229,9 +268,11 @@ fun NovelReaderTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = NovelReaderTypography,
-        content = content,
-    )
+    CompositionLocalProvider(LocalShelfColors provides shelfColors) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = NovelReaderTypography,
+            content = content,
+        )
+    }
 }

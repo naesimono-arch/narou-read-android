@@ -58,14 +58,26 @@ private fun mulberry32(seed: Int): () -> Double {
 }
 
 /**
+ * title → 栞の色相（度）。`mulberry32(shioriHash(title))` の**初回**値で SHIORI_PALETTE を引く。
+ *
+ * なぜ shioriParams から切り出すか: 目録リスト（表紙を持たない行）の左端色帯や、書架⇔目録で共有する
+ * アクセント（shioriAccentFor）は「色相だけ」を要し、棒の位置・長さ・先端は不要。ただし色相の導出は
+ * shioriParams の hue と必ず同一系列でなければならない（同じ本が書架と目録で同じ色になる整合の生命線）。
+ * そこで shioriParams 側も本関数を呼ぶことで、両者が構造的に同一値になることを保証する
+ * （ShioriGeneratorTest で shioriHue(t) == shioriParams(t, N).hue として固定）。
+ */
+internal fun shioriHue(title: String): Int =
+    SHIORI_PALETTE[floor(mulberry32(shioriHash(title))() * SHIORI_PALETTE.size).toInt()]
+
+/**
  * title から栞のパラメータを決定論的に導く。
  * @param tipCount 先端意匠の総数（呼び出し側 SHIORI_TIPS.size を渡す＝先端を足すだけで選択に反映される）。
  *
- * 乱数系列は正本と同一: 色相は `mulberry32(hash(title))` の初回値、
+ * 乱数系列は正本と同一: 色相は `mulberry32(hash(title))` の初回値（shioriHue と同一）、
  * 位置・長さ・先端は `mulberry32(hash(title+"|B"))` から順に x→len→tip の順で引く。
  */
 internal fun shioriParams(title: String, tipCount: Int): ShioriParams {
-    val hue = SHIORI_PALETTE[floor(mulberry32(shioriHash(title))() * SHIORI_PALETTE.size).toInt()]
+    val hue = shioriHue(title)
     val rng = mulberry32(shioriHash(title + "|B"))
     val xFrac = (0.14 + (0.36 - 0.14) * rng()).toFloat()
     val lenFrac = (0.30 + (0.60 - 0.30) * rng()).toFloat()

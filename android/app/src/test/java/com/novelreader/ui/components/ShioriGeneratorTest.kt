@@ -53,6 +53,20 @@ class ShioriGeneratorTest {
     }
 
     @Test
+    fun `shioriHue は shioriParams の hue と一致し PALETTE の要素`() {
+        // 整合の生命線: 目録の色帯・共有アクセントが引く shioriHue と、書架の栞が引く
+        // shioriParams(...).hue は必ず同一系列＝同じ本が書架/目録で同じ色相になる。
+        val titles = listOf(
+            "テスト", "星降る夜のパン屋と魔法使い", "黒の魔王と契約した俺、気づけば最強の従者に",
+            "追放された万能薬師、辺境でスローライフを始める", "白河すずら", "あ",
+        )
+        for (t in titles) {
+            assertEquals("hue mismatch: $t", shioriParams(t, tipCount).hue, shioriHue(t))
+            assertTrue("hue in palette: ${shioriHue(t)}", SHIORI_PALETTE.contains(shioriHue(t)))
+        }
+    }
+
+    @Test
     fun `hue は PALETTE の要素・xLenFrac と tipIndex は範囲内`() {
         val titles = listOf(
             "テスト", "あ", "星降る夜のパン屋と魔法使い",

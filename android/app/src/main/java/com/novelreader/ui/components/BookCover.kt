@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.novelreader.ui.theme.BookCoverRuleIndigo
 import com.novelreader.ui.theme.MinchoFamily
 import kotlin.math.abs
 
@@ -114,13 +115,14 @@ fun BookCover(
         // おおむね左端 7〜16% に収まり、サイズ非依存で破綻しないため。
         // 暗色スラブ上で沈まないよう、トークン藍より明るめの藍を使う。
         // なぜ ruleColor を可能にするか: (b) Web由来・未取込カードはモック正本で縦ルールが青磁＝『未取込』の視覚署名。書影生成ロジックは共通のためルール色のみ注入可能にする。
+        // デフォルト藍はトークン BookCoverRuleIndigo へ昇格＝直書き解消（ADR 0014）。
         Box(
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .padding(start = 10.dp)
                 .width(2.dp)
                 .fillMaxHeight(0.82f)
-                .background(ruleColor ?: Color(0xFF6E96B8)),
+                .background(ruleColor ?: BookCoverRuleIndigo),
         )
         // ────── 書影下部の明朝タイトル（グリッドのみ）──────
         // モック .cv .ttl-in: 下寄せ・左 padding は藍ルール(左10dp)を避けて 22dp、明朝 14sp・3行省略。
@@ -148,21 +150,4 @@ fun BookCover(
             )
         }
     }
-}
-
-// ============================================================
-// coverBarColor — 文字目録（骨格3・表紙レス）の左端色帯に使う、作品ごとの識別色。
-//
-// なぜ書影（暗色スラブ）と別関数か: 書影は彩度・明度を大きく落とした「静かな暗い面」だが、
-// 幅 4dp の細帯では暗色だと地に沈んで作品を見分けられない。色相は書影と同じハッシュ由来
-// （＝同一作品は同一系統色で書影/目録が視覚的に呼応）に保ったまま、彩度・明度だけ中程度へ上げて、
-// 細帯でも識別できる中彩度の和色にする。決定的（同じ seed なら常に同じ色＝ランダムではない）。
-// ============================================================
-fun coverBarColor(seed: String): Color {
-    val hash = seed.hashCode()
-    val hue = abs(hash) % 360f
-    // 書影と同じ hue。彩度・明度は細帯で沈まない中彩度へ（わずかにハッシュで振り単調さを避ける）。
-    val saturation = 0.30f + (abs(hash / 360) % 8) / 100f    // 30〜37%
-    val lightness = 0.40f + (abs(hash / 8640) % 7) / 100f    // 40〜46%
-    return hslToColor(hue, saturation, lightness)
 }

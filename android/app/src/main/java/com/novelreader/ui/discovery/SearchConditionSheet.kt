@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -40,10 +41,12 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouAttr
+import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouLastup
 import com.novelreader.narou.model.NarouNovelType
 import com.novelreader.ui.theme.MinchoFamily
@@ -77,6 +80,15 @@ fun SearchConditionSheet(
     // ②カスタム入力でIMEが出て adjustResize によりウィンドウが縮むと、アンカー再計算で全開から
     // 中間へ勝手に settle して「最上位まで開いたシートが真ん中まで落ちる」不具合になるため。
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // why: 内容が長くシートが画面いっぱいまで伸びると「全画面ダイアログ」に見え、ボトムシートの
+    // 文脈（裏に検索画面が居る）が消える。意匠正本 discovery-search-D.html の .sheet は
+    // max-height:85% を明示しており、その追従として上限を85%に制限する（それ未満の内容なら wrap のまま）。
+    // screenHeightDp はシステムバー除きの概算だが、モックの%指定に対する翻訳として十分。
+    // ⚠️ この上限は ModalBottomSheet の modifier に渡してはならない（内容側 Column に掛けること）:
+    // modifier は内部チェーン先頭に合成され、draggableAnchors が読む constraints.maxHeight 自体を
+    // 縮めるため fullHeight=85% かつシート実高=85% → Expanded アンカー=0 となり、align(TopCenter)
+    // 基準のままシートが画面上端に張り付く（2026-07-12 実機で発現。機序は task_diary #57）。
+    val sheetMaxHeight = (LocalConfiguration.current.screenHeightDp * 0.85f).dp
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -113,6 +125,8 @@ fun SearchConditionSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // 85%上限は内容側に掛ける（シート modifier に掛けるとアンカー計算が壊れる＝上の⚠️参照）。
+                .heightIn(max = sheetMaxHeight)
                 // why: 文字数/読了時間のカスタム入力でIMEが出た際、IME inset分をシート内容側で吸収し
                 // 入力欄がキーボードに隠れないようにする（NcodeLinkSheet と同じ対処。この画面だけ抜けていた）。
                 .imePadding()
@@ -127,6 +141,42 @@ fun SearchConditionSheet(
                 letterSpacing = 1.5.sp,
                 color = MaterialTheme.colorScheme.onSurface
             )
+
+            // ジャンル（なろうの一次分類のため最上段に置く）。
+            // 大ジャンルごとに「すべて」チップ（＝その大ジャンル全体＝biggenre）と詳細ジャンルチップ（＝genre）を並べる。
+            // なぜ折りたたまないか: このシートに折りたたみの慣行はなく（キーワード選択画面の CollapsibleCategoryHeader は
+            // 別画面の意匠）、過剰実装を避けて素の縦並びにする。長さは verticalScroll で吸収する。
+            // 選択セマンティクス（相互排他）は SearchFilters.withBiggenreToggled/withGenreToggled が単一真実源。
+            SectionHeader(text = "ジャンル")
+            NarouGenres.BIGGENRES.forEach { (bigCode, bigName) ->
+                GenreGroupLabel(text = bigName)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // 「すべて」＝この大ジャンル全体（biggenre コード）。選択中は biggenres にコードが入っている状態。
+                    // 未選択（biggenres/genres とも空）のときは点灯しない＝「ジャンル指定なし＝全ジャンル」を表す
+                    // （他節の「すべて＝空で点灯」とは意味が異なる。ここでは大ジャンル単位の選択なので、
+                    // 各グループの「すべて」がその大ジャンルの選択有無を表す）。
+                    FilterChipItem(
+                        selected = bigCode in draft.filters.biggenres,
+                        label = "すべて",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.withBiggenreToggled(bigCode)))
+                        }
+                    )
+                    NarouGenres.GENRES_BY_BIG[bigCode]?.forEach { (genreCode, genreName) ->
+                        FilterChipItem(
+                            selected = genreCode in draft.filters.genres,
+                            label = genreName,
+                            onClick = {
+                                viewModel.setSearchDraft(draft.copy(filters = draft.filters.withGenreToggled(genreCode)))
+                            }
+                        )
+                    }
+                }
+            }
 
             // a. 作品の形
             SectionHeader(text = "作品の形")
@@ -558,6 +608,22 @@ fun SearchConditionSheet(
             }
         }
     }
+}
+
+/**
+ * ジャンル節の大ジャンル小見出し（モック .sheet の大ジャンル小見出し＝sheet-sec-ttl より一段濃い行）。
+ * SectionHeader（節見出し）より下位の階層を示すため、字間を詰め onSurface 寄りで区別する
+ * （色は既存トークンのみ・意匠発明はしない）。
+ */
+@Composable
+private fun GenreGroupLabel(text: String) {
+    Text(
+        text = text,
+        fontSize = 11.5.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)
+    )
 }
 
 /**

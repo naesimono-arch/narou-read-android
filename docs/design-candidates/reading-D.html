@@ -1,0 +1,153 @@
+<!-- @dsCard group="UI-n / 読書（D詰め）" name="D. 和モダン・余白 — 読書（ライト/セピア/ダーク＋クローム表示・没入）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n D 読書 — 和モダン余白</title>
+<style>
+  /* D案 読書: 本棚Dと同一の視覚言語（寒色白×藍ヘアライン×青磁／本文=明朝・ラベル=ゴシック・余白主導）を
+     読書画面へ展開。署名要素「藍の細ルール」を章見出し・シーン区切りに転用する。
+     3読書テーマ(ライト/セピア/ダーク)はDのデフォルト採用後も別軸として存続するため、
+     Dの寒色を起点に3色面を併記。ルビは親文字の上付き(<ruby><rt>)。 */
+  :root{
+    --ai:#1C3D5A;            /* 藍（アクセント・ルール線。3テーマ共通の骨格色） */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;
+    padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.6;max-width:760px}
+  .cap b{color:#2A2C28}
+  .wcag{color:#6A6C67;font-size:11px;margin-bottom:18px;text-align:center;line-height:1.7}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#6A6C67;text-align:center}
+
+  /* ---- テーマ別トークン（Dの寒色を起点にライト/セピア/ダークへ展開）---- */
+  .phone{width:372px;height:800px;border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--mincho)}
+  .t-light{ --bg:#FBFAF8; --ink:#1C1F26; --soft:#7C808B; --ruby:#8B96A0; --rule:#1C3D5A;
+            --blk-bg:#F1F0EC; --blk-bd:#E4E2DB; --bar:#FBFAF8; --bar-line:#ECEAE4; --accent:#1C3D5A; --acc-on:#fff; }
+  /* セピアは 2026-07-08 に Compose 実装（Theme.kt ReadingColors.SEPIA）の実機調律値を正本として逆反映。
+     旧 #EDE0C3 系は実機で「ライトと色味の差がない」ため、彩度約15%の琥珀の紙×焦茶の墨へ再調律済み。 */
+  .t-sepia{ --bg:#F2E7CE; --ink:#3D3121; --soft:#8C7D5D; --ruby:#A3906A; --rule:#2E4A60;
+            --blk-bg:#EBDEBE; --blk-bd:#DCCC9F; --bar:#ECDFC0; --bar-line:#E0D3B0; --accent:#2E4A60; --acc-on:#FBF6EC; }
+  .t-dark{ --bg:#14171C; --ink:#C7CDD3; --soft:#7B838C; --ruby:#6E7984; --rule:#5E7E9C;
+            --blk-bg:#1B1F26; --blk-bd:#2A2F38; --bar:#181C22; --bar-line:#2A2F38; --accent:#6E96B8; --acc-on:#0F1318; }
+  .phone{background:var(--bg)}
+
+  /* ---- トップバー（オーバーレイ。読書中は控えめ。Dのヘアライン体系）---- */
+  .sb{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;
+    font-size:11px;color:var(--soft);font-family:var(--gothic)}
+  .topbar{position:relative;z-index:4;height:50px;display:flex;align-items:center;gap:4px;padding:0 14px;
+    background:var(--bar);border-bottom:1px solid var(--bar-line)}
+  .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;
+    place-items:center;color:var(--ink);cursor:pointer}
+  .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar .ct{flex:1;font-family:var(--gothic);font-size:13.5px;color:var(--ink);letter-spacing:.04em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* ---- 本文 ---- */
+  .reader{flex:1;overflow:auto;position:relative;z-index:1;padding:8px 26px 92px}
+  .chap-h{text-align:center;margin:14px 0 26px}
+  .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--accent);letter-spacing:.3em}
+  .chap-h .t{font-size:18px;color:var(--ink);margin-top:9px;line-height:1.6;font-weight:600}
+  .chap-h .rule{width:48px;height:2px;background:var(--rule);margin:15px auto 0;opacity:.85}
+  p{font-size:16.5px;line-height:2.4;color:var(--ink);text-indent:1em;margin-bottom:.3em}
+  ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  .blank{height:1.5em}
+  /* シーン区切り＝Dの細い藍ルール（点ではなく中央寄せの短い実線で静かに） */
+  hr{border:none;height:1px;width:42%;margin:18px auto;background:var(--rule);opacity:.5}
+  /* 前書き/後書きブロック（ラベル付き枠＝StyledBlock。Dはヘアライン枠＋淡い面） */
+  .block{border:1px solid var(--blk-bd);background:var(--blk-bg);padding:13px 15px;margin:4px 0 22px;border-radius:2px}
+  .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--accent);font-weight:700;
+    margin-bottom:6px;letter-spacing:.1em}
+  .block p{font-size:14.5px;line-height:2.1;text-indent:1em;margin:0}
+  /* ---- ボトムバー（オーバーレイ。前章/目次/次章の3分割）---- */
+  .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:64px;display:flex;align-items:center;
+    background:var(--bar);border-top:1px solid var(--bar-line)}
+  .bottombar button{flex:1;height:100%;border:none;background:transparent;display:grid;place-items:center;
+    color:var(--ink);cursor:pointer}
+  .bottombar svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .bottombar .mid{position:relative}
+  .bottombar .mid::before,.bottombar .mid::after{content:"";position:absolute;top:20px;bottom:20px;width:1px;background:var(--bar-line)}
+  .bottombar .mid::before{left:0}.bottombar .mid::after{right:0}
+  /* 没入時（クローム非表示）: 上下バーを消し本文を全面に。中央の薄い「タップでバー表示」ヒントのみ */
+  .immersive .topbar,.immersive .bottombar{display:none}
+  .immersive .reader{padding:34px 26px 40px}
+  .hint{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:6;font-family:var(--gothic);
+    font-size:11px;color:var(--soft);letter-spacing:.08em;opacity:.8}
+</style>
+</head>
+<body>
+  <p class="cap"><b>D. 和モダン・余白 — 読書</b> ／ 本棚Dと同じ寒色白×藍ヘアライン×青磁・明朝本文・余白主導を読書へ展開。章見出しとシーン区切りに藍の細ルール。ルビは親文字の上付き。3読書テーマ（ライト/セピア/ダーク）は別軸として存続。</p>
+  <p class="wcag">WCAG 本文×背景コントラスト（目安）：ライト #1C1F26/#FBFAF8 ≈ 15:1 ／ セピア #3D3121/#F2E7CE ≈ 10:1 ／ ダーク #C7CDD3/#14171C ≈ 11:1（いずれも AAA 通常文字 7:1 を満たす）</p>
+  <div class="stage">
+
+    <!-- ① ライト（クローム表示）-->
+    <div class="wrap"><span class="mode">ライト ／ クローム表示</span>
+    <div class="phone t-light" role="img" aria-label="D案 読書 ライト クローム表示">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+        <button class="ib" aria-label="表示設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1L16.5 3h-4l-.4 2.6a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1L11.5 21h4l.4-2.6a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5a7 7 0 0 0 .1-1z"/></svg></button>
+      </div>
+      <div class="reader">
+        <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
+        <div class="block"><div class="lbl">前書き</div><p>お読みいただきありがとうございます。今回は少し長めの戦闘回になりました。次話は<ruby>後日談<rt>ごじつだん</rt></ruby>を挟みます。</p></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <div class="blank"></div><hr><div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前の章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <button class="mid" aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg></button>
+        <button aria-label="次の章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+      </div>
+    </div></div>
+
+    <!-- ② セピア（クローム表示）-->
+    <div class="wrap"><span class="mode">セピア ／ クローム表示</span>
+    <div class="phone t-sepia" role="img" aria-label="D案 読書 セピア クローム表示">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+        <button class="ib" aria-label="表示設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1L16.5 3h-4l-.4 2.6a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1L11.5 21h4l.4-2.6a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5a7 7 0 0 0 .1-1z"/></svg></button>
+      </div>
+      <div class="reader">
+        <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
+        <div class="block"><div class="lbl">前書き</div><p>お読みいただきありがとうございます。今回は少し長めの戦闘回になりました。次話は<ruby>後日談<rt>ごじつだん</rt></ruby>を挟みます。</p></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <div class="blank"></div><hr><div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前の章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <button class="mid" aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg></button>
+        <button aria-label="次の章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+      </div>
+    </div></div>
+
+    <!-- ③ ダーク（没入＝クローム非表示）-->
+    <div class="wrap"><span class="mode">ダーク ／ 没入（バー非表示）</span>
+    <div class="phone t-dark immersive" role="img" aria-label="D案 読書 ダーク 没入">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <div class="blank"></div><hr><div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+      </div>
+      <div class="hint">画面中央タップでバー表示</div>
+    </div></div>
+
+  </div>
+</body>
+</html>

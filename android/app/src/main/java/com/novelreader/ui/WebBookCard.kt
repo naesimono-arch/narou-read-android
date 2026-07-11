@@ -1,7 +1,6 @@
 package com.novelreader.ui
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -10,7 +9,6 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
@@ -27,8 +25,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.data.WebNovelEntity
-import com.novelreader.ui.components.BookCover
+import com.novelreader.ui.components.ShioriCover
+import com.novelreader.ui.components.shioriAccentFor
+import com.novelreader.ui.components.shioriHue
+import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.MotionSpringCard
 
 // ============================================================
 // WebGridBookCard / WebListBookCard
@@ -57,7 +59,7 @@ fun WebGridBookCard(
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.96f else 1.0f,
-        animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
+        animationSpec = MotionSpringCard,
         label = "webGridCardScale",
     )
 
@@ -71,39 +73,21 @@ fun WebGridBookCard(
                 onLongClick = { menuExpanded = true },
             ),
     ) {
-        // 書影（縦横比 2:3・角丸2px・下部に明朝タイトル焼き込み）
-        // なぜ ruleColor に secondary を渡すか: (b) Web由来・未取込カードはモック正本で縦ルールが青磁（#9CB3A8 相当、colorScheme.secondary）のため。
+        // 書影＝栞（紙地＋色の棒＋先端＋表紙内の縦組み明朝題字）。縦横比 2:3・角丸2px。
+        // なぜ Web由来カードも栞にするか: 整合ルール「1冊=1色相」（正本 consistency-D）で書架の全書影を
+        // 栞に統一する。未取込の署名は accent の上書き（モードA）ではなく、棒／帯は通常の題字由来色のまま
+        // カード下の「なろう・未取込」青磁テキストで行う（モードB＝正本 UNTAKEN_MODE 既定）。
         Box(modifier = Modifier.fillMaxWidth()) {
-            BookCover(
-                bookId = novel.ncode,
+            ShioriCover(
                 title = novel.title,
-                showTitle = true,
-                ruleColor = MaterialTheme.colorScheme.secondary,
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(2f / 3f)
                     .clip(RoundedCornerShape(2.dp)),
             )
 
-            // 操作メニュー用 ⋮ ボタン
+            // 操作メニューのアンカー（可視の⋮は持たず長押しで開く。栞モックはフラット構図＝⋮無し）。
             Box(modifier = Modifier.align(Alignment.TopEnd)) {
-                IconButton(
-                    onClick = { menuExpanded = true },
-                    modifier = Modifier
-                        .padding(6.dp)
-                        .size(30.dp)
-                        .background(
-                            color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f),
-                            shape = CircleShape,
-                        ),
-                ) {
-                    Icon(
-                        Icons.Filled.MoreVert,
-                        contentDescription = "メニュー",
-                        tint = androidx.compose.ui.graphics.Color.White,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
                 WebBookDropdownMenu(
                     expanded = menuExpanded,
                     onDismiss = { menuExpanded = false },
@@ -168,7 +152,7 @@ fun WebListBookCard(
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.98f else 1.0f,
-        animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
+        animationSpec = MotionSpringCard,
         label = "webListCardScale",
     )
 
@@ -187,15 +171,17 @@ fun WebListBookCard(
                 .padding(top = 16.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 左端の色帯（本の小口メタファ）。未取込＝青磁（colorScheme.secondary）。
-            // なぜ青磁か: (b) Web由来・未取込カードはモック正本で青磁が『未取込』の視覚署名。
-            // 書影版の「青磁の縦ルール」を、文字目録では左端の青磁色帯へ引き継ぐ。
+            // 左端の色帯（本の小口メタファ）。整合ルール「1冊=1色相」で書架の栞と同じ title 由来 accent に一本化。
+            // なぜ青磁でなく題字由来色か: 未取込署名はモードB（accent 上書きをせず、下の「なろう・未取込」青磁
+            // テキストで署名する）＝正本 consistency-D 既定。帯自体は取込済み蔵書と同じ色相ルールで揃える。
+            val surface = MaterialTheme.colorScheme.surface
+            val barColor = remember(novel.title, surface) { shioriAccentFor(shioriHue(novel.title), surface) }
             Box(
                 modifier = Modifier
                     .width(4.dp)
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(2.dp))
-                    .background(MaterialTheme.colorScheme.secondary),
+                    .background(barColor),
             )
             Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -258,10 +244,10 @@ fun WebListBookCard(
                 )
             }
         }
-        // 行下のヘアライン区切り（モック .li の border-bottom 1px、BookCard.kt と共通）
+        // 行下のヘアライン区切り（モック .li の border-bottom 1px、BookCard.kt と共通・本棚系 --hl）
         HorizontalDivider(
             thickness = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant,
+            color = LocalShelfColors.current.hairline,
         )
     }
 }

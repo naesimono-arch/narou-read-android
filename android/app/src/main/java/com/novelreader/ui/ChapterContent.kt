@@ -183,12 +183,13 @@ private fun ChapterHeader(
         )
         Spacer(Modifier.height(15.dp))
         // 藍の短いルール（48dp×2dp）。モック .chap-h .rule（--rule 藍 opacity .85）。
-        // colors.hr は素地に溶けた淡い区切り用のため、見出しには濃い藍 colors.accent を使う。
+        // colors.hr は素地に溶けた淡い区切り用のため使わない。--rule 専用の colors.rule を使う。
+        // なぜ accent でなく rule か: DARK では --rule #5E7E9C ≠ accent #6E96B8 で乖離するため。
         Box(
             modifier = Modifier
                 .width(48.dp)
                 .height(2.dp)
-                .background(colors.accent.copy(alpha = 0.85f)),
+                .background(colors.rule.copy(alpha = 0.85f)),
         )
     }
 }

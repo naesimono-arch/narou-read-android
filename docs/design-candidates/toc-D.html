@@ -1,0 +1,86 @@
+<!-- @dsCard group="UI-n / 目次（D詰め）" name="D. 和モダン・余白 — 目次（現在章＝左藍ルール＋淡背景＋明朝太字／空状態）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n D 目次 — 和モダン余白</title>
+<style>
+  /* D案 目次: 本棚D／読書Dと同一の視覚言語（寒色白×藍ヘアライン×明朝・余白主導）。
+     現在章は「行頭の左藍ルール＋淡い藍面＋明朝太字＋藍文字」で一目で分かるようにする
+     （実機 NativeTableOfContentsScreen の左アクセントバー＋淡背景＋太字に対応）。
+     章間はDのヘアライン区切り。3テーマのうち代表してライトを提示（セピア/ダークは色面差し替え）。 */
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;--seiji:#9CB3A8;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;
+    padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.6;max-width:720px}
+  .cap b{color:#2A2C28}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#6A6C67}
+  .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column}
+  .sb{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--soft)}
+  .topbar{height:52px;display:flex;align-items:center;gap:6px;padding:0 12px;border-bottom:1px solid var(--line)}
+  .topbar .ib{width:40px;height:40px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--ink);cursor:pointer}
+  .topbar .ib svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar h1{font-family:var(--mincho);font-size:18px;color:var(--ink);font-weight:500;letter-spacing:.12em}
+  .scroll{flex:1;overflow:auto}
+  /* 章行: 余白主導。左に4pxのルール領域（現在章のみ藍／他は透明＝テキスト開始位置を揃える） */
+  .li{display:flex;align-items:stretch;border-bottom:1px solid var(--line);cursor:pointer}
+  .li .bar{width:4px;flex-shrink:0;background:transparent}
+  .li .tx{flex:1;min-width:0;font-family:var(--mincho);font-size:15px;color:var(--ink);
+    padding:16px 22px;line-height:1.5;font-weight:400}
+  .li.cur{background:rgba(28,61,90,.06)}          /* 現在章＝淡い藍面 */
+  .li.cur .bar{background:var(--ai)}              /* 現在章＝左藍ルール */
+  .li.cur .tx{color:var(--ai);font-weight:700}   /* 現在章＝藍文字＋明朝太字 */
+  .empty{flex:1;display:grid;place-items:center;color:var(--soft);font-family:var(--mincho);font-size:15px}
+  .pad{height:24px}
+</style>
+</head>
+<body>
+  <p class="cap"><b>D. 和モダン・余白 — 目次</b> ／ 寒色白×藍ヘアライン×明朝・余白主導。現在章は「左の藍ルール＋淡い藍面＋明朝太字＋藍文字」で示す。章間はヘアライン区切り。右は空状態。</p>
+  <div class="stage">
+
+    <!-- 通常（現在章ハイライト＋自動スクロールで現在章の1つ手前を先頭に）-->
+    <div class="wrap"><span class="mode">通常（現在章ハイライト）</span>
+    <div class="phone" role="img" aria-label="D案 目次">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <h1>目次</h1>
+      </div>
+      <div class="scroll">
+        <div class="li"><span class="bar"></span><span class="tx">第百二十四話　遠雷、辺境の街道を行く</span></div>
+        <div class="li"><span class="bar"></span><span class="tx">第百二十五話　古い井戸と、忘れられた約束</span></div>
+        <div class="li"><span class="bar"></span><span class="tx">第百二十六話　夜営の火、語られぬ過去のこと</span></div>
+        <div class="li cur"><span class="bar"></span><span class="tx">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</span></div>
+        <div class="li"><span class="bar"></span><span class="tx">第百二十八話　市場のざわめきと、薬草の値段</span></div>
+        <div class="li"><span class="bar"></span><span class="tx">第百二十九話　領主の館へ、招かれざる客として</span></div>
+        <div class="li"><span class="bar"></span><span class="tx">第百三十話　長い夜の終わりに交わした言葉</span></div>
+        <div class="li"><span class="bar"></span><span class="tx">第百三十一話　旅立ちの朝、薬箱を背負って</span></div>
+        <div class="li"><span class="bar"></span><span class="tx">第百三十二話　峠の茶屋、見知らぬ剣士との出会い</span></div>
+        <div class="pad"></div>
+      </div>
+    </div></div>
+
+    <!-- 空状態 -->
+    <div class="wrap"><span class="mode">空状態</span>
+    <div class="phone" role="img" aria-label="D案 目次 空状態">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <h1>目次</h1>
+      </div>
+      <div class="scroll"><div class="empty">章が見つかりません</div></div>
+    </div></div>
+
+  </div>
+</body>
+</html>

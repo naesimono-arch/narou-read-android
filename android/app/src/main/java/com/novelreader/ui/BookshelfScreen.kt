@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -55,6 +56,7 @@ import com.novelreader.data.WebNovelEntity
 import com.novelreader.model.BookId
 import com.novelreader.ui.discovery.FilterChipItem
 import com.novelreader.narou.model.NarouNovel
+import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfUiState
@@ -601,7 +603,6 @@ internal fun BookshelfContent(
                                 totalChaps = chapterCountMap[item.book.id] ?: 0,
                                 onOpen = { onOpenBook(item.book) },
                                 onDelete = { bookToDeleteId = item.book.id },
-                                deleteUiMode = deleteUiMode,
                                 // 削除時の詰め直しアニメ。旧animateItemPlacementはFoundation1.6系で高速フリング中に
                                 // カバーが画面外の古い位置から補間され重なる既知不具合があり一時撤去していたが、
                                 // BOM 2025.02.00(Foundation 1.7系)でstable化したanimateItem()に置き換えて復活（案B）。
@@ -787,8 +788,15 @@ private fun FindGuideBand(
             text = "新しい物語を見つける",
             fontSize = 12.5.sp,
             color = MaterialTheme.colorScheme.onSurface,
+            // フォントスケール拡大時の窮屈対策（2026-07-08 実機所見）: weight(1f) の文字箱は
+            // シェブロンの縁まで届くため、拡大で字面が右端アイコンに密着して見えた。
+            // 1行固定＋末尾省略で高さ崩れも防ぐ（帯は導線であり全文可読が必須の文言ではない）。
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        // 拡大時もテキストとシェブロンの間に最低8dpの呼吸を確保（先頭アイコン側と対称）
+        Spacer(Modifier.width(8.dp))
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
@@ -811,7 +819,7 @@ private fun BookshelfSkeleton(
 ) {
     // プレースホルダの塗り（トークン経由・直書き回避）。書影は少し濃く、文字行は薄く。
     val blockColor = MaterialTheme.colorScheme.surfaceVariant
-    val lineColor = MaterialTheme.colorScheme.outlineVariant
+    val lineColor = LocalShelfColors.current.hairline   // 本棚系 --hl
 
     if (isGridView) {
         // グリッド: 実カードと同じ左右24dp・列間20dp・行間26dp。3行ぶん(6枚)出す。

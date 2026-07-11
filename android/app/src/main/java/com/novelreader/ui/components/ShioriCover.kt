@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import com.novelreader.ui.theme.BackgroundSepia
 import com.novelreader.ui.theme.ShioriCoverInkDark
 import com.novelreader.ui.theme.ShioriCoverPaperDark
 import kotlin.math.PI
@@ -229,6 +230,28 @@ internal val SHIORI_TIPS: List<ShioriTip> = listOf(
 )
 
 /**
+ * 栞アクセント色の共有ヘルパー（純関数）。書架の栞の棒／先端色と、目録リストの左端色帯を
+ * この1関数へ集約し「同じ本＝同じ色相・同じ明度」を書架⇔目録で保証する（整合の要）。
+ *
+ * 明度はテーマ3値（正本 consistency-D の THEMES.accL）: ライト L=0.52／セピア L=0.48／ダーク L=0.62。
+ * 彩度 S=0.48 固定。
+ *
+ * なぜ surface からテーマを判定するか: 純関数ゆえ colorScheme を直接持てず、呼び出し側が渡す surface で
+ * 識別する。セピア判定に `surface == BackgroundSepia` を使う理由: SepiaColorScheme は
+ * LightColorScheme.copy(...) で作られ、surface だけがセピア固有値(#F2E7CE)を持つ唯一確実な識別子だから
+ * （他トークンはライトと共有され得るため surface 以外では判別できない）。ダーク判定は既存 ShioriCover と
+ * 同じく luminance()<0.5 を維持する。
+ */
+internal fun shioriAccentFor(hue: Int, surface: Color): Color {
+    val l = when {
+        surface == BackgroundSepia -> 0.48f
+        surface.luminance() < 0.5f -> 0.62f
+        else -> 0.52f
+    }
+    return hslToColor(hue.toFloat(), 0.48f, l)
+}
+
+/**
  * 栞書影。title から決定論生成した「棒＋先端＋縦組み明朝題字」を紙地に描く。
  *
  * @param accentOverride 識別色を差し替える（Web由来・未取込カードの青磁署名など・将来用）。null=title 生成色。
@@ -246,9 +269,10 @@ internal fun ShioriCover(
     val paper = if (isDark) ShioriCoverPaperDark else cs.surface
     val ink = if (isDark) ShioriCoverInkDark else cs.onSurface
     val params = remember(title) { shioriParams(title, SHIORI_TIPS.size) }
-    // 棒・先端の識別色＝生成色（トークンでなく HSL 計算＝coverBarColor と同流儀）。S48・L 52(light)/62(dark)。
-    val computedAccent = remember(params.hue, isDark) {
-        hslToColor(params.hue.toFloat(), 0.48f, if (isDark) 0.62f else 0.52f)
+    // 棒・先端の識別色＝生成色。共有ヘルパー shioriAccentFor に集約し、目録リストの色帯と同一色にする
+    // （S=0.48・L はライト0.52/セピア0.48/ダーク0.62＝surface からテーマ判定）。
+    val computedAccent = remember(params.hue, cs.surface) {
+        shioriAccentFor(params.hue, cs.surface)
     }
     val accent = accentOverride ?: computedAccent
     // 内枠（正本の 5% 罫）＝紙のふちを微かに締める。
