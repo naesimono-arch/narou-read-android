@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -40,6 +41,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -78,7 +80,13 @@ fun SearchConditionSheet(
     // ②カスタム入力でIMEが出て adjustResize によりウィンドウが縮むと、アンカー再計算で全開から
     // 中間へ勝手に settle して「最上位まで開いたシートが真ん中まで落ちる」不具合になるため。
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // why: 内容が長くシートが画面いっぱいまで伸びると「全画面ダイアログ」に見え、ボトムシートの
+    // 文脈（裏に検索画面が居る）が消える。意匠正本 discovery-search-D.html の .sheet は
+    // max-height:85% を明示しており、その追従として上限を85%に制限する（それ未満の内容なら wrap のまま）。
+    // screenHeightDp はシステムバー除きの概算だが、モックの%指定に対する翻訳として十分。
+    val sheetMaxHeight = (LocalConfiguration.current.screenHeightDp * 0.85f).dp
     ModalBottomSheet(
+        modifier = Modifier.heightIn(max = sheetMaxHeight),
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.background,
