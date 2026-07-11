@@ -61,6 +61,37 @@
 
 - ~~`NativeReadingScreen`（892行）の route/Content 分割~~ → **実装済み・実機目視のみ残**（2026-07-11 `0221126`＝系統1完遂。`ChapterScreen`(route)→`ChapterScreenContent`(stateless) の in-file 純移動分割・副作用〔スクロール保存/ON_STOP flush/没入ヒント/Custom Tabs 再入ガード〕は全て route 残置・effect キー/Saveable キー文字列不変・JVM緑＝STATUS §1）。**残タスク＝実機目視スモーク7項目**（分割の回帰面）: ①没入クローム出入り（スクロール退避・中央タップトグル・スナップ）②クロームヒントピル（通算初回のみ・約2.6秒で自動消灯）③Custom Tabs 再入ガード（最終章で「続きを読む」「作品ページ」連打・交互連打でも1枚のみ・着地URL正）④なろう紐付けシート（開いた瞬間の書名自動検索・回転/Activity破棄で開いたまま維持）⑤表示設定シート（スライダーの本文ライブ追従・回転で維持）⑥navHistory/Back（章⇄目次往復後に1段ずつ遡行→本棚・目次経由で読書位置が壊れない）⑦スクロール位置保存（章中腹→home→復帰で同位置）。**次の実機検証便（v16→v17 migration・機能②）と同便で消化するのが効率的**。
 - ~~`saveScrollPosition(bookId, filename)` 等の String 連続の型付け~~ → **解消済み**（2026-07-11 `013b06a`＝`BookId`/`ChapterFilename` value class 新設（`model/BookIdentifiers.kt`・Ncode と同じ素通し方針）で saveProgress/saveScrollPosition/linkNcode/getLastRead/getProgress を Repository/VM/UI 貫通で型付け。Room Entity/DAO・Map キー・nav ルート文字列は String 維持＝境界 `.value` unwrap（線引きの why は BookIdentifiers.kt の KDoc）＝STATUS §1）。
+### コード健全性監査の指摘（2026-07-11・`refactor/tech-debt` で6観点並列監査・挙動バグ3件は反証専門エージェントで CONFIRMED 済み）
+
+> 監査体制: 観点別6エージェント（並行処理/エラー処理/Room/デッドコード/Compose/API・テスト）＋描画性能2＋検索画面深掘り1＋敵対的検証3。**クリーン確認済みの面**: デッドコード・撤去残骸ゼロ（TODO/FIXME 0件・未使用リソース/依存なし・ラベル/Chaquopy 残骸なし）・直近リファクタ4コミット退行なし・読書画面の描画設計は高水準（ルビ=1段落1BasicText+Canvasオーバーレイ・バー退避=graphicsLayerラムダ・スクロール観測=snapshotFlow・パース/AnnotatedString/TextStyle は remember 済み＝「ルビ数万ノード」「フォント変更で全文再パース」は不発生）。
+
+**確定バグ（検証CONFIRMED・修正推奨順）**
+
+- **[クラッシュ経路] 検索履歴 DataStore の IOException 未処理**: `narou/SearchHistoryStore.kt:93`（読み Flow）と `update()`（`dataStore.edit` 書き込み）に `.catch` 無し・`corruptionHandler` 未指定（CorruptionException すら救われない）。破損/ディスクエラー時に `DiscoveryViewModel.kt:394` の `stateIn` 共有コルーチン（viewModelScope・handler 無し）で未捕捉→**アプリクラッシュ**。検索履歴という非クリティカル機能の割に合わない。修正: ストア側に公式推奨 `.catch { if (it is IOException) emit(emptyPreferences()) else throw it }`＋書き込み側の IOException 許容（数行で完結）。
+- **[レース] pending_jobs 記帳の直列化が実は不成立**: `NovelReaderApplication.kt:51` の `limitedParallelism(1)` は、`addPendingJob`/`clearPendingJobs`（`DefaultBookRepository.kt:256,270`）冒頭の `withContext(Dispatchers.IO)` 再ディスパッチでスロットを手放すため **DB 着地順を保証しない**（設計コメントの根拠が coroutine 意味論として不成立）。「PDF投入直後に停止→停止済みジョブが pending_jobs に生存→次回起動の `runStartupRecoveryOnce` が勝手に再開」の窓が理論上残る。現状事故らないのは `resolveDisplayName` の先行実行と `getAll` ゲーティングという**偶発要因**（設計意図でない）。修正: Mutex か DAO トランザクションで排他し `limitedParallelism` 依存を撤去。
+- **[FGS] onTimeout 後の旧ループ finally が新ループを道連れ**: `PdfProcessingService.kt:270-295` の finally に「自分のキャンセル」と「新ループの稼働」を区別する世代/scope ガードが無い。dataSync 6時間タイムアウト（`onTimeout`＝scope 再生成+`isLoopRunning=false`。この経路のみ旧ループ生存と同時成立）直後に取り込み再投入されると、遅延死した旧ループの finally が新ループの `isLoopRunning` を潰し無引数 `stopSelf()` でサービスごと停止（pending_jobs リカバリで次回起動時に再開はされる＝実害は「開始した取り込みが理由なく消える」）。低頻度だが論理欠陥は実在。修正: 世代カウンタ or scope 照合を finally 条件へ。
+
+**検索画面の重さ（ユーザー実体感あり・診断確定）**
+
+- 正体＝「**カテゴリ展開状態での操作毎の全画面再コンポーズ**」（既定の全畳みは軽い＝「重いときがある」と整合）。キーワード22カテゴリ/115チップが非 Lazy Column（`DiscoverySearchScreen.kt:203-207`）上にあり、`SearchDraft` が Set 内包で unstable＋strong skipping 無効のため**毎キーストローク最大115チップ全再コンポーズ**、さらに選択判定 `containsWordToken` がチップ毎に Regex 再コンパイル（`SearchDraft.kt:223-224`・メモ化なし）。展開状態は rememberSaveable 保存→全展開のまま再訪すると**初回オープンから重い**第二経路。アニメ・履歴 DataStore・キーワード定義構築はシロ。
+- 修正順: **S1** 選択判定を `remember(draft.word)` の Set 化＋Regex をトップレベル定数化（小・即効）→ **S2** compose compiler `experimentalStrongSkipping=true`＋`SearchDraft`/`SearchFilters` へ `@Immutable`（小〜中・操作毎の本命。条件シート約30チップ・本棚カードの skip 不能にも同時に効く全体波及の一手）→ **S3** 外側を LazyColumn 化（中・画面外チップの存在コストと全展開再訪の初回構成。S1/S2 の実機体感を見てから判断可）。
+
+**描画/ビルドの軽量化（読書画面以外）**
+
+- **R8/リソース収縮が無効**（`android/app/build.gradle:22-25` `minifyEnabled false`・`shrinkResources` 無し）: 有効化が**単独最大の軽量化レバー**（APK 24MiB の dead code/未使用リソース分）。Moshi/Room は codegen/KSP で keep は軽微見込みだが PDFBox/Retrofit/OkHttp の keep 確認＋実機回帰（`/device-verify`・収縮起因クラッシュはリリースでしか出ない）必須。
+- ルビ描画パスの Paint×2 再生成＋`calculateRubyPositions` 再計算（`RubyText.kt:82-122`）: 章オープン/設定変更毎に可視段落分実行（行またぎは BreakIterator まで）。Paint の remember 化＋位置計算のレイアウト結果キーキャッシュで削減。効果中。
+- 小粒: `components/BookCover.kt:103-107` Brush 生成が remember 外（1行修正）／段落 TextStyle（`ChapterContent.kt:168`）を LazyColumn 外へ集約／`ChapterContent.kt:94`・`NativeTableOfContentsScreen.kt:212`・`NcodeLinkSheet.kt:260` の LazyColumn key/contentType 未指定（純パフォーマンス・状態破壊なし）。
+
+**その他（中〜低）**
+
+- `deleteBook` 非トランザクション（`DefaultBookRepository.kt:344-350`）: books 削除と progress 削除の間で kill されると孤児 progress 行が恒久残留（掃除経路なし・実害は不可視 dead data）。トランザクション化。
+- **Web読書位置の ncode 正規化がテスト不能**: `recordWebReadingEpisode`/`getWebReadingProgress`（`DefaultBookRepository.kt:70-81`）の `trim().uppercase()` は「続きから」空振り防止の load-bearing ロジックだが、`webReadingProgressDao` が BookRepositoryTest のコンストラクタ注入対象外で現状テスト不能＝参照側（`ShelfItems.kt:58`）との正規化ズレをサイレントに許す。DAO 注入化＋往復一致の回帰テスト追加。
+- `web_reading_progress` に prune/削除経路が皆無（upsert のみの単調増加。`removeWebNovel`/`deleteBook` とも触れず、new_episode_marks の日次 `pruneExcept` と非対称）。個人スケールでは無害だが設計の穴として記録。
+- `novelDetailsBulk` が紐付け501件超で API の lim 上限（500）を超え、501件目以降の新着が**沈黙欠落**（`NewEpisodeCheckWorker.kt:56`+`NovelApiRepository.kt:366-380`・現実には稀）。チャンク分割。
+- OkHttpClient がタイムアウト既定依存（callTimeout 無し・`NarouNetwork.kt:24-26`/`PdfImportViewModel.kt:110`）。低速だが途切れない DL は無制限継続しうる。
+- MigrationTest が「16.json 形状（web_reading_progress 無し）→17」経路を構造的に検証できない（chain テストは 14→15 でテーブルが生まれる系譜のみ通過）。既知の実機 v16→v17 未検証と同根の coverage-hole として記録。
+- `AndroidManifest.xml:11` INTERNET permission コメント「本文取得はしない」が WebView 実表示（機能②）導入後の実態と微不整合（permission 自体は正当・文言のみ）。
+
 - **worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す運用**: Lint コミットゲート（`check_lint_on_commit.py`）は drvfs でスキップされる設計＝canonical 作業が続く限り事実上無効。ext4 worktree なら in-tree で回るので冒頭で1回スイープする（直近スイープ＝2026-07-11・0 errors/26 warnings＝+5 は全て `GradleDependency` の上流版ズレノイズで新規実質指摘なし。前回=2026-07-08・0/21）。
 
 ## workflow / tooling
