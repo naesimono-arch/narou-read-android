@@ -695,7 +695,12 @@ private fun HistoryChip(
             text = word,
             fontSize = 12.sp,
             color = MaterialTheme.colorScheme.onSurface,
+            // 長文履歴が weight 無しだと行全幅を占有し末尾の×を幅0へ押し出してタップ不能になるため、
+            // テキスト側を weight で縮退させて×の幅を先に確保する（fill=false で短語チップは従来幅のまま）。
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier
+                .weight(1f, fill = false)
                 .clickable(onClick = onWordClick)
                 .padding(horizontal = 8.dp, vertical = 7.dp),
         )
