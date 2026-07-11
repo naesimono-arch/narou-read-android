@@ -220,8 +220,13 @@ fun SearchDraft.withRangeToggled(range: SearchRange): SearchDraft {
  * 「今どのトークンが選択中か」を UI が列挙する必要がある（選択中キーワードバー）。分割規則は
  * containsWordToken / toggleWordToken と一致させねばならず、規則の二重定義を避けるため両者もこれを介す。
  */
+// なぜトップレベル定数化: この区切り正規表現は wordTokens 呼び出しの度にコンパイルされていた。
+// キーワードチップの選択判定（containsWordToken）は展開カテゴリの最大115チップぶん毎キーストロークで走るため、
+// 呼び出し毎の Regex 再コンパイルが検索画面の再コンポーズ負荷になっていた。パターンは不変なので一度だけコンパイルする。
+private val WORD_TOKEN_SEPARATOR = Regex("[\\s　]+")
+
 fun wordTokens(word: String): List<String> =
-    word.split(Regex("[\\s　]+")).filter { it.isNotEmpty() }
+    word.split(WORD_TOKEN_SEPARATOR).filter { it.isNotEmpty() }
 
 /**
  * 半角・全角スペース区切りのトークン集合として、指定したトークンが含まれているか判定する。

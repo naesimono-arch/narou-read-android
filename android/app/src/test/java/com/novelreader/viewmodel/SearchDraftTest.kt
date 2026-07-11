@@ -178,6 +178,28 @@ class SearchDraftTest {
     }
 
     @Test
+    fun `Set化メンバシップが containsWordToken と全ケースで同値であること`() {
+        // なぜ: DiscoverySearchContent はチップ選択判定を wordTokens(word).toSet() の O(1) メンバシップへ
+        // 置き換えた（Regex 再コンパイル＋線形探索の削減）。従来の containsWordToken（List.contains）と
+        // Set.contains が全ケースで一致することを固定し、パフォーマンス改善が挙動を変えていないことを担保する。
+        val cases = listOf(
+            "aa bb　cc" to "bb",
+            "aa bb　cc" to "dd",
+            "" to "aa",
+            "  aa   bb  " to "aa",
+            "薬師 スローライフ" to "スローライフ",
+            "薬師　スローライフ" to "薬師",
+        )
+        for ((word, token) in cases) {
+            assertEquals(
+                "word=\"$word\" token=\"$token\"",
+                containsWordToken(word, token),
+                wordTokens(word).toSet().contains(token),
+            )
+        }
+    }
+
+    @Test
     fun `toggleWordToken - トークンが正しく追加・除去され、空白が正規化されること`() {
         // 追加: 末尾へ半角スペース区切り
         assertEquals("aa bb", toggleWordToken("aa", "bb"))

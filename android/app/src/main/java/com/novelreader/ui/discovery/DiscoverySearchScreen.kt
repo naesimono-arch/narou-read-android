@@ -61,7 +61,6 @@ import androidx.compose.ui.unit.sp
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.narou.SearchHistory
 import com.novelreader.narou.model.NarouCuratedKeywords
-import com.novelreader.viewmodel.containsWordToken
 import com.novelreader.viewmodel.toggleWordToken
 import com.novelreader.viewmodel.wordTokens
 import com.novelreader.viewmodel.DiscoveryViewModel
@@ -157,6 +156,11 @@ internal fun DiscoverySearchContent(
     // 選択中キーワードは独立 Set ではなく draft.word へ畳み込む方式のため、バー表示のたびに word を
     // トークン列挙する（単一真実源 draft.word から導く派生値＝別 state を持たない）。
     val selectedTokens = wordTokens(draft.word)
+    // なぜ Set をメモ化するか: キーワードチップの選択判定は展開カテゴリで最大115チップぶん行われ、従来は
+    // チップ毎に containsWordToken（word を毎回 split→線形探索）を呼んでいた。draft.word 変化時のみ Set を
+    // 作り直し、判定を Set の O(1) メンバシップにする。判定結果は containsWordToken（＝wordTokens(word).contains）
+    // と同一の分割規則・完全一致メンバシップのため同値。
+    val selectedTokenSet = remember(draft.word) { wordTokens(draft.word).toSet() }
 
     Scaffold(
         topBar = {
@@ -446,7 +450,7 @@ internal fun DiscoverySearchContent(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             category.words.forEach { word ->
-                                val selected = containsWordToken(draft.word, word)
+                                val selected = word in selectedTokenSet
                                 FilterChipItem(
                                     selected = selected,
                                     label = word,
@@ -501,7 +505,7 @@ internal fun DiscoverySearchContent(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 category.words.forEach { word ->
-                                    val selected = containsWordToken(draft.word, word)
+                                    val selected = word in selectedTokenSet
                                     FilterChipItem(
                                         selected = selected,
                                         label = word,
