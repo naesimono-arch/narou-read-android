@@ -20,29 +20,58 @@
 
 ---
 
-## 本棚 書架（グリッド）ビュー — AB3 ＋ G4 動的にじみ表紙（進行中・次セッションで詰める）
+## 本棚 書架（グリッド）ビュー — ③幾何・エディトリアルに決定、構成文法を深掘り中（進行中）
 
-> 2026-07-11 の意匠探索セッションで**方向を確定**、表紙の滲みの細部調整だけが残り。UIの見た目は /design モックが正本（ADR 0005）。現物モック＝`docs/design-candidates/bookshelf-shoka-D.html`。
+> 2026-07-11。**根本思想＝「タイトル駆動の決定論的生成で本ごとに唯一無二＝それ自体を体験にする」**（墨にじみはその一表現にすぎない、というオーナー訂正を反映）。6方向ギャラリー（v2・余白主導へ全面refine）から**③「幾何・エディトリアル」をオーナーが選定**。現在は③の中で**構成文法を6種（Ⓐ一手/Ⓑ対/Ⓒ弧/Ⓓ面Swiss/Ⓔ線/Ⓕ円相）に展開して本命構成を絞り込み中**。UIの見た目は /design モックが正本（ADR 0005）。
 
-**決まったこと**
-- 本棚は目録(リスト)⇄書架(グリッド)の2ビュー（`isGridView`）。目録・検索は確定済みで、今回、未確定だった**書架(グリッド)ビュー**の方向を決めた。
-- 参照イメージ＝**Apple Books ライブラリ**（大表紙サムネが影で浮くクリーンなグリッド）。骨格＝**「2列 大サムネ＋進捗」**。
+**美学の確定事項（③方向）**
+- **現代的なエディトリアル＝余白主導**：外周/ガター/行間を広く、表紙内も"紙の余白に一手だけ置く"構図。クロームは軽く（フィルタ＝枠なしテキスト＋細下線・ピル型ボタン・浅い影・細字/広字間・キッカー）。
+- **ミュートな和トーン**：彩度を低く固定し色相のみ種で振る。要素色は 紙/墨/ミュート和色アクセント の3系。
+- **クリスプ作図**（③はにじみblur不要）＝ `drawCircle/drawArc/drawLine/drawRect` と塗り分けのみ＝最も軽い。
+
+**確定（骨格・思想）**
+- 本棚は目録(リスト)⇄書架(グリッド)の2ビュー（`isGridView`）。目録・検索は確定済み。書架(グリッド)の**骨格**も確定＝**Apple Books ライブラリ風「2列 大サムネ＋進捗」**（大表紙サムネが影で浮くクリーングリッド）。
 - **目録リストと足並みを揃える**：ヘッダー（本棚／表示切替トグル ≣⇄▦／見つける／メニュー）・フィルタチップ（すべて/よみかけ/未読/読了）・FAB（追加）・配色・状態語彙（続き=青磁／進捗%=藍の1px軌道+2px／読了=藍／未取込=青磁）を共通化し、`isGridView` で中身だけ差し替え。**表紙下は著者＋状態のみ**（題名は表紙内で1回＝二度表示しない）。
-- 表紙の"顔"＝**墨にじみ・水彩**。**ライト**（淡い和紙地＋墨題字）／**ダーク**（墨地に `screen` 合成で発光＋生成り題字）両対応。
-- 滲みは**タイトル駆動の動的生成**（決定論的＝同じ本は常に同じ絵／作品ごと一意）。方式は「**端正な墨の型（材料）を種で2〜3個選び、位置・向き・大きさ・色を決めて重ねる**」。※**不採用**＝有機ブロブの手続き生成（輪郭を毎回つくる方式）は“汚い”。
-- 色は**和トーン**（HSLで彩度・明度を固定、色相のみ種で振る）。可読性のため滲みは題字帯（右）を避け、濃度に上限、題字に縁取り。
-- 「装画は捏造しない」は**必須でない**（表紙表現は自由）とオーナー合意。
-- **Compose 移植方針**：`title.hashCode()` を種に `Random(seed)`、`Canvas` の drawPath/drawCircle で同じ型を描き `Modifier.blur()` でにじませる（画像を持たずコード生成＝容量ゼロ・無限バリエ）。
+- **根本思想（不変）**＝表紙は**タイトル駆動の決定論生成**（同じ本は常に同じ絵／作品ごと一意＝唯一無二を"体験"として埋め込む）。実装は `title.hashCode()→Random(seed)→Canvas` 描画（画像を持たず容量ゼロ・無限バリエ）。※有機ブロブの手続き生成（輪郭を毎回つくる方式）は"汚い"ので**不採用**。「装画は捏造しない」は**必須でない**（表紙表現は自由）とオーナー合意。
 
-**保留（次セッションで詰める）**
-- 滲みの**材料の最終セット**（現在15種：円相・塊・飛沫・霞・遠山・たらし込み・三日月・勾玉・波紋・点群・双つ玉・墨溜まり・扇・走り・かすれ雲）の取捨・追加。
-- 選ぶ**個数**（2〜3 or 常に2で静かに）・**濃度**・**色域**（全色相の低彩度 or 藍・青磁・臙脂の和色だけに限定）・**ライト/ダークの塩梅**。
+**未確定（＝いま選定中の本丸）：③の中の"構成文法"を確定する**
+- ③方向は確定。残るは③の下位文法 Ⓐ〜Ⓕ（Ⓐ一手／Ⓑ対／Ⓒ弧の重なり／Ⓓ面Swiss／Ⓔ線／Ⓕ円相）から**本命構成**を選ぶこと（1つでも混成でも可）。
+- 次いで詰める細部：アクセントの色域（現状ミュート和8色相）・線幅・余白量・アクセント彩度・ライト/ダークの塩梅・足したい構成の有無。
 - 固まったら **Compose 翻訳**＝`GridBookCard`（`android/app/src/main/java/com/novelreader/ui/BookCard.kt`）。ADR `docs/decisions/0005-ui-n-visual-language-D.md` とモック現物を先に確認。
 
-**現物・再現**
-- 表紙生成の実装リファレンス（JS・材料15版・「別の蔵書で再生成」ボタン付き）＝`docs/design-candidates/bookshelf-shoka-D.html`（現状 **untracked**＝残すなら要コミット）。`chrome "$(wslpath -w /home/qingj/wt/ui-design-backlog/docs/design-candidates/bookshelf-shoka-D.html)"` で開く。
-- ロジック検証（Node）：`<script>` を抽出して `eval(js + テストコード)` で決定論性・相異性・SVG整形・材料網羅を確認できる（**同一 eval 内でテスト**すること＝eval の `const` は外に漏れない）。
-- 骨格（AB3・目録足並み）の決定稿および探索版 v1〜v5 はセッションの scratchpad にのみ退避＝次セッションでは消えるので、上の「決まったこと」から再構成する。
+**⚠ 正本接地の是正（2026-07-11・重要）**
+- 手書き探索（geo-D 等）は**正本から逸脱していた**（独自ヘッダー・独自フィルタチップ・独自配色）。オーナー指摘「素人判断でなく /design で作れ」を受け、DesignSync で `Novel Reader UI`（projectId `bb5a35c8-70ac-4efa-bb03-1579d3f11d93`）の正本を取得して接地し直した。
+- **判明した正本**：①本棚グリッドの骨格＝`ui-n-phase0/bookshelf-fusion-D.html`（**find-guide帯**＝フィルタチップは存在しない／grid-shelf 2列 gap24-16／続き=青磁ドット+藍/未取込=青磁ルール+青磁文字/進捗=藍）②トークン＝`--base #FBFAF8 / --ink #1C1F26 / --ink-soft #7C808B / --line #ECEAE4 / --ai(藍)#1C3D5A / --seiji(青磁)#9CB3A8`＋明朝/ゴシック③**カバー色域正本**＝`variants/cover.html` のHSL色相環[20,70,140,200,260,330]・S38-58/L46-66（現行アプリのカバーは"HSLグラデ+題字"）。
+- **【現在の進め方】オーナー選択＝「私がブリーフ用意→/design で案を生成」**（2026-07-11）。オーナー評「線細工も"ちゃう"／気取らない・おしゃれ・**ワンポイント**（素の紙に小さな一点だけ）／**実際に /design に案を出させる**」。**私（Claude Code）からは claude.ai/design の生成AIを直接起動できない**（DesignSync はファイル読み書きのみ）→ ブリーフを置いてオーナーがブラウザで /design 実行→出力を DesignSync get_file で取り込み Compose 翻訳、という分業。
+- **設計ブリーフを `Novel Reader UI` へ設置済み＝`ui-n-phase0/_brief-cover-onepoint-D.html`**（DesignSync write_files 完了・ローカル原本 `docs/design-candidates/_brief-cover-onepoint-D.html`）。内容＝狙い/絶対制約(決定論生成)/禁則(べた塗・盤面埋め・凝りすぎ)/トークン/カバー色域/グリッド文脈/アウトプット形式(3〜5案・各6-9冊レンジ)/そのまま貼れる /design プロンプト。
+- **/design が案を生成済み＝`ui-n-phase0/cover-onepoint-D.html`**（5型：A箔/**B栞**/C小口/D蔵書印/E綴じ紐・各9冊レンジ＋ダーク・canvasライブ生成・決定論）。DesignSync get_file で取込済。**オーナー採用＝型B「栞」**（2026-07-11「栞がとてもいい」）。
+- **栞（型B）の生成規則**：天から色の細線1本（`lineWidth 2.5`・長さ=種で 30–62%h・x=左域 0.14–0.38w）＋先端=魚尾(V) か 一粒 を種で分岐。色相=`hash(title)`→色域環[20,70,140,175,200,210,260,330]・`S48/L 52(light)62(dark)`。paper=`#FBFAF8`/`#20232B`(dark)・ink=`#1C1F26`/`#ECE9E2`。`rng=mulberry32(hash(title+"|B"))`。題字=canvas内 縦組み明朝(右列)。
+- **栞を正本fusion-Dの実グリッドに載せた in-situ 確認＝`docs/design-candidates/bookshelf-shiori-grid-D.html`**（栞draw を faithful 移植・2列・題字表紙内・状態下・ライト/ダーク・再生成）。
+- **✅ 意匠 確定（2026-07-11・オーナー「最高です／全部実装でいい／先端は気が向いたら都度増やす」）**：**栞＋先端31種を全採用**。棒（天から色の細線）＋先端ワンポイント（種で1/31）を、色相・長さ・x・先端すべて `hash(title)` 由来の決定論で生成。先端は**配列に1行足すだけで拡張**（"都度増やす"を構造で担保）。
+- **確定した生成規則（正本）**：
+  - 色相＝`mulberry32(hash(title))`→PALETTE`[20,70,140,175,200,210,260,330]`／`S48`・`L 52(light) 62(dark)`。paper `#FBFAF8`/`#20232B`(dark)・ink `#1C1F26`/`#ECE9E2`(dark)。
+  - 配置rng＝`mulberry32(hash(title+"|B"))` から順に x=`0.14–0.36w`、len=`0.30–0.60h`、先端index=`floor(rng()*31)`。棒 `lineWidth 2.5`・上端から len まで。先端は (x,len) 起点に描画。題字＝canvas内 縦組み明朝(右列)。
+  - 先端31種：結び房系[魚尾/一粒/結び玉/二又房/三又房/総角/蝶結び/玉と尾/数珠/括り]／輪幾何系[小輪/二重丸/菱/逆三角/小四角/星/十字/三点/雫/半月/矢尻]／和意匠系[巴/勾玉/鈴/瓢箪/短冊/蔵書印/梅/木の葉/木の実/分銅]。
+- **正本（/design 反映済）**＝`Novel Reader UI` の `ui-n-phase0/bookshelf-shiori-final-D.html`（DesignSync push 済）。ローカル原本＝`docs/design-candidates/bookshelf-shiori-grid-D.html`（fusion-D実グリッド in-situ＋生成レンジ・31先端・Node検証済）。先端カタログ単体＝`docs/design-candidates/shiori-tips-D.html`。/design のプロポーザル5型＝`ui-n-phase0/cover-onepoint-D.html`。
+- **未決（実装前に確認）**：他4型(A箔/C小口/D蔵書印/E綴じ紐)を将来スキン資産として保持するか（ADR 0005 C の A〜J スキン方針と同じ扱い＝保持推奨・今回は栞のみ実装）。
+
+**★次セッション（Compose 実装）起動ブロック**
+- 対象ブランチ：`ui/design-backlog`（この worktree）。**実装は ~10ターン級＝fresh セッション推奨**。
+- 最初に：`/architecture` スキル → `BookCard.kt`（`android/app/src/main/java/com/novelreader/ui/`）の `GridBookCard` 現状（平坦グラデ書影）を Read → ADR 0005・正本 `bookshelf-shiori-final-D.html`（`DesignSync get_file` か上記ローカル原本）を確認。
+- やること：GridBookCard の書影を栞生成へ置換。Compose `Canvas` に上の規則を移植（`drawLine`＝棒／先端は `drawPath`/`drawArc`/`drawCircle`／`Modifier` blur不要）。乱数は `title.hashCode()` 種の `kotlin.random.Random` か FNV-1a 移植（HTMLと同一系列にする必要はない＝"同じ本は同じ絵"が満たせればよい）。先端は `List<DrawScope.(x,len,accent)->Unit>` 等で拡張可能に。色は `Color.kt` 経由（藍/青磁は状態色）・明朝は `Typography.kt` の MinchoFamily。
+- 検証ゲート：`cd android && ./gradlew testDebugUnitTest`（`~/wt` は ext4 なので init-script 不要・素の `gw`）→ 緑を確認 → 実機で栞の見え目視（`/device-verify`）→ オーナー承認 → atomic commit（`git branch --show-current` 確認・Co-Authored-By 無し）。
+- 正本からの意図的変更（グリッド反映時に再確認）：①題字は表紙内1度（正本fusion-Dは二重）②装飾の藍ルール廃止。
+- 私の手書き探索（線細工16種＝`docs/design-candidates/bookshelf-cover-D.html`・べた塗全廃版）は**参考記録として保持**（正本ではない・/design 案が本命）。「べた塗は品が無い」「作図で盤面を埋めるのは気取る」という**禁則の実証**として価値。
+- 旧 `bookshelf-grid-gen-D.html`（fusion-D 骨格に旧べた塗エンジンを載せたフル画面翻訳）は**削除**。表紙の絵が固まったら、**正本 fusion-D の書架グリッドへ表紙だけ戻す**（骨格＝find-guide帯/grid-shelf 2列 gap24-16、状態語彙は正本どおり／grid翻訳は fusion-D＋本エンジンで再構成可）。
+- **正本からの意図的変更（未承認・要オーナー判断／グリッドへ戻す時に再確認）**：①題字は表紙内で1度のみ（正本は表紙内+下の二重）②装飾の藍ルール廃止（生成表紙が識別子・藍/青磁は状態色として維持）。確定後 `Novel Reader UI` へ push → Compose 翻訳。
+- **教訓**：UIの見た目を触る前に**まず DesignSync で正本を get_file して接地**（CLAUDE.md「/design が正本」）。repo 内の手書きモックは正本ではない。
+
+**現物・再現（旧・探索の記録）**
+- ③深掘りギャラリー（幾何6文法 Ⓐ〜Ⓕ・独自骨格＝正本逸脱あり）＝`docs/design-candidates/bookshelf-geo-D.html`（**untracked**）。方向③の構成文法の探索記録として保持（骨格は上の正本準拠版が正）。
+- 方向選定の記録（6方向メニュー v2・余白主導）＝`docs/design-candidates/bookshelf-generative-directions-D.html`（**untracked**）。①墨〜⑥地平の6方向を並べ③を選んだ経緯。
+- 墨にじみ単体の実装リファレンス（材料15版・旧①の詳細）＝`docs/design-candidates/bookshelf-shoka-D.html`（**untracked**）。
+- ロジック検証（Node）：`<script>` を `let dark=false` 手前まで抽出し `eval(js + テストコード)` で決定論性・構造・数値・バリエを確認（**同一 eval 内でテスト**＝const が外に漏れない）。
+- 骨格（AB3・目録足並み）の決定稿はセッション scratchpad にのみ退避＝次セッションでは消えるので、上の「確定/美学」から再構成する。geo/v2 の phone クロームが最新の骨格実装を内包。
 
 **再開プロンプト（次セッション冒頭に貼る）**
 ```

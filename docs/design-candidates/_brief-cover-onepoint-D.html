@@ -1,0 +1,129 @@
+<!-- @dsCard group="UI-n / 本棚（書架・グリッド）" name="【ブリーフ】生成表紙の意匠 ― 気取らない・おしゃれ・ワンポイント（決定論生成／/design 向け設計指示）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ブリーフ：生成表紙 ワンポイント意匠</title>
+<style>
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;--seiji:#9CB3A8;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#F3F1EA;color:#2A2C30;font-family:var(--gothic);line-height:1.9;-webkit-font-smoothing:antialiased;padding:44px 26px 80px}
+  .doc{max-width:820px;margin:0 auto}
+  .kicker{font-size:11px;letter-spacing:.3em;color:#8a7f6e;text-transform:uppercase;font-weight:600}
+  h1{font-family:var(--mincho);font-size:26px;font-weight:600;letter-spacing:.05em;margin:10px 0 6px}
+  .lead{font-size:13.5px;color:#4f4d47;margin-bottom:6px}
+  h2{font-family:var(--mincho);font-size:16px;font-weight:600;letter-spacing:.04em;color:var(--ai);margin:30px 0 8px;padding-bottom:6px;border-bottom:1px solid #ddd6ca}
+  p,li{font-size:13px;color:#3f3d38}
+  ul{margin:6px 0 6px 4px;list-style:none}
+  li{padding-left:18px;position:relative;margin:4px 0}
+  li::before{content:"—";position:absolute;left:0;color:var(--seiji)}
+  b{color:#1f2126}
+  .must{background:#e9eef2;border-left:3px solid var(--ai);padding:12px 16px;margin:8px 0;font-size:13px}
+  .ng{background:#f3ece9;border-left:3px solid #a1573f;padding:12px 16px;margin:8px 0;font-size:13px}
+  .ng b{color:#8a4632}
+  code{font-family:SFMono-Regular,Consolas,monospace;font-size:12px;background:#e5e0d6;padding:1px 6px;border-radius:3px}
+  .swatches{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+  .sw{width:96px}
+  .sw .chip{height:54px;border-radius:8px;border:1px solid rgba(0,0,0,.08)}
+  .sw .nm{font-size:11px;margin-top:5px;color:#5a5852}
+  .sw .hx{font-family:monospace;font-size:10.5px;color:#8a867c}
+  .wheel{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}
+  .wheel .w{width:44px;height:44px;border-radius:50%;border:1px solid rgba(0,0,0,.08);display:grid;place-items:center;font-size:10px;color:#fff}
+  .prompt{background:#1d2530;color:#e8e6e0;border-radius:12px;padding:18px 20px;font-size:12.5px;line-height:1.85;margin:10px 0;white-space:pre-wrap;font-family:var(--gothic)}
+  .prompt b{color:#9cc4e2}
+  .steps{counter-reset:s;list-style:none;margin-left:0}
+  .steps li{padding-left:30px}
+  .steps li::before{counter-increment:s;content:counter(s);background:var(--ai);color:#fff;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;left:0;top:2px}
+  .note{font-size:11.5px;color:#7c7a72;margin-top:6px}
+</style>
+</head>
+<body>
+<div class="doc">
+  <div class="kicker">Design Brief · Bookshelf Cover</div>
+  <h1>生成表紙の意匠 ― 気取らない・おしゃれ・ワンポイント</h1>
+  <p class="lead">本棚（書架グリッド）で、蔵書ごとに自動生成する表紙の"意匠"を /design で設計するための指示書。</p>
+
+  <h2>1. 狙い（質感）</h2>
+  <ul>
+    <li>なろう系Web小説リーダーの本棚。蔵書ごとに表紙を<b>自動生成</b>し「自分だけの書架」の唯一無二感を体験にする。</li>
+    <li>求める質感＝<b>気取らない・おしゃれ・ワンポイント</b>。上質な素の紙に、<b>小さな一点だけ</b>効いた意匠。長時間眺めても疲れない、静かな現代エディトリアル。</li>
+    <li>盤面の主役は<b>余白</b>。意匠は"効かせどころ"を1つに絞る。</li>
+  </ul>
+
+  <h2>2. 絶対制約 ― これは"1枚絵"でなく"生成規則"の設計</h2>
+  <div class="must">
+    <b>決定論生成</b>：手描きの1枚絵ではなく、<b>タイトルを seed にコードで描く「1つの美しい型＋タイトルで動くパラメータ」</b>を設計してください。<br>
+    ＝<b>同じ本は常に同じ絵／作品ごとに一意</b>。「何が seed で動くか（色相・位置・小さな形・向き・数 等）」を各案で明示すること。
+  </div>
+  <ul>
+    <li><b>Compose(Canvas)で描けること</b>：円・弧・線・矩形・点・低不透明の塗り・テキスト程度のプリミティブで再現可能に留める（複雑なラスター画像・フィルタ多用は不可）。画像を持たない＝容量ゼロ・無限バリエ。</li>
+    <li>題字は<b>表紙内に縦組み明朝で1度</b>（右列）。意匠は右列（題字）を避けて余白を残す。</li>
+    <li>表紙は <b>2:3・角丸2px</b>、影で浮く。小サムネ（<b>幅132px程度</b>）で成立すること。</li>
+  </ul>
+
+  <h2>3. 禁則（避ける）</h2>
+  <div class="ng">
+    <b>べた塗（大きな面塗り）</b>＝安っぽい。／<b>盤面を埋める賑やかな抽象コンポジション</b>。／<b>凝りすぎ・気取った意匠</b>（例：円相のような"アート"に寄せすぎ）。／キャラ絵・写実イラスト（今回のスコープ外）。
+  </div>
+
+  <h2>4. トークン（厳守）</h2>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#1C3D5A"></div><div class="nm">藍 --ai</div><div class="hx">#1C3D5A</div></div>
+    <div class="sw"><div class="chip" style="background:#9CB3A8"></div><div class="nm">青磁 --seiji</div><div class="hx">#9CB3A8</div></div>
+    <div class="sw"><div class="chip" style="background:#FBFAF8"></div><div class="nm">地 --base</div><div class="hx">#FBFAF8</div></div>
+    <div class="sw"><div class="chip" style="background:#ECEAE4"></div><div class="nm">線 --line</div><div class="hx">#ECEAE4</div></div>
+    <div class="sw"><div class="chip" style="background:#1C1F26"></div><div class="nm">墨 --ink</div><div class="hx">#1C1F26</div></div>
+  </div>
+  <ul>
+    <li>タイポ：題字＝<b>明朝（MinchoFamily）</b>／ラベル＝ゴシック。</li>
+    <li><b>カバー色域</b>（<code>variants/cover.html</code> 準拠）＝HSL色相環＋S38–58% / L46–66%。<b>1表紙＝1色相＋墨</b>が基本。</li>
+  </ul>
+  <div class="wheel">
+    <div class="w" style="background:hsl(20 48% 54%)">20</div>
+    <div class="w" style="background:hsl(70 48% 50%)">70</div>
+    <div class="w" style="background:hsl(140 46% 48%)">140</div>
+    <div class="w" style="background:hsl(175 42% 46%)">175</div>
+    <div class="w" style="background:hsl(200 50% 50%)">200</div>
+    <div class="w" style="background:hsl(210 50% 46%)">210藍</div>
+    <div class="w" style="background:hsl(260 47% 56%)">260</div>
+    <div class="w" style="background:hsl(330 49% 56%)">330</div>
+  </div>
+
+  <h2>5. 文脈（グリッド）</h2>
+  <ul>
+    <li>正本 <code>ui-n-phase0/bookshelf-fusion-D.html</code> の <b>grid-shelf（2列）</b>に並ぶ。ライト/ダーク両対応。</li>
+    <li>表紙下の状態語彙：進捗%＝<b>藍の軌道</b>／続き＝<b>青磁ドット＋藍文字</b>／未取込＝<b>青磁</b>。意匠はこの状態色と喧嘩しない（表紙は色相1つに抑える）。</li>
+  </ul>
+
+  <h2>6. お願いするアウトプット</h2>
+  <ul>
+    <li><b>「ワンポイント」の異なる着想を 3〜5案</b>。各案に：①型の思想を一文 ②何が seed で動くか ③ライト/ダーク ④<b>同じ型で6〜9冊ぶんの生成レンジ</b>（唯一無二が伝わるよう並べる）。</li>
+    <li>各案は<b>HTMLモック</b>で（このプロジェクトの作法：先頭に <code>&lt;!-- @dsCard group="…" name="…" --&gt;</code>・self-contained・トークン厳守）。</li>
+    <li><b>ワンポイントの"種"（縛らない・自由に）</b>：箔押し風の小さな四角／隅の細いL字罫／綴じ紐の一結び／蔵書印のような小さな判／一粒の色点／細い一本の栞／小口の色帯 …など"控えめな一点"。</li>
+  </ul>
+
+  <h2>7. 評価軸</h2>
+  <ul>
+    <li>気取らないか（凝りすぎ ×）／おしゃれか（素で上質）／<b>一点に絞れているか</b>／生成レンジで飽きないか／小サムネで成立するか／Composeプリミティブで描けるか。</li>
+  </ul>
+
+  <h2>8. /design で回すとき（そのまま貼れるプロンプト）</h2>
+  <div class="prompt"><b>#</b> 依頼：本棚の「生成表紙」の意匠を 3〜5 案。
+気取らない・おしゃれ・<b>ワンポイント</b>（素の上質な紙に小さな一点だけ）。
+これは1枚絵でなく<b>決定論生成の規則</b>＝「1つの型＋タイトルseedで動くパラメータ」を設計して。同じ本＝同じ絵／作品ごと一意。
+Compose(Canvas)のプリミティブ（円/弧/線/矩形/点/低不透明塗り/テキスト）で描ける範囲に。
+トークン厳守：藍 #1C3D5A・青磁 #9CB3A8・地 #FBFAF8・墨 #1C1F26・題字=明朝。カバー色域=HSL色相環 S38-58/L46-66、1表紙1色相+墨。
+表紙 2:3・角丸2px・幅132pxサムネで成立。題字は表紙内 縦組み明朝で1度・右列は空ける。
+<b>禁則</b>：べた塗（大面塗り）、盤面を埋める抽象、凝りすぎ/気取った意匠（円相など）、キャラ絵。
+各案：①型の思想1文 ②seedで動く要素 ③ライト/ダーク ④同型で6-9冊の生成レンジ。HTMLモックで（先頭@dsCard・self-contained）。
+この指示書＝ <b>ui-n-phase0/_brief-cover-onepoint-D.html</b> も参照。</div>
+  <p class="note">出力された案は Claude Code 側で <code>DesignSync get_file</code> で取り込み、良い型を Compose（<code>GridBookCard</code>／<code>BookCard.kt</code>）へ翻訳します。</p>
+</div>
+</body>
+</html>

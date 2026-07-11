@@ -1,0 +1,371 @@
+<!-- @dsCard group="UI-n / 本棚（書架・グリッド）" name="本棚 書架 生成表紙 方向性ギャラリー v2（現代エディトリアル・余白主導へ全面refine：ミュート和トーン／要素を絞り紙の余白に一手だけ置く構図。6方向を同じ6冊で横比較・再生成・ライト/ダーク）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本棚 ― 生成表紙 方向性ギャラリー v2</title>
+<style>
+  /* 【この画面の主旨】
+     根本思想＝「タイトル駆動の決定論的生成で、本ごとに唯一無二の表紙＝それ自体を体験にする」。
+     生成の土台（title→hash→seed→決定論RNG）は6方向 共通のまま、上に載せる"視覚言語"だけを別物にして並べ、まず方向を選ぶ。
+     v2 の美学方針＝現代的なエディトリアル：①余白主導（外周・ガター・行間を広く／表紙内も"紙の余白に一手だけ"）
+     ②ミュートな和トーン（彩度を落とす）③クロームは軽く（枠付きチップ廃止・浅い影・細いタイポ）。骨格はAB3で全方向共通。 */
+  :root{
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    --ai:#33566E;--sj:#9CB3A8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#ECEAE3;color:#2A2C30;font-family:var(--gothic);padding:44px 26px 90px;-webkit-font-smoothing:antialiased}
+  body.pgdark{background:#0b0d11;color:#e4e3e6}
+  .head{max-width:1220px;margin:0 auto}
+  .head .kicker{font-size:11px;letter-spacing:.32em;color:#8a7f6e;text-transform:uppercase;font-weight:600}
+  body.pgdark .head .kicker{color:#7d7666}
+  .head h1{font-family:var(--mincho);font-size:27px;letter-spacing:.08em;font-weight:500;margin-top:12px}
+  .head p{margin-top:16px;font-size:13px;line-height:2.05;color:#5b5850;max-width:760px;font-weight:400}
+  body.pgdark .head p{color:#9a988f}
+  .head .note{margin-top:16px;font-size:12px;line-height:1.95;color:#3f4d57;background:transparent;border-left:2px solid var(--ai);padding:4px 0 4px 16px;max-width:760px}
+  body.pgdark .head .note{color:#93aec0;border-left-color:#4a6f8a}
+  .ctrl{max-width:1220px;margin:26px auto 40px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .ctrl button{font-family:var(--gothic);font-size:12.5px;font-weight:500;cursor:pointer;border-radius:999px;padding:11px 22px;border:none;letter-spacing:.04em;transition:all .2s}
+  .ctrl .primary{color:#fff;background:var(--ai)}
+  .ctrl .ghost{color:var(--ai);background:transparent;border:1px solid #cbc4b8}
+  body.pgdark .ctrl .ghost{color:#9bbdd4;border-color:#2c3138}
+  .ctrl .hint{font-size:11.5px;color:#8c887e;letter-spacing:.02em}
+  body.pgdark .ctrl .hint{color:#75726a}
+
+  .gallery{max-width:1220px;margin:0 auto;display:flex;flex-wrap:wrap;gap:56px 40px;justify-content:center;align-items:flex-start}
+  .card{width:330px}
+  .card .cap{margin:0 6px 18px}
+  .card .cap .nm{font-family:var(--mincho);font-size:16px;font-weight:500;letter-spacing:.06em;display:flex;align-items:baseline;gap:11px}
+  .card .cap .nm .idx{font-family:var(--gothic);font-size:11px;font-weight:600;letter-spacing:.16em;color:#8a7f6e}
+  body.pgdark .card .cap .nm{color:#e6e4e8}
+  body.pgdark .card .cap .nm .idx{color:#7d7666}
+  .card .cap .ph{margin-top:9px;font-size:11.5px;line-height:1.85;color:#7c7a72;font-weight:400}
+  body.pgdark .card .cap .ph{color:#807e77}
+
+  /* ===== 器（phone / AB3 骨格・目録と足並み）。v2 は余白を厚めに、クロームは軽く ===== */
+  .phone{width:330px;height:700px;border-radius:34px;overflow:hidden;position:relative;background:#FCFBF8;color:#2A2C30;
+    box-shadow:0 20px 50px rgba(0,0,0,.14);display:flex;flex-direction:column;font-family:var(--gothic)}
+  .phone.dark{background:#101319;color:#e6e4e8;box-shadow:0 20px 52px rgba(0,0,0,.55)}
+  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:11px;color:#b3afa5;flex-shrink:0}
+  .phone.dark .sb{color:#5c616c}
+  .top{padding:10px 26px 14px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
+  .top h1{font-family:var(--mincho);font-size:21px;font-weight:400;letter-spacing:.2em}
+  .phone.dark .top h1{color:#f0eef2}
+  .acts{display:flex;gap:4px}
+  .ib{width:32px;height:32px;border:none;background:transparent;border-radius:9px;display:grid;place-items:center;color:inherit;cursor:pointer;opacity:.7}
+  .ib.sel{opacity:1;color:var(--ai)}
+  .phone.dark .ib.sel{color:#88b2d6}
+  .ib svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.4}
+  /* フィルタ＝枠なしテキスト、選択は細い下線（現代的・軽い） */
+  .filters{display:flex;gap:20px;overflow-x:auto;padding:4px 26px 10px;scrollbar-width:none;flex-shrink:0}
+  .filters::-webkit-scrollbar{display:none}
+  .fc{flex-shrink:0;font-size:12px;color:#a19d92;cursor:pointer;padding:4px 1px;position:relative;letter-spacing:.03em}
+  .fc.on{color:var(--ai);font-weight:500}
+  .fc.on::after{content:"";position:absolute;left:1px;right:1px;bottom:-1px;height:1.5px;background:var(--ai)}
+  .phone.dark .fc{color:#6c6a63}
+  .phone.dark .fc.on{color:#88b2d6}
+  .phone.dark .fc.on::after{background:#88b2d6}
+  .scroll{flex:1;overflow:auto;scrollbar-width:none}.scroll::-webkit-scrollbar{display:none}
+  .fab{position:absolute;right:20px;bottom:22px;display:flex;align-items:center;gap:8px;background:var(--ai);color:#fff;border:none;cursor:pointer;
+    padding:13px 20px;border-radius:999px;font-size:12.5px;font-weight:500;letter-spacing:.04em;box-shadow:0 10px 24px rgba(51,86,110,.32);z-index:5}
+  .phone.dark .fab{background:#3a6079;box-shadow:0 10px 22px rgba(0,0,0,.5)}
+  .fab svg{width:15px;height:15px;stroke:#fff;stroke-width:2;fill:none}
+
+  /* グリッド＝ガターと外周を広く（余白主導）。表紙は一回り小さくなるが空気が出る */
+  .grid{padding:14px 26px 92px;display:grid;grid-template-columns:1fr 1fr;gap:34px 22px}
+  .book{display:flex;flex-direction:column}
+  .cov{position:relative;aspect-ratio:2/3;border-radius:3px;overflow:hidden;background:#f3f0ea;
+    box-shadow:0 6px 18px rgba(22,26,40,.10),0 1px 3px rgba(0,0,0,.05)}
+  .phone.dark .cov{box-shadow:0 8px 22px rgba(0,0,0,.5)}
+  .cov .art{position:absolute;inset:0;z-index:0}
+  .cov .art svg{width:100%;height:100%;display:block}
+  /* 題字（縦・明朝）。淡いハローで地から浮かす */
+  .cov .sp{position:absolute;top:16px;right:14px;bottom:16px;writing-mode:vertical-rl;font-family:var(--mincho);font-weight:500;
+    font-size:13px;line-height:1.7;letter-spacing:.07em;max-height:78%;overflow:hidden;z-index:3;color:#33302a;
+    text-shadow:0 0 6px rgba(252,251,248,.85),0 0 2px rgba(252,251,248,.9)}
+  .cov.on-dark .sp{color:#efece3;text-shadow:0 1px 8px rgba(4,6,10,.85),0 0 2px rgba(4,6,10,.7)}
+  .cov .seal{position:absolute;right:10px;bottom:10px;width:19px;height:19px;border-radius:2px;display:grid;place-items:center;
+    font-family:var(--mincho);font-weight:600;font-size:9.5px;z-index:4;border:1.1px solid #a1573f;color:#a1573f}
+  .cov.on-dark .seal{border-color:#cc8b73;color:#cc8b73}
+  .newdot{position:absolute;left:10px;top:10px;width:7px;height:7px;border-radius:50%;background:var(--ai);box-shadow:0 0 0 3px rgba(252,251,248,.85);z-index:4}
+  .cov.on-dark .newdot{background:#88b2d6;box-shadow:0 0 0 3px rgba(16,19,25,.85)}
+
+  .gcap{margin-top:13px}
+  .gcap .au{font-size:10.5px;color:#98948a;letter-spacing:.05em}
+  .phone.dark .gcap .au{color:#6f6d66}
+  .gcap .gm{display:flex;align-items:center;gap:9px;font-size:10px;color:#98948a;margin-top:9px;letter-spacing:.04em}
+  .gcap .gm .pb{flex:1}
+  .gcap .gm .pct{color:var(--ai);flex-shrink:0}
+  .gcap .gm .g{color:var(--sj);flex-shrink:0}
+  .gcap .gm .done{color:var(--ai);letter-spacing:.1em}
+  .gcap .gm .u{color:var(--sj)}
+  .phone.dark .gcap .gm{color:#6f6d66}
+  .phone.dark .gcap .gm .pct,.phone.dark .gcap .gm .done{color:#88b2d6}
+  .phone.dark .gcap .gm .g,.phone.dark .gcap .gm .u{color:#8fb3a4}
+  .trk{height:1px;background:#e6e2da;position:relative}
+  .phone.dark .trk{background:#262b33}
+  .trk i{position:absolute;left:0;top:-.5px;height:1.5px;background:var(--ai)}
+  .phone.dark .trk i{background:#88b2d6}
+
+  footer{max-width:1220px;margin:44px auto 0;font-size:12.5px;line-height:2.05;color:#6b6d66;border-top:1px solid #d4cdc2;padding-top:22px}
+  body.pgdark footer{color:#87857e;border-top-color:#23252b}
+  footer b{color:#2A2C30}
+  body.pgdark footer b{color:#e4e3e6}
+</style>
+</head>
+<body>
+<header class="head">
+  <div class="kicker">Bookshelf · Generative Cover</div>
+  <h1>生成表紙の「方向性」ギャラリー <span style="font-size:16px;color:#a99;letter-spacing:.1em">v2 — 余白主導</span></h1>
+  <p>根本思想は<strong>「タイトル駆動の決定論的生成で、本ごとに唯一無二の表紙＝それ自体を体験にする」</strong>。生成の土台（<code style="font-family:monospace">title→hash→seed→決定論RNG</code>）は6方向 共通のまま、上に載せる<strong>視覚言語だけ</strong>を別物にして並べます。v2 では全体を<strong>現代的なエディトリアル＝余白主導・ミュートな和トーン・軽いクローム</strong>へ振り直し、表紙内も<strong>"紙の余白に一手だけ置く"</strong>構図に絞りました。</p>
+  <div class="note"><b>骨格は全方向共通</b>＝AB3（2列 大サムネ＋進捗）。<b>同じ6冊</b>を各方向で描くので横比較できます。<b>🎲 別の蔵書</b>で6冊入替（各表紙はタイトル由来＝同じ本は常に同じ絵）。<b>◐ ライト/ダーク</b>で全機反転。左上①〜⑥が方向の識別子です。</div>
+</header>
+
+<div class="ctrl">
+  <button class="primary" id="reroll">🎲 別の蔵書に差し替え</button>
+  <button class="ghost" id="theme">◐ ライト / ダーク</button>
+  <span class="hint">気に入った番号・混ぜたい要素を教えてください（例「②を基調に③の一手だけ足す」「もっと余白を」）。</span>
+</div>
+
+<div class="gallery" id="gallery"></div>
+
+<footer>
+  <b>次の一手</b>：この6方向から本命を選ぶ（いいとこ取り可）。決まったら材料・濃度・色域・ライト/ダークの塩梅を詰め → Compose（<code>GridBookCard</code>／<code>BookCard.kt</code>）へ翻訳。<br>
+  <b>実装コスト</b>はどの方向も同等（画像を持たず <code>title.hashCode()→Random(seed)</code> の <code>Canvas</code> 生成＝容量ゼロ・無限バリエ）。"実装しやすさ"でなく"体験としてどれが良いか"で選んで構いません。
+</footer>
+
+<script>
+// ===== 共通の生成土台：タイトル→32bit種→決定論RNG（全方向で共有） =====
+function h32(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)>>>0;}return h>>>0;}
+function rng32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function hsl(h,s,l,a){return "hsl("+(((h%360)+360)%360).toFixed(0)+" "+s.toFixed(0)+"% "+l.toFixed(0)+"%"+(a==null?"":" / "+a)+")";}
+function pk(r,arr){return arr[Math.floor(r()*arr.length)];}
+// 和の色相セット（藍/浅葱/青磁/苔/山吹/臙脂/鴇/藤）。v2 は"ミュート"＝彩度を低く固定し、色相のみ種で選ぶ。
+const WA=[210,192,158,96,42,352,10,268];
+// ミュート和色：現代的な落ち着き（低彩度）。dl で明度を微調整。
+function wacol(r,dark,dl,al){const H=pk(r,WA);const S=dark?32:24;const L=(dark?56:54)+(dl||0);return hsl(H,S,L,al);}
+
+// ============================================================
+//  6つの視覚言語エンジン。engine(title,dark) → '<div class="art"…>'
+//  v2 共通方針：要素を絞り、盤面いっぱいにせず"紙の余白"を残す。色はミュート。viewBox 0 0 140 210（2:3）。
+//  題字は右列に縦組みされるので、絵は右端(x>108)を主張しすぎない。決定論的＝同じ本は同じ絵。
+// ============================================================
+
+// ① 墨にじみ・水彩（refined）：一手だけ、offsetして余白を残す。静謐・和モダンの基準点。
+function engSumi(title,dark){
+  const r=rng32(h32(title));
+  const H=pk(r,WA), S=dark?36:24, L=dark?58:48;
+  const c1=hsl(H,S,L), c2=hsl(H+(r()*30-15),S,L+(dark?8:6));
+  const n=1+(r()<.5?1:0); // 1〜2手に抑える
+  const P={
+    ring:o=>'<circle r="26" fill="none" stroke="'+c1+'" stroke-width="'+(7+r()*4).toFixed(1)+'" opacity="'+o+'"/>',
+    blob:o=>'<ellipse rx="'+(24+r()*12).toFixed(0)+'" ry="'+(30+r()*12).toFixed(0)+'" fill="'+c1+'" opacity="'+o+'"/><ellipse cx="'+(r()*10-5).toFixed(0)+'" cy="'+(r()*10-5).toFixed(0)+'" rx="12" ry="15" fill="'+c2+'" opacity="'+(o*.7).toFixed(2)+'"/>',
+    cres:o=>'<path d="M-20 12 A24 24 0 1 1 20 12" fill="none" stroke="'+c1+'" stroke-width="'+(7+r()*5).toFixed(1)+'" stroke-linecap="round" opacity="'+o+'"/>'
+  };
+  const CK=['ring','blob','cres'];
+  const cap=dark?0.52:0.4;
+  let inner='';
+  for(let i=0;i<n;i++){
+    const k=pk(r,CK), o=Math.min(cap,(dark?0.32:0.24)+r()*0.16).toFixed(2);
+    // 中心を左〜中に寄せて右の題字側に余白（28-88 × 44-150）
+    inner+='<g transform="translate('+(30+r()*54).toFixed(0)+' '+(46+r()*104).toFixed(0)+') rotate('+Math.floor(r()*360)+') scale('+(.78+r()*.5).toFixed(2)+')">'+P[k](o)+'</g>';
+  }
+  const bg=dark?'linear-gradient(180deg,#171b22,#0f1218)':'linear-gradient(180deg,#f8f4ec,#f1ebe0)';
+  const blend=dark?'mix-blend-mode:screen;':'';
+  return '<div class="art" style="background:'+bg+'"><svg viewBox="0 0 140 210" preserveAspectRatio="xMidYMid slice" style="filter:blur('+(dark?5:4)+'px);'+blend+'">'+inner+'</svg></div>';
+}
+
+// ② 水玉・重なり（airy）：大きめの円を2〜3個、ゆったり離して置く。重なりが乗算で新色を生む。遊び心だがミュートで端正。
+function engDots(title,dark){
+  const r=rng32(h32(title));
+  const S=dark?38:30, L=dark?58:62;
+  const n=2+(r()<.45?1:0);
+  const blend=dark?'screen':'multiply';
+  // 余白を残す配置スロット（右端は題字に譲る）
+  const slots=[[42,60],[70,140],[46,150],[90,72],[64,100]];
+  const s=slots.slice();for(let i=s.length-1;i>0;i--){const j=Math.floor(r()*(i+1));const x=s[i];s[i]=s[j];s[j]=x;}
+  let inner='';
+  for(let i=0;i<n;i++){
+    const H=pk(r,WA), c=hsl(H,S,L,dark?.6:.55);
+    const p=s[i], x=p[0]+(r()*16-8), y=p[1]+(r()*18-9), rad=(30+r()*18).toFixed(0);
+    inner+='<circle cx="'+x.toFixed(0)+'" cy="'+y.toFixed(0)+'" r="'+rad+'" fill="'+c+'" style="mix-blend-mode:'+blend+'"/>';
+  }
+  // 小さな実玉を1つだけ（間）
+  const H2=pk(r,WA);inner+='<circle cx="'+(24+r()*80).toFixed(0)+'" cy="'+(24+r()*160).toFixed(0)+'" r="'+(3+r()*2).toFixed(0)+'" fill="'+hsl(H2,S+8,L-18)+'"/>';
+  const bg=dark?'#12151c':'#FCFBF9';
+  return '<div class="art" style="background:'+bg+'"><svg viewBox="0 0 140 210" preserveAspectRatio="none">'+inner+'</svg></div>';
+}
+
+// ③ 幾何・一手（editorial）：紙の余白に"一手（＋ごく小さな相方）"だけ。円弧/円/線/面。最も現代的で静か。
+function engGeo(title,dark){
+  const r=rng32(h32(title));
+  const A=wacol(r,dark,0), ink=dark?'#dedad0':'#33302a';
+  const gestures=[
+    // 大きな細い円（アウトライン）
+    ()=>'<circle cx="'+(46+r()*26).toFixed(0)+'" cy="'+(78+r()*40).toFixed(0)+'" r="'+(30+r()*10).toFixed(0)+'" fill="none" stroke="'+A+'" stroke-width="2"/>',
+    // 端から覗く半円（塗り）
+    ()=>{const edge=r()<.5;return '<circle cx="'+(edge?-6:70).toFixed(0)+'" cy="'+(edge?70+r()*70:210).toFixed(0)+'" r="'+(40+r()*16).toFixed(0)+'" fill="'+A+'"/>';},
+    // 一本の細い斜線＋端の小円
+    ()=>{const y1=(40+r()*40).toFixed(0),y2=(150+r()*30).toFixed(0),x1=(30+r()*20).toFixed(0),x2=(70+r()*24).toFixed(0);return '<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="'+ink+'" stroke-width="1.4"/><circle cx="'+x1+'" cy="'+y1+'" r="4.5" fill="'+A+'"/>';},
+    // 小さな塗り面（オフセット・余白たっぷり）
+    ()=>{const x=(28+r()*30).toFixed(0),y=(56+r()*70).toFixed(0),w=(26+r()*14).toFixed(0),h=(30+r()*20).toFixed(0);return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="1" fill="'+A+'"/>';},
+    // 太い四半弧
+    ()=>{const cy=(70+r()*70).toFixed(0);return '<path d="M14 '+cy+' A44 44 0 0 1 100 '+cy+'" fill="none" stroke="'+A+'" stroke-width="'+(5+r()*4).toFixed(0)+'" stroke-linecap="round"/>';}
+  ];
+  let inner=gestures[Math.floor(r()*gestures.length)]();
+  // 3割の確率でごく小さな相方の点（間の取り方）
+  if(r()<0.35){inner+='<circle cx="'+(30+r()*70).toFixed(0)+'" cy="'+(30+r()*150).toFixed(0)+'" r="2.4" fill="'+ink+'"/>';}
+  const bg=dark?'#13151b':'#FCFBF7';
+  return '<div class="art" style="background:'+bg+'"><svg viewBox="0 0 140 210" preserveAspectRatio="none">'+inner+'</svg></div>';
+}
+
+// ④ 和紋・スウォッチ（refined）：文様を"盤面いっぱい"でなく余白に浮く小さなスウォッチに封じる。文様×色×密度で唯一性。
+function engWagara(title,dark){
+  const r=rng32(h32(title));
+  const H=pk(r,WA), S=dark?34:30, L=dark?58:46;
+  const col=hsl(H,S,L), col2=hsl(H,S,L+(dark?12:14));
+  const sc=(0.9+r()*0.4);
+  const pid='wg'+h32(title).toString(36);
+  const kind=Math.floor(r()*5);
+  let pat;
+  if(kind===0){ // 青海波
+    pat='<pattern id="'+pid+'" width="'+(24*sc).toFixed(1)+'" height="'+(12*sc).toFixed(1)+'" patternUnits="userSpaceOnUse"><g fill="none" stroke="'+col+'" stroke-width="1.3"><path d="M0 12 A6 6 0 0 1 12 12 A6 6 0 0 1 24 12"/><path d="M0 12 A3 3 0 0 1 12 12 A3 3 0 0 1 24 12" stroke="'+col2+'"/><path d="M-12 6 A6 6 0 0 1 0 6 A6 6 0 0 1 12 6 A6 6 0 0 1 24 6"/></g></pattern>';
+  }else if(kind===1){ // 麻の葉
+    pat='<pattern id="'+pid+'" width="'+(22*sc).toFixed(1)+'" height="'+(38*sc).toFixed(1)+'" patternUnits="userSpaceOnUse"><g fill="none" stroke="'+col+'" stroke-width="1.1"><path d="M11 0 L11 19 M11 19 L0 12.5 M11 19 L22 12.5 M11 19 L0 25.5 M11 19 L22 25.5 M11 19 L11 38"/><path d="M0 0 L11 6.5 L22 0 M0 38 L11 31.5 L22 38 M0 12.5 L0 25.5 M22 12.5 L22 25.5"/></g></pattern>';
+  }else if(kind===2){ // 七宝
+    pat='<pattern id="'+pid+'" width="'+(20*sc).toFixed(1)+'" height="'+(20*sc).toFixed(1)+'" patternUnits="userSpaceOnUse"><g fill="none" stroke="'+col+'" stroke-width="1.2"><circle cx="0" cy="10" r="7"/><circle cx="20" cy="10" r="7"/><circle cx="10" cy="0" r="7"/><circle cx="10" cy="20" r="7"/></g></pattern>';
+  }else if(kind===3){ // 格子
+    pat='<pattern id="'+pid+'" width="'+(16*sc).toFixed(1)+'" height="'+(16*sc).toFixed(1)+'" patternUnits="userSpaceOnUse"><g stroke="'+col+'" stroke-width="1.2"><path d="M0 0 H16 M0 0 V16"/></g><circle cx="0" cy="0" r="1.4" fill="'+col2+'"/></pattern>';
+  }else{ // 鮫（点密）
+    pat='<pattern id="'+pid+'" width="'+(11*sc).toFixed(1)+'" height="'+(11*sc).toFixed(1)+'" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r="1.3" fill="'+col+'"/><circle cx="8.5" cy="8.5" r="1.3" fill="'+col+'"/><circle cx="8.5" cy="3" r=".9" fill="'+col2+'"/></pattern>';
+  }
+  // スウォッチ枠（左〜中に置き右の題字側は余白）。位置・大きさも種で少し振る
+  const sx=(16+r()*10).toFixed(0), sw=(56+r()*10).toFixed(0);
+  const sy=(38+r()*30).toFixed(0), sh=(96+r()*24).toFixed(0);
+  const bg=dark?'#14151a':'#FBFAF6';
+  const svg='<svg viewBox="0 0 140 210" preserveAspectRatio="none"><defs>'+pat+'</defs>'
+    +'<rect x="'+sx+'" y="'+sy+'" width="'+sw+'" height="'+sh+'" fill="url(#'+pid+')"/>'
+    +'<rect x="'+sx+'" y="'+sy+'" width="'+sw+'" height="'+sh+'" fill="none" stroke="'+col+'" stroke-width=".8" opacity=".5"/></svg>';
+  return '<div class="art" style="background:'+bg+'">'+svg+'</div>';
+}
+
+// ⑤ 星図・線描（airy）：点をゆったり散らし細線で結ぶ。主星が一つ灯る。詩的・読書の旅路。ダーク映え。
+function engStar(title,dark){
+  const r=rng32(h32(title));
+  const n=6+Math.floor(r()*3);
+  const pts=[];for(let i=0;i<n;i++){pts.push([18+r()*80, 22+r()*168]);} // 右端は題字に譲る
+  const dim=dark?'rgba(214,224,246,0.8)':'rgba(60,72,100,0.55)';
+  const line=dark?'rgba(150,175,220,0.32)':'rgba(80,98,135,0.24)';
+  let inner='';
+  const chain=2+Math.floor(r()*3);
+  for(let i=0;i<chain;i++){const a=pts[i],b=pts[i+1];if(b)inner+='<line x1="'+a[0].toFixed(0)+'" y1="'+a[1].toFixed(0)+'" x2="'+b[0].toFixed(0)+'" y2="'+b[1].toFixed(0)+'" stroke="'+line+'" stroke-width="0.7"/>';}
+  pts.forEach(p=>{inner+='<circle cx="'+p[0].toFixed(0)+'" cy="'+p[1].toFixed(0)+'" r="'+(0.8+r()*1.3).toFixed(1)+'" fill="'+dim+'"/>';});
+  const H=pk(r,WA), acc=hsl(H,dark?52:44,dark?70:52), main=pts[Math.floor(r()*chain)];
+  inner+='<circle cx="'+main[0].toFixed(0)+'" cy="'+main[1].toFixed(0)+'" r="6" fill="'+acc+'" opacity="0.22"/><circle cx="'+main[0].toFixed(0)+'" cy="'+main[1].toFixed(0)+'" r="2.6" fill="'+acc+'"/><circle cx="'+main[0].toFixed(0)+'" cy="'+main[1].toFixed(0)+'" r="1" fill="#fff"/>';
+  const bg=dark?'radial-gradient(130% 90% at 28% 12%,#161f31,#0a0d15)':'radial-gradient(130% 90% at 28% 12%,#f2f3f6,#e6e8ee)';
+  return '<div class="art" style="background:'+bg+'"><svg viewBox="0 0 140 210" preserveAspectRatio="none">'+inner+'</svg></div>';
+}
+
+// ⑥ 地平・グラデ（airy）：ミュートな色帯を"下方に"寄せ、上に紙(空)の余白を残す。遠山を一つ。静かな色彩。
+function engStrata(title,dark){
+  const r=rng32(h32(title));
+  const baseH=pk(r,WA), S=dark?30:26;
+  const horizon=(96+r()*40); // 地平線を下寄りに＝上に余白
+  const paperL=dark?9:97;
+  let inner='<rect x="0" y="0" width="140" height="210" fill="'+hsl(baseH,S-12,paperL)+'"/>'; // 空＝ほぼ紙
+  // 地平から下へミュートな帯を2〜3層
+  const layers=2+(r()<.5?1:0);
+  for(let i=0;i<layers;i++){
+    const y=horizon + i*((210-horizon)/layers);
+    const H=baseH+(r()*20-10), L=(dark?24:70)+(dark?i*8:-i*8);
+    inner+='<rect x="0" y="'+(y-3).toFixed(0)+'" width="140" height="'+((210-y)+4).toFixed(0)+'" fill="'+hsl(H,S,L)+'"/>';
+  }
+  // 遠山シルエット（地平の上に薄く）
+  const mh=(horizon-14-r()*20).toFixed(0), mc=hsl(baseH,S+4,dark?38:44,dark?.4:.32);
+  inner+='<path d="M-6 '+horizon.toFixed(0)+' Q42 '+mh+' 84 '+(horizon-6).toFixed(0)+' T146 '+(horizon-10).toFixed(0)+' L146 210 L-6 210Z" fill="'+mc+'"/>';
+  return '<div class="art" style="background:#f2efe8"><svg viewBox="0 0 140 210" preserveAspectRatio="none" style="filter:blur(1.1px)">'+inner+'</svg></div>';
+}
+
+const DIRECTIONS=[
+  {key:'sumi',   idx:'①', nm:'墨にじみ・水彩',   ph:'紙の余白に一手だけ。静謐・和モダンの基準点。', eng:engSumi},
+  {key:'dots',   idx:'②', nm:'水玉・重なり',     ph:'大きめの円をゆったり離して。重なりが新色を生む。遊び心。', eng:engDots},
+  {key:'geo',    idx:'③', nm:'幾何・一手',       ph:'余白に一手（円弧/線/面）。最も現代的で静か。', eng:engGeo},
+  {key:'wagara', idx:'④', nm:'和紋・スウォッチ', ph:'文様を小さなスウォッチに封じ、まわりは余白。', eng:engWagara},
+  {key:'star',   idx:'⑤', nm:'星図・線描',       ph:'点をゆったり結び星座に。主星が灯る。詩的。', eng:engStar},
+  {key:'strata', idx:'⑥', nm:'地平・グラデ',     ph:'色帯を下に寄せ上に空の余白。遠山ひとつ。', eng:engStrata}
+];
+
+// ===== 蔵書データ・進捗表示（目録と共通語彙） =====
+function gm(s){
+  const p=s.split(':');
+  if(p[0]==='p'){const cont=p[2]?'<span class="g">続き'+p[2]+'話</span>':'';return cont+'<span class="trk pb"><i style="width:'+p[1]+'%"></i></span><span class="pct">'+p[1]+'%</span>';}
+  if(s==='done')return '<span class="trk pb"><i style="width:100%"></i></span><span class="done">読了</span>';
+  if(s==='untaken')return '<span class="g">未取込</span>';
+  return '<span class="u">短編・未読</span>';
+}
+const INIT=[
+  {t:'追放された万能薬師、辺境でスローライフを始める',a:'霧島あおい',s:'p:62:12'},
+  {t:'黒の魔王と契約した俺、気づけば最強の従者に',a:'夜灯すばる',s:'p:28'},
+  {t:'転生したら最弱スキルだったので草むしりしていた',a:'青葉みのり',s:'p:80'},
+  {t:'公爵令嬢の嗜み 〜隣国で薬草園を開きます〜',a:'白河すずら',s:'untaken'},
+  {t:'辺境伯家の次男は今日も書庫にこもる',a:'水無月れん',s:'done'},
+  {t:'雨宿りの喫茶店で魔女に出会った',a:'早瀬ことり',s:'short'}
+];
+const POOL=INIT.concat([
+  {t:'竜騎士は辺境で余生を過ごしたい',a:'霧島あおい',s:'p:45'},
+  {t:'聖女様のお世話係、はじめました',a:'早瀬ことり',s:'p:12'},
+  {t:'辺境の宿屋は今日も満室です',a:'青葉みのり',s:'done'},
+  {t:'双子の魔導士と沈黙の塔',a:'夜灯すばる',s:'short'},
+  {t:'白猫亭の看板娘は元宮廷魔術師',a:'白河すずら',s:'p:33'},
+  {t:'追憶の剣士は花街で眠る',a:'水無月れん',s:'p:71'},
+  {t:'転職先の魔王軍がホワイトすぎる',a:'夜灯すばる',s:'p:54'},
+  {t:'薬師の私が城で健康診断を始めたら',a:'霧島あおい',s:'p:19'},
+  {t:'最果ての図書館と物言わぬ司書',a:'水無月れん',s:'untaken'},
+  {t:'廃村テイマー、もふもふと畑を耕す',a:'青葉みのり',s:'p:88'},
+  {t:'氷の令嬢は春を知らない',a:'白河すずら',s:'done'},
+  {t:'星詠みの少女と最後の竜',a:'早瀬ことり',s:'p:37'},
+  {t:'名もなき料理人、王宮を救う',a:'夜灯すばる',s:'short'},
+  {t:'観測者の塔から世界は青く見える',a:'水無月れん',s:'p:66'}
+]);
+
+function book(it,eng,dark){
+  const nd=(it.s==='untaken'||it.s==='short')?'<span class="newdot"></span>':'';
+  const seal=(it.s==='done')?'<span class="seal">了</span>':'';
+  const covDarkCls=(dark?' on-dark':'');
+  return '<div class="book"><div class="cov'+covDarkCls+'">'+eng.eng(it.t,dark)+nd+'<span class="sp">'+it.t+'</span>'+seal
+    +'</div><div class="gcap"><div class="au">'+it.a+'</div><div class="gm">'+gm(it.s)+'</div></div></div>';
+}
+function phoneHTML(dark){
+  return '<div class="phone'+(dark?' dark':'')+'">'
+    +'<div class="sb"><span>9:41</span><span>●●● 84%</span></div>'
+    +'<div class="top"><h1>本棚</h1><div class="acts">'
+      +'<button class="ib sel"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></button>'
+      +'<button class="ib"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>'
+      +'<button class="ib"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg></button>'
+    +'</div></div>'
+    +'<div class="filters"><span class="fc on">すべて</span><span class="fc">よみかけ</span><span class="fc">未読</span><span class="fc">読了</span></div>'
+    +'<div class="scroll"><div class="grid" data-grid></div></div>'
+    +'<button class="fab"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>追加</button>'
+  +'</div>';
+}
+
+let dark=false, list=INIT.slice();
+function build(){
+  const g=document.getElementById('gallery'); g.innerHTML='';
+  DIRECTIONS.forEach(eng=>{
+    const card=document.createElement('div'); card.className='card';
+    card.innerHTML='<div class="cap"><div class="nm"><span class="idx">'+eng.idx+'</span>'+eng.nm+'</div><div class="ph">'+eng.ph+'</div></div>'+phoneHTML(dark);
+    g.appendChild(card);
+    card.querySelector('[data-grid]').innerHTML=list.map(it=>book(it,eng,dark)).join('');
+  });
+}
+function sample(arr,n){const a=arr.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const x=a[i];a[i]=a[j];a[j]=x;}return a.slice(0,n);}
+build();
+document.getElementById('reroll').addEventListener('click',()=>{list=sample(POOL,6);build();});
+document.getElementById('theme').addEventListener('click',()=>{dark=!dark;document.body.classList.toggle('pgdark',dark);build();});
+</script>
+</body>
+</html>
