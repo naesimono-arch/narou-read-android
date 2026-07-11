@@ -8,6 +8,8 @@ import com.novelreader.data.PendingJobDao
 import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressDao
 import com.novelreader.data.ProgressEntity
+import com.novelreader.model.BookId
+import com.novelreader.model.ChapterFilename
 import com.novelreader.pdf.CorruptedPdfError
 import com.novelreader.pdf.EncryptedPdfError
 import com.novelreader.pdf.InsufficientStorageError
@@ -111,20 +113,20 @@ class BookRepositoryTest {
     @Test
     fun `getLastRead - progressDao の戻り値をそのまま返す`() = runTest {
         coEvery { progressDao.getLastRead("id01") } returns "chapter_01.html"
-        val result = repository.getLastRead("id01")
+        val result = repository.getLastRead(BookId("id01"))
         assertEquals("chapter_01.html", result)
     }
 
     @Test
     fun `getLastRead - 未読の場合は null を返す`() = runTest {
         coEvery { progressDao.getLastRead("id02") } returns null
-        val result = repository.getLastRead("id02")
+        val result = repository.getLastRead(BookId("id02"))
         assertNull(result)
     }
 
     @Test
     fun `saveProgress - progressDao に ProgressEntity を渡して呼ぶ`() = runTest {
-        repository.saveProgress("id01", "chapter_02.html")
+        repository.saveProgress(BookId("id01"), ChapterFilename("chapter_02.html"))
         // lastReadAt は書き込み時刻（System.currentTimeMillis()）で非決定的なため完全一致は使わず、
         // 識別子フィールドのみ検証する（章移動なのでスクロール位置は 0,0）。
         coVerify {

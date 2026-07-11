@@ -68,6 +68,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.novelreader.NovelReaderApplication
+import com.novelreader.model.BookId
+import com.novelreader.model.ChapterFilename
 import com.novelreader.model.ParseResult
 import com.novelreader.model.TocEntry
 import com.novelreader.narou.ContinuationInfo
@@ -108,7 +110,7 @@ import java.io.File
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReadingScreen(
-    bookId: String,
+    bookId: BookId,
     startFile: String,
     htmlDirPath: String,
     bookTitle: String,
@@ -127,8 +129,10 @@ fun ReadingScreen(
     // ルートが reading/{bookId}/{startFile} なので NavBackStackEntry 単位でスコープされるが、
     // Navigation の実装詳細に依存しないよう bookId を明示的にキーに含めて書籍切替時の状態混線を防ぐ。
     // 履歴はプロセス再生成後も遡行できるよう listSaver で永続化する。
+    // なぜキーに bookId.value（生 String）を使うか: BookId は value class のため素の $bookId 補間は
+    // "BookId(value=…)" になる。保存キーの文字列同一性を型付け前と厳密に保つため生の値で補間する。
     var navHistory by rememberSaveable(
-        key = "navHistory_$bookId",
+        key = "navHistory_${bookId.value}",
         stateSaver = listSaver<List<String>, String>(save = { it }, restore = { it }),
     ) { mutableStateOf(listOf(startFile)) }
     val currentFile = navHistory.last()
@@ -136,7 +140,7 @@ fun ReadingScreen(
     // 最後に表示していた章。目次表示中の「現在章ハイライト」に使う。
     // なぜ currentFile と別に持つか: 目次を開くと currentFile は "index.html" に
     // なるため、どの章から来たかを別途保持する必要があるため。
-    var lastChapterFile by rememberSaveable(key = "lastChapter_$bookId") {
+    var lastChapterFile by rememberSaveable(key = "lastChapter_${bookId.value}") {
         mutableStateOf(startFile.takeIf { it != "index.html" })
     }
 
@@ -147,7 +151,8 @@ fun ReadingScreen(
         navHistory = pushNavHistory(navHistory, target)
         if (target != "index.html") {
             lastChapterFile = target
-            viewModel.saveProgress(bookId, target)
+            // 画面内部はファイル名を String で運ぶため、型付き API 境界でのみ ChapterFilename に包む。
+            viewModel.saveProgress(bookId, ChapterFilename(target))
         }
     }
 
@@ -340,7 +345,8 @@ fun ReadingScreen(
         initialScrollIndex = if (resolvedFile == restore.targetFile) restore.scrollIndex else 0,
         initialScrollOffset = if (resolvedFile == restore.targetFile) restore.scrollOffset else 0,
         onSaveScroll = { index, offset ->
-            viewModel.saveScrollPosition(bookId, resolvedFile, index, offset)
+            // resolvedFile は画面内部の String。型付き API 境界でのみ ChapterFilename に包む。
+            viewModel.saveScrollPosition(bookId, ChapterFilename(resolvedFile), index, offset)
         },
         onNavigateToBookshelf = onNavigateToBookshelf,
         // 前後章・目次ボタンからの遷移も「進む」＝履歴を積む（Back で1段ずつ遡れる）

@@ -15,6 +15,8 @@ import com.novelreader.data.WebNovelDao
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.data.WebReadingProgressDao
 import com.novelreader.data.WebReadingProgressEntity
+import com.novelreader.model.BookId
+import com.novelreader.model.ChapterFilename
 import com.novelreader.narou.model.Ncode
 import com.novelreader.pdf.CorruptedPdfError
 import com.novelreader.pdf.EncryptedPdfError
@@ -348,35 +350,40 @@ class DefaultBookRepository(
     }
 
     // PDF↔Web継続読書: なろう作品との紐付け（null で解除）。ユーザー確定操作からのみ呼ぶ。
-    override suspend fun linkNcode(bookId: String, ncode: Ncode?) = withContext(Dispatchers.IO) {
-        // 境界変換点: Room(BookDao) の ncode 列は String のまま。null（解除）は null のまま渡す。
-        bookDao.updateNcode(bookId, ncode?.value)
+    override suspend fun linkNcode(bookId: BookId, ncode: Ncode?) = withContext(Dispatchers.IO) {
+        // 境界変換点: Room(BookDao) の bookId/ncode 列は String のまま＝ここで .value へほどく。
+        // null（解除）は null のまま渡す。
+        bookDao.updateNcode(bookId.value, ncode?.value)
     }
 
-    override suspend fun getLastRead(bookId: String): String? =
-        withContext(Dispatchers.IO) { progressDao.getLastRead(bookId) }
+    // 永続化境界: DAO は String 引数のため bookId.value でほどく（戻り値の lastReadFilename は
+    // ナビ経路の文字列組み立て等でそのまま使うため String のまま返す＝型付けは識別子引数に限定）。
+    override suspend fun getLastRead(bookId: BookId): String? =
+        withContext(Dispatchers.IO) { progressDao.getLastRead(bookId.value) }
 
-    override suspend fun getProgress(bookId: String): ProgressEntity? =
-        withContext(Dispatchers.IO) { progressDao.getProgress(bookId) }
+    override suspend fun getProgress(bookId: BookId): ProgressEntity? =
+        withContext(Dispatchers.IO) { progressDao.getProgress(bookId.value) }
 
     // 章を切り替えたときの進捗保存。スクロール位置は 0 にリセットする
     // （別の章へ移ったので前章のスクロール位置は引き継がない）。
     // lastReadAt を書き込み時刻でスタンプし、本棚の最近読書順ソートに使う。
-    override suspend fun saveProgress(bookId: String, filename: String) = withContext(Dispatchers.IO) {
-        progressDao.saveProgress(ProgressEntity(bookId, filename, lastReadAt = System.currentTimeMillis()))
+    override suspend fun saveProgress(bookId: BookId, filename: ChapterFilename) = withContext(Dispatchers.IO) {
+        // 永続化境界: Room(ProgressEntity) は String 列のため .value でほどいて渡す。
+        progressDao.saveProgress(ProgressEntity(bookId.value, filename.value, lastReadAt = System.currentTimeMillis()))
     }
 
     // 章内スクロール位置の保存。lastReadFilename も一緒に書き込むことで
     // 「どの章のどの位置か」を1行で表現する（REPLACE で上書き）。
     // lastReadAt も毎回スタンプ（単一チャネル統合の最終1書き込みに自然に乗る）。
     override suspend fun saveScrollPosition(
-        bookId: String,
-        filename: String,
+        bookId: BookId,
+        filename: ChapterFilename,
         scrollIndex: Int,
         scrollOffset: Int,
     ) = withContext(Dispatchers.IO) {
+        // 永続化境界: Room(ProgressEntity) は String 列のため .value でほどいて渡す。
         progressDao.saveProgress(
-            ProgressEntity(bookId, filename, scrollIndex, scrollOffset, lastReadAt = System.currentTimeMillis())
+            ProgressEntity(bookId.value, filename.value, scrollIndex, scrollOffset, lastReadAt = System.currentTimeMillis())
         )
     }
 

@@ -6,6 +6,8 @@ import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.data.WebReadingProgressEntity
+import com.novelreader.model.BookId
+import com.novelreader.model.ChapterFilename
 import com.novelreader.narou.model.Ncode
 import kotlinx.coroutines.flow.Flow
 
@@ -85,19 +87,19 @@ interface BookRepository {
     suspend fun deleteBook(book: BookEntity)
 
     /** PDF↔Web継続読書: なろう作品との紐付け（null で解除）。 */
-    suspend fun linkNcode(bookId: String, ncode: Ncode?)
+    suspend fun linkNcode(bookId: BookId, ncode: Ncode?)
 
-    suspend fun getLastRead(bookId: String): String?
+    suspend fun getLastRead(bookId: BookId): String?
 
-    suspend fun getProgress(bookId: String): ProgressEntity?
+    suspend fun getProgress(bookId: BookId): ProgressEntity?
 
     /** 章移動時の進捗保存（スクロール位置は 0,0＝章先頭にリセット）。 */
-    suspend fun saveProgress(bookId: String, filename: String)
+    suspend fun saveProgress(bookId: BookId, filename: ChapterFilename)
 
     /** 章内スクロール位置の保存。 */
     suspend fun saveScrollPosition(
-        bookId: String,
-        filename: String,
+        bookId: BookId,
+        filename: ChapterFilename,
         scrollIndex: Int,
         scrollOffset: Int,
     )

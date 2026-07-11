@@ -21,6 +21,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
+import com.novelreader.model.BookId
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.BookshelfScreen
@@ -150,7 +151,8 @@ private fun NovelReaderApp(
         val book = content.books.firstOrNull { it.id == bookId }
         if (book != null) {
             // 読書位置は保存済み進捗を尊重する（生命線）。未読なら index.html。
-            val startFile = viewModel.getLastRead(bookId) ?: "index.html"
+            // 境界: bookId は deep link 由来の String＝型付き API へ渡す直前に BookId へ包む。
+            val startFile = viewModel.getLastRead(BookId(bookId)) ?: "index.html"
             navController.navigate("reading/$bookId/$startFile") {
                 launchSingleTop = true
                 // bookshelf を残して起点を固定＝Back が必ず本棚へ戻る（固定起点の保証）。
@@ -350,7 +352,9 @@ private fun NovelReaderApp(
                     val book = state.books.firstOrNull { it.id == bookId }
                     if (book != null) {
                         ReadingScreen(
-                            bookId = bookId,
+                            // 境界: bookId は nav 引数由来の String＝読書画面へは型付き BookId へ包んで渡す
+                            // （book.ncode→Ncode の包み方と同方針）。
+                            bookId = BookId(bookId),
                             startFile = startFile,
                             htmlDirPath = book.htmlDirPath,
                             bookTitle = book.title,

@@ -13,6 +13,8 @@ import com.novelreader.PdfProcessingService
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
+import com.novelreader.model.BookId
+import com.novelreader.model.ChapterFilename
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.DiscoveryResult
@@ -214,7 +216,11 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     init {
         viewModelScope.launch(Dispatchers.IO) {
             for (p in progressChannel) {
-                repository.saveScrollPosition(p.bookId, p.lastReadFilename, p.scrollIndex, p.scrollOffset)
+                // ProgressEntity（Room 実体）をチャネルの搬送体に流用しているため中身は String。
+                // 永続化境界の repository へ渡す直前に BookId/ChapterFilename へ包み直す（型付き API への再包み）。
+                repository.saveScrollPosition(
+                    BookId(p.bookId), ChapterFilename(p.lastReadFilename), p.scrollIndex, p.scrollOffset,
+                )
             }
         }
     }
@@ -331,7 +337,7 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
 
     // PDF↔Web継続読書: なろう作品との紐付け（null で解除）。
     // books は hot StateFlow のため、書き込めば読書画面の継続導線へ自動で反映される。
-    fun linkNcode(bookId: String, ncode: Ncode?) {
+    fun linkNcode(bookId: BookId, ncode: Ncode?) {
         viewModelScope.launch(Dispatchers.IO) { repository.linkNcode(bookId, ncode) }
     }
 
@@ -392,16 +398,17 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     /** 直近クエリで検索し直す（旧 retryKey++ 相当。ネットワークエラー時のワンタップ復旧）。 */
     fun retryNcodeSearch() = searchNcodeCandidates(lastNcodeQuery)
 
-    suspend fun getLastRead(bookId: String): String? = repository.getLastRead(bookId)
+    suspend fun getLastRead(bookId: BookId): String? = repository.getLastRead(bookId)
 
-    suspend fun getProgress(bookId: String): ProgressEntity? = repository.getProgress(bookId)
+    suspend fun getProgress(bookId: BookId): ProgressEntity? = repository.getProgress(bookId)
 
     // 章移動時の保存。スクロール位置は default 0 のまま送ることで章先頭にリセットする。
-    fun saveProgress(bookId: String, filename: String) {
-        progressChannel.trySend(ProgressEntity(bookId, filename))
+    // ProgressEntity（Room 実体）はチャネル搬送体のため String 列。ここが型付き引数→String の境界。
+    fun saveProgress(bookId: BookId, filename: ChapterFilename) {
+        progressChannel.trySend(ProgressEntity(bookId.value, filename.value))
     }
 
-    fun saveScrollPosition(bookId: String, filename: String, scrollIndex: Int, scrollOffset: Int) {
-        progressChannel.trySend(ProgressEntity(bookId, filename, scrollIndex, scrollOffset))
+    fun saveScrollPosition(bookId: BookId, filename: ChapterFilename, scrollIndex: Int, scrollOffset: Int) {
+        progressChannel.trySend(ProgressEntity(bookId.value, filename.value, scrollIndex, scrollOffset))
     }
 }
