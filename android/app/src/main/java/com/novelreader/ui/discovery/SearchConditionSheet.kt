@@ -84,9 +84,12 @@ fun SearchConditionSheet(
     // 文脈（裏に検索画面が居る）が消える。意匠正本 discovery-search-D.html の .sheet は
     // max-height:85% を明示しており、その追従として上限を85%に制限する（それ未満の内容なら wrap のまま）。
     // screenHeightDp はシステムバー除きの概算だが、モックの%指定に対する翻訳として十分。
+    // ⚠️ この上限は ModalBottomSheet の modifier に渡してはならない（内容側 Column に掛けること）:
+    // modifier は内部チェーン先頭に合成され、draggableAnchors が読む constraints.maxHeight 自体を
+    // 縮めるため fullHeight=85% かつシート実高=85% → Expanded アンカー=0 となり、align(TopCenter)
+    // 基準のままシートが画面上端に張り付く（2026-07-12 実機で発現。機序は task_diary #57）。
     val sheetMaxHeight = (LocalConfiguration.current.screenHeightDp * 0.85f).dp
     ModalBottomSheet(
-        modifier = Modifier.heightIn(max = sheetMaxHeight),
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.background,
@@ -122,6 +125,8 @@ fun SearchConditionSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // 85%上限は内容側に掛ける（シート modifier に掛けるとアンカー計算が壊れる＝上の⚠️参照）。
+                .heightIn(max = sheetMaxHeight)
                 // why: 文字数/読了時間のカスタム入力でIMEが出た際、IME inset分をシート内容側で吸収し
                 // 入力欄がキーボードに隠れないようにする（NcodeLinkSheet と同じ対処。この画面だけ抜けていた）。
                 .imePadding()
