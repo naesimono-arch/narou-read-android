@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.theme.MinchoFamily
@@ -442,12 +443,15 @@ internal fun DiscoverySearchContent(
                         title = category.title,
                         expanded = expanded,
                         onToggle = { expandedCategories[category.title] = !expanded },
+                        previewWords = category.words,
                     )
                     if (expanded) {
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp)
                         ) {
                             category.words.forEach { word ->
                                 val selected = word in selectedTokenSet
@@ -474,6 +478,8 @@ internal fun DiscoverySearchContent(
                             }
                         }
                     }
+                    // 案B: カテゴリ行はヘアラインで区切る「開ける行」（モック .kw-cat の border-bottom）
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
 
                 // F-F: 「ジャンル別を見る」の展開も構成変更で維持する。
@@ -497,12 +503,15 @@ internal fun DiscoverySearchContent(
                             title = category.title,
                             expanded = expanded,
                             onToggle = { expandedCategories[category.title] = !expanded },
+                            previewWords = category.words,
                         )
                         if (expanded) {
                             FlowRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 12.dp)
                             ) {
                                 category.words.forEach { word ->
                                     val selected = word in selectedTokenSet
@@ -529,6 +538,8 @@ internal fun DiscoverySearchContent(
                                 }
                             }
                         }
+                        // 案B: ジャンル別も同じ「開ける行」の区切り（モック .kw-cat の border-bottom）
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     }
                 }
             }
@@ -714,35 +725,50 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier) {
 
 // why: 「キーワードから選ぶ」の各カテゴリ見出しを開閉トグル化するための専用ヘッダ。
 // 静的な SectionHeader はフィルターシート側の見出し（作品の形/文字数 等）でも使い回すため、
-// そちらまで折りたたみ化しないよう別 composable に分ける。見た目トークン（型・字間・色）は
-// SectionHeader に揃え、開閉記号は同画面の「ジャンル別を見る」トグルと同じ ⌄/⌃ で統一する。
+// そちらまで折りたたみ化しないよう別 composable に分ける。
+// 意匠は案B（モック正本 docs/design-candidates/discovery/discovery-search-D.html .kw-cat）＝
+// ヘアラインで区切る「開ける行」・濃色見出し・畳み時は代表語を淡色で1行プレビュー。
+// なぜプレビューを出すか: 見出し語だけでは中身の語彙が想像できず「開けるだけの行」が並ぶため、
+// 畳んだままでもカテゴリの中身を予告する（展開すればチップ群に置き換わるので二重表示にならない）。
 @Composable
 fun CollapsibleCategoryHeader(
     title: String,
     expanded: Boolean,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
+    previewWords: List<String> = emptyList(),
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onToggle)
-            .padding(top = 22.dp, bottom = 10.dp)
+            .padding(top = 14.dp, bottom = 12.dp)
     ) {
-        Text(
-            text = title,
-            fontSize = 10.5.sp,
-            letterSpacing = 3.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            text = if (expanded) "⌃" else "⌄",
-            fontSize = 11.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = title,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = if (expanded) "⌃" else "⌄",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (!expanded && previewWords.isNotEmpty()) {
+            // 代表語プレビュー＝先頭3語を「・」区切り・4語以上は「…」（モック .kw-cat-preview）
+            Text(
+                text = previewWords.take(3).joinToString("・") + if (previewWords.size > 3) "…" else "",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 5.dp)
+            )
+        }
     }
 }
 
