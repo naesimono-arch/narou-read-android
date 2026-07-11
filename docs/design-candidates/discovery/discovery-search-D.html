@@ -1,4 +1,4 @@
-<!-- @dsCard group="UI-n / 発見（api-lab）" name="D. 検索画面" -->
+<!-- @dsCard group="UI-n / 発見（api-lab）" name="D. 検索画面（条件調整・キーワードから選ぶ・選択中バー）" -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -175,47 +175,6 @@
     font-weight: 600;
   }
 
-  /* レンジスライダー */
-  .range-slider-wrap {
-    padding: 4px 0;
-  }
-  .range-slider-labels {
-    display: flex;
-    justify-content: space-between;
-    font-size: 11.5px;
-    color: var(--ink);
-    margin-bottom: 8px;
-  }
-  .range-sep {
-    color: var(--ink-soft);
-  }
-  .slider-track-wrap {
-    position: relative;
-    height: 16px;
-    display: flex;
-    align-items: center;
-  }
-  .slider-track {
-    height: 1px;
-    background: var(--line);
-    width: 100%;
-    position: relative;
-  }
-  .slider-fill {
-    position: absolute;
-    height: 1px;
-    background: var(--ai);
-  }
-  .slider-thumb {
-    position: absolute;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--ai);
-    top: -3.5px;
-    transform: translateX(-50%);
-  }
-
   /* ボタン */
   .btn-primary {
     width: 100%;
@@ -245,10 +204,102 @@
     letter-spacing: 0.1em;
     margin-top: 8px;
   }
+
+  /* 条件を調整 導線ボタン（実装 DiscoverySearchScreen 準拠：枠線ボタン＋有効条件数バッジ。
+     有効条件あり＝藍枠＋藍字／0件時は --line 枠＋--ink-soft 字） */
+  .cond-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    margin-top: 16px;
+    border: 1px solid var(--ai);
+    border-radius: 2px;
+    padding: 12px;
+    color: var(--ai);
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  .cond-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+
+  /* キーワードから選ぶ（案B＝ヘアラインで区切られた「開ける行」） */
+  .kw-cat {
+    border-bottom: 1px solid var(--line);
+    padding: 14px 0 12px;
+    cursor: pointer;
+  }
+  .kw-cat-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .kw-cat-title { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .kw-cat-caret { font-size: 12px; color: var(--ink-soft); }
+  .kw-cat-preview { font-size: 11px; color: var(--ink-soft); margin-top: 5px; }
+  .kw-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .kwchip {
+    font-size: 11.5px;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 6px 12px;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .kwchip.on { border-color: var(--ai); color: var(--ai); font-weight: 600; }
+
+  /* ジャンル別トグル（実装準拠：藍リンク色の開閉行） */
+  .genre-toggle {
+    font-size: 11px;
+    color: var(--ai);
+    font-weight: 500;
+    padding: 16px 0 8px;
+    cursor: pointer;
+  }
+
+  /* 選択中キーワード追従バー（実装 SelectedKeywordsBar＝下部固定・上辺ヘアライン） */
+  .sel-bar {
+    flex-shrink: 0;
+    border-top: 1px solid var(--line);
+    background: var(--base);
+    padding: 12px 24px 16px;
+  }
+  .sel-bar-head { display: flex; align-items: center; justify-content: space-between; }
+  .sel-bar-ttl { font-size: 10.5px; letter-spacing: .08em; color: var(--ink-soft); }
+  .sel-bar-clear { font-size: 11.5px; color: var(--ai); font-weight: 500; cursor: pointer; }
+  .sel-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .sel-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    color: var(--ai);
+    border: 1px solid var(--ai);
+    border-radius: 50px;
+    padding: 5px 8px 5px 12px;
+    cursor: pointer;
+  }
+  .sel-chip .x { font-size: 12px; line-height: 1; }
+
+  /* 条件シート：併用不可の注記・無効節のグレーアウト・除外語の自由入力欄 */
+  .sheet-note { font-size: 10.5px; color: var(--ink-soft); margin-bottom: 10px; }
+  .sheet-sec.disabled { opacity: 0.45; pointer-events: none; }
+  .sheet-input {
+    width: 100%;
+    border: none;
+    border-bottom: 1px solid var(--line);
+    background: transparent;
+    padding: 6px 0;
+    font-size: 14px;
+    color: var(--ink);
+    font-family: var(--gothic);
+    outline: none;
+  }
+  .sheet-input::placeholder { color: var(--ink-soft); opacity: 0.6; }
 </style>
 </head>
 <body>
-  <p class="cap"><b>D. 検索画面</b> ／ 左＝検索ホーム（静かな入力欄＋複数選択チップ＋ピン留め・履歴） ／ 右＝条件調整（前画面オーバーレイ越しのボトムシート・各種絞り込み）</p>
+  <p class="cap"><b>D. 検索画面</b> ／ 左＝検索ホーム（静かな入力欄＋検索範囲チップ＋条件調整導線＋キーワードから選ぶ＋選択中キーワード追従バー） ／ 右＝条件調整（前画面オーバーレイ越しのボトムシート・段階チップ方式の絞り込み）</p>
   <div class="stage">
     <!-- フレーム1: 検索ホーム -->
     <div class="wrap"><span class="mode">検索ホーム</span>
@@ -257,7 +308,7 @@
       <div class="back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>見つける</div>
       
       <div class="search-input-box">
-        <input type="text" class="search-input" placeholder="作品名・作者・キーワード" readonly>
+        <input type="text" class="search-input" placeholder="作品名・作者・キーワード" value="ほのぼの スローライフ" readonly>
       </div>
 
       <div class="scroll" style="padding-top: 0;">
@@ -267,6 +318,12 @@
           <span class="rchip">あらすじ</span>
           <span class="rchip on">キーワード</span>
           <span class="rchip">作者名</span>
+        </div>
+
+        <!-- 条件を調整 導線（実装 DiscoverySearchScreen.kt:332-358。有効条件2件でバッジ付き・藍枠） -->
+        <div class="cond-btn">
+          <svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2" fill="var(--base)"/><circle cx="15" cy="12" r="2" fill="var(--base)"/><circle cx="9" cy="17" r="2" fill="var(--base)"/></svg>
+          条件を調整（2）
         </div>
 
         <div class="sec" style="margin-top: 28px;">ピン留め</div>
@@ -288,6 +345,89 @@
           <span class="rchip-hist">辺境<span class="del">×</span></span>
           <span class="rchip-hist">魔王と契約<span class="del">×</span></span>
           <span class="rchip-hist">短編<span class="del">×</span></span>
+        </div>
+
+        <!-- キーワードから選ぶ（案B。実データ NarouCuratedKeywords.basicCategories／genreCategories 準拠） -->
+        <div class="sec" style="margin-top: 28px;">キーワードから選ぶ</div>
+
+        <!-- 作品傾向：展開状態のサンプル（プレビューは消えチップ群が開く） -->
+        <div class="kw-cat">
+          <div class="kw-cat-head">
+            <span class="kw-cat-title">作品傾向</span>
+            <span class="kw-cat-caret">⌃</span>
+          </div>
+          <div class="kw-chips">
+            <span class="kwchip">ギャグ</span>
+            <span class="kwchip">シリアス</span>
+            <span class="kwchip on">ほのぼの</span>
+            <span class="kwchip">ダーク</span>
+          </div>
+        </div>
+
+        <!-- 以下は畳み：見出し＋代表語プレビュー1行（words 先頭3語・4語以上は「…」） -->
+        <div class="kw-cat">
+          <div class="kw-cat-head">
+            <span class="kw-cat-title">登場キャラクター</span>
+            <span class="kw-cat-caret">⌄</span>
+          </div>
+          <div class="kw-cat-preview">男主人公・女主人公・人外…</div>
+        </div>
+        <div class="kw-cat">
+          <div class="kw-cat-head">
+            <span class="kw-cat-title">舞台</span>
+            <span class="kw-cat-caret">⌄</span>
+          </div>
+          <div class="kw-cat-preview">和風・西洋・中華…</div>
+        </div>
+        <div class="kw-cat">
+          <div class="kw-cat-head">
+            <span class="kw-cat-title">時代設定</span>
+            <span class="kw-cat-caret">⌄</span>
+          </div>
+          <div class="kw-cat-preview">戦国・幕末・明治/大正…</div>
+        </div>
+        <div class="kw-cat">
+          <div class="kw-cat-head">
+            <span class="kw-cat-title">要素</span>
+            <span class="kw-cat-caret">⌄</span>
+          </div>
+          <div class="kw-cat-preview">ロボット・アンドロイド・職業もの…</div>
+        </div>
+
+        <!-- ジャンル別トグル（実装準拠・畳んだ状態。下は展開時に現れる17カテゴリの例示2-3行） -->
+        <div class="genre-toggle">ジャンル別のキーワードを見る ⌄</div>
+        <div class="kw-cat">
+          <div class="kw-cat-head">
+            <span class="kw-cat-title">恋愛</span>
+            <span class="kw-cat-caret">⌄</span>
+          </div>
+          <div class="kw-cat-preview">異類婚姻譚・身分差・年の差…</div>
+        </div>
+        <div class="kw-cat">
+          <div class="kw-cat-head">
+            <span class="kw-cat-title">現実世界〔恋愛〕</span>
+            <span class="kw-cat-caret">⌄</span>
+          </div>
+          <div class="kw-cat-preview">オフィスラブ・スクールラブ・古典恋愛</div>
+        </div>
+        <div class="kw-cat">
+          <div class="kw-cat-head">
+            <span class="kw-cat-title">歴史</span>
+            <span class="kw-cat-caret">⌄</span>
+          </div>
+          <div class="kw-cat-preview">IF戦記・史実・時代小説…</div>
+        </div>
+      </div>
+
+      <!-- 選択中キーワード追従バー（実装 SelectedKeywordsBar＝下部固定・.scroll の兄弟） -->
+      <div class="sel-bar">
+        <div class="sel-bar-head">
+          <span class="sel-bar-ttl">選択中のキーワード 2件</span>
+          <span class="sel-bar-clear">すべて解除</span>
+        </div>
+        <div class="sel-chips">
+          <span class="sel-chip">ほのぼの<span class="x">×</span></span>
+          <span class="sel-chip">スローライフ<span class="x">×</span></span>
         </div>
       </div>
     </div></div>
@@ -322,7 +462,8 @@
         <div class="sheet">
           <div class="grabber"></div>
           <h3 class="sheet-title">条件</h3>
-          
+
+          <!-- 作品の形（SearchConditionSheet.kt a.） -->
           <div class="sheet-sec">
             <div class="sheet-sec-ttl">作品の形</div>
             <div class="sheet-chips">
@@ -332,94 +473,94 @@
               <span class="schip">完結済</span>
             </div>
           </div>
-          
+
+          <!-- 更新された時期（b.。実装：すべて/7日以内/今月/先月） -->
           <div class="sheet-sec">
-            <div class="sheet-sec-ttl">期間</div>
+            <div class="sheet-sec-ttl">更新された時期</div>
             <div class="sheet-chips">
-              <span class="schip on">すべて</span>
-              <span class="schip">今週</span>
+              <span class="schip">すべて</span>
+              <span class="schip on">7日以内</span>
               <span class="schip">今月</span>
               <span class="schip">先月</span>
             </div>
           </div>
 
+          <!-- テーマ（含める）（c.。NarouAttr の uiLabel 全数） -->
           <div class="sheet-sec">
-            <div class="sheet-sec-ttl">属性</div>
+            <div class="sheet-sec-ttl">テーマ（含める）</div>
             <div class="sheet-chips">
               <span class="schip">異世界転生</span>
               <span class="schip">異世界転移</span>
-              <span class="schip on">残酷描写を除く</span>
+              <span class="schip">R15</span>
+              <span class="schip">ボーイズラブ</span>
+              <span class="schip">ガールズラブ</span>
+              <span class="schip">残酷な描写</span>
             </div>
           </div>
 
+          <!-- 除外する（c.。含める側と排他） -->
+          <div class="sheet-sec">
+            <div class="sheet-sec-ttl">除外する</div>
+            <div class="sheet-chips">
+              <span class="schip">異世界転生</span>
+              <span class="schip">異世界転移</span>
+              <span class="schip">R15</span>
+              <span class="schip">ボーイズラブ</span>
+              <span class="schip">ガールズラブ</span>
+              <span class="schip on">残酷な描写</span>
+            </div>
+          </div>
+
+          <!-- 除外語（自由入力）（c-2. なろうAPI notword） -->
+          <div class="sheet-sec">
+            <div class="sheet-sec-ttl">除外語（自由入力）</div>
+            <input type="text" class="sheet-input" placeholder="含めたくない語（スペース区切り）" readonly>
+          </div>
+
+          <!-- 文字数（d. 段階チップ＋カスタム。1万〜10万字を選択＝有効側） -->
           <div class="sheet-sec">
             <div class="sheet-sec-ttl">文字数</div>
-            <div class="range-slider-wrap">
-              <div class="range-slider-labels">
-                <span class="range-val">1万字</span>
-                <span class="range-sep">〜</span>
-                <span class="range-val">30万字</span>
-              </div>
-              <div class="slider-track-wrap">
-                <div class="slider-track">
-                  <div class="slider-fill" style="left: 10%; right: 40%;"></div>
-                  <div class="slider-thumb" style="left: 10%;"></div>
-                  <div class="slider-thumb" style="left: 60%;"></div>
-                </div>
-              </div>
+            <div class="sheet-chips">
+              <span class="schip">すべて</span>
+              <span class="schip">〜1万字</span>
+              <span class="schip on">1万〜10万字</span>
+              <span class="schip">10万〜50万字</span>
+              <span class="schip">50万〜100万字</span>
+              <span class="schip">100万字〜</span>
+              <span class="schip">カスタム</span>
             </div>
           </div>
 
-          <div class="sheet-sec">
+          <!-- 読了時間（e.。文字数が有効なため無効化＋併用不可注記＝実装 F-I） -->
+          <div class="sheet-sec disabled">
             <div class="sheet-sec-ttl">読了時間</div>
-            <div class="range-slider-wrap">
-              <div class="range-slider-labels">
-                <span class="range-val">30分</span>
-                <span class="range-sep">〜</span>
-                <span class="range-val">5時間</span>
-              </div>
-              <div class="slider-track-wrap">
-                <div class="slider-track">
-                  <div class="slider-fill" style="left: 15%; right: 35%;"></div>
-                  <div class="slider-thumb" style="left: 15%;"></div>
-                  <div class="slider-thumb" style="left: 65%;"></div>
-                </div>
-              </div>
+            <div class="sheet-note">文字数と併用できません（なろうAPIの制約）</div>
+            <div class="sheet-chips">
+              <span class="schip on">すべて</span>
+              <span class="schip">〜30分</span>
+              <span class="schip">30分〜2時間</span>
+              <span class="schip">2時間〜10時間</span>
+              <span class="schip">10時間〜</span>
+              <span class="schip">カスタム</span>
             </div>
           </div>
 
+          <!-- 会話率（f.。実装プリセット文言） -->
           <div class="sheet-sec">
             <div class="sheet-sec-ttl">会話率</div>
-            <div class="range-slider-wrap">
-              <div class="range-slider-labels">
-                <span class="range-val">20%</span>
-                <span class="range-sep">〜</span>
-                <span class="range-val">80%</span>
-              </div>
-              <div class="slider-track-wrap">
-                <div class="slider-track">
-                  <div class="slider-fill" style="left: 20%; right: 20%;"></div>
-                  <div class="slider-thumb" style="left: 20%;"></div>
-                  <div class="slider-thumb" style="left: 80%;"></div>
-                </div>
-              </div>
+            <div class="sheet-chips">
+              <span class="schip on">すべて</span>
+              <span class="schip">会話多め・60%〜</span>
+              <span class="schip">地の文多め・〜40%</span>
             </div>
           </div>
 
+          <!-- 挿絵（g.） -->
           <div class="sheet-sec">
             <div class="sheet-sec-ttl">挿絵</div>
-            <div class="range-slider-wrap">
-              <div class="range-slider-labels">
-                <span class="range-val">指定なし</span>
-                <span class="range-sep">〜</span>
-                <span class="range-val">あり</span>
-              </div>
-              <div class="slider-track-wrap">
-                <div class="slider-track">
-                  <div class="slider-fill" style="left: 0%; right: 0%;"></div>
-                  <div class="slider-thumb" style="left: 100%;"></div>
-                </div>
-              </div>
+            <div class="sheet-chips">
+              <span class="schip on">すべて</span>
+              <span class="schip">あり</span>
             </div>
           </div>
 
