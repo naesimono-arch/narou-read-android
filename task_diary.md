@@ -626,6 +626,13 @@ Robolectric（4.11.1・sdk34・createComposeRule）で `ModalBottomSheet` を含
 - **機序**: `testDebugUnitTest` は JVM 実行だが **Android バリアントとしてコンパイル**されるため、dex 互換の識別子制約（`.` `;` `[` `]` `/` 等の禁止）がバッククォート名にも課される。純 JVM モジュールなら通る書き方なので、他プロジェクトの流儀を持ち込むと Android 側だけ落ちる。
 - **対処**: テスト名にファイル名・拡張子・小数（「1.5倍」等）を書きたいときは `.` を外した言い換えにする（例:「chap_N 形式の章ファイル名は…」）。
 
+#### 55. `limitedParallelism(1)` への launch は DB 着地順を直列化しない（`withContext`/Room suspend DAO の再ディスパッチでスロットが手放される）  ★★
+
+2026-07-11 pending_jobs 直列化の健全性監査（反証エージェント CONFIRMED）→ Mutex 化 `cccb4dc` で確定。
+- **機序**: `Dispatchers.IO.limitedParallelism(1)` の単一スロットは「そのディスパッチャ上で同時に走るコルーチン数を1に絞る」だけ。コルーチンが `withContext(Dispatchers.IO)` で別ディスパッチャへ移った瞬間、また Room の suspend DAO が内部 executor へ再ディスパッチした瞬間にスロットは解放され、後続の仕事が追い越せる＝**「launch 順＝DB 着地順」は保証されない**。
+- **帰結**: 「並列度1ディスパッチャへ launch すれば FIFO 直列化」という設計は、仕事が終端まで同ディスパッチャに留まる場合にしか成立しない。Room・`withContext` が挟まる実務コードではほぼ不成立（本件では「PDF投入直後に停止」で insert が deleteAll を追い越し、破棄済みジョブが復活する窓になっていた）。
+- **対処**: suspend 呼び出しの完了までロックを保持する `Mutex.withLock` が正しい排他（ディスパッチャ非依存）。順序も要るなら main スレッド起点の launch 順＋Mutex の FIFO 公平性で担保する。
+
 ## 移設マッピング（旧 Part II / Part III の固定ID対応）
 
 > 旧エントリ番号（`§N`）は固定ID。本ファイルから `docs/` へ移設したもの、および重複採番の解消で再採番したものは下表で追跡する（移設先での再採番はしない）。

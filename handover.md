@@ -65,34 +65,35 @@
 
 > 監査体制: 観点別6エージェント（並行処理/エラー処理/Room/デッドコード/Compose/API・テスト）＋描画性能2＋検索画面深掘り1＋敵対的検証3。**クリーン確認済みの面**: デッドコード・撤去残骸ゼロ（TODO/FIXME 0件・未使用リソース/依存なし・ラベル/Chaquopy 残骸なし）・直近リファクタ4コミット退行なし・読書画面の描画設計は高水準（ルビ=1段落1BasicText+Canvasオーバーレイ・バー退避=graphicsLayerラムダ・スクロール観測=snapshotFlow・パース/AnnotatedString/TextStyle は remember 済み＝「ルビ数万ノード」「フォント変更で全文再パース」は不発生）。
 
-**確定バグ（検証CONFIRMED・修正推奨順）**
+**確定バグ（検証CONFIRMED・3件とも解消済み＝2026-07-11 一括消化バッチ・STATUS §1）**
 
-- **[クラッシュ経路] 検索履歴 DataStore の IOException 未処理**: `narou/SearchHistoryStore.kt:93`（読み Flow）と `update()`（`dataStore.edit` 書き込み）に `.catch` 無し・`corruptionHandler` 未指定（CorruptionException すら救われない）。破損/ディスクエラー時に `DiscoveryViewModel.kt:394` の `stateIn` 共有コルーチン（viewModelScope・handler 無し）で未捕捉→**アプリクラッシュ**。検索履歴という非クリティカル機能の割に合わない。修正: ストア側に公式推奨 `.catch { if (it is IOException) emit(emptyPreferences()) else throw it }`＋書き込み側の IOException 許容（数行で完結）。
-- **[レース] pending_jobs 記帳の直列化が実は不成立**: `NovelReaderApplication.kt:51` の `limitedParallelism(1)` は、`addPendingJob`/`clearPendingJobs`（`DefaultBookRepository.kt:256,270`）冒頭の `withContext(Dispatchers.IO)` 再ディスパッチでスロットを手放すため **DB 着地順を保証しない**（設計コメントの根拠が coroutine 意味論として不成立）。「PDF投入直後に停止→停止済みジョブが pending_jobs に生存→次回起動の `runStartupRecoveryOnce` が勝手に再開」の窓が理論上残る。現状事故らないのは `resolveDisplayName` の先行実行と `getAll` ゲーティングという**偶発要因**（設計意図でない）。修正: Mutex か DAO トランザクションで排他し `limitedParallelism` 依存を撤去。
-- **[FGS] onTimeout 後の旧ループ finally が新ループを道連れ**: `PdfProcessingService.kt:270-295` の finally に「自分のキャンセル」と「新ループの稼働」を区別する世代/scope ガードが無い。dataSync 6時間タイムアウト（`onTimeout`＝scope 再生成+`isLoopRunning=false`。この経路のみ旧ループ生存と同時成立）直後に取り込み再投入されると、遅延死した旧ループの finally が新ループの `isLoopRunning` を潰し無引数 `stopSelf()` でサービスごと停止（pending_jobs リカバリで次回起動時に再開はされる＝実害は「開始した取り込みが理由なく消える」）。低頻度だが論理欠陥は実在。修正: 世代カウンタ or scope 照合を finally 条件へ。
+- ~~**[クラッシュ経路] 検索履歴 DataStore の IOException 未処理**~~ → **解消済み**（`5815802`＝corruptionHandler＋読み Flow の IOException 空履歴フォールバック＋書き込み側許容。※監査記述と異なり CorruptionException は IOException のサブクラスだが、`.catch` では破損ファイルが残り毎回失敗し続けるため恒久復旧に corruptionHandler が別途必要——両対策で正）。
+- ~~**[レース] pending_jobs 記帳の直列化が実は不成立**~~ → **解消済み**（`cccb4dc`＝DAO 呼び出し完了までロックを保持する `pendingJobMutex` で全 pending_jobs 書き込みを排他・`limitedParallelism(1)` 撤去。機序の一般知見は task_diary #55）。
+- ~~**[FGS] onTimeout 後の旧ループ finally が新ループを道連れ**~~ → **解消済み**（`f70b937`＝ループ世代カウンタ。採番を launch 前の main スレッドで確定・閉じ込め、旧世代の finally は新世代の isLoopRunning/stopSelf に触れず退場。通常経路は世代が進まず挙動完全一致）。
+- **[小粒・新規＝上記修正の副産物指摘] `processSingleUri` 側 finally の通知カウントに世代ガード無し**: onTimeout が `doneCount=0` リセット後、旧ループ在籍中の1冊が遅延キャンセルされると `doneCount` が進み、新バッチ初冊の通知が「2/1」等と一時表示されうる（表示のみ・実害小）。`f70b937` と同じ世代照合の横展開で対処可。
 
 **検索画面の重さ（ユーザー実体感あり・診断確定）**
 
 - 正体＝「**カテゴリ展開状態での操作毎の全画面再コンポーズ**」（既定の全畳みは軽い＝「重いときがある」と整合）。キーワード22カテゴリ/115チップが非 Lazy Column（`DiscoverySearchScreen.kt:203-207`）上にあり、`SearchDraft` が Set 内包で unstable＋strong skipping 無効のため**毎キーストローク最大115チップ全再コンポーズ**、さらに選択判定 `containsWordToken` がチップ毎に Regex 再コンパイル（`SearchDraft.kt:223-224`・メモ化なし）。展開状態は rememberSaveable 保存→全展開のまま再訪すると**初回オープンから重い**第二経路。アニメ・履歴 DataStore・キーワード定義構築はシロ。
-- 修正順: **S1** 選択判定を `remember(draft.word)` の Set 化＋Regex をトップレベル定数化（小・即効）→ **S2** compose compiler `experimentalStrongSkipping=true`＋`SearchDraft`/`SearchFilters` へ `@Immutable`（小〜中・操作毎の本命。条件シート約30チップ・本棚カードの skip 不能にも同時に効く全体波及の一手）→ **S3** 外側を LazyColumn 化（中・画面外チップの存在コストと全展開再訪の初回構成。S1/S2 の実機体感を見てから判断可）。
+- 修正順: ~~**S1** 選択判定を `remember(draft.word)` の Set 化＋Regex をトップレベル定数化~~ → **解消済み**（`a3662c2`・全ケース同値テスト付き）→ ~~**S2** `experimentalStrongSkipping=true`＋`@Immutable`~~ → **解消済み**（`b1c0bfc`・stability レポートで SearchDraft/SearchFilters=stable・DiscoverySearchContent/FilterChipItem=skippable を機械検証済み。**残＝実機の全画面スモーク**: strong skipping は全 Composable に波及するため検索・読書・本棚・設定シートで見た目/挙動不変を次の実機検証便で目視）→ **S3** 外側を LazyColumn 化（中・画面外チップの存在コストと全展開再訪の初回構成。**S1/S2 の実機体感を見てから判断**＝残）。
 
 **描画/ビルドの軽量化（読書画面以外）**
 
 - **R8/リソース収縮が無効**（`android/app/build.gradle:22-25` `minifyEnabled false`・`shrinkResources` 無し）: 有効化が**単独最大の軽量化レバー**（APK 24MiB の dead code/未使用リソース分）。Moshi/Room は codegen/KSP で keep は軽微見込みだが PDFBox/Retrofit/OkHttp の keep 確認＋実機回帰（`/device-verify`・収縮起因クラッシュはリリースでしか出ない）必須。
-- ルビ描画パスの Paint×2 再生成＋`calculateRubyPositions` 再計算（`RubyText.kt:82-122`）: 章オープン/設定変更毎に可視段落分実行（行またぎは BreakIterator まで）。Paint の remember 化＋位置計算のレイアウト結果キーキャッシュで削減。効果中。
-- 小粒: `components/BookCover.kt:103-107` Brush 生成が remember 外（1行修正）／段落 TextStyle（`ChapterContent.kt:168`）を LazyColumn 外へ集約／`ChapterContent.kt:94`・`NativeTableOfContentsScreen.kt:212`・`NcodeLinkSheet.kt:260` の LazyColumn key/contentType 未指定（純パフォーマンス・状態破壊なし）。
+- ~~ルビ描画パスの Paint×2 再生成＋`calculateRubyPositions` 再計算（`RubyText.kt`）~~ → **解消済み**（`8f452a3`＝Paint/ascent の remember 化＋位置計算を TextLayoutResult×rubyRanges のインスタンス同一性でキャッシュ）。
+- ~~小粒: BookCover Brush・段落 TextStyle・LazyColumn key/contentType~~ → **解消済み**（`96a4c22`。※本文段落リストは一意な安定IDを持たないため key は付けず contentType（4描画種）のみ＝非一意 key の状態破壊を回避した意図的判断）。
 
 **その他（中〜低）**
 
-- `deleteBook` 非トランザクション（`DefaultBookRepository.kt:344-350`）: books 削除と progress 削除の間で kill されると孤児 progress 行が恒久残留（掃除経路なし・実害は不可視 dead data）。トランザクション化。
-- **Web読書位置の ncode 正規化がテスト不能**: `recordWebReadingEpisode`/`getWebReadingProgress`（`DefaultBookRepository.kt:70-81`）の `trim().uppercase()` は「続きから」空振り防止の load-bearing ロジックだが、`webReadingProgressDao` が BookRepositoryTest のコンストラクタ注入対象外で現状テスト不能＝参照側（`ShelfItems.kt:58`）との正規化ズレをサイレントに許す。DAO 注入化＋往復一致の回帰テスト追加。
+- ~~`deleteBook` 非トランザクション~~ → **解消済み**（`862954e`＝Room withTransaction の関数注入で原子化・HTMLディレクトリ削除はロールバック不能なファイルIOのためトランザクション外の既存設計を維持）。
+- ~~**Web読書位置の ncode 正規化がテスト不能**~~ → **解消済み**（`3b151b2`＝保存する FakeWebReadingProgressDao を注入し、往復一致＋表記ゆれ正規化一致＋保存キー自体の正規化を回帰テストで固定。※webReadingProgressDao は既にコンストラクタ注入対象だった＝実際の穴はテスト側の未注入）。
 - `web_reading_progress` に prune/削除経路が皆無（upsert のみの単調増加。`removeWebNovel`/`deleteBook` とも触れず、new_episode_marks の日次 `pruneExcept` と非対称）。個人スケールでは無害だが設計の穴として記録。
-- `novelDetailsBulk` が紐付け501件超で API の lim 上限（500）を超え、501件目以降の新着が**沈黙欠落**（`NewEpisodeCheckWorker.kt:56`+`NovelApiRepository.kt:366-380`・現実には稀）。チャンク分割。
-- OkHttpClient がタイムアウト既定依存（callTimeout 無し・`NarouNetwork.kt:24-26`/`PdfImportViewModel.kt:110`）。低速だが途切れない DL は無制限継続しうる。
+- ~~`novelDetailsBulk` の紐付け501件超サイレント欠落~~ → **解消済み**（`505dd03`＝500件チャンク分割・境界テスト2件付き）。
+- ~~OkHttpClient がタイムアウト既定依存~~ → **解消済み**（`73246e5`＝API は callTimeout 30秒・PDF DL は connect 30秒＋read 60秒で「無進捗の停滞」のみ切る設計＝正当な長時間 DL は殺さない）。
 - MigrationTest が「16.json 形状（web_reading_progress 無し）→17」経路を構造的に検証できない（chain テストは 14→15 でテーブルが生まれる系譜のみ通過）。既知の実機 v16→v17 未検証と同根の coverage-hole として記録。
-- `AndroidManifest.xml:11` INTERNET permission コメント「本文取得はしない」が WebView 実表示（機能②）導入後の実態と微不整合（permission 自体は正当・文言のみ）。
+- ~~`AndroidManifest.xml` INTERNET permission コメントの実態不整合~~ → **解消済み**（`20bf2ca`・文言のみ修正）。
 
-- **worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す運用**: Lint コミットゲート（`check_lint_on_commit.py`）は drvfs でスキップされる設計＝canonical 作業が続く限り事実上無効。ext4 worktree なら in-tree で回るので冒頭で1回スイープする（直近スイープ＝2026-07-11・0 errors/26 warnings＝+5 は全て `GradleDependency` の上流版ズレノイズで新規実質指摘なし。前回=2026-07-08・0/21）。
+- **worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す運用**: Lint コミットゲート（`check_lint_on_commit.py`）は drvfs でスキップされる設計＝canonical 作業が続く限り事実上無効。ext4 worktree なら in-tree で回るので冒頭で1回スイープする（直近スイープ＝2026-07-11・監査指摘12コミット後も 0 errors/26 warnings＝基準同一で新規指摘なし。前々回=2026-07-08・0/21）。
 
 ## workflow / tooling
 
