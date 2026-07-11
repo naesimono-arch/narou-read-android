@@ -6,6 +6,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Response
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
+import java.util.concurrent.TimeUnit
 
 object NarouNetwork {
     private const val BASE_URL = "https://api.syosetu.com/"
@@ -23,6 +24,11 @@ object NarouNetwork {
 
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(UserAgentInterceptor())
+        // なぜ callTimeout（全体上限）を設けるか: OkHttp の既定では全体タイムアウトが無制限で、
+        // 低速だが切れない接続だと検索/詳細のリクエストが永久に完了せず、呼び出し元のコルーチンを
+        // 掴んだままになりうる（新着チェック Worker 等では実行枠を無駄に占有する）。ランキング/検索/
+        // 作品詳細の応答は小さく数秒で返るのが正常なので、接続確立から本文受信までの全体を 30 秒で打ち切る。
+        .callTimeout(30, TimeUnit.SECONDS)
         .build()
 
     // なぜ KotlinJsonAdapterFactory を付けないか:
