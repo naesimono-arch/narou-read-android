@@ -173,5 +173,8 @@ if(document.fonts&&document.fonts.ready)document.fonts.ready.then(paint);
 document.getElementById('reroll').addEventListener('click',()=>{list=sample(POOL,8);all();});
 document.getElementById('theme').addEventListener('click',()=>{dark=!dark;document.body.classList.toggle('pgdark',dark);all();});
 </script>
+<footer style="max-width:860px;margin:34px auto 0;font-size:12.5px;color:#4f5148;line-height:2.0;border-top:1px solid #cfc8bf;padding-top:18px">
+  <b style="color:#1C1F26">確定（2026-07-11 オーナー裁定「本棚モックはすべて確定」・2026-07-12 記帳）</b>：<b style="color:#1C1F26">現行＝全周和リングを採用</b>（「寒色・静」「和の伝統色」は不採用）。生成色相は PALETTE <code>[20,70,140,175,200,210,260,330]</code>・S48・L52(ライト)/62(ダーク)を維持＝実装（<code>ShioriGenerator.kt</code>）変更なし。セピアの accent 明度 L48 は整合モック <code>bookshelf-shiori-consistency-D.html</code>（THEMES.accL）が正本。
+</footer>
 </body>
 </html>
