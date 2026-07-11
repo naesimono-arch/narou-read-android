@@ -38,7 +38,7 @@
 ## 1. 完了済み
 
 - **検索/発見系フィードバック5件の一括消化（2026-07-12・`ui/uiux-tasks`・`3ba2203`〜`da42089`・testDebugUnitTest **413件緑**〔新規＝SearchDraft ジャンル系5件〕・check_design_tokens.py OK=96/NG=0・探索4＋実装4＋上流調査1サブエージェント並列＋監督ゲート〔削除行込み diff 全量レビュー・テスト実走を結果XMLで確認〕・実機目視＝ユーザー確認待ち）**:
-  **①task_diary #51 シート枠オーバーシュート＝上流解消と判定**: material3 1.3.1 sources jar 一次確認で settle 既定アニメが 1.3.0-alpha02 で spring→tween 化＝オーバーシュート不発生（「本命の解」実装は不要・詳細は task_diary #51 増補が正本）。「シートが全画面」観測は条件項目増で上限まで伸びる見え方＝モック `.sheet` max-height:85% への追従で解消（`da42089`＝heightIn 上限）。
+  **①task_diary #51 シート枠オーバーシュート＝上流解消・実機スモークGREENで完全クローズ（2026-07-12・handover から削除済み）**: material3 1.3.1 sources jar 一次確認で settle 既定アニメが 1.3.0-alpha02 で spring→tween 化＝オーバーシュート不発生（「本命の解」実装は不要・詳細は task_diary #51 増補が正本）。「シートが全画面」観測は条件項目増で上限まで伸びる見え方＝モック `.sheet` max-height:85% への追従で解消（`da42089`＝heightIn 上限）。⚠️ 初回実装は上限を ModalBottomSheet の modifier に掛けて**シートが画面上端に張り付く退行**を実機で踏んだ→内容側 Column へ移動で解消（`8dfca13`・機序＝**task_diary #57 新設**＝draggableAnchors の constraints が縮み Expanded アンカー=0）。実機で部分シート化＋高速フリック枠飛び出しなしをユーザー目視確認済み。
   **②条件を調整シートへなろう公式ジャンル絞り込み導入（`fe3b54f`）**: 下位層（API biggenre/genre・専用ジャンル画面・結果画面フィルタ）は実装済みで、欠落だった SearchFilters⇄シートUI の接続を新設。シート最上段に大ジャンル6グループ×「すべて」＋詳細20コード。biggenres⇄genres は**完全相互排他**（同時送信は API のパラメータ間 AND で結果が空になる欠陥クラス＝istensei 同時指定と同族・結果画面 changeResultGenreFilter の既存規則とも一致）。
   **③検索履歴チップの長文で×ボタン押し出し（`3ba2203`）**: 語 Text に weight/ellipsis が無く長文が行全幅を占有→×が幅0化が真因。`weight(1f, fill=false)`＋1行 ellipsis で×の幅を先確保（削除経路自体は健全だった）。
   **④詳細画面の主CTAを「縦書きPDFを取り込む」へ主従逆転（`f093285`・ユーザー裁定＝アプリの根本価値「手元に本を置く」）**: 未読・未取込で PDF取込＝藍主CTA最上段・なろうで読む＝ゴースト。既読は「続きから読む」主のまま・取込済みは「なろうで読む」が主へ復帰（主CTA常に1つ）。モック正本 discovery-detail-D.html 同期改訂。
