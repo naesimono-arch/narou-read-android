@@ -174,6 +174,13 @@
     color: var(--ai);
     font-weight: 600;
   }
+  /* ジャンル節の大ジャンル小見出し（sheet-sec-ttl より一段濃い階層。既存変数のみ使用） */
+  .genre-sub {
+    font-size: 11px;
+    color: var(--ink);
+    font-weight: 600;
+    margin: 14px 0 8px;
+  }
 
   /* ボタン */
   .btn-primary {
@@ -462,6 +469,57 @@
         <div class="sheet">
           <div class="grabber"></div>
           <h3 class="sheet-title">条件</h3>
+
+          <!-- ジャンル（SearchConditionSheet.kt ジャンル節。なろう一次分類のため最上段） -->
+          <!-- 大ジャンルごとに「すべて」（＝biggenre）＋詳細（＝genre）。biggenres と genres は相互排他 -->
+          <div class="sheet-sec">
+            <div class="sheet-sec-ttl">ジャンル</div>
+            <div class="genre-sub">恋愛</div>
+            <div class="sheet-chips">
+              <span class="schip">すべて</span>
+              <span class="schip on">異世界〔恋愛〕</span>
+              <span class="schip">現実世界〔恋愛〕</span>
+            </div>
+            <div class="genre-sub">ファンタジー</div>
+            <div class="sheet-chips">
+              <span class="schip">すべて</span>
+              <span class="schip">ハイファンタジー</span>
+              <span class="schip">ローファンタジー</span>
+            </div>
+            <div class="genre-sub">文芸</div>
+            <div class="sheet-chips">
+              <span class="schip">すべて</span>
+              <span class="schip">純文学</span>
+              <span class="schip">ヒューマンドラマ</span>
+              <span class="schip">歴史</span>
+              <span class="schip">推理</span>
+              <span class="schip">ホラー</span>
+              <span class="schip">アクション</span>
+              <span class="schip">コメディー</span>
+            </div>
+            <div class="genre-sub">SF</div>
+            <div class="sheet-chips">
+              <span class="schip">すべて</span>
+              <span class="schip">VRゲーム</span>
+              <span class="schip">宇宙</span>
+              <span class="schip">空想科学</span>
+              <span class="schip">パニック</span>
+            </div>
+            <div class="genre-sub">その他</div>
+            <div class="sheet-chips">
+              <span class="schip">すべて</span>
+              <span class="schip">童話</span>
+              <span class="schip">詩</span>
+              <span class="schip">エッセイ</span>
+              <span class="schip">リプレイ</span>
+              <span class="schip">その他</span>
+            </div>
+            <div class="genre-sub">ノンジャンル</div>
+            <div class="sheet-chips">
+              <span class="schip">すべて</span>
+              <span class="schip">ノンジャンル</span>
+            </div>
+          </div>
 
           <!-- 作品の形（SearchConditionSheet.kt a.） -->
           <div class="sheet-sec">

@@ -346,5 +346,77 @@ class SearchDraftTest {
         assertEquals("15", normalizeCustomRangeInput("1O5万字-")) // 英字 O（数字でない）・単位・記号は落ちる
         assertEquals("", normalizeCustomRangeInput("abc-"))
     }
+
+    @Test
+    fun `toQuery - ジャンル（biggenres・genres）が DiscoveryQuery へ引き渡されること`() {
+        val q1 = SearchDraft(filters = SearchFilters(biggenres = setOf(1))).toQuery()
+        assertEquals(setOf(1), q1.biggenres)
+        assertTrue(q1.genres.isEmpty())
+
+        val q2 = SearchDraft(filters = SearchFilters(genres = setOf(101, 201))).toQuery()
+        assertEquals(setOf(101, 201), q2.genres)
+        assertTrue(q2.biggenres.isEmpty())
+    }
+
+    @Test
+    fun `activeCount - ジャンル選択が有効条件として数えられること`() {
+        // 大ジャンル1件で +1
+        assertEquals(1, SearchFilters(biggenres = setOf(1)).activeCount())
+        // 詳細ジャンル2件で +2
+        assertEquals(2, SearchFilters(genres = setOf(101, 102)).activeCount())
+        // 他条件との合算（作品種別1 + 詳細ジャンル1 = 2）
+        assertEquals(
+            2,
+            SearchFilters(types = setOf(NarouNovelType.SHORT), genres = setOf(305)).activeCount()
+        )
+    }
+
+    @Test
+    fun `isActive - ジャンル選択だけでも有効になること`() {
+        assertTrue(SearchFilters(biggenres = setOf(2)).isActive)
+        assertTrue(SearchFilters(genres = setOf(201)).isActive)
+        assertTrue(SearchDraft(filters = SearchFilters(genres = setOf(201))).canSearch)
+    }
+
+    @Test
+    fun `withBiggenreToggled - 大ジャンルの足し引きと詳細ジャンルの相互排他が機能すること`() {
+        // 空から大ジャンル追加
+        val f1 = SearchFilters().withBiggenreToggled(1)
+        assertEquals(setOf(1), f1.biggenres)
+        assertTrue(f1.genres.isEmpty())
+
+        // 同じコードを再タップで除去（＝ジャンル指定なしへ戻る）
+        val f2 = f1.withBiggenreToggled(1)
+        assertTrue(f2.biggenres.isEmpty())
+        assertTrue(f2.genres.isEmpty())
+
+        // 詳細ジャンルが立っている状態で大ジャンルを立てると、詳細は相互排他で掃かれる
+        // なぜ: biggenre と genre を同時送信すると API 上 AND で交わりが空になり結果が消えるため（§4.2）
+        val f3 = SearchFilters(genres = setOf(101)).withBiggenreToggled(2)
+        assertEquals(setOf(2), f3.biggenres)
+        assertTrue(f3.genres.isEmpty())
+    }
+
+    @Test
+    fun `withGenreToggled - 詳細ジャンルの足し引きと大ジャンルの相互排他が機能すること`() {
+        // 空から詳細ジャンル追加
+        val f1 = SearchFilters().withGenreToggled(101)
+        assertEquals(setOf(101), f1.genres)
+        assertTrue(f1.biggenres.isEmpty())
+
+        // 同一大ジャンル内で別の詳細を追加（複数選択は同一パラメータ内 OR で安全）
+        val f2 = f1.withGenreToggled(102)
+        assertEquals(setOf(101, 102), f2.genres)
+        assertTrue(f2.biggenres.isEmpty())
+
+        // 詳細を再タップで除去
+        val f3 = f2.withGenreToggled(101)
+        assertEquals(setOf(102), f3.genres)
+
+        // 大ジャンルが立っている状態で詳細を立てると、大ジャンルは相互排他で掃かれる
+        val f4 = SearchFilters(biggenres = setOf(1)).withGenreToggled(201)
+        assertEquals(setOf(201), f4.genres)
+        assertTrue(f4.biggenres.isEmpty())
+    }
 }
 

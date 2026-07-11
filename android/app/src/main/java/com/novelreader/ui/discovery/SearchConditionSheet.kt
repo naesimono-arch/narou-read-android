@@ -44,6 +44,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouAttr
+import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouLastup
 import com.novelreader.narou.model.NarouNovelType
 import com.novelreader.ui.theme.MinchoFamily
@@ -127,6 +128,42 @@ fun SearchConditionSheet(
                 letterSpacing = 1.5.sp,
                 color = MaterialTheme.colorScheme.onSurface
             )
+
+            // ジャンル（なろうの一次分類のため最上段に置く）。
+            // 大ジャンルごとに「すべて」チップ（＝その大ジャンル全体＝biggenre）と詳細ジャンルチップ（＝genre）を並べる。
+            // なぜ折りたたまないか: このシートに折りたたみの慣行はなく（キーワード選択画面の CollapsibleCategoryHeader は
+            // 別画面の意匠）、過剰実装を避けて素の縦並びにする。長さは verticalScroll で吸収する。
+            // 選択セマンティクス（相互排他）は SearchFilters.withBiggenreToggled/withGenreToggled が単一真実源。
+            SectionHeader(text = "ジャンル")
+            NarouGenres.BIGGENRES.forEach { (bigCode, bigName) ->
+                GenreGroupLabel(text = bigName)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // 「すべて」＝この大ジャンル全体（biggenre コード）。選択中は biggenres にコードが入っている状態。
+                    // 未選択（biggenres/genres とも空）のときは点灯しない＝「ジャンル指定なし＝全ジャンル」を表す
+                    // （他節の「すべて＝空で点灯」とは意味が異なる。ここでは大ジャンル単位の選択なので、
+                    // 各グループの「すべて」がその大ジャンルの選択有無を表す）。
+                    FilterChipItem(
+                        selected = bigCode in draft.filters.biggenres,
+                        label = "すべて",
+                        onClick = {
+                            viewModel.setSearchDraft(draft.copy(filters = draft.filters.withBiggenreToggled(bigCode)))
+                        }
+                    )
+                    NarouGenres.GENRES_BY_BIG[bigCode]?.forEach { (genreCode, genreName) ->
+                        FilterChipItem(
+                            selected = genreCode in draft.filters.genres,
+                            label = genreName,
+                            onClick = {
+                                viewModel.setSearchDraft(draft.copy(filters = draft.filters.withGenreToggled(genreCode)))
+                            }
+                        )
+                    }
+                }
+            }
 
             // a. 作品の形
             SectionHeader(text = "作品の形")
@@ -558,6 +595,22 @@ fun SearchConditionSheet(
             }
         }
     }
+}
+
+/**
+ * ジャンル節の大ジャンル小見出し（モック .sheet の大ジャンル小見出し＝sheet-sec-ttl より一段濃い行）。
+ * SectionHeader（節見出し）より下位の階層を示すため、字間を詰め onSurface 寄りで区別する
+ * （色は既存トークンのみ・意匠発明はしない）。
+ */
+@Composable
+private fun GenreGroupLabel(text: String) {
+    Text(
+        text = text,
+        fontSize = 11.5.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)
+    )
 }
 
 /**

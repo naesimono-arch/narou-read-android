@@ -23,6 +23,10 @@ import kotlinx.parcelize.Parcelize
 data class SearchFilters(
     val types: Set<NarouNovelType> = emptySet(),       // D4 作品の形
     val lastups: Set<NarouLastup> = emptySet(),        // D5 期間
+    // ジャンル: 大ジャンル（すべて）選択＝biggenres、詳細ジャンル選択＝genres。両者は相互排他で同時に非空にしない
+    // （理由は withBiggenreToggled/withGenreToggled のコメント参照）。
+    val biggenres: Set<Int> = emptySet(),
+    val genres: Set<Int> = emptySet(),
     val attrsInclude: Set<NarouAttr> = emptySet(),
     val attrsExclude: Set<NarouAttr> = emptySet(),
     val length: String? = null,             // D3 文字数
@@ -37,6 +41,10 @@ data class SearchFilters(
         var n = 0
         n += types.size
         n += lastups.size
+        // ジャンルは既存の集合項目（types/lastups/attrs）と同じく「選択チップ1枚＝1件」で数える。
+        // biggenres と genres は相互排他で同時に非空にならないため、単純な和で二重計上は起きない。
+        n += biggenres.size
+        n += genres.size
         n += attrsInclude.size
         n += attrsExclude.size
         if (length != null) n++
@@ -54,6 +62,23 @@ data class SearchFilters(
     // なぜ time と文字数指定の併用不可（マニュアル§4.4）＝両方送ったときの挙動が未定義のため、モデル層で同時に立たないことを保証する。
     fun withTime(v: String?): SearchFilters {
         return copy(time = v, length = null)
+    }
+
+    // 大ジャンル（すべて）チップのトグル。tapped を biggenres に足し引きし、詳細ジャンル(genres)は常に空へ掃く。
+    // なぜ biggenres と genres を同時に非空にしないか（相互排他）: なろうAPIは biggenre と genre を別パラメータの
+    // AND で合成する（マニュアル§4.2＝ハイフンはパラメータ内の OR、パラメータ間は AND）。大ジャンルと、その配下でない
+    // 詳細ジャンルを同時送信すると「biggenre=1 かつ genre=201」のように交わりが空になり、条件は見えているのに結果が
+    // 消える（istensei/nottensei 同時指定＝空集合と同族の欠陥。ADR 0007 原則2「見えている条件と実送信の一致」を破る）。
+    // 結果画面の changeResultGenreFilter も常に一方のみを設定しており、この二択モードが既存アプリ内セマンティクスと一致する。
+    fun withBiggenreToggled(code: Int): SearchFilters {
+        val next = if (code in biggenres) biggenres - code else biggenres + code
+        return copy(biggenres = next, genres = emptySet())
+    }
+
+    // 詳細ジャンルチップのトグル。tapped を genres に足し引きし、大ジャンル(biggenres)は常に空へ掃く（相互排他の理由は withBiggenreToggled 参照）。
+    fun withGenreToggled(code: Int): SearchFilters {
+        val next = if (code in genres) genres - code else genres + code
+        return copy(genres = next, biggenres = emptySet())
     }
 }
 
@@ -106,6 +131,8 @@ data class SearchDraft(
         inStory = inStory,
         inKeyword = inKeyword,
         inWriter = inWriter,
+        biggenres = filters.biggenres,
+        genres = filters.genres,
         types = filters.types,
         lastups = filters.lastups,
         attrsInclude = filters.attrsInclude,
