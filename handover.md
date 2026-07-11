@@ -35,7 +35,7 @@
 2. **カバー色域の再検討（3案比較）**＝`docs/design-candidates/bookshelf-shiori-palette-D.html`（現行=全周和リング / 寒色・静 / 和の伝統色）。現行は全周8色相＝締めるか要オーナー判断。
 3. 他4型（A箔/C小口/D蔵書印/E綴じ紐）を将来スキン資産として保持するか（ADR 0005 C の A〜J スキン方針＝保持推奨）。
 
-**探索の記録（untracked・栞採用前・参考）**: `bookshelf-geo-D.html`（幾何6文法）／`bookshelf-generative-directions-D.html`（6方向メニュー）／`bookshelf-shoka-D.html`（墨にじみ材料15版）／`bookshelf-cover-D.html`（線細工16種）。正本ではない（「べた塗は品が無い」等の禁則実証として保持）。
+**探索の記録（栞採用前の探索・参考／07b9700 で tracked 化）**: `bookshelf-geo-D.html`（幾何6文法）／`bookshelf-generative-directions-D.html`（6方向メニュー）／`bookshelf-shoka-D.html`（墨にじみ材料15版）／`bookshelf-cover-D.html`（線細工16種）。正本ではない（「べた塗は品が無い」等の禁則実証として保持）。
 
 ---
 
