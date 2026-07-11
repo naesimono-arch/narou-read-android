@@ -42,13 +42,12 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
      *  起動時リカバリはこちらで走らせる。Application はプロセスと同寿命なので cancel 不要。 */
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /** pending_jobs 記帳の直列化用ディスパッチャ（並列度1＝投入順 FIFO）。
-     *  enqueue の記帳（insert）と明示停止の全消し（deleteAll）を素の IO プールで並行させると、
-     *  「PDF 追加直後に停止」の操作列で insert が全消しの後に着地し、破棄済みジョブの記帳が
-     *  残って次回起動のリカバリが勝手に再開してしまう。onStartCommand（メインスレッドで直列）
-     *  から本ディスパッチャへ投入することで、命令の到着順どおりに記帳を直列実行させる。 */
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    val pendingJobDispatcher = Dispatchers.IO.limitedParallelism(1)
+    // pending_jobs 記帳の直列化は DefaultBookRepository 内の Mutex（pendingJobMutex）へ移した。
+    // 旧実装はここに Dispatchers.IO.limitedParallelism(1) を置いて投入順 FIFO を狙ったが、各リポジトリ
+    // メソッドの withContext(Dispatchers.IO) 再ディスパッチ＋Room suspend DAO の内部再ディスパッチで
+    // 単一スロットが DB 着地を1件も直列化できず（coroutine 意味論として不成立）、「追加直後に停止」で
+    // 破棄済みジョブが復活する窓が残っていた。ロックを DAO 呼び出し完了まで保持する Mutex で恒久修正した
+    // （詳細は DefaultBookRepository.pendingJobMutex の why 参照）。呼び出し側は素の applicationScope.launch でよい。
 
     /** なろうAPIを利用したディスカバリ用リポジトリのシングルトン（既存 repository と別系統） */
     val novelApiRepository: NovelApiRepository by lazy { NovelApiRepository() }

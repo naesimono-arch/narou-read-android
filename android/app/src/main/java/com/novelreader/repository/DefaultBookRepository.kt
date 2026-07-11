@@ -28,6 +28,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -51,6 +53,19 @@ class DefaultBookRepository(
     private val webNovelDao: WebNovelDao = AppDatabase.getDatabase(context).webNovelDao(),
     private val webReadingProgressDao: WebReadingProgressDao = AppDatabase.getDatabase(context).webReadingProgressDao(),
 ) : BookRepository {
+
+    // pending_jobs（永続キュー）への全書き込みを直列化する排他ロック（タスク1の恒久策）。
+    // なぜ Mutex か / なぜ limitedParallelism(1) では不成立だったか:
+    //   旧設計は enqueue の記帳(insert)と明示停止の全消し(deleteAll)を Dispatchers.IO.limitedParallelism(1) の
+    //   単一スロットへ launch して投入順を守らせる狙いだった。しかし各メソッド冒頭の withContext(Dispatchers.IO) が
+    //   スロットを手放して汎用IOプールへ再ディスパッチするうえ、Room の suspend DAO も内部で自前 executor へ
+    //   再ディスパッチするため、単一スロットは実際の DB 着地を1件も直列化できていなかった（coroutine 意味論として不成立）。
+    //   帰結として「PDF投入直後に停止」で insert が deleteAll の後に着地し、破棄済みジョブが pending_jobs に復活
+    //   → 次回起動の runStartupRecoveryOnce が勝手に再変換する窓が残った。
+    //   Mutex はロックを「suspend な DAO 呼び出しの完了まで保持」するため、どのディスパッチャで走ろうと相手の
+    //   pending_jobs 書き込みが割り込めない＝実際の DB 書き込みを相互排他できる（limitedParallelism に無い保証）。
+    //   投入順は main スレッド(onStartCommand)からの launch 順＋Mutex の FIFO 公平性で保たれる。
+    private val pendingJobMutex = Mutex()
 
     override val allBooks: Flow<List<BookEntity>> = bookDao.getAllBooks()
     override val allProgress: Flow<List<ProgressEntity>> = progressDao.getAllProgress()
@@ -150,7 +165,7 @@ class DefaultBookRepository(
                 if (existingByHash != null) {
                     // outputDir はまだ mkdirs していないので掃除不要。変換の成否が確定した（＝重複）ので
                     // 成功/重複時と同じく pending_jobs を落とし永続権限も返す（NonCancellable で保護）。
-                    withContext(NonCancellable) { settlePendingJob(pdfUri) }
+                    withContext(NonCancellable) { pendingJobMutex.withLock { settlePendingJob(pdfUri) } }
                     extractionScope.ensureActive()
                     // try 内から return しても finally（tempFile.delete）は走る＝一時ファイルはリークしない。
                     return@runCatching AddBookResult.Duplicate(existingByHash)
@@ -190,7 +205,7 @@ class DefaultBookRepository(
                     outputDir.deleteRecursively()
                     // 変換の成否が確定した（＝重複と判明）ので pending_jobs を落とす。DB 書き込みを伴わない
                     // が settlePendingJob は権限解放も行うため、登録成功時と同じく NonCancellable で保護する。
-                    withContext(NonCancellable) { settlePendingJob(pdfUri) }
+                    withContext(NonCancellable) { pendingJobMutex.withLock { settlePendingJob(pdfUri) } }
                     extractionScope.ensureActive()
                     AddBookResult.Duplicate(existing)
                 } else {
@@ -210,10 +225,10 @@ class DefaultBookRepository(
                         bookDao.insertBook(b)
                         // 変換が確定したので永続キュー（pending_jobs）の記帳を落とす。insertBook と同じ
                         // NonCancellable 内で連続実行し、「本は登録されたのに pending が残る」→ 次回起動の
-                        // リカバリが同じ本を再変換して重複登録する窓を最小化する（完全排他には DAO 跨ぎの
-                        // トランザクション統合が要るが、テスト用の DAO 分離注入を保つため窓の最小化で妥協。
-                        // この数msにプロセス kill が当たる確率は実用上無視できる）。
-                        settlePendingJob(pdfUri)
+                        // リカバリが同じ本を再変換して重複登録する窓を最小化する（insertBook↔settle 間のプロセス
+                        // kill 窓は DB 跨ぎの原子化が要るため残るが、数msで実用上無視できる）。pendingJobMutex は
+                        // 並行する clearPendingJobs 等との pending_jobs 書き込み衝突を防ぐためで、kill 窓とは別問題。
+                        pendingJobMutex.withLock { settlePendingJob(pdfUri) }
                         b
                     }
                     // NonCancellable ブロック完了後にキャンセルを確認
@@ -242,7 +257,9 @@ class DefaultBookRepository(
                 // 権限を残せばユーザー起点の再試行が機能する。再試行しない場合に権限が1件残るのは
                 // 端末上限内の軽微なコストで、権限リーク回避より再試行の成立を優先する。
                 // （成功/重複/停止時は従来どおり settlePendingJob で権限も返す＝ここだけの例外扱い。）
-                withContext(NonCancellable) { pendingJobDao.deleteByUri(pdfUri.toString()) }
+                withContext(NonCancellable) {
+                    pendingJobMutex.withLock { pendingJobDao.deleteByUri(pdfUri.toString()) }
+                }
                 Result.failure(classifyError(e))
             },
         )
@@ -253,8 +270,12 @@ class DefaultBookRepository(
     // （OEM kill/OOM/onTimeout）で中断された未完了ジョブとして起動時リカバリが検出する。
 
     /** enqueue の記帳。REPLACE のため再開時の再投入でも二重行にならない。 */
+    // pendingJobMutex で全消し(clearPendingJobs)と直列化する。素の IO 並行だと「追加直後に停止」で
+    // この insert が全消しの後に着地し、破棄済みジョブが復活する（フィールド pendingJobMutex の why 参照）。
     override suspend fun addPendingJob(uri: String, displayName: String) = withContext(Dispatchers.IO) {
-        pendingJobDao.insert(PendingJobEntity(uri, displayName, System.currentTimeMillis()))
+        pendingJobMutex.withLock {
+            pendingJobDao.insert(PendingJobEntity(uri, displayName, System.currentTimeMillis()))
+        }
     }
 
     /** 未完了ジョブ一覧（enqueue 順）。起動時リカバリの検出用。 */
@@ -262,15 +283,21 @@ class DefaultBookRepository(
         withContext(Dispatchers.IO) { pendingJobDao.getAll() }
 
     /** 再開不能と判明したジョブの除去（権限喪失時など）。永続権限も返す。 */
+    // pending_jobs 書き込みは pendingJobMutex で一律直列化する（settlePendingJob 自体はロックを持たないため
+    // 呼び出し側で取る＝Mutex は非再入なので二重取得によるデッドロックを避ける設計）。
     override suspend fun removePendingJob(uri: String) = withContext(Dispatchers.IO) {
-        settlePendingJob(Uri.parse(uri))
+        pendingJobMutex.withLock { settlePendingJob(Uri.parse(uri)) }
     }
 
     /** 全ジョブの除去（ユーザーの明示停止＝「再開してほしくない」意思の反映）。 */
     override suspend fun clearPendingJobs() = withContext(Dispatchers.IO) {
-        // deleteAll の前に各行の永続権限を返す（行を先に消すと解放対象の URI が分からなくなる）
-        pendingJobDao.getAll().forEach { releasePersistedPermission(Uri.parse(it.uri)) }
-        pendingJobDao.deleteAll()
+        // pendingJobMutex で enqueue の記帳(addPendingJob)と直列化する。これが無いと「追加直後に停止」で
+        // insert が deleteAll をすり抜けて後着し、破棄済みジョブが復活する（フィールド pendingJobMutex の why 参照）。
+        pendingJobMutex.withLock {
+            // deleteAll の前に各行の永続権限を返す（行を先に消すと解放対象の URI が分からなくなる）
+            pendingJobDao.getAll().forEach { releasePersistedPermission(Uri.parse(it.uri)) }
+            pendingJobDao.deleteAll()
+        }
     }
 
     /** books テーブルに存在しない bookId の HTML ディレクトリを削除する（孤立HTML掃除）。
