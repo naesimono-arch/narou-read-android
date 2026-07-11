@@ -43,12 +43,15 @@ class WebBookCardTest {
                     novel = novel,
                     onOpen = {},
                     onImport = {},
-                    onRemove = {}
+                    onRemove = {},
+                    // グリッド書影は 2:3 で縦長。幅無制約だと丈がテスト viewport を超えメタ行が「未表示」判定に
+                    // なるため実寸に近い幅を与える（意匠でなくテスト環境の都合）。
+                    modifier = Modifier.width(120.dp),
                 )
             }
         }
-        // 書影内とカード下の2箇所にタイトルが表示されるため、onAllNodes の先頭で存在を確認する
-        composeTestRule.onAllNodesWithText("蜘蛛ですが、なにか？").onFirst().assertIsDisplayed()
+        // 書影＝栞は Canvas 描画で題字が text ノードを持たず、contentDescription=title で識別する。
+        composeTestRule.onNodeWithContentDescription("蜘蛛ですが、なにか？").assertExists()
         composeTestRule.onNodeWithText("なろう・未取込").assertIsDisplayed()
     }
 
@@ -81,17 +84,18 @@ class WebBookCardTest {
                     novel = novel,
                     onOpen = { openCalled = true },
                     onImport = {},
-                    onRemove = {}
+                    onRemove = {},
+                    modifier = Modifier.width(120.dp),
                 )
             }
         }
-        // タイトル表示部分をクリックして openCalled が発火するか検証
-        composeTestRule.onAllNodesWithText("蜘蛛ですが、なにか？").onFirst().performClick()
+        // 書影（contentDescription=title）をタップして openCalled が発火するか検証。
+        composeTestRule.onNodeWithContentDescription("蜘蛛ですが、なにか？").performClick()
         assertTrue(openCalled)
     }
 
     @Test
-    fun `Grid メニューから onRemove と onImport が呼ばれる`() {
+    fun `Grid 長押しメニューから onRemove と onImport が呼ばれる`() {
         var removeCalled = false
         var importCalled = false
         val novel = webNovel("n1234a", "蜘蛛ですが、なにか？")
@@ -101,20 +105,23 @@ class WebBookCardTest {
                     novel = novel,
                     onOpen = {},
                     onImport = { importCalled = true },
-                    onRemove = { removeCalled = true }
+                    onRemove = { removeCalled = true },
+                    modifier = Modifier.width(120.dp),
                 )
             }
         }
 
-        // 1. ⋮ ボタンをタップしてドロップダウンメニューを開く
-        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
-
+        // ⋮ は撤去され、削除メニューは長押しで開く（栞モックはフラット構図＝⋮無し）。
+        // 1. 書影を長押ししてドロップダウンメニューを開く
+        composeTestRule.onNodeWithContentDescription("蜘蛛ですが、なにか？")
+            .performTouchInput { longClick() }
         // 2. 「縦書きPDFを取り込む」をタップ
         composeTestRule.onNodeWithText("縦書きPDFを取り込む").performClick()
         assertTrue(importCalled)
 
-        // 3. もう一度メニューを開いて「本棚から外す」をタップ
-        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
+        // 3. もう一度長押しして「本棚から外す」をタップ
+        composeTestRule.onNodeWithContentDescription("蜘蛛ですが、なにか？")
+            .performTouchInput { longClick() }
         composeTestRule.onNodeWithText("本棚から外す").performClick()
         assertTrue(removeCalled)
     }

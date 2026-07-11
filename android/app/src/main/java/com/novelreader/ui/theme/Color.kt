@@ -113,3 +113,12 @@ val InversePrimaryDark       = Color(0xFF1C3D5A)
 // ダーク値と一致）。ライト／セピアは surface/onSurface がモック値と一致するためトークンを流用する。
 val ShioriCoverPaperDark     = Color(0xFF20232B)
 val ShioriCoverInkDark       = Color(0xFFECE9E2)
+
+// 栞「了」朱印（読了バッジ）の朱色。意匠正本 bookshelf-shiori-grid-D.html の .seal。
+// なぜ専用トークンか: 朱印は accent（title 由来の任意色相）とは無関係の固定「読了の徴」で、
+// 和の朱肉色を意味色として持たせる（ライト #A1573F／ダーク #CC8B73＝正本値。枠・文字色に使う）。
+val ShioriSealVermilion      = Color(0xFFA1573F)
+val ShioriSealVermilionDark  = Color(0xFFCC8B73)
+// 朱印のダーク背景敷き（正本 .seal の rgba(16,19,25,.5) の実色部。alpha は使用側で 0.5f）。
+// ShioriCoverPaperDark(#20232B) より暗いのは正本どおり＝紙地でなく「面の奥」へ沈め枠と文字だけ浮かせる。
+val ShioriSealScrimDark      = Color(0xFF101319)

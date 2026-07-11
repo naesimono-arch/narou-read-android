@@ -601,7 +601,6 @@ internal fun BookshelfContent(
                                 totalChaps = chapterCountMap[item.book.id] ?: 0,
                                 onOpen = { onOpenBook(item.book) },
                                 onDelete = { bookToDeleteId = item.book.id },
-                                deleteUiMode = deleteUiMode,
                                 // 削除時の詰め直しアニメ。旧animateItemPlacementはFoundation1.6系で高速フリング中に
                                 // カバーが画面外の古い位置から補間され重なる既知不具合があり一時撤去していたが、
                                 // BOM 2025.02.00(Foundation 1.7系)でstable化したanimateItem()に置き換えて復活（案B）。

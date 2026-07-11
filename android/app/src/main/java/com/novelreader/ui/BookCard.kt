@@ -5,6 +5,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -32,10 +33,16 @@ import com.novelreader.narou.ContinuationInfo
 import com.novelreader.narou.computeContinuation
 import com.novelreader.narou.model.NarouNovel
 import com.novelreader.ui.components.ShioriCover
-import com.novelreader.ui.components.coverBarColor
+import com.novelreader.ui.components.shioriAccentFor
+import com.novelreader.ui.components.shioriHue
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.ShioriSealScrimDark
+import com.novelreader.ui.theme.ShioriSealVermilion
+import com.novelreader.ui.theme.ShioriSealVermilionDark
+import com.novelreader.viewmodel.ReadingStatus
 import com.novelreader.viewmodel.chapterNumberOf
 import com.novelreader.viewmodel.progressFractionFor
+import com.novelreader.viewmodel.readingStatusFor
 
 // ============================================================
 // 進捗行（モック .pr）: 「N話 + 細い藍バー + N%」を藍で、未読は青磁で表示。
@@ -138,10 +145,9 @@ internal fun GridBookCard(
     totalChaps: Int,
     onOpen: () -> Unit,
     onDelete: () -> Unit,
-    deleteUiMode: Int,
     modifier: Modifier = Modifier,
 ) {
-    // 削除メニューの開閉状態（⋮タップ または 長押しで開く）
+    // 削除メニューの開閉状態（長押しで開く）
     var menuExpanded by remember { mutableStateOf(false) }
 
     val chapNum = chapterNumberOf(progress?.lastReadFilename)
@@ -150,6 +156,11 @@ internal fun GridBookCard(
     val progressFraction = progressFractionFor(
         chapNum, totalChaps, progress?.scrollIndex ?: 0, progress?.scrollOffset ?: 0,
     )
+
+    // 読了なら書影右下に朱印「了」を出す（正本 bookshelf-shiori-grid-D.html の .seal）。
+    // 判定はカード表示・状態フィルタと同一の単一真実源 readingStatusFor を使い、進捗行(BookProgressRow)や
+    // 「読了」フィルタと徴（しるし）がズレないようにする。
+    val isFinished = readingStatusFor(progress, totalChaps) == ReadingStatus.FINISHED
 
     // タップ時にスケールダウンするアニメーション（Apple Books 的な触感）
     val interactionSource = remember { MutableInteractionSource() }
@@ -162,8 +173,7 @@ internal fun GridBookCard(
 
     // モック .bk: カード地・影・角丸チップを廃したフラット構図。書影＋メタを地に直接置く。
     // クリック=開く / 長押し=削除メニュー。
-    // 長押しは方式に依らず常時有効にする（M5: ⋮に気づかない層のフォールバックとして必ず残す）。
-    // deleteUiMode は「可視の⋮を出すか」だけを制御する（既定1で⋮を出す）。
+    // 栞系モックはフラット構図＝可視の⋮を持たない。削除は長押しメニューへ一本化する。
     Column(
         modifier = modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
@@ -192,30 +202,34 @@ internal fun GridBookCard(
                     )
                     .clip(RoundedCornerShape(3.dp)),
             )
-            // ⋮方式(1・既定)のみ書影右上に削除ボタンを出す（M5: 削除の可視手がかり）。0は長押しのみ。
-            // Box は方式に関わらず DropdownMenu のアンカーとして常設する。
-            Box(modifier = Modifier.align(Alignment.TopEnd)) {
-                if (deleteUiMode == 1) {
-                    // なぜスクリム背景を敷くか: 書影はタイトルハッシュ由来の任意の色相のため、
-                    // アイコン単体では明色カバー上で視認できない。半透明黒＋白でコントラストを確保。
-                    IconButton(
-                        onClick = { menuExpanded = true },
-                        modifier = Modifier
-                            .padding(6.dp)
-                            .size(30.dp)
-                            .background(
-                                color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.35f),
-                                shape = CircleShape,
-                            ),
-                    ) {
-                        Icon(
-                            Icons.Filled.MoreVert,
-                            contentDescription = "メニュー",
-                            tint = androidx.compose.ui.graphics.Color.White,
-                            modifier = Modifier.size(18.dp),
-                        )
-                    }
+            // 朱印「了」（読了バッジ）。正本 grid-D .seal: 19dp角・角丸2dp・右下9dp・枠1dp・明朝 SemiBold 9.5sp。
+            // 朱色は accent（title 由来色相）と無関係の固定「読了の徴」＝専用トークン。背景は紙地へ半透過で溶かす
+            // （ライトは surface 50%／ダークは正本の固定暗色トークン 50%）。coverIsDark は上で算出済みを再利用。
+            if (isFinished) {
+                val sealColor = if (coverIsDark) ShioriSealVermilionDark else ShioriSealVermilion
+                val sealBg = if (coverIsDark) ShioriSealScrimDark.copy(alpha = 0.5f)
+                else MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 9.dp, bottom = 9.dp)
+                        .size(19.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(sealBg)
+                        .border(1.dp, sealColor, RoundedCornerShape(2.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "了",
+                        fontFamily = MinchoFamily,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 9.5.sp,
+                        color = sealColor,
+                    )
                 }
+            }
+            // 削除メニューのアンカー（可視の⋮は持たず長押しで開く。栞モックはフラット構図）。
+            Box(modifier = Modifier.align(Alignment.TopEnd)) {
                 DeleteDropdownMenu(
                     expanded = menuExpanded,
                     onDismiss = { menuExpanded = false },
@@ -281,7 +295,11 @@ internal fun ListBookCard(
     )
 
     // 作品識別色（左端の色帯）。表紙を持たない目録では、この色帯だけが作品の視覚的な手がかり。
-    val barColor = remember(book.id) { coverBarColor(book.id) }
+    // 書架の栞（棒・先端）と同じ shiori accent に一本化＝seed は book.id でなく title。
+    // なぜ title か: 書架グリッドの栞は title→色相で描くため、目録も title 由来にしないと同じ本が
+    // 書架と目録で違う色になる（整合ルール「1冊=1色相」の核心・正本 consistency-D）。
+    val surface = MaterialTheme.colorScheme.surface
+    val barColor = remember(book.title, surface) { shioriAccentFor(shioriHue(book.title), surface) }
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
