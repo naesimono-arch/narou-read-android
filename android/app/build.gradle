@@ -37,6 +37,14 @@ android {
     }
     kotlinOptions {
         jvmTarget = '17'
+        // Compose 強い skipping（strong skipping）を有効化する。
+        // なぜ freeCompilerArgs の -P 直渡しか: 本プロジェクトは Kotlin 1.9.22＋composeOptions の
+        // kotlinCompilerExtensionVersion 1.5.10 構成（Kotlin 2.0 の compose plugin ではない）。この構成では
+        // strong skipping は既定 OFF の実験機能で、Compose Compiler プラグインへ experimentalStrongSkipping を
+        // 直接渡して有効化する（Kotlin 2.0.20+ のような既定 ON ではない）。
+        // なぜ有効化するか: unstable パラメータを持つ restartable Composable も skippable になり、@Immutable 化した
+        // SearchDraft/SearchFilters と併せて検索画面のチップ再コンポーズ負荷を下げる。ラムダは捕捉値ベースで自動 remember される。
+        freeCompilerArgs += ['-P', 'plugin:androidx.compose.compiler.plugins.kotlin:experimentalStrongSkipping=true']
         // Compose compiler の stability/skippability レポート出力。
         // なぜオプトイン(-PcomposeCompilerReports=true): 常時出力はビルド時間を無駄に増やすため、
         // skippable 化の機械検証をしたいときだけ有効化する（従来は検証手段ゼロだった）。

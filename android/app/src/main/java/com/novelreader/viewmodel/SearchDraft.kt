@@ -1,6 +1,7 @@
 package com.novelreader.viewmodel
 
 import android.os.Parcelable
+import androidx.compose.runtime.Immutable
 import com.novelreader.narou.model.NarouAttr
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.NarouLastup
@@ -13,6 +14,11 @@ import kotlinx.parcelize.Parcelize
  * （UI は段階チップで選ぶため、値の組み立てはチップ定義側が担う）。
  */
 // なぜ Parcelable か: SearchDraft ごと SavedStateHandle へ退避して process death 復帰させるため（F-E）。
+// なぜ @Immutable か: 全フィールドが val で、Set 群は copy() ベース更新のみ（emptySet/setOf/集合演算で
+// 生成した read-only Set を差し替える運用＝要素の in-place 変更をしない）ため実質不変。強い skipping 下で
+// 本型を「不安定な Set を含む型」として === 比較させず equals 比較の stable 型に固定し、検索条件チップ由来の
+// 頻繁な再コンポーズで skippable を効かせる（kotlinx-immutable の List<TextSegment> と同じ stability 狙い）。
+@Immutable
 @Parcelize
 data class SearchFilters(
     val types: Set<NarouNovelType> = emptySet(),       // D4 作品の形
@@ -60,6 +66,10 @@ enum class SearchRange {
  * なぜ VM に持つか: 条件シートを閉じても・結果一覧から戻っても状態が残るように
  * （検索は「条件を練る」往復が多い操作のため、画面ローカル remember では失われて不便）。
  */
+// なぜ @Immutable か: 全フィールドが val（String/Boolean と @Immutable な SearchFilters）で、更新は copy() で
+// 新インスタンスを作る運用のため実質不変。SearchFilters を @Immutable にしても、それを内包する本型に注釈が無いと
+// 推論上は不安定なままになり DiscoverySearchContent が equals で skip できない。両方に付けて draft を stable にする。
+@Immutable
 @Parcelize
 data class SearchDraft(
     val word: String = "",
