@@ -44,6 +44,14 @@ class PdfProcessingService : Service() {
     // 同一 URI の再投入を変換前に弾く。lock で保護（uriQueue と同じ排他下で読み書きする）。
     private val activeUris = ActiveUriTracker()
     private var isLoopRunning = false   // lock で保護
+    // ループ世代印（lock で保護）。onTimeout がスコープを差し替えるたびに +1 する。
+    // なぜ必要か: onTimeout は旧ループを cancel（＝遅延死。次のキャンセル点まで finally は走らない）
+    // しつつ scope を再生成するため、旧ループの finally より先に新 ACTION_START が新ループを
+    // 起動しうる「唯一の」経路。この世代印が無いと、遅延死した旧ループの finally が新ループの
+    // isLoopRunning を潰し無引数 stopSelf() でサービスごと止めてしまう（＝開始した取り込みが
+    // 理由なく消える）。各ループは起動時の世代を閉じ込め、finally で現行世代と照合して
+    // 「自分は旧世代か」を判定し、旧世代なら新世代の状態（isLoopRunning・stopSelf）に触れず退場する。
+    private var loopGeneration = 0
     private var totalCount = 0          // 現バッチの総件数（通知用、lock で保護）
     private var doneCount = 0           // 現バッチの完了件数（通知用、lock で保護）
     private var isStopping = false      // 全体停止操作後の「停止しています…」状態（lock で保護）
@@ -198,6 +206,10 @@ class PdfProcessingService : Service() {
         // onDestroy 経由の cancel は再生成不要（インスタンスごと破棄され次回は新スコープ）。
         scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         lock.withLock {
+            // スコープ差し替えに合わせて世代を進める。これ以降に起動する新ループは新世代を
+            // 閉じ込め、遅延死する旧ループ（旧世代）の finally は下の照合で新世代の状態に触れない。
+            // scope 再生成と loopGeneration++ を必ず対で行う（両者がズレると照合が破綻する）。
+            loopGeneration++
             uriQueue.clear()
             activeUris.clear()  // タイムアウトで捨てるキューと在庫を揃える。pending_jobs は残すため
                                 // 次回起動リカバリの再投入は新規 URI 扱いで正しく通る
@@ -217,6 +229,10 @@ class PdfProcessingService : Service() {
     }
 
     private fun startProcessingLoop() {
+        // このループの世代を起動時点の主スレッドで確定して閉じ込める。onStartCommand も onTimeout も
+        // 主スレッドコールバックのため両者はインターリーブせず、起動と世代採番の間に onTimeout が
+        // 割り込んで採番がズレるレースは無い（launch 本体は IO で後から走るが、世代は launch 前に確定）。
+        val myGeneration = lock.withLock { loopGeneration }
         scope.launch {
             var isNormalExit = false
             try {
@@ -271,7 +287,13 @@ class PdfProcessingService : Service() {
             } finally {
                 // 異常終了時（クラッシュ等）のフェールセーフ
                 val shouldStopSelf = lock.withLock {
-                    if (!isNormalExit && isLoopRunning) {
+                    if (myGeneration != loopGeneration) {
+                        // onTimeout でスコープごと差し替えられた旧世代ループ。onTimeout 自身が
+                        // 状態リセットと stopSelf を済ませ、新世代の別ループが動いている可能性がある。
+                        // 新世代の isLoopRunning / stopSelf を絶対に触らず即退場する（道連れ停止の防止）。
+                        // ここに来るのは onTimeout 経路のみ（旧ループ生存と新ループ稼働が同時成立する唯一の経路）。
+                        false
+                    } else if (!isNormalExit && isLoopRunning) {
                         isLoopRunning = false // 例外でループが破綻した場合は確実にフラグを下ろす
                         true // 自分以外にループがいない状態に戻したので停止する
                     } else {
