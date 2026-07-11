@@ -89,7 +89,6 @@ SHELF_FILES = [
 ]
 
 # reading-D の 3 テーマ宣言（.t-light → .t-sepia → .t-dark の出現順が前提）→ ReadingColors。
-# --rule（章見出しルール）は ReadingColors に対応フィールドが無いため対象外（宿題は handover 参照）。
 READING_VARS = {
     "--bg": "background",
     "--ink": "text",
@@ -100,6 +99,7 @@ READING_VARS = {
     "--bar": "navBackground",
     "--bar-line": "divider",
     "--accent": "accent",
+    "--rule": "rule",  # 章見出しルール（DARK のみ accent と乖離＝独立トークン ReadingColors.rule）
 }
 READING_FILE = "reading-D.html"
 READING_ORDER = ["LIGHT", "SEPIA", "DARK"]

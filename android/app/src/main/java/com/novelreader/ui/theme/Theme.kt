@@ -37,6 +37,10 @@ data class ReadingColors(
     val blockBackground: Color,   // 前書き・後書きブロック背景
     val blockBorder: Color,       // 前書き・後書きブロック枠線
     val accent: Color,            // 強調色（目次の現在章ハイライトなど）
+    // 章見出しの短いルール色＝モック reading-D.html の --rule に対応。
+    // なぜ accent と別トークンにするか: LIGHT/SEPIA は accent と同値だが DARK だけ
+    // --rule #5E7E9C ≠ accent #6E96B8 で乖離するため、accent 流用では DARK が再現できない。
+    val rule: Color,              // 章見出しルール（モック --rule）
     val isLight: Boolean,         // true ならステータスバーアイコンを暗色にする
 )
 
@@ -64,6 +68,7 @@ val ReadingTheme.colors: ReadingColors
             blockBackground  = Color(0xFFF1F0EC),
             blockBorder      = Color(0xFFE4E2DB),
             accent           = Color(0xFF1C3D5A), // D の藍（現在章ハイライト・チップ選択色）
+            rule             = Color(0xFF1C3D5A), // 章見出しルール（モック --rule）＝LIGHT は accent と同値
             isLight          = true,
         )
         // SEPIA は D の寒色を温かい紙トーンへ寄せた変種。藍アクセントは骨格として残しつつ
@@ -87,6 +92,7 @@ val ReadingTheme.colors: ReadingColors
             blockBackground  = Color(0xFFEBDEBE),
             blockBorder      = Color(0xFFDCCC9F),
             accent           = Color(0xFF2E4A60), // 暖色背景に合わせやや深めの藍鼠
+            rule             = Color(0xFF2E4A60), // 章見出しルール（モック --rule）＝SEPIA は accent と同値
             isLight          = true,
         )
         // DARK は D の寒色を保った冷たい暗面（旧の温かい黒 #1C1916 から転換）。
@@ -105,6 +111,7 @@ val ReadingTheme.colors: ReadingColors
             blockBackground  = Color(0xFF1B1F26),
             blockBorder      = Color(0xFF2A2F38),
             accent           = Color(0xFF6E96B8), // 暗背景で沈まない明るい藍
+            rule             = Color(0xFF5E7E9C), // 章見出しルール（モック --rule）＝DARK のみ accent #6E96B8 と乖離
             isLight          = false,
         )
     }
