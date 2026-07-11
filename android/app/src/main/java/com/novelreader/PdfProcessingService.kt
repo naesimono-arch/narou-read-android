@@ -271,7 +271,9 @@ class PdfProcessingService : Service() {
                         // に積まれた URI を取りこぼすレースがあるため。子 Job 方式ならループ自体は
                         // 生き続け、次周回が空キュー（STOP が clear 済み）を検知して正常終了する。
                         coroutineScope {
-                            val bookJob = launch { processSingleUri(uri, item.ncode) }
+                            // myGeneration を渡す: このループが旧世代化（onTimeout でスコープ差し替え）した後に
+                            // 遅延キャンセルされた1冊の finally が、新世代バッチの doneCount を汚さないようにするため。
+                            val bookJob = launch { processSingleUri(uri, item.ncode, myGeneration) }
                             // 登録と停止済み再確認をアトミックに行う（launch 直後・登録前に
                             // ACTION_STOP が来た場合の cancel 取り逃しを防ぐ）。
                             lock.withLock {
@@ -319,7 +321,7 @@ class PdfProcessingService : Service() {
         }
     }
 
-    private suspend fun processSingleUri(uri: Uri, ncode: String? = null) {
+    private suspend fun processSingleUri(uri: Uri, ncode: String? = null, myGeneration: Int = loopGeneration) {
         val app = application as NovelReaderApplication
         val repository = app.repository
         // この本の位置（分子）は開始時点のスナップショットで固定する。
@@ -387,10 +389,21 @@ class PdfProcessingService : Service() {
             Log.e(TAG, "予期しないエラー（処理継続）", e)
             app.updateProcessingState(null)
         } finally {
-            // この URI の処理が完了（成功/重複/失敗/キャンセル）したのでべき等ガードの在庫から外す。
-            // これ以降に同一 URI が再投入されたら新規変換として受け付ける（＝キュー重複ガードは
-            // あくまで「取込中の二重投入」を防ぐもので、完了後の再取込は蔵書照合側に委ねる）。
-            lock.withLock { doneCount++; activeUris.release(uri.toString()) }
+            // この URI の処理が完了（成功/重複/失敗/キャンセル）したのでべき等ガードの在庫から外し、
+            // 完了件数を1つ進める。これ以降に同一 URI が再投入されたら新規変換として受け付ける（＝キュー
+            // 重複ガードはあくまで「取込中の二重投入」を防ぐもので、完了後の再取込は蔵書照合側に委ねる）。
+            // 世代照合（f70b937 のループ世代ガードの横展開）: onTimeout はこの1冊を遅延キャンセル（次の
+            // 中断点まで finally は走らない）しつつ doneCount=0 リセット＋新バッチを起動しうる。旧世代の
+            // finally が新世代の doneCount を進めると新バッチ初冊の通知が「2/1」等と一時的に汚れ、
+            // activeUris からも新世代が再登録した同一 URI を誤って外しかねない。旧世代なら新世代の
+            // 状態（doneCount・activeUris）に一切触れず退場する。通常経路（タイムアウトなし）は世代が
+            // 進まないため従来と完全一致。
+            lock.withLock {
+                if (myGeneration == loopGeneration) {
+                    doneCount++
+                    activeUris.release(uri.toString())
+                }
+            }
         }
     }
 
