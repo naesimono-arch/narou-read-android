@@ -349,7 +349,11 @@ internal fun DiscoverySearchContent(
                         imageVector = Icons.Filled.Tune,
                         contentDescription = "条件調整",
                         tint = tint,
-                        modifier = Modifier.padding(end = 8.dp)
+                        // モック .cond-btn の svg 15px 準拠。size 未指定だと Material 既定24dpで
+                        // 12.5sp テキストに対し過大になり行の見た目がずれるため 15.dp に固定。
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .size(15.dp)
                     )
                     Text(
                         text = if (draft.filters.activeCount() > 0) "条件を調整（${draft.filters.activeCount()}）" else "条件を調整",

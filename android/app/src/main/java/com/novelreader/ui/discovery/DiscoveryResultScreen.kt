@@ -170,6 +170,13 @@ internal fun DiscoveryResultContent(
                 )
             }
             // 条件チップ（藍の細枠・モック .cd）
+            // なぜ各子に .align(CenterVertically) を付けるか: この行にはクリック可チップ
+            // （外側 Box に .minimumInteractiveComponentSize＝48dp のタップ枠）と、素の静的チップ
+            // （border+padding で実高 約26dp）が高さ混在する。FlowRow の cross-axis 既定は Top 揃えのため、
+            // 背の低い静的チップが上端に張り付き、ピルの縦センターが行内でずれて見える（当たり判定を確保する
+            // 48dp 枠は外せないので、見た目は縦センター揃えで解消する）。
+            // itemVerticalAlignment パラメータは foundation 1.8+ で、BOM 2025.02.00 の 1.7.8 には無いため、
+            // FlowRowScope.align を各子へ付与する方式を採る。
             FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -222,6 +229,8 @@ internal fun DiscoveryResultContent(
                             Box(
                                 contentAlignment = Alignment.Center,
                                 modifier = Modifier
+                                    // 行内で高さ混在する静的チップと縦センターを揃える（上のFlowRowコメント参照）
+                                    .align(Alignment.CenterVertically)
                                     .minimumInteractiveComponentSize()
                                     .clickable { expanded = true },
                             ) {
@@ -323,6 +332,8 @@ internal fun DiscoveryResultContent(
                                 fontSize = 10.5.sp,
                                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
                                 modifier = Modifier
+                                    // 48dpタップ枠のクリック可チップと縦センターを揃える（上のFlowRowコメント参照）
+                                    .align(Alignment.CenterVertically)
                                     .border(
                                         width = 1.dp,
                                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
@@ -341,6 +352,8 @@ internal fun DiscoveryResultContent(
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
+                            // 静的チップと縦センターを揃える（上のFlowRowコメント参照）
+                            .align(Alignment.CenterVertically)
                             .minimumInteractiveComponentSize()
                             .clickable { onBack() },
                     ) {
