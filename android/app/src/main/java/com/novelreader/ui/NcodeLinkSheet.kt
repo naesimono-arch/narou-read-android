@@ -257,7 +257,13 @@ internal fun NcodeLinkSheet(
                             }
                         } else {
                             LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                                itemsIndexed(novels) { index, novel ->
+                                // key に ncode を使う: ncode はなろうの作品一意ID（検索結果に同一作品は重複しない）。
+                                // 欠損(null)のみ常に一意な index にフォールバックする（Int と String は等価にならず
+                                // 衝突しない）。contentType は付けない: 全行が同一構造（タイトル＋情報行）の1種類のため。
+                                itemsIndexed(
+                                    novels,
+                                    key = { index, novel -> novel.ncode ?: index },
+                                ) { index, novel ->
                                     Column(
                                         modifier = Modifier
                                             .fillMaxWidth()

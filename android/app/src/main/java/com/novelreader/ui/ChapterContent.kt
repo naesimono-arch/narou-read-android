@@ -58,6 +58,32 @@ internal fun ChapterContent(
 ) {
     val paragraphs = remember(content) { content.segments.splitIntoParagraphs() }
 
+    // 本文段落の TextStyle は全段落で共通（色・文字サイズ・行間のみに依存）なので、
+    // LazyColumn の items 内（＝可視段落ごと）で作らず、ここで1回だけ生成して各 item へ渡す。
+    // なぜ hoist するか: 以前は ParagraphItem 内で段落ごとに remember していたため、可視段落数ぶん
+    // 同一 TextStyle インスタンスが並存していた。3入力（colors.text/fontSize/lineHeightEm）を key に
+    // 章単位で1つに集約する。
+    val bodyStyle = remember(colors.text, fontSize, lineHeightEm) {
+        TextStyle(
+            color = colors.text,
+            // ユーザー設定の文字サイズ。lineHeight が em（相対値）のため行間も自動でスケールする
+            fontSize = fontSize.sp,
+            // ユーザー設定の行間（em）。RubyText も style=bodyStyle 経由でこの lineHeight を受け取るため、
+            // ここ1か所の変更でルビ行にも反映される。可変幅は 2.3〜2.8em に絞って前行とのルビ被りを抑制。
+            lineHeight = lineHeightEm.em,
+            fontFamily = MinchoFamily,
+            letterSpacing = 0.sp,
+            // なぜ Trim.LastLineBottom か:
+            // lineHeight を RubyText 内折り返しとParagraphItem 間で統一するため。
+            // LastLineBottom のみ除去することで上 leading（ルビ描画領域）を保ちつつ
+            // composable 高さを確定させる（em 指定のため文字サイズ・行間変更時も比率は維持される）。
+            lineHeightStyle = LineHeightStyle(
+                alignment = LineHeightStyle.Alignment.Proportional,
+                trim = LineHeightStyle.Trim.LastLineBottom,
+            ),
+        )
+    }
+
     LazyColumn(
         state = lazyListState,
         modifier = Modifier
@@ -90,13 +116,28 @@ internal fun ChapterContent(
             )
         }
 
-        // 段落ごとにレンダリング
-        items(paragraphs) { paragraph ->
+        // 段落ごとにレンダリング。
+        // なぜ contentType を付けるか: 段落は「空行・水平線・前後書きブロック・通常テキスト」の
+        // 4種が混在し描画ノード構造が異なる。contentType を渡すと LazyColumn が同種アイテム間だけで
+        // コンポジション/レイアウトノードを再利用するため、スクロール時に異種ノードへ流用しての
+        // 再レイアウトを避けられる（通常テキスト段落同士の再利用が効くのが主効果）。
+        // key は付けない: 段落は一意な安定IDを持たず（空段落・同一文が反復し得る）、位置 index が
+        // 唯一の一意キー＝items のデフォルトと同じ。非一意キーは Compose の一意制約に反し状態を壊す。
+        items(
+            paragraphs,
+            contentType = { paragraph ->
+                when {
+                    paragraph.isEmpty() -> "empty"
+                    paragraph.size == 1 && paragraph[0] is TextSegment.HorizontalRule -> "hr"
+                    paragraph.size == 1 && paragraph[0] is TextSegment.StyledBlock -> "block"
+                    else -> "text"
+                }
+            },
+        ) { paragraph ->
             ParagraphItem(
                 paragraph = paragraph,
                 colors = colors,
-                fontSize = fontSize,
-                lineHeightEm = lineHeightEm,
+                bodyStyle = bodyStyle,
                 modifier = Modifier
                     .widthIn(max = 600.dp)
                     // ユーザー設定の左右余白（スマホ幅では実質これが行長を決める）
@@ -157,35 +198,10 @@ private fun ChapterHeader(
 private fun ParagraphItem(
     paragraph: ImmutableList<TextSegment>,
     colors: ReadingColors,
-    fontSize: Int,
-    lineHeightEm: Float,
+    // 全段落共通の本文スタイル。呼び出し側（ChapterContent）で章単位に1つ生成して渡す（hoist 済み）。
+    bodyStyle: TextStyle,
     modifier: Modifier = Modifier,
 ) {
-    // なぜ remember 化するか: ParagraphItem は LazyColumn の各段落・スクロール中の再コンポジションで
-    // 何度も呼ばれるが、TextStyle は色・文字サイズ・行間が変わらない限り同一で良い。
-    // 毎回 new TextStyle(...) すると本文行数ぶんアロケートが走るため、実際に見た目を決める
-    // 3入力（colors.text/fontSize/lineHeightEm）を key にして変化時のみ作り直す。
-    val bodyStyle = remember(colors.text, fontSize, lineHeightEm) {
-        TextStyle(
-            color = colors.text,
-            // ユーザー設定の文字サイズ。lineHeight が em（相対値）のため行間も自動でスケールする
-            fontSize = fontSize.sp,
-            // ユーザー設定の行間（em）。RubyText も style=bodyStyle 経由でこの lineHeight を受け取るため、
-            // ここ1か所の変更でルビ行にも反映される。可変幅は 2.3〜2.8em に絞って前行とのルビ被りを抑制。
-            lineHeight = lineHeightEm.em,
-            fontFamily = MinchoFamily,
-            letterSpacing = 0.sp,
-            // なぜ Trim.LastLineBottom か:
-            // lineHeight を RubyText 内折り返しとParagraphItem 間で統一するため。
-            // LastLineBottom のみ除去することで上 leading（ルビ描画領域）を保ちつつ
-            // composable 高さを確定させる（em 指定のため文字サイズ・行間変更時も比率は維持される）。
-            lineHeightStyle = LineHeightStyle(
-                alignment = LineHeightStyle.Alignment.Proportional,
-                trim = LineHeightStyle.Trim.LastLineBottom,
-            ),
-        )
-    }
-
     when {
         paragraph.isEmpty() -> {
             // 空段落: なろう系小説のシーン転換・演出として意図的な空行を保持する
