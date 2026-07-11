@@ -858,4 +858,40 @@ class NovelApiRepositoryTest {
 
         coVerify(exactly = 2) { service.search(ncode = "N1111AA", lim = 1, of = "t-n-ga") }
     }
+
+    @Test
+    fun `novelDetailsBulk - 500件ちょうどは1リクエストで送られること（境界の下側）`() = runTest {
+        // なぜ境界を固定するか: なろうAPIの lim 上限は500。500件までは分割不要で単一リクエストに収める。
+        val ncodes = (1..500).map { Ncode("N%04dAA".format(it)) }
+        coEvery { service.search(ncode = any(), lim = 500, of = "t-n-ga") } returns
+            listOf(NarouNovel(allcount = 500)) + (1..500).map { NarouNovel(ncode = "N%04dAA".format(it)) }
+
+        val result = repository.novelDetailsBulk(ncodes)
+
+        assertEquals(500, result.size)
+        coVerify(exactly = 1) { service.search(ncode = any(), lim = 500, of = "t-n-ga") }
+        // lim>500 の単一リクエストが投げられていないこと（サイレント欠落の温床）
+        coVerify(exactly = 0) { service.search(ncode = any(), lim = 501, of = "t-n-ga") }
+    }
+
+    @Test
+    fun `novelDetailsBulk - 501件は500件ごとに分割され複数リクエストの結果が連結されること（境界の上側）`() = runTest {
+        // なぜ固定するか: lim 上限500を超える501件目以降が単一リクエストだとサイレント欠落する。
+        // 500件ごとにチャンク分割して全件（501件）が漏れなく返ることを担保する。
+        val ncodes = (1..501).map { Ncode("N%04dAA".format(it)) }
+
+        // 1チャンク目（500件）と2チャンク目（1件）を lim で識別してモックする。
+        coEvery { service.search(ncode = any(), lim = 500, of = "t-n-ga") } returns
+            listOf(NarouNovel(allcount = 500)) + (1..500).map { NarouNovel(ncode = "N%04dAA".format(it)) }
+        coEvery { service.search(ncode = any(), lim = 1, of = "t-n-ga") } returns
+            listOf(NarouNovel(allcount = 1), NarouNovel(ncode = "N0501AA"))
+
+        val result = repository.novelDetailsBulk(ncodes)
+
+        assertEquals(501, result.size)
+        assertEquals("N0001AA", result.first().ncode)
+        assertEquals("N0501AA", result.last().ncode)
+        coVerify(exactly = 1) { service.search(ncode = any(), lim = 500, of = "t-n-ga") }
+        coVerify(exactly = 1) { service.search(ncode = any(), lim = 1, of = "t-n-ga") }
+    }
 }
