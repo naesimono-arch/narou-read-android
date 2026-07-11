@@ -36,8 +36,8 @@ import kotlin.math.abs
 // 左に藍の縦ルールを引いて「実画像を捏造しない静かな書影」という D の署名を与える。
 // ============================================================
 
-/** HSL → RGB 変換（Jetpack Compose は HSL を直接持たないため手動実装） */
-private fun hslToColor(hue: Float, saturation: Float, lightness: Float): Color {
+/** HSL → RGB 変換（Jetpack Compose は HSL を直接持たないため手動実装）。栞書影（ShioriCover）でも共用する。 */
+internal fun hslToColor(hue: Float, saturation: Float, lightness: Float): Color {
     val h = hue / 360f
     val s = saturation
     val l = lightness

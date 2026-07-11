@@ -6,8 +6,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -91,8 +90,8 @@ class BookshelfContentTest {
     @Test
     fun `Content(蔵書あり)では書名と見つける導線帯を出し空メッセージは出さない`() {
         setContent(BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))))
-        // 書影焼き込み＋メタの2箇所に題字が出るため onAllNodes の先頭で存在を確認する
-        composeTestRule.onAllNodesWithText("吾輩は猫である").onFirst().assertIsDisplayed()
+        // 栞書影は題字を Canvas 描画するため text ノードを持たず、表紙の contentDescription=題名 で確認する。
+        composeTestRule.onNodeWithContentDescription("吾輩は猫である").assertIsDisplayed()
         composeTestRule.onNodeWithText("新しい物語を見つける").assertIsDisplayed()
         composeTestRule.onNodeWithText("本棚はまだ空です").assertDoesNotExist()
     }
@@ -135,8 +134,8 @@ class BookshelfContentTest {
         composeTestRule.onNodeWithText("よみかけ").assertIsDisplayed()
         composeTestRule.onNodeWithText("未読").assertIsDisplayed()
         composeTestRule.onNodeWithText("読了").assertIsDisplayed()
-        composeTestRule.onAllNodesWithText("吾輩は猫である").onFirst().assertIsDisplayed()
-        composeTestRule.onAllNodesWithText("坊っちゃん").onFirst().assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("吾輩は猫である").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("坊っちゃん").assertIsDisplayed()
     }
 
     @Test
@@ -150,11 +149,11 @@ class BookshelfContentTest {
             chapterCountMap = mapOf("b1" to 10, "b2" to 10),
         )
         composeTestRule.onNodeWithText("よみかけ").performClick()
-        composeTestRule.onAllNodesWithText("吾輩は猫である").onFirst().assertIsDisplayed()
-        composeTestRule.onAllNodesWithText("坊っちゃん").assertCountEquals(0)
+        composeTestRule.onNodeWithContentDescription("吾輩は猫である").assertIsDisplayed()
+        composeTestRule.onAllNodesWithContentDescription("坊っちゃん").assertCountEquals(0)
 
         composeTestRule.onNodeWithText("すべて").performClick()
-        composeTestRule.onAllNodesWithText("坊っちゃん").onFirst().assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("坊っちゃん").assertIsDisplayed()
     }
 
     @Test
