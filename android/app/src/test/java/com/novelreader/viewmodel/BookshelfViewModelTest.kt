@@ -8,6 +8,8 @@ import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.NovelApiRepository
+import com.novelreader.model.BookId
+import com.novelreader.model.ChapterFilename
 import com.novelreader.narou.model.DiscoveryResult
 import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouOrder
@@ -118,21 +120,21 @@ class BookshelfViewModelTest {
 
         val vm = BookshelfViewModel(fakeApp)
         // getLastRead は repository.getLastRead への素の委譲＝Fake のインメモリ状態がそのまま返る
-        assertEquals("chapter_03.html", vm.getLastRead("id01"))
-        assertNull(vm.getLastRead("unknown"))
+        assertEquals("chapter_03.html", vm.getLastRead(BookId("id01")))
+        assertNull(vm.getLastRead(BookId("unknown")))
     }
 
     @Test
     fun `getLastRead - repository の戻り値をそのまま返す`() = runTest {
-        coEvery { mockRepository.getLastRead("id01") } returns "chapter_01.html"
-        val result = viewModel.getLastRead("id01")
+        coEvery { mockRepository.getLastRead(BookId("id01")) } returns "chapter_01.html"
+        val result = viewModel.getLastRead(BookId("id01"))
         assertEquals("chapter_01.html", result)
     }
 
     @Test
     fun `getLastRead - 未読の場合は null を返す`() = runTest {
-        coEvery { mockRepository.getLastRead("id02") } returns null
-        val result = viewModel.getLastRead("id02")
+        coEvery { mockRepository.getLastRead(BookId("id02")) } returns null
+        val result = viewModel.getLastRead(BookId("id02"))
         assertNull(result)
     }
 
@@ -140,16 +142,16 @@ class BookshelfViewModelTest {
     // repository.saveScrollPosition で書き込まれる（章移動はスクロール 0,0 = 章先頭）。
     @Test
     fun `saveProgress - 章移動はスクロール0で saveScrollPosition が呼ばれる`() = runTest {
-        viewModel.saveProgress("id01", "chapter_02.html")
+        viewModel.saveProgress(BookId("id01"), ChapterFilename("chapter_02.html"))
         testDispatcher.scheduler.advanceUntilIdle()
-        coVerify { mockRepository.saveScrollPosition("id01", "chapter_02.html", 0, 0) }
+        coVerify { mockRepository.saveScrollPosition(BookId("id01"), ChapterFilename("chapter_02.html"), 0, 0) }
     }
 
     @Test
     fun `saveScrollPosition - 指定位置で saveScrollPosition が呼ばれる`() = runTest {
-        viewModel.saveScrollPosition("id01", "chapter_02.html", 5, 120)
+        viewModel.saveScrollPosition(BookId("id01"), ChapterFilename("chapter_02.html"), 5, 120)
         testDispatcher.scheduler.advanceUntilIdle()
-        coVerify { mockRepository.saveScrollPosition("id01", "chapter_02.html", 5, 120) }
+        coVerify { mockRepository.saveScrollPosition(BookId("id01"), ChapterFilename("chapter_02.html"), 5, 120) }
     }
 
     // ── addBook ───────────────────────────────────────────────────────────

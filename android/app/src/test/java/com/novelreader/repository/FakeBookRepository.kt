@@ -6,6 +6,8 @@ import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.data.WebReadingProgressEntity
+import com.novelreader.model.BookId
+import com.novelreader.model.ChapterFilename
 import com.novelreader.narou.model.Ncode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -107,29 +109,30 @@ class FakeBookRepository : BookRepository {
         progressState.value = progressState.value.filterNot { it.bookId == book.id }
     }
 
-    override suspend fun linkNcode(bookId: String, ncode: Ncode?) {
+    override suspend fun linkNcode(bookId: BookId, ncode: Ncode?) {
+        // Fake のインメモリ実体（BookEntity.id）は String のため .value で照合・比較する。
         booksState.value = booksState.value.map {
-            if (it.id == bookId) it.copy(ncode = ncode?.value) else it
+            if (it.id == bookId.value) it.copy(ncode = ncode?.value) else it
         }
     }
 
-    override suspend fun getLastRead(bookId: String): String? =
-        progressState.value.firstOrNull { it.bookId == bookId }?.lastReadFilename
+    override suspend fun getLastRead(bookId: BookId): String? =
+        progressState.value.firstOrNull { it.bookId == bookId.value }?.lastReadFilename
 
-    override suspend fun getProgress(bookId: String): ProgressEntity? =
-        progressState.value.firstOrNull { it.bookId == bookId }
+    override suspend fun getProgress(bookId: BookId): ProgressEntity? =
+        progressState.value.firstOrNull { it.bookId == bookId.value }
 
-    override suspend fun saveProgress(bookId: String, filename: String) {
-        upsertProgress(ProgressEntity(bookId, filename))
+    override suspend fun saveProgress(bookId: BookId, filename: ChapterFilename) {
+        upsertProgress(ProgressEntity(bookId.value, filename.value))
     }
 
     override suspend fun saveScrollPosition(
-        bookId: String,
-        filename: String,
+        bookId: BookId,
+        filename: ChapterFilename,
         scrollIndex: Int,
         scrollOffset: Int,
     ) {
-        upsertProgress(ProgressEntity(bookId, filename, scrollIndex, scrollOffset))
+        upsertProgress(ProgressEntity(bookId.value, filename.value, scrollIndex, scrollOffset))
     }
 
     // 同一 bookId は置換（REPLACE 相当）。progress は bookId が主キーの1行モデルのため。

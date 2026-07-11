@@ -368,15 +368,21 @@ class NovelApiRepository(
         if (ncodes.isEmpty()) return emptyList()
 
         return wrapApiException {
-            val ncodeParam = ncodes.joinToString("-") { it.value.trim() }
-            // なぜ of = "t-n-ga" なのか: U1 新着チェックにおいて必要な項目はタイトル(t)、Nコード(n)、全話数(ga)のみであり、転送量を最小限に抑えるため。
-            // なぜ意図的にキャッシュに乗せないか: 新着話の検知は情報の鮮度が本質であり、6時間TTLキャッシュに乗せると当日中の更新を翌日扱いにするなど検知の遅延を引き起こすため。また、このメソッドは1日1回等のWorkerによる呼び出しを想定しており、APIレート制限等の負荷も問題にならないため。
-            val list = service.search(
-                ncode = ncodeParam,
-                lim = ncodes.size,
-                of = "t-n-ga"
-            )
-            list.drop(1)
+            // なぜ 500 件ごとにチャンク分割するか: なろうAPIの lim（最大出力数）上限は 500（API_LIM_MAX＝
+            // narou_api_manual.md §3.2）。紐付け蔵書が 501 件を超えると単一リクエストでは lim>500 が上限で
+            // 頭打ちになり、501 件目以降の詳細＝新着検知がサイレント欠落する。チャンクごとに個別照会して
+            // 結果を連結することで全件を漏れなく取得する（現実には 501 件超は稀だが、欠落は静かで気付けないため防ぐ）。
+            ncodes.chunked(API_LIM_MAX).flatMap { chunk ->
+                val ncodeParam = chunk.joinToString("-") { it.value.trim() }
+                // なぜ of = "t-n-ga" なのか: U1 新着チェックにおいて必要な項目はタイトル(t)、Nコード(n)、全話数(ga)のみであり、転送量を最小限に抑えるため。
+                // なぜ意図的にキャッシュに乗せないか: 新着話の検知は情報の鮮度が本質であり、6時間TTLキャッシュに乗せると当日中の更新を翌日扱いにするなど検知の遅延を引き起こすため。また、このメソッドは1日1回等のWorkerによる呼び出しを想定しており、APIレート制限等の負荷も問題にならないため（チャンク間の待機も既存のマージ経路＝2サブクエリ連投に倣い設けない）。
+                val list = service.search(
+                    ncode = ncodeParam,
+                    lim = chunk.size,
+                    of = "t-n-ga"
+                )
+                list.drop(1)
+            }
         }
     }
 }

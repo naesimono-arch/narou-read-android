@@ -8,6 +8,11 @@ import com.novelreader.data.PendingJobDao
 import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressDao
 import com.novelreader.data.ProgressEntity
+import com.novelreader.data.WebReadingProgressDao
+import com.novelreader.data.WebReadingProgressEntity
+import com.novelreader.model.BookId
+import com.novelreader.model.ChapterFilename
+import com.novelreader.narou.model.Ncode
 import com.novelreader.pdf.CorruptedPdfError
 import com.novelreader.pdf.EncryptedPdfError
 import com.novelreader.pdf.InsufficientStorageError
@@ -18,6 +23,8 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -32,6 +39,9 @@ class BookRepositoryTest {
     private lateinit var bookDao: BookDao
     private lateinit var progressDao: ProgressDao
     private lateinit var pendingJobDao: PendingJobDao
+    // Web読書位置の record↔get 往復と ncode 正規化一致を実DBなしで検証するため、保存する Fake を注入する
+    // （mockk relaxed は get で常に null を返し往復を観測できないため）。
+    private lateinit var webReadingProgressDao: FakeWebReadingProgressDao
     private lateinit var context: Context
     // 実装クラスを直接組み立てる（internal な findExistingBook/classifyError 等を検証するため）。
     // interface BookRepository には出さない実装詳細メソッドなので DefaultBookRepository 型で受ける。
@@ -43,9 +53,25 @@ class BookRepositoryTest {
         bookDao = mockk(relaxed = true)
         progressDao = mockk(relaxed = true)
         pendingJobDao = mockk(relaxed = true)
+        webReadingProgressDao = FakeWebReadingProgressDao()
         // 検証対象の DAO だけ明示注入する（webNovelDao 等の残りはデフォルト引数のまま＝
         // 本テストが触る経路では呼ばれないので実 Room に落ちても評価されない）。
-        repository = DefaultBookRepository(context, bookDao, progressDao, pendingJobDao)
+        // runInTransaction は素通しラムダに差し替える: 本番は AppDatabase.withTransaction で実 Room に依存するため、
+        // JVM 単体テストでは block を即実行してトランザクション内の DAO 呼び出しだけを検証する。
+        repository = DefaultBookRepository(
+            context, bookDao, progressDao, pendingJobDao,
+            webReadingProgressDao = webReadingProgressDao,
+            runInTransaction = { block -> block() },
+        )
+    }
+
+    /** record↔get の往復と ncode 正規化一致を検証するためのインメモリ Fake（実 Room 非依存）。
+     *  upsert で保存し get で引くだけ＝正規化は Repository 側（trim().uppercase()）の責務なので Fake は素通し。 */
+    private class FakeWebReadingProgressDao : WebReadingProgressDao {
+        private val store = mutableMapOf<String, WebReadingProgressEntity>()
+        override fun getAll(): Flow<List<WebReadingProgressEntity>> = flowOf(store.values.toList())
+        override suspend fun get(ncode: String): WebReadingProgressEntity? = store[ncode]
+        override suspend fun upsert(progress: WebReadingProgressEntity) { store[progress.ncode] = progress }
     }
 
     // ── classifyError: PdfExtractionException 型分岐 ──────────────────────
@@ -111,20 +137,20 @@ class BookRepositoryTest {
     @Test
     fun `getLastRead - progressDao の戻り値をそのまま返す`() = runTest {
         coEvery { progressDao.getLastRead("id01") } returns "chapter_01.html"
-        val result = repository.getLastRead("id01")
+        val result = repository.getLastRead(BookId("id01"))
         assertEquals("chapter_01.html", result)
     }
 
     @Test
     fun `getLastRead - 未読の場合は null を返す`() = runTest {
         coEvery { progressDao.getLastRead("id02") } returns null
-        val result = repository.getLastRead("id02")
+        val result = repository.getLastRead(BookId("id02"))
         assertNull(result)
     }
 
     @Test
     fun `saveProgress - progressDao に ProgressEntity を渡して呼ぶ`() = runTest {
-        repository.saveProgress("id01", "chapter_02.html")
+        repository.saveProgress(BookId("id01"), ChapterFilename("chapter_02.html"))
         // lastReadAt は書き込み時刻（System.currentTimeMillis()）で非決定的なため完全一致は使わず、
         // 識別子フィールドのみ検証する（章移動なのでスクロール位置は 0,0）。
         coVerify {
@@ -304,5 +330,29 @@ class BookRepositoryTest {
         // 再開対象の権限を誤って解放しないことの回帰: keep に全て含まれれば差集合は空
         val persisted = setOf("content://docs/a", "content://docs/b")
         assertTrue(orphanedPermissionUris(persisted, persisted).isEmpty())
+    }
+
+    // ── Web読書位置の ncode 正規化（record↔get 往復一致）───────────────────────
+    // record と get の ncode を trim().uppercase() で揃えないと「続きから」が空振りする load-bearing ロジック。
+    // 参照側 ShelfItems（webReadingProgress[n.ncode.trim().uppercase()]）と同じ正規化であることを回帰で固定する。
+
+    @Test
+    fun `recordWebReadingEpisode→getWebReadingProgress - 同じ ncode で往復一致する`() = runTest {
+        repository.recordWebReadingEpisode(Ncode("N1234AB"), 7)
+        val got = repository.getWebReadingProgress(Ncode("N1234AB"))
+        assertEquals(7, got?.lastReadEpisode)
+    }
+
+    @Test
+    fun `recordWebReadingEpisode→getWebReadingProgress - 大小文字・空白ゆらぎでも正規化一致で引ける`() = runTest {
+        // 記録は小文字、照会は大文字＋前後空白＝ncode の表記ゆれ。両者 trim().uppercase() で同一キーになり一致する
+        // （この一致が崩れると「読んだのに続きから読むが出ない」空振りになる）。
+        repository.recordWebReadingEpisode(Ncode("n1234ab"), 3)
+        val got = repository.getWebReadingProgress(Ncode("  N1234AB  "))
+        assertEquals(3, got?.lastReadEpisode)
+        // 保存キー自体が正規化済み（ShelfItems 参照側の trim().uppercase() と一致する形）であることも確認:
+        // 未正規化キーではヒットせず、正規化キーでのみ引ける＝保存時に正規化されている証明。
+        assertNull("未正規化キーではヒットしない（保存時正規化の証明）", webReadingProgressDao.get("n1234ab"))
+        assertEquals(3, webReadingProgressDao.get("N1234AB")?.lastReadEpisode)
     }
 }

@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
@@ -74,6 +75,37 @@ fun RubyText(
 
     var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
 
+    // DrawScope.density と同値の composition 密度。Paint の px 換算に使う。
+    val density = LocalDensity.current.density
+
+    // ルビ描画 Paint。フォントサイズ・色・比率・密度が変わらない限り同一で良い。
+    // なぜ remember 化するか: 以前は drawWithContent 内で描画パス毎に Paint を new していたため、
+    // 章オープン・設定変更・スクロールの各再描画でアロケートが走っていた（可視段落分×描画回数）。
+    // 見た目を決める入力（rubyColor / style.fontSize / rubyFontSizeRatio / density）だけを key にして
+    // 変化時のみ作り直す。生成後は draw 内で mutate しないため remember しても安全。
+    val rubyPaint = remember(rubyColor, style.fontSize, rubyFontSizeRatio, density) {
+        android.graphics.Paint().apply {
+            color = rubyColor.toArgb()
+            textSize = style.fontSize.value * rubyFontSizeRatio * density
+            textAlign = android.graphics.Paint.Align.CENTER
+            isAntiAlias = true
+            typeface = android.graphics.Typeface.SERIF
+        }
+    }
+    // 親文字の字面上端をベースラインから導出するための ascent（負値）。
+    // なぜ別 Paint か: TextLayoutResult は行ボックス座標しか持たず、lineHeight の余剰を含む行上端
+    // からは字面位置が分からないため（バグ#1 の根本原因）。MinchoFamily = FontFamily.Serif なので
+    // Typeface.SERIF でメトリクスが一致する。値はフォントサイズ・密度のみに依存＝描画毎に不変なので
+    // remember で1回だけ算出する（毎描画の Paint 生成 + ascent() 呼び出しを排除）。
+    val baseAscent = remember(style.fontSize, density) {
+        android.graphics.Paint().apply {
+            textSize = style.fontSize.value * density
+            typeface = android.graphics.Typeface.SERIF
+        }.ascent()
+    }
+    // ルビ描画位置のキャッシュ。TextLayoutResult と rubyRanges の同一性(===)で前回結果を再利用する。
+    val rubyPositionCache = remember { RubyPositionCache() }
+
     BasicText(
         text = annotated,
         style = style,
@@ -85,37 +117,23 @@ fun RubyText(
                 val layout = textLayoutResult ?: return@drawWithContent
 
                 drawIntoCanvas { canvas ->
-                    val paint = android.graphics.Paint().apply {
-                        color = rubyColor.toArgb()
-                        textSize = style.fontSize.value * rubyFontSizeRatio * density
-                        textAlign = android.graphics.Paint.Align.CENTER
-                        isAntiAlias = true
-                        typeface = android.graphics.Typeface.SERIF
-                    }
-                    // 親文字の字面上端をベースラインから導出するためのメトリクス。
-                    // なぜ別 Paint を作るか: TextLayoutResult は行ボックス座標しか持たず、
-                    // lineHeight の余剰を含む行上端からは字面位置が分からないため（バグ#1 の根本原因）。
-                    // MinchoFamily = FontFamily.Serif なので Typeface.SERIF でメトリクスが一致する。
-                    val baseAscent = android.graphics.Paint().apply {
-                        textSize = style.fontSize.value * density
-                        typeface = android.graphics.Typeface.SERIF
-                    }.ascent()
-
-                    for ((start, end, reading) in rubyRanges) {
-                        val positions = RubyLayoutHelper.calculateRubyPositions(
-                            layout, start, end, reading,
-                        )
+                    // ルビ descent（下端補正）は Paint 不変なのでループ外で1回だけ取得する
+                    val rubyDescent = rubyPaint.descent()
+                    // レイアウト結果と rubyRanges をキーに位置計算をキャッシュ。どちらも不変なら
+                    // calculateRubyPositions（行またぎ時は BreakIterator まで）の再計算を丸ごと省く。
+                    val positionsPerRange = rubyPositionCache.getOrCompute(layout, rubyRanges)
+                    for (positions in positionsPerRange) {
                         for (info in positions) {
                             // baselineY(親文字ベースライン) + ascent(負値) = 親文字の字面上端。
                             // そこからルビの descent 分を引き、ルビの下端が字面上端に接するよう配置する
                             // （ascent はインク上端よりわずかに上を指すため、自然な隙間が残る）。
                             val baseGlyphTop = info.baselineY + baseAscent
-                            val y = baseGlyphTop - paint.descent()
+                            val y = baseGlyphTop - rubyDescent
                             canvas.nativeCanvas.drawText(
                                 info.rubyText,
                                 info.centerX,
                                 y,
-                                paint,
+                                rubyPaint,
                             )
                         }
                     }
@@ -124,6 +142,37 @@ fun RubyText(
         onTextLayout = { textLayoutResult = it },
         overflow = TextOverflow.Visible,
     )
+}
+
+/**
+ * ルビ描画位置のキャッシュ。TextLayoutResult とルビ範囲リストの同一性(===)で前回計算結果を再利用し、
+ * drawWithContent 毎の calculateRubyPositions 再計算を防ぐ。
+ *
+ * なぜこの2つだけを key にするか: ルビの描画位置は「テキストレイアウト（折り返し・行ボックス座標）」と
+ * 「ルビ範囲（親文字オフセットと読み）」だけで決まるため。
+ * - layout は幅・フォントサイズ・行間の変化時にのみ onTextLayout で作り直され新インスタンスになる
+ *   ＝インスタンス同一性が「再計算が必要か」の正しい信号。
+ * - rubyRanges は segments 変化時に呼び出し側の remember が作り直す（同上）。
+ * 色・ルビ比率・密度は位置に影響しないので key に含めない（それらは Paint 側の remember が担う）。
+ * 値は不変前提で保持し draw 内で mutate しないため、識別子比較だけで安全にキャッシュできる。
+ */
+private class RubyPositionCache {
+    private var lastLayout: TextLayoutResult? = null
+    private var lastRanges: List<Triple<Int, Int, String>>? = null
+    private var cached: List<List<RubyDrawInfo>> = emptyList()
+
+    fun getOrCompute(
+        layout: TextLayoutResult,
+        ranges: List<Triple<Int, Int, String>>,
+    ): List<List<RubyDrawInfo>> {
+        if (layout === lastLayout && ranges === lastRanges) return cached
+        cached = ranges.map { (start, end, reading) ->
+            RubyLayoutHelper.calculateRubyPositions(layout, start, end, reading)
+        }
+        lastLayout = layout
+        lastRanges = ranges
+        return cached
+    }
 }
 
 /**

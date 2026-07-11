@@ -209,7 +209,10 @@ private fun TocList(
             .fillMaxSize()
             .padding(innerPadding),
     ) {
-        itemsIndexed(entries) { index, entry ->
+        // key に fileName を使う: TocEntry.fileName は目次内の各章 href（chap_1.html 等）で章ごとに一意。
+        // 一意で安定なキーにより、目次の非同期ロード差し替え・現在章スクロール時もアイテムの同一性が
+        // 保たれる。contentType は付けない: 全行が同一構造（左バー＋テキスト行）で1種類のため。
+        itemsIndexed(entries, key = { _, entry -> entry.fileName }) { index, entry ->
             val isCurrent = index == currentIndex
             Surface(
                 modifier = Modifier

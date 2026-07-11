@@ -52,6 +52,7 @@ import androidx.core.content.ContextCompat
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
+import com.novelreader.model.BookId
 import com.novelreader.ui.discovery.FilterChipItem
 import com.novelreader.narou.model.NarouNovel
 import com.novelreader.ui.theme.MinchoFamily
@@ -199,7 +200,8 @@ fun BookshelfScreen(
         // 開く際の再開ファイル解決（suspend の DB 参照）はルート層の責務。描画層は BookEntity を渡すだけ。
         onOpenBook = { book ->
             scope.launch {
-                val lastReadFile = viewModel.getLastRead(book.id) ?: "index.html"
+                // 境界: book.id は Room 由来の String＝型付き API へ渡す直前に BookId へ包む。
+                val lastReadFile = viewModel.getLastRead(BookId(book.id)) ?: "index.html"
                 onOpenBook(book.id, lastReadFile)
             }
         },

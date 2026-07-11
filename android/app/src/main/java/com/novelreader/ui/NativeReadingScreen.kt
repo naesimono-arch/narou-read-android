@@ -33,6 +33,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.TopAppBarState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
@@ -67,6 +68,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.novelreader.NovelReaderApplication
+import com.novelreader.model.BookId
+import com.novelreader.model.ChapterFilename
 import com.novelreader.model.ParseResult
 import com.novelreader.model.TocEntry
 import com.novelreader.narou.ContinuationInfo
@@ -77,6 +80,7 @@ import com.novelreader.narou.narouWorkUrl
 import com.novelreader.narou.model.Ncode
 import com.novelreader.parser.ChapterHtmlParser
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.rememberReadingColors
 import com.novelreader.viewmodel.BookshelfViewModel
@@ -106,7 +110,7 @@ import java.io.File
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReadingScreen(
-    bookId: String,
+    bookId: BookId,
     startFile: String,
     htmlDirPath: String,
     bookTitle: String,
@@ -125,8 +129,10 @@ fun ReadingScreen(
     // ルートが reading/{bookId}/{startFile} なので NavBackStackEntry 単位でスコープされるが、
     // Navigation の実装詳細に依存しないよう bookId を明示的にキーに含めて書籍切替時の状態混線を防ぐ。
     // 履歴はプロセス再生成後も遡行できるよう listSaver で永続化する。
+    // なぜキーに bookId.value（生 String）を使うか: BookId は value class のため素の $bookId 補間は
+    // "BookId(value=…)" になる。保存キーの文字列同一性を型付け前と厳密に保つため生の値で補間する。
     var navHistory by rememberSaveable(
-        key = "navHistory_$bookId",
+        key = "navHistory_${bookId.value}",
         stateSaver = listSaver<List<String>, String>(save = { it }, restore = { it }),
     ) { mutableStateOf(listOf(startFile)) }
     val currentFile = navHistory.last()
@@ -134,7 +140,7 @@ fun ReadingScreen(
     // 最後に表示していた章。目次表示中の「現在章ハイライト」に使う。
     // なぜ currentFile と別に持つか: 目次を開くと currentFile は "index.html" に
     // なるため、どの章から来たかを別途保持する必要があるため。
-    var lastChapterFile by rememberSaveable(key = "lastChapter_$bookId") {
+    var lastChapterFile by rememberSaveable(key = "lastChapter_${bookId.value}") {
         mutableStateOf(startFile.takeIf { it != "index.html" })
     }
 
@@ -145,7 +151,8 @@ fun ReadingScreen(
         navHistory = pushNavHistory(navHistory, target)
         if (target != "index.html") {
             lastChapterFile = target
-            viewModel.saveProgress(bookId, target)
+            // 画面内部はファイル名を String で運ぶため、型付き API 境界でのみ ChapterFilename に包む。
+            viewModel.saveProgress(bookId, ChapterFilename(target))
         }
     }
 
@@ -338,7 +345,8 @@ fun ReadingScreen(
         initialScrollIndex = if (resolvedFile == restore.targetFile) restore.scrollIndex else 0,
         initialScrollOffset = if (resolvedFile == restore.targetFile) restore.scrollOffset else 0,
         onSaveScroll = { index, offset ->
-            viewModel.saveScrollPosition(bookId, resolvedFile, index, offset)
+            // resolvedFile は画面内部の String。型付き API 境界でのみ ChapterFilename に包む。
+            viewModel.saveScrollPosition(bookId, ChapterFilename(resolvedFile), index, offset)
         },
         onNavigateToBookshelf = onNavigateToBookshelf,
         // 前後章・目次ボタンからの遷移も「進む」＝履歴を積む（Back で1段ずつ遡れる）
@@ -407,18 +415,10 @@ private fun ChapterScreen(
     onNavigateTo: (String) -> Unit,
 ) {
     val colors = rememberReadingColors(readingTheme)
-    val scope = rememberCoroutineScope()
-
-    // 表示設定ボトムシートの開閉状態。
-    // なぜ rememberSaveable か: 素の remember だとプロセス再生成（回転・background kill）で
-    // シートだけ閉じてしまい、開いていた文脈が飛ぶ。検索シート（DiscoverySearchScreen）と
-    // 同様に開閉を Saveable 化して復元する（Boolean は既定 Saver で保存可＝Saver 不要）。
-    var showSettings by rememberSaveable { mutableStateOf(false) }
-
-    // ボトムバーの実測高さ（px）。退避スライド量に使う。
-    // なぜ固定値にしないか: ナビゲーションバー実高（ボタン式/ジェスチャー式）でバー総高が
-    // 変わるため、onSizeChanged で実測した高さ分だけスライドさせて完全に画面外へ退避させる。
-    var bottomBarHeightPx by remember { mutableIntStateOf(0) }
+    // 画面ローカルの UI 状態（表示設定シート開閉・紐付けシート開閉・ボトムバー実測高・コルーチンスコープ・
+    // 非横取り NestedScroll 接続）は描画層 ChapterScreenContent 内に保持する（route/Content 分割＝BookshelfContent
+    // と同方針で画面ローカル UI は Content の内部状態に留める）。route が保持するのは副作用（parse/継続照会/
+    // スクロール保存/ライフサイクルフラッシュ/没入ヒント）と VM・プラットフォーム依存・派生ナビ状態のみ。
 
     // 再試行カウンタ。インクリメントで produceState を再起動させる。
     // なぜ currentFile だけでなく retryKey も key に持つか:
@@ -492,11 +492,6 @@ private fun ChapterScreen(
         }
     }
 
-    // なろう紐付けシートの開閉状態。
-    // なぜ rememberSaveable か: 上の表示設定シートと同じく、プロセス再生成でシートだけ
-    // 閉じる不整合を避けるため開閉を Saveable 化する（Boolean は既定 Saver で保存可）。
-    var showLinkSheet by rememberSaveable { mutableStateOf(false) }
-
     // 継続カードからの外部遷移（Custom Tabs 起動）の再入ガード用タイムスタンプ（M1/公理3）。
     // なぜ必要か: Custom Tabs はブラウザ別プロセスの起動待ちがあり、反応が無いと利用者が連打しやすい。
     // その間 launchUrl が複数回走ると続き/作品ページが2枚重なって開くため、直近起動から一定時間内の
@@ -566,6 +561,166 @@ private fun ChapterScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // ────── 没入クローム復帰ヒント（層②）──────
+    // クローム（上下バー）が初めて画面外へ退避したとき、復帰操作（中央タップ）を数秒だけ
+    // 一過性ラベルで示す。なぜ一度きり・自動消灯か: 常時の帯は没入を削ぐため、初回消灯時の
+    // 学習機会だけを与え以後は出さない（M12＝復帰手段が不可視だった問題への最小介入）。
+    // なぜ prefs で永続化しアプリ通算初回のみにするか: セッション毎の表示は、復帰操作を既に
+    // 学習済みのユーザーには冗長。ヒントの目的（復帰手段の可視化）は一度の学習で達成されるため、
+    // 表示済みフラグを prefs に持たせて通算初回だけに絞る。他の読書設定と同じ app_prefs に置く。
+    val chromeHintPrefs = remember { context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
+    var chromeHintConsumed by remember {
+        mutableStateOf(chromeHintPrefs.getBoolean("immersive_hint_shown", false))
+    }
+    var showChromeHint by remember { mutableStateOf(false) }
+    LaunchedEffect(topAppBarState) {
+        snapshotFlow { topAppBarState.collapsedFraction > 0.9f }
+            .distinctUntilChanged()
+            .collect { hidden ->
+                if (hidden && !chromeHintConsumed) {
+                    chromeHintConsumed = true
+                    // 表示に踏み切った時点で永続フラグを立てる＝以後のセッションでは二度と出さない。
+                    // apply は非同期ディスク書込のため UI をブロックしない。
+                    chromeHintPrefs.edit().putBoolean("immersive_hint_shown", true).apply()
+                    showChromeHint = true
+                    delay(2600)
+                    showChromeHint = false
+                }
+            }
+    }
+
+    // 継続カード → Custom Tabs の外部遷移コールバック。再入ガード（M1/公理3）・context・openInAppBrowser は
+    // すべて副作用のため route（状態保持層）に留め、描画層 ChapterScreenContent には「押された」ことだけを渡す。
+    val onReadContinuation: () -> Unit = {
+        // 再入ガード（M1/公理3）: 連打で Custom Tabs が2枚開くのを防ぐ。
+        val now = System.currentTimeMillis()
+        if (now - lastLaunchAt >= 1000L) {
+            lastLaunchAt = now
+            // 主ボタンは NewEpisodes のときしか描画されないが、防御的に型で絞る。
+            // ツールバー色は明示指定せず既定（ブラウザのサイト識別色）に委ねる（M9・公理8）＝なろうへ外部
+            // 遷移した事実を隠さず、今どこに居るかを判別できるようにするため（背景同化＝没入優先は M2 で撤回）。
+            (continuationInfo as? ContinuationInfo.NewEpisodes)?.let {
+                openInAppBrowser(context, narouEpisodeUrl(it.ncode, it.nextEpisode))
+            }
+        }
+    }
+    val onOpenWorkPage: () -> Unit = {
+        // 同上: 再入ガード＋ツールバー色は既定（サイト識別可能）に委ねる。
+        val now = System.currentTimeMillis()
+        if (now - lastLaunchAt >= 1000L) {
+            lastLaunchAt = now
+            // このコールバックは Content 側で continuationInfo!=null の作品ページボタンからのみ配線されるため
+            // null 安全に読んでも挙動は元の info.ncode と同一（カード非表示時は発火経路が無い）。
+            continuationInfo?.let { openInAppBrowser(context, narouWorkUrl(it.ncode)) }
+        }
+    }
+
+    ChapterScreenContent(
+        parseResult = parseResult,
+        colors = colors,
+        fontSize = fontSize,
+        onFontSizeChange = onFontSizeChange,
+        onFontSizePersist = onFontSizePersist,
+        lineHeightEm = lineHeightEm,
+        onLineHeightChange = onLineHeightChange,
+        onLineHeightPersist = onLineHeightPersist,
+        bodyMarginDp = bodyMarginDp,
+        onBodyMarginChange = onBodyMarginChange,
+        onBodyMarginPersist = onBodyMarginPersist,
+        readingTheme = readingTheme,
+        onThemeChange = onThemeChange,
+        lazyListState = lazyListState,
+        topAppBarState = topAppBarState,
+        scrollBehavior = scrollBehavior,
+        prevFile = prevFile,
+        nextFile = nextFile,
+        navEnabled = navEnabled,
+        isLastChapter = isLastChapter,
+        ncode = ncode,
+        continuationInfo = continuationInfo,
+        showChromeHint = showChromeHint,
+        bookTitle = bookTitle,
+        ncodeSearchState = ncodeSearchState,
+        onSearchNcode = onSearchNcode,
+        onRetryNcodeSearch = onRetryNcodeSearch,
+        onLinkNcode = onLinkNcode,
+        onReadContinuation = onReadContinuation,
+        onOpenWorkPage = onOpenWorkPage,
+        onNavigateTo = onNavigateTo,
+        onNavigateToBookshelf = onNavigateToBookshelf,
+        onRetryParse = { retryKey++ },
+    )
+}
+
+/**
+ * 章読書画面の描画層（stateless / route/Content 分割の content）。ChapterScreen からの純移動。
+ * VM・SharedPreferences・narouRepository・非同期パース/継続照会・スクロール保存/ライフサイクルフラッシュ・
+ * 没入ヒントといった副作用はすべて route（ChapterScreen）に残し、ここは受け取った state＋コールバックだけで
+ * Scaffold＋上下バー（オーバーレイ）＋継続導線＋各シートを描画する葉（BookshelfContent と同方針）。
+ * 画面ローカルの UI 状態（設定シート/紐付けシート開閉・ボトムバー実測高・タップ用コルーチンスコープ・
+ * 非横取り NestedScroll 接続）のみ内部に保持する（過剰な hoisting は避ける）。
+ * Custom Tabs 起動（再入ガード付き）は副作用のため route の [onReadContinuation]/[onOpenWorkPage] へ委譲する。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChapterScreenContent(
+    parseResult: ParseResult,
+    colors: ReadingColors,
+    fontSize: Int,
+    onFontSizeChange: (Int) -> Unit,
+    onFontSizePersist: () -> Unit,
+    lineHeightEm: Float,
+    onLineHeightChange: (Float) -> Unit,
+    onLineHeightPersist: () -> Unit,
+    bodyMarginDp: Int,
+    onBodyMarginChange: (Int) -> Unit,
+    onBodyMarginPersist: () -> Unit,
+    readingTheme: ReadingTheme,
+    onThemeChange: (ReadingTheme) -> Unit,
+    // トップバー退避・スクロール位置の state holder は route が保持する副作用（没入ヒント・スクロール保存）と
+    // 共有するため route で生成し、ここへ渡す（描画はこの holder を読むだけ＝純移動）。
+    lazyListState: LazyListState,
+    topAppBarState: TopAppBarState,
+    scrollBehavior: TopAppBarScrollBehavior,
+    prevFile: String,
+    nextFile: String,
+    navEnabled: Boolean,
+    isLastChapter: Boolean,
+    ncode: Ncode?,
+    continuationInfo: ContinuationInfo?,
+    showChromeHint: Boolean,
+    bookTitle: String,
+    ncodeSearchState: NcodeSearchUiState,
+    onSearchNcode: (query: String) -> Unit,
+    onRetryNcodeSearch: () -> Unit,
+    onLinkNcode: (Ncode?) -> Unit,
+    // 継続カードの外部遷移（Custom Tabs）は route が再入ガード付きで実行する。
+    onReadContinuation: () -> Unit,
+    onOpenWorkPage: () -> Unit,
+    onNavigateTo: (String) -> Unit,
+    onNavigateToBookshelf: () -> Unit,
+    onRetryParse: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+
+    // 表示設定ボトムシートの開閉状態。
+    // なぜ rememberSaveable か: 素の remember だとプロセス再生成（回転・background kill）で
+    // シートだけ閉じてしまい、開いていた文脈が飛ぶ。検索シート（DiscoverySearchScreen）と
+    // 同様に開閉を Saveable 化して復元する（Boolean は既定 Saver で保存可＝Saver 不要）。
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+
+    // なろう紐付けシートの開閉状態。
+    // なぜ rememberSaveable か: 上の表示設定シートと同じく、プロセス再生成でシートだけ
+    // 閉じる不整合を避けるため開閉を Saveable 化する（Boolean は既定 Saver で保存可）。
+    var showLinkSheet by rememberSaveable { mutableStateOf(false) }
+
+    // ボトムバーの実測高さ（px）。退避スライド量に使う。
+    // なぜ固定値にしないか: ナビゲーションバー実高（ボタン式/ジェスチャー式）でバー総高が
+    // 変わるため、onSizeChanged で実測した高さ分だけスライドさせて完全に画面外へ退避させる。
+    var bottomBarHeightPx by remember { mutableIntStateOf(0) }
+
+    // enterAlwaysScrollBehavior のデフォルト接続はスクロールを横取りしやすい。
+    // 読書体験を優先するため、本文には常にスクロールを渡しつつバー状態だけ追従させる。
     val nonStealingConnection = remember(topAppBarState) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -601,34 +756,6 @@ private fun ChapterScreen(
                 return Velocity.Zero
             }
         }
-    }
-
-    // ────── 没入クローム復帰ヒント（層②）──────
-    // クローム（上下バー）が初めて画面外へ退避したとき、復帰操作（中央タップ）を数秒だけ
-    // 一過性ラベルで示す。なぜ一度きり・自動消灯か: 常時の帯は没入を削ぐため、初回消灯時の
-    // 学習機会だけを与え以後は出さない（M12＝復帰手段が不可視だった問題への最小介入）。
-    // なぜ prefs で永続化しアプリ通算初回のみにするか: セッション毎の表示は、復帰操作を既に
-    // 学習済みのユーザーには冗長。ヒントの目的（復帰手段の可視化）は一度の学習で達成されるため、
-    // 表示済みフラグを prefs に持たせて通算初回だけに絞る。他の読書設定と同じ app_prefs に置く。
-    val chromeHintPrefs = remember { context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
-    var chromeHintConsumed by remember {
-        mutableStateOf(chromeHintPrefs.getBoolean("immersive_hint_shown", false))
-    }
-    var showChromeHint by remember { mutableStateOf(false) }
-    LaunchedEffect(topAppBarState) {
-        snapshotFlow { topAppBarState.collapsedFraction > 0.9f }
-            .distinctUntilChanged()
-            .collect { hidden ->
-                if (hidden && !chromeHintConsumed) {
-                    chromeHintConsumed = true
-                    // 表示に踏み切った時点で永続フラグを立てる＝以後のセッションでは二度と出さない。
-                    // apply は非同期ディスク書込のため UI をブロックしない。
-                    chromeHintPrefs.edit().putBoolean("immersive_hint_shown", true).apply()
-                    showChromeHint = true
-                    delay(2600)
-                    showChromeHint = false
-                }
-            }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -669,7 +796,7 @@ private fun ChapterScreen(
 
                     is ParseResult.Success -> {
                         // 継続導線スロット。最終章のみ: 未紐付け=静かな探索導線／紐付け済み=継続カード。
-                        // ローカル val に固めるのは produceState 委譲プロパティのスマートキャストを効かせるため。
+                        // ローカル val に固めるのはスマートキャストを効かせるため。
                         val info = continuationInfo
                         val continuationSlot: (@Composable () -> Unit)? = when {
                             !isLastChapter -> null
@@ -685,31 +812,9 @@ private fun ChapterScreen(
                                     info = info,
                                     colors = colors,
                                     bodyMarginDp = bodyMarginDp,
-                                    onReadContinuation = {
-                                        // 再入ガード（M1/公理3）: 連打で Custom Tabs が2枚開くのを防ぐ。
-                                        val now = System.currentTimeMillis()
-                                        if (now - lastLaunchAt >= 1000L) {
-                                            lastLaunchAt = now
-                                            // 主ボタンは NewEpisodes のときしか描画されないが、防御的に型で絞る。
-                                            // ツールバー色は明示指定せず既定（ブラウザのサイト識別色）に委ねる
-                                            // （M9・公理8）＝なろうへ外部遷移した事実を隠さず、今どこに居るかを
-                                            // 判別できるようにするため（背景同化＝没入優先は M2 指摘で撤回）。
-                                            (info as? ContinuationInfo.NewEpisodes)?.let {
-                                                openInAppBrowser(
-                                                    context,
-                                                    narouEpisodeUrl(it.ncode, it.nextEpisode),
-                                                )
-                                            }
-                                        }
-                                    },
-                                    onOpenWorkPage = {
-                                        // 同上: 再入ガード＋ツールバー色は既定（サイト識別可能）に委ねる。
-                                        val now = System.currentTimeMillis()
-                                        if (now - lastLaunchAt >= 1000L) {
-                                            lastLaunchAt = now
-                                            openInAppBrowser(context, narouWorkUrl(info.ncode))
-                                        }
-                                    },
+                                    // Custom Tabs 起動（再入ガード）は副作用のため route へ委譲する。
+                                    onReadContinuation = onReadContinuation,
+                                    onOpenWorkPage = onOpenWorkPage,
                                     onUnlink = { onLinkNcode(null) },
                                 )
                             })
@@ -730,7 +835,7 @@ private fun ChapterScreen(
                         message = result.message,
                         colors = colors,
                         onNavigateToBookshelf = onNavigateToBookshelf,
-                        onRetry = { retryKey++ },
+                        onRetry = onRetryParse,
                     )
                 }
             }
@@ -864,6 +969,8 @@ private fun ChapterScreen(
         if (showLinkSheet) {
             // シートを開いた瞬間に書名を初期クエリとして検索する（旧: シート内 produceState が
             // activeQuery=bookTitle で初期照会していたのと等価。検索実行は VM へ移設済み）。
+            // このシート起動時検索の LaunchedEffect は if(showLinkSheet) ブロックと不可分のため、
+            // 純移動として描画層へ一緒に持ち込む（開閉 state がこの Content 内に閉じるため所属も自然）。
             LaunchedEffect(Unit) { onSearchNcode(bookTitle) }
             NcodeLinkSheet(
                 bookTitle = bookTitle,

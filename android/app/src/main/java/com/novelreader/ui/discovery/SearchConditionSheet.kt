@@ -49,9 +49,11 @@ import com.novelreader.narou.model.NarouNovelType
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.DiscoveryViewModel
 import com.novelreader.viewmodel.LENGTH_STEPS
+import com.novelreader.viewmodel.LENGTH_STEPS_DEF
 import com.novelreader.viewmodel.SearchDraft
 import com.novelreader.viewmodel.SearchFilters
 import com.novelreader.viewmodel.TIME_STEPS
+import com.novelreader.viewmodel.TIME_STEPS_DEF
 import com.novelreader.viewmodel.buildCustomRange
 import com.novelreader.viewmodel.selectedStepIndices
 import com.novelreader.viewmodel.toggleLastup
@@ -331,51 +333,19 @@ fun SearchConditionSheet(
                         viewModel.setSearchDraft(draft.copy(lengthCustomMin = "", lengthCustomMax = "", filters = draft.filters.withLength(null)))
                     }
                 )
-                FilterChipItem(
-                    selected = !lengthCustomActive && !isLengthCustom && 0 in lengthStepIndices,
-                    label = "〜1万字",
-                    enabled = !timeEngaged,
-                    onClick = {
-                        lengthCustomActive = false
-                        viewModel.toggleLengthStep(0)
-                    }
-                )
-                FilterChipItem(
-                    selected = !lengthCustomActive && !isLengthCustom && 1 in lengthStepIndices,
-                    label = "1万〜10万字",
-                    enabled = !timeEngaged,
-                    onClick = {
-                        lengthCustomActive = false
-                        viewModel.toggleLengthStep(1)
-                    }
-                )
-                FilterChipItem(
-                    selected = !lengthCustomActive && !isLengthCustom && 2 in lengthStepIndices,
-                    label = "10万〜50万字",
-                    enabled = !timeEngaged,
-                    onClick = {
-                        lengthCustomActive = false
-                        viewModel.toggleLengthStep(2)
-                    }
-                )
-                FilterChipItem(
-                    selected = !lengthCustomActive && !isLengthCustom && 3 in lengthStepIndices,
-                    label = "50万〜100万字",
-                    enabled = !timeEngaged,
-                    onClick = {
-                        lengthCustomActive = false
-                        viewModel.toggleLengthStep(3)
-                    }
-                )
-                FilterChipItem(
-                    selected = !lengthCustomActive && !isLengthCustom && 4 in lengthStepIndices,
-                    label = "100万字〜",
-                    enabled = !timeEngaged,
-                    onClick = {
-                        lengthCustomActive = false
-                        viewModel.toggleLengthStep(4)
-                    }
-                )
+                // 段階チップは値とラベルの対（LENGTH_STEPS_DEF）から生成する。ラベルを直書きせず対定義に一本化し、
+                // 段の増減・境界変更でレンジ列とラベルがずれる平行定義事故を防ぐ。
+                LENGTH_STEPS_DEF.forEachIndexed { index, step ->
+                    FilterChipItem(
+                        selected = !lengthCustomActive && !isLengthCustom && index in lengthStepIndices,
+                        label = step.label,
+                        enabled = !timeEngaged,
+                        onClick = {
+                            lengthCustomActive = false
+                            viewModel.toggleLengthStep(index)
+                        }
+                    )
+                }
                 FilterChipItem(
                     selected = lengthCustomActive || isLengthCustom,
                     label = "カスタム",
@@ -398,98 +368,13 @@ fun SearchConditionSheet(
             // 読了時間が有効なとき文字数節は無効なので、カスタム入力欄も隠す（残留 lengthCustomActive で
             // 入力欄だけ生き残り、グレーアウトを迂回して length を再設定できてしまうのを防ぐ）。
             if ((lengthCustomActive || isLengthCustom) && !timeEngaged) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
-                ) {
-                    var isMinFocused by remember { mutableStateOf(false) }
-                    BasicTextField(
-                        value = draft.lengthCustomMin,
-                        onValueChange = { viewModel.setLengthCustomText(it, draft.lengthCustomMax) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .onFocusChanged { isMinFocused = it.isFocused },
-                        singleLine = true,
-                        textStyle = TextStyle(
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        ),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
-                        decorationBox = { innerTextField ->
-                            Column {
-                                Box(
-                                    modifier = Modifier.padding(bottom = 4.dp),
-                                    contentAlignment = Alignment.CenterStart
-                                ) {
-                                    if (draft.lengthCustomMin.isEmpty()) {
-                                        Text(
-                                            text = "下限なし",
-                                            fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                        )
-                                    }
-                                    innerTextField()
-                                }
-                                HorizontalDivider(
-                                    thickness = 1.dp,
-                                    color = if (isMinFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-                                )
-                            }
-                        }
-                    )
-
-                    Text(
-                        text = "〜",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    var isMaxFocused by remember { mutableStateOf(false) }
-                    BasicTextField(
-                        value = draft.lengthCustomMax,
-                        onValueChange = { viewModel.setLengthCustomText(draft.lengthCustomMin, it) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .onFocusChanged { isMaxFocused = it.isFocused },
-                        singleLine = true,
-                        textStyle = TextStyle(
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        ),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                        decorationBox = { innerTextField ->
-                            Column {
-                                Box(
-                                    modifier = Modifier.padding(bottom = 4.dp),
-                                    contentAlignment = Alignment.CenterStart
-                                ) {
-                                    if (draft.lengthCustomMax.isEmpty()) {
-                                        Text(
-                                            text = "上限なし",
-                                            fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                        )
-                                    }
-                                    innerTextField()
-                                }
-                                HorizontalDivider(
-                                    thickness = 1.dp,
-                                    color = if (isMaxFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-                                )
-                            }
-                        }
-                    )
-
-                    Text(
-                        text = "万字",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 4.dp)
-                    )
-                }
+                CustomRangeInput(
+                    minValue = draft.lengthCustomMin,
+                    maxValue = draft.lengthCustomMax,
+                    onMinChange = { viewModel.setLengthCustomText(it, draft.lengthCustomMax) },
+                    onMaxChange = { viewModel.setLengthCustomText(draft.lengthCustomMin, it) },
+                    unitLabel = "万字"
+                )
             }
 
             // e. 読了時間
@@ -522,42 +407,18 @@ fun SearchConditionSheet(
                         viewModel.setSearchDraft(draft.copy(timeCustomMin = "", timeCustomMax = "", filters = draft.filters.withTime(null)))
                     }
                 )
-                FilterChipItem(
-                    selected = !timeCustomActive && !isTimeCustom && 0 in timeStepIndices,
-                    label = "〜30分",
-                    enabled = !lengthEngaged,
-                    onClick = {
-                        timeCustomActive = false
-                        viewModel.toggleTimeStep(0)
-                    }
-                )
-                FilterChipItem(
-                    selected = !timeCustomActive && !isTimeCustom && 1 in timeStepIndices,
-                    label = "30分〜2時間",
-                    enabled = !lengthEngaged,
-                    onClick = {
-                        timeCustomActive = false
-                        viewModel.toggleTimeStep(1)
-                    }
-                )
-                FilterChipItem(
-                    selected = !timeCustomActive && !isTimeCustom && 2 in timeStepIndices,
-                    label = "2時間〜10時間",
-                    enabled = !lengthEngaged,
-                    onClick = {
-                        timeCustomActive = false
-                        viewModel.toggleTimeStep(2)
-                    }
-                )
-                FilterChipItem(
-                    selected = !timeCustomActive && !isTimeCustom && 3 in timeStepIndices,
-                    label = "10時間〜",
-                    enabled = !lengthEngaged,
-                    onClick = {
-                        timeCustomActive = false
-                        viewModel.toggleTimeStep(3)
-                    }
-                )
+                // 段階チップは値とラベルの対（TIME_STEPS_DEF）から生成する（文字数節と同じく平行定義事故の防止）。
+                TIME_STEPS_DEF.forEachIndexed { index, step ->
+                    FilterChipItem(
+                        selected = !timeCustomActive && !isTimeCustom && index in timeStepIndices,
+                        label = step.label,
+                        enabled = !lengthEngaged,
+                        onClick = {
+                            timeCustomActive = false
+                            viewModel.toggleTimeStep(index)
+                        }
+                    )
+                }
                 FilterChipItem(
                     selected = timeCustomActive || isTimeCustom,
                     label = "カスタム",
@@ -579,98 +440,13 @@ fun SearchConditionSheet(
 
             // 文字数が有効なとき読了時間節は無効なので、カスタム入力欄も隠す（残留 timeCustomActive 対策）。
             if ((timeCustomActive || isTimeCustom) && !lengthEngaged) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
-                ) {
-                    var isMinFocused by remember { mutableStateOf(false) }
-                    BasicTextField(
-                        value = draft.timeCustomMin,
-                        onValueChange = { viewModel.setTimeCustomText(it, draft.timeCustomMax) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .onFocusChanged { isMinFocused = it.isFocused },
-                        singleLine = true,
-                        textStyle = TextStyle(
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        ),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
-                        decorationBox = { innerTextField ->
-                            Column {
-                                Box(
-                                    modifier = Modifier.padding(bottom = 4.dp),
-                                    contentAlignment = Alignment.CenterStart
-                                ) {
-                                    if (draft.timeCustomMin.isEmpty()) {
-                                        Text(
-                                            text = "下限なし",
-                                            fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                        )
-                                    }
-                                    innerTextField()
-                                }
-                                HorizontalDivider(
-                                    thickness = 1.dp,
-                                    color = if (isMinFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-                                )
-                            }
-                        }
-                    )
-
-                    Text(
-                        text = "〜",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    var isMaxFocused by remember { mutableStateOf(false) }
-                    BasicTextField(
-                        value = draft.timeCustomMax,
-                        onValueChange = { viewModel.setTimeCustomText(draft.timeCustomMin, it) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .onFocusChanged { isMaxFocused = it.isFocused },
-                        singleLine = true,
-                        textStyle = TextStyle(
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        ),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                        decorationBox = { innerTextField ->
-                            Column {
-                                Box(
-                                    modifier = Modifier.padding(bottom = 4.dp),
-                                    contentAlignment = Alignment.CenterStart
-                                ) {
-                                    if (draft.timeCustomMax.isEmpty()) {
-                                        Text(
-                                            text = "上限なし",
-                                            fontSize = 14.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                        )
-                                    }
-                                    innerTextField()
-                                }
-                                HorizontalDivider(
-                                    thickness = 1.dp,
-                                    color = if (isMaxFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-                                )
-                            }
-                        }
-                    )
-
-                    Text(
-                        text = "時間",
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 4.dp)
-                    )
-                }
+                CustomRangeInput(
+                    minValue = draft.timeCustomMin,
+                    maxValue = draft.timeCustomMax,
+                    onMinChange = { viewModel.setTimeCustomText(it, draft.timeCustomMax) },
+                    onMaxChange = { viewModel.setTimeCustomText(draft.timeCustomMin, it) },
+                    unitLabel = "時間"
+                )
             }
 
             // f. 会話率
@@ -781,5 +557,113 @@ fun SearchConditionSheet(
                 )
             }
         }
+    }
+}
+
+/**
+ * カスタム範囲入力欄（下限〜上限＋単位）。文字数節・読了時間節でほぼ同型に2箇所コピペされていた約90行を部品化。
+ * なぜ部品化: min/max の値・更新関数・単位ラベルだけが差分で、意匠（ヘアライン下線のみの静かな入力欄・
+ * プレースホルダ配色・"〜"区切り・数値キーボード・フォーカス下線色）は完全に同一だったため。
+ * 見た目・挙動は元の2ブロックと同一（モック準拠の意匠をそのまま踏襲）。
+ */
+@Composable
+private fun CustomRangeInput(
+    minValue: String,
+    maxValue: String,
+    onMinChange: (String) -> Unit,
+    onMaxChange: (String) -> Unit,
+    unitLabel: String,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+    ) {
+        var isMinFocused by remember { mutableStateOf(false) }
+        BasicTextField(
+            value = minValue,
+            onValueChange = onMinChange,
+            modifier = Modifier
+                .weight(1f)
+                .onFocusChanged { isMinFocused = it.isFocused },
+            singleLine = true,
+            textStyle = TextStyle(
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            ),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+            decorationBox = { innerTextField ->
+                Column {
+                    Box(
+                        modifier = Modifier.padding(bottom = 4.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (minValue.isEmpty()) {
+                            Text(
+                                text = "下限なし",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                        }
+                        innerTextField()
+                    }
+                    HorizontalDivider(
+                        thickness = 1.dp,
+                        color = if (isMinFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                    )
+                }
+            }
+        )
+
+        Text(
+            text = "〜",
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        var isMaxFocused by remember { mutableStateOf(false) }
+        BasicTextField(
+            value = maxValue,
+            onValueChange = onMaxChange,
+            modifier = Modifier
+                .weight(1f)
+                .onFocusChanged { isMaxFocused = it.isFocused },
+            singleLine = true,
+            textStyle = TextStyle(
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            ),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+            decorationBox = { innerTextField ->
+                Column {
+                    Box(
+                        modifier = Modifier.padding(bottom = 4.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (maxValue.isEmpty()) {
+                            Text(
+                                text = "上限なし",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                        }
+                        innerTextField()
+                    }
+                    HorizontalDivider(
+                        thickness = 1.dp,
+                        color = if (isMaxFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                    )
+                }
+            }
+        )
+
+        Text(
+            text = unitLabel,
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 4.dp)
+        )
     }
 }

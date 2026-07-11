@@ -25,6 +25,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 import kotlin.coroutines.coroutineContext
 
 /**
@@ -107,7 +108,15 @@ class PdfImportViewModel(application: Application) : AndroidViewModel(applicatio
                     dir.mkdirs()
                     // 使い捨て1リクエスト用途のため OkHttpClient を都度生成する（NarouNetwork の client は private で
                     // 共有できず、また API 用の UA インターセプタは PDF DL には不要）。共有プールの利点が無いので新規で妥当。
-                    val client = OkHttpClient()
+                    // なぜ callTimeout（全体上限）を使わず connect/read ベースにするか: なろうの縦書き PDF は大容量で、
+                    // 正当な DL でも全体所要が長くなりうる。全体 callTimeout で縛ると大きな正常 DL を誤って殺すため、
+                    // 「無進捗の停滞」だけを切る設計にする＝connectTimeout で接続確立の遅延を、readTimeout で
+                    // バイト受信が途絶えた停滞を打ち切る（readTimeout は各読み取り間隔に効くので、進捗があれば都度
+                    // リセットされ長時間 DL は殺さない）。全体所要時間そのものには上限を設けない。
+                    val client = OkHttpClient.Builder()
+                        .connectTimeout(30, TimeUnit.SECONDS)
+                        .readTimeout(60, TimeUnit.SECONDS)
+                        .build()
                     val requestBuilder = Request.Builder().url(url)
                     // WebView の UA と Cookie を転送する。ログイン不要は実証済み（ADR 0011）だが、生成毎トークンの
                     // 検証が UA/Cookie に依存する可能性への防御。過剰でも実害は無いため付けておく。

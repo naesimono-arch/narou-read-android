@@ -10,6 +10,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.novelreader.NovelReaderApplication
+import com.novelreader.model.BookId
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfViewModel
 import org.junit.After
@@ -61,7 +62,7 @@ class NativeReadingScreenTest {
     fun 次へボタンで次の章に遷移する() {
         composeTestRule.setContent {
             ReadingScreen(
-                bookId = "test",
+                bookId = BookId("test"),
                 startFile = "chap_1.html",
                 htmlDirPath = htmlDir.absolutePath,
                 // 継続導線（PDF↔Web）はテスト対象外のため未紐付け固定（ncode=null なら通信は発生しない）
@@ -89,7 +90,7 @@ class NativeReadingScreenTest {
     fun 最初の章で前へボタンを押すと目次に遷移する() {
         composeTestRule.setContent {
             ReadingScreen(
-                bookId = "test",
+                bookId = BookId("test"),
                 startFile = "chap_1.html",
                 htmlDirPath = htmlDir.absolutePath,
                 // 継続導線（PDF↔Web）はテスト対象外のため未紐付け固定（ncode=null なら通信は発生しない）
@@ -118,7 +119,7 @@ class NativeReadingScreenTest {
     fun 目次ボタンで目次画面に遷移する() {
         composeTestRule.setContent {
             ReadingScreen(
-                bookId = "test",
+                bookId = BookId("test"),
                 startFile = "chap_1.html",
                 htmlDirPath = htmlDir.absolutePath,
                 // 継続導線（PDF↔Web）はテスト対象外のため未紐付け固定（ncode=null なら通信は発生しない）
@@ -146,7 +147,7 @@ class NativeReadingScreenTest {
     fun 目次から章を選択すると章画面に遷移する() {
         composeTestRule.setContent {
             ReadingScreen(
-                bookId = "test",
+                bookId = BookId("test"),
                 startFile = "index.html",
                 htmlDirPath = htmlDir.absolutePath,
                 // 継続導線（PDF↔Web）はテスト対象外のため未紐付け固定（ncode=null なら通信は発生しない）
@@ -175,7 +176,7 @@ class NativeReadingScreenTest {
     fun 存在しないstartFileは目次にフォールバックする() {
         composeTestRule.setContent {
             ReadingScreen(
-                bookId = "test",
+                bookId = BookId("test"),
                 startFile = "nonexistent_999.html",
                 htmlDirPath = htmlDir.absolutePath,
                 // 継続導線（PDF↔Web）はテスト対象外のため未紐付け固定（ncode=null なら通信は発生しない）
@@ -202,7 +203,7 @@ class NativeReadingScreenTest {
         val emptyDir = File(htmlDir, "empty_${System.currentTimeMillis()}").also { it.mkdirs() }
         composeTestRule.setContent {
             ReadingScreen(
-                bookId = "test",
+                bookId = BookId("test"),
                 startFile = "chap_1.html",
                 htmlDirPath = emptyDir.absolutePath,
                 // 継続導線（PDF↔Web）はテスト対象外のため未紐付け固定（ncode=null なら通信は発生しない）
@@ -230,7 +231,7 @@ class NativeReadingScreenTest {
 
         composeTestRule.setContent {
             ReadingScreen(
-                bookId = "test",
+                bookId = BookId("test"),
                 startFile = "chap_3.html",
                 htmlDirPath = htmlDir.absolutePath,
                 // 継続導線（PDF↔Web）はテスト対象外のため未紐付け固定（ncode=null なら通信は発生しない）
@@ -256,7 +257,7 @@ class NativeReadingScreenTest {
     fun Activity再生成後に表示中の章が保持される() {
         composeTestRule.setContent {
             ReadingScreen(
-                bookId = "test",
+                bookId = BookId("test"),
                 startFile = "chap_1.html",
                 htmlDirPath = htmlDir.absolutePath,
                 // 継続導線（PDF↔Web）はテスト対象外のため未紐付け固定（ncode=null なら通信は発生しない）

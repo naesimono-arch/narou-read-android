@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import androidx.room.withTransaction
 import com.novelreader.data.AppDatabase
 import com.novelreader.data.BookDao
 import com.novelreader.data.BookEntity
@@ -15,6 +16,8 @@ import com.novelreader.data.WebNovelDao
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.data.WebReadingProgressDao
 import com.novelreader.data.WebReadingProgressEntity
+import com.novelreader.model.BookId
+import com.novelreader.model.ChapterFilename
 import com.novelreader.narou.model.Ncode
 import com.novelreader.pdf.CorruptedPdfError
 import com.novelreader.pdf.EncryptedPdfError
@@ -26,6 +29,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -48,7 +53,28 @@ class DefaultBookRepository(
     private val pendingJobDao: PendingJobDao = AppDatabase.getDatabase(context).pendingJobDao(),
     private val webNovelDao: WebNovelDao = AppDatabase.getDatabase(context).webNovelDao(),
     private val webReadingProgressDao: WebReadingProgressDao = AppDatabase.getDatabase(context).webReadingProgressDao(),
+    // なぜトランザクション実行を関数注入にするか（テスト可能な原子性）:
+    // deleteBook の books削除＋progress削除を1トランザクションに束ねて「孤児progress行」を防ぐ。だが本クラスは
+    // DAO 個別注入で JVM 単体テストする設計（クラス doc 参照）のため、実 AppDatabase.withTransaction に直接依存すると
+    // テストで Room に落ちてしまう。トランザクション境界だけ関数で受け、本番は Room の withTransaction、テストは
+    // 素通しラムダ（block を即実行）へ差し替えられるようにする（DAO 分離注入と同じ思想の延長）。
+    private val runInTransaction: suspend (block: suspend () -> Unit) -> Unit = { block ->
+        AppDatabase.getDatabase(context).withTransaction(block)
+    },
 ) : BookRepository {
+
+    // pending_jobs（永続キュー）への全書き込みを直列化する排他ロック（タスク1の恒久策）。
+    // なぜ Mutex か / なぜ limitedParallelism(1) では不成立だったか:
+    //   旧設計は enqueue の記帳(insert)と明示停止の全消し(deleteAll)を Dispatchers.IO.limitedParallelism(1) の
+    //   単一スロットへ launch して投入順を守らせる狙いだった。しかし各メソッド冒頭の withContext(Dispatchers.IO) が
+    //   スロットを手放して汎用IOプールへ再ディスパッチするうえ、Room の suspend DAO も内部で自前 executor へ
+    //   再ディスパッチするため、単一スロットは実際の DB 着地を1件も直列化できていなかった（coroutine 意味論として不成立）。
+    //   帰結として「PDF投入直後に停止」で insert が deleteAll の後に着地し、破棄済みジョブが pending_jobs に復活
+    //   → 次回起動の runStartupRecoveryOnce が勝手に再変換する窓が残った。
+    //   Mutex はロックを「suspend な DAO 呼び出しの完了まで保持」するため、どのディスパッチャで走ろうと相手の
+    //   pending_jobs 書き込みが割り込めない＝実際の DB 書き込みを相互排他できる（limitedParallelism に無い保証）。
+    //   投入順は main スレッド(onStartCommand)からの launch 順＋Mutex の FIFO 公平性で保たれる。
+    private val pendingJobMutex = Mutex()
 
     override val allBooks: Flow<List<BookEntity>> = bookDao.getAllBooks()
     override val allProgress: Flow<List<ProgressEntity>> = progressDao.getAllProgress()
@@ -148,7 +174,7 @@ class DefaultBookRepository(
                 if (existingByHash != null) {
                     // outputDir はまだ mkdirs していないので掃除不要。変換の成否が確定した（＝重複）ので
                     // 成功/重複時と同じく pending_jobs を落とし永続権限も返す（NonCancellable で保護）。
-                    withContext(NonCancellable) { settlePendingJob(pdfUri) }
+                    withContext(NonCancellable) { pendingJobMutex.withLock { settlePendingJob(pdfUri) } }
                     extractionScope.ensureActive()
                     // try 内から return しても finally（tempFile.delete）は走る＝一時ファイルはリークしない。
                     return@runCatching AddBookResult.Duplicate(existingByHash)
@@ -188,7 +214,7 @@ class DefaultBookRepository(
                     outputDir.deleteRecursively()
                     // 変換の成否が確定した（＝重複と判明）ので pending_jobs を落とす。DB 書き込みを伴わない
                     // が settlePendingJob は権限解放も行うため、登録成功時と同じく NonCancellable で保護する。
-                    withContext(NonCancellable) { settlePendingJob(pdfUri) }
+                    withContext(NonCancellable) { pendingJobMutex.withLock { settlePendingJob(pdfUri) } }
                     extractionScope.ensureActive()
                     AddBookResult.Duplicate(existing)
                 } else {
@@ -208,10 +234,10 @@ class DefaultBookRepository(
                         bookDao.insertBook(b)
                         // 変換が確定したので永続キュー（pending_jobs）の記帳を落とす。insertBook と同じ
                         // NonCancellable 内で連続実行し、「本は登録されたのに pending が残る」→ 次回起動の
-                        // リカバリが同じ本を再変換して重複登録する窓を最小化する（完全排他には DAO 跨ぎの
-                        // トランザクション統合が要るが、テスト用の DAO 分離注入を保つため窓の最小化で妥協。
-                        // この数msにプロセス kill が当たる確率は実用上無視できる）。
-                        settlePendingJob(pdfUri)
+                        // リカバリが同じ本を再変換して重複登録する窓を最小化する（insertBook↔settle 間のプロセス
+                        // kill 窓は DB 跨ぎの原子化が要るため残るが、数msで実用上無視できる）。pendingJobMutex は
+                        // 並行する clearPendingJobs 等との pending_jobs 書き込み衝突を防ぐためで、kill 窓とは別問題。
+                        pendingJobMutex.withLock { settlePendingJob(pdfUri) }
                         b
                     }
                     // NonCancellable ブロック完了後にキャンセルを確認
@@ -240,7 +266,9 @@ class DefaultBookRepository(
                 // 権限を残せばユーザー起点の再試行が機能する。再試行しない場合に権限が1件残るのは
                 // 端末上限内の軽微なコストで、権限リーク回避より再試行の成立を優先する。
                 // （成功/重複/停止時は従来どおり settlePendingJob で権限も返す＝ここだけの例外扱い。）
-                withContext(NonCancellable) { pendingJobDao.deleteByUri(pdfUri.toString()) }
+                withContext(NonCancellable) {
+                    pendingJobMutex.withLock { pendingJobDao.deleteByUri(pdfUri.toString()) }
+                }
                 Result.failure(classifyError(e))
             },
         )
@@ -251,8 +279,12 @@ class DefaultBookRepository(
     // （OEM kill/OOM/onTimeout）で中断された未完了ジョブとして起動時リカバリが検出する。
 
     /** enqueue の記帳。REPLACE のため再開時の再投入でも二重行にならない。 */
+    // pendingJobMutex で全消し(clearPendingJobs)と直列化する。素の IO 並行だと「追加直後に停止」で
+    // この insert が全消しの後に着地し、破棄済みジョブが復活する（フィールド pendingJobMutex の why 参照）。
     override suspend fun addPendingJob(uri: String, displayName: String) = withContext(Dispatchers.IO) {
-        pendingJobDao.insert(PendingJobEntity(uri, displayName, System.currentTimeMillis()))
+        pendingJobMutex.withLock {
+            pendingJobDao.insert(PendingJobEntity(uri, displayName, System.currentTimeMillis()))
+        }
     }
 
     /** 未完了ジョブ一覧（enqueue 順）。起動時リカバリの検出用。 */
@@ -260,15 +292,21 @@ class DefaultBookRepository(
         withContext(Dispatchers.IO) { pendingJobDao.getAll() }
 
     /** 再開不能と判明したジョブの除去（権限喪失時など）。永続権限も返す。 */
+    // pending_jobs 書き込みは pendingJobMutex で一律直列化する（settlePendingJob 自体はロックを持たないため
+    // 呼び出し側で取る＝Mutex は非再入なので二重取得によるデッドロックを避ける設計）。
     override suspend fun removePendingJob(uri: String) = withContext(Dispatchers.IO) {
-        settlePendingJob(Uri.parse(uri))
+        pendingJobMutex.withLock { settlePendingJob(Uri.parse(uri)) }
     }
 
     /** 全ジョブの除去（ユーザーの明示停止＝「再開してほしくない」意思の反映）。 */
     override suspend fun clearPendingJobs() = withContext(Dispatchers.IO) {
-        // deleteAll の前に各行の永続権限を返す（行を先に消すと解放対象の URI が分からなくなる）
-        pendingJobDao.getAll().forEach { releasePersistedPermission(Uri.parse(it.uri)) }
-        pendingJobDao.deleteAll()
+        // pendingJobMutex で enqueue の記帳(addPendingJob)と直列化する。これが無いと「追加直後に停止」で
+        // insert が deleteAll をすり抜けて後着し、破棄済みジョブが復活する（フィールド pendingJobMutex の why 参照）。
+        pendingJobMutex.withLock {
+            // deleteAll の前に各行の永続権限を返す（行を先に消すと解放対象の URI が分からなくなる）
+            pendingJobDao.getAll().forEach { releasePersistedPermission(Uri.parse(it.uri)) }
+            pendingJobDao.deleteAll()
+        }
     }
 
     /** books テーブルに存在しない bookId の HTML ディレクトリを削除する（孤立HTML掃除）。
@@ -340,43 +378,57 @@ class DefaultBookRepository(
     }
 
     override suspend fun deleteBook(book: BookEntity) = withContext(Dispatchers.IO) {
-        bookDao.deleteById(book.id)
-        progressDao.deleteByBookId(book.id)
+        // なぜトランザクションか（孤児progress行の恒久残留を防ぐ）: books 行を消してから progress 行を消すまでの間に
+        // プロセスが kill されると、本体が消えたのに progress だけ残る「孤児」になる。progress は本削除時にしか
+        // 掃除されない（books 経由でしか辿らない）ため掃除経路が無く恒久残留する。両削除を1トランザクションに束ね、
+        // どちらも commit されるか一切行われないか（原子性）にして中間状態を消す。
+        runInTransaction {
+            bookDao.deleteById(book.id)
+            progressDao.deleteByBookId(book.id)
+        }
+        // HTMLディレクトリ削除は DB 外の副作用のためトランザクション外に置く（ファイルIO は Room の
+        // トランザクションでロールバックできず、失敗しても DB 削除は成立させたい＝掃除は次回起動の
+        // cleanOrphanHtmlDirs が拾う）。
         if (!File(book.htmlDirPath).deleteRecursively()) {
             Log.w(TAG, "HTMLディレクトリの削除に失敗: ${book.htmlDirPath}")
         }
     }
 
     // PDF↔Web継続読書: なろう作品との紐付け（null で解除）。ユーザー確定操作からのみ呼ぶ。
-    override suspend fun linkNcode(bookId: String, ncode: Ncode?) = withContext(Dispatchers.IO) {
-        // 境界変換点: Room(BookDao) の ncode 列は String のまま。null（解除）は null のまま渡す。
-        bookDao.updateNcode(bookId, ncode?.value)
+    override suspend fun linkNcode(bookId: BookId, ncode: Ncode?) = withContext(Dispatchers.IO) {
+        // 境界変換点: Room(BookDao) の bookId/ncode 列は String のまま＝ここで .value へほどく。
+        // null（解除）は null のまま渡す。
+        bookDao.updateNcode(bookId.value, ncode?.value)
     }
 
-    override suspend fun getLastRead(bookId: String): String? =
-        withContext(Dispatchers.IO) { progressDao.getLastRead(bookId) }
+    // 永続化境界: DAO は String 引数のため bookId.value でほどく（戻り値の lastReadFilename は
+    // ナビ経路の文字列組み立て等でそのまま使うため String のまま返す＝型付けは識別子引数に限定）。
+    override suspend fun getLastRead(bookId: BookId): String? =
+        withContext(Dispatchers.IO) { progressDao.getLastRead(bookId.value) }
 
-    override suspend fun getProgress(bookId: String): ProgressEntity? =
-        withContext(Dispatchers.IO) { progressDao.getProgress(bookId) }
+    override suspend fun getProgress(bookId: BookId): ProgressEntity? =
+        withContext(Dispatchers.IO) { progressDao.getProgress(bookId.value) }
 
     // 章を切り替えたときの進捗保存。スクロール位置は 0 にリセットする
     // （別の章へ移ったので前章のスクロール位置は引き継がない）。
     // lastReadAt を書き込み時刻でスタンプし、本棚の最近読書順ソートに使う。
-    override suspend fun saveProgress(bookId: String, filename: String) = withContext(Dispatchers.IO) {
-        progressDao.saveProgress(ProgressEntity(bookId, filename, lastReadAt = System.currentTimeMillis()))
+    override suspend fun saveProgress(bookId: BookId, filename: ChapterFilename) = withContext(Dispatchers.IO) {
+        // 永続化境界: Room(ProgressEntity) は String 列のため .value でほどいて渡す。
+        progressDao.saveProgress(ProgressEntity(bookId.value, filename.value, lastReadAt = System.currentTimeMillis()))
     }
 
     // 章内スクロール位置の保存。lastReadFilename も一緒に書き込むことで
     // 「どの章のどの位置か」を1行で表現する（REPLACE で上書き）。
     // lastReadAt も毎回スタンプ（単一チャネル統合の最終1書き込みに自然に乗る）。
     override suspend fun saveScrollPosition(
-        bookId: String,
-        filename: String,
+        bookId: BookId,
+        filename: ChapterFilename,
         scrollIndex: Int,
         scrollOffset: Int,
     ) = withContext(Dispatchers.IO) {
+        // 永続化境界: Room(ProgressEntity) は String 列のため .value でほどいて渡す。
         progressDao.saveProgress(
-            ProgressEntity(bookId, filename, scrollIndex, scrollOffset, lastReadAt = System.currentTimeMillis())
+            ProgressEntity(bookId.value, filename.value, scrollIndex, scrollOffset, lastReadAt = System.currentTimeMillis())
         )
     }
 

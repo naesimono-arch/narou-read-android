@@ -97,14 +97,17 @@ fun BookCover(
 
     val (topColor, bottomColor) = colors
 
+    // なぜ remember 化するか: Brush と色リストは topColor/bottomColor が変わらない限り同一で良いが、
+    // background 内に直接書くと再コンポジション毎に List と Brush をアロケートする。書影は本棚グリッド／
+    // リストで多数同時表示されるため、色をキーにして作り直しを変化時のみに絞る。
+    val backgroundBrush = remember(topColor, bottomColor) {
+        Brush.verticalGradient(colors = listOf(topColor, bottomColor))
+    }
+
     Box(
         modifier = modifier
             .clipToBounds()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(topColor, bottomColor),
-                ),
-            ),
+            .background(backgroundBrush),
     ) {
         // ────── 左の藍の縦ルール（D の署名要素）──────
         // なぜ start を固定 dp にするか: グリッド(幅大)・リスト(幅46dp)の双方で

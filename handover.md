@@ -56,12 +56,44 @@
 
 ## リファクタ / 技術的負債（deferred）
 
-- **[発見系・構造] `SearchConditionSheet` の残リファクタ**（監査残課題2の残り）: カスタム範囲入力の約90行×2コピペの部品化・段階チップ値とラベルの平行定義統合（`LENGTH_STEPS`/`TIME_STEPS` とチップ文言が別ファイル）。※主要部＝`SearchConditionSheet.kt` 抽出（1348→606行）＋カスタム2重フラグの `SearchDraft` 一本化は task-sweep `7d135ba` で解消済み。**実施タイミング＝上「discovery-search-D すり合わせ→案B翻訳」で同ファイルを触るとき**。
+- ~~[発見系・構造] `SearchConditionSheet` の残リファクタ（監査残課題2の残り）~~ → **解消済み**（2026-07-11 `1b83684`＝カスタム範囲入力 約90行×2 を `CustomRangeInput` へ部品化・段階チップの値とラベルを `RangeStep` 対定義（`SearchDraft.kt`・既存 `LENGTH_STEPS`/`TIME_STEPS` は射影で温存＝呼び出し側無改修）へ統合。764→669行・見た目/挙動不変＝STATUS §1。※当初「discovery-search-D すり合わせ時に同ファイルを触るとき」予定だったが refactor/tech-debt レーンで先行消化。**モック追従＋案B翻訳のタスク（上記）自体は残存**）。
 - ~~[発見系・将来の罠] `NovelApiRepository` のインメモリキャッシュの Main dispatcher 前提（監査残課題5）~~ → **解消済み**（2026-07-09 `13c97f2`＝Mutex 排他＋word trim 非対称の修正。U1 Worker 化の前提として先行実施）。
 
-- **`NativeReadingScreen`（892行）の route/Content 分割**: 系統1リファクタで唯一の残り。没入クローム・Custom Tabs 再入ガード・navHistory 等の副作用が濃く、純移動でも実機目視なしに畳むリスクが高いため見送り＝**実機検証を伴う機会に実施**。
-- **`saveScrollPosition(bookId, filename)` 等の String 連続の型付け**: 系統4 Ncode 型付け（`@JvmInline value class`）の続きの適用候補として保全。
-- **worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す運用**: Lint コミットゲート（`check_lint_on_commit.py`）は drvfs でスキップされる設計＝canonical 作業が続く限り事実上無効。ext4 worktree なら in-tree で回るので冒頭で1回スイープする（直近スイープ＝2026-07-08・0 errors/21 warnings＝新規起因の実質指摘は解消済み・残はノイズ）。
+- ~~`NativeReadingScreen`（892行）の route/Content 分割~~ → **実装済み・実機目視のみ残**（2026-07-11 `0221126`＝系統1完遂。`ChapterScreen`(route)→`ChapterScreenContent`(stateless) の in-file 純移動分割・副作用〔スクロール保存/ON_STOP flush/没入ヒント/Custom Tabs 再入ガード〕は全て route 残置・effect キー/Saveable キー文字列不変・JVM緑＝STATUS §1）。**残タスク＝実機目視スモーク7項目**（分割の回帰面）: ①没入クローム出入り（スクロール退避・中央タップトグル・スナップ）②クロームヒントピル（通算初回のみ・約2.6秒で自動消灯）③Custom Tabs 再入ガード（最終章で「続きを読む」「作品ページ」連打・交互連打でも1枚のみ・着地URL正）④なろう紐付けシート（開いた瞬間の書名自動検索・回転/Activity破棄で開いたまま維持）⑤表示設定シート（スライダーの本文ライブ追従・回転で維持）⑥navHistory/Back（章⇄目次往復後に1段ずつ遡行→本棚・目次経由で読書位置が壊れない）⑦スクロール位置保存（章中腹→home→復帰で同位置）。**次の実機検証便（v16→v17 migration・機能②）と同便で消化するのが効率的**。
+- ~~`saveScrollPosition(bookId, filename)` 等の String 連続の型付け~~ → **解消済み**（2026-07-11 `013b06a`＝`BookId`/`ChapterFilename` value class 新設（`model/BookIdentifiers.kt`・Ncode と同じ素通し方針）で saveProgress/saveScrollPosition/linkNcode/getLastRead/getProgress を Repository/VM/UI 貫通で型付け。Room Entity/DAO・Map キー・nav ルート文字列は String 維持＝境界 `.value` unwrap（線引きの why は BookIdentifiers.kt の KDoc）＝STATUS §1）。
+### コード健全性監査の指摘（2026-07-11・`refactor/tech-debt` で6観点並列監査・挙動バグ3件は反証専門エージェントで CONFIRMED 済み）
+
+> 監査体制: 観点別6エージェント（並行処理/エラー処理/Room/デッドコード/Compose/API・テスト）＋描画性能2＋検索画面深掘り1＋敵対的検証3。**クリーン確認済みの面**: デッドコード・撤去残骸ゼロ（TODO/FIXME 0件・未使用リソース/依存なし・ラベル/Chaquopy 残骸なし）・直近リファクタ4コミット退行なし・読書画面の描画設計は高水準（ルビ=1段落1BasicText+Canvasオーバーレイ・バー退避=graphicsLayerラムダ・スクロール観測=snapshotFlow・パース/AnnotatedString/TextStyle は remember 済み＝「ルビ数万ノード」「フォント変更で全文再パース」は不発生）。
+
+**確定バグ（検証CONFIRMED・3件とも解消済み＝2026-07-11 一括消化バッチ・STATUS §1）**
+
+- ~~**[クラッシュ経路] 検索履歴 DataStore の IOException 未処理**~~ → **解消済み**（`5815802`＝corruptionHandler＋読み Flow の IOException 空履歴フォールバック＋書き込み側許容。※監査記述と異なり CorruptionException は IOException のサブクラスだが、`.catch` では破損ファイルが残り毎回失敗し続けるため恒久復旧に corruptionHandler が別途必要——両対策で正）。
+- ~~**[レース] pending_jobs 記帳の直列化が実は不成立**~~ → **解消済み**（`cccb4dc`＝DAO 呼び出し完了までロックを保持する `pendingJobMutex` で全 pending_jobs 書き込みを排他・`limitedParallelism(1)` 撤去。機序の一般知見は task_diary #55）。
+- ~~**[FGS] onTimeout 後の旧ループ finally が新ループを道連れ**~~ → **解消済み**（`f70b937`＝ループ世代カウンタ。採番を launch 前の main スレッドで確定・閉じ込め、旧世代の finally は新世代の isLoopRunning/stopSelf に触れず退場。通常経路は世代が進まず挙動完全一致）。
+- **[小粒・新規＝上記修正の副産物指摘] `processSingleUri` 側 finally の通知カウントに世代ガード無し**: onTimeout が `doneCount=0` リセット後、旧ループ在籍中の1冊が遅延キャンセルされると `doneCount` が進み、新バッチ初冊の通知が「2/1」等と一時表示されうる（表示のみ・実害小）。`f70b937` と同じ世代照合の横展開で対処可。
+
+**検索画面の重さ（ユーザー実体感あり・診断確定）**
+
+- 正体＝「**カテゴリ展開状態での操作毎の全画面再コンポーズ**」（既定の全畳みは軽い＝「重いときがある」と整合）。キーワード22カテゴリ/115チップが非 Lazy Column（`DiscoverySearchScreen.kt:203-207`）上にあり、`SearchDraft` が Set 内包で unstable＋strong skipping 無効のため**毎キーストローク最大115チップ全再コンポーズ**、さらに選択判定 `containsWordToken` がチップ毎に Regex 再コンパイル（`SearchDraft.kt:223-224`・メモ化なし）。展開状態は rememberSaveable 保存→全展開のまま再訪すると**初回オープンから重い**第二経路。アニメ・履歴 DataStore・キーワード定義構築はシロ。
+- 修正順: ~~**S1** 選択判定を `remember(draft.word)` の Set 化＋Regex をトップレベル定数化~~ → **解消済み**（`a3662c2`・全ケース同値テスト付き）→ ~~**S2** `experimentalStrongSkipping=true`＋`@Immutable`~~ → **解消済み**（`b1c0bfc`・stability レポートで SearchDraft/SearchFilters=stable・DiscoverySearchContent/FilterChipItem=skippable を機械検証済み。**残＝実機の全画面スモーク**: strong skipping は全 Composable に波及するため検索・読書・本棚・設定シートで見た目/挙動不変を次の実機検証便で目視）→ **S3** 外側を LazyColumn 化（中・画面外チップの存在コストと全展開再訪の初回構成。**S1/S2 の実機体感を見てから判断**＝残）。
+
+**描画/ビルドの軽量化（読書画面以外）**
+
+- **R8/リソース収縮が無効**（`android/app/build.gradle:22-25` `minifyEnabled false`・`shrinkResources` 無し）: 有効化が**単独最大の軽量化レバー**（APK 24MiB の dead code/未使用リソース分）。Moshi/Room は codegen/KSP で keep は軽微見込みだが PDFBox/Retrofit/OkHttp の keep 確認＋実機回帰（`/device-verify`・収縮起因クラッシュはリリースでしか出ない）必須。
+- ~~ルビ描画パスの Paint×2 再生成＋`calculateRubyPositions` 再計算（`RubyText.kt`）~~ → **解消済み**（`8f452a3`＝Paint/ascent の remember 化＋位置計算を TextLayoutResult×rubyRanges のインスタンス同一性でキャッシュ）。
+- ~~小粒: BookCover Brush・段落 TextStyle・LazyColumn key/contentType~~ → **解消済み**（`96a4c22`。※本文段落リストは一意な安定IDを持たないため key は付けず contentType（4描画種）のみ＝非一意 key の状態破壊を回避した意図的判断）。
+
+**その他（中〜低）**
+
+- ~~`deleteBook` 非トランザクション~~ → **解消済み**（`862954e`＝Room withTransaction の関数注入で原子化・HTMLディレクトリ削除はロールバック不能なファイルIOのためトランザクション外の既存設計を維持）。
+- ~~**Web読書位置の ncode 正規化がテスト不能**~~ → **解消済み**（`3b151b2`＝保存する FakeWebReadingProgressDao を注入し、往復一致＋表記ゆれ正規化一致＋保存キー自体の正規化を回帰テストで固定。※webReadingProgressDao は既にコンストラクタ注入対象だった＝実際の穴はテスト側の未注入）。
+- `web_reading_progress` に prune/削除経路が皆無（upsert のみの単調増加。`removeWebNovel`/`deleteBook` とも触れず、new_episode_marks の日次 `pruneExcept` と非対称）。個人スケールでは無害だが設計の穴として記録。
+- ~~`novelDetailsBulk` の紐付け501件超サイレント欠落~~ → **解消済み**（`505dd03`＝500件チャンク分割・境界テスト2件付き）。
+- ~~OkHttpClient がタイムアウト既定依存~~ → **解消済み**（`73246e5`＝API は callTimeout 30秒・PDF DL は connect 30秒＋read 60秒で「無進捗の停滞」のみ切る設計＝正当な長時間 DL は殺さない）。
+- MigrationTest が「16.json 形状（web_reading_progress 無し）→17」経路を構造的に検証できない（chain テストは 14→15 でテーブルが生まれる系譜のみ通過）。既知の実機 v16→v17 未検証と同根の coverage-hole として記録。
+- ~~`AndroidManifest.xml` INTERNET permission コメントの実態不整合~~ → **解消済み**（`20bf2ca`・文言のみ修正）。
+
+- **worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す運用**: Lint コミットゲート（`check_lint_on_commit.py`）は drvfs でスキップされる設計＝canonical 作業が続く限り事実上無効。ext4 worktree なら in-tree で回るので冒頭で1回スイープする（直近スイープ＝2026-07-11・監査指摘12コミット後も 0 errors/26 warnings＝基準同一で新規指摘なし。前々回=2026-07-08・0/21）。
 
 ## workflow / tooling
 

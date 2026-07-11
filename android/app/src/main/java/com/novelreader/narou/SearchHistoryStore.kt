@@ -1,13 +1,18 @@
 package com.novelreader.narou
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import java.io.IOException
 
 // ============================================================
 // 検索履歴＋ピン留め（D1）。蔵書 Room とは別系統のローカル永続（DataStore Preferences）。
@@ -66,8 +71,16 @@ interface SearchHistoryStore {
     suspend fun removeRecent(word: String)
 }
 
+// なぜ corruptionHandler を指定するか: DataStore ファイルが破損すると読み書き時に
+// CorruptionException が投げられる。これは IOException のサブクラスなので下の .catch でも捕捉はできるが、
+// .catch は「その回だけ空を emit」するだけで破損ファイル自体は残り、以後の読み書きが毎回失敗し続ける。
+// corruptionHandler は破損ファイルを空 Preferences で作り直して恒久復旧させるため、破損はこちらで塞ぐ。
+// 検索履歴は非クリティカルなので黙って作り直して落とさない方針。
 private val Context.searchHistoryDataStore: DataStore<Preferences>
-        by preferencesDataStore(name = "narou_search_history")
+        by preferencesDataStore(
+            name = "narou_search_history",
+            corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+        )
 
 class DataStoreSearchHistoryStore(context: Context) : SearchHistoryStore {
 
@@ -90,13 +103,26 @@ class DataStoreSearchHistoryStore(context: Context) : SearchHistoryStore {
         )
     }
 
-    override val history: Flow<SearchHistory> = dataStore.data.map(::fromPreferences)
+    // なぜ .catch で IOException を握るか: DataStore のディスク読み出しは IOException を投げ得るが、
+    // この Flow は DiscoveryViewModel の stateIn（viewModelScope・例外ハンドラ無し）で共有されるため、
+    // 素通りさせるとアプリがクラッシュする。検索履歴は非クリティカルなので空履歴へフォールバックする
+    // （DataStore 公式推奨パターン）。IOException 以外（プログラミングエラー等）は握り潰さず再送出する。
+    override val history: Flow<SearchHistory> = dataStore.data
+        .catch { e -> if (e is IOException) emit(emptyPreferences()) else throw e }
+        .map(::fromPreferences)
 
     private suspend fun update(transform: SearchHistory.() -> SearchHistory) {
-        dataStore.edit { prefs ->
-            val next = fromPreferences(prefs).transform()
-            prefs[KEY_PINNED] = encode(next.pinned)
-            prefs[KEY_RECENT] = encode(next.recent)
+        // なぜ IOException を握って無視するか: 検索履歴の書き込み失敗（ディスク I/O エラー等）で
+        // アプリを落とす価値はない（非クリティカル機能）。ログのみ残し、次回書き込みで自然に回復させる。
+        // IOException 以外は不具合の兆候なので握り潰さず再送出する。
+        try {
+            dataStore.edit { prefs ->
+                val next = fromPreferences(prefs).transform()
+                prefs[KEY_PINNED] = encode(next.pinned)
+                prefs[KEY_RECENT] = encode(next.recent)
+            }
+        } catch (e: IOException) {
+            Log.w("SearchHistoryStore", "検索履歴の保存に失敗（無視）", e)
         }
     }
 

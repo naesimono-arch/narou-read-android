@@ -1,6 +1,7 @@
 package com.novelreader.viewmodel
 
 import android.os.Parcelable
+import androidx.compose.runtime.Immutable
 import com.novelreader.narou.model.NarouAttr
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.NarouLastup
@@ -13,6 +14,11 @@ import kotlinx.parcelize.Parcelize
  * （UI は段階チップで選ぶため、値の組み立てはチップ定義側が担う）。
  */
 // なぜ Parcelable か: SearchDraft ごと SavedStateHandle へ退避して process death 復帰させるため（F-E）。
+// なぜ @Immutable か: 全フィールドが val で、Set 群は copy() ベース更新のみ（emptySet/setOf/集合演算で
+// 生成した read-only Set を差し替える運用＝要素の in-place 変更をしない）ため実質不変。強い skipping 下で
+// 本型を「不安定な Set を含む型」として === 比較させず equals 比較の stable 型に固定し、検索条件チップ由来の
+// 頻繁な再コンポーズで skippable を効かせる（kotlinx-immutable の List<TextSegment> と同じ stability 狙い）。
+@Immutable
 @Parcelize
 data class SearchFilters(
     val types: Set<NarouNovelType> = emptySet(),       // D4 作品の形
@@ -60,6 +66,10 @@ enum class SearchRange {
  * なぜ VM に持つか: 条件シートを閉じても・結果一覧から戻っても状態が残るように
  * （検索は「条件を練る」往復が多い操作のため、画面ローカル remember では失われて不便）。
  */
+// なぜ @Immutable か: 全フィールドが val（String/Boolean と @Immutable な SearchFilters）で、更新は copy() で
+// 新インスタンスを作る運用のため実質不変。SearchFilters を @Immutable にしても、それを内包する本型に注釈が無いと
+// 推論上は不安定なままになり DiscoverySearchContent が equals で skip できない。両方に付けて draft を stable にする。
+@Immutable
 @Parcelize
 data class SearchDraft(
     val word: String = "",
@@ -220,8 +230,13 @@ fun SearchDraft.withRangeToggled(range: SearchRange): SearchDraft {
  * 「今どのトークンが選択中か」を UI が列挙する必要がある（選択中キーワードバー）。分割規則は
  * containsWordToken / toggleWordToken と一致させねばならず、規則の二重定義を避けるため両者もこれを介す。
  */
+// なぜトップレベル定数化: この区切り正規表現は wordTokens 呼び出しの度にコンパイルされていた。
+// キーワードチップの選択判定（containsWordToken）は展開カテゴリの最大115チップぶん毎キーストロークで走るため、
+// 呼び出し毎の Regex 再コンパイルが検索画面の再コンポーズ負荷になっていた。パターンは不変なので一度だけコンパイルする。
+private val WORD_TOKEN_SEPARATOR = Regex("[\\s　]+")
+
 fun wordTokens(word: String): List<String> =
-    word.split(Regex("[\\s　]+")).filter { it.isNotEmpty() }
+    word.split(WORD_TOKEN_SEPARATOR).filter { it.isNotEmpty() }
 
 /**
  * 半角・全角スペース区切りのトークン集合として、指定したトークンが含まれているか判定する。
@@ -279,9 +294,30 @@ fun toggleLastup(current: Set<NarouLastup>, tapped: NarouLastup): Set<NarouLastu
     return next
 }
 
+/**
+ * 段階チップ1つ分＝なろうAPIへ送るレンジ文字列と、UIに出す表示ラベルの対。
+ * なぜ対で持つか: 以前はレンジ列（LENGTH_STEPS/TIME_STEPS）とチップ文言が別ファイルで平行定義され、
+ * 段の増減や境界変更で片方だけ直すと値とラベルがずれる事故を招いていたため、単一真実源として1箇所で対にする。
+ */
+data class RangeStep(val range: String, val label: String)
+
 // 連続階段（境界値が隣接段と一致していることが selectedStepIndices の分解可能性の前提）
-val LENGTH_STEPS = listOf("-10000", "10000-100000", "100000-500000", "500000-1000000", "1000000-")
-val TIME_STEPS = listOf("-30", "30-120", "120-600", "600-")
+val LENGTH_STEPS_DEF = listOf(
+    RangeStep("-10000", "〜1万字"),
+    RangeStep("10000-100000", "1万〜10万字"),
+    RangeStep("100000-500000", "10万〜50万字"),
+    RangeStep("500000-1000000", "50万〜100万字"),
+    RangeStep("1000000-", "100万字〜"),
+)
+val TIME_STEPS_DEF = listOf(
+    RangeStep("-30", "〜30分"),
+    RangeStep("30-120", "30分〜2時間"),
+    RangeStep("120-600", "2時間〜10時間"),
+    RangeStep("600-", "10時間〜"),
+)
+// 分解ロジック（selectedStepIndices/toggleRangeStep）が使うレンジ文字列列は対定義から射影して単一真実源を保つ。
+val LENGTH_STEPS: List<String> = LENGTH_STEPS_DEF.map { it.range }
+val TIME_STEPS: List<String> = TIME_STEPS_DEF.map { it.range }
 
 /** ステップ文字列 "min-max"（開端は "-max"/"min-"）を (min, max) に分解する。 */
 private fun parseStepBounds(step: String): Pair<String?, String?> {
