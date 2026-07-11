@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -786,8 +787,15 @@ private fun FindGuideBand(
             text = "新しい物語を見つける",
             fontSize = 12.5.sp,
             color = MaterialTheme.colorScheme.onSurface,
+            // フォントスケール拡大時の窮屈対策（2026-07-08 実機所見）: weight(1f) の文字箱は
+            // シェブロンの縁まで届くため、拡大で字面が右端アイコンに密着して見えた。
+            // 1行固定＋末尾省略で高さ崩れも防ぐ（帯は導線であり全文可読が必須の文言ではない）。
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        // 拡大時もテキストとシェブロンの間に最低8dpの呼吸を確保（先頭アイコン側と対称）
+        Spacer(Modifier.width(8.dp))
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
