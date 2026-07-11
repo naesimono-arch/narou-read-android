@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouOrder
+import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 import java.util.Locale
 
@@ -96,8 +97,10 @@ fun NovelListRow(
             text = rank.toString(),
             fontFamily = MinchoFamily,
             fontSize = 20.sp,
+            // rank>3 は順位＝情報を運ぶ文字のため infoText（AA 4.5:1 充足）。上位3位の primary は据え置き。
+            // onSurfaceVariant（装飾用）は素地上 3.79:1 で AA 未達（ADR 0014-D 裁定で情報用途のみ分離）。
             color = if (rank <= 3) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurfaceVariant,
+            else LocalShelfColors.current.infoText,
             modifier = Modifier
                 .width(34.dp)
                 .padding(top = 2.dp),
@@ -147,13 +150,15 @@ fun NovelListRow(
                 Text(
                     text = novelStatusLabel(novel),
                     fontSize = 10.5.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // 連載状態は情報を運ぶ文字＝infoText（AA 4.5:1）。装飾用 onSurfaceVariant と分離（ADR 0014-D）。
+                    color = LocalShelfColors.current.infoText,
                 )
                 readTimeLabel(novel)?.let {
                     Text(
                         text = it,
                         fontSize = 10.5.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        // 読了目安も情報テキスト＝infoText（AA 4.5:1・ADR 0014-D 裁定）。
+                        color = LocalShelfColors.current.infoText,
                     )
                 }
                 pointLabel(order, novel)?.let {

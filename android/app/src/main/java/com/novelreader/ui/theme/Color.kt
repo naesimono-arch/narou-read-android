@@ -28,6 +28,19 @@ val OnSecondaryContainerLight= Color(0xFF18241F)
 // ダークは SecondaryDark(#A9C2BB) が暗面 7:1 超のため専用値不要。
 val UnreadSeiji              = Color(0xFF50685C)
 
+// 情報を運ぶ補助テキスト（順位番号 rank>3・連載状態・読了目安・最終更新・結果サブタイトル・未選択タブ）用。
+// OnSurfaceVariant（装飾的補助＝著者名・キャプション）は素地上 3.79:1 で通常文字 AA(4.5:1) 未達のため、
+// 「意味を運ぶ文字は WCAG 4.5:1 ＞ 美学」（ADR 0014-D 審級）に従い、装飾用途は据え置き情報用途だけを
+// 役割別トークンへ分離する（UnreadSeiji と同型の先例踏襲）。
+//   Light #5C606D: 青灰色相を保った暗化。ライト素地 6.01:1／ライトカード 5.50:1 で AA 充足。
+//   Sepia #6C6148: #8C7D5D の茶系色相・彩度（HSL 色相/彩度固定）を保った暗化。セピア素地 4.97:1／
+//     セピアカード 4.57:1 で AA 充足（沈めすぎない最小暗化＋UnreadSeiji 同等の安全余裕）。
+//   Dark  #8A929B: OnSurfaceVariantDark と同値（暗面 surface 5.70:1／card 5.25:1 で既に合格のため値は変えない）。
+//     ただし役割別トークンとして独立させる＝値の単一性の役割分離先例（ヘアライン2トークン・64c52da）と同流儀。
+val InfoTextLight            = Color(0xFF5C606D)
+val InfoTextSepia            = Color(0xFF6C6148)
+val InfoTextDark             = Color(0xFF8A929B)
+
 val TertiaryLight            = Color(0xFF1C3D5A)   // 進捗バーも藍で統一（Dは藍の細線で進捗を示す）
 val OnTertiaryLight          = Color(0xFFFFFFFF)
 val TertiaryContainerLight   = Color(0xFFD6E0E9)
@@ -43,7 +56,7 @@ val OnBackgroundLight        = Color(0xFF1C1F26)   // D 墨
 val SurfaceLight             = Color(0xFFFBFAF8)
 val OnSurfaceLight           = Color(0xFF1C1F26)
 val SurfaceVariantLight      = Color(0xFFF1F0EC)   // カード背景（素地よりわずかに沈める）
-val OnSurfaceVariantLight    = Color(0xFF7C808B)   // 補助テキスト（著者・未読・進捗）
+val OnSurfaceVariantLight    = Color(0xFF7C808B)   // 装飾的補助（著者名・キャプション等）※未読は UnreadSeiji・進捗は primary へ分離済
 val SurfaceContainerLight    = Color(0xFFEFEEE9)
 val OutlineLight             = Color(0xFF9CA0A8)
 val OutlineVariantLight      = Color(0xFFECEAE4)   // ヘアライン（モック --line。発見系・区切り線の正本値）

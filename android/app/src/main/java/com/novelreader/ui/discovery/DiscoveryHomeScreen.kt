@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
+import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.DiscoveryUiState
 import com.novelreader.viewmodel.DiscoveryViewModel
@@ -391,8 +392,11 @@ private fun OrderTabRow(
                     fontSize = 12.5.sp,
                     letterSpacing = 0.75.sp, // モック .tab の letter-spacing .06em（12.5px×0.06）
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    // 未選択タブラベルも意味を運ぶ文字＝infoText（AA 4.5:1）。選択時 primary は据え置き。
+                    // Material 標準は onSurfaceVariant だが、ADR 0014-D（意味を運ぶ文字は 4.5:1 ＞ 美学）が
+                    // 上位審級のため装飾用トークンでなく情報テキストトークンを採る。
                     color = if (isSelected) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    else LocalShelfColors.current.infoText,
                     modifier = Modifier
                         .clickable { onSelect(order) }
                         .padding(horizontal = 12.dp, vertical = 10.dp),

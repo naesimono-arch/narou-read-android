@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
+import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.DiscoveryUiState
 import com.novelreader.viewmodel.DiscoveryViewModel
@@ -163,7 +164,8 @@ internal fun DiscoveryResultContent(
                     text = it,
                     fontSize = 11.sp,
                     lineHeight = 18.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // 結果サブタイトルは情報を運ぶ文字＝infoText（AA 4.5:1・ADR 0014-D 裁定で装飾用と分離）。
+                    color = LocalShelfColors.current.infoText,
                     modifier = Modifier.padding(horizontal = 24.dp),
                 )
             }

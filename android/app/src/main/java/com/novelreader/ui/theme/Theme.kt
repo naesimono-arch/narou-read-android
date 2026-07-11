@@ -133,14 +133,17 @@ fun rememberReadingColors(theme: ReadingTheme): ReadingColors =
 // （発見系 --line #ECEAE4 ＝ outlineVariant／本棚系 --hl/--track #E4E2DB）ため、
 // colorScheme とは別口でテーマ追従させる（ReadingColors と同じ流儀・ADR 0014）。
 // unreadLabel: 未読は意味を運ぶ文字＝4.5:1 最低線（ADR 0014-D）。ダークは既存 SecondaryDark を継続。
+// infoText: 発見系の情報メタ（順位番号・連載状態・読了目安・最終更新・結果サブタイトル・未選択タブ）用。
+//   OnSurfaceVariant（装飾的補助）は 4.5:1 未達のため情報用途だけを役割別トークンへ分離（同 ADR 0014-D 裁定）。
 // ============================================================
 data class ShelfColors(
     val hairline: Color,     // 目録区切り線・進捗トラック・スケルトン線（--hl/--track）
     val unreadLabel: Color,  // 「未読」ラベル文字
+    val infoText: Color,     // 情報を運ぶ補助テキスト（発見系メタ）
 )
 
 val LocalShelfColors = staticCompositionLocalOf {
-    ShelfColors(hairline = ShelfHairlineLight, unreadLabel = UnreadSeiji)
+    ShelfColors(hairline = ShelfHairlineLight, unreadLabel = UnreadSeiji, infoText = InfoTextLight)
 }
 
 // ============================================================
@@ -246,9 +249,9 @@ fun NovelReaderTheme(
     // 未読ラベルはライト/セピア=濃青磁 UnreadSeiji、ダークは暗面で合格済みの SecondaryDark を継続。
     val shelfColors = remember(theme) {
         when (theme) {
-            ReadingTheme.LIGHT -> ShelfColors(ShelfHairlineLight, UnreadSeiji)
-            ReadingTheme.SEPIA -> ShelfColors(OutlineVariantSepia, UnreadSeiji)
-            ReadingTheme.DARK -> ShelfColors(OutlineVariantDark, SecondaryDark)
+            ReadingTheme.LIGHT -> ShelfColors(ShelfHairlineLight, UnreadSeiji, InfoTextLight)
+            ReadingTheme.SEPIA -> ShelfColors(OutlineVariantSepia, UnreadSeiji, InfoTextSepia)
+            ReadingTheme.DARK -> ShelfColors(OutlineVariantDark, SecondaryDark, InfoTextDark)
         }
     }
 

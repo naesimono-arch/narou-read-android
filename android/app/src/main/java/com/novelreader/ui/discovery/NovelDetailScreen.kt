@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.components.BookCover
+import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.NovelDetailUiState
 import com.novelreader.viewmodel.NovelDetailViewModel
@@ -713,7 +714,8 @@ internal fun NovelDetailContent(
                         Text(
                             text = metaText,
                             fontSize = 10.5.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            // 最終更新+取得時刻は情報を運ぶ文字＝infoText（AA 4.5:1・ADR 0014-D 裁定で装飾用と分離）。
+                            color = LocalShelfColors.current.infoText,
                             modifier = Modifier
                                 .padding(horizontal = 24.dp)
                                 .padding(top = 20.dp, bottom = 24.dp)
