@@ -233,9 +233,15 @@ internal fun NovelDetailContent(
                                 .fillMaxWidth()
                                 .padding(horizontal = 24.dp, vertical = 16.dp)
                         ) {
-                            // 機能②: 記録があれば「続きから読む（第N話）」を主導線に、無ければ「なろうで読む」（目次）。
-                            // いずれもアプリ内 WebView でなろうページを**加工せず**表示し、話遷移から読書位置を記録する（ADR 0012）。
+                            // 機能②: 固定バーの読む/取り込み導線。アプリの根本価値＝「手元に本を置いておきたい」
+                            // （PDF取込＝主目的）に沿い、未読かつ未取込では「縦書きPDFを取り込む」を藍の主CTAに、
+                            // 「なろうで読む」をゴーストへ降格して主従を逆転する（2026-07-12 ユーザー裁定。意匠正本の
+                            // discovery-detail-D.html も同時改訂して同期。ADR 0005＝見た目はモック正本の翻訳）。
+                            // 記録があれば「続きから読む（第N話）」が主導線。いずれもアプリ内 WebView でなろうページを
+                            // **加工せず**表示し、話遷移から読書位置を記録する（ADR 0012）。
                             if (lastReadEpisode > 0) {
+                                // 既読: 主CTAは「続きから読む」。主CTAは常に1つの原則を守るため、この分岐では
+                                // PDF取り込みを主へ昇格させず、後段の !isImported 側でゴーストの副次導線に据え置く。
                                 Button(
                                     onClick = onResumeReading,
                                     modifier = Modifier.fillMaxWidth(),
@@ -269,7 +275,59 @@ internal fun NovelDetailContent(
                                         letterSpacing = 1.5.sp
                                     )
                                 }
+                            } else if (!isImported) {
+                                // 未読・未取込: 主従逆転。手元に置く導線＝PDF取り込みを藍の主CTA（Button）として
+                                // 最上段に置く（既存 Download アイコンを維持）。
+                                Button(
+                                    onClick = onImportPdf,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary
+                                    ),
+                                    shape = RoundedCornerShape(2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Download,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "縦書きPDFを取り込む",
+                                        fontSize = 15.sp,
+                                        letterSpacing = 1.5.sp
+                                    )
+                                }
+                                // 「なろうで読む」はゴーストへ降格。意匠正本＝discovery-detail-D.html の .btn-ghost
+                                // の淡色トークンを明示指定する（M3 既定の OutlinedButton は contentColor=primary(藍)で
+                                // 主張が強すぎ、静かな副次アクションであるべき D のゴースト階層に反するため）。
+                                // 文字=onSurfaceVariant(--ink-soft #7C808B)・枠=outlineVariant(--line #ECEAE4)。
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedButton(
+                                    onClick = onReadOnNarou,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(2.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "なろうで読む",
+                                        fontSize = 15.sp,
+                                        letterSpacing = 1.5.sp
+                                    )
+                                }
                             } else {
+                                // 未読・取込済: PDF取り込みボタンは冗長で非表示になるため、主CTAが不在に
+                                // ならないよう「なろうで読む」を藍の主CTAとして残す（取込済み作品では読む導線が
+                                // 主で自然。この分岐が主従逆転の例外）。
                                 Button(
                                     onClick = onReadOnNarou,
                                     modifier = Modifier.fillMaxWidth(),
@@ -304,33 +362,33 @@ internal fun NovelDetailContent(
                             // 取り込み済み（books.ncode 一致）なら以下2アクションは冗長のため出さない
                             // （モック discovery-detail-D の固定バー注記どおり。読む手段は蔵書カードが正）。
                             if (!isImported) {
-                                // 縦書きPDF取り込み導線（ADR 0011）。意匠正本＝discovery-detail-D.html の
-                                // .btn-ghost（ヘアライン枠のゴースト）。塗り(Button)でなく OutlinedButton で翻訳。
-                                // 色はモック .btn-ghost の淡色トークンを明示指定する（M3 既定の OutlinedButton は
-                                // contentColor=primary(藍)・border=outline で「静かな副次アクション」であるべき D の
-                                // ゴースト階層より主張が強くなるため）。文字=onSurfaceVariant(--ink-soft #7C808B)・
-                                // 枠=outlineVariant(--line #ECEAE4)＝モックのトークンに一致させる。
-                                Spacer(modifier = Modifier.height(12.dp))
-                                OutlinedButton(
-                                    onClick = onImportPdf,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(2.dp),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                    ),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Download,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "縦書きPDFを取り込む",
-                                        fontSize = 15.sp,
-                                        letterSpacing = 1.5.sp
-                                    )
+                                // 既読の分岐でのみ PDF取り込みをここに置く。未読では上で主CTAへ昇格済みのため、
+                                // 二重表示を避けて既読時だけゴーストの副次導線として補う（既読は「続きから読む」を
+                                // 主に保つ）。意匠正本＝discovery-detail-D.html の .btn-ghost（M3 既定の藍を避け、
+                                // 文字=onSurfaceVariant(--ink-soft)・枠=outlineVariant(--line) のトークンへ揃える）。
+                                if (lastReadEpisode > 0) {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    OutlinedButton(
+                                        onClick = onImportPdf,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(2.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Download,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "縦書きPDFを取り込む",
+                                            fontSize = 15.sp,
+                                            letterSpacing = 1.5.sp
+                                        )
+                                    }
                                 }
                                 // (b) Web由来・未取込カードの入口（モック .btn-ghost「本棚に置く」）。
                                 // 置いた後は「本棚から外す」へトグルし、押し直しで取り消せる（確認ダイアログ無し
