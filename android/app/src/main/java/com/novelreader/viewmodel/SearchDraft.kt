@@ -279,9 +279,30 @@ fun toggleLastup(current: Set<NarouLastup>, tapped: NarouLastup): Set<NarouLastu
     return next
 }
 
+/**
+ * 段階チップ1つ分＝なろうAPIへ送るレンジ文字列と、UIに出す表示ラベルの対。
+ * なぜ対で持つか: 以前はレンジ列（LENGTH_STEPS/TIME_STEPS）とチップ文言が別ファイルで平行定義され、
+ * 段の増減や境界変更で片方だけ直すと値とラベルがずれる事故を招いていたため、単一真実源として1箇所で対にする。
+ */
+data class RangeStep(val range: String, val label: String)
+
 // 連続階段（境界値が隣接段と一致していることが selectedStepIndices の分解可能性の前提）
-val LENGTH_STEPS = listOf("-10000", "10000-100000", "100000-500000", "500000-1000000", "1000000-")
-val TIME_STEPS = listOf("-30", "30-120", "120-600", "600-")
+val LENGTH_STEPS_DEF = listOf(
+    RangeStep("-10000", "〜1万字"),
+    RangeStep("10000-100000", "1万〜10万字"),
+    RangeStep("100000-500000", "10万〜50万字"),
+    RangeStep("500000-1000000", "50万〜100万字"),
+    RangeStep("1000000-", "100万字〜"),
+)
+val TIME_STEPS_DEF = listOf(
+    RangeStep("-30", "〜30分"),
+    RangeStep("30-120", "30分〜2時間"),
+    RangeStep("120-600", "2時間〜10時間"),
+    RangeStep("600-", "10時間〜"),
+)
+// 分解ロジック（selectedStepIndices/toggleRangeStep）が使うレンジ文字列列は対定義から射影して単一真実源を保つ。
+val LENGTH_STEPS: List<String> = LENGTH_STEPS_DEF.map { it.range }
+val TIME_STEPS: List<String> = TIME_STEPS_DEF.map { it.range }
 
 /** ステップ文字列 "min-max"（開端は "-max"/"min-"）を (min, max) に分解する。 */
 private fun parseStepBounds(step: String): Pair<String?, String?> {
