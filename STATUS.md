@@ -37,6 +37,12 @@
 
 ## 1. 完了済み
 
+- **検索/発見系フィードバック5件の一括消化（2026-07-12・`ui/uiux-tasks`・`3ba2203`〜`da42089`・testDebugUnitTest **413件緑**〔新規＝SearchDraft ジャンル系5件〕・check_design_tokens.py OK=96/NG=0・探索4＋実装4＋上流調査1サブエージェント並列＋監督ゲート〔削除行込み diff 全量レビュー・テスト実走を結果XMLで確認〕・実機目視＝ユーザー確認待ち）**:
+  **①task_diary #51 シート枠オーバーシュート＝上流解消と判定**: material3 1.3.1 sources jar 一次確認で settle 既定アニメが 1.3.0-alpha02 で spring→tween 化＝オーバーシュート不発生（「本命の解」実装は不要・詳細は task_diary #51 増補が正本）。「シートが全画面」観測は条件項目増で上限まで伸びる見え方＝モック `.sheet` max-height:85% への追従で解消（`da42089`＝heightIn 上限）。
+  **②条件を調整シートへなろう公式ジャンル絞り込み導入（`fe3b54f`）**: 下位層（API biggenre/genre・専用ジャンル画面・結果画面フィルタ）は実装済みで、欠落だった SearchFilters⇄シートUI の接続を新設。シート最上段に大ジャンル6グループ×「すべて」＋詳細20コード。biggenres⇄genres は**完全相互排他**（同時送信は API のパラメータ間 AND で結果が空になる欠陥クラス＝istensei 同時指定と同族・結果画面 changeResultGenreFilter の既存規則とも一致）。
+  **③検索履歴チップの長文で×ボタン押し出し（`3ba2203`）**: 語 Text に weight/ellipsis が無く長文が行全幅を占有→×が幅0化が真因。`weight(1f, fill=false)`＋1行 ellipsis で×の幅を先確保（削除経路自体は健全だった）。
+  **④詳細画面の主CTAを「縦書きPDFを取り込む」へ主従逆転（`f093285`・ユーザー裁定＝アプリの根本価値「手元に本を置く」）**: 未読・未取込で PDF取込＝藍主CTA最上段・なろうで読む＝ゴースト。既読は「続きから読む」主のまま・取込済みは「なろうで読む」が主へ復帰（主CTA常に1つ）。モック正本 discovery-detail-D.html 同期改訂。
+  **⑤条件チップ列の縦ずれ（`6b0aa77`）**: 真因2つ＝(a)結果画面 FlowRow で 48dp タップ枠チップと素の静的チップ（約26dp）の Top 揃え混在→全子 CenterVertically（foundation 1.7.8 に itemVerticalAlignment 不在を javap で確認し FlowRowScope.align 方式）・(b)「条件を調整」アイコン既定24dp→モック15px準拠。
 - **UI/UX 宿題4件＋世代ガード横展開の消化（2026-07-12・`ui/uiux-tasks`・`237205d`〜`bb43976`・testDebugUnitTest GREEN・check_design_tokens.py PASS・lint 0 errors/26 warnings＝2026-07-11 基準と完全一致で新規指摘なし・実機 PGEM10 before/after ピクセル実測で4項目 OK）**: handover「UI/UX 宿題」「コード健全性監査の指摘」の残置5件＋docs 相互リンクを消化。
   **①章見出しルール色をモック `--rule` へ正本化（`33fcc61`）**＝`ReadingColors.rule` 新設（LIGHT #1C3D5A / SEPIA #2E4A60 / DARK #5E7E9C）。乖離は DARK のみ accent #6E96B8 流用だった1点＝解消。check_design_tokens.py の READING_VARS へ `--rule` 追加で対象外注記も消滅。実機 DARK 実測(83,110,137)＝#5E7E9C×0.85合成の期待(84,111,137)±1。
   **②検索履歴チップの未ピンアイコン可視化（`c72ad6a`）**＝tint を outlineVariant 約1.1:1→onSurfaceVariant（画面内アイコン慣行・モック `--ink-soft` と同値）。実機 Sepia 実測(140,125,93)で可視化（before はほぼ不可視）＋ピン留め/解除の機能動作 OK。
