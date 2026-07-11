@@ -31,11 +31,11 @@
     box-shadow:0 18px 46px rgba(0,0,0,.26);display:flex;flex-direction:column;font-family:var(--gothic);
     background:var(--pg);color:var(--tx)}
   .tl{--pg:#FBFAF8;--tx:#1C1F26;--sub:#7C808B;--hl:#E4E2DB;--acc:#1C3D5A;--onacc:#fff;--sj:#9CB3A8;
-      --track:#E4E2DB;--banbg:#D6E0E9;--bantx:#1C3D5A;--ripple:#F1F0EC}
+      --track:#E4E2DB;--banbg:#D6E0E9;--bantx:#1C3D5A;--ripple:#F1F0EC;--sj-ink:#50685C}
   .ts{--pg:#F2E7CE;--tx:#3D3121;--sub:#8C7D5D;--hl:#E0D3B0;--acc:#2E4A60;--onacc:#fff;--sj:#8CA79A;
-      --track:#E0D3B0;--banbg:#E7DCC0;--bantx:#2E4A60;--ripple:#EBDEBE}
+      --track:#E0D3B0;--banbg:#E7DCC0;--bantx:#2E4A60;--ripple:#EBDEBE;--sj-ink:#50685C}
   .td{--pg:#14171C;--tx:#C7CDD3;--sub:#868D97;--hl:#2A2F38;--acc:#8FB3D4;--onacc:#14171C;--sj:#9CB3A8;
-      --track:#2A2F38;--banbg:#22303C;--bantx:#AFcbe0;--ripple:#1B1F26}
+      --track:#2A2F38;--banbg:#22303C;--bantx:#AFcbe0;--ripple:#1B1F26;--sj-ink:#9CB3A8}
 
   .sb{height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--sub);flex-shrink:0}
   .top{padding:6px 22px 10px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
@@ -74,7 +74,8 @@
   .li .m .pb{width:96px;height:1px;background:var(--track);position:relative}
   .li .m .pb i{position:absolute;left:0;top:-0.5px;height:2px;background:var(--acc)}
   .li .m .pct{color:var(--acc)}
-  .li .m .u{color:var(--sj);letter-spacing:.06em}
+  /* 未読=意味を運ぶ文字は4.5:1（ADR 0014-D 裁定 2026-07-12）。ダーク(.td)は暗面合格のため現状維持 */
+  .li .m .u{color:var(--sj-ink);letter-spacing:.06em}
   .li .m .done{color:var(--acc);letter-spacing:.06em}
   .li .more{position:absolute;right:-4px;top:50%;transform:translateY(-50%);width:26px;height:30px;display:grid;place-items:center;color:var(--sub);opacity:.55}
   .li .more svg{width:16px;height:16px}

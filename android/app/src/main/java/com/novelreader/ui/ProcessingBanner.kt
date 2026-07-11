@@ -32,13 +32,18 @@ internal fun EmptyBookshelf(onAddClick: () -> Unit, modifier: Modifier = Modifie
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // 空状態イラストの線色。旧『紙と墨』暖色 #D7C6BF の取り残し＝D パレット外（ADR 0014 原則3）。
+        // テーマ追従の outline へ。outlineVariant(#ECEAE4) は素地比 1.08:1 でイラストが消えるため、
+        // 静かだが見える outline(#9CA0A8) を採る。
+        // Canvas(DrawScope) 内では colorScheme を読めないため composition で読んで渡す。
+        val illustColor = MaterialTheme.colorScheme.outline
         // Canvas で描く空の本棚イラスト
         Canvas(
             modifier = Modifier.size(140.dp),
         ) {
             val w = size.width
             val h = size.height
-            val color = androidx.compose.ui.graphics.Color(0xFFD7C6BF)
+            val color = illustColor
 
             // 棚板（上下2本）
             drawLine(color, start = Offset(0f, h * 0.30f), end = Offset(w, h * 0.30f), strokeWidth = 3.dp.toPx())

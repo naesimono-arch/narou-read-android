@@ -35,6 +35,7 @@ import com.novelreader.narou.model.NarouNovel
 import com.novelreader.ui.components.ShioriCover
 import com.novelreader.ui.components.shioriAccentFor
 import com.novelreader.ui.components.shioriHue
+import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ShioriSealScrimDark
 import com.novelreader.ui.theme.ShioriSealVermilion
@@ -73,7 +74,7 @@ private fun BookProgressRow(
                     .height(2.dp)
                     .clip(RoundedCornerShape(1.dp)),
                 color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.outlineVariant,
+                trackColor = LocalShelfColors.current.hairline,   // 本棚系 --track
             )
             Spacer(Modifier.width(8.dp))
             Text(
@@ -83,13 +84,13 @@ private fun BookProgressRow(
             )
         }
     } else {
-        // 未読は青磁。素地上で低コントラスト（モック意図の「静かに沈める」）＝完全準拠のトレードオフ。
+        // 未読は濃青磁 UnreadSeiji。意味を運ぶ文字は 4.5:1 が最低線（ADR 0014-D 裁定＝旧・完全準拠トレードオフを上書き）。
         Text(
             text = "未読",
             modifier = modifier,
             fontSize = 11.sp,
             letterSpacing = 0.8.sp,
-            color = MaterialTheme.colorScheme.secondary,
+            color = LocalShelfColors.current.unreadLabel,
         )
     }
 }
@@ -398,10 +399,10 @@ internal fun ListBookCard(
                 )
             }
         }
-        // 行下のヘアライン区切り（モック .li の border-bottom 1px）
+        // 行下のヘアライン区切り（モック .li の border-bottom 1px、本棚系 --hl）
         HorizontalDivider(
             thickness = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant,
+            color = LocalShelfColors.current.hairline,
         )
     }
 }

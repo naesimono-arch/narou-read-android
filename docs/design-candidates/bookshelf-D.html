@@ -13,6 +13,7 @@
     --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
     --ai:#1C3D5A;        /* 藍 */
     --seiji:#9CB3A8;     /* 青磁 */
+    --seiji-ink:#50685C; /* 未読=意味を運ぶ文字は4.5:1（ADR 0014-D 裁定 2026-07-12） */
     --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   }
@@ -47,7 +48,7 @@
   .meta .pr{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:10.5px;color:var(--ai)}
   .meta .pr .pb{flex:1;height:1px;background:var(--line);position:relative}
   .meta .pr .pb i{position:absolute;left:0;top:-0.5px;height:2px;background:var(--ai)}
-  .meta .u{font-size:10.5px;color:var(--seiji);margin-top:9px;letter-spacing:.08em}
+  .meta .u{font-size:10.5px;color:var(--seiji-ink);margin-top:9px;letter-spacing:.08em}
   /* リスト: ヘアライン区切りの静かな行 */
   .list{margin-top:6px}
   .li{display:flex;gap:16px;padding:18px 0;border-bottom:1px solid var(--line);cursor:pointer;align-items:center}
@@ -60,7 +61,7 @@
   .li .lt .pr{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:10.5px;color:var(--ai)}
   .li .lt .pr .pb{width:80px;height:1px;background:var(--line);position:relative}
   .li .lt .pr .pb i{position:absolute;left:0;top:-0.5px;height:2px;background:var(--ai)}
-  .li .lt .u{font-size:10.5px;color:var(--seiji);margin-top:9px}
+  .li .lt .u{font-size:10.5px;color:var(--seiji-ink);margin-top:9px}
   .fab{position:absolute;right:20px;bottom:24px;display:flex;align-items:center;gap:8px;background:var(--ai);color:#fff;
     border:none;cursor:pointer;padding:14px 19px;border-radius:12px;font-size:13.5px;font-weight:600;box-shadow:0 8px 20px rgba(28,61,90,.4)}
   .fab svg{width:18px;height:18px;stroke:#fff;stroke-width:2;fill:none}

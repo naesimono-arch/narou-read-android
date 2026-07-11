@@ -29,6 +29,7 @@ import com.novelreader.data.WebNovelEntity
 import com.novelreader.ui.components.ShioriCover
 import com.novelreader.ui.components.shioriAccentFor
 import com.novelreader.ui.components.shioriHue
+import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 
 // ============================================================
@@ -243,10 +244,10 @@ fun WebListBookCard(
                 )
             }
         }
-        // 行下のヘアライン区切り（モック .li の border-bottom 1px、BookCard.kt と共通）
+        // 行下のヘアライン区切り（モック .li の border-bottom 1px、BookCard.kt と共通・本棚系 --hl）
         HorizontalDivider(
             thickness = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant,
+            color = LocalShelfColors.current.hairline,
         )
     }
 }

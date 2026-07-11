@@ -67,7 +67,8 @@ fun RubyText(
         letterSpacing = 0.sp,
     ),
     rubyFontSizeRatio: Float = 0.5f,
-    rubyColor: Color = Color(0xFF777777),
+    // 死デフォルト回避のため必須引数。実描画は全呼び出しが colors.ruby を明示する（ChapterContent）。
+    rubyColor: Color,
 ) {
     val (annotated, rubyRanges) = remember(segments) {
         buildRubyAnnotatedString(segments)
@@ -239,6 +240,7 @@ private fun RubyTextPreview_Normal() {
             TextSegment.Plain("は始まる。"),
         ),
         modifier = Modifier.padding(16.dp),
+        rubyColor = Color(0xFF8B96A0), // プレビュー用＝ReadingColors.LIGHT.ruby と同値
     )
 }
 
@@ -259,6 +261,7 @@ private fun RubyTextPreview_Bold() {
             fontWeight = FontWeight.Normal,
             letterSpacing = 0.sp,
         ),
+        rubyColor = Color(0xFF8B96A0), // プレビュー用＝ReadingColors.LIGHT.ruby と同値
     )
 }
 
@@ -273,5 +276,6 @@ private fun RubyTextPreview_LineWrap() {
             TextSegment.Plain("が行をまたいで折り返す場合のプレビュー。"),
         ),
         modifier = Modifier.padding(8.dp),
+        rubyColor = Color(0xFF8B96A0), // プレビュー用＝ReadingColors.LIGHT.ruby と同値
     )
 }

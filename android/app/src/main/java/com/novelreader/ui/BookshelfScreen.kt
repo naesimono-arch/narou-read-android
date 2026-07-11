@@ -56,6 +56,7 @@ import com.novelreader.data.WebNovelEntity
 import com.novelreader.model.BookId
 import com.novelreader.ui.discovery.FilterChipItem
 import com.novelreader.narou.model.NarouNovel
+import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfUiState
@@ -818,7 +819,7 @@ private fun BookshelfSkeleton(
 ) {
     // プレースホルダの塗り（トークン経由・直書き回避）。書影は少し濃く、文字行は薄く。
     val blockColor = MaterialTheme.colorScheme.surfaceVariant
-    val lineColor = MaterialTheme.colorScheme.outlineVariant
+    val lineColor = LocalShelfColors.current.hairline   // 本棚系 --hl
 
     if (isGridView) {
         // グリッド: 実カードと同じ左右24dp・列間20dp・行間26dp。3行ぶん(6枚)出す。

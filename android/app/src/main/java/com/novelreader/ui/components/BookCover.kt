@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.novelreader.ui.theme.BookCoverRuleIndigo
 import com.novelreader.ui.theme.MinchoFamily
 import kotlin.math.abs
 
@@ -114,13 +115,14 @@ fun BookCover(
         // おおむね左端 7〜16% に収まり、サイズ非依存で破綻しないため。
         // 暗色スラブ上で沈まないよう、トークン藍より明るめの藍を使う。
         // なぜ ruleColor を可能にするか: (b) Web由来・未取込カードはモック正本で縦ルールが青磁＝『未取込』の視覚署名。書影生成ロジックは共通のためルール色のみ注入可能にする。
+        // デフォルト藍はトークン BookCoverRuleIndigo へ昇格＝直書き解消（ADR 0014）。
         Box(
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .padding(start = 10.dp)
                 .width(2.dp)
                 .fillMaxHeight(0.82f)
-                .background(ruleColor ?: Color(0xFF6E96B8)),
+                .background(ruleColor ?: BookCoverRuleIndigo),
         )
         // ────── 書影下部の明朝タイトル（グリッドのみ）──────
         // モック .cv .ttl-in: 下寄せ・左 padding は藍ルール(左10dp)を避けて 22dp、明朝 14sp・3行省略。

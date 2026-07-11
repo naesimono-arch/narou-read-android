@@ -15,14 +15,18 @@ val OnPrimaryLight           = Color(0xFFFFFFFF)
 val PrimaryContainerLight    = Color(0xFFD6E0E9)   // 淡い藍（処理中バナー背景）
 val OnPrimaryContainerLight  = Color(0xFF0E2335)
 
-// 青磁 #9CB3A8（モック bookshelf-D.html の --seiji）。本棚の「未読」ラベル等の補助色に使う。
-// トレードオフ: 素地 #FBFAF8 上で約2:1 と低コントラスト＝モックが意図する「静かに沈める」表現だが
-// 可読性は弱い。完全準拠を優先しモック値を採用（要・後日コントラスト再検証）。secondary は他画面で
-// 直接未使用のため、この変更の波及は本棚の未読色のみ。
-val SecondaryLight           = Color(0xFF9CB3A8)   // 青磁（未読ラベル）
+// 青磁 #9CB3A8（モック --seiji）。装飾・面・署名（Web由来カードの縦ルール等）の補助色。
+// 未読ラベルには使わない＝意味を運ぶ文字は WCAG 4.5:1 が最低線（ADR 0014-D で旧『モック完全準拠＞
+// 可読性』の即席判断を上書き。未読は UnreadSeiji へ分離）。
+val SecondaryLight           = Color(0xFF9CB3A8)   // 青磁（装飾・署名の補助色）
 val OnSecondaryLight         = Color(0xFFFFFFFF)
 val SecondaryContainerLight  = Color(0xFFD9E4DF)
 val OnSecondaryContainerLight= Color(0xFF18241F)
+
+// 未読ラベル用の濃青磁。青磁の色相・彩度を保ったまま、ライト素地 5.79:1／ライトカード 5.30:1／
+// セピア素地 4.92:1／セピアカード 4.52:1 の全面で WCAG 4.5:1 を満たす最小暗化（ADR 0014-D 裁定）。
+// ダークは SecondaryDark(#A9C2BB) が暗面 7:1 超のため専用値不要。
+val UnreadSeiji              = Color(0xFF50685C)
 
 val TertiaryLight            = Color(0xFF1C3D5A)   // 進捗バーも藍で統一（Dは藍の細線で進捗を示す）
 val OnTertiaryLight          = Color(0xFFFFFFFF)
@@ -42,7 +46,12 @@ val SurfaceVariantLight      = Color(0xFFF1F0EC)   // カード背景（素地�
 val OnSurfaceVariantLight    = Color(0xFF7C808B)   // 補助テキスト（著者・未読・進捗）
 val SurfaceContainerLight    = Color(0xFFEFEEE9)
 val OutlineLight             = Color(0xFF9CA0A8)
-val OutlineVariantLight      = Color(0xFFE4E2DB)   // ヘアライン・進捗トラック
+val OutlineVariantLight      = Color(0xFFECEAE4)   // ヘアライン（モック --line。発見系・区切り線の正本値）
+
+// 本棚系（目録/栞モック）の線・進捗トラック（--hl/--track #E4E2DB）。発見系の --line #ECEAE4 とは
+// 画面家系で値が分かれる（役割でなく正本モックの家系で決まる＝ADR 0014 適用裁定）。
+// セピア/ダークは OutlineVariantSepia/Dark と同値のため専用トークンは持たない。
+val ShelfHairlineLight       = Color(0xFFE4E2DB)
 val InverseSurfaceLight      = Color(0xFF2A2E35)
 val InverseOnSurfaceLight    = Color(0xFFF2F1EE)
 val InversePrimaryLight      = Color(0xFF9DB6CC)
@@ -104,6 +113,10 @@ val OutlineVariantDark       = Color(0xFF2A2F38)
 val InverseSurfaceDark       = Color(0xFFC7CDD3)
 val InverseOnSurfaceDark     = Color(0xFF2A2E35)
 val InversePrimaryDark       = Color(0xFF1C3D5A)
+
+// 書影の縦ルール（D 署名要素）のデフォルト藍。暗色スラブ上で沈まないようトークン藍 #1C3D5A より
+// 明るい藍を使う（BookCover.kt から昇格＝直書き解消。読書 DARK accent と同値だが意味は独立）。
+val BookCoverRuleIndigo      = Color(0xFF6E96B8)
 
 // ============================================================
 // 栞書影（本棚グリッド）専用の紙／墨（ダークのみ）。
