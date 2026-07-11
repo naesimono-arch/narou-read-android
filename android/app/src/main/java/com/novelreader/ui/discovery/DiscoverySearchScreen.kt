@@ -656,7 +656,7 @@ private fun SelectedKeywordChip(
 
 /**
  * 検索履歴チップ（モック .pchip / .rchip-hist）。
- * ピンアイコン: ピン留め済み=藍（タップで解除）／未ピン=薄い補助色（タップでピン留め）。
+ * ピンアイコン: ピン留め済み=藍（タップで解除）／未ピン=補助色 onSurfaceVariant（タップでピン留め）。
  * 語タップ=その語で即検索。onDelete があれば右端に薄い×（履歴から削除）。
  */
 @Composable
@@ -682,8 +682,10 @@ private fun HistoryChip(
         Icon(
             imageVector = Icons.Filled.PushPin,
             contentDescription = if (pinned) "ピン留めを解除" else "ピン留めする",
+            // 未ピン時: 線トークン outlineVariant の流用は素地比約1.1:1でほぼ不可視だった
+            // →同画面のアイコン慣行かつモックのピンSVG色（--ink-soft）と同値の onSurfaceVariant へ。
             tint = if (pinned) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.outlineVariant,
+            else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .clickable(onClick = onPinClick)
                 .padding(vertical = 7.dp)
