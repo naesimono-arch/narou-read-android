@@ -41,7 +41,6 @@
   - ~~(b) Web由来・未取込カード~~ → **完了**（2026-07-09 `a6569ee`+`15d9e1a`・実機目視OK＝STATUS §1）。
   - ~~U1 新着話チェック＋通知~~ → **完了**（2026-07-10 `2789512`+`0b2d2b7`・実機E2E全GREEN＝STATUS §1。強制発火の罠は task_diary #53）。
   - ~~U2 整理（ラベル分類）~~ → **完了**（2026-07-10 `30762aa`+`a7e403e`・Room v14・実機目視OK＝STATUS §1）。※その後 **2026-07-11 に機能ごと撤去し読書状態フィルタへ置換**（STATUS §1 先頭）＝「Web由来カードへのラベル付与」将来拡張は消滅。
-- **Phase 5 doc昇格**: 本タスク（STATUS-api-lab 解体・2026-07-08）で大半消化（ADR 0010 化・architecture スキルへ発見/検索層の所在追記・なろうAPI実装 why を `docs/patterns/narou-api-discovery.md` へ集約）。残＝`docs/reference/03-api-feature-analysis.md`↔`04-competitor-app-features.md` の相互リンク程度（優先度低）。
 
 ## リファクタ / 技術的負債（deferred）
 
