@@ -60,6 +60,21 @@ class PdfProcessingService : Service() {
     // CancellationException を投げさせ、処理中の PDF を即中断する。
     private var currentBookJob: Job? = null
 
+    // 進捗通知の間引き用スナップショット（lock で保護）。onProgress は高頻度で updateProgressNotification を
+    // 呼ぶが、表示が変わらない再 notify はシステム/描画コストの無駄なので、前回と同一なら送らない
+    // （UX監査 notify §2/§109）。progress/title/isStopping の3値で「表示が変わったか」を判定する。
+    // -1 は「未送信」の番兵で、最初の1回は必ず送る。
+    private var lastNotifiedProgress = -1
+    private var lastNotifiedTitle = ""
+    private var lastNotifiedStopping = false
+
+    // NOTIFICATION_ID の現在の内容が「進行中（ongoing）通知のまま」か（lock で保護）。
+    // 完了/取込済み/失敗通知が NOTIFICATION_ID を上書きすると false になる。前面での完了通知スキップ
+    // （§86）により、正常終了時に上書きが起きず ongoing 通知が残置するのを防ぐための判定に使う:
+    // true のまま正常終了したら stopForeground(REMOVE) で「変換中」通知を確実に消す（背面での完了通知
+    // 上書き時は false＝完了通知を残す既存挙動を維持）。
+    private var progressNotificationOngoing = false
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     // なぜ InlinedApi 抑制が安全か: FOREGROUND_SERVICE_TYPE_DATA_SYNC は API 29+ の定数だが
@@ -127,6 +142,9 @@ class PdfProcessingService : Service() {
                 totalCount++
                 isStopping = false  // 新規追加で停止状態を解除（同一インスタンス再利用時の取りこぼし防止）
                 val start = if (!isLoopRunning) { isLoopRunning = true; true } else false
+                // 新バッチ開始時は間引きスナップショットを未送信へ戻す（前バッチの完了通知が残ったまま
+                // 偶然の一致で最初の進捗更新が握り潰されないように）。
+                if (start) { lastNotifiedProgress = -1; lastNotifiedTitle = ""; lastNotifiedStopping = false }
                 Pair(false, start)
             }
         }
@@ -171,6 +189,8 @@ class PdfProcessingService : Service() {
                     buildProgressNotification(0, "準備中…"),
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
                 )
+                // FGS 起動時の内容は進行中通知。以後 completion/error が上書きするまで true。
+                lock.withLock { progressNotificationOngoing = true }
             } catch (e: IllegalStateException) {
                 Log.e(TAG, "フォアグラウンド開始に失敗（処理を中止）", e)
                 lock.withLock {
@@ -222,7 +242,9 @@ class PdfProcessingService : Service() {
         // いれば次回アプリ起動時のリカバリが検出して再開できる（ACTION_STOP の全消しとは逆の扱い）。
         (application as? NovelReaderApplication)?.let {
             it.updateProcessingState(null)
-            it.emitError("変換が時間制限により中断されました。アプリを開き直すと再開します。")
+            // 内部理由（dataSync FGS の実行時間上限）は読み手に無関係で行動不能なため文言から落とす
+            // （UX監査 errtext 08§B①）。ユーザーが取れる行動（開き直せば再開）だけを残す。
+            it.emitError("変換が中断されました。アプリを開き直すと再開します。")
         }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -304,15 +326,17 @@ class PdfProcessingService : Service() {
                     }
                 }
                 if (shouldStopSelf) {
-                    val wasStopping = lock.withLock {
+                    val (wasStopping, ongoingRemains) = lock.withLock {
                         val s = isStopping
                         totalCount = 0; doneCount = 0; isStopping = false
-                        s
+                        Pair(s, progressNotificationOngoing)
                     }
-                    // 停止操作で終わった場合は「停止しています…」の ongoing 通知を確実に消す。
-                    // 正常終了時は REMOVE しない: 完了/エラー通知（非 ongoing・NOTIFICATION_ID
-                    // 上書き済み）をユーザーが後から確認できるよう残す既存挙動を維持するため。
-                    if (wasStopping) {
+                    // REMOVE する条件は2つ:
+                    // ①停止操作で終わった場合は「停止しています…」の ongoing 通知を確実に消す。
+                    // ②正常終了でも NOTIFICATION_ID が進行中通知のまま（完了/失敗が上書きしていない）なら
+                    //   REMOVE する＝前面での完了通知スキップ（§86）で「変換中」が残置するのを防ぐ。
+                    // 背面での完了/失敗通知（progressNotificationOngoing=false）は従来どおり残す。
+                    if (wasStopping || ongoingRemains) {
                         ServiceCompat.stopForeground(this@PdfProcessingService, ServiceCompat.STOP_FOREGROUND_REMOVE)
                     }
                     stopSelf()
@@ -358,11 +382,21 @@ class PdfProcessingService : Service() {
                         // 新規登録は従来どおり「変換完了」を通知する。タップで該当の本の
                         // 読書画面へ deep link するため bookId も渡す（M11）。
                         is com.novelreader.repository.BookRepository.AddBookResult.Added ->
-                            showCompletionNotification(outcome.book.id, outcome.book.title)
+                            // 前面（本棚を見て待っている）なら完了通知は出さない（UX監査 §86 二重報告是正）。
+                            // 前面では allBooks の Room Flow が新しい本を反応表示し、バナーも消えるため
+                            // in-app に既に伝わる。背面時のみシステム通知トレイへ知らせる。
+                            if (!app.isAppInForeground) {
+                                showCompletionNotification(outcome.book.id, outcome.book.title)
+                                lock.withLock { progressNotificationOngoing = false } // 完了通知が NOTIFICATION_ID を上書き
+                            }
+                            // 前面時は上書きしないため progressNotificationOngoing=true のまま。正常終了時に
+                            // loop finally が REMOVE して「変換中」の残置を消す（in-app が結果を伝える）。
                         // 既に蔵書済み（べき等スキップ）は完了ではなく「取込済み」を通知する。
                         // この URI の処理スロットは終わったので進行中通知と同じ ID で上書きしてよい。
-                        is com.novelreader.repository.BookRepository.AddBookResult.Duplicate ->
+                        is com.novelreader.repository.BookRepository.AddBookResult.Duplicate -> {
                             showDuplicateNotification(outcome.existing.title, NOTIFICATION_ID)
+                            lock.withLock { progressNotificationOngoing = false }
+                        }
                     }
                     app.updateProcessingState(null)
                 },
@@ -371,9 +405,13 @@ class PdfProcessingService : Service() {
                     Log.e(TAG, "PDF処理失敗", e)
                     val msg = normalizeImportErrorMessage(e)
                     showErrorNotification(msg)
-                    // retryUri を添えて Snackbar に「再試行」を出す（M7）。この URI は finally で
-                    // activeUris から release されるため、再投入は重複扱いにならない。
-                    app.emitError(msg, uri.toString())
+                    lock.withLock { progressNotificationOngoing = false } // 失敗通知が NOTIFICATION_ID を上書き
+                    // 決定的失敗（暗号化/破損）は同一 URI を再投入しても必ず同じ失敗を再走するだけで
+                    // 直らないため「再試行」を出さない（retryUri=null＝『閉じる』のみ・UX監査 errtext 08§D）。
+                    // 一過性の可能性がある容量不足・権限失効等は再試行を残す。retryUri 付与時、この URI は
+                    // finally で activeUris から release されるため再投入は重複扱いにならない（M7）。
+                    val retryUri = if (isDeterministicFailure(e)) null else uri.toString()
+                    app.emitError(msg, retryUri)
                     app.updateProcessingState(null)
                 },
             )
@@ -450,6 +488,12 @@ class PdfProcessingService : Service() {
      *  ユーザーに晒さないための emit 境界。原文は呼び出し側で Log 済み（診断性維持・握り潰さない）。
      *  addBook の失敗は BookRepository.classifyError が BookImportError へ分類済みのため通常は
      *  userMessage を返す。想定外の非分類例外に備え、既知の生メッセージも防御的にマップして raw を漏らさない。 */
+    /** 再試行しても直らない決定的（持続性）失敗か。暗号化 PDF・破損 PDF は同一ファイルなら
+     *  必ず同じ失敗を再走するため、無効な「再試行」アフォーダンスを出さない判定に使う（UX監査 errtext 08§D）。
+     *  容量不足・権限失効は状況が変われば通り得るため決定的扱いにしない。 */
+    private fun isDeterministicFailure(e: Throwable): Boolean =
+        e is BookImportError.EncryptedPdf || e is BookImportError.CorruptedPdf
+
     private fun normalizeImportErrorMessage(e: Throwable): String {
         if (e is BookImportError) return e.userMessage
         val raw = e.message.orEmpty()
@@ -476,6 +520,9 @@ class PdfProcessingService : Service() {
             // 停止中は残り時間が読めないため不確定バーにする
             .setProgress(100, progress, isStopping)
             .setOngoing(true)
+            // 更新のたびに音/バイブを鳴らさない（進捗更新は最初の1回だけ通知アラート・UX監査 notify §2）。
+            // 本チャネルは IMPORTANCE_LOW で元々無音だが、通知の性格を明示し将来の重要度変更にも安全側へ倒す。
+            .setOnlyAlertOnce(true)
             .setContentIntent(openAppIntent())
         // 停止中は連打防止のため「停止」アクションを出さない
         if (!isStopping) {
@@ -485,6 +532,22 @@ class PdfProcessingService : Service() {
     }
 
     private fun updateProgressNotification(progress: Int, text: String, current: Int = 1, total: Int = 1, title: String = "", isStopping: Boolean = false) {
+        // 表示（progress/title/停止フラグ）が前回と同一なら再 notify しない（%不変の高頻度更新を間引く）。
+        // lock で compare-and-set をアトミックにする（onProgress は IO、ACTION_STOP はメインから呼ぶため）。
+        val changed = lock.withLock {
+            // 現在の NOTIFICATION_ID 内容は進行中通知（完了/失敗が上書きするまで true）。
+            progressNotificationOngoing = true
+            val diff = progress != lastNotifiedProgress ||
+                title != lastNotifiedTitle ||
+                isStopping != lastNotifiedStopping
+            if (diff) {
+                lastNotifiedProgress = progress
+                lastNotifiedTitle = title
+                lastNotifiedStopping = isStopping
+            }
+            diff
+        }
+        if (!changed) return
         notificationManager().notify(NOTIFICATION_ID, buildProgressNotification(progress, text, current, total, title, isStopping))
     }
 

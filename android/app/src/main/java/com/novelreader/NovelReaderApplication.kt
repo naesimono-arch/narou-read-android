@@ -5,7 +5,11 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
 import android.net.Uri
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.novelreader.narou.DataStoreSearchHistoryStore
 import com.novelreader.narou.NovelApiRepository
 import com.novelreader.narou.SearchHistoryStore
@@ -74,6 +78,15 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
     // 起動時リカバリの多重実行ガード。Activity 再作成のたびに呼ばれても実処理はプロセスごとに1回。
     private val recoveryStarted = AtomicBoolean(false)
 
+    // アプリ全体が前面（少なくとも1つの Activity が STARTED）かどうか。
+    // なぜフラグ方式か（ProcessLifecycleOwner.currentState を都度読まない理由）: 変換完了通知は IO
+    // ディスパッチャの onProgress/fold コールバックから判定される（PdfProcessingService）。LifecycleRegistry
+    // の状態読みは本来メインスレッド前提のため、メインで走る ProcessLifecycleOwner の observer が
+    // @Volatile へ書き、Service 側はスレッド安全にこの値を読むだけにする。
+    @Volatile
+    var isAppInForeground = false
+        private set
+
     /** アプリ起動時の復旧処理: ①孤立HTML掃除 ②強制終了（OEM kill/OOM/onTimeout）で残った
      *  未完了ジョブの検出 → 通知＋再開。
      *
@@ -93,15 +106,11 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
             // （書きかけが残っても次回起動時に拾われる）。
             if (processingState.value != null) return@launch
             repository.cleanOrphanHtmlDirs()
+            // Web 読書位置履歴（web_reading_progress）の孤児掃除（UX監査 privacy Major）。
+            // なぜここか: cleanOrphanHtmlDirs と同じ「起動時・Service 非稼働」の安全窓で、
+            // 蔵書(books.ncode)にも本棚(web_novels)にも参照されない行だけを回収する。
+            repository.pruneOrphanWebReadingProgress()
             val pending = repository.getPendingJobs()
-            // 失敗取込の権限リーク回収（恒久リーク対策・root cause）: 取込失敗時は M7 の再試行成立の
-            // ため addBook が pending_jobs 行だけ消し永続 URI 権限を残すが、再試行 Snackbar はプロセス
-            // 生存中しか出せないため、再試行されずに終わった分の権限が次回起動時に「pending_jobs 非紐付け」
-            // として孤立し恒久リークする（端末上限128件へ）。ここで解放する。pending が空でも走らせる必要が
-            // あるため、下の early return より前に置く（リークの典型形＝pending_jobs 行ゼロ＋孤児権限1件）。
-            // keepUris に現在の pending URI を渡すことで、再開対象（resumable）の権限は解放しない。
-            repository.releaseOrphanedPermissions(pending.map { it.uri }.toSet())
-            if (pending.isEmpty()) return@launch
             // 再開にはプロセスを跨いで有効な読み取り権限が要る。takePersistableUriPermission は
             // addBook 時に取得済みのはずだが、プロバイダ非対応・ユーザーによる権限取消で
             // 失われていることがあるため、生きているものだけ再開する。
@@ -109,17 +118,27 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
                 .filter { it.isReadPermission }
                 .map { it.uri.toString() }
                 .toSet()
-            val (resumable, lost) = pending.partition { it.uri in persisted }
-            lost.forEach { repository.removePendingJob(it.uri) }
-            if (lost.isNotEmpty()) {
-                val names = lost.joinToString("、") { "「${it.displayName.ifEmpty { "不明" }}」" }
+            // partition・keepUris の導出は純関数へ集約（measure §E: 回復パスを JVM テストで固定するため）。
+            val plan = StartupRecovery.computePlan(pending, persisted)
+            // 失敗取込の権限リーク回収（恒久リーク対策・root cause）: 取込失敗時は M7 の再試行成立の
+            // ため addBook が pending_jobs 行だけ消し永続 URI 権限を残すが、再試行 Snackbar はプロセス
+            // 生存中しか出せないため、再試行されずに終わった分の権限が次回起動時に「pending_jobs 非紐付け」
+            // として孤立し恒久リークする（端末上限128件へ）。ここで解放する。pending が空でも走らせる必要が
+            // あるため、下の early return より前に置く（リークの典型形＝pending_jobs 行ゼロ＋孤児権限1件）。
+            // keepPermissionUris（＝現在の pending URI 全体・空 pending なら空集合）を渡すことで、
+            // 再開対象（resumable）の権限は解放しない。
+            repository.releaseOrphanedPermissions(plan.keepPermissionUris)
+            if (pending.isEmpty()) return@launch
+            plan.lost.forEach { repository.removePendingJob(it.uri) }
+            if (plan.lost.isNotEmpty()) {
+                val names = plan.lost.joinToString("、") { "「${it.displayName.ifEmpty { "不明" }}」" }
                 emitError("中断された $names の変換を再開できませんでした。もう一度ファイルを選択してください")
             }
-            if (resumable.isEmpty()) return@launch
-            emitError("中断されていた変換 ${resumable.size} 件を再開します")
+            if (plan.resumable.isEmpty()) return@launch
+            emitError("中断されていた変換 ${plan.resumable.size} 件を再開します")
             // getPendingJobs は enqueue 昇順を返すため、この順で再投入すれば元のキュー順が保たれる。
             // Service 側の ACTION_START が同じ URI を REPLACE で再記帳するので二重行にもならない。
-            resumable.forEach { job ->
+            plan.resumable.forEach { job ->
                 val intent = Intent(this@NovelReaderApplication, PdfProcessingService::class.java).apply {
                     action = PdfProcessingService.ACTION_START
                     data = Uri.parse(job.uri)
@@ -139,7 +158,30 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
         // 処理する前に init 済みを保証する。
         PDFBoxResourceLoader.init(applicationContext)
         createNotificationChannel()
-        scheduleNewEpisodeCheck()
+        // アプリ前面/背面を追跡する（変換完了通知の二重報告抑止・公理13-D §86）。
+        // Application.onCreate はメインスレッドのため observer 登録の前提を満たす。
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) { isAppInForeground = true }
+            override fun onStop(owner: LifecycleOwner) { isAppInForeground = false }
+        })
+        // U1 新着チェックは既定 OFF のオプトイン（UX監査 C3・公理13）。ユーザーが明示 ON にしたときだけ
+        // 定期実行を仕込む。OFF なら背景照会（日次 ncode 群の syosetu 送信）自体が走らない。
+        if (NewEpisodeNotificationPreference.isEnabled(this)) {
+            scheduleNewEpisodeCheck()
+        }
+    }
+
+    /** 新着通知トグルの ON/OFF に応じて定期実行を仕込む/取り消す（状態層＝
+     *  [NewEpisodeNotificationPreference]、実スケジュール切替＝ここ）。UI（トグル）から呼ぶ。 */
+    fun setNewEpisodeNotificationEnabled(enabled: Boolean) {
+        NewEpisodeNotificationPreference.setEnabled(this, enabled)
+        if (enabled) scheduleNewEpisodeCheck() else cancelNewEpisodeCheck()
+    }
+
+    /** 定期チェックを取り消す（トグル OFF 時）。以降 Worker は起動されず背景照会も止まる。 */
+    private fun cancelNewEpisodeCheck() {
+        androidx.work.WorkManager.getInstance(this)
+            .cancelUniqueWork(NewEpisodeCheckWorker.UNIQUE_WORK_NAME)
     }
 
     /** U1 新着話チェックの定期スケジュール（1日1回・ネットワーク接続時のみ）。
@@ -170,15 +212,32 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
         )
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
-        // U1 新着話のお知らせは PDF変換（IMPORTANCE_LOW＝サイレント進捗）と性格が違う
-        // 「ユーザーに届けたい知らせ」のため、既定重要度の別チャネルに分ける（音/バナーの
-        // 出し方をユーザーがチャネル単位で制御できるようにする狙いも含む）。
+        // U1 新着話のお知らせは PDF変換と性格が違う「ユーザーに届けたい知らせ」だが、非時間性の更新
+        // （1日遅れても実害なし）を音付きで割り込ませるのは公理13違反のため IMPORTANCE_LOW（無音・
+        // ヘッドアップ無し）にする。オプトインで ON にしたユーザーにも push は静かに届ける。
+        // 注意（Android の仕様）: チャネル作成後に importance を下げても既存インストールには反映されない
+        // （ユーザーがチャネル設定で変えた値が優先される）。新規インストールにこの LOW が効く。
         val episodeChannel = NotificationChannel(
             NEW_EPISODE_CHANNEL_ID,
             "新着話のお知らせ",
-            NotificationManager.IMPORTANCE_DEFAULT,
+            NotificationManager.IMPORTANCE_LOW,
         )
         manager.createNotificationChannel(episodeChannel)
+    }
+
+    /** 変換完了通知を取り下げる（UX監査 §87 stale 通知）。deep link で該当の本へ着地したら
+     *  「用が済んだ」ため呼ぶ。完了通知は NOTIFICATION_ID 単一のため id 指定で足りる。 */
+    fun cancelCompletionNotification() {
+        NotificationManagerCompat.from(this).cancel(PdfProcessingService.NOTIFICATION_ID)
+    }
+
+    /** 指定 ncode の新着話通知を取り下げる（UX監査 §87）。該当の本を開いたら呼ぶ。
+     *  tag は Worker と同じ正規化規則で組む（大小/前後空白のズレで取り違えないため）。 */
+    fun cancelNewEpisodeNotification(ncode: String) {
+        NotificationManagerCompat.from(this).cancel(
+            NewEpisodeCheckWorker.notificationTag(ncode),
+            NewEpisodeCheckWorker.NEW_EPISODE_NOTIFICATION_ID,
+        )
     }
 
     companion object {

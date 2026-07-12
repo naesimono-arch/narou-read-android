@@ -104,12 +104,18 @@ class NewEpisodeCheckWorker(
         // tag=ncode × 固定 id: 同じ本の通知は上書き・別の本は並ぶ。既存の PDF変換系 ID（1001/1002）
         // と数値衝突しない管理にするため id でなく tag で識別する。
         NotificationManagerCompat.from(applicationContext)
-            .notify("new_episode_${alert.ncode}", NEW_EPISODE_NOTIFICATION_ID, notification)
+            .notify(notificationTag(alert.ncode), NEW_EPISODE_NOTIFICATION_ID, notification)
     }
 
     companion object {
         private const val TAG = "NewEpisodeCheckWorker"
         const val UNIQUE_WORK_NAME = "new_episode_check"
         const val NEW_EPISODE_NOTIFICATION_ID = 2001
+
+        /** 新着話通知の tag を組む単一の正本。通知の発行（showNotification）と取り下げ
+         *  （NovelReaderApplication.cancelNewEpisodeNotification）で必ず同じ文字列にするため関数化する。
+         *  ncode は linkedBooks のキー（正規化済み）だが、取り下げ側は book.ncode を直接渡しうるため
+         *  ここでも trim+uppercase を掛けてズレを吸収する。 */
+        fun notificationTag(ncode: String): String = "new_episode_${ncode.trim().uppercase()}"
     }
 }
