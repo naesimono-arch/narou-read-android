@@ -25,6 +25,29 @@ MOCK_DIR = ROOT / "docs/design-candidates"
 
 # ---- Compose 側トークンの読み取り -------------------------------------------------
 
+def parse_spacing_scale() -> set[int]:
+    """Spacing.kt の `val S<N> = <N>.dp` からスケール {N} を返す（ADR 0014 §C）。
+    
+    なぜ単一情報源か: 実装とテストで別々に {4, 8...} を持つと将来の改訂で必ず乖離する。
+    正本（theme/Spacing.kt）から直接パースして検査基準とする。
+    """
+    text = (THEME_DIR / "Spacing.kt").read_text(encoding="utf-8")
+    scale = {int(m.group(1)) for m in re.finditer(r"val\s+S(\d+)\s*=\s*\d+\.dp", text)}
+    assert scale, "Spacing scale must not be empty (failed to parse Spacing.kt)"
+    return scale
+
+def parse_insets_values() -> set[int]:
+    """Spacing.kt の `object Insets { ... = <N>.dp }` から構造インセット {N} を返す。
+    
+    なぜ離散スケールと分けるか: インセットは他要素からの制約から決まり、
+    余白のリズム（スケール）とは別種の値だから。
+    """
+    text = (THEME_DIR / "Spacing.kt").read_text(encoding="utf-8")
+    m = re.search(r"object Insets\s*\{([^}]+)\}", text)
+    if not m:
+        return set()
+    return {int(v) for v in re.findall(r"val\s+\w+\s*=\s*(\d+)\.dp", m.group(1))}
+
 def parse_color_kt() -> dict[str, str]:
     """Color.kt の `val Name = Color(0xFFRRGGBB)` を {Name: 'RRGGBB'} で返す。"""
     text = (THEME_DIR / "Color.kt").read_text(encoding="utf-8")
@@ -114,6 +137,31 @@ READING_ORDER = ["LIGHT", "SEPIA", "DARK"]
 
 # ---- 照合 -------------------------------------------------------------------------
 
+# これは再翻訳(Spacing/Insets参照化)完了ごとに行を消していくラチェット。空になったら余白トークン移行完了。
+GRACE_FILES = {
+    "android/app/src/main/java/com/novelreader/ui/BookCard.kt",
+    "android/app/src/main/java/com/novelreader/ui/BookshelfScreen.kt",
+    "android/app/src/main/java/com/novelreader/ui/ChapterContent.kt",
+    "android/app/src/main/java/com/novelreader/ui/ContinuationCard.kt",
+    "android/app/src/main/java/com/novelreader/ui/NativeReadingScreen.kt",
+    "android/app/src/main/java/com/novelreader/ui/NativeTableOfContentsScreen.kt",
+    "android/app/src/main/java/com/novelreader/ui/NcodeLinkSheet.kt",
+    "android/app/src/main/java/com/novelreader/ui/NewEpisodeNotificationToggle.kt",
+    "android/app/src/main/java/com/novelreader/ui/ProcessingBanner.kt",
+    "android/app/src/main/java/com/novelreader/ui/ReadingErrorScreen.kt",
+    "android/app/src/main/java/com/novelreader/ui/ReadingSettingsSheet.kt",
+    "android/app/src/main/java/com/novelreader/ui/WebBookCard.kt",
+    "android/app/src/main/java/com/novelreader/ui/components/BookCover.kt",
+    "android/app/src/main/java/com/novelreader/ui/compose/RubyText.kt",
+    "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryCommon.kt",
+    "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryGenreScreen.kt",
+    "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryHomeScreen.kt",
+    "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryResultScreen.kt",
+    "android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt",
+    "android/app/src/main/java/com/novelreader/ui/discovery/PdfImportScreen.kt",
+    "android/app/src/main/java/com/novelreader/ui/discovery/SearchConditionSheet.kt",
+}
+
 def find_decls(text: str, var: str) -> list[str]:
     return [m.upper() for m in re.findall(rf"{re.escape(var)}\s*:\s*#([0-9A-Fa-f]{{6}})\b", text)]
 
@@ -171,6 +219,119 @@ def main() -> int:
                     failures.append(f"[NG] {READING_FILE} {var}({theme}): モック #{decl} ⇄ ReadingColors.{field}=#{expected}")
                     ng += 1
 
+    # ---- Spacing lint (Phase A): mock margin check ----
+    scale_set = parse_spacing_scale()
+    insets_set = parse_insets_values()
+    # モック特有の構造インセット allowlist（Compose側の Insets と同種＝他要素の寸法から決まる値で丸め対象外）:
+    # 92=reading-D スクロール下端・210=discovery-detail floating panel クリアランス・90=目録のスクロール下端
+    mock_insets = {90, 92, 210}
+    allowed_mock_px = scale_set | {0} | mock_insets | insets_set
+    
+    # 探索・歴史記録以外の正本モックすべて（reading-D含む）を走査
+    for rel in STANDARD_FILES + SHELF_FILES + [READING_FILE]:
+        path = MOCK_DIR / rel
+        if not path.exists(): continue
+        
+        text = path.read_text(encoding="utf-8")
+        
+        # なぜ /*==harness==*/ を除外するか:
+        # モック上では検証用・コンテナ表現など実際のアプリレイアウトには現れない
+        # （または別管理される）余白が存在するため。これらは off-scale でもノイズ。
+        text = re.sub(r"/\*==harness==\*/.*?/\*==/harness==\*/", "", text, flags=re.DOTALL)
+        
+        for m in re.finditer(r"(?<!-)\b(padding(?:-(?:top|right|bottom|left))?|margin(?:-(?:top|right|bottom|left))?|gap|row-gap|column-gap)\s*:\s*([^;\"\}]+)", text):
+            prop = m.group(1)
+            val_str = m.group(2)
+            
+            for px_m in re.finditer(r"(-?[0-9.]+)\s*px\b", val_str):
+                px_val = float(px_m.group(1))
+                if px_val < 0: continue
+                px_int = int(px_val) if px_val.is_integer() else px_val
+                
+                # なぜ gap:1px を特別扱いするか:
+                # これはリストセパレータのヘアライン表現（borderの代用）であり、
+                # 空間を広げる意図の余白ではないためスケール外で正しい。
+                if prop == 'gap' and px_int == 1:
+                    continue
+                    
+                if px_int not in allowed_mock_px:
+                    failures.append(f"[NG] {rel} {prop}:{px_int}px")
+                    ng += 1
+
+    # ---- Spacing lint (Phase B): Compose reference lint ----
+    # 意図: 単なる off-scale 検出ではなく「余白トークンの参照（Spacing.S*）」を強要する。
+    # そのため、オン/オフスケール問わず、文脈内の .dp リテラル直書きはすべて対象とする。
+    # （※事前の audit 調査は off-scale 数のみ数えたため、このチェックの方が厳格になる）
+    
+    def get_enclosing_calls(text: str, pos: int) -> list[str]:
+        calls = []
+        idx = pos - 1
+        parens = 0
+        while idx >= 0 and len(calls) < 2:
+            c = text[idx]
+            if c == ')': parens += 1
+            elif c == '(':
+                parens -= 1
+                if parens < 0:
+                    parens = 0
+                    c_match = re.search(r"([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\s*$", text[:idx])
+                    if c_match: calls.append(c_match.group(1))
+                    else: calls.append("UNKNOWN")
+            elif c in '}]': parens += 1
+            elif c in '{[':
+                parens -= 1
+                if parens < 0: parens = 0
+            idx -= 1
+        return calls
+
+    def is_spacing_context(calls: list[str]) -> bool:
+        if not calls: return False
+        c0 = calls[0]
+        
+        # 除外対象: これらは明確に除外（包含ルールだけでも実質除外されるが念のため）
+        if "border" in c0.lower() or "stroke" in c0.lower() or "elevation" in c0.lower() or "RoundedCornerShape" in c0:
+            return False
+            
+        # 包含対象: 指定された文脈のみをチェックする
+        if c0.endswith("padding") or c0.endswith("PaddingValues") or c0.endswith("spacedBy") or c0.endswith("spacedByWithFooter"):
+            return True
+            
+        # Spacer(Modifier.height/width) は対象。単なる width/height(Modifier.height等) は非対象。
+        if c0.endswith("height") or c0.endswith("width"):
+            if len(calls) > 1 and calls[1].endswith("Spacer"):
+                return True
+                
+        return False
+
+    COMPOSE_DIR = ROOT / "android/app/src/main/java/com/novelreader/ui"
+    compose_ng = 0
+    compose_warn = 0
+    grace_warns: dict[str, int] = {}
+    for path in COMPOSE_DIR.rglob("*.kt"):
+        text = path.read_text(encoding="utf-8")
+        rel_path = path.relative_to(ROOT).as_posix()
+        is_grace = rel_path in GRACE_FILES
+        
+        for m in re.finditer(r"\b([0-9.]+)\.dp\b", text):
+            val = float(m.group(1))
+            if val == 0: continue
+            
+            calls = get_enclosing_calls(text, m.start())
+            if is_spacing_context(calls):
+                line_no = text.count('\n', 0, m.start()) + 1
+                msg = f"{rel_path}:{line_no} Numeric .dp literal in spacing context ({m.group(0)})"
+                if is_grace:
+                    # WARN は全行出力せずファイル別に集計（248行の洪水でゲート出力が読めなくなるため。
+                    # 個別行が要るときは再翻訳作業時に対象ファイルへ grep すれば足りる）
+                    grace_warns[rel_path] = grace_warns.get(rel_path, 0) + 1
+                    compose_warn += 1
+                else:
+                    failures.append(f"[NG] {msg}")
+                    compose_ng += 1
+                    ng += 1
+    for grace_path, count in sorted(grace_warns.items()):
+        failures.append(f"[WARN] {grace_path}: 余白リテラル残 {count} 件（GRACE_FILES ラチェット＝再翻訳待ち）")
+
     # 字面スロット（Font*）: 各スロット値が正本モック群の font-size px 集合に実在するか（drift 検出）。
     # なぜ「集合への実在」照合か: sp 値は全てモック px の写経（2026-07-12 全数調査で 1:1 対応を確認）で、
     # 色のような変数名対応がモック側に無い（font-size は直値）。値がどのモックからも消えたら
@@ -186,6 +347,7 @@ def main() -> int:
             ng += 1
 
     print(f"design token check: OK={ok} NG={ng} SKIP={skip}")
+    print(f"spacing phase(b) check: NG={compose_ng} WARN={compose_warn}")
     for line in failures:
         print(line)
     return 1 if ng else 0
