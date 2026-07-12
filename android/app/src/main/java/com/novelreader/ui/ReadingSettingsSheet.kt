@@ -2,6 +2,8 @@ package com.novelreader.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,6 +40,10 @@ internal fun ReadingSettingsSheet(
     colors: ReadingColors,
     readingTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
+    // システム追従（未宣言）状態か。true のとき明示テーマ3択はどれも未選択で「システムに従う」を選択表示する。
+    followingSystem: Boolean = false,
+    // 「システムに従う」選択時のコールバック。呼び出し側で reading_theme prefs を remove して未宣言へ戻す。
+    onFollowSystem: () -> Unit = {},
     fontSize: Int,
     onFontSizeChange: (Int) -> Unit,
     // 永続化コールバック（スライダー確定時のみ呼ぶ）。onXxxChange はドラッグ中の毎値で
@@ -64,6 +70,8 @@ internal fun ReadingSettingsSheet(
             colors = colors,
             readingTheme = readingTheme,
             onThemeChange = onThemeChange,
+            followingSystem = followingSystem,
+            onFollowSystem = onFollowSystem,
             fontSize = fontSize,
             onFontSizeChange = onFontSizeChange,
             onFontSizePersist = onFontSizePersist,
@@ -81,11 +89,14 @@ internal fun ReadingSettingsSheet(
  *  なぜ ModalBottomSheet と分離するか: 内容は state+callback の純粋な葉で、シート枠
  *  （別ウィンドウ描画・開閉アニメ・部分展開で下部が画面外に出る）と切り離すことで
  *  Robolectric の JVM UI テスト（ADR 0009）が可視判定・クリック注入を安定検証できるため。 */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ReadingSettingsSheetContent(
     colors: ReadingColors,
     readingTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
+    followingSystem: Boolean = false,
+    onFollowSystem: () -> Unit = {},
     fontSize: Int,
     onFontSizeChange: (Int) -> Unit,
     onFontSizePersist: () -> Unit,
@@ -116,11 +127,35 @@ internal fun ReadingSettingsSheetContent(
             style = MaterialTheme.typography.labelMedium,
         )
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // 選択色をアクセント(朱)に統一する（M3 既定の secondaryContainer=青鼠を避け主役色へ）。
+        // システムテーマでなく読書テーマの colors を使い、シート背景(colors.background)と調和させる。
+        val themeChipColors = FilterChipDefaults.filterChipColors(
+            labelColor = colors.text,
+            selectedContainerColor = colors.accent,
+            selectedLabelColor = colors.background,
+        )
+        // なぜ FlowRow か: チップが4つ（システムに従う＋ライト/セピア/ダーク）になり、狭幅端末で
+        // 素の Row だと横に溢れて末尾チップが見切れる。溢れたら次行へ折り返して全チップの可視を保つ。
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // 「システムに従う」= 未宣言（reading_theme prefs 削除）へ戻す選択肢。
+            // なぜ必要か（監査 settings Minor 19-B/H）: 一度でも明示テーマを押すと prefs に固定され、
+            // 二度と「OS のライト/ダークに自動追従」へ戻せず、夜に暗くなる既定挙動を失っていた。この
+            // チップ選択で呼び出し側が prefs を remove して未宣言（＝追従）へ復帰させる（配線は MainActivity）。
+            FilterChip(
+                selected = followingSystem,
+                onClick = onFollowSystem,
+                label = { Text("システムに従う") },
+                colors = themeChipColors,
+            )
             // values() を使うのは Kotlin バージョン非依存のため（entries は 1.9+）
             ReadingTheme.values().forEach { theme ->
                 FilterChip(
-                    selected = readingTheme == theme,
+                    // 追従中は明示3択をどれも未選択にする（「今どれで表示中か」ではなく「何を宣言したか」を表す。
+                    // 追従中は宣言が無い＝3択は未選択で、上の「システムに従う」だけが選択状態になる）。
+                    selected = !followingSystem && readingTheme == theme,
                     onClick = { onThemeChange(theme) },
                     label = {
                         Text(
@@ -131,14 +166,7 @@ internal fun ReadingSettingsSheetContent(
                             }
                         )
                     },
-                    // 選択色をアクセント(朱)に統一する。
-                    // M3 既定だと secondaryContainer（青鼠）になりアプリの主役色から外れるため。
-                    // システムテーマではなく読書テーマの colors を使い、シート背景(colors.background)と調和させる。
-                    colors = FilterChipDefaults.filterChipColors(
-                        labelColor = colors.text,
-                        selectedContainerColor = colors.accent,
-                        selectedLabelColor = colors.background,
-                    ),
+                    colors = themeChipColors,
                 )
             }
         }

@@ -69,6 +69,15 @@ class MainActivity : ComponentActivity() {
         // 実処理はプロセスごとに1回・IO スレッドで走る。
         (application as NovelReaderApplication).runStartupRecoveryOnce()
 
+        // 設定スキーマ版を記録（evolve・予防的）。将来 ReadingTheme 等の enum を改名した際、
+        // 保存済みの「生 enum 名」がどの版の綴りかを移行コードが判別できるようにするための版番号。
+        // 未記録の既存/新規インストールは現行スキーマ＝v1 として一度だけ刻む（以後の移行がこの版を
+        // 読んで綴りを変換する）。app_prefs は他の読書設定（reading_theme 等）と同じ置き場。
+        val settingsPrefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+        if (!settingsPrefs.contains(KEY_SETTINGS_SCHEMA_VERSION)) {
+            settingsPrefs.edit().putInt(KEY_SETTINGS_SCHEMA_VERSION, SETTINGS_SCHEMA_VERSION).apply()
+        }
+
         // Edge-to-Edge 表示を有効化（ステータスバー・ナビバー領域までコンテンツを描画）
         // NovelReaderTheme 内で WindowCompat.getInsetsController を使うため、
         // setDecorFitsSystemWindows は setContent より前に呼ぶ必要がある
@@ -83,9 +92,19 @@ class MainActivity : ComponentActivity() {
             val prefs = remember { context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
             val systemDark = isSystemInDarkTheme()
             var appTheme by remember { mutableStateOf(loadInitialTheme(prefs, systemDark)) }
+            // 「システムに従う」状態＝reading_theme 未保存。明示選択で解除、追従選択でキー削除により復帰。
+            // なぜキー削除で表すか: 「未宣言＝追従」という loadInitialTheme の既存規約をそのまま正本にし、
+            // 第4の enum 値や別フラグを増やさない（設定は「開かれない」が理想＝UX/19）。
+            var followingSystem by remember { mutableStateOf(prefs.getString("reading_theme", null) == null) }
             val onThemeChange: (ReadingTheme) -> Unit = { theme ->
                 appTheme = theme
+                followingSystem = false
                 prefs.edit().putString("reading_theme", theme.name).apply()
+            }
+            val onFollowSystem: () -> Unit = {
+                prefs.edit().remove("reading_theme").apply()
+                followingSystem = true
+                appTheme = if (systemDark) ReadingTheme.DARK else ReadingTheme.LIGHT
             }
 
             // Material3 配色もテーマ3値（ライト/セピア/ダーク）へ追従させる。
@@ -96,6 +115,8 @@ class MainActivity : ComponentActivity() {
                 NovelReaderApp(
                     appTheme = appTheme,
                     onThemeChange = onThemeChange,
+                    followingSystem = followingSystem,
+                    onFollowSystem = onFollowSystem,
                     // .value の読み取りを composable 内で行うことで onNewIntent の更新が再コンポーズを誘発する。
                     deepLinkBookId = deepLinkBookId.value,
                     onDeepLinkConsumed = { deepLinkBookId.value = null },
@@ -115,6 +136,12 @@ class MainActivity : ComponentActivity() {
     companion object {
         /** 変換完了通知 → 読書画面 deep link 用の bookId extra キー（M11）。 */
         const val EXTRA_BOOK_ID = "com.novelreader.extra.BOOK_ID"
+
+        /** 設定スキーマ版（evolve）。enum の生 String 保存の改名耐性のため prefs に記録する現行版。 */
+        const val SETTINGS_SCHEMA_VERSION = 1
+
+        /** 設定スキーマ版の prefs キー。 */
+        const val KEY_SETTINGS_SCHEMA_VERSION = "settings_schema_version"
     }
 }
 
@@ -132,10 +159,13 @@ private fun loadInitialTheme(prefs: SharedPreferences, systemDark: Boolean): Rea
 private fun NovelReaderApp(
     appTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
+    followingSystem: Boolean,
+    onFollowSystem: () -> Unit,
     deepLinkBookId: String?,
     onDeepLinkConsumed: () -> Unit,
 ) {
     val navController = rememberNavController()
+    val appContext = LocalContext.current.applicationContext
     val viewModel: BookshelfViewModel = viewModel()
     // 発見系（ホーム/ジャンル/結果一覧）はクエリ文脈を画面間で受け渡すため単一VMを共有する。
     // ロードは ensureHomeLoaded の遅延型なので、ここで生成しても本棚起動時に通信は発生しない。
@@ -150,6 +180,13 @@ private fun NovelReaderApp(
         val content = viewModel.uiState.first { it is BookshelfUiState.Content } as BookshelfUiState.Content
         val book = content.books.firstOrNull { it.id == bookId }
         if (book != null) {
+            // 通知テレポートの着地が果たされた時点で stale 通知を取り下げる（UX監査 notify Minor）。
+            // なぜここか: deep link の意図（この本を開く）が満たされた確定点で、変換完了通知と
+            // 当該作品の新着通知は「呼び出し状」としての役目を終えているため（押しても同じ場所に来るだけ）。
+            (appContext as NovelReaderApplication).let { app ->
+                app.cancelCompletionNotification()
+                book.ncode?.let { app.cancelNewEpisodeNotification(it) }
+            }
             // 読書位置は保存済み進捗を尊重する（生命線）。未読なら index.html。
             // 境界: bookId は deep link 由来の String＝型付き API へ渡す直前に BookId へ包む。
             val startFile = viewModel.getLastRead(BookId(bookId)) ?: "index.html"
@@ -365,6 +402,8 @@ private fun NovelReaderApp(
                             viewModel = viewModel,
                             readingTheme = appTheme,
                             onThemeChange = onThemeChange,
+                            followingSystem = followingSystem,
+                            onFollowSystem = onFollowSystem,
                             onNavigateToBookshelf = { navController.popBackStack("bookshelf", false) },
                         )
                     } else {

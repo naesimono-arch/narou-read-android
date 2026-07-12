@@ -10,10 +10,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,10 +28,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -42,7 +47,14 @@ import com.novelreader.ui.theme.ReadingColors
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 
+// 本文の最大行長の字数基準（全角約1字＝1em＝fontSize として、約40字ぶんを1行上限とする）。
+// なぜ字数基準か: 旧・固定 dp(600) はフォント拡大で1行の字数が痩せ細り版面のリズムがフォント設定で
+// 崩れた（reach 21-D 版面の自律性）。字数を軸にすればフォント/フォントスケールが変わっても1行の
+// 字数がほぼ一定に保たれる。危険域（60字超）には達しないため過長化の害は限定的。
+private const val BODY_MEASURE_CHARS = 40
+
 /** 章本文を LazyColumn でレンダリングする */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ChapterContent(
     content: ChapterContent,
@@ -58,6 +70,12 @@ internal fun ChapterContent(
 ) {
     val paragraphs = remember(content) { content.segments.splitIntoParagraphs() }
 
+    // 本文最大幅＝約40字×fontSize（sp→dp 変換で fontScale も織り込むため、OS 文字拡大時も字数基準が崩れない）。
+    // 見出しと本文で同一値を共有し版面を揃える。スマホ幅では実際の行長は左右余白が決めるので、
+    // この上限が効くのは広幅端末（タブレット等）。行間 em はフォントサイズに比例するため、字数を一定に
+    // 保つこの版面上限のもとで measure（字数）が安定し、em ベースの行間が結果的に行長へ追従する。
+    val bodyMaxWidth: Dp = with(LocalDensity.current) { (BODY_MEASURE_CHARS * fontSize).sp.toDp() }
+
     // 本文段落の TextStyle は全段落で共通（色・文字サイズ・行間のみに依存）なので、
     // LazyColumn の items 内（＝可視段落ごと）で作らず、ここで1回だけ生成して各 item へ渡す。
     // なぜ hoist するか: 以前は ParagraphItem 内で段落ごとに remember していたため、可視段落数ぶん
@@ -70,6 +88,10 @@ internal fun ChapterContent(
             fontSize = fontSize.sp,
             // ユーザー設定の行間（em）。RubyText も style=bodyStyle 経由でこの lineHeight を受け取るため、
             // ここ1か所の変更でルビ行にも反映される。可変幅は 2.3〜2.8em に絞って前行とのルビ被りを抑制。
+            // 行間を「行長の関数」にする件（reach 21-D）は、版面幅を字数基準（bodyMaxWidth）へ変えたことで
+            // 1行の字数がフォント設定によらずほぼ一定に保たれ、em ベースの行間が measure に自動追従するため
+            // 構造的に解消する。加えて行間へ行長係数を直接掛ける自動調整は、ユーザーの明示的な「行間」設定と
+            // モックの固定 leading を打ち消す意匠判断（ADR 0005/0014）になるため本タスクでは掛けない（要design裁定）。
             lineHeight = lineHeightEm.em,
             fontFamily = MinchoFamily,
             letterSpacing = 0.sp,
@@ -100,9 +122,12 @@ internal fun ChapterContent(
         // 64dp + ステータスバーインセットになるため、64dp 固定だと先頭行がバーに隠れる。
         // bottom: オーバーレイ化したボトムバー（実高 ≒ 80dp + ナビバーインセット）の分を確保し、
         // 末尾行がバーに隠れないようにする。ナビバー実高は端末（ボタン/ジェスチャー）で異なるため実測値を加算。
+        // なぜ IgnoringVisibility か: 没入切替で hide/show(systemBars()) するようになった（Design/09-D）
+        // ため、可視状態追従の statusBars/navigationBars だとバー出没のたびに inset が 0⇄実測値で振れ、
+        // 本文全体が約24dp/ナビバー分リフローして視覚ジャンプする。版面は「バーが在るときの寸法」で固定する。
         contentPadding = PaddingValues(
-            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 64.dp,
-            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 80.dp,
+            top = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding() + 64.dp,
+            bottom = WindowInsets.navigationBarsIgnoringVisibility.asPaddingValues().calculateBottomPadding() + 80.dp,
         ),
     ) {
         // 章見出し（モック reading-D .chap-h）: 章タイトルを明朝で中央寄せ＋藍の短ルール。
@@ -113,6 +138,7 @@ internal fun ChapterContent(
                 colors = colors,
                 fontSize = fontSize,
                 bodyMarginDp = bodyMarginDp,
+                bodyMaxWidth = bodyMaxWidth,
             )
         }
 
@@ -139,7 +165,7 @@ internal fun ChapterContent(
                 colors = colors,
                 bodyStyle = bodyStyle,
                 modifier = Modifier
-                    .widthIn(max = 600.dp)
+                    .widthIn(max = bodyMaxWidth)
                     // ユーザー設定の左右余白（スマホ幅では実質これが行長を決める）
                     .padding(horizontal = bodyMarginDp.dp),
             )
@@ -161,11 +187,13 @@ private fun ChapterHeader(
     colors: ReadingColors,
     fontSize: Int,
     bodyMarginDp: Int,
+    // 本文と同一の字数基準の最大幅（版面を本文と揃える）
+    bodyMaxWidth: Dp,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .widthIn(max = 600.dp)
+            .widthIn(max = bodyMaxWidth)
             // 本文と同じユーザー設定余白に追従させ、見出しと本文の版面を揃える
             .padding(horizontal = bodyMarginDp.dp)
             .padding(top = 14.dp, bottom = 26.dp),
@@ -180,6 +208,8 @@ private fun ChapterHeader(
             lineHeight = 1.6.em,
             color = colors.text,
             textAlign = TextAlign.Center,
+            // 視覚的に見出し（明朝・大きめ・ルール付き）なので TalkBack の見出しジャンプ対象にする（WCAG 4.1.3 / 1.3.1）。
+            modifier = Modifier.semantics { heading() },
         )
         Spacer(Modifier.height(15.dp))
         // 藍の短いルール（48dp×2dp）。モック .chap-h .rule（--rule 藍 opacity .85）。
@@ -249,7 +279,10 @@ private fun ParagraphItem(
                         text = block.label,
                         // モック .block .lbl: ラベルは藍（accent）。本文インク色ではなくアクセントで小見出し化する。
                         style = bodyStyle.copy(fontWeight = FontWeight.Bold, color = colors.accent),
-                        modifier = Modifier.padding(bottom = 4.dp),
+                        // 前書き/後書きラベルは視覚上の小見出し＝見出しジャンプ対象にする（WCAG 4.1.3 / 1.3.1）。
+                        modifier = Modifier
+                            .semantics { heading() }
+                            .padding(bottom = 4.dp),
                     )
                     innerParagraphs.forEach { innerPara ->
                         if (innerPara.isEmpty()) {

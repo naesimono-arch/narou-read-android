@@ -1,15 +1,20 @@
 package com.novelreader.ui
 
+import android.app.Activity
 import android.content.Context
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.lazy.LazyListState
@@ -52,6 +57,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -63,6 +72,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.novelreader.NovelReaderApplication
@@ -78,6 +90,9 @@ import com.novelreader.narou.narouWorkUrl
 import com.novelreader.narou.model.Ncode
 import com.novelreader.parser.ChapterHtmlParser
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.FontSectionTitle
+import com.novelreader.ui.theme.FontSubTitle
+import com.novelreader.ui.theme.MotionDurationCrossfade
 import com.novelreader.ui.theme.MotionSpringBarSettle
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
@@ -90,8 +105,10 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
 /**
@@ -118,6 +135,9 @@ fun ReadingScreen(
     // テーマは MainActivity が持つ単一正本を受け取る（本棚と共有して全体を同期させるため）。
     readingTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
+    // 「システムに従う」＝reading_theme 未宣言状態（正本・切替とも MainActivity 側）。
+    followingSystem: Boolean,
+    onFollowSystem: () -> Unit,
     onNavigateToBookshelf: () -> Unit,
 ) {
     // 章⇄目次の内部遷移履歴（Back で1段ずつ遡るためのスタック）。末尾が現在表示中のファイル。
@@ -143,15 +163,47 @@ fun ReadingScreen(
         mutableStateOf(startFile.takeIf { it != "index.html" })
     }
 
-    // 章/目次へ「進む」共通処理。履歴を1段積み、章なら現在章更新＋進捗保存する。
+    // 参照ジャンプの退避元（C1／公理14D・公理6）。目次から別章を「確認しに」開いたときの
+    // 元の続き位置（章ファイル名）を保持する。null = 参照モードでない＝通常読書。
+    // なぜ rememberSaveable か: 参照中にプロセス再生成されても「続きに戻る」導線を失わないため。
+    // なぜ生 String? を素の既定 Saver で保存できるか: 章ファイル名は String のため Saver 不要。
+    var jumpOrigin by rememberSaveable(key = "jumpOrigin_${bookId.value}") {
+        mutableStateOf<String?>(null)
+    }
+    // 参照モード中は現在地の自動保存を抑止する（続き先端の DB 値を守るため）。
+    val referenceMode = jumpOrigin != null
+
+    // 章/目次へ「進む」共通処理（前後章ボタン・目次ボタン用）。履歴を1段積み、章なら現在章を更新する。
     // 【生命線】index.html（目次）への遷移は進捗を保存しない（ブロックリスト方式の既存保証を踏襲）。
-    // なぜ: 目次を開いただけで lastReadFilename が index.html に上書きされると読書再開位置が壊れるため。
+    // なぜ eager saveProgress を廃したか（C1／公理14D・公理6）: 目次以外への遷移で無条件に
+    // saveProgress（scrollIndex=0）を書くと、目次から章を確認しに開いた瞬間に読みかけ先端が
+    // 章先頭へ恒久上書きされ喪失していた。新章の位置は ChapterScreen の debounce/ON_STOP
+    // フラッシュが現在地で保存するため、遷移時点の即時保存は不要（＝二重に壊す原因を除去）。
     val navigateForward: (String) -> Unit = { target ->
         navHistory = pushNavHistory(navHistory, target)
         if (target != "index.html") {
             lastChapterFile = target
-            // 画面内部はファイル名を String で運ぶため、型付き API 境界でのみ ChapterFilename に包む。
-            viewModel.saveProgress(bookId, ChapterFilename(target))
+        }
+        // 前後章で参照元の続き章に戻ったら参照モードを解除（続きに戻るチップの役目終了）。
+        if (target == jumpOrigin) {
+            jumpOrigin = null
+        }
+    }
+
+    // 目次からの章選択（C1）。前後章の「読み進め」と区別し、続き位置と別の章を選んだら
+    // 参照ジャンプとみなして続き位置を jumpOrigin へ退避する。滞留昇格まで自動保存は抑止する。
+    // なぜ「初回のみ退避」か: 参照中にさらに目次で別章へ飛んでも、真の続き位置（最初に離れた章）を
+    // 保持し続けるため（2段目以降の退避で jumpOrigin を上書きしない）。
+    val onSelectChapterFromToc: (String) -> Unit = { target ->
+        val origin = lastChapterFile
+        if (jumpOrigin == null && origin != null && origin != target) {
+            jumpOrigin = origin
+        }
+        navHistory = pushNavHistory(navHistory, target)
+        lastChapterFile = target
+        // 目次から参照元の続き章そのものを選び直したら参照モードを解除（既に続きへ戻ったため）。
+        if (target == jumpOrigin) {
+            jumpOrigin = null
         }
     }
 
@@ -168,6 +220,11 @@ fun ReadingScreen(
         if (target != "index.html") {
             lastChapterFile = target
         }
+        // Back で参照元の続き章まで戻ったら参照モードを解除（「続きに戻る」チップの役目終了）。
+        // 続き位置の DB 値は参照中に上書きしていないため、戻り先で通常保存を再開してよい。
+        if (target == jumpOrigin) {
+            jumpOrigin = null
+        }
     }
 
     // 読書再開位置。画面初回に一度だけ DB から取得する（章の途中から復元するため）。
@@ -181,6 +238,39 @@ fun ReadingScreen(
             scrollOffset = p?.scrollOffset ?: 0,
         )
     }
+
+    val scope = rememberCoroutineScope()
+
+    // 「続きに戻る」チップ（C1）。参照ジャンプの退避元へ復帰する。
+    // なぜ DB を取り直して chapterRestore を最新化するか: 参照中は現在地の自動保存を抑止しており
+    // DB は続き先端を保持している。入場時に一度取得した chapterRestore はその後の読み進めを
+    // 反映していないため、復帰直前に取り直して「章一致時のみスクロール注入」で先端へ正確に戻す。
+    val onReturnToContinuation: () -> Unit = {
+        val origin = jumpOrigin
+        if (origin != null) {
+            scope.launch {
+                val p = viewModel.getProgress(bookId)
+                chapterRestore = ChapterRestore(
+                    targetFile = p?.lastReadFilename,
+                    scrollIndex = p?.scrollIndex ?: 0,
+                    scrollOffset = p?.scrollOffset ?: 0,
+                )
+                navHistory = pushNavHistory(navHistory, origin)
+                lastChapterFile = origin
+                jumpOrigin = null
+            }
+        }
+    }
+
+    // 滞留昇格（C1）。参照ジャンプ先に十分留まった＝読み進めと判断したら参照モードを解除する。
+    // 以後は現在地が正規の読書位置として保存される（現在地の即時保存は ChapterScreen 側が行う）。
+    val onPromoteToReading: () -> Unit = {
+        jumpOrigin = null
+    }
+
+    // 読了記録（ssot Major）。最終章の末尾までスクロールし切ったとき ChapterScreen から一度だけ呼ばれる。
+    // 呼び出しは冪等（reachedEnd を UPDATE で立てるだけ・sticky）。参照モード中は ChapterScreen 側で抑止する。
+    val onReachedEnd: () -> Unit = { viewModel.markReachedEnd(bookId) }
 
     // テーマ（readingTheme/onThemeChange）は MainActivity から受け取る単一正本を使う。
     // 本棚(NovelReaderTheme)と同じ状態を共有し設定変更を全体へ同期させるため、ここでは pref を
@@ -271,8 +361,11 @@ fun ReadingScreen(
             }
             if (entries.isEmpty()) TocState.Empty else TocState.Content(entries)
         } catch (e: Exception) {
-            // 例外時は静かに空表示せず原因を出して再試行導線を与える（読者が復帰できるように）
-            TocState.Error(e.message ?: "目次の読み込みに失敗しました")
+            // 例外時は静かに空表示せず、再試行導線つきのエラー状態にする（読者が復帰できるように）。
+            // なぜ固定文言か（errtext 08§B①）: 生の例外メッセージは絶対パスや ENOENT 等の内部理由を
+            // 含み UI に露出すると読者を混乱させるため。原因の詳細は Log.e で開発ログにのみ残す。
+            Log.e("ReadingScreen", "目次パース失敗", e)
+            TocState.Error("目次を読み込めませんでした")
         }
     }
 
@@ -281,9 +374,14 @@ fun ReadingScreen(
     val tocEntries = (tocState as? TocState.Content)?.entries ?: emptyList()
 
     if (resolvedFile == null) {
-        // htmlDirPath 自体が存在しない致命的エラー（再試行不可）
+        // HTML 実体（index.html／章ファイル）がこの端末に無い＝本文データ不在。
+        // 主因はバックアップ復元後（ADR 0015 の層別 Auto Backup＝メタデータのみ復元・HTML 実体は非バックアップ）で、
+        // 蔵書メタと読書位置は在るが本文が端末に存在しないケース（=C2 graceful degrade）。破損で HTML が消えた
+        // 場合も救済策は同じ「同じ PDF を取り込み直す」なので、固定文言で行き止まりにせず再取込へ導く。
+        // 【重要】進捗 DB は一切触らない（位置・しおりを保持したまま再取込で続きから読めるようにするのが C2 の要件）。
+        // 再取込はファイルピッカー起点＝本棚からしか始められないため、導線は「本棚に戻る」のみ（onRetry は付けない）。
         ReadingErrorScreen(
-            message = "書籍データが見つかりません",
+            message = "本文データがこの端末にありません。同じ PDF を取り込み直すと続きから読めます",
             colors = readingColors,
             onNavigateToBookshelf = onNavigateToBookshelf,
         )
@@ -295,8 +393,8 @@ fun ReadingScreen(
             tocState = tocState,
             colors = readingColors,
             currentChapterFile = lastChapterFile,
-            // 章選択は「進む」遷移＝履歴を積み進捗も保存する（navigateForward が index 以外を保存）
-            onSelectChapter = navigateForward,
+            // 章選択は参照ジャンプ扱い（C1）。続き位置と別章なら jumpOrigin へ退避し自動保存を抑止する。
+            onSelectChapter = onSelectChapterFromToc,
             onNavigateToBookshelf = onNavigateToBookshelf,
             onRetry = { tocRetryKey++ },
         )
@@ -331,6 +429,8 @@ fun ReadingScreen(
         onRetryNcodeSearch = { viewModel.retryNcodeSearch() },
         readingTheme = readingTheme,
         onThemeChange = onThemeChange,
+        followingSystem = followingSystem,
+        onFollowSystem = onFollowSystem,
         fontSize = fontSize,
         onFontSizeChange = onFontSizeChange,
         onFontSizePersist = onFontSizePersist,
@@ -350,6 +450,12 @@ fun ReadingScreen(
         onNavigateToBookshelf = onNavigateToBookshelf,
         // 前後章・目次ボタンからの遷移も「進む」＝履歴を積む（Back で1段ずつ遡れる）
         onNavigateTo = navigateForward,
+        // 参照ジャンプ（C1）: 抑止フラグ・「続きに戻る」復帰・滞留昇格を ChapterScreen へ渡す。
+        referenceMode = referenceMode,
+        onReturnToContinuation = onReturnToContinuation,
+        onPromoteToReading = onPromoteToReading,
+        // 読了検出（ssot Major）: 最終章の末尾到達を ChapterScreen が検知して呼ぶ。
+        onReachedEnd = onReachedEnd,
     )
 }
 
@@ -362,6 +468,12 @@ private data class ChapterRestore(
 
 /** 内部遷移履歴の上限。長い読書セッションで際限なく伸びるのを防ぐ（超過分は最古から捨てる）。 */
 private const val MAX_NAV_HISTORY = 32
+
+/** 参照ジャンプ滞留昇格（C1）: この時間だけ参照先に滞在したら読み進めとみなし正規位置へ昇格。 */
+private const val REFERENCE_DWELL_TIMEOUT_MS = 20_000L
+
+/** 参照ジャンプ滞留昇格（C1）: この段落数だけスクロールしたら読み進めとみなし正規位置へ昇格。 */
+private const val REFERENCE_DWELL_SCROLL_ITEMS = 4
 
 /**
  * 章⇄目次の内部遷移履歴に1段追加する純関数（重複排除＋上限管理）。テスト対象。
@@ -397,6 +509,8 @@ private fun ChapterScreen(
     onRetryNcodeSearch: () -> Unit,
     readingTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
+    followingSystem: Boolean,
+    onFollowSystem: () -> Unit,
     fontSize: Int,
     onFontSizeChange: (Int) -> Unit,
     // 永続化はスライダー確定時のみ呼ぶ（ドラッグ中の毎値書き込みを避ける）
@@ -412,6 +526,12 @@ private fun ChapterScreen(
     onSaveScroll: (index: Int, offset: Int) -> Unit,
     onNavigateToBookshelf: () -> Unit,
     onNavigateTo: (String) -> Unit,
+    // 参照ジャンプ（C1）。referenceMode 中は現在地の自動保存を抑止し「続きに戻る」チップを出す。
+    referenceMode: Boolean,
+    onReturnToContinuation: () -> Unit,
+    onPromoteToReading: () -> Unit,
+    // 読了検出（ssot Major）。最終章の末尾を可視化したとき一度だけ呼ぶ（参照モード中は抑止）。
+    onReachedEnd: () -> Unit,
 ) {
     val colors = rememberReadingColors(readingTheme)
     // 画面ローカルの UI 状態（表示設定シート開閉・紐付けシート開閉・ボトムバー実測高・コルーチンスコープ・
@@ -437,9 +557,12 @@ private fun ChapterScreen(
             try {
                 val content = ChapterHtmlParser.parse(File(htmlDirPath, currentFile))
                 if (content != null) ParseResult.Success(content)
-                else ParseResult.Error("ファイルの読み込みに失敗しました", currentFile)
+                else ParseResult.Error("章を開けませんでした", currentFile)
             } catch (e: Exception) {
-                ParseResult.Error(e.message ?: "不明なエラー", currentFile)
+                // 固定文言化（errtext 08§B①）: 生の例外メッセージ（絶対パス/ENOENT 等）を UI に出さず、
+                // 原因の詳細は Log.e で開発ログにのみ残す。UI は再試行導線つきの固定文言に留める。
+                Log.e("ReadingScreen", "章パース失敗: $currentFile", e)
+                ParseResult.Error("章を開けませんでした", currentFile)
             }
         }
     }
@@ -510,6 +633,19 @@ private fun ChapterScreen(
         snapAnimationSpec = null,
     )
 
+    // 入場時既定=「無」（d-chrome Design/09-A）。章題は本文先頭の ChapterHeader が担うため、
+    // 入場時に上部バーを見せる必要はない。heightOffsetLimit は TopAppBar が実測後に負値へ更新するため、
+    // 確定を待って一度だけ全退避する（初期 0 のまま畳んでも効かないため待つ）。
+    // なぜ rememberSaveable の guard か: ユーザーが一度バーを出した後（プロセス再生成の復元含む）に
+    // 再び勝手に畳んで操作を奪わないため。topAppBarState 自体も heightOffset を復元するので二重に安全。
+    var didInitialCollapse by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(topAppBarState) {
+        if (didInitialCollapse) return@LaunchedEffect
+        snapshotFlow { topAppBarState.heightOffsetLimit }.first { it < 0f }
+        topAppBarState.heightOffset = topAppBarState.heightOffsetLimit
+        didInitialCollapse = true
+    }
+
     // enterAlwaysScrollBehavior のデフォルト接続はスクロールを横取りしやすい。
     // 読書体験を優先するため、本文には常にスクロールを渡しつつバー状態だけ追従させる。
     // 章ごとに初期スクロール位置付きで生成し、remember(currentFile) で章移動時に
@@ -526,12 +662,66 @@ private fun ChapterScreen(
     // 含めなければ最初に捕捉した古い参照（陳腐化した resolvedFile capture）を呼び続ける。
     // 最新参照へ更新する State 越しに呼ぶことで、コルーチンは再起動せず常に最新の onSaveScroll を呼ぶ。
     val latestOnSaveScroll by rememberUpdatedState(onSaveScroll)
+    // 参照モードの最新値を State 越しに読む（コルーチンを再起動させずに抑止/再開を切り替えるため）。
+    val referenceModeState = rememberUpdatedState(referenceMode)
     LaunchedEffect(lazyListState, currentFile) {
         snapshotFlow {
             lazyListState.firstVisibleItemIndex to lazyListState.firstVisibleItemScrollOffset
         }
             .debounce(400)
-            .collect { (index, offset) -> latestOnSaveScroll(index, offset) }
+            // 参照ジャンプ中（C1）は現在地を書かない＝続き先端の DB 値を守る。昇格後に再開する。
+            .collect { (index, offset) -> if (!referenceModeState.value) latestOnSaveScroll(index, offset) }
+    }
+
+    // 滞留昇格（C1）: 参照ジャンプ先に一定スクロール到達 or 一定時間の滞在で「読み進め」と判断し、
+    // 参照モードを解除して現在地を正規の読書位置として保存する（参照ジャンプと読み進めの区別）。
+    // なぜ if で括った LaunchedEffect か: referenceMode が true の間だけ滞留タイマーを走らせ、
+    // 昇格（onPromoteToReading で referenceMode=false）や画面離脱で自動的にキャンセルさせるため。
+    if (referenceMode) {
+        LaunchedEffect(currentFile) {
+            // どちらか早い方で昇格。タイムアウト（＝十分に滞在）でもスクロール到達でも読み進めとみなす。
+            withTimeoutOrNull(REFERENCE_DWELL_TIMEOUT_MS) {
+                snapshotFlow { lazyListState.firstVisibleItemIndex }
+                    .first { it >= REFERENCE_DWELL_SCROLL_ITEMS }
+            }
+            onPromoteToReading()
+            // 昇格直後に現在地を保存して「今ここ」を確定させる（onSaveScroll は抑止されない生の保存）。
+            latestOnSaveScroll(
+                lazyListState.firstVisibleItemIndex,
+                lazyListState.firstVisibleItemScrollOffset,
+            )
+        }
+    }
+
+    // 読了検出（ssot Major 2026-07-12）: 最終章で末尾アイテムまで可視化されたら一度だけ読了を記録する。
+    // なぜ最終章限定か: 読了＝「本の末尾に到達」なので、中間章の末尾は継続であり読了ではない（isLastChapter で絞る）。
+    // なぜ参照モード中は昇格しないか（C1）: 目次から最終章を「確認しに」開いただけで読了になる事故を防ぐため、
+    //   自動保存抑止と同じ referenceMode ゲートに載せる（覗き見は読了にしない）。
+    // なぜ snapshotFlow か: layoutInfo（末尾アイテムの可視判定）はフレーム毎に変わるフレームレート state で、
+    //   composition 内で読むと毎フレーム再コンポーズを誘発する。snapshotFlow で composition 外へ逃がして軽く観測する。
+    // 末尾判定: 可視アイテムの最終 index が総アイテム数-1 以上＝リスト末尾（最終段落 or 継続カード）が画面に入った。
+    // marked ローカルで一度だけに絞る（markReachedEnd 自体は冪等だが不要な DB 叩きを避ける）。章再入場で作り直され
+    //   marked=false に戻るため、参照モードで見た末尾は次回の通常読書で拾い直せる（自己回復）。
+    val latestOnReachedEnd by rememberUpdatedState(onReachedEnd)
+    if (isLastChapter) {
+        LaunchedEffect(lazyListState, currentFile) {
+            var marked = false
+            snapshotFlow {
+                val layoutInfo = lazyListState.layoutInfo
+                val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index
+                val total = layoutInfo.totalItemsCount
+                // 末尾アイテムが可視かつ実アイテムがある（Loading の 0 件を末尾誤検知しない）。
+                lastVisibleIndex != null && total > 0 && lastVisibleIndex >= total - 1
+            }
+                .distinctUntilChanged()
+                .collect { atEnd ->
+                    // 参照モード中は記録しない（覗き見で読了にしない）。抑止フラグは最新値を State 越しに読む。
+                    if (atEnd && !marked && !referenceModeState.value) {
+                        marked = true
+                        latestOnReachedEnd()
+                    }
+                }
+        }
     }
 
     // 離脱時（アプリ background 化＝ON_STOP）に最終スクロール位置を即時フラッシュする。
@@ -549,7 +739,8 @@ private fun ChapterScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, lazyListState) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP) {
+            // 参照ジャンプ中（C1）は ON_STOP でも書かない＝続き先端の DB 値を守る。
+            if (event == Lifecycle.Event.ON_STOP && !referenceModeState.value) {
                 latestOnSaveScroll(
                     lazyListState.firstVisibleItemIndex,
                     lazyListState.firstVisibleItemScrollOffset,
@@ -558,6 +749,39 @@ private fun ChapterScreen(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // ────── 没入バー契約＋消灯抑止（d-chrome Design/09 D・F）──────
+    // なぜ view から window を辿るか: Edge-to-Edge（MainActivity で setDecorFitsSystemWindows(false)）済みの
+    // ウィンドウに対し、Compose から WindowInsetsController でシステムバーの可視性を直接駆動するため。
+    val view = LocalView.current
+    DisposableEffect(view) {
+        val window = (view.context as? Activity)?.window
+        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+        // 09-F 消灯抑止: 読書中（章表示中のみ）は画面を消灯させない。長章の無操作読書で暗転しないように。
+        view.keepScreenOn = true
+        // 09-D バー契約: システムバーを隠しても縁スワイプで一時的に呼び戻せる挙動にする。
+        controller?.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        onDispose {
+            // 読書画面を離れたら消灯抑止を解除し、システムバーを必ず戻す（本棚・発見系を没入にしない）。
+            view.keepScreenOn = false
+            controller?.show(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
+    // 09-D バー契約: 自作の上下バー（collapsedFraction）とシステムバーを同フレームで出入りさせる。
+    // これが無いと自作バーは退避してもOSのステータス/ナビバーが黒衣で残り、読書画面が一度も「無」に
+    // 到達しなかった。collapsedFraction<0.5＝自作バー表示側 → システムバーも表示、以外は隠す。
+    LaunchedEffect(topAppBarState, view) {
+        val window = (view.context as? Activity)?.window ?: return@LaunchedEffect
+        val controller = WindowCompat.getInsetsController(window, view)
+        snapshotFlow { topAppBarState.collapsedFraction < 0.5f }
+            .distinctUntilChanged()
+            .collect { chromeVisible ->
+                if (chromeVisible) controller.show(WindowInsetsCompat.Type.systemBars())
+                else controller.hide(WindowInsetsCompat.Type.systemBars())
+            }
     }
 
     // ────── 没入クローム復帰ヒント（層②）──────
@@ -628,6 +852,8 @@ private fun ChapterScreen(
         onBodyMarginPersist = onBodyMarginPersist,
         readingTheme = readingTheme,
         onThemeChange = onThemeChange,
+        followingSystem = followingSystem,
+        onFollowSystem = onFollowSystem,
         lazyListState = lazyListState,
         topAppBarState = topAppBarState,
         scrollBehavior = scrollBehavior,
@@ -638,6 +864,9 @@ private fun ChapterScreen(
         ncode = ncode,
         continuationInfo = continuationInfo,
         showChromeHint = showChromeHint,
+        // 参照ジャンプ中（C1）は「続きに戻る」チップを表示する。
+        showReturnChip = referenceMode,
+        onReturnToContinuation = onReturnToContinuation,
         bookTitle = bookTitle,
         ncodeSearchState = ncodeSearchState,
         onSearchNcode = onSearchNcode,
@@ -676,6 +905,8 @@ private fun ChapterScreenContent(
     onBodyMarginPersist: () -> Unit,
     readingTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
+    followingSystem: Boolean,
+    onFollowSystem: () -> Unit,
     // トップバー退避・スクロール位置の state holder は route が保持する副作用（没入ヒント・スクロール保存）と
     // 共有するため route で生成し、ここへ渡す（描画はこの holder を読むだけ＝純移動）。
     lazyListState: LazyListState,
@@ -688,6 +919,9 @@ private fun ChapterScreenContent(
     ncode: Ncode?,
     continuationInfo: ContinuationInfo?,
     showChromeHint: Boolean,
+    // 参照ジャンプ（C1）の「続きに戻る」チップ表示と復帰コールバック。
+    showReturnChip: Boolean,
+    onReturnToContinuation: () -> Unit,
     bookTitle: String,
     ncodeSearchState: NcodeSearchUiState,
     onSearchNcode: (query: String) -> Unit,
@@ -797,25 +1031,31 @@ private fun ChapterScreenContent(
                         // 継続導線スロット。最終章のみ: 未紐付け=静かな探索導線／紐付け済み=継続カード。
                         // ローカル val に固めるのはスマートキャストを効かせるため。
                         val info = continuationInfo
+                        // liveRegion=Polite（a11y 公理11F/WCAG4.1.3）: 継続導線は最終章で非同期に
+                        // 出現するため、フォーカス外でも TalkBack が出現を穏やかに告知するよう包む。
                         val continuationSlot: (@Composable () -> Unit)? = when {
                             !isLastChapter -> null
                             ncode == null -> ({
-                                ContinuationLinkPrompt(
-                                    colors = colors,
-                                    bodyMarginDp = bodyMarginDp,
-                                    onClick = { showLinkSheet = true },
-                                )
+                                Box(modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
+                                    ContinuationLinkPrompt(
+                                        colors = colors,
+                                        bodyMarginDp = bodyMarginDp,
+                                        onClick = { showLinkSheet = true },
+                                    )
+                                }
                             })
                             info != null -> ({
-                                ContinuationCard(
-                                    info = info,
-                                    colors = colors,
-                                    bodyMarginDp = bodyMarginDp,
-                                    // Custom Tabs 起動（再入ガード）は副作用のため route へ委譲する。
-                                    onReadContinuation = onReadContinuation,
-                                    onOpenWorkPage = onOpenWorkPage,
-                                    onUnlink = { onLinkNcode(null) },
-                                )
+                                Box(modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
+                                    ContinuationCard(
+                                        info = info,
+                                        colors = colors,
+                                        bodyMarginDp = bodyMarginDp,
+                                        // Custom Tabs 起動（再入ガード）は副作用のため route へ委譲する。
+                                        onReadContinuation = onReadContinuation,
+                                        onOpenWorkPage = onOpenWorkPage,
+                                        onUnlink = { onLinkNcode(null) },
+                                    )
+                                }
                             })
                             else -> null // 照会中 or 照会失敗（オフライン）→ 静かに出さない
                         }
@@ -830,12 +1070,20 @@ private fun ChapterScreenContent(
                         )
                     }
 
-                    is ParseResult.Error -> ReadingErrorScreen(
-                        message = result.message,
-                        colors = colors,
-                        onNavigateToBookshelf = onNavigateToBookshelf,
-                        onRetry = onRetryParse,
-                    )
+                    // liveRegion=Polite（a11y 公理11F/WCAG4.1.3）: 章パースが Loading→Error へ
+                    // 非同期に切り替わったことをフォーカス外でも TalkBack が告知する。ReadingErrorScreen は
+                    // Modifier を受け取らないため、告知用に semantics つきの Box で包む（併合はしない＝
+                    // 「本棚に戻る」「再試行」ボタンを個別ノードのまま残す）。
+                    is ParseResult.Error -> Box(
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    ) {
+                        ReadingErrorScreen(
+                            message = result.message,
+                            colors = colors,
+                            onNavigateToBookshelf = onNavigateToBookshelf,
+                            onRetry = onRetryParse,
+                        )
+                    }
                 }
             }
         }
@@ -901,7 +1149,7 @@ private fun ChapterScreenContent(
                     is ParseResult.Success -> Text(
                         text = r.content.title,
                         fontFamily = MinchoFamily,
-                        fontSize = 16.sp,
+                        fontSize = FontSectionTitle,
                         maxLines = 1,
                         // 長い章タイトルは文字途中で切らず末尾を「…」で省略する
                         overflow = TextOverflow.Ellipsis,
@@ -941,10 +1189,11 @@ private fun ChapterScreenContent(
         )
 
         // 没入クローム復帰ヒント（初回消灯時に数秒フェード）。タップは奪わない純表示。
+        // fade は motion トークン MotionDurationCrossfade 経由（d-motion 08 禁止則②＝野良既定に委ねない）。
         AnimatedVisibility(
             visible = showChromeHint,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = fadeIn(tween(MotionDurationCrossfade)),
+            exit = fadeOut(tween(MotionDurationCrossfade)),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 96.dp),
@@ -957,12 +1206,38 @@ private fun ChapterScreenContent(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
                 Text(
-                    text = "画面中央をタップでメニュー表示",
+                    // 実タップ領域は本文全面（中央に限らない）ため文言も全面に一致させる（gesture 指摘）。
+                    text = "画面をタップでメニュー",
                     color = colors.topBarIcon,
                     fontFamily = MinchoFamily,
-                    fontSize = 13.sp,
+                    fontSize = FontSubTitle,
                 )
             }
+        }
+
+        // 「続きに戻る」チップ（C1）。参照ジャンプ中だけ上端中央に常時表示し、退避元の続き位置へ復帰する。
+        // 意匠は復帰ヒントの丸ピルと同型（新意匠を発明しない）。ヒントと違い自動消灯せず、タップ可能。
+        AnimatedVisibility(
+            visible = showReturnChip,
+            enter = fadeIn(tween(MotionDurationCrossfade)),
+            exit = fadeOut(tween(MotionDurationCrossfade)),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 8.dp),
+        ) {
+            Text(
+                text = "続きに戻る",
+                color = colors.topBarIcon,
+                fontFamily = MinchoFamily,
+                fontSize = FontSubTitle,
+                modifier = Modifier
+                    // 復帰ヒントと同じ半透明ピル。こちらはタップで退避元へ戻る。
+                    .clip(RoundedCornerShape(50))
+                    .background(colors.navBackground.copy(alpha = 0.92f))
+                    .clickable(onClick = onReturnToContinuation)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            )
         }
 
         if (showLinkSheet) {
@@ -990,6 +1265,8 @@ private fun ChapterScreenContent(
                 colors = colors,
                 readingTheme = readingTheme,
                 onThemeChange = onThemeChange,
+                followingSystem = followingSystem,
+                onFollowSystem = onFollowSystem,
                 fontSize = fontSize,
                 onFontSizeChange = onFontSizeChange,
                 onFontSizePersist = onFontSizePersist,
