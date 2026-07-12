@@ -66,12 +66,14 @@ should_remind = any(
 if not should_remind:
     sys.exit(0)
 
+# task_diary.md は 2026-07-12 に凍結（既存 #N 参照は有効・新規追記はしない）。
+# 新規の外部事実は docs/knowledge/ に1知見=1ファイル（採番衝突クラスを構造的に消すため）。
 reminder = (
     "[知見の置き場 想起] この変更に、コードコメントでは伝わらない知見・判断はあるか？\n"
-    "  ・外部プラットフォームの事実・落とし穴（根本原因/OEM固有動作） → task_diary.md\n"
+    "  ・外部プラットフォームの事実・落とし穴（根本原因/OEM固有動作） → docs/knowledge/ に1知見=1ファイル\n"
     "  ・不採用にした代替案・方式転換（Why-not） → docs/decisions/(ADR)\n"
     "  ・本アプリの実装パターン（コードが正本＝whyに絞る） → docs/patterns/\n"
-    "  ・既存エントリと重複、または自明なら追記不要。"
+    "  ・既存エントリ（task_diary #N 含む）と重複、または自明なら追記不要。"
 )
 
 # PostToolUse の additionalContext でモデルのコンテキストへ注入する（plain stdout は届かない）。
