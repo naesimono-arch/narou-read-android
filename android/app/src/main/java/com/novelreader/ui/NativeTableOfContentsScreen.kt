@@ -43,6 +43,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.model.TocEntry
+import com.novelreader.ui.theme.FontCaption
+import com.novelreader.ui.theme.FontSectionTitle
+import com.novelreader.ui.theme.FontSheetTitle
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
@@ -98,7 +101,7 @@ fun NativeTableOfContentsScreen(
                     Text(
                         "目次",
                         fontFamily = MinchoFamily,
-                        fontSize = 18.sp,
+                        fontSize = FontSheetTitle,
                         fontWeight = FontWeight.Medium,
                         letterSpacing = 0.12.em,
                     )
@@ -142,13 +145,15 @@ fun NativeTableOfContentsScreen(
                     text = "目次の読み込みに失敗しました",
                     color = colors.textSecondary,
                     fontFamily = MinchoFamily,
-                    fontSize = 16.sp,
+                    fontSize = FontSectionTitle,
                 )
                 Text(
                     text = tocState.message,
-                    color = colors.textSecondary.copy(alpha = 0.75f),
+                    // なぜ infoText か: 失敗理由＝意味を運ぶ文字。textSecondary の alpha 沈めは実効 AA 割れ
+                    //（ADR 0014-D・読書エラー画面と同じ裁定＝ReadingColors.infoText の素値を使う）。
+                    color = colors.infoText,
                     fontFamily = MinchoFamily,
-                    fontSize = 12.sp,
+                    fontSize = FontCaption,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
                 )
@@ -214,6 +219,12 @@ private fun TocList(
         // 保たれる。contentType は付けない: 全行が同一構造（左バー＋テキスト行）で1種類のため。
         itemsIndexed(entries, key = { _, entry -> entry.fileName }) { index, entry ->
             val isCurrent = index == currentIndex
+            // 既読区別（監査 ia Minor 15-§E）: 現在章より前は読み終えた章なので淡色（textSecondary）へ落とし、
+            // 「あとどれだけ」の見当識を与える。currentIndex から導出でき目次データ追加は不要。currentIndex<0
+            // （未読・現在章が目次に無い）なら既読は無い＝全章を未読色のまま出す。
+            // モック toc-D.html は現在章（.li.cur）しか区別せず既読表現を持たないため、この淡色化はモック非表現
+            // ＝最終ユーザー確認バッチ行き。色は既存 ReadingColors トークンのみ使用（直書き禁止）。
+            val isRead = currentIndex >= 0 && index < currentIndex
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -237,12 +248,16 @@ private fun TocList(
                         Text(
                             text = entry.title.ifEmpty { "第${index + 1}章" },
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-                            fontSize = 16.sp,
+                            fontSize = FontSectionTitle,
                             fontFamily = MinchoFamily,
                             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
                             lineHeight = 24.sp,
-                            // 現在読んでいる章はアクセント色＋太字で示す
-                            color = if (isCurrent) colors.accent else colors.text,
+                            // 現在章＝アクセント色＋太字／既読＝淡色（読み終えた見当識）／未読＝本文色。
+                            color = when {
+                                isCurrent -> colors.accent
+                                isRead -> colors.textSecondary
+                                else -> colors.text
+                            },
                         )
                     }
                     HorizontalDivider(color = colors.divider, thickness = 0.5.dp)

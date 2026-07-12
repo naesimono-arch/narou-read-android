@@ -83,7 +83,8 @@ class DiscoveryHomeContentTest {
     fun `検索アイコンでonOpenSearchが呼ばれる`() {
         var searched = false
         setContent(DiscoveryUiState.Empty, onOpenSearch = { searched = true })
-        composeTestRule.onNodeWithContentDescription("検索").performClick()
+        // ラベルは用語辞書（docs/patterns/discovery-terminology.md）＝検索画面名「探す」に一致させた。
+        composeTestRule.onNodeWithContentDescription("探す").performClick()
         assertTrue(searched)
     }
 }

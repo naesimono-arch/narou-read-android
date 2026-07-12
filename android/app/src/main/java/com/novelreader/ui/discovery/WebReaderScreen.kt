@@ -1,6 +1,7 @@
 package com.novelreader.ui.discovery
 
 import android.annotation.SuppressLint
+import android.os.Bundle
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -22,14 +23,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.viewinterop.AndroidView
 import com.novelreader.narou.model.Ncode
 import com.novelreader.narou.narouEpisodeUrl
 import com.novelreader.narou.narouWorkUrl
 import com.novelreader.narou.parseNarouEpisodeNumber
 import com.novelreader.viewmodel.WebReaderViewModel
+import com.novelreader.ui.theme.FontTopBarTitle
 
 /**
  * なろう作品をアプリ内 WebView で読む画面（機能②・ADR 0012）。
@@ -66,6 +70,26 @@ fun WebReaderScreen(
         if (startEpisode > 0) narouEpisodeUrl(ncode, startEpisode) else narouWorkUrl(ncode)
     }
 
+    // 構成変更（回転・ダーク切替・fontScale 変更）で Activity が再生成されると WebView も破棄される。
+    // 素朴に startUrl を再ロードすると、入場時の話（nav 引数 startEpisode）に戻り、読み進めた分・
+    // 前後ページ履歴・スクロールが巻き戻る（2026-07-12 UX/Design 全層監査 persist Major）。
+    // WebView.saveState/restoreState で「履歴スタック（＝今どの話か）」ごと持ち回り、再生成後も
+    // 同じ話・同じ履歴から続けられるようにする。
+    // 【規約厳守（ADR 0012）】saveState/restoreState はネイティブ WebView の状態シリアライズ API であり、
+    // evaluateJavascript でも DOM 改変でもない＝「加工なし・注入ゼロ」を一切侵さない。
+    // なぜ custom Saver でライブの WebView から取り出すか: 状態保存フェーズ（onSaveInstanceState 経由）は
+    // onDispose より前に走るため、onDispose で Bundle へ書いても初回の構成変更に間に合わない。Saver.save を
+    // 「保存フェーズ時点で生存中の WebView へ saveState する」形にして、その時点の最新状態を確実に捕える。
+    // なぜ空 Bundle をセンチネルにするか: rememberSaveable の型パラメータは T : Any（null 不可）のため
+    // 「未保存＝null」が表現できない。「未保存＝空 Bundle」で代替し、消費側は isEmpty で初回判定する
+    // （WebView 不在/saveState 失敗時も空のまま＝安全側で startUrl ロードに落ちる）。
+    val restoredState = rememberSaveable(
+        saver = Saver<Bundle, Bundle>(
+            save = { webViewHolder.value?.let { wv -> Bundle().apply { wv.saveState(this) } } ?: Bundle() },
+            restore = { it },
+        )
+    ) { Bundle() }
+
     // WebView はネイティブリソースを持ち、AndroidView はコンポジション離脱時に View をツリーから外すだけで
     // destroy() を呼ばないため、明示破棄しないと画面を閉じてもネイティブ側が残りリークする。ここで確実に破棄する。
     DisposableEffect(Unit) {
@@ -73,6 +97,16 @@ fun WebReaderScreen(
             webViewHolder.value?.destroy()
             webViewHolder.value = null
         }
+    }
+
+    // 読書中は画面消灯を抑止する（Design/09 F・監査 d-chrome＝読書アプリで長章を無操作で読むと OS 消灯
+    // タイマーで没入が切れる欠陥への最低限の是正）。onDispose で必ず解除し、読書画面を離れたら通常の
+    // 消灯タイマーへ戻す（点けっぱなしでのバッテリ浪費を避ける）。View.keepScreenOn は内部的に
+    // FLAG_KEEP_SCREEN_ON を立てる＝Window flag を直接触らずコンポジション寿命に正しく束ねられる。
+    val view = LocalView.current
+    DisposableEffect(view) {
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = false }
     }
 
     // なろうは「次へ」等でページ内遷移するため、システム back はまず WebView 履歴を戻す。履歴が無ければ画面 pop。
@@ -84,7 +118,7 @@ fun WebReaderScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = "なろうで読む", fontSize = 17.sp) },
+                title = { Text(text = "なろうで読む", fontSize = FontTopBarTitle) },
                 navigationIcon = {
                     IconButton(onClick = {
                         val wv = webViewHolder.value
@@ -149,7 +183,10 @@ fun WebReaderScreen(
                         }
 
                         webViewHolder.value = this
-                        loadUrl(startUrl)
+                        // 復元状態があれば履歴スタックごと復元（再生成の巻き戻り防止）。無ければ初回として
+                        // startUrl をロードする。restoreState 後は onPageFinished が末尾ページで発火するため、
+                        // 上の戻り遷移判定（currentIndex==size-1）で reachedByBack=false となり読書位置は正しく記録される。
+                        if (!restoredState.isEmpty) restoreState(restoredState) else loadUrl(startUrl)
                     }
                 },
             )

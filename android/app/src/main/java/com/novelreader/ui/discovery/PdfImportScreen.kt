@@ -34,7 +34,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.novelreader.narou.model.Ncode
@@ -42,6 +41,8 @@ import com.novelreader.narou.narouWorkUrl
 import com.novelreader.viewmodel.PdfImportEvent
 import com.novelreader.viewmodel.PdfImportUiState
 import com.novelreader.viewmodel.PdfImportViewModel
+import com.novelreader.ui.theme.FontSubTitle
+import com.novelreader.ui.theme.FontTopBarTitle
 
 /**
  * 縦書きPDF取り込み画面（ADR 0011・案B）。取り込み専用の使い捨て WebView を1画面だけ持つ。
@@ -108,7 +109,7 @@ fun PdfImportScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = "縦書きPDFを取り込む", fontSize = 17.sp) },
+                title = { Text(text = "縦書きPDFを取り込む", fontSize = FontTopBarTitle) },
                 navigationIcon = {
                     IconButton(onClick = {
                         val wv = webViewHolder.value
@@ -200,7 +201,7 @@ fun PdfImportScreen(
                     Text(
                         text = error.message,
                         color = MaterialTheme.colorScheme.error,
-                        fontSize = 13.sp,
+                        fontSize = FontSubTitle,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )

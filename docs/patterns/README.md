@@ -13,3 +13,4 @@
 | [topappbar-overlay](topappbar-overlay.md) | TopAppBar オーバーレイ化 + NestedScrollConnection 非消費 | §24 |
 | [multi-branch-integration](multi-branch-integration.md) | 多ブランチ統合＝統合ブランチ --no-ff → main へ ff-only（スキーマJSON保全の罠込み） | —（2026-07-08 新規） |
 | [narou-api-discovery](narou-api-discovery.md) | なろうAPI 発見・検索の実装パターン（別系統隔離・withContext不要・Moshi codegen・段階チップ翻訳・ncode人間確定・継続取得タイミング） | —（2026-07-08 新規・旧 STATUS-api-lab §2） |
+| [discovery-terminology](discovery-terminology.md) | 発見・検索まわりの用語辞書（1概念=1語＝見つける/探す。発見・単独の検索を表層に出さない） | —（2026-07-12 新規・監査 ia Minor） |

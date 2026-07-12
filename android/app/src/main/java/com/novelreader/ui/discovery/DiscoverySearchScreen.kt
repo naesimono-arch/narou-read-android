@@ -53,12 +53,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.novelreader.ui.theme.FontActionLabel
+import com.novelreader.ui.theme.FontButtonLabel
+import com.novelreader.ui.theme.FontCaption
+import com.novelreader.ui.theme.FontChipLarge
+import com.novelreader.ui.theme.FontLabel
+import com.novelreader.ui.theme.FontMicroLabel
+import com.novelreader.ui.theme.FontScreenTitle
+import com.novelreader.ui.theme.FontSubTitle
+import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.narou.SearchHistory
 import com.novelreader.narou.model.NarouCuratedKeywords
@@ -171,7 +182,7 @@ internal fun DiscoverySearchContent(
                         text = "探す",
                         fontFamily = MinchoFamily,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 24.sp,
+                        fontSize = FontScreenTitle,
                         letterSpacing = 2.sp,
                     )
                 },
@@ -219,11 +230,16 @@ internal fun DiscoverySearchContent(
                 onValueChange = { onSetDraft(draft.copy(word = it)) },
                 modifier = Modifier
                     .fillMaxWidth()
+                    // 恒常ラベル（監査 critic Minor UX/06㉑）: この欄は視覚ラベルを持たず、入力後は placeholder も
+                    // 消えて「何の欄か」の手掛かりが失われ、TalkBack でも欄名が読まれない。恒常の accessible name を
+                    // 与える（placeholder「作品名・作者・キーワード」は例示のまま）。モックの静かな入力欄の見た目は
+                    // 変えず a11y ツリーにだけ欄名を足す＝意匠非改変。
+                    .semantics { contentDescription = "検索語" }
                     .onFocusChanged { isFocused = it.isFocused }
                     .padding(horizontal = 24.dp, vertical = 8.dp),
                 singleLine = true,
                 textStyle = TextStyle(
-                    fontSize = 15.sp,
+                    fontSize = FontActionLabel,
                     color = MaterialTheme.colorScheme.onSurface
                 ),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -239,7 +255,7 @@ internal fun DiscoverySearchContent(
                                 if (draft.word.isEmpty()) {
                                     Text(
                                         text = "作品名・作者・キーワード",
-                                        fontSize = 15.sp,
+                                        fontSize = FontActionLabel,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                     )
                                 }
@@ -275,7 +291,7 @@ internal fun DiscoverySearchContent(
             ) {
                 Text(
                     text = "検索範囲",
-                    fontSize = 10.5.sp,
+                    fontSize = FontMicroLabel,
                     letterSpacing = 3.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.SemiBold,
@@ -323,8 +339,9 @@ internal fun DiscoverySearchContent(
                 if (selectedRangeCount == 1) {
                     Text(
                         text = "検索範囲は1つ以上必要です",
-                        fontSize = 10.5.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        fontSize = FontMicroLabel,
+                        // なぜ InfoText か: disabled の理由提示＝意味を運ぶ文字（ADR 0014-D・alpha 沈め禁止）。
+                        color = LocalShelfColors.current.infoText,
                         modifier = Modifier.padding(top = 8.dp)
                     )
                 }
@@ -357,7 +374,7 @@ internal fun DiscoverySearchContent(
                     )
                     Text(
                         text = if (draft.filters.activeCount() > 0) "条件を調整（${draft.filters.activeCount()}）" else "条件を調整",
-                        fontSize = 12.5.sp,
+                        fontSize = FontButtonLabel,
                         color = tint
                     )
                 }
@@ -367,7 +384,7 @@ internal fun DiscoverySearchContent(
                 if (history.pinned.isNotEmpty()) {
                     Text(
                         text = "ピン留め",
-                        fontSize = 10.5.sp,
+                        fontSize = FontMicroLabel,
                         letterSpacing = 3.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.SemiBold,
@@ -392,7 +409,7 @@ internal fun DiscoverySearchContent(
                 if (history.recent.isNotEmpty()) {
                     Text(
                         text = "最近の検索",
-                        fontSize = 10.5.sp,
+                        fontSize = FontMicroLabel,
                         letterSpacing = 3.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.SemiBold,
@@ -417,7 +434,7 @@ internal fun DiscoverySearchContent(
 
                 Text(
                     text = "キーワードから選ぶ",
-                    fontSize = 10.5.sp,
+                    fontSize = FontMicroLabel,
                     letterSpacing = 3.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.SemiBold,
@@ -492,7 +509,7 @@ internal fun DiscoverySearchContent(
                 // why: 公式パネルは①作品内容と②ジャンル別の2段構成。②＋TRPG系は約80語あり常時表示すると検索画面が長大化するため、公式と同じ段構成のまま既定は畳む（全数収載と画面の静けさの両立）
                 Text(
                     text = if (showGenreKeywords) "たたむ ⌃" else "ジャンル別のキーワードを見る ⌄",
-                    fontSize = 11.sp,
+                    fontSize = FontLabel,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier
@@ -589,7 +606,7 @@ private fun SelectedKeywordsBar(
             ) {
                 Text(
                     text = "選択中のキーワード ${tokens.size}件",
-                    fontSize = 10.5.sp,
+                    fontSize = FontMicroLabel,
                     letterSpacing = 1.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
@@ -598,7 +615,7 @@ private fun SelectedKeywordsBar(
                 TextButton(onClick = onClearAll) {
                     Text(
                         text = "すべて解除",
-                        fontSize = 11.5.sp,
+                        fontSize = FontChipLarge,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Medium,
                     )
@@ -644,7 +661,7 @@ private fun SelectedKeywordChip(
     ) {
         Text(
             text = label,
-            fontSize = 11.5.sp,
+            fontSize = FontChipLarge,
             color = MaterialTheme.colorScheme.primary
         )
         Icon(
@@ -697,7 +714,7 @@ private fun HistoryChip(
         )
         Text(
             text = word,
-            fontSize = 12.sp,
+            fontSize = FontCaption,
             color = MaterialTheme.colorScheme.onSurface,
             // 長文履歴が weight 無しだと行全幅を占有し末尾の×を幅0へ押し出してタップ不能になるため、
             // テキスト側を weight で縮退させて×の幅を先に確保する（fill=false で短語チップは従来幅のまま）。
@@ -726,7 +743,7 @@ private fun HistoryChip(
 fun SectionHeader(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
-        fontSize = 10.5.sp,
+        fontSize = FontMicroLabel,
         letterSpacing = 3.sp,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontWeight = FontWeight.SemiBold,
@@ -758,14 +775,14 @@ fun CollapsibleCategoryHeader(
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = title,
-                fontSize = 13.sp,
+                fontSize = FontSubTitle,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f)
             )
             Text(
                 text = if (expanded) "⌃" else "⌄",
-                fontSize = 12.sp,
+                fontSize = FontCaption,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -773,7 +790,7 @@ fun CollapsibleCategoryHeader(
             // 代表語プレビュー＝先頭3語を「・」区切り・4語以上は「…」（モック .kw-cat-preview）
             Text(
                 text = previewWords.take(3).joinToString("・") + if (previewWords.size > 3) "…" else "",
-                fontSize = 11.sp,
+                fontSize = FontLabel,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -798,7 +815,7 @@ fun FilterChipItem(
         selected = selected,
         onClick = onClick,
         enabled = enabled,
-        label = { Text(label, fontSize = 11.5.sp) },
+        label = { Text(label, fontSize = FontChipLarge) },
         modifier = modifier,
         shape = RoundedCornerShape(2.dp),
         colors = FilterChipDefaults.filterChipColors(

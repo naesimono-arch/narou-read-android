@@ -454,6 +454,18 @@ class DiscoveryViewModel(
     // （init は宣言順で実行され、_resultContext・_searchDraft の初期化後である必要があるため）。
     init {
         // F-C: 結果一覧の文脈を復元し、そのまま再取得する（旧実装はここが空で ctx==null→前画面へ強制退去していた）。
+        //
+        // 監査 persist Minor（DiscoveryResultScreen 積み上げページ喪失）への裁定: 積み上がった novels＋paging は
+        // SavedStateHandle へ **ミラーしない**。理由（＝近似で誤魔化さず停止して報告した結論）:
+        //   ① NarouNovel は Moshi の @JsonClass モデルで Parcelable ではない。ミラーには JSON モデルを Parcelize
+        //      する（責務違反）か手動シリアライズが要る。
+        //   ② さらに「さらに読み込む」で数百件まで積み上がった一覧を Bundle に載せると savedInstanceState の
+        //      Binder 上限に触れ TransactionTooLargeException を招きやすい（プロセス death 復帰でクラッシュ）。
+        //   ③ 復帰時に積み上げ分を API 再取得すると、明示ボタン方式で守っている「なろうAPI 転送量マナー」
+        //      （ユーザー主導・無駄取得回避）を復帰の度に破る。
+        // よって監査が代替として挙げる「復帰時は先頭へ明示リセット」を採る＝下の loadResult() が初回ページを
+        // 取り直し、一覧は先頭から再描画される（クラッシュせず静かに減衰＝グレースフルデグレード）。軽い文脈
+        // （ResultContext）だけを持ち回り、重い結果本体は持ち回らないのが SSOT×可搬性のバランス点。
         savedStateHandle.get<ResultContext>(KEY_RESULT_CONTEXT)?.let { restored ->
             _resultContext.value = restored
             loadResult()

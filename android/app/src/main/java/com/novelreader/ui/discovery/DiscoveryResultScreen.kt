@@ -46,6 +46,11 @@ import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
+import com.novelreader.ui.theme.FontBody
+import com.novelreader.ui.theme.FontLabel
+import com.novelreader.ui.theme.FontMicroLabel
+import com.novelreader.ui.theme.FontResultTitle
+import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.DiscoveryUiState
@@ -130,7 +135,7 @@ internal fun DiscoveryResultContent(
                         text = ctx.title,
                         fontFamily = MinchoFamily,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 21.sp,
+                        fontSize = FontResultTitle,
                         letterSpacing = 1.5.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -143,7 +148,10 @@ internal fun DiscoveryResultContent(
                     IconButton(onClick = onUp) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "発見に戻る"
+                            // 用語統一（監査 ia Minor・docs/patterns/discovery-terminology.md）: この Up の着地は
+                            // 発見ホーム＝画面タイトルが「見つける」の画面。旧「発見に戻る」は同じ画面を別語で
+                            // 呼び表層の語がぶれていた（発見／見つける）ため、着地画面の呼称「見つける」へ揃える。
+                            contentDescription = "見つける画面に戻る"
                         )
                     }
                 },
@@ -162,7 +170,7 @@ internal fun DiscoveryResultContent(
             ctx.subtitle?.let {
                 Text(
                     text = it,
-                    fontSize = 11.sp,
+                    fontSize = FontLabel,
                     lineHeight = 18.sp,
                     // 結果サブタイトルは情報を運ぶ文字＝infoText（AA 4.5:1・ADR 0014-D 裁定で装飾用と分離）。
                     color = LocalShelfColors.current.infoText,
@@ -236,7 +244,7 @@ internal fun DiscoveryResultContent(
                             ) {
                                 Text(
                                     text = displayLabel,
-                                    fontSize = 10.5.sp,
+                                    fontSize = FontMicroLabel,
                                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
                                     modifier = Modifier
                                         .border(
@@ -258,7 +266,7 @@ internal fun DiscoveryResultContent(
                                                     Text(
                                                         text = order.uiLabel,
                                                         fontWeight = if (ctx.query.order == order) FontWeight.Bold else FontWeight.Normal,
-                                                        fontSize = 14.sp
+                                                        fontSize = FontBody
                                                     )
                                                 },
                                                 onClick = {
@@ -279,7 +287,7 @@ internal fun DiscoveryResultContent(
                                                 Text(
                                                     text = "すべてのジャンル",
                                                     fontWeight = if (ctx.query.biggenres.isEmpty() && ctx.query.genres.isEmpty()) FontWeight.Bold else FontWeight.Normal,
-                                                    fontSize = 14.sp
+                                                    fontSize = FontBody
                                                 )
                                             },
                                             onClick = {
@@ -296,7 +304,7 @@ internal fun DiscoveryResultContent(
                                                         text = bigName,
                                                         fontWeight = if (isCurrentBig) FontWeight.Bold else FontWeight.SemiBold,
                                                         color = if (isCurrentBig) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Unspecified,
-                                                        fontSize = 14.sp
+                                                        fontSize = FontBody
                                                     )
                                                 },
                                                 onClick = {
@@ -313,7 +321,7 @@ internal fun DiscoveryResultContent(
                                                             modifier = Modifier.padding(start = 16.dp),
                                                             fontWeight = if (isCurrentGenre) FontWeight.Bold else FontWeight.Normal,
                                                             color = if (isCurrentGenre) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Unspecified,
-                                                            fontSize = 13.sp
+                                                            fontSize = FontSubTitle
                                                         )
                                                     },
                                                     onClick = {
@@ -329,7 +337,7 @@ internal fun DiscoveryResultContent(
                         } else {
                             Text(
                                 text = label,
-                                fontSize = 10.5.sp,
+                                fontSize = FontMicroLabel,
                                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
                                 modifier = Modifier
                                     // 48dpタップ枠のクリック可チップと縦センターを揃える（上のFlowRowコメント参照）
@@ -359,7 +367,7 @@ internal fun DiscoveryResultContent(
                     ) {
                         Text(
                             text = "条件を変更",
-                            fontSize = 10.5.sp,
+                            fontSize = FontMicroLabel,
                             color = MaterialTheme.colorScheme.secondary,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
@@ -401,7 +409,7 @@ internal fun DiscoveryResultContent(
                                 }
                                 Text(
                                     text = countText,
-                                    fontSize = 11.sp,
+                                    fontSize = FontLabel,
                                     letterSpacing = 1.sp,
                                     color = MaterialTheme.colorScheme.secondary,
                                     modifier = Modifier.padding(top = 2.dp, bottom = 4.dp),
@@ -482,7 +490,7 @@ private fun PagingFooter(
         }
         PagingState.ApiLimitReached -> Text(
             text = "これ以上は取得できません（APIの取得上限に達しました）",
-            fontSize = 11.sp,
+            fontSize = FontLabel,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .fillMaxWidth()

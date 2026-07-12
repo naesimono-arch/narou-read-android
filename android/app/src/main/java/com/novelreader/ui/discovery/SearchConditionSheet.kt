@@ -49,6 +49,13 @@ import com.novelreader.narou.model.NarouAttr
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouLastup
 import com.novelreader.narou.model.NarouNovelType
+import com.novelreader.ui.theme.FontBody
+import com.novelreader.ui.theme.FontCaption
+import com.novelreader.ui.theme.FontChipLarge
+import com.novelreader.ui.theme.FontMicroLabel
+import com.novelreader.ui.theme.FontSheetTitle
+import com.novelreader.ui.theme.FontSubTitle
+import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.DiscoveryViewModel
 import com.novelreader.viewmodel.LENGTH_STEPS
@@ -136,7 +143,7 @@ fun SearchConditionSheet(
             Text(
                 text = "条件",
                 fontFamily = MinchoFamily,
-                fontSize = 18.sp,
+                fontSize = FontSheetTitle,
                 fontWeight = FontWeight.Medium,
                 letterSpacing = 1.5.sp,
                 color = MaterialTheme.colorScheme.onSurface
@@ -321,7 +328,7 @@ fun SearchConditionSheet(
                     .onFocusChanged { isNotWordFocused = it.isFocused },
                 singleLine = true,
                 textStyle = TextStyle(
-                    fontSize = 14.sp,
+                    fontSize = FontBody,
                     color = MaterialTheme.colorScheme.onSurface
                 ),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -335,7 +342,7 @@ fun SearchConditionSheet(
                             if (draft.notWord.isEmpty()) {
                                 Text(
                                     text = "含めたくない語（スペース区切り）",
-                                    fontSize = 14.sp,
+                                    fontSize = FontBody,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )
                             }
@@ -361,8 +368,10 @@ fun SearchConditionSheet(
             if (timeEngaged) {
                 Text(
                     text = "読了時間と併用できません（なろうAPIの制約）",
-                    fontSize = 10.5.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    fontSize = FontMicroLabel,
+                    // なぜ InfoText か: 排他制約の理由＝意味を運ぶ文字。onSurfaceVariant の alpha 沈めは
+                    // ADR 0014-D の暗化トークン裁定を打ち消す退行（サブAA地の重ね沈め）のため素値で使う。
+                    color = LocalShelfColors.current.infoText,
                     modifier = Modifier.padding(bottom = 10.dp)
                 )
             }
@@ -435,8 +444,9 @@ fun SearchConditionSheet(
             if (lengthEngaged) {
                 Text(
                     text = "文字数と併用できません（なろうAPIの制約）",
-                    fontSize = 10.5.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    fontSize = FontMicroLabel,
+                    // なぜ InfoText か: 上の「読了時間と併用できません」と同じ（ADR 0014-D）。
+                    color = LocalShelfColors.current.infoText,
                     modifier = Modifier.padding(bottom = 10.dp)
                 )
             }
@@ -575,7 +585,7 @@ fun SearchConditionSheet(
                 ) {
                     Text(
                         text = "この条件で探す",
-                        fontSize = 13.sp,
+                        fontSize = FontSubTitle,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 1.5.sp,
                         modifier = Modifier.padding(vertical = 4.dp)
@@ -595,7 +605,7 @@ fun SearchConditionSheet(
                 ) {
                     Text(
                         text = "リセット",
-                        fontSize = 12.sp,
+                        fontSize = FontCaption,
                         letterSpacing = 1.5.sp
                     )
                 }
@@ -619,7 +629,7 @@ fun SearchConditionSheet(
 private fun GenreGroupLabel(text: String) {
     Text(
         text = text,
-        fontSize = 11.5.sp,
+        fontSize = FontChipLarge,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)
@@ -654,7 +664,7 @@ private fun CustomRangeInput(
                 .onFocusChanged { isMinFocused = it.isFocused },
             singleLine = true,
             textStyle = TextStyle(
-                fontSize = 14.sp,
+                fontSize = FontBody,
                 color = MaterialTheme.colorScheme.onSurface
             ),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -668,7 +678,7 @@ private fun CustomRangeInput(
                         if (minValue.isEmpty()) {
                             Text(
                                 text = "下限なし",
-                                fontSize = 14.sp,
+                                fontSize = FontBody,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                             )
                         }
@@ -684,7 +694,7 @@ private fun CustomRangeInput(
 
         Text(
             text = "〜",
-            fontSize = 14.sp,
+            fontSize = FontBody,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
@@ -697,7 +707,7 @@ private fun CustomRangeInput(
                 .onFocusChanged { isMaxFocused = it.isFocused },
             singleLine = true,
             textStyle = TextStyle(
-                fontSize = 14.sp,
+                fontSize = FontBody,
                 color = MaterialTheme.colorScheme.onSurface
             ),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -711,7 +721,7 @@ private fun CustomRangeInput(
                         if (maxValue.isEmpty()) {
                             Text(
                                 text = "上限なし",
-                                fontSize = 14.sp,
+                                fontSize = FontBody,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                             )
                         }
@@ -727,7 +737,7 @@ private fun CustomRangeInput(
 
         Text(
             text = unitLabel,
-            fontSize = 14.sp,
+            fontSize = FontBody,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 4.dp)
         )

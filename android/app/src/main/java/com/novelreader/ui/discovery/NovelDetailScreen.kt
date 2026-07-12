@@ -1,6 +1,7 @@
 package com.novelreader.ui.discovery
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
@@ -64,8 +65,17 @@ import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.components.BookCover
+import com.novelreader.ui.theme.FontActionLabel
+import com.novelreader.ui.theme.FontBody
+import com.novelreader.ui.theme.FontButtonLabel
+import com.novelreader.ui.theme.FontChipLarge
+import com.novelreader.ui.theme.FontLabel
+import com.novelreader.ui.theme.FontMicroLabel
+import com.novelreader.ui.theme.FontSubTitle
+import com.novelreader.ui.theme.FontTopBarTitle
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.MotionDurationCrossfade
 import com.novelreader.viewmodel.NovelDetailUiState
 import com.novelreader.viewmodel.NovelDetailViewModel
 import java.util.Locale
@@ -183,8 +193,12 @@ internal fun NovelDetailContent(
     }
     // なぜフェードか: 既存の同型演出（BookCard の animateFloatAsState）に倣い、出没を滑らかにして
     // スクロールに追従する題字のちらつきを抑える。
+    // なぜ animationSpec を明示するか: 既定 spring だと Motion.kt を経由せず野良曲線になる（Design/08 禁止則②
+    // ＝duration/easing はトークン経由）。復帰ヒント等と同型の「そっと現れて消える」演出のため crossfade
+    // トークン（MotionDurationCrossfade）の tween で一元化する（監査 d-motion Minor）。
     val barTitleAlpha by animateFloatAsState(
         targetValue = if (showBarTitle) 1f else 0f,
+        animationSpec = tween(MotionDurationCrossfade),
         label = "detailBarTitle"
     )
 
@@ -199,7 +213,7 @@ internal fun NovelDetailContent(
                             text = barState.novel.title ?: "",
                             fontFamily = MinchoFamily,
                             fontWeight = FontWeight.Medium,
-                            fontSize = 17.sp,
+                            fontSize = FontTopBarTitle,
                             letterSpacing = 1.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -256,9 +270,13 @@ internal fun NovelDetailContent(
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
+                                    // why: 読書 WebView は JS 注入を一切しない（ADR 0012）ため話「内」のスクロール
+                                    // 位置は保存できず、再開は必ず記録した話の「冒頭」に着地する。「続きから読む」だけだと
+                                    // 前回読み止めた行から続く期待を抱かせ嘘になる（公理8）ので、「第N話のはじめから」と
+                                    // 着地点を明示して期待を正す（監査 persist Minor・ADR 0012 追補 2026-07-12）。
                                     Text(
-                                        text = "続きから読む（第${lastReadEpisode}話）",
-                                        fontSize = 15.sp,
+                                        text = "第${lastReadEpisode}話のはじめから読む",
+                                        fontSize = FontActionLabel,
                                         letterSpacing = 1.5.sp
                                     )
                                 }
@@ -271,7 +289,7 @@ internal fun NovelDetailContent(
                                 ) {
                                     Text(
                                         text = "最初から（目次）",
-                                        fontSize = 15.sp,
+                                        fontSize = FontActionLabel,
                                         letterSpacing = 1.5.sp
                                     )
                                 }
@@ -294,7 +312,7 @@ internal fun NovelDetailContent(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = "縦書きPDFを取り込む",
-                                        fontSize = 15.sp,
+                                        fontSize = FontActionLabel,
                                         letterSpacing = 1.5.sp
                                     )
                                 }
@@ -320,7 +338,7 @@ internal fun NovelDetailContent(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = "なろうで読む",
-                                        fontSize = 15.sp,
+                                        fontSize = FontActionLabel,
                                         letterSpacing = 1.5.sp
                                     )
                                 }
@@ -344,7 +362,7 @@ internal fun NovelDetailContent(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = "なろうで読む",
-                                        fontSize = 15.sp,
+                                        fontSize = FontActionLabel,
                                         letterSpacing = 1.5.sp
                                     )
                                 }
@@ -352,7 +370,7 @@ internal fun NovelDetailContent(
                             // 表示先を明示（アプリ内 WebView でなろうのページを加工せずそのまま表示する＝ADR 0012・公理8）。
                             Text(
                                 text = "なろう（syosetu.com）のページをそのまま表示します",
-                                fontSize = 10.5.sp,
+                                fontSize = FontMicroLabel,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -385,7 +403,7 @@ internal fun NovelDetailContent(
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
                                             text = "縦書きPDFを取り込む",
-                                            fontSize = 15.sp,
+                                            fontSize = FontActionLabel,
                                             letterSpacing = 1.5.sp
                                         )
                                     }
@@ -412,7 +430,7 @@ internal fun NovelDetailContent(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = if (onShelf) "本棚から外す" else "本棚に置く",
-                                        fontSize = 15.sp,
+                                        fontSize = FontActionLabel,
                                         letterSpacing = 1.5.sp
                                     )
                                 }
@@ -474,13 +492,13 @@ internal fun NovelDetailContent(
                         ) {
                             Text(
                                 text = novel.writer ?: "",
-                                fontSize = 12.5.sp,
+                                fontSize = FontButtonLabel,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             NarouGenres.genreLabel(novel.genre)?.let { label ->
                                 Text(
                                     text = label,
-                                    fontSize = 11.5.sp,
+                                    fontSize = FontChipLarge,
                                     letterSpacing = 0.5.sp,
                                     color = MaterialTheme.colorScheme.secondary
                                 )
@@ -512,12 +530,12 @@ internal fun NovelDetailContent(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = "状態",
-                                        fontSize = 10.5.sp,
+                                        fontSize = FontMicroLabel,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
                                         text = statusText,
-                                        fontSize = 13.sp,
+                                        fontSize = FontSubTitle,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.padding(top = 2.dp)
                                     )
@@ -525,12 +543,12 @@ internal fun NovelDetailContent(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = "読了目安",
-                                        fontSize = 10.5.sp,
+                                        fontSize = FontMicroLabel,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
                                         text = readTimeVal,
-                                        fontSize = 13.sp,
+                                        fontSize = FontSubTitle,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.padding(top = 2.dp)
                                     )
@@ -544,12 +562,12 @@ internal fun NovelDetailContent(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = "会話率",
-                                        fontSize = 10.5.sp,
+                                        fontSize = FontMicroLabel,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
                                         text = novel.kaiwaritu?.let { "$it%" } ?: "—",
-                                        fontSize = 13.sp,
+                                        fontSize = FontSubTitle,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.padding(top = 2.dp)
                                     )
@@ -557,12 +575,12 @@ internal fun NovelDetailContent(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = "挿絵",
-                                        fontSize = 10.5.sp,
+                                        fontSize = FontMicroLabel,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
                                         text = novel.sasieCnt?.let { "${it}枚" } ?: "—",
-                                        fontSize = 13.sp,
+                                        fontSize = FontSubTitle,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.padding(top = 2.dp)
                                     )
@@ -579,7 +597,7 @@ internal fun NovelDetailContent(
                             ) {
                                 Text(
                                     text = "あらすじ",
-                                    fontSize = 10.5.sp,
+                                    fontSize = FontMicroLabel,
                                     letterSpacing = 3.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.SemiBold,
@@ -588,7 +606,7 @@ internal fun NovelDetailContent(
                                 Text(
                                     text = novel.story,
                                     fontFamily = MinchoFamily,
-                                    fontSize = 14.sp,
+                                    fontSize = FontBody,
                                     lineHeight = 26.sp,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
@@ -617,7 +635,7 @@ internal fun NovelDetailContent(
                             ) {
                                 Text(
                                     text = "キーワード",
-                                    fontSize = 10.5.sp,
+                                    fontSize = FontMicroLabel,
                                     letterSpacing = 3.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.SemiBold,
@@ -669,7 +687,7 @@ internal fun NovelDetailContent(
                                             ) {
                                                 Text(
                                                     text = keyword,
-                                                    fontSize = 11.sp,
+                                                    fontSize = FontLabel,
                                                     color = if (selected) {
                                                         MaterialTheme.colorScheme.onPrimary
                                                     } else {
@@ -694,7 +712,7 @@ internal fun NovelDetailContent(
                                     ) {
                                         Text(
                                             text = "選択した ${selectedKeywords.size} 件のキーワードで検索",
-                                            fontSize = 12.5.sp,
+                                            fontSize = FontButtonLabel,
                                             color = MaterialTheme.colorScheme.primary,
                                             fontWeight = FontWeight.Medium,
                                         )
@@ -720,7 +738,7 @@ internal fun NovelDetailContent(
                             ) {
                                 Text(
                                     text = "評価",
-                                    fontSize = 10.5.sp,
+                                    fontSize = FontMicroLabel,
                                     letterSpacing = 3.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.SemiBold,
@@ -736,12 +754,12 @@ internal fun NovelDetailContent(
                                     ) {
                                         Text(
                                             text = pair.first,
-                                            fontSize = 11.5.sp,
+                                            fontSize = FontChipLarge,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                         Text(
                                             text = pair.second!!,
-                                            fontSize = 13.sp,
+                                            fontSize = FontSubTitle,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                     }
@@ -771,7 +789,7 @@ internal fun NovelDetailContent(
                         }
                         Text(
                             text = metaText,
-                            fontSize = 10.5.sp,
+                            fontSize = FontMicroLabel,
                             // 最終更新+取得時刻は情報を運ぶ文字＝infoText（AA 4.5:1・ADR 0014-D 裁定で装飾用と分離）。
                             color = LocalShelfColors.current.infoText,
                             modifier = Modifier

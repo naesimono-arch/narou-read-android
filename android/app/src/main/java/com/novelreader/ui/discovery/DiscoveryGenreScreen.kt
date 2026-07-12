@@ -32,6 +32,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
+import com.novelreader.ui.theme.FontChipLarge
+import com.novelreader.ui.theme.FontLabel
+import com.novelreader.ui.theme.FontMicroLabel
+import com.novelreader.ui.theme.FontScreenTitle
 import com.novelreader.ui.theme.MinchoFamily
 
 /**
@@ -53,7 +57,7 @@ fun DiscoveryGenreScreen(
                         text = "ジャンルから",
                         fontFamily = MinchoFamily,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 24.sp,
+                        fontSize = FontScreenTitle,
                         letterSpacing = 2.sp,
                     )
                 },
@@ -90,14 +94,14 @@ fun DiscoveryGenreScreen(
                 ) {
                     Text(
                         text = bigLabel,
-                        fontSize = 10.5.sp,
+                        fontSize = FontMicroLabel,
                         letterSpacing = 3.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         text = "すべて →",
-                        fontSize = 11.sp,
+                        fontSize = FontLabel,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.clickable { onPickBiggenre(bigCode, bigLabel) }
                     )
@@ -127,7 +131,7 @@ fun DiscoveryGenreScreen(
                         ) {
                             Text(
                                 text = genreLabel,
-                                fontSize = 11.5.sp,
+                                fontSize = FontChipLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }

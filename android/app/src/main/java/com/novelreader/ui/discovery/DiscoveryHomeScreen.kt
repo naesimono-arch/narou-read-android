@@ -45,6 +45,13 @@ import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
+import com.novelreader.ui.theme.FontButtonLabel
+import com.novelreader.ui.theme.FontChipLarge
+import com.novelreader.ui.theme.FontLabel
+import com.novelreader.ui.theme.FontMicroLabel
+import com.novelreader.ui.theme.FontPresetCaption
+import com.novelreader.ui.theme.FontPresetTitle
+import com.novelreader.ui.theme.FontScreenTitle
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.DiscoveryUiState
@@ -122,7 +129,7 @@ internal fun DiscoveryHomeContent(
                         text = "見つける",
                         fontFamily = MinchoFamily,
                         fontWeight = FontWeight.Medium,
-                        fontSize = 24.sp,
+                        fontSize = FontScreenTitle,
                         letterSpacing = 2.sp,
                     )
                 },
@@ -138,7 +145,10 @@ internal fun DiscoveryHomeContent(
                     IconButton(onClick = onOpenSearch) {
                         Icon(
                             imageVector = Icons.Filled.Search,
-                            contentDescription = "検索"
+                            // 用語統一（監査 ia Minor・docs/patterns/discovery-terminology.md）: このアイコンの着地は
+                            // 検索画面＝画面タイトルが「探す」。accessible name も着地画面の呼称「探す」へ揃える
+                            // （「検索」は検索範囲/検索履歴等の複合ラベルにのみ残す＝辞書の使い分け）。
+                            contentDescription = "探す"
                         )
                     }
                 },
@@ -231,7 +241,7 @@ private fun MoodSection(
     Column(modifier = modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp)) {
         Text(
             text = "きょうの気分",
-            fontSize = 10.5.sp,
+            fontSize = FontMicroLabel,
             letterSpacing = 3.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -284,14 +294,14 @@ private fun MoodCard(
             Text(
                 text = preset.title,
                 fontFamily = MinchoFamily,
-                fontSize = 13.5.sp,
+                fontSize = FontPresetTitle,
                 fontWeight = FontWeight.SemiBold,
                 lineHeight = 20.sp,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = preset.cardLabel,
-                fontSize = 10.sp,
+                fontSize = FontPresetCaption,
                 letterSpacing = 0.4.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 5.dp),
@@ -317,13 +327,13 @@ private fun GenreEntrySection(
         ) {
             Text(
                 text = "ジャンルから",
-                fontSize = 10.5.sp,
+                fontSize = FontMicroLabel,
                 letterSpacing = 3.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
                 text = "すべて →",
-                fontSize = 11.sp,
+                fontSize = FontLabel,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.clickable(onClick = onOpenGenre),
             )
@@ -336,7 +346,7 @@ private fun GenreEntrySection(
             items(NarouGenres.BIGGENRES) { (code, label) ->
                 Text(
                     text = label,
-                    fontSize = 11.5.sp,
+                    fontSize = FontChipLarge,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
                         .border(
@@ -389,7 +399,7 @@ private fun OrderTabRow(
                 // ScrollableTabRow の indicator にそのまま残し、配色（primary/onSurfaceVariant）も維持する。
                 Text(
                     text = order.uiLabel,
-                    fontSize = 12.5.sp,
+                    fontSize = FontButtonLabel,
                     letterSpacing = 0.75.sp, // モック .tab の letter-spacing .06em（12.5px×0.06）
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                     // 未選択タブラベルも意味を運ぶ文字＝infoText（AA 4.5:1）。選択時 primary は据え置き。
