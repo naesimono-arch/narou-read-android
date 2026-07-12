@@ -325,7 +325,10 @@ private fun NovelReaderApp(
                 // 機能②: なろうをアプリ内 WebView で読む（ADR 0012）。目次(初回)＝0／続きから＝記録話 N を渡す。
                 onReadFromToc = { navController.navigate("web-reader/$ncode/0") { launchSingleTop = true } },
                 onResumeReading = { episode -> navController.navigate("web-reader/$ncode/$episode") { launchSingleTop = true } },
-                onBack = { navController.popBackStack() },
+                // D 統一（2026-07-12）: 作品詳細の ← は経路に依らず発見ホームへ固定 Up（DiscoveryResultScreen.onUp と同型）。
+                // 全ての detail 経路（発見ホーム直/結果一覧経由/キーワード検索）が discovery を必ず下位に持つため、
+                // discovery まで pop すれば一段上の親へ一貫して戻れる。経路依存の履歴 Back は端末 Back に委ねる。
+                onUp = { navController.popBackStack("discovery", false) },
             )
         }
 

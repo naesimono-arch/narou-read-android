@@ -128,7 +128,9 @@ fun NovelDetailScreen(
     // 廃し、目次(初回)と続きから(記録話へ直接)の2着地をルート層のナビへ委ねる（描画層は callback を叩くだけ）。
     onReadFromToc: () -> Unit,
     onResumeReading: (episode: Int) -> Unit,
-    onBack: () -> Unit,
+    // 作品詳細の ← は「Result 同型の固定Up」＝到達経路（発見ホーム/結果一覧）に依らず discovery(発見ホーム)へ
+    // 一貫して戻す（D 統一・2026-07-12）。経路依存の履歴 Back は端末 Back に委ねる（DiscoveryResultScreen.onUp と同型）。
+    onUp: () -> Unit,
 ) {
     LaunchedEffect(ncode) {
         viewModel.load(ncode)
@@ -149,7 +151,7 @@ fun NovelDetailScreen(
         onShelf = onShelf,
         isImported = isImported,
         onToggleShelf = { viewModel.toggleShelf() },
-        onBack = onBack,
+        onUp = onUp,
         onRetry = { viewModel.retry() },
         lastReadEpisode = lastReadEpisode,
         onReadOnNarou = onReadFromToc,
@@ -170,7 +172,7 @@ internal fun NovelDetailContent(
     uiState: NovelDetailUiState,
     onSearchKeywords: (List<String>) -> Unit,
     onImportPdf: () -> Unit,
-    onBack: () -> Unit,
+    onUp: () -> Unit,
     onRetry: () -> Unit,
     // 機能②: onReadOnNarou＝目次(最初から)をアプリ内 WebView で開く。onResumeReading＝記録した話へ直接（続きから）。
     // lastReadEpisode>0 のとき「続きから読む（第N話）」を主導線に切り替える。既定値は既存テスト・プレビュー互換のため。
@@ -222,7 +224,8 @@ internal fun NovelDetailContent(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    // 固定Up（D 統一）: 経路に依らず発見ホームへ。DiscoveryResultScreen の ← と同型。
+                    IconButton(onClick = onUp) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "戻る"

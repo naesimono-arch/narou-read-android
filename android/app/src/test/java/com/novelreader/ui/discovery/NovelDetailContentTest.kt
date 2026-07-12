@@ -41,7 +41,7 @@ class NovelDetailContentTest {
                     uiState = uiState,
                     onSearchKeywords = {},
                     onImportPdf = onImportPdf,
-                    onBack = {},
+                    onUp = {},
                     onRetry = {},
                     onReadOnNarou = onReadOnNarou,
                 )
