@@ -140,7 +140,6 @@ READING_ORDER = ["LIGHT", "SEPIA", "DARK"]
 # これは再翻訳(Spacing/Insets参照化)完了ごとに行を消していくラチェット。空になったら余白トークン移行完了。
 GRACE_FILES = {
     "android/app/src/main/java/com/novelreader/ui/BookCard.kt",
-    "android/app/src/main/java/com/novelreader/ui/ChapterContent.kt",
     "android/app/src/main/java/com/novelreader/ui/ContinuationCard.kt",
     "android/app/src/main/java/com/novelreader/ui/NativeReadingScreen.kt",
     "android/app/src/main/java/com/novelreader/ui/NativeTableOfContentsScreen.kt",

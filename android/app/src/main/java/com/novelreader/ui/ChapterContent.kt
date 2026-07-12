@@ -43,6 +43,8 @@ import com.novelreader.model.ChapterContent
 import com.novelreader.model.TextSegment
 import com.novelreader.ui.compose.RubyText
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.Insets
+import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.ReadingColors
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
@@ -52,6 +54,12 @@ import kotlinx.collections.immutable.toImmutableList
 // 崩れた（reach 21-D 版面の自律性）。字数を軸にすればフォント/フォントスケールが変わっても1行の
 // 字数がほぼ一定に保たれる。危険域（60字超）には達しないため過長化の害は限定的。
 private const val BODY_MEASURE_CHARS = 40
+
+// 本文組版の較正値（ADR 0014 §C の base scale 除外軸＝正本モックでは em で表現される段落リズムの翻訳）。
+// なぜ離散スケールへ丸めないか: どちらも行送り（leading 13.5dp）との合算で意味を持つ較正値で、
+// スケールへ寄せると「段落間隔≒折り返し行間」「空行≒WebView の空行」の等式が崩れる。
+private val ParagraphSpacing = 14.dp // + 次アイテムの上 leading 13.5dp = 27.5dp ≈ 折り返し行間
+private val EmptyLineHeight = 20.dp // + 次アイテムの上 leading 13.5dp = 計 47.5dp ≈ WebView の空行
 
 /** 章本文を LazyColumn でレンダリングする */
 @OptIn(ExperimentalLayoutApi::class)
@@ -126,8 +134,8 @@ internal fun ChapterContent(
         // ため、可視状態追従の statusBars/navigationBars だとバー出没のたびに inset が 0⇄実測値で振れ、
         // 本文全体が約24dp/ナビバー分リフローして視覚ジャンプする。版面は「バーが在るときの寸法」で固定する。
         contentPadding = PaddingValues(
-            top = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding() + 64.dp,
-            bottom = WindowInsets.navigationBarsIgnoringVisibility.asPaddingValues().calculateBottomPadding() + 80.dp,
+            top = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding() + Insets.ReadingBodyTopExtra,
+            bottom = WindowInsets.navigationBarsIgnoringVisibility.asPaddingValues().calculateBottomPadding() + Insets.ReadingBodyBottomExtra,
         ),
     ) {
         // 章見出し（モック reading-D .chap-h）: 章タイトルを明朝で中央寄せ＋藍の短ルール。
@@ -196,7 +204,7 @@ private fun ChapterHeader(
             .widthIn(max = bodyMaxWidth)
             // 本文と同じユーザー設定余白に追従させ、見出しと本文の版面を揃える
             .padding(horizontal = bodyMarginDp.dp)
-            .padding(top = 14.dp, bottom = 26.dp),
+            .padding(top = Spacing.S16, bottom = Spacing.S24),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
@@ -211,7 +219,7 @@ private fun ChapterHeader(
             // 視覚的に見出し（明朝・大きめ・ルール付き）なので TalkBack の見出しジャンプ対象にする（WCAG 4.1.3 / 1.3.1）。
             modifier = Modifier.semantics { heading() },
         )
-        Spacer(Modifier.height(15.dp))
+        Spacer(Modifier.height(Spacing.S16))
         // 藍の短いルール（48dp×2dp）。モック .chap-h .rule（--rule 藍 opacity .85）。
         // colors.hr は素地に溶けた淡い区切り用のため使わない。--rule 専用の colors.rule を使う。
         // なぜ accent でなく rule か: DARK では --rule #5E7E9C ≠ accent #6E96B8 で乖離するため。
@@ -237,15 +245,15 @@ private fun ParagraphItem(
         paragraph.isEmpty() -> {
             // 空段落: なろう系小説のシーン転換・演出として意図的な空行を保持する
             // なぜフィルタリングしないか: 削除すると原作者の意図が失われるため
-            // 空行 = 20dp Spacer + 次アイテムの上 leading 13.5dp = 計 47.5dp ≈ WebView の空行
-            Spacer(modifier = Modifier.height(20.dp))
+            // 空行の高さは組版較正値（冒頭 EmptyLineHeight の why 参照）
+            Spacer(modifier = Modifier.height(EmptyLineHeight))
         }
         paragraph.size == 1 && paragraph[0] is TextSegment.HorizontalRule -> {
             // 水平線（html_exporter.py の <hr> に対応＝シーン区切り）
             Canvas(
                 modifier = modifier
                     .fillMaxWidth()
-                    .padding(vertical = 18.dp)
+                    .padding(vertical = Spacing.S16)
                     .height(1.dp),
             ) {
                 // D 様式: 旧・全幅破線をやめ、中央寄せの短い実線にする。
@@ -269,12 +277,12 @@ private fun ParagraphItem(
             Surface(
                 modifier = modifier
                     .fillMaxWidth()
-                    .padding(bottom = 20.dp),
+                    .padding(bottom = Spacing.S24),
                 color = colors.blockBackground,
                 border = androidx.compose.foundation.BorderStroke(1.dp, colors.blockBorder),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
             ) {
-                Column(modifier = Modifier.padding(15.dp)) {
+                Column(modifier = Modifier.padding(Spacing.S16)) {
                     Text(
                         text = block.label,
                         // モック .block .lbl: ラベルは藍（accent）。本文インク色ではなくアクセントで小見出し化する。
@@ -282,18 +290,18 @@ private fun ParagraphItem(
                         // 前書き/後書きラベルは視覚上の小見出し＝見出しジャンプ対象にする（WCAG 4.1.3 / 1.3.1）。
                         modifier = Modifier
                             .semantics { heading() }
-                            .padding(bottom = 4.dp),
+                            .padding(bottom = Spacing.S4),
                     )
                     innerParagraphs.forEach { innerPara ->
                         if (innerPara.isEmpty()) {
-                            Spacer(modifier = Modifier.height(20.dp))
+                            Spacer(modifier = Modifier.height(EmptyLineHeight))
                         } else {
-                            // padding(bottom=14.dp): 下 padding + 次アイテムの上 leading = 27.5dp ≈ 折り返し行間
+                            // 段落間隔は組版較正値（冒頭 ParagraphSpacing の why 参照）
                             RubyText(
                                 segments = innerPara,
                                 style = bodyStyle,
                                 rubyColor = colors.ruby,
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
+                                modifier = Modifier.fillMaxWidth().padding(bottom = ParagraphSpacing),
                             )
                         }
                     }
@@ -302,12 +310,12 @@ private fun ParagraphItem(
         }
         else -> {
             // 通常の段落
-            // padding(bottom=14.dp): 下 padding + 次アイテムの上 leading = 27.5dp ≈ 折り返し行間
+            // 段落間隔は組版較正値（冒頭 ParagraphSpacing の why 参照）
             RubyText(
                 segments = paragraph,
                 style = bodyStyle,
                 rubyColor = colors.ruby,
-                modifier = modifier.fillMaxWidth().padding(bottom = 14.dp),
+                modifier = modifier.fillMaxWidth().padding(bottom = ParagraphSpacing),
             )
         }
     }
