@@ -18,129 +18,34 @@
 
 ---
 
-## ★特別監査項目 — UX/Design 全層監査（2026-07-12・fresh セッションで一挙消化）
+## ★UX/Design 全層監査 — 残タスク（大半消化済み・2026-07-12）
 
-> **これは何か**: `/mnt/c/Users/qingj/Desktop/project/UX`（UX24層＋Design10層＋公理1〜18候補）に対し novel-reader 全体を多エージェント監査（45体・敵対的検証済み）した指摘の**やること台帳**。
-> **一次情報（全指摘の evidence・検証ノート）の正本＝`.claude/plans/ux-design-full-audit-2026-07-12.md`**（§A 統合報告・§B 全指摘詳細）。ここは終終の action list（消化したら行を消す）。
-> **件数**: Critical 3 / Major 26 / Minor 32（束ね後）＋ 要検証 16・人間テスト送り 7（コード修正でなく実機/人間検証の別バケツ）。良い点3は「維持・触るな」＝§下部。
-> **重複注意（SSOT）**: 一部は既存台帳と同根＝各行に「既出Lxx」注記。新設せず格上げ/具体化として扱う。
+> **これは何か**: `/mnt/c/Users/qingj/Desktop/project/UX`（UX24層＋Design10層＋公理候補）に対し novel-reader 全体を多エージェント監査（45体・敵対的検証済み）した指摘の、**残っている作業だけ**の action list（消化したら行を消す）。
+> **消化済み（Critical 3/Major 24/Minor 29＝コード13コミット・実機 v18 検証・ユーザー確認バッチ A〜H 全裁定）＝`STATUS.md` §1「UX/Design 全層監査 一挙消化」項が正本**。全指摘の evidence・実行記録の一次情報＝`.claude/plans/ux-design-full-audit-2026-07-12.md`（§A 統合報告／§B 全指摘詳細）＋`.claude/plans/ux-audit-batch-execution-20260712.md`（実行記録・セッション2最新節）。良い点（維持・触るな＝公理6/3/5 の模範実装）も plan §B が正本。
+> **対象ブランチ**: `ui/polish`（この worktree＝ext4）。ゲート＝`cd android && testDebugUnitTest`（init-script 不要）＋`python3 tools/check_design_tokens.py`。**意匠絡みは Compose で自己判断せず ADR0005/0014＋モック正本に先に接地**。実機絡みは PushNotification→目視OK→コミット。
 
-### 実行起動ブロック（fresh セッションはここから）
-- **⚠️ 2026-07-12 セッション2 まで完了＝監査バッチはクラスタ12＋追い6の計18コミット済み（`ui/polish`・working tree クリーン・全ゲート緑）・実機検証済み・ユーザー確認バッチ A〜H 全裁定済み。**
-  **fresh セッションは先に `.claude/plans/ux-audit-batch-execution-20260712.md` の「【セッション2・最新状態と次アクション】節」を読むこと**（本 ★節の以下の行は着手前の「やること」表記のままで**大半が実装済み**＝plan 最新節が正本）。
-  **残り＝①重いデザイン系（F 余白モック作り直し・C② 発見帯すり合わせ・C① ギア代替試作モック＝すべて /design）②本 ★節の完了行の消し込み＋STATUS 反映 ③ui/polish→main 統合 ④低優先: ⑧回転/行長 実機・了スタンプアニメ。**
-  項目単位パッチ45個＋司令塔台帳は `~/.claude/ux-audit-20260712-artifacts/` に保全済み。
-- **対象ブランチ**: `ui/polish`（この worktree＝ext4）。plan 冒頭に対象ブランチ記録済み。
-- **最小読みセット**: ①この節 ②`.claude/plans/ux-design-full-audit-2026-07-12.md`（着手項目の §B evidence）③着手項目が指す KB層ファイル（例: a11y→`UX/09`・chrome→`Design/09`）④触るコード現物。
-- **検証ゲート**: `src/main`/`src/test` を触ったら必ず `cd android && gw testDebugUnitTest`（ext4 worktree は init-script 不要）。意匠を触ったら `python3 android/tools/check_design_tokens.py`。**a11y/没入/幅/回転は実機必須→`/device-verify`**（コード修正だけで閉じない）。
-- **消化順序（推奨）**: Critical①→（②③は設計判断・着手前ユーザー確認）→ Major の「引く1箇所」系（d-motion bounce・d-chrome 3件・reach 適応/ギア・ia ソート）→ a11y ルビ3件→ トークン規律 bulk。
-- **1項目1コミット**（Atomic・`fix/refactor: 要約`・commit 前に変更提示＋人間承認・Co-Authored-By 無し）。実機絡みは PushNotification→目視OK→コミット（Opus 運用チューニング）。
-- **委譲可否**: 小口の「引く」修正は直接（小口委譲は損）。**sp直書き161ヒットのトークン化・Spacingトークン一括適用**は仕様（スロット表）固定後に bulk 委譲可（意匠バッチは委譲仕様書に ADR0005/0014 参照必須）。
-- **意匠絡みは Compose で自己判断しない**: ia本棚ソート/発見帯・d-token/d-type/d-motion/d-chrome は**モック正本（ADR0005）＋トークン層（ADR0014）を先に確認**。モック改変が要るものは ADR/DesignSync 経由。
+### 残1: 重いデザイン系（/design・DesignSync は主セッション限定＝委譲不可）
+- **[F] 余白の離散スケール再設計**（確認バッチF＝モック作り直し裁定）: 任意dp(11/5/14/18/20/26 等)を使う全画面モックを離散スケール(4/8/16/24/40)へ再設計 → `docs/design-candidates` 更新 → Compose 再翻訳 → `check_design_tokens.py` に Spacing 突合を追加。**§C（余白は要素）原則は維持**＝モック自体が §C 不遵守と全数調査で判明した矛盾の解消。旧 d-token『離散スケール』項（`DiscoveryResultScreen.kt:247` ほか全域・任意dp→離散＋SpacingTokens を彫る）を含む。
+- **[C②] 本棚先頭の発見帯の去就**（確認バッチC②＝撤去でなく /design ですり合わせ裁定）: 支配タスク＝読みかけ本を先頭で押し下げる問題（`BookshelfScreen.kt:582-643`）を HTMLモックで擦り合わせ。ADR0005/0014 接地。
+- **[C①] 読書ギアの代替導線 試作モック**（確認バッチC①＝撤去せず代替試作を見たい裁定）: 右上ギア撤去→中央タップ→下端シートの代替導線の試作HTMLモックを作り chrome で見せる（**探索・改善確約でない**／`NativeReadingScreen.kt:920-928`）。現状はモックにギア実在＝指示と正本が矛盾のため実装停止中。
 
-### Critical（3件・現物確認済み）
-- **[C1] 目次ジャンプで読書位置が不可逆上書き**（`NativeReadingScreen.kt:149-156`／公理14・6）: `navigateForward` が index.html 以外への全遷移で無条件 `saveProgress`→目次から章を確認しに開くと読みかけ先端が恒久喪失。**やること**: eager saveProgress を削り debounce/ON_STOP フラッシュへ委譲＋目次ジャンプは `jumpOrigin` 退避＋「続きに戻る」チップ＋滞留昇格（参照ジャンプと読み進めを区別）。**最優先推奨**（中核タスク直撃・局所修正）。
-- **[C2] 端末喪失で蔵書・位置・設定が全損**（`AndroidManifest.xml:23` allowBackup=false／公理18・portable2件束ね）／**方針確定（2026-07-12・層別バックアップ）**: **やること**: ①`allowBackup=true` に戻し `android:dataExtractionRules`(API31+)＋`android:fullBackupContent`(API<31) の両方を付す ②XML は **include＝Room DB(`databases/`)＋DataStore/SharedPreferences(`datastore/`・`shared_prefs/`)**／**exclude＝`files/novels/`(HTML実体・25MB超えの要因)**＝メタデータ層（位置・しおり・設定・蔵書リスト、数十KB）のみクラウド/D2Dへ ③**復元後に HTML 実体が無いケースを graceful degrade**（読書を開くと落ちるのでなく「再取込が必要」状態＝位置は保持）＝現 manifest コメントが恐れた `resolvedFile==null` クラッシュを構造対処。位置の自動復帰は下記 Minor portable（`htmlDirPath` を bookId 再導出・`contentSha256` 再結合）と**セットで完成**。**ADR 化必須**（`allowBackup=false` の既存判断を上書き＝番号は着手時に全レーン grep で衝突確認して採番）。
-- **[C3] 日次新着通知が再訪促し**（`NovelReaderApplication.kt:142`無条件schedule/`:179`IMPORTANCE_DEFAULT/`NewEpisodeCheckWorker`／公理13）／**方針確定（2026-07-12・撤去せずオプトイン）**: U1 は 2026-07-10 build 済み機能ゆえ**撤去せず既定OFFのオプトイン化**（機能を捨てず公理13へ寄せる）。**やること**: ①設定に「新着話を通知する」トグル新設（**既定OFF**）②`scheduleNewEpisodeCheck()` を onCreate 無条件呼び出しから**トグルON時のみ enqueue／OFFで `cancelUniqueWork`** へ ③チャネルを `IMPORTANCE_DEFAULT`→**`IMPORTANCE_LOW`（無音）** ④初回 POST_NOTIFICATIONS 要求前に priming ⑤既定の更新提示は**既存の本棚バッジ（無音・in-app）に委ねる**（着手時にバッジ実在を1点確認してから push を降格）。これで**要検証 privacy（日次 ncode 群の syosetu 送信・停止トグルなし）も同時解消**（OFF なら背景照会も走らない）。**既出 L15**（U1新着チェック整合）と同機能。
+### 残2: 要検証 実機送り（6件・`/device-verify`・コード修正で閉じない）
+- 回転レース: 回転直前の最終スクロールデルタ(≤400ms)が保存に間に合わずレース→章を読みつつ即回転反復で DB 突合。
+- 回転オフセット: 形態遷移（回転/折り畳み）で段落内 px オフセットが指す行がずれる→長段落で回転し何行ずれるか。
+- ノッチ横向き: 横向き/サイドノッチで行頭・行末がカットアウトに欠ける→`displayCutout` 合成を横向き目視。
+- TalkBack到達: 没入バー退避時に戻る/目次/前後章へ TalkBack スワイプ走査で到達可能か。
+- ルビ掛け: 長ルビ・隣接ルビ間アキ制御なし→長ルビ実データで実機目視。
+- 大フォント行数: 大フォント×広余白で1行字数が極端減（18sp≒18字/24sp≒11字）→各設定の体感リズム確認。
 
-### Major（26件・§B に evidence）
-| 出所 | 公理/ルール | 場所 file:line | やること（修正・引く優先） |
-|---|---|---|---|
-| ssot | 公理8 | `ShelfItems.kt:108-111` | `else 1f` をやめ最終章スクロール中は<1f・READING側に留める（1行で100%・『了』・読了移動の是正） |
-| a11y+d-type **両面** | 公理11(b)/WCAG1.4.3 | `Theme.kt:63,89,108`／`RubyText.kt:87-95` | ルビ3値を色相維持で暗化し全面4.5:1へ（実測 L2.89/S2.53/D4.05 未達） |
-| a11y | 公理11C/WCAG1.4.4 | `RubyText.kt:90,101-106` | ルビのフォントスケール追従を手計算→sp変換へ委譲・baseAscent も fontScale 反映 |
-| a11y | 公理11F semantics | `RubyText.kt:133,209` | 段落に読み置換 AnnotatedString/VerbatimTtsAnnotation（当て字を著者読みで読み上げ・`segment.reading`流用） |
-| continuity | 公理14候補E/公理1 | `WebBookCard.kt:69-124`／`BookshelfScreen.kt:216` | 進捗ありWeb作品の主タップを再開へ統一（PDFと揃える）・目次は⋮へ降格（<48dp も解消） |
-| continuity | 公理14候補D/公理6 (PLAUSIBLE) | `DefaultBookRepository.kt:94-102` | `recordWebReadingEpisode` を furthest-wins 化（目次確認で再開ポインタが後退しない） |
-| persist | 公理6 構成変更 | `WebReaderScreen.kt:62,65,152` | 再生成時 startUrl を DB最終話へ差替（理想は saveState/restoreState を rememberSaveable で持ち回り） |
-| ia | 15-§B 既定ソート | `ShelfItems.kt:49`／`BookDao.kt:14` | 既定ソートを lastReadAt 主キーへ（未読新刊が読みかけを押し下げない）※意匠絡み ADR経由 |
-| ia | 15-§G②④ | `BookshelfScreen.kt:442`／`ShelfItems.kt:37` | 蔵書内 LIKE フィルタ＋series 束ね（数百冊で既知本への最短路） |
-| add | 公理12 段差 | `BookshelfScreen.kt:171-181,246-285` | 初回FABからバッテリー最適化モーダルを外し背景変換の文脈まで遅延。**既出 L16**（取込ボタン不安定）の再現候補を確定 |
-| add+errtext **束ね** | エラー分類10-C | `PdfImportViewModel.kt:105-155`／`NovelApiRepository.kt:102-132` | 単一集約点で retryable(IO/timeout/5xx/429)のみ指数バックオフ+Full Jitter 1-2回。429は Retry-After・4xx非リトライ維持 |
-| idempo **束ね** | 公理4/UX16-H | `BookshelfScreen.kt:689-704`／`DefaultBookRepository.kt:385-394` | 削除確認撤去→snackbar『元に戻す』遅延削除へ（即・完全不可逆＝DB行+HTML物理削除を是正） |
-| privacy | 公理15③/削除完全性 | `WebReadingProgressDao.kt:10-21`／`DefaultBookRepository.kt:87,94` | DAO に `deleteByNcode` 追加し削除経路から相乗り＋起動時 orphan 掃除。**既出 L72**（削除経路皆無）を Major へ格上げ・具体化 |
-| privacy+measure **両面** | 公理15B②/22層§B | `PdfImportViewModel.kt:92` | DL URL(ncode)/Content-Disposition(書名)の logcat を定数化 or `if(BuildConfig.DEBUG)`。**既出 L64**（minifyEnabled false＝release に残る理由）と同根 |
-| measure | 24層§E 回復パス発火 | `NovelReaderApplication.kt:87` | 起動リカバリの partition/順序を純関数抽出し JVMテストで固定（退行が緑を通る穴） |
-| measure | 24層C#8 破損隔離 | `DefaultBookRepository.kt:198`／`PdfBookExtractor.kt:130` | `addBook` を `internal process(engine,…)` 経由へ差替可能化し fake engine で隔離を assert |
-| d-token | ADR0014§A 字面SSOT | `BookCard.kt:113,227,345` ほか ui/ 161ヒット | `fontSize` 直書き(9.5〜16.5.sp)を typography.* スロット経由へ・sp突合を check_design_tokens へ追加（bulk 委譲候補） |
-| d-token | ADR0014§C 離散スケール | `DiscoveryResultScreen.kt:247`／全域 | 任意dp余白(11/5/14/18/20/26)を離散(4/8/16/24/40)へ丸め SpacingTokens を彫る（bulk 委譲候補） |
-| d-token+d-type **両面** | ADR0014§D/公理11 | `ReadingErrorScreen.kt:42,48` ほか | 意味テキストの `copy(alpha=0.75/0.7)` を削り InfoText/専用暗化シェード素値へ（AA割れ是正）。**既出 L29**（InfoText mock追従）と同系 |
-| d-motion | 08 禁止則③ bounce | `Motion.kt:20`／`BookCard.kt:171,309` ほか | `dampingRatio` を `DampingRatioNoBouncy(1f)` へ（1箇所修正で4使用不変・本棚カードの跳ね除去） |
-| d-chrome | Design/09D バー契約 | `NativeReadingScreen.kt:846-897`／`MainActivity.kt:75` | `WindowInsetsController.hide/show(systemBars())` を isChromeVisible と同フレーム駆動＋版面 inset を IgnoringVisibility へ |
-| d-chrome | Design/09A 既定=無 | `NativeReadingScreen.kt:507` | 入場時 `heightOffsetLimit` で全退避し既定を「無」に（ChapterHeader が章題を担う） |
-| d-chrome | Design/09F 消灯 | `NativeReadingScreen.kt`／`WebReaderScreen.kt` | 読書中 `DisposableEffect` で `FLAG_KEEP_SCREEN_ON`・onDispose で clear |
-| reach | 21-C 到達性 | `NativeReadingScreen.kt:920-928` | 右上ギア撤去・表示設定の起動を中央タップ→下端シートへ（上端は Up＋章題のみ） |
-| reach | 21-E 適応一次元化 | `BookshelfScreen.kt:569` | `GridCells.Fixed(2)`→`Adaptive(minSize)`（スマホ影響0・≥600dpで多列） |
-| critic | UX/06⑥ 1フォーカス単位 | `BookCard.kt:315` ほか | カード行に `semantics(mergeDescendants=true)`（TalkBack が1冊を複数ノードに分割読み上げ） |
+### 残3: 人間テスト送り（7件・UX/17 Krug 式）
+> `.claude/plans/usability-test-protocol-2026-07-12.md`（T1〜T7）にタスク化済み。AI/実機で確定不能（2週間後・無説明での操作言語混乱・スコープ誤解・中央タップトグルの再発見可能性・通知テレポート着地の本特定 など）。実施は人間ユーザビリティテスト便で。
 
-### Minor（32件・§B に evidence）
-| 出所 | 場所 | やること |
-|---|---|---|
-| persist | `DiscoveryResultScreen.kt:385` | novels+paging も SavedStateHandle へミラー（プロセスdeath で積み上げ喪失） |
-| persist | `WebReaderViewModel.kt:27` | Web再開が話冒頭までな旨を「第N話のはじめから」表記に（JS注入禁止で構造的・ADR0012へ明文化） |
-| continuity | `BookCard.kt:54-96` | lastReadAt を READING カードに相対時刻で添える（「◯日前」の見当識） |
-| add+notify **両面** | `BookshelfScreen.kt:152-165` | 通知権限に priming（理由ダイアログ）を挟む・取込文脈まで遅延も可 |
-| add | `DefaultBookRepository.kt:143-204` | 取込前に `usableSpace`/`getAllocatableBytes` で空き容量チェック |
-| errtext | `NativeReadingScreen.kt:442,275` | 章/目次読取例外の生メッセージ（絶対パス/ENOENT）を固定文言化・原因は Log.e へ |
-| errtext | `PdfProcessingService.kt:376` | Encrypted/Corrupted は retryUri=null で『閉じる』のみ（決定的失敗に無効な再試行を出さない） |
-| errtext | `PdfProcessingService.kt:225` | 「時間制限により中断」→「開き直すと再開します」へ短縮（FGS 実行上限は読み手に無関係） |
-| ia | `DiscoveryResultScreen.kt:146` ほか | 「見つける/探す/検索/発見」4語を用語辞書1枚で統一 |
-| ia | `BookshelfScreen.kt:582-643` | 本棚先頭の発見帯を撤去し🔍へ一本化（支配タスク先頭本の押し下げ）※モック正本 ADR0005 経由 |
-| ia | `DiscoverySearchScreen.kt:270-321` | 範囲チップを既定(タイトル)で即検索・折り畳み or 結果画面へ（先出ししない）※意匠モック由来の可能性 |
-| ia | `NativeTableOfContentsScreen.kt:216-246` | 目次の既読(index<current)をグレー+ウェイトで区別（currentIndex から導出・データ追加不要） |
-| ia | `BookshelfScreen.kt:726-746` | 0件の状態チップを dim/非表示 or 各チップに件数 |
-| gesture | `NativeReadingScreen.kt:960` | 復帰ヒント文言を「画面をタップでメニュー」へ（実領域＝全面と一致） |
-| settings | `ReadingSettingsSheet.kt:121` | テーマチップに「システムに従う」追加・選択時 `remove("reading_theme")`（未宣言へ戻せる） |
-| notify | `PdfProcessingService.kt:355-361` | ProcessLifecycleOwner で foreground 時は完了通知スキップ（本棚の反応に委ねる二重報告是正） |
-| notify | `PdfProcessingService.kt:514` | 該当本を開いた/deep link 着地で通知 cancel（stale 通知の取り下げ） |
-| notify | `PdfProcessingService.kt:467-489` | 取込進捗に `setOnlyAlertOnce(true)`＋progress 変化時のみ notify |
-| portable | `BookEntity.kt:10,28` | 復元時 htmlDirPath を bookId から再導出・`contentSha256` を再結合キーへ昇格（C2 とセットで位置自動復帰） |
-| a11y | `NativeReadingScreen.kt:793-839` | ReadingError/継続カードに `liveRegion=Polite`（非同期状態変化の告知） |
-| a11y | `ChapterContent.kt:174-183` | 章タイトル・前/後書きラベルに `semantics{ heading() }`（見出しジャンプ） |
-| evolve | `MigrationTest.kt:40-42` | MIGRATION_3_4 にデータ入り回帰テスト追加 or v3実機無しなら chain 削除で floor v7。**既出 L75**（16→17 coverage hole）と同系 |
-| evolve | `MainActivity.kt:88,128` | prefs/DataStore に `settings_schema_version` を置く（enum 生保存の改名耐性・予防的） |
-| d-token | `ShioriCover.kt:279` | 生 ARGB リテラル1件をヘアライントークン＋名前付き alpha 定数へ |
-| d-token | `RubyText.kt:243,264,279` | @Preview の `Color(0xFF…)` を `ReadingTheme.LIGHT.colors.ruby` 参照へ |
-| d-motion | `BookshelfScreen.kt:519-522` | バナー入退場を Motion トークン化・exit を enter より短く（reveal250/dismiss150） |
-| d-motion | `NativeReadingScreen.kt:946`／`NovelDetailScreen.kt:186` | 復帰ヒント/題字 fade に crossfade トークンを渡し Motion.kt 経由へ |
-| d-chrome | `WebReaderScreen.kt:84-104` | 読む面の chrome 規律を最低限近づける（媒体差 ADR0012 で大半正当・native側 A/D/F 是正が先） |
-| d-type | `NcodeLinkSheet.kt:148,357` | placeholder/無効文字の `copy(alpha=0.6)` を専用シェードトークンへ（コード衛生・WCAG は概ね対象外） |
-| reach | `ChapterContent.kt:142,73` | 本文最大幅 600.dp を「~40*fontSize」字数基準へ・行間 em も行長の関数へ |
-| critic | `DiscoverySearchScreen.kt:217`／`NcodeLinkSheet.kt:121` | 検索/入力欄に恒常ラベル（画面内見出し or `contentDescription`）・placeholder は例示専用へ |
-
-### 要検証（16件・実機/静的で確定不能＝`/device-verify` 送り。コード修正で閉じない）
-- nav: 作品詳細の←が到達経路で別着地（発見ホーム↔結果一覧）。混乱を生むか実機目視→統一裁定なら Result 同型固定Upへ。
-- persist: 回転直前の最終スクロールデルタ(≤400ms)が保存に間に合わずレース→章を読みつつ即回転反復。
-- ssot: 章数が「chapファイル数」と「index目次数」の二経路導出（現状ロックステップで一致）→ 不変条件を testDebugUnitTest で固定。
-- add: 取込WebView 初期ロード中の白画面露出→低速回線で実測、長ければ既存スピナー流用。
-- gesture: 下端 BottomAppBar（章送り）がジェスチャナビ帯と近接し誤発火→3ボタン/ジェスチャ両式で確認。
-- privacy: 日次で ncode 群を syosetu へ送信・停止トグルなし・既定ON（C3 と同根）→ 既定OFFオプトイン化＋Data safety 記載。
-- a11y: 没入バー退避時 TalkBack が戻る/目次/前後章へ到達可能か→実機 TalkBack スワイプ走査。
-- reach: 形態遷移（回転/折り畳み）で段落内 px オフセットが指す行がずれる→長段落で回転し何行ずれるか。
-- evolve: v1/v2 スキーマ実機が実在すると移行未発見で起動時クラッシュ（fallback不在）→過去 v1/v2 投入端末の残存を人間知識で確認。
-- measure: 大PDF/10倍蔵書/長時間送りの予算が漸進劣化、INTERNET無しで出荷後テレメトリ不能→Macrobenchmark 新設・P90/P99 で §F 予算を assert。
-- d-token+d-motion **両面**: `Motion.kt:28` 400ms が 350ms 上限超（進行類型は免除余地大）→免除を ADR に明記 or 300へ。
-- d-type: ルビの掛け・隣接ルビ間アキ制御なし→長ルビ実データで実機目視。
-- d-type: 大フォント×広余白で1行字数が極端減（18sp≒18字/24sp≒11字）→各設定の体感リズム確認。
-- d-chrome: 横向き/サイドノッチで行頭・行末がカットアウトに欠ける→ノッチ端末を横向き目視・`displayCutout` 合成。
-- ia: 数百話作品で目次が部/編で畳めずフラット→実PDF→HTML の階層有無を確認。
-- critic: 章題ブロックの余白逆転(top14<bottom26)→章オープナー意匠として意図的か確認・ADR記録。
-
-### 人間テスト送り（7件・UX/17 プロトコルでタスク化。AI/実機で確定不能）
-- nav: 通知テレポート着地直後に書名が無く章題が汎用文言のとき「どの本か」特定できるか→迷えば chrome に書名常設。
-- settings: 「この本の読書画面」の設定でダークを選ぶと本棚も暗くなる。「この本だけ変えたつもり」の誤解を持つか→見出しで全書籍スコープ予告。
-- gesture: 2週間後・無説明でネイティブ読書↔Web読みを交互に触らせ操作言語の混乱があるか（Web別モードは許容例外候補）。
-- gesture: 2週間後・無説明で「メニューを出して」→通算初回のみのヒントで消えた中央タップトグルを再発見できるか。
-- d-motion: 開発者オプション「アニメスケール0」でカード押下バウンス/バー settle/バナーが即時化するか目視。
-- d-chrome: 少し上スクロールで上下バーが自動復帰し本文上端を覆う挙動を惜しむ声が出るか。
-- ia: 各入口（目次/本棚/deep link/history）→本文の位置/スワイプ/継続挙動が同一か（読書継続性と重複可）。
-
-### 良い点（維持・触るな。守れている公理）
-1. 公理6 永続性の模範＝`NativeReadingScreen.kt:133-183`（rememberSaveable+DB正本+ON_STOP フラッシュ・章一致時のみジャンプ注入）。
-2. 公理3 べき等性の三層防御＝ActiveUriTracker+contentSha256+title/author 照合（機械検証済み）。
-3. 公理5 SSOT＝BookshelfViewModel CONFLATED 単一チャネル＋readingStatusFor 単一計算（※ssot Major の 1f は別途是正）。
-
-> **統合メモ（束ね/棄却の詳細）**は §A §6。REFUTED 1件＝notify「お知らせチャネル無し」（実在ゆえ棄却）。ia「検索経由 vs 目次経由の本文分岐」は FTS 不在で不成立→人間テスト送りへ横移動済み。
+### 残4: 監査派生 backlog（新規タスク）
+- **蔵書内フィルタ/series 束ね UI**（確認バッチC④＝保留）: ロジック `filterBooksByQuery` は実装済み・UI はモック未表現のため保留（`BookshelfScreen.kt:442`／`ShelfItems.kt:37`）。series 束ねはスキーマ変更要（設計案のみ）。
+- **目次の部/編 折り畳み**: 抽出パイプラインに階層データ無し＝**抽出側の新機能**。実PDF→HTML の階層有無は要検証で「フラット確定」＝畳みは前提データ欠如で現状不成立。
+- **Macrobenchmark 新設**: measure 要検証（大PDF/10倍蔵書/長時間送りの予算漸進劣化を P90/P99 で assert）＝独立タスク。INTERNET 無しで出荷後テレメトリ不能の代替。
+- **lint 新 warnings（任意改善・非ブロック）**: ModifierParameter×3（新設 composable）・UsableSpace×2（getAllocatableBytes 併用提案）。
+- **裁定=維持（won't-do・記録のみ）**: C③ 範囲チップ先出し＝モック正本由来と確認し維持（`DiscoverySearchScreen.kt:270-321`）。発見系モックの InfoText 再分類は既存「UI/UX 宿題」枠と同系（SearchConditionSheet/DiscoverySearch/TOC の3箇所も同枠）。発見結果の novels/paging は SavedStateHandle へミラーせず復帰時に再フェッチする**非ミラー裁定**を採用済み（`DiscoveryViewModel.kt` コメント F-C/F-E＝result_context/search_draft のみミラー・積み上げはプロセスdeath で再取得。監査 persist Minor の裁定）。
 
 ---
 
