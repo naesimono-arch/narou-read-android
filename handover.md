@@ -25,6 +25,10 @@
 > **重複注意（SSOT）**: 一部は既存台帳と同根＝各行に「既出Lxx」注記。新設せず格上げ/具体化として扱う。
 
 ### 実行起動ブロック（fresh セッションはここから）
+- **⚠️ 2026-07-12 一挙消化セッション実施済み＝本節の大半は実装完了・未コミット（working tree 62ファイル・全ゲート緑）。**
+  **fresh セッションは先に `.claude/plans/ux-audit-batch-execution-20260712.md`（実行記録・確認バッチ・実機検証リスト・コミット計画の正本）を読むこと。**
+  残り＝①ユーザー確認バッチ（意匠裁定・コミット方式）②実機検証（Room v18 migration 含む）③コミット④本節の消し込み記帳。
+  項目単位パッチ45個＋司令塔台帳は `~/.claude/ux-audit-20260712-artifacts/` に保全済み。
 - **対象ブランチ**: `ui/polish`（この worktree＝ext4）。plan 冒頭に対象ブランチ記録済み。
 - **最小読みセット**: ①この節 ②`.claude/plans/ux-design-full-audit-2026-07-12.md`（着手項目の §B evidence）③着手項目が指す KB層ファイル（例: a11y→`UX/09`・chrome→`Design/09`）④触るコード現物。
 - **検証ゲート**: `src/main`/`src/test` を触ったら必ず `cd android && gw testDebugUnitTest`（ext4 worktree は init-script 不要）。意匠を触ったら `python3 android/tools/check_design_tokens.py`。**a11y/没入/幅/回転は実機必須→`/device-verify`**（コード修正だけで閉じない）。

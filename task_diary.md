@@ -651,6 +651,13 @@ Robolectric（4.11.1・sdk34・createComposeRule）で `ModalBottomSheet` を含
 - **帰結**: 「並列度1ディスパッチャへ launch すれば FIFO 直列化」という設計は、仕事が終端まで同ディスパッチャに留まる場合にしか成立しない。Room・`withContext` が挟まる実務コードではほぼ不成立（本件では「PDF投入直後に停止」で insert が deleteAll を追い越し、破棄済みジョブが復活する窓になっていた）。
 - **対処**: suspend 呼び出しの完了までロックを保持する `Mutex.withLock` が正しい排他（ディスパッチャ非依存）。順序も要るなら main スレッド起点の launch 順＋Mutex の FIFO 公平性で担保する。
 
+#### 58. 通知チャネルの importance は作成後に下げても既存インストールへ反映されない（createNotificationChannel は既存チャネルを更新しない）  ★★
+
+2026-07-12 UX監査 C3（新着通知チャネル `IMPORTANCE_DEFAULT`→`IMPORTANCE_LOW` 降格）の実装で確認。
+- **機序**: `createNotificationChannel` は同 id のチャネルが既にあると**名前と説明以外を更新しない**（importance・音・バイブはユーザー所有の設定扱い）。コードで importance を下げても、旧値でチャネル作成済みの端末では旧 importance のまま動き続ける。
+- **帰結**: 「チャネルを静かにする」変更は**新規インストールにしか効かない**。既存端末も確実に変えるにはチャネル id を変える（旧チャネル削除＋新設）しかないが、ユーザーがチャネル単位で設定した内容も破棄される破壊的手段＝安易にやらない。
+- **本アプリでの扱い**: 新着話チャネルの LOW 化は新規インストール向けとし、既存の検証端末（PGEM10）では旧 DEFAULT が残り得ることを実機確認時に織り込む（`NovelReaderApplication.createNotificationChannel` のコメントに明記）。
+
 ## 移設マッピング（旧 Part II / Part III の固定ID対応）
 
 > 旧エントリ番号（`§N`）は固定ID。本ファイルから `docs/` へ移設したもの、および重複採番の解消で再採番したものは下表で追跡する（移設先での再採番はしない）。

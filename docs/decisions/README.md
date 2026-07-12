@@ -22,3 +22,5 @@
 | [0012](0012-narou-reading-webview-position-tracking.md) | なろう作品の"閲覧"を加工なし・URL 観測のみ・JS 注入ゼロの WebView で行い読書位置を記録し続きから再開（0010 の閲覧送客の既定を機能②で更新／自己申告 UI・番号一覧 却下） | — |
 | [0013](0013-pdf-multiselect-standard-picker-post-import-filter.md) | PDF 複数選択は標準ピッカー＋取込段でのなろう形式フィルタ（SAF は MIME しか絞れず選択画面での絞り込み/ソート不可＝独自ピッカー案A・無確認スキップ案B' 却下） | — |
 | [0014](0014-design-principles-and-source-layers.md) | デザイン原則5箇条＋禁止則表の正式化と正本の層構造宣言（原則/トークン/モック/コードの4層・可読性＞美学・Style Dictionary 不採用＝一致検査スクリプトの現実解） | — |
+| [0015](0015-layered-auto-backup.md) | 層別 Auto Backup＝メタデータ層（DB・prefs・DataStore）のみ include・HTML 実体（novels/）除外（旧 allowBackup=false を上書き／全量・現状維持・独自エクスポート却下） | — |
+| [0016](0016-bookshelf-two-tier-recency-sort.md) | 本棚既定ソートの二層化＝読書中(lastReadAt)を上層・未読(addedAt)を下層（純lastReadAt単キー・現状維持・ソートUI先行 却下） | — |
