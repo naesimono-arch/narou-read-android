@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Discovery D ジャンル選択 — 和モダン余白</title>
 <style>
+  /*==harness==*/
   :root{
     --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
     --ai:#1C3D5A;        /* 藍 */
@@ -22,15 +23,17 @@
   .wrap .mode{font-size:12px;letter-spacing:.24em;color:#6A6C67}
   .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
     box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--gothic)}
+  /*==/harness==*/
+
   .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--ink-soft);flex-shrink:0}
   .scroll{flex:1;overflow:auto;padding:0 24px 40px}
 
   /* 戻るボタン */
-  .back{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);padding:2px 24px 0;cursor:pointer;flex-shrink:0}
+  .back{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);padding:4px 24px 0;cursor:pointer;flex-shrink:0}
   .back svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5}
 
   /* 文脈ヘッダ */
-  .ctx{padding:6px 24px 0;flex-shrink:0}
+  .ctx{padding:8px 24px 0;flex-shrink:0}
   .ctx h2{font-family:var(--mincho);font-size:21px;color:var(--ink);font-weight:500;letter-spacing:.1em}
 
   /* ジャンル見出し行 */
@@ -38,7 +41,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin: 24px 0 10px;
+    margin: 24px 0 12px;
   }
   .genre-sec-header .sec-ttl {
     font-size: 10.5px;
@@ -63,7 +66,7 @@
     flex-wrap: wrap;
     gap: 8px;
   }
-  .gc{font-size: 11.5px;color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:7px 14px;cursor:pointer}
+  .gc{font-size: 11.5px;color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:8px 16px;cursor:pointer}
   .gc:hover{border-color:var(--ai);color:var(--ai)}
 </style>
 </head>

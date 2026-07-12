@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>UI-n D 読書 — 和モダン余白</title>
 <style>
+  /*==harness==*/
   /* D案 読書: 本棚Dと同一の視覚言語（寒色白×藍ヘアライン×青磁／本文=明朝・ラベル=ゴシック・余白主導）を
      読書画面へ展開。署名要素「藍の細ルール」を章見出し・シーン区切りに転用する。
      3読書テーマ(ライト/セピア/ダーク)はDのデフォルト採用後も別軸として存続するため、
@@ -28,6 +29,8 @@
   /* ---- テーマ別トークン（Dの寒色を起点にライト/セピア/ダークへ展開）---- */
   .phone{width:372px;height:800px;border-radius:40px;overflow:hidden;position:relative;
     box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--mincho)}
+  /*==/harness==*/
+
   .t-light{ --bg:#FBFAF8; --ink:#1C1F26; --soft:#7C808B; --ruby:#616C77; --rule:#1C3D5A;
             --blk-bg:#F1F0EC; --blk-bd:#E4E2DB; --bar:#FBFAF8; --bar-line:#ECEAE4; --accent:#1C3D5A; --acc-on:#fff; }
   /* セピアは 2026-07-08 に Compose 実装（Theme.kt ReadingColors.SEPIA）の実機調律値を正本として逆反映。
@@ -41,7 +44,7 @@
   /* ---- トップバー（オーバーレイ。読書中は控えめ。Dのヘアライン体系）---- */
   .sb{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;
     font-size:11px;color:var(--soft);font-family:var(--gothic)}
-  .topbar{position:relative;z-index:4;height:50px;display:flex;align-items:center;gap:4px;padding:0 14px;
+  .topbar{position:relative;z-index:4;height:50px;display:flex;align-items:center;gap:4px;padding:0 16px;
     background:var(--bar);border-bottom:1px solid var(--bar-line)}
   .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;
     place-items:center;color:var(--ink);cursor:pointer}
@@ -49,20 +52,20 @@
   .topbar .ct{flex:1;font-family:var(--gothic);font-size:13.5px;color:var(--ink);letter-spacing:.04em;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   /* ---- 本文 ---- */
-  .reader{flex:1;overflow:auto;position:relative;z-index:1;padding:8px 26px 92px}
-  .chap-h{text-align:center;margin:14px 0 26px}
+  .reader{flex:1;overflow:auto;position:relative;z-index:1;padding:8px 24px 92px}
+  .chap-h{text-align:center;margin:16px 0 24px}
   .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--accent);letter-spacing:.3em}
-  .chap-h .t{font-size:18px;color:var(--ink);margin-top:9px;line-height:1.6;font-weight:600}
-  .chap-h .rule{width:48px;height:2px;background:var(--rule);margin:15px auto 0;opacity:.85}
+  .chap-h .t{font-size:18px;color:var(--ink);margin-top:8px;line-height:1.6;font-weight:600}
+  .chap-h .rule{width:48px;height:2px;background:var(--rule);margin:16px auto 0;opacity:.85}
   p{font-size:16.5px;line-height:2.4;color:var(--ink);text-indent:1em;margin-bottom:.3em}
   ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
   .blank{height:1.5em}
   /* シーン区切り＝Dの細い藍ルール（点ではなく中央寄せの短い実線で静かに） */
-  hr{border:none;height:1px;width:42%;margin:18px auto;background:var(--rule);opacity:.5}
+  hr{border:none;height:1px;width:42%;margin:16px auto;background:var(--rule);opacity:.5}
   /* 前書き/後書きブロック（ラベル付き枠＝StyledBlock。Dはヘアライン枠＋淡い面） */
-  .block{border:1px solid var(--blk-bd);background:var(--blk-bg);padding:13px 15px;margin:4px 0 22px;border-radius:2px}
+  .block{border:1px solid var(--blk-bd);background:var(--blk-bg);padding:12px 16px;margin:4px 0 24px;border-radius:2px}
   .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--accent);font-weight:700;
-    margin-bottom:6px;letter-spacing:.1em}
+    margin-bottom:8px;letter-spacing:.1em}
   .block p{font-size:14.5px;line-height:2.1;text-indent:1em;margin:0}
   /* ---- ボトムバー（オーバーレイ。前章/目次/次章の3分割）---- */
   .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:64px;display:flex;align-items:center;
@@ -75,7 +78,7 @@
   .bottombar .mid::before{left:0}.bottombar .mid::after{right:0}
   /* 没入時（クローム非表示）: 上下バーを消し本文を全面に。中央の薄い「タップでバー表示」ヒントのみ */
   .immersive .topbar,.immersive .bottombar{display:none}
-  .immersive .reader{padding:34px 26px 40px}
+  .immersive .reader{padding:32px 24px 40px}
   .hint{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:6;font-family:var(--gothic);
     font-size:11px;color:var(--soft);letter-spacing:.08em;opacity:.8}
 </style>

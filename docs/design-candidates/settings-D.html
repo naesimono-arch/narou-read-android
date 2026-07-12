@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>UI-n D 表示設定 — 和モダン余白</title>
 <style>
+  /*==harness==*/
   /* D案 読書設定: 読書画面から立ち上がるボトムシート（実機 ReadingSettingsSheet）。
      項目は実機能と1対1＝テーマ3択チップ／文字サイズ(14〜24sp)／行間(2.3〜2.8em)。
      選択中チップはDのアクセント藍で塗る。シート背景は読書テーマ背景に追従（ここではライト面）。
@@ -24,24 +25,26 @@
   .phone{width:372px;height:780px;border-radius:40px;overflow:hidden;position:relative;
     box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;
     background:linear-gradient(180deg,#F6F4F0,#EDEBE6)}
+  /*==/harness==*/
+
   /* 背後にうっすら本文（シートで暗転）。シートの文脈を示すだけの装飾 */
-  .behind{position:absolute;inset:0;padding:60px 26px;font-family:var(--mincho);font-size:16px;
+  .behind{position:absolute;inset:0;padding:60px 24px;font-family:var(--mincho);font-size:16px;
     line-height:2.4;color:#C9C6BF;text-indent:1em;overflow:hidden}
   .scrim{position:absolute;inset:0;background:rgba(20,23,28,.28)}
   /* ボトムシート */
   .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--bg);border-radius:20px 20px 0 0;
-    padding:10px 24px 30px;box-shadow:0 -10px 30px rgba(0,0,0,.18)}
+    padding:12px 24px 32px;box-shadow:0 -10px 30px rgba(0,0,0,.18)}
   .grab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 16px}
-  .sheet h2{font-family:var(--mincho);font-size:17px;color:var(--ink);font-weight:600;letter-spacing:.08em;margin-bottom:20px}
-  .lbl{font-family:var(--gothic);font-size:12px;color:var(--soft);letter-spacing:.06em;margin-bottom:10px}
+  .sheet h2{font-family:var(--mincho);font-size:17px;color:var(--ink);font-weight:600;letter-spacing:.08em;margin-bottom:24px}
+  .lbl{font-family:var(--gothic);font-size:12px;color:var(--soft);letter-spacing:.06em;margin-bottom:12px}
   .sec{margin-bottom:24px}
   /* テーマ3択チップ。選択＝藍塗り＋白文字／非選択＝ヘアライン枠 */
-  .chips{display:flex;gap:10px}
-  .chip{flex:1;text-align:center;padding:10px 0;border-radius:10px;font-family:var(--gothic);font-size:13.5px;
+  .chips{display:flex;gap:12px}
+  .chip{flex:1;text-align:center;padding:12px 0;border-radius:10px;font-family:var(--gothic);font-size:13.5px;
     border:1px solid var(--line);color:var(--ink);background:transparent;cursor:pointer}
   .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
   /* スライダー（文字サイズ・行間）。両端ラベル＋トラック＋藍つまみ */
-  .slider{display:flex;align-items:center;gap:14px}
+  .slider{display:flex;align-items:center;gap:16px}
   .end{font-family:var(--mincho);color:var(--ink);flex-shrink:0}
   .end.g{font-family:var(--gothic);font-size:12px;color:var(--soft)}
   .track{flex:1;height:2px;background:var(--line);position:relative;border-radius:2px}
@@ -49,7 +52,7 @@
   .track .knob{position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--ai);
     transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(28,61,90,.4)}
   .val{font-family:var(--gothic);font-size:12px;color:var(--ai);margin-left:8px}
-  .row-lbl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .row-lbl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
 </style>
 </head>
 <body>

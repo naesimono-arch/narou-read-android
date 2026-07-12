@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Discovery D 検索画面 — 和モダン余白</title>
 <style>
+  /*==harness==*/
   :root{
     --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
     --ai:#1C3D5A;        /* 藍 */
@@ -22,15 +23,17 @@
   .wrap .mode{font-size:12px;letter-spacing:.24em;color:#6A6C67}
   .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
     box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--gothic)}
+  /*==/harness==*/
+
   .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--ink-soft);flex-shrink:0}
   .scroll{flex:1;overflow:auto;padding:0 24px 40px}
 
   /* 戻るボタン */
-  .back{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);padding:2px 24px 0;cursor:pointer;flex-shrink:0}
+  .back{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);padding:4px 24px 0;cursor:pointer;flex-shrink:0}
   .back svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5}
 
   /* セクション */
-  .sec{font-size:10.5px;letter-spacing:.28em;color:var(--ink-soft);margin:24px 0 10px}
+  .sec{font-size:10.5px;letter-spacing:.28em;color:var(--ink-soft);margin:24px 0 12px}
 
   /* 検索入力欄 */
   .search-input-box {
@@ -58,14 +61,14 @@
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    margin-top: 6px;
+    margin-top: 8px;
   }
   .rchip {
     font-size: 11.5px;
     color: var(--ink-soft);
     border: 1px solid var(--line);
     border-radius: 2px;
-    padding: 6px 12px;
+    padding: 8px 12px;
     cursor: pointer;
   }
   .rchip.on {
@@ -80,10 +83,10 @@
     color: var(--ink);
     border: 1px solid var(--line);
     border-radius: 2px;
-    padding: 6px 12px;
+    padding: 8px 12px;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     cursor: pointer;
   }
   .pchip svg {
@@ -96,7 +99,7 @@
     color: var(--ink);
     border: 1px solid var(--line);
     border-radius: 2px;
-    padding: 6px 8px 6px 12px;
+    padding: 8px 8px 8px 12px;
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -124,7 +127,7 @@
   .sheet {
     background: var(--base);
     border-radius: 16px 16px 0 0;
-    padding: 18px 24px 28px;
+    padding: 16px 24px 32px;
     max-height: 85%;
     overflow-y: auto;
     border-top: 1px solid var(--line);
@@ -144,17 +147,17 @@
     font-size: 18px;
     color: var(--ink);
     font-weight: 500;
-    margin-bottom: 20px;
+    margin-bottom: 24px;
     letter-spacing: .08em;
   }
   .sheet-sec {
-    margin-bottom: 22px;
+    margin-bottom: 24px;
   }
   .sheet-sec-ttl {
     font-size: 11px;
     letter-spacing: 0.15em;
     color: var(--ink-soft);
-    margin-bottom: 10px;
+    margin-bottom: 12px;
   }
   .sheet-chips {
     display: flex;
@@ -165,7 +168,7 @@
     font-size: 11.5px;
     border: 1px solid var(--line);
     border-radius: 2px;
-    padding: 6px 12px;
+    padding: 8px 12px;
     color: var(--ink-soft);
     cursor: pointer;
   }
@@ -179,7 +182,7 @@
     font-size: 11px;
     color: var(--ink);
     font-weight: 600;
-    margin: 14px 0 8px;
+    margin: 16px 0 8px;
   }
 
   /* ボタン */
@@ -233,7 +236,7 @@
   /* キーワードから選ぶ（案B＝ヘアラインで区切られた「開ける行」） */
   .kw-cat {
     border-bottom: 1px solid var(--line);
-    padding: 14px 0 12px;
+    padding: 16px 0 12px;
     cursor: pointer;
   }
   .kw-cat-head {
@@ -243,13 +246,13 @@
   }
   .kw-cat-title { font-size: 13px; font-weight: 600; color: var(--ink); }
   .kw-cat-caret { font-size: 12px; color: var(--ink-soft); }
-  .kw-cat-preview { font-size: 11px; color: var(--ink-soft); margin-top: 5px; }
+  .kw-cat-preview { font-size: 11px; color: var(--ink-soft); margin-top: 4px; }
   .kw-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
   .kwchip {
     font-size: 11.5px;
     border: 1px solid var(--line);
     border-radius: 2px;
-    padding: 6px 12px;
+    padding: 8px 12px;
     color: var(--ink-soft);
     cursor: pointer;
   }
@@ -278,25 +281,25 @@
   .sel-chip {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     font-size: 11.5px;
     color: var(--ai);
     border: 1px solid var(--ai);
     border-radius: 50px;
-    padding: 5px 8px 5px 12px;
+    padding: 4px 8px 4px 12px;
     cursor: pointer;
   }
   .sel-chip .x { font-size: 12px; line-height: 1; }
 
   /* 条件シート：併用不可の注記・無効節のグレーアウト・除外語の自由入力欄 */
-  .sheet-note { font-size: 10.5px; color: var(--ink-soft); margin-bottom: 10px; }
+  .sheet-note { font-size: 10.5px; color: var(--ink-soft); margin-bottom: 12px; }
   .sheet-sec.disabled { opacity: 0.45; pointer-events: none; }
   .sheet-input {
     width: 100%;
     border: none;
     border-bottom: 1px solid var(--line);
     background: transparent;
-    padding: 6px 0;
+    padding: 8px 0;
     font-size: 14px;
     color: var(--ink);
     font-family: var(--gothic);
@@ -333,7 +336,7 @@
           条件を調整（2）
         </div>
 
-        <div class="sec" style="margin-top: 28px;">ピン留め</div>
+        <div class="sec" style="margin-top: 32px;">ピン留め</div>
         <div class="pinned-chips">
           <span class="pchip">
             <svg viewBox="0 0 24 24" width="12" height="12"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2z" fill="currentColor"/></svg>
@@ -345,7 +348,7 @@
           </span>
         </div>
 
-        <div class="sec" style="margin-top: 28px;">最近の検索</div>
+        <div class="sec" style="margin-top: 32px;">最近の検索</div>
         <div class="recent-chips">
           <span class="rchip-hist">万能薬師<span class="del">×</span></span>
           <span class="rchip-hist">異世界転生<span class="del">×</span></span>
@@ -355,7 +358,7 @@
         </div>
 
         <!-- キーワードから選ぶ（案B。実データ NarouCuratedKeywords.basicCategories／genreCategories 準拠） -->
-        <div class="sec" style="margin-top: 28px;">キーワードから選ぶ</div>
+        <div class="sec" style="margin-top: 32px;">キーワードから選ぶ</div>
 
         <!-- 作品傾向：展開状態のサンプル（プレビューは消えチップ群が開く） -->
         <div class="kw-cat">
@@ -457,7 +460,7 @@
             <span class="rchip on">キーワード</span>
             <span class="rchip">作者名</span>
           </div>
-          <div class="sec" style="margin-top: 28px;">ピン留め</div>
+          <div class="sec" style="margin-top: 32px;">ピン留め</div>
           <div class="pinned-chips">
             <span class="pchip">薬草園</span>
           </div>
@@ -622,7 +625,7 @@
             </div>
           </div>
 
-          <div style="margin-top: 10px;">
+          <div style="margin-top: 12px;">
             <button class="btn-primary">この条件で探す</button>
             <button class="btn-ghost">リセット</button>
           </div>

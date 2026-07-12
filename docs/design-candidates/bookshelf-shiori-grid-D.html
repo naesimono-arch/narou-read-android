@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>本棚 書架（グリッド）× 栞・最終形</title>
 <style>
+  /*==harness==*/
   /* /design 採用案「型B 栞」＝天から色の細棒。その先端に、31種のワンポイント意匠から
      タイトル種で1つを決定論的に選んで付ける（棒の長さ・x位置・色相・先端 すべて title 由来＝同じ本は同じ絵）。
      先端は TIPS 配列に足すだけで"都度"拡張できる。正本 fusion-D の実グリッドに載せた in-situ＋生成レンジ。 */
@@ -17,17 +18,19 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:30px}
+  /*==/harness==*/
+
   body.pgdark{background:#0b0d11}
   body,button{font-family:var(--gothic)}
   .cap{color:#5A5C57;font-size:13px;margin-bottom:8px;text-align:center;line-height:1.7;max-width:740px}
   .cap b{color:#2A2C28}body.pgdark .cap{color:#9a988f}body.pgdark .cap b{color:#e4e3e6}
-  .ctrl{display:flex;gap:12px;margin:12px 0 22px}
-  .ctrl button{font-size:12.5px;font-weight:500;cursor:pointer;border-radius:999px;padding:10px 20px;border:none}
+  .ctrl{display:flex;gap:12px;margin:12px 0 24px}
+  .ctrl button{font-size:12.5px;font-weight:500;cursor:pointer;border-radius:999px;padding:12px 24px;border:none}
   .ctrl .primary{color:#fff;background:var(--ai)}
   .ctrl .ghost{color:var(--ai);background:transparent;border:1px solid #cbc4b8}
   body.pgdark .ctrl .ghost{color:#9bbdd4;border-color:#2c3138}
-  .stage{display:flex;gap:34px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
-  .wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .stage{display:flex;gap:32px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:12px}
   .wrap .mode{font-size:12px;letter-spacing:.22em;color:#6A6C67}body.pgdark .wrap .mode{color:#807e77}
 
   .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
@@ -35,15 +38,15 @@
   .phone.dark{background:#101319;color:#e6e4e8;box-shadow:0 20px 52px rgba(0,0,0,.55)}
   .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--ink-soft);flex-shrink:0}
   .phone.dark .sb{color:#5c616c}
-  .top{padding:8px 24px 14px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
+  .top{padding:8px 24px 16px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
   .top h1{font-family:var(--mincho);font-size:27px;font-weight:500;letter-spacing:.14em}
   .phone.dark .top h1{color:#f0eef2}
-  .acts{display:flex;gap:2px}
+  .acts{display:flex;gap:4px}
   .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:inherit;cursor:pointer}
   .phone.dark .ib{color:#d6d4dc}
   .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.5}
   .scroll{flex:1;overflow:auto;padding:0 24px 40px;scrollbar-width:none}.scroll::-webkit-scrollbar{display:none}
-  .find-guide{display:flex;align-items:center;border:1px solid var(--line);border-radius:2px;padding:10px 14px;margin-bottom:20px;cursor:pointer}
+  .find-guide{display:flex;align-items:center;border:1px solid var(--line);border-radius:2px;padding:12px 16px;margin-bottom:24px;cursor:pointer}
   .phone.dark .find-guide{border-color:#262b33}
   .find-guide .fi{width:15px;height:15px;stroke:var(--ink-soft);fill:none;stroke-width:2;margin-right:8px}
   .find-guide .txt{font-size:12.5px;color:var(--ink);flex:1}.phone.dark .find-guide .txt{color:#c9c7cf}
@@ -57,23 +60,23 @@
   .cv .seal{position:absolute;left:9px;bottom:9px;width:19px;height:19px;border-radius:2px;display:grid;place-items:center;
     font-family:var(--mincho);font-weight:600;font-size:9.5px;z-index:3;border:1.1px solid #a1573f;color:#a1573f;background:rgba(251,250,248,.5)}
   .phone.dark .cv .seal{border-color:#cc8b73;color:#cc8b73;background:rgba(16,19,25,.5)}
-  .bk .au{font-size:11px;color:var(--ink-soft);margin-top:9px}.phone.dark .bk .au{color:#6f6d66}
-  .bk .pr{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:10.5px;color:var(--ink-soft)}.phone.dark .bk .pr{color:#6f6d66}
+  .bk .au{font-size:11px;color:var(--ink-soft);margin-top:8px}.phone.dark .bk .au{color:#6f6d66}
+  .bk .pr{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:10.5px;color:var(--ink-soft)}.phone.dark .bk .pr{color:#6f6d66}
   .bk .bar{flex:1;height:1px;background:var(--line);position:relative}.phone.dark .bk .bar{background:#262b33}
   .bk .bar i{position:absolute;left:0;top:-.5px;height:2px;background:var(--ai)}.phone.dark .bk .bar i{background:#88b2d6}
   .bk .pct{color:var(--ai)}.phone.dark .bk .pct{color:#88b2d6}
-  .bk .nc{display:flex;align-items:center;gap:5px;margin-top:5px}
+  .bk .nc{display:flex;align-items:center;gap:4px;margin-top:4px}
   .bk .nc .dot{width:6px;height:6px;background:var(--seiji);border-radius:50%}
   .bk .nc .t{font-size:10.5px;color:var(--ai);font-weight:500}.phone.dark .bk .nc .t{color:#88b2d6}
-  .bk .mr{font-size:10.5px;color:var(--seiji);margin-top:6px;font-weight:500}
-  .bk .sr{font-size:10.5px;color:var(--ink-soft);margin-top:6px}.phone.dark .bk .sr{color:#6f6d66}
+  .bk .mr{font-size:10.5px;color:var(--seiji);margin-top:8px;font-weight:500}
+  .bk .sr{font-size:10.5px;color:var(--ink-soft);margin-top:8px}.phone.dark .bk .sr{color:#6f6d66}
 
-  .range{max-width:1000px;margin:44px auto 0;width:100%}
+  /*==harness==*/.range{max-width:1000px;margin:44px auto 0;width:100%}/*==/harness==*/
   .range h2{font-family:var(--mincho);font-size:15px;font-weight:500;letter-spacing:.06em;color:#3a3c37;text-align:center;margin-bottom:4px}
   body.pgdark .range h2{color:#d6d4cc}
-  .range p{font-size:11.5px;color:#7c7a72;text-align:center;margin-bottom:18px}body.pgdark .range p{color:#807e77}
-  .strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:26px 18px}
-  .rc{display:flex;flex-direction:column;gap:7px}
+  .range p{font-size:11.5px;color:#7c7a72;text-align:center;margin-bottom:16px}body.pgdark .range p{color:#807e77}
+  .strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:24px 16px}
+  .rc{display:flex;flex-direction:column;gap:8px}
   .rc .cv{width:100%}
   .rc .ct{font-family:var(--mincho);font-size:10.5px;color:#5a5852;line-height:1.35;text-align:center;
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}

@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>本棚 文字目録D — 深掘り（3テーマ＋状態）</title>
 <style>
+  /*==harness==*/
   /* 骨格3「文字目録」の深掘り。表紙画像を持たないアプリなので、生成書影を捨て
      「明朝の題字」を主役に縦へ連ねる。作品の識別は左端の色帯（タイトル由来色）だけで行う
      ＝存在しない装画を捏造しない。器の雰囲気（藍・青磁・明朝・ヘアライン・余白）は検索と共有。
@@ -16,14 +17,16 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#E4E3DD;color:#1C1F26;font-family:var(--gothic);padding:34px 26px 70px}
-  .page-head{max-width:1300px;margin:0 auto 26px}
+  /*==/harness==*/
+
+  .page-head{max-width:1300px;margin:0 auto 24px}
   .page-head h1{font-family:var(--mincho);font-size:25px;letter-spacing:.08em;font-weight:600}
-  .page-head p{margin-top:10px;font-size:13px;color:#5A5C57;line-height:1.9;max-width:900px}
-  .page-head .note{margin-top:10px;font-size:12px;color:#3f4a54;background:#E3EAEF;border-left:3px solid #1C3D5A;padding:9px 13px;line-height:1.75;max-width:900px}
+  .page-head p{margin-top:12px;font-size:13px;color:#5A5C57;line-height:1.9;max-width:900px}
+  .page-head .note{margin-top:12px;font-size:12px;color:#3f4a54;background:#E3EAEF;border-left:3px solid #1C3D5A;padding:8px 12px;line-height:1.75;max-width:900px}
   .stage{max-width:1300px;margin:0 auto;display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
-  .wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:12px}
   .wrap .mode{font-size:11px;letter-spacing:.24em;color:#6A6C67}
-  footer{max-width:1300px;margin:26px auto 0;font-size:12.5px;color:#4f5148;line-height:2.0;border-top:1px solid #cfc8bf;padding-top:20px}
+  footer{max-width:1300px;margin:24px auto 0;font-size:12.5px;color:#4f5148;line-height:2.0;border-top:1px solid #cfc8bf;padding-top:24px}
   footer b{color:#1C1F26}
 
   /* ===== テーマ変数（Color.kt 実トークン） ===== */
@@ -38,39 +41,39 @@
       --track:#2A2F38;--banbg:#22303C;--bantx:#AFcbe0;--ripple:#1B1F26;--sj-ink:#9CB3A8}
 
   .sb{height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--sub);flex-shrink:0}
-  .top{padding:6px 22px 10px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
+  .top{padding:8px 24px 12px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
   .top h1{font-family:var(--mincho);font-size:25px;color:var(--tx);font-weight:500;letter-spacing:.14em}
   .top .acts{display:flex;gap:1px}
   .ib{width:36px;height:36px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--tx);cursor:pointer}
   .ib svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.5}
 
   /* フィルタ（状態）チップ: 検索の rchip と同型（角丸2px・選択=藍ボーダー＋藍文字） */
-  .filters{display:flex;gap:8px;overflow-x:auto;padding:2px 22px 4px;scrollbar-width:none;flex-shrink:0}
+  .filters{display:flex;gap:8px;overflow-x:auto;padding:4px 24px 4px;scrollbar-width:none;flex-shrink:0}
   .filters::-webkit-scrollbar{display:none}
-  .fc{flex-shrink:0;font-size:11.5px;color:var(--sub);border:1px solid var(--hl);border-radius:2px;padding:6px 13px;cursor:pointer}
+  .fc{flex-shrink:0;font-size:11.5px;color:var(--sub);border:1px solid var(--hl);border-radius:2px;padding:8px 12px;cursor:pointer}
   .fc.on{color:var(--acc);border-color:var(--acc);font-weight:600}
 
   /* 処理中バナー: 淡い藍地。AnimatedVisibility でスライドインする想定（モックは静的） */
-  .banner{margin:8px 22px 4px;padding:11px 14px;background:var(--banbg);border-radius:2px;display:flex;align-items:center;gap:11px;flex-shrink:0}
+  .banner{margin:8px 24px 4px;padding:12px 16px;background:var(--banbg);border-radius:2px;display:flex;align-items:center;gap:12px;flex-shrink:0}
   .banner .sp{width:16px;height:16px;border:1.5px solid var(--bantx);border-top-color:transparent;border-radius:50%;flex-shrink:0}
   .banner .bt{flex:1;min-width:0}
   .banner .bt .l{font-size:11.5px;color:var(--bantx);font-weight:600}
-  .banner .bt .pb{height:1px;background:color-mix(in srgb,var(--bantx) 22%,transparent);margin-top:7px;position:relative}
+  .banner .bt .pb{height:1px;background:color-mix(in srgb,var(--bantx) 22%,transparent);margin-top:8px;position:relative}
   .banner .bt .pb i{position:absolute;left:0;top:-0.5px;height:2px;background:var(--bantx)}
 
-  .scroll{flex:1;overflow:auto;padding:2px 22px 90px;scrollbar-width:none}
+  .scroll{flex:1;overflow:auto;padding:4px 24px 90px;scrollbar-width:none}
   .scroll::-webkit-scrollbar{display:none}
 
   /* ===== 目録の行 ===== */
-  .li{display:flex;gap:14px;padding:16px 2px;border-bottom:1px solid var(--hl);align-items:stretch;position:relative;cursor:pointer}
+  .li{display:flex;gap:16px;padding:16px 4px;border-bottom:1px solid var(--hl);align-items:stretch;position:relative;cursor:pointer}
   /* 左端の色帯＝本の小口メタファ。表紙画像が無いので、タイトル由来色の細帯だけで作品を見分ける */
   .li .bar{width:4px;border-radius:2px;flex-shrink:0}
-  .li .bd{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;padding-right:20px}
+  .li .bd{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;padding-right:24px}
   .li .t{font-family:var(--mincho);font-size:16.5px;color:var(--tx);font-weight:600;line-height:1.5;
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .li .a{font-size:11px;color:var(--sub);margin-top:6px}
+  .li .a{font-size:11px;color:var(--sub);margin-top:8px}
   .li .a em{font-style:normal;color:var(--sj);margin-left:8px;letter-spacing:.05em;font-weight:600}
-  .li .m{display:flex;align-items:center;gap:9px;font-size:10.5px;color:var(--sub);margin-top:10px}
+  .li .m{display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--sub);margin-top:12px}
   .li .m .pb{width:96px;height:1px;background:var(--track);position:relative}
   .li .m .pb i{position:absolute;left:0;top:-0.5px;height:2px;background:var(--acc)}
   .li .m .pct{color:var(--acc)}
@@ -81,22 +84,22 @@
   .li .more svg{width:16px;height:16px}
 
   .fab{position:absolute;right:18px;bottom:22px;display:flex;align-items:center;gap:8px;background:var(--acc);color:var(--onacc);
-    border:none;cursor:pointer;padding:13px 18px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 8px 20px rgba(28,61,90,.34);z-index:5}
+    border:none;cursor:pointer;padding:12px 16px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 8px 20px rgba(28,61,90,.34);z-index:5}
   .fab svg{width:17px;height:17px;stroke:var(--onacc);stroke-width:2;fill:none}
 
   /* ===== 空状態: ゴースト行を薄く敷き、中央に案内 ===== */
   .empty{position:relative;padding-top:40px}
-  .ghost{display:flex;gap:14px;padding:16px 2px;border-bottom:1px solid var(--hl);opacity:.4}
+  .ghost{display:flex;gap:16px;padding:16px 4px;border-bottom:1px solid var(--hl);opacity:.4}
   .ghost .bar{width:4px;border-radius:2px;background:var(--hl)}
   .ghost .g1{height:11px;width:70%;background:var(--track);border-radius:2px}
-  .ghost .g2{height:8px;width:40%;background:var(--track);border-radius:2px;margin-top:9px}
+  .ghost .g2{height:8px;width:40%;background:var(--track);border-radius:2px;margin-top:8px}
   .empty .card{position:absolute;left:50%;top:150px;transform:translateX(-50%);width:270px;text-align:center;
-    background:var(--pg);padding:22px 20px;border:1px solid var(--hl);border-radius:3px}
+    background:var(--pg);padding:24px 24px;border:1px solid var(--hl);border-radius:3px}
   .empty .card .k{font-size:10px;letter-spacing:.3em;color:var(--sj);margin-bottom:12px}
   .empty .card h3{font-family:var(--mincho);font-size:18px;color:var(--tx);font-weight:600;letter-spacing:.06em}
-  .empty .card p{font-size:11.5px;color:var(--sub);line-height:1.8;margin-top:10px}
-  .empty .card .btn{margin-top:18px;display:inline-flex;align-items:center;gap:7px;background:var(--acc);color:var(--onacc);
-    border-radius:2px;padding:11px 18px;font-size:12.5px;font-weight:600;letter-spacing:.08em}
+  .empty .card p{font-size:11.5px;color:var(--sub);line-height:1.8;margin-top:12px}
+  .empty .card .btn{margin-top:16px;display:inline-flex;align-items:center;gap:8px;background:var(--acc);color:var(--onacc);
+    border-radius:2px;padding:12px 16px;font-size:12.5px;font-weight:600;letter-spacing:.08em}
   .empty .card .btn svg{width:15px;height:15px;stroke:var(--onacc);stroke-width:2;fill:none}
 </style>
 </head>
