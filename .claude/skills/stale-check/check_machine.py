@@ -92,8 +92,10 @@ def check_versions():
         a, d = actual.get(key), declared.get(key)
         if a and d and a != d:
             add("versions", "stale", "high", f"{key}: CLAUDE.md='{d}' ↔ gradle実値='{a}'")
-        elif a is None or d is None:
-            add("versions", "warn", "info", f"{key}: 値の抽出に失敗 (actual={a}, declared={d})")
+        elif a is None:
+            add("versions", "warn", "info", f"{key}: gradle 実値の抽出に失敗 (actual={a})")
+        # declared=None は正常: 2026-07-12 の CLAUDE.md 痩身でビルド値の宣言をやめ
+        # build.gradle を唯一の正本にした（宣言があるときだけ食い違いを検査する）。
 
 
 # ── 2. DB整合: version ↔ schemas ↔ addMigrations ↔ skill履歴 ───────────────
@@ -222,7 +224,7 @@ def _ref_exists(ref, doc):
         return (ROOT / ref).exists() or ((ROOT / doc).parent / ref).exists()
     if (ROOT / ref).exists():
         return True
-    for base in (ROOT / "android/app/src", ROOT / ".claude", ROOT / "docs", ROOT / "ab-review"):
+    for base in (ROOT / "android/app/src", ROOT / ".claude", ROOT / "docs", ROOT / "ab-review", ROOT / "tools"):
         if base.is_dir() and next(base.rglob(ref), None) is not None:
             return True
     return False
@@ -479,6 +481,42 @@ def check_diary_id_unique():
         )
 
 
+# ── 14. 台帳・CLAUDE.md のサイズ予算 ─────────────────────────────────────
+def check_size_budgets():
+    """台帳が「現況のみ/やることのみ」の規約から再肥大していないかの番人。
+
+    なぜ要るか: 2026-07-12 の台帳大掃除で STATUS=現在値のみ（目安60行）・handover=
+    完了打ち消し線ゼロ・CLAUDE.md=ルーター（毎セッション固定費）と再定義した。
+    この種の規約は宣言だけだと数週間で崩れる（大掃除前: STATUS 181行/91KB・
+    docs コミットが全体の35%）＝機械の番人だけが実効的な防御になる。
+    しきい値は「目安」の1.5倍程度を high とし、通常運用の揺らぎでは鳴らさない。
+    """
+    txt = read_text("STATUS.md")
+    if txt is not None:
+        n = txt.count("\n") + 1
+        if n > 90:
+            add("size_budget", "stale", "high",
+                f"STATUS.md が {n} 行（目安60行）。完了ログ・git導出値の混入を疑い刈り込むこと（完了履歴は git log が正本）")
+        elif n > 60:
+            add("size_budget", "warn", "info", f"STATUS.md が {n} 行（目安60行超）。肥大の兆候")
+
+    txt = read_text("handover.md")
+    if txt is not None:
+        strikes = len(re.findall(r"~~.+?~~", txt))
+        if strikes:
+            add("size_budget", "stale", "high",
+                f"handover.md に打ち消し線（完了項目の残置）が {strikes} 件。規約は「完了したら消す」＝行ごと削除すること")
+
+    txt = read_text("CLAUDE.md")
+    if txt is not None:
+        size = len(txt.encode("utf-8"))
+        if size > 16000:
+            add("size_budget", "stale", "high",
+                f"CLAUDE.md が {size} バイト（毎セッション固定費）。手順の skill 追い出し・フック重複の1行化で痩身すること（上限の考え方は claude-bestpractice/claude-md/knowledge/01）")
+        elif size > 10000:
+            add("size_budget", "warn", "info", f"CLAUDE.md が {size} バイト。肥大の兆候（痩身直後は約8KB）")
+
+
 CHECKS = [
     check_versions,
     check_db,
@@ -493,6 +531,7 @@ CHECKS = [
     check_permission_paths,
     check_hook_smoke,
     check_diary_id_unique,
+    check_size_budgets,
 ]
 
 
