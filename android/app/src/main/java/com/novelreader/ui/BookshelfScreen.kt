@@ -64,8 +64,10 @@ import com.novelreader.narou.model.NarouNovel
 import com.novelreader.ui.theme.FontButtonLabel
 import com.novelreader.ui.theme.FontHomeTitle
 import com.novelreader.ui.theme.FontSubTitle
+import com.novelreader.ui.theme.Insets
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationReveal
 import com.novelreader.ui.theme.ReadingTheme
@@ -326,7 +328,7 @@ fun BookshelfScreen(
             text = {
                 Column {
                     Text("ホーム画面に移動するとPDF変換が途中で止まる場合があります。\n\n【推奨設定】\n設定 → バッテリー → アプリごとの消費管理 → NovelReader → バックグラウンドアクティビティを許可\n\n「設定を開く」でバッテリー設定画面に移動します。")
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Spacing.S8))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
                             checked = doNotShowAgain,
@@ -583,7 +585,7 @@ internal fun BookshelfContent(
                                     "テーマ",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),
+                                    modifier = Modifier.padding(start = Spacing.S16, top = Spacing.S8, bottom = Spacing.S4),
                                 )
                                 // ライト/セピア/ダーク。選択中に藍のチェックを付ける。
                                 ReadingTheme.values().forEach { theme ->
@@ -610,7 +612,7 @@ internal fun BookshelfContent(
                                                     tint = MaterialTheme.colorScheme.primary,
                                                 )
                                             } else {
-                                                Spacer(Modifier.width(24.dp))
+                                                Spacer(Modifier.width(Spacing.S24))
                                             }
                                         },
                                     )
@@ -624,7 +626,7 @@ internal fun BookshelfContent(
                                     "通知",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),
+                                    modifier = Modifier.padding(start = Spacing.S16, top = Spacing.S8, bottom = Spacing.S4),
                                 )
                                 val notifContext = LocalContext.current
                                 var newEpisodeNotifEnabled by remember {
@@ -647,7 +649,7 @@ internal fun BookshelfContent(
                                             newEpisodeNotifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                         }
                                     },
-                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    modifier = Modifier.padding(horizontal = Spacing.S16),
                                 )
                                 HorizontalDivider()
                                 // 開発用: 削除UI方式トグル（一時機構。採用方式が確定したらこの項目ごと削除予定）。
@@ -728,20 +730,22 @@ internal fun BookshelfContent(
                 LazyVerticalGrid(
                     // 幅適応（reach Major 2026-07-12）: 固定2列を廃し、窓幅から列数を自動導出する。
                     // minSize の逆算（Compose の Adaptive は列数 = floor((available + spacing)/(minSize + spacing))）:
-                    //   available = 画面幅 - 左右 contentPadding(24+24=48dp)、spacing = 列間 20dp。
-                    //   よって列数 = floor((幅 - 28) / (minSize + 20))。minSize=126dp とすると
+                    //   available = 画面幅 - 左右 contentPadding(24+24=48dp)、spacing = 列間 24dp（F拡張7段で 20→24）。
+                    //   よって列数 = floor((幅 - 24) / (minSize + 24))。minSize=124dp とすると
                     //   幅320dp→2列 / 360〜430dp(一般的なスマホ)→2列 / 480dp以上→3列 / 600dp→3列 / 768dp→5列。
+                    //   gap 24 化で旧 minSize=126 のままだと 320dp が1列に落ちる（2*126+24=276 > 272=320-48
+                    //   ＝境界ちょうどの較正だった）ため、列数表を保存するよう minSize を再導出した。
                     //   ＝一般的なスマホ(≤430dp)は従来どおり2列で影響0、大画面(≥600dp 等)で自然に多列化する。
-                    columns = GridCells.Adaptive(minSize = 126.dp),
+                    columns = GridCells.Adaptive(minSize = 124.dp),
                     state = gridState,
                     modifier = Modifier.fillMaxSize(),
                     // bottom にFAB分の余白を足す。FABは浮動でレイアウト領域を予約しないため、
                     // これがないと最終行のカード（削除ボタン等）がFABに隠れてタップできない。
                     // ナビバーインセットはScaffoldのinnerPadding(Box.padding)で吸収済みなので二重加算しない。
                     // モック D は余白主導。列間20/行間26相当へ広げ、左右も24px相当の余白を取る。
-                    contentPadding = PaddingValues(start = 24.dp, top = 12.dp, end = 24.dp, bottom = 96.dp),
-                    verticalArrangement = Arrangement.spacedBy(26.dp),
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                    contentPadding = PaddingValues(start = Spacing.S24, top = Spacing.S12, end = Spacing.S24, bottom = Insets.ScrollBottomForFab),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.S24),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.S24),
                 ) {
                     // 見つける導線帯（モック fusion .find-guide）。空棚では EmptyBookshelf と重なるため出さない
                     // （状態フィルタ絞り込み中は0件でもチップ行ごと出し続ける）。
@@ -805,7 +809,7 @@ internal fun BookshelfContent(
                     modifier = Modifier.fillMaxSize(),
                     // bottom にFAB分の余白を足す（グリッドと同理由＝最終行がFABに隠れるのを防ぐ）。
                     // 行間スペーシングは置かない: 各行が自前の縦余白＋下ヘアラインで区切るモック .li 準拠のため。
-                    contentPadding = PaddingValues(start = 24.dp, top = 4.dp, end = 24.dp, bottom = 96.dp),
+                    contentPadding = PaddingValues(start = Spacing.S24, top = Spacing.S4, end = Spacing.S24, bottom = Insets.ScrollBottomForFab),
                 ) {
                     // 見つける導線帯（グリッドと同一・リストは行間スペーシングが無いため下余白を帯側に持たせる）
                     // （状態フィルタ絞り込み中は0件でもチップ行ごと出し続ける＝グリッドと同じ判断）
@@ -813,7 +817,7 @@ internal fun BookshelfContent(
                         item {
                             FindGuideBand(
                                 onClick = onOpenDiscovery,
-                                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                                modifier = Modifier.padding(top = Spacing.S8, bottom = Spacing.S4),
                             )
                         }
                         // 読書状態フィルタのチップ行（モック .filters は常設。グリッドと同じ判断）。
@@ -822,7 +826,7 @@ internal fun BookshelfContent(
                                 selectedStatus = selectedStatus,
                                 onSelect = { selectedStatusName = it?.name },
                                 statusCounts = statusCounts,
-                                modifier = Modifier.padding(top = 8.dp),
+                                modifier = Modifier.padding(top = Spacing.S8),
                             )
                         }
                         if (selectedStatus != null && shelfItems.isEmpty()) {
@@ -884,7 +888,7 @@ private fun StatusChipRow(
         modifier = modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
     ) {
         // 「すべて」＝選択なし（null）。モックどおり既定選択。棚が非空のときだけ出る行なので常に押せる。
         FilterChipItem(
@@ -922,7 +926,7 @@ private fun StatusFilterEmptyText() {
         text = "この分類の本はありません",
         fontSize = FontSubTitle,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(vertical = 16.dp),
+        modifier = Modifier.padding(vertical = Spacing.S16),
     )
 }
 
@@ -942,7 +946,7 @@ private fun FindGuideBand(
             .clip(RoundedCornerShape(2.dp))
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(2.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = Spacing.S16, vertical = Spacing.S12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -951,7 +955,7 @@ private fun FindGuideBand(
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(15.dp),
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(Spacing.S8))
         Text(
             text = "新しい物語を見つける",
             fontSize = FontButtonLabel,
@@ -964,7 +968,7 @@ private fun FindGuideBand(
             modifier = Modifier.weight(1f),
         )
         // 拡大時もテキストとシェブロンの間に最低8dpの呼吸を確保（先頭アイコン側と対称）
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(Spacing.S8))
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
@@ -992,11 +996,11 @@ private fun BookshelfSkeleton(
     if (isGridView) {
         // グリッド: 実カードと同じ左右24dp・列間20dp・行間26dp。3行ぶん(6枚)出す。
         Column(
-            modifier = modifier.padding(start = 24.dp, top = 12.dp, end = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(26.dp),
+            modifier = modifier.padding(start = Spacing.S24, top = Spacing.S12, end = Spacing.S24),
+            verticalArrangement = Arrangement.spacedBy(Spacing.S24),
         ) {
             repeat(3) {
-                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.S24)) {
                     repeat(2) {
                         Column(modifier = Modifier.weight(1f)) {
                             // 書影（2:3・角丸2px）
@@ -1007,12 +1011,12 @@ private fun BookshelfSkeleton(
                                     .clip(RoundedCornerShape(2.dp))
                                     .background(blockColor),
                             )
-                            Spacer(Modifier.height(11.dp))
+                            Spacer(Modifier.height(Spacing.S12))
                             // タイトル2行ぶん
                             SkeletonLine(color = lineColor, widthFraction = 0.9f)
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(Spacing.S8))
                             SkeletonLine(color = lineColor, widthFraction = 0.6f)
-                            Spacer(Modifier.height(9.dp))
+                            Spacer(Modifier.height(Spacing.S8))
                             // 進捗行
                             SkeletonLine(color = lineColor, widthFraction = 0.7f)
                         }
@@ -1022,12 +1026,12 @@ private fun BookshelfSkeleton(
         }
     } else {
         // リスト（文字目録）: 実行と同じ左右24dp・6行ぶん。表紙は無く、左端の色帯＋題字/進捗の場所取り。
-        Column(modifier = modifier.padding(start = 24.dp, top = 4.dp, end = 24.dp)) {
+        Column(modifier = modifier.padding(start = Spacing.S24, top = Spacing.S4, end = Spacing.S24)) {
             repeat(6) {
                 Row(
                     modifier = Modifier
                         .height(IntrinsicSize.Min)
-                        .padding(top = 16.dp, bottom = 16.dp),
+                        .padding(top = Spacing.S16, bottom = Spacing.S16),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     // 左端の色帯プレースホルダ（実カードの作品識別色の場所取り）。
@@ -1038,13 +1042,13 @@ private fun BookshelfSkeleton(
                             .clip(RoundedCornerShape(2.dp))
                             .background(blockColor),
                     )
-                    Spacer(Modifier.width(14.dp))
+                    Spacer(Modifier.width(Spacing.S16))
                     Column(modifier = Modifier.weight(1f)) {
                         // 明朝題字2行ぶん
                         SkeletonLine(color = lineColor, widthFraction = 0.85f)
-                        Spacer(Modifier.height(7.dp))
+                        Spacer(Modifier.height(Spacing.S8))
                         SkeletonLine(color = lineColor, widthFraction = 0.55f)
-                        Spacer(Modifier.height(11.dp))
+                        Spacer(Modifier.height(Spacing.S12))
                         // 進捗行
                         SkeletonLine(color = lineColor, widthFraction = 0.5f)
                     }
