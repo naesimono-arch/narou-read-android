@@ -1,158 +1,227 @@
-<!-- @dsCard group="UI-n / 余白離散化（F）" name="F. 余白スケール比較 現状/厳格5段/拡張7段（実在正本 reading-D + settings-D）" -->
+<!-- @dsCard group="UI-n / 余白離散化（F）" name="F. 余白 現状⇔拡張7段（確定）— 正本 reading-D＋settings-D の実DOMを離散化前後でトグル" -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>F 余白スケール比較 — 実在正本ページで比較</title>
+<title>F 余白離散化プレビュー — 正本実DOMを現状⇔拡張7段で</title>
 <style>
-  /* F 余白離散化の判断材料。捏造カードでなく、実在正本ページ reading-D（読書画面）と
-     settings-D（表示設定シート）の実マークアップを、余白だけスケール別に振って並べる。
-     本文の px/margin は各ページの正本値そのまま。差が出る余白のみ CSS 変数化。 */
-  :root{
-    --base:#FBFAF8;--ink:#1C1F26;--soft:#7C808B;--line:#ECEAE4;--ruby:#616C77;--rule:#1C3D5A;
-    --blk-bg:#F1F0EC;--blk-bd:#E4E2DB;--ai:#1C3D5A;
-    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
-    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  /* F 余白離散化の忠実プレビュー。抽出ハーネスを廃し、正本 reading-D / settings-D の
+     実マークアップ・実スタイルをそのまま再現（.doc-r / .doc-s で scope）。
+     余白のうち「離散スケール外」の値だけを CSS 変数化し、上部トグルで
+     現状（任意値そのまま）⇔ 拡張7段 {4,8,12,16,24,32,40} を切替える＝同じ実ページの離散化 A/B。
+     裁定＝拡張7段で確定（2026-07-13）。棄却された厳格5段は外した。
+     丸め＝最近傍・等距離は大きい側(round-half-up)。構造インセット(92px 等)と em 値は base scale 外＝不変。 */
+
+  /* ===== 余白トークン（現状／拡張7段）。数値だけがスケール由来で変わる ===== */
+  :root,body.now{
+    /* reading-D */
+    --rd-side:26px; --rd-chaptop:14px; --rd-chapbot:26px; --rd-ttop:9px; --rd-ruletop:15px;
+    --rd-hr:18px; --rd-blkpv:13px; --rd-blkph:15px; --rd-blkmb:22px; --rd-lblmb:6px;
+    /* settings-D */
+    --st-pv:10px; --st-pb:30px; --st-h2mb:20px; --st-lblmb:10px; --st-chipsgap:10px;
+    --st-chippv:10px; --st-slgap:14px; --st-rowmb:10px;
   }
+  body.s7{
+    --rd-side:24px; --rd-chaptop:16px; --rd-chapbot:24px; --rd-ttop:8px; --rd-ruletop:16px;
+    --rd-hr:16px; --rd-blkpv:12px; --rd-blkph:16px; --rd-blkmb:24px; --rd-lblmb:8px;
+    --st-pv:12px; --st-pb:32px; --st-h2mb:24px; --st-lblmb:12px; --st-chipsgap:12px;
+    --st-chippv:12px; --st-slgap:16px; --st-rowmb:12px;
+  }
+
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
-  .cap{color:#5A5C57;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.7;max-width:980px}
+  body{background:#E4E3DD;font-family:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+       min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:26px 18px 40px}
+  .cap{color:#4A4C47;font-size:13.5px;text-align:center;line-height:1.75;max-width:820px;margin-bottom:6px}
   .cap b{color:#2A2C28}
-  .lead{color:#6A6C67;font-size:12px;margin-bottom:20px;text-align:center;line-height:1.7;max-width:980px}
-  .lead code{background:#EFEEE8;padding:1px 5px;border-radius:3px;font-size:11.5px}
-  .stage{display:flex;gap:22px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
-  .col{display:flex;flex-direction:column;align-items:center;gap:10px;width:314px}
-  .col .head{font-size:13px;font-weight:700;letter-spacing:.06em}
-  .col.now .head{color:#8A5A2A}.col.s5 .head{color:#7C808B}.col.s7 .head{color:#1C3D5A}
-  .col .scale{font-family:var(--gothic);font-size:11px;color:#6A6C67;text-align:center;min-height:44px;line-height:1.5}
-  .col .scale b{color:#2A2C28}
+  .lead{color:#6A6C67;font-size:12px;text-align:center;line-height:1.7;max-width:820px;margin-bottom:16px}
+  .lead code{background:#E4E2DA;padding:1px 5px;border-radius:3px;font-size:11.5px}
 
-  /* 差が出る余白のみ変数化（両ページの実正本値→スケール別） */
-  .now{--reader-ph:26px;--chap-top:14px;--chap-bot:26px;--t-mt:9px;--rule-mt:15px;
-       --block-pv:13px;--block-ph:15px;--block-mb:22px;--lbl-mb:6px;
-       --sheet-btm:30px;--h2-mb:20px;--chips-gap:10px;--chip-pv:10px;--acc:#8A5A2A}
-  .s5{--reader-ph:24px;--chap-top:16px;--chap-bot:24px;--t-mt:8px;--rule-mt:16px;
-      --block-pv:16px;--block-ph:16px;--block-mb:24px;--lbl-mb:8px;
-      --sheet-btm:24px;--h2-mb:24px;--chips-gap:8px;--chip-pv:8px;--acc:#7C808B}
-  .s7{--reader-ph:24px;--chap-top:16px;--chap-bot:24px;--t-mt:8px;--rule-mt:16px;
-      --block-pv:12px;--block-ph:16px;--block-mb:24px;--lbl-mb:8px;
-      --sheet-btm:32px;--h2-mb:24px;--chips-gap:8px;--chip-pv:8px;--acc:#1C3D5A}
+  /* トグル */
+  .ctrl{display:flex;gap:8px;justify-content:center;margin-bottom:8px}
+  .seg{display:flex;border:1px solid #CFC9BD;border-radius:999px;overflow:hidden;background:#FBFAF8}
+  .seg button{border:0;font-family:inherit;font-size:12.5px;padding:9px 22px;background:transparent;color:#2A2C28;cursor:pointer;letter-spacing:.03em}
+  .seg button.on{background:#1C3D5A;color:#fff;font-weight:600}
+  .scaleline{color:#6A6C67;font-size:11.5px;text-align:center;margin-bottom:20px;min-height:16px;font-feature-settings:"tnum"}
+  .scaleline b{color:#1C3D5A}
 
-  .panel{width:314px;background:var(--base);border-radius:20px;overflow:hidden;box-shadow:0 10px 26px rgba(0,0,0,.16)}
-  .plabel{font-family:var(--gothic);font-size:10.5px;color:var(--soft);letter-spacing:.08em;padding:12px 16px 4px}
+  .stage{display:flex;gap:34px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#6A6C67}
 
-  /* --- 読書画面（reading-D 実正本） --- */
-  .reader{padding:8px var(--reader-ph) 10px}
-  .chap-h{text-align:center;margin:var(--chap-top) 0 var(--chap-bot)}
-  .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--ai);letter-spacing:.3em}
-  .chap-h .t{font-size:17px;color:var(--ink);margin-top:var(--t-mt);line-height:1.6;font-weight:600}
-  .chap-h .rule{width:48px;height:2px;background:var(--rule);margin:var(--rule-mt) auto 0;opacity:.85}
-  .reader p{font-family:var(--mincho);font-size:15.5px;line-height:2.3;color:var(--ink);text-indent:1em;margin-bottom:.3em}
-  .reader ruby rt{font-size:.5em;color:var(--ruby)}
-  .block{border:1px solid var(--blk-bd);background:var(--blk-bg);padding:var(--block-pv) var(--block-ph);margin:4px 0 var(--block-mb);border-radius:2px}
-  .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--ai);font-weight:700;margin-bottom:var(--lbl-mb);letter-spacing:.1em}
-  .block p{font-family:var(--mincho);font-size:14px;line-height:2.0;text-indent:1em;margin:0;color:var(--ink)}
-  .mark{font-family:var(--gothic);font-size:9px;color:var(--acc);font-weight:700;padding:0 16px}
+  /* ============ reading-D 正本（実DOM・実スタイル。余白のみ変数化） ============ */
+  .doc-r{ --ink:#1C1F26; --soft:#7C808B; --ruby:#616C77; --rule:#1C3D5A;
+          --blk-bg:#F1F0EC; --blk-bd:#E4E2DB; --bar:#FBFAF8; --bar-line:#ECEAE4; --accent:#1C3D5A; --bg:#FBFAF8;
+          --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+          --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;}
+  .doc-r .phone{width:372px;height:720px;border-radius:40px;overflow:hidden;position:relative;background:var(--bg);
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--mincho)}
+  .doc-r .sb{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;
+    font-size:11px;color:var(--soft);font-family:var(--gothic)}
+  .doc-r .topbar{position:relative;z-index:4;height:50px;display:flex;align-items:center;gap:4px;padding:0 14px;
+    background:var(--bar);border-bottom:1px solid var(--bar-line)}
+  .doc-r .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;
+    place-items:center;color:var(--ink);cursor:pointer}
+  .doc-r .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .doc-r .topbar .ct{flex:1;font-family:var(--gothic);font-size:13.5px;color:var(--ink);letter-spacing:.04em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .doc-r .reader{flex:1;overflow:auto;position:relative;z-index:1;padding:8px var(--rd-side) 92px}
+  .doc-r .chap-h{text-align:center;margin:var(--rd-chaptop) 0 var(--rd-chapbot)}
+  .doc-r .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--accent);letter-spacing:.3em}
+  .doc-r .chap-h .t{font-size:18px;color:var(--ink);margin-top:var(--rd-ttop);line-height:1.6;font-weight:600}
+  .doc-r .chap-h .rule{width:48px;height:2px;background:var(--rule);margin:var(--rd-ruletop) auto 0;opacity:.85}
+  .doc-r p{font-size:16.5px;line-height:2.4;color:var(--ink);text-indent:1em;margin-bottom:.3em}
+  .doc-r ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  .doc-r .blank{height:1.5em}
+  .doc-r hr{border:none;height:1px;width:42%;margin:var(--rd-hr) auto;background:var(--rule);opacity:.5}
+  .doc-r .block{border:1px solid var(--blk-bd);background:var(--blk-bg);padding:var(--rd-blkpv) var(--rd-blkph);
+    margin:4px 0 var(--rd-blkmb);border-radius:2px}
+  .doc-r .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--accent);font-weight:700;
+    margin-bottom:var(--rd-lblmb);letter-spacing:.1em}
+  .doc-r .block p{font-size:14.5px;line-height:2.1;text-indent:1em;margin:0}
+  .doc-r .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:64px;display:flex;align-items:center;
+    background:var(--bar);border-top:1px solid var(--bar-line)}
+  .doc-r .bottombar button{flex:1;height:100%;border:none;background:transparent;display:grid;place-items:center;
+    color:var(--ink);cursor:pointer}
+  .doc-r .bottombar svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .doc-r .bottombar .mid{position:relative}
+  .doc-r .bottombar .mid::before,.doc-r .bottombar .mid::after{content:"";position:absolute;top:20px;bottom:20px;width:1px;background:var(--bar-line)}
+  .doc-r .bottombar .mid::before{left:0}.doc-r .bottombar .mid::after{right:0}
 
-  /* --- 表示設定シート（settings-D 実正本） --- */
-  .sheet{border-top:1px solid var(--line);background:var(--base);padding:10px 24px var(--sheet-btm);margin-top:8px}
-  .grab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 14px}
-  .sheet h2{font-family:var(--mincho);font-size:16px;color:var(--ink);font-weight:600;letter-spacing:.08em;margin-bottom:var(--h2-mb)}
-  .slbl{font-family:var(--gothic);font-size:12px;color:var(--soft);margin-bottom:10px}
-  .chips{display:flex;gap:var(--chips-gap)}
-  .chip{flex:1;text-align:center;padding:var(--chip-pv) 0;border-radius:10px;font-size:13px;border:1px solid var(--line);color:var(--ink)}
-  .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
-  .btm-mark{font-family:var(--gothic);font-size:9.5px;color:var(--acc);text-align:center;padding-top:6px;font-weight:600}
+  /* ============ settings-D 正本（実DOM・実スタイル。余白のみ変数化） ============ */
+  .doc-s{ --bg:#FBFAF8;--ink:#1C1F26;--soft:#7C808B;--line:#ECEAE4;--ai:#1C3D5A;
+          --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+          --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;}
+  .doc-s .phone{width:372px;height:720px;border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;
+    background:linear-gradient(180deg,#F6F4F0,#EDEBE6);font-family:var(--gothic)}
+  .doc-s .behind{position:absolute;inset:0;padding:60px 26px;font-family:var(--mincho);font-size:16px;
+    line-height:2.4;color:#C9C6BF;text-indent:1em;overflow:hidden}
+  .doc-s .scrim{position:absolute;inset:0;background:rgba(20,23,28,.28)}
+  .doc-s .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--bg);border-radius:20px 20px 0 0;
+    padding:10px 24px var(--st-pb);box-shadow:0 -10px 30px rgba(0,0,0,.18)}
+  .doc-s .grab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 16px}
+  .doc-s .sheet h2{font-family:var(--mincho);font-size:17px;color:var(--ink);font-weight:600;letter-spacing:.08em;margin-bottom:var(--st-h2mb)}
+  .doc-s .lbl{font-family:var(--gothic);font-size:12px;color:var(--soft);letter-spacing:.06em;margin-bottom:var(--st-lblmb)}
+  .doc-s .sec{margin-bottom:24px}
+  .doc-s .chips{display:flex;gap:var(--st-chipsgap)}
+  .doc-s .chip{flex:1;text-align:center;padding:var(--st-chippv) 0;border-radius:10px;font-family:var(--gothic);font-size:13.5px;
+    border:1px solid var(--line);color:var(--ink);background:transparent;cursor:pointer}
+  .doc-s .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
+  .doc-s .slider{display:flex;align-items:center;gap:var(--st-slgap)}
+  .doc-s .end{font-family:var(--mincho);color:var(--ink);flex-shrink:0}
+  .doc-s .end.g{font-family:var(--gothic);font-size:12px;color:var(--soft)}
+  .doc-s .track{flex:1;height:2px;background:var(--line);position:relative;border-radius:2px}
+  .doc-s .track .fill{position:absolute;left:0;top:0;height:2px;background:var(--ai);border-radius:2px}
+  .doc-s .track .knob{position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--ai);
+    transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(28,61,90,.4)}
+  .doc-s .val{font-family:var(--gothic);font-size:12px;color:var(--ai);margin-left:8px}
+  .doc-s .row-lbl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--st-rowmb)}
 
-  .diffs{width:314px;font-family:var(--gothic);font-size:10.5px;color:#5A5C57;line-height:1.7;background:#F4F3EE;border-radius:12px;padding:12px 14px}
-  .diffs .k{color:#2A2C28;font-weight:700;margin-bottom:2px}
-  .diffs b{color:#2A2C28}
+  /* 変化した余白を淡くハイライト（拡張7段のときだけ点灯＝どこが動いたか一目で） */
+  .diffnote{max-width:820px;margin-top:24px;background:#F4F3EE;border-radius:12px;padding:13px 15px;font-size:11.5px;color:#4A4C47;line-height:1.75}
+  .diffnote .k{color:#2A2C28;font-weight:700;margin-bottom:3px;font-size:12px}
+  .diffnote b{color:#1C3D5A}
+  .diffnote code{background:#EAE8E1;padding:0 4px;border-radius:3px}
 </style>
 </head>
-<body>
-  <p class="cap"><b>F. 余白の離散スケール — 現状 / 厳格5段 / 拡張7段</b> ／ <b>実在の正本ページ</b>（reading-D＝読書画面・settings-D＝表示設定シート）の実マークアップを、余白だけスケール別に振ったもの。悉皆調査で最頻オフスケール値が <b>8-16の中間帯（12=Compose首位76件）</b>・<b>24-40の中間（32）</b>に集中と判明。</p>
-  <p class="lead">厳格 <code>{4,8,16,24,40}</code> は中間密度が潰れる。拡張は12・32の2値だけ足した <code>{4,8,12,16,24,32,40}</code>。<b>見る所</b>＝①前書きブロックの内側 padding（13→厳格<b>16</b>／拡張<b>12</b>）②シート下余白（30→厳格<b>24</b>／拡張<b>32</b>）。厳格は全面が「じわっと緩む」。</p>
-  <div class="stage">
+<body class="now">
+  <p class="cap"><b>F. 余白離散化プレビュー（拡張7段 確定）</b> ／ 正本 <b>reading-D</b>・<b>settings-D</b> の実DOMをそのまま再現。上のトグルで <b>現状（任意値）⇔ 拡張7段 {4,8,12,16,24,32,40}</b> を切替＝同じ実ページの離散化前後。</p>
+  <p class="lead">動くのは<b>離散スケール外の余白だけ</b>（例＝前書きブロック内側 <code>13→12</code>・シート下 <code>30→32</code>・章題上 <code>14→16</code>・見出し下 <code>20→24</code>）。構造インセット(92px 等)・em 値は不変。丸め＝最近傍/等距離は大きい側。</p>
 
-    <!-- 現状 -->
-    <div class="col now">
-      <span class="head">現状（任意値）</span>
-      <span class="scale">13/14/15/22/26/30… が<b>離散スケール外</b></span>
-      <div class="panel now">
-        <div class="plabel">読書画面（reading-D）</div>
-        <div class="reader">
-          <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて</div><div class="rule"></div></div>
-          <div class="block"><div class="lbl">前書き</div><p>今回は少し長めの戦闘回になりました。次話は後日談を挟みます。</p></div>
-          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>が<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
-        </div>
-        <div class="mark">▲ ブロック内側 padding 13dp</div>
-        <div class="sheet">
-          <div class="grab"></div><h2>表示設定</h2>
-          <div class="slbl">テーマ</div>
-          <div class="chips"><button class="chip on">ライト</button><button class="chip">セピア</button><button class="chip">ダーク</button></div>
-          <div class="btm-mark">↑ シート下余白 30dp</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 厳格5段 -->
-    <div class="col s5">
-      <span class="head">厳格5段</span>
-      <span class="scale"><b>{4, 8, 16, 24, 40}</b><br>13→<b>16</b>・30→<b>24</b>。中間密度が消える</span>
-      <div class="panel s5">
-        <div class="plabel">読書画面（reading-D）</div>
-        <div class="reader">
-          <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて</div><div class="rule"></div></div>
-          <div class="block"><div class="lbl">前書き</div><p>今回は少し長めの戦闘回になりました。次話は後日談を挟みます。</p></div>
-          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>が<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
-        </div>
-        <div class="mark">▲ ブロック内側 padding 16dp（+23%緩む）</div>
-        <div class="sheet">
-          <div class="grab"></div><h2>表示設定</h2>
-          <div class="slbl">テーマ</div>
-          <div class="chips"><button class="chip on">ライト</button><button class="chip">セピア</button><button class="chip">ダーク</button></div>
-          <div class="btm-mark">↑ シート下余白 24dp（詰まりすぎ）</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 拡張7段 -->
-    <div class="col s7">
-      <span class="head">拡張7段（推奨）</span>
-      <span class="scale"><b>{4, 8, 12, 16, 24, 32, 40}</b><br>12・32を追加。現状の締まりを保持</span>
-      <div class="panel s7">
-        <div class="plabel">読書画面（reading-D）</div>
-        <div class="reader">
-          <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて</div><div class="rule"></div></div>
-          <div class="block"><div class="lbl">前書き</div><p>今回は少し長めの戦闘回になりました。次話は後日談を挟みます。</p></div>
-          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>が<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
-        </div>
-        <div class="mark">▲ ブロック内側 padding 12dp（維持）</div>
-        <div class="sheet">
-          <div class="grab"></div><h2>表示設定</h2>
-          <div class="slbl">テーマ</div>
-          <div class="chips"><button class="chip on">ライト</button><button class="chip">セピア</button><button class="chip">ダーク</button></div>
-          <div class="btm-mark">↑ シート下余白 32dp（自然）</div>
-        </div>
-      </div>
-    </div>
-
-  </div>
-  <div style="height:18px"></div>
-  <div class="stage">
-    <div class="diffs">
-      <div class="k">厳格5段の弱点</div>
-      最頻値 12（Compose首位76件）が 8か16 に潰れ「標準の内側余白」という<b>中間密度の語彙</b>が消える。32 は 24/40 どちらもシート下余白に不自然。原則2「余白は要素」に照らすと密度差の情報が失われる。
-    </div>
-    <div class="diffs">
-      <div class="k">拡張7段の主張</div>
-      §C の<b>原則（離散スケール・任意値禁止）は維持</b>。実データの3タイ値のうち 12・32 の2段だけ追加。等比の規律は緩むが「最頻値を素直に表現できる」実利が勝る。20 は両案とも 24 へ寄せる。
-    </div>
-    <div class="diffs">
-      <div class="k">これは §C（ADR0014）改訂の判断</div>
-      裁定「§C維持＝スケール確定」は<b>悉皆データを見る前</b>のもの。厳格なら潰れを許容してモック再設計、拡張なら §C を「{4,8,12,16,24,32,40}」へ改訂＋Why 記録。<b>どちらでも進めます</b>。
+  <div class="ctrl">
+    <div class="seg" id="seg">
+      <button data-s="now" class="on">現状（任意値）</button>
+      <button data-s="s7">拡張7段（確定）</button>
     </div>
   </div>
+  <div class="scaleline" id="scaleline">いま表示中＝<b>現状</b>：任意の 13/14/15/22/26/30… が離散スケール外に散在</div>
+
+  <div class="stage">
+
+    <!-- reading-D 実DOM -->
+    <div class="wrap"><span class="mode">読書（reading-D）</span>
+    <div class="doc-r">
+      <div class="phone" role="img" aria-label="reading-D 読書 ライト">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+        <div class="topbar">
+          <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+          <button class="ib" aria-label="表示設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1L16.5 3h-4l-.4 2.6a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1L11.5 21h4l.4-2.6a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5a7 7 0 0 0 .1-1z"/></svg></button>
+        </div>
+        <div class="reader">
+          <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
+          <div class="block"><div class="lbl">前書き</div><p>お読みいただきありがとうございます。今回は少し長めの戦闘回になりました。次話は<ruby>後日談<rt>ごじつだん</rt></ruby>を挟みます。</p></div>
+          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+          <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+          <div class="blank"></div><hr><div class="blank"></div>
+          <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        </div>
+        <div class="bottombar">
+          <button aria-label="前の章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <button class="mid" aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg></button>
+          <button aria-label="次の章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+        </div>
+      </div>
+    </div></div>
+
+    <!-- settings-D 実DOM -->
+    <div class="wrap"><span class="mode">表示設定（settings-D）</span>
+    <div class="doc-s">
+      <div class="phone" role="img" aria-label="settings-D 表示設定シート">
+        <div class="behind">辺境の城門に辿り着いたのは、長い雨がようやく上がった頃だった。濡れた石畳が夕陽を照り返し、橙の光が水たまりに滲んでいる。彼女はそう呟くと、腰の剣をそっと地に置いた。もう戦う理由はない、とでも言うように。</div>
+        <div class="scrim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <h2>表示設定</h2>
+          <div class="sec">
+            <div class="lbl">テーマ</div>
+            <div class="chips">
+              <button class="chip on">ライト</button>
+              <button class="chip">セピア</button>
+              <button class="chip">ダーク</button>
+            </div>
+          </div>
+          <div class="sec">
+            <div class="row-lbl"><span class="lbl" style="margin:0">文字サイズ</span><span class="val">18sp</span></div>
+            <div class="slider">
+              <span class="end" style="font-size:14px">あ</span>
+              <span class="track"><span class="fill" style="width:40%"></span><span class="knob" style="left:40%"></span></span>
+              <span class="end" style="font-size:24px">あ</span>
+            </div>
+          </div>
+          <div class="sec">
+            <div class="row-lbl"><span class="lbl" style="margin:0">行間</span><span class="val">2.5</span></div>
+            <div class="slider">
+              <span class="end g">狭</span>
+              <span class="track"><span class="fill" style="width:40%"></span><span class="knob" style="left:40%"></span></span>
+              <span class="end g">広</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+  </div>
+
+  <div class="diffnote">
+    <div class="k">拡張7段で動く余白（正本の離散スケール外値→丸め先）</div>
+    <b>読書</b>: ブロック内側 <code>13→12</code>/<code>15→16</code>・ブロック下 <code>22→24</code>・章題上 <code>14→16</code>・章題下/本文左右 <code>26→24</code>・題字上 <code>9→8</code>・ルール上 <code>15→16</code>・区切り <code>18→16</code>・ラベル下 <code>6→8</code>。
+    <b>設定</b>: シート下 <code>30→32</code>・見出し下 <code>20→24</code>・シート上 <code>10→12</code>・ラベル下/チップ余白/チップ間/行ラベル下 <code>10→12</code>・スライダー間 <code>14→16</code>。
+    <br>丸め＝最近傍・等距離は大きい側(round-half-up)。<code>92px</code> 等の構造インセット・<code>.3em/1.5em</code> の em 値は base scale 外＝不変。
+  </div>
+
+<script>
+  const lines={
+    now:'いま表示中＝<b>現状</b>：任意の 13/14/15/22/26/30… が離散スケール外に散在',
+    s7:'いま表示中＝<b>拡張7段 {4,8,12,16,24,32,40}</b>：12・32 を含め最頻値を素直に表現・全余白がスケール上に整列'
+  };
+  const seg=document.getElementById('seg'), sl=document.getElementById('scaleline');
+  seg.addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b)return;
+    seg.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    document.body.className=b.dataset.s; sl.innerHTML=lines[b.dataset.s];
+  });
+</script>
 </body>
 </html>
