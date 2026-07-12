@@ -63,17 +63,16 @@ GENERATING_RE = hooks_common.COMMIT_GENERATING_RE
 COMMIT_RE_HOOKS = [
     "guard_commit_branch.py",
     "consume_protected_sentinel.py",
-    "check_commit_granularity.py",
     "check_schema_change.py",
-    "check_lint_on_commit.py",
     "remind_task_diary.py",
 ]
 # COMMIT_GENERATING_RE（merge/rebase/cherry-pick 検知）を共有すべきフック
-# （handover hooks/fix ②: マージ完了経路の素通し対策。ブロック/消費/テストゲートの3本のみ）。
+# （handover hooks/fix ②: マージ完了経路の素通し対策。ブロック/消費の2本。
+#   check_commit_granularity / check_lint_on_commit / mark_kotlin_tests_passed は
+#   2026-07-12 に撤去＝コミットは可逆・テストは再実行可能で ROI 基準を満たさない裁定）。
 GENERATING_RE_HOOKS = [
     "guard_commit_branch.py",
     "consume_protected_sentinel.py",
-    "check_commit_granularity.py",
 ]
 
 # 保護ブランチへの in-command switch/checkout 検知（guard_commit_branch.py 固有＝共有しない）。

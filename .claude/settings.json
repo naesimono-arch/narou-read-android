@@ -34,10 +34,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/mark_kotlin_tests_passed.py\""
-          },
-          {
-            "type": "command",
             "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/remind_task_diary.py\""
           },
           {
@@ -80,15 +76,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/check_commit_granularity.py\""
-          },
-          {
-            "type": "command",
             "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/check_schema_change.py\""
-          },
-          {
-            "type": "command",
-            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/check_lint_on_commit.py\""
           },
           {
             "type": "command",
