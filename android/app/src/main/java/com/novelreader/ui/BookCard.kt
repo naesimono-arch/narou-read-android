@@ -23,7 +23,10 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -233,17 +236,18 @@ internal fun GridBookCard(
                     )
                     .clip(RoundedCornerShape(3.dp)),
             )
-            // 朱印「了」（読了バッジ）。正本 grid-D .seal: 19dp角・角丸2dp・右下9dp・枠1dp・明朝 SemiBold 9.5sp。
-            // 朱色は accent（title 由来色相）と無関係の固定「読了の徴」＝専用トークン。背景は紙地へ半透過で溶かす
-            // （ライトは surface 50%／ダークは正本の固定暗色トークン 50%）。coverIsDark は上で算出済みを再利用。
+            // 朱印「了」（読了バッジ）。正本 grid-D .seal: 19dp角・角丸2dp・左下9dp・枠1dp・明朝 SemiBold 9.5sp。
+            // なぜ左下か（2026-07-12）: 右下だと表紙内の縦組み題字（右起点で読む）と重なるため左下へ移した
+            //（正本 .seal も right→left に同期）。朱色は accent（title 由来色相）と無関係の固定「読了の徴」＝専用トークン。
+            // 背景は紙地へ半透過で溶かす（ライトは surface 50%／ダークは正本の固定暗色トークン 50%）。coverIsDark 再利用。
             if (isFinished) {
                 val sealColor = if (coverIsDark) ShioriSealVermilionDark else ShioriSealVermilion
                 val sealBg = if (coverIsDark) ShioriSealScrimDark.copy(alpha = 0.5f)
                 else MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
                 Box(
                     modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 9.dp, bottom = 9.dp)
+                        .align(Alignment.BottomStart)
+                        .padding(start = 9.dp, bottom = 9.dp)
                         .size(19.dp)
                         .clip(RoundedCornerShape(2.dp))
                         .background(sealBg)
@@ -256,6 +260,16 @@ internal fun GridBookCard(
                         fontWeight = FontWeight.SemiBold,
                         fontSize = FontSealBadge,
                         color = sealColor,
+                        // グリフを四角の中央へ（不格好の是正）: 既定の includeFontPadding（字面上下の余白）で
+                        // 「了」が上寄りに見えるため padding を切り、行高を字面へ trim して中央整列させる
+                        // （モック .seal の display:grid;place-items:center 相当のセンタリングを Compose で再現）。
+                        style = TextStyle(
+                            platformStyle = PlatformTextStyle(includeFontPadding = false),
+                            lineHeightStyle = LineHeightStyle(
+                                alignment = LineHeightStyle.Alignment.Center,
+                                trim = LineHeightStyle.Trim.Both,
+                            ),
+                        ),
                     )
                 }
             }
