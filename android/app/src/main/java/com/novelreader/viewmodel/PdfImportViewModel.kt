@@ -10,6 +10,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.novelreader.PdfProcessingService
 import com.novelreader.narou.model.Ncode
+import com.novelreader.narou.retryWithBackoff
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -51,6 +52,12 @@ sealed interface PdfImportEvent {
     data object ImportStarted : PdfImportEvent
 }
 
+/** DL の再試行してよい失敗（5xx/429）。retryAfterMs は 429 の Retry-After（尊重すべき待機・無ければ null）。 */
+internal class RetryableDownloadException(message: String, val retryAfterMs: Long?) : IOException(message)
+
+/** DL の再試行しても直らない失敗（4xx＝トークン失効等の恒久失敗）。retryWithBackoff は即 rethrow する。 */
+internal class FatalDownloadException(message: String) : IOException(message)
+
 /**
  * 縦書きPDF取り込み（ADR 0011・案B）の ViewModel。
  *
@@ -89,7 +96,10 @@ class PdfImportViewModel(application: Application) : AndroidViewModel(applicatio
         // mimetype=application/octet-stream で返り、application/pdf ではない。よって MIME では PDF を判別できず、
         // Content-Disposition の filename=*.pdf か URL 拡張子 .pdf で判定する。PDF でない DL は無視する。
         if (!looksLikePdf(url, contentDisposition)) {
-            Log.i(TAG, "PDF でない DL を無視: url=$url disposition=$contentDisposition")
+            // 内容識別子（url は ncode を、Content-Disposition の filename は書名を含みうる）はログに残さない
+            // （UX監査 privacy+measure・公理15 B②「ログもまた保存層」）。minifyEnabled=false でリリース APK にも
+            // Log.i が残り、バグレポート経由で端末外へ出うるため。判定に要るのは looksLikePdf の真偽だけ＝定数ログにする。
+            Log.i(TAG, "PDF でない DL を無視しました")
             return
         }
         // 二重投入防止: 既に DL 中なら新たな捕捉を無視する（トークン URL は短時間再発火しうる＝スパイク実測）。
@@ -117,21 +127,36 @@ class PdfImportViewModel(application: Application) : AndroidViewModel(applicatio
                         .connectTimeout(30, TimeUnit.SECONDS)
                         .readTimeout(60, TimeUnit.SECONDS)
                         .build()
-                    val requestBuilder = Request.Builder().url(url)
-                    // WebView の UA と Cookie を転送する。ログイン不要は実証済み（ADR 0011）だが、生成毎トークンの
-                    // 検証が UA/Cookie に依存する可能性への防御。過剰でも実害は無いため付けておく。
-                    userAgent?.let { requestBuilder.header("User-Agent", it) }
-                    cookie?.takeIf { it.isNotBlank() }?.let { requestBuilder.header("Cookie", it) }
-                    val call = client.newCall(requestBuilder.build())
-                    // 協調キャンセル: viewModelScope キャンセル（DL 中に画面を離れた等）で OkHttp Call を中断し、
-                    // ブロッキングな byte コピーを解いてスレッドを解放する。copyTo 自体は協調キャンセル非対応のため。
-                    coroutineContext.job.invokeOnCompletion { call.cancel() }
-                    call.execute().use { response ->
-                        if (!response.isSuccessful) {
-                            throw IOException("DL に失敗しました（HTTP ${response.code}）")
+                    // 一過性失敗（timeout/DNS/瞬断/単発5xx/429）のみ指数バックオフ＋Full Jitter で 1〜2 回だけ
+                    // 自動再試行する（UX監査 add+errtext・なろうAPI と同一の retryWithBackoff を共有＝単一集約点）。
+                    // 4xx（トークン失効等・恒久失敗）は再試行しても同じ失敗を繰り返すだけなので即エラーへ落とす。
+                    // 各試行で call を作り直す＝outFile は outputStream() が都度 truncate するので部分DLは残らない。
+                    retryWithBackoff(
+                        isRetryable = ::isDownloadRetryable,
+                        retryAfterMs = { (it as? RetryableDownloadException)?.retryAfterMs },
+                    ) {
+                        val requestBuilder = Request.Builder().url(url)
+                        // WebView の UA と Cookie を転送する。ログイン不要は実証済み（ADR 0011）だが、生成毎トークンの
+                        // 検証が UA/Cookie に依存する可能性への防御。過剰でも実害は無いため付けておく。
+                        userAgent?.let { requestBuilder.header("User-Agent", it) }
+                        cookie?.takeIf { it.isNotBlank() }?.let { requestBuilder.header("Cookie", it) }
+                        val call = client.newCall(requestBuilder.build())
+                        // 協調キャンセル: viewModelScope キャンセル（DL 中に画面を離れた等）で OkHttp Call を中断し、
+                        // ブロッキングな byte コピーを解いてスレッドを解放する。copyTo 自体は協調キャンセル非対応のため。
+                        coroutineContext.job.invokeOnCompletion { call.cancel() }
+                        call.execute().use { response ->
+                            if (!response.isSuccessful) {
+                                val code = response.code
+                                // 5xx/429 は一時障害＝再試行対象（429 は Retry-After を尊重）。それ以外の 4xx は恒久失敗。
+                                if (code == 429 || code in 500..599) {
+                                    val retryAfterMs = response.header("Retry-After")?.trim()?.toLongOrNull()?.times(1000L)
+                                    throw RetryableDownloadException("DL に失敗しました（HTTP $code）", retryAfterMs)
+                                }
+                                throw FatalDownloadException("DL に失敗しました（HTTP $code）")
+                            }
+                            val body = response.body ?: throw IOException("応答が空でした")
+                            outFile.outputStream().use { out -> body.byteStream().copyTo(out) }
                         }
-                        val body = response.body ?: throw IOException("応答が空でした")
-                        outFile.outputStream().use { out -> body.byteStream().copyTo(out) }
                     }
                     outFile
                 }
@@ -182,6 +207,11 @@ class PdfImportViewModel(application: Application) : AndroidViewModel(applicatio
         private const val TAG = "PdfImportViewModel"
         // AndroidManifest の <provider android:authorities> と一致させること。
         private const val FILE_PROVIDER_AUTHORITY = "com.novelreader.fileprovider"
+
+        /** PDF DL 失敗を再試行してよいか（UX監査 add+errtext）。一過性のみ true・4xx 恒久失敗は false。
+         *  FatalDownloadException 以外の IOException（timeout/DNS/瞬断＝一過性）と 5xx/429 を再試行対象にする。 */
+        internal fun isDownloadRetryable(e: Throwable): Boolean =
+            e is RetryableDownloadException || (e is IOException && e !is FatalDownloadException)
 
         /** Content-Disposition の filename=*.pdf か URL 拡張子 .pdf で PDF を判定する（MIME は使えない＝ADR 0011）。 */
         internal fun looksLikePdf(url: String, contentDisposition: String?): Boolean {

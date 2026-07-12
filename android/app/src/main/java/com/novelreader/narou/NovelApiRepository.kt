@@ -15,12 +15,57 @@ import com.novelreader.narou.network.NarouApiService
 import com.novelreader.narou.network.NarouNetwork
 import com.squareup.moshi.JsonDataException
 import com.squareup.moshi.JsonEncodingException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import retrofit2.HttpException
 import java.io.IOException
+import kotlin.random.Random
 
 class NarouApiException(val userMessage: String, cause: Throwable) : Exception(userMessage, cause)
+
+/**
+ * リトライの単一集約点（UX監査 add+errtext・エラー分類10-C）。一過性失敗のみ指数バックオフ＋Full Jitter で
+ * 数回だけ再試行し、恒久失敗（4xx・応答解釈不能 等）は即座に投げ直す。なろうAPI DL と縦書きPDF DL の
+ * 双方が同一ロジックを通すための共有ユーティリティ（各サイトに散らばった手書きリトライを1箇所へ集約）。
+ *
+ * @param maxRetries 追加試行回数（総試行 = 1 + maxRetries）。既定2＝合計最大3回で、体感の待ち（数秒）に収める。
+ * @param isRetryable この例外で再試行してよいか。false なら即 rethrow（＝症状でなく分類で判断する）。
+ * @param retryAfterMs サーバが明示した待機（429 Retry-After 等）。返れば Full Jitter より優先（下限として尊重）。
+ * @param delayFn 実待機。テストで即時化（{ } や虚時間）して決定論にするための継ぎ目。
+ * @param random Full Jitter の乱数源。テストで固定 seed を注入できる。
+ */
+internal suspend fun <T> retryWithBackoff(
+    maxRetries: Int = 2,
+    baseDelayMs: Long = 500L,
+    maxDelayMs: Long = 4_000L,
+    random: Random = Random.Default,
+    delayFn: suspend (Long) -> Unit = { delay(it) },
+    retryAfterMs: (Throwable) -> Long? = { null },
+    isRetryable: (Throwable) -> Boolean,
+    block: suspend () -> T,
+): T {
+    var attempt = 0
+    while (true) {
+        try {
+            return block()
+        } catch (e: CancellationException) {
+            // 協調キャンセルはエラーでなく制御フロー＝再試行せず素通し（呼び出し側のスコープ終了を尊重）。
+            throw e
+        } catch (e: Throwable) {
+            if (attempt >= maxRetries || !isRetryable(e)) throw e
+            // Full Jitter（AWS流）: sleep = random[0, min(cap, base*2^attempt)]。指数で上限へ近づけつつ
+            // 同時失敗した群れの再試行タイミングを散らして再輻輳（thundering herd）を防ぐ。
+            // Retry-After が明示されていればそれを下限として尊重する（429 のサーバ指示）。
+            val expCap = (baseDelayMs shl attempt).coerceIn(1L, maxDelayMs)
+            val jitter = random.nextLong(expCap + 1)
+            val wait = maxOf(jitter, retryAfterMs(e) ?: 0L)
+            delayFn(wait)
+            attempt++
+        }
+    }
+}
 
 class NovelApiRepository(
     private val service: NarouApiService = NarouNetwork.service,
@@ -97,11 +142,36 @@ class NovelApiRepository(
     }
 
     /**
-     * APIコールの例外をなろうAPIのドメイン例外に正規化する。
+     * この例外を再試行してよいか（UX監査 add+errtext）。一過性のみ true にし、恒久失敗は false で即エラーへ。
+     * なぜ Json 系を IOException より先に判定するか: JsonEncodingException は IOException のサブクラスで、
+     * メンテページ等の非JSON応答（HTTP 200+HTML）がこれに落ちる。再試行しても直らない恒久失敗なので
+     * ネットワーク一過性（下の IOException=true）と混同しないよう先に false へ落とす。
      */
-    private inline fun <T> wrapApiException(block: () -> T): T {
+    private fun isNarouRetryable(e: Throwable): Boolean = when (e) {
+        is HttpException -> e.code() == 429 || e.code() in 500..599 // 混雑/一時障害のみ再試行、4xx は非
+        is JsonDataException, is JsonEncodingException -> false      // 応答の形は再試行で変わらない
+        is IOException -> true                                       // timeout/DNS/瞬断＝一過性
+        else -> false
+    }
+
+    /** 429 の Retry-After（秒）をミリ秒で返す。HTTP-date 形式は解釈せず null（＝Full Jitter へフォールバック）。 */
+    private fun narouRetryAfterMs(e: Throwable): Long? =
+        if (e is HttpException && e.code() == 429)
+            e.response()?.headers()?.get("Retry-After")?.trim()?.toLongOrNull()?.times(1000L)
+        else null
+
+    /**
+     * APIコールの例外をなろうAPIのドメイン例外に正規化する。
+     * 実 API 呼び出しは [retryWithBackoff] を通し、一過性失敗（IO/timeout/5xx/429）のみ数回再試行してから
+     * 残余を下記の分類でユーザー向けメッセージへ翻訳する（リトライの単一集約点＝UX監査 add+errtext）。
+     */
+    private suspend fun <T> wrapApiException(block: suspend () -> T): T {
         try {
-            return block()
+            return retryWithBackoff(
+                isRetryable = ::isNarouRetryable,
+                retryAfterMs = ::narouRetryAfterMs,
+                block = block,
+            )
         } catch (e: HttpException) {
             // Nielsen#9（M8）: 生の HTTP コード(503 等)はユーザーに意味を持たない技術用語なので UI へ出さない。
             // 状態カテゴリごとに「次にどうすればよいか」が伝わる平易な日本語へ正規化する。診断に要る原コードは
