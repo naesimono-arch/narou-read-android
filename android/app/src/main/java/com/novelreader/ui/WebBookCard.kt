@@ -36,6 +36,7 @@ import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.MotionSpringCard
+import com.novelreader.ui.theme.Spacing
 
 // ============================================================
 // WebGridBookCard / WebListBookCard
@@ -113,7 +114,7 @@ fun WebGridBookCard(
             }
         }
 
-        Spacer(Modifier.height(11.dp))
+        Spacer(Modifier.height(Spacing.S12))
         // メタ題字（明朝）
         Text(
             text = novel.title,
@@ -124,7 +125,7 @@ fun WebGridBookCard(
             overflow = TextOverflow.Ellipsis,
             color = MaterialTheme.colorScheme.onSurface,
         )
-        Spacer(Modifier.height(9.dp))
+        Spacer(Modifier.height(Spacing.S8))
         // メタ行: 機能②の読書記録があれば「続きから 第N話」を静かに添える（藍＝primary）。
         // なぜ非クリックにするか（continuity Major）: 主タップ（カード本体）が再開に統一されたため、
         // 旧・小リンク（<48dp タップ標的）を廃し、ここは状態表示だけの静かなラベルに落とす。
@@ -188,7 +189,7 @@ fun WebListBookCard(
                 )
                 // 色帯を行の高さいっぱいに伸ばすため（PDF 蔵書の目録行と同じ骨格）。
                 .height(IntrinsicSize.Min)
-                .padding(top = 16.dp, bottom = 16.dp),
+                .padding(top = Spacing.S16, bottom = Spacing.S16),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // 左端の色帯（本の小口メタファ）。整合ルール「1冊=1色相」で書架の栞と同じ title 由来 accent に一本化。
@@ -203,7 +204,7 @@ fun WebListBookCard(
                     .clip(RoundedCornerShape(2.dp))
                     .background(barColor),
             )
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(Spacing.S16))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = novel.title,
@@ -216,7 +217,7 @@ fun WebListBookCard(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 if (novel.writer.isNotBlank()) {
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(Spacing.S8))
                     Text(
                         text = novel.writer,
                         fontSize = FontLabel,
@@ -225,11 +226,11 @@ fun WebListBookCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(Spacing.S12))
                 // メタ行: 機能②の読書記録があれば「続きから 第N話」を静かに添える（藍＝primary・非クリック）。
                 // 主タップ（行本体）が再開に統一されたため小リンクは廃止（continuity Major・<48dp 解消）。
                 // 無ければ従来の「なろう・未取込」（青磁＝secondary）。行本体タップは目次(onOpen)。
-                // Spacer 10dp は mokuroku 意匠（ui/design-canon 後継）側を正とする。
+                // Spacer は mokuroku 意匠（ui/design-canon 後継）側を正とする（10→拡張7段 S12）。
                 if (lastReadEpisode > 0) {
                     Text(
                         text = "続きから 第${lastReadEpisode}話",

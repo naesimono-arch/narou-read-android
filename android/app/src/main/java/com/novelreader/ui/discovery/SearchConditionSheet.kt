@@ -68,6 +68,7 @@ import com.novelreader.viewmodel.buildCustomRange
 import com.novelreader.viewmodel.selectedStepIndices
 import com.novelreader.viewmodel.toggleLastup
 import com.novelreader.viewmodel.toggleType
+import com.novelreader.ui.theme.Spacing
 
 /**
  * 「条件を調整」シート（モック discovery-search-D.html の条件パネル）。
@@ -103,7 +104,7 @@ fun SearchConditionSheet(
         dragHandle = {
             Box(
                 modifier = Modifier
-                    .padding(top = 8.dp)
+                    .padding(top = Spacing.S8)
                     .width(36.dp)
                     .height(4.dp)
                     .background(
@@ -138,7 +139,7 @@ fun SearchConditionSheet(
                 // 入力欄がキーボードに隠れないようにする（NcodeLinkSheet と同じ対処。この画面だけ抜けていた）。
                 .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 18.dp)
+                .padding(horizontal = Spacing.S24, vertical = Spacing.S16)
         ) {
             Text(
                 text = "条件",
@@ -158,8 +159,8 @@ fun SearchConditionSheet(
             NarouGenres.BIGGENRES.forEach { (bigCode, bigName) ->
                 GenreGroupLabel(text = bigName)
                 FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.S8),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     // 「すべて」＝この大ジャンル全体（biggenre コード）。選択中は biggenres にコードが入っている状態。
@@ -188,8 +189,8 @@ fun SearchConditionSheet(
             // a. 作品の形
             SectionHeader(text = "作品の形")
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                verticalArrangement = Arrangement.spacedBy(Spacing.S8),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 val current = draft.filters.types
@@ -226,8 +227,8 @@ fun SearchConditionSheet(
             // b. 更新された時期
             SectionHeader(text = "更新された時期")
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                verticalArrangement = Arrangement.spacedBy(Spacing.S8),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 val current = draft.filters.lastups
@@ -264,8 +265,8 @@ fun SearchConditionSheet(
             // c. 属性
             SectionHeader(text = "テーマ（含める）")
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                verticalArrangement = Arrangement.spacedBy(Spacing.S8),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 NarouAttr.values().forEach { attr ->
@@ -290,8 +291,8 @@ fun SearchConditionSheet(
 
             SectionHeader(text = "除外する")
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                verticalArrangement = Arrangement.spacedBy(Spacing.S8),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 NarouAttr.values().forEach { attr ->
@@ -324,7 +325,7 @@ fun SearchConditionSheet(
                 onValueChange = { viewModel.setSearchDraft(draft.copy(notWord = it)) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp)
+                    .padding(top = Spacing.S4)
                     .onFocusChanged { isNotWordFocused = it.isFocused },
                 singleLine = true,
                 textStyle = TextStyle(
@@ -336,7 +337,7 @@ fun SearchConditionSheet(
                 decorationBox = { innerTextField ->
                     Column {
                         Box(
-                            modifier = Modifier.padding(bottom = 4.dp),
+                            modifier = Modifier.padding(bottom = Spacing.S4),
                             contentAlignment = Alignment.CenterStart
                         ) {
                             if (draft.notWord.isEmpty()) {
@@ -372,12 +373,12 @@ fun SearchConditionSheet(
                     // なぜ InfoText か: 排他制約の理由＝意味を運ぶ文字。onSurfaceVariant の alpha 沈めは
                     // ADR 0014-D の暗化トークン裁定を打ち消す退行（サブAA地の重ね沈め）のため素値で使う。
                     color = LocalShelfColors.current.infoText,
-                    modifier = Modifier.padding(bottom = 10.dp)
+                    modifier = Modifier.padding(bottom = Spacing.S12)
                 )
             }
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                verticalArrangement = Arrangement.spacedBy(Spacing.S8),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 val current = draft.filters.length
@@ -447,12 +448,12 @@ fun SearchConditionSheet(
                     fontSize = FontMicroLabel,
                     // なぜ InfoText か: 上の「読了時間と併用できません」と同じ（ADR 0014-D）。
                     color = LocalShelfColors.current.infoText,
-                    modifier = Modifier.padding(bottom = 10.dp)
+                    modifier = Modifier.padding(bottom = Spacing.S12)
                 )
             }
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                verticalArrangement = Arrangement.spacedBy(Spacing.S8),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 val current = draft.filters.time
@@ -513,8 +514,8 @@ fun SearchConditionSheet(
             // なぜモックのレンジスライダーでなく段階チップか: 文字数・読了時間はダイナミックレンジが広く線形スライダーは実用に耐えないため、段階選択に置き換える（見た目の節構成・チップ様式はモック準拠。操作系の差分は ADR 0005 のスコープ外規定＝実機フィードバックで後詰め）。
             SectionHeader(text = "会話率")
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                verticalArrangement = Arrangement.spacedBy(Spacing.S8),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 val current = draft.filters.kaiwaritu
@@ -545,8 +546,8 @@ fun SearchConditionSheet(
             // なぜモックのレンジスライダーでなく段階チップか: 文字数・読了時間はダイナミックレンジが広く線形スライダーは実用に耐えないため、段階選択に置き換える（見た目の節構成・チップ様式はモック準拠。操作系の差分は ADR 0005 のスコープ外規定＝実機フィードバックで後詰め）。
             SectionHeader(text = "挿絵")
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                verticalArrangement = Arrangement.spacedBy(Spacing.S8),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 val current = draft.filters.sasie
@@ -570,7 +571,7 @@ fun SearchConditionSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 24.dp)
+                    .padding(top = Spacing.S24)
             ) {
                 Button(
                     onClick = {
@@ -588,7 +589,7 @@ fun SearchConditionSheet(
                         fontSize = FontSubTitle,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 1.5.sp,
-                        modifier = Modifier.padding(vertical = 4.dp)
+                        modifier = Modifier.padding(vertical = Spacing.S4)
                     )
                 }
 
@@ -598,7 +599,7 @@ fun SearchConditionSheet(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp),
+                        .padding(top = Spacing.S8),
                     colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -612,7 +613,7 @@ fun SearchConditionSheet(
 
                 Spacer(
                     modifier = Modifier
-                        .height(24.dp)
+                        .height(Spacing.S24)
                         .navigationBarsPadding()
                 )
             }
@@ -632,7 +633,7 @@ private fun GenreGroupLabel(text: String) {
         fontSize = FontChipLarge,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)
+        modifier = Modifier.padding(top = Spacing.S16, bottom = Spacing.S8)
     )
 }
 
@@ -652,8 +653,8 @@ private fun CustomRangeInput(
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+        horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+        modifier = Modifier.fillMaxWidth().padding(top = Spacing.S12)
     ) {
         var isMinFocused by remember { mutableStateOf(false) }
         BasicTextField(
@@ -672,7 +673,7 @@ private fun CustomRangeInput(
             decorationBox = { innerTextField ->
                 Column {
                     Box(
-                        modifier = Modifier.padding(bottom = 4.dp),
+                        modifier = Modifier.padding(bottom = Spacing.S4),
                         contentAlignment = Alignment.CenterStart
                     ) {
                         if (minValue.isEmpty()) {
@@ -715,7 +716,7 @@ private fun CustomRangeInput(
             decorationBox = { innerTextField ->
                 Column {
                     Box(
-                        modifier = Modifier.padding(bottom = 4.dp),
+                        modifier = Modifier.padding(bottom = Spacing.S4),
                         contentAlignment = Alignment.CenterStart
                     ) {
                         if (maxValue.isEmpty()) {
@@ -739,7 +740,7 @@ private fun CustomRangeInput(
             text = unitLabel,
             fontSize = FontBody,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 4.dp)
+            modifier = Modifier.padding(start = Spacing.S4)
         )
     }
 }

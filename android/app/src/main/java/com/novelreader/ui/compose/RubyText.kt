@@ -33,6 +33,7 @@ import com.novelreader.model.TextSegment
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.colors
+import com.novelreader.ui.theme.Spacing
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
@@ -277,7 +278,7 @@ private fun RubyTextPreview_Normal() {
             TextSegment.Ruby("物語", "ものがたり"),
             TextSegment.Plain("は始まる。"),
         ),
-        modifier = Modifier.padding(16.dp),
+        modifier = Modifier.padding(Spacing.S16),
         rubyColor = ReadingTheme.LIGHT.colors.ruby, // トークン正本を直接参照（プレビューだけ旧値に取り残されるのを防ぐ）
     )
 }
@@ -291,7 +292,7 @@ private fun RubyTextPreview_Bold() {
             TextSegment.Ruby("漢字", "かんじ"),
             TextSegment.Plain("が続く。"),
         ),
-        modifier = Modifier.padding(16.dp),
+        modifier = Modifier.padding(Spacing.S16),
         style = TextStyle(
             fontSize = 18.sp,
             lineHeight = 2.5.em,
@@ -313,7 +314,7 @@ private fun RubyTextPreview_LineWrap() {
             TextSegment.Ruby("物語", "ものがたり"),
             TextSegment.Plain("が行をまたいで折り返す場合のプレビュー。"),
         ),
-        modifier = Modifier.padding(8.dp),
+        modifier = Modifier.padding(Spacing.S8),
         rubyColor = ReadingTheme.LIGHT.colors.ruby, // トークン正本を直接参照（プレビューだけ旧値に取り残されるのを防ぐ）
     )
 }

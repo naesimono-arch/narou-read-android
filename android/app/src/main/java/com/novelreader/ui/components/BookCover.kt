@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.novelreader.ui.theme.BookCoverRuleIndigo
 import com.novelreader.ui.theme.FontBody
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.Spacing
 import kotlin.math.abs
 
 // ============================================================
@@ -120,13 +121,13 @@ fun BookCover(
         Box(
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .padding(start = 10.dp)
+                .padding(start = Spacing.S12)
                 .width(2.dp)
                 .fillMaxHeight(0.82f)
                 .background(ruleColor ?: BookCoverRuleIndigo),
         )
         // ────── 書影下部の明朝タイトル（グリッドのみ）──────
-        // モック .cv .ttl-in: 下寄せ・左 padding は藍ルール(左10dp)を避けて 22dp、明朝 14sp・3行省略。
+        // モック .cv .ttl-in（padding 16/16/16/24 に離散化済）: 下寄せ・左 padding は藍ルールを避けて 24dp、明朝 14sp・3行省略。
         // 暗色スラブ上の白文字を確実に読ませるため text-shadow（モック相当）を載せる。
         if (showTitle) {
             Text(
@@ -147,7 +148,7 @@ fun BookCover(
                 ),
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(start = 22.dp, end = 14.dp, bottom = 16.dp, top = 14.dp),
+                    .padding(start = Spacing.S24, end = Spacing.S16, bottom = Spacing.S16, top = Spacing.S16),
             )
         }
     }

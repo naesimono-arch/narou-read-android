@@ -57,6 +57,12 @@ import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.DiscoveryUiState
 import com.novelreader.viewmodel.DiscoveryViewModel
 import com.novelreader.viewmodel.MoodPreset
+import com.novelreader.ui.theme.Spacing
+
+// 独自タブの縦パディング（拡張7段スケール外の較正値）。Material 既定 48dp だとタブ帯が背高で画面を
+// 過剰占有した実機フィードバック#1を受け、モックの ~40px 高へ詰めた値＝10dp。S12(12) へ丸めると
+// 上下 +2dp で詰めた高さを押し戻し較正を壊すため、離散化せず 10dp を保持する（横は 12=S12 でオンスケール）。
+private val TabVerticalPadding = 10.dp
 
 // ============================================================
 // 発見ホーム（モック discovery-home-D.html の翻訳）。
@@ -212,7 +218,7 @@ internal fun DiscoveryHomeContent(
                         // へ退避する（型が違うため ncode 文字列と index の衝突は起きない）。
                         key = { index, novel -> novel.ncode ?: index },
                     ) { index, novel ->
-                        Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                        Column(modifier = Modifier.padding(horizontal = Spacing.S24)) {
                             NovelListRow(
                                 rank = index + 1,
                                 novel = novel,
@@ -238,7 +244,7 @@ private fun MoodSection(
     onPickMood: (MoodPreset) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp)) {
+    Column(modifier = modifier.padding(top = Spacing.S8, start = Spacing.S24, end = Spacing.S24)) {
         Text(
             text = "きょうの気分",
             fontSize = FontMicroLabel,
@@ -251,8 +257,8 @@ private fun MoodSection(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    .padding(top = Spacing.S12),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S12),
             ) {
                 rowPresets.forEach { preset ->
                     MoodCard(
@@ -280,17 +286,17 @@ private fun MoodCard(
                 shape = RoundedCornerShape(2.dp),
             )
             .clickable(onClick = onClick)
-            .padding(vertical = 13.dp),
+            .padding(vertical = Spacing.S12),
     ) {
         // 左の青磁ルール（モック .md::before）
         Box(
             modifier = Modifier
-                .padding(top = 2.dp)
+                .padding(top = Spacing.S4)
                 .width(2.dp)
                 .height(30.dp)
                 .background(MaterialTheme.colorScheme.secondary),
         )
-        Column(modifier = Modifier.padding(start = 12.dp, end = 8.dp)) {
+        Column(modifier = Modifier.padding(start = Spacing.S12, end = Spacing.S8)) {
             Text(
                 text = preset.title,
                 fontFamily = MinchoFamily,
@@ -304,7 +310,7 @@ private fun MoodCard(
                 fontSize = FontPresetCaption,
                 letterSpacing = 0.4.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 5.dp),
+                modifier = Modifier.padding(top = Spacing.S4),
             )
         }
     }
@@ -317,11 +323,11 @@ private fun GenreEntrySection(
     onPickBiggenre: (code: Int, label: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.padding(top = 8.dp)) {
+    Column(modifier = modifier.padding(top = Spacing.S8)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = Spacing.S24),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -339,9 +345,9 @@ private fun GenreEntrySection(
             )
         }
         LazyRow(
-            modifier = Modifier.padding(top = 10.dp, bottom = 6.dp),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(top = Spacing.S12, bottom = Spacing.S8),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = Spacing.S24),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
         ) {
             items(NarouGenres.BIGGENRES) { (code, label) ->
                 Text(
@@ -355,7 +361,7 @@ private fun GenreEntrySection(
                             shape = RoundedCornerShape(50),
                         )
                         .clickable { onPickBiggenre(code, label) }
-                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                        .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
                 )
             }
         }
@@ -409,7 +415,7 @@ private fun OrderTabRow(
                     else LocalShelfColors.current.infoText,
                     modifier = Modifier
                         .clickable { onSelect(order) }
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .padding(horizontal = Spacing.S12, vertical = TabVerticalPadding),
                 )
             }
         }

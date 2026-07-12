@@ -57,6 +57,7 @@ import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.viewmodel.NcodeSearchUiState
+import com.novelreader.ui.theme.Spacing
 import java.util.Locale
 
 /**
@@ -99,10 +100,10 @@ internal fun NcodeLinkSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = Spacing.S24)
                 .navigationBarsPadding()
                 .imePadding() // キーボード立ち上がり時の隠れを防ぐ
-                .padding(bottom = 32.dp)
+                .padding(bottom = Spacing.S32)
         ) {
             // 見出し: 明朝 16sp
             Text(
@@ -111,14 +112,14 @@ internal fun NcodeLinkSheet(
                 fontSize = FontSectionTitle,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.text,
-                modifier = Modifier.padding(bottom = 6.dp)
+                modifier = Modifier.padding(bottom = Spacing.S8)
             )
             // 補足: ゴシック 12sp
             Text(
                 text = "「${bookTitle}」の続きをなろうで読むための紐付けです。",
                 fontSize = FontCaption,
                 color = colors.textSecondary,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier.padding(bottom = Spacing.S16)
             )
 
             // 恒常ラベル: 入力後も残り「何の欄か」を示す（placeholder は例示専用に降格）。
@@ -128,7 +129,7 @@ internal fun NcodeLinkSheet(
                 text = "作品名で検索",
                 fontSize = FontLabel,
                 color = colors.textSecondary,
-                modifier = Modifier.padding(bottom = 6.dp)
+                modifier = Modifier.padding(bottom = Spacing.S8)
             )
 
             // 検索欄
@@ -194,7 +195,7 @@ internal fun NcodeLinkSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 360.dp)
-                    .padding(vertical = 12.dp)
+                    .padding(vertical = Spacing.S12)
             ) {
                 when (val state = searchState) {
                     is NcodeSearchUiState.Loading -> {
@@ -225,7 +226,7 @@ internal fun NcodeLinkSheet(
                                 color = colors.textSecondary,
                                 textAlign = TextAlign.Center
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(Spacing.S12))
                             // なぜカスタム再試行ボタンか: ネットワークエラー時などに、
                             // シートを閉じ直すことなく、その場でワンタップで通信を復旧できるようにするため。
                             // A11y: 枠線ピルは現寸のまま、当たり判定だけ最小48dpへ拡大する。
@@ -244,7 +245,7 @@ internal fun NcodeLinkSheet(
                                             color = colors.blockBorder,
                                             shape = RoundedCornerShape(2.dp)
                                         )
-                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
@@ -291,7 +292,7 @@ internal fun NcodeLinkSheet(
                                                     onConfirm(Ncode(ncode.uppercase(Locale.ROOT)))
                                                 }
                                             }
-                                            .padding(vertical = 12.dp)
+                                            .padding(vertical = Spacing.S12)
                                     ) {
                                         Text(
                                             text = novel.title.orEmpty(),
@@ -300,7 +301,7 @@ internal fun NcodeLinkSheet(
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
-                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Spacer(modifier = Modifier.height(Spacing.S4))
                                         
                                         // 状態ラベルの作成（短編/連載中/完結済）
                                         // なぜ話数を条件付きにするか: generalAllNo が欠損（null）のとき 0 で埋めると
@@ -341,7 +342,7 @@ internal fun NcodeLinkSheet(
                 text = "Nコードを直接入力",
                 fontSize = FontLabel,
                 color = colors.textSecondary,
-                modifier = Modifier.padding(top = 16.dp, bottom = 6.dp)
+                modifier = Modifier.padding(top = Spacing.S16, bottom = Spacing.S8)
             )
 
             var isManualFocused by remember { mutableStateOf(false) }
@@ -356,7 +357,7 @@ internal fun NcodeLinkSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .onFocusChanged { isManualFocused = it.isFocused }
-                            .padding(vertical = 8.dp),
+                            .padding(vertical = Spacing.S8),
                         singleLine = true,
                         textStyle = TextStyle(
                             fontSize = FontBody,
@@ -365,7 +366,7 @@ internal fun NcodeLinkSheet(
                         cursorBrush = SolidColor(colors.accent),
                         decorationBox = { innerTextField ->
                             Column {
-                                Box(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                                Box(modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.S8)) {
                                     if (manualNcode.isEmpty()) {
                                         Text(
                                             text = "N1234AB",
@@ -385,7 +386,7 @@ internal fun NcodeLinkSheet(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(Spacing.S12))
 
                 // 紐付けボタン（isValidNcodeのときのみ有効）
                 val isValid = isValidNcode(manualNcode)
@@ -401,7 +402,7 @@ internal fun NcodeLinkSheet(
                             // 手動入力も大文字化して確定（正規化はこのサイト。Ncode の KDoc 参照）。
                             onConfirm(Ncode(manualNcode.trim().uppercase(Locale.ROOT)))
                         }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                        .padding(horizontal = Spacing.S16, vertical = Spacing.S12),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(

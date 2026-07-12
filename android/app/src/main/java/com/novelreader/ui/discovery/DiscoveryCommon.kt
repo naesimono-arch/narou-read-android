@@ -30,6 +30,7 @@ import com.novelreader.ui.theme.FontMicroLabel
 import com.novelreader.ui.theme.FontRankNumeral
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.Spacing
 import java.util.Locale
 
 // ============================================================
@@ -95,7 +96,7 @@ fun NovelListRow(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 16.dp),
+            .padding(vertical = Spacing.S16),
     ) {
         Text(
             text = rank.toString(),
@@ -107,7 +108,7 @@ fun NovelListRow(
             else LocalShelfColors.current.infoText,
             modifier = Modifier
                 .width(34.dp)
-                .padding(top = 2.dp),
+                .padding(top = Spacing.S4),
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -120,8 +121,8 @@ fun NovelListRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Row(
-                modifier = Modifier.padding(top = 5.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(top = Spacing.S4),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
             ) {
                 Text(
                     text = novel.writer ?: "",
@@ -148,8 +149,8 @@ fun NovelListRow(
                 }
             }
             Row(
-                modifier = Modifier.padding(top = 7.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.padding(top = Spacing.S8),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S12),
             ) {
                 Text(
                     text = novelStatusLabel(novel),
@@ -209,14 +210,14 @@ fun DiscoveryStatusBox(
                 Column(
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .padding(24.dp),
+                        .padding(Spacing.S24),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
                         text = status.message,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(bottom = 16.dp),
+                        modifier = Modifier.padding(bottom = Spacing.S16),
                     )
                     status.onRetry?.let { onRetry ->
                         Button(onClick = onRetry) { Text("再試行") }

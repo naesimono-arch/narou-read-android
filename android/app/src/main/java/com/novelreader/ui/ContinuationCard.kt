@@ -40,6 +40,8 @@ import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.colors
+import com.novelreader.ui.theme.Insets
+import com.novelreader.ui.theme.Spacing
 
 /**
  * なろうで続きが公開されている場合に、章末尾に表示する継続案内カード。
@@ -65,14 +67,14 @@ internal fun ContinuationCard(
         modifier = modifier
             .widthIn(max = 600.dp)
             .padding(horizontal = bodyMarginDp.dp)
-            .padding(top = 16.dp, bottom = 60.dp)
+            .padding(top = Spacing.S16, bottom = Insets.ContinuationBodyBottom)
     ) {
         // カード本体
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .border(width = 1.dp, color = colors.blockBorder, shape = RoundedCornerShape(2.dp))
-                .padding(20.dp)
+                .padding(Spacing.S24)
         ) {
             // 見出し: 明朝・16sp・SemiBold。モック h4 相当
             Text(
@@ -82,7 +84,7 @@ internal fun ContinuationCard(
                 fontWeight = FontWeight.SemiBold,
                 color = colors.text,
                 letterSpacing = 0.02.em,
-                modifier = Modifier.padding(bottom = 10.dp)
+                modifier = Modifier.padding(bottom = Spacing.S12)
             )
 
             // 説明文
@@ -99,7 +101,7 @@ internal fun ContinuationCard(
                 fontSize = FontChipLarge,
                 color = colors.textSecondary,
                 lineHeight = 1.8.em,
-                modifier = Modifier.padding(bottom = 20.dp)
+                modifier = Modifier.padding(bottom = Spacing.S24)
             )
 
             // 主ボタン (NewEpisodes のときのみ表示。モック .btn-primary)
@@ -111,7 +113,7 @@ internal fun ContinuationCard(
                         .heightIn(min = 48.dp)
                         .background(color = colors.accent, shape = RoundedCornerShape(2.dp))
                         .clickable(onClick = onReadContinuation)
-                        .padding(vertical = 12.dp),
+                        .padding(vertical = Spacing.S12),
                     contentAlignment = Alignment.Center
                 ) {
                     // 外部（なろう）へ開くボタンには open-in-new アイコンを添え、別画面へ遷移することを
@@ -127,7 +129,7 @@ internal fun ContinuationCard(
                             tint = colors.background, // ボタン文字色（藍背景に対するベース色）に揃える
                             modifier = Modifier.size(14.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(Spacing.S8))
                         Text(
                             text = "第${info.nextEpisode}話から続きを読む",
                             color = colors.background, // 藍背景に対してベース（背景）の文字色
@@ -137,7 +139,7 @@ internal fun ContinuationCard(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(Spacing.S8))
             }
 
             // ゴーストボタン (常時表示。モック .btn-ghost)
@@ -148,7 +150,7 @@ internal fun ContinuationCard(
                     .heightIn(min = 48.dp)
                     .border(width = 1.dp, color = colors.blockBorder, shape = RoundedCornerShape(2.dp))
                     .clickable(onClick = onOpenWorkPage)
-                    .padding(vertical = 12.dp),
+                    .padding(vertical = Spacing.S12),
                 contentAlignment = Alignment.Center
             ) {
                 // 作品ページも外部（なろう）遷移なので open-in-new アイコンを添える（主ボタンと同流儀）。
@@ -162,7 +164,7 @@ internal fun ContinuationCard(
                         tint = colors.textSecondary, // ゴーストボタンの文字色に揃える
                         modifier = Modifier.size(13.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(Spacing.S8))
                     Text(
                         text = "作品ページを見る",
                         color = colors.textSecondary,
@@ -178,7 +180,7 @@ internal fun ContinuationCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp),
+                    .padding(top = Spacing.S4),
                 contentAlignment = Alignment.Center
             ) {
                 // A11y: 表示テキストは現寸のまま、当たり判定だけ最小48dpに拡大する
@@ -193,7 +195,7 @@ internal fun ContinuationCard(
                         text = "紐付けを解除",
                         color = colors.textSecondary,
                         fontSize = FontLabel,
-                        modifier = Modifier.padding(horizontal = 12.dp)
+                        modifier = Modifier.padding(horizontal = Spacing.S12)
                     )
                 }
             }
@@ -206,7 +208,7 @@ internal fun ContinuationCard(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .padding(vertical = 18.dp), // 上下 18dp インセット
+                .padding(vertical = Spacing.S16), // 上下インセット（18→拡張7段 S16）
             contentAlignment = Alignment.CenterStart,
         ) {
             Box(
@@ -234,7 +236,7 @@ internal fun ContinuationLinkPrompt(
         modifier = modifier
             .widthIn(max = 600.dp)
             .padding(horizontal = bodyMarginDp.dp)
-            .padding(top = 16.dp, bottom = 60.dp)
+            .padding(top = Spacing.S16, bottom = Insets.ContinuationBodyBottom)
     ) {
         // ゴーストボタン様式1個
         Box(
@@ -244,7 +246,7 @@ internal fun ContinuationLinkPrompt(
                 .heightIn(min = 48.dp)
                 .border(width = 1.dp, color = colors.blockBorder, shape = RoundedCornerShape(2.dp))
                 .clickable(onClick = onClick)
-                .padding(vertical = 12.dp),
+                .padding(vertical = Spacing.S12),
             contentAlignment = Alignment.Center
         ) {
             Text(

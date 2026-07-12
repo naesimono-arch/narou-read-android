@@ -20,6 +20,7 @@ import com.novelreader.ui.theme.FontCaption
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.colors
+import com.novelreader.ui.theme.Spacing
 
 /** エラー表示UI（ファイル欠損・パース失敗時）*/
 @Composable
@@ -52,13 +53,13 @@ internal fun ReadingErrorScreen(
                 // 素地上で AA(4.5:1) を割る（旧実測 L2.56/S2.31/D3.18）。ADR 0014-D「意味テキストは
                 // alpha で作らない」に従い、素地上 4.5:1 を満たす infoText を素値で使う。
                 color = colors.infoText,
-                modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
+                modifier = Modifier.padding(top = Spacing.S4, bottom = Spacing.S16),
                 textAlign = TextAlign.Center,
             )
             if (onRetry != null) {
                 Button(
                     onClick = onRetry,
-                    modifier = Modifier.padding(bottom = 8.dp),
+                    modifier = Modifier.padding(bottom = Spacing.S8),
                 ) {
                     Text("再試行")
                 }

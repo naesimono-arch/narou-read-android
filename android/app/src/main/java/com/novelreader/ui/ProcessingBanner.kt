@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.novelreader.ui.theme.MotionDurationProgress
 import com.novelreader.viewmodel.ProcessingState
+import com.novelreader.ui.theme.Spacing
 
 // ============================================================
 // 空状態（本が1冊もないとき）
@@ -63,21 +64,21 @@ internal fun EmptyBookshelf(onAddClick: () -> Unit, modifier: Modifier = Modifie
                 drawRect(bookColor, topLeft = Offset(w * cx - bw / 2, by), size = Size(bw, bh))
             }
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(Spacing.S24))
         Text(
             "本棚はまだ空です",
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.SemiBold,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Spacing.S8))
         Text(
             "右下の＋からPDFを追加してください",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.outline,
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(Spacing.S32))
         FilledTonalButton(onClick = onAddClick) {
             Text("PDFを追加する")
         }
@@ -99,7 +100,7 @@ internal fun ProcessingBanner(
         modifier = modifier,
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+            modifier = Modifier.padding(horizontal = Spacing.S24, vertical = Spacing.S16),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(
@@ -107,7 +108,7 @@ internal fun ProcessingBanner(
                     strokeWidth = 2.dp,
                     color = MaterialTheme.colorScheme.primary,
                 )
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(Spacing.S12))
                 Column(modifier = Modifier.weight(1f)) {
                     // 主見出し: 停止中は「停止しています…」、通常は変換中タイトル（未判明時は汎用文言）。
                     // 件数(n/m)は連結せず別要素にする。連結すると長いタイトルの省略(...)で
@@ -134,7 +135,7 @@ internal fun ProcessingBanner(
                 }
                 // 件数バッジ: 複数件キューイング時のみ右端に常時表示（タイトル省略の影響を受けない）
                 if (processingState.queueTotal > 1) {
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(Spacing.S8))
                     Text(
                         text = "${processingState.queueCurrent}/${processingState.queueTotal}件",
                         style = MaterialTheme.typography.labelMedium,
@@ -145,16 +146,16 @@ internal fun ProcessingBanner(
                 }
                 // 停止ボタン: 停止中は連打防止のため非表示にする。
                 if (!processingState.isStopping) {
-                    Spacer(Modifier.width(4.dp))
+                    Spacer(Modifier.width(Spacing.S4))
                     TextButton(
                         onClick = onStop,
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        contentPadding = PaddingValues(horizontal = Spacing.S12, vertical = Spacing.S4),
                     ) {
                         Text("停止", color = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Spacing.S12))
             // ステッパーインジケーター
             val stepLabels = listOf("タイトル", "本文", "分割", "HTML")
             StepperIndicator(
@@ -163,7 +164,7 @@ internal fun ProcessingBanner(
                 labels = stepLabels,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Spacing.S8))
             // プログレスバー（ステップ切替時は瞬時リセット、通常時はtweenでアニメーション）
             val progress = remember { Animatable(0f) }
             var lastStep by remember { mutableIntStateOf(-1) }
@@ -186,7 +187,7 @@ internal fun ProcessingBanner(
                 color = MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(Spacing.S4))
             Text(
                 text = "ステップ ${processingState.stepIndex + 1}/${processingState.stepTotal}",
                 style = MaterialTheme.typography.labelSmall,
@@ -230,7 +231,7 @@ private fun StepperIndicator(
                 }
             }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(Spacing.S4))
         Row(modifier = Modifier.fillMaxWidth()) {
             labels.forEachIndexed { i, label ->
                 Text(

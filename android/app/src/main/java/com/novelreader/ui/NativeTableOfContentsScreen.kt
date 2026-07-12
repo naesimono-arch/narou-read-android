@@ -50,6 +50,7 @@ import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.colors
+import com.novelreader.ui.theme.Spacing
 
 /**
  * 目次のロード状態。
@@ -137,7 +138,7 @@ fun NativeTableOfContentsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .padding(horizontal = 32.dp),
+                    .padding(horizontal = Spacing.S32),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
@@ -155,7 +156,7 @@ fun NativeTableOfContentsScreen(
                     fontFamily = MinchoFamily,
                     fontSize = FontCaption,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
+                    modifier = Modifier.padding(top = Spacing.S4, bottom = Spacing.S16),
                 )
                 OutlinedButton(onClick = onRetry) {
                     Text("再試行", fontFamily = MinchoFamily)
@@ -247,7 +248,7 @@ private fun TocList(
                         )
                         Text(
                             text = entry.title.ifEmpty { "第${index + 1}章" },
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                            modifier = Modifier.padding(horizontal = Spacing.S24, vertical = Spacing.S16),
                             fontSize = FontSectionTitle,
                             fontFamily = MinchoFamily,
                             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
@@ -265,7 +266,7 @@ private fun TocList(
             }
         }
 
-        item { Spacer(modifier = Modifier.height(32.dp)) }
+        item { Spacer(modifier = Modifier.height(Spacing.S32)) }
     }
 }
 
@@ -287,10 +288,10 @@ private fun TocSkeleton(colors: ReadingColors, modifier: Modifier = Modifier) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // 実リストの左アクセントバーと同じ 4dp 分のインデントを確保して整列させる
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(Spacing.S4))
                 Box(
                     modifier = Modifier
-                        .padding(horizontal = 20.dp, vertical = 22.dp)
+                        .padding(horizontal = Spacing.S24, vertical = Spacing.S24)
                         .fillMaxWidth(fraction)
                         .height(14.dp)
                         .clip(RoundedCornerShape(4.dp))

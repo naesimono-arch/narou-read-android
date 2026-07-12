@@ -78,6 +78,7 @@ import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.MotionDurationCrossfade
 import com.novelreader.viewmodel.NovelDetailUiState
 import com.novelreader.viewmodel.NovelDetailViewModel
+import com.novelreader.ui.theme.Spacing
 import java.util.Locale
 
 /**
@@ -248,7 +249,7 @@ internal fun NovelDetailContent(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 24.dp, vertical = 16.dp)
+                                .padding(horizontal = Spacing.S24, vertical = Spacing.S16)
                         ) {
                             // 機能②: 固定バーの読む/取り込み導線。アプリの根本価値＝「手元に本を置いておきたい」
                             // （PDF取込＝主目的）に沿い、未読かつ未取込では「縦書きPDFを取り込む」を藍の主CTAに、
@@ -272,7 +273,7 @@ internal fun NovelDetailContent(
                                         contentDescription = null,
                                         modifier = Modifier.size(16.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(Spacing.S8))
                                     // why: 読書 WebView は JS 注入を一切しない（ADR 0012）ため話「内」のスクロール
                                     // 位置は保存できず、再開は必ず記録した話の「冒頭」に着地する。「続きから読む」だけだと
                                     // 前回読み止めた行から続く期待を抱かせ嘘になる（公理8）ので、「第N話のはじめから」と
@@ -284,7 +285,7 @@ internal fun NovelDetailContent(
                                     )
                                 }
                                 // 最初から読み直したいとき用に目次（作品トップ）への導線も残す（ゴースト枠）。
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(Spacing.S8))
                                 OutlinedButton(
                                     onClick = onReadOnNarou,
                                     modifier = Modifier.fillMaxWidth(),
@@ -312,7 +313,7 @@ internal fun NovelDetailContent(
                                         contentDescription = null,
                                         modifier = Modifier.size(16.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(Spacing.S8))
                                     Text(
                                         text = "縦書きPDFを取り込む",
                                         fontSize = FontActionLabel,
@@ -323,7 +324,7 @@ internal fun NovelDetailContent(
                                 // の淡色トークンを明示指定する（M3 既定の OutlinedButton は contentColor=primary(藍)で
                                 // 主張が強すぎ、静かな副次アクションであるべき D のゴースト階層に反するため）。
                                 // 文字=onSurfaceVariant(--ink-soft #7C808B)・枠=outlineVariant(--line #ECEAE4)。
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(Spacing.S8))
                                 OutlinedButton(
                                     onClick = onReadOnNarou,
                                     modifier = Modifier.fillMaxWidth(),
@@ -338,7 +339,7 @@ internal fun NovelDetailContent(
                                         contentDescription = null,
                                         modifier = Modifier.size(16.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(Spacing.S8))
                                     Text(
                                         text = "なろうで読む",
                                         fontSize = FontActionLabel,
@@ -362,7 +363,7 @@ internal fun NovelDetailContent(
                                         contentDescription = null,
                                         modifier = Modifier.size(16.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(Spacing.S8))
                                     Text(
                                         text = "なろうで読む",
                                         fontSize = FontActionLabel,
@@ -377,7 +378,7 @@ internal fun NovelDetailContent(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 8.dp),
+                                    .padding(top = Spacing.S8),
                                 textAlign = TextAlign.Center
                             )
                             // 取り込み済み（books.ncode 一致）なら以下2アクションは冗長のため出さない
@@ -388,7 +389,7 @@ internal fun NovelDetailContent(
                                 // 主に保つ）。意匠正本＝discovery-detail-D.html の .btn-ghost（M3 既定の藍を避け、
                                 // 文字=onSurfaceVariant(--ink-soft)・枠=outlineVariant(--line) のトークンへ揃える）。
                                 if (lastReadEpisode > 0) {
-                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Spacer(modifier = Modifier.height(Spacing.S12))
                                     OutlinedButton(
                                         onClick = onImportPdf,
                                         modifier = Modifier.fillMaxWidth(),
@@ -403,7 +404,7 @@ internal fun NovelDetailContent(
                                             contentDescription = null,
                                             modifier = Modifier.size(16.dp)
                                         )
-                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Spacer(modifier = Modifier.width(Spacing.S8))
                                         Text(
                                             text = "縦書きPDFを取り込む",
                                             fontSize = FontActionLabel,
@@ -414,7 +415,7 @@ internal fun NovelDetailContent(
                                 // (b) Web由来・未取込カードの入口（モック .btn-ghost「本棚に置く」）。
                                 // 置いた後は「本棚から外す」へトグルし、押し直しで取り消せる（確認ダイアログ無し
                                 // ＝失うものが無く即座に戻せる操作のため）。
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(Spacing.S8))
                                 // 同じ .btn-ghost 系のため取り込みボタンと同一の淡色トークンで揃える。
                                 OutlinedButton(
                                     onClick = onToggleShelf,
@@ -430,7 +431,7 @@ internal fun NovelDetailContent(
                                         contentDescription = null,
                                         modifier = Modifier.size(16.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(Spacing.S8))
                                     Text(
                                         text = if (onShelf) "本棚から外す" else "本棚に置く",
                                         fontSize = FontActionLabel,
@@ -488,9 +489,9 @@ internal fun NovelDetailContent(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 16.dp)
-                                .padding(horizontal = 24.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                .padding(top = Spacing.S16)
+                                .padding(horizontal = Spacing.S24),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.S12),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
@@ -526,8 +527,8 @@ internal fun NovelDetailContent(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 18.dp)
-                                .padding(horizontal = 24.dp)
+                                .padding(top = Spacing.S16)
+                                .padding(horizontal = Spacing.S24)
                         ) {
                             Row(modifier = Modifier.fillMaxWidth()) {
                                 Column(modifier = Modifier.weight(1f)) {
@@ -540,7 +541,7 @@ internal fun NovelDetailContent(
                                         text = statusText,
                                         fontSize = FontSubTitle,
                                         color = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.padding(top = 2.dp)
+                                        modifier = Modifier.padding(top = Spacing.S4)
                                     )
                                 }
                                 Column(modifier = Modifier.weight(1f)) {
@@ -553,13 +554,13 @@ internal fun NovelDetailContent(
                                         text = readTimeVal,
                                         fontSize = FontSubTitle,
                                         color = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.padding(top = 2.dp)
+                                        modifier = Modifier.padding(top = Spacing.S4)
                                     )
                                 }
                             }
                             HorizontalDivider(
                                 color = MaterialTheme.colorScheme.outlineVariant,
-                                modifier = Modifier.padding(vertical = 12.dp)
+                                modifier = Modifier.padding(vertical = Spacing.S12)
                             )
                             Row(modifier = Modifier.fillMaxWidth()) {
                                 Column(modifier = Modifier.weight(1f)) {
@@ -572,7 +573,7 @@ internal fun NovelDetailContent(
                                         text = novel.kaiwaritu?.let { "$it%" } ?: "—",
                                         fontSize = FontSubTitle,
                                         color = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.padding(top = 2.dp)
+                                        modifier = Modifier.padding(top = Spacing.S4)
                                     )
                                 }
                                 Column(modifier = Modifier.weight(1f)) {
@@ -585,7 +586,7 @@ internal fun NovelDetailContent(
                                         text = novel.sasieCnt?.let { "${it}枚" } ?: "—",
                                         fontSize = FontSubTitle,
                                         color = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.padding(top = 2.dp)
+                                        modifier = Modifier.padding(top = Spacing.S4)
                                     )
                                 }
                             }
@@ -596,7 +597,7 @@ internal fun NovelDetailContent(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 24.dp)
+                                    .padding(horizontal = Spacing.S24)
                             ) {
                                 Text(
                                     text = "あらすじ",
@@ -604,7 +605,7 @@ internal fun NovelDetailContent(
                                     letterSpacing = 3.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
+                                    modifier = Modifier.padding(top = Spacing.S24, bottom = Spacing.S8)
                                 )
                                 Text(
                                     text = novel.story,
@@ -634,7 +635,7 @@ internal fun NovelDetailContent(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 24.dp)
+                                    .padding(horizontal = Spacing.S24)
                             ) {
                                 Text(
                                     text = "キーワード",
@@ -642,11 +643,11 @@ internal fun NovelDetailContent(
                                     letterSpacing = 3.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
+                                    modifier = Modifier.padding(top = Spacing.S24, bottom = Spacing.S8)
                                 )
                                 FlowRow(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                                    verticalArrangement = Arrangement.spacedBy(Spacing.S8),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     keywords.forEach { keyword ->
@@ -686,7 +687,7 @@ internal fun NovelDetailContent(
                                                         },
                                                         shape = RoundedCornerShape(2.dp)
                                                     )
-                                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                                                    .padding(horizontal = Spacing.S12, vertical = Spacing.S4)
                                             ) {
                                                 Text(
                                                     text = keyword,
@@ -707,7 +708,7 @@ internal fun NovelDetailContent(
                                     // タップ判定を最小48dpへ確保する（外側Box分離＝同セクションのチップと同型）。
                                     Box(
                                         modifier = Modifier
-                                            .padding(top = 4.dp)
+                                            .padding(top = Spacing.S4)
                                             .fillMaxWidth()
                                             .clickable { onSearchKeywords(selectedKeywords.toList()) }
                                             .sizeIn(minHeight = 48.dp),
@@ -737,7 +738,7 @@ internal fun NovelDetailContent(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 24.dp)
+                                    .padding(horizontal = Spacing.S24)
                             ) {
                                 Text(
                                     text = "評価",
@@ -745,13 +746,13 @@ internal fun NovelDetailContent(
                                     letterSpacing = 3.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
+                                    modifier = Modifier.padding(top = Spacing.S24, bottom = Spacing.S8)
                                 )
                                 evalItems.forEachIndexed { index, pair ->
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(vertical = 10.dp),
+                                            .padding(vertical = Spacing.S12),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
@@ -796,8 +797,8 @@ internal fun NovelDetailContent(
                             // 最終更新+取得時刻は情報を運ぶ文字＝infoText（AA 4.5:1・ADR 0014-D 裁定で装飾用と分離）。
                             color = LocalShelfColors.current.infoText,
                             modifier = Modifier
-                                .padding(horizontal = 24.dp)
-                                .padding(top = 20.dp, bottom = 24.dp)
+                                .padding(horizontal = Spacing.S24)
+                                .padding(top = Spacing.S24, bottom = Spacing.S24)
                         )
                     }
                 }

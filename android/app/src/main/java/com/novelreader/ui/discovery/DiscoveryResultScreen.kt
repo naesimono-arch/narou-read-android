@@ -58,6 +58,7 @@ import com.novelreader.viewmodel.DiscoveryViewModel
 import com.novelreader.viewmodel.PagingState
 import com.novelreader.viewmodel.ResultContext
 import com.novelreader.viewmodel.ResultSource
+import com.novelreader.ui.theme.Spacing
 import java.util.Locale
 
 // ============================================================
@@ -174,7 +175,7 @@ internal fun DiscoveryResultContent(
                     lineHeight = 18.sp,
                     // 結果サブタイトルは情報を運ぶ文字＝infoText（AA 4.5:1・ADR 0014-D 裁定で装飾用と分離）。
                     color = LocalShelfColors.current.infoText,
-                    modifier = Modifier.padding(horizontal = 24.dp),
+                    modifier = Modifier.padding(horizontal = Spacing.S24),
                 )
             }
             // 条件チップ（藍の細枠・モック .cd）
@@ -188,9 +189,9 @@ internal fun DiscoveryResultContent(
             FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 10.dp),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(7.dp),
-                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(7.dp),
+                    .padding(horizontal = Spacing.S24, vertical = Spacing.S12),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.S8),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.S8),
             ) {
                 val baseChips = conditionChipLabels(ctx.query)
                 val chips = if (ctx.query.biggenres.isEmpty() && ctx.query.genres.isEmpty()) {
@@ -252,7 +253,7 @@ internal fun DiscoveryResultContent(
                                             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
                                             shape = RoundedCornerShape(50),
                                         )
-                                        .padding(horizontal = 11.dp, vertical = 5.dp),
+                                        .padding(horizontal = Spacing.S12, vertical = Spacing.S4),
                                 )
 
                                 if (isOrderChip) {
@@ -318,7 +319,7 @@ internal fun DiscoveryResultContent(
                                                     text = {
                                                         Text(
                                                             text = genreName,
-                                                            modifier = Modifier.padding(start = 16.dp),
+                                                            modifier = Modifier.padding(start = Spacing.S16),
                                                             fontWeight = if (isCurrentGenre) FontWeight.Bold else FontWeight.Normal,
                                                             color = if (isCurrentGenre) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Unspecified,
                                                             fontSize = FontSubTitle
@@ -347,7 +348,7 @@ internal fun DiscoveryResultContent(
                                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
                                         shape = RoundedCornerShape(50),
                                     )
-                                    .padding(horizontal = 11.dp, vertical = 5.dp),
+                                    .padding(horizontal = Spacing.S12, vertical = Spacing.S4),
                             )
                         }
                     }
@@ -370,7 +371,7 @@ internal fun DiscoveryResultContent(
                             fontSize = FontMicroLabel,
                             color = MaterialTheme.colorScheme.secondary,
                             fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
+                            modifier = Modifier.padding(horizontal = Spacing.S12, vertical = Spacing.S4),
                         )
                     }
                 }
@@ -392,7 +393,7 @@ internal fun DiscoveryResultContent(
                     is DiscoveryUiState.Content -> {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(horizontal = 24.dp),
+                            contentPadding = PaddingValues(horizontal = Spacing.S24),
                         ) {
                             item {
                                 // 総件数（モック .cnt・青磁）
@@ -412,7 +413,7 @@ internal fun DiscoveryResultContent(
                                     fontSize = FontLabel,
                                     letterSpacing = 1.sp,
                                     color = MaterialTheme.colorScheme.secondary,
-                                    modifier = Modifier.padding(top = 2.dp, bottom = 4.dp),
+                                    modifier = Modifier.padding(top = Spacing.S4, bottom = Spacing.S4),
                                 )
                             }
                             itemsIndexed(
@@ -461,7 +462,7 @@ private fun PagingFooter(
         PagingState.Idle -> Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 16.dp),
+                .padding(vertical = Spacing.S16),
             contentAlignment = Alignment.Center,
         ) {
             OutlinedButton(onClick = onLoadMore) { Text("さらに読み込む") }
@@ -469,7 +470,7 @@ private fun PagingFooter(
         PagingState.LoadingMore -> Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 16.dp),
+                .padding(vertical = Spacing.S16),
             contentAlignment = Alignment.Center,
         ) {
             CircularProgressIndicator(modifier = Modifier.size(28.dp))
@@ -477,14 +478,14 @@ private fun PagingFooter(
         is PagingState.LoadMoreError -> Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 16.dp),
+                .padding(vertical = Spacing.S16),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
                 text = paging.message,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(bottom = 8.dp),
+                modifier = Modifier.padding(bottom = Spacing.S8),
             )
             OutlinedButton(onClick = onLoadMore) { Text("再試行") }
         }
@@ -494,7 +495,7 @@ private fun PagingFooter(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 20.dp),
+                .padding(vertical = Spacing.S24),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
         // 全件表示済み＝フッタなし。
@@ -518,14 +519,14 @@ private fun ResultEmpty(
     val isSearch = source == ResultSource.SEARCH
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(Spacing.S24),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
                 text = "条件に合う作品が見つかりませんでした",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 16.dp),
+                modifier = Modifier.padding(bottom = Spacing.S16),
             )
             OutlinedButton(onClick = if (isSearch) onAdjust else onBackToDiscovery) {
                 Text(if (isSearch) "検索条件を変える" else "ほかの条件で探す")

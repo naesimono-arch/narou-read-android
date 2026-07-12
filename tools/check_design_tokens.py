@@ -138,27 +138,9 @@ READING_ORDER = ["LIGHT", "SEPIA", "DARK"]
 # ---- 照合 -------------------------------------------------------------------------
 
 # これは再翻訳(Spacing/Insets参照化)完了ごとに行を消していくラチェット。空になったら余白トークン移行完了。
-GRACE_FILES = {
-    "android/app/src/main/java/com/novelreader/ui/BookCard.kt",
-    "android/app/src/main/java/com/novelreader/ui/ContinuationCard.kt",
-    "android/app/src/main/java/com/novelreader/ui/NativeReadingScreen.kt",
-    "android/app/src/main/java/com/novelreader/ui/NativeTableOfContentsScreen.kt",
-    "android/app/src/main/java/com/novelreader/ui/NcodeLinkSheet.kt",
-    "android/app/src/main/java/com/novelreader/ui/NewEpisodeNotificationToggle.kt",
-    "android/app/src/main/java/com/novelreader/ui/ProcessingBanner.kt",
-    "android/app/src/main/java/com/novelreader/ui/ReadingErrorScreen.kt",
-    "android/app/src/main/java/com/novelreader/ui/ReadingSettingsSheet.kt",
-    "android/app/src/main/java/com/novelreader/ui/WebBookCard.kt",
-    "android/app/src/main/java/com/novelreader/ui/components/BookCover.kt",
-    "android/app/src/main/java/com/novelreader/ui/compose/RubyText.kt",
-    "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryCommon.kt",
-    "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryGenreScreen.kt",
-    "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryHomeScreen.kt",
-    "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryResultScreen.kt",
-    "android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt",
-    "android/app/src/main/java/com/novelreader/ui/discovery/PdfImportScreen.kt",
-    "android/app/src/main/java/com/novelreader/ui/discovery/SearchConditionSheet.kt",
-}
+# 拡張7段スケール再翻訳の残債ラチェット。2026-07-13 に全19ファイルを再翻訳し空へ到達
+# （＝以後 spacing-context の直書き .dp は WARN でなく NG＝逆走を止める）。履歴は git log 参照。
+GRACE_FILES: set[str] = set()
 
 def find_decls(text: str, var: str) -> list[str]:
     return [m.upper() for m in re.findall(rf"{re.escape(var)}\s*:\s*#([0-9A-Fa-f]{{6}})\b", text)]

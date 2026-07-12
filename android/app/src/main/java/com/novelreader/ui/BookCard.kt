@@ -57,6 +57,12 @@ import com.novelreader.viewmodel.chapterNumberOf
 import com.novelreader.viewmodel.progressFractionFor
 import com.novelreader.viewmodel.readingStatusFor
 import com.novelreader.viewmodel.relativeReadLabel
+import com.novelreader.ui.theme.Spacing
+
+// 朱印バッジの左下オフセット（拡張7段スケール外の構造値）。正本 grid-D .seal は left/bottom を 9px の
+// 絶対配置で保持し、finished-seal-stamp-D も「19dp/左下9」で正本と同一と明記＝バッジ幾何の不変条件。
+// 一括離散化だと 9→8 に潰れこの明文パリティを破るため、S8 へ丸めず 9dp を較正値として保持する。
+private val SealCornerOffset = 9.dp
 
 // ============================================================
 // 進捗行（モック .pr）: 「N話 + 細い藍バー + N%」を藍で、未読は青磁で表示。
@@ -80,7 +86,7 @@ private fun BookProgressRow(
                 fontSize = FontLabel,
                 color = MaterialTheme.colorScheme.primary,
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Spacing.S8))
             LinearProgressIndicator(
                 progress = { progressFraction },
                 modifier = (if (flexBar) Modifier.weight(1f) else Modifier.width(80.dp))
@@ -89,7 +95,7 @@ private fun BookProgressRow(
                 color = MaterialTheme.colorScheme.primary,
                 trackColor = LocalShelfColors.current.hairline,   // 本棚系 --track
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(Spacing.S8))
             Text(
                 text = "$percent%",
                 fontSize = FontLabel,
@@ -141,7 +147,7 @@ private fun NewChaptersBadge(newCount: Int, modifier: Modifier = Modifier) {
                 .size(6.dp)
                 .background(MaterialTheme.colorScheme.secondary, CircleShape),
         )
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(Spacing.S4))
         Text(
             text = "続き ${newCount}話",
             fontSize = FontMicroLabel,
@@ -266,7 +272,7 @@ internal fun GridBookCard(
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(start = 9.dp, bottom = 9.dp)
+                        .padding(start = SealCornerOffset, bottom = SealCornerOffset)
                         // 押印演出（案A）: scale 1.2→1.0 の単調ダウン（1.0 未満へ揺り戻さない＝禁止則③の bounce/overshoot に
                         // 触れない）＋回転 -7°→0° settle＋透過。value を graphicsLayer 内で読み描画フェーズへ閉じる（再コンポーズ無し）。
                         .graphicsLayer {
@@ -314,7 +320,7 @@ internal fun GridBookCard(
 
         // 表紙下は著者＋状態のみ（モック .au → .pr）。題字は表紙内で描くため本欄には出さない。
         // 著者はゴシック（既定）・補助色。栞表紙が作品の識別子なので下段は静かに添えるだけ。
-        Spacer(Modifier.height(9.dp))
+        Spacer(Modifier.height(Spacing.S8))
         if (book.author.isNotBlank()) {
             Text(
                 text = book.author,
@@ -323,7 +329,7 @@ internal fun GridBookCard(
                 overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Spacing.S8))
         }
         BookProgressRow(
             totalChaps = totalChaps,
@@ -334,11 +340,11 @@ internal fun GridBookCard(
         RelativeReadLabel(
             progressFraction = progressFraction,
             lastReadAt = progress?.lastReadAt ?: 0L,
-            modifier = Modifier.padding(top = 4.dp),
+            modifier = Modifier.padding(top = Spacing.S4),
         )
         // 続きあり（モックは進捗行の下・上4px）
         newEpisodeCountFor(novelDetail, totalChaps)?.let { newCount ->
-            NewChaptersBadge(newCount = newCount, modifier = Modifier.padding(top = 4.dp))
+            NewChaptersBadge(newCount = newCount, modifier = Modifier.padding(top = Spacing.S4))
         }
     }
 }
@@ -407,7 +413,7 @@ internal fun ListBookCard(
                 )
                 // 色帯を行の高さいっぱいに伸ばすため、行の高さを内容の最小内在高さに合わせる。
                 .height(IntrinsicSize.Min)
-                .padding(top = 16.dp, bottom = 16.dp),
+                .padding(top = Spacing.S16, bottom = Spacing.S16),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // 左端の色帯（本の小口メタファ・作品識別色）。行の高さに合わせて stretch。
@@ -418,7 +424,7 @@ internal fun ListBookCard(
                     .clip(RoundedCornerShape(2.dp))
                     .background(barColor),
             )
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(Spacing.S16))
             Column(modifier = Modifier.weight(1f)) {
                 // 明朝の題字（目録の主役）。2行まで。
                 Text(
@@ -434,7 +440,7 @@ internal fun ListBookCard(
                 // 著者＋続きあり（青磁）。モックの目録は著者脇に「続き N話」を寄せる。
                 val newCount = newEpisodeCountFor(novelDetail, totalChaps)
                 if (book.author.isNotBlank() || newCount != null) {
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(Spacing.S8))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (book.author.isNotBlank()) {
                             Text(
@@ -450,12 +456,12 @@ internal fun ListBookCard(
                         newCount?.let {
                             NewChaptersBadge(
                                 newCount = it,
-                                modifier = Modifier.padding(start = if (book.author.isNotBlank()) 10.dp else 0.dp),
+                                modifier = Modifier.padding(start = if (book.author.isNotBlank()) Spacing.S12 else 0.dp),
                             )
                         }
                     }
                 }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(Spacing.S12))
                 BookProgressRow(
                     totalChaps = totalChaps,
                     progressFraction = progressFraction,
@@ -465,7 +471,7 @@ internal fun ListBookCard(
                 RelativeReadLabel(
                     progressFraction = progressFraction,
                     lastReadAt = progress?.lastReadAt ?: 0L,
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = Spacing.S4),
                 )
             }
             // 削除アフォーダンス。⋮方式(1・既定)のみ行末にボタン（M5: 削除の可視手がかり）。0は長押しのみ。

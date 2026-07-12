@@ -98,6 +98,8 @@ import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.rememberReadingColors
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.NcodeSearchUiState
+import com.novelreader.ui.theme.Insets
+import com.novelreader.ui.theme.Spacing
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -1172,14 +1174,14 @@ private fun ChapterScreenContent(
             exit = fadeOut(tween(MotionDurationCrossfade)),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 96.dp),
+                .padding(bottom = Insets.ChromeHintBottom),
         ) {
             Box(
                 modifier = Modifier
                     // 半透明のナビ背景色で本文に沈める丸ピル（色は必ずテーマトークン経由）
                     .clip(RoundedCornerShape(50))
                     .background(colors.navBackground.copy(alpha = 0.92f))
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
             ) {
                 Text(
                     // 実タップ領域は本文全面（中央に限らない）ため文言も全面に一致させる（gesture 指摘）。
@@ -1200,7 +1202,7 @@ private fun ChapterScreenContent(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .statusBarsPadding()
-                .padding(top = 8.dp),
+                .padding(top = Spacing.S8),
         ) {
             Text(
                 text = "続きに戻る",
@@ -1212,7 +1214,7 @@ private fun ChapterScreenContent(
                     .clip(RoundedCornerShape(50))
                     .background(colors.navBackground.copy(alpha = 0.92f))
                     .clickable(onClick = onReturnToContinuation)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
             )
         }
 

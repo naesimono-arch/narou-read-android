@@ -30,6 +30,7 @@ import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.colors
+import com.novelreader.ui.theme.Spacing
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -110,8 +111,8 @@ internal fun ReadingSettingsSheetContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp)
-            .padding(bottom = 32.dp),
+            .padding(horizontal = Spacing.S24)
+            .padding(bottom = Spacing.S32),
     ) {
         Text(
             text = "表示設定",
@@ -121,12 +122,12 @@ internal fun ReadingSettingsSheetContent(
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.08.em,
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(Spacing.S16))
         Text(
             text = "テーマ",
             style = MaterialTheme.typography.labelMedium,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Spacing.S8))
         // 選択色をアクセント(朱)に統一する（M3 既定の secondaryContainer=青鼠を避け主役色へ）。
         // システムテーマでなく読書テーマの colors を使い、シート背景(colors.background)と調和させる。
         val themeChipColors = FilterChipDefaults.filterChipColors(
@@ -137,8 +138,8 @@ internal fun ReadingSettingsSheetContent(
         // なぜ FlowRow か: チップが4つ（システムに従う＋ライト/セピア/ダーク）になり、狭幅端末で
         // 素の Row だと横に溢れて末尾チップが見切れる。溢れたら次行へ折り返して全チップの可視を保つ。
         FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+            verticalArrangement = Arrangement.spacedBy(Spacing.S8),
         ) {
             // 「システムに従う」= 未宣言（reading_theme prefs 削除）へ戻す選択肢。
             // なぜ必要か（監査 settings Minor 19-B/H）: 一度でも明示テーマを押すと prefs に固定され、
@@ -179,7 +180,7 @@ internal fun ReadingSettingsSheetContent(
             activeTickColor = Color.Transparent,
             inactiveTickColor = Color.Transparent,
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(Spacing.S24))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "文字サイズ",
@@ -207,11 +208,11 @@ internal fun ReadingSettingsSheetContent(
                 colors = sliderColors,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 12.dp),
+                    .padding(horizontal = Spacing.S12),
             )
             Text("あ", fontSize = 24.sp, fontFamily = MinchoFamily)
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(Spacing.S24))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "行間",
@@ -241,11 +242,11 @@ internal fun ReadingSettingsSheetContent(
                 colors = sliderColors,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 12.dp),
+                    .padding(horizontal = Spacing.S12),
             )
             Text("広", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(Spacing.S24))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "本文余白",
@@ -272,7 +273,7 @@ internal fun ReadingSettingsSheetContent(
                 colors = sliderColors,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 12.dp),
+                    .padding(horizontal = Spacing.S12),
             )
             Text("広", style = MaterialTheme.typography.labelMedium, fontFamily = MinchoFamily)
         }

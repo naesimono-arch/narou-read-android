@@ -43,6 +43,7 @@ import com.novelreader.viewmodel.PdfImportUiState
 import com.novelreader.viewmodel.PdfImportViewModel
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.FontTopBarTitle
+import com.novelreader.ui.theme.Spacing
 
 /**
  * 縦書きPDF取り込み画面（ADR 0011・案B）。取り込み専用の使い捨て WebView を1画面だけ持つ。
@@ -196,7 +197,7 @@ fun PdfImportScreen(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .padding(24.dp)
+                        .padding(Spacing.S24)
                 ) {
                     Text(
                         text = error.message,

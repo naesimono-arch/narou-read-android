@@ -37,6 +37,7 @@ import com.novelreader.ui.theme.FontLabel
 import com.novelreader.ui.theme.FontMicroLabel
 import com.novelreader.ui.theme.FontScreenTitle
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.Spacing
 
 /**
  * ジャンル一覧画面（モック discovery-genre-D.html）。
@@ -80,7 +81,7 @@ fun DiscoveryGenreScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = Spacing.S24)
                 .verticalScroll(rememberScrollState())
         ) {
             NarouGenres.BIGGENRES.forEach { (bigCode, bigLabel) ->
@@ -88,7 +89,7 @@ fun DiscoveryGenreScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 24.dp, bottom = 10.dp),
+                        .padding(top = Spacing.S24, bottom = Spacing.S12),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -110,8 +111,8 @@ fun DiscoveryGenreScreen(
                 // 詳細ジャンルチップ
                 val genres = NarouGenres.GENRES_BY_BIG[bigCode] ?: emptyList()
                 FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.S8),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     genres.forEach { (genreCode, genreLabel) ->
@@ -127,7 +128,7 @@ fun DiscoveryGenreScreen(
                                 )
                                 .clip(RoundedCornerShape(50))
                                 .clickable { onPickGenre(genreCode, genreLabel) }
-                                .padding(horizontal = 14.dp, vertical = 7.dp)
+                                .padding(horizontal = Spacing.S16, vertical = Spacing.S8)
                         ) {
                             Text(
                                 text = genreLabel,
@@ -139,7 +140,7 @@ fun DiscoveryGenreScreen(
                 }
             }
             // スクリロール時に最後の下部余白を確保する
-            Box(modifier = Modifier.padding(bottom = 24.dp))
+            Box(modifier = Modifier.padding(bottom = Spacing.S24))
         }
     }
 }

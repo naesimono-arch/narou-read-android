@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.novelreader.ui.theme.Spacing
 
 /**
  * 「新着話を通知する」オプトイン・トグル（UX監査 C3・公理13）。
@@ -37,11 +38,11 @@ internal fun NewEpisodeNotificationToggle(
             .fillMaxWidth()
             // TalkBack で「ラベル＋スイッチ」を1トラバーサル単位にまとめる。
             .semantics(mergeDescendants = true) {}
-            .padding(vertical = 8.dp),
+            .padding(vertical = Spacing.S8),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Column(Modifier.padding(end = 16.dp)) {
+        Column(Modifier.padding(end = Spacing.S16)) {
             Text(
                 text = "新着話を通知する",
                 style = MaterialTheme.typography.bodyLarge,
