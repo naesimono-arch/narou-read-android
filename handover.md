@@ -4,8 +4,8 @@
 > 作る予定のもの・あとで拾う思いつき・その場から漏れた取りこぼしを書き溜める場所。
 > 思いついたら「思いつき・取りこぼし」へ追記して育てる。
 >
-> **ここは「やること」だけを置く。** 完了したら打ち消し線で残さず**消す**（完了知識の正本は `STATUS.md`。
-> 実コミット等の一次情報は `.claude/plans/` のアーカイブ・腐りにくい知見は `task_diary.md`／`docs/`）。
+> **ここは「やること」だけを置く。** 完了したら打ち消し線で残さず**消す**（完了の正本は **git log**・現況は `STATUS.md`・
+> 実コミット等の一次情報は `.claude/plans/`・腐りにくい知見は `task_diary.md`／`docs/`）。
 > 打ち消し線を溜めると「やったことリスト」に化けて台帳の役目を失う（運用: memory `docs-status-vs-handover-split`）。
 
 ## 思いつき・取りこぼし（随時追記）
@@ -18,11 +18,14 @@
 
 ---
 
-## ★UX/Design 全層監査 — 残タスク（大半消化済み・2026-07-12）
+## ★UX/Design 全層監査 — 残タスク（2026-07-12）
 
 > **これは何か**: `/mnt/c/Users/qingj/Desktop/project/UX`（UX24層＋Design10層＋公理候補）に対し novel-reader 全体を多エージェント監査（45体・敵対的検証済み）した指摘の、**残っている作業だけ**の action list（消化したら行を消す）。
-> **消化済み（Critical 3/Major 24/Minor 29＝コード13コミット・実機 v18 検証・ユーザー確認バッチ A〜H 全裁定）＝`STATUS.md` §1「UX/Design 全層監査 一挙消化」項が正本**。全指摘の evidence・実行記録の一次情報＝`.claude/plans/ux-design-full-audit-2026-07-12.md`（§A 統合報告／§B 全指摘詳細）＋`.claude/plans/ux-audit-batch-execution-20260712.md`（実行記録・セッション2最新節）。良い点（維持・触るな＝公理6/3/5 の模範実装）も plan §B が正本。
+> 消化済み分の一次情報＝`.claude/plans/ux-design-full-audit-2026-07-12.md`（§A 統合報告／§B 全指摘詳細・良い点含む）＋`.claude/plans/ux-audit-batch-execution-20260712.md`（実行記録）・実装＝git log（`ui/polish`）。
 > **対象ブランチ**: `ui/polish`（この worktree＝ext4）。ゲート＝`cd android && testDebugUnitTest`（init-script 不要）＋`python3 tools/check_design_tokens.py`。**意匠絡みは Compose で自己判断せず ADR0005/0014＋モック正本に先に接地**。実機絡みは PushNotification→目視OK→コミット。
+
+### 残0: main への統合
+- 残1 の裁定・翻訳が一段落したら `ui/polish` を main へ --no-ff 統合（コミットは worktree 内セッションから＝guard の機序は memory `ff-merge-sentinel-not-consumed`）。
 
 ### 残1: 重いデザイン系（/design・DesignSync は主セッション限定＝委譲不可）
 - **[F] 余白の離散スケール再設計**（確認バッチF＝モック作り直し裁定・**§C原則維持**）: **悉皆調査完了（2026-07-12）**＝全モック22＋Compose32ファイルの任意dp/px余白を洗い出し（生データ `.claude/plans/F-spacing-audit-raw-2026-07-12.json`）。**核心発見＝確定スケール{4,8,16,24,40}が実データに粗すぎる**——最頻オフスケール値が中間帯に集中（**12＝Compose首位76件**が8/16の完全タイ・20が16/24タイ・32が24/40タイ）。厳格に丸めると中間密度が潰れ原則2「余白は要素」に反する。比較モック `docs/design-candidates/spacing-scale-compare-D.html`（現状/厳格5段/拡張7段・**実在正本 reading-D＋settings-D** で提示。※初版は捏造カードで作りユーザー指摘→実在ページへ差し替え済み）。**★次の判断点＝スケール裁定（厳格5段 vs 拡張7段）が未確定**。推奨＝**拡張7段 {4,8,12,16,24,32,40}**（12・32のみ追加＝§C(ADR0014)改訂を要す）。裁定後＝`theme/Spacing.kt`＋`Insets`（構造インセット44/60/70/90/92/96/210/+64/+80は別object・base scale外）を彫る→`check_design_tokens.py` にSpacing lint（集合membership＋トークン参照・除外規則は悉皆調査と厳密一致）追加→正本モック離散化→Compose再翻訳（重い順 `DiscoverySearchScreen`→`BookshelfScreen`→`ChapterContent`）。
@@ -45,107 +48,52 @@
 - **目次の部/編 折り畳み**: 抽出パイプラインに階層データ無し＝**抽出側の新機能**。実PDF→HTML の階層有無は要検証で「フラット確定」＝畳みは前提データ欠如で現状不成立。
 - **Macrobenchmark 新設**: measure 要検証（大PDF/10倍蔵書/長時間送りの予算漸進劣化を P90/P99 で assert）＝独立タスク。INTERNET 無しで出荷後テレメトリ不能の代替。
 - **lint 新 warnings（任意改善・非ブロック）**: ModifierParameter×3（新設 composable）・UsableSpace×2（getAllocatableBytes 併用提案）。
-- **裁定=維持（won't-do・記録のみ）**: C③ 範囲チップ先出し＝モック正本由来と確認し維持（`DiscoverySearchScreen.kt:270-321`）。発見系モックの InfoText 再分類は既存「UI/UX 宿題」枠と同系（SearchConditionSheet/DiscoverySearch/TOC の3箇所も同枠）。発見結果の novels/paging は SavedStateHandle へミラーせず復帰時に再フェッチする**非ミラー裁定**を採用済み（`DiscoveryViewModel.kt` コメント F-C/F-E＝result_context/search_draft のみミラー・積み上げはプロセスdeath で再取得。監査 persist Minor の裁定）。
 
----
-
-## 本棚 書架（グリッド）ビュー — 栞書影 ✅全意匠課題消化（2026-07-12）
-
-> 実装完了の詳細は **STATUS §1「栞意匠」項＋「栞整合」項が正本**。意匠の正本＝`docs/design-candidates/bookshelf-shiori-grid-D.html`（生成規則・スケール補正の詳細は `ShioriCover.kt` コメント）／整合＝`bookshelf-shiori-consistency-D.html`／色域確定記録＝`bookshelf-shiori-palette-D.html` フッター。
-> 2026-07-11 オーナー裁定「本棚モックはすべて確定」を受け、残っていた3課題を消化:
-> ①リスト⇄グリッド色相共有＝**実装完了**（2026-07-12・consistency-D 翻訳） ②色域＝**現行（全周和リング）維持で確定**（palette-D フッターに記帳） ③他4型（A箔/C小口/D蔵書印/E綴じ紐）＝スキン資産として保持（ADR 0005 C 方針どおり・「A2. UIスキン着せ替え」参照）。
-> 探索の記録（採用前の参考・正本ではない）: `bookshelf-geo-D.html`／`bookshelf-generative-directions-D.html`／`bookshelf-shoka-D.html`／`bookshelf-cover-D.html`。
+### 残5: 実機目視の残確認（記録上「ユーザー確認待ち」のまま閉じていないもの・確認済みなら行を消す）
+- 検索/発見系フィードバック5件バッチ（2026-07-12・`ui/uiux-tasks` レーン＝ジャンル絞り込み・履歴チップ×押し出し・詳細CTA主従逆転・条件チップ縦ずれ）: 実機目視の最終確認が記録上「ユーザー確認待ち」のまま。
+- デザイン正本の層構造整備①〜⑤（同レーン＝ヘアライン是正・UnreadSeiji・Motion トークン化ほか）: 実機目視未実施の記録のまま。
 
 ## UI/UX 宿題
 
 - **[モック追従・構造] 発見系モックの情報/装飾テキスト再分類**（2026-07-12 `a9a6a5c` 実装時に留置）: `InfoText` トークン（実装済み＝発見系の情報メタ6箇所を AA(4.5:1) へ引き上げ・Light #5C606D／Sepia #6C6148／Dark #8A929B）の discovery/*.html モックへの追従は、`--ink-soft` を共有する **10〜16箇所/ファイルの情報・装飾テキストの個別再分類**＋`--info-ink` 変数の新設＋`tools/check_design_tokens.py` へのマッピング追加が必要＝構造的大改修と判定し留置。**現状の一致検査は InfoText を未トラッキングで PASS＝この層ズレ（コードが AA へ引き上げた面をモックが `--ink-soft` のまま持つ）は未検知**になる点に注意。
 
-## なろうAPI 発見・検索機能（第2の柱・Phase 4/5 残り）
+## なろうAPI 発見・検索機能（第2の柱）
 
-> なろう公式APIの発見機能を「第2の柱」に育てる計画（案A＝本文非取得・メタのみ）。Phase 0〜3＋Phase 4 スライス1 は完了・main 統合済み（現況は `STATUS.md` §1）。
-> 目標ロードマップ・作る機能一覧の一次情報は plan `~/.claude/plans/api-agy-woolly-swan.md`。監査残課題（構造系）は下の「リファクタ / 技術的負債」へ移設済み。
-
-- **Phase 4 完了（2026-07-10）**: 全項目消化＝STATUS §1 参照。
-  - ~~(b) Web由来・未取込カード~~ → **完了**（2026-07-09 `a6569ee`+`15d9e1a`・実機目視OK＝STATUS §1）。
-  - ~~U1 新着話チェック＋通知~~ → **完了**（2026-07-10 `2789512`+`0b2d2b7`・実機E2E全GREEN＝STATUS §1。強制発火の罠は task_diary #53）。
-  - ~~U2 整理（ラベル分類）~~ → **完了**（2026-07-10 `30762aa`+`a7e403e`・Room v14・実機目視OK＝STATUS §1）。※その後 **2026-07-11 に機能ごと撤去し読書状態フィルタへ置換**（STATUS §1 先頭）＝「Web由来カードへのラベル付与」将来拡張は消滅。
+> Phase 0〜4 完了（現況＝`STATUS.md` §0・実装＝git log）。目標ロードマップ・作る機能一覧の一次情報＝plan `~/.claude/plans/api-agy-woolly-swan.md`。監査残課題（構造系）は下の「リファクタ / 技術的負債」。
 
 ## リファクタ / 技術的負債（deferred）
 
-- ~~[発見系・構造] `SearchConditionSheet` の残リファクタ（監査残課題2の残り）~~ → **解消済み**（2026-07-11 `1b83684`＝カスタム範囲入力 約90行×2 を `CustomRangeInput` へ部品化・段階チップの値とラベルを `RangeStep` 対定義（`SearchDraft.kt`・既存 `LENGTH_STEPS`/`TIME_STEPS` は射影で温存＝呼び出し側無改修）へ統合。764→669行・見た目/挙動不変＝STATUS §1。※当初「discovery-search-D すり合わせ時に同ファイルを触るとき」予定だったが refactor/tech-debt レーンで先行消化。**モック追従＋案B翻訳のタスク（上記）自体は残存**）。
-- ~~[発見系・将来の罠] `NovelApiRepository` のインメモリキャッシュの Main dispatcher 前提（監査残課題5）~~ → **解消済み**（2026-07-09 `13c97f2`＝Mutex 排他＋word trim 非対称の修正。U1 Worker 化の前提として先行実施）。
-
-- ~~`saveScrollPosition(bookId, filename)` 等の String 連続の型付け~~ → **解消済み**（2026-07-11 `013b06a`＝`BookId`/`ChapterFilename` value class 新設（`model/BookIdentifiers.kt`・Ncode と同じ素通し方針）で saveProgress/saveScrollPosition/linkNcode/getLastRead/getProgress を Repository/VM/UI 貫通で型付け。Room Entity/DAO・Map キー・nav ルート文字列は String 維持＝境界 `.value` unwrap（線引きの why は BookIdentifiers.kt の KDoc）＝STATUS §1）。
-### コード健全性監査の指摘（2026-07-11・`refactor/tech-debt` で6観点並列監査・挙動バグ3件は反証専門エージェントで CONFIRMED 済み）
-
-> 監査体制: 観点別6エージェント（並行処理/エラー処理/Room/デッドコード/Compose/API・テスト）＋描画性能2＋検索画面深掘り1＋敵対的検証3。**クリーン確認済みの面**: デッドコード・撤去残骸ゼロ（TODO/FIXME 0件・未使用リソース/依存なし・ラベル/Chaquopy 残骸なし）・直近リファクタ4コミット退行なし・読書画面の描画設計は高水準（ルビ=1段落1BasicText+Canvasオーバーレイ・バー退避=graphicsLayerラムダ・スクロール観測=snapshotFlow・パース/AnnotatedString/TextStyle は remember 済み＝「ルビ数万ノード」「フォント変更で全文再パース」は不発生）。
-
-**確定バグ（検証CONFIRMED・3件とも解消済み＝2026-07-11 一括消化バッチ・STATUS §1）**
-
-- ~~**[クラッシュ経路] 検索履歴 DataStore の IOException 未処理**~~ → **解消済み**（`5815802`＝corruptionHandler＋読み Flow の IOException 空履歴フォールバック＋書き込み側許容。※監査記述と異なり CorruptionException は IOException のサブクラスだが、`.catch` では破損ファイルが残り毎回失敗し続けるため恒久復旧に corruptionHandler が別途必要——両対策で正）。
-- ~~**[レース] pending_jobs 記帳の直列化が実は不成立**~~ → **解消済み**（`cccb4dc`＝DAO 呼び出し完了までロックを保持する `pendingJobMutex` で全 pending_jobs 書き込みを排他・`limitedParallelism(1)` 撤去。機序の一般知見は task_diary #55）。
-- ~~**[FGS] onTimeout 後の旧ループ finally が新ループを道連れ**~~ → **解消済み**（`f70b937`＝ループ世代カウンタ。採番を launch 前の main スレッドで確定・閉じ込め、旧世代の finally は新世代の isLoopRunning/stopSelf に触れず退場。通常経路は世代が進まず挙動完全一致）。
-
-**検索画面の重さ（ユーザー実体感あり・診断確定）**
-
-- 正体＝「**カテゴリ展開状態での操作毎の全画面再コンポーズ**」（既定の全畳みは軽い＝「重いときがある」と整合）。キーワード22カテゴリ/115チップが非 Lazy Column（`DiscoverySearchScreen.kt:203-207`）上にあり、`SearchDraft` が Set 内包で unstable＋strong skipping 無効のため**毎キーストローク最大115チップ全再コンポーズ**、さらに選択判定 `containsWordToken` がチップ毎に Regex 再コンパイル（`SearchDraft.kt:223-224`・メモ化なし）。展開状態は rememberSaveable 保存→全展開のまま再訪すると**初回オープンから重い**第二経路。アニメ・履歴 DataStore・キーワード定義構築はシロ。
-- 修正順: ~~**S1** 選択判定を `remember(draft.word)` の Set 化＋Regex をトップレベル定数化~~ → **解消済み**（`a3662c2`・全ケース同値テスト付き）→ ~~**S2** `experimentalStrongSkipping=true`＋`@Immutable`~~ → **解消済み**（`b1c0bfc`・stability レポート機械検証に加え **2026-07-11 実機全画面スモーク GREEN**＝本棚フィルタ/検索チップ/結果並替/詳細キーワードトグル/発見タブ/テーマ一括切替/目次で stale UI ゼロ・検索体感は軽快）→ **S3** 外側を LazyColumn 化（中・画面外チップの存在コストと全展開再訪の初回構成。**S1/S2 実機体感=軽快（2026-07-11 実測・引っかかりなし）を踏まえ要否判断**＝残。体感問題が再報告されるまで保留が妥当）。
-
-**描画/ビルドの軽量化（読書画面以外）**
-
-- **R8/リソース収縮が無効**（`android/app/build.gradle:22-25` `minifyEnabled false`・`shrinkResources` 無し）: 有効化が**単独最大の軽量化レバー**（APK 24MiB の dead code/未使用リソース分）。Moshi/Room は codegen/KSP で keep は軽微見込みだが PDFBox/Retrofit/OkHttp の keep 確認＋実機回帰（`/device-verify`・収縮起因クラッシュはリリースでしか出ない）必須。
-- ~~ルビ描画パスの Paint×2 再生成＋`calculateRubyPositions` 再計算（`RubyText.kt`）~~ → **解消済み**（`8f452a3`＝Paint/ascent の remember 化＋位置計算を TextLayoutResult×rubyRanges のインスタンス同一性でキャッシュ）。
-- ~~小粒: BookCover Brush・段落 TextStyle・LazyColumn key/contentType~~ → **解消済み**（`96a4c22`。※本文段落リストは一意な安定IDを持たないため key は付けず contentType（4描画種）のみ＝非一意 key の状態破壊を回避した意図的判断）。
-
-**その他（中〜低）**
-
-- ~~`deleteBook` 非トランザクション~~ → **解消済み**（`862954e`＝Room withTransaction の関数注入で原子化・HTMLディレクトリ削除はロールバック不能なファイルIOのためトランザクション外の既存設計を維持）。
-- ~~**Web読書位置の ncode 正規化がテスト不能**~~ → **解消済み**（`3b151b2`＝保存する FakeWebReadingProgressDao を注入し、往復一致＋表記ゆれ正規化一致＋保存キー自体の正規化を回帰テストで固定。※webReadingProgressDao は既にコンストラクタ注入対象だった＝実際の穴はテスト側の未注入）。
+- **検索画面 S3＝カテゴリ列の LazyColumn 化（保留・要否判断）**: 重さの正体は「カテゴリ展開状態での操作毎の全画面再コンポーズ」で、S1（選択判定 Set 化・Regex 定数化）/S2（strong skipping＋@Immutable）は解消済み・実機体感は軽快（2026-07-11 実測）。残る理論コスト＝非 Lazy Column 上の22カテゴリ/115チップ（`DiscoverySearchScreen.kt:203-207`）の画面外存在コストと「全展開のまま再訪」の初回構成。**体感問題が再報告されるまで保留が妥当**。
+- **R8/リソース収縮が無効**（`android/app/build.gradle` `minifyEnabled false`・`shrinkResources` 無し）: 有効化が**単独最大の軽量化レバー**（APK 24MiB の dead code/未使用リソース分）。Moshi/Room は codegen/KSP で keep は軽微見込みだが PDFBox/Retrofit/OkHttp の keep 確認＋実機回帰（`/device-verify`・収縮起因クラッシュはリリースでしか出ない）必須。
 - `web_reading_progress` に prune/削除経路が皆無（upsert のみの単調増加。`removeWebNovel`/`deleteBook` とも触れず、new_episode_marks の日次 `pruneExcept` と非対称）。個人スケールでは無害だが設計の穴として記録。
-- ~~`novelDetailsBulk` の紐付け501件超サイレント欠落~~ → **解消済み**（`505dd03`＝500件チャンク分割・境界テスト2件付き）。
-- ~~OkHttpClient がタイムアウト既定依存~~ → **解消済み**（`73246e5`＝API は callTimeout 30秒・PDF DL は connect 30秒＋read 60秒で「無進捗の停滞」のみ切る設計＝正当な長時間 DL は殺さない）。
 - MigrationTest が「16.json 形状（web_reading_progress 無し）→17」経路を構造的に検証できない（chain テストは 14→15 でテーブルが生まれる系譜のみ通過）。既知の実機 v16→v17 未検証と同根の coverage-hole として記録。
-- ~~`AndroidManifest.xml` INTERNET permission コメントの実態不整合~~ → **解消済み**（`20bf2ca`・文言のみ修正）。
-
-- **worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す運用**: Lint コミットゲート（`check_lint_on_commit.py`）は drvfs でスキップされる設計＝canonical 作業が続く限り事実上無効。ext4 worktree なら in-tree で回るので冒頭で1回スイープする（直近スイープ＝2026-07-12・UI/UX 宿題4件消化後も 0 errors/26 warnings＝基準同一で新規指摘なし。前回=2026-07-11・監査指摘12コミット後も 0/26。前々回=2026-07-08・0/21）。
 
 ## workflow / tooling
 
-- **antigravity-delegate サブエージェントの同期実行が保証されない**（2026-07-07・委譲5件中3件で再発）: agy をバックグラウンド起動したまま「待機中」で終了し完了通知が来ない。プロンプト明記・SendMessage 再開でも再発。運用回避（CLAUDE.md 委譲判断節に反映済み）＝完了判定を報告でなく**成果物の存在**（`git status`/grep/`ps`）で行う。**根治候補**＝プラグイン側で agy 起動を同期実行へ強制するか wrapper にポーリング内蔵。優先度中（運用回避が効き非ブロッキング）。
+- **antigravity-delegate サブエージェントの同期実行が保証されない**（2026-07-07・委譲5件中3件で再発): agy をバックグラウンド起動したまま「待機中」で終了し完了通知が来ない。プロンプト明記・SendMessage 再開でも再発。運用回避（CLAUDE.md 委譲判断節に反映済み）＝完了判定を報告でなく**成果物の存在**（`git status`/grep/`ps`）で行う。**根治候補**＝プラグイン側で agy 起動を同期実行へ強制するか wrapper にポーリング内蔵。優先度中（運用回避が効き非ブロッキング）。
+- **worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す運用**: Lint コミットゲート（`check_lint_on_commit.py`）は drvfs でスキップされる設計＝canonical 作業が続く限り事実上無効。ext4 worktree なら in-tree で回るので冒頭で1回スイープする。基準＝0 errors/26 warnings（2026-07-12 時点）。
 
 ## 実行捏造検知器（ADR 0006）残タスク
 
-> エンジン＝`.claude/hooks/detect_fabricated_execution_core.py`。完了分（Stop ライブ化・Tier C misread 型・Tier D 入力側捏造・陽性コントロール）は STATUS/ADR が正本。以下は開きのみ。
+> エンジン＝`.claude/hooks/detect_fabricated_execution_core.py`。完了分は **ADR 0006（増補含む）と git log が正本**。以下は開きのみ。
 
-- **Tier B 汎用主張の免罪の限界**（事象D）: 「セッション内に成功実行が1回でもあれば免罪」で後半の汎用捏造を取りこぼす。具体値主張は具体照合に絞ったが汎用主張の掘り下げは将来課題。**進捗（2026-07-11・増補6）**: Tier E カテゴリ別突合が**現ターン分**の同根系列（照合キー無しの汎用完了主張＝write/cleanup/test/create/config）を吸収した。**過去ターンの汎用主張の掘り下げは引き続き将来課題**（Tier E は現ターン境界での判定）。
-- ~~**[2026-07-11 実測・台帳N] 幻の先行実行（phantom prior execution）型が全 tier(ABCDE) の検知外**~~ → **大半解消（2026-07-11・増補6）**: Tier E をカテゴリ別突合へ細分化（write/cleanup/test に **create/config** 新設＝「tool_use 皆無」を「主張カテゴリに対応する tool_use の不在」へ一般化＝別 tool_use 同居ターンの L81 も発火）＋`phantom_probe_output`（出力異常フレーム＋トークン非接地）新設で **L51/L65/L81 が active 化**（詳細=ADR 0006 増補6）。**残る L44/L55 型は別クラスとして下に新規登録**。
+- **Tier B 汎用主張の免罪の限界**（事象D）: 「セッション内に成功実行が1回でもあれば免罪」で後半の汎用捏造を取りこぼす。具体値主張は具体照合に絞ったが汎用主張の掘り下げは将来課題。**進捗（2026-07-11・増補6）**: Tier E カテゴリ別突合が**現ターン分**の同根系列を吸収した。**過去ターンの汎用主張の掘り下げは引き続き将来課題**（Tier E は現ターン境界での判定）。
 - **[2026-07-11・増補6 で切り出し] L44/L55 型「先行実行フレーミング」（完了主張形を持たない幻の先行実行参照）の検知**: 事象N の L44「出力が返っていないので結果を確認します」（存在しない先行 tool_use への参照）・L55「再作成します」（未実行の再作成宣言）は**完了・検証の断言ではなく段取り宣言**＝照合キーが無く Tier E の完了語トリガに当たらない。検知には「主張以前に対応する tool_use が無い先行実行参照」という別系統の突合が要る。要較正・真陽性は台帳N の L44/L55。
-- ~~**サブエージェント/オフロード全文の裏取り強化**（現状は読めなければ降格）~~ → **解消（2026-07-11・増補6）**: read_offload を **tool_result 本文の `Full output saved to:` パス駆動**へ修正（旧 `<tuid>.txt` 命名前提の解決率 1/31→12/31）。埋め込みパス保有分は 12/12 全解決・残19は全文ファイル自体が不存在の別クラス＝truncated 維持が安全側で正。subagent 解決は実測 214/214=100%（多重フォールバックは投機的堅牢化として却下）。詳細=ADR 0006 増補6(3)。
-- **[2026-07-11・増補6 保留設計] 案3＝委譲主張の E2 突合（opt-in）**: 「〜を委譲した／agy に生成させた」等の委譲完了主張を、**委譲先 transcript（`subagents/agent-<id>.jsonl`）の tool_use とカテゴリ突合**して裏取りする案。read_offload パス駆動化の検討中に案出したが、**真陽性サンプルが皆無のため保留**（設計要点のみ保全）。真陽性が観測されたら着手。
-- ~~**Tier D の K型盲点・残り**（2026-07-08 台帳K）: 暴走 thinking 前兆を伴わない入力側捏造は `no_thinking_anomaly` で降格し active 化できない~~ → **解消（2026-07-11・増補6）**: 候補①を **D4 `phantom_turn_role_marker`**（行頭ロールマーカー構造・thinking 非依存・conf 0.85）として実装＝事象K L320 が active 化＋**未検知真陽性 370800c1 を新規捕捉**（`[Request interrupted for tool use]`＝"by user"無し変種→A3 の `HARNESS_BLOCK_RE` も同変種へ拡張・人間承認済み）。候補②（降格ゲート再設計／thinking 空セッション解禁）は**不採用**＝D3 単独は較正実測で正当作業の約20%誤発火・空セッション解禁は同FPクラスを復活させる。K型は D4 が thinking 非依存で拾うため盲点残らず。L328（幻叱責への謝罪＝下流反応）は精度優先で対象外＝幻生成そのもの（L320）を拾えば足りる。詳細=ADR 0006 増補6(2)。
+- **[2026-07-11・増補6 保留設計] 案3＝委譲主張の E2 突合（opt-in）**: 「〜を委譲した／agy に生成させた」等の委譲完了主張を、**委譲先 transcript（`subagents/agent-<id>.jsonl`）の tool_use とカテゴリ突合**して裏取りする案。**真陽性サンプルが皆無のため保留**（設計要点のみ保全）。真陽性が観測されたら着手。
 - **[2026-07-11・増補6 副産物] 370800c1 の台帳レター事象化（人間確認待ち）**: D4 較正の slug 全走査で発見した未登録真陽性＝assistant text 内に `user[Request interrupted for tool use]`＋幻のユーザー発話を自己生成（幻発話テキストの実人間入力不在は transcript 直読で確認済み）。D4（CLI）と A3 変種拡張（live）の両方で active。人間確認が取れたら台帳の追記手順（事後検証モード）でレター事象化。
-- ~~**[2026-07-08 実測・未対処] 事象M＝phantom-attribution（幻の同意帰属）が Tier D の語彙穴**~~ → **解消（2026-07-11・増補6）**: **D5 `phantom_agreement_attribution`**（同意帰属マーカー＋帰属対象語が実人間入力に不在・conf 0.75・軸2ゲート不使用＝突合が判定力を担う）として実装＝事象M L29 が active 化。slug 全走査で新規FP 0（e4367031 の分析引用4件は meta_discussion 降格＝意図どおりの分離）。詳細=ADR 0006 増補6(2)。
 - **[2026-07-11・増補6 残課題] D5 対象語突合の字面依存FPクラス**: D5 は帰属対象の名詞（違和感/懸念/指摘…）の**字面**を実入力に探すため、ユーザーが真に指摘したが当該名詞を書かなかった場合「あなたの指摘は的を射て」型が潜在FP化しうる（現コーパス実測 0件・非ブロック Tier D で被害限定）。同義語・意味突合の導入は将来課題。
-- ~~**[2026-07-08 実測・未対処] メタ議論免罪が「検知器の実装用語」文脈で漏れる**~~ → **解消済み（2026-07-11・`meta/detector-improve` d80190c の統合＝`_tier_b_reference` を Tier B 本線へ組込み）**: 対処2層＝(a) 成功語の引用体裁判定へ **〈〉『』を追加**（「」のみだった） (b) **機構語限定の `DETECTOR_IMPL_TERM_RE`** を主張文近傍±120字の密度判定に合算。v3.1/v3.2 のインライン免罪（`meta_discussion`/`quoted_claim`）が拾えない〈実装用語で語られる仕様説明文・〈〉列挙〉の補完として `detect_tier_b` へ組込んだ。**較正知見（重要）＝語彙は機構語（完了主張/カテゴリ/発火/tool_use/検査窓/主張文/current_turn 等）に限り、結果・成果語（降格/昇格/偽陽性/真陽性/誤検知/Tier）は入れてはならない**——真陽性 b4087931（事象L）自体が検知器開発セッションの完了報告で結果語が近傍に密集するため、入れると真陽性が免罪される退行（probe 実測）。`META_DISCUSSION_RE` 本体は D 系免罪6箇所で共用のため無改変。検証＝same-corpus 206ファイル走査で当該FP（e4367031）のみ降格・真陽性19件不変。詳細=ADR 0006 増補5。
-- ~~**[2026-07-11 統合・較正待ち] Tier E（完了主張束・事象L型）の既定化/Stop 昇格判断**~~ → **判断完了（2026-07-11・増補6・人間承認済み）**: カテゴリ別突合への細分化で真陽性 n=1→**4**（事象L＋N×3）・全コーパスFP 0 の較正実績が揃い、**CLI 既定 tier を ABCD→ABCDE へ格上げ**。**Stop 昇格は見送り**＝E の conf 0.55-0.7 は Stop 閾値 0.8 未満（下記の再判断項へ）。詳細=ADR 0006 増補6(1)(4)。
 - **[2026-07-11・増補6 で切り出し] Tier E の Stop 昇格の再判断**: 新既定 ABCDE での CLI 運用実績（真陽性の積み上がり・FP 率）が揃ったら再判断。昇格には conf 設計の引き上げ（現 0.55-0.7 → Stop 閾値 0.8）または Stop 側の per-rule 閾値の新設計が必要。
-- ~~**c4b78e7d rec#146 の「厳密検証」報告の HEAD SHA 捏造＝新事象候補（人間確認待ち）**~~ → **解消済み＝2026-07-11 事象 O として台帳登録**（`docs/reference/hallucination-ground-truth.md` §O）。**クロスセッション経路も判明**＝実マージ 4650e2b は別セッション `a77a8a10` が 22:17 JST（捏造報告 20:47 の約1.5時間後）に実行、当該 c4b78e7d では L109 ブロック後にマージ再実行なし＝報告時点で 4650e2b は不存在。検知は現行検知器で active 4件（`fabricated_concrete_token` missing=9f3c2e1〔Tier A〕＋`completion_after_blocked_commit`×3〔Tier C〕）と実測＝**検知器が捕捉できた台帳事象**。
-- ~~メタ議論免罪の Tier A2/C1 への未適用~~ / ~~Tier A2 の直前 tool_result 由来トークンFP~~ / ~~実機テストランナーの非認識~~ → **3件とも 2026-07-09 v3.2 で解消**（STATUS §0 参照。機序2件は当初記録と異なると実測で判明: 891df1e6 は `feedbac` 誤抽出・bcd69bb6 は gitStatus 由来＝台帳の偽陽性ログに訂正記録。441b9875 は実 instrument 成功直後の完全FPと transcript 直読で確定済み＝人間確認不要）。
 - **意味照合系検知器**（着想段階・スコープ外構想）＝生成コード不具合・外部リサーチ捏造（正解データ事象B/C）。
 
 ## D. 長期・品質（backlog）
 
 - **左右スワイプで章遷移**: 旧 `experiment`/`lab-old` は WebView 実装で流用不可。`HorizontalPager`/`pointerInput` で新規。チューニング知見＝軸ロック(`de60869`)/EMA+isDragging(`a07dd3e`)/距離OR速度複合(`4a0719b`)。元コミット `23b5f33`（main 未取り込み）。
 - **[抽出] 単話（1話完結）作品の縦書きPDF変換で、本文が「作品情報（プロローグ）」側に乗り章題名も出ない**（2026-07-09 PDF取り込み導線の実機通し検証中にユーザー観測・対象 n2959ki）: 単話作品は章見出し／目次構造が無いため、章分割が本文を作品情報ページの続き扱いで流し込むと推定（**未確定**・要調査）。**やること**: ①n2959ki の抽出結果現物（`novels/<id>/index.html`・`chap_N.html` 構成）で事象を再現確認 ②単話 PDF の構造に対する分割ルール（`ParserRules`/`ChapterProcessor`）の扱いを設計 ③**ゴールデン基準との整合に注意**＝N2959KI はゴールデン本（`ab-review/golden_regression`）であり、基準自体がこの挙動を「正」として固定している可能性がある——修正はゴールデン更新とセットで判断すること。
-- **超長編抽出エッジ残差の③アポストロフィ座標順**（N6169DZ・章題ドリフト残2件）: `兎'ｓ`↔`'鳥…` の座標順ずれで**1:1コードポイント置換不可**＝実質 won't-fix。基準＝`ab-review/golden_regression`、詳細＝task_diary #35。①②のダッシュ/矢印9件は 2026-07-06 に `normalizeGlyphUnicode` で解消済み。
+- **超長編抽出エッジ残差の③アポストロフィ座標順**（N6169DZ・章題ドリフト残2件）: `兎'ｓ`↔`'鳥…` の座標順ずれで**1:1コードポイント置換不可**＝実質 won't-fix。基準＝`ab-review/golden_regression`、詳細＝task_diary #35。
 
 ## A2. UIスキン着せ替え（将来送り・保留）
 
-> フェーズ0で D「和モダン・余白」をデフォルト視覚言語に採用済み（設計判断＝`docs/decisions/0005-ui-n-visual-language-D.md`／モック地図は `.claude/plans/UI-n_DESIGN_PLAN-archived-2026-07-02.md` §6.1）。
+> フェーズ0で D「和モダン・余白」をデフォルト視覚言語に採用済み（設計判断＝`docs/decisions/0005-ui-n-visual-language-D.md`／モック地図は `.claude/plans/archive/UI-n_DESIGN_PLAN-archived-2026-07-02.md` §6.1）。
 
-- **方針確定（2026-06-27・ユーザー指示）＝UIスキン着せ替え（A〜J 選択）はまだ実装しない。main は現状 D のみ。** A〜J は資産として claude.ai/design（プロジェクト `Novel Reader UI`・projectId `bb5a35c8-70ac-4efa-bb03-1579d3f11d93` の `ui-n-phase0/`・`DesignSync: get_file` で再取得可）に保持。
+- **方針確定（2026-06-27・ユーザー指示）＝UIスキン着せ替え（A〜J 選択）はまだ実装しない。main は現状 D のみ。** A〜J は資産として claude.ai/design（プロジェクト `Novel Reader UI`・projectId `bb5a35c8-70ac-4efa-bb03-1579d3f11d93` の `ui-n-phase0/`・`DesignSync: get_file` で再取得可）に保持。栞の他4型（A箔/C小口/D蔵書印/E綴じ紐）もスキン資産として保持（ADR 0005 C 方針）。
 - **着手時はここから**: 「UI着せ替え」設定画面のモック化（選択肢=A〜J・既定=D・切替粒度の決定）／A〜J スキンの Compose 実装（スキン×読書テーマの関係・トークン体系）。bookshelf-D へのセピア変種追加もスキン着せ替え実装時に再検討（現状は `SepiaColorScheme` が本棚セピアの正本）。
-
-## 掃除
-
-<!-- 検証残置データ（web_reading_progress 2行）とテスト用シード本 spike-* は 2026-07-11 にユーザー裁定のうえ掃除済み（詳細=STATUS §1 実機検証スイープ項。N9754MK 1行のみ実害なしで意図的残置）。 -->

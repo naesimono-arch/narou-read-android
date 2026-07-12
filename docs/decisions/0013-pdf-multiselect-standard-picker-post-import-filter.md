@@ -1,7 +1,7 @@
 # 0013. PDF 複数選択は標準ピッカー＋取込段フィルタ（独自ピッカー不採用）
 
 - 状態: 採用（2026-07-11・`feat/pdf-import-improve`）
-- 関連: 実装 `viewmodel/PdfImportSelection.kt`・`BookshelfViewModel.addBooks`／現況は STATUS §1
+- 関連: 実装 `viewmodel/PdfImportSelection.kt`・`BookshelfViewModel.addBooks`／実装の経緯は git log
 
 ## 背景（要求と制約）
 

@@ -4,7 +4,7 @@
 - 日付: 2026-07-02
 - 関連実装: `ui/theme/Color.kt`（藍 `#1C3D5A`／青磁 `#9CB3A8`）・`ui/theme/Theme.kt`（3読書テーマ ColorScheme）・`ui/theme/Typography.kt`（明朝 `MinchoFamily`）
 - 関連コミット（main）: `37d8cd2`（読書 章見出し=明朝＋藍ルール）／`07411a6`（テーマ ライト/セピア/ダーク 単一正本同期）／`ede80a5`（明朝を `MinchoFamily` へ単一トークン化）／`8411076`（目次 toc-D）／`410868b`（設定 settings-D）
-- 出自: 旧 `UI-n_DESIGN_PLAN.md` §0.5／§3 フェーズ0結果／§2（主目的達成後にアーカイブ移設。一次情報は `.claude/plans/UI-n_DESIGN_PLAN-archived-2026-07-02.md`）
+- 出自: 旧 `UI-n_DESIGN_PLAN.md` §0.5／§3 フェーズ0結果／§2（主目的達成後にアーカイブ移設。一次情報は `.claude/plans/archive/UI-n_DESIGN_PLAN-archived-2026-07-02.md`）
 - モック正本の所在（2026-07-12 改定）: **主要4画面 D モック（bookshelf/reading/toc/settings-D）はリポジトリ内 `docs/design-candidates/` が一次正本**（発見系6画面と同基準に統一・バージョン管理下で diff 可能に）。claude.ai/design プロジェクト `Novel Reader UI`（projectId `bb5a35c8-70ac-4efa-bb03-1579d3f11d93`）の同名は**収蔵コピー（プレビュー用）へ降格**。A〜J スキン案など未収蔵の探索資産は引き続き claude.ai 側に保持。原則・トークン層との関係は ADR 0014（正本の層構造）を参照。
 
 ## Context（背景）
@@ -33,7 +33,7 @@ D をデフォルトとし、作成した A〜J 全案は「UIスキン」資産
 
 - D は Compose へ実装済み（上記 関連コミット）。色は必ず `Color.kt`/`Theme.kt` 経由・直書き禁止、明朝は `Typography.kt` の `MinchoFamily` 経由という**トークン構造は維持**する（白紙設計はトークンの中身を変える作業で、トークン経由という構造は不変）。
 - 残るのは任意の微調整（スライダー目盛り等）とスキン機能の将来送りのみ＝`handover.md` A2。
-- A〜J のモック署名要素の索引はアーカイブ `.claude/plans/UI-n_DESIGN_PLAN-archived-2026-07-02.md` §6.1 に保全（スキン機能着手時の一次情報）。
+- A〜J のモック署名要素の索引はアーカイブ `.claude/plans/archive/UI-n_DESIGN_PLAN-archived-2026-07-02.md` §6.1 に保全（スキン機能着手時の一次情報）。
 
 ## Alternatives（採用しなかった案と理由）
 
