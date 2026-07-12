@@ -70,7 +70,6 @@
 
 ## workflow / tooling
 
-- **[掃除・次セッション] 撤去済みフックの一時スタブ3本を削除**: `check_commit_granularity.py`／`check_lint_on_commit.py`／`mark_kotlin_tests_passed.py`（git 追跡外の no-op スタブ）。フック配線はセッション起動時固定のため、撤去コミット後の現セッションを回すために置いたもの。settings.json の配線は撤去済み＝次セッションでは呼ばれない。
 - **[bestpractice 突合の回収候補（2026-07-12 調査）]**: ①スキル frontmatter の `triggers:` は標準外フィールドの可能性（自動発動は `description` 単体が正）＝ハーネスに解釈されているか検証 ②`block_destructive_migration.py` の Bash 経路が素朴な部分文字列一致（`FOO=1 cmd`・`$()` ですり抜け）＝settings permissions の `if` フィールド化を検討（主経路の Edit/Write 捕捉は健在で実害小） ③`tools/check_design_tokens.py` のコミットゲート配線 or 手動運用継続の裁定 ④サブエージェントの部品別モデル配分（fan-out/読み=haiku・照合=sonnet・監査=opus。現状は env `CLAUDE_CODE_SUBAGENT_MODEL` で opus 固定＝見直しは settings 変更を伴う）。
 
 - **antigravity-delegate サブエージェントの同期実行が保証されない**（2026-07-07・委譲5件中3件で再発): agy をバックグラウンド起動したまま「待機中」で終了し完了通知が来ない。プロンプト明記・SendMessage 再開でも再発。運用回避（CLAUDE.md 委譲判断節に反映済み）＝完了判定を報告でなく**成果物の存在**（`git status`/grep/`ps`）で行う。**根治候補**＝プラグイン側で agy 起動を同期実行へ強制するか wrapper にポーリング内蔵。優先度中（運用回避が効き非ブロッキング）。
