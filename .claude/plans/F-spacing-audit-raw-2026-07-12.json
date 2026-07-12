@@ -1,0 +1,1759 @@
+{
+  "summary": "F余白離散化: 全モック+全Composeの任意dp/px余白を悉皆調査し、離散スケール{4,8,16,24,40}への統一マッピング案を出す",
+  "agentCount": 3,
+  "logs": [],
+  "result": {
+    "mockSurvey": {
+      "surface": "mock",
+      "filesSurveyed": 22,
+      "onScaleAlsoUsed": [
+        4,
+        8,
+        16,
+        24,
+        40
+      ],
+      "distinctOffScale": [
+        {
+          "value": 1,
+          "count": 7,
+          "nearest": 4,
+          "exampleLocations": [
+            "bookshelf-mokuroku-D.html: .list gap:1px",
+            "_brief-cover-onepoint-D.html: padding:1px 6px (chip)",
+            "bookshelf-shoka-D.html: padding:1px 5px (badge)"
+          ]
+        },
+        {
+          "value": 2,
+          "count": 35,
+          "nearest": 4,
+          "exampleLocations": [
+            "bookshelf-D.html: .top .acts gap:2px",
+            "discovery/discovery-home-D.html: .conds padding:12px 24px 2px",
+            "bookshelf-mokuroku-readability-D.html: .* padding:*px 2px (list inset)"
+          ]
+        },
+        {
+          "value": 2.5,
+          "count": 2,
+          "nearest": 4,
+          "exampleLocations": [
+            "index.html: chip/tag padding:2.5px 9px (line 329)",
+            "index.html: chip/tag padding:2.5px 9px (line 410)"
+          ]
+        },
+        {
+          "value": 3,
+          "count": 10,
+          "nearest": 4,
+          "exampleLocations": [
+            "index.html: gap:3px (line 48)",
+            "bookshelf-mokuroku-readability-D.html: gap:3px (line 96)",
+            "discovery/discovery-detail-D.html: gap:3px (line 81)"
+          ]
+        },
+        {
+          "value": 5,
+          "count": 16,
+          "nearest": 4,
+          "exampleLocations": [
+            "discovery/discovery-home-D.html: .rk .a margin-top:5px",
+            "bookshelf-shiori-consistency-D.html: gap:5px / margin-top:5px (line 74)",
+            "index.html: margin-top:5px (line 336)"
+          ]
+        },
+        {
+          "value": 6,
+          "count": 61,
+          "nearest": 8,
+          "exampleLocations": [
+            "bookshelf-D.html: .list margin-top:6px",
+            "discovery/discovery-home-D.html: .back gap:6px",
+            "toc-D.html: gap:6px (line 30)"
+          ]
+        },
+        {
+          "value": 7,
+          "count": 13,
+          "nearest": 8,
+          "exampleLocations": [
+            "discovery/discovery-home-D.html: .gc padding:7px 14px",
+            "_brief-cover-onepoint-D.html: gap:7px (line 36)",
+            "bookshelf-shoka-D.html: margin-top:7px (line 67)"
+          ]
+        },
+        {
+          "value": 9,
+          "count": 34,
+          "nearest": 8,
+          "exampleLocations": [
+            "bookshelf-D.html: .wrap gap:9px (harness) / .meta .pr margin-top:9px",
+            "discovery/discovery-home-D.html: .wrap gap:9px",
+            "bookshelf-shiori-palette-D.html: padding:9px 12px (line 101)"
+          ]
+        },
+        {
+          "value": 10,
+          "count": 63,
+          "nearest": 8,
+          "exampleLocations": [
+            "discovery/discovery-home-D.html: .mood gap:10px / .sec margin:10px 0 10px",
+            "settings-D.html: gap:10px (line 39)",
+            "bookshelf-shiori-consistency-D.html: gap:10px (line 34)"
+          ]
+        },
+        {
+          "value": 11,
+          "count": 13,
+          "nearest": 8,
+          "exampleLocations": [
+            "bookshelf-D.html: .meta margin-top:11px",
+            "bookshelf-cover-D.html: padding:11px 22px",
+            "discovery/discovery-home-D.html: .cd padding:5px 11px"
+          ]
+        },
+        {
+          "value": 12,
+          "count": 46,
+          "nearest": 16,
+          "exampleLocations": [
+            "discovery/discovery-home-D.html: .tab padding:10px 12px",
+            "shiori-tips-D.html: gap:12px (line 25)",
+            "bookshelf-shiori-consistency-D.html: gap:12px (line 26)"
+          ]
+        },
+        {
+          "value": 13,
+          "count": 13,
+          "nearest": 16,
+          "exampleLocations": [
+            "discovery/discovery-home-D.html: .md padding:13px 14px",
+            "bookshelf-shoka-D.html: padding:13px 18px (line 53)",
+            "reading-D.html: padding:13px 15px (line 63)"
+          ]
+        },
+        {
+          "value": 14,
+          "count": 48,
+          "nearest": 16,
+          "exampleLocations": [
+            "discovery/discovery-home-D.html: .rk gap:14px",
+            "bookshelf-D.html: .cv .ttl-in padding:14px 14px 16px 22px",
+            "bookshelf-cover-D.html: gap:14px (line 28)"
+          ]
+        },
+        {
+          "value": 15,
+          "count": 5,
+          "nearest": 16,
+          "exampleLocations": [
+            "bookshelf-mokuroku-readability-D.html: gap:15px (line 57)",
+            "reading-D.html: margin:15px auto 0 (line 56)",
+            "index.html: padding:13px 15px (line 408)"
+          ]
+        },
+        {
+          "value": 17,
+          "count": 1,
+          "nearest": 16,
+          "exampleLocations": [
+            "bookshelf-mokuroku-readability-D.html: padding:17px 2px (line 88)"
+          ]
+        },
+        {
+          "value": 18,
+          "count": 42,
+          "nearest": 16,
+          "exampleLocations": [
+            "bookshelf-D.html: .li padding:18px 0",
+            "discovery/discovery-home-D.html: .tabs margin-top:18px",
+            "bookshelf-shiori-grid-D.html: .cap margin-bottom:18px (harness)"
+          ]
+        },
+        {
+          "value": 19,
+          "count": 1,
+          "nearest": 16,
+          "exampleLocations": [
+            "bookshelf-D.html: .fab padding:14px 19px"
+          ]
+        },
+        {
+          "value": 20,
+          "count": 31,
+          "nearest": 24,
+          "exampleLocations": [
+            "bookshelf-D.html: .grid gap:26px 20px (column-gap)",
+            "settings-D.html: margin-bottom:20px (line 35)",
+            "bookshelf-shoka-D.html: padding:13px 20px (line 53)"
+          ]
+        },
+        {
+          "value": 21,
+          "count": 1,
+          "nearest": 24,
+          "exampleLocations": [
+            "bookshelf-mokuroku-readability-D.html: padding:21px 2px 22px (line 57)"
+          ]
+        },
+        {
+          "value": 22,
+          "count": 31,
+          "nearest": 24,
+          "exampleLocations": [
+            "bookshelf-cover-D.html: padding:11px 22px / gap:30px 22px",
+            "bookshelf-D.html: .cv .ttl-in padding:...22px",
+            "bookshelf-mokuroku-D.html: padding:6px 22px 10px"
+          ]
+        },
+        {
+          "value": 26,
+          "count": 37,
+          "nearest": 24,
+          "exampleLocations": [
+            "bookshelf-D.html: body padding:26px (harness) / .grid gap:26px 20px",
+            "bookshelf-geo-D.html: .phone padding:44px 26px 90px",
+            "discovery/discovery-home-D.html: body padding:26px (harness)"
+          ]
+        },
+        {
+          "value": 28,
+          "count": 8,
+          "nearest": 24,
+          "exampleLocations": [
+            "index.html: .grid gap:28px (line 32)",
+            "shiori-tips-D.html: .phone padding:44px 28px 90px",
+            "discovery/discovery-search-D.html: margin-top:28px (line 336)"
+          ]
+        },
+        {
+          "value": 30,
+          "count": 19,
+          "nearest": 24,
+          "exampleLocations": [
+            "bookshelf-D.html: .stage gap:30px (harness)",
+            "discovery/discovery-home-D.html: .stage gap:30px (harness)",
+            "settings-D.html: padding:10px 24px 30px (line 33)"
+          ]
+        },
+        {
+          "value": 34,
+          "count": 12,
+          "nearest": 40,
+          "exampleLocations": [
+            "bookshelf-shoka-D.html: .stage gap:34px (line 28)",
+            "bookshelf-shiori-consistency-D.html: gap:34px (line 33)",
+            "bookshelf-cover-D.html: margin:24px auto 34px (line 28)"
+          ]
+        },
+        {
+          "value": 36,
+          "count": 3,
+          "nearest": 40,
+          "exampleLocations": [
+            "index.html: .phone padding:36px 28px 60px / margin:0 auto 36px",
+            "shiori-tips-D.html: margin:36px 0 4px (line 29)"
+          ]
+        },
+        {
+          "value": 44,
+          "count": 10,
+          "nearest": 40,
+          "exampleLocations": [
+            "bookshelf-cover-D.html: .phone padding:44px 30px 90px",
+            "_brief-cover-onepoint-D.html: padding:44px 26px 80px",
+            "bookshelf-generative-directions-D.html: margin:44px auto 0 (bottom-nav)"
+          ]
+        },
+        {
+          "value": 50,
+          "count": 1,
+          "nearest": 40,
+          "exampleLocations": [
+            "discovery/reading-continuation-D.html: margin:40px 0 50px (line 48)"
+          ]
+        },
+        {
+          "value": 56,
+          "count": 3,
+          "nearest": 40,
+          "exampleLocations": [
+            "index.html: margin:0 auto 56px (line 27)",
+            "bookshelf-generative-directions-D.html: .grid gap:56px 40px (row-gap)",
+            "bookshelf-geo-D.html: .grid gap:56px 40px (row-gap)"
+          ]
+        },
+        {
+          "value": 60,
+          "count": 3,
+          "nearest": 40,
+          "exampleLocations": [
+            "settings-D.html: empty-state padding:60px 26px (line 28)",
+            "index.html: .phone padding:36px 28px 60px",
+            "discovery/reading-continuation-D.html: margin:0 24px 60px (line 57)"
+          ]
+        },
+        {
+          "value": 70,
+          "count": 5,
+          "nearest": 40,
+          "exampleLocations": [
+            "bookshelf-mokuroku-D.html: .phone padding:34px 26px 70px",
+            "bookshelf-shiori-consistency-D.html: padding:30px 20px 70px",
+            "bookshelf-shoka-D.html: padding:34px 26px 70px"
+          ]
+        },
+        {
+          "value": 80,
+          "count": 1,
+          "nearest": 40,
+          "exampleLocations": [
+            "_brief-cover-onepoint-D.html: padding:44px 26px 80px (phone bottom inset)"
+          ]
+        },
+        {
+          "value": 90,
+          "count": 6,
+          "nearest": 40,
+          "exampleLocations": [
+            "bookshelf-cover-D.html: .phone padding:44px 30px 90px",
+            "bookshelf-generative-directions-D.html: .phone padding:44px 26px 90px",
+            "bookshelf-mokuroku-D.html: .list padding:2px 22px 90px"
+          ]
+        },
+        {
+          "value": 92,
+          "count": 3,
+          "nearest": 40,
+          "exampleLocations": [
+            "bookshelf-generative-directions-D.html: .scroll padding:14px 26px 92px",
+            "bookshelf-geo-D.html: .scroll padding:14px 26px 92px",
+            "reading-D.html: .scroll padding:8px 26px 92px"
+          ]
+        },
+        {
+          "value": 96,
+          "count": 1,
+          "nearest": 40,
+          "exampleLocations": [
+            "bookshelf-D.html: .scroll padding:0 24px 96px (bottom inset)"
+          ]
+        },
+        {
+          "value": 210,
+          "count": 1,
+          "nearest": 40,
+          "exampleLocations": [
+            "discovery/discovery-detail-D.html: .scroll padding-bottom:210px (floating-panel inset)"
+          ]
+        }
+      ],
+      "perFile": [
+        {
+          "file": "docs/design-candidates/_brief-cover-onepoint-D.html",
+          "offScaleCount": 25,
+          "distinctValues": [
+            1,
+            5,
+            6,
+            7,
+            10,
+            12,
+            18,
+            20,
+            26,
+            30,
+            44,
+            80
+          ],
+          "severity": "medium",
+          "note": "One-point cover brief; heavy 2px-grid feel. 26/44/80 are phone insets, 6/10/12/18 pervasive in card/list gaps."
+        },
+        {
+          "file": "docs/design-candidates/bookshelf-D.html",
+          "offScaleCount": 20,
+          "distinctValues": [
+            2,
+            6,
+            9,
+            11,
+            14,
+            18,
+            19,
+            20,
+            22,
+            26,
+            30,
+            96
+          ],
+          "severity": "medium",
+          "note": "Canonical D bookshelf. 26(body)/30(stage)/9(wrap) partly mock-harness. 19 (.fab) and 96 (.scroll inset) are unique one-offs."
+        },
+        {
+          "file": "docs/design-candidates/bookshelf-cover-D.html",
+          "offScaleCount": 14,
+          "distinctValues": [
+            9,
+            11,
+            12,
+            14,
+            15,
+            20,
+            22,
+            30,
+            34,
+            44,
+            90
+          ],
+          "severity": "medium",
+          "note": "Cover-grid variant; 11 distinct values in only 14 uses -> low reuse, each spacing nearly bespoke."
+        },
+        {
+          "file": "docs/design-candidates/bookshelf-generative-directions-D.html",
+          "offScaleCount": 32,
+          "distinctValues": [
+            1,
+            6,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            18,
+            20,
+            22,
+            26,
+            34,
+            44,
+            56,
+            90,
+            92
+          ],
+          "severity": "heavy",
+          "note": "Twin of geo-D. 17 distinct off-scale values incl 56/90/92 insets; near-total off-grid."
+        },
+        {
+          "file": "docs/design-candidates/bookshelf-geo-D.html",
+          "offScaleCount": 32,
+          "distinctValues": [
+            1,
+            6,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            18,
+            20,
+            22,
+            26,
+            34,
+            44,
+            56,
+            90,
+            92
+          ],
+          "severity": "heavy",
+          "note": "Identical spacing set to generative-directions-D (shared template). Heavy remap needed."
+        },
+        {
+          "file": "docs/design-candidates/bookshelf-mokuroku-D.html",
+          "offScaleCount": 46,
+          "distinctValues": [
+            1,
+            2,
+            6,
+            7,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            18,
+            20,
+            22,
+            26,
+            34,
+            70,
+            90
+          ],
+          "severity": "heavy",
+          "note": "Mokuroku (index) layout with dense list; highest off-scale total after index.html. Many 2px/6px/10px micro-gaps."
+        },
+        {
+          "file": "docs/design-candidates/bookshelf-mokuroku-readability-D.html",
+          "offScaleCount": 38,
+          "distinctValues": [
+            1,
+            2,
+            3,
+            6,
+            9,
+            10,
+            12,
+            13,
+            14,
+            15,
+            17,
+            20,
+            21,
+            22,
+            26,
+            34,
+            70
+          ],
+          "severity": "heavy",
+          "note": "Readability tuning introduced odd 17/21/15 values; 17 distinct off-scale. Heavy."
+        },
+        {
+          "file": "docs/design-candidates/bookshelf-shiori-consistency-D.html",
+          "offScaleCount": 32,
+          "distinctValues": [
+            2,
+            5,
+            6,
+            9,
+            10,
+            12,
+            14,
+            18,
+            20,
+            30,
+            34,
+            44,
+            70
+          ],
+          "severity": "heavy",
+          "note": "Named 'consistency' but still 13 distinct off-scale values; 44(bottom-nav)/70 insets."
+        },
+        {
+          "file": "docs/design-candidates/bookshelf-shiori-grid-D.html",
+          "offScaleCount": 24,
+          "distinctValues": [
+            2,
+            5,
+            6,
+            7,
+            9,
+            10,
+            12,
+            14,
+            18,
+            20,
+            22,
+            26,
+            30,
+            34,
+            44
+          ],
+          "severity": "medium",
+          "note": "15 distinct values across 24 uses -> low reuse though moderate total. Row/col grid gaps 24px 16px mix on- and off-scale."
+        },
+        {
+          "file": "docs/design-candidates/bookshelf-shiori-palette-D.html",
+          "offScaleCount": 22,
+          "distinctValues": [
+            2,
+            5,
+            6,
+            7,
+            10,
+            12,
+            14,
+            18,
+            20,
+            22,
+            30,
+            34,
+            70
+          ],
+          "severity": "medium",
+          "note": "Palette variant; grid gap:20px 14px and chip paddings 5-7px dominate off-scale."
+        },
+        {
+          "file": "docs/design-candidates/bookshelf-shoka-D.html",
+          "offScaleCount": 37,
+          "distinctValues": [
+            1,
+            2,
+            5,
+            6,
+            7,
+            9,
+            10,
+            11,
+            13,
+            14,
+            18,
+            20,
+            22,
+            26,
+            34,
+            70,
+            90
+          ],
+          "severity": "heavy",
+          "note": "Shoka (bookcase) dense variant; 17 distinct off-scale, only 4/8/16/24 used on-scale sparingly."
+        },
+        {
+          "file": "docs/design-candidates/index.html",
+          "offScaleCount": 62,
+          "distinctValues": [
+            2,
+            2.5,
+            3,
+            5,
+            6,
+            7,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            18,
+            20,
+            26,
+            28,
+            36,
+            56,
+            60
+          ],
+          "severity": "heavy",
+          "note": "Gallery index embedding 3 full mock variants -> largest count. Only file with fractional 2.5px (chip padding). Heaviest remap surface."
+        },
+        {
+          "file": "docs/design-candidates/reading-D.html",
+          "offScaleCount": 19,
+          "distinctValues": [
+            6,
+            9,
+            13,
+            14,
+            15,
+            18,
+            22,
+            26,
+            30,
+            34,
+            92
+          ],
+          "severity": "medium",
+          "note": "Reader screen; note excluded em-based reading paddings (.3em) and font sizes. 92 is scroll bottom inset."
+        },
+        {
+          "file": "docs/design-candidates/settings-D.html",
+          "offScaleCount": 12,
+          "distinctValues": [
+            10,
+            14,
+            18,
+            20,
+            26,
+            30,
+            60
+          ],
+          "severity": "medium",
+          "note": "Settings list; fewer distinct (7). 60(empty-state)/30 outliers, rows use margin-bottom:10/20."
+        },
+        {
+          "file": "docs/design-candidates/shiori-tips-D.html",
+          "offScaleCount": 15,
+          "distinctValues": [
+            2,
+            7,
+            10,
+            12,
+            14,
+            20,
+            22,
+            28,
+            30,
+            36,
+            44,
+            90
+          ],
+          "severity": "medium",
+          "note": "Tips sheet; 12 distinct in 15 uses -> nearly all bespoke. 90/44 phone insets, 36 section margin."
+        },
+        {
+          "file": "docs/design-candidates/toc-D.html",
+          "offScaleCount": 7,
+          "distinctValues": [
+            6,
+            9,
+            12,
+            18,
+            22,
+            26,
+            30
+          ],
+          "severity": "light",
+          "note": "Table of contents; smallest surface. Mostly shared-harness 26/30/9 plus row padding 16px 22px."
+        },
+        {
+          "file": "docs/design-candidates/discovery/bookshelf-fusion-D.html",
+          "offScaleCount": 21,
+          "distinctValues": [
+            2,
+            6,
+            9,
+            10,
+            12,
+            14,
+            18,
+            20,
+            26,
+            30
+          ],
+          "severity": "medium",
+          "note": "Discovery/bookshelf fusion; note negative margin:-8px 0 18px present (spacing, off-scale magnitude 8 on-scale but negative -> flagged in notes)."
+        },
+        {
+          "file": "docs/design-candidates/discovery/discovery-detail-D.html",
+          "offScaleCount": 25,
+          "distinctValues": [
+            2,
+            3,
+            6,
+            9,
+            10,
+            12,
+            14,
+            18,
+            20,
+            26,
+            30,
+            34,
+            210
+          ],
+          "severity": "medium",
+          "note": "Detail page; extreme 210px scroll bottom-inset for floating action bar (largest single off-scale)."
+        },
+        {
+          "file": "docs/design-candidates/discovery/discovery-genre-D.html",
+          "offScaleCount": 10,
+          "distinctValues": [
+            2,
+            6,
+            7,
+            9,
+            10,
+            14,
+            18,
+            26,
+            30
+          ],
+          "severity": "light",
+          "note": "Genre grid; small surface, mostly shared-harness values plus chip padding 7px 14px."
+        },
+        {
+          "file": "docs/design-candidates/discovery/discovery-home-D.html",
+          "offScaleCount": 35,
+          "distinctValues": [
+            2,
+            5,
+            6,
+            7,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            18,
+            20,
+            26,
+            30
+          ],
+          "severity": "heavy",
+          "note": "Discovery home with mood cards + tabs + ranking; dense micro-spacing (2/5/6/7/10/12/13)."
+        },
+        {
+          "file": "docs/design-candidates/discovery/discovery-search-D.html",
+          "offScaleCount": 46,
+          "distinctValues": [
+            2,
+            5,
+            6,
+            9,
+            10,
+            12,
+            14,
+            18,
+            20,
+            22,
+            26,
+            28,
+            30
+          ],
+          "severity": "heavy",
+          "note": "Largest discovery surface (search + filters + results + empty states); ties mokuroku for volume. Repeated margin-top:28px section rhythm."
+        },
+        {
+          "file": "docs/design-candidates/discovery/reading-continuation-D.html",
+          "offScaleCount": 12,
+          "distinctValues": [
+            9,
+            10,
+            12,
+            18,
+            20,
+            26,
+            30,
+            50,
+            60
+          ],
+          "severity": "medium",
+          "note": "Continuation card; 50/60 large vertical rhythm (margin:40px 0 50px, margin:0 24px 60px) plus padding-left:.3em (em, excluded)."
+        }
+      ],
+      "notes": "SCOPE/METHOD: Surveyed all 22 mock HTML files (docs/design-candidates/*.html = 16, discovery/*.html = 6). Extracted every numeric value from padding(-*), margin(-*), gap/row-gap/column-gap in <style> blocks and inline style= attributes; shorthands decomposed per side (e.g. padding:44px 26px 80px -> 44,26,80). Scale = {4,8,16,24,40}. 0/auto treated as on-scale/neutral. Totals: 820 spacing values, of which 234 on-scale and 586 OFF-SCALE (71%). On-scale usage counts: 4=39, 8=79, 16=46, 24=57, 40=13.\n\nKEY FINDING - the mocks do NOT follow the target scale at all: they use a de-facto ~2px-based rhythm. The single biggest offenders are the values that fall in the GAPS of the target scale: 6(x61), 10(x63), 14(x48), 12(x46), 18(x42), 2(x35), 22(x31), 20(x31) -- i.e. 12/20 (which the scale deliberately skips) and the 6/10/14/18/22/26 odd-2 series are pervasive. Remap is systemic, not spot fixes; most files are heavy/medium.\n\nNEAREST tie-breaks (midpoints): 6->8, 12->16, 20->24 chosen upward; adjust if downward rounding is preferred.\n\nHARNESS CAVEAT: A recurring outer scaffold repeats in nearly every file and is presentation chrome, not app tokens: body{padding:26px} (grey page around the phone), .stage{gap:30px} (space between phone mockups), .wrap{gap:9px} (label above phone), .cap{margin-bottom:18px} (caption). These inflate the 26/30/9/18 tallies by roughly one occurrence per file (~15-20 of the 26-count, ~19 of the 30-count, ~20 of the 9-count, ~20 of the 18-count). App-facing off-scale is therefore materially lower for 26/30/9/18; treat those four as partly non-app.\n\nLARGE BOTTOM-INSET values (44/60/70/80/90/92/96/210) are phone-frame top padding and scroll-container bottom padding to clear FAB/bottom-nav/floating panels; they are genuine layout spacing but are structural insets rather than component rhythm -- likely resolved by a few named inset tokens, not the base step scale. 210px (discovery-detail .scroll) and 96px (bookshelf-D .scroll) are the extreme outliers.\n\nHEIGHT/WIDTH (spacer/divider) DISPOSITION: No genuine empty gap-spacer <div>s exist; vertical spacing is done via margin/padding/gap (already counted). Fixed height/width are almost all element dimensions EXCLUDED per brief: device frame (width 372/360/344..352, height 780/800/700/748/752/770/600), header bars (height 34/36/38/40), icons/badges (square 14/15/16/17/18/19/20/21/22/23/25/30/32/35/36/38/44), book covers (46x69, 44x66, 96x54), progress-bar tracks (width 270/328/80/64), grabber handles (width 36 x height 4 -> 4 is on-scale). The only spacing-adjacent height/width are hairline DIVIDERS/accent rules: height 1px (x17), 1.5px (x4), 2px (x19), and vertical accent width 2px (x6). These read as border/line WEIGHT (border-width is excluded by the brief) rather than余白, so I did NOT fold them into distinctOffScale; flagging separately. If the team counts divider heights, add off-scale 1 (+~17), 1.5 (+4 -- notably fractional/off any px grid), 2 (+~25). The 1.5px hairlines (generative/geo, fusion) are the only sub-pixel-grid values.\n\nOTHER EXCLUDED/BORDERLINE (per brief 'notes'): (a) em-based spacing not on the px scale -- reading-D .3em (margin-bottom/reading padding), reading-continuation padding-left:.3em -- excluded as relative units. (b) Negative margin in discovery/bookshelf-fusion-D.html: margin:-8px 0 18px (line 78) -- magnitude 8 is on-scale but the negative overlap is a special case, not a step token; 18 is off-scale and counted. (c) position offsets (top/left/right/bottom coords), border-radius, font-size, line-height, letter-spacing all excluded as instructed. (d) index.html embeds three complete mock variants in one file, which is why its 62 count dwarfs others -- effectively 3 screens' worth."
+    },
+    "composeSurvey": {
+      "surface": "compose",
+      "filesSurveyed": 32,
+      "onScaleAlsoUsed": [
+        4,
+        8,
+        16,
+        24
+      ],
+      "distinctOffScale": [
+        {
+          "value": 2,
+          "count": 7,
+          "nearest": 4,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt:543",
+            "android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt:562",
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryHomeScreen.kt:288",
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryResultScreen.kt:415"
+          ]
+        },
+        {
+          "value": 5,
+          "count": 9,
+          "nearest": 4,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryResultScreen.kt:255",
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoverySearchScreen.kt:660",
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoverySearchScreen.kt:797",
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryHomeScreen.kt:307"
+          ]
+        },
+        {
+          "value": 6,
+          "count": 11,
+          "nearest": 8,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/NcodeLinkSheet.kt:114",
+            "android/app/src/main/java/com/novelreader/ui/ContinuationCard.kt:130",
+            "android/app/src/main/java/com/novelreader/ui/BookCard.kt:297",
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoverySearchScreen.kt:701"
+          ]
+        },
+        {
+          "value": 7,
+          "count": 9,
+          "nearest": 8,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoverySearchScreen.kt:712",
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryResultScreen.kt:192",
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryGenreScreen.kt:130",
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryHomeScreen.kt:358"
+          ]
+        },
+        {
+          "value": 9,
+          "count": 5,
+          "nearest": 8,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/BookCard.kt:250",
+            "android/app/src/main/java/com/novelreader/ui/BookCard.kt:288",
+            "android/app/src/main/java/com/novelreader/ui/WebBookCard.kt:127",
+            "android/app/src/main/java/com/novelreader/ui/BookshelfScreen.kt:988"
+          ]
+        },
+        {
+          "value": 10,
+          "count": 20,
+          "nearest": 8,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryHomeScreen.kt:255",
+            "android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt:493",
+            "android/app/src/main/java/com/novelreader/ui/BookshelfScreen.kt:918",
+            "android/app/src/main/java/com/novelreader/ui/ProcessingBanner.kt:110"
+          ]
+        },
+        {
+          "value": 11,
+          "count": 6,
+          "nearest": 8,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryResultScreen.kt:255",
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryResultScreen.kt:350",
+            "android/app/src/main/java/com/novelreader/ui/WebBookCard.kt:116",
+            "android/app/src/main/java/com/novelreader/ui/BookshelfScreen.kt:983"
+          ]
+        },
+        {
+          "value": 12,
+          "count": 30,
+          "nearest": 16,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoverySearchScreen.kt:298",
+            "android/app/src/main/java/com/novelreader/ui/ContinuationCard.kt:114",
+            "android/app/src/main/java/com/novelreader/ui/ReadingSettingsSheet.kt:210",
+            "android/app/src/main/java/com/novelreader/ui/NcodeLinkSheet.kt:197"
+          ]
+        },
+        {
+          "value": 13,
+          "count": 1,
+          "nearest": 16,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryHomeScreen.kt:283"
+          ]
+        },
+        {
+          "value": 14,
+          "count": 14,
+          "nearest": 16,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/ChapterContent.kt:199",
+            "android/app/src/main/java/com/novelreader/ui/ChapterContent.kt:296",
+            "android/app/src/main/java/com/novelreader/ui/BookshelfScreen.kt:918",
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryGenreScreen.kt:130"
+          ]
+        },
+        {
+          "value": 15,
+          "count": 2,
+          "nearest": 16,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/ChapterContent.kt:214",
+            "android/app/src/main/java/com/novelreader/ui/ChapterContent.kt:277"
+          ]
+        },
+        {
+          "value": 18,
+          "count": 4,
+          "nearest": 16,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/ChapterContent.kt:248",
+            "android/app/src/main/java/com/novelreader/ui/ContinuationCard.kt:209",
+            "android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt:529",
+            "android/app/src/main/java/com/novelreader/ui/discovery/SearchConditionSheet.kt:141"
+          ]
+        },
+        {
+          "value": 20,
+          "count": 12,
+          "nearest": 24,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/ChapterContent.kt:241",
+            "android/app/src/main/java/com/novelreader/ui/BookshelfScreen.kt:725",
+            "android/app/src/main/java/com/novelreader/ui/ContinuationCard.kt:75",
+            "android/app/src/main/java/com/novelreader/ui/NativeTableOfContentsScreen.kt:250"
+          ]
+        },
+        {
+          "value": 22,
+          "count": 3,
+          "nearest": 24,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/components/BookCover.kt:150",
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoverySearchScreen.kt:750",
+            "android/app/src/main/java/com/novelreader/ui/NativeTableOfContentsScreen.kt:293"
+          ]
+        },
+        {
+          "value": 26,
+          "count": 3,
+          "nearest": 24,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/BookshelfScreen.kt:724",
+            "android/app/src/main/java/com/novelreader/ui/BookshelfScreen.kt:969",
+            "android/app/src/main/java/com/novelreader/ui/ChapterContent.kt:199"
+          ]
+        },
+        {
+          "value": 28,
+          "count": 4,
+          "nearest": 24,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/ProcessingBanner.kt:80",
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoverySearchScreen.kt:391",
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoverySearchScreen.kt:416",
+            "android/app/src/main/java/com/novelreader/ui/discovery/DiscoverySearchScreen.kt:441"
+          ]
+        },
+        {
+          "value": 32,
+          "count": 4,
+          "nearest": 40,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/ReadingSettingsSheet.kt:114",
+            "android/app/src/main/java/com/novelreader/ui/NativeTableOfContentsScreen.kt:140",
+            "android/app/src/main/java/com/novelreader/ui/NativeTableOfContentsScreen.kt:268",
+            "android/app/src/main/java/com/novelreader/ui/NcodeLinkSheet.kt:105"
+          ]
+        },
+        {
+          "value": 60,
+          "count": 2,
+          "nearest": 40,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/ContinuationCard.kt:68",
+            "android/app/src/main/java/com/novelreader/ui/ContinuationCard.kt:237"
+          ]
+        },
+        {
+          "value": 64,
+          "count": 1,
+          "nearest": 40,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/ChapterContent.kt:129"
+          ]
+        },
+        {
+          "value": 80,
+          "count": 1,
+          "nearest": 40,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/ChapterContent.kt:130"
+          ]
+        },
+        {
+          "value": 96,
+          "count": 3,
+          "nearest": 40,
+          "exampleLocations": [
+            "android/app/src/main/java/com/novelreader/ui/NativeReadingScreen.kt:1175",
+            "android/app/src/main/java/com/novelreader/ui/BookshelfScreen.kt:723",
+            "android/app/src/main/java/com/novelreader/ui/BookshelfScreen.kt:781"
+          ]
+        }
+      ],
+      "perFile": [
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/discovery/DiscoverySearchScreen.kt",
+          "offScaleCount": 27,
+          "distinctValues": [
+            5,
+            6,
+            7,
+            10,
+            12,
+            14,
+            22,
+            28
+          ],
+          "severity": "high",
+          "note": "最悪。chip/section の padding とヘッダ余白が総崩れ。top=28/bottom=12(391,416,441 の3セクション)、start=12/end=8/top=5/bottom=5(660)、vertical=7(712,726,735)、top=22/bottom=10(750)、top=14/bottom=12(773)、all=12(360)。12 が突出。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt",
+          "offScaleCount": 12,
+          "distinctValues": [
+            2,
+            5,
+            10,
+            12,
+            18,
+            20
+          ],
+          "severity": "high",
+          "note": "メタ行の padding(top=2) が4箇所(543,556,575,588)。spacedBy(10)@493、padding vertical=12@562、horizontal=10 vertical=5@689(既知代表と同型)、top=18@529、top=20@800。size(16)アイコン/BorderStroke/RoundedCornerShape は除外。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/BookshelfScreen.kt",
+          "offScaleCount": 17,
+          "distinctValues": [
+            6,
+            7,
+            9,
+            10,
+            11,
+            12,
+            14,
+            20,
+            26,
+            96
+          ],
+          "severity": "high",
+          "note": "既知の総崩れファイル。グリッド spacedBy(26/20)@724,725,969,972、contentPadding bottom=96@723,781、chip padding 14/10@918、スケルトン Spacer 群 6/7/9/11@986,1018,988,983,1020,1014。height(11)@1040 と width(4)@1009 は要素寸法で除外。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/ContinuationCard.kt",
+          "offScaleCount": 12,
+          "distinctValues": [
+            6,
+            10,
+            12,
+            18,
+            20,
+            60
+          ],
+          "severity": "high",
+          "note": "padding vertical=12 が4箇所(114,151,196,247)、all=20@75/bottom=20@102、bottom=60@68,237(本文下スクロール余白)、vertical=18@209、Spacer width=6@130,165、bottom=10@85。horizontal=bodyMarginDp.dp(67,236)は変数のため対象外。widthIn(max=600)/heightIn(min=48) は除外。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/ChapterContent.kt",
+          "offScaleCount": 12,
+          "distinctValues": [
+            14,
+            15,
+            20,
+            26,
+            64,
+            80
+          ],
+          "severity": "high",
+          "note": "既知の本文レイアウト。contentPadding に +64@129 / +80@130 を加算(status/nav バー基準の本文上下余白)。padding top=14 bottom=26@199、Spacer height=15@214/height=20@241,289、padding=15@277(引用ブロック)、vertical=18@248、bottom=20@272、bottom=14@296,310。horizontal=bodyMarginDp.dp は変数で対象外、width(48)/height(1/2) 区切り装飾は除外。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryResultScreen.kt",
+          "offScaleCount": 11,
+          "distinctValues": [
+            2,
+            5,
+            7,
+            10,
+            11,
+            20
+          ],
+          "severity": "high",
+          "note": "既知代表 padding(horizontal=11, vertical=5) が3箇所(255,350,373)。FlowRow spacedBy(7)@192,193、chip 列 vertical=10@191、padding top=2 bottom=4@415、vertical=20@497。size(28) プログレスは除外。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/NcodeLinkSheet.kt",
+          "offScaleCount": 9,
+          "distinctValues": [
+            6,
+            10,
+            12,
+            32
+          ],
+          "severity": "medium",
+          "note": "bottom=32@105(シート下余白)、bottom=6@114,131,344、vertical=12@197,294 と Spacer 12@228,388、vertical=10@404。size(48/24)アイコン、height(120)、heightIn(max=360)、sizeIn(min=48) は除外。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryHomeScreen.kt",
+          "offScaleCount": 11,
+          "distinctValues": [
+            2,
+            5,
+            6,
+            7,
+            10,
+            12,
+            13,
+            14
+          ],
+          "severity": "high",
+          "note": "ランキング行が離散値だらけ。vertical=13@283、top=2@288、start=12/end=8@293、top=5@307、top=10 bottom=6@342、chip 14/7@358、top=10@254 と spacedBy(10)@255、chip padding 12/10@412。indicator height=2@388 と divider height(30)/width(2) は除外。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/BookCard.kt",
+          "offScaleCount": 8,
+          "distinctValues": [
+            6,
+            9,
+            10,
+            14
+          ],
+          "severity": "medium",
+          "note": "シール位置 padding start=9 bottom=9@250、Spacer height=9@288/height=6@297,408、width=14@392、start=10@424(著者有無で 10/0 分岐)、Spacer height=10@429。elevation(8/6)@234、size(6/19)、width(4/80)/height(2) は除外。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/ProcessingBanner.kt",
+          "offScaleCount": 6,
+          "distinctValues": [
+            10,
+            12,
+            14,
+            20,
+            28
+          ],
+          "severity": "medium",
+          "note": "padding horizontal=20 vertical=14@102、contentPadding vertical=12@151、Spacer height=28@80/width=10@110/height=10@157。strokeWidth(3/2)、size(140/18/10)、height(4/2) 要素・RoundedCornerShape は除外。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/ReadingSettingsSheet.kt",
+          "offScaleCount": 4,
+          "distinctValues": [
+            12,
+            32
+          ],
+          "severity": "medium",
+          "note": "bottom=32@114(シート下余白)、スライダ行 padding horizontal=12@210,244,275。他の Spacer/spacedBy/padding は全て 8/16/24 でオンスケール。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/NativeTableOfContentsScreen.kt",
+          "offScaleCount": 5,
+          "distinctValues": [
+            20,
+            22,
+            32
+          ],
+          "severity": "medium",
+          "note": "見出し padding horizontal=32@140、行 padding horizontal=20@250、スケルトン padding horizontal=20 vertical=22@293、末尾 Spacer height=32@268。thickness(0.5)、width(4)、height(14)、RoundedCornerShape は除外。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/WebBookCard.kt",
+          "offScaleCount": 5,
+          "distinctValues": [
+            6,
+            9,
+            10,
+            14
+          ],
+          "severity": "medium",
+          "note": "Spacer height=11@116/height=9@127/height=6@219/height=10@228、width=14@206。thickness(1)、width(4) アクセントバー、RoundedCornerShape は除外。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryCommon.kt",
+          "offScaleCount": 4,
+          "distinctValues": [
+            2,
+            5,
+            7,
+            10
+          ],
+          "severity": "medium",
+          "note": "空状態/ヘッダの padding top=2@110、top=5@123、top=7@151、spacedBy(10)@152。width(34)、height(160) プレースホルダ、padding(24)@212 オンスケールは除外/対象外。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/components/BookCover.kt",
+          "offScaleCount": 3,
+          "distinctValues": [
+            10,
+            14,
+            22
+          ],
+          "severity": "medium",
+          "note": "しおり padding start=10@123(装飾線オフセット)、タイトル padding start=22 end=14 top=14 bottom=16@150。width(2) 装飾線は除外。迷い: 123/150 は書影内の装飾要素配置目的。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/discovery/SearchConditionSheet.kt",
+          "offScaleCount": 5,
+          "distinctValues": [
+            10,
+            12,
+            14,
+            18
+          ],
+          "severity": "medium",
+          "note": "ヘッダ padding horizontal=24 vertical=18@141、セクション見出し bottom=10@375,450、top=14@635、top=12@656。多数の spacedBy(8) はオンスケール。drag handle width(36)/height(4)、height(24)@615 要素は除外。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryGenreScreen.kt",
+          "offScaleCount": 3,
+          "distinctValues": [
+            7,
+            10,
+            14
+          ],
+          "severity": "low",
+          "note": "セクション padding bottom=10@91、chip padding horizontal=14 vertical=7@130。spacedBy(8)/padding(24) はオンスケール、border width(1) は除外。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/NativeReadingScreen.kt",
+          "offScaleCount": 1,
+          "distinctValues": [
+            96
+          ],
+          "severity": "low",
+          "note": "オーバーレイ padding bottom=96@1175(FAB/操作バー回避の下余白)。他の padding は 16/8 オンスケール。"
+        }
+      ],
+      "notes": "悉皆調査完了。ui/ 配下32ファイル(*.kt)、\\\".dp\\\" 全454行を精査。うち import 32行を除く。オフスケール(離散スケール {4/8/16/24/40} 非該当)のレイアウト余白リテラルは合計 約151occurrence、21種の値。\n\n対象判定: Modifier.padding / PaddingValues / contentPadding / Arrangement.spacedBy / Spacer(height/width) のみ計上。除外: border/BorderStroke width, HorizontalDivider thickness, strokeWidth, RoundedCornerShape(cornerRadius), elevation, 要素寸法(.size/.width/.height の書影・アイコン・区切り装飾・スケルトン・プログレス・ドラッグハンドル)、最小タップ領域(.sizeIn/.heightIn min=48), .widthIn(max=600)/.heightIn(max) 制約, GridCells.Adaptive(minSize).\n\nnearest の同距離(タイ)は上位側へ丸めた: 6→8, 12→16, 20→24, 32→40。これらは実質どちらにも寄せられる境界値。特に 12 は最多(count=30)かつ 8/16 タイで、再設計時の割当方針を最初に決めるべき最重要値。\n\n上位オフスケール値: 12(30) > 10(20) > 14(14) > 20(12) > 6(11) > 5(9)=7(9) > 2(7)。小さな微調整値(2,5,6,7,9,10,11)がカード/チップ/リスト行で乱立し、中位値(12,14)が padding の事実上の標準になっている実態。\n\nオンスケール併用: 4/8/16/24 は多数使用。40.dp は spacing リテラルとして一度も出現せず(140.dp=要素サイズのみ)。\n\n変数余白(literalでないため未計上、要注意): ContinuationCard.kt:67,236 と ChapterContent.kt:170,198 の .padding(horizontal = bodyMarginDp.dp) は本文左右マージン設定(ReadingSettings 由来の可変値)。離散スケール化の際は別軸として扱う必要あり。\n\n境界的に除外したもの(notesとして): BookCover.kt:123/150 と BookCard.kt:250 は Modifier.padding だが書影/シール等の装飾要素の配置オフセット目的(レイアウト余白かデザイン装飾か曖昧)。ChapterContent.kt:129/130 の +64/+80.dp は WindowInsets 加算の本文コンテンツ余白で、実質 contentPadding 相当のため計上。BookCard.kt:424 の else 0.dp と ChapterContent.kt:275 RoundedCornerShape(0.dp) は 0 のため非オフスケール扱い。DiscoveryHomeScreen.kt:383 edgePadding=24.dp はレイアウト余白だがオンスケール。"
+    },
+    "synth": {
+      "unifiedInventory": [
+        {
+          "value": 1,
+          "mockCount": 7,
+          "composeCount": 0,
+          "proposedMapping": 4,
+          "visualRisk": "high",
+          "rationale": "gap:1px の一覧セパレータ／チップ極小padding。4へ折ると密なリスト・チップの体感密度が別物になる。半数はヘアライン区切り＝spacingでなくborder/0扱いが正解（近接=グループ化を壊さないため丸め対象から外すべき候補）。"
+        },
+        {
+          "value": 2,
+          "mockCount": 35,
+          "composeCount": 7,
+          "proposedMapping": 4,
+          "visualRisk": "medium",
+          "rationale": "事実上の2px基調の最小単位。gap/微padが偏在。倍化(2→4)は多くは無害だがチップ縦pad 2→4は行高が目立って伸びる。DiscoveryHome/Detailのメタ行top=2など近接演出は要目視。"
+        },
+        {
+          "value": 2.5,
+          "mockCount": 2,
+          "composeCount": 0,
+          "proposedMapping": 4,
+          "visualRisk": "low",
+          "rationale": "index.htmlのchip padのみの小数値。pxグリッド外の唯一級のノイズ、4へ吸収して問題なし。"
+        },
+        {
+          "value": 3,
+          "mockCount": 10,
+          "composeCount": 0,
+          "proposedMapping": 4,
+          "visualRisk": "low",
+          "rationale": "小gap。4へ寄せて実質差なし。"
+        },
+        {
+          "value": 5,
+          "mockCount": 16,
+          "composeCount": 9,
+          "proposedMapping": 4,
+          "visualRisk": "medium",
+          "rationale": "下丸め(5→4)。既知代表 padding(horizontal=11,vertical=5) 系のチップが縮む方向。単体は微だがチップ量産箇所で累積。"
+        },
+        {
+          "value": 6,
+          "mockCount": 61,
+          "composeCount": 11,
+          "proposedMapping": 8,
+          "visualRisk": "high",
+          "rationale": "モック最多帯の一つ。カード/リストgapに偏在し6→8で全面+33%緩む。累積の見えの変化が大きい代表値。"
+        },
+        {
+          "value": 7,
+          "mockCount": 13,
+          "composeCount": 9,
+          "proposedMapping": 8,
+          "visualRisk": "medium",
+          "rationale": "chip縦pad中心。7→8は単体微だがジャンル/ランキングchipで反復。"
+        },
+        {
+          "value": 9,
+          "mockCount": 34,
+          "composeCount": 5,
+          "proposedMapping": 8,
+          "visualRisk": "medium",
+          "rationale": "モック34の多くは.wrap gap=9のハーネス（非アプリ）。アプリ面はBookCardシールpad等で9→8は微。"
+        },
+        {
+          "value": 10,
+          "mockCount": 63,
+          "composeCount": 20,
+          "proposedMapping": 8,
+          "visualRisk": "high",
+          "rationale": "両面で最頻級(mock63/compose20)。10→8で全面-20%詰まる。mood/section gapに偏在、密度が一段締まって見える。方向を全体で先に決めるべき。"
+        },
+        {
+          "value": 11,
+          "mockCount": 13,
+          "composeCount": 6,
+          "proposedMapping": 8,
+          "visualRisk": "medium",
+          "rationale": "nearest=8で-27%詰まる。既知代表pad(horizontal=11)のチップ幅が縮む。"
+        },
+        {
+          "value": 12,
+          "mockCount": 46,
+          "composeCount": 30,
+          "proposedMapping": 16,
+          "visualRisk": "high",
+          "rationale": "【最重要】Compose最頻オフスケール(30)・8と16の完全タイ。padの事実上標準。12→16で+33%緩み、12→8で-33%詰まる。どちらも構図が動く。再設計で最初に方針決定すべき値＝scaleGapsの筆頭。"
+        },
+        {
+          "value": 13,
+          "mockCount": 13,
+          "composeCount": 1,
+          "proposedMapping": 16,
+          "visualRisk": "medium",
+          "rationale": "12帯の近縁。12の裁定に追従させる。"
+        },
+        {
+          "value": 14,
+          "mockCount": 48,
+          "composeCount": 14,
+          "proposedMapping": 16,
+          "visualRisk": "high",
+          "rationale": "モック48・padの事実上標準の一つ。14→16は距離2で小さいが本文/タイトル/chipに広く効き累積が大。ChapterContent本文余白に効くため要目視。"
+        },
+        {
+          "value": 15,
+          "mockCount": 5,
+          "composeCount": 2,
+          "proposedMapping": 16,
+          "visualRisk": "low",
+          "rationale": "16直近。ChapterContent引用ブロック等、15→16は実質差なし。"
+        },
+        {
+          "value": 17,
+          "mockCount": 1,
+          "composeCount": 0,
+          "proposedMapping": 16,
+          "visualRisk": "low",
+          "rationale": "readability版の1回のみの奇値。16へ吸収。"
+        },
+        {
+          "value": 18,
+          "mockCount": 42,
+          "composeCount": 4,
+          "proposedMapping": 16,
+          "visualRisk": "medium",
+          "rationale": "16-24帯、16寄り(距離2)。モック42のうちハーネス.cap=18が約20を占め非アプリ。アプリ面18→16は微だがChapterContent縦pad等で効く。"
+        },
+        {
+          "value": 19,
+          "mockCount": 1,
+          "composeCount": 0,
+          "proposedMapping": 16,
+          "visualRisk": "low",
+          "rationale": ".fab pad唯一。16へ。"
+        },
+        {
+          "value": 20,
+          "mockCount": 31,
+          "composeCount": 12,
+          "proposedMapping": 24,
+          "visualRisk": "high",
+          "rationale": "【重要】16と24の完全タイ。gridカラムgap・章間・カード内。20→24で+20%緩み、20→16で-20%詰まる。12と並ぶタイ帯の決定対象。"
+        },
+        {
+          "value": 21,
+          "mockCount": 1,
+          "composeCount": 0,
+          "proposedMapping": 24,
+          "visualRisk": "low",
+          "rationale": "readability版1回。24へ。"
+        },
+        {
+          "value": 22,
+          "mockCount": 31,
+          "composeCount": 3,
+          "proposedMapping": 24,
+          "visualRisk": "medium",
+          "rationale": "24寄り(距離2)。タイトル/カバー内padで反復。22→24は微だが本棚タイトル枠の見えに効く。"
+        },
+        {
+          "value": 26,
+          "mockCount": 37,
+          "composeCount": 3,
+          "proposedMapping": 24,
+          "visualRisk": "medium",
+          "rationale": "モック37の大半はbody padding=26のハーネス（非アプリ・約15-20件）。アプリ面26→24は微。ChapterContent/Bookshelfのグリッドgap 26は要目視。"
+        },
+        {
+          "value": 28,
+          "mockCount": 8,
+          "composeCount": 4,
+          "proposedMapping": 24,
+          "visualRisk": "medium",
+          "rationale": "24-40帯・24寄り。discovery-searchのmargin-top:28セクションリズム、28→24で-14%詰まる反復箇所。"
+        },
+        {
+          "value": 30,
+          "mockCount": 19,
+          "composeCount": 0,
+          "proposedMapping": 24,
+          "visualRisk": "medium",
+          "rationale": "モック19の大半は.stage gap=30ハーネス（非アプリ）。アプリ面30は少なく24へ寄せて可。"
+        },
+        {
+          "value": 32,
+          "mockCount": 0,
+          "composeCount": 4,
+          "proposedMapping": 40,
+          "visualRisk": "high",
+          "rationale": "【scaleGap】24と40のほぼタイ(距離8/8)。シート下余白・TOC見出しpad。40は緩すぎ24は詰まりすぎでどちらも不自然になりやすい＝32をスケールへ足す最有力の実務根拠。"
+        },
+        {
+          "value": 34,
+          "mockCount": 12,
+          "composeCount": 0,
+          "proposedMapping": 40,
+          "visualRisk": "medium",
+          "rationale": ".stage gap主体でハーネス寄り。34→40は+18%。"
+        },
+        {
+          "value": 36,
+          "mockCount": 3,
+          "composeCount": 0,
+          "proposedMapping": 40,
+          "visualRisk": "low",
+          "rationale": "section margin少数。40へ。"
+        },
+        {
+          "value": 44,
+          "mockCount": 10,
+          "composeCount": 0,
+          "proposedMapping": 40,
+          "visualRisk": "low",
+          "rationale": "phoneフレーム上pad/bottom-nav基準の構造インセット。base scale対象外＝命名インセットトークンで扱うべき（40は名目上の最近接）。"
+        },
+        {
+          "value": 50,
+          "mockCount": 1,
+          "composeCount": 0,
+          "proposedMapping": 40,
+          "visualRisk": "low",
+          "rationale": "continuationの縦リズム1回。構造余白寄り。"
+        },
+        {
+          "value": 56,
+          "mockCount": 3,
+          "composeCount": 0,
+          "proposedMapping": 40,
+          "visualRisk": "low",
+          "rationale": "grid row-gap/大margin。geo系のみ。インセット/大リズム扱い。"
+        },
+        {
+          "value": 60,
+          "mockCount": 3,
+          "composeCount": 2,
+          "proposedMapping": 40,
+          "visualRisk": "medium",
+          "rationale": "空状態pad・ContinuationCard本文下余白。60→40は大ジャンプ＝base scaleでなく命名インセット（空状態/スクロール下端）で扱うのが妥当。"
+        },
+        {
+          "value": 64,
+          "mockCount": 0,
+          "composeCount": 1,
+          "proposedMapping": 40,
+          "visualRisk": "low",
+          "rationale": "ChapterContentの+64はWindowInsets加算の本文上余白＝ステータスバー基準の派生値。base scale対象外（変数/インセット軸）。"
+        },
+        {
+          "value": 70,
+          "mockCount": 5,
+          "composeCount": 0,
+          "proposedMapping": 40,
+          "visualRisk": "low",
+          "rationale": "phone bottom構造インセット。命名インセットトークン化。"
+        },
+        {
+          "value": 80,
+          "mockCount": 1,
+          "composeCount": 1,
+          "proposedMapping": 40,
+          "visualRisk": "low",
+          "rationale": "phone下インセット/ChapterContent +80(navバー基準)。構造・派生値でbase scale対象外。"
+        },
+        {
+          "value": 90,
+          "mockCount": 6,
+          "composeCount": 0,
+          "proposedMapping": 40,
+          "visualRisk": "low",
+          "rationale": "phone bottom/リスト下インセット。命名インセットトークン化。"
+        },
+        {
+          "value": 92,
+          "mockCount": 3,
+          "composeCount": 0,
+          "proposedMapping": 40,
+          "visualRisk": "low",
+          "rationale": "スクロール下端インセット（bottom-nav回避）。ScrollBottom系インセットトークン。"
+        },
+        {
+          "value": 96,
+          "mockCount": 1,
+          "composeCount": 3,
+          "proposedMapping": 40,
+          "visualRisk": "low",
+          "rationale": "スクロール下端インセット（FAB/操作バー回避）。Compose実配線あり＝ScrollBottomForFab等の命名インセットで固定すべき。"
+        },
+        {
+          "value": 210,
+          "mockCount": 1,
+          "composeCount": 0,
+          "proposedMapping": 40,
+          "visualRisk": "low",
+          "rationale": "discovery-detailのfloating-panelクリアランス最大外れ値。base scale絶対対象外＝専用インセットトークン必須（丸め不可）。"
+        }
+      ],
+      "scaleGaps": "スケール {4/8/16/24/40} は幾何ステップが不均一（4→8=2x, 8→16=2x, 16→24=1.5x, 24→40=1.67x）で、実データの密集帯とちょうど噛み合っていない。実務で苦しい所は3点。\n\n(1) 8↔16 の谷（最大の問題）: 現場で最頻の 10(mock63/compose20)・12(mock46/compose30=Compose首位)・14(mock48/compose14) の\"三段の密度階層\"が、8か16の二択に潰れる。特に 12 は 8/16 の完全タイで、8に寄せれば全カード/チップ/シート内側が詰まり、16に寄せれば全面が緩む。中間密度（標準padの体感）を表す語彙がスケールから消える。\n\n(2) 24↔40 の谷: 26/28/30/32/34 のセクションリズム帯が受け皿を失う。32 は 24/40 のほぼタイ（距離8/8）で、シート下余白・TOC見出しに実在するのに 24=詰まりすぎ/40=空きすぎのどちらかしか選べない。\n\n(3) 16↔24 帯（18/20/22）: 20 が 16/24 完全タイ。gridカラムgap・章間で構図の呼吸に効くため丸め方向で見えが動く。\n\n監督への含意: §C維持は原則として妥当だが、データ上の最小拡張は {4/8/**12**/16/24/**32**/40}。12 と 32 の2値追加だけで最頻オフスケール(12 count76)とタイ最悪の32を吸収でき、他は近接丸めで無害化できる。§C改訂を再提案するなら「12・32の2値限定追加」が費用対効果最大の材料。full 4px刻み(4/8/12/16/20/24/28/32/36/40)は\"離散スケールの規律\"自体を骨抜きにするので非推奨。",
+      "reworkRanking": [
+        {
+          "file": "docs/design-candidates/index.html",
+          "severity": "heavy(要精査・実質skip候補)",
+          "why": "off-scale 62で最多だが3変種を1ファイルに埋め込んだギャラリー指標＝実画面3枚分の水増し。正本でないため再設計対象から外し、正本モックを個別に直すのが正。"
+        },
+        {
+          "file": "docs/design-candidates/discovery/discovery-search-D.html",
+          "severity": "heavy",
+          "why": "正本かつ最大級(off-scale46)。検索+フィルタ+結果+空状態でmargin-top:28リズムと2/5/6/12微padが総崩れ。構図の再設計が要る。Compose対応のDiscoverySearchScreen(27)と両輪。"
+        },
+        {
+          "file": "docs/design-candidates/bookshelf-mokuroku-D.html",
+          "severity": "heavy",
+          "why": "正本の目録レイアウト(off-scale46)。密リストの2/6/10微gapが偏在、離散化で行の近接/区切りの意味が動く＝構図判断が要る。"
+        },
+        {
+          "file": "docs/design-candidates/discovery/discovery-home-D.html",
+          "severity": "heavy",
+          "why": "正本(off-scale35)。mood card+tab+ranking の2/5/6/7/10/12/13密集。ランキング行が離散値だらけでComposeのDiscoveryHomeScreen(11)と同型。"
+        },
+        {
+          "file": "docs/design-candidates/bookshelf-D.html",
+          "severity": "heavy",
+          "why": "D本棚の正本(off-scale20、ただしbody26/stage30/wrap9のハーネス込み)。.fab=19/.scroll inset=96の一点物あり。全画面の骨格なので最優先で確定させる。"
+        },
+        {
+          "file": "docs/design-candidates/reading-D.html",
+          "severity": "medium",
+          "why": "正本の読書画面(off-scale19)。em基準の本文組版は除外済で純余白は中量。92はスクロール下端インセット(トークン化)。"
+        },
+        {
+          "file": "docs/design-candidates/settings-D.html",
+          "severity": "medium",
+          "why": "正本(off-scale12・distinct7と少)。行margin 10/20の付替え中心、構図再設計は不要。"
+        },
+        {
+          "file": "docs/design-candidates/toc-D.html",
+          "severity": "light",
+          "why": "正本で最小面(off-scale7・大半ハーネス26/30/9)。数点の付替え。"
+        },
+        {
+          "file": "docs/design-candidates/bookshelf-shiori-consistency-D.html",
+          "severity": "medium",
+          "why": "正本(SHELF_FILES)。名は'consistency'だがdistinct13、44/70インセット含む値付替え多数。"
+        },
+        {
+          "file": "docs/design-candidates/bookshelf-shiori-grid-D.html",
+          "severity": "medium",
+          "why": "正本(STANDARD_FILES)。24px16pxのon/off混在grid gap、distinct15と再利用低く付替え多数。"
+        },
+        {
+          "file": "docs/design-candidates/bookshelf-geo-D / bookshelf-generative-directions-D / bookshelf-shoka-D / bookshelf-mokuroku-readability-D / bookshelf-cover-D / bookshelf-shiori-palette-D / _brief-cover-onepoint-D / shiori-tips-D",
+          "severity": "heavy/medium(ただし探索資産・低優先/skip検討)",
+          "why": "off-scaleは重い(geo/gen-dir各32,shoka37,readability38)が check_design_tokens の正本セット外＝探索/歴史変種。正本を直す価値のみ波及。監督は正本に絞り、これらは離散化対象から外すか正本確定後に一括翻訳する判断を。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/discovery/DiscoverySearchScreen.kt",
+          "severity": "heavy(Compose最悪)",
+          "why": "off-scale27。chip/sectionのpadとヘッダ余白が総崩れ、12突出。値の付替え多数＋28/12/5/7の帯判断が集中。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/BookshelfScreen.kt",
+          "severity": "heavy",
+          "why": "off-scale17。grid spacedBy(26/20)・contentPadding bottom=96・スケルトンSpacer群6/7/9/11。インセット96はトークン化、grid 20/26はタイ帯判断。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/ChapterContent.kt",
+          "severity": "heavy",
+          "why": "off-scale12。本文レイアウトの14/15/20/26に加え+64/+80のWindowInsets加算＝別軸(インセット/変数)分離が要る。可読性直結で要実機目視。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/ContinuationCard.kt",
+          "severity": "heavy",
+          "why": "off-scale12。vertical=12が4箇所・bottom=60本文下余白・vertical=18/20。60はインセットトークン、12は帯判断。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt",
+          "severity": "heavy",
+          "why": "off-scale12。メタ行top=2が4箇所・spacedBy(10)・vertical=12・top=18/20。微pad2の近接演出が要目視。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryResultScreen.kt / DiscoveryHomeScreen.kt",
+          "severity": "high",
+          "why": "各off-scale11。既知代表pad(horizontal=11,vertical=5)とランキング行の2/5/6/7/10/12/13/14。付替え多数＋帯判断集中。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/{NcodeLinkSheet,ProcessingBanner,ReadingSettingsSheet,NativeTableOfContentsScreen,WebBookCard,BookCard,DiscoveryCommon,SearchConditionSheet,components/BookCover}.kt",
+          "severity": "medium",
+          "why": "各off-scale3-9。シート下余白32・chip pad14/7・Spacer微値等の付替え。構図変更なし、SpacingTokens導入で機械的に潰せる層。"
+        },
+        {
+          "file": "android/app/src/main/java/com/novelreader/ui/{DiscoveryGenreScreen,NativeReadingScreen}.kt",
+          "severity": "light",
+          "why": "off-scale1-3。chip pad14/7、オーバーレイbottom=96(インセット)のみ。数点。"
+        }
+      ],
+      "toolingNote": "現状 check_design_tokens.py は色/字面スロットのみ（Spacing検査なし）。方針は「色のような変数名対応がモックCSSに無い」ため色と同じ等値照合ではなく**集合membership+トークン参照のlint**（font-size検査と同じ\"集合への実在\"系）。theme/Spacing.kt に object Spacing{val XS=4.dp;S=8;M=16;L=24;XL=40.dp}（用途を日本語コメント）＋構造インセット(44/60/70/90/92/96/210/+64/+80)は base scale外として別 object Insets{ScrollBottomForBottomNav/ForFab/FloatingPanelClearance}で命名しallowlist。checker拡張は2フェーズ: (a)正本モック(STANDARD/SHELF+reading-D)のpadding/margin/gap pxが scale∪インセット外ならNG・探索変種はスコープ外, (b)ui/配下のModifier.padding/PaddingValues/contentPadding/spacedBy/Spacer の.dpリテラルが Spacing.*参照か scale∪Insets外ならNG。除外規則は今回の悉皆調査の方法論と厳密一致させる（border/stroke/elevation/RoundedCornerShape/要素寸法/最小タップsizeIn48/widthIn(max)/変数bodyMarginDp/WindowInsets加算/0・auto）＝一致しないと偽陽性で溺れる。ヘアライン1/1.5/2pxは線の太さで余白でないため spacing lintに混ぜない。この形で色検査と同粒度の drift 機械検知が効く。",
+      "summary": "監督が着手前に決めるべきは\"帯の丸め方向\"で、値の付替えより先。まず 12(8|16タイ・Compose首位76件)・20(16|24タイ)・32(24|40タイ)の3タイ値の割当をADRレベルで一括確定する（データ的には §C を {4/8/12/16/24/32/40} へ最小拡張=12/32の2値追加が費用対効果最大なので、§C改訂の再提案可否をここで判断）。次に theme/Spacing.kt+Insets を彫り check_design_tokens.py に上記2フェーズlintを足して\"機械ガード下で再設計\"する足場を作る。その上で正本モックのみ（bookshelf-D/discovery-home・search-D/reading-D/toc-D/settings-D/mokuroku・shiori正本）を離散化し、Compose翻訳は最重量の DiscoverySearchScreen→BookshelfScreen→ChapterContent の順で。探索変種モック(geo/generative-directions/shoka/readability等)はoff-scaleが重くても正本外なので対象から外し、正本確定後に一括翻訳するか破棄を判断する。"
+    }
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Survey"
+    },
+    {
+      "type": "workflow_phase",
+      "index": 2,
+      "title": "Synthesize"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "survey:mock",
+      "phaseIndex": 1,
+      "phaseTitle": "Survey",
+      "agentId": "a11ce21379029b1ed",
+      "agentType": "Explore",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1783858866292,
+      "queuedAt": 1783858864102,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "mock",
+      "promptPreview": "あなたは日本語Web小説リーダーAndroidアプリのデザイン監査担当。タスク「F 余白の離散スケール再設計」の悉皆調査を行う。\n\n## 目的\nリポジトリ内の HTMLモック正本（docs/design-candidates/ 直下と docs/design-candidates/discovery/ 配下の全 *.html）で使われている**レイアウト余白**（CSS の padding / margin / gap / row-gap / column-gap、および Spacer 相当の固定 width/height）の値を全数列挙し、離散スケール {4 / 8 / 16 / 24 / 40} px に載っていない「任意値（off-scale）」を洗い出す。\n\n## 対象と除外\n- 対象プロパティ: padding(-*), margin(-*), gap / row-gap / c…",
+      "lastProgressAt": 1783859256055,
+      "tokens": 42563,
+      "toolCalls": 9,
+      "durationMs": 389760,
+      "resultPreview": "{\"surface\":\"mock\",\"filesSurveyed\":22,\"onScaleAlsoUsed\":[4,8,16,24,40],\"distinctOffScale\":[{\"value\":1,\"count\":7,\"nearest\":4,\"exampleLocations\":[\"bookshelf-mokuroku-D.html: .list gap:1px\",\"_brief-cover-onepoint-D.html: padding:1px 6px (chip)\",\"bookshelf-shoka-D.html: padding:1px 5px (badge)\"]},{\"value\":2,\"count\":35,\"nearest\":4,\"exampleLocations\":[\"bookshelf-D.html: .top .acts gap:2px\",\"discovery/dis…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "survey:compose",
+      "phaseIndex": 1,
+      "phaseTitle": "Survey",
+      "agentId": "a9045d08e170be355",
+      "agentType": "Explore",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1783858867975,
+      "queuedAt": 1783858864103,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "compose",
+      "promptPreview": "あなたは日本語Web小説リーダーAndroidアプリのコード監査担当。タスク「F 余白の離散スケール再設計」の Compose 側悉皆調査を行う。\n\n## 目的\nandroid/app/src/main/java/com/novelreader/ui 配下の全 Kotlin (*.kt, 32ファイル程度) で使われている**レイアウト余白**の dp リテラルを全数列挙し、離散スケール {4 / 8 / 16 / 24 / 40} dp に載っていない「任意値(off-scale)」を洗い出す。\n\n## 対象と除外\n- 対象: Modifier.padding(...) / PaddingValues(...) / Arrangement.spacedBy(N.dp) / Spacer(Modifier.height(N.dp)/width(N.dp)) / .size で間隔目的のもの…",
+      "lastProgressAt": 1783859194479,
+      "tokens": 75338,
+      "toolCalls": 7,
+      "durationMs": 326504,
+      "resultPreview": "{\"surface\":\"compose\",\"filesSurveyed\":32,\"onScaleAlsoUsed\":[4,8,16,24],\"distinctOffScale\":[{\"value\":2,\"count\":7,\"nearest\":4,\"exampleLocations\":[\"android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt:543\",\"android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt:562\",\"android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryHomeScreen.kt:288\",\"android/…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "synthesize",
+      "phaseIndex": 2,
+      "phaseTitle": "Synthesize",
+      "agentId": "a6a0337046df6182e",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1783859259494,
+      "queuedAt": 1783859258004,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "スケール {4/8/16/24/40} は幾何ステップが不均一（4→8=2x, 8→1…",
+      "promptPreview": "あなたはこのアプリの意匠監督(Claude)の補助。F余白離散化タスクの2面の悉皆調査結果を統合し、判断材料を作る。\n\n## 前提(意匠原則・変えてはいけない制約)\n- ADR 0014 §C 禁止則: 「余白は離散スケール(4 / 8 / 16 / 24 / 40 dp)のみ。任意値禁止。要素追加のために既存余白を縮める変更は原則否」。\n- ユーザー裁定(確認バッチF): 「モック作り直し(離散スケール準拠へ再設計)＝§C 原則維持」。つまりスケール {4 / 8 / 16 / 24 / 40} は確定で、モック/コードをこれに合わせて再設計する。スケール自体は増やさない前提。\n- 原則2「余白は要素である」: 余白を削って詰める方向のマッピングは、構図の意味(近接=グループ化, 余白=区切り)を壊しうる。丸めで意味が変わる箇所は必ず visualRisk に上げる。\n\n## 入力(悉皆…",
+      "lastProgressAt": 1783859524017,
+      "tokens": 53057,
+      "toolCalls": 4,
+      "durationMs": 264523,
+      "resultPreview": "{\"unifiedInventory\":[{\"value\":1,\"mockCount\":7,\"composeCount\":0,\"proposedMapping\":4,\"visualRisk\":\"high\",\"rationale\":\"gap:1px の一覧セパレータ／チップ極小padding。4へ折ると密なリスト・チップの体感密度が別物になる。半数はヘアライン区切り＝spacingでなくborder/0扱いが正解（近接=グループ化を壊さないため丸め対象から外すべき候補）。\"},{\"value\":2,\"mockCount\":35,\"composeCount\":7,\"proposedMapping\":4,\"visualRisk\":\"medium\",\"rationale\":\"事実上の2px基調の最小単位。gap/微padが偏在。倍化(2→4)は多くは無害だがチップ縦pad 2→4は行高が目立って伸…"
+    }
+  ],
+  "totalTokens": 170958,
+  "totalToolCalls": 20
+}

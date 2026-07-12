@@ -1,0 +1,209 @@
+<!-- @dsCard group="UI-n / 発見（api-lab）" name="D. 発見帯の再配置 試作（C②）× 栞書影（現行正本）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C② 発見帯の再配置 試作 × 栞書影 — 和モダン余白</title>
+<style>
+  /* 現行本棚グリッド正本＝bookshelf-shiori-grid-D（栞書影・canvas描画）を流用し、
+     C②「発見帯の再配置」の4骨格を当てる。書影・状態・朱印は正本と同一エンジン。 */
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;--seiji:#9CB3A8;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.7;max-width:960px}
+  .cap b{color:#2A2C28}
+  .lead{color:#6A6C67;font-size:12px;margin-bottom:20px;text-align:center;line-height:1.7;max-width:960px}
+  .stage{display:flex;gap:24px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:10px;width:340px}
+  .wrap .mode{font-size:12.5px;letter-spacing:.1em;color:#3A3C38;font-weight:600}
+  .wrap .sub{font-size:11.5px;color:#6A6C67;line-height:1.6;text-align:center;min-height:56px}
+  .wrap .sub b{color:#2A2C28}
+  .phone{width:340px;height:660px;background:var(--base);border-radius:36px;overflow:hidden;position:relative;
+    box-shadow:0 16px 40px rgba(0,0,0,.24);display:flex;flex-direction:column;color:var(--ink)}
+  .sb{height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--ink-soft);flex-shrink:0}
+  .top{padding:8px 24px 14px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
+  .top h1{font-family:var(--mincho);font-size:25px;font-weight:500;letter-spacing:.14em}
+  .acts{display:flex;gap:2px}
+  .ib{width:36px;height:36px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:inherit;cursor:pointer}
+  .ib svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .scroll{flex:1;overflow:auto;padding:0 24px 40px;scrollbar-width:none;position:relative}.scroll::-webkit-scrollbar{display:none}
+
+  /* 発見帯（現状の箱型） */
+  .find-guide{display:flex;align-items:center;border:1px solid var(--line);border-radius:2px;padding:10px 14px;margin-bottom:20px;cursor:pointer}
+  .find-guide .fi{width:15px;height:15px;stroke:var(--ink-soft);fill:none;stroke-width:2;margin-right:8px}
+  .find-guide .txt{font-size:12.5px;color:var(--ink);flex:1}
+  .find-guide .ar{width:14px;height:14px;stroke:var(--ink-soft);fill:none;stroke-width:2}
+  /* 状態フィルタ行 */
+  .filters{display:flex;gap:8px;overflow-x:auto;margin-bottom:18px;scrollbar-width:none}.filters::-webkit-scrollbar{display:none}
+  .fchip{font-size:11.5px;color:var(--ink-soft);border:1px solid var(--line);border-radius:2px;padding:6px 12px;white-space:nowrap;flex-shrink:0}
+  .fchip.on{color:var(--ai);border-color:var(--ai);font-weight:600}
+  /* 案A 一行融合 */
+  .merge-row{display:flex;gap:8px;align-items:center;overflow-x:auto;margin-bottom:18px;scrollbar-width:none}.merge-row::-webkit-scrollbar{display:none}
+  .find-pill{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ai);border:1px solid var(--ai);border-radius:2px;padding:6px 12px;white-space:nowrap;flex-shrink:0;font-weight:600}
+  .find-pill svg{width:14px;height:14px;stroke:var(--ai);fill:none;stroke-width:2}
+  .divider-v{width:1px;height:20px;background:var(--line);flex-shrink:0}
+  /* 案B 退避（sticky） */
+  .sticky-strip{position:sticky;top:0;background:var(--base);z-index:3;padding-top:2px}
+  .find-collapsed{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ai);padding:6px 0 10px;cursor:pointer}
+  .find-collapsed svg{width:14px;height:14px;stroke:var(--ai);fill:none;stroke-width:2}
+  .find-collapsed .grow{flex:1}
+
+  /* 栞書影グリッド（正本流用） */
+  .grid-shelf{display:grid;grid-template-columns:1fr 1fr;gap:24px 16px}
+  .bk{display:flex;flex-direction:column;cursor:pointer}
+  .cv{position:relative;aspect-ratio:2/3;border-radius:3px;overflow:hidden;background:#f3f0ea;box-shadow:0 6px 16px rgba(22,26,40,.12),0 1px 3px rgba(0,0,0,.06)}
+  .cv canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .cv .seal{position:absolute;left:9px;bottom:9px;width:19px;height:19px;border-radius:2px;display:grid;place-items:center;font-family:var(--mincho);font-weight:600;font-size:9.5px;z-index:3;border:1.1px solid #a1573f;color:#a1573f;background:rgba(251,250,248,.5)}
+  .bk .au{font-size:11px;color:var(--ink-soft);margin-top:9px}
+  .bk .pr{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:10.5px;color:var(--ink-soft)}
+  .bk .bar{flex:1;height:1px;background:var(--line);position:relative}
+  .bk .bar i{position:absolute;left:0;top:-.5px;height:2px;background:var(--ai)}
+  .bk .pct{color:var(--ai)}
+  .bk .nc{display:flex;align-items:center;gap:5px;margin-top:5px}
+  .bk .nc .dot{width:6px;height:6px;background:var(--seiji);border-radius:50%}
+  .bk .nc .t{font-size:10.5px;color:var(--ai);font-weight:500}
+  .bk .mr{font-size:10.5px;color:var(--seiji);margin-top:6px;font-weight:500}
+  .bk .sr{font-size:10.5px;color:var(--ink-soft);margin-top:6px}
+  /* 案C 末尾の発見タイル */
+  .find-tile .cv{background:transparent;border:1px dashed var(--line);box-shadow:none;display:flex;align-items:center;justify-content:center}
+  .find-tile .plus{display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--ai)}
+  .find-tile .plus svg{width:24px;height:24px;stroke:var(--ai);fill:none;stroke-width:1.5}
+  .find-tile .plus span{font-size:11.5px;color:var(--ai);font-weight:600}
+  .find-tile .au{color:var(--ink-soft)}
+  /* 先頭本マーカー */
+  .marker{position:absolute;left:0;z-index:5;display:flex;align-items:center;gap:5px;font-size:10px;color:#B23A2E;font-weight:700;background:rgba(251,250,248,.9);padding:2px 6px;border-radius:8px}
+  .marker svg{width:12px;height:12px;stroke:#B23A2E;fill:none;stroke-width:2.4}
+</style>
+</head>
+<body>
+  <p class="cap"><b>C② 発見帯の再配置 試作 × 栞書影（現行正本）</b> ／ 裁定＝<b>撤去でなく /design ですり合わせ</b>。書影は現行の<b>栞（棒＋先端・タイトル駆動）</b>を bookshelf-shiori-grid-D と同一エンジンで描画。帯（発見機能を知らない人への明示導線）は残しつつ、支配タスク（読みかけ本）を先頭から押し下げない4骨格。</p>
+  <p class="lead">赤マーカー＝先頭の読みかけ本「追放された万能薬師」の見え出し位置。上端🔍（知っている人の常設ショートカット）は全案で維持。<b>推し＝案A（一行融合）</b>。</p>
+  <div class="stage" id="stage"></div>
+
+<script>
+function hashStr(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function rand(rng,lo,hi){return lo+(hi-lo)*rng();}
+const PALETTE=[20,70,140,175,200,210,260,330];
+function coverHue(title){const rng=mulberry32(hashStr(title));return PALETTE[Math.floor(rng()*PALETTE.length)];}
+function hsl(h,s,l){return 'hsl('+h+' '+s+'% '+l+'%)';}
+function S(ctx,a){ctx.strokeStyle=a;ctx.lineCap='round';ctx.lineJoin='round';}
+function star(ctx,cx,cy,rO,rI,n,rot){ctx.beginPath();for(let i=0;i<n*2;i++){const r=i%2?rI:rO,ang=rot+i*Math.PI/n;const px=cx+r*Math.cos(ang),py=cy+r*Math.sin(ang);i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();}
+const TIPS=[
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2.6;c.beginPath();c.moveTo(x,y);c.lineTo(x-6,y+12);c.moveTo(x,y);c.lineTo(x+6,y+12);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+7,4,0,7);c.fill();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+6,6,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2.4;c.beginPath();c.moveTo(x,y);c.lineTo(x-5,y+18);c.moveTo(x,y);c.lineTo(x+5,y+18);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+3,3.2,0,7);c.fill();S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+5);c.lineTo(x-6,y+22);c.moveTo(x,y+5);c.lineTo(x,y+23);c.moveTo(x,y+5);c.lineTo(x+6,y+22);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+4,4,0,7);c.fill();S(c,a);c.lineWidth=1.6;for(let k=-2;k<=2;k++){c.beginPath();c.moveTo(x,y+7);c.lineTo(x+k*4,y+24);c.stroke();}},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+4);c.quadraticCurveTo(x-11,y-2,x-9,y+4);c.quadraticCurveTo(x-11,y+10,x,y+4);c.moveTo(x,y+4);c.quadraticCurveTo(x+11,y-2,x+9,y+4);c.quadraticCurveTo(x+11,y+10,x,y+4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+4,2,0,7);c.fill();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+5,4,0,7);c.fill();S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+9);c.lineTo(x,y+20);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;[6,13,20].forEach(d=>{c.beginPath();c.arc(x,y+d,2.6,0,7);c.fill();});},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=3;c.beginPath();c.moveTo(x-7,y+1);c.lineTo(x+7,y+1);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2;c.beginPath();c.arc(x,y+7,5,0,7);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x,y+9,8,0,7);c.stroke();c.beginPath();c.arc(x,y+9,4,0,7);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+1);c.lineTo(x+6,y+9);c.lineTo(x,y+17);c.lineTo(x-6,y+9);c.closePath();c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x-7,y+1);c.lineTo(x+7,y+1);c.lineTo(x,y+13);c.closePath();c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.strokeRect(x-6,y+2,12,12);},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;star(c,x,y+10,7,3,5,-Math.PI/2);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+2);c.lineTo(x,y+16);c.moveTo(x-7,y+9);c.lineTo(x+7,y+9);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;[[0,5],[-5,13],[5,13]].forEach(p=>{c.beginPath();c.arc(x+p[0],y+p[1],2.2,0,7);c.fill();});},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+6,y+8,x,y+15);c.quadraticCurveTo(x-6,y+8,x,y);c.fill();},
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+9,7,0,7);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x+3,y+7,7,0,7);c.fill();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-6,y+1);c.lineTo(x+6,y+1);c.lineTo(x,y+11);c.closePath();c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.arc(x,y+9,6,-0.4,Math.PI*1.4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x+4,y+5,2.4,0,7);c.fill();},
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+8,6,-0.2,Math.PI*1.5);c.quadraticCurveTo(x-3,y+13,x+1,y+10);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.arc(x+2,y+5,1.6,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+11);c.quadraticCurveTo(x-6,y+1,x,y+1);c.quadraticCurveTo(x+6,y+1,x+6,y+11);c.closePath();c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+14,1.8,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x,y+13,5,0,7);c.stroke();c.beginPath();c.arc(x,y+5,3.2,0,7);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+4);c.stroke();c.strokeRect(x-4,y+4,8,16);c.beginPath();c.arc(x,y+7,1,0,7);c.stroke();},
+  (c,x,y,a)=>{c.save();c.translate(x,y+9);c.rotate(0.06);S(c,a);c.lineWidth=1.4;c.strokeRect(-7,-7,14,14);c.fillStyle=a;c.beginPath();c.arc(0,0,1.8,0,7);c.fill();c.restore();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;for(let k=0;k<5;k++){const an=-Math.PI/2+k*2*Math.PI/5;c.beginPath();c.arc(x+6*Math.cos(an),y+9+6*Math.sin(an),3,0,7);c.stroke();}c.fillStyle=a;c.beginPath();c.arc(x,y+9,1.8,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.5;c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+6,y+8,x,y+16);c.quadraticCurveTo(x-6,y+8,x,y);c.stroke();c.beginPath();c.moveTo(x,y+2);c.lineTo(x,y+14);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+5);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+9,4,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+2);c.quadraticCurveTo(x,y+7,x+6,y+2);c.quadraticCurveTo(x+1,y+9,x+6,y+16);c.quadraticCurveTo(x,y+11,x-6,y+16);c.quadraticCurveTo(x-1,y+9,x-6,y+2);c.closePath();c.stroke();}
+];
+function drawTitle(ctx,text,w,h,ink){
+  const fs=Math.round(w*0.088), lineGap=fs*1.16, colGap=Math.round(w*0.108), yTop=fs+5, yBottom=h-11, x0=w-fs-3, maxCols=3;
+  const perCol=Math.floor((yBottom-yTop)/lineGap);
+  ctx.fillStyle=ink; ctx.font='600 '+fs+'px "Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  const chars=[...text];
+  for(let col=0;col<maxCols;col++){const start=col*perCol;if(start>=chars.length)break;const cxp=x0-col*colGap;
+    for(let i=0;i<perCol;i++){const idx=start+i;if(idx>=chars.length)break;let ch=chars[idx];
+      if(col===maxCols-1&&i===perCol-1&&idx<chars.length-1)ch='⋮';
+      ctx.fillText(ch,cxp,yTop+i*lineGap+lineGap/2);}}
+}
+function drawShiori(canvas,title){
+  const dpr=2, w=canvas.clientWidth||150, h=Math.round(w*1.5);
+  canvas.width=w*dpr; canvas.height=h*dpr; const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const paper='#FBFAF8', ink='#1C1F26';
+  const hue=coverHue(title), accent=hsl(hue,48,52);
+  ctx.fillStyle=paper; ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle='rgba(28,31,38,.05)'; ctx.lineWidth=1; ctx.strokeRect(.5,.5,w-1,h-1);
+  const rng=mulberry32(hashStr(title+'|B'));
+  const x=Math.round(rand(rng,0.14,0.36)*w)+.5, len=Math.round(rand(rng,0.30,0.60)*h);
+  ctx.strokeStyle=accent; ctx.lineWidth=2.5; ctx.lineCap='butt';
+  ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,len); ctx.stroke();
+  TIPS[Math.floor(rng()*TIPS.length)](ctx,x,len,accent,false,paper);
+  drawTitle(ctx,title,w,h,ink);
+}
+// 蔵書（先頭＝読みかけ・続きあり）
+const POOL=[
+  {t:'追放された万能薬師、辺境でスローライフを始める',a:'霧島あおい',s:'p:62:12'},
+  {t:'黒の魔王と契約した俺、気づけば最強の従者に',a:'夜灯すばる',s:'untaken'},
+  {t:'公爵令嬢の嗜み 〜隣国で薬草園を開きます〜',a:'白河すずら',s:'done'},
+  {t:'転生したら最弱スキルだったので草むしりしていた',a:'青葉みのり',s:'p:80'},
+  {t:'辺境伯家の次男は今日も書庫にこもる',a:'水無月れん',s:'p:34'},
+  {t:'雨宿りの喫茶店で魔女に出会った',a:'早瀬ことり',s:'short'}
+];
+function statusHTML(s){
+  const p=s.split(':');
+  if(p[0]==='p'){let h='<div class="pr"><div class="bar"><i style="width:'+p[1]+'%"></i></div><span class="pct">'+p[1]+'%</span></div>';if(p[2])h+='<div class="nc"><span class="dot"></span><span class="t">続き '+p[2]+'話</span></div>';return h;}
+  if(s==='done')return '<div class="pr"><div class="bar"><i style="width:100%"></i></div><span class="pct">100%</span></div>';
+  if(s==='untaken')return '<div class="mr">なろう・未取込</div>';
+  return '<div class="sr">短編・未読</div>';
+}
+function cardsHTML(){
+  return POOL.map((it,idx)=>{
+    const seal=(it.s==='done')?'<span class="seal">了</span>':'';
+    const mk=(idx===0)?'<div class="marker" style="top:-6px"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>先頭本</div>':'';
+    return mk+'<div class="bk"><div class="cv"><canvas data-t="'+encodeURIComponent(it.t)+'"></canvas>'+seal+'</div><div class="au">'+it.a+'</div>'+statusHTML(it.s)+'</div>';
+  }).join('');
+}
+const ACTS='<div class="acts"><button class="ib" aria-label="見つける"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button><button class="ib" aria-label="リスト"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/></svg></button><button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg></button></div>';
+const FIND='<svg viewBox="0 0 24 24" class="fi"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>';
+const FILTERS='<div class="filters"><span class="fchip on">すべて</span><span class="fchip">よみかけ</span><span class="fchip">未読</span><span class="fchip">読了</span></div>';
+function head(mode){
+  if(mode==='now')return '<div class="find-guide">'+FIND+'<span class="txt">新しい物語を見つける</span><svg viewBox="0 0 24 24" class="ar"><polyline points="9 18 15 12 9 6"/></svg></div>'+FILTERS;
+  if(mode==='A')return '<div class="merge-row"><span class="find-pill"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>見つける</span><span class="divider-v"></span><span class="fchip on">すべて</span><span class="fchip">よみかけ</span><span class="fchip">未読</span><span class="fchip">読了</span></div>';
+  if(mode==='B')return '<div class="sticky-strip"><div class="find-collapsed"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg><span class="grow">新しい物語を見つける</span><svg viewBox="0 0 24 24" style="stroke:var(--ink-soft)"><polyline points="9 18 15 12 9 6"/></svg></div>'+FILTERS+'</div>';
+  if(mode==='C')return FILTERS;
+}
+function grid(mode){
+  let extra='';
+  if(mode==='C')extra='<div class="bk find-tile"><div class="cv"><div class="plus"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>見つける</span></div></div><div class="au">新しい物語を</div></div>';
+  return '<div class="grid-shelf" style="position:relative">'+cardsHTML()+extra+'</div>';
+}
+const FRAMES=[
+  {mode:'now',t:'現状（参照）',s:'帯（箱・下余白20px）＋フィルタ行の<b>2ブロック</b>が先頭を占有。読みかけ本がほぼ1画面沈む。帯は上端🔍と重複。'},
+  {mode:'A',t:'案A ／ 一行融合',s:'帯を左端の<b>藍ピル</b>に縮めフィルタと<b>同一行</b>へ。縦1行回収・明示導線を保つ。'},
+  {mode:'B',t:'案B ／ スクロール退避',s:'先頭のみ帯フル、下スクロールで<b>帯畳み・フィルタ sticky</b>。図は少しスクロール後。'},
+  {mode:'C',t:'案C ／ 末尾タイル',s:'帯を先頭から外し<b>グリッド末尾に発見タイル</b>。先頭を完全に蔵書へ。移設＝撤去でない。'}
+];
+document.getElementById('stage').innerHTML=FRAMES.map(f=>
+  '<div class="wrap"><span class="mode">'+f.t+'</span><span class="sub">'+f.s+'</span>'+
+  '<div class="phone"><div class="sb"><span>9:41</span><span>●●● 84%</span></div>'+
+  '<div class="top"><h1>本棚</h1>'+ACTS+'</div><div class="scroll">'+head(f.mode)+grid(f.mode)+'</div></div></div>'
+).join('');
+function paintAll(){document.querySelectorAll('canvas[data-t]').forEach(cv=>drawShiori(cv,decodeURIComponent(cv.dataset.t)));}
+requestAnimationFrame(paintAll);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(paintAll);
+</script>
+</body>
+</html>

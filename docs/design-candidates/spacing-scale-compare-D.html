@@ -1,0 +1,158 @@
+<!-- @dsCard group="UI-n / 余白離散化（F）" name="F. 余白スケール比較 現状/厳格5段/拡張7段（実在正本 reading-D + settings-D）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F 余白スケール比較 — 実在正本ページで比較</title>
+<style>
+  /* F 余白離散化の判断材料。捏造カードでなく、実在正本ページ reading-D（読書画面）と
+     settings-D（表示設定シート）の実マークアップを、余白だけスケール別に振って並べる。
+     本文の px/margin は各ページの正本値そのまま。差が出る余白のみ CSS 変数化。 */
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--soft:#7C808B;--line:#ECEAE4;--ruby:#616C77;--rule:#1C3D5A;
+    --blk-bg:#F1F0EC;--blk-bd:#E4E2DB;--ai:#1C3D5A;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.7;max-width:980px}
+  .cap b{color:#2A2C28}
+  .lead{color:#6A6C67;font-size:12px;margin-bottom:20px;text-align:center;line-height:1.7;max-width:980px}
+  .lead code{background:#EFEEE8;padding:1px 5px;border-radius:3px;font-size:11.5px}
+  .stage{display:flex;gap:22px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .col{display:flex;flex-direction:column;align-items:center;gap:10px;width:314px}
+  .col .head{font-size:13px;font-weight:700;letter-spacing:.06em}
+  .col.now .head{color:#8A5A2A}.col.s5 .head{color:#7C808B}.col.s7 .head{color:#1C3D5A}
+  .col .scale{font-family:var(--gothic);font-size:11px;color:#6A6C67;text-align:center;min-height:44px;line-height:1.5}
+  .col .scale b{color:#2A2C28}
+
+  /* 差が出る余白のみ変数化（両ページの実正本値→スケール別） */
+  .now{--reader-ph:26px;--chap-top:14px;--chap-bot:26px;--t-mt:9px;--rule-mt:15px;
+       --block-pv:13px;--block-ph:15px;--block-mb:22px;--lbl-mb:6px;
+       --sheet-btm:30px;--h2-mb:20px;--chips-gap:10px;--chip-pv:10px;--acc:#8A5A2A}
+  .s5{--reader-ph:24px;--chap-top:16px;--chap-bot:24px;--t-mt:8px;--rule-mt:16px;
+      --block-pv:16px;--block-ph:16px;--block-mb:24px;--lbl-mb:8px;
+      --sheet-btm:24px;--h2-mb:24px;--chips-gap:8px;--chip-pv:8px;--acc:#7C808B}
+  .s7{--reader-ph:24px;--chap-top:16px;--chap-bot:24px;--t-mt:8px;--rule-mt:16px;
+      --block-pv:12px;--block-ph:16px;--block-mb:24px;--lbl-mb:8px;
+      --sheet-btm:32px;--h2-mb:24px;--chips-gap:8px;--chip-pv:8px;--acc:#1C3D5A}
+
+  .panel{width:314px;background:var(--base);border-radius:20px;overflow:hidden;box-shadow:0 10px 26px rgba(0,0,0,.16)}
+  .plabel{font-family:var(--gothic);font-size:10.5px;color:var(--soft);letter-spacing:.08em;padding:12px 16px 4px}
+
+  /* --- 読書画面（reading-D 実正本） --- */
+  .reader{padding:8px var(--reader-ph) 10px}
+  .chap-h{text-align:center;margin:var(--chap-top) 0 var(--chap-bot)}
+  .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--ai);letter-spacing:.3em}
+  .chap-h .t{font-size:17px;color:var(--ink);margin-top:var(--t-mt);line-height:1.6;font-weight:600}
+  .chap-h .rule{width:48px;height:2px;background:var(--rule);margin:var(--rule-mt) auto 0;opacity:.85}
+  .reader p{font-family:var(--mincho);font-size:15.5px;line-height:2.3;color:var(--ink);text-indent:1em;margin-bottom:.3em}
+  .reader ruby rt{font-size:.5em;color:var(--ruby)}
+  .block{border:1px solid var(--blk-bd);background:var(--blk-bg);padding:var(--block-pv) var(--block-ph);margin:4px 0 var(--block-mb);border-radius:2px}
+  .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--ai);font-weight:700;margin-bottom:var(--lbl-mb);letter-spacing:.1em}
+  .block p{font-family:var(--mincho);font-size:14px;line-height:2.0;text-indent:1em;margin:0;color:var(--ink)}
+  .mark{font-family:var(--gothic);font-size:9px;color:var(--acc);font-weight:700;padding:0 16px}
+
+  /* --- 表示設定シート（settings-D 実正本） --- */
+  .sheet{border-top:1px solid var(--line);background:var(--base);padding:10px 24px var(--sheet-btm);margin-top:8px}
+  .grab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 14px}
+  .sheet h2{font-family:var(--mincho);font-size:16px;color:var(--ink);font-weight:600;letter-spacing:.08em;margin-bottom:var(--h2-mb)}
+  .slbl{font-family:var(--gothic);font-size:12px;color:var(--soft);margin-bottom:10px}
+  .chips{display:flex;gap:var(--chips-gap)}
+  .chip{flex:1;text-align:center;padding:var(--chip-pv) 0;border-radius:10px;font-size:13px;border:1px solid var(--line);color:var(--ink)}
+  .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
+  .btm-mark{font-family:var(--gothic);font-size:9.5px;color:var(--acc);text-align:center;padding-top:6px;font-weight:600}
+
+  .diffs{width:314px;font-family:var(--gothic);font-size:10.5px;color:#5A5C57;line-height:1.7;background:#F4F3EE;border-radius:12px;padding:12px 14px}
+  .diffs .k{color:#2A2C28;font-weight:700;margin-bottom:2px}
+  .diffs b{color:#2A2C28}
+</style>
+</head>
+<body>
+  <p class="cap"><b>F. 余白の離散スケール — 現状 / 厳格5段 / 拡張7段</b> ／ <b>実在の正本ページ</b>（reading-D＝読書画面・settings-D＝表示設定シート）の実マークアップを、余白だけスケール別に振ったもの。悉皆調査で最頻オフスケール値が <b>8-16の中間帯（12=Compose首位76件）</b>・<b>24-40の中間（32）</b>に集中と判明。</p>
+  <p class="lead">厳格 <code>{4,8,16,24,40}</code> は中間密度が潰れる。拡張は12・32の2値だけ足した <code>{4,8,12,16,24,32,40}</code>。<b>見る所</b>＝①前書きブロックの内側 padding（13→厳格<b>16</b>／拡張<b>12</b>）②シート下余白（30→厳格<b>24</b>／拡張<b>32</b>）。厳格は全面が「じわっと緩む」。</p>
+  <div class="stage">
+
+    <!-- 現状 -->
+    <div class="col now">
+      <span class="head">現状（任意値）</span>
+      <span class="scale">13/14/15/22/26/30… が<b>離散スケール外</b></span>
+      <div class="panel now">
+        <div class="plabel">読書画面（reading-D）</div>
+        <div class="reader">
+          <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて</div><div class="rule"></div></div>
+          <div class="block"><div class="lbl">前書き</div><p>今回は少し長めの戦闘回になりました。次話は後日談を挟みます。</p></div>
+          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>が<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        </div>
+        <div class="mark">▲ ブロック内側 padding 13dp</div>
+        <div class="sheet">
+          <div class="grab"></div><h2>表示設定</h2>
+          <div class="slbl">テーマ</div>
+          <div class="chips"><button class="chip on">ライト</button><button class="chip">セピア</button><button class="chip">ダーク</button></div>
+          <div class="btm-mark">↑ シート下余白 30dp</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 厳格5段 -->
+    <div class="col s5">
+      <span class="head">厳格5段</span>
+      <span class="scale"><b>{4, 8, 16, 24, 40}</b><br>13→<b>16</b>・30→<b>24</b>。中間密度が消える</span>
+      <div class="panel s5">
+        <div class="plabel">読書画面（reading-D）</div>
+        <div class="reader">
+          <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて</div><div class="rule"></div></div>
+          <div class="block"><div class="lbl">前書き</div><p>今回は少し長めの戦闘回になりました。次話は後日談を挟みます。</p></div>
+          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>が<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        </div>
+        <div class="mark">▲ ブロック内側 padding 16dp（+23%緩む）</div>
+        <div class="sheet">
+          <div class="grab"></div><h2>表示設定</h2>
+          <div class="slbl">テーマ</div>
+          <div class="chips"><button class="chip on">ライト</button><button class="chip">セピア</button><button class="chip">ダーク</button></div>
+          <div class="btm-mark">↑ シート下余白 24dp（詰まりすぎ）</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 拡張7段 -->
+    <div class="col s7">
+      <span class="head">拡張7段（推奨）</span>
+      <span class="scale"><b>{4, 8, 12, 16, 24, 32, 40}</b><br>12・32を追加。現状の締まりを保持</span>
+      <div class="panel s7">
+        <div class="plabel">読書画面（reading-D）</div>
+        <div class="reader">
+          <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて</div><div class="rule"></div></div>
+          <div class="block"><div class="lbl">前書き</div><p>今回は少し長めの戦闘回になりました。次話は後日談を挟みます。</p></div>
+          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>が<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        </div>
+        <div class="mark">▲ ブロック内側 padding 12dp（維持）</div>
+        <div class="sheet">
+          <div class="grab"></div><h2>表示設定</h2>
+          <div class="slbl">テーマ</div>
+          <div class="chips"><button class="chip on">ライト</button><button class="chip">セピア</button><button class="chip">ダーク</button></div>
+          <div class="btm-mark">↑ シート下余白 32dp（自然）</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <div style="height:18px"></div>
+  <div class="stage">
+    <div class="diffs">
+      <div class="k">厳格5段の弱点</div>
+      最頻値 12（Compose首位76件）が 8か16 に潰れ「標準の内側余白」という<b>中間密度の語彙</b>が消える。32 は 24/40 どちらもシート下余白に不自然。原則2「余白は要素」に照らすと密度差の情報が失われる。
+    </div>
+    <div class="diffs">
+      <div class="k">拡張7段の主張</div>
+      §C の<b>原則（離散スケール・任意値禁止）は維持</b>。実データの3タイ値のうち 12・32 の2段だけ追加。等比の規律は緩むが「最頻値を素直に表現できる」実利が勝る。20 は両案とも 24 へ寄せる。
+    </div>
+    <div class="diffs">
+      <div class="k">これは §C（ADR0014）改訂の判断</div>
+      裁定「§C維持＝スケール確定」は<b>悉皆データを見る前</b>のもの。厳格なら潰れを許容してモック再設計、拡張なら §C を「{4,8,12,16,24,32,40}」へ改訂＋Why 記録。<b>どちらでも進めます</b>。
+    </div>
+  </div>
+</body>
+</html>

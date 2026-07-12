@@ -1,0 +1,249 @@
+<!-- @dsCard group="UI-n / 読書（D詰め）" name="D. 読書ギア代替導線 試作（C①）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C① 読書ギア代替導線 試作 — 和モダン余白</title>
+<style>
+  /* C① 試作: 右上隅の「表示設定」歯車を撤去し、中央タップ→下端シートへ起動を移す探索。
+     上端は Up(←)＋章題のみ。表示設定シートは settings-D の .sheet をそのまま再利用（中身は不変）。
+     ※これは探索であって改善確約ではない（handover ★ 残1 C①）。 */
+  :root{
+    --ai:#1C3D5A;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    /* ライトテーマ（reading-D t-light） */
+    --bg:#FBFAF8;--ink:#1C1F26;--soft:#7C808B;--ruby:#616C77;--rule:#1C3D5A;
+    --blk-bg:#F1F0EC;--blk-bd:#E4E2DB;--bar:#FBFAF8;--bar-line:#ECEAE4;--accent:#1C3D5A;
+    --line:#ECEAE4;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.7;max-width:920px}
+  .cap b{color:#2A2C28}
+  .lead{color:#6A6C67;font-size:12px;margin-bottom:20px;text-align:center;line-height:1.7;max-width:920px}
+  .stage{display:flex;gap:24px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:10px;width:344px}
+  .wrap .mode{font-size:12.5px;letter-spacing:.1em;color:#3A3C38;font-weight:600;text-align:center}
+  .wrap .sub{font-size:11.5px;color:#6A6C67;line-height:1.6;text-align:center;min-height:56px}
+  .wrap .sub b{color:#2A2C28}
+
+  .phone{width:344px;height:680px;border-radius:36px;overflow:hidden;position:relative;background:var(--bg);
+    box-shadow:0 16px 40px rgba(0,0,0,.24);display:flex;flex-direction:column;font-family:var(--mincho)}
+  .sb{height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--soft);font-family:var(--gothic);flex-shrink:0}
+
+  /* トップバー */
+  .topbar{position:relative;z-index:4;height:48px;display:flex;align-items:center;gap:4px;padding:0 14px;
+    background:var(--bar);border-bottom:1px solid var(--bar-line);flex-shrink:0}
+  .topbar .ib{width:36px;height:36px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--ink);cursor:pointer}
+  .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar .ct{flex:1;font-family:var(--gothic);font-size:13px;color:var(--ink);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* 撤去対象マーカー */
+  .kill{position:relative}
+  .kill::after{content:"";position:absolute;inset:2px;border:2px solid #B23A2E;border-radius:9px}
+  .kill-lbl{position:absolute;right:8px;top:44px;z-index:8;font-family:var(--gothic);font-size:10px;font-weight:700;color:#B23A2E;
+    background:rgba(251,250,248,.94);padding:2px 6px;border-radius:8px;border:1px solid #B23A2E}
+
+  /* 本文 */
+  .reader{flex:1;overflow:hidden;position:relative;z-index:1;padding:8px 26px 20px}
+  .reader.imm{padding:30px 26px 20px}
+  .chap-h{text-align:center;margin:10px 0 22px}
+  .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--accent);letter-spacing:.3em}
+  .chap-h .t{font-size:17px;color:var(--ink);margin-top:8px;line-height:1.6;font-weight:600}
+  .chap-h .rule{width:48px;height:2px;background:var(--rule);margin:14px auto 0;opacity:.85}
+  p{font-size:16px;line-height:2.3;color:var(--ink);text-indent:1em;margin-bottom:.3em}
+  ruby rt{font-size:.5em;color:var(--ruby);font-weight:400}
+  .blank{height:1.2em}
+  hr{border:none;height:1px;width:42%;margin:16px auto;background:var(--rule);opacity:.5}
+
+  /* 中央タップ領域ヒント（没入時） */
+  .taparea{position:absolute;inset:48px 0 64px;z-index:2;display:grid;place-items:center;pointer-events:none}
+  .taphint{font-family:var(--gothic);font-size:11px;color:var(--soft);letter-spacing:.08em;
+    border:1px dashed var(--line);border-radius:20px;padding:8px 16px;background:rgba(251,250,248,.7)}
+  .hint-bottom{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);z-index:6;font-family:var(--gothic);
+    font-size:11px;color:var(--soft);letter-spacing:.08em;opacity:.85}
+
+  /* ボトムバー（1段：4分割 案A） */
+  .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:60px;display:flex;align-items:center;
+    background:var(--bar);border-top:1px solid var(--bar-line)}
+  .bottombar button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:3px;color:var(--ink);cursor:pointer}
+  .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .bottombar .bl{font-family:var(--gothic);font-size:9.5px;color:var(--soft);letter-spacing:.02em}
+  .bottombar .set svg{stroke:var(--accent)}
+  .bottombar .set .bl{color:var(--accent);font-weight:600}
+
+  /* ボトムバー（2段：案B） */
+  .bottombar2{position:absolute;left:0;right:0;bottom:0;z-index:4;background:var(--bar);border-top:1px solid var(--bar-line);display:flex;flex-direction:column}
+  .bb2-set{height:46px;display:flex;align-items:center;justify-content:center;gap:8px;border-bottom:1px solid var(--bar-line);cursor:pointer;color:var(--accent)}
+  .bb2-set .aa{font-family:var(--mincho);color:var(--accent)}
+  .bb2-set .lbl{font-family:var(--gothic);font-size:13px;font-weight:600;letter-spacing:.06em;color:var(--accent)}
+  .bb2-nav{height:54px;display:flex;align-items:center}
+  .bb2-nav button{flex:1;height:100%;border:none;background:transparent;display:grid;place-items:center;color:var(--ink);cursor:pointer}
+  .bb2-nav svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .bb2-nav .mid{position:relative}
+  .bb2-nav .mid::before,.bb2-nav .mid::after{content:"";position:absolute;top:16px;bottom:16px;width:1px;background:var(--bar-line)}
+  .bb2-nav .mid::before{left:0}.bb2-nav .mid::after{right:0}
+
+  /* ===== 表示設定シート（settings-D .sheet を再利用） ===== */
+  .scrim{position:absolute;inset:0;z-index:5;background:rgba(20,23,28,.28)}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:6;background:var(--bg);border-radius:20px 20px 0 0;
+    padding:10px 24px 26px;box-shadow:0 -10px 30px rgba(0,0,0,.18);font-family:var(--gothic)}
+  .grab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 16px}
+  .sheet h2{font-family:var(--mincho);font-size:17px;color:var(--ink);font-weight:600;letter-spacing:.08em;margin-bottom:20px}
+  .lbl{font-family:var(--gothic);font-size:12px;color:var(--soft);letter-spacing:.06em;margin-bottom:10px}
+  .sec{margin-bottom:22px}
+  .sec:last-child{margin-bottom:4px}
+  .chips{display:flex;gap:10px}
+  .chip{flex:1;text-align:center;padding:10px 0;border-radius:10px;font-family:var(--gothic);font-size:13.5px;
+    border:1px solid var(--line);color:var(--ink);background:transparent;cursor:pointer}
+  .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
+  .slider{display:flex;align-items:center;gap:14px}
+  .end{font-family:var(--mincho);color:var(--ink);flex-shrink:0}
+  .end.g{font-family:var(--gothic);font-size:12px;color:var(--soft)}
+  .track{flex:1;height:2px;background:var(--line);position:relative;border-radius:2px}
+  .track .fill{position:absolute;left:0;top:0;height:2px;background:var(--ai);border-radius:2px}
+  .track .knob{position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--ai);transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(28,61,90,.4)}
+  .val{font-family:var(--gothic);font-size:12px;color:var(--ai);margin-left:8px}
+  .row-lbl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .behind-dim{opacity:.5}
+</style>
+</head>
+<body>
+  <p class="cap"><b>C① 読書ギアの代替導線 試作</b> ／ 裁定＝<b>撤去せず、代替（中央タップ→下端シート化）の試作を見たい</b>（探索・改善確約でない）。右上隅の歯車（＝毎セッション触る表示設定の唯一の入口・隅で複利蓄積）を撤去し、上端は Up＋章題のみに。表示設定シートの<b>中身は settings-D 正本のまま不変</b>＝変えるのは起動導線だけ。</p>
+  <p class="lead">左端＝現状（撤去対象の歯車を赤枠で明示）。案A＝中央タップでクローム表示→下端バーに「表示設定」を集約→タップでシート。案B＝下端を2段にし表示設定を幅広ボタンで一等地に。ナビ（前章/目次/次章）は両案とも下端に維持。</p>
+  <div class="stage">
+
+    <!-- 現状（参照） -->
+    <div class="wrap">
+      <span class="mode">現状（参照・撤去対象）</span>
+      <span class="sub">表示設定の唯一の入口が<b>右上隅の歯車</b>。中央タップ（クローム出し）→右上へ<b>持ち替え</b>が毎セッション発生。標準の悪例に逐語一致。</span>
+      <div class="phone" role="img" aria-label="現状">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+        <div class="topbar">
+          <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <div class="ct">第百二十七話　雨上がりの城門にて</div>
+          <button class="ib kill" aria-label="表示設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1L16.5 3h-4l-.4 2.6a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1L11.5 21h4l.4-2.6a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5a7 7 0 0 0 .1-1z"/></svg></button>
+        </div>
+        <span class="kill-lbl">撤去</span>
+        <div class="reader">
+          <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて</div><div class="rule"></div></div>
+          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+          <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+          <div class="blank"></div><hr>
+          <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ます。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 案A① 没入 -->
+    <div class="wrap">
+      <span class="mode">案A① ／ 没入（クローム無し）</span>
+      <span class="sub">通常は<b>本文が全面</b>・上下バー無し。復帰は画面タップ（実タップ域＝全面）。文言は監査是正済みの「画面をタップでメニュー」。</span>
+      <div class="phone" role="img" aria-label="案A 没入">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+        <div class="reader imm">
+          <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
+          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+          <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+          <div class="blank"></div><hr><div class="blank"></div>
+          <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>雫<rt>しずく</rt></ruby>が<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        </div>
+        <div class="taparea"><span class="taphint">タップでメニュー</span></div>
+        <div class="hint-bottom">画面をタップでメニュー表示</div>
+      </div>
+    </div>
+
+    <!-- 案A② クローム -->
+    <div class="wrap">
+      <span class="mode">案A② ／ タップ後（下端に集約）</span>
+      <span class="sub">上端は<b>←＋章題のみ</b>（歯車無し）。下端バーに<b>前章／目次／表示設定／次章</b>を集約。表示設定＝隅でなく<b>親指の届く下端</b>・藍で1つだけ強調。</span>
+      <div class="phone" role="img" aria-label="案A クローム">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+        <div class="topbar">
+          <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <div class="ct">第百二十七話　雨上がりの城門にて</div>
+        </div>
+        <div class="reader">
+          <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて</div><div class="rule"></div></div>
+          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+          <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+          <div class="blank"></div><hr>
+          <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ます。</p>
+        </div>
+        <div class="bottombar">
+          <button aria-label="前の章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+          <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+          <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+          <button aria-label="次の章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 案A③ シート展開 -->
+    <div class="wrap">
+      <span class="mode">案A③ ／ 表示設定シート</span>
+      <span class="sub">「表示設定」タップで<b>下端シート</b>展開（settings-D 正本・中身不変）。テーマ／文字サイズ／行間。本文はうっすら残り<b>読書文脈を保つ</b>。</span>
+      <div class="phone" role="img" aria-label="案A シート">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+        <div class="topbar behind-dim">
+          <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <div class="ct">第百二十七話　雨上がりの城門にて</div>
+        </div>
+        <div class="reader behind-dim">
+          <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて</div><div class="rule"></div></div>
+          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        </div>
+        <div class="scrim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <h2>表示設定</h2>
+          <div class="sec">
+            <div class="lbl">テーマ</div>
+            <div class="chips"><button class="chip on">ライト</button><button class="chip">セピア</button><button class="chip">ダーク</button></div>
+          </div>
+          <div class="sec">
+            <div class="row-lbl"><span class="lbl" style="margin:0">文字サイズ</span><span class="val">18sp</span></div>
+            <div class="slider"><span class="end" style="font-size:14px">あ</span><span class="track"><span class="fill" style="width:40%"></span><span class="knob" style="left:40%"></span></span><span class="end" style="font-size:24px">あ</span></div>
+          </div>
+          <div class="sec">
+            <div class="row-lbl"><span class="lbl" style="margin:0">行間</span><span class="val">2.5</span></div>
+            <div class="slider"><span class="end g">狭</span><span class="track"><span class="fill" style="width:40%"></span><span class="knob" style="left:40%"></span></span><span class="end g">広</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 案B クローム（2段） -->
+    <div class="wrap">
+      <span class="mode">案B ／ タップ後（下端2段・比較）</span>
+      <span class="sub">下端を<b>2段</b>に。上段＝幅広「あ Aa 表示設定」を<b>一等地に単独</b>で（毎セッション級の主役）。下段＝前章｜目次｜次章。表示設定を最も押しやすく。</span>
+      <div class="phone" role="img" aria-label="案B クローム">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+        <div class="topbar">
+          <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <div class="ct">第百二十七話　雨上がりの城門にて</div>
+        </div>
+        <div class="reader" style="padding-bottom:20px">
+          <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて</div><div class="rule"></div></div>
+          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+          <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        </div>
+        <div class="bottombar2">
+          <div class="bb2-set">
+            <span class="aa" style="font-size:13px">あ</span><span class="aa" style="font-size:19px">あ</span>
+            <span class="lbl">表示設定</span>
+          </div>
+          <div class="bb2-nav">
+            <button aria-label="前の章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <button class="mid" aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg></button>
+            <button aria-label="次の章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
