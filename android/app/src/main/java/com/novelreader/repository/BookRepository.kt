@@ -84,6 +84,10 @@ interface BookRepository {
     /** 起動時クリーンアップ: pending_jobs 非紐付けの「孤児」永続 URI 権限を解放する（恒久リーク回収）。 */
     suspend fun releaseOrphanedPermissions(keepUris: Set<String>)
 
+    /** 起動時クリーンアップ: どの棚項目（books.ncode / web_novels）にも紐付かない孤児の
+     *  web_reading_progress 行を回収する（UX監査 privacy・削除の完全性）。@return 削除した行数。 */
+    suspend fun pruneOrphanWebReadingProgress(): Int
+
     suspend fun deleteBook(book: BookEntity)
 
     /** PDF↔Web継続読書: なろう作品との紐付け（null で解除）。 */
@@ -93,7 +97,11 @@ interface BookRepository {
 
     suspend fun getProgress(bookId: BookId): ProgressEntity?
 
-    /** 章移動時の進捗保存（スクロール位置は 0,0＝章先頭にリセット）。 */
+    /** 読了（最終章の末尾到達）を記録する（ssot Major 2026-07-12）。sticky＝一度立てたら読み直しでも維持。
+     *  読書位置（lastReadFilename/scroll）には一切触れない（読了フラグ列だけを立てる）。 */
+    suspend fun markReachedEnd(bookId: BookId)
+
+    /** 章移動時の進捗保存（スクロール位置は 0,0＝章先頭にリセット）。reachedEnd は保持する。 */
     suspend fun saveProgress(bookId: BookId, filename: ChapterFilename)
 
     /** 章内スクロール位置の保存。 */

@@ -402,6 +402,14 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
 
     suspend fun getProgress(bookId: BookId): ProgressEntity? = repository.getProgress(bookId)
 
+    // 読了記録（最終章の末尾到達＝『了』印・読了フィルタの正本／ssot Major 2026-07-12）。
+    // なぜ progressChannel（CONFLATED）を経由せず独立 launch か: チャネルは位置エンティティ搬送用で
+    // CONFLATED により中間値を捨てる。読了は位置とは別次元の一度きりのフラグ立てで、位置更新と競合しても
+    // 別列（reachedEnd）を UPDATE するため互いを潰さない。冪等な UPDATE なので多重呼び出しも無害。
+    fun markReachedEnd(bookId: BookId) {
+        viewModelScope.launch(Dispatchers.IO) { repository.markReachedEnd(bookId) }
+    }
+
     // 章移動時の保存。スクロール位置は default 0 のまま送ることで章先頭にリセットする。
     // ProgressEntity（Room 実体）はチャネル搬送体のため String 列。ここが型付き引数→String の境界。
     fun saveProgress(bookId: BookId, filename: ChapterFilename) {

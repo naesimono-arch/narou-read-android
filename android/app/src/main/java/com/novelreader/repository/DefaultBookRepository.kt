@@ -19,16 +19,19 @@ import com.novelreader.data.WebReadingProgressEntity
 import com.novelreader.model.BookId
 import com.novelreader.model.ChapterFilename
 import com.novelreader.narou.model.Ncode
+import com.novelreader.pdf.BookMeta
 import com.novelreader.pdf.CorruptedPdfError
 import com.novelreader.pdf.EncryptedPdfError
 import com.novelreader.pdf.InsufficientStorageError
 import com.novelreader.pdf.PdfBookExtractor
+import com.novelreader.pdf.PdfProgress
 import com.novelreader.repository.BookRepository.AddBookResult
 import com.novelreader.viewmodel.BookImportError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -61,6 +64,12 @@ class DefaultBookRepository(
     private val runInTransaction: suspend (block: suspend () -> Unit) -> Unit = { block ->
         AppDatabase.getDatabase(context).withTransaction(block)
     },
+    // 抽出の差替継ぎ目（UX監査 measure・破損PDF隔離のテスト可能化）: 本番は PdfBookExtractor.process の
+    // 実 PDFBox 経路（engine 固定の public 版）。JVM 単体テストでは例外を投げる fake を注入し、隔離
+    // （書きかけ outputDir 削除・BookEntity 未 insert・pending_jobs 行削除）が repository 層で成立することを
+    // assert できるようにする。DAO/runInTransaction と同じ「Android 依存を関数で受ける」注入思想の延長。
+    private val extractBook: (pdfFile: File, bookId: String, outputDir: File, onProgress: PdfProgress) -> BookMeta =
+        { pdfFile, bookId, outputDir, onProgress -> PdfBookExtractor.process(pdfFile, bookId, outputDir, onProgress) },
 ) : BookRepository {
 
     // pending_jobs（永続キュー）への全書き込みを直列化する排他ロック（タスク1の恒久策）。
@@ -84,21 +93,41 @@ class DefaultBookRepository(
 
     // なぜ削除も trim().uppercase() 正規化か: 保存側（putWebNovel の契約）と同じ正規化を通さないと、
     // 表記ゆれの ncode で削除が空振りしてカードが残り続けるため（NcodeLinkSheet の保存正規化と同系）。
-    override suspend fun removeWebNovel(ncode: Ncode) =
-        webNovelDao.deleteByNcode(ncode.value.trim().uppercase())
+    // 併せて Web読書位置履歴も相乗り削除する（UX監査 privacy）: カードを外したのに位置履歴だけ端末へ
+    // 残る穴を塞ぐ。ただし同 ncode を紐付けた蔵書がまだ在れば「続きから」に要るため残す（下記 helper が判定）。
+    override suspend fun removeWebNovel(ncode: Ncode) = withContext(Dispatchers.IO) {
+        val key = ncode.value.trim().uppercase()
+        webNovelDao.deleteByNcode(key)
+        cascadeDeleteWebProgressIfUnreferenced(key)
+    }
 
     override val webReadingProgress: Flow<List<WebReadingProgressEntity>> = webReadingProgressDao.getAll()
 
     // なぜ trim().uppercase() 正規化か: 記録側と本棚カード/紐付け側の ncode 表記を一致させ、
     // 「読んだのに続きから読むが出ない」空振りを防ぐ（putWebNovel/removeWebNovel と同系の保存正規化）。
+    //
+    // なぜ furthest-wins（無条件 upsert でなく episode>既存のときだけ更新）か（UX監査 continuity・公理14/公理6）:
+    // 目次から前の話（第10話）を「確認のため新規リンクで開いて」退出すると、その小さい話数が
+    // 素の last-wins 上書きで再開ポインタを後退させ、読みかけ先端（第51話）が失われる。参照ジャンプで
+    // 自動保存を後退させないため、到達済み最遠話より前進したときのみ記録する（しおりは覗き見で後退しない）。
+    //   task_diary #56 の reachedByBack ガードは goBack の履歴遡行だけを抑止するが、目次から前の話を
+    //   「新規リンク」で開く経路は forward 履歴が切り詰められ reachedByBack=false になるため素通りする。
+    //   その後退経路をここ（全記録の単一集約点）で塞ぐ＝#56 と相補的で二重防御になる。
+    // race について: onEpisodeReached は onPageFinished ごとに個別 launch するため read→write が
+    //   IO 上で交錯し得るが、furthest-wins は単調なので最悪でも「一時的に低い話数が残り、次の前進で
+    //   訂正される」だけ（先端の恒久喪失は起きない）。厳密原子性は複雑さに見合わないため許容する。
     override suspend fun recordWebReadingEpisode(ncode: Ncode, episode: Int) = withContext(Dispatchers.IO) {
-        webReadingProgressDao.upsert(
-            WebReadingProgressEntity(
-                ncode = ncode.value.trim().uppercase(),
-                lastReadEpisode = episode,
-                lastReadAt = System.currentTimeMillis(),
+        val key = ncode.value.trim().uppercase()
+        val existing = webReadingProgressDao.get(key)
+        if (existing == null || episode > existing.lastReadEpisode) {
+            webReadingProgressDao.upsert(
+                WebReadingProgressEntity(
+                    ncode = key,
+                    lastReadEpisode = episode,
+                    lastReadAt = System.currentTimeMillis(),
+                )
             )
-        )
+        }
     }
 
     override suspend fun getWebReadingProgress(ncode: Ncode): WebReadingProgressEntity? =
@@ -154,7 +183,9 @@ class DefaultBookRepository(
             // ① 一時ファイルにコピー（try-finally で確実に削除する）
             val tempFile = File(context.cacheDir, "temp_$bookId.pdf")
             // catch から参照するため try の外で宣言する（②で確定・③の失敗時に掃除）。
-            val outputDir = File(context.filesDir, "novels/$bookId")
+            // 置き場は BookEntity.resolveHtmlDir に一元化した決定的規約（filesDir/novels/<bookId>）を使う
+            // ＝掃除・復元と同一導出（UX監査 portable の復元耐性下地）。
+            val outputDir = BookEntity.resolveHtmlDir(context.filesDir, bookId)
             try {
                 val inputStream = context.contentResolver.openInputStream(pdfUri)
                     ?: throw IOException("PDFファイルを開けません（URI権限が失われた可能性があります）")
@@ -180,6 +211,19 @@ class DefaultBookRepository(
                     return@runCatching AddBookResult.Duplicate(existingByHash)
                 }
 
+                // ①'' 空き容量の事前チェック（UX監査 add・10-H「資源は起きる前に測る」）:
+                // 抽出は分オーダーで一時展開＋出力HTMLを filesDir へ書くため、逼迫時は変換の終盤で ENOSPC
+                // 失敗し、時間と cache を浪費する。重い抽出に入る前に filesDir の空きと概算所要を比べ、不足なら
+                // 既存の容量不足エラー経路（InsufficientStorage の固定文言）へ落として無駄な変換を回避する。
+                // outputDir はまだ mkdirs していないので掃除不要。settlePendingJob もしない＝容量が空けば
+                // 再試行で成功しうる一過性失敗として、外側 fold の失敗経路（pending 行だけ落とし権限は残す）に委ねる。
+                val pdfSizeBytes = tempFile.length()
+                if (!hasEnoughStorageFor(context.filesDir.usableSpace, pdfSizeBytes)) {
+                    throw InsufficientStorageError(
+                        "変換に必要な空き容量が不足（PDF ${pdfSizeBytes}B・空き ${context.filesDir.usableSpace}B）"
+                    )
+                }
+
                 // ② 出力先ディレクトリを確定
                 if (!outputDir.mkdirs() && !outputDir.exists()) {
                     throw IOException("出力ディレクトリの作成に失敗しました: ${outputDir.absolutePath}")
@@ -191,7 +235,7 @@ class DefaultBookRepository(
                 // 割り込める（handover A① の NonCancellable 制約を緩和）。processPages 自体はコルーチン非依存の
                 // 純ロジックに保つため、既に全層へ通っている進捗コールバックへ相乗りしてキャンセルを確認する。
                 val meta = try {
-                    PdfBookExtractor.process(tempFile, bookId, outputDir) { step, stepLocalPercent, phase, title ->
+                    extractBook(tempFile, bookId, outputDir) { step, stepLocalPercent, phase, title ->
                         extractionScope.ensureActive()
                         onProgress(step, stepLocalPercent, phase, title)
                     }
@@ -317,7 +361,7 @@ class DefaultBookRepository(
      *  呼び出し側 runStartupRecoveryOnce が processingState で判定する）。 */
     // 明示 : Unit — 式本体の最終式が `?.forEach`（Unit?）のため、interface の Unit と型を一致させる。
     override suspend fun cleanOrphanHtmlDirs(): Unit = withContext(Dispatchers.IO) {
-        val novelsDir = File(context.filesDir, "novels")
+        val novelsDir = File(context.filesDir, BookEntity.NOVELS_SUBDIR)
         val validIds = bookDao.getAllBookIds().toSet()
         novelsDir.listFiles()?.forEach { dir ->
             if (dir.isDirectory && dir.name !in validIds) {
@@ -386,12 +430,52 @@ class DefaultBookRepository(
             bookDao.deleteById(book.id)
             progressDao.deleteByBookId(book.id)
         }
+        // 紐付いていた Web読書位置履歴も相乗り削除する（UX監査 privacy）: 本を消したのに、その本に
+        // 紐付いた ncode の WebView 読書位置だけ端末へ残る穴を塞ぐ。ただし同 ncode が web_novels カード
+        // として独立に棚に在るなら、その Web 読書はまだ現役なので残す（helper が参照有無で判定）。
+        book.ncode?.let { cascadeDeleteWebProgressIfUnreferenced(it.trim().uppercase()) }
         // HTMLディレクトリ削除は DB 外の副作用のためトランザクション外に置く（ファイルIO は Room の
         // トランザクションでロールバックできず、失敗しても DB 削除は成立させたい＝掃除は次回起動の
         // cleanOrphanHtmlDirs が拾う）。
         if (!File(book.htmlDirPath).deleteRecursively()) {
             Log.w(TAG, "HTMLディレクトリの削除に失敗: ${book.htmlDirPath}")
         }
+    }
+
+    /** ある ncode（正規化済み）が books.ncode / web_novels のどちらからも参照されなくなっていれば、
+     *  その Web読書位置履歴を削除する（相乗り削除の安全弁）。削除後の現況を books/web_novels の
+     *  スナップショットで確認し、まだ参照が残るなら「続きから」に要るため履歴を残す（過剰削除の防止）。
+     *  なぜ Flow.first() で snapshot を取るか: 一度きりの現況照会に十分で、BookDao/WebNovelDao へ
+     *  専用 suspend クエリを足さずに済む（呼び出しは削除操作の直後のみで高頻度でない）。 */
+    private suspend fun cascadeDeleteWebProgressIfUnreferenced(normalizedNcode: String) {
+        val referencedByBook = bookDao.getAllBooks().first()
+            .any { it.ncode?.trim()?.uppercase() == normalizedNcode }
+        val referencedByCard = webNovelDao.getAll().first()
+            .any { it.ncode.trim().uppercase() == normalizedNcode }
+        if (!referencedByBook && !referencedByCard) {
+            webReadingProgressDao.deleteByNcode(normalizedNcode)
+        }
+    }
+
+    /**
+     * 起動時クリーンアップ: どの棚項目（books.ncode / web_novels）にも紐付かない「孤児」の
+     * web_reading_progress 行を回収する（UX監査 privacy・削除の完全性）。
+     *
+     * なぜ相乗り削除だけでは足りないか: 相乗り削除は removeWebNovel/deleteBook の直後にしか走らないため、
+     * その途中でプロセスが kill された場合や、過去バージョンで削除経路が無かった頃に溜まった履歴は残る。
+     * cleanOrphanHtmlDirs（孤立HTML掃除）と同じ「起動時に不変条件を回復する」掃除でこれを完全化する。
+     *
+     * @return 削除した孤児行数（呼び出し側のログ用）。
+     */
+    override suspend fun pruneOrphanWebReadingProgress(): Int = withContext(Dispatchers.IO) {
+        val keep = buildSet {
+            bookDao.getAllBooks().first().forEach { b -> b.ncode?.let { add(it.trim().uppercase()) } }
+            webNovelDao.getAll().first().forEach { add(it.ncode.trim().uppercase()) }
+        }
+        val all = webReadingProgressDao.getAll().first().map { it.ncode }.toSet()
+        val orphans = orphanedWebProgressNcodes(all, keep)
+        orphans.forEach { webReadingProgressDao.deleteByNcode(it) }
+        orphans.size
     }
 
     // PDF↔Web継続読書: なろう作品との紐付け（null で解除）。ユーザー確定操作からのみ呼ぶ。
@@ -409,27 +493,41 @@ class DefaultBookRepository(
     override suspend fun getProgress(bookId: BookId): ProgressEntity? =
         withContext(Dispatchers.IO) { progressDao.getProgress(bookId.value) }
 
+    // 読了（最終章の末尾到達）の記録。reachedEnd 列だけを立て、位置には触れない（sticky）。
+    override suspend fun markReachedEnd(bookId: BookId) = withContext(Dispatchers.IO) {
+        // 永続化境界: Room の bookId 列は String のため .value でほどく。
+        progressDao.markReachedEnd(bookId.value)
+    }
+
     // 章を切り替えたときの進捗保存。スクロール位置は 0 にリセットする
     // （別の章へ移ったので前章のスクロール位置は引き継がない）。
     // lastReadAt を書き込み時刻でスタンプし、本棚の最近読書順ソートに使う。
+    // なぜ insertIfAbsent＋updatePosition の2手か: 全列 REPLACE だと保存のたびに reachedEnd が
+    // 既定へ戻り『了』印が消える。位置更新は reachedEnd を touch しない updatePosition に閉じ、
+    // 行が無い初回だけ insertIfAbsent で作る（ProgressDao の why 参照）。
     override suspend fun saveProgress(bookId: BookId, filename: ChapterFilename) = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
         // 永続化境界: Room(ProgressEntity) は String 列のため .value でほどいて渡す。
-        progressDao.saveProgress(ProgressEntity(bookId.value, filename.value, lastReadAt = System.currentTimeMillis()))
+        progressDao.insertIfAbsent(ProgressEntity(bookId.value, filename.value, lastReadAt = now))
+        progressDao.updatePosition(bookId.value, filename.value, 0, 0, now)
     }
 
     // 章内スクロール位置の保存。lastReadFilename も一緒に書き込むことで
-    // 「どの章のどの位置か」を1行で表現する（REPLACE で上書き）。
+    // 「どの章のどの位置か」を1行で表現する。
     // lastReadAt も毎回スタンプ（単一チャネル統合の最終1書き込みに自然に乗る）。
+    // saveProgress と同じ2手（reachedEnd を消さないための insertIfAbsent＋updatePosition）。
     override suspend fun saveScrollPosition(
         bookId: BookId,
         filename: ChapterFilename,
         scrollIndex: Int,
         scrollOffset: Int,
     ) = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
         // 永続化境界: Room(ProgressEntity) は String 列のため .value でほどいて渡す。
-        progressDao.saveProgress(
-            ProgressEntity(bookId.value, filename.value, scrollIndex, scrollOffset, lastReadAt = System.currentTimeMillis())
+        progressDao.insertIfAbsent(
+            ProgressEntity(bookId.value, filename.value, scrollIndex, scrollOffset, lastReadAt = now)
         )
+        progressDao.updatePosition(bookId.value, filename.value, scrollIndex, scrollOffset, now)
     }
 
     companion object {
@@ -447,6 +545,33 @@ internal fun orphanedPermissionUris(
     persistedReadUris: Set<String>,
     keepUris: Set<String>,
 ): Set<String> = persistedReadUris - keepUris
+
+/**
+ * どの棚項目にも紐付かない「孤児」の web_reading_progress を判定する純関数（テスト対象）。
+ * 全 ncode から、books.ncode / web_novels に生きている ncode（keep）を差し引く。
+ * orphanedPermissionUris と同じ流儀で、掃除の中核ロジックを contentResolver/Room 非依存で単体テストする
+ * （pruneOrphanWebReadingProgress が snapshot 取得と実削除の副作用を担い、判定はここ）。
+ */
+internal fun orphanedWebProgressNcodes(
+    allNcodes: Set<String>,
+    keepNcodes: Set<String>,
+): Set<String> = allNcodes - keepNcodes
+
+// ── 取込前の空き容量チェック（UX監査 add・10-H）─────────────────────────────
+// 変換1冊あたりの概算所要 = PDF サイズ × 係数 ＋ 最低フロア。
+// なぜ係数2か（推定・厳密でなく防御的）: 出力HTMLは通常PDFより小さい（PDF はフォント/グリフを含むが抽出後は
+// 本文テキストのみ）が、一時展開・中間バッファの headroom を見込んで2倍を要求する保守側の概算。実測で調整可
+// （過大なら取込を過剰に拒否しうるが、逼迫端末で変換終盤に ENOSPC 浪費する方を重く見て安全側に倒す）。
+internal const val STORAGE_SAFETY_FACTOR = 2L
+// PDF が極小でも抽出の作業領域として最低これだけは空いていてほしい下限（8 MiB）。
+internal const val STORAGE_MIN_FREE_BYTES = 8L * 1024 * 1024
+
+/**
+ * 取込に十分な空き容量があるか（純判定・テスト対象）。必要見込み = max(pdfSize×係数, フロア)。
+ * usableSpace/getAllocatableBytes 等で得た実測空きバイト数を渡す（副作用はしない＝判定のみ切り出す）。
+ */
+internal fun hasEnoughStorageFor(usableBytes: Long, pdfSizeBytes: Long): Boolean =
+    usableBytes >= maxOf(pdfSizeBytes * STORAGE_SAFETY_FACTOR, STORAGE_MIN_FREE_BYTES)
 
 /**
  * InputStream 全体の SHA-256 を小文字16進文字列で返す（取込 PDF の内容指紋）。

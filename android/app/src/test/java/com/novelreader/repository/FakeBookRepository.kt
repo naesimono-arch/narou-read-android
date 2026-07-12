@@ -104,6 +104,14 @@ class FakeBookRepository : BookRepository {
 
     override suspend fun releaseOrphanedPermissions(keepUris: Set<String>) { /* 永続権限を持たない（no-op） */ }
 
+    override suspend fun pruneOrphanWebReadingProgress(): Int {
+        val keep = booksState.value.mapNotNull { it.ncode?.trim()?.uppercase() }.toSet() +
+            webNovelsState.value.map { it.ncode.trim().uppercase() }.toSet()
+        val orphans = webReadingProgressState.value.filterNot { it.ncode in keep }
+        webReadingProgressState.value = webReadingProgressState.value.filter { it.ncode in keep }
+        return orphans.size
+    }
+
     override suspend fun deleteBook(book: BookEntity) {
         booksState.value = booksState.value.filterNot { it.id == book.id }
         progressState.value = progressState.value.filterNot { it.bookId == book.id }
@@ -122,6 +130,13 @@ class FakeBookRepository : BookRepository {
     override suspend fun getProgress(bookId: BookId): ProgressEntity? =
         progressState.value.firstOrNull { it.bookId == bookId.value }
 
+    // 本番（insertIfAbsent＋updatePosition）と同じく reachedEnd を sticky に保つ＝位置更新で消さない。
+    override suspend fun markReachedEnd(bookId: BookId) {
+        progressState.value = progressState.value.map {
+            if (it.bookId == bookId.value) it.copy(reachedEnd = true) else it
+        }
+    }
+
     override suspend fun saveProgress(bookId: BookId, filename: ChapterFilename) {
         upsertProgress(ProgressEntity(bookId.value, filename.value))
     }
@@ -135,8 +150,11 @@ class FakeBookRepository : BookRepository {
         upsertProgress(ProgressEntity(bookId.value, filename.value, scrollIndex, scrollOffset))
     }
 
-    // 同一 bookId は置換（REPLACE 相当）。progress は bookId が主キーの1行モデルのため。
+    // 同一 bookId は置換（1行モデル）。ただし reachedEnd は既存値を引き継ぐ＝位置更新で読了実績を消さない
+    // （本番の updatePosition が reachedEnd 列を touch しないのと同じ挙動を Fake でも再現する）。
     private fun upsertProgress(entity: ProgressEntity) {
-        progressState.value = progressState.value.filterNot { it.bookId == entity.bookId } + entity
+        val prev = progressState.value.firstOrNull { it.bookId == entity.bookId }
+        val merged = entity.copy(reachedEnd = prev?.reachedEnd ?: entity.reachedEnd)
+        progressState.value = progressState.value.filterNot { it.bookId == entity.bookId } + merged
     }
 }

@@ -19,7 +19,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // なぜ 17 か: ui/vertical-pdf-import レーンが v16 を実機投入済み（レーン専有）。episode-nav 合流で
     // WebReadingProgressEntity が entities に加わり v16 の identity hash が変わるため、実機 v16 との
     // 同 version 衝突を no-op 再スタンプ（MIGRATION_16_17）で回避する（前例 v9→v10＝task_diary #39 追補）。
-    version = 17,
+    // v18: progress に reachedEnd 列を追加（読了＝『了』印・読了フィルタの永続化／ssot Major 2026-07-12）。
+    version = 18,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -269,6 +270,21 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v17→v18: progress テーブルに reachedEnd 列（最終章の末尾到達＝読了の実績）を追加する。
+         *  ssot Major 2026-07-12: 最終章を1行スクロールした瞬間に読了扱いする「100%の嘘」を是正した結果、
+         *  読了（『了』印・読了フィルタ）を導出する経路が消えた。読書画面が本当に末尾を可視化したときだけ
+         *  立てる事実ベースの読了フラグをここで永続化し、読了状態を復活させる。
+         *  既存行は DEFAULT 0（未読了）で補完する。NOT NULL 前提のため DEFAULT 句は必須
+         *  （無いと既存行が NULL になり Room の非 null 検証と食い違って起動時クラッシュする）。
+         *  新規追加のみで既存カラム名に依存しないため PRAGMA 分岐は不要（MIGRATION_4_5 以降と同方針）。
+         *  minSdk 26 の SQLite 3.18.x は ADD COLUMN をサポートしている。 */
+        // なぜ internal か: androidTest の MigrationTest が本物の Migration を検証するため（複製だと本体変更にテストが追従しない）。
+        internal val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE progress ADD COLUMN reachedEnd INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
@@ -277,6 +293,7 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
                         MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
+                        MIGRATION_17_18,
                     )
                     .build()
                     .also { INSTANCE = it }

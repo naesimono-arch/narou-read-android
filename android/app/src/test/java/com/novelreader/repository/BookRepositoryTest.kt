@@ -8,14 +8,18 @@ import com.novelreader.data.PendingJobDao
 import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressDao
 import com.novelreader.data.ProgressEntity
+import com.novelreader.data.WebNovelDao
+import com.novelreader.data.WebNovelEntity
 import com.novelreader.data.WebReadingProgressDao
 import com.novelreader.data.WebReadingProgressEntity
 import com.novelreader.model.BookId
 import com.novelreader.model.ChapterFilename
 import com.novelreader.narou.model.Ncode
+import com.novelreader.pdf.BookMeta
 import com.novelreader.pdf.CorruptedPdfError
 import com.novelreader.pdf.EncryptedPdfError
 import com.novelreader.pdf.InsufficientStorageError
+import com.novelreader.pdf.PdfProgress
 import com.novelreader.viewmodel.BookImportError
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -32,6 +36,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.ByteArrayInputStream
+import java.io.File
 import java.io.IOException
 
 class BookRepositoryTest {
@@ -72,6 +78,7 @@ class BookRepositoryTest {
         override fun getAll(): Flow<List<WebReadingProgressEntity>> = flowOf(store.values.toList())
         override suspend fun get(ncode: String): WebReadingProgressEntity? = store[ncode]
         override suspend fun upsert(progress: WebReadingProgressEntity) { store[progress.ncode] = progress }
+        override suspend fun deleteByNcode(ncode: String) { store.remove(ncode) }
     }
 
     // ── classifyError: PdfExtractionException 型分岐 ──────────────────────
@@ -149,17 +156,13 @@ class BookRepositoryTest {
     }
 
     @Test
-    fun `saveProgress - progressDao に ProgressEntity を渡して呼ぶ`() = runTest {
+    fun `saveProgress - 位置列だけを updatePosition で更新する（reachedEnd を消さない）`() = runTest {
+        // 全列 REPLACE をやめ insertIfAbsent（新規行作成）＋ updatePosition（位置列のみ更新）の2手で保存する。
+        // reachedEnd を touch しない updatePosition が呼ばれること＝『了』印を位置保存で潰さない保証を固定する。
+        // lastReadAt は書き込み時刻（System.currentTimeMillis()）で非決定的なため any() で受ける（章移動＝スクロール 0,0）。
         repository.saveProgress(BookId("id01"), ChapterFilename("chapter_02.html"))
-        // lastReadAt は書き込み時刻（System.currentTimeMillis()）で非決定的なため完全一致は使わず、
-        // 識別子フィールドのみ検証する（章移動なのでスクロール位置は 0,0）。
         coVerify {
-            progressDao.saveProgress(
-                match {
-                    it.bookId == "id01" && it.lastReadFilename == "chapter_02.html" &&
-                        it.scrollIndex == 0 && it.scrollOffset == 0
-                }
-            )
+            progressDao.updatePosition("id01", "chapter_02.html", 0, 0, any())
         }
     }
 
@@ -354,5 +357,190 @@ class BookRepositoryTest {
         // 未正規化キーではヒットせず、正規化キーでのみ引ける＝保存時に正規化されている証明。
         assertNull("未正規化キーではヒットしない（保存時正規化の証明）", webReadingProgressDao.get("n1234ab"))
         assertEquals(3, webReadingProgressDao.get("N1234AB")?.lastReadEpisode)
+    }
+
+    // ── Web読書位置の furthest-wins（参照ジャンプで先端が後退しない）───────────────────
+    // 目次から前の話を新規リンクで開いて退出しても、到達済み最遠話より前進しない記録は無視する
+    // （UX監査 continuity・公理14/公理6）。task_diary #56 の reachedByBack ガードが取り逃す
+    // 「前方への新規ロードで小さい話数」経路を、記録の単一集約点で塞ぐことの回帰。
+
+    @Test
+    fun `recordWebReadingEpisode - 前進した話数は更新される`() = runTest {
+        repository.recordWebReadingEpisode(Ncode("N1234AB"), 10)
+        repository.recordWebReadingEpisode(Ncode("N1234AB"), 51)
+        assertEquals(51, repository.getWebReadingProgress(Ncode("N1234AB"))?.lastReadEpisode)
+    }
+
+    @Test
+    fun `recordWebReadingEpisode - 後退（目次から前の話を確認）では先端が保たれる`() = runTest {
+        repository.recordWebReadingEpisode(Ncode("N1234AB"), 51)
+        // 目次から第10話を確認しに開いた＝より小さい話数の記録要求。先端51は後退させない。
+        repository.recordWebReadingEpisode(Ncode("N1234AB"), 10)
+        assertEquals(51, repository.getWebReadingProgress(Ncode("N1234AB"))?.lastReadEpisode)
+    }
+
+    @Test
+    fun `recordWebReadingEpisode - 同じ話数の再記録は先端を変えない`() = runTest {
+        repository.recordWebReadingEpisode(Ncode("N1234AB"), 20)
+        repository.recordWebReadingEpisode(Ncode("N1234AB"), 20)
+        assertEquals(20, repository.getWebReadingProgress(Ncode("N1234AB"))?.lastReadEpisode)
+    }
+
+    @Test
+    fun `recordWebReadingEpisode - 初回記録は無条件に挿入される`() = runTest {
+        repository.recordWebReadingEpisode(Ncode("N9999ZZ"), 5)
+        assertEquals(5, repository.getWebReadingProgress(Ncode("N9999ZZ"))?.lastReadEpisode)
+    }
+
+    // ── Web読書位置の削除経路（UX監査 privacy・削除の完全性）──────────────────────────
+    // 本削除/カード除去で履歴が相乗り削除されること・ただし他参照が残るなら保持されること・
+    // 起動時 orphan 掃除で完全化されることを固定する。webNovelDao は既定が実 Room のため各テストで注入する。
+
+    /** books/web_novels の getAll を任意にスタブした webNovelDao/bookDao を注入したリポジトリを組む。 */
+    private fun repoWith(
+        books: List<BookEntity>,
+        webNovels: List<WebNovelEntity>,
+        webProgressDao: FakeWebReadingProgressDao,
+    ): DefaultBookRepository {
+        val localBookDao = mockk<BookDao>(relaxed = true)
+        val localWebNovelDao = mockk<WebNovelDao>(relaxed = true)
+        every { localBookDao.getAllBooks() } returns flowOf(books)
+        every { localWebNovelDao.getAll() } returns flowOf(webNovels)
+        return DefaultBookRepository(
+            context, localBookDao, progressDao, pendingJobDao,
+            webNovelDao = localWebNovelDao,
+            webReadingProgressDao = webProgressDao,
+            runInTransaction = { block -> block() },
+        )
+    }
+
+    @Test
+    fun `removeWebNovel - 他参照が無ければ Web読書位置も相乗り削除される`() = runTest {
+        val dao = FakeWebReadingProgressDao()
+        dao.upsert(WebReadingProgressEntity("N1234AB", 12, 0L))
+        val repo = repoWith(books = emptyList(), webNovels = emptyList(), webProgressDao = dao)
+        repo.removeWebNovel(Ncode("N1234AB"))
+        assertNull("カードを外したら位置履歴も消える", dao.get("N1234AB"))
+    }
+
+    @Test
+    fun `removeWebNovel - 同 ncode を紐付けた蔵書が残れば位置履歴は保持される`() = runTest {
+        val dao = FakeWebReadingProgressDao()
+        dao.upsert(WebReadingProgressEntity("N1234AB", 12, 0L))
+        // まだ ncode=N1234AB を紐付けた PDF 蔵書が棚に在る＝「続きから」に要るので消さない。
+        val repo = repoWith(
+            books = listOf(BookEntity("id01", "本A", "/p", "著A", ncode = "N1234AB")),
+            webNovels = emptyList(),
+            webProgressDao = dao,
+        )
+        repo.removeWebNovel(Ncode("N1234AB"))
+        assertEquals(12, dao.get("N1234AB")?.lastReadEpisode)
+    }
+
+    @Test
+    fun `deleteBook - 紐付いた Web読書位置も他参照が無ければ相乗り削除される`() = runTest {
+        val dao = FakeWebReadingProgressDao()
+        dao.upsert(WebReadingProgressEntity("N1234AB", 8, 0L))
+        val book = BookEntity("id01", "本A", "/nonexistent/path", "著A", ncode = "N1234AB")
+        // deleteBook 後の snapshot（books/web_novels とも空）で未参照と判定される。
+        val repo = repoWith(books = emptyList(), webNovels = emptyList(), webProgressDao = dao)
+        repo.deleteBook(book)
+        assertNull(dao.get("N1234AB"))
+    }
+
+    @Test
+    fun `pruneOrphanWebReadingProgress - 棚に紐付かない履歴だけ回収する`() = runTest {
+        val dao = FakeWebReadingProgressDao()
+        dao.upsert(WebReadingProgressEntity("N0001AA", 3, 0L)) // 孤児（どこからも参照されない）
+        dao.upsert(WebReadingProgressEntity("N0002BB", 5, 0L)) // 蔵書が紐付け
+        dao.upsert(WebReadingProgressEntity("N0003CC", 7, 0L)) // Webカードが在る
+        val repo = repoWith(
+            books = listOf(BookEntity("id01", "本B", "/p", "著B", ncode = "N0002BB")),
+            webNovels = listOf(WebNovelEntity("N0003CC", "作品C", "著C", 7, 0L)),
+            webProgressDao = dao,
+        )
+        val pruned = repo.pruneOrphanWebReadingProgress()
+        assertEquals(1, pruned)
+        assertNull("孤児は消える", dao.get("N0001AA"))
+        assertEquals(5, dao.get("N0002BB")?.lastReadEpisode)
+        assertEquals(7, dao.get("N0003CC")?.lastReadEpisode)
+    }
+
+    @Test
+    fun `orphanedWebProgressNcodes - keep に無い ncode だけ回収対象`() {
+        assertEquals(
+            setOf("N0001AA"),
+            orphanedWebProgressNcodes(setOf("N0001AA", "N0002BB"), setOf("N0002BB")),
+        )
+    }
+
+    // ── 取込前の空き容量チェック（UX監査 add・10-H）────────────────────────────
+    // 必要見込み = max(pdfSize×係数, フロア) を空きが下回れば false（＝変換に入らず容量不足エラーへ）。
+
+    @Test
+    fun `hasEnoughStorageFor - 空きが概算所要以上なら true`() {
+        val pdf = 10L * 1024 * 1024 // 10MiB
+        // 必要見込み = max(10MiB×2, 8MiB) = 20MiB。ちょうど 20MiB 空きなら足りる。
+        assertTrue(hasEnoughStorageFor(usableBytes = 20L * 1024 * 1024, pdfSizeBytes = pdf))
+    }
+
+    @Test
+    fun `hasEnoughStorageFor - 空きが概算所要を下回れば false`() {
+        val pdf = 10L * 1024 * 1024
+        assertFalse(hasEnoughStorageFor(usableBytes = 19L * 1024 * 1024, pdfSizeBytes = pdf))
+    }
+
+    @Test
+    fun `hasEnoughStorageFor - 極小PDFでも最低フロア(8MiB)は要求する`() {
+        // pdfSize×2 = 2KiB でもフロア 8MiB が下限。7MiB 空きでは false。
+        assertFalse(hasEnoughStorageFor(usableBytes = 7L * 1024 * 1024, pdfSizeBytes = 1024L))
+        assertTrue(hasEnoughStorageFor(usableBytes = 8L * 1024 * 1024, pdfSizeBytes = 1024L))
+    }
+
+    // ── 破損PDFの隔離（UX監査 measure・C表#8 interlock）─────────────────────────
+    // 抽出が例外を投げる fake engine を注入し、破損PDFが「本棚に出ない・書きかけHTML削除・pending削除」で
+    // 隔離される（現行データ無傷）ことを repository 層で assert する。addBook が engine 差替可能になったことの回帰。
+
+    @Test
+    fun `addBook - 破損PDFは隔離される（未insert・書きかけ削除・pending削除）`() = runTest {
+        val filesDir = createTempDir(prefix = "addBookFiles")
+        val cacheDir = createTempDir(prefix = "addBookCache")
+        try {
+            every { context.filesDir } returns filesDir
+            every { context.cacheDir } returns cacheDir
+            val pdfUri = mockk<Uri>(relaxed = true)
+            every { pdfUri.toString() } returns "content://docs/corrupt"
+            every { context.contentResolver.openInputStream(pdfUri) } returns
+                ByteArrayInputStream("dummy pdf bytes".toByteArray())
+            // 内容ハッシュ照合は不一致（新規として抽出に進む）。抽出で破損例外を投げる。
+            coEvery { bookDao.findByContentSha256(any()) } returns null
+
+            val throwingExtract: (File, String, File, PdfProgress) -> BookMeta =
+                { _, _, _, _ -> throw CorruptedPdfError("bad structure") }
+            val repo = DefaultBookRepository(
+                context, bookDao, progressDao, pendingJobDao,
+                webReadingProgressDao = FakeWebReadingProgressDao(),
+                runInTransaction = { block -> block() },
+                extractBook = throwingExtract,
+            )
+
+            val result = repo.addBook(pdfUri)
+
+            assertTrue("破損は失敗として返る", result.isFailure)
+            assertTrue(
+                "容量不足でなく破損として分類される",
+                result.exceptionOrNull() is BookImportError.CorruptedPdf,
+            )
+            // 書きかけ HTML ディレクトリが残らない（隔離＝孤立本を棚に残さない）
+            val novels = File(filesDir, "novels")
+            assertTrue("書きかけHTMLディレクトリは残らない", novels.listFiles().isNullOrEmpty())
+            // 本棚に出ない: insertBook は一度も呼ばれない
+            coVerify(exactly = 0) { bookDao.insertBook(any()) }
+            // 永続キューの記帳は落とす（M7 再試行のため権限は残す＝settle でなく deleteByUri のみ）
+            coVerify { pendingJobDao.deleteByUri("content://docs/corrupt") }
+        } finally {
+            filesDir.deleteRecursively()
+            cacheDir.deleteRecursively()
+        }
     }
 }

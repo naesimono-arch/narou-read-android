@@ -2,6 +2,7 @@ package com.novelreader.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import java.io.File
 
 @Entity(tableName = "books")
 data class BookEntity(
@@ -26,4 +27,27 @@ data class BookEntity(
     // ハッシュ照合では一致しない（＝旧取込分は変換前遮断の対象外で、従来どおり抽出後の
     // title＋author 照合に委ねる＝多層防御の縮退として許容する）。
     val contentSha256: String? = null,
-)
+) {
+    /**
+     * 保存済み htmlDirPath が実在すればそれを、無ければ bookId から再導出したディレクトリを返す（復元耐性の下地）。
+     *
+     * なぜ（UX監査 portable・公理18 D 再結合キー）: htmlDirPath は端末絶対パスなので、メタデータをバックアップ
+     * から別端末へ復元すると古い端末のパスを指し resolvedFile==null で本文が開けない。HTML 実体の置き場は
+     * 「filesDir/novels/<bookId>」という決定的規約（[resolveHtmlDir]）なので、保存パスが外れても bookId から
+     * 復元できる。実体そのものの復元は別レイヤ（C2 バックアップ層別・contentSha256 での再結合）だが、位置を
+     * 保存パスに固定依存しない導出をここへ一元化しておくことで、実体が揃った後の graceful な位置復帰を可能にする。
+     */
+    fun resolvedHtmlDir(filesDir: File): File {
+        val stored = File(htmlDirPath)
+        return if (stored.exists()) stored else resolveHtmlDir(filesDir, id)
+    }
+
+    companion object {
+        /** HTML 実体を格納する filesDir 直下のサブディレクトリ名（取込・掃除・復元で共有する単一の規約）。 */
+        const val NOVELS_SUBDIR = "novels"
+
+        /** bookId から HTML ディレクトリを再導出する（filesDir/novels/<bookId>）。取込時の書き出し先・
+         *  孤立HTML掃除の走査・復元時の位置復帰が同一規約を通るための一元化点。 */
+        fun resolveHtmlDir(filesDir: File, bookId: String): File = File(filesDir, "$NOVELS_SUBDIR/$bookId")
+    }
+}
