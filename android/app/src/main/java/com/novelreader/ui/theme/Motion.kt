@@ -28,6 +28,9 @@ val MotionSpringBarSettle: SpringSpec<Float> = spring(stiffness = Spring.Stiffne
 
 // PDF 処理中バナーの進捗バーが現在ステップの目標値へ伸びる時間（ms）。ProcessingBanner の tween に使う。
 // ステップ切替時の瞬時リセット（snapTo）はアニメではないためトークン外。
+// なぜ 400ms（禁止則①の 350ms 上限超）でよいか: 進行類型（連続的に"進行中"を示すフィードバック）は
+// 上限則の適用外＝ADR 0014「適用裁定の記録」（2026-07-12・確認バッチ E）。上限 350ms は enter/exit の
+// ような離散的な状態遷移（reveal250/dismiss150）を縛る規律で、進行の可視化はやや長い方が自然＝目的が異なる。
 const val MotionDurationProgress: Int = 400
 
 // バナー等の入退場 duration（ms）。Design/08-C（enter/exit は別指定・exit は enter より短い＝加速して消える）
