@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Auto Backup（API 26-30 用・API 31+ は data_extraction_rules.xml が優先）の層別ルール。
+  なぜ層別か（ADR 0015）: Auto Backup の 25MB 上限に対し HTML 実体（files/novels/）は超過しうる。
+  実体を含めると「HTML だけ部分欠落・DB だけ復元」の不整合が構造的に起きるため、
+  バックアップ対象を〈メタデータ層＝蔵書リスト・読書位置・しおり・設定（数十KB）〉に限定し、
+  HTML 実体は復元後の再取込（graceful degrade・位置は保持）で賄う。
+  include を1つでも書くと対象は include 列挙のみ＝HTML 実体（files/novels/）は構造的に対象外。
+  （明示の <exclude path="novels/"> は「included path 内にない exclude」として lint エラーに
+  なるため書けない＝除外の意図はこのコメントが正本。）
+-->
+<full-backup-content>
+    <!-- Room DB（books/progress/web_novels/web_reading_progress ほか）＝蔵書メタ・読書位置の正本 -->
+    <include domain="database" path="." />
+    <!-- SharedPreferences（読書テーマ・設定） -->
+    <include domain="sharedpref" path="." />
+    <!-- Preferences DataStore（検索履歴ほか）。既定配置は files/datastore/ -->
+    <include domain="file" path="datastore/" />
+</full-backup-content>
