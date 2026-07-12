@@ -26,7 +26,14 @@ enum class ReadingTheme { LIGHT, SEPIA, DARK }
 data class ReadingColors(
     val background: Color,        // 本文・目次の背景
     val text: Color,              // 本文文字
-    val textSecondary: Color,     // 補助テキスト（エラー詳細・空状態など）
+    val textSecondary: Color,     // 装飾的補助テキスト（見出し添え・プレースホルダ等・意味を運ばない）
+    // 意味を運ぶ補助テキスト（エラー本文・空状態の説明など）。textSecondary を alpha で沈めると AA を割る
+    // ため、素地上 4.5:1 を満たす専用暗化シェード（Material の InfoText と同値・ADR 0014-D）を使う。
+    val infoText: Color,
+    // プレースホルダ・無効ボタン文字などの「例示/不活性」テキスト（意味を運ばない＝WCAG 概ね対象外）。
+    // textSecondary.copy(alpha=0.6) の二重帳簿を避け、その合成結果を素地上で焼き込んだ役割別シェード
+    // （Design/10§9「alpha でなく専用シェード」＝コード衛生）。
+    val placeholder: Color,
     val navBackground: Color,     // 下部ナビバー（使用側で半透明化する）
     val topBarBackground: Color,  // 読書画面トップバー
     val topBarTitle: Color,       // トップバーのタイトル文字
@@ -54,13 +61,19 @@ val ReadingTheme.colors: ReadingColors
             background       = Color(0xFFFBFAF8),
             text             = Color(0xFF1C1F26),
             textSecondary    = Color(0xFF7C808B),
+            infoText         = InfoTextLight, // 素地 6.01:1（意味テキスト用の暗化シェード）
+            placeholder      = Color(0xFFAFB1B7), // = textSecondary#7C808B @0.6 over 素地（焼き込み）
             navBackground    = Color(0xFFFBFAF8),
             // D はトップ/ボトムバーを本文素地と同色に揃え、藍のヘアラインだけで境界を示す。
             // アイコンは素地から十分離れた濃灰でコントラストを確保（タイトルは墨色）。
             topBarBackground = Color(0xFFFBFAF8),
             topBarTitle      = Color(0xFF1C1F26),
             topBarIcon       = Color(0xFF4A4F58),
-            ruby             = Color(0xFF8B96A0),
+            // ルビ＝著者指定の読み＝意味を運ぶ小テキストのため WCAG 4.5:1 が最低線（ADR 0014-D）。
+            // 旧 #8B96A0 は素地 2.89:1／前書き後書きブロック地(#F1F0EC) 2.64:1 で未達だった。
+            // 青灰の色相(H≈209°)・彩度(S≈0.10)を保ち明度のみ暗化した #616C77 で
+            // 素地 5.14:1／ブロック地 4.70:1 と全面 AA 充足（本文 15.81:1 より薄く階層は保つ）。
+            ruby             = Color(0xFF616C77),
             // hr は藍 #1C3D5A を素地に約50%で溶かした青灰（モックの opacity:.5 相当）。
             // 破線で主張させすぎないシーン区切りにする。
             hr               = Color(0xFF9FB0BC),
@@ -81,12 +94,17 @@ val ReadingTheme.colors: ReadingColors
             background       = Color(0xFFF2E7CE),
             text             = Color(0xFF3D3121),
             textSecondary    = Color(0xFF8C7D5D),
+            infoText         = InfoTextSepia, // 素地 4.97:1（意味テキスト用の暗化シェード）
+            placeholder      = Color(0xFFB5A78A), // = textSecondary#8C7D5D @0.6 over 素地（焼き込み）
             navBackground    = Color(0xFFECDFC0),
             // LIGHT と同方針: 上下バーを本文紙トーンに揃え、ヘアラインで境界を示す。
             topBarBackground = Color(0xFFECDFC0),
             topBarTitle      = Color(0xFF3D3121),
             topBarIcon       = Color(0xFF6A5B3C),
-            ruby             = Color(0xFFA3906A),
+            // ルビは意味色＝WCAG 4.5:1 最低線（ADR 0014-D）。旧 #A3906A は素地 2.53:1／
+            // ブロック地(#EBDEBE) 2.33:1 で未達。琥珀の色相(H≈40°)・彩度(S≈0.24)を保ち明度のみ
+            // 暗化した #6D5F43 で素地 5.08:1／ブロック地 4.67:1 と全面 AA 充足。
+            ruby             = Color(0xFF6D5F43),
             hr               = Color(0xFFB4A379),
             divider          = Color(0xFFE0D3B0),
             blockBackground  = Color(0xFFEBDEBE),
@@ -101,11 +119,16 @@ val ReadingTheme.colors: ReadingColors
             background       = Color(0xFF14171C),
             text             = Color(0xFFC7CDD3),
             textSecondary    = Color(0xFF7B838C),
+            infoText         = InfoTextDark, // 暗面 5.70:1（意味テキスト用の役割別トークン）
+            placeholder      = Color(0xFF52585F), // = textSecondary#7B838C @0.6 over 暗面（焼き込み）
             navBackground    = Color(0xFF181C22),
             topBarBackground = Color(0xFF181C22),
             topBarTitle      = Color(0xFFC7CDD3),
             topBarIcon       = Color(0xFF9AA2AB),
-            ruby             = Color(0xFF6E7984),
+            // ルビは意味色＝WCAG 4.5:1 最低線（ADR 0014-D）。暗面ではルビだけ暗すぎると読めないため
+            // 旧 #6E7984 は素地 4.05:1／ブロック地(#1B1F26) 3.72:1 で未達。青灰の色相(H≈210°)・
+            // 彩度(S≈0.09)を保ち明度のみ明化した #7F8994 で素地 5.05:1／ブロック地 4.65:1 と全面 AA 充足。
+            ruby             = Color(0xFF7F8994),
             hr               = Color(0xFF46566A),
             divider          = Color(0xFF2A2F38),
             blockBackground  = Color(0xFF1B1F26),

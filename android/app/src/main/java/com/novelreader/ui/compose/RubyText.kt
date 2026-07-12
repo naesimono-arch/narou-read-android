@@ -1,6 +1,7 @@
 package com.novelreader.ui.compose
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -15,6 +16,8 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
@@ -28,6 +31,8 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.model.TextSegment
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.ReadingTheme
+import com.novelreader.ui.theme.colors
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
@@ -70,16 +75,18 @@ fun RubyText(
     // 死デフォルト回避のため必須引数。実描画は全呼び出しが colors.ruby を明示する（ChapterContent）。
     rubyColor: Color,
 ) {
-    val (annotated, rubyRanges) = remember(segments) {
+    val (annotated, rubyRanges, spokenText) = remember(segments) {
         buildRubyAnnotatedString(segments)
     }
 
     var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
 
-    // DrawScope.density と同値の composition 密度。Paint の px 換算に使う。
-    val density = LocalDensity.current.density
+    // sp→px 変換に使う Density（density と fontScale の両方を保持する）。
+    // なぜ Float の .density でなく Density オブジェクトを持つか: ルビ px を Density.toPx() へ委譲して
+    // OS フォント拡大（fontScale）を反映させるため（WCAG 1.4.4 Resize Text）。
+    val density = LocalDensity.current
 
-    // ルビ描画 Paint。フォントサイズ・色・比率・密度が変わらない限り同一で良い。
+    // ルビ描画 Paint。フォントサイズ・色・比率・Density が変わらない限り同一で良い。
     // なぜ remember 化するか: 以前は drawWithContent 内で描画パス毎に Paint を new していたため、
     // 章オープン・設定変更・スクロールの各再描画でアロケートが走っていた（可視段落分×描画回数）。
     // 見た目を決める入力（rubyColor / style.fontSize / rubyFontSizeRatio / density）だけを key にして
@@ -87,7 +94,11 @@ fun RubyText(
     val rubyPaint = remember(rubyColor, style.fontSize, rubyFontSizeRatio, density) {
         android.graphics.Paint().apply {
             color = rubyColor.toArgb()
-            textSize = style.fontSize.value * rubyFontSizeRatio * density
+            // sp→px を標準の Density.toPx() に委譲する。
+            // なぜ手計算(value*density)をやめたか: 旧実装は表示密度のみ掛け fontScale を無視していたため、
+            // OS のフォント拡大時に親文字（sp 経由で fontScale が乗る）だけ拡大しルビが据え置きになり、
+            // ルビが相対的に極小化した（WCAG 1.4.4 違反）。toPx() は density と fontScale の両方を反映する。
+            textSize = with(density) { (style.fontSize * rubyFontSizeRatio).toPx() }
             textAlign = android.graphics.Paint.Align.CENTER
             isAntiAlias = true
             typeface = android.graphics.Typeface.SERIF
@@ -96,21 +107,34 @@ fun RubyText(
     // 親文字の字面上端をベースラインから導出するための ascent（負値）。
     // なぜ別 Paint か: TextLayoutResult は行ボックス座標しか持たず、lineHeight の余剰を含む行上端
     // からは字面位置が分からないため（バグ#1 の根本原因）。MinchoFamily = FontFamily.Serif なので
-    // Typeface.SERIF でメトリクスが一致する。値はフォントサイズ・密度のみに依存＝描画毎に不変なので
+    // Typeface.SERIF でメトリクスが一致する。値はフォントサイズ・Density のみに依存＝描画毎に不変なので
     // remember で1回だけ算出する（毎描画の Paint 生成 + ascent() 呼び出しを排除）。
+    // なぜ fontScale 込みの toPx() か: 親文字は sp 経由で fontScale が乗るため、ここを density のみで
+    // 計算すると baseAscent が実サイズとズレてルビの縦位置がフォント拡大時に狂う。
     val baseAscent = remember(style.fontSize, density) {
         android.graphics.Paint().apply {
-            textSize = style.fontSize.value * density
+            textSize = with(density) { style.fontSize.toPx() }
             typeface = android.graphics.Typeface.SERIF
         }.ascent()
     }
     // ルビ描画位置のキャッシュ。TextLayoutResult と rubyRanges の同一性(===)で前回結果を再利用する。
     val rubyPositionCache = remember { RubyPositionCache() }
 
+    // TTS 読み置換（WCAG 1.4.1.3 相当・charter F 急所②「ルビ＝著者指定の読み」）。
+    // なぜ BasicText 直下でなく Box + clearAndSetSemantics か: 当て字（例『魔剣(つるぎ)』）を TalkBack が
+    // 親漢字の既定読み（『まけん』）で読み上げてしまうのを、著者読み（『つるぎ』）へ置換する。
+    // VerbatimTtsAnnotation は「一字ずつ逐語読み」させる注釈で読みの置換用途に不適なため採らない。
+    // semantics{ text = ... } は Text プロパティの merge ポリシーが「追記」で二重読みになるため、
+    // clearAndSetSemantics で子（BasicText）の text を一旦クリアし、置換後の全文 spokenText を
+    // contentDescription として与える（＝この段落の音声はこれ1本になる）。spokenText は plain はそのまま・
+    // ルビ範囲は reading に差し替えた全文なので、無音落ちも二重読みも起こさない。
+    Box(
+        modifier = modifier.clearAndSetSemantics { contentDescription = spokenText },
+    ) {
     BasicText(
         text = annotated,
         style = style,
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
             .drawWithContent {
                 // 先にテキスト本体を描画し、その上にルビを重ねる
@@ -143,6 +167,7 @@ fun RubyText(
         onTextLayout = { textLayoutResult = it },
         overflow = TextOverflow.Visible,
     )
+    }
 }
 
 /**
@@ -177,28 +202,37 @@ private class RubyPositionCache {
 }
 
 /**
- * TextSegment リストから AnnotatedString とルビ範囲リストを構築する。
- * @return Pair(annotated, rubyRanges) — rubyRanges は Triple(start, end, reading)
+ * TextSegment リストから AnnotatedString・ルビ範囲リスト・TTS 用の読み置換全文を構築する。
+ * @return Triple(annotated, rubyRanges, spokenText)
+ *   - annotated: 視覚描画用（親漢字を表示）
+ *   - rubyRanges: Triple(start, end, reading)。ルビ描画位置計算に使う
+ *   - spokenText: TalkBack 用。plain はそのまま・ルビ範囲は base を reading に置換した全文
+ *     （当て字を著者指定の読みで読み上げさせる＝charter F 急所②）
  */
 private fun buildRubyAnnotatedString(
     segments: List<TextSegment>,
-): Pair<AnnotatedString, List<Triple<Int, Int, String>>> {
+): Triple<AnnotatedString, List<Triple<Int, Int, String>>, String> {
     val rubyRanges = mutableListOf<Triple<Int, Int, String>>()
+    val spoken = StringBuilder()
 
     val annotated = buildAnnotatedString {
         for (segment in segments) {
-            appendSegment(segment, rubyRanges)
+            appendSegment(segment, rubyRanges, spoken)
         }
     }
-    return annotated to rubyRanges
+    return Triple(annotated, rubyRanges, spoken.toString())
 }
 
 private fun AnnotatedString.Builder.appendSegment(
     segment: TextSegment,
     rubyRanges: MutableList<Triple<Int, Int, String>>,
+    spoken: StringBuilder,
 ) {
     when (segment) {
-        is TextSegment.Plain -> append(segment.text)
+        is TextSegment.Plain -> {
+            append(segment.text)
+            spoken.append(segment.text)
+        }
 
         is TextSegment.Ruby -> {
             val start = length
@@ -207,12 +241,16 @@ private fun AnnotatedString.Builder.appendSegment(
             rubyRanges.add(Triple(start, end, segment.reading))
             // アノテーションも記録（将来の用途向け）
             addStringAnnotation(RUBY_TAG, segment.reading, start, end)
+            // 読み上げ用は親漢字でなく著者読み（reading）を積む。reading は base の発音そのものなので、
+            // 置換した spoken を通しで読ませれば自然な音声になる（例: 上(あ)がった → 「あがった」）。
+            spoken.append(segment.reading)
         }
 
         is TextSegment.LineBreak -> {
             // 呼び出し元で段落分割済みのため、ここには来ない想定。
             // 万一来た場合は改行として扱う（空のアノテーションを追加しない）
             append("\n")
+            spoken.append("\n")
         }
 
         is TextSegment.HorizontalRule -> {
@@ -222,7 +260,7 @@ private fun AnnotatedString.Builder.appendSegment(
         is TextSegment.StyledBlock -> {
             // StyledBlock も段落レベルで処理するため RubyText には来ない想定
             for (child in segment.segments) {
-                appendSegment(child, rubyRanges)
+                appendSegment(child, rubyRanges, spoken)
             }
         }
     }
@@ -240,7 +278,7 @@ private fun RubyTextPreview_Normal() {
             TextSegment.Plain("は始まる。"),
         ),
         modifier = Modifier.padding(16.dp),
-        rubyColor = Color(0xFF8B96A0), // プレビュー用＝ReadingColors.LIGHT.ruby と同値
+        rubyColor = ReadingTheme.LIGHT.colors.ruby, // トークン正本を直接参照（プレビューだけ旧値に取り残されるのを防ぐ）
     )
 }
 
@@ -261,7 +299,7 @@ private fun RubyTextPreview_Bold() {
             fontWeight = FontWeight.Normal,
             letterSpacing = 0.sp,
         ),
-        rubyColor = Color(0xFF8B96A0), // プレビュー用＝ReadingColors.LIGHT.ruby と同値
+        rubyColor = ReadingTheme.LIGHT.colors.ruby, // トークン正本を直接参照（プレビューだけ旧値に取り残されるのを防ぐ）
     )
 }
 
@@ -276,6 +314,6 @@ private fun RubyTextPreview_LineWrap() {
             TextSegment.Plain("が行をまたいで折り返す場合のプレビュー。"),
         ),
         modifier = Modifier.padding(8.dp),
-        rubyColor = Color(0xFF8B96A0), // プレビュー用＝ReadingColors.LIGHT.ruby と同値
+        rubyColor = ReadingTheme.LIGHT.colors.ruby, // トークン正本を直接参照（プレビューだけ旧値に取り残されるのを防ぐ）
     )
 }

@@ -15,6 +15,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.FontSectionTitle
+import com.novelreader.ui.theme.FontCaption
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.colors
@@ -38,14 +40,18 @@ internal fun ReadingErrorScreen(
             Text(
                 text = "読み込みに失敗しました",
                 fontFamily = MinchoFamily,
-                fontSize = 16.sp,
-                color = colors.textSecondary,
+                fontSize = FontSectionTitle,
+                // エラー見出しは意味を運ぶ文字＝装飾補助の textSecondary でなく AA を満たす infoText を使う（ADR 0014-D）。
+                color = colors.infoText,
             )
             Text(
                 text = message,
                 fontFamily = MinchoFamily,
-                fontSize = 12.sp,
-                color = colors.textSecondary.copy(alpha = 0.75f),
+                fontSize = FontCaption,
+                // なぜ copy(alpha=0.75) を撤去したか: 意味を運ぶエラー本文を alpha で沈めると実効色が
+                // 素地上で AA(4.5:1) を割る（旧実測 L2.56/S2.31/D3.18）。ADR 0014-D「意味テキストは
+                // alpha で作らない」に従い、素地上 4.5:1 を満たす infoText を素値で使う。
+                color = colors.infoText,
                 modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
                 textAlign = TextAlign.Center,
             )

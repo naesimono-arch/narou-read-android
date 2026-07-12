@@ -46,9 +46,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.novelreader.narou.isValidNcode
 import com.novelreader.narou.model.Ncode
+import com.novelreader.ui.theme.FontActionLabel
+import com.novelreader.ui.theme.FontBody
+import com.novelreader.ui.theme.FontCaption
+import com.novelreader.ui.theme.FontLabel
+import com.novelreader.ui.theme.FontSectionTitle
+import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.viewmodel.NcodeSearchUiState
@@ -103,7 +108,7 @@ internal fun NcodeLinkSheet(
             Text(
                 text = "なろう作品と紐付け",
                 fontFamily = MinchoFamily,
-                fontSize = 16.sp,
+                fontSize = FontSectionTitle,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.text,
                 modifier = Modifier.padding(bottom = 6.dp)
@@ -111,9 +116,19 @@ internal fun NcodeLinkSheet(
             // 補足: ゴシック 12sp
             Text(
                 text = "「${bookTitle}」の続きをなろうで読むための紐付けです。",
-                fontSize = 12.sp,
+                fontSize = FontCaption,
                 color = colors.textSecondary,
                 modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            // 恒常ラベル: 入力後も残り「何の欄か」を示す（placeholder は例示専用に降格）。
+            // なぜ手掛かりを常設するか: placeholder は入力すると消え TalkBack でも欄名が読まれないため
+            // （UX/06㉑ 入力欄はラベルを持つ）。下の手動 Nコード欄「Nコードを直接入力」ラベルと対を成す。
+            Text(
+                text = "作品名で検索",
+                fontSize = FontLabel,
+                color = colors.textSecondary,
+                modifier = Modifier.padding(bottom = 6.dp)
             )
 
             // 検索欄
@@ -126,7 +141,7 @@ internal fun NcodeLinkSheet(
                     .onFocusChanged { isFocused = it.isFocused },
                 singleLine = true,
                 textStyle = TextStyle(
-                    fontSize = 15.sp,
+                    fontSize = FontActionLabel,
                     color = colors.text
                 ),
                 cursorBrush = SolidColor(colors.accent),
@@ -144,8 +159,9 @@ internal fun NcodeLinkSheet(
                                 if (inputText.isEmpty()) {
                                     Text(
                                         text = "作品名を入力",
-                                        fontSize = 15.sp,
-                                        color = colors.textSecondary.copy(alpha = 0.6f)
+                                        fontSize = FontActionLabel,
+                                        // 例示プレースホルダ＝専用シェード（alpha 二重帳簿を撤去・Design/10§9）
+                                        color = colors.placeholder
                                     )
                                 }
                                 innerTextField()
@@ -190,7 +206,7 @@ internal fun NcodeLinkSheet(
                         ) {
                             Text(
                                 text = "検索中...",
-                                fontSize = 12.sp,
+                                fontSize = FontCaption,
                                 color = colors.textSecondary
                             )
                         }
@@ -205,7 +221,7 @@ internal fun NcodeLinkSheet(
                         ) {
                             Text(
                                 text = state.message,
-                                fontSize = 12.sp,
+                                fontSize = FontCaption,
                                 color = colors.textSecondary,
                                 textAlign = TextAlign.Center
                             )
@@ -233,7 +249,7 @@ internal fun NcodeLinkSheet(
                                 ) {
                                     Text(
                                         text = "再試行",
-                                        fontSize = 12.sp,
+                                        fontSize = FontCaption,
                                         color = colors.textSecondary
                                     )
                                 }
@@ -251,7 +267,7 @@ internal fun NcodeLinkSheet(
                             ) {
                                 Text(
                                     text = "該当する作品が見つかりません",
-                                    fontSize = 12.sp,
+                                    fontSize = FontCaption,
                                     color = colors.textSecondary
                                 )
                             }
@@ -279,7 +295,7 @@ internal fun NcodeLinkSheet(
                                     ) {
                                         Text(
                                             text = novel.title.orEmpty(),
-                                            fontSize = 13.sp,
+                                            fontSize = FontSubTitle,
                                             color = colors.text,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
@@ -303,7 +319,7 @@ internal fun NcodeLinkSheet(
                                         }
                                         Text(
                                             text = infoText,
-                                            fontSize = 11.sp,
+                                            fontSize = FontLabel,
                                             color = colors.textSecondary
                                         )
                                     }
@@ -323,7 +339,7 @@ internal fun NcodeLinkSheet(
             // 手動入力節（リスト下部）
             Text(
                 text = "Nコードを直接入力",
-                fontSize = 11.sp,
+                fontSize = FontLabel,
                 color = colors.textSecondary,
                 modifier = Modifier.padding(top = 16.dp, bottom = 6.dp)
             )
@@ -343,7 +359,7 @@ internal fun NcodeLinkSheet(
                             .padding(vertical = 8.dp),
                         singleLine = true,
                         textStyle = TextStyle(
-                            fontSize = 14.sp,
+                            fontSize = FontBody,
                             color = colors.text
                         ),
                         cursorBrush = SolidColor(colors.accent),
@@ -353,8 +369,9 @@ internal fun NcodeLinkSheet(
                                     if (manualNcode.isEmpty()) {
                                         Text(
                                             text = "N1234AB",
-                                            fontSize = 14.sp,
-                                            color = colors.textSecondary.copy(alpha = 0.6f)
+                                            fontSize = FontBody,
+                                            // 例示プレースホルダ＝専用シェード（alpha 二重帳簿を撤去・Design/10§9）
+                                            color = colors.placeholder
                                         )
                                     }
                                     innerTextField()
@@ -389,8 +406,9 @@ internal fun NcodeLinkSheet(
                 ) {
                     Text(
                         text = "紐付け",
-                        color = if (isValid) colors.background else colors.textSecondary.copy(alpha = 0.6f),
-                        fontSize = 12.sp,
+                        // 無効時の不活性文字＝専用シェード（alpha 二重帳簿を撤去・Design/10§9）
+                        color = if (isValid) colors.background else colors.placeholder,
+                        fontSize = FontCaption,
                         fontWeight = FontWeight.SemiBold
                     )
                 }

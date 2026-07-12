@@ -251,6 +251,10 @@ internal fun shioriAccentFor(hue: Int, surface: Color): Color {
     return hslToColor(hue.toFloat(), 0.48f, l)
 }
 
+// 栞表紙の内枠（正本の 5% 罫）の不透明度。紙のふちを表紙の墨/白で微かに締めるだけの飾り罫。
+// 旧値 0x0D（=13/255≈0.051）を明示定数化し、色は生 ARGB でなく表紙の墨 ink から生成する。
+private const val ShioriInnerBorderAlpha = 0.05f
+
 /**
  * 栞書影。title から決定論生成した「棒＋先端＋縦組み明朝題字」を紙地に描く。
  *
@@ -276,7 +280,10 @@ internal fun ShioriCover(
     }
     val accent = accentOverride ?: computedAccent
     // 内枠（正本の 5% 罫）＝紙のふちを微かに締める。
-    val borderColor = if (isDark) Color(0x0DFFFFFF) else Color(0x0D1C1F26)
+    // なぜ生 ARGB でなく ink 由来か: 旧 Color(0x0DFFFFFF)/Color(0x0D1C1F26) はテーマ改訂でこの罫だけ
+    // 取り残される（ADR 0014 charter(a) theme/外の生 Color 禁止）。表紙の墨 ink（ライト/セピア=onSurface・
+    // ダーク=ShioriCoverInkDark）を名前付き alpha で薄め、isDark の2分岐を1式へ畳む。
+    val borderColor = ink.copy(alpha = ShioriInnerBorderAlpha)
 
     // 題字は Canvas 描画で text ノードを持たないため、表紙自体に contentDescription=題名 を与える。
     // なぜ必須か: これが無いとスクリーンリーダーがグリッドの作品名を読めない（a11y 退行）。
