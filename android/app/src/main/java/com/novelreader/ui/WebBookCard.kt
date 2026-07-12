@@ -4,13 +4,13 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -28,6 +29,10 @@ import com.novelreader.data.WebNovelEntity
 import com.novelreader.ui.components.ShioriCover
 import com.novelreader.ui.components.shioriAccentFor
 import com.novelreader.ui.components.shioriHue
+import com.novelreader.ui.theme.FontCardTitle
+import com.novelreader.ui.theme.FontLabel
+import com.novelreader.ui.theme.FontMicroLabel
+import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.MotionSpringCard
@@ -54,6 +59,12 @@ fun WebGridBookCard(
     // なぜ expanded を Card 内で閉じるか: 各カードの ⋮ ドロップダウンメニューの開閉は独立しており、他カードと共有しないため
     var menuExpanded by remember { mutableStateOf(false) }
 
+    // 進捗あり＝主タップを「続きから読む」に統一する（continuity Major 2026-07-12）。
+    // なぜ: 同型の PDF 蔵書カードは主タップ＝続きから再開なのに、Web 由来カードだけ主タップが
+    // 「なろう目次」着地で身振りの意味が割れていた。進捗があれば PDF と揃えて主タップ＝再開にし、
+    // 目次は⋮メニューへ降格する（＝旧「続きから」小リンクの <48dp タップ標的も同時に解消）。
+    val hasProgress = lastReadEpisode > 0
+
     // タップ時にスケールダウンするアニメーション（Apple Books 的な触感、BookCard.kt と共通）
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -65,11 +76,14 @@ fun WebGridBookCard(
 
     Column(
         modifier = modifier
+            // 1冊=1トラバーサル単位に束ねる（critic Major）。題字/メタ行が別ノードに割れないようにする。
+            .semantics(mergeDescendants = true) {}
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current,
-                onClick = onOpen,
+                // 進捗あれば主タップ=再開（PDFと統一）／未読は従来どおり目次(onOpen)。
+                onClick = if (hasProgress) onResume else onOpen,
                 onLongClick = { menuExpanded = true },
             ),
     ) {
@@ -91,6 +105,8 @@ fun WebGridBookCard(
                 WebBookDropdownMenu(
                     expanded = menuExpanded,
                     onDismiss = { menuExpanded = false },
+                    // 進捗ありのとき主タップは再開に統一したため、目次導線を⋮へ降格して残す。
+                    onOpenIndex = if (hasProgress) ({ menuExpanded = false; onOpen() }) else null,
                     onImport = { menuExpanded = false; onImport() },
                     onRemove = { menuExpanded = false; onRemove() },
                 )
@@ -102,30 +118,28 @@ fun WebGridBookCard(
         Text(
             text = novel.title,
             fontFamily = MinchoFamily,
-            fontSize = 13.sp,
+            fontSize = FontSubTitle,
             lineHeight = 19.sp,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             color = MaterialTheme.colorScheme.onSurface,
         )
         Spacer(Modifier.height(9.dp))
-        // メタ行: 機能②の読書記録があれば「続きから 第N話」導線（藍＝primary・タップで記録話へ WebView 直着地）。
-        // 無ければ従来の「なろう・未取込」（青磁＝secondary）。カード本体タップは常に目次(onOpen)＝ユーザー想定
-        // 「最初は目次・二度目以降は続きから読むボタン」に沿う。
+        // メタ行: 機能②の読書記録があれば「続きから 第N話」を静かに添える（藍＝primary）。
+        // なぜ非クリックにするか（continuity Major）: 主タップ（カード本体）が再開に統一されたため、
+        // 旧・小リンク（<48dp タップ標的）を廃し、ここは状態表示だけの静かなラベルに落とす。
+        // 無ければ従来の「なろう・未取込」（青磁＝secondary）＝主タップは目次(onOpen)。
         if (lastReadEpisode > 0) {
             Text(
                 text = "続きから 第${lastReadEpisode}話",
-                fontSize = 11.sp,
+                fontSize = FontLabel,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .clickable(onClick = onResume)
-                    .padding(vertical = 4.dp),
             )
         } else {
             Text(
                 text = "なろう・未取込",
-                fontSize = 10.5.sp,
+                fontSize = FontMicroLabel,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.secondary,
             )
@@ -148,6 +162,9 @@ fun WebListBookCard(
     // なぜ expanded を Card 内で閉じるか: 各リスト行の ⋮ ドロップダウンメニューの開閉は独立しており、他カードと共有しないため
     var menuExpanded by remember { mutableStateOf(false) }
 
+    // 進捗あり＝主タップを「続きから読む」に統一（continuity Major・grid と同じ判断）。
+    val hasProgress = lastReadEpisode > 0
+
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -159,11 +176,14 @@ fun WebListBookCard(
     Column(modifier = modifier) {
         Row(
             modifier = Modifier
+                // 1冊=1トラバーサル単位に束ねる（critic Major）。行末の⋮は別フォーカスとして残る。
+                .semantics(mergeDescendants = true) {}
                 .graphicsLayer { scaleX = scale; scaleY = scale }
                 .combinedClickable(
                     interactionSource = interactionSource,
                     indication = LocalIndication.current,
-                    onClick = onOpen,
+                    // 進捗あれば主タップ=再開（PDFと統一）／未読は目次(onOpen)。
+                    onClick = if (hasProgress) onResume else onOpen,
                     onLongClick = { menuExpanded = true },
                 )
                 // 色帯を行の高さいっぱいに伸ばすため（PDF 蔵書の目録行と同じ骨格）。
@@ -188,7 +208,7 @@ fun WebListBookCard(
                 Text(
                     text = novel.title,
                     fontFamily = MinchoFamily,
-                    fontSize = 16.5.sp,
+                    fontSize = FontCardTitle,
                     lineHeight = 25.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
@@ -199,30 +219,28 @@ fun WebListBookCard(
                     Spacer(Modifier.height(6.dp))
                     Text(
                         text = novel.writer,
-                        fontSize = 11.sp,
+                        fontSize = FontLabel,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
                 Spacer(Modifier.height(10.dp))
-                // メタ行: 機能②の読書記録があれば「続きから 第N話」導線（藍＝primary・タップで記録話へ WebView 直着地）。
-                // 無ければ従来の「なろう・未取込」（青磁＝secondary）。行本体タップは常に目次(onOpen)。
+                // メタ行: 機能②の読書記録があれば「続きから 第N話」を静かに添える（藍＝primary・非クリック）。
+                // 主タップ（行本体）が再開に統一されたため小リンクは廃止（continuity Major・<48dp 解消）。
+                // 無ければ従来の「なろう・未取込」（青磁＝secondary）。行本体タップは目次(onOpen)。
                 // Spacer 10dp は mokuroku 意匠（ui/design-canon 後継）側を正とする。
                 if (lastReadEpisode > 0) {
                     Text(
                         text = "続きから 第${lastReadEpisode}話",
-                        fontSize = 11.sp,
+                        fontSize = FontLabel,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .clickable(onClick = onResume)
-                            .padding(vertical = 4.dp),
                     )
                 } else {
                     Text(
                         text = "なろう・未取込",
-                        fontSize = 10.5.sp,
+                        fontSize = FontMicroLabel,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.secondary,
                     )
@@ -239,6 +257,8 @@ fun WebListBookCard(
                 WebBookDropdownMenu(
                     expanded = menuExpanded,
                     onDismiss = { menuExpanded = false },
+                    // 進捗ありのとき目次導線を⋮へ降格して残す（grid と同じ判断）。
+                    onOpenIndex = if (hasProgress) ({ menuExpanded = false; onOpen() }) else null,
                     onImport = { menuExpanded = false; onImport() },
                     onRemove = { menuExpanded = false; onRemove() },
                 )
@@ -253,14 +273,30 @@ fun WebListBookCard(
 }
 
 // なぜ WebBookDropdownMenu を private にするか: WebBookCard.kt 内の Composable からのみ呼び出すことを想定し、不要な露出を防ぐため
+// onOpenIndex: 進捗ありカードで主タップを再開へ譲ったとき、なろう目次を開く導線を⋮へ降格して残す（null＝出さない）。
 @Composable
 private fun WebBookDropdownMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
+    onOpenIndex: (() -> Unit)? = null,
     onImport: () -> Unit,
     onRemove: () -> Unit,
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        // 進捗あり時のみ: 主タップは再開なので、目次はここから開く（continuity Major）。
+        onOpenIndex?.let { openIndex ->
+            DropdownMenuItem(
+                text = { Text("なろうの目次を開く") },
+                onClick = openIndex,
+                leadingIcon = {
+                    Icon(
+                        Icons.AutoMirrored.Filled.List,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
+        }
         DropdownMenuItem(
             text = { Text("縦書きPDFを取り込む") },
             onClick = onImport,

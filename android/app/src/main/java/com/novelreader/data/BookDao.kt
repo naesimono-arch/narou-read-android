@@ -6,12 +6,18 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface BookDao {
 
-    // 最近の活動順に並べる: 既読は progress.lastReadAt、未読は books.addedAt で評価し、
-    // その大きい方の降順。どちらも 0（移行直後の既存行）なら同点となりタイトル昇順で安定化。
+    // 二層の「続きから読む」既定ソート（ia Major 2026-07-12・ShelfItems.recencyKeyOf と一致必須）:
+    //   第1層＝読書中（lastReadAt>0）を常に上、第2層＝未読（lastReadAt=0）を下に置く。
+    //   層内は 第1層＝lastReadAt / 第2層＝addedAt の降順、最後にタイトル昇順で安定化。
+    // なぜ二層か: 旧・単層 MAX(addedAt, lastReadAt) DESC では PDF 取込のたび未読新刊（addedAt=now）が
+    // 読みかけ本の上へ来て、支配的タスク（続きから読む）の対象が先頭から押し下げられていたため。
+    // CASE のソートキーは 読書中→lastReadAt・未読→addedAt を選び、tier は読書中を大きく（先）にする。
     @Query(
         "SELECT b.* FROM books b " +
         "LEFT JOIN progress p ON b.id = p.bookId " +
-        "ORDER BY MAX(b.addedAt, COALESCE(p.lastReadAt, 0)) DESC, b.title ASC"
+        "ORDER BY (CASE WHEN COALESCE(p.lastReadAt, 0) > 0 THEN 1 ELSE 0 END) DESC, " +
+        "(CASE WHEN COALESCE(p.lastReadAt, 0) > 0 THEN p.lastReadAt ELSE b.addedAt END) DESC, " +
+        "b.title ASC"
     )
     fun getAllBooks(): Flow<List<BookEntity>>
 

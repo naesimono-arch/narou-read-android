@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -34,6 +35,10 @@ import com.novelreader.narou.model.NarouNovel
 import com.novelreader.ui.components.ShioriCover
 import com.novelreader.ui.components.shioriAccentFor
 import com.novelreader.ui.components.shioriHue
+import com.novelreader.ui.theme.FontCardTitle
+import com.novelreader.ui.theme.FontLabel
+import com.novelreader.ui.theme.FontMicroLabel
+import com.novelreader.ui.theme.FontSealBadge
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.MotionSpringCard
@@ -44,6 +49,7 @@ import com.novelreader.viewmodel.ReadingStatus
 import com.novelreader.viewmodel.chapterNumberOf
 import com.novelreader.viewmodel.progressFractionFor
 import com.novelreader.viewmodel.readingStatusFor
+import com.novelreader.viewmodel.relativeReadLabel
 
 // ============================================================
 // 進捗行（モック .pr）: 「N話 + 細い藍バー + N%」を藍で、未読は青磁で表示。
@@ -64,7 +70,7 @@ private fun BookProgressRow(
         Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "${totalChaps}話",
-                fontSize = 11.sp,
+                fontSize = FontLabel,
                 color = MaterialTheme.colorScheme.primary,
             )
             Spacer(Modifier.width(8.dp))
@@ -79,7 +85,7 @@ private fun BookProgressRow(
             Spacer(Modifier.width(8.dp))
             Text(
                 text = "$percent%",
-                fontSize = 11.sp,
+                fontSize = FontLabel,
                 color = MaterialTheme.colorScheme.primary,
             )
         }
@@ -88,11 +94,32 @@ private fun BookProgressRow(
         Text(
             text = "未読",
             modifier = modifier,
-            fontSize = 11.sp,
+            fontSize = FontLabel,
             letterSpacing = 0.8.sp,
             color = LocalShelfColors.current.unreadLabel,
         )
     }
+}
+
+// ============================================================
+// 最後に読んだ相対時刻「◯日前」（continuity Minor・モック未表現＝最終ユーザー確認バッチ対象）。
+// よみかけ（progressFraction != null＝進捗あり）のカードにだけ、補助色で静かに1行添える。
+// なぜカード内で now を都度取るか: 表示専用の粗い日粒度ラベルで、再コンポーズ時の微小なズレは無害。
+// ============================================================
+@Composable
+private fun RelativeReadLabel(
+    progressFraction: Float?,
+    lastReadAt: Long,
+    modifier: Modifier = Modifier,
+) {
+    if (progressFraction == null) return
+    val label = relativeReadLabel(lastReadAt, System.currentTimeMillis()) ?: return
+    Text(
+        text = label,
+        modifier = modifier,
+        fontSize = FontMicroLabel,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 // ============================================================
@@ -110,7 +137,7 @@ private fun NewChaptersBadge(newCount: Int, modifier: Modifier = Modifier) {
         Spacer(Modifier.width(4.dp))
         Text(
             text = "続き ${newCount}話",
-            fontSize = 10.5.sp,
+            fontSize = FontMicroLabel,
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.primary,
         )
@@ -177,6 +204,9 @@ internal fun GridBookCard(
     // 栞系モックはフラット構図＝可視の⋮を持たない。削除は長押しメニューへ一本化する。
     Column(
         modifier = modifier
+            // TalkBack で1冊=1トラバーサル単位に束ねる（critic Major 2026-07-12）。題字/著者/進捗/続きバッジが
+            // 個別ノードに割れて何度もスワイプさせる問題を解消する。長押し削除は onLongClick に残る。
+            .semantics(mergeDescendants = true) {}
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .combinedClickable(
                 interactionSource = interactionSource,
@@ -224,7 +254,7 @@ internal fun GridBookCard(
                         text = "了",
                         fontFamily = MinchoFamily,
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 9.5.sp,
+                        fontSize = FontSealBadge,
                         color = sealColor,
                     )
                 }
@@ -245,7 +275,7 @@ internal fun GridBookCard(
         if (book.author.isNotBlank()) {
             Text(
                 text = book.author,
-                fontSize = 11.sp,
+                fontSize = FontLabel,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -256,6 +286,12 @@ internal fun GridBookCard(
             totalChaps = totalChaps,
             progressFraction = progressFraction,
             flexBar = true,
+        )
+        // よみかけ（進捗あり）に限り「いつぶりか」を静かに添える（continuity Minor・モック未表現）。
+        RelativeReadLabel(
+            progressFraction = progressFraction,
+            lastReadAt = progress?.lastReadAt ?: 0L,
+            modifier = Modifier.padding(top = 4.dp),
         )
         // 続きあり（モックは進捗行の下・上4px）
         newEpisodeCountFor(novelDetail, totalChaps)?.let { newCount ->
@@ -315,6 +351,9 @@ internal fun ListBookCard(
     Column(modifier = modifier) {
         Row(
             modifier = Modifier
+                // 1冊=1トラバーサル単位に束ねる（critic Major）。行末の⋮ IconButton は自身が併合ノード境界の
+                // ため別フォーカスとして残る＝「本1ノード＋⋮1ノード」の2単位になり、題字/著者/進捗の分割読みを解消。
+                .semantics(mergeDescendants = true) {}
                 .graphicsLayer { scaleX = scale; scaleY = scale }
                 .combinedClickable(
                     interactionSource = interactionSource,
@@ -342,7 +381,7 @@ internal fun ListBookCard(
                 Text(
                     text = book.title,
                     fontFamily = MinchoFamily,
-                    fontSize = 16.5.sp,
+                    fontSize = FontCardTitle,
                     lineHeight = 25.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
@@ -357,7 +396,7 @@ internal fun ListBookCard(
                         if (book.author.isNotBlank()) {
                             Text(
                                 text = book.author,
-                                fontSize = 11.sp,
+                                fontSize = FontLabel,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -378,6 +417,12 @@ internal fun ListBookCard(
                     totalChaps = totalChaps,
                     progressFraction = progressFraction,
                     flexBar = false,
+                )
+                // よみかけに限り「いつぶりか」を静かに添える（continuity Minor・モック未表現）。
+                RelativeReadLabel(
+                    progressFraction = progressFraction,
+                    lastReadAt = progress?.lastReadAt ?: 0L,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
             // 削除アフォーダンス。⋮方式(1・既定)のみ行末にボタン（M5: 削除の可視手がかり）。0は長押しのみ。

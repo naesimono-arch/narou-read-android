@@ -170,7 +170,8 @@ class WebBookCardTest {
     }
 
     @Test
-    fun `Grid 「続きから 第N話」タップで onResume が呼ばれカード本体タップの onOpen とは別導線`() {
+    fun `Grid 進捗あり＝カード本体タップで onResume（再開に統一・PDFと同じ身振り）`() {
+        // continuity Major: 進捗ありの Web カードは主タップが再開へ統一され、目次(onOpen)は呼ばない。
         var openCalled = false
         var resumeCalled = false
         val novel = webNovel("n1234a", "蜘蛛ですが、なにか？")
@@ -183,14 +184,58 @@ class WebBookCardTest {
                     onRemove = {},
                     lastReadEpisode = 52,
                     onResume = { resumeCalled = true },
-                    // 上と同理由: グリッドの実寸に近い幅を与えて続き導線を可視域に収める。
+                    // 上と同理由: グリッドの実寸に近い幅を与えて可視域に収める。
                     modifier = Modifier.width(120.dp),
                 )
             }
         }
-        composeTestRule.onNodeWithText("続きから 第52話").performClick()
-        assertTrue("続きから タップは onResume を呼ぶ", resumeCalled)
-        assertTrue("続きから タップはカード本体 onOpen(目次) を呼ばない", !openCalled)
+        // 書影（=カード本体）タップで再開。
+        composeTestRule.onNodeWithContentDescription("蜘蛛ですが、なにか？").performClick()
+        assertTrue("進捗ありの主タップは onResume を呼ぶ", resumeCalled)
+        assertTrue("進捗ありの主タップは目次(onOpen)を呼ばない", !openCalled)
+    }
+
+    @Test
+    fun `Grid 進捗あり＝目次は⋮メニューへ降格して残る`() {
+        // 主タップを再開に譲った目次導線は、長押しメニューの「なろうの目次を開く」から辿れる。
+        var openCalled = false
+        val novel = webNovel("n1234a", "蜘蛛ですが、なにか？")
+        composeTestRule.setContent {
+            MaterialTheme {
+                WebGridBookCard(
+                    novel = novel,
+                    onOpen = { openCalled = true },
+                    onImport = {},
+                    onRemove = {},
+                    lastReadEpisode = 52,
+                    onResume = {},
+                    modifier = Modifier.width(120.dp),
+                )
+            }
+        }
+        composeTestRule.onNodeWithContentDescription("蜘蛛ですが、なにか？")
+            .performTouchInput { longClick() }
+        composeTestRule.onNodeWithText("なろうの目次を開く").performClick()
+        assertTrue("⋮メニューの目次で onOpen が呼ばれる", openCalled)
+    }
+
+    @Test
+    fun `Grid 未読＝目次項目は⋮メニューに出さない（主タップが目次のため）`() {
+        val novel = webNovel("n1234a", "蜘蛛ですが、なにか？")
+        composeTestRule.setContent {
+            MaterialTheme {
+                WebGridBookCard(
+                    novel = novel,
+                    onOpen = {},
+                    onImport = {},
+                    onRemove = {},
+                    modifier = Modifier.width(120.dp),
+                )
+            }
+        }
+        composeTestRule.onNodeWithContentDescription("蜘蛛ですが、なにか？")
+            .performTouchInput { longClick() }
+        composeTestRule.onNodeWithText("なろうの目次を開く").assertDoesNotExist()
     }
 
     @Test

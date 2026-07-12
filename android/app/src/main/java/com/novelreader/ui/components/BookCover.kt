@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.theme.BookCoverRuleIndigo
+import com.novelreader.ui.theme.FontBody
 import com.novelreader.ui.theme.MinchoFamily
 import kotlin.math.abs
 
@@ -131,7 +132,7 @@ fun BookCover(
             Text(
                 text = title.ifEmpty { "（無題）" },
                 fontFamily = MinchoFamily,
-                fontSize = 14.sp,
+                fontSize = FontBody,
                 fontWeight = FontWeight.SemiBold,
                 lineHeight = 19.sp,
                 color = Color.White,

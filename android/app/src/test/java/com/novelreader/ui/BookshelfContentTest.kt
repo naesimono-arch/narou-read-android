@@ -5,6 +5,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -105,7 +107,8 @@ class BookshelfContentTest {
             onFabClick = { fabClicked = true },
             onOpenDiscovery = { openedDiscovery = true },
         )
-        composeTestRule.onNodeWithContentDescription("小説を探す").performClick()
+        // ラベルは用語辞書（docs/patterns/discovery-terminology.md）＝着地画面名「見つける」に一致させた。
+        composeTestRule.onNodeWithContentDescription("見つける").performClick()
         assertTrue(openedDiscovery)
         // 空状態の「PDFを追加する」ボタンも FAB と同じ onFabClick を叩く
         composeTestRule.onNodeWithText("PDFを追加する").performClick()
@@ -157,18 +160,25 @@ class BookshelfContentTest {
     }
 
     @Test
-    fun `絞り込み0件は蔵書ゼロ扱いにせず該当なし文言を出す`() {
-        // 進捗なし＝全て未読の棚で「読了」を選ぶと 0 件になる。
+    fun `0件の状態チップは dim(disabled)で押せず袋小路に落とさない`() {
+        // ia Minor: よみかけ1件だけの棚では「未読」「読了」は 0 件。押せる状態のまま空表示に落とすのでなく、
+        // enabled=false（dim）にして押下不能にする＝空表示の袋小路を先に塞ぐ。
+        // なぜ よみかけ にするか: UNREAD 本はカード進捗行に「未読」文字を描き、チップ「未読」と onNodeWithText が
+        // 衝突する。よみかけ進捗（N話 X%）ならカードに状態語が出ず、チップだけを一意に指せる。
         setContent(
             BookshelfUiState.Content(
                 books = listOf(book("b1", "吾輩は猫である")),
-            )
+            ),
+            progressMap = mapOf("b1" to ProgressEntity("b1", "chap_3.html")),
+            chapterCountMap = mapOf("b1" to 10),
         )
+        // よみかけは 1 件＝enabled。未読・読了は 0 件＝disabled（押せない）。
+        composeTestRule.onNodeWithText("よみかけ").assertIsEnabled()
+        composeTestRule.onNodeWithText("読了").assertIsNotEnabled()
+        composeTestRule.onNodeWithText("未読").assertIsNotEnabled()
+        // 読了を押しても絞り込まれない（本は出たまま・空文言は出ない）。
         composeTestRule.onNodeWithText("読了").performClick()
-        composeTestRule.onNodeWithText("この分類の本はありません").assertIsDisplayed()
-        // 「蔵書ゼロ」の空状態と混同しない（EmptyBookshelf は出さない）
-        composeTestRule.onNodeWithText("本棚はまだ空です").assertDoesNotExist()
-        // チップ行は出続けて「すべて」へ戻れる
-        composeTestRule.onNodeWithText("すべて").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("吾輩は猫である").assertIsDisplayed()
+        composeTestRule.onNodeWithText("この分類の本はありません").assertDoesNotExist()
     }
 }

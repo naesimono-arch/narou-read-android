@@ -4,6 +4,7 @@ package com.novelreader.ui
 import com.novelreader.viewmodel.progressFractionFor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -37,19 +38,31 @@ class BookCardProgressTest {
     }
 
     @Test
-    fun `最終章をスクロール済みなら100パー(index)`() {
-        assertEquals(1f, progressFractionFor(10, 10, 2, 0)!!, 1e-6f)
+    fun `最終章をスクロール済みでも100パーにはせず N-半章 割る N(index)`() {
+        // ssot Major: 1行スクロール＝100% の嘘を消す。末尾到達は判定できないため <1f に留める。
+        assertEquals(0.95f, progressFractionFor(10, 10, 2, 0)!!, 1e-6f)
     }
 
     @Test
-    fun `最終章をスクロール済みなら100パー(offsetのみ)`() {
-        assertEquals(1f, progressFractionFor(10, 10, 0, 50)!!, 1e-6f)
+    fun `最終章をスクロール済みでも100パーにはせず N-半章 割る N(offsetのみ)`() {
+        assertEquals(0.95f, progressFractionFor(10, 10, 0, 50)!!, 1e-6f)
     }
 
     @Test
-    fun `単一章の本は 先頭0パー・スクロール済み100パー`() {
+    fun `最終章スクロール中は常に1f未満（読了の嘘を出さない境界）`() {
+        // 章数が変わっても (N-0.5)/N は厳密に <1f であることを固定する（FINISHED へ落ちない不変条件）。
+        assertTrue(progressFractionFor(10, 10, 1, 0)!! < 1f)
+        assertTrue(progressFractionFor(3, 3, 0, 1)!! < 1f)
+        assertTrue(progressFractionFor(1, 1, 5, 0)!! < 1f)
+        // かつ未スクロール時の (N-1)/N より大きい（読み進めた分だけ増える単調性）。
+        assertTrue(progressFractionFor(10, 10, 1, 0)!! > progressFractionFor(10, 10, 0, 0)!!)
+    }
+
+    @Test
+    fun `単一章の本は 先頭0パー・スクロール済みは0-5パー（100パーにしない）`() {
         assertEquals(0f, progressFractionFor(1, 1, 0, 0)!!, 1e-6f)
-        assertEquals(1f, progressFractionFor(1, 1, 1, 0)!!, 1e-6f)
+        // (1-0.5)/1 = 0.5。単一章でもスクロールだけで読了(1f)にはしない。
+        assertEquals(0.5f, progressFractionFor(1, 1, 1, 0)!!, 1e-6f)
     }
 
     @Test

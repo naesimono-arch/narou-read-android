@@ -50,6 +50,31 @@ class ShelfItemsTest {
     }
 
     @Test
+    fun `読書中の本は未読新刊より上に来る（二層ソート・続きから読むが支配的タスク）`() {
+        // ia Major: 未読新刊 b_new(addedAt=1000) が、昔読んだきり b_old(addedAt=10・lastReadAt=50) を
+        // 押し下げない。読書中(tier1)は addedAt がどれだけ新しい未読(tier0)より必ず上。
+        // books は DAO 並び（二層降順）を模す＝b_old(tier1) が先、b_new(tier0) が後。
+        val books = listOf(book("bOld", 10), book("bNew", 1000))
+        val progress = mapOf("bOld" to ProgressEntity("bOld", "chap_1.html", lastReadAt = 50))
+
+        val items = mergeShelfItems(books, progress, emptyList())
+
+        assertEquals(listOf("book:bOld", "book:bNew"), items.map { it.key })
+    }
+
+    @Test
+    fun `未読の Web 新刊も読書中の蔵書より下に入る（Webは第2層）`() {
+        // 読書中 b1(tier1) は、addedAt が最新の未取込 Web(tier0/9999) より上。
+        val books = listOf(book("b1", 10))
+        val progress = mapOf("b1" to ProgressEntity("b1", "chap_1.html", lastReadAt = 50))
+        val webs = listOf(web("N9999ZZ", 9999))
+
+        val items = mergeShelfItems(books, progress, webs)
+
+        assertEquals(listOf("book:b1", "web:N9999ZZ"), items.map { it.key })
+    }
+
+    @Test
     fun `同値キーは蔵書を先に置く`() {
         val books = listOf(book("b1", 200))
         val webs = listOf(web("N1111AA", 200))
@@ -138,10 +163,42 @@ class ShelfItemsTest {
     }
 
     @Test
-    fun `readingStatusFor - 最終章をスクロール済みなら読了`() {
-        // chap_10 / 全10章 / スクロール済み → fraction 1.0 → FINISHED。
+    fun `readingStatusFor - 最終章をスクロール済みでもよみかけ（読了の嘘を出さない）`() {
+        // ssot Major: chap_10 / 全10章 / スクロール済み → fraction 0.95（<1f）→ READING。
+        // 1行スクロール＝読了の嘘を消す。真の読了は末尾到達フラグ（未配線）に結ぶまで成立しない。
         val progress = ProgressEntity("b1", "chap_10.html", scrollIndex = 2, scrollOffset = 0)
+        assertEquals(ReadingStatus.READING, readingStatusFor(progress, totalChaps = 10))
+    }
+
+    @Test
+    fun `readingStatusFor - reachedEnd=false ならどの章位置でも読了にしない`() {
+        // 進捗率から読了を導出しない不変条件（公理8）: reachedEnd が立っていない限り、最終章の
+        // どこに居ても FINISHED にはならず READING に留まる（1行スクロール＝読了の嘘を出さない）。
+        val atTop = ProgressEntity("b1", "chap_10.html", scrollIndex = 0, scrollOffset = 0)
+        val scrolled = ProgressEntity("b1", "chap_10.html", scrollIndex = 9, scrollOffset = 999)
+        assertEquals(ReadingStatus.READING, readingStatusFor(atTop, totalChaps = 10))
+        assertEquals(ReadingStatus.READING, readingStatusFor(scrolled, totalChaps = 10))
+    }
+
+    @Test
+    fun `readingStatusFor - reachedEnd=true は読了（末尾到達の実績で了印を点ける）`() {
+        // ssot Major: 読書画面が最終章の末尾を可視化して立てた reachedEnd を正本に FINISHED を返す。
+        val progress = ProgressEntity("b1", "chap_10.html", scrollIndex = 5, scrollOffset = 0, reachedEnd = true)
         assertEquals(ReadingStatus.FINISHED, readingStatusFor(progress, totalChaps = 10))
+    }
+
+    @Test
+    fun `readingStatusFor - reachedEnd=true は sticky（前の章へ戻って読み直しても読了維持）`() {
+        // 読了は実績のため、読み直しで lastReadFilename が中間章へ戻っても reachedEnd が立っていれば FINISHED。
+        val reReading = ProgressEntity("b1", "chap_2.html", scrollIndex = 3, scrollOffset = 0, reachedEnd = true)
+        assertEquals(ReadingStatus.FINISHED, readingStatusFor(reReading, totalChaps = 10))
+    }
+
+    @Test
+    fun `readingStatusFor - reachedEnd=true は章数未確定（totalChaps=0）でも読了`() {
+        // reachedEnd は事実なので、章数え上げがまだ 0 を返す段階でも読了として扱う（進捗率導出より優先）。
+        val progress = ProgressEntity("b1", "chap_1.html", reachedEnd = true)
+        assertEquals(ReadingStatus.FINISHED, readingStatusFor(progress, totalChaps = 0))
     }
 
     @Test
@@ -186,6 +243,53 @@ class ShelfItemsTest {
         assertEquals(emptyList<WebNovelEntity>(), fw)
     }
 
+    // ────── relativeReadLabel（最後に読んだ相対時刻・continuity Minor） ──────
+
+    @Test
+    fun `relativeReadLabel - 未記録や未来は null`() {
+        val now = 1_000_000_000_000L
+        assertNull(relativeReadLabel(0L, now))
+        assertNull(relativeReadLabel(now + 5_000L, now))
+    }
+
+    @Test
+    fun `relativeReadLabel - 今日昨日N日前N週間前Nヶ月前N年前`() {
+        val day = 24L * 60 * 60 * 1000
+        val now = 10_000L * day
+        assertEquals("今日", relativeReadLabel(now - day / 2, now))
+        assertEquals("昨日", relativeReadLabel(now - day - 1, now))
+        assertEquals("3日前", relativeReadLabel(now - 3 * day, now))
+        assertEquals("1週間前", relativeReadLabel(now - 7 * day, now))
+        assertEquals("2週間前", relativeReadLabel(now - 14 * day, now))
+        assertEquals("1ヶ月前", relativeReadLabel(now - 30 * day, now))
+        assertEquals("1年前", relativeReadLabel(now - 365 * day, now))
+    }
+
+    // ────── filterBooksByQuery（蔵書内 LIKE フィルタの純関数・UI は保留） ──────
+
+    @Test
+    fun `空クエリは全蔵書を素通しする`() {
+        val books = listOf(book("b1", 300), book("b2", 100))
+        assertEquals(books, filterBooksByQuery(books, ""))
+        assertEquals(books, filterBooksByQuery(books, "   "))
+    }
+
+    @Test
+    fun `タイトル部分一致で絞り込む（大小文字・前後空白を無視）`() {
+        val a = BookEntity(id = "a", title = "転生賢者の異世界", htmlDirPath = "/a", author = "山田")
+        val b = BookEntity(id = "b", title = "スライム倒して300年", htmlDirPath = "/b", author = "森田")
+        val list = listOf(a, b)
+        assertEquals(listOf("a"), filterBooksByQuery(list, " 異世界 ").map { it.id })
+    }
+
+    @Test
+    fun `著者名にも一致する`() {
+        val a = BookEntity(id = "a", title = "本A", htmlDirPath = "/a", author = "Kirishima Aoi")
+        val b = BookEntity(id = "b", title = "本B", htmlDirPath = "/b", author = "森田")
+        val list = listOf(a, b)
+        assertEquals(listOf("a"), filterBooksByQuery(list, "kirishima").map { it.id })
+    }
+
     @Test
     fun `該当状態の本が無ければ蔵書0件になる（該当なし表示の前提）`() {
         // b1 はよみかけ。誰も読了していない状態で FINISHED を選ぶと 0 件。
@@ -199,6 +303,25 @@ class ShelfItemsTest {
         )
 
         assertEquals(emptyList<BookEntity>(), fb)
+        assertEquals(emptyList<WebNovelEntity>(), fw)
+    }
+
+    @Test
+    fun `読了フィルタは reachedEnd の本だけを残す（了印・読了フィルタの復活）`() {
+        // b1=読了（reachedEnd=true）・b2=よみかけ（chap_3）。FINISHED 選択で b1 のみ残る＝読了フィルタが機能する。
+        val books = listOf(book("b1", 300), book("b2", 100))
+        val progressMap = mapOf(
+            "b1" to ProgressEntity("b1", "chap_10.html", reachedEnd = true),
+            "b2" to ProgressEntity("b2", "chap_3.html"),
+        )
+        val chapterCounts = mapOf("b1" to 10, "b2" to 10)
+
+        val (fb, fw) = filterShelfByStatus(
+            books, emptyList(), selectedStatus = ReadingStatus.FINISHED,
+            progressMap = progressMap, chapterCounts = chapterCounts,
+        )
+
+        assertEquals(listOf("b1"), fb.map { it.id })
         assertEquals(emptyList<WebNovelEntity>(), fw)
     }
 }

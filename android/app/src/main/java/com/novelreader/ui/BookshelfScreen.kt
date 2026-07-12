@@ -10,6 +10,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -50,14 +51,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.novelreader.NewEpisodeNotificationPreference
+import com.novelreader.NovelReaderApplication
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.model.BookId
 import com.novelreader.ui.discovery.FilterChipItem
 import com.novelreader.narou.model.NarouNovel
+import com.novelreader.ui.theme.FontButtonLabel
+import com.novelreader.ui.theme.FontHomeTitle
+import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.MotionDurationDismiss
+import com.novelreader.ui.theme.MotionDurationReveal
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.BookshelfViewModel
@@ -66,6 +74,7 @@ import com.novelreader.viewmodel.ReadingStatus
 import com.novelreader.viewmodel.ShelfItem
 import com.novelreader.viewmodel.filterShelfByStatus
 import com.novelreader.viewmodel.mergeShelfItems
+import com.novelreader.viewmodel.readingStatusFor
 import kotlinx.coroutines.launch
 
 /**
@@ -148,6 +157,15 @@ fun BookshelfScreen(
     // 長押し経路も残す（⋮に気づかない層のフォールバック）。トグルで長押しのみへ戻せる。
     var deleteUiMode by remember { mutableStateOf(prefs.getInt("delete_ui_mode", 1)) }
 
+    // 通知権限 priming（notify Minor 2026-07-12）: システム権限ダイアログの前に理由説明を挟むためのフラグ。
+    // 一度提示したら以後は出さない（notif_priming_shown で永続化）＝毎回のFABタップで問い直さない。
+    var notifPrimingShown by remember { mutableStateOf(prefs.getBoolean("notif_priming_shown", false)) }
+    var showNotifPriming by remember { mutableStateOf(false) }
+    val markPrimingShown: () -> Unit = {
+        notifPrimingShown = true
+        prefs.edit().putBoolean("notif_priming_shown", true).apply()
+    }
+
     // PDF選択を実際に開始するヘルパー（通知権限チェック後に呼ぶ）
     val launchPdfPicker: () -> Unit = {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -156,27 +174,38 @@ fun BookshelfScreen(
             ) == PackageManager.PERMISSION_GRANTED
             if (granted) {
                 pdfPicker.launch(arrayOf("application/pdf"))
+            } else if (!notifPrimingShown) {
+                // notify Minor: いきなりシステムの権限ダイアログを出さず、まず何に使うかを説明する（priming）。
+                // C3 と整合＝通知は既定OFF思想のため、変換の進捗/完了通知という利益の文脈で同意を問う。
+                showNotifPriming = true
             } else {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                // 既に priming 済み（通知を見送った）＝以後は問い直さずそのままピッカーへ（graceful degradation）。
+                pdfPicker.launch(arrayOf("application/pdf"))
             }
         } else {
             pdfPicker.launch(arrayOf("application/pdf"))
         }
     }
 
-    // FAB タップ時: 未確認かつバッテリー最適化が有効なら除外を促してからPDF選択へ。
-    // なぜ処理中もブロックしないか: Service 側がキュー（ArrayDeque）で複数PDFを
-    // 逐次処理できるため。処理中に追加された分はキュー末尾に積まれ、
-    // バナーと通知に「N件目/全M件」として反映される。
-    val onFabClick: () -> Unit = {
-        val pm = context.getSystemService(PowerManager::class.java)
-        val needsWarning = !batteryDialogDismissed &&
-            !pm.isIgnoringBatteryOptimizations(context.packageName)
-        if (needsWarning) {
-            doNotShowAgain = false
-            showBatteryOptDialog = true
-        } else {
-            launchPdfPicker()
+    // FAB タップ時: バッテリー案内で割り込まず、そのまま PDF 選択へ（add Major・公理12 2026-07-12）。
+    // なぜ最初の add からバッテリーダイアログを外すか: 1冊も選ぶ前に「長文手順＋二度と表示しない＋設定へ離脱」
+    // を最初の一手に挟むのは「最初の価値への段差」の禁止に反する。バッテリー最適化の案内は、実際に長い変換が
+    // 背景へ回り得る文脈（＝下の processingState 監視で変換開始時）まで遅延する。
+    // なお処理中も FAB をブロックしない: Service 側がキュー（ArrayDeque）で複数PDFを逐次処理でき、
+    // 追加分はキュー末尾に積まれてバナー/通知に「N件目/全M件」として反映される。
+    val onFabClick: () -> Unit = { launchPdfPicker() }
+
+    // バッテリー最適化案内の遅延トリガ（add Major）: 実際に変換が始まった文脈でだけ、未確認かつ
+    // バッテリー最適化が有効なら一度だけ案内を出す。isProcessing の false→true 立ち上がりで判定する。
+    // なぜ FAB でなくここか: 「長い変換が背景へ回る」局面こそがこの助言の価値がある文脈で、
+    // 取込の入口（最初の価値）を段差で塞がないため（さらに厳密な ON_STOP/OEM kill 検知は今後の配線）。
+    LaunchedEffect(processingState.isProcessing) {
+        if (processingState.isProcessing && !batteryDialogDismissed) {
+            val pm = context.getSystemService(PowerManager::class.java)
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(context.packageName)) {
+                doNotShowAgain = false
+                showBatteryOptDialog = true
+            }
         }
     }
 
@@ -242,7 +271,39 @@ fun BookshelfScreen(
         }
     }
 
-    // バッテリー最適化除外ダイアログ（プラットフォーム設定への遷移を伴うためルート層に置く）
+    // 通知権限 priming ダイアログ（notify Minor）: システム権限ダイアログの前に、通知が何に使われるかを
+    // 利益の言葉で先に説明する。いずれの選択でもファイル選択は続行する（通知は取込・読書に必須ではない）。
+    if (showNotifPriming) {
+        val openPickerDirectly: () -> Unit = {
+            markPrimingShown()
+            showNotifPriming = false
+            pdfPicker.launch(arrayOf("application/pdf"))
+        }
+        AlertDialog(
+            onDismissRequest = openPickerDirectly,
+            title = { Text("変換の進捗を通知でお知らせできます") },
+            text = {
+                Text(
+                    "PDFの変換には時間がかかることがあります。通知を許可すると、他のアプリを使っている間も" +
+                        "進捗と完了をお知らせします。通知はあとで設定からいつでもオフにできます。",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    markPrimingShown()
+                    showNotifPriming = false
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }) { Text("通知を許可") }
+            },
+            dismissButton = {
+                TextButton(onClick = openPickerDirectly) { Text("今はしない") }
+            },
+        )
+    }
+
+    // バッテリー最適化除外ダイアログ（プラットフォーム設定への遷移を伴うためルート層に置く）。
+    // add Major: PDF 選択の入口ではなく「変換が始まった文脈」で出す純案内へ役割変更。もう
+    // ファイル選択を閉じない（launchPdfPicker はここから呼ばない）。
     if (showBatteryOptDialog) {
         val dismiss: (openSettings: Boolean) -> Unit = { openSettings ->
             if (doNotShowAgain) {
@@ -255,8 +316,6 @@ fun BookshelfScreen(
                     data = Uri.parse("package:${context.packageName}")
                 }
                 context.startActivity(intent)
-            } else {
-                launchPdfPicker()
             }
         }
         AlertDialog(
@@ -279,7 +338,7 @@ fun BookshelfScreen(
                 TextButton(onClick = { dismiss(true) }) { Text("設定を開く") }
             },
             dismissButton = {
-                TextButton(onClick = { dismiss(false) }) { Text("このまま続ける") }
+                TextButton(onClick = { dismiss(false) }) { Text("閉じる") }
             },
         )
     }
@@ -377,11 +436,28 @@ internal fun BookshelfContent(
     var selectedStatusName by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedStatus = selectedStatusName?.let { name -> ReadingStatus.entries.firstOrNull { it.name == name } }
 
+    // 削除の遅延実行（idempo Major・公理4/UX16-H「確認 < Undo」2026-07-12）:
+    // 確認ダイアログを撤去し、削除要求は即カードを伏せて snackbar「元に戻す」を出す。表示中は削除を保留し、
+    // Undo で復帰・タイムアウト/置換/画面離脱で確定実行する。確定の所有者は下の deleteScope のコルーチン。
+    // なぜ pendingDeleteIds で伏せるか: DB からの実削除は保留するため、見た目だけ先に消して即時反応を返す。
+    // プロセス死時は pendingDeleteIds も未確定削除も揮発する＝本は消えず次回起動で復帰（＝取りこぼしなく安全側）。
+    val pendingDeleteIds = remember { mutableStateListOf<String>() }
+
+    // 削除保留中の本は棚から伏せる（idempo Major の遅延削除。確定/復帰は requestDelete が所有）。
+    val visibleBooks = books.filterNot { it.id in pendingDeleteIds }
+
+    // 各読書状態の件数（ia Minor 2026-07-12・0件チップの dim 判定用）。可視の蔵書で数える。
+    val statusCounts = remember(visibleBooks, progressMap, chapterCountMap) {
+        visibleBooks
+            .groupingBy { readingStatusFor(progressMap[it.id], chapterCountMap[it.id] ?: 0) }
+            .eachCount()
+    }
+
     // 蔵書と Web由来を「最近の活動順」で1本に混在させる（bookshelf-fusion-D の並置。純関数で合成）。
     // 前段で読書状態フィルタを噛ませる（選択中は該当蔵書のみ・Web カードは落とす＝filterShelfByStatus の why）。
-    val shelfItems = remember(books, webNovels, progressMap, selectedStatus, chapterCountMap, webReadingProgress) {
+    val shelfItems = remember(visibleBooks, webNovels, progressMap, selectedStatus, chapterCountMap, webReadingProgress) {
         val (filteredBooks, filteredWeb) =
-            filterShelfByStatus(books, webNovels, selectedStatus, progressMap, chapterCountMap)
+            filterShelfByStatus(visibleBooks, webNovels, selectedStatus, progressMap, chapterCountMap)
         mergeShelfItems(filteredBooks, progressMap, filteredWeb, webReadingProgress)
     }
     val isProcessing = processingState.isProcessing
@@ -389,11 +465,31 @@ internal fun BookshelfContent(
     // 本棚トップバーの⋮オーバーフロー（テーマ切替＋開発トグル）の開閉状態
     var showOverflowMenu by remember { mutableStateOf(false) }
 
-    // 削除確認ダイアログの対象。回転・ダーク切替（Activity 再生成）で確認ダイアログが消えないよう
-    // rememberSaveable で保持する（M4）。BookEntity は Saveable でないため bookId(String) だけ保存し、
-    // 実体は books から都度解決する（対象が一覧から消えたら null＝ダイアログは自然に閉じる）。
-    var bookToDeleteId by rememberSaveable { mutableStateOf<String?>(null) }
-    val bookToDelete = bookToDeleteId?.let { id -> books.firstOrNull { it.id == id } }
+    // 削除確定コルーチンの所有スコープ（pendingDeleteIds の宣言と why は visibleBooks 直前を参照）。
+    val deleteScope = rememberCoroutineScope()
+    val requestDelete: (BookEntity) -> Unit = { book ->
+        // 二重要求ガード（既に伏せている本は積まない）。
+        if (book.id !in pendingDeleteIds) {
+            pendingDeleteIds.add(book.id)
+            deleteScope.launch {
+                var undone = false
+                try {
+                    val result = snackbarHostState.showSnackbar(
+                        message = "「${book.title}」を削除しました",
+                        actionLabel = "元に戻す",
+                        // 取り消し猶予を確保するため長め表示。
+                        duration = SnackbarDuration.Long,
+                    )
+                    undone = result == SnackbarResult.ActionPerformed
+                } finally {
+                    // Undo=復帰／それ以外（タイムアウト・別 snackbar での置換・画面離脱=コルーチン取消）は確定。
+                    // 確定の onDeleteBook は VM の viewModelScope で走るためこの取消済みコルーチンから呼んでも実行される。
+                    if (!undone) onDeleteBook(book)
+                    pendingDeleteIds.remove(book.id)
+                }
+            }
+        }
+    }
 
     val gridState = rememberLazyGridState()
     val listState = rememberLazyListState()
@@ -434,7 +530,7 @@ internal fun BookshelfContent(
                             "本棚",
                             fontFamily = MinchoFamily,
                             fontWeight = FontWeight.Medium,
-                            fontSize = 26.sp,
+                            fontSize = FontHomeTitle,
                             letterSpacing = 2.sp,
                         )
                     },
@@ -442,7 +538,9 @@ internal fun BookshelfContent(
                         IconButton(onClick = onOpenDiscovery) {
                             Icon(
                                 imageVector = Icons.Filled.Search,
-                                contentDescription = "小説を探す",
+                                // 着地は発見ホーム（画面名「見つける」）＝ラベルと着地を一致させる
+                                // （用語辞書 docs/patterns/discovery-terminology.md・「探す」は検索画面の語）。
+                                contentDescription = "見つける",
                             )
                         }
                         // グリッド/リスト切り替え（モック .top の第1アクション）。永続化はルート層の onToggleView に委譲。
@@ -499,6 +597,40 @@ internal fun BookshelfContent(
                                     )
                                 }
                                 HorizontalDivider()
+                                // 新着話通知のオプトイン（UX監査 C3・公理13「沈黙が既定値」＝既定OFF）。
+                                // なぜここか: 本アプリ唯一の常設メニュー面で、専用設定画面を新設せずに済む
+                                // （UX/19: 設定面は増やさない）。トグルの説明文が priming を兼ねるため、
+                                // ON 操作の直後に OS 権限ダイアログを出してよい（無説明の権限要求にならない）。
+                                Text(
+                                    "通知",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp),
+                                )
+                                val notifContext = LocalContext.current
+                                var newEpisodeNotifEnabled by remember {
+                                    mutableStateOf(NewEpisodeNotificationPreference.isEnabled(notifContext))
+                                }
+                                val newEpisodeNotifPermissionLauncher = rememberLauncherForActivityResult(
+                                    ActivityResultContracts.RequestPermission()
+                                ) { /* 拒否されても Worker は動かす＝バッジ側の提示は生きる（通知だけ出ない） */ }
+                                NewEpisodeNotificationToggle(
+                                    enabled = newEpisodeNotifEnabled,
+                                    onEnabledChange = { enabled ->
+                                        newEpisodeNotifEnabled = enabled
+                                        (notifContext.applicationContext as NovelReaderApplication)
+                                            .setNewEpisodeNotificationEnabled(enabled)
+                                        // API33+ で未付与なら OS 権限ダイアログ（<33 は常に GRANTED＝発火しない）。
+                                        if (enabled && ContextCompat.checkSelfPermission(
+                                                notifContext, Manifest.permission.POST_NOTIFICATIONS
+                                            ) != PackageManager.PERMISSION_GRANTED
+                                        ) {
+                                            newEpisodeNotifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                        }
+                                    },
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                )
+                                HorizontalDivider()
                                 // 開発用: 削除UI方式トグル（一時機構。採用方式が確定したらこの項目ごと削除予定）。
                                 DropdownMenuItem(
                                     text = { Text("削除方式: " + if (deleteUiMode == 1) "⋮メニュー" else "長押し") },
@@ -518,8 +650,17 @@ internal fun BookshelfContent(
                 // PDF処理中バナー（TopAppBar直下からスライドイン）
                 AnimatedVisibility(
                     visible = isProcessing,
-                    enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
-                    exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+                    // 入退場を Motion トークン経由の tween で明示（d-motion Minor 2026-07-12）。
+                    // 既定の spring 任せだと enter/exit が同一曲線・同時間で「退場が入場より短い」則を満たさない。
+                    // reveal(250)＝気づかせる長さ／dismiss(150)＝作業を邪魔しない短さ（Motion.kt が正本）。
+                    enter = slideInVertically(
+                        animationSpec = tween(MotionDurationReveal),
+                        initialOffsetY = { -it },
+                    ) + fadeIn(animationSpec = tween(MotionDurationReveal)),
+                    exit = slideOutVertically(
+                        animationSpec = tween(MotionDurationDismiss),
+                        targetOffsetY = { -it },
+                    ) + fadeOut(animationSpec = tween(MotionDurationDismiss)),
                 ) {
                     ProcessingBanner(
                         processingState = processingState,
@@ -566,7 +707,13 @@ internal fun BookshelfContent(
               } else if (isGridView) {
                 // ────── グリッドレイアウト ──────
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
+                    // 幅適応（reach Major 2026-07-12）: 固定2列を廃し、窓幅から列数を自動導出する。
+                    // minSize の逆算（Compose の Adaptive は列数 = floor((available + spacing)/(minSize + spacing))）:
+                    //   available = 画面幅 - 左右 contentPadding(24+24=48dp)、spacing = 列間 20dp。
+                    //   よって列数 = floor((幅 - 28) / (minSize + 20))。minSize=126dp とすると
+                    //   幅320dp→2列 / 360〜430dp(一般的なスマホ)→2列 / 480dp以上→3列 / 600dp→3列 / 768dp→5列。
+                    //   ＝一般的なスマホ(≤430dp)は従来どおり2列で影響0、大画面(≥600dp 等)で自然に多列化する。
+                    columns = GridCells.Adaptive(minSize = 126.dp),
                     state = gridState,
                     modifier = Modifier.fillMaxSize(),
                     // bottom にFAB分の余白を足す。FABは浮動でレイアウト領域を予約しないため、
@@ -588,6 +735,7 @@ internal fun BookshelfContent(
                             StatusChipRow(
                                 selectedStatus = selectedStatus,
                                 onSelect = { selectedStatusName = it?.name },
+                                statusCounts = statusCounts,
                             )
                         }
                         if (selectedStatus != null && shelfItems.isEmpty()) {
@@ -602,7 +750,7 @@ internal fun BookshelfContent(
                                 novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
                                 totalChaps = chapterCountMap[item.book.id] ?: 0,
                                 onOpen = { onOpenBook(item.book) },
-                                onDelete = { bookToDeleteId = item.book.id },
+                                onDelete = { requestDelete(item.book) },
                                 // 削除時の詰め直しアニメ。旧animateItemPlacementはFoundation1.6系で高速フリング中に
                                 // カバーが画面外の古い位置から補間され重なる既知不具合があり一時撤去していたが、
                                 // BOM 2025.02.00(Foundation 1.7系)でstable化したanimateItem()に置き換えて復活（案B）。
@@ -646,6 +794,7 @@ internal fun BookshelfContent(
                             StatusChipRow(
                                 selectedStatus = selectedStatus,
                                 onSelect = { selectedStatusName = it?.name },
+                                statusCounts = statusCounts,
                                 modifier = Modifier.padding(top = 8.dp),
                             )
                         }
@@ -661,7 +810,7 @@ internal fun BookshelfContent(
                                 novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
                                 totalChaps = chapterCountMap[item.book.id] ?: 0,
                                 onOpen = { onOpenBook(item.book) },
-                                onDelete = { bookToDeleteId = item.book.id },
+                                onDelete = { requestDelete(item.book) },
                                 deleteUiMode = deleteUiMode,
                                 // グリッドと同理由: 1.7系でstable化したanimateItem()で詰め直しアニメを復活（案B）。
                                 modifier = Modifier.animateItem(),
@@ -685,23 +834,8 @@ internal fun BookshelfContent(
         }
     }
 
-    // 削除確認ダイアログ（books＋onDeleteBook のみに依存する純 UI のため描画層に残す）
-    bookToDelete?.let { book ->
-        AlertDialog(
-            onDismissRequest = { bookToDeleteId = null },
-            title = { Text("削除の確認") },
-            text = { Text("「${book.title}」を削除しますか？\n読書進捗も削除されます。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDeleteBook(book)
-                    bookToDeleteId = null
-                }) { Text("削除", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { bookToDeleteId = null }) { Text("キャンセル") }
-            },
-        )
-    }
+    // 削除は確認ダイアログを撤去し、requestDelete による snackbar「元に戻す」遅延削除へ移行した
+    // （idempo Major）。確定/復帰は requestDelete が所有するためここに残す UI は無い。
 }
 
 // ============================================================
@@ -714,6 +848,9 @@ internal fun BookshelfContent(
 private fun StatusChipRow(
     selectedStatus: ReadingStatus?,
     onSelect: (ReadingStatus?) -> Unit,
+    // 各状態の件数（ia Minor）。0件の状態チップは dim（enabled=false）にして押下不能にし、
+    // 「押せるのに空表示に落ちる袋小路」を予防する（件数併記でなく最小限の dim を選択）。
+    statusCounts: Map<ReadingStatus, Int> = emptyMap(),
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -722,27 +859,31 @@ private fun StatusChipRow(
             .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        // 「すべて」＝選択なし（null）。モックどおり既定選択。
+        // 「すべて」＝選択なし（null）。モックどおり既定選択。棚が非空のときだけ出る行なので常に押せる。
         FilterChipItem(
             selected = selectedStatus == null,
             label = "すべて",
             onClick = { onSelect(null) },
         )
         // よみかけ／未読／読了。ReadingStatus と表示名・並びの対応はここが唯一の正本（モック .filters 順）。
+        // 0件の分類は enabled=false で淡く（disabled トークン）＝押しても空表示になる分類を先に塞ぐ。
         FilterChipItem(
             selected = selectedStatus == ReadingStatus.READING,
             label = "よみかけ",
             onClick = { onSelect(ReadingStatus.READING) },
+            enabled = (statusCounts[ReadingStatus.READING] ?: 0) > 0,
         )
         FilterChipItem(
             selected = selectedStatus == ReadingStatus.UNREAD,
             label = "未読",
             onClick = { onSelect(ReadingStatus.UNREAD) },
+            enabled = (statusCounts[ReadingStatus.UNREAD] ?: 0) > 0,
         )
         FilterChipItem(
             selected = selectedStatus == ReadingStatus.FINISHED,
             label = "読了",
             onClick = { onSelect(ReadingStatus.FINISHED) },
+            enabled = (statusCounts[ReadingStatus.FINISHED] ?: 0) > 0,
         )
     }
 }
@@ -752,7 +893,7 @@ private fun StatusChipRow(
 private fun StatusFilterEmptyText() {
     Text(
         text = "この分類の本はありません",
-        fontSize = 13.sp,
+        fontSize = FontSubTitle,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(vertical = 16.dp),
     )
@@ -786,7 +927,7 @@ private fun FindGuideBand(
         Spacer(Modifier.width(8.dp))
         Text(
             text = "新しい物語を見つける",
-            fontSize = 12.5.sp,
+            fontSize = FontButtonLabel,
             color = MaterialTheme.colorScheme.onSurface,
             // フォントスケール拡大時の窮屈対策（2026-07-08 実機所見）: weight(1f) の文字箱は
             // シェブロンの縁まで届くため、拡大で字面が右端アイコンに密着して見えた。

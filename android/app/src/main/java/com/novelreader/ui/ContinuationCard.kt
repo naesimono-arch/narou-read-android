@@ -29,9 +29,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
 import com.novelreader.narou.ContinuationInfo
 import com.novelreader.narou.model.Ncode
+import com.novelreader.ui.theme.FontCaption
+import com.novelreader.ui.theme.FontChipLarge
+import com.novelreader.ui.theme.FontLabel
+import com.novelreader.ui.theme.FontSectionTitle
+import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
@@ -74,7 +78,7 @@ internal fun ContinuationCard(
             Text(
                 text = "ここから先は、なろうで",
                 fontFamily = MinchoFamily,
-                fontSize = 16.sp,
+                fontSize = FontSectionTitle,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.text,
                 letterSpacing = 0.02.em,
@@ -92,7 +96,7 @@ internal fun ContinuationCard(
             }
             Text(
                 text = description,
-                fontSize = 11.5.sp,
+                fontSize = FontChipLarge,
                 color = colors.textSecondary,
                 lineHeight = 1.8.em,
                 modifier = Modifier.padding(bottom = 20.dp)
@@ -127,7 +131,7 @@ internal fun ContinuationCard(
                         Text(
                             text = "第${info.nextEpisode}話から続きを読む",
                             color = colors.background, // 藍背景に対してベース（背景）の文字色
-                            fontSize = 13.sp,
+                            fontSize = FontSubTitle,
                             fontWeight = FontWeight.SemiBold,
                             letterSpacing = 0.1.em
                         )
@@ -162,7 +166,7 @@ internal fun ContinuationCard(
                     Text(
                         text = "作品ページを見る",
                         color = colors.textSecondary,
-                        fontSize = 12.sp,
+                        fontSize = FontCaption,
                         letterSpacing = 0.1.em
                     )
                 }
@@ -188,7 +192,7 @@ internal fun ContinuationCard(
                     Text(
                         text = "紐付けを解除",
                         color = colors.textSecondary,
-                        fontSize = 11.sp,
+                        fontSize = FontLabel,
                         modifier = Modifier.padding(horizontal = 12.dp)
                     )
                 }
@@ -246,7 +250,7 @@ internal fun ContinuationLinkPrompt(
             Text(
                 text = "なろうで続きを探す",
                 color = colors.textSecondary,
-                fontSize = 12.sp,
+                fontSize = FontCaption,
                 letterSpacing = 0.1.em
             )
         }
