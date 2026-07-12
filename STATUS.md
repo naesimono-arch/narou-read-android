@@ -8,7 +8,7 @@
 ## 0. 現在の状態
 
 - **ブランチ `ui/polish`**: UX/Design 全層監査バッチ（Critical 3/Major 24/Minor 29）消化済み・**main 未統合**。残タスク（意匠裁定 F/C①/C②・実機検証送り・人間テスト送り・main 統合）＝`handover.md` ★節が正本。監査の一次情報＝`.claude/plans/ux-design-full-audit-2026-07-12.md`（§A/§B）＋`.claude/plans/ux-audit-batch-execution-20260712.md`（実行記録）。
-- **ゲート（2026-07-12 時点・全緑）**: `testDebugUnitTest` **454件**（失敗0）／`tools/check_design_tokens.py` OK=116/NG=0／`:app:lintDebug` 0 errors・26 warnings。
+- **ゲート（2026-07-13 時点・全緑）**: `testDebugUnitTest` **454件**（失敗0）／`tools/check_design_tokens.py` OK=116/NG=0／`:app:lintDebug` 0 errors・31 warnings（旧記載26は古く、+5＝既知の非ブロック ModifierParameter×3・UsableSpace×2＝clean木でも同数を実測）。
 - **Room v18**（`reachedEnd` 永続化）。⚠️ **旧APKへの逆走は禁止**（migration N→N-1 不在でクラッシュ＝古い→新しいの一方向のみ）。no-op 再スタンプの機序＝`task_diary.md` #39 追補。
 - **実機**: OPPO PGEM10 `192.168.1.210:5555`（切れたら `adb-bridge`）・**v18 APK 導入済み**（v17→v18 migration 通過を実測・蔵書生存確認済み）。検証ワークフロー＝memory `workflow-autonomous-device-verification`／`workflow-notify-each-step-visual-check`。
 - **抽出パイプライン＝純 Kotlin（PDFBox-Android）単独**（Chaquopy/Python は 2026-07-05 Phase 5 で完全撤去。復旧は git 履歴から）。実機の恒久精度回帰ゲート＝`PdfExtractorDeviceSpikeTest`（ゴールデン3件通過済み）。

@@ -40,7 +40,9 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -453,6 +455,23 @@ internal fun BookshelfContent(
             .eachCount()
     }
 
+    // 了スタンプ（案A・ADR0014 §motion 追補）: 本棚がある本を「初めて読了として描く」瞬間に朱印を一度だけ押印するための記録。
+    // 未読了で描かれた本の id を貯め、読了へ遷移したら押印し、完了で id を除去する（＝以後は静的表示）。
+    // なぜ「未読了で見た」を鍵にするか: 読了への遷移は多くが読書画面（本棚は非表示）で起きるため、本棚が最後にその本を
+    // 未読了で描いた事実を持ち越し、復帰時の初描画で一度だけ押す。起動時から既読了の本は記録に無い＝一斉には光らない。
+    // ナビ往復・回転で記録が飛ばないよう rememberSaveable（SnapshotStateList は直接 Saveable でないため listSaver で List 化）。
+    val sealSeenUnfinished = rememberSaveable(
+        saver = listSaver<SnapshotStateList<String>, String>(save = { it.toList() }, restore = { it.toMutableStateList() }),
+    ) { mutableStateListOf<String>() }
+    // キーは安定参照の books（uiState 由来＝データ不変なら同一参照）。visibleBooks は filterNot で毎コンポーズ
+    // 新インスタンスになりコルーチンが無駄に再起動するため使わない。削除保留中の本を記録しても無害（＝books で足りる）。
+    LaunchedEffect(books, progressMap, chapterCountMap) {
+        books.forEach { b ->
+            val fin = readingStatusFor(progressMap[b.id], chapterCountMap[b.id] ?: 0) == ReadingStatus.FINISHED
+            if (!fin && !sealSeenUnfinished.contains(b.id)) sealSeenUnfinished.add(b.id)
+        }
+    }
+
     // 蔵書と Web由来を「最近の活動順」で1本に混在させる（bookshelf-fusion-D の並置。純関数で合成）。
     // 前段で読書状態フィルタを噛ませる（選択中は該当蔵書のみ・Web カードは落とす＝filterShelfByStatus の why）。
     val shelfItems = remember(visibleBooks, webNovels, progressMap, selectedStatus, chapterCountMap, webReadingProgress) {
@@ -744,18 +763,26 @@ internal fun BookshelfContent(
                     }
                     items(shelfItems, key = { it.key }) { item ->
                         when (item) {
-                            is ShelfItem.Book -> GridBookCard(
-                                book = item.book,
-                                progress = progressMap[item.book.id],
-                                novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
-                                totalChaps = chapterCountMap[item.book.id] ?: 0,
-                                onOpen = { onOpenBook(item.book) },
-                                onDelete = { requestDelete(item.book) },
-                                // 削除時の詰め直しアニメ。旧animateItemPlacementはFoundation1.6系で高速フリング中に
-                                // カバーが画面外の古い位置から補間され重なる既知不具合があり一時撤去していたが、
-                                // BOM 2025.02.00(Foundation 1.7系)でstable化したanimateItem()に置き換えて復活（案B）。
-                                modifier = Modifier.animateItem(),
-                            )
+                            is ShelfItem.Book -> {
+                                // 了スタンプ（案A）: 読了かつ「未読了で見た記録」がある本＝初めて読了として描く瞬間に一度だけ押印。
+                                val finished = readingStatusFor(
+                                    progressMap[item.book.id], chapterCountMap[item.book.id] ?: 0,
+                                ) == ReadingStatus.FINISHED
+                                GridBookCard(
+                                    book = item.book,
+                                    progress = progressMap[item.book.id],
+                                    novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
+                                    totalChaps = chapterCountMap[item.book.id] ?: 0,
+                                    onOpen = { onOpenBook(item.book) },
+                                    onDelete = { requestDelete(item.book) },
+                                    // 削除時の詰め直しアニメ。旧animateItemPlacementはFoundation1.6系で高速フリング中に
+                                    // カバーが画面外の古い位置から補間され重なる既知不具合があり一時撤去していたが、
+                                    // BOM 2025.02.00(Foundation 1.7系)でstable化したanimateItem()に置き換えて復活（案B）。
+                                    modifier = Modifier.animateItem(),
+                                    playSealStamp = finished && sealSeenUnfinished.contains(item.book.id),
+                                    onSealStamped = { sealSeenUnfinished.remove(item.book.id) },
+                                )
+                            }
                             // (b) Web由来カード。外す操作は確認ダイアログを挟まない: 蔵書削除と違い
                             // 読書進捗等の失うものが無く、詳細画面の「本棚に置く」で即座に戻せるため。
                             is ShelfItem.Web -> WebGridBookCard(

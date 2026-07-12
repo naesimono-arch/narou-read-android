@@ -1,0 +1,227 @@
+<!-- @dsCard group="UI-n / 了スタンプ押下アニメ" name="読了バッジ『了』の押印演出（案A確定・状態変化 reachedEnd false→true・初回一回きり・栞グリッド正本エンジン流用）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>了スタンプ押下アニメ — 栞書影の朱印（案A）</title>
+<style>
+  /* 読了になった瞬間（reachedEnd false→true）、書影左下の朱印「了」を印鑑のように押す演出。
+     カバーは近似CSSでなく正本 bookshelf-shiori-grid-D.html の canvas 生成栞エンジンを流用
+     （色棒＋先端31種＋縦題字＝同じ本は同じ絵）。seal 定義も正本と同一(19dp/左下9/1.1px枠/9.5sp/#a1573f)。
+     演出は案A確定＝scale1.2→1.0 単調ダウン(下振れ無し)＋回転-7°→0°＋透過、220ms。
+     禁止則③(overshoot/bounce/spring 振動)に触れず＝§C 静謐の「状態変化の伝達」として正当化。初回一回きり。 */
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;--seiji:#9CB3A8;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;font-family:var(--gothic);min-height:100vh;
+       display:flex;flex-direction:column;align-items:center;padding:26px 18px 40px;color:var(--ink)}
+  body.pgdark{background:#0b0d11;color:#e4e3e6}
+  .cap{color:#4A4C47;font-size:13.5px;text-align:center;line-height:1.75;max-width:720px;margin-bottom:6px}
+  .cap b{color:#2A2C28}body.pgdark .cap{color:#9a988f}body.pgdark .cap b{color:#e4e3e6}
+  .lead{color:#6A6C67;font-size:12px;text-align:center;line-height:1.7;max-width:720px;margin-bottom:16px}
+  .lead code{background:#E4E2DA;padding:1px 5px;border-radius:3px;font-size:11.5px;font-family:var(--gothic)}
+  body.pgdark .lead{color:#807e77}body.pgdark .lead code{background:#20242c}
+
+  .ctrl{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:20px}
+  .ctrl button{font-family:var(--gothic);font-size:12.5px;padding:9px 18px;border-radius:999px;
+       border:1px solid #CFC9BD;background:var(--base);color:var(--ink);cursor:pointer;letter-spacing:.03em}
+  .ctrl button.primary{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
+  body.pgdark .ctrl button{background:#161a20;color:#d6d4dc;border-color:#2c3138}
+  body.pgdark .ctrl button.primary{background:#88b2d6;color:#0b0d11;border-color:#88b2d6}
+  .ctrl .seg{display:flex;border:1px solid #CFC9BD;border-radius:999px;overflow:hidden;background:var(--base)}
+  .ctrl .seg button{border:0;border-radius:0;border-right:1px solid #E2DCD0}
+  .ctrl .seg button:last-child{border-right:0}
+  .ctrl .seg button.on{background:var(--seiji);color:#26302b;font-weight:600}
+  body.pgdark .ctrl .seg{background:#161a20;border-color:#2c3138}
+  body.pgdark .ctrl .seg button{border-right-color:#2c3138}
+
+  /* ---- 電話枠＋本棚（正本 bookshelf-shiori-grid-D と同一スタイル）---- */
+  .phone{width:340px;background:var(--base);border-radius:36px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;color:var(--ink)}
+  .phone.dark{background:#101319;color:#e6e4e8;box-shadow:0 20px 52px rgba(0,0,0,.55)}
+  .sb{height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:11px;color:var(--ink-soft);flex-shrink:0}
+  .phone.dark .sb{color:#5c616c}
+  .top{padding:6px 22px 12px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
+  .top h1{font-family:var(--mincho);font-size:25px;font-weight:500;letter-spacing:.14em}
+  .phone.dark .top h1{color:#f0eef2}
+  .scroll{padding:0 22px 26px}
+  .grid-shelf{display:grid;grid-template-columns:1fr 1fr;gap:24px 16px}
+  .bk{display:flex;flex-direction:column}
+  .cv{position:relative;aspect-ratio:2/3;border-radius:3px;overflow:hidden;background:#f3f0ea;
+    box-shadow:0 6px 16px rgba(22,26,40,.12),0 1px 3px rgba(0,0,0,.06)}
+  .phone.dark .cv{box-shadow:0 8px 20px rgba(0,0,0,.5)}
+  .cv canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  /* 朱印「了」＝正本 .seal と同一。transform-origin は自身の中心（押印の起点） */
+  .cv .seal{position:absolute;left:9px;bottom:9px;width:19px;height:19px;border-radius:2px;display:grid;place-items:center;
+    font-family:var(--mincho);font-weight:600;font-size:9.5px;z-index:3;border:1.1px solid #a1573f;color:#a1573f;
+    background:rgba(251,250,248,.5);transform-origin:center}
+  .phone.dark .cv .seal{border-color:#cc8b73;color:#cc8b73;background:rgba(16,19,25,.5)}
+  .cv .seal.hidden{display:none}
+  .bk .au{font-size:11px;color:var(--ink-soft);margin-top:9px}.phone.dark .bk .au{color:#6f6d66}
+  .bk .pr{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:10.5px;color:var(--ink-soft)}.phone.dark .bk .pr{color:#6f6d66}
+  .bk .bar{flex:1;height:1px;background:var(--line);position:relative}.phone.dark .bk .bar{background:#262b33}
+  .bk .bar i{position:absolute;left:0;top:-.5px;height:2px;background:var(--ai)}.phone.dark .bk .bar i{background:#88b2d6}
+  .bk .pct{color:var(--ai)}.phone.dark .bk .pct{color:#88b2d6}
+
+  /* ---- 案A 判子プレス（確定）: 単調ダウン＋回転settle＋透過。220ms・bounce無し ---- */
+  @keyframes pressA{
+    0%  {opacity:0;transform:scale(1.2) rotate(-7deg)}
+    55% {opacity:1}
+    100%{opacity:1;transform:scale(1) rotate(0deg)}
+  }
+  .cv .seal.playA{animation:pressA 220ms cubic-bezier(.22,1,.36,1) both}
+  /* 比較用: 現状（即時表示・アニメ無し） */
+  .cv .seal.playNow{animation:none}
+
+  .note{margin-top:24px;max-width:720px;display:flex;flex-direction:column;gap:10px}
+  .note .box{background:#F4F3EE;border-radius:12px;padding:13px 15px;font-size:11.5px;color:#4A4C47;line-height:1.75}
+  .note .box .k{color:#2A2C28;font-weight:700;margin-bottom:3px;font-size:12px}
+  .note .box b{color:#2A2C28}
+  .note .box.warn{background:#F6EFE8;border:1px solid #E6D6C6}
+  body.pgdark .note .box{background:#161a20;color:#9a988f}
+  body.pgdark .note .box .k,body.pgdark .note .box b{color:#e4e3e6}
+  body.pgdark .note .box.warn{background:#1c1712;border-color:#3a2c20}
+</style>
+</head>
+<body>
+  <p class="cap"><b>了スタンプ押下アニメ（案A 確定）</b> ／ 読了の瞬間（<code>reachedEnd</code> false→true）に書影左下の朱印「了」を押印。<b>カバーは正本の canvas 生成栞エンジンをそのまま流用</b>（近似CSSを廃止）。左上の1冊が対象。</p>
+  <p class="lead"><b>試す</b>＝「押印を再生」。<code>A 判子プレス</code>と<code>即時(現状)</code>を切替えて実栞上で確認。実装は <b>初回一回きり</b>（既読了の再描画では出さない）。</p>
+
+  <div class="ctrl">
+    <button class="primary" id="play">押印を再生 ▶</button>
+    <div class="seg" id="variant">
+      <button data-v="A" class="on">A 判子プレス</button>
+      <button data-v="Now">即時(現状)</button>
+    </div>
+    <button id="theme">◐ ライト / ダーク</button>
+  </div>
+
+  <div id="stage"></div>
+
+  <div class="note">
+    <div class="box warn">
+      <div class="k">§C 静謐・禁止則③ との整合（正当化の骨子）</div>
+      朱印は<b>装飾でなく「読了という状態変化の伝達」</b>＝motion の許容目的。禁止則③が禁じる <b>overshoot/bounce/spring 振動</b>は、案Aが <b>scale を 1.0 未満へ揺り戻さない単調ダウン</b>で回避（1.2→1.0 で止まり跳ねない）。回転も -7°→0° の単調 settle。<b>初回一回きり</b>・自動ループ無し。→ §C の「静かな伝達」に収まる。
+    </div>
+    <div class="box">
+      <div class="k">実装メモ（裁定後）</div>
+      Motion トークン（<code>theme/Motion.kt</code>）へ <b>MotionDurationSeal(220) / MotionEasingSeal</b> 相当を新設し <code>BookCard.kt</code> の isFinished seal に付与。トリガは <b>reachedEnd の false→true 遷移のみ</b>（既読了の再描画では出さない＝<code>remember</code> でラッチ）。§C 改訂（押印を許容例として明記）は ADR0014 追補で記録。質感の最終確定は実機後詰め（ADR0005-B）。
+    </div>
+  </div>
+
+<script>
+// ===== 栞 canvas エンジン（正本 bookshelf-shiori-grid-D.html から流用・改変なし） =====
+function hashStr(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function rand(rng,lo,hi){return lo+(hi-lo)*rng();}
+function pick(rng,arr){return arr[Math.floor(rng()*arr.length)];}
+function S(ctx,a){ctx.strokeStyle=a;ctx.lineCap='round';ctx.lineJoin='round';}
+function star(ctx,cx,cy,rO,rI,n,rot){ctx.beginPath();for(let i=0;i<n*2;i++){const r=i%2?rI:rO,ang=rot+i*Math.PI/n;const px=cx+r*Math.cos(ang),py=cy+r*Math.sin(ang);i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();}
+const PALETTE=[20,70,140,175,200,210,260,330];
+function coverHue(title){return pick(mulberry32(hashStr(title)),PALETTE);}
+function hsl(h,s,l,a){return a==null?'hsl('+h+' '+s+'% '+l+'%)':'hsl('+h+' '+s+'% '+l+'% / '+a+')';}
+const TIPS=[
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2.6;c.beginPath();c.moveTo(x,y);c.lineTo(x-6,y+12);c.moveTo(x,y);c.lineTo(x+6,y+12);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+7,4,0,7);c.fill();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+6,6,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2.4;c.beginPath();c.moveTo(x,y);c.lineTo(x-5,y+18);c.moveTo(x,y);c.lineTo(x+5,y+18);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+3,3.2,0,7);c.fill();S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+5);c.lineTo(x-6,y+22);c.moveTo(x,y+5);c.lineTo(x,y+23);c.moveTo(x,y+5);c.lineTo(x+6,y+22);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+4,4,0,7);c.fill();S(c,a);c.lineWidth=1.6;for(let k=-2;k<=2;k++){c.beginPath();c.moveTo(x,y+7);c.lineTo(x+k*4,y+24);c.stroke();}},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+4);c.quadraticCurveTo(x-11,y-2,x-9,y+4);c.quadraticCurveTo(x-11,y+10,x,y+4);c.moveTo(x,y+4);c.quadraticCurveTo(x+11,y-2,x+9,y+4);c.quadraticCurveTo(x+11,y+10,x,y+4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+4,2,0,7);c.fill();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+5,4,0,7);c.fill();S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+9);c.lineTo(x,y+20);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;[6,13,20].forEach(d=>{c.beginPath();c.arc(x,y+d,2.6,0,7);c.fill();});},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=3;c.beginPath();c.moveTo(x-7,y+1);c.lineTo(x+7,y+1);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2;c.beginPath();c.arc(x,y+7,5,0,7);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x,y+9,8,0,7);c.stroke();c.beginPath();c.arc(x,y+9,4,0,7);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+1);c.lineTo(x+6,y+9);c.lineTo(x,y+17);c.lineTo(x-6,y+9);c.closePath();c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x-7,y+1);c.lineTo(x+7,y+1);c.lineTo(x,y+13);c.closePath();c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.strokeRect(x-6,y+2,12,12);},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;star(c,x,y+10,7,3,5,-Math.PI/2);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+2);c.lineTo(x,y+16);c.moveTo(x-7,y+9);c.lineTo(x+7,y+9);c.stroke();},
+  (c,x,y,a)=>{c.fillStyle=a;[[0,5],[-5,13],[5,13]].forEach(p=>{c.beginPath();c.arc(x+p[0],y+p[1],2.2,0,7);c.fill();});},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+6,y+8,x,y+15);c.quadraticCurveTo(x-6,y+8,x,y);c.fill();},
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+9,7,0,7);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x+3,y+7,7,0,7);c.fill();},
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-6,y+1);c.lineTo(x+6,y+1);c.lineTo(x,y+11);c.closePath();c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.arc(x,y+9,6,-0.4,Math.PI*1.4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x+4,y+5,2.4,0,7);c.fill();},
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+8,6,-0.2,Math.PI*1.5);c.quadraticCurveTo(x-3,y+13,x+1,y+10);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.arc(x+2,y+5,1.6,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+11);c.quadraticCurveTo(x-6,y+1,x,y+1);c.quadraticCurveTo(x+6,y+1,x+6,y+11);c.closePath();c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+14,1.8,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x,y+13,5,0,7);c.stroke();c.beginPath();c.arc(x,y+5,3.2,0,7);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+4);c.stroke();c.strokeRect(x-4,y+4,8,16);c.beginPath();c.arc(x,y+7,1,0,7);c.stroke();},
+  (c,x,y,a)=>{c.save();c.translate(x,y+9);c.rotate(0.06);S(c,a);c.lineWidth=1.4;c.strokeRect(-7,-7,14,14);c.fillStyle=a;c.beginPath();c.arc(0,0,1.8,0,7);c.fill();c.restore();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;for(let k=0;k<5;k++){const an=-Math.PI/2+k*2*Math.PI/5;c.beginPath();c.arc(x+6*Math.cos(an),y+9+6*Math.sin(an),3,0,7);c.stroke();}c.fillStyle=a;c.beginPath();c.arc(x,y+9,1.8,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.5;c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+6,y+8,x,y+16);c.quadraticCurveTo(x-6,y+8,x,y);c.stroke();c.beginPath();c.moveTo(x,y+2);c.lineTo(x,y+14);c.stroke();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+5);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+9,4,0,7);c.fill();},
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+2);c.quadraticCurveTo(x,y+7,x+6,y+2);c.quadraticCurveTo(x+1,y+9,x+6,y+16);c.quadraticCurveTo(x,y+11,x-6,y+16);c.quadraticCurveTo(x-1,y+9,x-6,y+2);c.closePath();c.stroke();}
+];
+function drawTitle(ctx,text,w,h,ink){
+  const fs=Math.round(w*0.088), lineGap=fs*1.16, colGap=Math.round(w*0.108), yTop=fs+5, yBottom=h-11, x0=w-fs-3, maxCols=3;
+  const perCol=Math.floor((yBottom-yTop)/lineGap);
+  ctx.fillStyle=ink; ctx.font='600 '+fs+'px "Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  const chars=[...text];
+  for(let col=0;col<maxCols;col++){const start=col*perCol;if(start>=chars.length)break;const cxp=x0-col*colGap;
+    for(let i=0;i<perCol;i++){const idx=start+i;if(idx>=chars.length)break;let ch=chars[idx];
+      if(col===maxCols-1&&i===perCol-1&&idx<chars.length-1)ch='⋮';
+      ctx.fillText(ch,cxp,yTop+i*lineGap+lineGap/2);}}
+}
+function drawShiori(canvas,title,dark){
+  const dpr=2, cssW=canvas.clientWidth||150, w=cssW, h=Math.round(w*1.5);
+  canvas.width=w*dpr; canvas.height=h*dpr; const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const paper=dark?'#20232B':'#FBFAF8', ink=dark?'#ECE9E2':'#1C1F26';
+  const hue=coverHue(title), accent=hsl(hue,48,dark?62:52);
+  ctx.fillStyle=paper; ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle=dark?'rgba(255,255,255,.05)':'rgba(28,31,38,.05)'; ctx.lineWidth=1; ctx.strokeRect(.5,.5,w-1,h-1);
+  const rng=mulberry32(hashStr(title+'|B'));
+  const x=Math.round(rand(rng,0.14,0.36)*w)+.5, len=Math.round(rand(rng,0.30,0.60)*h);
+  ctx.strokeStyle=accent; ctx.lineWidth=2.5; ctx.lineCap='butt';
+  ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,len); ctx.stroke();
+  TIPS[Math.floor(rng()*TIPS.length)](ctx,x,len,accent,dark,paper);
+  drawTitle(ctx,title,w,h,ink);
+}
+
+// ===== 本棚（4冊・左上が読了＝押印対象） =====
+// pr= 進捗%（done は seal 対象）。左上を done にして押印を主役に。
+const SHELF=[
+  {t:'公爵令嬢の嗜み 〜隣国で薬草園を開きます〜',a:'白河すずら',done:true},
+  {t:'追放された万能薬師、辺境でスローライフを始める',a:'霧島あおい',pr:62},
+  {t:'転生したら最弱スキルだったので草むしりしていた',a:'青葉みのり',pr:80},
+  {t:'辺境伯家の次男は今日も書庫にこもる',a:'水無月れん',pr:34}
+];
+let dark=false, v='A';
+function statusHTML(it){
+  if(it.done) return '<div class="pr"><div class="bar"><i style="width:100%"></i></div><span class="pct">100%</span></div>';
+  return '<div class="pr"><div class="bar"><i style="width:'+it.pr+'%"></i></div><span class="pct">'+it.pr+'%</span></div>';
+}
+function render(){
+  const cards=SHELF.map((it,i)=>{
+    const seal=it.done?'<span class="seal hidden" id="seal">了</span>':'';
+    return '<div class="bk"><div class="cv"><canvas data-t="'+encodeURIComponent(it.t)+'"></canvas>'+seal+'</div><div class="au">'+it.a+'</div>'+statusHTML(it)+'</div>';
+  }).join('');
+  document.getElementById('stage').innerHTML=
+    '<div class="phone'+(dark?' dark':'')+'"><div class="sb"><span>9:41</span><span>●●● 84%</span></div>'+
+    '<div class="top"><h1>本棚</h1></div><div class="scroll"><div class="grid-shelf">'+cards+'</div></div></div>';
+  requestAnimationFrame(paint);
+}
+function paint(){document.querySelectorAll('canvas[data-t]').forEach(cv=>drawShiori(cv,decodeURIComponent(cv.dataset.t),dark));}
+function play(){
+  const seal=document.getElementById('seal'); if(!seal)return;
+  seal.className='seal hidden'; void seal.offsetWidth; // reflow でアニメ再起動
+  seal.className=(v==='A')?'seal playA':'seal playNow';
+}
+document.querySelectorAll('#variant button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#variant button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); v=b.dataset.v; play();
+}));
+document.getElementById('play').addEventListener('click',play);
+document.getElementById('theme').addEventListener('click',()=>{dark=!dark;document.body.classList.toggle('pgdark',dark);render();setTimeout(play,350);});
+render();
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(paint);
+setTimeout(play,500);
+</script>
+</body>
+</html>

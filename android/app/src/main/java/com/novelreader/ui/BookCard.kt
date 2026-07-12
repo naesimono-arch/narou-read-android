@@ -1,6 +1,8 @@
 package com.novelreader.ui
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -44,6 +46,8 @@ import com.novelreader.ui.theme.FontMicroLabel
 import com.novelreader.ui.theme.FontSealBadge
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.MotionDurationSeal
+import com.novelreader.ui.theme.MotionEasingSeal
 import com.novelreader.ui.theme.MotionSpringCard
 import com.novelreader.ui.theme.ShioriSealScrimDark
 import com.novelreader.ui.theme.ShioriSealVermilion
@@ -177,6 +181,11 @@ internal fun GridBookCard(
     onOpen: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    // 本棚がこの本を「初めて読了として描く」瞬間だけ true＝朱印を一度だけ押印する（案A・ADR0014 §motion 追補）。
+    // 既読了の再描画・スクロール・起動時の既読了は false＝静的表示（初回一回きり）。判定と記録は呼び出し側が持つ。
+    playSealStamp: Boolean = false,
+    // 押印アニメ完了時に呼ぶ。呼び出し側が「押印済み」を記録して二度と再生しないためのラッチ。
+    onSealStamped: () -> Unit = {},
 ) {
     // 削除メニューの開閉状態（長押しで開く）
     var menuExpanded by remember { mutableStateOf(false) }
@@ -244,10 +253,30 @@ internal fun GridBookCard(
                 val sealColor = if (coverIsDark) ShioriSealVermilionDark else ShioriSealVermilion
                 val sealBg = if (coverIsDark) ShioriSealScrimDark.copy(alpha = 0.5f)
                 else MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+                // 押印アニメの進捗（0=振り上げ/透明・1=着地/定着）。押印する本は 0 始まりで一度だけ 1 へ、
+                // 既読了表示は 1 で静止。初期値を playSealStamp で決め 0 始まりにして初回1フレームのちらつきを防ぐ。
+                val sealStamp = remember { Animatable(if (playSealStamp) 0f else 1f) }
+                LaunchedEffect(playSealStamp) {
+                    if (playSealStamp) {
+                        sealStamp.snapTo(0f)
+                        sealStamp.animateTo(1f, animationSpec = tween(MotionDurationSeal, easing = MotionEasingSeal))
+                        onSealStamped() // 完了後にラッチ（以後 playSealStamp=false で静的表示・二度と再生しない）
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .padding(start = 9.dp, bottom = 9.dp)
+                        // 押印演出（案A）: scale 1.2→1.0 の単調ダウン（1.0 未満へ揺り戻さない＝禁止則③の bounce/overshoot に
+                        // 触れない）＋回転 -7°→0° settle＋透過。value を graphicsLayer 内で読み描画フェーズへ閉じる（再コンポーズ無し）。
+                        .graphicsLayer {
+                            val p = sealStamp.value
+                            val s = 1f + 0.2f * (1f - p)
+                            scaleX = s
+                            scaleY = s
+                            rotationZ = -7f * (1f - p)
+                            alpha = (p / 0.55f).coerceIn(0f, 1f)
+                        }
                         .size(19.dp)
                         .clip(RoundedCornerShape(2.dp))
                         .background(sealBg)

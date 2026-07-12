@@ -1,5 +1,7 @@
 package com.novelreader.ui.theme
 
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.spring
@@ -43,3 +45,13 @@ const val MotionDurationDismiss: Int = 150
 // 詳細画面バー題字（NovelDetailScreen）等の「そっと現れて消える」同型演出で共有する。
 // なぜトークン化するか: Design/08 禁止則②（duration/easing を野良既定に委ねずトークン経由）。
 const val MotionDurationCrossfade: Int = 250
+
+// 読了バッジ「了」の押印（案A・ADR 0014 §motion 追補「適用裁定の記録」）。本棚がある本を
+// 「初めて読了として描く」瞬間に一度だけ再生する朱印のスタンプ。値の組み立て（scale 1.2→1.0 の単調ダウン＋
+// 回転 -7°→0°＋透過）は BookCard の seal graphicsLayer 側で行い、ここは duration/easing スロットのみ正本化する
+//（禁止則②: 野良既定に委ねない）。なぜ overshoot/bounce 無しか: 禁止則③（overshoot/bounce/spring 振動の禁止）に
+// 触れないため scale を 1.0 未満へ揺り戻さない単調ダウンで「押し当てて離す」を表現する（easing は着地の減速感を出す
+// 強い ease-out）。なぜ 220ms か: 離散的な enter 類型として reveal 上限 250ms 内（禁止則①を満たす）。
+// 読了という状態変化の伝達＝原則5「静謐＝フィードバックのための motion」に合致（装飾でない・初回一回きり・自動ループ無し）。
+const val MotionDurationSeal: Int = 220
+val MotionEasingSeal: Easing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
