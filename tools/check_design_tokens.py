@@ -33,6 +33,14 @@ def parse_color_kt() -> dict[str, str]:
         for m in re.finditer(r"val\s+(\w+)\s*=\s*Color\(0xFF([0-9A-Fa-f]{6})\)", text)
     }
 
+def parse_font_tokens() -> dict[str, float]:
+    """Typography.kt の役割別スロット `val FontXxx = N.sp` を {Name: N} で返す（ADR 0014 §A）。"""
+    text = (THEME_DIR / "Typography.kt").read_text(encoding="utf-8")
+    return {
+        m.group(1): float(m.group(2))
+        for m in re.finditer(r"val\s+(Font\w+)\s*=\s*([0-9.]+)\.sp", text)
+    }
+
 def parse_reading_colors() -> dict[str, dict[str, str]]:
     """Theme.kt の ReadingColors 3 テーマを {テーマ: {フィールド: 'RRGGBB'}} で返す。"""
     text = (THEME_DIR / "Theme.kt").read_text(encoding="utf-8")
@@ -162,6 +170,20 @@ def main() -> int:
                 else:
                     failures.append(f"[NG] {READING_FILE} {var}({theme}): モック #{decl} ⇄ ReadingColors.{field}=#{expected}")
                     ng += 1
+
+    # 字面スロット（Font*）: 各スロット値が正本モック群の font-size px 集合に実在するか（drift 検出）。
+    # なぜ「集合への実在」照合か: sp 値は全てモック px の写経（2026-07-12 全数調査で 1:1 対応を確認）で、
+    # 色のような変数名対応がモック側に無い（font-size は直値）。値がどのモックからも消えたら
+    # 「モックだけ字面を変えた／トークンだけ変えた」の drift として検知できる最小の機械検査。
+    mock_px: set[float] = set()
+    for path in MOCK_DIR.rglob("*.html"):
+        mock_px |= {float(v) for v in re.findall(r"font-size\s*:\s*([0-9.]+)px", path.read_text(encoding="utf-8"))}
+    for name, sp in parse_font_tokens().items():
+        if sp in mock_px:
+            ok += 1
+        else:
+            failures.append(f"[NG] Typography.kt {name}={sp}sp: モック群の font-size px に不在（drift）")
+            ng += 1
 
     print(f"design token check: OK={ok} NG={ng} SKIP={skip}")
     for line in failures:

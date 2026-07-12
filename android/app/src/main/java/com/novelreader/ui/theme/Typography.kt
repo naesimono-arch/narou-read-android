@@ -112,3 +112,35 @@ val NovelReaderTypography = Typography(
         letterSpacing = 0.sp,
     ),
 )
+
+// ============================================================
+// 役割別フォントサイズ・スロット（字面 SSOT＝ADR 0014 §A）
+// なぜ M3 Typography と別口か: 各画面の `fontSize = N.sp` 直書き約145箇所は全てモック HTML の
+// font-size px の写経値（2026-07-12 全数調査で px⇄sp 1:1 対応を確認）で、M3 の既定スケールと
+// 一致しない（10.5/16.5 等）。M3 スロットへ寄せると見た目が変わるため、モック写経値をそのまま
+// 「役割名の付いた単一値」としてここへ集約する＝値の変更ではなく命名・集約（見た目完全不変）。
+// 値を変えるときは必ずここ1箇所＋対応モックの同時変更で行う（tools/check_design_tokens.py が
+// 「各スロット値がモックの font-size px 集合に実在すること」を機械検査する）。
+// 適用除外: 読書本文の fontSize（ユーザー設定値）・RubyText の既定/プレビュー・
+// 文字サイズスライダーの見本グリフ「あ」（最小/最大の実寸見本そのもの）・M3 Typography 内部。
+// ============================================================
+val FontHomeTitle = 26.sp       // 本棚の大題字「本棚」
+val FontScreenTitle = 24.sp     // 画面大見出し（見つける/探す/ジャンル）
+val FontResultTitle = 21.sp     // 結果画面題字
+val FontRankNumeral = 20.sp     // ランキングの順位数字
+val FontSheetTitle = 18.sp      // シート/目次の題字（明朝）
+val FontTopBarTitle = 17.sp     // トップバー題字（詳細/Web読書/取込）
+val FontCardTitle = 16.5.sp     // 本棚カード題字（明朝）
+val FontSectionTitle = 16.sp    // セクション/シート見出し（明朝）
+val FontActionLabel = 15.sp     // アクション行ラベル・検索入力欄
+val FontListItemTitle = 14.5.sp // 一覧項目題字（ランキング等）
+val FontBody = 14.sp            // あらすじ本文・入力欄・メニュー項目・表紙題字
+val FontPresetTitle = 13.5.sp   // 気分プリセット題字
+val FontSubTitle = 13.sp        // 一覧サブ題字・メタ値・続きCTA・ヒント文
+val FontButtonLabel = 12.5.sp   // 主ボタン文字・タブ文字
+val FontCaption = 12.sp         // 注記・補足文・副ボタン/リンク・エラー文
+val FontChipLarge = 11.5.sp     // 大ジャンル等のチップ文字（大）
+val FontLabel = 11.sp           // 著者名・チップ・件数/進捗数字
+val FontMicroLabel = 10.5.sp    // 極小ラベル（項目名・セクション極小見出し・メタキャプション）
+val FontPresetCaption = 10.sp   // 気分プリセット説明
+val FontSealBadge = 9.5.sp      // 『了』バッジ
