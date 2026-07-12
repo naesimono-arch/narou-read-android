@@ -71,6 +71,7 @@ import com.novelreader.ui.theme.FontScreenTitle
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.Spacing
 import com.novelreader.narou.SearchHistory
 import com.novelreader.narou.model.NarouCuratedKeywords
 import com.novelreader.viewmodel.toggleWordToken
@@ -236,7 +237,7 @@ internal fun DiscoverySearchContent(
                     // 変えず a11y ツリーにだけ欄名を足す＝意匠非改変。
                     .semantics { contentDescription = "検索語" }
                     .onFocusChanged { isFocused = it.isFocused }
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                    .padding(horizontal = Spacing.S24, vertical = Spacing.S8),
                 singleLine = true,
                 textStyle = TextStyle(
                     fontSize = FontActionLabel,
@@ -249,7 +250,7 @@ internal fun DiscoverySearchContent(
                     Column {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(bottom = 8.dp)
+                            modifier = Modifier.padding(bottom = Spacing.S8)
                         ) {
                             Box(modifier = Modifier.weight(1f)) {
                                 if (draft.word.isEmpty()) {
@@ -287,7 +288,7 @@ internal fun DiscoverySearchContent(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
+                    .padding(horizontal = Spacing.S24)
             ) {
                 Text(
                     text = "検索範囲",
@@ -295,7 +296,7 @@ internal fun DiscoverySearchContent(
                     letterSpacing = 3.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 24.dp, bottom = 12.dp)
+                    modifier = Modifier.padding(top = Spacing.S24, bottom = Spacing.S12)
                 )
 
                 // 範囲チップ4つ
@@ -306,8 +307,8 @@ internal fun DiscoverySearchContent(
                 // 「死んだアフォーダンス」になるため、その最後の1つは selected+disabled にして制約を「押せなさ」で示す。
                 val selectedRangeCount = listOf(draft.inTitle, draft.inKeyword, draft.inWriter, draft.inStory).count { it }
                 FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.S8),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     FilterChipItem(
@@ -342,7 +343,7 @@ internal fun DiscoverySearchContent(
                         fontSize = FontMicroLabel,
                         // なぜ InfoText か: disabled の理由提示＝意味を運ぶ文字（ADR 0014-D・alpha 沈め禁止）。
                         color = LocalShelfColors.current.infoText,
-                        modifier = Modifier.padding(top = 8.dp)
+                        modifier = Modifier.padding(top = Spacing.S8)
                     )
                 }
 
@@ -350,14 +351,14 @@ internal fun DiscoverySearchContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 16.dp)
+                        .padding(top = Spacing.S16)
                         .border(
                             width = 1.dp,
                             color = if (draft.filters.activeCount() > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
                             shape = RoundedCornerShape(2.dp)
                         )
                         .clickable { onOpenConditionSheet() }
-                        .padding(12.dp),
+                        .padding(Spacing.S12),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
@@ -369,7 +370,7 @@ internal fun DiscoverySearchContent(
                         // モック .cond-btn の svg 15px 準拠。size 未指定だと Material 既定24dpで
                         // 12.5sp テキストに対し過大になり行の見た目がずれるため 15.dp に固定。
                         modifier = Modifier
-                            .padding(end = 8.dp)
+                            .padding(end = Spacing.S8)
                             .size(15.dp)
                     )
                     Text(
@@ -388,11 +389,11 @@ internal fun DiscoverySearchContent(
                         letterSpacing = 3.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 28.dp, bottom = 12.dp)
+                        modifier = Modifier.padding(top = Spacing.S32, bottom = Spacing.S12)
                     )
                     FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.S8),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         history.pinned.forEach { word ->
@@ -413,11 +414,11 @@ internal fun DiscoverySearchContent(
                         letterSpacing = 3.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 28.dp, bottom = 12.dp)
+                        modifier = Modifier.padding(top = Spacing.S32, bottom = Spacing.S12)
                     )
                     FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.S8),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         history.recent.forEach { word ->
@@ -438,7 +439,7 @@ internal fun DiscoverySearchContent(
                     letterSpacing = 3.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 28.dp, bottom = 12.dp)
+                    modifier = Modifier.padding(top = Spacing.S32, bottom = Spacing.S12)
                 )
 
                 // why: カテゴリ単位の展開状態を category.title をキーに保持する（basic/genre で
@@ -468,11 +469,11 @@ internal fun DiscoverySearchContent(
                     )
                     if (expanded) {
                         FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.S8),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(bottom = 12.dp)
+                                .padding(bottom = Spacing.S12)
                         ) {
                             category.words.forEach { word ->
                                 val selected = word in selectedTokenSet
@@ -514,7 +515,7 @@ internal fun DiscoverySearchContent(
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier
                         .clickable { showGenreKeywords = !showGenreKeywords }
-                        .padding(top = 16.dp, bottom = 8.dp)
+                        .padding(top = Spacing.S16, bottom = Spacing.S8)
                 )
 
                 if (showGenreKeywords) {
@@ -528,11 +529,11 @@ internal fun DiscoverySearchContent(
                         )
                         if (expanded) {
                             FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                                verticalArrangement = Arrangement.spacedBy(Spacing.S8),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(bottom = 12.dp)
+                                    .padding(bottom = Spacing.S12)
                             ) {
                                 category.words.forEach { word ->
                                     val selected = word in selectedTokenSet
@@ -598,7 +599,7 @@ private fun SelectedKeywordsBar(
             color = MaterialTheme.colorScheme.outlineVariant
         )
         Column(
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
+            modifier = Modifier.padding(horizontal = Spacing.S24, vertical = Spacing.S12)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -623,11 +624,11 @@ private fun SelectedKeywordsBar(
             }
             // チップが多くてもバーが画面を覆わないよう、最大高さ96dpで内部スクロールに閉じ込める。
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                verticalArrangement = Arrangement.spacedBy(Spacing.S8),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp)
+                    .padding(top = Spacing.S4)
                     .heightIn(max = 96.dp)
                     .verticalScroll(rememberScrollState())
             ) {
@@ -657,7 +658,7 @@ private fun SelectedKeywordChip(
                 color = MaterialTheme.colorScheme.primary,
                 shape = RoundedCornerShape(50)
             )
-            .padding(start = 12.dp, end = 8.dp, top = 5.dp, bottom = 5.dp)
+            .padding(start = Spacing.S12, end = Spacing.S8, top = Spacing.S4, bottom = Spacing.S4)
     ) {
         Text(
             text = label,
@@ -669,7 +670,7 @@ private fun SelectedKeywordChip(
             contentDescription = "「$label」を解除",
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier
-                .padding(start = 4.dp)
+                .padding(start = Spacing.S4)
                 .size(13.dp)
         )
     }
@@ -698,7 +699,7 @@ private fun HistoryChip(
                 color = MaterialTheme.colorScheme.outlineVariant,
                 shape = RoundedCornerShape(2.dp),
             )
-            .padding(start = 8.dp, end = if (onDelete != null) 6.dp else 12.dp),
+            .padding(start = Spacing.S8, end = if (onDelete != null) Spacing.S8 else Spacing.S12),
     ) {
         Icon(
             imageVector = Icons.Filled.PushPin,
@@ -709,7 +710,7 @@ private fun HistoryChip(
             else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .clickable(onClick = onPinClick)
-                .padding(vertical = 7.dp)
+                .padding(vertical = Spacing.S8)
                 .size(13.dp),
         )
         Text(
@@ -723,7 +724,7 @@ private fun HistoryChip(
             modifier = Modifier
                 .weight(1f, fill = false)
                 .clickable(onClick = onWordClick)
-                .padding(horizontal = 8.dp, vertical = 7.dp),
+                .padding(horizontal = Spacing.S8, vertical = Spacing.S8),
         )
         if (onDelete != null) {
             Icon(
@@ -732,7 +733,7 @@ private fun HistoryChip(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 modifier = Modifier
                     .clickable(onClick = onDelete)
-                    .padding(vertical = 7.dp)
+                    .padding(vertical = Spacing.S8)
                     .size(13.dp),
             )
         }
@@ -747,7 +748,7 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier) {
         letterSpacing = 3.sp,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontWeight = FontWeight.SemiBold,
-        modifier = modifier.padding(top = 22.dp, bottom = 10.dp)
+        modifier = modifier.padding(top = Spacing.S24, bottom = Spacing.S12)
     )
 }
 
@@ -770,7 +771,7 @@ fun CollapsibleCategoryHeader(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onToggle)
-            .padding(top = 14.dp, bottom = 12.dp)
+            .padding(top = Spacing.S16, bottom = Spacing.S12)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text(
@@ -794,7 +795,7 @@ fun CollapsibleCategoryHeader(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 5.dp)
+                modifier = Modifier.padding(top = Spacing.S4)
             )
         }
     }
