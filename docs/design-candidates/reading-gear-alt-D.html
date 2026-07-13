@@ -1,4 +1,5 @@
 <!-- @dsCard group="UI-n / 読書（D詰め）" name="D. 読書ギア代替導線 試作（C①）" -->
+<!-- @derives source="reading-D.html（t-light 色変数）+ settings-D.html（.sheet クラスタ）" sync="tools/check_design_tokens.py DERIVED_SYNC が実値突合＝正本更新時の drift は check の NG で発覚する" -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -89,24 +90,24 @@
   /* ===== 表示設定シート（settings-D .sheet を再利用） ===== */
   .scrim{position:absolute;inset:0;z-index:5;background:rgba(20,23,28,.28)}
   .sheet{position:absolute;left:0;right:0;bottom:0;z-index:6;background:var(--bg);border-radius:20px 20px 0 0;
-    padding:10px 24px 26px;box-shadow:0 -10px 30px rgba(0,0,0,.18);font-family:var(--gothic)}
+    padding:12px 24px 32px;box-shadow:0 -10px 30px rgba(0,0,0,.18);font-family:var(--gothic)}
   .grab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 16px}
-  .sheet h2{font-family:var(--mincho);font-size:17px;color:var(--ink);font-weight:600;letter-spacing:.08em;margin-bottom:20px}
-  .lbl{font-family:var(--gothic);font-size:12px;color:var(--soft);letter-spacing:.06em;margin-bottom:10px}
-  .sec{margin-bottom:22px}
+  .sheet h2{font-family:var(--mincho);font-size:17px;color:var(--ink);font-weight:600;letter-spacing:.08em;margin-bottom:24px}
+  .lbl{font-family:var(--gothic);font-size:12px;color:var(--soft);letter-spacing:.06em;margin-bottom:12px}
+  .sec{margin-bottom:24px}
   .sec:last-child{margin-bottom:4px}
-  .chips{display:flex;gap:10px}
-  .chip{flex:1;text-align:center;padding:10px 0;border-radius:10px;font-family:var(--gothic);font-size:13.5px;
+  .chips{display:flex;gap:12px}
+  .chip{flex:1;text-align:center;padding:12px 0;border-radius:10px;font-family:var(--gothic);font-size:13.5px;
     border:1px solid var(--line);color:var(--ink);background:transparent;cursor:pointer}
   .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
-  .slider{display:flex;align-items:center;gap:14px}
+  .slider{display:flex;align-items:center;gap:16px}
   .end{font-family:var(--mincho);color:var(--ink);flex-shrink:0}
   .end.g{font-family:var(--gothic);font-size:12px;color:var(--soft)}
   .track{flex:1;height:2px;background:var(--line);position:relative;border-radius:2px}
   .track .fill{position:absolute;left:0;top:0;height:2px;background:var(--ai);border-radius:2px}
   .track .knob{position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--ai);transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(28,61,90,.4)}
   .val{font-family:var(--gothic);font-size:12px;color:var(--ai);margin-left:8px}
-  .row-lbl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .row-lbl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
   .behind-dim{opacity:.5}
 </style>
 </head>

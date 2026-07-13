@@ -25,3 +25,4 @@
 | [0015](0015-layered-auto-backup.md) | 層別 Auto Backup＝メタデータ層（DB・prefs・DataStore）のみ include・HTML 実体（novels/）除外（旧 allowBackup=false を上書き／全量・現状維持・独自エクスポート却下） | — |
 | [0016](0016-bookshelf-two-tier-recency-sort.md) | 本棚既定ソートの二層化＝読書中(lastReadAt)を上層・未読(addedAt)を下層（純lastReadAt単キー・現状維持・ソートUI先行 却下） | — |
 | [0017](0017-doc-system-git-log-as-ledger.md) | 管理ドキュメント体系の再編＝完了履歴は git log・STATUS は現在値60行・CLAUDE.md はルーター・知見は docs/knowledge 1知見1ファイル・規約はサイズ番人とセット（テスト強制3点フック撤去の ROI 裁定／task_diary 全面分割・完了ログ圧縮保持・docs 専用コミット継続 却下） | — |
+| [0018](0018-derived-mock-drift-optin-sync-check.md) | 派生モックの陳腐化検知＝DERIVED_SYNC opt-in 実値突合＋@derives/frozen メタ（コミットゲート hook・PostToolUse 警告・opt-out 全数必須・同期日メタ 却下） | — |

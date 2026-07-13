@@ -137,6 +137,58 @@ READING_ORDER = ["LIGHT", "SEPIA", "DARK"]
 
 # ---- 照合 -------------------------------------------------------------------------
 
+# ---- 派生モック突合表（opt-in・drift 検出） ---------------------------------------
+# なぜこの検査か: 派生モック（比較・試作系）は正本モックの値を複製して作られ、正本の更新で
+# サイレントに陳腐化する（実測＝F比較モックの本文タイポ drift・2026-07-13 ユーザー2度指摘で発覚）。
+# なぜ opt-in 表か: 「全派生モックにメタ必須」の opt-out 方式は並行レーンの新規カタログ収蔵を
+# 軒並み NG にする。突合するのは「正本の忠実再現を自称する値」（派生モック内コメントの主張）だけで、
+# それをこの表に列挙する。意図的に旧値を保存する歴史記録モック（例: spacing-scale-compare-D の
+# 「現状」側）は表に載せず、@dsCard 隣の @derives コメントに frozen を宣言する。
+# コミットゲート hook への配線は不採用（発生頻度1回のリスクに常設ガードは過剰＝人間センチネル
+# 撤去と同じ判断。本検査は既存ゲート運用で習慣的に回るため走らせ忘れリスクは実測上ない）。
+DERIVED_SYNC: list[dict] = [
+    # reading-gear-alt-D（C① 試作）: 「ライトテーマ（reading-D t-light）」を自称する色変数の複製。
+    # 正本 reading-D は 3 テーマ順序宣言（LIGHT が先頭）＝先頭宣言同士を突合する。
+    {
+        "derived": "reading-gear-alt-D.html",
+        "source": "reading-D.html",
+        "vars_first_decl": ["--bg", "--ink", "--soft", "--ruby", "--rule",
+                            "--blk-bg", "--blk-bd", "--bar", "--bar-line", "--accent"],
+    },
+    # reading-gear-alt-D: 「表示設定シートは settings-D の .sheet をそのまま再利用（中身は不変）」
+    # を自称するシート系クラスタの複製（セレクタ×プロパティ単位で実値突合）。
+    {
+        "derived": "reading-gear-alt-D.html",
+        "source": "settings-D.html",
+        "css_props": [
+            (".sheet", "padding"),
+            (".grab", "margin"),
+            (".sheet h2", "margin-bottom"),
+            (".sheet h2", "font-size"),
+            (".lbl", "margin-bottom"),
+            (".sec", "margin-bottom"),
+            (".chips", "gap"),
+            (".chip", "padding"),
+            (".slider", "gap"),
+            (".row-lbl", "margin-bottom"),
+        ],
+    },
+]
+
+def css_prop_value(text: str, selector: str, prop: str) -> str | None:
+    """`selector{...}` ブロック内の `prop:値` を返す（無ければ None）。
+
+    なぜ簡易パースで足りるか: 対象モックの CSS は「1ルール=1行頭開始」の圧縮記法。
+    行頭アンカーでセレクタ全体を特定する（素の `.lbl` 検索だと複合セレクタ
+    `.bb2-set .lbl` に先にマッチする誤検出があった＝実測）。
+    prop 側は `(?<![-\\w])` で `margin-bottom` への `margin` 誤マッチを防ぐ。
+    """
+    m = re.search(r"(?m)^\s*" + re.escape(selector) + r"\s*\{(.*?)\}", text, re.S)
+    if not m:
+        return None
+    pm = re.search(rf"(?<![-\w]){re.escape(prop)}\s*:\s*([^;}}]+)", m.group(1))
+    return re.sub(r"\s+", " ", pm.group(1).strip()) if pm else None
+
 # これは再翻訳(Spacing/Insets参照化)完了ごとに行を消していくラチェット。空になったら余白トークン移行完了。
 # 拡張7段スケール再翻訳の残債ラチェット。2026-07-13 に全19ファイルを再翻訳し空へ到達
 # （＝以後 spacing-context の直書き .dp は WARN でなく NG＝逆走を止める）。履歴は git log 参照。
@@ -198,6 +250,40 @@ def main() -> int:
                 else:
                     failures.append(f"[NG] {READING_FILE} {var}({theme}): モック #{decl} ⇄ ReadingColors.{field}=#{expected}")
                     ng += 1
+
+    # ---- 派生モック ⇄ 正本モックの実値突合（DERIVED_SYNC 表） ----
+    for entry in DERIVED_SYNC:
+        dpath = MOCK_DIR / entry["derived"]
+        spath = MOCK_DIR / entry["source"]
+        if not dpath.exists() or not spath.exists():
+            failures.append(f"[NG] DERIVED_SYNC: {entry['derived']} / {entry['source']} が見つからない（移設・収蔵完了なら本表を更新）")
+            ng += 1
+            continue
+        dtext = dpath.read_text(encoding="utf-8")
+        stext = spath.read_text(encoding="utf-8")
+        for var in entry.get("vars_first_decl", []):
+            dd, sd = find_decls(dtext, var), find_decls(stext, var)
+            label = f"{entry['derived']} {var} ⇄ {entry['source']}"
+            if not dd or not sd:
+                failures.append(f"[NG] {label}: 宣言が見つからない（派生={len(dd)}件/正本={len(sd)}件＝複製構造が変わった＝要保守）")
+                ng += 1
+            elif dd[0] == sd[0]:
+                ok += 1
+            else:
+                failures.append(f"[NG] {label}: 派生 #{dd[0]} ⇄ 正本 #{sd[0]}（drift）")
+                ng += 1
+        for selector, prop in entry.get("css_props", []):
+            dv = css_prop_value(dtext, selector, prop)
+            sv = css_prop_value(stext, selector, prop)
+            label = f"{entry['derived']} {selector}{{{prop}}} ⇄ {entry['source']}"
+            if dv is None or sv is None:
+                failures.append(f"[NG] {label}: 宣言が見つからない（派生={dv!r}/正本={sv!r}＝複製構造が変わった＝要保守）")
+                ng += 1
+            elif dv == sv:
+                ok += 1
+            else:
+                failures.append(f"[NG] {label}: 派生 '{dv}' ⇄ 正本 '{sv}'（drift）")
+                ng += 1
 
     # ---- Spacing lint (Phase A): mock margin check ----
     scale_set = parse_spacing_scale()

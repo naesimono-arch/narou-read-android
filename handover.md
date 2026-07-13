@@ -64,9 +64,7 @@
 
 ## workflow / tooling
 
-- **[モック陳腐化防止 hook の検討（2026-07-13・本セッションの F 比較モック drift が動機）]**: 派生モック（比較/プレビュー系）が正本モック（reading-D 等）やトークンの値を**複製**するため、正本更新で silent に陳腐化する（今回＝F 比較モックが正本の本文タイポ 16.5/2.4→旧 15.5/2.3 に drift・栞カバーも正本 canvas エンジン未流用の CSS 近似だった＝ユーザー2度指摘で発覚）。案＝①派生モックは正本を複製せず**参照**する規約化（`@dsCard` に「正本ソース＋最終同期日」メタを必須化し drift 検知）②`check_design_tokens.py` に**タイポ／スペーシングの mock⇄正本突合**を追加（現状は色の mock⇄token 同期のみ＝この drift 種別は未検知）③正本モック編集時に派生モックへ「要再同期」を立てる PostToolUse hook。フック新規は先に `task_diary.md` #26/#28・`docs/decisions/0004`/`0008`（サイレント失敗クラス）を確認。
-
-- **[bestpractice 突合の回収候補（2026-07-12 調査）]**: ①スキル frontmatter の `triggers:` は標準外フィールドの可能性（自動発動は `description` 単体が正）＝ハーネスに解釈されているか検証 ②`block_destructive_migration.py` の Bash 経路が素朴な部分文字列一致（`FOO=1 cmd`・`$()` ですり抜け）＝settings permissions の `if` フィールド化を検討（主経路の Edit/Write 捕捉は健在で実害小） ③`tools/check_design_tokens.py` のコミットゲート配線 or 手動運用継続の裁定 ④サブエージェントの部品別モデル配分（fan-out/読み=haiku・照合=sonnet・監査=opus。現状は env `CLAUDE_CODE_SUBAGENT_MODEL` で opus 固定＝見直しは settings 変更を伴う）。
+- **[bestpractice 突合の回収候補（2026-07-12 調査）]**: ①スキル frontmatter の `triggers:` は標準外フィールドの可能性（自動発動は `description` 単体が正）＝ハーネスに解釈されているか検証 ②`block_destructive_migration.py` の Bash 経路が素朴な部分文字列一致（`FOO=1 cmd`・`$()` ですり抜け）＝settings permissions の `if` フィールド化を検討（主経路の Edit/Write 捕捉は健在で実害小） ③サブエージェントの部品別モデル配分（fan-out/読み=haiku・照合=sonnet・監査=opus。現状は env `CLAUDE_CODE_SUBAGENT_MODEL` で opus 固定＝見直しは settings 変更を伴う）。
 
 - **antigravity-delegate サブエージェントの同期実行が保証されない**（2026-07-07・委譲5件中3件で再発): agy をバックグラウンド起動したまま「待機中」で終了し完了通知が来ない。プロンプト明記・SendMessage 再開でも再発。運用回避（CLAUDE.md 委譲判断節に反映済み）＝完了判定を報告でなく**成果物の存在**（`git status`/grep/`ps`）で行う。**根治候補**＝プラグイン側で agy 起動を同期実行へ強制するか wrapper にポーリング内蔵。優先度中（運用回避が効き非ブロッキング）。
 - **worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す運用**: Lint コミットゲート（`check_lint_on_commit.py`）は drvfs でスキップされる設計＝canonical 作業が続く限り事実上無効。ext4 worktree なら in-tree で回るので冒頭で1回スイープする。基準＝0 errors/26 warnings（2026-07-12 時点）。
