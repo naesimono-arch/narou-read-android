@@ -27,7 +27,7 @@
 - 残1 の裁定・翻訳が一段落したら `ui/polish` を main へ --no-ff 統合（コミットは worktree 内セッションから＝guard の機序は memory `ff-merge-sentinel-not-consumed`）。
 
 ### 残1: 重いデザイン系（/design・DesignSync は主セッション限定＝委譲不可）
-- **[C②] 本棚先頭の発見帯の去就**（確認バッチC②＝撤去でなく /design ですり合わせ）: 試作モック **`docs/design-candidates/discovery/bookshelf-band-reposition-D.html`**（現行の**栞書影正本**エンジンを流用・4案＝現状/A一行融合/B退避/C末尾タイル）作成済み。**ユーザー裁定＝案B「スクロール退避」で確定（2026-07-12）**＝先頭到達時のみ帯フル表示・下スクロールで帯を畳み・状態フィルタ（よみかけ/未読/読了）は sticky で残す。残＝Compose翻訳（`BookshelfScreen.kt:582-643` の `FindGuideBand`＋フィルタ行を collapsing header＋sticky filter へ）。ADR0005/0014 接地。
+- **[C②] 本棚先頭の発見帯の去就**（確認バッチC②＝撤去でなく /design ですり合わせ）: 試作モック **`docs/design-candidates/discovery/bookshelf-band-reposition-D.html`**（現行の**栞書影正本**エンジンを流用・4案＝現状/A一行融合/B退避/C末尾タイル）作成済み。**ユーザー裁定＝案B「スクロール退避」で確定（2026-07-12）**＝先頭到達時のみ帯フル表示・下スクロールで帯を畳み・状態フィルタ（よみかけ/未読/読了）は sticky で残す。**Compose翻訳を実装し実機投入まで到達したが（帯＋フィルタを topBar の collapsing header へ hoist・フィルタ sticky・下スクロールで帯を枠無し1行版へ Crossfade）、2026-07-14 実機目視でユーザーが却下**＝『新しい物語を見つける』帯が、位置も役割も変わらない同一要素なのにスクロールで restyle（フル枠付き箱→枠無し1行・墨→藍）するのが本質原因。**この実装は差戻し済み（未コミット破棄）。やること＝collapse の意匠を /design 接地で決め直して再翻訳。推奨方向＝「帯は完全退避」＝畳み1行版を廃し、スクロール時は帯を restyle せず AnimatedVisibility で隠すだけ（フル帯の見た目のまま退避・フィルタ sticky は維持）＝ユーザー原則「位置/役割が同じなら restyle しない・退避のときだけ消す」に整合。ただし従来の「1行帯を残す（モック忠実）」選択の反転につき着手前に要ユーザー確認**。hoist＋sticky filter の骨格は流用可（`LazyVerticalGrid` に stickyHeader が無く本棚はグリッド/リスト2モードのため、topBar への hoist が両モード一律 sticky の素直な解）。ADR0005/0014 接地。
 
 ### 残2: 要検証 実機送り（6件・`/device-verify`・コード修正で閉じない）
 - 回転レース: 回転直前の最終スクロールデルタ(≤400ms)が保存に間に合わずレース→章を読みつつ即回転反復で DB 突合。
