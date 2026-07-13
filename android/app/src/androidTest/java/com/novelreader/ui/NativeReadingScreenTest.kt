@@ -4,7 +4,6 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -79,7 +78,9 @@ class NativeReadingScreenTest {
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithText("第一章").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithContentDescription("次の章").performClick()
+        // C①案A: 下端バーはアイコン＋可視ラベルへ再構成（歯車撤去・4分割）＝ラベル Text で指す
+        // （アイコンは装飾扱いで contentDescription なし＝TalkBack 二重読み上げ回避のため）。
+        composeTestRule.onNodeWithText("次章").performClick()
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithText("第二章").fetchSemanticsNodes().isNotEmpty()
         }
@@ -106,8 +107,8 @@ class NativeReadingScreenTest {
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithText("第一章").fetchSemanticsNodes().isNotEmpty()
         }
-        // currentIndex = 0 のとき prevFile = "index.html"（仕様通り）
-        composeTestRule.onNodeWithContentDescription("前の章").performClick()
+        // currentIndex = 0 のとき prevFile = "index.html"（仕様通り）。下端バーは可視ラベル Text で指す（C①案A）。
+        composeTestRule.onNodeWithText("前章").performClick()
         // 目次画面: TOC エントリが表示される（非同期ロードを待機）
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithText("第一章タイトル").fetchSemanticsNodes().isNotEmpty()
@@ -135,7 +136,8 @@ class NativeReadingScreenTest {
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithText("第一章").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithContentDescription("目次").performClick()
+        // 下端バーの目次ボタンは可視ラベル Text で指す（C①案A・アイコンは装飾扱い）。
+        composeTestRule.onNodeWithText("目次").performClick()
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithText("第一章タイトル").fetchSemanticsNodes().isNotEmpty()
         }
@@ -270,11 +272,11 @@ class NativeReadingScreenTest {
                 onNavigateToBookshelf = {},
             )
         }
-        // 第一章を表示後、次へで第二章に遷移
+        // 第一章を表示後、次へで第二章に遷移（下端バーは可視ラベル Text で指す＝C①案A）
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithText("第一章").fetchSemanticsNodes().isNotEmpty()
         }
-        composeTestRule.onNodeWithContentDescription("次の章").performClick()
+        composeTestRule.onNodeWithText("次章").performClick()
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
             composeTestRule.onAllNodesWithText("第二章").fetchSemanticsNodes().isNotEmpty()
         }

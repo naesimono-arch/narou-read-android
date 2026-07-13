@@ -67,15 +67,16 @@
   .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--accent);font-weight:700;
     margin-bottom:8px;letter-spacing:.1em}
   .block p{font-size:14.5px;line-height:2.1;text-indent:1em;margin:0}
-  /* ---- ボトムバー（オーバーレイ。前章/目次/次章の3分割）---- */
-  .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:64px;display:flex;align-items:center;
+  /* ---- ボトムバー（オーバーレイ。C①案A＝前章/目次/表示設定/次章の4分割・アイコン＋ラベル）---- */
+  /* 右上隅の歯車を撤去し表示設定をここへ集約。表示設定(.set)だけ藍＋太字で画面唯一の強調（原則4）。 */
+  .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:60px;display:flex;align-items:center;
     background:var(--bar);border-top:1px solid var(--bar-line)}
-  .bottombar button{flex:1;height:100%;border:none;background:transparent;display:grid;place-items:center;
-    color:var(--ink);cursor:pointer}
-  .bottombar svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.5}
-  .bottombar .mid{position:relative}
-  .bottombar .mid::before,.bottombar .mid::after{content:"";position:absolute;top:20px;bottom:20px;width:1px;background:var(--bar-line)}
-  .bottombar .mid::before{left:0}.bottombar .mid::after{right:0}
+  .bottombar button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:4px;color:var(--ink);cursor:pointer}
+  .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .bottombar .bl{font-family:var(--gothic);font-size:9.5px;color:var(--soft);letter-spacing:.02em}
+  .bottombar .set svg{stroke:var(--accent)}
+  .bottombar .set .bl{color:var(--accent);font-weight:600}
   /* 没入時（クローム非表示）: 上下バーを消し本文を全面に。中央の薄い「タップでバー表示」ヒントのみ */
   .immersive .topbar,.immersive .bottombar{display:none}
   .immersive .reader{padding:32px 24px 40px}
@@ -95,7 +96,6 @@
       <div class="topbar">
         <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
         <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
-        <button class="ib" aria-label="表示設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1L16.5 3h-4l-.4 2.6a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1L11.5 21h4l.4-2.6a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5a7 7 0 0 0 .1-1z"/></svg></button>
       </div>
       <div class="reader">
         <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
@@ -106,9 +106,10 @@
         <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
       </div>
       <div class="bottombar">
-        <button aria-label="前の章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-        <button class="mid" aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg></button>
-        <button aria-label="次の章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
       </div>
     </div></div>
 
@@ -119,7 +120,6 @@
       <div class="topbar">
         <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
         <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
-        <button class="ib" aria-label="表示設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1L16.5 3h-4l-.4 2.6a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1L11.5 21h4l.4-2.6a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5a7 7 0 0 0 .1-1z"/></svg></button>
       </div>
       <div class="reader">
         <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
@@ -130,9 +130,10 @@
         <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
       </div>
       <div class="bottombar">
-        <button aria-label="前の章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-        <button class="mid" aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg></button>
-        <button aria-label="次の章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
       </div>
     </div></div>
 
@@ -148,7 +149,7 @@
         <div class="blank"></div><hr><div class="blank"></div>
         <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
       </div>
-      <div class="hint">画面中央タップでバー表示</div>
+      <div class="hint">画面をタップでメニュー</div>
     </div></div>
 
   </div>

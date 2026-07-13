@@ -11,9 +11,16 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -26,7 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -62,11 +69,13 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
@@ -89,6 +98,7 @@ import com.novelreader.narou.narouWorkUrl
 import com.novelreader.narou.model.Ncode
 import com.novelreader.parser.ChapterHtmlParser
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.FontNavLabel
 import com.novelreader.ui.theme.FontSectionTitle
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.MotionDurationCrossfade
@@ -1080,38 +1090,38 @@ private fun ChapterScreenContent(
             containerColor = colors.navBackground.copy(alpha = 0.95f),
             contentColor = colors.topBarIcon,
         ) {
-            IconButton(
+            // C①案A: 下端を4分割 [前章｜目次｜表示設定｜次章]。表示設定を右上隅の歯車から下端へ集約し、
+            // 藍＋太字で画面唯一の強調にする（原則4「一画面一強調」）。前後章は目次未ロード中の disabled を維持。
+            BottomBarButton(
+                icon = Icons.AutoMirrored.Filled.ArrowBack,
+                label = "前章",
+                colors = colors,
+                // 目次未ロード中は無効化（disabled トークンで淡色化）。押下時の目次フォールバックを防ぐ
+                enabled = navEnabled,
                 onClick = { onNavigateTo(prevFile) },
-                // 目次未ロード中は無効化（disabled トークンで淡色化）。押下時の目次フォールバックを防ぐ
-                enabled = navEnabled,
-                modifier = Modifier.weight(1f),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "前の章",
-                )
-            }
+            )
             // 目次ボタンは常に有効（ロード状況に関わらず目次を開ける＝開けばスケルトン表示）
-            IconButton(
+            BottomBarButton(
+                icon = Icons.AutoMirrored.Filled.List,
+                label = "目次",
+                colors = colors,
                 onClick = { onNavigateTo("index.html") },
-                modifier = Modifier.weight(1f),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.List,
-                    contentDescription = "目次",
-                )
-            }
-            IconButton(
-                onClick = { onNavigateTo(nextFile) },
-                // 目次未ロード中は無効化（disabled トークンで淡色化）。押下時の目次フォールバックを防ぐ
+            )
+            // 表示設定＝下端集約の主役。旧・右上歯車の起動導線をここへ移設（シート中身は不変）。
+            BottomBarButton(
+                icon = Icons.Filled.Tune,
+                label = "表示設定",
+                colors = colors,
+                accent = true,
+                onClick = { showSettings = true },
+            )
+            BottomBarButton(
+                icon = Icons.AutoMirrored.Filled.ArrowForward,
+                label = "次章",
+                colors = colors,
                 enabled = navEnabled,
-                modifier = Modifier.weight(1f),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = "次の章",
-                )
-            }
+                onClick = { onNavigateTo(nextFile) },
+            )
         }
 
         TopAppBar(
@@ -1143,15 +1153,9 @@ private fun ChapterScreenContent(
                     )
                 }
             },
-            actions = {
-                // 表示設定（テーマ切替）ボトムシートを開く
-                IconButton(onClick = { showSettings = true }) {
-                    Icon(
-                        imageVector = Icons.Filled.Settings,
-                        contentDescription = "表示設定",
-                    )
-                }
-            },
+            // 表示設定は右上隅の歯車を撤去し下端バーへ集約した（C①案A・handover ★残1）。
+            // 隅の歯車は「毎セッション触る唯一の入口が隅に複利蓄積」＝標準の悪例で、親指の届く下端へ移す。
+            // 上端は ←（目次へ）＋章題のみに絞り、原則1「UIは黒衣」を強める（起動導線だけの変更＝シート中身は不変）。
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = colors.topBarBackground,
                 scrolledContainerColor = colors.topBarBackground,
@@ -1281,5 +1285,53 @@ private suspend fun settleTopBar(
         animationSpec = MotionSpringBarSettle,
     ) { value, _ ->
         state.heightOffset = value
+    }
+}
+
+/**
+ * 下端バーの1ボタン（アイコン＋ラベル縦積み）。C①案A の4分割バー（reading-gear-alt-D 案A②の翻訳）。
+ * ラベルはゴシック（道具の声＝ADR 0014「明朝は題字と本文」＝既定 sans をそのまま使う）・[FontNavLabel]。
+ * @param accent 藍で強調するか（表示設定＝画面唯一の強調・原則4「一画面一強調」）。
+ * @param enabled false で disabled トークンへ淡色化しタップ無効化（前後章の目次未ロード中）。
+ */
+@Composable
+private fun RowScope.BottomBarButton(
+    icon: ImageVector,
+    label: String,
+    colors: ReadingColors,
+    accent: Boolean = false,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    // 淡色化の優先順位: 無効（機能不能）＞ accent（強調）＞ 通常。無効時は強調より不能表示を優先する。
+    // 無効色は placeholder（「無効ボタン文字」用の専用シェード＝alpha 沈めでなく役割別トークン・Design/10§9）。
+    val tint = when {
+        !enabled -> colors.placeholder
+        accent -> colors.accent
+        else -> colors.topBarIcon
+    }
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .fillMaxHeight()
+            .clickable(enabled = enabled, onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            // ラベル Text が可視の読み上げ名を担うため、アイコンは装飾扱い（null）にして二重読み上げを防ぐ。
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(22.dp),
+        )
+        // モックのアイコン↔ラベル間 3px を離散スケールへ最近傍丸め（round-half-up＝4dp）。
+        Spacer(Modifier.height(Spacing.S4))
+        Text(
+            text = label,
+            color = tint,
+            fontSize = FontNavLabel,
+            fontWeight = if (accent) FontWeight.SemiBold else FontWeight.Normal,
+        )
     }
 }
