@@ -15,7 +15,9 @@ import org.junit.Test
 class ShioriGeneratorTest {
 
     // 現行の先端総数（正本 TIPS 配列と一致）。ゴールデン値はこの数で算出している。
-    private val tipCount = 31
+    // 2026-07-13: 31→174 に増補（既存31＋増補143＝陰陽/武具/家紋/鳥獣/花/書斎系）。tipCount 依存は
+    // tipIndex のみ（hue/xFrac/lenFrac は棒の乱数系列で先に引かれ総数非依存）＝下の tipIndex 期待値のみ更新。
+    private val tipCount = 174
 
     @Test
     fun `hash は JS hashStr と一致する`() {
@@ -29,19 +31,19 @@ class ShioriGeneratorTest {
     fun `params は JS 正本のゴールデン値と一致する`() {
         val a = shioriParams("テスト", tipCount)
         assertEquals(20, a.hue)
-        assertEquals(27, a.tipIndex)
+        assertEquals(154, a.tipIndex)
         assertEquals(0.29818349f, a.xFrac, 1e-4f)
         assertEquals(0.34783724f, a.lenFrac, 1e-4f)
 
         val b = shioriParams("星降る夜のパン屋と魔法使い", tipCount)
         assertEquals(260, b.hue)
-        assertEquals(24, b.tipIndex)
+        assertEquals(136, b.tipIndex)
         assertEquals(0.19621739f, b.xFrac, 1e-4f)
         assertEquals(0.32776147f, b.lenFrac, 1e-4f)
 
         val c = shioriParams("黒の魔王と契約した俺、気づけば最強の従者に", tipCount)
         assertEquals(330, c.hue)
-        assertEquals(4, c.tipIndex)
+        assertEquals(23, c.tipIndex)
         assertEquals(0.28875232f, c.xFrac, 1e-4f)
         assertEquals(0.34312687f, c.lenFrac, 1e-4f)
     }

@@ -14,6 +14,7 @@
 
 - **[機能②・要判断] U1 新着チェックとの整合**: 続きあり判定は現状 PDF 蔵書の generalAllNo 突合のまま。Web カードの既読話数（web_reading_progress）を U1 基準へ組み込むかは別タスク（機能②実装時からの持ち越し）。
 - **[取込] 「PDFを取り込む」ボタンの不安定さ**（2026-07-10 ユーザー報告・**再現条件未特定**）: FAB/空状態ボタンからの picker 起動が不安定に感じられることがある。まず再現条件の聞き取り（どの画面のボタンか・無反応か遅延か・バッテリー最適化ダイアログ絡みか）→ logcat での再現観察から。推定候補: 通知権限→picker の2段ゲート・バッテリー最適化ダイアログの分岐（`launchPdfPicker` 周り）だが未確定のため決め打ち修正はしない。
+- **[意匠・任意] 栞先端 174化に伴う consistency-D / palette-D の tip 同期**（2026-07-13 増補時に留置）: 栞先端意匠を31→174へ増補（正本 `shiori-tips-D.html`＋Kotlin `SHIORI_TIPS`＋書影モック `bookshelf-shiori-grid-D.html`＋`ShioriGeneratorTest` は同期済み）。`bookshelf-shiori-consistency-D.html`・`bookshelf-shiori-palette-D.html` も独自に TIPS(31) を埋め込むが、両者は**色相共有/色域が主眼で tip 描画は付随**のため未同期で留置（デモ表紙が旧31種の先端を引くだけ・色の実証には影響なし）。同期するなら scratchpad の `build_gridD_sync.js` と同手法で両ファイルの `const TIPS=[…]` を174へ差し替え。**増補の手順は `/shiori-tips` スキルが正本**。
 
 ---
 
