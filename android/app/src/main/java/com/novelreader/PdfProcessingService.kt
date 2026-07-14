@@ -68,13 +68,6 @@ class PdfProcessingService : Service() {
     private var lastNotifiedTitle = ""
     private var lastNotifiedStopping = false
 
-    // NOTIFICATION_ID の現在の内容が「進行中（ongoing）通知のまま」か（lock で保護）。
-    // 完了/取込済み/失敗通知が NOTIFICATION_ID を上書きすると false になる。前面での完了通知スキップ
-    // （§86）により、正常終了時に上書きが起きず ongoing 通知が残置するのを防ぐための判定に使う:
-    // true のまま正常終了したら stopForeground(REMOVE) で「変換中」通知を確実に消す（背面での完了通知
-    // 上書き時は false＝完了通知を残す既存挙動を維持）。
-    private var progressNotificationOngoing = false
-
     override fun onBind(intent: Intent?): IBinder? = null
 
     // なぜ InlinedApi 抑制が安全か: FOREGROUND_SERVICE_TYPE_DATA_SYNC は API 29+ の定数だが
@@ -151,10 +144,9 @@ class PdfProcessingService : Service() {
 
         if (isDuplicate) {
             // 黙って捨てず「取込済み」を通知でフィードバックする（UX監査要件）。表示名の解決は
-            // ContentProvider への query のためメインスレッドを避け IO で行い、進行中の変換の
-            // ongoing 通知を潰さないよう専用 ID（DUPLICATE_NOTIFICATION_ID）で出す。
+            // ContentProvider への query のためメインスレッドを避け IO で行う。
             (application as? NovelReaderApplication)?.applicationScope?.launch {
-                showDuplicateNotification(resolveDisplayName(uri), DUPLICATE_NOTIFICATION_ID)
+                showDuplicateNotification(resolveDisplayName(uri))
             }
             return START_NOT_STICKY
         }
@@ -189,8 +181,6 @@ class PdfProcessingService : Service() {
                     buildProgressNotification(0, "準備中…"),
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
                 )
-                // FGS 起動時の内容は進行中通知。以後 completion/error が上書きするまで true。
-                lock.withLock { progressNotificationOngoing = true }
             } catch (e: IllegalStateException) {
                 Log.e(TAG, "フォアグラウンド開始に失敗（処理を中止）", e)
                 lock.withLock {
@@ -326,19 +316,14 @@ class PdfProcessingService : Service() {
                     }
                 }
                 if (shouldStopSelf) {
-                    val (wasStopping, ongoingRemains) = lock.withLock {
-                        val s = isStopping
-                        totalCount = 0; doneCount = 0; isStopping = false
-                        Pair(s, progressNotificationOngoing)
-                    }
-                    // REMOVE する条件は2つ:
-                    // ①停止操作で終わった場合は「停止しています…」の ongoing 通知を確実に消す。
-                    // ②正常終了でも NOTIFICATION_ID が進行中通知のまま（完了/失敗が上書きしていない）なら
-                    //   REMOVE する＝前面での完了通知スキップ（§86）で「変換中」が残置するのを防ぐ。
-                    // 背面での完了/失敗通知（progressNotificationOngoing=false）は従来どおり残す。
-                    if (wasStopping || ongoingRemains) {
-                        ServiceCompat.stopForeground(this@PdfProcessingService, ServiceCompat.STOP_FOREGROUND_REMOVE)
-                    }
+                    lock.withLock { totalCount = 0; doneCount = 0; isStopping = false }
+                    // 進行中通知（NOTIFICATION_ID＝FGS 通知そのもの）は無条件で REMOVE する。
+                    // 終端通知（完了/取込済み/失敗）は専用 ID で別途投稿済みのため道連れにならない。
+                    // なぜ無条件か: 旧実装は終端通知を NOTIFICATION_ID へ上書き投稿し「上書き済みなら
+                    // REMOVE をスキップすれば残る」前提だったが、FGS 通知は stopSelf() のサービス破棄で
+                    // システムが ID ごと除去するためこの前提が成立せず、「変換が終わった瞬間に完了通知が
+                    // 消える」実機事象を起こしていた（2026-07-14 OPPO 実測。残すには別 ID 投稿が必要）。
+                    ServiceCompat.stopForeground(this@PdfProcessingService, ServiceCompat.STOP_FOREGROUND_REMOVE)
                     stopSelf()
                 }
             }
@@ -387,16 +372,10 @@ class PdfProcessingService : Service() {
                             // in-app に既に伝わる。背面時のみシステム通知トレイへ知らせる。
                             if (!app.isAppInForeground) {
                                 showCompletionNotification(outcome.book.id, outcome.book.title)
-                                lock.withLock { progressNotificationOngoing = false } // 完了通知が NOTIFICATION_ID を上書き
                             }
-                            // 前面時は上書きしないため progressNotificationOngoing=true のまま。正常終了時に
-                            // loop finally が REMOVE して「変換中」の残置を消す（in-app が結果を伝える）。
                         // 既に蔵書済み（べき等スキップ）は完了ではなく「取込済み」を通知する。
-                        // この URI の処理スロットは終わったので進行中通知と同じ ID で上書きしてよい。
-                        is com.novelreader.repository.BookRepository.AddBookResult.Duplicate -> {
-                            showDuplicateNotification(outcome.existing.title, NOTIFICATION_ID)
-                            lock.withLock { progressNotificationOngoing = false }
-                        }
+                        is com.novelreader.repository.BookRepository.AddBookResult.Duplicate ->
+                            showDuplicateNotification(outcome.existing.title)
                     }
                     app.updateProcessingState(null)
                 },
@@ -405,7 +384,6 @@ class PdfProcessingService : Service() {
                     Log.e(TAG, "PDF処理失敗", e)
                     val msg = normalizeImportErrorMessage(e)
                     showErrorNotification(msg)
-                    lock.withLock { progressNotificationOngoing = false } // 失敗通知が NOTIFICATION_ID を上書き
                     // 決定的失敗（暗号化/破損）は同一 URI を再投入しても必ず同じ失敗を再走するだけで
                     // 直らないため「再試行」を出さない（retryUri=null＝『閉じる』のみ・UX監査 errtext 08§D）。
                     // 一過性の可能性がある容量不足・権限失効等は再試行を残す。retryUri 付与時、この URI は
@@ -471,11 +449,14 @@ class PdfProcessingService : Service() {
      *  渡し、該当の本の読書画面へ deep link させる（MainActivity 側が疑似バックスタックで本棚起点を保証）。
      *  requestCode を openApp(0)/stop(1) と分けて PendingIntent の取り違えを防ぐ。
      *  FLAG_ACTIVITY_SINGLE_TOP|CLEAR_TOP＋launchMode=singleTop で新規インスタンスを積まず多重起動を避け、
-     *  既に前面なら onNewIntent 経由で対象を差し替える。FLAG_UPDATE_CURRENT で最新完了の bookId を反映する
-     *  （完了通知は NOTIFICATION_ID 単一で上書きされるため同時併存はしない）。 */
+     *  既に前面なら onNewIntent 経由で対象を差し替える。 */
     private fun openBookIntent(bookId: String): PendingIntent {
         val intent = Intent(this, MainActivity::class.java).apply {
             putExtra(MainActivity.EXTRA_BOOK_ID, bookId)
+            // 完了通知は tag=bookId でスタックするため、Intent を本ごとに filterEquals で区別させる。
+            // data が無いと同一 requestCode の PendingIntent が共有され（extras は filterEquals の対象外）、
+            // FLAG_UPDATE_CURRENT が全通知の bookId を最後の1冊へ上書き＝古い通知のタップも最新の本へ飛ぶ。
+            data = Uri.parse("novelreader://book/$bookId")
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
         return PendingIntent.getActivity(
@@ -535,8 +516,6 @@ class PdfProcessingService : Service() {
         // 表示（progress/title/停止フラグ）が前回と同一なら再 notify しない（%不変の高頻度更新を間引く）。
         // lock で compare-and-set をアトミックにする（onProgress は IO、ACTION_STOP はメインから呼ぶため）。
         val changed = lock.withLock {
-            // 現在の NOTIFICATION_ID 内容は進行中通知（完了/失敗が上書きするまで true）。
-            progressNotificationOngoing = true
             val diff = progress != lastNotifiedProgress ||
                 title != lastNotifiedTitle ||
                 isStopping != lastNotifiedStopping
@@ -574,6 +553,9 @@ class PdfProcessingService : Service() {
         return raw.removeSuffix(".pdf").removeSuffix(".PDF")
     }
 
+    /** 変換完了通知。NOTIFICATION_ID（FGS 通知）とは必ず別 ID で投稿する: 同 ID だとサービス停止時に
+     *  システムが FGS 通知ごと除去し「完了した瞬間に通知が消える」（2026-07-14 実機バグの真因）。
+     *  tag=bookId で冊ごとに分離し、複数冊バッチでも完了通知が互いを上書きせずスタックする。 */
     private fun showCompletionNotification(bookId: String, title: String) {
         val notification = NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
             .setContentTitle("変換完了")
@@ -583,13 +565,13 @@ class PdfProcessingService : Service() {
             // タップで該当の本の読書画面へ deep link する（M11）。
             .setContentIntent(openBookIntent(bookId))
             .build()
-        notificationManager().notify(NOTIFICATION_ID, notification)
+        notificationManager().notify(bookId, COMPLETION_NOTIFICATION_ID, notification)
     }
 
     /** 二重取込のフィードバック（UX監査 F-G）。「変換完了」と誤解させないよう文面を分ける。
-     *  通知 ID は呼び出し側が指定する: 進行中変換中の重複投入は専用 ID で ongoing 通知を潰さず、
-     *  処理スロット完了時（蔵書照合ヒット）は進行中通知の ID を上書きする。 */
-    private fun showDuplicateNotification(title: String, notificationId: Int) {
+     *  FGS 通知（NOTIFICATION_ID）とは別 ID＝進行中の ongoing 通知を潰さず、サービス停止の
+     *  道連れ除去（完了通知バグと同根）も受けない。 */
+    private fun showDuplicateNotification(title: String) {
         val notification = NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
             .setContentTitle("取込済み")
             .setContentText("「$title」は既に取り込み済みです")
@@ -597,7 +579,7 @@ class PdfProcessingService : Service() {
             .setAutoCancel(true)
             .setContentIntent(openAppIntent())
             .build()
-        notificationManager().notify(notificationId, notification)
+        notificationManager().notify(DUPLICATE_NOTIFICATION_ID, notification)
     }
 
     private fun showErrorNotification(message: String) {
@@ -608,7 +590,8 @@ class PdfProcessingService : Service() {
             .setAutoCancel(true)
             .setContentIntent(openAppIntent())
             .build()
-        notificationManager().notify(NOTIFICATION_ID, notification)
+        // FGS 通知と別 ID にしないとサービス停止時に道連れ除去される（完了通知バグと同根）。
+        notificationManager().notify(ERROR_NOTIFICATION_ID, notification)
     }
 
     companion object {
@@ -616,9 +599,16 @@ class PdfProcessingService : Service() {
         const val ACTION_STOP = "com.novelreader.action.STOP_PROCESSING"
         // 縦書きPDF取り込み（ADR 0011）で、取り込む本に紐付ける ncode を Intent で運ぶ extra キー。
         const val EXTRA_NCODE = "com.novelreader.extra.NCODE"
+        // 進行中（FGS）通知専用。終端通知（完了/取込済み/失敗）をこの ID で出してはならない:
+        // FGS 通知になった通知はサービス停止時にシステムが除去するため、投稿した瞬間に消える
+        // （2026-07-14 実機バグの真因）。新着話通知は 2001（NewEpisodeCheckWorker）。
         const val NOTIFICATION_ID = 1001
         // 二重取込の通知は進行中変換の ongoing 通知（NOTIFICATION_ID）を潰さないよう別 ID にする。
         const val DUPLICATE_NOTIFICATION_ID = 1002
+        // 変換完了通知（tag=bookId と組で冊ごとにスタック。取り下げも同じ tag+ID で行う）。
+        const val COMPLETION_NOTIFICATION_ID = 1003
+        // 変換失敗通知（複数失敗は上書き＝最後の1件のみ表示。詳細は in-app Snackbar の再試行が担う）。
+        const val ERROR_NOTIFICATION_ID = 1004
         private const val TAG = "PdfProcessingService"
     }
 }

@@ -226,9 +226,11 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
     }
 
     /** 変換完了通知を取り下げる（UX監査 §87 stale 通知）。deep link で該当の本へ着地したら
-     *  「用が済んだ」ため呼ぶ。完了通知は NOTIFICATION_ID 単一のため id 指定で足りる。 */
-    fun cancelCompletionNotification() {
-        NotificationManagerCompat.from(this).cancel(PdfProcessingService.NOTIFICATION_ID)
+     *  「用が済んだ」ため呼ぶ。完了通知は tag=bookId＋COMPLETION_NOTIFICATION_ID で冊ごとに
+     *  スタックするため、着地した本の通知だけを tag 指定で取り下げる（他の冊の完了通知は残す）。 */
+    fun cancelCompletionNotification(bookId: String) {
+        NotificationManagerCompat.from(this)
+            .cancel(bookId, PdfProcessingService.COMPLETION_NOTIFICATION_ID)
     }
 
     /** 指定 ncode の新着話通知を取り下げる（UX監査 §87）。該当の本を開いたら呼ぶ。

@@ -184,7 +184,7 @@ private fun NovelReaderApp(
             // なぜここか: deep link の意図（この本を開く）が満たされた確定点で、変換完了通知と
             // 当該作品の新着通知は「呼び出し状」としての役目を終えているため（押しても同じ場所に来るだけ）。
             (appContext as NovelReaderApplication).let { app ->
-                app.cancelCompletionNotification()
+                app.cancelCompletionNotification(bookId)
                 book.ncode?.let { app.cancelNewEpisodeNotification(it) }
             }
             // 読書位置は保存済み進捗を尊重する（生命線）。未読なら index.html。
