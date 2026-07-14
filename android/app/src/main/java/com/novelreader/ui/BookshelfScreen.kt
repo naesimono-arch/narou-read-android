@@ -11,8 +11,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -23,7 +25,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -48,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -714,153 +716,169 @@ internal fun BookshelfContent(
                 // 初回DB発行前は表紙スケルトンを出す（F-O）。Content(空) が確定するまで空状態を出さない
                 // ことで cold start の空フラッシュ（Loading と Empty の混同）を防ぐ。
                 BookshelfSkeleton(isGridView = isGridView, modifier = Modifier.fillMaxSize())
-            } else {
-              // 状態フィルタ絞り込み中の0件は「蔵書ゼロ」ではないため EmptyBookshelf を出さない
-              // （チップ行を出し続けて「すべて」へ戻れる導線を保つ。下の Lazy 側で該当なし文言を出す）。
-              if (shelfItems.isEmpty() && !isProcessing && selectedStatus == null) {
+            } else if (shelfItems.isEmpty() && !isProcessing && selectedStatus == null) {
                 // 空状態。サイズ指定は呼び出し側の責務（fillMaxSize は従来と同じ描画）。
-                // なぜ else-if で空のグリッド/リストを合成しないか: 以前は空状態の上にも
-                // fillMaxSize の Lazy コンテナが重なっており、scrollable が hit test 上で
-                // 下層の「PDFを追加する」ボタンを遮蔽してタップ不能だった（Robolectric の
-                // 結線テストで検出した実バグ）。空棚では Lazy 側に描くものが無いため、
-                // 排他分岐にして遮蔽を根元から無くす。
+                // なぜ排他分岐で空のグリッド/リストを合成しないか: 以前は空状態の上にも fillMaxSize の
+                // Lazy コンテナが重なっており、scrollable が hit test 上で下層の「PDFを追加する」ボタンを
+                // 遮蔽してタップ不能だった（Robolectric の結線テストで検出した実バグ）。空棚では帯・フィルタも
+                // Lazy も描くものが無いため、排他分岐にして遮蔽を根元から無くす（帯は EmptyBookshelf と重なる
+                // ため空棚では出さない）。
                 EmptyBookshelf(onAddClick = onFabClick, modifier = Modifier.fillMaxSize())
-              } else if (isGridView) {
-                // ────── グリッドレイアウト ──────
-                LazyVerticalGrid(
-                    // 幅適応（reach Major 2026-07-12）: 固定2列を廃し、窓幅から列数を自動導出する。
-                    // minSize の逆算（Compose の Adaptive は列数 = floor((available + spacing)/(minSize + spacing))）:
-                    //   available = 画面幅 - 左右 contentPadding(24+24=48dp)、spacing = 列間 24dp（F拡張7段で 20→24）。
-                    //   よって列数 = floor((幅 - 24) / (minSize + 24))。minSize=124dp とすると
-                    //   幅320dp→2列 / 360〜430dp(一般的なスマホ)→2列 / 480dp以上→3列 / 600dp→3列 / 768dp→5列。
-                    //   gap 24 化で旧 minSize=126 のままだと 320dp が1列に落ちる（2*126+24=276 > 272=320-48
-                    //   ＝境界ちょうどの較正だった）ため、列数表を保存するよう minSize を再導出した。
-                    //   ＝一般的なスマホ(≤430dp)は従来どおり2列で影響0、大画面(≥600dp 等)で自然に多列化する。
-                    columns = GridCells.Adaptive(minSize = 124.dp),
-                    state = gridState,
-                    modifier = Modifier.fillMaxSize(),
-                    // bottom にFAB分の余白を足す。FABは浮動でレイアウト領域を予約しないため、
-                    // これがないと最終行のカード（削除ボタン等）がFABに隠れてタップできない。
-                    // ナビバーインセットはScaffoldのinnerPadding(Box.padding)で吸収済みなので二重加算しない。
-                    // モック D は余白主導。列間20/行間26相当へ広げ、左右も24px相当の余白を取る。
-                    contentPadding = PaddingValues(start = Spacing.S24, top = Spacing.S12, end = Spacing.S24, bottom = Insets.ScrollBottomForFab),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.S24),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.S24),
-                ) {
-                    // 見つける導線帯（モック fusion .find-guide）。空棚では EmptyBookshelf と重なるため出さない
-                    // （状態フィルタ絞り込み中は0件でもチップ行ごと出し続ける）。
-                    if (shelfItems.isNotEmpty() || selectedStatus != null) {
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            FindGuideBand(onClick = onOpenDiscovery)
-                        }
-                        // 読書状態フィルタのチップ行（モック .filters は常設のため FindGuideBand と同じ条件で常時出す）。
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            StatusChipRow(
-                                selectedStatus = selectedStatus,
-                                onSelect = { selectedStatusName = it?.name },
-                                statusCounts = statusCounts,
-                            )
-                        }
-                        if (selectedStatus != null && shelfItems.isEmpty()) {
-                            item(span = { GridItemSpan(maxLineSpan) }) { StatusFilterEmptyText() }
-                        }
-                    }
-                    items(shelfItems, key = { it.key }) { item ->
-                        when (item) {
-                            is ShelfItem.Book -> {
-                                // 了スタンプ（案A）: 読了かつ「未読了で見た記録」がある本＝初めて読了として描く瞬間に一度だけ押印。
-                                val finished = readingStatusFor(
-                                    progressMap[item.book.id], chapterCountMap[item.book.id] ?: 0,
-                                ) == ReadingStatus.FINISHED
-                                GridBookCard(
-                                    book = item.book,
-                                    progress = progressMap[item.book.id],
-                                    novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
-                                    totalChaps = chapterCountMap[item.book.id] ?: 0,
-                                    onOpen = { onOpenBook(item.book) },
-                                    onDelete = { requestDelete(item.book) },
-                                    // 削除時の詰め直しアニメ。旧animateItemPlacementはFoundation1.6系で高速フリング中に
-                                    // カバーが画面外の古い位置から補間され重なる既知不具合があり一時撤去していたが、
-                                    // BOM 2025.02.00(Foundation 1.7系)でstable化したanimateItem()に置き換えて復活（案B）。
-                                    modifier = Modifier.animateItem(),
-                                    playSealStamp = finished && sealSeenUnfinished.contains(item.book.id),
-                                    onSealStamped = { sealSeenUnfinished.remove(item.book.id) },
-                                )
-                            }
-                            // (b) Web由来カード。外す操作は確認ダイアログを挟まない: 蔵書削除と違い
-                            // 読書進捗等の失うものが無く、詳細画面の「本棚に置く」で即座に戻せるため。
-                            is ShelfItem.Web -> WebGridBookCard(
-                                novel = item.novel,
-                                // 機能②: 記録があれば「続きから読む 第N話」を出す（0＝未読で非表示）。
-                                lastReadEpisode = item.lastReadEpisode,
-                                onOpen = { onOpenWebNovel(item.novel) },
-                                onResume = { onResumeWebNovel(item.novel, item.lastReadEpisode) },
-                                onImport = { onImportWebNovel(item.novel) },
-                                onRemove = { onRemoveWebNovel(item.novel) },
-                                modifier = Modifier.animateItem(),
-                            )
-                        }
-                    }
-                }
             } else {
-                // ────── リストレイアウト ──────
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    // bottom にFAB分の余白を足す（グリッドと同理由＝最終行がFABに隠れるのを防ぐ）。
-                    // 行間スペーシングは置かない: 各行が自前の縦余白＋下ヘアラインで区切るモック .li 準拠のため。
-                    contentPadding = PaddingValues(start = Spacing.S24, top = Spacing.S4, end = Spacing.S24, bottom = Insets.ScrollBottomForFab),
-                ) {
-                    // 見つける導線帯（グリッドと同一・リストは行間スペーシングが無いため下余白を帯側に持たせる）
-                    // （状態フィルタ絞り込み中は0件でもチップ行ごと出し続ける＝グリッドと同じ判断）
-                    if (shelfItems.isNotEmpty() || selectedStatus != null) {
-                        item {
-                            FindGuideBand(
-                                onClick = onOpenDiscovery,
-                                modifier = Modifier.padding(top = Spacing.S8, bottom = Spacing.S4),
-                            )
+                // 帯＋フィルタを Lazy コンテナの外＝固定ヘッダへ hoist する（2026-07-14 C② collapse 再設計・裁定＝完全退避）。
+                // なぜ hoist か: 発見帯『新しい物語を見つける』は位置も役割も変わらない同一要素のため、スクロールで
+                // restyle（箱→1行・墨→藍）すると「変わらないものが姿だけ変える」違和感を生む（2026-07-14 実機却下の
+                // 本質原因）。よって帯は restyle せず、先頭到達時のみフル表示・下スクロールで AnimatedVisibility で畳んで
+                // 退避する（フルの見た目のまま隠すだけ）。フィルタ行は常時表示＝sticky にして「フィルタが常に届く」を担保する。
+                // LazyVerticalGrid に stickyHeader が無く本棚はグリッド/リスト2モードのため、Lazy の外への hoist が
+                // 両モード一律 sticky の素直な解（発見は第二の柱＝いずれ再調整予定・handover ★残1 の設計メモ）。
+                val density = LocalDensity.current
+                val showBand by remember(isGridView, density) {
+                    derivedStateOf {
+                        // 先頭の書影が最上部付近にある時のみ帯フル表示。8dp は微小スクロールでの帯のちらつきを防ぐ
+                        // デッドゾーン（余白トークンでなく操作の hysteresis 閾値のため .dp 直書きでよい・spacing lint 対象外）。
+                        val threshold = with(density) { Spacing.S8.toPx() }
+                        val (index, offset) = if (isGridView) {
+                            gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset
+                        } else {
+                            listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
                         }
-                        // 読書状態フィルタのチップ行（モック .filters は常設。グリッドと同じ判断）。
-                        item {
-                            StatusChipRow(
-                                selectedStatus = selectedStatus,
-                                onSelect = { selectedStatusName = it?.name },
-                                statusCounts = statusCounts,
-                                modifier = Modifier.padding(top = Spacing.S8),
-                            )
-                        }
-                        if (selectedStatus != null && shelfItems.isEmpty()) {
-                            item { StatusFilterEmptyText() }
-                        }
+                        index == 0 && offset < threshold
                     }
-                    items(shelfItems, key = { it.key }) { item ->
-                        when (item) {
-                            is ShelfItem.Book -> ListBookCard(
-                                book = item.book,
-                                progress = progressMap[item.book.id],
-                                novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
-                                totalChaps = chapterCountMap[item.book.id] ?: 0,
-                                onOpen = { onOpenBook(item.book) },
-                                onDelete = { requestDelete(item.book) },
-                                deleteUiMode = deleteUiMode,
-                                // グリッドと同理由: 1.7系でstable化したanimateItem()で詰め直しアニメを復活（案B）。
-                                modifier = Modifier.animateItem(),
-                            )
-                            // グリッドと同じ判断（確認ダイアログ無し＝失うものが無く即座に戻せる）。
-                            is ShelfItem.Web -> WebListBookCard(
-                                novel = item.novel,
-                                // 機能②: 記録があれば「続きから読む 第N話」を出す（0＝未読で非表示）。
-                                lastReadEpisode = item.lastReadEpisode,
-                                onOpen = { onOpenWebNovel(item.novel) },
-                                onResume = { onResumeWebNovel(item.novel, item.lastReadEpisode) },
-                                onImport = { onImportWebNovel(item.novel) },
-                                onRemove = { onRemoveWebNovel(item.novel) },
-                                modifier = Modifier.animateItem(),
-                            )
+                }
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // 発見帯（完全退避）: restyle でなく「高さを 0 へ畳んで」退避する（fade 併用・reveal250/dismiss150＝Motion.kt が正本）。
+                    // なぜ slide でなく shrink/expand か: slideOut+fadeOut だと AnimatedVisibility 既定の size 縮小が
+                    // 置き換わり、退避アニメ中は帯の占有スペースがフルのまま予約され続け、終了の瞬間に一気に除去される
+                    // →下のグリッドが最後にカクッと跳ねる（2026-07-14 実機所見「消える瞬間のくっと」の真因）。自作モックの
+                    // max-height:0 遷移に忠実な高さ連続縮小に戻し、スクロールと連続して畳むことでスナップを無くす。
+                    // shrinkTowards/expandFrom=Top＝上端（バー側）を固定し下端を畳む＝フィルタ以下が滑らかに追従する。
+                    AnimatedVisibility(
+                        visible = showBand,
+                        enter = expandVertically(
+                            animationSpec = tween(MotionDurationReveal),
+                            expandFrom = Alignment.Top,
+                        ) + fadeIn(animationSpec = tween(MotionDurationReveal)),
+                        exit = shrinkVertically(
+                            animationSpec = tween(MotionDurationDismiss),
+                            shrinkTowards = Alignment.Top,
+                        ) + fadeOut(animationSpec = tween(MotionDurationDismiss)),
+                    ) {
+                        FindGuideBand(
+                            onClick = onOpenDiscovery,
+                            modifier = Modifier.padding(
+                                start = Spacing.S24, top = Spacing.S12, end = Spacing.S24, bottom = Spacing.S4,
+                            ),
+                        )
+                    }
+                    // 読書状態フィルタのチップ行（sticky＝常時表示。帯が退避しても残し「すべて」へ戻れる導線を保つ）。
+                    StatusChipRow(
+                        selectedStatus = selectedStatus,
+                        onSelect = { selectedStatusName = it?.name },
+                        statusCounts = statusCounts,
+                        modifier = Modifier.padding(
+                            start = Spacing.S24, top = Spacing.S8, end = Spacing.S24, bottom = Spacing.S12,
+                        ),
+                    )
+                    if (selectedStatus != null && shelfItems.isEmpty()) {
+                        // 状態フィルタ絞り込みで0件（蔵書ゼロではない）＝ヘッダは残しつつ静かな案内を出す。
+                        StatusFilterEmptyText(modifier = Modifier.padding(horizontal = Spacing.S24))
+                    } else if (isGridView) {
+                        // ────── グリッドレイアウト ──────
+                        LazyVerticalGrid(
+                            // 幅適応（reach Major 2026-07-12）: 固定2列を廃し、窓幅から列数を自動導出する。
+                            // minSize の逆算（Compose の Adaptive は列数 = floor((available + spacing)/(minSize + spacing))）:
+                            //   available = 画面幅 - 左右 contentPadding(24+24=48dp)、spacing = 列間 24dp（F拡張7段で 20→24）。
+                            //   よって列数 = floor((幅 - 24) / (minSize + 24))。minSize=124dp とすると
+                            //   幅320dp→2列 / 360〜430dp(一般的なスマホ)→2列 / 480dp以上→3列 / 600dp→3列 / 768dp→5列。
+                            //   gap 24 化で旧 minSize=126 のままだと 320dp が1列に落ちる（2*126+24=276 > 272=320-48
+                            //   ＝境界ちょうどの較正だった）ため、列数表を保存するよう minSize を再導出した。
+                            //   ＝一般的なスマホ(≤430dp)は従来どおり2列で影響0、大画面(≥600dp 等)で自然に多列化する。
+                            columns = GridCells.Adaptive(minSize = 124.dp),
+                            state = gridState,
+                            modifier = Modifier.fillMaxSize(),
+                            // 上端余白はヘッダ（フィルタ行の bottom）が持つため、top は書影の影クリアランス分のみ。
+                            // bottom にFAB分の余白を足す（FABは浮動でレイアウト領域を予約しないため、無いと最終行が隠れる）。
+                            // ナビバーインセットはScaffoldのinnerPadding(Box.padding)で吸収済みなので二重加算しない。
+                            contentPadding = PaddingValues(start = Spacing.S24, top = Spacing.S4, end = Spacing.S24, bottom = Insets.ScrollBottomForFab),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.S24),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.S24),
+                        ) {
+                            items(shelfItems, key = { it.key }) { item ->
+                                when (item) {
+                                    is ShelfItem.Book -> {
+                                        // 了スタンプ（案A）: 読了かつ「未読了で見た記録」がある本＝初めて読了として描く瞬間に一度だけ押印。
+                                        val finished = readingStatusFor(
+                                            progressMap[item.book.id], chapterCountMap[item.book.id] ?: 0,
+                                        ) == ReadingStatus.FINISHED
+                                        GridBookCard(
+                                            book = item.book,
+                                            progress = progressMap[item.book.id],
+                                            novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
+                                            totalChaps = chapterCountMap[item.book.id] ?: 0,
+                                            onOpen = { onOpenBook(item.book) },
+                                            onDelete = { requestDelete(item.book) },
+                                            // 削除時の詰め直しアニメ。旧animateItemPlacementはFoundation1.6系で高速フリング中に
+                                            // カバーが画面外の古い位置から補間され重なる既知不具合があり一時撤去していたが、
+                                            // BOM 2025.02.00(Foundation 1.7系)でstable化したanimateItem()に置き換えて復活（案B）。
+                                            modifier = Modifier.animateItem(),
+                                            playSealStamp = finished && sealSeenUnfinished.contains(item.book.id),
+                                            onSealStamped = { sealSeenUnfinished.remove(item.book.id) },
+                                        )
+                                    }
+                                    // (b) Web由来カード。外す操作は確認ダイアログを挟まない: 蔵書削除と違い
+                                    // 読書進捗等の失うものが無く、詳細画面の「本棚に置く」で即座に戻せるため。
+                                    is ShelfItem.Web -> WebGridBookCard(
+                                        novel = item.novel,
+                                        // 機能②: 記録があれば「続きから読む 第N話」を出す（0＝未読で非表示）。
+                                        lastReadEpisode = item.lastReadEpisode,
+                                        onOpen = { onOpenWebNovel(item.novel) },
+                                        onResume = { onResumeWebNovel(item.novel, item.lastReadEpisode) },
+                                        onImport = { onImportWebNovel(item.novel) },
+                                        onRemove = { onRemoveWebNovel(item.novel) },
+                                        modifier = Modifier.animateItem(),
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // ────── リストレイアウト ──────
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize(),
+                            // bottom にFAB分の余白を足す（グリッドと同理由＝最終行がFABに隠れるのを防ぐ）。
+                            // 行間スペーシングは置かない: 各行が自前の縦余白＋下ヘアラインで区切るモック .li 準拠のため。
+                            contentPadding = PaddingValues(start = Spacing.S24, top = Spacing.S4, end = Spacing.S24, bottom = Insets.ScrollBottomForFab),
+                        ) {
+                            items(shelfItems, key = { it.key }) { item ->
+                                when (item) {
+                                    is ShelfItem.Book -> ListBookCard(
+                                        book = item.book,
+                                        progress = progressMap[item.book.id],
+                                        novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
+                                        totalChaps = chapterCountMap[item.book.id] ?: 0,
+                                        onOpen = { onOpenBook(item.book) },
+                                        onDelete = { requestDelete(item.book) },
+                                        deleteUiMode = deleteUiMode,
+                                        // グリッドと同理由: 1.7系でstable化したanimateItem()で詰め直しアニメを復活（案B）。
+                                        modifier = Modifier.animateItem(),
+                                    )
+                                    // グリッドと同じ判断（確認ダイアログ無し＝失うものが無く即座に戻せる）。
+                                    is ShelfItem.Web -> WebListBookCard(
+                                        novel = item.novel,
+                                        // 機能②: 記録があれば「続きから読む 第N話」を出す（0＝未読で非表示）。
+                                        lastReadEpisode = item.lastReadEpisode,
+                                        onOpen = { onOpenWebNovel(item.novel) },
+                                        onResume = { onResumeWebNovel(item.novel, item.lastReadEpisode) },
+                                        onImport = { onImportWebNovel(item.novel) },
+                                        onRemove = { onRemoveWebNovel(item.novel) },
+                                        modifier = Modifier.animateItem(),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
-              }
             }
         }
     }
@@ -920,13 +938,14 @@ private fun StatusChipRow(
 }
 
 // 状態フィルタで該当0件のときの静かな案内（EmptyBookshelf は蔵書ゼロ専用のため使わない）。
+// 帯/フィルタを Lazy 外へ hoist したため、左右インセットは呼び出し側（ヘッダ）から modifier で受ける。
 @Composable
-private fun StatusFilterEmptyText() {
+private fun StatusFilterEmptyText(modifier: Modifier = Modifier) {
     Text(
         text = "この分類の本はありません",
         fontSize = FontSubTitle,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(vertical = Spacing.S16),
+        modifier = modifier.padding(vertical = Spacing.S16),
     )
 }
 

@@ -24,10 +24,12 @@
 > **対象ブランチ**: `ui/polish`（この worktree＝ext4）。ゲート＝`cd android && testDebugUnitTest`（init-script 不要）＋`python3 tools/check_design_tokens.py`。**意匠絡みは Compose で自己判断せず ADR0005/0014＋モック正本に先に接地**。実機絡みは PushNotification→目視OK→コミット。
 
 ### 残0: main への統合
-- 残1 の裁定・翻訳が一段落したら `ui/polish` を main へ --no-ff 統合（コミットは worktree 内セッションから＝guard の機序は memory `ff-merge-sentinel-not-consumed`）。
+- 残1（発見帯 collapse）の完全退避が実機OKで一段落＝`ui/polish` を main へ --no-ff 統合可（コミットは worktree 内セッションから＝guard の機序は memory `ff-merge-sentinel-not-consumed`）。
 
-### 残1: 重いデザイン系（/design・DesignSync は主セッション限定＝委譲不可）
-- **[C②] 本棚先頭の発見帯の去就**（確認バッチC②＝撤去でなく /design ですり合わせ）: 試作モック **`docs/design-candidates/discovery/bookshelf-band-reposition-D.html`**（現行の**栞書影正本**エンジンを流用・4案＝現状/A一行融合/B退避/C末尾タイル）作成済み。**ユーザー裁定＝案B「スクロール退避」で確定（2026-07-12）**＝先頭到達時のみ帯フル表示・下スクロールで帯を畳み・状態フィルタ（よみかけ/未読/読了）は sticky で残す。**Compose翻訳を実装し実機投入まで到達したが（帯＋フィルタを topBar の collapsing header へ hoist・フィルタ sticky・下スクロールで帯を枠無し1行版へ Crossfade）、2026-07-14 実機目視でユーザーが却下**＝『新しい物語を見つける』帯が、位置も役割も変わらない同一要素なのにスクロールで restyle（フル枠付き箱→枠無し1行・墨→藍）するのが本質原因。**この実装は差戻し済み（未コミット破棄）。やること＝collapse の意匠を /design 接地で決め直して再翻訳。推奨方向＝「帯は完全退避」＝畳み1行版を廃し、スクロール時は帯を restyle せず AnimatedVisibility で隠すだけ（フル帯の見た目のまま退避・フィルタ sticky は維持）＝ユーザー原則「位置/役割が同じなら restyle しない・退避のときだけ消す」に整合。ただし従来の「1行帯を残す（モック忠実）」選択の反転につき着手前に要ユーザー確認**。hoist＋sticky filter の骨格は流用可（`LazyVerticalGrid` に stickyHeader が無く本棚はグリッド/リスト2モードのため、topBar への hoist が両モード一律 sticky の素直な解）。ADR0005/0014 接地。
+### 残1: 発見帯 collapse 退避アニメ 体感の追い込み（deferred polish・ADR0005-B 実機後詰め層）
+- 本棚発見帯『新しい物語を見つける』の **collapse は「完全退避」で確定・実装・実機OK 済み**（2026-07-14）。裁定の経緯＝案B「スクロール退避」の初回翻訳（下スクロールで帯を1行版へ restyle）を実機却下→**同一要素の restyle をやめ、帯は restyle せず `shrinkVertically`＋fade で高さ0へ畳んで退避・状態フィルタは sticky で常時 top に残す**へ再設計（ユーザー原則「位置/役割が同じなら restyle しない・退避のときだけ消す」）。帯＋フィルタを Lazy 外の固定ヘッダへ hoist（`LazyVerticalGrid` に stickyHeader 無し＝グリッド/リスト両モード一律 sticky の素直な解）・帯の可視は `derivedStateOf`（先頭到達＝先頭書影が最上部付近〔8dp デッドゾーン〕のみ true）で駆動。
+- **残るのは退避アニメの体感が『不足』**（2026-07-14 実機・ユーザー所見・「まぁいい」で現状採用）＝終了時スナップ（slideOut の予約スペース一括除去）は shrink 化で解消したが、**閾値トリガの AnimatedVisibility（8dp 超で 150ms 縮小）はスクロールと完全連動しない**ため、退避開始のタイミングに軽い不連続感が残る。**要すればスクロール連動方式へ再設計**＝band 高さ∝スクロールオフセットを nestedScroll で連続縮小する collapsing header 本来型（duration/easing のトークン調整でも一部改善余地）。**発見は第二の柱＝いずれ本節ごと再調整予定**（ユーザー 2026-07-14）。
+- 試作/裁定の記録＝`docs/design-candidates/discovery/bookshelf-band-collapse-D.html`（却下1行restyle vs 完全退避の実スクロール対比）・`bookshelf-band-tailtile-D.html`（完全退避 vs 案C末尾タイル）。原型4案＝`bookshelf-band-reposition-D.html`。ADR0005/0014 接地。
 
 ### 残2: 要検証 実機送り（6件・`/device-verify`・コード修正で閉じない）
 - 回転レース: 回転直前の最終スクロールデルタ(≤400ms)が保存に間に合わずレース→章を読みつつ即回転反復で DB 突合。
