@@ -53,6 +53,10 @@ Android標準の `startForeground()` + `PARTIAL_WAKE_LOCK` だけでは ColorOS 
 
 **設定パス**: 設定 → バッテリー → アプリごとの消費管理 → 対象アプリ → バックグラウンドアクティビティを許可
 
+**追補（2026-07-14 上書き）**: PGEM10/Android 16 の実測で**この設定を ON にしても Hans が FGS を
+背面数秒で凍結する**ことを確認（doze 除外・RUN_ANY_IN_BACKGROUND=allow でも同じ）。「設定で根本解決」は
+もはや成立しない → 正本＝`docs/knowledge/coloros-hans-freezes-fgs-despite-bg-allow.md`。
+
 ---
 
 #### 5. ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS はOPPOで誤動作する  ★★★

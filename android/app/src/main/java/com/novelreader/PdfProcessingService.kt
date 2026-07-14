@@ -143,10 +143,18 @@ class PdfProcessingService : Service() {
         }
 
         if (isDuplicate) {
-            // 黙って捨てず「取込済み」を通知でフィードバックする（UX監査要件）。表示名の解決は
-            // ContentProvider への query のためメインスレッドを避け IO で行う。
-            (application as? NovelReaderApplication)?.applicationScope?.launch {
-                showDuplicateNotification(resolveDisplayName(uri))
+            // 黙って捨てず「取込済み」をフィードバックする（UX監査要件）。前面はアプリ内 Snackbar・
+            // 背面はトレイ通知（§86 の「前面は in-app 信号」原則を重複にも適用。従来は通知のみで、
+            // 前面で操作しているユーザーには無言棄却に見えていた＝2026-07-14 人間テスト所見）。
+            // 制約: Snackbar ホストは本棚ルートのみ＝発見側の取込画面から投入した場合は Channel が
+            // buffer し、本棚へ戻った時点で表示される（重複の事実は時間が経っても有効なので許容）。
+            // 表示名の解決は ContentProvider への query のためメインスレッドを避け IO で行う。
+            (application as? NovelReaderApplication)?.let { app ->
+                app.applicationScope.launch {
+                    val name = resolveDisplayName(uri)
+                    if (app.isAppInForeground) app.emitError(duplicateMessage(name))
+                    else showDuplicateNotification(name)
+                }
             }
             return START_NOT_STICKY
         }
@@ -364,18 +372,20 @@ class PdfProcessingService : Service() {
             result.fold(
                 onSuccess = { outcome ->
                     when (outcome) {
-                        // 新規登録は従来どおり「変換完了」を通知する。タップで該当の本の
+                        // 新規登録は前面/背面を問わず「変換完了」を通知する。タップで該当の本の
                         // 読書画面へ deep link するため bookId も渡す（M11）。
+                        // なぜ §86（前面では出さない＝本棚出現が報告）を撤回したか（2026-07-14 ユーザー裁定）:
+                        // ColorOS は「バックグラウンドアクティビティを許可」ON でも Hans が FGS を背面数秒で
+                        // 凍結し、アプリ帰還時に解凍→「前面で完走」が常態＝背面限定の通知は事実上永久に出ない
+                        // （docs/knowledge/ の ColorOS Hans 凍結知見を参照）。ユーザーは通知タップでの着手を
+                        // 要望しており、本棚出現との二重報告は許容と裁定。
                         is com.novelreader.repository.BookRepository.AddBookResult.Added ->
-                            // 前面（本棚を見て待っている）なら完了通知は出さない（UX監査 §86 二重報告是正）。
-                            // 前面では allBooks の Room Flow が新しい本を反応表示し、バナーも消えるため
-                            // in-app に既に伝わる。背面時のみシステム通知トレイへ知らせる。
-                            if (!app.isAppInForeground) {
-                                showCompletionNotification(outcome.book.id, outcome.book.title)
-                            }
-                        // 既に蔵書済み（べき等スキップ）は完了ではなく「取込済み」を通知する。
+                            showCompletionNotification(outcome.book.id, outcome.book.title)
+                        // 既に蔵書済み（べき等スキップ）は完了ではなく「取込済み」をフィードバックする。
+                        // 前面は in-app Snackbar・背面はトレイ通知（上の onStartCommand 側と同じ原則）。
                         is com.novelreader.repository.BookRepository.AddBookResult.Duplicate ->
-                            showDuplicateNotification(outcome.existing.title)
+                            if (app.isAppInForeground) app.emitError(duplicateMessage(outcome.existing.title))
+                            else showDuplicateNotification(outcome.existing.title)
                     }
                     app.updateProcessingState(null)
                 },
@@ -568,13 +578,16 @@ class PdfProcessingService : Service() {
         notificationManager().notify(bookId, COMPLETION_NOTIFICATION_ID, notification)
     }
 
-    /** 二重取込のフィードバック（UX監査 F-G）。「変換完了」と誤解させないよう文面を分ける。
+    /** 重複フィードバックの共通文言（Snackbar とトレイ通知で言い回しを揃える）。 */
+    private fun duplicateMessage(title: String) = "「$title」は既に取り込み済みです"
+
+    /** 二重取込のフィードバック（UX監査 F-G・背面時のみ）。「変換完了」と誤解させないよう文面を分ける。
      *  FGS 通知（NOTIFICATION_ID）とは別 ID＝進行中の ongoing 通知を潰さず、サービス停止の
      *  道連れ除去（完了通知バグと同根）も受けない。 */
     private fun showDuplicateNotification(title: String) {
         val notification = NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
             .setContentTitle("取込済み")
-            .setContentText("「$title」は既に取り込み済みです")
+            .setContentText(duplicateMessage(title))
             .setSmallIcon(R.drawable.ic_notification)
             .setAutoCancel(true)
             .setContentIntent(openAppIntent())
