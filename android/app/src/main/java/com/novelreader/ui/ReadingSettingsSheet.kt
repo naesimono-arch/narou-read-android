@@ -26,6 +26,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.novelreader.ui.theme.FontMicroLabel
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
@@ -121,6 +122,18 @@ internal fun ReadingSettingsSheetContent(
             fontFamily = MinchoFamily,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.08.em,
+        )
+        Spacer(Modifier.height(Spacing.S4))
+        // なぜ適用範囲を見出し直下に明示するか（T2ユーザビリティ所見の再発防止）:
+        // このシートには設定スコープの予告が無く「この本だけの設定」と誤解された。
+        // 実際は app_prefs の固定キー（reading_font_size / reading_line_height /
+        // reading_body_margin / reading_theme）で全書籍共有＝どの本でも同じ値になるため、
+        // 開いた時点で全書籍スコープであることを1行キャプションで先に伝える。
+        // 色は装飾補助でなく意味を運ぶ文字＝AA を満たす infoText、寸法は極小メタ用の FontMicroLabel。
+        Text(
+            text = "配色や文字の設定は、すべての本に適用されます",
+            fontSize = FontMicroLabel,
+            color = colors.infoText,
         )
         Spacer(Modifier.height(Spacing.S16))
         Text(

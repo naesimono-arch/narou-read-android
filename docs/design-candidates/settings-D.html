@@ -35,7 +35,10 @@
   .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--bg);border-radius:20px 20px 0 0;
     padding:12px 24px 32px;box-shadow:0 -10px 30px rgba(0,0,0,.18)}
   .grab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 16px}
-  .sheet h2{font-family:var(--mincho);font-size:17px;color:var(--ink);font-weight:600;letter-spacing:.08em;margin-bottom:24px}
+  .sheet h2{font-family:var(--mincho);font-size:17px;color:var(--ink);font-weight:600;letter-spacing:.08em;margin-bottom:4px}
+  /* 設定スコープの予告（T2ユーザビリティ所見: 「この本だけの設定」と誤解された→全書籍適用を見出し直下に明示）。
+     既存の小さい注記の様式を流用＝muted な var(--soft)・ゴシック極小。新しいCSS変数は作らない */
+  .scope-note{font-family:var(--gothic);font-size:11px;color:var(--soft);letter-spacing:.04em;line-height:1.5;margin-bottom:24px}
   .lbl{font-family:var(--gothic);font-size:12px;color:var(--soft);letter-spacing:.06em;margin-bottom:12px}
   .sec{margin-bottom:24px}
   /* テーマ3択チップ。選択＝藍塗り＋白文字／非選択＝ヘアライン枠 */
@@ -63,6 +66,7 @@
     <div class="sheet">
       <div class="grab"></div>
       <h2>表示設定</h2>
+      <p class="scope-note">配色や文字の設定は、すべての本に適用されます</p>
 
       <div class="sec">
         <div class="lbl">テーマ</div>
