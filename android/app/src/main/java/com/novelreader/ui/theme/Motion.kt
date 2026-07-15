@@ -46,6 +46,14 @@ const val MotionDurationDismiss: Int = 150
 // なぜトークン化するか: Design/08 禁止則②（duration/easing を野良既定に委ねずトークン経由）。
 const val MotionDurationCrossfade: Int = 250
 
+// 画面遷移（NavHost の enter/exit フェード）の duration（ms）。全ルート遷移で共有する。
+// なぜ新設か: NavHost に遷移指定が無く navigation-compose 2.7 系の野良既定 fadeIn/fadeOut(tween(700)) が
+// 全遷移に効いていた＝禁止則②（duration/easing を野良既定に委ねずトークン経由）に NavHost だけが抵触。
+// なぜ 250ms か: 競合5アプリ実測では読書系の実尺は 100〜250ms・章送りでも 400ms（docs/reference/06 §3）で、
+// 既定 700ms はその倍以上＝「もっさり」の第一容疑。フェードのまま尺だけ締める（意匠の新設ではない＝ADR 0005-B
+// 実機後詰め層の範疇）。250ms は離散的な enter/exit を縛る禁止則①の 350ms 上限内。
+const val MotionDurationNavTransition: Int = 250
+
 // 読了バッジ「了」の押印（案A・ADR 0014 §motion 追補「適用裁定の記録」）。本棚がある本を
 // 「初めて読了として描く」瞬間に一度だけ再生する朱印のスタンプ。値の組み立て（scale 1.2→1.0 の単調ダウン＋
 // 回転 -7°→0°＋透過）は BookCard の seal graphicsLayer 側で行い、ここは duration/easing スロットのみ正本化する

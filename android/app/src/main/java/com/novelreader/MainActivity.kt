@@ -6,6 +6,9 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -34,6 +37,7 @@ import com.novelreader.ui.discovery.DiscoverySearchScreen
 import com.novelreader.ui.discovery.NovelDetailScreen
 import com.novelreader.ui.discovery.PdfImportScreen
 import com.novelreader.ui.discovery.WebReaderScreen
+import com.novelreader.ui.theme.MotionDurationNavTransition
 import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.colors
@@ -203,7 +207,14 @@ private fun NovelReaderApp(
         onDeepLinkConsumed()
     }
 
-    NavHost(navController = navController, startDestination = "bookshelf") {
+    // 遷移フェードは Motion トークンで尺を締める（既定の 700ms もっさりを是正・ADR 0005-B / docs/reference/06）。
+    // popEnter/popExit は未指定なら enter/exit にフォールバックするため、フェード2指定で全遷移をカバーする。
+    NavHost(
+        navController = navController,
+        startDestination = "bookshelf",
+        enterTransition = { fadeIn(animationSpec = tween(MotionDurationNavTransition)) },
+        exitTransition = { fadeOut(animationSpec = tween(MotionDurationNavTransition)) },
+    ) {
 
         composable("bookshelf") {
             BookshelfScreen(
