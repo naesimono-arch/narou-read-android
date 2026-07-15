@@ -9,6 +9,8 @@ import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -47,6 +49,7 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.TopAppBarState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -875,7 +878,7 @@ private fun ChapterScreen(
  * 非横取り NestedScroll 接続）のみ内部に保持する（過剰な hoisting は避ける）。
  * Custom Tabs 起動（再入ガード付き）は副作用のため route の [onReadContinuation]/[onOpenWorkPage] へ委譲する。
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun ChapterScreenContent(
     parseResult: ParseResult,
@@ -1045,15 +1048,22 @@ private fun ChapterScreenContent(
                             })
                             else -> null // 照会中 or 照会失敗（オフライン）→ 静かに出さない
                         }
-                        ChapterContent(
-                            content = result.content,
-                            colors = colors,
-                            fontSize = fontSize,
-                            lineHeightEm = lineHeightEm,
-                            bodyMarginDp = bodyMarginDp,
-                            lazyListState = lazyListState,
-                            continuation = continuationSlot,
-                        )
+                        // 本文リストのみ stretch オーバースクロール（Compose 既定 ON）を無効化する。
+                        // なぜ本文だけか: 各社は読書面で端のゴム伸びバウンドを消し、一覧（目次・本棚）は
+                        // 既定のまま残すのが業界一致（docs/reference/06 §2/§3）。ChapterContent の唯一の
+                        // スクロール要素がこの本文 LazyColumn なので、呼び出しを null 供給で包めば本文へ限定される。
+                        // foundation 1.7 系の API。1.8+ へ上げる際は LocalOverscrollFactory provides null へ読み替え。
+                        CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
+                            ChapterContent(
+                                content = result.content,
+                                colors = colors,
+                                fontSize = fontSize,
+                                lineHeightEm = lineHeightEm,
+                                bodyMarginDp = bodyMarginDp,
+                                lazyListState = lazyListState,
+                                continuation = continuationSlot,
+                            )
+                        }
                     }
 
                     // liveRegion=Polite（a11y 公理11F/WCAG4.1.3）: 章パースが Loading→Error へ
