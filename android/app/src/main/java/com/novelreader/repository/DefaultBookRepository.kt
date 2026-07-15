@@ -26,6 +26,9 @@ import com.novelreader.pdf.InsufficientStorageError
 import com.novelreader.pdf.PdfBookExtractor
 import com.novelreader.pdf.PdfProgress
 import com.novelreader.repository.BookRepository.AddBookResult
+// 栞の個体差抽選（純ロジック・Compose 非依存）。ShioriCover.kt（Compose 依存）は import しない
+// ＝先端総数/レンジの正本は ShioriGenerator.kt 側にあり、repository はそこだけを参照する。
+import com.novelreader.ui.components.drawPersistedShiori
 import com.novelreader.viewmodel.BookImportError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -38,6 +41,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import kotlin.random.Random
 import java.security.MessageDigest
 import java.util.UUID
 
@@ -274,7 +278,11 @@ class DefaultBookRepository(
                         // 既にある本を上書きすると、ユーザーが手動で別作品へ紐付け直した ncode を勝手に潰しうる。
                         // 重複時は既存本をそのまま返し ncode に触れない（＝既存の紐付けを尊重する）。取り込み側は
                         // 必要なら NcodeLinkSheet で手動修正できるため、これで実害はない。
-                        val b = BookEntity(bookId, meta.title, outputDir.absolutePath, meta.author, addedAt = System.currentTimeMillis(), contentSha256 = contentSha256, ncode = ncode?.value)
+                        // 栞書影の先端種・棒長を取込時に真の乱数で1回だけ抽選し永続化する（以後この本は固定の絵になる）。
+                        // なぜ取込時に1回か: 描画のたびに引くと本を開くたびに絵が変わってしまう。ここで確定させ DB に焼く。
+                        // 発生源は真の乱数 Random.Default。総数/レンジの正本は ShioriGenerator（Compose 非依存）側。
+                        val shiori = drawPersistedShiori(Random.Default)
+                        val b = BookEntity(bookId, meta.title, outputDir.absolutePath, meta.author, addedAt = System.currentTimeMillis(), contentSha256 = contentSha256, ncode = ncode?.value, shioriTipIndex = shiori.tipIndex, shioriLenFrac = shiori.lenFrac)
                         bookDao.insertBook(b)
                         // 変換が確定したので永続キュー（pending_jobs）の記帳を落とす。insertBook と同じ
                         // NonCancellable 内で連続実行し、「本は登録されたのに pending が残る」→ 次回起動の

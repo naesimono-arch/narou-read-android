@@ -19,6 +19,21 @@ import kotlin.math.floor
 /** カバー色相環（低彩度の和トーン一周・正本 variants/cover.html 準拠）。1冊＝この中の1色相。 */
 internal val SHIORI_PALETTE = intArrayOf(20, 70, 140, 175, 200, 210, 260, 330)
 
+/**
+ * 先端意匠の総数（正本＝ShioriCover.kt の SHIORI_TIPS.size と一致させる）。
+ *
+ * なぜ Compose 非依存の本ファイルに定数を置くか: 取込時に真の乱数で tipIndex を引く DefaultBookRepository は
+ * ドメイン層で、描画専用の ShioriCover.kt（Compose 依存）を import してはならない。総数の唯一の正本を純ロジック側に
+ * 置くことで、repository が Compose 非依存のまま [0,SHIORI_TIP_COUNT) の抽選をできる。
+ * SHIORI_TIPS 配列に先端を足したら本定数も必ず更新する（乖離は ShioriGeneratorTest の突合で赤くなる）。
+ */
+internal const val SHIORI_TIP_COUNT = 31
+
+/** 栞の棒の長さ（高さ比）の抽選レンジ。shioriParams の決定論導出と取込時の真の乱数抽選が同一レンジを共有する
+ *  ための唯一の正本（Double なのは shioriParams の既存ゴールデン値をビット単位で不変に保つため＝下記 why）。 */
+internal const val SHIORI_LEN_FRAC_MIN = 0.30
+internal const val SHIORI_LEN_FRAC_MAX = 0.60
+
 /** 生成された栞のパラメータ。hue=色相(度)／xFrac=棒のx位置(幅比)／lenFrac=棒の長さ(高さ比)／tipIndex=先端の種類。 */
 internal data class ShioriParams(
     val hue: Int,
@@ -69,18 +84,56 @@ private fun mulberry32(seed: Int): () -> Double {
 internal fun shioriHue(title: String): Int =
     SHIORI_PALETTE[floor(mulberry32(shioriHash(title))() * SHIORI_PALETTE.size).toInt()]
 
+/** 取込時に真の乱数で1回だけ引き BookEntity へ永続化する、栞の個体差パラメータ。 */
+internal data class PersistedShiori(val tipIndex: Int, val lenFrac: Float)
+
 /**
- * title から栞のパラメータを決定論的に導く。
+ * 取込時に真の乱数で栞の先端種と棒長を1回だけ抽選する（純ロジック＝Compose 非依存）。
+ * @param random 乱数源。本番は DefaultBookRepository が `kotlin.random.Random.Default`（真の乱数）を渡す。
+ *               テストは種固定 Random で決定論化する。
+ *
+ * lenFrac は shioriParams の決定論導出と同一レンジ（SHIORI_LEN_FRAC_MIN..MAX）から引く＝抽選値でも従来の
+ * 見た目分布に収まる。tipIndex は [0,SHIORI_TIP_COUNT) の一様分布。ここで発生源を repository に閉じつつ
+ * 総数・レンジの正本を純ロジック側に一元化する（repository が Compose 依存の ShioriCover を触らないため）。
+ */
+internal fun drawPersistedShiori(random: kotlin.random.Random): PersistedShiori {
+    val tipIndex = random.nextInt(SHIORI_TIP_COUNT)
+    val lenFrac = (SHIORI_LEN_FRAC_MIN + (SHIORI_LEN_FRAC_MAX - SHIORI_LEN_FRAC_MIN) * random.nextDouble()).toFloat()
+    return PersistedShiori(tipIndex = tipIndex, lenFrac = lenFrac)
+}
+
+/**
+ * title から栞のパラメータを導く。永続値（取込時に抽選済み）を渡せば該当項目だけ差し替える。
  * @param tipCount 先端意匠の総数（呼び出し側 SHIORI_TIPS.size を渡す＝先端を足すだけで選択に反映される）。
+ * @param persistedTipIndex 非 null なら tipIndex をこの永続値へ差し替える（null＝title 由来の決定論値へフォールバック）。
+ * @param persistedLenFrac 非 null なら lenFrac をこの永続値へ差し替える（null＝同上）。
  *
  * 乱数系列は正本と同一: 色相は `mulberry32(hash(title))` の初回値（shioriHue と同一）、
  * 位置・長さ・先端は `mulberry32(hash(title+"|B"))` から順に x→len→tip の順で引く。
+ *
+ * なぜ永続値ありでも rng() を必ず同回数・同順で回してから差し替えるか（消費順序の保存）:
+ * mulberry32 は逐次消費のストリームで、xFrac→lenFrac→tipIndex の順に3回引く。ここで「差し替える項目の
+ * rng() 呼び出しを省略」すると後続の引き位置がずれ、対象外の xFrac や、片方だけ永続化された場合のもう一方の
+ * フォールバック値が変わってしまう。抽選位置を1つも動かさず値だけ後段で上書きすることで、hue・xFrac は
+ * 1ビットも変わらず（既存 ShioriGeneratorTest の固定値が担保）、tipIndex と lenFrac も互いに独立して
+ * 「永続値なら差し替え／null なら従来値」を厳密に満たす。
  */
-internal fun shioriParams(title: String, tipCount: Int): ShioriParams {
+internal fun shioriParams(
+    title: String,
+    tipCount: Int,
+    persistedTipIndex: Int? = null,
+    persistedLenFrac: Float? = null,
+): ShioriParams {
     val hue = shioriHue(title)
     val rng = mulberry32(shioriHash(title + "|B"))
     val xFrac = (0.14 + (0.36 - 0.14) * rng()).toFloat()
-    val lenFrac = (0.30 + (0.60 - 0.30) * rng()).toFloat()
-    val tipIndex = floor(rng() * tipCount).toInt()
-    return ShioriParams(hue = hue, xFrac = xFrac, lenFrac = lenFrac, tipIndex = tipIndex)
+    // lenFrac・tipIndex の rng() は差し替えの有無に関わらず必ず消費する（上記 why＝消費順序の保存）。
+    val drawnLenFrac = (SHIORI_LEN_FRAC_MIN + (SHIORI_LEN_FRAC_MAX - SHIORI_LEN_FRAC_MIN) * rng()).toFloat()
+    val drawnTipIndex = floor(rng() * tipCount).toInt()
+    return ShioriParams(
+        hue = hue,
+        xFrac = xFrac,
+        lenFrac = persistedLenFrac ?: drawnLenFrac,
+        tipIndex = persistedTipIndex ?: drawnTipIndex,
+    )
 }

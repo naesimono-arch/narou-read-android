@@ -3,6 +3,7 @@ package com.novelreader.ui.components
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.random.Random
 
 /**
  * 栞書影の決定論生成が /design 正本（JS: bookshelf-shiori-final-D.html の hashStr/mulberry32）と
@@ -78,6 +79,65 @@ class ShioriGeneratorTest {
             assertTrue("xFrac range: ${p.xFrac}", p.xFrac in 0.14f..0.36f)
             assertTrue("lenFrac range: ${p.lenFrac}", p.lenFrac in 0.30f..0.60f)
             assertTrue("tipIndex range: ${p.tipIndex}", p.tipIndex in 0 until tipCount)
+        }
+    }
+
+    @Test
+    fun `SHIORI_TIP_COUNT は描画側 SHIORI_TIPS の実数と一致する（乖離検出）`() {
+        // 正本の二重化ガード: 抽選側が使う SHIORI_TIP_COUNT（ShioriGenerator＝Compose 非依存）と、
+        // 描画側の実配列 SHIORI_TIPS（ShioriCover）の要素数がズレると、抽選が実在しない先端を指すか
+        // 一部の先端が永遠に引かれなくなる。先端を足したら定数も更新する規約をここで機械担保する。
+        assertEquals(SHIORI_TIPS.size, SHIORI_TIP_COUNT)
+    }
+
+    @Test
+    fun `永続値ありは該当項目だけ差し替え・hueとxFracは1ビットも不変`() {
+        val t = "テスト"
+        val base = shioriParams(t, tipCount) // 従来値（フォールバック相当）
+        val overridden = shioriParams(t, tipCount, persistedTipIndex = 3, persistedLenFrac = 0.55f)
+        assertEquals(3, overridden.tipIndex)
+        assertEquals(0.55f, overridden.lenFrac, 0f)
+        // 対象外パラメータ（hue・xFrac）は不変＝rng 消費順序を崩していない証拠。
+        assertEquals(base.hue, overridden.hue)
+        assertEquals(base.xFrac, overridden.xFrac, 0f)
+    }
+
+    @Test
+    fun `永続値nullは従来の決定論値へフォールバック`() {
+        val titles = listOf("テスト", "星降る夜のパン屋と魔法使い", "あ")
+        for (t in titles) {
+            // null 明示でも省略（2引数）でも従来のゴールデン経路と完全一致する。
+            assertEquals(shioriParams(t, tipCount), shioriParams(t, tipCount, null, null))
+        }
+    }
+
+    @Test
+    fun `片側だけ永続化してももう片方は従来値のまま（消費の独立性）`() {
+        val t = "テスト"
+        val base = shioriParams(t, tipCount)
+        // tipIndex だけ差し替え → lenFrac は従来値のまま（rng 消費を省略していれば lenFrac がズレるはず）。
+        val onlyTip = shioriParams(t, tipCount, persistedTipIndex = 7)
+        assertEquals(7, onlyTip.tipIndex)
+        assertEquals(base.lenFrac, onlyTip.lenFrac, 0f)
+        assertEquals(base.xFrac, onlyTip.xFrac, 0f)
+        // lenFrac だけ差し替え → tipIndex は従来値のまま。
+        val onlyLen = shioriParams(t, tipCount, persistedLenFrac = 0.42f)
+        assertEquals(0.42f, onlyLen.lenFrac, 0f)
+        assertEquals(base.tipIndex, onlyLen.tipIndex)
+    }
+
+    @Test
+    fun `drawPersistedShiori は範囲内・種固定で決定論`() {
+        // 同一シードは同一結果（取込時の1回抽選が再現可能＝テスト可能）。
+        assertEquals(drawPersistedShiori(Random(42)), drawPersistedShiori(Random(42)))
+        // 多数ドローで tipIndex は [0,SHIORI_TIP_COUNT)・lenFrac は設計レンジ内に収まる。
+        val r = Random(1)
+        val lo = SHIORI_LEN_FRAC_MIN.toFloat()
+        val hi = SHIORI_LEN_FRAC_MAX.toFloat()
+        repeat(1000) {
+            val p = drawPersistedShiori(r)
+            assertTrue("tipIndex range: ${p.tipIndex}", p.tipIndex in 0 until SHIORI_TIP_COUNT)
+            assertTrue("lenFrac range: ${p.lenFrac}", p.lenFrac in lo..hi)
         }
     }
 }

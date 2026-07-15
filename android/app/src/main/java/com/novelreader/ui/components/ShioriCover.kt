@@ -259,12 +259,16 @@ private const val ShioriInnerBorderAlpha = 0.05f
  * 栞書影。title から決定論生成した「棒＋先端＋縦組み明朝題字」を紙地に描く。
  *
  * @param accentOverride 識別色を差し替える（Web由来・未取込カードの青磁署名など・将来用）。null=title 生成色。
+ * @param persistedTipIndex 取込時に抽選し BookEntity に永続化した先端種。null=未抽選（旧蔵書）＝title 由来の決定論値へフォールバック。
+ * @param persistedLenFrac 取込時に抽選し永続化した棒長。null=同上。両者とも「非 null なら固定・null なら従来の見た目」。
  */
 @Composable
 internal fun ShioriCover(
     title: String,
     modifier: Modifier = Modifier,
     accentOverride: Color? = null,
+    persistedTipIndex: Int? = null,
+    persistedLenFrac: Float? = null,
 ) {
     val cs = MaterialTheme.colorScheme
     // ダーク判定＝surface の輝度。ライト #FBFAF8／セピア #F2E7CE は高輝度、ダーク #14171C は低輝度。
@@ -272,7 +276,10 @@ internal fun ShioriCover(
     // 紙／墨: ライト・セピアは surface/onSurface がモック値と一致。ダークだけ cover 専用トークン（Color.kt）。
     val paper = if (isDark) ShioriCoverPaperDark else cs.surface
     val ink = if (isDark) ShioriCoverInkDark else cs.onSurface
-    val params = remember(title) { shioriParams(title, SHIORI_TIPS.size) }
+    // 永続値も remember キーに含める（null→非 null の差し替え時に確実に再計算させる）。
+    val params = remember(title, persistedTipIndex, persistedLenFrac) {
+        shioriParams(title, SHIORI_TIPS.size, persistedTipIndex, persistedLenFrac)
+    }
     // 棒・先端の識別色＝生成色。共有ヘルパー shioriAccentFor に集約し、目録リストの色帯と同一色にする
     // （S=0.48・L はライト0.52/セピア0.48/ダーク0.62＝surface からテーマ判定）。
     val computedAccent = remember(params.hue, cs.surface) {

@@ -27,6 +27,15 @@ data class BookEntity(
     // ハッシュ照合では一致しない（＝旧取込分は変換前遮断の対象外で、従来どおり抽出後の
     // title＋author 照合に委ねる＝多層防御の縮退として許容する）。
     val contentSha256: String? = null,
+    // 栞書影の「先端意匠の種類」を取込時に真の乱数で1回だけ抽選し永続化した値（0..SHIORI_TIP_COUNT-1）。
+    // null = 未抽選（v19 より前に取り込んだ既存蔵書。Migration で NULL 補完）。描画側は null なら従来どおり
+    // title 由来の決定論値へフォールバックする＝既存本の見た目は一切変えない。
+    // なぜ永続化するか: 従来は title ハッシュで先端・棒長も決めていたが、「同じ本＝同じ絵」を保ちつつ
+    // 本ごとの個体差を強めたいオーナー要望。取込時に一度だけ引いて固定すれば以後は不変になる。
+    val shioriTipIndex: Int? = null,
+    // 栞書影の「棒の長さ（高さ比）」を取込時に真の乱数で1回だけ抽選し永続化した値（SHIORI_LEN_FRAC_MIN..MAX）。
+    // null = 未抽選＝描画側で title 由来の決定論値へフォールバック（shioriTipIndex と同方針）。
+    val shioriLenFrac: Float? = null,
 ) {
     /**
      * 保存済み htmlDirPath が実在すればそれを、無ければ bookId から再導出したディレクトリを返す（復元耐性の下地）。

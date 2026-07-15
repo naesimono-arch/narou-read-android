@@ -250,6 +250,9 @@ internal fun GridBookCard(
                         shape = RoundedCornerShape(3.dp),
                     )
                     .clip(RoundedCornerShape(3.dp)),
+                // 取込時に抽選・永続化した先端種/棒長（旧蔵書は null＝title 由来へフォールバックで見た目不変）。
+                persistedTipIndex = book.shioriTipIndex,
+                persistedLenFrac = book.shioriLenFrac,
             )
             // 朱印「了」（読了バッジ）。正本 grid-D .seal: 19dp角・角丸2dp・左下9dp・枠1dp・明朝 SemiBold 9.5sp。
             // なぜ左下か（2026-07-12）: 右下だと表紙内の縦組み題字（右起点で読む）と重なるため左下へ移した
