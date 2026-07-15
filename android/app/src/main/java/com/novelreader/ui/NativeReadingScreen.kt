@@ -73,7 +73,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.geometry.Offset
@@ -937,9 +939,11 @@ private fun ChapterScreen(
  * 非横取り NestedScroll 接続）のみ内部に保持する（過剰な hoisting は避ける）。
  * Custom Tabs 起動（再入ガード付き）は副作用のため route の [onReadContinuation]/[onOpenWorkPage] へ委譲する。
  */
+// internal（旧 private）: 没入モードの customActions（a11y 到達回復）を Robolectric semantics テストで
+// 直接検証するため、描画層 Content を同一モジュール内テストへ開く（private だと file スコープで到達不可）。
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-private fun ChapterScreenContent(
+internal fun ChapterScreenContent(
     parseResult: ParseResult,
     colors: ReadingColors,
     fontSize: Int,
@@ -1039,7 +1043,43 @@ private fun ChapterScreenContent(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            // ────── 没入モードの a11y 到達回復（device-verify 2026-07-16 #4）──────
+            // 真因: 没入モード（クローム非表示）では上下バーを graphicsLayer{translationY} で画面外へ
+            // 退避させており、Compose は画面外ノードを a11y ツリーから除外する。結果、戻る/目次/前章/次章/
+            // 表示設定の clickable ノードが 0 になり、TalkBack のスワイプ走査で到達不能になる（本文段落
+            // だけが残り、上スクロールでのクローム復帰しか手段が無い）。
+            // 対処: 視覚・タップ挙動は一切変えず、没入中だけ読書画面ルートへ「実ボタンと同一コールバック」の
+            // customActions を貼り、TalkBack のローカルコンテキストメニューから各操作への到達を回復する（標準パターン）。
+            // なぜ collapsedFraction を semantics ラムダ内で読むか: このラムダは semantics フェーズで評価される
+            // ＝deferred read になり、バー追従アニメでフレーム毎に collapsedFraction が動いても composition を
+            // 再実行させない（フレームレート state を composition で読まない方針）。
+            // なぜクローム表示中（collapsedFraction<0.5）は付けないか: そのときは実ボタンが a11y ツリーに居るため、
+            // customActions を重ねると同一操作が「実ボタン＋アクション一覧」で二重に読み上げられるのを避ける。
+            .semantics {
+                if (topAppBarState.collapsedFraction > 0.5f) {
+                    customActions = buildList {
+                        // 「戻る」=上端 ← ボタン（目次へ）／「目次を開く」=下端目次ボタン。どちらも実ボタンと同じ
+                        // onNavigateTo("index.html")＝別経路を作らず挙動乖離を防ぐ（実 UI も両ボタンが目次へ向かう）。
+                        add(CustomAccessibilityAction("戻る") { onNavigateTo("index.html"); true })
+                        add(CustomAccessibilityAction("目次を開く") { onNavigateTo("index.html"); true })
+                        // 前後章は実ボタンの活性条件（navEnabled＝目次ロード済）に一致させる。端章では隣接章が無く
+                        // prev/next が index.html へ縮退するため、「前の章/次の章」ラベルが目次を開く誤誘導になる。
+                        // その遷移は「目次を開く」が既に担う＝到達性を落とさずに、ラベルと挙動の齟齬だけを避ける。
+                        if (navEnabled && prevFile != "index.html") {
+                            add(CustomAccessibilityAction("前の章") { onNavigateTo(prevFile); true })
+                        }
+                        if (navEnabled && nextFile != "index.html") {
+                            add(CustomAccessibilityAction("次の章") { onNavigateTo(nextFile); true })
+                        }
+                        // 「表示設定」=下端歯車ボタンと同じく設定シートを開く（Content ローカルの開閉 state を立てる）。
+                        add(CustomAccessibilityAction("表示設定") { showSettings = true; true })
+                    }
+                }
+            },
+    ) {
         Scaffold(
             containerColor = colors.background,
             modifier = Modifier.nestedScroll(nonStealingConnection),
