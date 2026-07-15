@@ -71,6 +71,9 @@ class NativeReadingScreenTest {
                 // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
                 readingTheme = ReadingTheme.LIGHT,
                 onThemeChange = {},
+                // システム追従も正本は MainActivity 側＝テーマと同じ理由で固定値と no-op を渡す
+                followingSystem = false,
+                onFollowSystem = {},
                 onNavigateToBookshelf = {},
             )
         }
@@ -101,6 +104,9 @@ class NativeReadingScreenTest {
                 // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
                 readingTheme = ReadingTheme.LIGHT,
                 onThemeChange = {},
+                // システム追従も正本は MainActivity 側＝テーマと同じ理由で固定値と no-op を渡す
+                followingSystem = false,
+                onFollowSystem = {},
                 onNavigateToBookshelf = {},
             )
         }
@@ -130,6 +136,9 @@ class NativeReadingScreenTest {
                 // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
                 readingTheme = ReadingTheme.LIGHT,
                 onThemeChange = {},
+                // システム追従も正本は MainActivity 側＝テーマと同じ理由で固定値と no-op を渡す
+                followingSystem = false,
+                onFollowSystem = {},
                 onNavigateToBookshelf = {},
             )
         }
@@ -159,6 +168,9 @@ class NativeReadingScreenTest {
                 // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
                 readingTheme = ReadingTheme.LIGHT,
                 onThemeChange = {},
+                // システム追従も正本は MainActivity 側＝テーマと同じ理由で固定値と no-op を渡す
+                followingSystem = false,
+                onFollowSystem = {},
                 onNavigateToBookshelf = {},
             )
         }
@@ -188,6 +200,9 @@ class NativeReadingScreenTest {
                 // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
                 readingTheme = ReadingTheme.LIGHT,
                 onThemeChange = {},
+                // システム追従も正本は MainActivity 側＝テーマと同じ理由で固定値と no-op を渡す
+                followingSystem = false,
+                onFollowSystem = {},
                 onNavigateToBookshelf = {},
             )
         }
@@ -215,6 +230,9 @@ class NativeReadingScreenTest {
                 // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
                 readingTheme = ReadingTheme.LIGHT,
                 onThemeChange = {},
+                // システム追従も正本は MainActivity 側＝テーマと同じ理由で固定値と no-op を渡す
+                followingSystem = false,
+                onFollowSystem = {},
                 onNavigateToBookshelf = {},
             )
         }
@@ -243,6 +261,9 @@ class NativeReadingScreenTest {
                 // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
                 readingTheme = ReadingTheme.LIGHT,
                 onThemeChange = {},
+                // システム追従も正本は MainActivity 側＝テーマと同じ理由で固定値と no-op を渡す
+                followingSystem = false,
+                onFollowSystem = {},
                 onNavigateToBookshelf = {},
             )
         }
@@ -269,6 +290,9 @@ class NativeReadingScreenTest {
                 // テーマ正本は MainActivity 持ちのため、テストでは固定値と no-op を渡す
                 readingTheme = ReadingTheme.LIGHT,
                 onThemeChange = {},
+                // システム追従も正本は MainActivity 側＝テーマと同じ理由で固定値と no-op を渡す
+                followingSystem = false,
+                onFollowSystem = {},
                 onNavigateToBookshelf = {},
             )
         }
