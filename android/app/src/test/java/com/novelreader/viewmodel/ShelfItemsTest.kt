@@ -27,15 +27,16 @@ class ShelfItemsTest {
     }
 
     @Test
-    fun `進捗の lastReadAt が addedAt より新しければそちらを蔵書のキーにする`() {
-        // b1 は追加が古い(100)が直近に読んだ(400)＝Web(300) より上に来る（DAO の MAX 式と同じ判断）
+    fun `触った蔵書は未接触の Web カードより下層に沈む（層反転・2026-07-16）`() {
+        // 反転後: b1 は読んだ実績（lastReadAt=400）ゆえ tier0（下層）、未接触 Web（addedAt=300）は tier1（上層）＝上。
+        // 旧規則では読書中の b1 が上だったが、実使用フィードバックで未読/未接触を上へ反転した。
         val books = listOf(book("b1", 100))
         val progress = mapOf("b1" to ProgressEntity("b1", "chap_1.html", lastReadAt = 400))
         val webs = listOf(web("N1111AA", 300))
 
         val items = mergeShelfItems(books, progress, webs)
 
-        assertEquals(listOf("book:b1", "web:N1111AA"), items.map { it.key })
+        assertEquals(listOf("web:N1111AA", "book:b1"), items.map { it.key })
     }
 
     @Test
@@ -50,28 +51,71 @@ class ShelfItemsTest {
     }
 
     @Test
-    fun `読書中の本は未読新刊より上に来る（二層ソート・続きから読むが支配的タスク）`() {
-        // ia Major: 未読新刊 b_new(addedAt=1000) が、昔読んだきり b_old(addedAt=10・lastReadAt=50) を
-        // 押し下げない。読書中(tier1)は addedAt がどれだけ新しい未読(tier0)より必ず上。
-        // books は DAO 並び（二層降順）を模す＝b_old(tier1) が先、b_new(tier0) が後。
-        val books = listOf(book("bOld", 10), book("bNew", 1000))
+    fun `未読の新刊は読書中の本より上に来る（二層ソート・層反転・2026-07-16）`() {
+        // 実使用フィードバックによる層反転: 未読新刊 bNew(addedAt=1000・tier1=上層) が、昔読んだきりの
+        // bOld(lastReadAt=50・tier0=下層) より上。旧 ADR0016（読書中が上）を実使用で棄却した新仕様。
+        // books は新 DAO 並び（二層降順）を模す＝未読 bNew(tier1) が先、既読 bOld(tier0) が後。
+        val books = listOf(book("bNew", 1000), book("bOld", 10))
         val progress = mapOf("bOld" to ProgressEntity("bOld", "chap_1.html", lastReadAt = 50))
 
         val items = mergeShelfItems(books, progress, emptyList())
 
-        assertEquals(listOf("book:bOld", "book:bNew"), items.map { it.key })
+        assertEquals(listOf("book:bNew", "book:bOld"), items.map { it.key })
     }
 
     @Test
-    fun `未読の Web 新刊も読書中の蔵書より下に入る（Webは第2層）`() {
-        // 読書中 b1(tier1) は、addedAt が最新の未取込 Web(tier0/9999) より上。
+    fun `未接触の Web 新刊は読書中の蔵書より上に入る（Webも層反転）`() {
+        // 反転後: 未接触 Web(addedAt=9999・tier1=上層) は、読書中 b1(lastReadAt=50・tier0=下層) より上。
         val books = listOf(book("b1", 10))
         val progress = mapOf("b1" to ProgressEntity("b1", "chap_1.html", lastReadAt = 50))
         val webs = listOf(web("N9999ZZ", 9999))
 
         val items = mergeShelfItems(books, progress, webs)
 
-        assertEquals(listOf("book:b1", "web:N9999ZZ"), items.map { it.key })
+        assertEquals(listOf("web:N9999ZZ", "book:b1"), items.map { it.key })
+    }
+
+    // ────── 層反転（2026-07-16 実使用フィードバック）を固定する追加ケース ──────
+
+    @Test
+    fun `未読同士は addedAt 降順（未読クラスタ内は入れたてが上）`() {
+        // どちらも未接触＝tier1。層内は addedAt 降順で bNew(300) が bOld(100) より上。
+        val books = listOf(book("bNew", 300), book("bOld", 100))
+
+        val items = mergeShelfItems(books, emptyMap(), emptyList())
+
+        assertEquals(listOf("book:bNew", "book:bOld"), items.map { it.key })
+    }
+
+    @Test
+    fun `既読同士は lastReadAt 降順（触った本クラスタ内は最後に触った順）`() {
+        // どちらも触った＝tier0。層内は lastReadAt 降順で bRecent(400) が bStale(100) より上。
+        // addedAt は逆順(bRecent=10 < bStale=20)でも lastReadAt が層内順を支配することを固定する。
+        // books は新 DAO 並び（tier0 内 lastReadAt 降順）を模す＝bRecent が先。
+        val books = listOf(book("bRecent", 10), book("bStale", 20))
+        val progress = mapOf(
+            "bRecent" to ProgressEntity("bRecent", "chap_1.html", lastReadAt = 400),
+            "bStale" to ProgressEntity("bStale", "chap_1.html", lastReadAt = 100),
+        )
+
+        val items = mergeShelfItems(books, progress, emptyList())
+
+        assertEquals(listOf("book:bRecent", "book:bStale"), items.map { it.key })
+    }
+
+    @Test
+    fun `Web は触った記録ありで下層・未接触で上層（web も蔵書と同一の二層規則）`() {
+        // 触った web(NTOUCH01・最終接触 5000) は tier0（下層）、未接触 web(NFRESH01・addedAt=9999) は tier1（上層）＝上。
+        // webLastReadAt は episode 表示用マップとは別に「接触時刻」を運ぶ（並びは時刻で決める）。
+        val webs = listOf(web("NTOUCH01", 100), web("NFRESH01", 9999))
+        val webLastReadAt = mapOf("NTOUCH01" to 5000L)
+
+        val items = mergeShelfItems(
+            emptyList(), emptyMap(), webs,
+            webLastReadAt = webLastReadAt,
+        )
+
+        assertEquals(listOf("web:NFRESH01", "web:NTOUCH01"), items.map { it.key })
     }
 
     @Test

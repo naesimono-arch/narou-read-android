@@ -435,6 +435,8 @@ internal fun BookshelfContent(
     val webNovels = (uiState as? BookshelfUiState.Content)?.webNovels ?: emptyList()
     // 機能②: Web カードの読書位置（ncode→最後に開いた話）。mergeShelfItems が各 Web カードへ載せる。
     val webReadingProgress = (uiState as? BookshelfUiState.Content)?.webReadingProgress ?: emptyMap()
+    // 二層ソート用の web 最終接触時刻（ncode→lastReadAt）。触った web を下層へ沈める（層反転・2026-07-16）。
+    val webLastReadAt = (uiState as? BookshelfUiState.Content)?.webLastReadAt ?: emptyMap()
 
     // 読書状態フィルタの選択（「すべて/よみかけ/未読/読了」＝モック .filters）。回転・再生成で選択が
     // 飛ばないよう rememberSaveable で保持する。ReadingStatus enum は直接 Saveable でないため
@@ -478,10 +480,10 @@ internal fun BookshelfContent(
 
     // 蔵書と Web由来を「最近の活動順」で1本に混在させる（bookshelf-fusion-D の並置。純関数で合成）。
     // 前段で読書状態フィルタを噛ませる（選択中は該当蔵書のみ・Web カードは落とす＝filterShelfByStatus の why）。
-    val shelfItems = remember(visibleBooks, webNovels, progressMap, selectedStatus, chapterCountMap, webReadingProgress) {
+    val shelfItems = remember(visibleBooks, webNovels, progressMap, selectedStatus, chapterCountMap, webReadingProgress, webLastReadAt) {
         val (filteredBooks, filteredWeb) =
             filterShelfByStatus(visibleBooks, webNovels, selectedStatus, progressMap, chapterCountMap)
-        mergeShelfItems(filteredBooks, progressMap, filteredWeb, webReadingProgress)
+        mergeShelfItems(filteredBooks, progressMap, filteredWeb, webReadingProgress, webLastReadAt)
     }
     val isProcessing = processingState.isProcessing
 

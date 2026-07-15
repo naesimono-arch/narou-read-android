@@ -23,17 +23,20 @@ sealed interface ShelfItem {
 }
 
 /**
- * 本棚の並び順キー（二層）。ia Major「既定ソート＝続きから読む」2026-07-12 の実装。
+ * 本棚の並び順キー（二層）。ADR 0016 の実装（2026-07-16 改訂・層反転）。
  *
- * なぜ二層か: 旧・単層 `MAX(addedAt, lastReadAt)` では PDF 取込のたび未読新刊（addedAt=now）が
- * 読みかけ本の上へ来て、支配的タスク（続きから読む）の対象が先頭から押し下げられていた。
- * そこで「読書中（lastReadAt>0）」を第1層＝常に上、「未読/未取込（lastReadAt=0）」を第2層＝下に分け、
- * 層内は 第1層＝lastReadAt / 第2層＝addedAt の降順にする。これで新規取込は未読クラスタの先頭に入り、
- * 読みかけ本を押し下げない。BookDao.getAllBooks の ORDER BY もこの二層規則に一致させている（並びの正は DAO）。
+ * なぜ二層か: 旧・単層 `MAX(addedAt, lastReadAt)` では取込順と読書順が混ざり並びの意図が読めなかった。
+ * そこで tier で「触ったか否か」を大分類し、層内を時刻降順にする二層キーにする。
  *
- * ※トレードオフ（ADR 起票要）: 半年前に一度だけ読んで放置した本も「読書中」層として、
- *   今追加したばかりの未読新刊より上に来る。監査公理「続きから読むが支配的タスク」に沿う選択だが、
- *   別解（放置本の減衰・お気に入り昇格）もあり得るため設計判断として ADR に記録する。
+ * なぜ未読を上（層反転・2026-07-16 実使用フィードバック）: 旧版は「読書中（lastReadAt>0）」を上層に置いたが、
+ * 実使用で「取り込んだばかりの未読が読みかけの下に埋もれて見つけにくい」不満が出た。ユーザー裁定により
+ * 「取り込んだ本＝まだ読んでいない本を最上位に」へ反転する。すなわち:
+ *   ・tier1（上層）＝未読/未接触（lastReadAt=0）: `addedAt` 降順＝最近入れた本ほど上。
+ *   ・tier0（下層）＝触った本（lastReadAt>0）: `lastReadAt` 降順＝最後に触った本ほど上。
+ * BookDao.getAllBooks の ORDER BY もこの二層規則に一致させている（並びの正は DAO）。
+ *
+ * ※受け入れたトレードオフ（ADR 0016 改訂節）: 読みかけの本が、入れたての未読新刊より下へ下がる。
+ *   旧版のトレードオフ（放置本が未読新刊の上に居座る）を実使用で嫌ったユーザーが、明示的にこちらを選好した。
  */
 data class RecencyKey(val tier: Int, val value: Long) : Comparable<RecencyKey> {
     override fun compareTo(other: RecencyKey): Int {
@@ -42,20 +45,23 @@ data class RecencyKey(val tier: Int, val value: Long) : Comparable<RecencyKey> {
     }
 }
 
-/** 蔵書の並び順キーを二層規則で作る（読書中=tier1/lastReadAt・未読=tier0/addedAt）。 */
+/** 蔵書の並び順キーを二層規則で作る（未読=tier1/addedAt が上層・触った本=tier0/lastReadAt が下層）。 */
 internal fun recencyKeyOf(addedAt: Long, lastReadAt: Long): RecencyKey =
-    if (lastReadAt > 0L) RecencyKey(tier = 1, value = lastReadAt)
-    else RecencyKey(tier = 0, value = addedAt)
+    if (lastReadAt > 0L) RecencyKey(tier = 0, value = lastReadAt)
+    else RecencyKey(tier = 1, value = addedAt)
 
 /**
  * 蔵書リストと Web由来（未取込）リストを「最近の活動順」で1本にマージする純関数。
  *
- * - 蔵書の並びは BookDao.getAllBooks（二層: 読書中を上・未読を下）が正本で、ここでは崩さない。
+ * - 蔵書の並びは BookDao.getAllBooks（二層: 未読を上・触った本を下）が正本で、ここでは崩さない。
  *   Web 由来カードの挿入位置を決めるためだけに、同じ二層規則（recencyKeyOf）をここでも計算する。
  *   **意図的な式の重複**: DAO クエリの並びキーは SELECT 列に出ておらず、取り出すには一覧クエリの
  *   返却型ごと変える必要があり、既存呼び出し・テストへの波及が大きい。規則は recencyKeyOf の
  *   数行なので、返却型変更よりコメントで対にする方を選んだ（挙動の正は DAO 側）。
- *   Web 由来（未取込）カードは常に第2層（tier0/addedAt）＝未読クラスタへ挿入する。
+ * - Web 由来（未取込）カードも蔵書と同一の二層規則へ写像する（2026-07-16 層反転に追従）:
+ *   web 読書進捗で「触った」記録がある（webLastReadAt に接触時刻がある）カードは tier0（下層）＝その
+ *   最終接触時刻で並べ、未接触のカードは tier1（上層）＝発見/追加時刻（addedAt）降順で並べる。
+ *   蔵書の recencyKeyOf(addedAt, lastReadAt) にそのまま食わせられる（web の lastReadAt＝最終接触時刻）。
  * - 取込済み（books.ncode と同一 ncode）の Web カードは非表示にする＝PDF 取込が完了した時点で
  *   蔵書カードへ「自然昇格」し、二重表示しない。比較は保存時正規化（trim+uppercase）と同じ形で行う。
  * - 同値キーのときは蔵書を先に置く（読める実体がある方が優先という判断）。
@@ -67,6 +73,11 @@ fun mergeShelfItems(
     // 機能②: ncode(正規化済み大文字)→最後に開いた話。Web カードの「続きから読む 第N話」表示に使う。
     // 既定 emptyList 相当（emptyMap）は既存テスト・呼び出しの互換のため（読書位置なしなら全カード未読表示で不変）。
     webReadingProgress: Map<String, Int> = emptyMap(),
+    // ncode(正規化済み大文字)→web 読書の最終接触時刻(lastReadAt)。二層ソートで「触った web を下層へ沈める」ために使う。
+    // なぜ episode 表示用マップと別立てか: 表示は episode(話数)・並びは接触時刻(ミリ秒)と必要な量が異なり、
+    // episode を時刻代わりに使うと蔵書の lastReadAt と桁が違い層内順が壊れる（近似で並びを嘘にしない）。
+    // 既定 emptyMap は既存テスト・呼び出し互換（接触時刻なしなら全 web が未接触＝上層扱いで従来どおり）。
+    webLastReadAt: Map<String, Long> = emptyMap(),
 ): List<ShelfItem> {
     val importedNcodes = books.mapNotNull { it.ncode?.trim()?.uppercase() }.toSet()
 
@@ -74,30 +85,32 @@ fun mergeShelfItems(
         val lastReadAt = progressMap[book.id]?.lastReadAt ?: 0L
         ShelfItem.Book(book, recencyKeyOf(book.addedAt, lastReadAt))
     }
-    // Web 由来は常に未読クラスタ（tier0/addedAt）。降順に整列して books とマージする。
-    val webItems = webNovels
+    // Web 由来カードも蔵書と同一の二層規則でキー化する（触った=tier0/接触時刻・未接触=tier1/addedAt）。
+    // 蔵書列は DAO が二層降順、web 列はここで同じキー降順に整列してから二層キーでマージする。
+    val webItems: List<Pair<WebNovelEntity, RecencyKey>> = webNovels
         .filterNot { it.ncode.trim().uppercase() in importedNcodes }
-        .sortedByDescending { it.addedAt }
+        .map { it to recencyKeyOf(it.addedAt, webLastReadAt[it.ncode.trim().uppercase()] ?: 0L) }
+        .sortedByDescending { it.second }
 
     // Web カードに読書位置を載せる。web_novels.ncode も web_reading_progress.ncode も trim+uppercase 正規化済みで
     // 保存されるため、同じ正規化キーで引ける（表記ゆれで「読んだのに続きが出ない」を防ぐ二重の安全として再正規化）。
     fun webItem(n: WebNovelEntity): ShelfItem.Web =
         ShelfItem.Web(n, webReadingProgress[n.ncode.trim().uppercase()] ?: 0)
 
-    // 両列とも降順ソート済みの前提でマージする（books は DAO・webNovels は直前の sort が保証）。
+    // 両列とも二層キー降順ソート済みの前提でマージする（books は DAO・webItems は直前の sort が保証）。
     val result = ArrayList<ShelfItem>(bookItems.size + webItems.size)
     var bi = 0
     var wi = 0
     while (bi < bookItems.size && wi < webItems.size) {
-        // Web は tier0/addedAt。二層キーで比較し、同値は蔵書優先（>= で book を先に置く）。
-        if (bookItems[bi].recencyKey >= RecencyKey(tier = 0, value = webItems[wi].addedAt)) {
+        // 二層キーで比較し、同値は蔵書優先（>= で book を先に置く）。
+        if (bookItems[bi].recencyKey >= webItems[wi].second) {
             result.add(bookItems[bi]); bi++
         } else {
-            result.add(webItem(webItems[wi])); wi++
+            result.add(webItem(webItems[wi].first)); wi++
         }
     }
     while (bi < bookItems.size) { result.add(bookItems[bi]); bi++ }
-    while (wi < webItems.size) { result.add(webItem(webItems[wi])); wi++ }
+    while (wi < webItems.size) { result.add(webItem(webItems[wi].first)); wi++ }
     return result
 }
 

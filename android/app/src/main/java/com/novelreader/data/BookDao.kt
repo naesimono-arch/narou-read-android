@@ -6,16 +6,16 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface BookDao {
 
-    // 二層の「続きから読む」既定ソート（ia Major 2026-07-12・ShelfItems.recencyKeyOf と一致必須）:
-    //   第1層＝読書中（lastReadAt>0）を常に上、第2層＝未読（lastReadAt=0）を下に置く。
-    //   層内は 第1層＝lastReadAt / 第2層＝addedAt の降順、最後にタイトル昇順で安定化。
-    // なぜ二層か: 旧・単層 MAX(addedAt, lastReadAt) DESC では PDF 取込のたび未読新刊（addedAt=now）が
-    // 読みかけ本の上へ来て、支配的タスク（続きから読む）の対象が先頭から押し下げられていたため。
-    // CASE のソートキーは 読書中→lastReadAt・未読→addedAt を選び、tier は読書中を大きく（先）にする。
+    // 二層の既定ソート（ADR 0016・2026-07-16 層反転・ShelfItems.recencyKeyOf と一致必須）:
+    //   第1層＝未読（lastReadAt=0）を常に上、第2層＝触った本（lastReadAt>0）を下に置く。
+    //   層内は 第1層＝addedAt / 第2層＝lastReadAt の降順、最後にタイトル昇順で安定化。
+    // なぜ未読が上（層反転・実使用フィードバック）: 旧版は読書中を上層にしていたが「取り込んだばかりの
+    // 未読が読みかけの下に埋もれて見つけにくい」不満が出た。ユーザー裁定で「取り込んだ本＝未読を最上位に」反転。
+    // CASE のソートキーは 未読→addedAt・触った本→lastReadAt を選び、tier は未読を大きく（先）にする。
     @Query(
         "SELECT b.* FROM books b " +
         "LEFT JOIN progress p ON b.id = p.bookId " +
-        "ORDER BY (CASE WHEN COALESCE(p.lastReadAt, 0) > 0 THEN 1 ELSE 0 END) DESC, " +
+        "ORDER BY (CASE WHEN COALESCE(p.lastReadAt, 0) > 0 THEN 0 ELSE 1 END) DESC, " +
         "(CASE WHEN COALESCE(p.lastReadAt, 0) > 0 THEN p.lastReadAt ELSE b.addedAt END) DESC, " +
         "b.title ASC"
     )

@@ -67,6 +67,8 @@ sealed interface BookshelfUiState {
         val webNovels: List<WebNovelEntity> = emptyList(),
         // 機能②: ncode(正規化済み大文字)→最後に開いた話。Web カードの「続きから読む 第N話」に使う（未記録は 0＝未読）。
         val webReadingProgress: Map<String, Int> = emptyMap(),
+        // ncode(正規化済み大文字)→web 読書の最終接触時刻。二層ソートで「触った web を下層へ」置くために使う（未記録は無し＝上層）。
+        val webLastReadAt: Map<String, Long> = emptyMap(),
     ) : BookshelfUiState
 }
 
@@ -129,6 +131,8 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
                 webNovels = webNovels,
                 // ncode→最後に開いた話へ畳む（描画層は Map を引くだけ＝mergeShelfItems が Web カードへ載せる）。
                 webReadingProgress = webReadingProgress.associate { it.ncode to it.lastReadEpisode },
+                // ncode→最終接触時刻。二層ソートで触った web を下層へ沈めるのに使う（表示用 episode とは別量）。
+                webLastReadAt = webReadingProgress.associate { it.ncode to it.lastReadAt },
             )
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BookshelfUiState.Loading)
