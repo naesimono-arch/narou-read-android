@@ -95,7 +95,7 @@ object PdfBookExtractor {
                 // 錯覚しないか＝フェーズ語を「読み込んでいます」「整形しています」と変えることで「別工程に
                 // 入った」と読ませ、同じ語のままカウンタだけ 0→N を2度満ちる「2周目に入った」誤認
                 // （過去に実機で発生）を構造的に解消する。開始時（tick 前）は総ページ未確定のためページ数を付けない。
-                onProgress(1, 0f, "本文を読み込んでいます… 0%", currentTitle)
+                onProgress(1, 0f, "本文を読み込んでいます…", currentTitle)
                 val paragraphs = handle.runEngine { phase, current, total ->
                     // step-1 local: LOAD(読み込み)中 0→LOAD_WEIGHT、PROCESS(整形)中 LOAD_WEIGHT→1.0 と単調前進。
                     // load を重み大に＝超長編では全ページ getText が支配的コストで、以前は load 中バーが 0f で固まって見えた。
@@ -109,8 +109,9 @@ object PdfBookExtractor {
                         EnginePhase.LOAD -> "本文を読み込んでいます"
                         EnginePhase.PROCESS -> "本文を整形しています"
                     }
-                    // ラベルは %（主・通し進捗）＋ページ n/m（副・フェーズ内カウント）。% は下のバー(step-local)と常に一致。
-                    onProgress(1, local, "$phaseWord… ${(local * 100).toInt()}%（$current/${total}ページ）", currentTitle)
+                    // ラベルはページ n/m（フェーズ内カウント）のみ。通し進捗の数値% はラベルから外し下のバー(step-local)へ
+                    // 一本化した（%とページ数の二重表示を解消し、狭幅でも末尾のページ数が省略で消えないように・ユーザー所見 2026-07-15）。
+                    onProgress(1, local, "$phaseWord…（$current/${total}ページ）", currentTitle)
                 }
 
                 onProgress(2, 0f, "章を分割しています…", currentTitle)

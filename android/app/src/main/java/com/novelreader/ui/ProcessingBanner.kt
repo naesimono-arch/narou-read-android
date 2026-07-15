@@ -113,6 +113,7 @@ internal fun ProcessingBanner(
                     // 主見出し: 停止中は「停止しています…」、通常は変換中タイトル（未判明時は汎用文言）。
                     // 件数(n/m)は連結せず別要素にする。連結すると長いタイトルの省略(...)で
                     // 件数まで切り捨てられ、件数が見えなくなるため。
+                    // 題名は1行で十分（最初の数文字で作品の判別はつく＝ユーザー所見 2026-07-15）。
                     Text(
                         text = if (processingState.isStopping) "停止しています…"
                                else processingState.title.ifEmpty { "PDF処理中…" },
@@ -123,12 +124,15 @@ internal fun ProcessingBanner(
                         overflow = TextOverflow.Ellipsis,
                     )
                     // 補助行: 現在のフェーズ詳細（ページ進捗など）。
+                    // 2行許容する（実使用フィードバック 2026-07-15＝本質的な不満は「読み込み中のページ数が読めない」）。
+                    // phase 文字列は「本文を読み込んでいます… 45%（3/12ページ）」のようにページ数が文末に付くため
+                    // （生成元 PdfBookExtractor.kt）、1行 Ellipsis だと末尾のページ数が真っ先に切り捨てられていた。
                     if (processingState.phase.isNotEmpty()) {
                         Text(
                             text = processingState.phase,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                            maxLines = 1,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }

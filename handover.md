@@ -62,8 +62,8 @@
 
 ### 残7: 取込フィードバック/通知系（2026-07-14 実使用フィードバック・要改修）
 > ①終端通知のFGS同一ID道連れ除去バグ・②重複の前面無言棄却・§86撤回（完了通知の常時発行）は 2026-07-14 に修正済み＝git log が正本。残りは以下。
-- **④取込中バナーの長題名が切れて読めない**（残数表示は良い）: 題名のellipsis/marquee/2行化等の表示設計。
 - **⑤表示設定シートにスコープ予告なし（T2確定）**: 配色トグル周りに「すべての画面の配色」等の全書籍スコープ明示を追加（意匠絡み＝モック正本とセット）。
+- **⑥処理中バナー下部のプログレスバーが進捗を反映しない**（2026-07-15 実機フィードバック・未確定）: `ProcessingBanner.kt:181` の `LinearProgressIndicator` を `Animatable` で `stepLocalPercent` へ `animateTo` 駆動しているが、実機でバーが伸びない。候補＝①中間の `stepLocalPercent` 更新イベントが実機の抽出速度で十分来ず 0f 付近で止まる ②高頻度更新で `animateTo` が `tween(MotionDurationProgress)` 完了前に毎回リスタート ③尺と更新間隔の不整合。決め打ち修正でなく実機で `stepLocalPercent` の実際の流れ（logcat）とバー描画を計測してから（memory `feedback-perf-jank-is-real-signal`）。**関連**: 同バナー phase から数値%を外した（ページ数の可読化）ため数値進捗はページ数のみ＝このバー修正の優先度が上がった。
 
 ### 残8: 本棚操作の要望2件（2026-07-14 実使用フィードバック・新機能）
 - **①複数選択→まとめて削除**: 長押しから選択モード等。削除系＝実機検証は捨て本で（memory `device-verify-delegation-no-destructive-on-real-library`）。
