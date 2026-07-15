@@ -27,7 +27,7 @@ internal val SHIORI_PALETTE = intArrayOf(20, 70, 140, 175, 200, 210, 260, 330)
  * 置くことで、repository が Compose 非依存のまま [0,SHIORI_TIP_COUNT) の抽選をできる。
  * SHIORI_TIPS 配列に先端を足したら本定数も必ず更新する（乖離は ShioriGeneratorTest の突合で赤くなる）。
  */
-internal const val SHIORI_TIP_COUNT = 31
+internal const val SHIORI_TIP_COUNT = 174
 
 /** 栞の棒の長さ（高さ比）の抽選レンジ。shioriParams の決定論導出と取込時の真の乱数抽選が同一レンジを共有する
  *  ための唯一の正本（Double なのは shioriParams の既存ゴールデン値をビット単位で不変に保つため＝下記 why）。 */
