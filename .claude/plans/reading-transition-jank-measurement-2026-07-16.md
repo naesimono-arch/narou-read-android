@@ -51,3 +51,28 @@
 - 遷移先の初回フレーム負荷をアニメ後へ回す（本棚グリッドの `ShioriCover` Canvas 描画をアニメ中は簡略/遅延・読書画面コンテンツをアニメ完了後ロード 等）。
 - 改善すれば仮説①確定＋修正が手に入る。収束しなければ Perfetto trace（`runtime-tracing` 計装込み再ビルド）へ escalate。
 - **Perfetto は現段階では限界的価値が低い**: gfxinfo で UI スレッド律速まで特定済み・生 trace は Compose 計装なしだと Composable 名が出ず解析も重い。狙い撃ち実験が収束しない場合のみ。
+
+---
+
+## 追試: 仮説①狙い撃ち実験（2026-07-16 同日・結果＝棄却）
+
+**実験パッチ（A+B）**: `compositionLocalOf` の `LocalIsTransitioning` を新設し、NavHost 各 composable（MainActivity の bookshelf/reading）と目次⇄本文 AnimatedContent の `transition.isRunning` を provide。A＝遷移中は ShioriCover の先端意匠＋縦組み題字の描画をスキップ（紙地・罫・棒のみ）、B＝遷移中は ChapterScreen を非コンポーズ（既存の chapterRestore==null ゲートに OR）。release ビルド＋debug 鍵署名（4ファイル・49+/7-）。
+
+**条件**: 直前の D2 実機確認の副作用で対象書籍に読了「了」バッジが付き本棚描画コストが変わったため、前回値とは比較せず**同一端末状態でベースライン（パッチなし release）を再計測**してから比較。60Hz 同条件（mActiveModeId=4）・同一操作ループ。
+
+| 遷移 | ビルド | Total | Janky% | 50th | 90th | 95th | 99th | Slow UI thread | Missed Vsync |
+|---|---|---|---|---|---|---|---|---|---|
+| 目次⇄本文 | baseline | 468 | 7.69% | 11 | 16 | 36 | 57 | 34 | 0 |
+| 目次⇄本文 | exp(A+B) | 581 | 9.12% | 11 | 23 | 38 | 57 | 50 | 5 |
+| 本棚⇄本文 | baseline | 460 | 7.83% | 10 | 18 | 27 | 77 | 33 | 0 |
+| 本棚⇄本文 | exp(A+B) | 555 | 6.31% | 10 | 20 | 36 | 81 | 34 | 2 |
+
+**判定＝仮説①棄却**:
+1. 目次⇄本文は明確に悪化（Slow UI 34→50・Missed Vsync 0→5・90th 16→23ms）＝実験Bのゲート解除がアニメ直後の一括再コンポーズを生み、負荷は消えず移動しただけ＋余計なフレームを追加。
+2. 本棚⇄本文の率改善は Total 増（+95〜113 フレーム＝isRunning 反転起因の追加描画）による希釈が疑わしく、テールは悪化（95th 27→36ms・99th 77→81ms）。
+3. ベースラインの回間ブレ（前回 release: toc 6.53%/shelf 9.35% ↔ 今回 7.69%/7.83%＝±1.5%程度）に対し exp delta は同オーダー＝「効果なし」が最も堅い読み。
+4. 副作用の目視は異常なし（遷移後に本文・書影とも正常描画へ復帰＝パッチ自体は仕様どおり動作した上での効果なし）。
+
+**含意**: 遷移フレームの Slow UI thread は「ShioriCover の Canvas 描画」「本文の初回コンポーズ」の除去では減らない＝主因は別のメインスレッド負荷（NavHost 遷移自体のレイヤ記録・目次画面のコンポーズ・テキスト measure 等は未切り分け）。gfxinfo での狙い撃ちはここで収束せず→**Perfetto（androidx `runtime-tracing` 計装込み再ビルド）へ escalate**（当初基準どおり）。
+
+実験パッチは revert 済み（gfx dump 4本は scratchpad・セッション終了で揮発。数値は上表が正本）。端末は計測終了時点で実験 release APK のまま＝次の APK 投入で上書きされる。
