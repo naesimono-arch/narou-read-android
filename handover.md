@@ -48,7 +48,7 @@
 ### 残6: 作品詳細の固定バー＝既読分岐でPDF取込が降格される一貫性欠如（2026-07-14 ユーザー裁定・要改修）
 - **症状**: 未読では「縦書きPDFを取り込む」が藍の主CTA最上段だが、一度「ブラウザで読む」を押す（`lastReadEpisode > 0`）と主CTAが「第N話のはじめから読む」＋「最初から（目次）」に変わり、取込がゴースト第3位へ追いやられる。**UIとしての一貫性がない＝修正対象**（ユーザー裁定 2026-07-14。2026-07-12 の「既読では続きからが主」裁定を上書き）。
 - **コード所在**: `NovelDetailScreen.kt:260-299`（既読分岐の主CTA）・`:391-413`（降格された取込ゴースト）。付随バグ的事実＝「最初から（目次）」（`:289`）だけ .btn-ghost トークン未適用の素 OutlinedButton（contentColor=primary藍）＝兄弟のゴーストより明るく見える。
-- **進め方**: 意匠絡み＝`/visual-language` ゲート・discovery-detail-D.html（モック正本）の改訂とセットで階層を再設計（取込を既読でも上位に保つ形）。一次情報＝`.claude/plans/usability-test-results-2026-07-14.md` 派生所見。
+- **進め方**: 意匠絡み＝`/visual-language` ゲート・discovery-detail-D.html（モック正本）の改訂とセットで階層を再設計（取込を既読でも上位に保つ形）。一次情報＝`.claude/plans/usability-test-results-2026-07-14.md` 派生所見。**進捗（2026-07-16）**: 対比モック作成済み（`docs/design-candidates/discovery/discovery-detail-cta-consistency-D.html`＝現状/案A完全一貫〔取込を常に主〕/案B続き主のまま取込第2固定）＝**ユーザー裁定待ち**（`mockview` で開く）。裁定後にモック正本改訂＋Compose 翻訳をセットで。
 
 ### 残8: 本棚操作の要望（2026-07-14 実使用フィードバック・新機能）
 - **①複数選択→まとめて削除**: 長押しから選択モード等。削除系＝実機検証は捨て本で（memory `device-verify-delegation-no-destructive-on-real-library`）。
