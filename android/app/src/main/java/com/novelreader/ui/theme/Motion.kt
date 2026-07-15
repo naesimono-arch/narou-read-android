@@ -28,12 +28,18 @@ val MotionSpringCard: SpringSpec<Float> = spring(dampingRatio = Spring.DampingRa
 // StiffnessMediumLow のバウンシー挙動でバーの出没を軽快に見せる（自前 settle の触感復元。詳細は使用側コメント）。
 val MotionSpringBarSettle: SpringSpec<Float> = spring(stiffness = Spring.StiffnessMediumLow)
 
-// PDF 処理中バナーの進捗バーが現在ステップの目標値へ伸びる時間（ms）。ProcessingBanner の tween に使う。
-// ステップ切替時の瞬時リセット（snapTo）はアニメではないためトークン外。
-// なぜ 400ms（禁止則①の 350ms 上限超）でよいか: 進行類型（連続的に"進行中"を示すフィードバック）は
-// 上限則の適用外＝ADR 0014「適用裁定の記録」（2026-07-12・確認バッチ E）。上限 350ms は enter/exit の
-// ような離散的な状態遷移（reveal250/dismiss150）を縛る規律で、進行の可視化はやや長い方が自然＝目的が異なる。
-const val MotionDurationProgress: Int = 400
+// PDF 処理中バナーの進捗バーが目標値へ追従する spring。ステップ切替時の瞬時リセットは
+// 使用側の key(stepIndex) 状態再構成で行う＝アニメではないためトークン外。
+// なぜ尺固定 tween（旧 MotionDurationProgress=400ms）でなく spring か（2026-07-16 実機計測・残7⑥の真因）:
+// 進捗は抽出のページ単位で高頻度（実測10〜25ms間隔）に更新され、尺 tween を都度張り直すと毎回キャンセル
+// されて easing 序盤の平坦区間しか進まない（表示値が最大約1%で張り付き・アニメ完了0回を実測）。
+// spring は retarget 時に現在速度を引き継ぐため高頻度更新でも前進が途切れない。バウンドで進捗が
+// 逆行して見えるのは不適のため NoBouncy。剛性 StiffnessLow＝目標到達おおよそ数百ms で旧 400ms の体感を近似。
+// 進行類型が禁止則①（350ms 上限）の適用外である裁定は ADR 0014「適用裁定の記録」（2026-07-12・確認バッチ E）。
+val MotionSpringProgressFollow: SpringSpec<Float> = spring(
+    dampingRatio = Spring.DampingRatioNoBouncy,
+    stiffness = Spring.StiffnessLow,
+)
 
 // バナー等の入退場 duration（ms）。Design/08-C（enter/exit は別指定・exit は enter より短い＝加速して消える）
 // に基づき2値で彫る。なぜ2値か: 出現は「気づかせる」ため長め、退場は「作業の邪魔をしない」ため短め、

@@ -1,7 +1,6 @@
 package com.novelreader.ui
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -18,7 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.novelreader.ui.theme.MotionDurationProgress
+import com.novelreader.ui.theme.MotionSpringProgressFollow
 import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.ui.theme.Spacing
 
@@ -169,28 +168,29 @@ internal fun ProcessingBanner(
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(Spacing.S8))
-            // プログレスバー（ステップ切替時は瞬時リセット、通常時はtweenでアニメーション）
-            val progress = remember { Animatable(0f) }
-            var lastStep by remember { mutableIntStateOf(-1) }
-            LaunchedEffect(processingState.stepIndex, processingState.stepLocalPercent) {
-                if (processingState.stepIndex != lastStep) {
-                    progress.snapTo(0f)
-                    lastStep = processingState.stepIndex
-                }
-                progress.animateTo(
+            // プログレスバー。ステップ切替は key(stepIndex) の状態再構成で瞬時リセット（旧 snapTo 相当。
+            // 新ステップは 0f 発行から始まるため再構成の初期値も実質 0）。
+            // なぜ LaunchedEffect＋Animatable＋tween 張り直しをやめたか（2026-07-16 実機計測・残7⑥の真因）:
+            // stepLocalPercent はページ単位で高頻度（実測10〜25ms間隔）に更新され、更新のたび effect が再起動して
+            // tween(400ms) が毎回キャンセルされ、easing 序盤の平坦区間だけを反復＝表示値が最大約1%で張り付いた
+            // （animateTo 完了0回を実測）。spring 追従（animateFloatAsState）は retarget で現在速度を引き継ぐため
+            // 高頻度更新でも前進が途切れない（spring の選定理由はトークン側 Motion.kt のコメント参照）。
+            key(processingState.stepIndex) {
+                val progress by animateFloatAsState(
                     targetValue = processingState.stepLocalPercent,
-                    animationSpec = tween(durationMillis = MotionDurationProgress),
+                    animationSpec = MotionSpringProgressFollow,
+                    label = "processingProgress",
+                )
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp)),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
                 )
             }
-            LinearProgressIndicator(
-                progress = { progress.value },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp)),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-            )
             Spacer(Modifier.height(Spacing.S4))
             Text(
                 text = "ステップ ${processingState.stepIndex + 1}/${processingState.stepTotal}",
