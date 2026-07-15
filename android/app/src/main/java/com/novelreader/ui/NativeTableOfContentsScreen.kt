@@ -31,7 +31,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -188,6 +187,25 @@ fun NativeTableOfContentsScreen(
     }
 }
 
+/**
+ * 目次を開いた瞬間に現在章付近を初期表示するための、LazyList の先頭可視 index を導出する純関数。
+ * なぜ純関数に切り出すか: rememberLazyListState(initialFirstVisibleItemIndex=…) へ即時反映させたく
+ *（LaunchedEffect+scrollToItem だと初回フレームで先頭が一瞬見えてから飛ぶ）、かつ導出規則
+ *（現在章の1つ手前・未読は先頭・終端 clamp は LazyList 任せ）を UI から切り離して単体テストで固定するため。
+ *
+ * @param entries 目次の章リスト
+ * @param currentChapterFile 最後に読んでいた章のファイル名（null／リスト未一致＝未読）
+ * @return 初期の先頭可視 index。未読なら 0（従来どおり先頭）、既読なら現在章の1つ手前（>=0 に clamp）。
+ */
+internal fun tocInitialFirstVisibleIndex(
+    entries: List<TocEntry>,
+    currentChapterFile: String?,
+): Int {
+    val currentIndex = entries.indexOfFirst { it.fileName == currentChapterFile }
+    // 未読（現在章がリストに無い）は先頭から。既読は現在章の1つ手前を見せて前後の文脈を残す。
+    return if (currentIndex >= 0) (currentIndex - 1).coerceAtLeast(0) else 0
+}
+
 /** 章リスト本体（Content 状態）。旧実装のリスト描画をそのまま切り出したもの。 */
 @Composable
 private fun TocList(
@@ -197,17 +215,17 @@ private fun TocList(
     onSelectChapter: (fileName: String) -> Unit,
     innerPadding: androidx.compose.foundation.layout.PaddingValues,
 ) {
-    val listState = rememberLazyListState()
     val currentIndex = entries.indexOfFirst { it.fileName == currentChapterFile }
 
-    // 初期表示時に現在章まで自動スクロールする（長編で毎回先頭から探す手間をなくす）。
-    // entries は非同期ロードのため、現在章が変わったタイミングでも発火するよう key に含める。
-    LaunchedEffect(entries, currentChapterFile) {
-        if (currentIndex >= 0) {
-            // 1つ手前まで見せることで「現在章が先頭に張り付いて前後関係が分からない」のを防ぐ
-            listState.scrollToItem((currentIndex - 1).coerceAtLeast(0))
-        }
-    }
+    // 初期表示を現在章付近に「瞬間配置」する（開いた瞬間からその位置に居る）。
+    // なぜ LaunchedEffect+scrollToItem をやめ initialFirstVisibleItemIndex にしたか: 前者は初回
+    // コンポジション後に走るため 1 フレームだけ先頭が見えてから現在章へ飛ぶ（チラつき）。initial 指定なら
+    // 最初のフレームから正位置に置ける。entries と currentChapterFile は Content 到達時点で確定済み
+    // （同期パース結果＋rememberSaveable の lastChapterFile）なので初期値だけで導出できる。終端付近の
+    // 空白抑制（clamp）は LazyList の標準挙動に委ねる。
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = tocInitialFirstVisibleIndex(entries, currentChapterFile),
+    )
 
     LazyColumn(
         state = listState,
