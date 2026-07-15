@@ -704,7 +704,29 @@ internal fun BookshelfContent(
                 contentColor = MaterialTheme.colorScheme.onPrimary,
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            // スナックバーをスワイプで即消せるようにする（M3 既定は swipe-to-dismiss 無し＝削除Undoが
+            // 邪魔なとき払えない・実使用フィードバック 2026-07-14）。スワイプ確定＝data.dismiss()＝showSnackbar は
+            // SnackbarResult.Dismissed を返す。削除の場合はこれで「Undo せず確定削除」に一致する
+            // （requestDelete の undone 判定は ActionPerformed のみ true＝Dismissed は確定側）。
+            SnackbarHost(snackbarHostState) { data ->
+                // key(data): スナックバーが入れ替わっても前のスワイプ位置を引き継がないよう毎回作り直す。
+                key(data) {
+                    val dismissState = rememberSwipeToDismissBoxState()
+                    LaunchedEffect(dismissState.currentValue) {
+                        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) data.dismiss()
+                    }
+                    SwipeToDismissBox(
+                        state = dismissState,
+                        // 背景は出さない＝スワイプで滑って消えるだけ（確定色や削除アイコンは意味的に不要）。
+                        backgroundContent = {},
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Snackbar(data)
+                    }
+                }
+            }
+        },
         containerColor = MaterialTheme.colorScheme.background,
     ) { padding ->
         Box(
