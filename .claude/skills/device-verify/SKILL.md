@@ -87,7 +87,27 @@ sqlite3 /tmp/…/db "SELECT …"
   （#25）。PowerShell ツールか `MSYS2_ARG_CONV_EXCL` 前置きで回避。WSL の Bash ツール＋
   Linux adb ラッパーなら非該当。
 
-## 6. 検証ワークフロー（人間の関門）
+## 6. テキスト入力は ADB Keyboard（フリック座標タップ禁止）
+
+端末に **ADB Keyboard（`com.android.adbkeyboard/.AdbIME`）が導入済みで、これが既定 IME**
+（2026-07-16 確認）。日本語を含むテキスト入力は、画面のフリックキーボードを座標タップで
+打とうとせず（過去に多数のエージェントがこれで苦戦）、broadcast で直接注入する:
+
+```bash
+# 入力欄にフォーカスがある状態で（AdbIME がアクティブな時のみ効く）
+adb shell am broadcast -a ADB_INPUT_TEXT --es msg 'ASCII text'
+# 日本語などマルチバイトはシェルのエスケープ事故を避けて B64 経由が確実
+adb shell am broadcast -a ADB_INPUT_B64 --es msg "$(printf '%s' 'かな漢字テキスト' | base64 -w0)"
+adb shell am broadcast -a ADB_CLEAR_TEXT   # 入力欄クリア
+```
+
+- **`adb shell input text` は使わない**: ASCII 限定な上、IME 状態を狂わせる副作用を実測
+  （2026-07-16: SAF picker の「追加」ボタンが無反応化。復旧は `ime set` で切替）。
+- 検証の都合で IME を切り替えたら、終了時に必ず既定へ戻す:
+  `adb shell ime set com.android.adbkeyboard/.AdbIME`
+  （現在値の確認は `adb shell settings get secure default_input_method`）。
+
+## 7. 検証ワークフロー（人間の関門）
 
 Claude が adb を自律駆動する（install / logcat / input / screencap / DB 確認・不具合はその場で
 自律デバッグ）。**報告は必ず実際のコマンド出力に基づくこと（捏造禁止）**。
