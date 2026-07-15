@@ -8,7 +8,7 @@
 ## 0. 現在の状態
 
 - **ブランチ `ui/polish`**: UX/Design 全層監査バッチ（Critical 3/Major 24/Minor 29）消化済み・**main 未統合**。残タスク（C①案A＝読書ギア下端集約は翻訳完了・実機OK／C②＝発見帯 collapse は「完全退避」で再設計・翻訳完了・実機OK＝帯は restyle せず shrink+fade で高さ0へ畳み退避／フィルタ sticky／退避アニメ体感の追い込みのみ deferred＝残1／実機検証送り・人間テスト送り・main 統合）＝`handover.md` ★節が正本。監査の一次情報＝`.claude/plans/ux-design-full-audit-2026-07-12.md`（§A/§B）＋`.claude/plans/ux-audit-batch-execution-20260712.md`（実行記録）。
-- **ゲート（2026-07-14 時点・全緑）**: `testDebugUnitTest` **454件**（失敗0）／`tools/check_design_tokens.py` OK=137/NG=0（＋Spacing lint: 余白スケール7段 {4,8,12,16,24,32,40}＝ADR0014 §C・NG=0・WARN=0＝全Compose再翻訳完了で GRACE_FILES 空・以後 spacing直書きは NG）／`:app:lintDebug` 0 errors・31 warnings（旧記載26は古く、+5＝既知の非ブロック ModifierParameter×3・UsableSpace×2＝clean木でも同数を実測）。
+- **ゲート（2026-07-14 時点・全緑）**: `testDebugUnitTest` **454件**（失敗0）／`tools/check_design_tokens.py` OK=137/NG=0（＋Spacing lint: 余白スケール7段 {4,8,12,16,24,32,40}＝ADR0014 §C・NG=0・WARN=0＝全Compose再翻訳完了で GRACE_FILES 空・以後 spacing直書きは NG）／`:app:lintDebug` 0 errors・28 warnings（ModifierParameter×3 は Compose 規約準拠〔modifier を先頭 optional へ〕で解消済み・挙動不変／残る非ブロックは UsableSpace×2＝抽出前の空き容量チェックは保守的 `usableSpace` を意図的に採用〔`getAllocatableBytes` は消去可能キャッシュ込みの楽観値で事前チェックが甘くなるため〕）。
 - **Room v18**（`reachedEnd` 永続化）。⚠️ **旧APKへの逆走は禁止**（migration N→N-1 不在でクラッシュ＝古い→新しいの一方向のみ）。no-op 再スタンプの機序＝`task_diary.md` #39 追補。
 - **実機**: OPPO PGEM10 `192.168.1.210:5555`（切れたら `adb-bridge`）・**v18 APK 導入済み**（v17→v18 migration 通過を実測・蔵書生存確認済み）。検証ワークフロー＝memory `workflow-autonomous-device-verification`／`workflow-notify-each-step-visual-check`。
 - **抽出パイプライン＝純 Kotlin（PDFBox-Android）単独**（Chaquopy/Python は 2026-07-05 Phase 5 で完全撤去。復旧は git 履歴から）。実機の恒久精度回帰ゲート＝`PdfExtractorDeviceSpikeTest`（ゴールデン3件通過済み）。

@@ -919,10 +919,10 @@ internal fun BookshelfContent(
 private fun StatusChipRow(
     selectedStatus: ReadingStatus?,
     onSelect: (ReadingStatus?) -> Unit,
+    modifier: Modifier = Modifier,
     // 各状態の件数（ia Minor）。0件の状態チップは dim（enabled=false）にして押下不能にし、
     // 「押せるのに空表示に落ちる袋小路」を予防する（件数併記でなく最小限の dim を選択）。
     statusCounts: Map<ReadingStatus, Int> = emptyMap(),
-    modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier

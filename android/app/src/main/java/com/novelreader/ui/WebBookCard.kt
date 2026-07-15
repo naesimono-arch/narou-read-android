@@ -52,10 +52,10 @@ fun WebGridBookCard(
     onOpen: () -> Unit,      // カードタップ＝なろうを WebView で開く（初回＝目次。呼び出し側が処理）
     onImport: () -> Unit,    // ⋮メニュー「縦書きPDFを取り込む」
     onRemove: () -> Unit,    // ⋮メニュー「本棚から外す」
+    modifier: Modifier = Modifier,
     // 機能②: WebView 読書位置（最後に開いた話。0＝未読）。>0 でメタ行を「続きから 第N話」導線へ差し替える。
     lastReadEpisode: Int = 0,
     onResume: () -> Unit = {},  // 「続きから 第N話」タップ＝記録した話へ WebView で直接（カード本体タップは目次のまま）
-    modifier: Modifier = Modifier,
 ) {
     // なぜ expanded を Card 内で閉じるか: 各カードの ⋮ ドロップダウンメニューの開閉は独立しており、他カードと共有しないため
     var menuExpanded by remember { mutableStateOf(false) }
@@ -155,10 +155,10 @@ fun WebListBookCard(
     onOpen: () -> Unit,
     onImport: () -> Unit,
     onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
     // 機能②: WebView 読書位置（最後に開いた話。0＝未読）。>0 でメタ行を「続きから 第N話」導線へ差し替える。
     lastReadEpisode: Int = 0,
     onResume: () -> Unit = {},
-    modifier: Modifier = Modifier,
 ) {
     // なぜ expanded を Card 内で閉じるか: 各リスト行の ⋮ ドロップダウンメニューの開閉は独立しており、他カードと共有しないため
     var menuExpanded by remember { mutableStateOf(false) }
