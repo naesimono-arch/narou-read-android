@@ -4,11 +4,16 @@ import android.app.Activity
 import android.content.Context
 import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.background
@@ -105,6 +110,7 @@ import com.novelreader.ui.theme.FontNavLabel
 import com.novelreader.ui.theme.FontSectionTitle
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.MotionDurationCrossfade
+import com.novelreader.ui.theme.MotionDurationNavTransition
 import com.novelreader.ui.theme.MotionSpringBarSettle
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
@@ -398,75 +404,99 @@ fun ReadingScreen(
         return
     }
 
-    if (resolvedFile == "index.html") {
-        NativeTableOfContentsScreen(
-            tocState = tocState,
-            colors = readingColors,
-            currentChapterFile = lastChapterFile,
-            // 章選択は参照ジャンプ扱い（C1）。続き位置と別章なら jumpOrigin へ退避し自動保存を抑止する。
-            onSelectChapter = onSelectChapterFromToc,
-            onNavigateToBookshelf = onNavigateToBookshelf,
-            onRetry = { tocRetryKey++ },
-        )
-        return
-    }
-
-    // 章表示。読書再開位置の取得を待ってから描画する。
-    // なぜ待つか: LazyListState に初期スクロール位置を注入するため。
-    // 取得後に scrollToItem する方式だと「先頭→保存位置」へのジャンプが見えてしまう。
-    val restore = chapterRestore
-    if (restore == null) {
-        // 取得待ちの一瞬。テーマ背景で塗りつぶし白フラッシュを防ぐ
-        Box(modifier = Modifier.fillMaxSize().background(readingColors.background))
-        return
-    }
-
-    // なろう紐付けシートの候補検索の状態。検索実行は VM が持つ単一正本を collect して ChapterScreen へ渡す
-    // （旧: シートが NovelApiRepository を直接受け produceState で回していた依存注入漏れを解消）。
-    val ncodeSearchState by viewModel.ncodeSearchState.collectAsStateWithLifecycle()
-
-    ChapterScreen(
-        currentFile = resolvedFile,
-        htmlDirPath = htmlDirPath,
-        tocEntries = tocEntries,
-        bookTitle = bookTitle,
-        ncode = ncode,
-        // 紐付けの永続化。books は hot StateFlow のため、書き込みは MainActivity → ncode 引数へ
-        // 自動で還流し、確定直後から継続導線が紐付け済み表示に切り替わる。
-        onLinkNcode = { newNcode -> viewModel.linkNcode(bookId, newNcode) },
-        ncodeSearchState = ncodeSearchState,
-        onSearchNcode = { query -> viewModel.searchNcodeCandidates(query) },
-        onRetryNcodeSearch = { viewModel.retryNcodeSearch() },
-        readingTheme = readingTheme,
-        onThemeChange = onThemeChange,
-        followingSystem = followingSystem,
-        onFollowSystem = onFollowSystem,
-        fontSize = fontSize,
-        onFontSizeChange = onFontSizeChange,
-        onFontSizePersist = onFontSizePersist,
-        lineHeightEm = lineHeightEm,
-        onLineHeightChange = onLineHeightChange,
-        onLineHeightPersist = onLineHeightPersist,
-        bodyMarginDp = bodyMarginDp,
-        onBodyMarginChange = onBodyMarginChange,
-        onBodyMarginPersist = onBodyMarginPersist,
-        // resolvedFile が「最後に読んだ章」と一致する場合のみスクロール位置を復元する
-        initialScrollIndex = if (resolvedFile == restore.targetFile) restore.scrollIndex else 0,
-        initialScrollOffset = if (resolvedFile == restore.targetFile) restore.scrollOffset else 0,
-        onSaveScroll = { index, offset ->
-            // resolvedFile は画面内部の String。型付き API 境界でのみ ChapterFilename に包む。
-            viewModel.saveScrollPosition(bookId, ChapterFilename(resolvedFile), index, offset)
+    // 目次⇄本文の切替を NavHost のスライドと同じ向きルールで演出する（進む=目次→章は右から左へ潜る／
+    // 戻る=章→目次は左から右へ戻す）。同一 nav ルート内の state 切替（resolvedFile の出し分け）を
+    // AnimatedContent で包む。章→章（話送り）は現状どおり瞬間＝向きを付けない（P1 は別枠のため据え置き）。
+    // 尺は MotionDurationNavTransition（250ms）で NavHost の遷移と共有する。
+    AnimatedContent(
+        targetState = resolvedFile,
+        transitionSpec = {
+            val d = MotionDurationNavTransition
+            val toToc = targetState == "index.html"
+            val fromToc = initialState == "index.html"
+            when {
+                // 章→目次（戻る）: 前画面（目次）が左から入り、本文は右へ抜ける
+                toToc -> slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(d)) togetherWith
+                    slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(d))
+                // 目次→章（進む）: 本文が右から入り、目次は左へ抜ける
+                fromToc -> slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(d)) togetherWith
+                    slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(d))
+                // 章→章は瞬間（現状維持）
+                else -> EnterTransition.None togetherWith ExitTransition.None
+            }
         },
-        onNavigateToBookshelf = onNavigateToBookshelf,
-        // 前後章・目次ボタンからの遷移も「進む」＝履歴を積む（Back で1段ずつ遡れる）
-        onNavigateTo = navigateForward,
-        // 参照ジャンプ（C1）: 抑止フラグ・「続きに戻る」復帰・滞留昇格を ChapterScreen へ渡す。
-        referenceMode = referenceMode,
-        onReturnToContinuation = onReturnToContinuation,
-        onPromoteToReading = onPromoteToReading,
-        // 読了検出（ssot Major）: 最終章の末尾到達を ChapterScreen が検知して呼ぶ。
-        onReachedEnd = onReachedEnd,
-    )
+        label = "toc-body-slide",
+    ) { file ->
+        if (file == "index.html") {
+            NativeTableOfContentsScreen(
+                tocState = tocState,
+                colors = readingColors,
+                currentChapterFile = lastChapterFile,
+                // 章選択は参照ジャンプ扱い（C1）。続き位置と別章なら jumpOrigin へ退避し自動保存を抑止する。
+                onSelectChapter = onSelectChapterFromToc,
+                onNavigateToBookshelf = onNavigateToBookshelf,
+                onRetry = { tocRetryKey++ },
+            )
+        } else {
+            // 章表示。読書再開位置の取得を待ってから描画する。
+            // なぜ待つか: LazyListState に初期スクロール位置を注入するため。
+            // 取得後に scrollToItem する方式だと「先頭→保存位置」へのジャンプが見えてしまう。
+            val restore = chapterRestore
+            if (restore == null) {
+                // 取得待ちの一瞬。テーマ背景で塗りつぶし白フラッシュを防ぐ
+                Box(modifier = Modifier.fillMaxSize().background(readingColors.background))
+            } else {
+                // なろう紐付けシートの候補検索の状態。検索実行は VM が持つ単一正本を collect して ChapterScreen へ渡す
+                // （旧: シートが NovelApiRepository を直接受け produceState で回していた依存注入漏れを解消）。
+                val ncodeSearchState by viewModel.ncodeSearchState.collectAsStateWithLifecycle()
+
+                ChapterScreen(
+                    // AnimatedContent の各サブコンポジションは自身の state（file）で描画する＝遷移中の退場側が
+                    // 外側の新しい resolvedFile を読んで中身が入れ替わるのを防ぐため、以降は resolvedFile でなく file を使う。
+                    currentFile = file,
+                    htmlDirPath = htmlDirPath,
+                    tocEntries = tocEntries,
+                    bookTitle = bookTitle,
+                    ncode = ncode,
+                    // 紐付けの永続化。books は hot StateFlow のため、書き込みは MainActivity → ncode 引数へ
+                    // 自動で還流し、確定直後から継続導線が紐付け済み表示に切り替わる。
+                    onLinkNcode = { newNcode -> viewModel.linkNcode(bookId, newNcode) },
+                    ncodeSearchState = ncodeSearchState,
+                    onSearchNcode = { query -> viewModel.searchNcodeCandidates(query) },
+                    onRetryNcodeSearch = { viewModel.retryNcodeSearch() },
+                    readingTheme = readingTheme,
+                    onThemeChange = onThemeChange,
+                    followingSystem = followingSystem,
+                    onFollowSystem = onFollowSystem,
+                    fontSize = fontSize,
+                    onFontSizeChange = onFontSizeChange,
+                    onFontSizePersist = onFontSizePersist,
+                    lineHeightEm = lineHeightEm,
+                    onLineHeightChange = onLineHeightChange,
+                    onLineHeightPersist = onLineHeightPersist,
+                    bodyMarginDp = bodyMarginDp,
+                    onBodyMarginChange = onBodyMarginChange,
+                    onBodyMarginPersist = onBodyMarginPersist,
+                    // file が「最後に読んだ章」と一致する場合のみスクロール位置を復元する
+                    initialScrollIndex = if (file == restore.targetFile) restore.scrollIndex else 0,
+                    initialScrollOffset = if (file == restore.targetFile) restore.scrollOffset else 0,
+                    onSaveScroll = { index, offset ->
+                        // file は画面内部の String。型付き API 境界でのみ ChapterFilename に包む。
+                        viewModel.saveScrollPosition(bookId, ChapterFilename(file), index, offset)
+                    },
+                    onNavigateToBookshelf = onNavigateToBookshelf,
+                    // 前後章・目次ボタンからの遷移も「進む」＝履歴を積む（Back で1段ずつ遡れる）
+                    onNavigateTo = navigateForward,
+                    // 参照ジャンプ（C1）: 抑止フラグ・「続きに戻る」復帰・滞留昇格を ChapterScreen へ渡す。
+                    referenceMode = referenceMode,
+                    onReturnToContinuation = onReturnToContinuation,
+                    onPromoteToReading = onPromoteToReading,
+                    // 読了検出（ssot Major）: 最終章の末尾到達を ChapterScreen が検知して呼ぶ。
+                    onReachedEnd = onReachedEnd,
+                )
+            }
+        }
+    }
 }
 
 /** 読書再開位置。targetFile（最後に読んだ章）と一致する章のみスクロール位置を復元する。 */

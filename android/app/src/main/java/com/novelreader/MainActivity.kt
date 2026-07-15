@@ -6,9 +6,8 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -207,13 +206,18 @@ private fun NovelReaderApp(
         onDeepLinkConsumed()
     }
 
-    // 遷移フェードは Motion トークンで尺を締める（既定の 700ms もっさりを是正・ADR 0005-B / docs/reference/06）。
-    // popEnter/popExit は未指定なら enter/exit にフォールバックするため、フェード2指定で全遷移をカバーする。
+    // 画面遷移は横スライド push（尺は Motion トークン 250ms・既定 700ms フェードのもっさりを是正）。
+    // 「進む＝新画面が右から左へ潜り込む／戻る＝前画面が左から右へ戻る」で移動方向を身体感覚に合わせる
+    // （3案フェード/スライド/shared-axis Z の実機比較で採用＝ADR 0019）。目次⇄本文も同じ向き・尺で揃える
+    //（NativeReadingScreen の AnimatedContent）。fadeIn/fadeOut のように方向が無いと pop で逆転できないため pop 系も明示。
+    val d = MotionDurationNavTransition
     NavHost(
         navController = navController,
         startDestination = "bookshelf",
-        enterTransition = { fadeIn(animationSpec = tween(MotionDurationNavTransition)) },
-        exitTransition = { fadeOut(animationSpec = tween(MotionDurationNavTransition)) },
+        enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(d)) },
+        exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(d)) },
+        popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(d)) },
+        popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(d)) },
     ) {
 
         composable("bookshelf") {

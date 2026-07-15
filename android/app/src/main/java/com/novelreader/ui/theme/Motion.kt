@@ -46,12 +46,13 @@ const val MotionDurationDismiss: Int = 150
 // なぜトークン化するか: Design/08 禁止則②（duration/easing を野良既定に委ねずトークン経由）。
 const val MotionDurationCrossfade: Int = 250
 
-// 画面遷移（NavHost の enter/exit フェード）の duration（ms）。全ルート遷移で共有する。
-// なぜ新設か: NavHost に遷移指定が無く navigation-compose 2.7 系の野良既定 fadeIn/fadeOut(tween(700)) が
-// 全遷移に効いていた＝禁止則②（duration/easing を野良既定に委ねずトークン経由）に NavHost だけが抵触。
-// なぜ 250ms か: 競合5アプリ実測では読書系の実尺は 100〜250ms・章送りでも 400ms（docs/reference/06 §3）で、
-// 既定 700ms はその倍以上＝「もっさり」の第一容疑。フェードのまま尺だけ締める（意匠の新設ではない＝ADR 0005-B
-// 実機後詰め層の範疇）。250ms は離散的な enter/exit を縛る禁止則①の 350ms 上限内。
+// 画面遷移（NavHost の横スライド push）と目次⇄本文の切替（NativeReadingScreen の AnimatedContent）で
+// 共有する duration（ms）。なぜ新設か: NavHost に遷移指定が無く navigation-compose 2.7 系の野良既定
+// fadeIn/fadeOut(tween(700)) が全遷移に効いていた＝禁止則②（duration/easing を野良既定に委ねずトークン経由）に
+// NavHost だけが抵触。なぜ 250ms か: 競合5アプリ実測では読書系の実尺は 100〜250ms・章送りでも 400ms
+//（docs/reference/06 §3）で、既定 700ms はその倍以上＝「もっさり」の第一容疑。250ms は離散的な enter/exit を
+// 縛る禁止則①の 350ms 上限内。遷移の型を fade でなく slide push にした裁定＝ADR 0019（3案実機比較）。
+// motion は ADR 0005-B 実機後詰め層のため値・型とも実機で決めてよい（HTMLモック非対象）。
 const val MotionDurationNavTransition: Int = 250
 
 // 読了バッジ「了」の押印（案A・ADR 0014 §motion 追補「適用裁定の記録」）。本棚がある本を
