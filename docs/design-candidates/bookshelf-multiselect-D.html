@@ -1,0 +1,260 @@
+<!-- @dsCard group="UI-n / 本棚（複数選択・削除）" name="D. 本棚 複数選択 — 操作面の置き場所2案（案A 上部文脈バー / 案B 下端固定バー）＋削除確認" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n D 本棚 複数選択 — 操作面2案</title>
+<style>
+  /*==harness==*/
+  /* 対比モック（ADR 0005/0014 準拠）。裁定対象＝「複数選択モードの操作面をどこに置くか」だけ。
+     ・長押しで選択モードに入る／選択マークの様式／削除確認ダイアログ は 両案とも共通。
+     ・違うのは操作面の置き場所だけ＝案A 上部文脈バー変形 vs 案B 下端固定アクションバー。
+
+     ── 基盤（2026-07-16 再基盤化）───────────────────────────────────
+     旧版は fusion 再設計前の bookshelf-D.html を下敷きにしていた（＝過去骨格の作り直しと判明）。
+     本版の正本は現行本棚 discovery/bookshelf-fusion-D.html＋実装現物（BookshelfScreen.kt）。
+     トークン・栞書影(.cv/.rule)・チップ様式・余白スケール{4,8,12,16,24,32,40}は fusion-D から流用。
+
+     ── 実装現物で確認した構造事実（選択モード中の土台）──────────────
+     実装(07-14 以降)では発見帯『新しい物語を見つける』は先頭到達時のみフル表示・下スクロールで
+     高さ0へ完全退避し、読書状態フィルタのチップ行は sticky＝常時上部に常駐する（帯・フィルタとも
+     Lazy コンテナの外へ hoist）。選択モードは通常「本を長押し／スクロール後」に入る局面のため、
+     本モックは "発見帯なし・フィルタ行が上部常駐" を土台に描く（帯は描かない）。
+
+     ── 栞書影について ─────────────────────────────────────────────
+     栞書影は fusion-D の .cv/.rule 様式のまま（左に藍の縦ルール）。実装 ShioriCover の
+     「先端ランダム抽選」の再現は本モックでは不要＝均一の縦ルールで可（意匠比較の対象外のため）。
+
+     ── 実装時の注意（残す）───────────────────────────────────────
+     削除は不可逆（本文データも消える）。androidTest / 実機での削除系検証は必ず"捨て本"で行う
+     （実蔵書DBを消さない。/device-verify の禁忌参照）。 */
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;        /* 藍 */
+    --seiji:#9CB3A8;     /* 青磁 */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:8px;text-align:center;line-height:1.7;max-width:820px}
+  .cap b{color:#2A2C28}
+  .sub{color:#5A5C57;font-size:12px;margin-bottom:24px;text-align:center;line-height:1.7;max-width:820px}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:12px;max-width:372px}
+  .wrap .mode{font-size:12px;letter-spacing:.22em;color:#6A6C67}
+  .note{font-size:11.5px;color:#5A5C57;line-height:1.7;max-width:372px;text-align:center}
+  .note b{color:#2A2C28}
+  .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--gothic);color:var(--ink)}
+  /*==/harness==*/
+
+  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--ink-soft);flex-shrink:0}
+
+  /* ── 通常の上部バー（案Bで使用）＝fusion-D の .top をそのまま流用 ───────── */
+  .top{padding:8px 24px 16px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
+  .top h1{font-family:var(--mincho);font-size:27px;color:var(--ink);font-weight:500;letter-spacing:.14em}
+  .acts{display:flex;gap:4px}
+  .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--ink);cursor:pointer}
+  .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.5}
+
+  /* ── 案A: 上部が文脈バーに置き換わる（Material CAB の D 流翻訳）──
+     「× ／ 3冊を選択中 ／ 全選択 ／ 削除」。h1「本棚」と同じ高さ・余白帯に収め、静けさを保つ。 */
+  .ctxbar{padding:8px 12px 16px 12px;display:flex;align-items:center;gap:8px;flex-shrink:0}
+  .ctxbar .count{flex:1;font-family:var(--mincho);font-size:18px;letter-spacing:.06em;color:var(--ink);padding-left:4px}
+  .ctxbar .count b{font-weight:600}
+  .txtbtn{border:none;background:transparent;font-family:var(--gothic);font-size:12.5px;color:var(--ai);
+    padding:9px 12px;border-radius:10px;cursor:pointer;letter-spacing:.04em}
+
+  /* ── 読書状態フィルタのチップ行（sticky＝実装で常時常駐する現物を反映）──
+     fusion-D の .lchip（ヘアライン→選択で藍）語彙を踏襲。帯の下に固定ヘッダとして置く
+     （＝実装では帯・フィルタとも Lazy の外へ hoist されるため、.scroll の外に描く）。 */
+  .filter-row{display:flex;gap:8px;overflow-x:auto;flex-shrink:0;scrollbar-width:none;
+    padding:8px 24px 12px;border-bottom:1px solid var(--line)}
+  .filter-row::-webkit-scrollbar{display:none}
+  .lchip{font-size:11.5px;color:var(--ink-soft);border:1px solid var(--line);border-radius:2px;
+    padding:8px 12px;cursor:pointer;white-space:nowrap;flex-shrink:0}
+  .lchip.on{color:var(--ai);border-color:var(--ai);font-weight:600}
+  /* 案A: 選択モード中はフィルタ行を淡く無効化する（フィルタ操作と選択操作の混在＝
+     「絞り込んだつもりが選択が飛ぶ」等の取り違えを未然に防ぐ。上部帯が"いま選択中"へ
+     置換されている以上、その真下のフィルタは休止中と示すのが素直）。 */
+  .filter-row.dim{opacity:.4;pointer-events:none}
+
+  .scroll{flex:1;overflow:auto;padding:16px 24px 40px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:24px 16px}
+
+  /* 栞書影＝fusion-D の .cv/.rule をそのまま流用（左に藍の縦ルール・均一） */
+  .bk{cursor:pointer}
+  .cv{position:relative;aspect-ratio:2/3;border-radius:2px;overflow:hidden;display:flex;align-items:flex-end}
+  .cv .rule{position:absolute;left:12px;top:12px;bottom:12px;width:2px;background:var(--ai);opacity:.85;z-index:1}
+  .cv .ttl-in{padding:12px 12px 16px 24px;color:var(--base);z-index:1}
+  .cv .ttl-in b{font-family:var(--mincho);font-size:13.5px;font-weight:600;line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-shadow:0 1px 3px rgba(28,31,38,.4)}
+  .meta{margin-top:8px}
+  .meta .t{font-family:var(--mincho);font-size:13px;color:var(--ink);line-height:1.45;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+  /* 選択マーク（両案共通・厳守様式）＝書影右上の小さな選択丸＋選択中書影に藍の細縁取り＋淡い藍かぶせ。
+     色は fusion-D トークンのみ（藍 var(--ai)）。新色は発明しない。
+     ・選択モード中は 全書影に丸が出る＝非選択は白ヘアラインの空リング（書影を透かす）。
+     ・選択中は 藍塗り＋白チェック。書影は 藍の細縁取り＋ごく淡い藍のかぶせで"選ばれた"を示す。 */
+  .chk{position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;z-index:3;
+    display:grid;place-items:center;border:1.5px solid rgba(255,255,255,.9);background:rgba(28,31,38,.26)}
+  .chk svg{width:13px;height:13px;stroke:#fff;stroke-width:2.6;fill:none;opacity:0}
+  .bk.sel .chk{background:var(--ai);border-color:var(--ai)}
+  .bk.sel .chk svg{opacity:1}
+  .bk.sel .cv{box-shadow:inset 0 0 0 2px var(--ai)}
+  .bk.sel .cv::after{content:"";position:absolute;inset:0;background:rgba(28,61,90,.14);z-index:2}
+
+  /* ── 案B: 下端固定アクションバー（親指圏に主操作を寄せる）──
+     上部は通常のまま。選択モード中だけ下端に出る。「3冊を選択中」＋ghost全選択＋主張ある削除。 */
+  .botbar{position:absolute;left:0;right:0;bottom:0;background:var(--base);border-top:1px solid var(--line);
+    padding:16px 24px 24px;display:flex;align-items:center;gap:12px;box-shadow:0 -8px 24px rgba(0,0,0,.08)}
+  .botbar .count{flex:1;font-size:13px;color:var(--ink-soft);letter-spacing:.04em}
+  .botbar .count b{color:var(--ink);font-weight:600}
+  .ghostbtn{border:1px solid #cbc4b8;background:transparent;color:var(--ai);font-size:13px;font-weight:500;
+    padding:12px 18px;border-radius:10px;cursor:pointer;letter-spacing:.02em}
+  /* 主張ある削除＝藍フィル。ただしこの押下は"確認ダイアログを開くだけ"の非破壊ステップ＝主張してよい。
+     実削除は次のダイアログでのみ確定する。 */
+  .delfill{border:1px solid var(--ai);background:var(--ai);color:#fff;font-size:13.5px;font-weight:600;
+    padding:12px 22px;border-radius:10px;cursor:pointer;box-shadow:0 6px 16px rgba(28,61,90,.32)}
+
+  /* ── 削除確認ダイアログ（1カット）───────────────────
+     scrim・角丸・余白はシート様式に倣う。裁定は両案とも同一ダイアログを共有。 */
+  .scrim{position:absolute;inset:0;background:rgba(20,23,28,.34);z-index:5}
+  .behind{position:absolute;inset:0;opacity:.5;pointer-events:none}
+  .dlg{position:absolute;left:24px;right:24px;top:50%;transform:translateY(-50%);z-index:6;
+    background:var(--base);border-radius:16px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+  .dlg h2{font-family:var(--mincho);font-size:17px;color:var(--ink);font-weight:600;letter-spacing:.05em;line-height:1.55;margin-bottom:12px}
+  .dlg p{font-family:var(--gothic);font-size:12.5px;color:var(--ink-soft);line-height:1.75;margin-bottom:24px}
+  /* 不可逆＝「本文データも消える」を意味の淡文字で明示。fusion-D 変数のみのため、青磁の淡色でなく
+     本文色 var(--ink) の太字で読みやすく強調する（コントラスト担保＝新トークンを発明しない）。 */
+  .dlg p .warn{color:var(--ink);font-weight:600}
+  .dlg-acts{display:flex;justify-content:flex-end;align-items:center;gap:8px}
+  /* 主従の判断（ADR 0005/0014 の D 流儀）: 寒色パレットに danger-red トークンは無い。
+     破壊確定を"赤の主CTA"では表さず——(1)確定ボタンを塗らず藍の輪郭に留め意図的タップを要求、
+     (2)不可逆コピーで警告、(3)「やめる」を低摩擦の逃げ道として素直に置く。 */
+  .btn-cancel{border:none;background:transparent;color:var(--ink);font-size:14px;font-weight:600;
+    padding:12px 18px;border-radius:10px;cursor:pointer}
+  .btn-del{border:1px solid var(--ai);background:transparent;color:var(--ai);font-size:14px;font-weight:600;
+    padding:12px 18px;border-radius:10px;cursor:pointer}
+</style>
+</head>
+<body>
+  <p class="cap"><b>D. 本棚 複数選択 — 操作面の置き場所2案</b>（ADR 0005/0014 準拠）</p>
+  <p class="sub">複数選択→まとめて削除。<b>基盤＝現行本棚 fusion-D＋実装現物（2026-07-16 再基盤化・旧 bookshelf-D 基盤版の作り直し）</b>。
+    <b>裁定対象＝選択モードの操作面をどこに置くか</b>だけ。<br>
+    <b>長押しで選択モードに入る／選択マークの様式／削除確認ダイアログ は両案とも共通</b>。
+    土台は実装現物に合わせ "発見帯なし（スクロール中／退避後）・読書状態フィルタ行は sticky で上部常駐"。</p>
+
+  <div class="stage">
+
+    <!-- ══ 案A: 上部バー変形型（Material CAB の D 流翻訳）══ -->
+    <div class="wrap"><span class="mode">案A ／ 上部 文脈バー</span>
+    <div class="phone" role="img" aria-label="案A 上部文脈バーで選択モード">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <!-- 選択モード中: 上部 h1「本棚」が文脈バーへ置き換わる。× で解除・件数・全選択・削除。 -->
+      <div class="ctxbar">
+        <button class="ib" aria-label="選択を解除"><svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+        <span class="count"><b>3冊</b>を選択中</span>
+        <button class="txtbtn">全選択</button>
+        <button class="ib" aria-label="削除"><svg viewBox="0 0 24 24"><polyline points="4 7 20 7"/><path d="M9 7V5h6v2"/><path d="M6 7l1 13h10l1-13"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
+      </div>
+      <!-- 発見帯は描かない（退避後の局面）。フィルタ行は sticky で常駐＝ただし選択中は淡く無効化。 -->
+      <div class="filter-row dim">
+        <span class="lchip on">すべて</span>
+        <span class="lchip">未読</span>
+        <span class="lchip">読書中</span>
+        <span class="lchip">読了</span>
+      </div>
+      <div class="scroll"><div class="grid">
+        <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>追放された万能薬師</b></div></div>
+          <div class="meta"><div class="t">追放された万能薬師、辺境でスローライフを始める</div></div></div>
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>黒の魔王と契約した俺</b></div></div>
+          <div class="meta"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div></div></div>
+        <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#46584C,#2C362F)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>草むしりと世界樹</b></div></div>
+          <div class="meta"><div class="t">転生したら最弱スキルだったので草むしりしていた</div></div></div>
+        <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#4F4A63,#312E3D)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>公爵令嬢の嗜み</b></div></div>
+          <div class="meta"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div></div></div>
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#3F5560,#26333A)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>辺境伯家の次男</b></div></div>
+          <div class="meta"><div class="t">辺境伯家の次男は今日も書庫にこもる</div></div></div>
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#54506A,#332F41)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>雨宿りの喫茶店</b></div></div>
+          <div class="meta"><div class="t">雨宿りの喫茶店で魔女に出会った</div></div></div>
+      </div></div>
+    </div></div>
+    <p class="note"><b>案A</b>：選択モード中は上部帯そのものが操作面になる（追加のクロームが増えず、余白の静けさを保つ）。件数・全選択・削除が一望＝Material の contextual action bar を D 流に翻訳。<b>フィルタ行の裁定＝淡く無効化（dim）</b>：上部が「選択中」へ置換された以上、その真下のフィルタは休止と示し、フィルタ操作と選択操作の取り違えを防ぐ。難点＝削除が画面上端＝片手だと届きにくい。</p>
+    </div>
+
+    <!-- ══ 案B: 下端固定アクションバー型（親指圏）══ -->
+    <div class="wrap"><span class="mode">案B ／ 下端 固定バー</span>
+    <div class="phone" role="img" aria-label="案B 下端固定バーで選択モード">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <!-- 上部は通常のまま（見出し「本棚」を残す・× で選択解除）。選択モードは下端バーで表す。 -->
+      <div class="top"><h1>本棚</h1><div class="acts">
+        <button class="ib" aria-label="選択を解除"><svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+      </div></div>
+      <!-- 発見帯は描かない（退避後）。フィルタ行は sticky で常駐＝案Bでは通常どおり操作可能。 -->
+      <div class="filter-row">
+        <span class="lchip on">すべて</span>
+        <span class="lchip">未読</span>
+        <span class="lchip">読書中</span>
+        <span class="lchip">読了</span>
+      </div>
+      <div class="scroll" style="padding-bottom:96px"><div class="grid">
+        <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>追放された万能薬師</b></div></div>
+          <div class="meta"><div class="t">追放された万能薬師、辺境でスローライフを始める</div></div></div>
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>黒の魔王と契約した俺</b></div></div>
+          <div class="meta"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div></div></div>
+        <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#46584C,#2C362F)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>草むしりと世界樹</b></div></div>
+          <div class="meta"><div class="t">転生したら最弱スキルだったので草むしりしていた</div></div></div>
+        <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#4F4A63,#312E3D)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>公爵令嬢の嗜み</b></div></div>
+          <div class="meta"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div></div></div>
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#3F5560,#26333A)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>辺境伯家の次男</b></div></div>
+          <div class="meta"><div class="t">辺境伯家の次男は今日も書庫にこもる</div></div></div>
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#54506A,#332F41)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>雨宿りの喫茶店</b></div></div>
+          <div class="meta"><div class="t">雨宿りの喫茶店で魔女に出会った</div></div></div>
+      </div></div>
+      <div class="botbar">
+        <span class="count"><b>3冊</b>を選択中</span>
+        <button class="ghostbtn">全選択</button>
+        <button class="delfill">削除</button>
+      </div>
+    </div></div>
+    <p class="note"><b>案B</b>：主操作（削除）を下端＝親指圏に置き、片手到達性を稼ぐ。選択モードの開始/終了が下端バーの出入りで明快。<b>フィルタ行の裁定＝通常どおり操作可能</b>：選択操作を下端へ空間的に分離したため、上部フィルタと混同する余地がなく、絞り込みながら選ぶ動線を殺さない。難点＝下端に固定バーが増える分、書架の見える面積がわずかに減る。選択マークは案Aと同一様式。</p>
+    </div>
+
+    <!-- ══ 共通: 削除確認ダイアログ（1カット）══ -->
+    <div class="wrap"><span class="mode">共通 ／ 削除確認</span>
+    <div class="phone" role="img" aria-label="削除確認ダイアログ">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <!-- 背後は選択中の本棚（暗転）。両案どちらから来ても同一のダイアログを共有。 -->
+      <div class="behind">
+        <div class="top"><h1>本棚</h1></div>
+        <div class="filter-row">
+          <span class="lchip on">すべて</span><span class="lchip">未読</span><span class="lchip">読書中</span><span class="lchip">読了</span>
+        </div>
+        <div class="scroll"><div class="grid">
+          <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span></div></div>
+          <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span></div></div>
+          <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#46584C,#2C362F)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span></div></div>
+          <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#4F4A63,#312E3D)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span></div></div>
+        </div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="dlg">
+        <h2>選択した3冊を本棚から削除しますか？</h2>
+        <p><span class="warn">変換済みの本文データも削除されます。</span>この操作は取り消せません。</p>
+        <div class="dlg-acts">
+          <button class="btn-cancel">やめる</button>
+          <button class="btn-del">削除する</button>
+        </div>
+      </div>
+    </div></div>
+    <p class="note"><b>削除確認</b>：不可逆（本文データも消える）を本文コピーで明示。寒色Dに danger-red は無い＝<b>破壊確定「削除する」を主CTA塗りにせず藍の輪郭</b>に留めて意図的タップを要求し、「やめる」を低摩擦の逃げ道として置く。<br><b>実機検証は必ず"捨て本"で</b>（実蔵書DBを消さない・/device-verify 禁忌）。</p>
+    </div>
+
+  </div>
+</body>
+</html>
