@@ -40,6 +40,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -251,55 +252,14 @@ internal fun NovelDetailContent(
                                 .fillMaxWidth()
                                 .padding(horizontal = Spacing.S24, vertical = Spacing.S16)
                         ) {
-                            // 機能②: 固定バーの読む/取り込み導線。アプリの根本価値＝「手元に本を置いておきたい」
-                            // （PDF取込＝主目的）に沿い、未読かつ未取込では「縦書きPDFを取り込む」を藍の主CTAに、
-                            // 「なろうで読む」をゴーストへ降格して主従を逆転する（2026-07-12 ユーザー裁定。意匠正本の
-                            // discovery-detail-D.html も同時改訂して同期。ADR 0005＝見た目はモック正本の翻訳）。
-                            // 記録があれば「続きから読む（第N話）」が主導線。いずれもアプリ内 WebView でなろうページを
-                            // **加工せず**表示し、話遷移から読書位置を記録する（ADR 0012）。
-                            if (lastReadEpisode > 0) {
-                                // 既読: 主CTAは「続きから読む」。主CTAは常に1つの原則を守るため、この分岐では
-                                // PDF取り込みを主へ昇格させず、後段の !isImported 側でゴーストの副次導線に据え置く。
-                                Button(
-                                    onClick = onResumeReading,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary
-                                    ),
-                                    shape = RoundedCornerShape(2.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(Spacing.S8))
-                                    // why: 読書 WebView は JS 注入を一切しない（ADR 0012）ため話「内」のスクロール
-                                    // 位置は保存できず、再開は必ず記録した話の「冒頭」に着地する。「続きから読む」だけだと
-                                    // 前回読み止めた行から続く期待を抱かせ嘘になる（公理8）ので、「第N話のはじめから」と
-                                    // 着地点を明示して期待を正す（監査 persist Minor・ADR 0012 追補 2026-07-12）。
-                                    Text(
-                                        text = "第${lastReadEpisode}話のはじめから読む",
-                                        fontSize = FontActionLabel,
-                                        letterSpacing = 1.5.sp
-                                    )
-                                }
-                                // 最初から読み直したいとき用に目次（作品トップ）への導線も残す（ゴースト枠）。
-                                Spacer(modifier = Modifier.height(Spacing.S8))
-                                OutlinedButton(
-                                    onClick = onReadOnNarou,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(2.dp)
-                                ) {
-                                    Text(
-                                        text = "最初から（目次）",
-                                        fontSize = FontActionLabel,
-                                        letterSpacing = 1.5.sp
-                                    )
-                                }
-                            } else if (!isImported) {
-                                // 未読・未取込: 主従逆転。手元に置く導線＝PDF取り込みを藍の主CTA（Button）として
-                                // 最上段に置く（既存 Download アイコンを維持）。
+                            // 機能②: 固定バーの読む/取り込み導線。案A「完全一貫」（2026-07-16 ユーザー裁定）＝
+                            // アプリの主目的は「手元に本を置く」＝PDF取り込み。未取込である限り取込を藍の主CTA
+                            // 最上段に固定し、既読になっても降格させない（旧 2026-07-12 の「既読は続きからを主」裁定を
+                            // 上書き＝状態依存で主従が入れ替わる一貫性欠如を解消）。取込済みなら取込は冗長で消え、
+                            // 読む導線を藍の主CTAへ昇格。意匠正本＝discovery-detail-D.html（既読パネルと同期）。
+                            // いずれもアプリ内 WebView でなろうページを **加工せず** 表示し話遷移から読書位置を記録（ADR 0012）。
+                            if (!isImported) {
+                                // 未取込（既読/未読問わず）: 取込を藍の主CTA・最上段に固定（案A）。
                                 Button(
                                     onClick = onImportPdf,
                                     modifier = Modifier.fillMaxWidth(),
@@ -320,55 +280,128 @@ internal fun NovelDetailContent(
                                         letterSpacing = 1.5.sp
                                     )
                                 }
-                                // 「なろうで読む」はゴーストへ降格。意匠正本＝discovery-detail-D.html の .btn-ghost
-                                // の淡色トークンを明示指定する（M3 既定の OutlinedButton は contentColor=primary(藍)で
-                                // 主張が強すぎ、静かな副次アクションであるべき D のゴースト階層に反するため）。
-                                // 文字=onSurfaceVariant(--ink-soft #7C808B)・枠=outlineVariant(--line #ECEAE4)。
                                 Spacer(modifier = Modifier.height(Spacing.S8))
-                                OutlinedButton(
-                                    onClick = onReadOnNarou,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(2.dp),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                    ),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(Spacing.S8))
-                                    Text(
-                                        text = "なろうで読む",
-                                        fontSize = FontActionLabel,
-                                        letterSpacing = 1.5.sp
-                                    )
+                                if (lastReadEpisode > 0) {
+                                    // 既読: 「続きから読む」はゴースト（主CTAは取込を維持）。着地は記録話の「冒頭」で
+                                    // 話内スクロールは復元しない（JS 注入なし＝ADR 0012）ため「第N話のはじめから」と明示。
+                                    OutlinedButton(
+                                        onClick = onResumeReading,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(2.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(Spacing.S8))
+                                        Text(
+                                            text = "第${lastReadEpisode}話のはじめから読む",
+                                            fontSize = FontActionLabel,
+                                            letterSpacing = 1.5.sp
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(Spacing.S8))
+                                    // 「最初から（目次）」は枠も塗りも持たない最下位のテキストリンク（意匠正本 .btn-textlink）。
+                                    TextButton(
+                                        onClick = onReadOnNarou,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.textButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    ) {
+                                        Text(
+                                            text = "最初から読み直す（目次）",
+                                            fontSize = FontActionLabel,
+                                            letterSpacing = 1.5.sp
+                                        )
+                                    }
+                                } else {
+                                    // 未読: 「なろうで読む」はゴースト。
+                                    OutlinedButton(
+                                        onClick = onReadOnNarou,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(2.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(Spacing.S8))
+                                        Text(
+                                            text = "なろうで読む",
+                                            fontSize = FontActionLabel,
+                                            letterSpacing = 1.5.sp
+                                        )
+                                    }
                                 }
                             } else {
-                                // 未読・取込済: PDF取り込みボタンは冗長で非表示になるため、主CTAが不在に
-                                // ならないよう「なろうで読む」を藍の主CTAとして残す（取込済み作品では読む導線が
-                                // 主で自然。この分岐が主従逆転の例外）。
-                                Button(
-                                    onClick = onReadOnNarou,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary
-                                    ),
-                                    shape = RoundedCornerShape(2.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(Spacing.S8))
-                                    Text(
-                                        text = "なろうで読む",
-                                        fontSize = FontActionLabel,
-                                        letterSpacing = 1.5.sp
-                                    )
+                                // 取込済: 取込は冗長で非表示。読む導線を藍の主CTAへ昇格（読む導線が主で自然）。
+                                if (lastReadEpisode > 0) {
+                                    Button(
+                                        onClick = onResumeReading,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary
+                                        ),
+                                        shape = RoundedCornerShape(2.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(Spacing.S8))
+                                        Text(
+                                            text = "第${lastReadEpisode}話のはじめから読む",
+                                            fontSize = FontActionLabel,
+                                            letterSpacing = 1.5.sp
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(Spacing.S8))
+                                    TextButton(
+                                        onClick = onReadOnNarou,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.textButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    ) {
+                                        Text(
+                                            text = "最初から読み直す（目次）",
+                                            fontSize = FontActionLabel,
+                                            letterSpacing = 1.5.sp
+                                        )
+                                    }
+                                } else {
+                                    Button(
+                                        onClick = onReadOnNarou,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary
+                                        ),
+                                        shape = RoundedCornerShape(2.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(Spacing.S8))
+                                        Text(
+                                            text = "なろうで読む",
+                                            fontSize = FontActionLabel,
+                                            letterSpacing = 1.5.sp
+                                        )
+                                    }
                                 }
                             }
                             // 表示先を明示（アプリ内 WebView でなろうのページを加工せずそのまま表示する＝ADR 0012・公理8）。
@@ -381,40 +414,12 @@ internal fun NovelDetailContent(
                                     .padding(top = Spacing.S8),
                                 textAlign = TextAlign.Center
                             )
-                            // 取り込み済み（books.ncode 一致）なら以下2アクションは冗長のため出さない
+                            // 取り込み済み（books.ncode 一致）なら以下は冗長のため出さない
                             // （モック discovery-detail-D の固定バー注記どおり。読む手段は蔵書カードが正）。
                             if (!isImported) {
-                                // 既読の分岐でのみ PDF取り込みをここに置く。未読では上で主CTAへ昇格済みのため、
-                                // 二重表示を避けて既読時だけゴーストの副次導線として補う（既読は「続きから読む」を
-                                // 主に保つ）。意匠正本＝discovery-detail-D.html の .btn-ghost（M3 既定の藍を避け、
-                                // 文字=onSurfaceVariant(--ink-soft)・枠=outlineVariant(--line) のトークンへ揃える）。
-                                if (lastReadEpisode > 0) {
-                                    Spacer(modifier = Modifier.height(Spacing.S12))
-                                    OutlinedButton(
-                                        onClick = onImportPdf,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(2.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        ),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Download,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(Spacing.S8))
-                                        Text(
-                                            text = "縦書きPDFを取り込む",
-                                            fontSize = FontActionLabel,
-                                            letterSpacing = 1.5.sp
-                                        )
-                                    }
-                                }
                                 // (b) Web由来・未取込カードの入口（モック .btn-ghost「本棚に置く」）。
                                 // 置いた後は「本棚から外す」へトグルし、押し直しで取り消せる（確認ダイアログ無し
-                                // ＝失うものが無く即座に戻せる操作のため）。
+                                // ＝失うものが無く即座に戻せる操作のため）。取込はもう主CTAのためここには置かない（案A）。
                                 Spacer(modifier = Modifier.height(Spacing.S8))
                                 // 同じ .btn-ghost 系のため取り込みボタンと同一の淡色トークンで揃える。
                                 OutlinedButton(

@@ -1,12 +1,7 @@
 ---
 name: device-verify
 description: 実機検証の入口。adb接続(WSL)・APK投入・androidTest実行・実機DB確認・OPPO/ColorOS固有の壁の回避作法を網羅する。
-triggers:
-  - "実機で検証したい"
-  - "adbで操作したい"
-  - "androidTestを実機で実行"
-  - "実機のDBを確認したい"
-  - "APKをインストールしたい"
+when_to_use: 「実機で検証したい」／「adbで操作したい」／「androidTestを実機で実行」／「実機のDBを確認したい」／「APKをインストールしたい」 などの依頼で使う。
 ---
 
 # 実機検証の作法（OPPO PGEM10 / ColorOS / WSL）
@@ -78,6 +73,7 @@ sqlite3 /tmp/…/db "SELECT …"
 | CPU 集中プロセスが数分で強制 kill（logcat: `abnormal fg_cpu`・`o-kill(502)`。**OOM ではない**） | #37。素の androidTest は無防備。超長編の検証は前景サービス経路で行うか PDF を切詰める |
 | 素の androidTest が超長編抽出中に no progress でハング（logcat: `OplusHansManager … F stay=` / CPU時間が凍結）。**kill ではなく freeze** | #38。Hans フリーザが background 扱いの instrumentation を凍結（#37 の kill とは別・操作/充電無関係）。回避=`adb shell monkey -p com.novelreader -c android.intent.category.LAUNCHER 1` で MainActivity を前面化し perceptible 化（%CPU 0→250% へ復帰し完走） |
 | FGS + WakeLock でもバックグラウンドで停止 | #4 追補＝**端末設定「バックグラウンドアクティビティを許可」ON でも Hans が背面数秒で凍結**（2026-07-14 実測。正本=`docs/knowledge/coloros-hans-freezes-fgs-despite-bg-allow.md`）。背面完走は保証不能＝#38 の monkey 前面化で回避 |
+| `screenrecord` が全パスで `Unable to open …: Permission denied`（/sdcard・/data/local/tmp とも。shell の touch は通るのに録画だけ失敗＝ColorOS 側の遮断と推定・未確定）。`exec-out --output-format=h264 -` のホスト直ストリームも 0 バイトのままハング | 実質使用不能（2026-07-16 実測）。動画での視覚検証は諦めてユーザー目視に回す（アニメ・ちらつき系は PushNotification→目視OK の通常フロー） |
 | バッテリー最適化除外の画面遷移が誤動作 | #5（`ACTION_APPLICATION_DETAILS_SETTINGS` を使う） |
 | 通知が表示されない | #2（ContentIntent 必須） |
 

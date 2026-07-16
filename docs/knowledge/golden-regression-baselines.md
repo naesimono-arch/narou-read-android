@@ -21,8 +21,8 @@
 cd ab-review/submission-B && ./gradlew run --args="../sample_pdfs/N2959KI.pdf --dump" -q
 ```
 
-**対処／運用**: 回帰チェックは `cd ab-review && python golden_regression.py`（差分時 exit 1）、基準更新は `UPDATE_GOLDEN=1 python golden_regression.py`。ハーネス本体（`ab-review/golden_regression.py`）と基準 JSON（`ab-review/golden_regression/*.json`）は**git 未追跡のローカルスクラッチ領域 `ab-review/` にある**——このファイルは値と確定事実の記録が主目的で、コマンドはスクラッチ側が正本。
+**対処／運用**（2026-07-16 更新）: 回帰チェックの正本は **JVM `JvmGoldenRegressionTest`**（`testDebugUnitTest` 同乗・約10秒。機序＝`robolectric-pdfbox-android-real-pdf-parity.md`）。基準 JSON（`ab-review/golden_regression/*.json`）と PDF 現物（`sample_pdfs/*.pdf`）は**どちらも git 追跡済み**。旧 Python ハーネス `ab-review/golden_regression.py` は撤去済み Python engine（`pdf_extractor` 等）を import しており**復旧不能**＝コマンドとしては使えない（基準 JSON の形式定義の参照元としてのみ残置）。
 
 **なぜそうなるか**: 抽出は決定論的（同一入力→同一出力）なので、段落/章/ルビ数と本文 SHA256 をスナップショットとして固定でき、移植版の一致で「挙動を保存した」と機械判定できる。N2959KI のルビ0 はフォントサイズの物理的分布（小フォント不在）から導かれる不変の事実であり、抽出パラメータに依存しない。
 
-**注意**: 単話作品（N2959KI）の章分割挙動には未確定の疑義があり（handover.md 参照）、基準自体がその挙動を「正」として固定している可能性がある。基準更新はその調査とセットで判断すること。
+**注意**（2026-07-16 解消）: かつて「単話作品（N2959KI）の章分割に未確定の疑義」としていたが、実測で **N2959KI は無実と確定**（golden・新規生成とも Bold14pt 題名3,727字で正常131章＝基準はバグを固定していない）。単話症状の実体は **N5368ML**（題名グリフ0件）で、n2959ki への帰属は観測時の取り違え。詳細＝handover.md の単話項目・`.claude/plans/parser-rules-relative-2026-07-16.md`。

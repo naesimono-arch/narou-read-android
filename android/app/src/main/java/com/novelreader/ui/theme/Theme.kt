@@ -1,6 +1,8 @@
 package com.novelreader.ui.theme
 
 import android.app.Activity
+import android.graphics.drawable.ColorDrawable
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -287,7 +289,32 @@ fun NovelReaderTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = theme != ReadingTheme.DARK
+            val insetsController = WindowCompat.getInsetsController(window, view)
+            insetsController.isAppearanceLightStatusBars = theme != ReadingTheme.DARK
+            // ナビバーのピル/ボタンもテーマ明暗に追従させる（ステータスバーと同格の正本設定）。
+            insetsController.isAppearanceLightNavigationBars = theme != ReadingTheme.DARK
+            // 没入トグルの下端ちらつき対策（2026-07-16）: XML テーマ既定（Material）の不透明ナビバー色と、
+            // API29+ が透明バーへ強制する contrast scrim は、どちらも「バーの出没」と同期して帯を明滅させる。
+            // バーは常時透明＋scrim 強制を無効にし、hide/show で変わるのをアイコン/ピルのフェードだけにする
+            //（背後は Edge-to-Edge のアプリ描画＝window 背景と同じテーマ紙色で不変）。上端も同理由で透明化。
+            window.statusBarColor = android.graphics.Color.TRANSPARENT
+            window.navigationBarColor = android.graphics.Color.TRANSPARENT
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.isStatusBarContrastEnforced = false
+                window.isNavigationBarContrastEnforced = false
+            }
+            // 残5: 没入トグルでステータスバー帯が黒⇄灰に明滅する問題の根治。読書の没入時は systemBars を
+            // hide するが、Edge-to-Edge（setDecorFitsSystemWindows(false)）配下では最上端（旧ステータスバー
+            // 領域）へアプリ描画が届かず window(DecorView) 既定の純黒[0,0,0]が透け、hide/show に同期して
+            // 黒⇄灰フリップしていた（実機実測155px＝device-verify-followup 2026-07-16）。window 背景を
+            // テーマ背景色へ再定義して「純黒→紙色」の低コントラスト差に落とす（colorScheme.background は
+            // ReadingColors.background と全テーマで同値＝本文と完全同色でシームレス）。
+            // なぜ画面側でなくここか: window はテーマ単一正本の所有物（上の isAppearanceLightStatusBars と同格）。
+            // 画面側で個別設定・復元すると正本とズレる（旧 DisposableEffect の誤明暗バグと同型リスク）。
+            // 2026-07-16 追補: 上端 letterbox の伸縮（幾何）自体は MainActivity の
+            // layoutInDisplayCutoutMode=ALWAYS で不変化済み＝本設定は過渡フレームで window 面が露出した
+            // 場合の保険（純黒でなく紙色が出る）として維持する。
+            window.setBackgroundDrawable(ColorDrawable(colorScheme.background.toArgb()))
         }
     }
 

@@ -14,14 +14,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.semantics
@@ -185,17 +185,19 @@ internal fun GridBookCard(
     // 状態フィルタ（readingStatusFor）と同じ値を共有する。
     totalChaps: Int,
     onOpen: () -> Unit,
-    onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    // 選択モード（残8・複数選択削除）: true の間はタップ=選択トグル・長押しも選択トグル。
+    // selected=この本が選択済み。onEnterSelection=通常時の長押しで選択モードへ入る（この本を選択して開始）。
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
+    onEnterSelection: () -> Unit = {},
     // 本棚がこの本を「初めて読了として描く」瞬間だけ true＝朱印を一度だけ押印する（案A・ADR0014 §motion 追補）。
     // 既読了の再描画・スクロール・起動時の既読了は false＝静的表示（初回一回きり）。判定と記録は呼び出し側が持つ。
     playSealStamp: Boolean = false,
     // 押印アニメ完了時に呼ぶ。呼び出し側が「押印済み」を記録して二度と再生しないためのラッチ。
     onSealStamped: () -> Unit = {},
 ) {
-    // 削除メニューの開閉状態（長押しで開く）
-    var menuExpanded by remember { mutableStateOf(false) }
-
     val chapNum = chapterNumberOf(progress?.lastReadFilename)
 
     // 最終章の章内スクロールを加味して「開いた瞬間100%」の嘘を消す（F-N・詳細は progressFractionFor）。
@@ -218,19 +220,18 @@ internal fun GridBookCard(
     )
 
     // モック .bk: カード地・影・角丸チップを廃したフラット構図。書影＋メタを地に直接置く。
-    // クリック=開く / 長押し=削除メニュー。
-    // 栞系モックはフラット構図＝可視の⋮を持たない。削除は長押しメニューへ一本化する。
+    // 通常＝クリックで開く / 長押しで選択モードに入る（残8・案B裁定）。選択モード中はタップで選択トグル。
     Column(
         modifier = modifier
             // TalkBack で1冊=1トラバーサル単位に束ねる（critic Major 2026-07-12）。題字/著者/進捗/続きバッジが
-            // 個別ノードに割れて何度もスワイプさせる問題を解消する。長押し削除は onLongClick に残る。
+            // 個別ノードに割れて何度もスワイプさせる問題を解消する。
             .semantics(mergeDescendants = true) {}
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current,
-                onClick = onOpen,
-                onLongClick = { menuExpanded = true },
+                onClick = { if (selectionMode) onToggleSelect() else onOpen() },
+                onLongClick = { if (selectionMode) onToggleSelect() else onEnterSelection() },
             ),
     ) {
         // 書影＝栞（紙地＋色の棒＋先端＋表紙内の縦組み明朝題字）。角丸3px（モック .cv）。
@@ -254,6 +255,16 @@ internal fun GridBookCard(
                 persistedTipIndex = book.shioriTipIndex,
                 persistedLenFrac = book.shioriLenFrac,
             )
+            // 選択中は書影へ藍の細縁取り＋淡い藍かぶせ（正本 .bk.sel .cv）。書影画像の上に重ねる。
+            if (selected) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
+                        .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp)),
+                )
+            }
             // 朱印「了」（読了バッジ）。正本 grid-D .seal: 19dp角・角丸2dp・左下9dp・枠1dp・明朝 SemiBold 9.5sp。
             // なぜ左下か（2026-07-12）: 右下だと表紙内の縦組み題字（右起点で読む）と重なるため左下へ移した
             //（正本 .seal も right→left に同期）。朱色は accent（title 由来色相）と無関係の固定「読了の徴」＝専用トークン。
@@ -311,12 +322,13 @@ internal fun GridBookCard(
                     )
                 }
             }
-            // 削除メニューのアンカー（可視の⋮は持たず長押しで開く。栞モックはフラット構図）。
-            Box(modifier = Modifier.align(Alignment.TopEnd)) {
-                DeleteDropdownMenu(
-                    expanded = menuExpanded,
-                    onDismiss = { menuExpanded = false },
-                    onDelete = { menuExpanded = false; onDelete() },
+            // 選択モード中は書影右上に選択マーク（正本 .chk）。全書影に丸が出る＝非選択は白リング。
+            if (selectionMode) {
+                SelectionCheck(
+                    selected = selected,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(Spacing.S8),
                 )
             }
         }
@@ -369,13 +381,12 @@ internal fun ListBookCard(
     // 状態フィルタ（readingStatusFor）と同じ値を共有する。
     totalChaps: Int,
     onOpen: () -> Unit,
-    onDelete: () -> Unit,
-    deleteUiMode: Int,
     modifier: Modifier = Modifier,
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
+    onEnterSelection: () -> Unit = {},
 ) {
-    // 削除メニューの開閉状態（⋮タップ または 長押しで開く）
-    var menuExpanded by remember { mutableStateOf(false) }
-
     val chapNum = chapterNumberOf(progress?.lastReadFilename)
 
     // 最終章の章内スクロールを加味して「開いた瞬間100%」の嘘を消す（F-N・詳細は progressFractionFor）。
@@ -407,12 +418,17 @@ internal fun ListBookCard(
                 // ため別フォーカスとして残る＝「本1ノード＋⋮1ノード」の2単位になり、題字/著者/進捗の分割読みを解消。
                 .semantics(mergeDescendants = true) {}
                 .graphicsLayer { scaleX = scale; scaleY = scale }
+                // 選択中は行全体に淡い藍かぶせ（正本 .bk.sel 相当・目録は色帯があるため控えめに）。
+                .background(
+                    if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                    else Color.Transparent
+                )
                 .combinedClickable(
                     interactionSource = interactionSource,
                     indication = LocalIndication.current,
-                    onClick = onOpen,
-                    // 長押しは方式に依らず常時有効（M5: ⋮のフォールバック）。deleteUiMode は⋮の可視のみ制御。
-                    onLongClick = { menuExpanded = true },
+                    onClick = { if (selectionMode) onToggleSelect() else onOpen() },
+                    // 通常は長押しで選択モードへ・選択モード中はタップ/長押しで選択トグル（残8・案B裁定）。
+                    onLongClick = { if (selectionMode) onToggleSelect() else onEnterSelection() },
                 )
                 // 色帯を行の高さいっぱいに伸ばすため、行の高さを内容の最小内在高さに合わせる。
                 .height(IntrinsicSize.Min)
@@ -477,23 +493,10 @@ internal fun ListBookCard(
                     modifier = Modifier.padding(top = Spacing.S4),
                 )
             }
-            // 削除アフォーダンス。⋮方式(1・既定)のみ行末にボタン（M5: 削除の可視手がかり）。0は長押しのみ。
-            // Box は方式に関わらず DropdownMenu のアンカーとして常設する。
-            Box {
-                if (deleteUiMode == 1) {
-                    IconButton(onClick = { menuExpanded = true }) {
-                        Icon(
-                            Icons.Filled.MoreVert,
-                            contentDescription = "メニュー",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                DeleteDropdownMenu(
-                    expanded = menuExpanded,
-                    onDismiss = { menuExpanded = false },
-                    onDelete = { menuExpanded = false; onDelete() },
-                )
+            // 選択モード中は行末に選択マーク（正本 .chk）。選択で藍塗り＋白チェック。
+            if (selectionMode) {
+                Spacer(Modifier.width(Spacing.S8))
+                SelectionCheck(selected = selected)
             }
         }
         // 行下のヘアライン区切り（モック .li の border-bottom 1px、本棚系 --hl）
@@ -505,26 +508,33 @@ internal fun ListBookCard(
 }
 
 // ============================================================
-// カードメニュー（⋮タップ・長押し共通のドロップダウン）
-// 一時機構：削除UIの採用方式が確定したら呼び出し側の分岐ごと整理する。
+// 選択マーク（残8・複数選択削除。正本 bookshelf-multiselect-D .chk）
+// 選択モード中は全書影/全行に出す。非選択=白リング＋暗いスクリム（任意の書影色の上で視認）／
+// 選択=藍塗り＋白チェック。選択塗り＝primary(藍トークン)。リング/スクリムは画像可読性のための
+// 固定色（朱印バッジと同じ発想＝テーマ色に紐づかない用途）。
 // ============================================================
 @Composable
-private fun DeleteDropdownMenu(
-    expanded: Boolean,
-    onDismiss: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
-        DropdownMenuItem(
-            text = { Text("削除") },
-            onClick = onDelete,
-            leadingIcon = {
-                Icon(
-                    Icons.Outlined.DeleteOutline,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                )
-            },
-        )
+private fun SelectionCheck(selected: Boolean, modifier: Modifier = Modifier) {
+    val primary = MaterialTheme.colorScheme.primary
+    Box(
+        modifier = modifier
+            .size(22.dp)
+            .clip(CircleShape)
+            .background(if (selected) primary else Color.Black.copy(alpha = 0.26f))
+            .border(
+                1.5.dp,
+                if (selected) primary else Color.White.copy(alpha = 0.9f),
+                CircleShape,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (selected) {
+            Icon(
+                Icons.Filled.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(14.dp),
+            )
+        }
     }
 }

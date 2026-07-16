@@ -64,6 +64,31 @@ class SplitIntoChaptersTest {
         assertEquals(listOf("本文"), result[0].body)
     }
 
+    @Test fun noTitleMarkersWithFallbackUsesFallbackTitle() {
+        // 単話（マーカー皆無）＋fallback指定 → 単一章タイトルは fallback（表紙由来の作品タイトル相当）
+        val result = ChapterProcessor.splitIntoChapters(listOf("本文A", "本文B"), "作品タイトルX")
+        assertEquals(1, result.size)
+        assertEquals("作品タイトルX", result[0].title)
+        assertEquals(listOf("本文A", "本文B"), result[0].body)
+    }
+
+    @Test fun noTitleMarkersWithoutFallbackKeepsDefaultTitle() {
+        // マーカー皆無＋引数省略 → 従来どおり既定タイトル（既存挙動不変）
+        val result = ChapterProcessor.splitIntoChapters(listOf("本文A", "本文B"))
+        assertEquals(1, result.size)
+        assertEquals("作品情報・プロローグ", result[0].title)
+    }
+
+    @Test fun withTitleMarkerFallbackDoesNotAffectLeadingBody() {
+        // マーカー有り＋fallback指定 → 先頭本文群は従来どおり「作品情報・プロローグ」章（fallback は無効）
+        val paragraphs = listOf("先頭本文", "【題名】第一話", "本文1")
+        val result = ChapterProcessor.splitIntoChapters(paragraphs, "作品タイトルX")
+        assertEquals(2, result.size)
+        assertEquals("作品情報・プロローグ", result[0].title)
+        assertEquals(listOf("先頭本文"), result[0].body)
+        assertEquals("第一話", result[1].title)
+    }
+
     @Test fun afterwordSubstringInChapterTitleIsSplit() {
         // タイトルに「後書き」を含む話も通常章として分離される
         val paragraphs = listOf("【題名】第一話", "本文1", "【題名】第五話　後書きの話", "本文2")

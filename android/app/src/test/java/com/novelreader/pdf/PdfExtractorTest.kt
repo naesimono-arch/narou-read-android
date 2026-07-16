@@ -7,7 +7,8 @@ import org.junit.Test
 /**
  * PdfExtractor の純関数（表紙メタ抽出）テスト。
  * 移植元: submission-B MetaAndCompareTest の TitleFromCharsTest / AuthorFromCharsTest（JUnit5→JUnit4）。
- * GlyphStripper/loadPages は実 PDF I/O ゆえ JVM 単体では走らせず実機 androidTest / オラクルへ回す（設計判断）。
+ * GlyphStripper/loadPages を含む実 PDF I/O の回帰は [JvmGoldenRegressionTest]（Robolectric）が担う
+ * （旧記述「JVM 単体では実 PDF を走らせない」は 2026-07-16 に実測で覆った＝docs/knowledge/robolectric-pdfbox-android-real-pdf-parity.md）。
  */
 class PdfExtractorTest {
 

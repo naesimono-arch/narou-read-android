@@ -37,7 +37,7 @@
 
 ## ドメイン知識（ポインタ）
 
-- PDF解析の定数・ルール → `android/app/src/main/java/com/novelreader/pdf/ParserRules.kt` を直接参照
+- PDF解析のルール → 文書ごと自動検出 `android/app/src/main/java/com/novelreader/pdf/DetectedRules.kt`（検出不能時のフォールバック定数＝同 `ParserRules.kt`）を直接参照
 - OPPO/ColorOS 固有動作 → `/device-verify`（§4 の症状→対処表）経由で `task_diary.md`
 - フック（`.claude/hooks/`）の新規作成・改修 → 先に `task_diary.md` #26/#28 と `docs/decisions/0004`・`0008` を確認（いずれもサイレント失敗クラス＝既存フックの雛形コピーだけで書き始めない）
 - 実行捏造検知器 → エンジン `.claude/hooks/detect_fabricated_execution_core.py`／CLI `analyze_transcript.py`／正解データ `docs/reference/hallucination-ground-truth.md`
