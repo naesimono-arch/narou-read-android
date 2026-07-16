@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.theme.FontMicroLabel
+import com.novelreader.ui.theme.LocalSkinTokens
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
@@ -135,53 +136,59 @@ internal fun ReadingSettingsSheetContent(
             fontSize = FontMicroLabel,
             color = colors.infoText,
         )
-        Spacer(Modifier.height(Spacing.S16))
-        Text(
-            text = "テーマ",
-            style = MaterialTheme.typography.labelMedium,
-        )
-        Spacer(Modifier.height(Spacing.S8))
-        // 選択色をアクセント(朱)に統一する（M3 既定の secondaryContainer=青鼠を避け主役色へ）。
-        // システムテーマでなく読書テーマの colors を使い、シート背景(colors.background)と調和させる。
-        val themeChipColors = FilterChipDefaults.filterChipColors(
-            labelColor = colors.text,
-            selectedContainerColor = colors.accent,
-            selectedLabelColor = colors.background,
-        )
-        // なぜ FlowRow か: チップが4つ（システムに従う＋ライト/セピア/ダーク）になり、狭幅端末で
-        // 素の Row だと横に溢れて末尾チップが見切れる。溢れたら次行へ折り返して全チップの可視を保つ。
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
-            verticalArrangement = Arrangement.spacedBy(Spacing.S8),
-        ) {
-            // 「システムに従う」= 未宣言（reading_theme prefs 削除）へ戻す選択肢。
-            // なぜ必要か（監査 settings Minor 19-B/H）: 一度でも明示テーマを押すと prefs に固定され、
-            // 二度と「OS のライト/ダークに自動追従」へ戻せず、夜に暗くなる既定挙動を失っていた。この
-            // チップ選択で呼び出し側が prefs を remove して未宣言（＝追従）へ復帰させる（配線は MainActivity）。
-            FilterChip(
-                selected = followingSystem,
-                onClick = onFollowSystem,
-                label = { Text("システムに従う") },
-                colors = themeChipColors,
+        // テーマ節はスキンが複数変種を持つときだけ出す（C夜行=DARK固定の1変種では選べるものが無く、
+        // 出すと「押しても変わらないチップ」になる）。畳んでも "reading_theme" prefs には触れない＝
+        // D へ復帰したとき前回のテーマ宣言（追従含む）がそのまま復元される（handover A2 P2 の要件）。
+        val skinHasThemeChoice = LocalSkinTokens.current.supportedThemes.size > 1
+        if (skinHasThemeChoice) {
+            Spacer(Modifier.height(Spacing.S16))
+            Text(
+                text = "テーマ",
+                style = MaterialTheme.typography.labelMedium,
             )
-            // values() を使うのは Kotlin バージョン非依存のため（entries は 1.9+）
-            ReadingTheme.values().forEach { theme ->
+            Spacer(Modifier.height(Spacing.S8))
+            // 選択色をアクセント(朱)に統一する（M3 既定の secondaryContainer=青鼠を避け主役色へ）。
+            // システムテーマでなく読書テーマの colors を使い、シート背景(colors.background)と調和させる。
+            val themeChipColors = FilterChipDefaults.filterChipColors(
+                labelColor = colors.text,
+                selectedContainerColor = colors.accent,
+                selectedLabelColor = colors.background,
+            )
+            // なぜ FlowRow か: チップが4つ（システムに従う＋ライト/セピア/ダーク）になり、狭幅端末で
+            // 素の Row だと横に溢れて末尾チップが見切れる。溢れたら次行へ折り返して全チップの可視を保つ。
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                verticalArrangement = Arrangement.spacedBy(Spacing.S8),
+            ) {
+                // 「システムに従う」= 未宣言（reading_theme prefs 削除）へ戻す選択肢。
+                // なぜ必要か（監査 settings Minor 19-B/H）: 一度でも明示テーマを押すと prefs に固定され、
+                // 二度と「OS のライト/ダークに自動追従」へ戻せず、夜に暗くなる既定挙動を失っていた。この
+                // チップ選択で呼び出し側が prefs を remove して未宣言（＝追従）へ復帰させる（配線は MainActivity）。
                 FilterChip(
-                    // 追従中は明示3択をどれも未選択にする（「今どれで表示中か」ではなく「何を宣言したか」を表す。
-                    // 追従中は宣言が無い＝3択は未選択で、上の「システムに従う」だけが選択状態になる）。
-                    selected = !followingSystem && readingTheme == theme,
-                    onClick = { onThemeChange(theme) },
-                    label = {
-                        Text(
-                            when (theme) {
-                                ReadingTheme.LIGHT -> "ライト"
-                                ReadingTheme.SEPIA -> "セピア"
-                                ReadingTheme.DARK -> "ダーク"
-                            }
-                        )
-                    },
+                    selected = followingSystem,
+                    onClick = onFollowSystem,
+                    label = { Text("システムに従う") },
                     colors = themeChipColors,
                 )
+                // values() を使うのは Kotlin バージョン非依存のため（entries は 1.9+）
+                ReadingTheme.values().forEach { theme ->
+                    FilterChip(
+                        // 追従中は明示3択をどれも未選択にする（「今どれで表示中か」ではなく「何を宣言したか」を表す。
+                        // 追従中は宣言が無い＝3択は未選択で、上の「システムに従う」だけが選択状態になる）。
+                        selected = !followingSystem && readingTheme == theme,
+                        onClick = { onThemeChange(theme) },
+                        label = {
+                            Text(
+                                when (theme) {
+                                    ReadingTheme.LIGHT -> "ライト"
+                                    ReadingTheme.SEPIA -> "セピア"
+                                    ReadingTheme.DARK -> "ダーク"
+                                }
+                            )
+                        },
+                        colors = themeChipColors,
+                    )
+                }
             }
         }
         // スライダー共通色。モック settings-D は目盛りドットを持たない細線＋藍フィルのため、

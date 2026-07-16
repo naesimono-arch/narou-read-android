@@ -37,6 +37,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
@@ -100,6 +101,8 @@ fun BookshelfScreen(
     onThemeChange: (ReadingTheme) -> Unit,
     onOpenBook: (bookId: String, startFile: String) -> Unit,
     onOpenDiscovery: () -> Unit,
+    // 装いの間（UIスキン選択）への入口。入口は本棚トップバーのみ（意図的設計＝ADR 0021 決定7）。
+    onOpenWardrobe: () -> Unit = {},
     // (b) Web由来カードの「縦書きPDFを取り込む」→ 取り込み画面（discovery/detail/{ncode}/import）への
     // ナビゲーション。navController は MainActivity が握るためコールバックで委譲する。
     onImportWebNovel: (ncode: String) -> Unit = {},
@@ -234,6 +237,7 @@ fun BookshelfScreen(
         },
         onDeleteBooks = { viewModel.deleteBooks(it) },
         onOpenDiscovery = onOpenDiscovery,
+        onOpenWardrobe = onOpenWardrobe,
         onCancelProcessing = { viewModel.cancelProcessing() },
         snackbarHostState = snackbarHostState,
         // (b)+機能②: Web由来カードのタップ＝なろうをアプリ内 WebView で開く（目次＝startEpisode 0・ADR 0012）。
@@ -409,6 +413,8 @@ internal fun BookshelfContent(
     onOpenBook: (BookEntity) -> Unit,
     onDeleteBooks: (List<BookEntity>) -> Unit,
     onOpenDiscovery: () -> Unit,
+    // 装いの間への入口（既定 no-op＝既存テスト・呼び出しの互換のため）。
+    onOpenWardrobe: () -> Unit = {},
     onCancelProcessing: () -> Unit,
     snackbarHostState: SnackbarHostState,
     // (b) Web由来・未取込カードの操作。既定 no-op は既存テスト・呼び出しの互換のため
@@ -551,6 +557,13 @@ internal fun BookshelfContent(
                             Icon(
                                 imageVector = if (isGridView) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView,
                                 contentDescription = if (isGridView) "リスト表示" else "グリッド表示",
+                            )
+                        }
+                        // 装いの間（UIスキン選択）への入口。入口は本棚のみ＝意図的設計（ADR 0021 決定7）。
+                        IconButton(onClick = onOpenWardrobe) {
+                            Icon(
+                                imageVector = Icons.Filled.Checkroom,
+                                contentDescription = "着せ替え",
                             )
                         }
                         // ⋮ オーバーフロー（モック .top の第2アクション）。

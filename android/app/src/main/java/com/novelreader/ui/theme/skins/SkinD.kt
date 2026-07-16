@@ -19,6 +19,9 @@ object SkinD : SkinTokens {
     override val supportedThemes: List<ReadingTheme> =
         listOf(ReadingTheme.LIGHT, ReadingTheme.SEPIA, ReadingTheme.DARK)
 
+    // D の署名色は藍（wardrobe-D.html msD の acc 線 #1C3D5A と同値＝PrimaryLight を流用）。
+    override val signatureAccent: Color = PrimaryLight
+
     // 初弾は全スキンとも共有の本文タイポ（原則5「静謐は機能」＝字面はスキン間で不変）。
     override val typography: Typography = NovelReaderTypography
 

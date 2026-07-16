@@ -25,6 +25,9 @@ object SkinC : SkinTokens {
     // C は固定1変種＝DARK 相当のみ（ADR 0021 決定2）。将来変種を足すならここへ追加する。
     override val supportedThemes: List<ReadingTheme> = listOf(ReadingTheme.DARK)
 
+    // C の署名色は灯火 ember（wardrobe-D.html msC の acc 線 #C79A6A と同値＝EmberYako を流用）。
+    override val signatureAccent: Color = EmberYako
+
     // 初弾は全スキンとも共有の本文タイポ（原則5「静謐は機能」＝字面はスキン間で不変）。
     override val typography: Typography = NovelReaderTypography
 

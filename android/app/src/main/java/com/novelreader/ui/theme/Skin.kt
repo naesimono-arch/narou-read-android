@@ -15,14 +15,26 @@ import com.novelreader.ui.theme.skins.SkinD
 // ============================================================
 
 /**
- * UIスキンの選択軸。永続化は将来 `.name`（P2 で SharedPreferences `"app_skin"` へ）。
+ * UIスキンの選択軸。永続化は `.name` を SharedPreferences `"app_skin"` へ（キー不在=D）。
  * 並び順は装いの間カルーセルと同じ「和モダン → 夜行」（ADR 0021 決定7）。
  *
  * スキン値の追加規約: 未実装の値を先出しすると `Skin.tokens` の when が「実装のない分岐／D へフォールバック
  * する嘘の分岐」になる。ゆえにスキンの追加は必ず対応する SkinX.kt 実装と同じコミットで行う
  * （P3 で YAKO_C＝夜行C を SkinC 実装と同時に追加）。
+ *
+ * displayName/tagline は装いの間カルーセルの表示文言（正本＝wardrobe-D.html の cname/cone）。
  */
-enum class Skin { WAMODERN_D, YAKO_C }
+enum class Skin(val displayName: String, val tagline: String) {
+    WAMODERN_D("和モダン", "白と藍・標準の装い"),
+    YAKO_C("夜行", "深炭と温白・夜の没入"),
+}
+
+/**
+ * 永続化文字列からの復元。`valueOf` を直接使わない理由: 将来スキンを削除・改名した既存端末で
+ * 保存値が不正になってもクラッシュさせず既定 D へ静かに戻すため（"reading_theme" と同じ防御）。
+ */
+fun skinFromName(name: String?): Skin =
+    name?.let { runCatching { Skin.valueOf(it) }.getOrNull() } ?: Skin.WAMODERN_D
 
 /**
  * 栞書影の紙／墨／識別色明度。スキンが明示供給する。
@@ -42,6 +54,7 @@ data class ShioriColors(
  */
 interface SkinTokens {
     val supportedThemes: List<ReadingTheme>          // D=3種・C=listOf(DARK) の1変種
+    val signatureAccent: Color                       // スキンの署名色（装いの間ミニチュアの accent 線。D=藍・C=灯火）
     fun material(theme: ReadingTheme): ColorScheme   // Material3 カラースキーム
     fun reading(theme: ReadingTheme): ReadingColors  // 読書画面の固有配色
     fun shelf(theme: ReadingTheme): ShelfColors      // 本棚系の家系トークン
