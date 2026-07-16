@@ -1,0 +1,243 @@
+<!-- @dsCard group="UI-n / 本棚（スキン候補）" name="O. 短冊（たんざく・縦組みの吊るし棚）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n O 本棚 — 短冊</title>
+<!--
+  思想: タイトルは縦書きの短冊。日本語の文字組みそのものが意匠であり、作品＝掛けから吊るされた縦長の短冊。
+  署名要素: writing-mode:vertical-rl の縦組み題字が画面の主軸／御神籤掛けの横棒から不揃いに垂れる紐と結び目／
+            進捗＝短冊の裾染め（下からの染め上がり）／墨＋和紙の地＋一点色＝朱。
+  破壊するもの: 横書きUIの常識と「topbar＋2列グリッド＋FAB」。主軸を縦組みに倒し、一覧をグリッドでなく吊るし棚にする。
+  避けたもの: 彩度の暴走（染め・識別色はすべて明度高め・低彩度）／写実の掛け軸・笹の葉（記号化に留める）／D同形のグリッド。
+  UIコメントはすべて日本語。外部読込ゼロ（フォントはローカルフォールバックのみ）。
+-->
+<style>
+  :root{
+    /* 地＝和紙・墨。装飾有彩色は「朱」1系統のみ（作品識別色は別枠＝下記 --id-*） */
+    --plaster:#E7DDC7;      /* 壁（掛けが下がる背後の地） */
+    --washi:#F6F1E5;        /* 短冊の紙 */
+    --washi-edge:#E9E1CE;   /* 紙の縁の陰 */
+    --ink:#241F17;          /* 墨（題字） */
+    --ink-soft:#726A52;     /* 淡墨（補助＝著者・ヒント。washi上4.7:1・沈めてよい層） */
+    --meta:#6B6250;         /* 裾札の意味を運ぶ数値（話数・%・未読）＝札上4.5:1以上を確保 */
+    --line:#D8CDB4;         /* ヘアライン */
+    --shu:#A9553C;          /* 一点色＝朱（紐・結び・続き動線・スキン署名） */
+    --shu-soft:#C08972;
+    /* 作品識別色（1冊=1色相・裾染め用。すべて低彩度・高明度で「毒々しさ」を回避） */
+    --id-moss:#8A9463;      /* 苔（薬師・スローライフ） */
+    --id-ai:#6E7C96;        /* 藍鼠（黒の魔王） */
+    --id-fuji:#9187A8;      /* 藤（公爵令嬢） */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","YuMincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#CFC3A6;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:30px;font-family:var(--gothic)}
+  .cap{color:#5c5540;font-size:13px;margin-bottom:16px;text-align:center;line-height:1.7;max-width:520px}
+  .cap b{color:#33301f}
+
+  /* スマホ枠 390×844 */
+  .phone{width:390px;height:844px;border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column;
+    background:
+      /* 壁の淡い縦の刷毛目＝和紙の地の記号化 */
+      repeating-linear-gradient(90deg,rgba(0,0,0,.012) 0 1px,transparent 1px 7px),
+      radial-gradient(130% 80% at 50% -10%,#EFE7D2,transparent 60%),
+      var(--plaster);
+    color:var(--ink);box-shadow:0 26px 60px rgba(60,48,24,.4)}
+  .sb{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--ink-soft);flex-shrink:0}
+
+  /* 見出し＝吊るした木札（横並びのtopbarではなく、棚に掛かる扁額として） */
+  .head{padding:8px 24px 4px;display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0}
+  .fuda{position:relative;background:linear-gradient(#efe6d0,#e3d8bd);border:1px solid #ccbf9f;border-radius:3px;
+    padding:8px 16px 12px;box-shadow:0 3px 8px rgba(60,48,24,.14)}
+  .fuda::before{content:"";position:absolute;left:50%;top:-9px;width:2px;height:9px;background:var(--shu);transform:translateX(-50%)}
+  .fuda::after{content:"";position:absolute;left:50%;top:-11px;width:7px;height:7px;border-radius:50%;
+    background:var(--shu);transform:translateX(-50%);box-shadow:0 0 0 2px rgba(169,85,60,.18)}
+  .fuda h1{font-family:var(--mincho);font-size:19px;font-weight:600;letter-spacing:.22em;color:#3a3423}
+  .fuda .sub{font-size:10px;letter-spacing:.14em;color:var(--ink-soft);margin-top:4px;text-align:center}
+  /* 装い（スキン切替）入口＝本棚トップのみ。小さな下げ札 */
+  .wear{align-self:flex-start;margin-top:4px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+  .wear .cord{width:2px;height:12px;background:var(--shu)}
+  .wear .tag{writing-mode:vertical-rl;font-family:var(--mincho);font-size:12px;letter-spacing:.14em;color:#5b5540;
+    background:#efe6d0;border:1px solid #cfc3a2;border-radius:3px;padding:8px 4px;line-height:1}
+
+  /* 掛け＝横棒。そこから短冊が不揃いに垂れる（御神籤掛け／笹飾りの記号化） */
+  .rack{flex:1;overflow-x:auto;overflow-y:hidden;padding:0 24px 16px;scrollbar-width:none}
+  .rack::-webkit-scrollbar{display:none}
+  .beam{position:relative;min-width:max-content;height:100%;padding-top:12px}
+  /* 横棒本体＝木の掛け。全短冊が"同じ棒"から垂れ、垂れ量（--hang）で不揃いになる */
+  .beam::before{content:"";position:absolute;top:12px;left:-40px;right:-40px;height:7px;border-radius:4px;z-index:0;
+    background:linear-gradient(#b9a677,#9c8a5f 60%,#8f7c52);box-shadow:0 3px 6px rgba(60,48,24,.22)}
+  .strips{display:flex;align-items:flex-start;gap:16px;height:100%;position:relative;z-index:1}
+
+  /* 短冊。margin-top=--hang で掛けから垂れ、cordが短冊天から棒（y=12）まで戻る＝全cordが同じ棒で終わる */
+  .tz{position:relative;width:96px;flex-shrink:0;cursor:pointer;margin-top:var(--hang)}
+  /* 吊り紐（掛けから短冊天へ・長さは垂れ量ぶんで不揃い） */
+  .tz .cord{position:absolute;left:50%;top:calc(-1 * var(--hang));width:2px;height:var(--hang);
+    background:linear-gradient(var(--shu),var(--shu-soft));transform:translateX(-50%)}
+  .tz .knot{position:absolute;left:50%;top:-6px;width:9px;height:9px;border-radius:50%;background:var(--shu);
+    transform:translateX(-50%);box-shadow:0 0 0 2px rgba(169,85,60,.16)}
+  /* 紙本体 */
+  .paper{position:relative;height:520px;border-radius:4px 4px 6px 6px;overflow:hidden;
+    background:
+      repeating-linear-gradient(0deg,rgba(0,0,0,.010) 0 1px,transparent 1px 6px),
+      linear-gradient(180deg,var(--washi),#f1ead9);
+    border:1px solid var(--washi-edge);
+    box-shadow:0 8px 18px rgba(60,48,24,.16),0 1px 3px rgba(0,0,0,.06)}
+  /* 裾染め＝進捗（下から識別色が染め上がる。高さ∝進捗%） */
+  .dye{position:absolute;left:0;right:0;bottom:0;height:var(--p,0%);z-index:0;
+    background:linear-gradient(180deg,color-mix(in srgb,var(--id) 0%,transparent),
+      color-mix(in srgb,var(--id) 26%,transparent) 24%,color-mix(in srgb,var(--id) 40%,transparent))}
+  /* 染めの上端＝滲み線 */
+  .dye::before{content:"";position:absolute;left:0;right:0;top:-2px;height:3px;
+    background:color-mix(in srgb,var(--id) 60%,transparent);filter:blur(1px)}
+  /* 題字＝縦組み（この画面の主軸）。詰めはletter-spacing詰め気味(.02em)・line-heightが列間。長題は右→左へ2列で折り返す */
+  .title{position:relative;z-index:2;writing-mode:vertical-rl;text-orientation:mixed;
+    font-family:var(--mincho);font-weight:600;font-size:18px;letter-spacing:.02em;line-height:1.68;color:var(--ink);
+    height:328px;padding:16px 8px 0;margin-left:auto;margin-right:auto;
+    text-align:start;overflow:hidden}
+  /* 著者＝縦組み小・淡墨（補助＝沈める層。題字が識別の主で著者は従） */
+  .by{position:relative;z-index:2;writing-mode:vertical-rl;font-family:var(--mincho);font-size:11px;
+    letter-spacing:.04em;color:var(--ink-soft);height:64px;padding-right:12px;margin-left:auto;overflow:hidden}
+  /* 裾札＝縫い付けた和紙タグ。裾染めは札の上に色帯として残り、意味を運ぶ数値は札上（≒和紙地）で4.5:1を満たす */
+  .hem{position:absolute;left:6px;right:6px;bottom:6px;z-index:2;padding:7px 6px 8px;text-align:center;
+    border-radius:2px 2px 3px 3px;border-top:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(246,241,229,.72),rgba(246,241,229,.94) 40%)}
+  .hem .ep{font-family:var(--mincho);font-size:12px;color:var(--ink);letter-spacing:.02em}
+  .hem .meta{font-family:var(--gothic);font-size:9.5px;color:var(--meta);margin-top:4px;letter-spacing:0;line-height:1.35}
+  .hem .pct{font-weight:700;color:var(--ink)}
+  /* 未読＝染めゼロの白短冊＋墨札。染まっていないことが「まだ読んでいない」の一次表現 */
+  .tz.unread .paper{background:linear-gradient(180deg,#fbf7ee,#f4eede)}
+  .hem .fresh{display:inline-block;font-family:var(--mincho);font-size:10px;letter-spacing:.1em;color:var(--meta);
+    border:1px solid var(--line);border-radius:2px;padding:3px 8px;margin-bottom:4px}
+
+  /* 続きから＝最前面の短冊。高く掲げ大きく・朱の栞が覗き・下端に結び房の「続き」動線 */
+  .tz.active{width:112px;z-index:5}
+  .tz.active .paper{height:556px;box-shadow:0 14px 30px rgba(60,48,24,.28),0 2px 6px rgba(0,0,0,.08)}
+  .tz.active .title{font-size:21px;height:352px}
+  .tz.active .knot{width:11px;height:11px;background:var(--shu);box-shadow:0 0 0 3px rgba(169,85,60,.2)}
+  /* 続きの栞＝紙から覗く朱の細片 */
+  .tz.active .paper::after{content:"";position:absolute;top:-1px;right:20px;width:9px;height:40px;
+    background:linear-gradient(var(--shu),var(--shu-soft));border-radius:0 0 2px 2px;z-index:3;box-shadow:0 2px 3px rgba(0,0,0,.15)}
+  /* 続き動線＝短冊の裾から下がる結び房ボタン */
+  .resume{position:relative;z-index:6;margin:8px auto 0;width:112px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+  .resume .drop{width:2px;height:12px;background:var(--shu)}
+  .resume .pill{display:flex;align-items:center;gap:8px;background:var(--shu);color:#fbf6ee;
+    font-size:12px;font-weight:700;letter-spacing:.04em;padding:12px 16px;border-radius:16px;
+    box-shadow:0 6px 14px rgba(169,85,60,.34)}
+  .resume .pill svg{width:12px;height:12px;fill:#fbf6ee}
+
+  /* PDF追加＝棚の右端に「新しい短冊を掛ける」空きスロット（破線の短冊＋結ぶ前の紐） */
+  .add{position:relative;width:96px;flex-shrink:0;cursor:pointer;margin-top:var(--hang)}
+  .add .cord{position:absolute;left:50%;top:calc(-1 * var(--hang));width:2px;height:var(--hang);
+    background:repeating-linear-gradient(var(--shu) 0 4px,transparent 4px 8px);transform:translateX(-50%)}
+  .add .knot{position:absolute;left:50%;top:-5px;width:8px;height:8px;border-radius:50%;
+    border:1.5px solid var(--shu);transform:translateX(-50%)}
+  .add .paper{height:520px;border:1.5px dashed #c4b691;border-radius:4px;background:rgba(255,255,255,.18);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+  .add .plus{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--shu);display:grid;place-items:center;color:var(--shu);font-size:22px;line-height:1;font-family:var(--mincho)}
+  .add .lbl{writing-mode:vertical-rl;font-family:var(--mincho);font-size:13px;letter-spacing:.08em;color:var(--meta);height:150px}
+
+  .foot{flex-shrink:0;text-align:center;padding:4px 0 16px;font-size:10.5px;color:var(--ink-soft);letter-spacing:.14em}
+</style>
+</head>
+<body>
+  <p class="cap"><b>O. 短冊（たんざく）</b> ／ 作品＝掛けから吊るした<b>縦書きの短冊</b>。日本語の文字組みが意匠。進捗は短冊の<b>裾染め</b>、未読は染まらぬ白紙、続きは最前面の朱の結び房。</p>
+
+  <div class="phone" role="img" aria-label="O案 短冊の吊るし棚">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+
+    <!-- 見出し＝掛かる木札／右は装い（スキン切替）の下げ札 -->
+    <div class="head">
+      <div class="fuda">
+        <h1>短冊棚</h1>
+        <div class="sub">四つの掛かり物</div>
+      </div>
+      <div class="wear" role="button" aria-label="装いを替える（スキン）">
+        <div class="cord"></div>
+        <div class="tag">装い</div>
+      </div>
+    </div>
+
+    <!-- 掛け＝横棒。短冊が不揃いに垂れる -->
+    <div class="rack">
+      <div class="beam">
+        <div class="strips">
+
+          <!-- ① 続きから＝最前面（127話・62%・苔染め） -->
+          <div class="tz active" style="--hang:14px" role="button" aria-label="追放された万能薬師、続きから読む">
+            <div class="cord"></div><div class="knot"></div>
+            <div class="paper" style="--id:var(--id-moss)">
+              <div class="dye" style="--p:62%"></div>
+              <div class="title">追放された万能薬師、辺境でスローライフを始める</div>
+              <div class="by">霧島あおい</div>
+              <div class="hem">
+                <div class="ep">第百二十七話</div>
+                <div class="meta">全340話　<span class="pct">62%</span></div>
+              </div>
+            </div>
+            <div class="resume" role="button" aria-label="続きを読む">
+              <div class="drop"></div>
+              <div class="pill"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg>続きを読む</div>
+            </div>
+          </div>
+
+          <!-- ② 黒の魔王（43話・28%・藍鼠染め） -->
+          <div class="tz" style="--hang:40px" role="button" aria-label="黒の魔王と契約した俺">
+            <div class="cord"></div><div class="knot"></div>
+            <div class="paper" style="--id:var(--id-ai)">
+              <div class="dye" style="--p:28%"></div>
+              <div class="title">黒の魔王と契約した俺、気づけば最強の従者になっていた</div>
+              <div class="by">夜灯すばる</div>
+              <div class="hem">
+                <div class="ep">第四十三話</div>
+                <div class="meta">全152話　<span class="pct">28%</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ③ 未読＝染まらぬ白短冊 -->
+          <div class="tz unread" style="--hang:22px" role="button" aria-label="転生したら最弱スキルだった・未読">
+            <div class="cord"></div><div class="knot"></div>
+            <div class="paper" style="--id:var(--id-moss)">
+              <div class="title">転生したら最弱スキルだったので、ひたすら草むしりしていた</div>
+              <div class="by">青葉みのり</div>
+              <div class="hem">
+                <div class="fresh">未読</div>
+                <div class="meta">全88話　まだ染まらず</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ④ 公爵令嬢（8話・11%・藤染め） -->
+          <div class="tz" style="--hang:48px" role="button" aria-label="公爵令嬢の嗜み">
+            <div class="cord"></div><div class="knot"></div>
+            <div class="paper" style="--id:var(--id-fuji)">
+              <div class="dye" style="--p:11%"></div>
+              <div class="title">公爵令嬢の嗜み　〜隣国で薬草園を開きます〜</div>
+              <div class="by">白河すずら</div>
+              <div class="hem">
+                <div class="ep">第八話</div>
+                <div class="meta">全210話　<span class="pct">11%</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ⑤ PDF追加＝新しい短冊を掛ける空きスロット -->
+          <div class="add" style="--hang:30px" role="button" aria-label="PDFを追加して新しい短冊を掛ける">
+            <div class="cord"></div><div class="knot"></div>
+            <div class="paper">
+              <div class="plus">＋</div>
+              <div class="lbl">新しい短冊を掛ける</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="foot">← 短冊をたぐって選ぶ →</div>
+  </div>
+</body>
+</html>

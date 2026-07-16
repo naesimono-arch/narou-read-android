@@ -1,0 +1,288 @@
+<!-- @dsCard group="UI-n / 本棚（スキン候補）" name="Q. 読書の庭（作品＝育つ株・進捗＝成長段階・続きから＝水をやる株）" -->
+<!--
+  思想: 本棚を「小さく手入れされた庭」とみなし、各作品を1株の草木として置く——読むほど株が育ち、進捗は成長段階そのものとして目に映る。
+  署名要素: ①一覧＝グリッドでなく「畝（うね）が縦に連なる庭」。左端に並ぶ株の背丈が、そのまま進捗のグラデーションになる（種→双葉→つぼみ→花→実）。
+            ②進捗バー（線）を廃し、株の成長＝進捗表現に一本化。「花がひらいた・62%」のように成長段階の語＋数値で三重に伝える。
+            ③「続きから」＝いま水をやる株。畝をそっと明るくし、株に一点の花色をともす（画面の唯一の強調）。
+            ④名札（識別色の小旗）を株ごとに立て、作品識別色を植物園ラベルとして品よく持たせる。
+  破壊するもの: 「topbar＋2列グリッド＋FAB」というD/量産スキンの外形と、独立した線状プログレスバー。
+  避けたもの: 彩度暴走（苔・土・葉の低彩度自然色＋花の一点色で抑制）／ゲーミフィケーションの子供っぽさ・写実イラスト（幾何学的に記号化した細線の植物で品を出す）／俯瞰マップに4タイトルを詰めて可読性を落とすこと（畝の一株＝一行で作品名・著者・段階を必ず読ませる）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n Q 本棚 — 読書の庭</title>
+<style>
+  :root{
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    --sand:#E7E1D4;      /* 庭の地（枯山水の砂・暖かな中立） */
+    --sand2:#EDE8DC;     /* 明るい地 */
+    --soil:#A6957A;      /* 土 */
+    --soil-dk:#8B7A62;   /* 影の土 */
+    --wet:#7E6E56;       /* 水をやった土 */
+    --furrow:#D8D0BF;    /* 畝の区切り（ヘアライン相当） */
+    --ink:#38372E;       /* 主文字（暖かな墨） */
+    --meta:#5C5A4B;      /* 補助文字（著者・話数＝意味を運ぶ→4.5:1確保） */
+    --moss:#5B6642;      /* 苔色の段階ラベル */
+    --bloom:#C98F6E;     /* 花の一点色（唯一の強調・水やり） */
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#2A2A24;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:30px;font-family:var(--gothic)}
+  .cap{color:#B7B29F;font-size:13px;line-height:1.75;text-align:center;max-width:520px;margin-bottom:16px}
+  .cap b{color:#EDE8DC}
+
+  .phone{width:390px;height:844px;background:var(--sand);border-radius:42px;overflow:hidden;position:relative;
+    display:flex;flex-direction:column;color:var(--ink);box-shadow:0 26px 64px rgba(0,0,0,.55)}
+  .sb{height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:11px;color:#8C8875;flex-shrink:0}
+
+  /* 見出し＝庭の名。道具箱でなく庭の入口として最小限に（上>下＝続く庭に密着） */
+  .head{padding:16px 24px 12px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
+  .head .gname{font-family:var(--mincho);font-size:25px;letter-spacing:.16em;color:var(--ink)}
+  .head .gsub{font-size:11px;color:var(--meta);margin-top:8px;letter-spacing:.04em}
+  .head .season{font-size:11px;color:var(--meta);letter-spacing:.14em;text-align:right;line-height:1.6}
+  .head .season b{font-family:var(--mincho);color:var(--moss);font-weight:500}
+
+  /* 成長の凡例＝初見で「読むほど育つ」を伝える教示帯 */
+  .legend{margin:0 24px 8px;padding:12px 16px;background:var(--sand2);border-radius:14px;display:flex;align-items:center;
+    gap:4px;flex-shrink:0}
+  .legend .lead{font-family:var(--mincho);font-size:11px;color:var(--moss);margin-right:4px;white-space:nowrap}
+  .legend .step{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1}
+  .legend .step svg{width:26px;height:30px;display:block}
+  .legend .step span{font-size:10px;color:var(--meta);letter-spacing:.02em}
+  .legend .arr{color:#C3BBA8;font-size:10px;flex-shrink:0}
+
+  /* 庭＝畝が縦に連なる。ここが本体 */
+  .garden{flex:1;overflow:auto;scrollbar-width:none;position:relative}
+  .garden::-webkit-scrollbar{display:none}
+  .rake{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+
+  .bed{position:relative;z-index:1;display:flex;align-items:stretch;gap:8px;padding:16px 24px;
+    border-top:1px solid var(--furrow);cursor:pointer}
+  .bed:first-child{border-top:none}
+  .bed .plot{width:100px;flex-shrink:0;display:flex;align-items:flex-end;justify-content:center}
+  .bed .plot svg{width:100px;height:138px;display:block}
+  .bed .info{flex:1;display:flex;flex-direction:column;justify-content:center;min-width:0}
+  .bed .ttl{font-family:var(--mincho);font-size:15.5px;line-height:1.45;color:var(--ink);font-weight:500}
+  .bed .by{font-size:11px;color:var(--meta);margin-top:8px;letter-spacing:.03em}
+  .bed .stage{display:flex;align-items:baseline;gap:8px;margin-top:12px}
+  .bed .stage .st{font-family:var(--mincho);font-size:12.5px;color:var(--moss)}
+  .bed .stage .ep{font-size:10.5px;color:var(--meta)}
+  .bed .stage .pct{font-size:11px;color:var(--moss);font-weight:600;font-family:var(--gothic)}
+
+  /* 未読の株＝段階ラベルを控えめに区別 */
+  .bed.seed .stage .st{color:#7C7A66}
+
+  /* いま水をやる株＝画面唯一の強調。強調は「足す」でなく他を沈めて作る＝唯一のsolidボタン(水やり)が
+     階層を担い、畝はそっと明るくする地色のみ（左罫などの加算装飾は置かない）。開花は最も育った株の
+     自然な頂点＝進捗表現の一部で、追加された強調ではない。 */
+  .bed.now{background:linear-gradient(90deg,rgba(201,143,110,.13),rgba(201,143,110,.04) 70%,transparent);
+    border-top:none}
+  .bed.now + .bed{border-top:none}
+  .water{margin-top:16px;align-self:flex-start;display:inline-flex;align-items:center;gap:8px;
+    background:#47523A;color:#F2EDE1;border:none;border-radius:12px;padding:12px 16px;font-size:13.5px;font-weight:600;
+    font-family:var(--gothic);cursor:pointer;box-shadow:0 6px 16px rgba(71,82,58,.3)}
+  .water svg{width:16px;height:16px}
+  .water .drop{fill:var(--bloom)}
+
+  /* 種をまく＝PDF取り込み動線。空いた畝として庭に置く */
+  .sow{margin:8px 24px 24px;padding:16px;border:1.5px dashed #C6BCA6;border-radius:16px;display:flex;align-items:center;
+    justify-content:center;gap:8px;cursor:pointer;color:var(--meta)}
+  .sow svg{width:20px;height:20px}
+  .sow .t{font-family:var(--mincho);font-size:13px;color:var(--moss)}
+  .sow .t small{display:block;font-family:var(--gothic);font-size:10px;color:var(--meta);margin-top:4px;letter-spacing:.02em}
+</style>
+</head>
+<body>
+  <p class="cap"><b>Q. 読書の庭</b> ／ 本棚を「手入れされた小さな庭」に。作品は<b>1株の草木</b>——読むほど育ち（種→双葉→つぼみ→花）、進捗は<b>株の成長段階</b>そのものになる。続きから＝いま<b>水をやる株</b>。</p>
+
+  <div class="phone" role="img" aria-label="Q案 読書の庭の本棚">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+
+    <!-- 庭の入口。道具（topbar）でなく庭の名と季節だけ -->
+    <div class="head">
+      <div>
+        <div class="gname">読書の庭</div>
+        <div class="gsub">四つの株が、それぞれの季節にいます</div>
+      </div>
+      <div class="season">晴 · 立秋<br><b>今日もひと株</b></div>
+    </div>
+
+    <!-- 成長の凡例＝メタファーを初見で伝える -->
+    <div class="legend" aria-label="成長段階の凡例：読むほど株が育つ">
+      <span class="lead">読むほど、育つ</span>
+      <!-- 種 -->
+      <div class="step">
+        <svg viewBox="0 0 26 30"><ellipse cx="13" cy="26" rx="10" ry="3" fill="#C7BCA5"/><ellipse cx="13" cy="22" rx="3" ry="4.5" fill="#8B7A62"/></svg>
+        <span>種</span>
+      </div>
+      <span class="arr">›</span>
+      <!-- 双葉 -->
+      <div class="step">
+        <svg viewBox="0 0 26 30"><ellipse cx="13" cy="26" rx="10" ry="3" fill="#C7BCA5"/><path d="M13 25 V16" stroke="#5F6B44" stroke-width="1.6" fill="none"/><ellipse cx="9" cy="15" rx="4.4" ry="2.4" transform="rotate(-28 9 15)" fill="#93A06F"/><ellipse cx="17" cy="15" rx="4.4" ry="2.4" transform="rotate(28 17 15)" fill="#93A06F"/></svg>
+        <span>双葉</span>
+      </div>
+      <span class="arr">›</span>
+      <!-- つぼみ -->
+      <div class="step">
+        <svg viewBox="0 0 26 30"><ellipse cx="13" cy="26" rx="10" ry="3" fill="#C7BCA5"/><path d="M13 25 V10" stroke="#5F6B44" stroke-width="1.6" fill="none"/><ellipse cx="8" cy="18" rx="4.2" ry="2.3" transform="rotate(-32 8 18)" fill="#93A06F"/><ellipse cx="18" cy="15" rx="4.2" ry="2.3" transform="rotate(32 18 15)" fill="#93A06F"/><path d="M13 10 q-3 -5 0 -8 q3 3 0 8Z" fill="#86728F"/></svg>
+        <span>つぼみ</span>
+      </div>
+      <span class="arr">›</span>
+      <!-- 花 -->
+      <div class="step">
+        <svg viewBox="0 0 26 30"><ellipse cx="13" cy="26" rx="10" ry="3" fill="#C7BCA5"/><path d="M13 25 V11" stroke="#5F6B44" stroke-width="1.6" fill="none"/><ellipse cx="8" cy="19" rx="4" ry="2.2" transform="rotate(-32 8 19)" fill="#93A06F"/><g transform="translate(13 8)"><g><ellipse cx="0" cy="-4.4" rx="2.2" ry="3.6" fill="#C98F6E"/></g><g transform="rotate(72)"><ellipse cx="0" cy="-4.4" rx="2.2" ry="3.6" fill="#C98F6E"/></g><g transform="rotate(144)"><ellipse cx="0" cy="-4.4" rx="2.2" ry="3.6" fill="#C98F6E"/></g><g transform="rotate(216)"><ellipse cx="0" cy="-4.4" rx="2.2" ry="3.6" fill="#C98F6E"/></g><g transform="rotate(288)"><ellipse cx="0" cy="-4.4" rx="2.2" ry="3.6" fill="#C98F6E"/></g><circle r="1.9" fill="#C2A15E"/></g></svg>
+        <span>花</span>
+      </div>
+      <span class="arr">›</span>
+      <!-- 実（読了） -->
+      <div class="step">
+        <svg viewBox="0 0 26 30"><ellipse cx="13" cy="26" rx="10" ry="3" fill="#C7BCA5"/><path d="M13 25 V11" stroke="#5F6B44" stroke-width="1.6" fill="none"/><ellipse cx="8" cy="18" rx="4" ry="2.2" transform="rotate(-32 8 18)" fill="#93A06F"/><ellipse cx="18" cy="16" rx="4" ry="2.2" transform="rotate(32 18 16)" fill="#93A06F"/><circle cx="13" cy="8" r="4.2" fill="#B4894F"/><path d="M13 4 q1.6 -2 3 -2" stroke="#5F6B44" stroke-width="1.4" fill="none"/></svg>
+        <span>実（読了）</span>
+      </div>
+    </div>
+
+    <!-- 庭本体：畝が縦に連なる。左端の株の背丈＝進捗のグラデーション -->
+    <div class="garden">
+      <!-- うっすら枯山水の砂紋（作品が実画像を持たない制約を、庭の地として誠実に埋める） -->
+      <svg class="rake" viewBox="0 0 390 620" preserveAspectRatio="none">
+        <g stroke="#DED6C5" stroke-width="1" fill="none" opacity=".7">
+          <path d="M0 70 Q195 50 390 70"/>
+          <path d="M0 96 Q195 78 390 96"/>
+          <path d="M0 230 Q195 214 390 230"/>
+          <path d="M0 256 Q195 240 390 256"/>
+          <path d="M0 400 Q195 386 390 400"/>
+          <path d="M0 426 Q195 412 390 426"/>
+        </g>
+      </svg>
+
+      <!-- ① いま水をやる株＝万能薬師（62%・花がひらいた）＝唯一の強調 -->
+      <div class="bed now" role="button" aria-label="追放された万能薬師、辺境でスローライフを始める を開く。62パーセント、花がひらいた段階。続きから読む株。">
+        <div class="plot">
+          <svg viewBox="0 0 100 138" aria-hidden="true">
+            <!-- 水をやった土＋波紋 -->
+            <ellipse cx="50" cy="128" rx="32" ry="8" fill="#8B7A62"/>
+            <ellipse cx="50" cy="126" rx="32" ry="7" fill="#7E6E56"/>
+            <path d="M30 129 q8 -4 16 0 M54 130 q8 -4 16 0" stroke="#C98F6E" stroke-width="1.2" fill="none" opacity=".6"/>
+            <!-- 茎（よく伸びた） -->
+            <path d="M50 127 C47 96 55 70 50 46" stroke="#5F6B44" stroke-width="2.6" fill="none"/>
+            <!-- 葉 -->
+            <ellipse cx="36" cy="98" rx="6" ry="12.5" transform="rotate(-42 36 98)" fill="#93A06F"/>
+            <ellipse cx="65" cy="82" rx="6" ry="12.5" transform="rotate(42 65 82)" fill="#8E9B6A"/>
+            <ellipse cx="38" cy="66" rx="5.4" ry="11" transform="rotate(-38 38 66)" fill="#9AA774"/>
+            <!-- つぼみ（脇に一つ・育ちの続きを示す） -->
+            <path d="M64 58 q-3.4 -6 0 -10 q3.4 4 0 10Z" fill="#C7A05F"/>
+            <!-- 花（開花・一点の花色＝強調） -->
+            <g transform="translate(50 40)">
+              <g><ellipse cx="0" cy="-9" rx="4.4" ry="8" fill="#C98F6E"/></g>
+              <g transform="rotate(72)"><ellipse cx="0" cy="-9" rx="4.4" ry="8" fill="#CE9877"/></g>
+              <g transform="rotate(144)"><ellipse cx="0" cy="-9" rx="4.4" ry="8" fill="#C98F6E"/></g>
+              <g transform="rotate(216)"><ellipse cx="0" cy="-9" rx="4.4" ry="8" fill="#CE9877"/></g>
+              <g transform="rotate(288)"><ellipse cx="0" cy="-9" rx="4.4" ry="8" fill="#C98F6E"/></g>
+              <circle r="4" fill="#C2A15E"/>
+            </g>
+            <!-- 名札（識別色＝金） -->
+            <line x1="82" y1="127" x2="82" y2="106" stroke="#B0A186" stroke-width="1.4"/>
+            <rect x="76" y="100" width="14" height="8" rx="2" fill="#C2A15E"/>
+          </svg>
+        </div>
+        <div class="info">
+          <div class="ttl">追放された万能薬師、辺境でスローライフを始める</div>
+          <div class="by">霧島あおい</div>
+          <div class="stage">
+            <span class="st">花がひらいた</span>
+            <span class="pct">62%</span>
+            <span class="ep">第127話 / 全340話</span>
+          </div>
+          <button class="water" onclick="event.stopPropagation()" aria-label="続きから読む">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path class="drop" d="M12 3c3 4 5 6.5 5 9a5 5 0 0 1-10 0c0-2.5 2-5 5-9Z"/></svg>
+            水をやる · 続きから
+          </button>
+        </div>
+      </div>
+
+      <!-- ② 黒の魔王（28%・つぼみがふくらむ） -->
+      <div class="bed" role="button" aria-label="黒の魔王と契約した俺、気づけば最強の従者になっていた を開く。28パーセント、つぼみの段階。">
+        <div class="plot">
+          <svg viewBox="0 0 100 138" aria-hidden="true">
+            <ellipse cx="50" cy="128" rx="30" ry="7.5" fill="#B0A088"/>
+            <ellipse cx="50" cy="126" rx="30" ry="7" fill="#A6957A"/>
+            <path d="M50 127 C48 104 54 86 50 68" stroke="#5F6B44" stroke-width="2.4" fill="none"/>
+            <ellipse cx="38" cy="104" rx="5.4" ry="11" transform="rotate(-40 38 104)" fill="#93A06F"/>
+            <ellipse cx="63" cy="90" rx="5.4" ry="11" transform="rotate(40 63 90)" fill="#8E9B6A"/>
+            <!-- つぼみ（閉じたまま・識別色＝紫） -->
+            <path d="M50 66 q-4.4 -8 0 -13 q4.4 5 0 13Z" fill="#86728F"/>
+            <line x1="80" y1="127" x2="80" y2="108" stroke="#B0A186" stroke-width="1.4"/>
+            <rect x="74" y="102" width="14" height="8" rx="2" fill="#86728F"/>
+          </svg>
+        </div>
+        <div class="info">
+          <div class="ttl">黒の魔王と契約した俺、気づけば最強の従者になっていた</div>
+          <div class="by">夜灯すばる</div>
+          <div class="stage">
+            <span class="st">つぼみがふくらむ</span>
+            <span class="pct">28%</span>
+            <span class="ep">第43話 / 全152話</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ 公爵令嬢（11%・双葉がひらいた） -->
+      <div class="bed" role="button" aria-label="公爵令嬢の嗜み 隣国で薬草園を開きます を開く。11パーセント、双葉の段階。">
+        <div class="plot">
+          <svg viewBox="0 0 100 138" aria-hidden="true">
+            <ellipse cx="50" cy="128" rx="28" ry="7" fill="#B0A088"/>
+            <ellipse cx="50" cy="126" rx="28" ry="6.5" fill="#A6957A"/>
+            <path d="M50 127 V96" stroke="#5F6B44" stroke-width="2.2" fill="none"/>
+            <!-- 双葉（開いたばかり・識別色＝薄紅） -->
+            <ellipse cx="40" cy="94" rx="6" ry="3.2" transform="rotate(-26 40 94)" fill="#9AA774"/>
+            <ellipse cx="60" cy="94" rx="6" ry="3.2" transform="rotate(26 60 94)" fill="#9AA774"/>
+            <line x1="78" y1="127" x2="78" y2="112" stroke="#B0A186" stroke-width="1.4"/>
+            <rect x="72" y="106" width="14" height="8" rx="2" fill="#C08EA0"/>
+          </svg>
+        </div>
+        <div class="info">
+          <div class="ttl">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+          <div class="by">白河すずら</div>
+          <div class="stage">
+            <span class="st">双葉がひらいた</span>
+            <span class="pct">11%</span>
+            <span class="ep">第8話 / 全210話</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ④ 草むしり（未読・まいたばかりの種） -->
+      <div class="bed seed" role="button" aria-label="転生したら最弱スキルだったので、ひたすら草むしりしていた を開く。未読、まいたばかりの種。">
+        <div class="plot">
+          <svg viewBox="0 0 100 138" aria-hidden="true">
+            <ellipse cx="50" cy="128" rx="28" ry="7" fill="#B0A088"/>
+            <ellipse cx="50" cy="126" rx="28" ry="6.5" fill="#A6957A"/>
+            <!-- 種（半ば土に・わずかな芽） -->
+            <ellipse cx="50" cy="122" rx="3.4" ry="5" fill="#8B7A62"/>
+            <path d="M50 120 q-3 -3 -5 -6 M50 120 q3 -3 5 -6" stroke="#7E9B5C" stroke-width="1.6" fill="none"/>
+            <line x1="76" y1="127" x2="76" y2="116" stroke="#B0A186" stroke-width="1.4"/>
+            <rect x="70" y="110" width="14" height="8" rx="2" fill="#7E9B5C"/>
+          </svg>
+        </div>
+        <div class="info">
+          <div class="ttl">転生したら最弱スキルだったので、ひたすら草むしりしていた</div>
+          <div class="by">青葉みのり</div>
+          <div class="stage">
+            <span class="st">まいたばかりの種</span>
+            <span class="ep">未読 / 全88話</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- PDF追加＝新しい種をまく空いた畝 -->
+      <div class="sow" role="button" aria-label="種をまく。PDFを取り込んで新しい株を植える。">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#8A7F66" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
+        <div class="t">ここに種をまく<small>PDFを取り込んで新しい株を植える</small></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

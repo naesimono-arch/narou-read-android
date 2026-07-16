@@ -1,0 +1,288 @@
+<!-- @dsCard group="UI-n / 本棚（スキン候補）" name="M. 星図（プラネタリウム）" -->
+<!--
+  思想: 読んだ分だけ夜空に星が灯る。作品＝星座、読了した話が星として結ばれ、結線の伸びが進捗そのもの。
+  署名要素: 画面＝リストでもグリッドでもなく一枚の星図（連続する経緯線の夜天）。いま読みかけの一作は
+            結線の先端＝一番明るく脈打つ星として置かれ、画面唯一の強調になる。
+  破壊するもの: 「topbar＋グリッド/リスト＋区切り線＋FAB」というナビの型。行を仕切る線を捨て、
+            連続した天球グリッド上の座標に星座を散らして「空間マップ」として一覧する。
+  避けたもの: 彩度暴走（毒々しさ）。地＝群青〜深青の夜天、灯り＝温白の星光、線＝月光スレートの3系統に絞り、
+            作品識別は低彩度の学名色ドットに退避。C夜行の「青みの深炭ニュートラル」とは別物の“青い”夜空で被りを回避。
+            ロマンに流されず、星座ごとに題字・話数・％を添え読書アプリの一覧性/可読性を保つ。
+  ※ 先端の星の“脈動”は静謐則の境界事例＝装飾ループでなく「いまここが生きている一作」という状態表示。
+     ただ一つの星にのみ、ごく緩やかに掛ける（自己検査の注記参照）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n M 本棚 — 星図</title>
+<style>
+  :root{
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    --text:#DCE3F2;        /* 星光の温白（青寄り＝C夜行の暖白と区別） */
+    --dim:#8791AD;         /* 月光スレート・意味を運ぶ補助文字（夜天に対し可読性確保） */
+    --star:#E9DDB4;        /* 灯った星の芯＝温い星光（進捗の“灯り”色） */
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#06080F;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--mincho)}
+  .cap{color:#7C86A2;font-size:13px;margin-bottom:16px;text-align:center;line-height:1.7;max-width:520px;font-family:var(--gothic)}
+  .cap b{color:#DCE3F2}
+
+  /* ===== 夜天 ＝ 一枚の星図（“青い”深夜空。C夜行の深炭ニュートラルと明確に別系統） ===== */
+  .phone{width:390px;height:844px;border-radius:42px;overflow:hidden;position:relative;
+    display:flex;flex-direction:column;box-shadow:0 30px 72px rgba(0,0,0,.72);
+    background:
+      radial-gradient(78% 42% at 72% 20%,rgba(58,78,150,.28),transparent 62%),
+      radial-gradient(120% 80% at 30% 108%,rgba(30,42,96,.55),transparent 60%),
+      linear-gradient(178deg,#0B1330 0%,#0D1636 44%,#080E26 100%);}
+  /* 星図の天球グリッド＋星座は canvas（行を仕切る線を持たず、連続した経緯線が全体を一つの空にまとめる） */
+  .sky{position:absolute;inset:0;z-index:1}
+
+  /* すべての文字/操作は星図の上に重ねる層 */
+  .layer{position:absolute;inset:0;z-index:2;pointer-events:none}
+  .layer *{pointer-events:auto}
+
+  .statusbar{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;
+    font-family:var(--gothic);font-size:12px;color:#6E7794}
+
+  /* 図の銘（本棚＝夜天図。topbar風のバーは置かない＝図版のキャプションとして最小に） */
+  .plate{padding:2px 24px 0;display:flex;align-items:baseline;justify-content:space-between}
+  .plate .name{font-size:20px;color:var(--text);letter-spacing:.22em;font-weight:500}
+  .plate .meta{font-family:var(--gothic);font-size:10px;letter-spacing:.14em;color:#8791AD} /* 星座数=進捗概況＝意味を運ぶ補助文字。夜天地に対し4.5:1確保（沈めるのは装飾のみ） */
+  .plate .meta b{color:#B9C2DA;font-weight:600}
+
+  /* ===== 星座ラベル（星図の注記＝題字・学名・話数を星の傍らに添える） ===== */
+  .const{position:absolute;width:196px}
+  .const .desig{font-family:var(--gothic);font-size:9.5px;letter-spacing:.16em;color:var(--id);
+    display:flex;align-items:center;gap:6px;margin-bottom:6px;text-transform:none}
+  .const .desig::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--id);flex-shrink:0;
+    box-shadow:0 0 6px var(--id)}
+  .const .ttl{font-size:14px;color:var(--text);line-height:1.5;font-weight:500;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .const .by{font-family:var(--gothic);font-size:10.5px;color:#818BA6;margin-top:5px;letter-spacing:.04em}
+  .const .prog{font-family:var(--gothic);font-size:10.5px;color:#9AA4C0;margin-top:7px;letter-spacing:.03em}
+  .const .link{font-family:var(--gothic);font-size:10.5px;color:#AEB7D2;margin-top:6px;
+    display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+  .const .link svg{width:9px;height:9px;fill:currentColor}
+  .const.r{text-align:right}
+  .const.r .desig{flex-direction:row-reverse}
+  .const.r .link{flex-direction:row-reverse}
+
+  /* 未読の星座＝まだ結ばれていない淡い星の群れ */
+  .const.unread .ttl{color:#AEB6CE}
+  .const.unread .prog{color:#7B85A1}
+  .const .badge{display:inline-block;font-family:var(--gothic);font-size:9px;letter-spacing:.18em;
+    color:#8791AD;border:1px solid #303B5C;border-radius:3px;padding:2px 7px;margin-top:8px}
+
+  /* ===== 「続きから」＝画面唯一の強調（一番明るく脈打つ星に添う） ===== */
+  .const.hero .eyebrow{font-family:var(--gothic);font-size:10.5px;letter-spacing:.34em;color:var(--star);
+    margin-bottom:9px;display:flex;align-items:center;gap:7px}
+  .const.hero .eyebrow::before{content:"◈";font-size:9px}
+  .const.hero .ttl{font-family:var(--mincho);font-size:17px;line-height:1.42;font-weight:600}
+  .const.hero .resume{margin-top:12px;display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+    background:linear-gradient(135deg,#EbdFb4,#D8C68C);color:#141B33;font-family:var(--gothic);font-weight:800;
+    font-size:12px;padding:9px 15px;border-radius:11px;box-shadow:0 8px 22px rgba(0,0,0,.45),0 0 20px rgba(233,221,180,.14)}
+  .const.hero .resume svg{width:12px;height:12px;fill:#141B33}
+
+  /* 脈打つ星に添う極小タグ */
+  .nowtag{position:absolute;font-family:var(--gothic);font-size:9px;letter-spacing:.2em;color:var(--star);
+    white-space:nowrap;opacity:.9}
+
+  /* ===== PDF追加＝「新しい星を迎える」（円FABでなく、図の余白に灯す一点） ===== */
+  .welcome{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);
+    display:inline-flex;align-items:center;gap:9px;cursor:pointer;
+    font-family:var(--gothic);font-size:11.5px;letter-spacing:.1em;color:#B7C0DB;
+    padding:11px 20px;border:1px solid #2B3660;border-radius:999px;background:rgba(14,22,52,.55);backdrop-filter:blur(3px)}
+  .welcome .plus{position:relative;width:15px;height:15px;flex-shrink:0}
+  .welcome .plus::before,.welcome .plus::after{content:"";position:absolute;background:var(--star);border-radius:2px;
+    box-shadow:0 0 8px rgba(233,221,180,.7)}
+  .welcome .plus::before{left:6.5px;top:0;width:2px;height:15px}
+  .welcome .plus::after{top:6.5px;left:0;height:2px;width:15px}
+</style>
+</head>
+<body>
+  <p class="cap"><b>M. 星図（プラネタリウム）</b> ／ 作品＝星座、読んだ話が星として<b>結ばれ</b>、結線の伸びが進捗。いま読みかけの一作は一番明るく<b>脈打つ星</b>。リストでもグリッドでもなく一枚の夜天図として蔵書を見渡す。</p>
+
+  <div class="phone" role="img" aria-label="M案 星図（プラネタリウム）方向の本棚画面モック">
+    <canvas class="sky" id="sky" aria-hidden="true"></canvas>
+
+    <div class="layer">
+      <div class="statusbar"><span>9:41</span><span>●●● ▢ 84%</span></div>
+
+      <!-- 図版の銘＝本棚。灯った星座数で全体進捗を一目に -->
+      <div class="plate">
+        <span class="name">本棚</span>
+        <span class="meta">蔵書夜天図　結ばれた星座 <b>3</b> / 4</span>
+      </div>
+
+      <!-- ① 続きから＝画面唯一の強調（脈打つ星＝作品1） -->
+      <div class="const hero" style="left:24px;top:150px;--id:#B7C6A6">
+        <div class="eyebrow">続きから</div>
+        <div class="ttl">追放された万能薬師、辺境でスローライフを始める</div>
+        <div class="by">霧島あおい</div>
+        <div class="prog">第127話 / 全340話 · 62%</div>
+        <span class="resume"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg>この星から読む</span>
+      </div>
+      <div class="nowtag" style="left:250px;top:120px">第127話 ·</div>
+
+      <!-- 作品2＝結線28%（左に星座・右に注記） -->
+      <div class="const r" style="right:24px;top:330px;width:202px;--id:#9E93C6">
+        <div class="desig">rex umbrae · 夜の座</div>
+        <div class="ttl">黒の魔王と契約した俺、気づけば最強の従者になっていた</div>
+        <div class="by">夜灯すばる</div>
+        <div class="prog">第43話 / 全152話 · 28%</div>
+        <span class="link"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg>続きを結ぶ</span>
+      </div>
+
+      <!-- ④ 未読＝まだ結ばれていない淡い星の群れ（作品3） -->
+      <div class="const r unread" style="right:24px;top:462px;width:206px;--id:#7E8AA0">
+        <div class="desig">herbula · 小草の座（未結線）</div>
+        <div class="ttl">転生したら最弱スキルだったので、ひたすら草むしりしていた</div>
+        <div class="by">青葉みのり</div>
+        <div class="prog">未読 · 全88話　まだ星は結ばれていない</div>
+        <span class="badge">最初の星を灯す</span>
+      </div>
+
+      <!-- 作品4＝結線11% -->
+      <div class="const" style="left:24px;top:598px;width:196px;--id:#C6A0AE">
+        <div class="desig">corolla · 小冠の座</div>
+        <div class="ttl">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+        <div class="by">白河すずら</div>
+        <div class="prog">第8話 / 全210話 · 11%</div>
+        <span class="link"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg>続きを結ぶ</span>
+      </div>
+
+      <!-- ⑤ PDF追加＝新しい星を迎える -->
+      <button class="welcome" aria-label="PDFを追加して新しい星を迎える"><span class="plus"></span>新しい星を迎える</button>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const cv=document.getElementById('sky');
+  const ctx=cv.getContext('2d');
+  const W=390,H=844,dpr=Math.max(1,window.devicePixelRatio||1);
+  cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';ctx.scale(dpr,dpr);
+
+  // --- 星座データ（座標＝夜天上の位置。frac＝結線の伸び＝進捗） ---
+  // 各作品は「結線を辿る折れ線」。litLen=frac*全長 までを星光で結び、以降は淡い未結線。
+  const SKY=[
+    {hero:true, frac:.62, pts:[[248,250],[272,214],[301,236],[324,193],[300,160],[339,150],[356,121]]},
+    {frac:.28, pts:[[42,412],[71,386],[60,350],[96,360],[121,334],[151,320]]},
+    {unread:true, frac:0, pts:[[54,470],[88,456],[73,506],[112,498],[144,472],[130,522]]},
+    {frac:.11, pts:[[247,676],[277,646],[301,669],[331,629],[351,651]]},
+  ];
+  // --- 星座境界（IAU星図の破線区画）＝作品ごとの区画を天球に引く階段状ポリゴン。
+  //     各区画は星座＋その注記ラベルを同時に囲い「1区画＝1作品」を一目にする。
+  //     直角の折れで星図らしい不定形にし、矩形カード（D同形）への後退を避ける。 ---
+  const BOUNDS=[
+    [[0,316],[160,316],[160,284],[390,284]],   // 作品1↔2
+    [[0,450],[140,450],[140,440],[390,440]],   // 作品2↔3
+    [[0,560],[200,560],[200,588],[390,588]],   // 作品3↔4
+  ];
+  // 隣接区画で交互に地の明度をごく僅か上げる（空の上に引いた図法区画、という見え方を保つ最小差）
+  const ZONEFILL=[
+    [[0,316],[160,316],[160,284],[390,284],[390,440],[140,440],[140,450],[0,450]],   // 区画2
+    [[0,560],[200,560],[200,588],[390,588],[390,772],[0,772]],                       // 区画4
+  ];
+
+  // 背景の微星（夜天の地。低密度・低輝度＝毒々しさを避ける） 決定論配置
+  let s=987654321; const rnd=()=>{s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;};
+  const DUST=[]; for(let i=0;i<70;i++)DUST.push([rnd()*W,44+rnd()*(H-90),rnd()*.9+.3,rnd()*.35+.06]);
+
+  function poly(p){ctx.beginPath();ctx.moveTo(p[0][0],p[0][1]);for(let i=1;i<p.length;i++)ctx.lineTo(p[i][0],p[i][1]);}
+  function bounds(){
+    // 区画の地明度差＝ごく僅か（隣接交互）。空を割らず“図法上の線”に留める
+    ctx.fillStyle='rgba(150,168,214,.026)';
+    for(const z of ZONEFILL){poly(z);ctx.closePath();ctx.fill();}
+    // 星座境界線＝破線。経緯線(.055)より強く星光(.72)より弱い階調に置く
+    ctx.setLineDash([5,5]);ctx.lineWidth=1;ctx.strokeStyle='rgba(150,168,214,.16)';
+    for(const b of BOUNDS){poly(b);ctx.stroke();}
+    ctx.setLineDash([]);
+  }
+
+  function seg(pts){let L=[],t=0;for(let i=1;i<pts.length;i++){const dx=pts[i][0]-pts[i-1][0],dy=pts[i][1]-pts[i-1][1];const d=Math.hypot(dx,dy);L.push(d);t+=d;}return{L,t};}
+
+  function grid(){
+    // 天球の経緯線＝行を仕切らず全体を一つの空にまとめる連続グリッド（極薄）
+    ctx.lineWidth=1;
+    ctx.strokeStyle='rgba(150,168,214,.055)';
+    for(let i=0;i<5;i++){const y=150+i*150;ctx.beginPath();ctx.moveTo(6,y);ctx.quadraticCurveTo(195,y-16,384,y);ctx.stroke();}
+    for(let i=0;i<4;i++){const x=60+i*90;ctx.beginPath();ctx.moveTo(x,96);ctx.quadraticCurveTo(x+ (x<195?18:-18),470,x,792);ctx.stroke();}
+    // 上縁の赤経メモリ（星図帳の目盛りを記号的に借用）
+    ctx.strokeStyle='rgba(150,168,214,.14)';ctx.lineWidth=1;
+    for(let x=30;x<=360;x+=30){ctx.beginPath();ctx.moveTo(x,100);ctx.lineTo(x,(x%90===0)?107:104);ctx.stroke();}
+  }
+
+  function dust(){
+    for(const [x,y,r,a] of DUST){ctx.fillStyle='rgba(210,222,250,'+a+')';ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+  }
+
+  function starGlow(x,y,r,glow){
+    const g=ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba(240,235,205,'+glow+')');
+    g.addColorStop(.42,'rgba(225,210,160,'+(glow*.42)+')');
+    g.addColorStop(1,'rgba(225,210,160,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();
+    ctx.fillStyle='rgba(245,248,255,'+Math.min(1,glow+.15)+')';ctx.beginPath();ctx.arc(x,y,1.7,0,7);ctx.fill();
+  }
+  function faintStar(x,y){
+    ctx.fillStyle='rgba(150,166,206,.34)';ctx.beginPath();ctx.arc(x,y,1.5,0,7);ctx.fill();
+  }
+
+  function drawConst(c,pulse){
+    const pts=c.pts,{L,t}=seg(pts),litLen=c.frac*t;
+    // 淡い未結線（星座の全体像＝これから灯る道筋。未読は点線で“まだ結ばれていない”を示す）
+    ctx.lineWidth=1;
+    ctx.setLineDash(c.unread?[2,4]:[]);
+    ctx.strokeStyle=c.unread?'rgba(150,166,206,.16)':'rgba(150,166,206,.20)';
+    ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);
+    for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i][0],pts[i][1]);
+    ctx.stroke();ctx.setLineDash([]);
+    // 結線済み（星光で結ばれた道＝読んだ分）
+    if(litLen>0){
+      ctx.strokeStyle='rgba(233,221,180,.72)';ctx.lineWidth=1.4;ctx.lineCap='round';ctx.lineJoin='round';
+      ctx.shadowColor='rgba(233,221,180,.5)';ctx.shadowBlur=6;
+      ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);
+      let acc=0,tipX=pts[0][0],tipY=pts[0][1],tipIdx=0;
+      for(let i=1;i<pts.length;i++){
+        if(acc+L[i-1]<=litLen){ctx.lineTo(pts[i][0],pts[i][1]);acc+=L[i-1];tipX=pts[i][0];tipY=pts[i][1];tipIdx=i;}
+        else{const r=(litLen-acc)/L[i-1];tipX=pts[i-1][0]+(pts[i][0]-pts[i-1][0])*r;tipY=pts[i-1][1]+(pts[i][1]-pts[i-1][1])*r;ctx.lineTo(tipX,tipY);break;}
+      }
+      ctx.stroke();ctx.shadowBlur=0;
+      c._tip=[tipX,tipY,tipIdx];
+    }
+    // 星＝結線に届いた星は灯り、先の星は淡い
+    let acc=0;
+    for(let i=0;i<pts.length;i++){
+      if(i>0)acc+=L[i-1];
+      const lit=litLen>0 && acc<=litLen+0.5;
+      if(lit)starGlow(pts[i][0],pts[i][1],4.4,.9);
+      else faintStar(pts[i][0],pts[i][1]);
+    }
+    // 先端＝“いまここ”。heroだけごく緩く脈打つ（＝生きている一作の状態表示）
+    if(c._tip){
+      const [tx,ty]=c._tip;
+      const r=c.hero?(7+pulse*3.2):5.2;
+      const g=c.hero?(.85+pulse*.15):.8;
+      starGlow(tx,ty,r,g);
+    }
+  }
+
+  // reduce-motion時は脈動を止め先端星を静止点灯（「いまここ」は金の眉/resume/話数タグ/最輝の先端が冗長に伝える＝
+  // アニメだけが運ぶ情報を作らない。§Bモーション: reduce-motionで全機能成立）
+  const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function frame(ts){
+    ctx.clearRect(0,0,W,H);
+    grid();bounds();dust();
+    const pulse=reduce?0.55:(Math.sin(ts/1400)+1)/2; // 緩やかな1呼吸≒2.8秒（reduce時は静止）
+    for(const c of SKY)drawConst(c,pulse);
+    if(!reduce)requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,278 @@
+<!-- @dsCard group="UI-n / 本棚（スキン候補）" name="R. 文（ふみ）" -->
+<!--
+  思想: 連載小説は作者から届き続ける長い手紙。本棚＝文箱（ふばこ）、作品＝一通の便り。
+  署名要素: ①未読＝封蝋で閉じたままの封筒（開けていない＝読んでいない、が一目で伝わる最強の記号）
+            ②読書中＝封を切って便箋が覗き、栞紐の下がった開封済みの便り＝読んだ枚数が進捗
+            ③続きから＝文箱のいちばん上に開いて置かれた読みかけの便り（画面唯一の強調）
+            ④PDF追加＝文箱の底の受け口（新しい便りを受け取る差し込み口）
+            ⑤生成り・インクの藍・封蝋の朱で閉じた落ち着いた紙の世界
+  破壊するもの: 「topbar＋2列グリッド＋FAB」というアプリの入れ物。碁盤目の書影を捨て、
+            便りを縦一列に立てた文箱（レターラック）にし、封の開閉そのものを状態表現にする。
+  避けたもの: skeuomorph過多（前ラウンドの敗因）＝写実に寄せず色面と細線で記号化。彩度暴走＝朱と藍は
+            低彩度で沈め、朱は「未読＝封緘」の記号だけに限定し画面を赤く塗らない。識別色は切手のインクへ退避。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n R 本棚 — 文（ふみ）</title>
+<style>
+  :root{
+    /* ===== 中立色（生成りの紙世界） ===== */
+    --washi:#F4EFE4;      /* 生成り＝文箱の内張り（地） */
+    --env:#E9DECB;        /* 封筒の紙面（地よりわずかに濃い＝手前の物） */
+    --env-lo:#DBCDB2;     /* 封筒の陰・封緘の折り線 */
+    --letter:#FBF8F1;     /* 便箋＝最も明るい紙（最も手前） */
+    --sumi:#262019;       /* 墨（純黒回避の暖い濃色）＝題字/本文 */
+    --sumi-soft:#5B5245;  /* 墨うすめ＝差出人・話数（意味を運ぶ補助＝地に4.5:1超） */
+    --kasumi:#8C8473;     /* 霞＝銘・添え書き（沈める装飾補助のみ） */
+    --line:#E1D8C5;       /* 罫・ヘアライン */
+    /* ===== 装飾有彩色＝2系統のみ・いずれも低彩度 ===== */
+    --ai:#33506E;         /* ①インクの藍＝続きから・進捗・動線（主アクセント/構造） */
+    --ai-ink:#2C465F;     /* 藍の濃（束の読んだ枚） */
+    --shu:#A64A35;        /* ②封蝋の朱＝未読（封緘）の記号だけに使う。低彩度 */
+    --shu-hi:#BC5C46;     /* 蝋のふくらみ（ハイライト） */
+    /* ===== 作品識別色（別枠・切手のインク・1冊=1色相・彩度抑制） ===== */
+    --w1:#7E6B3C;         /* 万能薬師＝琥珀/草 */
+    --w2:#4C4863;         /* 黒の魔王＝藍鼠 */
+    --w3:#5C6E46;         /* 草むしり＝若草 */
+    --w4:#98676F;         /* 公爵令嬢＝薄紅 */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#2B2823;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:30px;
+    font-family:var(--gothic)}
+  .cap{color:#c7bfae;font-size:13px;margin-bottom:16px;text-align:center;line-height:1.7;max-width:520px}
+  .cap b{color:#f1ecdf}
+
+  /* ===== 文箱（このアプリ画面ぜんたいが一つの文箱の内側） ===== */
+  .phone{width:390px;height:844px;border-radius:40px;overflow:hidden;position:relative;
+    display:flex;flex-direction:column;color:var(--sumi);
+    background:var(--washi);
+    box-shadow:0 24px 60px rgba(0,0,0,.5), inset 0 0 0 1px rgba(120,104,74,.14);}
+
+  .sb{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;
+    font-size:11px;color:var(--kasumi);flex-shrink:0}
+
+  /* 文箱の銘＝蓋の見出し（アプリのtopbarではなく箱の銘板。アイコン列を置かない） */
+  .lid{padding:2px 26px 14px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
+  .lid .box{font-family:var(--mincho);font-size:26px;font-weight:500;letter-spacing:.26em;color:var(--sumi)}
+  .lid .count{font-size:11px;letter-spacing:.14em;color:var(--kasumi);padding-bottom:4px}
+  .lid .count b{color:var(--sumi-soft);font-weight:600}
+
+  .scroll{flex:1;overflow:auto;padding:0 22px 26px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+
+  /* ========================================================= */
+  /* ① 続きから＝いちばん上に開いて置かれた読みかけの便り（画面唯一の強調）  */
+  /* ========================================================= */
+  .hero{position:relative;background:var(--letter);border-radius:5px;overflow:hidden;
+    padding:20px 22px 18px;
+    box-shadow:0 10px 26px rgba(60,48,26,.16),0 1px 0 rgba(255,255,255,.7);
+    /* 便箋の罫線（ごく淡い横罫＝装飾。本文コントラストには関与しない） */
+    background-image:repeating-linear-gradient(var(--letter) 0 27px,var(--line) 27px 28px);
+    background-position:0 44px}
+  /* 栞紐＝便りに挟まれた紐（読書中の記号。右肩から下へ） */
+  .hero .himo{position:absolute;top:0;right:38px;width:9px;height:64px;background:var(--ai);
+    clip-path:polygon(0 0,100% 0,100% 100%,50% 82%,0 100%);opacity:.9}
+  .hero .eyebrow{font-family:var(--gothic);font-size:11px;letter-spacing:.34em;color:var(--ai);
+    font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .hero .eyebrow::before{content:"";width:7px;height:7px;background:var(--ai);border-radius:50%}
+  .hero .htitle{font-family:var(--mincho);font-size:22px;line-height:1.42;font-weight:600;color:var(--sumi);
+    letter-spacing:.02em}
+  .hero .hby{font-family:var(--gothic);font-size:12px;color:var(--sumi-soft);margin-top:12px;letter-spacing:.04em}
+  .hero .hby small{color:var(--kasumi);letter-spacing:.1em;margin-right:6px}
+  /* 進捗＝読んだ枚数（便箋の束）。話数は値に言葉を吸わせて添える */
+  .hero .hprog{margin-top:18px;font-family:var(--gothic);font-size:12px;color:var(--sumi-soft);
+    display:flex;align-items:baseline;gap:8px}
+  .hero .hprog b{font-family:var(--mincho);font-size:15px;color:var(--ai);font-weight:600}
+  .sheets{display:flex;gap:2px;margin-top:10px}
+  .sheets i{flex:1;height:12px;background:var(--env);border-radius:1px}
+  .sheets i.read{background:var(--ai-ink)}
+  .hero .hcta{margin-top:18px;display:inline-flex;align-items:center;gap:9px;cursor:pointer;border:none;
+    background:var(--ai);color:var(--letter);font-family:var(--gothic);font-weight:800;font-size:15px;
+    padding:14px 26px;border-radius:12px;box-shadow:0 6px 16px rgba(51,80,110,.32)}
+  .hero .hcta svg{width:15px;height:15px;fill:var(--letter)}
+  /* 便箋が差さっている封筒の口（下辺の受け＝物として封筒から出ている記号） */
+  .hero .lip{position:absolute;left:0;right:0;bottom:0;height:14px;background:var(--env);
+    box-shadow:inset 0 2px 3px rgba(120,104,74,.18)}
+  .hero .lip::before{content:"";position:absolute;left:50%;top:0;transform:translateX(-50%);
+    border-left:26px solid transparent;border-right:26px solid transparent;border-top:9px solid var(--env-lo)}
+
+  /* 束の見出し（この下は差出の束＝残りの便り） */
+  .bundle-h{display:flex;align-items:center;gap:10px;margin:26px 2px 14px}
+  .bundle-h span{font-family:var(--mincho);font-size:13px;letter-spacing:.14em;color:var(--sumi-soft)}
+  .bundle-h hr{flex:1;border:none;border-top:1px solid var(--line)}
+
+  /* ========================================================= */
+  /* 便り（封筒）＝縦一列。封の開閉そのものが状態表現              */
+  /* ========================================================= */
+  .env{position:relative;background:var(--env);border-radius:4px;margin-bottom:14px;
+    box-shadow:0 3px 10px rgba(60,48,26,.1),inset 0 0 0 1px rgba(120,104,74,.1)}
+  .env .flap{position:absolute;top:0;left:0;right:0;height:30px;pointer-events:none}
+  /* 未読＝封緘（閉じた蓋）＝下向きの折り＋封蝋。開けていない＝読んでいない */
+  .env.sealed .flap{background:linear-gradient(var(--env) 0%,var(--env-lo) 100%);
+    clip-path:polygon(0 0,100% 0,50% 100%);box-shadow:0 1px 0 rgba(120,104,74,.2)}
+  .env.sealed .seal{position:absolute;top:18px;left:50%;transform:translateX(-50%);z-index:3;
+    width:26px;height:26px;border-radius:50%;
+    background:radial-gradient(circle at 38% 32%,var(--shu-hi),var(--shu) 72%);
+    box-shadow:0 1px 3px rgba(90,30,18,.4),inset 0 0 0 1px rgba(80,24,12,.35);
+    display:grid;place-items:center}
+  .env.sealed .seal span{font-family:var(--mincho);font-size:11px;color:rgba(255,244,238,.92);line-height:1}
+  /* 読書中＝封を切った蓋（上へ開いた）＋栞紐。朱の封蝋は無い＝もう開いている */
+  .env.open .flap{background:var(--letter);clip-path:polygon(0 0,100% 0,50% 100%);opacity:.9;
+    box-shadow:0 1px 2px rgba(120,104,74,.16)}
+  .env.open .himo{position:absolute;top:0;right:30px;width:8px;height:38px;background:var(--ai);
+    clip-path:polygon(0 0,100% 0,100% 100%,50% 78%,0 100%);z-index:3;opacity:.9}
+
+  .env-in{position:relative;z-index:2;display:flex;align-items:center;gap:14px;padding:22px 18px 16px}
+  /* 切手＝差出人の識別色（別枠・低彩度）。四辺の目打ちを点線で記号化 */
+  .stamp{flex-shrink:0;width:44px;height:52px;border-radius:3px;display:grid;place-items:center;
+    color:var(--letter);outline:2px dashed rgba(251,248,241,.75);outline-offset:-4px}
+  .stamp span{font-family:var(--mincho);font-size:19px;font-weight:600;line-height:1}
+  .mid{flex:1;min-width:0}
+  .mid .t{font-family:var(--mincho);font-size:14.5px;line-height:1.4;font-weight:500;color:var(--sumi);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .mid .b{font-family:var(--gothic);font-size:11px;color:var(--sumi-soft);margin-top:6px;letter-spacing:.03em}
+  .mid .b small{color:var(--kasumi);letter-spacing:.08em;margin-right:5px}
+  /* 開封済みの束ゲージ（小） */
+  .mid .sheets{margin-top:9px}
+  .mid .sheets i{height:8px}
+  /* 右＝状態の記号 */
+  .st{flex-shrink:0;text-align:right;align-self:stretch;display:flex;flex-direction:column;
+    align-items:flex-end;justify-content:center;gap:6px;min-width:66px}
+  .st .num{font-family:var(--mincho);font-size:13px;color:var(--sumi);letter-spacing:.02em}
+  .st .pct{font-family:var(--gothic);font-size:12px;font-weight:700;color:var(--ai)}
+  .st .read{font-family:var(--gothic);font-size:11px;color:var(--ai);cursor:pointer;
+    display:inline-flex;align-items:center;gap:4px;font-weight:600}
+  .st .read svg{width:9px;height:9px;fill:currentColor}
+  /* 未読の記号＝未開封の栞（朱・小）。赤いボタンにはしない */
+  .st .unread{font-family:var(--gothic);font-size:10.5px;font-weight:700;letter-spacing:.14em;color:var(--shu);
+    border:1px solid rgba(166,74,53,.4);border-radius:3px;padding:3px 8px}
+  .st .cut{font-family:var(--gothic);font-size:11px;color:var(--sumi-soft);cursor:pointer;letter-spacing:.02em}
+
+  /* ========================================================= */
+  /* ⑤ PDF追加＝文箱の底の受け口（新しい便りを受け取る差し込み口） */
+  /* ========================================================= */
+  .slot{border:none;cursor:pointer;background:transparent;width:100%;padding:0;margin-top:6px}
+  .slot .in{border:1.5px dashed var(--env-lo);border-radius:5px;background:rgba(233,222,203,.35);
+    display:flex;align-items:center;gap:14px;padding:18px 18px}
+  /* 差し込み口＝封筒が半分挿さっている形（上辺に受けのスリット） */
+  .slot .mouth{flex-shrink:0;width:44px;height:30px;position:relative}
+  .slot .mouth::before{content:"";position:absolute;left:4px;right:4px;top:9px;height:13px;
+    border-radius:2px;background:var(--env);box-shadow:inset 0 2px 3px rgba(120,104,74,.25)}
+  .slot .mouth::after{content:"＋";position:absolute;left:50%;top:-2px;transform:translateX(-50%);
+    font-size:17px;font-weight:700;color:var(--sumi-soft)}
+  .slot .txt{text-align:left}
+  .slot .l1{font-family:var(--gothic);font-weight:700;font-size:13.5px;color:var(--sumi)}
+  .slot .l2{font-family:var(--gothic);font-size:11px;color:var(--kasumi);margin-top:3px;letter-spacing:.04em}
+</style>
+</head>
+<body>
+  <p class="cap"><b>R. 文（ふみ）</b> ／ 連載は作者から届き続ける長い手紙。本棚＝文箱、作品＝一通の便り。<b>未読は封蝋で閉じたまま</b>・読書中は封を切って栞紐の下がった便箋・続きからは箱のいちばん上に開いて置かれた便り。</p>
+
+  <div class="phone" role="img" aria-label="R案 文（ふみ）＝文箱の本棚画面モック">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+
+    <div class="lid">
+      <span class="box">文箱</span>
+      <span class="count">便り <b>4</b> 通</span>
+    </div>
+
+    <div class="scroll">
+
+      <!-- ① 続きから＝開いて置かれた読みかけの便り（画面唯一の強調） -->
+      <div class="hero">
+        <div class="himo" aria-hidden="true"></div>
+        <div class="eyebrow">続きから</div>
+        <div class="htitle">追放された万能薬師、辺境でスローライフを始める</div>
+        <div class="hby"><small>差出</small>霧島あおい</div>
+        <div class="hprog">第127話 / 全340話<b>62%</b>読んだ</div>
+        <div class="sheets" data-n="24" data-f="15" aria-label="進捗62パーセント"></div>
+        <button class="hcta"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg>続きから読む</button>
+        <div class="lip" aria-hidden="true"></div>
+      </div>
+
+      <div class="bundle-h"><span>ほかの便り</span><hr></div>
+
+      <!-- ② 読書中＝封を切った便り（栞紐・進捗） 作品2 -->
+      <div class="env open" role="button" aria-label="黒の魔王と契約した俺、読書中 28パーセント">
+        <div class="flap" aria-hidden="true"></div>
+        <div class="himo" aria-hidden="true"></div>
+        <div class="env-in">
+          <div class="stamp" style="background:var(--w2)"><span>黒</span></div>
+          <div class="mid">
+            <div class="t">黒の魔王と契約した俺、気づけば最強の従者になっていた</div>
+            <div class="b"><small>差出</small>夜灯すばる</div>
+            <div class="sheets" data-n="18" data-f="5" aria-hidden="true"></div>
+          </div>
+          <div class="st">
+            <span class="num">第43話</span>
+            <span class="pct">28%</span>
+            <span class="read"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg>読む</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ④ 未読＝封蝋で閉じたままの封筒（開けていない＝読んでいない） 作品3 -->
+      <div class="env sealed" role="button" aria-label="転生したら最弱スキルだった、未読・未開封">
+        <div class="flap" aria-hidden="true"></div>
+        <div class="seal" aria-hidden="true"><span>封</span></div>
+        <div class="env-in">
+          <div class="stamp" style="background:var(--w3)"><span>草</span></div>
+          <div class="mid">
+            <div class="t">転生したら最弱スキルだったので、ひたすら草むしりしていた</div>
+            <div class="b"><small>差出</small>青葉みのり</div>
+          </div>
+          <div class="st">
+            <span class="num">全88話</span>
+            <span class="unread">未読</span>
+            <span class="cut">封を切る</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ② 読書中＝封を切った便り 作品4 -->
+      <div class="env open" role="button" aria-label="公爵令嬢の嗜み、読書中 11パーセント">
+        <div class="flap" aria-hidden="true"></div>
+        <div class="himo" aria-hidden="true"></div>
+        <div class="env-in">
+          <div class="stamp" style="background:var(--w4)"><span>公</span></div>
+          <div class="mid">
+            <div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+            <div class="b"><small>差出</small>白河すずら</div>
+            <div class="sheets" data-n="18" data-f="2" aria-hidden="true"></div>
+          </div>
+          <div class="st">
+            <span class="num">第8話</span>
+            <span class="pct">11%</span>
+            <span class="read"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg>読む</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑤ PDF追加＝文箱の底の受け口（新しい便りを受け取る） -->
+      <button class="slot" aria-label="PDFを追加して新しい便りを受け取る">
+        <div class="in">
+          <div class="mouth" aria-hidden="true"></div>
+          <div class="txt">
+            <div class="l1">新しい便りを受け取る</div>
+            <div class="l2">PDFを追加</div>
+          </div>
+        </div>
+      </button>
+
+    </div>
+  </div>
+
+<script>
+  // 便箋の束ゲージ（n枚のうちf枚を読んだ＝藍で灯す）。読んだ枚数感＝進捗
+  document.querySelectorAll('.sheets[data-n]').forEach(function(el){
+    var n=+el.dataset.n, f=+el.dataset.f;
+    for(var i=0;i<n;i++){ var s=document.createElement('i'); if(i<f) s.className='read'; el.appendChild(s); }
+  });
+</script>
+</body>
+</html>

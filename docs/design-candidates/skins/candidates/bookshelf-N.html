@@ -1,0 +1,240 @@
+<!-- @dsCard group="UI-n / 本棚（スキン候補）" name="N. 文机（ふづくえ）— 読みかけの机を真上から見る" -->
+<!--
+  思想: 本棚に「並べる」のではなく、読みかけの机を真上から俯瞰する。状態＝物理配置で表す。
+  署名要素: 伏せて開いた本（背が尾根になった∧の色面＋栞紐）。読書中はこの姿で机に置かれ、
+            積読は端の平積み、読了は文箱へ収まる＝バッジでなく「置き場」で状態を語る。
+  破壊するもの: D の「トップバー＋均質グリッド＋FAB」導線。整列一覧を捨て、意図ある自由配置の机上へ。
+  避けたもの: 木目・紙の写実テクスチャ（skeuomorph 過多）と彩度暴走。俯瞰は色面と影だけで記号化し、
+            作品識別色は低彩度に抑える。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n N 本棚 — 文机</title>
+<style>
+  :root{
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    /* 中立の天板（木目でなく無地のマット面）＋墨系の文字 */
+    --ink:#332F28;      /* 見出し・題字 */
+    --ink-meta:#403A2B; /* 意味を運ぶメタ（進捗・話数・著者）＝天板の暗い縁でも 4.5:1 を満たす最小暗度（計測: 最暗地#B4AB95で約4.9:1） */
+    --ink-faint:#8A8371;/* 装飾の添え字のみ（日付・OS風ステータス）＝意味は運ばない */
+    --page:#EDE7D6;     /* 小口（ページの束）のクリーム */
+    --accent:#A6503C;   /* 唯一の有彩強調＝栞紐と「続きから」（臙脂寄りの朱・低彩度） */
+    /* 作品識別色（1冊=1色相・彩度は揃えて抑制）＝別枠。ridge=尾根の受光, edge=裾の陰 */
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#ADA491;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:#4A4536;font-size:13px;margin-bottom:16px;text-align:center;line-height:1.7;max-width:520px}
+  .cap b{color:#241f16}
+
+  .phone{width:390px;height:844px;border-radius:42px;overflow:hidden;position:relative;
+    /* 天板＝真上からの拡散光。中央にほのかな灯りだまり＝一画面一強調を「光」で作る */
+    background:
+      radial-gradient(120% 62% at 46% 30%, #DAD3C3 0%, #CCC4B1 46%, #BFB6A1 78%, #B4AB95 100%);
+    box-shadow:0 26px 64px rgba(0,0,0,.5), inset 0 0 90px rgba(60,50,32,.14);
+    color:var(--ink)}
+
+  /* ステータスバー（黒衣・最小） */
+  .sb{position:absolute;top:0;left:0;right:0;height:42px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:11px;color:var(--ink-faint);z-index:9}
+
+  /* ── 見出し＝机の主（あるじ）の覚え書き。トップバーではなく小さな覚書 ── */
+  .plate{position:absolute;top:50px;left:26px;z-index:6}
+  .plate .h1{font-family:var(--mincho);font-size:19px;letter-spacing:.28em;color:var(--ink)}
+  .plate .sub{font-size:10.5px;color:var(--ink-meta);margin-top:5px;letter-spacing:.04em}
+  .plate .date{font-family:var(--mincho);font-size:11px;color:var(--ink-faint);margin-top:2px;letter-spacing:.14em}
+
+  /* ── 積読の山＝机の奥（上端）に平積み。伏せ本と違い「重ねた小口」で表す ── */
+  .stack{position:absolute;top:60px;right:8px;width:142px;z-index:5}
+  .stack .lbl{font-size:10px;letter-spacing:.34em;color:var(--ink-meta);text-align:right;margin-bottom:8px}
+  .stack .bar{height:15px;border-radius:2px;margin-left:auto;position:relative;
+    background:linear-gradient(180deg,var(--page),#DED7C4);
+    box-shadow:0 3px 6px rgba(50,42,30,.16)}
+  .stack .bar::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;border-radius:2px 2px 0 0} /* 天は識別色の背 */
+  .stack .bar.b1{width:142px}.stack .bar.b1::before{background:#86846A} /* 未読本＝転生・草むしり */
+  .stack .bar.b2{width:128px;margin-top:4px}.stack .bar.b2::before{background:#9a9482;opacity:.75}
+  .stack .bar.b3{width:134px;margin-top:4px}.stack .bar.b3::before{background:#8f8a74;opacity:.6}
+  .stack .un{position:absolute;top:82px;left:0;width:142px} /* 平積みの下に未読本の題札（バーと重ねない） */
+  .stack .un .t{font-family:var(--mincho);font-size:11.5px;line-height:1.35;color:var(--ink);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .stack .un .m{font-size:10px;color:var(--ink-meta);margin-top:4px}
+  .stack .un .tag{display:inline-block;font-size:9.5px;letter-spacing:.14em;color:#7A6A52;
+    border:1px solid #B9A886;border-radius:2px;padding:1px 6px;margin-top:8px} /* 未読の識別＝進捗なし＋積みの中 */
+
+  /* ── 伏せて開いた本＝∧の尾根。covers 上向き・spine 中央・小口が上下の縁 ── */
+  .book{position:absolute;border-radius:3px;z-index:4;
+    box-shadow:0 8px 16px rgba(50,42,30,.20), 0 1px 4px rgba(0,0,0,.16)} /* 脇本は浅い影＝主役を沈めず立てる */
+  .book .cover{position:absolute;inset:0;border-radius:3px} /* 90deg で中央受光→裾陰＝∧の屋根 */
+  .book .spine{position:absolute;top:6%;bottom:6%;left:calc(50% - 1px);width:2px;border-radius:1px;
+    background:rgba(255,255,255,.5)} /* 背の尾根の受光線 */
+  .book .edge{position:absolute;left:0;right:0;height:5px;
+    background:linear-gradient(180deg,var(--page),rgba(237,231,214,.4))} /* 小口＝ページの束 */
+  .book .edge.t{top:0;border-radius:3px 3px 0 0}
+  .book .edge.b{bottom:0;transform:scaleY(-1);border-radius:3px 3px 0 0}
+  .book .ribbon{position:absolute;top:-26px;width:9px;height:52px;background:var(--accent);z-index:5;
+    box-shadow:0 2px 4px rgba(0,0,0,.25);clip-path:polygon(0 0,100% 0,100% 84%,50% 100%,0 84%)} /* 栞紐（燕尾） */
+
+  .hero{top:170px;left:26px;width:196px;height:126px;transform:rotate(-3deg);
+    box-shadow:0 14px 26px rgba(50,42,30,.30), 0 2px 6px rgba(0,0,0,.20)} /* 主役だけ深い影＝一画面一強調をサイズ＋深度で作る */
+  .hero .cover{background:linear-gradient(90deg,#6E7B5B 0%,#97A382 50%,#6E7B5B 100%)} /* 万能薬師＝薬草の緑 */
+  .hero .ribbon{left:62%}
+
+  .b-maou{top:490px;left:24px;width:150px;height:94px;transform:rotate(4deg)}
+  .b-maou .cover{background:linear-gradient(90deg,#4D5570 0%,#727A94 50%,#4D5570 100%)} /* 黒の魔王＝藍鼠 */
+  .b-maou .ribbon{left:40%;height:44px;top:-22px}
+
+  .b-oujo{top:494px;right:22px;width:142px;height:92px;transform:rotate(-6deg)}
+  .b-oujo .cover{background:linear-gradient(90deg,#8D6D78 0%,#B294A0 50%,#8D6D78 100%)} /* 公爵令嬢＝薄紅鼠 */
+  .b-oujo .ribbon{left:56%;height:44px;top:-22px}
+
+  /* ── 各本の覚書＝机に置かれた札。伏せた本は題が隠れるので札で読ませる（可読性優先） ── */
+  .card{position:absolute;z-index:6}
+  .card .t{font-family:var(--mincho);color:var(--ink);letter-spacing:.02em}
+  .card .by{color:var(--ink-meta);}
+  .card .pr{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .card .pr .track{flex:1;height:2px;background:rgba(90,80,58,.24);border-radius:1px;position:relative}
+  .card .pr .track i{position:absolute;left:0;top:-1px;height:4px;border-radius:2px}
+  .card .pr .num{font-size:10.5px;color:var(--ink-meta);white-space:nowrap}
+
+  /* 主役の札＝題を大きく・唯一の CTA「続きから」を持つ（一画面一強調） */
+  .hero-card{top:316px;left:26px;width:334px}
+  .hero-card .t{font-size:19px;line-height:1.34}
+  .hero-card .by{font-size:12px;margin-top:8px;letter-spacing:.05em}
+  .hero-card .pr .num{font-size:11px}
+  .hero-card .pr .track i{background:#7E8B6C}
+  .resume{margin-top:16px;display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#FBF6EF;
+    border:none;cursor:pointer;padding:12px 24px;border-radius:999px;font-family:var(--gothic);font-size:14px;font-weight:600;
+    box-shadow:0 8px 18px rgba(140,50,40,.32)}
+  .resume svg{width:14px;height:14px;fill:#FBF6EF}
+  .resume small{font-size:10px;font-weight:400;opacity:.85;margin-left:4px}
+
+  /* 脇役の札＝小ぶり・題は1行・進捗だけ */
+  .mini{width:168px}
+  .mini .t{font-size:12.5px;line-height:1.32;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .mini .by{font-size:10px;margin-top:4px}
+  .mini .pr{margin-top:8px}
+  .mini .pr .num{font-size:9.5px}
+  .c-maou{top:586px;left:20px}.c-maou .pr .track i{background:#5C6580}
+  .c-oujo{top:588px;right:18px;text-align:right}.c-oujo .pr{flex-direction:row-reverse}.c-oujo .pr .track i{background:#9E8088}
+
+  /* ── 机の手前（下端）＝自分に近い縁。読了の文箱と、本を持ち込む受け皿 ── */
+  .front{position:absolute;left:24px;right:24px;top:680px;display:flex;gap:16px;z-index:5}
+  .fbox{flex:1;height:104px;border-radius:8px;position:relative;padding:16px;
+    background:linear-gradient(160deg,#CBC2AD,#BEB4A0);
+    box-shadow:0 4px 10px rgba(50,42,30,.14), inset 0 1px 0 rgba(255,255,255,.2)} /* 手前の家具＝浅く沈めて主役と競合させない */
+  .fbox .seam{position:absolute;inset:8px;border:1px solid rgba(90,78,54,.28);border-radius:5px} /* 蓋の合口 */
+  .fbox .knob{position:absolute;top:calc(50% - 3px);left:calc(50% - 3px);width:6px;height:6px;border-radius:50%;background:rgba(90,78,54,.45)}
+  .fbox .fl{position:relative;font-family:var(--mincho);font-size:13px;letter-spacing:.2em;color:var(--ink)}
+  .fbox .fm{position:relative;font-size:10px;color:var(--ink-meta);margin-top:8px}
+  /* PDF追加＝空きの受け皿（破線で「ここに置く」を明示） */
+  .tray{flex:1;height:104px;border-radius:8px;border:1.5px dashed #8E8368;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:8px;cursor:pointer;color:var(--ink-meta);background:rgba(255,255,255,.05)}
+  .tray .plus{width:26px;height:26px;border-radius:50%;border:1.5px solid #8E8368;display:grid;place-items:center;font-size:18px;line-height:1}
+  .tray .tl{font-size:11px;letter-spacing:.06em}
+  .tray .ts{font-size:9px;color:var(--ink-faint);letter-spacing:.04em}
+
+  .home{position:absolute;bottom:9px;left:50%;transform:translateX(-50%);width:120px;height:4px;border-radius:2px;background:rgba(60,50,32,.28);z-index:9}
+</style>
+</head>
+<body>
+  <p class="cap"><b>N. 文机（ふづくえ）</b> ／ 本棚に並べず、<b>読みかけの机を真上から</b>見る。読書中＝伏せて開いた本、積読＝奥の平積み、読了＝手前の文箱。状態を「置き場」で語る。</p>
+
+  <div class="phone" role="img" aria-label="N案 文机の本棚">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+
+    <!-- 机の主の覚書（見出し・トップバーではない） -->
+    <div class="plate">
+      <div class="h1">文机</div>
+      <div class="sub">読みかけ 3 ・ 積読 1 ・ 読了 0</div>
+      <div class="date">文月 十七日</div>
+    </div>
+
+    <!-- 積読の山（机の奥・平積み）＝未読はここに積まれる（進捗なしで区別） -->
+    <div class="stack" aria-label="積読の山">
+      <div class="lbl">積読</div>
+      <div class="bar b3"></div>
+      <div class="bar b2"></div>
+      <div class="bar b1"></div>
+      <div class="un">
+        <div class="t">転生したら最弱スキルだったので、ひたすら草むしりしていた</div>
+        <div class="m">青葉みのり ・ 全88話</div>
+        <span class="tag">未読</span>
+      </div>
+    </div>
+
+    <!-- 主役＝伏せて開いた本（続きから読む対象） -->
+    <div class="book hero" aria-label="読みかけ：追放された万能薬師">
+      <div class="ribbon"></div>
+      <div class="cover"></div>
+      <div class="spine"></div>
+      <div class="edge t"></div>
+      <div class="edge b"></div>
+    </div>
+    <div class="card hero-card">
+      <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+      <div class="by">霧島あおい</div>
+      <div class="pr">
+        <div class="track"><i style="width:62%"></i></div>
+        <span class="num">第127話 / 全340話 ・ 62%</span>
+      </div>
+      <button class="resume" aria-label="続きから読む">
+        <svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg>
+        続きから読む <small>第127話へ</small>
+      </button>
+    </div>
+
+    <!-- 脇に伏せてある読みかけ（黒の魔王） -->
+    <div class="book b-maou" aria-label="読みかけ：黒の魔王と契約した俺">
+      <div class="ribbon"></div>
+      <div class="cover"></div>
+      <div class="spine"></div>
+      <div class="edge t"></div>
+      <div class="edge b"></div>
+    </div>
+    <div class="card mini c-maou">
+      <div class="t">黒の魔王と契約した俺、気づけば最強の従者になっていた</div>
+      <div class="by">夜灯すばる</div>
+      <div class="pr">
+        <div class="track"><i style="width:28%"></i></div>
+        <span class="num">28%</span>
+      </div>
+    </div>
+
+    <!-- 脇に伏せてある読みかけ（公爵令嬢） -->
+    <div class="book b-oujo" aria-label="読みかけ：公爵令嬢の嗜み">
+      <div class="ribbon"></div>
+      <div class="cover"></div>
+      <div class="spine"></div>
+      <div class="edge t"></div>
+      <div class="edge b"></div>
+    </div>
+    <div class="card mini c-oujo">
+      <div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+      <div class="by">白河すずら</div>
+      <div class="pr">
+        <span class="num">11%</span>
+        <div class="track"><i style="width:11%"></i></div>
+      </div>
+    </div>
+
+    <!-- 机の手前＝文箱（読了の収まり先）と 本を持ち込む受け皿（PDF追加） -->
+    <div class="front">
+      <div class="fbox" aria-label="文箱：読了した本の収まり先">
+        <div class="seam"></div><div class="knob"></div>
+        <div class="fl">文箱</div>
+        <div class="fm">読了 0冊 ・ 読み終えるとここへ</div>
+      </div>
+      <div class="tray" role="button" aria-label="本を持ち込む（PDFを追加）">
+        <div class="plus">＋</div>
+        <div class="tl">本を持ち込む</div>
+        <div class="ts">PDFを机に置く</div>
+      </div>
+    </div>
+
+    <div class="home"></div>
+  </div>
+</body>
+</html>

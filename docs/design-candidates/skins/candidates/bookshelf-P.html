@@ -1,0 +1,279 @@
+<!-- @dsCard group="UI-n / 本棚（スキン候補）" name="P. カートリッジ（レトロ携帯ゲーム機）" -->
+<!-- 思想: 物語はゲームのカセット。差して電源を入れれば続きが始まる＝本棚はカセットライブラリ、
+             「続きから」はいまスロットに挿さっている1本、進捗はセーブデータ（話数/クリア率/プレイ時間）。
+     署名要素: ①退色プラスチック筐体に嵌め込まれた緑の液晶(LCD)＝NOW PLAYING画面 ②CSS/canvasのドット絵ラベル(8×8ピクセルスプライト)
+               ③7セグ/ビットマップ風の英数チャンネル(STAGE/CLEAR/TIME・%) ④角を面取りしたカセット筐体＝1冊=1カセット ⑤リブ(グリップ溝)
+     破壊するもの: 「topbar＋グリッド/リスト＋FAB」というアプリの入れ物そのもの。上半分を"据置の液晶ゲーム画面"にし、
+                   本棚を"下段のカセット差し替え"へ。一覧はグリッドでなくカセットラック(単列)。FABは無く、追加は空きスロット。
+     避けたもの: 前回E案の毒々しさ＝ネオン/原色/高彩度。液晶はくすんだオリーブ緑、装飾色は退色した赤・青の低彩度のみ(最大3系統)。
+                 ピクセル感(ドット絵・面取り・溝)は"記号"として少量に効かせ、作品タイトル本文はゴシックで現代の可読性を保つ。 -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n P 本棚 — カートリッジ</title>
+<style>
+  :root{
+    /* 退色プラスチック筐体（中立色） */
+    --plastic:#dbd6c8; --plastic-hi:#e9e5da; --plastic-lo:#c3bfae; --panel:#cfcabb;
+    --ink:#2c2b26; --ink-soft:#79766b; --line:#bdb9a9;
+    /* 装飾有彩色＝3系統のみ・いずれも低彩度 */
+    --lcd:#a4af80; --lcd-hi:#b4be92; --lcd-ink:#2b3616; --lcd-frame:#33352b;   /* ①液晶グリーン（画面） */
+    --red:#b5564e; --red-lo:#8d4139;                                            /* ②退色レッド（電源/GO/NEW） */
+    --blue:#5c7d96; --blue-lo:#c4c0b2; --blue-ink:#3f5a70;                       /* ③退色ブルー（ゲージ地=blue／数値テキスト=blue-ink＝地に対し4.5:1確保） */
+    /* 作品識別色（別枠・彩度は同じく抑制。1冊=1色相） */
+    --w1:#c7a15c; --w2:#736c85; --w3:#7f9a5e; --w4:#bf8f9c;
+    --pixel:ui-monospace,"SFMono-Regular",Menlo,Consolas,"Courier New",monospace;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#2a2c27;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:30px;font-family:var(--gothic)}
+  .cap{color:#c8c3b4;font-size:13px;margin-bottom:16px;text-align:center;line-height:1.7;max-width:520px}
+  .cap b{color:#f0ede2}
+
+  /* ===== 筐体（このアプリ画面ぜんたいが携帯ゲーム機の面） ===== */
+  .phone{width:390px;height:844px;border-radius:34px;position:relative;overflow:hidden;
+    background:linear-gradient(150deg,var(--plastic-hi),var(--plastic) 22%,var(--plastic-lo));
+    box-shadow:0 24px 60px rgba(0,0,0,.55), inset 0 2px 0 rgba(255,255,255,.5), inset 0 -3px 8px rgba(0,0,0,.14);
+    display:flex;flex-direction:column;color:var(--ink)}
+  /* 四隅のネジ＝筐体らしさのワンポイント */
+  .screw{position:absolute;width:9px;height:9px;border-radius:50%;z-index:9;
+    background:radial-gradient(circle at 35% 30%,#e7e3d7,#a8a496 70%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+  .screw::after{content:"";position:absolute;inset:2.5px;border-top:1.4px solid rgba(0,0,0,.28);transform:rotate(40deg)}
+  .screw.tl{top:14px;left:14px}.screw.tr{top:14px;right:14px}.screw.bl{bottom:14px;left:14px}.screw.br{bottom:14px;right:14px}
+
+  .sb{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;
+    font-family:var(--pixel);font-size:11px;letter-spacing:.06em;color:var(--ink-soft);flex-shrink:0}
+  .sb .batt{display:inline-flex;align-items:center;gap:3px}
+  .sb .batt b{display:inline-block;width:16px;height:8px;border:1.4px solid var(--ink-soft);border-radius:1px;position:relative}
+  .sb .batt b::after{content:"";position:absolute;inset:1.5px;right:5px;background:var(--ink-soft)}
+  .sb .batt b::before{content:"";position:absolute;right:-3px;top:2px;width:2px;height:4px;background:var(--ink-soft)}
+
+  /* デバイス見出し（アプリのtopbarではなく“機体の銘板”） */
+  .brand{display:flex;align-items:center;justify-content:space-between;padding:2px 26px 12px;flex-shrink:0}
+  .brand .name{font-family:var(--pixel);font-size:15px;font-weight:700;letter-spacing:.14em;color:#4a473e}
+  .brand .name .tri{color:var(--red)}
+  .brand .pw{display:flex;align-items:center;gap:7px;font-family:var(--pixel);font-size:10px;letter-spacing:.12em;color:var(--ink-soft)}
+  .brand .led{width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#e88,var(--red) 65%);
+    box-shadow:0 0 6px rgba(181,86,78,.8), inset 0 0 0 1px rgba(0,0,0,.15)}
+
+  /* ===== 液晶（NOW PLAYING＝据置きの画面。ここは常時固定＝“機体”） ===== */
+  .lcdframe{margin:0 20px 14px;padding:10px;border-radius:14px;flex-shrink:0;
+    background:linear-gradient(#2b2d24,#3a3d33);box-shadow:inset 0 3px 8px rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.35)}
+  .lcd{border-radius:8px;padding:13px 15px 14px;position:relative;overflow:hidden;
+    background:radial-gradient(120% 90% at 50% 0%,var(--lcd-hi),var(--lcd));
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+  /* 液晶のドットマトリクス（画素グリッドを薄く重ねる＝LCDらしさ） */
+  .lcd::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:radial-gradient(rgba(43,54,22,.16) 0.6px,transparent 0.7px);background-size:3px 3px}
+  .lcd-top{font-family:var(--pixel);font-size:10px;letter-spacing:.22em;color:var(--lcd-ink);opacity:.85;display:flex;align-items:center;gap:6px}
+  .lcd-top .bl{width:6px;height:6px;background:var(--lcd-ink)}
+  .lcd-main{display:flex;gap:12px;align-items:center;margin-top:9px}
+  .lcd canvas.big{width:44px;height:44px;image-rendering:pixelated;flex-shrink:0;
+    filter:drop-shadow(0 0 0 rgba(0,0,0,0))}
+  .lcd-title{font-family:var(--gothic);font-weight:700;font-size:15px;line-height:1.32;color:var(--lcd-ink);
+    letter-spacing:.01em}
+  .lcd-stats{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:11px}
+  .lcd-stats .st{display:flex;align-items:baseline;justify-content:space-between;
+    border-bottom:1px dashed rgba(43,54,22,.35);padding-bottom:2px}
+  .lcd-stats .k{font-family:var(--pixel);font-size:9.5px;letter-spacing:.14em;color:var(--lcd-ink);opacity:.7}
+  .lcd-stats .v{font-family:var(--pixel);font-size:15px;font-weight:700;letter-spacing:.04em;color:var(--lcd-ink)}
+  .lcd-gauge{display:flex;gap:1.5px;margin-top:11px}
+  .lcd-gauge i{flex:1;height:9px;background:rgba(43,54,22,.16)}
+  .lcd-gauge i.on{background:var(--lcd-ink)}
+
+  /* “つづきから”＝物理ボタン（PRESS START）。FABの代わり＝機体のGOボタン */
+  .start{margin:0 20px 16px;flex-shrink:0;border:none;cursor:pointer;width:calc(100% - 40px);
+    display:flex;align-items:center;justify-content:center;gap:10px;padding:15px;border-radius:13px;
+    background:linear-gradient(var(--red),var(--red-lo));color:#fff;
+    box-shadow:0 4px 0 var(--red-lo), 0 6px 12px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.3)}
+  .start .tri{font-size:15px}
+  .start .lab{font-family:var(--gothic);font-weight:800;font-size:16px}
+  .start .ps{font-family:var(--pixel);font-size:9px;letter-spacing:.16em;opacity:.85;margin-left:2px}
+
+  /* ===== カセットライブラリ（本棚＝下段のラック。単列＝グリッドでない） ===== */
+  .lib-h{display:flex;align-items:baseline;justify-content:space-between;padding:0 24px 10px;flex-shrink:0}
+  .lib-h .t{font-family:var(--pixel);font-size:11px;font-weight:700;letter-spacing:.16em;color:#4a473e}
+  .lib-h .n{font-family:var(--pixel);font-size:11px;color:var(--ink-soft);letter-spacing:.1em}
+  .rack{flex:1;overflow:auto;padding:2px 20px 26px;scrollbar-width:none;display:flex;flex-direction:column;gap:12px}
+  .rack::-webkit-scrollbar{display:none}
+
+  /* 1本のカセット：上に面取り＋グリップ溝＝カセット筐体の記号 */
+  .cart{position:relative;cursor:pointer;padding:0;
+    clip-path:polygon(0 7px,7px 0,calc(100% - 7px) 0,100% 7px,100% 100%,0 100%);
+    background:linear-gradient(150deg,var(--plastic-hi),var(--panel));
+    filter:drop-shadow(0 3px 4px rgba(0,0,0,.2))}
+  .cart .ridge{height:9px;background:repeating-linear-gradient(90deg,var(--plastic-lo) 0 2px,transparent 2px 5px);
+    opacity:.6;margin:3px 12px 0}
+  .cbody{display:flex;align-items:center;gap:12px;padding:7px 14px 12px}
+  /* ドット絵ラベル（作品識別色のシール） */
+  .clabel{width:52px;height:52px;flex-shrink:0;border-radius:5px;display:grid;place-items:center;
+    box-shadow:inset 0 0 0 1.5px rgba(0,0,0,.14), 0 1px 2px rgba(0,0,0,.15)}
+  .clabel canvas{width:36px;height:36px;image-rendering:pixelated}
+  .cmeta{flex:1;min-width:0}
+  .cmeta .ct{font-family:var(--gothic);font-weight:700;font-size:13.5px;line-height:1.3;color:var(--ink);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .cmeta .cb{font-size:11px;color:var(--ink-soft);margin-top:3px}
+  /* セーブデータ読み取り欄（右） */
+  .csave{flex-shrink:0;width:78px;text-align:right}
+  .csave .stage{font-family:var(--pixel);font-size:11px;letter-spacing:.03em;color:var(--ink)}
+  .csave .gauge{display:flex;gap:1.5px;justify-content:flex-end;margin-top:5px}
+  .csave .gauge i{width:5px;height:8px;background:var(--blue-lo)}
+  .csave .gauge i.on{background:var(--blue)}
+  .csave .pct{font-family:var(--pixel);font-size:11px;font-weight:700;color:var(--blue-ink);margin-top:4px}
+  /* 未読＝セーブ無し */
+  .csave.nodata .stage{color:var(--ink-soft)}
+  .csave .new{display:inline-block;font-family:var(--pixel);font-size:9px;font-weight:700;letter-spacing:.12em;
+    color:#fff;background:var(--red);padding:2px 6px;border-radius:2px;margin-top:6px}
+  .csave .nd{font-family:var(--pixel);font-size:9.5px;letter-spacing:.1em;color:var(--ink-soft);margin-top:5px}
+  /* いま挿さっている1本 */
+  .cart.inslot{background:linear-gradient(150deg,#e6ecd6,#d7e0c2)}
+  .cart.inslot .slot{position:absolute;top:0;right:0;font-family:var(--pixel);font-size:8.5px;font-weight:700;
+    letter-spacing:.12em;color:var(--lcd-ink);background:var(--lcd);padding:3px 8px;
+    clip-path:polygon(6px 0,100% 0,100% 100%,0 100%)}
+
+  /* 空きスロット＝新規カセット追加（PDF取り込み動線・FABの代替） */
+  .slotadd{border:none;cursor:pointer;background:transparent;padding:0;width:100%;
+    clip-path:polygon(0 7px,7px 0,calc(100% - 7px) 0,100% 7px,100% 100%,0 100%)}
+  .slotadd .in{margin:2px;border:2px dashed var(--line);border-radius:6px;
+    display:flex;align-items:center;justify-content:center;gap:10px;padding:18px;color:var(--ink-soft)}
+  .slotadd .pl{font-family:var(--pixel);font-size:22px;font-weight:700;color:var(--ink-soft)}
+  .slotadd .txt{text-align:left}
+  .slotadd .txt .l1{font-family:var(--gothic);font-weight:700;font-size:13px;color:#575349}
+  .slotadd .txt .l2{font-family:var(--pixel);font-size:9px;letter-spacing:.14em;color:var(--ink-soft);margin-top:2px}
+
+  /* 機体下端のチャンネル＝スピーカー穴＋銘 */
+  .deck{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:8px 26px 12px}
+  .deck .holes{display:flex;gap:4px}
+  .deck .holes i{width:5px;height:5px;border-radius:50%;background:var(--plastic-lo);box-shadow:inset 0 1px 1px rgba(0,0,0,.2)}
+  .deck .mk{font-family:var(--pixel);font-size:9px;letter-spacing:.18em;color:var(--ink-soft)}
+</style>
+</head>
+<body>
+  <p class="cap"><b>P. カートリッジ</b> ／ 物語＝ゲームのカセット。上半分は“機体の液晶(NOW PLAYING)”＝いまスロットに挿さった続きの1本とセーブデータ。下段は差し替え用のカセットラック。追加は<b>空きスロット</b>、FABは無い。</p>
+
+  <div class="phone" role="application" aria-label="P案 カートリッジ本棚">
+    <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+
+    <div class="sb"><span>9:41</span><span class="batt">SAVE&nbsp;<b></b></span></div>
+
+    <div class="brand">
+      <span class="name"><span class="tri">▶</span> POCKET NOVEL</span>
+      <span class="pw"><span class="led"></span>PWR</span>
+    </div>
+
+    <!-- 液晶：いま挿さっている1本＝続きから -->
+    <div class="lcdframe">
+      <div class="lcd">
+        <div class="lcd-top"><span class="bl"></span>NOW PLAYING</div>
+        <div class="lcd-main">
+          <canvas class="big" width="8" height="8" data-sprite="potion" data-col="#2b3616" aria-hidden="true"></canvas>
+          <div class="lcd-title">追放された万能薬師、辺境でスローライフを始める</div>
+        </div>
+        <div class="lcd-stats">
+          <div class="st"><span class="k">STAGE</span><span class="v">127</span></div>
+          <div class="st"><span class="k">TOTAL</span><span class="v">340</span></div>
+          <div class="st"><span class="k">CLEAR</span><span class="v">62%</span></div>
+          <div class="st"><span class="k">TIME</span><span class="v">24:17</span></div>
+        </div>
+        <div class="lcd-gauge" data-n="20" data-f="12" aria-label="進捗62パーセント"></div>
+      </div>
+    </div>
+
+    <!-- 続きから＝PRESS START（機体のGOボタン） -->
+    <button class="start"><span class="tri">▶</span><span class="lab">つづきから読む</span><span class="ps">PRESS START</span></button>
+
+    <div class="lib-h"><span class="t">CARTRIDGE LIBRARY</span><span class="n">04 本</span></div>
+
+    <div class="rack">
+      <!-- ① 挿さっている本（続き＝万能薬師） -->
+      <div class="cart inslot w1" role="button" aria-label="追放された万能薬師、いま再生中">
+        <span class="slot">▶ IN SLOT</span>
+        <div class="ridge"></div>
+        <div class="cbody">
+          <div class="clabel" style="background:var(--w1)"><canvas width="8" height="8" data-sprite="potion" data-col="#5a4413"></canvas></div>
+          <div class="cmeta">
+            <div class="ct">追放された万能薬師、辺境でスローライフを始める</div>
+            <div class="cb">霧島あおい</div>
+          </div>
+          <div class="csave"><div class="stage">第127話</div><div class="gauge" data-n="10" data-f="6"></div><div class="pct">62%</div></div>
+        </div>
+      </div>
+
+      <!-- ② 読みかけ -->
+      <div class="cart w2" role="button" aria-label="黒の魔王と契約した俺">
+        <div class="ridge"></div>
+        <div class="cbody">
+          <div class="clabel" style="background:var(--w2)"><canvas width="8" height="8" data-sprite="sword" data-col="#eae7ef"></canvas></div>
+          <div class="cmeta">
+            <div class="ct">黒の魔王と契約した俺、気づけば最強の従者になっていた</div>
+            <div class="cb">夜灯すばる</div>
+          </div>
+          <div class="csave"><div class="stage">第43話</div><div class="gauge" data-n="10" data-f="3"></div><div class="pct">28%</div></div>
+        </div>
+      </div>
+
+      <!-- ③ 未読＝セーブデータ無し -->
+      <div class="cart w3" role="button" aria-label="転生したら最弱スキルだった、未読">
+        <div class="ridge"></div>
+        <div class="cbody">
+          <div class="clabel" style="background:var(--w3)"><canvas width="8" height="8" data-sprite="sprout" data-col="#31441c"></canvas></div>
+          <div class="cmeta">
+            <div class="ct">転生したら最弱スキルだったので、ひたすら草むしりしていた</div>
+            <div class="cb">青葉みのり</div>
+          </div>
+          <div class="csave nodata"><div class="stage">全88話</div><div class="nd">NO DATA</div><div class="new">NEW</div></div>
+        </div>
+      </div>
+
+      <!-- ④ 読みかけ -->
+      <div class="cart w4" role="button" aria-label="公爵令嬢の嗜み">
+        <div class="ridge"></div>
+        <div class="cbody">
+          <div class="clabel" style="background:var(--w4)"><canvas width="8" height="8" data-sprite="flower" data-col="#5e3a45"></canvas></div>
+          <div class="cmeta">
+            <div class="ct">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+            <div class="cb">白河すずら</div>
+          </div>
+          <div class="csave"><div class="stage">第8話</div><div class="gauge" data-n="10" data-f="1"></div><div class="pct">11%</div></div>
+        </div>
+      </div>
+
+      <!-- 空きスロット＝新しいカセットを挿す＝PDF取り込み -->
+      <button class="slotadd" aria-label="新しいカセットを追加（PDFを取り込む）">
+        <div class="in">
+          <span class="pl">＋</span>
+          <div class="txt"><div class="l1">カセットを追加</div><div class="l2">INSERT PDF</div></div>
+        </div>
+      </button>
+    </div>
+
+    <div class="deck">
+      <div class="holes"><i></i><i></i><i></i><i></i><i></i></div>
+      <span class="mk">POCKET NOVEL · COLOR</span>
+      <div class="holes"><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+  </div>
+
+<script>
+  // ドット絵スプライト（8×8ビットマップ。'#'=描画。作品ごとの象徴を最小の画素で）
+  const SPRITES = {
+    potion:[ "...##...","...##...","..####..",".######.",".######.",".######.",".######.","..####.." ], // 薬瓶
+    sword: [ "....#...","...###..","....#...","....#...",".#######","....#...","...###..","..#.#.#." ], // 剣
+    sprout:[ ".#....#.","##....##",".##..##.","...##...","...##...","...##...",".#####..","########" ], // 芽
+    flower:[ "..#..#..",".######.","########",".######.","...##...","...##...","..#.#.#.","#..##..#" ], // 花
+  };
+  document.querySelectorAll('canvas[data-sprite]').forEach(cv=>{
+    const g=cv.getContext('2d'), p=SPRITES[cv.dataset.sprite];
+    g.fillStyle=cv.dataset.col;
+    p.forEach((row,y)=>[...row].forEach((ch,x)=>{ if(ch==='#') g.fillRect(x,y,1,1); }));
+  });
+  // ピクセルゲージ（n分割中f個点灯）を生成
+  document.querySelectorAll('[data-n]').forEach(el=>{
+    const n=+el.dataset.n, f=+el.dataset.f;
+    for(let i=0;i<n;i++){ const s=document.createElement('i'); if(i<f) s.className='on'; el.appendChild(s); }
+  });
+</script>
+</body>
+</html>
