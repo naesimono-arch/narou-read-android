@@ -39,10 +39,9 @@
 ### 残3: 人間テスト（第三者便のみ残）
 > 本人＋実機で可能な分は 2026-07-14 に消化済み（T1/T5/T6/T7=OK・T2=要改修→★残7⑤。結果＝`.claude/plans/usability-test-results-2026-07-14.md`・派生改修＝★残5〜8）。実機検証6件（旧残2）は 2026-07-16 消化済み＝一次情報 `.claude/plans/device-verify-6items-2026-07-16.md`（5 PASS・TalkBack没入時ナビ不達 FAIL は customActions 方式で同日是正・JVM semantics テストで固定）。残るのは**初見/時間差が本質で本人テスト不成立の2件**＝T3（二読書面の操作言語混乱）・T4（中央タップトグルの再発見。コード事実＝ヒントは通算1回きり・再表示条件なし）＋**実TalkBackの音声走査での是正確認**（uiautomator 静的確認では customActions が見えないため人間便に合流）。実施は第三者ユーザビリティテスト便で（プロトコル＝`.claude/plans/usability-test-protocol-2026-07-12.md`）。
 
-### 残5: 人間テストT6派生＝読書クローム出没の視覚ノイズ2件（機序特定済み 2026-07-16・意匠裁定待ち）
-- **機序は確定**（実機 screencap バースト×コード突合。一次情報＝`.claude/plans/device-verify-followup-2026-07-16.md`）: **②ステータスバー明滅**＝没入トグル（`NativeReadingScreen.kt:826-835` の systemBars hide/show）×Edge-to-Edge で、没入時に最上155pxが**アプリ紙色の届かない OS 既定の純黒**になり黒⇄灰でフリップ（実ピクセル値で確証・ライトでは白紙直上に純黒帯）。**①本文ちらつき＝独立機序は棄却**（全108フレームで本文先頭行Y=260不変＝リフロー/コンポーズ空白なし。`ChapterContent.kt:133-138` の `*IgnoringVisibility` インセットが既に防いでいる設計とも整合）＝知覚実体は②と同根。
-- **次＝修正方式の意匠裁定→実装**（意匠絡み＝`/visual-language` ゲート・ADR 0005/0014 接地）。本命候補＝没入時のステータスバー帯をアプリ背景色で塗る（黒⇄灰を「灰⇄紙色」の低コントラスト差へ。ほか「自作バーのみ出没」案・対症クロスフェード案＝plan 参照）。
-- 症状の原典＝`.claude/plans/usability-test-results-2026-07-14.md` T6。
+### 残5: 没入時ステータスバー黒帯明滅＝背景色塗りで実装済み・**実機の目視確認のみ残**（2026-07-16）
+- **修正済み**（裁定＝アプリ背景色で塗る／2026-07-16 ユーザー）: window 背景をテーマ背景色へ再定義（`Theme.kt` の `NovelReaderTheme` SideEffect＝window 単一正本の所有者）。Edge-to-Edge 配下で没入時に最上155pxへ透けていた OS/window 既定の純黒[0,0,0]を、本文と同値の紙色（LIGHT=FBFAF8/SEPIA=F2E7CE/DARK=14171C＝ReadingColors.background と一致）へ。黒⇄灰フリップが灰⇄紙色の低コントラスト差に落ちる。①本文ちらつきは②と同根＝独立機序は棄却済み。機序の一次情報＝`.claude/plans/device-verify-followup-2026-07-16.md`・原典＝`usability-test-results-2026-07-14.md` T6。
+- **残＝実機の目視確認のみ**: OPPO 実機で没入トグル×3テーマの明滅解消を screencap で確認（`adb-bridge`→APK導入。実機前に一声）。OK なら本項を消す。
 
 ### 残8: 本棚操作の要望（2026-07-14 実使用フィードバック・新機能）
 - **①複数選択→まとめて削除**: 対比モック作成済み（`docs/design-candidates/bookshelf-multiselect-D.html`＝fusion-D 基盤・案A上部文脈バー/案B下端固定バー＋削除確認ダイアログ）。**裁定所見（2026-07-16 ユーザー）＝案B寄り。ただし条件付き**＝「削除モードの解除が結局右上操作頼みなら下端集約の意味がない」→解除導線を右上非依存で完結させる再設計が要る（候補: 下端バー内に「キャンセル」明示／システム戻るで解除／選択0件で自動解除。組合せ可）。**モック調整は別セッションで**（案Bベースに解除導線を組み込んだ改訂版を作って再裁定）。裁定後に Compose 実装。削除系＝実機検証は捨て本で（memory `device-verify-delegation-no-destructive-on-real-library`）。

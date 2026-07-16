@@ -1,6 +1,7 @@
 package com.novelreader.ui.theme
 
 import android.app.Activity
+import android.graphics.drawable.ColorDrawable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -288,6 +289,15 @@ fun NovelReaderTheme(
         SideEffect {
             val window = (view.context as Activity).window
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = theme != ReadingTheme.DARK
+            // 残5: 没入トグルでステータスバー帯が黒⇄灰に明滅する問題の根治。読書の没入時は systemBars を
+            // hide するが、Edge-to-Edge（setDecorFitsSystemWindows(false)）配下では最上端（旧ステータスバー
+            // 領域）へアプリ描画が届かず window(DecorView) 既定の純黒[0,0,0]が透け、hide/show に同期して
+            // 黒⇄灰フリップしていた（実機実測155px＝device-verify-followup 2026-07-16）。window 背景を
+            // テーマ背景色へ再定義して「純黒→紙色」の低コントラスト差に落とす（colorScheme.background は
+            // ReadingColors.background と全テーマで同値＝本文と完全同色でシームレス）。
+            // なぜ画面側でなくここか: window はテーマ単一正本の所有物（上の isAppearanceLightStatusBars と同格）。
+            // 画面側で個別設定・復元すると正本とズレる（旧 DisposableEffect の誤明暗バグと同型リスク）。
+            window.setBackgroundDrawable(ColorDrawable(colorScheme.background.toArgb()))
         }
     }
 
