@@ -37,7 +37,7 @@
 ### 残4: 監査派生 backlog（新規タスク）
 - **蔵書内フィルタ/series 束ね UI**（確認バッチC④＝保留）: ロジック `filterBooksByQuery` は実装済み・UI はモック未表現のため保留（`BookshelfScreen.kt:442`／`ShelfItems.kt:37`）。series 束ねはスキーマ変更要（設計案のみ）。
 - **目次の部/編 折り畳み**: 抽出パイプラインに階層データ無し＝**抽出側の新機能**。実PDF→HTML の階層有無は要検証で「フラット確定」＝畳みは前提データ欠如で現状不成立。
-- **Macrobenchmark 新設**: measure 要検証（大PDF/10倍蔵書/長時間送りの予算漸進劣化を P90/P99 で assert）＝独立タスク。INTERNET 無しで出荷後テレメトリ不能の代替。
+- **Macrobenchmark 残フェーズ**（基盤＋コールド起動計測は `perf/macrobenchmark` で新設済み・設計と残フェーズ詳細＝`.claude/plans/macrobenchmark-kickoff-2026-07-17.md`）: ①実機初回計測（OPPO・`com.novelreader.benchmark` 別パッケージなので実蔵書は安全・投入前に要ユーザー確認）→予算値較正 ②10倍蔵書シーダー（src/benchmark ソースセット）＋本棚スクロール jank ③長時間章送り jank ④大PDF取込（TraceSectionMetric）。予算 assert は較正後に instrumentation 引数でゲート。
 - **lint 残 warnings（任意改善・非ブロック）**: UsableSpace×2（`DefaultBookRepository.kt` の抽出前空き容量チェック）＝`getAllocatableBytes` は消去可能キャッシュ込みの楽観値で事前チェックが甘くなり ENOSPC で変換終盤失敗を招くため、現状の保守的 `usableSpace` は意図的。触るなら API26 分岐・例外処理込みの設計判断が要る（純機械修正ではない）。※ ModifierParameter×3 は Compose 規約準拠で解消済み。
 
 ## UI/UX 宿題

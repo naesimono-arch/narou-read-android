@@ -33,6 +33,15 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+        benchmark {
+            initWith release
+            // 実機で野良ビルドを直接インストールできるよう debug 署名を使う
+            signingConfig signingConfigs.debug
+            // 実蔵書(com.novelreader)と別アプリとして共存させ、計測用データ投入で
+            // ユーザーの蔵書DBを壊さないための別パッケージ化
+            applicationIdSuffix ".benchmark"
+            matchingFallbacks = ['release']
+        }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17

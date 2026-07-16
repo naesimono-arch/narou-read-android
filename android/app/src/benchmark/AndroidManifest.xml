@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- benchmark variant のみに profileable を重ねる overlay。release/main の manifest を汚さないための分離。 -->
+    <application>
+        <profileable
+            android:shell="true"
+            android:enabled="true" />
+    </application>
+</manifest>
