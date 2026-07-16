@@ -88,7 +88,17 @@
   /* 栞書影＝fusion-D の .cv/.rule をそのまま流用（左に藍の縦ルール・均一） */
   .bk{cursor:pointer}
   .cv{position:relative;aspect-ratio:2/3;border-radius:2px;overflow:hidden;display:flex;align-items:flex-end}
-  .cv .rule{position:absolute;left:12px;top:12px;bottom:12px;width:2px;background:var(--ai);opacity:.85;z-index:1}
+  .cv .rule{position:absolute;left:12px;top:12px;height:var(--rule-len,44%);width:2px;background:var(--ai);color:var(--ai);opacity:.85;z-index:1}
+  /* 栞の棒長・先端は取込時ランダム抽選→DB永続化（f208608）＝本ごとに個体差（fusion-D 逆同期と同基準）。
+     同一作品は fusion-D と同じ先端/棒長に対応付け（本に紐づく個体差の再現）。e/f の絵柄再利用は乱択の重複を代表。 */
+  .cv .rule::after{content:'';position:absolute;left:1px;top:100%;transform:translateX(-50%)}
+  .shiori-a{--rule-len:52%} .shiori-b{--rule-len:38%} .shiori-c{--rule-len:58%} .shiori-d{--rule-len:44%} .shiori-e{--rule-len:34%} .shiori-f{--rule-len:56%}
+  .shiori-a .rule::after{width:7px;height:7px;border-radius:50%;background:currentColor}                        /* 結び玉 */
+  .shiori-b .rule::after{width:8px;height:8px;border:1.5px solid currentColor;border-radius:50%}                /* 小輪 */
+  .shiori-c .rule::after{width:6px;height:6px;background:currentColor;transform:translateX(-50%) rotate(45deg)} /* 菱 */
+  .shiori-d .rule::after{width:12px;height:2px;background:currentColor}                                         /* 括り */
+  .shiori-e .rule::after{width:7px;height:7px;border-radius:50%;background:currentColor}                        /* 結び玉(重複) */
+  .shiori-f .rule::after{width:6px;height:6px;background:currentColor;transform:translateX(-50%) rotate(45deg)} /* 菱(重複) */
   .cv .ttl-in{padding:12px 12px 16px 24px;color:var(--base);z-index:1}
   .cv .ttl-in b{font-family:var(--mincho);font-size:13.5px;font-weight:600;line-height:1.4;
     display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-shadow:0 1px 3px rgba(28,31,38,.4)}
@@ -170,17 +180,17 @@
         <span class="lchip">読了</span>
       </div>
       <div class="scroll"><div class="grid">
-        <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>追放された万能薬師</b></div></div>
+        <div class="bk sel"><div class="cv shiori-a" style="background:linear-gradient(160deg,#3A4F63,#28323E)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>追放された万能薬師</b></div></div>
           <div class="meta"><div class="t">追放された万能薬師、辺境でスローライフを始める</div></div></div>
-        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>黒の魔王と契約した俺</b></div></div>
+        <div class="bk"><div class="cv shiori-b" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>黒の魔王と契約した俺</b></div></div>
           <div class="meta"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div></div></div>
-        <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#46584C,#2C362F)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>草むしりと世界樹</b></div></div>
+        <div class="bk sel"><div class="cv shiori-d" style="background:linear-gradient(160deg,#46584C,#2C362F)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>草むしりと世界樹</b></div></div>
           <div class="meta"><div class="t">転生したら最弱スキルだったので草むしりしていた</div></div></div>
-        <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#4F4A63,#312E3D)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>公爵令嬢の嗜み</b></div></div>
+        <div class="bk sel"><div class="cv shiori-c" style="background:linear-gradient(160deg,#4F4A63,#312E3D)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>公爵令嬢の嗜み</b></div></div>
           <div class="meta"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div></div></div>
-        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#3F5560,#26333A)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>辺境伯家の次男</b></div></div>
+        <div class="bk"><div class="cv shiori-e" style="background:linear-gradient(160deg,#3F5560,#26333A)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>辺境伯家の次男</b></div></div>
           <div class="meta"><div class="t">辺境伯家の次男は今日も書庫にこもる</div></div></div>
-        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#54506A,#332F41)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>雨宿りの喫茶店</b></div></div>
+        <div class="bk"><div class="cv shiori-f" style="background:linear-gradient(160deg,#54506A,#332F41)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>雨宿りの喫茶店</b></div></div>
           <div class="meta"><div class="t">雨宿りの喫茶店で魔女に出会った</div></div></div>
       </div></div>
     </div></div>
@@ -203,17 +213,17 @@
         <span class="lchip">読了</span>
       </div>
       <div class="scroll" style="padding-bottom:96px"><div class="grid">
-        <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>追放された万能薬師</b></div></div>
+        <div class="bk sel"><div class="cv shiori-a" style="background:linear-gradient(160deg,#3A4F63,#28323E)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>追放された万能薬師</b></div></div>
           <div class="meta"><div class="t">追放された万能薬師、辺境でスローライフを始める</div></div></div>
-        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>黒の魔王と契約した俺</b></div></div>
+        <div class="bk"><div class="cv shiori-b" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>黒の魔王と契約した俺</b></div></div>
           <div class="meta"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div></div></div>
-        <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#46584C,#2C362F)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>草むしりと世界樹</b></div></div>
+        <div class="bk sel"><div class="cv shiori-d" style="background:linear-gradient(160deg,#46584C,#2C362F)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>草むしりと世界樹</b></div></div>
           <div class="meta"><div class="t">転生したら最弱スキルだったので草むしりしていた</div></div></div>
-        <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#4F4A63,#312E3D)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>公爵令嬢の嗜み</b></div></div>
+        <div class="bk sel"><div class="cv shiori-c" style="background:linear-gradient(160deg,#4F4A63,#312E3D)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>公爵令嬢の嗜み</b></div></div>
           <div class="meta"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div></div></div>
-        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#3F5560,#26333A)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>辺境伯家の次男</b></div></div>
+        <div class="bk"><div class="cv shiori-e" style="background:linear-gradient(160deg,#3F5560,#26333A)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>辺境伯家の次男</b></div></div>
           <div class="meta"><div class="t">辺境伯家の次男は今日も書庫にこもる</div></div></div>
-        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#54506A,#332F41)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>雨宿りの喫茶店</b></div></div>
+        <div class="bk"><div class="cv shiori-f" style="background:linear-gradient(160deg,#54506A,#332F41)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span><div class="ttl-in"><b>雨宿りの喫茶店</b></div></div>
           <div class="meta"><div class="t">雨宿りの喫茶店で魔女に出会った</div></div></div>
       </div></div>
       <div class="botbar">
@@ -236,10 +246,10 @@
           <span class="lchip on">すべて</span><span class="lchip">未読</span><span class="lchip">読書中</span><span class="lchip">読了</span>
         </div>
         <div class="scroll"><div class="grid">
-          <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span></div></div>
-          <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span></div></div>
-          <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#46584C,#2C362F)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span></div></div>
-          <div class="bk sel"><div class="cv" style="background:linear-gradient(160deg,#4F4A63,#312E3D)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span></div></div>
+          <div class="bk sel"><div class="cv shiori-a" style="background:linear-gradient(160deg,#3A4F63,#28323E)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span></div></div>
+          <div class="bk"><div class="cv shiori-b" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span></div></div>
+          <div class="bk sel"><div class="cv shiori-d" style="background:linear-gradient(160deg,#46584C,#2C362F)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span></div></div>
+          <div class="bk sel"><div class="cv shiori-c" style="background:linear-gradient(160deg,#4F4A63,#312E3D)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span></div></div>
         </div></div>
       </div>
       <div class="scrim"></div>
