@@ -21,6 +21,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -46,6 +47,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -60,6 +62,7 @@ import androidx.compose.material3.TopAppBarState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -77,6 +80,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -1037,6 +1041,18 @@ internal fun ChapterScreenContent(
                         }
                         // 「表示設定」=下端歯車ボタンと同じく設定シートを開く（Content ローカルの開閉 state を立てる）。
                         add(CustomAccessibilityAction("表示設定") { showSettings = true; true })
+                        // 「最上部へ」＝ピルと同一コールバック・同一の出現条件（章の半分以上）。没入中も
+                        // TalkBack から先頭復帰へ到達できるよう実 UI と対で揃える（この semantics ラムダは
+                        // deferred read＝スクロールで composition を再実行させない）。
+                        val total = lazyListState.layoutInfo.totalItemsCount
+                        if (total > 0 && lazyListState.firstVisibleItemIndex * 2 >= total) {
+                            add(
+                                CustomAccessibilityAction("最上部へ") {
+                                    scope.launch { lazyListState.scrollToItem(0) }
+                                    true
+                                },
+                            )
+                        }
                     }
                 }
             },
@@ -1301,6 +1317,57 @@ internal fun ChapterScreenContent(
                     .clickable(onClick = onReturnToContinuation)
                     .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
             )
+        }
+
+        // 「最上部へ」ピル（2026-07-16 実機フィードバック・案C裁定＝reading-backtotop-D.html）:
+        // メニュー表示中かつ「章の半分以上読み進めた」ときだけ、下端バー直上に出す。意匠は復帰ヒント・
+        // 続きに戻ると同型のピル（新意匠を発明しない）。なぜ後半のみか: 章頭付近では戻る意味が無く
+        // ただの浮遊物になる（ユーザー裁定「半分以上過ぎたら表示」）。押して先頭へ戻ると条件が外れて
+        // 自然に消える＝完了フィードバックを兼ねる。
+        // 進捗は〈可視先頭アイテム÷全アイテム〉の段落数ベース近似（画素精度は不要・1画面で収まる短章では
+        // 出ない）。0.5 は暫定の較正値（実機後詰め層＝ADR0005 §B。要すれば閾値だけ調整）。
+        // derivedStateOf: スクロール毎フレームの再評価を boolean 反転時だけの recompose に落とす
+        //（本棚 showBand と同じ定石）。
+        val chromeVisibleForPill by remember {
+            derivedStateOf { topAppBarState.collapsedFraction < 0.5f }
+        }
+        val pastHalf by remember(lazyListState) {
+            derivedStateOf {
+                val total = lazyListState.layoutInfo.totalItemsCount
+                total > 0 && lazyListState.firstVisibleItemIndex * 2 >= total
+            }
+        }
+        AnimatedVisibility(
+            visible = chromeVisibleForPill && pastHalf,
+            enter = fadeIn(tween(MotionDurationCrossfade)),
+            exit = fadeOut(tween(MotionDurationCrossfade)),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                // 下端バーの実測高さ＋S12 で「バー直上」に浮かべる（バー高はナビバー実高で変わるため実測値）。
+                .padding(bottom = with(LocalDensity.current) { bottomBarHeightPx.toDp() } + Spacing.S12),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S4),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(colors.navBackground.copy(alpha = 0.92f))
+                    .clickable(onClick = { scope.launch { lazyListState.scrollToItem(0) } })
+                    .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.VerticalAlignTop,
+                    contentDescription = null, // 隣のテキストが意味を担う（重複読み上げ回避）
+                    tint = colors.topBarIcon,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    text = "最上部へ",
+                    color = colors.topBarIcon,
+                    fontFamily = MinchoFamily,
+                    fontSize = FontSubTitle,
+                )
+            }
         }
 
         if (showLinkSheet) {
