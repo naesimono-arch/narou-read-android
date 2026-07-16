@@ -50,7 +50,7 @@
 - **進め方**: 意匠絡み＝`/visual-language` ゲート・discovery-detail-D.html（モック正本）の改訂とセットで階層を再設計（取込を既読でも上位に保つ形）。一次情報＝`.claude/plans/usability-test-results-2026-07-14.md` 派生所見。**進捗（2026-07-16）**: 対比モック作成済み（`docs/design-candidates/discovery/discovery-detail-cta-consistency-D.html`＝現状/案A完全一貫〔取込を常に主〕/案B続き主のまま取込第2固定）＝**ユーザー裁定待ち**（`mockview` で開く）。裁定後にモック正本改訂＋Compose 翻訳をセットで。
 
 ### 残8: 本棚操作の要望（2026-07-14 実使用フィードバック・新機能）
-- **①複数選択→まとめて削除**: 対比モック作成済み（`docs/design-candidates/bookshelf-multiselect-D.html`＝fusion-D 基盤・案A上部文脈バー/案B下端固定バー＋削除確認ダイアログ）＝**ユーザー裁定待ち**（`mockview` で開く）。裁定後に Compose 実装。削除系＝実機検証は捨て本で（memory `device-verify-delegation-no-destructive-on-real-library`）。
+- **①複数選択→まとめて削除**: 対比モック作成済み（`docs/design-candidates/bookshelf-multiselect-D.html`＝fusion-D 基盤・案A上部文脈バー/案B下端固定バー＋削除確認ダイアログ）。**裁定所見（2026-07-16 ユーザー）＝案B寄り。ただし条件付き**＝「削除モードの解除が結局右上操作頼みなら下端集約の意味がない」→解除導線を右上非依存で完結させる再設計が要る（候補: 下端バー内に「キャンセル」明示／システム戻るで解除／選択0件で自動解除。組合せ可）。**モック調整は別セッションで**（案Bベースに解除導線を組み込んだ改訂版を作って再裁定）。裁定後に Compose 実装。削除系＝実機検証は捨て本で（memory `device-verify-delegation-no-destructive-on-real-library`）。
 
 ### 残4: 監査派生 backlog（新規タスク）
 - **蔵書内フィルタ/series 束ね UI**（確認バッチC④＝保留）: ロジック `filterBooksByQuery` は実装済み・UI はモック未表現のため保留（`BookshelfScreen.kt:442`／`ShelfItems.kt:37`）。series 束ねはスキーマ変更要（設計案のみ）。
