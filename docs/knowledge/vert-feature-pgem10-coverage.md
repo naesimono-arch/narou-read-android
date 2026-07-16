@@ -18,5 +18,11 @@ vert の役割は「位置替え・字形差し替え」に限定する。
 **付随の実測**: serif は小書き仮名20字で vert 適用時に advance が 64→65px に変わる
 ＝グリフ送りの等幅前提は置けない（実測 advance を使う）。
 
+**追加計測（2026-07-17 v2・P0-2bで発見した8字）**:
+- **〝〞(U+301D/U+301E)＝vert 有効**（両書体）→ PUNCT_REPOSITION（vert適用経路）
+- **―(U+2015)＝vert 無効**（両書体）→ MANUAL_ROTATE_REQUIRED へ追加（――連続の構成字。放置すると横倒れしない）。
+  —(U+2014)・‐(U+2010)・–(U+2013) は未計測だが同系のため防御的に自前回転（自前回転は安全側＝vert有効字に使っても視覚等価）
+- Ⅳ(U+2163)・ギリシャ αβγΔ＝変化なし（正立が正解＝現分類どおり）。α等は advance 36〜45px のプロポーショナル
+
 一次データ: `.claude/plans/vertical-mode-p0-measurements-2026-07-17.md`（P0-1）／
 生JSONL `android/app/src/test/resources/typeset/vert_probe_pgem10.jsonl`

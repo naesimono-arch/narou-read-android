@@ -79,6 +79,10 @@ class CharClassifierTest {
 
     @Test
     fun `vert非対応の自前回転必須リストを固定`() {
-        assertEquals(setOf("…", "‥", "；", "−"), VertFeatureCoverage.MANUAL_ROTATE_REQUIRED)
+        // P0-1 実測（…‥；−）＋ 2026-07-17 v2 追加実測（―=U+2015 が vert 無効。—‐– は未計測の同系＝防御的に自前回転）。
+        assertEquals(
+            setOf("…", "‥", "；", "−", "―", "—", "‐", "–"),
+            VertFeatureCoverage.MANUAL_ROTATE_REQUIRED,
+        )
     }
 }

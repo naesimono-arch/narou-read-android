@@ -38,11 +38,19 @@ class EdgecaseCorpusTest {
 
     @Test
     fun `作者依存の単幅特殊字は正立に分類される`() {
-        // ギリシャ（N3957FQ 629回）・ローマ数字（N9463BR Ⅳ）・縦書き用引用符（N8809BK 〝〞）は
-        // 分類表に載せず「未知→UPRIGHT」の防御既定で正立になることを固定
-        //（〝〞の vert 実効性は未計測＝次回実機スパイクで確認予定。P0計測記録の追記参照）。
-        for (ch in listOf("α", "β", "γ", "Δ", "Ⅳ", "〝", "〞")) {
+        // ギリシャ（N3957FQ 629回）・ローマ数字（N9463BR Ⅳ）は分類表に載せず「未知→UPRIGHT」の
+        // 防御既定で正立になることを固定（2026-07-17 実機計測で vert 変化なし＝正立が正解と確認済み）。
+        for (ch in listOf("α", "β", "γ", "Δ", "Ⅳ")) {
             assertEquals("$ch は正立", CharClass.UPRIGHT, CharClassifier.classify(ch))
+        }
+    }
+
+    @Test
+    fun `縦書き用引用符は位置替えに分類される`() {
+        // 〝〞（N8809BK 593回）は 2026-07-17 実機計測で vert 有効＝縦用の位置替え字形を持つ
+        // → 正立既定でなく PUNCT_REPOSITION（描画層が vert を適用する経路）に載せる。
+        for (ch in listOf("〝", "〞")) {
+            assertEquals("$ch は位置替え", CharClass.PUNCT_REPOSITION, CharClassifier.classify(ch))
         }
     }
 

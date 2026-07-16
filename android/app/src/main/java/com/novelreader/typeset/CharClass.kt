@@ -37,8 +37,10 @@ object CharClassifier {
     private const val SMALL_KANA =
         "ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶ"
 
-    /** PUNCT_REPOSITION 対象＝句読点＋小書き仮名（右上寄せ系の位置替え）。 */
-    private val PUNCT_REPOSITION_CHARS: Set<Char> = ("、。，．" + SMALL_KANA).toSet()
+    /** PUNCT_REPOSITION 対象＝句読点＋小書き仮名＋縦書き用引用符（右上寄せ系の位置替え）。
+     *  〝〞(U+301D/U+301E) は 2026-07-17 の追加実機計測で vert が両書体有効＝位置替え字形を持つと確認
+     *  （N8809BK で593回出現する実データ字。閉じの実体は 〟U+301F でなく 〞U+301E）。 */
+    private val PUNCT_REPOSITION_CHARS: Set<Char> = ("、。，．〝〞" + SMALL_KANA).toSet()
 
     /**
      * ROTATE 対象＝括弧18種＋長音/波/ダッシュ/約物の一部。
@@ -78,6 +80,10 @@ object CharClassifier {
  * 実測根拠: docs/knowledge/vert-feature-pgem10-coverage.md（P0-1 の 130 計測）。
  */
 object VertFeatureCoverage {
-    /** vert が効かず自前回転が必須と実測された字（‥は書体割れ＝フォールバック必須の実証例）。 */
-    val MANUAL_ROTATE_REQUIRED: Set<String> = setOf("…", "‥", "；", "−")
+    /** vert が効かず自前回転が必須と実測された字（‥は書体割れ＝フォールバック必須の実証例）。
+     *  ―(U+2015) は 2026-07-17 の追加実機計測で両書体無効と確認（――連続＝N9463BR 1006回の実データ字。
+     *  放置すると実機でダッシュが横倒れにならず版面が壊れる）。—(U+2014)・‐(U+2010)・–(U+2013) は
+     *  未計測だが同系ダッシュのため防御的に自前回転へ（自前回転は vert が効く字に使っても視覚結果は
+     *  等価な安全側＝計測できたら精緻化してよい）。 */
+    val MANUAL_ROTATE_REQUIRED: Set<String> = setOf("…", "‥", "；", "−", "―", "—", "‐", "–")
 }
