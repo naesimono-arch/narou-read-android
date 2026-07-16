@@ -96,7 +96,6 @@
 ## D. 長期・品質（backlog）
 
 - **左右スワイプで章遷移**: 旧 `experiment`/`lab-old` は WebView 実装で流用不可。`HorizontalPager`/`pointerInput` で新規。チューニング知見＝軸ロック(`de60869`)/EMA+isDragging(`a07dd3e`)/距離OR速度複合(`4a0719b`)。元コミット `23b5f33`（main 未取り込み）。
-- **[抽出] 単話（章見出しグリフ0件）作品の変換で、全本文が既定章「作品情報・プロローグ」へ流れ章題名も出ない**（2026-07-09 ユーザー観測→2026-07-16 真因確定・**修正方針裁定済み**）: 検体は **N5368ML**（`sample_pdfs/N5368ML.pdf` に回収済み。当初の n2959ki 帰属は取り違え＝N2959KI は golden/新規生成とも Bold14pt 題名3,727字で正常131章・無実を実測確認）。**真因（確定）**: 単話PDFは本文中に Bold×14pt の章見出しグリフが皆無（Bold14pt は定型「注意事項」4字のみ）→ `checkIsTitle` 不発 → `【題名】`マーカー0件 → `splitIntoChapters` が既定タイトル「作品情報・プロローグ」（`ChapterProcessor.kt:28`）の単一章へ全段落を流し込む。**裁定（2026-07-16 ユーザー）: 題名0件時の単一章タイトルは作品タイトルを流用**。**やること（挙動変更）**: ①`splitIntoChapters` 経路へ作品タイトルを渡し題名0件時に流用する実装（既定「作品情報・プロローグ」は題名マーカーが後から現れる複章文書の先頭章用に維持） ②N5368ML を golden 第4本として追加（題名0件ケースの恒久回帰。`JvmGoldenRegressionTest.buildSnapshot` と同指標で JSON 化） ③既存 golden 3本は題名検出成功の多章のため出力不変の見込み＝JVM ゲートで確認。一次情報＝`.claude/plans/parser-rules-relative-2026-07-16.md`。
 - **超長編抽出エッジ残差の③アポストロフィ座標順**（N6169DZ・章題ドリフト残2件）: `兎'ｓ`↔`'鳥…` の座標順ずれで**1:1コードポイント置換不可**＝実質 won't-fix。基準＝`ab-review/golden_regression`、詳細＝task_diary #35。
 
 ## A2. UIスキン着せ替え（将来送り・保留）

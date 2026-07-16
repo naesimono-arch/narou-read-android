@@ -134,8 +134,10 @@ class PdfExtractorDeviceSpikeTest {
         PDDocument.load(pdfFile).use { doc ->
             val meta = PdfExtractor.extractBookMeta(doc)
             val paragraphs = PdfExtractor.runFinalEngine(doc)
+            // 本番 PdfBookExtractor と同経路にするため meta.title を fallback として渡す
+            // （題名マーカー有りの既存検体は分岐に入らず出力不変。単話のみ作品タイトルが単一章名になる）。
             val chapters = ChapterProcessor.processForewordAfterword(
-                ChapterProcessor.splitIntoChapters(paragraphs)
+                ChapterProcessor.splitIntoChapters(paragraphs, meta.title)
             )
 
             val bodyText = paragraphs.joinToString("\n")

@@ -46,6 +46,11 @@ class JvmGoldenRegressionTest {
     @Test
     fun n6169dz_longWork_toleranceBand() = runOne(Fixture("N6169DZ", exactBody = false))
 
+    // 単話（【題名】マーカー皆無）＝章見出し構造が無い作品。単一章タイトルに表紙由来の作品タイトルが
+    // 流用され「作品情報・プロローグ」の嘘見出しが目次に出ないことを body 完全一致で守る。
+    @Test
+    fun n5368ml_singleChapterWork_bodyExactMatch() = runOne(Fixture("N5368ML", exactBody = true))
+
     private data class Fixture(val name: String, val exactBody: Boolean)
 
     private data class Snapshot(
@@ -85,8 +90,10 @@ class JvmGoldenRegressionTest {
         PDDocument.load(pdfFile).use { doc ->
             val meta = PdfExtractor.extractBookMeta(doc)
             val paragraphs = PdfExtractor.runFinalEngine(doc)
+            // 本番 PdfBookExtractor と同経路にするため meta.title を fallback として渡す
+            // （題名マーカー有りの既存3本は分岐に入らず出力不変。単話 N5368ML のみ作品タイトルが単一章名になる）。
             val chapters = ChapterProcessor.processForewordAfterword(
-                ChapterProcessor.splitIntoChapters(paragraphs)
+                ChapterProcessor.splitIntoChapters(paragraphs, meta.title)
             )
             val bodyText = paragraphs.joinToString("\n")
             return Snapshot(

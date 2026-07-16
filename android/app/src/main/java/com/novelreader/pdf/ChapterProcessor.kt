@@ -22,10 +22,24 @@ object ChapterProcessor {
      * 本文のない章（題名直後に本文が無い＝currentBody が空）はサイレントにドロップする仕様。
      * 後書きの特殊処理はここでは行わない（processForewordAfterword が後書きタイトルを処理するため、
      * ここで畳み込むと二重処理になる）。
+     *
+     * @param noTitleFallback 文書全体に【題名】マーカーが1件も無いときの単一章タイトル。
+     *   なぜ引数化するか＝単話（章見出しグリフが皆無で【題名】が1件も付かない作品）では、
+     *   全段落が既定タイトル「作品情報・プロローグ」の単一章に流れ込み、目次と読書画面に
+     *   実在しない嘘見出しが出る。マーカー皆無時に限り本パラメータ（本番は表紙由来の作品タイトル）を
+     *   初期タイトルへ流用してこれを防ぐ。既定値は従来値のため、引数を省く既存呼び出し・テストは挙動不変。
+     *   マーカーが1件でもあれば従来どおり先頭本文群は「作品情報・プロローグ」章となり本パラメータは無効。
      */
-    fun splitIntoChapters(paragraphs: List<String>): List<RawChapter> {
+    fun splitIntoChapters(
+        paragraphs: List<String>,
+        noTitleFallback: String = "作品情報・プロローグ",
+    ): List<RawChapter> {
         val chapters = mutableListOf<RawChapter>()
-        var currentTitle = "作品情報・プロローグ"
+        // マーカーが1件でも在れば従来値、皆無のときのみ fallback を初期タイトルにする。
+        // なぜ事前走査か＝先頭本文を読み始める前に初期タイトルを確定する必要があるため（後から遡って
+        // 差し替えると「作品情報・プロローグ」が既に確定済みの章へ混入しうる）。
+        val hasAnyTitleMarker = paragraphs.any { it.startsWith("【題名】") }
+        var currentTitle = if (hasAnyTitleMarker) "作品情報・プロローグ" else noTitleFallback
         var currentBody = mutableListOf<String>()
 
         for (p in paragraphs) {
