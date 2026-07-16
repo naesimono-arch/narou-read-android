@@ -1,0 +1,304 @@
+<!-- @dsCard group="UI-n / 読書（D詰め・縦書き検討）" name="D. 縦書き・右→左ページ送り（骨格B＝紙/Kindleの伝統標準）— 触感確認モック" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n D 縦書き読書 — 右→左ページ送り（骨格B）</title>
+<style>
+  /*==harness==*/
+  /* 骨格B＝縦書き・右→左ページ送り（紙の本の伝統標準・Kindle同方式）の「触感確認」モック。
+     視覚言語は reading-D.html（寒色白×藍ヘアライン×明朝本文・余白主導）をそのまま流用し、
+     横組みを縦組み(writing-mode: vertical-rl)へ置換。色hex・フォント指定は一切変えない。
+     擬似ページネーション＝横スクロールコンテナ＋scroll-snap（ページ幅=ビューポート幅）。 */
+  :root{
+    --ai:#1C3D5A;            /* 藍（アクセント・ルール線。3テーマ共通の骨格色） */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;
+    padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.6;max-width:780px}
+  .cap b{color:#2A2C28}
+  .cap2{color:#6A6C67;font-size:11.5px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:780px}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#6A6C67;text-align:center}
+
+  /* ---- テーマ別トークン（reading-D と同一値。ライト/ダークのみ使用）---- */
+  .phone{width:372px;height:800px;border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--mincho)}
+  /*==/harness==*/
+
+  .t-light{ --bg:#FBFAF8; --ink:#1C1F26; --soft:#7C808B; --ruby:#616C77; --rule:#1C3D5A;
+            --blk-bg:#F1F0EC; --blk-bd:#E4E2DB; --bar:#FBFAF8; --bar-line:#ECEAE4; --accent:#1C3D5A; --acc-on:#fff; }
+  .t-dark{ --bg:#14171C; --ink:#C7CDD3; --soft:#7B838C; --ruby:#7F8994; --rule:#5E7E9C;
+            --blk-bg:#1B1F26; --blk-bd:#2A2F38; --bar:#181C22; --bar-line:#2A2F38; --accent:#6E96B8; --acc-on:#0F1318; }
+  .phone{background:var(--bg)}
+
+  /* ---- ステータス／トップバー（reading-D のヘアライン体系）---- */
+  .sb{height:34px;flex:0 0 34px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;
+    font-size:11px;color:var(--soft);font-family:var(--gothic)}
+  .topbar{position:relative;z-index:4;height:50px;flex:0 0 50px;display:flex;align-items:center;gap:4px;padding:0 16px;
+    background:var(--bar);border-bottom:1px solid var(--bar-line)}
+  .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;
+    place-items:center;color:var(--ink);cursor:pointer}
+  .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar .ct{flex:1;font-family:var(--gothic);font-size:13.5px;color:var(--ink);letter-spacing:.04em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* ---- 擬似ページャ（横スクロール＋scroll-snap／ページ幅=ビューポート幅）----
+     row-reverse でDOM先頭ページ=最右（1ページ目）。縦書きは各ページ内の .pg が受け持つ。 */
+  .pager{flex:1;min-height:0;display:flex;flex-direction:row-reverse;position:relative;z-index:1;
+    overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;
+    scrollbar-width:none;-ms-overflow-style:none;touch-action:none;cursor:grab}
+  .pager::-webkit-scrollbar{display:none}
+  .pager:active{cursor:grabbing}
+  .pg{flex:0 0 100%;width:100%;height:100%;overflow:hidden;scroll-snap-align:center;scroll-snap-stop:always;
+    writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;text-orientation:mixed;
+    padding:26px 22px 24px}
+
+  /* ---- 縦組み本文（reading-D の字面＝明朝・行間・ルビ上付きを縦へ）---- */
+  .pg p{font-family:var(--mincho);font-size:16.5px;line-height:2.05;color:var(--ink);
+    text-indent:1em;margin:0;margin-block-end:.55em}
+  ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+
+  /* 章見出し（縦）: 番号→題→藍の細ルール。ルールは縦の短い実線に転用 */
+  .chap-h{margin:2px 0;display:flex;flex-direction:column;align-items:flex-start}
+  .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--accent);letter-spacing:.3em}
+  .chap-h .t{font-size:19px;color:var(--ink);margin-block-start:10px;line-height:1.55;font-weight:600}
+  .chap-h .rule{width:2px;height:48px;background:var(--rule);opacity:.85;margin-block-start:16px;margin-inline:auto}
+
+  /* シーン区切り＝藍の細ルール（縦組みでは中央寄せの短い縦実線で静かに） */
+  .vsep{inline-size:64px;block-size:1px;background:var(--rule);opacity:.5;margin-inline:auto;margin-block:14px}
+
+  /* 前書きブロック（ラベル付き枠＝StyledBlock。縦でもヘアライン枠＋淡い面を維持） */
+  .block{border:1px solid var(--blk-bd);background:var(--blk-bg);padding:14px 12px;margin-block-end:18px;border-radius:2px}
+  .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--accent);font-weight:700;
+    margin-block-end:8px;letter-spacing:.1em}
+  .block p{font-size:14.5px;line-height:2.0;text-indent:1em;margin:0}
+
+  /* 章扉（次章の間紙）＝章番号＋題＋藍ルールのみの静かな1枚。上下左右中央 */
+  .pg.tobira{display:flex;align-items:center;justify-content:center}
+  .pg.tobira .chap-h{align-items:center}
+  .pg.tobira .lead{font-family:var(--gothic);font-size:11px;color:var(--soft);letter-spacing:.3em;margin-block-end:14px}
+  .pg.tobira .t{font-size:20px}
+
+  /* ---- ボトムバー（reading-D の4分割をそのまま維持。章送りの主経路は「最終ページの先へ送る＋章扉」だが、
+     前章/次章ボタンはページ送りとは別の明示手段として併存させる＝A案と同方針）---- */
+  .bottombar{position:relative;z-index:4;height:60px;flex:0 0 60px;display:flex;align-items:center;
+    background:var(--bar);border-top:1px solid var(--bar-line)}
+  .bottombar button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:4px;color:var(--ink);cursor:pointer}
+  .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .bottombar .bl{font-family:var(--gothic);font-size:9.5px;color:var(--soft);letter-spacing:.02em}
+  .bottombar .set svg{stroke:var(--accent)}
+  .bottombar .set .bl{color:var(--accent);font-weight:600}
+
+  /* 没入（クローム非表示）: 上下バーを消す */
+  .immersive .topbar,.immersive .bottombar{display:none}
+
+  /* ページ位置の薄い表示（没入時も片隅に残す） */
+  .pageno{position:absolute;left:16px;bottom:70px;z-index:5;font-family:var(--gothic);
+    font-size:10.5px;letter-spacing:.14em;color:var(--soft);opacity:.5;pointer-events:none}
+  .immersive .pageno{bottom:22px}
+</style>
+</head>
+<body>
+  <p class="cap"><b>D・縦書き（骨格B＝右→左ページ送り）</b> ／ 紙の本の伝統標準（Kindle同方式）。1画面=1ページで右→左へ。<b>操作系: 右→左ページ送り（左1/3タップ・スワイプ=次／右1/3=前）、章送り=最終ページの先へ送ると次章1ページ目へ連続＋章扉（間紙）</b>。根拠＝紙・Kindleの伝統標準。視覚言語は reading-D をそのまま流用。</p>
+  <p class="cap2">モック操作: 画面端タップ・横ドラッグ・マウスホイール縦回転でページ送り／①はクローム表示（中央タップでバー表示を切替）、②はダーク没入。ページ送りが横軸を占有するため章送りジェスチャは廃し、最終ページの左隣に「次章」の章扉を置いて連続遷移を表現。</p>
+  <div class="stage">
+
+    <!-- ① ライト（クローム表示）＝中央タップでバー表示トグル -->
+    <div class="wrap"><span class="mode">ライト ／ クローム表示</span>
+    <div class="phone t-light" data-center="chrome" role="img" aria-label="D案 縦書き読書 ライト クローム表示">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="pager">
+        <!-- 1ページ目（DOM先頭＝最右）: 章見出し＋前書き -->
+        <div class="pg">
+          <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
+          <div class="block"><div class="lbl">前書き</div><p>お読みいただきありがとうございます。今回は少し長めの<ruby>戦闘回<rt>せんとうかい</rt></ruby>になりました。次話は<ruby>後日談<rt>ごじつだん</rt></ruby>を挟みます。</p></div>
+          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+        </div>
+        <!-- 2ページ目 -->
+        <div class="pg">
+          <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+          <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+          <div class="vsep"></div>
+          <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        </div>
+        <!-- 3ページ目 -->
+        <div class="pg">
+          <p><ruby>城壁<rt>じょうへき</rt></ruby>の<ruby>内側<rt>うちがわ</rt></ruby>では、<ruby>行商人<rt>ぎょうしょうにん</rt></ruby>たちが<ruby>荷<rt>に</rt></ruby>を<ruby>解<rt>と</rt></ruby>き、<ruby>朝<rt>あさ</rt></ruby>の<ruby>市<rt>いち</rt></ruby>が<ruby>少<rt>すこ</rt></ruby>しずつ<ruby>賑<rt>にぎ</rt></ruby>わいを<ruby>取<rt>と</rt></ruby>り<ruby>戻<rt>もど</rt></ruby>していた。</p>
+          <p>「<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>戦<rt>いくさ</rt></ruby>、<ruby>見<rt>み</rt></ruby>ておりましたよ」<ruby>老<rt>お</rt></ruby>いた<ruby>門番<rt>もんばん</rt></ruby>が<ruby>白<rt>しろ</rt></ruby>い<ruby>息<rt>いき</rt></ruby>を<ruby>吐<rt>は</rt></ruby>きながら<ruby>笑<rt>わら</rt></ruby>った。</p>
+          <p><ruby>彼女<rt>かのじょ</rt></ruby>は<ruby>答<rt>こた</rt></ruby>えず、ただ<ruby>遠<rt>とお</rt></ruby>い<ruby>山<rt>やま</rt></ruby>の<ruby>稜線<rt>りょうせん</rt></ruby>へ<ruby>目<rt>め</rt></ruby>を<ruby>細<rt>ほそ</rt></ruby>めた。<ruby>雪解<rt>ゆきど</rt></ruby>けの<ruby>水<rt>みず</rt></ruby>が<ruby>谷<rt>たに</rt></ruby>を<ruby>下<rt>くだ</rt></ruby>り、<ruby>川面<rt>かわも</rt></ruby>が<ruby>鈍<rt>にぶ</rt></ruby>く<ruby>光<rt>ひか</rt></ruby>っている。</p>
+        </div>
+        <!-- 4ページ目 -->
+        <div class="pg">
+          <p>——<ruby>剣<rt>つるぎ</rt></ruby>を<ruby>置<rt>お</rt></ruby>いたのは、<ruby>負<rt>ま</rt></ruby>けたからではない。<ruby>守<rt>まも</rt></ruby>るべきものの<ruby>形<rt>かたち</rt></ruby>が、ようやく<ruby>見<rt>み</rt></ruby>えたからだ。</p>
+          <div class="vsep"></div>
+          <p><ruby>昼過<rt>ひるす</rt></ruby>ぎ、<ruby>旅<rt>たび</rt></ruby>の<ruby>支度<rt>したく</rt></ruby>を<ruby>整<rt>ととの</rt></ruby>えた<ruby>一行<rt>いっこう</rt></ruby>は、<ruby>再<rt>ふたた</rt></ruby>び<ruby>北<rt>きた</rt></ruby>の<ruby>街道<rt>かいどう</rt></ruby>へ<ruby>足<rt>あし</rt></ruby>を<ruby>向<rt>む</rt></ruby>けた。</p>
+          <p><ruby>風<rt>かぜ</rt></ruby>は<ruby>冷<rt>つめ</rt></ruby>たく、けれど<ruby>頬<rt>ほお</rt></ruby>を<ruby>撫<rt>な</rt></ruby>でるその<ruby>手触<rt>てざわ</rt></ruby>りには、<ruby>確<rt>たし</rt></ruby>かに<ruby>春<rt>はる</rt></ruby>の<ruby>気配<rt>けはい</rt></ruby>が<ruby>混<rt>ま</rt></ruby>じっていた。</p>
+        </div>
+        <!-- 5ページ目（この章の最終ページ）-->
+        <div class="pg">
+          <p>「<ruby>次<rt>つぎ</rt></ruby>の<ruby>町<rt>まち</rt></ruby>までは<ruby>三日<rt>みっか</rt></ruby>」<ruby>先<rt>さき</rt></ruby>を<ruby>歩<rt>ある</rt></ruby>く<ruby>少年<rt>しょうねん</rt></ruby>が<ruby>振<rt>ふ</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>り、<ruby>白<rt>しろ</rt></ruby>い<ruby>歯<rt>は</rt></ruby>を<ruby>見<rt>み</rt></ruby>せて<ruby>笑<rt>わら</rt></ruby>う。</p>
+          <p>その<ruby>背<rt>せ</rt></ruby>を<ruby>追<rt>お</rt></ruby>いながら、<ruby>彼女<rt>かのじょ</rt></ruby>は<ruby>胸<rt>むね</rt></ruby>の<ruby>内<rt>うち</rt></ruby>でそっと、<ruby>置<rt>お</rt></ruby>いてきた<ruby>剣<rt>つるぎ</rt></ruby>の<ruby>名<rt>な</rt></ruby>を<ruby>呼<rt>よ</rt></ruby>んだ。</p>
+        </div>
+        <!-- 6ページ目＝次章の間紙（章扉。最終ページのさらに先へ送ると次章へ連続）-->
+        <div class="pg tobira">
+          <div class="chap-h"><div class="lead">次 章</div><div class="num">第 百二十八 話</div><div class="t">街道の先、白い峠を越えて</div><div class="rule"></div></div>
+        </div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+      <div class="pageno"><span class="cur">1</span> / <span class="tot">6</span></div>
+    </div></div>
+
+    <!-- ② ダーク（没入＝クローム非表示）-->
+    <div class="wrap"><span class="mode">ダーク ／ 没入（バー非表示）</span>
+    <div class="phone t-dark immersive" role="img" aria-label="D案 縦書き読書 ダーク 没入">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="pager">
+        <div class="pg">
+          <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
+          <div class="block"><div class="lbl">前書き</div><p>お読みいただきありがとうございます。今回は少し長めの<ruby>戦闘回<rt>せんとうかい</rt></ruby>になりました。次話は<ruby>後日談<rt>ごじつだん</rt></ruby>を挟みます。</p></div>
+          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        </div>
+        <div class="pg">
+          <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+          <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+          <div class="vsep"></div>
+          <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        </div>
+        <div class="pg">
+          <p><ruby>城壁<rt>じょうへき</rt></ruby>の<ruby>内側<rt>うちがわ</rt></ruby>では、<ruby>行商人<rt>ぎょうしょうにん</rt></ruby>たちが<ruby>荷<rt>に</rt></ruby>を<ruby>解<rt>と</rt></ruby>き、<ruby>朝<rt>あさ</rt></ruby>の<ruby>市<rt>いち</rt></ruby>が<ruby>少<rt>すこ</rt></ruby>しずつ<ruby>賑<rt>にぎ</rt></ruby>わいを<ruby>取<rt>と</rt></ruby>り<ruby>戻<rt>もど</rt></ruby>していた。</p>
+          <p>「<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>戦<rt>いくさ</rt></ruby>、<ruby>見<rt>み</rt></ruby>ておりましたよ」<ruby>老<rt>お</rt></ruby>いた<ruby>門番<rt>もんばん</rt></ruby>が<ruby>白<rt>しろ</rt></ruby>い<ruby>息<rt>いき</rt></ruby>を<ruby>吐<rt>は</rt></ruby>きながら<ruby>笑<rt>わら</rt></ruby>った。</p>
+          <p><ruby>彼女<rt>かのじょ</rt></ruby>は<ruby>答<rt>こた</rt></ruby>えず、ただ<ruby>遠<rt>とお</rt></ruby>い<ruby>山<rt>やま</rt></ruby>の<ruby>稜線<rt>りょうせん</rt></ruby>へ<ruby>目<rt>め</rt></ruby>を<ruby>細<rt>ほそ</rt></ruby>めた。<ruby>雪解<rt>ゆきど</rt></ruby>けの<ruby>水<rt>みず</rt></ruby>が<ruby>谷<rt>たに</rt></ruby>を<ruby>下<rt>くだ</rt></ruby>り、<ruby>川面<rt>かわも</rt></ruby>が<ruby>鈍<rt>にぶ</rt></ruby>く<ruby>光<rt>ひか</rt></ruby>っている。</p>
+        </div>
+        <div class="pg">
+          <p>——<ruby>剣<rt>つるぎ</rt></ruby>を<ruby>置<rt>お</rt></ruby>いたのは、<ruby>負<rt>ま</rt></ruby>けたからではない。<ruby>守<rt>まも</rt></ruby>るべきものの<ruby>形<rt>かたち</rt></ruby>が、ようやく<ruby>見<rt>み</rt></ruby>えたからだ。</p>
+          <div class="vsep"></div>
+          <p><ruby>昼過<rt>ひるす</rt></ruby>ぎ、<ruby>旅<rt>たび</rt></ruby>の<ruby>支度<rt>したく</rt></ruby>を<ruby>整<rt>ととの</rt></ruby>えた<ruby>一行<rt>いっこう</rt></ruby>は、<ruby>再<rt>ふたた</rt></ruby>び<ruby>北<rt>きた</rt></ruby>の<ruby>街道<rt>かいどう</rt></ruby>へ<ruby>足<rt>あし</rt></ruby>を<ruby>向<rt>む</rt></ruby>けた。</p>
+          <p><ruby>風<rt>かぜ</rt></ruby>は<ruby>冷<rt>つめ</rt></ruby>たく、けれど<ruby>頬<rt>ほお</rt></ruby>を<ruby>撫<rt>な</rt></ruby>でるその<ruby>手触<rt>てざわ</rt></ruby>りには、<ruby>確<rt>たし</rt></ruby>かに<ruby>春<rt>はる</rt></ruby>の<ruby>気配<rt>けはい</rt></ruby>が<ruby>混<rt>ま</rt></ruby>じっていた。</p>
+        </div>
+        <div class="pg">
+          <p>「<ruby>次<rt>つぎ</rt></ruby>の<ruby>町<rt>まち</rt></ruby>までは<ruby>三日<rt>みっか</rt></ruby>」<ruby>先<rt>さき</rt></ruby>を<ruby>歩<rt>ある</rt></ruby>く<ruby>少年<rt>しょうねん</rt></ruby>が<ruby>振<rt>ふ</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>り、<ruby>白<rt>しろ</rt></ruby>い<ruby>歯<rt>は</rt></ruby>を<ruby>見<rt>み</rt></ruby>せて<ruby>笑<rt>わら</rt></ruby>う。</p>
+          <p>その<ruby>背<rt>せ</rt></ruby>を<ruby>追<rt>お</rt></ruby>いながら、<ruby>彼女<rt>かのじょ</rt></ruby>は<ruby>胸<rt>むね</rt></ruby>の<ruby>内<rt>うち</rt></ruby>でそっと、<ruby>置<rt>お</rt></ruby>いてきた<ruby>剣<rt>つるぎ</rt></ruby>の<ruby>名<rt>な</rt></ruby>を<ruby>呼<rt>よ</rt></ruby>んだ。</p>
+        </div>
+        <div class="pg tobira">
+          <div class="chap-h"><div class="lead">次 章</div><div class="num">第 百二十八 話</div><div class="t">街道の先、白い峠を越えて</div><div class="rule"></div></div>
+        </div>
+      </div>
+      <div class="pageno"><span class="cur">1</span> / <span class="tot">6</span></div>
+    </div></div>
+
+  </div>
+
+<script>
+/* ============================================================
+   モック専用スクリプト ── Compose 実装には持ち込まない。
+   縦書き・右→左ページ送りの「触感」だけを確認するための擬似実装で、
+   実機は横スクロール+scroll-snap ではなく HorizontalPager 等で別途組む想定。
+   （scroll-snap×vertical-rl は方向計算が環境依存で脆いため、位置指定は
+     getBoundingClientRect 差分で吸収している＝本番の設計指針ではない）
+   ============================================================ */
+(function(){
+  function initPager(phone){
+    var pager  = phone.querySelector('.pager');
+    var pages  = Array.prototype.slice.call(phone.querySelectorAll('.pg'));
+    var curEl  = phone.querySelector('.pageno .cur');
+    var totEl  = phone.querySelector('.pageno .tot');
+    var centerToggles = phone.getAttribute('data-center') === 'chrome';
+    var N = pages.length, idx = 0;
+    totEl.textContent = N;
+
+    /* 指定ページの左端を pager の左端へ合わせるのに要する scrollLeft。
+       row-reverse ＋ RTL 相当の scrollLeft 符号差を rect 差分で吸収する。 */
+    function targetOf(i){
+      return pager.scrollLeft + (pages[i].getBoundingClientRect().left - pager.getBoundingClientRect().left);
+    }
+    function nearest(){
+      var best = 0, bd = Infinity, base = pager.getBoundingClientRect().left;
+      for (var i=0;i<N;i++){
+        var d = Math.abs(pages[i].getBoundingClientRect().left - base);
+        if (d < bd){ bd = d; best = i; }
+      }
+      return best;
+    }
+    function setCounter(i){ idx = i; curEl.textContent = i + 1; }
+    function go(delta, smooth){
+      var i = Math.max(0, Math.min(N-1, idx + delta));
+      pager.scrollTo({ left: targetOf(i), behavior: smooth ? 'smooth' : 'auto' });
+      setCounter(i);
+    }
+    /* 初期位置＝1ページ目（row-reverse で最右）。レイアウト確定後に合わせる。 */
+    function reset(){
+      pager.scrollLeft += (pages[0].getBoundingClientRect().left - pager.getBoundingClientRect().left);
+      setCounter(0);
+    }
+
+    /* --- ポインタ: 横ドラッグ=スクロール／微動=タップゾーン判定 --- */
+    var down=false, moved=false, sx=0, sScroll=0;
+    pager.addEventListener('pointerdown', function(e){
+      down=true; moved=false; sx=e.clientX; sScroll=pager.scrollLeft;
+      pager.style.scrollSnapType='none';       // ドラッグ中はスナップ解除
+      try{ pager.setPointerCapture(e.pointerId); }catch(_){}
+    });
+    pager.addEventListener('pointermove', function(e){
+      if(!down) return;
+      var dx = e.clientX - sx;
+      if(Math.abs(dx) > 6) moved = true;
+      pager.scrollLeft = sScroll - dx;         // 指に追従
+    });
+    function endDrag(e){
+      if(!down) return; down=false;
+      pager.style.scrollSnapType='x mandatory';
+      if(moved){ go(nearest() - idx, true); }  // 近傍ページへ整定
+      else { tap(e); }
+    }
+    pager.addEventListener('pointerup', endDrag);
+    pager.addEventListener('pointercancel', endDrag);
+
+    function tap(e){
+      var r = pager.getBoundingClientRect();
+      var x = (e.clientX - r.left) / r.width;
+      if(x < 1/3) go(+1, true);                       // 左1/3=次ページ（左方向へ）
+      else if(x > 2/3) go(-1, true);                  // 右1/3=前ページ
+      else if(centerToggles) phone.classList.toggle('immersive'); // 中央=クローム切替(①のみ)
+    }
+
+    /* --- マウスホイール縦回転→1ページ送り（横ホイールも主軸で拾う）--- */
+    var wlock=false;
+    pager.addEventListener('wheel', function(e){
+      e.preventDefault();
+      if(wlock) return; wlock=true; setTimeout(function(){ wlock=false; }, 260);
+      var d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      if(Math.abs(d) < 4) return;
+      go(d > 0 ? +1 : -1, true);
+    }, { passive:false });
+
+    /* --- プログラム/ネイティブスクロール後にカウンタ追従 --- */
+    var st;
+    pager.addEventListener('scroll', function(){
+      clearTimeout(st);
+      st = setTimeout(function(){ if(!down) setCounter(nearest()); }, 90);
+    });
+
+    window.addEventListener('resize', reset);
+    requestAnimationFrame(reset);   // レイアウト確定後に初期位置へ
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.phone'), initPager);
+})();
+</script>
+</body>
+</html>

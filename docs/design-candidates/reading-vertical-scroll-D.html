@@ -1,0 +1,197 @@
+<!-- @dsCard group="UI-n / 縦書き検討（骨格A）" name="縦書きA. 右→左の連続横スクロール（カクヨムWeb版方式）— 触感確認モック（D案の視覚言語を継承）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>縦書きA 横スクロール — 触感確認モック（D）</title>
+<style>
+  /*==harness==*/
+  /* 骨格A: 縦書き（vertical-rl）を右→左へ連続横スクロールで読む方式（カクヨムWeb版／Readium と同方式）。
+     視覚言語は reading-D.html（D案=和モダン・余白：寒色白×藍ヘアライン×明朝本文）を「そのまま」継承——
+     色hex・フォント・phone枠・topbar/bottombar・ルビ様式・サンプル本文を流用し、
+     差分は「本文領域だけを縦書き＋横スクロールへ組み替える」ことのみ。
+     3読書テーマのうち代表としてライト（クローム表示）とダーク（没入）を併記。 */
+  :root{
+    --ai:#1C3D5A;            /* 藍（アクセント・ルール線。3テーマ共通の骨格色） */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;
+    padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.6;max-width:760px}
+  .cap b{color:#2A2C28}
+  .wcag{color:#6A6C67;font-size:11px;margin-bottom:18px;text-align:center;line-height:1.7}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#6A6C67;text-align:center}
+
+  /* ---- テーマ別トークン（reading-D と同一値。勝手に変えない）---- */
+  .phone{width:372px;height:800px;border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--mincho)}
+  /*==/harness==*/
+
+  .t-light{ --bg:#FBFAF8; --ink:#1C1F26; --soft:#7C808B; --ruby:#616C77; --rule:#1C3D5A;
+            --blk-bg:#F1F0EC; --blk-bd:#E4E2DB; --bar:#FBFAF8; --bar-line:#ECEAE4; --accent:#1C3D5A; --acc-on:#fff; }
+  .t-sepia{ --bg:#F2E7CE; --ink:#3D3121; --soft:#8C7D5D; --ruby:#6D5F43; --rule:#2E4A60;
+            --blk-bg:#EBDEBE; --blk-bd:#DCCC9F; --bar:#ECDFC0; --bar-line:#E0D3B0; --accent:#2E4A60; --acc-on:#FBF6EC; }
+  .t-dark{ --bg:#14171C; --ink:#C7CDD3; --soft:#7B838C; --ruby:#7F8994; --rule:#5E7E9C;
+            --blk-bg:#1B1F26; --blk-bd:#2A2F38; --bar:#181C22; --bar-line:#2A2F38; --accent:#6E96B8; --acc-on:#0F1318; }
+  .phone{background:var(--bg)}
+
+  /* ---- トップバー（横書きのまま。バーはクロームで本文の書字方向とは無関係）---- */
+  .sb{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;
+    font-size:11px;color:var(--soft);font-family:var(--gothic)}
+  .topbar{position:relative;z-index:4;height:50px;display:flex;align-items:center;gap:4px;padding:0 16px;
+    background:var(--bar);border-bottom:1px solid var(--bar-line)}
+  .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;
+    place-items:center;color:var(--ink);cursor:pointer}
+  .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar .ct{flex:1;font-family:var(--gothic);font-size:13.5px;color:var(--ink);letter-spacing:.04em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* ---- 本文（骨格A の核心）: 縦書き vertical-rl ＋ 横スクロール ---- */
+  /* reading-D の .reader（縦スクロール）との唯一の差分がここ。
+     writing-mode:vertical-rl で行は上→下、行は右→左へ積み上がる＝文章の先頭は「右端」。
+     overflow-x:auto で横方向に実スクロール、overflow-y:hidden で縦揺れを止める。
+     初期スクロール位置は JS で右端（＝先頭）へ寄せる。 */
+  .reader{flex:1;position:relative;z-index:1;padding:20px 24px;
+    writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;
+    overflow-x:auto;overflow-y:hidden;
+    scrollbar-width:thin;}
+  .reader::-webkit-scrollbar{height:6px}
+  .reader::-webkit-scrollbar-thumb{background:var(--bar-line);border-radius:3px}
+
+  /* 章見出し（縦書きでは1カラムぶんを占め、番号→題→藍ルールが右→左に積む）。
+     rule は reading-D の横 48x2 を「縦 2x48」の短い実線へ組み替え（署名要素は保持）。 */
+  /* 縦書きでは block要素は自然に inline軸（＝縦の全高）を満たす。block-size(=横幅)は内容任せ。 */
+  .chap-h{text-align:center;margin:0 16px}
+  .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--accent);letter-spacing:.3em}
+  .chap-h .t{font-size:18px;color:var(--ink);margin:8px 0 0;line-height:1.7;font-weight:600}
+  /* rule: 縦書きでは inline-size(=縦の長さ)48px・block-size(=横の太さ)2px の短い縦線。
+     margin-inline:auto で縦方向センタリング、margin-block-start で題との横間隔。 */
+  .chap-h .rule{inline-size:48px;block-size:2px;background:var(--rule);
+    margin-inline:auto;margin-block-start:16px;opacity:.85}
+
+  p{font-size:16.5px;line-height:2.4;color:var(--ink);text-indent:1em;margin:0}
+  ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  /* 段落間の余白は縦書きでは「行と行の横方向の隙間」＝block方向。marginではなくblank列で表現。 */
+  .blank{block-size:1.4em}
+  /* シーン区切り＝Dの細い藍ルール。縦書きでは行方向に沿う短い「縦の実線」として1カラム中央に立てる。 */
+  hr{border:none;inline-size:42%;block-size:1px;margin:auto 16px;background:var(--rule);opacity:.5}
+  /* 前書き/後書きブロック（ラベル付き枠＝StyledBlock）。縦書き文脈では縦長の枠になる。 */
+  .block{border:1px solid var(--blk-bd);background:var(--blk-bg);padding:16px 12px;margin:0 4px;border-radius:2px}
+  .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--accent);font-weight:700;
+    margin:0 0 8px;letter-spacing:.1em}
+  .block p{font-size:14.5px;line-height:2.1;text-indent:1em;margin:0}
+
+  /* ---- 骨格A固有の論点: 本文スクロールが横軸を使う＝現行「横ドラッグで章送り（引っ張りプレビュー）」と軸が衝突。
+     この案では「本文の終端＝左端をさらに引くと次章が覗く（連続オーバースクロール）」で解決する想定。
+     ここでは静的な視覚ヒントとして、左端に次章の覗きパネル風の帯＋注記を重ねて表現（実挙動はモック外）。 */
+  .peek{position:absolute;left:0;z-index:3;inline-size:52px;pointer-events:none;
+    writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;
+    display:flex;align-items:center;justify-content:center;gap:10px;
+    border-right:1px solid var(--rule);
+    background:linear-gradient(to left,transparent,color-mix(in srgb,var(--blk-bg) 88%,transparent) 60%);}
+  .peek.chrome{top:84px;bottom:60px}   /* sb34+topbar50 と bottombar60 の内側に合わせる */
+  .peek.full{top:0;bottom:0}
+  .peek .nx{font-family:var(--mincho);font-size:12.5px;color:var(--soft);letter-spacing:.02em;opacity:.85}
+  .peek .note{font-family:var(--gothic);font-size:9.5px;color:var(--accent);letter-spacing:.06em;
+    writing-mode:vertical-rl}
+
+  /* ---- ボトムバー（reading-D と同一。章送りボタンは併存＝スワイプ以外の明示手段として残す）---- */
+  .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:60px;display:flex;align-items:center;
+    background:var(--bar);border-top:1px solid var(--bar-line)}
+  .bottombar button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:4px;color:var(--ink);cursor:pointer}
+  .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .bottombar .bl{font-family:var(--gothic);font-size:9.5px;color:var(--soft);letter-spacing:.02em}
+  .bottombar .set svg{stroke:var(--accent)}
+  .bottombar .set .bl{color:var(--accent);font-weight:600}
+  /* 没入時（クローム非表示）: reading-D と同じく上下バーを消し本文を全面に。 */
+  .immersive .topbar,.immersive .bottombar{display:none}
+  .hint{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:6;font-family:var(--gothic);
+    font-size:11px;color:var(--soft);letter-spacing:.08em;opacity:.8}
+</style>
+</head>
+<body>
+  <p class="cap"><b>縦書きA. 右→左の連続横スクロール</b> ／ reading-D の視覚言語（寒色白×藍ヘアライン・明朝本文・余白主導・ルビは<ruby>親文字<rt>おやもじ</rt></ruby>の右）を継承し、本文だけを <code>writing-mode:vertical-rl</code>＋横スクロールへ組み替えた触感確認モック。<br><b>操作系:</b> 右→左スクロールで読み進める／章送り＝本文の終端（左端）を越えてさらに引く「連続オーバースクロール」で次章が覗く。根拠: カクヨムWeb版・Readium が同方式（縦書きは横ページ送り／横スクロール）。</p>
+  <p class="wcag">本文×背景コントラストは reading-D と同値（ライト ≈15:1 ／ ダーク ≈11:1、いずれも AAA 7:1 を満たす）。PC Chrome ではマウスホイールの縦回転を横スクロールへ変換（モック専用の触感補助）。</p>
+  <div class="stage">
+
+    <!-- ① ライト（クローム表示）: 縦書き＋横スクロール／左端に次章の覗き帯 -->
+    <div class="wrap"><span class="mode">ライト ／ クローム表示 ／ 右→左スクロール</span>
+    <div class="phone t-light" role="img" aria-label="縦書きA 読書 ライト クローム表示 横スクロール">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="reader" data-vscroll>
+        <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
+        <div class="block"><div class="lbl">前書き</div><p>お読みいただきありがとうございます。今回は少し長めの戦闘回になりました。次話は<ruby>後日談<rt>ごじつだん</rt></ruby>を挟みます。</p></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <div class="blank"></div><hr><div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>は<ruby>身<rt>み</rt></ruby>を<ruby>起<rt>お</rt></ruby>こし、<ruby>冷<rt>つめ</rt></ruby>たい<ruby>床<rt>ゆか</rt></ruby>に<ruby>足<rt>あし</rt></ruby>を<ruby>下<rt>お</rt></ruby>ろす。<ruby>遠<rt>とお</rt></ruby>くで<ruby>鐘<rt>かね</rt></ruby>が<ruby>鳴<rt>な</rt></ruby>り、<ruby>朝<rt>あさ</rt></ruby>の<ruby>市<rt>いち</rt></ruby>が<ruby>開<rt>ひら</rt></ruby>く<ruby>気配<rt>けはい</rt></ruby>がした。</p>
+        <p>「<ruby>昨日<rt>きのう</rt></ruby>の<ruby>約束<rt>やくそく</rt></ruby>、<ruby>忘<rt>わす</rt></ruby>れてはいないでしょうね」と、<ruby>戸口<rt>とぐち</rt></ruby>から<ruby>低<rt>ひく</rt></ruby>い<ruby>声<rt>こえ</rt></ruby>が<ruby>投<rt>な</rt></ruby>げかけられる。</p>
+        <div class="blank"></div><hr><div class="blank"></div>
+        <p><ruby>城門<rt>じょうもん</rt></ruby>の<ruby>外<rt>そと</rt></ruby>には、<ruby>昨夜<rt>ゆうべ</rt></ruby>のうちに<ruby>集<rt>あつ</rt></ruby>まった<ruby>兵<rt>へい</rt></ruby>たちが<ruby>整列<rt>せいれつ</rt></ruby>していた。<ruby>旗<rt>はた</rt></ruby>が<ruby>朝風<rt>あさかぜ</rt></ruby>に<ruby>翻<rt>ひるがえ</rt></ruby>り、<ruby>誰<rt>だれ</rt></ruby>もが<ruby>無言<rt>むごん</rt></ruby>のまま<ruby>次<rt>つぎ</rt></ruby>の<ruby>命令<rt>めいれい</rt></ruby>を<ruby>待<rt>ま</rt></ruby>っている。</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>は<ruby>一歩<rt>いっぽ</rt></ruby><ruby>前<rt>まえ</rt></ruby>へ<ruby>進<rt>すす</rt></ruby>み<ruby>出<rt>で</rt></ruby>ると、<ruby>置<rt>お</rt></ruby>いたはずの<ruby>剣<rt>つるぎ</rt></ruby>を<ruby>再<rt>ふたた</rt></ruby>び<ruby>手<rt>て</rt></ruby>に<ruby>取<rt>と</rt></ruby>った。それが<ruby>意味<rt>いみ</rt></ruby>するところを、<ruby>皆<rt>みな</rt></ruby>が<ruby>静<rt>しず</rt></ruby>かに<ruby>理解<rt>りかい</rt></ruby>した。</p>
+        <div class="block"><div class="lbl">後書き</div><p>ここまでお付き合いいただき感謝します。次話「<ruby>朝市<rt>あさいち</rt></ruby>の<ruby>約束<rt>やくそく</rt></ruby>」へ続きます。</p></div>
+      </div>
+      <!-- 左端＝本文の終端。ここをさらに引くと次章が連続オーバースクロールで覗く、の視覚ヒント -->
+      <div class="peek chrome"><span class="nx">次章：第百二十八話</span><span class="note">終端を越えて引くと次章へ</span></div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <!-- ② ダーク（没入＝クローム非表示）: 全面縦書き／横スクロール -->
+    <div class="wrap"><span class="mode">ダーク ／ 没入（バー非表示）／ 右→左スクロール</span>
+    <div class="phone t-dark immersive" role="img" aria-label="縦書きA 読書 ダーク 没入 横スクロール">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader" data-vscroll>
+        <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <div class="blank"></div><hr><div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <p><ruby>遠<rt>とお</rt></ruby>い<ruby>山<rt>やま</rt></ruby>の<ruby>端<rt>は</rt></ruby>が<ruby>白<rt>しろ</rt></ruby>み<ruby>始<rt>はじ</rt></ruby>め、<ruby>街<rt>まち</rt></ruby>はまだ<ruby>眠<rt>ねむ</rt></ruby>りの<ruby>底<rt>そこ</rt></ruby>にあった。<ruby>彼女<rt>かのじょ</rt></ruby>は<ruby>静<rt>しず</rt></ruby>かに<ruby>息<rt>いき</rt></ruby>を<ruby>吐<rt>は</rt></ruby>き、<ruby>昨日<rt>きのう</rt></ruby>までの<ruby>道<rt>みち</rt></ruby>のりを<ruby>思<rt>おも</rt></ruby>い<ruby>返<rt>かえ</rt></ruby>した。</p>
+        <p>「<ruby>行<rt>い</rt></ruby>きましょう。<ruby>夜明<rt>よあ</rt></ruby>けは<ruby>待<rt>ま</rt></ruby>ってはくれない」</p>
+        <div class="blank"></div><hr><div class="blank"></div>
+        <p><ruby>城門<rt>じょうもん</rt></ruby>の<ruby>鍵<rt>かぎ</rt></ruby>が<ruby>軋<rt>きし</rt></ruby>む<ruby>音<rt>おと</rt></ruby>とともに、<ruby>重<rt>おも</rt></ruby>い<ruby>扉<rt>とびら</rt></ruby>がゆっくりと<ruby>開<rt>ひら</rt></ruby>いていく。その<ruby>先<rt>さき</rt></ruby>に<ruby>広<rt>ひろ</rt></ruby>がるのは、<ruby>朝霧<rt>あさぎり</rt></ruby>に<ruby>沈<rt>しず</rt></ruby>んだ<ruby>見<rt>み</rt></ruby><ruby>知<rt>し</rt></ruby>らぬ<ruby>街道<rt>かいどう</rt></ruby>だった。</p>
+      </div>
+      <div class="peek full"><span class="nx">次章：第百二十八話</span><span class="note">終端を越えて引くと次章へ</span></div>
+      <div class="hint">画面をタップでメニュー</div>
+    </div></div>
+
+  </div>
+
+<script>
+/* ===== モック専用スクリプト（実装には持ち込まない） =====
+   目的1: 縦書き(vertical-rl)の本文を「先頭＝右端」から始めて見せる。
+          横スクロール要素の初期位置を右端へ寄せる（Chrome の vertical-rl は
+          scrollLeft=最大 が右端＝行頭に対応する）。
+   目的2: PC Chrome でホイールの縦回転しか無いマウスでも触感確認できるよう、
+          deltaY を横スクロールへ変換する。下回し＝読み進め＝左へ（scrollLeft を減らす）。
+   いずれも触感確認の補助であり、Android 実装（Compose）の挙動仕様ではない。 */
+document.querySelectorAll('[data-vscroll]').forEach(function(r){
+  // 初期位置＝右端（行頭）。レイアウト確定後に一度だけ寄せる。
+  requestAnimationFrame(function(){ r.scrollLeft = r.scrollWidth; });
+  // ホイール縦回転→横スクロール変換（モック専用）
+  r.addEventListener('wheel', function(e){
+    if(Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; // 元々横回転ならそのまま
+    e.preventDefault();
+    r.scrollLeft -= e.deltaY; // 下回しで左へ＝読み進め方向
+  }, {passive:false});
+});
+</script>
+</body>
+</html>
