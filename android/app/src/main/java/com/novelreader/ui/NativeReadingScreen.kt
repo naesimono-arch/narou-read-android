@@ -28,8 +28,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -78,17 +83,12 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
@@ -674,9 +674,11 @@ private fun ChapterScreen(
     // backStack＋BackHandler で一元管理する。経路スタックを所有するのが ReadingScreen のため、
     // rememberSaveable 永続化もそちらに集約した（ここでは扱わない）。
 
-    // snapAnimationSpec = null: デフォルトのスナップを無効化する。
-    // スナップが有効だとわずかなスクロールでバーが「自走」し、
-    // ページの動きと乖離した独立した動きに見えてしまうため。
+    // バーの表示/非表示は中央タップのトグルだけで駆動する（2026-07-16 実機フィードバックで
+    // スクロール量・速度連動の出没を廃止＝「出たり引っ込んだり」する複雑な挙動をやめる）。
+    // scrollBehavior を残すのは TopAppBar に渡して heightOffsetLimit（バー実高の負値）を
+    // 実測させるためだけ——nestedScroll 接続はどこにも張らないためスクロールでは一切動かない。
+    // snapAnimationSpec = null: 内蔵スナップも無効化（動きは settleTopBar の spring が一元所有）。
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(
         topAppBarState,
@@ -696,8 +698,6 @@ private fun ChapterScreen(
         didInitialCollapse = true
     }
 
-    // enterAlwaysScrollBehavior のデフォルト接続はスクロールを横取りしやすい。
-    // 読書体験を優先するため、本文には常にスクロールを渡しつつバー状態だけ追従させる。
     // 章ごとに初期スクロール位置付きで生成し、remember(currentFile) で章移動時に
     // 必ず作り直すことで前章のスクロール位置の引き継ぎを防ぐ。
     val lazyListState = remember(currentFile) {
@@ -941,7 +941,7 @@ private fun ChapterScreen(
  */
 // internal（旧 private）: 没入モードの customActions（a11y 到達回復）を Robolectric semantics テストで
 // 直接検証するため、描画層 Content を同一モジュール内テストへ開く（private だと file スコープで到達不可）。
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun ChapterScreenContent(
     parseResult: ParseResult,
@@ -1004,45 +1004,6 @@ internal fun ChapterScreenContent(
     // 変わるため、onSizeChanged で実測した高さ分だけスライドさせて完全に画面外へ退避させる。
     var bottomBarHeightPx by remember { mutableIntStateOf(0) }
 
-    // enterAlwaysScrollBehavior のデフォルト接続はスクロールを横取りしやすい。
-    // 読書体験を優先するため、本文には常にスクロールを渡しつつバー状態だけ追従させる。
-    val nonStealingConnection = remember(topAppBarState) {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                // 下スクロール（読み進め）ではバーを非表示方向へ追従させるが、消費はしない。
-                if (available.y < 0) {
-                    topAppBarState.heightOffset =
-                        (topAppBarState.heightOffset + available.y)
-                            .coerceAtLeast(topAppBarState.heightOffsetLimit)
-                }
-                return Offset.Zero
-            }
-
-            override fun onPostScroll(
-                consumed: Offset,
-                available: Offset,
-                source: NestedScrollSource,
-            ): Offset {
-                // 上スクロール（戻り）は本文が実際に動いた分だけバーを表示方向へ追従させる。
-                if (consumed.y > 0) {
-                    topAppBarState.heightOffset =
-                        (topAppBarState.heightOffset + consumed.y).coerceAtMost(0f)
-                }
-                return Offset.Zero
-            }
-
-            // なぜ onPostFling でスナップするか:
-            // フリック後に半端な位置で止まるとバーが宙ぶらりんになるため、
-            // 勢いのある操作が終わった直後に全表示/全非表示へ吸いつかせる。
-            // ゆっくりドラッグして止めた場合は onPostFling が低速度で発火するが
-            // settleTopBar の 0.5f 閾値判定で適切な方向へスナップする。
-            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                settleTopBar(topAppBarState)
-                return Velocity.Zero
-            }
-        }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1082,7 +1043,6 @@ internal fun ChapterScreenContent(
     ) {
         Scaffold(
             containerColor = colors.background,
-            modifier = Modifier.nestedScroll(nonStealingConnection),
             // なぜ contentWindowInsets を 0 にするか: 上下バーを Scaffold スロットではなく
             // オーバーレイで描くため、インセットは本文側(ChapterContent の contentPadding)で
             // 完全に管理する。Scaffold が二重にインセットを足さないよう無効化する。
@@ -1095,10 +1055,10 @@ internal fun ChapterScreenContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    // 本文中央タップで上下バーをトグル表示する。
-                    // なぜ barsVisible の真偽値を持たないか: スクロール退避で既にバーが
-                    // 隠れている状態でも真偽値は true のままになり「隠れているものを隠す」
-                    // 空打ちが起き2回タップが必要になる。実オフセット(collapsedFraction)から
+                    // 本文タップで上下バーをトグル表示する（表示/非表示の唯一の駆動元）。
+                    // なぜ barsVisible の真偽値を持たないか: settle アニメ中の再タップや
+                    // プロセス再生成の復元で真偽値と実オフセットが乖離すると「隠れているものを
+                    // 隠す」空打ちが起き2回タップが必要になる。実オフセット(collapsedFraction)から
                     // 現在の表示状態を判定して反転させることで1タップで必ず切り替わる。
                     .pointerInput(Unit) {
                         detectTapGestures(onTap = {
@@ -1185,7 +1145,7 @@ internal fun ChapterScreenContent(
 
         // ────── ボトムバー（オーバーレイ）──────
         // collapsedFraction（トップバーの退避割合）に連動して下方向へスライド退避させる。
-        // これによりスクロール退避・中央タップトグルの両方でトップバーと同期して動く。
+        // これにより中央タップトグルでトップバーと同フレームで同期して動く。
         BottomAppBar(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -1194,6 +1154,11 @@ internal fun ChapterScreenContent(
                     // 退避割合 × 実測高さ分だけ下へずらす（collapsedFraction=1 で完全に画面外）
                     translationY = bottomBarHeightPx * topAppBarState.collapsedFraction
                 },
+            // なぜ IgnoringVisibility か: トグルと同フレームで systemBars を hide/show するため、
+            // 可視追従の既定 insets だとバー内パディングが 0⇄実測値で振れ、バー高の再測定で
+            // 開閉のたびに下端がガタつく（本文側 ChapterContent と同じ対策をバー自身にも適用）。
+            windowInsets = WindowInsets.systemBarsIgnoringVisibility
+                .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
             // なぜ alpha 0.95f か: スクロール中も文字が透けて読めるよう
             // 背景色を半透明にするため（html_exporter.py の .nav-footer に対応）
             containerColor = colors.navBackground.copy(alpha = 0.95f),
@@ -1275,7 +1240,12 @@ internal fun ChapterScreenContent(
                 navigationIconContentColor = colors.topBarIcon,
                 actionIconContentColor = colors.topBarIcon,
             ),
-            // scrollBehavior は heightOffsetLimit の測定のため維持する。
+            // なぜ IgnoringVisibility か: トグルと同フレームで systemBars を hide/show するため、
+            // 可視追従の既定 insets だとバー内パディングが 0⇄実測値で振れ、heightOffsetLimit の
+            // 再測定で開閉のたびに上端がガタつく（本文側 ChapterContent と同じ対策をバー自身にも適用）。
+            windowInsets = WindowInsets.systemBarsIgnoringVisibility
+                .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+            // scrollBehavior は heightOffsetLimit の測定のため維持する（nestedScroll 接続は無し）。
             scrollBehavior = scrollBehavior,
         )
 
@@ -1314,7 +1284,9 @@ internal fun ChapterScreenContent(
             exit = fadeOut(tween(MotionDurationCrossfade)),
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .statusBarsPadding()
+                // IgnoringVisibility: メニュー開閉の systemBars hide/show でチップ位置が跳ねないよう、
+                // 可視追従の statusBarsPadding ではなく常時実測値でパディングする。
+                .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
                 .padding(top = Spacing.S8),
         ) {
             Text(
@@ -1374,17 +1346,16 @@ internal fun ChapterScreenContent(
 }
 
 /**
- * バーを全表示または全非表示へスナップさせる。
- * なぜ自前実装か: enterAlways の標準 snap はスクロール消費戦略と一体化しており、
- * 本実装の「本文優先・非消費」方針と両立しないため。
+ * バーを全表示または全非表示へスナップさせる（中央タップのトグル専用）。
+ * なぜ自前実装か: enterAlways の内蔵 snap はスクロール消費戦略と一体化しているが、
+ * 本実装はスクロール接続そのものを持たない（タップ駆動のみ）ため、animate で直接動かす。
  *
- * @param target 退避先の heightOffset。省略時は現在の collapsedFraction から近い方へ吸着
- *               （フリック後の半端位置の整列に使用）。中央タップでは反転先を明示的に渡す。
+ * @param target 退避先の heightOffset（0f=全表示／heightOffsetLimit=全退避）。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 private suspend fun settleTopBar(
     state: TopAppBarState,
-    target: Float = if (state.collapsedFraction > 0.5f) state.heightOffsetLimit else 0f,
+    target: Float,
 ) {
     animate(
         initialValue = state.heightOffset,
