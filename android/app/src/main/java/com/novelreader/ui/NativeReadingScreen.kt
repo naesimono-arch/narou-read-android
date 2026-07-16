@@ -107,6 +107,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.novelreader.NovelReaderApplication
 import com.novelreader.model.BookId
 import com.novelreader.model.ChapterFilename
+import com.novelreader.model.ChapterContent as ChapterContentModel
 import com.novelreader.model.ParseResult
 import com.novelreader.model.TocEntry
 import com.novelreader.narou.ContinuationInfo
@@ -121,6 +122,7 @@ import com.novelreader.ui.theme.FontNavLabel
 import com.novelreader.ui.theme.FontSectionTitle
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.MotionDurationCrossfade
+import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationNavTransition
 import com.novelreader.ui.theme.MotionSpringBarSettle
 import com.novelreader.ui.theme.ReadingColors
@@ -133,6 +135,7 @@ import com.novelreader.ui.theme.Spacing
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -448,6 +451,30 @@ fun ReadingScreen(
     // 既定 false＝本の入場時は従来どおり没入。rememberSaveable でプロセス再生成にも耐える。
     var chromeVisibleAcrossChapters by rememberSaveable { mutableStateOf(false) }
 
+    // 章パース結果のキャッシュ（この本の直近数章・アクセス順 LRU）。スワイプ覗きの先読みと章遷移後の
+    // 初期表示を共有し、遷移の瞬間に Loading（無地の紙面が一瞬挟まる「暗転」）を挟まないためのもの
+    //（2026-07-16 実機所見「移った瞬間に一瞬暗くなる」の真因＝章切替ごとの再パース待ち）。
+    // なぜここで所有するか: ChapterScreen は章ごとに作り直されるため、章を跨いで生きる置き場が要る。
+    // 上限6: 現在章と前後の往復に十分な最小限（章 HTML は取込後不変なので陳腐化しない）。
+    val chapterCache = remember {
+        object : LinkedHashMap<String, ChapterContentModel>(8, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ChapterContentModel>) = size > 6
+        }
+    }
+
+    // 章ごとの読書位置のセッション内記憶（file→index/offset）。DB の progress は「本の最後に読んだ場所」
+    // 1点のみで、章を跨いで戻ったときの各章の位置は持たない。スワイプ覗きと章送りの着地を「その章を
+    // 読んでいた場所」へ揃えるための記憶（2026-07-16 実機フィードバック「覗きが読んだ場所を反映しない」）。
+    // プロセス死で消える割り切り＝DB 側の正本（最後に読んだ1点）は従来どおり不変。
+    val sessionScrollByFile = remember { mutableMapOf<String, Pair<Int, Int>>() }
+    // 章の初期位置の解決順: ①セッション内でその章を読んでいた場所 → ②本の入場復元（最後に読んだ章のみ）
+    // → ③先頭。覗きパネルと実着地の両方がこの1本を使う＝覗いた内容と遷移後の表示が必ず一致する。
+    val resolveInitialScroll: (String) -> Pair<Int, Int> = { file ->
+        sessionScrollByFile[file]
+            ?: chapterRestore?.takeIf { it.targetFile == file }?.let { it.scrollIndex to it.scrollOffset }
+            ?: (0 to 0)
+    }
+
     // 目次⇄本文の切替を NavHost のスライドと同じ向きルールで演出する（進む=目次→章は右から左へ潜る／
     // 戻る=章→目次は左から右へ戻す）。同一 nav ルート内の state 切替（resolvedFile の出し分け）を
     // AnimatedContent で包む。章→章（話送り）は現状どおり瞬間＝向きを付けない（P1 は別枠のため据え置き）。
@@ -521,10 +548,13 @@ fun ReadingScreen(
                     bodyMarginDp = bodyMarginDp,
                     onBodyMarginChange = onBodyMarginChange,
                     onBodyMarginPersist = onBodyMarginPersist,
-                    // file が「最後に読んだ章」と一致する場合のみスクロール位置を復元する
-                    initialScrollIndex = if (file == restore.targetFile) restore.scrollIndex else 0,
-                    initialScrollOffset = if (file == restore.targetFile) restore.scrollOffset else 0,
+                    // 初期位置は resolveInitialScroll の1本で解決（セッション内記憶→入場復元→先頭）。
+                    // 旧「最後に読んだ章のみ復元」は②として吸収済み＝章を跨いで戻っても読んだ場所へ着地する。
+                    initialScrollIndex = resolveInitialScroll(file).first,
+                    initialScrollOffset = resolveInitialScroll(file).second,
                     onSaveScroll = { index, offset ->
+                        // セッション内記憶へも記録（スワイプ覗き・章送りの着地が「読んだ場所」を再現する材料）。
+                        sessionScrollByFile[file] = index to offset
                         // file は画面内部の String。型付き API 境界でのみ ChapterFilename に包む。
                         viewModel.saveScrollPosition(bookId, ChapterFilename(file), index, offset)
                     },
@@ -540,6 +570,9 @@ fun ReadingScreen(
                     // メニュー章跨ぎ維持: 章を跨いだ入場時の初期表示と、トグル結果の還流。
                     chromeVisibleInitial = chromeVisibleAcrossChapters,
                     onChromeVisibleChange = { chromeVisibleAcrossChapters = it },
+                    chapterCache = chapterCache,
+                    // 覗きパネルの初期位置も着地と同じ規則で解決させる（覗き＝遷移後表示の完全一致）。
+                    resolveInitialScroll = resolveInitialScroll,
                 )
             }
         }
@@ -603,6 +636,11 @@ private fun ChapterScreen(
     // として受け取る。トグル結果は onChromeVisibleChange で親へ還流する。既定は従来挙動（入場時没入）。
     chromeVisibleInitial: Boolean = false,
     onChromeVisibleChange: (Boolean) -> Unit = {},
+    // 章パースのキャッシュ（親 ReadingScreen 所有・章を跨いで共有）。遷移後の初期表示と覗き先読みが使う。
+    chapterCache: MutableMap<String, ChapterContentModel> = mutableMapOf(),
+    // 章の初期スクロール位置の解決（親 ReadingScreen の1本＝セッション内記憶→入場復元→先頭）。
+    // 覗きパネルへこの結果を焼き込み、着地（initialScrollIndex/Offset）と必ず一致させる。
+    resolveInitialScroll: (String) -> Pair<Int, Int> = { 0 to 0 },
 ) {
     val colors = rememberReadingColors(readingTheme)
     // 画面ローカルの UI 状態（表示設定シート開閉・紐付けシート開閉・ボトムバー実測高・コルーチンスコープ・
@@ -619,10 +657,18 @@ private fun ChapterScreen(
     // なぜ produceState か: キーが変わったときの再起動が自動化され、
     // Loading → Success の状態遷移をシンプルに記述できるため
     val parseResult by produceState<ParseResult>(
-        initialValue = ParseResult.Loading,
+        // キャッシュ命中（覗き先読み済み/一度開いた章）は初期値から Success＝遷移フレームに Loading
+        //（無地の紙面の「暗転」）を挟まない。スワイプで覗いた内容がそのまま連続して本表示になる。
+        initialValue = chapterCache[currentFile]?.let { ParseResult.Success(it) } ?: ParseResult.Loading,
         key1 = currentFile,
         key2 = retryKey,
     ) {
+        // 章 HTML は取込後不変のためキャッシュ再利用は安全。再試行（retryKey>0）は明示操作なので必ず読み直す。
+        val cached = chapterCache[currentFile]
+        if (cached != null && retryKey == 0) {
+            value = ParseResult.Success(cached)
+            return@produceState
+        }
         value = ParseResult.Loading
         value = withContext(Dispatchers.IO) {
             try {
@@ -636,6 +682,8 @@ private fun ChapterScreen(
                 ParseResult.Error("章を開けませんでした", currentFile)
             }
         }
+        // 成功をキャッシュへ（withContext の外＝main で書く。LinkedHashMap は非スレッドセーフのため）。
+        (value as? ParseResult.Success)?.let { chapterCache[currentFile] = it.content }
     }
 
     // TOC から現在の章インデックスを特定して前後ナビゲーション先を決定
@@ -653,6 +701,30 @@ private fun ChapterScreen(
     val nextFile = when {
         currentIndex in 0 until tocEntries.size - 1 -> tocEntries[currentIndex + 1].fileName
         else -> "index.html" // 最後の章 → 目次に戻る
+    }
+
+    // スワイプ覗き用に隣章を先読みパースする（Content の引っ張りプレビューが使う）。
+    // なぜ現在章の Success 後か: 現在章のパースと IO を取り合わない＋ドラッグ開始時のその場パースでは
+    // 覗いた瞬間に間に合わず空白が見えるため。失敗（章ファイル欠損等）は null＝覗き無しへの縮退で、
+    // エラー表示は本遷移側（parseResult の Error 経路）が正本のためここでは出さない（握り潰しではなく縮退）。
+    val prevPreview by produceState<ChapterContentModel?>(null, prevFile, htmlDirPath, parseResult is ParseResult.Success) {
+        value = null
+        if (parseResult !is ParseResult.Success || prevFile == "index.html") return@produceState
+        chapterCache[prevFile]?.let { value = it; return@produceState }
+        value = withContext(Dispatchers.IO) {
+            runCatching { ChapterHtmlParser.parse(File(htmlDirPath, prevFile)) }.getOrNull()
+        }
+        // 先読み結果もキャッシュへ＝スワイプ確定・前章ボタンどちらの遷移も Loading 無しで着地する。
+        value?.let { chapterCache[prevFile] = it }
+    }
+    val nextPreview by produceState<ChapterContentModel?>(null, nextFile, htmlDirPath, parseResult is ParseResult.Success) {
+        value = null
+        if (parseResult !is ParseResult.Success || nextFile == "index.html") return@produceState
+        chapterCache[nextFile]?.let { value = it; return@produceState }
+        value = withContext(Dispatchers.IO) {
+            runCatching { ChapterHtmlParser.parse(File(htmlDirPath, nextFile)) }.getOrNull()
+        }
+        value?.let { chapterCache[nextFile] = it }
     }
 
     // ────── PDF↔Web継続読書（目玉①）──────
@@ -937,6 +1009,15 @@ private fun ChapterScreen(
         scrollBehavior = scrollBehavior,
         prevFile = prevFile,
         nextFile = nextFile,
+        // 覗きの初期位置は着地と同じ resolveInitialScroll で焼き込む（覗き＝遷移後表示の完全一致）。
+        prevPeek = prevPreview?.let { c ->
+            val (index, offset) = resolveInitialScroll(prevFile)
+            ChapterPeek(c, index, offset)
+        },
+        nextPeek = nextPreview?.let { c ->
+            val (index, offset) = resolveInitialScroll(nextFile)
+            ChapterPeek(c, index, offset)
+        },
         navEnabled = navEnabled,
         isLastChapter = isLastChapter,
         ncode = ncode,
@@ -994,6 +1075,10 @@ internal fun ChapterScreenContent(
     scrollBehavior: TopAppBarScrollBehavior,
     prevFile: String,
     nextFile: String,
+    // スワイプ覗きプレビュー（隣章のパース済み本文＋着地と同一規則の初期位置・route が先読み構築）。
+    // null=先読み中/端章/章欠損＝覗きは無地の紙面に縮退する（ドラッグと章送り自体は可）。
+    prevPeek: ChapterPeek? = null,
+    nextPeek: ChapterPeek? = null,
     navEnabled: Boolean,
     isLastChapter: Boolean,
     ncode: Ncode?,
@@ -1032,22 +1117,53 @@ internal fun ChapterScreenContent(
     // 変わるため、onSizeChanged で実測した高さ分だけスライドさせて完全に画面外へ退避させる。
     var bottomBarHeightPx by remember { mutableIntStateOf(0) }
 
-    // 左右スワイプで章送り（handover D 回収・2026-07-16 指示）: 旧 experiment/lab-old は WebView 実装で
-    // 流用不可のため draggable で新規実装。縦スクロールとの軸判別は draggable(Horizontal) の touch slop に
-    // 委ねる（旧知見 de60869「軸ロック」相当）。発火は「距離 OR 速度」の複合（旧知見 4a0719b 踏襲）＝
-    // ゆっくり大きく引くか、素早く弾くかのどちらかで送る。左へ払う=次章／右へ払う=前章（slide push の
-    // 「進む=右→左」と同じ身体感覚・ADR 0019）。端章は無反応: ボタンの index.html 縮退と違い、スワイプで
-    // 目次へ跳ぶのは予期しない移動になるため。閾値は暫定較正値（実機後詰め層＝ADR0005 §B）。
+    // 左右スワイプで章送り（handover D 回収→2026-07-16 ユーザー指示で「引っ張りプレビュー」へ増強）:
+    // ドラッグ量に本文が追従し、隣章の実物の冒頭が端から覗く。覗きの内容＝遷移後に実際に表示される章頭と
+    // 同一なので、確定スライドがそのまま新章の初期表示へ連続して見える。旧 experiment/lab-old(23b5f33) は
+    // フリック検出のみで覗き無し＝流用不可のため draggable で新規実装。縦スクロールとの軸判別は
+    // draggable(Horizontal) の touch slop に委ねる（旧知見 de60869「軸ロック」相当）。確定は
+    // 「距離 OR 速度（向き一致時のみ）」の複合（旧知見 4a0719b 踏襲）・未達は戻す。左へ引く=次章／右=前章
+    //（slide push「進む=右→左」と同じ身体感覚・ADR 0019）。端章はその向きへ引けない（clamp 0）: ボタンの
+    // index.html 縮退と違い、スワイプで目次へ跳ぶのは予期しない移動になるため。閾値は暫定較正値（実機後詰め層）。
     val density = LocalDensity.current
-    var horizontalDragTotal by remember { mutableFloatStateOf(0f) }
-    val swipeNavigate: (Float, Float) -> Unit = navigate@{ total, velocityPx ->
-        val distanceThreshold = with(density) { 96.dp.toPx() }
-        val velocityThreshold = with(density) { 700.dp.toPx() } // px/s（dp/s 換算の速度閾値）
-        if (total == 0f || !navEnabled) return@navigate
-        if (abs(total) < distanceThreshold && abs(velocityPx) < velocityThreshold) return@navigate
-        // 方向は実際に動かした距離の符号で決める（速度は発火条件にのみ使う＝弾き戻りの誤方向を防ぐ）
-        val target = if (total < 0f) nextFile else prevFile
-        if (target != "index.html") onNavigateTo(target)
+    // ドラッグ追従オフセット（px）。なぜ Animatable+launch{snapTo} でなく素の Float state か:
+    // draggable の onDelta は同一フレームに複数回届き、launch 経由の snapTo は全 delta が同じ古い
+    // value から次値を計算して最後の1個しか効かない累積レースになる（実機で追従ゼロを実測・2026-07-16）。
+    // 同期加算し、指を離した後の確定/戻しだけ animate で滑らかに動かす（settleTopBar と同型）。
+    var dragOffsetPx by remember { mutableFloatStateOf(0f) }
+    var bodyWidthPx by remember { mutableIntStateOf(0) }
+    // 確定/戻しアニメの Job。アニメ中に新しいドラッグが始まったら中断して指への追従を返す。
+    var swipeSettleJob by remember { mutableStateOf<Job?>(null) }
+    val canGoNext = navEnabled && nextFile != "index.html"
+    val canGoPrev = navEnabled && prevFile != "index.html"
+    val settleSwipe: (Float) -> Unit = { velocityPx ->
+        swipeSettleJob = scope.launch {
+            val offset = dragOffsetPx
+            val distanceThreshold = with(density) { 96.dp.toPx() }
+            val velocityThreshold = with(density) { 700.dp.toPx() } // px/s（dp/s 換算の速度閾値）
+            // 方向は実際に引いた距離の符号で決める。速度は「同方向のとき」だけ確定条件に加える＝
+            // 引いて戻す最中に指を離すと逆向き速度で誤確定するのを防ぐ。
+            val fire = offset != 0f && (
+                abs(offset) >= distanceThreshold ||
+                    (abs(velocityPx) >= velocityThreshold && (velocityPx < 0f) == (offset < 0f))
+                )
+            val target = if (offset < 0f) nextFile else prevFile
+            if (fire && navEnabled && target != "index.html") {
+                // 覗かせた隣章をそのまま全面へスライドさせ切ってから遷移（尺は画面遷移と共有＝ADR 0019）。
+                val end = if (offset < 0f) -bodyWidthPx.toFloat() else bodyWidthPx.toFloat()
+                animate(offset, end, animationSpec = tween(MotionDurationNavTransition)) { v, _ ->
+                    dragOffsetPx = v
+                }
+                onNavigateTo(target)
+                // 新章は原点から（章切替でこの Content ごと破棄されるが、破棄されない経路に備え防御的に戻す）。
+                dragOffsetPx = 0f
+            } else {
+                // 未達＝短尺で戻す（08-C: 退場は enter より短い。spring は禁止則③の跳ね回避で使わない）。
+                animate(offset, 0f, animationSpec = tween(MotionDurationDismiss)) { v, _ ->
+                    dragOffsetPx = v
+                }
+            }
+        }
     }
 
     Box(
@@ -1128,15 +1244,30 @@ internal fun ChapterScreenContent(
                             scope.launch { settleTopBar(topAppBarState, target) }
                         })
                     }
-                    // 左右スワイプで章送り（判定ロジックは swipeNavigate）。累積距離はドラッグ開始で毎回リセット。
+                    // 本文の実測幅（px）＝覗きパネルの初期位置と確定スライドの終端に使う。
+                    .onSizeChanged { bodyWidthPx = it.width }
+                    // 左右スワイプで章送り（追従・確定/戻し＝settleSwipe）。端章側へは clamp で引けない。
                     .draggable(
-                        state = rememberDraggableState { delta -> horizontalDragTotal += delta },
+                        state = rememberDraggableState { delta ->
+                            val min = if (canGoNext) -bodyWidthPx.toFloat() else 0f
+                            val max = if (canGoPrev) bodyWidthPx.toFloat() else 0f
+                            // 同期加算（launch 経由の加算は同一フレーム内の複数 delta が潰し合う＝上のなぜ参照）
+                            dragOffsetPx = (dragOffsetPx + delta).coerceIn(min, max)
+                        },
                         orientation = Orientation.Horizontal,
-                        onDragStarted = { horizontalDragTotal = 0f },
-                        onDragStopped = { velocity -> swipeNavigate(horizontalDragTotal, velocity) },
+                        onDragStarted = { swipeSettleJob?.cancel() },
+                        onDragStopped = { velocity -> settleSwipe(velocity) },
                     ),
                 contentAlignment = Alignment.Center,
             ) {
+                // 本体はドラッグに追従して横へずれる（translationX は draw 段の deferred read＝
+                // ドラッグの毎フレームで composition を再実行しない。露出した地は Scaffold の紙色）。
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { translationX = dragOffsetPx },
+                    contentAlignment = Alignment.Center,
+                ) {
                 when (val result = parseResult) {
                     is ParseResult.Loading -> CircularProgressIndicator()
 
@@ -1204,6 +1335,34 @@ internal fun ChapterScreenContent(
                             onRetry = onRetryParse,
                         )
                     }
+                }
+                }
+
+                // ────── スワイプ覗きパネル ──────
+                // 引いている間だけ隣章の冒頭を実寸で端に出す（内容＝遷移後の章頭と同一）。プレビュー未取得
+                //（先読み中/章欠損）の間は無地の紙面が覗く縮退。出し分けの boolean は derivedStateOf＝
+                // ドラッグ開始/終了時だけ recompose し、連続オフセットは各パネルの draw 段で読む。
+                val peekNext by remember { derivedStateOf { dragOffsetPx < 0f } }
+                val peekPrev by remember { derivedStateOf { dragOffsetPx > 0f } }
+                if (peekNext && nextPeek != null) {
+                    ChapterPeekPanel(
+                        translationX = { bodyWidthPx + dragOffsetPx },
+                        peek = nextPeek,
+                        colors = colors,
+                        fontSize = fontSize,
+                        lineHeightEm = lineHeightEm,
+                        bodyMarginDp = bodyMarginDp,
+                    )
+                }
+                if (peekPrev && prevPeek != null) {
+                    ChapterPeekPanel(
+                        translationX = { -bodyWidthPx + dragOffsetPx },
+                        peek = prevPeek,
+                        colors = colors,
+                        fontSize = fontSize,
+                        lineHeightEm = lineHeightEm,
+                        bodyMarginDp = bodyMarginDp,
+                    )
                 }
             }
         }
@@ -1461,6 +1620,53 @@ internal fun ChapterScreenContent(
                 onDismiss = { showSettings = false },
             )
         }
+    }
+}
+
+/**
+ * スワイプ覗きの表示素材＝隣章のパース済み本文と、着地と同一規則（resolveInitialScroll）で解決した
+ * 初期スクロール位置。位置を焼き込むのは「覗いた表示＝遷移後の表示」を構造的に保証するため。
+ */
+internal data class ChapterPeek(
+    val content: ChapterContentModel,
+    val initialScrollIndex: Int,
+    val initialScrollOffset: Int,
+)
+
+/**
+ * スワイプ引っ張りで端から覗く隣章パネル。
+ * なぜ実物の [ChapterContent] を使うか: 覗きの内容を遷移後の初期表示と完全一致させ、
+ * 確定スライド→章切替が連続して見えるようにするため（専用の軽量プレビューだと書体・版面の再現が
+ * 二重管理になる）。LazyListState は peek の初期位置＝その章を読んでいた場所から表示する
+ *（章ごとの位置記憶＝親 ReadingScreen の sessionScrollByFile。2026-07-16 実機フィードバック）。
+ * @param translationX 覗き位置（px）。draw 段で読む deferred read（ドラッグ毎フレームの recompose 回避）。
+ */
+@Composable
+private fun ChapterPeekPanel(
+    translationX: () -> Float,
+    peek: ChapterPeek,
+    colors: ReadingColors,
+    fontSize: Int,
+    lineHeightEm: Float,
+    bodyMarginDp: Int,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer { this.translationX = translationX() }
+            // 不透明の紙面で現章を覆う（ChapterContent は背景を塗らず Scaffold 任せのため、ここで明示する）。
+            .background(colors.background),
+    ) {
+        ChapterContent(
+            content = peek.content,
+            colors = colors,
+            fontSize = fontSize,
+            lineHeightEm = lineHeightEm,
+            bodyMarginDp = bodyMarginDp,
+            lazyListState = remember(peek) {
+                LazyListState(peek.initialScrollIndex, peek.initialScrollOffset)
+            },
+        )
     }
 }
 
