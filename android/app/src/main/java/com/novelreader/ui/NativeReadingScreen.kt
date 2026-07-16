@@ -439,6 +439,11 @@ fun ReadingScreen(
         return
     }
 
+    // メニューの章跨ぎ維持（2026-07-16 実機フィードバック）: 表示状態を章サブコンポジションの外＝ここで
+    // 保持し、前章/次章の連続操作でメニューが閉じないようにする（「一度出したら再度タップするまで残る」）。
+    // 既定 false＝本の入場時は従来どおり没入。rememberSaveable でプロセス再生成にも耐える。
+    var chromeVisibleAcrossChapters by rememberSaveable { mutableStateOf(false) }
+
     // 目次⇄本文の切替を NavHost のスライドと同じ向きルールで演出する（進む=目次→章は右から左へ潜る／
     // 戻る=章→目次は左から右へ戻す）。同一 nav ルート内の state 切替（resolvedFile の出し分け）を
     // AnimatedContent で包む。章→章（話送り）は現状どおり瞬間＝向きを付けない（P1 は別枠のため据え置き）。
@@ -528,6 +533,9 @@ fun ReadingScreen(
                     onPromoteToReading = onPromoteToReading,
                     // 読了検出（ssot Major）: 最終章の末尾到達を ChapterScreen が検知して呼ぶ。
                     onReachedEnd = onReachedEnd,
+                    // メニュー章跨ぎ維持: 章を跨いだ入場時の初期表示と、トグル結果の還流。
+                    chromeVisibleInitial = chromeVisibleAcrossChapters,
+                    onChromeVisibleChange = { chromeVisibleAcrossChapters = it },
                 )
             }
         }
@@ -586,6 +594,11 @@ private fun ChapterScreen(
     onPromoteToReading: () -> Unit,
     // 読了検出（ssot Major）。最終章の末尾を可視化したとき一度だけ呼ぶ（参照モード中は抑止）。
     onReachedEnd: () -> Unit,
+    // メニューの章跨ぎ維持（2026-07-16 実機フィードバック）: 章→章は AnimatedContent の別サブコンポジション
+    // ＝topAppBarState が作り直されるため、表示状態は親 ReadingScreen が章を跨いで保持し、入場時の初期値
+    // として受け取る。トグル結果は onChromeVisibleChange で親へ還流する。既定は従来挙動（入場時没入）。
+    chromeVisibleInitial: Boolean = false,
+    onChromeVisibleChange: (Boolean) -> Unit = {},
 ) {
     val colors = rememberReadingColors(readingTheme)
     // 画面ローカルの UI 状態（表示設定シート開閉・紐付けシート開閉・ボトムバー実測高・コルーチンスコープ・
@@ -692,13 +705,17 @@ private fun ChapterScreen(
     // 入場時既定=「無」（d-chrome Design/09-A）。章題は本文先頭の ChapterHeader が担うため、
     // 入場時に上部バーを見せる必要はない。heightOffsetLimit は TopAppBar が実測後に負値へ更新するため、
     // 確定を待って一度だけ全退避する（初期 0 のまま畳んでも効かないため待つ）。
+    // ただしメニュー表示中に前章/次章で章を跨いだ場合（chromeVisibleInitial=true）は退避しない＝
+    // 「一度出したら再度タップするまで残る」の章跨ぎ維持（2026-07-16 実機フィードバック）。
     // なぜ rememberSaveable の guard か: ユーザーが一度バーを出した後（プロセス再生成の復元含む）に
     // 再び勝手に畳んで操作を奪わないため。topAppBarState 自体も heightOffset を復元するので二重に安全。
     var didInitialCollapse by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(topAppBarState) {
         if (didInitialCollapse) return@LaunchedEffect
         snapshotFlow { topAppBarState.heightOffsetLimit }.first { it < 0f }
-        topAppBarState.heightOffset = topAppBarState.heightOffsetLimit
+        if (!chromeVisibleInitial) {
+            topAppBarState.heightOffset = topAppBarState.heightOffsetLimit
+        }
         didInitialCollapse = true
     }
 
@@ -835,6 +852,9 @@ private fun ChapterScreen(
             .collect { chromeVisible ->
                 if (chromeVisible) controller.show(WindowInsetsCompat.Type.systemBars())
                 else controller.hide(WindowInsetsCompat.Type.systemBars())
+                // 章跨ぎ維持: トグル結果を親（ReadingScreen）の保持状態へ還流する。初期退避前の一瞬
+                //（heightOffset=0 のまま実測待ち）に true が流れても、直後の退避で false が上書きするため無害。
+                onChromeVisibleChange(chromeVisible)
             }
     }
 
