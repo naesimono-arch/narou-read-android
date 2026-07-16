@@ -11,7 +11,9 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.ui.theme.ReadingTheme
@@ -48,6 +50,7 @@ class BookshelfContentTest {
         chapterCountMap: Map<String, Int> = emptyMap(),
         onFabClick: () -> Unit = {},
         onOpenDiscovery: () -> Unit = {},
+        onDeleteBooks: (List<BookEntity>) -> Unit = {},
     ) {
         composeTestRule.setContent {
             MaterialTheme {
@@ -61,11 +64,9 @@ class BookshelfContentTest {
                     onThemeChange = {},
                     isGridView = true,
                     onToggleView = {},
-                    deleteUiMode = 1,
-                    onToggleDeleteMode = {},
                     onFabClick = onFabClick,
                     onOpenBook = {},
-                    onDeleteBook = {},
+                    onDeleteBooks = onDeleteBooks,
                     onOpenDiscovery = onOpenDiscovery,
                     onCancelProcessing = {},
                     snackbarHostState = remember { SnackbarHostState() },
@@ -180,5 +181,23 @@ class BookshelfContentTest {
         composeTestRule.onNodeWithText("読了").performClick()
         composeTestRule.onNodeWithContentDescription("吾輩は猫である").assertIsDisplayed()
         composeTestRule.onNodeWithText("この分類の本はありません").assertDoesNotExist()
+    }
+
+    // ────── 複数選択→まとめて削除（残8・案B裁定） ──────
+
+    @Test
+    fun `長押しで選択モードに入り削除確定でonDeleteBooksへ選択本が渡る`() {
+        var deleted: List<BookEntity>? = null
+        setContent(
+            BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"), book("b2", "坊っちゃん"))),
+            onDeleteBooks = { deleted = it },
+        )
+        // 長押しで選択モードへ（その本を選択）＝下端バーに件数と削除が出る。
+        composeTestRule.onNodeWithContentDescription("吾輩は猫である").performTouchInput { longClick() }
+        composeTestRule.onNodeWithText("1冊選択中").assertIsDisplayed()
+        // 削除→確認ダイアログ→削除する で onDeleteBooks に選択本(b1)が渡る。
+        composeTestRule.onNodeWithText("削除").performClick()
+        composeTestRule.onNodeWithText("削除する").performClick()
+        assertTrue(deleted?.map { it.id } == listOf("b1"))
     }
 }

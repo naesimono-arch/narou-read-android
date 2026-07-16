@@ -43,8 +43,9 @@
 - **修正済み**（裁定＝アプリ背景色で塗る／2026-07-16 ユーザー）: window 背景をテーマ背景色へ再定義（`Theme.kt` の `NovelReaderTheme` SideEffect＝window 単一正本の所有者）。Edge-to-Edge 配下で没入時に最上155pxへ透けていた OS/window 既定の純黒[0,0,0]を、本文と同値の紙色（LIGHT=FBFAF8/SEPIA=F2E7CE/DARK=14171C＝ReadingColors.background と一致）へ。黒⇄灰フリップが灰⇄紙色の低コントラスト差に落ちる。①本文ちらつきは②と同根＝独立機序は棄却済み。機序の一次情報＝`.claude/plans/device-verify-followup-2026-07-16.md`・原典＝`usability-test-results-2026-07-14.md` T6。
 - **残＝実機の目視確認のみ**: OPPO 実機で没入トグル×3テーマの明滅解消を screencap で確認（`adb-bridge`→APK導入。実機前に一声）。OK なら本項を消す。
 
-### 残8: 本棚操作の要望（2026-07-14 実使用フィードバック・新機能）
-- **①複数選択→まとめて削除**: 対比モック作成済み（`docs/design-candidates/bookshelf-multiselect-D.html`＝fusion-D 基盤・案A上部文脈バー/案B下端固定バー＋削除確認ダイアログ）。**裁定所見（2026-07-16 ユーザー）＝案B寄り。ただし条件付き**＝「削除モードの解除が結局右上操作頼みなら下端集約の意味がない」→解除導線を右上非依存で完結させる再設計が要る（候補: 下端バー内に「キャンセル」明示／システム戻るで解除／選択0件で自動解除。組合せ可）。**モック調整は別セッションで**（案Bベースに解除導線を組み込んだ改訂版を作って再裁定）。裁定後に Compose 実装。削除系＝実機検証は捨て本で（memory `device-verify-delegation-no-destructive-on-real-library`）。
+### 残8: 本棚 複数選択→まとめて削除＝実装済み・**実機検証（捨て本）のみ残**（2026-07-16）
+- **実装済み**（案B下端バー＋変種B「キャンセル」＋システム戻る＋0件自動解除＋削除確認ダイアログ・PDF本のみ対象）: 長押しで選択モード→下端バーで全選択/削除→確認ダイアログでまとめて削除。削除UXは選択＋確認ダイアログに一本化（旧単体削除の長押しメニュー/Undo/deleteUiMode/⋮ボタンは撤去＝ユーザー裁定）。正本＝`bookshelf-multiselect-D.html`（確定形へ統合・裁定用の対比/変種スクラッチは退役）。JVM結線テスト追加（長押し→選択→削除確定で onDeleteBooks へ選択本が渡る）。
+- **残＝実機検証（必ず捨て本で）**: 長押し→選択→削除の一連＋0件自動解除/システム戻りでの解除を捨て本で確認（memory `device-verify-delegation-no-destructive-on-real-library`）。Web カードは対象外＝別操作「本棚から外す」を維持。OK なら本項を消す。
 
 ### 残4: 監査派生 backlog（新規タスク）
 - **蔵書内フィルタ/series 束ね UI**（確認バッチC④＝保留）: ロジック `filterBooksByQuery` は実装済み・UI はモック未表現のため保留（`BookshelfScreen.kt:442`／`ShelfItems.kt:37`）。series 束ねはスキーマ変更要（設計案のみ）。
