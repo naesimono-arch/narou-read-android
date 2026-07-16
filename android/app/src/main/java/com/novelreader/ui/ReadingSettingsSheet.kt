@@ -57,6 +57,9 @@ internal fun ReadingSettingsSheet(
     bodyMarginDp: Int,
     onBodyMarginChange: (Int) -> Unit,
     onBodyMarginPersist: () -> Unit,
+    // 縦書きモード（全書籍共通・app_prefs reading_vertical）。既定 false＝横書き。
+    verticalMode: Boolean = false,
+    onVerticalModeChange: (Boolean) -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     // なぜ containerColor/contentColor を読書テーマで明示するか:
@@ -83,6 +86,8 @@ internal fun ReadingSettingsSheet(
             bodyMarginDp = bodyMarginDp,
             onBodyMarginChange = onBodyMarginChange,
             onBodyMarginPersist = onBodyMarginPersist,
+            verticalMode = verticalMode,
+            onVerticalModeChange = onVerticalModeChange,
         )
     }
 }
@@ -108,6 +113,9 @@ internal fun ReadingSettingsSheetContent(
     bodyMarginDp: Int,
     onBodyMarginChange: (Int) -> Unit,
     onBodyMarginPersist: () -> Unit,
+    // 縦書きモードのトグル（全書籍共通・app_prefs reading_vertical）。既定 false＝横書き。
+    verticalMode: Boolean = false,
+    onVerticalModeChange: (Boolean) -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -184,6 +192,23 @@ internal fun ReadingSettingsSheetContent(
                 )
             }
         }
+        Spacer(Modifier.height(Spacing.S24))
+        // 縦書きトグル。テーマ3択と同じ FilterChip＋themeChipColors を流用する（新しい部品・色を作らない）。
+        // なぜテーマ直下（チップ群のそば）に置くか（並び順の判断）: (1) テーマと同じ離散チップ選択なので
+        // 3本のスライダーの間に挟まず、チップ系設定をまとめると視覚リズムが揃う。(2) このシートの Column は
+        // スクロールを持たず、末尾に足すと縦長端末で画面外に切れて到達不能になり得るため、常時可視な上部へ
+        // 置いて確実に届かせる。見出し語（labelMedium）は他設定と同じ体裁。チップ選択(accent塗り)＝縦書きON。
+        Text(
+            text = "本文の向き",
+            style = MaterialTheme.typography.labelMedium,
+        )
+        Spacer(Modifier.height(Spacing.S8))
+        FilterChip(
+            selected = verticalMode,
+            onClick = { onVerticalModeChange(!verticalMode) },
+            label = { Text("縦書き") },
+            colors = themeChipColors,
+        )
         // スライダー共通色。モック settings-D は目盛りドットを持たない細線＋藍フィルのため、
         // steps のスナップは維持したまま tick 色だけ透明化して視覚的に消す。
         // フィル/つまみはシート全体と同じく読書テーマの藍（colors.accent）に追従させる。

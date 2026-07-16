@@ -49,8 +49,8 @@
 - **P2 GlyphRenderer＋VerticalParagraph**。完了定義: Robolectric＋Roborazzi で単一段落（正立/回転/句読点/縦中横/ルビ）golden 化。
 - **P2.5 本棚題字へ適用**: `drawShioriTitle` を CharClassifier/GlyphRenderer 経由に置換（実データのタイトルで文字クラス層を実戦検証する先行消費者）。完了定義: 実機で「（）」「～」「ー」入りタイトルの書影が自然。
 - **P3 VerticalChapterContent 配線**（LazyRow・位置保存を既存(index,offset)同型で接続）。完了定義: 縦書き章が連続横スクロールし同一モード内で位置復元。
-- **P4 ジェスチャ再配線**（横ドラッグ無効化＋終端オーバースクロール章送り。overscroll バウンドは無効化し未消費デルタを章送りへ）。完了定義: 次章/前章プレビュー→確定が動作し本文スクロールと非衝突。
-- **P5 設定配線＋切替**（reading_vertical prefs・シートにトグル・(段落index,fraction) 相互変換）。完了定義: 切替後も同じ段落へ復帰。
+- **P5 設定配線＋切替**（reading_vertical prefs・シートにトグル・(段落index,fraction) 相互変換）。完了定義: 切替後も同じ段落へ復帰。**（2026-07-17 P4と順序入替: 先にユーザーが実機で縦書きを触れる状態にし、P4ジェスチャは操作感を踏まえて設計する＝ADR 0005 §B 実機後詰め層）**
+- **P4 ジェスチャ再配線**（終端オーバースクロール章送り。overscroll バウンドは無効化し未消費デルタを章送りへ）。完了定義: 次章/前章プレビュー→確定が動作し本文スクロールと非衝突。**訂正（2026-07-17）: 当初の「ChapterPeekPanel/settleSwipe 流用」はコードに存在しない誤前提（現アプリの章送りはボトムバーのボタンのみ・横ドラッグ章送りは元々無い＝「横ドラッグ無効化」も不要）。P4はゼロからの新規ジェスチャ＋覗きパネル実装＝モック .peek 帯を意匠正本に。**
 - **P6 仕上げ**: 禁則ぶら下げ・OPPO実機較正・TTS/a11y再現の確認（`/device-verify` 経由）。完了定義: 実機で版面OK＋a11y退行なし。
 - （任意 P7）切替跨ぎの再起動復元を厳密化する場合のみ ProgressEntity へ paragraphIndex/fraction 追加（`/db-migration` ゲート必須）。
 

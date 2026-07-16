@@ -108,6 +108,8 @@ import com.novelreader.narou.narouEpisodeUrl
 import com.novelreader.narou.narouWorkUrl
 import com.novelreader.narou.model.Ncode
 import com.novelreader.parser.ChapterHtmlParser
+import com.novelreader.typeset.ParagraphPosition
+import com.novelreader.typeset.ReadingPositionMapper
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.FontNavLabel
 import com.novelreader.ui.theme.FontSectionTitle
@@ -128,6 +130,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -372,6 +375,18 @@ fun ReadingScreen(
         prefs.edit().putInt("reading_body_margin", bodyMarginDp).apply()
     }
 
+    // 縦書きモード（全書籍共通・app_prefs の単一 Boolean "reading_vertical"＝プラン裁定「設定は全書籍共通」）。
+    // 既定 false＝横書きで既存ユーザーの見た目は不変。他の読書設定と同じ app_prefs に置く。
+    // なぜ確定コールバック（onXxxPersist）を分けないか: これはトグルでスライダーのようなドラッグ中の
+    // 毎値発火が無く、1タップ＝1確定。状態更新と永続化を1つのコールバックで即時に行う（無駄な間引き不要）。
+    var verticalMode by remember {
+        mutableStateOf(prefs.getBoolean("reading_vertical", false))
+    }
+    val onVerticalModeChange: (Boolean) -> Unit = { enabled ->
+        verticalMode = enabled
+        prefs.edit().putBoolean("reading_vertical", enabled).apply()
+    }
+
     // ステータスバーアイコン明暗はここでは設定しない（所有権は NovelReaderTheme の SideEffect に一本化）。
     // なぜ: テーマは MainActivity の appTheme 単一正本で本棚と読書が常に同値のため、画面側での
     // 設定は冗長で、かつて在った onDispose の「システム準拠へ復元」は手動テーマ選択時に本棚へ
@@ -508,6 +523,8 @@ fun ReadingScreen(
                     bodyMarginDp = bodyMarginDp,
                     onBodyMarginChange = onBodyMarginChange,
                     onBodyMarginPersist = onBodyMarginPersist,
+                    verticalMode = verticalMode,
+                    onVerticalModeChange = onVerticalModeChange,
                     // file が「最後に読んだ章」と一致する場合のみスクロール位置を復元する
                     initialScrollIndex = if (file == restore.targetFile) restore.scrollIndex else 0,
                     initialScrollOffset = if (file == restore.targetFile) restore.scrollOffset else 0,
@@ -543,6 +560,11 @@ private const val REFERENCE_DWELL_TIMEOUT_MS = 20_000L
 /** 参照ジャンプ滞留昇格（C1）: この段落数だけスクロールしたら読み進めとみなし正規位置へ昇格。 */
 private const val REFERENCE_DWELL_SCROLL_ITEMS = 4
 
+/** 縦書き⇔横書き切替時の位置復元（P5）: 新モードで対象段落の実寸が現れるまで待つ上限。
+ *  scrollToItem(index,0) 直後に当該アイテムは可視化されるため通常は即取れる。取れないまま
+ *  この時間を過ぎたら offset=0 のまま（段落先頭）に倒す＝無限待機を避ける防御。 */
+private const val VERTICAL_RESTORE_TIMEOUT_MS = 2_000L
+
 /** 章本文を表示する内部 Composable */
 @OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
@@ -571,6 +593,9 @@ private fun ChapterScreen(
     bodyMarginDp: Int,
     onBodyMarginChange: (Int) -> Unit,
     onBodyMarginPersist: () -> Unit,
+    // 縦書きモード（全書籍共通・app_prefs reading_vertical）。ReadingScreen が読み書きし本文分岐へ渡す。
+    verticalMode: Boolean,
+    onVerticalModeChange: (Boolean) -> Unit,
     initialScrollIndex: Int,
     initialScrollOffset: Int,
     onSaveScroll: (index: Int, offset: Int) -> Unit,
@@ -927,6 +952,8 @@ private fun ChapterScreen(
         onNavigateTo = onNavigateTo,
         onNavigateToBookshelf = onNavigateToBookshelf,
         onRetryParse = { retryKey++ },
+        verticalMode = verticalMode,
+        onVerticalModeChange = onVerticalModeChange,
     )
 }
 
@@ -986,10 +1013,57 @@ internal fun ChapterScreenContent(
     onNavigateToBookshelf: () -> Unit,
     onRetryParse: () -> Unit,
     // 縦書きモード（P3 配線）。本文スロットだけを VerticalChapterContent へ分岐する。
-    // 既定 false＝ユーザー可視の挙動は不変（設定トグルは P5 で route から渡す）。
+    // 既定 false＝ユーザー可視の挙動は不変。
     verticalMode: Boolean = false,
+    // 縦書きトグルの永続化コールバック（route が app_prefs "reading_vertical" へ書く）。P5 で実値化。
+    // 既定 no-op＝既存テストの呼び出しは配線不要のまま。
+    onVerticalModeChange: (Boolean) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
+
+    // ── モード切替時の段落位置維持（同一章内・P5）──
+    // 切替「前」に旧モードの寸法で捕捉した ParagraphPosition の保留。切替後の再合成完了後に消費して復元する。
+    var pendingVerticalRestore by remember { mutableStateOf<ParagraphPosition?>(null) }
+
+    // トグルをラップ: route の永続化（onVerticalModeChange）へ委譲する前に、旧モードの先頭可視アイテム寸法で
+    // 現在の読書位置を (段落index, fraction) として捕捉する。
+    // なぜ切替「前」に取るか: onVerticalModeChange で verticalMode が反転すると本文が新モード（LazyColumn⇔
+    // LazyRow）で再合成され、visibleItemsInfo.size が別軸の寸法へ化ける。fraction の分母＝先頭可視アイテム
+    // size は必ず切替前の旧寸法で取らないと段落内位置がずれる（プラン P5 裁定「必ず切替前に取る」）。
+    val onVerticalModeToggle: (Boolean) -> Unit = { enabled ->
+        val firstVisible = lazyListState.layoutInfo.visibleItemsInfo.firstOrNull()
+        pendingVerticalRestore = ReadingPositionMapper.fromScroll(
+            firstVisibleItemIndex = lazyListState.firstVisibleItemIndex,
+            firstVisibleItemScrollOffset = lazyListState.firstVisibleItemScrollOffset,
+            // firstOrNull() は firstVisibleItemIndex と同じ先頭可視アイテム＝その軸方向 size が fraction の分母。
+            firstVisibleItemSizePx = firstVisible?.size ?: 0,
+            headerItemCount = 1,
+        )
+        onVerticalModeChange(enabled)
+    }
+
+    // 切替後の復元: verticalMode 反転（＋保留セット）で再起動し、同一段落 index を可視化→新モードの実寸が
+    // 取れたら fraction を掛け戻して offset を適用する。実寸が取れない/待機超過時は scrollToItem(index,0) の
+    // まま＝offset=0（段落先頭）に倒す（防御）。fraction は近似ゆえ切替で数行の誤差が出るのは仕様（プラン
+    // 「fraction 近似ゆえ切替で数行の誤差は仕様」）。章跨ぎ・再起動復元の厳密化は P7（対象外）。
+    LaunchedEffect(verticalMode, pendingVerticalRestore) {
+        val pos = pendingVerticalRestore ?: return@LaunchedEffect
+        val (targetIndex, _) = ReadingPositionMapper.toScroll(pos, itemSizePx = 0, headerItemCount = 1)
+        // まず当該 index を先頭へ（新モードでの measure を誘発し可視化する）。
+        lazyListState.scrollToItem(targetIndex, 0)
+        // 新モードで当該 index の実寸が現れるまで待つ（layoutInfo はフレームレート state＝snapshotFlow で観測）。
+        val sizePx = withTimeoutOrNull(VERTICAL_RESTORE_TIMEOUT_MS) {
+            snapshotFlow {
+                lazyListState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == targetIndex }?.size
+            }.filterNotNull().first()
+        }
+        if (sizePx != null && sizePx > 0) {
+            val (index, offset) = ReadingPositionMapper.toScroll(pos, itemSizePx = sizePx, headerItemCount = 1)
+            lazyListState.scrollToItem(index, offset)
+        }
+        // 消費済み。null 化で再合成しても早期 return され、二重復元やスクロール暴走は起きない。
+        pendingVerticalRestore = null
+    }
 
     // 表示設定ボトムシートの開閉状態。
     // なぜ rememberSaveable か: 素の remember だとプロセス再生成（回転・background kill）で
@@ -1383,6 +1457,9 @@ internal fun ChapterScreenContent(
                 bodyMarginDp = bodyMarginDp,
                 onBodyMarginChange = onBodyMarginChange,
                 onBodyMarginPersist = onBodyMarginPersist,
+                verticalMode = verticalMode,
+                // 切替前に段落位置を捕捉してから永続化するラッパを渡す（素の onVerticalModeChange ではない）。
+                onVerticalModeChange = onVerticalModeToggle,
                 onDismiss = { showSettings = false },
             )
         }

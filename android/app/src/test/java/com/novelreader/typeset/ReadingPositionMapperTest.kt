@@ -51,6 +51,24 @@ class ReadingPositionMapperTest {
     }
 
     @Test
+    fun `モード切替_異なる寸法でも段落indexを維持しfractionを新寸法へ按分する`() {
+        // 横書き（LazyColumn）で先頭可視: list index=6（＝段落5, header=1）・offset=300px・旧アイテム高=600px。
+        val captured = ReadingPositionMapper.fromScroll(
+            firstVisibleItemIndex = 6,
+            firstVisibleItemScrollOffset = 300,
+            firstVisibleItemSizePx = 600,
+            headerItemCount = 1,
+        )
+        assertEquals("段落 index", 5, captured.paragraphIndex)
+        assertEquals("fraction=0.5", 0.5f, captured.fraction, 1e-4f)
+        // 縦書き（LazyRow）へ切替後は当該段落の寸法（列幅）が変わる（例: 900px）。同じ段落＝同じ list index
+        // へ復帰し、offset は fraction を新寸法へ按分した値になる（＝P5 の位置維持の核）。
+        val (index, offset) = ReadingPositionMapper.toScroll(captured, itemSizePx = 900, headerItemCount = 1)
+        assertEquals("同一段落（同一 list index）へ復帰", 6, index)
+        assertEquals("fraction 0.5 を新寸法 900 へ按分", 450, offset)
+    }
+
+    @Test
     fun `アイテム寸法0以下はfraction0に倒す`() {
         val pos = ReadingPositionMapper.fromScroll(3, 100, 0, headerItemCount = 1)
         assertEquals(0f, pos.fraction, 0f)

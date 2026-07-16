@@ -22,7 +22,10 @@ import org.robolectric.annotation.Config
  * いないこと）とチップ結線という退行が痛い箇所に集中する（過剰網羅は避ける）。
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+// 実端末相当の画面（スクショテストと同一 w360dp-h640dp）で組む。素の既定画面は縦が短く、縦書きトグル
+// 追加後はシート内容（非スクロールの Column）が画面外へあふれ末尾スライダー値の可視判定が落ちるため、
+// スクショ回帰と同じ現実的な縦寸で全設定行が収まる前提を揃える。
+@Config(sdk = [34], qualifiers = "w360dp-h640dp-xhdpi")
 class ReadingSettingsSheetTest {
 
     @get:Rule
@@ -33,6 +36,8 @@ class ReadingSettingsSheetTest {
     private fun setSheet(
         readingTheme: ReadingTheme = ReadingTheme.LIGHT,
         onThemeChange: (ReadingTheme) -> Unit = {},
+        verticalMode: Boolean = false,
+        onVerticalModeChange: (Boolean) -> Unit = {},
     ) {
         composeTestRule.setContent {
             ReadingSettingsSheetContent(
@@ -48,6 +53,8 @@ class ReadingSettingsSheetTest {
                 bodyMarginDp = 20,
                 onBodyMarginChange = {},
                 onBodyMarginPersist = {},
+                verticalMode = verticalMode,
+                onVerticalModeChange = onVerticalModeChange,
             )
         }
     }
@@ -71,5 +78,21 @@ class ReadingSettingsSheetTest {
         setSheet(onThemeChange = { picked = it })
         composeTestRule.onNodeWithText("セピア").performClick()
         assertEquals(ReadingTheme.SEPIA, picked)
+    }
+
+    @Test
+    fun `縦書きトグルの見出しとチップを表示する`() {
+        setSheet()
+        composeTestRule.onNodeWithText("本文の向き").assertIsDisplayed()
+        composeTestRule.onNodeWithText("縦書き").assertIsDisplayed()
+    }
+
+    @Test
+    fun `縦書きチップのタップでonVerticalModeChangeが反転値で呼ばれる`() {
+        var toggled: Boolean? = null
+        // 現在 OFF（横書き）→ タップで ON（縦書き）を要求する反転値が飛ぶ。
+        setSheet(verticalMode = false, onVerticalModeChange = { toggled = it })
+        composeTestRule.onNodeWithText("縦書き").performClick()
+        assertEquals(true, toggled)
     }
 }
