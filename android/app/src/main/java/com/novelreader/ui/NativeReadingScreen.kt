@@ -92,6 +92,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
@@ -1244,7 +1245,14 @@ internal fun ChapterScreenContent(
                 abs(offset) >= distanceThreshold ||
                     (abs(velocityPx) >= velocityThreshold && (velocityPx < 0f) == (offset < 0f))
                 )
-            val target = if (offset < 0f) nextFile else prevFile
+            // target 選択だけ方向対応表に従い縦横で鏡像にする（横書き＝左引き(offset<0)で次章／縦書き＝
+            // 右引き(offset>0)で次章＝reverseLayout の読み進め方向）。確定スライドの向き（end）と速度の
+            // 同符号チェックは offset の符号だけで決まる＝モード非依存でそのまま効く。
+            val target = if (verticalMode) {
+                if (offset > 0f) nextFile else prevFile
+            } else {
+                if (offset < 0f) nextFile else prevFile
+            }
             if (fire && navEnabled && target != "index.html") {
                 // 覗かせた隣章をそのまま全面へスライドさせ切ってから遷移（尺は画面遷移と共有＝ADR 0019）。
                 val end = if (offset < 0f) -bodyWidthPx.toFloat() else bodyWidthPx.toFloat()
@@ -1261,6 +1269,35 @@ internal fun ChapterScreenContent(
                 }
             }
         }
+    }
+
+    // 引っ張りオフセットの許容範囲＝端章はその向きへ引けない(0)。方向は縦横で鏡像（方向対応表 P4）:
+    // 横書き＝次章が負・前章が正／縦書き＝次章が正・前章が負。draggable の clamp と、縦書きの終端デルタを
+    // 拾う nestedScroll(ChapterPullConnection) の bounds で同じ規則を共有する。縦書きでも Loading/Error 時は
+    // LazyRow が無く親 draggable が生きるため、draggable 側 clamp も縦書きマッピングに従わせる必要がある。
+    val pullBounds: () -> ClosedFloatingPointRange<Float> = {
+        val w = bodyWidthPx.toFloat()
+        if (verticalMode) {
+            (if (canGoPrev) -w else 0f)..(if (canGoNext) w else 0f)
+        } else {
+            (if (canGoNext) -w else 0f)..(if (canGoPrev) w else 0f)
+        }
+    }
+    // ChapterPullConnection は nestedScroll 装着の安定のため remember するが、章切替で nextFile 等が変わる
+    // settleSwipe/bounds/verticalMode を第一フレームで焼き込むと遷移先が古いままになる＝rememberUpdatedState
+    // で常に最新へ差し替えてから注入する（ラムダは State 参照を辿り毎回最新を読む）。
+    val currentSettle by rememberUpdatedState(settleSwipe)
+    val currentBounds by rememberUpdatedState(pullBounds)
+    val currentVertical by rememberUpdatedState(verticalMode)
+    val pullConnection = remember {
+        ChapterPullConnection(
+            enabled = { currentVertical },
+            dragOffset = { dragOffsetPx },
+            onDragOffset = { dragOffsetPx = it },
+            bounds = { currentBounds() },
+            onPullStart = { swipeSettleJob?.cancel() },
+            onSettle = { velocityX -> currentSettle(velocityX) },
+        )
     }
 
     Box(
@@ -1344,17 +1381,21 @@ internal fun ChapterScreenContent(
                     // 本文の実測幅（px）＝覗きパネルの初期位置と確定スライドの終端に使う。
                     .onSizeChanged { bodyWidthPx = it.width }
                     // 左右スワイプで章送り（追従・確定/戻し＝settleSwipe）。端章側へは clamp で引けない。
+                    // 横書き（LazyColumn＝縦スクロール）では横ドラッグが素通りしここが発火する。
                     .draggable(
                         state = rememberDraggableState { delta ->
-                            val min = if (canGoNext) -bodyWidthPx.toFloat() else 0f
-                            val max = if (canGoPrev) bodyWidthPx.toFloat() else 0f
-                            // 同期加算（launch 経由の加算は同一フレーム内の複数 delta が潰し合う＝上のなぜ参照）
-                            dragOffsetPx = (dragOffsetPx + delta).coerceIn(min, max)
+                            // 同期加算（launch 経由の加算は同一フレーム内の複数 delta が潰し合う＝上のなぜ参照）。
+                            // clamp は方向対応表どおり縦横で鏡像＝draggable/nestedScroll で pullBounds を共有。
+                            dragOffsetPx = (dragOffsetPx + delta).coerceIn(pullBounds())
                         },
                         orientation = Orientation.Horizontal,
                         onDragStarted = { swipeSettleJob?.cancel() },
                         onDragStopped = { velocity -> settleSwipe(velocity) },
-                    ),
+                    )
+                    // 縦書きは LazyRow(reverseLayout) が横ドラッグを消費し親 draggable が不発になるため、
+                    // 章端で LazyRow が消費し切れず余った横デルタを nestedScroll で拾い引っ張りへ接続する
+                    //（enabled=verticalMode のときだけ働く＝横書き経路は 1 ビットも変えない）。
+                    .nestedScroll(pullConnection),
                 contentAlignment = Alignment.Center,
             ) {
                 // 本体はドラッグに追従して横へずれる（translationX は draw 段の deferred read＝
@@ -1452,26 +1493,37 @@ internal fun ChapterScreenContent(
                 // 引いている間だけ隣章の冒頭を実寸で端に出す（内容＝遷移後の章頭と同一）。プレビュー未取得
                 //（先読み中/章欠損）の間は無地の紙面が覗く縮退。出し分けの boolean は derivedStateOf＝
                 // ドラッグ開始/終了時だけ recompose し、連続オフセットは各パネルの draw 段で読む。
-                val peekNext by remember { derivedStateOf { dragOffsetPx < 0f } }
-                val peekPrev by remember { derivedStateOf { dragOffsetPx > 0f } }
+                // 次章/前章の覗きの出し分けと覗きパネルの湧き出し方向は縦横で鏡像（方向対応表 P4）:
+                // 横書き＝offset<0 で次章（右から覗く）／縦書き＝offset>0 で次章（左から覗く）。verticalMode は
+                // 素の param のため derivedStateOf は verticalMode をキーに remember し直す（dragOffsetPx は State）。
+                val peekNext by remember(verticalMode) {
+                    derivedStateOf { if (verticalMode) dragOffsetPx > 0f else dragOffsetPx < 0f }
+                }
+                val peekPrev by remember(verticalMode) {
+                    derivedStateOf { if (verticalMode) dragOffsetPx < 0f else dragOffsetPx > 0f }
+                }
                 if (peekNext && nextPeek != null) {
                     ChapterPeekPanel(
-                        translationX = { bodyWidthPx + dragOffsetPx },
+                        // 横書き＝右から（+bodyWidth）／縦書き＝左から（-bodyWidth）湧き出す。
+                        translationX = { (if (verticalMode) -bodyWidthPx else bodyWidthPx) + dragOffsetPx },
                         peek = nextPeek,
                         colors = colors,
                         fontSize = fontSize,
                         lineHeightEm = lineHeightEm,
                         bodyMarginDp = bodyMarginDp,
+                        verticalMode = verticalMode,
                     )
                 }
                 if (peekPrev && prevPeek != null) {
                     ChapterPeekPanel(
-                        translationX = { -bodyWidthPx + dragOffsetPx },
+                        // 横書き＝左から（-bodyWidth）／縦書き＝右から（+bodyWidth）湧き出す。
+                        translationX = { (if (verticalMode) bodyWidthPx else -bodyWidthPx) + dragOffsetPx },
                         peek = prevPeek,
                         colors = colors,
                         fontSize = fontSize,
                         lineHeightEm = lineHeightEm,
                         bodyMarginDp = bodyMarginDp,
+                        verticalMode = verticalMode,
                     )
                 }
             }
@@ -1759,6 +1811,8 @@ internal data class ChapterPeek(
  * 二重管理になる）。LazyListState は peek の初期位置＝その章を読んでいた場所から表示する
  *（章ごとの位置記憶＝親 ReadingScreen の sessionScrollByFile。2026-07-16 実機フィードバック）。
  * @param translationX 覗き位置（px）。draw 段で読む deferred read（ドラッグ毎フレームの recompose 回避）。
+ * @param verticalMode true で覗きの中身を縦書き [VerticalChapterContent] で描く（覗き＝遷移後表示の完全一致の
+ *   原則。位置保存 (index, offset) の意味は縦横同型＝そのまま渡す）。
  */
 @Composable
 private fun ChapterPeekPanel(
@@ -1768,6 +1822,7 @@ private fun ChapterPeekPanel(
     fontSize: Int,
     lineHeightEm: Float,
     bodyMarginDp: Int,
+    verticalMode: Boolean = false,
 ) {
     Box(
         modifier = Modifier
@@ -1776,16 +1831,29 @@ private fun ChapterPeekPanel(
             // 不透明の紙面で現章を覆う（ChapterContent は背景を塗らず Scaffold 任せのため、ここで明示する）。
             .background(colors.background),
     ) {
-        ChapterContent(
-            content = peek.content,
-            colors = colors,
-            fontSize = fontSize,
-            lineHeightEm = lineHeightEm,
-            bodyMarginDp = bodyMarginDp,
-            lazyListState = remember(peek) {
-                LazyListState(peek.initialScrollIndex, peek.initialScrollOffset)
-            },
-        )
+        val peekListState = remember(peek) {
+            LazyListState(peek.initialScrollIndex, peek.initialScrollOffset)
+        }
+        // 覗き＝遷移後の初期表示と完全一致させる（本文と同じ分岐）。縦書きは横スクロールの LazyRow。
+        if (verticalMode) {
+            VerticalChapterContent(
+                content = peek.content,
+                colors = colors,
+                fontSize = fontSize,
+                lineHeightEm = lineHeightEm,
+                bodyMarginDp = bodyMarginDp,
+                lazyListState = peekListState,
+            )
+        } else {
+            ChapterContent(
+                content = peek.content,
+                colors = colors,
+                fontSize = fontSize,
+                lineHeightEm = lineHeightEm,
+                bodyMarginDp = bodyMarginDp,
+                lazyListState = peekListState,
+            )
+        }
     }
 }
 
