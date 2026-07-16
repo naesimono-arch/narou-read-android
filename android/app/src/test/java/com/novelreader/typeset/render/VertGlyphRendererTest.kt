@@ -69,6 +69,28 @@ class VertGlyphRendererTest {
     }
 
     @Test
+    fun manualRotateCentersInkOnColumnCenter() {
+        // 「…」はインクがベースライン際に偏る約物＝em中央合わせだと回転後に列中心から左へ寄る
+        //（実機バグ 2026-07-17）。描画結果のインク重心（不透明画素の x 範囲の中央）がセル中心 xCenter に
+        // 一致することをピクセルで固定する（±2px＝アンチエイリアスの揺れ幅）。
+        val bmp = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        renderer.drawGlyph(canvas, "…", CharClass.ROTATE, 48f, 0f, 96f, bodyPaint())
+        var minX = Int.MAX_VALUE
+        var maxX = Int.MIN_VALUE
+        for (y in 0 until 96) {
+            for (x in 0 until 96) {
+                if (android.graphics.Color.alpha(bmp.getPixel(x, y)) > 0) {
+                    if (x < minX) minX = x
+                    if (x > maxX) maxX = x
+                }
+            }
+        }
+        check(minX <= maxX) { "インクが描かれていること（フォント環境の前提）" }
+        assertEquals(48f, (minX + maxX + 1) / 2f, 2f)
+    }
+
+    @Test
     fun uprightDoesNotSetVertFeature() {
         // 正立は vert を使わない。null のまま維持されること（漏れて後続に vert が乗らない担保）。
         val paint = bodyPaint()

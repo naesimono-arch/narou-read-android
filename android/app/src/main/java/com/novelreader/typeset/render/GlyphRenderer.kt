@@ -2,6 +2,7 @@ package com.novelreader.typeset.render
 
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Rect
 import com.novelreader.typeset.CharClass
 import com.novelreader.typeset.VertFeatureCoverage
 
@@ -120,8 +121,16 @@ class VertGlyphRenderer : GlyphRenderer {
             val cy = yTop + cellAdvancePx / 2f
             // Android は y 下向き＝正の角度が時計回り。pivot をセル中心に取り座標系ごと回す。
             canvas.rotate(90f, xCenter, cy)
-            val fm = paint.fontMetrics
-            val baseline = cy - (fm.ascent + fm.descent) / 2f
+            // なぜ em 中央（(ascent+descent)/2）でなくインク中央か: 自前回転の対象（…‥；―−）は
+            // ベースライン際にインクが偏る約物で、em 中央合わせだと回転後に「emの下端＝左」へ
+            // 字面が寄る（実機で「……」が列中心から左にずれて見えたバグの真因）。
+            // getTextBounds の字面ボックス中心をセル中心へ合わせると回転後も列中心に乗る。
+            val bounds = Rect().also { paint.getTextBounds(text, 0, text.length, it) }
+            val baseline = if (bounds.isEmpty) {
+                cy - (paint.fontMetrics.let { (it.ascent + it.descent) / 2f }) // 空グリフ（空白等）は em 中央へ倒す防御
+            } else {
+                cy - bounds.exactCenterY()
+            }
             canvas.drawText(text, xCenter, baseline, paint)
         } finally {
             canvas.restore()
