@@ -24,10 +24,7 @@
 
 > **これは何か**: `/mnt/c/Users/qingj/Desktop/project/UX`（UX24層＋Design10層＋公理候補）に対し novel-reader 全体を多エージェント監査（45体・敵対的検証済み）した指摘の、**残っている作業だけ**の action list（消化したら行を消す）。
 > 消化済み分の一次情報＝`.claude/plans/ux-design-full-audit-2026-07-12.md`（§A 統合報告／§B 全指摘詳細・良い点含む）＋`.claude/plans/ux-audit-batch-execution-20260712.md`（実行記録）・実装＝git log（`ui/polish`）。
-> **対象ブランチ**: `ui/polish`（この worktree＝ext4）。ゲート＝`cd android && testDebugUnitTest`（init-script 不要）＋`python3 tools/check_design_tokens.py`。**意匠絡みは Compose で自己判断せず ADR0005/0014＋モック正本に先に接地**。実機絡みは PushNotification→目視OK→コミット。
-
-### 残0: main への統合
-- 残1（発見帯 collapse）の完全退避が実機OKで一段落＝`ui/polish` を main へ --no-ff 統合可（コミットは worktree 内セッションから＝guard の機序は memory `ff-merge-sentinel-not-consumed`）。
+> 監査バッチの実装ブランチ（ui/polish）は main 統合・worktree 撤去済み＝残りは deferred/backlog のみで専用ブランチ無し。ゲート＝`cd android && testDebugUnitTest`＋`python3 tools/check_design_tokens.py`。**意匠絡みは Compose で自己判断せず ADR0005/0014＋モック正本に先に接地**。実機絡みは PushNotification→目視OK→コミット。
 
 ### 残1: 発見帯 collapse 退避アニメ 体感の追い込み（deferred polish・ADR0005-B 実機後詰め層）
 - 本棚発見帯『新しい物語を見つける』の **collapse は「完全退避」で確定・実装・実機OK 済み**（2026-07-14）。裁定の経緯＝案B「スクロール退避」の初回翻訳（下スクロールで帯を1行版へ restyle）を実機却下→**同一要素の restyle をやめ、帯は restyle せず `shrinkVertically`＋fade で高さ0へ畳んで退避・状態フィルタは sticky で常時 top に残す**へ再設計（ユーザー原則「位置/役割が同じなら restyle しない・退避のときだけ消す」）。帯＋フィルタを Lazy 外の固定ヘッダへ hoist（`LazyVerticalGrid` に stickyHeader 無し＝グリッド/リスト両モード一律 sticky の素直な解）・帯の可視は `derivedStateOf`（先頭到達＝先頭書影が最上部付近〔8dp デッドゾーン〕のみ true）で駆動。
