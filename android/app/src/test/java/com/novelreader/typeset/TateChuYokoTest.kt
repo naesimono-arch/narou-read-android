@@ -5,8 +5,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 縦中横 run 検出の合成テスト。P0-2 で実蔵書に半角対象が事実上ゼロと確認済みのため
- * 担保はここの合成ケース＋実データコーパスの「発火ゼロ」回帰で行う。
+ * 縦中横 run 検出の合成テスト。当初は数字/!?のみだったが、2026-07-17 裁定で半角英字2〜3字run
+ * （AW/SIM 等の略号が実データに存在）へ拡張（根拠は detectTateChuYokoRuns の KDoc）。
+ * 旧蔵書コーパス（全角のみ）の「発火ゼロ」回帰は引き続き有効。
  */
 class TateChuYokoTest {
 
@@ -39,9 +40,26 @@ class TateChuYokoTest {
     }
 
     @Test
-    fun `英字に挟まれた数字ランのみ拾う`() {
-        // "ab12cd" → 英字はラン対象外・数字 "12" だけが縦中横（index 2..4）。
-        assertEquals(listOf(TcyRun(2, 4)), detectTateChuYokoRuns("ab12cd"))
+    fun `半角英字2〜3字は縦中横`() {
+        // 実データ由来の略号（N3957FQ: AW/SIM 等）。
+        assertEquals(listOf(TcyRun(0, 2)), detectTateChuYokoRuns("AW"))
+        assertEquals(listOf(TcyRun(0, 3)), detectTateChuYokoRuns("SIM"))
+    }
+
+    @Test
+    fun `半角英字1字と4字以上は縦中横にしない`() {
+        // 1字（単独の E 等）は正立・4字以上（OLEM 等）は各字回転＝いずれも縦中横runにはならない。
+        assertEquals(emptyList<TcyRun>(), detectTateChuYokoRuns("E"))
+        assertEquals(emptyList<TcyRun>(), detectTateChuYokoRuns("OLEM"))
+    }
+
+    @Test
+    fun `同種ごとに別ランとして拾う`() {
+        // "ab12cd" → 英字・数字は種別が違うため別ラン（混成 "ab12" にはしない）。全部長さ2＝3run とも縦中横。
+        assertEquals(
+            listOf(TcyRun(0, 2), TcyRun(2, 4), TcyRun(4, 6)),
+            detectTateChuYokoRuns("ab12cd"),
+        )
     }
 
     @Test

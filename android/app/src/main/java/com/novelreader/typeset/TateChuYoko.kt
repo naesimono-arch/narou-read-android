@@ -13,7 +13,7 @@ internal enum class HalfWidthKind { DIGIT, EXCLAM_QUEST, ALPHA }
 
 /**
  * 極大ラン（同種の半角文字が連続する最長範囲）。VerticalTypesetter が
- * 1桁正立・2〜3桁縦中横・4桁以上各字回転・英字回転の全処理を1度の走査で得るために使う。
+ * 1字正立・2〜3字縦中横・4字以上各字回転の全処理を1度の走査で得るために使う。
  */
 internal data class HalfWidthRun(val start: Int, val endExclusive: Int, val kind: HalfWidthKind)
 
@@ -26,7 +26,7 @@ private fun halfWidthKindOf(c: Char): HalfWidthKind? = when (c) {
 
 /**
  * 半角英数字・半角!? の極大ランを左から列挙する（純関数）。
- * なぜ極大ランか: 縦中横は「桁数」で挙動が変わる（1桁=正立・2〜3桁=縦中横・4桁以上=各字回転）。
+ * なぜ極大ランか: 縦中横は「連続字数」で挙動が変わる（1字=正立・2〜3字=縦中横・4字以上=各字回転）。
  * 極大ランの長さを見て初めて分岐できるため、detectTateChuYokoRuns も Typesetter もこの走査を共有する。
  */
 internal fun maximalHalfWidthRuns(text: String): List<HalfWidthRun> {
@@ -48,20 +48,20 @@ internal fun maximalHalfWidthRuns(text: String): List<HalfWidthRun> {
 }
 
 /**
- * 縦中横として組むべきラン（半角数字 or 半角!? の連続が長さ2〜3のもの）だけを返す純関数。
+ * 縦中横として組むべきラン（半角英数字 or 半角!? の連続が長さ2〜3のもの）を返す純関数。
  *
- * 規則（v1・合成テスト担保が目的＝P0-2 で実蔵書に半角対象ゼロを確認済み）:
- * - 半角数字 [0-9] の連続: 長さ2〜3 → 縦中横。長さ1 → 縦中横にしない（1桁は正立が慣行）。長さ4+ → 縦中横にしない（各字回転）。
- * - 半角 [!?] の連続: 長さ2〜3 → 縦中横（例 !? !! !!?）。長さ1 → しない。4+ → しない（各字回転）。
- * - 半角英字は縦中横対象外（常に回転）。全角は一切対象外（極大ラン走査で拾わない）。
+ * 規則（2026-07-17 裁定で英字へ拡張。根拠: 全角正規化は一般則でなく作者差が支配的＝
+ * N3957FQ 等に半角略号 AW/MW/SIM/LDS が実在→「半角が来たら縦中横」を実装既定にする。
+ * 裁定の記録＝親プラン確定済み裁定表・vertical-mode-p0-measurements-2026-07-17.md 追記）:
+ * - 半角数字 [0-9]・半角英字 [A-Za-z]・半角 [!?] の同種連続: 長さ2〜3 → 縦中横（例 12・AW・SIM・!?）。
+ * - 長さ1 → 縦中横にしない（1字は正立が慣行。E や α のような単独記号語も正立）。
+ * - 長さ4+ → 縦中横にしない（1マスに収まらない＝各字回転の欧文横倒し）。
+ * - 全角は一切対象外（極大ラン走査で拾わない）。
  *
- * 「1桁は縦中横にしない・4桁以上は各字回転」という非縦中横側の最終向きは VerticalTypesetter が
+ * 「1字は正立・4字以上は各字回転」という非縦中横側の最終向きは VerticalTypesetter が
  * maximalHalfWidthRuns を使って確定する。本関数の返り値はあくまで「縦中横にするラン」に限定する契約。
  */
 fun detectTateChuYokoRuns(text: String): List<TcyRun> =
     maximalHalfWidthRuns(text)
-        .filter { run ->
-            (run.kind == HalfWidthKind.DIGIT || run.kind == HalfWidthKind.EXCLAM_QUEST) &&
-                (run.endExclusive - run.start) in 2..3
-        }
+        .filter { (it.endExclusive - it.start) in 2..3 }
         .map { TcyRun(it.start, it.endExclusive) }

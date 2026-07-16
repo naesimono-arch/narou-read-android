@@ -138,8 +138,10 @@ class DefaultVerticalTypesetter(private val metrics: FontMetricsProvider) : Vert
     }
 
     /**
-     * プレーン文字列を単位列へ展開する。半角数字/!? の極大ラン文脈で向きを確定する:
-     * 2〜3桁→縦中横1ユニット / 1桁→正立 / 4桁以上→各字回転 / 半角英字→各字回転。
+     * プレーン文字列を単位列へ展開する。半角英数字/!? の極大ラン文脈で向きを確定する:
+     * 2〜3字→縦中横1ユニット / 1字→正立 / 4字以上→各字回転（欧文横倒し）。
+     * 英字を含むのは 2026-07-17 裁定（半角略号 AW/SIM 等が実在＝「半角が来たら縦中横」既定。
+     * 詳細は detectTateChuYokoRuns の KDoc）。
      * それ以外（漢字・仮名・約物…）は書記素分割して CharClassifier に委ねる。
      */
     private fun expandPlain(text: String): List<TypesetUnit> {
@@ -152,16 +154,14 @@ class DefaultVerticalTypesetter(private val metrics: FontMetricsProvider) : Vert
                 appendClassifiedGraphemes(units, text.substring(pos, run.start))
             }
             val runText = text.substring(run.start, run.endExclusive)
-            val len = run.endExclusive - run.start
-            val isDigitOrBang = run.kind == HalfWidthKind.DIGIT || run.kind == HalfWidthKind.EXCLAM_QUEST
-            when {
-                // 2〜3桁の数字/!? は1マスの縦中横。
-                isDigitOrBang && len in 2..3 ->
+            when (run.endExclusive - run.start) {
+                // 2〜3字の同種半角runは1マスの縦中横。
+                2, 3 ->
                     units.add(TypesetUnit(runText, CharClass.TATE_CHU_YOKO, isRubyBase = false, segmentIndex = -1))
-                // 1桁の数字/!? は正立が慣行（分類器の文脈非依存 ROTATE をラン文脈で上書き）。
-                isDigitOrBang && len == 1 ->
+                // 1字は正立が慣行（分類器の文脈非依存 ROTATE をラン文脈で上書き。単独の E 等も正立）。
+                1 ->
                     units.add(TypesetUnit(runText, CharClass.UPRIGHT, isRubyBase = false, segmentIndex = -1))
-                // 4桁以上の数字/!?、および半角英字ランは各字を回転（欧文横倒し）。
+                // 4字以上＝1マスに収まらないため各字を回転（欧文横倒し。0字runは走査の契約上あり得ない）。
                 else -> for (c in runText) {
                     units.add(TypesetUnit(c.toString(), CharClass.ROTATE, isRubyBase = false, segmentIndex = -1))
                 }

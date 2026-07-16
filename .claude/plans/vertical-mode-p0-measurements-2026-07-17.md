@@ -29,6 +29,14 @@
 - serif の小書き仮名で advance が 64→65px に変わる＝**等幅前提を置かない**（FontMetricsProvider が実測 advance を返す設計で吸収）。
 - vert は「回すべき字（…；−）」を回してくれない＝**ROTATE 判定は vert に頼らず CharClassifier が持つ**。vert の役割は句読点・括弧・小書きの位置替え字形。
 
+> **追記（2026-07-17 夜・ユーザー調査による一般化の棄却）**: 「半角→全角正規化」は一般則ではない——
+> ジャンル横断で作者差が支配的（半角のまま残す作品が実在。N3957FQ『III count Dead END』は半角略号
+> AW/MW/SIM/LDS 等の宝庫）。→ 縦中横は「半角が来たら縦中横」を実装既定とし、**英字2〜3字runも縦中横へ拡張**
+> （単独1字は正立・4字以上は各字回転）。新規6PDF（N3957FQ/N9463BR/N8809BK/N0833HI/N2367FS/N7038HV）で
+> エッジコーパス増補中＝`vertical-mode-p0-2b-halfwidth-followup.md`。
+> **P0-1 の未計測字も判明**: 〝〟(U+301D/301E・縦書き用引用符)・――(U+2015連続)・Ⅳ(U+2163) は vert 実効性
+> 未測定＝次回実機セッションでスパイク P1 タブの対象文字に追加して再計測すること。
+
 ## P0-2 縦中横の実データ頻度（蔵書375万字・3作品・1,085章）
 
 集計詳細＝`vertical-mode-p0-2-tatechuyoko-stats.md`／コーパス＝`android/app/src/test/resources/typeset/tatechuyoko_corpus.txt`（100行・出典付き）

@@ -10,7 +10,7 @@
 |---|---|
 | 骨格 | A＝右→左 連続横スクロール（触感モックでユーザー選択） |
 | 描画 | 自前Compose組版。`VerticalTypesetter` interface で隔離（将来 text-vertical へ差替可能に） |
-| 縦中横 | **v1必須**（ユーザー裁定。スパイクは頻度測定＝テストコーパス作りのため） |
+| 縦中横 | **v1必須**（ユーザー裁定。スパイクは頻度測定＝テストコーパス作りのため）。**2026-07-17 精緻化（ユーザー実データ裏取り）**: 全角正規化は一般則でなく作者差が支配的（N3957FQ等で半角略号 AW/SIM 等が実在）→ **「半角が来たら縦中横」を既定**＝数字だけでなく**半角英字も2〜3字runは縦中横**・単独1字（E/α等）は正立・4字以上は各字回転 |
 | 切替時位置 | 同じ段落を維持。正本＝(段落index, 段落内fraction 0..1)。同一モード内は現行(scrollIndex/scrollOffset)同型 |
 | 設定 | 全書籍共通。`app_prefs` に `reading_vertical`（Boolean）＋ReadingSettingsSheet にトグル |
 | 章送り | 縦書き時は横ドラッグ無効化→終端オーバースクロール（nestedScroll捕捉→ChapterPeekPanel/settleSwipe流用） |
