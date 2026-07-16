@@ -96,6 +96,18 @@ val LocalShelfColors = staticCompositionLocalOf {
     ShelfColors(hairline = ShelfHairlineLight, unreadLabel = UnreadSeiji, infoText = InfoTextLight)
 }
 
+/**
+ * 選択テーマを現在スキンが実際に持つ変種へ丸める（単一所有のクランプ）。
+ *
+ * なぜ NovelReaderTheme が唯一の所有者か: スキンは変種を1つ以上持つが全 [ReadingTheme] を持つとは限らない
+ * （C 夜行は DARK 相当のみ）。永続キー `"reading_theme"` は後方互換で LIGHT/SEPIA/DARK を保持し続けるため、
+ * C 選択中に theme==LIGHT が渡りうる。ここで supportedThemes 外なら `supportedThemes.first()` へ丸め、
+ * colorScheme・reading・shelf・shiori・ステータスバー明暗のすべてを同じクランプ済み theme で引くことで、
+ * 「Material だけ夜行・読書だけ別変種」のような家系間のズレを構造的に防ぐ（各スキン側の防御と二重化）。
+ */
+fun clampThemeToSkin(theme: ReadingTheme, tokens: SkinTokens): ReadingTheme =
+    if (theme in tokens.supportedThemes) theme else tokens.supportedThemes.first()
+
 @Composable
 fun NovelReaderTheme(
     skin: Skin = Skin.WAMODERN_D,
@@ -104,18 +116,20 @@ fun NovelReaderTheme(
 ) {
     // スキン=トークン束の単一入口。Material 配色・本棚/栞トークン・字面はすべて現在スキンから引く。
     val tokens = skin.tokens
-    val colorScheme = tokens.material(theme)
+    // 選択 theme をスキンの持つ変種へ丸めた「実効 theme」を1変数に束ね、以降の全 getter へ渡す（単一所有）。
+    val effectiveTheme = clampThemeToSkin(theme, tokens)
+    val colorScheme = tokens.material(effectiveTheme)
     // 変種の明暗（ステータスバー明暗の正）。D では theme != DARK と同値だが、スキン導入後は
     // 「theme 値」でなく「変種が明色か（reading(theme).isLight）」が正（1変種スキンで theme==LIGHT
     // でも暗色変種がありうるため）。
-    val readingColors = tokens.reading(theme)
+    val readingColors = tokens.reading(effectiveTheme)
 
-    // 本棚系の家系トークン（ヘアライン／未読ラベル）を現在スキン×テーマから provide する。
+    // 本棚系の家系トークン（ヘアライン／未読ラベル）を現在スキン×実効テーマから provide する。
     // ヘアラインはセピア/ダークで OutlineVariant と同値だが、ライトは本棚系専用値（#E4E2DB）へ分岐。
     // 未読ラベルはライト/セピア=濃青磁 UnreadSeiji、ダークは暗面で合格済みの SecondaryDark を継続（SkinD.shelf）。
-    val shelfColors = remember(tokens, theme) { tokens.shelf(theme) }
-    // 栞書影の紙/墨/識別色明度も現在スキン×テーマから provide（旧 luminance/BackgroundSepia 推定を根絶）。
-    val shioriColors = remember(tokens, theme) { tokens.shiori(theme) }
+    val shelfColors = remember(tokens, effectiveTheme) { tokens.shelf(effectiveTheme) }
+    // 栞書影の紙/墨/識別色明度も現在スキン×実効テーマから provide（旧 luminance/BackgroundSepia 推定を根絶）。
+    val shioriColors = remember(tokens, effectiveTheme) { tokens.shiori(effectiveTheme) }
 
     // ステータスバーアイコンの色をテーマに合わせる（ライト/セピア=暗いアイコン、ダーク=明るいアイコン）
     // setDecorFitsSystemWindows は MainActivity で呼んでいるためここでは行わない

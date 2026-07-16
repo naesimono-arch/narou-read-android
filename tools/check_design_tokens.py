@@ -142,6 +142,20 @@ READING_VARS = {
 READING_FILE = "reading-D.html"
 READING_ORDER = ["LIGHT", "SEPIA", "DARK"]
 
+# reading-C（夜行）の 1 テーマ宣言（:root 単一スコープ＝固定1変種）→ SkinC.reading の ReadingColors。
+# reading-C の CSS 変数名は D と異なる（--text/--text-dim/--slate 系）ため C 専用の対応表を持つ。
+# blockBackground/rule/navBackground 等の導出値はモックに CSS 変数として現れない（rgba 直値・opacity 合成）
+# ため照合対象外＝モック変数と 1:1 対応する骨格色だけを突合する（D と同じ意味論）。
+READING_VARS_C = {
+    "--bg": "background",
+    "--text": "text",
+    "--text-dim": "textSecondary",
+    "--ruby": "ruby",
+    "--line": "divider",
+    "--slate": "accent",
+}
+READING_ORDER_C = ["DARK"]  # C は固定1変種（:root 単一宣言＝order 長 1）
+
 # スキン別の reading 期待表（表駆動）。P1 でスキン骨格を導入し、reading トークンは 1 スキン=1 ファイルへ
 # 移設された。ここに 1 行足せば新スキン（例 C 夜行＝skins/SkinC.kt / reading-C.html）を同じ照合ロジックで
 # 検査できる（C 用の行追加は SkinC 実装と同時＝P3 の前提）。D の検査は移設前と完全同値（30 件 OK）。
@@ -152,7 +166,12 @@ SKIN_READING: dict[str, dict] = {
         "vars": READING_VARS,
         "order": READING_ORDER,
     },
-    # "C": {"kt_file": "skins/SkinC.kt", "mock": "reading-C.html", "vars": ..., "order": [...]},  # P3
+    "C": {
+        "kt_file": "skins/SkinC.kt",       # THEME_DIR 起点。C の ReadingColors 値の正本
+        "mock": "skins/reading-C.html",    # MOCK_DIR 起点＝docs/design-candidates/skins/ 配下（1 テーマ宣言）
+        "vars": READING_VARS_C,
+        "order": READING_ORDER_C,
+    },
 }
 
 # ---- 照合 -------------------------------------------------------------------------

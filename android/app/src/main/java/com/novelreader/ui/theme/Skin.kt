@@ -4,6 +4,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import com.novelreader.ui.theme.skins.SkinC
 import com.novelreader.ui.theme.skins.SkinD
 
 // ============================================================
@@ -15,12 +16,13 @@ import com.novelreader.ui.theme.skins.SkinD
 
 /**
  * UIスキンの選択軸。永続化は将来 `.name`（P2 で SharedPreferences `"app_skin"` へ）。
+ * 並び順は装いの間カルーセルと同じ「和モダン → 夜行」（ADR 0021 決定7）。
  *
- * なぜ YAKO_C を今足さないか: 分岐先の SkinC 実装は P3 まで存在しない。enum に未実装の値を先出しすると
- * `Skin.tokens` の when が「実装のない分岐」を持つ（あるいは D へフォールバックする嘘の分岐になる）ため、
- * スキンの追加は必ず対応する SkinX.kt 実装と同じコミットで行う（P3 で YAKO_C を追加）。
+ * スキン値の追加規約: 未実装の値を先出しすると `Skin.tokens` の when が「実装のない分岐／D へフォールバック
+ * する嘘の分岐」になる。ゆえにスキンの追加は必ず対応する SkinX.kt 実装と同じコミットで行う
+ * （P3 で YAKO_C＝夜行C を SkinC 実装と同時に追加）。
  */
-enum class Skin { WAMODERN_D }
+enum class Skin { WAMODERN_D, YAKO_C }
 
 /**
  * 栞書影の紙／墨／識別色明度。スキンが明示供給する。
@@ -36,10 +38,10 @@ data class ShioriColors(
 )
 
 /**
- * 1 スキンが供給するトークン束。実装は theme/skins/ に 1 スキン=1 ファイル（初弾は SkinD のみ）。
+ * 1 スキンが供給するトークン束。実装は theme/skins/ に 1 スキン=1 ファイル。
  */
 interface SkinTokens {
-    val supportedThemes: List<ReadingTheme>          // D=3種・将来の1変種スキンは listOf(1種)
+    val supportedThemes: List<ReadingTheme>          // D=3種・C=listOf(DARK) の1変種
     fun material(theme: ReadingTheme): ColorScheme   // Material3 カラースキーム
     fun reading(theme: ReadingTheme): ReadingColors  // 読書画面の固有配色
     fun shelf(theme: ReadingTheme): ShelfColors      // 本棚系の家系トークン
@@ -50,6 +52,7 @@ interface SkinTokens {
 val Skin.tokens: SkinTokens
     get() = when (this) {
         Skin.WAMODERN_D -> SkinD
+        Skin.YAKO_C -> SkinC
     }
 
 // 現在スキンのトークン束を供給する CompositionLocal。既定は D（スキン非依存文脈・@Preview のフォールバック）。

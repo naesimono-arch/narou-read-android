@@ -148,3 +148,39 @@ val ShioriSealVermilionDark  = Color(0xFFCC8B73)
 // 朱印のダーク背景敷き（正本 .seal の rgba(16,19,25,.5) の実色部。alpha は使用側で 0.5f）。
 // ShioriCoverPaperDark(#20232B) より暗いのは正本どおり＝紙地でなく「面の奥」へ沈め枠と文字だけ浮かせる。
 val ShioriSealScrimDark      = Color(0xFF101319)
+
+// ============================================================
+// スキンC「夜行」（正本モック docs/design-candidates/skins/reading-C.html・bookshelf-C.html）。
+// 深炭×温白の没入。パレットは深炭(bg #16181D)・温白(text #D8D1C5)・月光スレート(#8E99B0)・灯火ember(#C79A6A)
+// で閉じる（ADR 0021 改訂＝スキンごとに閉じたパレット規範・装飾新色はパレット改訂を要する）。
+// 2モックの値の食い違いは画面家系で分ける（D と同流儀・ADR 0014）: 読書系は reading-C・本棚系は bookshelf-C 値。
+// 固定1変種（DARK 相当のみ）＝ライト/セピア用の Yako トークンは存在しない。
+// ここは Material カラースキームと家系トークンが参照する「Color.kt 側の正本値」。読書 ReadingColors の
+// 直書き部（hr/rule/blockBg/placeholder 等の導出値）は SkinD 同様 SkinC.reading にインライン集約する。
+// ============================================================
+
+// --- 面・線・アクセント（bookshelf-C --bg/--surface/--surface-2/--line/--slate/--ember）---
+val BackgroundYako          = Color(0xFF16181D)   // bookshelf-C/reading-C --bg（深炭素地）
+val OnBackgroundYako        = Color(0xFFD8D1C5)   // bookshelf-C/reading-C --text（温白・低グレア）
+val SurfaceYako             = Color(0xFF1E2128)   // bookshelf-C --surface（カード面・上下バー面）
+val SurfaceContainerYako    = Color(0xFF252932)   // bookshelf-C --surface-2（ヒーロー面・FAB・コンテナ面）
+val OutlineYako             = Color(0xFF2C303A)   // bookshelf-C --line（本棚系ヘアライン＝outline/outlineVariant 兼用）
+val SlateYako               = Color(0xFF8E99B0)   // bookshelf-C/reading-C --slate（月光スレート＝accent/primary）
+val OnSlateYako             = Color(0xFF15171C)   // bookshelf-C .resume の暗色文字（onPrimary・slate 上 6.26:1）
+val EmberYako               = Color(0xFFC79A6A)   // bookshelf-C/reading-C --ember（灯火＝進捗/tertiary・bg 上 6.98:1）
+
+// 本棚系の補助色（bookshelf-C --text-dim）。未読ラベル・メタ・onSurfaceVariant・topBarIcon・Material secondary が共有。
+// なぜ専用の明化シェードを切らないか: #16181D 上 5.13:1／#1E2128 上 4.65:1 と素のまま WCAG 4.5:1（意味文字）・
+// 3:1（UIアイコン）を満たす＝「未達なら色相彩度保持で明度のみ明化」の導出（ADR 裁定3）は条件が不成立のため不要
+// （D DARK が SecondaryDark を使ったのと同格の役割トークンだが、C は muted 自身が AA を満たす）。
+val MutedYako               = Color(0xFF8B8A84)   // bookshelf-C --text-dim（本棚 muted・未読・meta の意味色スロット）
+
+// 読書「意味テキスト」用（エラー本文・空状態説明）。装飾補助 textSecondary(#7E7D77・bg 4.30:1) を alpha で沈めると
+// AA を割るため、reading-C --text-dim #7E7D77 の色相・彩度を保ち明度のみ明化して bg #16181D 上 4.80:1 を満たす
+// 役割別シェードにする（Material の InfoText と同型・ADR 0014-D／裁定3）。本棚系 infoText もこれを共有。
+val InfoTextYako            = Color(0xFF868580)
+
+// inverse 系は D DARK 流儀（inverseSurface=onSurface の明面／primary は明面用に暗化）で機械導出。
+val InverseSurfaceYako      = Color(0xFFD8D1C5)   // 明面反転＝OnBackgroundYako（D DARK: inverseSurface=onSurface）
+val InverseOnSurfaceYako    = Color(0xFF1E2128)   // 反転面上の暗色文字（surface 系・#D8D1C5 上で 10.6:1）
+val InversePrimaryYako      = Color(0xFF4C566B)   // slate を明面用に暗化（#D8D1C5 上 4.86:1・色相保持の機械導出）
