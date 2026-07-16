@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  縦書きモード実装スパイク（P0-1/3/4）の実機プローブ用 debug マニフェスト。
+  なぜ debug ソースセットか: 計測専用の使い捨て画面であり、リリース APK・メインアプリのナビには
+  一切載せたくない（縦書き方式の実効性を実機で機械判定するためだけの器）。debug ビルドにのみ
+  マージされ、SpikeActivity を adb の `am start` で直接叩けるよう exported=true で登録する。
+  メインの MainActivity（LAUNCHER）はここでは触らない＝ランチャーには出さず am start 専用。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- getExternalFilesDir はアプリ専用領域のため実行時パーミッション不要（API19+）。追加権限は付けない。 -->
+
+    <application>
+        <activity
+            android:name="com.novelreader.spike.SpikeActivity"
+            android:exported="true"
+            android:label="Vertical Spike"
+            android:theme="@style/Theme.NovelReader" />
+    </application>
+
+</manifest>
