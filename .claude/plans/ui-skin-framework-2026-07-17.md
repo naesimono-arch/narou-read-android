@@ -65,7 +65,8 @@ interface SkinTokens {
 Skin 抽象導入・D 値の `SkinD.kt` 移設・`NovelReaderTheme(skin=D固定)` 配線・ShioriCover 推定の明示化・check_design_tokens.py スキン対応。**合格条件: `gw testDebugUnitTest` 508件緑＋`check_design_tokens.py` OK=137/NG=0 と同値＋実機で見た目1px不変（スクリーンショット比較）**。ここまでで1コミット群。
 
 ### P2: 選択UI＋永続化（判断ループ＝モック先行）
-settings-D モックに「装い（スキン選択）」節を追加した改版を**先に HTML で作り mockview で見せる**（選択肢=D/C・プレビュー付きカード等・意匠は自己判断せずモックループで確定）→ 承認後 Compose 翻訳・`"app_skin"` 永続化・C選択中のテーマUI畳み。実機確認→コミット。
+~~settings-D 改版~~ → **方向転換（2026-07-17 ユーザー裁定・モックループ完了）: 本棚から入る専用画面「装いの間」**＝スキンのミニチュア本棚カルーセル（約3枚可視・中央前面・スワイプ・「装着」CTA・今後追加スロットは右端固定）。**入口は本棚トップバーのみ＝意図的設計**（読書中に選択肢を持ち込まない）。正本モック＝`docs/design-candidates/skins/wardrobe-D.html`・入口＝`bookshelf-D.html` 統合・詳細＝ADR 0021 決定7。
+残作業＝Compose 翻訳: 新ナビルート「装いの間」（カルーセル=HorizontalPager 想定）・本棚入口ボタン・`"app_skin"` 永続化・装着時の即時反映。設定シートは D のテーマチップのみ温存し、C 装着中は畳む（提案: 節ごと非表示＋1行注記＝「開かれない設定が理想」UX/19。畳み方の最終判断は実装レビューで）。**実装順は P3 を先行**（SkinC が無いと装着で切り替わらない）。実機確認→コミット。
 
 ### P3: C 夜行の実装（判断ループ）
 モック収蔵（主セッションで get_file）→ C トークン表を起こす（Color.kt へ C 系 val 追加・モック CSS 変数と1:1）→ `SkinC.kt` 実装 → 全画面スモーク（本棚・発見・目次・設定・読書・没入・栞書影）→ 実機確認（PushNotification→目視OK）→コミット。

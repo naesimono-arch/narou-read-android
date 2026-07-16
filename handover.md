@@ -82,6 +82,6 @@
 
 > 2026-06-27 の「まだ実装しない」を 2026-07-17 ユーザー指示で解除。機構の裁定＝ADR 0021・フェーズ詳細＝`.claude/plans/ui-skin-framework-2026-07-17.md`（P1 骨格は完了＝git log 正本）。
 
-- **P2 選択UI＋永続化**: settings-D モックへ「装い（スキン選択）」節を追加した改版を先に HTML で作り mockview で見せる（意匠はモックループで確定）→承認後 Compose 翻訳・SharedPreferences `"app_skin"` 永続化（キー不在=D）・C 選択中はテーマ3択＋システム追従を畳む/無効化（`"reading_theme"` は温存し D 復帰で復元）。
+- **P2 選択UI＋永続化**（モックループ完了＝「装いの間」カルーセルで確定・ADR 0021 決定7。正本＝`skins/wardrobe-D.html`＋`bookshelf-D.html` 入口）: 残＝Compose 翻訳＝新ナビルート（HorizontalPager 想定）・本棚トップバー入口（**入口は本棚のみ＝意図的設計**）・`"app_skin"` 永続化（キー不在=D）・装着の即時反映・C 装着中は設定シートのテーマ節を畳む（`"reading_theme"` 温存・D 復帰で復元）。**P3 を先に実装**（SkinC が無いと装着が機能しない）。
 - **P3 C 夜行の実装**: bookshelf-C/reading-C を DesignSync `get_file` で `docs/design-candidates/skins/` へ収蔵（⚠️主セッション限定＝委譲不可）→ C トークン表（Color.kt へ C 系 val・モック CSS 変数と1:1）→ `SkinC.kt`＋enum へ `YAKO_C` 追加 → `check_design_tokens.py` に C の期待行 → 全画面スモーク（本棚・発見・目次・設定・読書・没入・栞書影）→ 実機目視。**ADR 0014 の色禁止則改訂（スキンごとに閉じたパレット規範）を同じコミットに同梱**。C の構造要素（本棚=続きからヒーロー等）は枠外＝D 構造のまま色/質感のみ。
 - **将来送り（ADR 0021）**: 栞「型」軸（A箔/C小口/D蔵書印/E綴じ紐）／D 以外のテーマ変種／E〜J 移植／I・J の構造スキン。A〜J 資産は claude.ai/design（プロジェクト `Novel Reader UI`・projectId `bb5a35c8-70ac-4efa-bb03-1579d3f11d93` の `ui-n-phase0/`・`DesignSync: get_file` で再取得可）に保持。bookshelf-D へのセピア変種追加も引き続き再検討枠（現状は `SepiaColorScheme` が本棚セピアの正本）。

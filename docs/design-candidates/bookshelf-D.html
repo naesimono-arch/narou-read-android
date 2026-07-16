@@ -36,6 +36,9 @@
   .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--ink);cursor:pointer}
   .ib:hover{background:var(--line)}
   .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.5}
+  /* 着せ替え入口（新設・追加のみ）: hairline 枠で「機能の入口」を素アイコンと差別化。
+     入口を本棚のみに置く＝読書中に着せ替えの選択肢を持ち込まない（ユーザー裁定 2026-07-17・意図的設計）。 */
+  .ib.entry{border:1px solid var(--line)}
   .scroll{flex:1;overflow:auto;padding:0 24px 96px}
   /* グリッド: 余白広め2列 */
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:24px 24px;margin-top:4px}
@@ -79,6 +82,8 @@
     <div class="phone" role="img" aria-label="D案 グリッド">
       <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
       <div class="top"><h1>本棚</h1><div class="acts">
+        <!-- 着せ替え入口: 装いの間（skins/wardrobe-D.html）へ。入口は本棚のみ＝読書中に着せ替えを持ち込まない意図的設計 -->
+        <button class="ib entry" aria-label="着せ替え"><svg viewBox="0 0 24 24"><path d="M12 7a2 2 0 1 1 2-2"/><path d="M12 7 4 15h16z"/></svg></button>
         <button class="ib" aria-label="リスト表示"><svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
         <button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg></button>
       </div></div>
@@ -100,6 +105,8 @@
     <div class="phone" role="img" aria-label="D案 リスト">
       <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
       <div class="top"><h1>本棚</h1><div class="acts">
+        <!-- 着せ替え入口: 装いの間（skins/wardrobe-D.html）へ。入口は本棚のみ＝読書中に着せ替えを持ち込まない意図的設計 -->
+        <button class="ib entry" aria-label="着せ替え"><svg viewBox="0 0 24 24"><path d="M12 7a2 2 0 1 1 2-2"/><path d="M12 7 4 15h16z"/></svg></button>
         <button class="ib" aria-label="グリッド表示"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg></button>
         <button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg></button>
       </div></div>
