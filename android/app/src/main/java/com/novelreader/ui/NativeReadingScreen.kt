@@ -985,6 +985,9 @@ internal fun ChapterScreenContent(
     onNavigateTo: (String) -> Unit,
     onNavigateToBookshelf: () -> Unit,
     onRetryParse: () -> Unit,
+    // 縦書きモード（P3 配線）。本文スロットだけを VerticalChapterContent へ分岐する。
+    // 既定 false＝ユーザー可視の挙動は不変（設定トグルは P5 で route から渡す）。
+    verticalMode: Boolean = false,
 ) {
     val scope = rememberCoroutineScope()
 
@@ -1153,15 +1156,28 @@ internal fun ChapterScreenContent(
                         // スクロール要素がこの本文 LazyColumn なので、呼び出しを null 供給で包めば本文へ限定される。
                         // foundation 1.7 系の API。1.8+ へ上げる際は LocalOverscrollFactory provides null へ読み替え。
                         CompositionLocalProvider(LocalOverscrollConfiguration provides null) {
-                            ChapterContent(
-                                content = result.content,
-                                colors = colors,
-                                fontSize = fontSize,
-                                lineHeightEm = lineHeightEm,
-                                bodyMarginDp = bodyMarginDp,
-                                lazyListState = lazyListState,
-                                continuation = continuationSlot,
-                            )
+                            // 本文スロットのみ縦書き/横書きを分岐する（item 構成・位置保存は同型＝ChapterContent の鏡写し）。
+                            if (verticalMode) {
+                                VerticalChapterContent(
+                                    content = result.content,
+                                    colors = colors,
+                                    fontSize = fontSize,
+                                    lineHeightEm = lineHeightEm,
+                                    bodyMarginDp = bodyMarginDp,
+                                    lazyListState = lazyListState,
+                                    continuation = continuationSlot,
+                                )
+                            } else {
+                                ChapterContent(
+                                    content = result.content,
+                                    colors = colors,
+                                    fontSize = fontSize,
+                                    lineHeightEm = lineHeightEm,
+                                    bodyMarginDp = bodyMarginDp,
+                                    lazyListState = lazyListState,
+                                    continuation = continuationSlot,
+                                )
+                            }
                         }
                     }
 

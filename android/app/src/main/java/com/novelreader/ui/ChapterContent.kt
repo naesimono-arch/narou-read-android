@@ -325,8 +325,11 @@ private fun ParagraphItem(
  * TextSegment リストを LineBreak で段落分割する。
  * 空段落（LineBreak 連続）はフィルタリングせず保持する。
  * なぜか: なろう系小説では連続空行によるシーン転換演出が頻出するため。
+ *
+ * internal（旧 private）: 縦書きの [VerticalChapterContent] が同一の段落分割を流用するため同パッケージへ開く
+ * （挙動は不変＝可視性だけの変更。段落 index 体系を横書き/縦書きで一致させ位置保存を同型に保つのが目的）。
  */
-private fun List<TextSegment>.splitIntoParagraphs(): List<ImmutableList<TextSegment>> {
+internal fun List<TextSegment>.splitIntoParagraphs(): List<ImmutableList<TextSegment>> {
     val result = mutableListOf<ImmutableList<TextSegment>>()
     val current = mutableListOf<TextSegment>()
 

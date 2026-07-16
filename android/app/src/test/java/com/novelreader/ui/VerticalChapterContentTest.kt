@@ -1,0 +1,160 @@
+package com.novelreader.ui
+
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TopAppBarState
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import com.novelreader.model.ChapterContent
+import com.novelreader.model.ParseResult
+import com.novelreader.model.TextSegment
+import com.novelreader.ui.theme.ReadingTheme
+import com.novelreader.ui.theme.colors
+import com.novelreader.viewmodel.NcodeSearchUiState
+import androidx.compose.foundation.text.BasicText
+import kotlinx.collections.immutable.persistentListOf
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+/**
+ * [VerticalChapterContent]（縦書き章本文）と [ChapterScreenContent] の縦書き分岐の退行固定。
+ *
+ * 検証点（P3 完了定義）:
+ * (a) 段落の a11y spoken が当て字の著者読みに置換されて存在する（RubyText.kt:238-248 の縦書き移植）。
+ * (b) 継続スロットが末尾アイテムに描かれる。
+ * (c) verticalMode の既定 false で従来の横書き ChapterContent 経路（LazyColumn＝縦スクロール）になり、
+ *     true で縦書き LazyRow（横スクロール）になる＝分岐が配線されている。
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34], qualifiers = "w360dp-h640dp-xhdpi")
+class VerticalChapterContentTest {
+
+    @get:Rule
+    val composeTestRule = createComposeRule()
+
+    private val colors = ReadingTheme.LIGHT.colors
+
+    // 当て字『魔剣(つるぎ)』を含む小さな章。spoken 置換の検証に使う。
+    private val atejiContent = ChapterContent(
+        title = "テスト章",
+        segments = persistentListOf(
+            TextSegment.Plain("この"),
+            TextSegment.Ruby("魔剣", "つるぎ"),
+            TextSegment.Plain("を置いた。"),
+        ),
+    )
+
+    @Test
+    fun `段落のspokenは当て字を著者読みに置換して読み上げる`() {
+        composeTestRule.setContent {
+            VerticalChapterContent(
+                content = atejiContent,
+                colors = colors,
+                fontSize = 17,
+                lineHeightEm = 2.4f,
+                bodyMarginDp = 20,
+            )
+        }
+
+        // spoken＝「この」＋reading「つるぎ」＋「を置いた。」。親漢字「魔剣」ではなく読みが積まれる。
+        composeTestRule
+            .onNode(hasContentDescription("このつるぎを置いた。"), useUnmergedTree = true)
+            .assertExists()
+        // 親漢字「魔剣」を含む読み上げノードは存在しない（二重読み・当て字読みの回避）。
+        composeTestRule
+            .onAllNodes(hasContentDescription("魔剣", substring = true), useUnmergedTree = true)
+            .assertCountEquals(0)
+    }
+
+    @Test
+    fun `継続スロットが末尾アイテムに描かれる`() {
+        composeTestRule.setContent {
+            VerticalChapterContent(
+                content = atejiContent,
+                colors = colors,
+                fontSize = 17,
+                lineHeightEm = 2.4f,
+                bodyMarginDp = 20,
+                continuation = { BasicText("__CONTINUATION__") },
+            )
+        }
+
+        // 小さな章＝全アイテムが横幅内に収まり、末尾（左端）の継続スロットも可視で描かれる。
+        composeTestRule.onNodeWithText("__CONTINUATION__").assertIsDisplayed()
+    }
+
+    @Test
+    fun `verticalMode既定falseは横書きChapterContent（縦スクロール）経路`() {
+        setChapterScreenContent(verticalMode = false)
+        // LazyColumn は VerticalScrollAxisRange を公開する＝横書き経路である証拠。
+        composeTestRule
+            .onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange), useUnmergedTree = true)
+            .assertExists()
+    }
+
+    @Test
+    fun `verticalMode_trueは縦書きVerticalChapterContent（横スクロール）経路`() {
+        setChapterScreenContent(verticalMode = true)
+        // LazyRow は HorizontalScrollAxisRange を公開する＝縦書き経路である証拠。
+        composeTestRule
+            .onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.HorizontalScrollAxisRange), useUnmergedTree = true)
+            .assertExists()
+    }
+
+    /** [ChapterScreenContent] を ParseResult.Success で描画し、本文スロットの分岐を検証可能にする。 */
+    @OptIn(ExperimentalMaterial3Api::class)
+    private fun setChapterScreenContent(verticalMode: Boolean) {
+        composeTestRule.setContent {
+            val topAppBarState = TopAppBarState(0f, 0f, 0f)
+            ChapterScreenContent(
+                parseResult = ParseResult.Success(atejiContent),
+                colors = colors,
+                fontSize = 17,
+                onFontSizeChange = {},
+                onFontSizePersist = {},
+                lineHeightEm = 2.4f,
+                onLineHeightChange = {},
+                onLineHeightPersist = {},
+                bodyMarginDp = 20,
+                onBodyMarginChange = {},
+                onBodyMarginPersist = {},
+                readingTheme = ReadingTheme.LIGHT,
+                onThemeChange = {},
+                followingSystem = true,
+                onFollowSystem = {},
+                lazyListState = rememberLazyListState(),
+                topAppBarState = topAppBarState,
+                scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(topAppBarState),
+                prevFile = "c0002.html",
+                nextFile = "c0004.html",
+                navEnabled = true,
+                isLastChapter = false,
+                ncode = null,
+                continuationInfo = null,
+                showChromeHint = false,
+                showReturnChip = false,
+                onReturnToContinuation = {},
+                bookTitle = "テスト書名",
+                ncodeSearchState = NcodeSearchUiState.Loading,
+                onSearchNcode = {},
+                onRetryNcodeSearch = {},
+                onLinkNcode = {},
+                onReadContinuation = {},
+                onOpenWorkPage = {},
+                onNavigateTo = {},
+                onNavigateToBookshelf = {},
+                onRetryParse = {},
+                verticalMode = verticalMode,
+            )
+        }
+    }
+}
