@@ -42,8 +42,17 @@
   - FAIL 経路＝`--assert --budget-median 100 --budget-max 100`（予算の instrumentation 引数上書き＝FAIL 実証・将来較正用に新設）で AssertionError「median=261.8ms > 予算 100.0ms…」・スクリプト exit 1 連動を確認＝効かないゲートでないことを実証。
   - 副次の実証2件: ①**`am instrument` はテスト失敗でも adb exit=0**＝出力本文judgeが実際に必須だった ②初回実走はスクリプトの set -e 地雷（プロセス起動前の `pidof` 失敗がコマンド置換経由で die を迂回し即 exit）で頓死→同型4箇所を全点検修正済み（冒頭に回避方針コメント）。
 
+## ②10倍蔵書シーダー＋本棚スクロール jank（2026-07-17 実装済み・実機実走は未）
+
+- **シーダー＝`app/src/benchmark/java/com/novelreader/bench/LibrarySeedReceiver.kt`**（benchmark variant にのみ存在・出荷物に不在）。ordered broadcast（action `com.novelreader.benchmark.action.SEED_LIBRARY`・extras `count`=100/`gridMode`/`clear`）で投入し、**resultCode＝投入後の bench_seed 件数**で完了を同期確認（ベンチ側は件数不一致で即 fail・resultData に失敗理由）。
+- **フェイク本＝最小4値で成立**（調査で確定した事実）: `id=bench_seed_%04d`／title=長短10題プール巡回＋`　其の N` 一意化（書影は純 Canvas の title フォールバック描画＝画像不要）／htmlDirPath=実在しない `filesDir/novels/<id>`（章数えは `listFiles` null 安全で0話・未読カード）／addedAt=`1.7e12+i*60_000`（決定論＝並び安定）。progress 行なし＝全冊 UNREAD・addedAt 降順。冪等（REPLACE＋決定論 id）。
+- **シードはシェル `am broadcast` でなく test app からの `sendOrderedBroadcast`**（ColorOS の UiAutomation シェルハングを経路ごと回避）＋CountDownLatch(60s)。
+- **ベンチ＝`BookshelfScrollBenchmark`**: `scrollList`/`scrollGrid` の2本（モードはシーダーが prefs `app_prefs`/`is_grid_view` を書き分け）。FrameTimingMetric・iterations 5・COLD。スクロール対象は `By.scrollable(true)`（app に testTag 皆無のため。**main ソース完全無改変**）＋`setGestureMargin(幅/5)`・下フリング×3→上×3。予算 assert は較正方針どおり未実装（初回計測後に決める）。
+- **スクリプト＝`--scenario startup|shelf-scroll`** 新設（既定 startup＝従来挙動不変・`--assert`/`--budget-*` を shelf-scroll と併用したら exit 2）。結果表示 python は benchmarks[] 全走査＋`metrics`/`sampledMetrics` 両対応（timeToInitialDisplayMs=median/max・frameDurationCpuMs/frameOverrunMs=P50/P90/P95/P99）。
+- 検証済み: `:app:assembleBenchmark`／`:macrobenchmark:assembleBenchmark` BUILD SUCCESSFUL・`bash -n` OK・scenario ガード3経路 exit 2・testDebugUnitTest 緑（main 無改変）。
+- **残**: 実機初回計測（scrollList/scrollGrid・要ユーザー確認）→ P50/P90/P99 実測から予算を較正して assert 追加を判断。`By.scrollable(true)` が本棚以外の scrollable（水平チップ列等）を先に掴む可能性は実走で検証。
+
 ## 残フェーズ（優先順）
 
-- **②10倍蔵書シーダー＋本棚スクロール jank**: `app/src/benchmark/` ソースセットに投入手段（BroadcastReceiver 等）を新設し `FrameTimingMetric` で LazyVerticalGrid/LazyColumn スクロールを計測。BookEntity 描画に必要な最小フェイクデータ（htmlDirPath/書影）の設計が要る
 - **③長時間章送り jank**: NativeReadingScreen のスワイプ章送りを uiautomator で連続駆動・漸進劣化を P90/P99 で観測（シード本＝実HTML章が要る→②のシーダーを拡張）
 - **④大PDF取込**: `TraceSectionMetric`（抽出パイプラインに trace 区間追加）＋大PDF アセットの置き場設計（git に大物を入れない）

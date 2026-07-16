@@ -13,11 +13,16 @@
 #   - PATH の adb は承認済み鍵を提示するラッパー（platform-tools を PATH 前置きしないこと）。
 #
 # 実行例:
-#   tools/run_macrobenchmark.sh                          # 計測のみ（従来挙動）
+#   tools/run_macrobenchmark.sh                          # 計測のみ（従来挙動＝起動計測）
 #   tools/run_macrobenchmark.sh --install                # APK を install -r -g してから計測
-#   tools/run_macrobenchmark.sh --assert                 # 起動予算 assert を有効化して計測
+#   tools/run_macrobenchmark.sh --assert                 # 起動予算 assert を有効化して計測（startup 専用）
 #   tools/run_macrobenchmark.sh --assert --budget-median 100 --budget-max 100  # 予算を絞って FAIL 経路を実証
 #   tools/run_macrobenchmark.sh --install --assert --serial 192.168.1.210:5555
+#   tools/run_macrobenchmark.sh --scenario shelf-scroll  # 本棚スクロール jank（frame timing）を計測
+#
+# シナリオ:
+#   --scenario startup       起動計測（既定）。--assert / --budget-* はこの scenario 専用。
+#   --scenario shelf-scroll  本棚スクロール jank 計測（BookshelfScrollBenchmark）。予算 assert 無し。
 #
 # 注意:
 #   コールド起動5反復は除細動込みで約13分（knowledge 実測）。タイムアウトは余裕を持たせてある。
@@ -32,7 +37,10 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEST_PACKAGE="com.novelreader.macrobenchmark"
 TEST_RUNNER="androidx.test.runner.AndroidJUnitRunner"
-TEST_CLASS="com.novelreader.macrobenchmark.StartupBenchmark"
+# TEST_CLASS は scenario で確定する（既定 startup）。下のオプション解析後に代入する。
+STARTUP_CLASS="com.novelreader.macrobenchmark.StartupBenchmark"
+SHELF_SCROLL_CLASS="com.novelreader.macrobenchmark.BookshelfScrollBenchmark"
+TEST_CLASS="$STARTUP_CLASS"
 
 APP_APK="$REPO_ROOT/android/app/build/outputs/apk/benchmark/app-benchmark.apk"
 MACRO_APK="$REPO_ROOT/android/macrobenchmark/build/outputs/apk/benchmark/macrobenchmark-benchmark.apk"
@@ -50,6 +58,7 @@ HEARTBEAT_SEC=15          # 進行表示の周期
 DO_ASSERT=0
 DO_INSTALL=0
 SERIAL=""
+SCENARIO="startup"  # startup（既定・従来挙動）| shelf-scroll
 BUDGET_MEDIAN=""   # 空なら透過しない＝StartupBudget 側の既定定数が使われる
 BUDGET_MAX=""      # 同上（--assert と併用前提。単独指定は assert 無効なら無視される）
 while [ $# -gt 0 ]; do
@@ -57,6 +66,7 @@ while [ $# -gt 0 ]; do
     --assert)  DO_ASSERT=1; shift ;;
     --install) DO_INSTALL=1; shift ;;
     --serial)  SERIAL="${2:-}"; shift 2 ;;
+    --scenario) SCENARIO="${2:-}"; shift 2 ;;
     --budget-median) BUDGET_MEDIAN="${2:-}"; shift 2 ;;
     --budget-max)    BUDGET_MAX="${2:-}"; shift 2 ;;
     -h|--help)
@@ -65,6 +75,23 @@ while [ $# -gt 0 ]; do
     *) echo "不明なオプション: $1" >&2; exit 2 ;;
   esac
 done
+
+# ---- scenario 確定と併用ガード -----------------------------------------
+# --assert / --budget-* は startup 専用。shelf-scroll と併用されたら黙殺せずエラー終了する
+# （予算 assert は BookshelfScrollBenchmark に無く、指定を無視して緑にすると誤解を生むため）。
+case "$SCENARIO" in
+  startup)
+    TEST_CLASS="$STARTUP_CLASS" ;;
+  shelf-scroll)
+    TEST_CLASS="$SHELF_SCROLL_CLASS"
+    if [ "$DO_ASSERT" -eq 1 ] || [ -n "$BUDGET_MEDIAN" ] || [ -n "$BUDGET_MAX" ]; then
+      echo "--assert / --budget-* は --scenario startup 専用（shelf-scroll とは併用不可）。" >&2
+      exit 2
+    fi ;;
+  *)
+    echo "不明な --scenario: '$SCENARIO'（startup | shelf-scroll）" >&2
+    exit 2 ;;
+esac
 
 # ---- adb コマンド組み立て（serial 指定があれば -s 付与） -----------------
 ADB=(adb)
@@ -227,11 +254,32 @@ if [ -n "$JSON_ON_DEV" ]; then
   if command -v python3 >/dev/null 2>&1 && [ -f "$LOCAL_JSON" ]; then
     python3 - "$LOCAL_JSON" <<'PY' || true
 import json, sys
+# benchmarkData.json の実スキーマ（1.4.1・StartupBudget.kt の parser で確認済み）:
+#   benchmarks[] 各要素に name / metrics{} / sampledMetrics{} があり、各メトリクスは
+#   { median, minimum, maximum, P50, P90, P95, P99, ... } のような統計オブジェクト。
+#   StartupTimingMetric → metrics.timeToInitialDisplayMs（median/maximum を見る）
+#   FrameTimingMetric   → sampledMetrics.frameDurationCpuMs / frameOverrunMs（P50/P90/P95/P99 を見る）
+# scenario によって出るメトリクスが違うため、存在するものだけ表示する（全 benchmarks[] を走査）。
 data = json.load(open(sys.argv[1]))
+
+def find(b, key):
+    for grp in ("metrics", "sampledMetrics"):
+        d = b.get(grp) or {}
+        v = d.get(key)
+        if isinstance(v, dict):
+            return v
+    return None
+
 for b in data.get("benchmarks", []):
-    if "coldStartup" in b.get("name", ""):
-        m = b.get("metrics", {}).get("timeToInitialDisplayMs", {})
-        print(f"  timeToInitialDisplayMs: median={m.get('median')}ms max={m.get('maximum')}ms")
+    print(f"  {b.get('name', '(no name)')}")
+    t = find(b, "timeToInitialDisplayMs")
+    if t is not None:
+        print(f"    timeToInitialDisplayMs: median={t.get('median')}ms max={t.get('maximum')}ms")
+    for key in ("frameDurationCpuMs", "frameOverrunMs"):
+        s = find(b, key)
+        if s is not None:
+            parts = " ".join(f"{p}={s.get(p)}" for p in ("P50", "P90", "P95", "P99") if p in s)
+            print(f"    {key}: {parts} (ms)")
 PY
   fi
 else
