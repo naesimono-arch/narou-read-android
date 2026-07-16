@@ -44,7 +44,6 @@ import com.novelreader.typeset.TypesetConstraints
 import com.novelreader.typeset.VerticalTypesetter
 import com.novelreader.typeset.render.PaintFontMetrics
 import com.novelreader.ui.compose.VerticalParagraph
-import com.novelreader.ui.theme.Insets
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.Spacing
 import kotlinx.collections.immutable.ImmutableList
@@ -115,11 +114,19 @@ internal fun VerticalChapterContent(
         state = lazyListState,
         reverseLayout = true, // 右→左の連続横スクロール（#0＝右端＝先頭列）。
         modifier = Modifier.fillMaxSize(),
-        // top/bottom＝バー分（横書き ChapterContent と同じ算出。IgnoringVisibility で没入出没時のリフロー抑止）。
+        // top/bottom＝システムバー実測 inset のみ（IgnoringVisibility で没入出没時のリフロー抑止）。
+        // 横書きの ReadingBodyTopExtra/BottomExtra（上下バーのクリアランス 64/80dp）は加えない——
+        // LazyColumn では contentPadding の top/bottom がスクロール軸＝章頭/章末に一度だけ効く余白だが、
+        // LazyRow では交差軸＝全列の列高から恒久的に差し引かれ、横画面（視野高 360dp）では列高が約 4 割まで
+        // 潰れる（2026-07-17 実機。モック .reader は padding:20px＋没入時全面が正＝バー分の恒久確保は誤翻訳）。
+        // モックの非没入時 margin-bottom:60px（列下端をバー上端で終える）は、バー可視状態への追従が
+        // タップトグルのたびに全列の再組版（リフロー）を起こすため翻訳しない＝没入全面へ倒し、バー表示中は
+        // 列端がバー下に重なるのを許容する（横書きが本文行のバー下通過を許容するのと同じ取引。列の呼吸は
+        // itemModifier の bodyMarginDp＝ユーザー設定が担う）。
         // start/end＝読み進め方向の余白（モック .reader の横 padding）。左右へバー分を読み替えない。
         contentPadding = PaddingValues(
-            top = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding() + Insets.ReadingBodyTopExtra,
-            bottom = WindowInsets.navigationBarsIgnoringVisibility.asPaddingValues().calculateBottomPadding() + Insets.ReadingBodyBottomExtra,
+            top = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding(),
+            bottom = WindowInsets.navigationBarsIgnoringVisibility.asPaddingValues().calculateBottomPadding(),
             start = Spacing.S24,
             end = Spacing.S24,
         ),
