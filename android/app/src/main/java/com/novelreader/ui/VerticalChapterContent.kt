@@ -305,7 +305,10 @@ private fun VerticalParagraphItem(
                             fontSizePx = fontSizePx,
                             rubyFontSizePx = rubyFontSizePx,
                             columnAdvancePx = columnAdvancePx,
-                            indentFirstColumn = true,
+                            // なろう原文は地の文の段落頭に全角空白（U+3000）を自前で持つ（会話「…」には無し）
+                            // ＝合成インデントを足すと二重字下げになる（2026-07-17 実機フィードバック
+                            // 「段落が毎回2空白分空く」の真因。横書き経路も原文の空白に任せて何も足していない）。
+                            indentFirstColumn = false,
                         ),
                     )
                 }
@@ -382,7 +385,8 @@ private fun VerticalStyledBlock(
                                             fontSizePx = fontSizePx,
                                             rubyFontSizePx = rubyFontSizePx,
                                             columnAdvancePx = columnAdvancePx,
-                                            indentFirstColumn = true,
+                                            // 通常段落と同じく合成インデントは足さない（原文の全角空白が正）。
+                                            indentFirstColumn = false,
                                         ),
                                     )
                                 }
