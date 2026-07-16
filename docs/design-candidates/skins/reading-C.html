@@ -1,0 +1,94 @@
+<!-- @dsCard group="UI-n / 読書" name="C. 夜行（没入・極小クローム）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n C 読書 — 夜行</title>
+<style>
+  /* C案 読書: 本画面こそがヒーロー。クロームをほぼ消し、本文の組版だけで構成する。
+     上端の極細ヘアラインが読了進捗。タップでバー復帰する想定だが、既定は没入状態を見せる。
+     本文は明朝、温白文字×深炭でグレアを抑える。ルビは親文字の上。署名: 極小クローム＋本文ファースト。 */
+  :root{
+    --bg:#16181D;--text:#D8D1C5;--text-dim:#7E7D77;--ruby:#8C887E;
+    --slate:#8E99B0;--ember:#C79A6A;--line:#2A2E37;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0C0D10;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:24px;font-family:var(--mincho)}
+  .phone{width:390px;height:844px;background:var(--bg);border-radius:42px;overflow:hidden;position:relative;
+    box-shadow:0 30px 70px rgba(0,0,0,.7);display:flex;flex-direction:column}
+  /* 上端ヘアライン進捗 = ほぼ唯一の常設クローム */
+  .progress-hair{position:absolute;top:0;left:0;height:2px;width:62%;background:var(--ember);z-index:6;opacity:.85}
+  /* 退避したトップバーの名残: 章ラベルだけ低コントラストで置く */
+  .ghost-top{height:50px;display:flex;align-items:center;justify-content:center;padding:0 24px;position:relative;z-index:3}
+  .ghost-top .ct{font-family:var(--gothic);font-size:11px;color:var(--text-dim);letter-spacing:.12em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:78%}
+  /* ---- 本文(主役) ---- */
+  .reader{flex:1;overflow:auto;padding:2px 28px 120px}
+  .chap-h{margin:18px 0 30px}
+  .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--ember);letter-spacing:.32em}
+  .chap-h .t{font-size:20px;color:var(--text);margin-top:12px;line-height:1.65;font-weight:500}
+  .chap-h .rule{width:40px;height:1px;background:var(--slate);margin-top:18px;opacity:.6}
+  p{font-size:17px;line-height:2.55;color:var(--text);text-indent:1em;margin-bottom:.2em}
+  ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  .blank{height:1.7em}
+  hr{border:none;height:1px;width:38%;background:var(--line);margin:14px auto}
+  /* 前書きブロック */
+  .block{border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.018);padding:14px 16px;margin:6px 0 24px}
+  .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--slate);letter-spacing:.1em;margin-bottom:7px}
+  .block p{font-size:14.5px;line-height:2.1;text-indent:1em;margin:0;color:var(--text-dim)}
+  /* 没入を解いたときに浮かぶ最小コントロール(ヒント表示) */
+  .float{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:5;
+    display:flex;align-items:center;gap:4px;background:rgba(30,33,40,.82);border:1px solid var(--line);
+    border-radius:999px;padding:8px 10px;backdrop-filter:blur(8px);box-shadow:0 8px 24px rgba(0,0,0,.5)}
+  .float button{width:42px;height:42px;border:none;background:transparent;border-radius:50%;display:grid;place-items:center;color:var(--text);cursor:pointer}
+  .float button:hover{background:rgba(255,255,255,.06)}
+  .float button:focus-visible{outline:2px solid var(--slate);outline-offset:2px}
+  .float svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .float .sep{width:1px;height:22px;background:var(--line)}
+  .float .hint{font-family:var(--gothic);font-size:10px;color:var(--text-dim);padding:0 8px;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="phone" role="img" aria-label="C案 夜行方向の読書画面モック（没入状態）">
+  <div class="progress-hair"></div>
+  <div class="ghost-top"><span class="ct">第127話　雨上がりの城門にて</span></div>
+
+  <div class="reader">
+    <div class="chap-h">
+      <div class="num">第 百二十七 話</div>
+      <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      <div class="rule"></div>
+    </div>
+
+    <div class="block">
+      <div class="lbl">前書き</div>
+      <p>お読みいただきありがとうございます。今回は少し長めの戦闘回になりました。次話は<ruby>後日談<rt>ごじつだん</rt></ruby>を挟みます。</p>
+    </div>
+
+    <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+    <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+    <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。もう<ruby>戦<rt>たたか</rt></ruby>う<ruby>理由<rt>りゆう</rt></ruby>はない、とでも<ruby>言<rt>い</rt></ruby>うように。</p>
+
+    <div class="blank"></div>
+    <hr>
+    <div class="blank"></div>
+
+    <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+  </div>
+
+  <!-- 中央タップで復帰する最小コントロール（既定は没入なので半透明のヒントとして提示） -->
+  <div class="float">
+    <button aria-label="前の章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg></button>
+    <span class="sep"></span>
+    <span class="hint">タップで表示</span>
+    <span class="sep"></span>
+    <button aria-label="表示設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1L16.5 3h-4l-.4 2.6a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1L11.5 21h4l.4-2.6a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5a7 7 0 0 0 .1-1z"/></svg></button>
+    <button aria-label="次の章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+  </div>
+</div>
+</body>
+</html>
