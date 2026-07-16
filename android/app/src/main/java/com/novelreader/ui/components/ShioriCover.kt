@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import com.novelreader.typeset.CharClassifier
+import com.novelreader.typeset.render.VertGlyphRenderer
 import com.novelreader.ui.theme.BackgroundSepia
 import com.novelreader.ui.theme.ShioriCoverInkDark
 import com.novelreader.ui.theme.ShioriCoverPaperDark
@@ -1712,11 +1714,23 @@ internal fun ShioriCover(
 }
 
 /**
+ * 縦組み題字の 1 字描画に使う共有レンダラ。読書画面の縦書き（P1〜P3）と同一の分類→描画経路に通し、
+ * 「（）」「～」「ー」等が正立のまま死ぬ既存バグ（全字 drawText 直描画）を解消する。
+ * なぜ関数外の private val か: drawShioriTitle は DrawScope 拡張で remember が使えず、毎回 new すると
+ * 描画のたびにインスタンスを捨てる。状態を持たない純描画実装なので単一インスタンスを使い回す。
+ */
+private val shioriTitleGlyphRenderer = VertGlyphRenderer()
+
+/**
  * 表紙内の縦組み明朝題字（右列から左へ最大3列・溢れは末尾を ⋮）。
  * なぜ nativeCanvas + Serif Typeface で px 直描画か: 正本 canvas の `ctx.fillText`（px 指定・
  * textBaseline='middle'）を最も忠実に翻訳でき、かつフォントスケールに依存しない固定構図の
  * 表紙グラフィックにするため（sp 換算だと端末の文字拡大で題字だけ崩れる）。Serif は当端末で
  * Noto Serif CJK（＝明朝）へ解決＝Typography の MinchoFamily(FontFamily.Serif) と同系。
+ *
+ * 1 字は CharClassifier.classify → VertGlyphRenderer.drawGlyph 経由で置く（読書画面と同一部品）。
+ * なぜ連続リーダー結合（LeaderJoin）を使わないか: 題字は固定グリッド（1字=1セル）で ⋮省略と列割りが
+ * セル数を前提にするため、複数字を1ユニットへ束ねる結合は列の勘定を壊す。1字=1セルのまま分類だけ通す。
  */
 private fun DrawScope.drawShioriTitle(text: String, w: Float, h: Float, ink: Color) {
     val fs = (w * 0.088f).roundToInt().toFloat()
@@ -1739,8 +1753,6 @@ private fun DrawScope.drawShioriTitle(text: String, w: Float, h: Float, ink: Col
             textSize = fs
             textAlign = Paint.Align.CENTER
         }
-        val fm = paint.fontMetrics
-        val baseAdj = (fm.ascent + fm.descent) / 2f // textBaseline='middle' 相当（中心→ベースライン補正）
         for (col in 0 until maxCols) {
             val start = col * perCol
             if (start >= chars.size) break
@@ -1748,10 +1760,12 @@ private fun DrawScope.drawShioriTitle(text: String, w: Float, h: Float, ink: Col
             for (i in 0 until perCol) {
                 val idx = start + i
                 if (idx >= chars.size) break
-                // 3列目末尾でまだ続くなら ⋮ で省略（正本と同じ）。
+                // 3列目末尾でまだ続くなら ⋮ で省略（正本と同じ）。⋮ も classify を通す（UPRIGHT で正しい）。
                 val ch = if (col == maxCols - 1 && i == perCol - 1 && idx < chars.size - 1) "⋮" else chars[idx]
-                val cy = yTop + i * lineGap + lineGap / 2f
-                canvas.nativeCanvas.drawText(ch, cxp, cy - baseAdj, paint)
+                // セルの天 y = 従来のセル中心(cy) − lineGap/2。renderer が中心合わせ（旧 baseAdj 手計算）を担う。
+                val cellTop = yTop + i * lineGap
+                val cls = CharClassifier.classify(ch)
+                shioriTitleGlyphRenderer.drawGlyph(canvas.nativeCanvas, ch, cls, cxp, cellTop, lineGap, paint)
             }
         }
     }
