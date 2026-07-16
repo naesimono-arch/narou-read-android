@@ -772,6 +772,11 @@ private fun ChapterScreen(
     // scrollBehavior を残すのは TopAppBar に渡して heightOffsetLimit（バー実高の負値）を
     // 実測させるためだけ——nestedScroll 接続はどこにも張らないためスクロールでは一切動かない。
     // snapAnimationSpec = null: 内蔵スナップも無効化（動きは settleTopBar の spring が一元所有）。
+    // 注意: state は必ず既定値で生む。M3 の TopAppBarLayout は自身の layout 高さを
+    // 「バー実高 + heightOffset」で計算する（AppBar.kt:2206）ため、実高が未測定のうちに実高超の
+    // 負オフセットを初期値で仕込むと負サイズ（Size out of range）で即クラッシュする（2026-07-16 実測＝
+    // sentinel -10000f 案は本を開いた瞬間に落ちた）。よって「実測完了までの見た目」は state でなく
+    // barsVisualReady の alpha ゲート（Content 側）で隠す。
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(
         topAppBarState,
@@ -779,19 +784,29 @@ private fun ChapterScreen(
     )
 
     // 入場時既定=「無」（d-chrome Design/09-A）。章題は本文先頭の ChapterHeader が担うため、
-    // 入場時に上部バーを見せる必要はない。heightOffsetLimit は TopAppBar が実測後に負値へ更新するため、
-    // 確定を待って一度だけ全退避する（初期 0 のまま畳んでも効かないため待つ）。
-    // ただしメニュー表示中に前章/次章で章を跨いだ場合（chromeVisibleInitial=true）は退避しない＝
-    // 「一度出したら再度タップするまで残る」の章跨ぎ維持（2026-07-16 実機フィードバック）。
+    // 入場時に上部バーを見せる必要はない。TopAppBar の実測（heightOffsetLimit が既定 -Float.MAX_VALUE から
+    // 実負値へ更新）を待って一度だけ全退避する。ただしメニュー表示中に前章/次章で章を跨いだ場合
+    //（chromeVisibleInitial=true）は退避しない＝「一度出したら再度タップするまで残る」の章跨ぎ維持。
     // なぜ rememberSaveable の guard か: ユーザーが一度バーを出した後（プロセス再生成の復元含む）に
     // 再び勝手に畳んで操作を奪わないため。topAppBarState 自体も heightOffset を復元するので二重に安全。
     var didInitialCollapse by rememberSaveable { mutableStateOf(false) }
+    // 実測完了までの見た目ゲート: 既定 state は offset=0（＝表示位置）で生まれるため、没入入場では
+    // 初期退避が効くまでの数フレーム、バー/システムバーが一瞬見えてから消える表示バグになる
+    //（没入のままスワイプ章送りでメニューが一瞬出る＝2026-07-16 実機。従来は章切替の再パース待ちの
+    // 無地フレームが覆い隠しており、章キャッシュのシームレス化で露出した）。state はM3の不変式
+    //（layout 高=実高+offset）に縛られ先に畳めないため、退避完了まで描画側 alpha で隠す。
+    // メニュー維持入場（chromeVisibleInitial=true）は最初から表示が正なので即 ready。
+    val barsVisualReady = didInitialCollapse || chromeVisibleInitial
     LaunchedEffect(topAppBarState) {
         if (didInitialCollapse) return@LaunchedEffect
-        snapshotFlow { topAppBarState.heightOffsetLimit }.first { it < 0f }
+        // 既定値 -Float.MAX_VALUE を除外し「実測された」限界値だけを待つ（既定値のまま畳むと
+        // offset が巨大負値へ落ち、M3 の layout 計算が負サイズでクラッシュしうる）。
+        snapshotFlow { topAppBarState.heightOffsetLimit }
+            .first { it < 0f && it != -Float.MAX_VALUE }
         if (!chromeVisibleInitial) {
             topAppBarState.heightOffset = topAppBarState.heightOffsetLimit
         }
+        // 退避と同一スナップショットで ready 化＝「alpha 解除」と「畳み済み位置」が同フレームで揃う。
         didInitialCollapse = true
     }
 
@@ -923,13 +938,14 @@ private fun ChapterScreen(
     LaunchedEffect(topAppBarState, view) {
         val window = (view.context as? Activity)?.window ?: return@LaunchedEffect
         val controller = WindowCompat.getInsetsController(window, view)
-        snapshotFlow { topAppBarState.collapsedFraction < 0.5f }
+        // didInitialCollapse でゲート: 既定 state は表示位置で生まれるため、没入入場の実測待ち中に
+        // fraction≈0 で「show」が流れてシステムバーが一瞬出る（メニュー一瞬表示バグの片割れ）のを防ぐ。
+        snapshotFlow { (didInitialCollapse || chromeVisibleInitial) && topAppBarState.collapsedFraction < 0.5f }
             .distinctUntilChanged()
             .collect { chromeVisible ->
                 if (chromeVisible) controller.show(WindowInsetsCompat.Type.systemBars())
                 else controller.hide(WindowInsetsCompat.Type.systemBars())
-                // 章跨ぎ維持: トグル結果を親（ReadingScreen）の保持状態へ還流する。初期退避前の一瞬
-                //（heightOffset=0 のまま実測待ち）に true が流れても、直後の退避で false が上書きするため無害。
+                // 章跨ぎ維持: トグル結果を親（ReadingScreen）の保持状態へ還流する。
                 onChromeVisibleChange(chromeVisible)
             }
     }
@@ -1018,6 +1034,7 @@ private fun ChapterScreen(
             val (index, offset) = resolveInitialScroll(nextFile)
             ChapterPeek(c, index, offset)
         },
+        barsVisualReady = barsVisualReady,
         navEnabled = navEnabled,
         isLastChapter = isLastChapter,
         ncode = ncode,
@@ -1079,6 +1096,9 @@ internal fun ChapterScreenContent(
     // null=先読み中/端章/章欠損＝覗きは無地の紙面に縮退する（ドラッグと章送り自体は可）。
     prevPeek: ChapterPeek? = null,
     nextPeek: ChapterPeek? = null,
+    // 初期退避（没入入場の実測待ち）が完了するまで false＝上下バーを alpha=0 で隠す（route が算出）。
+    // 既定 true は既存テスト・呼び出しの互換のため。
+    barsVisualReady: Boolean = true,
     navEnabled: Boolean,
     isLastChapter: Boolean,
     ncode: Ncode?,
@@ -1377,6 +1397,8 @@ internal fun ChapterScreenContent(
                 .graphicsLayer {
                     // 退避割合 × 実測高さ分だけ下へずらす（collapsedFraction=1 で完全に画面外）
                     translationY = bottomBarHeightPx * topAppBarState.collapsedFraction
+                    // 初期退避の実測待ち中は不可視（既定 state が表示位置で生まれるための一瞬の露出を防ぐ）
+                    alpha = if (barsVisualReady) 1f else 0f
                 },
             // なぜ IgnoringVisibility か: トグルと同フレームで systemBars を hide/show するため、
             // 可視追従の既定 insets だとバー内パディングが 0⇄実測値で振れ、バー高の再測定で
@@ -1427,6 +1449,8 @@ internal fun ChapterScreenContent(
                 // なぜ graphicsLayer か: レイアウトを再計算せず描画位置のみを変えるため。
                 // これによりバーの追従中でも本文の位置が一切動かない。
                 translationY = topAppBarState.heightOffset
+                // 初期退避の実測待ち中は不可視（既定 state が表示位置で生まれるための一瞬の露出を防ぐ）
+                alpha = if (barsVisualReady) 1f else 0f
             },
             title = {
                 when (val r = parseResult) {
@@ -1536,8 +1560,10 @@ internal fun ChapterScreenContent(
         // 実機後詰め層＝ADR0005 §B）。
         // derivedStateOf: スクロール毎フレームの再評価を boolean 反転時だけの recompose に落とす
         //（本棚 showBand と同じ定石）。
-        val chromeVisibleForPill by remember {
-            derivedStateOf { topAppBarState.collapsedFraction < 0.5f }
+        // barsVisualReady を key に持つ: remember がラムダごと固定するため、初期化完了フラグの反転を
+        // 織り込むには作り直しが要る（章インスタンスごとに高々1回の反転）。
+        val chromeVisibleForPill by remember(barsVisualReady) {
+            derivedStateOf { barsVisualReady && topAppBarState.collapsedFraction < 0.5f }
         }
         val pastThreshold by remember(lazyListState) {
             derivedStateOf {
