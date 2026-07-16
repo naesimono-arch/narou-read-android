@@ -39,14 +39,6 @@
 ### 残3: 人間テスト（第三者便のみ残）
 > 本人＋実機で可能な分は 2026-07-14 に消化済み（T1/T5/T6/T7=OK・T2=要改修→★残7⑤。結果＝`.claude/plans/usability-test-results-2026-07-14.md`・派生改修＝★残5〜8）。実機検証6件（旧残2）は 2026-07-16 消化済み＝一次情報 `.claude/plans/device-verify-6items-2026-07-16.md`（5 PASS・TalkBack没入時ナビ不達 FAIL は customActions 方式で同日是正・JVM semantics テストで固定）。残るのは**初見/時間差が本質で本人テスト不成立の2件**＝T3（二読書面の操作言語混乱）・T4（中央タップトグルの再発見。コード事実＝ヒントは通算1回きり・再表示条件なし）＋**実TalkBackの音声走査での是正確認**（uiautomator 静的確認では customActions が見えないため人間便に合流）。実施は第三者ユーザビリティテスト便で（プロトコル＝`.claude/plans/usability-test-protocol-2026-07-12.md`）。
 
-### 残5: 没入時ステータスバー黒帯明滅＝背景色塗りで実装済み・**実機の目視確認のみ残**（2026-07-16）
-- **修正済み**（裁定＝アプリ背景色で塗る／2026-07-16 ユーザー）: window 背景をテーマ背景色へ再定義（`Theme.kt` の `NovelReaderTheme` SideEffect＝window 単一正本の所有者）。Edge-to-Edge 配下で没入時に最上155pxへ透けていた OS/window 既定の純黒[0,0,0]を、本文と同値の紙色（LIGHT=FBFAF8/SEPIA=F2E7CE/DARK=14171C＝ReadingColors.background と一致）へ。黒⇄灰フリップが灰⇄紙色の低コントラスト差に落ちる。①本文ちらつきは②と同根＝独立機序は棄却済み。機序の一次情報＝`.claude/plans/device-verify-followup-2026-07-16.md`・原典＝`usability-test-results-2026-07-14.md` T6。
-- **残＝実機の目視確認のみ**: OPPO 実機で没入トグル×3テーマの明滅解消を screencap で確認（`adb-bridge`→APK導入。実機前に一声）。OK なら本項を消す。
-
-### 残8: 本棚 複数選択→まとめて削除＝実装済み・**実機検証（捨て本）のみ残**（2026-07-16）
-- **実装済み**（案B下端バー＋変種B「キャンセル」＋システム戻る＋0件自動解除＋削除確認ダイアログ・PDF本のみ対象）: 長押しで選択モード→下端バーで全選択/削除→確認ダイアログでまとめて削除。削除UXは選択＋確認ダイアログに一本化（旧単体削除の長押しメニュー/Undo/deleteUiMode/⋮ボタンは撤去＝ユーザー裁定）。正本＝`bookshelf-multiselect-D.html`（確定形へ統合・裁定用の対比/変種スクラッチは退役）。JVM結線テスト追加（長押し→選択→削除確定で onDeleteBooks へ選択本が渡る）。
-- **残＝実機検証（必ず捨て本で）**: 長押し→選択→削除の一連＋0件自動解除/システム戻りでの解除を捨て本で確認（memory `device-verify-delegation-no-destructive-on-real-library`）。Web カードは対象外＝別操作「本棚から外す」を維持。OK なら本項を消す。
-
 ### 残4: 監査派生 backlog（新規タスク）
 - **蔵書内フィルタ/series 束ね UI**（確認バッチC④＝保留）: ロジック `filterBooksByQuery` は実装済み・UI はモック未表現のため保留（`BookshelfScreen.kt:442`／`ShelfItems.kt:37`）。series 束ねはスキーマ変更要（設計案のみ）。
 - **目次の部/編 折り畳み**: 抽出パイプラインに階層データ無し＝**抽出側の新機能**。実PDF→HTML の階層有無は要検証で「フラット確定」＝畳みは前提データ欠如で現状不成立。
