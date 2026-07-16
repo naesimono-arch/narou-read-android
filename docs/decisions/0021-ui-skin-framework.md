@@ -1,0 +1,61 @@
+# 0021. UIスキン機構＝スキンは「トークン束」の着せ替え（構造は全スキン共通・I/J は枠外）
+
+- 状態: 採用（2026-07-17・`ui/skin-framework`。骨格の3裁定はユーザー3択で確定）
+- 関連: 実装 `ui/theme/Skin.kt`（Skin/SkinTokens/ShioriColors/LocalSkinTokens）・`ui/theme/skins/SkinD.kt`（1スキン=1ファイル）・`ui/theme/Theme.kt`（NovelReaderTheme(skin, theme)）／検査 `tools/check_design_tokens.py`（SKIN_READING 表）／プラン `.claude/plans/ui-skin-framework-2026-07-17.md`／前史 ADR 0005 §C（スキン将来送り＝本 ADR で解除）・ADR 0014（トークン層）
+- 採番注: 0020 は `reading/vertical-mode` ブランチが使用済み（縦書き方針）のため本件は 0021。
+
+## 背景
+
+フェーズ0で A〜J の10案スキン資産（claude.ai/design `Novel Reader UI` の `ui-n-phase0/`）を作ったが、
+「まだ実装しない」（2026-06-27・ADR 0005 §C）として D 単独で進めてきた。2026-07-17 のユーザー指示で解除し、
+実際に切り替えられる機構を作る。ただし目的は**機構の骨格**であり、10案全部の移植ではない。
+
+## 決定
+
+1. **スキン＝トークン束（SkinTokens）**。1スキンが供給するのは Material ColorScheme・読書 `ReadingColors`・
+   本棚 `ShelfColors`・栞 `ShioriColors`（紙/墨/識別色明度）・Typography の5系統のみ。
+   **レイアウト構造・余白スケール・motion は全スキン共通**（原則5「静謐は機能」・ADR 0014 の余白禁止則は
+   スキン不変）。実装は `theme/skins/` に1スキン=1ファイル。
+2. **ReadingTheme は「スキン内の変種軸」へ降格**。enum と永続キー `"reading_theme"` は不変（後方互換）。
+   スキンの選択は enum `Skin`（永続化は P2 で新キー `"app_skin"`・キー不在=D 既定）。
+   **各スキン1変種で開始**＝D のみ3テーマ（ライト/セピア/ダーク）・C 夜行は固定1変種。
+   `supportedThemes` で将来変種を足せる構造にしておく。
+3. **適用範囲＝アプリ全体**（本棚・発見系・目次・設定・読書まで全画面スキン準拠）。
+4. **初弾スキン＝C 夜行**（深炭×温白の没入）。
+5. **I 読書の旅路・J ポータルデッキは対象外**＝レイアウト構造ごと別物で「トークン着せ替え」の枠に
+   収まらない（構造スキンは別機構が要る＝将来の別 ADR）。
+6. **暗黙のテーマ推定の根絶**: 栞書影が `surface.luminance()<0.5`／`surface==BackgroundSepia` 一致で
+   テーマを推定していたのは D の surface 値前提の暗黙結合＝スキン導入で必ず壊れるため、Skin が
+   `ShioriColors`（紙/墨/識別色明度）を CompositionLocal で明示供給する形へ置換した。
+   ステータスバー明暗も theme 値でなく `reading(theme).isLight`（変種の明暗）が正。
+
+### モック・検査の統治
+
+- **スキン固有モックは本棚＋読書の2画面のみ**（そのスキンの署名検証用・`docs/design-candidates/skins/` に収蔵）。
+  他画面（発見・目次・設定）は **D 構造モックへスキントークンを写像**する規約＝画面ごとのスキン別モックは作らない
+  （構造が共通である以上、トークン対応表で導出できる。モック総数の爆発を防ぐ）。
+- `tools/check_design_tokens.py` はスキン別期待表（`SKIN_READING`）＝1スキン1行で同じ照合ロジックに乗せる。
+- **ADR 0014 の色禁止則は P3（C パレット導入コミット）で改訂**: 「色は藍＋青磁で閉じる」→「スキンごとに
+  閉じたパレット規範を持つ（D=藍/青磁・C=深炭/温白系）。スキン内での装飾新色はそのスキンのパレット改訂を要する」。
+
+### 明示的に将来送り
+
+- 栞「型」軸（A箔/C小口/D蔵書印/E綴じ紐）＝SkinTokens にスロットを切らず、必要になった時に足す。
+- D 以外のテーマ変種追加・E〜J スキンの移植・I/J の構造スキン。
+
+## トレードオフ（自覚して受け入れたもの）
+
+- `ReadingTheme.colors` getter は D 固定で温存（@Preview・スキン非依存文脈用）。実画面が誤って使うと
+  スキン非追従になる残余リスクがあるが、全 Preview の書き換えコストと天秤で温存を選んだ
+  （実画面は `rememberReadingColors`＝LocalSkinTokens 経由に統一済み）。
+- C 選択中はテーマ3択チップ＋システム追従 UI が無意味になる＝P2 で畳む/無効化の UI 判断が必要。
+
+## 却下した代替案
+
+- **enum `Skin` へ YAKO_C を先出し**: 分岐先の SkinC 実装が無いまま enum 値だけ足すと「D へフォールバック
+  する嘘の分岐」になる。スキン値の追加は対応する SkinX.kt 実装と同一コミットで行う（P3）。
+- **スキン＝ColorScheme 差し替えのみ**: 読書 ReadingColors・本棚 ShelfColors・栞は Material スロット外の
+  家系トークンで、ColorScheme だけ替えても大半の画面が旧スキンのまま残る＝束で持つ必要がある。
+- **A〜J 全スキンの一括移植**: 機構の検証には D+1（C）で十分。移植は個別の価値判断（需要・保守コスト）が
+  つくまで claude.ai 側の探索資産に留める。
+- **画面ごとのスキン別モック全数作成**: 構造共通の原則に反し、モック保守が スキン数×画面数 で爆発する。

@@ -78,9 +78,10 @@
 
 - **超長編抽出エッジ残差の③アポストロフィ座標順**（N6169DZ・章題ドリフト残2件）: `兎'ｓ`↔`'鳥…` の座標順ずれで**1:1コードポイント置換不可**＝実質 won't-fix。基準＝`ab-review/golden_regression`、詳細＝task_diary #35。
 
-## A2. UIスキン着せ替え（将来送り・保留）
+## A2. UIスキン機構（実装中＝`ui/skin-framework`）
 
-> フェーズ0で D「和モダン・余白」をデフォルト視覚言語に採用済み（設計判断＝`docs/decisions/0005-ui-n-visual-language-D.md`／モック地図は `.claude/plans/archive/UI-n_DESIGN_PLAN-archived-2026-07-02.md` §6.1）。
+> 2026-06-27 の「まだ実装しない」を 2026-07-17 ユーザー指示で解除。機構の裁定＝ADR 0021・フェーズ詳細＝`.claude/plans/ui-skin-framework-2026-07-17.md`（P1 骨格は完了＝git log 正本）。
 
-- **方針確定（2026-06-27・ユーザー指示）＝UIスキン着せ替え（A〜J 選択）はまだ実装しない。main は現状 D のみ。** A〜J は資産として claude.ai/design（プロジェクト `Novel Reader UI`・projectId `bb5a35c8-70ac-4efa-bb03-1579d3f11d93` の `ui-n-phase0/`・`DesignSync: get_file` で再取得可）に保持。栞の他4型（A箔/C小口/D蔵書印/E綴じ紐）もスキン資産として保持（ADR 0005 C 方針）。
-- **着手時はここから**: 「UI着せ替え」設定画面のモック化（選択肢=A〜J・既定=D・切替粒度の決定）／A〜J スキンの Compose 実装（スキン×読書テーマの関係・トークン体系）。bookshelf-D へのセピア変種追加もスキン着せ替え実装時に再検討（現状は `SepiaColorScheme` が本棚セピアの正本）。
+- **P2 選択UI＋永続化**: settings-D モックへ「装い（スキン選択）」節を追加した改版を先に HTML で作り mockview で見せる（意匠はモックループで確定）→承認後 Compose 翻訳・SharedPreferences `"app_skin"` 永続化（キー不在=D）・C 選択中はテーマ3択＋システム追従を畳む/無効化（`"reading_theme"` は温存し D 復帰で復元）。
+- **P3 C 夜行の実装**: bookshelf-C/reading-C を DesignSync `get_file` で `docs/design-candidates/skins/` へ収蔵（⚠️主セッション限定＝委譲不可）→ C トークン表（Color.kt へ C 系 val・モック CSS 変数と1:1）→ `SkinC.kt`＋enum へ `YAKO_C` 追加 → `check_design_tokens.py` に C の期待行 → 全画面スモーク（本棚・発見・目次・設定・読書・没入・栞書影）→ 実機目視。**ADR 0014 の色禁止則改訂（スキンごとに閉じたパレット規範）を同じコミットに同梱**。C の構造要素（本棚=続きからヒーロー等）は枠外＝D 構造のまま色/質感のみ。
+- **将来送り（ADR 0021）**: 栞「型」軸（A箔/C小口/D蔵書印/E綴じ紐）／D 以外のテーマ変種／E〜J 移植／I・J の構造スキン。A〜J 資産は claude.ai/design（プロジェクト `Novel Reader UI`・projectId `bb5a35c8-70ac-4efa-bb03-1579d3f11d93` の `ui-n-phase0/`・`DesignSync: get_file` で再取得可）に保持。bookshelf-D へのセピア変種追加も引き続き再検討枠（現状は `SepiaColorScheme` が本棚セピアの正本）。

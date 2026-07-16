@@ -42,7 +42,7 @@ import com.novelreader.ui.discovery.WebReaderScreen
 import com.novelreader.ui.theme.MotionDurationNavTransition
 import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.ui.theme.ReadingTheme
-import com.novelreader.ui.theme.colors
+import com.novelreader.ui.theme.rememberReadingColors
 import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.DiscoveryViewModel
@@ -460,7 +460,7 @@ private fun NovelReaderApp(
                         // 既存のエラー画面（本棚へ戻る導線つき）を流用する（F-M）。意匠は発明しない。
                         ReadingErrorScreen(
                             message = "この書籍は見つかりませんでした",
-                            colors = appTheme.colors,
+                            colors = rememberReadingColors(appTheme),
                             onNavigateToBookshelf = { navController.popBackStack("bookshelf", false) },
                         )
                     }
@@ -477,7 +477,7 @@ private fun NovelReaderApp(
  */
 @Composable
 private fun ReadingLoadingPlaceholder(readingTheme: ReadingTheme) {
-    val colors = readingTheme.colors
+    val colors = rememberReadingColors(readingTheme)
     Box(
         modifier = Modifier
             .fillMaxSize()

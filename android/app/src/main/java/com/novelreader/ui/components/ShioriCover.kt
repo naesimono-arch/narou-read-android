@@ -3,7 +3,6 @@ package com.novelreader.ui.components
 import android.graphics.Paint
 import android.graphics.Typeface
 import androidx.compose.foundation.Canvas
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -19,14 +18,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import com.novelreader.ui.theme.BackgroundSepia
-import com.novelreader.ui.theme.ShioriCoverInkDark
-import com.novelreader.ui.theme.ShioriCoverPaperDark
+import com.novelreader.ui.theme.LocalShioriColors
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.floor
@@ -1624,23 +1620,16 @@ internal val SHIORI_TIPS: List<ShioriTip> = listOf(
  * 栞アクセント色の共有ヘルパー（純関数）。書架の栞の棒／先端色と、目録リストの左端色帯を
  * この1関数へ集約し「同じ本＝同じ色相・同じ明度」を書架⇔目録で保証する（整合の要）。
  *
- * 明度はテーマ3値（正本 consistency-D の THEMES.accL）: ライト L=0.52／セピア L=0.48／ダーク L=0.62。
- * 彩度 S=0.48 固定。
+ * 明度はスキンが変種ごとに供給する（正本 consistency-D の THEMES.accL）: D はライト L=0.52／
+ * セピア L=0.48／ダーク L=0.62（[com.novelreader.ui.theme.skins.SkinD.shiori] の accentLightness）。彩度 S=0.48 固定。
  *
- * なぜ surface からテーマを判定するか: 純関数ゆえ colorScheme を直接持てず、呼び出し側が渡す surface で
- * 識別する。セピア判定に `surface == BackgroundSepia` を使う理由: SepiaColorScheme は
- * LightColorScheme.copy(...) で作られ、surface だけがセピア固有値(#F2E7CE)を持つ唯一確実な識別子だから
- * （他トークンはライトと共有され得るため surface 以外では判別できない）。ダーク判定は既存 ShioriCover と
- * 同じく luminance()<0.5 を維持する。
+ * なぜ Skin から明示供給（accentLightness を受け取る）か: 旧実装は呼び出し側が渡す surface の
+ * luminance()／`surface == BackgroundSepia` 一致で明度を推定していたが、これは D の surface 値前提の
+ * 暗黙結合で、スキン導入（surface 値がスキンごとに変わる）で必ず壊れる。明度は現在スキン×変種の
+ * ShioriColors.accentLightness を呼び出し側が渡す（推定を根絶・プラン 2026-07-17 裁定）。
  */
-internal fun shioriAccentFor(hue: Int, surface: Color): Color {
-    val l = when {
-        surface == BackgroundSepia -> 0.48f
-        surface.luminance() < 0.5f -> 0.62f
-        else -> 0.52f
-    }
-    return hslToColor(hue.toFloat(), 0.48f, l)
-}
+internal fun shioriAccentFor(hue: Int, accentLightness: Float): Color =
+    hslToColor(hue.toFloat(), 0.48f, accentLightness)
 
 // 栞表紙の内枠（正本の 5% 罫）の不透明度。紙のふちを表紙の墨/白で微かに締めるだけの飾り罫。
 // 旧値 0x0D（=13/255≈0.051）を明示定数化し、色は生 ARGB でなく表紙の墨 ink から生成する。
@@ -1661,26 +1650,25 @@ internal fun ShioriCover(
     persistedTipIndex: Int? = null,
     persistedLenFrac: Float? = null,
 ) {
-    val cs = MaterialTheme.colorScheme
-    // ダーク判定＝surface の輝度。ライト #FBFAF8／セピア #F2E7CE は高輝度、ダーク #14171C は低輝度。
-    val isDark = remember(cs.surface) { cs.surface.luminance() < 0.5f }
-    // 紙／墨: ライト・セピアは surface/onSurface がモック値と一致。ダークだけ cover 専用トークン（Color.kt）。
-    val paper = if (isDark) ShioriCoverPaperDark else cs.surface
-    val ink = if (isDark) ShioriCoverInkDark else cs.onSurface
+    // 紙／墨／識別色明度は現在スキン×変種から明示供給（旧 luminance/surface 推定を根絶）。
+    // D では ライト・セピアは surface/onSurface と、ダークは cover 専用トークンと同値（SkinD.shiori）。
+    val shiori = LocalShioriColors.current
+    val paper = shiori.paper
+    val ink = shiori.ink
     // 永続値も remember キーに含める（null→非 null の差し替え時に確実に再計算させる）。
     val params = remember(title, persistedTipIndex, persistedLenFrac) {
         shioriParams(title, SHIORI_TIPS.size, persistedTipIndex, persistedLenFrac)
     }
     // 棒・先端の識別色＝生成色。共有ヘルパー shioriAccentFor に集約し、目録リストの色帯と同一色にする
-    // （S=0.48・L はライト0.52/セピア0.48/ダーク0.62＝surface からテーマ判定）。
-    val computedAccent = remember(params.hue, cs.surface) {
-        shioriAccentFor(params.hue, cs.surface)
+    // （S=0.48・L は現在スキン×変種の accentLightness＝D はライト0.52/セピア0.48/ダーク0.62）。
+    val computedAccent = remember(params.hue, shiori.accentLightness) {
+        shioriAccentFor(params.hue, shiori.accentLightness)
     }
     val accent = accentOverride ?: computedAccent
     // 内枠（正本の 5% 罫）＝紙のふちを微かに締める。
     // なぜ生 ARGB でなく ink 由来か: 旧 Color(0x0DFFFFFF)/Color(0x0D1C1F26) はテーマ改訂でこの罫だけ
-    // 取り残される（ADR 0014 charter(a) theme/外の生 Color 禁止）。表紙の墨 ink（ライト/セピア=onSurface・
-    // ダーク=ShioriCoverInkDark）を名前付き alpha で薄め、isDark の2分岐を1式へ畳む。
+    // 取り残される（ADR 0014 charter(a) theme/外の生 Color 禁止）。表紙の墨 ink（スキン×変種が供給する
+    // ShioriColors.ink＝D はライト/セピア=onSurface・ダーク=ShioriCoverInkDark）を名前付き alpha で薄める。
     val borderColor = ink.copy(alpha = ShioriInnerBorderAlpha)
 
     // 題字は Canvas 描画で text ノードを持たないため、表紙自体に contentDescription=題名 を与える。
