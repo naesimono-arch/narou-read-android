@@ -1083,14 +1083,14 @@ internal fun ChapterScreenContent(
                         }
                         // 「表示設定」=下端歯車ボタンと同じく設定シートを開く（Content ローカルの開閉 state を立てる）。
                         add(CustomAccessibilityAction("表示設定") { showSettings = true; true })
-                        // 「最上部へ」＝ピルと同一コールバック・同一の出現条件（章の半分以上）。没入中も
+                        // 「最上部へ」＝ピルと同一コールバック・同一の出現条件（章の3割以上）。没入中も
                         // TalkBack から先頭復帰へ到達できるよう実 UI と対で揃える（この semantics ラムダは
                         // deferred read＝スクロールで composition を再実行させない）。
                         val total = lazyListState.layoutInfo.totalItemsCount
-                        if (total > 0 && lazyListState.firstVisibleItemIndex * 2 >= total) {
+                        if (total > 0 && lazyListState.firstVisibleItemIndex * 10 >= total * 3) {
                             add(
                                 CustomAccessibilityAction("最上部へ") {
-                                    scope.launch { lazyListState.scrollToItem(0) }
+                                    scope.launch { lazyListState.animateScrollToItem(0) }
                                     true
                                 },
                             )
@@ -1369,25 +1369,26 @@ internal fun ChapterScreenContent(
         }
 
         // 「最上部へ」ピル（2026-07-16 実機フィードバック・案C裁定＝reading-backtotop-D.html）:
-        // メニュー表示中かつ「章の半分以上読み進めた」ときだけ、下端バー直上に出す。意匠は復帰ヒント・
-        // 続きに戻ると同型のピル（新意匠を発明しない）。なぜ後半のみか: 章頭付近では戻る意味が無く
-        // ただの浮遊物になる（ユーザー裁定「半分以上過ぎたら表示」）。押して先頭へ戻ると条件が外れて
-        // 自然に消える＝完了フィードバックを兼ねる。
+        // メニュー表示中かつ「章の3割以上読み進めた」ときだけ、下端バー直上に出す。意匠は復帰ヒント・
+        // 続きに戻ると同型のピル（新意匠を発明しない）。なぜ序盤は出さないか: 章頭付近では戻る意味が
+        // 無くただの浮遊物になる。押して先頭へ戻ると条件が外れて自然に消える＝完了フィードバックを兼ねる。
         // 進捗は〈可視先頭アイテム÷全アイテム〉の段落数ベース近似（画素精度は不要・1画面で収まる短章では
-        // 出ない）。0.5 は暫定の較正値（実機後詰め層＝ADR0005 §B。要すれば閾値だけ調整）。
+        // 出ない）。閾値 3割＝実機較正値（初期の「半分」はユーザー所見で多すぎ→3割へ・2026-07-16。
+        // 実機後詰め層＝ADR0005 §B）。
         // derivedStateOf: スクロール毎フレームの再評価を boolean 反転時だけの recompose に落とす
         //（本棚 showBand と同じ定石）。
         val chromeVisibleForPill by remember {
             derivedStateOf { topAppBarState.collapsedFraction < 0.5f }
         }
-        val pastHalf by remember(lazyListState) {
+        val pastThreshold by remember(lazyListState) {
             derivedStateOf {
                 val total = lazyListState.layoutInfo.totalItemsCount
-                total > 0 && lazyListState.firstVisibleItemIndex * 2 >= total
+                // index/total ≥ 0.3 の整数演算形（×10 ≥ ×3）
+                total > 0 && lazyListState.firstVisibleItemIndex * 10 >= total * 3
             }
         }
         AnimatedVisibility(
-            visible = chromeVisibleForPill && pastHalf,
+            visible = chromeVisibleForPill && pastThreshold,
             enter = fadeIn(tween(MotionDurationCrossfade)),
             exit = fadeOut(tween(MotionDurationCrossfade)),
             modifier = Modifier
@@ -1401,7 +1402,9 @@ internal fun ChapterScreenContent(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
                     .background(colors.navBackground.copy(alpha = 0.92f))
-                    .clickable(onClick = { scope.launch { lazyListState.scrollToItem(0) } })
+                    // animateScrollToItem: 瞬間ジャンプは味気ないというユーザー所見（2026-07-16）で滑走化。
+                    // 遠距離は Lazy が目標近くまで内部で座標を寄せてから滑らかに着地する＝長章でも安全。
+                    .clickable(onClick = { scope.launch { lazyListState.animateScrollToItem(0) } })
                     .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
             ) {
                 Icon(

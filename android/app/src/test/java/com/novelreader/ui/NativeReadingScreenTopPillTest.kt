@@ -24,7 +24,7 @@ import org.robolectric.annotation.Config
 
 /**
  * 「最上部へ」ピル（2026-07-16 実機フィードバック・案C裁定＝reading-backtotop-D.html）の配線担保。
- * 出現条件〈メニュー表示中 かつ 章の半分以上（可視先頭アイテム×2 ≥ 全アイテム）〉と、
+ * 出現条件〈メニュー表示中 かつ 章の3割以上（可視先頭アイテム×10 ≥ 全アイテム×3）〉と、
  * タップで章先頭へ戻る（＝条件が外れてピルが消える）動作を Robolectric で固定する。
  * ハーネスは NativeReadingScreenA11yTest と同型（描画層 Content を直接組む・heightOffset 突き当てで
  * メニュー表示/没入を作り分ける）。parseResult は Success（無限アニメを持たない）。
@@ -114,7 +114,7 @@ class NativeReadingScreenTopPillTest {
     @Test
     fun `章の後半かつメニュー表示中はピルが出てタップで先頭へ戻り消える`() {
         val topBar = TopAppBarState(0f, 0f, 0f)
-        // 後半（150番目のアイテム）から表示開始＝可視先頭×2 ≥ 全アイテムを満たす
+        // 後半（150番目のアイテム）から表示開始＝3割閾値（可視先頭×10 ≥ 全×3）を満たす
         val list = LazyListState(firstVisibleItemIndex = 150)
         setContent(topBar, list)
         makeChromeVisible(topBar)
@@ -123,7 +123,7 @@ class NativeReadingScreenTopPillTest {
         composeTestRule.onNodeWithText("最上部へ").performClick()
         composeTestRule.waitForIdle()
 
-        // 先頭へ戻る＝出現条件（半分以上）が外れてピルも消える（完了フィードバック兼用）
+        // 先頭へ戻る＝出現条件（3割以上）が外れてピルも消える（完了フィードバック兼用）
         composeTestRule.runOnIdle { assertEquals(0, list.firstVisibleItemIndex) }
         composeTestRule.onNodeWithText("最上部へ").assertDoesNotExist()
     }
