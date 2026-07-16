@@ -31,6 +31,8 @@ triggers:
 ## 機械検査
 
 モック⇄トークンの同期は `python3 tools/check_design_tokens.py`（不一致で exit 1）。UI 変更のゲートに含めること。
+**見た目・余白を変えるコミットは `recordRoborazziDebug` で golden 再記録を同梱する**（verify は既定ゲート非同乗＝
+再記録を忘れると腐ったまま潜伏する。実例: 84d9501 の余白再翻訳で golden 24枚が陳腐化し 2026-07-17 まで未検出）。
 
 ## スコープ外（実機後詰め層）
 
