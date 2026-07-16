@@ -60,6 +60,9 @@
     writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;
     overflow-x:auto;overflow-y:hidden;
     scrollbar-width:thin;}
+  /* クローム表示ではボトムバー(60px・不透明)が phone 下端を覆う。縦書きは縦寸＝版面そのもの
+     ＝各行の下端が恒久的にバーへ隠れるため、reader をバー上端で終える（没入時は全面のまま）。 */
+  .phone:not(.immersive) .reader{margin-bottom:60px}
   .reader::-webkit-scrollbar{height:6px}
   .reader::-webkit-scrollbar-thumb{background:var(--bar-line);border-radius:3px}
 
@@ -68,7 +71,8 @@
   /* 縦書きでは block要素は自然に inline軸（＝縦の全高）を満たす。block-size(=横幅)は内容任せ。 */
   .chap-h{text-align:center;margin:0 16px}
   .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--accent);letter-spacing:.3em}
-  .chap-h .t{font-size:18px;color:var(--ink);margin:8px 0 0;line-height:1.7;font-weight:600}
+  /* 番号→題の間隔は block 軸（縦書きでは横方向）。物理 margin-top だと題が下へ8pxズレる。 */
+  .chap-h .t{font-size:18px;color:var(--ink);margin-block-start:8px;line-height:1.7;font-weight:600}
   /* rule: 縦書きでは inline-size(=縦の長さ)48px・block-size(=横の太さ)2px の短い縦線。
      margin-inline:auto で縦方向センタリング、margin-block-start で題との横間隔。 */
   .chap-h .rule{inline-size:48px;block-size:2px;background:var(--rule);
@@ -83,13 +87,15 @@
   /* 前書き/後書きブロック（ラベル付き枠＝StyledBlock）。縦書き文脈では縦長の枠になる。 */
   .block{border:1px solid var(--blk-bd);background:var(--blk-bg);padding:16px 12px;margin:0 4px;border-radius:2px}
   .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--accent);font-weight:700;
-    margin:0 0 8px;letter-spacing:.1em}
+    margin-block-end:8px;letter-spacing:.1em} /* ラベル→本文の間隔も block 軸（横書き由来の margin-bottom を翻訳） */
   .block p{font-size:14.5px;line-height:2.1;text-indent:1em;margin:0}
 
   /* ---- 骨格A固有の論点: 本文スクロールが横軸を使う＝現行「横ドラッグで章送り（引っ張りプレビュー）」と軸が衝突。
      この案では「本文の終端＝左端をさらに引くと次章が覗く（連続オーバースクロール）」で解決する想定。
      ここでは静的な視覚ヒントとして、左端に次章の覗きパネル風の帯＋注記を重ねて表現（実挙動はモック外）。 */
-  .peek{position:absolute;left:0;z-index:3;inline-size:52px;pointer-events:none;
+  /* 幅は物理 width で指定する——.peek 自身が vertical-rl のため inline-size は「縦寸」に化け、
+     top/bottom 指定と競合して左上に52px角のチップが出る表示バグになる（2026-07-17 修正）。 */
+  .peek{position:absolute;left:0;z-index:3;width:52px;pointer-events:none;
     writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;
     display:flex;align-items:center;justify-content:center;gap:10px;
     border-right:1px solid var(--rule);
