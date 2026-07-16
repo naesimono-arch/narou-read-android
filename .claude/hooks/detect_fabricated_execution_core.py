@@ -296,6 +296,24 @@ PROBE_OUTPUT_ANOMALY_RE = re.compile(
 # 破線センチネルはモデルが自作 echo で仕込む定型（`---read probe---`）で、地の文の通常語には現れない。
 SENTINEL_TOKEN_RE = re.compile(r"-{2,}[^`\n-][^`\n]{0,28}?-{2,}|\b1[0-9]{9}\b")
 
+# ── 先行実行フレーミング（Tier E3・事象N L44/L55 型。2026-07-16 増補7 で新設）──
+# Tier E3 は「先行実行の出力待ち」「幻の先行作成の再作成」というターン局所の段取り宣言を拾う。
+# 判定原理は E1 と同枠（ターン局所の tool_use 不在）だが、完了語彙ではなく前提化マーカーを検知する。
+# 先行実行フレーミング（L44 型）: 「（先行実行の）出力が返っていない/返ってこない」＝主張以前に対応する
+# tool_use が無いのに先行実行の出力待ちを前提化する参照。語彙は事象N L44「出力が返っていない」＋
+# 較正で同型 TP 候補が出た 22ed3266「出力が返ってこない」から採取（近似で広げない）。主語は出力/結果
+# ＋近義（応答/レスポンス）に限定、述語で「返っていない/返ってこない」の両活用を吸収する。
+PRIOR_EXEC_REFERENCE_RE = re.compile(
+    r"(?:出力|結果|応答|レスポンス)[^。\n]{0,8}?返(?:っ|ら)て(?:こ)?(?:い|き)?ない")
+
+# 先行実行フレーミング（L55 型）: 「再作成」＝幻の先行作成を前提化する再作成宣言。事象N L55
+# 「サンドボックス無効で再作成」から採取。「再生成/再構築」等は能力言明・UIラベル・派生表説明で FP
+# 多発（較正実測22件）のため含めない＝1語に絞る。発火は detect_tier_e3 の「当ターンに裏付けなし
+# create 完了主張が同居」という文脈 coupling を必須にする（単独の再作成は正当な再作成が多いため）。
+RECREATE_CLAIM_RE = re.compile(r"再作成")
+# 「再作成不要/再作成せず/…」＝再作成を否定する文（e6f4ea7b「2本目は再作成不要」の実測FP）を除外。
+RECREATE_NEGATION_RE = re.compile(r"再作成(?:不要|せず|しない|不能|できない|は不要|の必要)")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Tier D 定数（入力側捏造: phantom user input）
@@ -2117,6 +2135,147 @@ def detect_tier_e2(utterances: List[Utterance], corpus: EvidenceCorpus) -> List[
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Tier E3 検出（先行実行フレーミング: 事象N L44/L55 型・2026-07-16 増補7 で新設）
+#
+# 2ルール。判定原理は E1 と同枠（ターン局所の tool_use 不在）だが、完了語彙ではなく「先行実行の
+# 出力待ち」「幻の先行作成の再作成」という段取り宣言（前提化マーカー）を検知対象にする。
+#   rule1 phantom_prior_execution_reference（L44 型）: 「出力が返っていない」等の先行実行参照＋
+#         当ターンに先行 tool_use ゼロ（＋当発話自身が当ターン初の tool_use を発行）。
+#   rule2 phantom_recreation_claim（L55 型）: 「再作成」＋当ターンが「裏付けなし create 完了主張」を
+#         持つ文脈（coupling）。
+# CONDITIONAL_EXCLUDE_RE は経由しない独立パス（L44「結果を確認します」が消えるため）。降格は
+# _tier_b_reference / _is_meta_utterance / _suppression を再利用。conf=0.55（active）/0.4（降格）。
+# Stop は tiers="ABC" で E を走らせない＝非ブロック（settings.json・stop_guard 無改修）。
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _turn_has_backing_create(turn_utts: List[Utterance]) -> bool:
+    """当ターンに「実際の作成」実行（Write/NotebookEdit ∨ worktree add/wt-new/checkout -b/clone）が
+    あるか。あれば「再作成」は実行に裏打ちされ幻ではない → rule2 の coupling を外す。"""
+    for u in turn_utts:
+        for t in u.tool_uses:
+            if t.name in ("Write", "NotebookEdit"):
+                return True
+            if t.name == "Bash":
+                cmd = t.input.get("command", "") if isinstance(t.input, dict) else ""
+                if BASH_CREATE_RE.search(cmd):
+                    return True
+    return False
+
+
+def _turn_has_unbacked_create_claim(turn_utts: List[Utterance]) -> bool:
+    """当ターンに「裏付けなし create 完了主張」（実 create tool_use が無いのに『作成成功/作成完了』）が
+    あるか。rule2 はこの幻 create 文脈が同居するときだけ「再作成」を拾う——単独の再作成は正当（センチネル
+    再作成等）が多く FP0 不可（較正実測: 広く採ると22件のFP）。E1 が create 幻を掴む文脈でのみ「先行作成
+    前提が持続した第二の痕跡」を独立 Finding にする（CONDITIONAL_EXCLUDE を使うのは create 完了主張の
+    検出側だけ＝マーカー『再作成』には適用しない）。"""
+    if _turn_has_backing_create(turn_utts):
+        return False
+    for u in turn_utts:
+        for sent in split_sentences(u.text):
+            if EXAMPLE_EXCLUDE_RE.search(sent) or CONDITIONAL_EXCLUDE_RE.search(sent):
+                continue
+            if sent.count("|") >= 2:
+                continue  # md 表セルは実行結果の転記・要約
+            if _tier_b_reference(u.text, sent) or _is_meta_utterance(u.text):
+                continue  # 引用・分析文脈の完了主張は幻 create 文脈に数えない
+            if CREATE_COMPLETION_RE.search(sent):
+                return True
+    return False
+
+
+def detect_tier_e3(records: List[dict], all_utterances: List[Utterance],
+                   corpus: EvidenceCorpus, scope: str = "all") -> List[Finding]:
+    """
+    先行実行フレーミング（事象N L44/L55 型）。ターン局所で「先行実行の出力待ち」を前提化する参照
+    （rule1）・「幻の先行作成」を前提化する再作成宣言（rule2）を拾う。tool_index は不要（tool 名/
+    コマンドは Utterance.tool_uses から取れる）。corpus は _suppression の降格判定にのみ使う。
+    """
+    findings: List[Finding] = []
+    suppressed = _suppression(corpus)  # truncation / subagent_unresolved。メタ・引用は主張文単位で除外。
+
+    # rule1 の grounding ガード用の事前集計（司令塔レビューで特定した FP クラス封じ）:
+    # なぜ要るか: 前ターンで run_in_background の Bash / 非同期 Agent を起動し、即時 result
+    # 「running in background」を受けたのち、新しい人間ターンで「出力が返ってこないので確認します」＋
+    # 確認コマンドを出すのは正当な完了待ち参照だが、rule1 の「当ターン先行 tool_use ゼロ」だけでは
+    # 構造上 FP になる。現コーパスに例が無いだけで、この開発環境はバックグラウンド実行が日常＝将来
+    # 確実に出る FP クラス。特定 task-id の突合は tool_index を要するため、〈起動数 > 完了通知数〉の
+    # 件数比較で「未完了のバックグラウンド起動が残っている」を最小構成で判定し、降格側（不発火）へ倒す。
+    # 起動＝run_in_background 真の tool_use（実データで Bash 非同期・Agent 非同期の双方がこのフラグを
+    # 持つことを確認）。完了通知＝ハーネス著者の <task-notification> user レコード。
+    bg_launch_orders = [
+        u.order for u in all_utterances for t in u.tool_uses
+        if isinstance(t.input, dict) and t.input.get("run_in_background")]
+    notif_orders = [
+        idx for idx, rec in enumerate(records)
+        if rec.get("type") == "user" and isinstance(_content_of(rec), str)
+        and "<task-notification>" in (_content_of(rec) or "")]
+
+    def _pending_background_before(order: int) -> bool:
+        launched = sum(1 for o in bg_launch_orders if o < order)
+        completed = sum(1 for n in notif_orders if n < order)
+        return launched > completed
+
+    for turn_start, turn_utts in _turn_segments(records, all_utterances, scope):
+        # ── rule1: phantom_prior_execution_reference（L44 型）──
+        # prior_tooluse＝このターンで発話 u より前に出た tool_use 数（同発話内 tool_use は「直前」に
+        # 数えないため、加算は各 u の text 評価の“後”に行う＝L44 は自身に Bash を同居させるため）。
+        prior_tooluse = 0
+        for u in turn_utts:
+            for sent in split_sentences(u.text):
+                if EXAMPLE_EXCLUDE_RE.search(sent):
+                    continue
+                if sent.count("|") >= 2:
+                    continue  # md 表セルは転記
+                if _tier_b_reference(u.text, sent) or _is_meta_utterance(u.text):
+                    continue
+                if not PRIOR_EXEC_REFERENCE_RE.search(sent):
+                    continue
+                # 強条件: 当ターンで発話直前まで実行痕跡ゼロ ∧ この発話自身が当ターン初の tool_use を
+                # 発行（＝「先行実行が済んで待ち」と言いつつ当ターン初コマンドを今出す矛盾を掴む＝
+                # 純コメント発話の FP を排除する精度ガード）。
+                if prior_tooluse != 0 or not u.tool_uses:
+                    continue
+                # grounding ガード: 未完了のバックグラウンド起動が u より前にあれば正当な完了待ち → 不発火。
+                if _pending_background_before(u.order):
+                    continue
+                findings.append(Finding(
+                    tier="E", rule="phantom_prior_execution_reference",
+                    confidence=0.55 if not suppressed else 0.4,
+                    msg_id=u.msg_id, timestamp=u.timestamp,
+                    claim_excerpt=sent.strip()[:200],
+                    missing_token="prior_tool_use:0",
+                    expected_tool_pattern="当ターンに先行する実 tool_use（出力の由来）が無い",
+                    suppressed_reason=suppressed,
+                ))
+                break  # 1発話1件
+            prior_tooluse += len(u.tool_uses)
+
+        # ── rule2: phantom_recreation_claim（L55 型）──
+        # coupling: 当ターンに「裏付けなし create 完了主張」が同居する幻 create 文脈でのみ「再作成」を拾う。
+        if not _turn_has_unbacked_create_claim(turn_utts):
+            continue
+        for u in turn_utts:
+            for sent in split_sentences(u.text):
+                if sent.count("|") >= 2:
+                    continue
+                if _tier_b_reference(u.text, sent) or _is_meta_utterance(u.text):
+                    continue
+                if RECREATE_CLAIM_RE.search(sent) and not RECREATE_NEGATION_RE.search(sent):
+                    findings.append(Finding(
+                        tier="E", rule="phantom_recreation_claim",
+                        confidence=0.55 if not suppressed else 0.4,
+                        msg_id=u.msg_id, timestamp=u.timestamp,
+                        claim_excerpt=sent.strip()[:200],
+                        missing_token="create",
+                        expected_tool_pattern=(
+                            "当ターンに実 create（worktree add/wt-new/checkout -b/clone/Write）が無い"),
+                        suppressed_reason=suppressed,
+                    ))
+                    break  # 1発話1件
+    return findings
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # エントリポイント
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -2129,6 +2288,7 @@ def analyze(text: str, transcript_path: Optional[str] = None,
       scope="last_turn" … 最後の assistant 発話の主張のみ検査（証拠・成功実行は全域から集める）
       tiers             … A=ペア欠落系 / B=未検証テスト主張 / C=misread（報告と実結果の食い違い）
                           / D=入力側捏造（幻のユーザー発話への言及・引用・応答）
+                          / E=完了主張束（E1）＋幻の probe 出力（E2）＋先行実行フレーミング（E3・L44/L55型）
       sha_exists        … Optional[Callable[[str], bool]]。SHA がリポジトリに実在するかの照合を
                           アダプタから注入（Tier A2 の降格判定。None なら照合しない＝従来動作。
                           core を純ロジックに保つため subprocess はアダプタ側が持つ）
@@ -2187,6 +2347,8 @@ def analyze(text: str, transcript_path: Optional[str] = None,
         e_scope = "all" if scope == "all" else "last_turn"
         findings += detect_tier_e1(records, all_utterances, tool_index, corpus, scope=e_scope)
         findings += detect_tier_e2(target, corpus)
+        # E3（先行実行フレーミング・増補7）: L44/L55 型。tool_index 不要（tool 名は Utterance から取る）。
+        findings += detect_tier_e3(records, all_utterances, corpus, scope=e_scope)
 
     # 信頼度降順で安定ソート
     findings.sort(key=lambda f: (f.suppressed_reason is not None, -f.confidence))
