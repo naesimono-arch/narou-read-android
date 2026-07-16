@@ -22,6 +22,7 @@ import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
 import java.io.File
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -111,7 +112,17 @@ data class ProcessingState(
     val isStopping: Boolean = false,
 )
 
-class BookshelfViewModel(application: Application) : AndroidViewModel(application) {
+// ioDispatcher: 進捗保存チャネルの消費など「テストで advanceUntilIdle→coVerify の順に
+// 検証する fire-and-forget な IO 書き込み」の実行ディスパッチャを注入可能にする。
+// なぜ注入か: init の progressChannel 消費を素の Dispatchers.IO で回すと、テストの
+// TestDispatcher（setMain 済み）管理外のスレッドで走るため advanceUntilIdle が消費完了を
+// 待てず coVerify とレースしてフレーキーになる（本番は既定 Dispatchers.IO のまま＝挙動不変）。
+// @JvmOverloads: Compose の viewModel()/AndroidViewModelFactory は (Application) 単一引数
+// コンストラクタをリフレクションで探すため、既定引数だけでは生成できない単一引数版を残す。
+class BookshelfViewModel @JvmOverloads constructor(
+    application: Application,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+) : AndroidViewModel(application) {
 
     private val app = application as NovelReaderApplication
     private val repository = app.repository
@@ -218,7 +229,9 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     private val progressChannel = Channel<ProgressEntity>(Channel.CONFLATED)
 
     init {
-        viewModelScope.launch(Dispatchers.IO) {
+        // なぜ ioDispatcher 注入か: 素の Dispatchers.IO だとテストの TestDispatcher 管理外で走り、
+        // advanceUntilIdle がチャネル消費完了を待てず coVerify とレースする（本番は既定＝IO のまま）。
+        viewModelScope.launch(ioDispatcher) {
             for (p in progressChannel) {
                 // ProgressEntity（Room 実体）をチャネルの搬送体に流用しているため中身は String。
                 // 永続化境界の repository へ渡す直前に BookId/ChapterFilename へ包み直す（型付き API への再包み）。
@@ -330,7 +343,9 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun deleteBook(book: BookEntity) {
-        viewModelScope.launch(Dispatchers.IO) { repository.deleteBook(book) }
+        // ioDispatcher 注入: deleteBook もテストで advanceUntilIdle→coVerify の順に検証するため、
+        // 素の Dispatchers.IO だと TestDispatcher 管理外で走りレースする（本番は既定＝IO のまま）。
+        viewModelScope.launch(ioDispatcher) { repository.deleteBook(book) }
     }
 
     // 複数選択→まとめて削除（残8）。選択モードの削除確認ダイアログを確定したときに呼ぶ。1コルーチンで
