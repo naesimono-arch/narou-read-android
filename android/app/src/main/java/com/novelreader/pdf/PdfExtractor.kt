@@ -135,7 +135,13 @@ object PdfExtractor {
      */
     fun extractBookMeta(doc: PDDocument): BookMeta {
         val chars = loadFirstPage(doc)
-        return BookMeta(titleFromChars(chars), authorFromChars(chars))
+        // 表紙フッター帯をページ高さ相対で出すため、実ページ高さを mediaBox から直接取る
+        // （GlyphStripper/CharBox の型は変えない＝変更面最小化の設計判断）。ページ0が無ければ
+        // 基準高さへフォールバック（この後 chars も空なので著者は空文字になる）。
+        val pageHeight =
+            if (doc.numberOfPages > 0) doc.getPage(0).mediaBox.height.toDouble()
+            else ParserRules.COVER_PAGE_HEIGHT
+        return BookMeta(titleFromChars(chars), authorFromChars(chars, pageHeight))
     }
 
     /**
@@ -154,18 +160,38 @@ object PdfExtractor {
     }
 
     /**
-     * 表紙文字列から著者(12pt・フッター除外)を結合して得る。移植元 python extract_book_author と同一。
-     * フッター(COVER_FOOTER_Y 付近)を除くのは、ページ番号/シリーズ名が著者と同サイズ(12pt)のため。
+     * 表紙文字列から著者（タイトル未満の最大サイズ群・フッター除外）を結合して得る。
+     * 移植元 python extract_book_author の思想を相対化: サイズは絶対 12pt 固定でなく「表紙内の最大サイズ
+     * ＝タイトル、より小さい最大サイズ＝著者」と実配置から選ぶ（検出できなければ FONT_SIZE_AUTHOR へ退避）。
+     * フッター帯はページ高さ相対（実高さ×COVER_FOOTER_Y/COVER_PAGE_HEIGHT・幅±COVER_FOOTER_Y_TOL）で除く。
+     * フッターを除くのは、ページ番号/シリーズ名（発行元表記）が著者と同サイズで下部に出るため。
      */
-    fun authorFromChars(chars: List<CharBox>): String =
-        chars
+    fun authorFromChars(chars: List<CharBox>, pageHeight: Double = ParserRules.COVER_PAGE_HEIGHT): String {
+        if (chars.isEmpty()) return ""
+        val authorSize = detectAuthorSize(chars)
+        // フッター帯の中心をページ高さ相対で求める。golden 高さ(595.28)では 500.0 と数値等価になり現行挙動保存。
+        val footerY = pageHeight * (ParserRules.COVER_FOOTER_Y / ParserRules.COVER_PAGE_HEIGHT)
+        return chars
             .filter {
-                ParserRules.isClose(it.size, ParserRules.FONT_SIZE_AUTHOR) &&
-                    !ParserRules.isClose(it.top, ParserRules.COVER_FOOTER_Y, absTol = ParserRules.COVER_FOOTER_Y_TOL)
+                ParserRules.isClose(it.size, authorSize) &&
+                    !ParserRules.isClose(it.top, footerY, absTol = ParserRules.COVER_FOOTER_Y_TOL)
             }
             .sortedWith(compareBy({ Math.round(it.top) }, { it.x0 }))
             .joinToString("") { it.text }
             .trim()
+    }
+
+    /**
+     * 表紙の著者サイズ＝「最大サイズ(タイトル)未満の最大サイズ群」。タイトル1種しかない表紙では
+     * 検出不能なので FONT_SIZE_AUTHOR(=12.0) へフォールバックする。
+     * なぜ最頻でなく最大: 著者はタイトル直下の見出し格で、惹句(より小さいサイズ)より必ず大きいという
+     * 現行レイアウト事実に基づく（惹句 11pt 等を誤って拾わないため）。
+     */
+    private fun detectAuthorSize(chars: List<CharBox>): Double {
+        val maxSize = chars.maxOf { it.size }
+        val below = chars.map { it.size }.filter { !ParserRules.isClose(it, maxSize) }
+        return below.maxOrNull() ?: ParserRules.FONT_SIZE_AUTHOR
+    }
 
     // ==========================================================
     // 【Phase 01-02】 本文抽出エンジン
@@ -186,8 +212,11 @@ object PdfExtractor {
         val charListsByPage = loadPages(doc) { loaded, total ->
             onProgress?.invoke(EnginePhase.LOAD, loaded, total)
         }
+        // 本文処理の前に、この文書の実配置から解析パラメータを検出する（検出不能な項目は FALLBACK＝
+        // 現行実測値へ退避）。生成側が同形状のまま寸法を微調整しても追随できるようにするため。
+        val rules = DetectedRules.detect(charListsByPage)
         // processPages が出す pct(10-60) は元々未使用のため捨て、(processed, bodyTotal) のみ前送りする。
-        return TextProcessor.processPages(charListsByPage, totalPages) { _, processed, bodyTotal ->
+        return TextProcessor.processPages(charListsByPage, totalPages, rules) { _, processed, bodyTotal ->
             onProgress?.invoke(EnginePhase.PROCESS, processed, bodyTotal)
         }
     }
