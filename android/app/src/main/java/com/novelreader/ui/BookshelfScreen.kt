@@ -106,6 +106,9 @@ fun BookshelfScreen(
     // 機能②: Web カードの読書導線＝なろうをアプリ内 WebView で開く（ADR 0012）。startEpisode 0=目次(初回)／
     // >0=記録した話へ直接(続きから)。navController は MainActivity が握るためコールバックで委譲する。
     onReadWebNovel: (ncode: String, startEpisode: Int) -> Unit = { _, _ -> },
+    // 遷移ジャンク対策（P2）: enter アニメ中だけ重いグリッドをスケルトンへ差替える指示。算出は
+    // NavHost の transition を持つ MainActivity の責務（ここは素通し）。既定 false＝既存呼出し不変。
+    deferHeavyContent: Boolean = false,
 ) {
     // Loading と Empty を型で区別する（F-O）。Loading 中はスケルトンを出し、
     // DB から Content(空) が確定して初めて空状態を表示することで cold start の空フラッシュを防ぐ。
@@ -240,6 +243,7 @@ fun BookshelfScreen(
         onResumeWebNovel = { novel, episode -> onReadWebNovel(novel.ncode, episode) },
         onImportWebNovel = { novel -> onImportWebNovel(novel.ncode) },
         onRemoveWebNovel = { viewModel.removeWebNovel(it.ncode) },
+        deferHeavyContent = deferHeavyContent,
     )
 
     // エラーは一度きりのイベントとして Channel から受信し Snackbar 表示する（VM イベント購読＝ルート層の責務）。
@@ -414,6 +418,9 @@ internal fun BookshelfContent(
     onResumeWebNovel: (novel: WebNovelEntity, episode: Int) -> Unit = { _, _ -> },
     onImportWebNovel: (WebNovelEntity) -> Unit = {},
     onRemoveWebNovel: (WebNovelEntity) -> Unit = {},
+    // 遷移ジャンク対策（P2・Perfetto 2026-07-16）: true の間（＝本棚の enter アニメ中）は重い Lazy コンテナを
+    // スケルトンへ差替える。既定 false＝既存の呼出し・Robolectric テストの描画は完全に不変。
+    deferHeavyContent: Boolean = false,
 ) {
     val isLoading = uiState is BookshelfUiState.Loading
     val books = (uiState as? BookshelfUiState.Content)?.books ?: emptyList()
@@ -786,6 +793,14 @@ internal fun BookshelfContent(
                     if (selectedStatus != null && shelfItems.isEmpty()) {
                         // 状態フィルタ絞り込みで0件（蔵書ゼロではない）＝ヘッダは残しつつ静かな案内を出す。
                         StatusFilterEmptyText(modifier = Modifier.padding(horizontal = Spacing.S24))
+                    } else if (deferHeavyContent) {
+                        // 遷移ジャンク対策（P2）: slide push の enter アニメ中は Lazy グリッド/リストの初回 measure
+                        //（実測51ms/フレーム＝ジャンク主因）がアニメフレームと同居して落ちる。Compose にサブツリーの
+                        // measure 凍結 API は無いため、遷移中だけ非 Lazy・固定寸で measure が格安な既存スケルトンへ
+                        // 差替え、実グリッドの measure をアニメ完了後の単独フレームへ移送する（版面＝左右24dp・列構成が
+                        // 一致するため輪郭のジャンプは無く、「読込→着地」の自然な体感になる）。gridState/listState・
+                        // フィルタ・選択は本分岐の外の remember(Saveable) が保持＝差替えを跨いでも失われない。
+                        BookshelfSkeleton(isGridView = isGridView, modifier = Modifier.fillMaxSize())
                     } else if (isGridView) {
                         // ────── グリッドレイアウト ──────
                         LazyVerticalGrid(

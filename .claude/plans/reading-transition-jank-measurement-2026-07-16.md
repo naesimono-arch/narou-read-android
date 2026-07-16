@@ -103,3 +103,13 @@
 3. 遷移を graphicsLayer 平行移動主体にし遷移中の re-measure を排す。trade-off: カスタム遷移/描画スナップショットが要り工数大（最も根治的）。
 
 **端末状態**: 計装 debug APK が実機に残存（蔵書 DB 無傷・後で通常版を install -r すれば戻る）。トレース 3本と解析スクリプトは scratchpad（セッション終了で揮発。数値は本節が正本）。
+
+## 修正実装と再計測（2026-07-16 同日・案1で実装）
+
+**実装＝案1（スケルトン差替え）**: 本棚 destination の enter アニメ中だけ `LazyVerticalGrid`/`LazyColumn` を既存 `BookshelfSkeleton` へ差替え（`MainActivity.kt` composable("bookshelf") で `transition.currentState/targetState` の離散比較→`BookshelfScreen`→`BookshelfContent(deferHeavyContent)` へ素通し）。案(a) GraphicsLayer 静止画は enter（戻り）で録画対象が dispose 済みのため原理的に不成立、案(b) サブツリー measure 凍結は Compose に API が無く不成立＝(c) 差替えが唯一 enter/exit 両立（設計比較は Plan エージェント検討・本節が要旨の正本）。
+
+**検証**:
+- 発動確認（一時ログ・revert 済み）: popEnter で defer=true→約300ms 後 false＝設計どおり遷移窓のみ差替え。
+- framestats（pop＝目次→本棚の1遷移）: **アニメ中フレームは 6〜15ms に浄化**・最悪は遷移冒頭の 71ms 1枚（旧 Perfetto 最悪 104.8ms〔うち grid measure 51ms〕→約30ms 短縮＝残りは dispose/NavHost レイヤ等の非grid成分と整合）。**アニメ後の実グリッド差戻しに 17ms 超のヒッチ無し**（LazyGrid 単独 measure はアニメ併走時より軽く済む）。
+- 6周 gfxinfo 集計（本棚⇄目次⇄本文・メニュータップ込みの同一ドライバ）: 修正前 Janky 7.96%/99th 93ms → 修正後 8.28%/105ms＝**誤差内**。理由＝①重い measure は「窓外へ移送」する設計で総量は不変（gfxinfo は窓内外を区別しない）②残る支配ジャンクは**目次画面の初回コンポーズ（93/81ms・P2 対象外の既知の副次）**で集計を握る。
+- 判定: **本棚 pop はもう最悪経路ではない**（71ms＜目次の93ms）。体感の最終判定はユーザー目視（スケルトン一瞬表示の見え方含む）。残るなら次の的は目次初回コンポーズ＝別タスク。

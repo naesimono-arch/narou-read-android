@@ -9,6 +9,7 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -239,8 +240,20 @@ private fun NovelReaderApp(
     ) {
 
         composable("bookshelf") {
+            // 遷移ジャンク対策（P2・Perfetto 2026-07-16 で主因確定）: 本棚グリッドの初回 measure（実測51ms/
+            // フレーム）が slide push のアニメフレームと同居して落ちるため、「本棚が enter アニメ中」の間だけ
+            // 重いグリッドをスケルトンへ差替える（BookshelfContent 側の分岐参照）。currentState/targetState は
+            // 遷移の端点でしか変化しない離散 State＝毎フレーム recompose を増やさない（連続 fraction は読まない）。
+            // exit（本棚→先へ進む）は既測グリッドで安価なため対象外＝実カードのままスライドアウトし視覚劣化なし。
+            val deferHeavyContent by remember {
+                derivedStateOf {
+                    transition.targetState == EnterExitState.Visible &&
+                        transition.currentState != EnterExitState.Visible
+                }
+            }
             BookshelfScreen(
                 viewModel = viewModel,
+                deferHeavyContent = deferHeavyContent,
                 appTheme = appTheme,
                 onThemeChange = onThemeChange,
                 onOpenBook = { bookId, startFile ->

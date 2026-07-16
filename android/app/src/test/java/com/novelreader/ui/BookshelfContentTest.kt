@@ -51,10 +51,12 @@ class BookshelfContentTest {
         onFabClick: () -> Unit = {},
         onOpenDiscovery: () -> Unit = {},
         onDeleteBooks: (List<BookEntity>) -> Unit = {},
+        deferHeavyContent: Boolean = false,
     ) {
         composeTestRule.setContent {
             MaterialTheme {
                 BookshelfContent(
+                    deferHeavyContent = deferHeavyContent,
                     uiState = uiState,
                     progressMap = progressMap,
                     chapterCountMap = chapterCountMap,
@@ -88,6 +90,15 @@ class BookshelfContentTest {
         setContent(BookshelfUiState.Loading)
         // Loading はスケルトンのみ。Content(空) が確定するまで空状態を出さない
         composeTestRule.onNodeWithText("本棚はまだ空です").assertDoesNotExist()
+    }
+
+    @Test
+    fun `遷移中(deferHeavyContent)はカードをスケルトンへ差替えヘッダは残す`() {
+        // P2 遷移ジャンク対策の配線担保: enter アニメ中は重い Lazy グリッドがコンポジションから外れ
+        //（＝表紙カードが存在しない）、帯・フィルタのヘッダは実表示のまま残ることを固定する。
+        setContent(BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))), deferHeavyContent = true)
+        composeTestRule.onNodeWithContentDescription("吾輩は猫である").assertDoesNotExist()
+        composeTestRule.onNodeWithText("新しい物語を見つける").assertIsDisplayed()
     }
 
     @Test
