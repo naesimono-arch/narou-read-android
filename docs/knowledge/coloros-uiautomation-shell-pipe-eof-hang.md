@@ -41,7 +41,8 @@ adb shell 'while ps -p <PID> >/dev/null 2>&1; do
 ## 適用範囲・前提
 
 - Macrobenchmark の全シナリオ（起動・スクロール jank・章送り）で必要になる想定。
-  ベンチ実行をスクリプト化するならこのループを標準装備すること。
+  ベンチ実行をスクリプト化するならこのループを標準装備すること
+  （2026-07-17 `tools/run_macrobenchmark.sh` として標準装備済み＝残骸チェック・`install -r -g`・除細動ループ同梱）。
 - 走行前に **perfetto / trace_processor_shell の残骸ゼロを確認**（`ps -A | grep -E "perfetto|trace_processor"`）。
   残骸の trace_processor が port 9001 を握ると新走行が版不一致応答を待ち続ける二次ハングになる。
   kill できない残骸は端末再起動で掃除。

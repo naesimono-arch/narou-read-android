@@ -31,9 +31,17 @@
 - **予算候補（未確定・assert 実装時に採用判断）**: median ≤ 350ms・max ≤ 500ms（実測 median×1.4 / max×1.8 の余裕。
   ColorOS の外乱と端末温度ばらつき込み。`-e enableBudgetAssert true` ゲートで有効化する設計は既定どおり）。
 
+## 起動予算 assert＋実行スクリプト（2026-07-17 実装済み・実機実走は未）
+
+- **予算採用**: median ≤ 350ms / max ≤ 500ms（上の候補どおり）。`-e enableBudgetAssert true` のときのみ判定（既定＝計測のみ・従来挙動不変）。
+- **値源＝benchmarkData.json**（`StartupBudget.kt`）: 1.4.1 実バイナリ確認で `measureRepeated` は全オーバーロード void・結果コールバック無し。一方 `ResultWriter.appendTestResult` が measureRepeated 毎リターン前に `*-benchmarkData.json` を累積書き出し（`androidx.benchmark.output.enable=true` が前提）→ 完了直後に JSON を読む方式が最も安定（experimental API 直呼び・RunListener 傍受は却下＝バージョン間で脆い）。
+- **残骸 JSON の偽 PASS 防止**: measureRepeated 開始時刻より JSON の lastModified が古ければ fail（output.enable 無効時に前回走行の残骸を拾う穴をレビューで検出・封鎖）。
+- **実行スクリプト＝`tools/run_macrobenchmark.sh`**（`--install`＝`install -r -g`／`--assert`／`--serial`）: 残骸チェック→`am instrument` 背景起動→PID ポーリング→SIGQUIT 除細動ループ（`ps -p` 生存判定）→出力本文で成否判定（exit code に頼らない）→JSON pull・median/max 表示→exit code 連動。約13分・タイムアウト30分。
+- 注: 前回実測の正確な `am instrument` 引数列は記録が無かったため、基本形＋`-e androidx.benchmark.output.enable true` を採用（初回 `--assert` 実走で要確認）。
+
 ## 残フェーズ（優先順）
 
-1. **起動予算 assert の実装**（上の予算候補で instrumentation 引数ゲート）＋ベンチ実行スクリプト化（除細動ループ同梱）
+1. **assert 経路の実機実走確認**（`tools/run_macrobenchmark.sh --install --assert`・実機前にユーザー確認）
 2. **10倍蔵書シーダー＋本棚スクロール jank**: `app/src/benchmark/` ソースセットに投入手段（BroadcastReceiver 等）を新設し `FrameTimingMetric` で LazyVerticalGrid/LazyColumn スクロールを計測。BookEntity 描画に必要な最小フェイクデータ（htmlDirPath/書影）の設計が要る
 3. **長時間章送り jank**: NativeReadingScreen のスワイプ章送りを uiautomator で連続駆動・漸進劣化を P90/P99 で観測（シード本＝実HTML章が要る→②のシーダーを拡張）
 4. **大PDF取込**: `TraceSectionMetric`（抽出パイプラインに trace 区間追加）＋大PDF アセットの置き場設計（git に大物を入れない）
