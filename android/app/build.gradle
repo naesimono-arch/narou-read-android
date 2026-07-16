@@ -30,7 +30,10 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            // R8 収縮＋難読化＋リソース削減。keep はライブラリ同梱の consumer ルールを
+            // 前提に不足分だけ proguard-rules.pro へ書く（設計根拠は同ファイル冒頭コメント）。
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -135,8 +138,9 @@ dependencies {
 
     // なろう公式API ディスカバリ (メタデータ取得のみ・本文は扱わない)。HTTP=Retrofit/OkHttp, JSON=Moshi codegen。
     // なぜ Moshi codegen: 既存の Room 用 KSP に相乗りでき settings.gradle 変更不要。かつ moshi-kotlin(リフレクション版)を
-    // 避けることで kotlin-reflect(約3MB) の混入を防ぐ。minifyEnabled=false で R8 収縮が効かない本プロジェクトでは
-    // 追加 dep がそのまま APK に乗るため、reflect 回避が APK サイズ維持に直結する。
+    // 避けることで kotlin-reflect(約3MB) の混入を防ぐ。R8 収縮を有効化した現在もこの選択は有効——
+    // リフレクション版は kotlin-reflect ごと広範な keep が必要になり収縮効果を殺すのに対し、
+    // codegen は proguard-rules.pro の生成アダプタ keep 2行で済む（Class.forName 解決のため keep 必須）。
     implementation 'com.squareup.retrofit2:retrofit:2.11.0'
     implementation 'com.squareup.retrofit2:converter-moshi:2.11.0'
     implementation 'com.squareup.moshi:moshi:1.15.1'
