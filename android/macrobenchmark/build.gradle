@@ -39,7 +39,10 @@ android {
 dependencies {
     implementation 'androidx.test.ext:junit:1.1.5'
     implementation 'androidx.test.uiautomator:uiautomator:2.3.0'
-    implementation 'androidx.benchmark:benchmark-macro-junit4:1.3.4'
+    // なぜ 1.4.1: 1.3.4 は Android 16(SDK 36) 実機でトレース開始がハング
+    // （perfetto --background-wait が stdin 設定待ちのまま永久待機・CPU 0 を実測）。
+    // 1.4.1 は Android 16 世代の安定版で minCompileSdk=34/minAGP=8.1.1＝現構成にそのまま入る
+    implementation 'androidx.benchmark:benchmark-macro-junit4:1.4.1'
 }
 
 androidComponents {

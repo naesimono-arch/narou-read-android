@@ -101,6 +101,11 @@ ksp {
 
 dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
+    // なぜ明示 1.4.1: 推移解決の 1.3.1 は SDK 分岐が閉じた switch（〜34）で、Android 16(SDK 36) 実機だと
+    // ベースラインプロファイル注入が RESULT_UNSUPPORTED_ART_VERSION になり Macrobenchmark
+    // （CompilationMode.DEFAULT）が走れない。1.4.1 は SDK>=31 を上限なしで V015_S 扱い（bytecode 検分済み）
+    // かつ minCompileSdk=34 なので compileSdk 34 制約と整合。実利用でも初回起動のプロファイル注入が直る。
+    implementation 'androidx.profileinstaller:profileinstaller:1.4.1'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
     // U1 新着話チェックの定期実行（24h 周期・ネットワーク制約）。2.9.1 は compileSdk 34 で解決できる安定版
     // （2.10+ は compileSdk 35 前提のため避ける＝lifecycle 2.6.2 固定と同じ制約系）。
