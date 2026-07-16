@@ -36,7 +36,10 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.DisposableEffect
@@ -96,6 +99,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import kotlin.math.abs
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
@@ -1028,6 +1032,24 @@ internal fun ChapterScreenContent(
     // 変わるため、onSizeChanged で実測した高さ分だけスライドさせて完全に画面外へ退避させる。
     var bottomBarHeightPx by remember { mutableIntStateOf(0) }
 
+    // 左右スワイプで章送り（handover D 回収・2026-07-16 指示）: 旧 experiment/lab-old は WebView 実装で
+    // 流用不可のため draggable で新規実装。縦スクロールとの軸判別は draggable(Horizontal) の touch slop に
+    // 委ねる（旧知見 de60869「軸ロック」相当）。発火は「距離 OR 速度」の複合（旧知見 4a0719b 踏襲）＝
+    // ゆっくり大きく引くか、素早く弾くかのどちらかで送る。左へ払う=次章／右へ払う=前章（slide push の
+    // 「進む=右→左」と同じ身体感覚・ADR 0019）。端章は無反応: ボタンの index.html 縮退と違い、スワイプで
+    // 目次へ跳ぶのは予期しない移動になるため。閾値は暫定較正値（実機後詰め層＝ADR0005 §B）。
+    val density = LocalDensity.current
+    var horizontalDragTotal by remember { mutableFloatStateOf(0f) }
+    val swipeNavigate: (Float, Float) -> Unit = navigate@{ total, velocityPx ->
+        val distanceThreshold = with(density) { 96.dp.toPx() }
+        val velocityThreshold = with(density) { 700.dp.toPx() } // px/s（dp/s 換算の速度閾値）
+        if (total == 0f || !navEnabled) return@navigate
+        if (abs(total) < distanceThreshold && abs(velocityPx) < velocityThreshold) return@navigate
+        // 方向は実際に動かした距離の符号で決める（速度は発火条件にのみ使う＝弾き戻りの誤方向を防ぐ）
+        val target = if (total < 0f) nextFile else prevFile
+        if (target != "index.html") onNavigateTo(target)
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1105,7 +1127,14 @@ internal fun ChapterScreenContent(
                             }
                             scope.launch { settleTopBar(topAppBarState, target) }
                         })
-                    },
+                    }
+                    // 左右スワイプで章送り（判定ロジックは swipeNavigate）。累積距離はドラッグ開始で毎回リセット。
+                    .draggable(
+                        state = rememberDraggableState { delta -> horizontalDragTotal += delta },
+                        orientation = Orientation.Horizontal,
+                        onDragStarted = { horizontalDragTotal = 0f },
+                        onDragStopped = { velocity -> swipeNavigate(horizontalDragTotal, velocity) },
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 when (val result = parseResult) {
