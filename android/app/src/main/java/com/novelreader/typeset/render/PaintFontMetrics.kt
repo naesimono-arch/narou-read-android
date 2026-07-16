@@ -3,6 +3,7 @@ package com.novelreader.typeset.render
 import android.graphics.Paint
 import android.graphics.Typeface
 import com.novelreader.typeset.FontMetricsProvider
+import com.novelreader.typeset.LeaderJoin
 
 /**
  * 半角 ASCII（可視域 0x20〜0x7E）の 1 文字か。
@@ -41,6 +42,12 @@ class PaintFontMetrics(typeface: Typeface = Typeface.SERIF) : FontMetricsProvide
         // 半角のみからなる複数文字（縦中横 run）: 1 マス（正方セル）に収める契約＝縦送りは fontSizePx。
         if (unitText.length > 1 && unitText.all { isHalfWidthAscii(it) }) {
             return fontSizePx
+        }
+        // 結合リーダー run（……・――＝同一リーダー字の連結。LeaderJoin の KDoc 参照）: 一体で回転
+        // 描画するため、回転前の横幅（measureText）がそのまま縦の占有になる。
+        if (unitText.length > 1 && unitText.all { it == unitText[0] && it in LeaderJoin.CHARS }) {
+            paint.textSize = fontSizePx
+            return paint.measureText(unitText)
         }
         // それ以外（全角・書記素）: 全角の縦送り＝em マス。P2 は em 送りで開始し、実測が必要になったら
         // P6 版面較正で precise 化する（フォント縦メトリクスからの実 advance 化はここに差し込む）。

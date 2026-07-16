@@ -70,9 +70,10 @@ class VertGlyphRenderer : GlyphRenderer {
         }
     }
 
-    /** MANUAL_ROTATE_REQUIRED の実測字、または半角 ASCII 1 字は自前回転が必要。 */
+    /** MANUAL_ROTATE_REQUIRED の実測字（結合リーダー「……」等＝同字の連結も同経路）、
+     *  または半角 ASCII 1 字は自前回転が必要。 */
     private fun isManualRotate(text: String): Boolean =
-        text in VertFeatureCoverage.MANUAL_ROTATE_REQUIRED ||
+        (text.isNotEmpty() && text.all { it.toString() in VertFeatureCoverage.MANUAL_ROTATE_REQUIRED }) ||
             (text.length == 1 && isHalfWidthAscii(text[0]))
 
     /**

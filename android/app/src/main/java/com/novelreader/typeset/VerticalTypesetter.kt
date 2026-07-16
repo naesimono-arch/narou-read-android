@@ -175,8 +175,30 @@ class DefaultVerticalTypesetter(private val metrics: FontMetricsProvider) : Vert
     }
 
     private fun appendClassifiedGraphemes(units: MutableList<TypesetUnit>, text: String) {
-        for (g in RubyLayoutHelper.splitGraphemes(text)) {
+        val graphemes = RubyLayoutHelper.splitGraphemes(text)
+        var i = 0
+        while (i < graphemes.size) {
+            val g = graphemes[i]
+            // 連続リーダー（……・――）は1ユニットへ結合して一体回転（LeaderJoin の KDoc 参照）。
+            // 同一字の連続のみ・上限 MAX_RUN（結合ユニットは列を跨げない原子のため）。
+            if (g.length == 1 && g[0] in LeaderJoin.CHARS) {
+                var j = i + 1
+                while (j < graphemes.size && graphemes[j] == g && (j - i) < LeaderJoin.MAX_RUN) j++
+                if (j - i > 1) {
+                    units.add(
+                        TypesetUnit(
+                            text = graphemes.subList(i, j).joinToString(""),
+                            charClass = CharClass.ROTATE,
+                            isRubyBase = false,
+                            segmentIndex = -1,
+                        ),
+                    )
+                    i = j
+                    continue
+                }
+            }
             units.add(TypesetUnit(g, CharClassifier.classify(g), isRubyBase = false, segmentIndex = -1))
+            i++
         }
     }
 

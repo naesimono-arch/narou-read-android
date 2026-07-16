@@ -9,6 +9,14 @@ package com.novelreader.typeset
  * 境界の存在意義そのもので、その差の吸収は P2 の実 Paint 実装＋golden で担保する。
  */
 class FakeMonospaceMetrics : FontMetricsProvider {
-    override fun verticalAdvance(unitText: String, fontSizePx: Float): Float = fontSizePx
+    override fun verticalAdvance(unitText: String, fontSizePx: Float): Float =
+        // 結合リーダー run（……等）だけは実装（PaintFontMetrics）と同じく「横幅＝字数ぶん」を返す
+        // ＝折返し・座標テストが結合ユニットの実寸法（Nマス）を前提にできるように規則を鏡写しにする。
+        if (unitText.length > 1 && unitText.all { it == unitText[0] && it in LeaderJoin.CHARS }) {
+            fontSizePx * unitText.length
+        } else {
+            fontSizePx
+        }
+
     override fun horizontalAdvance(text: String, fontSizePx: Float): Float = fontSizePx * text.length
 }

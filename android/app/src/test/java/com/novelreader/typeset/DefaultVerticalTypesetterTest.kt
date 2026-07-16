@@ -64,6 +64,27 @@ class DefaultVerticalTypesetterTest {
     }
 
     @Test
+    fun `連続リーダーは1ユニットへ結合され実寸を占有する`() {
+        // 「……」（…×2）は結合1ユニット・ROTATE・縦送りはフェイク規則どおり2マス＝20f。
+        val layout = typesetter.typeset(listOf(TextSegment.Plain("だ……。")), constraints)
+        val leader = layout.glyphs.first { it.text == "……" }
+        assertEquals(CharClass.ROTATE, leader.charClass)
+        assertEquals(20f, leader.advancePx, 1e-4f)
+        // だ(1マス)の後ろに続く＝y=10 から2マス占有。
+        assertEquals(10f, leader.y, 1e-4f)
+    }
+
+    @Test
+    fun `リーダー結合は同一字のみで上限4`() {
+        // 異種（…と‥）は結合しない。
+        val mixed = typesetter.typeset(listOf(TextSegment.Plain("…‥")), constraints)
+        assertEquals(listOf("…", "‥"), mixed.glyphs.map { it.text })
+        // 同一字6連は上限4で割れる（4+2）。
+        val long = typesetter.typeset(listOf(TextSegment.Plain("………………")), constraints)
+        assertEquals(listOf("…………", "……"), long.glyphs.map { it.text })
+    }
+
+    @Test
     fun `StyledBlockは例外`() {
         val block = TextSegment.StyledBlock("前書き", persistentListOf(TextSegment.Plain("中身")))
         try {

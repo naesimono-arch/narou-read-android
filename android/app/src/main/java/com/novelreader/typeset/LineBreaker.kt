@@ -47,8 +47,10 @@ object LineBreaker {
     /** 行末禁則（列末に来てはいけない）＝開き括弧。 */
     private val LINE_END_FORBIDDEN: Set<Char> = "「『（〔［｛〈《【".toSet()
 
+    // 全文字が禁則字なら禁則（結合リーダー「……」等の複数字ユニットも行頭禁則を維持するため。
+    // 縦中横 "12" 等は数字が禁則表に無いので該当しない）。
     private fun isLineHeadForbidden(text: String): Boolean =
-        text.length == 1 && text[0] in LINE_HEAD_FORBIDDEN
+        text.isNotEmpty() && text.all { it in LINE_HEAD_FORBIDDEN }
 
     private fun isLineEndForbidden(text: String): Boolean =
         text.length == 1 && text[0] in LINE_END_FORBIDDEN
