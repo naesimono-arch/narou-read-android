@@ -31,6 +31,28 @@ object StartupBudget {
     // StartupTimingMetric が benchmarkData.json の metrics マップに出すキー名
     private const val METRIC_KEY = "timeToInitialDisplayMs"
 
+    /**
+     * 適用する予算値を instrumentation 引数（`budgetMedianMs` / `budgetMaxMs`）で上書き可能にする。
+     *
+     * なぜ上書きを許すか:
+     * FAIL 経路（予算超過）の実機実証と、将来の予算較正（端末更新・OS 更新での基準見直し）を
+     * コード変更・再ビルドなしで行えるようにするため。既定は上の実測由来の定数のまま。
+     *
+     * 未指定（引数が無い／空白）なら既定へ落とす。ただし空白でない文字列が明示指定されて
+     * かつ Double としてパース不能な場合は、サイレントに既定へ落とさず AssertionError で fail する
+     * ——指定ミス（typo・単位付き等）を黙って既定で走らせると、意図した予算と違う値で緑になり
+     *   較正事故（効かないゲート）の温床になるため。
+     */
+    private fun resolveBudget(argKey: String, default: Double): Double {
+        val raw = InstrumentationRegistry.getArguments().getString(argKey)
+        if (raw == null || raw.isBlank()) return default
+        return raw.trim().toDoubleOrNull()
+            ?: throw AssertionError(
+                "instrumentation 引数 $argKey='$raw' を Double として解釈できない。" +
+                    "予算の指定ミスは既定へ黙って落とさず fail する（較正事故防止）。"
+            )
+    }
+
     /** instrumentation 引数 `enableBudgetAssert` を真偽解釈（未指定は false＝従来どおり計測のみ）。 */
     fun isBudgetAssertEnabled(): Boolean =
         InstrumentationRegistry.getArguments().getString("enableBudgetAssert").toBoolean()
@@ -93,9 +115,12 @@ object StartupBudget {
         val median = metric.getDouble("median")
         val max = metric.getDouble("maximum")
 
+        val budgetMedian = resolveBudget("budgetMedianMs", BUDGET_MEDIAN_MS)
+        val budgetMax = resolveBudget("budgetMaxMs", BUDGET_MAX_MS)
+
         val violations = buildList {
-            if (median > BUDGET_MEDIAN_MS) add("median=${median}ms > 予算 ${BUDGET_MEDIAN_MS}ms")
-            if (max > BUDGET_MAX_MS) add("maximum=${max}ms > 予算 ${BUDGET_MAX_MS}ms")
+            if (median > budgetMedian) add("median=${median}ms > 予算 ${budgetMedian}ms")
+            if (max > budgetMax) add("maximum=${max}ms > 予算 ${budgetMax}ms")
         }
         if (violations.isNotEmpty()) {
             throw AssertionError(
@@ -103,6 +128,15 @@ object StartupBudget {
                     "(JSON: ${json.absolutePath})"
             )
         }
+
+        // 予算内（PASS）でも実測値と適用予算を1行 logcat に残す。
+        // なぜ成功時も出すか: 無音だと「assert が本当に実行されたのか／どの予算で緑になったのか」を
+        // logcat から確認できず、効かないゲート（永遠に緑）と区別できないため＝診断性の担保。
+        android.util.Log.i(
+            "StartupBudget",
+            "PASS coldStartup $METRIC_KEY median=${median}ms max=${max}ms " +
+                "(適用予算 median<=${budgetMedian}ms max<=${budgetMax}ms)"
+        )
     }
 
     /**

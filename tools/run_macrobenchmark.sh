@@ -16,12 +16,17 @@
 #   tools/run_macrobenchmark.sh                          # 計測のみ（従来挙動）
 #   tools/run_macrobenchmark.sh --install                # APK を install -r -g してから計測
 #   tools/run_macrobenchmark.sh --assert                 # 起動予算 assert を有効化して計測
+#   tools/run_macrobenchmark.sh --assert --budget-median 100 --budget-max 100  # 予算を絞って FAIL 経路を実証
 #   tools/run_macrobenchmark.sh --install --assert --serial 192.168.1.210:5555
 #
 # 注意:
 #   コールド起動5反復は除細動込みで約13分（knowledge 実測）。タイムアウトは余裕を持たせてある。
 #
 set -euo pipefail
+# set -e の地雷回避方針: コマンド置換 `X="$(pipe)"` は pipefail 下で中間段(pidof/ls 等)が
+# 非ゼロを返すと代入文ごと非ゼロ化し、die を経由せず即 exit する。`A && B` 単文もリスト全体が
+# 非ゼロだと同型で死ぬ。ゆえに「失敗が正常な段」は先頭段に `|| true` を挟むか if 化して失敗許容を
+# 明示する（本来 die すべき経路＝タイムアウト・install 失敗・起動失敗は従来どおり die させる）。
 
 # ---- 定数 ---------------------------------------------------------------
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -45,11 +50,15 @@ HEARTBEAT_SEC=15          # 進行表示の周期
 DO_ASSERT=0
 DO_INSTALL=0
 SERIAL=""
+BUDGET_MEDIAN=""   # 空なら透過しない＝StartupBudget 側の既定定数が使われる
+BUDGET_MAX=""      # 同上（--assert と併用前提。単独指定は assert 無効なら無視される）
 while [ $# -gt 0 ]; do
   case "$1" in
     --assert)  DO_ASSERT=1; shift ;;
     --install) DO_INSTALL=1; shift ;;
     --serial)  SERIAL="${2:-}"; shift 2 ;;
+    --budget-median) BUDGET_MEDIAN="${2:-}"; shift 2 ;;
+    --budget-max)    BUDGET_MAX="${2:-}"; shift 2 ;;
     -h|--help)
       grep '^#' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0 ;;
@@ -71,7 +80,10 @@ die()  { printf '%s %s\n' "[ERROR]" "$*" >&2; exit 1; }
 mapfile -t ONLINE < <(adb devices | awk '/\tdevice$/ {print $1}')
 if [ -n "$SERIAL" ]; then
   found=0
-  for s in "${ONLINE[@]:-}"; do [ "$s" = "$SERIAL" ] && found=1; done
+  # `[ ... ] && found=1` 単文は不一致行でリスト全体が非ゼロ→set -e の地雷。if 化で失敗許容を明示。
+  for s in "${ONLINE[@]:-}"; do
+    if [ "$s" = "$SERIAL" ]; then found=1; fi
+  done
   [ "$found" -eq 1 ] || die "指定 serial '$SERIAL' が接続中デバイスに無い。adb-bridge 済みか確認。"
 else
   case "${#ONLINE[@]}" in
@@ -122,6 +134,13 @@ INSTR_ARGS=(am instrument -w
 if [ "$DO_ASSERT" -eq 1 ]; then
   INSTR_ARGS+=(-e enableBudgetAssert true)
 fi
+# 予算上書き値を透過（--assert 併用前提）。指定時のみ付与し、未指定なら StartupBudget の既定定数に委ねる。
+if [ -n "$BUDGET_MEDIAN" ]; then
+  INSTR_ARGS+=(-e budgetMedianMs "$BUDGET_MEDIAN")
+fi
+if [ -n "$BUDGET_MAX" ]; then
+  INSTR_ARGS+=(-e budgetMaxMs "$BUDGET_MAX")
+fi
 INSTR_ARGS+=("${TEST_PACKAGE}/${TEST_RUNNER}")
 
 log "instrument 起動: ${INSTR_ARGS[*]}"
@@ -141,8 +160,10 @@ trap cleanup EXIT
 DEV_PID=""
 poll_start=$(date +%s)
 while :; do
-  DEV_PID="$("${ADB[@]}" shell pidof "$TEST_PACKAGE" 2>/dev/null | tr -d '\r' | awk '{print $1}')"
-  [ -n "$DEV_PID" ] && break
+  # 起動前は pidof が exit 1（未起動＝正常）→ pipefail でパイプ全体が非ゼロ→代入文ごと即 exit する
+  # のが実走即死の真因。pidof 段を `|| true` で失敗許容し、未起動時は空文字を得てポーリング継続。
+  DEV_PID="$({ "${ADB[@]}" shell pidof "$TEST_PACKAGE" 2>/dev/null || true; } | tr -d '\r' | awk '{print $1}')"
+  if [ -n "$DEV_PID" ]; then break; fi
   # instrument がプロセス起動前に落ちていないか監視
   if ! kill -0 "$INSTR_ADB_PID" 2>/dev/null; then
     log "instrument がテストプロセス起動前に終了。ログ末尾:"; tail -n 40 "$LOG_FILE" >&2; die "起動失敗"
@@ -193,10 +214,16 @@ fi
 log "本文判定: $STATUS（adb exit=$INSTR_RC）"
 
 # ---- 9. benchmarkData.json を pull して median/max を表示 ---------------
-JSON_ON_DEV="$("${ADB[@]}" shell "ls -t ${DEVICE_MEDIA_DIR}/*benchmarkData.json 2>/dev/null | head -1" | tr -d '\r')"
+# ls がファイル未発見で非ゼロを返す経路がある→コマンド置換ごと即 exit しないよう `|| true` で許容。
+JSON_ON_DEV="$({ "${ADB[@]}" shell "ls -t ${DEVICE_MEDIA_DIR}/*benchmarkData.json 2>/dev/null | head -1" || true; } | tr -d '\r')"
 if [ -n "$JSON_ON_DEV" ]; then
   LOCAL_JSON="$RESULT_DIR/$(basename "$JSON_ON_DEV")"
-  "${ADB[@]}" pull "$JSON_ON_DEV" "$LOCAL_JSON" >/dev/null 2>&1 && log "pull: $LOCAL_JSON"
+  # pull は結果表示の副次パス＝失敗しても die させず警告で継続（本体の PASS/FAIL 判定は済んでいる）。
+  if "${ADB[@]}" pull "$JSON_ON_DEV" "$LOCAL_JSON" >/dev/null 2>&1; then
+    log "pull: $LOCAL_JSON"
+  else
+    log "pull 失敗: $JSON_ON_DEV（結果表示のみスキップ・計測本体は完了済み）"
+  fi
   if command -v python3 >/dev/null 2>&1 && [ -f "$LOCAL_JSON" ]; then
     python3 - "$LOCAL_JSON" <<'PY' || true
 import json, sys
