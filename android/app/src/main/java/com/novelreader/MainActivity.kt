@@ -3,10 +3,13 @@ package com.novelreader
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -85,6 +88,22 @@ class MainActivity : ComponentActivity() {
         // NovelReaderTheme 内で WindowCompat.getInsetsController を使うため、
         // setDecorFitsSystemWindows は setContent より前に呼ぶ必要がある
         WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        // 没入トグルの上端ちらつき対策（幾何側の根治・2026-07-16）: カットアウト（実機実測=上端160pxの
+        // パンチホール帯）は既定モードだと「ステータスバー表示中のみ」アプリ描画が入る＝読書の没入トグルで
+        // systemBars を hide/show するたびに上端 160px が letterbox⇄アプリ描画で伸縮し、その window リサイズ
+        // 過渡フレームがちらつきとして見える（window 背景をテーマ色にした fc27ce2 は色差の緩和のみで伸縮は残存）。
+        // 常時カットアウト帯まで描画するモードへ固定し、バー出没で window 幾何が一切変わらないようにする。
+        // ALWAYS は API30+（横画面の長辺カットアウトにも効く）・28-29 は SHORT_EDGES（縦画面はこれで同等）。
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
 
         setContent {
             // 見た目テーマの正本を MainActivity へ巻き上げ、本棚(NovelReaderTheme)と読書(ReadingScreen)で
@@ -221,8 +240,20 @@ private fun NovelReaderApp(
     ) {
 
         composable("bookshelf") {
+            // 遷移ジャンク対策（P2・Perfetto 2026-07-16 で主因確定）: 本棚グリッドの初回 measure（実測51ms/
+            // フレーム）が slide push のアニメフレームと同居して落ちるため、「本棚が enter アニメ中」の間だけ
+            // 重いグリッドをスケルトンへ差替える（BookshelfContent 側の分岐参照）。currentState/targetState は
+            // 遷移の端点でしか変化しない離散 State＝毎フレーム recompose を増やさない（連続 fraction は読まない）。
+            // exit（本棚→先へ進む）は既測グリッドで安価なため対象外＝実カードのままスライドアウトし視覚劣化なし。
+            val deferHeavyContent by remember {
+                derivedStateOf {
+                    transition.targetState == EnterExitState.Visible &&
+                        transition.currentState != EnterExitState.Visible
+                }
+            }
             BookshelfScreen(
                 viewModel = viewModel,
+                deferHeavyContent = deferHeavyContent,
                 appTheme = appTheme,
                 onThemeChange = onThemeChange,
                 onOpenBook = { bookId, startFile ->

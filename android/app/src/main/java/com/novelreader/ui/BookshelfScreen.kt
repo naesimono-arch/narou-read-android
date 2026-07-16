@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -105,6 +106,9 @@ fun BookshelfScreen(
     // 機能②: Web カードの読書導線＝なろうをアプリ内 WebView で開く（ADR 0012）。startEpisode 0=目次(初回)／
     // >0=記録した話へ直接(続きから)。navController は MainActivity が握るためコールバックで委譲する。
     onReadWebNovel: (ncode: String, startEpisode: Int) -> Unit = { _, _ -> },
+    // 遷移ジャンク対策（P2）: enter アニメ中だけ重いグリッドをスケルトンへ差替える指示。算出は
+    // NavHost の transition を持つ MainActivity の責務（ここは素通し）。既定 false＝既存呼出し不変。
+    deferHeavyContent: Boolean = false,
 ) {
     // Loading と Empty を型で区別する（F-O）。Loading 中はスケルトンを出し、
     // DB から Content(空) が確定して初めて空状態を表示することで cold start の空フラッシュを防ぐ。
@@ -153,15 +157,6 @@ fun BookshelfScreen(
     // このアプリでは題字主役の目録が素直＝生成書影を捨てて装画を捏造しない）。グリッドは切替で残す
     // （実機で要否を詰める。将来グリッドを廃するならこのトグルと GridBookCard 経路ごと整理する）。
     var isGridView by remember { mutableStateOf(prefs.getBoolean("is_grid_view", false)) }
-
-    // 削除UIの方式（SharedPreferencesで永続化）。0=長押しメニュー / 1=⋮メニュー。
-    // なぜトグルで両方式を残すか: 2方式を実機で触り比べて採用方式を決めるための一時機構。
-    // 採用方式が確定したら、他方の分岐とこのトグル自体を削除する。
-    // 既定を 1(⋮メニュー) にした理由（UX監査 M5）: 既定 0(長押しのみ) は削除手段に可視の
-    // 手がかりが無く、長押しを知らないユーザーは本を削除できない（発見不能）。視覚言語D の
-    // フラット構図は崩したくないが、削除の発見性を優先し、既存トークンの控えめな⋮を既定で出す。
-    // 長押し経路も残す（⋮に気づかない層のフォールバック）。トグルで長押しのみへ戻せる。
-    var deleteUiMode by remember { mutableStateOf(prefs.getInt("delete_ui_mode", 1)) }
 
     // 通知権限 priming（notify Minor 2026-07-12）: システム権限ダイアログの前に理由説明を挟むためのフラグ。
     // 一度提示したら以後は出さない（notif_priming_shown で永続化）＝毎回のFABタップで問い直さない。
@@ -228,11 +223,6 @@ fun BookshelfScreen(
             isGridView = !isGridView
             prefs.edit().putBoolean("is_grid_view", isGridView).apply()
         },
-        deleteUiMode = deleteUiMode,
-        onToggleDeleteMode = {
-            deleteUiMode = if (deleteUiMode == 1) 0 else 1
-            prefs.edit().putInt("delete_ui_mode", deleteUiMode).apply()
-        },
         onFabClick = onFabClick,
         // 開く際の再開ファイル解決（suspend の DB 参照）はルート層の責務。描画層は BookEntity を渡すだけ。
         onOpenBook = { book ->
@@ -242,7 +232,7 @@ fun BookshelfScreen(
                 onOpenBook(book.id, lastReadFile)
             }
         },
-        onDeleteBook = { viewModel.deleteBook(it) },
+        onDeleteBooks = { viewModel.deleteBooks(it) },
         onOpenDiscovery = onOpenDiscovery,
         onCancelProcessing = { viewModel.cancelProcessing() },
         snackbarHostState = snackbarHostState,
@@ -253,6 +243,7 @@ fun BookshelfScreen(
         onResumeWebNovel = { novel, episode -> onReadWebNovel(novel.ncode, episode) },
         onImportWebNovel = { novel -> onImportWebNovel(novel.ncode) },
         onRemoveWebNovel = { viewModel.removeWebNovel(it.ncode) },
+        deferHeavyContent = deferHeavyContent,
     )
 
     // エラーは一度きりのイベントとして Channel から受信し Snackbar 表示する（VM イベント購読＝ルート層の責務）。
@@ -414,11 +405,9 @@ internal fun BookshelfContent(
     onThemeChange: (ReadingTheme) -> Unit,
     isGridView: Boolean,
     onToggleView: () -> Unit,
-    deleteUiMode: Int,
-    onToggleDeleteMode: () -> Unit,
     onFabClick: () -> Unit,
     onOpenBook: (BookEntity) -> Unit,
-    onDeleteBook: (BookEntity) -> Unit,
+    onDeleteBooks: (List<BookEntity>) -> Unit,
     onOpenDiscovery: () -> Unit,
     onCancelProcessing: () -> Unit,
     snackbarHostState: SnackbarHostState,
@@ -429,6 +418,9 @@ internal fun BookshelfContent(
     onResumeWebNovel: (novel: WebNovelEntity, episode: Int) -> Unit = { _, _ -> },
     onImportWebNovel: (WebNovelEntity) -> Unit = {},
     onRemoveWebNovel: (WebNovelEntity) -> Unit = {},
+    // 遷移ジャンク対策（P2・Perfetto 2026-07-16）: true の間（＝本棚の enter アニメ中）は重い Lazy コンテナを
+    // スケルトンへ差替える。既定 false＝既存の呼出し・Robolectric テストの描画は完全に不変。
+    deferHeavyContent: Boolean = false,
 ) {
     val isLoading = uiState is BookshelfUiState.Loading
     val books = (uiState as? BookshelfUiState.Content)?.books ?: emptyList()
@@ -444,15 +436,27 @@ internal fun BookshelfContent(
     var selectedStatusName by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedStatus = selectedStatusName?.let { name -> ReadingStatus.entries.firstOrNull { it.name == name } }
 
-    // 削除の遅延実行（idempo Major・公理4/UX16-H「確認 < Undo」2026-07-12）:
-    // 確認ダイアログを撤去し、削除要求は即カードを伏せて snackbar「元に戻す」を出す。表示中は削除を保留し、
-    // Undo で復帰・タイムアウト/置換/画面離脱で確定実行する。確定の所有者は下の deleteScope のコルーチン。
-    // なぜ pendingDeleteIds で伏せるか: DB からの実削除は保留するため、見た目だけ先に消して即時反応を返す。
-    // プロセス死時は pendingDeleteIds も未確定削除も揮発する＝本は消えず次回起動で復帰（＝取りこぼしなく安全側）。
-    val pendingDeleteIds = remember { mutableStateListOf<String>() }
+    // 複数選択削除（残8・案B裁定）: 長押しで選択モードに入り、下端バーの「削除」→確認ダイアログでまとめて
+    // 削除する（Undo は持たず確認ダイアログで事前同意を取る＝旧「確認 < Undo」を上書き）。選択は
+    // rememberSaveable で回転耐性を持たせる（String id）。選択0件になったら自動で選択モードを抜ける。
+    var selectionMode by rememberSaveable { mutableStateOf(false) }
+    val selectedIds = rememberSaveable(
+        saver = listSaver(save = { it.toList() }, restore = { it.toMutableStateList() }),
+    ) { mutableStateListOf<String>() }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    val exitSelection: () -> Unit = { selectionMode = false; selectedIds.clear() }
+    val toggleSelect: (String) -> Unit = { id ->
+        if (id in selectedIds) selectedIds.remove(id) else selectedIds.add(id)
+        if (selectedIds.isEmpty()) selectionMode = false // 0件自動解除（変種B裁定の解除導線の1つ）
+    }
+    val enterSelection: (String) -> Unit = { id ->
+        selectionMode = true
+        if (id !in selectedIds) selectedIds.add(id)
+    }
+    // システム戻るで選択モードを解除（右上×非依存の解除導線・変種B裁定）。選択モード中のみ消費する。
+    BackHandler(enabled = selectionMode) { exitSelection() }
 
-    // 削除保留中の本は棚から伏せる（idempo Major の遅延削除。確定/復帰は requestDelete が所有）。
-    val visibleBooks = books.filterNot { it.id in pendingDeleteIds }
+    val visibleBooks = books
 
     // 各読書状態の件数（ia Minor 2026-07-12・0件チップの dim 判定用）。可視の蔵書で数える。
     val statusCounts = remember(visibleBooks, progressMap, chapterCountMap) {
@@ -489,32 +493,6 @@ internal fun BookshelfContent(
 
     // 本棚トップバーの⋮オーバーフロー（テーマ切替＋開発トグル）の開閉状態
     var showOverflowMenu by remember { mutableStateOf(false) }
-
-    // 削除確定コルーチンの所有スコープ（pendingDeleteIds の宣言と why は visibleBooks 直前を参照）。
-    val deleteScope = rememberCoroutineScope()
-    val requestDelete: (BookEntity) -> Unit = { book ->
-        // 二重要求ガード（既に伏せている本は積まない）。
-        if (book.id !in pendingDeleteIds) {
-            pendingDeleteIds.add(book.id)
-            deleteScope.launch {
-                var undone = false
-                try {
-                    val result = snackbarHostState.showSnackbar(
-                        message = "「${book.title}」を削除しました",
-                        actionLabel = "元に戻す",
-                        // 取り消し猶予を確保するため長め表示。
-                        duration = SnackbarDuration.Long,
-                    )
-                    undone = result == SnackbarResult.ActionPerformed
-                } finally {
-                    // Undo=復帰／それ以外（タイムアウト・別 snackbar での置換・画面離脱=コルーチン取消）は確定。
-                    // 確定の onDeleteBook は VM の viewModelScope で走るためこの取消済みコルーチンから呼んでも実行される。
-                    if (!undone) onDeleteBook(book)
-                    pendingDeleteIds.remove(book.id)
-                }
-            }
-        }
-    }
 
     val gridState = rememberLazyGridState()
     val listState = rememberLazyListState()
@@ -655,15 +633,6 @@ internal fun BookshelfContent(
                                     },
                                     modifier = Modifier.padding(horizontal = Spacing.S16),
                                 )
-                                HorizontalDivider()
-                                // 開発用: 削除UI方式トグル（一時機構。採用方式が確定したらこの項目ごと削除予定）。
-                                DropdownMenuItem(
-                                    text = { Text("削除方式: " + if (deleteUiMode == 1) "⋮メニュー" else "長押し") },
-                                    onClick = {
-                                        onToggleDeleteMode()
-                                        showOverflowMenu = false
-                                    },
-                                )
                             }
                         }
                     },
@@ -697,20 +666,37 @@ internal fun BookshelfContent(
             }
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                text = { Text("PDFを追加") },
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                onClick = onFabClick,
-                expanded = fabExpanded,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            )
+            // 選択モード中は追加FABを隠し、下端の選択アクションバー（bottomBar）へ場を譲る（残8・案B）。
+            if (!selectionMode) {
+                ExtendedFloatingActionButton(
+                    text = { Text("PDFを追加") },
+                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    onClick = onFabClick,
+                    expanded = fabExpanded,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
+        },
+        bottomBar = {
+            // 選択モードの下端固定アクションバー（残8・案B＋変種B）。解除は左端「キャンセル」＝右上×非依存。
+            if (selectionMode) {
+                SelectionActionBar(
+                    count = selectedIds.size,
+                    onCancel = exitSelection,
+                    onSelectAll = {
+                        val allIds = shelfItems.filterIsInstance<ShelfItem.Book>().map { it.book.id }
+                        selectedIds.clear()
+                        selectedIds.addAll(allIds)
+                    },
+                    onDelete = { showDeleteConfirm = true },
+                )
+            }
         },
         snackbarHost = {
-            // スナックバーをスワイプで即消せるようにする（M3 既定は swipe-to-dismiss 無し＝削除Undoが
-            // 邪魔なとき払えない・実使用フィードバック 2026-07-14）。スワイプ確定＝data.dismiss()＝showSnackbar は
-            // SnackbarResult.Dismissed を返す。削除の場合はこれで「Undo せず確定削除」に一致する
-            // （requestDelete の undone 判定は ActionPerformed のみ true＝Dismissed は確定側）。
+            // スナックバーをスワイプで即消せるようにする（M3 既定は swipe-to-dismiss 無し＝通知が邪魔なとき
+            // 払えない・実使用フィードバック 2026-07-14）。スワイプ確定＝data.dismiss()＝showSnackbar は
+            // SnackbarResult.Dismissed を返す（取込失敗の再試行・情報通知に使う。削除は選択モードの確認ダイアログへ移行）。
             SnackbarHost(snackbarHostState) { data ->
                 // key(data): スナックバーが入れ替わっても前のスワイプ位置を引き継がないよう毎回作り直す。
                 key(data) {
@@ -807,6 +793,14 @@ internal fun BookshelfContent(
                     if (selectedStatus != null && shelfItems.isEmpty()) {
                         // 状態フィルタ絞り込みで0件（蔵書ゼロではない）＝ヘッダは残しつつ静かな案内を出す。
                         StatusFilterEmptyText(modifier = Modifier.padding(horizontal = Spacing.S24))
+                    } else if (deferHeavyContent) {
+                        // 遷移ジャンク対策（P2）: slide push の enter アニメ中は Lazy グリッド/リストの初回 measure
+                        //（実測51ms/フレーム＝ジャンク主因）がアニメフレームと同居して落ちる。Compose にサブツリーの
+                        // measure 凍結 API は無いため、遷移中だけ非 Lazy・固定寸で measure が格安な既存スケルトンへ
+                        // 差替え、実グリッドの measure をアニメ完了後の単独フレームへ移送する（版面＝左右24dp・列構成が
+                        // 一致するため輪郭のジャンプは無く、「読込→着地」の自然な体感になる）。gridState/listState・
+                        // フィルタ・選択は本分岐の外の remember(Saveable) が保持＝差替えを跨いでも失われない。
+                        BookshelfSkeleton(isGridView = isGridView, modifier = Modifier.fillMaxSize())
                     } else if (isGridView) {
                         // ────── グリッドレイアウト ──────
                         LazyVerticalGrid(
@@ -841,11 +835,14 @@ internal fun BookshelfContent(
                                             novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
                                             totalChaps = chapterCountMap[item.book.id] ?: 0,
                                             onOpen = { onOpenBook(item.book) },
-                                            onDelete = { requestDelete(item.book) },
                                             // 削除時の詰め直しアニメ。旧animateItemPlacementはFoundation1.6系で高速フリング中に
                                             // カバーが画面外の古い位置から補間され重なる既知不具合があり一時撤去していたが、
                                             // BOM 2025.02.00(Foundation 1.7系)でstable化したanimateItem()に置き換えて復活（案B）。
                                             modifier = Modifier.animateItem(),
+                                            selectionMode = selectionMode,
+                                            selected = item.book.id in selectedIds,
+                                            onToggleSelect = { toggleSelect(item.book.id) },
+                                            onEnterSelection = { enterSelection(item.book.id) },
                                             playSealStamp = finished && sealSeenUnfinished.contains(item.book.id),
                                             onSealStamped = { sealSeenUnfinished.remove(item.book.id) },
                                         )
@@ -882,10 +879,12 @@ internal fun BookshelfContent(
                                         novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
                                         totalChaps = chapterCountMap[item.book.id] ?: 0,
                                         onOpen = { onOpenBook(item.book) },
-                                        onDelete = { requestDelete(item.book) },
-                                        deleteUiMode = deleteUiMode,
                                         // グリッドと同理由: 1.7系でstable化したanimateItem()で詰め直しアニメを復活（案B）。
                                         modifier = Modifier.animateItem(),
+                                        selectionMode = selectionMode,
+                                        selected = item.book.id in selectedIds,
+                                        onToggleSelect = { toggleSelect(item.book.id) },
+                                        onEnterSelection = { enterSelection(item.book.id) },
                                     )
                                     // グリッドと同じ判断（確認ダイアログ無し＝失うものが無く即座に戻せる）。
                                     is ShelfItem.Web -> WebListBookCard(
@@ -907,8 +906,79 @@ internal fun BookshelfContent(
         }
     }
 
-    // 削除は確認ダイアログを撤去し、requestDelete による snackbar「元に戻す」遅延削除へ移行した
-    // （idempo Major）。確定/復帰は requestDelete が所有するためここに残す UI は無い。
+    // 複数選択削除の確認ダイアログ（残8・案B裁定）。不可逆（本文データも消える）を本文コピーで明示。
+    // 寒色D に danger-red は無い＝破壊確定「削除する」を主CTA塗りにせず藍で扱い、「やめる」を低摩擦の
+    // 逃げ道として置く（正本 .dlg）。確定で選択本をまとめて削除し選択モードを抜ける（Undo は持たない）。
+    if (showDeleteConfirm) {
+        val targets = books.filter { it.id in selectedIds }
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("選択した${targets.size}冊を本棚から削除しますか？") },
+            text = { Text("変換済みの本文データも削除されます。この操作は取り消せません。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    onDeleteBooks(targets)
+                    exitSelection()
+                }) { Text("削除する") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("やめる") }
+            },
+        )
+    }
+}
+
+// ============================================================
+// 選択モードの下端アクションバー（残8・案B＋変種B。正本 bookshelf-multiselect-D .botbar）
+// 左端「キャンセル」で解除（右上×非依存）／件数／全選択（ghost）／削除（藍フィル・押下は確認ダイアログを
+// 開くだけの非破壊ステップ＝主張してよい）。navigationBarsPadding で端末ジェスチャバーを避ける。
+// ============================================================
+@Composable
+private fun SelectionActionBar(
+    count: Int,
+    onCancel: () -> Unit,
+    onSelectAll: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Surface(color = MaterialTheme.colorScheme.background) {
+        Column {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = Spacing.S16, vertical = Spacing.S16),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onCancel) {
+                    Text("キャンセル", fontSize = FontButtonLabel)
+                }
+                Text(
+                    text = "${count}冊選択中",
+                    fontSize = FontButtonLabel,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = Spacing.S8),
+                )
+                TextButton(onClick = onSelectAll) {
+                    Text("全選択", fontSize = FontButtonLabel)
+                }
+                Spacer(Modifier.width(Spacing.S8))
+                Button(
+                    onClick = onDelete,
+                    enabled = count > 0,
+                    shape = RoundedCornerShape(2.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                    ),
+                ) {
+                    Text("削除", fontSize = FontButtonLabel)
+                }
+            }
+        }
+    }
 }
 
 // ============================================================

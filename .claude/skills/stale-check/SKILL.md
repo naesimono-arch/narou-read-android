@@ -1,11 +1,7 @@
 ---
 name: stale-check
 description: md・skill・hooks・settings の陳腐化を検出する。軽量(差分ベース)とフル(並列全網羅)の2モード。実態とドキュメントのズレを確度別に報告し、修正案を提示する。
-triggers:
-  - "陳腐化チェック"
-  - "ドキュメントやskillが古くないか確認したい"
-  - "stale check"
-  - "管理ファイルの整合性を点検したい"
+when_to_use: 「陳腐化チェック」／「ドキュメントやskillが古くないか確認したい」／「stale check」／「管理ファイルの整合性を点検したい」 などの依頼で使う。
 ---
 
 # stale-check — 管理ファイル陳腐化チェック

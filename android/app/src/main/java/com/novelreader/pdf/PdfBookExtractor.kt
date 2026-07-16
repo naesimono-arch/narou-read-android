@@ -115,7 +115,9 @@ object PdfBookExtractor {
                 }
 
                 onProgress(2, 0f, "章を分割しています…", currentTitle)
-                val chaptersData = ChapterProcessor.splitIntoChapters(paragraphs)
+                // 単話（【題名】マーカー皆無）では嘘見出し「作品情報・プロローグ」の代わりに
+                // 表紙由来の作品タイトル meta.title を単一章タイトルへ流用する（裁定済み仕様）。
+                val chaptersData = ChapterProcessor.splitIntoChapters(paragraphs, meta.title)
 
                 onProgress(2, 1f, "前書き・後書きを処理しています…", currentTitle)
                 val finalChapters = ChapterProcessor.processForewordAfterword(chaptersData)

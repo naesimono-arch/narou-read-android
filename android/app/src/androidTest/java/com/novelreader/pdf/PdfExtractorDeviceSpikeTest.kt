@@ -15,7 +15,9 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
- * PDF 抽出の精度回帰ゲート（実機・androidTest）。
+ * PDF 抽出の精度回帰ゲート（実機・androidTest）。2026-07-16 以降、常時実行の正本ゲートは JVM 側
+ * [JvmGoldenRegressionTest]（testDebugUnitTest 同乗・同一合格ライン）＝本テストは assets 手動配置時のみの
+ * 実機二重化（OEM 固有挙動の最終確認用）。
  *
  * 沿革: 元は穴3（移植の最大リスク）の実機スパイク＝pdfbox-android の [PDFBoxResourceLoader.init] が実機で効き
  * ToUnicode CMap を持たない CID フォントのグリフ解決（CID→Unicode）が pdfminer 版ゴールデンと同一 Unicode を
@@ -132,8 +134,10 @@ class PdfExtractorDeviceSpikeTest {
         PDDocument.load(pdfFile).use { doc ->
             val meta = PdfExtractor.extractBookMeta(doc)
             val paragraphs = PdfExtractor.runFinalEngine(doc)
+            // 本番 PdfBookExtractor と同経路にするため meta.title を fallback として渡す
+            // （題名マーカー有りの既存検体は分岐に入らず出力不変。単話のみ作品タイトルが単一章名になる）。
             val chapters = ChapterProcessor.processForewordAfterword(
-                ChapterProcessor.splitIntoChapters(paragraphs)
+                ChapterProcessor.splitIntoChapters(paragraphs, meta.title)
             )
 
             val bodyText = paragraphs.joinToString("\n")

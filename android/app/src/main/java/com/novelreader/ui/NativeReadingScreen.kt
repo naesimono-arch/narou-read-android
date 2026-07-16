@@ -21,6 +21,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -28,9 +29,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.systemBarsIgnoringVisibility
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.DisposableEffect
@@ -41,6 +50,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,6 +65,7 @@ import androidx.compose.material3.TopAppBarState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -72,26 +83,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import kotlin.math.abs
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
@@ -99,6 +107,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.novelreader.NovelReaderApplication
 import com.novelreader.model.BookId
 import com.novelreader.model.ChapterFilename
+import com.novelreader.model.ChapterContent as ChapterContentModel
 import com.novelreader.model.ParseResult
 import com.novelreader.model.TocEntry
 import com.novelreader.narou.ContinuationInfo
@@ -115,6 +124,7 @@ import com.novelreader.ui.theme.FontNavLabel
 import com.novelreader.ui.theme.FontSectionTitle
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.MotionDurationCrossfade
+import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationNavTransition
 import com.novelreader.ui.theme.MotionSpringBarSettle
 import com.novelreader.ui.theme.ReadingColors
@@ -127,6 +137,7 @@ import com.novelreader.ui.theme.Spacing
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -450,6 +461,35 @@ fun ReadingScreen(
         return
     }
 
+    // メニューの章跨ぎ維持（2026-07-16 実機フィードバック）: 表示状態を章サブコンポジションの外＝ここで
+    // 保持し、前章/次章の連続操作でメニューが閉じないようにする（「一度出したら再度タップするまで残る」）。
+    // 既定 false＝本の入場時は従来どおり没入。rememberSaveable でプロセス再生成にも耐える。
+    var chromeVisibleAcrossChapters by rememberSaveable { mutableStateOf(false) }
+
+    // 章パース結果のキャッシュ（この本の直近数章・アクセス順 LRU）。スワイプ覗きの先読みと章遷移後の
+    // 初期表示を共有し、遷移の瞬間に Loading（無地の紙面が一瞬挟まる「暗転」）を挟まないためのもの
+    //（2026-07-16 実機所見「移った瞬間に一瞬暗くなる」の真因＝章切替ごとの再パース待ち）。
+    // なぜここで所有するか: ChapterScreen は章ごとに作り直されるため、章を跨いで生きる置き場が要る。
+    // 上限6: 現在章と前後の往復に十分な最小限（章 HTML は取込後不変なので陳腐化しない）。
+    val chapterCache = remember {
+        object : LinkedHashMap<String, ChapterContentModel>(8, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ChapterContentModel>) = size > 6
+        }
+    }
+
+    // 章ごとの読書位置のセッション内記憶（file→index/offset）。DB の progress は「本の最後に読んだ場所」
+    // 1点のみで、章を跨いで戻ったときの各章の位置は持たない。スワイプ覗きと章送りの着地を「その章を
+    // 読んでいた場所」へ揃えるための記憶（2026-07-16 実機フィードバック「覗きが読んだ場所を反映しない」）。
+    // プロセス死で消える割り切り＝DB 側の正本（最後に読んだ1点）は従来どおり不変。
+    val sessionScrollByFile = remember { mutableMapOf<String, Pair<Int, Int>>() }
+    // 章の初期位置の解決順: ①セッション内でその章を読んでいた場所 → ②本の入場復元（最後に読んだ章のみ）
+    // → ③先頭。覗きパネルと実着地の両方がこの1本を使う＝覗いた内容と遷移後の表示が必ず一致する。
+    val resolveInitialScroll: (String) -> Pair<Int, Int> = { file ->
+        sessionScrollByFile[file]
+            ?: chapterRestore?.takeIf { it.targetFile == file }?.let { it.scrollIndex to it.scrollOffset }
+            ?: (0 to 0)
+    }
+
     // 目次⇄本文の切替を NavHost のスライドと同じ向きルールで演出する（進む=目次→章は右から左へ潜る／
     // 戻る=章→目次は左から右へ戻す）。同一 nav ルート内の state 切替（resolvedFile の出し分け）を
     // AnimatedContent で包む。章→章（話送り）は現状どおり瞬間＝向きを付けない（P1 は別枠のため据え置き）。
@@ -525,10 +565,13 @@ fun ReadingScreen(
                     onBodyMarginPersist = onBodyMarginPersist,
                     verticalMode = verticalMode,
                     onVerticalModeChange = onVerticalModeChange,
-                    // file が「最後に読んだ章」と一致する場合のみスクロール位置を復元する
-                    initialScrollIndex = if (file == restore.targetFile) restore.scrollIndex else 0,
-                    initialScrollOffset = if (file == restore.targetFile) restore.scrollOffset else 0,
+                    // 初期位置は resolveInitialScroll の1本で解決（セッション内記憶→入場復元→先頭）。
+                    // 旧「最後に読んだ章のみ復元」は②として吸収済み＝章を跨いで戻っても読んだ場所へ着地する。
+                    initialScrollIndex = resolveInitialScroll(file).first,
+                    initialScrollOffset = resolveInitialScroll(file).second,
                     onSaveScroll = { index, offset ->
+                        // セッション内記憶へも記録（スワイプ覗き・章送りの着地が「読んだ場所」を再現する材料）。
+                        sessionScrollByFile[file] = index to offset
                         // file は画面内部の String。型付き API 境界でのみ ChapterFilename に包む。
                         viewModel.saveScrollPosition(bookId, ChapterFilename(file), index, offset)
                     },
@@ -541,6 +584,12 @@ fun ReadingScreen(
                     onPromoteToReading = onPromoteToReading,
                     // 読了検出（ssot Major）: 最終章の末尾到達を ChapterScreen が検知して呼ぶ。
                     onReachedEnd = onReachedEnd,
+                    // メニュー章跨ぎ維持: 章を跨いだ入場時の初期表示と、トグル結果の還流。
+                    chromeVisibleInitial = chromeVisibleAcrossChapters,
+                    onChromeVisibleChange = { chromeVisibleAcrossChapters = it },
+                    chapterCache = chapterCache,
+                    // 覗きパネルの初期位置も着地と同じ規則で解決させる（覗き＝遷移後表示の完全一致）。
+                    resolveInitialScroll = resolveInitialScroll,
                 )
             }
         }
@@ -607,6 +656,16 @@ private fun ChapterScreen(
     onPromoteToReading: () -> Unit,
     // 読了検出（ssot Major）。最終章の末尾を可視化したとき一度だけ呼ぶ（参照モード中は抑止）。
     onReachedEnd: () -> Unit,
+    // メニューの章跨ぎ維持（2026-07-16 実機フィードバック）: 章→章は AnimatedContent の別サブコンポジション
+    // ＝topAppBarState が作り直されるため、表示状態は親 ReadingScreen が章を跨いで保持し、入場時の初期値
+    // として受け取る。トグル結果は onChromeVisibleChange で親へ還流する。既定は従来挙動（入場時没入）。
+    chromeVisibleInitial: Boolean = false,
+    onChromeVisibleChange: (Boolean) -> Unit = {},
+    // 章パースのキャッシュ（親 ReadingScreen 所有・章を跨いで共有）。遷移後の初期表示と覗き先読みが使う。
+    chapterCache: MutableMap<String, ChapterContentModel> = mutableMapOf(),
+    // 章の初期スクロール位置の解決（親 ReadingScreen の1本＝セッション内記憶→入場復元→先頭）。
+    // 覗きパネルへこの結果を焼き込み、着地（initialScrollIndex/Offset）と必ず一致させる。
+    resolveInitialScroll: (String) -> Pair<Int, Int> = { 0 to 0 },
 ) {
     val colors = rememberReadingColors(readingTheme)
     // 画面ローカルの UI 状態（表示設定シート開閉・紐付けシート開閉・ボトムバー実測高・コルーチンスコープ・
@@ -623,10 +682,18 @@ private fun ChapterScreen(
     // なぜ produceState か: キーが変わったときの再起動が自動化され、
     // Loading → Success の状態遷移をシンプルに記述できるため
     val parseResult by produceState<ParseResult>(
-        initialValue = ParseResult.Loading,
+        // キャッシュ命中（覗き先読み済み/一度開いた章）は初期値から Success＝遷移フレームに Loading
+        //（無地の紙面の「暗転」）を挟まない。スワイプで覗いた内容がそのまま連続して本表示になる。
+        initialValue = chapterCache[currentFile]?.let { ParseResult.Success(it) } ?: ParseResult.Loading,
         key1 = currentFile,
         key2 = retryKey,
     ) {
+        // 章 HTML は取込後不変のためキャッシュ再利用は安全。再試行（retryKey>0）は明示操作なので必ず読み直す。
+        val cached = chapterCache[currentFile]
+        if (cached != null && retryKey == 0) {
+            value = ParseResult.Success(cached)
+            return@produceState
+        }
         value = ParseResult.Loading
         value = withContext(Dispatchers.IO) {
             try {
@@ -640,6 +707,8 @@ private fun ChapterScreen(
                 ParseResult.Error("章を開けませんでした", currentFile)
             }
         }
+        // 成功をキャッシュへ（withContext の外＝main で書く。LinkedHashMap は非スレッドセーフのため）。
+        (value as? ParseResult.Success)?.let { chapterCache[currentFile] = it.content }
     }
 
     // TOC から現在の章インデックスを特定して前後ナビゲーション先を決定
@@ -657,6 +726,30 @@ private fun ChapterScreen(
     val nextFile = when {
         currentIndex in 0 until tocEntries.size - 1 -> tocEntries[currentIndex + 1].fileName
         else -> "index.html" // 最後の章 → 目次に戻る
+    }
+
+    // スワイプ覗き用に隣章を先読みパースする（Content の引っ張りプレビューが使う）。
+    // なぜ現在章の Success 後か: 現在章のパースと IO を取り合わない＋ドラッグ開始時のその場パースでは
+    // 覗いた瞬間に間に合わず空白が見えるため。失敗（章ファイル欠損等）は null＝覗き無しへの縮退で、
+    // エラー表示は本遷移側（parseResult の Error 経路）が正本のためここでは出さない（握り潰しではなく縮退）。
+    val prevPreview by produceState<ChapterContentModel?>(null, prevFile, htmlDirPath, parseResult is ParseResult.Success) {
+        value = null
+        if (parseResult !is ParseResult.Success || prevFile == "index.html") return@produceState
+        chapterCache[prevFile]?.let { value = it; return@produceState }
+        value = withContext(Dispatchers.IO) {
+            runCatching { ChapterHtmlParser.parse(File(htmlDirPath, prevFile)) }.getOrNull()
+        }
+        // 先読み結果もキャッシュへ＝スワイプ確定・前章ボタンどちらの遷移も Loading 無しで着地する。
+        value?.let { chapterCache[prevFile] = it }
+    }
+    val nextPreview by produceState<ChapterContentModel?>(null, nextFile, htmlDirPath, parseResult is ParseResult.Success) {
+        value = null
+        if (parseResult !is ParseResult.Success || nextFile == "index.html") return@produceState
+        chapterCache[nextFile]?.let { value = it; return@produceState }
+        value = withContext(Dispatchers.IO) {
+            runCatching { ChapterHtmlParser.parse(File(htmlDirPath, nextFile)) }.getOrNull()
+        }
+        value?.let { chapterCache[nextFile] = it }
     }
 
     // ────── PDF↔Web継続読書（目玉①）──────
@@ -699,9 +792,16 @@ private fun ChapterScreen(
     // backStack＋BackHandler で一元管理する。経路スタックを所有するのが ReadingScreen のため、
     // rememberSaveable 永続化もそちらに集約した（ここでは扱わない）。
 
-    // snapAnimationSpec = null: デフォルトのスナップを無効化する。
-    // スナップが有効だとわずかなスクロールでバーが「自走」し、
-    // ページの動きと乖離した独立した動きに見えてしまうため。
+    // バーの表示/非表示は中央タップのトグルだけで駆動する（2026-07-16 実機フィードバックで
+    // スクロール量・速度連動の出没を廃止＝「出たり引っ込んだり」する複雑な挙動をやめる）。
+    // scrollBehavior を残すのは TopAppBar に渡して heightOffsetLimit（バー実高の負値）を
+    // 実測させるためだけ——nestedScroll 接続はどこにも張らないためスクロールでは一切動かない。
+    // snapAnimationSpec = null: 内蔵スナップも無効化（動きは settleTopBar の spring が一元所有）。
+    // 注意: state は必ず既定値で生む。M3 の TopAppBarLayout は自身の layout 高さを
+    // 「バー実高 + heightOffset」で計算する（AppBar.kt:2206）ため、実高が未測定のうちに実高超の
+    // 負オフセットを初期値で仕込むと負サイズ（Size out of range）で即クラッシュする（2026-07-16 実測＝
+    // sentinel -10000f 案は本を開いた瞬間に落ちた）。よって「実測完了までの見た目」は state でなく
+    // barsVisualReady の alpha ゲート（Content 側）で隠す。
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(
         topAppBarState,
@@ -709,20 +809,32 @@ private fun ChapterScreen(
     )
 
     // 入場時既定=「無」（d-chrome Design/09-A）。章題は本文先頭の ChapterHeader が担うため、
-    // 入場時に上部バーを見せる必要はない。heightOffsetLimit は TopAppBar が実測後に負値へ更新するため、
-    // 確定を待って一度だけ全退避する（初期 0 のまま畳んでも効かないため待つ）。
+    // 入場時に上部バーを見せる必要はない。TopAppBar の実測（heightOffsetLimit が既定 -Float.MAX_VALUE から
+    // 実負値へ更新）を待って一度だけ全退避する。ただしメニュー表示中に前章/次章で章を跨いだ場合
+    //（chromeVisibleInitial=true）は退避しない＝「一度出したら再度タップするまで残る」の章跨ぎ維持。
     // なぜ rememberSaveable の guard か: ユーザーが一度バーを出した後（プロセス再生成の復元含む）に
     // 再び勝手に畳んで操作を奪わないため。topAppBarState 自体も heightOffset を復元するので二重に安全。
     var didInitialCollapse by rememberSaveable { mutableStateOf(false) }
+    // 実測完了までの見た目ゲート: 既定 state は offset=0（＝表示位置）で生まれるため、没入入場では
+    // 初期退避が効くまでの数フレーム、バー/システムバーが一瞬見えてから消える表示バグになる
+    //（没入のままスワイプ章送りでメニューが一瞬出る＝2026-07-16 実機。従来は章切替の再パース待ちの
+    // 無地フレームが覆い隠しており、章キャッシュのシームレス化で露出した）。state はM3の不変式
+    //（layout 高=実高+offset）に縛られ先に畳めないため、退避完了まで描画側 alpha で隠す。
+    // メニュー維持入場（chromeVisibleInitial=true）は最初から表示が正なので即 ready。
+    val barsVisualReady = didInitialCollapse || chromeVisibleInitial
     LaunchedEffect(topAppBarState) {
         if (didInitialCollapse) return@LaunchedEffect
-        snapshotFlow { topAppBarState.heightOffsetLimit }.first { it < 0f }
-        topAppBarState.heightOffset = topAppBarState.heightOffsetLimit
+        // 既定値 -Float.MAX_VALUE を除外し「実測された」限界値だけを待つ（既定値のまま畳むと
+        // offset が巨大負値へ落ち、M3 の layout 計算が負サイズでクラッシュしうる）。
+        snapshotFlow { topAppBarState.heightOffsetLimit }
+            .first { it < 0f && it != -Float.MAX_VALUE }
+        if (!chromeVisibleInitial) {
+            topAppBarState.heightOffset = topAppBarState.heightOffsetLimit
+        }
+        // 退避と同一スナップショットで ready 化＝「alpha 解除」と「畳み済み位置」が同フレームで揃う。
         didInitialCollapse = true
     }
 
-    // enterAlwaysScrollBehavior のデフォルト接続はスクロールを横取りしやすい。
-    // 読書体験を優先するため、本文には常にスクロールを渡しつつバー状態だけ追従させる。
     // 章ごとに初期スクロール位置付きで生成し、remember(currentFile) で章移動時に
     // 必ず作り直すことで前章のスクロール位置の引き継ぎを防ぐ。
     val lazyListState = remember(currentFile) {
@@ -851,11 +963,15 @@ private fun ChapterScreen(
     LaunchedEffect(topAppBarState, view) {
         val window = (view.context as? Activity)?.window ?: return@LaunchedEffect
         val controller = WindowCompat.getInsetsController(window, view)
-        snapshotFlow { topAppBarState.collapsedFraction < 0.5f }
+        // didInitialCollapse でゲート: 既定 state は表示位置で生まれるため、没入入場の実測待ち中に
+        // fraction≈0 で「show」が流れてシステムバーが一瞬出る（メニュー一瞬表示バグの片割れ）のを防ぐ。
+        snapshotFlow { (didInitialCollapse || chromeVisibleInitial) && topAppBarState.collapsedFraction < 0.5f }
             .distinctUntilChanged()
             .collect { chromeVisible ->
                 if (chromeVisible) controller.show(WindowInsetsCompat.Type.systemBars())
                 else controller.hide(WindowInsetsCompat.Type.systemBars())
+                // 章跨ぎ維持: トグル結果を親（ReadingScreen）の保持状態へ還流する。
+                onChromeVisibleChange(chromeVisible)
             }
     }
 
@@ -934,6 +1050,16 @@ private fun ChapterScreen(
         scrollBehavior = scrollBehavior,
         prevFile = prevFile,
         nextFile = nextFile,
+        // 覗きの初期位置は着地と同じ resolveInitialScroll で焼き込む（覗き＝遷移後表示の完全一致）。
+        prevPeek = prevPreview?.let { c ->
+            val (index, offset) = resolveInitialScroll(prevFile)
+            ChapterPeek(c, index, offset)
+        },
+        nextPeek = nextPreview?.let { c ->
+            val (index, offset) = resolveInitialScroll(nextFile)
+            ChapterPeek(c, index, offset)
+        },
+        barsVisualReady = barsVisualReady,
         navEnabled = navEnabled,
         isLastChapter = isLastChapter,
         ncode = ncode,
@@ -968,7 +1094,7 @@ private fun ChapterScreen(
  */
 // internal（旧 private）: 没入モードの customActions（a11y 到達回復）を Robolectric semantics テストで
 // 直接検証するため、描画層 Content を同一モジュール内テストへ開く（private だと file スコープで到達不可）。
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun ChapterScreenContent(
     parseResult: ParseResult,
@@ -993,6 +1119,13 @@ internal fun ChapterScreenContent(
     scrollBehavior: TopAppBarScrollBehavior,
     prevFile: String,
     nextFile: String,
+    // スワイプ覗きプレビュー（隣章のパース済み本文＋着地と同一規則の初期位置・route が先読み構築）。
+    // null=先読み中/端章/章欠損＝覗きは無地の紙面に縮退する（ドラッグと章送り自体は可）。
+    prevPeek: ChapterPeek? = null,
+    nextPeek: ChapterPeek? = null,
+    // 初期退避（没入入場の実測待ち）が完了するまで false＝上下バーを alpha=0 で隠す（route が算出）。
+    // 既定 true は既存テスト・呼び出しの互換のため。
+    barsVisualReady: Boolean = true,
     navEnabled: Boolean,
     isLastChapter: Boolean,
     ncode: Ncode?,
@@ -1081,41 +1214,51 @@ internal fun ChapterScreenContent(
     // 変わるため、onSizeChanged で実測した高さ分だけスライドさせて完全に画面外へ退避させる。
     var bottomBarHeightPx by remember { mutableIntStateOf(0) }
 
-    // enterAlwaysScrollBehavior のデフォルト接続はスクロールを横取りしやすい。
-    // 読書体験を優先するため、本文には常にスクロールを渡しつつバー状態だけ追従させる。
-    val nonStealingConnection = remember(topAppBarState) {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                // 下スクロール（読み進め）ではバーを非表示方向へ追従させるが、消費はしない。
-                if (available.y < 0) {
-                    topAppBarState.heightOffset =
-                        (topAppBarState.heightOffset + available.y)
-                            .coerceAtLeast(topAppBarState.heightOffsetLimit)
+    // 左右スワイプで章送り（handover D 回収→2026-07-16 ユーザー指示で「引っ張りプレビュー」へ増強）:
+    // ドラッグ量に本文が追従し、隣章の実物の冒頭が端から覗く。覗きの内容＝遷移後に実際に表示される章頭と
+    // 同一なので、確定スライドがそのまま新章の初期表示へ連続して見える。旧 experiment/lab-old(23b5f33) は
+    // フリック検出のみで覗き無し＝流用不可のため draggable で新規実装。縦スクロールとの軸判別は
+    // draggable(Horizontal) の touch slop に委ねる（旧知見 de60869「軸ロック」相当）。確定は
+    // 「距離 OR 速度（向き一致時のみ）」の複合（旧知見 4a0719b 踏襲）・未達は戻す。左へ引く=次章／右=前章
+    //（slide push「進む=右→左」と同じ身体感覚・ADR 0019）。端章はその向きへ引けない（clamp 0）: ボタンの
+    // index.html 縮退と違い、スワイプで目次へ跳ぶのは予期しない移動になるため。閾値は暫定較正値（実機後詰め層）。
+    val density = LocalDensity.current
+    // ドラッグ追従オフセット（px）。なぜ Animatable+launch{snapTo} でなく素の Float state か:
+    // draggable の onDelta は同一フレームに複数回届き、launch 経由の snapTo は全 delta が同じ古い
+    // value から次値を計算して最後の1個しか効かない累積レースになる（実機で追従ゼロを実測・2026-07-16）。
+    // 同期加算し、指を離した後の確定/戻しだけ animate で滑らかに動かす（settleTopBar と同型）。
+    var dragOffsetPx by remember { mutableFloatStateOf(0f) }
+    var bodyWidthPx by remember { mutableIntStateOf(0) }
+    // 確定/戻しアニメの Job。アニメ中に新しいドラッグが始まったら中断して指への追従を返す。
+    var swipeSettleJob by remember { mutableStateOf<Job?>(null) }
+    val canGoNext = navEnabled && nextFile != "index.html"
+    val canGoPrev = navEnabled && prevFile != "index.html"
+    val settleSwipe: (Float) -> Unit = { velocityPx ->
+        swipeSettleJob = scope.launch {
+            val offset = dragOffsetPx
+            val distanceThreshold = with(density) { 96.dp.toPx() }
+            val velocityThreshold = with(density) { 700.dp.toPx() } // px/s（dp/s 換算の速度閾値）
+            // 方向は実際に引いた距離の符号で決める。速度は「同方向のとき」だけ確定条件に加える＝
+            // 引いて戻す最中に指を離すと逆向き速度で誤確定するのを防ぐ。
+            val fire = offset != 0f && (
+                abs(offset) >= distanceThreshold ||
+                    (abs(velocityPx) >= velocityThreshold && (velocityPx < 0f) == (offset < 0f))
+                )
+            val target = if (offset < 0f) nextFile else prevFile
+            if (fire && navEnabled && target != "index.html") {
+                // 覗かせた隣章をそのまま全面へスライドさせ切ってから遷移（尺は画面遷移と共有＝ADR 0019）。
+                val end = if (offset < 0f) -bodyWidthPx.toFloat() else bodyWidthPx.toFloat()
+                animate(offset, end, animationSpec = tween(MotionDurationNavTransition)) { v, _ ->
+                    dragOffsetPx = v
                 }
-                return Offset.Zero
-            }
-
-            override fun onPostScroll(
-                consumed: Offset,
-                available: Offset,
-                source: NestedScrollSource,
-            ): Offset {
-                // 上スクロール（戻り）は本文が実際に動いた分だけバーを表示方向へ追従させる。
-                if (consumed.y > 0) {
-                    topAppBarState.heightOffset =
-                        (topAppBarState.heightOffset + consumed.y).coerceAtMost(0f)
+                onNavigateTo(target)
+                // 新章は原点から（章切替でこの Content ごと破棄されるが、破棄されない経路に備え防御的に戻す）。
+                dragOffsetPx = 0f
+            } else {
+                // 未達＝短尺で戻す（08-C: 退場は enter より短い。spring は禁止則③の跳ね回避で使わない）。
+                animate(offset, 0f, animationSpec = tween(MotionDurationDismiss)) { v, _ ->
+                    dragOffsetPx = v
                 }
-                return Offset.Zero
-            }
-
-            // なぜ onPostFling でスナップするか:
-            // フリック後に半端な位置で止まるとバーが宙ぶらりんになるため、
-            // 勢いのある操作が終わった直後に全表示/全非表示へ吸いつかせる。
-            // ゆっくりドラッグして止めた場合は onPostFling が低速度で発火するが
-            // settleTopBar の 0.5f 閾値判定で適切な方向へスナップする。
-            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
-                settleTopBar(topAppBarState)
-                return Velocity.Zero
             }
         }
     }
@@ -1153,13 +1296,24 @@ internal fun ChapterScreenContent(
                         }
                         // 「表示設定」=下端歯車ボタンと同じく設定シートを開く（Content ローカルの開閉 state を立てる）。
                         add(CustomAccessibilityAction("表示設定") { showSettings = true; true })
+                        // 「最上部へ」＝ピルと同一コールバック・同一の出現条件（章の3割以上）。没入中も
+                        // TalkBack から先頭復帰へ到達できるよう実 UI と対で揃える（この semantics ラムダは
+                        // deferred read＝スクロールで composition を再実行させない）。
+                        val total = lazyListState.layoutInfo.totalItemsCount
+                        if (total > 0 && lazyListState.firstVisibleItemIndex * 10 >= total * 3) {
+                            add(
+                                CustomAccessibilityAction("最上部へ") {
+                                    scope.launch { lazyListState.animateScrollToItem(0) }
+                                    true
+                                },
+                            )
+                        }
                     }
                 }
             },
     ) {
         Scaffold(
             containerColor = colors.background,
-            modifier = Modifier.nestedScroll(nonStealingConnection),
             // なぜ contentWindowInsets を 0 にするか: 上下バーを Scaffold スロットではなく
             // オーバーレイで描くため、インセットは本文側(ChapterContent の contentPadding)で
             // 完全に管理する。Scaffold が二重にインセットを足さないよう無効化する。
@@ -1172,10 +1326,10 @@ internal fun ChapterScreenContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    // 本文中央タップで上下バーをトグル表示する。
-                    // なぜ barsVisible の真偽値を持たないか: スクロール退避で既にバーが
-                    // 隠れている状態でも真偽値は true のままになり「隠れているものを隠す」
-                    // 空打ちが起き2回タップが必要になる。実オフセット(collapsedFraction)から
+                    // 本文タップで上下バーをトグル表示する（表示/非表示の唯一の駆動元）。
+                    // なぜ barsVisible の真偽値を持たないか: settle アニメ中の再タップや
+                    // プロセス再生成の復元で真偽値と実オフセットが乖離すると「隠れているものを
+                    // 隠す」空打ちが起き2回タップが必要になる。実オフセット(collapsedFraction)から
                     // 現在の表示状態を判定して反転させることで1タップで必ず切り替わる。
                     .pointerInput(Unit) {
                         detectTapGestures(onTap = {
@@ -1186,9 +1340,31 @@ internal fun ChapterScreenContent(
                             }
                             scope.launch { settleTopBar(topAppBarState, target) }
                         })
-                    },
+                    }
+                    // 本文の実測幅（px）＝覗きパネルの初期位置と確定スライドの終端に使う。
+                    .onSizeChanged { bodyWidthPx = it.width }
+                    // 左右スワイプで章送り（追従・確定/戻し＝settleSwipe）。端章側へは clamp で引けない。
+                    .draggable(
+                        state = rememberDraggableState { delta ->
+                            val min = if (canGoNext) -bodyWidthPx.toFloat() else 0f
+                            val max = if (canGoPrev) bodyWidthPx.toFloat() else 0f
+                            // 同期加算（launch 経由の加算は同一フレーム内の複数 delta が潰し合う＝上のなぜ参照）
+                            dragOffsetPx = (dragOffsetPx + delta).coerceIn(min, max)
+                        },
+                        orientation = Orientation.Horizontal,
+                        onDragStarted = { swipeSettleJob?.cancel() },
+                        onDragStopped = { velocity -> settleSwipe(velocity) },
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
+                // 本体はドラッグに追従して横へずれる（translationX は draw 段の deferred read＝
+                // ドラッグの毎フレームで composition を再実行しない。露出した地は Scaffold の紙色）。
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { translationX = dragOffsetPx },
+                    contentAlignment = Alignment.Center,
+                ) {
                 when (val result = parseResult) {
                     is ParseResult.Loading -> CircularProgressIndicator()
 
@@ -1270,12 +1446,40 @@ internal fun ChapterScreenContent(
                         )
                     }
                 }
+                }
+
+                // ────── スワイプ覗きパネル ──────
+                // 引いている間だけ隣章の冒頭を実寸で端に出す（内容＝遷移後の章頭と同一）。プレビュー未取得
+                //（先読み中/章欠損）の間は無地の紙面が覗く縮退。出し分けの boolean は derivedStateOf＝
+                // ドラッグ開始/終了時だけ recompose し、連続オフセットは各パネルの draw 段で読む。
+                val peekNext by remember { derivedStateOf { dragOffsetPx < 0f } }
+                val peekPrev by remember { derivedStateOf { dragOffsetPx > 0f } }
+                if (peekNext && nextPeek != null) {
+                    ChapterPeekPanel(
+                        translationX = { bodyWidthPx + dragOffsetPx },
+                        peek = nextPeek,
+                        colors = colors,
+                        fontSize = fontSize,
+                        lineHeightEm = lineHeightEm,
+                        bodyMarginDp = bodyMarginDp,
+                    )
+                }
+                if (peekPrev && prevPeek != null) {
+                    ChapterPeekPanel(
+                        translationX = { -bodyWidthPx + dragOffsetPx },
+                        peek = prevPeek,
+                        colors = colors,
+                        fontSize = fontSize,
+                        lineHeightEm = lineHeightEm,
+                        bodyMarginDp = bodyMarginDp,
+                    )
+                }
             }
         }
 
         // ────── ボトムバー（オーバーレイ）──────
         // collapsedFraction（トップバーの退避割合）に連動して下方向へスライド退避させる。
-        // これによりスクロール退避・中央タップトグルの両方でトップバーと同期して動く。
+        // これにより中央タップトグルでトップバーと同フレームで同期して動く。
         BottomAppBar(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -1283,7 +1487,14 @@ internal fun ChapterScreenContent(
                 .graphicsLayer {
                     // 退避割合 × 実測高さ分だけ下へずらす（collapsedFraction=1 で完全に画面外）
                     translationY = bottomBarHeightPx * topAppBarState.collapsedFraction
+                    // 初期退避の実測待ち中は不可視（既定 state が表示位置で生まれるための一瞬の露出を防ぐ）
+                    alpha = if (barsVisualReady) 1f else 0f
                 },
+            // なぜ IgnoringVisibility か: トグルと同フレームで systemBars を hide/show するため、
+            // 可視追従の既定 insets だとバー内パディングが 0⇄実測値で振れ、バー高の再測定で
+            // 開閉のたびに下端がガタつく（本文側 ChapterContent と同じ対策をバー自身にも適用）。
+            windowInsets = WindowInsets.systemBarsIgnoringVisibility
+                .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
             // なぜ alpha 0.95f か: スクロール中も文字が透けて読めるよう
             // 背景色を半透明にするため（html_exporter.py の .nav-footer に対応）
             containerColor = colors.navBackground.copy(alpha = 0.95f),
@@ -1328,6 +1539,8 @@ internal fun ChapterScreenContent(
                 // なぜ graphicsLayer か: レイアウトを再計算せず描画位置のみを変えるため。
                 // これによりバーの追従中でも本文の位置が一切動かない。
                 translationY = topAppBarState.heightOffset
+                // 初期退避の実測待ち中は不可視（既定 state が表示位置で生まれるための一瞬の露出を防ぐ）
+                alpha = if (barsVisualReady) 1f else 0f
             },
             title = {
                 when (val r = parseResult) {
@@ -1365,7 +1578,12 @@ internal fun ChapterScreenContent(
                 navigationIconContentColor = colors.topBarIcon,
                 actionIconContentColor = colors.topBarIcon,
             ),
-            // scrollBehavior は heightOffsetLimit の測定のため維持する。
+            // なぜ IgnoringVisibility か: トグルと同フレームで systemBars を hide/show するため、
+            // 可視追従の既定 insets だとバー内パディングが 0⇄実測値で振れ、heightOffsetLimit の
+            // 再測定で開閉のたびに上端がガタつく（本文側 ChapterContent と同じ対策をバー自身にも適用）。
+            windowInsets = WindowInsets.systemBarsIgnoringVisibility
+                .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
+            // scrollBehavior は heightOffsetLimit の測定のため維持する（nestedScroll 接続は無し）。
             scrollBehavior = scrollBehavior,
         )
 
@@ -1404,7 +1622,9 @@ internal fun ChapterScreenContent(
             exit = fadeOut(tween(MotionDurationCrossfade)),
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .statusBarsPadding()
+                // IgnoringVisibility: メニュー開閉の systemBars hide/show でチップ位置が跳ねないよう、
+                // 可視追従の statusBarsPadding ではなく常時実測値でパディングする。
+                .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
                 .padding(top = Spacing.S8),
         ) {
             Text(
@@ -1419,6 +1639,62 @@ internal fun ChapterScreenContent(
                     .clickable(onClick = onReturnToContinuation)
                     .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
             )
+        }
+
+        // 「最上部へ」ピル（2026-07-16 実機フィードバック・案C裁定＝reading-backtotop-D.html）:
+        // メニュー表示中かつ「章の3割以上読み進めた」ときだけ、下端バー直上に出す。意匠は復帰ヒント・
+        // 続きに戻ると同型のピル（新意匠を発明しない）。なぜ序盤は出さないか: 章頭付近では戻る意味が
+        // 無くただの浮遊物になる。押して先頭へ戻ると条件が外れて自然に消える＝完了フィードバックを兼ねる。
+        // 進捗は〈可視先頭アイテム÷全アイテム〉の段落数ベース近似（画素精度は不要・1画面で収まる短章では
+        // 出ない）。閾値 3割＝実機較正値（初期の「半分」はユーザー所見で多すぎ→3割へ・2026-07-16。
+        // 実機後詰め層＝ADR0005 §B）。
+        // derivedStateOf: スクロール毎フレームの再評価を boolean 反転時だけの recompose に落とす
+        //（本棚 showBand と同じ定石）。
+        // barsVisualReady を key に持つ: remember がラムダごと固定するため、初期化完了フラグの反転を
+        // 織り込むには作り直しが要る（章インスタンスごとに高々1回の反転）。
+        val chromeVisibleForPill by remember(barsVisualReady) {
+            derivedStateOf { barsVisualReady && topAppBarState.collapsedFraction < 0.5f }
+        }
+        val pastThreshold by remember(lazyListState) {
+            derivedStateOf {
+                val total = lazyListState.layoutInfo.totalItemsCount
+                // index/total ≥ 0.3 の整数演算形（×10 ≥ ×3）
+                total > 0 && lazyListState.firstVisibleItemIndex * 10 >= total * 3
+            }
+        }
+        AnimatedVisibility(
+            visible = chromeVisibleForPill && pastThreshold,
+            enter = fadeIn(tween(MotionDurationCrossfade)),
+            exit = fadeOut(tween(MotionDurationCrossfade)),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                // 下端バーの実測高さ＋S12 で「バー直上」に浮かべる（バー高はナビバー実高で変わるため実測値）。
+                .padding(bottom = with(LocalDensity.current) { bottomBarHeightPx.toDp() } + Spacing.S12),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S4),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(colors.navBackground.copy(alpha = 0.92f))
+                    // animateScrollToItem: 瞬間ジャンプは味気ないというユーザー所見（2026-07-16）で滑走化。
+                    // 遠距離は Lazy が目標近くまで内部で座標を寄せてから滑らかに着地する＝長章でも安全。
+                    .clickable(onClick = { scope.launch { lazyListState.animateScrollToItem(0) } })
+                    .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.VerticalAlignTop,
+                    contentDescription = null, // 隣のテキストが意味を担う（重複読み上げ回避）
+                    tint = colors.topBarIcon,
+                    modifier = Modifier.size(16.dp),
+                )
+                Text(
+                    text = "最上部へ",
+                    color = colors.topBarIcon,
+                    fontFamily = MinchoFamily,
+                    fontSize = FontSubTitle,
+                )
+            }
         }
 
         if (showLinkSheet) {
@@ -1467,17 +1743,63 @@ internal fun ChapterScreenContent(
 }
 
 /**
- * バーを全表示または全非表示へスナップさせる。
- * なぜ自前実装か: enterAlways の標準 snap はスクロール消費戦略と一体化しており、
- * 本実装の「本文優先・非消費」方針と両立しないため。
+ * スワイプ覗きの表示素材＝隣章のパース済み本文と、着地と同一規則（resolveInitialScroll）で解決した
+ * 初期スクロール位置。位置を焼き込むのは「覗いた表示＝遷移後の表示」を構造的に保証するため。
+ */
+internal data class ChapterPeek(
+    val content: ChapterContentModel,
+    val initialScrollIndex: Int,
+    val initialScrollOffset: Int,
+)
+
+/**
+ * スワイプ引っ張りで端から覗く隣章パネル。
+ * なぜ実物の [ChapterContent] を使うか: 覗きの内容を遷移後の初期表示と完全一致させ、
+ * 確定スライド→章切替が連続して見えるようにするため（専用の軽量プレビューだと書体・版面の再現が
+ * 二重管理になる）。LazyListState は peek の初期位置＝その章を読んでいた場所から表示する
+ *（章ごとの位置記憶＝親 ReadingScreen の sessionScrollByFile。2026-07-16 実機フィードバック）。
+ * @param translationX 覗き位置（px）。draw 段で読む deferred read（ドラッグ毎フレームの recompose 回避）。
+ */
+@Composable
+private fun ChapterPeekPanel(
+    translationX: () -> Float,
+    peek: ChapterPeek,
+    colors: ReadingColors,
+    fontSize: Int,
+    lineHeightEm: Float,
+    bodyMarginDp: Int,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer { this.translationX = translationX() }
+            // 不透明の紙面で現章を覆う（ChapterContent は背景を塗らず Scaffold 任せのため、ここで明示する）。
+            .background(colors.background),
+    ) {
+        ChapterContent(
+            content = peek.content,
+            colors = colors,
+            fontSize = fontSize,
+            lineHeightEm = lineHeightEm,
+            bodyMarginDp = bodyMarginDp,
+            lazyListState = remember(peek) {
+                LazyListState(peek.initialScrollIndex, peek.initialScrollOffset)
+            },
+        )
+    }
+}
+
+/**
+ * バーを全表示または全非表示へスナップさせる（中央タップのトグル専用）。
+ * なぜ自前実装か: enterAlways の内蔵 snap はスクロール消費戦略と一体化しているが、
+ * 本実装はスクロール接続そのものを持たない（タップ駆動のみ）ため、animate で直接動かす。
  *
- * @param target 退避先の heightOffset。省略時は現在の collapsedFraction から近い方へ吸着
- *               （フリック後の半端位置の整列に使用）。中央タップでは反転先を明示的に渡す。
+ * @param target 退避先の heightOffset（0f=全表示／heightOffsetLimit=全退避）。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 private suspend fun settleTopBar(
     state: TopAppBarState,
-    target: Float = if (state.collapsedFraction > 0.5f) state.heightOffsetLimit else 0f,
+    target: Float,
 ) {
     animate(
         initialValue = state.heightOffset,

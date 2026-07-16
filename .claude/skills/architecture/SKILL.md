@@ -1,10 +1,7 @@
 ---
 name: architecture
 description: アプリ全体構成の入口。タスク→場所→罠の早見表と「コードから読み取れない設計判断・罠」だけを持つ（構造の詳細はコード/KDocが正本）。
-triggers:
-  - "アーキテクチャを教えて"
-  - "全体構成を確認したい"
-  - "どのファイルがどの役割か"
+when_to_use: 「アーキテクチャを教えて」／「全体構成を確認したい」／「どのファイルがどの役割か」 などの依頼で使う。
 ---
 
 # アーキテクチャ早見表（WHERE-TO-LOOK）
@@ -22,7 +19,7 @@ triggers:
 | タスク | 場所 | 罠・注意 |
 |---|---|---|
 | PDF抽出ロジック | `android/app/src/main/java/com/novelreader/pdf/`（入口は facade `PdfBookExtractor.kt`＝4ステップ進捗・例外分類。ステップ構成は同ファイル KDoc） | `PDDocument.load` 前に `PDFBoxResourceLoader.init` 必須＝CID→Unicode 解決（`NovelReaderApplication.onCreate` で配線済み・task_diary #31）。グリフ正規化（波ダッシュ等）は `PdfExtractor` の `normalizeGlyphUnicode`（#35/#38） |
-| 抽出の定数・ルール | `pdf/ParserRules.kt` | — |
+| 抽出のルール（文書ごと自動検出） | `pdf/DetectedRules.kt`（フォールバック定数＝`pdf/ParserRules.kt`） | 検出値は文書内実測＝定数直参照で挙動を推論しない |
 | 精度の基準・回帰 | `ab-review/golden_regression/`＋実機ゲート `androidTest/…/pdf/PdfExtractorDeviceSpikeTest.kt`／HTMLバイト等価ゴールデン `src/test/resources/golden_html/` | 実機テストは `/device-verify` スキル必読（`connectedAndroidTest` 直叩きは蔵書DB消失＝task_diary #36） |
 | UI（本棚/読書/目次） | `ui/BookshelfScreen.kt`（カード=`BookCard.kt`・バナー=`ProcessingBanner.kt`）／`ui/NativeReadingScreen.kt`（公開名 ReadingScreen。本文=`ChapterContent.kt`・設定=`ReadingSettingsSheet.kt`・エラー=`ReadingErrorScreen.kt`）。NavHost は本棚・読書の2ルート（"bookshelf"・"reading/{bookId}/{startFile}"）＋発見系（"discovery"・"discovery/search"・"discovery/genre"・"discovery/result"・"discovery/detail/{ncode}"・取り込み "discovery/detail/{ncode}/import"・**なろうWebView読書 "web-reader/{ncode}/{startEpisode}"**） | 読書画面（PDF蔵書）は **WebView ではなく Compose ネイティブ**（HTML解析=`parser/ChapterHtmlParser.kt`・ルビ=`ui/compose/RubyText.kt`）。目次 `NativeTableOfContentsScreen` は NavHost ルートでなく ReadingScreen 内から表示。⚠️**なろう作品の"閲覧"だけは例外的に WebView**（`WebReaderScreen`・ADR 0012＝加工なし・URL 観測のみ・JS 注入ゼロ。読書位置 `web_reading_progress` を URL から自動記録し続きから再開） |
 | 見た目（配色・タイポ・余白）の変更 | まず `docs/decisions/0005-ui-n-visual-language-D.md`＋claude.ai/design のモック現物（`ui-n-phase0/*-D.html`・取得は `DesignSync: get_file`・入口は handover.md） | **HTMLモックが正本・Compose は翻訳**＝Compose 側で意匠を自己判断しない。色=`theme/Color.kt`・明朝=`theme/Typography.kt` の `MinchoFamily` 経由（直書き禁止） |

@@ -1,11 +1,7 @@
 ---
 name: hallucination
 description: ユーザーが /hallucination と打った瞬間に UserPromptSubmit フックが機械的に保全・台帳キュー記載する＝打っただけで完結し、そのターンの Claude は何もしない。分類・一次情報確定・正式登録は事後に明示依頼されたときだけ本スキルの事後検証モードで行う。
-triggers:
-  - "ハルシネーションを記載して"
-  - "今のはハルシネーション"
-  - "幻覚を台帳に登録"
-  - "hallucination を記録"
+when_to_use: 「ハルシネーションを記載して」／「今のはハルシネーション」／「幻覚を台帳に登録」／「hallucination を記録」 などの依頼で使う。
 ---
 
 # hallucination — ハルシネーションの台帳登録（記録はフックで完結・検証は事後）

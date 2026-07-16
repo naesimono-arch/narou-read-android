@@ -38,14 +38,18 @@ object TextProcessor {
         return linesDict
     }
 
-    /** ルビ文字を最近傍の親文字へ rubyText として紐付ける（in-place）。 */
+    /**
+     * ルビ文字を最近傍の親文字へ rubyText として紐付ける（in-place）。
+     * rubyOffsetX は検出したルビ横オフセットを注入する（既定はフォールバック実測値）。
+     */
     internal fun associateRuby(
         linesDict: LinkedHashMap<Double, MutableList<CharBox>>,
         rubiesAll: List<CharBox>,
+        rubyOffsetX: Double = ParserRules.RUBY_OFFSET_X,
     ) {
         for (r in rubiesAll) {
-            // ルビの x0 は親文字 x0 + RUBY_OFFSET_X。逆算して親の列を最近傍で探す。
-            val targetX = r.x0 - ParserRules.RUBY_OFFSET_X
+            // ルビの x0 は親文字 x0 + rubyOffsetX。逆算して親の列を最近傍で探す。
+            val targetX = r.x0 - rubyOffsetX
             var matchedKey: Double? = null
             for (xKey in linesDict.keys) {
                 if (ParserRules.isClose(xKey, targetX)) {
@@ -126,6 +130,7 @@ object TextProcessor {
     fun processPages(
         charListsByPage: List<List<CharBox>>,
         totalPages: Int,
+        rules: DetectedRules = DetectedRules.FALLBACK,
         progressCallback: ((pct: Int, processed: Int, bodyTotal: Int) -> Unit)? = null,
     ): List<String> {
         val allParagraphs = mutableListOf<String>()
@@ -153,25 +158,25 @@ object TextProcessor {
                 val fontSize = c.size
                 val yPos = c.top
 
-                // ① ページ数の除外（12pt かつ ページ番号 Y 付近）
-                if (ParserRules.isClose(fontSize, ParserRules.FONT_SIZE_PAGE)) {
-                    if (ParserRules.isClose(yPos, ParserRules.PAGE_NUM_Y, absTol = 5.0) ||
-                        ParserRules.isClose(c.bottom, ParserRules.PAGE_NUM_Y, absTol = 5.0)
+                // ① ページ数の除外（ページ番号サイズ かつ ページ番号 Y 付近。窓は現行と同形＝±5.0）
+                if (ParserRules.isClose(fontSize, rules.pageNumSize)) {
+                    if (ParserRules.isClose(yPos, rules.pageNumY, absTol = 5.0) ||
+                        ParserRules.isClose(c.bottom, rules.pageNumY, absTol = 5.0)
                     ) {
                         continue
                     }
                 }
 
-                // ② 題名（Bold 判定）
-                if (ParserRules.checkIsTitle(fontName, fontSize)) {
+                // ② 題名（Bold 判定・本文サイズ基準）
+                if (ParserRules.checkIsTitle(fontName, fontSize, rules.bodySize)) {
                     titlesAll.add(c)
                 }
                 // ③ 本文
-                else if (ParserRules.isClose(fontSize, ParserRules.FONT_SIZE_BODY_TITLE)) {
+                else if (ParserRules.isClose(fontSize, rules.bodySize)) {
                     bodiesAll.add(c)
                 }
                 // ④ ルビ
-                else if (ParserRules.isClose(fontSize, ParserRules.FONT_SIZE_RUBY)) {
+                else if (ParserRules.isClose(fontSize, rules.rubySize)) {
                     rubiesAll.add(c)
                 }
             }
@@ -195,7 +200,7 @@ object TextProcessor {
             val bodiesSorted = bodiesAll.sortedWith(compareByDescending<CharBox> { it.x0 }.thenBy { it.top })
 
             val linesDict = groupCharsByLine(bodiesSorted)
-            associateRuby(linesDict, rubiesAll)
+            associateRuby(linesDict, rubiesAll, rules.rubyOffsetX)
 
             // 右の列から順にテキスト化＆段落の縫合
             val linesSortedX = linesDict.keys.sortedDescending()
@@ -219,12 +224,12 @@ object TextProcessor {
                 // 列間 X が 1 行ステップの 1.5 倍超なら段落切れ＋空行挿入
                 if (prevX != null) {
                     val diffX = prevX - x
-                    if (diffX > ParserRules.LINE_STEP_X * 1.5) {
+                    if (diffX > rules.lineStepX * 1.5) {
                         isNewParagraph = true
-                        // 空行数 = round(diffX/LINE_STEP_X) - 1。roundToInt は Python round と .5 の丸め
-                        // 方向が異なるが、diffX/LINE_STEP_X が厳密に .5 になるのは実データで稀
+                        // 空行数 = round(diffX/lineStepX) - 1。roundToInt は Python round と .5 の丸め
+                        // 方向が異なるが、diffX/lineStepX が厳密に .5 になるのは実データで稀
                         // （submission-B の章数一致検証で問題ないことを確認済み）。
-                        blankLineCount = (diffX / ParserRules.LINE_STEP_X).roundToInt() - 1
+                        blankLineCount = (diffX / rules.lineStepX).roundToInt() - 1
                     }
                 }
 

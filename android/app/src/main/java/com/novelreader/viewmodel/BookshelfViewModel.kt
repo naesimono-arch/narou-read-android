@@ -333,6 +333,13 @@ class BookshelfViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch(Dispatchers.IO) { repository.deleteBook(book) }
     }
 
+    // 複数選択→まとめて削除（残8）。選択モードの削除確認ダイアログを確定したときに呼ぶ。1コルーチンで
+    // 順次 deleteBook（各々が本文HTML・DB行・進捗をIOで消す不可逆操作）。books は hot StateFlow のため
+    // 消えた分だけ本棚へ即時反映される。Undo は持たない＝確認ダイアログで事前同意を取る設計（案B裁定）。
+    fun deleteBooks(books: List<BookEntity>) {
+        viewModelScope.launch(Dispatchers.IO) { books.forEach { repository.deleteBook(it) } }
+    }
+
     // (b) Web由来・未取込カードを本棚から外す。webNovels は hot に uiState へ combine 済みのため、
     // 削除すれば本棚から即時に消える（deleteBook と同じ配送経路）。
     fun removeWebNovel(ncode: String) {
