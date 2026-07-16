@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
+import com.novelreader.typeset.CharClassifier
 import com.novelreader.typeset.ParagraphLayout
 import com.novelreader.typeset.render.GlyphRenderer
 import com.novelreader.typeset.render.VertGlyphRenderer
@@ -70,22 +71,39 @@ fun VerticalParagraph(
     // 縦書き経路へ移植する設計。葉である本 Composable に付けると段落を跨いだ読み上げ順の統制ができない。
     Canvas(modifier = modifier.size(widthDp, heightDp)) {
         drawIntoCanvas { canvas ->
-            val nc = canvas.nativeCanvas
-            // 本文: 各グリフを純層が決めた CharClass どおりに描く（cellAdvancePx=そのユニットの縦送り）。
-            for (g in layout.glyphs) {
-                renderer.drawGlyph(nc, g.text, g.charClass, g.x, g.y, g.advancePx, bodyPaint)
-            }
-            // ルビ: 縦書きルビは仮名（ひらがな/カタカナ）＝正立のみで足りるため、書記素へ分割し
-            // 天 y から rubyFontSizePx 送りで正立スタックする（回転・位置替えは不要）。
-            val rubyFm = rubyPaint.fontMetrics
-            for (r in layout.rubies) {
-                var cellTop = r.y
-                for (grapheme in RubyLayoutHelper.splitGraphemes(r.text)) {
-                    val baseline = cellTop + rubyFontSizePx / 2f - (rubyFm.ascent + rubyFm.descent) / 2f
-                    nc.drawText(grapheme, r.x, baseline, rubyPaint)
-                    cellTop += rubyFontSizePx
-                }
-            }
+            drawParagraphLayout(canvas.nativeCanvas, layout, rubyFontSizePx, renderer, bodyPaint, rubyPaint)
+        }
+    }
+}
+
+/**
+ * 描画本体（Compose 非依存の内部関数）。
+ * なぜ抽出するか: Robolectric では captureToImage の再描画待ちが刺さり Compose 経由の draw を
+ * テストから駆動できない＝「ルビが分類器つきで renderer を通る」回帰をこの関数の直接呼び出しで固定する。
+ */
+internal fun drawParagraphLayout(
+    nc: android.graphics.Canvas,
+    layout: ParagraphLayout,
+    rubyFontSizePx: Float,
+    renderer: GlyphRenderer,
+    bodyPaint: Paint,
+    rubyPaint: Paint,
+) {
+    // 本文: 各グリフを純層が決めた CharClass どおりに描く（cellAdvancePx=そのユニットの縦送り）。
+    for (g in layout.glyphs) {
+        renderer.drawGlyph(nc, g.text, g.charClass, g.x, g.y, g.advancePx, bodyPaint)
+    }
+    // ルビも本文と同じ分類器＋renderer 経由で描く。読みには「ー」（伸ばし棒＝要回転）や
+    // 小書き仮名（要位置替え）が普通に含まれる——「ルビ＝仮名だから正立だけで足りる」は
+    // 誤った前提だった（2026-07-17 実機フィードバック「ルビの伸ばし棒が横向き」の真因）。
+    for (r in layout.rubies) {
+        var cellTop = r.y
+        for (grapheme in RubyLayoutHelper.splitGraphemes(r.text)) {
+            renderer.drawGlyph(
+                nc, grapheme, CharClassifier.classify(grapheme),
+                r.x, cellTop, rubyFontSizePx, rubyPaint,
+            )
+            cellTop += rubyFontSizePx
         }
     }
 }
