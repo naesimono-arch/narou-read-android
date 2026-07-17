@@ -81,6 +81,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalDensity
@@ -97,6 +98,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import kotlin.math.abs
@@ -126,7 +128,11 @@ import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationNavTransition
 import com.novelreader.ui.theme.MotionSpringBarSettle
 import com.novelreader.ui.theme.ReadingColors
+import com.novelreader.ui.skins.m.ReadingProgressStarM
+import com.novelreader.ui.skins.m.drawSeizuReadingSky
+import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.ReadingTheme
+import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.rememberReadingColors
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.NcodeSearchUiState
@@ -1025,6 +1031,9 @@ private fun ChapterScreen(
         scrollBehavior = scrollBehavior,
         prevFile = prevFile,
         nextFile = nextFile,
+        // スキンM の章扉「第 N 話」と上端結線進捗の材料（目次未ロード中は null＝出さない）。
+        chapterNumber = if (currentIndex >= 0) currentIndex + 1 else null,
+        totalChapters = tocEntries.size.takeIf { it > 0 },
         // 覗きの初期位置は着地と同じ resolveInitialScroll で焼き込む（覗き＝遷移後表示の完全一致）。
         prevPeek = prevPreview?.let { c ->
             val (index, offset) = resolveInitialScroll(prevFile)
@@ -1092,6 +1101,10 @@ internal fun ChapterScreenContent(
     scrollBehavior: TopAppBarScrollBehavior,
     prevFile: String,
     nextFile: String,
+    // スキンM（星図）の章扉・上端結線進捗の材料（ADR 0022 §1 の部品分岐）。null＝目次未ロード等で不明。
+    // 既定 null は既存呼び出し・テストの互換のため（M 以外のスキンでは未使用）。
+    chapterNumber: Int? = null,
+    totalChapters: Int? = null,
     // スワイプ覗きプレビュー（隣章のパース済み本文＋着地と同一規則の初期位置・route が先読み構築）。
     // null=先読み中/端章/章欠損＝覗きは無地の紙面に縮退する（ドラッグと章送り自体は可）。
     prevPeek: ChapterPeek? = null,
@@ -1120,6 +1133,10 @@ internal fun ChapterScreenContent(
     onRetryParse: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+
+    // スキンM（星図）のクローム部品分岐フラグ（ADR 0022 §1＝本文エンジンは共有・替わるのは
+    // 地の星屑/上端結線進捗/没入ゴースト題字のみ。M 以外では従来描画と完全同一）。
+    val isSeizu = LocalSkin.current == Skin.SEIZU_M
 
     // 表示設定ボトムシートの開閉状態。
     // なぜ rememberSaveable か: 素の remember だとプロセス再生成（回転・background kill）で
@@ -1249,6 +1266,9 @@ internal fun ChapterScreenContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
+                    // スキンM: 地＝夜天グラデ＋極淡の星屑（reading-M .phone 背景）。本文の下層に静的に敷く
+                    //（スワイプ追従は本文側の translationX のみ＝地は動かない。M 以外は Modifier 無変化）。
+                    .then(if (isSeizu) Modifier.drawBehind { drawSeizuReadingSky() } else Modifier)
                     // 本文タップで上下バーをトグル表示する（表示/非表示の唯一の駆動元）。
                     // なぜ barsVisible の真偽値を持たないか: settle アニメ中の再タップや
                     // プロセス再生成の復元で真偽値と実オフセットが乖離すると「隠れているものを
@@ -1337,6 +1357,7 @@ internal fun ChapterScreenContent(
                                 bodyMarginDp = bodyMarginDp,
                                 lazyListState = lazyListState,
                                 continuation = continuationSlot,
+                                chapterNumber = chapterNumber,
                             )
                         }
                     }
@@ -1496,6 +1517,36 @@ internal fun ChapterScreenContent(
             // scrollBehavior は heightOffsetLimit の測定のため維持する（nestedScroll 接続は無し）。
             scrollBehavior = scrollBehavior,
         )
+
+        // ────── スキンM: 上端の結線進捗＋没入ゴースト題字（reading-M .prog / .ghost）──────
+        if (isSeizu) {
+            // 結線進捗＝ほぼ唯一の常設クローム（バーの出没に関わらず最前面・画面最上端 2dp）。
+            if (chapterNumber != null && totalChapters != null && totalChapters > 0) {
+                ReadingProgressStarM(
+                    fraction = chapterNumber.toFloat() / totalChapters,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            }
+            // 没入時のゴースト題字（題名 · 第N話）。トップバー退避量に連動して入れ替わりに現れる
+            //（collapsedFraction は graphicsLayer 内の deferred read＝バー追従で composition を再実行しない）。
+            Text(
+                text = buildString {
+                    append(bookTitle)
+                    if (chapterNumber != null) append(" · 第${chapterNumber}話")
+                },
+                fontSize = 11.sp,                      // reading-M .ghost .ct 11px
+                letterSpacing = 0.14.em,
+                color = colors.textSecondary,          // --dim
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
+                    .padding(top = Spacing.S12)
+                    .padding(horizontal = Spacing.S40)
+                    .graphicsLayer { alpha = topAppBarState.collapsedFraction },
+            )
+        }
 
         // 没入クローム復帰ヒント（初回消灯時に数秒フェード）。タップは奪わない純表示。
         // fade は motion トークン MotionDurationCrossfade 経由（d-motion 08 禁止則②＝野良既定に委ねない）。
