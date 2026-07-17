@@ -1,6 +1,8 @@
 package com.novelreader.ui.skins.p
 
+import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -8,6 +10,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.DraggableState
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,13 +53,17 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -61,9 +71,16 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -96,6 +113,7 @@ import com.novelreader.ui.theme.CartridgePlum
 import com.novelreader.ui.theme.CartridgePurple
 import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationReveal
+import com.novelreader.ui.theme.MotionSpringBarSettle
 import com.novelreader.ui.theme.RedCartridge
 import com.novelreader.ui.theme.RedLoCartridge
 import com.novelreader.ui.theme.Spacing
@@ -104,6 +122,7 @@ import com.novelreader.viewmodel.ReadingStatus
 import com.novelreader.viewmodel.chapterNumberOf
 import com.novelreader.viewmodel.progressFractionFor
 import com.novelreader.viewmodel.readingStatusFor
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 // ============================================================
@@ -162,6 +181,30 @@ private val CrownSprite = listOf(
     "########",
 )
 
+// ============================================================
+// H3「二画面ヒンジ」の配分モデル（正本 bookshelf-P-header-H3-hinge.html）。
+// 上=NOW PLAYING（可変高）／下=ラック（残り全部）を、中央ヒンジバーの上下ドラッグで無段階配分し、
+// 離すと 大/均衡/最小 の3ディテントへ吸着する。正本 DETENTS [56,220,340]px は「液晶＋つづきボタン」込みの高さだが、
+// Compose では到達性要件（どの段でも「つづきから読む」に届く＝タスク要件）を守るため、この可変高は "液晶面" にだけ効かせ、
+// つづきボタンは可変クリップ域の外に独立配置する（段が浅くてもボタンが切れない）＝正本のpx値からボタン分(~74dp)を差し引いた
+// 液晶面の取り分 [56,180,260]dp を段とする。均衡/大＝フル液晶＋ボタン、最小＝1行ミニストリップ（自前の▶）へクロスフェード。
+// 既定=均衡（index 1）。
+// ============================================================
+private val HingeDetentsDp = listOf(56f, 180f, 260f) // [最小, 均衡, 大]＝液晶面の取り分(dp)
+private val HingeDetentNames = listOf("最小", "均衡", "大")
+private const val HingeMinDp = 56f
+private const val HingeMaxDp = 260f
+
+// フル液晶⇔ミニのクロスフェード係数（正本 JS fk=(h-100)/60・0=ミニ 1=フル）。0.5 を境に操作対象（クリック可否）を入替。
+private fun hingeFullAlpha(heightDp: Float): Float = ((heightDp - 100f) / 60f).coerceIn(0f, 1f)
+
+// つづきボタンの表出係数（液晶がフル寄り＝fullAlpha>0.5 で立ち上げる）。0=畳む(高さ0) 1=全高。最小段では 0＝ミニの▶へ委ねる。
+private fun hingeButtonReveal(heightDp: Float): Float = ((hingeFullAlpha(heightDp) - 0.5f) / 0.5f).coerceIn(0f, 1f)
+
+// 現在高に最も近いディテント index（離したときの吸着先・段ラベルの真実源）。
+private fun nearestDetentIndex(heightDp: Float): Int =
+    HingeDetentsDp.indices.minByOrNull { abs(HingeDetentsDp[it] - heightDp) } ?: 1
+
 @Composable
 internal fun BookshelfCartridgeP(
     books: List<BookEntity>,
@@ -198,6 +241,35 @@ internal fun BookshelfCartridgeP(
         visible.firstOrNull { readingStatusFor(progressMap[it.id], chapterCountMap[it.id] ?: 0) == ReadingStatus.READING }
     }
 
+    // ===== H3 二画面ヒンジの状態（hero の有無に依らず順序安定のため無条件に宣言・使用は hero!=null 時のみ）=====
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val prefs = remember(context) { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
+    // reduce-motion（アニメーター無効）: 吸着アニメを止め即時スナップ（正本 cap の prefers-reduced-motion 分岐・M/J と同判定）。
+    val reduceMotion = remember(context) {
+        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    }
+    // ヒンジの取り分を「設定」として尊重: 選んだディテント index を pref p_hinge_detent へ永続化（装い等と同じ app_prefs 流儀）。
+    // rememberSaveable でプロセス内（回転・ダーク切替の Activity 再生成）も保持＝アプリ再起動でも取り分が戻る。既定=均衡(1)。
+    var detentIndex by rememberSaveable { mutableStateOf(prefs.getInt("p_hinge_detent", 1).coerceIn(0, 2)) }
+    // ライブ高さ(dp)。ドラッグ中は同期更新・離すと最寄りディテントへ animate。plain state のままレイアウト/描画位相で読み、
+    // フレーム毎の recomposition を避ける（compose-state-deferred-reads：高さは layout、alpha は graphicsLayer 内で読む）。
+    var hingeHeightDp by remember { mutableFloatStateOf(HingeDetentsDp[detentIndex]) }
+    val hingeDrag = rememberDraggableState { deltaPx ->
+        // ヒンジバーだけがこの縦ドラッグを受ける（下のラック LazyColumn は別 sibling＝スクロールと座を奪い合わない）。
+        hingeHeightDp = (hingeHeightDp + deltaPx / density.density).coerceIn(HingeMinDp, HingeMaxDp)
+    }
+    // 離した瞬間の吸着（onDragStopped は suspend＝draggable のコルーチン内で animate を直接回す）。
+    val onHingeSettle: suspend () -> Unit = {
+        val nearest = nearestDetentIndex(hingeHeightDp)
+        detentIndex = nearest
+        prefs.edit().putInt("p_hinge_detent", nearest).apply()
+        val target = HingeDetentsDp[nearest]
+        // 吸着は「バーを段へ settle させる」＝Motion.kt の MotionSpringBarSettle（読書没入バーの吸着 spring）を流用。
+        if (reduceMotion) hingeHeightDp = target
+        else animate(hingeHeightDp, target, animationSpec = MotionSpringBarSettle) { v, _ -> hingeHeightDp = v }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -226,14 +298,22 @@ internal fun BookshelfCartridgeP(
                 inListMode = false,
             )
 
-            // NOW PLAYING（続きから）＝いま挿さっている1本のときだけ出す（未読/空では続きは無い）。
+            // NOW PLAYING（続きから）＝いま挿さっている1本のときだけ出す（未読/空では続きは無い＝二画面ヒンジも出さない）。
             if (hero != null) {
-                LcdNowPlaying(
+                // 上画面（可変高）＝フル液晶⇔最小ミニストリップ。高さは下のヒンジバーのドラッグで配分。
+                HingedNowPlaying(
                     book = hero,
                     progress = progressMap[hero.id],
                     totalChaps = chapterCountMap[hero.id] ?: 0,
+                    heightProvider = { hingeHeightDp },
+                    onOpen = { onOpenBook(hero) },
                 )
-                StartButton(onClick = { onOpenBook(hero) })
+                // 中央ヒンジバー（DSの蝶番＝ドラッグの把手・現在段を表示）。
+                HingeBar(
+                    heightProvider = { hingeHeightDp },
+                    dragState = hingeDrag,
+                    onSettle = onHingeSettle,
+                )
             }
 
             // 取込中バナー＝緑LCDの「取り込み中」（実装 ProcessingBanner に対応・出没のみ Motion スロット）。
@@ -611,6 +691,211 @@ internal fun StartButton(onClick: () -> Unit) {
         }
     }
     Spacer(Modifier.height(Spacing.S12))
+}
+
+// ============================================================
+// H3 二画面ヒンジ 上画面（.tops＝可変高。フル液晶⇔最小ミニストリップをクロスフェード）
+// ============================================================
+/**
+ * NOW PLAYING の上画面を [heightProvider]（=液晶面の取り分dp）へ可変表示する。正本 .tops（overflow:hidden で高さ可変）の翻訳。
+ * 2要素を上下に積む:
+ *  1) 液晶面ボックス（可変高・clip）＝フル液晶（LcdNowPlaying）⇔最小ミニストリップ をクロスフェード。
+ *     高さは Modifier.layout（レイアウト位相）・alpha は graphicsLayer（描画位相）で読む＝ドラッグ連続更新でも recomposition ゼロ。
+ *  2) つづきボタン（クリップ域の外・独立）＝フル寄り(fullAlpha>0.5)でのみ高さを立ち上げ表出。段が浅くても切れない＝
+ *     「どの段でも つづきから読む に到達可」（タスク要件）を保証。最小段は 0 に畳み、ミニの▶へ到達を委ねる。
+ */
+@Composable
+private fun HingedNowPlaying(
+    book: BookEntity,
+    progress: ProgressEntity?,
+    totalChaps: Int,
+    heightProvider: () -> Float,
+    onOpen: () -> Unit,
+) {
+    // ミニ用の進捗（フル LcdNowPlaying と同じ値源＝別値を捏造しない）。
+    val chapNum = chapterNumberOf(progress?.lastReadFilename)
+    val frac = progressFractionFor(chapNum, totalChaps, progress?.scrollIndex ?: 0, progress?.scrollOffset ?: 0)
+    val pct = ((frac ?: 0f) * 100).roundToInt()
+
+    // (1) 液晶面ボックス（可変高・はみ出しは clip＝正本 .tops overflow:hidden と同値）。
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .layout { measurable, constraints ->
+                // ライブ高さはここ（レイアウト位相）で読む＝ドラッグ中も recomposition ゼロ。枠を h に固定しはみ出しは clip で切る。
+                val h = heightProvider().dp.roundToPx().coerceAtLeast(0)
+                val placeable = measurable.measure(constraints.copy(minHeight = h, maxHeight = h))
+                layout(placeable.width, h) { placeable.place(0, 0) }
+            }
+            .clipToBounds(),
+    ) {
+        // フル液晶（自然高・上寄せ）。alpha は graphicsLayer 内で読む＝描画位相の deferred read。
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopStart)
+                .graphicsLayer { alpha = hingeFullAlpha(heightProvider()) },
+        ) {
+            LcdNowPlaying(book = book, progress = progress, totalChaps = totalChaps)
+        }
+        // 最小段のミニストリップ。操作対象の入替（クリック可否）は閾値越えでのみ切替＝derivedState（フレーム毎の再構成を避ける）。
+        val miniInteractive by remember { derivedStateOf { hingeFullAlpha(heightProvider()) < 0.5f } }
+        MiniStrip(
+            title = book.title,
+            pct = pct,
+            interactive = miniInteractive,
+            onOpen = onOpen,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = 1f - hingeFullAlpha(heightProvider()) },
+        )
+    }
+
+    // (2) つづきボタン（可変クリップ域の外）。フル寄りで高さを立ち上げ、最小段では 0 へ畳む＝ミニの▶へ委ねる。
+    // 高さの畳み込み・フェードとも layout/描画位相で処理＝閾値越えの recomposition もラック(LazyColumn)へ波及しない。
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                val bh = (placeable.height * hingeButtonReveal(heightProvider())).roundToInt().coerceAtLeast(0)
+                layout(placeable.width, bh) { placeable.place(0, 0) }
+            }
+            .clipToBounds()
+            .graphicsLayer { alpha = hingeButtonReveal(heightProvider()) },
+    ) {
+        StartButton(onClick = onOpen)
+    }
+}
+
+/** 最小段の1行ストリップ（.mini＝題名＋微ゲージ＋▶）。液晶面として見せ、▶ が続きから到達口。 */
+@Composable
+private fun MiniStrip(
+    title: String,
+    pct: Int,
+    interactive: Boolean,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier) {
+        // 液晶面（.mini .strip＝inset 6px・lcd-hi→lcd 放射グラデ＋ドット地）。
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(Spacing.S8)
+                .clip(RoundedCornerShape(8.dp))
+                .drawBehind {
+                    drawRect(Brush.verticalGradient(listOf(LcdHiCartridge, LcdCartridge)))
+                    drawLcdDots()
+                },
+        )
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = Spacing.S16),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "NOW",
+                fontFamily = PixelFamily,
+                fontSize = 8.5.sp,            // .mini .np 8.5px
+                letterSpacing = 0.2.em,
+                color = LcdInkCartridge.copy(alpha = 0.65f), // .mini .np opacity:.65
+            )
+            Text(
+                title,
+                fontSize = 13.sp,            // .mini .tt 13px（ゴシック）
+                fontWeight = FontWeight.Bold,
+                color = LcdInkCartridge,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(horizontal = Spacing.S8),
+            )
+            // 微ゲージ（.mini .mg＝10 セグ・充填＝実進捗%。62% 相当はデータ由来で捏造しない）。
+            SegGauge(
+                total = 10,
+                filled = (pct / 100f * 10).roundToInt(),
+                onColor = LcdInkCartridge,
+                offColor = LcdGaugeOff,
+                modifier = Modifier.width(44.dp).height(10.dp),
+            )
+            Text(
+                "$pct%",
+                fontFamily = PixelFamily,
+                fontSize = 11.sp,            // .mini .pct 11px
+                fontWeight = FontWeight.Bold,
+                color = LcdInkCartridge,
+                modifier = Modifier.padding(start = Spacing.S8),
+            )
+            // ▶ つづきから（.mini .play＝退色レッドの小ボタン）。最小段のときだけ操作対象（interactive）。
+            Box(
+                modifier = Modifier
+                    .padding(start = Spacing.S8)
+                    .size(26.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Brush.verticalGradient(listOf(RedCartridge, RedLoCartridge)))
+                    .clickable(enabled = interactive, onClick = onOpen),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.PlayArrow, contentDescription = "つづきから読む", tint = Color.White, modifier = Modifier.size(14.dp))
+            }
+        }
+    }
+}
+
+// ============================================================
+// H3 二画面ヒンジ 中央バー（.hinge＝ドラッグの把手・現在段ラベル）
+// ============================================================
+/**
+ * 上下2画面の配分ハンドル。縦ドラッグ（[dragState]）で上画面高を無段階に更新し、離すと [onSettle] が最寄り段へ吸着。
+ * このバーだけが縦ドラッグを受ける＝下のラック（LazyColumn）のスクロールと座を奪い合わない（競合処理はここで完結）。
+ */
+@Composable
+private fun HingeBar(
+    heightProvider: () -> Float,
+    dragState: DraggableState,
+    onSettle: suspend () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.S24, vertical = Spacing.S4),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(26.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Brush.verticalGradient(listOf(PlasticHiCartridge, PlasticLoCartridge)))
+                .draggable(
+                    state = dragState,
+                    orientation = Orientation.Vertical,
+                    onDragStopped = { onSettle() },
+                )
+                .semantics { contentDescription = "上下2画面の配分（ヒンジ）" },
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // 把手のグリップ（.hinge .grip＝横バー2本の縦積み）。
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.S4)) {
+                repeat(2) {
+                    Box(
+                        Modifier
+                            .width(22.dp).height(3.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(PlasticLoCartridge),
+                    )
+                }
+            }
+        }
+        // 現在段ラベル（.hinge .det＝右）。閾値をまたぐときだけ更新＝derivedState（フレーム毎の再構成を避ける）。
+        val name by remember { derivedStateOf { HingeDetentNames[nearestDetentIndex(heightProvider())] } }
+        Text(
+            name,
+            fontFamily = PixelFamily,
+            fontSize = 8.5.sp,               // .hinge .det 8.5px
+            letterSpacing = 0.14.em,
+            color = InkSoftCartridge,
+            modifier = Modifier.align(Alignment.CenterEnd).padding(end = Spacing.S12),
+        )
+    }
 }
 
 // ============================================================

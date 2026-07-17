@@ -27,6 +27,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
@@ -296,5 +297,53 @@ class BookshelfCartridgePTest {
         assertTrue("装いの間の結線が無い", wardrobe)
         assertTrue("見つける導線の結線が無い", discovery)
         assertTrue("PDF追加の結線が無い", fab)
+    }
+
+    // ────── H3 二画面ヒンジ（上部可変） ──────
+
+    /** app_prefs へヒンジのディテント index を先置きし、pref からの復元を検証するためのヘルパー。 */
+    private fun setHingeDetentPref(index: Int) {
+        RuntimeEnvironment.getApplication()
+            .getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+            .edit().putInt("p_hinge_detent", index).commit()
+    }
+
+    private fun readingBookState() = BookshelfUiState.Content(listOf(book("b1", "読みかけの物語")))
+    private val readingProgress = mapOf("b1" to ProgressEntity(bookId = "b1", lastReadFilename = "chap_3.html"))
+    private val readingChapters = mapOf("b1" to 10)
+
+    @Test
+    fun `hero がいるとヒンジバーが出て既定は均衡でフル液晶が見える`() {
+        // 既定ディテント=均衡（pref 未設定）＝上画面はフル液晶＝NOW PLAYING と つづきから読む が到達可能。
+        setContent(
+            Skin.CARTRIDGE_P, readingBookState(),
+            progressMap = readingProgress, chapterCountMap = readingChapters,
+        )
+        composeTestRule.onNodeWithContentDescription("上下2画面の配分（ヒンジ）").assertIsDisplayed()
+        composeTestRule.onNodeWithText("均衡").assertIsDisplayed()
+        composeTestRule.onNodeWithText("NOW PLAYING").assertIsDisplayed()
+        composeTestRule.onNodeWithText("つづきから読む").assertIsDisplayed()
+    }
+
+    @Test
+    fun `hero がいなければヒンジバーは出ない`() {
+        // 続きから（挿さっている本）が無いときは二画面ヒンジ自体を出さない（上画面に見せる中身が無い）。
+        setContent(Skin.CARTRIDGE_P, BookshelfUiState.Content(listOf(book("b1", "未読の物語"))), chapterCountMap = mapOf("b1" to 8))
+        composeTestRule.onNodeWithContentDescription("上下2画面の配分（ヒンジ）").assertDoesNotExist()
+    }
+
+    @Test
+    fun `pref のディテント最小で開くとミニストリップと最小ラベルが出て続きから到達口が残る`() {
+        // p_hinge_detent=0（最小）を先置き＝アプリ再起動でも取り分が戻る（pref 永続化）。上画面は1行ミニストリップ。
+        setHingeDetentPref(0)
+        setContent(
+            Skin.CARTRIDGE_P, readingBookState(),
+            progressMap = readingProgress, chapterCountMap = readingChapters,
+        )
+        // ヒンジの段ラベルが最小・ミニの NOW ラベルが見える（NOW は "NOW PLAYING" と別語＝一意）。
+        composeTestRule.onNodeWithText("最小").assertIsDisplayed()
+        composeTestRule.onNodeWithText("NOW").assertIsDisplayed()
+        // 最小でも続きから到達口（ミニの▶＝contentDescription「つづきから読む」）は残り、押せる。
+        composeTestRule.onNodeWithContentDescription("つづきから読む").assertHasClickAction()
     }
 }
