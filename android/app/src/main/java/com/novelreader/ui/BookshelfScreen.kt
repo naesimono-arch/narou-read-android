@@ -72,6 +72,7 @@ import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.skins.j.BookshelfPortalJ
 import com.novelreader.ui.skins.m.BookshelfSkyM
 import com.novelreader.ui.skins.p.BookshelfCartridgeP
+import com.novelreader.ui.skins.p.BookshelfListCartridgeP
 import com.novelreader.ui.theme.Insets
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.LocalSkin
@@ -576,6 +577,52 @@ internal fun BookshelfContent(
             onOpenWardrobe = onOpenWardrobe,
             onFabClick = onFabClick,
             onToggleList = onToggleRackP,
+            onCancelProcessing = onCancelProcessing,
+            snackbarHostState = snackbarHostState,
+            isLoading = isLoading,
+        )
+        return
+    }
+
+    // スキンP「カートリッジ」一覧: トグルで一覧へ落ちたときも P 自身の意匠（bookshelf-P の `.li` 面）へ委譲する
+    // （ADR 0022 追記その2＝旧・D構造フォールバックの格下げ是正。「各UIは装いの間でのみ接続する」原則）。
+    // 選択削除・Webカード操作・状態フィルタ・PDF追加・取込中バナー・スナックバー・空状態の全機能を P 一覧が引き継ぐ。
+    // 選択モード状態（selectionMode/selectedIds と各操作）は本骨格が所有する単一の状態機械を共有渡しする＝二重実装を避け、
+    // 上の BackHandler（selectionMode で戻る＝解除）も 1 本のまま効く。
+    if (LocalSkin.current == Skin.CARTRIDGE_P && !rackViewP) {
+        BookshelfListCartridgeP(
+            books = visibleBooks,
+            webNovels = webNovels,
+            webReadingProgress = webReadingProgress,
+            webLastReadAt = webLastReadAt,
+            progressMap = progressMap,
+            chapterCountMap = chapterCountMap,
+            newEpisodeNovelMap = newEpisodeNovelMap,
+            processingState = processingState,
+            selectedStatus = selectedStatus,
+            statusCounts = statusCounts,
+            appTheme = appTheme,
+            onThemeChange = onThemeChange,
+            followingSystem = followingSystem,
+            onFollowSystem = onFollowSystem,
+            onSelectStatus = { selectedStatusName = it?.name },
+            selectionMode = selectionMode,
+            selectedIds = selectedIds,
+            onToggleSelect = toggleSelect,
+            onEnterSelection = enterSelection,
+            onExitSelection = exitSelection,
+            // 全選択: 骨格所有の selectedIds をまとめて差し替える（対象 id の算出は一覧側が蔵書のみで行う）。
+            onSelectAll = { ids -> selectedIds.clear(); selectedIds.addAll(ids) },
+            onDeleteBooks = { onDeleteBooks(it) },
+            onOpenBook = onOpenBook,
+            onOpenWebNovel = onOpenWebNovel,
+            onResumeWebNovel = onResumeWebNovel,
+            onImportWebNovel = onImportWebNovel,
+            onRemoveWebNovel = onRemoveWebNovel,
+            onOpenDiscovery = onOpenDiscovery,
+            onOpenWardrobe = onOpenWardrobe,
+            onFabClick = onFabClick,
+            onToggleRack = onToggleRackP,
             onCancelProcessing = onCancelProcessing,
             snackbarHostState = snackbarHostState,
             isLoading = isLoading,

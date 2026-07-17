@@ -33,6 +33,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checkroom
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
@@ -131,11 +132,14 @@ import kotlin.math.roundToInt
 // ============================================================
 
 // P の pixel 記号チャンネル（--pixel: ui-monospace 系）。7セグ/STAGE/CLEAR 等の英数 HUD に使う。
+// 各 P 画面ファイルが同名の file-private 版を持つ既存慣行に合わせ private のまま（internal 化は Toc/Discovery の
+// 同名 file-private 宣言と衝突する＝一覧面は自前の private PixelFamily を持つ）。
 private val PixelFamily = FontFamily.Monospace
 
 // ラベル識別色（--w1..w4）: 表紙を持たないため作品 id ハッシュで安定した色を引く（並び替えで変わらない）。
-private val CartridgeLabelPalette = listOf(CartridgeGold, CartridgePurple, CartridgeGreen, CartridgePlum)
-private fun labelColorFor(bookId: String): Color =
+// internal 昇格の理由: 一覧面の chip-lb（.li .chip-lb）が同じ作品識別色を引く＝ラックと一覧で同じ本が同色になる整合。
+internal val CartridgeLabelPalette = listOf(CartridgeGold, CartridgePurple, CartridgeGreen, CartridgePlum)
+internal fun labelColorFor(bookId: String): Color =
     CartridgeLabelPalette[(bookId.hashCode() and 0x7fffffff) % CartridgeLabelPalette.size]
 
 // 描画層で層の上に載る透過色（LCD ドット地・ゲージ空セグ等＝焼き込めず .copy(alpha=) で正本 α を付与）。
@@ -218,6 +222,8 @@ internal fun BookshelfCartridgeP(
                 onFollowSystem = onFollowSystem,
                 onOpenWardrobe = onOpenWardrobe,
                 onToggleList = onToggleList,
+                // ラック面では表示切替ボタンは「一覧へ」＝List アイコン（既定）。
+                inListMode = false,
             )
 
             // NOW PLAYING（続きから）＝いま挿さっている1本のときだけ出す（未読/空では続きは無い）。
@@ -297,13 +303,16 @@ internal fun BookshelfCartridgeP(
 // 機体トップ（.brand＝topbar 相当。銘板＋装い/表示切替/メニューを機体ボタンとして載せる）
 // ============================================================
 @Composable
-private fun BrandRow(
+internal fun BrandRow(
     appTheme: com.novelreader.ui.theme.ReadingTheme,
     onThemeChange: (com.novelreader.ui.theme.ReadingTheme) -> Unit,
     followingSystem: Boolean,
     onFollowSystem: () -> Unit,
     onOpenWardrobe: () -> Unit,
     onToggleList: () -> Unit,
+    // 表示切替ボタンの向き: 一覧面では「ラックへ戻る」＝2x2グリッド（.btn.sq aria-label「ラックへ切替」）、
+    // ラック面では「一覧へ」＝リスト線（.btn.sq aria-label「一覧へ切替」）。モックの2面で図柄が入れ替わる。
+    inListMode: Boolean = false,
 ) {
     Row(
         modifier = Modifier
@@ -354,11 +363,11 @@ private fun BrandRow(
             )
         }
         Spacer(Modifier.width(Spacing.S8))
-        // 一覧へ切替（.btn.sq＝表示切替）。D 構造フォールバックの一覧へ落ちる（トグルの機能維持）。
+        // 表示切替（.btn.sq）。ラック⇄一覧を往復＝両面とも P 自身の意匠（ADR 0022 追記その2＝D 構造フォールバック廃止）。
         PlasticSquareButton(onClick = onToggleList) {
             Icon(
-                Icons.AutoMirrored.Filled.List,
-                contentDescription = "一覧表示に切替",
+                if (inListMode) Icons.Filled.GridView else Icons.AutoMirrored.Filled.List,
+                contentDescription = if (inListMode) "ラック表示に切替" else "一覧表示に切替",
                 tint = InkCartridge,
                 modifier = Modifier.size(18.dp),
             )
@@ -459,7 +468,7 @@ private fun ThemeMenuSection(
 // 緑LCD の NOW PLAYING（.lcdframe > .lcd＝続きから）
 // ============================================================
 @Composable
-private fun LcdNowPlaying(book: BookEntity, progress: ProgressEntity?, totalChaps: Int) {
+internal fun LcdNowPlaying(book: BookEntity, progress: ProgressEntity?, totalChaps: Int) {
     val chapNum = chapterNumberOf(progress?.lastReadFilename)
     val frac = progressFractionFor(chapNum, totalChaps, progress?.scrollIndex ?: 0, progress?.scrollOffset ?: 0)
     val pct = ((frac ?: 0f) * 100).roundToInt()
@@ -566,7 +575,7 @@ private fun LcdStat(key: String, value: String, modifier: Modifier = Modifier) {
 
 /** 続きから読む（.start＝退色レッドの厚みボタン）。0 4px 0 red-lo の段差は下地の一段で表す。 */
 @Composable
-private fun StartButton(onClick: () -> Unit) {
+internal fun StartButton(onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -608,7 +617,7 @@ private fun StartButton(onClick: () -> Unit) {
 // 取込中バナー（.writing＝緑LCD の「取り込み中」＝ProcessingBanner の P 意匠）
 // ============================================================
 @Composable
-private fun WritingBanner(state: ProcessingState, onStop: () -> Unit) {
+internal fun WritingBanner(state: ProcessingState, onStop: () -> Unit) {
     // モックのステップ名（4段＝題名/本文/分割/HTML）。実パイプラインの stepTotal は 4（ProcessingState 既定）。
     val stepLabels = listOf("題名", "本文", "分割", "HTML")
     Column(
@@ -777,7 +786,7 @@ private fun WritingSteps(stepIndex: Int, stepTotal: Int, labels: List<String>, m
 // カセットライブラリ見出し（.lib-h）
 // ============================================================
 @Composable
-private fun LibraryHeader(count: Int) {
+internal fun LibraryHeader(count: Int, countPrefix: String = "") {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.S24, vertical = Spacing.S8),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -792,7 +801,8 @@ private fun LibraryHeader(count: Int) {
             color = InkMidCartridge,
         )
         Text(
-            "%02d 本".format(count),
+            // 一覧面は .lib-h .n = 「一覧 · 04 本」＝ countPrefix で「一覧 · 」を前置（ラック面は空）。
+            "$countPrefix%02d 本".format(count),
             fontFamily = PixelFamily,
             fontSize = 11.sp,                 // .lib-h .n 11px
             letterSpacing = 0.1.em,
@@ -805,7 +815,7 @@ private fun LibraryHeader(count: Int) {
 // 見つける導線（.shop）
 // ============================================================
 @Composable
-private fun ShopBand(onClick: () -> Unit) {
+internal fun ShopBand(onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -847,7 +857,7 @@ private fun ShopBand(onClick: () -> Unit) {
 // ラベル絞り込みチップ（.chips＝読書状態フィルタへ写像・M と同機能）
 // ============================================================
 @Composable
-private fun CartridgeChips(
+internal fun CartridgeChips(
     selected: ReadingStatus?,
     counts: Map<ReadingStatus, Int>,
     onSelect: (ReadingStatus?) -> Unit,
@@ -1108,7 +1118,7 @@ private fun ClearMark(modifier: Modifier = Modifier) {
 // 空きスロット＝PDF追加（.slotadd＝破線の空きスロット）
 // ============================================================
 @Composable
-private fun SlotAdd(onClick: () -> Unit) {
+internal fun SlotAdd(onClick: () -> Unit) {
     val slotShape = CutCornerShape(topStart = 7.dp, topEnd = 7.dp)
     Row(
         modifier = Modifier
@@ -1141,7 +1151,7 @@ private fun SlotAdd(onClick: () -> Unit) {
 // 機体下端の意匠（.deck＝通気孔＋銘板）＝固定フッタ
 // ============================================================
 @Composable
-private fun Deck() {
+internal fun Deck() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
