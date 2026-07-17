@@ -66,11 +66,15 @@ internal class ScatterStar(val fx: Float, val fy: Float, val fr: Float, val alph
 // 深空のアクセント星（viewport 名目 390×844 の正規化座標）。
 internal class AccentStar(val fx: Float, val fy: Float)
 
+// 天の川の下地もや（無数の未分解星が溶けあう淡い soft blob。正規化座標・radial で重ね斑の雲を作る）。
+internal class HazeBlob(val fx: Float, val fy: Float, val fr: Float, val alpha: Float, val color: Color)
+
 /**
- * 深空フィールド（星雲・天の川粒帯・散開微星・アクセント星）。蔵書に依存しない不変の「地」。
+ * 深空フィールド（下地もや・星雲・天の川粒帯・散開微星・アクセント星）。蔵書に依存しない不変の「地」。
  * finishedStars（読了星の累積）だけは蔵書由来のため別に持たせる（BookshelfSkyM 側で算出）。
  */
 internal class DeepSkyField(
+    val haze: List<HazeBlob>,
     val band: List<BandParticle>,
     val scatter: List<ScatterStar>,
     val accent: List<AccentStar>,
@@ -107,15 +111,46 @@ internal fun buildDeepSkyField(): DeepSkyField {
     fun bDens(y: Float): Float =
         0.5f + 0.5f * (sin(y * 0.021f) * 0.5f + sin(y * 0.047f + 1.1f) * 0.3f + sin(y * 0.009f + 2.3f) * 0.2f)
 
-    val band = ArrayList<BandParticle>(3000)
-    // 天の川本体＝微星の粒（面グロー主体を廃し粒主体へ。芯へ沿ったガウス散布・べき分布・輝度上限）。
+    // 天の川の下地もや＝無数の未分解星が溶けあう淡い連続輝き（芯に沿った soft blob 群）。
+    // なぜ復活させるか（設計変更・監督裁定 2026-07-18）: R1 は面グローを廃し「粒のみ」に転換したが、実機では
+    //   粒が『まばらな硬い点の散らばり』に見え「荒い・きれいでない・臨場感がない」に退行した。実際の天の川は
+    //   〈淡い連続輝き（無数の未分解星）＋その上の点星〉の二層構造であり、下地の輝きが無いと点の散らばりに戻る。
+    //   そこで単一の面グロー blob（＝中心だけ濃い「染み」で不採用だった旧方式）ではなく、密度ムラ bDens に従い
+    //   多数の soft blob を芯へ沿って重ねて〈内部構造のある斑の雲〉を敷き直す。輝度は極低 alpha（peak 0.075）に
+    //   抑え、暗黒帯でも下地を裂く＝題名可読の思想（帯の芯は bAxis 設計でテキストを避ける）を守る。
+    val haze = ArrayList<HazeBlob>(300)
+    run {
+        var n = 0
+        var t = 0
+        while (n < 260 && t < 10000) {
+            t++
+            val y = r() * NFARH
+            val dens = bDens(y)
+            if (r() > 0.25f + 0.7f * dens) continue
+            val off = gauss() * bHalf(y) * 0.7f            // もやは粒より外へ滲む（帯より広い包絡）
+            val x = bAxis(y) + off
+            if (x < -20f || x > NW + 20f) continue
+            val lo = 12f + 10f * sin(y / 95f)              // Great Rift（暗黒帯）は下地も裂く
+            if (abs(off - lo) < 16f && r() < 0.9f) continue
+            val d = (abs(off) / bHalf(y)).coerceAtMost(1.4f)
+            val rad = 9f + r() * 20f                        // soft blob 径のばらつき＝斑の内部構造
+            // 密領域ほど下地を強める（dens²で contrast を付け「川の輝く芯」を作る＝連続感・臨場感）。疎領域は据え置きで
+            // 荒さを戻さない。peak 0.085 に抑え暗黒帯でも裂く＝題名可読の思想は不変（実機で再確認）。
+            val a = ((0.016f + 0.075f * dens * dens) * (1f - d * 0.55f)).coerceAtMost(0.085f)
+            haze += HazeBlob(x / NW, y / NFARH, rad / NW, a, tempColor(0.34f + 0.12f * dens))
+            n++
+        }
+    }
+
+    val band = ArrayList<BandParticle>(9000)
+    // 天の川本体＝微星の粒（芯へ沿ったガウス散布・べき分布・輝度上限）。粒数を増やし「無数の星の集積」に近づける。
     var placed = 0
     var tries = 0
-    while (placed < 2400 && tries < 16000) {
+    while (placed < 5200 && tries < 40000) {
         tries++
         val y = r() * NFARH
         val dens = bDens(y)
-        if (r() > 0.32f + 0.62f * dens) continue          // 沿軸の密度勾配（濃淡ムラ）
+        if (r() > 0.30f + 0.64f * dens) continue          // 沿軸の密度勾配（濃淡ムラ）
         val off = gauss() * bHalf(y) * 0.5f
         val x = bAxis(y) + off
         if (x < -4f || x > NW + 4f) continue
@@ -126,36 +161,58 @@ internal fun buildDeepSkyField(): DeepSkyField {
         val d = (abs(off) / bHalf(y)).coerceAtMost(1f)    // 0核..1縁
         val mag = r().pow(2.6f)                            // べき分布＝多数の微光＋少数の輝星
         val bright = (1f - d * 0.75f) * (0.28f + 0.72f * mag) * (0.55f + 0.45f * dens)
-        val rad = 0.28f + mag * 0.85f
-        val a = (0.09f + 0.5f * bright).coerceAtMost(0.42f) // 輝度上限 0.42（題名可読の担保）
-        val glow = if (bright > 0.82f && r() < 0.5f) 2.4f / NW else 0f
+        val rad = 0.24f + mag * 0.9f
+        val a = (0.08f + 0.5f * bright).coerceAtMost(0.42f) // 輝度上限 0.42（題名可読の担保）
+        // 微グローで硬い点を「解像感のある星」に羽化させる。発火域は広げつつ径は控えめに＝綿玉化を避け輝星の粒立ちを残す。
+        val glow = if (bright > 0.74f && r() < 0.5f) (1.3f + mag * 1.2f) / NW else 0f
         band += BandParticle(x / NW, y / NFARH, rad / NW, a, tempColor(0.28f + 0.5f * bright), glow)
         placed++
     }
+    // 未分解の塵星＝帯を埋める極微の点（径 sub-px・alpha 極低・グロー無し）。粒間の隙間を無数の微光で埋め
+    // 「点の散らばり」を『集積』へ寄せる（下地もやと粒の中間の解像度層＝連続的な明度分布を作る）。
+    var dustPlaced = 0
+    var dustTries = 0
+    while (dustPlaced < 2600 && dustTries < 20000) {
+        dustTries++
+        val y = r() * NFARH
+        val dens = bDens(y)
+        if (r() > 0.2f + 0.7f * dens) continue
+        val off = gauss() * bHalf(y) * 0.62f
+        val x = bAxis(y) + off
+        if (x < -4f || x > NW + 4f) continue
+        // 塵星も暗黒帯で疎化する（さもないと 2600 点の塵が裂け目を埋め戻し Great Rift の構造が消える）。
+        val lo = 12f + 10f * sin(y / 95f)
+        if (abs(off - lo) < 15f && r() < 0.94f) continue
+        val d = (abs(off) / bHalf(y)).coerceAtMost(1.2f)
+        val rad = 0.14f + r() * 0.22f
+        val a = ((0.05f + 0.09f * dens) * (1f - d * 0.5f)).coerceAtMost(0.2f)
+        band += BandParticle(x / NW, y / NFARH, rad / NW, a, tempColor(0.3f), 0f)
+        dustPlaced++
+    }
     // 銀河中心の膨らみ（核＝一掴み密に）。
-    repeat(460) {
-        val y = 300f + gauss() * 70f
-        val off = gauss() * 42f
+    repeat(640) {
+        val y = 300f + gauss() * 72f
+        val off = gauss() * 44f
         val x = bAxis(y) + off
         if (x < -4f || x > NW + 4f || y < 0f || y > NFARH) return@repeat
-        val d = (abs(off) / 46f).coerceAtMost(1f)
+        val d = (abs(off) / 48f).coerceAtMost(1f)
         val mag = r().pow(2.0f)
         val bright = (1f - d * 0.6f) * (0.4f + 0.6f * mag)
         val a = (0.12f + 0.45f * bright).coerceAtMost(0.46f)
-        val glow = if (bright > 0.84f && r() < 0.45f) 2.4f / NW else 0f
-        band += BandParticle(x / NW, y / NFARH, (0.3f + mag * 0.8f) / NW, a, tempColor(0.4f + 0.45f * bright), glow)
+        val glow = if (bright > 0.82f && r() < 0.45f) (1.5f + mag * 1.1f) / NW else 0f
+        band += BandParticle(x / NW, y / NFARH, (0.28f + mag * 0.85f) / NW, a, tempColor(0.4f + 0.45f * bright), glow)
     }
-    // 帯外の散開微星（150点）。
-    val scatter = ArrayList<ScatterStar>(150)
-    repeat(150) {
-        scatter += ScatterStar(r(), r(), (r() * 0.6f + 0.16f) / NW, r() * 0.24f + 0.04f)
+    // 帯外の散開微星（220点）。空全体に微光を散らし「夜空の広がり」を出す。
+    val scatter = ArrayList<ScatterStar>(220)
+    repeat(220) {
+        scatter += ScatterStar(r(), r(), (r() * 0.55f + 0.14f) / NW, r() * 0.22f + 0.03f)
     }
     // 深空のアクセント星（10点・viewport 帯 y=60..H-60）。
     val accent = ArrayList<AccentStar>(10)
     repeat(10) {
         accent += AccentStar(r(), (60f + r() * (NH - 120f)) / NH)
     }
-    return DeepSkyField(band, scatter, accent)
+    return DeepSkyField(haze, band, scatter, accent)
 }
 
 /** 読了星（深空へ恒久着地した先端星・累積）。位置は作品 id から決定的に導く。 */
@@ -168,11 +225,11 @@ internal class FinishedStar(val fx: Float, val fy: Float, val mag: Float, val co
 internal fun DrawScope.drawDeepSky(field: DeepSkyField, finished: List<FinishedStar>) {
     val w = size.width
     val h = size.height
-    // 星雲2片（radial・色→透明）。第1=SkyCloudSeizu(=rgb58,78,150 と同値)／第2=NebulaVioletSeizu（モック実値の微紫）。
-    // 実機後詰め(ADR 0005 §B): 実機では両片が淡すぎ「靄」で存在感が出なかったため、芯 alpha を 0.12→0.18／0.10→0.16 へ微増し
-    // 中間ストップ（芯 alpha の 0.42 倍を 45% 地点まで保持）で外周へ body を持たせ「雲」の塊感を出す。輝度上限外＝題名可読は不変。
-    drawNebula(Offset(300f / NW * w, 210f / NH * h), 150f / NW * w, SkyCloudSeizu.copy(alpha = 0.18f))
-    drawNebula(Offset(92f / NW * w, 600f / NH * h), 168f / NW * w, NebulaVioletSeizu.copy(alpha = 0.16f))
+    // 星雲2片（多葉の雲＝drawNebula が芯・翼・縁のほつれを重ねる）。第1=SkyCloudSeizu(=rgb58,78,150)／第2=NebulaVioletSeizu（微紫）。
+    // 芯 alpha は基準値（0.18/0.16）を渡す＝drawNebula が外縁 0.5・副葉 0.62 倍で重ね、局所ピークでも輝度上限の思想内に収める
+    //（題名可読は不変。星雲は帯・題名の外側に配置）。径は名目 150/168px（viewport 割合）で端末非依存。
+    drawNebula(Offset(300f / NW * w, 210f / NH * h), 162f / NW * w, SkyCloudSeizu.copy(alpha = 0.2f))
+    drawNebula(Offset(92f / NW * w, 600f / NH * h), 180f / NW * w, NebulaVioletSeizu.copy(alpha = 0.18f))
     // アクセント星（数点の微光球）。
     for (a in field.accent) {
         val c = Offset(a.fx * w, a.fy * h)
@@ -200,18 +257,53 @@ internal fun DrawScope.drawDeepSky(field: DeepSkyField, finished: List<FinishedS
     }
 }
 
+// 星雲の副葉オフセット（芯からの相対・径倍率）。芯をずらした soft 葉で非対称のほつれ／翼を作る。
+private val NebulaLobes = listOf(
+    Triple(-0.42f, -0.30f, 0.62f),
+    Triple(0.40f, 0.34f, 0.72f),
+    Triple(0.10f, -0.52f, 0.48f),
+)
+
 private fun DrawScope.drawNebula(center: Offset, radius: Float, color: Color) {
-    // 実機後詰め(ADR 0005 §B): 純 color→透明の2ストップは中心だけ濃い「靄」に見えたため、
-    // 中間 45% まで色を（芯の 0.42 倍で）保持する3ストップに変え、雲としての body／ふわりとした縁を与える。
+    // 内部構造のある雲（設計変更 2026-07-18）: 単純な radial は「中心だけ濃い染み」に見えたため、
+    // 〈大きく淡い外縁のほつれ → 本体＋芯 → 芯をずらした副葉〉の重ねで、芯・翼・縁のほつれ・層を作る。
+    // 系統色1色の alpha 多段のみ（彩度暴走なし）。peak は呼出側で低く抑え輝度上限の思想を守る。
+    val a = color.alpha
+    // 外縁のほつれ（大きく淡く広がる縁）。
+    val fringeR = radius * 1.34f
     drawCircle(
         Brush.radialGradient(
-            0f to color,
-            0.45f to color.copy(alpha = color.alpha * 0.42f),
+            0f to color.copy(alpha = a * 0.5f),
+            0.5f to color.copy(alpha = a * 0.26f),
+            1f to Color.Transparent,
+            center = center, radius = fringeR,
+        ),
+        radius = fringeR, center = center,
+    )
+    // 本体＋芯（3停止で body を持たせる）。
+    drawCircle(
+        Brush.radialGradient(
+            0f to color.copy(alpha = a),
+            0.42f to color.copy(alpha = a * 0.48f),
             1f to Color.Transparent,
             center = center, radius = radius,
         ),
         radius = radius, center = center,
     )
+    // 副葉（芯をずらした soft 葉）＝雲の翼・ほつれ。固定オフセットゆえ再コンポーズ不変。
+    for ((dx, dy, rs) in NebulaLobes) {
+        val lc = Offset(center.x + radius * dx, center.y + radius * dy)
+        val lr = radius * rs
+        drawCircle(
+            Brush.radialGradient(
+                0f to color.copy(alpha = a * 0.62f),
+                0.55f to color.copy(alpha = a * 0.26f),
+                1f to Color.Transparent,
+                center = lc, radius = lr,
+            ),
+            radius = lr, center = lc,
+        )
+    }
 }
 
 /**
@@ -222,13 +314,26 @@ private fun DrawScope.drawNebula(center: Offset, radius: Float, color: Color) {
 internal fun DrawScope.drawFarStars(field: DeepSkyField) {
     val w = size.width
     val farH = size.height + 60.dp.toPx() // 視差のオーバースクロール余白（呼び出し側の最大 translate 40dp > これ未満）
+    // 最背面＝天の川の下地もや（無数の未分解星の連続輝き）。soft blob を重ね斑の雲にし、この上に点星を載せる。
+    for (hb in field.haze) {
+        val c = Offset(hb.fx * w, hb.fy * farH)
+        val rad = hb.fr * w
+        drawCircle(
+            Brush.radialGradient(
+                listOf(hb.color.copy(alpha = hb.alpha), Color.Transparent),
+                center = c, radius = rad,
+            ),
+            radius = rad, center = c,
+        )
+    }
     for (p in field.band) {
         val c = Offset(p.fx * w, p.fy * farH)
         if (p.glowFr > 0f) {
             val gr = p.glowFr * w
+            // 発火域を広げたぶん芯 alpha は 0.4→0.34 に和らげ、輝星の羽化を「柔らかい滲み」に留める。
             drawCircle(
                 Brush.radialGradient(
-                    listOf(StarCoreSeizu.copy(alpha = 0.4f), Color.Transparent),
+                    listOf(StarCoreSeizu.copy(alpha = 0.34f), Color.Transparent),
                     center = c, radius = gr,
                 ),
                 radius = gr, center = c,

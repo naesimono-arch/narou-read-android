@@ -177,8 +177,12 @@ class BookshelfSkyMTest {
     fun `天の川粒の輝度は上限を超えない＝題名可読の担保`() {
         // 正本 R1 の輝度上限（帯 0.42／核 0.46）＝連続する靄で contrast を落とさない絶対条件。
         val field = buildDeepSkyField()
-        assertTrue("粒が想定レンジ外（生成が壊れている）", field.band.size in 2400..2900)
+        // 粒帯＝本体(5200)＋塵星(2600)＋核(≤640)。生成の破綻検知の広めのレンジ（2026-07-18 の粒増量後）。
+        assertTrue("粒が想定レンジ外（生成が壊れている）", field.band.size in 7000..9000)
         assertTrue("輝度上限 0.46 を超える粒がある＝題名が潰れうる", field.band.all { it.alpha <= 0.46f })
+        // 下地もや（無数の未分解星の連続輝き）も輝度上限内＝題名可読の担保（もやが最も可読を脅かすため明示）。
+        assertTrue("下地もやが想定外の数", field.haze.size in 180..260)
+        assertTrue("下地もやが輝度上限 0.085 を超える＝題名が霞む", field.haze.all { it.alpha <= 0.085f })
     }
 
     @Test
