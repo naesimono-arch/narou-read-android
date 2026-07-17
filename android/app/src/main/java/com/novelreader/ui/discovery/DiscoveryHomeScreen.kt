@@ -56,6 +56,7 @@ import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.Skin
+import com.novelreader.ui.skins.j.DiscoveryHomePortalJ
 import com.novelreader.ui.skins.m.DiscoveryHomeSkyM
 import com.novelreader.ui.skins.p.DiscoveryHomeCartridgeP
 import com.novelreader.viewmodel.DiscoveryUiState
@@ -152,6 +153,23 @@ internal fun DiscoveryHomeContent(
     // スキンP「カートリッジ」: 発見ホームを画面丸ごと店構造へ委譲する（ADR 0022 §1 の薄いルーター）。
     if (LocalSkin.current == Skin.CARTRIDGE_P) {
         DiscoveryHomeCartridgeP(
+            order = order,
+            state = state,
+            onBack = onBack,
+            onOpenDetail = onOpenDetail,
+            onOpenGenre = onOpenGenre,
+            onPickBiggenre = onPickBiggenre,
+            onOpenSearch = onOpenSearch,
+            onPickMood = onPickMood,
+            onSelectOrder = onSelectOrder,
+            onRefresh = onRefresh,
+        )
+        return
+    }
+
+    // スキンJ「ポータル」: 発見ホームを画面丸ごと扉の回廊構造へ委譲する（ADR 0022 §1 の薄いルーター）。
+    if (LocalSkin.current == Skin.PORTAL_J) {
+        DiscoveryHomePortalJ(
             order = order,
             state = state,
             onBack = onBack,

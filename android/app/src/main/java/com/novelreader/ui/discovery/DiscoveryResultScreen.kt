@@ -56,6 +56,7 @@ import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.skins.m.DiscoveryResultSkyM
+import com.novelreader.ui.skins.j.DiscoveryResultPortalJ
 import com.novelreader.ui.skins.p.DiscoveryResultCartridgeP
 import com.novelreader.viewmodel.DiscoveryUiState
 import com.novelreader.viewmodel.DiscoveryViewModel
@@ -141,6 +142,23 @@ internal fun DiscoveryResultContent(
     // 文脈 null（process death 復帰中）の最小ローディングは分岐先が D/M と同じく内部で扱う。
     if (LocalSkin.current == Skin.CARTRIDGE_P) {
         DiscoveryResultCartridgeP(
+            ctx = ctx,
+            state = state,
+            onUp = onUp,
+            onBack = onBack,
+            onOpenDetail = onOpenDetail,
+            onChangeOrder = onChangeOrder,
+            onChangeGenreFilter = onChangeGenreFilter,
+            onRefresh = onRefresh,
+            onLoadMore = onLoadMore,
+        )
+        return
+    }
+
+    // スキンJ「ポータル」: 結果一覧を画面丸ごと回廊構造へ委譲する（ADR 0022 §1 の薄いルーター）。
+    // 文脈 null（process death 復帰中）の最小ローディングは分岐先が D/M/P と同じく内部で扱う。
+    if (LocalSkin.current == Skin.PORTAL_J) {
+        DiscoveryResultPortalJ(
             ctx = ctx,
             state = state,
             onUp = onUp,
