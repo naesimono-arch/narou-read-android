@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.model.TocEntry
+import com.novelreader.ui.skins.j.TocPortalJ
 import com.novelreader.ui.skins.m.TocSkyM
 import com.novelreader.ui.skins.p.TocCartridgeP
 import com.novelreader.ui.theme.FontCaption
@@ -112,6 +113,18 @@ fun NativeTableOfContentsScreen(
     // スキンP「カートリッジ」: 目次を画面丸ごとステージセレクト構造へ委譲する（ADR 0022 §1・M と同じ薄いルーター）。
     if (LocalSkin.current == Skin.CARTRIDGE_P) {
         TocCartridgeP(
+            tocState = tocState,
+            currentChapterFile = currentChapterFile,
+            onSelectChapter = onSelectChapter,
+            onNavigateToBookshelf = onNavigateToBookshelf,
+            onRetry = onRetry,
+        )
+        return
+    }
+
+    // スキンJ「ポータル」: 目次を画面丸ごと「廊下を進む道程」構造へ委譲する（ADR 0022 §1・M/P と同じ薄いルーター）。
+    if (LocalSkin.current == Skin.PORTAL_J) {
+        TocPortalJ(
             tocState = tocState,
             currentChapterFile = currentChapterFile,
             onSelectChapter = onSelectChapter,
