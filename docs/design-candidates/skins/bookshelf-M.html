@@ -6,7 +6,7 @@
     ・発見導線「まだ知らない星を探しに」＝下辺の地平から奥へ誘う
     ・ラベル絞り込みチップ（すべて既定＋異世界/完結済み/あとで読む・横スクロール）＝銘直下の星チップ
     ・取込中バナー（PDFを星に変換中）＝銘直下・非スクロール
-    ・表示切替 星図⇄一覧＝銘の操作クラスタ（一覧は可読フォールバック）
+    ・表示切替 星図⇄一覧＝銘の操作クラスタ（一覧＝観測野帳。L3・2026-07-17 ユーザー承認。本ファイル下部にセクション併載＝Mの一覧ビュー定義。旧「可読フォールバック」から更新）
     ・メニュー（⋮）・装いの間（着せ替え＝ADR0021決定7）＝同クラスタ
     ・続きあり（更新のしるし）＝星座に「新着N話」の灯／なろう・未取込＝下辺の淡い未収蔵の星
   避けたもの: 彩度暴走。地＝群青の夜天／灯り＝温白の星光／線＝月光スレートの3系統。識別は低彩度の学名色ドットに退避。
@@ -145,6 +145,105 @@
   .welcome .plus::before,.welcome .plus::after{content:"";position:absolute;background:var(--star);border-radius:2px;box-shadow:0 0 8px rgba(233,221,180,.7)}
   .welcome .plus::before{left:6px;top:0;width:2px;height:14px}
   .welcome .plus::after{top:6px;left:0;height:2px;width:14px}
+
+  /* ===== M 一覧ビュー＝観測野帳（L3・2026-07-17 ユーザー承認）＝Mの一覧ビュー定義 =====
+     旧「一覧＝可読フォールバック（D構造）」を廃し、栞Dの書影行カード型から離脱した独自の記録表現へ。
+     星図面とクラス名が多数衝突するため、一覧面のクラス/idは l* 接頭辞・固有名で名前空間化＝星図面の規則と相互非干渉（星図＝主面を無改変で温存）。
+     置換の骨子: 作品＝時刻軸レール上の観測ノード（星＝作品固有色のディスク＋巡る観測弧=進捗）／記録本体＝箱なしの観測票（銘＋観測諸元readout＋新着注記）。 */
+  .phone.mlist{--rail:rgba(150,168,214,.26)}
+  .ldeepsky{position:absolute;inset:0;z-index:0;pointer-events:none}
+  .lscroll{position:absolute;inset:0;z-index:2;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;padding-top:150px;padding-bottom:104px}
+  .lscroll::-webkit-scrollbar{display:none}
+  .ltopfix{position:absolute;top:0;left:0;right:0;z-index:5;background:linear-gradient(180deg,#0A1128 0%,#0A1128 72%,rgba(10,17,40,0) 100%)}
+  .lstatusbar{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-family:var(--gothic);font-size:12px;color:#6E7794}
+  .lplate{padding:2px 20px 0;display:flex;align-items:flex-start;justify-content:space-between}
+  .lplate .lname{font-size:20px;color:var(--text);letter-spacing:.22em;font-weight:500}
+  .lplate .lmeta{display:block;font-family:var(--gothic);font-size:10px;letter-spacing:.12em;color:#8791AD;margin-top:5px}
+  .lplate .lmeta b{color:#B9C2DA;font-weight:600}
+  .lacts{display:flex;gap:1px;flex-shrink:0}
+  .lib{width:34px;height:34px;border:none;background:transparent;border-radius:9px;display:grid;place-items:center;color:var(--dim);cursor:pointer}
+  .lib:hover{color:var(--text)}
+  .lib svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .lib.wardrobe{color:var(--star)}
+  .lib.wardrobe svg{fill:var(--star);stroke:none}
+  .lchips{display:flex;gap:8px;overflow-x:auto;padding:12px 20px 8px;scrollbar-width:none}.lchips::-webkit-scrollbar{display:none}
+  .lchip{flex-shrink:0;font-family:var(--gothic);font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:6px 14px;cursor:pointer;letter-spacing:.02em}
+  .lchip.on{color:var(--star);border-color:rgba(233,221,180,.5)}
+  /* 選択ヘッダ（長押しで出現・一覧phone内にオーバーレイ） */
+  .selhead{position:absolute;top:44px;left:0;right:0;z-index:6;display:none;align-items:center;gap:12px;padding:12px 20px;background:#0A1128}
+  body.selecting .selhead{display:flex}
+  .selhead .cancel{font-family:var(--gothic);font-size:19px;color:var(--dim);cursor:pointer;line-height:1}
+  .selhead .count{flex:1;font-family:var(--gothic);font-size:14px;color:var(--text);letter-spacing:.08em}
+  .selhead .del{display:inline-flex;align-items:center;gap:6px;font-family:var(--gothic);font-size:12.5px;color:#E4A9A0;cursor:pointer}
+  .selhead .del svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6}
+  /* 観測野帳本体 */
+  .log{padding:0 22px 0 0}
+  .epoch{display:flex;align-items:center;height:34px}
+  .epoch .rail{width:56px;flex-shrink:0;position:relative;height:100%}
+  .epoch .rail::before{content:"";position:absolute;left:27px;top:0;bottom:0;width:1px;background:var(--rail)}
+  .epoch .rail::after{content:"";position:absolute;left:27px;top:50%;transform:translate(-50%,-50%);width:3px;height:3px;border-radius:50%;background:var(--rail)}
+  .epoch .lab{font-family:var(--gothic);font-size:10px;letter-spacing:.24em;color:#7C86A2}
+  .epoch .lab.now{color:var(--star)}
+  .rec{display:flex;cursor:pointer;position:relative}
+  .rec .rail{width:56px;flex-shrink:0;position:relative}
+  .rec .rail::before{content:"";position:absolute;left:27px;top:0;bottom:0;width:1px;background:var(--rail)}
+  .rec:last-child .rail::before{bottom:auto;height:34px}
+  /* 観測ノード＝作品の星（書影の色を畳み込んだディスク）＋巡る観測弧（進捗メーター） */
+  .node{position:absolute;left:27px;top:26px;transform:translate(-50%,-50%);width:34px;height:34px}
+  .node .disc{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:15px;height:15px;border-radius:50%;box-shadow:0 0 9px var(--id);z-index:1}
+  .node .gauge{position:absolute;inset:0;transform:rotate(-90deg)}
+  .node .gauge .track{fill:none;stroke:rgba(150,168,214,.22);stroke-width:2}
+  .node .gauge .arc{fill:none;stroke:var(--star);stroke-width:2;stroke-linecap:round;filter:drop-shadow(0 0 3px rgba(233,221,180,.55))}
+  .rec.unread .node .disc{box-shadow:none;opacity:.7}
+  .rec.unread .node .gauge .track{stroke-dasharray:2 4}
+  .rec.uncoll .node .disc{background:transparent!important;box-shadow:none;border:1px dotted #4E587A}
+  .rec.uncoll .node .gauge .track{stroke-dasharray:1 4;stroke:rgba(150,168,214,.16)}
+  /* 観測票（箱なし＝野帳の記入） */
+  .entry{flex:1;min-width:0;padding:14px 0 18px}
+  .entry .ttl{font-size:14px;color:var(--text);font-weight:500;line-height:1.42;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .rec.unread .entry .ttl{color:#AEB6CE}
+  .readout{font-family:var(--gothic);font-size:10.5px;color:#9AA4C0;margin-top:6px;letter-spacing:.02em;display:flex;flex-wrap:wrap;align-items:center;gap:7px}
+  .readout .sep{width:2px;height:2px;border-radius:50%;background:#5C6688}
+  .readout .obsv{color:#818BA6}
+  .rec.done .readout .lum{color:var(--star)}
+  .rec.unread .readout{color:#7B85A1}
+  .new{display:inline-flex;align-items:center;gap:5px;font-family:var(--gothic);font-size:9.5px;color:var(--star);margin-top:7px;letter-spacing:.04em}
+  .new::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--star);box-shadow:0 0 6px rgba(233,221,180,.75)}
+  .entry .badge{display:inline-block;font-family:var(--gothic);font-size:8.5px;letter-spacing:.16em;color:#8791AD;border:1px solid #303B5C;border-radius:3px;padding:2px 7px;margin-top:7px}
+  .coll-act{display:inline-flex;align-items:center;gap:5px;font-family:var(--gothic);font-size:10.5px;color:#AEB7D2;margin-top:8px;cursor:pointer}
+  .coll-act svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2}
+  /* 遊び心: 直近ノードの脈動（今夜＝いちばん新しい観測） */
+  @keyframes mlpulse{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.28)}}
+  .rec.live .node .disc{animation:mlpulse 2.8s ease-in-out infinite}
+  /* 選択モード＝観測ノードが選択リングへ */
+  .node .ring{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;border:1.4px solid #5C6688;background:rgba(10,17,40,.82);display:none;place-items:center;z-index:3}
+  body.selecting .node .ring{display:grid}
+  body.selecting .node .disc,body.selecting .node .gauge{opacity:0}
+  .rec.picked .node .ring{border-color:var(--star);box-shadow:0 0 10px rgba(233,221,180,.5)}
+  .rec.picked .node .ring::after{content:"";width:11px;height:11px;border-radius:50%;background:var(--star)}
+  .rec.picked .entry{background:rgba(233,221,180,.05)}
+  @keyframes mlringlit{0%{box-shadow:0 0 0 rgba(233,221,180,0)}45%{box-shadow:0 0 15px rgba(233,221,180,.6)}100%{box-shadow:0 0 10px rgba(233,221,180,.5)}}
+  .rec.justpicked .node .ring{animation:mlringlit .5s ease-out}
+  /* reduce-motion: 脈動・点灯アニメを静止（点灯状態のみ） */
+  @media (prefers-reduced-motion: reduce){
+    .rec.live .node .disc{animation:none}
+    .rec.justpicked .node .ring{animation:none}
+  }
+  /* 下辺固定＝発見導線＋PDF追加 */
+  .lhorizon{position:absolute;left:0;right:0;bottom:0;height:100px;z-index:5;pointer-events:none}
+  .lhorizon::before{content:"";position:absolute;inset:0;background:linear-gradient(0deg,#0A1128 0%,#0A1128 56%,rgba(10,17,40,0) 100%)}
+  .lhorizon > *{pointer-events:auto}
+  .ldiscover{position:absolute;left:20px;right:20px;top:16px;display:flex;align-items:center;gap:12px;cursor:pointer;padding:11px 16px;border:1px solid var(--line);border-radius:14px;background:rgba(14,22,52,.5)}
+  .ldiscover .cmp{width:20px;height:20px;flex-shrink:0;color:var(--star)}
+  .ldiscover .cmp svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.4}
+  .ldiscover .l{flex:1;font-family:var(--gothic);font-size:12.5px;color:var(--text);letter-spacing:.02em}
+  .ldiscover .uncoll-c{font-family:var(--gothic);font-size:9.5px;color:var(--dim);white-space:nowrap;display:flex;align-items:center;gap:5px}
+  .ldiscover .uncoll-c::before{content:"";width:4px;height:4px;border-radius:50%;background:rgba(150,168,214,.5)}
+  .lwelcome{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:inline-flex;align-items:center;gap:9px;cursor:pointer;font-family:var(--gothic);font-size:11px;letter-spacing:.1em;color:#B7C0DB;padding:8px 20px}
+  .lwelcome .plus{position:relative;width:13px;height:13px;flex-shrink:0}
+  .lwelcome .plus::before,.lwelcome .plus::after{content:"";position:absolute;background:var(--star);border-radius:2px;box-shadow:0 0 8px rgba(233,221,180,.7)}
+  .lwelcome .plus::before{left:5.5px;top:0;width:2px;height:13px}
+  .lwelcome .plus::after{top:5.5px;left:0;height:2px;width:13px}
 </style>
 </head>
 <body>
@@ -203,7 +302,7 @@
         <div><span class="name">本棚</span><span class="meta">結ばれた星座 <b>3</b> / 4</span></div>
         <div class="acts">
           <button class="ib" aria-label="見つける"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
-          <button class="ib" aria-label="一覧表示に切替"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+          <button class="ib" aria-label="観測野帳（一覧）へ切替"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
           <button class="ib wardrobe" aria-label="装いの間（着せ替え）"><svg viewBox="0 0 24 24"><path d="M12 2.5 L13.7 10.3 L21.5 12 L13.7 13.7 L12 21.5 L10.3 13.7 L2.5 12 L10.3 10.3 Z"/></svg></button>
           <button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.4" fill="currentColor" stroke="none"/></svg></button>
         </div>
@@ -232,6 +331,164 @@
       <button class="welcome" aria-label="PDFを追加して新しい星を迎える"><span class="plus"></span>新しい星を迎える</button>
     </div>
   </div>
+
+  <!-- ===== M 一覧ビュー（観測野帳・L3・2026-07-17 ユーザー承認）＝Mの一覧ビュー定義。星図面を主とし、一覧面をセクション併載（切替デモ）。詳細思想・機能全数チェックリストは candidates/list-M/bookshelf-M-list-L3-log.html を記録として参照 ===== -->
+  <p class="cap" style="margin-top:46px"><b>M 一覧ビュー ＝ 観測野帳</b>（表示切替 星図⇄一覧 の一覧面・L3 2026-07-17承認） ／ 一本の時刻軸に沿って夜ごとに星を書き留める観測記録。作品は書影の矩形でなく〈軸上の観測ノード（星＝作品固有色）＋巡る観測弧＝進捗＋箱のない観測票〉として記帳し、最近読んだ星から今夜／昨夜／先週と綴じる（二段recency）。星図面とは〈群青／月光スレートの軸罫／温白の弧／学名色の星〉を共有し、装いの間を経ずとも世界が切れない。</p>
+
+  <div class="phone mlist" role="img" aria-label="M 一覧ビュー＝観測野帳（時系列）">
+    <canvas class="ldeepsky" id="mlDeep" aria-hidden="true"></canvas>
+
+    <div class="ltopfix">
+      <div class="lstatusbar"><span>9:41</span><span>●●● ▢ 84%</span></div>
+      <div class="lplate">
+        <div><span class="lname">本棚</span><span class="lmeta">観測 <b>6</b> 天体 · 最新 今夜</span></div>
+        <div class="lacts">
+          <button class="lib" aria-label="見つける"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+          <button class="lib" aria-label="星図表示に戻す"><svg viewBox="0 0 24 24"><circle cx="6" cy="7" r="1.2" fill="currentColor" stroke="none"/><circle cx="13" cy="5" r="1.2" fill="currentColor" stroke="none"/><circle cx="18" cy="10" r="1.2" fill="currentColor" stroke="none"/><circle cx="9" cy="14" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="18" r="1.2" fill="currentColor" stroke="none"/><path d="M6 7 L13 5 L18 10 L9 14 L16 18"/></svg></button>
+          <button class="lib wardrobe" aria-label="装いの間（着せ替え）"><svg viewBox="0 0 24 24"><path d="M12 2.5 L13.7 10.3 L21.5 12 L13.7 13.7 L12 21.5 L10.3 13.7 L2.5 12 L10.3 10.3 Z"/></svg></button>
+          <button class="lib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.4" fill="currentColor" stroke="none"/></svg></button>
+        </div>
+      </div>
+      <div class="lchips">
+        <span class="lchip on">すべて</span><span class="lchip">異世界</span><span class="lchip">完結済み</span><span class="lchip">あとで読む</span>
+      </div>
+    </div>
+
+    <div class="selhead">
+      <span class="cancel" id="mlSelCancel" aria-label="選択を解除">×</span>
+      <span class="count" id="mlSelCount">0 天体を選択</span>
+      <span class="del" id="mlSelDel"><svg viewBox="0 0 24 24"><polyline points="4 7 20 7"/><path d="M8 7V5h8v2M9 7v12h6V7"/></svg>星を消す</span>
+    </div>
+
+    <div class="lscroll">
+      <div class="log">
+        <!-- 節: 今夜 -->
+        <div class="epoch"><span class="rail"></span><span class="lab now">今夜</span></div>
+
+        <!-- 直近＝続きから（続きあり・脈動） -->
+        <div class="rec live" style="--id:#B7C6A6" data-frac="0.62" data-i="0">
+          <div class="rail"><span class="node"><span class="disc" style="background:linear-gradient(160deg,#8FA6BF,#3A4F63)"></span>
+            <svg class="gauge" viewBox="0 0 34 34"><circle class="track" cx="17" cy="17" r="11"/><circle class="arc" cx="17" cy="17" r="11"/></svg>
+            <span class="ring"></span></span></div>
+          <div class="entry">
+            <div class="ttl">追放された万能薬師、辺境でスローライフを始める</div>
+            <div class="readout"><span class="obsv">霧島あおい</span><span class="sep"></span><span>第127話</span><span class="sep"></span><span class="lum">62%</span></div>
+            <span class="new">＋12話 新着</span>
+          </div>
+        </div>
+
+        <!-- 節: 昨夜 -->
+        <div class="epoch"><span class="rail"></span><span class="lab">昨夜</span></div>
+
+        <div class="rec" style="--id:#9E93C6" data-frac="0.28" data-i="1">
+          <div class="rail"><span class="node"><span class="disc" style="background:linear-gradient(160deg,#9E93C6,#43554C)"></span>
+            <svg class="gauge" viewBox="0 0 34 34"><circle class="track" cx="17" cy="17" r="11"/><circle class="arc" cx="17" cy="17" r="11"/></svg>
+            <span class="ring"></span></span></div>
+          <div class="entry">
+            <div class="ttl">黒の魔王と契約した俺、気づけば最強の従者になっていた</div>
+            <div class="readout"><span class="obsv">夜灯すばる</span><span class="sep"></span><span>第43話</span><span class="sep"></span><span class="lum">28%</span></div>
+          </div>
+        </div>
+
+        <div class="rec done" style="--id:#A0B4C6" data-frac="1" data-i="2">
+          <div class="rail"><span class="node"><span class="disc" style="background:linear-gradient(160deg,#B8CBDA,#2A3E4C)"></span>
+            <svg class="gauge" viewBox="0 0 34 34"><circle class="track" cx="17" cy="17" r="11"/><circle class="arc" cx="17" cy="17" r="11"/></svg>
+            <span class="ring"></span></span></div>
+          <div class="entry">
+            <div class="ttl">星海の航路士、忘れられた灯台を継ぐ</div>
+            <div class="readout"><span class="obsv">天野かなた</span><span class="sep"></span><span>全210話</span><span class="sep"></span><span class="lum">読了</span></div>
+          </div>
+        </div>
+
+        <!-- 節: 先週 -->
+        <div class="epoch"><span class="rail"></span><span class="lab">先週</span></div>
+
+        <div class="rec" style="--id:#C6A0AE" data-frac="0.11" data-i="3">
+          <div class="rail"><span class="node"><span class="disc" style="background:linear-gradient(160deg,#C6A0AE,#42303A)"></span>
+            <svg class="gauge" viewBox="0 0 34 34"><circle class="track" cx="17" cy="17" r="11"/><circle class="arc" cx="17" cy="17" r="11"/></svg>
+            <span class="ring"></span></span></div>
+          <div class="entry">
+            <div class="ttl">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+            <div class="readout"><span class="obsv">白河すずら</span><span class="sep"></span><span>第8話</span><span class="sep"></span><span class="lum">11%</span></div>
+          </div>
+        </div>
+
+        <!-- 節: まだ観測なし（未読） -->
+        <div class="epoch"><span class="rail"></span><span class="lab">まだ観測なし</span></div>
+
+        <div class="rec unread" style="--id:#7E8AA0" data-frac="0" data-i="4">
+          <div class="rail"><span class="node"><span class="disc" style="background:linear-gradient(160deg,#7E8AA0,#2E323E)"></span>
+            <svg class="gauge" viewBox="0 0 34 34"><circle class="track" cx="17" cy="17" r="11"/><circle class="arc" cx="17" cy="17" r="11"/></svg>
+            <span class="ring"></span></span></div>
+          <div class="entry">
+            <div class="ttl">転生したら最弱スキルだったので、ひたすら草むしりしていた</div>
+            <div class="readout"><span class="obsv">青葉みのり</span><span class="sep"></span><span>全88話</span></div>
+            <span class="badge">未観測 · 最初の星を灯す</span>
+          </div>
+        </div>
+
+        <!-- 節: 未収蔵（なろう・未取込＝Webカード操作） -->
+        <div class="epoch"><span class="rail"></span><span class="lab">未収蔵の星</span></div>
+
+        <div class="rec uncoll" style="--id:#7E8AA0" data-frac="0" data-i="5">
+          <div class="rail"><span class="node"><span class="disc"></span>
+            <svg class="gauge" viewBox="0 0 34 34"><circle class="track" cx="17" cy="17" r="11"/><circle class="arc" cx="17" cy="17" r="11"/></svg>
+            <span class="ring"></span></span></div>
+          <div class="entry">
+            <div class="ttl">霧の街の錬金術師、雨の日は店を閉める</div>
+            <div class="readout"><span class="obsv">なろう · 桜庭ましろ</span></div>
+            <span class="coll-act"><svg viewBox="0 0 24 24"><polyline points="8 12 11 15 16 9"/></svg>この星を迎える</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="lhorizon">
+      <button class="ldiscover" aria-label="新しい物語を見つける">
+        <span class="cmp"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polygon points="15.5 8.5 10.5 10.5 8.5 15.5 13.5 13.5" fill="currentColor" stroke="none"/></svg></span>
+        <span class="l">まだ知らない星を探しに</span>
+        <span class="uncoll-c">なろう・未取込 3</span>
+      </button>
+      <button class="lwelcome" aria-label="PDFを追加して新しい星を迎える"><span class="plus"></span>新しい星を迎える</button>
+    </div>
+  </div>
+
+  <!-- M 一覧ビュー（観測野帳）の描画・観測弧・選択モード。星図面のIIFEとは独立・DOM問い合わせは一覧phone配下に限定 -->
+  <script>
+  (function(){
+    const root=document.getElementById('mlDeep')&&document.getElementById('mlDeep').closest('.phone');
+    if(!root)return;
+    const W=390,H=844,dpr=Math.max(1,window.devicePixelRatio||1);
+    const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const cv=document.getElementById('mlDeep'),ctx=cv.getContext('2d');
+    cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';ctx.scale(dpr,dpr);
+    let s=20250719;const rnd=()=>{s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;};
+    // 深空の微星（固定・淡い＝野帳の下地）
+    const neb=[[300,120,150,'rgba(58,78,150,.10)'],[70,700,168,'rgba(96,84,150,.08)']];
+    for(const[x,y,r,col]of neb){const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,col);g.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+    for(let i=0;i<80;i++){const x=rnd()*W,y=rnd()*H,r=rnd()*.7+.15,a=rnd()*.16+.03;ctx.fillStyle='rgba(200,214,244,'+a+')';ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+    // 観測弧（進捗メーター）＝ data-frac を SVG の stroke-dashoffset へ（frac=0 は弧なし＝未読・未収蔵の点線環のみ）
+    const recs=[...root.querySelectorAll('.rec')],CIRC=2*Math.PI*11;
+    recs.forEach(rec=>{const frac=Math.max(0,Math.min(1,parseFloat(rec.dataset.frac||'0')));
+      const arc=rec.querySelector('.gauge .arc');arc.style.strokeDasharray=CIRC;arc.style.strokeDashoffset=CIRC*(1-frac);});
+    // 選択モード（長押し）。body.selecting は一覧phone配下のセレクタのみが反応（星図面は無関係）
+    const body=document.body,countEl=document.getElementById('mlSelCount');let timer=null;
+    function updateCount(){const n=root.querySelectorAll('.rec.picked').length;countEl.textContent=n+' 天体を選択';if(n===0)exitSel();}
+    function pick(rec,on){rec.classList.toggle('picked',on);
+      if(on){rec.classList.remove('justpicked');void rec.offsetWidth;if(!reduce)rec.classList.add('justpicked');}}
+    function exitSel(){body.classList.remove('selecting');recs.forEach(r=>r.classList.remove('picked'));}
+    recs.forEach(rec=>{
+      rec.addEventListener('pointerdown',()=>{if(body.classList.contains('selecting'))return;
+        timer=setTimeout(()=>{body.classList.add('selecting');pick(rec,true);updateCount();timer=null;},500);});
+      const cancel=()=>{if(timer){clearTimeout(timer);timer=null;}};
+      rec.addEventListener('pointerup',cancel);rec.addEventListener('pointerleave',cancel);rec.addEventListener('pointercancel',cancel);
+      rec.addEventListener('click',()=>{if(!body.classList.contains('selecting'))return;
+        pick(rec,!rec.classList.contains('picked'));updateCount();});
+    });
+    document.getElementById('mlSelCancel').addEventListener('click',exitSel);
+    document.getElementById('mlSelDel').addEventListener('click',()=>{root.querySelectorAll('.rec.picked').forEach(r=>r.remove());exitSel();});
+  })();
+  </script>
 
 <script>
 (function(){
