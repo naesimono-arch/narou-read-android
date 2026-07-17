@@ -57,9 +57,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.TocState
+import com.novelreader.ui.theme.FutureNodeCartridge
 import com.novelreader.ui.theme.InkCartridge
 import com.novelreader.ui.theme.InkMidCartridge
 import com.novelreader.ui.theme.InkSoftCartridge
+import com.novelreader.ui.theme.LcdBandCartridge
 import com.novelreader.ui.theme.LcdCartridge
 import com.novelreader.ui.theme.LcdHiCartridge
 import com.novelreader.ui.theme.LcdInkCartridge
@@ -143,11 +145,8 @@ private val HudAvBg = LcdInkCartridge.copy(alpha = 0.10f)     // .hud .av bg rgb
 private val HudAvStroke = LcdInkCartridge.copy(alpha = 0.32f) // .hud .av inset stroke rgba(43,54,22,.32)
 private val NowTagBorder = LcdInkCartridge.copy(alpha = 0.55f) // .row.cur .now border rgba(43,54,22,.55)
 
-// TODO(トークン不足・報告参照): モック正本値は #ccd4a8。Color.kt はスコープ外のため未トークン化。
-//   最寄りの LCD 緑ハイライト val で暫定（知覚差あり＝現在章バンド。要 --lcd-band トークン化）。
-private val CurRowBand = LcdHiCartridge
-// TODO(トークン不足・報告参照): モック正本値は #e6e2d6。plastic-hi #e9e5da との差 Δ<3（知覚下）ゆえ plastic-hi で暫定。
-private val FutureNodeFill = PlasticHiCartridge
+private val CurRowBand = LcdBandCartridge      // .row.cur バンド --lcd-band #ccd4a8（中央トークン化済み）
+private val FutureNodeFill = FutureNodeCartridge // 未読ノード地 #e6e2d6（インライン実値の昇格トークン）
 
 @Composable
 internal fun TocCartridgeP(

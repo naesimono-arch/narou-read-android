@@ -42,6 +42,8 @@ import com.novelreader.ui.theme.LcdHiCartridge
 import com.novelreader.ui.theme.LcdInkCartridge
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.PlasticCartridge
+import com.novelreader.ui.theme.SheetCartridge
+import com.novelreader.ui.theme.SheetLoCartridge
 import com.novelreader.ui.theme.PlasticHiCartridge
 import com.novelreader.ui.theme.PlasticLoCartridge
 import com.novelreader.ui.theme.ReadingColors
@@ -243,15 +245,12 @@ fun SceneDividerP(colors: ReadingColors, modifier: Modifier = Modifier) {
 // P は3テーマ＝テーマ選択は supportedThemes 駆動の標準3択（M の固定表示行とは別＝壊さない）。
 // ============================================================
 
-// TODO: 監督補充。settings-P の --sheet #e4e0d3 と gradient 下端 #dcd8ca は Color.kt 未登録。
-//   近似で確定させず、監督が SheetCartridge / SheetLoCartridge を登録するまでは最寄りのプラ面
-//   （PlasticHiCartridge #e9e5da / PlasticCartridge #dbd6c8）で暫定描画する（システムメニュー面＝テーマ不変）。
-/** シート面のグラデ（settings-P .sheet: linear-gradient(#e4e0d3,#dcd8ca)）。 */
+/** シート面のグラデ（settings-P .sheet: linear-gradient(#e4e0d3,#dcd8ca)＝中央トークン化済み）。 */
 val CartridgeSheetBrush: Brush
-    get() = Brush.verticalGradient(listOf(PlasticHiCartridge, PlasticCartridge)) // TODO: 監督補充（#e4e0d3→#dcd8ca）
+    get() = Brush.verticalGradient(listOf(SheetCartridge, SheetLoCartridge))
 
 /** シート下端色（ModalBottomSheet の containerColor 用＝グラデ終点と揃える）。 */
-val CartridgeSheetBottom = PlasticCartridge // TODO: 監督補充（#dcd8ca）
+val CartridgeSheetBottom = SheetLoCartridge
 
 /**
  * システムメニューヘッダ（settings-P .sysbar）＝緑LCDの起動画面感バー「● POCKET NOVEL」。

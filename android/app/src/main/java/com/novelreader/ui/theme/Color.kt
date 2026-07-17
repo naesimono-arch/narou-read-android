@@ -233,6 +233,7 @@ val TocInkSeizu     = Color(0xFFC9D0E1)   // toc-M .li .tx（章名の墨＝明�
 val TocCurStarSeizu = Color(0xFFF7F3E1)   // toc-M .li.cur .dot --dotc（現在章ドットの最輝星＝星グリフ・装飾・AA 対象外。BrightStarSeizu #F5F1DE とは非同値ゆえ新設）
 // ---- 発見（星図）専用の直書き色（discovery-M.html・ADR 0022 §5＝構造画面が Color.kt を直接参照）----
 val MilkyWaySeizu     = Color(0xFF788CD2)  // discovery-M 天の川の淡帯 rgba(120,140,210,α) 基色（linearGradient .06・αは描画層が付与）
+val NebulaVioletSeizu = Color(0xFF605496)  // bookshelf-M 深空の第2星雲 rgb(96,84,150)（微紫。R1統合で正本昇格・αは描画層が付与）
 val GenreChipInkSeizu = Color(0xFFC3CADB)  // discovery-M .gc（ジャンル入口チップの文字・夜天 bg 9.3:1）
 val AuthorInkSeizu    = Color(0xFF818BA6)  // discovery-M .rk .a（一覧の作者名 byline。bookshelf-M .const .by #818BA6 と同値＝同役割の byline 色）
 
@@ -304,6 +305,11 @@ val CartridgeGenreClay  = Color(0xFFA88F7A)  // --g6（ジャンル土）
 // :root 変数外のインライン実値。焼き込みでなくモック直値をそのまま昇格・近似せず。構造画面専用＝ADR 0022 §5）。
 val InslotHiCartridge   = Color(0xFFE6ECD6)  // .cart.inslot グラデ上（挿入中カセットの淡緑ハイライト）
 val InslotLoCartridge   = Color(0xFFD7E0C2)  // .cart.inslot グラデ下
+val LcdBandCartridge    = Color(0xFFCCD4A8)  // toc-P .row.cur 現在章バンド --lcd-band（LcdHi #b4be92 より淡い帯＝知覚差ありのため専用トークン化）
+val FutureNodeCartridge = Color(0xFFE6E2D6)  // toc-P 未読ノード地（インライン実値の昇格。plastic-hi とΔ<3 だが正本値で固定）
+val HiScoreGoldCartridge = Color(0xFFD9C27A) // discovery-P HI-SCORE 1位の金（王冠色・1位のみ燐光でなく金）
+val SheetCartridge      = Color(0xFFE4E0D3)  // settings-P .sheet 面グラデ上端 --sheet（システムメニュー面＝テーマ不変）
+val SheetLoCartridge    = Color(0xFFDCD8CA)  // settings-P .sheet 面グラデ下端
 
 // ============================================================
 // スキンJ「ポータル」（正本モック docs/design-candidates/skins/{bookshelf,reading,toc,settings,discovery}-J.html）。

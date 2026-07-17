@@ -76,6 +76,7 @@ import com.novelreader.ui.theme.CartridgeGenreSlate
 import com.novelreader.ui.theme.CartridgeGenreTaupe
 import com.novelreader.ui.theme.CartridgeGold
 import com.novelreader.ui.theme.CartridgeGreen
+import com.novelreader.ui.theme.HiScoreGoldCartridge
 import com.novelreader.ui.theme.CartridgePlum
 import com.novelreader.ui.theme.CartridgePurple
 import com.novelreader.ui.theme.InkCartridge
@@ -682,14 +683,14 @@ private fun HiScoreRow(rank: Int, novel: NarouNovel, order: NarouOrder, onClick:
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.S12),  // .hs-row gap 12px
     ) {
-        // .rk＝燐光の大順位（TODO: 1位王冠の金 #d9c27a はトークン不在のため近似せず燐光のまま）。
+        // .rk＝燐光の大順位。1位のみ王冠の金（--gold 相当 #d9c27a＝中央トークン化済み）。
         Row(modifier = Modifier.width(42.dp), verticalAlignment = Alignment.Bottom) {
             Text(
                 rank.toString(),
                 fontFamily = PixelFamily,
                 fontSize = 20.sp,          // .hs-row .rk 20px
                 fontWeight = FontWeight.Bold,
-                color = PhosCartridge,
+                color = if (rank == 1) HiScoreGoldCartridge else PhosCartridge,
                 style = androidx.compose.ui.text.TextStyle(shadow = phosGlow()),
             )
             Text(
