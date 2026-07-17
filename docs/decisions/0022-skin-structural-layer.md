@@ -35,6 +35,14 @@ M/P/J は本棚〜各画面の構造ごと別物の**構造スキン**であり�
 | J ポータル | `[DARK, LIGHT, SEPIA]`（既定=DARK） | reading-J に `.t-dark/.t-light/.t-sepia` の13変数一式。**変種が作用するのは読書系トークンのみ**＝material/shelf は theme 非依存の固定ダーク森面（モック実態。設定チップの扉プレビューは reading 値と連動） |
 | P カートリッジ | **`[LIGHT]` で開始**→追補モック承認後に3テーマ化 | モックに変種の実体なし。プラン前提「P=3面」は事実誤認と確定。無根拠のセピア/ダーク値をコードへ発明せず、reading-P へテーマ変種を**追補モック**として起こし人間承認を経てから追加（ユーザーは追加モック作成を許可済み・2026-07-17） |
 
+**追記 2026-07-17**: 上表 P 行の予告どおり、ユーザーがテーマ3変種の追補ドラフトを承認したため
+**P = `[LIGHT, SEPIA, DARK]`（既定=LIGHT）へ拡張**した。値の出自＝`docs/design-candidates/skins/candidates/reading-P-themes-draft.html`
+（承認後に正本 `reading-P.html` の `.t-light/.t-sepia/.t-dark` へ統合・ドラフトは candidates/ に一次情報として残置）。
+SEPIA/DARK の地色は settings-P スウォッチ実値（#e4d2a4／#2a2d24）の正本値昇格で、無根拠の発明ではない（§2 の要件を充足）。
+**J と同型で変種が作用するのは読書系トークンのみ**＝material/shelf/shiori は theme 非依存の固定筐体面（プラ筐体・緑LCD・
+HUD/コンソールは P の署名＝テーマ不変）。派生値（placeholder/hr/blockBg＝rgba 焼き込み）は SkinP.reading にインライン集約・
+骨格色は Color.kt Cartridge 節に3テーマ分登録。checker（check_design_tokens.py）の READING_ORDER_P も3テーマへ更新済み。
+
 ### 3. モーション裁定（ADR 0014 原則5・静謐則との突合）
 
 - **「現在地の脈動」類型を承認**: M 本棚の hero 結線先端星（sin 周期・reduce で固定輝度静止）・M 目次の現在章ドット

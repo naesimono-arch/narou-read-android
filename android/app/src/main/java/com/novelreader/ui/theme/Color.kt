@@ -238,11 +238,14 @@ val AuthorInkSeizu    = Color(0xFF818BA6)  // discovery-M .rk .a（一覧の作�
 
 // ============================================================
 // スキンP「カートリッジ」（正本モック docs/design-candidates/skins/{bookshelf,reading,toc,settings,discovery}-P.html）。
-// 退色プラスチック筐体（--plastic #dbd6c8）×緑の LCD（--lcd #a4af80）。[LIGHT] 1変種で開始（ADR 0022 §2＝
-// モックに変種の実体が無く、無根拠のダーク/セピア値を発明しない。追補モック承認後に3テーマ化）。
+// 退色プラスチック筐体（--plastic #dbd6c8）×緑の LCD（--lcd #a4af80）。読書テーマ3変種（LIGHT/SEPIA/DARK）＝
+// 「バックライトの相」（追補ドラフト reading-P-themes-draft.html を人間承認→3テーマ化・2026-07-17・ADR 0022 §2 追記）。
+// 変わるのは読書面（--screen/--rd-*）だけ＝筐体/LCD/HUD/コンソールはテーマ不変（J の「読書のみ変種」と同型）。
+// ゆえに material/shelf/shiori は theme 非依存の固定値（下の骨格色は LIGHT の筐体面）、reading のみ3分岐。
 // --line は画面家系で3値に分岐（本棚/読書/目次=#bdb9a9・シート=#c4c0b1・発見=#c9c5b6＝ADR 0022 §4）。
 // ラベル/ジャンル識別色は構造画面専用パレット（ADR 0022 §5）＝同値（w1=g3 等）は1 val に統合し両役割をコメント。
-// 全変数モック :root 由来の単色 hex（P は rgba 骨格色を持たず焼き込み不要）。読書値は SkinP.reading にインライン集約。
+// 読書骨格色（screen/rd-*）は下に3テーマ分を登録＝値の正本。派生値（placeholder/hr/blockBg＝rgba 焼き込み）は
+// SkinP.reading にインライン集約し算式コメントを併記（checker はインライン Color を拾う＝SkinC/SkinD 流儀）。
 // ============================================================
 val PlasticCartridge   = Color(0xFFDBD6C8)  // --plastic（筐体面＝background/surface）
 val PlasticHiCartridge = Color(0xFFE9E5DA)  // --plastic-hi（ハイライト面＝surfaceContainer・栞紙）
@@ -267,7 +270,22 @@ val ScreenCartridge    = Color(0xFFE8E7D8)  // reading-P --screen（バックラ
 val ScreenLoCartridge  = Color(0xFFDEDCCB)  // reading-P --screen-lo（読書面陰＝reading.blockBackground）
 val RdInkCartridge     = Color(0xFF26251D)  // reading-P --rd-ink（読書本文＝reading.text）
 val RdSoftCartridge    = Color(0xFF5F5C50)  // reading-P --rd-soft（読書補助＝reading.textSecondary/infoText・screen 5.38:1 AA）
-val RdRubyCartridge    = Color(0xFF5F5C4F)  // reading-P --rd-ruby（読書ルビ＝reading.ruby・screen 5.38:1 AA）
+val RdRubyCartridge    = Color(0xFF5F5C4F)  // reading-P .t-light --rd-ruby（読書ルビ＝reading.ruby・screen 5.38:1 AA）
+// ---- 読書テーマ SEPIA（.t-sepia＝琥珀バックライト・settings-P スウォッチ #e4d2a4 昇格）の骨格色（reading-P-themes-draft 承認値）----
+val ScreenSepiaCartridge   = Color(0xFFE4D2A4)  // .t-sepia --screen（琥珀の読書面＝reading.background）
+val ScreenLoSepiaCartridge = Color(0xFFD8C690)  // .t-sepia --screen-lo（読書面陰＝reading.blockBorder）
+val RdInkSepiaCartridge    = Color(0xFF2E2513)  // .t-sepia --rd-ink（読書本文＝reading.text・screen 10.11:1）
+val RdSoftSepiaCartridge   = Color(0xFF5C5236)  // .t-sepia --rd-soft（読書補助＝reading.textSecondary/infoText・screen 5.18:1 AA）
+val RdRubySepiaCartridge   = Color(0xFF5E5334)  // .t-sepia --rd-ruby（読書ルビ＝reading.ruby・screen 5.09:1 AA）
+// ---- 読書テーマ DARK（.t-dark＝消灯の相・settings-P スウォッチ #2a2d24 昇格）の骨格色（reading-P-themes-draft 承認値）----
+val ScreenDarkCartridge    = Color(0xFF2A2D24)  // .t-dark --screen（消灯の読書面＝reading.background）
+val ScreenLoDarkCartridge  = Color(0xFF24271F)  // .t-dark --screen-lo（読書面陰＝reading.blockBorder）
+val RdInkDarkCartridge     = Color(0xFFDBD9C6)  // .t-dark --rd-ink（読書本文＝reading.text・screen 9.84:1）
+val RdSoftDarkCartridge    = Color(0xFF999681)  // .t-dark --rd-soft（読書補助＝reading.textSecondary/infoText・screen 4.69:1 AA）
+val RdRubyDarkCartridge    = Color(0xFF98957F)  // .t-dark --rd-ruby（読書ルビ＝reading.ruby・screen 4.63:1 AA）
+// .t-dark のみ章番号を明化（暗面で --blue-ink #3f5a70 は沈むため。退色ブルーの色相を保つ）。--rd-num の DARK 値。
+// P 読書は現状 ReadingColors に章番号スロットを持たず（共通読書エンジンが描画）未配線＝BlueInkCartridge 同様の登録値。
+val BlueInkDarkCartridge   = Color(0xFF8FB3CD)  // reading-P .t-dark --rd-num（章番号/SCORE 数値の暗面明化）
 // red #b5564e を暗い反転面 #2c2b26 用に明化（色相保持の機械導出・#2c2b26 上 4.55:1）
 val InversePrimaryCartridge = Color(0xFFC77F79)
 // 燐光/アーケード盤（discovery-P --board/--phos/--phos-dim＝発見構造画面専用・ADR 0022 §5）

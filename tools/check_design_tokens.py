@@ -167,18 +167,20 @@ READING_VARS_M = {
 }
 READING_ORDER_M = ["DARK"]
 
-# reading-P（カートリッジ）の 1 テーマ宣言（:root 単一スコープ＝[LIGHT] 1変種で開始）→ SkinP.reading。
-# hex 宣言される :root 変数のみ照合（P は rgba 骨格色を持たないため全て hex）。
+# reading-P（カートリッジ）の 3 テーマ宣言（.t-light → .t-sepia → .t-dark の出現順が前提）→ SkinP.reading。
+# 追補ドラフト reading-P-themes-draft.html を承認して3テーマ化（ADR 0022 §2 追記・2026-07-17）。
+# 照合するのは各 .t-* に3回宣言される「読書面の骨格色」（hex）のみ。chrome（--line=divider・--lcd=accent）は
+# :root 単一宣言のテーマ不変色で .t-* に3回現れない＝順序照合に載せられないため除外する（M が rgba --line を
+# 除外したのと同型＝ordered per-theme 照合は3宣言を要する）。派生値（--rd-block-bg=blockBackground 等・rgba）も
+# checker が hex を拾えないため除外（SkinP.reading 側で焼き込み算式コメント併記）。
 READING_VARS_P = {
     "--screen": "background",
+    "--screen-lo": "blockBorder",
     "--rd-ink": "text",
     "--rd-soft": "textSecondary",
     "--rd-ruby": "ruby",
-    "--line": "divider",
-    "--screen-lo": "blockBorder",
-    "--lcd": "accent",
 }
-READING_ORDER_P = ["LIGHT"]
+READING_ORDER_P = ["LIGHT", "SEPIA", "DARK"]  # reading-P の .t-* 出現順（light→sepia→dark）
 
 # reading-J（ポータル）の 3 テーマ宣言（.t-dark → .t-light → .t-sepia の出現順が前提）→ SkinJ.reading。
 # .t-* の hex 変数のみ照合（--amb1/--amb2/--glyph は rgba ambient で checker が拾えず・構造画面用のため除外）。
@@ -219,7 +221,7 @@ SKIN_READING: dict[str, dict] = {
         "order": READING_ORDER_M,
     },
     "P": {
-        "kt_file": "skins/SkinP.kt",       # カートリッジ＝[LIGHT] 1変種で開始
+        "kt_file": "skins/SkinP.kt",       # カートリッジ＝読書のみ 3 テーマ（.t-light/.t-sepia/.t-dark）
         "mock": "skins/reading-P.html",
         "vars": READING_VARS_P,
         "order": READING_ORDER_P,

@@ -56,9 +56,10 @@ class SkinMPJTest {
     // ---- supportedThemes 契約（ADR 0022 §2 のモック実態準拠）----
 
     @Test
-    fun `M は DARK のみ・P は LIGHT のみ・J は DARK LIGHT SEPIA`() {
+    fun `M は DARK のみ・P と J は DARK LIGHT SEPIA の3テーマ`() {
         assertEquals(listOf(ReadingTheme.DARK), SkinM.supportedThemes)
-        assertEquals(listOf(ReadingTheme.LIGHT), SkinP.supportedThemes)
+        // P は追補ドラフト承認で3テーマ化（ADR 0022 §2 追記）。既定=先頭 LIGHT。
+        assertEquals(listOf(ReadingTheme.LIGHT, ReadingTheme.SEPIA, ReadingTheme.DARK), SkinP.supportedThemes)
         assertEquals(listOf(ReadingTheme.DARK, ReadingTheme.LIGHT, ReadingTheme.SEPIA), SkinJ.supportedThemes)
         // 先頭=既定変種（M=DARK・P=LIGHT・J=DARK）。
         assertEquals(ReadingTheme.DARK, SkinM.supportedThemes.first())
@@ -66,7 +67,7 @@ class SkinMPJTest {
         assertEquals(ReadingTheme.DARK, SkinJ.supportedThemes.first())
     }
 
-    // ---- 固定1変種の防御（M/P は全 theme 入力で同一値）----
+    // ---- 固定1変種の防御（M は全 theme 入力で同一値）----
 
     @Test
     fun `M は全 theme 入力に対し同一の星図値を返す（theme 非依存）`() {
@@ -78,17 +79,23 @@ class SkinMPJTest {
         }
     }
 
+    // ---- P/J は読書のみ変種・material/shelf/shiori は固定筐体面（P=プラ筐体・J=ダーク森面・ADR 0022 §2）----
+
     @Test
-    fun `P は全 theme 入力に対し同一の LIGHT 値を返す（theme 非依存）`() {
+    fun `P の material shelf shiori は theme 非依存の固定筐体面・reading は3テーマで別物`() {
         for (t in ReadingTheme.values()) {
-            assertEquals(SkinP.reading(ReadingTheme.LIGHT), SkinP.reading(t))
+            // chrome（筐体・緑LCD・HUD/コンソール）はテーマ不変＝どの theme 入力でも同一（既定 LIGHT 値）。
             assertTrue(SkinP.material(ReadingTheme.LIGHT) === SkinP.material(t))
             assertEquals(SkinP.shelf(ReadingTheme.LIGHT), SkinP.shelf(t))
             assertEquals(SkinP.shiori(ReadingTheme.LIGHT), SkinP.shiori(t))
         }
+        // 読書面（--screen/--rd-*）は3変種が互いに異なる背景を持つ（変種が実際に作用している証拠）。
+        assertNotEquals(SkinP.reading(ReadingTheme.LIGHT).background, SkinP.reading(ReadingTheme.SEPIA).background)
+        assertNotEquals(SkinP.reading(ReadingTheme.SEPIA).background, SkinP.reading(ReadingTheme.DARK).background)
+        // 反面、chrome スロット（divider=--line・accent=--lcd）は3テーマとも同値（テーマ不変の署名色）。
+        assertEquals(SkinP.reading(ReadingTheme.LIGHT).divider, SkinP.reading(ReadingTheme.DARK).divider)
+        assertEquals(SkinP.reading(ReadingTheme.LIGHT).accent, SkinP.reading(ReadingTheme.DARK).accent)
     }
-
-    // ---- J は読書のみ変種・material/shelf/shiori は固定ダーク森面（ADR 0022 §2）----
 
     @Test
     fun `J の material shelf shiori は theme 非依存の固定値・reading は3テーマで別物`() {
@@ -105,14 +112,13 @@ class SkinMPJTest {
     // ---- テーマクランプの純関数 ----
 
     @Test
-    fun `clampThemeToSkin は M P の非対応 theme を first へ丸め・J は全対応`() {
-        // M=[DARK]・P=[LIGHT]: 非対応は first へ。
+    fun `clampThemeToSkin は M の非対応 theme を first へ丸め・P J は全対応`() {
+        // M=[DARK]: 非対応は first（DARK）へ。
         assertEquals(ReadingTheme.DARK, clampThemeToSkin(ReadingTheme.LIGHT, SkinM))
         assertEquals(ReadingTheme.DARK, clampThemeToSkin(ReadingTheme.SEPIA, SkinM))
-        assertEquals(ReadingTheme.LIGHT, clampThemeToSkin(ReadingTheme.DARK, SkinP))
-        assertEquals(ReadingTheme.LIGHT, clampThemeToSkin(ReadingTheme.SEPIA, SkinP))
-        // J=3変種: すべて自分自身。
+        // P=3変種・J=3変種: すべて自分自身（丸めなし）。
         for (t in ReadingTheme.values()) {
+            assertEquals(t, clampThemeToSkin(t, SkinP))
             assertEquals(t, clampThemeToSkin(t, SkinJ))
         }
     }

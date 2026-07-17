@@ -10,19 +10,23 @@ import com.novelreader.ui.theme.*
  * スキン「カートリッジP」（視覚言語 P・正本モック docs/design-candidates/skins/{bookshelf,reading,toc,settings,discovery}-P.html）のトークン束。
  *
  * 退色プラスチック筐体（--plastic #dbd6c8）×緑の LCD（--lcd #a4af80）。パレットは退色プラ・墨インク・液晶緑・
- * 退色レッド（CTA）・退色ブルー（進捗）で閉じる。読書面のみバックライト風の温白スクリーン（--screen #e8e7d8）。
+ * 退色レッド（CTA）・退色ブルー（進捗）で閉じる。読書面はバックライト風のスクリーン（LIGHT --screen #e8e7d8）。
  *
- * なぜ [LIGHT] 1変種で開始か: モックにテーマ変種の実体が無く（settings-P の3択はスウォッチ見本のみ）、無根拠の
- * ダーク/セピア値をコードへ発明しない（ADR 0022 §2＝翻訳であって発明でない）。追補モック→人間承認を経て3テーマ化する。
- * それまで各 getter は theme 引数に関わらず同じ LIGHT 値を返す（防御的＝別スキン色が漏れない。SkinC と同型の1本化）。
+ * 読書テーマ3変種（LIGHT/SEPIA/DARK・既定=LIGHT）＝「バックライトの相」。追補ドラフト reading-P-themes-draft.html を
+ * 人間承認して3テーマ化した（2026-07-17・ADR 0022 §2 追記。当初は変種モック不在ゆえ [LIGHT] 開始だった）。
+ * なぜ material/shelf/shiori が theme 非依存の固定筐体面か: 変わるのは嵌め込みスクリーンの読書面（--screen/--rd-*）
+ * だけで、プラスチック筐体・緑LCDセーブバー・ピクセルHUD/コンソールは P の署名＝テーマ不変（J の「読書のみ変種」と同型）。
+ * ゆえに material/shelf/shiori は theme 引数を無視して固定筐体値を返し、reading のみ3分岐 when で変種を出す（既定=先頭 LIGHT）。
+ * SEPIA/DARK の地色は settings-P スウォッチ実値を正本値に昇格（値の正本＝reading-P-themes-draft.html＝reading-P.html の .t-*）。
  *
  * --line はモック間で家系分岐する（ADR 0022 §4）: 本棚/読書/目次=#bdb9a9・シート=#c4c0b1・発見=#c9c5b6 を Color.kt で
  * 別 val に分離し、outline/outlineVariant へ各々振る。ラベル/ジャンル識別色・燐光は構造画面専用パレット（ADR 0022 §5）。
  */
 object SkinP : SkinTokens {
 
-    // P は追補モック承認まで [LIGHT] 1変種で開始（ADR 0022 §2）。3テーマ化はモック承認後。
-    override val supportedThemes: List<ReadingTheme> = listOf(ReadingTheme.LIGHT)
+    // P は3テーマを持つが、作用するのは読書系トークンのみ（ADR 0022 §2 追記）。先頭 LIGHT が既定変種。
+    override val supportedThemes: List<ReadingTheme> =
+        listOf(ReadingTheme.LIGHT, ReadingTheme.SEPIA, ReadingTheme.DARK)
 
     // P の署名色は液晶グリーン（--lcd #a4af80＝LcdCartridge を流用）。
     override val signatureAccent: Color = LcdCartridge
@@ -66,44 +70,92 @@ object SkinP : SkinTokens {
         inversePrimary       = InversePrimaryCartridge, // red を暗面用に明化（#2c2b26 上 4.55:1）
     )
 
-    override fun material(theme: ReadingTheme): ColorScheme = CartridgeColorScheme // 固定1変種＝theme 非依存（防御的）
+    override fun material(theme: ReadingTheme): ColorScheme = CartridgeColorScheme // 固定筐体面＝theme 非依存（chrome はテーマ不変・ADR 0022 §2）
 
     override fun reading(theme: ReadingTheme): ReadingColors = when (theme) {
-        // P は追補モック承認まで固定1変種＝どの theme 入力でも同じ LIGHT 値を返す（防御的・SkinC と同型）。値の正本＝reading-P.html。
-        // LIGHT を末尾に置くのは check_design_tokens.py が「最後の ReadingTheme.X ->」を拾う仕様のため
-        // （P の唯一変種 LIGHT を reading 検査に載せる。挙動は入力全 theme で同一なので順序は表示上のみの意味）。
-        ReadingTheme.DARK, ReadingTheme.SEPIA, ReadingTheme.LIGHT -> ReadingColors(
-            background       = Color(0xFFE8E7D8),  // reading-P --screen（バックライト風温白）
-            text             = Color(0xFF26251D),  // reading-P --rd-ink（本文墨）
-            textSecondary    = Color(0xFF5F5C50),  // reading-P --rd-soft（補助・screen 5.38:1）
+        // 変種が作用するのは読書面（--screen/--rd-*）のみ（ADR 0022 §2 追記）。値の正本＝reading-P.html の .t-light/.t-sepia/.t-dark
+        // （＝承認済み reading-P-themes-draft.html）。chrome（nav/topBar/divider/accent/rule）は筐体・緑LCD＝全テーマ不変。
+        // LIGHT＝温白バックライト（現行正本と同値）。
+        ReadingTheme.LIGHT -> ReadingColors(
+            background       = Color(0xFFE8E7D8),  // .t-light --screen（バックライト風温白）
+            text             = Color(0xFF26251D),  // .t-light --rd-ink（本文墨）
+            textSecondary    = Color(0xFF5F5C50),  // .t-light --rd-soft（補助・screen 5.38:1）
             infoText         = Color(0xFF5F5C50),  // = --rd-soft（screen 5.38:1 で意味テキスト AA も満たすため textSecondary と同値）
             placeholder      = Color(0xFF969486),  // = --rd-soft#5F5C50 @0.6 over --screen#E8E7D8（焼き込み・非意味）
-            navBackground    = Color(0xFFDBD6C8),  // reading-P .console/.hud=plastic 面（グラデを代表単色 --plastic で表現）
-            topBarBackground = Color(0xFFDBD6C8),  // 同 plastic 面
-            topBarTitle      = Color(0xFF2C2B26),  // = --ink（バー面上の墨）
-            topBarIcon       = Color(0xFF2C2B26),  // reading-P .hud .ib=--ink
-            ruby             = Color(0xFF5F5C4F),  // reading-P --rd-ruby（意味搬送小文字・screen 5.38:1 AA）
+            navBackground    = Color(0xFFDBD6C8),  // reading-P .console/.hud=plastic 面（テーマ不変・グラデを代表単色 --plastic で表現）
+            topBarBackground = Color(0xFFDBD6C8),  // 同 plastic 面（テーマ不変）
+            topBarTitle      = Color(0xFF2C2B26),  // = --ink（バー面上の墨・テーマ不変）
+            topBarIcon       = Color(0xFF2C2B26),  // reading-P .hud .ib=--ink（テーマ不変）
+            ruby             = Color(0xFF5F5C4F),  // .t-light --rd-ruby（意味搬送小文字・screen 5.38:1 AA）
             // hr: reading-P hr は --rd-soft の破線グラデ opacity:.5＝代表単色は焼き込みで表現
             //   95*.5+232*.5=163.5→#A4／92*.5+231*.5=161.5→#A2／80*.5+216*.5=148→#94
             hr               = Color(0xFFA4A294),  // = --rd-soft#5F5C50 @0.5 over --screen#E8E7D8（モック hr 忠実値）
-            divider          = Color(0xFFBDB9A9),  // reading-P --line（目次区切り）
-            // blockBackground: reading-P .block bg=rgba(43,54,22,.04) を --screen へ焼き込み
+            divider          = Color(0xFFBDB9A9),  // reading-P --line（目次区切り・テーマ不変）
+            // blockBackground: reading-P .t-light --rd-block-bg=rgba(43,54,22,.04) を --screen へ焼き込み
             //   43*.04+232*.96=224.4→#E0／54*.04+231*.96=223.9→#E0／22*.04+216*.96=208.2→#D0
-            blockBackground  = Color(0xFFE0E0D0),  // reading-P .block background 焼き込み（モック忠実値）
-            blockBorder      = Color(0xFFDEDCCB),  // reading-P .block border=--screen-lo
-            accent           = Color(0xFFA4AF80),  // reading-P --lcd（章ルール i・save チップ地＝装飾/面用途）
-            rule             = Color(0xFFA4AF80),  // reading-P .chap-h .rule i=--lcd（章見出しルール＝accent と同値）
+            blockBackground  = Color(0xFFE0E0D0),  // .t-light --rd-block-bg 焼き込み（モック忠実値）
+            blockBorder      = Color(0xFFDEDCCB),  // .t-light --screen-lo（.block border）
+            accent           = Color(0xFFA4AF80),  // reading-P --lcd（章ルール i・save チップ地＝装飾/面用途・テーマ不変）
+            rule             = Color(0xFFA4AF80),  // reading-P .chap-h .rule i=--lcd（章見出しルール＝accent と同値・テーマ不変）
             isLight          = true,               // 温白スクリーン＝明面
+        )
+        // SEPIA＝琥珀バックライト（settings-P スウォッチ #e4d2a4 昇格）。読書面のみ暖色へ・chrome は不変。
+        ReadingTheme.SEPIA -> ReadingColors(
+            background       = Color(0xFFE4D2A4),  // .t-sepia --screen
+            text             = Color(0xFF2E2513),  // .t-sepia --rd-ink（screen 10.11:1）
+            textSecondary    = Color(0xFF5C5236),  // .t-sepia --rd-soft（補助・screen 5.18:1）
+            infoText         = Color(0xFF5C5236),  // = --rd-soft（screen 5.18:1 で意味テキスト AA も満たすため textSecondary と同値）
+            placeholder      = Color(0xFF928562),  // = --rd-soft#5C5236 @0.6 over --screen#E4D2A4（焼き込み・非意味）
+            navBackground    = Color(0xFFDBD6C8),  // plastic 面（テーマ不変）
+            topBarBackground = Color(0xFFDBD6C8),  // plastic 面（テーマ不変）
+            topBarTitle      = Color(0xFF2C2B26),  // --ink（テーマ不変）
+            topBarIcon       = Color(0xFF2C2B26),  // --ink（テーマ不変）
+            ruby             = Color(0xFF5E5334),  // .t-sepia --rd-ruby（screen 5.09:1 AA）
+            // hr: --rd-soft#5C5236 @0.5 over --screen#E4D2A4
+            //   92*.5+228*.5=160→#A0／82*.5+210*.5=146→#92／54*.5+164*.5=109→#6D
+            hr               = Color(0xFFA0926D),  // .t-sepia hr 焼き込み（モック忠実値）
+            divider          = Color(0xFFBDB9A9),  // --line（テーマ不変）
+            // blockBackground: .t-sepia --rd-block-bg=rgba(64,50,16,.05) を --screen#E4D2A4 へ焼き込み
+            //   64*.05+228*.95=219.8→#DC／50*.05+210*.95=202→#CA／16*.05+164*.95=156.6→#9D
+            blockBackground  = Color(0xFFDCCA9D),  // .t-sepia --rd-block-bg 焼き込み（モック忠実値）
+            blockBorder      = Color(0xFFD8C690),  // .t-sepia --screen-lo
+            accent           = Color(0xFFA4AF80),  // --lcd（テーマ不変）
+            rule             = Color(0xFFA4AF80),  // --lcd（テーマ不変）
+            isLight          = true,               // 琥珀スクリーン＝明面
+        )
+        // DARK＝消灯の相（settings-P スウォッチ #2a2d24 昇格）。読書面のみ暗転・chrome は不変。
+        ReadingTheme.DARK -> ReadingColors(
+            background       = Color(0xFF2A2D24),  // .t-dark --screen
+            text             = Color(0xFFDBD9C6),  // .t-dark --rd-ink（screen 9.84:1）
+            textSecondary    = Color(0xFF999681),  // .t-dark --rd-soft（補助・screen 4.69:1）
+            infoText         = Color(0xFF999681),  // = --rd-soft（screen 4.69:1 で意味テキスト AA も満たすため textSecondary と同値）
+            placeholder      = Color(0xFF6D6C5C),  // = --rd-soft#999681 @0.6 over --screen#2A2D24（焼き込み・非意味）
+            navBackground    = Color(0xFFDBD6C8),  // plastic 面（テーマ不変＝暗面でも筐体は退色プラのまま）
+            topBarBackground = Color(0xFFDBD6C8),  // plastic 面（テーマ不変）
+            topBarTitle      = Color(0xFF2C2B26),  // --ink（テーマ不変）
+            topBarIcon       = Color(0xFF2C2B26),  // --ink（テーマ不変）
+            ruby             = Color(0xFF98957F),  // .t-dark --rd-ruby（screen 4.63:1 AA）
+            // hr: --rd-soft#999681 @0.5 over --screen#2A2D24
+            //   153*.5+42*.5=97.5→#62／150*.5+45*.5=97.5→#62／129*.5+36*.5=82.5→#53
+            hr               = Color(0xFF626253),  // .t-dark hr 焼き込み（モック忠実値）
+            divider          = Color(0xFFBDB9A9),  // --line（テーマ不変）
+            // blockBackground: .t-dark --rd-block-bg=rgba(233,231,216,.045) を --screen#2A2D24 へ焼き込み
+            //   233*.045+42*.955=50.6→#33／231*.045+45*.955=53.4→#35／216*.045+36*.955=44.1→#2C
+            blockBackground  = Color(0xFF33352C),  // .t-dark --rd-block-bg 焼き込み（モック忠実値）
+            blockBorder      = Color(0xFF24271F),  // .t-dark --screen-lo
+            accent           = Color(0xFFA4AF80),  // --lcd（テーマ不変）
+            rule             = Color(0xFFA4AF80),  // --lcd（テーマ不変）
+            isLight          = false,              // 消灯スクリーン＝暗面（ステータスバーアイコン明色）
         )
     }
 
-    // 本棚系の家系トークン（bookshelf-P 値）。固定1変種＝theme 非依存。
+    // 本棚系の家系トークン（bookshelf-P 値）。theme 非依存（筐体面はテーマ不変・ADR 0022 §2）。
     //   hairline = --line #bdb9a9
     //   unreadLabel/infoText = --ink-mid #5a574c（plastic #dbd6c8 上 4.98:1・--ink-soft は 3.13:1 で AA 不足のため昇格）
     private val CartridgeShelf = ShelfColors(LineCartridge, InkMidCartridge, InkMidCartridge)
     override fun shelf(theme: ReadingTheme): ShelfColors = CartridgeShelf
 
-    // 栞書影の紙／墨／識別色明度。固定1変種＝theme 非依存。
+    // 栞書影の紙／墨／識別色明度。theme 非依存（筐体面はテーマ不変）。
     //   紙 = --plastic-hi #e9e5da（ハイライト面で表紙を素地から持ち上げる）／墨 = --ink #2c2b26
     //   識別色明度 = 0.52f（SkinD の LIGHT 値と同値＝明面書架の明度規則。SkinD.shiori(LIGHT) 参照）
     private val CartridgeShiori = ShioriColors(PlasticHiCartridge, InkCartridge, 0.52f)
