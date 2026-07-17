@@ -1,0 +1,311 @@
+<!-- @dsCard group="UI-n / 本棚（M星図・描画リッチ化）" name="M-rich R4. 増光（同レイヤーで光の質を上げる）" -->
+<!--
+  思想（1行）: 背景化はしない対照案＝現行のレイヤー構造そのままに、描画密度と光の質だけを上げて「濃く・深い」夜空にする。
+  ベースからの変更点（bookshelf-M.html 比）:
+    ・レイヤー構成は不変（#sky 単一背景 z1／content z2）。R1〜R3のような背景昇格・スクロール・境界溶解はしない。
+    ・星屑 dust を 70→160 に増密＋大きさ/輝度に階調。色温度の微グラデ（温白寄りの星と群青寄りの星を混在＝系統色内）。
+    ・グローを多段化＝コア/内殻/外殻/ごく淡いハローの4段。結線の発光もにじみを一段追加。
+    ・明滅の質＝ambient dust に「ごく緩い個別シンチレーション（きらめき）」。振幅は微小・reduce-motion で静止。
+    ・トークンは正本維持。新規は演出 alpha のみ（系統色 群青/温白/月光スレートは不変）。
+  遊び心ワンポイント（動作反応）:
+    ・読了した瞬間の「増光の余韻」＝作品を読了/読み進める（セルタップ、実機は reachedEnd/読了話数増）と、その星が一度強く増光し、
+      余韻としてしばらく通常より明るく残ってやがて減衰する（＝最近読んだ星ほど明るい夜空）。
+      モックは1作品を「最近読了＝余韻が残る」状態で初期化し、増光の残りを見せる。
+    ・reduce-motion: 増光アニメ/きらめきを無効＝余韻は静的な高輝度として表示（下記 reduce 分岐にコメント）。
+  Compose 翻訳の要点（Canvasレイヤー構成）:
+    ・現行の単一 Canvas を踏襲し drawWithCache 内で描画関数を差し替えるだけ（レイヤー追加なし＝移植コスト最小）。
+    ・多段グローは RadialGradient のストップ増／dust 増密は points 配列拡張。きらめきは per-star 位相の sin。
+    ・余韻は per-work afterglow:Float を「読了時刻からの経過」で decay（実機は保存時刻ベース、モックは時間減衰）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n M-rich R4 本棚 — 増光</title>
+<style>
+  :root{
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    --text:#DCE3F2;--dim:#8791AD;--star:#E9DDB4;
+    --line:rgba(150,168,214,.2);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#06080F;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--mincho)}
+  .cap{color:#7C86A2;font-size:13px;margin-bottom:16px;text-align:center;line-height:1.7;max-width:540px;font-family:var(--gothic)}
+  .cap b{color:#DCE3F2}
+
+  .phone{width:390px;height:844px;border-radius:42px;overflow:hidden;position:relative;
+    display:flex;flex-direction:column;box-shadow:0 30px 72px rgba(0,0,0,.72);
+    background:
+      radial-gradient(78% 42% at 72% 20%,rgba(58,78,150,.30),transparent 62%),
+      radial-gradient(120% 80% at 30% 108%,rgba(30,42,96,.58),transparent 60%),
+      linear-gradient(178deg,#0B1330 0%,#0D1636 44%,#080E26 100%);}
+  .sky{position:absolute;inset:0;z-index:1}
+  .layer{position:absolute;inset:0;z-index:2;pointer-events:none}
+  .layer *{pointer-events:auto}
+
+  .statusbar{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;
+    font-family:var(--gothic);font-size:12px;color:#6E7794}
+  .plate{padding:2px 20px 0;display:flex;align-items:flex-start;justify-content:space-between}
+  .plate .name{font-size:20px;color:var(--text);letter-spacing:.22em;font-weight:500}
+  .plate .meta{display:block;font-family:var(--gothic);font-size:10px;letter-spacing:.12em;color:#8791AD;margin-top:5px}
+  .plate .meta b{color:#B9C2DA;font-weight:600}
+  .acts{display:flex;gap:1px;flex-shrink:0}
+  .ib{width:34px;height:34px;border:none;background:transparent;border-radius:9px;display:grid;place-items:center;color:var(--dim);cursor:pointer}
+  .ib:hover{color:var(--text)}
+  .ib svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .ib.wardrobe{color:var(--star)}
+  .ib.wardrobe svg{fill:var(--star);stroke:none}
+
+  .banner{margin:10px 20px 0;padding:11px 14px;border:1px solid var(--line);border-radius:12px;
+    background:rgba(14,22,52,.5);display:flex;align-items:center;gap:12px}
+  .banner .kindle{width:14px;height:14px;flex-shrink:0;border-radius:50%;
+    background:radial-gradient(circle,#F5F1DE,rgba(233,221,180,.2) 60%,transparent);box-shadow:0 0 12px rgba(233,221,180,.85)}
+  .banner .bt{flex:1;min-width:0}
+  .banner .bt .l{font-family:var(--gothic);font-size:11px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .banner .bt .s{font-family:var(--gothic);font-size:9.5px;color:var(--dim);margin-top:4px;letter-spacing:.03em}
+  .banner .track{width:100%;height:2px;background:rgba(150,168,214,.25);border-radius:2px;margin-top:6px;position:relative}
+  .banner .track i{position:absolute;left:0;top:0;height:2px;width:25%;background:var(--star);border-radius:2px;box-shadow:0 0 6px rgba(233,221,180,.8)}
+
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:12px 20px 2px;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
+  .chip{flex-shrink:0;font-family:var(--gothic);font-size:11px;color:var(--dim);border:1px solid var(--line);
+    border-radius:999px;padding:6px 14px;cursor:pointer;letter-spacing:.02em}
+  .chip.on{color:var(--star);border-color:rgba(233,221,180,.5)}
+
+  .const{position:absolute;width:196px}
+  .const .desig{font-family:var(--gothic);font-size:9.5px;letter-spacing:.16em;color:var(--id);
+    display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .const .desig::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--id);flex-shrink:0;box-shadow:0 0 6px var(--id)}
+  .const .ttl{font-size:14px;color:var(--text);line-height:1.5;font-weight:500;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .const .by{font-family:var(--gothic);font-size:10.5px;color:#818BA6;margin-top:5px;letter-spacing:.04em}
+  .const .prog{font-family:var(--gothic);font-size:10.5px;color:#9AA4C0;margin-top:7px;letter-spacing:.03em}
+  .const .link{font-family:var(--gothic);font-size:10.5px;color:#AEB7D2;margin-top:6px;display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+  .const .link svg{width:9px;height:9px;fill:currentColor}
+  .const.r{text-align:right}
+  .const.r .desig{flex-direction:row-reverse}
+  .const.r .link{flex-direction:row-reverse}
+  .const.unread .ttl{color:#AEB6CE}
+  .const.unread .prog{color:#7B85A1}
+  .const .badge{display:inline-block;font-family:var(--gothic);font-size:9px;letter-spacing:.18em;
+    color:#8791AD;border:1px solid #303B5C;border-radius:3px;padding:2px 7px;margin-top:8px}
+
+  .upd{display:inline-flex;align-items:center;gap:5px;font-family:var(--gothic);font-size:10px;color:var(--star);margin-top:8px;letter-spacing:.04em}
+  .upd::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--star);box-shadow:0 0 6px rgba(233,221,180,.75)}
+
+  .const.hero .eyebrow{font-family:var(--gothic);font-size:10.5px;letter-spacing:.34em;color:var(--star);
+    margin-bottom:9px;display:flex;align-items:center;gap:7px}
+  .const.hero .eyebrow::before{content:"◈";font-size:9px}
+  .const.hero .ttl{font-family:var(--mincho);font-size:17px;line-height:1.42;font-weight:600}
+  .const.hero .resume{margin-top:11px;display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+    background:linear-gradient(135deg,#EbdFb4,#D8C68C);color:#141B33;font-family:var(--gothic);font-weight:800;
+    font-size:12px;padding:9px 15px;border-radius:11px;box-shadow:0 8px 22px rgba(0,0,0,.45),0 0 24px rgba(233,221,180,.18)}
+  .const.hero .resume svg{width:12px;height:12px;fill:#141B33}
+  .nowtag{position:absolute;font-family:var(--gothic);font-size:9px;letter-spacing:.2em;color:var(--star);white-space:nowrap;opacity:.9}
+
+  .horizon{position:absolute;left:0;right:0;bottom:0;height:112px;z-index:2}
+  .horizon::before{content:"";position:absolute;left:20px;right:20px;top:0;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(150,168,214,.3),transparent)}
+  .discover{position:absolute;left:20px;right:20px;top:14px;display:flex;align-items:center;gap:12px;cursor:pointer;
+    padding:12px 16px;border:1px solid var(--line);border-radius:14px;background:rgba(14,22,52,.42)}
+  .discover .cmp{width:22px;height:22px;flex-shrink:0;color:var(--star)}
+  .discover .cmp svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.4}
+  .discover .dt{flex:1;min-width:0}
+  .discover .dt .l{font-family:var(--gothic);font-size:12.5px;color:var(--text);letter-spacing:.02em}
+  .discover .dt .s{font-family:var(--gothic);font-size:9.5px;color:var(--dim);margin-top:3px;letter-spacing:.1em}
+  .discover .uncoll{font-family:var(--gothic);font-size:9.5px;color:var(--dim);white-space:nowrap;display:flex;align-items:center;gap:5px}
+  .discover .uncoll::before{content:"";width:4px;height:4px;border-radius:50%;background:rgba(150,168,214,.5)}
+  .discover .ar{width:14px;height:14px;flex-shrink:0;color:var(--dim)}
+  .discover .ar svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+  .welcome{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:inline-flex;align-items:center;gap:9px;cursor:pointer;
+    font-family:var(--gothic);font-size:11.5px;letter-spacing:.1em;color:#B7C0DB;padding:9px 20px;border-radius:999px}
+  .welcome .plus{position:relative;width:14px;height:14px;flex-shrink:0}
+  .welcome .plus::before,.welcome .plus::after{content:"";position:absolute;background:var(--star);border-radius:2px;box-shadow:0 0 8px rgba(233,221,180,.7)}
+  .welcome .plus::before{left:6px;top:0;width:2px;height:14px}
+  .welcome .plus::after{top:6px;left:0;height:2px;width:14px}
+</style>
+</head>
+<body>
+  <p class="cap"><b>M-rich R4. 増光</b> ／ 背景化しない対照案。現行レイヤーのまま星屑を増密し、グローを多段化、色温度に微グラデ、明滅の質を上げる。読了の星はしばらく増光の余韻を残す。</p>
+
+  <div class="phone" role="img" aria-label="M-rich R4 増光（同レイヤーで光の質を上げる）方向の本棚画面モック">
+    <canvas class="sky" id="sky" aria-hidden="true"></canvas>
+
+    <div class="layer">
+      <div class="statusbar"><span>9:41</span><span>●●● ▢ 84%</span></div>
+
+      <div class="plate">
+        <div><span class="name">本棚</span><span class="meta">結ばれた星座 <b>3</b> / 4</span></div>
+        <div class="acts">
+          <button class="ib" aria-label="見つける"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+          <button class="ib" aria-label="一覧表示に切替"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+          <button class="ib wardrobe" aria-label="装いの間（着せ替え）"><svg viewBox="0 0 24 24"><path d="M12 2.5 L13.7 10.3 L21.5 12 L13.7 13.7 L12 21.5 L10.3 13.7 L2.5 12 L10.3 10.3 Z"/></svg></button>
+          <button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.4" fill="currentColor" stroke="none"/></svg></button>
+        </div>
+      </div>
+
+      <div class="banner" role="status" aria-label="取込中バナー">
+        <span class="kindle" aria-hidden="true"></span>
+        <div class="bt">
+          <div class="l">『霧の街の錬金術師』を星に変換中</div>
+          <div class="s">3 / 12 話 · 25%</div>
+          <div class="track"><i></i></div>
+        </div>
+      </div>
+
+      <div class="chips">
+        <span class="chip on">すべて</span><span class="chip">異世界</span><span class="chip">完結済み</span><span class="chip">あとで読む</span>
+      </div>
+
+      <div class="const hero" style="left:24px;top:206px;--id:#B7C6A6" data-i="0">
+        <div class="eyebrow">続きから</div>
+        <div class="ttl">追放された万能薬師、辺境でスローライフを始める</div>
+        <div class="by">霧島あおい</div>
+        <div class="prog">第127話 / 全340話 · 62%</div>
+        <span class="upd">新着 · 続き12話</span>
+        <span class="resume"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg>この星から読む</span>
+      </div>
+      <div class="nowtag" style="left:234px;top:264px">第127話 ·</div>
+
+      <div class="const r" style="right:24px;top:372px;width:202px;--id:#9E93C6" data-i="1">
+        <div class="desig">rex umbrae</div>
+        <div class="ttl">黒の魔王と契約した俺、気づけば最強の従者になっていた</div>
+        <div class="by">夜灯すばる</div>
+        <div class="prog">第43話 / 全152話 · 28%</div>
+        <span class="link"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg>続きを結ぶ</span>
+      </div>
+
+      <div class="const r unread" style="right:24px;top:508px;width:206px;--id:#7E8AA0" data-i="2">
+        <div class="desig">herbula</div>
+        <div class="ttl">転生したら最弱スキルだったので、ひたすら草むしりしていた</div>
+        <div class="by">青葉みのり</div>
+        <div class="prog">未読 · 全88話　まだ星は結ばれていない</div>
+        <span class="badge">最初の星を灯す</span>
+      </div>
+
+      <div class="const" style="left:24px;top:600px;width:196px;--id:#C6A0AE" data-i="3">
+        <div class="desig">corolla</div>
+        <div class="ttl">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+        <div class="by">白河すずら</div>
+        <div class="prog">第8話 / 全210話 · 11%</div>
+        <span class="link"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg>続きを結ぶ</span>
+      </div>
+
+      <div class="horizon">
+        <button class="discover" aria-label="新しい物語を見つける">
+          <span class="cmp"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polygon points="15.5 8.5 10.5 10.5 8.5 15.5 13.5 13.5" fill="currentColor" stroke="none"/></svg></span>
+          <span class="dt"><span class="l">まだ知らない星を探しに</span></span>
+          <span class="uncoll">なろう・未取込 3</span>
+          <span class="ar"><svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg></span>
+        </button>
+        <button class="welcome" aria-label="PDFを追加して新しい星を迎える"><span class="plus"></span>新しい星を迎える</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  const cv=document.getElementById('sky');const ctx=cv.getContext('2d');
+  const W=390,H=844,dpr=Math.max(1,window.devicePixelRatio||1);
+  cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';ctx.scale(dpr,dpr);
+  const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const SKY=[
+    {hero:true, frac:.62, pts:[[248,345],[272,310],[301,330],[324,288],[300,256],[339,246],[356,220]]},
+    {frac:.28, pts:[[42,488],[71,462],[60,426],[96,436],[121,410],[151,396]]},
+    {unread:true, frac:0, pts:[[54,520],[88,506],[73,556],[112,548],[144,522],[130,578]]},
+    {frac:.11, pts:[[247,712],[277,682],[301,705],[331,665],[351,687]]},
+  ];
+  SKY.forEach(c=>c.afterglow=0); // 読了余韻（0..1）
+
+  const BOUNDS=[
+    [[0,392],[240,392],[240,358],[390,358]],
+    [[0,499],[150,499],[150,502],[390,502]],
+    [[0,592],[150,592],[150,617],[240,617],[240,648],[390,648]],
+  ];
+  const ZONEFILL=[
+    [[0,392],[240,392],[240,358],[390,358],[390,502],[150,502],[150,499],[0,499]],
+    [[0,592],[150,592],[150,617],[240,617],[240,648],[390,648],[390,735],[0,735]],
+  ];
+  let s=987654321;const rnd=()=>{s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;};
+  // 増密: 70→160。色温度(temp 0=群青寄り/1=温白寄り)＋きらめき位相 ph をもたせる。
+  const DUST=[];for(let i=0;i<160;i++)DUST.push({x:rnd()*W,y:44+rnd()*(H-110),r:rnd()*1.0+.25,a:rnd()*.4+.05,temp:rnd(),ph:rnd()*6.28,tw:rnd()});
+
+  function poly(p){ctx.beginPath();ctx.moveTo(p[0][0],p[0][1]);for(let i=1;i<p.length;i++)ctx.lineTo(p[i][0],p[i][1]);}
+  function boundsPath(p){
+    ctx.beginPath();ctx.moveTo(p[0][0],p[0][1]);
+    for(let i=1;i<p.length;i++){const x0=p[i-1][0],y0=p[i-1][1],x1=p[i][0],y1=p[i][1];
+      if(y0===y1)ctx.quadraticCurveTo((x0+x1)/2,y0-6,x1,y1);else ctx.lineTo(x1,y1);}
+  }
+  function bounds(){
+    ctx.fillStyle='rgba(150,168,214,.026)';for(const z of ZONEFILL){poly(z);ctx.closePath();ctx.fill();}
+    ctx.setLineDash([5,5]);ctx.lineWidth=1;ctx.strokeStyle='rgba(150,168,214,.16)';for(const b of BOUNDS){boundsPath(b);ctx.stroke();}ctx.setLineDash([]);
+  }
+  function seg(pts){let L=[],t=0;for(let i=1;i<pts.length;i++){const d=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);L.push(d);t+=d;}return{L,t};}
+  function grid(){
+    ctx.lineWidth=1;ctx.strokeStyle='rgba(150,168,214,.055)';
+    for(let i=0;i<4;i++){const y=250+i*150;ctx.beginPath();ctx.moveTo(6,y);ctx.quadraticCurveTo(195,y-16,384,y);ctx.stroke();}
+    for(let i=0;i<4;i++){const x=60+i*90;ctx.beginPath();ctx.moveTo(x,196);ctx.quadraticCurveTo(x+(x<195?18:-18),500,x,740);ctx.stroke();}
+  }
+  // きらめきの質: ambient dust に微小なシンチレーション（振幅は輝度の±30%まで）
+  function dust(ts){for(const d of DUST){
+    const tw=reduce?1:(1+0.3*Math.sin(ts/900+d.ph)*d.tw);
+    // 色温度の微グラデ: temp→温白(238,232,206) と 群青白(206,220,250) を補間
+    const R=Math.round(206+(238-206)*d.temp),G=Math.round(220+(232-220)*d.temp),B=Math.round(250+(206-250)*d.temp);
+    ctx.fillStyle='rgba('+R+','+G+','+B+','+(d.a*tw)+')';ctx.beginPath();ctx.arc(d.x,d.y,d.r,0,7);ctx.fill();}
+  }
+  // 多段グロー: 外殻ハロー→内殻→コア→白点（4段）。boost=余韻/脈動で明るさ増。
+  function starGlow(x,y,r,glow,boost){
+    boost=boost||0;const gg=Math.min(1.15,glow+boost);const rr=r*(1+boost*.7);
+    const halo=ctx.createRadialGradient(x,y,0,x,y,rr*2.1); // 外殻ハロー（ごく淡い）
+    halo.addColorStop(0,'rgba(233,221,180,'+(gg*.22)+')');halo.addColorStop(1,'rgba(233,221,180,0)');
+    ctx.fillStyle=halo;ctx.beginPath();ctx.arc(x,y,rr*2.1,0,7);ctx.fill();
+    const g=ctx.createRadialGradient(x,y,0,x,y,rr); // 内殻
+    g.addColorStop(0,'rgba(242,236,208,'+gg+')');g.addColorStop(.34,'rgba(233,221,180,'+(gg*.5)+')');
+    g.addColorStop(.7,'rgba(225,210,160,'+(gg*.2)+')');g.addColorStop(1,'rgba(225,210,160,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,rr,0,7);ctx.fill();
+    ctx.fillStyle='rgba(246,249,255,'+Math.min(1,gg+.15)+')';ctx.beginPath();ctx.arc(x,y,1.8,0,7);ctx.fill(); // コア白点
+  }
+  function faintStar(x,y){ctx.fillStyle='rgba(150,166,206,.34)';ctx.beginPath();ctx.arc(x,y,1.5,0,7);ctx.fill();}
+  function drawConst(c,pulse){
+    const pts=c.pts,{L,t}=seg(pts),litLen=c.frac*t, boost=c.afterglow*0.45;
+    ctx.lineWidth=1;ctx.setLineDash(c.unread?[2,4]:[]);
+    ctx.strokeStyle=c.unread?'rgba(150,166,206,.16)':'rgba(150,166,206,.2)';
+    ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i][0],pts[i][1]);ctx.stroke();ctx.setLineDash([]);
+    if(litLen>0){
+      // 結線発光を一段増やす（にじみ広め＋余韻で強まる）
+      ctx.strokeStyle='rgba(233,221,180,'+(.72+boost*.5)+')';ctx.lineWidth=1.4;ctx.lineCap='round';ctx.lineJoin='round';
+      ctx.shadowColor='rgba(233,221,180,'+(.55+boost*.4)+')';ctx.shadowBlur=8+boost*8;ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);
+      let acc=0,tipX=pts[0][0],tipY=pts[0][1];
+      for(let i=1;i<pts.length;i++){if(acc+L[i-1]<=litLen){ctx.lineTo(pts[i][0],pts[i][1]);acc+=L[i-1];tipX=pts[i][0];tipY=pts[i][1];}
+        else{const r=(litLen-acc)/L[i-1];tipX=pts[i-1][0]+(pts[i][0]-pts[i-1][0])*r;tipY=pts[i-1][1]+(pts[i][1]-pts[i-1][1])*r;ctx.lineTo(tipX,tipY);break;}}
+      ctx.stroke();ctx.shadowBlur=0;c._tip=[tipX,tipY];
+    }
+    let acc=0;for(let i=0;i<pts.length;i++){if(i>0)acc+=L[i-1];const lit=litLen>0&&acc<=litLen+0.5;
+      if(lit)starGlow(pts[i][0],pts[i][1],4.6,.9,boost);else faintStar(pts[i][0],pts[i][1]);}
+    if(c._tip){const [tx,ty]=c._tip;starGlow(tx,ty,c.hero?(7.2+pulse*3.2):5.4,c.hero?(.85+pulse*.15):.8,boost);}
+  }
+
+  // ===== 遊び心: 読了瞬間の増光と、その余韻 =====
+  // 何が: 星が一度強く増光→通常より明るいまま残り、やがて減衰。 どの動作で: 作品セルをタップ（実機は reachedEnd）。
+  // どう変わる: afterglow=1 へ跳ね上げ→毎フレーム緩やかに減衰＝「最近読んだ星ほど明るい夜空」。
+  function flare(i){const c=SKY[i];if(!c)return;c.afterglow=1;if(reduce)c.afterglow=0.6;}
+  document.querySelectorAll('.const').forEach(el=>{
+    el.style.cursor='pointer';el.addEventListener('click',()=>flare(+el.dataset.i));
+  });
+  // 「最近読了＝余韻が残る」状態を初期化（作品2に余韻）＝出現中の増光余韻を見せる
+  SKY[1].afterglow=reduce?0.6:0.85;
+
+  function frame(ts){
+    ctx.clearRect(0,0,W,H);grid();bounds();dust(ts);
+    const pulse=reduce?0.55:(Math.sin(ts/1400)+1)/2;
+    if(!reduce)for(const c of SKY){if(c.afterglow>0)c.afterglow=Math.max(0,c.afterglow-0.0018);} // 余韻の減衰
+    for(const c of SKY)drawConst(c,pulse);
+    if(!reduce)requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
