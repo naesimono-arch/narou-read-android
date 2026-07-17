@@ -275,8 +275,9 @@ fun WardrobeScreen(
                     skin == null -> Unit // 今後追加＝CTA 非表示（スペースは上の height で保持）
                     skin == currentSkin -> {
                         // 装着中＝塗りなし・ヘアライン枠・チェック（今の装いであることを静かに示す）。
+                        // タップは「これでよい」という確定＝そのまま本棚へ戻す（applyWardrobeSelection の裁定参照）。
                         OutlinedButton(
-                            onClick = {},
+                            onClick = { applyWardrobeSelection(skin, currentSkin, onSkinChange, onBack) },
                             shape = RoundedCornerShape(12.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, scheme.outline),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = scheme.onBackground),
@@ -293,10 +294,10 @@ fun WardrobeScreen(
                         }
                     }
                     else -> {
-                        // 未装着＝プライマリ塗り。タップで onSkinChange＝親 Theme が再構成され、この画面のクロームも
-                        // 即座に切り替わり CTA は「装着中」へ変わる（currentSkin プロップ追従＝ローカル状態を持たない）。
+                        // 未装着＝プライマリ塗り。タップで装着を永続化し、そのまま本棚へ戻る（装着状態で表示される）。
+                        // 順序保証は applyWardrobeSelection が担う（onSkinChange 完了後に onBack）。
                         Button(
-                            onClick = { onSkinChange(skin) },
+                            onClick = { applyWardrobeSelection(skin, currentSkin, onSkinChange, onBack) },
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = scheme.primary,
@@ -329,6 +330,33 @@ fun WardrobeScreen(
  */
 internal fun clampWardrobeFlingTarget(currentPage: Int, suggestedTargetPage: Int): Int =
     suggestedTargetPage.coerceIn(currentPage - 1, currentPage + 1)
+
+/**
+ * 装いの間の装着 CTA タップを「装着の永続化 → 本棚へ戻る」の確定順で実行する純関数（テスト可能な核）。
+ *
+ * なぜ順序を関数へ固定するか（要件＝押した直後に装着状態で本棚へ戻す）:
+ * onSkinChange は app_skin の永続化を**同期的に**完了させる（MainActivity 側で状態巻き上げ appSkin=skin ＋
+ * prefs.putString を同一呼び出し内で行う。SharedPreferences.apply() のディスク書き込みは非同期だがメモリ上の
+ * 値はその場で更新され、以後のプロセス内読み取りに反映される）。ゆえに onSkinChange の呼び出しが戻った時点で
+ * 装着はアプリ状態として確定しており、続けて onBack を呼べば本棚は更新済み appSkin で再コンポーズされる＝
+ * 「装着が効いてから戻る」を追加の非同期待ちなしに保証できる。分岐と呼び出し順をこの関数へ集約し単体テストで固定する。
+ *
+ * 既装着スキンの「装着中」タップの裁定＝即戻る（onSkinChange は呼ばず onBack のみ）:
+ * この画面の唯一の役割は「装いを選んで本棚へ帰る」。既に装着中なら選び直す必要はなく、タップは「これでよい」の
+ * 確定の意思表示と解せる。大きな CTA を無反応にすると押しても何も起きず迷子になるため、戻す方が自然で全 CTA の
+ * 挙動（タップ＝本棚へ戻る）も一貫する。同一スキンへの無駄な再永続化・再コンポーズも避けられる。
+ */
+internal fun applyWardrobeSelection(
+    tappedSkin: Skin,
+    currentSkin: Skin,
+    onSkinChange: (Skin) -> Unit,
+    onBack: () -> Unit,
+) {
+    if (tappedSkin != currentSkin) {
+        onSkinChange(tappedSkin) // 先に装着を永続化してから
+    }
+    onBack() // 本棚へ戻る（装着済みの姿で表示される）
+}
 
 // カード寸法・角丸はモック値そのまま（ADR 0014 §C の余白スケール対象外＝寸法/角丸は px 追従で可）。
 private val CardWidth = 180.dp

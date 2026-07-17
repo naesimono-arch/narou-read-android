@@ -1,5 +1,6 @@
 package com.novelreader.ui
 
+import com.novelreader.ui.theme.Skin
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -38,5 +39,34 @@ class WardrobeFlingTargetTest {
         // clamp は currentPage-1..currentPage+1。先頭(0)では下限が-1になるが、
         // 実際のページ範囲 clamp は Compose 側（0..pageCount）が別途担うため、ここでは基準±1のみ検証する。
         assertEquals(-1, clampWardrobeFlingTarget(currentPage = 0, suggestedTargetPage = -5))
+    }
+
+    // ── 装着 CTA タップの順序保証（applyWardrobeSelection）─────────────────────────
+    // 要件: 装着を押した直後に「装着が確実に効いてから」本棚へ戻る＝onSkinChange 完了後に onBack が発火する順。
+
+    @Test
+    fun `未装着スキンのタップは装着の永続化を先に済ませてから本棚へ戻る`() {
+        val events = mutableListOf<String>()
+        applyWardrobeSelection(
+            tappedSkin = Skin.YAKO_C,
+            currentSkin = Skin.WAMODERN_D,
+            onSkinChange = { events += "apply:${it.name}" },
+            onBack = { events += "back" },
+        )
+        // 永続化(apply) → 戻る(back) の順で、かつタップされたスキンが渡ること。
+        assertEquals(listOf("apply:YAKO_C", "back"), events)
+    }
+
+    @Test
+    fun `装着中スキンのタップは再永続化せずそのまま本棚へ戻る`() {
+        val events = mutableListOf<String>()
+        applyWardrobeSelection(
+            tappedSkin = Skin.WAMODERN_D,
+            currentSkin = Skin.WAMODERN_D,
+            onSkinChange = { events += "apply:${it.name}" },
+            onBack = { events += "back" },
+        )
+        // 既装着＝onSkinChange は呼ばず onBack のみ（即戻るの裁定・無駄な再永続化を避ける）。
+        assertEquals(listOf("back"), events)
     }
 }
