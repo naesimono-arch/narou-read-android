@@ -150,7 +150,11 @@ private val BadgeBorderSeizu = Color(0xFF303B5C) // .const .badge border
 private val WelcomeInkSeizu = Color(0xFFB7C0DB)  // .welcome color
 
 // 極微視差の係数（正本 R1 FACTOR 0.08＝0.03〜0.08 の上限＝知覚可能な最小）。遠景の天の川粒帯のみ連動。
-private const val ParallaxFactor = 0.08f
+// デバッグ誇張フラグ: 0.08 は静止画スクショでは効き目を確認できない（実機検証 2026-07-17 で「測定不能」）。
+// 視差の実在確認・調整時のみ true にして誇張係数で目視する開発補助（本番は必ず false・値は本番非影響）。
+private const val DebugExaggerateParallax = false
+private const val DebugParallaxFactor = 0.6f
+private val ParallaxFactor = if (DebugExaggerateParallax) DebugParallaxFactor else 0.08f
 
 /** 識別色（学名ドット）: 作品ごとに安定して同じ色が付くよう id ハッシュで引く（並び替えで変わらない）。 */
 private val SeizuIdPalette = listOf(SeizuIdGreen, SeizuIdPurple, SeizuIdSlate, SeizuIdRose)
