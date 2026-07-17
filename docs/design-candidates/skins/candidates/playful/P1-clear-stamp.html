@@ -1,8 +1,9 @@
-<!-- 遊び心: 【何が】カセット面の空きスペース（ラベル左どなりの筐体プラ面＝何も描かれていない余白）に、切手大の小さな刻印（★）がひっそり押される。上段LCDも一度だけ小さく CLEAR を点す。
+<!-- 遊び心: 【何が】カセットの進捗表示で「100%」を出している箇所そのものが、CLEAR‼ の文字印（LCD緑・押印/刻印質感）へ差し替わる。上段LCDも一度だけ小さく CLEAR を点す。
+             （100% と CLEAR は意味が重複するため、同じ場所を刻印が占める＝表記の置き換え。）
              【どの動作で】ある物語を「初めて読了」した瞬間（進捗が false→true へ遷移＝100%到達）。ゲームをクリアした達成の記号。
-             【どう変わる】未読了カセットには刻印なし → 読了で空きプラ面に控えめな押印が一度きり生える（既読了の再描画・スクロール・起動では再生しない）。既存要素（ラベル/話数/ゲージ/題名/リブ）には一切被らない。
-     Compose 翻訳の想定: BookCard に isCleared フラグを持たせ、reachedEnd の false→true 遷移でのみ 12dp 角の CLEAR 刻印を筐体の空き余白（ラベル左のパディング帯）へ scale 1.15→1.0 の控えめな単調ダウンで一度だけ描く（overshoot 無し・Motion の Seal 系トークンを流用）。
-                         刻印は面に「押された」debossed 質感のみ・色は署名3系統の LCD 緑（--lcd-ink）に閉じ新色を足さない。prefers-reduced-motion では最終の刻印済み状態を静的表示。 -->
+             【どう変わる】読了前＝進捗「62%」等 → 100%到達の瞬間に「100%」が CLEAR‼ 文字印へ一度きり押印で差し替わる → 既読了カセットは常時 CLEAR‼（%へは戻らない）。
+     Compose 翻訳の想定: BookCard に isCleared フラグを持たせ、reachedEnd の false→true 遷移でのみ 進捗テキスト（%）を CLEAR‼ の刻印チップへ差し替え、scale 1.15→1.0 の単調ダウンで一度だけ押印（overshoot 無し・Motion の Seal 系トークンを流用）。以後は静的に CLEAR‼。
+                         文字印は署名3系統の LCD 緑（--lcd/--lcd-ink）に閉じ新色を足さない。prefers-reduced-motion では結果状態（CLEAR‼）を静的表示。 -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -124,18 +125,17 @@
   .csave.nodata .stg{color:var(--ink-soft)}
   .csave .new{display:inline-block;font-family:var(--pixel);font-size:9px;font-weight:700;letter-spacing:.12em;color:#fff;background:var(--red);padding:2px 6px;border-radius:2px;margin-top:6px}
 
-  /* ===== 遊び心の本体: CLEAR封印＝カセット面の“空きスペース”に押される小さな刻印（★）=====
-     位置＝ラベルの左どなり、筐体の左シェル余白（cbody の左パディング＝何も描かれていないプラ面）に .cart 基準で置く。
-     ラベル・話数・ゲージ・題名・リブのいずれにも一切被らない（label は左パディング14pxの外から始まるため、その内側の余白に収める）。 */
-  .seal{position:absolute;left:1px;top:50%;width:12px;height:12px;border-radius:3px;display:grid;place-items:center;
-    background:rgba(43,54,22,.13);box-shadow:inset 0 0 0 1px rgba(43,54,22,.48), inset 0 1px 1px rgba(0,0,0,.26);
-    transform:translateY(-50%) rotate(-8deg);z-index:3}
-  .seal .star{font-family:var(--pixel);font-size:9px;line-height:1;font-weight:700;color:var(--lcd-ink)}
-  /* 押印の一度きり演出（1.15→1.0 の控えめな単調ダウン・overshoot 無し＝ADR0014 の読了封印裁定に準拠） */
-  .seal.stamp{animation:sealDown .2s cubic-bezier(.2,.8,.3,1) 1 both}
-  @keyframes sealDown{0%{transform:translateY(-50%) rotate(-8deg) scale(1.15);opacity:0}55%{opacity:1}100%{transform:translateY(-50%) rotate(-8deg) scale(1)}}
-  /* 反応途中の可視化: いま押印されつつある中間フレーム（scale 1.08 で静止表示・大袈裟にしない） */
-  .cart.finishing .seal{transform:translateY(-50%) rotate(-8deg) scale(1.08)}
+  /* ===== 遊び心の本体: CLEAR‼ 封印＝進捗の「100%」表記そのものを CLEAR‼ の文字印へ差し替える =====
+     100% と CLEAR は意味が重複するため、同じ場所（.csave の進捗表記スロット）を刻印が占める。
+     文字印は LCD 緑系・押印/刻印らしい質感（緑チップ＋deboss・わずかな傾き）。読了で一度きり押され、以後は常時 CLEAR‼（%へは戻らない）。 */
+  .csave .clearmark{display:inline-block;margin-top:4px;font-family:var(--pixel);font-size:10px;font-weight:700;letter-spacing:.04em;
+    color:var(--lcd-ink);background:var(--lcd);border-radius:3px;padding:2px 6px;transform:rotate(-4deg);
+    box-shadow:inset 0 0 0 1px rgba(43,54,22,.5), inset 0 1px 1px rgba(0,0,0,.22)}
+  /* 押印の一度きり演出（1.15→1.0 の単調ダウン・overshoot 無し＝ADR0014 の読了封印裁定に準拠）。100%→CLEAR‼ の差し替え瞬間に一度だけ */
+  .csave .clearmark.stamp{animation:sealDown .2s cubic-bezier(.2,.8,.3,1) 1 both}
+  @keyframes sealDown{0%{transform:rotate(-4deg) scale(1.15);opacity:0}55%{opacity:1}100%{transform:rotate(-4deg) scale(1)}}
+  /* 反応途中の可視化: いま押印されつつある中間フレーム（scale 1.08 で静止表示） */
+  .cart.finishing .clearmark{transform:rotate(-4deg) scale(1.08)}
 
   .slotadd{border:none;cursor:pointer;background:transparent;padding:0;width:100%;clip-path:polygon(0 7px,7px 0,calc(100% - 7px) 0,100% 7px,100% 100%,0 100%)}
   .slotadd .in{margin:2px;border:2px dashed var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;gap:10px;padding:16px;color:var(--ink-soft)}
@@ -150,13 +150,13 @@
 
   @media (prefers-reduced-motion:reduce){
     .lcd-top .clear{animation:none}
-    .seal.stamp{animation:none;opacity:1;transform:translateY(-50%) rotate(-8deg) scale(1)}
-    .cart.finishing .seal{transform:translateY(-50%) rotate(-8deg) scale(1)}
+    .csave .clearmark.stamp{animation:none;opacity:1;transform:rotate(-4deg) scale(1)}
+    .cart.finishing .clearmark{transform:rotate(-4deg) scale(1)}
   }
 </style>
 </head>
 <body>
-  <p class="cap"><b>P1. CLEAR封印（読了で反応）</b> ／ ある物語を初めて読了した瞬間、そのカセット面の空きスペース（ラベル左どなりの筐体プラ面）に切手大の小さな刻印（★）がひっそり押される（既存要素に一切被らない・既読了の再描画では再生しない）。上段LCDも一度だけ小さく CLEAR を点灯。ラック表示の全機能はそのまま。左＝押印済み／右＝いま押印されつつある中間フレーム（反応途中）。</p>
+  <p class="cap"><b>P1. CLEAR封印（読了で反応）</b> ／ ある物語を初めて読了した瞬間、進捗の「100%」表記そのものが CLEAR‼ の文字印（LCD緑・刻印質感）へ一度きり差し替わる（100%とCLEARは意味重複ゆえ同じ場所を刻印が占める・既読了は常時CLEAR‼で%へ戻らない）。上段LCDも一度だけ小さく CLEAR を点灯。ラック表示の全機能はそのまま。左＝押印済み／右＝いま押印されつつある中間フレーム（反応途中）。</p>
 
   <div class="stage">
     <!-- ① 押印済み -->
@@ -175,7 +175,7 @@
 
       <div class="lcdframe">
         <div class="lcd">
-          <div class="lcd-top"><span class="bl"></span>NOW PLAYING<span class="clear">★ CLEAR</span></div>
+          <div class="lcd-top"><span class="bl"></span>NOW PLAYING<span class="clear">CLEAR</span></div>
           <div class="lcd-main">
             <canvas class="big" width="8" height="8" data-sprite="flower" data-col="#2b3616" aria-hidden="true"></canvas>
             <div class="lcd-title">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
@@ -207,15 +207,14 @@
 
         <!-- 読了済み＝CLEAR封印が刻印されたカセット -->
         <div class="cart" role="button" aria-label="公爵令嬢の嗜み、読了・CLEAR">
-          <!-- CLEAR封印は .cart 直下＝カセット面の空き（ラベル左どなりのプラ面）に押す -->
-          <span class="seal stamp" aria-label="読了"><span class="star">★</span></span>
           <div class="ridge"></div>
           <div class="cbody">
             <div class="clabel" style="background:var(--w4)">
               <canvas width="8" height="8" data-sprite="flower" data-col="#5e3a45"></canvas>
             </div>
             <div class="cmeta"><div class="ct">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="cb">白河すずら</div></div>
-            <div class="csave"><div class="stg">全88話</div><div class="gauge" data-n="10" data-f="10"></div><div class="pct">100%</div></div>
+            <!-- 遊び心（P1）: 読了で「100%」表記が CLEAR‼ 文字印へ差し替わる（.stamp＝一度きり押印）。既読了は常時この表示（%へは戻らない） -->
+            <div class="csave"><div class="stg">全88話</div><div class="gauge" data-n="10" data-f="10"></div><div class="clearmark stamp" aria-label="読了・CLEAR">CLEAR‼</div></div>
           </div>
         </div>
 
@@ -274,7 +273,7 @@
 
       <div class="lcdframe">
         <div class="lcd">
-          <div class="lcd-top"><span class="bl"></span>NOW PLAYING<span class="clear">★ CLEAR</span></div>
+          <div class="lcd-top"><span class="bl"></span>NOW PLAYING<span class="clear">CLEAR</span></div>
           <div class="lcd-main">
             <canvas class="big" width="8" height="8" data-sprite="flower" data-col="#2b3616" aria-hidden="true"></canvas>
             <div class="lcd-title">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
@@ -306,15 +305,14 @@
 
         <!-- 反応途中: scale 1.15 の押印中間フレームを静止表示 -->
         <div class="cart finishing" role="button" aria-label="公爵令嬢の嗜み、読了の封印を押印中">
-          <!-- CLEAR封印は .cart 直下＝カセット面の空き（ラベル左どなりのプラ面）に押す -->
-          <span class="seal" aria-hidden="true"><span class="star">★</span></span>
           <div class="ridge"></div>
           <div class="cbody">
             <div class="clabel" style="background:var(--w4)">
               <canvas width="8" height="8" data-sprite="flower" data-col="#5e3a45"></canvas>
             </div>
             <div class="cmeta"><div class="ct">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="cb">白河すずら</div></div>
-            <div class="csave"><div class="stg">全88話</div><div class="gauge" data-n="10" data-f="10"></div><div class="pct">100%</div></div>
+            <!-- 遊び心（P1）反応途中: 100%→CLEAR‼ の押印中間フレーム（scale 1.08） -->
+            <div class="csave"><div class="stg">全88話</div><div class="gauge" data-n="10" data-f="10"></div><div class="clearmark" aria-label="読了・CLEAR">CLEAR‼</div></div>
           </div>
         </div>
 

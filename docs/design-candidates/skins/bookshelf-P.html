@@ -150,6 +150,18 @@
   .csave .gauge i{width:5px;height:8px;background:var(--blue-lo)}
   .csave .gauge i.on{background:var(--blue)}
   .csave .pct{font-family:var(--pixel);font-size:11px;font-weight:700;color:var(--blue-ink);margin-top:4px}
+  /* ===== 遊び心（P1 CLEAR封印）: 進捗の「100%」表記そのものを CLEAR‼ 文字印へ差し替える（100%とCLEARは意味重複ゆえ同じ場所を占める）=====
+     遊び心: 【何が】進捗100%の表記が CLEAR‼ の文字印（LCD緑・刻印質感）になる。
+             【どの動作で】その物語を初めて読了した瞬間（進捗 false→true＝100%到達）に一度きり押印。
+             【どう変わる】読了前＝「62%」等 → 100%到達で「100%」が CLEAR‼ へ差し替わり、既読了は常時 CLEAR‼（%へは戻らない）。
+     Compose 翻訳の想定: reachedEnd の false→true 遷移でのみ進捗テキストを CLEAR‼ 刻印チップへ差し替え scale 1.15→1.0 で一度押印、以後静的。署名の LCD 緑に閉じる。 */
+  .csave .clearmark{display:inline-block;margin-top:4px;font-family:var(--pixel);font-size:10px;font-weight:700;letter-spacing:.04em;
+    color:var(--lcd-ink);background:var(--lcd);border-radius:3px;padding:2px 6px;transform:rotate(-4deg);
+    box-shadow:inset 0 0 0 1px rgba(43,54,22,.5), inset 0 1px 1px rgba(0,0,0,.22)}
+  .csave .clearmark.stamp{animation:clearStamp .2s cubic-bezier(.2,.8,.3,1) 1 both}
+  @keyframes clearStamp{0%{transform:rotate(-4deg) scale(1.15);opacity:0}55%{opacity:1}100%{transform:rotate(-4deg) scale(1)}}
+  .li .ls .clr{color:var(--lcd-ink);background:var(--lcd);border-radius:2px;padding:1px 5px;font-size:8.5px;font-weight:700}
+  @media (prefers-reduced-motion:reduce){ .csave .clearmark.stamp{animation:none;opacity:1;transform:rotate(-4deg) scale(1)} }
   /* 続きあり＝更新のしるし */
   .csave .upd{display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-family:var(--pixel);font-size:9.5px;font-weight:700;color:var(--lcd-ink);background:var(--lcd);border-radius:3px;padding:2px 6px}
   .csave.nodata .stage{color:var(--ink-soft)}
@@ -314,13 +326,13 @@
           </div>
         </div>
 
-        <!-- ④ 読みかけ -->
-        <div class="cart w4" role="button" aria-label="公爵令嬢の嗜み">
+        <!-- ④ 読了済み＝CLEAR封印（進捗100%の表記が CLEAR‼ 文字印へ差し替わった状態。遊び心P1） -->
+        <div class="cart w4" role="button" aria-label="公爵令嬢の嗜み、読了・CLEAR">
           <div class="ridge"></div>
           <div class="cbody">
             <div class="clabel" style="background:var(--w4)"><canvas width="8" height="8" data-sprite="flower" data-col="#5e3a45"></canvas></div>
             <div class="cmeta"><div class="ct">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="cb">白河すずら</div></div>
-            <div class="csave"><div class="stage">第8話</div><div class="gauge" data-n="10" data-f="1"></div><div class="pct">11%</div></div>
+            <div class="csave"><div class="stage">全88話</div><div class="gauge" data-n="10" data-f="10"></div><div class="clearmark" aria-label="読了・CLEAR">CLEAR‼</div></div>
           </div>
         </div>
 
@@ -383,7 +395,7 @@
         <div class="li"><span class="chip-lb" style="background:var(--w1)"></span><div class="lm"><div class="lt">追放された万能薬師、辺境でスローライフを始める</div><div class="la">霧島あおい</div></div><div class="ls">第127話 <span class="p">62%</span> <span class="u">続き12</span></div></div>
         <div class="li"><span class="chip-lb" style="background:var(--w2)"></span><div class="lm"><div class="lt">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="la">夜灯すばる</div></div><div class="ls">第43話 <span class="p">28%</span></div></div>
         <div class="li"><span class="chip-lb" style="background:var(--w3)"></span><div class="lm"><div class="lt">転生したら最弱スキルだったので草むしりしていた</div><div class="la">青葉みのり</div></div><div class="ls">全88話 <span class="n">未読</span></div></div>
-        <div class="li"><span class="chip-lb" style="background:var(--w4)"></span><div class="lm"><div class="lt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="la">白河すずら</div></div><div class="ls">第8話 <span class="p">11%</span></div></div>
+        <div class="li"><span class="chip-lb" style="background:var(--w4)"></span><div class="lm"><div class="lt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="la">白河すずら</div></div><div class="ls">全88話 <span class="clr">CLEAR‼</span></div></div>
 
         <button class="slotadd" style="margin-top:14px" aria-label="新しいカセットを追加（PDFを取り込む）">
           <div class="in"><span class="pl">＋</span><div class="txt"><div class="l1">PDFを追加</div></div></div>
