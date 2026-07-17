@@ -6,6 +6,9 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import com.novelreader.ui.theme.skins.SkinC
 import com.novelreader.ui.theme.skins.SkinD
+import com.novelreader.ui.theme.skins.SkinJ
+import com.novelreader.ui.theme.skins.SkinM
+import com.novelreader.ui.theme.skins.SkinP
 
 // ============================================================
 // UIスキン機構（着せ替え骨格・プラン 2026-07-17）
@@ -27,6 +30,9 @@ import com.novelreader.ui.theme.skins.SkinD
 enum class Skin(val displayName: String, val tagline: String) {
     WAMODERN_D("和モダン", "白と藍・標準の装い"),
     YAKO_C("夜行", "深炭と温白・夜の没入"),
+    SEIZU_M("星図", "群青の夜天・金の結線"),
+    CARTRIDGE_P("カートリッジ", "退色プラスチックと緑のLCD"),
+    PORTAL_J("ポータル", "物語への扉・金の敷居"),
 }
 
 /**
@@ -66,10 +72,18 @@ val Skin.tokens: SkinTokens
     get() = when (this) {
         Skin.WAMODERN_D -> SkinD
         Skin.YAKO_C -> SkinC
+        Skin.SEIZU_M -> SkinM
+        Skin.CARTRIDGE_P -> SkinP
+        Skin.PORTAL_J -> SkinJ
     }
 
 // 現在スキンのトークン束を供給する CompositionLocal。既定は D（スキン非依存文脈・@Preview のフォールバック）。
 val LocalSkinTokens = staticCompositionLocalOf<SkinTokens> { SkinD }
+
+// 現在スキンの enum 値を供給する CompositionLocal（NovelReaderTheme が供給）。トークン束と別に enum を流すのは、
+// 画面構造の when(skin) 分岐（ADR 0022 §1）が「どのスキンか」を型で問うため。tokens オブジェクトの同一性比較で
+// 代用すると実装詳細への結合になる（将来 tokens を theme 依存で生成し始めた瞬間に全分岐が壊れる）。
+val LocalSkin = staticCompositionLocalOf { Skin.WAMODERN_D }
 
 // 栞書影の紙/墨/識別色明度を供給する CompositionLocal。既定は D のライト相当
 // （NovelReaderTheme 外＝@Preview 等で ShioriCover を描く場合のフォールバック）。

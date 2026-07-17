@@ -172,6 +172,7 @@ fun NovelReaderTheme(
     }
 
     CompositionLocalProvider(
+        LocalSkin provides skin,
         LocalSkinTokens provides tokens,
         LocalShelfColors provides shelfColors,
         LocalShioriColors provides shioriColors,

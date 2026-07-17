@@ -44,4 +44,8 @@ object Insets {
 
     /** 読書本文の下クリアランス: navigationBars インセットへの加算ぶん（WindowInsets 加算軸）。 */
     val ReadingBodyBottomExtra = 80.dp
+
+    /** M星図: 星空リスト末尾／スナックバーが下辺の地平（発見導線＋迎える・モック .horizon 112px 相当）と
+     *  重ならないための回避距離。地平コンポーネントの実高から決まる構造値＝リズムの余白ではない。 */
+    val SkyHorizonClearance = 120.dp
 }

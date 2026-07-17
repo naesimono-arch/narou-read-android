@@ -156,6 +156,46 @@ READING_VARS_C = {
 }
 READING_ORDER_C = ["DARK"]  # C は固定1変種（:root 単一宣言＝order 長 1）
 
+# reading-M（星図）の 1 テーマ宣言（:root 単一スコープ＝固定1変種 DARK）→ SkinM.reading。
+# hex 宣言される :root 変数のみ照合（--line は rgba(150,168,214,.20) で checker が拾えないため除外・
+# background #0B1330 はグラデ直値で変数化されていないため除外）。
+READING_VARS_M = {
+    "--text": "text",
+    "--dim": "textSecondary",
+    "--ruby": "ruby",
+    "--star": "accent",
+}
+READING_ORDER_M = ["DARK"]
+
+# reading-P（カートリッジ）の 1 テーマ宣言（:root 単一スコープ＝[LIGHT] 1変種で開始）→ SkinP.reading。
+# hex 宣言される :root 変数のみ照合（P は rgba 骨格色を持たないため全て hex）。
+READING_VARS_P = {
+    "--screen": "background",
+    "--rd-ink": "text",
+    "--rd-soft": "textSecondary",
+    "--rd-ruby": "ruby",
+    "--line": "divider",
+    "--screen-lo": "blockBorder",
+    "--lcd": "accent",
+}
+READING_ORDER_P = ["LIGHT"]
+
+# reading-J（ポータル）の 3 テーマ宣言（.t-dark → .t-light → .t-sepia の出現順が前提）→ SkinJ.reading。
+# .t-* の hex 変数のみ照合（--amb1/--amb2/--glyph は rgba ambient で checker が拾えず・構造画面用のため除外）。
+READING_VARS_J = {
+    "--bg": "background",
+    "--ink": "text",
+    "--soft": "textSecondary",
+    "--ruby": "ruby",
+    "--accent": "accent",
+    "--rule": "rule",
+    "--panel": "blockBackground",
+    "--panel-bd": "blockBorder",
+    "--bar": "navBackground",
+    "--bar-line": "divider",
+}
+READING_ORDER_J = ["DARK", "LIGHT", "SEPIA"]  # reading-J の .t-* 出現順（dark→light→sepia）
+
 # スキン別の reading 期待表（表駆動）。P1 でスキン骨格を導入し、reading トークンは 1 スキン=1 ファイルへ
 # 移設された。ここに 1 行足せば新スキン（例 C 夜行＝skins/SkinC.kt / reading-C.html）を同じ照合ロジックで
 # 検査できる（C 用の行追加は SkinC 実装と同時＝P3 の前提）。D の検査は移設前と完全同値（30 件 OK）。
@@ -171,6 +211,24 @@ SKIN_READING: dict[str, dict] = {
         "mock": "skins/reading-C.html",    # MOCK_DIR 起点＝docs/design-candidates/skins/ 配下（1 テーマ宣言）
         "vars": READING_VARS_C,
         "order": READING_ORDER_C,
+    },
+    "M": {
+        "kt_file": "skins/SkinM.kt",       # 星図＝固定1変種 DARK
+        "mock": "skins/reading-M.html",
+        "vars": READING_VARS_M,
+        "order": READING_ORDER_M,
+    },
+    "P": {
+        "kt_file": "skins/SkinP.kt",       # カートリッジ＝[LIGHT] 1変種で開始
+        "mock": "skins/reading-P.html",
+        "vars": READING_VARS_P,
+        "order": READING_ORDER_P,
+    },
+    "J": {
+        "kt_file": "skins/SkinJ.kt",       # ポータル＝reading のみ 3 テーマ（.t-dark/.t-light/.t-sepia）
+        "mock": "skins/reading-J.html",
+        "vars": READING_VARS_J,
+        "order": READING_ORDER_J,
     },
 }
 
