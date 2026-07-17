@@ -15,14 +15,16 @@
 # 実行例:
 #   tools/run_macrobenchmark.sh                          # 計測のみ（従来挙動＝起動計測）
 #   tools/run_macrobenchmark.sh --install                # APK を install -r -g してから計測
-#   tools/run_macrobenchmark.sh --assert                 # 起動予算 assert を有効化して計測（startup 専用）
-#   tools/run_macrobenchmark.sh --assert --budget-median 100 --budget-max 100  # 予算を絞って FAIL 経路を実証
+#   tools/run_macrobenchmark.sh --assert                 # 起動予算 assert を有効化して計測（startup）
+#   tools/run_macrobenchmark.sh --assert --budget-median 100 --budget-max 100  # 起動予算を絞って FAIL 経路を実証
 #   tools/run_macrobenchmark.sh --install --assert --serial 192.168.1.210:5555
 #   tools/run_macrobenchmark.sh --scenario shelf-scroll  # 本棚スクロール jank（frame timing）を計測
+#   tools/run_macrobenchmark.sh --scenario shelf-scroll --assert                 # スクロール予算 assert を有効化して計測
+#   tools/run_macrobenchmark.sh --scenario shelf-scroll --assert --budget-p50 1  # スクロール予算を絞って FAIL 経路を実証
 #
 # シナリオ:
-#   --scenario startup       起動計測（既定）。--assert / --budget-* はこの scenario 専用。
-#   --scenario shelf-scroll  本棚スクロール jank 計測（BookshelfScrollBenchmark）。予算 assert 無し。
+#   --scenario startup       起動計測（既定）。予算 assert は --assert ＋ --budget-median / --budget-max。
+#   --scenario shelf-scroll  本棚スクロール jank 計測（BookshelfScrollBenchmark）。予算 assert は --assert ＋ --budget-p50 / --budget-p90 / --budget-p99。
 #
 # 注意:
 #   コールド起動5反復は除細動込みで約13分（knowledge 実測）。タイムアウトは余裕を持たせてある。
@@ -59,8 +61,11 @@ DO_ASSERT=0
 DO_INSTALL=0
 SERIAL=""
 SCENARIO="startup"  # startup（既定・従来挙動）| shelf-scroll
-BUDGET_MEDIAN=""   # 空なら透過しない＝StartupBudget 側の既定定数が使われる
+BUDGET_MEDIAN=""   # startup 専用。空なら透過しない＝StartupBudget 側の既定定数が使われる
 BUDGET_MAX=""      # 同上（--assert と併用前提。単独指定は assert 無効なら無視される）
+BUDGET_P50=""      # shelf-scroll 専用。空なら透過しない＝ScrollBudget 側の既定定数が使われる
+BUDGET_P90=""      # 同上
+BUDGET_P99=""      # 同上（いずれも --assert と併用前提）
 while [ $# -gt 0 ]; do
   case "$1" in
     --assert)  DO_ASSERT=1; shift ;;
@@ -69,6 +74,9 @@ while [ $# -gt 0 ]; do
     --scenario) SCENARIO="${2:-}"; shift 2 ;;
     --budget-median) BUDGET_MEDIAN="${2:-}"; shift 2 ;;
     --budget-max)    BUDGET_MAX="${2:-}"; shift 2 ;;
+    --budget-p50)    BUDGET_P50="${2:-}"; shift 2 ;;
+    --budget-p90)    BUDGET_P90="${2:-}"; shift 2 ;;
+    --budget-p99)    BUDGET_P99="${2:-}"; shift 2 ;;
     -h|--help)
       grep '^#' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0 ;;
@@ -77,15 +85,22 @@ while [ $# -gt 0 ]; do
 done
 
 # ---- scenario 確定と併用ガード -----------------------------------------
-# --assert / --budget-* は startup 専用。shelf-scroll と併用されたら黙殺せずエラー終了する
-# （予算 assert は BookshelfScrollBenchmark に無く、指定を無視して緑にすると誤解を生むため）。
+# --assert は両シナリオで有効（startup=StartupBudget / shelf-scroll=ScrollBudget が JSON を読んで判定）。
+# 予算上書きオプションは scenario ごとにメトリクスが異なるため専用に分かれる。畑違いの scenario と
+# 併用されたら黙殺せずエラー終了する（指定を無視して緑にすると誤解を生むため。両方向にガードする）:
+#   --budget-median / --budget-max              startup 専用（StartupBudget。shelf-scroll には無い）
+#   --budget-p50 / --budget-p90 / --budget-p99  shelf-scroll 専用（ScrollBudget。startup には無い）
 case "$SCENARIO" in
   startup)
-    TEST_CLASS="$STARTUP_CLASS" ;;
+    TEST_CLASS="$STARTUP_CLASS"
+    if [ -n "$BUDGET_P50" ] || [ -n "$BUDGET_P90" ] || [ -n "$BUDGET_P99" ]; then
+      echo "--budget-p50 / --budget-p90 / --budget-p99 は --scenario shelf-scroll 専用（startup とは併用不可）。" >&2
+      exit 2
+    fi ;;
   shelf-scroll)
     TEST_CLASS="$SHELF_SCROLL_CLASS"
-    if [ "$DO_ASSERT" -eq 1 ] || [ -n "$BUDGET_MEDIAN" ] || [ -n "$BUDGET_MAX" ]; then
-      echo "--assert / --budget-* は --scenario startup 専用（shelf-scroll とは併用不可）。" >&2
+    if [ -n "$BUDGET_MEDIAN" ] || [ -n "$BUDGET_MAX" ]; then
+      echo "--budget-median / --budget-max は --scenario startup 専用（shelf-scroll とは併用不可）。" >&2
       exit 2
     fi ;;
   *)
@@ -154,7 +169,7 @@ mkdir -p "$RESULT_DIR"
 LOG_FILE="$RESULT_DIR/instrument-$(date +%Y%m%d-%H%M%S).log"
 
 # 引数列: -w 完了待ち・output.enable=true が benchmarkData.json 書き出しの前提条件。
-# --assert 時のみ enableBudgetAssert=true を付与（StartupBudget が JSON を読んで判定）。
+# --assert 時のみ enableBudgetAssert=true を付与（StartupBudget / ScrollBudget が JSON を読んで判定）。
 INSTR_ARGS=(am instrument -w
   -e androidx.benchmark.output.enable true
   -e class "$TEST_CLASS")
@@ -167,6 +182,16 @@ if [ -n "$BUDGET_MEDIAN" ]; then
 fi
 if [ -n "$BUDGET_MAX" ]; then
   INSTR_ARGS+=(-e budgetMaxMs "$BUDGET_MAX")
+fi
+# 同上（shelf-scroll 用）。指定時のみ付与し、未指定なら ScrollBudget の既定定数に委ねる。
+if [ -n "$BUDGET_P50" ]; then
+  INSTR_ARGS+=(-e budgetP50Ms "$BUDGET_P50")
+fi
+if [ -n "$BUDGET_P90" ]; then
+  INSTR_ARGS+=(-e budgetP90Ms "$BUDGET_P90")
+fi
+if [ -n "$BUDGET_P99" ]; then
+  INSTR_ARGS+=(-e budgetP99Ms "$BUDGET_P99")
 fi
 INSTR_ARGS+=("${TEST_PACKAGE}/${TEST_RUNNER}")
 

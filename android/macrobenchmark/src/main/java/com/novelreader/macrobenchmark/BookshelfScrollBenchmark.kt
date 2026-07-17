@@ -19,7 +19,8 @@ import org.junit.runner.RunWith
  * 本棚スクロール時の frame timing（jank）計測。100冊のフェイク蔵書をシードしてから、
  * リスト表示（[scrollList]）とグリッド表示（[scrollGrid]）でフリング往復のフレーム時間を測る。
  *
- * 予算 assert は実装しない（較正方針＝初回は計測のみ）。値が溜まってから閾値を決める。
+ * 既定は計測のみ（従来挙動不変）。instrumentation 引数 `enableBudgetAssert true` のときだけ、
+ * measureRepeated 完了直後に jank 予算を assert する（判定の値源・予算の由来は [ScrollBudget] 参照）。
  */
 @RunWith(AndroidJUnit4::class)
 class BookshelfScrollBenchmark {
@@ -31,13 +32,13 @@ class BookshelfScrollBenchmark {
     fun scrollList() {
         // gridMode はテスト毎に異なるため各テスト冒頭で該当モードを指定してシードする（DB 投入自体は冪等）。
         seedLibrary(gridMode = false)
-        measureScroll()
+        measureScroll("scrollList")
     }
 
     @Test
     fun scrollGrid() {
         seedLibrary(gridMode = true)
-        measureScroll()
+        measureScroll("scrollGrid")
     }
 
     /**
@@ -73,7 +74,11 @@ class BookshelfScrollBenchmark {
     }
 
     /** cold start → 本棚を掴んで下フリング×3・上フリング×3。フレーム時間は FrameTimingMetric が採取する。 */
-    private fun measureScroll() {
+    private fun measureScroll(testName: String) {
+        // measureRepeated 開始前の時刻。採用する JSON がこの走行で書き出されたものかを
+        // lastModified で検証するために使う（残骸 JSON による偽判定防止＝ScrollBudget 参照）。
+        val startedAtEpochMs = System.currentTimeMillis()
+
         benchmarkRule.measureRepeated(
             packageName = TARGET_PACKAGE,
             metrics = listOf(FrameTimingMetric()),
@@ -108,6 +113,12 @@ class BookshelfScrollBenchmark {
                 flingShelf(Direction.UP)
                 device.waitForIdle()
             }
+        }
+
+        // ゲート ON のときだけ予算判定。measureRepeated は void で結果を返さないため、
+        // このリターン時点で書き出し済みの benchmarkData.json を読んで判定する（ScrollBudget 参照）。
+        if (ScrollBudget.isBudgetAssertEnabled()) {
+            ScrollBudget.assertScrollWithinBudget(testName, startedAtEpochMs)
         }
     }
 
