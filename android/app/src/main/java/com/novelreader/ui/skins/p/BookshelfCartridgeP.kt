@@ -145,6 +145,19 @@ private val LcdStatKey = LcdInkCartridge.copy(alpha = 0.7f)       // .lcd-stats 
 private val LcdStatRule = LcdInkCartridge.copy(alpha = 0.35f)     // .lcd-stats .st border-bottom rgba(43,54,22,.35)
 private val CartRidge = PlasticLoCartridge.copy(alpha = 0.6f)     // .cart .ridge リブ溝 opacity:.6
 
+// 遊び心P2（ラベル現像）: 取込中カセットのドット絵スプライト（8×8・モック SPRITES.crown を1:1で写経）。
+// '#'＝点灯セル。取込フェーズの進行で上から N 段だけ焼き込む（下記 DevelopLabel）。
+private val CrownSprite = listOf(
+    "#.....#.",
+    "#.#.#.#.",
+    "#.#.#.##",
+    "########",
+    ".######.",
+    ".######.",
+    ".######.",
+    "########",
+)
+
 @Composable
 internal fun BookshelfCartridgeP(
     books: List<BookEntity>,
@@ -581,6 +594,14 @@ private fun WritingBanner(state: ProcessingState, onStop: () -> Unit) {
             .padding(horizontal = Spacing.S12, vertical = Spacing.S12),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // 遊び心P2（ラベル現像）: 取込フェーズ（stepIndex/stepTotal＝実パイプライン進捗）を 0..8 段へ
+            // 量子化し、カセットのラベルを上から焼き込む。モックの独立「取込中カセット」は Compose では
+            // 実 BookEntity が未生成のため描けない＝データ源のある本バナーへ現像ラベルを織り込む（届く範囲で最大限）。
+            DevelopLabel(
+                stepIndex = state.stepIndex,
+                stepTotal = state.stepTotal,
+                modifier = Modifier.padding(end = Spacing.S8),
+            )
             Text(
                 "取り込み中",
                 fontFamily = PixelFamily,
@@ -638,6 +659,47 @@ private fun WritingBanner(state: ProcessingState, onStop: () -> Unit) {
             labels = stepLabels,
             modifier = Modifier.padding(top = Spacing.S8),
         )
+    }
+}
+
+/**
+ * 遊び心P2（ラベル現像）: 取込中カセットのラベルが上から一段ずつ焼き込まれる現像（.clabel.burn の Compose 翻訳）。
+ * ラベル＝8×8 ドット絵（CrownSprite）を、取込フェーズの進行 (stepIndex+1)/stepTotal を 0..8 段へ量子化して
+ * 上から N 段だけ点灯する。値の正本＝ProcessingState.stepIndex/stepTotal（実パイプライン進捗）＝捏造なし。
+ * 単調性: stepIndex は取込中に増える一方＝段は下へ伸びるだけで戻らない（モックの「進むと単調に増え戻さない」）。
+ * 色は署名の LCD 緑に閉じる（点灯＝LcdInk／地＝LCD 面上に載るので暗めの LcdFrame で沈めコントラストを確保）。
+ *
+ * モーションの裁定: モックの走査線 scanBlink は装飾の無限ループ＝ADR 0022 §3 の「P は静止」/静謐則（motion は
+ *   フィードバックのみ）に抵触するため採らない。現像そのもの（段が実ステップで増える）が状態変化の feedback。
+ */
+@Composable
+private fun DevelopLabel(stepIndex: Int, stepTotal: Int, modifier: Modifier = Modifier) {
+    // (stepIndex+1)/stepTotal を 0..8 段へ量子化（本文=index1/total4 → 0.5 → 4段＝モック注記と一致）。
+    val rows = if (stepTotal <= 0) 0
+    else (((stepIndex + 1).toFloat() / stepTotal) * 8f).roundToInt().coerceIn(0, 8)
+    Box(
+        modifier = modifier
+            .size(28.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(LcdFrameCartridge)                                        // 暗い焼込み面（.clabel.burn 暗地）
+            .border(1.dp, LcdInkCartridge.copy(alpha = 0.6f), RoundedCornerShape(4.dp)), // inset 1.5px rgba(43,54,22,.6)
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize().padding(Spacing.S4)) {
+            val cell = size.width / 8f
+            CrownSprite.forEachIndexed { y, line ->
+                if (y < rows) {  // 上から rows 段だけ焼き込む（未到達段は暗地のまま＝現像途中）
+                    line.forEachIndexed { x, ch ->
+                        if (ch == '#') {
+                            drawRect(
+                                LcdInkCartridge,  // 点灯セル＝署名の LCD 緑インク
+                                topLeft = Offset(x * cell, y * cell),
+                                size = Size(cell, cell),
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -816,6 +878,9 @@ private fun CartridgeCard(
     val frac = progressFractionFor(chapNum, totalChaps, progress?.scrollIndex ?: 0, progress?.scrollOffset ?: 0)
     val status = readingStatusFor(progress, totalChaps)
     val isUnread = status == ReadingStatus.UNREAD
+    // 読了＝reachedEnd の実績（progressFractionFor が高%でも reachedEnd 無しは FINISHED にしない＝嘘の100%を出さない）。
+    // 遊び心P1: この実績があるときだけ進捗表示を CLEAR‼ 刻印へ差し替える（近似の pct>=100 では判定しない＝正直さ）。
+    val isFinished = status == ReadingStatus.FINISHED
     val pct = ((frac ?: 0f) * 100).roundToInt()
     val newCount = newEpisodeCountFor(novelDetail, totalChaps)
     val labelColor = labelColorFor(book.id)
@@ -920,6 +985,23 @@ private fun CartridgeCard(
                                 .background(RedCartridge)
                                 .padding(horizontal = Spacing.S8, vertical = Spacing.S4),
                         )
+                    } else if (isFinished) {
+                        // 遊び心P1（CLEAR封印）: 読了カセットは stage=全話数・ゲージ満充填・進捗表示を CLEAR‼ 刻印へ。
+                        // 100% と CLEAR は意味重複ゆえ「同じ場所」を CLEAR‼ が占める（モック④ .csave 構造に忠実）。
+                        Text(
+                            "全${totalChaps}話",
+                            fontFamily = PixelFamily,
+                            fontSize = 11.sp,     // .csave .stage 11px
+                            color = InkCartridge,
+                        )
+                        SegGauge(
+                            total = 10,
+                            filled = 10,          // モック data-f="10"＝読了は満充填（reachedEnd が真＝到達済み）
+                            onColor = BlueCartridge,
+                            offColor = BlueLoCartridge,
+                            modifier = Modifier.width(63.dp).height(8.dp).padding(top = Spacing.S4),
+                        )
+                        ClearMark(modifier = Modifier.padding(top = Spacing.S4))
                     } else {
                         Text(
                             "第${chapNum ?: 1}話",
@@ -962,6 +1044,35 @@ private fun CartridgeCard(
             }
         }
     }
+}
+
+/**
+ * 遊び心P1: CLEAR‼ 刻印チップ（.csave .clearmark）。読了カセットの進捗表示の位置に常時・水平で載る
+ * LCD 緑の deboss（刻印）表記。字面は pixel 10sp/weight700/letter-spacing .04em、地=--lcd、
+ * 刻印質感は inset 1px rgba(43,54,22,.5)＝LcdInk α.5 の枠で表す（SkinP の代表単色流儀＝二重 inset の
+ * 暗部影は省く）。
+ *
+ * TODO(監督/トリガ配線): モックの「初読了の瞬間に一度きり押印」（reachedEnd false→true の scale 1.15→1.0
+ *   スタンプ）は、本コンポーネントが progress のスナップショットしか受けず権威ある遷移イベントを持たない
+ *   ため未実装＝常時静的表示にとどめる（近似の in-composition 遷移検出は誤発火＝二度と再生しない要件を
+ *   壊すため採らない）。BookCard の playSealStamp/onSealStamped と同型のラッチを骨格（BookshelfContent
+ *   経由）から本カードへ配線できれば、MotionDurationSeal/MotionEasingSeal で一度だけ押印できる。
+ */
+@Composable
+private fun ClearMark(modifier: Modifier = Modifier) {
+    Text(
+        "CLEAR‼",
+        fontFamily = PixelFamily,
+        fontSize = 10.sp,                 // .clearmark 10px
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.04.em,          // .clearmark letter-spacing .04em
+        color = LcdInkCartridge,          // .clearmark color --lcd-ink
+        modifier = modifier
+            .clip(RoundedCornerShape(3.dp))                                   // .clearmark border-radius 3px
+            .background(LcdCartridge)                                         // .clearmark background --lcd
+            .border(1.dp, LcdInkCartridge.copy(alpha = 0.5f), RoundedCornerShape(3.dp)) // inset 0 0 0 1px rgba(43,54,22,.5)＝刻印枠
+            .padding(horizontal = Spacing.S8, vertical = Spacing.S4),        // .clearmark padding 2px 6px（upd と同写像）
+    )
 }
 
 // ============================================================

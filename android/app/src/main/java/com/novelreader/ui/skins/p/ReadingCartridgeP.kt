@@ -40,8 +40,11 @@ import com.novelreader.ui.theme.BlueInkDarkCartridge
 import com.novelreader.ui.theme.LcdCartridge
 import com.novelreader.ui.theme.LcdHiCartridge
 import com.novelreader.ui.theme.LcdInkCartridge
+import com.novelreader.ui.theme.LineCartridge
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.PlasticCartridge
+import com.novelreader.ui.theme.RedCartridge
+import com.novelreader.ui.theme.RedLoCartridge
 import com.novelreader.ui.theme.SheetCartridge
 import com.novelreader.ui.theme.SheetLoCartridge
 import com.novelreader.ui.theme.PlasticHiCartridge
@@ -151,6 +154,69 @@ fun SaveChipP(chapterNumber: Int, totalChapters: Int, fraction: Float, modifier:
             .border(1.dp, LcdInkCartridge.copy(alpha = 0.25f), RoundedCornerShape(5.dp)) // inset 0 0 0 1px rgba(43,54,22,.25)
             .padding(horizontal = Spacing.S8, vertical = Spacing.S4), // .save padding 4px 8px → S4/S8
     )
+}
+
+/**
+ * 遊び心P3（連続プレイの炎）: 連続読書日数のピクセル炎コンボ（reading-P .streak/.flame）。HUD 右端＝
+ * クローム表示時のみ・テーマ不変（署名の退色レッドに閉じる）。日数ぶんに育ち、途切れると1ドットの種火に戻る。
+ *
+ * 描画（モック実値の写経）: 5本のピクセル柱（幅2.5dp・gap1.5dp・下揃え・器高16dp）。通常の高さ [5,9,16,9,5]、
+ *   中央柱のみ red-lo→red の縦グラデ、他は red。種火（streakDays<=1）は両脇 [3,3,_,3,3] を α.4 で沈め中央を7dp。
+ *   数字「N日」は pixel 11sp/bold/red-lo/letter-spacing .02em。
+ *
+ * TODO(監督/データ源＋配線): 連続読書日数（readingStreakDays）を保持するデータ源がアプリに存在しない
+ *   （DB/Repository/prefs を調査＝該当なし）。ゆえに本部品は「部品と描画のみ用意し未配線・非表示」とし、
+ *   ダミー数値は出さない（捏造禁止）。将来 DataStore 等に「最終読書日＋連続日数」を実装し、当日初回の HUD 表示で
+ *   prevDays<days の時だけ「＋1」バーストを一度再生する配線を、共有骨格（NativeReadingScreen の HUD）側へ足す
+ *   （本ファイルは HUD へ配線できない編集境界のため呼び出しは骨格側の責務）。バースト（flameUp .4s・pop）は
+ *   その配線時に Motion.kt スロット＋reduce-motion 静止で足す（静止画としての現在値の炎は本描画がそのまま結果状態）。
+ */
+@Composable
+fun StreakFlameP(streakDays: Int, modifier: Modifier = Modifier) {
+    val isSeed = streakDays <= 1  // .streak.seed＝途切れ後の種火（1ドットへ戻った状態）
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(5.dp))          // .streak border-radius 5px
+            .background(PlasticHiCartridge)          // .streak background --plastic-hi
+            .border(1.dp, LineCartridge, RoundedCornerShape(5.dp)) // inset 0 0 0 1px var(--line)
+            .padding(start = Spacing.S8, end = Spacing.S8, top = Spacing.S4, bottom = Spacing.S4), // padding 4px 8px 4px 6px→近傍離散
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.S4), // gap 5px→S4
+    ) {
+        Canvas(modifier = Modifier.size(width = 19.dp, height = 16.dp)) { // 5柱×2.5+4×gap1.5≒18.5・.flame height16px
+            val barW = 2.5.dp.toPx()
+            val gap = 1.5.dp.toPx()
+            // 高さ（下揃え）。通常 [5,9,16,9,5]／種火 [3,3,7,3,3]。単位 dp→px。
+            val hs = if (isSeed) listOf(3f, 3f, 7f, 3f, 3f) else listOf(5f, 9f, 16f, 9f, 5f)
+            hs.forEachIndexed { i, hDp ->
+                val h = hDp.dp.toPx()
+                val x = i * (barW + gap)
+                val top = size.height - h
+                // 種火の両脇柱は α.4 で沈める（.streak.seed の nth-child 1/2/4/5）。
+                val dim = isSeed && i != 2
+                if (i == 2) {
+                    // 中央柱＝red-lo(上)→red(下) のグラデ（.flame i:nth-child(3)）。
+                    drawRect(
+                        Brush.verticalGradient(listOf(RedLoCartridge, RedCartridge), startY = top, endY = size.height),
+                        topLeft = Offset(x, top), size = Size(barW, h),
+                    )
+                } else {
+                    drawRect(
+                        if (dim) RedCartridge.copy(alpha = 0.4f) else RedCartridge, // .flame i background --red
+                        topLeft = Offset(x, top), size = Size(barW, h),
+                    )
+                }
+            }
+        }
+        Text(
+            text = "${streakDays}日",
+            fontFamily = PixelFamilyP,
+            fontSize = 11.sp,                        // .streak .d 11px
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.02.em,                 // .d letter-spacing .02em
+            color = RedLoCartridge,                  // .d color --red-lo
+        )
+    }
 }
 
 /**

@@ -76,6 +76,20 @@ class ReadingCartridgePTest {
     }
 
     @Test
+    fun `連続プレイの炎は連続読書日数「N日」を出す（遊び心P3）`() {
+        // データ源は未実装のため本番HUDでは未配線・非表示だが、部品自体は日数を正直に写して描く
+        //（ダミー数値の捏造はしない＝呼び出し側が実データを渡すまで骨格から呼ばれない）。
+        composeTestRule.setContent { StreakFlameP(streakDays = 6) }
+        composeTestRule.onNodeWithText("6日").assertIsDisplayed()
+    }
+
+    @Test
+    fun `連続が途切れた種火でも日数表記は正直に出る（遊び心P3）`() {
+        composeTestRule.setContent { StreakFlameP(streakDays = 1) }
+        composeTestRule.onNodeWithText("1日").assertIsDisplayed()
+    }
+
+    @Test
     fun `HUDセーブチップは「N全数 進捗%」の緑LCD読み取りを出す`() {
         composeTestRule.setContent {
             // 127/340 ≒ 0.3735 → 37%（fraction から整数%へ丸める）

@@ -163,6 +163,24 @@ class BookshelfCartridgePTest {
     }
 
     @Test
+    fun `読了カセットは進捗表示がCLEAR刻印になり百分率は出ない（遊び心P1）`() {
+        setContent(
+            Skin.CARTRIDGE_P, BookshelfUiState.Content(listOf(book("b1", "読了の物語"))),
+            // reachedEnd=true＝FINISHED（readingStatusFor の実績フラグ）。近似の高%でなく実績で判定する。
+            progressMap = mapOf(
+                "b1" to ProgressEntity(bookId = "b1", lastReadFilename = "chap_88.html", reachedEnd = true),
+            ),
+            chapterCountMap = mapOf("b1" to 88),
+        )
+        // 進捗表示の位置が CLEAR‼ 刻印へ差し替わる（100% と CLEAR は同じ場所を占める＝モック④）。
+        composeTestRule.onNodeWithText("CLEAR‼").assertIsDisplayed()
+        // 読了は「全88話」stage（未読と同語だが未読バッジが無い＝CLEAR‼ で判別）。
+        composeTestRule.onNodeWithText("全88話").assertIsDisplayed()
+        // 進捗% はもう出ない（CLEAR‼ が占有）。
+        composeTestRule.onNodeWithText("100%").assertDoesNotExist()
+    }
+
+    @Test
     fun `Pのラックメニューはテーマ3択と通知節を出す`() {
         setContent(Skin.CARTRIDGE_P, BookshelfUiState.Content(emptyList()))
         composeTestRule.onNodeWithContentDescription("メニュー").performClick()
