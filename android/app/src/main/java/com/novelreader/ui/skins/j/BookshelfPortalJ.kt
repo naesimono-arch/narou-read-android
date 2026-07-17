@@ -58,6 +58,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -91,6 +92,7 @@ import com.novelreader.viewmodel.ReadingStatus
 import com.novelreader.viewmodel.chapterNumberOf
 import com.novelreader.viewmodel.progressFractionFor
 import com.novelreader.viewmodel.readingStatusFor
+import java.time.LocalTime
 import kotlin.math.roundToInt
 
 // ============================================================
@@ -146,6 +148,47 @@ private val PortalAmbientTints = listOf(GoldPortal, GreenPortal, PlumPortal)
 private fun ambientTintFor(bookId: String): Color =
     PortalAmbientTints[(bookId.hashCode() and 0x7fffffff) % PortalAmbientTints.size]
 
+// ============================================================
+// 〈遊び心〉J3「時を映す扉」＝大気の“地”を現実時刻で移ろわせる（直交2レイヤの下段＝地=時刻）。
+//   mock の amb-morning / amb-yaku(既定=夕) / amb-night の 3クラスへの写像。新色相は足さず（mock J3
+//   「金/森緑の2系統のまま温度と明るさだけ可変・新色相なし」）、金トップ warm・緑トップ cool・底の苔で温度と明るさだけ動かす。
+// ============================================================
+internal enum class PortalTimePhase { MORNING, EVENING, NIGHT }
+
+/**
+ * 時刻(hour 0..23)を朝/夕/夜へ写す純関数（時刻を引数化＝JVM テストで決定的に検証可能）。
+ * 閾値はモックのコメント（amb-morning/amb-night）に時間境界の明示が無いため、一般的な体感で定義:
+ *   5-11時=朝(澄んだ緑金)／11-17時=夕(既定・従来の正本の見え)／17-翌5時=夜(光が引き深い森へ沈む)。
+ */
+internal fun portalTimePhaseFor(hour: Int): PortalTimePhase = when (hour) {
+    in 5..10 -> PortalTimePhase.MORNING   // 5:00–10:59
+    in 11..16 -> PortalTimePhase.EVENING  // 11:00–16:59（既定＝従来の見え）
+    else -> PortalTimePhase.NIGHT          // 17:00–翌4:59
+}
+
+/**
+ * 時刻相ごとの大気パラメータ（mock の --warm/--cool/--floor を写す）。
+ *   warm       = 金トップグローの基底α（mock --warm。J1 の読進 open ぶんはここへ加算＝直交合成）
+ *   cool       = 緑トップグローα（mock --cool。朝のみ>0＝澄んだ冷光。夕夜は 0＝描かない）
+ *   floorAlpha = 底の苔α（mock --floor のα。夕.9→夜.92 と沈む）
+ *   floorDarken= 底の苔を外殻(PagePortal)へ寄せる係数（夜だけ>0＝「深い森へ沈む」明るさ低下。既存 val の lerp で表現＝新色発明なし）
+ */
+internal data class PortalAmbientParams(
+    val warm: Float,
+    val cool: Float,
+    val floorAlpha: Float,
+    val floorDarken: Float,
+)
+
+internal fun portalAmbientParamsFor(phase: PortalTimePhase): PortalAmbientParams = when (phase) {
+    // amb-morning: --warm:.16 --cool:.16 --floor rgba(30,58,40,.72)＝澄んだ緑金（金を弱め・緑の冷光を足す）。
+    PortalTimePhase.MORNING -> PortalAmbientParams(warm = 0.16f, cool = 0.16f, floorAlpha = 0.72f, floorDarken = 0f)
+    // amb-yaku（既定=夕）: --warm:.18 --cool:0 --floor rgba(20,46,30,.9)＝金が濃く暖まる（従来の正本の見えに一致）。
+    PortalTimePhase.EVENING -> PortalAmbientParams(warm = 0.18f, cool = 0f, floorAlpha = 0.9f, floorDarken = 0f)
+    // amb-night: --warm:.06 --cool:0 --floor rgba(12,26,18,.92)＝光が引き底が外殻へ沈む（floorDarken で苔を暗化）。
+    PortalTimePhase.NIGHT -> PortalAmbientParams(warm = 0.06f, cool = 0f, floorAlpha = 0.92f, floorDarken = 0.3f)
+}
+
 @Composable
 internal fun BookshelfPortalJ(
     books: List<BookEntity>,
@@ -178,6 +221,13 @@ internal fun BookshelfPortalJ(
             .coerceAtLeast(0)
     }
 
+    // 〈遊び心〉J3「時を映す扉」: 現実時刻の時間帯を《起動時に1回だけ》読む。時間帯はゆっくりしか変わらず
+    //   （セッション中に相境界を跨ぐことは稀）、かつフレーム毎/再コンポーズ毎に Clock を読むと再コンポーズが
+    //   暴れるため、remember で1回だけ解決して固定する（＝副作用の正しい扱い）。時刻の取得は純関数
+    //   portalTimePhaseFor(hour) に時刻を引数化してあり、JVM テストは now() を呼ばず決定的に検証できる。
+    //   ADR 0022 §3（J はモーション無し）に従い、時間帯遷移も animateColor せず静的に解決＝reduce-motion でも同一。
+    val timePhase = remember { portalTimePhaseFor(LocalTime.now().hour) }
+
     // ページ数＝可視作品数＋1（最後尾＝新しい扉を探す＝発見への入口。作品ゼロでも扉1枚は必ず残す）。
     val pageCount = visible.size + 1
     val pagerState = rememberPagerState(initialPage = heroIndex.coerceAtMost(pageCount - 1)) { pageCount }
@@ -206,11 +256,12 @@ internal fun BookshelfPortalJ(
                     novelDetail = book.ncode?.let { newEpisodeNovelMap[it] },
                     hasPrev = hasPrev,
                     hasNext = hasNext,
+                    timePhase = timePhase,
                     onOpen = { onOpenBook(book) },
                 )
             } else {
                 // 最後尾＝新しい扉を探す（見つける導線・発見ホームへ）。
-                FindPortalPage(hasPrev = hasPrev, onOpenDiscovery = onOpenDiscovery)
+                FindPortalPage(hasPrev = hasPrev, timePhase = timePhase, onOpenDiscovery = onOpenDiscovery)
             }
         }
 
@@ -277,6 +328,7 @@ private fun PortalPage(
     novelDetail: NarouNovel?,
     hasPrev: Boolean,
     hasNext: Boolean,
+    timePhase: PortalTimePhase,
     onOpen: () -> Unit,
 ) {
     val chapNum = chapterNumberOf(progress?.lastReadFilename)
@@ -286,14 +338,18 @@ private fun PortalPage(
     val isUnread = status == ReadingStatus.UNREAD
     val newCount = newEpisodeCountFor(novelDetail, totalChaps)
     val tint = ambientTintFor(book.id)
+    // 〈遊び心〉J1「開く扉」: --open＝その作品の読了率（実データ progressFractionFor）。0%＝半ば閉じた扉／
+    //   読むほど扉の奥の光と象徴文字が強まる。未読(frac=null)は 0＝薄暗く半ば閉じた扉。時刻(地)とは独立に効く直交軸。
+    val open = (frac ?: 0f).coerceIn(0f, 1f)
 
-    Box(modifier = Modifier.fillMaxSize().drawAmbient(tint)) {
+    Box(modifier = Modifier.fillMaxSize().drawAmbient(tint, timePhase, open)) {
         // 象徴1文字（.glyph＝題名頭文字を巨大・極淡で。実画像の不在を象徴で埋める）。
         Text(
             text = book.title.take(1),
             fontFamily = MinchoFamily,
             fontSize = 300.sp,                 // .glyph font-size:300px（1:1 写経）
-            color = GlyphDarkPortal,           // .glyph rgba(233,240,228,.06)＝森大気 glyph 値
+            // 〈遊び心〉J1: glyph α＝mock rgba(233,240,228, .02 + .05*open)＝読み進むほど象徴が濃くなる。
+            color = GlyphDarkPortal.copy(alpha = (0.02f + 0.05f * open).coerceIn(0f, 1f)),
             maxLines = 1,
             modifier = Modifier.align(Alignment.TopCenter).padding(top = Spacing.S40),
         )
@@ -407,13 +463,16 @@ private fun PortalPage(
 // 最後尾＝新しい扉を探す（.amb-find＝見つける導線・発見への入口）
 // ============================================================
 @Composable
-private fun FindPortalPage(hasPrev: Boolean, onOpenDiscovery: () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize().drawAmbient(GoldPortal)) {
+private fun FindPortalPage(hasPrev: Boolean, timePhase: PortalTimePhase, onOpenDiscovery: () -> Unit) {
+    // 発見扉は読了率を持たない（作品でない）ため J1 の open は既定値 .62（mock 既定の見え）で固定。
+    //   地は他扉と同じ timePhase で移ろわせ、デッキ全体の時刻感を揃える（スワイプで大気が不連続にならない）。
+    val findOpen = 0.62f
+    Box(modifier = Modifier.fillMaxSize().drawAmbient(GoldPortal, timePhase, findOpen)) {
         Text(
             text = "扉",
             fontFamily = MinchoFamily,
             fontSize = 300.sp,                  // .glyph 300px
-            color = GlyphDarkPortal,
+            color = GlyphDarkPortal.copy(alpha = (0.02f + 0.05f * findOpen).coerceIn(0f, 1f)),
             maxLines = 1,
             modifier = Modifier.align(Alignment.TopCenter).padding(top = Spacing.S40),
         )
@@ -512,12 +571,17 @@ private fun BoxScope.PeekEdges(hasPrev: Boolean, hasNext: Boolean) {
 
 /**
  * 森の大気を既存 Portal val だけで描く（ADR 0022 §5・値追加禁止のため近似/発明せず名前付き val の重ね）。
- * base(森パネル→外殻) + 金の敷居(上) + 作品 tint グロー(上) + 底の苔(森緑) の4層。
+ * 直交2レイヤ設計（mock J1×J3）:
+ *   地(=時刻 phase)   → base 森グラデ＋金/緑トップの温度＋底の苔の沈み（portalAmbientParamsFor）。
+ *   上乗せ(=読進 open)→ 金トップグローへ .20*open を加算（扉の奥が明るくなる）。glyph α は呼び側で加算。
+ * 両者は互いに非干渉（warm は phase、加算分は open）＝mock の `calc(var(--warm) + .20*var(--open))` を1:1で写す。
  */
-private fun Modifier.drawAmbient(tint: Color): Modifier = this.drawBehind {
+private fun Modifier.drawAmbient(tint: Color, phase: PortalTimePhase, open: Float): Modifier = this.drawBehind {
     val w = size.width
     val h = size.height
-    // base: 森の内(PanelPortal)→外殻(PagePortal) の斜めグラデ（mock linear 165deg の代替＝実在の森トークン）。
+    val p = portalAmbientParamsFor(phase)
+    // base: 森の内(PanelPortal)→外殻(PagePortal) の斜めグラデ。時刻の“地”色相(mock #2C4739 等)は Portal val に
+    //   無いため発明せず森トークン固定。時刻差は上乗せの金/緑グロー＋底の苔で出す（mock J3「2系統のまま温度と明るさだけ可変」）。
     drawRect(
         Brush.linearGradient(
             0f to PanelPortal,
@@ -527,15 +591,26 @@ private fun Modifier.drawAmbient(tint: Color): Modifier = this.drawBehind {
             end = Offset(w * 0.5f, h),
         )
     )
-    // 金の敷居（上部・扉の光。mock amb radial 上 rgba(214,196,120,.x)＝AmbDarkGoldPortal と同 RGB）。
+    // J3×J1: 金の敷居＝時刻 warm を基底に読進 open ぶんを加算（mock rgba(214,196,120, var(--warm)+.20*var(--open))）。
+    //   AmbDarkGoldPortal は RGB(214,196,120) 同値＝α だけ差し替えて再利用（発明なし）。
     drawRect(
         Brush.radialGradient(
-            colors = listOf(AmbDarkGoldPortal, Color.Transparent),
+            colors = listOf(AmbDarkGoldPortal.copy(alpha = (p.warm + 0.20f * open).coerceIn(0f, 1f)), Color.Transparent),
             center = Offset(w * 0.5f, h * 0.08f),
             radius = w * 0.9f,
         )
     )
-    // 作品ごとの色相グロー（署名3色を id で割当・上寄り。モック「3系統以内」に忠実な作品差の出し方）。
+    // J3: 朝だけの澄んだ緑の冷光（mock rgba(159,207,169, var(--cool))＝GreenPortal 同 RGB。cool=0 の夕夜は描かない）。
+    if (p.cool > 0f) {
+        drawRect(
+            Brush.radialGradient(
+                colors = listOf(GreenPortal.copy(alpha = p.cool), Color.Transparent),
+                center = Offset(w * 0.5f, h * 0.02f),
+                radius = w * 0.9f,
+            )
+        )
+    }
+    // 作品ごとの色相グロー（署名3色を id で割当・上寄り。モック「3系統以内」・J1/J3 と非干渉の作品差）。
     drawRect(
         Brush.radialGradient(
             colors = listOf(tint.copy(alpha = 0.22f), Color.Transparent),
@@ -543,10 +618,11 @@ private fun Modifier.drawAmbient(tint: Color): Modifier = this.drawBehind {
             radius = w * 0.75f,
         )
     )
-    // 底の苔（下辺の森緑の沈み。mock amb radial 下 rgba(20,46,30,.9)≒AmbDarkMossPortal #274030）。
+    // J3: 底の苔＝時刻で沈む（floorAlpha 夕.9→夜.92／夜は floorDarken で外殻 PagePortal へ寄せ暗化＝既存 val の lerp）。
+    val floor = lerp(AmbDarkMossPortal, PagePortal, p.floorDarken).copy(alpha = p.floorAlpha)
     drawRect(
         Brush.radialGradient(
-            colors = listOf(AmbDarkMossPortal, Color.Transparent),
+            colors = listOf(floor, Color.Transparent),
             center = Offset(w * 0.5f, h * 1.15f),
             radius = w * 1.1f,
         )

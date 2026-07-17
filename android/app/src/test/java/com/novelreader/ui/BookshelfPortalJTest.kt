@@ -13,6 +13,9 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.ui.skins.j.PortalTimePhase
+import com.novelreader.ui.skins.j.portalAmbientParamsFor
+import com.novelreader.ui.skins.j.portalTimePhaseFor
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.LocalSkinTokens
 import com.novelreader.ui.theme.ReadingTheme
@@ -20,6 +23,7 @@ import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.tokens
 import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.ProcessingState
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -203,5 +207,42 @@ class BookshelfPortalJTest {
         assertTrue("装いの間の結線が無い", wardrobe)
         assertTrue("見つける導線の結線が無い", discovery)
         assertTrue("PDF追加の結線が無い", fab)
+    }
+
+    // ── 〈遊び心〉J3「時を映す扉」＝時刻→大気の相の写像（時刻を引数化＝Clock 非依存で決定的）──
+
+    @Test
+    fun `J3 時刻は朝夕夜の3相へ境界含め正しく写る`() {
+        // 5-11時=朝／11-17時=夕／17-翌5時=夜（閾値はモックに明示が無いため一般的な体感で定義・実装コメント参照）。
+        assertEquals(PortalTimePhase.MORNING, portalTimePhaseFor(5))   // 朝の開始境界
+        assertEquals(PortalTimePhase.MORNING, portalTimePhaseFor(10))  // 朝の終端
+        assertEquals(PortalTimePhase.EVENING, portalTimePhaseFor(11))  // 夕へ切替
+        assertEquals(PortalTimePhase.EVENING, portalTimePhaseFor(16))  // 夕の終端
+        assertEquals(PortalTimePhase.NIGHT, portalTimePhaseFor(17))    // 夜へ切替
+        assertEquals(PortalTimePhase.NIGHT, portalTimePhaseFor(23))    // 深夜
+        assertEquals(PortalTimePhase.NIGHT, portalTimePhaseFor(0))     // 日跨ぎの夜
+        assertEquals(PortalTimePhase.NIGHT, portalTimePhaseFor(4))     // 夜明け前
+    }
+
+    @Test
+    fun `J3 既定は夕で従来の正本の見えに一致し朝夜は温度と明るさだけ動く`() {
+        val morning = portalAmbientParamsFor(PortalTimePhase.MORNING)
+        val evening = portalAmbientParamsFor(PortalTimePhase.EVENING)
+        val night = portalAmbientParamsFor(PortalTimePhase.NIGHT)
+
+        // 既定=夕＝mock amb-yaku（--warm:.18 --cool:0）＝従来の正本の見え。
+        assertEquals(0.18f, evening.warm, 1e-6f)
+        assertEquals(0f, evening.cool, 1e-6f)
+        assertEquals(0f, evening.floorDarken, 1e-6f)
+
+        // 朝＝澄んだ緑金＝金を弱め(.16)緑の冷光(.16)を足す（cool>0 は朝だけ）。
+        assertTrue("朝は緑の冷光を持つ", morning.cool > 0f)
+        assertEquals(0f, night.cool, 1e-6f)
+        assertEquals(0f, evening.cool, 1e-6f)
+
+        // 夜＝光が引き底が沈む＝warm 最小(.06)・底を外殻へ寄せて暗化(floorDarken>0)。
+        assertTrue("夜は最も金が引く", night.warm < morning.warm && night.warm < evening.warm)
+        assertTrue("夜は底の苔が最も濃い", night.floorAlpha >= evening.floorAlpha)
+        assertTrue("夜だけ底を外殻へ沈める", night.floorDarken > 0f && morning.floorDarken == 0f)
     }
 }
