@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -61,6 +62,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -76,7 +78,6 @@ import com.novelreader.narou.model.NarouNovel
 import com.novelreader.ui.NewEpisodeNotificationMenuSection
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.theme.DimSeizu
-import com.novelreader.ui.theme.DustSeizu
 import com.novelreader.ui.theme.FaintStarSeizu
 import com.novelreader.ui.theme.Insets
 import com.novelreader.ui.theme.MinchoFamily
@@ -148,6 +149,9 @@ private val UnreadProgSeizu = Color(0xFF7B85A1)  // .const.unread .prog
 private val BadgeBorderSeizu = Color(0xFF303B5C) // .const .badge border
 private val WelcomeInkSeizu = Color(0xFFB7C0DB)  // .welcome color
 
+// 極微視差の係数（正本 R1 FACTOR 0.08＝0.03〜0.08 の上限＝知覚可能な最小）。遠景の天の川粒帯のみ連動。
+private const val ParallaxFactor = 0.08f
+
 /** 識別色（学名ドット）: 作品ごとに安定して同じ色が付くよう id ハッシュで引く（並び替えで変わらない）。 */
 private val SeizuIdPalette = listOf(SeizuIdGreen, SeizuIdPurple, SeizuIdSlate, SeizuIdRose)
 private fun idColorFor(bookId: String): Color =
@@ -207,6 +211,30 @@ internal fun BookshelfSkyM(
         books.count { readingStatusFor(progressMap[it.id], chapterCountMap[it.id] ?: 0) != ReadingStatus.UNREAD }
     }
 
+    // ---- 深空（R1）レイヤーの素材 ----
+    // z0/z1 の固定フィールド（星雲・天の川粒帯・散開微星）は蔵書非依存の不変の地。remember{}（キー無し）で
+    // 1 コンポジション 1 回だけ生成＝固定 seed と相まって再コンポーズでも星が一切踊らない（フレーム毎再計算もしない）。
+    val deepSkyField = remember { buildDeepSkyField() }
+    // 読了星の累積（z0）＝末尾到達実績（reachedEnd→FINISHED）の作品だけ深空へ着地星として静的に累積表示。
+    // 位置は作品 id ハッシュから決定的に導く（＝同じ作品は常に同じ場所に着地・並び替えで動かない）。
+    // TODO(監督): 昇華アニメ（読了イベントで先端星が深空へ昇る z2 演出）のトリガ配線。この Composable には
+    //   「いま読了した」イベント流入が無いため未実装＝近似で嘘のアニメを出さず、静的累積のみで正直に留める。
+    val finishedStars = remember(books, progressMap, chapterCountMap) {
+        books.filter { readingStatusFor(progressMap[it.id], chapterCountMap[it.id] ?: 0) == ReadingStatus.FINISHED }
+            .map { b ->
+                val seed = b.id.hashCode() and 0x7fffffff
+                val total = chapterCountMap[b.id] ?: 0
+                FinishedStar(
+                    fx = 0.08f + 0.84f * ((seed % 1000) / 1000f),
+                    fy = 0.114f + 0.355f * (((seed / 1000) % 1000) / 1000f), // モック ty=96+seed*300 の割合帯（上部）
+                    mag = (0.4f + total / 500f).coerceAtMost(1f),
+                    color = idColorFor(b.id),
+                )
+            }
+    }
+    // 遠景の極微視差は LazyColumn のスクロールへ連動させる＝state を hoist して graphicsLayer 側でも読む。
+    val listState = rememberLazyListState()
+
     // 固定地平バーの実高を測ってスクロール下端クリアランスに充てる（ナビバー高が機種で変わるため定数では
     // 足りず、最後の星座セルがバー裏に残った＝実機の指摘。測ってバー高そのぶん空ければ機種非依存で解決）。
     // 初回レイアウト前は Insets.SkyHorizonClearance を暫定値に（120dp ≒ 地平実高で見た目の跳ねなし）。
@@ -214,6 +242,21 @@ internal fun BookshelfSkyM(
     var horizonHeightPx by remember { mutableStateOf(0) }
     val horizonClearance = if (horizonHeightPx > 0) with(density) { horizonHeightPx.toDp() }
     else Insets.SkyHorizonClearance
+
+    // 極微視差の translate 供給。LazyList は可変高セルゆえピクセル絶対オフセットを持たないので、代表セル高
+    //（150dp）×index＋先頭可視セルのオフセットをスクロール信号にする（背景の最大 translate 40dp・hero=200 と
+    // others=150 の差は知覚下＝背景としては十分。翻訳の割り切りは報告事項に記載）。上限 40dp でクランプ（遠景の
+    // buffer 60dp 未満＝下端に隙間を出さない）。この lambda は graphicsLayer ブロック内でだけ呼ぶ＝スクロール state を
+    // 描画フェーズで遅延読み＝スクロール毎の再コンポーズを起こさない（chrisbanes deferred-read）。
+    val nominalCellPx = with(density) { 150.dp.toPx() }
+    val maxParallaxPx = with(density) { 40.dp.toPx() }
+    val parallaxProvider: () -> Float = {
+        if (reduceMotion) 0f // reduce-motion: 視差 0（完全静止）
+        else {
+            val raw = listState.firstVisibleItemIndex * nominalCellPx + listState.firstVisibleItemScrollOffset
+            (raw * ParallaxFactor).coerceAtMost(maxParallaxPx)
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -223,6 +266,30 @@ internal fun BookshelfSkyM(
                 drawNightSky()
             },
     ) {
+        // ---- R1 深空レイヤー（前景 Column より前＝背後に敷く。いずれも pointer 非介入で下のスクロール/導線へ素通し）----
+        // z0 深空（固定・スクロール非追従）＝星雲＋アクセント星＋読了星の累積。drawBehind へ一度確定描画（スクロール state を
+        // 読まないのでスクロール中に再描画されない）。夜天グラデ（root drawBehind）の直上・粒帯や星座より背面。
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawBehind { drawDeepSky(deepSkyField, finishedStars) },
+        )
+        // z1 遠景視差＝天の川の粒帯＋散開微星。graphicsLayer{translationY} で極微視差（translate 供給は描画フェーズ遅延読み）。
+        // drawBehind の描画自体はスクロール state を読まない＝レイヤーへ一度記録され、以後は transform だけ動く（recomposition 増やさない）。
+        // clip=true で buffer ぶん（size 下端より下）を隠し、上へずらしたときだけ滑り込ませる。
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    translationY = -parallaxProvider()
+                    clip = true
+                }
+                .drawBehind { drawFarStars(deepSkyField) },
+        )
+        // z2 演出オーバーレイ＝まれな流れ星（30〜70秒に一度・一度に一筋・淡い遠景の一筋）。reduce-motion では非表示。
+        // 前景 Column より背面＝銘/星座の背後を流れる遠景の一筋（モック .ascend z2 と同順）。
+        MeteorOverlay(reduceMotion = reduceMotion, modifier = Modifier.fillMaxSize())
+
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             SkyPlate(
                 boundCount = boundCount,
@@ -242,6 +309,7 @@ internal fun BookshelfSkyM(
             SkyChips(selectedStatus, statusCounts, onSelectStatus)
 
             LazyColumn(
+                state = listState, // 遠景視差が読むためスクロール state を hoist（上の parallaxProvider）。
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 // 下端は地平（発見導線＋迎える）ぶんを空ける＝スクロール末尾の星座が地平に沈まない。
                 // クリアランスは固定バーの実測高（下記 onSizeChanged）＝バー高そのぶん確保。
@@ -701,14 +769,9 @@ private fun DrawScope.drawSkyCell(
         style = Stroke(width = 1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5 * d, 5 * d))),
     )
 
-    // 星屑（DUST: 半径 .3-1.2・α .06-.41 ＝モックの rnd 式そのまま）。
-    repeat(12) {
-        val x = rnd.next() * w
-        val y = rnd.next() * h
-        val r = (rnd.next() * 0.9f + 0.3f) * d
-        val a = rnd.next() * 0.35f + 0.06f
-        drawCircle(DustSeizu.copy(alpha = a), radius = r, center = Offset(x, y))
-    }
+    // R1（深空）: 従前ここでセル毎に撒いていた星屑（DUST 12点）は撤去した。星屑・天の川・微星は
+    // 深空レイヤー（DeepSkyM の z0/z1）へ整理統合済み＝前景から装飾星を抜き軽くする R1 の思想であり、
+    // 深空フィールドと二重に撒くのを避ける（正本モック cap「前景から装飾星を抜き軽く」）。
 
     // 星座点列: ラベルと反対側の領域に seed 決定論で 5〜7点のジグザグを張る。
     val n = 5 + (rnd.next() * 3f).toInt().coerceAtMost(2)

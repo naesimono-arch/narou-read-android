@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.ui.skins.m.buildDeepSkyField
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.LocalSkinTokens
 import com.novelreader.ui.theme.ReadingTheme
@@ -152,6 +153,29 @@ class BookshelfSkyMTest {
         )
         composeTestRule.onNodeWithText("最初の星を灯す").assertIsDisplayed()
         composeTestRule.onNodeWithText("この星から読む").assertDoesNotExist()
+    }
+
+    // ---- R1「深空」レイヤーの決定性・輝度上限（描画は Canvas ゆえ、純関数の不変条件で担保）----
+
+    @Test
+    fun `深空フィールドは決定的＝同じ生成を2回で完全一致する`() {
+        // 固定 seed 生成＝再コンポーズ（＝再生成）で星が踊らないことの単体担保。
+        val a = buildDeepSkyField()
+        val b = buildDeepSkyField()
+        assertTrue("粒数が生成毎に変わる＝非決定的", a.band.size == b.band.size)
+        assertTrue("散開微星の数が変わる＝非決定的", a.scatter.size == b.scatter.size)
+        assertTrue("アクセント星の数が変わる＝非決定的", a.accent.size == b.accent.size)
+        // 先頭・末尾の粒座標が一致＝乱数列が完全再現されている。
+        assertTrue(a.band.first().fx == b.band.first().fx && a.band.first().fy == b.band.first().fy)
+        assertTrue(a.band.last().fx == b.band.last().fx && a.band.last().fy == b.band.last().fy)
+    }
+
+    @Test
+    fun `天の川粒の輝度は上限を超えない＝題名可読の担保`() {
+        // 正本 R1 の輝度上限（帯 0.42／核 0.46）＝連続する靄で contrast を落とさない絶対条件。
+        val field = buildDeepSkyField()
+        assertTrue("粒が想定レンジ外（生成が壊れている）", field.band.size in 2400..2900)
+        assertTrue("輝度上限 0.46 を超える粒がある＝題名が潰れうる", field.band.all { it.alpha <= 0.46f })
     }
 
     @Test
