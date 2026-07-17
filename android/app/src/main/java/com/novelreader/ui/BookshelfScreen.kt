@@ -70,6 +70,7 @@ import com.novelreader.ui.theme.FontButtonLabel
 import com.novelreader.ui.theme.FontHomeTitle
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.skins.j.BookshelfPortalJ
+import com.novelreader.ui.skins.m.BookshelfLogM
 import com.novelreader.ui.skins.m.BookshelfSkyM
 import com.novelreader.ui.skins.p.BookshelfCartridgeP
 import com.novelreader.ui.skins.p.BookshelfListCartridgeP
@@ -547,6 +548,46 @@ internal fun BookshelfContent(
             onOpenWardrobe = onOpenWardrobe,
             onFabClick = onFabClick,
             onToggleList = onToggleSkyM,
+            onCancelProcessing = onCancelProcessing,
+            snackbarHostState = snackbarHostState,
+            isLoading = isLoading,
+        )
+        return
+    }
+
+    // スキンM「星図」一覧: トグルで一覧へ落ちたときも M 自身の意匠『観測野帳』へ委譲する（ADR 0022 追記その2＝
+    // 旧・D構造フォールバックの格下げ是正。「各スキンは全く別のアプリ＝Dの見た目の型を引き継がない」原則。P一覧と同型分岐）。
+    // 選択削除・Webカード操作・状態フィルタ・PDF追加・取込中バナー・スナックバー・空状態・星図⇄一覧トグルの全機能を観測野帳が引き継ぐ。
+    // 選択モード状態（selectionMode/selectedIds と各操作）は本骨格が所有する単一の状態機械を共有渡しする＝二重実装を避け、
+    // 上の BackHandler（selectionMode で戻る＝解除）も 1 本のまま効く。
+    if (LocalSkin.current == Skin.SEIZU_M && !skyViewM) {
+        BookshelfLogM(
+            books = visibleBooks,
+            webNovels = webNovels,
+            webReadingProgress = webReadingProgress,
+            webLastReadAt = webLastReadAt,
+            progressMap = progressMap,
+            chapterCountMap = chapterCountMap,
+            newEpisodeNovelMap = newEpisodeNovelMap,
+            processingState = processingState,
+            selectedStatus = selectedStatus,
+            statusCounts = statusCounts,
+            onSelectStatus = { selectedStatusName = it?.name },
+            selectionMode = selectionMode,
+            selectedIds = selectedIds,
+            onToggleSelect = toggleSelect,
+            onEnterSelection = enterSelection,
+            onExitSelection = exitSelection,
+            onDeleteBooks = { onDeleteBooks(it) },
+            onOpenBook = onOpenBook,
+            onOpenWebNovel = onOpenWebNovel,
+            onResumeWebNovel = onResumeWebNovel,
+            onImportWebNovel = onImportWebNovel,
+            onRemoveWebNovel = onRemoveWebNovel,
+            onOpenDiscovery = onOpenDiscovery,
+            onOpenWardrobe = onOpenWardrobe,
+            onFabClick = onFabClick,
+            onToggleSky = onToggleSkyM,
             onCancelProcessing = onCancelProcessing,
             snackbarHostState = snackbarHostState,
             isLoading = isLoading,

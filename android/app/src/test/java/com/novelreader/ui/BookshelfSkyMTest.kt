@@ -116,15 +116,18 @@ class BookshelfSkyMTest {
     }
 
     @Test
-    fun `M装着×一覧モードはD構造フォールバック＋星図へ戻るボタンが出る`() {
+    fun `M装着×一覧モードはM自身の観測野帳＋星図へ戻るボタンが出る`() {
         var toggled = false
         setContent(
             Skin.SEIZU_M, BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))),
             skyViewM = false, onToggleSkyM = { toggled = true },
         )
-        // 一覧＝D 構造へトークン写像（可読フォールバック）。
-        composeTestRule.onNodeWithText("新しい物語を見つける").assertIsDisplayed()
-        // グリッド切替の座がスキンMでは「星図へ戻る」になる。
+        // 一覧＝M 自身の意匠『観測野帳』（ADR 0022 追記その2＝旧・D構造フォールバックの格下げ是正）。
+        // 銘の meta「観測 N 天体」が署名＝D 構造ではない。D の発見帯（「新しい物語を見つける」）は出ない。
+        composeTestRule.onNodeWithText("新しい物語を見つける").assertDoesNotExist()
+        // 星図面と地平を共有＝「まだ知らない星を探しに」が出る（観測野帳の下辺 SkyHorizon）。
+        composeTestRule.onNodeWithText("まだ知らない星を探しに").assertIsDisplayed()
+        // 銘の操作クラスタの「星図表示に切替」で星図へ戻るトグルが結線される。
         composeTestRule.onNodeWithContentDescription("星図表示に切替").performClick()
         assertTrue("一覧→星図のトグルが呼ばれていない", toggled)
     }

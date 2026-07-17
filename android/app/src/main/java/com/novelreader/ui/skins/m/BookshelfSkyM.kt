@@ -142,11 +142,13 @@ private val DiscoverTranslucent = Color(0xFF0E1634).copy(alpha = 0.42f) // .disc
 private val TrackAlpha = MoonSlateSeizu.copy(alpha = 0.25f)      // .banner .track rgba(150,168,214,.25)
 
 // ---- ラベルの較正色（bookshelf-M .const の直書き値。この画面専用＝ADR 0022 §5 の in-file 集約）----
-private val BySeizu = Color(0xFF818BA6)          // .const .by
-private val LinkSeizu = Color(0xFFAEB7D2)        // .const .link
-private val UnreadTitleSeizu = Color(0xFFAEB6CE) // .const.unread .ttl
-private val UnreadProgSeizu = Color(0xFF7B85A1)  // .const.unread .prog
-private val BadgeBorderSeizu = Color(0xFF303B5C) // .const .badge border
+// 観測野帳（一覧＝BookshelfLogM）が同じ意味役割で同値を使うため internal 昇格し単一正本を共有する
+// （星図 .const と一覧 .entry で by/link/unread-ttl/unread-prog/badge-border は同一色＝ドリフト防止）。
+internal val BySeizu = Color(0xFF818BA6)          // .const .by／観測票 .readout .obsv
+internal val LinkSeizu = Color(0xFFAEB7D2)        // .const .link／観測票 .coll-act
+internal val UnreadTitleSeizu = Color(0xFFAEB6CE) // .const.unread .ttl／.rec.unread .entry .ttl
+internal val UnreadProgSeizu = Color(0xFF7B85A1)  // .const.unread .prog／.rec.unread .readout
+internal val BadgeBorderSeizu = Color(0xFF303B5C) // .const .badge border／観測票 .badge border
 private val WelcomeInkSeizu = Color(0xFFB7C0DB)  // .welcome color
 
 // 極微視差の係数（正本 R1 FACTOR 0.08＝0.03〜0.08 の上限＝知覚可能な最小）。遠景の天の川粒帯のみ連動。
@@ -157,8 +159,9 @@ private const val DebugParallaxFactor = 0.6f
 private val ParallaxFactor = if (DebugExaggerateParallax) DebugParallaxFactor else 0.08f
 
 /** 識別色（学名ドット）: 作品ごとに安定して同じ色が付くよう id ハッシュで引く（並び替えで変わらない）。 */
+// 観測野帳（一覧）の観測ノード（星ディスク）も同じ id 色で描く＝星図↔一覧で「1作=同じ星の色」を保つため internal 昇格。
 private val SeizuIdPalette = listOf(SeizuIdGreen, SeizuIdPurple, SeizuIdSlate, SeizuIdRose)
-private fun idColorFor(bookId: String): Color =
+internal fun idColorFor(bookId: String): Color =
     SeizuIdPalette[(bookId.hashCode() and 0x7fffffff) % SeizuIdPalette.size]
 
 // Lcg（線形合同法）は星図スキン共通部品として ui/skins/m/SkyCanvas.kt へ抽出（目次 TocSkyM と共有・二重定義排除）。
@@ -448,8 +451,9 @@ private fun SkyPlate(
 }
 
 /** 装いの間の4条星アイコン（モック .ib.wardrobe の SVG パスを DrawScope へ写像）。 */
+// 観測野帳（一覧）の銘の装い入口・地平の方位磁針でも同じ4条星を使うため internal 昇格。
 @Composable
-private fun FourPointStar(color: Color, modifier: Modifier = Modifier) {
+internal fun FourPointStar(color: Color, modifier: Modifier = Modifier) {
     androidx.compose.foundation.Canvas(modifier = modifier) {
         val s = size.minDimension / 24f
         val p = Path().apply {
@@ -466,8 +470,9 @@ private fun FourPointStar(color: Color, modifier: Modifier = Modifier) {
 // ============================================================
 // 取込中バナー（モック .banner: 灯りかけの星＋題名＋進捗トラック）
 // ============================================================
+// 観測野帳（一覧）でも同じ取込中バナー（灯りかけの星＋進捗トラック）を出すため internal 昇格。
 @Composable
-private fun SkyProcessingBanner(state: ProcessingState, onCancel: () -> Unit) {
+internal fun SkyProcessingBanner(state: ProcessingState, onCancel: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -534,8 +539,9 @@ private fun SkyProcessingBanner(state: ProcessingState, onCancel: () -> Unit) {
 // ============================================================
 // 状態フィルタチップ（モック .chips: すべて既定・横スクロール。実データのフィルタは読書状態＝D と同一機能）
 // ============================================================
+// 観測野帳（一覧）のフィルタ（.lchips）は星図 .chips と同一意匠・同一読書状態フィルタゆえ internal 昇格で共有。
 @Composable
-private fun SkyChips(
+internal fun SkyChips(
     selected: ReadingStatus?,
     counts: Map<ReadingStatus, Int>,
     onSelect: (ReadingStatus?) -> Unit,
@@ -872,8 +878,10 @@ private fun DrawScope.drawStarGlow(center: Offset, radius: Float, glow: Float) {
 // ============================================================
 // 下辺の地平（モック .horizon: 発見導線＋未取込カウント＋新しい星を迎える）
 // ============================================================
+// 観測野帳（一覧）の下辺（.lhorizon＝発見導線＋未取込カウント＋新しい星を迎える）は星図 .horizon と
+// 同一構成・同一文言ゆえ internal 昇格で共有（世界＝地平が星図↔一覧で切れない）。
 @Composable
-private fun SkyHorizon(
+internal fun SkyHorizon(
     webNovelCount: Int,
     onOpenDiscovery: () -> Unit,
     onFabClick: () -> Unit,
