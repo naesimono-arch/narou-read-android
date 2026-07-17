@@ -11,8 +11,10 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.ui.skins.j.PaletteFind
@@ -141,17 +143,49 @@ class BookshelfPortalJTest {
     }
 
     @Test
-    fun `J装着×一覧モードはD構造フォールバック＋デッキへ戻るボタンが出る`() {
+    fun `J装着×一覧モードはJグリッド面＋デッキへ戻るボタンが出る`() {
+        // ADR 0022 追記その2の是正: 一覧側は D構造フォールバックでなく J自身の意匠（グリッド面）へ委譲する。
         var toggled = false
         setContent(
             Skin.PORTAL_J, BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))),
             deckViewJ = false, onToggleDeckJ = { toggled = true },
         )
-        // 一覧＝D 構造へトークン写像（可読フォールバック）。
+        // J グリッド面の見つける導線（.find-guide）。
         composeTestRule.onNodeWithText("新しい物語を見つける").assertIsDisplayed()
-        // グリッド切替の座がスキンJでは「デッキ表示へ戻る」になる。
+        // 升目セルの題名（.cin）は素の Text＝J グリッドが描いている。
+        composeTestRule.onNodeWithText("吾輩は猫である").assertIsDisplayed()
+        // D 構造（ListBookCard＝題名を contentDescription で持つ）は出ない＝Dの見た目の型を引き継いでいない。
+        composeTestRule.onNodeWithContentDescription("吾輩は猫である").assertDoesNotExist()
+        // 一覧⇄デッキトグルの座。
         composeTestRule.onNodeWithContentDescription("デッキ表示に切替").performClick()
         assertTrue("一覧→デッキのトグルが呼ばれていない", toggled)
+    }
+
+    @Test
+    fun `Jグリッド面の升を長押しで選択モードへ入る`() {
+        // 選択削除は骨格の単一状態機械を共有＝グリッド升の長押しが onEnterSelection（＝選択モード）へ結線されること。
+        setContent(
+            Skin.PORTAL_J, BookshelfUiState.Content(listOf(book("b1", "選択される扉"))),
+            deckViewJ = false,
+        )
+        composeTestRule.onNodeWithText("選択される扉").performTouchInput { longClick() }
+        // 選択モードに入ると下端の選択アクションバー（キャンセル/全選択/削除）が現れる。
+        composeTestRule.onNodeWithText("全選択").assertIsDisplayed()
+        composeTestRule.onNodeWithText("削除").assertIsDisplayed()
+    }
+
+    @Test
+    fun `Jグリッド面もデッキと同じ⋮メニュー（PDF追加＋テーマ節）を出す`() {
+        var fab = false
+        setContent(
+            Skin.PORTAL_J, BookshelfUiState.Content(listOf(book("b1", "扉の本"))),
+            deckViewJ = false, onFabClick = { fab = true },
+        )
+        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
+        composeTestRule.onNodeWithText("テーマ").assertIsDisplayed()
+        composeTestRule.onNodeWithText("PDFを追加")
+            .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
+        assertTrue("グリッド面の PDF追加が結線されていない", fab)
     }
 
     @Test
@@ -312,10 +346,26 @@ class BookshelfPortalJTest {
     }
 
     @Test
-    fun `扉パレットは複数idで複数世界へ散る＝色相の飛びが出る`() {
-        // 40 の別 id が単一世界に密集しない（＝旧実装の緑密集の解消。最低でも2世界＝隣接扉で色相が飛ぶ）。
-        val worlds = (0 until 40).map { portalDoorPaletteFor("id-$it").name }.toSet()
-        assertTrue("扉が単一世界に密集＝色相の飛びが出ない", worlds.size >= 2)
+    fun `扉パレットは実idに近いサンプルで4世界全てに散る＝緑密集の解`() {
+        // 実機所見「6扉中4扉が緑系＝色相の飛びが弱い」の真因は short id の hashCode 下位ビット偏り。
+        // fmix32 撹拌後は実 id に近い決定的サンプル（UUID風/ncode風/和文混じり）が4世界すべてに散る。
+        val sample = listOf(
+            "novel_a1b2", "N1234AB", "c9f3e2d1", "book-転生", "story-77", "aoi-drama",
+            "9f8e7d6c", "N9999ZZ", "kusa-life", "maou-01", "en-garden", "yaku-shi",
+            "12ab34cd", "zz-final", "alpha-omega", "hero-journey", "N0001AA", "tale-x",
+        )
+        val counts = sample.groupingBy { portalDoorPaletteFor(it).name }.eachCount()
+        assertEquals("4世界すべてに扉が割り当たらない＝色相の飛びが弱い", 4, counts.size)
+        assertTrue("どこかの世界が0件＝分散が偏る", PortalDoorPalettes.all { (counts[it.name] ?: 0) > 0 })
+    }
+
+    @Test
+    fun `扉パレットは並び替え不変かつデッキ・グリッドで同一idは同一世界`() {
+        // 同一関数（portalDoorPaletteFor）をデッキ面・グリッド面が共有＝同じ bookId は常に同じ扉世界（升と扉がずれない）。
+        val ids = listOf("book-alpha", "id-42", "9f8e7d6c", "N1234AB")
+        ids.forEach { id ->
+            assertEquals("同一idで扉世界がぶれる＝並び替え/面間で不変でない", portalDoorPaletteFor(id).name, portalDoorPaletteFor(id).name)
+        }
     }
 
     @Test

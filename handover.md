@@ -33,6 +33,9 @@
   - **J扉の incipit（冒頭一文）**: BookEntity に synopsis 相当が無く省略。抽出時に第1章冒頭を保存すれば表示可能。
   - **P読書の浮遊puck**: モックの没入時浮遊操作（目次/設定）は共有tap-to-reveal に畳んだ。実機で不便なら独立部品化。
   - **P設定のLCD値チップ・液晶スウォッチ型テーマ選択**: 標準部品を優先して未採用。P密度を上げたければ再検討。
+  - **[観察・未確定] J読書の中央タップトグルが1回空振りに見えた**（2026-07-17 C3検証員所見）: adbタップ精度の可能性大（過去のスナックバー切り分けと同型）。人間の実機体感で再現したら計測タスク化（決め打ち修正しない）。あわせて「トグル時に軽い状態表示」の改善案あり。
+  - **一覧是正後のデッドコード整理（/stale-check 時に一括）**: 共有 TopAppBar 内の SEIZU_M/CARTRIDGE_P トグル分岐は一覧是正で到達不能化（M/P一覧が Scaffold を使わなくなったため）。挙動影響なしのため温存中＝J是正後にまとめて削除。
+  - **hashCode直割当の偏り横展開**: J扉パレットは fmix32 撹拌で是正済み（docs/knowledge/string-hashcode-low-bit-bias-palette-skew.md）。同型の M `idColorFor`・P `labelColorFor` も偏りが目視で気になったら同適用。
   - **P共通部品の抽出dedup**: SegGauge/drawLcdDots/Deck が BookshelfCartridgeP に private で toc/discovery に最小複製あり→ `skins/p/CartridgePartsP.kt` へ internal 抽出。
   - **M視差の信号源精密化**: 代表セル高150dp×indexの近似（境界で最大12px段差の理論値）→実機で目につけば実測高の累積へ。
   - **J時刻大気の発展**: ①時刻3相の base/floor 色相トークン化（現状は温度・明るさのみ可変＝地の色相は森トークン固定） ②長時間常駐で時間帯を跨いだときの追従（現状は起動時1回固定。produceState＋5〜10分ポーリングが拡張余地・モーション無し方針との両立要検討）。

@@ -375,6 +375,7 @@ val AmbFindBaseTopPortal = Color(0xFF2A2A18)  // .amb-find base 起点（0%）
 val AmbFindBaseMidPortal = Color(0xFF181710)  // .amb-find base 中間（55%）
 val AmbFindBaseBotPortal = Color(0xFF0F0E09)  // .amb-find base 末端（100%）
 val AmbFindFloorPortal   = Color(0xFF282814)  // .amb-find floor rgba(40,40,20)（α は時刻 floorAlpha で付与）
+val AmbGridBackdropPortal = Color(0xFF1F3426) // グリッド一覧の外殻グロー rgba(31,52,38,.6)（α は描画層が付与）
 // 暗宵紫（.peek.l ＝魔の扉の宵紫グローと同RGB rgba(120,86,150)）。署名 PlumPortal(#B79AD0) より暗い扉宵紫。
 val AmbPlumDeepPortal    = Color(0xFF785696)  // .peek.l rgba(120,86,150) ／ .amb-maou グロー rgba(120,86,150)（α は用途側で付与）
 // .resume（続きから読む＝一画面唯一の強調）: background #E9F0E4・color #15241A（旧実装は InkPortal/PagePortal 近似）。

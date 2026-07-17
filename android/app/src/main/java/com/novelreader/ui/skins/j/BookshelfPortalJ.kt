@@ -219,13 +219,31 @@ internal val PaletteFind = PortalDoorPalette(
 internal val PortalDoorPalettes = listOf(PaletteYaku, PaletteMaou, PaletteEn, PaletteKusa)
 
 /**
+ * 32bit ビットミックス（Murmur3 の fmix32 終端）。真因対処: 短い文字列 id の String.hashCode は下位ビットの
+ * 分散が弱く（例: "id-0".."id-9" は末尾1桁がそのまま下位に出る）、直後に `% 4`（＝下位2ビット依存）を取ると
+ * 4パレットへ偏る（実機所見: 6扉中4扉が緑系に密集）。fmix32 は上位ビットを下位へ雪崩れ込ませ（avalanche）、
+ * `% 4` が全ビットの情報を受けるようにする＝偏りを解消する。純粋な決定的変換ゆえ並び替え不変は保たれる。
+ */
+private fun fmix32(hash: Int): Int {
+    var h = hash
+    h = h xor (h ushr 16)
+    h *= 0x7feb352d
+    h = h xor (h ushr 15)
+    h *= -0x7b935975 // = 0x846ca68b（Int は符号付きのため 2の補数の負値表記）
+    h = h xor (h ushr 16)
+    return h
+}
+
+/**
  * 実蔵書 N 冊への扉パレット割当＝bookId の安定ハッシュで4世界を巡回選択（ADR 0021 §5 データ駆動パレット）。
  * bookId をキーにするのが要点＝一覧の並び替え・作品の追加/削除があっても各作の扉色が不変（並び替え不変）。
  *   （index を鍵にすると隣作1件の追加で以降全作の色が総ずれし「扉＝固有世界」の同一性が壊れる。）
- * 純関数ゆえ JVM テストで決定的に検証できる（周囲の作品構成に依存しない）。
+ * hashCode を fmix32 で撹拌してから 4 で割る＝下位ビット偏りを潰し4パレットへ均等に散る（実機の緑密集の解）。
+ * 純関数ゆえ JVM テストで決定的に検証できる（周囲の作品構成に依存しない）。デッキ面・グリッド面は本関数を共有
+ * するので同一 bookId=同一パレット（扉とセルで世界がずれない）。
  */
 internal fun portalDoorPaletteFor(bookId: String): PortalDoorPalette =
-    PortalDoorPalettes[(bookId.hashCode() and 0x7fffffff) % PortalDoorPalettes.size]
+    PortalDoorPalettes[(fmix32(bookId.hashCode()) and 0x7fffffff) % PortalDoorPalettes.size]
 
 // ============================================================
 // 〈遊び心〉J3「時を映す扉」＝大気の“地”を現実時刻で移ろわせる（直交2レイヤの下段＝地=時刻）。
@@ -773,9 +791,9 @@ private fun PortalTopBar(
     }
 }
 
-/** topbar のアイコンボタン（.ib＝38dp・角丸11・薄暗地＋温白ヘアライン。ward は金縁）。 */
+/** topbar のアイコンボタン（.ib＝38dp・角丸11・薄暗地＋温白ヘアライン。ward は金縁）。グリッド面 g-top と共有。 */
 @Composable
-private fun PortalIconButton(
+internal fun PortalIconButton(
     onClick: () -> Unit,
     ward: Boolean = false,
     content: @Composable () -> Unit,
@@ -798,7 +816,7 @@ private fun PortalIconButton(
  * 未宣言・切替は onFollowSystem）を共有して塞ぐ。追従中はそれのみチェック・明示3択は !followingSystem 排他。
  */
 @Composable
-private fun PortalThemeMenuSection(
+internal fun PortalThemeMenuSection(
     appTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
     followingSystem: Boolean,
@@ -853,7 +871,7 @@ private fun PortalThemeMenuSection(
 // 絞り込みチップ（.chipbar＝読書状態フィルタへ写像・M/P と同機能）
 // ============================================================
 @Composable
-private fun PortalChips(
+internal fun PortalChips(
     selected: ReadingStatus?,
     counts: Map<ReadingStatus, Int>,
     onSelect: (ReadingStatus?) -> Unit,
@@ -899,7 +917,7 @@ private fun PortalChips(
 // 取込中バナー（.proc＝扉を仕立てている＝ProcessingBanner の J 意匠）
 // ============================================================
 @Composable
-private fun PortalProcessingBanner(state: ProcessingState, onStop: () -> Unit) {
+internal fun PortalProcessingBanner(state: ProcessingState, onStop: () -> Unit) {
     val stepLabels = listOf("タイトル", "本文", "分割", "HTML")
     Column(
         modifier = Modifier
