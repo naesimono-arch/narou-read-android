@@ -38,6 +38,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checkroom
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
@@ -68,8 +69,12 @@ import com.novelreader.narou.model.NarouNovel
 import com.novelreader.ui.theme.FontButtonLabel
 import com.novelreader.ui.theme.FontHomeTitle
 import com.novelreader.ui.theme.FontSubTitle
+import com.novelreader.ui.skins.m.BookshelfSkyM
 import com.novelreader.ui.theme.Insets
 import com.novelreader.ui.theme.LocalShelfColors
+import com.novelreader.ui.theme.LocalSkin
+import com.novelreader.ui.theme.LocalSkinTokens
+import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.MotionDurationDismiss
@@ -161,6 +166,10 @@ fun BookshelfScreen(
     // （実機で要否を詰める。将来グリッドを廃するならこのトグルと GridBookCard 経路ごと整理する）。
     var isGridView by remember { mutableStateOf(prefs.getBoolean("is_grid_view", false)) }
 
+    // スキンM（星図）の 星図⇄一覧 モード（ADR 0022 §1・永続化）。既定 true＝M 装着時は星図で開く。
+    // M 以外のスキンでは Content 側の分岐条件（LocalSkin==SEIZU_M）が成立せず、この値は眠ったまま。
+    var mSkyView by remember { mutableStateOf(prefs.getBoolean("m_sky_view", true)) }
+
     // 通知権限 priming（notify Minor 2026-07-12）: システム権限ダイアログの前に理由説明を挟むためのフラグ。
     // 一度提示したら以後は出さない（notif_priming_shown で永続化）＝毎回のFABタップで問い直さない。
     var notifPrimingShown by remember { mutableStateOf(prefs.getBoolean("notif_priming_shown", false)) }
@@ -225,6 +234,11 @@ fun BookshelfScreen(
         onToggleView = {
             isGridView = !isGridView
             prefs.edit().putBoolean("is_grid_view", isGridView).apply()
+        },
+        skyViewM = mSkyView,
+        onToggleSkyM = {
+            mSkyView = !mSkyView
+            prefs.edit().putBoolean("m_sky_view", mSkyView).apply()
         },
         onFabClick = onFabClick,
         // 開く際の再開ファイル解決（suspend の DB 参照）はルート層の責務。描画層は BookEntity を渡すだけ。
@@ -427,6 +441,10 @@ internal fun BookshelfContent(
     // 遷移ジャンク対策（P2・Perfetto 2026-07-16）: true の間（＝本棚の enter アニメ中）は重い Lazy コンテナを
     // スケルトンへ差替える。既定 false＝既存の呼出し・Robolectric テストの描画は完全に不変。
     deferHeavyContent: Boolean = false,
+    // スキンM（星図）の表示モード（星図⇄一覧・ADR 0022 §1）。M 以外のスキンでは無視される。
+    // 既定 true＝M 装着時は星図が既定（永続はルート層の onToggleSkyM に委譲）。
+    skyViewM: Boolean = true,
+    onToggleSkyM: () -> Unit = {},
 ) {
     val isLoading = uiState is BookshelfUiState.Loading
     val books = (uiState as? BookshelfUiState.Content)?.books ?: emptyList()
@@ -469,6 +487,32 @@ internal fun BookshelfContent(
         visibleBooks
             .groupingBy { readingStatusFor(progressMap[it.id], chapterCountMap[it.id] ?: 0) }
             .eachCount()
+    }
+
+    // スキンM「星図」: 星図ビュー時は画面丸ごと M 構造へ委譲する（ADR 0022 §1 の薄いルーター）。
+    // 一覧トグル時はこの下の共有描画（D 構造へトークン写像＝bookshelf-M.html「一覧は可読フォールバック」）へ
+    // 落ちる。複数選択削除・グリッド・Web カード操作は一覧側が全数担う（星図は閲覧と読書導線に徹する）。
+    if (LocalSkin.current == Skin.SEIZU_M && skyViewM) {
+        BookshelfSkyM(
+            books = visibleBooks,
+            progressMap = progressMap,
+            chapterCountMap = chapterCountMap,
+            newEpisodeNovelMap = newEpisodeNovelMap,
+            processingState = processingState,
+            webNovelCount = webNovels.size,
+            selectedStatus = selectedStatus,
+            statusCounts = statusCounts,
+            onSelectStatus = { selectedStatusName = it?.name },
+            onOpenBook = onOpenBook,
+            onOpenDiscovery = onOpenDiscovery,
+            onOpenWardrobe = onOpenWardrobe,
+            onFabClick = onFabClick,
+            onToggleList = onToggleSkyM,
+            onCancelProcessing = onCancelProcessing,
+            snackbarHostState = snackbarHostState,
+            isLoading = isLoading,
+        )
+        return
     }
 
     // 了スタンプ（案A・ADR0014 §motion 追補）: 本棚がある本を「初めて読了として描く」瞬間に朱印を一度だけ押印するための記録。
@@ -553,11 +597,22 @@ internal fun BookshelfContent(
                             )
                         }
                         // グリッド/リスト切り替え（モック .top の第1アクション）。永続化はルート層の onToggleView に委譲。
-                        IconButton(onClick = onToggleView) {
-                            Icon(
-                                imageVector = if (isGridView) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView,
-                                contentDescription = if (isGridView) "リスト表示" else "グリッド表示",
-                            )
+                        // スキンM の一覧フォールバック中はこのボタンが「星図へ戻る」になる（星図⇄一覧の2態＝
+                        // bookshelf-M.html。M にグリッドは無い＝可読フォールバックは文字目録のみ）。
+                        if (LocalSkin.current == Skin.SEIZU_M) {
+                            IconButton(onClick = onToggleSkyM) {
+                                Icon(
+                                    imageVector = Icons.Filled.AutoAwesome,
+                                    contentDescription = "星図表示に切替",
+                                )
+                            }
+                        } else {
+                            IconButton(onClick = onToggleView) {
+                                Icon(
+                                    imageVector = if (isGridView) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView,
+                                    contentDescription = if (isGridView) "リスト表示" else "グリッド表示",
+                                )
+                            }
                         }
                         // 装いの間（UIスキン選択）への入口。入口は本棚のみ＝意図的設計（ADR 0021 決定7）。
                         IconButton(onClick = onOpenWardrobe) {
@@ -576,6 +631,10 @@ internal fun BookshelfContent(
                                 expanded = showOverflowMenu,
                                 onDismissRequest = { showOverflowMenu = false },
                             ) {
+                                // 1変種スキン（C 夜行・M 星図等）ではテーマ3択が無意味＝節ごと畳む
+                                // （ReadingSettingsSheet の skinHasThemeChoice と同じ機構。これまで本メニューだけ
+                                // 畳み漏れで C でも3択が出ていた＝supportedThemes を単一真実源に是正）。
+                                if (LocalSkinTokens.current.supportedThemes.size > 1) {
                                 Text(
                                     "テーマ",
                                     style = MaterialTheme.typography.labelMedium,
@@ -613,39 +672,12 @@ internal fun BookshelfContent(
                                     )
                                 }
                                 HorizontalDivider()
+                                } // テーマ節ここまで（1変種スキンでは節ごと非表示）
                                 // 新着話通知のオプトイン（UX監査 C3・公理13「沈黙が既定値」＝既定OFF）。
                                 // なぜここか: 本アプリ唯一の常設メニュー面で、専用設定画面を新設せずに済む
                                 // （UX/19: 設定面は増やさない）。トグルの説明文が priming を兼ねるため、
                                 // ON 操作の直後に OS 権限ダイアログを出してよい（無説明の権限要求にならない）。
-                                Text(
-                                    "通知",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(start = Spacing.S16, top = Spacing.S8, bottom = Spacing.S4),
-                                )
-                                val notifContext = LocalContext.current
-                                var newEpisodeNotifEnabled by remember {
-                                    mutableStateOf(NewEpisodeNotificationPreference.isEnabled(notifContext))
-                                }
-                                val newEpisodeNotifPermissionLauncher = rememberLauncherForActivityResult(
-                                    ActivityResultContracts.RequestPermission()
-                                ) { /* 拒否されても Worker は動かす＝バッジ側の提示は生きる（通知だけ出ない） */ }
-                                NewEpisodeNotificationToggle(
-                                    enabled = newEpisodeNotifEnabled,
-                                    onEnabledChange = { enabled ->
-                                        newEpisodeNotifEnabled = enabled
-                                        (notifContext.applicationContext as NovelReaderApplication)
-                                            .setNewEpisodeNotificationEnabled(enabled)
-                                        // API33+ で未付与なら OS 権限ダイアログ（<33 は常に GRANTED＝発火しない）。
-                                        if (enabled && ContextCompat.checkSelfPermission(
-                                                notifContext, Manifest.permission.POST_NOTIFICATIONS
-                                            ) != PackageManager.PERMISSION_GRANTED
-                                        ) {
-                                            newEpisodeNotifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                        }
-                                    },
-                                    modifier = Modifier.padding(horizontal = Spacing.S16),
-                                )
+                                NewEpisodeNotificationMenuSection()
                             }
                         }
                     },
@@ -1197,5 +1229,43 @@ private fun SkeletonLine(
             .height(11.dp)
             .clip(RoundedCornerShape(2.dp))
             .background(color),
+    )
+}
+
+/**
+ * ⋮メニューの「通知」節（見出し＋新着話通知トグル＋権限ダイアログ結線）。
+ * D 構造のトップバーと M 星図（BookshelfSkyM）の両メニューが同一実装を使うために抽出した
+ * （スキン構造分岐＝ADR 0022 §1 で画面が割れても、通知オプトインの挙動は1系統に保つ）。
+ */
+@Composable
+internal fun NewEpisodeNotificationMenuSection() {
+    Text(
+        "通知",
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = Spacing.S16, top = Spacing.S8, bottom = Spacing.S4),
+    )
+    val notifContext = LocalContext.current
+    var newEpisodeNotifEnabled by remember {
+        mutableStateOf(NewEpisodeNotificationPreference.isEnabled(notifContext))
+    }
+    val newEpisodeNotifPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* 拒否されても Worker は動かす＝バッジ側の提示は生きる（通知だけ出ない） */ }
+    NewEpisodeNotificationToggle(
+        enabled = newEpisodeNotifEnabled,
+        onEnabledChange = { enabled ->
+            newEpisodeNotifEnabled = enabled
+            (notifContext.applicationContext as NovelReaderApplication)
+                .setNewEpisodeNotificationEnabled(enabled)
+            // API33+ で未付与なら OS 権限ダイアログ（<33 は常に GRANTED＝発火しない）。
+            if (enabled && ContextCompat.checkSelfPermission(
+                    notifContext, Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                newEpisodeNotifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        },
+        modifier = Modifier.padding(horizontal = Spacing.S16),
     )
 }
