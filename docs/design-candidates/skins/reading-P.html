@@ -105,6 +105,33 @@
     box-shadow:inset 0 0 0 1px rgba(43,54,22,.25)}
   .hud .save .n{font-family:var(--pixel);font-size:11px;font-weight:700;color:var(--lcd-ink);letter-spacing:.03em}
 
+  /* ===== 遊び心（P3 連続プレイの炎）: 連続読書日数のピクセル炎コンボ（HUD 右端＝クローム表示時のみ・テーマ不変）=====
+     遊び心: 【何が】連続読書日数のピクセル炎が灯り、日数ぶん高く育つ。
+             【どの動作で】前回と別の日にも読書を続けた瞬間（連続読書日数が +1 更新）。当日はじめてHUDを開いた一度だけ「＋1」がはぜる。
+             【どう変わる】途切れると1ドットの種火に戻る → 続けるほど炎が育つ。
+     Compose 翻訳の想定: readingStreakDays を DataStore で持ち、当日初回のHUD表示で prevDays<days の時だけ「＋1」バーストを一度再生（他は静かな現在値）。
+                         炎は署名の退色レッド（--red）に閉じ、常設 savebar でなくクローム表示時のHUDにのみ出す（静謐＝本文優先）。 */
+  .streak{flex-shrink:0;position:relative;display:flex;align-items:center;gap:5px;background:var(--plastic-hi);border-radius:5px;
+    padding:4px 8px 4px 6px;box-shadow:inset 0 0 0 1px var(--line)}
+  .flame{display:flex;align-items:flex-end;gap:1.5px;height:16px}
+  .flame i{width:2.5px;background:var(--red);image-rendering:pixelated}
+  .flame i:nth-child(1){height:5px}.flame i:nth-child(2){height:9px}
+  .flame i:nth-child(3){height:16px;background:linear-gradient(var(--red-lo),var(--red))}
+  .flame i:nth-child(4){height:9px}.flame i:nth-child(5){height:5px}
+  .streak .d{font-family:var(--pixel);font-size:11px;font-weight:700;color:var(--red-lo);letter-spacing:.02em}
+  .streak.seed .flame i:nth-child(1),.streak.seed .flame i:nth-child(2),
+  .streak.seed .flame i:nth-child(4),.streak.seed .flame i:nth-child(5){height:3px;opacity:.4}
+  .streak.seed .flame i:nth-child(3){height:7px}
+  .streak.plus .flame i{animation:flameUp .4s ease-out 1 both}
+  @keyframes flameUp{0%{transform:scaleY(.55);opacity:.6}100%{transform:scaleY(1);opacity:1}}
+  .streak .pop{position:absolute;top:-15px;right:2px;font-family:var(--pixel);font-size:10px;font-weight:700;color:var(--red);
+    animation:popUp 1s ease-out 1 both}
+  @keyframes popUp{0%{transform:translateY(6px);opacity:0}25%{opacity:1}100%{transform:translateY(-4px);opacity:0}}
+  @media (prefers-reduced-motion:reduce){
+    .streak.plus .flame i{animation:none}
+    .streak .pop{animation:none;opacity:1;transform:none}
+  }
+
   /* 下段コンソール（クローム表示時＝物理ボタン風の操作列。テーマ不変） */
   .console{position:absolute;left:0;right:0;bottom:0;z-index:6;height:62px;display:flex;align-items:center;
     background:linear-gradient(var(--plastic),var(--plastic-lo));border-top:1px solid var(--line);box-shadow:0 -2px 6px rgba(0,0,0,.12)}
@@ -135,7 +162,9 @@
         <div class="hud">
           <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
           <div class="ct">追放された万能薬師、辺境で…</div>
-          <div class="save"><span class="n">127/340 · 62%</span></div>
+          <div class="save"><span class="n">127/340</span></div>
+          <!-- 遊び心（P3）: 連続読書日数の炎コンボ（6日連続＝炎が育った状態。当日更新時のみ「＋1」がはぜる） -->
+          <div class="streak" role="status" aria-label="連続読書 6日"><span class="flame" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span class="d">6日</span></div>
         </div>
         <div class="reader" style="padding-top:66px">
           <div class="chap-h">

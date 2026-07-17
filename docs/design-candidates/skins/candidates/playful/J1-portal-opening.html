@@ -1,0 +1,173 @@
+<!-- 遊び心: 【何が】その物語のポータル（扉）の大気と象徴文字の"開き具合"が、読んだ深さで変わる。読み進めた作品ほど扉の奥が明るく灯り、
+             象徴文字（薬）が濃く浮かび上がる。読み始めたばかりの扉は薄暗く、まだ半ば閉じている。
+             【どの動作で】その作品を読み進める（読了率＝進捗の増加）。世界の奥へ踏み入るほど扉が開く体験。
+             【どう変わる】0%＝暗く閉じた扉 → 読むほど top の光が強まり glyph が濃くなる → 100%＝扉が全開で世界が満ちる。
+     Compose 翻訳の想定: portal 背景の上部 radial alpha と glyph の alpha を progress(0..1) から線形補間（0.10→0.34 等）。装いは既存の署名色（金/森緑）内で強度だけを動かす。
+                         彩度は増やさず"明るさ/濃さ"のみ可変。prefers-reduced-motion でも結果は静的（開き具合は状態であり常時アニメではない）。 -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n J 遊び心 — 開く扉（読進）</title>
+<style>
+  :root{
+    --page:#0C0E0B; --ink:#F1F4EC; --soft:rgba(233,240,228,.62); --soft2:rgba(233,240,228,.42);
+    --line:rgba(233,240,228,.14); --gold:#E2C878; --green:#9FCFA9; --plum:#B79AD0;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#070806;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:#9DAE97;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:880px}.cap b{color:#E9F0E4}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#8FA089;text-align:center}
+  .phone{width:390px;height:844px;border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column;
+    box-shadow:0 26px 64px rgba(0,0,0,.7);background:var(--page)}
+
+  /* ---- ポータル大気（--open=読んだ深さ 0..1 で上の光と glyph が強まる）---- */
+  .portal{position:absolute;inset:0;z-index:1}
+  /* 扉の奥の光: 上部 radial の強度を --open で駆動。森緑の世界層＋金の光層は署名色のまま、alpha だけ可変 */
+  .amb-yaku{--open:.62;
+    background:
+      radial-gradient(90% 60% at 50% 8%,rgba(214,196,120,calc(.10 + .30*var(--open))),transparent 55%),
+      radial-gradient(120% 80% at 50% 120%,rgba(20,46,30,calc(.55 + .40*var(--open))),transparent 60%),
+      linear-gradient(165deg,#274030,#15241A 55%,#0E1812)}
+  .glyph{position:absolute;top:5%;left:50%;transform:translateX(-50%);font-family:var(--mincho);font-size:300px;line-height:1;
+    color:rgba(233,240,228,calc(.02 + .07*var(--open)));z-index:1;pointer-events:none}
+  .peek{position:absolute;top:0;bottom:0;width:14px;z-index:4}
+  .peek.l{left:0;background:linear-gradient(90deg,rgba(120,86,150,.9),transparent)}
+  .peek.r{right:0;background:linear-gradient(270deg,rgba(159,207,169,.75),transparent)}
+
+  .sb{position:relative;z-index:5;height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:11px;color:var(--soft)}
+  .topbar{position:relative;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:0 18px;gap:6px}
+  .topbar .idx{font-family:var(--mincho);font-size:13px;color:rgba(233,240,228,.85);letter-spacing:.12em;flex:1;text-align:center}
+  .topbar .grp{display:flex;gap:4px}
+  .topbar .ib{width:38px;height:38px;border:1px solid rgba(233,240,228,.2);background:rgba(0,0,0,.22);border-radius:11px;
+    display:grid;place-items:center;color:#E9F0E4;cursor:pointer;backdrop-filter:blur(6px)}
+  .topbar .ib svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7}
+  .topbar .ib.ward{color:var(--gold);border-color:rgba(226,200,120,.4)}
+
+  .chipbar{position:relative;z-index:5;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:12px 22px 4px}
+  .chipbar::-webkit-scrollbar{display:none}
+  .lchip{flex-shrink:0;font-size:11.5px;color:var(--soft);border:1px solid var(--line);border-radius:999px;padding:7px 14px;
+    white-space:nowrap;cursor:pointer;background:rgba(0,0,0,.18);backdrop-filter:blur(6px)}
+  .lchip.on{color:var(--gold);border-color:rgba(226,200,120,.6);font-weight:600}
+
+  .body{position:relative;z-index:5;flex:1;display:flex;flex-direction:column;justify-content:flex-end;padding:0 30px 14px}
+  .body .arc{font-family:var(--gothic);font-size:11px;letter-spacing:.3em;color:var(--gold);margin-bottom:12px}
+  .update{display:inline-flex;align-items:center;gap:7px;font-size:11px;color:var(--gold);margin-bottom:14px;letter-spacing:.04em}
+  .update .udot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+  .body .ttl{font-family:var(--mincho);font-size:37px;line-height:1.28;color:#F1F4EC;font-weight:600;text-shadow:0 2px 24px rgba(0,0,0,.5)}
+  .body .by{font-size:12.5px;color:var(--soft);margin-top:14px;letter-spacing:.06em}
+  .body .incipit{font-family:var(--mincho);font-size:13px;color:rgba(233,240,228,.78);line-height:1.9;margin-top:18px;
+    border-left:2px solid rgba(226,200,120,.6);padding-left:13px}
+  .body .prog{margin-top:22px}
+  .body .prog .pl{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--soft);margin-bottom:7px}
+  .body .prog .pl b{font-family:var(--mincho);color:#F1F4EC;font-size:13px}
+  .body .prog .pb{height:3px;border-radius:2px;background:rgba(255,255,255,.16);overflow:hidden}
+  .body .prog .pb i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--green))}
+  .body .resume{margin-top:22px;width:100%;display:flex;align-items:center;justify-content:center;gap:9px;
+    background:#E9F0E4;color:#15241A;border:none;cursor:pointer;padding:17px;border-radius:16px;font-weight:800;font-size:16px;
+    box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .body .resume svg{width:18px;height:18px;fill:#15241A}
+  .body .resume.ghost{background:transparent;color:#E9F0E4;border:1px solid rgba(233,240,228,.5);box-shadow:none}
+  .body .resume.ghost svg{fill:none;stroke:#E9F0E4;stroke-width:2}
+  /* 開き具合の一言ラベル（1ラベル1言葉。金の署名色） */
+  .openlabel{display:inline-flex;align-items:center;gap:7px;font-size:11px;color:var(--gold);letter-spacing:.1em;margin-bottom:10px}
+  .openlabel .oi{display:flex;gap:2px}
+  .openlabel .oi i{width:3px;height:10px;background:rgba(226,200,120,.3);border-radius:1px}
+  .openlabel .oi i.on{background:var(--gold)}
+
+  .dots{position:relative;z-index:5;display:flex;justify-content:center;align-items:center;gap:8px;padding-bottom:20px}
+  .dots i{width:7px;height:7px;border-radius:50%;background:rgba(233,240,228,.3)}
+  .dots i.on{width:22px;border-radius:4px;background:#E9F0E4}
+  .dots i.disc{width:9px;height:9px;background:transparent;border:1.5px solid var(--gold)}
+  .hint{position:relative;z-index:5;text-align:center;font-size:10px;color:rgba(233,240,228,.5);letter-spacing:.1em;padding-bottom:16px}
+</style>
+</head>
+<body>
+  <p class="cap"><b>J1. 開く扉（読み進めで反応）</b> ／ 各作品のポータルの「開き具合」が読んだ深さで変わる。読み進めた作品ほど扉の奥が明るく灯り象徴文字が濃く浮かぶ。ポータルデッキの全機能（絞り込み・topbar・続きあり印・進捗・続きから）はそのまま。左＝62%まで読み進めて半ば開いた扉（反応途中）／右＝読み始めたばかりの薄暗い扉。</p>
+  <div class="stage">
+
+    <!-- ① 62%まで読み進めた扉（反応途中） -->
+    <div class="wrap"><span class="mode">開き 62% ／ 反応途中</span>
+    <div class="phone" role="img" aria-label="J案 本棚 開く扉 62パーセント">
+      <div class="portal amb-yaku" style="--open:.62"></div><div class="glyph" style="--open:.62">薬</div>
+      <div class="peek l" aria-hidden="true"></div><div class="peek r" aria-hidden="true"></div>
+
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg></button>
+        <span class="idx">1 / 4</span>
+        <div class="grp">
+          <button class="ib" aria-label="見つける"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+          <button class="ib ward" aria-label="装いの間"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="13" rx="2"/><path d="M8 6V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/></svg></button>
+          <button class="ib" aria-label="全体をグリッドで見る"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg></button>
+        </div>
+      </div>
+
+      <div class="chipbar">
+        <span class="lchip on">すべて</span><span class="lchip">異世界</span><span class="lchip">完結済み</span><span class="lchip">あとで読む</span>
+      </div>
+
+      <div class="body">
+        <div class="openlabel"><span class="oi"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span>扉は半ば開いた</div>
+        <div class="arc">辺境編 · 第127話</div>
+        <div class="update"><span class="udot"></span>更新 · 続き 12話</div>
+        <div class="ttl">追放された万能薬師、辺境でスローライフを始める</div>
+        <div class="by">霧島あおい</div>
+        <div class="incipit">辺境の城門に辿り着いたのは、長い雨がようやく上がった頃だった。</div>
+        <div class="prog">
+          <div class="pl"><span>旅の途中</span><span><b>62%</b> · 残り213話</span></div>
+          <div class="pb"><i style="width:62%"></i></div>
+        </div>
+        <button class="resume"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg>続きから読む</button>
+      </div>
+
+      <div class="dots"><i class="on"></i><i></i><i></i><i></i><i class="disc"></i></div>
+      <div class="hint">← スワイプで次の物語へ →</div>
+    </div></div>
+
+    <!-- ② 読み始めたばかりの薄暗い扉 -->
+    <div class="wrap"><span class="mode">開き 8% ／ 読み始め</span>
+    <div class="phone" role="img" aria-label="J案 本棚 開く扉 読み始め">
+      <div class="portal amb-yaku" style="--open:.08"></div><div class="glyph" style="--open:.08">草</div>
+      <div class="peek l" aria-hidden="true"></div><div class="peek r" aria-hidden="true"></div>
+
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg></button>
+        <span class="idx">3 / 4</span>
+        <div class="grp">
+          <button class="ib" aria-label="見つける"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+          <button class="ib ward" aria-label="装いの間"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="13" rx="2"/><path d="M8 6V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/></svg></button>
+          <button class="ib" aria-label="全体をグリッドで見る"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg></button>
+        </div>
+      </div>
+
+      <div class="chipbar">
+        <span class="lchip on">すべて</span><span class="lchip">異世界</span><span class="lchip">完結済み</span><span class="lchip">あとで読む</span>
+      </div>
+
+      <div class="body">
+        <div class="openlabel"><span class="oi"><i class="on"></i><i></i><i></i><i></i><i></i></span>扉はまだ薄暗い</div>
+        <div class="arc">序章 · 第4話</div>
+        <div class="ttl">転生したら最弱スキルだったので、草むしりしていた</div>
+        <div class="by">青葉みのり</div>
+        <div class="incipit">気づけば見知らぬ畑の真ん中に立っていた。手には錆びた鎌が一本。</div>
+        <div class="prog">
+          <div class="pl"><span>旅の入口</span><span><b>8%</b> · 残り84話</span></div>
+          <div class="pb"><i style="width:8%"></i></div>
+        </div>
+        <button class="resume"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg>続きから読む</button>
+      </div>
+
+      <div class="dots"><i></i><i></i><i class="on"></i><i></i><i class="disc"></i></div>
+      <div class="hint">← スワイプで次の物語へ →</div>
+    </div></div>
+
+  </div>
+</body>
+</html>

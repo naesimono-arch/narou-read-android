@@ -94,6 +94,27 @@
   .immersive .topbar,.immersive .bottombar{display:none}
   .hint{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:6;font-family:var(--gothic);
     font-size:11px;color:var(--soft);letter-spacing:.08em;opacity:.85}
+
+  /* ===== 遊び心（J2 次の扉が呼ぶ）: 章末まで読み切ると右端に「次の章の扉」の敷居の光が滲み出て次章を静かに誘う =====
+     遊び心: 【何が】章の本文を最後まで読み切ると、右端に次章の扉の敷居の光が立ち上がり次章を誘う。
+             【どの動作で】章末までスクロールした瞬間（読み終わり＝この扉をくぐり終えた合図）。
+             【どう変わる】読書中＝右端は暗いまま → 章末到達で右端に森緑の一条＋金の芯が灯り「次の章へ」が浮かぶ。
+     Compose 翻訳の想定: reader の canScrollForward==false（末尾到達）で右端 EdgeGlow の alpha を 0→1(250ms)・離れたら 150ms で戻す。署名は金(構造=敷居の芯)と森緑(世界=滲み)の2系統のみ・テーマトークン(--accent/--rule)追従。 */
+  .nextdoor{position:absolute;top:0;bottom:0;right:0;width:64px;z-index:6;pointer-events:none;opacity:0;transition:opacity .25s ease}
+  .nextdoor.show{opacity:1}
+  .nextdoor .edge{position:absolute;top:0;bottom:0;right:0;width:100%;
+    background:linear-gradient(270deg,rgba(159,207,169,.5),rgba(159,207,169,.12) 45%,transparent);
+    animation:breathe 2.6s ease-in-out infinite}
+  .nextdoor .spine{position:absolute;top:14%;bottom:14%;right:6px;width:2px;border-radius:2px;
+    background:linear-gradient(var(--accent),rgba(159,207,169,.4));box-shadow:0 0 10px 1px rgba(226,200,120,.5)}
+  .nextdoor .call{position:absolute;top:50%;right:12px;transform:translateY(-50%);writing-mode:vertical-rl;
+    font-family:var(--gothic);font-size:11px;letter-spacing:.28em;color:var(--accent);text-shadow:0 1px 8px rgba(0,0,0,.6)}
+  @keyframes breathe{0%,100%{opacity:.55}50%{opacity:1}}
+  /* 章末＝この扉をくぐり終えた印 */
+  .chapend{position:relative;z-index:1;text-align:center;margin-top:34px;padding-top:8px}
+  .chapend .mark{font-family:var(--gothic);font-size:10.5px;letter-spacing:.34em;color:var(--soft)}
+  .chapend .sill2{width:96px;height:2px;margin:14px auto 0;background:linear-gradient(90deg,transparent,var(--rule),transparent);opacity:.7}
+  @media (prefers-reduced-motion:reduce){ .nextdoor .edge{animation:none;opacity:.8} }
 </style>
 </head>
 <body>
@@ -118,6 +139,8 @@
         <div class="blank"></div><hr><div class="blank"></div>
         <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
       </div>
+      <!-- 遊び心（J2）: 次の扉の敷居（章途中＝非表示。章末までスクロールで .show が付き灯る） -->
+      <div class="nextdoor" aria-hidden="true"><span class="edge"></span><span class="spine"></span><span class="call">次の章へ</span></div>
       <div class="bottombar">
         <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
         <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
@@ -143,6 +166,8 @@
         <div class="blank"></div><hr><div class="blank"></div>
         <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
       </div>
+      <!-- 遊び心（J2）: 次の扉の敷居（章途中＝非表示。章末までスクロールで .show が付き灯る） -->
+      <div class="nextdoor" aria-hidden="true"><span class="edge"></span><span class="spine"></span><span class="call">次の章へ</span></div>
       <div class="bottombar">
         <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
         <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
@@ -167,7 +192,11 @@
         <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
         <div class="blank"></div><hr><div class="blank"></div>
         <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- 遊び心（J2）: 章末＝この扉をくぐり終えた印。ここまで読み切ると右端の次の扉が灯る -->
+        <div class="chapend"><div class="mark">— 第百二十七話 了 —</div><div class="sill2"></div></div>
       </div>
+      <!-- 遊び心（J2）: 章末に到達したので次の章の扉の敷居が灯る（.show）。章途中では非表示 -->
+      <div class="nextdoor show" aria-hidden="true"><span class="edge"></span><span class="spine"></span><span class="call">次の章へ</span></div>
       <div class="hint">画面をタップでメニュー</div>
     </div></div>
 

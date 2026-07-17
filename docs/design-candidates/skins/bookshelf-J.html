@@ -35,12 +35,29 @@
 
   /* ---- ポータル大気（各扉ごと）---- */
   .portal{position:absolute;inset:0;z-index:1}
-  .amb-yaku{background:radial-gradient(90% 60% at 50% 8%,rgba(214,196,120,.30),transparent 55%),
-    radial-gradient(120% 80% at 50% 120%,rgba(20,46,30,.9),transparent 60%),linear-gradient(165deg,#274030,#15241A 55%,#0E1812)}
+  /* ===== 遊び心（J3 時を映す扉）: ポータルの大気の“地”を時刻で移ろわせる（金/森緑の2系統のまま温度と明るさだけ可変・新色相なし）=====
+     遊び心: 【何が】扉の大気が時刻で移ろう＝朝は澄んだ緑金／夕は暖かな琥珀／夜は深く沈む。
+             【どの動作で】現実の時刻（開いた時間帯・時間の経過）。扉の奥の世界にも空があり外の時と呼応する。
+             【どう変わる】朝＝明るく澄む → 夕＝金が濃く暖まる → 夜＝光が引き深い森へ沈む（時間帯をまたぐと大気が緩やかに溶け替わる）。
+     Compose 翻訳の想定: 時刻(0..24)を朝/夕/夜のキーへマップし portal 背景を animateColor で時間帯遷移のみ緩やかに補間。既定は夕（従来の正本の見えと一致）。 */
+  .amb-morning{--warm:.16; --cool:.16; --floor:rgba(30,58,40,.72); --base:linear-gradient(165deg,#2C4739,#1A2E22 55%,#12201A)}
+  .amb-night  {--warm:.06; --cool:0;   --floor:rgba(12,26,18,.92); --base:linear-gradient(165deg,#16241E,#0C1611 55%,#080E0A)}
+  /* ===== 遊び心（J1 開く扉）: 読んだ深さ --open(0..1) ぶんの“扉の開き”の光を、時刻の地に上乗せ（互いに非干渉＝地=時刻／上乗せ=読進の直交2軸）=====
+     遊び心: 【何が】扉の奥の光と象徴文字の濃さが、その作品を読み進めるほど強まる（＝世界の奥へ踏み入るほど扉が開く）。
+             【どの動作で】その作品を読み進める（読了率＝進捗）。
+             【どう変わる】0%＝薄暗く半ば閉じた扉 → 読むほど top の光が強まり glyph が濃くなる → 100%＝扉が全開。
+     Compose 翻訳の想定: portal 上部 radial alpha と glyph alpha を progress(0..1) から線形補間。彩度は増やさず明るさ/濃さのみ可変。既定値(--warm:.18/open:.62)で従来の正本の見えに一致。
+     ※ --warm/--cool/--floor/--base の既定＝夕。時刻クラス(amb-morning/amb-night)で地だけ差し替わり、--open は独立に効く（干渉しない）。 */
+  .amb-yaku{--open:.62; --warm:.18; --cool:0; --floor:rgba(20,46,30,.9); --base:linear-gradient(165deg,#274030,#15241A 55%,#0E1812);
+    background:
+      radial-gradient(90% 60% at 50% 8%, rgba(214,196,120, calc(var(--warm) + .20*var(--open))), transparent 55%),
+      radial-gradient(90% 56% at 50% 2%, rgba(159,207,169, var(--cool)), transparent 60%),
+      radial-gradient(120% 80% at 50% 120%, var(--floor), transparent 60%),
+      var(--base)}
   .amb-find{background:radial-gradient(100% 66% at 50% 6%,rgba(214,196,120,.34),transparent 58%),
     radial-gradient(120% 80% at 50% 122%,rgba(40,40,20,.85),transparent 60%),linear-gradient(165deg,#2A2A18,#181710 55%,#0F0E09)}
   .glyph{position:absolute;top:5%;left:50%;transform:translateX(-50%);font-family:var(--mincho);font-size:300px;line-height:1;
-    color:rgba(233,240,228,.05);z-index:1;pointer-events:none}
+    color:rgba(233,240,228,calc(.02 + .05*var(--open,.62)));z-index:1;pointer-events:none}
   .peek{position:absolute;top:0;bottom:0;width:14px;z-index:4}
   .peek.l{left:0;background:linear-gradient(90deg,rgba(120,86,150,.9),transparent)}
   .peek.r{right:0;background:linear-gradient(270deg,rgba(159,207,169,.75),transparent)}
@@ -145,7 +162,8 @@
 
     <!-- ① ポータル・デッキ（既定・作品1）-->
     <div class="wrap"><span class="mode">ポータル・デッキ（既定）</span>
-    <div class="phone" role="img" aria-label="J案 本棚 ポータルデッキ 万能薬師">
+    <!-- 遊び心（J1 開く扉＋J3 時を映す扉）: --open=読んだ深さ(62%→扉が半ば開く)。地の時刻は既定=夕（amb-morning/amb-night で切替可）。両者は独立軸で干渉しない -->
+    <div class="phone" role="img" aria-label="J案 本棚 ポータルデッキ 万能薬師" style="--open:.62">
       <div class="portal amb-yaku"></div><div class="glyph">薬</div>
       <div class="peek l" aria-hidden="true"></div><div class="peek r" aria-hidden="true"></div>
 
