@@ -69,6 +69,7 @@ import com.novelreader.narou.model.NarouNovel
 import com.novelreader.ui.theme.FontButtonLabel
 import com.novelreader.ui.theme.FontHomeTitle
 import com.novelreader.ui.theme.FontSubTitle
+import com.novelreader.ui.skins.j.BookshelfPortalJ
 import com.novelreader.ui.skins.m.BookshelfSkyM
 import com.novelreader.ui.skins.p.BookshelfCartridgeP
 import com.novelreader.ui.theme.Insets
@@ -175,6 +176,10 @@ fun BookshelfScreen(
     // P 以外では分岐条件（LocalSkin==CARTRIDGE_P）が成立せず眠ったまま（M の mSkyView と同型）。
     var pRackView by remember { mutableStateOf(prefs.getBoolean("p_rack_view", true)) }
 
+    // スキンJ（ポータル）の デッキ⇄一覧 モード（ADR 0022 §1・永続化）。既定 true＝J 装着時はポータルデッキで開く。
+    // J 以外では分岐条件（LocalSkin==PORTAL_J）が成立せず眠ったまま（M/P のトグルと同型）。
+    var jDeckView by remember { mutableStateOf(prefs.getBoolean("j_deck_view", true)) }
+
     // 通知権限 priming（notify Minor 2026-07-12）: システム権限ダイアログの前に理由説明を挟むためのフラグ。
     // 一度提示したら以後は出さない（notif_priming_shown で永続化）＝毎回のFABタップで問い直さない。
     var notifPrimingShown by remember { mutableStateOf(prefs.getBoolean("notif_priming_shown", false)) }
@@ -249,6 +254,11 @@ fun BookshelfScreen(
         onToggleRackP = {
             pRackView = !pRackView
             prefs.edit().putBoolean("p_rack_view", pRackView).apply()
+        },
+        deckViewJ = jDeckView,
+        onToggleDeckJ = {
+            jDeckView = !jDeckView
+            prefs.edit().putBoolean("j_deck_view", jDeckView).apply()
         },
         onFabClick = onFabClick,
         // 開く際の再開ファイル解決（suspend の DB 参照）はルート層の責務。描画層は BookEntity を渡すだけ。
@@ -459,6 +469,10 @@ internal fun BookshelfContent(
     // 既定 true＝P 装着時はラックが既定（永続はルート層の onToggleRackP に委譲）。
     rackViewP: Boolean = true,
     onToggleRackP: () -> Unit = {},
+    // スキンJ（ポータル）の表示モード（デッキ⇄一覧・ADR 0022 §1）。J 以外のスキンでは無視される。
+    // 既定 true＝J 装着時はポータルデッキが既定（永続はルート層の onToggleDeckJ に委譲）。
+    deckViewJ: Boolean = true,
+    onToggleDeckJ: () -> Unit = {},
 ) {
     val isLoading = uiState is BookshelfUiState.Loading
     val books = (uiState as? BookshelfUiState.Content)?.books ?: emptyList()
@@ -549,6 +563,33 @@ internal fun BookshelfContent(
             onOpenWardrobe = onOpenWardrobe,
             onFabClick = onFabClick,
             onToggleList = onToggleRackP,
+            onCancelProcessing = onCancelProcessing,
+            snackbarHostState = snackbarHostState,
+            isLoading = isLoading,
+        )
+        return
+    }
+
+    // スキンJ「ポータル」: デッキビュー時は画面丸ごと J 構造へ委譲する（ADR 0022 §1 の薄いルーター・M/P と同型）。
+    // 一覧トグル時はこの下の共有描画（D 構造へトークン写像）へ落ちる＝選択削除・グリッド・Web カード操作は
+    // 一覧側が全数担う（デッキは横スワイプ閲覧/続きから/絞り込み/取込中/見つける/装い/メニューに徹する）。
+    if (LocalSkin.current == Skin.PORTAL_J && deckViewJ) {
+        BookshelfPortalJ(
+            books = visibleBooks,
+            progressMap = progressMap,
+            chapterCountMap = chapterCountMap,
+            newEpisodeNovelMap = newEpisodeNovelMap,
+            processingState = processingState,
+            selectedStatus = selectedStatus,
+            statusCounts = statusCounts,
+            appTheme = appTheme,
+            onThemeChange = onThemeChange,
+            onSelectStatus = { selectedStatusName = it?.name },
+            onOpenBook = onOpenBook,
+            onOpenDiscovery = onOpenDiscovery,
+            onOpenWardrobe = onOpenWardrobe,
+            onFabClick = onFabClick,
+            onToggleList = onToggleDeckJ,
             onCancelProcessing = onCancelProcessing,
             snackbarHostState = snackbarHostState,
             isLoading = isLoading,
@@ -654,6 +695,15 @@ internal fun BookshelfContent(
                                 Icon(
                                     imageVector = Icons.Filled.GridView,
                                     contentDescription = "ラック表示に切替",
+                                )
+                            }
+                        } else if (LocalSkin.current == Skin.PORTAL_J) {
+                            // J の一覧フォールバック中はこのボタンが「デッキ表示に戻る」になる（デッキ⇄一覧の2態＝
+                            // bookshelf-J.html。J のグリッド面＝一覧へ降格の概念で、その可読フォールバックが D 構造）。
+                            IconButton(onClick = onToggleDeckJ) {
+                                Icon(
+                                    imageVector = Icons.Filled.GridView,
+                                    contentDescription = "デッキ表示に切替",
                                 )
                             }
                         } else {
