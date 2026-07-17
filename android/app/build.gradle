@@ -11,6 +11,26 @@ plugins {
     id 'io.github.takahirom.roborazzi'
 }
 
+// benchmark variant の assets へ載せる実PDF（追跡済み・約8.5MB の N6169DZ.pdf）の中間出力先。
+// layout.buildDirectory 経由なので canonical ビルドの ext4 退避 buildDir にも追従する（composeCompilerReports と同流儀）。
+def benchmarkPdfAssetsDir = layout.buildDirectory.dir('generated/benchmarkPdfAssets')
+
+// 大PDF取込ベンチ用に、追跡済みの実PDF 1本(N6169DZ.pdf)だけを benchmark の assets 中間ディレクトリへコピーする。
+// なぜ assets 同梱方式か（push 方式が Android 11+ で不成立）: Android 11+ は /sdcard/Android/data への adb push が
+// 不可・/data/local/tmp は SELinux で app 側から読めない＝「実PDF をアプリに読ませる」取込ベンチが push では成立しない。
+// benchmark variant 限定なので出荷 APK（debug/release）は不変。sample_pdfs を丸ごと srcDir にせず N6169DZ.pdf 1本だけを
+// copy し、他 PDF が APK に混入しないようにする（サイズ・攻撃面の抑制）。
+// destinationDir は中間ディレクトリのルート・子 spec の into('sample_pdfs') で asset エントリを
+// sample_pdfs/N6169DZ.pdf にする（ImportBenchReceiver の open パスと一致）。ルートを出力にするのは、
+// この TaskProvider を下の sourceSets.benchmark.assets.srcDir へそのまま渡すため（出力＝srcDir の根を一致させる）。
+def copyBenchmarkPdfAsset = tasks.register('copyBenchmarkPdfAsset', Copy) {
+    // rootProject.projectDir = android/（settings.gradle の位置）。sample_pdfs はリポジトリ直下＝android/../sample_pdfs。
+    from(rootProject.file('../sample_pdfs/N6169DZ.pdf')) {
+        into 'sample_pdfs'
+    }
+    into benchmarkPdfAssetsDir
+}
+
 android {
     namespace 'com.novelreader'
     compileSdk 34
@@ -86,6 +106,13 @@ android {
         // Room の schemaLocation 出力（git 管理済み JSON）を androidTest から MigrationTestHelper で
         // 読めるようにする。過去版スキーマを assets として同梱しないと migration テストが書けない。
         androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
+        // 大PDF取込ベンチ（PdfImportBenchmark）が assets から実PDF を読むための追加 srcDir。
+        // benchmark variant にのみ適用＝debug/release の出荷 APK には一切載らない。
+        // TaskProvider をそのまま渡す＝srcDir の実体（Copy の出力）に暗黙のタスク依存が付き、
+        // merge だけでなく lint 系など「この assets を読む全タスク」へ Gradle が依存を自動配線する
+        // （dir だけ渡して merge に手動 dependsOn する方式は lintVitalAnalyzeBenchmark 等の
+        //  implicit_dependency 検証エラーになることを実測＝手動配線の網羅は原理的に漏れる）。
+        benchmark.assets.srcDir(copyBenchmarkPdfAsset)
     }
     packagingOptions {
         resources {
@@ -106,6 +133,12 @@ dependencies {
     // （CompilationMode.DEFAULT）が走れない。1.4.1 は SDK>=31 を上限なしで V015_S 扱い（bytecode 検分済み）
     // かつ minCompileSdk=34 なので compileSdk 34 制約と整合。実利用でも初回起動のプロファイル注入が直る。
     implementation 'androidx.profileinstaller:profileinstaller:1.4.1'
+    // Perfetto トレース区間（androidx.tracing.trace）。取込パイプラインのフェーズを Macrobenchmark の
+    // TraceSectionMetric で計測するために使う（挿入は Sections ラッパー経由＝JVM 単体テストは no-op で巻き込まない）。
+    // なぜ 1.2.0: compileSdk 34 と整合する安定版（1.3+ は compileSdk 35 前提を避ける＝lifecycle/compose を 34 世代に
+    // 固定しているのと同じ制約系）。挿入コード自体は main（全 variant）に入るが android.os.Trace 可用性判定で
+    // 実機のみ発行され、出荷挙動は不変（トレース捕捉が無ければネイティブ側で軽い no-op）。
+    implementation 'androidx.tracing:tracing-ktx:1.2.0'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
     // U1 新着話チェックの定期実行（24h 周期・ネットワーク制約）。2.9.1 は compileSdk 34 で解決できる安定版
     // （2.10+ は compileSdk 35 前提のため避ける＝lifecycle 2.6.2 固定と同じ制約系）。

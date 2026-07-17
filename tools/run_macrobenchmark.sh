@@ -22,11 +22,13 @@
 #   tools/run_macrobenchmark.sh --scenario shelf-scroll --assert                 # スクロール予算 assert を有効化して計測
 #   tools/run_macrobenchmark.sh --scenario shelf-scroll --assert --budget-p50 1  # スクロール予算を絞って FAIL 経路を実証
 #   tools/run_macrobenchmark.sh --scenario chapter-flip  # 長時間の章送り jank（frame timing）を計測
+#   tools/run_macrobenchmark.sh --scenario pdf-import    # 大PDF取込のフェーズ別時間（TraceSectionMetric）を計測
 #
 # シナリオ:
 #   --scenario startup       起動計測（既定）。予算 assert は --assert ＋ --budget-median / --budget-max。
 #   --scenario shelf-scroll  本棚スクロール jank 計測（BookshelfScrollBenchmark）。予算 assert は --assert ＋ --budget-p50 / --budget-p90 / --budget-p99。
 #   --scenario chapter-flip  章送り jank 計測（ChapterFlipBenchmark）。予算未較正のため計測のみ（--assert / 全予算オプションは exit 2）。
+#   --scenario pdf-import    大PDF取込計測（PdfImportBenchmark・N6169DZ 8.5MB を assets 同梱）。予算未較正のため計測のみ（同上 exit 2）。
 #
 # 注意:
 #   コールド起動5反復は除細動込みで約13分（knowledge 実測）。タイムアウトは余裕を持たせてある。
@@ -45,6 +47,7 @@ TEST_RUNNER="androidx.test.runner.AndroidJUnitRunner"
 STARTUP_CLASS="com.novelreader.macrobenchmark.StartupBenchmark"
 SHELF_SCROLL_CLASS="com.novelreader.macrobenchmark.BookshelfScrollBenchmark"
 CHAPTER_FLIP_CLASS="com.novelreader.macrobenchmark.ChapterFlipBenchmark"
+PDF_IMPORT_CLASS="com.novelreader.macrobenchmark.PdfImportBenchmark"
 TEST_CLASS="$STARTUP_CLASS"
 
 APP_APK="$REPO_ROOT/android/app/build/outputs/apk/benchmark/app-benchmark.apk"
@@ -63,7 +66,7 @@ HEARTBEAT_SEC=15          # 進行表示の周期
 DO_ASSERT=0
 DO_INSTALL=0
 SERIAL=""
-SCENARIO="startup"  # startup（既定・従来挙動）| shelf-scroll | chapter-flip
+SCENARIO="startup"  # startup（既定・従来挙動）| shelf-scroll | chapter-flip | pdf-import
 BUDGET_MEDIAN=""   # startup 専用。空なら透過しない＝StartupBudget 側の既定定数が使われる
 BUDGET_MAX=""      # 同上（--assert と併用前提。単独指定は assert 無効なら無視される）
 BUDGET_P50=""      # shelf-scroll 専用。空なら透過しない＝ScrollBudget 側の既定定数が使われる
@@ -121,8 +124,23 @@ case "$SCENARIO" in
       echo "予算オプション（--budget-*）は --scenario chapter-flip では未対応（予算未較正のため計測専用）。" >&2
       exit 2
     fi ;;
+  pdf-import)
+    TEST_CLASS="$PDF_IMPORT_CLASS"
+    # 1回の取込が分オーダー×3反復＝既定30分では不足しうるため、この scenario だけ上限を60分へ広げる
+    # （ベンチ側は反復ごとに完了待ち最大10分の内部タイムアウトを持つ＝無限待ちにはならない）。
+    TIMEOUT_SEC=3600
+    # 予算が未較正＝assert 手段を持たない。chapter-flip と同じ方針で黙殺せずエラー終了する。
+    if [ "$DO_ASSERT" -eq 1 ]; then
+      echo "--assert は --scenario pdf-import では未対応（予算未較正のため計測専用）。" >&2
+      exit 2
+    fi
+    if [ -n "$BUDGET_MEDIAN" ] || [ -n "$BUDGET_MAX" ] || \
+       [ -n "$BUDGET_P50" ] || [ -n "$BUDGET_P90" ] || [ -n "$BUDGET_P99" ]; then
+      echo "予算オプション（--budget-*）は --scenario pdf-import では未対応（予算未較正のため計測専用）。" >&2
+      exit 2
+    fi ;;
   *)
-    echo "不明な --scenario: '$SCENARIO'（startup | shelf-scroll | chapter-flip）" >&2
+    echo "不明な --scenario: '$SCENARIO'（startup | shelf-scroll | chapter-flip | pdf-import）" >&2
     exit 2 ;;
 esac
 
@@ -323,6 +341,15 @@ for b in data.get("benchmarks", []):
         if s is not None:
             parts = " ".join(f"{p}={s.get(p)}" for p in ("P50", "P90", "P95", "P99") if p in s)
             print(f"    {key}: {parts} (ms)")
+    # 上の既知キー以外（TraceSectionMetric の "Import#…"/"Extract#…" 等）は名前を決め打ちできない
+    # ため、残る統計オブジェクトを汎用表示する（median/min/max）。scenario 追加のたびに表示部を
+    # 改修しなくて済むようにするフォールバック。
+    known = {"timeToInitialDisplayMs", "frameDurationCpuMs", "frameOverrunMs"}
+    for grp in ("metrics", "sampledMetrics"):
+        for key, v in (b.get(grp) or {}).items():
+            if key in known or not isinstance(v, dict):
+                continue
+            print(f"    {key}: median={v.get('median')} min={v.get('minimum')} max={v.get('maximum')} (ms)")
 PY
   fi
 else

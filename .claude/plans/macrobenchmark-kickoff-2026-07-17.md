@@ -60,7 +60,21 @@
   - 所見: P95 まで deadline 前完了＝100冊スクロールは健康。1反復≒60s・2テストで計12分前後。
 - **予算候補（未採用・assert 追加時に判断）**: frameDurationCpuMs で **P50 ≤ 15ms・P90 ≤ 20ms・P99 ≤ 30ms**（両モード共通。実測×1.4〜1.8 の余裕＝起動予算と同じ流儀。frameOverrunMs は表示リフレッシュ依存が強く予算軸にしない）。
 
-## 残フェーズ（優先順）
+## ③長時間章送り jank（2026-07-17 実装済み・実機実走は未）
 
-- **③長時間章送り jank**: NativeReadingScreen のスワイプ章送りを uiautomator で連続駆動・漸進劣化を P90/P99 で観測（シード本＝実HTML章が要る→②のシーダーを拡張）
-- **④大PDF取込**: `TraceSectionMetric`（抽出パイプラインに trace 区間追加）＋大PDF アセットの置き場設計（git に大物を入れない）
+- **シーダー拡張（LibrarySeedReceiver）**: extra `chapterCount`（既定0＝従来挙動不変）。1以上で最新1冊（`bench_seed_{count-1}`＝addedAt 最大）を固定題「**章送り計測の書**」にし、`filesDir/novels/<id>/` へ実HTML（`chap_1..N.html`＝`<h1>第N章</h1>`＋`div.content`・`index.html`＝`ul.index-list li a` 全章列挙）を決定論生成で毎回上書き。**progress を chap_1.html 先頭へ強制リセット**（`insertIfAbsent`＋`updatePosition` の2手＝2回目以降も必ず戻る）。`clear` は novels ディレクトリ再帰削除＋progress 行削除も同梱。
+- **設計根拠（調査で確定した事実）**: 読書画面の章順は listFiles でなく **index.html の目次リンク順が正本**（`ChapterHtmlParser.parseToc`）／progress 行が無いと `startFile="index.html"`＝目次着地で章送り不能／スワイプ確定は水平96dp 超 or 700dp/s（touch slop 未満はタップ＝没入クロームのトグルに化ける）。
+- **ベンチ＝`ChapterFlipBenchmark.flipChapters`**: FrameTimingMetric・iterations 5・COLD 自前。setup 毎反復＝シード（progress リセット目的）→前面ガード→`By.text("章送り計測の書")` タップ→`第1章` 着地検証。measure＝左スワイプ×30（各回 `swipe(LEFT, 0.8f)`・最大高 scrollable 取り直し・次章タイトル `第{n}章` の出現を5s 待ち＝空振り即 fail）。予算 assert は初回実測後に較正（②と同じ流儀）。
+- **スクリプト**: `--scenario chapter-flip` 新設（予算未較正のため `--assert`/`--budget-*` は exit 2）。
+
+## ④大PDF取込 TraceSectionMetric（2026-07-17 実装済み・実機実走は未）
+
+- **アセット**: push 方式は Android 11+ で不成立（/sdcard/Android/data へ adb push 不可・/data/local/tmp は SELinux で app 読取不可）→ **git 追跡済み `sample_pdfs/N6169DZ.pdf`（8.5MB・長編951章）を benchmark variant の assets に同梱**（`copyBenchmarkPdfAsset` Copy タスク→ TaskProvider を `sourceSets.benchmark.assets.srcDir` へ直接渡し全消費タスクへ依存自動配線。dir＋merge への手動 dependsOn は lint 系の implicit_dependency 検証エラーになることを実測）。出荷 APK 不変。
+- **trace 区間**: `androidx.tracing:tracing-ktx:1.2.0` 新規導入。挿入は自前ラッパー `trace/Sections.kt` 経由＝クラスロード時に `android.os.Trace` 可用性を1回判定し **JVM 単体テストでは完全素通し**（ゴールデン回帰508件を巻き込まない。実測で緑確認）。⚠ ktx の `trace{}` は block が crossinline のため委譲不可（コンパイルエラー実測）→ `Trace.beginSection/endSection` 直呼び＋try/finally。区間＝`Import#copyToTemp/sha256/extract/insertDb`＋`Extract#meta/engine/splitChapters/exportHtml`（insertDb は suspend 再ディスパッチでスライス分裂しうる＝値は要実測評価）。
+- **発火＝本番経路**: `ImportBenchReceiver`（src/benchmark 限定）`mode=start`＝assets→cacheDir コピー→`PdfProcessingService` ACTION_START（`data=file://`・StrictMode VmPolicy LAX は bench プロセス限定の割り切り）／`mode=clear`＝books/progress/pending_jobs 全削除＋novels/ 再帰削除（SHA重複遮断・べき等ガードを外し反復可能に）。
+- **ベンチ＝`PdfImportBenchmark.importLargePdf`**: TraceSectionMetric×4・iterations 3・FrameTimingMetric なし（取込中 UI 静止＝frame 0件死の回避）。setup＝force-stop→clear（resultCode=0 検証）→前面起動。measure＝start broadcast（前面＝生存・非凍結へ配達）→本棚に「シャングリラ・フロンティア」（golden JSON 正本タイトルの先頭句・〜の U+301C/FF5E 取り違え回避で textContains）出現を最大10分待ち。
+- **スクリプト**: `--scenario pdf-import` 新設（TIMEOUT 60分へ拡大・`--assert`/`--budget-*` は exit 2）。結果表示 python に未知メトリクス汎用フォールバック（`Import#…` 等を median/min/max 表示）を追加。
+
+## 残（実機実走待ち）
+
+- ③ `--scenario chapter-flip`・④ `--scenario pdf-import` の実機初回計測（`--install` で APK 更新から）→ 実測分布を見て予算較正・assert 追加（②と同じ2段階）。

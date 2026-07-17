@@ -25,6 +25,7 @@ import com.novelreader.pdf.EncryptedPdfError
 import com.novelreader.pdf.InsufficientStorageError
 import com.novelreader.pdf.PdfBookExtractor
 import com.novelreader.pdf.PdfProgress
+import com.novelreader.trace.Sections
 import com.novelreader.repository.BookRepository.AddBookResult
 // 栞の個体差抽選（純ロジック・Compose 非依存）。ShioriCover.kt（Compose 依存）は import しない
 // ＝先端総数/レンジの正本は ShioriGenerator.kt 側にあり、repository はそこだけを参照する。
@@ -193,8 +194,12 @@ class DefaultBookRepository(
             try {
                 val inputStream = context.contentResolver.openInputStream(pdfUri)
                     ?: throw IOException("PDFファイルを開けません（URI権限が失われた可能性があります）")
-                inputStream.use { input ->
-                    tempFile.outputStream().use { output -> input.copyTo(output) }
+                // trace 区間（計測のためだけの挿入・ロジック不変）: 取込元 PDF を cache へコピーする I/O。
+                // 同一コルーチン内の同期 I/O で begin/end は同一スレッドに閉じる（TraceSectionMetric が拾える）。
+                Sections.trace("Import#copyToTemp") {
+                    inputStream.use { input ->
+                        tempFile.outputStream().use { output -> input.copyTo(output) }
+                    }
                 }
 
                 // ①' 内容ハッシュによる変換前遮断（F-G 恒久策）: 取込元 PDF バイト列の SHA-256 を計算し、
@@ -204,7 +209,8 @@ class DefaultBookRepository(
                 // ハッシュはコピー済み temp を1回読み直して計算する。なぜ DigestInputStream でコピーに
                 // 相乗りする単一パスにしないか: ハッシュ計算を純関数 sha256Hex に閉じてテスト可能にする方を
                 // 優先したため。cacheDir 上の temp を数十MB 読み直す実コストは変換の分オーダーに対し無視できる。
-                val contentSha256 = tempFile.inputStream().use { sha256Hex(it) }
+                // trace 区間: 取込前遮断用の SHA-256（temp を 8KiB ストリーミングで単一走査）。同期・同一スレッド。
+                val contentSha256 = Sections.trace("Import#sha256") { tempFile.inputStream().use { sha256Hex(it) } }
                 val existingByHash = findExistingBookByHash(contentSha256)
                 if (existingByHash != null) {
                     // outputDir はまだ mkdirs していないので掃除不要。変換の成否が確定した（＝重複）ので
@@ -239,9 +245,14 @@ class DefaultBookRepository(
                 // 割り込める（handover A① の NonCancellable 制約を緩和）。processPages 自体はコルーチン非依存の
                 // 純ロジックに保つため、既に全層へ通っている進捗コールバックへ相乗りしてキャンセルを確認する。
                 val meta = try {
-                    extractBook(tempFile, bookId, outputDir) { step, stepLocalPercent, phase, title ->
-                        extractionScope.ensureActive()
-                        onProgress(step, stepLocalPercent, phase, title)
+                    // trace 区間: 抽出本体（PdfBookExtractor.process＝取込の支配的コスト）。extractBook は非 suspend で
+                    // 同期実行され、進捗コールバックも非 suspend のため begin/end は同一スレッドに閉じる。
+                    // 内部の Extract#* 区間はこの Import#extract の子スライスとして入れ子になる。
+                    Sections.trace("Import#extract") {
+                        extractBook(tempFile, bookId, outputDir) { step, stepLocalPercent, phase, title ->
+                            extractionScope.ensureActive()
+                            onProgress(step, stepLocalPercent, phase, title)
+                        }
                     }
                 } catch (e: Throwable) {
                     // 抽出が中断/失敗したら書きかけの出力ディレクトリを消す（本棚に出ない孤立 HTML を残さない）。
@@ -283,7 +294,12 @@ class DefaultBookRepository(
                         // 発生源は真の乱数 Random.Default。総数/レンジの正本は ShioriGenerator（Compose 非依存）側。
                         val shiori = drawPersistedShiori(Random.Default)
                         val b = BookEntity(bookId, meta.title, outputDir.absolutePath, meta.author, addedAt = System.currentTimeMillis(), contentSha256 = contentSha256, ncode = ncode?.value, shioriTipIndex = shiori.tipIndex, shioriLenFrac = shiori.lenFrac)
-                        bookDao.insertBook(b)
+                        // trace 区間: DB 登録（books への1行 insert）。
+                        // ⚠ 計測上の注意（区間名一致とは別問題）: insertBook は suspend で Room が自前 executor へ
+                        // 再ディスパッチするため、begin と end が別スレッドになり得る（=スライスが分裂しうる）。
+                        // 本番挙動・原子性は不変（begin/end は atrace マーカーのみ）だが、TraceSectionMetric での
+                        // Import#insertDb の値は extract 系ほど信頼できない場合がある（実測で確認する）。
+                        Sections.trace("Import#insertDb") { bookDao.insertBook(b) }
                         // 変換が確定したので永続キュー（pending_jobs）の記帳を落とす。insertBook と同じ
                         // NonCancellable 内で連続実行し、「本は登録されたのに pending が残る」→ 次回起動の
                         // リカバリが同じ本を再変換して重複登録する窓を最小化する（insertBook↔settle 間のプロセス
