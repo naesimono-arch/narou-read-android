@@ -75,6 +75,35 @@
 - **ベンチ＝`PdfImportBenchmark.importLargePdf`**: TraceSectionMetric×4・iterations 3・FrameTimingMetric なし（取込中 UI 静止＝frame 0件死の回避）。setup＝force-stop→clear（resultCode=0 検証）→前面起動。measure＝start broadcast（前面＝生存・非凍結へ配達）→本棚に「シャングリラ・フロンティア」（golden JSON 正本タイトルの先頭句・〜の U+301C/FF5E 取り違え回避で textContains）出現を最大10分待ち。
 - **スクリプト**: `--scenario pdf-import` 新設（TIMEOUT 60分へ拡大・`--assert`/`--budget-*` は exit 2）。結果表示 python に未知メトリクス汎用フォールバック（`Import#…` 等を median/min/max 表示）を追加。
 
-## 残（実機実走待ち）
+## ③実機初回計測（2026-07-18 完走 PASS・OPPO PGEM10 / Android 16・50章シード・30章送り×5反復・7.5分）
 
-- ③ `--scenario chapter-flip`・④ `--scenario pdf-import` の実機初回計測（`--install` で APK 更新から）→ 実測分布を見て予算較正・assert 追加（②と同じ2段階）。
+- **frameDurationCpuMs: P50 7.1 / P90 11.6 / P95 16.9 / P99 30.3ms**・frameOverrunMs P50 −7.9 / P99 +16.3ms・frameCount median 1207/反復。
+  所見: P50〜P90 は本棚スクロールより軽いが **P95 以降の尾が跳ねる**（章切替の新章パース＋初回レイアウトのスパイク＝章送り固有の jank 源が分離できた）。
+- **完走までの是正3点**（初版からの差し替え。機序の正本＝`docs/knowledge/compose-fresh-content-input-dead-window.md`）:
+  1. **シーダーの progress は lastReadAt=0（未接触）で打つ**: >0 だと二層ソート（ADR 0016 層反転）の下層 tier0 へ沈み、
+     LazyColumn 仮想化で By.text が本を発見できない（実機 FAIL で実証）。0 なら tier1×addedAt 最大＝本棚先頭に決定論で出る。
+  2. **章送りコミットの検知＝旧章タイトルの gone を主信号に**: 次章タイトルの出現は引っ張りプレビューで settle 前から真になる偽陽性
+     （waitForIdle も Compose アニメを busy と見なさない）。
+  3. **コミット検知後に固定マージン 400ms**: 新章 Content の入力デッドウィンドウ（bodyWidthPx=0 の clamp 窓・a11y から観測不能）を跨ぐ。
+     注入方式3種の切替では直らず、「失敗は常に2回目以降」と唯一整合する機序への対処。スワイプは手動実証と同形の shell `input swipe` を採用。
+- 副次の実測: 中断した instrument が孤児化させた perfetto/trace_processor 残骸は今回は素の kill で掃除できた
+  （既存 knowledge の「kill 不能なことがある」は port 保持ハング状態の話＝状態依存で矛盾しない）。
+
+## ④実機初回計測（2026-07-18 完走 PASS・OPPO PGEM10 / Android 16・N6169DZ 8.5MB/951章・3反復クリーン）
+
+- **Import#extract median 24.1s（23.7〜24.7s・分布タイト）／Extract#engine 22.7s（=94% 支配・設計どおりグリフ抽出が
+  ボトルネック）／Extract#exportHtml 289ms／Import#insertDb 1.2ms**（懸念だった suspend 再ディスパッチのスライス分裂は非発現）。
+- **完走までの是正2点**:
+  1. **完了検知は作品タイトルでなく著者名で**: ProcessingBanner が meta 抽出直後から変換中タイトルを表示するため、
+     タイトル待ちはバナーに即マッチ→measureBlock 早終了→capture が Extract#engine 途中で切れ**全メトリクス 0.0**
+     （トレース本体に B マーカーだけ残存＝バイナリ検分で実証。初回走行で2反復だけ値が出た逆説＝案内ダイアログが
+     偶然バナーを a11y から隠し検知を遅延させていた）。著者名はバナーに出ず DB 登録後のカードにのみ出る＝完了と1:1。
+  2. **「バックグラウンド処理について」案内ダイアログの恒久抑止**: 取込開始（isProcessing 立ち上がり×電池最適化
+     未除外）ごとにモーダル表示→背後の本棚を a11y から隠し完了検知を堰き止める。ImportBenchReceiver が
+     `app_prefs`/`battery_dialog_dismissed=true` を事前書込（「二度と表示しない」ユーザーと同状態・計測対象に無影響）。
+
+## 残（予算較正のみ・ユーザー裁定待ち）
+
+- ③④の実測分布から予算を引いて assert 追加（②と同じ2段階）。候補（未採用）:
+  ③ chapter-flip＝frameDurationCpuMs P50≤15/P90≤20/P99≤50ms（P99 実測 30.3ms は本棚より尾が重い＝章切替スパイクを許容する係数）
+  ④ pdf-import＝Import#extract ≤ 35s / Extract#engine ≤ 33s（実測×1.4〜1.5。端末温度・ColorOS 外乱込み）。

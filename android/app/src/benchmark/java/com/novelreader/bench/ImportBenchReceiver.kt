@@ -72,6 +72,13 @@ class ImportBenchReceiver : BroadcastReceiver() {
      */
     private fun handleStart(appContext: Context, pending: PendingResult) {
         try {
+            // 「バックグラウンド処理について」案内ダイアログを事前に恒久抑止する（2026-07-18 実機で実証済みの罠）:
+            // 取込開始（isProcessing の立ち上がり）ごとに本棚へモーダル表示され、モーダルは背後の本棚を
+            // a11y ツリーから隠すため、ベンチの完了検知（本棚に作品タイトル出現）を堰き止める。
+            // 「二度と表示しない」を選んだユーザーと同じ永続フラグを書くだけ＝計測対象（trace 区間）には無影響。
+            appContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+                .edit().putBoolean("battery_dialog_dismissed", true).apply()
+
             val cacheFile = File(appContext.cacheDir, CACHE_PDF)
             appContext.assets.open(ASSET_PDF).use { input ->
                 cacheFile.outputStream().use { output -> input.copyTo(output) }

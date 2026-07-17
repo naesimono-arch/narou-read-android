@@ -37,7 +37,7 @@
 ### 残4: 監査派生 backlog（新規タスク）
 - **蔵書内フィルタ/series 束ね UI**（確認バッチC④＝保留）: ロジック `filterBooksByQuery` は実装済み・UI はモック未表現のため保留（`BookshelfScreen.kt:442`／`ShelfItems.kt:37`）。series 束ねはスキーマ変更要（設計案のみ）。
 - **目次の部/編 折り畳み**: 抽出パイプラインに階層データ無し＝**抽出側の新機能**。実PDF→HTML の階層有無は要検証で「フラット確定」＝畳みは前提データ欠如で現状不成立。
-- **Macrobenchmark 残フェーズ**（基盤＋コールド起動計測＋起動予算 assert＋②本棚スクロール jank＋スクロール予算 assert〔`ScrollBudget`＝P50≤15/P90≤20/P99≤30ms 両モード共通・`--scenario shelf-scroll --assert`・PASS/FAIL 両経路を実機実証済み〕まで完了。実測・設計の一次情報＝`.claude/plans/macrobenchmark-kickoff-2026-07-17.md`＋`docs/knowledge/coloros-uiautomation-shell-pipe-eof-hang.md`・地雷＝`coloros-broadcast-silent-drop.md`／`macrobenchmark-frametiming-scroll-pitfalls.md`）: 残＝③④の**実機初回計測**（実装は完了・`--scenario chapter-flip` / `--scenario pdf-import`）→実測分布で予算較正・assert 追加（②と同じ2段階）。
+- **Macrobenchmark 残フェーズ**（基盤＋コールド起動計測＋起動予算 assert＋②本棚スクロール jank＋スクロール予算 assert〔`ScrollBudget`＝P50≤15/P90≤20/P99≤30ms 両モード共通・`--scenario shelf-scroll --assert`・PASS/FAIL 両経路を実機実証済み〕まで完了。実測・設計の一次情報＝`.claude/plans/macrobenchmark-kickoff-2026-07-17.md`＋`docs/knowledge/coloros-uiautomation-shell-pipe-eof-hang.md`・地雷＝`coloros-broadcast-silent-drop.md`／`macrobenchmark-frametiming-scroll-pitfalls.md`）: 残＝③④の**予算較正・assert 追加のみ**（実機初回計測は完了＝③ P50 7.1/P99 30.3ms・④ extract 24.1s。候補値と是正系列＝`.claude/plans/macrobenchmark-kickoff-2026-07-17.md` 末尾。②と同じ2段階・ユーザー裁定待ち）。
 - **lint 残 warnings（任意改善・非ブロック）**: UsableSpace×2（`DefaultBookRepository.kt` の抽出前空き容量チェック）＝`getAllocatableBytes` は消去可能キャッシュ込みの楽観値で事前チェックが甘くなり ENOSPC で変換終盤失敗を招くため、現状の保守的 `usableSpace` は意図的。触るなら API26 分岐・例外処理込みの設計判断が要る（純機械修正ではない）。※ ModifierParameter×3 は Compose 規約準拠で解消済み。
 
 ## UI/UX 宿題

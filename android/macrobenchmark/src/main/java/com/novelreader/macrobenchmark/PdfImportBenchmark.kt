@@ -92,13 +92,22 @@ class PdfImportBenchmark {
             if (accepted != 1) {
                 fail("取込の起動が受理されず result=$accepted（期待 1）。am broadcast 出力: $startOut")
             }
-            // 取込完了を UI で待つ: 本棚に N6169DZ の作品タイトルが現れるまで最大10分。
-            // なぜ By.textContains(先頭部分一致)か（完全一致でなく）: カード題字は maxLines/Ellipsis で視覚的に
-            // 切られ得るうえ、正本タイトル末尾の「〜」は WAVE DASH(U+301C)／FULLWIDTH TILDE(U+FF5E) の取り違えが
-            // 起きやすい（app 側 normalizeGlyphUnicode の対象）。曖昧文字を含まない先頭句で部分一致し、
-            // 取込完了（=本文抽出→HTML→DB 登録の全フェーズ完走）を確実に検知する。出なければ fail（次反復へ黙って進まない）。
-            if (!device.wait(Until.hasObject(By.textContains(BOOK_TITLE_HEAD)), 10 * 60 * 1000L)) {
-                fail("取込が完了しなかった（本棚に「$BOOK_TITLE_HEAD」が現れなかった）")
+            // 取込完了を UI で待つ: 本棚の書影カードに N6169DZ の**著者名**が現れるまで最大10分。
+            // ⚠ 作品タイトルで検知してはならない（2026-07-18 実機トレースで確定した罠）:
+            // ProcessingBanner は meta 抽出直後（取込開始の数秒後）から**変換中タイトルを表示**するため、
+            // タイトル文字列の出現待ちはバナーに即マッチして早発火し、measureBlock が抽出途中で終わる
+            // ＝perfetto capture が Extract#engine の途中で切れ、TraceSectionMetric が完全スライス0件で
+            // 全メトリクス 0.0 になる（トレース本体に B マーカーだけ残っていたことをバイナリ検分で実証。
+            // 初回走行で2反復だけ値が出たのは、案内ダイアログが偶然バナーを a11y から隠して検知を
+            // 完了まで遅延させていたため＝クリーン反復ほど 0 になる逆説）。
+            // 著者名はバナーに出ず（バナー＝タイトル＋フェーズのみ）、DB 登録後の書影カードにのみ出る
+            // ＝「取込完了」と1:1 に対応する検知信号。出なければ fail（次反復へ黙って進まない）。
+            if (!device.wait(Until.hasObject(By.text(BOOK_AUTHOR)), 10 * 60 * 1000L)) {
+                fail("取込が完了しなかった（本棚カードに著者「$BOOK_AUTHOR」が現れなかった）")
+            }
+            // 念のため取り込まれた本がタイトルでも同定できることを確認（著者一致だけの偶然マッチ防止）。
+            if (!device.wait(Until.hasObject(By.textContains(BOOK_TITLE_HEAD)), 10_000)) {
+                fail("著者は出たが作品タイトル「$BOOK_TITLE_HEAD」を同定できない（想定外の状態）")
             }
         }
     }
@@ -112,9 +121,11 @@ class PdfImportBenchmark {
         const val RECEIVER_CLASS = "com.novelreader.bench.ImportBenchReceiver"
         const val ACTION_IMPORT = "com.novelreader.benchmark.action.IMPORT_PDF"
 
-        // N6169DZ の正本タイトル（出典＝ab-review/golden_regression/N6169DZ.pdf.json の "title"）:
-        //   「シャングリラ・フロンティア〜クソゲーハンター、神ゲーに挑まんとす〜」（〜 は WAVE DASH U+301C）。
-        // 完了検知は曖昧文字（〜）を含まない先頭句で部分一致する（上の By.textContains の why 参照）。
+        // N6169DZ の正本値（出典＝ab-review/golden_regression/N6169DZ.pdf.json の "title"/"author"）:
+        //   title「シャングリラ・フロンティア〜クソゲーハンター、神ゲーに挑まんとす〜」（〜 は WAVE DASH U+301C）。
+        // 完了検知の主信号は著者（バナーに出ない＝早発火しない。measureBlock の why 参照）。
+        // タイトルは従信号＝曖昧文字（〜）を含まない先頭句の部分一致で同定のみ行う。
+        const val BOOK_AUTHOR = "硬梨菜"
         const val BOOK_TITLE_HEAD = "シャングリラ・フロンティア"
     }
 }
