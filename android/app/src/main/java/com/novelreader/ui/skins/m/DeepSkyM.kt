@@ -120,7 +120,9 @@ internal fun buildDeepSkyField(): DeepSkyField {
         val x = bAxis(y) + off
         if (x < -4f || x > NW + 4f) continue
         val lo = 12f + 10f * sin(y / 95f)                 // Great Rift（蛇行する暗黒帯の芯）
-        if (abs(off - lo) < 8f && r() < 0.82f) continue   // 裂け目は「粒を確率で間引く」（削り取らない）
+        // 実機後詰め(ADR 0005 §B): 実機では裂け目が周囲の粒に埋もれ判別不能だったため、幅8→14f・間引き確率0.82→0.96f
+        // へ強化し「帯に構造が生まれる」実在の暗黒帯感を出す（粒は削らず確率で疎化＝天の川の粒密度自体は不変）。
+        if (abs(off - lo) < 14f && r() < 0.96f) continue  // 裂け目は「粒を確率で間引く」（削り取らない）
         val d = (abs(off) / bHalf(y)).coerceAtMost(1f)    // 0核..1縁
         val mag = r().pow(2.6f)                            // べき分布＝多数の微光＋少数の輝星
         val bright = (1f - d * 0.75f) * (0.28f + 0.72f * mag) * (0.55f + 0.45f * dens)
@@ -167,8 +169,10 @@ internal fun DrawScope.drawDeepSky(field: DeepSkyField, finished: List<FinishedS
     val w = size.width
     val h = size.height
     // 星雲2片（radial・色→透明）。第1=SkyCloudSeizu(=rgb58,78,150 と同値)／第2=NebulaVioletSeizu（モック実値の微紫）。
-    drawNebula(Offset(300f / NW * w, 210f / NH * h), 150f / NW * w, SkyCloudSeizu.copy(alpha = 0.12f))
-    drawNebula(Offset(92f / NW * w, 600f / NH * h), 168f / NW * w, NebulaVioletSeizu.copy(alpha = 0.10f))
+    // 実機後詰め(ADR 0005 §B): 実機では両片が淡すぎ「靄」で存在感が出なかったため、芯 alpha を 0.12→0.18／0.10→0.16 へ微増し
+    // 中間ストップ（芯 alpha の 0.42 倍を 45% 地点まで保持）で外周へ body を持たせ「雲」の塊感を出す。輝度上限外＝題名可読は不変。
+    drawNebula(Offset(300f / NW * w, 210f / NH * h), 150f / NW * w, SkyCloudSeizu.copy(alpha = 0.18f))
+    drawNebula(Offset(92f / NW * w, 600f / NH * h), 168f / NW * w, NebulaVioletSeizu.copy(alpha = 0.16f))
     // アクセント星（数点の微光球）。
     for (a in field.accent) {
         val c = Offset(a.fx * w, a.fy * h)
@@ -197,8 +201,15 @@ internal fun DrawScope.drawDeepSky(field: DeepSkyField, finished: List<FinishedS
 }
 
 private fun DrawScope.drawNebula(center: Offset, radius: Float, color: Color) {
+    // 実機後詰め(ADR 0005 §B): 純 color→透明の2ストップは中心だけ濃い「靄」に見えたため、
+    // 中間 45% まで色を（芯の 0.42 倍で）保持する3ストップに変え、雲としての body／ふわりとした縁を与える。
     drawCircle(
-        Brush.radialGradient(listOf(color, Color.Transparent), center = center, radius = radius),
+        Brush.radialGradient(
+            0f to color,
+            0.45f to color.copy(alpha = color.alpha * 0.42f),
+            1f to Color.Transparent,
+            center = center, radius = radius,
+        ),
         radius = radius, center = center,
     )
 }
