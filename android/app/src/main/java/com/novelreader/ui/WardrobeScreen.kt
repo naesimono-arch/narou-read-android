@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.PagerSnapDistance
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -35,6 +37,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -87,6 +90,29 @@ fun WardrobeScreen(
     val pagerState = rememberPagerState(
         initialPage = skins.indexOf(currentSkin).coerceAtLeast(0),
         pageCount = { pageCount },
+    )
+
+    // 1スワイプ=中央から1枚だけ動かすための fling 差し替え（実機: 高速フリングで着せ替え先を行き過ぎる不具合の是正）。
+    // なぜ既定 flingBehavior では不足か: 既定の PagerSnapDistance.atMost(1) は着地ページを firstVisiblePage 基準で
+    // ±1へ丸める。だが本画面は左右に隣カードを覗かせる contentPadding 構図のため firstVisiblePage は視覚的中央カード
+    //（currentPage）の1つ手前＝左の覗きカードになり、丸めの基準が視覚的中央から1枚ずれる。結果、少なくとも一方向の
+    // 高速フリングで中央から2枚先へ着地しうる＝目的のスキンを行き過ぎ、着せ替え先の選択精度が落ちる。
+    // 対策は速度を殺すハックではなく丸めの基準点の是正: 視覚的中央 currentPage を基準に着地を ±1 へ厳密制限する。
+    val singleStepSnap = remember(pagerState) {
+        object : PagerSnapDistance {
+            override fun calculateTargetPage(
+                startPage: Int,
+                suggestedTargetPage: Int,
+                velocity: Float,
+                pageSize: Int,
+                pageSpacing: Int,
+            ): Int = clampWardrobeFlingTarget(pagerState.currentPage, suggestedTargetPage)
+        }
+    }
+    // decay/snap の質感は既定のまま（PagerDefaults 経由）＝丸め基準だけを差し替える最小介入。
+    val stepFlingBehavior = PagerDefaults.flingBehavior(
+        state = pagerState,
+        pagerSnapDistance = singleStepSnap,
     )
 
     // 戻るボタンとシステムバックの着地を一致させる（サブ画面ゆえハード戻るも onBack へ流す）。
@@ -151,6 +177,8 @@ fun WardrobeScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = sidePadding),
                     pageSpacing = (-30).dp,
+                    // 中央カード基準の1枚 snap（上の singleStepSnap の「なぜ」を参照）。
+                    flingBehavior = stepFlingBehavior,
                     // 隣ページの scale アニメが常に描かれるよう前後1ページを先行コンポーズする。
                     beyondViewportPageCount = 1,
                     verticalAlignment = Alignment.CenterVertically,
@@ -290,6 +318,17 @@ fun WardrobeScreen(
         }
     }
 }
+
+/**
+ * 装いの間カルーセルのフリング着地ページを「中央カード ±1」へ制限する純関数（テスト可能な核）。
+ *
+ * なぜ currentPage 基準か: Compose 既定の PagerSnapDistance.atMost(1) は firstVisiblePage 基準で丸めるが、
+ * 覗きカードのある contentPadding 構図では firstVisiblePage が視覚的中央から1枚ずれ、高速フリングで
+ * 中央から2枚先へ着地しうる（詳細は WardrobeScreen の flingBehavior コメント）。ここで視覚的中央
+ * currentPage を基準に ±1 clamp へ据え直すことで、1スワイプ=中央から1枚だけの移動を保証する。
+ */
+internal fun clampWardrobeFlingTarget(currentPage: Int, suggestedTargetPage: Int): Int =
+    suggestedTargetPage.coerceIn(currentPage - 1, currentPage + 1)
 
 // カード寸法・角丸はモック値そのまま（ADR 0014 §C の余白スケール対象外＝寸法/角丸は px 追従で可）。
 private val CardWidth = 180.dp
