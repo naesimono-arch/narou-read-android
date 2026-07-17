@@ -43,10 +43,15 @@ class LibrarySeedReceiver : BroadcastReceiver() {
         // （他99冊は TITLE_POOL 巡回で長さがばらつくが、この本だけは一意に発見できる必要がある）。
         private const val CHAPTER_BOOK_TITLE = "章送り計測の書"
 
-        // progress.lastReadAt に打つ決定論の固定値（System.currentTimeMillis 禁止）。
-        // なぜ固定か: 毎シードで同じ値に戻すことで、本棚の recency ソート・読書再開の見た目が
-        // 反復間・実行間で一定になり jank 計測の再現性を保つため（addedAt と同じ基準時刻を流用）。
-        private const val DETERMINISTIC_LAST_READ_AT = 1_700_000_000_000L
+        // progress.lastReadAt は 0（未接触）に固定する（System.currentTimeMillis 禁止・決定論）。
+        // なぜ 0 か（>0 だと本棚の底へ沈み By.text で見つからない＝実機 FAIL の真因）:
+        // 本棚の二層ソート（ShelfItems.recencyKeyOf・ADR 0016 層反転）は lastReadAt>0 の本を
+        // 下層 tier0 に置く＝未読99冊の下へ沈み、LazyColumn 仮想化で semantics 不在になり
+        // ベンチの By.text("章送り計測の書") が発見できない（2026-07-17 実機で実証）。
+        // lastReadAt=0 は ProgressEntity 既定値と同じ「位置だけ在って未接触」の状態で、
+        // 上層 tier1×addedAt 最大＝本棚先頭に決定論で出る。getLastRead（chap_1 直着地）は
+        // lastReadAt に依存せず、relativeReadLabel も lastReadAt<=0 は null 表示のため無害。
+        private const val UNTOUCHED_LAST_READ_AT = 0L
 
         // 書影は shiori*/画像を持たない本では title 由来の純 Canvas フォールバック描画になる。
         // その描画に「題字の長さの多様性」を与えるため、長い転生系題名から2文字の短題までを散らしたプール。
@@ -167,7 +172,7 @@ class LibrarySeedReceiver : BroadcastReceiver() {
                             filename = "chap_1.html",
                             scrollIndex = 0,
                             scrollOffset = 0,
-                            lastReadAt = DETERMINISTIC_LAST_READ_AT,
+                            lastReadAt = UNTOUCHED_LAST_READ_AT,
                         )
                     }
 

@@ -5,10 +5,7 @@ import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
-import androidx.test.uiautomator.Direction
-import androidx.test.uiautomator.StaleObjectException
 import androidx.test.uiautomator.UiDevice
-import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
 import org.junit.Assert.fail
 import org.junit.Rule
@@ -82,15 +79,42 @@ class ChapterFlipBenchmark {
             // 前進30回の章送り。第1章に着地済みの状態から始め、i 回目のスワイプ後に第(i+2)章の出現を待つ。
             // 最終は第31章（全50章の範囲内＝端章での送れない事故は起きない）。
             repeat(FLIP_COUNT) { i ->
-                val expectedChapter = i + 2  // 着地は第1章。1回目のスワイプで第2章 → 30回目で第31章。
+                val currentChapter = i + 1   // 着地は第1章。i 回目のスワイプ前に表示中の章。
+                val expectedChapter = i + 2  // 1回目のスワイプで第2章 → 30回目で第31章。
                 swipeToNextChapter()
-                // 章送りの発火を確認。左スワイプが touch slop 未満だとタップ扱い（没入クロームのトグル）に
-                // 化けて章が進まないため、次章タイトルの出現を必ず待つ。出なければ fail（空振りしたまま
-                // 計測を続けない）。
-                if (!device.wait(Until.hasObject(By.textStartsWith("第${expectedChapter}章")), 5_000)) {
-                    fail("章送りが第${expectedChapter}章へ進まなかった（${i + 1}回目のスワイプ）。" +
-                        "スワイプがタップ扱い（クローム トグル）に化けた or 移動量 96dp 未満の疑い")
+                // 遷移「コミット」の実信号＝旧章タイトルの消滅を待つ（2026-07-18 実機切り分けで確定）:
+                // 引っ張りプレビューはドラッグ開始直後から次章の冒頭（ChapterHeader）を先読み描画するため、
+                // 「次章タイトルの出現」は settle 前でも真になり、コミットの証拠にならない。waitForIdle も
+                // Compose の settle アニメを busy と見なさず素通しする（accessibility イベントが静かなため）。
+                // その2つだけで次のスワイプへ進むと、遷移コミット前のツリーへ注入して章送りが壊れる
+                // （実機で2〜3回目のスワイプが再現的に不発。手動の約2秒間隔では完全安定＝アプリ側は健全）。
+                // プレビュー中は新旧タイトルが併存し、settle 完了＝ナビゲーション確定で旧章が畳まれて消える
+                // ため、「旧章の gone」がコミットと1:1 に対応する。
+                if (!device.wait(Until.gone(By.textStartsWith("第${currentChapter}章")), 5_000)) {
+                    // 診断: fail 時点で a11y ツリーに居る章タイトルを列挙する。「旧章が残存」には
+                    // ①章送り自体が不発（旧章のみ居る）②章送りは成功したが旧章ノードも併存
+                    // （隣章プレビューの先読みコンポーズ等＝検知側の偽 FAIL）の2様があり、
+                    // ツリーの実内容だけが両者を切り分けられる。
+                    val visible = device.findObjects(By.textStartsWith("第"))
+                        .mapNotNull { it.text }.distinct().sorted()
+                    fail("章送りがコミットしなかった（${i + 1}回目のスワイプ後も第${currentChapter}章が残存）。" +
+                        "ツリー内の章タイトル: $visible")
                 }
+                // コミット後の表示章が期待どおりかを確認（旧章が消えただけで別章へ飛んでいないことの検証）。
+                if (!device.wait(Until.hasObject(By.textStartsWith("第${expectedChapter}章")), 5_000)) {
+                    fail("章送り後に第${expectedChapter}章が表示されていない（${i + 1}回目のスワイプ）")
+                }
+                // 新章 Content の入力受付が整うまでの固定マージン（2026-07-18 切り分けの帰結）:
+                // 章切替で ChapterScreenContent は毎回作り直され、bodyWidthPx（onSizeChanged で実測）が
+                // 0 の初期化窓では draggable の clamp が min=max=0 になり、その間に注入したスワイプは
+                // 全 delta が潰れて settle 不発＝「無視」される。しかも上の gone はスライドアニメ末尾
+                // （旧章が画面外＝a11y 除外）で navigate 前に真になるため、待ちナシだと初期化窓を直撃する。
+                // この窓は a11y から観測不能（幅確定を示すノードが無い）ため、固定 400ms で跨ぐ。
+                // 400ms の根拠: 手動 `input swipe` の実証帯（+250〜700ms 間隔で 10/10 全弾命中）の中央値相当。
+                // 注入方式切替（UiObject2→UiDevice→shell input）では直らず、失敗が常に2回目以降
+                // （初章の Content は画面入場時に幅確定済み）である事実と唯一整合する機序への対処。
+                // 計測への影響: sleep 中は静止＝フレームが出ないため FrameTiming の分位には乗らない。
+                Thread.sleep(400)
             }
         }
     }
@@ -126,31 +150,25 @@ class ChapterFlipBenchmark {
     }
 
     /**
-     * 読書画面を毎回新しく掴んで左スワイプ（＝次章）する。
-     * 読書画面には本文の縦 LazyColumn（scrollable）があり、その領域上での水平スワイプが章送りの
-     * 水平 draggable を叩く。複数 scrollable から誤爆しないよう可視領域が最大高のものを選ぶ。
-     * swipe は 0.8f（可視幅の80%）で移動量 96dp 超（章送り確定条件）を確実に満たす。
+     * 画面中央の高さで右→左の高速スワイプ（＝次章）を shell `input swipe` で注入する。
      *
-     * UiObject2 は毎回取り直す: 章送りで本文セマンティクスツリーが総入れ替えになるため、掴んだ参照を
-     * 使い回すと StaleObjectException で死ぬ。取り直し直後でも遷移アニメ中のツリー変化と競合して stale に
-     * なりうるため、1回だけ取り直して再試行する（2連続 stale は異常として伝播）。
+     * 注入方式の経緯（2026-07-18 切り分け）: 章送り不発は UiObject2.swipe（遅い注入）→
+     * UiDevice.swipe（高速注入）→ shell input と3方式を替えても症状不変で、**真因は注入経路ではなく
+     * 新章 Content の入力受付初期化窓**だった（measureBlock 側の固定マージンが恒久対処＝そちらのコメント参照）。
+     * shell input を採用のまま残すのは、手動 `input swipe` の 10/10 実証と完全同形＝検証済み経路であり、
+     * UiDevice.swipe へ戻す利得（僅かな高速化）が再実証コストに見合わないため。shell 実行のハング癖は
+     * run_macrobenchmark.sh の SIGQUIT 除細動ループが前提として吸収する（シード broadcast と同じ作法）。
+     *
+     * 座標の根拠: y=画面中央（本文領域のど真ん中）・x=幅の 0.8→0.2（移動 0.6W≒約250dp ＝
+     * 章送り確定条件 96dp 超を大きく満たし、起点は右エッジの戻るジェスチャ帯（数十px）から十分離れる）。
+     * 尺 100ms は手動実証と同値。
      */
     private fun androidx.benchmark.macro.MacrobenchmarkScope.swipeToNextChapter() {
-        fun grab(): UiObject2 {
-            val candidates = device.findObjects(By.scrollable(true))
-            if (candidates.isEmpty()) fail("scrollable が見つからない（読書画面未表示の疑い）")
-            val content = candidates.maxByOrNull { it.visibleBounds.height() }!!
-            // エッジのシステムジェスチャ（戻る等）と競合しないようスワイプ開始マージンを広げる。
-            // 左スワイプの起点が右エッジのジェスチャ帯に食い込むと誤爆するため特に重要。
-            content.setGestureMargin(device.displayWidth / 5)
-            return content
-        }
-        try {
-            grab().swipe(Direction.LEFT, 0.8f)
-        } catch (e: StaleObjectException) {
-            device.waitForIdle()
-            grab().swipe(Direction.LEFT, 0.8f)
-        }
+        val w = device.displayWidth
+        val y = device.displayHeight / 2
+        device.executeShellCommand(
+            "input swipe ${(w * 0.8f).toInt()} $y ${(w * 0.2f).toInt()} $y 100"
+        )
     }
 
     private companion object {
