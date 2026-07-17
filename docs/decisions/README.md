@@ -28,3 +28,4 @@
 | [0018](0018-derived-mock-drift-optin-sync-check.md) | 派生モックの陳腐化検知＝DERIVED_SYNC opt-in 実値突合＋@derives/frozen メタ（コミットゲート hook・PostToolUse 警告・opt-out 全数必須・同期日メタ 却下） | — |
 | [0019](0019-nav-transition-slide-push.md) | 画面遷移モーションを slide push に統一＝進む右→左/戻る左→右・250ms・目次⇄本文も同向き・章送りは瞬間据え置き（fade/shared-axis Z・章送り即スライド・bounce 却下） | — |
 | [0021](0021-ui-skin-framework.md) | UIスキン機構＝スキンはトークン束の着せ替え（構造・余白・motion は全スキン共通／各スキン1変種開始・初弾C夜行・栞の luminance/Sepia 推定根絶／I・J 構造スキンは枠外。0020 は縦書きブランチ予約済み） | — |
+| [0022](0022-skin-structural-layer.md) | スキン第二層＝画面構造の切替（M/P/J: 画面入口の薄い when(skin) ルーター・読書/設定は共通骨格＋部品分岐・M=[DARK]/J=[D,L,S]読書のみ変種/P=[LIGHT]開始・「現在地の脈動」類型承認・食い違い値は家系分離。画面ファクトリ束/読書複製/P即3テーマ 却下） | — |
