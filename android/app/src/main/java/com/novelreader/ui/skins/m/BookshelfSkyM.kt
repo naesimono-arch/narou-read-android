@@ -61,7 +61,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -90,6 +92,7 @@ import com.novelreader.ui.theme.SeizuIdGreen
 import com.novelreader.ui.theme.SeizuIdPurple
 import com.novelreader.ui.theme.SeizuIdRose
 import com.novelreader.ui.theme.SeizuIdSlate
+import com.novelreader.ui.theme.SkyGradEndSeizu
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.StarCoreSeizu
 import com.novelreader.ui.theme.StarGlowInnerSeizu
@@ -204,6 +207,14 @@ internal fun BookshelfSkyM(
         books.count { readingStatusFor(progressMap[it.id], chapterCountMap[it.id] ?: 0) != ReadingStatus.UNREAD }
     }
 
+    // 固定地平バーの実高を測ってスクロール下端クリアランスに充てる（ナビバー高が機種で変わるため定数では
+    // 足りず、最後の星座セルがバー裏に残った＝実機の指摘。測ってバー高そのぶん空ければ機種非依存で解決）。
+    // 初回レイアウト前は Insets.SkyHorizonClearance を暫定値に（120dp ≒ 地平実高で見た目の跳ねなし）。
+    val density = LocalDensity.current
+    var horizonHeightPx by remember { mutableStateOf(0) }
+    val horizonClearance = if (horizonHeightPx > 0) with(density) { horizonHeightPx.toDp() }
+    else Insets.SkyHorizonClearance
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -233,7 +244,8 @@ internal fun BookshelfSkyM(
             LazyColumn(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 // 下端は地平（発見導線＋迎える）ぶんを空ける＝スクロール末尾の星座が地平に沈まない。
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = Insets.SkyHorizonClearance),
+                // クリアランスは固定バーの実測高（下記 onSizeChanged）＝バー高そのぶん確保。
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = horizonClearance),
             ) {
                 items(visible, key = { it.id }) { book ->
                     val index = visible.indexOf(book)
@@ -264,11 +276,38 @@ internal fun BookshelfSkyM(
             }
         }
 
+        // 固定バー背後の夜天スクリム: 実データでは星座セルがスクロールで固定地平バーの裏を通過し、
+        // 半透明地（.discover .42）越しに本文ラベルが透けて両方読みにくくなる（モックは絶対座標で衝突を
+        // 避けるが実データ数では成立しない）。バー高＋上端の短いフェードぶんを夜天終端色へ沈めて透け重なりを
+        // 断つ（色は背景下端と同色の SkyGradEndSeizu＝地平と地続きに見え、モックの「地平に沈む」語彙とも整合）。
+        // スクリムはバー footprint（実測高）にちょうど重ねる＝バー直上の hero CTA 等は覆わず、
+        // バー裏へ潜ったぶんだけを沈める。上端の稜線ぶん（≒S12 パディング帯）だけ短くフェードさせ、
+        // 発見パネルが始まる位置ではもう不透明に達しておき本文の透けを完全に断つ。
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(horizonClearance)
+                .drawBehind {
+                    drawRect(
+                        Brush.verticalGradient(
+                            0f to Color.Transparent,
+                            0.14f to SkyGradEndSeizu.copy(alpha = 0.85f), // 稜線ぶんの短いソフトフェード
+                            0.3f to SkyGradEndSeizu,                      // パネル帯以降は不透明
+                            1f to SkyGradEndSeizu,
+                        )
+                    )
+                },
+        )
+
         SkyHorizon(
             webNovelCount = webNovelCount,
             onOpenDiscovery = onOpenDiscovery,
             onFabClick = onFabClick,
-            modifier = Modifier.align(Alignment.BottomCenter),
+            // 実高を測ってスクロール下端クリアランス（上記）へ反映する。
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .onSizeChanged { horizonHeightPx = it.height },
         )
 
         SnackbarHost(
@@ -276,7 +315,7 @@ internal fun BookshelfSkyM(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = Insets.SkyHorizonClearance), // 地平の上へ逃がす構造クリアランス
+                .padding(bottom = horizonClearance), // 地平の上へ逃がす構造クリアランス（実測高）
         )
     }
 }
