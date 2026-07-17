@@ -9,7 +9,13 @@
                ラベル絞り込みチップ・取込中＝緑LCDの取り込み中バナー・ラック⇄一覧の表示切替・メニュー・続きあり＝
                セーブの「続き12話」更新しるし・装いの間入口＝機体トップの「装い」ボタン（ADR 0021 決定7＝本棚topbar相当のみ）。
      避けたもの: 前回E案の毒々しさ＝ネオン/原色/高彩度。液晶はくすんだオリーブ緑、装飾色は退色した赤・青の低彩度のみ(最大3系統)。
-                 ピクセル感(ドット絵・面取り・溝)は"記号"として少量に効かせ、作品タイトル本文はゴシックで現代の可読性を保つ。 -->
+                 ピクセル感(ドット絵・面取り・溝)は"記号"として少量に効かせ、作品タイトル本文はゴシックで現代の可読性を保つ。
+     上部=H3 二画面ヒンジ（2026-07-17 承認）: ラック表示の上半分は固定LCDではなく「二画面ヒンジ」。携帯機を上下2画面（上=NOW PLAYING／
+               下=ラック）に見立て、中央のヒンジバーを上下ドラッグで取り分を無段階配分→離すと 大／均衡／最小 の3段へ吸着。最小段は
+               1行ミニストリップ（題名＋微ゲージ＋▶）でラックが主役。どの段でも NOW PLAYING と ▶ は残る。Compose翻訳＝topWeight を
+               rememberSaveable・ヒンジ draggable(Vertical) で topHeight 追従・onDragStopped で最寄りディテントへ animateTo 吸着・
+               上画面はフル⇔ミニを Crossfade・下は残り space の LazyColumn・reduce-motion=吸着アニメ無効の即時スナップ。
+               機構の決定版モック＝docs/design-candidates/skins/candidates/p-header/bookshelf-P-header-H3-hinge.html（記録として残置）。 -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -90,6 +96,51 @@
     box-shadow:0 4px 0 var(--red-lo), 0 6px 12px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.3)}
   .start .lab{font-family:var(--gothic);font-weight:800;font-size:16px}
   .start .ps{font-family:var(--pixel);font-size:9px;letter-spacing:.16em;opacity:.85;margin-left:2px}
+
+  /* ===== H3 二画面ヒンジ（2026-07-17承認）: ラック表示の上画面＝可変高。フル⇔ミニをクロスフェード =====
+     LIST面は従来どおり固定 .lcdframe を使うため、上の .lcd/.lcdframe/.start は温存し、ここは追加のみ。 */
+  .tops{margin:0 20px;flex-shrink:0;position:relative;overflow:hidden;height:220px;
+    border-radius:14px;background:linear-gradient(#2b2d24,#3a3d33);
+    box-shadow:inset 0 3px 8px rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.35);transition:height .26s cubic-bezier(.2,.8,.3,1)}
+  .tops.drag{transition:none}
+  .full{position:absolute;left:0;right:0;top:0;padding:10px}
+  /* つづきボタンは .full 内に入るため .start の基底 margin/width を上書き（LIST面の .start は非影響） */
+  .full .start{margin:10px 0 0;border:none;cursor:pointer;width:100%;
+    display:flex;align-items:center;justify-content:center;gap:10px;padding:13px;border-radius:11px;
+    background:linear-gradient(var(--red),var(--red-lo));color:#fff;
+    box-shadow:0 4px 0 var(--red-lo), 0 6px 12px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.3)}
+  .full .start .lab{font-family:var(--gothic);font-weight:800;font-size:16px}
+
+  /* ミニ（最小段の1行ストリップ＝つづきから到達口） */
+  .mini{position:absolute;left:0;right:0;top:0;height:100%;display:flex;align-items:center;gap:11px;padding:0 15px;
+    opacity:0;pointer-events:none}
+  .mini .bl{width:6px;height:6px;flex-shrink:0;background:var(--lcd-ink)}
+  .mini .np{font-family:var(--pixel);font-size:8.5px;letter-spacing:.2em;color:var(--lcd-ink);opacity:.65;flex-shrink:0}
+  .mini .tt{flex:1;min-width:0;font-family:var(--gothic);font-weight:700;font-size:13px;color:var(--lcd-ink);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mini .strip{position:absolute;inset:6px;border-radius:8px;background:radial-gradient(120% 120% at 50% 0%,var(--lcd-hi),var(--lcd));
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.25);z-index:0}
+  .mini .strip::before{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(43,54,22,.16) .6px,transparent .7px);background-size:3px 3px}
+  .mini .row{position:relative;z-index:1;display:flex;align-items:center;gap:10px;width:100%;padding:0 4px}
+  .mini .mg{flex-shrink:0;display:flex;gap:1.5px;align-items:center}
+  .mini .mg i{width:3px;height:10px;background:rgba(43,54,22,.2)}
+  .mini .mg i.on{background:var(--lcd-ink)}
+  .mini .pct{font-family:var(--pixel);font-size:11px;font-weight:700;color:var(--lcd-ink);flex-shrink:0}
+  .mini .play{width:26px;height:26px;flex-shrink:0;border-radius:6px;display:grid;place-items:center;
+    background:linear-gradient(var(--red),var(--red-lo));color:#fff;font-size:12px;box-shadow:0 2px 0 var(--red-lo)}
+
+  /* ヒンジバー（DSの蝶番＝ドラッグの把手・現在段を表示） */
+  .hinge{margin:6px 20px;flex-shrink:0;height:26px;border-radius:8px;cursor:ns-resize;touch-action:none;position:relative;
+    display:flex;align-items:center;justify-content:center;gap:14px;
+    background:linear-gradient(var(--plastic-hi),var(--plastic-lo));
+    box-shadow:0 2px 4px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.5), inset 0 -2px 3px rgba(0,0,0,.12)}
+  .hinge::before,.hinge::after{content:"";width:6px;height:6px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#e7e3d7,#a29e90 70%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.14)}
+  .hinge .grip{display:flex;gap:4px;flex-direction:column}
+  .hinge .grip i{width:22px;height:3px;border-radius:2px;background:var(--plastic-lo);box-shadow:inset 0 1px 1px rgba(0,0,0,.25)}
+  .hinge .det{position:absolute;right:12px;font-family:var(--pixel);font-size:8.5px;letter-spacing:.14em;color:var(--ink-soft)}
+  /* reduce-motion＝吸着アニメ無効の即時スナップ */
+  @media (prefers-reduced-motion:reduce){ .tops{transition:none !important} }
 
   /* 取込中＝緑LCDの取り込み中バナー（実装 ProcessingBanner に対応。造形＝緑LCD、ラベルは標準語「取り込み中」1語） */
   .writing{margin:0 20px 12px;flex-shrink:0;border-radius:11px;position:relative;overflow:hidden;padding:11px 14px 12px;
@@ -215,7 +266,7 @@
 </style>
 </head>
 <body>
-  <p class="cap"><b>P. カートリッジ</b> ／ 承認済みの機体×液晶×ラックを保ったまま、現行本棚(fusion-D)の機能をPの言葉で織り込み。左＝ラック表示（見つける導線・ラベル絞り込み・取り込み中バナー・続きあり=セーブの更新しるし・機体トップに装い/表示切替/メニュー）。右＝表示切替の結果＝一覧。</p>
+  <p class="cap"><b>P. カートリッジ</b> ／ 承認済みの機体×液晶×ラックを保ったまま、現行本棚(fusion-D)の機能をPの言葉で織り込み。左＝ラック表示（上部=H3 二画面ヒンジ：中央バーを上下ドラッグ→大/均衡/最小に吸着・見つける導線・ラベル絞り込み・取り込み中バナー・続きあり=セーブの更新しるし・機体トップに装い/表示切替/メニュー）。右＝表示切替の結果＝一覧。</p>
 
   <div class="stage">
     <!-- ラック表示 -->
@@ -232,24 +283,43 @@
         </div>
       </div>
 
-      <div class="lcdframe">
-        <div class="lcd">
-          <div class="lcd-top"><span class="bl"></span>NOW PLAYING</div>
-          <div class="lcd-main">
-            <canvas class="big" width="8" height="8" data-sprite="potion" data-col="#2b3616" aria-hidden="true"></canvas>
-            <div class="lcd-title">追放された万能薬師、辺境でスローライフを始める</div>
+      <!-- 上画面（可変高）＝NOW PLAYING。H3二画面ヒンジ：フル⇔ミニをクロスフェード -->
+      <div class="tops" id="tops">
+        <div class="full" id="full">
+          <div class="lcd">
+            <div class="lcd-top"><span class="bl"></span>NOW PLAYING</div>
+            <div class="lcd-main">
+              <canvas class="big" width="8" height="8" data-sprite="potion" data-col="#2b3616" aria-hidden="true"></canvas>
+              <div class="lcd-title">追放された万能薬師、辺境でスローライフを始める</div>
+            </div>
+            <div class="lcd-stats">
+              <div class="st"><span class="k">STAGE</span><span class="v">127</span></div>
+              <div class="st"><span class="k">TOTAL</span><span class="v">340</span></div>
+              <div class="st"><span class="k">CLEAR</span><span class="v">62%</span></div>
+              <div class="st"><span class="k">TIME</span><span class="v">24:17</span></div>
+            </div>
+            <div class="lcd-gauge" data-n="20" data-f="12" aria-label="進捗62パーセント"></div>
           </div>
-          <div class="lcd-stats">
-            <div class="st"><span class="k">STAGE</span><span class="v">127</span></div>
-            <div class="st"><span class="k">TOTAL</span><span class="v">340</span></div>
-            <div class="st"><span class="k">CLEAR</span><span class="v">62%</span></div>
-            <div class="st"><span class="k">TIME</span><span class="v">24:17</span></div>
+          <button class="start"><span class="lab">▶ つづきから読む</span></button>
+        </div>
+        <!-- 最小段の1行ストリップ（題名＋微ゲージ＋▶＝つづきから到達口） -->
+        <div class="mini" id="mini">
+          <span class="strip" aria-hidden="true"></span>
+          <div class="row">
+            <span class="np">NOW</span>
+            <span class="tt">追放された万能薬師、辺境でスローライフを始める</span>
+            <span class="mg" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i></span>
+            <span class="pct">62%</span>
+            <span class="play" role="button" aria-label="つづきから読む">▶</span>
           </div>
-          <div class="lcd-gauge" data-n="20" data-f="12" aria-label="進捗62パーセント"></div>
         </div>
       </div>
 
-      <button class="start"><span class="lab">▶ つづきから読む</span></button>
+      <!-- ヒンジバー（ドラッグの把手・現在段を表示。上下ドラッグで上下2画面の取り分を無段階配分→離すと3段吸着） -->
+      <div class="hinge" id="hinge" role="slider" tabindex="0" aria-label="上下2画面の配分（ヒンジ）" aria-valuetext="均衡">
+        <span class="grip" aria-hidden="true"><i></i><i></i></span>
+        <span class="det" id="det">均衡</span>
+      </div>
 
       <!-- 取込中バナー＝NOW WRITING（カセット書き込み中） -->
       <div class="writing" role="status" aria-label="カセット書き込み中">
@@ -429,6 +499,47 @@
     const n=+el.dataset.n, f=+el.dataset.f;
     for(let i=0;i<n;i++){ const s=document.createElement('i'); if(i<f) s.className='on'; el.appendChild(s); }
   });
+
+  // ===== H3 二画面ヒンジの配分ロジック（ラック表示のみ。ドラッグ→吸着デモ） =====
+  const tops=document.getElementById('tops'), full=document.getElementById('full'), mini=document.getElementById('mini'),
+        hinge=document.getElementById('hinge'), det=document.getElementById('det');
+  if(tops && hinge){
+    const DETENTS = [ {h:56,name:'最小'}, {h:220,name:'均衡'}, {h:340,name:'大'} ];
+    const MIN=DETENTS[0].h, MAX=DETENTS[2].h;
+    let h = DETENTS[1].h; // 既定=均衡
+    function apply(v){
+      h = Math.max(MIN, Math.min(MAX, v));
+      tops.style.height = h+'px';
+      // フル⇔ミニのクロスフェード（高さ 100〜160px を境目に入れ替え）
+      const fk = Math.max(0, Math.min(1, (h-100)/60));   // 0=ミニ 1=フル
+      full.style.opacity = fk.toFixed(3);
+      full.style.pointerEvents = fk>0.5?'auto':'none';
+      mini.style.opacity = (1-fk).toFixed(3);
+      mini.style.pointerEvents = fk<0.5?'auto':'none';
+      const near = DETENTS.reduce((a,b)=> Math.abs(b.h-h)<Math.abs(a.h-h)?b:a);
+      det.textContent = near.name; hinge.setAttribute('aria-valuetext', near.name);
+    }
+    function snap(){
+      const near = DETENTS.reduce((a,b)=> Math.abs(b.h-h)<Math.abs(a.h-h)?b:a);
+      apply(near.h);
+    }
+    let dragging=false, startY=0, startH=0;
+    hinge.addEventListener('pointerdown', e=>{
+      dragging=true; startY=e.clientY; startH=h; tops.classList.add('drag');
+      hinge.setPointerCapture(e.pointerId);
+    });
+    hinge.addEventListener('pointermove', e=>{ if(dragging) apply(startH + (e.clientY-startY)); });
+    function endDrag(){ if(!dragging) return; dragging=false; tops.classList.remove('drag'); snap(); }
+    hinge.addEventListener('pointerup', endDrag);
+    hinge.addEventListener('pointercancel', endDrag);
+    // キーボード：上下で段送り
+    hinge.addEventListener('keydown', e=>{
+      const i = DETENTS.findIndex(d=>d.name===det.textContent);
+      if(e.key==='ArrowUp'){ e.preventDefault(); apply(DETENTS[Math.min(2,i+1)].h); }
+      if(e.key==='ArrowDown'){ e.preventDefault(); apply(DETENTS[Math.max(0,i-1)].h); }
+    });
+    apply(h);
+  }
 </script>
 </body>
 </html>
