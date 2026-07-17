@@ -77,6 +77,8 @@ import com.novelreader.ui.theme.BlueLoCartridge
 import com.novelreader.ui.theme.InkCartridge
 import com.novelreader.ui.theme.InkMidCartridge
 import com.novelreader.ui.theme.InkSoftCartridge
+import com.novelreader.ui.theme.InslotHiCartridge
+import com.novelreader.ui.theme.InslotLoCartridge
 import com.novelreader.ui.theme.LcdCartridge
 import com.novelreader.ui.theme.LcdFrameCartridge
 import com.novelreader.ui.theme.LcdHiCartridge
@@ -124,9 +126,8 @@ import kotlin.math.roundToInt
 //
 // 省略した装飾ディテール（近似も発明もしないための明示）:
 //   ・機体四隅のネジ（.screw）＝署名要素外の汎用筐体装飾＝省略。
-//   ・挿入中カセットの淡緑ボディ（.cart.inslot #e6ecd6→#d7e0c2＝:root 変数外のインライン実値で既存トークンに
-//     無い）＝ボディ地は通常プラのまま、挿入中は正本の「▶ IN SLOT」緑タグ＋LCD 緑の縁で示す（色の近似はしない）。
 //   ・LCD スタットの TIME（プレイ時間）＝実データに読書時間を持たない＝捏造せず STAGE/TOTAL/CLEAR の3値に絞る。
+// 挿入中カセットの淡緑ボディ（.cart.inslot #e6ecd6→#d7e0c2）は Color.kt の Inslot*Cartridge へ実値昇格して配線済み。
 // ============================================================
 
 // P の pixel 記号チャンネル（--pixel: ui-monospace 系）。7セグ/STAGE/CLEAR 等の英数 HUD に使う。
@@ -825,9 +826,11 @@ private fun CartridgeCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(cartShape)
-            .background(Brush.linearGradient(listOf(PlasticHiCartridge, PanelCartridge)))
-            // 挿入中は正本の緑タグ＋LCD 緑の縁で示す（淡緑ボディ地は既存トークンに無く近似しない＝ファイル冒頭の裁定）。
-            .then(if (isInSlot) Modifier.border(1.dp, LcdCartridge, cartShape) else Modifier)
+            // 挿入中は淡緑ボディ地（.cart.inslot #e6ecd6→#d7e0c2）、通常は退色プラ（.cart plastic-hi→panel）。
+            .background(
+                if (isInSlot) Brush.linearGradient(listOf(InslotHiCartridge, InslotLoCartridge))
+                else Brush.linearGradient(listOf(PlasticHiCartridge, PanelCartridge))
+            )
             .clickable(onClick = onOpen),
     ) {
         Column {

@@ -300,6 +300,10 @@ val CartridgePlum       = Color(0xFFBF8F9C)  // --w4 ＝ --g1（ラベル梅／�
 val CartridgeGenreSlate = Color(0xFF8B84A0)  // --g4（ジャンル青灰）
 val CartridgeGenreTaupe = Color(0xFF9A9384)  // --g5（ジャンル灰茶）
 val CartridgeGenreClay  = Color(0xFFA88F7A)  // --g6（ジャンル土）
+// 挿入中カセットの淡緑ボディ地（bookshelf-P .cart.inslot の linear-gradient(150deg,#e6ecd6,#d7e0c2)＝
+// :root 変数外のインライン実値。焼き込みでなくモック直値をそのまま昇格・近似せず。構造画面専用＝ADR 0022 §5）。
+val InslotHiCartridge   = Color(0xFFE6ECD6)  // .cart.inslot グラデ上（挿入中カセットの淡緑ハイライト）
+val InslotLoCartridge   = Color(0xFFD7E0C2)  // .cart.inslot グラデ下
 
 // ============================================================
 // スキンJ「ポータル」（正本モック docs/design-candidates/skins/{bookshelf,reading,toc,settings,discovery}-J.html）。
