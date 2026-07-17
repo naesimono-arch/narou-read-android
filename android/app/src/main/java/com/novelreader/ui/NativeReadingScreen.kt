@@ -1163,6 +1163,9 @@ internal fun ChapterScreenContent(
     // 変わるため、onSizeChanged で実測した高さ分だけスライドさせて完全に画面外へ退避させる。
     var bottomBarHeightPx by remember { mutableIntStateOf(0) }
 
+    // スキンP セーブバーの実測高さ（px）。上方向の退避スライド量に使う（フォント拡大でバー高が変わるため実測）。
+    var saveBarHeightPx by remember { mutableIntStateOf(0) }
+
     // 左右スワイプで章送り（handover D 回収→2026-07-16 ユーザー指示で「引っ張りプレビュー」へ増強）:
     // ドラッグ量に本文が追従し、隣章の実物の冒頭が端から覗く。覗きの内容＝遷移後に実際に表示される章頭と
     // 同一なので、確定スライドがそのまま新章の初期表示へ連続して見える。旧 experiment/lab-old(23b5f33) は
@@ -1575,17 +1578,26 @@ internal fun ChapterScreenContent(
         }
 
         // ────── スキンP: 上端の緑LCDセーブバー（reading-P .savebar・没入中の唯一常設クローム）──────
-        // なぜ alpha=collapsedFraction か: クローム表示時は共有 TopAppBar（＋SaveChipP の HUD セーブ読み取り）が
-        // 出るため、没入（collapsedFraction=1）でのみセーブバーを見せ、表示時（=0）は透過して TopAppBar と
-        // 入れ替わる（M のゴースト題字と同型）。collapsedFraction は graphicsLayer 内の deferred read＝バー追従で
-        // composition を再実行しない。P 固有アニメは新設せず、共有トグルの spring に従う静止意匠（ADR 0022 §3）。
+        // 出没はスライド退避（下端バーと同型）。クローム表示時は共有 TopAppBar（＋SaveChipP の HUD）が代わりに
+        // 出るため、没入（collapsedFraction=1）でのみ上端に見せ、表示時（=0）は自身の高さ分だけ上へ退避して隠す。
+        // なぜ旧 alpha フェードをやめたか（2026-07-17 実機・真因）: フェード中はバー面が半透明化し、背後を流れる
+        // 本文が「SAVE…%」と重なって読めた（LCD面は不透明が正・reading-P .savebar は不透明地）。スライドなら
+        // 出没のどの瞬間もバーは不透明のまま＝透け重なりが構造的に起きない。「常設の静かな随伴」は保つ。
+        // また上端インセットを外し flush-top（モック .savebar{top:0}）に置く: 旧実装は statusBar 実高ぶん下げて
+        // 敷いており、没入で status bar を隠すと生じる帯にスクロール本文の切れ端が覗いていた（隙間の解消）。
+        // collapsedFraction/saveBarHeightPx は graphicsLayer 内の deferred read＝バー追従で composition を再実行しない。
         if (isCartridge && chapterNumber != null && totalChapters != null && totalChapters > 0) {
             ReadingSaveBarP(
                 fraction = chapterNumber.toFloat() / totalChapters,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
-                    .graphicsLayer { alpha = topAppBarState.collapsedFraction },
+                    .onSizeChanged { saveBarHeightPx = it.height }
+                    .graphicsLayer {
+                        // 退避割合（1-collapsedFraction）× 実測高さ分だけ上へ（collapsedFraction=0＝表示時に完全に画面外上）
+                        translationY = -saveBarHeightPx * (1f - topAppBarState.collapsedFraction)
+                        // 初期退避の実測待ち中は不可視（既定 state が表示位置で生まれる一瞬の露出を防ぐ・下端バーと同型）
+                        alpha = if (barsVisualReady) 1f else 0f
+                    },
             )
         }
 
@@ -1696,7 +1708,11 @@ internal fun ChapterScreenContent(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.S4),
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(colors.navBackground.copy(alpha = 0.92f))
+                    // 不透明地（alpha を掛けない）。真因＝半透明(.92)地は暗色スキン(J=#101913)で
+                    // 背後の章末mark「— 第N話 了 —」(明色)が8%透けてピル文字とだぶる（2026-07-17 実機）。
+                    // モックの .92 は D 明色テーマ（ピル色≒地色で透過が目立たない）較正で、暗地×明背景の
+                    // J では成立しない。操作可能ピルは可読性優先＝navBackground を不透明で敷く。
+                    .background(colors.navBackground)
                     // animateScrollToItem: 瞬間ジャンプは味気ないというユーザー所見（2026-07-16）で滑走化。
                     // 遠距離は Lazy が目標近くまで内部で座標を寄せてから滑らかに着地する＝長章でも安全。
                     .clickable(onClick = { scope.launch { lazyListState.animateScrollToItem(0) } })

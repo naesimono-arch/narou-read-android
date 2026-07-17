@@ -112,6 +112,24 @@ private val AmbMossToc = AmbDarkMossPortal.copy(alpha = 0.50f) // radial moss rg
 /** 章行の道程状態（現在章より前＝PASSED／現在章＝CUR／未読＝AHEAD）。値の正本＝toc-J.html .li.{passed,cur,（既定）}。 */
 private enum class RowStep { PASSED, CUR, AHEAD }
 
+// 表示専用の末尾区切り除去（データは不変）。なろう系の原題は " - サブ" 形の区切りが末尾に残ることがあり、
+// 明朝15sp・幅制約の章行では孤立した「-」だけが折り返し2行目に落ちて可読性を損なう（2026-07-17 実機 J目次）。
+// そこで各種ダッシュ（半角/全角ハイフン・マイナス・各種ダッシュ・水平バー）が末尾にぶら下がるときだけ、
+// 前後空白ごと表示から落とす。長音符 U+30FC「ー」・中黒「・」は語の一部/正当な区切りなので対象外（誤トリム防止）。
+private val TrailingSeparators = charArrayOf(
+    '-',       // U+002D HYPHEN-MINUS
+    '‐',  // ‐ HYPHEN
+    '‑',  // ‑ NON-BREAKING HYPHEN
+    '‒',  // ‒ FIGURE DASH
+    '–',  // – EN DASH
+    '—',  // — EM DASH
+    '―',  // ― HORIZONTAL BAR
+    '−',  // − MINUS SIGN
+    '－',  // － FULLWIDTH HYPHEN-MINUS
+)
+private fun String.trimTrailingSeparator(): String =
+    trimEnd().trimEnd(*TrailingSeparators).trimEnd()
+
 @Composable
 internal fun TocPortalJ(
     tocState: TocState,
@@ -156,7 +174,9 @@ internal fun TocPortalJ(
                             else -> RowStep.AHEAD
                         }
                         TocChapterRow(
-                            title = entry.title.ifEmpty { "第${index + 1}話" },
+                            // 表示層で末尾区切りをトリム（データ entry.title は不変）。空題フォールバックは
+                            // トリム後に判定＝区切りだけの題は "第N話" へ落とす。
+                            title = entry.title.trimTrailingSeparator().ifEmpty { "第${index + 1}話" },
                             step = step,
                             onClick = { onSelectChapter(entry.fileName) },
                         )
