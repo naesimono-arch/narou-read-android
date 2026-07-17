@@ -52,7 +52,10 @@ import com.novelreader.ui.theme.FontMicroLabel
 import com.novelreader.ui.theme.FontResultTitle
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.LocalShelfColors
+import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.Skin
+import com.novelreader.ui.skins.m.DiscoveryResultSkyM
 import com.novelreader.viewmodel.DiscoveryUiState
 import com.novelreader.viewmodel.DiscoveryViewModel
 import com.novelreader.viewmodel.PagingState
@@ -116,6 +119,23 @@ internal fun DiscoveryResultContent(
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
 ) {
+    // スキンM「星図」: 結果一覧を画面丸ごと星図構造へ委譲する（ADR 0022 §1 の薄いルーター）。
+    // 文脈 null（process death 復帰中）の最小ローディングは分岐先が D と同じく内部で扱う。
+    if (LocalSkin.current == Skin.SEIZU_M) {
+        DiscoveryResultSkyM(
+            ctx = ctx,
+            state = state,
+            onUp = onUp,
+            onBack = onBack,
+            onOpenDetail = onOpenDetail,
+            onChangeOrder = onChangeOrder,
+            onChangeGenreFilter = onChangeGenreFilter,
+            onRefresh = onRefresh,
+            onLoadMore = onLoadMore,
+        )
+        return
+    }
+
     // F-C: process death 復帰中は VM の init が SavedStateHandle から文脈を復元する。旧実装はここで
     // onBack して前画面へ強制退去していた（公理6/9違反＝操作なしに一覧が消え1つ前へ飛ばされる）。
     // 復元されるまでは退去せず最小のローディングを描いて待つ（NovelDetail の ncode 復元と対称）。

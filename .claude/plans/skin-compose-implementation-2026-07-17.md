@@ -52,3 +52,43 @@
 cd /home/qingj/wt/ui-skin-framework && claude
 # 初手: このプランを読む → git branch --show-current が ui/skin-framework を確認 → 「前提の設計判断」から着手
 ```
+
+---
+
+## 実行状態（2026-07-17 実行セッション1 終了時点・全て未コミット＝git status が正）
+
+> 体制: Claude=司令塔（設計裁定・監督自作・diff 全量レビュー・ゲート自走）／委譲=Claude サブエージェント
+> （agy 不使用=memory 準拠）。委譲仕様書は scratchpad（セッション消滅・判断内容は ADR 0022 とコード内コメントへ収蔵済み）。
+
+### 完了（作業ツリー上・ゲート現在値: testDebugUnitTest **549件緑**・checker OK=184/NG=0・spacing NG=0）
+
+1. **前提の設計判断 → ADR 0022 新設**（`docs/decisions/0022-skin-structural-layer.md`＋README索引）:
+   二層化=画面入口の薄い when(skin) ルーター（本棚/目次/発見ホーム・結果=画面丸ごと・読書/設定=共通骨格＋部品）／
+   supportedThemes: M=[DARK]・J=[DARK,LIGHT,SEPIA]（読書のみ変種）・**P=[LIGHT]開始**（プラン前提「P=3面あり」は
+   事実誤認と確定＝モックに変種実体なし）／「現在地の脈動」類型承認（reduce 静止必須）／食い違い値は家系分離。
+2. **C1 トークン層**: Color.kt に Seizu/Cartridge/Portal 3節（全 val モック由来＋焼き込み算式コメント）・
+   SkinM/P/J.kt・enum 3値・checker M/P/J 行・SkinMPJTest 8件。LocalSkin（enum の CompositionLocal）新設。
+3. **C2: M 星図 全5画面完了**:
+   - 本棚 `ui/skins/m/BookshelfSkyM.kt`（監督自作・1作=1星座セル・hero 脈動星・星図⇄一覧トグル pref `m_sky_view`・
+     一覧=D構造フォールバックが選択削除/Webカード操作を担保・⋮メニューのテーマ節畳み漏れも是正）
+   - 読書 `ReadingChromeM.kt`（監督自作・上端結線進捗・章扉=星座片＋漢数字話数・シーン区切り・星屑地・ゴースト題字。
+     本文エンジン無改変=既定引数のみ）
+   - 目次 `TocSkyM.kt`＋共通 `SkyCanvas.kt`（委譲→検収済。現在章ドットのみ脈動=一画面一強調の監督裁定）
+   - 設定 ReadingSettingsSheet の M 部品分岐（監督自作・観測パネルグラデ・テーマ固定表示行・星のつまみ/結線トラック）
+   - 発見 `DiscoveryHomeSkyM.kt`（委譲→検収済。ホーム＋結果一覧・モック省略の D 機能は全数 M 意匠へ移植）
+4. **P テーマ3変種の追補ドラフト**: `docs/design-candidates/skins/candidates/reading-P-themes-draft.html`
+   （SEPIA/DARK 地色=settings-P スウォッチ実値昇格・WCAG 実算済み・承認後に reading-P 正本統合→SkinP 3テーマ化）。
+
+### 人間の関門（3件・ここで停止中）
+
+1. **コミット承認**: 提示順=①docs: ADR 0022 ②feat: C1 ③feat: C2-M 各画面（分割・台帳更新同梱）
+2. **P テーマ3変種ドラフトの目視**（mockview 済み）→ 採否
+3. **実機投入の許可**（M 全5画面を一括目視可能。adb-bridge→install -r の手前で停止中）
+
+### 再開手順（fresh セッション）
+
+1. このプランを読む→`git branch --show-current`=ui/skin-framework→`git status` で未コミット全量を確認
+2. 人間の関門3件の裁定をもらう→コミット（1論理変更=1コミット・各コミット前に提示）
+3. M の実機目視フィードバックを較正に **C2 P→J**（委譲パターンは toc/discovery と同型: 仕様書=〈モック現物・
+   ADR 0022・BookshelfSkyM 等の正本実装・厳密写像表〉→委譲→diff 全量レビュー＋ゲート自走。J は wardrobe カード
+   文言・P は 3テーマ化の裁定を織り込む）→ C3（装いの間 M/P/J カード=enum で自動反映済みのため実質は実機総合）
