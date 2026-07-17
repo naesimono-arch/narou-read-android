@@ -130,6 +130,8 @@ import com.novelreader.ui.theme.MotionSpringBarSettle
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.skins.m.ReadingProgressStarM
 import com.novelreader.ui.skins.m.drawSeizuReadingSky
+import com.novelreader.ui.skins.p.ReadingSaveBarP
+import com.novelreader.ui.skins.p.SaveChipP
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Skin
@@ -1137,6 +1139,9 @@ internal fun ChapterScreenContent(
     // スキンM（星図）のクローム部品分岐フラグ（ADR 0022 §1＝本文エンジンは共有・替わるのは
     // 地の星屑/上端結線進捗/没入ゴースト題字のみ。M 以外では従来描画と完全同一）。
     val isSeizu = LocalSkin.current == Skin.SEIZU_M
+    // スキンP（カートリッジ）のクローム部品分岐フラグ。替わるのは没入時の緑LCDセーブバー（常設クローム）と
+    // クローム表示時 HUD の緑LCDセーブチップのみ（章扉/シーン区切りは ChapterContent 側の分岐）。P 以外は不変。
+    val isCartridge = LocalSkin.current == Skin.CARTRIDGE_P
 
     // 表示設定ボトムシートの開閉状態。
     // なぜ rememberSaveable か: 素の remember だとプロセス再生成（回転・background kill）で
@@ -1358,6 +1363,7 @@ internal fun ChapterScreenContent(
                                 lazyListState = lazyListState,
                                 continuation = continuationSlot,
                                 chapterNumber = chapterNumber,
+                                totalChapters = totalChapters,
                             )
                         }
                     }
@@ -1499,6 +1505,18 @@ internal fun ChapterScreenContent(
             // 表示設定は右上隅の歯車を撤去し下端バーへ集約した（C①案A・handover ★残1）。
             // 隅の歯車は「毎セッション触る唯一の入口が隅に複利蓄積」＝標準の悪例で、親指の届く下端へ移す。
             // 上端は ←（目次へ）＋章題のみに絞り、原則1「UIは黒衣」を強める（起動導線だけの変更＝シート中身は不変）。
+            // スキンP のみ: クローム表示時 HUD の緑LCDセーブチップ（reading-P .hud .save）を右端に載せる
+            //（没入時は下の ReadingSaveBarP が担い、TopAppBar 退避で自然に入れ替わる）。P 以外は actions 空＝不変。
+            actions = {
+                if (isCartridge && chapterNumber != null && totalChapters != null && totalChapters > 0) {
+                    SaveChipP(
+                        chapterNumber = chapterNumber,
+                        totalChapters = totalChapters,
+                        fraction = chapterNumber.toFloat() / totalChapters,
+                        modifier = Modifier.padding(end = Spacing.S8),
+                    )
+                }
+            },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = colors.topBarBackground,
                 scrolledContainerColor = colors.topBarBackground,
@@ -1544,6 +1562,21 @@ internal fun ChapterScreenContent(
                     .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
                     .padding(top = Spacing.S12)
                     .padding(horizontal = Spacing.S40)
+                    .graphicsLayer { alpha = topAppBarState.collapsedFraction },
+            )
+        }
+
+        // ────── スキンP: 上端の緑LCDセーブバー（reading-P .savebar・没入中の唯一常設クローム）──────
+        // なぜ alpha=collapsedFraction か: クローム表示時は共有 TopAppBar（＋SaveChipP の HUD セーブ読み取り）が
+        // 出るため、没入（collapsedFraction=1）でのみセーブバーを見せ、表示時（=0）は透過して TopAppBar と
+        // 入れ替わる（M のゴースト題字と同型）。collapsedFraction は graphicsLayer 内の deferred read＝バー追従で
+        // composition を再実行しない。P 固有アニメは新設せず、共有トグルの spring に従う静止意匠（ADR 0022 §3）。
+        if (isCartridge && chapterNumber != null && totalChapters != null && totalChapters > 0) {
+            ReadingSaveBarP(
+                fraction = chapterNumber.toFloat() / totalChapters,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
                     .graphicsLayer { alpha = topAppBarState.collapsedFraction },
             )
         }

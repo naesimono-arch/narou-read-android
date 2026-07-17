@@ -44,6 +44,8 @@ import com.novelreader.model.TextSegment
 import com.novelreader.ui.compose.RubyText
 import com.novelreader.ui.skins.m.ChapterHeaderM
 import com.novelreader.ui.skins.m.SceneDividerM
+import com.novelreader.ui.skins.p.ChapterHeaderP
+import com.novelreader.ui.skins.p.SceneDividerP
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.Skin
@@ -82,6 +84,9 @@ internal fun ChapterContent(
     // 現在章の番号（1始まり・目次順）。スキンM の章扉「第 N 話」表示用（ADR 0022 §1 の部品分岐）。
     // null＝目次未ロード等で不明（M でも話数行を出さないだけ・他スキンは不使用）。既定 null で既存呼出し不変。
     chapterNumber: Int? = null,
+    // 全章数。スキンP の章扉「第 N 話 ／ 全 M 話」表示用（ADR 0022 §1）。null＝目次未ロードで不明。
+    // 既定 null で既存呼出し・M/D 分岐は不変（P 以外は不使用）。
+    totalChapters: Int? = null,
 ) {
     val paragraphs = remember(content) { content.segments.splitIntoParagraphs() }
 
@@ -148,10 +153,10 @@ internal fun ChapterContent(
         // 章見出し（モック reading-D .chap-h）: 章タイトルを明朝で中央寄せ＋藍の短ルール。
         // なぜ本文先頭に置くか: 没入時はトップバーが隠れるため、ここが唯一の章タイトル表示になる。
         item {
-            // スキンM は章扉ごと差し替え（星座片＋漢数字話数＋星線ルール＝ADR 0022 §1 の部品分岐）。
-            // 本文組版は共有のまま＝差し替わるのは見出しブロックのみ。
-            if (LocalSkin.current == Skin.SEIZU_M) {
-                ChapterHeaderM(
+            // スキンM/P は章扉ごと差し替え（ADR 0022 §1 の部品分岐）。本文組版は共有のまま＝差し替わるのは
+            // 見出しブロックのみ。M＝星座片＋漢数字話数＋星線ルール／P＝ピクセル話数＋明朝題＋緑LCD3点ルール。
+            when (LocalSkin.current) {
+                Skin.SEIZU_M -> ChapterHeaderM(
                     title = content.title,
                     chapterNumber = chapterNumber,
                     colors = colors,
@@ -159,8 +164,16 @@ internal fun ChapterContent(
                     bodyMarginDp = bodyMarginDp,
                     bodyMaxWidth = bodyMaxWidth,
                 )
-            } else {
-                ChapterHeader(
+                Skin.CARTRIDGE_P -> ChapterHeaderP(
+                    title = content.title,
+                    chapterNumber = chapterNumber,
+                    totalChapters = totalChapters,
+                    colors = colors,
+                    fontSize = fontSize,
+                    bodyMarginDp = bodyMarginDp,
+                    bodyMaxWidth = bodyMaxWidth,
+                )
+                else -> ChapterHeader(
                     title = content.title,
                     colors = colors,
                     fontSize = fontSize,
@@ -270,9 +283,12 @@ private fun ParagraphItem(
         }
         paragraph.size == 1 && paragraph[0] is TextSegment.HorizontalRule -> {
             // 水平線（html_exporter.py の <hr> に対応＝シーン区切り）
-            // スキンM は「線-星点-線」（reading-M .scene）へ差し替え（ADR 0022 §1 の部品分岐）。
+            // スキンM は「線-星点-線」（reading-M .scene）・P は「--rd-soft の破線バー」（reading-P hr）へ
+            // 差し替え（ADR 0022 §1 の部品分岐）。
             if (LocalSkin.current == Skin.SEIZU_M) {
                 SceneDividerM(colors = colors, modifier = modifier)
+            } else if (LocalSkin.current == Skin.CARTRIDGE_P) {
+                SceneDividerP(colors = colors, modifier = modifier)
             } else Canvas(
                 modifier = modifier
                     .fillMaxWidth()

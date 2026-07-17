@@ -39,6 +39,12 @@ import com.novelreader.ui.skins.m.SeizuSliderThumb
 import com.novelreader.ui.skins.m.SeizuSliderTrack
 import com.novelreader.ui.skins.m.SettingsHeaderFragM
 import com.novelreader.ui.skins.m.ThemeFixedRowM
+import com.novelreader.ui.skins.p.CartridgeGrab
+import com.novelreader.ui.skins.p.CartridgeSheetBottom
+import com.novelreader.ui.skins.p.CartridgeSheetBrush
+import com.novelreader.ui.skins.p.CartridgeSliderThumb
+import com.novelreader.ui.skins.p.CartridgeSliderTrack
+import com.novelreader.ui.skins.p.SettingsSysBarP
 import com.novelreader.ui.theme.FontMicroLabel
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.LocalSkinTokens
@@ -82,12 +88,19 @@ internal fun ReadingSettingsSheet(
     // 読書中の背景と一致させて違和感とフラッシュをなくす。
     // スキンM は「観測パネル」＝シート面が上下グラデ（settings-M .sheet）。container はグラデ終点色にし、
     // 面の描画とつまみ（.grab）は Content 側が担う（既定ハンドルを消してグラデの継ぎ目を作らない）。
+    // スキンP は「機体のシステムメニュー」＝シート面がプラ筐体面の上下グラデ（テーマ不変・settings-P .sheet）。
+    // container はグラデ終点色にし、面の描画と自前グラブは Content 側が担う（既定ハンドルを消して継ぎ目を作らない）。
     val isSeizu = LocalSkin.current == Skin.SEIZU_M
+    val isCartridge = LocalSkin.current == Skin.CARTRIDGE_P
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = if (isSeizu) SeizuSheetBottom else colors.background,
+        containerColor = when {
+            isSeizu -> SeizuSheetBottom
+            isCartridge -> CartridgeSheetBottom
+            else -> colors.background
+        },
         contentColor = colors.text,
-        dragHandle = if (isSeizu) null else ({ BottomSheetDefaults.DragHandle() }),
+        dragHandle = if (isSeizu || isCartridge) null else ({ BottomSheetDefaults.DragHandle() }),
     ) {
         ReadingSettingsSheetContent(
             colors = colors,
@@ -131,11 +144,19 @@ internal fun ReadingSettingsSheetContent(
     onBodyMarginPersist: () -> Unit,
 ) {
     val isSeizu = LocalSkin.current == Skin.SEIZU_M
+    val isCartridge = LocalSkin.current == Skin.CARTRIDGE_P
     Column(
         modifier = Modifier
             .fillMaxWidth()
             // スキンM: シート面の上下グラデ（settings-M .sheet #182034→#111726。padding より先＝面全体を塗る）。
-            .then(if (isSeizu) Modifier.background(SeizuSheetBrush) else Modifier)
+            // スキンP: プラ筐体面の上下グラデ（settings-P .sheet・テーマ不変＝機体のシステムメニュー面）。
+            .then(
+                when {
+                    isSeizu -> Modifier.background(SeizuSheetBrush)
+                    isCartridge -> Modifier.background(CartridgeSheetBrush)
+                    else -> Modifier
+                }
+            )
             .padding(horizontal = Spacing.S24)
             .padding(bottom = Spacing.S32),
     ) {
@@ -149,6 +170,18 @@ internal fun ReadingSettingsSheetContent(
                     .height(4.dp)
                     .background(MoonSlateSeizu.copy(alpha = 0.35f), RoundedCornerShape(2.dp)),
             )
+        } else if (isCartridge) {
+            // P の自前グラブ（settings-P .grab 38×5・--plastic-lo）。既定ハンドルはシート側で消している。
+            Box(
+                modifier = Modifier
+                    .padding(top = Spacing.S16, bottom = Spacing.S24)
+                    .align(Alignment.CenterHorizontally),
+            ) { CartridgeGrab() }
+        }
+        if (isCartridge) {
+            // P のシステムメニューヘッダ＝緑LCDの起動画面感バー（settings-P .sysbar）。見出しの上に載せる。
+            SettingsSysBarP()
+            Spacer(Modifier.height(Spacing.S16))
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             // スキンM: 見出し脇に小星座片（settings-M h2 の SVG）。
@@ -159,9 +192,10 @@ internal fun ReadingSettingsSheetContent(
             Text(
                 text = "表示設定",
                 style = MaterialTheme.typography.titleMedium,
-                // モック settings-D .sheet h2: 明朝・weight600・字間.08em
-                fontFamily = MinchoFamily,
-                fontWeight = FontWeight.SemiBold,
+                // モック settings-D .sheet h2: 明朝・weight600・字間.08em。P はゴシック（--gothic＝既定サンセリフ）
+                //   で題字を組む署名のため明朝を使わない（settings-P h2 は gothic weight700）。
+                fontFamily = if (isCartridge) null else MinchoFamily,
+                fontWeight = if (isCartridge) FontWeight.Bold else FontWeight.SemiBold,
                 letterSpacing = 0.08.em,
             )
         }
@@ -278,6 +312,7 @@ internal fun ReadingSettingsSheetContent(
                 steps = 9,
                 colors = sliderColors,
                 isSeizu = isSeizu,
+                isCartridge = isCartridge,
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = Spacing.S12),
@@ -313,6 +348,7 @@ internal fun ReadingSettingsSheetContent(
                 steps = 4,
                 colors = sliderColors,
                 isSeizu = isSeizu,
+                isCartridge = isCartridge,
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = Spacing.S12),
@@ -345,6 +381,7 @@ internal fun ReadingSettingsSheetContent(
                 steps = 5,
                 colors = sliderColors,
                 isSeizu = isSeizu,
+                isCartridge = isCartridge,
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = Spacing.S12),
@@ -356,8 +393,9 @@ internal fun ReadingSettingsSheetContent(
 
 /**
  * 設定スライダーの薄いラッパー（ロジック共通・意匠だけスキン分岐＝ADR 0022 §1）。
- * M ではつまみ＝きらめく星・トラック＝結線（settings-M .knob/.track）。fraction は SliderState の
- * 内部 API に依存せず value/valueRange から自前計算する（実験 API への接触面を最小に保つ）。
+ * M ではつまみ＝きらめく星・トラック＝結線（settings-M .knob/.track）／P ではつまみ＝プラのノブ・
+ * トラック＝青の値トラック（settings-P .knob/.track）。fraction は SliderState の内部 API に依存せず
+ * value/valueRange から自前計算する（実験 API への接触面を最小に保つ）。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -369,10 +407,12 @@ private fun SettingsSlider(
     steps: Int,
     colors: androidx.compose.material3.SliderColors,
     isSeizu: Boolean,
+    isCartridge: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    if (isSeizu) {
+    if (isSeizu || isCartridge) {
         val interactionSource = remember { MutableInteractionSource() }
+        val f = (value - valueRange.start) / (valueRange.endInclusive - valueRange.start)
         Slider(
             value = value,
             onValueChange = onValueChange,
@@ -381,10 +421,9 @@ private fun SettingsSlider(
             steps = steps,
             colors = colors,
             interactionSource = interactionSource,
-            thumb = { SeizuSliderThumb() },
+            thumb = { if (isCartridge) CartridgeSliderThumb() else SeizuSliderThumb() },
             track = {
-                val f = (value - valueRange.start) / (valueRange.endInclusive - valueRange.start)
-                SeizuSliderTrack(fraction = f)
+                if (isCartridge) CartridgeSliderTrack(fraction = f) else SeizuSliderTrack(fraction = f)
             },
             modifier = modifier,
         )

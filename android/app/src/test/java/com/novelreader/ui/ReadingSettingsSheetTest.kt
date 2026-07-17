@@ -76,6 +76,24 @@ class ReadingSettingsSheetTest {
     }
 
     @Test
+    fun `P装着では標準テーマ3択を出す（M固定表示行と違い壊さない）`() {
+        // P は supportedThemes=3（ADR 0022 §2 追記）＝標準3択が出る。M の固定表示行分岐に流れないこと。
+        setSheet(skin = Skin.CARTRIDGE_P)
+        composeTestRule.onNodeWithText("表示設定").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ライト").assertIsDisplayed()
+        composeTestRule.onNodeWithText("セピア").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ダーク").assertIsDisplayed()
+        // P のシステムメニューヘッダ（settings-P .sysbar）が出る。
+        composeTestRule.onNodeWithText("POCKET NOVEL").assertIsDisplayed()
+        // ロジック共有の証左＝スライダー現在値は D と同一書式のまま。
+        //（P はシステムメニュー面がヘッダぶん高く、本文余白スライダー "20dp" は Robolectric の 470px 窓の
+        //   外に出るため assertExists で存在のみ確認する＝視認は 18sp/2.5 で担保。実機のシートはスクロールする）。
+        composeTestRule.onNodeWithText("18sp").assertIsDisplayed()
+        composeTestRule.onNodeWithText("2.5").assertIsDisplayed()
+        composeTestRule.onNodeWithText("20dp").assertExists()
+    }
+
+    @Test
     fun `見出しとテーマ3択と各スライダーの現在値を表示する`() {
         setSheet()
         composeTestRule.onNodeWithText("表示設定").assertIsDisplayed()
