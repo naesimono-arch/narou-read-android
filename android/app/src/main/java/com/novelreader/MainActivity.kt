@@ -270,6 +270,10 @@ private fun NovelReaderApp(
                 deferHeavyContent = deferHeavyContent,
                 appTheme = appTheme,
                 onThemeChange = onThemeChange,
+                // 「システムに従う」の単一真実源を本棚⋮のテーマ4択へ素通し（読書設定シートへ渡すのと同じ状態＝
+                // reading_theme 未宣言かどうか。別状態を新設せず二重管理を避ける・2026-07-17 ユーザー裁定②）。
+                followingSystem = followingSystem,
+                onFollowSystem = onFollowSystem,
                 onOpenBook = { bookId, startFile ->
                     // launchSingleTop: 二度押しで同一読書画面がバックスタックに二重 push されるのを防ぐ（M1）。
                     navController.navigate("reading/$bookId/$startFile") { launchSingleTop = true }

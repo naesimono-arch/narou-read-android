@@ -4,9 +4,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -74,6 +76,10 @@ class BookshelfPortalJTest {
         onOpenWardrobe: () -> Unit = {},
         onFabClick: () -> Unit = {},
         processingState: ProcessingState = ProcessingState(),
+        appTheme: ReadingTheme = ReadingTheme.DARK,
+        onThemeChange: (ReadingTheme) -> Unit = {},
+        followingSystem: Boolean = false,
+        onFollowSystem: () -> Unit = {},
     ) {
         composeTestRule.setContent {
             CompositionLocalProvider(LocalSkin provides skin, LocalSkinTokens provides skin.tokens) {
@@ -84,8 +90,10 @@ class BookshelfPortalJTest {
                         chapterCountMap = chapterCountMap,
                         newEpisodeNovelMap = emptyMap(),
                         processingState = processingState,
-                        appTheme = ReadingTheme.DARK,
-                        onThemeChange = {},
+                        appTheme = appTheme,
+                        onThemeChange = onThemeChange,
+                        followingSystem = followingSystem,
+                        onFollowSystem = onFollowSystem,
                         isGridView = false,
                         onToggleView = {},
                         onFabClick = onFabClick,
@@ -179,6 +187,47 @@ class BookshelfPortalJTest {
         // J は3変種（DARK/LIGHT/SEPIA）＝テーマ節を出す（M の1変種畳みとの対比・supportedThemes 単一真実源）。
         composeTestRule.onNodeWithText("テーマ").assertIsDisplayed()
         composeTestRule.onNodeWithText("通知").assertIsDisplayed()
+    }
+
+    // ────── ⋮メニューのテーマ節＝システムに従う＋3択の4択統一（2026-07-17 裁定②・D と同粒度） ──────
+
+    @Test
+    fun `Jのデッキメニューのテーマ節は読書シートと同じ4択を出す`() {
+        // 不整合是正の要: 本棚⋮が3択のままで「システムに従う」を選べなかった退行を固定で塞ぐ（D と同一規則）。
+        setContent(Skin.PORTAL_J, BookshelfUiState.Content(listOf(book("b1", "扉の本"))))
+        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
+        composeTestRule.onNodeWithText("システムに従う").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ライト").assertIsDisplayed()
+        composeTestRule.onNodeWithText("セピア").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ダーク").assertIsDisplayed()
+    }
+
+    @Test
+    fun `J追従中は「システムに従う」のみ選択表示で明示3択は未選択`() {
+        // followingSystem=true（reading_theme 未宣言）のとき、チェックは「システムに従う」1つだけ＝
+        // 「何を宣言したか」を表す読書シートと同一規則（appTheme=DARK でもダークには付かない）。
+        setContent(
+            Skin.PORTAL_J, BookshelfUiState.Content(listOf(book("b1", "扉の本"))),
+            appTheme = ReadingTheme.DARK,
+            followingSystem = true,
+        )
+        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
+        composeTestRule.onAllNodesWithContentDescription("選択中").assertCountEquals(1)
+    }
+
+    @Test
+    fun `Jの「システムに従う」タップでonFollowSystemが呼ばれる`() {
+        // 明示テーマ固定から OS 追従へ戻す導線が J デッキ⋮からも効くことを固定する（不整合の是正点）。
+        var followed = false
+        setContent(
+            Skin.PORTAL_J, BookshelfUiState.Content(listOf(book("b1", "扉の本"))),
+            appTheme = ReadingTheme.LIGHT,
+            followingSystem = false,
+            onFollowSystem = { followed = true },
+        )
+        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
+        composeTestRule.onNodeWithText("システムに従う").performClick()
+        assertTrue(followed)
     }
 
     @Test

@@ -279,6 +279,11 @@ internal fun BookshelfPortalJ(
     statusCounts: Map<ReadingStatus, Int>,
     appTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
+    // 「システムに従う」の単一真実源（reading_theme 未宣言かどうか）。読書設定シート・D 本棚⋮と同じ
+    // MainActivity 状態を素通しで受け、J デッキの⋮テーマ節でも4択を統一する（2026-07-17 ユーザー裁定②・
+    // 別状態を新設せず二重管理を避ける）。既定 false / no-op は既存テスト・呼出しの互換のため。
+    followingSystem: Boolean = false,
+    onFollowSystem: () -> Unit = {},
     onSelectStatus: (ReadingStatus?) -> Unit,
     onOpenBook: (BookEntity) -> Unit,
     onOpenDiscovery: () -> Unit,
@@ -357,6 +362,8 @@ internal fun BookshelfPortalJ(
                 indexLabel = if (current < visible.size) "${current + 1} / ${visible.size}" else "",
                 appTheme = appTheme,
                 onThemeChange = onThemeChange,
+                followingSystem = followingSystem,
+                onFollowSystem = onFollowSystem,
                 onOpenDiscovery = onOpenDiscovery,
                 onOpenWardrobe = onOpenWardrobe,
                 onToggleList = onToggleList,
@@ -707,6 +714,8 @@ private fun PortalTopBar(
     indexLabel: String,
     appTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
+    followingSystem: Boolean,
+    onFollowSystem: () -> Unit,
     onOpenDiscovery: () -> Unit,
     onOpenWardrobe: () -> Unit,
     onToggleList: () -> Unit,
@@ -733,7 +742,7 @@ private fun PortalTopBar(
                     leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
                 )
                 HorizontalDivider()
-                PortalThemeMenuSection(appTheme, onThemeChange) { menuOpen = false }
+                PortalThemeMenuSection(appTheme, onThemeChange, followingSystem, onFollowSystem) { menuOpen = false }
                 NewEpisodeNotificationMenuSection()
             }
         }
@@ -782,11 +791,18 @@ private fun PortalIconButton(
     ) { content() }
 }
 
-/** ⋮メニューのテーマ節（J は DARK/LIGHT/SEPIA の3変種＝supportedThemes>1 のとき出す・D/P メニューと同機能）。 */
+/**
+ * ⋮メニューのテーマ節（J は DARK/LIGHT/SEPIA の3変種＝supportedThemes>1 のとき出す・D/P メニューと同機能）。
+ * 先頭に「システムに従う」を足した4択で読書設定シート・D 本棚⋮と規則を統一する（2026-07-17 ユーザー裁定②）:
+ * 一度でも明示テーマを押すと OS 追従へ戻せなかった不整合を、同じ単一真実源（followingSystem＝reading_theme
+ * 未宣言・切替は onFollowSystem）を共有して塞ぐ。追従中はそれのみチェック・明示3択は !followingSystem 排他。
+ */
 @Composable
 private fun PortalThemeMenuSection(
     appTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
+    followingSystem: Boolean,
+    onFollowSystem: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     if (LocalSkinTokens.current.supportedThemes.size <= 1) return
@@ -795,6 +811,18 @@ private fun PortalThemeMenuSection(
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = Spacing.S16, top = Spacing.S8, bottom = Spacing.S4),
+    )
+    // システムに従う（先頭）。追従中のみチェック＝「何を宣言したか」を表す（明示3択とは排他・読書シートと同一規則）。
+    DropdownMenuItem(
+        text = { Text("システムに従う") },
+        onClick = { onFollowSystem(); onDismiss() },
+        leadingIcon = {
+            if (followingSystem) {
+                Icon(Icons.Filled.Check, contentDescription = "選択中", tint = MaterialTheme.colorScheme.primary)
+            } else {
+                Spacer(Modifier.width(Spacing.S24))
+            }
+        },
     )
     ReadingTheme.values().forEach { theme ->
         DropdownMenuItem(
@@ -809,7 +837,8 @@ private fun PortalThemeMenuSection(
             },
             onClick = { onThemeChange(theme); onDismiss() },
             leadingIcon = {
-                if (appTheme == theme) {
+                // 追従中は明示3択をどれも未選択にする（宣言済みのときだけ該当テーマにチェック）。
+                if (!followingSystem && appTheme == theme) {
                     Icon(Icons.Filled.Check, contentDescription = "選択中", tint = MaterialTheme.colorScheme.primary)
                 } else {
                     Spacer(Modifier.width(Spacing.S24))

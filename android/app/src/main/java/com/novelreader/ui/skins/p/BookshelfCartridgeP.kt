@@ -169,6 +169,11 @@ internal fun BookshelfCartridgeP(
     statusCounts: Map<ReadingStatus, Int>,
     appTheme: com.novelreader.ui.theme.ReadingTheme,
     onThemeChange: (com.novelreader.ui.theme.ReadingTheme) -> Unit,
+    // 「システムに従う」の単一真実源（reading_theme 未宣言かどうか）。読書設定シート・D 本棚⋮と同じ
+    // MainActivity 状態を素通しで受け、P ラックの⋮テーマ節でも4択を統一する（2026-07-17 ユーザー裁定②・
+    // 別状態を新設せず二重管理を避ける）。既定 false / no-op は既存テスト・呼出しの互換のため。
+    followingSystem: Boolean = false,
+    onFollowSystem: () -> Unit = {},
     onSelectStatus: (ReadingStatus?) -> Unit,
     onOpenBook: (BookEntity) -> Unit,
     onOpenDiscovery: () -> Unit,
@@ -209,6 +214,8 @@ internal fun BookshelfCartridgeP(
             BrandRow(
                 appTheme = appTheme,
                 onThemeChange = onThemeChange,
+                followingSystem = followingSystem,
+                onFollowSystem = onFollowSystem,
                 onOpenWardrobe = onOpenWardrobe,
                 onToggleList = onToggleList,
             )
@@ -293,6 +300,8 @@ internal fun BookshelfCartridgeP(
 private fun BrandRow(
     appTheme: com.novelreader.ui.theme.ReadingTheme,
     onThemeChange: (com.novelreader.ui.theme.ReadingTheme) -> Unit,
+    followingSystem: Boolean,
+    onFollowSystem: () -> Unit,
     onOpenWardrobe: () -> Unit,
     onToggleList: () -> Unit,
 ) {
@@ -367,7 +376,7 @@ private fun BrandRow(
                 )
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                ThemeMenuSection(appTheme, onThemeChange) { menuOpen = false }
+                ThemeMenuSection(appTheme, onThemeChange, followingSystem, onFollowSystem) { menuOpen = false }
                 NewEpisodeNotificationMenuSection()
             }
         }
@@ -387,11 +396,18 @@ private fun PlasticSquareButton(onClick: () -> Unit, content: @Composable () -> 
     ) { content() }
 }
 
-/** ⋮メニューのテーマ節（P は LIGHT/SEPIA/DARK の3変種＝supportedThemes>1 のとき出す・D メニューと同機能）。 */
+/**
+ * ⋮メニューのテーマ節（P は LIGHT/SEPIA/DARK の3変種＝supportedThemes>1 のとき出す・D メニューと同機能）。
+ * 先頭に「システムに従う」を足した4択で読書設定シート・D 本棚⋮と規則を統一する（2026-07-17 ユーザー裁定②）:
+ * 一度でも明示テーマを押すと OS 追従へ戻せなかった不整合を、同じ単一真実源（followingSystem＝reading_theme
+ * 未宣言・切替は onFollowSystem）を共有して塞ぐ。追従中はそれのみチェック・明示3択は !followingSystem 排他。
+ */
 @Composable
 private fun ThemeMenuSection(
     appTheme: com.novelreader.ui.theme.ReadingTheme,
     onThemeChange: (com.novelreader.ui.theme.ReadingTheme) -> Unit,
+    followingSystem: Boolean,
+    onFollowSystem: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     // 1変種スキンでは無意味なので節ごと畳む（supportedThemes を単一真実源に＝D トップバーと同じ機構）。
@@ -401,6 +417,18 @@ private fun ThemeMenuSection(
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = Spacing.S16, top = Spacing.S8, bottom = Spacing.S4),
+    )
+    // システムに従う（先頭）。追従中のみチェック＝「何を宣言したか」を表す（明示3択とは排他・読書シートと同一規則）。
+    DropdownMenuItem(
+        text = { Text("システムに従う") },
+        onClick = { onFollowSystem(); onDismiss() },
+        leadingIcon = {
+            if (followingSystem) {
+                Icon(Icons.Filled.Check, contentDescription = "選択中", tint = MaterialTheme.colorScheme.primary)
+            } else {
+                Spacer(Modifier.width(Spacing.S24))
+            }
+        },
     )
     com.novelreader.ui.theme.ReadingTheme.values().forEach { theme ->
         DropdownMenuItem(
@@ -415,7 +443,8 @@ private fun ThemeMenuSection(
             },
             onClick = { onThemeChange(theme); onDismiss() },
             leadingIcon = {
-                if (appTheme == theme) {
+                // 追従中は明示3択をどれも未選択にする（宣言済みのときだけ該当テーマにチェック）。
+                if (!followingSystem && appTheme == theme) {
                     Icon(Icons.Filled.Check, contentDescription = "選択中", tint = MaterialTheme.colorScheme.primary)
                 } else {
                     Spacer(Modifier.width(Spacing.S24))

@@ -106,6 +106,11 @@ fun BookshelfScreen(
     // 見た目テーマの単一正本（読書と共有）。本棚の⋮メニューからも切り替えられるようにする。
     appTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
+    // 「システムに従う」の単一真実源（reading_theme 未宣言＝追従）。読書設定シートと同じ MainActivity 状態を
+    // そのまま受け取り、本棚⋮のテーマ節でも同じ4択を共有する（別状態を新設せず二重管理を避ける）。
+    // 既定 false / no-op は既存呼出し・テストの互換のため（MainActivity が実値を渡して初めて有効化される）。
+    followingSystem: Boolean = false,
+    onFollowSystem: () -> Unit = {},
     onOpenBook: (bookId: String, startFile: String) -> Unit,
     onOpenDiscovery: () -> Unit,
     // 装いの間（UIスキン選択）への入口。入口は本棚トップバーのみ（意図的設計＝ADR 0021 決定7）。
@@ -240,6 +245,8 @@ fun BookshelfScreen(
         processingState = processingState,
         appTheme = appTheme,
         onThemeChange = onThemeChange,
+        followingSystem = followingSystem,
+        onFollowSystem = onFollowSystem,
         isGridView = isGridView,
         onToggleView = {
             isGridView = !isGridView
@@ -441,6 +448,9 @@ internal fun BookshelfContent(
     processingState: ProcessingState,
     appTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
+    // 「システムに従う」の単一真実源（読書設定シートと共有）。既定 false / no-op は既存テスト・呼出しの互換のため。
+    followingSystem: Boolean = false,
+    onFollowSystem: () -> Unit = {},
     isGridView: Boolean,
     onToggleView: () -> Unit,
     onFabClick: () -> Unit,
@@ -557,6 +567,9 @@ internal fun BookshelfContent(
             statusCounts = statusCounts,
             appTheme = appTheme,
             onThemeChange = onThemeChange,
+            // テーマ4択の統一（2026-07-17 裁定②）: 「システムに従う」の単一真実源を P ラックの⋮へ素通し。
+            followingSystem = followingSystem,
+            onFollowSystem = onFollowSystem,
             onSelectStatus = { selectedStatusName = it?.name },
             onOpenBook = onOpenBook,
             onOpenDiscovery = onOpenDiscovery,
@@ -584,6 +597,9 @@ internal fun BookshelfContent(
             statusCounts = statusCounts,
             appTheme = appTheme,
             onThemeChange = onThemeChange,
+            // テーマ4択の統一（2026-07-17 裁定②）: 「システムに従う」の単一真実源を J デッキの⋮へ素通し。
+            followingSystem = followingSystem,
+            onFollowSystem = onFollowSystem,
             onSelectStatus = { selectedStatusName = it?.name },
             onOpenBook = onOpenBook,
             onOpenDiscovery = onOpenDiscovery,
@@ -741,6 +757,30 @@ internal fun BookshelfContent(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(start = Spacing.S16, top = Spacing.S8, bottom = Spacing.S4),
                                 )
+                                // システムに従う/ライト/セピア/ダーク。選択中に藍のチェックを付ける。
+                                // なぜ「システムに従う」を先頭に足すか（2026-07-17 ユーザー裁定）: 読書設定シートは
+                                // 4択（システムに従う＋3択）なのに本棚⋮だけ3択のままで、一度でも明示テーマを押すと
+                                // 本棚からは OS 追従へ戻せない不整合があった。同じ単一真実源（followingSystem＝
+                                // reading_theme 未宣言・切替は onFollowSystem）を読書シートと共有して4択を統一する。
+                                DropdownMenuItem(
+                                    text = { Text("システムに従う") },
+                                    onClick = {
+                                        onFollowSystem()
+                                        showOverflowMenu = false
+                                    },
+                                    leadingIcon = {
+                                        // 追従中のみチェック（宣言＝未宣言かを表す。明示3択とは排他）。
+                                        if (followingSystem) {
+                                            Icon(
+                                                Icons.Filled.Check,
+                                                contentDescription = "選択中",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                            )
+                                        } else {
+                                            Spacer(Modifier.width(Spacing.S24))
+                                        }
+                                    },
+                                )
                                 // ライト/セピア/ダーク。選択中に藍のチェックを付ける。
                                 ReadingTheme.values().forEach { theme ->
                                     DropdownMenuItem(
@@ -758,8 +798,9 @@ internal fun BookshelfContent(
                                             showOverflowMenu = false
                                         },
                                         leadingIcon = {
-                                            // 選択中のみチェック表示（未選択はアイコン領域を空けて字頭を揃える）
-                                            if (appTheme == theme) {
+                                            // 選択中のみチェック表示（未選択はアイコン領域を空けて字頭を揃える）。
+                                            // 追従中は明示3択をどれも未選択にする（「何を宣言したか」を表す＝読書シートと同一規則）。
+                                            if (!followingSystem && appTheme == theme) {
                                                 Icon(
                                                     Icons.Filled.Check,
                                                     contentDescription = "選択中",
