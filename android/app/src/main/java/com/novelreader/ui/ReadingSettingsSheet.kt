@@ -33,6 +33,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.novelreader.ui.skins.j.PortalThemeDoorChips
 import com.novelreader.ui.skins.m.SeizuSheetBottom
 import com.novelreader.ui.skins.m.SeizuSheetBrush
 import com.novelreader.ui.skins.m.SeizuSliderThumb
@@ -145,6 +146,10 @@ internal fun ReadingSettingsSheetContent(
 ) {
     val isSeizu = LocalSkin.current == Skin.SEIZU_M
     val isCartridge = LocalSkin.current == Skin.CARTRIDGE_P
+    // スキンJ（ポータル）＝「扉の前の身支度」。面/見出し/つまみは D 既定のまま（シート面 colors.background・明朝見出し・
+    // 金つまみ＝J の colors.accent が金）で自然に J の署名になる。J 固有はテーマ3択を「扉の向こうの光」の
+    // 小プレビュー（扉プレビューチップ）にする点のみ（settings-J）。
+    val isPortal = LocalSkin.current == Skin.PORTAL_J
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -215,7 +220,23 @@ internal fun ReadingSettingsSheetContent(
         // 出すと「押しても変わらないチップ」になる）。畳んでも "reading_theme" prefs には触れない＝
         // D へ復帰したとき前回のテーマ宣言（追従含む）がそのまま復元される（handover A2 P2 の要件）。
         val skinHasThemeChoice = LocalSkinTokens.current.supportedThemes.size > 1
-        if (skinHasThemeChoice) {
+        if (skinHasThemeChoice && isPortal) {
+            // J＝テーマ3択を「扉の向こうの光」を選ぶ小プレビューにする（settings-J .chips）。ロジックは共有
+            // （supportedThemes 駆動の3択＋システムに従う）で、意匠だけ扉プレビュー化する。
+            Spacer(Modifier.height(Spacing.S16))
+            Text(
+                text = "テーマ",
+                style = MaterialTheme.typography.labelMedium,
+            )
+            Spacer(Modifier.height(Spacing.S8))
+            PortalThemeDoorChips(
+                currentTheme = readingTheme,
+                followingSystem = followingSystem,
+                onThemeChange = onThemeChange,
+                onFollowSystem = onFollowSystem,
+                sheetColors = colors,
+            )
+        } else if (skinHasThemeChoice) {
             Spacer(Modifier.height(Spacing.S16))
             Text(
                 text = "テーマ",

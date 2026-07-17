@@ -40,6 +40,9 @@ class ReadingSettingsSheetTest {
         onThemeChange: (ReadingTheme) -> Unit = {},
         // スキンM の意匠分岐（テーマ固定表示・星のつまみ）検証用。既定 D＝既存テストは完全不変。
         skin: Skin = Skin.WAMODERN_D,
+        // J の「システムに従う」（扉プレビュー下の追従入口）結線検証用。既定 false/空＝既存テストは不変。
+        followingSystem: Boolean = false,
+        onFollowSystem: () -> Unit = {},
     ) {
         composeTestRule.setContent {
             // LocalSkin（意匠分岐）と LocalSkinTokens（テーマ節の畳み判定）は本番では対で供給される。
@@ -48,6 +51,8 @@ class ReadingSettingsSheetTest {
                     colors = colors,
                     readingTheme = readingTheme,
                     onThemeChange = onThemeChange,
+                    followingSystem = followingSystem,
+                    onFollowSystem = onFollowSystem,
                     fontSize = 18,
                     onFontSizeChange = {},
                     onFontSizePersist = {},
@@ -112,5 +117,38 @@ class ReadingSettingsSheetTest {
         setSheet(onThemeChange = { picked = it })
         composeTestRule.onNodeWithText("セピア").performClick()
         assertEquals(ReadingTheme.SEPIA, picked)
+    }
+
+    @Test
+    fun `J装着では扉プレビュー3択＋システムに従うを出す（settings-J）`() {
+        // J は supportedThemes=3（ADR 0022 §2）＝扉プレビューの3択が出る。M の固定表示行分岐に流れないこと。
+        setSheet(skin = Skin.PORTAL_J)
+        composeTestRule.onNodeWithText("表示設定").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ライト").assertIsDisplayed()
+        composeTestRule.onNodeWithText("セピア").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ダーク").assertIsDisplayed()
+        // D 機能の J 意匠移植＝OS 明暗への自動追従へ戻す入口。
+        composeTestRule.onNodeWithText("システムに従う").assertIsDisplayed()
+        // ロジック共有の証左＝スライダー現在値は D と同一書式のまま。
+        //（J の扉プレビュー3択＋追従入口は縦に高く、スライダー値は Robolectric の 470px 窓の外に出るため
+        //   assertExists で存在のみ確認する＝P 装着テストの "20dp" と同じ扱い。実機のシートはスクロールする）。
+        composeTestRule.onNodeWithText("18sp").assertExists()
+        composeTestRule.onNodeWithText("2.5").assertExists()
+    }
+
+    @Test
+    fun `J装着の扉タップでonThemeChangeが該当テーマで呼ばれる`() {
+        var picked: ReadingTheme? = null
+        setSheet(skin = Skin.PORTAL_J, onThemeChange = { picked = it })
+        composeTestRule.onNodeWithText("セピア").performClick()
+        assertEquals(ReadingTheme.SEPIA, picked)
+    }
+
+    @Test
+    fun `J装着のシステムに従うタップでonFollowSystemが呼ばれる`() {
+        var followed = false
+        setSheet(skin = Skin.PORTAL_J, onFollowSystem = { followed = true })
+        composeTestRule.onNodeWithText("システムに従う").performClick()
+        assertEquals(true, followed)
     }
 }

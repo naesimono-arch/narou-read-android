@@ -128,6 +128,7 @@ import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationNavTransition
 import com.novelreader.ui.theme.MotionSpringBarSettle
 import com.novelreader.ui.theme.ReadingColors
+import com.novelreader.ui.skins.j.NextDoorEdgeGlowJ
 import com.novelreader.ui.skins.m.ReadingProgressStarM
 import com.novelreader.ui.skins.m.drawSeizuReadingSky
 import com.novelreader.ui.skins.p.ReadingSaveBarP
@@ -1142,6 +1143,9 @@ internal fun ChapterScreenContent(
     // スキンP（カートリッジ）のクローム部品分岐フラグ。替わるのは没入時の緑LCDセーブバー（常設クローム）と
     // クローム表示時 HUD の緑LCDセーブチップのみ（章扉/シーン区切りは ChapterContent 側の分岐）。P 以外は不変。
     val isCartridge = LocalSkin.current == Skin.CARTRIDGE_P
+    // スキンJ（ポータル）のクローム部品分岐フラグ。J はバー自体は D 標準（署名にしない）で、追加するのは遊び心J2
+    // 『敷居光』＝章末到達で右端に立つ次章の扉のみ（章扉/区切り/章末印は ChapterContent 側の分岐）。J 以外は不変。
+    val isPortal = LocalSkin.current == Skin.PORTAL_J
 
     // 表示設定ボトムシートの開閉状態。
     // なぜ rememberSaveable か: 素の remember だとプロセス再生成（回転・background kill）で
@@ -1364,6 +1368,8 @@ internal fun ChapterScreenContent(
                                 continuation = continuationSlot,
                                 chapterNumber = chapterNumber,
                                 totalChapters = totalChapters,
+                                // スキンJ の章扉 ambient/glyph の変種選択に使う（J 以外は不使用）。
+                                readingTheme = readingTheme,
                             )
                         }
                     }
@@ -1399,6 +1405,7 @@ internal fun ChapterScreenContent(
                         fontSize = fontSize,
                         lineHeightEm = lineHeightEm,
                         bodyMarginDp = bodyMarginDp,
+                        readingTheme = readingTheme,
                     )
                 }
                 if (peekPrev && prevPeek != null) {
@@ -1409,6 +1416,7 @@ internal fun ChapterScreenContent(
                         fontSize = fontSize,
                         lineHeightEm = lineHeightEm,
                         bodyMarginDp = bodyMarginDp,
+                        readingTheme = readingTheme,
                     )
                 }
             }
@@ -1578,6 +1586,24 @@ internal fun ChapterScreenContent(
                     .align(Alignment.TopCenter)
                     .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
                     .graphicsLayer { alpha = topAppBarState.collapsedFraction },
+            )
+        }
+
+        // ────── 遊び心J2『敷居光』（reading-J .nextdoor・章末到達で右端に次章の扉が灯る）──────
+        // なぜ canGoNext ゲートか: 「次の章へ」誘う敷居光は次章が在るときだけ意味を持つ（最終章＝誘い先が無い）。
+        // トリガ＝reader が末尾に到達（!canScrollForward＝これ以上下へスクロールできない＝章末読了）。モックの
+        // 「章末までスクロールした瞬間」に対応する既存信号で、捏造でなく正直に配線できる（TODO 不要）。
+        // なぜ derivedStateOf か: canScrollForward はフレームレート state。boolean 反転時だけ recompose させ、
+        // 連続スクロールで composition を回さない（本棚 showBand・最上部ピルと同じ定石）。出没アニメ・呼吸・
+        // reduce-motion は NextDoorEdgeGlowJ 内（Motion.kt reveal/dismiss ＋ M 脈動先例）。
+        if (isPortal && canGoNext) {
+            val atChapterEnd by remember(lazyListState) {
+                derivedStateOf { !lazyListState.canScrollForward }
+            }
+            NextDoorEdgeGlowJ(
+                atChapterEnd = atChapterEnd,
+                colors = colors,
+                modifier = Modifier.align(Alignment.CenterEnd),
             )
         }
 
@@ -1759,6 +1785,8 @@ private fun ChapterPeekPanel(
     fontSize: Int,
     lineHeightEm: Float,
     bodyMarginDp: Int,
+    // スキンJ の章扉 ambient/glyph の変種選択に使う（覗きも本表示と同じテーマ面で描く）。既定 DARK は既存互換。
+    readingTheme: ReadingTheme = ReadingTheme.DARK,
 ) {
     Box(
         modifier = Modifier
@@ -1776,6 +1804,7 @@ private fun ChapterPeekPanel(
             lazyListState = remember(peek) {
                 LazyListState(peek.initialScrollIndex, peek.initialScrollOffset)
             },
+            readingTheme = readingTheme,
         )
     }
 }
