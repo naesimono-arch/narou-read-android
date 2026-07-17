@@ -71,7 +71,21 @@ import com.novelreader.narou.model.NarouNovel
 import com.novelreader.ui.NewEpisodeNotificationMenuSection
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.theme.AmbDarkGoldPortal
-import com.novelreader.ui.theme.AmbDarkMossPortal
+import com.novelreader.ui.theme.AmbEnBaseBotPortal
+import com.novelreader.ui.theme.AmbEnBaseTopPortal
+import com.novelreader.ui.theme.AmbFindBaseBotPortal
+import com.novelreader.ui.theme.AmbFindBaseMidPortal
+import com.novelreader.ui.theme.AmbFindBaseTopPortal
+import com.novelreader.ui.theme.AmbFindFloorPortal
+import com.novelreader.ui.theme.AmbKusaBaseBotPortal
+import com.novelreader.ui.theme.AmbKusaBaseTopPortal
+import com.novelreader.ui.theme.AmbMaouBaseBotPortal
+import com.novelreader.ui.theme.AmbMaouBaseTopPortal
+import com.novelreader.ui.theme.AmbPlumDeepPortal
+import com.novelreader.ui.theme.AmbYakuBaseBotPortal
+import com.novelreader.ui.theme.AmbYakuBaseMidPortal
+import com.novelreader.ui.theme.AmbYakuBaseTopPortal
+import com.novelreader.ui.theme.AmbYakuFloorPortal
 import com.novelreader.ui.theme.GlyphDarkPortal
 import com.novelreader.ui.theme.GoldPortal
 import com.novelreader.ui.theme.GreenPortal
@@ -82,9 +96,9 @@ import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationReveal
 import com.novelreader.ui.theme.PagePortal
-import com.novelreader.ui.theme.PanelPortal
-import com.novelreader.ui.theme.PlumPortal
 import com.novelreader.ui.theme.ReadingTheme
+import com.novelreader.ui.theme.ResumeInkPortal
+import com.novelreader.ui.theme.ResumeSurfacePortal
 import com.novelreader.ui.theme.SoftPortal
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.viewmodel.ProcessingState
@@ -106,14 +120,18 @@ import kotlin.math.roundToInt
 // 署名色(全画面不動・3系統以内): 金 GoldPortal（構造/強調・敷居）／森緑 GreenPortal（世界・続きあり・未取込／
 //   右 peek）／宵紫 PlumPortal（他の扉＝左 peek）。material/本棚は theme 非依存の固定ダーク森面（ADR 0022 §2）。
 //
-// 色は Portal val のみ（直書き hex 禁止）。ambient はデータ駆動パレット（ADR 0022 §5）だが、本エージェントは
-//   Color.kt へ値を追加できないため、既存 Portal val だけで森の大気を組む:
-//     ・base = PanelPortal(森パネル #16211A)→PagePortal(外殻 #0C0E0B) の linear（森の内→外殻）
-//     ・金の敷居 = AmbDarkGoldPortal（reading-J 森大気 rgba(214,196,120,.22)＝bookshelf amb の金 RGB と同値）
-//     ・底の苔 = AmbDarkMossPortal（rgba(39,64,48,.72)＝bookshelf amb-yaku の森緑 RGB #274030 と同値）
-//     ・作品ごとの色相差 = 署名3色（金/森緑/宵紫）を bookId ハッシュで割り当てた上部グロー（モック「3系統以内」に忠実）
-//   モックが各扉に与える固有の森リニア中間色（amb-yaku/find/maou/en/kusa の #15241A/#181710/#241C2E 等）は
-//   Portal val に無い＝本画面では発明も近似もせず、3系統グローで作品差を出す。厳密再現には値追加が要る（報告参照）。
+// 色は Portal val のみ（直書き hex 禁止）。ambient はデータ駆動パレット（ADR 0021 §5）＝扉ごとに「森世界の中の
+//   変化」を持つ固有 ambient を Color.kt の Amb*Portal 系トークンで厳密再現する（近似禁止）。実機所見「扉大気が
+//   緑系に密集して単調・色相の飛びが弱い」の真因は、旧実装が全扉共通の森 base（PanelPortal→PagePortal）に
+//   署名3色の小さな上部グローを載せるだけで、扉固有の base 色相を持たなかったこと。解＝モックの扉間の base
+//   色相差を忠実に出す:
+//     ・base = 扉固有の森世界リニア（yaku #274030→#15241A→#0E1812／maou #241C2E→#140F1B／en #2A2410→#17130A／
+//       kusa #1B2A1D→#101711／find #2A2A18→#181710→#0F0E09）＝これが扉間の「色相の飛び」の本体。
+//     ・上部グロー = 扉固有の署名色（yaku/en/find=金 AmbDarkGoldPortal／maou=宵紫 AmbPlumDeepPortal／kusa=森緑
+//       GreenPortal）。全て署名3系統（金/森緑/宵紫）内＝モック「3系統以内」に忠実（全周huemapはやらない）。
+//     ・底の苔 = 扉固有の floor（yaku rgba(20,46,30)／find rgba(40,40,20)／他は base 末端で接地）。
+//   実蔵書N冊への割当＝bookId 安定ハッシュで4扉パレットを巡回選択（モックは4作固定・実機はN冊）。bookId をキーに
+//   するので一覧の並び替え・追加削除で他作の扉色がずれない（＝並び替え不変。詳細は portalDoorPaletteFor）。
 //
 // 機能全数の所在（ADR 0022 §1・M/P の流儀に倣う）: デッキ表示（本画面）が横スワイプ閲覧/続きから読む/
 //   絞り込みチップ/取込中バナー/見つける導線/装い/メニュー(テーマ3択)/続きあり印/PDF追加(発見扉経由)を担い、
@@ -140,13 +158,74 @@ private val StepOff = LinePortal                             // .pdot/.pln 空�
 private val DotFaint = InkPortal.copy(alpha = 0.3f)          // .dots i background rgba(233,240,228,.3)
 private val HintInk = InkPortal.copy(alpha = 0.5f)          // .hint color rgba(233,240,228,.5)
 private val IdxInk = InkPortal.copy(alpha = 0.85f)          // .topbar .idx color rgba(233,240,228,.85)
-private val PeekPlum = PlumPortal.copy(alpha = 0.9f)         // .peek.l 宵紫（他の扉）rgba(120,86,150,.9) を署名 plum で
+private val PeekPlum = AmbPlumDeepPortal.copy(alpha = 0.9f)  // .peek.l rgba(120,86,150,.9)＝扉宵紫（厳密値・署名 PlumPortal より暗い）
 private val PeekGreen = GreenPortal.copy(alpha = 0.75f)      // .peek.r rgba(159,207,169,.75)＝GreenPortal α.75
 
-// 作品ごとの上部グロー tint（署名3色を id ハッシュで安定割当＝並び替えで変わらない・モック「3系統以内」）。
-private val PortalAmbientTints = listOf(GoldPortal, GreenPortal, PlumPortal)
-private fun ambientTintFor(bookId: String): Color =
-    PortalAmbientTints[(bookId.hashCode() and 0x7fffffff) % PortalAmbientTints.size]
+// ============================================================
+// 扉固有 ambient パレット（データ駆動・ADR 0021 §5）。モックの各 amb クラスを1パレット＝1扉世界に束ねる。
+//   baseStops = モック --base のストップ（色/位置。扉間の色相差の本体）。yaku/find は3ストップ・他は2ストップ。
+//   glow      = 扉固有の上部グロー色（署名3系統内：金 AmbDarkGoldPortal／宵紫 AmbPlumDeepPortal／森緑 GreenPortal）。
+//               α は drawAmbient で時刻warm＋読進open の包絡へ差し替え（モック amb-yaku の calc(--warm+.20*--open) を1:1）。
+//   glowCenterX/Y・glowRadiusFactor = モック radial の `at X% Y%`・width% を画面比で写す（左右非対称も差別化に効く）。
+//   floor     = モック --floor の RGB。floor を持たない世界（maou/en/kusa のセル）は base 末端で接地（発明せず流用）。
+// ============================================================
+internal data class PortalDoorPalette(
+    val name: String,
+    val baseStops: List<Pair<Float, Color>>,
+    val glow: Color,
+    val glowCenterX: Float,
+    val glowCenterY: Float,
+    val glowRadiusFactor: Float,
+    val floor: Color,
+)
+
+// 薬＝森＋金の扉（.amb-yaku deck・既定=夕）。mock radial 90% 60% at 50% 8%。
+internal val PaletteYaku = PortalDoorPalette(
+    name = "yaku",
+    baseStops = listOf(0f to AmbYakuBaseTopPortal, 0.55f to AmbYakuBaseMidPortal, 1f to AmbYakuBaseBotPortal),
+    glow = AmbDarkGoldPortal, glowCenterX = 0.50f, glowCenterY = 0.08f, glowRadiusFactor = 0.9f,
+    floor = AmbYakuFloorPortal,
+)
+// 魔＝宵紫の扉（.amb-maou）。mock radial 120% 90% at 74% 12%（右寄り）。floor 無し＝base 末端で接地。
+internal val PaletteMaou = PortalDoorPalette(
+    name = "maou",
+    baseStops = listOf(0f to AmbMaouBaseTopPortal, 1f to AmbMaouBaseBotPortal),
+    glow = AmbPlumDeepPortal, glowCenterX = 0.74f, glowCenterY = 0.12f, glowRadiusFactor = 1.2f,
+    floor = AmbMaouBaseBotPortal,
+)
+// 園＝金の扉（.amb-en）。mock radial 120% 90% at 28% 12%（左寄り）。floor 無し＝base 末端で接地。
+internal val PaletteEn = PortalDoorPalette(
+    name = "en",
+    baseStops = listOf(0f to AmbEnBaseTopPortal, 1f to AmbEnBaseBotPortal),
+    glow = AmbDarkGoldPortal, glowCenterX = 0.28f, glowCenterY = 0.12f, glowRadiusFactor = 1.2f,
+    floor = AmbEnBaseBotPortal,
+)
+// 草＝森緑の扉（.amb-kusa）。mock radial 120% 90% at 30% 14%（左寄り）。floor 無し＝base 末端で接地。
+internal val PaletteKusa = PortalDoorPalette(
+    name = "kusa",
+    baseStops = listOf(0f to AmbKusaBaseTopPortal, 1f to AmbKusaBaseBotPortal),
+    glow = GreenPortal, glowCenterX = 0.30f, glowCenterY = 0.14f, glowRadiusFactor = 1.2f,
+    floor = AmbKusaBaseBotPortal,
+)
+// 発見＝アンバーの扉（.amb-find deck）。mock radial 100% 66% at 50% 6%・floor rgba(40,40,20,.85)。デッキ最後尾専用。
+internal val PaletteFind = PortalDoorPalette(
+    name = "find",
+    baseStops = listOf(0f to AmbFindBaseTopPortal, 0.55f to AmbFindBaseMidPortal, 1f to AmbFindBaseBotPortal),
+    glow = AmbDarkGoldPortal, glowCenterX = 0.50f, glowCenterY = 0.06f, glowRadiusFactor = 1.0f,
+    floor = AmbFindFloorPortal,
+)
+
+// 作品扉に割り当てる4世界（発見扉 PaletteFind は最後尾固定でこの巡回に含めない）。
+internal val PortalDoorPalettes = listOf(PaletteYaku, PaletteMaou, PaletteEn, PaletteKusa)
+
+/**
+ * 実蔵書 N 冊への扉パレット割当＝bookId の安定ハッシュで4世界を巡回選択（ADR 0021 §5 データ駆動パレット）。
+ * bookId をキーにするのが要点＝一覧の並び替え・作品の追加/削除があっても各作の扉色が不変（並び替え不変）。
+ *   （index を鍵にすると隣作1件の追加で以降全作の色が総ずれし「扉＝固有世界」の同一性が壊れる。）
+ * 純関数ゆえ JVM テストで決定的に検証できる（周囲の作品構成に依存しない）。
+ */
+internal fun portalDoorPaletteFor(bookId: String): PortalDoorPalette =
+    PortalDoorPalettes[(bookId.hashCode() and 0x7fffffff) % PortalDoorPalettes.size]
 
 // ============================================================
 // 〈遊び心〉J3「時を映す扉」＝大気の“地”を現実時刻で移ろわせる（直交2レイヤの下段＝地=時刻）。
@@ -337,12 +416,13 @@ private fun PortalPage(
     val status = readingStatusFor(progress, totalChaps)
     val isUnread = status == ReadingStatus.UNREAD
     val newCount = newEpisodeCountFor(novelDetail, totalChaps)
-    val tint = ambientTintFor(book.id)
+    // 扉固有 ambient パレット＝bookId 安定ハッシュで4世界から選ぶ（並び替え不変・扉間の色相差の本体）。
+    val palette = portalDoorPaletteFor(book.id)
     // 〈遊び心〉J1「開く扉」: --open＝その作品の読了率（実データ progressFractionFor）。0%＝半ば閉じた扉／
     //   読むほど扉の奥の光と象徴文字が強まる。未読(frac=null)は 0＝薄暗く半ば閉じた扉。時刻(地)とは独立に効く直交軸。
     val open = (frac ?: 0f).coerceIn(0f, 1f)
 
-    Box(modifier = Modifier.fillMaxSize().drawAmbient(tint, timePhase, open)) {
+    Box(modifier = Modifier.fillMaxSize().drawAmbient(palette, timePhase, open)) {
         // 象徴1文字（.glyph＝題名頭文字を巨大・極淡で。実画像の不在を象徴で埋める）。
         Text(
             text = book.title.take(1),
@@ -467,7 +547,7 @@ private fun FindPortalPage(hasPrev: Boolean, timePhase: PortalTimePhase, onOpenD
     // 発見扉は読了率を持たない（作品でない）ため J1 の open は既定値 .62（mock 既定の見え）で固定。
     //   地は他扉と同じ timePhase で移ろわせ、デッキ全体の時刻感を揃える（スワイプで大気が不連続にならない）。
     val findOpen = 0.62f
-    Box(modifier = Modifier.fillMaxSize().drawAmbient(GoldPortal, timePhase, findOpen)) {
+    Box(modifier = Modifier.fillMaxSize().drawAmbient(PaletteFind, timePhase, findOpen)) {
         Text(
             text = "扉",
             fontFamily = MinchoFamily,
@@ -522,8 +602,8 @@ private fun ResumeButton(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .then(
-                if (ghost) Modifier.border(1.dp, InkPortal.copy(alpha = 0.5f), RoundedCornerShape(16.dp)) // .ghost border rgba(233,240,228,.5)
-                else Modifier.background(InkPortal) // .resume background #E9F0E4≒温白 InkPortal
+                if (ghost) Modifier.border(1.dp, ResumeSurfacePortal.copy(alpha = 0.5f), RoundedCornerShape(16.dp)) // .ghost border rgba(233,240,228,.5)＝#E9F0E4 α.5
+                else Modifier.background(ResumeSurfacePortal) // .resume background #E9F0E4（厳密値・旧 InkPortal 近似を差替え）
             )
             .clickable(onClick = onClick)
             .padding(Spacing.S16),
@@ -533,14 +613,14 @@ private fun ResumeButton(
         Icon(
             imageVector = if (ghost) Icons.Filled.Search else Icons.Filled.PlayArrow,
             contentDescription = null,
-            tint = if (ghost) InkPortal else PagePortal, // ghost=温白／実塗り=暗色（#15241A≒外殻）
+            tint = if (ghost) ResumeSurfacePortal else ResumeInkPortal, // .ghost=温白 #E9F0E4／実塗り=森の深部 #15241A（厳密値）
             modifier = Modifier.size(18.dp),
         )
         Text(
             text = label,
             fontSize = 16.sp,                   // .resume 16px
             fontWeight = FontWeight.ExtraBold,
-            color = if (ghost) InkPortal else PagePortal,
+            color = if (ghost) ResumeSurfacePortal else ResumeInkPortal,
             modifier = Modifier.padding(start = Spacing.S8),
         )
     }
@@ -570,37 +650,35 @@ private fun BoxScope.PeekEdges(hasPrev: Boolean, hasNext: Boolean) {
 }
 
 /**
- * 森の大気を既存 Portal val だけで描く（ADR 0022 §5・値追加禁止のため近似/発明せず名前付き val の重ね）。
- * 直交2レイヤ設計（mock J1×J3）:
- *   地(=時刻 phase)   → base 森グラデ＋金/緑トップの温度＋底の苔の沈み（portalAmbientParamsFor）。
- *   上乗せ(=読進 open)→ 金トップグローへ .20*open を加算（扉の奥が明るくなる）。glyph α は呼び側で加算。
- * 両者は互いに非干渉（warm は phase、加算分は open）＝mock の `calc(var(--warm) + .20*var(--open))` を1:1で写す。
+ * 扉固有 ambient を描く（ADR 0021 §5 データ駆動パレット）。扉間の色相差は palette.baseStops が本体＝
+ *   実機所見「緑系に密集して単調」の解。時刻(J3)・読進(J1)はその上で直交に効く（既存構造を壊さない）:
+ *   地(=扉世界 palette) → base 固有リニア＋扉固有グロー色＋扉固有 floor。
+ *   時刻(=J3 phase)     → グローα/floorα/夜の沈み込み（portalAmbientParamsFor・従来どおり）。
+ *   読進(=J1 open)      → グローαへ .20*open を加算（扉の奥が明るくなる）。glyph α は呼び側で加算。
+ * グローαは mock amb-yaku の `calc(var(--warm) + .20*var(--open))` を1:1で全扉に写す（warm は phase・加算は open で非干渉）。
  */
-private fun Modifier.drawAmbient(tint: Color, phase: PortalTimePhase, open: Float): Modifier = this.drawBehind {
+private fun Modifier.drawAmbient(palette: PortalDoorPalette, phase: PortalTimePhase, open: Float): Modifier = this.drawBehind {
     val w = size.width
     val h = size.height
     val p = portalAmbientParamsFor(phase)
-    // base: 森の内(PanelPortal)→外殻(PagePortal) の斜めグラデ。時刻の“地”色相(mock #2C4739 等)は Portal val に
-    //   無いため発明せず森トークン固定。時刻差は上乗せの金/緑グロー＋底の苔で出す（mock J3「2系統のまま温度と明るさだけ可変」）。
+    // base: 扉固有の森世界リニア（mock --base をそのまま＝扉間の「色相の飛び」の本体。yaku/find は3ストップ・他は2）。
     drawRect(
         Brush.linearGradient(
-            0f to PanelPortal,
-            0.55f to PagePortal,
-            1f to PagePortal,
+            *palette.baseStops.toTypedArray(),
             start = Offset(w * 0.2f, 0f),
             end = Offset(w * 0.5f, h),
         )
     )
-    // J3×J1: 金の敷居＝時刻 warm を基底に読進 open ぶんを加算（mock rgba(214,196,120, var(--warm)+.20*var(--open))）。
-    //   AmbDarkGoldPortal は RGB(214,196,120) 同値＝α だけ差し替えて再利用（発明なし）。
+    // 上部グロー: 扉固有の署名色（金/森緑/宵紫）。α=時刻 warm＋読進 open（mock amb-yaku の calc を1:1・yaku では金＝amb-yaku 完全一致）。
+    //   中心/半径は各扉世界の mock radial 位置を写す（左右非対称も差別化に効く）。
     drawRect(
         Brush.radialGradient(
-            colors = listOf(AmbDarkGoldPortal.copy(alpha = (p.warm + 0.20f * open).coerceIn(0f, 1f)), Color.Transparent),
-            center = Offset(w * 0.5f, h * 0.08f),
-            radius = w * 0.9f,
+            colors = listOf(palette.glow.copy(alpha = (p.warm + 0.20f * open).coerceIn(0f, 1f)), Color.Transparent),
+            center = Offset(w * palette.glowCenterX, h * palette.glowCenterY),
+            radius = w * palette.glowRadiusFactor,
         )
     )
-    // J3: 朝だけの澄んだ緑の冷光（mock rgba(159,207,169, var(--cool))＝GreenPortal 同 RGB。cool=0 の夕夜は描かない）。
+    // J3: 朝だけの澄んだ緑の冷光（mock amb-yaku layer2 rgba(159,207,169, var(--cool))＝GreenPortal 同 RGB。cool=0 の夕夜は描かない）。
     if (p.cool > 0f) {
         drawRect(
             Brush.radialGradient(
@@ -610,16 +688,8 @@ private fun Modifier.drawAmbient(tint: Color, phase: PortalTimePhase, open: Floa
             )
         )
     }
-    // 作品ごとの色相グロー（署名3色を id で割当・上寄り。モック「3系統以内」・J1/J3 と非干渉の作品差）。
-    drawRect(
-        Brush.radialGradient(
-            colors = listOf(tint.copy(alpha = 0.22f), Color.Transparent),
-            center = Offset(w * 0.5f, h * 0.14f),
-            radius = w * 0.75f,
-        )
-    )
-    // J3: 底の苔＝時刻で沈む（floorAlpha 夕.9→夜.92／夜は floorDarken で外殻 PagePortal へ寄せ暗化＝既存 val の lerp）。
-    val floor = lerp(AmbDarkMossPortal, PagePortal, p.floorDarken).copy(alpha = p.floorAlpha)
+    // 底の苔: 扉固有の floor（mock --floor／floor 無し世界は base 末端）。α=時刻 floorAlpha、夜は floorDarken で外殻へ沈める（既存 val の lerp）。
+    val floor = lerp(palette.floor, PagePortal, p.floorDarken).copy(alpha = p.floorAlpha)
     drawRect(
         Brush.radialGradient(
             colors = listOf(floor, Color.Transparent),

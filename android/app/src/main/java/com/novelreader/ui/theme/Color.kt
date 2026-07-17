@@ -345,3 +345,38 @@ val GlyphLightPortal   = Color(0x0F1C281C)  // .t-light --glyph rgba(28,40,28,.0
 val AmbSepiaGoldPortal = Color(0x2EB48C3C)  // .t-sepia --amb1 rgba(180,140,60,.18)（α.18=0x2E）
 val AmbSepiaMossPortal = Color(0x33788250)  // .t-sepia --amb2 rgba(120,130,80,.2)（α.2=0x33）
 val GlyphSepiaPortal   = Color(0x123C3014)  // .t-sepia --glyph rgba(60,48,20,.07)（α.07=0x12）
+
+// ============================================================
+// 本棚J「ポータル・デッキ」の扉固有 ambient パレット（正本 bookshelf-J.html・ADR 0021 §5 データ駆動パレット）。
+// 実機所見「扉大気が緑系に密集して単調・色相の飛びが弱い」の真因＝各扉に固有の base 色相が無かったこと
+//   （旧実装は全扉共通の森 base＋署名3色の小さな上部グローだけ）。モックは扉ごとに「森世界の中の変化」＝
+//   固有の base リニアを持つ（恋愛=桃のような全周huemapはモック自身の署名3色規律に反するのでやらない）。
+// ここではモックの各 amb クラスの実値を「値そのまま・近似禁止」で焼き込む（base は不透明 hex＝グラデ地の色相。
+//   グロー/floor は透過重ね描き用ゆえ既存 AmbDark*Portal と同型で扱う＝色は名前付き val・α は drawAmbient で
+//   時刻warm＋読進open の包絡へ差し替え、モック --warm/--open の calc を1:1で写す。既存パターンと同じ差替え）。
+// パレット合成（PortalDoorPalette）と bookId 安定ハッシュ割当は BookshelfPortalJ.kt が担う（Color.kt は色 val のみ）。
+
+// 薬（.amb-yaku deck＝森＋金の扉／既定=夕）: --base linear #274030→#15241A(55%)→#0E1812・--floor rgba(20,46,30,.9)。
+val AmbYakuBaseTopPortal = Color(0xFF274030)  // .amb-yaku --base 起点（森の内・0%）
+val AmbYakuBaseMidPortal = Color(0xFF15241A)  // .amb-yaku --base 中間（55%）
+val AmbYakuBaseBotPortal = Color(0xFF0E1812)  // .amb-yaku --base 末端（外殻寄り・100%）
+val AmbYakuFloorPortal   = Color(0xFF142E1E)  // .amb-yaku --floor rgba(20,46,30)（α は時刻 floorAlpha で付与）
+// 魔（.amb-maou cell＝宵紫の扉）: --base linear #241C2E→#140F1B・グロー rgba(120,86,150,.4)。
+val AmbMaouBaseTopPortal = Color(0xFF241C2E)  // .amb-maou base 起点（0%）
+val AmbMaouBaseBotPortal = Color(0xFF140F1B)  // .amb-maou base 末端（100%・floor 無し世界の接地色に流用）
+// 園（.amb-en cell＝金の扉）: --base linear #2A2410→#17130A・グロー rgba(214,196,120,.3)。
+val AmbEnBaseTopPortal   = Color(0xFF2A2410)  // .amb-en base 起点（0%）
+val AmbEnBaseBotPortal   = Color(0xFF17130A)  // .amb-en base 末端（100%・floor 無し世界の接地色に流用）
+// 草（.amb-kusa cell＝森緑の扉）: --base linear #1B2A1D→#101711・グロー rgba(159,207,169,.26)。
+val AmbKusaBaseTopPortal = Color(0xFF1B2A1D)  // .amb-kusa base 起点（0%）
+val AmbKusaBaseBotPortal = Color(0xFF101711)  // .amb-kusa base 末端（100%・floor 無し世界の接地色に流用）
+// 発見（.amb-find deck＝アンバーの扉）: --base linear #2A2A18→#181710(55%)→#0F0E09・floor rgba(40,40,20,.85)・グロー rgba(214,196,120,.34)。
+val AmbFindBaseTopPortal = Color(0xFF2A2A18)  // .amb-find base 起点（0%）
+val AmbFindBaseMidPortal = Color(0xFF181710)  // .amb-find base 中間（55%）
+val AmbFindBaseBotPortal = Color(0xFF0F0E09)  // .amb-find base 末端（100%）
+val AmbFindFloorPortal   = Color(0xFF282814)  // .amb-find floor rgba(40,40,20)（α は時刻 floorAlpha で付与）
+// 暗宵紫（.peek.l ＝魔の扉の宵紫グローと同RGB rgba(120,86,150)）。署名 PlumPortal(#B79AD0) より暗い扉宵紫。
+val AmbPlumDeepPortal    = Color(0xFF785696)  // .peek.l rgba(120,86,150) ／ .amb-maou グロー rgba(120,86,150)（α は用途側で付与）
+// .resume（続きから読む＝一画面唯一の強調）: background #E9F0E4・color #15241A（旧実装は InkPortal/PagePortal 近似）。
+val ResumeSurfacePortal  = Color(0xFFE9F0E4)  // .resume background #E9F0E4（.ghost の枠/文字も rgba(233,240,228)＝同RGB）
+val ResumeInkPortal      = Color(0xFF15241A)  // .resume color #15241A（森の深部＝AmbYakuBaseMidPortal と同値だが意味は CTA 上の暗インク）

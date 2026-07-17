@@ -13,9 +13,16 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.ui.skins.j.PaletteFind
+import com.novelreader.ui.skins.j.PortalDoorPalettes
 import com.novelreader.ui.skins.j.PortalTimePhase
 import com.novelreader.ui.skins.j.portalAmbientParamsFor
+import com.novelreader.ui.skins.j.portalDoorPaletteFor
 import com.novelreader.ui.skins.j.portalTimePhaseFor
+import com.novelreader.ui.theme.AmbDarkGoldPortal
+import com.novelreader.ui.theme.AmbFindBaseTopPortal
+import com.novelreader.ui.theme.AmbPlumDeepPortal
+import com.novelreader.ui.theme.GreenPortal
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.LocalSkinTokens
 import com.novelreader.ui.theme.ReadingTheme
@@ -244,5 +251,42 @@ class BookshelfPortalJTest {
         assertTrue("夜は最も金が引く", night.warm < morning.warm && night.warm < evening.warm)
         assertTrue("夜は底の苔が最も濃い", night.floorAlpha >= evening.floorAlpha)
         assertTrue("夜だけ底を外殻へ沈める", night.floorDarken > 0f && morning.floorDarken == 0f)
+    }
+
+    // ── J 扉固有 ambient パレット（データ駆動・bookId 安定ハッシュ割当）＝実機所見「緑密集・色相の飛びが弱い」の解 ──
+
+    @Test
+    fun `扉パレットは bookId の純関数で並び替え不変`() {
+        // 同じ id は周囲の作品構成に無関係に常に同じ扉世界＝index でなく id ハッシュゆえ並び替え/追加削除で色がずれない。
+        assertEquals(portalDoorPaletteFor("book-alpha").name, portalDoorPaletteFor("book-alpha").name)
+        assertEquals(portalDoorPaletteFor("id-42").name, portalDoorPaletteFor("id-42").name)
+    }
+
+    @Test
+    fun `扉パレットは複数idで複数世界へ散る＝色相の飛びが出る`() {
+        // 40 の別 id が単一世界に密集しない（＝旧実装の緑密集の解消。最低でも2世界＝隣接扉で色相が飛ぶ）。
+        val worlds = (0 until 40).map { portalDoorPaletteFor("id-$it").name }.toSet()
+        assertTrue("扉が単一世界に密集＝色相の飛びが出ない", worlds.size >= 2)
+    }
+
+    @Test
+    fun `各扉世界の base 起点色は互いに異なる＝扉間の色相差の本体`() {
+        // base リニアの起点色が世界ごとに異なることが「扉大気が緑系に密集」の真の解（グローだけでは差が弱い）。
+        val tops = PortalDoorPalettes.map { it.baseStops.first().second }
+        assertEquals("扉世界の base 起点色に重複＝色相差が出ない", tops.size, tops.toSet().size)
+    }
+
+    @Test
+    fun `発見扉はモックの amb-find アンバー系`() {
+        // 発見扉＝amb-find の base 起点 #2A2A18・上部グローは金（rgba(214,196,120)）を厳密に。
+        assertEquals(AmbFindBaseTopPortal, PaletteFind.baseStops.first().second)
+        assertEquals(AmbDarkGoldPortal, PaletteFind.glow)
+    }
+
+    @Test
+    fun `扉グローは署名3系統（金・森緑・宵紫）内に収まる`() {
+        // 恋愛=桃のような全周 huemap はモック署名3色規律に反する＝グローは金/森緑/宵紫のみ（発見扉含む）。
+        val signature = setOf(AmbDarkGoldPortal, GreenPortal, AmbPlumDeepPortal)
+        assertTrue("扉グローが署名3系統の外へ出た", (PortalDoorPalettes + PaletteFind).all { it.glow in signature })
     }
 }
