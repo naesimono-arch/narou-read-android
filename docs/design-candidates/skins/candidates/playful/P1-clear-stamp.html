@@ -129,13 +129,13 @@
      100% と CLEAR は意味が重複するため、同じ場所（.csave の進捗表記スロット）を刻印が占める。
      文字印は LCD 緑系・押印/刻印らしい質感（緑チップ＋deboss・わずかな傾き）。読了で一度きり押され、以後は常時 CLEAR‼（%へは戻らない）。 */
   .csave .clearmark{display:inline-block;margin-top:4px;font-family:var(--pixel);font-size:10px;font-weight:700;letter-spacing:.04em;
-    color:var(--lcd-ink);background:var(--lcd);border-radius:3px;padding:2px 6px;transform:rotate(-4deg);
+    color:var(--lcd-ink);background:var(--lcd);border-radius:3px;padding:2px 6px;transform:rotate(0deg);
     box-shadow:inset 0 0 0 1px rgba(43,54,22,.5), inset 0 1px 1px rgba(0,0,0,.22)}
   /* 押印の一度きり演出（1.15→1.0 の単調ダウン・overshoot 無し＝ADR0014 の読了封印裁定に準拠）。100%→CLEAR‼ の差し替え瞬間に一度だけ */
   .csave .clearmark.stamp{animation:sealDown .2s cubic-bezier(.2,.8,.3,1) 1 both}
-  @keyframes sealDown{0%{transform:rotate(-4deg) scale(1.15);opacity:0}55%{opacity:1}100%{transform:rotate(-4deg) scale(1)}}
+  @keyframes sealDown{0%{transform:rotate(0deg) scale(1.15);opacity:0}55%{opacity:1}100%{transform:rotate(0deg) scale(1)}}
   /* 反応途中の可視化: いま押印されつつある中間フレーム（scale 1.08 で静止表示） */
-  .cart.finishing .clearmark{transform:rotate(-4deg) scale(1.08)}
+  .cart.finishing .clearmark{transform:rotate(0deg) scale(1.08)}
 
   .slotadd{border:none;cursor:pointer;background:transparent;padding:0;width:100%;clip-path:polygon(0 7px,7px 0,calc(100% - 7px) 0,100% 7px,100% 100%,0 100%)}
   .slotadd .in{margin:2px;border:2px dashed var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;gap:10px;padding:16px;color:var(--ink-soft)}
@@ -150,8 +150,8 @@
 
   @media (prefers-reduced-motion:reduce){
     .lcd-top .clear{animation:none}
-    .csave .clearmark.stamp{animation:none;opacity:1;transform:rotate(-4deg) scale(1)}
-    .cart.finishing .clearmark{transform:rotate(-4deg) scale(1)}
+    .csave .clearmark.stamp{animation:none;opacity:1;transform:rotate(0deg) scale(1)}
+    .cart.finishing .clearmark{transform:rotate(0deg) scale(1)}
   }
 </style>
 </head>
