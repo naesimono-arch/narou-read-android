@@ -70,6 +70,7 @@ import com.novelreader.ui.theme.FontButtonLabel
 import com.novelreader.ui.theme.FontHomeTitle
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.skins.m.BookshelfSkyM
+import com.novelreader.ui.skins.p.BookshelfCartridgeP
 import com.novelreader.ui.theme.Insets
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.LocalSkin
@@ -170,6 +171,10 @@ fun BookshelfScreen(
     // M 以外のスキンでは Content 側の分岐条件（LocalSkin==SEIZU_M）が成立せず、この値は眠ったまま。
     var mSkyView by remember { mutableStateOf(prefs.getBoolean("m_sky_view", true)) }
 
+    // スキンP（カートリッジ）の ラック⇄一覧 モード（ADR 0022 §1・永続化）。既定 true＝P 装着時はラックで開く。
+    // P 以外では分岐条件（LocalSkin==CARTRIDGE_P）が成立せず眠ったまま（M の mSkyView と同型）。
+    var pRackView by remember { mutableStateOf(prefs.getBoolean("p_rack_view", true)) }
+
     // 通知権限 priming（notify Minor 2026-07-12）: システム権限ダイアログの前に理由説明を挟むためのフラグ。
     // 一度提示したら以後は出さない（notif_priming_shown で永続化）＝毎回のFABタップで問い直さない。
     var notifPrimingShown by remember { mutableStateOf(prefs.getBoolean("notif_priming_shown", false)) }
@@ -239,6 +244,11 @@ fun BookshelfScreen(
         onToggleSkyM = {
             mSkyView = !mSkyView
             prefs.edit().putBoolean("m_sky_view", mSkyView).apply()
+        },
+        rackViewP = pRackView,
+        onToggleRackP = {
+            pRackView = !pRackView
+            prefs.edit().putBoolean("p_rack_view", pRackView).apply()
         },
         onFabClick = onFabClick,
         // 開く際の再開ファイル解決（suspend の DB 参照）はルート層の責務。描画層は BookEntity を渡すだけ。
@@ -445,6 +455,10 @@ internal fun BookshelfContent(
     // 既定 true＝M 装着時は星図が既定（永続はルート層の onToggleSkyM に委譲）。
     skyViewM: Boolean = true,
     onToggleSkyM: () -> Unit = {},
+    // スキンP（カートリッジ）の表示モード（ラック⇄一覧・ADR 0022 §1）。P 以外のスキンでは無視される。
+    // 既定 true＝P 装着時はラックが既定（永続はルート層の onToggleRackP に委譲）。
+    rackViewP: Boolean = true,
+    onToggleRackP: () -> Unit = {},
 ) {
     val isLoading = uiState is BookshelfUiState.Loading
     val books = (uiState as? BookshelfUiState.Content)?.books ?: emptyList()
@@ -508,6 +522,33 @@ internal fun BookshelfContent(
             onOpenWardrobe = onOpenWardrobe,
             onFabClick = onFabClick,
             onToggleList = onToggleSkyM,
+            onCancelProcessing = onCancelProcessing,
+            snackbarHostState = snackbarHostState,
+            isLoading = isLoading,
+        )
+        return
+    }
+
+    // スキンP「カートリッジ」: ラックビュー時は画面丸ごと P 構造へ委譲する（ADR 0022 §1 の薄いルーター・M と同型）。
+    // 一覧トグル時はこの下の共有描画（D 構造へトークン写像）へ落ちる＝選択削除・グリッド・Web カード操作は
+    // 一覧側が全数担う（ラックは続きから/カセット閲覧/取込中/絞り込み/追加/装い/メニューに徹する）。
+    if (LocalSkin.current == Skin.CARTRIDGE_P && rackViewP) {
+        BookshelfCartridgeP(
+            books = visibleBooks,
+            progressMap = progressMap,
+            chapterCountMap = chapterCountMap,
+            newEpisodeNovelMap = newEpisodeNovelMap,
+            processingState = processingState,
+            selectedStatus = selectedStatus,
+            statusCounts = statusCounts,
+            appTheme = appTheme,
+            onThemeChange = onThemeChange,
+            onSelectStatus = { selectedStatusName = it?.name },
+            onOpenBook = onOpenBook,
+            onOpenDiscovery = onOpenDiscovery,
+            onOpenWardrobe = onOpenWardrobe,
+            onFabClick = onFabClick,
+            onToggleList = onToggleRackP,
             onCancelProcessing = onCancelProcessing,
             snackbarHostState = snackbarHostState,
             isLoading = isLoading,
@@ -604,6 +645,15 @@ internal fun BookshelfContent(
                                 Icon(
                                     imageVector = Icons.Filled.AutoAwesome,
                                     contentDescription = "星図表示に切替",
+                                )
+                            }
+                        } else if (LocalSkin.current == Skin.CARTRIDGE_P) {
+                            // P の一覧フォールバック中はこのボタンが「ラック表示に戻る」になる（ラック⇄一覧の2態＝
+                            // bookshelf-P.html。P にグリッドは無く、一覧＝D 構造の可読フォールバックが担う）。
+                            IconButton(onClick = onToggleRackP) {
+                                Icon(
+                                    imageVector = Icons.Filled.GridView,
+                                    contentDescription = "ラック表示に切替",
                                 )
                             }
                         } else {
