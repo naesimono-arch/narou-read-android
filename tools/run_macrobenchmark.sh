@@ -21,10 +21,12 @@
 #   tools/run_macrobenchmark.sh --scenario shelf-scroll  # 本棚スクロール jank（frame timing）を計測
 #   tools/run_macrobenchmark.sh --scenario shelf-scroll --assert                 # スクロール予算 assert を有効化して計測
 #   tools/run_macrobenchmark.sh --scenario shelf-scroll --assert --budget-p50 1  # スクロール予算を絞って FAIL 経路を実証
+#   tools/run_macrobenchmark.sh --scenario chapter-flip  # 長時間の章送り jank（frame timing）を計測
 #
 # シナリオ:
 #   --scenario startup       起動計測（既定）。予算 assert は --assert ＋ --budget-median / --budget-max。
 #   --scenario shelf-scroll  本棚スクロール jank 計測（BookshelfScrollBenchmark）。予算 assert は --assert ＋ --budget-p50 / --budget-p90 / --budget-p99。
+#   --scenario chapter-flip  章送り jank 計測（ChapterFlipBenchmark）。予算未較正のため計測のみ（--assert / 全予算オプションは exit 2）。
 #
 # 注意:
 #   コールド起動5反復は除細動込みで約13分（knowledge 実測）。タイムアウトは余裕を持たせてある。
@@ -42,6 +44,7 @@ TEST_RUNNER="androidx.test.runner.AndroidJUnitRunner"
 # TEST_CLASS は scenario で確定する（既定 startup）。下のオプション解析後に代入する。
 STARTUP_CLASS="com.novelreader.macrobenchmark.StartupBenchmark"
 SHELF_SCROLL_CLASS="com.novelreader.macrobenchmark.BookshelfScrollBenchmark"
+CHAPTER_FLIP_CLASS="com.novelreader.macrobenchmark.ChapterFlipBenchmark"
 TEST_CLASS="$STARTUP_CLASS"
 
 APP_APK="$REPO_ROOT/android/app/build/outputs/apk/benchmark/app-benchmark.apk"
@@ -60,7 +63,7 @@ HEARTBEAT_SEC=15          # 進行表示の周期
 DO_ASSERT=0
 DO_INSTALL=0
 SERIAL=""
-SCENARIO="startup"  # startup（既定・従来挙動）| shelf-scroll
+SCENARIO="startup"  # startup（既定・従来挙動）| shelf-scroll | chapter-flip
 BUDGET_MEDIAN=""   # startup 専用。空なら透過しない＝StartupBudget 側の既定定数が使われる
 BUDGET_MAX=""      # 同上（--assert と併用前提。単独指定は assert 無効なら無視される）
 BUDGET_P50=""      # shelf-scroll 専用。空なら透過しない＝ScrollBudget 側の既定定数が使われる
@@ -90,6 +93,8 @@ done
 # 併用されたら黙殺せずエラー終了する（指定を無視して緑にすると誤解を生むため。両方向にガードする）:
 #   --budget-median / --budget-max              startup 専用（StartupBudget。shelf-scroll には無い）
 #   --budget-p50 / --budget-p90 / --budget-p99  shelf-scroll 専用（ScrollBudget。startup には無い）
+# chapter-flip は予算が未較正のため計測専用＝--assert も全予算オプションも明示エラーにする
+# （予算未対応の scenario に予算指定を渡して「黙って無視して緑」を作らない既存方針の踏襲）。
 case "$SCENARIO" in
   startup)
     TEST_CLASS="$STARTUP_CLASS"
@@ -103,8 +108,21 @@ case "$SCENARIO" in
       echo "--budget-median / --budget-max は --scenario startup 専用（shelf-scroll とは併用不可）。" >&2
       exit 2
     fi ;;
+  chapter-flip)
+    TEST_CLASS="$CHAPTER_FLIP_CLASS"
+    # 予算が未較正＝assert 手段を持たない。--assert・全予算オプションのいずれも黙殺せずエラー終了する
+    # （初回実測で分布を掴んでから較正して追加する方針。ChapterFlipBenchmark の KDoc 参照）。
+    if [ "$DO_ASSERT" -eq 1 ]; then
+      echo "--assert は --scenario chapter-flip では未対応（予算未較正のため計測専用）。" >&2
+      exit 2
+    fi
+    if [ -n "$BUDGET_MEDIAN" ] || [ -n "$BUDGET_MAX" ] || \
+       [ -n "$BUDGET_P50" ] || [ -n "$BUDGET_P90" ] || [ -n "$BUDGET_P99" ]; then
+      echo "予算オプション（--budget-*）は --scenario chapter-flip では未対応（予算未較正のため計測専用）。" >&2
+      exit 2
+    fi ;;
   *)
-    echo "不明な --scenario: '$SCENARIO'（startup | shelf-scroll）" >&2
+    echo "不明な --scenario: '$SCENARIO'（startup | shelf-scroll | chapter-flip）" >&2
     exit 2 ;;
 esac
 
