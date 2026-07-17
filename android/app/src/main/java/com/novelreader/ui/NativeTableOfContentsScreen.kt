@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.model.TocEntry
 import com.novelreader.ui.skins.m.TocSkyM
+import com.novelreader.ui.skins.p.TocCartridgeP
 import com.novelreader.ui.theme.FontCaption
 import com.novelreader.ui.theme.FontSectionTitle
 import com.novelreader.ui.theme.FontSheetTitle
@@ -99,6 +100,18 @@ fun NativeTableOfContentsScreen(
     // 既存 D/C 描画は無改変で default 経路のまま（LocalSkin 既定=WAMODERN_D＝この分岐を跨がない）。
     if (LocalSkin.current == Skin.SEIZU_M) {
         TocSkyM(
+            tocState = tocState,
+            currentChapterFile = currentChapterFile,
+            onSelectChapter = onSelectChapter,
+            onNavigateToBookshelf = onNavigateToBookshelf,
+            onRetry = onRetry,
+        )
+        return
+    }
+
+    // スキンP「カートリッジ」: 目次を画面丸ごとステージセレクト構造へ委譲する（ADR 0022 §1・M と同じ薄いルーター）。
+    if (LocalSkin.current == Skin.CARTRIDGE_P) {
+        TocCartridgeP(
             tocState = tocState,
             currentChapterFile = currentChapterFile,
             onSelectChapter = onSelectChapter,
