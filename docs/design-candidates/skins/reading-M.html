@@ -1,0 +1,158 @@
+<!-- @dsCard group="UI-n / 読書（スキン候補）" name="M. 星図 — 読書（没入既定・結線進捗・夜天の地に星屑と章扉の星座片）" -->
+<!--
+  思想の翻訳: 読書画面は「その星座の内側にいる」時間。本文組版は規格層のまま（明朝・4.5:1以上・和文letterSpacing 0・ルビ上付き・版面不動）、
+             Mらしさは地・クローム・余白で躍らせる。
+  遊びを足した所: 没入の地にごく淡い星屑をちりばめ、章見出しに“章扉の星座片”（小さな一連の星）を灯す。上端の結線が読んだ分だけ伸び先端に星。
+  破壊するもの: 藍ヘアラインの章装飾を星図語彙へ。ただし版面・組版規律は不変。
+  避けたもの: 本文の直背後に強い光を置かない（星屑は極淡・章片は見出しの余白へ）。読書中の脈動は置かない（静けさ）。
+  ※ 3系統: 群青の夜天／温白の星光（進捗・見出しアクセント）／月光スレート（線・補助文字）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n M 読書 — 星図</title>
+<style>
+  :root{
+    --text:#DCE3F2;--dim:#8791AD;--ruby:#9AA4C0;--star:#E9DDB4;
+    --line:rgba(150,168,214,.20);
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#06080F;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--mincho)}
+  .cap{color:#7C86A2;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.7;max-width:760px;font-family:var(--gothic)}
+  .cap b{color:#DCE3F2}
+  .wcag{color:#6E7794;font-size:11px;margin-bottom:18px;text-align:center;font-family:var(--gothic)}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#7C86A2;font-family:var(--gothic)}
+
+  /* 夜天の地＋ごく淡い星屑（CSSの点で散らす・本文は上に不透明で載る＝可読性維持） */
+  .phone{width:390px;height:844px;border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column;
+    box-shadow:0 30px 72px rgba(0,0,0,.72);font-family:var(--mincho);
+    background:
+      radial-gradient(1.4px 1.4px at 52px 150px,rgba(220,228,245,.5),transparent 60%),
+      radial-gradient(1px 1px at 320px 96px,rgba(220,228,245,.4),transparent 60%),
+      radial-gradient(1.2px 1.2px at 120px 300px,rgba(220,228,245,.32),transparent 60%),
+      radial-gradient(1px 1px at 350px 420px,rgba(220,228,245,.3),transparent 60%),
+      radial-gradient(1.3px 1.3px at 40px 520px,rgba(220,228,245,.34),transparent 60%),
+      radial-gradient(1px 1px at 300px 640px,rgba(220,228,245,.28),transparent 60%),
+      radial-gradient(1.2px 1.2px at 90px 720px,rgba(220,228,245,.3),transparent 60%),
+      radial-gradient(1px 1px at 250px 780px,rgba(220,228,245,.26),transparent 60%),
+      radial-gradient(70% 34% at 78% 6%,rgba(58,78,150,.20),transparent 60%),
+      linear-gradient(178deg,#0B1330 0%,#0D1636 46%,#080E26 100%);}
+
+  /* 上端の結線進捗＝ほぼ唯一の常設クローム（読んだ分だけ金の線が伸び先端に静止の星） */
+  .prog{position:absolute;top:0;left:0;right:0;height:2px;z-index:6;background:rgba(150,168,214,.18)}
+  .prog i{position:absolute;left:0;top:0;height:2px;width:62%;background:var(--star);box-shadow:0 0 6px rgba(233,221,180,.5)}
+  .prog .tip{position:absolute;left:62%;top:1px;width:5px;height:5px;border-radius:50%;background:#F5F1DE;
+    box-shadow:0 0 7px rgba(233,221,180,.9);transform:translate(-50%,-50%)}
+  .statusbar{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;
+    font-family:var(--gothic);font-size:12px;color:#6E7794;flex-shrink:0}
+
+  .topbar{position:relative;z-index:4;height:48px;display:flex;align-items:center;gap:6px;padding:0 14px;flex-shrink:0;border-bottom:1px solid var(--line)}
+  .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--text);cursor:pointer}
+  .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar .ct{flex:1;font-family:var(--gothic);font-size:13px;color:var(--dim);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ghost{height:46px;display:flex;align-items:center;justify-content:center;padding:0 26px;flex-shrink:0}
+  .ghost .ct{font-family:var(--gothic);font-size:11px;color:var(--dim);letter-spacing:.14em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80%}
+
+  .reader{flex:1;overflow:auto;padding:4px 28px 120px;position:relative;z-index:1}
+  /* 章見出し＝章扉の星座片＋番号＋題＋短い星線 */
+  .chap-h{margin:18px 0 30px;text-align:center}
+  .chap-h .frag{display:block;margin:0 auto 14px}
+  .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--star);letter-spacing:.32em}
+  .chap-h .t{font-size:20px;color:var(--text);margin-top:12px;line-height:1.62;font-weight:500;text-align:left}
+  .chap-h .rule{margin-top:18px;display:flex;align-items:center;gap:6px}
+  .chap-h .rule .ln{width:40px;height:1px;background:var(--star);opacity:.7}
+  .chap-h .rule .st{width:4px;height:4px;border-radius:50%;background:var(--star);box-shadow:0 0 6px rgba(233,221,180,.7)}
+  p{font-size:17px;line-height:2.55;color:var(--text);text-indent:1em;margin-bottom:.2em;letter-spacing:0}
+  ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  .blank{height:1.7em}
+  .scene{display:flex;align-items:center;justify-content:center;gap:12px;margin:14px auto}
+  .scene .ln{width:64px;height:1px;background:var(--line)}
+  .scene .st{width:4px;height:4px;border-radius:50%;background:rgba(150,168,214,.5)}
+  .block{border:1px solid var(--line);border-radius:10px;background:rgba(150,168,214,.05);padding:14px 16px;margin:6px 0 24px}
+  .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--dim);letter-spacing:.12em;margin-bottom:7px}
+  .block p{font-size:14.5px;line-height:2.1;text-indent:1em;margin:0;color:var(--ruby)}
+
+  .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:62px;display:flex;align-items:center;
+    background:rgba(14,21,48,.82);border-top:1px solid var(--line);backdrop-filter:blur(6px)}
+  .bottombar button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--text);cursor:pointer}
+  .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .bottombar .bl{font-family:var(--gothic);font-size:9.5px;color:var(--dim);letter-spacing:.02em}
+  .bottombar .set svg{stroke:var(--star)}
+  .bottombar .set .bl{color:var(--star)}
+  .hint{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:6;font-family:var(--gothic);font-size:11px;color:var(--dim);letter-spacing:.08em}
+</style>
+</head>
+<body>
+  <p class="cap"><b>M. 星図 — 読書</b> ／ 本文組版は規格層のまま（明朝・可読性・ルビ・版面不動）。地にごく淡い星屑、章見出しに“章扉の星座片”、上端に結線進捗＝地・クローム・余白でMを躍らせる。既定は没入、中央タップでクローム。</p>
+  <p class="wcag">本文×背景コントラスト（目安）：#DCE3F2 / #0B1330 ≈ 13:1（AAA 通常 7:1 を満たす）。ルビ #9AA4C0 ≈ 6.9:1・補助文字 #8791AD ≈ 5.4:1。</p>
+  <div class="stage">
+
+    <div class="wrap"><span class="mode">没入（既定・バー非表示）</span>
+    <div class="phone" role="img" aria-label="M案 読書 没入状態">
+      <div class="prog"><i></i><span class="tip"></span></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ▢ 84%</span></div>
+      <div class="ghost"><span class="ct">追放された万能薬師 · 第127話</span></div>
+      <div class="reader">
+        <div class="chap-h">
+          <svg class="frag" width="58" height="30" viewBox="0 0 58 30" aria-hidden="true">
+            <g stroke="rgba(233,221,180,.55)" stroke-width="1" fill="none"><line x1="7" y1="22" x2="23" y2="11"/><line x1="23" y1="11" x2="43" y2="17"/><line x1="43" y1="17" x2="51" y2="7"/></g>
+            <g fill="#E9DDB4"><circle cx="7" cy="22" r="1.5"/><circle cx="23" cy="11" r="2.1"/><circle cx="43" cy="17" r="1.5"/><circle cx="51" cy="7" r="2.4"/></g>
+          </svg>
+          <div class="num">第 百二十七 話</div>
+          <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+          <div class="rule"><span class="ln"></span><span class="st"></span></div>
+        </div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。もう<ruby>戦<rt>たたか</rt></ruby>う<ruby>理由<rt>りゆう</rt></ruby>はない、とでも<ruby>言<rt>い</rt></ruby>うように。</p>
+        <div class="blank"></div>
+        <div class="scene"><span class="ln"></span><span class="st"></span><span class="ln"></span></div>
+        <div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+      </div>
+      <div class="hint">画面をタップでメニュー</div>
+    </div></div>
+
+    <div class="wrap"><span class="mode">クローム表示（中央タップ後）</span>
+    <div class="phone" role="img" aria-label="M案 読書 クローム表示状態">
+      <div class="prog"><i></i><span class="tip"></span></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ▢ 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第127話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="reader">
+        <div class="chap-h">
+          <svg class="frag" width="58" height="30" viewBox="0 0 58 30" aria-hidden="true">
+            <g stroke="rgba(233,221,180,.55)" stroke-width="1" fill="none"><line x1="7" y1="22" x2="23" y2="11"/><line x1="23" y1="11" x2="43" y2="17"/><line x1="43" y1="17" x2="51" y2="7"/></g>
+            <g fill="#E9DDB4"><circle cx="7" cy="22" r="1.5"/><circle cx="23" cy="11" r="2.1"/><circle cx="43" cy="17" r="1.5"/><circle cx="51" cy="7" r="2.4"/></g>
+          </svg>
+          <div class="num">第 百二十七 話</div>
+          <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+          <div class="rule"><span class="ln"></span><span class="st"></span></div>
+        </div>
+        <div class="block"><div class="lbl">前書き</div><p>お読みいただきありがとうございます。今回は少し長めの戦闘回になりました。次話は<ruby>後日談<rt>ごじつだん</rt></ruby>を挟みます。</p></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <div class="blank"></div>
+        <div class="scene"><span class="ln"></span><span class="st"></span><span class="ln"></span></div>
+        <div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="#0D1636"/><circle cx="15" cy="16" r="2.4" fill="#0D1636"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+  </div>
+</body>
+</html>

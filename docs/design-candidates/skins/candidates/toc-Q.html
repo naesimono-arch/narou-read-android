@@ -1,0 +1,98 @@
+<!-- @dsCard group="UI-n / 目次（スキン候補）" name="Q. 読書の庭 — 目次（章＝蔓に連なる節・現在章＝芽・D構造にQトークンを写像）" -->
+<!--
+  思想の翻訳: 章は一本の蔓に連なる節（ふし）。いま読んでいる章だけが芽吹いている＝現在章を「芽の節＋淡い苔面＋明朝太字の苔色」で一目に。
+  D正本(toc-D)の機能を全数踏襲: 戻る／見出し「目次」／章リスト（タップ可）／現在章ハイライト／章間ヘアライン／空状態。ナビ構造は変えず配色・書体・アクセントのみQへ写像。
+  余白: 章行をゆったり空け、蔓の左レールと本文の間に沈黙を残す（情報で埋めない）。
+  避けたもの: 読了/未読を各節に描き込む等のD正本に無い状態表現（＝提案に留め本体では足さない）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n Q 目次 — 読書の庭</title>
+<style>
+  :root{
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    --sand:#E7E1D4; --ink:#38372E; --meta:#5C5A4B; --moss:#5B6642; --bloom:#C98F6E; --furrow:#D8D0BF;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#2A2A24;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:30px;font-family:var(--gothic)}
+  .cap{color:#B7B29F;font-size:13px;line-height:1.75;text-align:center;max-width:640px;margin-bottom:16px}
+  .cap b{color:#EDE8DC}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#9A9683}
+
+  .phone{width:390px;height:844px;background:var(--sand);border-radius:42px;overflow:hidden;position:relative;
+    display:flex;flex-direction:column;color:var(--ink);box-shadow:0 26px 64px rgba(0,0,0,.55)}
+  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--meta);flex-shrink:0}
+  .topbar{height:56px;display:flex;align-items:center;gap:8px;padding:0 12px;flex-shrink:0}
+  .topbar .ib{width:40px;height:40px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--ink);cursor:pointer}
+  .topbar .ib svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar h1{font-family:var(--mincho);font-size:20px;color:var(--ink);font-weight:500;letter-spacing:.16em}
+
+  .scroll{flex:1;overflow:auto;scrollbar-width:none;padding-top:4px}
+  .scroll::-webkit-scrollbar{display:none}
+
+  /* 章行＝蔓のレール（左）＋章題。行はゆったり空ける＝余白を庭の静けさに */
+  .li{display:flex;align-items:stretch;cursor:pointer}
+  .rail{width:48px;flex-shrink:0;position:relative}
+  .rail::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1.5px;transform:translateX(-50%);background:var(--furrow)}
+  .node{position:absolute;left:50%;top:50%;width:7px;height:7px;border-radius:50%;background:var(--furrow);
+    transform:translate(-50%,-50%);z-index:1}
+  .tx{flex:1;min-width:0;font-family:var(--mincho);font-size:15px;color:var(--ink);line-height:1.6;font-weight:400;
+    padding:20px 24px 20px 4px;border-bottom:1px solid var(--furrow)}
+  .li:last-child .tx{border-bottom:none}
+
+  /* 現在章＝芽の節＋淡い苔面＋明朝太字の苔色（toc-Dの「左ルール＋淡面＋太字＋色文字」に対応） */
+  .li.cur{background:rgba(91,102,66,.07)}
+  .li.cur .node{width:18px;height:18px;background:transparent}
+  .li.cur .tx{color:var(--moss);font-weight:700}
+  .sprout{stroke:var(--moss);fill:none;stroke-width:1.4}
+  .sprout .b{fill:var(--bloom);stroke:none}
+  .sprout .m{fill:var(--moss);stroke:none}
+
+  .empty{flex:1;display:grid;place-items:center;color:var(--meta);font-family:var(--mincho);font-size:15px}
+  .pad{height:28px}
+</style>
+</head>
+<body>
+  <p class="cap"><b>Q. 読書の庭 — 目次</b> ／ 章は蔓に連なる節。現在章だけが芽吹いて見える（芽の節＋淡い苔面＋明朝太字）。toc-Dの機能（戻る・目次見出し・章リスト・現在章ハイライト・ヘアライン区切り・空状態）を全数踏襲し、配色と書体だけQへ写像。右は空状態。</p>
+  <div class="stage">
+
+    <!-- 通常（現在章＝第127話を芽の節でハイライト。実機は現在章の一つ手前を先頭に自動スクロール） -->
+    <div class="wrap"><span class="mode">通常（現在章ハイライト）</span>
+    <div class="phone" role="img" aria-label="Q案 目次">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <h1>目次</h1>
+      </div>
+      <div class="scroll">
+        <div class="li"><span class="rail"><span class="node"></span></span><span class="tx">第百二十四話　遠雷、辺境の街道を行く</span></div>
+        <div class="li"><span class="rail"><span class="node"></span></span><span class="tx">第百二十五話　古い井戸と、忘れられた約束</span></div>
+        <div class="li"><span class="rail"><span class="node"></span></span><span class="tx">第百二十六話　夜営の火、語られぬ過去のこと</span></div>
+        <div class="li cur"><span class="rail"><span class="node"><svg class="sprout" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 17 V8"/><path class="b" d="M9 9 q-5 -1 -6 -5 q5 0 6 4 Z"/><path class="m" d="M9 7 q4 -1 5 -4 q-4 0 -5 3 Z"/></svg></span></span><span class="tx">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</span></div>
+        <div class="li"><span class="rail"><span class="node"></span></span><span class="tx">第百二十八話　市場のざわめきと、薬草の値段</span></div>
+        <div class="li"><span class="rail"><span class="node"></span></span><span class="tx">第百二十九話　領主の館へ、招かれざる客として</span></div>
+        <div class="li"><span class="rail"><span class="node"></span></span><span class="tx">第百三十話　長い夜の終わりに交わした言葉</span></div>
+        <div class="pad"></div>
+      </div>
+    </div></div>
+
+    <!-- 空状態 -->
+    <div class="wrap"><span class="mode">空状態</span>
+    <div class="phone" role="img" aria-label="Q案 目次 空状態">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <h1>目次</h1>
+      </div>
+      <div class="scroll" style="display:flex"><div class="empty">章が見つかりません</div></div>
+    </div></div>
+
+  </div>
+</body>
+</html>

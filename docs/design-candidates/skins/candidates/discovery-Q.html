@@ -1,0 +1,281 @@
+<!-- @dsCard group="UI-n / 発見（スキン候補）" name="Q. 読書の庭 — 発見（苗市：蔓の背骨に多種の草木が育つ有機的な市）" -->
+<!--
+  思想の翻訳: 発見＝「まだ植えていない物語をさがす苗市」。ただし v2 の「同じ器（鉢・種袋・タイル）の等間隔反復」を捨て、器から解放して有機的にする。
+  有機化（変化と見栄え）: ①一本の蔓（つる）が画面の背骨として節々をつなぎ、そこに草木が生える ②作品ごとに草種/樹形が違う（花・蔓草・羊歯・実もの・若木・草叢）③伸びた枝や巻きひげが隣の余白へはみ出す非対称な茂り ④ランキング＝同じ鉢の比較でなく「蔓に生えた姿そのものの勢い」で人気を描く（1位＝花房が咲きこぼれ巻きひげが伸びる／下位＝小さな芽）。
+  ラベル規範（1ラベル1言葉）: 文脈で自明な世界観語のみ（苗市・季節の苗床・畑の区画・よく育つ種・勢い）、造形で世界観を出し二重表記はしない。機能語（週間等の並び順・ジャンル名・話数・pt）は標準語。
+  D正本の機能は全数保持: 検索／気分プリセット／ジャンル／order切替（週間〜新着）／ランキング（順位・題・著者・ジャンル・連載状態話数・読了目安・pt）／結果一覧（戻る・文脈・条件・件数・ランキング）。
+  維持: 可読性・彩度抑制（緑＋花色に土の中立、実は花色系）・初見での機能明示。
+
+  【Compose翻訳仕様＝座標の契約（"雑"の是正・座標監査済）】
+   ・苗床(季節の苗床): 株は器の上端から生え、株の最下点(soil mound)は本文帯の上で止める。
+     縦: pl.top=-24 / packet.padding-top=38 → 株の最下点(≈y33) と 題(y38) の間に≥5pxの安全余白（文字に1pxも掛けない）。
+     overhang(24px) < row-gap(32px) かつ < seedbeds.margin-top(28px) ＝上段の株が下段カード/節見出しの文字へ垂れない。
+   ・ランキングの植物＝背骨(1本の連続曲線)に対し「直に咲く花(a)」と「巻き付く蔓(b)」の2手法のみ（並走する別体の株は不採用）:
+     - 背骨(.stalk .v-spine, viewBox0 0 60 100 / preserveAspectRatioなし): 太3px・濃(moss)。上下端x18で行を継ぎ、行高に依らず連続。横スケール=1でx不変＝1本として追える。
+     - (a)直に咲く花(.grow .v-ped→bloom): 背骨上の節(18,44)＝行中心から、ごく短い花柄(細1.3px・明sage)が明確な角度差で分岐し、その先に花/葉/実。花柄は背骨より細く明るく＝背骨と溶けない。
+     - (b)巻き付く蔓(.stalk .v-coil): 背骨とは別体の細1.5px・明(sage)の蔓が、背骨の後→前→後と交互に通る（描画順: coil背→v-spine→coil前）で over/under の交差＝巻き付きが一目で分かる。
+     - 勢い=順位: 1位=咲きこぼれ(花3)＋巻き付き(3巻)／2位=花+実＋軽い巻き(2巻)／3位=葉のみ／4位=小さな一輪。結果一覧も同様(1位=花2+巻き/2位=葉のみ/3位=一輪+葉)。
+     - 株の右端は最大x約35(花)/x28(巻き)＜本文左端x64 ＝文字に1pxも掛からない。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n Q 発見 — 苗市</title>
+<style>
+  :root{
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    --sand:#E7E1D4; --sand2:#EDE8DC; --soil:#A6957A; --soil-dk:#8B7A62; --furrow:#D8D0BF;
+    --ink:#38372E; --meta:#5C5A4B; --moss:#5B6642; --sage:#7C8860; --bloom:#C98F6E;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#2A2A24;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:30px;font-family:var(--gothic)}
+  .cap{color:#B7B29F;font-size:13px;line-height:1.75;text-align:center;max-width:780px;margin-bottom:16px}
+  .cap b{color:#EDE8DC}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#9A9683}
+
+  .phone{width:390px;height:844px;background:var(--sand);border-radius:42px;overflow:hidden;position:relative;
+    display:flex;flex-direction:column;color:var(--ink);box-shadow:0 26px 64px rgba(0,0,0,.55)}
+  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--meta);flex-shrink:0}
+
+  .v-stem{stroke:var(--moss);fill:none;stroke-width:1.8;stroke-linecap:round}
+  .v-thin{stroke:var(--moss);fill:none;stroke-width:1.4;stroke-linecap:round}
+  .v-leaf{fill:var(--sage)} .v-leaf2{fill:#8E9B6A}
+  .v-bloom{fill:var(--bloom)} .v-core{fill:#C2A15E} .v-berry{fill:var(--bloom)}
+  .mound{fill:var(--soil)}
+  /* 線の階層＝背骨と、そこに生えるもの/巻くものを明確に描き分ける（背骨は太・濃／花柄・巻き蔓は細・明） */
+  .v-spine{stroke:var(--moss);fill:none;stroke-width:3;stroke-linecap:round}   /* 背骨＝1本の連続曲線・最も太く濃い */
+  .v-coil{stroke:var(--sage);fill:none;stroke-width:1.5;stroke-linecap:round}  /* 巻き蔓＝細く明るい別体。背骨の前後を交互に通す */
+  .v-ped{stroke:var(--sage);fill:none;stroke-width:1.3;stroke-linecap:round}   /* 花柄＝ごく短く・細く明るい＝背骨から直に咲く */
+
+  /* 見出し＝苗市。題のわきに巻きひげが一本 */
+  .top{padding:10px 24px 8px;display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0}
+  .top .ht{position:relative;font-family:var(--mincho);font-size:26px;color:var(--ink);letter-spacing:.14em}
+  .top .ht .tendril{position:absolute;right:-22px;top:-6px;width:24px;height:26px}
+  .ib{width:40px;height:40px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--ink);cursor:pointer}
+  .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.5}
+
+  .scroll{flex:1;overflow:auto;scrollbar-width:none;padding:0 24px 40px}
+  .scroll::-webkit-scrollbar{display:none}
+  .sec{font-family:var(--mincho);font-size:13px;color:var(--moss);letter-spacing:.1em;margin:28px 0 16px}
+  .sec:first-child{margin-top:16px}
+
+  /* 季節の苗床＝プリセット。器でなく、草木が枠からはみ出して生える。作品ごとに草種が違う */
+  /* 苗床＝プリセット。株は器の上端から生え、文字帯には掛からない。
+     縦: 株の最下点(soil mound)は本文帯の上で止め、上方の overhang 分は行間・上マージンで確保。
+     row-gap は overhang より大きく取り、上の株が下段カードの文字へ垂れない。 */
+  .seedbeds{display:grid;grid-template-columns:1fr 1fr;gap:32px 16px;margin-top:28px}
+  .packet{position:relative;border:1px solid var(--furrow);border-radius:12px;background:var(--sand2);
+    padding:38px 14px 14px;overflow:visible;cursor:pointer}
+  .packet .pl{position:absolute;top:-24px;width:54px;height:58px;z-index:2}
+  .packet .pl svg{width:54px;height:58px;overflow:visible;display:block}
+  .packet.p1 .pl{left:10px} .packet.p2 .pl{left:14px} .packet.p3 .pl{left:8px} .packet.p4 .pl{left:16px}
+  .packet b{font-family:var(--mincho);font-size:13.5px;color:var(--ink);font-weight:600;display:block;line-height:1.4}
+  .packet span{display:block;font-size:10px;color:var(--meta);margin-top:6px;letter-spacing:.03em}
+
+  /* 畑の区画＝ジャンル。区画ごとに違う作物が土から生える（箱なし） */
+  .plot-row{display:flex;gap:18px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+  .plot-row::-webkit-scrollbar{display:none}
+  .crop{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:9px;cursor:pointer}
+  .crop .pl{width:52px;height:56px}
+  .crop .pl svg{width:52px;height:56px;display:block}
+  .crop .nm{font-size:11px;color:var(--ink)}
+
+  /* order切替タブ＝並び順 */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--furrow);margin-top:8px;overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex-shrink:0;font-size:12.5px;color:var(--meta);padding:12px 12px;cursor:pointer;position:relative;letter-spacing:.06em}
+  .tab.on{color:var(--moss);font-weight:600}
+  .tab.on::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--moss)}
+
+  /* よく育つ種＝一本の蔓の背骨から各行の株が分岐して生える棚。
+     背骨は各行(.stalk)が上下端(x18)で継がれ連続する一本の蔓＝行の高さに依らず途切れない。
+     株(.grow)の根元は必ず背骨上の点(18,44)＝行の中心に一致させ「添え物」でなく分岐にする。 */
+  .shelf{position:relative;margin-top:4px}
+  .item{position:relative;z-index:1;display:flex;gap:12px;padding:20px 0;padding-left:64px;
+    border-bottom:1px solid var(--furrow);min-height:104px;align-items:center;cursor:pointer;overflow:visible}
+  /* 背骨の1行分＝上下端x18で隣の行と継ぐ（preserveAspectRatio=none。縦のみ伸縮＝横位置x18は不変で連続） */
+  .item .stalk{position:absolute;left:0;top:0;bottom:0;width:60px;z-index:0;pointer-events:none}
+  .item .stalk svg{width:60px;height:100%;display:block;overflow:visible}
+  /* 株＝固定アスペクト。根元(18,44)＝行中心が背骨のx18に一致（左0・縦中央）＝分岐点が蔓上に乗る */
+  .item .grow{position:absolute;left:0;top:50%;transform:translateY(-50%);width:64px;height:88px;z-index:1;pointer-events:none}
+  .item .grow svg{width:64px;height:88px;overflow:visible;display:block}
+  .item .no{position:absolute;left:0;width:36px;bottom:8px;text-align:center;font-family:var(--mincho);
+    font-size:15px;color:var(--meta);z-index:3}
+  .item.top3 .no{color:var(--moss)}
+  .item .bd{flex:1;min-width:0}
+  .item .t{font-family:var(--mincho);font-size:14.5px;color:var(--ink);line-height:1.5;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .item .a{font-size:11px;color:var(--meta);margin-top:6px}
+  .item .a em{font-style:normal;color:var(--sage);margin-left:8px;letter-spacing:.06em}
+  .item .m{display:flex;gap:12px;font-size:10.5px;color:var(--meta);margin-top:9px;letter-spacing:.03em;flex-wrap:wrap}
+  .item .m .pt{color:var(--moss)}
+
+  /* 結果一覧 */
+  .back{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--meta);padding:6px 24px 0;cursor:pointer}
+  .back svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .ctx{padding:12px 24px 0}
+  .ctx h2{font-family:var(--mincho);font-size:22px;color:var(--ink);font-weight:500;letter-spacing:.1em}
+  .ctx .sub{font-size:11px;color:var(--meta);margin-top:10px;line-height:1.7}
+  .conds{display:flex;gap:8px;flex-wrap:wrap;padding:16px 24px 4px}
+  .cd{font-size:10.5px;color:var(--moss);border:1px solid var(--moss);border-radius:8px;padding:5px 12px;opacity:.8}
+  .cd.adj{color:var(--meta);border-color:var(--furrow);opacity:1;cursor:pointer}
+  .cnt{padding:14px 24px 0;font-size:11px;color:var(--sage);letter-spacing:.08em}
+  .shelf.res{margin:0 24px}
+</style>
+</head>
+<body>
+  <p class="cap"><b>Q. 読書の庭 — 発見（苗市）</b> ／ v2の「同じ器の反復」を捨て有機化。一本の蔓が背骨として節々をつなぎ、作品ごとに違う草種（花・蔓草・羊歯・実もの・若木）が非対称に茂る。ランキングは鉢比べでなく「蔓に生えた勢い」で人気を描く（1位＝咲きこぼれ・巻きひげ／下位＝小さな芽）。機能はdiscovery-D全数保持。右＝結果一覧。</p>
+  <div class="stage">
+
+    <!-- 発見ホーム＝苗市 -->
+    <div class="wrap"><span class="mode">苗市（発見ホーム）</span>
+    <div class="phone" role="img" aria-label="Q案 発見 苗市">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="top">
+        <div class="ht">苗市<svg class="tendril" viewBox="0 0 24 26" aria-hidden="true"><path class="v-thin" d="M2 24 C10 20 6 12 14 10 C20 9 18 3 22 2"/><path class="v-leaf" d="M14 10 q6 -2 8 -6 q-5 1 -8 5 Z"/></svg></div>
+        <button class="ib" aria-label="検索"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+      </div>
+      <div class="scroll">
+
+        <div class="sec">季節の苗床</div>
+        <div class="seedbeds">
+          <div class="packet p1" role="button" aria-label="30分の小さな旅">
+            <div class="pl"><svg viewBox="0 0 54 58" aria-hidden="true"><ellipse class="mound" cx="27" cy="54" rx="12" ry="3" opacity=".7"/><path class="v-thin" d="M27 54 C25 42 29 32 27 14"/><g class="v-thin"><path d="M27 46 q-7 -3 -9 -8"/><path d="M27 46 q7 -3 9 -8"/><path d="M27 38 q-6 -3 -8 -7"/><path d="M27 38 q6 -3 8 -7"/><path d="M27 30 q-5 -2 -7 -6"/><path d="M27 30 q5 -2 7 -6"/><path d="M27 22 q-4 -2 -5 -5"/><path d="M27 22 q4 -2 5 -5"/></g></svg></div>
+            <b>30分の小さな旅</b><span>短編 ・ 読了 30分まで</span>
+          </div>
+          <div class="packet p2" role="button" aria-label="今夜の一気読み">
+            <div class="pl"><svg viewBox="0 0 54 58" aria-hidden="true"><ellipse class="mound" cx="27" cy="54" rx="11" ry="3" opacity=".7"/><path class="v-stem" d="M27 54 C18 42 36 32 25 20 C21 14 32 11 27 4"/><path class="v-leaf" d="M24 42 q-9 -1 -12 -7 q8 0 12 6 Z"/><path class="v-leaf2" d="M30 28 q9 -1 12 -7 q-8 0 -12 6 Z"/><g transform="translate(27 5)"><ellipse class="v-bloom" cx="0" cy="-5" rx="2.6" ry="4.8"/><g transform="rotate(72)"><ellipse class="v-bloom" cx="0" cy="-5" rx="2.6" ry="4.8"/></g><g transform="rotate(144)"><ellipse class="v-bloom" cx="0" cy="-5" rx="2.6" ry="4.8"/></g><g transform="rotate(216)"><ellipse class="v-bloom" cx="0" cy="-5" rx="2.6" ry="4.8"/></g><g transform="rotate(288)"><ellipse class="v-bloom" cx="0" cy="-5" rx="2.6" ry="4.8"/></g><circle class="v-core" r="2.2"/></g></svg></div>
+            <b>今夜の一気読み</b><span>完結済 ・ 10万字以上</span>
+          </div>
+          <div class="packet p3" role="button" aria-label="会話でさくさく">
+            <div class="pl"><svg viewBox="0 0 54 58" aria-hidden="true"><ellipse class="mound" cx="27" cy="54" rx="11" ry="3" opacity=".7"/><g class="v-stem"><path d="M27 54 C22 42 20 34 22 22"/><path d="M27 54 C27 40 27 32 27 18"/><path d="M27 54 C31 42 33 34 31 22"/><path d="M27 54 C20 44 16 38 15 28"/><path d="M27 54 C33 44 37 38 38 28"/></g></svg></div>
+            <b>会話でさくさく</b><span>会話率 60% 以上</span>
+          </div>
+          <div class="packet p4" role="button" aria-label="挿絵と歩く">
+            <div class="pl"><svg viewBox="0 0 54 58" aria-hidden="true"><ellipse class="mound" cx="27" cy="54" rx="11" ry="3" opacity=".7"/><path class="v-stem" d="M27 54 C25 44 31 36 27 24 C25 18 31 15 29 9"/><path class="v-leaf" d="M26 42 q-9 -1 -12 -7 q8 0 12 6 Z"/><circle class="v-berry" cx="31" cy="17" r="2.6"/><circle class="v-berry" cx="25" cy="13" r="2.6"/><circle class="v-berry" cx="30" cy="10" r="2.4"/></svg></div>
+            <b>挿絵と歩く</b><span>挿絵のある作品</span>
+          </div>
+        </div>
+
+        <div class="sec">畑の区画</div>
+        <div class="plot-row">
+          <div class="crop" role="button" aria-label="恋愛の区画"><div class="pl"><svg viewBox="0 0 52 56" aria-hidden="true"><ellipse class="mound" cx="26" cy="52" rx="10" ry="3" opacity=".7"/><path class="v-stem" d="M26 52 V16"/><path class="v-leaf" d="M26 34 q-7 -2 -9 -7 q6 1 9 6 Z"/><g transform="translate(26 12)"><ellipse class="v-bloom" cx="0" cy="-4.4" rx="2.2" ry="3.8"/><g transform="rotate(72)"><ellipse class="v-bloom" cx="0" cy="-4.4" rx="2.2" ry="3.8"/></g><g transform="rotate(144)"><ellipse class="v-bloom" cx="0" cy="-4.4" rx="2.2" ry="3.8"/></g><g transform="rotate(216)"><ellipse class="v-bloom" cx="0" cy="-4.4" rx="2.2" ry="3.8"/></g><g transform="rotate(288)"><ellipse class="v-bloom" cx="0" cy="-4.4" rx="2.2" ry="3.8"/></g><circle class="v-core" r="1.7"/></g></svg></div><span class="nm">恋愛</span></div>
+          <div class="crop" role="button" aria-label="ファンタジーの区画"><div class="pl"><svg viewBox="0 0 52 56" aria-hidden="true"><ellipse class="mound" cx="26" cy="52" rx="10" ry="3" opacity=".7"/><path class="v-stem" style="stroke-width:2.4" d="M26 52 V28"/><path class="v-stem" d="M26 32 L17 20 M26 32 L35 20 M26 28 L26 14"/><path class="v-leaf" d="M17 20 q-5 -3 -6 -7 q5 1 7 6 Z"/><path class="v-leaf2" d="M35 20 q5 -3 6 -7 q-5 1 -7 6 Z"/><path class="v-leaf" d="M26 14 q-4 -4 -4 -8 q5 2 5 7 Z"/></svg></div><span class="nm">ファンタジー</span></div>
+          <div class="crop" role="button" aria-label="文芸の区画"><div class="pl"><svg viewBox="0 0 52 56" aria-hidden="true"><ellipse class="mound" cx="26" cy="52" rx="10" ry="3" opacity=".7"/><g class="v-stem"><path d="M26 52 C22 42 20 34 22 24"/><path d="M26 52 C26 40 26 32 26 20"/><path d="M26 52 C31 42 33 34 31 24"/><path d="M26 52 C20 44 17 38 16 30"/></g></svg></div><span class="nm">文芸</span></div>
+          <div class="crop" role="button" aria-label="SFの区画"><div class="pl"><svg viewBox="0 0 52 56" aria-hidden="true"><ellipse class="mound" cx="26" cy="52" rx="10" ry="3" opacity=".7"/><path class="v-thin" d="M26 52 C24 40 28 30 26 14"/><g class="v-thin"><path d="M26 44 q-7 -3 -9 -8"/><path d="M26 44 q7 -3 9 -8"/><path d="M26 36 q-6 -3 -8 -7"/><path d="M26 36 q6 -3 8 -7"/><path d="M26 28 q-5 -2 -7 -6"/><path d="M26 28 q5 -2 7 -6"/></g></svg></div><span class="nm">SF</span></div>
+          <div class="crop" role="button" aria-label="その他の区画"><div class="pl"><svg viewBox="0 0 52 56" aria-hidden="true"><ellipse class="mound" cx="26" cy="52" rx="10" ry="3" opacity=".7"/><path class="v-stem" d="M26 52 V38"/><ellipse class="v-leaf" cx="20" cy="38" rx="5" ry="2.6" transform="rotate(-26 20 38)"/><ellipse class="v-leaf" cx="32" cy="38" rx="5" ry="2.6" transform="rotate(26 32 38)"/></svg></div><span class="nm">その他</span></div>
+          <div class="crop" role="button" aria-label="ノンジャンルの区画"><div class="pl"><svg viewBox="0 0 52 56" aria-hidden="true"><ellipse class="mound" cx="26" cy="52" rx="10" ry="3" opacity=".7"/><ellipse cx="26" cy="48" rx="3" ry="4" fill="#8B7A62"/><path class="v-thin" d="M26 46 q-3 -3 -5 -6 M26 46 q3 -3 5 -6"/></svg></div><span class="nm">ノンジャンル</span></div>
+        </div>
+
+        <div class="sec">よく育つ種</div>
+        <div class="tabs">
+          <span class="tab on">週間</span><span class="tab">日間</span><span class="tab">月間</span><span class="tab">四半期</span><span class="tab">累計</span><span class="tab">新着</span>
+        </div>
+
+        <div class="shelf">
+          <div class="item top3" role="button" aria-label="1位 追放された万能薬師">
+            <div class="stalk"><svg viewBox="0 0 60 100" preserveAspectRatio="none" aria-hidden="true"><path class="v-coil" d="M18 40 C10 46 10 50 18 56"/><path class="v-spine" d="M18 0 C15 33 21 67 18 100"/><path class="v-coil" d="M18 24 C26 30 26 34 18 40"/><path class="v-coil" d="M18 56 C26 62 26 66 18 72"/></svg></div>
+            <div class="grow"><svg viewBox="0 0 64 88" aria-hidden="true"><path class="v-ped" d="M18 44 Q19 35 21 28"/><path class="v-ped" d="M18 44 Q12 38 9 32"/><path class="v-ped" d="M18 44 Q25 42 31 38"/><path class="v-leaf" d="M18 44 q-8 3 -13 0 q6 -4 13 0 Z"/><g transform="translate(21 27)"><ellipse class="v-bloom" cx="0" cy="-4" rx="2" ry="4"/><g transform="rotate(72)"><ellipse class="v-bloom" cx="0" cy="-4" rx="2" ry="4"/></g><g transform="rotate(144)"><ellipse class="v-bloom" cx="0" cy="-4" rx="2" ry="4"/></g><g transform="rotate(216)"><ellipse class="v-bloom" cx="0" cy="-4" rx="2" ry="4"/></g><g transform="rotate(288)"><ellipse class="v-bloom" cx="0" cy="-4" rx="2" ry="4"/></g><circle class="v-core" r="1.8"/></g><g transform="translate(9 31)"><ellipse class="v-bloom" cx="0" cy="-3.2" rx="1.6" ry="3.2"/><g transform="rotate(72)"><ellipse class="v-bloom" cx="0" cy="-3.2" rx="1.6" ry="3.2"/></g><g transform="rotate(144)"><ellipse class="v-bloom" cx="0" cy="-3.2" rx="1.6" ry="3.2"/></g><g transform="rotate(216)"><ellipse class="v-bloom" cx="0" cy="-3.2" rx="1.6" ry="3.2"/></g><g transform="rotate(288)"><ellipse class="v-bloom" cx="0" cy="-3.2" rx="1.6" ry="3.2"/></g><circle class="v-core" r="1.4"/></g><g transform="translate(31 37)"><ellipse class="v-bloom" cx="0" cy="-3.4" rx="1.7" ry="3.4"/><g transform="rotate(72)"><ellipse class="v-bloom" cx="0" cy="-3.4" rx="1.7" ry="3.4"/></g><g transform="rotate(144)"><ellipse class="v-bloom" cx="0" cy="-3.4" rx="1.7" ry="3.4"/></g><g transform="rotate(216)"><ellipse class="v-bloom" cx="0" cy="-3.4" rx="1.7" ry="3.4"/></g><g transform="rotate(288)"><ellipse class="v-bloom" cx="0" cy="-3.4" rx="1.7" ry="3.4"/></g><circle class="v-core" r="1.5"/></g></svg></div>
+            <div class="no">1</div>
+            <div class="bd">
+              <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+              <div class="a">霧島あおい<em>ハイファンタジー</em></div>
+              <div class="m"><span>連載中 127話</span><span>約8時間</span><span class="pt">勢い 12,345pt</span></div>
+            </div>
+          </div>
+
+          <div class="item top3" role="button" aria-label="2位 黒の魔王と契約した俺">
+            <div class="stalk"><svg viewBox="0 0 60 100" preserveAspectRatio="none" aria-hidden="true"><path class="v-coil" d="M18 44 C10 50 10 54 18 60"/><path class="v-spine" d="M18 0 C15 33 21 67 18 100"/><path class="v-coil" d="M18 32 C26 38 26 42 18 44"/><path class="v-coil" d="M18 60 C24 64 24 68 18 72"/></svg></div>
+            <div class="grow"><svg viewBox="0 0 64 88" aria-hidden="true"><path class="v-ped" d="M18 44 Q20 36 22 30"/><path class="v-ped" d="M18 44 Q13 39 10 34"/><g transform="translate(22 29)"><ellipse class="v-bloom" cx="0" cy="-3.4" rx="1.7" ry="3.4"/><g transform="rotate(72)"><ellipse class="v-bloom" cx="0" cy="-3.4" rx="1.7" ry="3.4"/></g><g transform="rotate(144)"><ellipse class="v-bloom" cx="0" cy="-3.4" rx="1.7" ry="3.4"/></g><g transform="rotate(216)"><ellipse class="v-bloom" cx="0" cy="-3.4" rx="1.7" ry="3.4"/></g><g transform="rotate(288)"><ellipse class="v-bloom" cx="0" cy="-3.4" rx="1.7" ry="3.4"/></g><circle class="v-core" r="1.5"/></g><circle class="v-berry" cx="10" cy="33" r="2.4"/><circle class="v-berry" cx="7" cy="30" r="2"/></svg></div>
+            <div class="no">2</div>
+            <div class="bd">
+              <div class="t">黒の魔王と契約した俺、気づけば最強の従者になっていた</div>
+              <div class="a">夜灯すばる<em>異世界〔恋愛〕</em></div>
+              <div class="m"><span>連載中 43話</span><span>約3時間</span><span class="pt">勢い 9,812pt</span></div>
+            </div>
+          </div>
+
+          <div class="item top3" role="button" aria-label="3位 公爵令嬢の嗜み">
+            <div class="stalk"><svg viewBox="0 0 60 100" preserveAspectRatio="none" aria-hidden="true"><path class="v-spine" d="M18 0 C15 33 21 67 18 100"/></svg></div>
+            <div class="grow"><svg viewBox="0 0 64 88" aria-hidden="true"><path class="v-ped" d="M18 44 Q18 34 19 26"/><path class="v-leaf" d="M19 30 q-9 -2 -12 -8 q9 0 12 7 Z"/><path class="v-leaf2" d="M19 26 q9 -2 12 -8 q-9 0 -12 7 Z"/><path class="v-leaf" d="M18 38 q-8 -1 -11 -7 q8 0 11 6 Z"/></svg></div>
+            <div class="no">3</div>
+            <div class="bd">
+              <div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+              <div class="a">白河すずら<em>異世界〔恋愛〕</em></div>
+              <div class="m"><span>連載中 210話</span><span>約14時間</span><span class="pt">勢い 8,204pt</span></div>
+            </div>
+          </div>
+
+          <div class="item" role="button" aria-label="4位 転生したら最弱スキル">
+            <div class="stalk"><svg viewBox="0 0 60 100" preserveAspectRatio="none" aria-hidden="true"><path class="v-spine" d="M18 0 C15 33 21 67 18 100"/></svg></div>
+            <div class="grow"><svg viewBox="0 0 64 88" aria-hidden="true"><path class="v-ped" d="M18 44 Q18 38 18 33"/><g transform="translate(18 32)"><ellipse class="v-bloom" cx="0" cy="-3" rx="1.5" ry="3"/><g transform="rotate(72)"><ellipse class="v-bloom" cx="0" cy="-3" rx="1.5" ry="3"/></g><g transform="rotate(144)"><ellipse class="v-bloom" cx="0" cy="-3" rx="1.5" ry="3"/></g><g transform="rotate(216)"><ellipse class="v-bloom" cx="0" cy="-3" rx="1.5" ry="3"/></g><g transform="rotate(288)"><ellipse class="v-bloom" cx="0" cy="-3" rx="1.5" ry="3"/></g><circle class="v-core" r="1.4"/></g></svg></div>
+            <div class="no">4</div>
+            <div class="bd">
+              <div class="t">転生したら最弱スキルだったので、ひたすら草むしりしていた</div>
+              <div class="a">青葉みのり<em>ハイファンタジー</em></div>
+              <div class="m"><span>連載中 88話</span><span>約6時間</span><span class="pt">勢い 7,530pt</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+    <!-- 結果一覧（苗床/検索/ジャンルの共通着地） -->
+    <div class="wrap"><span class="mode">苗床の結果（共通着地）</span>
+    <div class="phone" role="img" aria-label="Q案 発見 苗床の結果">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="back"><svg viewBox="0 0 24 24"><polyline points="14 6 8 12 14 18"/></svg>苗市へ</div>
+      <div class="ctx">
+        <h2>30分の小さな旅</h2>
+        <div class="sub">短い時間で実る物語。読了目安 30分まで・短編のみ。</div>
+      </div>
+      <div class="conds">
+        <span class="cd">短編</span><span class="cd">〜30分</span><span class="cd">勢い順</span><span class="cd adj">条件を調整</span>
+      </div>
+      <div class="cnt">1,204 の種</div>
+      <div class="scroll" style="padding:8px 0 40px">
+        <div class="shelf res">
+          <div class="item" role="button" aria-label="1位 雨宿りの喫茶店で魔女に出会った">
+            <div class="stalk"><svg viewBox="0 0 60 100" preserveAspectRatio="none" aria-hidden="true"><path class="v-coil" d="M18 40 C10 46 10 50 18 56"/><path class="v-spine" d="M18 0 C15 33 21 67 18 100"/><path class="v-coil" d="M18 24 C26 30 26 34 18 40"/><path class="v-coil" d="M18 56 C26 62 26 66 18 72"/></svg></div>
+            <div class="grow"><svg viewBox="0 0 64 88" aria-hidden="true"><path class="v-ped" d="M18 44 Q20 35 22 28"/><path class="v-ped" d="M18 44 Q12 38 9 33"/><path class="v-leaf" d="M18 44 q8 3 14 0 q-6 -4 -14 0 Z"/><g transform="translate(22 27)"><ellipse class="v-bloom" cx="0" cy="-4" rx="2" ry="4"/><g transform="rotate(72)"><ellipse class="v-bloom" cx="0" cy="-4" rx="2" ry="4"/></g><g transform="rotate(144)"><ellipse class="v-bloom" cx="0" cy="-4" rx="2" ry="4"/></g><g transform="rotate(216)"><ellipse class="v-bloom" cx="0" cy="-4" rx="2" ry="4"/></g><g transform="rotate(288)"><ellipse class="v-bloom" cx="0" cy="-4" rx="2" ry="4"/></g><circle class="v-core" r="1.8"/></g><g transform="translate(9 32)"><ellipse class="v-bloom" cx="0" cy="-3.2" rx="1.6" ry="3.2"/><g transform="rotate(72)"><ellipse class="v-bloom" cx="0" cy="-3.2" rx="1.6" ry="3.2"/></g><g transform="rotate(144)"><ellipse class="v-bloom" cx="0" cy="-3.2" rx="1.6" ry="3.2"/></g><g transform="rotate(216)"><ellipse class="v-bloom" cx="0" cy="-3.2" rx="1.6" ry="3.2"/></g><g transform="rotate(288)"><ellipse class="v-bloom" cx="0" cy="-3.2" rx="1.6" ry="3.2"/></g><circle class="v-core" r="1.4"/></g></svg></div>
+            <div class="no">1</div>
+            <div class="bd">
+              <div class="t">雨宿りの喫茶店で魔女に出会った</div>
+              <div class="a">早瀬ことり<em>現実世界〔恋愛〕</em></div>
+              <div class="m"><span>短編</span><span>約12分</span><span class="pt">勢い 3,204pt</span></div>
+            </div>
+          </div>
+
+          <div class="item" role="button" aria-label="2位 最後の魔王が残した願いごと">
+            <div class="stalk"><svg viewBox="0 0 60 100" preserveAspectRatio="none" aria-hidden="true"><path class="v-spine" d="M18 0 C15 33 21 67 18 100"/></svg></div>
+            <div class="grow"><svg viewBox="0 0 64 88" aria-hidden="true"><path class="v-ped" d="M18 44 Q18 34 19 26"/><path class="v-leaf" d="M19 30 q-9 -2 -12 -8 q9 0 12 7 Z"/><path class="v-leaf2" d="M19 26 q9 -2 12 -8 q-9 0 -12 7 Z"/><path class="v-leaf" d="M18 38 q-8 -1 -11 -7 q8 0 11 6 Z"/></svg></div>
+            <div class="no">2</div>
+            <div class="bd">
+              <div class="t">最後の魔王が残した、たったひとつの願いごと</div>
+              <div class="a">灰島ちひろ<em>ハイファンタジー</em></div>
+              <div class="m"><span>短編</span><span>約28分</span><span class="pt">勢い 2,877pt</span></div>
+            </div>
+          </div>
+
+          <div class="item" role="button" aria-label="3位 駅前の占い師は未来を視ない">
+            <div class="stalk"><svg viewBox="0 0 60 100" preserveAspectRatio="none" aria-hidden="true"><path class="v-spine" d="M18 0 C15 33 21 67 18 100"/></svg></div>
+            <div class="grow"><svg viewBox="0 0 64 88" aria-hidden="true"><path class="v-ped" d="M18 44 Q20 37 22 31"/><path class="v-ped" d="M18 44 Q13 40 10 35"/><g transform="translate(22 30)"><ellipse class="v-bloom" cx="0" cy="-3.4" rx="1.7" ry="3.4"/><g transform="rotate(72)"><ellipse class="v-bloom" cx="0" cy="-3.4" rx="1.7" ry="3.4"/></g><g transform="rotate(144)"><ellipse class="v-bloom" cx="0" cy="-3.4" rx="1.7" ry="3.4"/></g><g transform="rotate(216)"><ellipse class="v-bloom" cx="0" cy="-3.4" rx="1.7" ry="3.4"/></g><g transform="rotate(288)"><ellipse class="v-bloom" cx="0" cy="-3.4" rx="1.7" ry="3.4"/></g><circle class="v-core" r="1.5"/></g><path class="v-leaf" d="M13 37 q-8 -1 -11 -6 q8 0 11 5 Z"/></svg></div>
+            <div class="no">3</div>
+            <div class="bd">
+              <div class="t">駅前の占い師は未来を視ない</div>
+              <div class="a">結城まほろ<em>ヒューマンドラマ</em></div>
+              <div class="m"><span>短編</span><span>約19分</span><span class="pt">勢い 2,410pt</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+  </div>
+</body>
+</html>

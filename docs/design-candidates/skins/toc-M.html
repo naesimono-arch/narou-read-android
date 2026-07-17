@@ -1,0 +1,153 @@
+<!-- @dsCard group="UI-n / 目次（スキン候補）" name="M. 星図 — 目次（本棚と同期して点火する“この物語の星座”を辿る図）" -->
+<!--
+  思想の翻訳: 目次＝この物語の星座を辿る図。本棚Mのその作品の星座（折れ線）を目次の地に大きく描き、
+             既読章ぶんだけ星が灯り結線が伸びる（本棚と同一データ・同一文法で同期）。章リストは可読のまま上に浮かべる。
+  遊びを足した所: 地に大きな星座＋星屑をちりばめ、読了に応じて金の結線が現在章の“脈打つ先端星”まで灯る。
+                  各章行も同じ文法の小さな星（既読=金／現在=最輝／これから=淡）でガターに連なる。
+  破壊するもの: 章間ヘアラインを結線＋余白へ。目次を「リスト」から「星座を辿る図」へ。
+  規格層は不変: 章名は明朝・4.5:1以上（沈めるのは星グリフのみ）・和文letterSpacing 0。
+  ※ 3系統: 群青の夜天／星光の金（読了・現在章・結線）／月光スレート（未読の星・線・補助文字）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n M 目次 — 星図</title>
+<style>
+  :root{
+    --text:#DCE3F2;--dim:#8791AD;--star:#E9DDB4;
+    --line:rgba(150,168,214,.20);
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#06080F;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:#7C86A2;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:720px}
+  .cap b{color:#DCE3F2}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#7C86A2}
+
+  .phone{width:390px;height:844px;border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column;
+    box-shadow:0 30px 72px rgba(0,0,0,.72);
+    background:
+      radial-gradient(80% 40% at 74% 8%,rgba(58,78,150,.24),transparent 62%),
+      linear-gradient(178deg,#0B1330 0%,#0D1636 48%,#080E26 100%);}
+  .skybg{position:absolute;inset:0;z-index:0}
+  .layer{position:relative;z-index:1;display:flex;flex-direction:column;height:100%}
+  .sb{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:12px;color:#6E7794;flex-shrink:0}
+  .topbar{height:54px;display:flex;align-items:center;gap:8px;padding:0 12px;flex-shrink:0;border-bottom:1px solid var(--line)}
+  .topbar .ib{width:40px;height:40px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--text);cursor:pointer}
+  .topbar .ib svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar .htxt{display:flex;flex-direction:column;gap:2px}
+  .topbar h1{font-family:var(--mincho);font-size:19px;color:var(--text);font-weight:500;letter-spacing:.14em}
+  .topbar .sync{font-family:var(--gothic);font-size:10px;color:var(--star);letter-spacing:.14em}
+  .scroll{flex:1;overflow:auto;padding:8px 0}
+
+  .li{display:flex;align-items:stretch;cursor:pointer;position:relative}
+  .li .gut{width:50px;flex-shrink:0;position:relative;display:grid;place-items:center}
+  .li .gut::before{content:"";position:absolute;top:0;bottom:0;left:50%;width:1px;transform:translateX(-50%);background:var(--seg)}
+  .li .gut .dot{position:relative;z-index:1;width:7px;height:7px;border-radius:50%;background:var(--dotc)}
+  .li .tx{flex:1;min-width:0;font-family:var(--mincho);font-size:15px;color:#C9D0E1;padding:18px 24px 18px 2px;line-height:1.6;font-weight:400}
+
+  .li.read{--seg:rgba(233,221,180,.5);--dotc:var(--star)}
+  .li.read .gut .dot{box-shadow:0 0 7px rgba(233,221,180,.65)}
+  .li.cur{--seg:rgba(233,221,180,.5);--dotc:#F7F3E1;background:rgba(233,221,180,.07)}
+  .li.cur .gut .dot{width:11px;height:11px;box-shadow:0 0 14px rgba(233,221,180,.95);animation:pulse 2.8s ease-in-out infinite}
+  .li.cur .tx{color:var(--star);font-weight:700}
+  .li.ahead{--seg:rgba(150,168,214,.18);--dotc:rgba(150,168,214,.45)}
+  @keyframes pulse{0%,100%{box-shadow:0 0 10px rgba(233,221,180,.7)}50%{box-shadow:0 0 18px rgba(233,221,180,1)}}
+  @media (prefers-reduced-motion: reduce){.li.cur .gut .dot{animation:none}}
+
+  .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--dim);font-family:var(--mincho);font-size:15px}
+  .empty .st{width:6px;height:6px;border-radius:50%;background:rgba(150,168,214,.4)}
+</style>
+</head>
+<body>
+  <p class="cap"><b>M. 星図 — 目次</b> ／ 本棚Mのその作品の星座を目次の地に大きく描き、既読章ぶんだけ星が灯り結線が伸びる（本棚と同一データ・同一文法で同期）。章行も同じ文法の星で連なり、章名は明朝で明快に読める。右は空状態。</p>
+  <div class="stage">
+
+    <div class="wrap"><span class="mode">通常（星座が現在章まで点火）</span>
+    <div class="phone" role="img" aria-label="M案 目次">
+      <canvas class="skybg" aria-hidden="true"></canvas>
+      <div class="layer">
+        <div class="sb"><span>9:41</span><span>●●● ▢ 84%</span></div>
+        <div class="topbar">
+          <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <div class="htxt"><h1>目次</h1><span class="sync">127 / 340 話</span></div>
+        </div>
+        <div class="scroll">
+          <div class="li read"><span class="gut"><span class="dot"></span></span><span class="tx">第百二十四話　遠雷、辺境の街道を行く</span></div>
+          <div class="li read"><span class="gut"><span class="dot"></span></span><span class="tx">第百二十五話　古い井戸と、忘れられた約束</span></div>
+          <div class="li read"><span class="gut"><span class="dot"></span></span><span class="tx">第百二十六話　夜営の火、語られぬ過去のこと</span></div>
+          <div class="li cur"><span class="gut"><span class="dot"></span></span><span class="tx">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</span></div>
+          <div class="li ahead"><span class="gut"><span class="dot"></span></span><span class="tx">第百二十八話　市場のざわめきと、薬草の値段</span></div>
+          <div class="li ahead"><span class="gut"><span class="dot"></span></span><span class="tx">第百二十九話　領主の館へ、招かれざる客として</span></div>
+          <div class="li ahead"><span class="gut"><span class="dot"></span></span><span class="tx">第百三十話　長い夜の終わりに交わした言葉</span></div>
+          <div class="li ahead"><span class="gut"><span class="dot"></span></span><span class="tx">第百三十一話　旅立ちの朝、薬箱を背負って</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="wrap"><span class="mode">空状態</span>
+    <div class="phone" role="img" aria-label="M案 目次 空状態">
+      <canvas class="skybg" aria-hidden="true"></canvas>
+      <div class="layer">
+        <div class="sb"><span>9:41</span><span>●●● ▢ 84%</span></div>
+        <div class="topbar">
+          <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <div class="htxt"><h1>目次</h1></div>
+        </div>
+        <div class="empty"><span class="st"></span>章が見つかりません</div>
+      </div>
+    </div></div>
+
+  </div>
+
+<script>
+// 地の大きな星座＝本棚Mのその作品の折れ線を目次の地に描き、既読ぶん（62%）を金で点火＝本棚と同期。
+(function(){
+  const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const W=390,H=844,dpr=Math.max(1,window.devicePixelRatio||1);
+  const PTS=[[300,150],[248,252],[318,344],[250,452],[302,556],[240,646],[292,742]];
+  const FRAC=0.62;
+  let seed=20260717;const rnd=()=>{seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;};
+  const DUST=[];for(let i=0;i<64;i++)DUST.push([rnd()*W,44+rnd()*(H-70),rnd()*.9+.3,rnd()*.32+.05]);
+  function seg(p){let L=[],t=0;for(let i=1;i<p.length;i++){const d=Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]);L.push(d);t+=d;}return{L,t};}
+  function glow(ctx,x,y,r,a){const g=ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba(240,235,205,'+a+')');g.addColorStop(.42,'rgba(225,210,160,'+(a*.4)+')');g.addColorStop(1,'rgba(225,210,160,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();
+    ctx.fillStyle='rgba(245,248,255,'+Math.min(1,a+.15)+')';ctx.beginPath();ctx.arc(x,y,1.8,0,7);ctx.fill();}
+  document.querySelectorAll('.skybg').forEach(cv=>{
+    const ctx=cv.getContext('2d');cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';ctx.scale(dpr,dpr);
+    const empty=cv.parentElement.querySelector('.empty');
+    function draw(ts){
+      ctx.clearRect(0,0,W,H);
+      for(const [x,y,r,a] of DUST){ctx.fillStyle='rgba(210,222,250,'+a+')';ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+      ctx.strokeStyle='rgba(150,168,214,.05)';ctx.lineWidth=1;
+      for(let i=0;i<4;i++){const y=170+i*180;ctx.beginPath();ctx.moveTo(6,y);ctx.quadraticCurveTo(195,y-14,384,y);ctx.stroke();}
+      if(!empty){
+        const {L,t}=seg(PTS),lit=FRAC*t;
+        ctx.strokeStyle='rgba(150,168,214,.16)';ctx.lineWidth=1.2;
+        ctx.beginPath();ctx.moveTo(PTS[0][0],PTS[0][1]);for(let i=1;i<PTS.length;i++)ctx.lineTo(PTS[i][0],PTS[i][1]);ctx.stroke();
+        ctx.strokeStyle='rgba(233,221,180,.5)';ctx.lineWidth=1.6;ctx.lineCap='round';ctx.lineJoin='round';
+        ctx.shadowColor='rgba(233,221,180,.4)';ctx.shadowBlur=6;ctx.beginPath();ctx.moveTo(PTS[0][0],PTS[0][1]);
+        let acc=0,tx=PTS[0][0],ty=PTS[0][1];
+        for(let i=1;i<PTS.length;i++){if(acc+L[i-1]<=lit){ctx.lineTo(PTS[i][0],PTS[i][1]);acc+=L[i-1];tx=PTS[i][0];ty=PTS[i][1];}
+          else{const r=(lit-acc)/L[i-1];tx=PTS[i-1][0]+(PTS[i][0]-PTS[i-1][0])*r;ty=PTS[i-1][1]+(PTS[i][1]-PTS[i-1][1])*r;ctx.lineTo(tx,ty);break;}}
+        ctx.stroke();ctx.shadowBlur=0;
+        let acc2=0;for(let i=0;i<PTS.length;i++){if(i>0)acc2+=L[i-1];
+          if(acc2<=lit+0.5)glow(ctx,PTS[i][0],PTS[i][1],5,.6);
+          else{ctx.fillStyle='rgba(150,166,206,.32)';ctx.beginPath();ctx.arc(PTS[i][0],PTS[i][1],1.6,0,7);ctx.fill();}}
+        const pulse=reduce?0.5:(Math.sin(ts/1400)+1)/2;
+        glow(ctx,tx,ty,6+pulse*3,.7+pulse*.2);
+      }
+      if(!reduce)requestAnimationFrame(draw);
+    }
+    requestAnimationFrame(draw);
+  });
+})();
+</script>
+</body>
+</html>

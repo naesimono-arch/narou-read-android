@@ -1,0 +1,201 @@
+<!-- @dsCard group="UI-n / 読書（スキン候補・はっちゃけ）" name="P. カートリッジ（はっちゃけ版）— 読書" -->
+<!-- 実験変種（はっちゃけ）: 現行P読書のゲーム濃度を一段上げた試作。ただし本文の組版規格層は1pxも侵さない。
+     本文＝明朝16.5px・letterSpacing 0・行間2.35・ルビ1/2・地×文字の高コントラスト＝現行と完全同一（バイト一致）。
+     はっちゃけを足した所（クローム／没入外の縁／章の扉／セーブ演出のみ）:
+       ①章の扉＝STAGEカードへ（緑LCDのコーナー枠＋▶ START の扉演出。話数/題名の文言と位置は不変＝リフロー無し）
+       ②セーブ演出＝没入バーに走査線を薄く重ね、クローム側の SAVE 読み取りにフロッピー記号を付す（没入バーは本文より沈むまま）
+       ③クローム＝コンソール操作列/パックを物理ボタン（凹凸プラスチック）へ。ラベル前章/目次/表示設定/次章は不変
+     退色トーン厳守: 有彩は既存3系統（LCD緑・退色赤・退色青）のみ。新hueゼロ。版面は cutout 内側・オーバーレイ、中央タップ対称トグル＝不変。 -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n P 読書 — カートリッジ（はっちゃけ）</title>
+<style>
+  :root{
+    --plastic:#dbd6c8; --plastic-hi:#e9e5da; --plastic-lo:#c3bfae;
+    --ink:#2c2b26; --ink-soft:#79766b; --line:#bdb9a9;
+    --lcd:#a4af80; --lcd-hi:#b4be92; --lcd-frame:#33352b; --lcd-ink:#2b3616;   /* ①LCD緑 */
+    --red:#b5564e; --red-lo:#8d4139;                                           /* ②退色レッド */
+    --blue:#5c7d96; --blue-lo:#c4c0b2; --blue-ink:#3f5a70;                     /* ③退色ブルー（進捗） */
+    /* 読書面＝バックライト風の温白スクリーン（高コントラスト・純白純黒回避） */
+    --screen:#e8e7d8; --screen-lo:#dedccb; --rd-ink:#26251d; --rd-soft:#5f5c50; --rd-ruby:#5f5c4f;
+    --pixel:ui-monospace,"SFMono-Regular",Menlo,Consolas,"Courier New",monospace;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#2a2c27;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:30px;font-family:var(--gothic)}
+  .cap{color:#c8c3b4;font-size:13px;margin-bottom:16px;text-align:center;line-height:1.7;max-width:720px}
+  .cap b{color:#f0ede2}
+  .stage{display:flex;gap:34px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap .mode{font-family:var(--pixel);font-size:11px;letter-spacing:.14em;color:#b7b2a3}
+
+  /* 筐体 */
+  .phone{width:390px;height:844px;border-radius:34px;position:relative;overflow:hidden;
+    background:linear-gradient(150deg,var(--plastic-hi),var(--plastic) 22%,var(--plastic-lo));
+    box-shadow:0 24px 60px rgba(0,0,0,.55), inset 0 2px 0 rgba(255,255,255,.5), inset 0 -3px 8px rgba(0,0,0,.14);
+    display:flex;flex-direction:column;color:var(--ink)}
+  .screw{position:absolute;width:9px;height:9px;border-radius:50%;z-index:9;
+    background:radial-gradient(circle at 35% 30%,#e7e3d7,#a8a496 70%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+  .screw::after{content:"";position:absolute;inset:2.5px;border-top:1.4px solid rgba(0,0,0,.28);transform:rotate(40deg)}
+  .screw.tl{top:13px;left:13px}.screw.tr{top:13px;right:13px}.screw.bl{bottom:13px;left:13px}.screw.br{bottom:13px;right:13px}
+  /* はっちゃけ: 没入外の縁＝機体側面のグリップ溝（版面外の装飾。本文には触れない） */
+  .phone::before,.phone::after{content:"";position:absolute;top:150px;bottom:150px;width:5px;z-index:8;pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.10) 0 3px,transparent 3px 7px)}
+  .phone::before{left:4px}.phone::after{right:4px}
+  .sb{height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;flex-shrink:0;
+    font-family:var(--pixel);font-size:11px;letter-spacing:.06em;color:var(--ink-soft)}
+  .sb .batt{display:inline-flex;align-items:center;gap:3px}
+  .sb .batt b{display:inline-block;width:16px;height:8px;border:1.4px solid var(--ink-soft);border-radius:1px;position:relative}
+  .sb .batt b::after{content:"";position:absolute;inset:1.5px;right:5px;background:var(--ink-soft)}
+  .sb .batt b::before{content:"";position:absolute;right:-3px;top:2px;width:2px;height:4px;background:var(--ink-soft)}
+
+  /* 嵌め込みスクリーン（バックライト風・凹面ベゼル） */
+  .screen{position:relative;flex:1;margin:2px 14px 16px;border-radius:14px;overflow:hidden;
+    background:linear-gradient(var(--screen),var(--screen-lo));
+    box-shadow:inset 0 3px 9px rgba(0,0,0,.30), 0 1px 0 rgba(255,255,255,.4)}
+
+  /* 上端＝セーブ表示バー（没入中の唯一常設クローム。緑LCDのセーブ読み取り＝随伴・一瞥・静けさ、本文より沈む） */
+  .savebar{position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;gap:9px;padding:5px 13px;overflow:hidden;
+    background:linear-gradient(var(--lcd-hi),var(--lcd));box-shadow:inset 0 -1px 3px rgba(43,54,22,.28)}
+  /* はっちゃけ②: セーブ演出＝薄い走査線を重ねる（本文より沈む＝静けさ維持） */
+  .savebar::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(43,54,22,.09) 0 1px,transparent 1px 3px)}
+  .savebar .fd{position:relative;z-index:2;width:10px;height:10px;flex-shrink:0;background:var(--lcd-ink);border-radius:1px}
+  .savebar .fd::before{content:"";position:absolute;right:1px;top:1px;width:4px;height:3px;background:var(--lcd)}
+  .savebar .fd::after{content:"";position:absolute;left:2px;bottom:1px;right:2px;height:3px;background:var(--lcd)}
+  .savebar .lb{position:relative;z-index:2;font-family:var(--pixel);font-size:9px;font-weight:700;letter-spacing:.12em;color:var(--lcd-ink);opacity:.85;flex-shrink:0}
+  .savebar .g{position:relative;z-index:2;flex:1;height:6px;background:rgba(43,54,22,.16);overflow:hidden}
+  .savebar .g i{position:absolute;left:0;top:0;bottom:0;width:62%;background:repeating-linear-gradient(90deg,var(--lcd-ink) 0 4px,rgba(43,54,22,.4) 4px 5px)}
+  .savebar .pc{position:relative;z-index:2;font-family:var(--pixel);font-size:10px;font-weight:700;color:var(--lcd-ink);flex-shrink:0}
+
+  /* 本文（主役＝現代の可読組版。★規格層＝現行とバイト一致。以下は一切変更しない） */
+  .reader{position:absolute;inset:0;overflow:auto;padding:40px 26px 96px;font-family:var(--mincho);scrollbar-width:none}
+  .reader::-webkit-scrollbar{display:none}
+  p{font-size:16.5px;line-height:2.35;color:var(--rd-ink);text-indent:1em;margin-bottom:.3em;letter-spacing:0}
+  ruby rt{font-size:.5em;color:var(--rd-ruby);font-weight:400;letter-spacing:0}
+  .blank{height:1.5em}
+  hr{border:none;height:6px;margin:16px auto;width:60px;
+    background:repeating-linear-gradient(90deg,var(--rd-soft) 0 4px,transparent 4px 8px);opacity:.5}
+  /* まえがきブロック（ラベル付き・淡い面。可読性維持） */
+  .block{border:1px solid var(--screen-lo);background:rgba(43,54,22,.04);border-radius:6px;padding:12px 15px;margin:2px 0 24px}
+  .block .lbl{font-family:var(--pixel);font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--blue-ink);margin-bottom:7px}
+  .block p{font-size:14px;line-height:2.05;text-indent:1em;margin:0;color:var(--rd-soft)}
+
+  /* はっちゃけ①: 章の扉＝STAGEカード（緑LCDのコーナー枠＋扉演出。文言/位置は現行と同一＝本文はリフローしない） */
+  .chap-h{margin:6px 0 26px;position:relative;border:1.5px solid var(--screen-lo);border-radius:10px;padding:15px 16px 13px;
+    background:linear-gradient(rgba(43,54,22,.045),rgba(43,54,22,0))}
+  .chap-h::before,.chap-h::after{content:"";position:absolute;width:13px;height:13px;border:2px solid var(--lcd-ink);pointer-events:none}
+  .chap-h::before{left:-1px;top:-1px;border-right:none;border-bottom:none}
+  .chap-h::after{right:-1px;bottom:-1px;border-left:none;border-top:none}
+  .chap-h .num{font-family:var(--pixel);font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--blue-ink)}
+  .chap-h .t{font-size:20px;color:var(--rd-ink);margin-top:10px;line-height:1.6;font-weight:600}
+  .chap-h .rule{display:flex;align-items:center;gap:8px;margin-top:16px}
+  .chap-h .rule .sq{display:flex;gap:3px}
+  .chap-h .rule .sq i{width:6px;height:6px;background:var(--lcd);box-shadow:inset 0 0 0 1px rgba(43,54,22,.25)}
+  .chap-h .rule .go{font-family:var(--pixel);font-size:9px;font-weight:700;letter-spacing:.16em;color:var(--lcd-ink);
+    background:var(--lcd);border-radius:3px;padding:2px 7px;box-shadow:inset 0 0 0 1px rgba(43,54,22,.25)}
+
+  /* 上HUD（クローム表示時＝オーバーレイ。緑LCDのセーブ読み取りを載せる） */
+  .hud{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:8px;padding:8px 12px;
+    background:linear-gradient(var(--plastic-hi),var(--plastic));border-bottom:1px solid var(--line);box-shadow:0 2px 6px rgba(0,0,0,.12)}
+  .hud .ib{width:34px;height:34px;border:none;border-radius:9px;display:grid;place-items:center;color:var(--ink);cursor:pointer;flex-shrink:0;
+    background:linear-gradient(var(--plastic-hi),var(--plastic-lo));box-shadow:0 1px 2px rgba(0,0,0,.2),inset 0 1px 0 rgba(255,255,255,.5)}  /* はっちゃけ③: 物理ボタン化 */
+  .hud .ib svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7}
+  .hud .ct{flex:1;min-width:0;font-family:var(--gothic);font-size:12.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hud .save{flex-shrink:0;display:flex;align-items:center;gap:6px;background:var(--lcd);border-radius:5px;padding:4px 8px;
+    box-shadow:inset 0 0 0 1px rgba(43,54,22,.25)}
+  .hud .save .fd{position:relative;width:10px;height:10px;flex-shrink:0;background:var(--lcd-ink);border-radius:1px}  /* セーブ演出＝フロッピー記号 */
+  .hud .save .fd::before{content:"";position:absolute;right:1px;top:1px;width:4px;height:3px;background:var(--lcd)}
+  .hud .save .fd::after{content:"";position:absolute;left:2px;bottom:1px;right:2px;height:3px;background:var(--lcd)}
+  .hud .save .n{font-family:var(--pixel);font-size:11px;font-weight:700;color:var(--lcd-ink);letter-spacing:.03em}
+
+  /* 下段コンソール（クローム表示時＝物理ボタン風の操作列） */
+  .console{position:absolute;left:0;right:0;bottom:0;z-index:6;height:64px;display:flex;align-items:center;
+    background:linear-gradient(var(--plastic),var(--plastic-lo));border-top:1px solid var(--line);box-shadow:0 -2px 6px rgba(0,0,0,.12)}
+  .console button{flex:1;height:100%;border:none;background:transparent;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:var(--ink);cursor:pointer}
+  /* はっちゃけ③: 各操作を凹凸プラスチックのキーへ */
+  .console button::before{content:"";position:absolute;top:9px;width:42px;height:30px;border-radius:9px;z-index:0;
+    background:linear-gradient(var(--plastic-hi),var(--plastic-lo));box-shadow:0 2px 3px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.5)}
+  .console svg{position:relative;z-index:1;width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6;margin-top:2px}
+  .console .bl{position:relative;z-index:1;font-family:var(--gothic);font-size:9.5px;color:var(--ink-soft)}
+
+  /* 没入中の最小コントロール（中央タップで呼ぶ想定・半透明ヒント） */
+  .puck{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:6px;
+    background:linear-gradient(var(--plastic-hi),var(--plastic-lo));border:1px solid var(--line);border-radius:999px;
+    padding:7px 10px;box-shadow:0 6px 16px rgba(0,0,0,.28)}
+  .puck button{width:38px;height:38px;border:none;border-radius:50%;display:grid;place-items:center;color:var(--ink);cursor:pointer;
+    background:radial-gradient(circle at 38% 30%,var(--plastic-hi),var(--plastic-lo));box-shadow:0 1px 2px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.55)}  /* はっちゃけ③: 物理キー化 */
+  .puck svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .puck .hint{font-family:var(--pixel);font-size:9px;letter-spacing:.1em;color:var(--ink-soft);padding:0 4px;white-space:nowrap}
+  .puck .sep{width:1px;height:20px;background:var(--line)}
+</style>
+</head>
+<body>
+  <p class="cap"><b>P. カートリッジ（はっちゃけ版）— 読書</b> ／ 本文＝プレイ中のゲーム画面（主役・組版規格層は現行とバイト一致）。はっちゃけは章の扉（STAGEカード）・セーブ演出・コンソール操作列の物理ボタンだけに載せ、明朝16.5pxの本文と版面不動は一切侵さない。左＝既定の没入・右＝中央タップで復帰したコンソール。</p>
+
+  <div class="stage">
+    <!-- ① 没入（既定・クローム無） -->
+    <div class="wrap"><span class="mode">IMMERSIVE / 没入（既定）</span>
+    <div class="phone" role="img" aria-label="P案はっちゃけ 読書 没入（既定）">
+      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+      <div class="sb"><span>9:41</span><span class="batt">SAVE&nbsp;<b></b></span></div>
+      <div class="screen">
+        <div class="savebar"><span class="fd"></span><span class="lb">SAVE</span><span class="g"><i></i></span><span class="pc">62%</span></div>
+        <div class="reader">
+          <div class="chap-h">
+            <div class="num">第127話 ／ 全340話</div>
+            <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+            <div class="rule"><span class="sq"><i></i><i></i><i></i></span><span class="go">▶ START</span></div>
+          </div>
+          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、長い雨がようやく上がった頃だった。濡れた石畳が夕陽を照り返し、<ruby>橙<rt>だいだい</rt></ruby>の光が水たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+          <p>「——ここまで、よく付いてきてくれた」</p>
+          <p>彼女はそう<ruby>呟<rt>つぶや</rt></ruby>くと、腰の<ruby>剣<rt>つるぎ</rt></ruby>をそっと地に置いた。もう戦う理由はない、とでも言うように。</p>
+          <div class="blank"></div><hr><div class="blank"></div>
+          <p><ruby>翌朝<rt>よくあさ</rt></ruby>、鳥の声で目を覚ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の雨の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって光っていた。</p>
+        </div>
+        <div class="puck">
+          <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg></button>
+          <span class="sep"></span><span class="hint">タップで表示</span><span class="sep"></span>
+          <button aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--screen)"/><circle cx="15" cy="16" r="2.4" fill="var(--screen)"/></svg></button>
+        </div>
+      </div>
+    </div></div>
+
+    <!-- ② クローム表示（中央タップ後） -->
+    <div class="wrap"><span class="mode">CHROME / 中央タップで表示</span>
+    <div class="phone" role="img" aria-label="P案はっちゃけ 読書 クローム表示">
+      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+      <div class="sb"><span>9:41</span><span class="batt">SAVE&nbsp;<b></b></span></div>
+      <div class="screen">
+        <div class="hud">
+          <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <div class="ct">追放された万能薬師、辺境で…</div>
+          <div class="save"><span class="fd"></span><span class="n">127/340 · 62%</span></div>
+        </div>
+        <div class="reader" style="padding-top:66px">
+          <div class="chap-h">
+            <div class="num">第127話 ／ 全340話</div>
+            <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+            <div class="rule"><span class="sq"><i></i><i></i><i></i></span><span class="go">▶ START</span></div>
+          </div>
+          <div class="block">
+            <div class="lbl">まえがき</div>
+            <p>お読みいただきありがとうございます。今回は少し長めの戦闘回になりました。次話は<ruby>後日談<rt>ごじつだん</rt></ruby>を挟みます。</p>
+          </div>
+          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、長い雨がようやく上がった頃だった。濡れた石畳が夕陽を照り返している。</p>
+          <p>「——ここまで、よく付いてきてくれた」</p>
+        </div>
+        <div class="console">
+          <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+          <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+          <button aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--plastic)"/><circle cx="15" cy="16" r="2.4" fill="var(--plastic)"/></svg><span class="bl">表示設定</span></button>
+          <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</body>
+</html>

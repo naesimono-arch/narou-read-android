@@ -1,0 +1,356 @@
+<!-- @dsCard group="UI-n / 読書（スキン候補）" name="Q. 読書の庭 — 読書（庭で読む・蔓が育つ進捗・章扉の庭景・章末の一輪・組版規格層は不変）" -->
+<!--
+  思想の翻訳: 「庭で本を読んでいる」ことが一目で判る読書画面。ただし本文の組版は規格層として一切崩さず、庭の遊びは本文の"まわり"にだけ置く。
+  遊びを足した場所: ①上端の蔓が読み進みで本当に育つ（読了部＝葉の茂った茎／先端＝ほころびかけの花／未読部＝まだ固い蕾）②章扉に小さな庭景（幾何線の草木の一列）③没入の地に微かな草の影 ④章末に「きょうこの株がどれだけ伸びたか」の一輪。
+  規格層の厳守（スキンで上書き不可）: 本文コントラスト4.5:1以上・和文letterSpacing 0・ルビ＝親文字の1/2・行間0.5〜1em域・版面はバー出入りで不動。植物は本文段落へ侵入させない（扉・上端・地の縁・章末のみ）。
+  避けたもの: 彩度暴走（花色bloomは進捗先端と章末の一輪だけ）／子供っぽい写実（幾何線で記号化）／本文行に重なる濃い装飾。
+
+  【Compose翻訳仕様＝上端の蔓の"進捗駆動"（motion類型＝④進行。①〜③の350ms床の対象外。reduce-motionでは静止62%）】
+   ・蔓は clipPath の可視幅 reveal(px) で表現。座標系は viewBox 0..390。
+     - reveal は START=6（芽）→ BASE=250（＝現在地62%＝先端の花芽の位置）→ MAX=330（読み進めた先の茂り）。
+   ・progress→伸びの対応:
+     - 読み込み時(=画面表示): reveal を 6→250 へ一度きり緩やかに育てる（葉は茎の伸長に沿って順に露出＝単一の成長波であり stagger演出ではない。DUR≈1800ms・ease-out）。
+     - 本文スクロール連動: readingProgress 0→1 を reveal 250→330 へ写像（読み進めるほど花芽の先へ茎が伸び新しい葉2枚が開く）。戻れば250へ。
+     - reduce-motion: 育成アニメ無し・reveal=250 固定（＝62%静止）。aria の「読了進捗62%」で情報は担保。
+   ・葉数の対応: 62%時点で葉5枚＋先端に花芽1（BASE内）。読み進め領域(250→330)に葉2枚（272,300）を隠しておき、伸長で開く。
+   ・不変則: 蔓は本文段落へ一切侵入しない（上端の帯 .growth 内で完結。版面はリフローしない）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n Q 読書 — 読書の庭</title>
+<style>
+  :root{
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#2A2A24;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:30px;font-family:var(--gothic)}
+  .cap{color:#B7B29F;font-size:13px;line-height:1.75;text-align:center;max-width:770px;margin-bottom:6px}
+  .cap b{color:#EDE8DC}
+  .wcag{color:#8C8875;font-size:11px;text-align:center;line-height:1.7;margin-bottom:18px}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#9A9683}
+
+  /* Qの読書3テーマ＝庭の光（朝＝ライト／土＝セピア／宵＝ダーク）。純白純黒を避ける */
+  .t-light{ --bg:#EDE8DC; --ink:#2E2E27; --meta:#5C5A4B; --moss:#5B6642; --sage:#8A966C; --ruby:#635F4E; --bloom:#C98F6E; --furrow:#D6CDBB; --bar:#E5DFD1; }
+  .t-sepia{ --bg:#E9DEC6; --ink:#3A3225; --meta:#6A5E45; --moss:#5E6440; --sage:#8A8150; --ruby:#6E6247; --bloom:#C4855F; --furrow:#DBCDAE; --bar:#E2D6BC; }
+  .t-dark{  --bg:#1B1E18; --ink:#CBCDBE; --meta:#9A9B88; --moss:#9AA77E; --sage:#8B9770; --ruby:#8E8E7D; --bloom:#CE9877; --furrow:#2E322A; --bar:#20241C; }
+
+  .phone{width:390px;height:844px;background:var(--bg);border-radius:42px;overflow:hidden;position:relative;
+    display:flex;flex-direction:column;color:var(--ink);font-family:var(--mincho);box-shadow:0 26px 64px rgba(0,0,0,.55)}
+
+  /* 共通のベクター配色 */
+  .veg-stem{stroke:var(--moss);fill:none;stroke-width:1.6;stroke-linecap:round}
+  .veg-leaf{fill:var(--sage)}
+  .veg-bloom{fill:var(--bloom)}
+  .veg-core{fill:var(--moss)}
+  .veg-faint{stroke:var(--furrow);fill:none;stroke-width:1.4}
+  .veg-bud{fill:var(--furrow)}
+
+  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;
+    font-size:11px;color:var(--meta);font-family:var(--gothic);flex-shrink:0}
+
+  /* ① 上端の蔓＝読了進捗（読むほど葉が茂り、先端に花がほころぶ。未読部は固い蕾） */
+  .growth{height:28px;flex-shrink:0;display:flex;align-items:center}
+  .growth svg{width:390px;height:28px;display:block}
+
+  /* 没入時の名残＝章ラベルだけ低コントラスト */
+  .ghost{height:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .ghost span{font-family:var(--gothic);font-size:11px;color:var(--meta);letter-spacing:.1em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80%}
+
+  /* クローム表示時のトップバー（オーバーレイ相当＝版面を動かさない） */
+  .topbar{height:48px;display:flex;align-items:center;gap:8px;padding:0 12px;background:var(--bar);
+    border-bottom:1px solid var(--furrow);flex-shrink:0}
+  .topbar .ib{width:40px;height:40px;border:none;background:transparent;border-radius:10px;display:grid;
+    place-items:center;color:var(--ink);cursor:pointer}
+  .topbar .ib svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar .ct{flex:1;font-family:var(--gothic);font-size:13px;color:var(--ink);letter-spacing:.04em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* 本文＝主役。地は透過にして下端の草影を透かす。版面paddingは固定＝リフロー防止 */
+  .reader{flex:1;overflow:auto;position:relative;z-index:1;background:transparent;padding:6px 30px 40px;scrollbar-width:none}
+  .reader::-webkit-scrollbar{display:none}
+
+  /* ② 章扉の小さな庭景（幾何線の草木一列） */
+  .chap-h{margin:12px 0 30px;text-align:center}
+  .niwa{width:158px;height:46px;display:block;margin:0 auto 14px}
+  .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--moss);letter-spacing:.3em}
+  .chap-h .t{font-size:19px;color:var(--ink);margin-top:10px;line-height:1.6;font-weight:500}
+  .chap-h .rule{width:44px;height:1px;background:var(--moss);margin:18px auto 0;opacity:.7}
+
+  p{font-size:16.5px;line-height:2.4;color:var(--ink);text-indent:1em;margin-bottom:.3em;letter-spacing:0}
+  ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  .blank{height:1.6em}
+  hr{border:none;height:1px;width:42%;margin:18px auto;background:var(--furrow)}
+  .block{border:1px solid var(--furrow);background:rgba(0,0,0,.02);border-radius:6px;padding:14px 16px;margin:4px 0 28px}
+  .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--moss);letter-spacing:.1em;margin-bottom:8px}
+  .block p{font-size:14.5px;line-height:2.1;text-indent:1em;margin:0;color:var(--meta)}
+
+  /* ④ 章末の一輪＝「きょうこの株がどれだけ伸びたか」 */
+  .chap-end{margin:34px auto 6px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .chap-end svg{width:44px;height:52px;display:block}
+  .chap-end .grew{font-family:var(--gothic);font-size:11.5px;color:var(--meta);letter-spacing:.06em}
+  .chap-end .grew b{color:var(--moss);font-weight:600}
+
+  /* ③ 没入の地に微かな草の影（下端・低コントラスト・本文の背後） */
+  .grass{position:absolute;left:0;right:0;bottom:0;height:76px;z-index:0;opacity:.09;pointer-events:none}
+  .grass svg{width:390px;height:76px;display:block}
+
+  /* クローム表示時のボトムバー＝前章/目次/表示設定/次章（黒衣・均等） */
+  .bottombar{height:60px;display:flex;align-items:center;background:var(--bar);
+    border-top:1px solid var(--furrow);flex-shrink:0;position:relative;z-index:2}
+  .bottombar button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:5px;color:var(--moss);cursor:pointer;font-family:var(--gothic)}
+  .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .bottombar .bl{font-size:9.5px;color:var(--meta);letter-spacing:.02em}
+
+  .hint{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);z-index:3;font-family:var(--gothic);
+    font-size:11px;color:var(--meta);letter-spacing:.08em}
+</style>
+</head>
+<body>
+  <p class="cap"><b>Q. 読書の庭 — 読書</b> ／ 「庭で読んでいる」ことが一目で判る画面へ。上端の蔓が読むほど育ち、章扉に庭景、地に草の影、章末に一輪。ただし本文の組版（コントラスト・ルビ・letterSpacing・版面不動）は規格層として不変。植物は本文段落に侵入しない。</p>
+  <p class="wcag">本文×紙のコントラスト（目安）：ライト ≈ 11:1 ／ セピア ≈ 9:1 ／ ダーク ≈ 10:1（AAA 7:1 を満たす）。草影は opacity .09 で本文に影響しない位置（下端）にのみ置く。</p>
+  <div class="stage">
+
+    <!-- ① ライト ／ 没入（既定） -->
+    <div class="wrap"><span class="mode">ライト ／ 没入（既定）</span>
+    <div class="phone t-light" role="img" aria-label="Q案 読書 ライト 没入（既定）">
+      <div class="grass" aria-hidden="true"><svg viewBox="0 0 390 76"><g class="veg-stem" style="stroke-width:2">
+        <path d="M30 76 C34 52 26 44 32 26"/><path d="M42 76 C44 56 50 48 46 34"/>
+        <path d="M120 76 C124 50 116 42 122 24"/><path d="M134 76 C136 58 142 50 138 36"/>
+        <path d="M250 76 C254 52 246 44 252 28"/><path d="M262 76 C264 56 270 48 266 34"/>
+        <path d="M345 76 C349 50 341 42 347 26"/><path d="M357 76 C359 58 364 50 360 36"/>
+      </g></svg></div>
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="growth" aria-label="読了進捗 62パーセント">
+        <svg viewBox="0 0 390 28" aria-hidden="true">
+          <defs><clipPath class="gc"><rect class="gr" x="0" y="0" width="250" height="28"/></clipPath></defs>
+          <path class="veg-faint" d="M244 20 H384"/>
+          <path class="veg-bud" d="M352 20 q-3 -7 0 -10 q3 3 0 10 Z"/><path class="veg-bud" d="M374 20 q-3 -7 0 -10 q3 3 0 10 Z"/>
+          <g class="gv">
+            <path class="veg-stem" style="stroke-width:2" d="M6 20 H330"/>
+            <path class="veg-leaf" d="M52 20 q-2 -9 -12 -11 q3 8 12 11 Z"/>
+            <path class="veg-leaf" d="M100 20 q-2 9 -12 11 q3 -8 12 -11 Z"/>
+            <path class="veg-leaf" d="M150 20 q-2 -9 -12 -11 q3 8 12 11 Z"/>
+            <path class="veg-leaf" d="M198 20 q-2 9 -12 11 q3 -8 12 -11 Z"/>
+            <path class="veg-leaf" d="M228 20 q-2 -8 -10 -10 q3 7 10 10 Z"/>
+            <path class="veg-leaf" d="M272 20 q-2 9 -12 11 q3 -8 12 -11 Z"/>
+            <path class="veg-leaf" d="M300 20 q-2 -8 -10 -10 q3 7 10 10 Z"/>
+            <g transform="translate(244 18)">
+              <ellipse class="veg-bloom" cx="0" cy="-7" rx="2.4" ry="4.8"/>
+              <g transform="rotate(72)"><ellipse class="veg-bloom" cx="0" cy="-7" rx="2.4" ry="4.8"/></g>
+              <g transform="rotate(144)"><ellipse class="veg-bloom" cx="0" cy="-7" rx="2.4" ry="4.8"/></g>
+              <g transform="rotate(216)"><ellipse class="veg-bloom" cx="0" cy="-7" rx="2.4" ry="4.8"/></g>
+              <g transform="rotate(288)"><ellipse class="veg-bloom" cx="0" cy="-7" rx="2.4" ry="4.8"/></g>
+              <circle class="veg-core" r="2"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+      <div class="ghost"><span>第127話　雨上がりの城門にて</span></div>
+      <div class="reader">
+        <div class="chap-h">
+          <svg class="niwa" viewBox="0 0 158 46" aria-hidden="true">
+            <path class="veg-faint" d="M14 41 H144"/>
+            <path class="veg-stem" d="M42 41 V28"/><path class="veg-leaf" d="M42 33 q-6 -2 -8 -6 q5 1 8 6 Z"/>
+            <path class="veg-stem" d="M79 41 V15"/><path class="veg-leaf" d="M79 30 q6 -2 8 -6 q-5 1 -8 6 Z"/><path class="veg-leaf" d="M79 23 q-6 -2 -8 -6 q5 1 8 6 Z"/>
+            <g transform="translate(79 11)"><ellipse class="veg-bloom" cx="0" cy="-4.6" rx="2" ry="3.6"/><g transform="rotate(72)"><ellipse class="veg-bloom" cx="0" cy="-4.6" rx="2" ry="3.6"/></g><g transform="rotate(144)"><ellipse class="veg-bloom" cx="0" cy="-4.6" rx="2" ry="3.6"/></g><g transform="rotate(216)"><ellipse class="veg-bloom" cx="0" cy="-4.6" rx="2" ry="3.6"/></g><g transform="rotate(288)"><ellipse class="veg-bloom" cx="0" cy="-4.6" rx="2" ry="3.6"/></g><circle class="veg-core" r="1.7"/></g>
+            <path class="veg-stem" d="M114 41 V34"/><path class="veg-leaf" d="M114 35 q-5 -1 -7 -5 q4 1 7 5 Z"/><path class="veg-leaf" d="M114 35 q5 -1 7 -5 q-4 1 -7 5 Z"/>
+          </svg>
+          <div class="num">第 百二十七 話</div>
+          <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+          <div class="rule"></div>
+        </div>
+        <div class="block"><div class="lbl">前書き</div><p>お読みいただきありがとうございます。今回は少し長めの戦闘回になりました。次話は<ruby>後日談<rt>ごじつだん</rt></ruby>を挟みます。</p></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <div class="blank"></div><hr><div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <div class="chap-end">
+          <svg viewBox="0 0 44 52" aria-hidden="true">
+            <path class="veg-stem" style="stroke-width:2" d="M22 52 V20"/>
+            <path class="veg-leaf" d="M22 36 q-8 -2 -10 -8 q7 1 10 8 Z"/><path class="veg-leaf" d="M22 29 q8 -2 10 -8 q-7 1 -10 8 Z"/>
+            <g transform="translate(22 14)"><ellipse class="veg-bloom" cx="0" cy="-6" rx="3" ry="6"/><g transform="rotate(72)"><ellipse class="veg-bloom" cx="0" cy="-6" rx="3" ry="6"/></g><g transform="rotate(144)"><ellipse class="veg-bloom" cx="0" cy="-6" rx="3" ry="6"/></g><g transform="rotate(216)"><ellipse class="veg-bloom" cx="0" cy="-6" rx="3" ry="6"/></g><g transform="rotate(288)"><ellipse class="veg-bloom" cx="0" cy="-6" rx="3" ry="6"/></g><circle class="veg-core" r="2.6"/></g>
+          </svg>
+          <div class="grew">きょう、この株は <b>3節</b> のびた</div>
+        </div>
+      </div>
+      <div class="hint">画面をタップでメニュー</div>
+    </div></div>
+
+    <!-- ② セピア ／ クローム表示（全操作） -->
+    <div class="wrap"><span class="mode">セピア ／ クローム表示</span>
+    <div class="phone t-sepia" role="img" aria-label="Q案 読書 セピア クローム表示">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="growth" aria-label="読了進捗 62パーセント">
+        <svg viewBox="0 0 390 28" aria-hidden="true">
+          <defs><clipPath class="gc"><rect class="gr" x="0" y="0" width="250" height="28"/></clipPath></defs>
+          <path class="veg-faint" d="M244 20 H384"/>
+          <path class="veg-bud" d="M352 20 q-3 -7 0 -10 q3 3 0 10 Z"/><path class="veg-bud" d="M374 20 q-3 -7 0 -10 q3 3 0 10 Z"/>
+          <g class="gv">
+            <path class="veg-stem" style="stroke-width:2" d="M6 20 H330"/>
+            <path class="veg-leaf" d="M52 20 q-2 -9 -12 -11 q3 8 12 11 Z"/>
+            <path class="veg-leaf" d="M100 20 q-2 9 -12 11 q3 -8 12 -11 Z"/>
+            <path class="veg-leaf" d="M150 20 q-2 -9 -12 -11 q3 8 12 11 Z"/>
+            <path class="veg-leaf" d="M198 20 q-2 9 -12 11 q3 -8 12 -11 Z"/>
+            <path class="veg-leaf" d="M228 20 q-2 -8 -10 -10 q3 7 10 10 Z"/>
+            <path class="veg-leaf" d="M272 20 q-2 9 -12 11 q3 -8 12 -11 Z"/>
+            <path class="veg-leaf" d="M300 20 q-2 -8 -10 -10 q3 7 10 10 Z"/>
+            <g transform="translate(244 18)">
+              <ellipse class="veg-bloom" cx="0" cy="-7" rx="2.4" ry="4.8"/>
+              <g transform="rotate(72)"><ellipse class="veg-bloom" cx="0" cy="-7" rx="2.4" ry="4.8"/></g>
+              <g transform="rotate(144)"><ellipse class="veg-bloom" cx="0" cy="-7" rx="2.4" ry="4.8"/></g>
+              <g transform="rotate(216)"><ellipse class="veg-bloom" cx="0" cy="-7" rx="2.4" ry="4.8"/></g>
+              <g transform="rotate(288)"><ellipse class="veg-bloom" cx="0" cy="-7" rx="2.4" ry="4.8"/></g>
+              <circle class="veg-core" r="2"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第127話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="reader">
+        <div class="chap-h">
+          <svg class="niwa" viewBox="0 0 158 46" aria-hidden="true">
+            <path class="veg-faint" d="M14 41 H144"/>
+            <path class="veg-stem" d="M42 41 V28"/><path class="veg-leaf" d="M42 33 q-6 -2 -8 -6 q5 1 8 6 Z"/>
+            <path class="veg-stem" d="M79 41 V15"/><path class="veg-leaf" d="M79 30 q6 -2 8 -6 q-5 1 -8 6 Z"/><path class="veg-leaf" d="M79 23 q-6 -2 -8 -6 q5 1 8 6 Z"/>
+            <g transform="translate(79 11)"><ellipse class="veg-bloom" cx="0" cy="-4.6" rx="2" ry="3.6"/><g transform="rotate(72)"><ellipse class="veg-bloom" cx="0" cy="-4.6" rx="2" ry="3.6"/></g><g transform="rotate(144)"><ellipse class="veg-bloom" cx="0" cy="-4.6" rx="2" ry="3.6"/></g><g transform="rotate(216)"><ellipse class="veg-bloom" cx="0" cy="-4.6" rx="2" ry="3.6"/></g><g transform="rotate(288)"><ellipse class="veg-bloom" cx="0" cy="-4.6" rx="2" ry="3.6"/></g><circle class="veg-core" r="1.7"/></g>
+            <path class="veg-stem" d="M114 41 V34"/><path class="veg-leaf" d="M114 35 q-5 -1 -7 -5 q4 1 7 5 Z"/><path class="veg-leaf" d="M114 35 q5 -1 7 -5 q-4 1 -7 5 Z"/>
+          </svg>
+          <div class="num">第 百二十七 話</div>
+          <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+          <div class="rule"></div>
+        </div>
+        <div class="block"><div class="lbl">前書き</div><p>お読みいただきありがとうございます。今回は少し長めの戦闘回になりました。次話は<ruby>後日談<rt>ごじつだん</rt></ruby>を挟みます。</p></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <div class="blank"></div><hr><div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <div class="chap-end">
+          <svg viewBox="0 0 44 52" aria-hidden="true">
+            <path class="veg-stem" style="stroke-width:2" d="M22 52 V20"/>
+            <path class="veg-leaf" d="M22 36 q-8 -2 -10 -8 q7 1 10 8 Z"/><path class="veg-leaf" d="M22 29 q8 -2 10 -8 q-7 1 -10 8 Z"/>
+            <g transform="translate(22 14)"><ellipse class="veg-bloom" cx="0" cy="-6" rx="3" ry="6"/><g transform="rotate(72)"><ellipse class="veg-bloom" cx="0" cy="-6" rx="3" ry="6"/></g><g transform="rotate(144)"><ellipse class="veg-bloom" cx="0" cy="-6" rx="3" ry="6"/></g><g transform="rotate(216)"><ellipse class="veg-bloom" cx="0" cy="-6" rx="3" ry="6"/></g><g transform="rotate(288)"><ellipse class="veg-bloom" cx="0" cy="-6" rx="3" ry="6"/></g><circle class="veg-core" r="2.6"/></g>
+          </svg>
+          <div class="grew">きょう、この株は <b>3節</b> のびた</div>
+        </div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <!-- ③ ダーク ／ 没入 -->
+    <div class="wrap"><span class="mode">ダーク ／ 没入</span>
+    <div class="phone t-dark" role="img" aria-label="Q案 読書 ダーク 没入">
+      <div class="grass" aria-hidden="true"><svg viewBox="0 0 390 76"><g class="veg-stem" style="stroke-width:2">
+        <path d="M30 76 C34 52 26 44 32 26"/><path d="M42 76 C44 56 50 48 46 34"/>
+        <path d="M120 76 C124 50 116 42 122 24"/><path d="M134 76 C136 58 142 50 138 36"/>
+        <path d="M250 76 C254 52 246 44 252 28"/><path d="M262 76 C264 56 270 48 266 34"/>
+        <path d="M345 76 C349 50 341 42 347 26"/><path d="M357 76 C359 58 364 50 360 36"/>
+      </g></svg></div>
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="growth" aria-label="読了進捗 62パーセント">
+        <svg viewBox="0 0 390 28" aria-hidden="true">
+          <defs><clipPath class="gc"><rect class="gr" x="0" y="0" width="250" height="28"/></clipPath></defs>
+          <path class="veg-faint" d="M244 20 H384"/>
+          <path class="veg-bud" d="M352 20 q-3 -7 0 -10 q3 3 0 10 Z"/><path class="veg-bud" d="M374 20 q-3 -7 0 -10 q3 3 0 10 Z"/>
+          <g class="gv">
+            <path class="veg-stem" style="stroke-width:2" d="M6 20 H330"/>
+            <path class="veg-leaf" d="M52 20 q-2 -9 -12 -11 q3 8 12 11 Z"/>
+            <path class="veg-leaf" d="M100 20 q-2 9 -12 11 q3 -8 12 -11 Z"/>
+            <path class="veg-leaf" d="M150 20 q-2 -9 -12 -11 q3 8 12 11 Z"/>
+            <path class="veg-leaf" d="M198 20 q-2 9 -12 11 q3 -8 12 -11 Z"/>
+            <path class="veg-leaf" d="M228 20 q-2 -8 -10 -10 q3 7 10 10 Z"/>
+            <path class="veg-leaf" d="M272 20 q-2 9 -12 11 q3 -8 12 -11 Z"/>
+            <path class="veg-leaf" d="M300 20 q-2 -8 -10 -10 q3 7 10 10 Z"/>
+            <g transform="translate(244 18)">
+              <ellipse class="veg-bloom" cx="0" cy="-7" rx="2.4" ry="4.8"/>
+              <g transform="rotate(72)"><ellipse class="veg-bloom" cx="0" cy="-7" rx="2.4" ry="4.8"/></g>
+              <g transform="rotate(144)"><ellipse class="veg-bloom" cx="0" cy="-7" rx="2.4" ry="4.8"/></g>
+              <g transform="rotate(216)"><ellipse class="veg-bloom" cx="0" cy="-7" rx="2.4" ry="4.8"/></g>
+              <g transform="rotate(288)"><ellipse class="veg-bloom" cx="0" cy="-7" rx="2.4" ry="4.8"/></g>
+              <circle class="veg-core" r="2"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+      <div class="ghost"><span>第127話　雨上がりの城門にて</span></div>
+      <div class="reader">
+        <div class="chap-h">
+          <svg class="niwa" viewBox="0 0 158 46" aria-hidden="true">
+            <path class="veg-faint" d="M14 41 H144"/>
+            <path class="veg-stem" d="M42 41 V28"/><path class="veg-leaf" d="M42 33 q-6 -2 -8 -6 q5 1 8 6 Z"/>
+            <path class="veg-stem" d="M79 41 V15"/><path class="veg-leaf" d="M79 30 q6 -2 8 -6 q-5 1 -8 6 Z"/><path class="veg-leaf" d="M79 23 q-6 -2 -8 -6 q5 1 8 6 Z"/>
+            <g transform="translate(79 11)"><ellipse class="veg-bloom" cx="0" cy="-4.6" rx="2" ry="3.6"/><g transform="rotate(72)"><ellipse class="veg-bloom" cx="0" cy="-4.6" rx="2" ry="3.6"/></g><g transform="rotate(144)"><ellipse class="veg-bloom" cx="0" cy="-4.6" rx="2" ry="3.6"/></g><g transform="rotate(216)"><ellipse class="veg-bloom" cx="0" cy="-4.6" rx="2" ry="3.6"/></g><g transform="rotate(288)"><ellipse class="veg-bloom" cx="0" cy="-4.6" rx="2" ry="3.6"/></g><circle class="veg-core" r="1.7"/></g>
+            <path class="veg-stem" d="M114 41 V34"/><path class="veg-leaf" d="M114 35 q-5 -1 -7 -5 q4 1 7 5 Z"/><path class="veg-leaf" d="M114 35 q5 -1 7 -5 q-4 1 -7 5 Z"/>
+          </svg>
+          <div class="num">第 百二十七 話</div>
+          <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+          <div class="rule"></div>
+        </div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <div class="blank"></div><hr><div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <div class="chap-end">
+          <svg viewBox="0 0 44 52" aria-hidden="true">
+            <path class="veg-stem" style="stroke-width:2" d="M22 52 V20"/>
+            <path class="veg-leaf" d="M22 36 q-8 -2 -10 -8 q7 1 10 8 Z"/><path class="veg-leaf" d="M22 29 q8 -2 10 -8 q-7 1 -10 8 Z"/>
+            <g transform="translate(22 14)"><ellipse class="veg-bloom" cx="0" cy="-6" rx="3" ry="6"/><g transform="rotate(72)"><ellipse class="veg-bloom" cx="0" cy="-6" rx="3" ry="6"/></g><g transform="rotate(144)"><ellipse class="veg-bloom" cx="0" cy="-6" rx="3" ry="6"/></g><g transform="rotate(216)"><ellipse class="veg-bloom" cx="0" cy="-6" rx="3" ry="6"/></g><g transform="rotate(288)"><ellipse class="veg-bloom" cx="0" cy="-6" rx="3" ry="6"/></g><circle class="veg-core" r="2.6"/></g>
+          </svg>
+          <div class="grew">きょう、この株は <b>3節</b> のびた</div>
+        </div>
+      </div>
+      <div class="hint">画面をタップでメニュー</div>
+    </div></div>
+
+  </div>
+  <script>
+  /* 上端の蔓＝進捗駆動（motion④進行）。clipPathの可視幅で「伸び」を表す。
+     ・読み込み時: reveal 6→250 を一度きり緩やかに（葉は成長波に沿って露出＝stagger演出ではない）。
+     ・本文スクロール: 読み進めるほど 250→330 へ伸び、隠しておいた葉2枚が開く。戻れば250へ。
+     ・reduce-motion: アニメ無し・250固定（＝62%静止）。ariaで進捗は担保。
+     clipPathのidは実行時に一意付与（3枚の端末で重複させない）。 */
+  (function(){
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var START=6, BASE=250, MAX=330, DUR=1800;
+    var phones = document.querySelectorAll('.phone');
+    for(var i=0;i<phones.length;i++){ (function(phone, idx){
+      var growth = phone.querySelector('.growth'); if(!growth) return;
+      var cp = growth.querySelector('clipPath');
+      var rect = growth.querySelector('.gr');
+      var gv = growth.querySelector('.gv');
+      if(cp && gv){ cp.id = 'q-grow-'+idx; gv.setAttribute('clip-path','url(#q-grow-'+idx+')'); }
+      if(!rect) return;
+      if(reduce){ rect.setAttribute('width', BASE); return; }
+      var t0=null, raf=null, taken=false;
+      function ease(t){ return 1-Math.pow(1-t,3); } /* ease-out cubic＝enter減速 */
+      function step(ts){ if(t0===null) t0=ts; var p=Math.min((ts-t0)/DUR,1);
+        rect.setAttribute('width',(START+(BASE-START)*ease(p)).toFixed(1));
+        if(p<1 && !taken) raf=requestAnimationFrame(step); }
+      raf=requestAnimationFrame(step);
+      var reader = phone.querySelector('.reader');
+      if(reader){ reader.addEventListener('scroll', function(){
+        var max=reader.scrollHeight-reader.clientHeight; if(max<=8) return; /* スクロール余地が無ければ育成アニメのまま */
+        taken=true; if(raf) cancelAnimationFrame(raf);
+        var r=Math.min(Math.max(reader.scrollTop/max,0),1);
+        rect.setAttribute('width',(BASE+(MAX-BASE)*r).toFixed(1));
+      }, {passive:true}); }
+    })(phones[i], i); }
+  })();
+  </script>
+</body>
+</html>

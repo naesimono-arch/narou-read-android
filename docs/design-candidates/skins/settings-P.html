@@ -1,0 +1,133 @@
+<!-- @dsCard group="UI-n / 読書設定（スキン候補）" name="P. カートリッジ（レトロ携帯ゲーム機）— 表示設定シート" -->
+<!-- 思想: 表示設定＝機体のシステムメニュー。テーマ3択はゲーム機の「画面（スクリーン）の見え方」＝
+             液晶の色味スウォッチとして選ばせる（Pはテーマ変種を"画面モード"として描く。選択肢自体はD正本と同じライト/セピア/ダーク）。
+     署名要素: プラスチックのボトムシート／液晶スウォッチのテーマ3択／ピクセルの数値（18sp・2.5）とプラスチックつまみ。
+     破壊するもの: 設定項目を隙間なく積む密なシート。項目間に沈黙の面を置き、選択中スウォッチだけを1点強調にする。
+     避けたもの: 銘板・スピーカー穴（密度増）＝グラブハンドルとネジ、緑LCDだけを署名に。装飾有彩色は筐体＋3系統（LCD緑=選択/赤/青=数値）で抑制。
+     注記: Pの実装変種数（1変種で開始 or 3テーマ対応）はADR 0021 P2の裁定事項。本モックはD正本の機能=テーマ3択を保つため3択を提示。 -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n P 表示設定 — カートリッジ</title>
+<style>
+  :root{
+    --plastic:#dbd6c8; --plastic-hi:#e9e5da; --plastic-lo:#c3bfae; --sheet:#e4e0d3;
+    --ink:#2c2b26; --ink-soft:#79766b; --line:#c4c0b1;
+    --lcd:#a4af80; --lcd-ink:#2b3616;
+    --red:#b5564e;
+    --blue:#5c7d96; --blue-ink:#3f5a70;
+    --pixel:ui-monospace,"SFMono-Regular",Menlo,Consolas,"Courier New",monospace;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#2a2c27;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:30px;font-family:var(--gothic)}
+  .cap{color:#c8c3b4;font-size:13px;margin-bottom:16px;text-align:center;line-height:1.7;max-width:640px}
+  .cap b{color:#f0ede2}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap .mode{font-family:var(--pixel);font-size:11px;letter-spacing:.14em;color:#b7b2a3}
+
+  .phone{width:390px;height:844px;border-radius:34px;position:relative;overflow:hidden;
+    background:linear-gradient(150deg,var(--plastic-hi),var(--plastic) 22%,var(--plastic-lo));
+    box-shadow:0 24px 60px rgba(0,0,0,.55), inset 0 2px 0 rgba(255,255,255,.5);
+    display:flex;flex-direction:column;color:var(--ink)}
+  .screw{position:absolute;width:9px;height:9px;border-radius:50%;z-index:9;
+    background:radial-gradient(circle at 35% 30%,#e7e3d7,#a8a496 70%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+  .screw::after{content:"";position:absolute;inset:2.5px;border-top:1.4px solid rgba(0,0,0,.28);transform:rotate(40deg)}
+  .screw.tl{top:13px;left:13px}.screw.tr{top:13px;right:13px}
+
+  /* 背後の読書画面（暗転） */
+  .behind{position:absolute;inset:0;padding:60px 26px;font-family:var(--mincho);font-size:16px;line-height:2.35;
+    color:#cbc8b9;text-indent:1em;overflow:hidden}
+  .scrim{position:absolute;inset:0;background:rgba(28,30,22,.34)}
+
+  /* ボトムシート（機体のシステムメニュー） */
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(var(--sheet),#dcd8ca);
+    border-radius:20px 20px 34px 34px;padding:14px 26px 40px;box-shadow:0 -12px 30px rgba(0,0,0,.28), inset 0 2px 0 rgba(255,255,255,.5)}
+  .grab{width:38px;height:5px;border-radius:3px;background:var(--plastic-lo);margin:0 auto 22px;box-shadow:inset 0 1px 1px rgba(0,0,0,.2)}
+  .sheet .htop{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+  .sheet h2{font-family:var(--gothic);font-size:19px;font-weight:700;color:var(--ink);letter-spacing:0}
+  .sheet .htop .sys{font-family:var(--pixel);font-size:9px;letter-spacing:.2em;color:var(--ink-soft)}
+  /* システム起動画面感＝緑LCDのメニューヘッダ */
+  .sysbar{display:flex;align-items:center;gap:8px;background:linear-gradient(var(--lcd-hi),var(--lcd));border-radius:7px;padding:8px 12px;margin-bottom:20px;
+    font-family:var(--pixel);font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--lcd-ink);box-shadow:inset 0 0 0 1px rgba(43,54,22,.25)}
+  .sysbar .dot{width:7px;height:7px;border-radius:50%;background:var(--lcd-ink)}
+  .scope{font-family:var(--gothic);font-size:11.5px;color:var(--ink-soft);line-height:1.6;margin-bottom:34px}
+
+  .sec{margin-bottom:34px}
+  .lbl{font-family:var(--pixel);font-size:10px;font-weight:700;letter-spacing:.18em;color:var(--ink-soft);margin-bottom:16px}
+  .row-lbl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:18px}
+  .row-lbl .lbl{margin:0}
+  .val{font-family:var(--pixel);font-size:12px;font-weight:700;color:var(--lcd-ink);letter-spacing:.02em;
+    background:var(--lcd);border-radius:4px;padding:3px 9px;box-shadow:inset 0 0 0 1px rgba(43,54,22,.25)}  /* システムLCD読み取り風 */
+
+  /* テーマ＝液晶スウォッチ3択（選択＝緑LCDリングの1点強調） */
+  .themes{display:flex;gap:14px}
+  .th{flex:1;background:linear-gradient(var(--plastic-hi),var(--plastic));border:1px solid var(--line);border-radius:12px;
+    padding:12px 10px 11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:10px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+  .th .sw{width:100%;height:40px;border-radius:6px;box-shadow:inset 0 2px 5px rgba(0,0,0,.28), inset 0 0 0 1px rgba(0,0,0,.12)}
+  .th .nm{font-family:var(--gothic);font-size:12.5px;color:var(--ink)}
+  .th.on{border-color:var(--lcd-ink);box-shadow:0 0 0 2px var(--lcd), inset 0 1px 0 rgba(255,255,255,.4)}
+  .th.on .nm{font-weight:700}
+  .sw.light{background:#e8e7d8}
+  .sw.sepia{background:#e4d2a4}
+  .sw.dark{background:#2a2d24}
+
+  /* スライダー（プラスチックつまみ・青の値トラック） */
+  .slider{display:flex;align-items:center;gap:16px}
+  .end{color:var(--ink-soft);flex-shrink:0;font-family:var(--mincho)}
+  .end.g{font-family:var(--gothic);font-size:12px}
+  .track{flex:1;height:5px;background:var(--plastic-lo);position:relative;border-radius:3px;box-shadow:inset 0 1px 2px rgba(0,0,0,.2)}
+  .track .fill{position:absolute;left:0;top:0;height:5px;background:var(--blue);border-radius:3px}
+  .track .knob{position:absolute;top:50%;width:22px;height:22px;border-radius:6px;
+    background:radial-gradient(circle at 35% 30%,var(--plastic-hi),var(--plastic-lo));transform:translate(-50%,-50%);
+    box-shadow:0 2px 5px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.5)}
+</style>
+</head>
+<body>
+  <p class="cap"><b>P. カートリッジ — 表示設定</b> ／ 読書画面から立ち上がるシステムメニュー（ボトムシート）。テーマ3択＝液晶スウォッチ（選択＝緑LCDリング）／文字サイズ（14〜24sp）／行間（2.3〜2.8）。数値はピクセル、つまみはプラスチック。項目間に余白を置き密度を落とす。</p>
+
+  <div class="wrap"><span class="mode">SYSTEM / 表示設定シート</span>
+  <div class="phone" role="img" aria-label="P案 表示設定シート">
+    <span class="screw tl"></span><span class="screw tr"></span>
+    <div class="behind">辺境の城門に辿り着いたのは、長い雨がようやく上がった頃だった。濡れた石畳が夕陽を照り返し、橙の光が水たまりに滲んでいる。彼女はそう呟くと、腰の剣をそっと地に置いた。もう戦う理由はない、とでも言うように。</div>
+    <div class="scrim"></div>
+    <div class="sheet">
+      <div class="grab"></div>
+      <div class="sysbar"><span class="dot"></span>POCKET NOVEL</div>
+      <div class="htop"><h2>表示設定</h2></div>
+      <p class="scope">配色や文字の設定は、すべての本に適用されます</p>
+
+      <div class="sec">
+        <div class="lbl">テーマ</div>
+        <div class="themes">
+          <button class="th on"><span class="sw light"></span><span class="nm">ライト</span></button>
+          <button class="th"><span class="sw sepia"></span><span class="nm">セピア</span></button>
+          <button class="th"><span class="sw dark"></span><span class="nm">ダーク</span></button>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="row-lbl"><span class="lbl">文字サイズ</span><span class="val">18 sp</span></div>
+        <div class="slider">
+          <span class="end" style="font-size:14px">あ</span>
+          <span class="track"><span class="fill" style="width:40%"></span><span class="knob" style="left:40%"></span></span>
+          <span class="end" style="font-size:24px">あ</span>
+        </div>
+      </div>
+
+      <div class="sec" style="margin-bottom:0">
+        <div class="row-lbl"><span class="lbl">行間</span><span class="val">2.5</span></div>
+        <div class="slider">
+          <span class="end g">狭</span>
+          <span class="track"><span class="fill" style="width:40%"></span><span class="knob" style="left:40%"></span></span>
+          <span class="end g">広</span>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</body>
+</html>
