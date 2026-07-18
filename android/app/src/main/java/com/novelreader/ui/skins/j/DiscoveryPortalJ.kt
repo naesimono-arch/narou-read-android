@@ -35,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -149,6 +150,12 @@ internal fun DiscoveryHomePortalJ(
     onSelectOrder: (NarouOrder) -> Unit,
     onRefresh: () -> Unit,
 ) {
+    // 期間タブ切替のスクロール位置リセット対策（実機報告 2026-07-19・M の横展開）。真因: 再取得のたびに
+    // 一旦 Loading を挟むため、この単一 LazyColumn では Content のランキング行が status 行1件へ全置換され
+    // 総コンテンツ高が縮み、LazyListState が先頭へクランプされる。対処: 直近 Content を控え、再取得(Loading)
+    // 中はそのランキング骨格（同 key=ncode）を出し続けてアンカーを保つ（stale-while-revalidate）。VM 非改変。
+    var lastContent by remember { mutableStateOf<DiscoveryUiState.Content?>(null) }
+    LaunchedEffect(state) { (state as? DiscoveryUiState.Content)?.let { lastContent = it } }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -194,12 +201,15 @@ internal fun DiscoveryHomePortalJ(
                 item { GenreChipsPortal(onOpenGenre, onPickBiggenre) }
                 item { OrderTabsPortal(order, onSelectOrder) }
 
-                when (val s = state) {
-                    is DiscoveryUiState.Loading -> item { PortalStatusLine("扉をひらいています…") }
-                    is DiscoveryUiState.Empty -> item { PortalStatusLine("作品が見つかりませんでした") }
-                    is DiscoveryUiState.Error -> item { PortalErrorLine(s.message, onRefresh) }
-                    is DiscoveryUiState.Content -> itemsIndexed(
-                        s.novels,
+                // 再取得(Loading)中は直近 Content の骨格を出し続けてアンカーを保つ（初回は骨格未確定＝status 行）。
+                val rowsContent = when (val s = state) {
+                    is DiscoveryUiState.Content -> s
+                    is DiscoveryUiState.Loading -> lastContent
+                    else -> null
+                }
+                when {
+                    rowsContent != null -> itemsIndexed(
+                        rowsContent.novels,
                         key = { index, novel -> novel.ncode ?: index },
                     ) { index, novel ->
                         PortalRankRow(
@@ -209,6 +219,9 @@ internal fun DiscoveryHomePortalJ(
                             onClick = { novel.ncode?.let { onOpenDetail(Ncode(it)) } },
                         )
                     }
+                    state is DiscoveryUiState.Loading -> item { PortalStatusLine("扉をひらいています…") }
+                    state is DiscoveryUiState.Empty -> item { PortalStatusLine("作品が見つかりませんでした") }
+                    state is DiscoveryUiState.Error -> item { PortalErrorLine(state.message, onRefresh) }
                 }
             }
         }

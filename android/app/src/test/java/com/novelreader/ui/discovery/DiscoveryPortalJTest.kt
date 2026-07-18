@@ -2,6 +2,7 @@ package com.novelreader.ui.discovery
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
@@ -204,5 +205,47 @@ class DiscoveryPortalJTest {
         // process death 復帰中＝ctx null。J も D/M/P と同じく退去せず最小ローディングを出す（分岐先内部で扱う）。
         setResult(Skin.PORTAL_J, ctx = null, state = DiscoveryUiState.Loading)
         composeTestRule.onNodeWithText("扉をひらいています…").assertIsDisplayed()
+    }
+
+    @Test
+    fun `初回ロードは直近ランキング未確定ゆえ扉をひらく表示`() {
+        // lastContent が無い初回は骨格を出せない＝status 行で待つ（stale-while-revalidate の下限）。
+        setHome(Skin.PORTAL_J, DiscoveryUiState.Loading)
+        composeTestRule.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText("扉をひらいています…"))
+        composeTestRule.onNodeWithText("扉をひらいています…").assertExists()
+    }
+
+    @Test
+    fun `再取得のLoading中も直近ランキングを保持し扉をひらく行へ全置換しない`() {
+        // 期間タブ切替の scroll リセット回帰の固定（実機 2026-07-19）。Content→Loading で行が status 行へ
+        // 全置換されると LazyColumn が縮んでアンカーを失いトップへ落ちる。Loading 中も直近 Content の行
+        // （同 key=ncode）を出し続けることでアンカーを保つ＝この置換が起きないことを固定する。
+        val stateHolder = mutableStateOf<DiscoveryUiState>(
+            DiscoveryUiState.Content(allcount = 1, novels = listOf(novel("いま人がくぐる扉", "N42"))),
+        )
+        composeTestRule.setContent {
+            CompositionLocalProvider(LocalSkin provides Skin.PORTAL_J) {
+                MaterialTheme {
+                    DiscoveryHomeContent(
+                        order = NarouOrder.WEEKLY,
+                        state = stateHolder.value,
+                        onBack = {},
+                        onOpenDetail = {},
+                        onOpenGenre = {},
+                        onPickBiggenre = { _, _ -> },
+                        onOpenSearch = {},
+                        onPickMood = {},
+                        onSelectOrder = {},
+                        onRefresh = {},
+                    )
+                }
+            }
+        }
+        composeTestRule.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText("いま人がくぐる扉"))
+        composeTestRule.onNodeWithText("いま人がくぐる扉").assertExists()
+        stateHolder.value = DiscoveryUiState.Loading
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("いま人がくぐる扉").assertExists()          // 骨格保持
+        composeTestRule.onNodeWithText("扉をひらいています…").assertDoesNotExist()  // 全置換していない
     }
 }

@@ -35,6 +35,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -186,6 +189,16 @@ internal fun DiscoveryHomeContent(
         Skin.WAMODERN_D, Skin.YAKO_C -> Unit // 既定描画へ（この下の共通実装が D/C を描く）
     }
 
+    // 期間タブ切替のスクロール位置リセット対策（実機報告 2026-07-19・キャッシュ無し時／M の横展開）。
+    // 真因: refreshHome() が再取得のたびに一旦 Loading を挟むため、この単一 LazyColumn では Content の
+    // ランキング行が Loading 中に status ボックス1件へ全置換され、総コンテンツ高が見出し＋1ボックスまで縮む。
+    // すると LazyListState は firstVisibleItem/offset を維持できず先頭側へクランプされ強制リセットに見える。
+    // 対処: 直近に描けた Content を控え、再取得(Loading)中はそのランキング骨格（同 key=ncode）を出し続けて
+    // スクロールアンカーを保つ（stale-while-revalidate）。Empty/Error は真に0件・失敗ゆえ畳んで良い。VM 非改変。
+    var lastContent by remember { mutableStateOf<DiscoveryUiState.Content?>(null) }
+    // 合成中の書き戻しを避け Content を側効果で控える（Content 分岐は s を直接描くため表示に遅延はない）。
+    LaunchedEffect(state) { (state as? DiscoveryUiState.Content)?.let { lastContent = it } }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -241,36 +254,17 @@ internal fun DiscoveryHomeContent(
                 )
             }
 
-            when (val s = state) {
-                is DiscoveryUiState.Loading -> item {
-                    // fillMaxWidth は旧 DiscoveryStatusBox 内部の fillMaxSize が担っていた横いっぱい＝
-                    // 中央寄せの前提。box からサイズ固定を外したので呼び出し側で明示する（見た目維持）。
-                    DiscoveryStatusBox(
-                        DiscoveryStatus.Loading,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .fillParentMaxHeight(0.5f),
-                    )
-                }
-                is DiscoveryUiState.Empty -> item {
-                    DiscoveryStatusBox(
-                        DiscoveryStatus.Empty("作品が見つかりませんでした"),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .fillParentMaxHeight(0.5f),
-                    )
-                }
-                is DiscoveryUiState.Error -> item {
-                    DiscoveryStatusBox(
-                        DiscoveryStatus.Error(s.message, onRetry = onRefresh),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .fillParentMaxHeight(0.5f),
-                    )
-                }
-                is DiscoveryUiState.Content -> {
+            // 再取得(Loading)中は直近 Content の骨格を出し続けてスクロールアンカーを保つ（初回ロードは
+            // 骨格未確定＝status ボックス）。Empty/Error は一覧を畳んで良い（真に0件・失敗ゆえ status が妥当）。
+            val rowsContent = when (val s = state) {
+                is DiscoveryUiState.Content -> s
+                is DiscoveryUiState.Loading -> lastContent
+                else -> null
+            }
+            when {
+                rowsContent != null -> {
                     itemsIndexed(
-                        s.novels,
+                        rowsContent.novels,
                         // なぜ ncode をキーにするか: order 切替や再取得でリスト内容が入れ替わっても各行の
                         // 識別を安定させ、状態・アニメの誤流用を防ぐ（本棚 items(key = { it.id }) と同方針）。
                         // ncode はモデル上 null 許容だが発見結果には常に存在する。防御的に欠損時のみ index
@@ -288,6 +282,32 @@ internal fun DiscoveryHomeContent(
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
                     }
+                }
+                state is DiscoveryUiState.Loading -> item {
+                    // fillMaxWidth は旧 DiscoveryStatusBox 内部の fillMaxSize が担っていた横いっぱい＝
+                    // 中央寄せの前提。box からサイズ固定を外したので呼び出し側で明示する（見た目維持）。
+                    DiscoveryStatusBox(
+                        DiscoveryStatus.Loading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillParentMaxHeight(0.5f),
+                    )
+                }
+                state is DiscoveryUiState.Empty -> item {
+                    DiscoveryStatusBox(
+                        DiscoveryStatus.Empty("作品が見つかりませんでした"),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillParentMaxHeight(0.5f),
+                    )
+                }
+                state is DiscoveryUiState.Error -> item {
+                    DiscoveryStatusBox(
+                        DiscoveryStatus.Error(state.message, onRetry = onRefresh),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillParentMaxHeight(0.5f),
+                    )
                 }
             }
         }

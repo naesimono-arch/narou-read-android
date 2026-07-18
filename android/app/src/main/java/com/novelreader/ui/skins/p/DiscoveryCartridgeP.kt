@@ -36,6 +36,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -594,6 +595,18 @@ private fun HiScoreBoard(
     onOpenDetail: (ncode: Ncode) -> Unit,
     onRefresh: () -> Unit,
 ) {
+    // 期間タブ切替のスクロール位置リセット対策（実機報告 2026-07-19・M の横展開）。真因: 再取得のたびに
+    // 一旦 Loading を挟むため、この HI-SCORE ボード（親 LazyColumn の1 item・行は非遅延 Column）の全行が
+    // "READING…" 1行へ全置換され、ボード item の高さが崩壊→親 LazyListState が先頭へクランプされる。対処:
+    // 直近 Content を控え、再取得(Loading)中はその行群を出し続けてボード高＝スクロールアンカーを保つ
+    // （stale-while-revalidate）。Empty/Error は真に0件・失敗ゆえ畳んで良い。VM 非改変。
+    var lastContent by remember { mutableStateOf<DiscoveryUiState.Content?>(null) }
+    LaunchedEffect(state) { (state as? DiscoveryUiState.Content)?.let { lastContent = it } }
+    val rowsContent = when (state) {
+        is DiscoveryUiState.Content -> state
+        is DiscoveryUiState.Loading -> lastContent
+        else -> null
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -608,10 +621,18 @@ private fun HiScoreBoard(
         // .tabs＝期間タブ（燐光ピル・選択= phos 地 + board ink 文字）。NarouOrder 駆動＝D と同じ並び。
         OrderTabsPhos(order, onSelectOrder)
 
-        when (state) {
-            is DiscoveryUiState.Loading -> PhosBoardLine("READING…")
-            is DiscoveryUiState.Empty -> PhosBoardLine("該当なし")
-            is DiscoveryUiState.Error -> {
+        when {
+            rowsContent != null -> rowsContent.novels.forEachIndexed { index, novel ->
+                HiScoreRow(
+                    rank = index + 1,
+                    novel = novel,
+                    order = order,
+                    onClick = { novel.ncode?.let { onOpenDetail(Ncode(it)) } },
+                )
+            }
+            state is DiscoveryUiState.Loading -> PhosBoardLine("READING…")
+            state is DiscoveryUiState.Empty -> PhosBoardLine("該当なし")
+            state is DiscoveryUiState.Error -> {
                 PhosBoardLine(state.message)
                 Text(
                     "再試行",
@@ -620,14 +641,6 @@ private fun HiScoreBoard(
                     fontWeight = FontWeight.Bold,
                     color = PhosCartridge,
                     modifier = Modifier.clickable(onClick = onRefresh).padding(vertical = Spacing.S8),
-                )
-            }
-            is DiscoveryUiState.Content -> state.novels.forEachIndexed { index, novel ->
-                HiScoreRow(
-                    rank = index + 1,
-                    novel = novel,
-                    order = order,
-                    onClick = { novel.ncode?.let { onOpenDetail(Ncode(it)) } },
                 )
             }
         }

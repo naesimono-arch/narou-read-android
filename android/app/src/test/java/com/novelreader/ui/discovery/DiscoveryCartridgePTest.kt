@@ -2,6 +2,7 @@ package com.novelreader.ui.discovery
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
@@ -195,5 +196,47 @@ class DiscoveryCartridgePTest {
         )
         composeTestRule.onNodeWithText("辺境のカセット").performClick()
         assertEquals("N9", opened)
+    }
+
+    @Test
+    fun `初回ロードは直近ランキング未確定ゆえREADING表示`() {
+        // lastContent が無い初回は HI-SCORE ボードに行を出せない＝READING… で待つ（stale-while-revalidate の下限）。
+        setHome(Skin.CARTRIDGE_P, DiscoveryUiState.Loading)
+        composeTestRule.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText("READING…"))
+        composeTestRule.onNodeWithText("READING…").assertExists()
+    }
+
+    @Test
+    fun `再取得のLoading中も直近ランキングを保持しREADINGへ全置換しない`() {
+        // 期間タブ切替の scroll リセット回帰の固定（実機 2026-07-19）。Content→Loading でボード全行が READING…
+        // 1行へ全置換されるとボード item 高が崩壊し親 LazyColumn がトップへクランプする。Loading 中も直近
+        // Content の行を出し続けてボード高＝アンカーを保つ＝この置換が起きないことを固定する。
+        val stateHolder = mutableStateOf<DiscoveryUiState>(
+            DiscoveryUiState.Content(allcount = 1, novels = listOf(novel("HI-SCORE 作品", "N42"))),
+        )
+        composeTestRule.setContent {
+            CompositionLocalProvider(LocalSkin provides Skin.CARTRIDGE_P) {
+                MaterialTheme {
+                    DiscoveryHomeContent(
+                        order = NarouOrder.WEEKLY,
+                        state = stateHolder.value,
+                        onBack = {},
+                        onOpenDetail = {},
+                        onOpenGenre = {},
+                        onPickBiggenre = { _, _ -> },
+                        onOpenSearch = {},
+                        onPickMood = {},
+                        onSelectOrder = {},
+                        onRefresh = {},
+                    )
+                }
+            }
+        }
+        composeTestRule.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText("HI-SCORE 作品"))
+        composeTestRule.onNodeWithText("HI-SCORE 作品").assertExists()
+        stateHolder.value = DiscoveryUiState.Loading
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("HI-SCORE 作品").assertExists()  // 骨格保持
+        composeTestRule.onNodeWithText("READING…").assertDoesNotExist() // 全置換していない
     }
 }

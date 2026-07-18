@@ -1,6 +1,9 @@
 package com.novelreader.ui.discovery
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
@@ -86,5 +89,51 @@ class DiscoveryHomeContentTest {
         // ラベルは用語辞書（docs/patterns/discovery-terminology.md）＝検索画面名「探す」に一致させた。
         composeTestRule.onNodeWithContentDescription("探す").performClick()
         assertTrue(searched)
+    }
+
+    @Test
+    fun `初回ロードは直近ランキング未確定ゆえローディングを表示する`() {
+        // lastContent が無い初回は骨格を出せない＝進捗インジケータで待つ（stale-while-revalidate の下限）。
+        // Loading の DiscoveryStatusBox はテキストを持たず ProgressBarRangeInfo semantics で確認する。
+        // 進捗ボックスは見出し群の下＝LazyColumn の畳み込み外ゆえ scroll して合成させてから確認する。
+        setContent(DiscoveryUiState.Loading)
+        composeTestRule.onAllNodes(hasScrollToNodeAction()).onFirst()
+            .performScrollToNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo))
+        composeTestRule
+            .onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo))
+            .assertExists()
+    }
+
+    @Test
+    fun `再取得のLoading中も直近ランキングを保持しローディングへ全置換しない`() {
+        // 期間タブ切替の scroll リセット回帰の固定（実機 2026-07-19）。Content→Loading で行が status ボックス
+        // へ全置換されると LazyColumn が縮んでスクロールアンカーを失いトップへ落ちる。Loading 中も直近 Content の
+        // 行（同 key=ncode）を出し続けることでアンカーを保つ＝この置換が起きないことを固定する。
+        val stateHolder = mutableStateOf<DiscoveryUiState>(
+            DiscoveryUiState.Content(allcount = 1, novels = listOf(NarouNovel(title = "直近の作品", ncode = "N42"))),
+        )
+        composeTestRule.setContent {
+            MaterialTheme {
+                DiscoveryHomeContent(
+                    order = NarouOrder.WEEKLY,
+                    state = stateHolder.value,
+                    onBack = {},
+                    onOpenDetail = {},
+                    onOpenGenre = {},
+                    onPickBiggenre = { _, _ -> },
+                    onOpenSearch = {},
+                    onPickMood = {},
+                    onSelectOrder = {},
+                    onRefresh = {},
+                )
+            }
+        }
+        // ランキング行は見出し群の下＝畳み込み外ゆえ scroll して合成させてから存在を確認する。
+        composeTestRule.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText("直近の作品"))
+        composeTestRule.onNodeWithText("直近の作品").assertExists()
+        // キャッシュ無しの再取得＝一旦 Loading を挟む。骨格保持なら scroll 位置ごと行が残る。
+        stateHolder.value = DiscoveryUiState.Loading
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("直近の作品").assertExists()  // 骨格保持＝全置換していない
     }
 }
