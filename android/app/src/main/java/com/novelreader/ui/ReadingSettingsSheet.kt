@@ -47,6 +47,7 @@ import com.novelreader.ui.skins.p.CartridgeSliderThumb
 import com.novelreader.ui.skins.p.CartridgeSliderTrack
 import com.novelreader.ui.skins.p.SettingsSysBarP
 import com.novelreader.ui.theme.FontMicroLabel
+import com.novelreader.ui.theme.InkCartridge
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.LocalSkinTokens
 import com.novelreader.ui.theme.MoonSlateSeizu
@@ -103,7 +104,9 @@ internal fun ReadingSettingsSheet(
             isCartridge -> CartridgeSheetBottom
             else -> colors.background
         },
-        contentColor = colors.text,
+        // P のシート面はテーマ不変のプラ筐体＝文字も固定墨（settings-P --ink）。読書テーマの colors.text を
+        // 使うと DARK 時に白系文字が明るいプラ面へ溶けて未選択チップ・見出しがほぼ不可視になる（実機検分[高]）。
+        contentColor = if (isCartridge) InkCartridge else colors.text,
         dragHandle = if (isSeizu || isCartridge) null else ({ BottomSheetDefaults.DragHandle() }),
     ) {
         ReadingSettingsSheetContent(
@@ -234,7 +237,9 @@ internal fun ReadingSettingsSheetContent(
         // スコープで1度だけ定義する（スキン機構でテーマ節が when(skin) 分岐へ入った結果、分岐の外に立つ
         // 縦書きトグルから旧・節内定義が見えなくなった統合時の是正。「新しい色を作らず流用」の意図は不変）。
         val themeChipColors = FilterChipDefaults.filterChipColors(
-            labelColor = colors.text,
+            // P はシート文字が固定墨（上の contentColor と同根＝テーマ不変プラ面に白系が溶ける対策）。
+            // filterChipColors は LocalContentColor を継承しないため明示指定が要る。
+            labelColor = if (isCartridge) InkCartridge else colors.text,
             selectedContainerColor = colors.accent,
             selectedLabelColor = colors.background,
         )
