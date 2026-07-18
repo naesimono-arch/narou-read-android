@@ -2,6 +2,7 @@ package com.novelreader.ui.discovery
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
@@ -157,6 +158,51 @@ class DiscoverySkyMTest {
         composeTestRule.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText("観測される星"))
         composeTestRule.onNodeWithText("観測される星").performClick()
         assertEquals("N42", opened)
+    }
+
+    @Test
+    fun `初回ロードは直近ランキング未確定ゆえ観測中を表示`() {
+        // lastContent が無い初回は骨格を出せない＝status 行で待つ（stale-while-revalidate の下限）。
+        // status 行は見出し群の下＝LazyColumn の畳み込み外ゆえ scroll してから存在を確認する。
+        setHome(Skin.SEIZU_M, DiscoveryUiState.Loading)
+        composeTestRule.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText("観測しています…"))
+        composeTestRule.onNodeWithText("観測しています…").assertExists()
+    }
+
+    @Test
+    fun `再取得のLoading中も直近ランキングを保持し観測中へ全置換しない`() {
+        // 期間タブ切替の scroll リセット回帰の固定（実機 2026-07-19）。Content→Loading で行が status 行へ
+        // 全置換されると LazyColumn が縮んでスクロールアンカーを失いトップへ落ちる。Loading 中も直近 Content の
+        // 行（同 key=ncode）を出し続けることでアンカーを保つ＝この置換が起きないことを固定する。
+        val stateHolder = mutableStateOf<DiscoveryUiState>(
+            DiscoveryUiState.Content(allcount = 1, novels = listOf(novel("観測される星", "N42"))),
+        )
+        composeTestRule.setContent {
+            CompositionLocalProvider(LocalSkin provides Skin.SEIZU_M) {
+                MaterialTheme {
+                    DiscoveryHomeContent(
+                        order = NarouOrder.WEEKLY,
+                        state = stateHolder.value,
+                        onBack = {},
+                        onOpenDetail = {},
+                        onOpenGenre = {},
+                        onPickBiggenre = { _, _ -> },
+                        onOpenSearch = {},
+                        onPickMood = {},
+                        onSelectOrder = {},
+                        onRefresh = {},
+                    )
+                }
+            }
+        }
+        // ランキング行は見出し群の下＝畳み込み外ゆえ scroll して合成させてから存在を確認する。
+        composeTestRule.onAllNodes(hasScrollToNodeAction()).onFirst().performScrollToNode(hasText("観測される星"))
+        composeTestRule.onNodeWithText("観測される星").assertExists()
+        // キャッシュ無しの再取得＝一旦 Loading を挟む。骨格保持なら scroll 位置ごと行が残る。
+        stateHolder.value = DiscoveryUiState.Loading
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("観測される星").assertExists()          // 骨格保持
+        composeTestRule.onNodeWithText("観測しています…").assertDoesNotExist()  // 全置換していない
     }
 
     @Test

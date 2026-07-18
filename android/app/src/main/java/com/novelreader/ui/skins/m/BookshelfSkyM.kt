@@ -65,7 +65,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -154,12 +156,9 @@ internal val UnreadProgSeizu = Color(0xFF7B85A1)  // .const.unread .prog／.rec.
 internal val BadgeBorderSeizu = Color(0xFF303B5C) // .const .badge border／観測票 .badge border
 private val WelcomeInkSeizu = Color(0xFFB7C0DB)  // .welcome color
 
-// 極微視差の係数（正本 R1 FACTOR 0.08＝0.03〜0.08 の上限＝知覚可能な最小）。遠景の天の川粒帯のみ連動。
-// デバッグ誇張フラグ: 0.08 は静止画スクショでは効き目を確認できない（実機検証 2026-07-17 で「測定不能」）。
-// 視差の実在確認・調整時のみ true にして誇張係数で目視する開発補助（本番は必ず false・値は本番非影響）。
-private const val DebugExaggerateParallax = false
-private const val DebugParallaxFactor = 0.6f
-private val ParallaxFactor = if (DebugExaggerateParallax) DebugParallaxFactor else 0.08f
+// 極微視差（正本 R1 FACTOR 0.08）は常駐 backdrop（SkyBackdropM）が保持するようになった（空の一枚化・2026-07-19）。
+// 本画面は LazyColumn の nestedScroll 差分を LocalSkyParallax へ流すだけ＝視差量は backdrop 側の controller が持つ
+//（画面遷移で保持され連続する）。ゆえに従前の ParallaxFactor/graphicsLayer/parallaxProvider は本画面から撤去した。
 
 /** 識別色（学名ドット）: 作品ごとに安定して同じ色が付くよう id ハッシュで引く（並び替えで変わらない）。 */
 // 観測野帳（一覧）の観測ノード（星ディスク）も同じ id 色で描く＝星図↔一覧で「1作=同じ星の色」を保つため internal 昇格。
@@ -222,10 +221,9 @@ internal fun BookshelfSkyM(
     }
 
     // ---- 深空（R1）レイヤーの素材 ----
-    // z0/z1 の固定フィールド（星雲・天の川粒帯・散開微星）は蔵書非依存の不変の地。remember{}（キー無し）で
-    // 1 コンポジション 1 回だけ生成＝固定 seed と相まって再コンポーズでも星が一切踊らない（フレーム毎再計算もしない）。
-    val deepSkyField = remember { buildDeepSkyField() }
-    // 読了星の累積（z0）＝末尾到達実績（reachedEnd→FINISHED）の作品だけ深空へ着地星として静的に累積表示。
+    // 星雲・天の川粒帯・散開微星・流星は常駐 backdrop（SkyBackdropM）へ集約済み（空の一枚化・2026-07-19）。
+    // 本画面が持つのは蔵書依存の読了星だけ＝backdrop に蔵書状態を持ち込まず、本棚コンテンツ側でオーバーレイする。
+    // 読了星の累積（旧 z0）＝末尾到達実績（reachedEnd→FINISHED）の作品だけ深空へ着地星として静的に累積表示。
     // 位置は作品 id ハッシュから決定的に導く（＝同じ作品は常に同じ場所に着地・並び替えで動かない）。
     // TODO(監督): 昇華アニメ（読了イベントで先端星が深空へ昇る z2 演出）のトリガ配線。この Composable には
     //   「いま読了した」イベント流入が無いため未実装＝近似で嘘のアニメを出さず、静的累積のみで正直に留める。
@@ -242,7 +240,6 @@ internal fun BookshelfSkyM(
                 )
             }
     }
-    // 遠景の極微視差は LazyColumn のスクロールへ連動させる＝state を hoist して graphicsLayer 側でも読む。
     val listState = rememberLazyListState()
 
     // 固定地平バーの実高を測ってスクロール下端クリアランスに充てる（ナビバー高が機種で変わるため定数では
@@ -253,52 +250,27 @@ internal fun BookshelfSkyM(
     val horizonClearance = if (horizonHeightPx > 0) with(density) { horizonHeightPx.toDp() }
     else Insets.SkyHorizonClearance
 
-    // 極微視差の translate 供給。LazyList は可変高セルゆえピクセル絶対オフセットを持たないので、代表セル高
-    //（150dp）×index＋先頭可視セルのオフセットをスクロール信号にする（背景の最大 translate 40dp・hero=200 と
-    // others=150 の差は知覚下＝背景としては十分。翻訳の割り切りは報告事項に記載）。上限 40dp でクランプ（遠景の
-    // buffer 60dp 未満＝下端に隙間を出さない）。この lambda は graphicsLayer ブロック内でだけ呼ぶ＝スクロール state を
-    // 描画フェーズで遅延読み＝スクロール毎の再コンポーズを起こさない（chrisbanes deferred-read）。
-    val nominalCellPx = with(density) { 150.dp.toPx() }
-    val maxParallaxPx = with(density) { 40.dp.toPx() }
-    val parallaxProvider: () -> Float = {
-        if (reduceMotion) 0f // reduce-motion: 視差 0（完全静止）
-        else {
-            val raw = listState.firstVisibleItemIndex * nominalCellPx + listState.firstVisibleItemScrollOffset
-            (raw * ParallaxFactor).coerceAtMost(maxParallaxPx)
+    // 常駐 backdrop（SkyBackdropM）へスクロール差分を流す nestedScroll。差分（consumed.y）を渡すのは、画面が
+    // 変わっても視差オフセットが連続する（絶対値だと画面ごとに 0 起点で不連続＝リセット）ため（裁定③・2026-07-19）。
+    // reduce-motion のときは controller 側で積算を止める。M 装着時のみ non-null（他スキンは backdrop 無し）。
+    val skyParallax = LocalSkyParallax.current
+    val parallaxNestedScroll = remember(skyParallax) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                skyParallax?.onScrollDelta(consumed.y)
+                return Offset.Zero
+            }
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .drawBehind {
-                // .phone 背景: 群青の夜天グラデ＋右上の青雲＋下辺の地平光（星図スキン共通＝SkyCanvas.drawNightSky）。
-                drawNightSky()
-            },
-    ) {
-        // ---- R1 深空レイヤー（前景 Column より前＝背後に敷く。いずれも pointer 非介入で下のスクロール/導線へ素通し）----
-        // z0 深空（固定・スクロール非追従）＝星雲＋アクセント星＋読了星の累積。drawBehind へ一度確定描画（スクロール state を
-        // 読まないのでスクロール中に再描画されない）。夜天グラデ（root drawBehind）の直上・粒帯や星座より背面。
+    Box(modifier = Modifier.fillMaxSize()) {
+        // 読了星（蔵書依存）のみ本棚コンテンツ側でオーバーレイ（空そのもの＝夜天/深空/粒帯/流星は backdrop が敷く）。
+        // pointer 非介入で下のスクロール/導線へ素通し。前景 Column より背面。
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .drawBehind { drawDeepSky(deepSkyField, finishedStars) },
+                .drawBehind { drawFinishedStars(finishedStars) },
         )
-        // z1 遠景視差＝天の川の粒帯＋散開微星。graphicsLayer{translationY} で極微視差（translate 供給は描画フェーズ遅延読み）。
-        // drawBehind の描画自体はスクロール state を読まない＝レイヤーへ一度記録され、以後は transform だけ動く（recomposition 増やさない）。
-        // clip=true で buffer ぶん（size 下端より下）を隠し、上へずらしたときだけ滑り込ませる。
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    translationY = -parallaxProvider()
-                    clip = true
-                }
-                .drawBehind { drawFarStars(deepSkyField) },
-        )
-        // z2 演出オーバーレイ＝まれな流れ星（30〜70秒に一度・一度に一筋・淡い遠景の一筋）。reduce-motion では非表示。
-        // 前景 Column より背面＝銘/星座の背後を流れる遠景の一筋（モック .ascend z2 と同順）。
-        MeteorOverlay(reduceMotion = reduceMotion, modifier = Modifier.fillMaxSize())
 
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             SkyPlate(
@@ -319,8 +291,9 @@ internal fun BookshelfSkyM(
             SkyChips(selectedStatus, statusCounts, onSelectStatus)
 
             LazyColumn(
-                state = listState, // 遠景視差が読むためスクロール state を hoist（上の parallaxProvider）。
-                modifier = Modifier.fillMaxWidth().weight(1f),
+                state = listState,
+                // スクロール差分を backdrop の視差へ流す（onPostScroll の consumed.y＝画面遷移で連続）。
+                modifier = Modifier.fillMaxWidth().weight(1f).nestedScroll(parallaxNestedScroll),
                 // 下端は地平（発見導線＋迎える）ぶんを空ける＝スクロール末尾の星座が地平に沈まない。
                 // クリアランスは固定バーの実測高（下記 onSizeChanged）＝バー高そのぶん確保。
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = horizonClearance),

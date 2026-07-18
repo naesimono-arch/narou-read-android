@@ -175,14 +175,17 @@ class BookshelfSkyMTest {
 
     @Test
     fun `天の川粒の輝度は上限を超えない＝題名可読の担保`() {
-        // 正本 R1 の輝度上限（帯 0.42／核 0.46）＝連続する靄で contrast を落とさない絶対条件。
+        // R1s の輝度上限＝帯・核とも 0.42 へ統一（面輝度キャップ＝題名可読を全帯で担保する不可侵の規律）。
         val field = buildDeepSkyField()
-        // 粒帯＝本体(5200)＋塵星(2600)＋核(≤640)。生成の破綻検知の広めのレンジ（2026-07-18 の粒増量後）。
-        assertTrue("粒が想定レンジ外（生成が壊れている）", field.band.size in 7000..9000)
-        assertTrue("輝度上限 0.46 を超える粒がある＝題名が潰れうる", field.band.all { it.alpha <= 0.46f })
-        // 下地もや（無数の未分解星の連続輝き）も輝度上限内＝題名可読の担保（もやが最も可読を脅かすため明示）。
-        assertTrue("下地もやが想定外の数", field.haze.size in 180..260)
-        assertTrue("下地もやが輝度上限 0.085 を超える＝題名が霞む", field.haze.all { it.alpha <= 0.085f })
+        // 粒帯＝本体(target 6500)＋核(≤1260)。トーラス化(2026-07-19)で帯だけ境界外へ ±BAND_BRIDGE 延長生成し fy=mod で
+        // 畳む＝橋渡し粒ぶん総数が増える（本体密度は視野域で不変・増分は境界近傍に集中）。生成破綻の検知レンジ。
+        assertTrue("粒が想定レンジ外（生成が壊れている）", field.band.size in 8800..9600)
+        assertTrue("輝度上限 0.42 を超える粒がある＝題名が潰れうる", field.band.all { it.alpha <= 0.42f })
+        // 散開微星（背景を沈める帯外微星）＝R1s 改訂1 で 520点。
+        assertTrue("散開微星が想定外の数", field.scatter.size == 520)
+        // 超微星の海（最深・帯構造に従属＝Great Rift で一部間引かれ 3200 未満）。
+        assertTrue("超微星の海が想定外の数", field.microSea.size in 2200..3200)
+        // pip/スパイクは離散点ゆえ面輝度キャップに非抵触＝BandParticle.alpha（粒本体）のみを規律対象とする。
     }
 
     @Test

@@ -30,3 +30,21 @@
 - **shared-axis Z（scale+fade の奥行き）**: 「潜る」は表現できるが scale が**装飾寄り**で原則「静謐＝フィードバックのための motion」（ADR 0014）と相性△。却下。
 - **章→章（話送り）も即スライド化**: 業界作法は「送りは滑らせ・ジャンプは瞬間」の二択（06 §3-C）で筋は通るが、症状の指差しが無いうちに新規演出を足さない方針（P1）に従い保留。要望が出たら別途。
 - **バウンド/overshoot 系の遷移**: 禁止則③（overshoot/bounce/spring 振動）に抵触＝不採用確定。
+
+## 追記: M星図の例外＝フェードスルー（2026-07-19 ユーザー裁定「空の一枚化」）
+
+M星図スキンは**固定天球アーキテクチャ**へ移行した（常駐 backdrop `SkyBackdropM` を NavHost の背後へ1枚だけ置き、
+全 M 画面が同じ「動かない不変の空」を共有する＝ADR 0022/0023 系の第二層構造の延長。実装＝`MainActivity` NavHost の
+skin 分岐・`SkyBackdropM.kt`）。この構造では**横スライド push が「世界（空）ごと」動かしてしまい**、遷移のたびに
+壁紙が切り替わる違和感を生む（ユーザー差し戻しの主因）。裁定は「コンテンツのみがシームレスに切り替わる」こと。
+
+- **決定**: skin==SEIZU_M の画面遷移を **fade-through**（退出 fadeOut 先行→進入 fadeIn。方向概念が消えるため pop も対称）へ。
+  尺は `MotionDurationNavTransition`(250ms) 内で二分（`MotionDurationSeizuFadeOut`/`FadeIn`/`FadeInDelay`＝Motion.kt トークン）。
+  NavHost の全ルート遷移と、`NativeReadingScreen` の目次⇄本文 `AnimatedContent` の両方に適用（reduce-motion では即時切替）。
+- **他スキン（D/C/P/J）は本 ADR 本文の横スライド push を不変**で維持（`when(skin)`/`isSeizu` 分岐で隔離）。方向で階層移動を
+  伝える利得は没入型でない画面群では有効なため。M だけがフェードになるのは固定天球という構造上の必然（意匠の気分ではない）。
+- **視差の連続性**: 空は不変・遷移で動かないが、スクロールの極微視差（FACTOR 0.08）は残す。視差オフセットは backdrop の
+  `SkyParallaxController`（`rememberSaveable` の Float 1本）が保持し、アクティブ画面は nestedScroll の**差分**だけを流す
+  ＝画面が変わってもオフセットがリセットされず連続する（絶対値だと画面ごと 0 起点で不連続になる）。
+- 相互参照: 固定天球の構造裁定・網羅性は ADR 0022（スキン第二層）、実機先行探索の流儀は ADR 0023。読書Mのモーションゼロ規律
+  （ADR 0022 §3）は「読書中の装飾モーション」の話であり、**画面切替の遷移は対象外**（本追記のフェードは規律に抵触しない）。

@@ -61,6 +61,15 @@ const val MotionDurationCrossfade: Int = 250
 // motion は ADR 0005-B 実機後詰め層のため値・型とも実機で決めてよい（HTMLモック非対象）。
 const val MotionDurationNavTransition: Int = 250
 
+// M星図スキンだけの画面遷移＝フェードスルー（退出 fadeOut 先行→進入 fadeIn。ADR 0019 追記「M星図の例外」・
+// 2026-07-19 ユーザー裁定）。なぜ M だけ slide でなく fade か: M は固定天球（常駐 backdrop）を全画面で共有する
+// アーキテクチャで、slide は「世界（空）ごと」動かしてしまい壁紙が切り替わる違和感を生む＝コンテンツのみを
+// シームレスに差し替えるフェードにする。方向概念が消えるため pop も同型（対称）。尺は Nav 遷移バジェット
+// 250ms 内で二分（退出を先行させ、進入は退出ぶんだけ遅らせて後半に）。NavHost と目次⇄本文 AnimatedContent で共有。
+const val MotionDurationSeizuFadeOut: Int = MotionDurationNavTransition / 2       // 退出（先行・0..125ms）
+const val MotionDurationSeizuFadeIn: Int = MotionDurationNavTransition / 2        // 進入の尺（125ms）
+const val MotionDurationSeizuFadeInDelay: Int = MotionDurationNavTransition / 2   // 進入の遅延（退出ぶん＝先に退出）
+
 // 読了バッジ「了」の押印（案A・ADR 0014 §motion 追補「適用裁定の記録」）。本棚がある本を
 // 「初めて読了として描く」瞬間に一度だけ再生する朱印のスタンプ。値の組み立て（scale 1.2→1.0 の単調ダウン＋
 // 回転 -7°→0°＋透過）は BookCard の seal graphicsLayer 側で行い、ここは duration/easing スロットのみ正本化する

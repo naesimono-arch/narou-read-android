@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -33,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,9 +47,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -68,14 +71,12 @@ import com.novelreader.ui.discovery.readTimeLabel
 import com.novelreader.ui.theme.AuthorInkSeizu
 import com.novelreader.ui.theme.BrightStarSeizu
 import com.novelreader.ui.theme.DimSeizu
-import com.novelreader.ui.theme.DustSeizu
 import com.novelreader.ui.theme.GenreChipInkSeizu
-import com.novelreader.ui.theme.MilkyWaySeizu
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.MoonSlateSeizu
 import com.novelreader.ui.theme.RubySeizu
+import com.novelreader.ui.theme.SkyGradMidSeizu
 import com.novelreader.ui.theme.Spacing
-import com.novelreader.ui.theme.StarCoreSeizu
 import com.novelreader.ui.theme.StarSeizu
 import com.novelreader.ui.theme.TextSeizu
 import com.novelreader.viewmodel.DiscoveryUiState
@@ -86,13 +87,16 @@ import com.novelreader.viewmodel.ResultSource
 import java.util.Locale
 
 // ============================================================
-// スキンM「星図」の発見＝夜空の観測（正本 discovery-M.html・ADR 0022 §1 の構造分岐先）。
+// スキンM「星図」の発見＝夜空の観測（正本 discovery-M-rich-R1.html＝R1s 深空の型の「沈め版」・ADR 0022 §1 の構造分岐先）。
 //   ・発見ホーム DiscoveryHomeSkyM＝見出し「見つける」＋気分プリセット（夜空を覗く窓）＋ジャンル入口＋
-//     期間タブ＋観測ランキング（星表）。地の夜空を大胆に（星屑110・天の川の淡帯・見出し背後の大星座）。
+//     期間タブ＋観測ランキング（星表）。地の夜空は R1s 深空（超微星の海→天の川の粒帯→散開微星→ネビュラ→アクセント星）。
 //   ・結果一覧 DiscoveryResultSkyM＝プリセット/ジャンル/検索の共通着地（back・文脈見出し・条件チップ・件数・星表）。
 //
-// 背景・Lcg は星図スキン共通の SkyCanvas.kt（本棚/目次と同一部品）を参照。discovery-M の背景は
-// bookshelf/toc と同じ夜天3層（drawNightSky）に、この画面固有の天の川帯＋大星座（drawDiscoverySky）を重ねる。
+// 背景・Lcg は星図スキン共通の SkyCanvas.kt を参照。R1s 深空の共通部品（帯疎化 fila/darkNeb/riftCenter/bDens・
+// 色温度 starTempColor/starColorAt/hash01・粒クラス）は DeepSkyM から internal 流用し二重実装を避ける。発見は
+// drawNightSky（夜天3層）の直上へ発見固有の深空 drawDiscoveryDeepSky を静止1回敷く（parallax/流星なし＝モック無モーション）。
+// 本棚 R1s との差＝カード/chip/ランキングが主役ゆえ一段沈める（粒α上限0.30・ネビュラ核≤.09・pip≤.28・スパイク3本）・
+// 画面固有 seed 0x2A17F3D・帯の走向を反転（本棚=右上→左下／発見=左上→右下）・銀河核 y=540（本棚 y=300 と別空域）。
 //
 // モーション: discovery-M.html は canvas を1回だけ描く静止画（keyframes/rAF ゼロ）＝ADR 0022 §3 の
 //   「P/J はモックにモーションが存在しない＝静止で実装開始」と同じ扱いで M 発見もモーションゼロ。
@@ -107,11 +111,20 @@ import java.util.Locale
 // ============================================================
 
 // ---- 描画層の透過色（グラデ地の上へ層で載るため焼き込めず .copy(alpha=) で正本 α を付与）----
-private val LineAlpha = MoonSlateSeizu.copy(alpha = 0.20f)        // --line rgba(150,168,214,.20)
+// 枠強化: 深化した深空の地でカード枠/chip境界/タブ下線/条件調整chip の分離を確保するため、モック R1 は --line を
+// rgba(150,168,214,.20) → rgba(154,172,218,.5) へ強化（約3:1・素地 #0D1636 に対し ~2.9:1）。この val は元から発見
+// ファイル内 private＝発見スコープ限定（本棚/目次の MoonSlateSeizu 系境界は不変）。rgb 154,172,218 は基色 150,168,214
+// との Δ4＝知覚下微差ゆえ MoonSlateSeizu へ吸収し（ADR 0022 §4 の色正規化）、変えるのは α のみ（.20→.5）。
+private val LineAlpha = MoonSlateSeizu.copy(alpha = 0.5f)        // --line rgba(154,172,218,.5)＝枠強化（発見スコープ）
 private val MoodWindowBg = Color(0xFF0E1634).copy(alpha = 0.28f)  // .md 背景 rgba(14,22,52,.28)＝夜空を覗く窓
 private val CdStarBorder = StarSeizu.copy(alpha = 0.4f)          // .cd border rgba(233,221,180,.4)
 private val CdStarInk = StarSeizu.copy(alpha = 0.9f)            // .cd（opacity .9＝星光文字を僅かに沈める）
 private val WindowStar = StarSeizu.copy(alpha = 0.5f)          // .md .win 結線 rgba(233,221,180,.5)
+
+// 発見の可読スクリム（空の一枚化・2026-07-19）。常駐 backdrop（SkyBackdropM）は本棚R1s の満輝度（0.42）ゆえ、
+// カード/chip/ランキングが主役の発見では空を一段沈める。旧・発見沈め版深空（SkyDiscR CAP=0.30）の「沈め」を、
+// 地色 #0D1636（SkyGradMidSeizu）の α 掛け全面スクリムで再現する（直書き禁止＝トークン経由・α は体感同等で実機後詰め）。
+private val DiscoverySkyScrim = SkyGradMidSeizu.copy(alpha = 0.30f)  // 全面を一段沈める（旧 CAP0.30 相当）
 
 // ============================================================
 // 発見ホーム（モック左フレーム）
@@ -129,16 +142,32 @@ internal fun DiscoveryHomeSkyM(
     onSelectOrder: (NarouOrder) -> Unit,
     onRefresh: () -> Unit,
 ) {
-    // 背景フィールド（星屑110＋大星座）は draw 段で毎回 Lcg/座標再生成せず 1 回だけ決定的に生成し remember
-    // で保持する（DeepSkyM の「決定的1回生成」基準に統一。座標は 0..1 正規化で size 非依存）。
-    val skyField = remember { buildDiscoverySkyField() }
+    // 空そのもの（夜天・深空・天の川粒帯）は常駐 backdrop（SkyBackdropM）が本棚R1s の形で敷く（空の一枚化・2026-07-19）。
+    // 本画面は可読の全面スクリムを被せ、スクロール差分を backdrop の視差へ流すだけ（旧・発見固有の沈め版深空は撤去）。
+    val skyParallax = LocalSkyParallax.current
+    val parallaxNestedScroll = remember(skyParallax) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                skyParallax?.onScrollDelta(consumed.y)
+                return Offset.Zero
+            }
+        }
+    }
+    // 期間タブ切替のスクロール位置リセット対策（実機報告 2026-07-19・キャッシュ無し時）。
+    // 真因: loadHome() が再取得のたびに一旦 Loading を挟むため、当画面の単一 LazyColumn では Content の
+    // ランキング行が Loading 中に status 行1件へ全置換され、総コンテンツ高が見出し＋1行まで縮む。すると
+    // LazyListState は firstVisibleItem/offset を維持できず（縮んだ内容ではその位置に留まれない）先頭側へ
+    // クランプされ、Content 復帰後もトップ付近のまま＝強制リセットに見える。VM は再取得中に旧一覧を保持
+    // しない設計ゆえ、UI 側で「直近に描けた Content」を控え、再取得(Loading)中はそのランキング骨格を出し
+    // 続けて一覧の identity（items key=ncode）とスクロールアンカーを保つ（stale-while-revalidate）。VM 非改変で
+    // 発見M スコープ限定（他スキン／結果画面の同型は横断調査で別途報告）。
+    var lastContent by remember { mutableStateOf<DiscoveryUiState.Content?>(null) }
+    // 合成中の書き戻しを避け、Content を側効果で控える（次フレーム反映＝Content 分岐は s を直接描くため無遅延）。
+    LaunchedEffect(state) { (state as? DiscoveryUiState.Content)?.let { lastContent = it } }
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .drawBehind {
-                drawNightSky()            // 夜天3層（星図スキン共通）
-                drawDiscoverySky(skyField) // 天の川の淡帯＋星屑110＋見出し背後の大星座（静止1回）
-            },
+            .drawBehind { drawRect(DiscoverySkyScrim) }, // backdrop の空を一段沈める（カード/chip の可読）
     ) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             // .top: 見出し＋検索。戻る（← 本棚へ）はモック省略の D 機能を欠落させず M 意匠で先頭へ写す。
@@ -165,7 +194,8 @@ internal fun DiscoveryHomeSkyM(
             }
 
             LazyColumn(
-                modifier = Modifier.fillMaxWidth().weight(1f),
+                // スクロール差分を backdrop の視差へ流す（本棚面と同じ onPostScroll consumed.y＝画面遷移で連続）。
+                modifier = Modifier.fillMaxWidth().weight(1f).nestedScroll(parallaxNestedScroll),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(
                     start = Spacing.S24, end = Spacing.S24, bottom = Spacing.S40, // .scroll padding 0 26 40
                 ),
@@ -176,12 +206,16 @@ internal fun DiscoveryHomeSkyM(
                 item { GenreChipsSky(onOpenGenre, onPickBiggenre) }
                 item { OrderTabsSky(order, onSelectOrder) }
 
-                when (val s = state) {
-                    is DiscoveryUiState.Loading -> item { SkyStatusLine("観測しています…") }
-                    is DiscoveryUiState.Empty -> item { SkyStatusLine("作品が見つかりませんでした") }
-                    is DiscoveryUiState.Error -> item { SkyErrorLine(s.message, onRefresh) }
-                    is DiscoveryUiState.Content -> itemsIndexed(
-                        s.novels,
+                // 再取得(Loading)中は直近 Content の骨格を出し続けてスクロール位置を保つ（初回ロードは骨格
+                // 未確定＝status 行）。Empty/Error は一覧を畳んで良い（真に0件・失敗のためトップ表示が妥当）。
+                val rowsContent = when (val s = state) {
+                    is DiscoveryUiState.Content -> s
+                    is DiscoveryUiState.Loading -> lastContent
+                    else -> null
+                }
+                when {
+                    rowsContent != null -> itemsIndexed(
+                        rowsContent.novels,
                         key = { index, novel -> novel.ncode ?: index },
                     ) { index, novel ->
                         SkyRankRow(
@@ -191,6 +225,10 @@ internal fun DiscoveryHomeSkyM(
                             onClick = { novel.ncode?.let { onOpenDetail(Ncode(it)) } },
                         )
                     }
+                    state is DiscoveryUiState.Loading -> item { SkyStatusLine("観測しています…") }
+                    state is DiscoveryUiState.Empty -> item { SkyStatusLine("作品が見つかりませんでした") }
+                    state is DiscoveryUiState.Error ->
+                        item { SkyErrorLine(state.message, onRefresh) }
                 }
             }
         }
@@ -212,14 +250,20 @@ internal fun DiscoveryResultSkyM(
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
 ) {
-    val skyField = remember { buildDiscoverySkyField() }
+    // 空そのものは常駐 backdrop（SkyBackdropM）が敷く＝発見ホームと同じ可読スクリムを被せる（空の一枚化・2026-07-19）。
+    val skyParallax = LocalSkyParallax.current
+    val parallaxNestedScroll = remember(skyParallax) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                skyParallax?.onScrollDelta(consumed.y)
+                return Offset.Zero
+            }
+        }
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .drawBehind {
-                drawNightSky()
-                drawDiscoverySky(skyField)
-            },
+            .drawBehind { drawRect(DiscoverySkyScrim) },
     ) {
         // process death 復帰中は文脈 null＝D 実装と同じく退去せず最小ローディングで待つ（DiscoveryResultContent と対称）。
         if (ctx == null) {
@@ -276,7 +320,8 @@ internal fun DiscoveryResultSkyM(
                 is DiscoveryUiState.Empty -> ResultEmptySky(ctx.source, onAdjust = onBack, onBackToDiscovery = onUp)
                 is DiscoveryUiState.Error -> SkyErrorLine(s.message, onRefresh)
                 is DiscoveryUiState.Content -> LazyColumn(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    // スクロール差分を backdrop の視差へ流す（onPostScroll consumed.y＝画面遷移で連続）。
+                    modifier = Modifier.fillMaxWidth().weight(1f).nestedScroll(parallaxNestedScroll),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = Spacing.S40),
                 ) {
                     item {
@@ -346,34 +391,40 @@ private fun MoodGridSky(onPickMood: (MoodPreset) -> Unit) {
 
 @Composable
 private fun MoodCardSky(preset: MoodPreset, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
+    // モック .md は「星座片＝右上に絶対配置(top:12/right:12・position:absolute で flow 外)」「本文＝justify-content:
+    // flex-end で下寄せ」の縦分離設計。旧実装は Box の align(TopEnd) を Box 全体の padding(16) 内に置き、星座片が
+    // 本文と同一座標系で右上/左下に重なる構図だった。真因: この構図はカード幅に依存し、幅が縮む狭幅端末では
+    // 単行タイトル「30分の小さな旅」の右端が星座片の x 帯へ到達して重なる（モック 390px 幅では 2px 差で辛うじて
+    // 回避＝可搬でない前提）。対処: 星座片を上段の独立バンド（右寄せ）へ置き、weight スペーサで本文を下段へ
+    // 押し下げて縦方向で分離する（flex-end の意図を保ちつつ全幅・全フォント倍率で重なりを排除）。バンド確保で
+    // カード高は約 91dp となり min 82dp を上回るが、82dp 固定は狭幅で重なりを招く脆い前提ゆえ可搬性を優先する。
+    Column(
         modifier = modifier
             .heightIn(min = 82.dp)      // .md min-height 82px（呼吸ぶんの下限）
             .clip(RoundedCornerShape(12.dp))
             .background(MoodWindowBg)
             .border(1.dp, LineAlpha, RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .padding(Spacing.S16),      // .md padding 18px 16px 16px → S16
+            .padding(start = Spacing.S16, end = Spacing.S16, top = Spacing.S12, bottom = Spacing.S16), // .md padding 18/16/16＋.win top:12
     ) {
-        // 小星座片（.md .win）＝右上に浮かべる。プリセット序数ごとに正本の3点配置を写す。
-        MoodWindow(preset.ordinal, modifier = Modifier.align(Alignment.TopEnd))
-        Column(modifier = Modifier.align(Alignment.BottomStart)) {
-            Text(
-                preset.title,
-                fontFamily = MinchoFamily,
-                fontSize = 14.sp,       // .md b 14px
-                lineHeight = 21.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = TextSeizu,
-            )
-            Text(
-                preset.cardLabel,
-                fontSize = 10.5.sp,     // .md span 10.5px
-                letterSpacing = 0.03.em,
-                color = DimSeizu,
-                modifier = Modifier.padding(top = Spacing.S8), // margin-top 7px → S8
-            )
-        }
+        // 小星座片（.md .win）＝上段右寄せの独立バンド。プリセット序数ごとに正本の3点配置を写す。
+        MoodWindow(preset.ordinal, modifier = Modifier.align(Alignment.End))
+        Spacer(Modifier.weight(1f)) // .md justify-content:flex-end（本文を下段へ押し下げる）
+        Text(
+            preset.title,
+            fontFamily = MinchoFamily,
+            fontSize = 14.sp,       // .md b 14px
+            lineHeight = 21.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = TextSeizu,
+        )
+        Text(
+            preset.cardLabel,
+            fontSize = 10.5.sp,     // .md span 10.5px
+            letterSpacing = 0.03.em,
+            color = DimSeizu,
+            modifier = Modifier.padding(top = Spacing.S8), // margin-top 7px → S8
+        )
     }
 }
 
@@ -751,85 +802,4 @@ private fun SkyFooterText(text: String) {
         color = DimSeizu,
         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.S24, vertical = Spacing.S16),
     )
-}
-
-// ============================================================
-// 発見固有の夜空（モック .skybg <script>: 天の川の淡帯＋星屑110＋見出し背後の大星座）。
-// 静止1回描画。座標は mock 390×844 を実サイズへ比例写像（TocSkyM.drawTocSky と同作法）。
-// ============================================================
-private fun DrawScope.drawDiscoverySky(field: DiscoverySkyField) {
-    val w = size.width
-    val h = size.height
-    val d = 1.dp.toPx()
-    fun p(mx: Float, my: Float) = Offset(mx / 390f * w, my / 844f * h)
-
-    // 天の川の淡い帯（linearGradient(0,80→390,300)・.5 で α .06・fillRect(0,60,390,240)）。
-    val bandTL = p(0f, 60f)
-    val bandBR = p(390f, 300f)
-    drawRect(
-        Brush.linearGradient(
-            0f to MilkyWaySeizu.copy(alpha = 0f),
-            0.5f to MilkyWaySeizu.copy(alpha = 0.06f),
-            1f to MilkyWaySeizu.copy(alpha = 0f),
-            start = p(0f, 80f), end = p(390f, 300f),
-        ),
-        topLeft = bandTL,
-        size = androidx.compose.ui.geometry.Size(bandBR.x - bandTL.x, bandBR.y - bandTL.y),
-    )
-
-    // 星屑110点（seed 13579）＝remember 済みの正規化座標を size/d で復元して描く（生成時と等価）。
-    for (s in field.dust) {
-        drawCircle(DustSeizu.copy(alpha = s.alpha), radius = s.rMul * d, center = Offset(s.fx * w, s.fy * h))
-    }
-
-    // 見出し背後の大きな淡い星座（CONST 5点＝結線 rgba(150,168,214,.12)＋各点に淡いグロー r4 α.18）。
-    // 正規化 5 点は remember 済み・Path は size 依存のため draw で復元（toc の litPath/basePath と同作法）。
-    val cpts = field.constellation.map { Offset(it.x * w, it.y * h) }
-    val cpath = Path().apply {
-        moveTo(cpts[0].x, cpts[0].y)
-        for (i in 1 until cpts.size) lineTo(cpts[i].x, cpts[i].y)
-    }
-    drawPath(cpath, MoonSlateSeizu.copy(alpha = 0.12f), style = Stroke(width = 1f))
-    cpts.forEach { drawDiscoveryGlow(it, 4f * d, 0.18f) }
-}
-
-/** 発見固有の夜空フィールド（星屑110＋大星座5点）。draw 内の Lcg/座標再生成を避け remember で1回だけ生成する（DeepSkyM と同型）。 */
-internal class DiscoveryStarDust(val fx: Float, val fy: Float, val rMul: Float, val alpha: Float)
-internal class DiscoverySkyField(val dust: List<DiscoveryStarDust>, val constellation: List<Offset>)
-
-/**
- * 発見の夜空フィールドを決定的に1回だけ生成（正本 discovery-M.html・seed 13579）。星屑の Lcg 消費順（band→x→y→r→a）を
- * 保ち座標等価。位置は Canvas size 依存のため 0..1 正規化で持つ（fx=x/390＝rnd, fy=y/844）＝端末非依存。半径係数 rMul は draw で *d。
- * 大星座 CONST 5点は固定座標を 0..1 正規化で保持（draw で size 乗算・Path 復元）。
- */
-internal fun buildDiscoverySkyField(): DiscoverySkyField {
-    val rnd = Lcg(13579)
-    val dust = List(110) {
-        val band = rnd.next() < 0.5f
-        val fx = rnd.next()                                                          // x=rnd*390 → 描画時 fx*w
-        val fy = (if (band) 60f + rnd.next() * 230f else 44f + rnd.next() * (844f - 70f)) / 844f
-        val rMul = rnd.next() * 1f + 0.3f                                            // 描画時 rMul*d
-        val alpha = rnd.next() * (if (band) 0.4f else 0.28f) + 0.05f
-        DiscoveryStarDust(fx, fy, rMul, alpha)
-    }
-    // CONST 5点（正本固定座標）を 0..1 正規化で保持（mx/390, my/844）。
-    val constellation = listOf(
-        Offset(70f / 390f, 150f / 844f), Offset(130f / 390f, 120f / 844f),
-        Offset(200f / 390f, 168f / 844f), Offset(268f / 390f, 132f / 844f),
-        Offset(320f / 390f, 180f / 844f),
-    )
-    return DiscoverySkyField(dust, constellation)
-}
-
-/** 見出し背後の星グロー（モック glow(): radial 2停止＝星光 α→0 ＋星芯 1.4px）。bookshelf の starGlow と別式。 */
-private fun DrawScope.drawDiscoveryGlow(center: Offset, radius: Float, a: Float) {
-    drawCircle(
-        Brush.radialGradient(
-            0f to StarSeizu.copy(alpha = a),   // rgba(233,221,180,a)
-            1f to StarSeizu.copy(alpha = 0f),
-            center = center, radius = radius,
-        ),
-        radius = radius, center = center,
-    )
-    drawCircle(StarCoreSeizu.copy(alpha = (a + 0.2f).coerceAtMost(1f)), radius = 1.4f * 1.dp.toPx(), center = center)
 }

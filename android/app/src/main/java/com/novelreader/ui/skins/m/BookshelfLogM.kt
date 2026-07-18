@@ -67,6 +67,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -259,20 +262,21 @@ internal fun BookshelfLogM(
     else Insets.SkyHorizonClearance
     val listState = rememberLazyListState()
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            // .phone 背景＝群青の夜天グラデ（星図スキン共通 drawNightSky）。観測野帳も同じ地の上に綴じる。
-            .drawBehind { drawNightSky() },
-    ) {
-        // 深空の簡易下地（ldeepsky）＝星雲＋アクセント星の淡い地。DeepSkyM の drawDeepSky を読了星なしで再利用
-        //（一覧の主役は前景の観測票＝星図面の天の川粒帯 drawFarStars は敷かない軽い版。pointer 非介入で下へ素通し）。
-        val deepSkyField = remember { buildDeepSkyField() }
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .drawBehind { drawDeepSky(deepSkyField, emptyList()) },
-        )
+    // 常駐 backdrop（SkyBackdropM）へスクロール差分を流す nestedScroll（星図面 BookshelfSkyM と同機構＝
+    // 差分で視差を積み画面遷移でも連続。空の一枚化・2026-07-19）。M 装着時のみ non-null。
+    val skyParallax = LocalSkyParallax.current
+    val parallaxNestedScroll = remember(skyParallax) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                skyParallax?.onScrollDelta(consumed.y)
+                return Offset.Zero
+            }
+        }
+    }
+
+    // 空そのもの（夜天・深空・アクセント星）は常駐 backdrop が敷く＝本面は透過（drawNightSky/drawDeepSky を撤去）。
+    // 観測野帳は読了星を持たない（星図面と別＝旧実装も drawDeepSky を読了星なしで敷いていた）。
+    Box(modifier = Modifier.fillMaxSize()) {
 
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             // 選択モード中は銘/チップの座を選択ヘッダ（selhead）へ譲る（モック body.selecting）。
@@ -306,7 +310,8 @@ internal fun BookshelfLogM(
 
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxWidth().weight(1f),
+                // スクロール差分を backdrop の視差へ流す（星図面と同じ onPostScroll consumed.y）。
+                modifier = Modifier.fillMaxWidth().weight(1f).nestedScroll(parallaxNestedScroll),
                 // 下端は地平（発見導線＋迎える）ぶんを空ける＝末尾の観測票が地平に沈まない（実測高）。
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = horizonClearance),
             ) {

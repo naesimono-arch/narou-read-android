@@ -1,0 +1,320 @@
+<!-- @dsCard group="UI-n / 発見（M星図・描画リッチ化）" name="M-rich 発見 R1. 深空展開（観測ランキング×深空の地）" -->
+<!--
+  思想（1行）: 発見＝別の空域の観測。目次系に比べ味気なかった発見の地を R1s 深空の型で満たし、しかしカード・chip・ランキング行が主役ゆえ空は本棚より一段沈める。
+  変更点一覧【変更は背景キャンバス(.skybg)の描画＋枠/境界の明度(--line)＋表記のみ。骨格・情報構造・文言・カードUI・レイアウトは discovery-M と厳密同一】:
+   ・背景を R1s 深空の型へ置換: 超微星の海 → 天の川の粒帯(核バルジ＋Great Rift/darkNeb/fila 疎化・輝度断面で中心軸を立てる) → 帯外散開微星 → 深空ネビュラ(群青核→菫→茜) → アクセント星。全粒に tempRGB 色温度(青白→白→淡金→橙)・seeded Lcg 決定生成（Math.random/Date.now 不使用）。
+   ・画面固有 seed で本棚と別の星野に: base seed=0x2A17F3D（本棚 R1s の 987654321 と別系統）＋canvas ごとに index 加算で発見ホーム/結果一覧を微差に。帯の走向を本棚から反転＝本棚は右上→左下、発見は左上→右下（bAxis を反転）。銀河核も下右へ移設（y=540）＝「別の空域を観測している」物語。
+   ・可読最優先で本棚より一段沈める（沈め方の差分パラメータ）: 粒α上限 0.42→0.30／核α上限 0.42→0.30／ネビュラ核α .14→≤.09／pip 白芯 ≤.40→≤.28／下地もや .045→.03／超微星の海 α0.02〜0.05→0.015〜0.043／散開微星 α0.02〜0.14→0.02〜0.10／アクセント星グロー .55→.40／スパイク数 7→3・α も低減。安全上限 0.30 キャップは全ループ厳守。
+   ・磨き込み候補の同時沈静化＝枠/境界を約3:1へ強化: --line rgba(150,168,214,.20) → rgba(154,172,218,.5)（枠線の明度/αのみ・線幅と形とレイアウトは不変）。深化した地でカード枠(.md)・ジャンルchip境界(.gc)・タブ下線(.tabs)・条件調整chip(.cd.adj)の分離を確保。計測: 素地 #0D1636(L≈0.0092)に対し ~2.9:1（本棚同等の可読を担保）。
+   ・モーション無し（静的レイヤのみ・演出裁定は実機トグル経路へ移行済み）。規格層は不変: 意味を運ぶ文字は 4.5:1 以上、深空は地に留め本文可読を越えない。
+   ・提案トークン名（新色が要る箇所は既存系統内の淡い彩度で命名提案のみ）: star.temp.blue/white/gold/amber（色温度4系統）・nebula.indigo(群青核)/violet(菫)/madder(茜)。いずれも群青の夜天/星光の金/月光スレートの範囲内で彩度暴走なし。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n M-rich 発見 R1（深空展開） — 星図</title>
+<style>
+  :root{
+    --text:#DCE3F2;--dim:#8791AD;--star:#E9DDB4;
+    /* 枠/境界を約3:1へ強化（明度/αのみ・線幅と形は不変）。深化した深空の地でカード枠・chip境界・タブ下線の分離を担保。素地 #0D1636 に対し ~2.9:1 */
+    --line:rgba(154,172,218,.5);
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#06080F;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:#7C86A2;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:640px}
+  .cap b{color:#DCE3F2}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#7C86A2}
+
+  .phone{width:390px;height:844px;border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column;
+    box-shadow:0 30px 72px rgba(0,0,0,.72);font-family:var(--gothic);
+    background:
+      radial-gradient(90% 40% at 60% 2%,rgba(66,86,158,.26),transparent 60%),
+      linear-gradient(178deg,#0B1330 0%,#0D1636 48%,#080E26 100%);}
+  .skybg{position:absolute;inset:0;z-index:0}
+  .layer{position:relative;z-index:1;display:flex;flex-direction:column;height:100%}
+  .sb{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:12px;color:#6E7794;flex-shrink:0}
+
+  .top{padding:6px 26px 8px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
+  .top h1{font-family:var(--mincho);font-size:26px;color:var(--text);font-weight:500;letter-spacing:.16em}
+  .ib{width:40px;height:40px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--text);cursor:pointer}
+  .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .scroll{flex:1;overflow:auto;padding:0 26px 40px;scrollbar-width:none}.scroll::-webkit-scrollbar{display:none}
+  .sec{font-size:10.5px;letter-spacing:.28em;color:var(--dim);margin:28px 0 16px}
+
+  /* 気分プリセット＝夜空を覗く窓。2列・ゆったり・小さな星座片つき */
+  .mood{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .md{border:1px solid var(--line);border-radius:12px;padding:18px 16px 16px;cursor:pointer;position:relative;min-height:82px;
+    display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;background:rgba(14,22,52,.28)}
+  .md .win{position:absolute;top:12px;right:12px;opacity:.8}
+  .md b{font-family:var(--mincho);font-size:14px;color:var(--text);font-weight:600;line-height:1.5}
+  .md span{font-size:10.5px;color:var(--dim);margin-top:7px;letter-spacing:.03em}
+
+  .gchips{display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}.gchips::-webkit-scrollbar{display:none}
+  .gc{flex-shrink:0;font-size:11.5px;color:#C3CADB;border:1px solid var(--line);border-radius:999px;padding:9px 17px;cursor:pointer}
+
+  .tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-top:28px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+  .tab{flex-shrink:0;font-size:12.5px;color:var(--dim);padding:12px 12px;cursor:pointer;position:relative;letter-spacing:.06em}
+  .tab.on{color:var(--star)}
+  .tab.on::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--star)}
+
+  /* ランキング＝星表。順位＝明朝の星等数字（上位3位は星光の一星） */
+  .rk{display:flex;gap:16px;padding:22px 2px;cursor:pointer}
+  .rk .no{font-family:var(--mincho);font-size:19px;color:var(--dim);width:26px;flex-shrink:0;text-align:center;line-height:1.2;padding-top:2px;position:relative}
+  .rk.top3 .no{color:var(--star)}
+  .rk.top3 .no::after{content:"";position:absolute;left:50%;top:-9px;transform:translateX(-50%);width:5px;height:5px;
+    border-radius:50%;background:#F5F1DE;box-shadow:0 0 8px rgba(233,221,180,.85)}
+  .rk .bd{flex:1;min-width:0}
+  .rk .t{font-family:var(--mincho);font-size:14.5px;color:var(--text);line-height:1.55;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .rk .a{font-size:11px;color:#818BA6;margin-top:6px}
+  .rk .a em{font-style:normal;color:var(--dim);margin-left:8px;letter-spacing:.06em}
+  .rk .m{display:flex;gap:14px;font-size:10.5px;color:#9AA4C0;margin-top:10px;letter-spacing:.03em}
+  .rk .m .pt{color:var(--star)}
+
+  .back{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);padding:4px 26px 0;cursor:pointer}
+  .back svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .ctx{padding:16px 26px 0}
+  .ctx h2{font-family:var(--mincho);font-size:22px;color:var(--text);font-weight:500;letter-spacing:.08em}
+  .ctx .sub{font-size:11px;color:var(--dim);margin-top:10px;line-height:1.7}
+  .conds{display:flex;gap:8px;flex-wrap:wrap;padding:18px 26px 4px}
+  .cd{font-size:10.5px;color:var(--star);border:1px solid rgba(233,221,180,.4);border-radius:999px;padding:5px 13px;opacity:.9}
+  .cd.adj{color:var(--dim);border-color:var(--line);cursor:pointer}
+  .cnt{padding:14px 26px 0;font-size:11px;color:var(--dim);letter-spacing:.08em}
+</style>
+</head>
+<body>
+  <p class="cap"><b>M-rich 発見 R1（深空展開）</b> ／ discovery-M の背景レイヤだけを R1s 深空の型で置換。目次系に比べ味気なかった発見の地を深空で満たしつつ、カード・chip・ランキングが主役ゆえ空は本棚より一段沈める（粒α上限 0.30・ネビュラ≤.09）。画面固有 seed＋帯の走向を本棚から反転＝別空域の観測。枠/境界は約3:1へ強化。骨格・文言・カードUIは discovery-M と同一。</p>
+  <div class="stage">
+
+    <div class="wrap"><span class="mode">発見ホーム</span>
+    <div class="phone" role="img" aria-label="M-rich 発見ホーム R1（深空展開）">
+      <canvas class="skybg" aria-hidden="true"></canvas>
+      <div class="layer">
+        <div class="sb"><span>9:41</span><span>●●● ▢ 84%</span></div>
+        <div class="top"><h1>見つける</h1>
+          <button class="ib" aria-label="検索"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+        </div>
+        <div class="scroll">
+          <div class="sec" style="margin-top:18px">きょうの気分</div>
+          <div class="mood">
+            <div class="md"><svg class="win" width="34" height="20" viewBox="0 0 34 20" aria-hidden="true"><g stroke="rgba(233,221,180,.5)" stroke-width="1" fill="none"><line x1="4" y1="14" x2="14" y2="6"/><line x1="14" y1="6" x2="28" y2="10"/></g><g fill="#E9DDB4"><circle cx="4" cy="14" r="1.3"/><circle cx="14" cy="6" r="1.8"/><circle cx="28" cy="10" r="1.3"/></g></svg><b>30分の小さな旅</b><span>短編 ・ 読了 30分まで</span></div>
+            <div class="md"><svg class="win" width="34" height="20" viewBox="0 0 34 20" aria-hidden="true"><g stroke="rgba(233,221,180,.5)" stroke-width="1" fill="none"><line x1="5" y1="6" x2="16" y2="14"/><line x1="16" y1="14" x2="29" y2="7"/></g><g fill="#E9DDB4"><circle cx="5" cy="6" r="1.3"/><circle cx="16" cy="14" r="1.8"/><circle cx="29" cy="7" r="1.3"/></g></svg><b>今夜の一気読み</b><span>完結済 ・ 10万字以上</span></div>
+            <div class="md"><svg class="win" width="34" height="20" viewBox="0 0 34 20" aria-hidden="true"><g stroke="rgba(233,221,180,.5)" stroke-width="1" fill="none"><line x1="4" y1="10" x2="17" y2="5"/><line x1="17" y1="5" x2="30" y2="13"/></g><g fill="#E9DDB4"><circle cx="4" cy="10" r="1.3"/><circle cx="17" cy="5" r="1.8"/><circle cx="30" cy="13" r="1.3"/></g></svg><b>会話でさくさく</b><span>会話率 60% 以上</span></div>
+            <div class="md"><svg class="win" width="34" height="20" viewBox="0 0 34 20" aria-hidden="true"><g stroke="rgba(233,221,180,.5)" stroke-width="1" fill="none"><line x1="5" y1="13" x2="15" y2="7"/><line x1="15" y1="7" x2="29" y2="9"/></g><g fill="#E9DDB4"><circle cx="5" cy="13" r="1.3"/><circle cx="15" cy="7" r="1.8"/><circle cx="29" cy="9" r="1.3"/></g></svg><b>挿絵と歩く</b><span>挿絵のある作品</span></div>
+          </div>
+
+          <div class="sec">ジャンルから</div>
+          <div class="gchips">
+            <span class="gc">恋愛</span><span class="gc">ファンタジー</span><span class="gc">文芸</span><span class="gc">SF</span><span class="gc">その他</span><span class="gc">ノンジャンル</span>
+          </div>
+
+          <div class="tabs">
+            <span class="tab on">週間</span><span class="tab">日間</span><span class="tab">月間</span><span class="tab">四半期</span><span class="tab">累計</span><span class="tab">新着</span>
+          </div>
+
+          <div class="rk top3"><div class="no">1</div><div class="bd">
+            <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+            <div class="a">霧島あおい<em>ハイファンタジー</em></div>
+            <div class="m"><span>連載中 127話</span><span>約 8時間</span><span class="pt">週間 12,345pt</span></div>
+          </div></div>
+          <div class="rk top3"><div class="no">2</div><div class="bd">
+            <div class="t">黒の魔王と契約した俺、気づけば最強の従者になっていた</div>
+            <div class="a">夜灯すばる<em>異世界〔恋愛〕</em></div>
+            <div class="m"><span>連載中 43話</span><span>約 3時間</span><span class="pt">週間 9,812pt</span></div>
+          </div></div>
+          <div class="rk"><div class="no">4</div><div class="bd">
+            <div class="t">転生したら最弱スキルだったので、ひたすら草むしりしていた</div>
+            <div class="a">青葉みのり<em>ハイファンタジー</em></div>
+            <div class="m"><span>連載中 88話</span><span>約 6時間</span><span class="pt">週間 7,530pt</span></div>
+          </div></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="wrap"><span class="mode">結果一覧（共通着地）</span>
+    <div class="phone" role="img" aria-label="M-rich 発見 結果一覧 R1（深空展開）">
+      <canvas class="skybg" aria-hidden="true"></canvas>
+      <div class="layer">
+        <div class="sb"><span>9:41</span><span>●●● ▢ 84%</span></div>
+        <div class="back"><svg viewBox="0 0 24 24"><polyline points="14 6 8 12 14 18"/></svg>見つける</div>
+        <div class="ctx">
+          <h2>30分の小さな旅</h2>
+          <div class="sub">短い時間で完結する物語。読了目安 30分まで・短編のみ。</div>
+        </div>
+        <div class="conds">
+          <span class="cd">短編</span><span class="cd">〜30分</span><span class="cd">週間人気順</span><span class="cd adj">条件を調整</span>
+        </div>
+        <div class="cnt">1,204 作品</div>
+        <div class="scroll" style="padding-top:6px">
+          <div class="rk"><div class="no">1</div><div class="bd">
+            <div class="t">雨宿りの喫茶店で魔女に出会った</div>
+            <div class="a">早瀬ことり<em>現実世界〔恋愛〕</em></div>
+            <div class="m"><span>短編</span><span>約 12分</span><span class="pt">週間 3,204pt</span></div>
+          </div></div>
+          <div class="rk"><div class="no">2</div><div class="bd">
+            <div class="t">最後の魔王が残した、たったひとつの願いごと</div>
+            <div class="a">灰島ちひろ<em>ハイファンタジー</em></div>
+            <div class="m"><span>短編</span><span>約 28分</span><span class="pt">週間 2,877pt</span></div>
+          </div></div>
+          <div class="rk"><div class="no">3</div><div class="bd">
+            <div class="t">駅前の占い師は未来を視ない</div>
+            <div class="a">結城まほろ<em>ヒューマンドラマ</em></div>
+            <div class="m"><span>短編</span><span>約 19分</span><span class="pt">週間 2,410pt</span></div>
+          </div></div>
+        </div>
+      </div>
+    </div></div>
+
+  </div>
+
+<script>
+// ===== M-rich 発見 R1: 深空展開（静的レイヤのみ・モーション無し）=====
+// discovery-M の背景を R1s 深空の型で置換。カード可読最優先ゆえ本棚 R1s より一段沈める（粒α上限0.30・ネビュラ≤.09）。
+// 画面固有 seed＋帯の走向を本棚から反転（本棚=右上→左下／発見=左上→右下）＝別の空域を観測。決定的生成（seeded Lcg・Math.random/Date.now 不使用）。
+(function(){
+  const W=390,H=844,dpr=Math.max(1,window.devicePixelRatio||1);
+  const BASE_SEED=0x2A17F3D; // 発見固有 base（本棚 R1s の 987654321 と別系統＝別の星野）
+  const CAP=0.30;            // 可読安全側の粒α上限（本棚 R1s の 0.42 より一段沈める。全ループ厳守）
+
+  const lerp=(a,b,t)=>a+(b-a)*t;
+  // ===== 色＝星の色温度（4系統: 青白→白→淡金→橙）＝各粒に体温を宿す（R1s と同一）=====
+  // 提案トークン名: star.temp.blue / white / gold / amber（いずれも群青/温白/月光スレートの範囲内の淡い彩度）
+  const STAR_STOPS=[
+    [0.00,176,203,255],  // 青白 blue-white（寒色端）
+    [0.40,236,239,248],  // 白 white（温白・中庸）
+    [0.72,244,233,196],  // 淡金 pale gold
+    [1.00,245,203,160]   // 橙 amber（暖色端）
+  ];
+  const NEUTRAL=[200,212,238]; // 暗い星の無彩色地（色が視認できない微光）
+  function tempRGB(t){t=t<0?0:t>1?1:t;
+    for(let i=1;i<STAR_STOPS.length;i++){const a=STAR_STOPS[i-1],b=STAR_STOPS[i];
+      if(t<=b[0]){const k=(t-a[0])/(b[0]-a[0]);return [lerp(a[1],b[1],k),lerp(a[2],b[2],k),lerp(a[3],b[3],k)];}}
+    return [STAR_STOPS[3][1],STAR_STOPS[3][2],STAR_STOPS[3][3]];}
+  function tempStr(t){const c=tempRGB(t);return Math.round(c[0])+','+Math.round(c[1])+','+Math.round(c[2]);}
+  function starCol(t,strength){const c=tempRGB(t),st=strength<0?0:strength>1?1:strength;
+    return Math.round(lerp(NEUTRAL[0],c[0],st))+','+Math.round(lerp(NEUTRAL[1],c[1],st))+','+Math.round(lerp(NEUTRAL[2],c[2],st));}
+  // 決定的ハッシュ（Math.sin ベース・rnd() を消費しない＝生成ストリームを乱さない）。Math.random ではない＝決定的。
+  function hash01(a,b){const v=Math.sin(a*12.9898+b*78.233)*43758.5453;return v-Math.floor(v);}
+
+  // ===== 場＝帯の疎化フィールド（Great Rift 蛇行芯・暗黒星雲・縁のほつれ）＝R1s と同一 =====
+  function fila(x,y){const v=Math.sin(x*0.11+y*0.043)*0.5+Math.sin(x*0.27-y*0.10+1.7)*0.32+Math.sin(x*0.061+y*0.17+3.1)*0.18;return v*0.5+0.5;}
+  function darkNeb(x,y){const v=Math.sin(x*0.035-y*0.028+0.4)*0.6+Math.sin(x*0.017+y*0.052+2.2)*0.4;return Math.max(0,v);}
+  function riftCenter(y){return 12+11*Math.sin(y/95)+4*Math.sin(y/47+1.3);}
+
+  // ★帯の芯＝本棚から走向を反転（本棚 bAxis=右上→左下／発見=左上→右下）。上=左(92)→下=右(298)＝別の空域を観測している物語。
+  function bAxis(y){const t=Math.max(0,Math.min(1,(y-90)/560));return 92+206*t+Math.sin(y/150)*13;}
+  function bHalf(y){return 48+16*Math.sin(y/280+0.6);}                // 帯の半幅（細めのリボン）
+  function bDens(y){return 0.5+0.5*(Math.sin(y*0.021)*0.5+Math.sin(y*0.047+1.1)*0.3+Math.sin(y*0.009+2.3)*0.2);}
+  const CORE_Y=540;                                                   // 銀河核バルジ＝下右へ移設（本棚は y=300 の上寄り＝別空域）
+  function warmAt(y){return Math.exp(-Math.pow((y-CORE_Y)/300,2));}   // 核で最も暖・末端で寒へ
+
+  // 各 .skybg キャンバスを独立に描く（発見ホーム/結果一覧で seed を微差＝同じ空の使い回しに見せない）
+  document.querySelectorAll('.skybg').forEach((cv,ci)=>{
+    const ctx=cv.getContext('2d');
+    cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';ctx.scale(dpr,dpr);
+    let s=(BASE_SEED+ci*1013904223)&0x7fffffff;              // canvas ごとに seed 加算＝別の星野
+    const rnd=()=>{s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;};
+    function gauss(){const u=rnd()||1e-6,v=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(6.2831853*v);}
+
+    // 生成時に確定した明るさ bright と位置(x,y) から星色を返す（色のみ本関数で決める）
+    function grainCol(x,y,bright){
+      const spread=(hash01(x,y)-0.5)*0.85;                  // 星ごとのスペクトル散らばり（4系統の視認）
+      const t=0.16+0.60*warmAt(y)+spread;                   // 冷寄り基調＋核で暖＋散らばり
+      const strength=(bright-0.30)/0.42;                    // 輝度上位ほど色が乗る／暗星は無彩色
+      return starCol(t,strength);
+    }
+
+    // ---- 深空ネビュラ（群青核→菫→茜）＝彩度は本棚より控えめ（核α≤.09）。可読最優先で沈める ----
+    function nebula(x,y,r,stops){const g=ctx.createRadialGradient(x,y,0,x,y,r);
+      for(const st of stops)g.addColorStop(st[0],st[1]);
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+    // 提案トークン名: nebula.indigo(群青核) / nebula.violet(菫) / nebula.madder(茜)
+    nebula(bAxis(CORE_Y),480,152,[[0,'rgba(60,82,166,.085)'],[.42,'rgba(104,84,170,.055)'],[.78,'rgba(128,80,128,.028)'],[1,'rgba(0,0,0,0)']]);
+    nebula(232,520,92,[[0,'rgba(150,86,118,.032)'],[1,'rgba(0,0,0,0)']]);  // 副葉＝茜の淡いにじみ
+    nebula(96,238,150,[[0,'rgba(98,86,166,.07)'],[.5,'rgba(128,84,150,.038)'],[1,'rgba(0,0,0,0)']]);
+    nebula(150,278,96,[[0,'rgba(70,90,168,.03)'],[1,'rgba(0,0,0,0)']]);    // 副葉＝群青の寒色サブ
+
+    // ---- 超微星の海（最深・帯構造に従属）＝無数の星の海感。本棚より低α（0.015〜0.043）で沈める ----
+    for(let i=0;i<2400;i++){const x=rnd()*W,y=rnd()*H;
+      const off=x-bAxis(y);
+      if(Math.abs(off)<bHalf(y)*1.2){const dr=(off-riftCenter(y))/13;if(rnd()<Math.exp(-dr*dr)*0.9)continue;} // 帯域内は Great Rift に従属（溝を残す）
+      const r=rnd()*0.32+0.08,a=rnd()*0.028+0.015;
+      ctx.fillStyle='rgba(200,214,244,'+a+')';ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+
+    // ---- 天の川の粒帯（buildBand→drawBand）＝形は解像c・色は色彩b・場は構造a。α上限は CAP=0.30 ----
+    const BAND=[]; let spikeN=0;
+    // 帯粒（本棚 6500 は H=1300 前提。発見は H=844＝密度合わせ＋沈める狙いで 4200）
+    let placed=0,tries=0;
+    while(placed<4200 && tries<32000){tries++;
+      const y=rnd()*H, dens=bDens(y);
+      if(rnd()>0.30+0.64*dens)continue;
+      const off=gauss()*bHalf(y)*0.5, x=bAxis(y)+off;
+      if(x<-4||x>W+4)continue;
+      const d=Math.min(1,Math.abs(off)/bHalf(y));
+      const dr=(off-riftCenter(y))/13, rift=Math.exp(-dr*dr);
+      if(rnd()<rift*0.93)continue;                          // Great Rift を深く彫る（最大93%間引き）
+      if(rnd()<darkNeb(x,y)*0.5)continue;                   // 暗黒星雲の重ね
+      const f=fila(x,y);
+      if(rnd()<d*(1-f)*0.7)continue;                        // 縁のほつれ
+      const mag=Math.pow(rnd(),2.8);
+      const bright=(1-d*0.82)*(0.26+0.74*mag)*(0.5+0.5*dens)*(0.78+0.22*f); // 断面(1-d*0.82)で中心軸を立て＋fで縞
+      const r=0.20+mag*0.62;
+      const a=Math.min(CAP,0.05+0.30*bright);               // ★沈める: 本棚 0.07+0.40 → 0.05+0.30・上限 CAP=0.30
+      const spike=bright>0.95 && spikeN<3 && rnd()<0.4; if(spike)spikeN++; // ★スパイク数 7→3
+      BAND.push({x,y,r,a,col:grainCol(x,y,bright),halo:bright>0.80&&rnd()<0.45,spike,bright});
+      placed++;
+    }
+    // 核（銀河中心バルジ）＝軸へ集中。本棚 1260(H=1300) → 発見 820。α上限 CAP=0.30。
+    for(let i=0;i<820;i++){const y=CORE_Y+gauss()*60, off=gauss()*38, x=bAxis(y)+off;
+      if(x<-4||x>W+4||y<0||y>H)continue;
+      const dr=(off-riftCenter(y))/13, rift=Math.exp(-dr*dr);
+      if(rnd()<rift*0.8)continue;                           // Rift を核まで貫通
+      const d=Math.min(1,Math.abs(off)/42),mag=Math.pow(rnd(),1.9),bright=(1-d*0.62)*(0.42+0.58*mag);
+      BAND.push({x,y,r:0.22+mag*0.6,a:Math.min(CAP,0.07+0.24*bright), // ★沈める: 本棚 0.09+0.32 → 0.07+0.24
+        col:grainCol(x,y,bright),halo:bright>0.84&&rnd()<0.4,spike:false,bright});}
+
+    function drawSpike(x,y,b){                              // ★スパイクも低減（α ≤0.20・短め）
+      const len=2.8+b*1.8, a=Math.min(0.20,0.09+b*0.11);
+      ctx.strokeStyle='rgba(240,244,255,'+a+')';ctx.lineWidth=0.6;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(x-len,y);ctx.lineTo(x+len,y);ctx.moveTo(x,y-len);ctx.lineTo(x,y+len);ctx.stroke();
+    }
+    // 核だけの極薄下地（半径104・色=暖色 tempStr(0.82)）。本棚 .045 → .03 へ沈める
+    {const cy=CORE_Y,cx=bAxis(cy),g=ctx.createRadialGradient(cx,cy,0,cx,cy,104);
+     g.addColorStop(0,'rgba('+tempStr(0.82)+',.03)');g.addColorStop(0.6,'rgba('+tempStr(0.5)+',.012)');g.addColorStop(1,'rgba(0,0,0,0)');
+     ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,104,0,7);ctx.fill();}
+    for(const p of BAND){
+      if(p.halo){ // 分離した淡いハロー＝中心を凹ませた環（その星の色温度で tint）
+        const R=3.0,gg=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,R);
+        gg.addColorStop(0,'rgba('+p.col+',0)');
+        gg.addColorStop(0.45,'rgba('+p.col+',.13)');       // ★環ピークも本棚 .16 → .13 で沈める
+        gg.addColorStop(1,'rgba('+p.col+',0)');
+        ctx.fillStyle=gg;ctx.beginPath();ctx.arc(p.x,p.y,R,0,7);ctx.fill();
+      }
+      ctx.fillStyle='rgba('+p.col+','+p.a+')';ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill(); // 鋭いコア
+      if(p.halo){ // 白の微小 pip で芯を締める（★上限 .28＝本棚 .40 より沈める）
+        ctx.fillStyle='rgba(245,248,255,'+Math.min(0.28,p.a+0.12)+')';ctx.beginPath();ctx.arc(p.x,p.y,0.7,0,7);ctx.fill();
+      }
+      if(p.spike)drawSpike(p.x,p.y,p.bright);
+    }
+
+    // ---- 帯外の散開微星＝微細高密度・α は「背景を沈める」思想で控えめ（0.02〜0.10・本棚 0.14 上限より低い）----
+    for(let i=0;i<380;i++){const x=rnd()*W,y=rnd()*H,r=rnd()*.42+.12,a=rnd()*.08+.02;
+      ctx.fillStyle='rgba(200,214,244,'+a+')';ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+
+    // ---- アクセント星（数点・最前）＝色温度をはっきり乗せる。グローは本棚 .55 → .40 で沈める ----
+    for(let i=0;i<8;i++){const x=rnd()*W,y=60+rnd()*(H-120);
+      const t=0.14+0.60*warmAt(y)+(hash01(x,y)-0.5)*1.0, col=starCol(t,0.9);
+      const g=ctx.createRadialGradient(x,y,0,x,y,2.6);g.addColorStop(0,'rgba('+col+',.40)');g.addColorStop(1,'rgba('+col+',0)');
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,2.6,0,7);ctx.fill();
+      ctx.fillStyle='rgba(245,248,255,.34)';ctx.beginPath();ctx.arc(x,y,0.8,0,7);ctx.fill();}
+  });
+})();
+</script>
+</body>
+</html>

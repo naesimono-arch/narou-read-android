@@ -5,21 +5,28 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -40,7 +47,14 @@ import com.novelreader.ui.discovery.DiscoverySearchScreen
 import com.novelreader.ui.discovery.NovelDetailScreen
 import com.novelreader.ui.discovery.PdfImportScreen
 import com.novelreader.ui.discovery.WebReaderScreen
+import com.novelreader.ui.skins.m.LocalSkyParallax
+import com.novelreader.ui.skins.m.SkyBackdropM
+import com.novelreader.ui.skins.m.SkyParallaxController
+import com.novelreader.ui.skins.m.SkyParallaxFactor
 import com.novelreader.ui.theme.MotionDurationNavTransition
+import com.novelreader.ui.theme.MotionDurationSeizuFadeIn
+import com.novelreader.ui.theme.MotionDurationSeizuFadeInDelay
+import com.novelreader.ui.theme.MotionDurationSeizuFadeOut
 import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Skin
@@ -239,18 +253,47 @@ private fun NovelReaderApp(
         onDeepLinkConsumed()
     }
 
-    // 画面遷移は横スライド push（尺は Motion トークン 250ms・既定 700ms フェードのもっさりを是正）。
-    // 「進む＝新画面が右から左へ潜り込む／戻る＝前画面が左から右へ戻る」で移動方向を身体感覚に合わせる
-    // （3案フェード/スライド/shared-axis Z の実機比較で採用＝ADR 0019）。目次⇄本文も同じ向き・尺で揃える
-    //（NativeReadingScreen の AnimatedContent）。fadeIn/fadeOut のように方向が無いと pop で逆転できないため pop 系も明示。
+    // M星図の常駐 backdrop（空の一枚化・2026-07-19 ユーザー裁定）: skin==SEIZU_M のとき NavHost の背後へ
+    // 「動かない不変の空」を1枚だけ置く。視差オフセットは backdrop 側の controller が rememberSaveable で保持し、
+    // 画面遷移では触らない＝スクロール視差が遷移でリセットされない。他スキンは backdrop 無し（controller=null）。
+    val isSeizu = appSkin == Skin.SEIZU_M
+    val density = LocalDensity.current
+    // reduce-motion（アニメーター無効設定/省電力）で視差・流星を止める（各 M 画面の脈動判定と同じ源）。
+    val reduceMotion = remember {
+        Settings.Global.getFloat(appContext.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    }
+    // トーラス周期の初期推定＝画面高（backdrop が onSizeChanged で実測補正）。旧 40dp クランプは撤廃（無限スクロール・裁定①）。
+    val configuration = LocalConfiguration.current
+    val initialTilePx = with(density) { configuration.screenHeightDp.dp.toPx() }
+    val skyParallax = if (isSeizu) rememberSaveable(
+        saver = SkyParallaxController.Saver(initialTilePx, SkyParallaxFactor, reduceMotion),
+    ) { SkyParallaxController(0f, initialTilePx, SkyParallaxFactor, reduceMotion) } else null
+
+    // 画面遷移: M はフェードスルー（退出 fadeOut 先行→進入 fadeIn。固定天球ゆえ slide だと空ごと動く＝ADR 0019 追記
+    // 「M星図の例外」）＝コンテンツのみがシームレスに差し替わる。他スキンは横スライド push 不変（ADR 0019・方向で階層移動を伝える）。
     val d = MotionDurationNavTransition
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (skyParallax != null) SkyBackdropM(skyParallax, Modifier.fillMaxSize())
+        CompositionLocalProvider(LocalSkyParallax provides skyParallax) {
     NavHost(
         navController = navController,
         startDestination = "bookshelf",
-        enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(d)) },
-        exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(d)) },
-        popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(d)) },
-        popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(d)) },
+        enterTransition = {
+            if (isSeizu) fadeIn(tween(MotionDurationSeizuFadeIn, delayMillis = MotionDurationSeizuFadeInDelay))
+            else slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(d))
+        },
+        exitTransition = {
+            if (isSeizu) fadeOut(tween(MotionDurationSeizuFadeOut))
+            else slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(d))
+        },
+        popEnterTransition = {
+            if (isSeizu) fadeIn(tween(MotionDurationSeizuFadeIn, delayMillis = MotionDurationSeizuFadeInDelay))
+            else slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(d))
+        },
+        popExitTransition = {
+            if (isSeizu) fadeOut(tween(MotionDurationSeizuFadeOut))
+            else slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(d))
+        },
     ) {
 
         composable("bookshelf") {
@@ -499,6 +542,8 @@ private fun NovelReaderApp(
             }
         }
     }
+        } // CompositionLocalProvider(LocalSkyParallax)
+    } // Box（backdrop ＋ NavHost）
 }
 
 /**

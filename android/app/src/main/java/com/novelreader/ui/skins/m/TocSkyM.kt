@@ -41,11 +41,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -56,10 +60,10 @@ import androidx.compose.ui.unit.sp
 import com.novelreader.model.TocEntry
 import com.novelreader.ui.TocState
 import com.novelreader.ui.theme.DimSeizu
-import com.novelreader.ui.theme.DustSeizu
 import com.novelreader.ui.theme.FaintStarSeizu
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.MoonSlateSeizu
+import com.novelreader.ui.theme.SkyGradMidSeizu
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.StarCoreSeizu
 import com.novelreader.ui.theme.StarGlowInnerSeizu
@@ -80,8 +84,12 @@ import kotlin.math.sin
 // （本棚と同一データ文法で同期）。章名は明朝で地の上に浮かべ、可読のまま保つ（沈めるのは星グリフのみ）。
 //
 // モックとの構造差の翻訳方針:
-//   ・canvas（.skybg）は 390×844 固定天球に絶対座標で星屑・緯線・大星座を手置きしている。実画面は
-//     可変サイズなので mock 座標を (mx/390, my/844) で実サイズへ比例写像する（p()）。radii/線幅は
+//   ・地の夜空（.deepsky）は本棚 R1s（DeepSkyM）と同じ深空の型を「読む一覧」向けに沈めた静的フィールド
+//     （超微星の海→天の川の粒帯→散開微星→ネビュラ→アクセント星）。本棚との差＝面輝度の全体上限 0.28・題名保護帯
+//     capAt・帯の走向を左ガター寄りの縦の川へ・銀河核 y=520・seed 611953087・スパイクなし（作品星座と競合させない）。
+//     帯疎化 fila/darkNeb/riftCenter/bDens・色温度 starTempColor/starColorAt/hash01・粒クラスは DeepSkyM から流用。
+//   ・緯線・大星座（.skybg）は 390×844 固定天球に絶対座標で手置きし、深空の上に据え置く＝最前面の輝度階層を保つ。
+//     実画面は可変サイズなので mock 座標を (mx/390, my/844) で実サイズへ比例写像する（p()）。radii/線幅は
 //     BookshelfSkyM に倣い dp（*d）か生 float でスケール（同一実装の作法＝C2 仕様書「完全に合わせる」）。
 //   ・大星座は toc-M の固定 7点折れ線（PTS）を使う。目次は book id/seed を受け取らないため、seed 由来の
 //     散らしはせずモックの固定配置を正本とする。点火長 frac＝(現在章+1)/全章数（現在章まで灯す）。
@@ -98,6 +106,12 @@ import kotlin.math.sin
 
 /** 章行の点火状態（現在章より前＝read／現在章＝cur／未読＝ahead）。値の正本＝toc-M.html .li.{read,cur,ahead}。 */
 private enum class RowLit { READ, CUR, AHEAD }
+
+// 章題可読を守る地色スクリム（空の一枚化・2026-07-19）。常駐 backdrop は本棚R1s の満輝度（0.42）ゆえ、明るい
+// 天の川帯が章題列を横切り得る。旧 tocCapAt（章題列0.16・上部クローム0.12）が担っていた「沈め」を、地色
+// #0D1636（SkyGradMidSeizu）の α 掛けスクリムで再現する（直書き禁止＝トークン経由）。α は体感同等で可・実機後詰め。
+private val TocSkyScrim = SkyGradMidSeizu.copy(alpha = 0.45f)   // 全面ウォッシュ＝章題列の実効輝度を旧0.16相当へ沈める
+private val TocChromeScrim = SkyGradMidSeizu.copy(alpha = 0.30f) // 上部クローム帯の追い沈め（見出し/sync のゴールド・旧0.12相当）
 
 @Composable
 internal fun TocSkyM(
@@ -128,17 +142,34 @@ internal fun TocSkyM(
         label = "tocCurPulsePhase",
     )
 
-    // 背景の星屑（DUST 64）は draw 段で毎回 Lcg 再生成せず、1 コンポジション 1 回だけ決定的に生成して
-    // remember で保持する（DeepSkyM の「決定的1回生成」基準に統一。座標は 0..1 正規化で size 非依存）。
-    val starDust = remember { buildTocStarDust() }
+    // 地の空（夜天3層・深空）は常駐 backdrop（SkyBackdropM）が本棚R1s の形で1枚だけ敷く（空の一枚化・2026-07-19）。
+    // 本画面が持つのは①章題の可読を守る地色スクリム②この物語の作品星座・緯線（画面固有コンテンツ）。旧・目次固有の
+    // 沈め版深空（buildTocDeepSkyField/drawTocDeepSky）は撤去した（走向/seed が本棚と別だった＝差し戻しの原因）。
+    val skyParallax = LocalSkyParallax.current
+    val parallaxNestedScroll = remember(skyParallax) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                skyParallax?.onScrollDelta(consumed.y)
+                return Offset.Zero
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .drawBehind {
-                // 夜天3層背景（星図スキン共通）＋星屑・緯線・大星座（大星座は章がある時のみ）。
-                drawNightSky()
-                drawTocSky(dust = starDust, hasConstellation = entries.isNotEmpty(), frac = frac)
+                // backdrop の空は本棚R1s の満輝度（面輝度上限0.42）＝統一天球ゆえ明るい天の川帯が章題列を横切り得る。
+                // 旧 tocCapAt（章題列0.16・上部クローム0.12）の「沈め」を、地色(#0D1636=SkyGradMidSeizu)のスクリムで再現し
+                // 明朝の章題可読を守る（α は実機後詰め＝体感同等で可・ADR 0023 の実機先行探索）。作品星座はスクリムの上へ。
+                drawRect(TocSkyScrim)                                     // 全面ウォッシュ＝章題列の実効輝度を旧0.16相当へ沈める
+                drawRect(                                                 // 上部クローム帯の追い沈め（見出し/sync のゴールド保護＝旧0.12相当）
+                    Brush.verticalGradient(
+                        0f to TocChromeScrim,
+                        (80.dp.toPx() / size.height).coerceIn(0f, 1f) to Color.Transparent,
+                    )
+                )
+                drawTocConstellation(hasConstellation = entries.isNotEmpty(), frac = frac) // 緯線・大星座＝最前面の輝度階層
             },
     ) {
         Column(
@@ -155,7 +186,8 @@ internal fun TocSkyM(
             )
             when (tocState) {
                 is TocState.Content -> LazyColumn(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    // スクロール差分を backdrop の視差へ流す（本棚面と同じ onPostScroll consumed.y＝画面遷移で連続）。
+                    modifier = Modifier.fillMaxWidth().weight(1f).nestedScroll(parallaxNestedScroll),
                     state = rememberLazyListState(
                         // 現在章付近を開いた瞬間から表示（D と同じ導出＝現在章の1つ手前・未読は先頭）。
                         initialFirstVisibleItemIndex = tocInitialFirstVisibleIndex(entries, currentChapterFile),
@@ -394,38 +426,19 @@ private fun TocErrorBody(message: String, onRetry: () -> Unit, modifier: Modifie
 }
 
 // ============================================================
-// canvas 描画（星屑・緯線・大星座）。値の正本＝toc-M.html <script>。
+// canvas 描画（この物語の作品星座＝緯線・大星座）。値の正本＝toc-M-rich-R1.html <script> の .skybg 相当。
+// 地の空（夜天・深空・天の川粒帯）は常駐 backdrop（SkyBackdropM）が本棚R1s の形で敷く＝空の一枚化（2026-07-19）ゆえ、
+// 本ファイルは目次固有コンテンツ（緯線4本＋この物語の大星座の点火）だけを最前面の輝度階層として描く。旧・目次沈め版
+// 深空（SkyTocR/tocBAxis/tocCapAt/buildTocDeepSkyField/drawTocDeepSky）は参照ごと撤去した（走向/seed が本棚と別＝差し戻し原因）。
 // ============================================================
-/** 星屑1点（0..1 正規化座標＋dp半径係数 rMul＋α）。draw 内の Lcg 再生成を避け remember で1回だけ生成する（DeepSkyM と同型）。 */
-internal class TocStarDust(val fx: Float, val fy: Float, val rMul: Float, val alpha: Float)
 
-/**
- * 星屑64点を決定的に1回だけ生成（正本 toc-M.html DUST・seed 20260717）。Lcg 消費順（x→y→r→a）を保ち座標等価。
- * 位置は Canvas size 依存のため 0..1 正規化で持つ（fx=x/390＝rnd, fy=y/844）＝端末非依存。半径係数 rMul は draw で *d、α は不変。
- */
-internal fun buildTocStarDust(): List<TocStarDust> {
-    val rnd = Lcg(20260717)
-    return List(64) {
-        val fx = rnd.next()                                   // x=rnd*390 → 描画時 fx*w（=x/390*w）
-        val fy = (44f + rnd.next() * (844f - 70f)) / 844f     // y=44+rnd*(H-70) を正規化
-        val rMul = rnd.next() * 0.9f + 0.3f                   // 描画時 rMul*d
-        val alpha = rnd.next() * 0.32f + 0.05f
-        TocStarDust(fx, fy, rMul, alpha)
-    }
-}
-
-/** 星屑64点＋緯線4本＋大星座（点火）を描く。座標は mock 390×844 → 実サイズへ比例写像。 */
-private fun DrawScope.drawTocSky(dust: List<TocStarDust>, hasConstellation: Boolean, frac: Float) {
+/** 緯線4本＋大星座（点火）を描く＝最前面の輝度階層（モック .skybg 相当・深空の上に据え置き）。座標は mock 390×844 → 実サイズへ比例写像。 */
+private fun DrawScope.drawTocConstellation(hasConstellation: Boolean, frac: Float) {
     val w = size.width
     val h = size.height
     val d = 1.dp.toPx()
     // mock 座標 (390×844) → 実サイズへの比例写像。
     fun p(mx: Float, my: Float) = Offset(mx / 390f * w, my / 844f * h)
-
-    // 星屑（DUST 64・seed 20260717）＝remember 済みの正規化座標を size/d で復元して描く（生成時と等価）。
-    for (s in dust) {
-        drawCircle(DustSeizu.copy(alpha = s.alpha), radius = s.rMul * d, center = Offset(s.fx * w, s.fy * h))
-    }
 
     // 緯線4本（y=170+i*180・moveTo(6,y) quad(195,y-14,384,y)・rgba(150,168,214,.05)）。
     for (i in 0 until 4) {

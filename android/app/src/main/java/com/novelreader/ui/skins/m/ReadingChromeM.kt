@@ -12,15 +12,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -37,13 +36,9 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.theme.BaseSeizu
 import com.novelreader.ui.theme.DimSeizu
-import com.novelreader.ui.theme.DustSeizu
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.MoonSlateSeizu
 import com.novelreader.ui.theme.ReadingColors
-import com.novelreader.ui.theme.SkyCloudSeizu
-import com.novelreader.ui.theme.SkyGradEndSeizu
-import com.novelreader.ui.theme.SkyGradMidSeizu
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.StarCoreSeizu
 import com.novelreader.ui.theme.StarSeizu
@@ -74,6 +69,14 @@ fun ReadingProgressStarM(fraction: Float, modifier: Modifier = Modifier) {
         // 金の結線（box-shadow 0 0 6px の代替＝太い淡金を下に敷く2層近似）
         drawLine(StarSeizu.copy(alpha = 0.3f), Offset(0f, size.height / 2), Offset(tipX, size.height / 2), strokeWidth = 5 * d)
         drawLine(StarSeizu, Offset(0f, size.height / 2), Offset(tipX, size.height / 2), strokeWidth = 2 * d)
+        // 【R4/R1 節度】進捗＝星を結ぶ弧: 先端星から淡い星 pip を尾（読了側）へ連ねる（.tip の box-shadow
+        // -34px/-78px/-140px の写像。静的な点＝モーションなし）。左端を越える pip は描かない。
+        val arcPips = listOf(34f to 0.42f, 78f to 0.34f, 140f to 0.26f) // (先端からの左オフセットdp, α)
+        for ((dx, a) in arcPips) {
+            val px = tipX - dx * d
+            if (px < 0f) continue
+            drawCircle(StarSeizu.copy(alpha = a), radius = 1.3f * d, center = Offset(px, size.height / 2))
+        }
         // 先端の静止星（.tip 5px 白金＋グロー rgba(233,221,180,.9)。読書中は脈動しない＝静けさ）
         drawCircle(
             Brush.radialGradient(
@@ -86,35 +89,52 @@ fun ReadingProgressStarM(fraction: Float, modifier: Modifier = Modifier) {
     }
 }
 
+// ============================================================
+// 透過の天の川スクリム（reading-M-rich-R4「透過の天の川（R1s実物）」の「強度・中」を採用・2026-07-19 ユーザー裁定）。
+//
+// 読書M表示中は常駐 backdrop（SkyBackdropM＝R1s 実物の天の川そのもの）を透かして見せ、読書面は「地色スクリムで
+// 空を減光」する。旧・読書専用の別描画の夜空（drawSeizuReadingSky）は廃す＝アプリの統一空とピクセル同一の天の川が
+// 読書用に淡く沈むだけ（同じ空の連続性・空の一枚化）。読書面自体は透明にし（Scaffold containerColor=Transparent）、
+// その上へ地色 BaseSeizu を α で被せて空を沈める。
+//
+// モック R4（中）同期値: milkyway canvas を描画後 globalAlpha ×0.55 で透かし、本文帯を destination-out 0.40（＝×0.6）で
+//   保護減衰する。等価な減算合成へ翻訳＝backdrop はフル強度で見えるので地色を α で被せて沈める:
+//     全面スクリム α = 1−0.55 = 0.45 → 空を実効×0.55。
+//     本文帯スクリム α = 0.40 を追加 → その帯は ×0.55×(1−0.40) = ×0.33（＝×0.55×0.6・destination-out 0.40 と体感等価）。
+//   地色 BaseSeizu(#0B1330) は L≈0.008 とほぼ黒＝加算される地色成分は無視でき、実効は上式どおり空の輝度を縮小する。
+// 可読性（モック R4 の計算をそのまま引用）: 帯芯の平均最悪ケースでも 中 s=0.55 で コントラスト≈10.3:1（AAA 通常 7:1 超）。
+//   本文 #DCE3F2／地 #0B1330 素コントラスト≈13:1。ルビ #9AA4C0 ≈6.9:1。
+// ============================================================
+private const val SeizuSkyScrimAlpha = 0.45f         // 全面＝実効×0.55（1−0.55。R4 描画後 α×0.55 と等価）
+private const val SeizuBodyScrimAlpha = 0.40f        // 本文帯の追加減衰（×0.6＝R4 本文帯保護 destination-out 0.40 と等価）
+// 本文帯（reader）の縦域＝モック fillRect(0,120,W,660)／H=844 の比率。列端（上下）はグラデで軟らかくぼかす（R4 の 0.12/0.88 停止）。
+private const val SeizuBodyBandTop = 120f / 844f     // ≈0.142（reader 上端）
+private const val SeizuBodyBandBottom = 780f / 844f  // ≈0.924（reader 下端）
+private const val SeizuBodyBandFadeIn = 0.12f        // 帯内で α が立ち上がる割合
+private const val SeizuBodyBandFadeOut = 0.88f       // 帯内で α が落ち始める割合
+
 /**
- * 読書面の地＝夜天グラデ＋極淡の星屑8点＋右上の青雲（reading-M .phone background の写像）。
- * 星屑の座標はモックの radial-gradient 8点（390×844 基準）を画面比率へ正規化した固定値＝
- * 乱数でないのは「本文の下層に置く静的な地」であり毎回同じ夜空であるべきため（モックと同思想）。
+ * 透過の天の川スクリム（reading-M-rich-R4「中」）。読書M表示中に常駐 backdrop を透かすための地色減光を、本文列
+ * 下層へ静的に一度だけ敷く（スワイプ追従は本文側の translationX のみ＝地は動かない）。M 以外では呼ばれない。
+ * 縦横共通＝帯は screen 高で決まり orientation 非依存（縦書きでも重なりを新造しない）。モーションゼロ（描画一度きり）。
  */
-fun DrawScope.drawSeizuReadingSky() {
-    drawRect(Brush.verticalGradient(0f to BaseSeizu, 0.46f to SkyGradMidSeizu, 1f to SkyGradEndSeizu))
+fun DrawScope.drawSeizuReadingScrim() {
+    // 全面スクリム＝空を実効×0.55 へ沈める（地色トークンの α 掛け）。
+    drawRect(BaseSeizu.copy(alpha = SeizuSkyScrimAlpha))
+    // 本文帯の追加スクリム＝帯芯が本文に重なる最悪ケースの余裕（×0.6）。上下端はグラデでぼかす（列端＝R4）。
+    val top = size.height * SeizuBodyBandTop
+    val bottom = size.height * SeizuBodyBandBottom
     drawRect(
-        Brush.radialGradient(
-            colors = listOf(SkyCloudSeizu.copy(alpha = 0.20f), Color.Transparent),
-            center = Offset(size.width * 0.78f, size.height * 0.06f),
-            radius = size.width * 0.70f,
-        )
+        brush = Brush.verticalGradient(
+            0f to Color.Transparent,
+            SeizuBodyBandFadeIn to BaseSeizu.copy(alpha = SeizuBodyScrimAlpha),
+            SeizuBodyBandFadeOut to BaseSeizu.copy(alpha = SeizuBodyScrimAlpha),
+            1f to Color.Transparent,
+            startY = top, endY = bottom,
+        ),
+        topLeft = Offset(0f, top),
+        size = Size(size.width, bottom - top),
     )
-    // (x,y,r,α) = モックの8点（x/390・y/844 の比率、r は px→dp 等倍）
-    val dust = listOf(
-        floatArrayOf(52f / 390f, 150f / 844f, 1.4f, 0.5f),
-        floatArrayOf(320f / 390f, 96f / 844f, 1.0f, 0.4f),
-        floatArrayOf(120f / 390f, 300f / 844f, 1.2f, 0.32f),
-        floatArrayOf(350f / 390f, 420f / 844f, 1.0f, 0.3f),
-        floatArrayOf(40f / 390f, 520f / 844f, 1.3f, 0.34f),
-        floatArrayOf(300f / 390f, 640f / 844f, 1.0f, 0.28f),
-        floatArrayOf(90f / 390f, 720f / 844f, 1.2f, 0.3f),
-        floatArrayOf(250f / 390f, 780f / 844f, 1.0f, 0.26f),
-    )
-    val d = 1.dp.toPx()
-    for ((fx, fy, r, a) in dust) {
-        drawCircle(DustSeizu.copy(alpha = a), radius = r * d, center = Offset(size.width * fx, size.height * fy))
-    }
 }
 
 /**
@@ -171,17 +191,34 @@ fun ChapterHeaderM(
             modifier = Modifier.semantics { heading() },
         )
         Spacer(Modifier.height(Spacing.S16))
-        // 星線ルール（.rule: 40dp の金線 .7＋4dp の星点）。左寄せ＝モックの flex 既定に忠実。
+        // 星線ルール（.rule）＝【R4/R1 節度】結線風。左寄せ＝モックの flex 既定に忠実。
+        // 線＝淡い弧のグラデ（transparent→星 30%→星・全体 α.7＝linear-gradient(90deg,transparent,--star 30%,--star)）／
+        // 終端の星ノード＝4dp 芯＋微グロー（box-shadow 0 0 6px .75）＋13dp 右の小さな次星（同 .5・一回り小＝-1px spread）。
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.width(40.dp).height(1.dp)
-                    .background(colors.accent.copy(alpha = 0.7f)),
+                Modifier.width(40.dp).height(1.dp).background(
+                    Brush.horizontalGradient(
+                        0f to Color.Transparent,
+                        0.3f to colors.accent.copy(alpha = 0.7f),
+                        1f to colors.accent.copy(alpha = 0.7f),
+                    ),
+                ),
             )
             Spacer(Modifier.width(Spacing.S8))
-            Box(
-                Modifier.size(4.dp).clip(CircleShape)
-                    .background(colors.accent),
-            )
+            Canvas(Modifier.size(width = 22.dp, height = 12.dp)) {
+                val d = 1.dp.toPx()
+                val cy = size.height / 2f
+                val cx = 3 * d
+                drawCircle(
+                    Brush.radialGradient(
+                        0f to colors.accent.copy(alpha = 0.75f), 1f to colors.accent.copy(alpha = 0f),
+                        center = Offset(cx, cy), radius = 6 * d,
+                    ),
+                    radius = 6 * d, center = Offset(cx, cy),
+                )
+                drawCircle(colors.accent, radius = 2 * d, center = Offset(cx, cy))
+                drawCircle(colors.accent.copy(alpha = 0.5f), radius = 1.5f * d, center = Offset(cx + 13 * d, cy))
+            }
         }
     }
 }
@@ -197,11 +234,27 @@ fun SceneDividerM(colors: ReadingColors, modifier: Modifier = Modifier) {
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(64.dp).height(1.dp).background(colors.hr))
+        // 【R4/R1 節度】結線風: 線＝淡い弧のグラデ（両端 transparent・中央 45% で --line＝colors.hr）／
+        // 中央星＝月光スレート .5 の芯＋微グロー（box-shadow 0 0 6px .6）。
+        val sceneLine = Brush.horizontalGradient(
+            0f to Color.Transparent, 0.45f to colors.hr, 1f to Color.Transparent,
+        )
+        Box(Modifier.width(64.dp).height(1.dp).background(sceneLine))
         Spacer(Modifier.width(Spacing.S12))
-        Box(Modifier.size(4.dp).clip(CircleShape).background(MoonSlateSeizu.copy(alpha = 0.5f)))
+        Canvas(Modifier.size(14.dp)) {
+            val d = 1.dp.toPx()
+            val c = Offset(size.width / 2f, size.height / 2f)
+            drawCircle(
+                Brush.radialGradient(
+                    0f to MoonSlateSeizu.copy(alpha = 0.6f), 1f to MoonSlateSeizu.copy(alpha = 0f),
+                    center = c, radius = 6 * d,
+                ),
+                radius = 6 * d, center = c,
+            )
+            drawCircle(MoonSlateSeizu.copy(alpha = 0.5f), radius = 2 * d, center = c)
+        }
         Spacer(Modifier.width(Spacing.S12))
-        Box(Modifier.width(64.dp).height(1.dp).background(colors.hr))
+        Box(Modifier.width(64.dp).height(1.dp).background(sceneLine))
     }
 }
 

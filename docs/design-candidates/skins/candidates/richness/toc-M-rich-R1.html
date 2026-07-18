@@ -1,0 +1,266 @@
+<!-- @dsCard group="UI-n / 目次（スキン候補・描画リッチ化）" name="M-rich 目次 R1（深空展開）" -->
+<!--
+  思想（1行）: 目次＝読む一覧。地の夜空を本棚R1sの深空の型へ替えるが、主役は章題テキストと作品星座——深空は本棚より一段沈めた脇役に徹し、章題の走る帯域はさらに輝度を落として可読を守る。
+  現行 toc-M からの変更点一覧【変更は地の空レイヤ（DUST散布→深空フィールド）＋表記のみ。骨格・情報構造・文言・章行UI・レイアウト・作品星座（PTS折れ線・点火・グリッド）は現行と厳密同一】:
+   ・地の夜空を独立静的レイヤ .deepsky（新canvas・z0）へ分離＝現行の DUST 64粒（rgba210,222,250 a≤.37）を、本棚R1s の深空の型（帯の粒集積＋星の色温度＋Great Rift/darkNeb/fila 疎化＋ネビュラ＋超微星の海）で置換。作品星座・グリッドは従来どおり .skybg（上層・アニメ）に残置＝最前面の輝度階層を保つ。
+   ・【本棚R1sより沈める（読む一覧ゆえ）】粒数: 帯 6500→2600（半分以下）・核バルジ 1260→480・超微星の海 3200→1400・散開微星 520→220。α: 帯 0.07+0.40*b→0.05+0.30*b／核 0.09+0.32*b→0.06+0.24*b／ネビュラ各停止を約0.6倍／下地もや .045→.028。面輝度の全体上限 0.42→0.28（本棚より安全側）。
+   ・【題名行の保護帯】capAt(x,y): 章題テキスト列（x∈44..370）は上限 0.16・上部クローム（目次見出し/syncのゴールド文字 y<100）は 0.12＝0.28 の全体上限よりさらに安全側へ落とす。左ガター・右端の余白のみ 0.28（＝帯の川を通す）。
+   ・【走向を変える】帯の芯 bAxis を左ガター寄りの縦の川へ（本棚は右上→左下の斜め）＝縦の時系列軸に沿わせ、章題テキスト列・作品星座（右中央）を避けて可読を確保。バルジ位置も y520（本棚 y300）。
+   ・【画面固有 seed】深空 seed=611953087（本棚 987654321・目次星座 20260717 と別星野）。
+   ・【解像を沈める】本棚R1s の 2層描画（鋭いコア＋分離ハロー）と白pipは残すが pip 上限を capAt に従属させ、最輝星の微細スパイク（drawSpike）は付与しない＝沈めた地に鋭い光条を立てず作品星座と競合させない。
+   ・モーション不追加＝深空は静的1回描画（.deepsky）。作品星座の脈動は現行 toc-M のまま（.skybg・reduce-motion 分岐も不変）。
+  色は既存系統トークン内（群青/温白/淡金〜橙の星の体温・群青核→菫→茜のネビュラ＝本棚R1sで承認済みの範囲。新色なし）。
+  規格層は不変: 章名は明朝・4.5:1以上（沈めるのは地の空グリフのみ）・和文letterSpacing 0。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n M-rich 目次 R1（深空展開）— 星図</title>
+<style>
+  :root{
+    --text:#DCE3F2;--dim:#8791AD;--star:#E9DDB4;
+    --line:rgba(150,168,214,.20);
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#06080F;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:#7C86A2;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:720px}
+  .cap b{color:#DCE3F2}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#7C86A2}
+
+  .phone{width:390px;height:844px;border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column;
+    box-shadow:0 30px 72px rgba(0,0,0,.72);
+    background:
+      radial-gradient(80% 40% at 74% 8%,rgba(58,78,150,.24),transparent 62%),
+      linear-gradient(178deg,#0B1330 0%,#0D1636 48%,#080E26 100%);}
+  /* 地の夜空＝独立した静的レイヤー（本棚R1sの深空の型を沈めたもの）。最背面 */
+  .deepsky{position:absolute;inset:0;z-index:0}
+  /* 作品星座＋グリッド＝現行どおり上層（.deepsky の上・コンテンツの下）。脈動アニメは現行のまま */
+  .skybg{position:absolute;inset:0;z-index:0}
+  .layer{position:relative;z-index:1;display:flex;flex-direction:column;height:100%}
+  .sb{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:12px;color:#6E7794;flex-shrink:0}
+  .topbar{height:54px;display:flex;align-items:center;gap:8px;padding:0 12px;flex-shrink:0;border-bottom:1px solid var(--line)}
+  .topbar .ib{width:40px;height:40px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--text);cursor:pointer}
+  .topbar .ib svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar .htxt{display:flex;flex-direction:column;gap:2px}
+  .topbar h1{font-family:var(--mincho);font-size:19px;color:var(--text);font-weight:500;letter-spacing:.14em}
+  .topbar .sync{font-family:var(--gothic);font-size:10px;color:var(--star);letter-spacing:.14em}
+  .scroll{flex:1;overflow:auto;padding:8px 0}
+
+  .li{display:flex;align-items:stretch;cursor:pointer;position:relative}
+  .li .gut{width:50px;flex-shrink:0;position:relative;display:grid;place-items:center}
+  .li .gut::before{content:"";position:absolute;top:0;bottom:0;left:50%;width:1px;transform:translateX(-50%);background:var(--seg)}
+  .li .gut .dot{position:relative;z-index:1;width:7px;height:7px;border-radius:50%;background:var(--dotc)}
+  .li .tx{flex:1;min-width:0;font-family:var(--mincho);font-size:15px;color:#C9D0E1;padding:18px 24px 18px 2px;line-height:1.6;font-weight:400}
+
+  .li.read{--seg:rgba(233,221,180,.5);--dotc:var(--star)}
+  .li.read .gut .dot{box-shadow:0 0 7px rgba(233,221,180,.65)}
+  .li.cur{--seg:rgba(233,221,180,.5);--dotc:#F7F3E1;background:rgba(233,221,180,.07)}
+  .li.cur .gut .dot{width:11px;height:11px;box-shadow:0 0 14px rgba(233,221,180,.95);animation:pulse 2.8s ease-in-out infinite}
+  .li.cur .tx{color:var(--star);font-weight:700}
+  .li.ahead{--seg:rgba(150,168,214,.18);--dotc:rgba(150,168,214,.45)}
+  @keyframes pulse{0%,100%{box-shadow:0 0 10px rgba(233,221,180,.7)}50%{box-shadow:0 0 18px rgba(233,221,180,1)}}
+  @media (prefers-reduced-motion: reduce){.li.cur .gut .dot{animation:none}}
+
+  .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--dim);font-family:var(--mincho);font-size:15px}
+  .empty .st{width:6px;height:6px;border-radius:50%;background:rgba(150,168,214,.4)}
+</style>
+</head>
+<body>
+  <p class="cap"><b>M-rich 目次 R1（深空展開）</b> ／ 現行 目次Mの地の夜空を本棚R1sの深空の型へ替え、読む一覧ゆえ本棚より一段沈めた。章題の走る帯域はさらに輝度を落とし、作品星座は最前面の輝度階層を保つ。骨格・章行・文言は現行と同一。右は空状態。</p>
+  <div class="stage">
+
+    <div class="wrap"><span class="mode">通常（星座が現在章まで点火）</span>
+    <div class="phone" role="img" aria-label="M-rich 目次 R1（深空展開）">
+      <canvas class="deepsky" aria-hidden="true"></canvas>
+      <canvas class="skybg" aria-hidden="true"></canvas>
+      <div class="layer">
+        <div class="sb"><span>9:41</span><span>●●● ▢ 84%</span></div>
+        <div class="topbar">
+          <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <div class="htxt"><h1>目次</h1><span class="sync">127 / 340 話</span></div>
+        </div>
+        <div class="scroll">
+          <div class="li read"><span class="gut"><span class="dot"></span></span><span class="tx">第百二十四話　遠雷、辺境の街道を行く</span></div>
+          <div class="li read"><span class="gut"><span class="dot"></span></span><span class="tx">第百二十五話　古い井戸と、忘れられた約束</span></div>
+          <div class="li read"><span class="gut"><span class="dot"></span></span><span class="tx">第百二十六話　夜営の火、語られぬ過去のこと</span></div>
+          <div class="li cur"><span class="gut"><span class="dot"></span></span><span class="tx">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</span></div>
+          <div class="li ahead"><span class="gut"><span class="dot"></span></span><span class="tx">第百二十八話　市場のざわめきと、薬草の値段</span></div>
+          <div class="li ahead"><span class="gut"><span class="dot"></span></span><span class="tx">第百二十九話　領主の館へ、招かれざる客として</span></div>
+          <div class="li ahead"><span class="gut"><span class="dot"></span></span><span class="tx">第百三十話　長い夜の終わりに交わした言葉</span></div>
+          <div class="li ahead"><span class="gut"><span class="dot"></span></span><span class="tx">第百三十一話　旅立ちの朝、薬箱を背負って</span></div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="wrap"><span class="mode">空状態</span>
+    <div class="phone" role="img" aria-label="M-rich 目次 R1（深空展開）空状態">
+      <canvas class="deepsky" aria-hidden="true"></canvas>
+      <canvas class="skybg" aria-hidden="true"></canvas>
+      <div class="layer">
+        <div class="sb"><span>9:41</span><span>●●● ▢ 84%</span></div>
+        <div class="topbar">
+          <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <div class="htxt"><h1>目次</h1></div>
+        </div>
+        <div class="empty"><span class="st"></span>章が見つかりません</div>
+      </div>
+    </div></div>
+
+  </div>
+
+<script>
+// 地の夜空＝本棚R1sの深空の型を「読む一覧」向けに沈めた静的フィールド（帯の走向を縦の川へ変え・題名帯を保護）。作品星座は上層(.skybg)に残置。
+(function(){
+  const W=390,H=844,dpr=Math.max(1,window.devicePixelRatio||1);
+  const SEED=611953087;                 // 目次固有 seed（本棚 987654321・目次星座 20260717 と別星野）
+  let s=SEED;const rnd=()=>{s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;};
+  // ---- 沈め方（本棚R1s→目次）: 粒数/α/上限を抑制。冒頭コメントに対比。----
+  const BAND_N=2600, CORE_N=480, SEA_N=1400, DUST_N=220;
+  const CORE_Y=520;                     // 銀河バルジ位置（本棚 y300 と別＝縦の川の中〜下）
+  // 帯の芯＝左ガター寄りの縦の川（本棚の右上→左下斜めと別走向・章題テキスト列/作品星座を避ける）
+  function bAxis(y){return 40+24*Math.sin(y/250+0.3)+12*Math.sin(y/92+1.1);}
+  function bHalf(y){return 40+14*Math.sin(y/300+0.6);}                    // 帯の半幅（細めのリボン）
+  function bDens(y){return 0.5+0.5*(Math.sin(y*0.021)*0.5+Math.sin(y*0.047+1.1)*0.3+Math.sin(y*0.009+2.3)*0.2);} // 沿軸の濃淡ムラ
+  function gauss(){const u=rnd()||1e-6,v=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(6.2831853*v);}
+  function fila(x,y){const v=Math.sin(x*0.11+y*0.043)*0.5+Math.sin(x*0.27-y*0.10+1.7)*0.32+Math.sin(x*0.061+y*0.17+3.1)*0.18;return v*0.5+0.5;}
+  function darkNeb(x,y){const v=Math.sin(x*0.035-y*0.028+0.4)*0.6+Math.sin(x*0.017+y*0.052+2.2)*0.4;return Math.max(0,v);}
+  function riftCenter(y){return 10+9*Math.sin(y/95)+3*Math.sin(y/47+1.3);}
+  // 星の色温度（本棚R1s 由来・系統色内: 青白→白→淡金→橙）
+  const STAR_STOPS=[[0.00,176,203,255],[0.40,236,239,248],[0.72,244,233,196],[1.00,245,203,160]];
+  const NEUTRAL=[200,212,238];const lerp=(a,b,t)=>a+(b-a)*t;
+  function tempRGB(t){t=t<0?0:t>1?1:t;for(let i=1;i<STAR_STOPS.length;i++){const a=STAR_STOPS[i-1],b=STAR_STOPS[i];
+    if(t<=b[0]){const k=(t-a[0])/(b[0]-a[0]);return [lerp(a[1],b[1],k),lerp(a[2],b[2],k),lerp(a[3],b[3],k)];}}
+    return [STAR_STOPS[3][1],STAR_STOPS[3][2],STAR_STOPS[3][3]];}
+  function tempStr(t){const c=tempRGB(t);return Math.round(c[0])+','+Math.round(c[1])+','+Math.round(c[2]);}
+  function starCol(t,strength){const c=tempRGB(t),st=strength<0?0:strength>1?1:strength;
+    return Math.round(lerp(NEUTRAL[0],c[0],st))+','+Math.round(lerp(NEUTRAL[1],c[1],st))+','+Math.round(lerp(NEUTRAL[2],c[2],st));}
+  function hash01(a,b){const v=Math.sin(a*12.9898+b*78.233)*43758.5453;return v-Math.floor(v);} // 決定的（rnd非消費）
+  function warmAt(y){return Math.exp(-Math.pow((y-CORE_Y)/300,2));}
+  function grainCol(x,y,bright){const spread=(hash01(x,y)-0.5)*0.85;const t=0.16+0.60*warmAt(y)+spread;const strength=(bright-0.30)/0.42;return starCol(t,strength);}
+  // 題名保護帯: 章題テキスト列と上部クロームは面輝度上限をさらに落とす（本棚の 0.42 全体上限より安全側）
+  function capAt(x,y){
+    if(y<100)return 0.12;                // 上部クローム（目次見出し・sync のゴールド文字を守る）
+    if(x>44&&x<370)return 0.16;          // 章題テキスト列＝題名保護帯
+    return 0.28;                          // 左ガター・右端の余白（＝帯の川を通す・全体上限）
+  }
+  function nebula(ctx,x,y,r,stops){const g=ctx.createRadialGradient(x,y,0,x,y,r);for(const st of stops)g.addColorStop(st[0],st[1]);
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+  function buildBand(){                  // 撒き＝場a（Great Rift/darkNeb/fila 疎化・輝度断面）を本棚R1sから継承
+    const B=[];let placed=0,tries=0;
+    while(placed<BAND_N && tries<18000){tries++;
+      const y=rnd()*H, dens=bDens(y);
+      if(rnd()>0.30+0.64*dens)continue;
+      const off=gauss()*bHalf(y)*0.5, x=bAxis(y)+off;
+      if(x<-4||x>W+4)continue;
+      const d=Math.min(1,Math.abs(off)/bHalf(y));
+      const dr=(off-riftCenter(y))/13, rift=Math.exp(-dr*dr);
+      if(rnd()<rift*0.93)continue;                   // Great Rift（最大93%間引き）
+      if(rnd()<darkNeb(x,y)*0.5)continue;            // 暗黒星雲の重層疎化
+      const f=fila(x,y);
+      if(rnd()<d*(1-f)*0.7)continue;                 // 縁のほつれ
+      const mag=Math.pow(rnd(),2.8);
+      const bright=(1-d*0.82)*(0.26+0.74*mag)*(0.5+0.5*dens)*(0.78+0.22*f);
+      const r=0.18+mag*0.58;                         // 粒径を絞り「にじみ」を消す（形c）
+      const a=Math.min(capAt(x,y),0.05+0.30*bright); // 沈めた床＋題名保護帯の上限
+      B.push({x,y,r,a,col:grainCol(x,y,bright),halo:bright>0.82&&rnd()<0.40,bright});
+      placed++;
+    }
+    // 核（銀河バルジ）＝軸へ集中（本数は帯と同比率で沈め・散布σは本棚R1sと同）
+    for(let i=0;i<CORE_N;i++){const y=CORE_Y+gauss()*60, off=gauss()*36, x=bAxis(y)+off;
+      if(x<-4||x>W+4||y<0||y>H)continue;
+      const dr=(off-riftCenter(y))/13, rift=Math.exp(-dr*dr);
+      if(rnd()<rift*0.8)continue;
+      const d=Math.min(1,Math.abs(off)/40),mag=Math.pow(rnd(),1.9),bright=(1-d*0.62)*(0.42+0.58*mag);
+      B.push({x,y,r:0.20+mag*0.56,a:Math.min(capAt(x,y),0.06+0.24*bright),col:grainCol(x,y,bright),halo:bright>0.84&&rnd()<0.35,bright});}
+    return B;
+  }
+  function drawBand(ctx,B){              // 描画＝形c（鋭いコア＋分離ハロー＋白pip）。スパイクは沈めのため付与しない
+    const cy=CORE_Y,cx=bAxis(cy),g=ctx.createRadialGradient(cx,cy,0,cx,cy,90);   // バルジの極薄下地（本棚 .045→.028 へ沈め）
+    g.addColorStop(0,'rgba('+tempStr(0.82)+',.028)');g.addColorStop(0.6,'rgba('+tempStr(0.5)+',.012)');g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,90,0,7);ctx.fill();
+    for(const p of B){
+      if(p.halo){const R=2.8,gg=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,R); // 分離した淡いハロー（中心を凹ませた環・星の色温度で tint）
+        gg.addColorStop(0,'rgba('+p.col+',0)');gg.addColorStop(0.45,'rgba('+p.col+',.13)');gg.addColorStop(1,'rgba('+p.col+',0)');
+        ctx.fillStyle=gg;ctx.beginPath();ctx.arc(p.x,p.y,R,0,7);ctx.fill();}
+      ctx.fillStyle='rgba('+p.col+','+p.a+')';ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill(); // 鋭いコア
+      if(p.halo){ctx.fillStyle='rgba(245,248,255,'+Math.min(capAt(p.x,p.y),p.a+0.08)+')';ctx.beginPath();ctx.arc(p.x,p.y,0.6,0,7);ctx.fill();} // 白pip（保護帯上限に従属）
+      // 微細スパイク（drawSpike）は付与しない＝沈めた地に鋭い光条を立てず作品星座と競合させない
+    }
+  }
+  function drawSky(ctx){
+    s=SEED;                              // 決定的: 各phoneで同一星野（本棚の DUST 共有と同じ挙動）
+    ctx.clearRect(0,0,W,H);
+    // ネビュラ（左ガター寄り・本棚R1sの各停止を約0.6倍に沈める。群青核→菫→茜）
+    nebula(ctx,70,340,150,[[0,'rgba(60,82,166,.085)'],[.44,'rgba(104,84,170,.055)'],[.8,'rgba(128,80,128,.028)'],[1,'rgba(0,0,0,0)']]);
+    nebula(ctx,96,300,90,[[0,'rgba(70,90,168,.035)'],[1,'rgba(0,0,0,0)']]);                        // 副葉＝群青の寒色サブ
+    nebula(ctx,60,640,150,[[0,'rgba(98,86,166,.075)'],[.4,'rgba(128,84,150,.05)'],[.78,'rgba(152,86,122,.03)'],[1,'rgba(0,0,0,0)']]);
+    // 超微星の海（最深・帯域内は Great Rift に従属＝溝を保つ）
+    for(let i=0;i<SEA_N;i++){const x=rnd()*W,y=rnd()*H;const off=x-bAxis(y);
+      if(Math.abs(off)<bHalf(y)*1.2){const dr=(off-riftCenter(y))/13;if(rnd()<Math.exp(-dr*dr)*0.9)continue;}
+      const r=rnd()*0.30+0.07,a=Math.min(capAt(x,y),rnd()*0.025+0.012);
+      ctx.fillStyle='rgba(200,214,244,'+a+')';ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+    drawBand(ctx,buildBand());           // 帯本体（縦の川）＋核バルジ
+    // 帯外の散開微星（無彩色・沈め＋保護帯上限）
+    for(let i=0;i<DUST_N;i++){const x=rnd()*W,y=rnd()*H,r=rnd()*0.40+0.12,a=Math.min(capAt(x,y),rnd()*0.07+0.02);
+      ctx.fillStyle='rgba(200,214,244,'+a+')';ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+    // アクセント星（数点・沈め）＝色温度は乗せるが作品星座を越えない輝度（capAt に従属）
+    for(let i=0;i<5;i++){const x=rnd()*W,y=60+rnd()*(H-120);
+      const t=0.14+0.60*warmAt(y)+(hash01(x,y)-0.5)*1.0, col=starCol(t,0.9), a=Math.min(capAt(x,y),0.34);
+      const g=ctx.createRadialGradient(x,y,0,x,y,2.6);g.addColorStop(0,'rgba('+col+','+a+')');g.addColorStop(1,'rgba('+col+',0)');
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,2.6,0,7);ctx.fill();}
+  }
+  document.querySelectorAll('.deepsky').forEach(cv=>{
+    const ctx=cv.getContext('2d');cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';ctx.scale(dpr,dpr);
+    drawSky(ctx);                        // 静的1回描画（モーション不追加）
+  });
+})();
+</script>
+<script>
+// 作品星座＝本棚Mのその作品の折れ線を目次の地に描き、既読ぶん（62%）を金で点火＝本棚と同期。※地の夜空(DUST)は .deepsky へ分離済（当スクリプトは現行 toc-M と厳密同一＝グリッド＋星座）。
+(function(){
+  const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const W=390,H=844,dpr=Math.max(1,window.devicePixelRatio||1);
+  const PTS=[[300,150],[248,252],[318,344],[250,452],[302,556],[240,646],[292,742]];
+  const FRAC=0.62;
+  function seg(p){let L=[],t=0;for(let i=1;i<p.length;i++){const d=Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]);L.push(d);t+=d;}return{L,t};}
+  function glow(ctx,x,y,r,a){const g=ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba(240,235,205,'+a+')');g.addColorStop(.42,'rgba(225,210,160,'+(a*.4)+')');g.addColorStop(1,'rgba(225,210,160,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();
+    ctx.fillStyle='rgba(245,248,255,'+Math.min(1,a+.15)+')';ctx.beginPath();ctx.arc(x,y,1.8,0,7);ctx.fill();}
+  document.querySelectorAll('.skybg').forEach(cv=>{
+    const ctx=cv.getContext('2d');cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';ctx.scale(dpr,dpr);
+    const empty=cv.parentElement.querySelector('.empty');
+    function draw(ts){
+      ctx.clearRect(0,0,W,H);
+      ctx.strokeStyle='rgba(150,168,214,.05)';ctx.lineWidth=1;
+      for(let i=0;i<4;i++){const y=170+i*180;ctx.beginPath();ctx.moveTo(6,y);ctx.quadraticCurveTo(195,y-14,384,y);ctx.stroke();}
+      if(!empty){
+        const {L,t}=seg(PTS),lit=FRAC*t;
+        ctx.strokeStyle='rgba(150,168,214,.16)';ctx.lineWidth=1.2;
+        ctx.beginPath();ctx.moveTo(PTS[0][0],PTS[0][1]);for(let i=1;i<PTS.length;i++)ctx.lineTo(PTS[i][0],PTS[i][1]);ctx.stroke();
+        ctx.strokeStyle='rgba(233,221,180,.5)';ctx.lineWidth=1.6;ctx.lineCap='round';ctx.lineJoin='round';
+        ctx.shadowColor='rgba(233,221,180,.4)';ctx.shadowBlur=6;ctx.beginPath();ctx.moveTo(PTS[0][0],PTS[0][1]);
+        let acc=0,tx=PTS[0][0],ty=PTS[0][1];
+        for(let i=1;i<PTS.length;i++){if(acc+L[i-1]<=lit){ctx.lineTo(PTS[i][0],PTS[i][1]);acc+=L[i-1];tx=PTS[i][0];ty=PTS[i][1];}
+          else{const r=(lit-acc)/L[i-1];tx=PTS[i-1][0]+(PTS[i][0]-PTS[i-1][0])*r;ty=PTS[i-1][1]+(PTS[i][1]-PTS[i-1][1])*r;ctx.lineTo(tx,ty);break;}}
+        ctx.stroke();ctx.shadowBlur=0;
+        let acc2=0;for(let i=0;i<PTS.length;i++){if(i>0)acc2+=L[i-1];
+          if(acc2<=lit+0.5)glow(ctx,PTS[i][0],PTS[i][1],5,.6);
+          else{ctx.fillStyle='rgba(150,166,206,.32)';ctx.beginPath();ctx.arc(PTS[i][0],PTS[i][1],1.6,0,7);ctx.fill();}}
+        const pulse=reduce?0.5:(Math.sin(ts/1400)+1)/2;
+        glow(ctx,tx,ty,6+pulse*3,.7+pulse*.2);
+      }
+      if(!reduce)requestAnimationFrame(draw);
+    }
+    requestAnimationFrame(draw);
+  });
+})();
+</script>
+</body>
+</html>

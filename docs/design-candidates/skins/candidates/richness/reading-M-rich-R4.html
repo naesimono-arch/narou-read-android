@@ -1,0 +1,387 @@
+<!-- @dsCard group="UI-n / 読書（スキン候補・描画リッチ化）" name="M-rich R4. 透過の天の川（R1s実物の空を全体αで透かす・本文背後全面）" -->
+<!--
+  思想（1行）: 本文の背後“全面”に、bookshelf-M-rich-R1s.html の天の川“そのもの”（同一seedの粒帯6500・銀河核1260・Great Rift・星の海3200・多葉ネビュラ）を敷き、
+             生成は一切変えず【描画後の全体αスケール】だけで透かす＝アプリの統一空とピクセル同一の天の川が、読書用に淡く沈んでいるだけ。形・色・構造は R1s と完全一致。
+  前任 R4 の敗因（差し戻し理由）: 天の川を per-scanline 水平グラデ（帯もや）で“再発明”していた＝R1s の実描画でない別物。R4 はその独自帯表現を破棄し、R1s の生成/描画コードを忠実移植する。
+  正本（reading-M.html）からの変更点【変更は装飾レイヤ＋表記のみ。骨格・情報構造・文言・本文組版・クローム構成は正本と厳密同一。.phone の地（統一空）も不変＝その上に天の川canvasを重ねる】:
+   ・本文背後全面に R1s の天の川（決定的LCG seed=987654321）＝deepsky（多葉ネビュラ群青核→菫→茜＋アクセント星）＋farstars（星の海3200＋buildBand/drawBand 帯6500・核1260＋塵520）を、R1s の CSS 配置（farは top:-70px）を再現して1枚に合成。
+   ・読書用の減光は「生成を変える」のでなく【描画後の全体αスケール】＝合成した天の川を globalAlpha（淡0.35倍／中0.55倍）で透かす＋本文帯の保護減衰（destination-out ×0.6・本文列を軟らかく守る）。形/色/構造は R1s のまま。
+   ・R1『節度』の装飾を全継承＝結線進捗（星の弧）・章区切り/情景転換の結線風・下部バー微星・欄外塵星（欄外塵星は R1s の farstars 塵520＝帯外散開微星がそのまま担う）。
+   ・phoneを3枚並べ強度比較＝「通常・淡（α×0.35）」「通常・中（α×0.55）」「クローム・中（α×0.55）」。ユーザーが強度を選べる提示。
+   ・地の色ベースの暗さ・本文組版・行間・字間・ルビ・ボタン構成は不変。モーションは一切無し（keyframes/transition/animation ゼロ＝読書Mモーションゼロ ADR0022§3。描画は一度きり・RAF/視差/流星/昇華なし）。
+
+  ===== R1s（bookshelf-M-rich-R1s.html）との関数対応表（すべて“同名・同一本文の逐語移植”。seed=987654321も逐語）=====
+    生成の乱数流を乱さないため rnd() の消費順も R1s と同一（drawDeepSky→drawFarStars の順＝アクセント星10点→星の海→buildBand→核→塵）。
+      gauss / bAxis / bHalf / bDens          … 帯の幾何（芯ルート・半幅・沿軸ムラ）＝R1s逐語
+      STAR_STOPS / NEUTRAL / lerp / tempRGB / tempStr / starCol … 色温度4系統（青白→白→淡金→橙）＝R1s逐語
+      hash01 / warmAt / grainCol             … 位置ハッシュ・帯温度勾配・粒の彩色＝R1s逐語（hash01 の Math.sin は乱数でなく決定的）
+      fila / darkNeb / riftCenter            … 場a の疎化フィールド（縁ほつれ・暗黒星雲・Great Rift蛇行芯）＝R1s逐語
+      buildBand / drawSpike / drawBand       … 帯6500粒＋核1260の撒きと描画（鋭コア＋分離ハロー＋白pip＋微細スパイク）＝R1s逐語
+      nebula / drawDeepSky / drawFarStars    … 深空ネビュラ多葉＋アクセント星／星の海3200＋帯＋塵520＝R1s逐語
+    R1s から“持ち込まない”もの（＝天の川でなく本棚のゲーム性/演出。移植対象外）: commitToDeep（読了星の累積）・spawnAscend/drawAscending（昇華）・spawnMeteor/drawMeteor（流れ星）・applyParallax（視差）・frame/RAF。いずれも rnd() を帯生成より後で消費するため粒位置には非影響。
+
+  ===== 可読性の較正（帯芯・平均最悪ケースの計算。輝点は離散点ゆえ平均背景で判定）=====
+    本文 #DCE3F2 の相対輝度 L_text≈0.766／地（帯域の #0C1430 相当）L_base≈0.008 → 素のコントラスト ≈(0.766+0.05)/(0.008+0.05)≈14:1（正本の≈13:1と整合）。
+    帯芯最悪ケース＝ネビュラ群青核(60,82,166,α.14)＋核の下地もや＋最密の帯粒 が重なる連続背景の累積α as≈0.088・その合成色は暖側で L_sky≈0.742。
+    描画後の全体α s と本文帯保護 p=0.6 を掛けた実効α a_eff = as·s·p。背景輝度 L_bg=(1−a_eff)·L_base + a_eff·L_sky。
+      中 s=0.55: a_eff=0.088·0.55·0.6≈0.029 → L_bg≈0.0293 → コントラスト=(0.766+0.05)/(0.0293+0.05)≈10.3:1
+      淡 s=0.35: a_eff=0.088·0.35·0.6≈0.0185→ L_bg≈0.0216 → ≈11.4:1
+    保護 p を外した素の合成（p=1）でも 中≈8.7:1／淡≈10.1:1＝いずれも実効 ≥8:1 を維持（AAA通常7:1超）。ルビ #9AA4C0 ≈6.9:1。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n M-rich R4 読書 — 透過の天の川（R1s実物）</title>
+<style>
+  :root{
+    --text:#DCE3F2;--dim:#8791AD;--ruby:#9AA4C0;--star:#E9DDB4;
+    --line:rgba(150,168,214,.20);
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#06080F;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--mincho)}
+  .cap{color:#7C86A2;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.7;max-width:860px;font-family:var(--gothic)}
+  .cap b{color:#DCE3F2}
+  .wcag{color:#6E7794;font-size:11px;margin-bottom:18px;text-align:center;font-family:var(--gothic)}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.14em;color:#7C86A2;font-family:var(--gothic);text-align:center;line-height:1.6}
+  .wrap .mode b{color:#B9C2DA}
+
+  /* 地（既存の統一した空）＝正本のまま不変。この上に天の川canvasを重ねる＝「星雲が重なっているかのよう」。 */
+  .phone{width:390px;height:844px;border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column;
+    box-shadow:0 30px 72px rgba(0,0,0,.72);font-family:var(--mincho);
+    background:
+      radial-gradient(1.4px 1.4px at 52px 150px,rgba(220,228,245,.5),transparent 60%),
+      radial-gradient(1px 1px at 320px 96px,rgba(220,228,245,.4),transparent 60%),
+      radial-gradient(1.2px 1.2px at 120px 300px,rgba(220,228,245,.32),transparent 60%),
+      radial-gradient(1px 1px at 350px 420px,rgba(220,228,245,.3),transparent 60%),
+      radial-gradient(1.3px 1.3px at 40px 520px,rgba(220,228,245,.34),transparent 60%),
+      radial-gradient(1px 1px at 300px 640px,rgba(220,228,245,.28),transparent 60%),
+      radial-gradient(1.2px 1.2px at 90px 720px,rgba(220,228,245,.3),transparent 60%),
+      radial-gradient(1px 1px at 250px 780px,rgba(220,228,245,.26),transparent 60%),
+      radial-gradient(70% 34% at 78% 6%,rgba(58,78,150,.20),transparent 60%),
+      linear-gradient(178deg,#0B1330 0%,#0D1636 46%,#080E26 100%);}
+
+  /* 【R4装飾レイヤ】R1s実物の天の川（同一seed）。z0＝地の上・本文/クロームの下＝本文の背後に透ける（描画後の全体α＋帯芯保護で可読を担保）。 */
+  .dust{position:absolute;inset:0;z-index:0;pointer-events:none}
+
+  /* 上端の結線進捗＝ほぼ唯一の常設クローム（読んだ分だけ金の線が伸び先端に静止の星） */
+  .prog{position:absolute;top:0;left:0;right:0;height:2px;z-index:6;background:rgba(150,168,214,.18)}
+  .prog i{position:absolute;left:0;top:0;height:2px;width:62%;background:var(--star);box-shadow:0 0 6px rgba(233,221,180,.5)}
+  /* 【R4】進捗＝星を結ぶ弧: 先端星から淡い星pipを尾（読了62%側）へ連ねる（静的なbox-shadow＝モーションなし） */
+  .prog .tip{position:absolute;left:62%;top:1px;width:5px;height:5px;border-radius:50%;background:#F5F1DE;
+    box-shadow:0 0 7px rgba(233,221,180,.9),-34px 0 3px rgba(233,221,180,.42),-78px 0 2px rgba(233,221,180,.34),-140px 0 2px rgba(233,221,180,.26);
+    transform:translate(-50%,-50%)}
+  .statusbar{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;
+    font-family:var(--gothic);font-size:12px;color:#6E7794;flex-shrink:0}
+
+  .topbar{position:relative;z-index:4;height:48px;display:flex;align-items:center;gap:6px;padding:0 14px;flex-shrink:0;border-bottom:1px solid var(--line)}
+  .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--text);cursor:pointer}
+  .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar .ct{flex:1;font-family:var(--gothic);font-size:13px;color:var(--dim);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ghost{height:46px;display:flex;align-items:center;justify-content:center;padding:0 26px;flex-shrink:0}
+  .ghost .ct{font-family:var(--gothic);font-size:11px;color:var(--dim);letter-spacing:.14em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80%}
+
+  .reader{flex:1;overflow:auto;padding:4px 28px 120px;position:relative;z-index:1}
+  /* 章見出し＝章扉の星座片＋番号＋題＋短い星線 */
+  .chap-h{margin:18px 0 30px;text-align:center}
+  .chap-h .frag{display:block;margin:0 auto 14px}
+  .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--star);letter-spacing:.32em}
+  .chap-h .t{font-size:20px;color:var(--text);margin-top:12px;line-height:1.62;font-weight:500;text-align:left}
+  .chap-h .rule{margin-top:18px;display:flex;align-items:center;gap:6px}
+  /* 【R4】結線風＝線を淡い弧のグラデに・終端の星ノードへ微グローと小さな次星 */
+  .chap-h .rule .ln{width:40px;height:1px;background:linear-gradient(90deg,transparent,var(--star) 30%,var(--star));opacity:.7}
+  .chap-h .rule .st{width:4px;height:4px;border-radius:50%;background:var(--star);
+    box-shadow:0 0 6px rgba(233,221,180,.75),13px 0 0 -1px rgba(233,221,180,.5)}
+  p{font-size:17px;line-height:2.55;color:var(--text);text-indent:1em;margin-bottom:.2em;letter-spacing:0}
+  ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  .blank{height:1.7em}
+  .scene{display:flex;align-items:center;justify-content:center;gap:12px;margin:14px auto}
+  /* 【R4】情景転換＝結線風の小星座（線を淡い弧・中央星に微グロー） */
+  .scene .ln{width:64px;height:1px;background:linear-gradient(90deg,transparent,var(--line) 45%,transparent)}
+  .scene .st{width:4px;height:4px;border-radius:50%;background:rgba(150,168,214,.5);box-shadow:0 0 6px rgba(150,168,214,.6)}
+  .block{border:1px solid var(--line);border-radius:10px;background:rgba(150,168,214,.05);padding:14px 16px;margin:6px 0 24px}
+  .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--dim);letter-spacing:.12em;margin-bottom:7px}
+  .block p{font-size:14.5px;line-height:2.1;text-indent:1em;margin:0;color:var(--ruby)}
+
+  /* 【R4】下部バーへ微星の淡い散布（数点・CSS。バーは半不透明でLCG層より前面のためここで宿す） */
+  .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:62px;display:flex;align-items:center;
+    background:
+      radial-gradient(1px 1px at 54px 18px,rgba(200,214,244,.22),transparent 62%),
+      radial-gradient(1px 1px at 168px 44px,rgba(200,214,244,.16),transparent 62%),
+      radial-gradient(1px 1px at 300px 14px,rgba(200,214,244,.18),transparent 62%),
+      radial-gradient(1px 1px at 348px 40px,rgba(200,214,244,.14),transparent 62%),
+      rgba(14,21,48,.82);
+    border-top:1px solid var(--line);backdrop-filter:blur(6px)}
+  .bottombar button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--text);cursor:pointer}
+  .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .bottombar .bl{font-family:var(--gothic);font-size:9.5px;color:var(--dim);letter-spacing:.02em}
+  .bottombar .set svg{stroke:var(--star)}
+  .bottombar .set .bl{color:var(--star)}
+  .hint{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:6;font-family:var(--gothic);font-size:11px;color:var(--dim);letter-spacing:.08em}
+</style>
+</head>
+<body>
+  <p class="cap"><b>M-rich R4. 透過の天の川（R1s実物）</b> ／ 本文の背後“全面”に、bookshelf-M-rich-R1s の天の川“そのもの”（同一seedの帯6500粒・銀河核1260・Great Rift・星の海3200・多葉ネビュラ）を敷き、生成は変えず<b>描画後の全体αスケール</b>だけで透かす＝アプリの統一空とピクセル同一の天の川が読書用に淡く沈む。形・色・構造は R1s と完全一致。3枚は強度比較＝α×0.35（淡）／α×0.55（中）／クローム・中。既定は没入、中央タップでクローム。</p>
+  <p class="wcag">本文×背景コントラスト（目安）：#DCE3F2 / #0B1330 ≈ 13:1。R1s実物を重ねた帯芯の平均最悪ケースでも 淡≈11.4:1／中≈10.3:1（本文帯保護×0.6込み・保護無しでも 淡≈10.1:1／中≈8.7:1＝いずれも実効 ≥8:1・AAA 通常 7:1 超）。ルビ #9AA4C0 ≈ 6.9:1。</p>
+  <div class="stage">
+
+    <div class="wrap"><span class="mode">没入（既定・バー非表示）<br><b>強度・淡</b>（描画後 α×0.35）</span>
+    <div class="phone" role="img" aria-label="M-rich R4 透過の天の川（R1s実物） 読書 没入状態・強度淡">
+      <canvas class="dust" data-intensity="faint" aria-hidden="true"></canvas>
+      <div class="prog"><i></i><span class="tip"></span></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ▢ 84%</span></div>
+      <div class="ghost"><span class="ct">追放された万能薬師 · 第127話</span></div>
+      <div class="reader">
+        <div class="chap-h">
+          <svg class="frag" width="58" height="30" viewBox="0 0 58 30" aria-hidden="true">
+            <g stroke="rgba(233,221,180,.55)" stroke-width="1" fill="none"><line x1="7" y1="22" x2="23" y2="11"/><line x1="23" y1="11" x2="43" y2="17"/><line x1="43" y1="17" x2="51" y2="7"/></g>
+            <g fill="#E9DDB4"><circle cx="7" cy="22" r="1.5"/><circle cx="23" cy="11" r="2.1"/><circle cx="43" cy="17" r="1.5"/><circle cx="51" cy="7" r="2.4"/></g>
+          </svg>
+          <div class="num">第 百二十七 話</div>
+          <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+          <div class="rule"><span class="ln"></span><span class="st"></span></div>
+        </div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。もう<ruby>戦<rt>たたか</rt></ruby>う<ruby>理由<rt>りゆう</rt></ruby>はない、とでも<ruby>言<rt>い</rt></ruby>うように。</p>
+        <div class="blank"></div>
+        <div class="scene"><span class="ln"></span><span class="st"></span><span class="ln"></span></div>
+        <div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+      </div>
+      <div class="hint">画面をタップでメニュー</div>
+    </div></div>
+
+    <div class="wrap"><span class="mode">没入（既定・バー非表示）<br><b>強度・中</b>（描画後 α×0.55）</span>
+    <div class="phone" role="img" aria-label="M-rich R4 透過の天の川（R1s実物） 読書 没入状態・強度中">
+      <canvas class="dust" data-intensity="mid" aria-hidden="true"></canvas>
+      <div class="prog"><i></i><span class="tip"></span></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ▢ 84%</span></div>
+      <div class="ghost"><span class="ct">追放された万能薬師 · 第127話</span></div>
+      <div class="reader">
+        <div class="chap-h">
+          <svg class="frag" width="58" height="30" viewBox="0 0 58 30" aria-hidden="true">
+            <g stroke="rgba(233,221,180,.55)" stroke-width="1" fill="none"><line x1="7" y1="22" x2="23" y2="11"/><line x1="23" y1="11" x2="43" y2="17"/><line x1="43" y1="17" x2="51" y2="7"/></g>
+            <g fill="#E9DDB4"><circle cx="7" cy="22" r="1.5"/><circle cx="23" cy="11" r="2.1"/><circle cx="43" cy="17" r="1.5"/><circle cx="51" cy="7" r="2.4"/></g>
+          </svg>
+          <div class="num">第 百二十七 話</div>
+          <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+          <div class="rule"><span class="ln"></span><span class="st"></span></div>
+        </div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。もう<ruby>戦<rt>たたか</rt></ruby>う<ruby>理由<rt>りゆう</rt></ruby>はない、とでも<ruby>言<rt>い</rt></ruby>うように。</p>
+        <div class="blank"></div>
+        <div class="scene"><span class="ln"></span><span class="st"></span><span class="ln"></span></div>
+        <div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+      </div>
+      <div class="hint">画面をタップでメニュー</div>
+    </div></div>
+
+    <div class="wrap"><span class="mode">クローム表示（中央タップ後）<br><b>強度・中</b>（描画後 α×0.55）</span>
+    <div class="phone" role="img" aria-label="M-rich R4 透過の天の川（R1s実物） 読書 クローム表示状態・強度中">
+      <canvas class="dust" data-intensity="mid" aria-hidden="true"></canvas>
+      <div class="prog"><i></i><span class="tip"></span></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ▢ 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第127話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="reader">
+        <div class="chap-h">
+          <svg class="frag" width="58" height="30" viewBox="0 0 58 30" aria-hidden="true">
+            <g stroke="rgba(233,221,180,.55)" stroke-width="1" fill="none"><line x1="7" y1="22" x2="23" y2="11"/><line x1="23" y1="11" x2="43" y2="17"/><line x1="43" y1="17" x2="51" y2="7"/></g>
+            <g fill="#E9DDB4"><circle cx="7" cy="22" r="1.5"/><circle cx="23" cy="11" r="2.1"/><circle cx="43" cy="17" r="1.5"/><circle cx="51" cy="7" r="2.4"/></g>
+          </svg>
+          <div class="num">第 百二十七 話</div>
+          <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+          <div class="rule"><span class="ln"></span><span class="st"></span></div>
+        </div>
+        <div class="block"><div class="lbl">前書き</div><p>お読みいただきありがとうございます。今回は少し長めの戦闘回になりました。次話は<ruby>後日談<rt>ごじつだん</rt></ruby>を挟みます。</p></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <div class="blank"></div>
+        <div class="scene"><span class="ln"></span><span class="st"></span><span class="ln"></span></div>
+        <div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="#0D1636"/><circle cx="15" cy="16" r="2.4" fill="#0D1636"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+  </div>
+<script>
+(function(){
+  "use strict";
+  // 【R4装飾レイヤ】本文背後全面の天の川＝bookshelf-M-rich-R1s の空描画コードを逐語移植（同一seed）。生成は一切変えず、描画後の全体αスケール（淡0.35/中0.55）＋本文帯の保護減衰で透かす。
+  // R1s と rnd() 消費順まで同一にするため drawDeepSky()→drawFarStars() の順で一度だけ描画（帯粒の位置＝R1s と機械的に一致）。RAF/視差/流星/昇華は移植しない（読書はモーションゼロ）。
+  const W=390,H=844,CH=1300,dpr=Math.max(1,window.devicePixelRatio||1); // W×H=viewport。R1s の far は FARH=H+140 で top:-70px 配置＝それを合成で再現。
+  const FARH=H+140, FAR_TOP=-70; // R1s CSS: .farstars{top:-70px}。合成時に far を screen へ -70 でずらす（scrollTop=0・視差=0 の静止合成）。
+
+  // R1s と同一の決定的 LCG（seed=987654321 逐語）。Math.random/Date.now は不使用。
+  let s=987654321;const rnd=()=>{s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;};
+
+  // オフスクリーン（dpr でデバイス画素・ctx を dpr でスケール＝描画コードは CSS 座標のまま）
+  function off(w,h){const cv=document.createElement('canvas');cv.width=w*dpr;cv.height=h*dpr;const c=cv.getContext('2d');c.scale(dpr,dpr);return {cv,c};}
+  const D=off(W,H), F=off(W,FARH), S=off(W,H);
+  const deep=D.c, far=F.c; // R1s の deep/far 変数名にそのまま束ねる（関数本文を逐語のまま使う）
+
+  // ===== 以下、bookshelf-M-rich-R1s.html §天の川 の逐語移植（関数名・本文とも同一）=====
+  function gauss(){const u=rnd()||1e-6,v=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(6.2831853*v);}
+  function bAxis(y){const t=Math.max(0,Math.min(1,(640-y)/290));return 115+205*t+Math.sin(y/150)*14;} // 帯の芯（far座標）★R1不変
+  function bHalf(y){return 52+18*Math.sin(y/280+0.6);}
+  function bDens(y){return 0.5+0.5*(Math.sin(y*0.021)*0.5+Math.sin(y*0.047+1.1)*0.3+Math.sin(y*0.009+2.3)*0.2);}
+
+  // 【色b】星の色温度（4系統: 青白→白→淡金→橙）
+  const STAR_STOPS=[
+    [0.00,176,203,255],
+    [0.40,236,239,248],
+    [0.72,244,233,196],
+    [1.00,245,203,160]
+  ];
+  const NEUTRAL=[200,212,238];
+  const lerp=(a,b,t)=>a+(b-a)*t;
+  function tempRGB(t){t=t<0?0:t>1?1:t;
+    for(let i=1;i<STAR_STOPS.length;i++){const a=STAR_STOPS[i-1],b=STAR_STOPS[i];
+      if(t<=b[0]){const k=(t-a[0])/(b[0]-a[0]);return [lerp(a[1],b[1],k),lerp(a[2],b[2],k),lerp(a[3],b[3],k)];}}
+    return [STAR_STOPS[3][1],STAR_STOPS[3][2],STAR_STOPS[3][3]];}
+  function tempStr(t){const c=tempRGB(t);return Math.round(c[0])+','+Math.round(c[1])+','+Math.round(c[2]);}
+  function starCol(t,strength){const c=tempRGB(t),st=strength<0?0:strength>1?1:strength;
+    return Math.round(lerp(NEUTRAL[0],c[0],st))+','+Math.round(lerp(NEUTRAL[1],c[1],st))+','+Math.round(lerp(NEUTRAL[2],c[2],st));}
+  function hash01(a,b){const v=Math.sin(a*12.9898+b*78.233)*43758.5453;return v-Math.floor(v);} // 決定的（乱数でない）
+  function warmAt(y){return Math.exp(-Math.pow((y-300)/300,2));}
+  function grainCol(x,y,bright){
+    const spread=(hash01(x,y)-0.5)*0.85;
+    const t=0.16+0.60*warmAt(y)+spread;
+    const strength=(bright-0.30)/0.42;
+    return starCol(t,strength);
+  }
+
+  // 【場a】帯の疎化フィールド
+  function fila(x,y){const v=Math.sin(x*0.11+y*0.043)*0.5+Math.sin(x*0.27-y*0.10+1.7)*0.32+Math.sin(x*0.061+y*0.17+3.1)*0.18;return v*0.5+0.5;}
+  function darkNeb(x,y){const v=Math.sin(x*0.035-y*0.028+0.4)*0.6+Math.sin(x*0.017+y*0.052+2.2)*0.4;return Math.max(0,v);}
+  function riftCenter(y){return 12+11*Math.sin(y/95)+4*Math.sin(y/47+1.3);}
+
+  const BAND=[];
+  let spikeN=0;
+  function buildBand(){
+    let placed=0,tries=0;
+    while(placed<6500 && tries<45000){tries++;
+      const y=rnd()*FARH, dens=bDens(y);
+      if(rnd()>0.30+0.64*dens)continue;
+      const off=gauss()*bHalf(y)*0.5, x=bAxis(y)+off;
+      if(x<-4||x>W+4)continue;
+      const d=Math.min(1,Math.abs(off)/bHalf(y));
+      const dr=(off-riftCenter(y))/13, rift=Math.exp(-dr*dr);
+      if(rnd()<rift*0.93)continue;
+      if(rnd()<darkNeb(x,y)*0.5)continue;
+      const f=fila(x,y);
+      if(rnd()<d*(1-f)*0.7)continue;
+      const mag=Math.pow(rnd(),2.8);
+      const bright=(1-d*0.82)*(0.26+0.74*mag)*(0.5+0.5*dens)*(0.78+0.22*f);
+      const r=0.20+mag*0.62;
+      const a=Math.min(0.42,0.07+0.40*bright);
+      const spike=bright>0.95 && spikeN<7 && rnd()<0.4; if(spike)spikeN++;
+      BAND.push({x,y,r,a,col:grainCol(x,y,bright),halo:bright>0.80&&rnd()<0.45,spike,bright});
+      placed++;
+    }
+    for(let i=0;i<1260;i++){const y=300+gauss()*62, off=gauss()*38, x=bAxis(y)+off;
+      if(x<-4||x>W+4||y<0||y>FARH)continue;
+      const dr=(off-riftCenter(y))/13, rift=Math.exp(-dr*dr);
+      if(rnd()<rift*0.8)continue;
+      const d=Math.min(1,Math.abs(off)/42),mag=Math.pow(rnd(),1.9),bright=(1-d*0.62)*(0.42+0.58*mag);
+      BAND.push({x,y,r:0.22+mag*0.6,a:Math.min(0.42,0.09+0.32*bright),
+        col:grainCol(x,y,bright),halo:bright>0.84&&rnd()<0.4,spike:false,bright});}
+  }
+  function drawSpike(x,y,b){
+    const len=3.2+b*2.2, a=Math.min(0.30,0.13+b*0.16);
+    far.strokeStyle='rgba(240,244,255,'+a+')';far.lineWidth=0.6;far.lineCap='round';
+    far.beginPath();far.moveTo(x-len,y);far.lineTo(x+len,y);far.moveTo(x,y-len);far.lineTo(x,y+len);far.stroke();
+  }
+  function drawBand(){
+    const cy=300,cx=bAxis(cy),g=far.createRadialGradient(cx,cy,0,cx,cy,104);
+    g.addColorStop(0,'rgba('+tempStr(0.82)+',.045)');g.addColorStop(0.6,'rgba('+tempStr(0.5)+',.018)');g.addColorStop(1,'rgba(0,0,0,0)');
+    far.fillStyle=g;far.beginPath();far.arc(cx,cy,104,0,7);far.fill();
+    for(const p of BAND){
+      if(p.halo){
+        const R=3.0,gg=far.createRadialGradient(p.x,p.y,0,p.x,p.y,R);
+        gg.addColorStop(0,'rgba('+p.col+',0)');
+        gg.addColorStop(0.45,'rgba('+p.col+',.16)');
+        gg.addColorStop(1,'rgba('+p.col+',0)');
+        far.fillStyle=gg;far.beginPath();far.arc(p.x,p.y,R,0,7);far.fill();
+      }
+      far.fillStyle='rgba('+p.col+','+p.a+')';far.beginPath();far.arc(p.x,p.y,p.r,0,7);far.fill();
+      if(p.halo){
+        far.fillStyle='rgba(245,248,255,'+Math.min(0.40,p.a+0.14)+')';far.beginPath();far.arc(p.x,p.y,0.7,0,7);far.fill();
+      }
+      if(p.spike)drawSpike(p.x,p.y,p.bright);
+    }
+  }
+
+  // ===== 深空背景（R1s 逐語。deep=D.c）＝多葉ネビュラ（群青核→菫→茜）＋アクセント星。読了星の累積は移植しない。=====
+  function nebula(x,y,r,stops){const g=deep.createRadialGradient(x,y,0,x,y,r);
+    for(const st of stops)g.addColorStop(st[0],st[1]);
+    deep.fillStyle=g;deep.beginPath();deep.arc(x,y,r,0,7);deep.fill();}
+  function drawDeepSky(){
+    nebula(300,210,162,[[0,'rgba(60,82,166,.14)'],[.42,'rgba(104,84,170,.095)'],[.78,'rgba(128,80,128,.045)'],[1,'rgba(0,0,0,0)']]);
+    nebula(232,258,96,[[0,'rgba(150,86,118,.05)'],[1,'rgba(0,0,0,0)']]);
+    nebula(92,600,172,[[0,'rgba(98,86,166,.12)'],[.4,'rgba(128,84,150,.085)'],[.76,'rgba(152,86,122,.05)'],[1,'rgba(0,0,0,0)']]);
+    nebula(150,556,104,[[0,'rgba(70,90,168,.055)'],[1,'rgba(0,0,0,0)']]);
+    for(let i=0;i<10;i++){const x=rnd()*W,y=60+rnd()*(H-120);
+      const t=0.14+0.60*warmAt(y)+(hash01(x,y)-0.5)*1.0, col=starCol(t,0.9);
+      const g=deep.createRadialGradient(x,y,0,x,y,2.8);g.addColorStop(0,'rgba('+col+',.55)');g.addColorStop(1,'rgba('+col+',0)');
+      deep.fillStyle=g;deep.beginPath();deep.arc(x,y,2.8,0,7);deep.fill();}
+  }
+  // 遠景レイヤー（R1s 逐語。far=F.c・y∈[0,FARH]）＝星の海3200＋帯本体＋帯外散開微星520。
+  function drawFarStars(){
+    for(let i=0;i<3200;i++){const x=rnd()*W,y=rnd()*FARH;
+      const off=x-bAxis(y);
+      if(Math.abs(off)<bHalf(y)*1.2){const dr=(off-riftCenter(y))/13;if(rnd()<Math.exp(-dr*dr)*0.9)continue;}
+      const r=rnd()*0.34+0.08,a=rnd()*0.03+0.02;
+      far.fillStyle='rgba(200,214,244,'+a+')';far.beginPath();far.arc(x,y,r,0,7);far.fill();}
+    buildBand(); drawBand();
+    for(let i=0;i<520;i++){const x=rnd()*W,y=rnd()*FARH,r=rnd()*.42+.12,a=rnd()*.12+.02;
+      far.fillStyle='rgba(200,214,244,'+a+')';far.beginPath();far.arc(x,y,r,0,7);far.fill();}
+  }
+
+  // ===== 一度だけ描画（R1s と同じ順で rnd() を消費）＝アプリの統一空とピクセル同一の天の川を確定 =====
+  drawDeepSky();   // deep（アクセント星10点で rnd 消費）→ 次の far 生成が R1s と一致
+  drawFarStars();  // far（星の海→帯→核→塵）
+  // R1s の CSS 配置を再現して1枚に合成: deep=viewport そのまま／far は top:-70px ぶんずらす
+  S.c.drawImage(D.cv,0,0,W,H);
+  S.c.drawImage(F.cv,0,FAR_TOP,W,FARH);
+
+  // ===== 各 phone へ: 描画後の全体αスケール（淡0.35/中0.55）＋本文帯の保護減衰。形/色/構造は不変・明るさのみ =====
+  function prepVis(cv){cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';
+    const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);return c;}
+  const list=document.querySelectorAll('canvas.dust');
+  for(let i=0;i<list.length;i++){
+    const cv=list[i], mid=(cv.dataset.intensity==='mid');
+    const ascale=mid?0.55:0.35; // 【描画後の全体αスケール】中0.55/淡0.35。天の川全体の輝度だけを縮小＝R1s の形・色・構造は保存。
+    const c=prepVis(cv);
+    c.clearRect(0,0,W,H);
+    c.globalAlpha=ascale; c.drawImage(S.cv,0,0,W,H); c.globalAlpha=1;
+    // 【本文帯の保護減衰】本文列（reader）の帯域を destination-out で最大 40% 間引く（×0.6）＝帯芯が本文に重なる最悪ケースの余裕を確保。上下は軟らかくフェード。
+    c.globalCompositeOperation='destination-out';
+    const pg=c.createLinearGradient(0,120,0,780);
+    pg.addColorStop(0,'rgba(0,0,0,0)');
+    pg.addColorStop(0.12,'rgba(0,0,0,0.40)');
+    pg.addColorStop(0.88,'rgba(0,0,0,0.40)');
+    pg.addColorStop(1,'rgba(0,0,0,0)');
+    c.fillStyle=pg;c.fillRect(0,120,W,660);
+    c.globalCompositeOperation='source-over';
+  }
+})();
+</script>
+</body>
+</html>

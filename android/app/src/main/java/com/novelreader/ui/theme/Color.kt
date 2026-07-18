@@ -233,9 +233,29 @@ val TocInkSeizu     = Color(0xFFC9D0E1)   // toc-M .li .tx（章名の墨＝明�
 val TocCurStarSeizu = Color(0xFFF7F3E1)   // toc-M .li.cur .dot --dotc（現在章ドットの最輝星＝星グリフ・装飾・AA 対象外。BrightStarSeizu #F5F1DE とは非同値ゆえ新設）
 // ---- 発見（星図）専用の直書き色（discovery-M.html・ADR 0022 §5＝構造画面が Color.kt を直接参照）----
 val MilkyWaySeizu     = Color(0xFF788CD2)  // discovery-M 天の川の淡帯 rgba(120,140,210,α) 基色（linearGradient .06・αは描画層が付与）
-val NebulaVioletSeizu = Color(0xFF605496)  // bookshelf-M 深空の第2星雲 rgb(96,84,150)（微紫。R1統合で正本昇格・αは描画層が付与）
 val GenreChipInkSeizu = Color(0xFFC3CADB)  // discovery-M .gc（ジャンル入口チップの文字・夜天 bg 9.3:1）
 val AuthorInkSeizu    = Color(0xFF818BA6)  // discovery-M .rk .a（一覧の作者名 byline。bookshelf-M .const .by #818BA6 と同値＝同役割の byline 色）
+
+// ---- 本棚（星図）深空リッチ化 R1s（正本 bookshelf-M-rich-R1s.html・ADR 0022 §5＝構造画面専用の直書き色）----
+// R1s の思想: 形は解像(c)・色は色彩(b)・場は構造(a)の全合成。ここは【色b】＝各粒に星の体温（色温度）を宿す
+// tempRGB 4アンカーと、多停止ネビュラ（群青核→菫→茜）の停止色。αは描画層が .copy(alpha=) で付与（グラデ地の
+// 上へ層で載り単一素地へ焼き込めない）。彩度は系統色（群青/温白/月光スレート）内の淡い域＝彩度暴走なし。
+// 星の色温度4系統（青白→白→淡金→橙）＝tempRGB の区分線形補間アンカー（R1s STAR_STOPS の RGB を近似せず保持）。
+val StarTempBlueSeizu  = Color(0xFFB0CBFF)  // 176,203,255 青白（円盤の熱い星・寒色端）
+val StarTempWhiteSeizu = Color(0xFFECEFF8)  // 236,239,248 白（温白・中庸）
+val StarTempGoldSeizu  = Color(0xFFF4E9C4)  // 244,233,196 淡金（pale gold）
+val StarTempAmberSeizu = Color(0xFFF5CBA0)  // 245,203,160 橙（バルジの老いた星・暖色端）
+// 暗星の無彩色地（R1s NEUTRAL 200,212,238）。輝度上位ほど色温度が乗り、暗星はここへ寄る（starCol の strength=0 側）。
+// 帯外散開微星の色 200,214,244 も知覚下微差ゆえ同帯へ正規化＝ADR 0022 §4（DustSeizu が 214,224,250 を吸収したのと同流儀）。
+val StarNeutralSeizu   = Color(0xFFC8D4EE)  // 200,212,238 無彩色地／散開微星
+// ネビュラ多停止（群青核→菫→茜）。R1s の2星雲は各々別ランプ（意図的な色相変化の差）＝各停止色を近似せず正本値で保持。
+val NebulaIndigoSeizu     = Color(0xFF3C52A6)  // 60,82,166  群青核（第1星雲 芯・0%）
+val NebulaVioletSeizu     = Color(0xFF6854AA)  // 104,84,170 菫（第1星雲 42%）※R1s で値更新（旧 R1 の 96,84,150 は R1s ランプへ差し替え）
+val NebulaMadderSeizu     = Color(0xFF805080)  // 128,80,128 茜寄り菫（第1星雲 78%）
+val NebulaMadderWarmSeizu = Color(0xFF98567A)  // 152,86,122 茜（第2星雲 76%・副葉 150,86,118≈同値を統合）
+val NebulaIndigoDeepSeizu = Color(0xFF6256A6)  // 98,86,166  群青（第2星雲 芯・やや菫寄り 0%）
+val NebulaVioletWarmSeizu = Color(0xFF805496)  // 128,84,150 菫茜（第2星雲 40%）
+val NebulaIndigoCoolSeizu = Color(0xFF465AA8)  // 70,90,168  寒群青（第2星雲 副葉 0%）
 
 // ============================================================
 // スキンP「カートリッジ」（正本モック docs/design-candidates/skins/{bookshelf,reading,toc,settings,discovery}-P.html）。

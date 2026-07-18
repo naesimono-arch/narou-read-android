@@ -1,0 +1,233 @@
+<!-- @dsCard group="UI-n / 読書（スキン候補・描画リッチ化）" name="M-rich R2. 没入（本文の背後に極淡の深空・同じ夜空の下で読む）" -->
+<!--
+  思想（1行）: 読書中も「同じ夜空の下にいる」＝本文の背後に R1s 型・超微星の海の最暗レベルを敷き、可読を絶対優先（本文帯は実効輝度≤0.06の保護帯）で連続性を出す。
+  正本（reading-M.html）からの変更点一覧【変更は装飾レイヤ＋表記のみ。骨格・情報構造・文言・本文組版・クロームのボタン構成は正本と厳密同一】:
+   ・R1『節度』の全要素を継承＝欄外/上帯の塵星・下部バー微星・結線進捗（星の弧）・章区切り/情景転換の結線風。
+   ・＋本文の背後に極淡の深空（超微星の海・R1s最暗レベル）を全面に敷く。ただし本文帯（中段 x∈[28,362]）は α を強く絞り実効輝度≤0.06相当の保護帯＝読める暗さを絶対優先。
+   ・＋縁と上帯だけに極淡ネビュラ（群青→菫）を下支え。本文帯の直背後には置かない（可読保護）。
+   ・クローム表示状態だけ、深空をわずかに明るく描く＝「空が呼吸して見える」明度差（★静的な状態差であってアニメではない：二枚の phone を別輝度で一度だけ描くだけ）。
+   ・地の色ベース・本文組版・行間・字間・ルビ・ボタン構成は不変。モーションは一切無し（読書Mモーションゼロ＝ADR0022§3。keyframes/transition不使用）。
+  決定的生成: seeded LCG のみ（Math.random/Date.now 不使用）。全 phone 同一seed＝星位置は同一（＝同じ夜空）、輝度キャップのみ状態で変える。
+  提案トークン名（既存M系統内・新hueなし）: deco.dust / deep.sea = rgba(200,214,244,α)〔散開微星と同系〕／nebula.indigo=rgba(60,82,166,α)・nebula.violet=rgba(104,84,170,α)〔R1s 深空と同域〕／結線・ノードは既存 --star #E9DDB4。
+  避けたもの: 本文帯直背後のネビュラ・強い光（可読性最優先＝ADR0014-D）。脈動・明滅・自動演出（静けさ＝呼吸は状態差で表現しアニメにしない）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n M-rich R2 読書 — 没入</title>
+<style>
+  :root{
+    --text:#DCE3F2;--dim:#8791AD;--ruby:#9AA4C0;--star:#E9DDB4;
+    --line:rgba(150,168,214,.20);
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#06080F;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--mincho)}
+  .cap{color:#7C86A2;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.7;max-width:760px;font-family:var(--gothic)}
+  .cap b{color:#DCE3F2}
+  .wcag{color:#6E7794;font-size:11px;margin-bottom:18px;text-align:center;font-family:var(--gothic)}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#7C86A2;font-family:var(--gothic)}
+
+  /* 夜天の地＋ごく淡い星屑（CSSの点で散らす・本文は上に不透明で載る＝可読性維持） */
+  .phone{width:390px;height:844px;border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column;
+    box-shadow:0 30px 72px rgba(0,0,0,.72);font-family:var(--mincho);
+    background:
+      radial-gradient(1.4px 1.4px at 52px 150px,rgba(220,228,245,.5),transparent 60%),
+      radial-gradient(1px 1px at 320px 96px,rgba(220,228,245,.4),transparent 60%),
+      radial-gradient(1.2px 1.2px at 120px 300px,rgba(220,228,245,.32),transparent 60%),
+      radial-gradient(1px 1px at 350px 420px,rgba(220,228,245,.3),transparent 60%),
+      radial-gradient(1.3px 1.3px at 40px 520px,rgba(220,228,245,.34),transparent 60%),
+      radial-gradient(1px 1px at 300px 640px,rgba(220,228,245,.28),transparent 60%),
+      radial-gradient(1.2px 1.2px at 90px 720px,rgba(220,228,245,.3),transparent 60%),
+      radial-gradient(1px 1px at 250px 780px,rgba(220,228,245,.26),transparent 60%),
+      radial-gradient(70% 34% at 78% 6%,rgba(58,78,150,.20),transparent 60%),
+      linear-gradient(178deg,#0B1330 0%,#0D1636 46%,#080E26 100%);}
+
+  /* 【R2追加・装飾レイヤ】深空＋塵星（決定的LCG）。z0＝地の上・本文/クロームの下＝本文の背後に敷く（本文帯は輝度キャップで保護） */
+  .dust{position:absolute;inset:0;z-index:0;pointer-events:none}
+
+  /* 上端の結線進捗＝ほぼ唯一の常設クローム（読んだ分だけ金の線が伸び先端に静止の星） */
+  .prog{position:absolute;top:0;left:0;right:0;height:2px;z-index:6;background:rgba(150,168,214,.18)}
+  .prog i{position:absolute;left:0;top:0;height:2px;width:62%;background:var(--star);box-shadow:0 0 6px rgba(233,221,180,.5)}
+  /* 【R2】進捗＝星を結ぶ弧: 先端星から淡い星pipを尾（読了62%側）へ連ねる（静的なbox-shadow＝モーションなし） */
+  .prog .tip{position:absolute;left:62%;top:1px;width:5px;height:5px;border-radius:50%;background:#F5F1DE;
+    box-shadow:0 0 7px rgba(233,221,180,.9),-34px 0 3px rgba(233,221,180,.42),-78px 0 2px rgba(233,221,180,.34),-140px 0 2px rgba(233,221,180,.26);
+    transform:translate(-50%,-50%)}
+  .statusbar{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;
+    font-family:var(--gothic);font-size:12px;color:#6E7794;flex-shrink:0}
+
+  .topbar{position:relative;z-index:4;height:48px;display:flex;align-items:center;gap:6px;padding:0 14px;flex-shrink:0;border-bottom:1px solid var(--line)}
+  .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--text);cursor:pointer}
+  .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar .ct{flex:1;font-family:var(--gothic);font-size:13px;color:var(--dim);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ghost{height:46px;display:flex;align-items:center;justify-content:center;padding:0 26px;flex-shrink:0}
+  .ghost .ct{font-family:var(--gothic);font-size:11px;color:var(--dim);letter-spacing:.14em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80%}
+
+  .reader{flex:1;overflow:auto;padding:4px 28px 120px;position:relative;z-index:1}
+  /* 章見出し＝章扉の星座片＋番号＋題＋短い星線 */
+  .chap-h{margin:18px 0 30px;text-align:center}
+  .chap-h .frag{display:block;margin:0 auto 14px}
+  .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--star);letter-spacing:.32em}
+  .chap-h .t{font-size:20px;color:var(--text);margin-top:12px;line-height:1.62;font-weight:500;text-align:left}
+  .chap-h .rule{margin-top:18px;display:flex;align-items:center;gap:6px}
+  /* 【R2】結線風＝線を淡い弧のグラデに・終端の星ノードへ微グローと小さな次星 */
+  .chap-h .rule .ln{width:40px;height:1px;background:linear-gradient(90deg,transparent,var(--star) 30%,var(--star));opacity:.7}
+  .chap-h .rule .st{width:4px;height:4px;border-radius:50%;background:var(--star);
+    box-shadow:0 0 6px rgba(233,221,180,.75),13px 0 0 -1px rgba(233,221,180,.5)}
+  p{font-size:17px;line-height:2.55;color:var(--text);text-indent:1em;margin-bottom:.2em;letter-spacing:0}
+  ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  .blank{height:1.7em}
+  .scene{display:flex;align-items:center;justify-content:center;gap:12px;margin:14px auto}
+  /* 【R2】情景転換＝結線風の小星座（線を淡い弧・中央星に微グロー） */
+  .scene .ln{width:64px;height:1px;background:linear-gradient(90deg,transparent,var(--line) 45%,transparent)}
+  .scene .st{width:4px;height:4px;border-radius:50%;background:rgba(150,168,214,.5);box-shadow:0 0 6px rgba(150,168,214,.6)}
+  .block{border:1px solid var(--line);border-radius:10px;background:rgba(150,168,214,.05);padding:14px 16px;margin:6px 0 24px}
+  .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--dim);letter-spacing:.12em;margin-bottom:7px}
+  .block p{font-size:14.5px;line-height:2.1;text-indent:1em;margin:0;color:var(--ruby)}
+
+  /* 【R2】下部バーへ微星の淡い散布（数点・CSS。バーは半不透明でLCG層より前面のためここで宿す） */
+  .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:62px;display:flex;align-items:center;
+    background:
+      radial-gradient(1px 1px at 54px 18px,rgba(200,214,244,.22),transparent 62%),
+      radial-gradient(1px 1px at 168px 44px,rgba(200,214,244,.16),transparent 62%),
+      radial-gradient(1px 1px at 300px 14px,rgba(200,214,244,.18),transparent 62%),
+      radial-gradient(1px 1px at 348px 40px,rgba(200,214,244,.14),transparent 62%),
+      rgba(14,21,48,.82);
+    border-top:1px solid var(--line);backdrop-filter:blur(6px)}
+  .bottombar button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--text);cursor:pointer}
+  .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .bottombar .bl{font-family:var(--gothic);font-size:9.5px;color:var(--dim);letter-spacing:.02em}
+  .bottombar .set svg{stroke:var(--star)}
+  .bottombar .set .bl{color:var(--star)}
+  .hint{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:6;font-family:var(--gothic);font-size:11px;color:var(--dim);letter-spacing:.08em}
+</style>
+</head>
+<body>
+  <p class="cap"><b>M-rich R2. 没入</b> ／ 本文の背後に極淡の深空（超微星の海・最暗レベル）を敷き「同じ夜空の下で読む」連続性を出す。本文帯は実効輝度≤0.06の保護帯＝読める暗さを絶対優先。クローム表示時だけ空がわずかに呼吸（静的な状態差）。既定は没入、中央タップでクローム。</p>
+  <p class="wcag">本文×背景コントラスト（目安）：#DCE3F2 / #0B1330 ≈ 13:1（AAA 通常 7:1 を満たす）。ルビ #9AA4C0 ≈ 6.9:1・補助文字 #8791AD ≈ 5.4:1。本文帯背後の深空は実効輝度≤0.06に制限＝コントラスト実質不変。</p>
+  <div class="stage">
+
+    <div class="wrap"><span class="mode">没入（既定・バー非表示）</span>
+    <div class="phone" role="img" aria-label="M-rich R2 没入 読書 没入状態">
+      <canvas class="dust" aria-hidden="true"></canvas>
+      <div class="prog"><i></i><span class="tip"></span></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ▢ 84%</span></div>
+      <div class="ghost"><span class="ct">追放された万能薬師 · 第127話</span></div>
+      <div class="reader">
+        <div class="chap-h">
+          <svg class="frag" width="58" height="30" viewBox="0 0 58 30" aria-hidden="true">
+            <g stroke="rgba(233,221,180,.55)" stroke-width="1" fill="none"><line x1="7" y1="22" x2="23" y2="11"/><line x1="23" y1="11" x2="43" y2="17"/><line x1="43" y1="17" x2="51" y2="7"/></g>
+            <g fill="#E9DDB4"><circle cx="7" cy="22" r="1.5"/><circle cx="23" cy="11" r="2.1"/><circle cx="43" cy="17" r="1.5"/><circle cx="51" cy="7" r="2.4"/></g>
+          </svg>
+          <div class="num">第 百二十七 話</div>
+          <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+          <div class="rule"><span class="ln"></span><span class="st"></span></div>
+        </div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。もう<ruby>戦<rt>たたか</rt></ruby>う<ruby>理由<rt>りゆう</rt></ruby>はない、とでも<ruby>言<rt>い</rt></ruby>うように。</p>
+        <div class="blank"></div>
+        <div class="scene"><span class="ln"></span><span class="st"></span><span class="ln"></span></div>
+        <div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+      </div>
+      <div class="hint">画面をタップでメニュー</div>
+    </div></div>
+
+    <div class="wrap"><span class="mode">クローム表示（中央タップ後・空がわずかに呼吸）</span>
+    <div class="phone" role="img" aria-label="M-rich R2 没入 読書 クローム表示状態">
+      <canvas class="dust" data-chrome="1" aria-hidden="true"></canvas>
+      <div class="prog"><i></i><span class="tip"></span></div>
+      <div class="statusbar"><span>9:41</span><span>●●● ▢ 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第127話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="reader">
+        <div class="chap-h">
+          <svg class="frag" width="58" height="30" viewBox="0 0 58 30" aria-hidden="true">
+            <g stroke="rgba(233,221,180,.55)" stroke-width="1" fill="none"><line x1="7" y1="22" x2="23" y2="11"/><line x1="23" y1="11" x2="43" y2="17"/><line x1="43" y1="17" x2="51" y2="7"/></g>
+            <g fill="#E9DDB4"><circle cx="7" cy="22" r="1.5"/><circle cx="23" cy="11" r="2.1"/><circle cx="43" cy="17" r="1.5"/><circle cx="51" cy="7" r="2.4"/></g>
+          </svg>
+          <div class="num">第 百二十七 話</div>
+          <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+          <div class="rule"><span class="ln"></span><span class="st"></span></div>
+        </div>
+        <div class="block"><div class="lbl">前書き</div><p>お読みいただきありがとうございます。今回は少し長めの戦闘回になりました。次話は<ruby>後日談<rt>ごじつだん</rt></ruby>を挟みます。</p></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <div class="blank"></div>
+        <div class="scene"><span class="ln"></span><span class="st"></span><span class="ln"></span></div>
+        <div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="#0D1636"/><circle cx="15" cy="16" r="2.4" fill="#0D1636"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+  </div>
+<script>
+(function(){
+  "use strict";
+  // 【R2装飾レイヤ】本文の背後に極淡の深空（超微星の海・最暗レベル）を敷く＝「同じ夜空の下で読む」連続性。
+  // 保護帯: 本文帯（中段 x∈[28,362]）は α を強く絞り実効輝度≤0.06相当＝読める暗さを絶対優先（ADR0014-D 可読性>美学）。
+  // 呼吸: クローム表示状態(data-chrome="1")だけ深空をわずかに明るく描く＝静的な状態差（アニメではない・一度だけ描画）。
+  var W=390,H=844;
+  var BODY_L=28,BODY_R=362;   // reader の左右padding=28px＝本文帯の水平範囲
+  var TOP_BAND=92;            // 上部クローム帯の下端（statusbar44+topbar48）
+  var BOTTOM_KEEP=118;        // 下端の余白（下部バー領域）
+  var dpr=Math.max(1,(window.devicePixelRatio||1));
+  // 決定的LCG（Math.random/Date.now 不使用）。全phone同一seed＝星位置は同一（同じ夜空）、輝度キャップのみ状態で変える。
+  function makeRnd(seed){var s=seed>>>0;return function(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;};}
+  function prep(cv){cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';var c=cv.getContext('2d');c.scale(dpr,dpr);return c;}
+  function inBody(x,y){return y>TOP_BAND && y<H-BOTTOM_KEEP && x>BODY_L && x<BODY_R;}
+  // 極淡ネビュラ（縁・上帯のみ・本文帯直背後は避ける）＝奥行きの下支え。系統色内（群青→菫）・彩度暴走なし。
+  function nebula(c,x,y,r,stops){var g=c.createRadialGradient(x,y,0,x,y,r);
+    for(var i=0;i<stops.length;i++)g.addColorStop(stops[i][0],stops[i][1]);
+    c.fillStyle=g;c.beginPath();c.arc(x,y,r,0,7);c.fill();}
+  function drawSky(cv){
+    var chrome=(cv.dataset.chrome==='1');
+    var c=prep(cv),rnd=makeRnd(20260719);
+    // クローム時のみ空がわずかに呼吸（＝明度を一段上げる静的な状態差）。本文帯キャップは chrome でも ≤0.06実効 を厳守。
+    var bodyCap=chrome?0.050:0.035;   // 本文帯: α上限（星色≈輝度0.82 → 実効≲0.041＜0.06）
+    var edgeCap=chrome?0.075:0.060;   // 欄外/上下帯: 少しだけ許す
+    var nebA  =chrome?1.0:0.72;       // ネビュラ倍率（呼吸）
+    // (1) 極淡ネビュラ＝縁と上帯のみ（本文帯の中心背後は置かない）
+    nebula(c,300,44,150,[[0,'rgba(60,82,166,'+(0.060*nebA).toFixed(3)+')'],[0.55,'rgba(104,84,170,'+(0.030*nebA).toFixed(3)+')'],[1,'rgba(0,0,0,0)']]);
+    nebula(c,60,806,140,[[0,'rgba(98,86,166,'+(0.045*nebA).toFixed(3)+')'],[1,'rgba(0,0,0,0)']]);
+    // (2) 超微星の海（最深・R1s最暗レベル）＝本文の背後に無数の微光。本文帯は bodyCap で保護。
+    var placed=0,tries=0;
+    while(placed<2600 && tries<40000){tries++;
+      var x=rnd()*W, y=rnd()*H, body=inBody(x,y);
+      var r=rnd()*0.30+0.06;
+      var a= body ? (rnd()*(bodyCap-0.012)+0.012) : (rnd()*(edgeCap-0.018)+0.018);
+      c.fillStyle='rgba(200,214,244,'+a.toFixed(3)+')';
+      c.beginPath();c.arc(x,y,r,0,7);c.fill();
+      placed++;
+    }
+    // (3) R1由来の縁の塵星＝欄外/上帯にだけ少し立った微光を重ね（本文帯は撒かない）。
+    var dp=0,dt=0;
+    while(dp<150 && dt<5000){dt++;
+      var dx=rnd()*W, dy=rnd()*H;
+      if(inBody(dx,dy))continue;
+      var dr=rnd()*0.70+0.22, da=rnd()*0.09+0.03;
+      c.fillStyle='rgba(200,214,244,'+da.toFixed(3)+')';
+      c.beginPath();c.arc(dx,dy,dr,0,7);c.fill();
+      dp++;
+    }
+  }
+  var list=document.querySelectorAll('canvas.dust');
+  for(var i=0;i<list.length;i++)drawSky(list[i]);
+})();
+</script>
+</body>
+</html>

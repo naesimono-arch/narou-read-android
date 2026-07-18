@@ -2,6 +2,7 @@ package com.novelreader.ui
 
 import android.app.Activity
 import android.content.Context
+import android.provider.Settings
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -91,8 +92,12 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -129,13 +134,18 @@ import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.MotionDurationCrossfade
 import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationNavTransition
+import com.novelreader.ui.theme.MotionDurationSeizuFadeIn
+import com.novelreader.ui.theme.MotionDurationSeizuFadeInDelay
+import com.novelreader.ui.theme.MotionDurationSeizuFadeOut
 import com.novelreader.ui.theme.MotionSpringBarSettle
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.skins.j.NextDoorEdgeGlowJ
 import com.novelreader.ui.skins.m.ReadingProgressStarM
-import com.novelreader.ui.skins.m.drawSeizuReadingSky
+import com.novelreader.ui.skins.m.drawSeizuReadingScrim
+import com.novelreader.ui.skins.m.skyBackdropReadingState
 import com.novelreader.ui.skins.p.ReadingSaveBarP
 import com.novelreader.ui.skins.p.SaveChipP
+import com.novelreader.ui.skins.m.LocalSkyParallax
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Skin
@@ -500,6 +510,29 @@ fun ReadingScreen(
             ?: (0 to 0)
     }
 
+    // スキン差分（M星図・2026-07-19 ユーザー裁定「空の一枚化」）: M は固定天球（常駐 backdrop）を全画面で共有するため
+    // 目次⇄本文も slide だと「空ごと」動く＝コンテンツのみをフェードで差し替える（ADR 0019 追記「M星図の例外」）。
+    // reduce-motion では即時切替（読書Mのモーションゼロ規律と整合）。他スキンは従来の slide push 不変。
+    val isSeizu = LocalSkin.current == Skin.SEIZU_M
+    val reduceMotion = remember {
+        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    }
+    // 【透過の天の川・2026-07-19 裁定】読書Mも常駐 backdrop（R1s 実物の天の川）を透かして見せる（reading-M-rich-R4 中）＝
+    // 読書中も hidden=false のまま。ただし本文（index.html 以外）では読書Mモーションゼロ（ADR 0022 §3）との整合で
+    // z2 流星のみ抑止する（meteorSuppressed）。目次（index.html）は透過の構造画面＝空も流星も見せる。読書面自体は透明にし
+    // （下の Scaffold containerColor=Transparent）、地色スクリム（drawSeizuReadingScrim）で空を減光する。
+    // 状態機は純関数 skyBackdropReadingState が正本（JVM テストで固定）。離脱時は DisposableEffect で必ず復帰。
+    val skyBackdrop = LocalSkyParallax.current
+    LaunchedEffect(isSeizu, resolvedFile, skyBackdrop) {
+        val bd = skyBackdrop ?: return@LaunchedEffect
+        val st = skyBackdropReadingState(isSeizu, isIndex = resolvedFile == "index.html")
+        bd.hidden = st.hidden
+        bd.meteorSuppressed = st.meteorSuppressed
+    }
+    DisposableEffect(skyBackdrop) {
+        onDispose { skyBackdrop?.hidden = false; skyBackdrop?.meteorSuppressed = false }
+    }
+
     // 目次⇄本文の切替を NavHost のスライドと同じ向きルールで演出する（進む=目次→章は右から左へ潜る／
     // 戻る=章→目次は左から右へ戻す）。同一 nav ルート内の state 切替（resolvedFile の出し分け）を
     // AnimatedContent で包む。章→章（話送り）は現状どおり瞬間＝向きを付けない（P1 は別枠のため据え置き）。
@@ -511,6 +544,10 @@ fun ReadingScreen(
             val toToc = targetState == "index.html"
             val fromToc = initialState == "index.html"
             when {
+                // M は方向概念を持たないフェードスルー（退出先行→進入。尺は Nav 遷移バジェット内で二分）。
+                isSeizu && reduceMotion -> EnterTransition.None togetherWith ExitTransition.None
+                isSeizu -> fadeIn(tween(MotionDurationSeizuFadeIn, delayMillis = MotionDurationSeizuFadeInDelay)) togetherWith
+                    fadeOut(tween(MotionDurationSeizuFadeOut))
                 // 章→目次（戻る）: 前画面（目次）が左から入り、本文は右へ抜ける
                 toToc -> slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(d)) togetherWith
                     slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(d))
@@ -1328,6 +1365,20 @@ internal fun ChapterScreenContent(
         )
     }
 
+    // 【透過の天の川・視差接続・2026-07-19 裁定】読書スクロールも他 M 画面（本棚/目次/発見）と同様に常駐 backdrop の
+    // 視差へ接続する＝「同じ空」の連続性（画面遷移でオフセットがリセットされない・積算は controller が保持）。
+    // これは自律アニメではなくスクロール連動＝読書Mモーションゼロ規律（ADR 0022 §3・自走するモーション）の対象外。
+    // reduce-motion では controller.onScrollDelta が内部で積算を止める（従来どおり）。M 以外は skyParallax=null＝no-op。
+    val skyParallax = LocalSkyParallax.current
+    val skyParallaxConnection = remember(skyParallax) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                skyParallax?.onScrollDelta(consumed.y)
+                return Offset.Zero
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1378,7 +1429,9 @@ internal fun ChapterScreenContent(
             },
     ) {
         Scaffold(
-            containerColor = colors.background,
+            // 【透過の天の川】M は読書面を透明にし常駐 backdrop（同じ空）を透かす（地色スクリムは下の drawSeizuReadingScrim）。
+            // M 以外は従来どおり不透明な読書地色（1ビットも変えない）。
+            containerColor = if (isSeizu) Color.Transparent else colors.background,
             // なぜ contentWindowInsets を 0 にするか: 上下バーを Scaffold スロットではなく
             // オーバーレイで描くため、インセットは本文側(ChapterContent の contentPadding)で
             // 完全に管理する。Scaffold が二重にインセットを足さないよう無効化する。
@@ -1391,9 +1444,13 @@ internal fun ChapterScreenContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    // スキンM: 地＝夜天グラデ＋極淡の星屑（reading-M .phone 背景）。本文の下層に静的に敷く
-                    //（スワイプ追従は本文側の translationX のみ＝地は動かない。M 以外は Modifier 無変化）。
-                    .then(if (isSeizu) Modifier.drawBehind { drawSeizuReadingSky() } else Modifier)
+                    // スキンM【透過の天の川・R4 中】: 読書面は透明で常駐 backdrop（同じ空）を透かし、その上へ地色スクリムで
+                    // 空を減光する（全面×0.55＋本文帯×0.6）。本文の下層に静的に一度だけ敷く（スワイプ追従は本文側の
+                    // translationX のみ＝地は動かない。M 以外は Modifier 無変化）。
+                    .then(if (isSeizu) Modifier.drawBehind { drawSeizuReadingScrim() } else Modifier)
+                    // スキンM: 読書スクロールを常駐 backdrop の視差へ接続（他 M 画面と同じ「同じ空」の連続性）。
+                    // M 以外は skyParallax=null＝no-op だが、非M で 1 ビットも介入しないよう isSeizu で明示ゲート。
+                    .then(if (isSeizu) Modifier.nestedScroll(skyParallaxConnection) else Modifier)
                     // 本文タップで上下バーをトグル表示する（表示/非表示の唯一の駆動元）。
                     // なぜ barsVisible の真偽値を持たないか: settle アニメ中の再タップや
                     // プロセス再生成の復元で真偽値と実オフセットが乖離すると「隠れているものを
