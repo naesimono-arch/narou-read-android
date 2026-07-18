@@ -1,0 +1,114 @@
+<!-- @dsCard group="UI-n / 読書設定（スキン候補）" name="C. 夜行 — 表示設定シート（テーマ3択〔仮〕・文字サイズ・行間・灯火のつまみ）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n C 表示設定 — 夜行</title>
+<style>
+  /* ===== C案: 夜行・表示設定 =====
+     reading-C から立ち上がるボトムシート（実機 ReadingSettingsSheet）。項目は実機能と1対1＝
+     テーマ選択／文字サイズ(14〜24sp)／行間(2.3〜2.8em)。シートは深炭の面（surface）で読書面の上に。
+     選択アクセントは月光スレート（emberは進捗の灯に限定するため設定の選択には使わない）。
+
+     ★テーマ節の扱い（仮置き・要裁定）★
+     Cのテーマ変種方針は未裁定。ここでは「D同様の選択が可能（ライト/セピア/ダーク）」を仮に置く。
+     Cは本来“夜行＝没入の夜”を署名とする没入スキンで、ライト相を持つべきか、あるいは
+     「夜行のなかの濃淡（浅い夜/深い夜）」に置き換えるべきかは別途裁定。確定後に差し替える。
+     ※スキン選択UIはこのシートに入れない（スキン機能は今回スコープ外＝settings-Dと同方針）。
+
+     遊び心＝テーマチップに指を寄せると背後の本文プレビューがそのテーマの地色にほのかに変わる
+     （その夜がどう変わるかを触れる前に見せる）。reduce-motion時は即時切替＝明滅なし。 */
+  :root{
+    --bg:#16181D;--surface:#1E2128;--text:#D8D1C5;--text-dim:#8B8A84;
+    --line:#2C303A;--slate:#8E99B0;--ember:#C79A6A;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0C0D10;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:var(--text-dim);font-size:13px;margin-bottom:20px;text-align:center;line-height:1.75;max-width:640px}
+  .cap b{color:var(--text)}
+  .phone{width:390px;height:844px;border-radius:42px;overflow:hidden;position:relative;
+    box-shadow:0 30px 70px rgba(0,0,0,.7);display:flex;flex-direction:column;background:var(--bg)}
+
+  /* 背後にうっすら本文（reading-C の組版）。シートで暗転 */
+  .behind{position:absolute;inset:0;padding:60px 28px;font-family:var(--mincho);font-size:16px;
+    line-height:2.5;color:#3A3D45;text-indent:1em;overflow:hidden;transition:background .5s ease,color .5s ease}
+  .scrim{position:absolute;inset:0;background:rgba(8,9,12,.55)}
+  /* テーマchip hoverで背後プレビューが地色を変える（遊び心・純CSS） */
+  .phone:has(.chip.pv-light:hover) .behind{background:#FBFAF8;color:#C9C6BF}
+  .phone:has(.chip.pv-sepia:hover) .behind{background:#F0E6D2;color:#B9AD93}
+  .phone:has(.chip.pv-dark:hover)  .behind{background:#16181D;color:#3A3D45}
+
+  /* ボトムシート */
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:20px 20px 0 0;
+    padding:12px 24px 32px;box-shadow:0 -12px 34px rgba(0,0,0,.55)}
+  .grab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 16px}
+  .sheet h2{font-family:var(--mincho);font-size:17px;color:var(--text);font-weight:600;letter-spacing:.08em;margin-bottom:4px}
+  .scope-note{font-family:var(--gothic);font-size:11px;color:var(--text-dim);letter-spacing:.04em;line-height:1.5;margin-bottom:24px}
+  .lbl{font-family:var(--gothic);font-size:12px;color:var(--text-dim);letter-spacing:.06em;margin-bottom:12px}
+  .sec{margin-bottom:24px}
+  /* テーマ3択チップ。選択＝スレート塗り＋暗字／非選択＝ヘアライン枠 */
+  .chips{display:flex;gap:12px}
+  .chip{flex:1;text-align:center;padding:12px 0;border-radius:10px;font-family:var(--gothic);font-size:13.5px;
+    border:1px solid var(--line);color:var(--text);background:transparent;cursor:pointer}
+  .chip.on{background:var(--slate);border-color:var(--slate);color:#15171C;font-weight:600}
+  .chip:focus-visible{outline:2px solid var(--slate);outline-offset:2px}
+  /* スライダー（文字サイズ・行間）。両端ラベル＋トラック＋灯火のつまみ */
+  .slider{display:flex;align-items:center;gap:16px}
+  .end{font-family:var(--mincho);color:var(--text);flex-shrink:0}
+  .end.g{font-family:var(--gothic);font-size:12px;color:var(--text-dim)}
+  .track{flex:1;height:2px;background:var(--line);position:relative;border-radius:2px}
+  .track .fill{position:absolute;left:0;top:0;height:2px;background:var(--slate);border-radius:2px}
+  /* つまみだけは灯火の点＝“いまの温度”を握る。ほのかな灯の暈 */
+  .track .knob{position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--ember);
+    transform:translate(-50%,-50%);box-shadow:0 0 10px rgba(199,154,106,.5)}
+  .val{font-family:var(--gothic);font-size:12px;color:var(--ember);margin-left:8px}
+  .row-lbl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+  /* 遊び心のプレビューは即時に（明滅させない） */
+  @media(prefers-reduced-motion:reduce){ .behind{transition:none} }
+</style>
+</head>
+<body>
+  <p class="cap"><b>C. 夜行 — 表示設定</b> ／ reading-C から立ち上がるボトムシート。テーマ3択（選択＝スレート塗り）／文字サイズ 14〜24sp／行間 2.3〜2.8em。
+  つまみだけ灯火emberで“いまの温度”を握る。遊び心＝テーマチップに指を寄せると<b>背後本文がその地色に変わる</b>（reduce-motionで即時）。
+  ※テーマ節は「D同様の選択が可能」を<b>仮置き</b>（Cのテーマ変種方針は未裁定＝ヘッダーコメント参照）。</p>
+  <div class="phone" role="img" aria-label="C案 表示設定シート">
+    <div class="behind">辺境の城門に辿り着いたのは、長い雨がようやく上がった頃だった。濡れた石畳が夕陽を照り返し、橙の光が水たまりに滲んでいる。彼女はそう呟くと、腰の剣をそっと地に置いた。もう戦う理由はない、とでも言うように。</div>
+    <div class="scrim"></div>
+    <div class="sheet">
+      <div class="grab"></div>
+      <h2>表示設定</h2>
+      <p class="scope-note">配色や文字の設定は、すべての本に適用されます</p>
+
+      <div class="sec">
+        <div class="lbl">テーマ</div>
+        <div class="chips">
+          <button class="chip pv-light">ライト</button>
+          <button class="chip pv-sepia">セピア</button>
+          <button class="chip on pv-dark">ダーク</button>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="row-lbl"><span class="lbl" style="margin:0">文字サイズ</span><span class="val">18sp</span></div>
+        <div class="slider">
+          <span class="end" style="font-size:14px">あ</span>
+          <span class="track"><span class="fill" style="width:40%"></span><span class="knob" style="left:40%"></span></span>
+          <span class="end" style="font-size:24px">あ</span>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="row-lbl"><span class="lbl" style="margin:0">行間</span><span class="val">2.5</span></div>
+        <div class="slider">
+          <span class="end g">狭</span>
+          <span class="track"><span class="fill" style="width:40%"></span><span class="knob" style="left:40%"></span></span>
+          <span class="end g">広</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

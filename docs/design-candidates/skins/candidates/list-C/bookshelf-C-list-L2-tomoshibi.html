@@ -1,0 +1,136 @@
+<!-- @dsCard group="UI-n / 本棚（C一覧候補）" name="C一覧 L2. 灯（ともしび）＝夜天に並ぶ書影・読みかけだけ灯が点る格子" -->
+<!--
+  思想（1行）: L1「夜半」が“通読の目録（行）”なら、L2「灯」は“見晴らす格子（面）”。深炭の夜天にミュート書影を静かに並べ、
+    読みかけの一冊だけ書影下端の灯火emberが点り、未読は灯の消えた暗い天体として沈む——「どこまで灯したか」が一望できる相。
+    ＝別アプリ級：発見のランキング格子でも栞Dのグリッドでもなく、進捗の“灯”を面の主役に据えたCの蔵書夜景。
+    世界の連続は〈深炭の夜天／温白の題字（明朝）／月光スレートの操作／灯火emberの進捗〉を bookshelf-C と共有して保つ。
+
+  bookshelf-C（本棚）の機能全数チェックリスト（一覧面として欠落禁止）:
+    [x] 書影            … ミュート書影（C用の低彩度地色・象徴一文字・アスペクト2/3）
+    [x] 題名            … 書影下の明朝・温白（2行省略）
+    [x] 進捗（話数＋%）  … 書影下端の灯火ヘアライン＋話数/百分率（読みかけのみ点灯）
+    [x] 未読            … 灯の消えた暗い相＋「未読」薄暮ラベル（沈めるが失わない）
+    [x] 一覧⇄デッキ切替 … topbar のトグル（デッキ＝続きからヒーローのある既定へ戻る）
+    [x] メニュー         … topbar 右のメニュー
+    [x] PDF追加(FAB)    … 右下の控えめFAB（bookshelf-C と同一）
+    [x] 蔵書数           … topbar 下の静かなカウント
+  遊び心（ユーザー動作連動・1画面1つ）: 書影に指を寄せると進捗の灯がわずかに強まり、書影がほのかに浮く（＝灯を近づける）。reduce-motionで即時。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n C 本棚一覧 L2 — 灯</title>
+<style>
+  :root{
+    --bg:#16181D;--surface:#1E2128;--surface-2:#252932;
+    --text:#D8D1C5;--text-dim:#8B8A84;--line:#2C303A;
+    --slate:#8E99B0;--ember:#C79A6A;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0C0D10;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:24px;font-family:var(--mincho)}
+  /* 夜天の地: 深炭にごく淡い灯だまりのグラデ */
+  .phone{width:390px;height:844px;border-radius:42px;overflow:hidden;position:relative;
+    box-shadow:0 30px 70px rgba(0,0,0,.7);display:flex;flex-direction:column;
+    background:radial-gradient(120% 60% at 50% 6%,#1B1E25,var(--bg) 60%)}
+  .statusbar{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;
+    font-family:var(--gothic);font-size:12px;color:var(--text-dim)}
+  .topbar{padding:4px 22px 8px;display:flex;align-items:center;justify-content:space-between}
+  .topbar h1{font-size:19px;color:var(--text);font-weight:500;letter-spacing:.18em}
+  .actions{display:flex;gap:2px}
+  .iconbtn{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--text-dim);cursor:pointer}
+  .iconbtn.on{color:var(--slate)}
+  .iconbtn:hover{color:var(--text)}
+  .iconbtn:focus-visible{outline:2px solid var(--slate);outline-offset:2px}
+  .iconbtn svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .count{font-family:var(--gothic);font-size:11px;letter-spacing:.24em;color:var(--text-dim);padding:2px 24px 10px}
+  .scroll{flex:1;overflow:auto;padding:2px 22px 100px}
+
+  /* 書影格子: 2列 */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:22px 18px}
+  .card{cursor:pointer;display:flex;flex-direction:column;gap:9px}
+  .card:focus-visible{outline:2px solid var(--slate);outline-offset:3px;border-radius:8px}
+  .cv{position:relative;aspect-ratio:2/3;border-radius:5px;overflow:hidden;display:grid;place-items:center;
+    color:rgba(216,209,197,.85);font-size:34px;font-family:var(--mincho);box-shadow:0 8px 20px rgba(0,0,0,.5);
+    transition:transform .35s ease,box-shadow .35s ease}
+  .card:hover .cv{transform:translateY(-3px);box-shadow:0 14px 28px rgba(0,0,0,.6)}
+  /* 未読＝灯の消えた暗い相（書影に暗幕を重ねる） */
+  .card.unread .cv::after{content:"";position:absolute;inset:0;background:rgba(12,13,16,.42)}
+  /* 進捗の灯: 書影下端のヘアライン。読みかけのみ点灯、hoverで強まる（遊び心） */
+  .lamp{height:2px;background:var(--line);border-radius:2px;overflow:hidden;position:relative}
+  .lamp i{display:block;height:100%;background:var(--ember);box-shadow:0 0 6px rgba(199,154,106,.4);transition:box-shadow .35s ease}
+  .card:hover .lamp i{box-shadow:0 0 12px rgba(199,154,106,.8)}
+  .ct{font-size:12.5px;color:var(--text);line-height:1.45;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .cm{font-family:var(--gothic);font-size:10.5px;color:var(--text-dim);letter-spacing:.02em}
+  .cm.u{opacity:.72}
+
+  .fab{position:absolute;right:20px;bottom:24px;width:54px;height:54px;border-radius:50%;border:1px solid var(--line);
+    background:var(--surface-2);color:var(--slate);cursor:pointer;display:grid;place-items:center;box-shadow:0 10px 24px rgba(0,0,0,.5)}
+  .fab:focus-visible{outline:2px solid var(--slate);outline-offset:2px}
+  .fab svg{width:24px;height:24px;stroke:currentColor;stroke-width:2;fill:none}
+
+  @media(prefers-reduced-motion:reduce){ .cv,.card:hover .cv,.lamp i,.card:hover .lamp i{transition:none;transform:none} }
+</style>
+</head>
+<body>
+<div class="phone" role="img" aria-label="C案 本棚一覧 L2 灯">
+  <div class="statusbar"><span>9:41</span><span>●●● ▢ 84%</span></div>
+  <div class="topbar">
+    <h1>本棚</h1>
+    <div class="actions">
+      <button class="iconbtn on" aria-label="格子表示（選択中）"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg></button>
+      <button class="iconbtn" aria-label="デッキ表示に切替"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="16" rx="1"/><rect x="13" y="4" width="7" height="16" rx="1"/></svg></button>
+      <button class="iconbtn" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.4" fill="currentColor" stroke="none"/></svg></button>
+    </div>
+  </div>
+  <div class="count">蔵書 12 冊</div>
+  <div class="scroll">
+    <div class="grid">
+      <div class="card" tabindex="0">
+        <div class="cv" style="background:#3A4150">追</div>
+        <div class="lamp"><i style="width:62%"></i></div>
+        <div class="ct">追放された万能薬師、辺境でスローライフを始める</div>
+        <div class="cm">第127話 · 62%</div>
+      </div>
+      <div class="card" tabindex="0">
+        <div class="cv" style="background:#5B3A66">黒</div>
+        <div class="lamp"><i style="width:28%"></i></div>
+        <div class="ct">黒の魔王と契約した俺、気づけば最強の従者に</div>
+        <div class="cm">第43話 · 28%</div>
+      </div>
+      <div class="card unread" tabindex="0">
+        <div class="cv" style="background:#2F5347">草</div>
+        <div class="lamp"><i style="width:0%"></i></div>
+        <div class="ct">転生したら最弱スキルだったので草むしりしていた</div>
+        <div class="cm u">未読</div>
+      </div>
+      <div class="card" tabindex="0">
+        <div class="cv" style="background:#6B3F2E">公</div>
+        <div class="lamp"><i style="width:11%"></i></div>
+        <div class="ct">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+        <div class="cm">第8話 · 11%</div>
+      </div>
+      <div class="card" tabindex="0">
+        <div class="cv" style="background:#3E4A5A">辺</div>
+        <div class="lamp"><i style="width:40%"></i></div>
+        <div class="ct">辺境伯家の次男は今日も書庫にこもる</div>
+        <div class="cm">第3話 · 40%</div>
+      </div>
+      <div class="card unread" tabindex="0">
+        <div class="cv" style="background:#4A3B52">雨</div>
+        <div class="lamp"><i style="width:0%"></i></div>
+        <div class="ct">雨宿りの喫茶店で魔女に出会った</div>
+        <div class="cm u">未読</div>
+      </div>
+    </div>
+  </div>
+  <button class="fab" aria-label="PDFを追加">
+    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+</div>
+</body>
+</html>

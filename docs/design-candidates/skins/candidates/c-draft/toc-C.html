@@ -1,0 +1,108 @@
+<!-- @dsCard group="UI-n / 目次（スキン候補）" name="C. 夜行 — 目次（灯のある現在章・既読は温白/未読は薄暮・章が見つかりません）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n C 目次 — 夜行</title>
+<style>
+  /* ===== C案: 夜行・目次 =====
+     reading-C の読書面と地続き。現在章＝いま灯がある場所として灯火emberで示す
+     （左の灯火ルール＋淡い灯明の面＋明朝太字＋温白）。実機 NativeTableOfContentsScreen の
+     「左アクセントバー＋淡背景＋太字」に対応（Dの藍→Cの灯火へ置換）。
+     読み進みの前後で温度を分ける: 既読＝温白(--text)／現在章＝灯火／未読＝薄暮(--text-dim)。
+     章間はCのヘアライン区切り。遊び心＝現在章の“灯芯”が呼吸する（reduce-motionで静止）。
+     配色はCの4色に閉じる（ADR 0021）。emberは現在地の灯にのみ使い、操作アクセントはスレート。 */
+  :root{
+    --bg:#16181D;--surface:#1E2128;--text:#D8D1C5;--text-dim:#8B8A84;
+    --line:#2C303A;--slate:#8E99B0;--ember:#C79A6A;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0C0D10;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:var(--text-dim);font-size:13px;margin-bottom:20px;text-align:center;line-height:1.75;max-width:720px}
+  .cap b{color:var(--text)}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap .mode{font-family:var(--gothic);font-size:11px;letter-spacing:.26em;color:#6A6A66}
+  .phone{width:390px;height:844px;background:var(--bg);border-radius:42px;overflow:hidden;position:relative;
+    box-shadow:0 30px 70px rgba(0,0,0,.7);display:flex;flex-direction:column}
+
+  .statusbar{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;
+    font-family:var(--gothic);font-size:12px;color:var(--text-dim);flex-shrink:0}
+  /* 極小クローム: 戻る＋明朝の見出し */
+  .topbar{height:52px;display:flex;align-items:center;gap:8px;padding:0 14px;flex-shrink:0}
+  .topbar .ib{width:40px;height:40px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--text-dim);cursor:pointer}
+  .topbar .ib:hover{color:var(--text)}
+  .topbar .ib:focus-visible{outline:2px solid var(--slate);outline-offset:2px}
+  .topbar .ib svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar h1{font-family:var(--mincho);font-size:19px;color:var(--text);font-weight:500;letter-spacing:.18em}
+  .scroll{flex:1;overflow:auto}
+
+  /* 章行: 余白主導。左4pxのルール領域（現在章のみ灯火／他は透明でテキスト開始位置を揃える） */
+  .li{display:flex;align-items:stretch;border-bottom:1px solid var(--line);cursor:pointer}
+  .li .bar{width:4px;flex-shrink:0;background:transparent}
+  .li .tx{flex:1;min-width:0;font-family:var(--mincho);font-size:15px;color:var(--text);
+    padding:16px 24px;line-height:1.55;font-weight:400;display:flex;align-items:center;gap:10px}
+  /* 既読＝温白（既定）／未読＝薄暮に沈める */
+  .li.unread .tx{color:var(--text-dim)}
+  /* 現在章＝いま灯がある場所: 淡い灯明の面＋左の灯火ルール＋明朝太字＋温白＋灯芯ドット */
+  .li.cur{background:rgba(199,154,106,.07)}
+  .li.cur .bar{background:var(--ember)}
+  .li.cur .tx{color:var(--text);font-weight:700}
+  /* 灯芯ドット: 現在章にだけ点る小さな灯（遊び心＝呼吸するように明滅） */
+  .wick{width:7px;height:7px;border-radius:50%;background:var(--ember);flex-shrink:0;
+    box-shadow:0 0 8px rgba(199,154,106,.7);animation:breathe 3.4s ease-in-out infinite}
+  @keyframes breathe{0%,100%{opacity:.55;box-shadow:0 0 6px rgba(199,154,106,.45)}50%{opacity:1;box-shadow:0 0 12px rgba(199,154,106,.85)}}
+  /* 現在章まで自動スクロールした想定の“栞”ヒント（上端に薄く） */
+  .nowhint{font-family:var(--gothic);font-size:10px;letter-spacing:.24em;color:var(--ember);opacity:.75;padding:8px 24px 2px}
+
+  .empty{flex:1;display:grid;place-items:center;color:var(--text-dim);font-family:var(--mincho);font-size:15px;letter-spacing:.06em}
+  .pad{height:24px}
+
+  @media(prefers-reduced-motion:reduce){ .wick{animation:none;opacity:.9} }
+</style>
+</head>
+<body>
+  <p class="cap"><b>C. 夜行 — 目次</b> ／ reading-C と地続きの夜行。現在章は「いま灯がある場所」として灯火emberで示す（左の灯火ルール＋淡い灯明の面＋明朝太字＋<b>呼吸する灯芯ドット</b>＝遊び心）。
+  読み進みで温度を分け、既読＝温白／未読＝薄暮に沈める。章間はヘアライン。右＝空状態「章が見つかりません」。reduce-motion時は灯芯静止。</p>
+  <div class="stage">
+
+    <!-- 通常（現在章ハイライト＋既読/未読の温度差） -->
+    <div class="wrap"><span class="mode">通常（現在章ハイライト）</span>
+    <div class="phone" role="img" aria-label="C案 目次">
+      <div class="statusbar"><span>9:41</span><span>●●● ▢ 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <h1>目次</h1>
+      </div>
+      <div class="nowhint">いま ここまで灯している</div>
+      <div class="scroll">
+        <div class="li"><span class="bar"></span><span class="tx">第百二十四話　遠雷、辺境の街道を行く</span></div>
+        <div class="li"><span class="bar"></span><span class="tx">第百二十五話　古い井戸と、忘れられた約束</span></div>
+        <div class="li"><span class="bar"></span><span class="tx">第百二十六話　夜営の火、語られぬ過去のこと</span></div>
+        <div class="li cur"><span class="bar"></span><span class="tx"><span class="wick"></span>第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</span></div>
+        <div class="li unread"><span class="bar"></span><span class="tx">第百二十八話　市場のざわめきと、薬草の値段</span></div>
+        <div class="li unread"><span class="bar"></span><span class="tx">第百二十九話　領主の館へ、招かれざる客として</span></div>
+        <div class="li unread"><span class="bar"></span><span class="tx">第百三十話　長い夜の終わりに交わした言葉</span></div>
+        <div class="li unread"><span class="bar"></span><span class="tx">第百三十一話　旅立ちの朝、薬箱を背負って</span></div>
+        <div class="li unread"><span class="bar"></span><span class="tx">第百三十二話　峠の茶屋、見知らぬ剣士との出会い</span></div>
+        <div class="pad"></div>
+      </div>
+    </div></div>
+
+    <!-- 空状態 -->
+    <div class="wrap"><span class="mode">空状態</span>
+    <div class="phone" role="img" aria-label="C案 目次 空状態">
+      <div class="statusbar"><span>9:41</span><span>●●● ▢ 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <h1>目次</h1>
+      </div>
+      <div class="scroll"><div class="empty">章が見つかりません</div></div>
+    </div></div>
+
+  </div>
+</body>
+</html>
