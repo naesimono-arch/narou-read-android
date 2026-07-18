@@ -84,7 +84,6 @@
 ## リファクタ / 技術的負債（deferred）
 
 - **検索画面 S3＝カテゴリ列の LazyColumn 化（保留・要否判断）**: 重さの正体は「カテゴリ展開状態での操作毎の全画面再コンポーズ」で、S1（選択判定 Set 化・Regex 定数化）/S2（strong skipping＋@Immutable）は解消済み・実機体感は軽快（2026-07-11 実測）。残る理論コスト＝非 Lazy Column 上の22カテゴリ/115チップ（`DiscoverySearchScreen.kt:203-207`）の画面外存在コストと「全展開のまま再訪」の初回構成。**体感問題が再報告されるまで保留が妥当**。
-- **R8 有効化後の実機回帰が未実施**（有効化自体は完了＝release APK 20.3→7.8MB・61%減。keep 設計の根拠＝`proguard-rules.pro` 冒頭コメント）: `/device-verify` で release APK の回帰必須（**収縮起因クラッシュは debug/JVM テストでは出ない**）。重点経路＝①なろう検索（Moshi アダプタの Class.forName 解決）②PDF 取り込み（PDFBox の SecurityHandler リフレクション・CMap 資産ロード）③新着話チェックの発火（WorkManager のクラス名復元）④読書テーマ SEPIA/DARK 保存→再起動復元（enum name 永続）。
 - MigrationTest が「16.json 形状（web_reading_progress 無し）→17」経路を構造的に検証できない（chain テストは 14→15 でテーブルが生まれる系譜のみ通過）。既知の実機 v16→v17 未検証と同根の coverage-hole として記録。
 
 ## workflow / tooling
