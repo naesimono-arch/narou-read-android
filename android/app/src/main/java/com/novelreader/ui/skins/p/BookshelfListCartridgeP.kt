@@ -52,7 +52,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -112,8 +111,7 @@ import kotlin.math.roundToInt
 //   機能（目次/続きから/取込/外す）を `.li` 版へ写像。いずれも近似でなく「P に無い意匠を P 語彙で最小化」した翻訳。
 // ============================================================
 
-// P の pixel 記号チャンネル（--pixel）。各 P 画面ファイルが持つ file-private 版と同じ（BookshelfCartridgeP と同値）。
-private val PixelFamily = FontFamily.Monospace
+// PixelFamily は package 共有部品へ集約（CartridgePartsP.kt の internal val）＝当ファイルからは参照のみ。
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

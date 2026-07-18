@@ -77,7 +77,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
@@ -150,10 +149,7 @@ import kotlin.math.roundToInt
 // 挿入中カセットの淡緑ボディ（.cart.inslot #e6ecd6→#d7e0c2）は Color.kt の Inslot*Cartridge へ実値昇格して配線済み。
 // ============================================================
 
-// P の pixel 記号チャンネル（--pixel: ui-monospace 系）。7セグ/STAGE/CLEAR 等の英数 HUD に使う。
-// 各 P 画面ファイルが同名の file-private 版を持つ既存慣行に合わせ private のまま（internal 化は Toc/Discovery の
-// 同名 file-private 宣言と衝突する＝一覧面は自前の private PixelFamily を持つ）。
-private val PixelFamily = FontFamily.Monospace
+// PixelFamily は package 共有部品へ集約（CartridgePartsP.kt の internal val）＝当ファイルからは参照のみ。
 
 // ラベル識別色（--w1..w4）: 表紙を持たないため作品 id ハッシュで安定した色を引く（並び替えで変わらない）。
 // internal 昇格の理由: 一覧面の chip-lb（.li .chip-lb）が同じ作品識別色を引く＝ラックと一覧で同じ本が同色になる整合。
@@ -569,7 +565,7 @@ internal fun LcdNowPlaying(book: BookEntity, progress: ProgressEntity?, totalCha
                 .clip(RoundedCornerShape(8.dp))
                 .drawBehind {
                     drawRect(Brush.verticalGradient(listOf(LcdHiCartridge, LcdCartridge)))
-                    drawLcdDots()
+                    drawLcdDots(LcdDot)
                 }
                 .padding(horizontal = Spacing.S16, vertical = Spacing.S12),
         ) {
@@ -786,7 +782,7 @@ private fun MiniStrip(
                 .clip(RoundedCornerShape(8.dp))
                 .drawBehind {
                     drawRect(Brush.verticalGradient(listOf(LcdHiCartridge, LcdCartridge)))
-                    drawLcdDots()
+                    drawLcdDots(LcdDot)
                 },
         )
         Row(
@@ -912,7 +908,7 @@ internal fun WritingBanner(state: ProcessingState, onStop: () -> Unit) {
             .clip(RoundedCornerShape(11.dp))
             .drawBehind {
                 drawRect(Brush.verticalGradient(listOf(LcdHiCartridge, LcdCartridge)))
-                drawLcdDots()
+                drawLcdDots(LcdDot)
             }
             .padding(horizontal = Spacing.S12, vertical = Spacing.S12),
     ) {
@@ -1432,48 +1428,10 @@ internal fun SlotAdd(onClick: () -> Unit) {
     }
 }
 
-// ============================================================
-// 機体下端の意匠（.deck＝通気孔＋銘板）＝固定フッタ
-// ============================================================
-@Composable
-internal fun Deck() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(start = Spacing.S24, end = Spacing.S24, top = Spacing.S8, bottom = Spacing.S12),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        DeckHoles()
-        Text(
-            "POCKET NOVEL · COLOR",
-            fontFamily = PixelFamily,
-            fontSize = 9.sp,                  // .deck .mk 9px
-            letterSpacing = 0.18.em,
-            color = InkSoftCartridge,
-        )
-        DeckHoles()
-    }
-}
-
-/** 通気孔（.deck .holes＝小さな凹み5個）。 */
-@Composable
-private fun DeckHoles() {
-    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.S4)) {
-        repeat(5) {
-            Box(
-                Modifier
-                    .size(5.dp)
-                    .clip(androidx.compose.foundation.shape.CircleShape)
-                    .background(PlasticLoCartridge)
-            )
-        }
-    }
-}
+// Deck/DeckHoles（機体下端の意匠）は package 共有部品へ集約＝CartridgePartsP.kt の internal Deck() を参照。
 
 // ============================================================
-// 共通描画ヘルパー（P 画面共有＝将来の読書/目次/発見からも参照可）
+// 本棚P専用の描画ヘルパー（SegGauge は本棚のみ使用＝複製なしゆえ private のまま。ドット地/Deck は CartridgePartsP へ集約）
 // ============================================================
 
 /** セグメントゲージ（.lcd-gauge / .csave .gauge＝細セグの並び・gap 1.5px はヘアライン）。 */
@@ -1496,20 +1454,5 @@ private fun SegGauge(
                 size = Size(segW, size.height),
             )
         }
-    }
-}
-
-/** 液晶のドットマトリクス地（.lcd::before / .writing::before＝3px 間隔の微ドット・署名①）。 */
-private fun DrawScope.drawLcdDots() {
-    val step = 3.dp.toPx()
-    val r = 0.6.dp.toPx()
-    var y = 0f
-    while (y < size.height) {
-        var x = 0f
-        while (x < size.width) {
-            drawCircle(LcdDot, radius = r, center = Offset(x, y))
-            x += step
-        }
-        y += step
     }
 }

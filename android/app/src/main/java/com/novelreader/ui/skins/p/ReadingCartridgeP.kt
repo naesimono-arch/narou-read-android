@@ -28,7 +28,6 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -77,8 +76,7 @@ import kotlin.math.roundToInt
 //   #dcd8ca は Color.kt に未登録＝該当箇所に「TODO: 監督補充」を付し、近似で確定させず暫定プラ面で描画する。
 // ============================================================
 
-/** P の pixel 記号チャンネル（--pixel: ui-monospace 系）。話数・SAVE・%等の英数HUDに使う。 */
-private val PixelFamilyP = FontFamily.Monospace
+// PixelFamily は package 共有部品へ集約（CartridgePartsP.kt の internal val）＝当ファイルからは参照のみ。
 
 /**
  * 上端の緑LCDセーブバー（reading-P .savebar）。没入中の唯一常設クローム＝「随伴・一瞥・静けさ」。
@@ -102,7 +100,7 @@ fun ReadingSaveBarP(fraction: Float, modifier: Modifier = Modifier) {
     ) {
         Text(
             text = "SAVE",
-            fontFamily = PixelFamilyP,
+            fontFamily = PixelFamily,
             fontSize = 9.sp,                         // .savebar .lb 9px
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.12.em,
@@ -126,7 +124,7 @@ fun ReadingSaveBarP(fraction: Float, modifier: Modifier = Modifier) {
         }
         Text(
             text = "$pct%",
-            fontFamily = PixelFamilyP,
+            fontFamily = PixelFamily,
             fontSize = 10.sp,                        // .savebar .pc 10px
             fontWeight = FontWeight.Bold,
             color = LcdInkCartridge,
@@ -143,7 +141,7 @@ fun SaveChipP(chapterNumber: Int, totalChapters: Int, fraction: Float, modifier:
     val pct = (fraction.coerceIn(0f, 1f) * 100).roundToInt()
     Text(
         text = "$chapterNumber/$totalChapters · $pct%",
-        fontFamily = PixelFamilyP,
+        fontFamily = PixelFamily,
         fontSize = 11.sp,                            // .save .n 11px
         fontWeight = FontWeight.Bold,
         letterSpacing = 0.03.em,
@@ -210,7 +208,7 @@ fun StreakFlameP(streakDays: Int, modifier: Modifier = Modifier) {
         }
         Text(
             text = "${streakDays}日",
-            fontFamily = PixelFamilyP,
+            fontFamily = PixelFamily,
             fontSize = 11.sp,                        // .streak .d 11px
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.02.em,                 // .d letter-spacing .02em
@@ -247,7 +245,7 @@ fun ChapterHeaderP(
         if (chapterNumber != null) {
             Text(
                 text = if (totalChapters != null) "第${chapterNumber}話 ／ 全${totalChapters}話" else "第${chapterNumber}話",
-                fontFamily = PixelFamilyP,
+                fontFamily = PixelFamily,
                 fontSize = 12.sp,                    // .chap-h .num 12px
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.08.em,
@@ -337,7 +335,7 @@ fun SettingsSysBarP(modifier: Modifier = Modifier) {
         Box(Modifier.size(7.dp).clip(CircleShape).background(LcdInkCartridge)) // .dot 7px --lcd-ink
         Text(
             text = "POCKET NOVEL",
-            fontFamily = PixelFamilyP,
+            fontFamily = PixelFamily,
             fontSize = 10.sp,                        // .sysbar 10px
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.12.em,

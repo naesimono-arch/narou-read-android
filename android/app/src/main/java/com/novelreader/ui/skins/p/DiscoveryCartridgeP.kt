@@ -51,7 +51,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -78,7 +77,6 @@ import com.novelreader.ui.theme.CartridgeGold
 import com.novelreader.ui.theme.CartridgeGreen
 import com.novelreader.ui.theme.HiScoreGoldCartridge
 import com.novelreader.ui.theme.CartridgePlum
-import com.novelreader.ui.theme.CartridgePurple
 import com.novelreader.ui.theme.InkCartridge
 import com.novelreader.ui.theme.InkMidCartridge
 import com.novelreader.ui.theme.InkSoftCartridge
@@ -128,8 +126,7 @@ import java.util.Locale
 //     label 枠 rgba(0,0,0,.14)→InkCartridge.copy と同技法・パレット内で暗化を担保）。
 // ============================================================
 
-// P の pixel 記号チャンネル（--pixel: ui-monospace 系）。HI-SCORE/SCORE/pt 等の英数 HUD に使う。
-private val PixelFamily = FontFamily.Monospace
+// PixelFamily は package 共有部品へ集約（CartridgePartsP.kt の internal val）＝当ファイルからは参照のみ。
 
 // ジャンル識別色 g1-g6（ADR 0022 §5 のデータ駆動パレット＝BIGGENRES 表示順と 1:1）。
 // 恋愛→g1 / ファンタジー→g2 / 文芸→g3 / SF→g4 / その他→g5 / ノンジャンル→g6（mock spine と一致）。
@@ -143,8 +140,7 @@ private val GenreSpinePalette = listOf(
 )
 
 // 気分ソフトのパッケージ色。mock の 4 箱色はトークン化されていない装飾色のため、サンクションされた
-// ラベル色 w1-w4 を preset 序数で引く（BookshelfCartridgeP.CartridgeLabelPalette と同一 4 色・退色トーンの識別色）。
-private val MoodPackagePalette = listOf(CartridgeGold, CartridgePurple, CartridgeGreen, CartridgePlum)
+// ラベル色 w1-w4（BookshelfCartridgeP.CartridgeLabelPalette＝package 共有の internal・同一 4 色）を preset 序数で引く。
 
 // 描画層で層の上に載る透過色（焼き込めず .copy(alpha=) で付与）。
 private val CrtDot = InkCartridge.copy(alpha = 0.28f)   // .board::before radial dots rgba(0,0,0,.28)（近黒 --ink で暗化）
@@ -461,7 +457,7 @@ private fun MoodShelf(onPickMood: (MoodPreset) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(Spacing.S12),  // .shelf gap 13px → S12
     ) {
         MoodPreset.entries.forEach { preset ->
-            MoodPackage(preset, color = MoodPackagePalette[preset.ordinal % MoodPackagePalette.size], onClick = { onPickMood(preset) })
+            MoodPackage(preset, color = CartridgeLabelPalette[preset.ordinal % CartridgeLabelPalette.size], onClick = { onPickMood(preset) })
         }
     }
 }

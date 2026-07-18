@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -22,7 +21,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -48,7 +46,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
@@ -105,13 +102,11 @@ import kotlin.math.roundToInt
 //     ②未読ノード地 #e6e2d6 → PlasticHiCartridge #e9e5da で暫定（Δ<3・知覚下）。
 //   P の3テーマは読書面のみの変種＝目次クローム（筐体・緑LCD）はテーマ不変（ADR 0022 §2）ゆえ theme 非依存。
 //
-// 共通ヘルパー: 本棚P（BookshelfCartridgeP.kt）の SegGauge/drawLcdDots 等は private のため import 不可
-//   （当該ファイルはスコープ外で internal 昇格もできない）。ドット地は当ファイルに最小複製、HUD ゲージは
-//   固定幅バー（.hud .g は伸長型 SegGauge と別プリミティブ）で描く。将来 internal 昇格での dedup を報告済み。
+// 共通ヘルパー: ドット地（drawLcdDots）・機体下端（Deck）は CartridgePartsP.kt へ internal 集約済み＝当ファイルは参照のみ
+//   （ドット色 LcdDotToc は当ファイルの正本 α を引数で渡す）。HUD ゲージは固定幅バー（.hud .g＝伸長型 SegGauge と別プリミティブ）で描く。
 // ============================================================
 
-// P の pixel 記号チャンネル（--pixel: ui-monospace 系）。STAGE/CLEAR/NOW 等の英数 HUD・話数に使う。
-private val PixelFamily = FontFamily.Monospace
+// PixelFamily は package 共有部品へ集約（CartridgePartsP.kt の internal val）＝当ファイルからは参照のみ。
 
 // ── 幾何定数（座標算術に参加＝Spacing スケール丸め対象外・mock px を 1:1 で dp 化。toc-P <script> の定数）──
 private val RowHeight = 66.dp          // ROW_H＝行高固定（道・ノード・章題の縦位置を定数から算出）
@@ -220,7 +215,7 @@ internal fun TocCartridgeP(
             }
 
             // 機体下端の意匠（.deck: 通気孔＋銘板）＝固定フッタ（全状態共通の機体クローム）。
-            DeckP()
+            Deck()
         }
     }
 }
@@ -264,7 +259,7 @@ private fun CartridgeHud(stage: Int, total: Int, pct: Int) {
             .drawBehind {
                 // 液晶面（lcd-hi→lcd の縦グラデを代表＝本棚Pと同じ流儀）＋ドットマトリクス地。
                 drawRect(Brush.verticalGradient(listOf(LcdHiCartridge, LcdCartridge)))
-                drawLcdDotsToc()
+                drawLcdDots(LcdDotToc)  // ドット色は目次面の正本 α（rgba(43,54,22,.15)）を渡す。
             }
             // .hud padding:9px 13px → 縦 S8 / 横 S12。
             .padding(horizontal = Spacing.S12, vertical = Spacing.S8),
@@ -466,21 +461,6 @@ private fun DrawScope.drawNodeNumber(measurer: TextMeasurer, n: Int, cx: Float, 
     drawText(layout, topLeft = Offset(cx - layout.size.width / 2f, cy - layout.size.height / 2f))
 }
 
-/** 液晶のドットマトリクス地（.hud::before＝3px 間隔の微ドット）。本棚Pの private drawLcdDots を import 不可のため最小複製。 */
-private fun DrawScope.drawLcdDotsToc() {
-    val step = 3.dp.toPx()
-    val r = 0.6.dp.toPx()
-    var y = 0f
-    while (y < size.height) {
-        var x = 0f
-        while (x < size.width) {
-            drawCircle(LcdDotToc, radius = r, center = Offset(x, y))
-            x += step
-        }
-        y += step
-    }
-}
-
 // ============================================================
 // 空状態（.empty＝破線の空きスロット箱＋「章が見つかりません」）
 // ============================================================
@@ -551,37 +531,4 @@ private fun TocErrorBodyP(message: String, onRetry: () -> Unit, modifier: Modifi
     }
 }
 
-// ============================================================
-// 機体下端の意匠（.deck＝通気孔＋銘板）＝固定フッタ
-// ============================================================
-@Composable
-private fun DeckP() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(start = Spacing.S24, end = Spacing.S24, top = Spacing.S8, bottom = Spacing.S12),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        DeckHolesP()
-        Text(
-            "POCKET NOVEL · COLOR",
-            fontFamily = PixelFamily,
-            fontSize = 9.sp,                       // .deck .mk 9px
-            letterSpacing = 0.18.em,
-            color = InkSoftCartridge,
-        )
-        DeckHolesP()
-    }
-}
-
-/** 通気孔（.deck .holes＝小さな凹み5個）。 */
-@Composable
-private fun DeckHolesP() {
-    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.S4)) {
-        repeat(5) {
-            Box(Modifier.size(5.dp).clip(CircleShape).background(PlasticLoCartridge))
-        }
-    }
-}
+// 機体下端の意匠（Deck）は CartridgePartsP.kt へ internal 集約済み＝当ファイルは Deck() を参照。
