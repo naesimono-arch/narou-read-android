@@ -51,8 +51,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.CacheDrawScope
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -608,16 +610,23 @@ private fun ConstellationCell(
             .fillMaxWidth()
             .height(cellHeight)
             .clickable(onClick = onOpen)
-            .drawBehind {
-                drawSkyCell(
+            // ジオメトリ（星点列・弧長・Path 群）は pulse 非依存ゆえ drawWithCache のキャッシュ段で1回だけ生成し、
+            // onDrawBehind は完成品を描くだけにする（毎フレーム Path/配列を再確保する GC churn を断つ）。
+            // キャッシュ段はセルサイズ変化と入力（seed/frac/…）変化でのみ再構築される＝サイズ退行も起きない。
+            .drawWithCache {
+                val geometry = buildSkyCellGeometry(
                     seed = book.id.hashCode(),
                     frac = (frac ?: 0f).coerceIn(0f, 1f),
                     isUnread = isUnread,
                     isHero = isHero,
                     labelOnLeft = labelOnLeft,
                     fillZone = zoneIndex % 2 == 1,
-                    pulse = pulse(),
                 )
+                onDrawBehind {
+                    // pulse() を読むのは hero 先端星の描画がある hero セルだけ＝非 hero セルは pulse を
+                    // 読まず、無限アニメによる毎フレーム draw invalidate を発生させない（全可視セル再描画の回避）。
+                    drawSkyCell(geometry, if (isHero) pulse() else 0f)
+                }
             },
     ) {
         Column(
@@ -740,44 +749,60 @@ private fun ConstellationCell(
     }
 }
 
-/** 星座セルの canvas 描画（経緯線・星屑・境界線・結線・星光）。値の正本＝bookshelf-M.html <script>。 */
-private fun DrawScope.drawSkyCell(
+/**
+ * 星座セルの pulse 非依存ジオメトリ（経緯線・境界弧・星点列・結線 Path 群）。drawWithCache のキャッシュ段で
+ * 1回だけ生成し、DrawScope.drawSkyCell が描くだけにするための完成品ホルダ（毎フレーム再確保の回避）。
+ */
+private class SkyCellGeometry(
+    val d: Float,
+    val fillZone: Boolean,
+    val vLineXs: FloatArray,   // 縦経緯線の x（x<w で残したもの）
+    val gridPath: Path,
+    val boundPath: Path,
+    val basePath: Path,
+    val isUnread: Boolean,     // 下描き結線の淡さ／破線を決める
+    val pts: List<Offset>,
+    val litPath: Path?,        // 点灯結線（litLen<=0 なら null）
+    val litFlags: BooleanArray, // 各星点が点灯済みか（グロー／淡星の分岐）
+    val tip: Offset?,          // 結線先端（点灯時のみ）
+    val isHero: Boolean,       // 先端星が脈動するか（脈動描画のみ pulse を読む）
+)
+
+/**
+ * 星座セルのジオメトリを1回だけ生成する（値の正本＝bookshelf-M.html <script>）。pulse は含めない
+ * （先端星の脈動だけが pulse 依存＝描画段に残す）。CacheDrawScope 上で走らせるのはセルサイズ変化で
+ * 自動再構築させ、サイズ変化後に古い座標を描く退行を防ぐため（`size` は各セルの実測サイズ）。
+ * Lcg の消費順序（n→各点で jitter→y）はモックと1:1に保つ＝星座座標の再現性を崩さない。
+ */
+private fun CacheDrawScope.buildSkyCellGeometry(
     seed: Int,
     frac: Float,
     isUnread: Boolean,
     isHero: Boolean,
     labelOnLeft: Boolean,
     fillZone: Boolean,
-    pulse: Float,
-) {
+): SkyCellGeometry {
     val rnd = Lcg(seed)
     val w = size.width
     val h = size.height
     val d = 1.dp.toPx()
 
-    // ゾーン塗り（.026）＝1セルおきに極淡のリフト（モック ZONEFILL の帯を1セル単位へ写像）。
-    if (fillZone) drawRect(MoonSlateSeizu.copy(alpha = 0.026f))
-
-    // 経緯線: 縦線は x=60+i*90（モック grid()と同 x・全高直線）。水平弧はセル下端に1本＝間隔150dp 周期。
+    // 経緯線: 縦線は x=60+i*90（モック grid()と同 x・全高直線）。x<w のものだけ残す。
+    val vLineXs = ArrayList<Float>(4)
     for (i in 0 until 4) {
         val x = (60 + i * 90) * d
-        if (x < w) drawLine(MoonSlateSeizu.copy(alpha = 0.055f), Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
+        if (x < w) vLineXs += x
     }
+    // 水平弧はセル下端に1本＝間隔150dp 周期。
     val gridPath = Path().apply {
         moveTo(6 * d, h - 2 * d)
         quadraticBezierTo(w / 2f, h - 2 * d - 16 * d, w - 6 * d, h - 2 * d)
     }
-    drawPath(gridPath, MoonSlateSeizu.copy(alpha = 0.055f), style = Stroke(width = 1f))
-
     // 星座境界線＝セル境界の弧の破線（水平は中点 -6 の弧＝モック boundsPath の文法。段差はセル分割が代替）。
     val boundPath = Path().apply {
         moveTo(0f, h - 1f)
         quadraticBezierTo(w / 2f, h - 1f - 6 * d, w, h - 1f)
     }
-    drawPath(
-        boundPath, MoonSlateSeizu.copy(alpha = 0.16f),
-        style = Stroke(width = 1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5 * d, 5 * d))),
-    )
 
     // R1（深空）: 従前ここでセル毎に撒いていた星屑（DUST 12点）は撤去した。星屑・天の川・微星は
     // 深空レイヤー（DeepSkyM の z0/z1）へ整理統合済み＝前景から装飾星を抜き軽くする R1 の思想であり、
@@ -812,51 +837,88 @@ private fun DrawScope.drawSkyCell(
         moveTo(pts[0].x, pts[0].y)
         for (i in 1 until pts.size) lineTo(pts[i].x, pts[i].y)
     }
-    drawPath(
-        basePath,
-        FaintStarSeizu.copy(alpha = if (isUnread) 0.16f else 0.2f),
-        style = Stroke(
-            width = 1f,
-            pathEffect = if (isUnread) PathEffect.dashPathEffect(floatArrayOf(2 * d, 4 * d)) else null,
-        ),
-    )
 
     var tip: Offset? = null
+    var litPath: Path? = null
     if (litLen > 0f) {
-        val litPath = Path().apply { moveTo(pts[0].x, pts[0].y) }
+        val p = Path().apply { moveTo(pts[0].x, pts[0].y) }
         var acc = 0f
         var tipPt = pts[0]
         for (i in 1 until pts.size) {
             if (acc + segLens[i - 1] <= litLen) {
-                litPath.lineTo(pts[i].x, pts[i].y); acc += segLens[i - 1]; tipPt = pts[i]
+                p.lineTo(pts[i].x, pts[i].y); acc += segLens[i - 1]; tipPt = pts[i]
             } else {
                 val r = (litLen - acc) / segLens[i - 1]
                 tipPt = Offset(
                     pts[i - 1].x + (pts[i].x - pts[i - 1].x) * r,
                     pts[i - 1].y + (pts[i].y - pts[i - 1].y) * r,
                 )
-                litPath.lineTo(tipPt.x, tipPt.y); break
+                p.lineTo(tipPt.x, tipPt.y); break
             }
         }
-        // shadowBlur の代替＝太→細の3層ストローク（外側ほど淡い金）でグローを近似する。
-        drawPath(litPath, StarSeizu.copy(alpha = 0.15f), style = Stroke(4 * d, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        drawPath(litPath, StarSeizu.copy(alpha = 0.35f), style = Stroke(2.4f * d, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        drawPath(litPath, StarSeizu.copy(alpha = 0.72f), style = Stroke(1.4f * d, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        litPath = p
         tip = tipPt
     }
 
-    // 星点: 点灯済みはグロー・未点灯は淡星（faintStar rgba(150,166,206,.34)）。
+    // 星点の点灯判定（点灯済みはグロー・未点灯は淡星）を先に確定しておく。
+    val litFlags = BooleanArray(pts.size)
     var acc2 = 0f
     for (i in pts.indices) {
         if (i > 0) acc2 += segLens[i - 1]
-        val lit = litLen > 0f && acc2 <= litLen + 0.5f
-        if (lit) drawStarGlow(pts[i], 4.4f * d, 0.9f) else {
-            drawCircle(FaintStarSeizu.copy(alpha = 0.34f), radius = 1.5f * d, center = pts[i])
-        }
+        litFlags[i] = litLen > 0f && acc2 <= litLen + 0.5f
+    }
+
+    return SkyCellGeometry(
+        d = d, fillZone = fillZone, vLineXs = vLineXs.toFloatArray(),
+        gridPath = gridPath, boundPath = boundPath, basePath = basePath, isUnread = isUnread,
+        pts = pts, litPath = litPath, litFlags = litFlags, tip = tip, isHero = isHero,
+    )
+}
+
+/** 星座セルの canvas 描画（完成品ジオメトリを描くだけ）。pulse を使うのは hero 先端星のみ。 */
+private fun DrawScope.drawSkyCell(g: SkyCellGeometry, pulse: Float) {
+    val d = g.d
+
+    // ゾーン塗り（.026）＝1セルおきに極淡のリフト（モック ZONEFILL の帯を1セル単位へ写像）。
+    if (g.fillZone) drawRect(MoonSlateSeizu.copy(alpha = 0.026f))
+
+    // 経緯線（縦全高直線＋水平弧）。
+    for (x in g.vLineXs) {
+        drawLine(MoonSlateSeizu.copy(alpha = 0.055f), Offset(x, 0f), Offset(x, size.height), strokeWidth = 1f)
+    }
+    drawPath(g.gridPath, MoonSlateSeizu.copy(alpha = 0.055f), style = Stroke(width = 1f))
+
+    // 星座境界線＝弧の破線。
+    drawPath(
+        g.boundPath, MoonSlateSeizu.copy(alpha = 0.16f),
+        style = Stroke(width = 1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5 * d, 5 * d))),
+    )
+
+    // 下描き＝淡い結線（未読は破線 2,4・さらに淡く）。
+    drawPath(
+        g.basePath,
+        FaintStarSeizu.copy(alpha = if (g.isUnread) 0.16f else 0.2f),
+        style = Stroke(
+            width = 1f,
+            pathEffect = if (g.isUnread) PathEffect.dashPathEffect(floatArrayOf(2 * d, 4 * d)) else null,
+        ),
+    )
+
+    // 点灯結線＝shadowBlur の代替＝太→細の3層ストローク（外側ほど淡い金）でグローを近似する。
+    g.litPath?.let { litPath ->
+        drawPath(litPath, StarSeizu.copy(alpha = 0.15f), style = Stroke(4 * d, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawPath(litPath, StarSeizu.copy(alpha = 0.35f), style = Stroke(2.4f * d, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawPath(litPath, StarSeizu.copy(alpha = 0.72f), style = Stroke(1.4f * d, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    }
+
+    // 星点: 点灯済みはグロー・未点灯は淡星（faintStar rgba(150,166,206,.34)）。
+    for (i in g.pts.indices) {
+        if (g.litFlags[i]) drawStarGlow(g.pts[i], 4.4f * d, 0.9f)
+        else drawCircle(FaintStarSeizu.copy(alpha = 0.34f), radius = 1.5f * d, center = g.pts[i])
     }
     // 先端星: hero は脈動（7+pulse*3.2）＝現在地の脈動類型（ADR 0022 §3）。他は静止 5.2。
-    tip?.let {
-        if (isHero) drawStarGlow(it, (7f + pulse * 3.2f) * d, 0.85f + pulse * 0.15f)
+    g.tip?.let {
+        if (g.isHero) drawStarGlow(it, (7f + pulse * 3.2f) * d, 0.85f + pulse * 0.15f)
         else drawStarGlow(it, 5.2f * d, 0.8f)
     }
 }
