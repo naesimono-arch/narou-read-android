@@ -97,7 +97,6 @@ import com.novelreader.ui.tocInitialFirstVisibleIndex
 private val SoftToc = GlyphDarkPortal.copy(alpha = 0.52f) // --soft rgba(233,240,228,.52)（sb/空状態/エラーの補助文字）
 private val DimToc = GlyphDarkPortal.copy(alpha = 0.34f)  // --dim  rgba(233,240,228,.34)（passed=読了章題の沈め色）
 private val LineToc = GlyphDarkPortal.copy(alpha = 0.09f) // --line rgba(233,240,228,.09)（未踏の道・節の縁・行の下線）
-private val GlyphInkToc = GlyphDarkPortal.copy(alpha = 0.05f) // glyph rgba(233,240,228,.05)（象徴文字の極淡＝現状未使用・下記参照）
 
 // 金の系列（GoldPortal #E2C878＝--gold と同 RGB。goldd/面/灯りは α を正本値へ差し替え＝厳密一致）。
 private val GolddToc = GoldPortal.copy(alpha = 0.5f)      // --goldd rgba(226,200,120,.5)（歩いた道・埋まった節）
