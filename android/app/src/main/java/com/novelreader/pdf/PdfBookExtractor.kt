@@ -1,5 +1,6 @@
 package com.novelreader.pdf
 
+import com.novelreader.trace.Sections
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import java.io.Closeable
 import java.io.File
@@ -86,7 +87,8 @@ object PdfBookExtractor {
         return try {
             engine.open(pdfFile).use { handle ->
                 onProgress(0, 0f, "タイトルを読み取っています…", currentTitle)
-                val meta = handle.extractMeta()
+                // trace 区間（ロジック不変・計測のためだけの挿入）: 表紙1ページのメタ抽出。
+                val meta = Sections.trace("Extract#meta") { handle.extractMeta() }
                 currentTitle = meta.title
 
                 // 本文抽出は「読み込み(全ページのグリフ抽出)＋整形(段落化)」の2パスだが、% は 0.75/0.25 の
@@ -96,7 +98,11 @@ object PdfBookExtractor {
                 // 入った」と読ませ、同じ語のままカウンタだけ 0→N を2度満ちる「2周目に入った」誤認
                 // （過去に実機で発生）を構造的に解消する。開始時（tick 前）は総ページ未確定のためページ数を付けない。
                 onProgress(1, 0f, "本文を読み込んでいます…", currentTitle)
-                val paragraphs = handle.runEngine { phase, current, total ->
+                // trace 区間: 本文抽出エンジン（全ページのグリフ抽出＋段落化＝超長編の支配的コスト）。
+                // 全て同期実行（runEngine 内に suspend 境界は無い）ため begin/end は同一スレッドで閉じ、
+                // TraceSectionMetric が単一の slice として拾える。進捗コールバックの意味は不変。
+                val paragraphs = Sections.trace("Extract#engine") {
+                    handle.runEngine { phase, current, total ->
                     // step-1 local: LOAD(読み込み)中 0→LOAD_WEIGHT、PROCESS(整形)中 LOAD_WEIGHT→1.0 と単調前進。
                     // load を重み大に＝超長編では全ページ getText が支配的コストで、以前は load 中バーが 0f で固まって見えた。
                     // % 計算は一切変えない。フェーズ語だけをここで切り替える（副表示の巻き戻り錯覚回避）。
@@ -112,20 +118,27 @@ object PdfBookExtractor {
                     // ラベルはページ n/m（フェーズ内カウント）のみ。通し進捗の数値% はラベルから外し下のバー(step-local)へ
                     // 一本化した（%とページ数の二重表示を解消し、狭幅でも末尾のページ数が省略で消えないように・ユーザー所見 2026-07-15）。
                     onProgress(1, local, "$phaseWord…（$current/${total}ページ）", currentTitle)
+                    }
                 }
 
                 onProgress(2, 0f, "章を分割しています…", currentTitle)
                 // 単話（【題名】マーカー皆無）では嘘見出し「作品情報・プロローグ」の代わりに
                 // 表紙由来の作品タイトル meta.title を単一章タイトルへ流用する（裁定済み仕様）。
-                val chaptersData = ChapterProcessor.splitIntoChapters(paragraphs, meta.title)
+                // trace 区間: 章分割（段落列→章構造への分解）。
+                val chaptersData = Sections.trace("Extract#splitChapters") {
+                    ChapterProcessor.splitIntoChapters(paragraphs, meta.title)
+                }
 
                 onProgress(2, 1f, "前書き・後書きを処理しています…", currentTitle)
                 val finalChapters = ChapterProcessor.processForewordAfterword(chaptersData)
 
                 onProgress(3, 0f, "HTMLを生成しています…", currentTitle)
-                HtmlExporter.exportToPwa(finalChapters, bookId, meta.title, outputDir) { pct, phase ->
-                    // app.py: _notify(3, (pct - 88) / 12, phase)。HtmlExporter は 88〜99 を出す。
-                    onProgress(3, (pct - 88).toFloat() / 12, phase, currentTitle)
+                // trace 区間: HTML 書き出し（章ごとの chap_N.html／index.html 生成）。
+                Sections.trace("Extract#exportHtml") {
+                    HtmlExporter.exportToPwa(finalChapters, bookId, meta.title, outputDir) { pct, phase ->
+                        // app.py: _notify(3, (pct - 88) / 12, phase)。HtmlExporter は 88〜99 を出す。
+                        onProgress(3, (pct - 88).toFloat() / 12, phase, currentTitle)
+                    }
                 }
 
                 BookMeta(meta.title, meta.author)

@@ -75,6 +75,7 @@ sqlite3 /tmp/…/db "SELECT …"
 | FGS + WakeLock でもバックグラウンドで停止 | #4 追補＝**端末設定「バックグラウンドアクティビティを許可」ON でも Hans が背面数秒で凍結**（2026-07-14 実測。正本=`docs/knowledge/coloros-hans-freezes-fgs-despite-bg-allow.md`）。背面完走は保証不能＝#38 の monkey 前面化で回避 |
 | `screenrecord` が全パスで `Unable to open …: Permission denied`（/sdcard・/data/local/tmp とも。shell の touch は通るのに録画だけ失敗＝ColorOS 側の遮断と推定・未確定）。`exec-out --output-format=h264 -` のホスト直ストリームも 0 バイトのままハング | 実質使用不能（2026-07-16 実測）。動画での視覚検証は諦めてユーザー目視に回す（アニメ・ちらつき系は PushNotification→目視OK の通常フロー） |
 | バッテリー最適化除外の画面遷移が誤動作 | #5（`ACTION_APPLICATION_DETAILS_SETTINGS` を使う） |
+| Macrobenchmark / UiAutomation シェル実行がコマンド境界で無限停止（perfetto 起動等・CPU 凍結・SELinux で kill 不能な残骸） | `docs/knowledge/coloros-uiautomation-shell-pipe-eof-hang.md`＝2秒周期 SIGQUIT「除細動ループ」で完走させる。事前に perfetto/trace_processor 残骸ゼロ確認・kill 不能残骸は端末再起動で掃除。`pm grant` 遮断は `install -r -g` で回避 |
 | 通知が表示されない | #2（ContentIntent 必須） |
 
 ## 5. シェル・パスの罠

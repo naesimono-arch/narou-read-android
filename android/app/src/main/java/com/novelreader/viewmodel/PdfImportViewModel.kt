@@ -182,7 +182,10 @@ class PdfImportViewModel(application: Application) : AndroidViewModel(applicatio
     /** 保存済み PDF を FileProvider で content:// 化し、既存の取り込み経路（Service）へ ncode 付きで投入する。 */
     private fun handoffToImport(file: File, ncode: Ncode) {
         val context = getApplication<Application>()
-        val uri: Uri = FileProvider.getUriForFile(context, FILE_PROVIDER_AUTHORITY, file)
+        // manifest の <provider android:authorities="${applicationId}.fileprovider"> と一致させる。
+        // benchmark ビルドは applicationIdSuffix で別パッケージになるため、定数でなく実行時の
+        // packageName（＝applicationId）から組み立てる（BuildConfig は本アプリでは未生成）。
+        val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 
         // BookshelfViewModel.addBook と同じ作法: 永続権限の取得を試みる。FileProvider の content:// は
         // persistable permission を取れない（受領時に FLAG_GRANT_PERSISTABLE が無い）ため runCatching で
@@ -205,8 +208,6 @@ class PdfImportViewModel(application: Application) : AndroidViewModel(applicatio
 
     companion object {
         private const val TAG = "PdfImportViewModel"
-        // AndroidManifest の <provider android:authorities> と一致させること。
-        private const val FILE_PROVIDER_AUTHORITY = "com.novelreader.fileprovider"
 
         /** PDF DL 失敗を再試行してよいか（UX監査 add+errtext）。一過性のみ true・4xx 恒久失敗は false。
          *  FatalDownloadException 以外の IOException（timeout/DNS/瞬断＝一過性）と 5xx/429 を再試行対象にする。 */

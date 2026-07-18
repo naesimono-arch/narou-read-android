@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- benchmark variant のみに profileable を重ねる overlay。release/main の manifest を汚さないための分離。 -->
+    <application>
+        <profileable
+            android:shell="true"
+            android:enabled="true" />
+
+        <!-- 10倍蔵書シーダー（本棚スクロール jank 計測用）。
+             exported=true の安全根拠: この overlay は benchmark variant にのみ適用され、debug/release の
+             merged manifest には現れない（Receiver 実装も src/benchmark 限定）。かつ benchmark ビルドは
+             applicationIdSuffix ".benchmark" で実蔵書アプリ(com.novelreader)と別パッケージに隔離される。
+             ゆえに外部公開しても影響範囲は計測専用ビルドの中だけで、出荷物には存在しない。 -->
+        <receiver
+            android:name="com.novelreader.bench.LibrarySeedReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.novelreader.benchmark.action.SEED_LIBRARY" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 大PDF取込ベンチ（PdfImportBenchmark）のトリガ Receiver。exported=true の安全根拠は上の
+             LibrarySeedReceiver と同一: この overlay は benchmark variant にのみ適用され、debug/release の
+             merged manifest には現れない（Receiver 実装も src/benchmark 限定）。かつ applicationIdSuffix
+             ".benchmark" で実蔵書アプリ(com.novelreader)と別パッケージに隔離される。ゆえに公開しても影響範囲は
+             計測専用ビルドの中だけで、出荷物には存在しない。 -->
+        <receiver
+            android:name="com.novelreader.bench.ImportBenchReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.novelreader.benchmark.action.IMPORT_PDF" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
