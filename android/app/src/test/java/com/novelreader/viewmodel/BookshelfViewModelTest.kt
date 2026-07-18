@@ -67,7 +67,10 @@ class BookshelfViewModelTest {
         // 未 emit で combine が発火せず books 派生（newEpisodeNovelMap 等）が止まる。
         every { mockRepository.webReadingProgress } returns flowOf(emptyList())
 
-        viewModel = BookshelfViewModel(mockApp)
+        // ioDispatcher に testDispatcher を渡す: progressChannel 消費・deleteBook 等の fire-and-forget な
+        // IO 書き込みを testDispatcher の scheduler 上で回し、advanceUntilIdle が消費完了を待てるようにする
+        // （素の Dispatchers.IO だと管理外スレッドで走り coVerify とレースしてフレーキーになる）。
+        viewModel = BookshelfViewModel(mockApp, testDispatcher)
     }
 
     @After
@@ -118,7 +121,7 @@ class BookshelfViewModelTest {
         every { fakeApp.processingState } returns MutableStateFlow<ProcessingState?>(null).asStateFlow()
         every { fakeApp.errorEvents } returns emptyFlow()
 
-        val vm = BookshelfViewModel(fakeApp)
+        val vm = BookshelfViewModel(fakeApp, testDispatcher)
         // getLastRead は repository.getLastRead への素の委譲＝Fake のインメモリ状態がそのまま返る
         assertEquals("chapter_03.html", vm.getLastRead(BookId("id01")))
         assertNull(vm.getLastRead(BookId("unknown")))
@@ -254,7 +257,7 @@ class BookshelfViewModelTest {
         )
         every { mockRepository.allBooks } returns flowOf(books)
         coEvery { mockNovelApiRepository.novelDetail(Ncode("N1111AA")) } returns novelA
-        viewModel = BookshelfViewModel(mockApp)
+        viewModel = BookshelfViewModel(mockApp, testDispatcher)
 
         // WhileSubscribed のため能動的に購読して上流の一括照会を起動する
         val job = launch { viewModel.newEpisodeNovelMap.collect {} }
@@ -276,7 +279,7 @@ class BookshelfViewModelTest {
         coEvery { mockNovelApiRepository.novelDetail(Ncode("N1111AA")) } returns novelA
         coEvery { mockNovelApiRepository.novelDetail(Ncode("N2222BB")) } throws
             NarouApiException("オフライン", RuntimeException())
-        viewModel = BookshelfViewModel(mockApp)
+        viewModel = BookshelfViewModel(mockApp, testDispatcher)
 
         val job = launch { viewModel.newEpisodeNovelMap.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
