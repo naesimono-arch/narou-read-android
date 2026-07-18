@@ -52,6 +52,11 @@ class BookshelfContentTest {
         onOpenDiscovery: () -> Unit = {},
         onDeleteBooks: (List<BookEntity>) -> Unit = {},
         deferHeavyContent: Boolean = false,
+        // テーマ節（⋮メニュー）の検証用。読書設定シートと同じ単一真実源をそのまま差し込む。
+        appTheme: ReadingTheme = ReadingTheme.LIGHT,
+        onThemeChange: (ReadingTheme) -> Unit = {},
+        followingSystem: Boolean = false,
+        onFollowSystem: () -> Unit = {},
     ) {
         composeTestRule.setContent {
             MaterialTheme {
@@ -62,8 +67,10 @@ class BookshelfContentTest {
                     chapterCountMap = chapterCountMap,
                     newEpisodeNovelMap = emptyMap(),
                     processingState = ProcessingState(),
-                    appTheme = ReadingTheme.LIGHT,
-                    onThemeChange = {},
+                    appTheme = appTheme,
+                    onThemeChange = onThemeChange,
+                    followingSystem = followingSystem,
+                    onFollowSystem = onFollowSystem,
                     isGridView = true,
                     onToggleView = {},
                     onFabClick = onFabClick,
@@ -192,6 +199,47 @@ class BookshelfContentTest {
         composeTestRule.onNodeWithText("読了").performClick()
         composeTestRule.onNodeWithContentDescription("吾輩は猫である").assertIsDisplayed()
         composeTestRule.onNodeWithText("この分類の本はありません").assertDoesNotExist()
+    }
+
+    // ────── ⋮メニューのテーマ節（システムに従う＋ライト/セピア/ダークの4択・2026-07-17 裁定） ──────
+
+    @Test
+    fun `⋮メニューのテーマ節は読書シートと同じ4択を出す`() {
+        // 不整合是正の要: 本棚⋮が3択のままで「システムに従う」を選べなかった退行を固定で塞ぐ。
+        setContent(BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))))
+        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
+        composeTestRule.onNodeWithText("システムに従う").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ライト").assertIsDisplayed()
+        composeTestRule.onNodeWithText("セピア").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ダーク").assertIsDisplayed()
+    }
+
+    @Test
+    fun `追従中は「システムに従う」のみ選択表示で明示3択は未選択`() {
+        // followingSystem=true（reading_theme 未宣言）のとき、チェックは「システムに従う」1つだけ＝
+        // 「何を宣言したか」を表す読書シートと同一規則（appTheme=DARK でもダークには付かない）。
+        setContent(
+            BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))),
+            appTheme = ReadingTheme.DARK,
+            followingSystem = true,
+        )
+        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
+        composeTestRule.onAllNodesWithContentDescription("選択中").assertCountEquals(1)
+    }
+
+    @Test
+    fun `「システムに従う」タップでonFollowSystemが呼ばれる`() {
+        // 明示テーマ固定から OS 追従へ戻す導線が本棚からも効くことを固定する（不整合の是正点）。
+        var followed = false
+        setContent(
+            BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))),
+            appTheme = ReadingTheme.LIGHT,
+            followingSystem = false,
+            onFollowSystem = { followed = true },
+        )
+        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
+        composeTestRule.onNodeWithText("システムに従う").performClick()
+        assertTrue(followed)
     }
 
     // ────── 複数選択→まとめて削除（残8・案B裁定） ──────

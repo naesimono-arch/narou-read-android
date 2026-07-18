@@ -4,8 +4,13 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.runtime.CompositionLocalProvider
+import com.novelreader.ui.theme.LocalSkin
+import com.novelreader.ui.theme.LocalSkinTokens
 import com.novelreader.ui.theme.ReadingTheme
+import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.colors
+import com.novelreader.ui.theme.tokens
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -38,25 +43,66 @@ class ReadingSettingsSheetTest {
         onThemeChange: (ReadingTheme) -> Unit = {},
         verticalMode: Boolean = false,
         onVerticalModeChange: (Boolean) -> Unit = {},
+        // スキンM の意匠分岐（テーマ固定表示・星のつまみ）検証用。既定 D＝既存テストは完全不変。
+        skin: Skin = Skin.WAMODERN_D,
+        // J の「システムに従う」（扉プレビュー下の追従入口）結線検証用。既定 false/空＝既存テストは不変。
+        followingSystem: Boolean = false,
+        onFollowSystem: () -> Unit = {},
     ) {
         composeTestRule.setContent {
-            ReadingSettingsSheetContent(
-                colors = colors,
-                readingTheme = readingTheme,
-                onThemeChange = onThemeChange,
-                fontSize = 18,
-                onFontSizeChange = {},
-                onFontSizePersist = {},
-                lineHeightEm = 2.5f,
-                onLineHeightChange = {},
-                onLineHeightPersist = {},
-                bodyMarginDp = 20,
-                onBodyMarginChange = {},
-                onBodyMarginPersist = {},
-                verticalMode = verticalMode,
-                onVerticalModeChange = onVerticalModeChange,
-            )
+            // LocalSkin（意匠分岐）と LocalSkinTokens（テーマ節の畳み判定）は本番では対で供給される。
+            CompositionLocalProvider(LocalSkin provides skin, LocalSkinTokens provides skin.tokens) {
+                ReadingSettingsSheetContent(
+                    colors = colors,
+                    readingTheme = readingTheme,
+                    onThemeChange = onThemeChange,
+                    followingSystem = followingSystem,
+                    onFollowSystem = onFollowSystem,
+                    fontSize = 18,
+                    onFontSizeChange = {},
+                    onFontSizePersist = {},
+                    lineHeightEm = 2.5f,
+                    onLineHeightChange = {},
+                    onLineHeightPersist = {},
+                    bodyMarginDp = 20,
+                    onBodyMarginChange = {},
+                    onBodyMarginPersist = {},
+                    verticalMode = verticalMode,
+                    onVerticalModeChange = onVerticalModeChange,
+                )
+            }
         }
+    }
+
+    @Test
+    fun `M装着ではテーマ3択の代わりに固定表示行を出しスライダー値は不変`() {
+        setSheet(skin = Skin.SEIZU_M)
+        // 固定表示（settings-M .theme-fixed）＝何が装着されているか＋変種切替の所在。
+        composeTestRule.onNodeWithText("星図 ・ 夜の相").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ほかの装いは本棚の「装いの間」から").assertIsDisplayed()
+        // 3択チップは出ない（1変種＝押しても変わらないチップを出さない）。
+        composeTestRule.onNodeWithText("ライト").assertDoesNotExist()
+        // ロジック共有の証左＝スライダー現在値は D と同一書式のまま。
+        composeTestRule.onNodeWithText("18sp").assertIsDisplayed()
+        composeTestRule.onNodeWithText("2.5").assertIsDisplayed()
+    }
+
+    @Test
+    fun `P装着では標準テーマ3択を出す（M固定表示行と違い壊さない）`() {
+        // P は supportedThemes=3（ADR 0022 §2 追記）＝標準3択が出る。M の固定表示行分岐に流れないこと。
+        setSheet(skin = Skin.CARTRIDGE_P)
+        composeTestRule.onNodeWithText("表示設定").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ライト").assertIsDisplayed()
+        composeTestRule.onNodeWithText("セピア").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ダーク").assertIsDisplayed()
+        // P のシステムメニューヘッダ（settings-P .sysbar）が出る。
+        composeTestRule.onNodeWithText("POCKET NOVEL").assertIsDisplayed()
+        // ロジック共有の証左＝スライダー現在値は D と同一書式のまま。
+        //（P はシステムメニュー面がヘッダぶん高く、本文余白スライダー "20dp" は Robolectric の 470px 窓の
+        //   外に出るため assertExists で存在のみ確認する＝視認は 18sp/2.5 で担保。実機のシートはスクロールする）。
+        composeTestRule.onNodeWithText("18sp").assertIsDisplayed()
+        composeTestRule.onNodeWithText("2.5").assertIsDisplayed()
+        composeTestRule.onNodeWithText("20dp").assertExists()
     }
 
     @Test
@@ -94,5 +140,38 @@ class ReadingSettingsSheetTest {
         setSheet(verticalMode = false, onVerticalModeChange = { toggled = it })
         composeTestRule.onNodeWithText("縦書き").performClick()
         assertEquals(true, toggled)
+    }
+
+    @Test
+    fun `J装着では扉プレビュー3択＋システムに従うを出す（settings-J）`() {
+        // J は supportedThemes=3（ADR 0022 §2）＝扉プレビューの3択が出る。M の固定表示行分岐に流れないこと。
+        setSheet(skin = Skin.PORTAL_J)
+        composeTestRule.onNodeWithText("表示設定").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ライト").assertIsDisplayed()
+        composeTestRule.onNodeWithText("セピア").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ダーク").assertIsDisplayed()
+        // D 機能の J 意匠移植＝OS 明暗への自動追従へ戻す入口。
+        composeTestRule.onNodeWithText("システムに従う").assertIsDisplayed()
+        // ロジック共有の証左＝スライダー現在値は D と同一書式のまま。
+        //（J の扉プレビュー3択＋追従入口は縦に高く、スライダー値は Robolectric の 470px 窓の外に出るため
+        //   assertExists で存在のみ確認する＝P 装着テストの "20dp" と同じ扱い。実機のシートはスクロールする）。
+        composeTestRule.onNodeWithText("18sp").assertExists()
+        composeTestRule.onNodeWithText("2.5").assertExists()
+    }
+
+    @Test
+    fun `J装着の扉タップでonThemeChangeが該当テーマで呼ばれる`() {
+        var picked: ReadingTheme? = null
+        setSheet(skin = Skin.PORTAL_J, onThemeChange = { picked = it })
+        composeTestRule.onNodeWithText("セピア").performClick()
+        assertEquals(ReadingTheme.SEPIA, picked)
+    }
+
+    @Test
+    fun `J装着のシステムに従うタップでonFollowSystemが呼ばれる`() {
+        var followed = false
+        setSheet(skin = Skin.PORTAL_J, onFollowSystem = { followed = true })
+        composeTestRule.onNodeWithText("システムに従う").performClick()
+        assertEquals(true, followed)
     }
 }

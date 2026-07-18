@@ -42,7 +42,10 @@ internal fun NewEpisodeNotificationToggle(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Column(Modifier.padding(end = Spacing.S16)) {
+        // 説明テキストは weight で Switch 幅ぶんを差し引いた残り幅に閉じ込める。weight なしだと
+        // Row が重みなし子（Column）を全幅で先に測り、後から測る Switch に幅が残らず説明文の
+        // 右端に重なる（M/P/J 共通の被り不具合の真因）。end 余白で Switch との間隔を確保。
+        Column(Modifier.weight(1f).padding(end = Spacing.S16)) {
             Text(
                 text = "新着話を通知する",
                 style = MaterialTheme.typography.bodyLarge,

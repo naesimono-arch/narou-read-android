@@ -1,0 +1,278 @@
+<!-- @dsCard group="UI-n / 本棚（スキン候補）" name="S. 映写室（フィルムと映写光の本棚）" -->
+<!-- 思想: 物語は上映を待つフィルム＝本棚は小さな映写室で、いま映写機に掛かった1本だけが投影光を浴びる。
+     署名要素: ①発光するスクリーンへ延びる投影光のビーム（画面で唯一の光＝唯一の強調） ②供給リールと巻取リールの2つの間で
+               巻き取られたフィルムの比率＝進捗（左リールが太る＝見た分・映写機の普遍記号） ③開封して映写機に掛けたリールと、
+               封をしたままのフィルム缶（＝未読）の対比 ④暗室の深い中立地＋映写光の暖白＋退色した赤銅の缶で閉じる。
+     破壊するもの: 「topbar＋2列グリッド＋FAB」というアプリの入れ物。上映中の1本を光だけで立て、蔵書は暗がりの「フィルム棚」へ沈める。追加＝空の缶の搬入。
+     避けたもの: 写実過多（缶もリールも面と光で記号化・写真は捏造しない）／C夜行の炭×温白との地色かぶり（映写室は僅かに暖い焦茶の暗室地＋金色の光で差別化）／
+                 Pの筐体プラスチック質感（こちらは暗室の空気と一条の光）／高彩度・毒色。 -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n S 本棚 — 映写室</title>
+<style>
+  :root{
+    /* 暗室の地（温い焦茶の中立＝C夜行の冷い青灰 #16181D と地色をずらす。純黒は彫らない） */
+    --room:#16120E; --room-lo:#0F0C09; --vignette:#0B0906;
+    --shelf:#1E1811; --shelf-hi:#271F17; --hub:#0E0B08;
+    --line:#33281D;                     /* ヘアライン（区切りは細線1本のみ・影や太線を使わない） */
+    /* 映写光（暖白・金）＝画面で唯一の明るい系統＝強調の通貨は「光＝コントラスト」 */
+    --light:#F3E6C6; --light-2:#D8C9A6; /* 見出し=映写光／読める副次テキスト（本文4.5:1以上を担保） */
+    --dust:#8A7C67;                     /* 沈めた注記（意味は運ぶが控える・4.5:1超を確認して使用） */
+    --ash:#5E5344;                      /* 装飾専用の最沈段（意味を運ばせない） */
+    --beam:243,230,198;                 /* ビームのRGB（光は alpha でなく専用シェードで面を作る／ビームのみ物理光として減衰） */
+    /* 退色した1色＝フィルム缶のくすんだ赤銅（低彩度・封/未読の記号にだけ効かせる） */
+    --copper:#A85E46; --copper-lo:#77402F;
+    /* 作品識別色（別枠・1冊=1色相・彩度は抑制＝缶やリールのラベル面） */
+    --w1:#B08A47; --w2:#6E6A88; --w3:#6E8A55; --w4:#A87686;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0A0806;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:30px;font-family:var(--gothic)}
+  .cap{color:#9A8E79;font-size:13px;margin-bottom:16px;text-align:center;line-height:1.7;max-width:540px}
+  .cap b{color:#F0E6D0}
+
+  /* ===== 映写室（アプリ画面ぜんたい＝暗室。地は焦茶の深い中立＋四隅の暗み） ===== */
+  .phone{width:390px;height:844px;border-radius:38px;position:relative;overflow:hidden;
+    background:
+      radial-gradient(140% 80% at 50% 18%, #1C160F 0%, var(--room) 42%, var(--room-lo) 78%, var(--vignette) 100%);
+    box-shadow:0 26px 64px rgba(0,0,0,.6);
+    display:flex;flex-direction:column;color:var(--light)}
+
+  .sb{height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;
+    font-size:11px;letter-spacing:.04em;color:var(--ash);flex-shrink:0;font-family:var(--mono)}
+
+  /* 室銘（topbarでなく「映写室」の入口見出し）＝装いの間への入口も兼ねる */
+  .room-h{display:flex;align-items:baseline;justify-content:space-between;padding:2px 26px 10px;flex-shrink:0}
+  .room-h .t{font-family:var(--mincho);font-size:21px;letter-spacing:.20em;color:var(--light);font-weight:500}
+  .room-h .wear{font-size:11px;letter-spacing:.10em;color:var(--dust);cursor:pointer;
+    border:1px solid var(--line);border-radius:2px;padding:6px 11px}
+
+  /* ===== 上映中（唯一光を浴びる1本＝続きから。スクリーン→ビーム→映写機を1つの光る塊に） ===== */
+  .stage{position:relative;flex-shrink:0;padding:0 22px 4px;margin-bottom:6px}
+
+  /* スクリーン（投影される面＝いちばん明るい＝この画面の強調） */
+  .screen{position:relative;z-index:3;border-radius:4px;padding:20px 22px 22px;overflow:hidden;
+    background:
+      radial-gradient(120% 150% at 50% -10%, rgba(var(--beam),.20), rgba(var(--beam),.05) 46%, rgba(var(--beam),.015) 70%, transparent 82%),
+      linear-gradient(#241B12,#1A130C);
+    box-shadow:inset 0 0 0 1px rgba(var(--beam),.16), 0 0 44px rgba(var(--beam),.10)}
+  /* 投影光のビーム＝天頂のレンズ点から扇状に広がり本文へ落ちる一条の光（薄く＝本文と競合させない） */
+  .screen::before{content:"";position:absolute;top:-6px;left:0;right:0;height:210px;z-index:0;pointer-events:none;
+    clip-path:polygon(48% 0,52% 0,86% 100%,14% 100%);
+    background:linear-gradient(to bottom, rgba(var(--beam),.22), rgba(var(--beam),.06) 45%, transparent 78%)}
+  .screen>*{position:relative;z-index:1}
+  .screen .now{font-size:10.5px;letter-spacing:.30em;color:var(--dust);display:flex;align-items:center;gap:7px}
+  .screen .now .lamp{width:6px;height:6px;border-radius:50%;background:rgba(var(--beam),.9);box-shadow:0 0 8px rgba(var(--beam),.9)}
+  .screen h2{font-family:var(--mincho);font-size:23px;line-height:1.34;font-weight:600;color:var(--light);margin-top:12px;
+    text-shadow:0 0 20px rgba(var(--beam),.18)}
+  .screen .by{font-size:12px;color:var(--light-2);margin-top:11px;letter-spacing:.04em}
+
+  /* 進捗＝2つのリール間に巻き取られたフィルムの比率（左=巻取＝見た分・右=供給＝残り） */
+  .film{display:flex;align-items:center;gap:0;margin-top:18px}
+  .reel{border-radius:50%;position:relative;flex-shrink:0;
+    background:repeating-radial-gradient(circle at 50% 50%, #2A2016 0 1.4px, #1B140D 1.4px 2.8px);
+    box-shadow:inset 0 0 0 1.5px #37291B, 0 1px 3px rgba(0,0,0,.5)}
+  .reel::before{content:"";position:absolute;inset:36%;border-radius:50%;background:var(--hub);box-shadow:0 0 0 1.5px #43331F}
+  .reel::after{content:"";position:absolute;inset:0;border-radius:50%;
+    background:
+      radial-gradient(circle 1.6px at 50% 26%, #4a3a24 98%, transparent),
+      radial-gradient(circle 1.6px at 28% 64%, #4a3a24 98%, transparent),
+      radial-gradient(circle 1.6px at 72% 64%, #4a3a24 98%, transparent)}
+  /* 巻取リール（見た分だけ太る）と供給リール（残りぶん） */
+  .reel.take{width:54px;height:54px}
+  .reel.feed{width:40px;height:40px}
+  /* リール間のフィルム span（左=見た分は投影済みで沈む・右=残りは光を弱く受ける） */
+  .span{flex:1;height:16px;position:relative;margin:0 -6px;z-index:1;
+    background:linear-gradient(#171009,#100B07);box-shadow:inset 0 0 0 1px #2C2015}
+  .span::before,.span::after{content:"";position:absolute;left:0;right:0;height:3px;
+    background:repeating-linear-gradient(90deg,#38291a 0 2px,transparent 2px 7px)}
+  .span::before{top:0}.span::after{bottom:0}
+  .span .seen{position:absolute;left:0;top:3px;bottom:3px;width:62%;background:linear-gradient(#231a11,#150f09)}
+  .span .rest{position:absolute;right:0;top:3px;bottom:3px;width:38%;
+    background:linear-gradient(rgba(var(--beam),.14),rgba(var(--beam),.05))}
+
+  .prog-cap{display:flex;align-items:baseline;justify-content:space-between;margin-top:12px}
+  .prog-cap .part{font-size:10px;letter-spacing:.10em;color:var(--dust)}
+  .prog-cap .part b{font-family:var(--mono);color:var(--light-2);font-weight:600;font-size:12px}
+  .prog-cap .ch{font-family:var(--mono);font-size:12px;color:var(--light-2);letter-spacing:.02em}
+
+  /* 続きから＝映写機を回す（光る塊の中の唯一の実操作＝唯一の solid） */
+  .resume{margin-top:18px;width:100%;border:none;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:9px;padding:15px;border-radius:3px;
+    background:linear-gradient(#F5E9CC,#E4D2A6);color:#241804;font-weight:800;font-size:15.5px;letter-spacing:.04em;
+    box-shadow:0 0 30px rgba(var(--beam),.22)}
+  .resume .tri{font-size:13px}
+
+  /* ===== フィルム棚（暗がりに沈む蔵書。上映中の1本もここに載る＝棚から全4本へ到達可） ===== */
+  .shelf-h{display:flex;align-items:baseline;justify-content:space-between;padding:14px 26px 12px;flex-shrink:0}
+  .shelf-h .t{font-family:var(--mincho);font-size:14px;letter-spacing:.14em;color:var(--light-2);font-weight:500}
+  .shelf-h .n{font-family:var(--mono);font-size:11px;color:var(--dust);letter-spacing:.06em}
+  .shelf{flex:1;overflow:auto;padding:0 22px 26px;scrollbar-width:none;display:flex;flex-direction:column;gap:8px}
+  .shelf::-webkit-scrollbar{display:none}
+  /* 棚の区切り＝ヘアライン1本のみ（影・太線を使わない） */
+  .row{display:flex;align-items:center;gap:14px;padding:14px 6px;border-top:1px solid var(--line);cursor:pointer}
+  .row:first-child{border-top:none}
+
+  /* リール（開封して掛けられる状態＝読みかけ）：識別色の環＋巻き量ミニ2リール */
+  .disc{width:46px;height:46px;flex-shrink:0;border-radius:50%;position:relative;
+    background:repeating-radial-gradient(circle at 50% 50%, #241C13 0 1.3px, #191309 1.3px 2.6px);
+    box-shadow:inset 0 0 0 3px var(--rc,#7a6a4a), inset 0 0 0 4.5px rgba(0,0,0,.35)}
+  .disc::before{content:"";position:absolute;inset:37%;border-radius:50%;background:var(--hub);box-shadow:0 0 0 1.2px #43331F}
+  .disc .em{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mincho);
+    font-size:13px;color:var(--rc,#7a6a4a);opacity:.9;z-index:2;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+
+  .meta{flex:1;min-width:0}
+  .meta .ct{font-size:13.5px;line-height:1.34;color:var(--light);font-weight:500;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .meta .cb{font-size:11px;color:var(--dust);margin-top:4px}
+
+  /* 棚の進捗＝小さな2リール（左が太る＝見た分）。数値は算用数字 */
+  .mini{flex-shrink:0;width:104px;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+  .mini .twin{display:flex;align-items:center;width:100%}
+  .mini .mr{border-radius:50%;flex-shrink:0;background:#1C150D;box-shadow:inset 0 0 0 1.2px #3a2c1c}
+  .mini .mr.a{width:18px;height:18px}
+  .mini .mr.b{width:12px;height:12px}
+  .mini .mspan{flex:1;height:6px;margin:0 -3px;background:#140F09;box-shadow:inset 0 0 0 1px #2C2015;position:relative}
+  .mini .mspan i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(rgba(var(--beam),.32),rgba(var(--beam),.14))}
+  .mini .num{font-family:var(--mono);font-size:11px;color:var(--light-2);letter-spacing:.02em}
+  .mini .num b{color:var(--light);font-weight:600}
+
+  /* 上映中タグ（棚の中で「いま映写機に掛かっている1本」を指す＝続きから動線の対応付け） */
+  .row.ingate{background:linear-gradient(90deg, rgba(var(--beam),.05), transparent 60%)}
+  .ingate .tag{display:inline-flex;align-items:center;gap:5px;font-size:10px;letter-spacing:.14em;color:var(--light-2);
+    border:1px solid rgba(var(--beam),.3);border-radius:2px;padding:3px 7px;margin-top:6px}
+  .ingate .tag .lamp{width:5px;height:5px;border-radius:50%;background:rgba(var(--beam),.9);box-shadow:0 0 6px rgba(var(--beam),.9)}
+
+  /* 未読＝封をしたフィルム缶（閉じた円筒＝開いていない。リールも span も無い＝一目で「未見」） */
+  .can{width:46px;height:46px;flex-shrink:0;border-radius:50%;position:relative;
+    background:radial-gradient(120% 120% at 40% 30%, #2A231A, #1A140D 70%);
+    box-shadow:inset 0 0 0 2px #3a2e20, inset 0 2px 4px rgba(0,0,0,.5)}
+  .can::before{content:"";position:absolute;inset:24%;border-radius:50%;box-shadow:inset 0 0 0 1px #453626} /* 缶の内蓋の段 */
+  /* 封のテープ（退色赤銅＝十字に封）＝「開けていない」の記号 */
+  .can::after{content:"";position:absolute;inset:0;
+    background:
+      linear-gradient(90deg,transparent 44%,var(--copper) 44% 56%,transparent 56%),
+      linear-gradient(0deg,transparent 44%,var(--copper) 44% 56%,transparent 56%);
+    opacity:.55;-webkit-mask:radial-gradient(circle at 50% 50%, #000 66%, transparent 67%);
+            mask:radial-gradient(circle at 50% 50%, #000 66%, transparent 67%)}
+  .unread .mini{justify-content:center}
+  .unread .seal{font-size:10px;letter-spacing:.14em;color:var(--light-2);
+    border:1px solid var(--copper-lo);border-radius:2px;padding:3px 8px}
+  .unread .total{font-family:var(--mono);font-size:11px;color:var(--dust);margin-top:6px}
+
+  /* 搬入＝空の缶／PDFを追加（FABの代替＝新しいフィルムを棚へ） */
+  .add{display:flex;align-items:center;gap:14px;padding:16px 6px;margin-top:2px;width:100%;text-align:left;
+    background:transparent;border:none;border-top:1px solid var(--line);cursor:pointer;color:var(--dust);font-family:var(--gothic)}
+  .add .empty{width:46px;height:46px;flex-shrink:0;border-radius:50%;border:1.5px dashed #4a3c2a;
+    display:grid;place-items:center;color:var(--dust);font-size:20px;font-weight:300}
+  .add .l1{font-size:13px;color:var(--light-2);font-weight:500}
+  .add .l2{font-size:10.5px;color:var(--dust);letter-spacing:.10em;margin-top:3px}
+</style>
+</head>
+<body>
+  <p class="cap"><b>S. 映写室</b> ／ 物語＝上映を待つフィルム。上半分は<b>映写機に掛かった1本</b>がスクリーンへ投影される＝続きから。進捗は<b>2つのリールに巻き取られたフィルムの比率</b>。下は暗がりの<b>フィルム棚</b>＝読みかけはリール、未読は封をした缶、追加は空の缶の搬入。</p>
+
+  <div class="phone" role="application" aria-label="S案 映写室の本棚">
+    <div class="sb"><span>9:41</span><span>◐ 上映中</span></div>
+
+    <div class="room-h">
+      <span class="t">映写室</span>
+      <span class="wear" role="button">装いの間</span>
+    </div>
+
+    <!-- 上映中＝続きから（スクリーン→ビーム→映写機の一続きの光） -->
+    <div class="stage">
+      <div class="screen">
+        <div class="now"><span class="lamp"></span>上映中</div>
+        <h2>追放された万能薬師、辺境でスローライフを始める</h2>
+        <div class="by">霧島あおい</div>
+
+        <!-- 供給リール(残り)←フィルム→巻取リール(見た分)。左が太い＝見た分が多い -->
+        <div class="film" role="img" aria-label="進捗 62パーセント。340話中127話まで巻き取り済み">
+          <span class="reel take" aria-hidden="true"></span>
+          <span class="span"><span class="seen"></span><span class="rest"></span></span>
+          <span class="reel feed" aria-hidden="true"></span>
+        </div>
+        <div class="prog-cap">
+          <span class="part">見た分 <b>62%</b></span>
+          <span class="ch">第127話 ／ 全340話</span>
+        </div>
+
+        <button class="resume"><span class="tri">▶</span>続きから</button>
+      </div>
+    </div>
+
+    <!-- フィルム棚＝蔵書（暗がりに沈む・上映中の1本もここに載る＝全4本へ到達） -->
+    <div class="shelf-h"><span class="t">フィルム棚</span><span class="n">4本</span></div>
+
+    <div class="shelf">
+      <!-- ① 上映中（=続きからと同じ1本。棚から続きへの対応付け） -->
+      <div class="row ingate" style="--rc:var(--w1)" role="button" aria-label="追放された万能薬師、上映中">
+        <span class="disc" aria-hidden="true"><span class="em">薬</span></span>
+        <div class="meta">
+          <div class="ct">追放された万能薬師、辺境でスローライフを始める</div>
+          <div class="cb">霧島あおい</div>
+          <span class="tag"><span class="lamp"></span>いま映写機に掛かっています</span>
+        </div>
+        <div class="mini">
+          <div class="twin"><span class="mr a"></span><span class="mspan"><i style="width:62%"></i></span><span class="mr b"></span></div>
+          <span class="num"><b>62%</b> ／ 第127話</span>
+        </div>
+      </div>
+
+      <!-- ② 読みかけ -->
+      <div class="row" style="--rc:var(--w2)" role="button" aria-label="黒の魔王と契約した俺">
+        <span class="disc" aria-hidden="true"><span class="em">黒</span></span>
+        <div class="meta">
+          <div class="ct">黒の魔王と契約した俺、気づけば最強の従者になっていた</div>
+          <div class="cb">夜灯すばる</div>
+        </div>
+        <div class="mini">
+          <div class="twin"><span class="mr a"></span><span class="mspan"><i style="width:28%"></i></span><span class="mr b"></span></div>
+          <span class="num"><b>28%</b> ／ 第43話</span>
+        </div>
+      </div>
+
+      <!-- ③ 未読＝封をしたフィルム缶（リール・spanが無い＝開いていない） -->
+      <div class="row unread" role="button" aria-label="転生したら最弱スキルだった、未読">
+        <span class="can" aria-hidden="true"></span>
+        <div class="meta">
+          <div class="ct">転生したら最弱スキルだったので、ひたすら草むしりしていた</div>
+          <div class="cb">青葉みのり</div>
+        </div>
+        <div class="mini">
+          <span class="seal">未読</span>
+          <span class="total">全88話</span>
+        </div>
+      </div>
+
+      <!-- ④ 読みかけ -->
+      <div class="row" style="--rc:var(--w4)" role="button" aria-label="公爵令嬢の嗜み">
+        <span class="disc" aria-hidden="true"><span class="em">嗜</span></span>
+        <div class="meta">
+          <div class="ct">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+          <div class="cb">白河すずら</div>
+        </div>
+        <div class="mini">
+          <div class="twin"><span class="mr a"></span><span class="mspan"><i style="width:11%"></i></span><span class="mr b"></span></div>
+          <span class="num"><b>11%</b> ／ 第8話</span>
+        </div>
+      </div>
+
+      <!-- 搬入＝空の缶／PDFを追加 -->
+      <button class="add" aria-label="新しいフィルムを搬入（PDFを追加）">
+        <span class="empty" aria-hidden="true">＋</span>
+        <div>
+          <div class="l1">PDFを追加</div>
+          <div class="l2">新しいフィルムを棚へ搬入</div>
+        </div>
+      </button>
+    </div>
+  </div>
+</body>
+</html>

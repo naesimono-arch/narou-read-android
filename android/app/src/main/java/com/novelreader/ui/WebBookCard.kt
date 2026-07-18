@@ -34,6 +34,7 @@ import com.novelreader.ui.theme.FontLabel
 import com.novelreader.ui.theme.FontMicroLabel
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.LocalShelfColors
+import com.novelreader.ui.theme.LocalShioriColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.MotionSpringCard
 import com.novelreader.ui.theme.Spacing
@@ -195,8 +196,8 @@ fun WebListBookCard(
             // 左端の色帯（本の小口メタファ）。整合ルール「1冊=1色相」で書架の栞と同じ title 由来 accent に一本化。
             // なぜ青磁でなく題字由来色か: 未取込署名はモードB（accent 上書きをせず、下の「なろう・未取込」青磁
             // テキストで署名する）＝正本 consistency-D 既定。帯自体は取込済み蔵書と同じ色相ルールで揃える。
-            val surface = MaterialTheme.colorScheme.surface
-            val barColor = remember(novel.title, surface) { shioriAccentFor(shioriHue(novel.title), surface) }
+            val accentLightness = LocalShioriColors.current.accentLightness
+            val barColor = remember(novel.title, accentLightness) { shioriAccentFor(shioriHue(novel.title), accentLightness) }
             Box(
                 modifier = Modifier
                     .width(4.dp)

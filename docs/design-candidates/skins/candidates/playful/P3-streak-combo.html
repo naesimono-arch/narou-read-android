@@ -1,0 +1,187 @@
+<!-- 遊び心: 【何が】コンソールHUDに「連続プレイ日数」のピクセル炎コンボが灯る。日数が増えるほど炎のドットが1段高くなる。
+             【どの動作で】前回と別の日にも読書を続けた瞬間（連続読書日数が +1 更新）。ゲームの連続ログイン/コンボの快感。
+             【どう変わる】途切れると炎は1ドットの種火に戻る → 続けるほど炎が育つ。更新した日はHUDを開いた最初の一度だけ「＋1」がはぜる。
+     Compose 翻訳の想定: readingStreakDays を DataStore で持ち、当日初回のHUD表示で prevDays<days の時だけ「＋1」バーストを一度再生（それ以外は静かな現在値）。
+                         炎は署名の退色レッド（--red）に閉じ、常設の savebar でなくクローム表示時のHUDにのみ出す（静謐＝本文優先）。prefers-reduced-motion では最終の炎段数を静止表示。 -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n P 遊び心 — 連続プレイの炎（連続読書日数）</title>
+<style>
+  :root{
+    --plastic:#dbd6c8; --plastic-hi:#e9e5da; --plastic-lo:#c3bfae;
+    --ink:#2c2b26; --ink-soft:#79766b; --line:#bdb9a9;
+    --lcd:#a4af80; --lcd-hi:#b4be92; --lcd-frame:#33352b; --lcd-ink:#2b3616;
+    --red:#b5564e; --red-lo:#8d4139;
+    --blue:#5c7d96; --blue-lo:#c4c0b2; --blue-ink:#3f5a70;
+    --pixel:ui-monospace,"SFMono-Regular",Menlo,Consolas,"Courier New",monospace;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+  }
+  .t-light{ --screen:#e8e7d8; --screen-lo:#dedccb; --rd-ink:#26251d; --rd-soft:#5f5c50; --rd-ruby:#5f5c4f;
+            --rd-num:var(--blue-ink); --rd-block-bg:rgba(43,54,22,.04); }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#2a2c27;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:30px;font-family:var(--gothic)}
+  .cap{color:#c8c3b4;font-size:13px;margin-bottom:16px;text-align:center;line-height:1.7;max-width:900px}
+  .cap b{color:#f0ede2}
+  .stage{display:flex;gap:34px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap .mode{font-family:var(--pixel);font-size:11px;letter-spacing:.14em;color:#b7b2a3}
+
+  .phone{width:390px;height:844px;border-radius:34px;position:relative;overflow:hidden;
+    background:linear-gradient(150deg,var(--plastic-hi),var(--plastic) 22%,var(--plastic-lo));
+    box-shadow:0 24px 60px rgba(0,0,0,.55), inset 0 2px 0 rgba(255,255,255,.5), inset 0 -3px 8px rgba(0,0,0,.14);
+    display:flex;flex-direction:column;color:var(--ink)}
+  .screw{position:absolute;width:9px;height:9px;border-radius:50%;z-index:9;
+    background:radial-gradient(circle at 35% 30%,#e7e3d7,#a8a496 70%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+  .screw::after{content:"";position:absolute;inset:2.5px;border-top:1.4px solid rgba(0,0,0,.28);transform:rotate(40deg)}
+  .screw.tl{top:13px;left:13px}.screw.tr{top:13px;right:13px}.screw.bl{bottom:13px;left:13px}.screw.br{bottom:13px;right:13px}
+  .sb{height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;flex-shrink:0;
+    font-family:var(--pixel);font-size:11px;letter-spacing:.06em;color:var(--ink-soft)}
+  .sb .batt{display:inline-flex;align-items:center;gap:3px}
+  .sb .batt b{display:inline-block;width:16px;height:8px;border:1.4px solid var(--ink-soft);border-radius:1px;position:relative}
+  .sb .batt b::after{content:"";position:absolute;inset:1.5px;right:5px;background:var(--ink-soft)}
+  .sb .batt b::before{content:"";position:absolute;right:-3px;top:2px;width:2px;height:4px;background:var(--ink-soft)}
+
+  .screen{position:relative;flex:1;margin:2px 14px 16px;border-radius:14px;overflow:hidden;
+    background:linear-gradient(var(--screen),var(--screen-lo));
+    box-shadow:inset 0 3px 9px rgba(0,0,0,.30), 0 1px 0 rgba(255,255,255,.4)}
+
+  .reader{position:absolute;inset:0;overflow:auto;padding:40px 26px 96px;font-family:var(--mincho);scrollbar-width:none}
+  .reader::-webkit-scrollbar{display:none}
+  .chap-h{margin:6px 0 26px}
+  .chap-h .num{font-family:var(--pixel);font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--rd-num)}
+  .chap-h .t{font-size:20px;color:var(--rd-ink);margin-top:10px;line-height:1.6;font-weight:600}
+  .chap-h .rule{display:flex;gap:3px;margin-top:16px}
+  .chap-h .rule i{width:6px;height:6px;background:var(--lcd);box-shadow:inset 0 0 0 1px rgba(43,54,22,.25)}
+  p{font-size:16.5px;line-height:2.35;color:var(--rd-ink);text-indent:1em;margin-bottom:.3em;letter-spacing:0}
+  ruby rt{font-size:.5em;color:var(--rd-ruby);font-weight:400;letter-spacing:0}
+  .blank{height:1.5em}
+  hr{border:none;height:6px;margin:16px auto;width:60px;
+    background:repeating-linear-gradient(90deg,var(--rd-soft) 0 4px,transparent 4px 8px);opacity:.5}
+  .block{border:1px solid var(--screen-lo);background:var(--rd-block-bg);border-radius:6px;padding:12px 15px;margin:2px 0 24px}
+  .block .lbl{font-family:var(--pixel);font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--rd-num);margin-bottom:7px}
+  .block p{font-size:14px;line-height:2.05;text-indent:1em;margin:0;color:var(--rd-soft)}
+
+  .hud{position:absolute;top:0;left:0;right:0;z-index:6;display:flex;align-items:center;gap:8px;padding:8px 12px;
+    background:linear-gradient(var(--plastic-hi),var(--plastic));border-bottom:1px solid var(--line);box-shadow:0 2px 6px rgba(0,0,0,.12)}
+  .hud .ib{width:34px;height:34px;border:none;background:transparent;border-radius:9px;display:grid;place-items:center;color:var(--ink);cursor:pointer;flex-shrink:0}
+  .hud .ib svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7}
+  .hud .ct{flex:1;min-width:0;font-family:var(--gothic);font-size:12.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hud .save{flex-shrink:0;display:flex;align-items:center;gap:6px;background:var(--lcd);border-radius:5px;padding:4px 8px;
+    box-shadow:inset 0 0 0 1px rgba(43,54,22,.25)}
+  .hud .save .n{font-family:var(--pixel);font-size:11px;font-weight:700;color:var(--lcd-ink);letter-spacing:.03em}
+
+  /* ===== 遊び心の本体: 連続プレイ日数のピクセル炎コンボ（HUD 右端）===== */
+  .streak{flex-shrink:0;position:relative;display:flex;align-items:center;gap:5px;background:var(--plastic-hi);border-radius:5px;
+    padding:4px 8px 4px 6px;box-shadow:inset 0 0 0 1px var(--line)}
+  .flame{display:flex;align-items:flex-end;gap:1.5px;height:16px}
+  .flame i{width:2.5px;background:var(--red);image-rendering:pixelated}
+  .flame i:nth-child(1){height:5px}.flame i:nth-child(2){height:9px}
+  .flame i:nth-child(3){height:16px;background:linear-gradient(var(--red-lo),var(--red))}
+  .flame i:nth-child(4){height:9px}.flame i:nth-child(5){height:5px}
+  .streak .d{font-family:var(--pixel);font-size:11px;font-weight:700;color:var(--red-lo);letter-spacing:.02em}
+  /* 種火（途切れ後の1ドット状態＝比較用） */
+  .streak.seed .flame i:nth-child(1),.streak.seed .flame i:nth-child(2),
+  .streak.seed .flame i:nth-child(4),.streak.seed .flame i:nth-child(5){height:3px;opacity:.4}
+  .streak.seed .flame i:nth-child(3){height:7px}
+  /* 反応途中: 当日はじめてHUDを開き「＋1」がはぜる一瞬 */
+  .streak.plus .flame i{animation:flameUp .4s ease-out 1 both}
+  @keyframes flameUp{0%{transform:scaleY(.55);opacity:.6}100%{transform:scaleY(1);opacity:1}}
+  .streak .pop{position:absolute;top:-15px;right:2px;font-family:var(--pixel);font-size:10px;font-weight:700;color:var(--red);
+    animation:popUp 1s ease-out 1 both}
+  @keyframes popUp{0%{transform:translateY(6px);opacity:0}25%{opacity:1}100%{transform:translateY(-4px);opacity:0}}
+
+  .console{position:absolute;left:0;right:0;bottom:0;z-index:6;height:62px;display:flex;align-items:center;
+    background:linear-gradient(var(--plastic),var(--plastic-lo));border-top:1px solid var(--line);box-shadow:0 -2px 6px rgba(0,0,0,.12)}
+  .console button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--ink);cursor:pointer}
+  .console svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .console .bl{font-family:var(--gothic);font-size:9.5px;color:var(--ink-soft)}
+
+  @media (prefers-reduced-motion:reduce){
+    .streak.plus .flame i{animation:none}
+    .streak .pop{animation:none;opacity:1;transform:none}
+  }
+</style>
+</head>
+<body>
+  <p class="cap"><b>P3. 連続プレイの炎（連続読書日数で反応）</b> ／ コンソールHUDの右端に連続読書日数の炎コンボが灯る。日数が増えるほど炎のドットが高く育つ。途切れると1ドットの種火に戻る。読書機能（HUD/本文/コンソール操作列）はそのまま。左＝当日はじめてHUDを開き「＋1」がはぜる中間フレーム（反応途中）／右＝途切れた翌日の種火（比較）。</p>
+
+  <div class="stage">
+    <!-- ① 反応途中: ＋1 がはぜる -->
+    <div class="wrap"><span class="mode">STREAK +1 / 反応途中</span>
+    <div class="phone t-light" role="img" aria-label="P案 読書 連続プレイの炎 プラス1">
+      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+      <div class="sb"><span>9:41</span><span class="batt">SAVE&nbsp;<b></b></span></div>
+      <div class="screen">
+        <div class="hud">
+          <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <div class="ct">追放された万能薬師、辺境で…</div>
+          <div class="save"><span class="n">127/340</span></div>
+          <div class="streak plus" role="status" aria-label="連続読書 6日、今日で1日更新">
+            <span class="pop">＋1</span>
+            <span class="flame" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+            <span class="d">6日</span>
+          </div>
+        </div>
+        <div class="reader" style="padding-top:66px">
+          <div class="chap-h">
+            <div class="num">第127話 ／ 全340話</div>
+            <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+            <div class="rule"><i></i><i></i><i></i></div>
+          </div>
+          <div class="block">
+            <div class="lbl">まえがき</div>
+            <p>お読みいただきありがとうございます。今回は少し長めの戦闘回になりました。次話は<ruby>後日談<rt>ごじつだん</rt></ruby>を挟みます。</p>
+          </div>
+          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、長い雨がようやく上がった頃だった。濡れた石畳が夕陽を照り返している。</p>
+          <p>「——ここまで、よく付いてきてくれた」</p>
+          <p>彼女はそう<ruby>呟<rt>つぶや</rt></ruby>くと、腰の<ruby>剣<rt>つるぎ</rt></ruby>をそっと地に置いた。</p>
+        </div>
+        <div class="console">
+          <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+          <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+          <button aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--plastic)"/><circle cx="15" cy="16" r="2.4" fill="var(--plastic)"/></svg><span class="bl">表示設定</span></button>
+          <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+        </div>
+      </div>
+    </div></div>
+
+    <!-- ② 途切れた翌日の種火（比較） -->
+    <div class="wrap"><span class="mode">SEED / 種火（途切れ後）</span>
+    <div class="phone t-light" role="img" aria-label="P案 読書 連続プレイの炎 種火">
+      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+      <div class="sb"><span>9:41</span><span class="batt">SAVE&nbsp;<b></b></span></div>
+      <div class="screen">
+        <div class="hud">
+          <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <div class="ct">追放された万能薬師、辺境で…</div>
+          <div class="save"><span class="n">127/340</span></div>
+          <div class="streak seed" role="status" aria-label="連続読書 1日">
+            <span class="flame" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+            <span class="d">1日</span>
+          </div>
+        </div>
+        <div class="reader" style="padding-top:66px">
+          <div class="chap-h">
+            <div class="num">第127話 ／ 全340話</div>
+            <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+            <div class="rule"><i></i><i></i><i></i></div>
+          </div>
+          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、長い雨がようやく上がった頃だった。濡れた石畳が夕陽を照り返している。</p>
+          <p>「——ここまで、よく付いてきてくれた」</p>
+          <p>彼女はそう<ruby>呟<rt>つぶや</rt></ruby>くと、腰の<ruby>剣<rt>つるぎ</rt></ruby>をそっと地に置いた。</p>
+        </div>
+        <div class="console">
+          <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+          <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+          <button aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--plastic)"/><circle cx="15" cy="16" r="2.4" fill="var(--plastic)"/></svg><span class="bl">表示設定</span></button>
+          <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+        </div>
+      </div>
+    </div></div>
+  </div>
+</body>
+</html>

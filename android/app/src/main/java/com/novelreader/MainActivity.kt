@@ -32,6 +32,7 @@ import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.BookshelfScreen
 import com.novelreader.ui.ReadingErrorScreen
 import com.novelreader.ui.ReadingScreen
+import com.novelreader.ui.WardrobeScreen
 import com.novelreader.ui.discovery.DiscoveryGenreScreen
 import com.novelreader.ui.discovery.DiscoveryHomeScreen
 import com.novelreader.ui.discovery.DiscoveryResultScreen
@@ -42,7 +43,9 @@ import com.novelreader.ui.discovery.WebReaderScreen
 import com.novelreader.ui.theme.MotionDurationNavTransition
 import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.ui.theme.ReadingTheme
-import com.novelreader.ui.theme.colors
+import com.novelreader.ui.theme.Skin
+import com.novelreader.ui.theme.skinFromName
+import com.novelreader.ui.theme.rememberReadingColors
 import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.DiscoveryViewModel
@@ -128,17 +131,26 @@ class MainActivity : ComponentActivity() {
                 followingSystem = true
                 appTheme = if (systemDark) ReadingTheme.DARK else ReadingTheme.LIGHT
             }
+            // UIスキン（着せ替え）。reading_theme と同じ「MainActivity へ巻き上げた単一状態＋prefs 永続」流儀。
+            // キー不在=D（既定装い）。装着は装いの間（wardrobe）からのみ変更される。
+            var appSkin by remember { mutableStateOf(skinFromName(prefs.getString("app_skin", null))) }
+            val onSkinChange: (Skin) -> Unit = { skin ->
+                appSkin = skin
+                prefs.edit().putString("app_skin", skin.name).apply()
+            }
 
             // Material3 配色もテーマ3値（ライト/セピア/ダーク）へ追従させる。
             // 旧実装はセピア時にライト配色を流用しており、本棚・発見系で「ライトとセピアの
             // 色味に差がない」実機フィードバック（2026-07-07）の主因だった。読書側の固有色
             // （ReadingColors）とは別系統だが、同じ琥珀紙トーンに揃えている（Theme.kt 参照）。
-            NovelReaderTheme(theme = appTheme) {
+            NovelReaderTheme(skin = appSkin, theme = appTheme) {
                 NovelReaderApp(
                     appTheme = appTheme,
                     onThemeChange = onThemeChange,
                     followingSystem = followingSystem,
                     onFollowSystem = onFollowSystem,
+                    appSkin = appSkin,
+                    onSkinChange = onSkinChange,
                     // .value の読み取りを composable 内で行うことで onNewIntent の更新が再コンポーズを誘発する。
                     deepLinkBookId = deepLinkBookId.value,
                     onDeepLinkConsumed = { deepLinkBookId.value = null },
@@ -183,6 +195,8 @@ private fun NovelReaderApp(
     onThemeChange: (ReadingTheme) -> Unit,
     followingSystem: Boolean,
     onFollowSystem: () -> Unit,
+    appSkin: Skin,
+    onSkinChange: (Skin) -> Unit,
     deepLinkBookId: String?,
     onDeepLinkConsumed: () -> Unit,
 ) {
@@ -256,12 +270,20 @@ private fun NovelReaderApp(
                 deferHeavyContent = deferHeavyContent,
                 appTheme = appTheme,
                 onThemeChange = onThemeChange,
+                // 「システムに従う」の単一真実源を本棚⋮のテーマ4択へ素通し（読書設定シートへ渡すのと同じ状態＝
+                // reading_theme 未宣言かどうか。別状態を新設せず二重管理を避ける・2026-07-17 ユーザー裁定②）。
+                followingSystem = followingSystem,
+                onFollowSystem = onFollowSystem,
                 onOpenBook = { bookId, startFile ->
                     // launchSingleTop: 二度押しで同一読書画面がバックスタックに二重 push されるのを防ぐ（M1）。
                     navController.navigate("reading/$bookId/$startFile") { launchSingleTop = true }
                 },
                 onOpenDiscovery = {
                     navController.navigate("discovery") { launchSingleTop = true }
+                },
+                // 着せ替えの入口は本棚トップバーのみ（意図的設計＝ADR 0021 決定7。設定シート内には置かない）。
+                onOpenWardrobe = {
+                    navController.navigate("wardrobe") { launchSingleTop = true }
                 },
                 // (b) Web由来カードの「縦書きPDFを取り込む」→ 既存の取り込み画面ルートへ直行
                 // （詳細画面経由の onImportPdf と同じ着地＝ADR 0011 の WebView 取り込み）。
@@ -293,6 +315,15 @@ private fun NovelReaderApp(
                     discoveryViewModel.openResult(preset.toResultContext())
                     navController.navigate("discovery/result") { launchSingleTop = true }
                 },
+            )
+        }
+
+        // 装いの間（UIスキン選択・ADR 0021 決定7）。引数なしフルスクリーン＋戻るの最小形（discovery と同型）。
+        composable("wardrobe") {
+            WardrobeScreen(
+                currentSkin = appSkin,
+                onSkinChange = onSkinChange,
+                onBack = { navController.popBackStack() },
             )
         }
 
@@ -460,7 +491,7 @@ private fun NovelReaderApp(
                         // 既存のエラー画面（本棚へ戻る導線つき）を流用する（F-M）。意匠は発明しない。
                         ReadingErrorScreen(
                             message = "この書籍は見つかりませんでした",
-                            colors = appTheme.colors,
+                            colors = rememberReadingColors(appTheme),
                             onNavigateToBookshelf = { navController.popBackStack("bookshelf", false) },
                         )
                     }
@@ -477,7 +508,7 @@ private fun NovelReaderApp(
  */
 @Composable
 private fun ReadingLoadingPlaceholder(readingTheme: ReadingTheme) {
-    val colors = readingTheme.colors
+    val colors = rememberReadingColors(readingTheme)
     Box(
         modifier = Modifier
             .fillMaxSize()

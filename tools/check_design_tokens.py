@@ -64,9 +64,16 @@ def parse_font_tokens() -> dict[str, float]:
         for m in re.finditer(r"val\s+(Font\w+)\s*=\s*([0-9.]+)\.sp", text)
     }
 
-def parse_reading_colors() -> dict[str, dict[str, str]]:
-    """Theme.kt の ReadingColors 3 テーマを {テーマ: {フィールド: 'RRGGBB'}} で返す。"""
-    text = (THEME_DIR / "Theme.kt").read_text(encoding="utf-8")
+def parse_reading_colors(kt_rel: str) -> dict[str, dict[str, str]]:
+    """スキンの reading トークン（`ReadingTheme.X -> ReadingColors(...)` の when）を
+    {テーマ: {フィールド: 'RRGGBB'}} で返す。kt_rel は THEME_DIR 起点の相対パス（例 skins/SkinD.kt）。
+
+    なぜファイルを引数化したか: P1 でスキン骨格を導入し、D の ReadingColors 値は Theme.kt から
+    skins/SkinD.kt へ移設された（Theme.kt の getter は SkinD へ委譲する薄い D 固定アクセサに縮退）。
+    スキンごとに reading 表の所在が変わるため、SKIN_READING 表からファイルを差し込む。
+    字面 `ReadingTheme.LIGHT -> ReadingColors(` は移設後も維持されており正規表現はそのまま引ける。
+    """
+    text = (THEME_DIR / kt_rel).read_text(encoding="utf-8")
     themes: dict[str, dict[str, str]] = {}
     for tm in re.finditer(r"ReadingTheme\.(LIGHT|SEPIA|DARK)\s*->\s*ReadingColors\((.*?)\n\s*\)", text, re.S):
         fields = {
@@ -135,6 +142,98 @@ READING_VARS = {
 READING_FILE = "reading-D.html"
 READING_ORDER = ["LIGHT", "SEPIA", "DARK"]
 
+# reading-C（夜行）の 1 テーマ宣言（:root 単一スコープ＝固定1変種）→ SkinC.reading の ReadingColors。
+# reading-C の CSS 変数名は D と異なる（--text/--text-dim/--slate 系）ため C 専用の対応表を持つ。
+# blockBackground/rule/navBackground 等の導出値はモックに CSS 変数として現れない（rgba 直値・opacity 合成）
+# ため照合対象外＝モック変数と 1:1 対応する骨格色だけを突合する（D と同じ意味論）。
+READING_VARS_C = {
+    "--bg": "background",
+    "--text": "text",
+    "--text-dim": "textSecondary",
+    "--ruby": "ruby",
+    "--line": "divider",
+    "--slate": "accent",
+}
+READING_ORDER_C = ["DARK"]  # C は固定1変種（:root 単一宣言＝order 長 1）
+
+# reading-M（星図）の 1 テーマ宣言（:root 単一スコープ＝固定1変種 DARK）→ SkinM.reading。
+# hex 宣言される :root 変数のみ照合（--line は rgba(150,168,214,.20) で checker が拾えないため除外・
+# background #0B1330 はグラデ直値で変数化されていないため除外）。
+READING_VARS_M = {
+    "--text": "text",
+    "--dim": "textSecondary",
+    "--ruby": "ruby",
+    "--star": "accent",
+}
+READING_ORDER_M = ["DARK"]
+
+# reading-P（カートリッジ）の 3 テーマ宣言（.t-light → .t-sepia → .t-dark の出現順が前提）→ SkinP.reading。
+# 追補ドラフト reading-P-themes-draft.html を承認して3テーマ化（ADR 0022 §2 追記・2026-07-17）。
+# 照合するのは各 .t-* に3回宣言される「読書面の骨格色」（hex）のみ。chrome（--line=divider・--lcd=accent）は
+# :root 単一宣言のテーマ不変色で .t-* に3回現れない＝順序照合に載せられないため除外する（M が rgba --line を
+# 除外したのと同型＝ordered per-theme 照合は3宣言を要する）。派生値（--rd-block-bg=blockBackground 等・rgba）も
+# checker が hex を拾えないため除外（SkinP.reading 側で焼き込み算式コメント併記）。
+READING_VARS_P = {
+    "--screen": "background",
+    "--screen-lo": "blockBorder",
+    "--rd-ink": "text",
+    "--rd-soft": "textSecondary",
+    "--rd-ruby": "ruby",
+}
+READING_ORDER_P = ["LIGHT", "SEPIA", "DARK"]  # reading-P の .t-* 出現順（light→sepia→dark）
+
+# reading-J（ポータル）の 3 テーマ宣言（.t-dark → .t-light → .t-sepia の出現順が前提）→ SkinJ.reading。
+# .t-* の hex 変数のみ照合（--amb1/--amb2/--glyph は rgba ambient で checker が拾えず・構造画面用のため除外）。
+READING_VARS_J = {
+    "--bg": "background",
+    "--ink": "text",
+    "--soft": "textSecondary",
+    "--ruby": "ruby",
+    "--accent": "accent",
+    "--rule": "rule",
+    "--panel": "blockBackground",
+    "--panel-bd": "blockBorder",
+    "--bar": "navBackground",
+    "--bar-line": "divider",
+}
+READING_ORDER_J = ["DARK", "LIGHT", "SEPIA"]  # reading-J の .t-* 出現順（dark→light→sepia）
+
+# スキン別の reading 期待表（表駆動）。P1 でスキン骨格を導入し、reading トークンは 1 スキン=1 ファイルへ
+# 移設された。ここに 1 行足せば新スキン（例 C 夜行＝skins/SkinC.kt / reading-C.html）を同じ照合ロジックで
+# 検査できる（C 用の行追加は SkinC 実装と同時＝P3 の前提）。D の検査は移設前と完全同値（30 件 OK）。
+SKIN_READING: dict[str, dict] = {
+    "D": {
+        "kt_file": "skins/SkinD.kt",   # THEME_DIR 起点。D の ReadingColors 値の正本
+        "mock": READING_FILE,          # reading-D.html（3 テーマ順序宣言）
+        "vars": READING_VARS,
+        "order": READING_ORDER,
+    },
+    "C": {
+        "kt_file": "skins/SkinC.kt",       # THEME_DIR 起点。C の ReadingColors 値の正本
+        "mock": "skins/reading-C.html",    # MOCK_DIR 起点＝docs/design-candidates/skins/ 配下（1 テーマ宣言）
+        "vars": READING_VARS_C,
+        "order": READING_ORDER_C,
+    },
+    "M": {
+        "kt_file": "skins/SkinM.kt",       # 星図＝固定1変種 DARK
+        "mock": "skins/reading-M.html",
+        "vars": READING_VARS_M,
+        "order": READING_ORDER_M,
+    },
+    "P": {
+        "kt_file": "skins/SkinP.kt",       # カートリッジ＝読書のみ 3 テーマ（.t-light/.t-sepia/.t-dark）
+        "mock": "skins/reading-P.html",
+        "vars": READING_VARS_P,
+        "order": READING_ORDER_P,
+    },
+    "J": {
+        "kt_file": "skins/SkinJ.kt",       # ポータル＝reading のみ 3 テーマ（.t-dark/.t-light/.t-sepia）
+        "mock": "skins/reading-J.html",
+        "vars": READING_VARS_J,
+        "order": READING_ORDER_J,
+    },
+}
+
 # ---- 照合 -------------------------------------------------------------------------
 
 # ---- 派生モック突合表（opt-in・drift 検出） ---------------------------------------
@@ -199,7 +298,6 @@ def find_decls(text: str, var: str) -> list[str]:
 
 def main() -> int:
     tokens = parse_color_kt()
-    reading = parse_reading_colors()
     ok = ng = skip = 0
     failures: list[str] = []
 
@@ -227,28 +325,32 @@ def main() -> int:
         for var, token_name in var_map.items():
             check(f"{rel} {var}", find_decls(text, var), tokens.get(token_name), token_name)
 
-    # reading-D: 3 テーマ順序照合
-    rpath = MOCK_DIR / READING_FILE
-    if not rpath.exists():
-        failures.append(f"[NG] 正本モックが見つからない: {READING_FILE}")
-        ng += 1
-    else:
+    # 各スキンの reading: テーマ順序照合（SKIN_READING 表駆動。D は移設前と完全同値）
+    for skin_id, spec in SKIN_READING.items():
+        reading = parse_reading_colors(spec["kt_file"])
+        mock_file = spec["mock"]
+        order = spec["order"]
+        rpath = MOCK_DIR / mock_file
+        if not rpath.exists():
+            failures.append(f"[NG] 正本モックが見つからない: {mock_file}（スキン {skin_id}）")
+            ng += 1
+            continue
         text = rpath.read_text(encoding="utf-8")
-        for var, field in READING_VARS.items():
+        for var, field in spec["vars"].items():
             decls = find_decls(text, var)
-            if len(decls) != 3:
-                failures.append(f"[NG] {READING_FILE} {var}: 3テーマ宣言のはずが {len(decls)} 件（順序前提が崩れた＝要保守）")
+            if len(decls) != len(order):
+                failures.append(f"[NG] {mock_file} {var}: {len(order)}テーマ宣言のはずが {len(decls)} 件（順序前提が崩れた＝要保守）")
                 ng += 1
                 continue
-            for theme, decl in zip(READING_ORDER, decls):
+            for theme, decl in zip(order, decls):
                 expected = reading.get(theme, {}).get(field)
                 if expected is None:
-                    failures.append(f"[NG] {READING_FILE} {var}({theme}): ReadingColors.{field} を Theme.kt から抽出できない")
+                    failures.append(f"[NG] {mock_file} {var}({theme}): ReadingColors.{field} を {spec['kt_file']} から抽出できない")
                     ng += 1
                 elif decl == expected:
                     ok += 1
                 else:
-                    failures.append(f"[NG] {READING_FILE} {var}({theme}): モック #{decl} ⇄ ReadingColors.{field}=#{expected}")
+                    failures.append(f"[NG] {mock_file} {var}({theme}): モック #{decl} ⇄ ReadingColors.{field}=#{expected}")
                     ng += 1
 
     # ---- 派生モック ⇄ 正本モックの実値突合（DERIVED_SYNC 表） ----

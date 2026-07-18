@@ -45,6 +45,7 @@ import com.novelreader.ui.theme.FontLabel
 import com.novelreader.ui.theme.FontMicroLabel
 import com.novelreader.ui.theme.FontSealBadge
 import com.novelreader.ui.theme.LocalShelfColors
+import com.novelreader.ui.theme.LocalShioriColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.MotionDurationSeal
 import com.novelreader.ui.theme.MotionEasingSeal
@@ -398,8 +399,8 @@ internal fun ListBookCard(
     // 書架の栞（棒・先端）と同じ shiori accent に一本化＝seed は book.id でなく title。
     // なぜ title か: 書架グリッドの栞は title→色相で描くため、目録も title 由来にしないと同じ本が
     // 書架と目録で違う色になる（整合ルール「1冊=1色相」の核心・正本 consistency-D）。
-    val surface = MaterialTheme.colorScheme.surface
-    val barColor = remember(book.title, surface) { shioriAccentFor(shioriHue(book.title), surface) }
+    val accentLightness = LocalShioriColors.current.accentLightness
+    val barColor = remember(book.title, accentLightness) { shioriAccentFor(shioriHue(book.title), accentLightness) }
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()

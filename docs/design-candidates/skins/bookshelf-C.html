@@ -1,0 +1,126 @@
+<!-- @dsCard group="UI-n / 本棚" name="C. 夜行（没入・続きからヒーロー）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n C 本棚 — 夜行</title>
+<style>
+  /* ===== C案: 夜行・没入方向 =====
+     長時間の夜読を主役に。クロームを引き、「続きから」ヒーローへ視線を集める。
+     避けた定番: 純黒＋アシッド差し色。代わりに青みの深炭＋低グレアの温白文字＋月光スレートの抑えた一点色。
+     署名要素: 「続きから」ヒーロー＋極小クローム。 */
+  :root{
+    --bg:#16181D;--surface:#1E2128;--surface-2:#252932;
+    --text:#D8D1C5;       /* 温かい紙白（低グレア） */
+    --text-dim:#8B8A84;--line:#2C303A;
+    --slate:#8E99B0;      /* 月光スレート（抑えたアクセント） */
+    --ember:#C79A6A;      /* 灯火（進捗のみに少量） */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0C0D10;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:24px;font-family:var(--mincho)}
+  .phone{width:390px;height:844px;background:var(--bg);border-radius:42px;overflow:hidden;position:relative;
+    box-shadow:0 30px 70px rgba(0,0,0,.7);display:flex;flex-direction:column}
+  .statusbar{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;
+    font-family:var(--gothic);font-size:12px;color:var(--text-dim)}
+  /* ---- トップ: 極小クローム ---- */
+  .topbar{padding:4px 22px 8px;display:flex;align-items:center;justify-content:space-between}
+  .topbar h1{font-size:19px;color:var(--text);font-weight:500;letter-spacing:.18em}
+  .actions{display:flex;gap:2px}
+  .iconbtn{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--text-dim);cursor:pointer}
+  .iconbtn:hover{color:var(--text)}
+  .iconbtn:focus-visible{outline:2px solid var(--slate);outline-offset:2px}
+  .iconbtn svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .scroll{flex:1;overflow:auto;padding:6px 20px 100px}
+  /* ---- 続きから ヒーロー = 署名 ---- */
+  .hero-lbl{font-family:var(--gothic);font-size:11px;letter-spacing:.3em;color:var(--ember);margin:6px 2px 10px}
+  .hero{display:flex;gap:16px;background:linear-gradient(135deg,var(--surface-2),var(--surface));
+    border:1px solid var(--line);border-radius:16px;padding:16px;position:relative;overflow:hidden;cursor:pointer}
+  .hero:focus-visible{outline:2px solid var(--slate);outline-offset:2px}
+  .hero::after{content:"";position:absolute;right:-40px;top:-40px;width:140px;height:140px;border-radius:50%;
+    background:radial-gradient(circle,rgba(199,154,106,.16),transparent 70%)}
+  .hero .cv{width:84px;height:126px;border-radius:5px;flex-shrink:0;background:#3A4150;
+    display:grid;place-items:center;color:rgba(255,255,255,.85);font-size:40px;box-shadow:0 8px 22px rgba(0,0,0,.5)}
+  .hero .info{flex:1;display:flex;flex-direction:column;min-width:0}
+  .hero .info .t{font-size:17px;color:var(--text);line-height:1.5;font-weight:600;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .hero .info .a{font-family:var(--gothic);font-size:11px;color:var(--text-dim);margin-top:5px}
+  .hero .info .sp{margin-top:auto}
+  .hero .info .ch{font-family:var(--gothic);font-size:12px;color:var(--text);margin-bottom:7px}
+  .hero .pbar{height:3px;background:var(--line);border-radius:2px;overflow:hidden}
+  .hero .pbar i{display:block;height:100%;width:62%;background:var(--ember)}
+  .hero .resume{margin-top:11px;display:inline-flex;align-items:center;gap:7px;align-self:flex-start;
+    background:var(--slate);color:#15171C;font-family:var(--gothic);font-weight:700;font-size:12.5px;
+    padding:7px 14px;border-radius:9px}
+  .hero .resume svg{width:14px;height:14px;fill:#15171C}
+  /* ---- ライブラリ(静かな縦リスト) ---- */
+  .sec{font-family:var(--gothic);font-size:11px;letter-spacing:.26em;color:var(--text-dim);margin:24px 2px 8px}
+  .row{display:flex;align-items:center;gap:14px;padding:12px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+  .row:focus-visible{outline:2px solid var(--slate);outline-offset:2px;border-radius:8px}
+  .row .chip{width:42px;height:62px;border-radius:4px;flex-shrink:0;display:grid;place-items:center;color:rgba(255,255,255,.8);font-size:20px}
+  .row .rinfo{flex:1;min-width:0}
+  .row .rt{font-size:14.5px;color:var(--text);line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .row .meta{font-family:var(--gothic);font-size:11px;color:var(--text-dim);margin-top:4px;display:flex;align-items:center;gap:8px}
+  .row .meta .pbar{width:54px;height:2px;background:var(--line);overflow:hidden;border-radius:2px}
+  .row .meta .pbar i{display:block;height:100%;background:var(--slate)}
+  .row .meta .u{color:var(--text-dim);opacity:.7}
+  /* ---- FAB(控えめ) ---- */
+  .fab{position:absolute;right:20px;bottom:24px;width:54px;height:54px;border-radius:50%;border:1px solid var(--line);
+    background:var(--surface-2);color:var(--slate);cursor:pointer;display:grid;place-items:center;box-shadow:0 10px 24px rgba(0,0,0,.5)}
+  .fab:focus-visible{outline:2px solid var(--slate);outline-offset:2px}
+  .fab svg{width:24px;height:24px;stroke:currentColor;stroke-width:2;fill:none}
+</style>
+</head>
+<body>
+<div class="phone" role="img" aria-label="C案 夜行方向の本棚画面モック">
+  <div class="statusbar"><span>9:41</span><span>●●● ▢ 84%</span></div>
+
+  <div class="topbar">
+    <h1>本棚</h1>
+    <div class="actions">
+      <button class="iconbtn" aria-label="グリッド表示に切替"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg></button>
+      <button class="iconbtn" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.4" fill="currentColor" stroke="none"/></svg></button>
+    </div>
+  </div>
+
+  <div class="scroll">
+    <div class="hero-lbl">続きから</div>
+    <div class="hero" tabindex="0">
+      <div class="cv" style="background:#3A4150">追</div>
+      <div class="info">
+        <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+        <div class="a">霧島あおい</div>
+        <div class="sp"></div>
+        <div class="ch">第127話 · 62%</div>
+        <div class="pbar"><i></i></div>
+        <span class="resume"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg>読みかけから再開</span>
+      </div>
+    </div>
+
+    <div class="sec">ライブラリ</div>
+    <div class="row" tabindex="0">
+      <div class="chip" style="background:#5B3A66">黒</div>
+      <div class="rinfo"><div class="rt">黒の魔王と契約した俺、気づけば最強の従者に</div>
+        <div class="meta"><span>第43話</span><span class="pbar"><i style="width:28%"></i></span><span>28%</span></div></div>
+    </div>
+    <div class="row" tabindex="0">
+      <div class="chip" style="background:#2F5347">草</div>
+      <div class="rinfo"><div class="rt">転生したら最弱スキルだったので草むしりしていた</div>
+        <div class="meta"><span class="u">未読</span></div></div>
+    </div>
+    <div class="row" tabindex="0">
+      <div class="chip" style="background:#6B3F2E">公</div>
+      <div class="rinfo"><div class="rt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+        <div class="meta"><span>第8話</span><span class="pbar"><i style="width:11%"></i></span><span>11%</span></div></div>
+    </div>
+  </div>
+
+  <button class="fab" aria-label="PDFを追加">
+    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+</div>
+</body>
+</html>

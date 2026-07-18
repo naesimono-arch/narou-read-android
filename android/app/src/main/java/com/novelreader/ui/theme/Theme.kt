@@ -5,8 +5,6 @@ import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
@@ -16,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.novelreader.ui.theme.skins.SkinD
 
 // ============================================================
 // 読書テーマ: ライト/セピア/ダークの3種類
@@ -53,104 +52,30 @@ data class ReadingColors(
     val isLight: Boolean,         // true ならステータスバーアイコンを暗色にする
 )
 
+/**
+ * D 固定の読書配色アクセサ。値の正本は [SkinD.reading] へ移設済み（P1 スキン骨格）。
+ *
+ * なぜ温存するか: @Preview・スキン非依存文脈（CompositionLocal を持たない静的呼び出し）専用の
+ * D 固定アクセサとして残す。実画面はスキン追従が必要なため [rememberReadingColors]（LocalSkinTokens
+ * 経由）を使うこと。ここから直接読むと現在スキンに関係なく常に D の値になる。
+ */
 val ReadingTheme.colors: ReadingColors
-    get() = when (this) {
-        // UI-n: 白紙設計で採用した視覚言語 D「和モダン・余白」へ全面差し替え。
-        // なぜ旧クリーム＋朱墨を捨てるか: UI-n は既存配色を踏襲せず作り直す方針（docs/decisions/0005-ui-n-visual-language-D.md）。
-        // 値は確定モック ui-n-phase0/reading-D.html から写経し、寒色白×藍ヘアラインで統一する。
-        // LIGHT = 素地 #FBFAF8／墨 #1C1F26／アクセント藍 #1C3D5A。
-        ReadingTheme.LIGHT -> ReadingColors(
-            background       = Color(0xFFFBFAF8),
-            text             = Color(0xFF1C1F26),
-            textSecondary    = Color(0xFF7C808B),
-            infoText         = InfoTextLight, // 素地 6.01:1（意味テキスト用の暗化シェード）
-            placeholder      = Color(0xFFAFB1B7), // = textSecondary#7C808B @0.6 over 素地（焼き込み）
-            navBackground    = Color(0xFFFBFAF8),
-            // D はトップ/ボトムバーを本文素地と同色に揃え、藍のヘアラインだけで境界を示す。
-            // アイコンは素地から十分離れた濃灰でコントラストを確保（タイトルは墨色）。
-            topBarBackground = Color(0xFFFBFAF8),
-            topBarTitle      = Color(0xFF1C1F26),
-            topBarIcon       = Color(0xFF4A4F58),
-            // ルビ＝著者指定の読み＝意味を運ぶ小テキストのため WCAG 4.5:1 が最低線（ADR 0014-D）。
-            // 旧 #8B96A0 は素地 2.89:1／前書き後書きブロック地(#F1F0EC) 2.64:1 で未達だった。
-            // 青灰の色相(H≈209°)・彩度(S≈0.10)を保ち明度のみ暗化した #616C77 で
-            // 素地 5.14:1／ブロック地 4.70:1 と全面 AA 充足（本文 15.81:1 より薄く階層は保つ）。
-            ruby             = Color(0xFF616C77),
-            // hr は藍 #1C3D5A を素地に約50%で溶かした青灰（モックの opacity:.5 相当）。
-            // 破線で主張させすぎないシーン区切りにする。
-            hr               = Color(0xFF9FB0BC),
-            divider          = Color(0xFFECEAE4), // D のヘアライン色
-            blockBackground  = Color(0xFFF1F0EC),
-            blockBorder      = Color(0xFFE4E2DB),
-            accent           = Color(0xFF1C3D5A), // D の藍（現在章ハイライト・チップ選択色）
-            rule             = Color(0xFF1C3D5A), // 章見出しルール（モック --rule）＝LIGHT は accent と同値
-            isLight          = true,
-        )
-        // SEPIA は D の寒色を温かい紙トーンへ寄せた変種。藍アクセントは骨格として残しつつ
-        // やや深い藍鼠 #2E4A60 にして暖色背景と調和させる。
-        // なぜモック reading-D.html の .t-sepia 写経値（#F3ECDD 系）から逸脱するか:
-        // 実機フィードバック（2026-07-07「ライトとセピアの色味に差がなく同じ色に見える」）を受け、
-        // 彩度を約15%まで上げた琥珀の紙・焦茶の墨へ再調律してライト（寒色白・ほぼ無彩色）との
-        // 知覚差を保証するため。モック側への逆反映は handover の宿題（実装がこの値の正本）。
-        ReadingTheme.SEPIA -> ReadingColors(
-            background       = Color(0xFFF2E7CE),
-            text             = Color(0xFF3D3121),
-            textSecondary    = Color(0xFF8C7D5D),
-            infoText         = InfoTextSepia, // 素地 4.97:1（意味テキスト用の暗化シェード）
-            placeholder      = Color(0xFFB5A78A), // = textSecondary#8C7D5D @0.6 over 素地（焼き込み）
-            navBackground    = Color(0xFFECDFC0),
-            // LIGHT と同方針: 上下バーを本文紙トーンに揃え、ヘアラインで境界を示す。
-            topBarBackground = Color(0xFFECDFC0),
-            topBarTitle      = Color(0xFF3D3121),
-            topBarIcon       = Color(0xFF6A5B3C),
-            // ルビは意味色＝WCAG 4.5:1 最低線（ADR 0014-D）。旧 #A3906A は素地 2.53:1／
-            // ブロック地(#EBDEBE) 2.33:1 で未達。琥珀の色相(H≈40°)・彩度(S≈0.24)を保ち明度のみ
-            // 暗化した #6D5F43 で素地 5.08:1／ブロック地 4.67:1 と全面 AA 充足。
-            ruby             = Color(0xFF6D5F43),
-            hr               = Color(0xFFB4A379),
-            divider          = Color(0xFFE0D3B0),
-            blockBackground  = Color(0xFFEBDEBE),
-            blockBorder      = Color(0xFFDCCC9F),
-            accent           = Color(0xFF2E4A60), // 暖色背景に合わせやや深めの藍鼠
-            rule             = Color(0xFF2E4A60), // 章見出しルール（モック --rule）＝SEPIA は accent と同値
-            isLight          = true,
-        )
-        // DARK は D の寒色を保った冷たい暗面（旧の温かい黒 #1C1916 から転換）。
-        // アクセントは暗背景で沈まないよう明るい青 #6E96B8 にする（モック reading-D.html の .t-dark）。
-        ReadingTheme.DARK -> ReadingColors(
-            background       = Color(0xFF14171C),
-            text             = Color(0xFFC7CDD3),
-            textSecondary    = Color(0xFF7B838C),
-            infoText         = InfoTextDark, // 暗面 5.70:1（意味テキスト用の役割別トークン）
-            placeholder      = Color(0xFF52585F), // = textSecondary#7B838C @0.6 over 暗面（焼き込み）
-            navBackground    = Color(0xFF181C22),
-            topBarBackground = Color(0xFF181C22),
-            topBarTitle      = Color(0xFFC7CDD3),
-            topBarIcon       = Color(0xFF9AA2AB),
-            // ルビは意味色＝WCAG 4.5:1 最低線（ADR 0014-D）。暗面ではルビだけ暗すぎると読めないため
-            // 旧 #6E7984 は素地 4.05:1／ブロック地(#1B1F26) 3.72:1 で未達。青灰の色相(H≈210°)・
-            // 彩度(S≈0.09)を保ち明度のみ明化した #7F8994 で素地 5.05:1／ブロック地 4.65:1 と全面 AA 充足。
-            ruby             = Color(0xFF7F8994),
-            hr               = Color(0xFF46566A),
-            divider          = Color(0xFF2A2F38),
-            blockBackground  = Color(0xFF1B1F26),
-            blockBorder      = Color(0xFF2A2F38),
-            accent           = Color(0xFF6E96B8), // 暗背景で沈まない明るい藍
-            rule             = Color(0xFF5E7E9C), // 章見出しルール（モック --rule）＝DARK のみ accent #6E96B8 と乖離
-            isLight          = false,
-        )
-    }
+    get() = SkinD.reading(this)
 
 /**
- * テーマから読書配色を取得する @Composable アクセサ。
- * なぜ remember 化するか: 上の ReadingTheme.colors getter は呼ぶたびに 14 色分の
- * ReadingColors を新規生成するため、読書画面の再コンポジション（スクロール保存・設定変更等）の
- * たびにアロケートが走る。テーマ切替（theme）を key にして、テーマが変わらない限り同一
- * インスタンスを再利用し、アロケートと下流の等値比較コストを避ける。
+ * 現在スキンとテーマから読書配色を取得する @Composable アクセサ（実画面はこれを使う）。
+ * なぜ LocalSkinTokens 経由か: スキン導入で読書配色はスキン別になったため、D 固定の getter でなく
+ * 現在スキンのトークン束（[LocalSkinTokens]）から引く。
+ * なぜ remember 化するか: reading(theme) は呼ぶたびに 17 フィールドの ReadingColors を新規生成する
+ * ため、読書画面の再コンポジション（スクロール保存・設定変更等）のたびにアロケートが走る。
+ * スキン束(tokens)とテーマ(theme)を key にして、変わらない限り同一インスタンスを再利用し、
+ * アロケートと下流の等値比較コストを避ける。
  */
 @Composable
-fun rememberReadingColors(theme: ReadingTheme): ReadingColors =
-    remember(theme) { theme.colors }
+fun rememberReadingColors(theme: ReadingTheme): ReadingColors {
+    val tokens = LocalSkinTokens.current
+    return remember(tokens, theme) { tokens.reading(theme) }
+}
 
 // ============================================================
 // 本棚系の追加色（Material スロットに収まらない画面家系トークン）。
@@ -171,114 +96,40 @@ val LocalShelfColors = staticCompositionLocalOf {
     ShelfColors(hairline = ShelfHairlineLight, unreadLabel = UnreadSeiji, infoText = InfoTextLight)
 }
 
-// ============================================================
-// Material3 カラースキーム
-// ============================================================
-private val LightColorScheme = lightColorScheme(
-    primary              = PrimaryLight,
-    onPrimary            = OnPrimaryLight,
-    primaryContainer     = PrimaryContainerLight,
-    onPrimaryContainer   = OnPrimaryContainerLight,
-    secondary            = SecondaryLight,
-    onSecondary          = OnSecondaryLight,
-    secondaryContainer   = SecondaryContainerLight,
-    onSecondaryContainer = OnSecondaryContainerLight,
-    tertiary             = TertiaryLight,
-    onTertiary           = OnTertiaryLight,
-    tertiaryContainer    = TertiaryContainerLight,
-    onTertiaryContainer  = OnTertiaryContainerLight,
-    error                = ErrorLight,
-    onError              = OnErrorLight,
-    errorContainer       = ErrorContainerLight,
-    onErrorContainer     = OnErrorContainerLight,
-    background           = BackgroundLight,
-    onBackground         = OnBackgroundLight,
-    surface              = SurfaceLight,
-    onSurface            = OnSurfaceLight,
-    surfaceVariant       = SurfaceVariantLight,
-    onSurfaceVariant     = OnSurfaceVariantLight,
-    surfaceContainer     = SurfaceContainerLight,
-    outline              = OutlineLight,
-    outlineVariant       = OutlineVariantLight,
-    inverseSurface       = InverseSurfaceLight,
-    inverseOnSurface     = InverseOnSurfaceLight,
-    inversePrimary       = InversePrimaryLight,
-)
-
-private val DarkColorScheme = darkColorScheme(
-    primary              = PrimaryDark,
-    onPrimary            = OnPrimaryDark,
-    primaryContainer     = PrimaryContainerDark,
-    onPrimaryContainer   = OnPrimaryContainerDark,
-    secondary            = SecondaryDark,
-    onSecondary          = OnSecondaryDark,
-    secondaryContainer   = SecondaryContainerDark,
-    onSecondaryContainer = OnSecondaryContainerDark,
-    tertiary             = TertiaryDark,
-    onTertiary           = OnTertiaryDark,
-    tertiaryContainer    = TertiaryContainerDark,
-    onTertiaryContainer  = OnTertiaryContainerDark,
-    error                = ErrorDark,
-    onError              = OnErrorDark,
-    errorContainer       = ErrorContainerDark,
-    onErrorContainer     = OnErrorContainerDark,
-    background           = BackgroundDark,
-    onBackground         = OnBackgroundDark,
-    surface              = SurfaceDark,
-    onSurface            = OnSurfaceDark,
-    surfaceVariant       = SurfaceVariantDark,
-    onSurfaceVariant     = OnSurfaceVariantDark,
-    surfaceContainer     = SurfaceContainerDark,
-    outline              = OutlineDark,
-    outlineVariant       = OutlineVariantDark,
-    inverseSurface       = InverseSurfaceDark,
-    inverseOnSurface     = InverseOnSurfaceDark,
-    inversePrimary       = InversePrimaryDark,
-)
-
-// セピアはライトの暖色変種＝素地・墨・面・ヘアライン・藍だけを琥珀紙トーンへ差し替え、
-// secondary（青磁＝未読の意味色）や error はライトと共有して意味色のブレを避ける。
-// なぜ用意するか: かつてセピア選択時はライト配色を流用しており、本棚・発見系で
-// 「ライトとセピアの差がない」実機フィードバック（2026-07-07）の主因だったため。
-private val SepiaColorScheme = LightColorScheme.copy(
-    primary              = PrimarySepia,
-    primaryContainer     = PrimaryContainerSepia,
-    onPrimaryContainer   = OnPrimaryContainerSepia,
-    tertiary             = PrimarySepia,
-    tertiaryContainer    = PrimaryContainerSepia,
-    onTertiaryContainer  = OnPrimaryContainerSepia,
-    background           = BackgroundSepia,
-    onBackground         = OnBackgroundSepia,
-    surface              = BackgroundSepia,
-    onSurface            = OnBackgroundSepia,
-    surfaceVariant       = SurfaceVariantSepia,
-    onSurfaceVariant     = OnSurfaceVariantSepia,
-    surfaceContainer     = SurfaceContainerSepia,
-    outline              = OutlineSepia,
-    outlineVariant       = OutlineVariantSepia,
-)
+/**
+ * 選択テーマを現在スキンが実際に持つ変種へ丸める（単一所有のクランプ）。
+ *
+ * なぜ NovelReaderTheme が唯一の所有者か: スキンは変種を1つ以上持つが全 [ReadingTheme] を持つとは限らない
+ * （C 夜行は DARK 相当のみ）。永続キー `"reading_theme"` は後方互換で LIGHT/SEPIA/DARK を保持し続けるため、
+ * C 選択中に theme==LIGHT が渡りうる。ここで supportedThemes 外なら `supportedThemes.first()` へ丸め、
+ * colorScheme・reading・shelf・shiori・ステータスバー明暗のすべてを同じクランプ済み theme で引くことで、
+ * 「Material だけ夜行・読書だけ別変種」のような家系間のズレを構造的に防ぐ（各スキン側の防御と二重化）。
+ */
+fun clampThemeToSkin(theme: ReadingTheme, tokens: SkinTokens): ReadingTheme =
+    if (theme in tokens.supportedThemes) theme else tokens.supportedThemes.first()
 
 @Composable
 fun NovelReaderTheme(
+    skin: Skin = Skin.WAMODERN_D,
     theme: ReadingTheme = if (isSystemInDarkTheme()) ReadingTheme.DARK else ReadingTheme.LIGHT,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = when (theme) {
-        ReadingTheme.LIGHT -> LightColorScheme
-        ReadingTheme.SEPIA -> SepiaColorScheme
-        ReadingTheme.DARK -> DarkColorScheme
-    }
+    // スキン=トークン束の単一入口。Material 配色・本棚/栞トークン・字面はすべて現在スキンから引く。
+    val tokens = skin.tokens
+    // 選択 theme をスキンの持つ変種へ丸めた「実効 theme」を1変数に束ね、以降の全 getter へ渡す（単一所有）。
+    val effectiveTheme = clampThemeToSkin(theme, tokens)
+    val colorScheme = tokens.material(effectiveTheme)
+    // 変種の明暗（ステータスバー明暗の正）。D では theme != DARK と同値だが、スキン導入後は
+    // 「theme 値」でなく「変種が明色か（reading(theme).isLight）」が正（1変種スキンで theme==LIGHT
+    // でも暗色変種がありうるため）。
+    val readingColors = tokens.reading(effectiveTheme)
 
-    // 本棚系の家系トークン（ヘアライン／未読ラベル）をテーマに応じて provide する。
+    // 本棚系の家系トークン（ヘアライン／未読ラベル）を現在スキン×実効テーマから provide する。
     // ヘアラインはセピア/ダークで OutlineVariant と同値だが、ライトは本棚系専用値（#E4E2DB）へ分岐。
-    // 未読ラベルはライト/セピア=濃青磁 UnreadSeiji、ダークは暗面で合格済みの SecondaryDark を継続。
-    val shelfColors = remember(theme) {
-        when (theme) {
-            ReadingTheme.LIGHT -> ShelfColors(ShelfHairlineLight, UnreadSeiji, InfoTextLight)
-            ReadingTheme.SEPIA -> ShelfColors(OutlineVariantSepia, UnreadSeiji, InfoTextSepia)
-            ReadingTheme.DARK -> ShelfColors(OutlineVariantDark, SecondaryDark, InfoTextDark)
-        }
-    }
+    // 未読ラベルはライト/セピア=濃青磁 UnreadSeiji、ダークは暗面で合格済みの SecondaryDark を継続（SkinD.shelf）。
+    val shelfColors = remember(tokens, effectiveTheme) { tokens.shelf(effectiveTheme) }
+    // 栞書影の紙/墨/識別色明度も現在スキン×実効テーマから provide（旧 luminance/BackgroundSepia 推定を根絶）。
+    val shioriColors = remember(tokens, effectiveTheme) { tokens.shiori(effectiveTheme) }
 
     // ステータスバーアイコンの色をテーマに合わせる（ライト/セピア=暗いアイコン、ダーク=明るいアイコン）
     // setDecorFitsSystemWindows は MainActivity で呼んでいるためここでは行わない
@@ -290,9 +141,11 @@ fun NovelReaderTheme(
         SideEffect {
             val window = (view.context as Activity).window
             val insetsController = WindowCompat.getInsetsController(window, view)
-            insetsController.isAppearanceLightStatusBars = theme != ReadingTheme.DARK
+            insetsController.isAppearanceLightStatusBars = readingColors.isLight
             // ナビバーのピル/ボタンもテーマ明暗に追従させる（ステータスバーと同格の正本設定）。
-            insetsController.isAppearanceLightNavigationBars = theme != ReadingTheme.DARK
+            // なぜ theme 値でなく変種の isLight か: スキン導入で「暗色の変種」が theme==DARK 以外にもあり得る
+            //（1変種スキンは常に DARK 相当を LIGHT/SEPIA スロットで持つ等）ため、明暗は変種の明度が正。D では同値。
+            insetsController.isAppearanceLightNavigationBars = readingColors.isLight
             // 没入トグルの下端ちらつき対策（2026-07-16）: XML テーマ既定（Material）の不透明ナビバー色と、
             // API29+ が透明バーへ強制する contrast scrim は、どちらも「バーの出没」と同期して帯を明滅させる。
             // バーは常時透明＋scrim 強制を無効にし、hide/show で変わるのをアイコン/ピルのフェードだけにする
@@ -318,10 +171,15 @@ fun NovelReaderTheme(
         }
     }
 
-    CompositionLocalProvider(LocalShelfColors provides shelfColors) {
+    CompositionLocalProvider(
+        LocalSkin provides skin,
+        LocalSkinTokens provides tokens,
+        LocalShelfColors provides shelfColors,
+        LocalShioriColors provides shioriColors,
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = NovelReaderTypography,
+            typography = tokens.typography,
             content = content,
         )
     }

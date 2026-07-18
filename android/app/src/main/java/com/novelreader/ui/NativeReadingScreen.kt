@@ -81,6 +81,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalDensity
@@ -98,6 +99,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import kotlin.math.abs
@@ -129,7 +131,14 @@ import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationNavTransition
 import com.novelreader.ui.theme.MotionSpringBarSettle
 import com.novelreader.ui.theme.ReadingColors
+import com.novelreader.ui.skins.j.NextDoorEdgeGlowJ
+import com.novelreader.ui.skins.m.ReadingProgressStarM
+import com.novelreader.ui.skins.m.drawSeizuReadingSky
+import com.novelreader.ui.skins.p.ReadingSaveBarP
+import com.novelreader.ui.skins.p.SaveChipP
+import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.ReadingTheme
+import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.rememberReadingColors
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.NcodeSearchUiState
@@ -1051,6 +1060,9 @@ private fun ChapterScreen(
         scrollBehavior = scrollBehavior,
         prevFile = prevFile,
         nextFile = nextFile,
+        // スキンM の章扉「第 N 話」と上端結線進捗の材料（目次未ロード中は null＝出さない）。
+        chapterNumber = if (currentIndex >= 0) currentIndex + 1 else null,
+        totalChapters = tocEntries.size.takeIf { it > 0 },
         // 覗きの初期位置は着地と同じ resolveInitialScroll で焼き込む（覗き＝遷移後表示の完全一致）。
         prevPeek = prevPreview?.let { c ->
             val (index, offset) = resolveInitialScroll(prevFile)
@@ -1120,6 +1132,10 @@ internal fun ChapterScreenContent(
     scrollBehavior: TopAppBarScrollBehavior,
     prevFile: String,
     nextFile: String,
+    // スキンM（星図）の章扉・上端結線進捗の材料（ADR 0022 §1 の部品分岐）。null＝目次未ロード等で不明。
+    // 既定 null は既存呼び出し・テストの互換のため（M 以外のスキンでは未使用）。
+    chapterNumber: Int? = null,
+    totalChapters: Int? = null,
     // スワイプ覗きプレビュー（隣章のパース済み本文＋着地と同一規則の初期位置・route が先読み構築）。
     // null=先読み中/端章/章欠損＝覗きは無地の紙面に縮退する（ドラッグと章送り自体は可）。
     prevPeek: ChapterPeek? = null,
@@ -1198,6 +1214,15 @@ internal fun ChapterScreenContent(
         // 消費済み。null 化で再合成しても早期 return され、二重復元やスクロール暴走は起きない。
         pendingVerticalRestore = null
     }
+    // スキンM（星図）のクローム部品分岐フラグ（ADR 0022 §1＝本文エンジンは共有・替わるのは
+    // 地の星屑/上端結線進捗/没入ゴースト題字のみ。M 以外では従来描画と完全同一）。
+    val isSeizu = LocalSkin.current == Skin.SEIZU_M
+    // スキンP（カートリッジ）のクローム部品分岐フラグ。替わるのは没入時の緑LCDセーブバー（常設クローム）と
+    // クローム表示時 HUD の緑LCDセーブチップのみ（章扉/シーン区切りは ChapterContent 側の分岐）。P 以外は不変。
+    val isCartridge = LocalSkin.current == Skin.CARTRIDGE_P
+    // スキンJ（ポータル）のクローム部品分岐フラグ。J はバー自体は D 標準（署名にしない）で、追加するのは遊び心J2
+    // 『敷居光』＝章末到達で右端に立つ次章の扉のみ（章扉/区切り/章末印は ChapterContent 側の分岐）。J 以外は不変。
+    val isPortal = LocalSkin.current == Skin.PORTAL_J
 
     // 表示設定ボトムシートの開閉状態。
     // なぜ rememberSaveable か: 素の remember だとプロセス再生成（回転・background kill）で
@@ -1214,6 +1239,9 @@ internal fun ChapterScreenContent(
     // なぜ固定値にしないか: ナビゲーションバー実高（ボタン式/ジェスチャー式）でバー総高が
     // 変わるため、onSizeChanged で実測した高さ分だけスライドさせて完全に画面外へ退避させる。
     var bottomBarHeightPx by remember { mutableIntStateOf(0) }
+
+    // スキンP セーブバーの実測高さ（px）。上方向の退避スライド量に使う（フォント拡大でバー高が変わるため実測）。
+    var saveBarHeightPx by remember { mutableIntStateOf(0) }
 
     // 左右スワイプで章送り（handover D 回収→2026-07-16 ユーザー指示で「引っ張りプレビュー」へ増強）:
     // ドラッグ量に本文が追従し、隣章の実物の冒頭が端から覗く。覗きの内容＝遷移後に実際に表示される章頭と
@@ -1363,6 +1391,9 @@ internal fun ChapterScreenContent(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
+                    // スキンM: 地＝夜天グラデ＋極淡の星屑（reading-M .phone 背景）。本文の下層に静的に敷く
+                    //（スワイプ追従は本文側の translationX のみ＝地は動かない。M 以外は Modifier 無変化）。
+                    .then(if (isSeizu) Modifier.drawBehind { drawSeizuReadingSky() } else Modifier)
                     // 本文タップで上下バーをトグル表示する（表示/非表示の唯一の駆動元）。
                     // なぜ barsVisible の真偽値を持たないか: settle アニメ中の再タップや
                     // プロセス再生成の復元で真偽値と実オフセットが乖離すると「隠れているものを
@@ -1467,6 +1498,10 @@ internal fun ChapterScreenContent(
                                     bodyMarginDp = bodyMarginDp,
                                     lazyListState = lazyListState,
                                     continuation = continuationSlot,
+                                    chapterNumber = chapterNumber,
+                                    totalChapters = totalChapters,
+                                    // スキンJ の章扉 ambient/glyph の変種選択に使う（J 以外は不使用・縦書きは非対応）。
+                                    readingTheme = readingTheme,
                                 )
                             }
                         }
@@ -1512,6 +1547,7 @@ internal fun ChapterScreenContent(
                         lineHeightEm = lineHeightEm,
                         bodyMarginDp = bodyMarginDp,
                         verticalMode = verticalMode,
+                        readingTheme = readingTheme,
                     )
                 }
                 if (peekPrev && prevPeek != null) {
@@ -1524,6 +1560,7 @@ internal fun ChapterScreenContent(
                         lineHeightEm = lineHeightEm,
                         bodyMarginDp = bodyMarginDp,
                         verticalMode = verticalMode,
+                        readingTheme = readingTheme,
                     )
                 }
             }
@@ -1620,6 +1657,18 @@ internal fun ChapterScreenContent(
             // 表示設定は右上隅の歯車を撤去し下端バーへ集約した（C①案A・handover ★残1）。
             // 隅の歯車は「毎セッション触る唯一の入口が隅に複利蓄積」＝標準の悪例で、親指の届く下端へ移す。
             // 上端は ←（目次へ）＋章題のみに絞り、原則1「UIは黒衣」を強める（起動導線だけの変更＝シート中身は不変）。
+            // スキンP のみ: クローム表示時 HUD の緑LCDセーブチップ（reading-P .hud .save）を右端に載せる
+            //（没入時は下の ReadingSaveBarP が担い、TopAppBar 退避で自然に入れ替わる）。P 以外は actions 空＝不変。
+            actions = {
+                if (isCartridge && chapterNumber != null && totalChapters != null && totalChapters > 0) {
+                    SaveChipP(
+                        chapterNumber = chapterNumber,
+                        totalChapters = totalChapters,
+                        fraction = chapterNumber.toFloat() / totalChapters,
+                        modifier = Modifier.padding(end = Spacing.S8),
+                    )
+                }
+            },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = colors.topBarBackground,
                 scrolledContainerColor = colors.topBarBackground,
@@ -1638,6 +1687,78 @@ internal fun ChapterScreenContent(
             // scrollBehavior は heightOffsetLimit の測定のため維持する（nestedScroll 接続は無し）。
             scrollBehavior = scrollBehavior,
         )
+
+        // ────── スキンM: 上端の結線進捗＋没入ゴースト題字（reading-M .prog / .ghost）──────
+        if (isSeizu) {
+            // 結線進捗＝ほぼ唯一の常設クローム（バーの出没に関わらず最前面・画面最上端 2dp）。
+            if (chapterNumber != null && totalChapters != null && totalChapters > 0) {
+                ReadingProgressStarM(
+                    fraction = chapterNumber.toFloat() / totalChapters,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+            }
+            // 没入時のゴースト題字（題名 · 第N話）。トップバー退避量に連動して入れ替わりに現れる
+            //（collapsedFraction は graphicsLayer 内の deferred read＝バー追従で composition を再実行しない）。
+            Text(
+                text = buildString {
+                    append(bookTitle)
+                    if (chapterNumber != null) append(" · 第${chapterNumber}話")
+                },
+                fontSize = 11.sp,                      // reading-M .ghost .ct 11px
+                letterSpacing = 0.14.em,
+                color = colors.textSecondary,          // --dim
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
+                    .padding(top = Spacing.S12)
+                    .padding(horizontal = Spacing.S40)
+                    .graphicsLayer { alpha = topAppBarState.collapsedFraction },
+            )
+        }
+
+        // ────── スキンP: 上端の緑LCDセーブバー（reading-P .savebar・没入中の唯一常設クローム）──────
+        // 出没はスライド退避（下端バーと同型）。クローム表示時は共有 TopAppBar（＋SaveChipP の HUD）が代わりに
+        // 出るため、没入（collapsedFraction=1）でのみ上端に見せ、表示時（=0）は自身の高さ分だけ上へ退避して隠す。
+        // なぜ旧 alpha フェードをやめたか（2026-07-17 実機・真因）: フェード中はバー面が半透明化し、背後を流れる
+        // 本文が「SAVE…%」と重なって読めた（LCD面は不透明が正・reading-P .savebar は不透明地）。スライドなら
+        // 出没のどの瞬間もバーは不透明のまま＝透け重なりが構造的に起きない。「常設の静かな随伴」は保つ。
+        // また上端インセットを外し flush-top（モック .savebar{top:0}）に置く: 旧実装は statusBar 実高ぶん下げて
+        // 敷いており、没入で status bar を隠すと生じる帯にスクロール本文の切れ端が覗いていた（隙間の解消）。
+        // collapsedFraction/saveBarHeightPx は graphicsLayer 内の deferred read＝バー追従で composition を再実行しない。
+        if (isCartridge && chapterNumber != null && totalChapters != null && totalChapters > 0) {
+            ReadingSaveBarP(
+                fraction = chapterNumber.toFloat() / totalChapters,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .onSizeChanged { saveBarHeightPx = it.height }
+                    .graphicsLayer {
+                        // 退避割合（1-collapsedFraction）× 実測高さ分だけ上へ（collapsedFraction=0＝表示時に完全に画面外上）
+                        translationY = -saveBarHeightPx * (1f - topAppBarState.collapsedFraction)
+                        // 初期退避の実測待ち中は不可視（既定 state が表示位置で生まれる一瞬の露出を防ぐ・下端バーと同型）
+                        alpha = if (barsVisualReady) 1f else 0f
+                    },
+            )
+        }
+
+        // ────── 遊び心J2『敷居光』（reading-J .nextdoor・章末到達で右端に次章の扉が灯る）──────
+        // なぜ canGoNext ゲートか: 「次の章へ」誘う敷居光は次章が在るときだけ意味を持つ（最終章＝誘い先が無い）。
+        // トリガ＝reader が末尾に到達（!canScrollForward＝これ以上下へスクロールできない＝章末読了）。モックの
+        // 「章末までスクロールした瞬間」に対応する既存信号で、捏造でなく正直に配線できる（TODO 不要）。
+        // なぜ derivedStateOf か: canScrollForward はフレームレート state。boolean 反転時だけ recompose させ、
+        // 連続スクロールで composition を回さない（本棚 showBand・最上部ピルと同じ定石）。出没アニメ・呼吸・
+        // reduce-motion は NextDoorEdgeGlowJ 内（Motion.kt reveal/dismiss ＋ M 脈動先例）。
+        if (isPortal && canGoNext) {
+            val atChapterEnd by remember(lazyListState) {
+                derivedStateOf { !lazyListState.canScrollForward }
+            }
+            NextDoorEdgeGlowJ(
+                atChapterEnd = atChapterEnd,
+                colors = colors,
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
+        }
 
         // 没入クローム復帰ヒント（初回消灯時に数秒フェード）。タップは奪わない純表示。
         // fade は motion トークン MotionDurationCrossfade 経由（d-motion 08 禁止則②＝野良既定に委ねない）。
@@ -1728,7 +1849,11 @@ internal fun ChapterScreenContent(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.S4),
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(colors.navBackground.copy(alpha = 0.92f))
+                    // 不透明地（alpha を掛けない）。真因＝半透明(.92)地は暗色スキン(J=#101913)で
+                    // 背後の章末mark「— 第N話 了 —」(明色)が8%透けてピル文字とだぶる（2026-07-17 実機）。
+                    // モックの .92 は D 明色テーマ（ピル色≒地色で透過が目立たない）較正で、暗地×明背景の
+                    // J では成立しない。操作可能ピルは可読性優先＝navBackground を不透明で敷く。
+                    .background(colors.navBackground)
                     // animateScrollToItem: 瞬間ジャンプは味気ないというユーザー所見（2026-07-16）で滑走化。
                     // 遠距離は Lazy が目標近くまで内部で座標を寄せてから滑らかに着地する＝長章でも安全。
                     .clickable(onClick = { scope.launch { lazyListState.animateScrollToItem(0) } })
@@ -1823,6 +1948,8 @@ private fun ChapterPeekPanel(
     lineHeightEm: Float,
     bodyMarginDp: Int,
     verticalMode: Boolean = false,
+    // スキンJ の章扉 ambient/glyph の変種選択に使う（覗きも本表示と同じテーマ面で描く）。既定 DARK は既存互換。
+    readingTheme: ReadingTheme = ReadingTheme.DARK,
 ) {
     Box(
         modifier = Modifier
@@ -1852,6 +1979,7 @@ private fun ChapterPeekPanel(
                 lineHeightEm = lineHeightEm,
                 bodyMarginDp = bodyMarginDp,
                 lazyListState = peekListState,
+                readingTheme = readingTheme,
             )
         }
     }

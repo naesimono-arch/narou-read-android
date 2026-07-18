@@ -1,0 +1,289 @@
+<!-- @dsCard group="UI-n / 本棚（スキンJ）" name="J. ポータル・デッキ（1作1画面・横スワイプの没入扉／現行本棚機能を扉の言葉で全数織込＋グリッド面）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n J 本棚 — ポータル・デッキ</title>
+<style>
+  /* ===== J案: ポータル・デッキ（現行本棚 fusion-D の機能を全数、扉の言葉で織り込む） =====
+     破壊するもの: 「一覧＝グリッド/リスト」というナビゲーション。本棚を捨て 1作=1画面の没入ポータルを横スワイプでめくる。
+     各作＝その物語世界への"扉"。実画像が無い制約を bookId 由来の大気(ambient)グラデ＋象徴1文字で埋める（捏造表紙より誠実）。
+     現行機能の翻訳:
+      ・見つける導線＝デッキ最後尾の「新しい扉を探す」ポータル＋topbar の検索。
+      ・ラベル絞り込み＝「巡る扉を絞る」チップ行（すべて既定＋異世界/完結済み。ラベル未作成なら行ごと非表示）。
+      ・取込中バナー＝「扉を仕立てている」帯（ProcessingBanner に忠実：スピナー/題/フェーズ(ページ)/件数/停止/4段ステッパー/進捗バー）。
+      ・グリッド一覧＝右上グリッドで従来一覧へ降格（グリッド面も1面提示。各セルも小さな扉）。
+      ・メニュー導線＝topbar の三点。
+      ・続きあり（更新のしるし）＝「扉の奥で物語が進んだ」印（森緑ドット＋金文字）。
+      ・装いの間（スキン切替）＝本棚 topbar のみに入口（ADR 0021 決定7）。
+     署名色: 金(構造・強調)／森緑(世界・続きあり・未取込)／宵紫(他の扉＝peek)の3系統以内。 */
+  :root{
+    --page:#0C0E0B; --ink:#F1F4EC; --soft:rgba(233,240,228,.62); --soft2:rgba(233,240,228,.42);
+    --line:rgba(233,240,228,.14); --gold:#E2C878; --green:#9FCFA9; --plum:#B79AD0;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#070806;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:#9DAE97;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:860px}.cap b{color:#E9F0E4}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#8FA089;text-align:center}
+  .phone{width:390px;height:844px;border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column;
+    box-shadow:0 26px 64px rgba(0,0,0,.7);background:var(--page)}
+
+  /* ---- ポータル大気（各扉ごと）---- */
+  .portal{position:absolute;inset:0;z-index:1}
+  /* ===== 遊び心（J3 時を映す扉）: ポータルの大気の“地”を時刻で移ろわせる（金/森緑の2系統のまま温度と明るさだけ可変・新色相なし）=====
+     遊び心: 【何が】扉の大気が時刻で移ろう＝朝は澄んだ緑金／夕は暖かな琥珀／夜は深く沈む。
+             【どの動作で】現実の時刻（開いた時間帯・時間の経過）。扉の奥の世界にも空があり外の時と呼応する。
+             【どう変わる】朝＝明るく澄む → 夕＝金が濃く暖まる → 夜＝光が引き深い森へ沈む（時間帯をまたぐと大気が緩やかに溶け替わる）。
+     Compose 翻訳の想定: 時刻(0..24)を朝/夕/夜のキーへマップし portal 背景を animateColor で時間帯遷移のみ緩やかに補間。既定は夕（従来の正本の見えと一致）。 */
+  .amb-morning{--warm:.16; --cool:.16; --floor:rgba(30,58,40,.72); --base:linear-gradient(165deg,#2C4739,#1A2E22 55%,#12201A)}
+  .amb-night  {--warm:.06; --cool:0;   --floor:rgba(12,26,18,.92); --base:linear-gradient(165deg,#16241E,#0C1611 55%,#080E0A)}
+  /* ===== 遊び心（J1 開く扉）: 読んだ深さ --open(0..1) ぶんの“扉の開き”の光を、時刻の地に上乗せ（互いに非干渉＝地=時刻／上乗せ=読進の直交2軸）=====
+     遊び心: 【何が】扉の奥の光と象徴文字の濃さが、その作品を読み進めるほど強まる（＝世界の奥へ踏み入るほど扉が開く）。
+             【どの動作で】その作品を読み進める（読了率＝進捗）。
+             【どう変わる】0%＝薄暗く半ば閉じた扉 → 読むほど top の光が強まり glyph が濃くなる → 100%＝扉が全開。
+     Compose 翻訳の想定: portal 上部 radial alpha と glyph alpha を progress(0..1) から線形補間。彩度は増やさず明るさ/濃さのみ可変。既定値(--warm:.18/open:.62)で従来の正本の見えに一致。
+     ※ --warm/--cool/--floor/--base の既定＝夕。時刻クラス(amb-morning/amb-night)で地だけ差し替わり、--open は独立に効く（干渉しない）。 */
+  .amb-yaku{--open:.62; --warm:.18; --cool:0; --floor:rgba(20,46,30,.9); --base:linear-gradient(165deg,#274030,#15241A 55%,#0E1812);
+    background:
+      radial-gradient(90% 60% at 50% 8%, rgba(214,196,120, calc(var(--warm) + .20*var(--open))), transparent 55%),
+      radial-gradient(90% 56% at 50% 2%, rgba(159,207,169, var(--cool)), transparent 60%),
+      radial-gradient(120% 80% at 50% 120%, var(--floor), transparent 60%),
+      var(--base)}
+  .amb-find{background:radial-gradient(100% 66% at 50% 6%,rgba(214,196,120,.34),transparent 58%),
+    radial-gradient(120% 80% at 50% 122%,rgba(40,40,20,.85),transparent 60%),linear-gradient(165deg,#2A2A18,#181710 55%,#0F0E09)}
+  .glyph{position:absolute;top:5%;left:50%;transform:translateX(-50%);font-family:var(--mincho);font-size:300px;line-height:1;
+    color:rgba(233,240,228,calc(.02 + .05*var(--open,.62)));z-index:1;pointer-events:none}
+  .peek{position:absolute;top:0;bottom:0;width:14px;z-index:4}
+  .peek.l{left:0;background:linear-gradient(90deg,rgba(120,86,150,.9),transparent)}
+  .peek.r{right:0;background:linear-gradient(270deg,rgba(159,207,169,.75),transparent)}
+
+  .sb{position:relative;z-index:5;height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:11px;color:var(--soft)}
+  /* topbar: メニュー ／ 位置 ／ 見つける・装いの間・グリッド */
+  .topbar{position:relative;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:0 18px;gap:6px}
+  .topbar .idx{font-family:var(--mincho);font-size:13px;color:rgba(233,240,228,.85);letter-spacing:.12em;flex:1;text-align:center}
+  .topbar .grp{display:flex;gap:4px}
+  .topbar .ib{width:38px;height:38px;border:1px solid rgba(233,240,228,.2);background:rgba(0,0,0,.22);border-radius:11px;
+    display:grid;place-items:center;color:#E9F0E4;cursor:pointer;backdrop-filter:blur(6px)}
+  .topbar .ib svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7}
+  .topbar .ib.ward{color:var(--gold);border-color:rgba(226,200,120,.4)}  /* 装いの間＝スキン切替入口 */
+
+  /* 巡る扉を絞る（ラベル絞り込みチップ／すべて既定・横スクロール・ラベル無しなら行非表示） */
+  .chipbar{position:relative;z-index:5;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:12px 22px 4px}
+  .chipbar::-webkit-scrollbar{display:none}
+  .lchip{flex-shrink:0;font-size:11.5px;color:var(--soft);border:1px solid var(--line);border-radius:999px;padding:7px 14px;
+    white-space:nowrap;cursor:pointer;background:rgba(0,0,0,.18);backdrop-filter:blur(6px)}
+  .lchip.on{color:var(--gold);border-color:rgba(226,200,120,.6);font-weight:600}
+
+  /* 扉を仕立てている（取込中バナー＝ProcessingBanner） */
+  .proc{position:relative;z-index:5;margin:10px 22px 0;padding:12px 14px;border:1px solid var(--line);border-radius:12px;
+    background:rgba(8,12,8,.6);backdrop-filter:blur(8px)}
+  .proc .h{display:flex;align-items:center;gap:10px}
+  .proc .sp{width:16px;height:16px;border:2px solid rgba(233,240,228,.2);border-top-color:var(--gold);border-radius:50%;flex-shrink:0}
+  .proc .bt{flex:1;min-width:0}
+  .proc .pt{font-size:12px;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .proc .ph{font-size:10.5px;color:var(--soft);margin-top:3px}
+  .proc .ct{font-size:10.5px;color:var(--ink);flex-shrink:0}
+  .proc .stop{border:none;background:transparent;color:var(--gold);font-size:12px;font-family:var(--gothic);cursor:pointer;padding:2px 6px;flex-shrink:0}
+  .proc .steps{display:flex;align-items:center;margin-top:11px}
+  .proc .pdot{width:9px;height:9px;border-radius:50%;background:var(--line);flex-shrink:0}
+  .proc .pdot.on{background:var(--gold)}
+  .proc .pln{flex:1;height:2px;background:var(--line)}.proc .pln.on{background:var(--gold)}
+  .proc .labels{display:flex;margin-top:5px}
+  .proc .labels span{flex:1;text-align:center;font-size:10px;color:var(--soft2)}.proc .labels span.on{color:var(--gold)}
+  .proc .step{font-size:10px;color:var(--soft);margin-top:7px}
+
+  /* 扉の本体（下寄せ） */
+  .body{position:relative;z-index:5;flex:1;display:flex;flex-direction:column;justify-content:flex-end;padding:0 30px 14px}
+  .body .arc{font-family:var(--gothic);font-size:11px;letter-spacing:.3em;color:var(--gold);margin-bottom:12px}
+  /* 続きあり＝扉の奥で物語が進んだ印 */
+  .update{display:inline-flex;align-items:center;gap:7px;font-size:11px;color:var(--gold);margin-bottom:14px;letter-spacing:.04em}
+  .update .udot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+  .body .ttl{font-family:var(--mincho);font-size:37px;line-height:1.28;color:#F1F4EC;font-weight:600;text-shadow:0 2px 24px rgba(0,0,0,.5)}
+  .body .by{font-size:12.5px;color:var(--soft);margin-top:14px;letter-spacing:.06em}
+  .body .incipit{font-family:var(--mincho);font-size:13px;color:rgba(233,240,228,.78);line-height:1.9;margin-top:18px;
+    border-left:2px solid rgba(226,200,120,.6);padding-left:13px}
+  .body .prog{margin-top:22px}
+  .body .prog .pl{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--soft);margin-bottom:7px}
+  .body .prog .pl b{font-family:var(--mincho);color:#F1F4EC;font-size:13px}
+  .body .prog .pb{height:3px;border-radius:2px;background:rgba(255,255,255,.16);overflow:hidden}
+  .body .prog .pb i{display:block;height:100%;width:62%;background:linear-gradient(90deg,var(--gold),var(--green))}
+  .body .resume{margin-top:22px;width:100%;display:flex;align-items:center;justify-content:center;gap:9px;
+    background:#E9F0E4;color:#15241A;border:none;cursor:pointer;padding:17px;border-radius:16px;font-weight:800;font-size:16px;
+    box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .body .resume svg{width:18px;height:18px;fill:#15241A}
+  .body .resume.ghost{background:transparent;color:#E9F0E4;border:1px solid rgba(233,240,228,.5);box-shadow:none}
+  .body .resume.ghost svg{fill:none;stroke:#E9F0E4;stroke-width:2}
+
+  /* ページドット（4作＋最後尾の見つける扉） */
+  .dots{position:relative;z-index:5;display:flex;justify-content:center;align-items:center;gap:8px;padding-bottom:20px}
+  .dots i{width:7px;height:7px;border-radius:50%;background:rgba(233,240,228,.3)}
+  .dots i.on{width:22px;border-radius:4px;background:#E9F0E4}
+  .dots i.disc{width:9px;height:9px;background:transparent;border:1.5px solid var(--gold)}
+  .dots i.disc.on{width:9px;background:var(--gold)}
+  .hint{position:relative;z-index:5;text-align:center;font-size:10px;color:rgba(233,240,228,.5);letter-spacing:.1em;padding-bottom:16px}
+
+  /* ===== グリッド一覧面（従来一覧へ降格・各セルも小さな扉）===== */
+  .g-top{position:relative;z-index:5;display:flex;align-items:center;padding:6px 16px 12px;gap:6px}
+  .g-top h1{font-family:var(--mincho);font-size:24px;color:var(--ink);font-weight:500;letter-spacing:.12em;flex:1}
+  .g-scroll{position:relative;z-index:5;flex:1;overflow:auto;padding:0 22px 32px}
+  .find-guide{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:13px 16px;margin-bottom:18px;cursor:pointer;background:rgba(233,240,228,.02)}
+  .find-guide:hover{border-color:rgba(226,200,120,.5)}
+  .find-guide svg{width:16px;height:16px;stroke:var(--soft);fill:none;stroke-width:2}
+  .find-guide .t{flex:1;font-size:12.5px;color:var(--ink)}
+  .find-guide .c{width:14px;height:14px;stroke:var(--soft)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:22px 16px}
+  .bk{cursor:pointer}
+  .bk .cover{position:relative;aspect-ratio:3/4;border-radius:10px;overflow:hidden;display:flex;align-items:flex-end}
+  .bk .cover .cg{position:absolute;top:2px;right:6px;font-family:var(--mincho);font-size:74px;line-height:1;color:rgba(233,240,228,.08)}
+  .bk .cover .cin{position:relative;z-index:1;padding:10px 12px;font-family:var(--mincho);font-size:12.5px;font-weight:600;color:#F1F4EC;
+    line-height:1.4;text-shadow:0 1px 4px rgba(0,0,0,.6);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .bk .prow{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:10.5px;color:var(--soft)}
+  .bk .pbar{flex:1;height:2px;background:var(--line);position:relative;border-radius:2px}
+  .bk .pbar i{position:absolute;left:0;top:0;height:2px;background:var(--gold);border-radius:2px}
+  .bk .upd{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:10.5px;color:var(--gold)}
+  .bk .upd .d{width:6px;height:6px;border-radius:50%;background:var(--green)}
+  .bk .unimp{margin-top:8px;font-size:10.5px;color:var(--green)}
+  /* グリッドのセル大気（3系統内） */
+  .amb-maou{background:radial-gradient(120% 90% at 74% 12%,rgba(120,86,150,.4),transparent 60%),linear-gradient(160deg,#241C2E,#140F1B)}
+  .amb-en{background:radial-gradient(120% 90% at 28% 12%,rgba(214,196,120,.3),transparent 58%),linear-gradient(160deg,#2A2410,#17130A)}
+  .amb-kusa{background:radial-gradient(120% 90% at 30% 14%,rgba(159,207,169,.26),transparent 60%),linear-gradient(160deg,#1B2A1D,#101711)}
+  .cover.amb-yaku2{background:radial-gradient(120% 90% at 32% 12%,rgba(214,196,120,.28),transparent 58%),
+    radial-gradient(120% 90% at 60% 120%,rgba(20,46,30,.9),transparent 60%),linear-gradient(160deg,#274030,#15241A)}
+</style>
+</head>
+<body>
+  <p class="cap"><b>J. ポータル・デッキ — 本棚</b> ／ 1作=1画面の没入扉を横スワイプ。現行本棚の機能を全数搭載＝絞り込みチップ・取込中バナー・続きあり印・topbar の見つける/装いの間/グリッド/メニュー。最後尾のポータルが発見への入口。右端＝従来グリッド一覧（世界観は言葉でなく大気と象徴文字で出す）。</p>
+  <div class="stage">
+
+    <!-- ① ポータル・デッキ（既定・作品1）-->
+    <div class="wrap"><span class="mode">ポータル・デッキ（既定）</span>
+    <!-- 遊び心（J1 開く扉＋J3 時を映す扉）: --open=読んだ深さ(62%→扉が半ば開く)。地の時刻は既定=夕（amb-morning/amb-night で切替可）。両者は独立軸で干渉しない -->
+    <div class="phone" role="img" aria-label="J案 本棚 ポータルデッキ 万能薬師" style="--open:.62">
+      <div class="portal amb-yaku"></div><div class="glyph">薬</div>
+      <div class="peek l" aria-hidden="true"></div><div class="peek r" aria-hidden="true"></div>
+
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg></button>
+        <span class="idx">1 / 4</span>
+        <div class="grp">
+          <button class="ib" aria-label="見つける"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+          <button class="ib ward" aria-label="装いの間"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="13" rx="2"/><path d="M8 6V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/></svg></button>
+          <button class="ib" aria-label="全体をグリッドで見る"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg></button>
+        </div>
+      </div>
+
+      <div class="chipbar">
+        <span class="lchip on">すべて</span><span class="lchip">異世界</span><span class="lchip">完結済み</span><span class="lchip">あとで読む</span>
+      </div>
+
+      <div class="proc" role="status" aria-label="取込中バナー">
+        <div class="h">
+          <span class="sp"></span>
+          <div class="bt"><div class="pt">追放された万能薬師、辺境でスローライフを始める</div><div class="ph">本文を読み込んでいます… 45%（3/12ページ）</div></div>
+          <span class="ct">1/3件</span><button class="stop">停止</button>
+        </div>
+        <div class="steps"><span class="pdot on"></span><span class="pln on"></span><span class="pdot on"></span><span class="pln"></span><span class="pdot"></span><span class="pln"></span><span class="pdot"></span></div>
+        <div class="labels"><span>タイトル</span><span class="on">本文</span><span>分割</span><span>HTML</span></div>
+        <div class="step">ステップ 2 / 4</div>
+      </div>
+
+      <div class="body">
+        <div class="arc">辺境編 · 第127話</div>
+        <div class="update"><span class="udot"></span>更新 · 続き 12話</div>
+        <div class="ttl">追放された万能薬師、辺境でスローライフを始める</div>
+        <div class="by">霧島あおい</div>
+        <div class="incipit">辺境の城門に辿り着いたのは、長い雨がようやく上がった頃だった。</div>
+        <div class="prog">
+          <div class="pl"><span>旅の途中</span><span><b>62%</b> · 残り213話</span></div>
+          <div class="pb"><i></i></div>
+        </div>
+        <button class="resume"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg>続きから読む</button>
+      </div>
+
+      <div class="dots"><i class="on"></i><i></i><i></i><i></i><i class="disc"></i></div>
+      <div class="hint">← スワイプで次の物語へ →</div>
+    </div></div>
+
+    <!-- ② デッキ最後尾＝新しい扉を探す（見つける導線）-->
+    <div class="wrap"><span class="mode">新しい物語を見つける</span>
+    <div class="phone" role="img" aria-label="J案 本棚 新しい物語を見つける">
+      <div class="portal amb-find"></div><div class="glyph">扉</div>
+      <div class="peek l" aria-hidden="true"></div>
+
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg></button>
+        <span class="idx"></span>
+        <div class="grp">
+          <button class="ib" aria-label="見つける"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+          <button class="ib ward" aria-label="装いの間"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="13" rx="2"/><path d="M8 6V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/></svg></button>
+          <button class="ib" aria-label="全体をグリッドで見る"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg></button>
+        </div>
+      </div>
+
+      <div class="body">
+        <div class="ttl">新しい物語を<br>見つける</div>
+        <div class="incipit">ランキング・ジャンル・検索から、次の物語へ。</div>
+        <button class="resume ghost" style="margin-top:26px"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>見つける</button>
+      </div>
+
+      <div class="dots"><i></i><i></i><i></i><i></i><i class="disc on"></i></div>
+      <div class="hint">← スワイプで本棚へ戻る</div>
+    </div></div>
+
+    <!-- ③ グリッド一覧（従来一覧へ降格・各セルも小さな扉）-->
+    <div class="wrap"><span class="mode">グリッド一覧（切替）</span>
+    <div class="phone" role="img" aria-label="J案 本棚 グリッド一覧">
+      <div class="portal" style="background:radial-gradient(90% 40% at 50% -6%,rgba(31,52,38,.6),transparent 60%),#0C0E0B"></div>
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="g-top">
+        <h1>本棚</h1>
+        <button class="ib" aria-label="見つける"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+        <button class="ib ward" aria-label="装いの間"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="13" rx="2"/><path d="M8 6V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/></svg></button>
+        <button class="ib" aria-label="デッキ表示へ戻る"><svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="2"/></svg></button>
+        <button class="ib" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg></button>
+      </div>
+      <div class="g-scroll">
+        <div class="find-guide">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+          <span class="t">新しい物語を見つける</span>
+          <svg viewBox="0 0 24 24" class="c" fill="none" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+        <div class="chipbar" style="padding:0 0 14px">
+          <span class="lchip on">すべて</span><span class="lchip">異世界</span><span class="lchip">完結済み</span><span class="lchip">あとで読む</span>
+        </div>
+        <div class="grid">
+          <!-- 作品1: 続きあり -->
+          <div class="bk">
+            <div class="cover amb-yaku2"><span class="cg">薬</span><span class="cin">追放された万能薬師、辺境でスローライフを始める</span></div>
+            <div class="prow"><span>127話</span><span class="pbar"><i style="width:62%"></i></span><span>62%</span></div>
+            <div class="upd"><span class="d"></span>続き 12話</div>
+          </div>
+          <!-- 作品2: なろう・未取込 -->
+          <div class="bk">
+            <div class="cover amb-maou"><span class="cg">魔</span><span class="cin">黒の魔王と契約した俺、気づけば最強の従者に</span></div>
+            <div class="unimp">なろう・未取込</div>
+          </div>
+          <!-- 作品3: 既読100% -->
+          <div class="bk">
+            <div class="cover amb-en"><span class="cg">園</span><span class="cin">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span></div>
+            <div class="prow"><span>88話</span><span class="pbar"><i style="width:100%"></i></span><span>100%</span></div>
+          </div>
+          <!-- 作品4: 進行中 -->
+          <div class="bk">
+            <div class="cover amb-kusa"><span class="cg">草</span><span class="cin">転生したら最弱スキルだったので草むしりしていた</span></div>
+            <div class="prow"><span>210話</span><span class="pbar"><i style="width:80%"></i></span><span>80%</span></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,268 @@
+<!-- @dsCard group="UI-n / 着せ替え" name="D. 装いの間 — スキンカルーセル（入口は本棚のみ）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n D 装いの間 — スキンカルーセル</title>
+<style>
+  /*==harness==*/
+  /* D案 装いの間: 本棚から入る専用の着せ替え画面。スキンの UI 全体プレビューをコーバーフローで並べ、
+     スワイプで回し、中央に来た装いを「装着」でアプリ全体へ適用する。並び順は 和モダン→夜行→今後追加
+     で固定（今後追加は常に末尾＝右端）。カルーセルは静的モック＝スワイプは「見切れ・scale・インジケータ」
+     の構図で示す（実装は横スクロールのスナップ想定）。
+     ● 設計意図: 入口は本棚のみ＝読書中に着せ替えの選択肢を持ち込まない（ユーザー裁定 2026-07-17・
+       意図的設計。読書画面に他の選択肢が入るのを避ける）。カード=本棚ミニチュアを採用し、
+       読書画面ミニチュア案は却下（着せ替えの舞台＝本棚に構図を寄せ、読書へ意識を散らさないため）。
+     色は D=settings-D/bookshelf-D の変数・C=収蔵 C モック(reading-C/bookshelf-C)変数のみ（新色発明なし）。
+     署名: 藍のヘアライン体系・明朝見出し・大胆な余白。夜行装着後はクローム自体が深炭面へ即時反映。 */
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;--seiji:#9CB3A8;--seiji-ink:#50685C;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;
+    padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.6;max-width:720px}
+  .cap b{color:#2A2C28}
+  .rail{display:flex;flex-wrap:wrap;gap:32px;justify-content:center;align-items:flex-start}
+  .col{display:flex;flex-direction:column;align-items:center}
+  .pcap{font-family:var(--gothic);font-size:12px;color:#4A4C48;margin-bottom:12px;text-align:center;max-width:372px;line-height:1.5}
+  .pcap b{color:#2A2C28}
+  .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--gothic)}
+  /* 夜行を装着した直後＝クローム自体が深炭面へ即時反映。settings-D 変数名に C 実値を写像
+     （--ai 藍→--slate 月光スレート#8E99B0・muted→text-dim#8B8A84・線→C line#2C303A）。 */
+  .phone.night{--base:#16181D;--ink:#D8D1C5;--soft:#8B8A84;--line:#2C303A;--ai:#8E99B0;--seiji-ink:#8B8A84}
+  /*==/harness==*/
+
+  /* 共有クローム（bookshelf-D 写経: sb） */
+  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--soft)}
+  .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--ink);cursor:pointer}
+  .ib:hover{background:var(--line)}
+  .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.5}
+
+  /* 装いの間（カルーセル画面） */
+  .wbody{flex:1;display:flex;flex-direction:column}
+  .whead{padding:8px 24px 4px;display:flex;align-items:center;gap:16px}
+  .wtitle{font-family:var(--mincho);font-size:22px;color:var(--ink);font-weight:500;letter-spacing:.1em}
+  .wsub{font-family:var(--gothic);font-size:11px;color:var(--soft);letter-spacing:.04em;padding:0 24px;margin-bottom:24px}
+  /* カルーセル舞台。中央=前面(scale1)・両脇=覗き(scale.85/opacity.6)を絶対配置の構図で表現。
+     ±150px は隣カードを中央の背後へ潜らせつつ画面端で半分見切れさせる合成オフセット（余白ではない）。 */
+  .stage2{position:relative;height:400px;margin:16px 0 24px}
+  .slot{position:absolute;top:0;width:180px;left:50%;text-align:center}
+  .slot.center{transform:translateX(-50%) scale(1);z-index:3}
+  .slot.left{transform:translateX(calc(-50% - 150px)) scale(.85);opacity:.6;z-index:1}
+  .slot.right{transform:translateX(calc(-50% + 150px)) scale(.85);opacity:.6;z-index:1}
+  .cname{font-family:var(--mincho);font-size:16px;color:var(--ink);text-align:center;margin-top:16px}
+  .cone{font-family:var(--gothic);font-size:10.5px;color:var(--soft);text-align:center;margin-top:4px}
+
+  /* カード中身: 本棚ミニチュア（内部スケールは自由＝縮図表現） */
+  .mshelf{width:180px;height:300px;border-radius:14px;overflow:hidden;padding:16px 14px;box-shadow:0 14px 34px rgba(0,0,0,.24)}
+  .mshelf.add{background:transparent;border:1px dashed var(--soft);display:grid;place-items:center;box-shadow:none}
+  .mshelf.add .plus{font-size:34px;color:var(--soft);line-height:1;text-align:center}
+  .mshelf.add .plus small{display:block;font-size:10px;margin-top:8px;letter-spacing:.08em}
+  .m-h1{font-family:var(--mincho);font-size:14px;letter-spacing:.14em;margin-bottom:12px}
+  .m-hero{display:flex;gap:10px;border-radius:8px;padding:10px;margin-bottom:14px}
+  .m-cover{width:34px;height:50px;border-radius:3px;flex-shrink:0}
+  .m-lines{flex:1;padding-top:2px}
+  .m-lines i{display:block;height:5px;border-radius:2px;margin-bottom:6px}
+  .m-li{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid}
+  .m-c{width:22px;height:32px;border-radius:2px;flex-shrink:0}
+  .m-ls{flex:1}
+  .m-ls i{display:block;height:4px;border-radius:2px;margin-bottom:5px}
+  /* 和モダン皮膚 */
+  .msD{background:#FBFAF8}
+  .msD .m-h1{color:#1C1F26}
+  /* D のヒーローは面を塗らない（正本 bookshelf-fusion-D＝素地×ヘアラインのみ。#F3F2EE は発明色だったため排除） */
+  .msD .m-hero{background:transparent;border:1px solid #ECEAE4}
+  .msD .m-cover{background:linear-gradient(160deg,#3A4F63,#28323E)}
+  .msD .m-lines i{background:rgba(28,31,38,.20)}
+  .msD .m-lines i.acc{background:#1C3D5A}
+  .msD .m-li{border-color:#ECEAE4}
+  .msD .m-c{background:linear-gradient(160deg,#5E4A5C,#3B2F3A)}
+  .msD .m-ls i{background:rgba(28,31,38,.16)}
+  /* 夜行皮膚（収蔵 C モック値） */
+  .msC{background:#16181D}
+  .msC .m-h1{color:#D8D1C5}
+  .msC .m-hero{background:linear-gradient(135deg,#252932,#1E2128);border:1px solid #2C303A}
+  .msC .m-cover{background:#3A4150}
+  .msC .m-lines i{background:rgba(216,209,197,.18)}
+  .msC .m-lines i.acc{background:#C79A6A}
+  .msC .m-li{border-color:#2C303A}
+  .msC .m-c{background:#3A4150}
+  .msC .m-ls i{background:rgba(216,209,197,.14)}
+
+  /* フッタ: ページインジケータ＋CTA */
+  .wfoot{margin-top:auto;padding-bottom:8px}
+  .dots{display:flex;gap:8px;justify-content:center;margin-bottom:24px}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--line)}
+  .dot.on{background:var(--ai)}
+  .ctawrap{text-align:center}
+  .cta{display:inline-flex;align-items:center;gap:8px;padding:16px 32px;border-radius:12px;
+    font-family:var(--gothic);font-size:14px;font-weight:600;border:1px solid transparent;cursor:pointer}
+  /* 「これを装着」＝現在クロームのプライマリ（D は藍塗り・白文字／night なら slate 地）。 */
+  .cta.primary{background:var(--ai);color:#fff}
+  .cta.primary svg{stroke:#fff}
+  /* 「装着中」＝塗りなし・ヘアライン枠・チェック（今の装いであることを静かに示す） */
+  .cta.installed{background:transparent;border-color:var(--line);color:var(--ink)}
+  .cta.installed svg{stroke:var(--ai)}
+  .cta svg{width:16px;height:16px;fill:none;stroke-width:2}
+</style>
+</head>
+<body>
+  <p class="cap"><b>D. 装いの間 — スキンカルーセル</b> ／ 本棚から入る専用の着せ替え画面。コーバーフロー（中央=前面・両脇が覗く）をスワイプで回し、中央の装いを「装着」でアプリ全体へ適用。並び順は 和モダン→夜行→今後追加（末尾固定）。<b>入口は本棚のみ＝読書中に着せ替えの選択肢を持ち込まない（意図的設計）</b>。左から〈D装着中〉〈C中央=これを装着〉〈C装着直後＝クロームが深炭面へ即時反映〉。</p>
+
+  <div class="rail">
+
+    <!-- ============ 装いの間: 和モダン中央・装着中 ============ -->
+    <div class="col">
+      <p class="pcap"><b>装着中</b>／和モダン中央（右に夜行が覗く）</p>
+      <div class="phone">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+        <div class="wbody">
+          <div class="whead">
+            <button class="ib" aria-label="戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <span class="wtitle">着せ替え</span>
+          </div>
+          <p class="wsub">装いはアプリ全体に適用されます</p>
+
+          <div class="stage2">
+            <!-- 並び順は 和モダン→夜行→今後追加 で固定。中央=和モダン(先頭)ゆえ左脇は無し・右脇に夜行が覗く -->
+            <div class="slot center">
+              <div class="mshelf msD">
+                <div class="m-h1">本棚</div>
+                <div class="m-hero"><div class="m-cover"></div><div class="m-lines"><i style="width:82%"></i><i style="width:58%"></i><i class="acc" style="width:40%"></i></div></div>
+                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:88%"></i><i style="width:50%"></i></div></div>
+                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:74%"></i><i style="width:44%"></i></div></div>
+              </div>
+              <div class="cname">和モダン</div>
+              <div class="cone">白と藍・標準の装い</div>
+            </div>
+            <!-- 右に夜行が覗く（今後追加は順序末尾＝この配置では見切れ外） -->
+            <div class="slot right">
+              <div class="mshelf msC">
+                <div class="m-h1">本棚</div>
+                <div class="m-hero"><div class="m-cover"></div><div class="m-lines"><i style="width:82%"></i><i style="width:58%"></i><i class="acc" style="width:40%"></i></div></div>
+                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:88%"></i><i style="width:50%"></i></div></div>
+                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:74%"></i><i style="width:44%"></i></div></div>
+              </div>
+              <div class="cname">夜行</div>
+            </div>
+          </div>
+
+          <div class="wfoot">
+            <div class="dots"><span class="dot on"></span><span class="dot"></span><span class="dot"></span></div>
+            <div class="ctawrap">
+              <button class="cta installed"><svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>装着中</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 装いの間: 夜行中央・未装着 ============ -->
+    <div class="col">
+      <p class="pcap"><b>これを装着</b>／夜行中央（左に和モダン・右に今後追加が覗く）</p>
+      <div class="phone">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+        <div class="wbody">
+          <div class="whead">
+            <button class="ib" aria-label="戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <span class="wtitle">着せ替え</span>
+          </div>
+          <p class="wsub">装いはアプリ全体に適用されます</p>
+
+          <div class="stage2">
+            <!-- 並び順 和モダン→夜行→今後追加。中央=夜行ゆえ左脇=和モダン・右脇=今後追加 -->
+            <div class="slot left">
+              <div class="mshelf msD">
+                <div class="m-h1">本棚</div>
+                <div class="m-hero"><div class="m-cover"></div><div class="m-lines"><i style="width:82%"></i><i style="width:58%"></i><i class="acc" style="width:40%"></i></div></div>
+                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:88%"></i><i style="width:50%"></i></div></div>
+                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:74%"></i><i style="width:44%"></i></div></div>
+              </div>
+              <div class="cname">和モダン</div>
+            </div>
+            <div class="slot center">
+              <div class="mshelf msC">
+                <div class="m-h1">本棚</div>
+                <div class="m-hero"><div class="m-cover"></div><div class="m-lines"><i style="width:82%"></i><i style="width:58%"></i><i class="acc" style="width:40%"></i></div></div>
+                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:88%"></i><i style="width:50%"></i></div></div>
+                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:74%"></i><i style="width:44%"></i></div></div>
+              </div>
+              <div class="cname">夜行</div>
+              <div class="cone">深炭と温白・夜の没入</div>
+            </div>
+            <!-- 今後追加は順序末尾＝常に右端 -->
+            <div class="slot right">
+              <div class="mshelf add"><span class="plus">＋<small>今後追加</small></span></div>
+              <div class="cname">&nbsp;</div>
+            </div>
+          </div>
+
+          <div class="wfoot">
+            <div class="dots"><span class="dot"></span><span class="dot on"></span><span class="dot"></span></div>
+            <div class="ctawrap">
+              <button class="cta primary"><svg viewBox="0 0 24 24"><polygon points="7 4 20 12 7 20" fill="#fff" stroke="none"/></svg>これを装着</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 夜行を装着した直後: クローム自体が深炭面へ ============ -->
+    <div class="col">
+      <p class="pcap"><b>装着直後</b>／夜行を装着＝クローム自体が深炭面へ即時反映</p>
+      <div class="phone night">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+        <div class="wbody">
+          <div class="whead">
+            <button class="ib" aria-label="戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <span class="wtitle">着せ替え</span>
+          </div>
+          <p class="wsub">装いはアプリ全体に適用されます</p>
+
+          <div class="stage2">
+            <!-- 並び順 和モダン→夜行→今後追加。中央=夜行・左=和モダン・右=今後追加 -->
+            <div class="slot left">
+              <div class="mshelf msD">
+                <div class="m-h1">本棚</div>
+                <div class="m-hero"><div class="m-cover"></div><div class="m-lines"><i style="width:82%"></i><i style="width:58%"></i><i class="acc" style="width:40%"></i></div></div>
+                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:88%"></i><i style="width:50%"></i></div></div>
+                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:74%"></i><i style="width:44%"></i></div></div>
+              </div>
+              <div class="cname">和モダン</div>
+            </div>
+            <div class="slot center">
+              <div class="mshelf msC">
+                <div class="m-h1">本棚</div>
+                <div class="m-hero"><div class="m-cover"></div><div class="m-lines"><i style="width:82%"></i><i style="width:58%"></i><i class="acc" style="width:40%"></i></div></div>
+                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:88%"></i><i style="width:50%"></i></div></div>
+                <div class="m-li"><div class="m-c"></div><div class="m-ls"><i style="width:74%"></i><i style="width:44%"></i></div></div>
+              </div>
+              <div class="cname">夜行</div>
+              <div class="cone">深炭と温白・夜の没入</div>
+            </div>
+            <div class="slot right">
+              <div class="mshelf add"><span class="plus">＋<small>今後追加</small></span></div>
+              <div class="cname">&nbsp;</div>
+            </div>
+          </div>
+
+          <div class="wfoot">
+            <div class="dots"><span class="dot"></span><span class="dot on"></span><span class="dot"></span></div>
+            <div class="ctawrap">
+              <!-- night クローム: installed の枠=C line・チェック=slate（--ai の写像）。深炭面への即時反映を見せる -->
+              <button class="cta installed"><svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>装着中</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

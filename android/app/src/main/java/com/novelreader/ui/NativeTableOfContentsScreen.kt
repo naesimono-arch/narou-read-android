@@ -42,12 +42,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.model.TocEntry
+import com.novelreader.ui.skins.j.TocPortalJ
+import com.novelreader.ui.skins.m.TocSkyM
+import com.novelreader.ui.skins.p.TocCartridgeP
 import com.novelreader.ui.theme.FontCaption
 import com.novelreader.ui.theme.FontSectionTitle
 import com.novelreader.ui.theme.FontSheetTitle
+import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
+import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.colors
 import com.novelreader.ui.theme.Spacing
 
@@ -92,6 +97,43 @@ fun NativeTableOfContentsScreen(
     onNavigateToBookshelf: () -> Unit,
     onRetry: () -> Unit,
 ) {
+    // スキンM「星図」: 目次を画面丸ごと星図構造へ委譲する（ADR 0022 §1 の薄いルーター）。
+    // 既存 D/C 描画は無改変で default 経路のまま（LocalSkin 既定=WAMODERN_D＝この分岐を跨がない）。
+    if (LocalSkin.current == Skin.SEIZU_M) {
+        TocSkyM(
+            tocState = tocState,
+            currentChapterFile = currentChapterFile,
+            onSelectChapter = onSelectChapter,
+            onNavigateToBookshelf = onNavigateToBookshelf,
+            onRetry = onRetry,
+        )
+        return
+    }
+
+    // スキンP「カートリッジ」: 目次を画面丸ごとステージセレクト構造へ委譲する（ADR 0022 §1・M と同じ薄いルーター）。
+    if (LocalSkin.current == Skin.CARTRIDGE_P) {
+        TocCartridgeP(
+            tocState = tocState,
+            currentChapterFile = currentChapterFile,
+            onSelectChapter = onSelectChapter,
+            onNavigateToBookshelf = onNavigateToBookshelf,
+            onRetry = onRetry,
+        )
+        return
+    }
+
+    // スキンJ「ポータル」: 目次を画面丸ごと「廊下を進む道程」構造へ委譲する（ADR 0022 §1・M/P と同じ薄いルーター）。
+    if (LocalSkin.current == Skin.PORTAL_J) {
+        TocPortalJ(
+            tocState = tocState,
+            currentChapterFile = currentChapterFile,
+            onSelectChapter = onSelectChapter,
+            onNavigateToBookshelf = onNavigateToBookshelf,
+            onRetry = onRetry,
+        )
+        return
+    }
+
     Scaffold(
         containerColor = colors.background,
         topBar = {

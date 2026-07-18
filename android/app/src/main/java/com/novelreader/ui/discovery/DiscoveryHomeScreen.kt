@@ -53,7 +53,12 @@ import com.novelreader.ui.theme.FontPresetCaption
 import com.novelreader.ui.theme.FontPresetTitle
 import com.novelreader.ui.theme.FontScreenTitle
 import com.novelreader.ui.theme.LocalShelfColors
+import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.Skin
+import com.novelreader.ui.skins.j.DiscoveryHomePortalJ
+import com.novelreader.ui.skins.m.DiscoveryHomeSkyM
+import com.novelreader.ui.skins.p.DiscoveryHomeCartridgeP
 import com.novelreader.viewmodel.DiscoveryUiState
 import com.novelreader.viewmodel.DiscoveryViewModel
 import com.novelreader.viewmodel.MoodPreset
@@ -127,6 +132,58 @@ internal fun DiscoveryHomeContent(
     onSelectOrder: (NarouOrder) -> Unit,
     onRefresh: () -> Unit,
 ) {
+    // スキンM「星図」: 発見ホームを画面丸ごと星図構造へ委譲する（ADR 0022 §1 の薄いルーター）。
+    // 既存 D/C 描画は無改変で default 経路のまま（LocalSkin 既定=WAMODERN_D＝この分岐を跨がない）。
+    if (LocalSkin.current == Skin.SEIZU_M) {
+        DiscoveryHomeSkyM(
+            order = order,
+            state = state,
+            onBack = onBack,
+            onOpenDetail = onOpenDetail,
+            onOpenGenre = onOpenGenre,
+            onPickBiggenre = onPickBiggenre,
+            onOpenSearch = onOpenSearch,
+            onPickMood = onPickMood,
+            onSelectOrder = onSelectOrder,
+            onRefresh = onRefresh,
+        )
+        return
+    }
+
+    // スキンP「カートリッジ」: 発見ホームを画面丸ごと店構造へ委譲する（ADR 0022 §1 の薄いルーター）。
+    if (LocalSkin.current == Skin.CARTRIDGE_P) {
+        DiscoveryHomeCartridgeP(
+            order = order,
+            state = state,
+            onBack = onBack,
+            onOpenDetail = onOpenDetail,
+            onOpenGenre = onOpenGenre,
+            onPickBiggenre = onPickBiggenre,
+            onOpenSearch = onOpenSearch,
+            onPickMood = onPickMood,
+            onSelectOrder = onSelectOrder,
+            onRefresh = onRefresh,
+        )
+        return
+    }
+
+    // スキンJ「ポータル」: 発見ホームを画面丸ごと扉の回廊構造へ委譲する（ADR 0022 §1 の薄いルーター）。
+    if (LocalSkin.current == Skin.PORTAL_J) {
+        DiscoveryHomePortalJ(
+            order = order,
+            state = state,
+            onBack = onBack,
+            onOpenDetail = onOpenDetail,
+            onOpenGenre = onOpenGenre,
+            onPickBiggenre = onPickBiggenre,
+            onOpenSearch = onOpenSearch,
+            onPickMood = onPickMood,
+            onSelectOrder = onSelectOrder,
+            onRefresh = onRefresh,
+        )
+        return
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(

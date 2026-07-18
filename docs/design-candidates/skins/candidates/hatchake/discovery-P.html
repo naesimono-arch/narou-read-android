@@ -1,0 +1,223 @@
+<!-- @dsCard group="UI-n / 発見（スキン候補・はっちゃけ）" name="P. カートリッジ（はっちゃけ版）— 発見ホーム" -->
+<!-- 実験変種（はっちゃけ）: 現行P発見のゲームショップ/アーケード濃度を一段上げた試作。機能・データは全数同一。
+     はっちゃけを足した所:
+       ①上部マーキー＝LEDドットの電光掲示テクスチャへ ②デモ画面＝頭に attract の「本日の一本」CRT風カード（既存ランキング#1を店の看板として再掲＝捏造なし）
+       ③POP＝ソフト棚に価格POP風の跳ね出しタグ＋おすすめPOP ④ランキング＝HI-SCORE盤に LEDマーキー見出し(TOP 5)を追加し電光掲示を強調
+       ⑤結果=試遊台のデモ枠に attract のコーナー枠
+     退色トーン厳守: 燐光/箱/カートリッジ背は退色トーンのまま・グロウ微量。有彩は筐体＋3系統（LCD緑・退色赤・退色青）、
+                     ジャンル/ソフト識別色は別枠・低彩度。新hueゼロ。作品題はゴシック可読サイズ。 -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n P 発見 — カートリッジ（はっちゃけ）</title>
+<style>
+  :root{
+    --plastic:#dbd6c8; --plastic-hi:#e9e5da; --plastic-lo:#c3bfae; --panel:#cfcabb;
+    --ink:#2c2b26; --ink-soft:#79766b; --ink-mid:#5a574c; --line:#c9c5b6;
+    --screen:#e8e7d8; --screen-lo:#dedccb;
+    --lcd:#a4af80; --lcd-hi:#b4be92; --lcd-ink:#2b3616;
+    --board:#2c3618; --phos:#b3bd82; --phos-dim:#97a56b;               /* ①LCD緑の階調（明LCD＋暗アーケード盤＋燐光） */
+    --red:#b5564e; --red-lo:#8d4139;                                   /* ②退色レッド */
+    --blue:#5c7d96; --blue-ink:#3f5a70;                                /* ③退色ブルー（SCORE数値） */
+    --g1:#bf8f9c; --g2:#7f9a5e; --g3:#c7a15c; --g4:#8b84a0; --g5:#9a9384; --g6:#a88f7a;  /* ジャンル識別色（別枠・低彩度・地に対しジャンル名が4.5:1以上になる明度帯） */
+    --pixel:ui-monospace,"SFMono-Regular",Menlo,Consolas,"Courier New",monospace;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#2a2c27;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:30px;font-family:var(--gothic)}
+  .cap{color:#c8c3b4;font-size:13px;margin-bottom:16px;text-align:center;line-height:1.7;max-width:740px}
+  .cap b{color:#f0ede2}
+  .stage{display:flex;gap:34px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .col{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .col .mode{font-family:var(--pixel);font-size:11px;letter-spacing:.14em;color:#b7b2a3}
+
+  .phone{width:390px;height:844px;border-radius:34px;position:relative;overflow:hidden;
+    background:linear-gradient(150deg,var(--plastic-hi),var(--plastic) 22%,var(--plastic-lo));
+    box-shadow:0 24px 60px rgba(0,0,0,.55), inset 0 2px 0 rgba(255,255,255,.5), inset 0 -3px 8px rgba(0,0,0,.14);
+    display:flex;flex-direction:column;color:var(--ink)}
+  .screw{position:absolute;width:9px;height:9px;border-radius:50%;z-index:9;
+    background:radial-gradient(circle at 35% 30%,#e7e3d7,#a8a496 70%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+  .screw::after{content:"";position:absolute;inset:2.5px;border-top:1.4px solid rgba(0,0,0,.28);transform:rotate(40deg)}
+  .screw.tl{top:13px;left:13px}.screw.tr{top:13px;right:13px}.screw.bl{bottom:13px;left:13px}.screw.br{bottom:13px;right:13px}
+  .sb{height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;flex-shrink:0;
+    font-family:var(--pixel);font-size:11px;letter-spacing:.06em;color:var(--ink-soft)}
+  .sb .batt b{display:inline-block;width:16px;height:8px;border:1.4px solid var(--ink-soft);border-radius:1px;position:relative}
+  .sb .batt b::after{content:"";position:absolute;inset:1.5px;right:5px;background:var(--ink-soft)}
+
+  /* はっちゃけ①: マーキー＝LEDドットの電光掲示 */
+  .marquee{margin:2px 16px 0;flex-shrink:0;background:linear-gradient(var(--board),#232c13);border-radius:10px 10px 4px 4px;position:relative;overflow:hidden;
+    padding:9px 14px;display:flex;align-items:center;justify-content:space-between;box-shadow:inset 0 2px 6px rgba(0,0,0,.5)}
+  .marquee::after{content:"";position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(rgba(0,0,0,.32) .6px,transparent .7px);background-size:3px 3px}
+  .marquee .shop{position:relative;z-index:2;font-family:var(--pixel);font-size:10px;font-weight:700;letter-spacing:.24em;color:var(--phos);text-shadow:0 0 6px rgba(179,189,130,.35)}
+  .marquee .blink{color:var(--red);font-weight:700}
+  .head{display:flex;align-items:flex-end;justify-content:space-between;padding:12px 22px 2px;flex-shrink:0}
+  .head h1{font-family:var(--gothic);font-size:25px;font-weight:700;color:var(--ink);letter-spacing:0}
+  .head .ib{width:40px;height:40px;border:none;background:var(--plastic-hi);border-radius:11px;display:grid;place-items:center;color:var(--ink);cursor:pointer;
+    box-shadow:0 2px 4px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.4)}
+  .head .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.8}
+
+  .scroll{flex:1;overflow:auto;padding:0 20px 34px;scrollbar-width:none}.scroll::-webkit-scrollbar{display:none}
+  .sec{font-family:var(--pixel);font-size:10px;font-weight:700;letter-spacing:.2em;color:var(--ink-mid);margin:26px 4px 13px;display:flex;align-items:center;gap:8px}
+  .sec::before{content:"▸";color:var(--red)}
+
+  /* はっちゃけ②: デモ画面＝attractの「本日の一本」CRT風カード（明るいTVベゼル＝暗い盤と双子化しない） */
+  .attract{margin:16px 0 2px;border-radius:12px;padding:5px;position:relative;
+    background:linear-gradient(#2b2d24,#3a3d33);box-shadow:inset 0 2px 5px rgba(0,0,0,.4),0 2px 6px rgba(0,0,0,.2)}
+  .attract .scr{position:relative;display:flex;align-items:center;gap:13px;border-radius:8px;padding:13px 14px;overflow:hidden;
+    background:linear-gradient(var(--screen),var(--screen-lo))}
+  .attract .scr::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(38,37,29,.05) 0 1px,transparent 1px 3px)}
+  .attract .dtag{position:absolute;right:0;top:0;z-index:2;font-family:var(--pixel);font-size:8px;font-weight:700;letter-spacing:.14em;color:#fff;background:var(--red);padding:2px 9px;clip-path:polygon(7px 0,100% 0,100% 100%,0 100%)}
+  .attract .pt{position:relative;z-index:2;font-size:20px;line-height:1;color:var(--red);flex-shrink:0}
+  .attract .txt{position:relative;z-index:2;flex:1;min-width:0}
+  .attract .txt .k{display:block;font-family:var(--pixel);font-size:9px;letter-spacing:.14em;color:var(--ink-soft)}
+  .attract .txt .tt{display:block;font-family:var(--gothic);font-size:14px;font-weight:700;color:var(--ink);margin-top:4px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* きょうの気分＝ソフトのパッケージ棚 */
+  .shelf{display:flex;gap:13px;overflow-x:auto;padding:2px 4px 0;scrollbar-width:none}.shelf::-webkit-scrollbar{display:none}
+  .pkg{flex:0 0 118px;cursor:pointer;display:flex;flex-direction:column;gap:8px}
+  .pkg .box{height:96px;border-radius:6px;position:relative;overflow:hidden;box-shadow:0 3px 6px rgba(0,0,0,.22), inset 0 0 0 1px rgba(0,0,0,.14), inset 0 2px 0 rgba(255,255,255,.25)}
+  .pkg .box::before{content:"";position:absolute;left:0;top:0;bottom:0;width:9px;background:rgba(0,0,0,.14)}
+  /* はっちゃけ③: POP＝価格POP風の跳ね出しタグ */
+  .pkg .box .tag{position:absolute;right:6px;top:6px;font-family:var(--pixel);font-size:7.5px;font-weight:700;letter-spacing:.1em;color:rgba(0,0,0,.5);background:rgba(255,255,255,.5);border-radius:2px;padding:2px 5px;transform:rotate(6deg);box-shadow:0 1px 2px rgba(0,0,0,.16)}
+  .pkg .box .pop{position:absolute;left:15px;top:6px;z-index:2;font-family:var(--pixel);font-size:7.5px;font-weight:700;letter-spacing:.04em;color:#fff;background:var(--red);border-radius:2px;padding:2px 6px;transform:rotate(-7deg);box-shadow:0 1px 3px rgba(0,0,0,.24)}
+  .pkg .box .em{position:absolute;left:16px;bottom:9px;display:flex;gap:2px}
+  .pkg .box .em i{width:5px;height:5px;background:rgba(0,0,0,.42)}
+  .pkg .nm{font-family:var(--gothic);font-size:12px;font-weight:700;color:var(--ink);line-height:1.4}
+  .pkg .cd{font-size:10px;color:var(--ink-soft);line-height:1.4}
+  .ledge{height:9px;margin:9px 2px 0;border-radius:2px;background:linear-gradient(var(--plastic-lo),#b0ab9b);box-shadow:0 2px 4px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.35)}
+
+  /* ジャンル＝カートリッジの色棚 */
+  .cartrack{display:flex;gap:9px;overflow-x:auto;padding:2px 4px 0;scrollbar-width:none}.cartrack::-webkit-scrollbar{display:none}
+  .spine{flex:0 0 66px;height:88px;border-radius:7px 7px 4px 4px;cursor:pointer;position:relative;overflow:hidden;
+    display:flex;flex-direction:column;justify-content:flex-end;padding:8px 7px;box-shadow:0 3px 6px rgba(0,0,0,.22), inset 0 2px 0 rgba(255,255,255,.22), inset 0 0 0 1px rgba(0,0,0,.12)}
+  .spine::before{content:"";position:absolute;left:8px;right:8px;top:8px;height:8px;background:repeating-linear-gradient(90deg,rgba(0,0,0,.18) 0 2px,transparent 2px 5px)}
+  .spine .gn{font-family:var(--gothic);font-size:11.5px;font-weight:700;color:#26251d;line-height:1.25}
+
+  /* ランキング＝HI-SCOREボード（暗い緑LCD・燐光ドット・CRT） */
+  .board{margin-top:4px;border-radius:12px;position:relative;overflow:hidden;padding:14px 14px 6px;
+    background:radial-gradient(120% 90% at 50% 0%,#33401d,var(--board));box-shadow:inset 0 0 0 2px #1c240f, inset 0 3px 10px rgba(0,0,0,.6), 0 4px 10px rgba(0,0,0,.3)}
+  .board::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:2;
+    background-image:radial-gradient(rgba(0,0,0,.28) 0.6px,transparent 0.7px),repeating-linear-gradient(0deg,rgba(0,0,0,.10) 0 1px,transparent 1px 3px);background-size:3px 3px,100% 3px}
+  /* はっちゃけ④: LEDマーキー見出し（電光掲示を強調・TOP 5＝行数の情報） */
+  .ledmarquee{position:relative;z-index:3;font-family:var(--pixel);font-size:10px;font-weight:700;letter-spacing:.3em;color:var(--phos);
+    text-align:center;padding:2px 0 10px;text-shadow:0 0 7px rgba(179,189,130,.45)}
+  .ledmarquee .star{color:var(--phos-dim)}
+  .tabs{position:relative;z-index:3;display:flex;gap:6px;overflow-x:auto;padding-bottom:11px;scrollbar-width:none;margin-bottom:2px}.tabs::-webkit-scrollbar{display:none}
+  .tab{flex-shrink:0;font-family:var(--pixel);font-size:10px;letter-spacing:.06em;color:var(--phos-dim);border:1px solid rgba(179,189,130,.3);border-radius:5px;padding:5px 10px;cursor:pointer}
+  .tab.on{color:var(--board);background:var(--phos);font-weight:700;text-shadow:none}
+  .hs-row{position:relative;z-index:3;display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid rgba(179,189,130,.16);cursor:pointer}
+  .hs-row .rk{flex:0 0 42px;font-family:var(--pixel);font-size:20px;font-weight:700;color:var(--phos);letter-spacing:-.02em;text-shadow:0 0 6px rgba(179,189,130,.35);line-height:1}
+  .hs-row .rk .st{font-size:10px;letter-spacing:0}
+  .hs-row.crown .rk{color:#d9c27a;text-shadow:0 0 8px rgba(217,194,122,.4)}
+  .hs-row .info{flex:1;min-width:0}
+  .hs-row .t{font-family:var(--gothic);font-size:13.5px;font-weight:700;color:var(--phos);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .hs-row .a{font-family:var(--pixel);font-size:9.5px;color:var(--phos-dim);margin-top:5px;letter-spacing:.02em}
+  .hs-row .sc{flex-shrink:0;text-align:right}
+  .hs-row .sc .v{font-family:var(--pixel);font-size:15px;font-weight:700;color:var(--phos);letter-spacing:.02em}
+  .hs-row .sc .u{font-family:var(--pixel);font-size:9px;color:var(--phos-dim);margin-top:2px}
+
+  /* 結果一覧＝試遊台 */
+  .back{display:flex;align-items:center;gap:7px;font-family:var(--gothic);font-size:12.5px;color:var(--ink-soft);padding:8px 22px 0;cursor:pointer}
+  .back svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7}
+  .demo{margin:12px 16px 0;background:linear-gradient(var(--board),#232c13);border-radius:10px;padding:13px 15px;position:relative;overflow:hidden}
+  .demo::before{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(0,0,0,.25) .6px,transparent .7px);background-size:3px 3px;pointer-events:none}
+  /* はっちゃけ⑤: 試遊台デモにattractコーナー枠 */
+  .demo::after{content:"";position:absolute;right:7px;top:7px;width:12px;height:12px;border:2px solid var(--phos-dim);border-left:none;border-bottom:none;pointer-events:none}
+  .demo .try{font-family:var(--pixel);font-size:9.5px;font-weight:700;letter-spacing:.16em;color:var(--phos);position:relative;z-index:2}
+  .demo h2{font-family:var(--gothic);font-size:19px;font-weight:700;color:var(--phos);margin-top:7px;position:relative;z-index:2}
+  .demo .sub{font-size:11.5px;color:var(--phos-dim);margin-top:8px;line-height:1.7;position:relative;z-index:2}
+  .conds{display:flex;gap:8px;flex-wrap:wrap;padding:14px 22px 0}
+  .cd{font-family:var(--pixel);font-size:10.5px;color:var(--blue-ink);border:1px solid var(--blue);border-radius:999px;padding:5px 12px;letter-spacing:.02em}
+  .cd.adj{color:var(--red);border-color:var(--red);cursor:pointer}
+  .cnt{padding:16px 22px 0;font-family:var(--pixel);font-size:11px;color:var(--ink-mid);letter-spacing:.06em}
+  .try-row{display:flex;align-items:center;gap:14px;padding:16px 0;border-bottom:1px solid var(--line);cursor:pointer}
+  .try-row:last-child{border-bottom:none}
+  .try-row .cart{flex:0 0 40px;height:48px;border-radius:5px 5px 3px 3px;position:relative;box-shadow:inset 0 2px 0 rgba(255,255,255,.25),inset 0 0 0 1px rgba(0,0,0,.12)}
+  .try-row .cart::before{content:"";position:absolute;left:6px;right:6px;top:6px;height:6px;background:repeating-linear-gradient(90deg,rgba(0,0,0,.18) 0 2px,transparent 2px 5px)}
+  .try-row .bd{flex:1;min-width:0}
+  .try-row .t{font-family:var(--gothic);font-size:14px;font-weight:700;color:var(--ink);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .try-row .a{font-size:10.5px;color:var(--ink-soft);margin-top:5px}
+  .try-row .m{font-family:var(--pixel);font-size:10px;color:var(--ink-mid);margin-top:7px;letter-spacing:.02em}
+  .try-row .m .pt{color:var(--blue-ink);font-weight:700}
+</style>
+</head>
+<body>
+  <p class="cap"><b>P. カートリッジ（はっちゃけ版）— 発見ホーム</b> ／ 探す＝レトロゲームショップ巡りを全開に。電光掲示マーキー・attractのデモ画面（本日の一本）・ソフト棚のPOP・HI-SCORE盤のLEDマーキー見出しを追加。彩度は退色トーンのまま。左＝ホーム・右＝共通着地の結果一覧＝試遊台。</p>
+
+  <div class="stage">
+    <!-- ホーム -->
+    <div class="col"><span class="mode">HOME / 発見ホーム</span>
+    <div class="phone" role="img" aria-label="P案はっちゃけ 発見ホーム">
+      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+      <div class="sb"><span>9:41</span><span class="batt"><b></b></span></div>
+      <div class="marquee"><span class="shop">POCKET NOVEL</span><span class="shop"><span class="blink">●</span> OPEN</span></div>
+      <div class="head">
+        <h1>見つける</h1>
+        <button class="ib" aria-label="検索"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
+      </div>
+      <div class="scroll">
+        <!-- はっちゃけ②: デモ画面（attract） -->
+        <div class="attract" role="button" aria-label="本日の一本 追放された万能薬師">
+          <div class="scr">
+            <span class="dtag">DEMO</span>
+            <span class="pt">▶</span>
+            <span class="txt"><span class="k">本日の一本</span><span class="tt">追放された万能薬師、辺境でスローライフを始める</span></span>
+          </div>
+        </div>
+
+        <div class="sec">きょうの気分</div>
+        <div class="shelf">
+          <div class="pkg"><div class="box" style="background:#cdbe8f"><span class="pop">おすすめ</span><span class="tag">SOFT</span><span class="em"><i></i><i></i><i></i></span></div><div class="nm">30分の小さな旅</div><div class="cd">短編・30分まで</div></div>
+          <div class="pkg"><div class="box" style="background:#b8a0a8"><span class="tag">SOFT</span><span class="em"><i></i><i></i><i></i></span></div><div class="nm">今夜の一気読み</div><div class="cd">完結済・10万字〜</div></div>
+          <div class="pkg"><div class="box" style="background:#a7b391"><span class="tag">SOFT</span><span class="em"><i></i><i></i><i></i></span></div><div class="nm">会話でさくさく</div><div class="cd">会話率 60%以上</div></div>
+          <div class="pkg"><div class="box" style="background:#a9bcc4"><span class="tag">SOFT</span><span class="em"><i></i><i></i><i></i></span></div><div class="nm">挿絵と歩く</div><div class="cd">挿絵のある作品</div></div>
+        </div>
+        <div class="ledge"></div>
+
+        <div class="sec">ジャンルから</div>
+        <div class="cartrack">
+          <div class="spine" style="background:var(--g1)"><span class="gn">恋愛</span></div>
+          <div class="spine" style="background:var(--g2)"><span class="gn">ファンタジー</span></div>
+          <div class="spine" style="background:var(--g3)"><span class="gn">文芸</span></div>
+          <div class="spine" style="background:var(--g4)"><span class="gn">SF</span></div>
+          <div class="spine" style="background:var(--g5)"><span class="gn">その他</span></div>
+          <div class="spine" style="background:var(--g6)"><span class="gn">ノン<br>ジャンル</span></div>
+        </div>
+
+        <div class="sec">週間ランキング</div>
+        <div class="board">
+          <div class="ledmarquee"><span class="star">★</span> TOP 5 <span class="star">★</span></div>
+          <div class="tabs"><span class="tab on">週間</span><span class="tab">日間</span><span class="tab">月間</span><span class="tab">四半期</span><span class="tab">累計</span><span class="tab">新着</span></div>
+          <div class="hs-row crown"><div class="rk">1<span class="st">st</span></div><div class="info"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="a">霧島あおい ・ ハイファンタジー ・ 連載中 127話 ・ 約8時間</div></div><div class="sc"><div class="v">12,345</div><div class="u">pt</div></div></div>
+          <div class="hs-row"><div class="rk">2<span class="st">nd</span></div><div class="info"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="a">夜灯すばる ・ 異世界〔恋愛〕 ・ 連載中 43話 ・ 約3時間</div></div><div class="sc"><div class="v">9,812</div><div class="u">pt</div></div></div>
+          <div class="hs-row"><div class="rk">3<span class="st">rd</span></div><div class="info"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="a">白河すずら ・ 異世界〔恋愛〕 ・ 完結 88話 ・ 約6時間</div></div><div class="sc"><div class="v">8,204</div><div class="u">pt</div></div></div>
+          <div class="hs-row"><div class="rk">4<span class="st">th</span></div><div class="info"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="a">青葉みのり ・ ハイファンタジー ・ 連載中 210話 ・ 約14時間</div></div><div class="sc"><div class="v">7,530</div><div class="u">pt</div></div></div>
+          <div class="hs-row"><div class="rk">5<span class="st">th</span></div><div class="info"><div class="t">辺境伯家の次男は今日も書庫にこもる</div><div class="a">水無月れん ・ 歴史 ・ 短編 ・ 約25分</div></div><div class="sc"><div class="v">6,981</div><div class="u">pt</div></div></div>
+        </div>
+      </div>
+    </div></div>
+
+    <!-- 結果一覧＝試遊台 -->
+    <div class="col"><span class="mode">RESULTS / 結果一覧（試遊台）</span>
+    <div class="phone" role="img" aria-label="P案はっちゃけ 発見 結果一覧">
+      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+      <div class="sb"><span>9:41</span><span class="batt"><b></b></span></div>
+      <div class="back"><svg viewBox="0 0 24 24"><polyline points="14 6 8 12 14 18"/></svg>見つける</div>
+      <div class="demo">
+        <div class="try">▶ DEMO PLAY</div>
+        <h2>30分の小さな旅</h2>
+        <div class="sub">短い時間で完結する物語。読了目安 30分まで・短編のみ。</div>
+      </div>
+      <div class="conds"><span class="cd">短編</span><span class="cd">〜30分</span><span class="cd">週間人気順</span><span class="cd adj">条件を調整</span></div>
+      <div class="cnt">1,204 作品</div>
+      <div class="scroll" style="padding-top:10px">
+        <div class="try-row"><span class="cart" style="background:#b8a0a8"></span><div class="bd"><div class="t">雨宿りの喫茶店で魔女に出会った</div><div class="a">早瀬ことり ・ 現実世界〔恋愛〕</div><div class="m">短編 ・ 約12分 ・ <span class="pt">週間 3,204 pt</span></div></div></div>
+        <div class="try-row"><span class="cart" style="background:#7f9a5e"></span><div class="bd"><div class="t">最後の魔王が残した、たったひとつの願いごと</div><div class="a">灰島ちひろ ・ ハイファンタジー</div><div class="m">短編 ・ 約28分 ・ <span class="pt">週間 2,877 pt</span></div></div></div>
+        <div class="try-row"><span class="cart" style="background:#9a9384"></span><div class="bd"><div class="t">駅前の占い師は未来を視ない</div><div class="a">結城まほろ ・ ヒューマンドラマ</div><div class="m">短編 ・ 約19分 ・ <span class="pt">週間 2,410 pt</span></div></div></div>
+      </div>
+    </div></div>
+  </div>
+</body>
+</html>

@@ -25,7 +25,13 @@ object Sections {
     // なぜ戻り値を捨てるか: 上の ⚠ の通り isEnabled() の真偽は「現在トレース捕捉中か」でしかなく、
     // 可用性判定には「例外を投げずに到達したか」だけを使う（catch に落ちなければ実機とみなす）。
     // @PublishedApi: 下の inline 関数から参照するため internal 可視性を維持したまま公開する。
+    // @Suppress("NewApi"): isEnabled() は API 29 だが minSdk は 26。API26〜28 実機では該当メソッドが
+    // 存在せず NoSuchMethodError を投げるところを、この try/catch(Throwable) が実行時ガードとして受けて
+    // available=false（＝完全 no-op）へ倒す＝クラッシュしない。lint の NewApi は静的検査で try/catch による
+    // 実行時分岐を見抜けず誤検知するため抑止する（戻り値ではなく「例外なく呼べたか」で可用性を採る設計は
+    // 上のクラス KDoc ⚠ 節が正）。
     @PublishedApi
+    @Suppress("NewApi")
     internal val available: Boolean = try {
         android.os.Trace.isEnabled()
         true

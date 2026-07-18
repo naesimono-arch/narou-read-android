@@ -1,0 +1,157 @@
+<!-- @dsCard group="UI-n / 読書設定（スキン候補・はっちゃけ）" name="P. カートリッジ（はっちゃけ版）— 表示設定シート" -->
+<!-- 実験変種（はっちゃけ）: 現行P設定のシステムメニュー感を全面に。機能・データ（テーマ3択・文字サイズ・行間）は全数同一。
+     はっちゃけを足した所:
+       ①ヘッダ＝BIOS/システム起動パネル（暗い緑LEDドット＋走査線＋▶カーソル＋READY） ②各項目ラベルにBIOSメニューの▶カーソル
+       ③選択中テーマに ▶ の選択カーソル記章 ④最下部にセーブメニュー風のシステム状態行（フロッピー記号＋自動保存の明示＝正直な説明）
+     設定は即時反映のため保存ボタンは足さない（誤誘導回避）。項目間の沈黙の面と1点強調（選択スウォッチ）は現行のまま維持。
+     退色トーン厳守: 有彩は既存3系統（LCD緑・退色赤・退色青）のみ。新hueゼロ。数値はピクセル・つまみはプラスチック。 -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n P 表示設定 — カートリッジ（はっちゃけ）</title>
+<style>
+  :root{
+    --plastic:#dbd6c8; --plastic-hi:#e9e5da; --plastic-lo:#c3bfae; --sheet:#e4e0d3;
+    --ink:#2c2b26; --ink-soft:#79766b; --line:#c4c0b1;
+    --lcd:#a4af80; --lcd-ink:#2b3616;
+    --board:#2c3618; --phos:#b3bd82; --phos-dim:#97a56b;   /* 暗い緑LCD＋燐光（LCD緑の階調・新hueなし） */
+    --red:#b5564e;
+    --blue:#5c7d96; --blue-ink:#3f5a70;
+    --pixel:ui-monospace,"SFMono-Regular",Menlo,Consolas,"Courier New",monospace;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#2a2c27;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:30px;font-family:var(--gothic)}
+  .cap{color:#c8c3b4;font-size:13px;margin-bottom:16px;text-align:center;line-height:1.7;max-width:640px}
+  .cap b{color:#f0ede2}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .wrap .mode{font-family:var(--pixel);font-size:11px;letter-spacing:.14em;color:#b7b2a3}
+
+  .phone{width:390px;height:844px;border-radius:34px;position:relative;overflow:hidden;
+    background:linear-gradient(150deg,var(--plastic-hi),var(--plastic) 22%,var(--plastic-lo));
+    box-shadow:0 24px 60px rgba(0,0,0,.55), inset 0 2px 0 rgba(255,255,255,.5);
+    display:flex;flex-direction:column;color:var(--ink)}
+  .screw{position:absolute;width:9px;height:9px;border-radius:50%;z-index:9;
+    background:radial-gradient(circle at 35% 30%,#e7e3d7,#a8a496 70%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+  .screw::after{content:"";position:absolute;inset:2.5px;border-top:1.4px solid rgba(0,0,0,.28);transform:rotate(40deg)}
+  .screw.tl{top:13px;left:13px}.screw.tr{top:13px;right:13px}
+
+  /* 背後の読書画面（暗転） */
+  .behind{position:absolute;inset:0;padding:60px 26px;font-family:var(--mincho);font-size:16px;line-height:2.35;
+    color:#cbc8b9;text-indent:1em;overflow:hidden}
+  .scrim{position:absolute;inset:0;background:rgba(28,30,22,.34)}
+
+  /* ボトムシート（機体のシステムメニュー） */
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(var(--sheet),#dcd8ca);
+    border-radius:20px 20px 34px 34px;padding:14px 26px 40px;box-shadow:0 -12px 30px rgba(0,0,0,.28), inset 0 2px 0 rgba(255,255,255,.5)}
+  .grab{width:38px;height:5px;border-radius:3px;background:var(--plastic-lo);margin:0 auto 22px;box-shadow:inset 0 1px 1px rgba(0,0,0,.2)}
+
+  /* はっちゃけ①: BIOS/システム起動パネル（暗い緑LED＋走査線＋カーソル＋READY） */
+  .bios{position:relative;overflow:hidden;display:flex;align-items:center;gap:8px;border-radius:8px;padding:10px 13px;margin-bottom:22px;
+    background:linear-gradient(var(--board),#232c13);box-shadow:inset 0 2px 6px rgba(0,0,0,.5)}
+  .bios::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:radial-gradient(rgba(0,0,0,.30) .6px,transparent .7px),repeating-linear-gradient(0deg,rgba(0,0,0,.12) 0 1px,transparent 1px 3px);background-size:3px 3px,100% 3px}
+  .bios>span{position:relative;z-index:2}
+  .bios .bcur{color:var(--phos);font-family:var(--pixel);font-size:11px}
+  .bios .bt{font-family:var(--pixel);font-size:10px;font-weight:700;letter-spacing:.2em;color:var(--phos);text-shadow:0 0 6px rgba(179,189,130,.4)}
+  .bios .bver{font-family:var(--pixel);font-size:9px;letter-spacing:.1em;color:var(--phos-dim)}
+  .bios .bok{margin-left:auto;font-family:var(--pixel);font-size:8.5px;font-weight:700;letter-spacing:.12em;color:var(--board);background:var(--phos);border-radius:3px;padding:2px 7px}
+
+  .sheet .htop{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+  .sheet h2{font-family:var(--gothic);font-size:19px;font-weight:700;color:var(--ink);letter-spacing:0}
+  .scope{font-family:var(--gothic);font-size:11.5px;color:var(--ink-soft);line-height:1.6;margin-bottom:34px}
+
+  .sec{margin-bottom:34px}
+  /* はっちゃけ②: 各ラベルにBIOSメニューの▶カーソル */
+  .lbl{font-family:var(--pixel);font-size:10px;font-weight:700;letter-spacing:.18em;color:var(--ink-soft);margin-bottom:16px}
+  .lbl::before{content:"▶ ";color:var(--lcd-ink)}
+  .row-lbl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:18px}
+  .row-lbl .lbl{margin:0}
+  .val{font-family:var(--pixel);font-size:12px;font-weight:700;color:var(--lcd-ink);letter-spacing:.02em;
+    background:var(--lcd);border-radius:4px;padding:3px 9px;box-shadow:inset 0 0 0 1px rgba(43,54,22,.25)}  /* システムLCD読み取り風 */
+
+  /* テーマ＝液晶スウォッチ3択（選択＝緑LCDリングの1点強調＋▶選択カーソル） */
+  .themes{display:flex;gap:14px}
+  .th{position:relative;flex:1;background:linear-gradient(var(--plastic-hi),var(--plastic));border:1px solid var(--line);border-radius:12px;
+    padding:12px 10px 11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:10px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+  .th .sw{width:100%;height:40px;border-radius:6px;box-shadow:inset 0 2px 5px rgba(0,0,0,.28), inset 0 0 0 1px rgba(0,0,0,.12)}
+  .th .nm{font-family:var(--gothic);font-size:12.5px;color:var(--ink)}
+  .th.on{border-color:var(--lcd-ink);box-shadow:0 0 0 2px var(--lcd), inset 0 1px 0 rgba(255,255,255,.4)}
+  .th.on .nm{font-weight:700}
+  /* はっちゃけ③: 選択カーソル記章 */
+  .th.on::after{content:"▶";position:absolute;left:-1px;top:-1px;font-family:var(--pixel);font-size:8px;font-weight:700;color:var(--lcd-ink);
+    background:var(--lcd);border-radius:6px 0 6px 0;padding:2px 6px 3px;box-shadow:inset 0 0 0 1px rgba(43,54,22,.3)}
+  .sw.light{background:#e8e7d8}
+  .sw.sepia{background:#e4d2a4}
+  .sw.dark{background:#2a2d24}
+
+  /* スライダー（プラスチックつまみ・青の値トラック） */
+  .slider{display:flex;align-items:center;gap:16px}
+  .end{color:var(--ink-soft);flex-shrink:0;font-family:var(--mincho)}
+  .end.g{font-family:var(--gothic);font-size:12px}
+  .track{flex:1;height:5px;background:var(--plastic-lo);position:relative;border-radius:3px;box-shadow:inset 0 1px 2px rgba(0,0,0,.2)}
+  .track .fill{position:absolute;left:0;top:0;height:5px;background:var(--blue);border-radius:3px}
+  .track .knob{position:absolute;top:50%;width:22px;height:22px;border-radius:6px;
+    background:radial-gradient(circle at 35% 30%,var(--plastic-hi),var(--plastic-lo));transform:translate(-50%,-50%);
+    box-shadow:0 2px 5px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.5)}
+
+  /* はっちゃけ④: セーブメニュー風のシステム状態行（フロッピー＝保存の記号＋自動保存の明示） */
+  .sysfoot{display:flex;align-items:center;gap:8px;margin-top:34px;padding-top:14px;border-top:1px solid var(--line);
+    font-family:var(--gothic);font-size:11px;color:var(--ink-soft)}
+  .sysfoot .fd{position:relative;width:12px;height:12px;flex-shrink:0;background:var(--lcd-ink);border-radius:1px}
+  .sysfoot .fd::before{content:"";position:absolute;right:1px;top:1px;width:5px;height:3.5px;background:var(--lcd)}
+  .sysfoot .fd::after{content:"";position:absolute;left:2px;bottom:1px;right:2px;height:4px;background:var(--lcd)}
+</style>
+</head>
+<body>
+  <p class="cap"><b>P. カートリッジ（はっちゃけ版）— 表示設定</b> ／ 読書画面から立ち上がるシステムメニュー。ヘッダをBIOS起動パネル化し、各項目にメニューカーソル、選択テーマに▶カーソル、最下部にセーブメニュー風の自動保存行を追加。テーマ3択＝液晶スウォッチ／文字サイズ／行間の機能と、項目間の余白・1点強調は現行のまま。</p>
+
+  <div class="wrap"><span class="mode">SYSTEM / 表示設定シート</span>
+  <div class="phone" role="img" aria-label="P案はっちゃけ 表示設定シート">
+    <span class="screw tl"></span><span class="screw tr"></span>
+    <div class="behind">辺境の城門に辿り着いたのは、長い雨がようやく上がった頃だった。濡れた石畳が夕陽を照り返し、橙の光が水たまりに滲んでいる。彼女はそう呟くと、腰の剣をそっと地に置いた。もう戦う理由はない、とでも言うように。</div>
+    <div class="scrim"></div>
+    <div class="sheet">
+      <div class="grab"></div>
+      <div class="bios">
+        <span class="bcur">▶</span><span class="bt">SYSTEM</span><span class="bver">POCKET NOVEL</span><span class="bok">READY</span>
+      </div>
+      <div class="htop"><h2>表示設定</h2></div>
+      <p class="scope">配色や文字の設定は、すべての本に適用されます</p>
+
+      <div class="sec">
+        <div class="lbl">テーマ</div>
+        <div class="themes">
+          <button class="th on"><span class="sw light"></span><span class="nm">ライト</span></button>
+          <button class="th"><span class="sw sepia"></span><span class="nm">セピア</span></button>
+          <button class="th"><span class="sw dark"></span><span class="nm">ダーク</span></button>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="row-lbl"><span class="lbl">文字サイズ</span><span class="val">18 sp</span></div>
+        <div class="slider">
+          <span class="end" style="font-size:14px">あ</span>
+          <span class="track"><span class="fill" style="width:40%"></span><span class="knob" style="left:40%"></span></span>
+          <span class="end" style="font-size:24px">あ</span>
+        </div>
+      </div>
+
+      <div class="sec" style="margin-bottom:0">
+        <div class="row-lbl"><span class="lbl">行間</span><span class="val">2.5</span></div>
+        <div class="slider">
+          <span class="end g">狭</span>
+          <span class="track"><span class="fill" style="width:40%"></span><span class="knob" style="left:40%"></span></span>
+          <span class="end g">広</span>
+        </div>
+      </div>
+
+      <div class="sysfoot"><span class="fd"></span>変更は自動で保存されます</div>
+    </div>
+  </div></div>
+</body>
+</html>

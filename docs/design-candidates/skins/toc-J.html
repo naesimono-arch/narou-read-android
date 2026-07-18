@@ -1,0 +1,110 @@
+<!-- @dsCard group="UI-n / 目次（スキンJ）" name="J. ポータル・デッキ — 目次（世界の廊下を進む道程：歩いた道は金の光・現在章＝灯る扉／空状態）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n J 目次 — ポータル・デッキ</title>
+<style>
+  /* J案 目次: 本棚Jの「扉」をくぐった先＝この物語世界の"廊下を進む道程"として画面構造ごと表現する。
+     左に一本の道(rail)を通し、章＝道沿いの節目(node)にする。
+     歩いた章（既読）は道が金に灯り節目が埋まる／現在章＝いま立つ扉＝金の灯りと大気で最も明るい／
+     まだ先の章＝道が細く沈み節目は空（大気が章の進みで深まる＝進行を光量で語る）。
+     機能はD目次と1対1（章一覧・現在章ハイライト・現在章の手前を先頭に自動スクロール・空状態）。
+     現在章＝金の左ルール＋淡い金面＋明朝太字＋金文字（D藍のハイライトをJ金へ翻訳・実機の左アクセントバー＋淡背景＋太字に対応）。
+     署名色: 金(道＝進行と現在地)1系統のみ。 */
+  :root{
+    --page:#0F1712; --ink:#E7ECE1; --soft:rgba(233,240,228,.52); --dim:rgba(233,240,228,.34);
+    --line:rgba(233,240,228,.09); --gold:#E2C878; --goldd:rgba(226,200,120,.5);
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#070806;display:flex;flex-direction:column;align-items:center;min-height:100vh;
+    padding:26px;font-family:var(--gothic)}
+  .cap{color:#9DAE97;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.6;max-width:780px}
+  .cap b{color:#E9F0E4}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#8FA089}
+  .phone{width:390px;height:844px;background:var(--page);border-radius:42px;overflow:hidden;position:relative;
+    box-shadow:0 26px 64px rgba(0,0,0,.7);display:flex;flex-direction:column}
+  /* いま居る世界の大気＋象徴文字（本棚Jの ambient を希薄化） */
+  .phone::before{content:"";position:absolute;left:0;right:0;top:0;height:220px;z-index:0;pointer-events:none;
+    background:radial-gradient(90% 70% at 50% -6%,rgba(214,196,120,.10),transparent 58%),
+              radial-gradient(120% 80% at 50% -16%,rgba(39,64,48,.5),transparent 60%)}
+  .glyph{position:absolute;top:24px;left:50%;transform:translateX(-50%);z-index:0;pointer-events:none;
+    font-family:var(--mincho);font-size:150px;line-height:1;color:rgba(233,240,228,.05)}
+
+  .sb{position:relative;z-index:2;height:34px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:11px;color:var(--soft)}
+  .topbar{position:relative;z-index:2;height:56px;display:flex;align-items:center;gap:8px;padding:0 12px}
+  .topbar .ib{width:40px;height:40px;border:none;background:transparent;border-radius:11px;display:grid;
+    place-items:center;color:var(--ink);cursor:pointer}
+  .topbar .ib svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar h1{font-family:var(--mincho);font-size:19px;color:var(--ink);font-weight:500;letter-spacing:.14em}
+  .scroll{position:relative;z-index:2;flex:1;overflow:auto}
+
+  /* 章行＝道沿いの節目。左48pxが「道」の列（縦線＋node）、右が明朝の章題 */
+  .li{position:relative;display:flex;align-items:stretch;cursor:pointer}
+  .rail{width:48px;flex-shrink:0;position:relative}
+  .rail::before{content:"";position:absolute;left:23px;top:0;bottom:0;width:2px;background:var(--line)} /* 未踏の道＝細く沈む */
+  .li.passed .rail::before,.li.cur .rail::before{background:var(--goldd)}                               /* 歩いた道＝金に灯る */
+  .node{position:absolute;left:18px;top:50%;transform:translateY(-50%);width:12px;height:12px;border-radius:50%;
+    border:2px solid var(--line);background:var(--page);z-index:1}
+  .li.passed .node{background:var(--goldd);border-color:var(--goldd)}                                    /* 通過済み＝埋まる */
+  .li.cur .node{background:var(--gold);border-color:var(--gold);box-shadow:0 0 0 5px rgba(226,200,120,.16)}/* 現在＝灯る */
+  .tx{flex:1;min-width:0;font-family:var(--mincho);font-size:15px;color:var(--ink);
+    padding:18px 24px 18px 2px;line-height:1.55;font-weight:400;border-bottom:1px solid var(--line)}
+  .li.passed .tx{color:var(--dim)}                                                                       /* 読み終えた章＝静かに沈める */
+  /* 現在章＝いま立つ扉。淡い金面＋明朝太字＋金文字＋大気の灯り */
+  .li.cur{background:
+    radial-gradient(120% 140% at 8% 50%,rgba(226,200,120,.12),transparent 60%),rgba(226,200,120,.06)}
+  .li.cur .tx{color:var(--gold);font-weight:700}
+  .empty{position:relative;z-index:2;flex:1;display:grid;place-items:center;color:var(--soft);
+    font-family:var(--mincho);font-size:15px}
+  .pad{height:24px}
+</style>
+</head>
+<body>
+  <p class="cap"><b>J. ポータル・デッキ — 目次</b> ／ 扉をくぐった先＝この物語の「廊下を進む道程」。左に一本の道を通し章を道沿いの節目に。歩いた章は道が金に灯り、現在章＝いま立つ扉が最も明るく（大気が進みで深まる＝光量で進行を語る）。現在章は金の左ルール＋淡い金面＋明朝太字＋金文字。右は空状態。</p>
+  <div class="stage">
+
+    <!-- 通常（現在章ハイライト＋自動スクロールで現在章の1つ手前を先頭に）-->
+    <div class="wrap"><span class="mode">通常（現在章ハイライト）</span>
+    <div class="phone" role="img" aria-label="J案 目次">
+      <div class="glyph">薬</div>
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <h1>目次</h1>
+      </div>
+      <div class="scroll">
+        <div class="li passed"><span class="rail"><span class="node"></span></span><span class="tx">第百二十四話　遠雷、辺境の街道を行く</span></div>
+        <div class="li passed"><span class="rail"><span class="node"></span></span><span class="tx">第百二十五話　古い井戸と、忘れられた約束</span></div>
+        <div class="li passed"><span class="rail"><span class="node"></span></span><span class="tx">第百二十六話　夜営の火、語られぬ過去のこと</span></div>
+        <div class="li cur"><span class="rail"><span class="node"></span></span><span class="tx">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</span></div>
+        <div class="li"><span class="rail"><span class="node"></span></span><span class="tx">第百二十八話　市場のざわめきと、薬草の値段</span></div>
+        <div class="li"><span class="rail"><span class="node"></span></span><span class="tx">第百二十九話　領主の館へ、招かれざる客として</span></div>
+        <div class="li"><span class="rail"><span class="node"></span></span><span class="tx">第百三十話　長い夜の終わりに交わした言葉</span></div>
+        <div class="li"><span class="rail"><span class="node"></span></span><span class="tx">第百三十一話　旅立ちの朝、薬箱を背負って</span></div>
+        <div class="li"><span class="rail"><span class="node"></span></span><span class="tx">第百三十二話　峠の茶屋、見知らぬ剣士との出会い</span></div>
+        <div class="pad"></div>
+      </div>
+    </div></div>
+
+    <!-- 空状態 -->
+    <div class="wrap"><span class="mode">空状態</span>
+    <div class="phone" role="img" aria-label="J案 目次 空状態">
+      <div class="glyph">薬</div>
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <h1>目次</h1>
+      </div>
+      <div class="scroll"><div class="empty">章が見つかりません</div></div>
+    </div></div>
+
+  </div>
+</body>
+</html>
