@@ -116,6 +116,9 @@ class MigrationTest {
 
         // 18→19: books に shioriTipIndex / shioriLenFrac 列を追加（栞書影の個体差の永続化）。19.json も6テーブル全部を含むので true で厳格検証。
         helper.runMigrationsAndValidate(TEST_DB_CHAIN, 19, true, AppDatabase.MIGRATION_18_19).close()
+
+        // 19→20: books に sourceUri 列を追加（取込元PDFの永続化＝本削除時に取込元も消す土台）。20.json も6テーブル全部を含むので true で厳格検証。
+        helper.runMigrationsAndValidate(TEST_DB_CHAIN, 20, true, AppDatabase.MIGRATION_19_20).close()
     }
 
     /**
@@ -126,7 +129,7 @@ class MigrationTest {
      * SELECT で実証して固定する（15→16 の DROP は labels/book_labels のみが対象で books/progress は無関係）。
      */
     @Test
-    fun migrate7to19_preservesExistingRows() {
+    fun migrate7to20_preservesExistingRows() {
         helper.createDatabase(TEST_DB_DATA, 7).apply {
             // v7 に実在する列だけを使う（ncode は v9・contentSha256 は v11 で追加されるためここでは書けない
             // ＝版ごとの列構成に厳密整合）。
@@ -141,17 +144,18 @@ class MigrationTest {
             close()
         }
 
-        // 全チェーンを一括適用。最終 v19 のみ検証すればよく、19.json は6テーブル全部
+        // 全チェーンを一括適用。最終 v20 のみ検証すればよく、20.json は6テーブル全部
         // （web_reading_progress 含む・labels 系なし）を含むので validateDroppedTables=true で厳格検証。
         val db = helper.runMigrationsAndValidate(
-            TEST_DB_DATA, 19, true,
+            TEST_DB_DATA, 20, true,
             AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10,
             AppDatabase.MIGRATION_10_11, AppDatabase.MIGRATION_11_12, AppDatabase.MIGRATION_12_13,
             AppDatabase.MIGRATION_13_14, AppDatabase.MIGRATION_14_15, AppDatabase.MIGRATION_15_16,
             AppDatabase.MIGRATION_16_17, AppDatabase.MIGRATION_17_18, AppDatabase.MIGRATION_18_19,
+            AppDatabase.MIGRATION_19_20,
         )
 
-        db.query("SELECT title, author, addedAt, ncode, contentSha256, shioriTipIndex, shioriLenFrac FROM books WHERE id = 'book-1'").use { c ->
+        db.query("SELECT title, author, addedAt, ncode, contentSha256, shioriTipIndex, shioriLenFrac, sourceUri FROM books WHERE id = 'book-1'").use { c ->
             assertTrue("books 行が migration で消えた", c.moveToFirst())
             assertEquals("title が変質", "テスト小説", c.getString(c.getColumnIndexOrThrow("title")))
             assertEquals("author が変質", "テスト著者", c.getString(c.getColumnIndexOrThrow("author")))
@@ -165,6 +169,9 @@ class MigrationTest {
             // （DEFAULT 句なし・未抽選が既定＝描画側で title 由来の決定論値へフォールバックすることの土台）。
             assertTrue("既存行の shioriTipIndex は NULL のはず", c.isNull(c.getColumnIndexOrThrow("shioriTipIndex")))
             assertTrue("既存行の shioriLenFrac は NULL のはず", c.isNull(c.getColumnIndexOrThrow("shioriLenFrac")))
+            // sourceUri は v20 追加の nullable 列＝v7 既存行は NULL で補完される（DEFAULT 句なし・削除可能な
+            // 取込元を持たない本＝本削除時の取込元削除の対象外であることの土台）。
+            assertTrue("既存行の sourceUri は NULL のはず", c.isNull(c.getColumnIndexOrThrow("sourceUri")))
         }
 
         db.query(

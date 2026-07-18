@@ -50,7 +50,7 @@ class BookshelfContentTest {
         chapterCountMap: Map<String, Int> = emptyMap(),
         onFabClick: () -> Unit = {},
         onOpenDiscovery: () -> Unit = {},
-        onDeleteBooks: (List<BookEntity>) -> Unit = {},
+        onDeleteBooks: (List<BookEntity>, Boolean) -> Unit = { _, _ -> },
         deferHeavyContent: Boolean = false,
         // テーマ節（⋮メニュー）の検証用。読書設定シートと同じ単一真実源をそのまま差し込む。
         appTheme: ReadingTheme = ReadingTheme.LIGHT,
@@ -249,7 +249,7 @@ class BookshelfContentTest {
         var deleted: List<BookEntity>? = null
         setContent(
             BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"), book("b2", "坊っちゃん"))),
-            onDeleteBooks = { deleted = it },
+            onDeleteBooks = { books, _ -> deleted = books },
         )
         // 長押しで選択モードへ（その本を選択）＝下端バーに件数と削除が出る。
         composeTestRule.onNodeWithContentDescription("吾輩は猫である").performTouchInput { longClick() }

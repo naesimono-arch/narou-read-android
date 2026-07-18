@@ -27,9 +27,9 @@ interface BookDao {
     suspend fun getAllBookIds(): List<String>
 
     /** 同一PDF二重取込のべき等ガード（UX監査 F-G 公理3）用の既存蔵書照合。
-     *  なぜ title＋author か: books は取込元の content URI もファイルサイズも持たない
-     *  （スキーマに無い）ため、抽出後に必ず得られる安定属性の組で「同じ本が既にあるか」を
-     *  判定する。完全一致 1 件で足りるため LIMIT 1。 */
+     *  なぜ title＋author か: 取込元 URI（sourceUri 列）を持つ本もあるが、同一 PDF を別パスから選び直すと
+     *  URI は変わる＝取込元 URI では「同じ本」を同定できない。抽出後に必ず得られる安定属性の組で判定する。
+     *  完全一致 1 件で足りるため LIMIT 1。 */
     @Query("SELECT * FROM books WHERE title = :title AND author = :author LIMIT 1")
     suspend fun findByTitleAndAuthor(title: String, author: String): BookEntity?
 
@@ -42,6 +42,13 @@ interface BookDao {
      *  完全一致 1 件で足りるため LIMIT 1。 */
     @Query("SELECT * FROM books WHERE contentSha256 = :hash LIMIT 1")
     suspend fun findByContentSha256(hash: String): BookEntity?
+
+    /** 取込元 URI を保持する（＝削除可能な取込元PDFを持つ）全蔵書の sourceUri 一覧。
+     *  起動時の孤児権限掃除（DefaultBookRepository.releaseOrphanedPermissions）で、これらの永続 URI 権限を
+     *  誤って解放しないための keepUris へ合流させる（NovelReaderApplication 呼び出し側で union）。
+     *  一回きりのスナップショットで足りるため suspend（getAllBookIds と同方針）。 */
+    @Query("SELECT sourceUri FROM books WHERE sourceUri IS NOT NULL")
+    suspend fun getPersistedSourceUris(): List<String>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBook(book: BookEntity)

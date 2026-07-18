@@ -3,6 +3,7 @@ package com.novelreader.repository
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Log
 import androidx.room.withTransaction
 import com.novelreader.data.AppDatabase
@@ -293,7 +294,19 @@ class DefaultBookRepository(
                         // なぜ取込時に1回か: 描画のたびに引くと本を開くたびに絵が変わってしまう。ここで確定させ DB に焼く。
                         // 発生源は真の乱数 Random.Default。総数/レンジの正本は ShioriGenerator（Compose 非依存）側。
                         val shiori = drawPersistedShiori(Random.Default)
-                        val b = BookEntity(bookId, meta.title, outputDir.absolutePath, meta.author, addedAt = System.currentTimeMillis(), contentSha256 = contentSha256, ncode = ncode?.value, shioriTipIndex = shiori.tipIndex, shioriLenFrac = shiori.lenFrac)
+                        // 取込元 PDF の SAF URI を「書き込み永続権限を実際に保持している本」に限って記録する
+                        // （本削除時に取込元PDFも削除できる本の signal＝BookEntity.sourceUri の why）。
+                        // なぜ書込権限保持が条件か: DocumentsContract.deleteDocument には書込権限が要り、読取だけの
+                        // 本は削除が必ず失敗する＝記録しても削除チェックを出せない。権限取得は取込操作側
+                        // （BookshelfViewModel.addBook が READ|WRITE を試み、非対応プロバイダは READ へフォールバック）
+                        // で行われ、ここでは persistedUriPermissions を照会してその実結果を確定させる。これにより
+                        // なろう縦書きPDF（FileProvider の content:// で永続権限を取れない経路）は自動的に NULL になる。
+                        val sourceUri = pdfUri.toString().takeIf { uriStr ->
+                            context.contentResolver.persistedUriPermissions.any {
+                                it.uri.toString() == uriStr && it.isWritePermission
+                            }
+                        }
+                        val b = BookEntity(bookId, meta.title, outputDir.absolutePath, meta.author, addedAt = System.currentTimeMillis(), contentSha256 = contentSha256, ncode = ncode?.value, shioriTipIndex = shiori.tipIndex, shioriLenFrac = shiori.lenFrac, sourceUri = sourceUri)
                         // trace 区間: DB 登録（books への1行 insert）。
                         // ⚠ 計測上の注意（区間名一致とは別問題）: insertBook は suspend で Room が自前 executor へ
                         // 再ディスパッチするため、begin と end が別スレッドになり得る（=スライスが分裂しうる）。
@@ -404,36 +417,45 @@ class DefaultBookRepository(
 
     /** takePersistableUriPermission（BookshelfViewModel.addBook）の対。永続権限は端末全体で
      *  上限があるため用が済んだら返す。未取得（プロバイダ非対応等）だと SecurityException に
-     *  なるので防御する（返せなくても実害は上限消費のみ）。 */
+     *  なるので防御する（返せなくても実害は上限消費のみ）。
+     *  READ|WRITE を指定するのは、取込元PDF削除を可能にする本が WRITE 権限も保持しているため
+     *  （両方まとめて返す）。保持していない flag の解放は無害な no-op＝READ のみ保持の再開ジョブ URI にも安全。 */
     private fun releasePersistedPermission(pdfUri: Uri) {
         runCatching {
             context.contentResolver.releasePersistableUriPermission(
-                pdfUri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                pdfUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
             )
         }
     }
 
+    override suspend fun getPersistedSourceUris(): Set<String> = withContext(Dispatchers.IO) {
+        bookDao.getPersistedSourceUris().toSet()
+    }
+
     /**
-     * 起動時クリーンアップ: pending_jobs にも紐付かない「孤児」の永続 URI 権限を解放する（恒久リーク回収）。
+     * 起動時クリーンアップ: keepUris に紐付かない「孤児」の永続 URI 権限を解放する（恒久リーク回収）。
      *
      * なぜこれが必要か（root cause）: 取込失敗時は M7 の「再試行」を成立させるため、addBook の失敗経路が
      * settlePendingJob（権限解放込み）ではなく pending_jobs 行の削除のみを行い、永続 URI 権限を意図的に
      * 残す。しかし再試行 Snackbar はプロセス生存中にしか出せないため、再試行されないまま終わった失敗分の
-     * 権限は「pending_jobs 行が無い＝どの経路でも解放されない」恒久リークになり、端末上限(128件)へ向けて
-     * 溜まり続ける。そこで次回アプリ起動時に「pending_jobs 非紐付けの永続権限＝もう再試行され得ない失敗
-     * 取込の置き土産」として回収する。
+     * 権限は「どの経路でも解放されない」恒久リークになり、端末上限(128件)へ向けて溜まり続ける。そこで
+     * 次回アプリ起動時に「keepUris 非紐付けの永続権限＝もう誰も要さない置き土産」として回収する。
      *
-     * なぜ pending_jobs 非紐付けだけで孤児と断定できるか: 永続権限を取るのは PDF 取込の1経路のみ
-     * （BookshelfViewModel.addBook の takePersistableUriPermission）。books は取込元 URI を持たない
-     * （スキーマに無い）ため、変換完了済みの本は元 URI の権限を二度と要さない（成功時に settle 済み）。
-     * よって「まだ処理が要る URI は必ず pending_jobs 行を持つ」不変条件が成り立ち、行が無ければ孤児。
+     * ⚠ keepUris の構成（呼び出し側 NovelReaderApplication が union して渡す）:
+     *   ① 現在の pending_jobs が保持する URI（＝処理中・再開対象の取込。取込1経路の永続権限）
+     *   ② books.sourceUri（＝取込元PDFを後で削除できるよう「本の生存中ずっと」保持する取込元 URI）
+     * かつては「永続権限を取るのは取込1経路のみ・books は取込元 URI を持たない」ため ① だけで孤児判定が
+     * 成り立っていた。取込元PDF削除機能で books が sourceUri を持つようになり、この本たちの権限は変換完了後も
+     * 保持し続ける必要がある（本削除時に deleteDocument で使う）。よって ② を keepUris へ足さないと、
+     * 起動のたびに現役蔵書の取込元権限を誤解放し、その後の取込元PDF削除が権限失効で失敗する。
      *
      * 【誤解放しない根拠】変換中の URI を誤って解放しないこと: 本メソッドは runStartupRecoveryOnce の
      * processingState==null ガード下（Service 非稼働）でのみ呼ばれ、かつ起動直後で新規取込より前に走る。
      * 稼働中に処理される URI は enqueue 時に必ず pending_jobs 行を持つため keepUris に含まれ、解放対象外。
      * 再開対象（resumable）の URI も pending_jobs 行を持つので keepUris で保護される。
      *
-     * @param keepUris 現在の pending_jobs が保持する URI 集合（この集合に含まれる権限は残す）。
+     * @param keepUris 保持すべき URI 集合（現在の pending_jobs URI ∪ books.sourceUri。呼び出し側で union）。
      */
     override suspend fun releaseOrphanedPermissions(keepUris: Set<String>) = withContext(Dispatchers.IO) {
         val persistedReadUris = context.contentResolver.persistedUriPermissions
@@ -445,7 +467,7 @@ class DefaultBookRepository(
         }
     }
 
-    override suspend fun deleteBook(book: BookEntity) = withContext(Dispatchers.IO) {
+    override suspend fun deleteBook(book: BookEntity, deleteSource: Boolean): SourceDeleteOutcome = withContext(Dispatchers.IO) {
         // なぜトランザクションか（孤児progress行の恒久残留を防ぐ）: books 行を消してから progress 行を消すまでの間に
         // プロセスが kill されると、本体が消えたのに progress だけ残る「孤児」になる。progress は本削除時にしか
         // 掃除されない（books 経由でしか辿らない）ため掃除経路が無く恒久残留する。両削除を1トランザクションに束ね、
@@ -464,6 +486,26 @@ class DefaultBookRepository(
         if (!File(book.htmlDirPath).deleteRecursively()) {
             Log.w(TAG, "HTMLディレクトリの削除に失敗: ${book.htmlDirPath}")
         }
+        // 取込元 PDF 本体の削除（オプトイン）と、取込元 URI 永続権限の解放。
+        // 本が消えた時点でこの URI の永続権限は保持不要（起動時掃除の keepUris 対象から外れ孤児化する）ため、
+        // 取込元削除の有無に関わらず必ず解放する（残すと端末上限128件を圧迫。次回起動の掃除でも拾えるが即時が明快）。
+        val src = book.sourceUri ?: return@withContext SourceDeleteOutcome.NoSource
+        val srcUri = Uri.parse(src)
+        val outcome = if (!deleteSource) {
+            SourceDeleteOutcome.NotRequested
+        } else {
+            // なぜ deleteDocument か: SAF ドキュメント URI（ACTION_OPEN_DOCUMENT 由来）の実体削除の標準 API。
+            // 失敗要因（既に移動/削除済み=FileNotFoundException・権限失効=SecurityException・削除非対応
+            // プロバイダ=UnsupportedOperationException・戻り値 false）を全て runCatching で吸収し、本削除は
+            // 既に成立させたまま結末だけ返す（handover 提起③の失敗ハンドリング）。
+            val ok = runCatching {
+                DocumentsContract.deleteDocument(context.contentResolver, srcUri)
+            }.getOrDefault(false)
+            if (ok) SourceDeleteOutcome.Deleted else SourceDeleteOutcome.Failed
+        }
+        // 権限解放は削除を試みた後（deleteDocument に書込権限が要るため）。
+        releasePersistedPermission(srcUri)
+        outcome
     }
 
     /** ある ncode（正規化済み）が books.ncode / web_novels のどちらからも参照されなくなっていれば、

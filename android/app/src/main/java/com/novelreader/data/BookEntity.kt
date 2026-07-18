@@ -36,6 +36,19 @@ data class BookEntity(
     // 栞書影の「棒の長さ（高さ比）」を取込時に真の乱数で1回だけ抽選し永続化した値（SHIORI_LEN_FRAC_MIN..MAX）。
     // null = 未抽選＝描画側で title 由来の決定論値へフォールバック（shioriTipIndex と同方針）。
     val shioriLenFrac: Float? = null,
+    // 取込元 PDF の SAF ドキュメント URI（`content://…`）。本削除時に「取込元PDF本体も削除する」を
+    // 成立させるために永続化する。null = 削除可能な取込元を持たない本＝以下のいずれか:
+    //   ・v20 より前に取り込んだ既存蔵書（Migration で NULL 補完）
+    //   ・なろう縦書きPDF取り込み（ADR 0011）のように取込元がアプリ内 FileProvider の一時ファイルで、
+    //     永続 URI 権限を取れない経路（消す対象のユーザーファイルが無い）
+    //   ・プロバイダが書き込み永続権限に非対応で、後から削除するための権限を保持できなかった本
+    // なぜ「書き込み永続権限を保持できた本」に限って値を入れるか（DefaultBookRepository.addBook 参照）:
+    // sourceUri!=null を「取込元PDFを削除できる本」の精密な signal にするため。DocumentsContract.deleteDocument
+    // には書き込み権限が要り、読み取りだけしか保持できない本では削除が必ず失敗する＝削除チェックを出す意味が無い。
+    // ⚠ この列に値が入る本は、取込元 URI の永続権限を「本の生存中ずっと」保持し続ける（端末上限128件の予算を消費）。
+    //    起動時の孤児権限掃除（DefaultBookRepository.releaseOrphanedPermissions）は books.sourceUri を keepUris へ
+    //    合流させて誤解放を防ぐ（NovelReaderApplication の呼び出し側で union）。本削除時に当該権限を解放する。
+    val sourceUri: String? = null,
 ) {
     /**
      * 保存済み htmlDirPath が実在すればそれを、無ければ bookId から再導出したディレクトリを返す（復元耐性の下地）。

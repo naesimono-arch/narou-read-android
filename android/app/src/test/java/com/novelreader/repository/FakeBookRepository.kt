@@ -104,6 +104,9 @@ class FakeBookRepository : BookRepository {
 
     override suspend fun releaseOrphanedPermissions(keepUris: Set<String>) { /* 永続権限を持たない（no-op） */ }
 
+    override suspend fun getPersistedSourceUris(): Set<String> =
+        booksState.value.mapNotNull { it.sourceUri }.toSet()
+
     override suspend fun pruneOrphanWebReadingProgress(): Int {
         val keep = booksState.value.mapNotNull { it.ncode?.trim()?.uppercase() }.toSet() +
             webNovelsState.value.map { it.ncode.trim().uppercase() }.toSet()
@@ -112,9 +115,15 @@ class FakeBookRepository : BookRepository {
         return orphans.size
     }
 
-    override suspend fun deleteBook(book: BookEntity) {
+    override suspend fun deleteBook(book: BookEntity, deleteSource: Boolean): SourceDeleteOutcome {
         booksState.value = booksState.value.filterNot { it.id == book.id }
         progressState.value = progressState.value.filterNot { it.bookId == book.id }
+        // Fake は実ファイル/権限を持たない＝取込元削除は実行不能。結末だけ模す（sourceUri の有無と要求で分岐）。
+        return when {
+            book.sourceUri == null -> SourceDeleteOutcome.NoSource
+            !deleteSource -> SourceDeleteOutcome.NotRequested
+            else -> SourceDeleteOutcome.Deleted
+        }
     }
 
     override suspend fun linkNcode(bookId: BookId, ncode: Ncode?) {

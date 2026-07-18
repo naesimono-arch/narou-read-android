@@ -62,7 +62,7 @@ class BookshelfListCartridgePTest {
         rackViewP: Boolean = false, // 既定＝一覧面（本テストの主対象）
         onToggleRackP: () -> Unit = {},
         onOpenBook: (BookEntity) -> Unit = {},
-        onDeleteBooks: (List<BookEntity>) -> Unit = {},
+        onDeleteBooks: (List<BookEntity>, Boolean) -> Unit = { _, _ -> },
         onOpenDiscovery: () -> Unit = {},
         onOpenWardrobe: () -> Unit = {},
         onFabClick: () -> Unit = {},
@@ -163,7 +163,7 @@ class BookshelfListCartridgePTest {
         setContent(
             BookshelfUiState.Content(listOf(book("b1", "選択される物語"))),
             chapterCountMap = mapOf("b1" to 5),
-            onDeleteBooks = { deleted = it },
+            onDeleteBooks = { books, _ -> deleted = books },
         )
         // 行を長押し＝選択モードへ（状態は BookshelfContent 所有→再コンポーズで P 選択バーが描かれる）。
         composeTestRule.onNodeWithText("選択される物語").performTouchInput { longClick() }

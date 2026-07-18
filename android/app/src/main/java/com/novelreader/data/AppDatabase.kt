@@ -22,7 +22,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // v18: progress に reachedEnd 列を追加（読了＝『了』印・読了フィルタの永続化／ssot Major 2026-07-12）。
     // v19: books に shioriTipIndex / shioriLenFrac 列を追加（栞書影の先端種・棒長を取込時に真の乱数で
     //      1回抽選して永続化＝以後この本は固定の絵になる。既存行は NULL＝title 由来の従来値へフォールバック）。
-    version = 19,
+    // v20: books に sourceUri 列を追加（取込元 PDF の SAF ドキュメント URI を永続化＝本削除時に「取込元PDF本体も
+    //      削除する」を成立させる。既存行は NULL＝削除可能な取込元を持たない本として扱う。BookEntity.sourceUri の why 参照）。
+    version = 20,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -302,6 +304,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v19→v20: books に sourceUri 列を追加する（取込元 PDF の SAF ドキュメント URI＝`content://…`）。
+         *  本削除時に「取込元PDF本体も削除する」を成立させるための永続化。nullable（TEXT）。既存行（本列追加=
+         *  v20 より前に取り込んだ蔵書）は NULL で補完され、削除可能な取込元を持たない本として扱う（削除チェックの
+         *  対象外＝BookEntity.sourceUri の why 参照）。未設定が既定状態のため DEFAULT 句なし（ncode/contentSha256
+         *  と同型の nullable 追加）。新規追加のみで既存カラム名に依存しないため PRAGMA 分岐は不要。
+         *  minSdk 26 の SQLite 3.18.x は ADD COLUMN をサポートしている。 */
+        // なぜ internal か: androidTest の MigrationTest が本物の Migration を検証するため（複製だと本体変更にテストが追従しない）。
+        internal val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE books ADD COLUMN sourceUri TEXT")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
@@ -310,7 +325,7 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
                         MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
-                        MIGRATION_17_18, MIGRATION_18_19,
+                        MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20,
                     )
                     .build()
                     .also { INSTANCE = it }

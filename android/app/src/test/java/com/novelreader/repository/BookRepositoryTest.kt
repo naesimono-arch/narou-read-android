@@ -2,6 +2,7 @@ package com.novelreader.repository
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import com.novelreader.data.BookDao
 import com.novelreader.data.BookEntity
 import com.novelreader.data.PendingJobDao
@@ -136,7 +137,7 @@ class BookRepositoryTest {
     @Test
     fun `deleteBook - bookDao と progressDao の両方が呼ばれる`() = runTest {
         val book = BookEntity("id01", "テスト本", "/nonexistent/path")
-        repository.deleteBook(book)
+        repository.deleteBook(book, deleteSource = false)
         coVerify { bookDao.deleteById("id01") }
         coVerify { progressDao.deleteByBookId("id01") }
     }
@@ -444,8 +445,92 @@ class BookRepositoryTest {
         val book = BookEntity("id01", "本A", "/nonexistent/path", "著A", ncode = "N1234AB")
         // deleteBook 後の snapshot（books/web_novels とも空）で未参照と判定される。
         val repo = repoWith(books = emptyList(), webNovels = emptyList(), webProgressDao = dao)
-        repo.deleteBook(book)
+        repo.deleteBook(book, deleteSource = false)
         assertNull(dao.get("N1234AB"))
+    }
+
+    // ── 取込元PDF削除（deleteSource）─────────────────────────────────────
+    // 本削除時に取込元 PDF 本体（SAF ドキュメント）も消すオプション。sourceUri を持つ本だけが対象。
+    // DocumentsContract.deleteDocument / Uri は static のため mockkStatic で決定的に stub する。
+
+    @Test
+    fun `deleteBook - deleteSource=true かつ取込元URIあり＝deleteDocument 実行し Deleted・権限も解放`() = runTest {
+        mockkStatic(Uri::class, DocumentsContract::class)
+        try {
+            val uri = mockk<Uri>(relaxed = true)
+            every { uri.toString() } returns "content://docs/src1"
+            every { Uri.parse("content://docs/src1") } returns uri
+            every { DocumentsContract.deleteDocument(any(), uri) } returns true
+            val book = BookEntity("id01", "本A", "/nonexistent/path", sourceUri = "content://docs/src1")
+
+            val outcome = repository.deleteBook(book, deleteSource = true)
+
+            assertEquals(SourceDeleteOutcome.Deleted, outcome)
+            coVerify { DocumentsContract.deleteDocument(any(), uri) }
+            // 本が消えた＝取込元 URI 権限は保持不要。削除の後に解放される。
+            coVerify { context.contentResolver.releasePersistableUriPermission(uri, any()) }
+        } finally {
+            unmockkStatic(Uri::class, DocumentsContract::class)
+        }
+    }
+
+    @Test
+    fun `deleteBook - deleteSource=true でも deleteDocument が false なら Failed（権限は解放）`() = runTest {
+        mockkStatic(Uri::class, DocumentsContract::class)
+        try {
+            val uri = mockk<Uri>(relaxed = true)
+            every { uri.toString() } returns "content://docs/src2"
+            every { Uri.parse("content://docs/src2") } returns uri
+            // 既に移動/削除済み等でプロバイダが false（or 例外）を返すケース。runCatching で吸収し Failed。
+            every { DocumentsContract.deleteDocument(any(), uri) } returns false
+            val book = BookEntity("id02", "本B", "/nonexistent/path", sourceUri = "content://docs/src2")
+
+            val outcome = repository.deleteBook(book, deleteSource = true)
+
+            assertEquals(SourceDeleteOutcome.Failed, outcome)
+            coVerify { context.contentResolver.releasePersistableUriPermission(uri, any()) }
+        } finally {
+            unmockkStatic(Uri::class, DocumentsContract::class)
+        }
+    }
+
+    @Test
+    fun `deleteBook - deleteSource=false は取込元を消さず権限だけ解放（NotRequested）`() = runTest {
+        mockkStatic(Uri::class, DocumentsContract::class)
+        try {
+            val uri = mockk<Uri>(relaxed = true)
+            every { uri.toString() } returns "content://docs/src3"
+            every { Uri.parse("content://docs/src3") } returns uri
+            val book = BookEntity("id03", "本C", "/nonexistent/path", sourceUri = "content://docs/src3")
+
+            val outcome = repository.deleteBook(book, deleteSource = false)
+
+            assertEquals(SourceDeleteOutcome.NotRequested, outcome)
+            coVerify(exactly = 0) { DocumentsContract.deleteDocument(any(), any()) }
+            // 本削除に伴い権限は解放（本が消えれば取込元権限の保持は不要＝孤児化を防ぐ）。
+            coVerify { context.contentResolver.releasePersistableUriPermission(uri, any()) }
+        } finally {
+            unmockkStatic(Uri::class, DocumentsContract::class)
+        }
+    }
+
+    @Test
+    fun `deleteBook - sourceUri が null なら取込元削除は一切しない（NoSource）`() = runTest {
+        mockkStatic(DocumentsContract::class)
+        try {
+            val book = BookEntity("id04", "本D", "/nonexistent/path") // sourceUri=null（既定）
+            val outcome = repository.deleteBook(book, deleteSource = true)
+            assertEquals(SourceDeleteOutcome.NoSource, outcome)
+            coVerify(exactly = 0) { DocumentsContract.deleteDocument(any(), any()) }
+        } finally {
+            unmockkStatic(DocumentsContract::class)
+        }
+    }
+
+    @Test
+    fun `getPersistedSourceUris - dao の返す一覧を Set で返す（重複は畳む）`() = runTest {
+        coEvery { bookDao.getPersistedSourceUris() } returns listOf("content://a", "content://b", "content://a")
+        assertEquals(setOf("content://a", "content://b"), repository.getPersistedSourceUris())
     }
 
     @Test
