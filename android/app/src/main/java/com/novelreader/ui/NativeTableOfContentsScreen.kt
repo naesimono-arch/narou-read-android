@@ -97,41 +97,44 @@ fun NativeTableOfContentsScreen(
     onNavigateToBookshelf: () -> Unit,
     onRetry: () -> Unit,
 ) {
-    // スキンM「星図」: 目次を画面丸ごと星図構造へ委譲する（ADR 0022 §1 の薄いルーター）。
-    // 既存 D/C 描画は無改変で default 経路のまま（LocalSkin 既定=WAMODERN_D＝この分岐を跨がない）。
-    if (LocalSkin.current == Skin.SEIZU_M) {
-        TocSkyM(
-            tocState = tocState,
-            currentChapterFile = currentChapterFile,
-            onSelectChapter = onSelectChapter,
-            onNavigateToBookshelf = onNavigateToBookshelf,
-            onRetry = onRetry,
-        )
-        return
-    }
-
-    // スキンP「カートリッジ」: 目次を画面丸ごとステージセレクト構造へ委譲する（ADR 0022 §1・M と同じ薄いルーター）。
-    if (LocalSkin.current == Skin.CARTRIDGE_P) {
-        TocCartridgeP(
-            tocState = tocState,
-            currentChapterFile = currentChapterFile,
-            onSelectChapter = onSelectChapter,
-            onNavigateToBookshelf = onNavigateToBookshelf,
-            onRetry = onRetry,
-        )
-        return
-    }
-
-    // スキンJ「ポータル」: 目次を画面丸ごと「廊下を進む道程」構造へ委譲する（ADR 0022 §1・M/P と同じ薄いルーター）。
-    if (LocalSkin.current == Skin.PORTAL_J) {
-        TocPortalJ(
-            tocState = tocState,
-            currentChapterFile = currentChapterFile,
-            onSelectChapter = onSelectChapter,
-            onNavigateToBookshelf = onNavigateToBookshelf,
-            onRetry = onRetry,
-        )
-        return
+    // スキンM/P/J は目次を画面丸ごと各スキン構造へ委譲する薄いルーター（ADR 0022 §1）。
+    // スキン追加時の書き忘れを compile error で捕捉するため else を書かない（無音Dフォールバック防止）。
+    // D/C（WAMODERN_D/YAKO_C）は共通の default 経路（この下の Scaffold）で描く。
+    when (LocalSkin.current) {
+        // 星図構造へ委譲。
+        Skin.SEIZU_M -> {
+            TocSkyM(
+                tocState = tocState,
+                currentChapterFile = currentChapterFile,
+                onSelectChapter = onSelectChapter,
+                onNavigateToBookshelf = onNavigateToBookshelf,
+                onRetry = onRetry,
+            )
+            return
+        }
+        // ステージセレクト構造へ委譲。
+        Skin.CARTRIDGE_P -> {
+            TocCartridgeP(
+                tocState = tocState,
+                currentChapterFile = currentChapterFile,
+                onSelectChapter = onSelectChapter,
+                onNavigateToBookshelf = onNavigateToBookshelf,
+                onRetry = onRetry,
+            )
+            return
+        }
+        // 「廊下を進む道程」構造へ委譲。
+        Skin.PORTAL_J -> {
+            TocPortalJ(
+                tocState = tocState,
+                currentChapterFile = currentChapterFile,
+                onSelectChapter = onSelectChapter,
+                onNavigateToBookshelf = onNavigateToBookshelf,
+                onRetry = onRetry,
+            )
+            return
+        }
+        Skin.WAMODERN_D, Skin.YAKO_C -> Unit // 既定描画へ（この下の共通実装が D/C を描く）
     }
 
     Scaffold(

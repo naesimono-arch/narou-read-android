@@ -121,55 +121,56 @@ internal fun DiscoveryResultContent(
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
 ) {
-    // スキンM「星図」: 結果一覧を画面丸ごと星図構造へ委譲する（ADR 0022 §1 の薄いルーター）。
-    // 文脈 null（process death 復帰中）の最小ローディングは分岐先が D と同じく内部で扱う。
-    if (LocalSkin.current == Skin.SEIZU_M) {
-        DiscoveryResultSkyM(
-            ctx = ctx,
-            state = state,
-            onUp = onUp,
-            onBack = onBack,
-            onOpenDetail = onOpenDetail,
-            onChangeOrder = onChangeOrder,
-            onChangeGenreFilter = onChangeGenreFilter,
-            onRefresh = onRefresh,
-            onLoadMore = onLoadMore,
-        )
-        return
-    }
-
-    // スキンP「カートリッジ」: 結果一覧を画面丸ごと試遊台構造へ委譲する（ADR 0022 §1 の薄いルーター）。
-    // 文脈 null（process death 復帰中）の最小ローディングは分岐先が D/M と同じく内部で扱う。
-    if (LocalSkin.current == Skin.CARTRIDGE_P) {
-        DiscoveryResultCartridgeP(
-            ctx = ctx,
-            state = state,
-            onUp = onUp,
-            onBack = onBack,
-            onOpenDetail = onOpenDetail,
-            onChangeOrder = onChangeOrder,
-            onChangeGenreFilter = onChangeGenreFilter,
-            onRefresh = onRefresh,
-            onLoadMore = onLoadMore,
-        )
-        return
-    }
-
-    // スキンJ「ポータル」: 結果一覧を画面丸ごと回廊構造へ委譲する（ADR 0022 §1 の薄いルーター）。
-    // 文脈 null（process death 復帰中）の最小ローディングは分岐先が D/M/P と同じく内部で扱う。
-    if (LocalSkin.current == Skin.PORTAL_J) {
-        DiscoveryResultPortalJ(
-            ctx = ctx,
-            state = state,
-            onUp = onUp,
-            onBack = onBack,
-            onOpenDetail = onOpenDetail,
-            onChangeOrder = onChangeOrder,
-            onChangeGenreFilter = onChangeGenreFilter,
-            onRefresh = onRefresh,
-            onLoadMore = onLoadMore,
-        )
-        return
+    // スキンM/P/J は結果一覧を画面丸ごと各スキン構造へ委譲する薄いルーター（ADR 0022 §1）。
+    // exhaustive（else 不使用＝新スキンを無音でDに落とさない）。文脈 null（process death 復帰中）の
+    // 最小ローディングは各分岐先が D と同じく内部で扱う。D/C はこの下の共通実装で描く。
+    when (LocalSkin.current) {
+        // 星図構造へ委譲。
+        Skin.SEIZU_M -> {
+            DiscoveryResultSkyM(
+                ctx = ctx,
+                state = state,
+                onUp = onUp,
+                onBack = onBack,
+                onOpenDetail = onOpenDetail,
+                onChangeOrder = onChangeOrder,
+                onChangeGenreFilter = onChangeGenreFilter,
+                onRefresh = onRefresh,
+                onLoadMore = onLoadMore,
+            )
+            return
+        }
+        // 試遊台構造へ委譲。
+        Skin.CARTRIDGE_P -> {
+            DiscoveryResultCartridgeP(
+                ctx = ctx,
+                state = state,
+                onUp = onUp,
+                onBack = onBack,
+                onOpenDetail = onOpenDetail,
+                onChangeOrder = onChangeOrder,
+                onChangeGenreFilter = onChangeGenreFilter,
+                onRefresh = onRefresh,
+                onLoadMore = onLoadMore,
+            )
+            return
+        }
+        // 回廊構造へ委譲。
+        Skin.PORTAL_J -> {
+            DiscoveryResultPortalJ(
+                ctx = ctx,
+                state = state,
+                onUp = onUp,
+                onBack = onBack,
+                onOpenDetail = onOpenDetail,
+                onChangeOrder = onChangeOrder,
+                onChangeGenreFilter = onChangeGenreFilter,
+                onRefresh = onRefresh,
+                onLoadMore = onLoadMore,
+            )
+            return
+        }
+        Skin.WAMODERN_D, Skin.YAKO_C -> Unit // 既定描画へ（この下の共通実装が D/C を描く）
     }
 
     // F-C: process death 復帰中は VM の init が SavedStateHandle から文脈を復元する。旧実装はここで

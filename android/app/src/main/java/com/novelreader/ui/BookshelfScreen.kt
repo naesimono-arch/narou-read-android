@@ -530,221 +530,204 @@ internal fun BookshelfContent(
             .eachCount()
     }
 
-    // スキンM「星図」: 星図ビュー時は画面丸ごと M 構造へ委譲する（ADR 0022 §1 の薄いルーター）。
-    // 一覧トグル時はこの下の共有描画（D 構造へトークン写像＝bookshelf-M.html「一覧は可読フォールバック」）へ
-    // 落ちる。複数選択削除・グリッド・Web カード操作は一覧側が全数担う（星図は閲覧と読書導線に徹する）。
-    if (LocalSkin.current == Skin.SEIZU_M && skyViewM) {
-        BookshelfSkyM(
-            books = visibleBooks,
-            progressMap = progressMap,
-            chapterCountMap = chapterCountMap,
-            newEpisodeNovelMap = newEpisodeNovelMap,
-            processingState = processingState,
-            webNovelCount = webNovels.size,
-            selectedStatus = selectedStatus,
-            statusCounts = statusCounts,
-            onSelectStatus = { selectedStatusName = it?.name },
-            onOpenBook = onOpenBook,
-            onOpenDiscovery = onOpenDiscovery,
-            onOpenWardrobe = onOpenWardrobe,
-            onFabClick = onFabClick,
-            onToggleList = onToggleSkyM,
-            onCancelProcessing = onCancelProcessing,
-            snackbarHostState = snackbarHostState,
-            isLoading = isLoading,
-        )
-        return
-    }
-
-    // スキンM「星図」一覧: トグルで一覧へ落ちたときも M 自身の意匠『観測野帳』へ委譲する（ADR 0022 追記その2＝
-    // 旧・D構造フォールバックの格下げ是正。「各スキンは全く別のアプリ＝Dの見た目の型を引き継がない」原則。P一覧と同型分岐）。
-    // 選択削除・Webカード操作・状態フィルタ・PDF追加・取込中バナー・スナックバー・空状態・星図⇄一覧トグルの全機能を観測野帳が引き継ぐ。
-    // 選択モード状態（selectionMode/selectedIds と各操作）は本骨格が所有する単一の状態機械を共有渡しする＝二重実装を避け、
-    // 上の BackHandler（selectionMode で戻る＝解除）も 1 本のまま効く。
-    if (LocalSkin.current == Skin.SEIZU_M && !skyViewM) {
-        BookshelfLogM(
-            books = visibleBooks,
-            webNovels = webNovels,
-            webReadingProgress = webReadingProgress,
-            webLastReadAt = webLastReadAt,
-            progressMap = progressMap,
-            chapterCountMap = chapterCountMap,
-            newEpisodeNovelMap = newEpisodeNovelMap,
-            processingState = processingState,
-            selectedStatus = selectedStatus,
-            statusCounts = statusCounts,
-            onSelectStatus = { selectedStatusName = it?.name },
-            selectionMode = selectionMode,
-            selectedIds = selectedIds,
-            onToggleSelect = toggleSelect,
-            onEnterSelection = enterSelection,
-            onExitSelection = exitSelection,
-            onDeleteBooks = { onDeleteBooks(it) },
-            onOpenBook = onOpenBook,
-            onOpenWebNovel = onOpenWebNovel,
-            onResumeWebNovel = onResumeWebNovel,
-            onImportWebNovel = onImportWebNovel,
-            onRemoveWebNovel = onRemoveWebNovel,
-            onOpenDiscovery = onOpenDiscovery,
-            onOpenWardrobe = onOpenWardrobe,
-            onFabClick = onFabClick,
-            onToggleSky = onToggleSkyM,
-            onCancelProcessing = onCancelProcessing,
-            snackbarHostState = snackbarHostState,
-            isLoading = isLoading,
-        )
-        return
-    }
-
-    // スキンP「カートリッジ」: ラックビュー時は画面丸ごと P 構造へ委譲する（ADR 0022 §1 の薄いルーター・M と同型）。
-    // 一覧トグル時はこの下の共有描画（D 構造へトークン写像）へ落ちる＝選択削除・グリッド・Web カード操作は
-    // 一覧側が全数担う（ラックは続きから/カセット閲覧/取込中/絞り込み/追加/装い/メニューに徹する）。
-    if (LocalSkin.current == Skin.CARTRIDGE_P && rackViewP) {
-        BookshelfCartridgeP(
-            books = visibleBooks,
-            progressMap = progressMap,
-            chapterCountMap = chapterCountMap,
-            newEpisodeNovelMap = newEpisodeNovelMap,
-            processingState = processingState,
-            selectedStatus = selectedStatus,
-            statusCounts = statusCounts,
-            appTheme = appTheme,
-            onThemeChange = onThemeChange,
-            // テーマ4択の統一（2026-07-17 裁定②）: 「システムに従う」の単一真実源を P ラックの⋮へ素通し。
-            followingSystem = followingSystem,
-            onFollowSystem = onFollowSystem,
-            onSelectStatus = { selectedStatusName = it?.name },
-            onOpenBook = onOpenBook,
-            onOpenDiscovery = onOpenDiscovery,
-            onOpenWardrobe = onOpenWardrobe,
-            onFabClick = onFabClick,
-            onToggleList = onToggleRackP,
-            onCancelProcessing = onCancelProcessing,
-            snackbarHostState = snackbarHostState,
-            isLoading = isLoading,
-        )
-        return
-    }
-
-    // スキンP「カートリッジ」一覧: トグルで一覧へ落ちたときも P 自身の意匠（bookshelf-P の `.li` 面）へ委譲する
-    // （ADR 0022 追記その2＝旧・D構造フォールバックの格下げ是正。「各UIは装いの間でのみ接続する」原則）。
-    // 選択削除・Webカード操作・状態フィルタ・PDF追加・取込中バナー・スナックバー・空状態の全機能を P 一覧が引き継ぐ。
-    // 選択モード状態（selectionMode/selectedIds と各操作）は本骨格が所有する単一の状態機械を共有渡しする＝二重実装を避け、
-    // 上の BackHandler（selectionMode で戻る＝解除）も 1 本のまま効く。
-    if (LocalSkin.current == Skin.CARTRIDGE_P && !rackViewP) {
-        BookshelfListCartridgeP(
-            books = visibleBooks,
-            webNovels = webNovels,
-            webReadingProgress = webReadingProgress,
-            webLastReadAt = webLastReadAt,
-            progressMap = progressMap,
-            chapterCountMap = chapterCountMap,
-            newEpisodeNovelMap = newEpisodeNovelMap,
-            processingState = processingState,
-            selectedStatus = selectedStatus,
-            statusCounts = statusCounts,
-            appTheme = appTheme,
-            onThemeChange = onThemeChange,
-            followingSystem = followingSystem,
-            onFollowSystem = onFollowSystem,
-            onSelectStatus = { selectedStatusName = it?.name },
-            selectionMode = selectionMode,
-            selectedIds = selectedIds,
-            onToggleSelect = toggleSelect,
-            onEnterSelection = enterSelection,
-            onExitSelection = exitSelection,
-            // 全選択: 骨格所有の selectedIds をまとめて差し替える（対象 id の算出は一覧側が蔵書のみで行う）。
-            onSelectAll = { ids -> selectedIds.clear(); selectedIds.addAll(ids) },
-            onDeleteBooks = { onDeleteBooks(it) },
-            onOpenBook = onOpenBook,
-            onOpenWebNovel = onOpenWebNovel,
-            onResumeWebNovel = onResumeWebNovel,
-            onImportWebNovel = onImportWebNovel,
-            onRemoveWebNovel = onRemoveWebNovel,
-            onOpenDiscovery = onOpenDiscovery,
-            onOpenWardrobe = onOpenWardrobe,
-            onFabClick = onFabClick,
-            onToggleRack = onToggleRackP,
-            onCancelProcessing = onCancelProcessing,
-            snackbarHostState = snackbarHostState,
-            isLoading = isLoading,
-        )
-        return
-    }
-
-    // スキンJ「ポータル」: デッキビュー時は画面丸ごと J 構造へ委譲する（ADR 0022 §1 の薄いルーター・M/P と同型）。
-    // 一覧トグル時はこの下の共有描画（D 構造へトークン写像）へ落ちる＝選択削除・グリッド・Web カード操作は
-    // 一覧側が全数担う（デッキは横スワイプ閲覧/続きから/絞り込み/取込中/見つける/装い/メニューに徹する）。
-    if (LocalSkin.current == Skin.PORTAL_J && deckViewJ) {
-        BookshelfPortalJ(
-            books = visibleBooks,
-            progressMap = progressMap,
-            chapterCountMap = chapterCountMap,
-            newEpisodeNovelMap = newEpisodeNovelMap,
-            processingState = processingState,
-            selectedStatus = selectedStatus,
-            statusCounts = statusCounts,
-            appTheme = appTheme,
-            onThemeChange = onThemeChange,
-            // テーマ4択の統一（2026-07-17 裁定②）: 「システムに従う」の単一真実源を J デッキの⋮へ素通し。
-            followingSystem = followingSystem,
-            onFollowSystem = onFollowSystem,
-            onSelectStatus = { selectedStatusName = it?.name },
-            onOpenBook = onOpenBook,
-            onOpenDiscovery = onOpenDiscovery,
-            onOpenWardrobe = onOpenWardrobe,
-            onFabClick = onFabClick,
-            onToggleList = onToggleDeckJ,
-            onCancelProcessing = onCancelProcessing,
-            snackbarHostState = snackbarHostState,
-            isLoading = isLoading,
-        )
-        return
-    }
-
-    // スキンJ「ポータル」一覧: トグルで一覧へ落ちたときも J 自身の意匠（bookshelf-J の「グリッド一覧」面）へ委譲する
-    // （ADR 0022 追記その2＝旧・D構造フォールバックの格下げ是正。「各スキンは全く別のアプリ＝Dの見た目の型を引き継がない」原則）。
-    // 選択削除・Webカード操作・状態フィルタ・PDF追加・取込中バナー・スナックバー・空状態・デッキ⇄一覧トグルの全機能を J グリッドが引き継ぐ。
-    // 選択モード状態（selectionMode/selectedIds と各操作）は本骨格が所有する単一の状態機械を共有渡しする＝二重実装を避け、
-    // 上の BackHandler（selectionMode で戻る＝解除）も 1 本のまま効く（M/P 一覧と同型分岐）。
-    if (LocalSkin.current == Skin.PORTAL_J && !deckViewJ) {
-        BookshelfGridJ(
-            books = visibleBooks,
-            webNovels = webNovels,
-            webReadingProgress = webReadingProgress,
-            webLastReadAt = webLastReadAt,
-            progressMap = progressMap,
-            chapterCountMap = chapterCountMap,
-            newEpisodeNovelMap = newEpisodeNovelMap,
-            processingState = processingState,
-            selectedStatus = selectedStatus,
-            statusCounts = statusCounts,
-            appTheme = appTheme,
-            onThemeChange = onThemeChange,
-            followingSystem = followingSystem,
-            onFollowSystem = onFollowSystem,
-            onSelectStatus = { selectedStatusName = it?.name },
-            selectionMode = selectionMode,
-            selectedIds = selectedIds,
-            onToggleSelect = toggleSelect,
-            onEnterSelection = enterSelection,
-            onExitSelection = exitSelection,
-            onSelectAll = { ids -> selectedIds.clear(); selectedIds.addAll(ids) },
-            onDeleteBooks = { onDeleteBooks(it) },
-            onOpenBook = onOpenBook,
-            onOpenWebNovel = onOpenWebNovel,
-            onResumeWebNovel = onResumeWebNovel,
-            onImportWebNovel = onImportWebNovel,
-            onRemoveWebNovel = onRemoveWebNovel,
-            onOpenDiscovery = onOpenDiscovery,
-            onOpenWardrobe = onOpenWardrobe,
-            onFabClick = onFabClick,
-            onToggleDeck = onToggleDeckJ,
-            onCancelProcessing = onCancelProcessing,
-            snackbarHostState = snackbarHostState,
-            isLoading = isLoading,
-        )
-        return
+    // スキンM/P/J は本棚を画面丸ごと各スキン構造へ委譲する薄いルーター（ADR 0022 §1）。表示モード
+    // （星図⇄一覧・ラック⇄一覧・デッキ⇄一覧）で没入面／自スキン一覧のどちらへ委譲するかを内側の if で分ける。
+    // exhaustive（else 不使用＝新スキンを無音でDに落とさない）。D/C（WAMODERN_D/YAKO_C）はこの下の共通描画
+    // （D 構造へトークン写像）へ落ちる。各スキン一覧側は選択削除・Webカード操作・状態フィルタ・PDF追加・
+    // 取込中バナー・スナックバー・空状態を全数引き継ぐ（本骨格所有の単一状態機械を共有渡し＝二重実装回避。
+    // 上の BackHandler も 1 本のまま効く）。旧・D構造フォールバックの格下げ是正（ADR 0022 追記その2）。
+    when (LocalSkin.current) {
+        Skin.SEIZU_M -> if (skyViewM) {
+            // 星図ビュー: 画面丸ごと M 構造へ委譲（星図は閲覧と読書導線に徹する）。
+            BookshelfSkyM(
+                books = visibleBooks,
+                progressMap = progressMap,
+                chapterCountMap = chapterCountMap,
+                newEpisodeNovelMap = newEpisodeNovelMap,
+                processingState = processingState,
+                webNovelCount = webNovels.size,
+                selectedStatus = selectedStatus,
+                statusCounts = statusCounts,
+                onSelectStatus = { selectedStatusName = it?.name },
+                onOpenBook = onOpenBook,
+                onOpenDiscovery = onOpenDiscovery,
+                onOpenWardrobe = onOpenWardrobe,
+                onFabClick = onFabClick,
+                onToggleList = onToggleSkyM,
+                onCancelProcessing = onCancelProcessing,
+                snackbarHostState = snackbarHostState,
+                isLoading = isLoading,
+            )
+            return
+        } else {
+            // 一覧トグル側も M 自身の意匠『観測野帳』へ委譲。
+            BookshelfLogM(
+                books = visibleBooks,
+                webNovels = webNovels,
+                webReadingProgress = webReadingProgress,
+                webLastReadAt = webLastReadAt,
+                progressMap = progressMap,
+                chapterCountMap = chapterCountMap,
+                newEpisodeNovelMap = newEpisodeNovelMap,
+                processingState = processingState,
+                selectedStatus = selectedStatus,
+                statusCounts = statusCounts,
+                onSelectStatus = { selectedStatusName = it?.name },
+                selectionMode = selectionMode,
+                selectedIds = selectedIds,
+                onToggleSelect = toggleSelect,
+                onEnterSelection = enterSelection,
+                onExitSelection = exitSelection,
+                onDeleteBooks = { onDeleteBooks(it) },
+                onOpenBook = onOpenBook,
+                onOpenWebNovel = onOpenWebNovel,
+                onResumeWebNovel = onResumeWebNovel,
+                onImportWebNovel = onImportWebNovel,
+                onRemoveWebNovel = onRemoveWebNovel,
+                onOpenDiscovery = onOpenDiscovery,
+                onOpenWardrobe = onOpenWardrobe,
+                onFabClick = onFabClick,
+                onToggleSky = onToggleSkyM,
+                onCancelProcessing = onCancelProcessing,
+                snackbarHostState = snackbarHostState,
+                isLoading = isLoading,
+            )
+            return
+        }
+        Skin.CARTRIDGE_P -> if (rackViewP) {
+            // ラックビュー: 画面丸ごと P 構造へ委譲（続きから/カセット閲覧/取込中/絞り込み/追加/装い/メニュー）。
+            BookshelfCartridgeP(
+                books = visibleBooks,
+                progressMap = progressMap,
+                chapterCountMap = chapterCountMap,
+                newEpisodeNovelMap = newEpisodeNovelMap,
+                processingState = processingState,
+                selectedStatus = selectedStatus,
+                statusCounts = statusCounts,
+                appTheme = appTheme,
+                onThemeChange = onThemeChange,
+                // テーマ4択の統一（2026-07-17 裁定②）: 「システムに従う」の単一真実源を P ラックの⋮へ素通し。
+                followingSystem = followingSystem,
+                onFollowSystem = onFollowSystem,
+                onSelectStatus = { selectedStatusName = it?.name },
+                onOpenBook = onOpenBook,
+                onOpenDiscovery = onOpenDiscovery,
+                onOpenWardrobe = onOpenWardrobe,
+                onFabClick = onFabClick,
+                onToggleList = onToggleRackP,
+                onCancelProcessing = onCancelProcessing,
+                snackbarHostState = snackbarHostState,
+                isLoading = isLoading,
+            )
+            return
+        } else {
+            // 一覧トグル側も P 自身の意匠（bookshelf-P の `.li` 面）へ委譲。
+            BookshelfListCartridgeP(
+                books = visibleBooks,
+                webNovels = webNovels,
+                webReadingProgress = webReadingProgress,
+                webLastReadAt = webLastReadAt,
+                progressMap = progressMap,
+                chapterCountMap = chapterCountMap,
+                newEpisodeNovelMap = newEpisodeNovelMap,
+                processingState = processingState,
+                selectedStatus = selectedStatus,
+                statusCounts = statusCounts,
+                appTheme = appTheme,
+                onThemeChange = onThemeChange,
+                followingSystem = followingSystem,
+                onFollowSystem = onFollowSystem,
+                onSelectStatus = { selectedStatusName = it?.name },
+                selectionMode = selectionMode,
+                selectedIds = selectedIds,
+                onToggleSelect = toggleSelect,
+                onEnterSelection = enterSelection,
+                onExitSelection = exitSelection,
+                // 全選択: 骨格所有の selectedIds をまとめて差し替える（対象 id の算出は一覧側が蔵書のみで行う）。
+                onSelectAll = { ids -> selectedIds.clear(); selectedIds.addAll(ids) },
+                onDeleteBooks = { onDeleteBooks(it) },
+                onOpenBook = onOpenBook,
+                onOpenWebNovel = onOpenWebNovel,
+                onResumeWebNovel = onResumeWebNovel,
+                onImportWebNovel = onImportWebNovel,
+                onRemoveWebNovel = onRemoveWebNovel,
+                onOpenDiscovery = onOpenDiscovery,
+                onOpenWardrobe = onOpenWardrobe,
+                onFabClick = onFabClick,
+                onToggleRack = onToggleRackP,
+                onCancelProcessing = onCancelProcessing,
+                snackbarHostState = snackbarHostState,
+                isLoading = isLoading,
+            )
+            return
+        }
+        Skin.PORTAL_J -> if (deckViewJ) {
+            // デッキビュー: 画面丸ごと J 構造へ委譲（横スワイプ閲覧/続きから/絞り込み/取込中/見つける/装い/メニュー）。
+            BookshelfPortalJ(
+                books = visibleBooks,
+                progressMap = progressMap,
+                chapterCountMap = chapterCountMap,
+                newEpisodeNovelMap = newEpisodeNovelMap,
+                processingState = processingState,
+                selectedStatus = selectedStatus,
+                statusCounts = statusCounts,
+                appTheme = appTheme,
+                onThemeChange = onThemeChange,
+                // テーマ4択の統一（2026-07-17 裁定②）: 「システムに従う」の単一真実源を J デッキの⋮へ素通し。
+                followingSystem = followingSystem,
+                onFollowSystem = onFollowSystem,
+                onSelectStatus = { selectedStatusName = it?.name },
+                onOpenBook = onOpenBook,
+                onOpenDiscovery = onOpenDiscovery,
+                onOpenWardrobe = onOpenWardrobe,
+                onFabClick = onFabClick,
+                onToggleList = onToggleDeckJ,
+                onCancelProcessing = onCancelProcessing,
+                snackbarHostState = snackbarHostState,
+                isLoading = isLoading,
+            )
+            return
+        } else {
+            // 一覧トグル側も J 自身の意匠（bookshelf-J の「グリッド一覧」面）へ委譲。
+            BookshelfGridJ(
+                books = visibleBooks,
+                webNovels = webNovels,
+                webReadingProgress = webReadingProgress,
+                webLastReadAt = webLastReadAt,
+                progressMap = progressMap,
+                chapterCountMap = chapterCountMap,
+                newEpisodeNovelMap = newEpisodeNovelMap,
+                processingState = processingState,
+                selectedStatus = selectedStatus,
+                statusCounts = statusCounts,
+                appTheme = appTheme,
+                onThemeChange = onThemeChange,
+                followingSystem = followingSystem,
+                onFollowSystem = onFollowSystem,
+                onSelectStatus = { selectedStatusName = it?.name },
+                selectionMode = selectionMode,
+                selectedIds = selectedIds,
+                onToggleSelect = toggleSelect,
+                onEnterSelection = enterSelection,
+                onExitSelection = exitSelection,
+                onSelectAll = { ids -> selectedIds.clear(); selectedIds.addAll(ids) },
+                onDeleteBooks = { onDeleteBooks(it) },
+                onOpenBook = onOpenBook,
+                onOpenWebNovel = onOpenWebNovel,
+                onResumeWebNovel = onResumeWebNovel,
+                onImportWebNovel = onImportWebNovel,
+                onRemoveWebNovel = onRemoveWebNovel,
+                onOpenDiscovery = onOpenDiscovery,
+                onOpenWardrobe = onOpenWardrobe,
+                onFabClick = onFabClick,
+                onToggleDeck = onToggleDeckJ,
+                onCancelProcessing = onCancelProcessing,
+                snackbarHostState = snackbarHostState,
+                isLoading = isLoading,
+            )
+            return
+        }
+        Skin.WAMODERN_D, Skin.YAKO_C -> Unit // 既定描画へ（この下の共通実装が D/C を描く）
     }
 
     // 了スタンプ（案A・ADR0014 §motion 追補）: 本棚がある本を「初めて読了として描く」瞬間に朱印を一度だけ押印するための記録。
@@ -831,33 +814,31 @@ internal fun BookshelfContent(
                         // グリッド/リスト切り替え（モック .top の第1アクション）。永続化はルート層の onToggleView に委譲。
                         // スキンM の一覧フォールバック中はこのボタンが「星図へ戻る」になる（星図⇄一覧の2態＝
                         // bookshelf-M.html。M にグリッドは無い＝可読フォールバックは文字目録のみ）。
-                        if (LocalSkin.current == Skin.SEIZU_M) {
-                            IconButton(onClick = onToggleSkyM) {
+                        // exhaustive（else 不使用＝新スキンを無音でDトグルに落とさない）。
+                        when (LocalSkin.current) {
+                            Skin.SEIZU_M -> IconButton(onClick = onToggleSkyM) {
                                 Icon(
                                     imageVector = Icons.Filled.AutoAwesome,
                                     contentDescription = "星図表示に切替",
                                 )
                             }
-                        } else if (LocalSkin.current == Skin.CARTRIDGE_P) {
                             // P の一覧フォールバック中はこのボタンが「ラック表示に戻る」になる（ラック⇄一覧の2態＝
                             // bookshelf-P.html。P にグリッドは無く、一覧＝D 構造の可読フォールバックが担う）。
-                            IconButton(onClick = onToggleRackP) {
+                            Skin.CARTRIDGE_P -> IconButton(onClick = onToggleRackP) {
                                 Icon(
                                     imageVector = Icons.Filled.GridView,
                                     contentDescription = "ラック表示に切替",
                                 )
                             }
-                        } else if (LocalSkin.current == Skin.PORTAL_J) {
                             // J の一覧フォールバック中はこのボタンが「デッキ表示に戻る」になる（デッキ⇄一覧の2態＝
                             // bookshelf-J.html。J のグリッド面＝一覧へ降格の概念で、その可読フォールバックが D 構造）。
-                            IconButton(onClick = onToggleDeckJ) {
+                            Skin.PORTAL_J -> IconButton(onClick = onToggleDeckJ) {
                                 Icon(
                                     imageVector = Icons.Filled.GridView,
                                     contentDescription = "デッキ表示に切替",
                                 )
                             }
-                        } else {
-                            IconButton(onClick = onToggleView) {
+                            Skin.WAMODERN_D, Skin.YAKO_C -> IconButton(onClick = onToggleView) {
                                 Icon(
                                     imageVector = if (isGridView) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView,
                                     contentDescription = if (isGridView) "リスト表示" else "グリッド表示",

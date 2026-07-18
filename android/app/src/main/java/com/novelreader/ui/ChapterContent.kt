@@ -195,7 +195,8 @@ internal fun ChapterContent(
                     bodyMarginDp = bodyMarginDp,
                     bodyMaxWidth = bodyMaxWidth,
                 )
-                else -> ChapterHeader(
+                // D/C（WAMODERN_D/YAKO_C）は共通の章見出し（else を書かず全列挙＝新スキンを compile error で捕捉）。
+                Skin.WAMODERN_D, Skin.YAKO_C -> ChapterHeader(
                     title = content.title,
                     colors = colors,
                     fontSize = fontSize,
@@ -322,31 +323,31 @@ private fun ParagraphItem(
             // 水平線（html_exporter.py の <hr> に対応＝シーン区切り）
             // スキンM は「線-星点-線」（reading-M .scene）・P は「--rd-soft の破線バー」（reading-P hr）へ
             // 差し替え（ADR 0022 §1 の部品分岐）。
-            if (LocalSkin.current == Skin.SEIZU_M) {
-                SceneDividerM(colors = colors, modifier = modifier)
-            } else if (LocalSkin.current == Skin.CARTRIDGE_P) {
-                SceneDividerP(colors = colors, modifier = modifier)
-            } else if (LocalSkin.current == Skin.PORTAL_J) {
+            // exhaustive（else 不使用＝新スキンを無音でDに落とさない）。D/C は下の中央寄せの短い実線。
+            when (LocalSkin.current) {
+                Skin.SEIZU_M -> SceneDividerM(colors = colors, modifier = modifier)
+                Skin.CARTRIDGE_P -> SceneDividerP(colors = colors, modifier = modifier)
                 // J＝中央 40% 幅の一条の光（--rule グラデ・reading-J hr）。
-                SceneDividerJ(colors = colors, modifier = modifier)
-            } else Canvas(
-                modifier = modifier
-                    .fillMaxWidth()
-                    .padding(vertical = Spacing.S16)
-                    .height(1.dp),
-            ) {
-                // D 様式: 旧・全幅破線をやめ、中央寄せの短い実線にする。
-                // なぜ短い実線か: D「和モダン・余白」は藍の細ルールで静かに区切る思想で、
-                // 全幅破線は主張が強すぎるため。モック reading-D.html の hr(width:42%) に対応。
-                // 色 colors.hr は藍を素地に溶かした青灰のため、これ自体が控えめな区切りになる。
-                val lineWidth = size.width * 0.42f
-                val startX = (size.width - lineWidth) / 2f
-                drawLine(
-                    color = colors.hr,
-                    start = Offset(startX, 0f),
-                    end = Offset(startX + lineWidth, 0f),
-                    strokeWidth = 1.dp.toPx(),
-                )
+                Skin.PORTAL_J -> SceneDividerJ(colors = colors, modifier = modifier)
+                Skin.WAMODERN_D, Skin.YAKO_C -> Canvas(
+                    modifier = modifier
+                        .fillMaxWidth()
+                        .padding(vertical = Spacing.S16)
+                        .height(1.dp),
+                ) {
+                    // D 様式: 旧・全幅破線をやめ、中央寄せの短い実線にする。
+                    // なぜ短い実線か: D「和モダン・余白」は藍の細ルールで静かに区切る思想で、
+                    // 全幅破線は主張が強すぎるため。モック reading-D.html の hr(width:42%) に対応。
+                    // 色 colors.hr は藍を素地に溶かした青灰のため、これ自体が控えめな区切りになる。
+                    val lineWidth = size.width * 0.42f
+                    val startX = (size.width - lineWidth) / 2f
+                    drawLine(
+                        color = colors.hr,
+                        start = Offset(startX, 0f),
+                        end = Offset(startX + lineWidth, 0f),
+                        strokeWidth = 1.dp.toPx(),
+                    )
+                }
             }
         }
         paragraph.size == 1 && paragraph[0] is TextSegment.StyledBlock -> {

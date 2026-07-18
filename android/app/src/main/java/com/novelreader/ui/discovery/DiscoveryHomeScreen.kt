@@ -132,56 +132,58 @@ internal fun DiscoveryHomeContent(
     onSelectOrder: (NarouOrder) -> Unit,
     onRefresh: () -> Unit,
 ) {
-    // スキンM「星図」: 発見ホームを画面丸ごと星図構造へ委譲する（ADR 0022 §1 の薄いルーター）。
-    // 既存 D/C 描画は無改変で default 経路のまま（LocalSkin 既定=WAMODERN_D＝この分岐を跨がない）。
-    if (LocalSkin.current == Skin.SEIZU_M) {
-        DiscoveryHomeSkyM(
-            order = order,
-            state = state,
-            onBack = onBack,
-            onOpenDetail = onOpenDetail,
-            onOpenGenre = onOpenGenre,
-            onPickBiggenre = onPickBiggenre,
-            onOpenSearch = onOpenSearch,
-            onPickMood = onPickMood,
-            onSelectOrder = onSelectOrder,
-            onRefresh = onRefresh,
-        )
-        return
-    }
-
-    // スキンP「カートリッジ」: 発見ホームを画面丸ごと店構造へ委譲する（ADR 0022 §1 の薄いルーター）。
-    if (LocalSkin.current == Skin.CARTRIDGE_P) {
-        DiscoveryHomeCartridgeP(
-            order = order,
-            state = state,
-            onBack = onBack,
-            onOpenDetail = onOpenDetail,
-            onOpenGenre = onOpenGenre,
-            onPickBiggenre = onPickBiggenre,
-            onOpenSearch = onOpenSearch,
-            onPickMood = onPickMood,
-            onSelectOrder = onSelectOrder,
-            onRefresh = onRefresh,
-        )
-        return
-    }
-
-    // スキンJ「ポータル」: 発見ホームを画面丸ごと扉の回廊構造へ委譲する（ADR 0022 §1 の薄いルーター）。
-    if (LocalSkin.current == Skin.PORTAL_J) {
-        DiscoveryHomePortalJ(
-            order = order,
-            state = state,
-            onBack = onBack,
-            onOpenDetail = onOpenDetail,
-            onOpenGenre = onOpenGenre,
-            onPickBiggenre = onPickBiggenre,
-            onOpenSearch = onOpenSearch,
-            onPickMood = onPickMood,
-            onSelectOrder = onSelectOrder,
-            onRefresh = onRefresh,
-        )
-        return
+    // スキンM/P/J は発見ホームを画面丸ごと各スキン構造へ委譲する薄いルーター（ADR 0022 §1）。
+    // exhaustive（else 不使用＝新スキンを無音でDに落とさない）。D/C はこの下の共通 Scaffold で描く。
+    when (LocalSkin.current) {
+        // 星図構造へ委譲。
+        Skin.SEIZU_M -> {
+            DiscoveryHomeSkyM(
+                order = order,
+                state = state,
+                onBack = onBack,
+                onOpenDetail = onOpenDetail,
+                onOpenGenre = onOpenGenre,
+                onPickBiggenre = onPickBiggenre,
+                onOpenSearch = onOpenSearch,
+                onPickMood = onPickMood,
+                onSelectOrder = onSelectOrder,
+                onRefresh = onRefresh,
+            )
+            return
+        }
+        // 店構造へ委譲。
+        Skin.CARTRIDGE_P -> {
+            DiscoveryHomeCartridgeP(
+                order = order,
+                state = state,
+                onBack = onBack,
+                onOpenDetail = onOpenDetail,
+                onOpenGenre = onOpenGenre,
+                onPickBiggenre = onPickBiggenre,
+                onOpenSearch = onOpenSearch,
+                onPickMood = onPickMood,
+                onSelectOrder = onSelectOrder,
+                onRefresh = onRefresh,
+            )
+            return
+        }
+        // 扉の回廊構造へ委譲。
+        Skin.PORTAL_J -> {
+            DiscoveryHomePortalJ(
+                order = order,
+                state = state,
+                onBack = onBack,
+                onOpenDetail = onOpenDetail,
+                onOpenGenre = onOpenGenre,
+                onPickBiggenre = onPickBiggenre,
+                onOpenSearch = onOpenSearch,
+                onPickMood = onPickMood,
+                onSelectOrder = onSelectOrder,
+                onRefresh = onRefresh,
+            )
+            return
+        }
+        Skin.WAMODERN_D, Skin.YAKO_C -> Unit // 既定描画へ（この下の共通実装が D/C を描く）
     }
 
     Scaffold(
