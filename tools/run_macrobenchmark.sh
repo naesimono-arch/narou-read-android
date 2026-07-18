@@ -22,13 +22,18 @@
 #   tools/run_macrobenchmark.sh --scenario shelf-scroll --assert                 # スクロール予算 assert を有効化して計測
 #   tools/run_macrobenchmark.sh --scenario shelf-scroll --assert --budget-p50 1  # スクロール予算を絞って FAIL 経路を実証
 #   tools/run_macrobenchmark.sh --scenario chapter-flip  # 長時間の章送り jank（frame timing）を計測
+#   tools/run_macrobenchmark.sh --scenario chapter-flip --assert                  # 章送り予算 assert を有効化して計測
 #   tools/run_macrobenchmark.sh --scenario pdf-import    # 大PDF取込のフェーズ別時間（TraceSectionMetric）を計測
+#   tools/run_macrobenchmark.sh --scenario pdf-import --assert                    # 取込予算 assert を有効化して計測
+#   tools/run_macrobenchmark.sh --scenario pdf-import --assert --budget-extract 1 # 取込予算を絞って FAIL 経路を実証
 #
 # シナリオ:
 #   --scenario startup       起動計測（既定）。予算 assert は --assert ＋ --budget-median / --budget-max。
 #   --scenario shelf-scroll  本棚スクロール jank 計測（BookshelfScrollBenchmark）。予算 assert は --assert ＋ --budget-p50 / --budget-p90 / --budget-p99。
-#   --scenario chapter-flip  章送り jank 計測（ChapterFlipBenchmark）。予算未較正のため計測のみ（--assert / 全予算オプションは exit 2）。
-#   --scenario pdf-import    大PDF取込計測（PdfImportBenchmark・N6169DZ 8.5MB を assets 同梱）。予算未較正のため計測のみ（同上 exit 2）。
+#   --scenario chapter-flip  章送り jank 計測（ChapterFlipBenchmark）。予算 assert は --assert ＋ --budget-p50 / --budget-p90 / --budget-p99
+#                            （オプションは shelf-scroll と共用・既定予算は FlipBudget 側の定数＝P99 のみ厚い）。
+#   --scenario pdf-import    大PDF取込計測（PdfImportBenchmark・N6169DZ 8.5MB を assets 同梱）。予算 assert は
+#                            --assert ＋ --budget-extract / --budget-engine（ms 指定・ImportBudget が median を判定）。
 #
 # 注意:
 #   コールド起動5反復は除細動込みで約13分（knowledge 実測）。タイムアウトは余裕を持たせてある。
@@ -69,9 +74,11 @@ SERIAL=""
 SCENARIO="startup"  # startup（既定・従来挙動）| shelf-scroll | chapter-flip | pdf-import
 BUDGET_MEDIAN=""   # startup 専用。空なら透過しない＝StartupBudget 側の既定定数が使われる
 BUDGET_MAX=""      # 同上（--assert と併用前提。単独指定は assert 無効なら無視される）
-BUDGET_P50=""      # shelf-scroll 専用。空なら透過しない＝ScrollBudget 側の既定定数が使われる
+BUDGET_P50=""      # shelf-scroll / chapter-flip 用。空なら透過しない＝ScrollBudget / FlipBudget 側の既定定数が使われる
 BUDGET_P90=""      # 同上
 BUDGET_P99=""      # 同上（いずれも --assert と併用前提）
+BUDGET_EXTRACT=""  # pdf-import 専用（ms）。空なら透過しない＝ImportBudget 側の既定定数が使われる
+BUDGET_ENGINE=""   # 同上（--assert と併用前提）
 while [ $# -gt 0 ]; do
   case "$1" in
     --assert)  DO_ASSERT=1; shift ;;
@@ -83,6 +90,8 @@ while [ $# -gt 0 ]; do
     --budget-p50)    BUDGET_P50="${2:-}"; shift 2 ;;
     --budget-p90)    BUDGET_P90="${2:-}"; shift 2 ;;
     --budget-p99)    BUDGET_P99="${2:-}"; shift 2 ;;
+    --budget-extract) BUDGET_EXTRACT="${2:-}"; shift 2 ;;
+    --budget-engine)  BUDGET_ENGINE="${2:-}"; shift 2 ;;
     -h|--help)
       grep '^#' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0 ;;
@@ -91,37 +100,37 @@ while [ $# -gt 0 ]; do
 done
 
 # ---- scenario 確定と併用ガード -----------------------------------------
-# --assert は両シナリオで有効（startup=StartupBudget / shelf-scroll=ScrollBudget が JSON を読んで判定）。
+# --assert は全シナリオで有効（startup=StartupBudget / shelf-scroll=ScrollBudget / chapter-flip=FlipBudget /
+# pdf-import=ImportBudget が JSON を読んで判定）。
 # 予算上書きオプションは scenario ごとにメトリクスが異なるため専用に分かれる。畑違いの scenario と
 # 併用されたら黙殺せずエラー終了する（指定を無視して緑にすると誤解を生むため。両方向にガードする）:
-#   --budget-median / --budget-max              startup 専用（StartupBudget。shelf-scroll には無い）
-#   --budget-p50 / --budget-p90 / --budget-p99  shelf-scroll 専用（ScrollBudget。startup には無い）
-# chapter-flip は予算が未較正のため計測専用＝--assert も全予算オプションも明示エラーにする
-# （予算未対応の scenario に予算指定を渡して「黙って無視して緑」を作らない既存方針の踏襲）。
+#   --budget-median / --budget-max              startup 専用（StartupBudget）
+#   --budget-p50 / --budget-p90 / --budget-p99  shelf-scroll / chapter-flip 用（ScrollBudget / FlipBudget が
+#                                               同名の instrumentation 引数を読む＝オプション共用。既定定数は別）
+#   --budget-extract / --budget-engine          pdf-import 専用（ImportBudget・ms 指定）
 case "$SCENARIO" in
   startup)
     TEST_CLASS="$STARTUP_CLASS"
     if [ -n "$BUDGET_P50" ] || [ -n "$BUDGET_P90" ] || [ -n "$BUDGET_P99" ]; then
-      echo "--budget-p50 / --budget-p90 / --budget-p99 は --scenario shelf-scroll 専用（startup とは併用不可）。" >&2
-      exit 2
-    fi ;;
-  shelf-scroll)
-    TEST_CLASS="$SHELF_SCROLL_CLASS"
-    if [ -n "$BUDGET_MEDIAN" ] || [ -n "$BUDGET_MAX" ]; then
-      echo "--budget-median / --budget-max は --scenario startup 専用（shelf-scroll とは併用不可）。" >&2
-      exit 2
-    fi ;;
-  chapter-flip)
-    TEST_CLASS="$CHAPTER_FLIP_CLASS"
-    # 予算が未較正＝assert 手段を持たない。--assert・全予算オプションのいずれも黙殺せずエラー終了する
-    # （初回実測で分布を掴んでから較正して追加する方針。ChapterFlipBenchmark の KDoc 参照）。
-    if [ "$DO_ASSERT" -eq 1 ]; then
-      echo "--assert は --scenario chapter-flip では未対応（予算未較正のため計測専用）。" >&2
+      echo "--budget-p50 / --budget-p90 / --budget-p99 は --scenario shelf-scroll / chapter-flip 用（startup とは併用不可）。" >&2
       exit 2
     fi
-    if [ -n "$BUDGET_MEDIAN" ] || [ -n "$BUDGET_MAX" ] || \
-       [ -n "$BUDGET_P50" ] || [ -n "$BUDGET_P90" ] || [ -n "$BUDGET_P99" ]; then
-      echo "予算オプション（--budget-*）は --scenario chapter-flip では未対応（予算未較正のため計測専用）。" >&2
+    if [ -n "$BUDGET_EXTRACT" ] || [ -n "$BUDGET_ENGINE" ]; then
+      echo "--budget-extract / --budget-engine は --scenario pdf-import 専用（startup とは併用不可）。" >&2
+      exit 2
+    fi ;;
+  shelf-scroll|chapter-flip)
+    if [ "$SCENARIO" = "shelf-scroll" ]; then
+      TEST_CLASS="$SHELF_SCROLL_CLASS"
+    else
+      TEST_CLASS="$CHAPTER_FLIP_CLASS"
+    fi
+    if [ -n "$BUDGET_MEDIAN" ] || [ -n "$BUDGET_MAX" ]; then
+      echo "--budget-median / --budget-max は --scenario startup 専用（$SCENARIO とは併用不可）。" >&2
+      exit 2
+    fi
+    if [ -n "$BUDGET_EXTRACT" ] || [ -n "$BUDGET_ENGINE" ]; then
+      echo "--budget-extract / --budget-engine は --scenario pdf-import 専用（$SCENARIO とは併用不可）。" >&2
       exit 2
     fi ;;
   pdf-import)
@@ -129,14 +138,12 @@ case "$SCENARIO" in
     # 1回の取込が分オーダー×3反復＝既定30分では不足しうるため、この scenario だけ上限を60分へ広げる
     # （ベンチ側は反復ごとに完了待ち最大10分の内部タイムアウトを持つ＝無限待ちにはならない）。
     TIMEOUT_SEC=3600
-    # 予算が未較正＝assert 手段を持たない。chapter-flip と同じ方針で黙殺せずエラー終了する。
-    if [ "$DO_ASSERT" -eq 1 ]; then
-      echo "--assert は --scenario pdf-import では未対応（予算未較正のため計測専用）。" >&2
+    if [ -n "$BUDGET_MEDIAN" ] || [ -n "$BUDGET_MAX" ]; then
+      echo "--budget-median / --budget-max は --scenario startup 専用（pdf-import とは併用不可）。" >&2
       exit 2
     fi
-    if [ -n "$BUDGET_MEDIAN" ] || [ -n "$BUDGET_MAX" ] || \
-       [ -n "$BUDGET_P50" ] || [ -n "$BUDGET_P90" ] || [ -n "$BUDGET_P99" ]; then
-      echo "予算オプション（--budget-*）は --scenario pdf-import では未対応（予算未較正のため計測専用）。" >&2
+    if [ -n "$BUDGET_P50" ] || [ -n "$BUDGET_P90" ] || [ -n "$BUDGET_P99" ]; then
+      echo "--budget-p50 / --budget-p90 / --budget-p99 は --scenario shelf-scroll / chapter-flip 用（pdf-import とは併用不可）。" >&2
       exit 2
     fi ;;
   *)
@@ -172,6 +179,18 @@ else
 fi
 log "対象デバイス: $SERIAL"
 
+# ---- 1.5. 画面ロックチェック --------------------------------------------
+# 画面ロック（keyguard）中は走行が必ず壊れるため入口で止める（2026-07-18 実機で2様を実証:
+# ①走行中に消灯→ロックすると perfetto の media 書込みが EPERM で iteration 途中死
+# ②ロック状態で開始すると起動アクティビティが前面に来られず前面ガードで fail）。
+# 認証ロック（PIN 等）は adb から解除できない＝人間がロックを解除してから再実行するしかない。
+# 長い走行中の再消灯対策はここでは打てないため、案内のみ（設定→開発者向け→充電中は画面を点けたまま）。
+KEYGUARD_ON="$({ "${ADB[@]}" shell dumpsys window 2>/dev/null | grep -c 'isKeyguardShowing=true' || true; } | tr -d '\r')"
+if [ "${KEYGUARD_ON:-0}" -gt 0 ]; then
+  die "端末が画面ロック中。ロックを解除してから再実行（ロック中は前面起動不可・media 書込みが EPERM）。走行が長い場合は「充電中は画面を点けたまま」を推奨。"
+fi
+log "画面ロックチェック OK"
+
 # ---- 2. perfetto/trace_processor 残骸チェック --------------------------
 # 残骸（特に port 9001 を握る trace_processor）は新走行を二次ハングさせる。SELinux で kill 不能なため
 # 端末再起動でのみ掃除できる（knowledge 参照）。
@@ -205,7 +224,7 @@ mkdir -p "$RESULT_DIR"
 LOG_FILE="$RESULT_DIR/instrument-$(date +%Y%m%d-%H%M%S).log"
 
 # 引数列: -w 完了待ち・output.enable=true が benchmarkData.json 書き出しの前提条件。
-# --assert 時のみ enableBudgetAssert=true を付与（StartupBudget / ScrollBudget が JSON を読んで判定）。
+# --assert 時のみ enableBudgetAssert=true を付与（StartupBudget / ScrollBudget / FlipBudget / ImportBudget が JSON を読んで判定）。
 INSTR_ARGS=(am instrument -w
   -e androidx.benchmark.output.enable true
   -e class "$TEST_CLASS")
@@ -219,7 +238,7 @@ fi
 if [ -n "$BUDGET_MAX" ]; then
   INSTR_ARGS+=(-e budgetMaxMs "$BUDGET_MAX")
 fi
-# 同上（shelf-scroll 用）。指定時のみ付与し、未指定なら ScrollBudget の既定定数に委ねる。
+# 同上（shelf-scroll / chapter-flip 用。ScrollBudget / FlipBudget が同名引数を読む）。
 if [ -n "$BUDGET_P50" ]; then
   INSTR_ARGS+=(-e budgetP50Ms "$BUDGET_P50")
 fi
@@ -228,6 +247,13 @@ if [ -n "$BUDGET_P90" ]; then
 fi
 if [ -n "$BUDGET_P99" ]; then
   INSTR_ARGS+=(-e budgetP99Ms "$BUDGET_P99")
+fi
+# 同上（pdf-import 用）。指定時のみ付与し、未指定なら ImportBudget の既定定数に委ねる。
+if [ -n "$BUDGET_EXTRACT" ]; then
+  INSTR_ARGS+=(-e budgetExtractMs "$BUDGET_EXTRACT")
+fi
+if [ -n "$BUDGET_ENGINE" ]; then
+  INSTR_ARGS+=(-e budgetEngineMs "$BUDGET_ENGINE")
 fi
 INSTR_ARGS+=("${TEST_PACKAGE}/${TEST_RUNNER}")
 

@@ -25,8 +25,9 @@ import org.junit.runner.RunWith
  * 成立しないため、benchmark variant の assets に実PDF を載せ、アプリ自身に cacheDir へ展開させて本番の
  * FGS 取込経路をそのまま計測する（app/build.gradle の copyBenchmarkPdfAsset・[ImportBenchReceiver] 参照）。
  *
- * 予算 assert は本ベンチでは未実装（初回の実測でフェーズ分布を掴んでから較正して追加する方針＝[ScrollBudget]/
- * [StartupBudget] と同じ流儀。較正前の恣意的な閾値で「黙って緑」を作らない）。
+ * 予算 assert（instrumentation 引数 `enableBudgetAssert` が true のときのみ）＝measureRepeated 完了
+ * 直後に [ImportBudget] が benchmarkData.json を読んで Import#extract / Extract#engine の median を
+ * 判定する（初回実測から較正した予算値・median のみ判定する理由は同オブジェクト参照）。既定は従来どおり計測のみ。
  *
  * ColorOS の broadcast 沈黙不達（背景/凍結プロセスへの配達が result=0 の正常完了に化ける）と、その回避
  * （clear は force-stop で dead＝非凍結にしてから shell broadcast、start は前面＝生存・非凍結へ送る）の機序は
@@ -42,6 +43,9 @@ class PdfImportBenchmark {
     @OptIn(ExperimentalMetricApi::class)
     @Test
     fun importLargePdf() {
+        // measureRepeated が書き出す benchmarkData.json が「今回の走行」のものであることを
+        // lastModified で検証するために使う（残骸 JSON による偽判定防止＝ImportBudget 参照）。
+        val startedAtEpochMs = System.currentTimeMillis()
         benchmarkRule.measureRepeated(
             packageName = TARGET_PACKAGE,
             // 各区間は1 iteration に1回だけ発生するため Mode は First/Sum で一致（ここでは Sum に統一）。
@@ -109,6 +113,10 @@ class PdfImportBenchmark {
             if (!device.wait(Until.hasObject(By.textContains(BOOK_TITLE_HEAD)), 10_000)) {
                 fail("著者は出たが作品タイトル「$BOOK_TITLE_HEAD」を同定できない（想定外の状態）")
             }
+        }
+        // このリターン時点で書き出し済みの benchmarkData.json を読んで判定する（ImportBudget 参照）。
+        if (ImportBudget.isBudgetAssertEnabled()) {
+            ImportBudget.assertImportWithinBudget(startedAtEpochMs)
         }
     }
 

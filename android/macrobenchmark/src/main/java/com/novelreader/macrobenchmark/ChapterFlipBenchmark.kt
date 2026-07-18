@@ -20,9 +20,9 @@ import org.junit.runner.RunWith
  * 章送りは本文レイアウト再構築＋HTML パース＋ルビ整形を毎回走らせる重い遷移で、本棚スクロール
  * （[BookshelfScrollBenchmark]）とは別種の jank 源になりうるため独立ベンチとして分ける。
  *
- * 予算 assert は本ベンチでは実装しない（初回の実測で分布を掴んでから較正して追加する方針＝
- * [ScrollBudget] と同じ流儀。較正前の恣意的な閾値で「黙って緑」を作らないため）。
- * よって instrumentation 引数 `enableBudgetAssert` / `budget*` は本クラスでは参照しない。
+ * 予算 assert（instrumentation 引数 `enableBudgetAssert` が true のときのみ）＝measureRepeated 完了
+ * 直後に [FlipBudget] が benchmarkData.json を読んで P50/P90/P99 を判定する（初回実測から較正した
+ * 予算値・判定の値源の機序は同オブジェクト参照）。既定は従来どおり計測のみ。
  *
  * COLD 性・シード配達・前面ガード・StaleObjectException 再試行の各作法は [BookshelfScrollBenchmark]
  * と同一の根拠（ColorOS の沈黙不達／COLD の force-stop 仕様／launcher も scrollable を持つ／
@@ -36,6 +36,9 @@ class ChapterFlipBenchmark {
 
     @Test
     fun flipChapters() {
+        // measureRepeated が書き出す benchmarkData.json が「今回の走行」のものであることを
+        // lastModified で検証するために使う（残骸 JSON による偽判定防止＝FlipBudget 参照）。
+        val startedAtEpochMs = System.currentTimeMillis()
         benchmarkRule.measureRepeated(
             packageName = TARGET_PACKAGE,
             metrics = listOf(FrameTimingMetric()),
@@ -116,6 +119,10 @@ class ChapterFlipBenchmark {
                 // 計測への影響: sleep 中は静止＝フレームが出ないため FrameTiming の分位には乗らない。
                 Thread.sleep(400)
             }
+        }
+        // このリターン時点で書き出し済みの benchmarkData.json を読んで判定する（FlipBudget 参照）。
+        if (FlipBudget.isBudgetAssertEnabled()) {
+            FlipBudget.assertFlipWithinBudget(startedAtEpochMs)
         }
     }
 

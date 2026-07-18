@@ -102,8 +102,10 @@
      未除外）ごとにモーダル表示→背後の本棚を a11y から隠し完了検知を堰き止める。ImportBenchReceiver が
      `app_prefs`/`battery_dialog_dismissed=true` を事前書込（「二度と表示しない」ユーザーと同状態・計測対象に無影響）。
 
-## 残（予算較正のみ・ユーザー裁定待ち）
+## ③④予算 assert（2026-07-18 実装・ユーザー裁定＝候補どおり採用）
 
-- ③④の実測分布から予算を引いて assert 追加（②と同じ2段階）。候補（未採用）:
-  ③ chapter-flip＝frameDurationCpuMs P50≤15/P90≤20/P99≤50ms（P99 実測 30.3ms は本棚より尾が重い＝章切替スパイクを許容する係数）
-  ④ pdf-import＝Import#extract ≤ 35s / Extract#engine ≤ 33s（実測×1.4〜1.5。端末温度・ColorOS 外乱込み）。
+- **予算採用**: ③ chapter-flip＝frameDurationCpuMs P50≤15/P90≤20/**P99≤50ms**（P99 実測 30.3ms は本棚より尾が重い＝章切替スパイクを許容する係数）・④ pdf-import＝**Import#extract ≤35s / Extract#engine ≤33s**（実測×1.4〜1.5・median のみ判定＝3反復では max が1発外乱で flaky ゲート化するため。分布タイト 23.7〜24.7s が根拠）。
+- **実装＝`FlipBudget.kt`／`ImportBudget.kt`**（StartupBudget/ScrollBudget と同じ意図的複製の流儀＝実証済みコード無変更保全）。予算上書き引数は ③=`budgetP50Ms` 等を ScrollBudget と共用（シナリオ排他で衝突しない）・④=`budgetExtractMs`/`budgetEngineMs` 新設。④の JSON キーは **`Import#extractSumMs`/`Extract#engineSumMs`**（TraceSectionMetric(Mode.Sum) は「<区間名>SumMs」で metrics マップに出る＝pull 済み実 JSON で確認）。**0.0 は計測不能として fail**（全メトリクス 0.0 の前科＝完了検知早発火の回帰検知）。
+- **スクリプト**: chapter-flip/pdf-import の `--assert` 解禁・`--budget-extract`/`--budget-engine` 新設・畑違いガード全方向張り替え（6経路 exit 2 検査済み）。
+- **実機実証（2026-07-18）**: ③ PASS 経路＝P50 6.8/P90 16.9/P99 31.1ms で exit 0・③ FAIL 経路＝`--budget-p50 1` で AssertionError「P50=7.17ms > 予算 1.0ms」exit 1・④ PASS 経路＝extract 24.0s/engine 22.4s で exit 0（--assert 付き完走＝JSON 探索・パース・判定の実行も同時に実証）・④ FAIL 経路＝`--budget-extract 1` で AssertionError「Import#extractSumMs median=21959.9ms > 予算 1.0ms」exit 1（ロック解除後に完走。この走行の実測 extract 22.0s/engine 20.7s は予算内側＝FAIL は純粋に絞った予算による）。**＝③④とも PASS/FAIL 両経路の実機実証完了**。
+- **副産物＝画面ロックの2様の壊れ方を実証し、スクリプトへロック検査を新設**: ①走行中に消灯→ロック＝perfetto の media 書込み（trace_config.pb）が **EPERM** で iteration 途中死（61GB 空きで容量無関係・iter000/001 は書けて3反復目だけ死ぬ）②ロック状態で開始＝前面ガード「対象アプリが前面に来なかった」で fail（`mCurrentFocus=NotificationShade`・`isKeyguardShowing=true`）。`wm dismiss-keyguard`/スワイプ/keyevent 82 いずれも認証ロックは突破不可＝人間の解除が必要。入口検査（keyguard 検出で die）は現物のロック状態で exit 1 を実証済み。
