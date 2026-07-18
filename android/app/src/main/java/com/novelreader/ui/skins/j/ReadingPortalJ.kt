@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -313,19 +314,20 @@ fun NextDoorEdgeGlowJ(atChapterEnd: Boolean, colors: ReadingColors, modifier: Mo
     val reduceMotion = remember {
         Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
     }
-    // 滲みの呼吸（.edge breathe 2.6s・opacity .55↔1）。reduce 時は無限アニメを作らず固定 .8（モック reduce 分岐）。
-    val breathe = if (reduceMotion) {
-        0.8f
+    // 滲みの呼吸（.edge breathe 2.6s・opacity .55↔1）。animateFloat 値を composition で読むと毎フレーム再コンポーズ
+    // されるため、State のまま持ち Canvas draw ラムダ内でだけ読む provider にする（M の deferred-read 作法に統一）。
+    // reduce 時は無限アニメを作らず null＝provider が固定 .8 を返す（モック reduce 分岐）。
+    val breatheAnim: State<Float>? = if (reduceMotion) {
+        null
     } else {
-        val transition = rememberInfiniteTransition(label = "nextdoorBreathe")
-        val v by transition.animateFloat(
+        rememberInfiniteTransition(label = "nextdoorBreathe").animateFloat(
             initialValue = 0.55f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(tween(2600), RepeatMode.Reverse), // @keyframes breathe 2.6s
             label = "nextdoorBreathePhase",
         )
-        v
     }
+    val breathe: () -> Float = { breatheAnim?.value ?: 0.8f }
     // showAlpha≈0 のときは描画コストをかけない（章途中は右端が暗いまま＝モックの非 .show 状態）。
     if (showAlpha <= 0.01f) return
     Box(
@@ -336,12 +338,13 @@ fun NextDoorEdgeGlowJ(atChapterEnd: Boolean, colors: ReadingColors, modifier: Mo
     ) {
         Canvas(modifier = Modifier.fillMaxHeight().width(64.dp)) {
             val d = 1.dp.toPx()
+            val breatheNow = breathe() // 呼吸値は draw 段でだけ読む（deferred read）。
             // 滲み(.edge)＝270deg グラデ（右端 --rule .5 → .12@45% → 透明）。呼吸で全体濃度を上下させる。
             drawRect(
                 brush = Brush.horizontalGradient(
                     0f to Color.Transparent,
-                    0.55f to colors.rule.copy(alpha = 0.12f * breathe),
-                    1f to colors.rule.copy(alpha = 0.5f * breathe),
+                    0.55f to colors.rule.copy(alpha = 0.12f * breatheNow),
+                    1f to colors.rule.copy(alpha = 0.5f * breatheNow),
                 ),
             )
             // 芯(.spine)＝右端 6px 内側の 2px 縦バー（--accent→--rule）。上下 14% を空ける。

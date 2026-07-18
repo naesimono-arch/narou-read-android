@@ -128,13 +128,17 @@ internal fun TocSkyM(
         label = "tocCurPulsePhase",
     )
 
+    // 背景の星屑（DUST 64）は draw 段で毎回 Lcg 再生成せず、1 コンポジション 1 回だけ決定的に生成して
+    // remember で保持する（DeepSkyM の「決定的1回生成」基準に統一。座標は 0..1 正規化で size 非依存）。
+    val starDust = remember { buildTocStarDust() }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .drawBehind {
                 // 夜天3層背景（星図スキン共通）＋星屑・緯線・大星座（大星座は章がある時のみ）。
                 drawNightSky()
-                drawTocSky(hasConstellation = entries.isNotEmpty(), frac = frac)
+                drawTocSky(dust = starDust, hasConstellation = entries.isNotEmpty(), frac = frac)
             },
     ) {
         Column(
@@ -392,22 +396,35 @@ private fun TocErrorBody(message: String, onRetry: () -> Unit, modifier: Modifie
 // ============================================================
 // canvas 描画（星屑・緯線・大星座）。値の正本＝toc-M.html <script>。
 // ============================================================
+/** 星屑1点（0..1 正規化座標＋dp半径係数 rMul＋α）。draw 内の Lcg 再生成を避け remember で1回だけ生成する（DeepSkyM と同型）。 */
+internal class TocStarDust(val fx: Float, val fy: Float, val rMul: Float, val alpha: Float)
+
+/**
+ * 星屑64点を決定的に1回だけ生成（正本 toc-M.html DUST・seed 20260717）。Lcg 消費順（x→y→r→a）を保ち座標等価。
+ * 位置は Canvas size 依存のため 0..1 正規化で持つ（fx=x/390＝rnd, fy=y/844）＝端末非依存。半径係数 rMul は draw で *d、α は不変。
+ */
+internal fun buildTocStarDust(): List<TocStarDust> {
+    val rnd = Lcg(20260717)
+    return List(64) {
+        val fx = rnd.next()                                   // x=rnd*390 → 描画時 fx*w（=x/390*w）
+        val fy = (44f + rnd.next() * (844f - 70f)) / 844f     // y=44+rnd*(H-70) を正規化
+        val rMul = rnd.next() * 0.9f + 0.3f                   // 描画時 rMul*d
+        val alpha = rnd.next() * 0.32f + 0.05f
+        TocStarDust(fx, fy, rMul, alpha)
+    }
+}
+
 /** 星屑64点＋緯線4本＋大星座（点火）を描く。座標は mock 390×844 → 実サイズへ比例写像。 */
-private fun DrawScope.drawTocSky(hasConstellation: Boolean, frac: Float) {
+private fun DrawScope.drawTocSky(dust: List<TocStarDust>, hasConstellation: Boolean, frac: Float) {
     val w = size.width
     val h = size.height
     val d = 1.dp.toPx()
     // mock 座標 (390×844) → 実サイズへの比例写像。
     fun p(mx: Float, my: Float) = Offset(mx / 390f * w, my / 844f * h)
 
-    // 星屑（DUST 64: x=rnd*W, y=44+rnd*(H-70), r=rnd*.9+.3, a=rnd*.32+.05・seed 20260717）。
-    val rnd = Lcg(20260717)
-    repeat(64) {
-        val x = rnd.next() * 390f
-        val y = 44f + rnd.next() * (844f - 70f)
-        val r = (rnd.next() * 0.9f + 0.3f) * d
-        val a = rnd.next() * 0.32f + 0.05f
-        drawCircle(DustSeizu.copy(alpha = a), radius = r, center = p(x, y))
+    // 星屑（DUST 64・seed 20260717）＝remember 済みの正規化座標を size/d で復元して描く（生成時と等価）。
+    for (s in dust) {
+        drawCircle(DustSeizu.copy(alpha = s.alpha), radius = s.rMul * d, center = Offset(s.fx * w, s.fy * h))
     }
 
     // 緯線4本（y=170+i*180・moveTo(6,y) quad(195,y-14,384,y)・rgba(150,168,214,.05)）。

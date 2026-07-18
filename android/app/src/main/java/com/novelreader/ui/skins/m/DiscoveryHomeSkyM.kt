@@ -129,12 +129,15 @@ internal fun DiscoveryHomeSkyM(
     onSelectOrder: (NarouOrder) -> Unit,
     onRefresh: () -> Unit,
 ) {
+    // 背景フィールド（星屑110＋大星座）は draw 段で毎回 Lcg/座標再生成せず 1 回だけ決定的に生成し remember
+    // で保持する（DeepSkyM の「決定的1回生成」基準に統一。座標は 0..1 正規化で size 非依存）。
+    val skyField = remember { buildDiscoverySkyField() }
     Box(
         modifier = Modifier
             .fillMaxSize()
             .drawBehind {
-                drawNightSky()       // 夜天3層（星図スキン共通）
-                drawDiscoverySky()   // 天の川の淡帯＋星屑110＋見出し背後の大星座（静止1回）
+                drawNightSky()            // 夜天3層（星図スキン共通）
+                drawDiscoverySky(skyField) // 天の川の淡帯＋星屑110＋見出し背後の大星座（静止1回）
             },
     ) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
@@ -209,12 +212,13 @@ internal fun DiscoveryResultSkyM(
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
 ) {
+    val skyField = remember { buildDiscoverySkyField() }
     Box(
         modifier = Modifier
             .fillMaxSize()
             .drawBehind {
                 drawNightSky()
-                drawDiscoverySky()
+                drawDiscoverySky(skyField)
             },
     ) {
         // process death 復帰中は文脈 null＝D 実装と同じく退去せず最小ローディングで待つ（DiscoveryResultContent と対称）。
@@ -753,7 +757,7 @@ private fun SkyFooterText(text: String) {
 // 発見固有の夜空（モック .skybg <script>: 天の川の淡帯＋星屑110＋見出し背後の大星座）。
 // 静止1回描画。座標は mock 390×844 を実サイズへ比例写像（TocSkyM.drawTocSky と同作法）。
 // ============================================================
-private fun DrawScope.drawDiscoverySky() {
+private fun DrawScope.drawDiscoverySky(field: DiscoverySkyField) {
     val w = size.width
     val h = size.height
     val d = 1.dp.toPx()
@@ -773,26 +777,48 @@ private fun DrawScope.drawDiscoverySky() {
         size = androidx.compose.ui.geometry.Size(bandBR.x - bandTL.x, bandBR.y - bandTL.y),
     )
 
-    // 星屑110点（seed 13579・半数は 60..290 の帯域集中〔band α×.4〕・残りは全面〔α×.28〕）。
-    val rnd = Lcg(13579)
-    repeat(110) {
-        val band = rnd.next() < 0.5f
-        val x = rnd.next() * 390f
-        val y = if (band) 60f + rnd.next() * 230f else 44f + rnd.next() * (844f - 70f)
-        val r = (rnd.next() * 1f + 0.3f) * d
-        val a = rnd.next() * (if (band) 0.4f else 0.28f) + 0.05f
-        drawCircle(DustSeizu.copy(alpha = a), radius = r, center = p(x, y))
+    // 星屑110点（seed 13579）＝remember 済みの正規化座標を size/d で復元して描く（生成時と等価）。
+    for (s in field.dust) {
+        drawCircle(DustSeizu.copy(alpha = s.alpha), radius = s.rMul * d, center = Offset(s.fx * w, s.fy * h))
     }
 
     // 見出し背後の大きな淡い星座（CONST 5点＝結線 rgba(150,168,214,.12)＋各点に淡いグロー r4 α.18）。
-    val const = arrayOf(70f to 150f, 130f to 120f, 200f to 168f, 268f to 132f, 320f to 180f)
-    val cpts = const.map { p(it.first, it.second) }
+    // 正規化 5 点は remember 済み・Path は size 依存のため draw で復元（toc の litPath/basePath と同作法）。
+    val cpts = field.constellation.map { Offset(it.x * w, it.y * h) }
     val cpath = Path().apply {
         moveTo(cpts[0].x, cpts[0].y)
         for (i in 1 until cpts.size) lineTo(cpts[i].x, cpts[i].y)
     }
     drawPath(cpath, MoonSlateSeizu.copy(alpha = 0.12f), style = Stroke(width = 1f))
     cpts.forEach { drawDiscoveryGlow(it, 4f * d, 0.18f) }
+}
+
+/** 発見固有の夜空フィールド（星屑110＋大星座5点）。draw 内の Lcg/座標再生成を避け remember で1回だけ生成する（DeepSkyM と同型）。 */
+internal class DiscoveryStarDust(val fx: Float, val fy: Float, val rMul: Float, val alpha: Float)
+internal class DiscoverySkyField(val dust: List<DiscoveryStarDust>, val constellation: List<Offset>)
+
+/**
+ * 発見の夜空フィールドを決定的に1回だけ生成（正本 discovery-M.html・seed 13579）。星屑の Lcg 消費順（band→x→y→r→a）を
+ * 保ち座標等価。位置は Canvas size 依存のため 0..1 正規化で持つ（fx=x/390＝rnd, fy=y/844）＝端末非依存。半径係数 rMul は draw で *d。
+ * 大星座 CONST 5点は固定座標を 0..1 正規化で保持（draw で size 乗算・Path 復元）。
+ */
+internal fun buildDiscoverySkyField(): DiscoverySkyField {
+    val rnd = Lcg(13579)
+    val dust = List(110) {
+        val band = rnd.next() < 0.5f
+        val fx = rnd.next()                                                          // x=rnd*390 → 描画時 fx*w
+        val fy = (if (band) 60f + rnd.next() * 230f else 44f + rnd.next() * (844f - 70f)) / 844f
+        val rMul = rnd.next() * 1f + 0.3f                                            // 描画時 rMul*d
+        val alpha = rnd.next() * (if (band) 0.4f else 0.28f) + 0.05f
+        DiscoveryStarDust(fx, fy, rMul, alpha)
+    }
+    // CONST 5点（正本固定座標）を 0..1 正規化で保持（mx/390, my/844）。
+    val constellation = listOf(
+        Offset(70f / 390f, 150f / 844f), Offset(130f / 390f, 120f / 844f),
+        Offset(200f / 390f, 168f / 844f), Offset(268f / 390f, 132f / 844f),
+        Offset(320f / 390f, 180f / 844f),
+    )
+    return DiscoverySkyField(dust, constellation)
 }
 
 /** 見出し背後の星グロー（モック glow(): radial 2停止＝星光 α→0 ＋星芯 1.4px）。bookshelf の starGlow と別式。 */
