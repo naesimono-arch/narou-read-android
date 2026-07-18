@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -608,7 +609,11 @@ private fun ConstellationCell(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(cellHeight)
+            // min 拘束＝ラベル最大構成（識別行＋題2行＋著者＋進捗＋新着＋続きを結ぶ≒152dp超）が 150dp を
+            // 超えるとリンクがセル外へはみ出し、固定オーバーレイの発見帯・地平スクリムに覆われて
+            // タップ導線が隠れる（実機検分[中]）。内容追従で伸ばし、星座 canvas は drawWithCache の
+            // サイズ再構築・視差は可変高前提の代表値近似（上記コメント）がそのまま吸収する。
+            .heightIn(min = cellHeight)
             .clickable(onClick = onOpen)
             // ジオメトリ（星点列・弧長・Path 群）は pulse 非依存ゆえ drawWithCache のキャッシュ段で1回だけ生成し、
             // onDrawBehind は完成品を描くだけにする（毎フレーム Path/配列を再確保する GC churn を断つ）。
