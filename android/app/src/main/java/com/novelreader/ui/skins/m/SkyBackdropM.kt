@@ -69,6 +69,12 @@ class SkyParallaxController(
     // 読書Mモーションゼロ（ADR 0022 §3）との整合で流星は抑止する＝hidden とは別軸（空を消さず z2 だけ止める）。transient。
     var meteorSuppressed by mutableStateOf(false)
 
+    // 【高負荷スカイ（ADR 0023）のチャンク式無限空・専用】wrap しない累積スクロールオフセット（px・mid スケール）。
+    // 通常モードの offsetPx（[0,tileHeightPx) の周期座標）とは別軸＝高負荷側のワールド座標系の起点。通常モードは本値を
+    // 一切読まない（挙動不変）。reduce-motion でも積む＝高負荷はドリフト停止でもスクロール視差を維持する（req 6）。transient。
+    var scrollWorldPx by mutableFloatStateOf(0f)
+        private set
+
     /**
      * アクティブ画面のスクロール差分（nestedScroll onPostScroll の consumed.y）を視差へ積む。
      * consumed.y<0（下スクロール＝内容が上へ）で offset を増やし、天の川を上へ滑らせる（現状の向きを踏襲）。
@@ -76,7 +82,9 @@ class SkyParallaxController(
      * （Float 精度劣化の防止も兼ねる）。画面遷移では一切呼ばれない＝offset は保持され連続する（裁定③）。
      */
     fun onScrollDelta(consumedY: Float) {
-        if (reduceMotion) return
+        // 高負荷用の wrap なし累積は reduce-motion でも積む（高負荷はドリフト停止でもスクロール視差を残す＝req 6）。
+        scrollWorldPx += -consumedY * factor
+        if (reduceMotion) return // 通常モードの offsetPx はこれまで通り reduce-motion で据え置き（挙動を変えない）。
         offsetPx = (offsetPx - consumedY * factor).mod(tileHeightPx)
     }
 
@@ -150,16 +158,31 @@ const val SkyParallaxFactor: Float = 0.08f
  * 極微視差の縦トーラス）→z2 流星（MeteorCanvas）。読了星は含めない（本棚コンテンツ側で drawFinishedStars）。
  *
  * @param controller 視差/非表示のコントローラ（MainActivity が rememberSaveable で1個生成）。
+ * @param highLoad 高負荷スカイ試作（ADR 0023・debug トグル）。true のとき現行レイヤの代わりに HighLoadSkyM を丸ごと敷く
+ *   （モード分離＝通常モードの描画パス・DeepSkyM の規律・視差機構は不変。false 時のふるまいは現行と厳密同一）。
  */
 @Composable
-internal fun SkyBackdropM(controller: SkyParallaxController, modifier: Modifier = Modifier) {
+internal fun SkyBackdropM(
+    controller: SkyParallaxController,
+    highLoad: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
     // フィールドは backdrop がコンポジションに在る限り生存（NavHost の兄弟＝遷移で dispose されない）。
     // hidden の早期 return より前に remember するのは、読書本文への出入りで field を作り直さない（churn 回避）ため。
     val field = remember { buildDeepSkyField() }
     // 流星スケジューラも hidden の早期 return より前で構成＝読書往復（hidden 切替）で破棄→再起動しない（B の真因対処・
     // DeepSkyM の z2 節参照）。実時間抽選ゆえナビ・スクロールと無相関。
-    val meteor = rememberMeteorHost(controller.reduceMotion)
+    // 高負荷 ON 時のみ流星の掃過を半分速度に（所要2倍。実機裁定「流星の速さも半分に」）。共有スケジューラへ倍率を渡すだけ＝
+    //   OFF/他経路は既定 1f で所要時間が厳密不変（HighLoadSkyM が rendering する時だけ 2f＝通常 MeteorCanvas 経路は不変）。
+    val meteor = rememberMeteorHost(controller.reduceMotion, if (highLoad) HL_METEOR_DURATION_SCALE else 1f)
     if (controller.hidden) return
+
+    // 高負荷モード＝別描画パスへ丸ごと分岐（ADR 0023）。field/meteor（往復堅牢化のため上で remember 済み）を渡す。
+    // 以降の現行レイヤ（else 相当）は一切変更しない＝OFF 時のふるまいは現行と厳密同一。
+    if (highLoad) {
+        HighLoadSkyM(controller, field, meteor, modifier)
+        return
+    }
 
     Box(
         modifier = modifier

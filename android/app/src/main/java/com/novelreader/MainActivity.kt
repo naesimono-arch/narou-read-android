@@ -152,6 +152,16 @@ class MainActivity : ComponentActivity() {
                 appSkin = skin
                 prefs.edit().putString("app_skin", skin.name).apply()
             }
+            // 高負荷スカイ（星図M・試作／ADR 0023）。reading_theme・app_skin と同じ「MainActivity 巻き上げ＋prefs 永続」流儀。
+            // なぜ BuildConfig.DEBUG で潰すか: release ではトグル UI を出さず値も常に false＝出荷時は現行の空のまま
+            //（試作は debug 限定の実機探索）。debug でのみ prefs 値を尊重して backdrop へ引数で渡す。
+            var highLoadSkyM by remember {
+                mutableStateOf(BuildConfig.DEBUG && prefs.getBoolean("sky_high_load_m", false))
+            }
+            val onHighLoadSkyChange: (Boolean) -> Unit = { on ->
+                highLoadSkyM = on
+                prefs.edit().putBoolean("sky_high_load_m", on).apply()
+            }
 
             // Material3 配色もテーマ3値（ライト/セピア/ダーク）へ追従させる。
             // 旧実装はセピア時にライト配色を流用しており、本棚・発見系で「ライトとセピアの
@@ -165,6 +175,8 @@ class MainActivity : ComponentActivity() {
                     onFollowSystem = onFollowSystem,
                     appSkin = appSkin,
                     onSkinChange = onSkinChange,
+                    highLoadSkyM = highLoadSkyM,
+                    onHighLoadSkyChange = onHighLoadSkyChange,
                     // .value の読み取りを composable 内で行うことで onNewIntent の更新が再コンポーズを誘発する。
                     deepLinkBookId = deepLinkBookId.value,
                     onDeepLinkConsumed = { deepLinkBookId.value = null },
@@ -211,6 +223,9 @@ private fun NovelReaderApp(
     onFollowSystem: () -> Unit,
     appSkin: Skin,
     onSkinChange: (Skin) -> Unit,
+    // 高負荷スカイ試作（ADR 0023）: backdrop へ渡す現在値＋設定画面（本棚⋮）のトグルが呼ぶ更新。debug 限定は呼び出し元で潰す。
+    highLoadSkyM: Boolean,
+    onHighLoadSkyChange: (Boolean) -> Unit,
     deepLinkBookId: String?,
     onDeepLinkConsumed: () -> Unit,
 ) {
@@ -273,7 +288,7 @@ private fun NovelReaderApp(
     // 「M星図の例外」）＝コンテンツのみがシームレスに差し替わる。他スキンは横スライド push 不変（ADR 0019・方向で階層移動を伝える）。
     val d = MotionDurationNavTransition
     Box(modifier = Modifier.fillMaxSize()) {
-        if (skyParallax != null) SkyBackdropM(skyParallax, Modifier.fillMaxSize())
+        if (skyParallax != null) SkyBackdropM(skyParallax, highLoadSkyM, Modifier.fillMaxSize())
         CompositionLocalProvider(LocalSkyParallax provides skyParallax) {
     NavHost(
         navController = navController,
@@ -317,6 +332,9 @@ private fun NovelReaderApp(
                 // reading_theme 未宣言かどうか。別状態を新設せず二重管理を避ける・2026-07-17 ユーザー裁定②）。
                 followingSystem = followingSystem,
                 onFollowSystem = onFollowSystem,
+                // 高負荷スカイ試作トグル（ADR 0023）＝本棚⋮メニュー（テーマ・通知の並ぶ設定面）に debug 限定で出す。
+                highLoadSkyM = highLoadSkyM,
+                onHighLoadSkyChange = onHighLoadSkyChange,
                 onOpenBook = { bookId, startFile ->
                     // launchSingleTop: 二度押しで同一読書画面がバックスタックに二重 push されるのを防ぐ（M1）。
                     navController.navigate("reading/$bookId/$startFile") { launchSingleTop = true }

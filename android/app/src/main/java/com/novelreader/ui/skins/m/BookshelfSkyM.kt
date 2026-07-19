@@ -80,6 +80,7 @@ import androidx.compose.ui.unit.sp
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.narou.model.NarouNovel
+import com.novelreader.ui.HighLoadSkyMenuSection
 import com.novelreader.ui.NewEpisodeNotificationMenuSection
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.theme.DimSeizu
@@ -187,6 +188,9 @@ internal fun BookshelfSkyM(
     onCancelProcessing: () -> Unit,
     snackbarHostState: SnackbarHostState,
     isLoading: Boolean,
+    // 高負荷スカイ試作トグル（ADR 0023）＝⋮メニューへ debug 限定で出す。既定 false / no-op は既存呼出し・テスト互換のため。
+    highLoadSkyM: Boolean = false,
+    onHighLoadSkyChange: (Boolean) -> Unit = {},
 ) {
     // reduce-motion: アニメーター無効（開発者設定/省電力のスケール0）を尊重して脈動を静止させる
     //（ADR 0022 §3 の必須条件。モックの prefers-reduced-motion 分岐＝pulse 0.55 固定と同値）。
@@ -279,6 +283,8 @@ internal fun BookshelfSkyM(
                 onOpenDiscovery = onOpenDiscovery,
                 onToggleList = onToggleList,
                 onOpenWardrobe = onOpenWardrobe,
+                highLoadSkyM = highLoadSkyM,
+                onHighLoadSkyChange = onHighLoadSkyChange,
             )
             // 取込中バナー（PDFを星に変換中）＝非スクロール・銘直下（モック .banner）。
             AnimatedVisibility(
@@ -381,6 +387,8 @@ private fun SkyPlate(
     onOpenDiscovery: () -> Unit,
     onToggleList: () -> Unit,
     onOpenWardrobe: () -> Unit,
+    highLoadSkyM: Boolean = false,
+    onHighLoadSkyChange: (Boolean) -> Unit = {},
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.S16, vertical = Spacing.S4),
@@ -421,6 +429,8 @@ private fun SkyPlate(
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 // M は固定1変種＝テーマ節を出さない（settings-M のテーマ固定表示と同思想・ADR 0022 §2）。
                 NewEpisodeNotificationMenuSection()
+                // 高負荷スカイ試作トグル（ADR 0023）＝debug かつ星図M のときだけ節ごと出る（内部で自己ゲート）。
+                HighLoadSkyMenuSection(highLoadSkyM, onHighLoadSkyChange, onDismissMenu = { menuOpen = false })
             }
         }
     }

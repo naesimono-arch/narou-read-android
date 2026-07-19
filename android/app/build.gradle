@@ -92,6 +92,9 @@ android {
     }
     buildFeatures {
         compose true
+        // BuildConfig 生成を明示 ON（AGP 8.x は既定 OFF）。高負荷スカイ試作トグルを debug ビルド限定で
+        // 露出するため BuildConfig.DEBUG を参照する（ADR 0023・release では常に false 扱い）。
+        buildConfig true
     }
     composeOptions {
         kotlinCompilerExtensionVersion '1.5.10'

@@ -73,6 +73,7 @@ import com.novelreader.ui.skins.j.BookshelfGridJ
 import com.novelreader.ui.skins.j.BookshelfPortalJ
 import com.novelreader.ui.skins.m.BookshelfLogM
 import com.novelreader.ui.skins.m.BookshelfSkyM
+import com.novelreader.ui.skins.m.HlSkyDebug
 import com.novelreader.ui.skins.p.BookshelfCartridgeP
 import com.novelreader.ui.skins.p.BookshelfListCartridgeP
 import com.novelreader.ui.theme.Insets
@@ -81,6 +82,8 @@ import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.LocalSkinTokens
 import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.MinchoFamily
+import androidx.compose.ui.semantics.semantics
+import com.novelreader.BuildConfig
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationReveal
@@ -114,6 +117,9 @@ fun BookshelfScreen(
     // 既定 false / no-op は既存呼出し・テストの互換のため（MainActivity が実値を渡して初めて有効化される）。
     followingSystem: Boolean = false,
     onFollowSystem: () -> Unit = {},
+    // 高負荷スカイ試作トグル（ADR 0023）。⋮メニュー（設定面）へ debug 限定で出す。既定 false / no-op は既存呼出し・テスト互換。
+    highLoadSkyM: Boolean = false,
+    onHighLoadSkyChange: (Boolean) -> Unit = {},
     onOpenBook: (bookId: String, startFile: String) -> Unit,
     onOpenDiscovery: () -> Unit,
     // 装いの間（UIスキン選択）への入口。入口は本棚トップバーのみ（意図的設計＝ADR 0021 決定7）。
@@ -250,6 +256,8 @@ fun BookshelfScreen(
         onThemeChange = onThemeChange,
         followingSystem = followingSystem,
         onFollowSystem = onFollowSystem,
+        highLoadSkyM = highLoadSkyM,
+        onHighLoadSkyChange = onHighLoadSkyChange,
         isGridView = isGridView,
         onToggleView = {
             isGridView = !isGridView
@@ -454,6 +462,9 @@ internal fun BookshelfContent(
     // 「システムに従う」の単一真実源（読書設定シートと共有）。既定 false / no-op は既存テスト・呼出しの互換のため。
     followingSystem: Boolean = false,
     onFollowSystem: () -> Unit = {},
+    // 高負荷スカイ試作トグル（ADR 0023）。M 構造（BookshelfSkyM/LogM）の⋮メニューへ debug 限定で素通し。既定 false / no-op は互換のため。
+    highLoadSkyM: Boolean = false,
+    onHighLoadSkyChange: (Boolean) -> Unit = {},
     isGridView: Boolean,
     onToggleView: () -> Unit,
     onFabClick: () -> Unit,
@@ -557,6 +568,8 @@ internal fun BookshelfContent(
                 onCancelProcessing = onCancelProcessing,
                 snackbarHostState = snackbarHostState,
                 isLoading = isLoading,
+                highLoadSkyM = highLoadSkyM,
+                onHighLoadSkyChange = onHighLoadSkyChange,
             )
             return
         } else {
@@ -591,6 +604,8 @@ internal fun BookshelfContent(
                 onCancelProcessing = onCancelProcessing,
                 snackbarHostState = snackbarHostState,
                 isLoading = isLoading,
+                highLoadSkyM = highLoadSkyM,
+                onHighLoadSkyChange = onHighLoadSkyChange,
             )
             return
         }
@@ -1524,4 +1539,80 @@ internal fun NewEpisodeNotificationMenuSection() {
         },
         modifier = Modifier.padding(horizontal = Spacing.S16),
     )
+}
+
+/**
+ * ⋮メニューの「高負荷スカイ（試作）」節（ADR 0023）＝debug ビルドかつ星図M装着時のみ露出する開発トグル。
+ *
+ * なぜ⋮メニュー（テーマ・通知の並ぶ設定面）へ置くか: 本アプリ唯一の常設設定面で、専用設定画面を新設しない
+ * （UX/19: 設定面は増やさない）。試作の実機探索は debug 限定＝release では [BuildConfig.DEBUG]=false で節ごと消え、
+ * 値も MainActivity 側で常に false 扱い（出荷時は現行の空）。星図M以外では無意味ゆえ [LocalSkin] で M に絞る。
+ *
+ * 状態は呼び出し側（MainActivity へ巻き上げた highLoadSkyM ＋prefs "sky_high_load_m"）にホイスト＝ON/OFF が即
+ * 常駐 backdrop（SkyBackdropM の highLoad 引数）へ伝わり、その場で空が切り替わる（通知トグルと同じ stateless 流儀）。
+ */
+@Composable
+internal fun HighLoadSkyMenuSection(
+    highLoad: Boolean,
+    onHighLoadChange: (Boolean) -> Unit,
+    onDismissMenu: () -> Unit = {}, // 検分トリガーは押下時にメニューを閉じてから発火（DropdownMenu が空を隠すのを避ける）
+) {
+    if (!BuildConfig.DEBUG || LocalSkin.current != Skin.SEIZU_M) return
+    HorizontalDivider()
+    Text(
+        "開発",
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = Spacing.S16, top = Spacing.S8, bottom = Spacing.S4),
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.S16)
+            // TalkBack で「ラベル＋スイッチ」を1トラバーサル単位にまとめる（通知トグルと同流儀）。
+            .semantics(mergeDescendants = true) {}
+            .padding(vertical = Spacing.S8),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column(Modifier.weight(1f).padding(end = Spacing.S16)) {
+            Text(text = "高負荷スカイ（試作）", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = "多深度視差・加算合成の重い空（debug のみ）",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = highLoad, onCheckedChange = onHighLoadChange)
+    }
+    // 高負荷 ON のときだけ「即時トリガー」行を出す（確率60s/3分・周期42日・33chに1度を待たずに実機検分するため）。
+    // 各ボタンは onDismissMenu() でメニューを閉じてから HlSkyDebug を叩く＝発火が空で見える。彗星はトグル（押すたび表示/非表示）。
+    if (highLoad) {
+        Text(
+            "即時トリガー（検分用）",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = Spacing.S16, top = Spacing.S4, bottom = Spacing.S4),
+        )
+        // 各ラベルと発火をペアで持ち、RowScope 内で weight を効かせるため直接展開（weight は RowScope 受信者に紐付く）。
+        val triggers = listOf<Pair<String, () -> Unit>>(
+            "流星" to { HlSkyDebug.fireMeteor() },
+            "衛星" to { HlSkyDebug.fireSatellite() },
+            "彗星" to { HlSkyDebug.toggleComet() }, // トグル: 押すたび強制表示/非表示
+            "BH" to { HlSkyDebug.fireBh() },
+            "暗黒雲" to { HlSkyDebug.fireCloud() }, // 1発: 可視中央へ雲を湧かせ視差2.2×で流れ去らせる（流星等と同流儀）
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.S8, vertical = Spacing.S4),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.S4),
+        ) {
+            for ((label, onFire) in triggers) {
+                TextButton(
+                    onClick = { onDismissMenu(); onFire() }, // 先に閉じてから発火＝メニューが空を隠さない
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = Spacing.S4, vertical = Spacing.S4),
+                ) { Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1) }
+            }
+        }
+    }
 }

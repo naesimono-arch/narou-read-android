@@ -84,6 +84,7 @@ import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.narou.model.NarouNovel
+import com.novelreader.ui.HighLoadSkyMenuSection
 import com.novelreader.ui.NewEpisodeNotificationMenuSection
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.theme.DimSeizu
@@ -185,6 +186,9 @@ internal fun BookshelfLogM(
     onCancelProcessing: () -> Unit,
     snackbarHostState: SnackbarHostState,
     isLoading: Boolean,
+    // 高負荷スカイ試作トグル（ADR 0023）＝⋮メニューへ debug 限定で出す。既定 false / no-op は既存呼出し・テスト互換のため。
+    highLoadSkyM: Boolean = false,
+    onHighLoadSkyChange: (Boolean) -> Unit = {},
 ) {
     // reduce-motion（アニメーター無効）を尊重＝脈動・選択点灯を静止（ADR 0022 §3・星図面と同判定）。
     val context = LocalContext.current
@@ -293,6 +297,8 @@ internal fun BookshelfLogM(
                     onOpenDiscovery = onOpenDiscovery,
                     onToggleSky = onToggleSky,
                     onOpenWardrobe = onOpenWardrobe,
+                    highLoadSkyM = highLoadSkyM,
+                    onHighLoadSkyChange = onHighLoadSkyChange,
                 )
             }
             // 取込中バナー（PDFを星に変換中）＝星図面と同一部品（機能フィードバックの出没のみ Motion スロット）。
@@ -427,6 +433,8 @@ private fun LogPlate(
     onOpenDiscovery: () -> Unit,
     onToggleSky: () -> Unit,
     onOpenWardrobe: () -> Unit,
+    highLoadSkyM: Boolean = false,
+    onHighLoadSkyChange: (Boolean) -> Unit = {},
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.S16, vertical = Spacing.S4),
@@ -474,6 +482,8 @@ private fun LogPlate(
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 // M は固定1変種＝テーマ節を出さない（星図面と同思想・ADR 0022 §2）。新着通知節のみ。
                 NewEpisodeNotificationMenuSection()
+                // 高負荷スカイ試作トグル（ADR 0023）＝debug かつ星図M のときだけ節ごと出る（内部で自己ゲート）。
+                HighLoadSkyMenuSection(highLoadSkyM, onHighLoadSkyChange, onDismissMenu = { menuOpen = false })
             }
         }
     }

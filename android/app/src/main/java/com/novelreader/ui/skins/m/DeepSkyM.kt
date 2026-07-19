@@ -10,6 +10,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -632,8 +633,11 @@ internal class MeteorHost {
  * 再起動しない（B の真因対処）。LaunchedEffect のキーは reduceMotion のみ＝hidden 切替で再起動しない。
  */
 @Composable
-internal fun rememberMeteorHost(reduceMotion: Boolean): MeteorHost {
+internal fun rememberMeteorHost(reduceMotion: Boolean, durationScale: Float = 1f): MeteorHost {
     val host = remember { MeteorHost() }
+    // durationScale の live 読み＝トグル（高負荷 ON/OFF）に次イベントから追従（LaunchedEffect は reduceMotion のみキー＝再起動しない
+    //   規律を保つため、スケールはキーにせず rememberUpdatedState で最新値を読む）。既定 1f＝通常モードは所要時間が厳密不変。
+    val scale = rememberUpdatedState(durationScale)
     LaunchedEffect(reduceMotion) {
         if (reduceMotion) return@LaunchedEffect // reduce-motion: 流星無効（不変）
         val rnd = Random(System.nanoTime())     // 実エントロピー seed＝毎起動で列が変わる（決定性を持ち込まない）
@@ -644,7 +648,8 @@ internal fun rememberMeteorHost(reduceMotion: Boolean): MeteorHost {
             val ev = if (isShowerSpawn(r())) buildMeteorShower(::r) else buildMeteorEvent(pickMeteorPattern(r()), ::r)
             host.event = ev
             host.progress.snapTo(0f)
-            host.progress.animateTo(1f, tween(ev.durationMs, easing = LinearEasing))
+            // 掃過の所要だけを durationScale 倍（軌跡/造形は不変）。既定 1f では (durationMs*1f).toInt()＝durationMs＝厳密同一。
+            host.progress.animateTo(1f, tween((ev.durationMs * scale.value).toInt(), easing = LinearEasing))
             host.event = null
         }
     }
