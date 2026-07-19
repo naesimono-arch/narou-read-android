@@ -42,6 +42,36 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!--
+              P3 取込導線その1（任意サイトの共有受け）: 他アプリの「共有」→本アプリ。
+              ホスト制限を掛けない＝どのサイトの共有でも受け、対応可否のゲートはアプリ内 registry
+              （SiteAdapterRegistry）で判定する（Supported=取込／Blocked=公式サイト送り／Unsupported=未対応案内）。
+              URL はテキスト本文（EXTRA_TEXT）から WebImportIntentParser が抽出する。
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+
+            <!--
+              P3 取込導線その2（対応サイトのリンクタップ受け）: ブラウザ等でのリンクタップ→本アプリ。
+              なぜ全 http/https にせず host を対応サイト（kakuyomu）に限定するか:
+              (1) 全リンクのブラウザ候補に本アプリが常時出るのは UX 破壊。
+              (2) Blocked サイト（なろう等）のリンクまで横取りして「公式で読んで」と返すのは本末転倒。
+              任意サイトの受け口は上の ACTION_SEND が担うため、VIEW は自前 DL 可能な対応ホストだけに絞る。
+              scheme×host の4組（http/https × kakuyomu.jp/www.kakuyomu.jp）を明示する。
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" android:host="kakuyomu.jp" />
+                <data android:scheme="https" android:host="kakuyomu.jp" />
+                <data android:scheme="http" android:host="www.kakuyomu.jp" />
+                <data android:scheme="https" android:host="www.kakuyomu.jp" />
+            </intent-filter>
         </activity>
 
         <service

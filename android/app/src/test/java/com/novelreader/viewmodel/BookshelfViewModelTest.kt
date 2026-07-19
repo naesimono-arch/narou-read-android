@@ -15,6 +15,7 @@ import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
 import com.novelreader.repository.BookRepository
+import com.novelreader.scrape.SiteAdapterRegistry
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -182,6 +183,63 @@ class BookshelfViewModelTest {
             unmockkConstructor(Intent::class)
             unmockkStatic(ContextCompat::class)
         }
+    }
+
+    // ── P3 取込導線: 共有/リンクからの Web 小説取込ルーティング＋実取込 ───────────────
+
+    @Test
+    fun `resolveWebImport - kakuyomu は Supported`() {
+        val r = viewModel.resolveWebImport("https://kakuyomu.jp/works/16816927859675616240/episodes/1")
+        assertTrue(r is SiteAdapterRegistry.Resolution.Supported)
+    }
+
+    @Test
+    fun `resolveWebImport - なろうは Blocked`() {
+        // 本文の機械取得が規約違反（ADR 0010/0012）＝自前 DL せず公式サイトへ逃がす対象。
+        val r = viewModel.resolveWebImport("https://ncode.syosetu.com/n1234ab/")
+        assertTrue(r is SiteAdapterRegistry.Resolution.Blocked)
+    }
+
+    @Test
+    fun `resolveWebImport - 未知サイトは Unsupported`() {
+        assertEquals(SiteAdapterRegistry.Resolution.Unsupported, viewModel.resolveWebImport("https://example.com/x"))
+    }
+
+    @Test
+    fun `importWebNovel - Added は取込中と追加完了の Snackbar を出す`() = runTest {
+        val book = BookEntity("id01", "テスト作品", "/p/a")
+        coEvery { mockRepository.addWebBook(any(), any()) } returns
+            Result.success(BookRepository.AddBookResult.Added(book))
+
+        viewModel.importWebNovel("https://kakuyomu.jp/works/123")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify { mockApp.emitError("取り込み中です…") }
+        verify { mockApp.emitError("「テスト作品」を追加しました") }
+        coVerify { mockRepository.addWebBook("https://kakuyomu.jp/works/123", any()) }
+    }
+
+    @Test
+    fun `importWebNovel - Duplicate は取込済み Snackbar を出す`() = runTest {
+        val existing = BookEntity("id01", "既存作品", "/p/a")
+        coEvery { mockRepository.addWebBook(any(), any()) } returns
+            Result.success(BookRepository.AddBookResult.Duplicate(existing))
+
+        viewModel.importWebNovel("https://kakuyomu.jp/works/123")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify { mockApp.emitError("取り込み済みです") }
+    }
+
+    @Test
+    fun `importWebNovel - 失敗は失敗 Snackbar を出す（再試行なし）`() = runTest {
+        coEvery { mockRepository.addWebBook(any(), any()) } returns
+            Result.failure(RuntimeException("network down"))
+
+        viewModel.importWebNovel("https://kakuyomu.jp/works/123")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify { mockApp.emitError("取り込みに失敗しました") }
     }
 
     // ── なろう紐付け候補検索（旧 NcodeLinkSheet の produceState を VM へ移設）─────────────

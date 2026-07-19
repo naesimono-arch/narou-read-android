@@ -21,6 +21,8 @@ import com.novelreader.narou.model.DiscoveryResult
 import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
+import com.novelreader.repository.BookRepository
+import com.novelreader.scrape.SiteAdapterRegistry
 import java.io.File
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -340,6 +342,55 @@ class BookshelfViewModel @JvmOverloads constructor(
     // この再投入は「重複」で弾かれず新規変換として受け付けられる（processSingleUri の finally で release）。
     fun retryImport(uriString: String) {
         addBook(Uri.parse(uriString))
+    }
+
+    // ────── P3 取込導線: 共有(SEND)/リンク(VIEW)からの Web 小説 URL 取込（確定事項②のルーティング）──────
+    // registry は UI 層で規約ゲートを引くための単一インスタンス（stateless・default adapters）。
+    // repository.addWebBook も内部で同じ registry を防御的に引くが、UI 側は Blocked（公式サイト導線）／
+    // Unsupported（未対応案内）を repository 呼び出し前に出し分けるため、ここで手前で resolve する。
+    private val siteRegistry = SiteAdapterRegistry()
+
+    /** 共有/リンクの URL を解決する。呼び出し側（ルート Composable）が Supported/Blocked/Unsupported で分岐する。 */
+    fun resolveWebImport(url: String): SiteAdapterRegistry.Resolution = siteRegistry.resolve(url)
+
+    /** ルーティング結果の案内文を app 共有 Snackbar チャネルへ流す薄い委譲（本棚 SnackbarHost が購読）。
+     *  Blocked/Unsupported の案内・取込中/完了/失敗の通知に共通で使う（PDF 取込の重複通知と同じ経路）。 */
+    fun emitSnackbar(message: String) = app.emitError(message)
+
+    /**
+     * Supported 確定後の実取込（P3）。取得は必ず [BookRepository.addWebBook] 経由＝UI 層で fetch しない。
+     *
+     * 通知機構の選択（最小スナックバー・相乗りしない）: PDF 取込の ProcessingState バナーは
+     * PdfProcessingService（content:// URI ＋ pending_jobs 前提の FGS キュー）が唯一の供給元で、バナーの
+     * 「停止」も同 Service へ ACTION_STOP を送る配線。Web 取込はこの機構に相乗りできない（download を
+     * FGS キューへ載せる配線が別途要る）ため、確定事項の許容どおり app 共有 Snackbar チャネルで
+     * 「取込中…→完了/失敗」を出す最小実装にする。
+     *
+     * なぜ viewModelScope か: 本 VM は NovelReaderApp 直下で Activity スコープに生成され構成変更・画面遷移を
+     * 跨いで生存する（アプリ滞在中は継続）。FGS で背面存続まではさせない（最小実装の割り切り）。
+     */
+    fun importWebNovel(url: String) {
+        viewModelScope.launch {
+            emitSnackbar("取り込み中です…")
+            repository.addWebBook(url).fold(
+                onSuccess = { outcome ->
+                    when (outcome) {
+                        is BookRepository.AddBookResult.Added ->
+                            emitSnackbar("「${outcome.book.title}」を追加しました")
+                        // 同一作品 URL は addWebBook が重い取得の前に sourceUrl で弾いて Duplicate を返す。
+                        is BookRepository.AddBookResult.Duplicate ->
+                            emitSnackbar("取り込み済みです")
+                    }
+                },
+                onFailure = { e ->
+                    // 真因はログに残す（握り潰さない）。ユーザーには平易な日本語のみ・再試行は出さない
+                    // （リトライ＝ユーザーの再共有操作＝確定事項）。retryUri を渡さない＝Snackbar は「閉じる」のみ。
+                    // Blocked/Unsupported は呼び出し前ゲートで除外済みのため、ここに来るのは通信/解析等の失敗。
+                    android.util.Log.e("BookshelfViewModel", "Web取込失敗", e)
+                    emitSnackbar("取り込みに失敗しました")
+                },
+            )
+        }
     }
 
     fun deleteBook(book: BookEntity) {

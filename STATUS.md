@@ -24,8 +24,10 @@
   `SiteAdapterRegistry` の規約3値ゲート＝Supported/Blocked/Unsupported・なろうグループは Blocked で公式送り）＋
   **カクヨム抽出器**（TOC＝`__NEXT_DATA__` Apollo ストア／本文＝`.widget-episodeBody`・ルビ→中間記法 `|base《ruby》`＝
   既存 ChapterProcessor/HtmlExporter に合流し PDF 蔵書とバイト同契約）＋**fixture ゴールデン**（実HTMLスナップショットで
-  構造破損を `testDebugUnitTest` 常時検知＝破損監視の核）が着地。パイプライン接続(P3)・発見層refactor(P5)は
-  **Room 版衝突の裁定待ちで保留**（`feat/delete-source-pdf` が v20/sourceUri を未マージ消費）。一次情報＝
+  構造破損を `testDebugUnitTest` 常時検知＝破損監視の核）が着地。**P3 パイプライン接続も着地**＝Room **v21**
+  （v20 は `feat/delete-source-pdf` 先着＝19_20 複製でパス接続・sourceUrl/sourceSite 独立2列）＋`addWebBook`
+  （アダプタ→既存HTML契約合流・sourceUrl 重複ガード・pending_jobs 不使用）＋取込導線（ACTION_SEND 全サイト受け／
+  ACTION_VIEW は対応ホスト限定・Blocked は公式送りの逃げ道）。残＝P4 実行時破損監視・P5 発見層refactor・P6 後始末。一次情報＝
   `.claude/plans/scraping-foundation-design-2026-07-20.md`／残タスクと裁定＝`handover.md`「汎用DL基盤 実装トラック」。
 
 ## 1. 観察ログ（未確定の所見のみ・確定したら handover か ADR へ）

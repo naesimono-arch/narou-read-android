@@ -42,12 +42,9 @@
   ハーメルンの扱い等の規約あいまいは保留（後日まとめて裁定）。注記受領＝**注1 Pixiv: R-18 はログイン必須＝アプリ内ブラウザ認証
   （Cookie/セッション保持）が前提**・メンバーページ登録もログイン要／**注2 アルファポリス: 連続DL制限あり＝Crawl-delay 厚め＋
   制限検知バックオフ・リトライ**を実装時に組む。初号機カクヨムは保留と無関係で先行済み（P2）。一次情報＝plan「サイト齟齬・規約」節。
-- **残フェーズ**:
-  - **P3 パイプライン接続**: `DefaultBookRepository.extractBook`(:72-77) を源泉抽象へ一般化＋**BookRepository IF に
-    Web源メソッド追加**（`addBook(pdfUri)` 固定のため extractBook 差替だけでは不足＝Plan 指摘）。Web源は
-    アダプタで TOC/章取得→`HtmlExporter.exportToPwa` で同契約 HTML。取込導線＝Manifest に `ACTION_SEND`(text/plain)＋
-    `ACTION_VIEW`(http/https) の intent-filter を MainActivity へ（onNewIntent 既存 deep link に相乗り）。
-    contentSha256 の Web本文連結ハッシュ流用は insert 経路(:296)に計算地点新設。★裁定①解消が前提。
+- **残フェーズ**（P3 は着地＝Room v21・addWebBook・共有/リンク取込導線。完了の正本＝git log。
+  設計メモ: ACTION_VIEW は対応ホスト限定〔全 http/https だと全リンクのブラウザ候補に化ける〕・任意サイトの受け口は
+  ACTION_SEND が担う／Web源は pending_jobs 不使用＝失敗は即時通知・リトライはユーザー再共有）:
   - **P4 破損監視の実行時層**: アダプタの実行時ヘルスチェック（抽出空/短の検知→「公式サイトで読む」フォールバック提示）＋
     debug ヘルスボード（高負荷モードと同じ本棚⋮開発節）。fixture ゴールデン（保守の核）は P2 で着地済み。
   - **P5 発見層 refactor**: `NarouNovel` 直参照＝**26ファイル・93出現**を `WorkSummary` 挿入で剥がす（大・独立コミット群）。

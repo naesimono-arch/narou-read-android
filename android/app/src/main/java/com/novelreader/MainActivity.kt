@@ -3,6 +3,7 @@ package com.novelreader
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -36,6 +37,7 @@ import androidx.navigation.navArgument
 import com.novelreader.model.BookId
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.Ncode
+import com.novelreader.scrape.SiteAdapterRegistry
 import com.novelreader.ui.BookshelfScreen
 import com.novelreader.ui.ReadingErrorScreen
 import com.novelreader.ui.ReadingScreen
@@ -75,6 +77,11 @@ class MainActivity : ComponentActivity() {
     // 届くため、値の変化を Compose ツリーへ伝える必要がある。消費後は null に戻す（再ナビ防止）。
     private val deepLinkBookId = mutableStateOf<String?>(null)
 
+    // P3 取込導線: 共有(ACTION_SEND)/対応サイトのリンク(ACTION_VIEW)で渡された Web 小説 URL。
+    // deepLinkBookId と同じ流儀（onCreate/onNewIntent で更新→Compose が消費して null 戻し）で扱う。
+    // なぜ State か: singleTop で稼働中に onNewIntent 経由で新しい共有が届くため、値変化を Compose ツリーへ伝える。
+    private val pendingWebImportUrl = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -85,6 +92,10 @@ class MainActivity : ComponentActivity() {
         // 復元は Navigation のバックスタック復元に委ねる。稼働中の再タップは onNewIntent が拾う。
         if (savedInstanceState == null) {
             deepLinkBookId.value = intent?.getStringExtra(EXTRA_BOOK_ID)
+            // P3: 共有/リンクからの Web 小説取込対象を取り込む。EXTRA_BOOK_ID と同じ理由で savedInstanceState==null
+            // に限定する＝構成変更（回転）や process death 復元では同じ起動 Intent が再配達され、
+            // 制限しないと取込を二重発火してしまう（初回生成のみ処理し、以後の再処理は消費フラグで防ぐ）。
+            pendingWebImportUrl.value = extractWebImportUrl(intent)
         }
 
         // 強制終了リカバリ（孤立HTML掃除＋未完了ジョブの通知・再開）。Activity 起動時に
@@ -180,6 +191,9 @@ class MainActivity : ComponentActivity() {
                     // .value の読み取りを composable 内で行うことで onNewIntent の更新が再コンポーズを誘発する。
                     deepLinkBookId = deepLinkBookId.value,
                     onDeepLinkConsumed = { deepLinkBookId.value = null },
+                    // P3: 共有/リンクからの Web 小説取込対象（deepLinkBookId と同型の消費流儀）。
+                    pendingWebImportUrl = pendingWebImportUrl.value,
+                    onWebImportConsumed = { pendingWebImportUrl.value = null },
                 )
             }
         }
@@ -191,6 +205,20 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         intent.getStringExtra(EXTRA_BOOK_ID)?.let { deepLinkBookId.value = it }
+        // 稼働中のアプリへ新たに共有/リンクが来たら取込対象を差し替える。?.let で非該当 Intent（null 抽出）では
+        // 上書きしない＝EXTRA_BOOK_ID の消費流儀と同型（無関係な再来 Intent で保留中の取込を潰さない）。
+        extractWebImportUrl(intent)?.let { pendingWebImportUrl.value = it }
+    }
+
+    /**
+     * P3 取込導線: Intent から取込対象 URL を取り出す（純抽出は [WebImportIntentParser] へ委譲）。
+     * VIEW は intent.data がそのまま作品/話 URL。SEND は共有テキスト（EXTRA_TEXT）から最初の http(s) URL を抽出。
+     * それ以外（MAIN/LAUNCHER 等）は null＝取込対象なし。
+     */
+    private fun extractWebImportUrl(intent: Intent?): String? = when (intent?.action) {
+        Intent.ACTION_VIEW -> intent.data?.toString()
+        Intent.ACTION_SEND -> WebImportIntentParser.firstUrl(intent.getStringExtra(Intent.EXTRA_TEXT))
+        else -> null
     }
 
     companion object {
@@ -228,9 +256,13 @@ private fun NovelReaderApp(
     onHighLoadSkyChange: (Boolean) -> Unit,
     deepLinkBookId: String?,
     onDeepLinkConsumed: () -> Unit,
+    // P3 取込導線: 共有(SEND)/リンク(VIEW)からの Web 小説 URL（deepLinkBookId と同型・消費後に呼び元が null 戻し）。
+    pendingWebImportUrl: String?,
+    onWebImportConsumed: () -> Unit,
 ) {
     val navController = rememberNavController()
     val appContext = LocalContext.current.applicationContext
+    val activityContext = LocalContext.current
     val viewModel: BookshelfViewModel = viewModel()
     // 発見系（ホーム/ジャンル/結果一覧）はクエリ文脈を画面間で受け渡すため単一VMを共有する。
     // ロードは ensureHomeLoaded の遅延型なので、ここで生成しても本棚起動時に通信は発生しない。
@@ -266,6 +298,28 @@ private fun NovelReaderApp(
         }
         // ナビ後に消費済みへ（null で再ナビを防ぐ。key 変化で本 Effect は即再実行され早期 return する）。
         onDeepLinkConsumed()
+    }
+
+    // P3 取込導線: 共有(SEND)/リンク(VIEW)からの Web 小説取込ルーティング（確定事項②）。
+    // registry を UI 層（VM）で直接引き、repository.addWebBook 呼び出し前に3値へ出し分ける。
+    // 二重発火防止は deepLinkBookId と同型: key=pendingWebImportUrl・処理後 onWebImportConsumed() で null 戻し。
+    LaunchedEffect(pendingWebImportUrl) {
+        val url = pendingWebImportUrl ?: return@LaunchedEffect
+        when (val res = viewModel.resolveWebImport(url)) {
+            // Supported: 取込は必ず repository.addWebBook 経由（VM 内で完了/重複/失敗を Snackbar 通知）。
+            is SiteAdapterRegistry.Resolution.Supported -> viewModel.importWebNovel(url)
+            // Blocked: 自前 DL しない旨を案内し、逃げ道として公式サイトを外部ブラウザで開く。
+            is SiteAdapterRegistry.Resolution.Blocked -> {
+                viewModel.emitSnackbar("このサイト（${res.hostLabel}）からの取込は行いません。公式サイトでお読みください")
+                // 素の ACTION_VIEW（createChooser なし）で開く。当アプリの VIEW フィルタは kakuyomu ホスト限定のため
+                // Blocked（なろう等）URL では本アプリが候補に出ず自己ループしない。ブラウザ不在の稀ケースは
+                // ActivityNotFoundException を握って無害化（案内 Snackbar は既に出した＝症状隠しではない）。
+                runCatching { activityContext.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+            }
+            // Unsupported: 未整備サイト。未対応である旨だけ知らせる。
+            SiteAdapterRegistry.Resolution.Unsupported -> viewModel.emitSnackbar("未対応のサイトです")
+        }
+        onWebImportConsumed()
     }
 
     // M星図の常駐 backdrop（空の一枚化・2026-07-19 ユーザー裁定）: skin==SEIZU_M のとき NavHost の背後へ
