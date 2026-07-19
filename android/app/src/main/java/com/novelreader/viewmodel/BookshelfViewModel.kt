@@ -22,6 +22,7 @@ import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
 import com.novelreader.repository.BookRepository
+import com.novelreader.scrape.ScrapeStructureException
 import com.novelreader.scrape.SiteAdapterRegistry
 import java.io.File
 import kotlinx.coroutines.CoroutineDispatcher
@@ -80,8 +81,12 @@ sealed interface BookshelfUiState {
  * なぜ String でなくデータクラスか（M7）: 取込失敗の Snackbar に「再試行」を出すには、どの URI が
  * 失敗したかを UI まで運ぶ必要がある。retryUri が非 null のときだけ再試行アクションを出し、同一 URI で
  * 取込を再投入する。復元系の情報通知（retryUri=null）は従来どおり文言のみを表示する。
+ *
+ * openUrl（破損監視・層2）: Web 取込がサイト構造変更の疑い（ScrapeStructureException）で失敗したとき、
+ * 「公式サイトで読む」＝作品URLを外部ブラウザで開く逃げ道を出すために運ぶ。retryUri と排他（どちらも
+ * アクション付きだが用途が別。retryUri は同一 URI 再取込・openUrl は ACTION_VIEW での外部送客）。
  */
-data class AppErrorEvent(val message: String, val retryUri: String? = null)
+data class AppErrorEvent(val message: String, val retryUri: String? = null, val openUrl: String? = null)
 
 /**
  * なろう紐付けシート（NcodeLinkSheet）の候補検索の状態。
@@ -383,11 +388,18 @@ class BookshelfViewModel @JvmOverloads constructor(
                     }
                 },
                 onFailure = { e ->
-                    // 真因はログに残す（握り潰さない）。ユーザーには平易な日本語のみ・再試行は出さない
-                    // （リトライ＝ユーザーの再共有操作＝確定事項）。retryUri を渡さない＝Snackbar は「閉じる」のみ。
-                    // Blocked/Unsupported は呼び出し前ゲートで除外済みのため、ここに来るのは通信/解析等の失敗。
+                    // 真因はログに残す（握り潰さない）。Blocked/Unsupported は呼び出し前ゲートで除外済みのため、
+                    // ここに来るのは取得/解析/構造疑い等の失敗。
                     android.util.Log.e("BookshelfViewModel", "Web取込失敗", e)
-                    emitSnackbar("取り込みに失敗しました")
+                    // 破損監視（層2）: サイト構造変更の疑い（ScrapeStructureException＝ScrapeException 派生）だけは
+                    // 「公式サイトで読む」逃げ道を添える（作品URLを外部ブラウザで開く＝U3 Blocked と同じ ACTION_VIEW 流儀）。
+                    // 逃げ道が保険の実体（脆さ織り込み）。それ以外の一過性失敗は従来どおり平易な失敗通知のみ
+                    // （リトライ＝ユーザーの再共有操作＝確定事項）。
+                    if (e is ScrapeStructureException) {
+                        app.emitError("取得に失敗しました。サイト構造が変わった可能性があります", openUrl = url)
+                    } else {
+                        emitSnackbar("取り込みに失敗しました")
+                    }
                 },
             )
         }

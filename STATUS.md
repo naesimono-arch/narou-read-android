@@ -27,7 +27,9 @@
   構造破損を `testDebugUnitTest` 常時検知＝破損監視の核）が着地。**P3 パイプライン接続も着地**＝Room **v21**
   （v20 は `feat/delete-source-pdf` 先着＝19_20 複製でパス接続・sourceUrl/sourceSite 独立2列）＋`addWebBook`
   （アダプタ→既存HTML契約合流・sourceUrl 重複ガード・pending_jobs 不使用）＋取込導線（ACTION_SEND 全サイト受け／
-  ACTION_VIEW は対応ホスト限定・Blocked は公式送りの逃げ道）。残＝P4 実行時破損監視・P5 発見層refactor・P6 後始末。一次情報＝
+  ACTION_VIEW は対応ホスト限定・Blocked は公式送りの逃げ道）。**P4 実行時破損監視も着地**＝取込時の構造疑い検知
+  （ScrapeIntegrity 3条件・床値20字）→「公式サイトで読む」アクション付きスナックバー＋debug ヘルスボード
+  （本棚⋮開発節・release 到達不能）。残＝P5 発見層refactor・P6 後始末。一次情報＝
   `.claude/plans/scraping-foundation-design-2026-07-20.md`／残タスクと裁定＝`handover.md`「汎用DL基盤 実装トラック」。
 
 ## 1. 観察ログ（未確定の所見のみ・確定したら handover か ADR へ）

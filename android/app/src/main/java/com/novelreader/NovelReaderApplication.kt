@@ -72,8 +72,11 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
 
     fun updateProcessingState(state: ProcessingState?) { _processingState.value = state }
     /** retryUri を渡すと UI 側で「再試行」アクション付き Snackbar になる（取込失敗時）。
-     *  復元系の情報通知は retryUri=null（従来どおり文言のみ）。 */
-    fun emitError(msg: String, retryUri: String? = null) { _errorEvents.trySend(AppErrorEvent(msg, retryUri)) }
+     *  openUrl を渡すと「公式サイトで読む」アクション付きになる（破損監視・層2＝構造疑いの逃げ道）。
+     *  復元系の情報通知はどちらも null（従来どおり文言のみ）。 */
+    fun emitError(msg: String, retryUri: String? = null, openUrl: String? = null) {
+        _errorEvents.trySend(AppErrorEvent(msg, retryUri, openUrl))
+    }
 
     // 起動時リカバリの多重実行ガード。Activity 再作成のたびに呼ばれても実処理はプロセスごとに1回。
     private val recoveryStarted = AtomicBoolean(false)

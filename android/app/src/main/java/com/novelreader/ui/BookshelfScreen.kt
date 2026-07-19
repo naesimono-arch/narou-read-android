@@ -84,6 +84,8 @@ import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.MinchoFamily
 import androidx.compose.ui.semantics.semantics
 import com.novelreader.BuildConfig
+import com.novelreader.scrape.AdapterHealthCheck
+import com.novelreader.scrape.SiteAdapterRegistry
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationReveal
@@ -306,20 +308,34 @@ fun BookshelfScreen(
     // collect は画面の生存期間中ずっと購読し続ければよいので key は Unit。
     LaunchedEffect(Unit) {
         viewModel.errorEvents.collect { event ->
-            // 取込失敗（retryUri あり）は「再試行」を出し、押されたら同一 URI を再投入する（M7）。
-            // それ以外（強制終了リカバリ等の情報通知）は従来どおり「閉じる」のみ。
-            if (event.retryUri != null) {
-                val result = snackbarHostState.showSnackbar(
-                    message = event.message,
-                    actionLabel = "再試行",
-                    // 失敗の再試行は見落とすと復旧手段を失うため長め表示にする。
-                    duration = SnackbarDuration.Long,
-                )
-                if (result == SnackbarResult.ActionPerformed) {
-                    viewModel.retryImport(event.retryUri)
+            when {
+                // 取込失敗（retryUri あり）は「再試行」を出し、押されたら同一 URI を再投入する（M7）。
+                event.retryUri != null -> {
+                    val result = snackbarHostState.showSnackbar(
+                        message = event.message,
+                        actionLabel = "再試行",
+                        // 失敗の再試行は見落とすと復旧手段を失うため長め表示にする。
+                        duration = SnackbarDuration.Long,
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        viewModel.retryImport(event.retryUri)
+                    }
                 }
-            } else {
-                snackbarHostState.showSnackbar(message = event.message, actionLabel = "閉じる")
+                // 破損監視（層2）: サイト構造変更の疑いは「公式サイトで読む」を出し、作品URLを外部ブラウザで開く
+                // （U3 Blocked と同じ素 ACTION_VIEW 流儀）。ブラウザ不在の稀ケースは ActivityNotFoundException を
+                // 握って無害化（案内文は既に表示済み＝症状隠しでない）。見落とすと逃げ道を失うため長め表示。
+                event.openUrl != null -> {
+                    val result = snackbarHostState.showSnackbar(
+                        message = event.message,
+                        actionLabel = "公式サイトで読む",
+                        duration = SnackbarDuration.Long,
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(event.openUrl))) }
+                    }
+                }
+                // それ以外（強制終了リカバリ等の情報通知）は従来どおり「閉じる」のみ。
+                else -> snackbarHostState.showSnackbar(message = event.message, actionLabel = "閉じる")
             }
         }
     }
@@ -520,6 +536,9 @@ internal fun BookshelfContent(
         saver = listSaver(save = { it.toList() }, restore = { it.toMutableStateList() }),
     ) { mutableStateListOf<String>() }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    // 破損監視（層3）: debug ヘルスボードのダイアログ開閉。⋮メニューを閉じてから開くため画面ローカルへ持つ
+    // （DropdownMenu 内に置くと閉じた瞬間ダイアログもコンポジションから外れて消えるため。showDeleteConfirm と同型）。
+    var showHealthBoard by remember { mutableStateOf(false) }
     val exitSelection: () -> Unit = { selectionMode = false; selectedIds.clear() }
     val toggleSelect: (String) -> Unit = { id ->
         if (id in selectedIds) selectedIds.remove(id) else selectedIds.add(id)
@@ -949,6 +968,12 @@ internal fun BookshelfContent(
                                 // （UX/19: 設定面は増やさない）。トグルの説明文が priming を兼ねるため、
                                 // ON 操作の直後に OS 権限ダイアログを出してよい（無説明の権限要求にならない）。
                                 NewEpisodeNotificationMenuSection()
+                                // 破損監視（層3）: 全アダプタの自己診断を回す debug ヘルスボード入口（高負荷トグルと同じ開発節）。
+                                // release では BuildConfig.DEBUG=false で節ごと消える（到達不能）。開いてから実ネットワークが走る。
+                                AdapterHealthMenuSection(onOpen = {
+                                    showOverflowMenu = false // 先に閉じてからダイアログを開く（メニューがダイアログを隠さない）
+                                    showHealthBoard = true
+                                })
                             }
                         }
                     },
@@ -1242,6 +1267,12 @@ internal fun BookshelfContent(
                 TextButton(onClick = { showDeleteConfirm = false }) { Text("やめる") }
             },
         )
+    }
+
+    // 破損監視（層3）: debug ヘルスボード。開いた瞬間に実ネットワークで全アダプタの自己診断を回す（手動実行時のみ）。
+    // ⋮メニューは D/C 構造でこの BookshelfContent 内にあり、M/P/J は早期 return 済みのためここに来ない（reachable=D/C）。
+    if (showHealthBoard) {
+        AdapterHealthBoardDialog(onDismiss = { showHealthBoard = false })
     }
 }
 
@@ -1615,4 +1646,80 @@ internal fun HighLoadSkyMenuSection(
             }
         }
     }
+}
+
+/**
+ * ⋮メニューの「スクレイパー健全性を診断」入口（破損監視・層3）＝debug ビルド限定で高負荷トグルと同じ「開発」節。
+ *
+ * なぜ⋮メニューへ置くか: 本アプリ唯一の常設設定面で専用画面を新設しない（[HighLoadSkyMenuSection] と同じ流儀）。
+ * release では [BuildConfig.DEBUG]=false で節ごと消え到達不能。実ネットワークはダイアログを開いた手動実行時のみ走る。
+ * ダイアログ本体は画面レベルへ巻き上げる（[onOpen] でメニューを閉じてから開く＝メニューがダイアログを隠さない）。
+ * 高負荷トグルと違い星図M限定ではない（スクレイパー健全性はスキン非依存）ため [LocalSkin] で絞らない。
+ */
+@Composable
+internal fun AdapterHealthMenuSection(onOpen: () -> Unit) {
+    if (!BuildConfig.DEBUG) return
+    HorizontalDivider()
+    Text(
+        "開発",
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = Spacing.S16, top = Spacing.S8, bottom = Spacing.S4),
+    )
+    DropdownMenuItem(
+        text = { Text("スクレイパー健全性を診断") },
+        onClick = onOpen,
+    )
+}
+
+/**
+ * 破損監視・層3 の debug ヘルスボード。開いた瞬間に全登録アダプタの自己診断（[AdapterHealthCheck]）を
+ * 実ネットワークで1回だけ回し、アダプタ名＋緑/赤（OK/NG）＋理由テキストを一覧表示する。結果は永続化しない
+ * （その場診断・P4 スコープ）。緑=colorScheme.primary・赤=colorScheme.error の意味色で表す（新規トークンは足さない）。
+ *
+ * defensive に [BuildConfig.DEBUG] を再ガードする（入口も debug 限定だが二重で release 到達を断つ）。
+ */
+@Composable
+internal fun AdapterHealthBoardDialog(onDismiss: () -> Unit) {
+    if (!BuildConfig.DEBUG) return
+    // null=診断中／非 null=結果。LaunchedEffect(Unit) で開いた1回だけ実行する（再コンポーズで再取得しない）。
+    var reports by remember { mutableStateOf<List<AdapterHealthCheck.Report>?>(null) }
+    LaunchedEffect(Unit) {
+        // registry の既定アダプタ（本番の KakuyomuAdapter＝実 OkHttp）をそのまま診断する。取得は各アダプタ内蔵の
+        // ScrapeHttpClient 経由で Crawl-delay を守るため、章1件でも数秒かかる（debug の手動診断ゆえ許容）。
+        reports = AdapterHealthCheck(SiteAdapterRegistry().registeredAdapters).runAll()
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onDismiss) { Text("閉じる") } },
+        title = { Text("スクレイパー健全性") },
+        text = {
+            val current = reports
+            if (current == null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(Spacing.S24))
+                    Spacer(Modifier.width(Spacing.S16))
+                    Text("診断中…（Crawl-delay を守るため数秒かかります）")
+                }
+            } else {
+                Column {
+                    current.forEach { r ->
+                        Column(Modifier.padding(vertical = Spacing.S4)) {
+                            Text(
+                                text = "${if (r.healthy) "OK" else "NG"}  ${r.displayName}（${r.siteKey}）",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (r.healthy) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.error,
+                            )
+                            Text(
+                                text = r.detail,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+    )
 }

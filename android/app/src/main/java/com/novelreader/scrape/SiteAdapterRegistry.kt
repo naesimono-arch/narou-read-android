@@ -28,6 +28,9 @@ class SiteAdapterRegistry(
         data object Unsupported : Resolution
     }
 
+    /** 登録済みアダプタ一覧（破損監視・層3 の [AdapterHealthCheck] が全アダプタの自己診断を回すために読む）。 */
+    val registeredAdapters: List<NovelSiteAdapter> get() = adapters
+
     fun resolve(inputUrl: String): Resolution {
         val host = hostOf(inputUrl) ?: return Resolution.Unsupported
 

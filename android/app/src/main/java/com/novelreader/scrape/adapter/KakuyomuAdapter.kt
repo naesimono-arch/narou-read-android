@@ -1,6 +1,7 @@
 package com.novelreader.scrape.adapter
 
 import com.novelreader.pdf.RawChapter
+import com.novelreader.scrape.HealthProbe
 import com.novelreader.scrape.NovelSiteAdapter
 import com.novelreader.scrape.ScrapeException
 import com.novelreader.scrape.ScrapeHttpClient
@@ -31,6 +32,12 @@ class KakuyomuAdapter(
 
     override val siteKey: String = "kakuyomu"
     override val displayName: String = "カクヨム"
+
+    // 破損監視（層3）の自己診断: fixture ゴールデン（KakuyomuGoldenTest）の元作品を使う＝期待値の二重管理を避ける。
+    // minChapters=100 は当該作の実章数（撮影時 593 話）を大きく下回る保守値。著者の整理でも 100 話を割ることは
+    // 考えにくく、セレクタ破損（章数が数件〜0 へ激減）だけを赤にする（通常の増減では赤にしない）。
+    override val healthProbe: HealthProbe =
+        HealthProbe(workUrl = "https://kakuyomu.jp/works/16816927859675616240", minChapters = 100)
 
     override fun canonicalWorkUrl(inputUrl: String): String? {
         val host = runCatching { java.net.URI(inputUrl.trim()).host?.lowercase() }.getOrNull() ?: return null

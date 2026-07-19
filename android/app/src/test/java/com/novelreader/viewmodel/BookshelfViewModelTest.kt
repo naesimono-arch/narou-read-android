@@ -15,6 +15,7 @@ import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
 import com.novelreader.repository.BookRepository
+import com.novelreader.scrape.ScrapeStructureException
 import com.novelreader.scrape.SiteAdapterRegistry
 import io.mockk.*
 import kotlinx.coroutines.Dispatchers
@@ -240,6 +241,25 @@ class BookshelfViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         verify { mockApp.emitError("取り込みに失敗しました") }
+    }
+
+    // 破損監視・層2: 構造変更の疑い（ScrapeStructureException）は「公式サイトで読む」逃げ道つきで通知する。
+    @Test
+    fun `importWebNovel - 構造疑いは公式サイト逃げ道つき Snackbar を出す`() = runTest {
+        coEvery { mockRepository.addWebBook(any(), any()) } returns
+            Result.failure(ScrapeStructureException("本文が全章で空"))
+
+        viewModel.importWebNovel("https://kakuyomu.jp/works/123")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // 構造疑い専用文言＋openUrl（作品URLを外部ブラウザで開く）で通知し、一般失敗文言は出さない。
+        verify {
+            mockApp.emitError(
+                "取得に失敗しました。サイト構造が変わった可能性があります",
+                openUrl = "https://kakuyomu.jp/works/123",
+            )
+        }
+        verify(exactly = 0) { mockApp.emitError("取り込みに失敗しました") }
     }
 
     // ── なろう紐付け候補検索（旧 NcodeLinkSheet の produceState を VM へ移設）─────────────

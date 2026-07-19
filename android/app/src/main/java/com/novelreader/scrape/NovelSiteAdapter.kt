@@ -33,7 +33,27 @@ interface NovelSiteAdapter {
 
     /** 章参照から本文を取得する（ネットワーク）。body は中間ルビ記法 `|base《ruby》`。 */
     suspend fun fetchChapter(ref: ScrapedChapterRef): RawChapter
+
+    /**
+     * 自己診断の宣言（破損監視・層3＝debug ヘルスボード）。安定既知の作品 URL と抽出結果に期待する最小値。
+     * これを [AdapterHealthCheck] が **debug の手動実行時にだけ** 実取得して緑/赤を判定する。
+     *
+     * なぜ既定実装を持たせず抽象のままにするか（IF 変更の判断）: 「安定既知の作品＋期待最小値」は本質的に
+     * サイト固有で、汎用の既定値が存在しない（＝既定は必ず無意味）。全登録アダプタに自己診断の宣言を
+     * コンパイル時に強制する方が D4 の設計意図（各アダプタが健全性を宣言）に合う。実装コストは probe 1個の宣言のみ。
+     */
+    val healthProbe: HealthProbe
 }
+
+/**
+ * アダプタの自己診断宣言（破損監視・層3）。安定して存在する作品を1件指し、抽出結果に期待する最小値を持つ。
+ * @param workUrl 期待が安定している既知作品の正規トップ URL（回帰 fixture の元作品を使うと期待値の二重管理を避けられる）。
+ * @param minChapters 目次に期待する章数の下限（これ未満なら赤＝構造破損の疑い）。本文非空は [AdapterHealthCheck] が別途検査する。
+ */
+data class HealthProbe(
+    val workUrl: String,
+    val minChapters: Int,
+)
 
 /** DL 時に確定する最小の作品メタ（発見層の WorkSummary とは別レイヤ）。 */
 data class ScrapedWorkMeta(

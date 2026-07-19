@@ -45,8 +45,6 @@
 - **残フェーズ**（P3 は着地＝Room v21・addWebBook・共有/リンク取込導線。完了の正本＝git log。
   設計メモ: ACTION_VIEW は対応ホスト限定〔全 http/https だと全リンクのブラウザ候補に化ける〕・任意サイトの受け口は
   ACTION_SEND が担う／Web源は pending_jobs 不使用＝失敗は即時通知・リトライはユーザー再共有）:
-  - **P4 破損監視の実行時層**: アダプタの実行時ヘルスチェック（抽出空/短の検知→「公式サイトで読む」フォールバック提示）＋
-    debug ヘルスボード（高負荷モードと同じ本棚⋮開発節）。fixture ゴールデン（保守の核）は P2 で着地済み。
   - **P5 発見層 refactor**: `NarouNovel` 直参照＝**26ファイル・93出現**を `WorkSummary` 挿入で剥がす（大・独立コミット群）。
     `viewmodel/DiscoveryViewModel.kt:66-71` の `ResultContext`→`DiscoveryQuery` Parcelable 連鎖も改修。
   - **P6 後始末**: STATUS/handover/ADR（アダプタ機構＝新規 ADR 候補）・/stale-check・fixture 撮り直し手順の docs 化。
