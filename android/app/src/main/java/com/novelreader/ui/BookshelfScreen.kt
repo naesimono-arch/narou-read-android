@@ -65,7 +65,7 @@ import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.model.BookId
 import com.novelreader.ui.discovery.FilterChipItem
-import com.novelreader.narou.model.NarouNovel
+import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.theme.FontButtonLabel
 import com.novelreader.ui.theme.FontHomeTitle
 import com.novelreader.ui.theme.FontSubTitle
@@ -471,7 +471,7 @@ internal fun BookshelfContent(
     // 既存テスト・呼び出しの互換のため（章数 0＝進捗行「未読」表示で従来どおり成立する）。
     chapterCountMap: Map<String, Int> = emptyMap(),
     // 続きありバッジ用のなろう詳細（key=ncode）。カードは自分の book.ncode 分を引いて突き合わせる。
-    newEpisodeNovelMap: Map<String, NarouNovel>,
+    newEpisodeNovelMap: Map<String, WorkSummary>,
     processingState: ProcessingState,
     appTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,

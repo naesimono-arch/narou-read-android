@@ -1,6 +1,7 @@
 package com.novelreader.narou
 
 import com.novelreader.discovery.model.SerialState
+import com.novelreader.discovery.model.WorkDetail
 import com.novelreader.discovery.model.WorkPoints
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.narou.model.NarouNovel
@@ -38,6 +39,26 @@ fun NarouNovel.toWorkSummary(): WorkSummary? {
         readMinutes = time,
         genreCode = genre,
         points = toWorkPoints(),
+    )
+}
+
+/**
+ * [NarouNovel] を作品詳細モデル [WorkDetail] へ翻訳する（詳細画面＝NovelDetailViewModel の境界）。
+ *
+ * 要約部は [toWorkSummary] に委ね（title/writer 欠落なら null＝呼び出し側でフィルタ）、詳細画面が
+ * 見せるなろう詳細項目（あらすじ・タグ・会話率・挿絵数・ブックマーク数・評価者数・最終更新）を上乗せする。
+ */
+fun NarouNovel.toWorkDetail(): WorkDetail? {
+    val summary = toWorkSummary() ?: return null
+    return WorkDetail(
+        summary = summary,
+        story = story,
+        keyword = keyword,
+        kaiwaritu = kaiwaritu,
+        sasieCnt = sasieCnt,
+        favNovelCnt = favNovelCnt,
+        allHyokaCnt = allHyokaCnt,
+        generalLastup = generalLastup,
     )
 }
 

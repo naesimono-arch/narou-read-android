@@ -59,7 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
-import com.novelreader.narou.model.NarouNovel
+import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.discovery.ChipKind
@@ -158,28 +158,28 @@ private fun phosGlow(): Shadow {
 
 /** 現在 order のポイント数値（HI-SCORE .sc .v＝数値のみ）。DiscoveryCommon.pointLabel と同じ order→field
  *  写像だが、当該画面は編集不可のためそちら（"週間 12,345pt"）でなく数値だけが要る＝ここで最小複製する。 */
-private fun boardPointValue(order: NarouOrder, novel: NarouNovel): String? {
+private fun boardPointValue(order: NarouOrder, novel: WorkSummary): String? {
     val v = when (order) {
-        NarouOrder.DAILY -> novel.dailyPoint
-        NarouOrder.WEEKLY -> novel.weeklyPoint
-        NarouOrder.MONTHLY -> novel.monthlyPoint
-        NarouOrder.QUARTER -> novel.quarterPoint
-        NarouOrder.TOTAL, NarouOrder.NEW -> novel.globalPoint
+        NarouOrder.DAILY -> novel.points?.daily
+        NarouOrder.WEEKLY -> novel.points?.weekly
+        NarouOrder.MONTHLY -> novel.points?.monthly
+        NarouOrder.QUARTER -> novel.points?.quarter
+        NarouOrder.TOTAL, NarouOrder.NEW -> novel.points?.global
     } ?: return null
     return String.format(Locale.JAPAN, "%,d", v)
 }
 
-/** 試遊台カセット背の色（.try-row .cart＝ジャンル色）。novel.genre を g1-g6 へ安定写像（並び替えで変わらない）。 */
-private fun cartColorFor(novel: NarouNovel): Color {
-    val key = novel.genre ?: novel.ncode?.hashCode() ?: 0
+/** 試遊台カセット背の色（.try-row .cart＝ジャンル色）。genreCode を g1-g6 へ安定写像（並び替えで変わらない）。 */
+private fun cartColorFor(novel: WorkSummary): Color {
+    val key = novel.genreCode ?: novel.ncode?.hashCode() ?: 0
     return GenreSpinePalette[(key and 0x7fffffff) % GenreSpinePalette.size]
 }
 
 /** 作者 ・ ジャンル ・ 状態 ・ 読了時間 を中黒でつないだメタ行（mock .hs-row .a／試遊台では分割表示）。 */
-private fun rankMetaLine(novel: NarouNovel): String {
+private fun rankMetaLine(novel: WorkSummary): String {
     val parts = buildList {
-        novel.writer?.takeIf { it.isNotBlank() }?.let { add(it) }
-        NarouGenres.genreLabel(novel.genre)?.let { add(it) }
+        novel.author.takeIf { it.isNotBlank() }?.let { add(it) }
+        NarouGenres.genreLabel(novel.genreCode)?.let { add(it) }
         add(novelStatusLabel(novel))
         readTimeLabel(novel)?.let { add(it) }
     }
@@ -679,7 +679,7 @@ private fun OrderTabsPhos(selected: NarouOrder, onSelect: (NarouOrder) -> Unit) 
 
 /** HI-SCORE の1行（.hs-row＝順位・題・メタ・スコア）。1位王冠の金 #d9c27a はトークン不在＝燐光で描く（不足値）。 */
 @Composable
-private fun HiScoreRow(rank: Int, novel: NarouNovel, order: NarouOrder, onClick: () -> Unit) {
+private fun HiScoreRow(rank: Int, novel: WorkSummary, order: NarouOrder, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -713,7 +713,7 @@ private fun HiScoreRow(rank: Int, novel: NarouNovel, order: NarouOrder, onClick:
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                novel.title ?: "（無題）",
+                novel.title,
                 fontSize = 13.5.sp,        // .hs-row .t 13.5px（ゴシック）
                 fontWeight = FontWeight.Bold,
                 lineHeight = 19.sp,
@@ -920,7 +920,7 @@ private fun CondChip(label: String, adjustable: Boolean, onClick: (() -> Unit)?)
 // 試遊台の1行（.try-row＝カセット背＋題名＋作者/ジャンル＋メタ〔状態・読了・pt〕）
 // ============================================================
 @Composable
-private fun TryRow(novel: NarouNovel, order: NarouOrder, onClick: () -> Unit) {
+private fun TryRow(novel: WorkSummary, order: NarouOrder, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -953,7 +953,7 @@ private fun TryRow(novel: NarouNovel, order: NarouOrder, onClick: () -> Unit) {
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                novel.title ?: "（無題）",
+                novel.title,
                 fontSize = 14.sp,          // .try-row .t 14px（ゴシック）
                 fontWeight = FontWeight.Bold,
                 lineHeight = 20.sp,
@@ -962,8 +962,8 @@ private fun TryRow(novel: NarouNovel, order: NarouOrder, onClick: () -> Unit) {
             )
             Text(
                 buildList {
-                    novel.writer?.takeIf { it.isNotBlank() }?.let { add(it) }
-                    NarouGenres.genreLabel(novel.genre)?.let { add(it) }
+                    novel.author.takeIf { it.isNotBlank() }?.let { add(it) }
+                    NarouGenres.genreLabel(novel.genreCode)?.let { add(it) }
                 }.joinToString(" ・ "),
                 fontSize = 10.5.sp,        // .try-row .a 10.5px
                 color = InkMidCartridge,   // mock --ink-soft は AA 不足＝意味メタは --ink-mid

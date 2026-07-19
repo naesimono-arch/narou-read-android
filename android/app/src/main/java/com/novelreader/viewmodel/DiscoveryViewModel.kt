@@ -9,9 +9,9 @@ import com.novelreader.NovelReaderApplication
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.SearchHistory
 import com.novelreader.narou.SearchHistoryStore
+import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.NarouGenres
-import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouOrder
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -29,7 +29,7 @@ sealed interface DiscoveryUiState {
     // 既定の Complete＝フッタ非表示のまま。
     data class Content(
         val allcount: Int,
-        val novels: List<NarouNovel>,
+        val novels: List<WorkSummary>,
         val paging: PagingState = PagingState.Complete,
     ) : DiscoveryUiState
     object Empty : DiscoveryUiState
@@ -457,7 +457,7 @@ class DiscoveryViewModel(
         //
         // 監査 persist Minor（DiscoveryResultScreen 積み上げページ喪失）への裁定: 積み上がった novels＋paging は
         // SavedStateHandle へ **ミラーしない**。理由（＝近似で誤魔化さず停止して報告した結論）:
-        //   ① NarouNovel は Moshi の @JsonClass モデルで Parcelable ではない。ミラーには JSON モデルを Parcelize
+        //   ① WorkSummary は @Immutable の要約モデルで Parcelable ではない。ミラーには要約モデルを Parcelize
         //      する（責務違反）か手動シリアライズが要る。
         //   ② さらに「さらに読み込む」で数百件まで積み上がった一覧を Bundle に載せると savedInstanceState の
         //      Binder 上限に触れ TransactionTooLargeException を招きやすい（プロセス death 復帰でクラッシュ）。

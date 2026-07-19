@@ -6,8 +6,10 @@ import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.NovelApiRepository
 import com.novelreader.narou.model.DiscoveryPage
 import com.novelreader.narou.model.DiscoveryQuery
+import com.novelreader.discovery.model.SerialState
+import com.novelreader.discovery.model.WorkSummary
+import com.novelreader.discovery.model.workSummary
 import com.novelreader.narou.model.DiscoveryResult
-import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouOrder
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -55,7 +57,7 @@ class DiscoveryViewModelTest {
     @Test
     fun `ensureHomeLoaded - ロードに成功した場合、homeState が Content に遷移し、取得データが格納されること`() = runTest {
         val dummyNovels = listOf(
-            NarouNovel(title = "小説タイトル", ncode = "N1234AB", noveltypeCompact = 1, end = 1)
+            workSummary(title = "小説タイトル", ncode = "N1234AB", serialState = SerialState.ONGOING)
         )
         val dummyResult = DiscoveryResult(allcount = 120, novels = dummyNovels)
         coEvery { mockRepo.discover(any()) } returns dummyResult
@@ -73,7 +75,7 @@ class DiscoveryViewModelTest {
 
     @Test
     fun `ensureHomeLoaded - VM生成だけでは通信せず、2回呼んでも discover は1回だけ実行されること`() = runTest {
-        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(NarouNovel(title = "t")))
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(workSummary(title = "t")))
 
         viewModel = DiscoveryViewModel(mockApp)
         testDispatcher.scheduler.advanceUntilIdle()
@@ -117,13 +119,13 @@ class DiscoveryViewModelTest {
 
     @Test
     fun `setHomeOrder - orderが変わると該当orderのクエリで再取得され、homeOrderとhomeStateが更新されること`() = runTest {
-        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(10, listOf(NarouNovel(title = "週間1位")))
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(10, listOf(workSummary(title = "週間1位")))
 
         viewModel = DiscoveryViewModel(mockApp)
         viewModel.ensureHomeLoaded()
         testDispatcher.scheduler.advanceUntilIdle()
 
-        val daily = listOf(NarouNovel(title = "日間1位"))
+        val daily = listOf(workSummary(title = "日間1位"))
         coEvery { mockRepo.discover(match { it.order == NarouOrder.DAILY }) } returns DiscoveryResult(5, daily)
 
         viewModel.setHomeOrder(NarouOrder.DAILY)
@@ -138,7 +140,7 @@ class DiscoveryViewModelTest {
 
     @Test
     fun `setHomeOrder - 同じorderを再選択しても再取得しないこと`() = runTest {
-        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(10, listOf(NarouNovel(title = "t")))
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(10, listOf(workSummary(title = "t")))
 
         viewModel = DiscoveryViewModel(mockApp)
         viewModel.ensureHomeLoaded()
@@ -152,7 +154,7 @@ class DiscoveryViewModelTest {
 
     @Test
     fun `openResult - 文脈が保存され、そのクエリで取得した結果が resultState に入ること`() = runTest {
-        val hits = listOf(NarouNovel(title = "検索ヒット"))
+        val hits = listOf(workSummary(title = "検索ヒット"))
         coEvery { mockRepo.discover(match { it.word == "薬師" }) } returns DiscoveryResult(42, hits)
 
         viewModel = DiscoveryViewModel(mockApp)
@@ -173,7 +175,7 @@ class DiscoveryViewModelTest {
 
     @Test
     fun `executeSearch - ドラフトが実行可能なら結果文脈が差し替わり、不可なら何も起きないこと`() = runTest {
-        val hits = listOf(NarouNovel(title = "ヒット"))
+        val hits = listOf(workSummary(title = "ヒット"))
         coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, hits)
 
         viewModel = DiscoveryViewModel(mockApp)
@@ -195,7 +197,7 @@ class DiscoveryViewModelTest {
     fun `executeSearch - 検索語が履歴ストアへ追加され、条件のみの検索では追加されないこと`() = runTest {
         val mockStore = mockk<com.novelreader.narou.SearchHistoryStore>(relaxed = true)
         every { mockApp.searchHistoryStore } returns mockStore
-        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(NarouNovel(title = "t")))
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(workSummary(title = "t")))
 
         viewModel = DiscoveryViewModel(mockApp)
         viewModel.setSearchDraft(SearchDraft(word = " 薬師 "))
@@ -216,7 +218,7 @@ class DiscoveryViewModelTest {
     fun `searchFromHistory - 履歴語がドラフトへ移り即実行されること`() = runTest {
         val mockStore = mockk<com.novelreader.narou.SearchHistoryStore>(relaxed = true)
         every { mockApp.searchHistoryStore } returns mockStore
-        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(NarouNovel(title = "t")))
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(workSummary(title = "t")))
 
         viewModel = DiscoveryViewModel(mockApp)
         assertEquals(true, viewModel.searchFromHistory("辺境"))
@@ -236,7 +238,7 @@ class DiscoveryViewModelTest {
 
         assertTrue(viewModel.resultState.value is DiscoveryUiState.Error)
 
-        val recovered = listOf(NarouNovel(title = "復帰"))
+        val recovered = listOf(workSummary(title = "復帰"))
         coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, recovered)
         viewModel.refreshResult()
         testDispatcher.scheduler.advanceUntilIdle()
@@ -248,7 +250,7 @@ class DiscoveryViewModelTest {
 
     @Test
     fun `changeResultOrder - 並び順のみ変更され、再ロードされること`() = runTest {
-        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(NarouNovel(title = "t")))
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(workSummary(title = "t")))
         viewModel = DiscoveryViewModel(mockApp)
         val ctx = ResultContext(
             title = "「薬師」",
@@ -273,7 +275,7 @@ class DiscoveryViewModelTest {
 
     @Test
     fun `changeResultGenreFilter - GENRE発の場合、大ジャンル変更でタイトルが更新され再ロードされること`() = runTest {
-        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(NarouNovel(title = "t")))
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(workSummary(title = "t")))
         viewModel = DiscoveryViewModel(mockApp)
         val ctx = ResultContext(
             title = "「薬師」",
@@ -298,7 +300,7 @@ class DiscoveryViewModelTest {
 
     @Test
     fun `changeResultGenreFilter - GENRE発の場合、詳細ジャンル変更でタイトルが更新され再ロードされること`() = runTest {
-        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(NarouNovel(title = "t")))
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(workSummary(title = "t")))
         viewModel = DiscoveryViewModel(mockApp)
         val ctx = ResultContext(
             title = "「薬師」",
@@ -323,7 +325,7 @@ class DiscoveryViewModelTest {
 
     @Test
     fun `changeResultGenreFilter - SEARCH発の場合、ジャンル変更してもタイトルが維持され再ロードされること`() = runTest {
-        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(NarouNovel(title = "t")))
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(workSummary(title = "t")))
         viewModel = DiscoveryViewModel(mockApp)
         val ctx = ResultContext(
             title = "「薬師」",
@@ -348,7 +350,7 @@ class DiscoveryViewModelTest {
 
     @Test
     fun `changeResultGenreFilter - GENRE発の場合、両方空への変更でタイトルがすべての作品になり再ロードされること`() = runTest {
-        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(NarouNovel(title = "t")))
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(workSummary(title = "t")))
         viewModel = DiscoveryViewModel(mockApp)
         val ctx = ResultContext(
             title = "恋愛",
@@ -377,10 +379,10 @@ class DiscoveryViewModelTest {
         // 「タブは新・リスト本体は旧」の食い違い表示になる（応答の完了順は要求順を保証しない）。
         coEvery { mockRepo.discover(match { it.order == NarouOrder.WEEKLY }) } coAnswers {
             delay(1_000) // 旧クエリ＝低速応答を模す
-            DiscoveryResult(1, listOf(NarouNovel(title = "週間の結果")))
+            DiscoveryResult(1, listOf(workSummary(title = "週間の結果")))
         }
         coEvery { mockRepo.discover(match { it.order == NarouOrder.DAILY }) } returns
-            DiscoveryResult(1, listOf(NarouNovel(title = "日間の結果")))
+            DiscoveryResult(1, listOf(workSummary(title = "日間の結果")))
 
         viewModel = DiscoveryViewModel(mockApp)
         viewModel.ensureHomeLoaded()                // WEEKLY 発火（delay で保留中）
@@ -396,7 +398,7 @@ class DiscoveryViewModelTest {
 
     @Test
     fun `F-C - openResult が ResultContext を SavedStateHandle へ退避すること`() = runTest {
-        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(NarouNovel(title = "t")))
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(1, listOf(workSummary(title = "t")))
         val handle = SavedStateHandle()
         viewModel = DiscoveryViewModel(mockApp, handle)
         val ctx = ResultContext(
@@ -418,7 +420,7 @@ class DiscoveryViewModelTest {
             source = ResultSource.SEARCH,
             query = DiscoveryQuery(word = "薬師"),
         )
-        val recovered = listOf(NarouNovel(title = "復帰した結果"))
+        val recovered = listOf(workSummary(title = "復帰した結果"))
         coEvery { mockRepo.discover(any()) } returns DiscoveryResult(7, recovered)
 
         // process death 相当: 文脈が入った SavedStateHandle で VM を再生成
@@ -499,8 +501,8 @@ class DiscoveryViewModelTest {
 
     // ── フルページング（F-J） ──
 
-    private fun novelList(count: Int, prefix: String): List<NarouNovel> =
-        (1..count).map { NarouNovel(title = "$prefix$it", ncode = "$prefix$it") }
+    private fun novelList(count: Int, prefix: String): List<WorkSummary> =
+        (1..count).map { workSummary(title = "$prefix$it", ncode = "$prefix$it") }
 
     private fun openSearchResult(vm: DiscoveryViewModel) {
         vm.openResult(

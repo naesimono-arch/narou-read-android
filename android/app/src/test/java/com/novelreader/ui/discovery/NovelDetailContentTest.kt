@@ -7,7 +7,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import com.novelreader.narou.model.NarouNovel
+import com.novelreader.discovery.model.workDetail
+import com.novelreader.discovery.model.workSummary
 import com.novelreader.narou.model.Ncode
 import com.novelreader.viewmodel.NovelDetailUiState
 import org.junit.Assert.assertTrue
@@ -61,7 +62,7 @@ class NovelDetailContentTest {
     fun `Content状態は作者となろうで読む導線を描画する`() {
         setContent(
             NovelDetailUiState.Content(
-                novel = NarouNovel(title = "詳細作品", writer = "作者名テスト"),
+                novel = workDetail(summary = workSummary(title = "詳細作品", author = "作者名テスト")),
                 fetchedAtMillis = 0L,
             ),
         )
@@ -74,7 +75,7 @@ class NovelDetailContentTest {
         var read = false
         setContent(
             NovelDetailUiState.Content(
-                novel = NarouNovel(title = "詳細作品", writer = "作者名テスト"),
+                novel = workDetail(summary = workSummary(title = "詳細作品", author = "作者名テスト")),
                 fetchedAtMillis = 0L,
             ),
             onReadOnNarou = { read = true },
@@ -89,7 +90,7 @@ class NovelDetailContentTest {
         var imported = false
         setContent(
             NovelDetailUiState.Content(
-                novel = NarouNovel(title = "詳細作品", writer = "作者名テスト"),
+                novel = workDetail(summary = workSummary(title = "詳細作品", author = "作者名テスト")),
                 fetchedAtMillis = 0L,
             ),
             onImportPdf = { imported = true },

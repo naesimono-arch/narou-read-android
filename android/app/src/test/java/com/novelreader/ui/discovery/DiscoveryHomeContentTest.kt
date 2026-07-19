@@ -13,7 +13,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
-import com.novelreader.narou.model.NarouNovel
+import com.novelreader.discovery.model.workSummary
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.viewmodel.DiscoveryUiState
 import org.junit.Assert.assertTrue
@@ -60,7 +60,7 @@ class DiscoveryHomeContentTest {
 
     @Test
     fun `Content状態で気分節・ジャンル節と作品名を描画する`() {
-        setContent(DiscoveryUiState.Content(allcount = 1, novels = listOf(NarouNovel(title = "テスト作品"))))
+        setContent(DiscoveryUiState.Content(allcount = 1, novels = listOf(workSummary(title = "テスト作品"))))
         // 常時表示の見出し（Content 分岐が Scaffold ごと描かれた証拠）
         composeTestRule.onNodeWithText("きょうの気分").assertIsDisplayed()
         composeTestRule.onNodeWithText("ジャンルから").assertIsDisplayed()
@@ -110,7 +110,7 @@ class DiscoveryHomeContentTest {
         // へ全置換されると LazyColumn が縮んでスクロールアンカーを失いトップへ落ちる。Loading 中も直近 Content の
         // 行（同 key=ncode）を出し続けることでアンカーを保つ＝この置換が起きないことを固定する。
         val stateHolder = mutableStateOf<DiscoveryUiState>(
-            DiscoveryUiState.Content(allcount = 1, novels = listOf(NarouNovel(title = "直近の作品", ncode = "N42"))),
+            DiscoveryUiState.Content(allcount = 1, novels = listOf(workSummary(title = "直近の作品", ncode = "N42"))),
         )
         composeTestRule.setContent {
             MaterialTheme {

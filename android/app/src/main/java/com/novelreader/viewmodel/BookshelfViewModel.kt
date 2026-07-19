@@ -15,10 +15,10 @@ import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.model.BookId
 import com.novelreader.model.ChapterFilename
+import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.DiscoveryResult
-import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
 import com.novelreader.repository.BookRepository
@@ -198,16 +198,17 @@ class BookshelfViewModel @JvmOverloads constructor(
     // （API 呼び出しは Retrofit suspend＝内部で IO へ逃げるため Main を塞がない）。
     // 失敗（NarouApiException＝オフライン等）は静かに無視しバッジ非表示にする（旧 produceState と同一方針）。
     @OptIn(ExperimentalCoroutinesApi::class)
-    val newEpisodeNovelMap: StateFlow<Map<String, NarouNovel>> = books
+    val newEpisodeNovelMap: StateFlow<Map<String, WorkSummary>> = books
         .map { list -> list.mapNotNull { it.ncode }.distinct() }
         // 本棚の並び替え等で ncode 集合が不変なら再照会しない（6h TTL キャッシュへの無駄叩き回避）。
         .distinctUntilChanged()
         // 本棚リスト（ncode 集合）変化時に前回の照会を破棄して最新集合で回し直す。
         .mapLatest { ncodes ->
-            val result = LinkedHashMap<String, NarouNovel>()
+            val result = LinkedHashMap<String, WorkSummary>()
             for (ncode in ncodes) {
                 try {
-                    novelApiRepository.novelDetail(Ncode(ncode))?.let { result[ncode] = it }
+                    // バッジ計算（continuation）に要るのは要約（ncode/話数/連載状態）だけ＝詳細の summary を保持。
+                    novelApiRepository.novelDetail(Ncode(ncode))?.let { result[ncode] = it.summary }
                 } catch (e: NarouApiException) {
                     // オフライン等の失敗はバッジ非表示で静かに握り潰す（本棚を通信エラーで騒がせない）。
                 }

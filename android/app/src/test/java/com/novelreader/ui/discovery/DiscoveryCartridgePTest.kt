@@ -13,7 +13,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import com.novelreader.narou.model.DiscoveryQuery
-import com.novelreader.narou.model.NarouNovel
+import com.novelreader.discovery.model.workSummary
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.Skin
@@ -101,7 +101,7 @@ class DiscoveryCartridgePTest {
         }
     }
 
-    private fun novel(title: String, ncode: String) = NarouNovel(title = title, ncode = ncode)
+    private fun novel(title: String, ncode: String) = workSummary(title = title, ncode = ncode)
 
     @Test
     fun `P装着でホームの店構造が出てD構造の入口リンクは出ない`() {

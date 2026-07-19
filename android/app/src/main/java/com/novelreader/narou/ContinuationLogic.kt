@@ -1,5 +1,7 @@
 package com.novelreader.narou
 
+import com.novelreader.discovery.model.SerialState
+import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.Ncode
 import java.util.Locale
@@ -27,21 +29,52 @@ sealed interface ContinuationInfo {
  * 入力値 of-bound や短編設定などの境界条件を適切に処理しないと、ユーザーに誤った
  * 続きの有無やリンクURLを提示してしまい、読書体験を著しく損ねるため。
  */
-fun computeContinuation(pdfChapterCount: Int, novel: NarouNovel): ContinuationInfo? {
+fun computeContinuation(pdfChapterCount: Int, novel: NarouNovel): ContinuationInfo? =
+    // なろう短編は novelType==2。判定本体は [computeContinuationCore] に集約（下の WorkSummary 版と同一）。
+    computeContinuationCore(
+        ncodeRaw = novel.ncode,
+        totalEpisodes = novel.generalAllNo,
+        isShort = novel.novelType == 2,
+        pdfChapterCount = pdfChapterCount,
+    )
+
+/**
+ * [computeContinuation] のサイト非依存版。詳細取得を [WorkSummary] へ写像した後の継続判定に使う
+ * （NativeReadingScreen の最終章カード等）。ncode/総話数/短編判定は summary から取り、判定本体は共通。
+ */
+fun computeContinuation(pdfChapterCount: Int, summary: WorkSummary): ContinuationInfo? =
+    computeContinuationCore(
+        ncodeRaw = summary.ncode,
+        totalEpisodes = summary.chapterCount,
+        isShort = summary.serialState == SerialState.SHORT,
+        pdfChapterCount = pdfChapterCount,
+    )
+
+/**
+ * 継続判定の本体（NarouNovel/WorkSummary いずれの入口からも同一ロジックを通す唯一の正本）。
+ * @param ncodeRaw 生 ncode（前後空白を含みうる）。@param totalEpisodes なろう上の総話数。
+ * @param isShort 短編か（短編は続きの概念が無く常に UpToDate）。
+ */
+private fun computeContinuationCore(
+    ncodeRaw: String?,
+    totalEpisodes: Int?,
+    isShort: Boolean,
+    pdfChapterCount: Int,
+): ContinuationInfo? {
     // なぜトリムするか: APIレスポンスや手動入力等によって前後に空白が混入した場合でも、
     // 一致判定やURL生成を安定して行えるようにするため。
-    val ncode = novel.ncode?.trim()
-    
+    val ncode = ncodeRaw?.trim()
+
     // なぜ空判定をするか: 紐付けキーであるNコードが存在しない場合、
     // なろう上のどの作品を指しているか突き合わせることが不可能なため、処理を進めずnullを返す。
     if (ncode.isNullOrEmpty()) {
         return null
     }
-    // 境界変換点: Moshi 由来の生 String（trim 済み）をここで一度だけ Ncode へ包み、
+    // 境界変換点: 生 String（trim 済み）をここで一度だけ Ncode へ包み、
     // 以降のドメイン戻り値（ContinuationInfo）は型付き ncode で扱う（挙動不変＝正規化は素通し）。
     val id = Ncode(ncode)
 
-    val total = novel.generalAllNo
+    val total = totalEpisodes
     // なぜ総話数をバリデーションするか: 総エピソード数が未取得、または不正な値（0以下）の場合は、
     // なろう側の話数をベースにした継続判定ができないため、安全側に倒してnullを返す。
     if (total == null || total <= 0) {
@@ -54,9 +87,9 @@ fun computeContinuation(pdfChapterCount: Int, novel: NarouNovel): ContinuationIn
         return null
     }
 
-    // なぜ短編の特別扱いが必要か: なろうの短編（novelType=2）は一話完結であり、
-    // generalAllNo が 1 であるものの「続きの話」という概念自体が存在しないため、常に追いつき済み(UpToDate)とする。
-    if (novel.novelType == 2) {
+    // なぜ短編の特別扱いが必要か: なろうの短編は一話完結であり、
+    // 「続きの話」という概念自体が存在しないため、常に追いつき済み(UpToDate)とする。
+    if (isShort) {
         return ContinuationInfo.UpToDate(id, total)
     }
 

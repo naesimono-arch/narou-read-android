@@ -2,8 +2,9 @@ package com.novelreader.viewmodel
 
 import com.novelreader.NovelReaderApplication
 import com.novelreader.narou.NarouApiException
+import com.novelreader.discovery.model.workDetail
+import com.novelreader.discovery.model.workSummary
 import com.novelreader.narou.NovelApiRepository
-import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.Ncode
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -48,7 +49,7 @@ class NovelDetailViewModelTest {
 
     @Test
     fun `load - 取得成功で Content に遷移し、同一ncodeの再loadは再取得しないこと`() = runTest {
-        val novel = NarouNovel(title = "詳細作品", ncode = "N1234AB", story = "あらすじ")
+        val novel = workDetail(summary = workSummary(title = "詳細作品", ncode = "N1234AB"), story = "あらすじ")
         coEvery { mockRepo.novelDetail(Ncode("N1234AB")) } returns novel
 
         viewModel.load(Ncode("N1234AB"))
@@ -85,7 +86,7 @@ class NovelDetailViewModelTest {
         assertTrue(state is NovelDetailUiState.Error)
         assertEquals("通信エラー", (state as NovelDetailUiState.Error).message)
 
-        val novel = NarouNovel(title = "復帰作品", ncode = "N1234AB")
+        val novel = workDetail(summary = workSummary(title = "復帰作品", ncode = "N1234AB"))
         coEvery { mockRepo.novelDetail(any()) } returns novel
         viewModel.retry()
         testDispatcher.scheduler.advanceUntilIdle()

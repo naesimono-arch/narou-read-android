@@ -56,7 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
-import com.novelreader.narou.model.NarouNovel
+import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.discovery.ChipKind
@@ -506,7 +506,7 @@ private fun OrderTabsPortal(selected: NarouOrder, onSelect: (NarouOrder) -> Unit
 @Composable
 internal fun PortalRankRow(
     rank: Int,
-    novel: NarouNovel,
+    novel: WorkSummary,
     order: NarouOrder,
     onClick: () -> Unit,
 ) {
@@ -546,7 +546,7 @@ internal fun PortalRankRow(
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                novel.title ?: "（無題）",
+                novel.title,
                 fontFamily = MinchoFamily,
                 fontSize = 15.sp,           // .rk .t 15px
                 lineHeight = 23.sp,
@@ -559,14 +559,14 @@ internal fun PortalRankRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    novel.writer ?: "",
+                    novel.author,
                     fontSize = 11.sp,       // .rk .a 11px
                     color = SoftPortal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                NarouGenres.genreLabel(novel.genre)?.let { genre ->
+                NarouGenres.genreLabel(novel.genreCode)?.let { genre ->
                     Text(
                         genre,
                         fontSize = 11.sp,   // .rk .a em（ジャンル）

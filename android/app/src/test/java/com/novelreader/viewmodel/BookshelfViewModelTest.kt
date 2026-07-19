@@ -11,7 +11,8 @@ import com.novelreader.narou.NovelApiRepository
 import com.novelreader.model.BookId
 import com.novelreader.model.ChapterFilename
 import com.novelreader.narou.model.DiscoveryResult
-import com.novelreader.narou.model.NarouNovel
+import com.novelreader.discovery.model.workDetail
+import com.novelreader.discovery.model.workSummary
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
 import com.novelreader.repository.BookRepository
@@ -328,7 +329,9 @@ class BookshelfViewModelTest {
 
     @Test
     fun `newEpisodeNovelMap - 紐付け済みの本ごとに novelDetail を照会し ncode 別のMapを作る`() = runTest {
-        val novelA = mockk<NarouNovel>()
+        // 詳細（WorkDetail）で返り、Map に載るのはバッジ計算に要る要約（summary）＝それを assert する。
+        val summaryA = workSummary(ncode = "N1111AA")
+        val novelA = workDetail(summary = summaryA)
         val books = listOf(
             BookEntity("id01", "本A", "/p/a", ncode = "N1111AA"),
             BookEntity("id02", "本B", "/p/b"), // ncode null → 照会対象外
@@ -341,14 +344,15 @@ class BookshelfViewModelTest {
         val job = launch { viewModel.newEpisodeNovelMap.collect {} }
         testDispatcher.scheduler.advanceUntilIdle()
 
-        assertEquals(mapOf("N1111AA" to novelA), viewModel.newEpisodeNovelMap.value)
+        assertEquals(mapOf("N1111AA" to summaryA), viewModel.newEpisodeNovelMap.value)
         coVerify(exactly = 1) { mockNovelApiRepository.novelDetail(Ncode("N1111AA")) }
         job.cancel()
     }
 
     @Test
     fun `newEpisodeNovelMap - NarouApiException は握り潰しその ncode を除外する`() = runTest {
-        val novelA = mockk<NarouNovel>()
+        val summaryA = workSummary(ncode = "N1111AA")
+        val novelA = workDetail(summary = summaryA)
         val books = listOf(
             BookEntity("id01", "本A", "/p/a", ncode = "N1111AA"),
             BookEntity("id02", "本B", "/p/b", ncode = "N2222BB"), // 失敗する
@@ -363,7 +367,7 @@ class BookshelfViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         // 失敗した ncode は落ち、成功分だけが残る（本棚を通信エラーで騒がせない）
-        assertEquals(mapOf("N1111AA" to novelA), viewModel.newEpisodeNovelMap.value)
+        assertEquals(mapOf("N1111AA" to summaryA), viewModel.newEpisodeNovelMap.value)
         job.cancel()
     }
 }

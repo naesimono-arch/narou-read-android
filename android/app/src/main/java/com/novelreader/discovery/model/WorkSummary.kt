@@ -5,8 +5,8 @@ import androidx.compose.runtime.Immutable
 /**
  * サイト非依存の作品要約モデル（発見層＝P5 脱なろう refactor の第1段）。
  *
- * なぜ narou/ の外・ui/ の外に置くか: これまで発見系 UI はなろう固有の
- * [com.novelreader.narou.model.NarouNovel]（Moshi DTO）を直接消費し、novelType の二重キー・
+ * なぜ narou/ の外・ui/ の外に置くか: これまで発見系 UI はなろう固有の Moshi DTO（narou/model 配下）を
+ * 直接消費し、novelType の二重キー・
  * end の逆転意味論・allcount センチネルといった「なろうAPIの都合」が UI 層まで漏れていた。
  * 将来の Web スクレイピング系サイト（scrape/ アダプタ）を同じ一覧・詳細に載せるには、UI が読むのは
  * サイト非依存な要約型である必要がある。本型はその共通語彙で、各サイトのマッパ

@@ -60,7 +60,7 @@ import androidx.compose.ui.unit.sp
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
-import com.novelreader.narou.model.NarouNovel
+import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.theme.BlueInkCartridge
 import com.novelreader.ui.theme.InkCartridge
@@ -124,7 +124,7 @@ internal fun BookshelfListCartridgeP(
     webLastReadAt: Map<String, Long>,
     progressMap: Map<String, ProgressEntity>,
     chapterCountMap: Map<String, Int>,
-    newEpisodeNovelMap: Map<String, NarouNovel>,
+    newEpisodeNovelMap: Map<String, WorkSummary>,
     processingState: ProcessingState,
     selectedStatus: ReadingStatus?,
     statusCounts: Map<ReadingStatus, Int>,
@@ -322,7 +322,7 @@ internal fun BookshelfListCartridgeP(
 private fun CartridgeListRow(
     book: BookEntity,
     progress: ProgressEntity?,
-    novelDetail: NarouNovel?,
+    novelDetail: WorkSummary?,
     totalChaps: Int,
     selectionMode: Boolean,
     selected: Boolean,

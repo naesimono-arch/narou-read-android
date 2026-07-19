@@ -1,6 +1,8 @@
 package com.novelreader.narou
 
 import android.util.Log
+import com.novelreader.discovery.model.WorkDetail
+import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.narou.model.DiscoveryPage
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.DiscoveryResult
@@ -83,8 +85,15 @@ class NovelApiRepository(
 
     private data class CacheEntry(
         val cachedTimeMs: Long,
-        val result: DiscoveryResult
+        val result: RawResult
     )
+
+    // なぜ内部を Raw（NarouNovel 保持）で回すか（P5 第2段）: 公開戻り値はサイト非依存 [WorkSummary] へ
+    // 写像するが、ソート/マージ（novelupdatedAt・各種 point 等の API 固有値）とキャッシュは NarouNovel の
+    // まま行う必要がある（要約に落とすと並べ替えキーが失われる）。したがって取得・キャッシュ・マージは
+    // Raw のまま内部で完結させ、写像は公開メソッドの境界（discover/discoverPage/novelDetail）でのみ行う。
+    private data class RawResult(val allcount: Int, val novels: List<NarouNovel>)
+    private data class RawPage(val allcount: Int, val novels: List<NarouNovel>, val reachedApiLimit: Boolean)
 
     companion object {
         private const val TAG = "NovelApiRepository"
@@ -117,7 +126,7 @@ class NovelApiRepository(
     /**
      * キャッシュに結果を保存する。上限50を超えた場合は最古のエントリを削除する。
      */
-    private suspend fun putCache(key: String, result: DiscoveryResult, now: Long) = cacheMutex.withLock {
+    private suspend fun putCache(key: String, result: RawResult, now: Long) = cacheMutex.withLock {
         // なぜ最古のエントリを削除するか:
         // キャッシュ件数が上限を超えた場合、タイムスタンプが最も古い（最後に取得されたのが最も古い）
         // エントリを追い出すことで、直近に利用されたクエリキャッシュを効果的に保持するため。
@@ -136,7 +145,7 @@ class NovelApiRepository(
      * なぜ TTL 判定までロック内で行うか: 取得と判定を分けると、判定の合間に追い出し・上書きが
      * 挟まって古い参照へ判定を下す紛れが生じるため、読み出しの一貫性をロック区間で閉じる。
      */
-    private suspend fun getCacheValid(key: String, now: Long): DiscoveryResult? = cacheMutex.withLock {
+    private suspend fun getCacheValid(key: String, now: Long): RawResult? = cacheMutex.withLock {
         val cached = cache[key] ?: return@withLock null
         if ((now - cached.cachedTimeMs) < RANKING_TTL_MS) cached.result else null
     }
@@ -229,8 +238,20 @@ class NovelApiRepository(
      * 既存呼び出し（ホーム・結果一覧の初回・作品バッジ等）の互換のため DiscoveryResult を返す薄いラッパー。
      */
     suspend fun discover(query: DiscoveryQuery): DiscoveryResult {
-        val page = discoverPage(query, offset = 0)
-        return DiscoveryResult(page.allcount, page.novels)
+        val page = discoverPageRaw(query, offset = 0)
+        return DiscoveryResult(page.allcount, page.novels.toSummaries())
+    }
+
+    /** NarouNovel の内部リストを公開用のサイト非依存要約へ写像する（title/writer 欠落はここで除去）。 */
+    private fun List<NarouNovel>.toSummaries(): List<WorkSummary> = mapNotNull { it.toWorkSummary() }
+
+    /**
+     * ページ単位のディスカバリ取得（フルページング＝F-J）の**公開境界**。内部の Raw 取得を
+     * サイト非依存の [DiscoveryPage]（[WorkSummary] 一覧）へ写像して返す。offset 契約は [discoverPageRaw] 参照。
+     */
+    suspend fun discoverPage(rawQuery: DiscoveryQuery, offset: Int): DiscoveryPage {
+        val page = discoverPageRaw(rawQuery, offset)
+        return DiscoveryPage(page.allcount, page.novels.toSummaries(), page.reachedApiLimit)
     }
 
     /**
@@ -241,7 +262,7 @@ class NovelApiRepository(
      * 返り値の reachedApiLimit は「次ページが API エンベロープ（st>2000／マージ経路は累計>500）に阻まれて
      * 取得不能」を表し、VM が全件到達(Complete)と取得上限(ApiLimit)を判別するのに使う。
      */
-    suspend fun discoverPage(rawQuery: DiscoveryQuery, offset: Int): DiscoveryPage {
+    private suspend fun discoverPageRaw(rawQuery: DiscoveryQuery, offset: Int): RawPage {
         // word/notWord は入口で trim し「キー生成」と「実送信」を一致させる。
         // なぜ: cacheKey() は trim 済みで比較する一方、送信側が素通しだと前後空白付きの word
         // （NcodeLinkSheet 経由で実測）が「同一キャッシュキー・別実リクエスト」になり、
@@ -258,11 +279,11 @@ class NovelApiRepository(
             if (offset >= API_LIM_MAX) {
                 // 累計が lim 上限(500)に達しており、これ以上は取得不能。allcount は VM が初回ページで
                 // 保持済みのため 0 でも害はない（load-more では allcount を上書きしない設計）。
-                return DiscoveryPage(allcount = 0, novels = emptyList(), reachedApiLimit = true)
+                return RawPage(allcount = 0, novels = emptyList(), reachedApiLimit = true)
             }
             val fetchCount = (offset + query.limit).coerceAtMost(API_LIM_MAX)
-            val short = discoverPage(query.copy(types = setOf(NarouNovelType.SHORT), limit = fetchCount), 0)
-            val rensai = discoverPage(query.copy(types = setOf(NarouNovelType.RENSAI), limit = fetchCount), 0)
+            val short = discoverPageRaw(query.copy(types = setOf(NarouNovelType.SHORT), limit = fetchCount), 0)
+            val rensai = discoverPageRaw(query.copy(types = setOf(NarouNovelType.RENSAI), limit = fetchCount), 0)
             val mergedNovels = mergeByOrder(short.novels, rensai.novels, query.order).take(fetchCount)
             val page = mergedNovels.drop(offset)
             // なぜ: allcount は短編と連載中が排反なので単純加算で正確。
@@ -270,7 +291,7 @@ class NovelApiRepository(
             val loadedAfter = offset + page.size
             // 累計が 500 に張り付き、かつ総数がそれを超えていれば以降は lim 上限で取得不能＝取得上限。
             val reached = loadedAfter >= API_LIM_MAX && loadedAfter < allcount
-            return DiscoveryPage(allcount, page, reached)
+            return RawPage(allcount, page, reached)
         }
 
         // st は1始まりの表示開始位置。offset==0 は既定（先頭）に委ねて省略する。
@@ -278,7 +299,7 @@ class NovelApiRepository(
         // st が API 上限(2000)を超える要求は投げられない＝ここで取得上限として返す
         // （通常この分岐は VM 側の再入で来る前に reachedApiLimit で止まるが、防御的に弾く）。
         if (st != null && st > API_ST_MAX) {
-            return DiscoveryPage(allcount = 0, novels = emptyList(), reachedApiLimit = true)
+            return RawPage(allcount = 0, novels = emptyList(), reachedApiLimit = true)
         }
 
         // なぜ offset をキャッシュキーに含めるか: ページごとに返る作品スライスが異なるため、offset を
@@ -288,7 +309,7 @@ class NovelApiRepository(
         val now = timeSource()
         val cached = getCacheValid(cacheKey, now)
         if (cached != null) {
-            return toPage(cached, offset)
+            return toRawPage(cached, offset)
         }
 
         val result = wrapApiException {
@@ -377,37 +398,38 @@ class NovelApiRepository(
             val allcount = list.firstOrNull()?.allcount ?: 0
             val novels = list.drop(1)
 
-            DiscoveryResult(allcount, novels)
+            RawResult(allcount, novels)
         }
 
         putCache(cacheKey, result, now)
-        return toPage(result, offset)
+        return toRawPage(result, offset)
     }
 
     /**
-     * 取得済み DiscoveryResult を、offset を踏まえた DiscoveryPage（reachedApiLimit 付き）へ変換する。
+     * 取得済み RawResult を、offset を踏まえた RawPage（reachedApiLimit 付き）へ変換する。
      * 通常経路の取得上限判定: 次ページ開始位置 st'=(offset+size)+1 が 2000 を超える、かつ総数に未達なら取得上限。
      * なぜ result 由来で再計算するか: キャッシュには生の result のみ保持し、reachedApiLimit は
      * offset 依存の派生値なので都度計算する（キャッシュヒット時も正しく求まる）。
      */
-    private fun toPage(result: DiscoveryResult, offset: Int): DiscoveryPage {
+    private fun toRawPage(result: RawResult, offset: Int): RawPage {
         val loadedAfter = offset + result.novels.size
         val reached = loadedAfter >= API_ST_MAX && loadedAfter < result.allcount
-        return DiscoveryPage(result.allcount, result.novels, reached)
+        return RawPage(result.allcount, result.novels, reached)
     }
 
     /**
-     * Nコードを指定して、1件の小説詳細を取得する。
+     * Nコードを指定して、1件の小説詳細を取得する（サイト非依存の [WorkDetail] で返す＝公開境界）。
      * キャッシュがあればそれを返し、無ければAPIから取得してキャッシュする。
+     * title/writer 欠落（[com.novelreader.narou.toWorkDetail] が null）や該当なしは null。
      */
-    suspend fun novelDetail(ncode: Ncode): NarouNovel? {
+    suspend fun novelDetail(ncode: Ncode): WorkDetail? {
         // 境界変換点: Retrofit(NarouApiService) は生 String を要求するため .value をここでほどく。
         val trimmedNcode = ncode.value.trim()
         val cacheKey = "detail_$trimmedNcode"
         val now = timeSource()
         val cached = getCacheValid(cacheKey, now)
         if (cached != null) {
-            return cached.novels.firstOrNull()
+            return cached.novels.firstOrNull()?.toWorkDetail()
         }
 
         val result = wrapApiException {
@@ -421,7 +443,7 @@ class NovelApiRepository(
             )
             val allcount = list.firstOrNull()?.allcount ?: 0
             val novels = list.drop(1)
-            DiscoveryResult(allcount, novels)
+            RawResult(allcount, novels)
         }
 
         // なぜ空結果（NotFound）もキャッシュするか: なろう側で削除・検索除外された作品に紐付いた本があると、
@@ -429,10 +451,18 @@ class NovelApiRepository(
         // 発行し続け、6h TTL で守っている転送量マナー（narou_api_manual.md §6）に反するため、
         // 成功応答である限り空でも TTL 付きで負キャッシュする（通信失敗は wrapApiException で throw 済み＝ここに来ない）。
         putCache(cacheKey, result, now)
-        return result.novels.firstOrNull()
+        return result.novels.firstOrNull()?.toWorkDetail()
     }
 
-    /** 複数 ncode の詳細を1リクエストで取得する（U1 新着チェックのバルク照会）。 */
+    /**
+     * 複数 ncode の詳細を1リクエストで取得する（U1 新着チェックのバルク照会）。
+     *
+     * なぜここだけ NarouNovel のまま返すか（写像しない例外）: 唯一の呼び出し元は NewEpisodeCheckWorker →
+     * [computeNewEpisodeAlerts]（narou/ 内部ロジック）であり、UI/viewmodel へは漏れない（NarouNovel の型は
+     * 外へ出るが Worker は推論で素通しするだけ）。さらにこの経路は of="t-n-ga" で writer を取得しないため、
+     * toWorkSummary/toWorkDetail に通すと writer 欠落で全件 null に落ち新着検知が全滅する。よって新着チェックの
+     * narou 内部パイプラインは Raw のまま通す。
+     */
     suspend fun novelDetailsBulk(ncodes: List<Ncode>): List<NarouNovel> {
         // なぜ: 照合対象の ncode リストが空なら、なろうAPIにリクエストを投げる必要がないため即座に空リストを返す。
         if (ncodes.isEmpty()) return emptyList()

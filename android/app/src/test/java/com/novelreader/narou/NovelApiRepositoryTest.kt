@@ -42,11 +42,13 @@ class NovelApiRepositoryTest {
         repository = NovelApiRepository(service = service, timeSource = { currentTime })
     }
 
+    // writer を含める理由: discover の公開境界 toWorkSummary は title/writer 欠落を skip するため
+    // （実 API の作品要素は writer を持つ）。件数・順序の期待値は変えず、実データ相当にして写像で落ちないようにする。
     private fun createMockResponse(): List<NarouNovel> {
         return listOf(
             NarouNovel(allcount = 100),
-            NarouNovel(title = "作品1", ncode = "N1111A", noveltypeCompact = 1, end = 1),
-            NarouNovel(title = "作品2", ncode = "N2222A", noveltypeCompact = 2, end = 0)
+            NarouNovel(title = "作品1", ncode = "N1111A", writer = "作者", noveltypeCompact = 1, end = 1),
+            NarouNovel(title = "作品2", ncode = "N2222A", writer = "作者", noveltypeCompact = 2, end = 0)
         )
     }
 
@@ -260,7 +262,9 @@ class NovelApiRepositoryTest {
 
     @Test
     fun `novelDetail - ncode 指定で service が呼ばれ作品要素が返ること`() = runTest {
-        val mockNovel = NarouNovel(title = "詳細作品", ncode = "N1234AB")
+        // writer を含める: 公開境界 toWorkDetail→toWorkSummary は title/writer 欠落を skip するため
+        // （実 API の作品要素は writer を持つ。要約が欠落で null に落ちないよう実データ相当にする）。
+        val mockNovel = NarouNovel(title = "詳細作品", ncode = "N1234AB", writer = "作者")
         coEvery { service.search(ncode = "N1234AB", lim = 1, of = null) } returns listOf(
             NarouNovel(allcount = 1),
             mockNovel
@@ -269,8 +273,8 @@ class NovelApiRepositoryTest {
         val result = repository.novelDetail(Ncode("N1234AB"))
 
         assertNotNull(result)
-        assertEquals("詳細作品", result!!.title)
-        assertEquals("N1234AB", result.ncode)
+        assertEquals("詳細作品", result!!.summary.title)
+        assertEquals("N1234AB", result.summary.ncode)
 
         // キャッシュの検証：2回目は API が呼ばれない
         val cachedResult = repository.novelDetail(Ncode("N1234AB"))
@@ -441,14 +445,14 @@ class NovelApiRepositoryTest {
         // 短編用APIモック（order=WEEKLY, type="t", lim=3）
         val shortNovels = listOf(
             NarouNovel(allcount = 40),
-            NarouNovel(title = "短編1", ncode = "NS1", weeklyPoint = 300),
-            NarouNovel(title = "短編2", ncode = "NS2", weeklyPoint = 100)
+            NarouNovel(title = "短編1", ncode = "NS1", writer = "作者", weeklyPoint = 300),
+            NarouNovel(title = "短編2", ncode = "NS2", writer = "作者", weeklyPoint = 100)
         )
         // 連載用APIモック（order=WEEKLY, type="r", lim=3）
         val rensaiNovels = listOf(
             NarouNovel(allcount = 60),
-            NarouNovel(title = "連載1", ncode = "NR1", weeklyPoint = 400),
-            NarouNovel(title = "連載2", ncode = "NR2", weeklyPoint = 200)
+            NarouNovel(title = "連載1", ncode = "NR1", writer = "作者", weeklyPoint = 400),
+            NarouNovel(title = "連載2", ncode = "NR2", writer = "作者", weeklyPoint = 200)
         )
 
         coEvery {
@@ -518,13 +522,13 @@ class NovelApiRepositoryTest {
 
         val shortNovels = listOf(
             NarouNovel(allcount = 10),
-            NarouNovel(ncode = "NS1", novelupdatedAt = "2026-07-07 10:00:00"),
-            NarouNovel(ncode = "NS2", novelupdatedAt = "2026-07-05 10:00:00")
+            NarouNovel(title = "短編1", writer = "作者", ncode = "NS1", novelupdatedAt = "2026-07-07 10:00:00"),
+            NarouNovel(title = "短編2", writer = "作者", ncode = "NS2", novelupdatedAt = "2026-07-05 10:00:00")
         )
         val rensaiNovels = listOf(
             NarouNovel(allcount = 20),
-            NarouNovel(ncode = "NR1", novelupdatedAt = "2026-07-06 10:00:00"),
-            NarouNovel(ncode = "NR2", novelupdatedAt = null)
+            NarouNovel(title = "連載1", writer = "作者", ncode = "NR1", novelupdatedAt = "2026-07-06 10:00:00"),
+            NarouNovel(title = "連載2", writer = "作者", ncode = "NR2", novelupdatedAt = null)
         )
         coEvery {
             service.search(
@@ -667,8 +671,8 @@ class NovelApiRepositoryTest {
     fun `discoverPage - offset 指定で st=offset+1 を送りそのページを返すこと`() = runTest {
         val page2 = listOf(
             NarouNovel(allcount = 100),
-            NarouNovel(title = "31番目", ncode = "N31"),
-            NarouNovel(title = "32番目", ncode = "N32"),
+            NarouNovel(title = "31番目", ncode = "N31", writer = "作者"),
+            NarouNovel(title = "32番目", ncode = "N32", writer = "作者"),
         )
         coEvery { service.search(of = any(), order = any(), lim = any(), st = 31) } returns page2
 
@@ -684,7 +688,7 @@ class NovelApiRepositoryTest {
     fun `discoverPage - 次ページ開始位置が st 上限(2000)を超えると reachedApiLimit=true になること`() = runTest {
         // st=1986 での取得は可能（<=2000）だが、取得後の累計 1985+30=2015 は 2000 を超え、
         // 総数(5000)にも未達＝次ページは st>2000 で取得不能。
-        val novels = (1..30).map { NarouNovel(ncode = "N$it") }
+        val novels = (1..30).map { NarouNovel(title = "作品", writer = "作者", ncode = "N$it") }
         val resp = listOf(NarouNovel(allcount = 5000)) + novels
         coEvery { service.search(of = any(), order = any(), lim = any(), st = 1986) } returns resp
 
@@ -736,15 +740,15 @@ class NovelApiRepositoryTest {
         // 短編 weeklyPoint: S1=350,S2=250,S3=150,S4=50 / 連載: R1=400,R2=300,R3=200,R4=100
         // マージ降順: R1,S1,R2,S2,R3,S3,R4,S4
         val shortLim2 = listOf(NarouNovel(allcount = 40),
-            NarouNovel(ncode = "S1", weeklyPoint = 350), NarouNovel(ncode = "S2", weeklyPoint = 250))
+            NarouNovel(title = "作品", writer = "作者", ncode = "S1", weeklyPoint = 350), NarouNovel(title = "作品", writer = "作者", ncode = "S2", weeklyPoint = 250))
         val rensaiLim2 = listOf(NarouNovel(allcount = 60),
-            NarouNovel(ncode = "R1", weeklyPoint = 400), NarouNovel(ncode = "R2", weeklyPoint = 300))
+            NarouNovel(title = "作品", writer = "作者", ncode = "R1", weeklyPoint = 400), NarouNovel(title = "作品", writer = "作者", ncode = "R2", weeklyPoint = 300))
         val shortLim4 = listOf(NarouNovel(allcount = 40),
-            NarouNovel(ncode = "S1", weeklyPoint = 350), NarouNovel(ncode = "S2", weeklyPoint = 250),
-            NarouNovel(ncode = "S3", weeklyPoint = 150), NarouNovel(ncode = "S4", weeklyPoint = 50))
+            NarouNovel(title = "作品", writer = "作者", ncode = "S1", weeklyPoint = 350), NarouNovel(title = "作品", writer = "作者", ncode = "S2", weeklyPoint = 250),
+            NarouNovel(title = "作品", writer = "作者", ncode = "S3", weeklyPoint = 150), NarouNovel(title = "作品", writer = "作者", ncode = "S4", weeklyPoint = 50))
         val rensaiLim4 = listOf(NarouNovel(allcount = 60),
-            NarouNovel(ncode = "R1", weeklyPoint = 400), NarouNovel(ncode = "R2", weeklyPoint = 300),
-            NarouNovel(ncode = "R3", weeklyPoint = 200), NarouNovel(ncode = "R4", weeklyPoint = 100))
+            NarouNovel(title = "作品", writer = "作者", ncode = "R1", weeklyPoint = 400), NarouNovel(title = "作品", writer = "作者", ncode = "R2", weeklyPoint = 300),
+            NarouNovel(title = "作品", writer = "作者", ncode = "R3", weeklyPoint = 200), NarouNovel(title = "作品", writer = "作者", ncode = "R4", weeklyPoint = 100))
         mockMergeSub("t", 2, shortLim2)
         mockMergeSub("r", 2, rensaiLim2)
         mockMergeSub("t", 4, shortLim4)

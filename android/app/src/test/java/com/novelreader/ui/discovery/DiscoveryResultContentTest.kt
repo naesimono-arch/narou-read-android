@@ -8,7 +8,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.novelreader.narou.model.DiscoveryQuery
-import com.novelreader.narou.model.NarouNovel
+import com.novelreader.discovery.model.workSummary
 import com.novelreader.viewmodel.DiscoveryUiState
 import com.novelreader.viewmodel.ResultContext
 import com.novelreader.viewmodel.ResultSource
@@ -71,7 +71,7 @@ class DiscoveryResultContentTest {
     fun `Content状態は文脈見出しと作品名を描画する`() {
         setContent(
             ctx = ctx("テスト結果"),
-            state = DiscoveryUiState.Content(allcount = 1, novels = listOf(NarouNovel(title = "結果作品"))),
+            state = DiscoveryUiState.Content(allcount = 1, novels = listOf(workSummary(title = "結果作品"))),
         )
         composeTestRule.onNodeWithText("テスト結果").assertIsDisplayed()
         composeTestRule.onNodeWithText("結果作品").assertExists()

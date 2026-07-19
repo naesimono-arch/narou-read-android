@@ -59,7 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
-import com.novelreader.narou.model.NarouNovel
+import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.discovery.ChipKind
@@ -537,7 +537,7 @@ private fun OrderTabsSky(selected: NarouOrder, onSelect: (NarouOrder) -> Unit) {
 @Composable
 internal fun SkyRankRow(
     rank: Int,
-    novel: NarouNovel,
+    novel: WorkSummary,
     order: NarouOrder,
     onClick: () -> Unit,
 ) {
@@ -582,7 +582,7 @@ internal fun SkyRankRow(
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                novel.title ?: "（無題）",
+                novel.title,
                 fontFamily = MinchoFamily,
                 fontSize = 14.5.sp,         // .rk .t 14.5px
                 lineHeight = 22.sp,
@@ -595,14 +595,14 @@ internal fun SkyRankRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    novel.writer ?: "",
+                    novel.author,
                     fontSize = 11.sp,       // .rk .a 11px
                     color = AuthorInkSeizu,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                NarouGenres.genreLabel(novel.genre)?.let { genre ->
+                NarouGenres.genreLabel(novel.genreCode)?.let { genre ->
                     Text(
                         genre,
                         fontSize = 11.sp,   // .rk .a em（ジャンル）

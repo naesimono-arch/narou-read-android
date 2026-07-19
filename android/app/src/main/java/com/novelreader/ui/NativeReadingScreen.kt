@@ -822,7 +822,8 @@ private fun ChapterScreen(
             // オフライン等の失敗時は静かに何も出さない（読書の没入を通信エラーで壊さない）。
             // 次に最終章を開き直せば produceState が再起動し自然に再試行される。
             value = try {
-                narouRepository.novelDetail(ncode)?.let { computeContinuation(tocEntries.size, it) }
+                // 詳細は WorkDetail で返る＝継続判定に要る要約（summary）を渡す（P5 第2段の脱なろう境界）。
+                narouRepository.novelDetail(ncode)?.let { computeContinuation(tocEntries.size, it.summary) }
             } catch (e: NarouApiException) {
                 null
             }

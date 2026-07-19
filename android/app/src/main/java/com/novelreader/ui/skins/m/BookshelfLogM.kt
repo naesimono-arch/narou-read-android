@@ -83,7 +83,7 @@ import androidx.compose.ui.unit.sp
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
-import com.novelreader.narou.model.NarouNovel
+import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.HighLoadSkyMenuSection
 import com.novelreader.ui.NewEpisodeNotificationMenuSection
 import com.novelreader.ui.newEpisodeCountFor
@@ -162,7 +162,7 @@ internal fun BookshelfLogM(
     webLastReadAt: Map<String, Long>,
     progressMap: Map<String, ProgressEntity>,
     chapterCountMap: Map<String, Int>,
-    newEpisodeNovelMap: Map<String, NarouNovel>,
+    newEpisodeNovelMap: Map<String, WorkSummary>,
     processingState: ProcessingState,
     selectedStatus: ReadingStatus?,
     statusCounts: Map<ReadingStatus, Int>,
@@ -613,7 +613,7 @@ private fun ObservationRecord(
     book: BookEntity,
     progress: ProgressEntity?,
     totalChaps: Int,
-    novelDetail: NarouNovel?,
+    novelDetail: WorkSummary?,
     isLive: Boolean,
     selectionMode: Boolean,
     selected: Boolean,

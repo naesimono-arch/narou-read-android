@@ -46,6 +46,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.novelreader.discovery.model.SerialState
 import com.novelreader.narou.isValidNcode
 import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.theme.FontActionLabel
@@ -295,24 +296,24 @@ internal fun NcodeLinkSheet(
                                             .padding(vertical = Spacing.S12)
                                     ) {
                                         Text(
-                                            text = novel.title.orEmpty(),
+                                            text = novel.title,
                                             fontSize = FontSubTitle,
                                             color = colors.text,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Spacer(modifier = Modifier.height(Spacing.S4))
-                                        
-                                        // 状態ラベルの作成（短編/連載中/完結済）
-                                        // なぜ話数を条件付きにするか: generalAllNo が欠損（null）のとき 0 で埋めると
+
+                                        // 状態ラベルの作成（短編/連載中/完結済）。serialState はマッパが novelType/end を吸収済み。
+                                        // なぜ話数を条件付きにするか: chapterCount が欠損（null）のとき 0 で埋めると
                                         // 「全0話」という実在しない話数を捏造表示してしまうため、欠損時は話数を伏せて状態のみ出す。
-                                        val episodeSuffix = novel.generalAllNo?.let { "（全${it}話）" } ?: ""
-                                        val typeLabel = when {
-                                            novel.novelType == 2 -> "短編"
-                                            novel.end == 1 -> "連載中$episodeSuffix"
+                                        val episodeSuffix = novel.chapterCount?.let { "（全${it}話）" } ?: ""
+                                        val typeLabel = when (novel.serialState) {
+                                            SerialState.SHORT -> "短編"
+                                            SerialState.ONGOING -> "連載中$episodeSuffix"
                                             else -> "完結済$episodeSuffix"
                                         }
-                                        val writer = novel.writer.orEmpty()
+                                        val writer = novel.author
                                         val infoText = if (writer.isNotEmpty()) {
                                             "$writer ・ $typeLabel"
                                         } else {

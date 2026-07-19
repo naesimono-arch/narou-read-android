@@ -21,8 +21,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.novelreader.discovery.model.SerialState
+import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.narou.model.NarouGenres
-import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.ui.theme.FontLabel
 import com.novelreader.ui.theme.FontListItemTitle
@@ -46,16 +47,17 @@ import java.util.Locale
  * なぜ 0/1 で埋めないか: of で general_all_no を外すと欠損しうるが、そこを 1 等で補うと
  * 「連載中 1話」のような実データに無い話数を捏造表示してしまうため（欠損は正直に伏せる）。
  */
-fun novelStatusLabel(novel: NarouNovel): String {
-    if (novel.novelType == 2) return "短編"
-    val status = if (novel.end == 0) "完結" else "連載中"
-    return novel.generalAllNo?.let { "$status ${it}話" } ?: status
+fun novelStatusLabel(work: WorkSummary): String {
+    // serialState はマッパが novelType(2=短編)＋end(0=完結・1=連載中) を吸収済み（旧 novelType/end 分岐と等価）。
+    if (work.serialState == SerialState.SHORT) return "短編"
+    val status = if (work.serialState == SerialState.COMPLETED) "完結" else "連載中"
+    return work.chapterCount?.let { "$status ${it}話" } ?: status
 }
 
-/** 読了時間（分）→「約12分」「約8時間」。time 欠損時は length から導出（読了時間＝文字数÷500 切り上げ）。 */
-fun readTimeLabel(novel: NarouNovel): String? {
-    val minutes = novel.time
-        ?: novel.length?.let { (it + 499) / 500 }
+/** 読了時間（分）→「約12分」「約8時間」。readMinutes 欠損時は lengthChars から導出（読了時間＝文字数÷500 切り上げ）。 */
+fun readTimeLabel(work: WorkSummary): String? {
+    val minutes = work.readMinutes
+        ?: work.lengthChars?.let { (it + 499) / 500 }
         ?: return null
     return if (minutes < 60) {
         "約${minutes}分"
@@ -67,13 +69,13 @@ fun readTimeLabel(novel: NarouNovel): String? {
 }
 
 /** 現在の order タブに対応するポイントラベル（「週間 12,345pt」）。値が無ければ null。 */
-fun pointLabel(order: NarouOrder, novel: NarouNovel): String? {
+fun pointLabel(order: NarouOrder, work: WorkSummary): String? {
     val (prefix, value) = when (order) {
-        NarouOrder.DAILY -> "日間" to novel.dailyPoint
-        NarouOrder.WEEKLY -> "週間" to novel.weeklyPoint
-        NarouOrder.MONTHLY -> "月間" to novel.monthlyPoint
-        NarouOrder.QUARTER -> "四半期" to novel.quarterPoint
-        NarouOrder.TOTAL, NarouOrder.NEW -> "累計" to novel.globalPoint
+        NarouOrder.DAILY -> "日間" to work.points?.daily
+        NarouOrder.WEEKLY -> "週間" to work.points?.weekly
+        NarouOrder.MONTHLY -> "月間" to work.points?.monthly
+        NarouOrder.QUARTER -> "四半期" to work.points?.quarter
+        NarouOrder.TOTAL, NarouOrder.NEW -> "累計" to work.points?.global
     }
     if (value == null) return null
     return "$prefix ${String.format(Locale.JAPAN, "%,d", value)}pt"
@@ -87,7 +89,7 @@ fun pointLabel(order: NarouOrder, novel: NarouNovel): String? {
 @Composable
 fun NovelListRow(
     rank: Int,
-    novel: NarouNovel,
+    novel: WorkSummary,
     order: NarouOrder,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -112,7 +114,7 @@ fun NovelListRow(
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = novel.title ?: "（無題）",
+                text = novel.title,
                 fontFamily = MinchoFamily,
                 fontSize = FontListItemTitle,
                 lineHeight = 21.sp,
@@ -125,7 +127,7 @@ fun NovelListRow(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
             ) {
                 Text(
-                    text = novel.writer ?: "",
+                    text = novel.author,
                     fontSize = FontLabel,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     // なぜ weight(1f)+ellipsis: 作者名が長い作品（例「藍銅 紅@『お姉様は…』」）だと
@@ -135,7 +137,7 @@ fun NovelListRow(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                NarouGenres.genreLabel(novel.genre)?.let { genre ->
+                NarouGenres.genreLabel(novel.genreCode)?.let { genre ->
                     Text(
                         text = genre,
                         fontSize = FontLabel,

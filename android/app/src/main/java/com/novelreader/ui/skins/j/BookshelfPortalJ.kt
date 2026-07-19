@@ -67,7 +67,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
-import com.novelreader.narou.model.NarouNovel
+import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.NewEpisodeNotificationMenuSection
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.theme.AmbDarkGoldPortal
@@ -291,7 +291,7 @@ internal fun BookshelfPortalJ(
     books: List<BookEntity>,
     progressMap: Map<String, ProgressEntity>,
     chapterCountMap: Map<String, Int>,
-    newEpisodeNovelMap: Map<String, NarouNovel>,
+    newEpisodeNovelMap: Map<String, WorkSummary>,
     processingState: ProcessingState,
     selectedStatus: ReadingStatus?,
     statusCounts: Map<ReadingStatus, Int>,
@@ -429,7 +429,7 @@ private fun PortalPage(
     book: BookEntity,
     progress: ProgressEntity?,
     totalChaps: Int,
-    novelDetail: NarouNovel?,
+    novelDetail: WorkSummary?,
     hasPrev: Boolean,
     hasNext: Boolean,
     timePhase: PortalTimePhase,

@@ -5,8 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.novelreader.NovelReaderApplication
 import com.novelreader.data.WebNovelEntity
+import com.novelreader.discovery.model.WorkDetail
 import com.novelreader.narou.NarouApiException
-import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.Ncode
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -27,7 +27,7 @@ sealed interface NovelDetailUiState {
      *   なぜ保持するか（M6/公理5 SSOT）: 詳細は一覧値の写しではなく取り直した最新値であり、
      *   画面に「いつ時点の情報か」を出して一覧との別取得由来の食い違いを判別可能にするため。
      */
-    data class Content(val novel: NarouNovel, val fetchedAtMillis: Long) : NovelDetailUiState
+    data class Content(val novel: WorkDetail, val fetchedAtMillis: Long) : NovelDetailUiState
     /** ncode に該当する作品が API に存在しない（削除・検索除外設定など）。 */
     object NotFound : NovelDetailUiState
     data class Error(val message: String) : NovelDetailUiState
@@ -105,9 +105,10 @@ class NovelDetailViewModel(application: Application) : AndroidViewModel(applicat
                     WebNovelEntity(
                         // 保存正規化は NcodeLinkSheet の紐付けと同系（trim+uppercase）＝二重カード防止。
                         ncode = nc.value.trim().uppercase(),
-                        title = state.novel.title ?: nc.value,
-                        writer = state.novel.writer ?: "",
-                        generalAllNo = state.novel.generalAllNo ?: 0,
+                        // WorkSummary.title/author は非 null（マッパが欠落を弾く）ため従来の ?: フォールバックは不要。
+                        title = state.novel.summary.title,
+                        writer = state.novel.summary.author,
+                        generalAllNo = state.novel.summary.chapterCount ?: 0,
                         addedAt = System.currentTimeMillis(),
                     )
                 )

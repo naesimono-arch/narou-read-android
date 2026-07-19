@@ -214,7 +214,7 @@ internal fun NovelDetailContent(
                     val barState = uiState
                     if (barState is NovelDetailUiState.Content) {
                         Text(
-                            text = barState.novel.title ?: "",
+                            text = barState.novel.summary.title,
                             fontFamily = MinchoFamily,
                             fontWeight = FontWeight.Medium,
                             fontSize = FontTopBarTitle,
@@ -483,7 +483,7 @@ internal fun NovelDetailContent(
                         BookCover(
                             // 境界: BookCover.bookId は String（書影キャッシュキー）。ncode を id として使う既存挙動を .value で維持。
                             bookId = ncode.value,
-                            title = novel.title ?: "",
+                            title = novel.summary.title,
                             showTitle = true,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -500,11 +500,11 @@ internal fun NovelDetailContent(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = novel.writer ?: "",
+                                text = novel.summary.author,
                                 fontSize = FontButtonLabel,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                            NarouGenres.genreLabel(novel.genre)?.let { label ->
+                            NarouGenres.genreLabel(novel.summary.genreCode)?.let { label ->
                                 Text(
                                     text = label,
                                     fontSize = FontChipLarge,
@@ -515,8 +515,8 @@ internal fun NovelDetailContent(
                         }
 
                         // ステータス表（2列グリッド）
-                        val statusText = novelStatusLabel(novel)
-                        val length = novel.length
+                        val statusText = novelStatusLabel(novel.summary)
+                        val length = novel.summary.lengthChars
                         val lengthText = if (length != null) {
                             if (length >= 10000) {
                                 String.format(Locale.JAPAN, "（%.1f万字）", length / 10000.0)
@@ -526,7 +526,7 @@ internal fun NovelDetailContent(
                         } else {
                             ""
                         }
-                        val readTime = readTimeLabel(novel) ?: "—"
+                        val readTime = readTimeLabel(novel.summary) ?: "—"
                         val readTimeVal = if (length != null) "$readTime$lengthText" else readTime
 
                         Column(
@@ -733,10 +733,10 @@ internal fun NovelDetailContent(
                         // 評価セクション
                         val evalItems = remember(novel) {
                             listOf(
-                                "総合評価" to novel.globalPoint?.let { String.format(Locale.JAPAN, "%,d pt", it) },
+                                "総合評価" to novel.summary.points?.global?.let { String.format(Locale.JAPAN, "%,d pt", it) },
                                 "ブックマーク" to novel.favNovelCnt?.let { String.format(Locale.JAPAN, "%,d 件", it) },
                                 "評価者数" to novel.allHyokaCnt?.let { String.format(Locale.JAPAN, "%,d 人", it) },
-                                "週間ポイント" to novel.weeklyPoint?.let { String.format(Locale.JAPAN, "%,d pt", it) }
+                                "週間ポイント" to novel.summary.points?.weekly?.let { String.format(Locale.JAPAN, "%,d pt", it) }
                             ).filter { it.second != null }
                         }
                         if (evalItems.isNotEmpty()) {

@@ -29,7 +29,10 @@
   （アダプタ→既存HTML契約合流・sourceUrl 重複ガード・pending_jobs 不使用）＋取込導線（ACTION_SEND 全サイト受け／
   ACTION_VIEW は対応ホスト限定・Blocked は公式送りの逃げ道）。**P4 実行時破損監視も着地**＝取込時の構造疑い検知
   （ScrapeIntegrity 3条件・床値20字）→「公式サイトで読む」アクション付きスナックバー＋debug ヘルスボード
-  （本棚⋮開発節・release 到達不能）。残＝P5 発見層refactor・P6 後始末。一次情報＝
+  （本棚⋮開発節・release 到達不能）。**P5 発見層の脱なろうも着地**＝サイト非依存 `WorkSummary`/`WorkDetail`
+  （discovery/model/）を UI⇄API 境界に挿入し、main の narou/ 外から `NarouNovel` 型参照ゼロ（機械 grep で検証・
+  NarouNovelType 検索語彙と ResultContext/DiscoveryQuery は D5 初期スコープどおり不変＝発見はなろうAPIのまま）。
+  残＝P6 後始末。一次情報＝
   `.claude/plans/scraping-foundation-design-2026-07-20.md`／残タスクと裁定＝`handover.md`「汎用DL基盤 実装トラック」。
 
 ## 1. 観察ログ（未確定の所見のみ・確定したら handover か ADR へ）

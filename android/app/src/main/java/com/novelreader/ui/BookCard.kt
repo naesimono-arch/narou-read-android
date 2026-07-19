@@ -34,9 +34,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.narou.ContinuationInfo
 import com.novelreader.narou.computeContinuation
-import com.novelreader.narou.model.NarouNovel
 import com.novelreader.ui.components.ShioriCover
 import com.novelreader.ui.components.shioriAccentFor
 import com.novelreader.ui.components.shioriHue
@@ -167,7 +167,7 @@ private fun NewChaptersBadge(newCount: Int, modifier: Modifier = Modifier) {
  * カードは配布された詳細を受け取って突き合わせるだけの純粋関数に落とした（通信・キャッシュ・失敗握り潰しは VM 側）。
  * これは純 Kotlin の純粋計算なので Compose 非依存で単体テストできる。
  */
-internal fun newEpisodeCountFor(novelDetail: NarouNovel?, totalChaps: Int): Int? {
+internal fun newEpisodeCountFor(novelDetail: WorkSummary?, totalChaps: Int): Int? {
     if (novelDetail == null || totalChaps <= 0) return null
     return (computeContinuation(totalChaps, novelDetail) as? ContinuationInfo.NewEpisodes)?.newCount
 }
@@ -180,8 +180,8 @@ internal fun newEpisodeCountFor(novelDetail: NarouNovel?, totalChaps: Int): Int?
 internal fun GridBookCard(
     book: BookEntity,
     progress: ProgressEntity?,
-    // 続きありバッジ用のなろう詳細（VM が一括照会し配布。null=未紐付け/未取得/失敗）。
-    novelDetail: NarouNovel?,
+    // 続きありバッジ用の作品要約（VM が一括照会し配布。null=未紐付け/未取得/失敗）。
+    novelDetail: WorkSummary?,
     // 章数（chap_N.html の枚数）。VM の chapterCountMap から渡す＝カード毎の重複IOを廃し、
     // 状態フィルタ（readingStatusFor）と同じ値を共有する。
     totalChaps: Int,
@@ -376,8 +376,8 @@ internal fun GridBookCard(
 internal fun ListBookCard(
     book: BookEntity,
     progress: ProgressEntity?,
-    // 続きありバッジ用のなろう詳細（VM が一括照会し配布。null=未紐付け/未取得/失敗）。
-    novelDetail: NarouNovel?,
+    // 続きありバッジ用の作品要約（VM が一括照会し配布。null=未紐付け/未取得/失敗）。
+    novelDetail: WorkSummary?,
     // 章数（chap_N.html の枚数）。VM の chapterCountMap から渡す＝カード毎の重複IOを廃し、
     // 状態フィルタ（readingStatusFor）と同じ値を共有する。
     totalChaps: Int,
