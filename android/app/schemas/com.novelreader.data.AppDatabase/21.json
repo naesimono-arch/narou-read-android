@@ -1,0 +1,290 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 21,
+    "identityHash": "78b6908f53eaa30ff3f83d670ecd531d",
+    "entities": [
+      {
+        "tableName": "books",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `htmlDirPath` TEXT NOT NULL, `author` TEXT NOT NULL, `addedAt` INTEGER NOT NULL, `ncode` TEXT, `contentSha256` TEXT, `shioriTipIndex` INTEGER, `shioriLenFrac` REAL, `sourceUri` TEXT, `sourceUrl` TEXT, `sourceSite` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "htmlDirPath",
+            "columnName": "htmlDirPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "author",
+            "columnName": "author",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "addedAt",
+            "columnName": "addedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ncode",
+            "columnName": "ncode",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "contentSha256",
+            "columnName": "contentSha256",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "shioriTipIndex",
+            "columnName": "shioriTipIndex",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "shioriLenFrac",
+            "columnName": "shioriLenFrac",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sourceUri",
+            "columnName": "sourceUri",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sourceUrl",
+            "columnName": "sourceUrl",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sourceSite",
+            "columnName": "sourceSite",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "progress",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`bookId` TEXT NOT NULL, `lastReadFilename` TEXT NOT NULL, `scrollIndex` INTEGER NOT NULL, `scrollOffset` INTEGER NOT NULL, `lastReadAt` INTEGER NOT NULL, `reachedEnd` INTEGER NOT NULL, PRIMARY KEY(`bookId`))",
+        "fields": [
+          {
+            "fieldPath": "bookId",
+            "columnName": "bookId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastReadFilename",
+            "columnName": "lastReadFilename",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scrollIndex",
+            "columnName": "scrollIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scrollOffset",
+            "columnName": "scrollOffset",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastReadAt",
+            "columnName": "lastReadAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reachedEnd",
+            "columnName": "reachedEnd",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "bookId"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "pending_jobs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`uri` TEXT NOT NULL, `displayName` TEXT NOT NULL, `enqueuedAt` INTEGER NOT NULL, PRIMARY KEY(`uri`))",
+        "fields": [
+          {
+            "fieldPath": "uri",
+            "columnName": "uri",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enqueuedAt",
+            "columnName": "enqueuedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "uri"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "web_novels",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ncode` TEXT NOT NULL, `title` TEXT NOT NULL, `writer` TEXT NOT NULL, `generalAllNo` INTEGER NOT NULL, `addedAt` INTEGER NOT NULL, PRIMARY KEY(`ncode`))",
+        "fields": [
+          {
+            "fieldPath": "ncode",
+            "columnName": "ncode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "writer",
+            "columnName": "writer",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generalAllNo",
+            "columnName": "generalAllNo",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "addedAt",
+            "columnName": "addedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ncode"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "new_episode_marks",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ncode` TEXT NOT NULL, `lastNotifiedAllNo` INTEGER NOT NULL, `lastCheckedAt` INTEGER NOT NULL, PRIMARY KEY(`ncode`))",
+        "fields": [
+          {
+            "fieldPath": "ncode",
+            "columnName": "ncode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastNotifiedAllNo",
+            "columnName": "lastNotifiedAllNo",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastCheckedAt",
+            "columnName": "lastCheckedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ncode"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "web_reading_progress",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ncode` TEXT NOT NULL, `lastReadEpisode` INTEGER NOT NULL, `lastReadAt` INTEGER NOT NULL, PRIMARY KEY(`ncode`))",
+        "fields": [
+          {
+            "fieldPath": "ncode",
+            "columnName": "ncode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastReadEpisode",
+            "columnName": "lastReadEpisode",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastReadAt",
+            "columnName": "lastReadAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ncode"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '78b6908f53eaa30ff3f83d670ecd531d')"
+    ]
+  }
+}

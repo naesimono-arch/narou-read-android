@@ -22,7 +22,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // v18: progress に reachedEnd 列を追加（読了＝『了』印・読了フィルタの永続化／ssot Major 2026-07-12）。
     // v19: books に shioriTipIndex / shioriLenFrac 列を追加（栞書影の先端種・棒長を取込時に真の乱数で
     //      1回抽選して永続化＝以後この本は固定の絵になる。既存行は NULL＝title 由来の従来値へフォールバック）。
-    version = 19,
+    // v20: books に sourceUri 列を追加（取込元PDFの SAF `content://` URI＝本削除時に取込元PDF本体も消すため）。
+    //      並列 feat/delete-source-pdf 先着 v20 と同一 SQL の複製でマイグレーションパスを接続する（値の書込は同ブランチ側）。
+    // v21: books に sourceUrl / sourceSite 列を追加（Web取込元の作品URL〔`https://`〕とサイトアダプタキー〔例 "kakuyomu"〕。
+    //      PDF由来は両方 NULL＝汎用Web小説DL基盤の取込元記録。sourceUri〔削除用の content://〕とは別物・混同注意）。
+    version = 21,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -302,6 +306,36 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v19→v20: books に sourceUri 列（取込元 PDF の SAF `content://` URI）を追加する。
+         *  なぜ複製か: この v20＝sourceUri は並列ブランチ feat/delete-source-pdf が先着で消費済み（実機投入レーン）。
+         *  当ブランチ（feat/scraping-prep）は自分の追加（sourceUrl/sourceSite）を v21 へ退避したうえで、
+         *  先行レーンの MIGRATION_19_20 を**同一 SQL で複製**し 19→20→21 のマイグレーションパスを接続する
+         *  （task_diary #39 の定石＝並列 version 先取りへのパス繋ぎ。前例 v14→v15 の複製と同機序）。
+         *  ⚠ マージ統合時にはこの二重定義を一方へ寄せること（両ブランチの MIGRATION_19_20 は SQL 厳密一致ゆえ
+         *    どちらを残しても等価。統合担当が一本化して重複を解消する）。
+         *  列の意味・nullable の根拠は BookEntity.sourceUri の why 参照（削除機能用の content://・当ブランチは値を書かない）。
+         *  minSdk 26 の SQLite 3.18.x は ADD COLUMN をサポートしている。 */
+        // なぜ internal か: androidTest の MigrationTest が本物の Migration を検証するため（複製だと本体変更にテストが追従しない）。
+        internal val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE books ADD COLUMN sourceUri TEXT")
+            }
+        }
+
+        /** v20→v21: books に sourceUrl 列（Web取込元の作品 URL＝`https://`）と sourceSite 列（サイトアダプタキー
+         *  ＝例 "kakuyomu"）を追加する。汎用Web小説DL基盤で取り込んだ本の出所を記録し、再取得を同じ抽出器へ回す土台。
+         *  当ブランチ（feat/scraping-prep）固有の追加。どちらも nullable TEXT・DEFAULT 句なし（PDF由来は両方 NULL＝
+         *  Web取込でないため出所を持たないのが既定）。ncode/contentSha256 と同型の nullable 追加ゆえ PRAGMA 分岐は不要。
+         *  ⚠ 直前 v20 の sourceUri（削除用の `content://`）と列名が酷似するが別物＝混同注意（BookEntity の両 why 参照）。
+         *  minSdk 26 の SQLite 3.18.x は ADD COLUMN をサポートしている。 */
+        // なぜ internal か: androidTest の MigrationTest が本物の Migration を検証するため（複製だと本体変更にテストが追従しない）。
+        internal val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE books ADD COLUMN sourceUrl TEXT")
+                database.execSQL("ALTER TABLE books ADD COLUMN sourceSite TEXT")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
@@ -310,7 +344,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,
                         MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14,
                         MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
-                        MIGRATION_17_18, MIGRATION_18_19,
+                        MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20,
+                        MIGRATION_20_21,
                     )
                     .build()
                     .also { INSTANCE = it }

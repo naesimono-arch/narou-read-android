@@ -36,6 +36,21 @@ data class BookEntity(
     // 栞書影の「棒の長さ（高さ比）」を取込時に真の乱数で1回だけ抽選し永続化した値（SHIORI_LEN_FRAC_MIN..MAX）。
     // null = 未抽選＝描画側で title 由来の決定論値へフォールバック（shioriTipIndex と同方針）。
     val shioriLenFrac: Float? = null,
+    // 取込元 PDF の SAF ドキュメント URI（`content://…`）。本削除時に「取込元PDF本体も削除する」を成立させるための永続化。
+    // ⚠ 直下の sourceUrl と列名が酷似するが意味は別物: こちら sourceUri は端末内 PDF を指す content:// スキーム＝
+    //    「削除機能」用（feat/delete-source-pdf 由来）。sourceUrl は Web 上の作品ページを指す https:// ＝「Web取込元」用。混同禁止。
+    // 当ブランチでは v20 スキーマ整合（並列 feat/delete-source-pdf 先着 v20 のパス接続）のための複製定義であり、
+    // この列に値を書き込むコード（addBook 側の権限保持ロジック）は追加しない＝削除機能の実装本体は feat/delete-source-pdf 側。
+    // null = 取込元PDFを削除できる本ではない（既存行および当ブランチ取込分は常に NULL）。
+    val sourceUri: String? = null,
+    // Web 取込元の作品 URL（`https://…`＝カクヨム等の作品ページ）。汎用Web小説DL基盤で取り込んだ本の出所を記録する。
+    // ⚠ 直上の sourceUri と列名が酷似するが意味は別物: こちら sourceUrl は Web 上の作品ページ（https://）＝再取得・
+    //    続話チェックの起点。sourceUri は端末内 PDF（content://）＝削除機能用。列名の U-r-i / U-r-l 一文字差ゆえ取り違え注意。
+    // null = PDF 由来の蔵書（Web 取込でないため出所 URL を持たない）。
+    val sourceUrl: String? = null,
+    // Web 取込元のサイトアダプタキー（例 "kakuyomu"）。sourceUrl の URL をどのサイト抽出器で解釈したかを保持し、
+    // 再取得時に同じアダプタへ回すための識別子。null = PDF 由来（Web 取込でない）。
+    val sourceSite: String? = null,
 ) {
     /**
      * 保存済み htmlDirPath が実在すればそれを、無ければ bookId から再導出したディレクトリを返す（復元耐性の下地）。
