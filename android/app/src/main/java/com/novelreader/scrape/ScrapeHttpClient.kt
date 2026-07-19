@@ -64,5 +64,6 @@ class ScrapeHttpClient(
     }
 }
 
-/** scrape 層の取得・解析失敗を表す例外（呼び出し側でフォールバック導線へ落とす）。 */
-class ScrapeException(message: String, cause: Throwable? = null) : Exception(message, cause)
+/** scrape 層の取得・解析失敗を表す例外（呼び出し側でフォールバック導線へ落とす）。
+ *  open＝サブ型（構造変更の疑い [ScrapeStructureException]）で意味を細分できるようにする（`is ScrapeException` 捕捉は不変）。 */
+open class ScrapeException(message: String, cause: Throwable? = null) : Exception(message, cause)

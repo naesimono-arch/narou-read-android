@@ -28,6 +28,7 @@ import com.novelreader.pdf.InsufficientStorageError
 import com.novelreader.pdf.PdfBookExtractor
 import com.novelreader.pdf.PdfProgress
 import com.novelreader.pdf.RawChapter
+import com.novelreader.scrape.ScrapeIntegrity
 import com.novelreader.scrape.SiteAdapterRegistry
 import com.novelreader.trace.Sections
 import com.novelreader.repository.BookRepository.AddBookResult
@@ -384,6 +385,12 @@ class DefaultBookRepository(
                 onProgress?.invoke(i, "章 $i/$total 取得中")
                 adapter.fetchChapter(ref)
             }
+
+            // ③' 破損監視（層1・handover P4）: 取得直後に構造妥当性を検査する。空 TOC・空本文・異常に短い本文は
+            // ScrapeStructureException（ScrapeException 派生）で弾き、ViewModel が「公式サイトで読む」逃げ道へ落とす。
+            // 重い検査ロジックは scrape/ 共通層（ScrapeIntegrity）に置き、ここは呼ぶだけ＝例外型での分岐は下流に委ねる
+            // （下の fold は CancellationException 以外を Result.failure(e) へ載せる＝構造疑いの型が呼び出し側まで届く）。
+            ScrapeIntegrity.verify(toc, rawChapters)
 
             // ④ Web 本文連結ハッシュ（決定論・重複判定と回帰テストの固定点）。HTML 変換前の生本文で計算する
             // （中間ルビ記法のまま＝定義 webContentSha256 を参照。抽出後の HTML に依存させない）。

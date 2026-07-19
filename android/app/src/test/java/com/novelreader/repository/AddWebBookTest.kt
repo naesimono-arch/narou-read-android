@@ -9,7 +9,9 @@ import com.novelreader.data.WebReadingProgressDao
 import com.novelreader.parser.ChapterHtmlParser
 import com.novelreader.pdf.RawChapter
 import com.novelreader.repository.BookRepository.AddBookResult
+import com.novelreader.scrape.HealthProbe
 import com.novelreader.scrape.NovelSiteAdapter
+import com.novelreader.scrape.ScrapeStructureException
 import com.novelreader.scrape.ScrapedChapterRef
 import com.novelreader.scrape.ScrapedToc
 import com.novelreader.scrape.ScrapedWorkMeta
@@ -224,8 +226,68 @@ class AddWebBookTest {
             return bodies.getValue(ref.chapterUrl)
         }
 
+        // 破損監視・層3 の自己診断宣言（本テストは probe を実行しないが IF 実装のため必須）。
+        override val healthProbe: HealthProbe = HealthProbe(WORK_URL, minChapters = 1)
+
         companion object {
             const val WORK_URL = "https://faketest.example/works/1"
+        }
+    }
+
+    // ── ⑤ 破損監視・層1: 空本文は ScrapeStructureException で Result.failure（登録しない）─────────────
+
+    @Test
+    fun `addWebBook - 全章空本文は ScrapeStructureException を Result_failure に載せ登録しない`() = runTest {
+        val filesDir = createTempDir(prefix = "addWebBookBlank")
+        try {
+            every { context.filesDir } returns filesDir
+            coEvery { bookDao.findBySourceUrl(any()) } returns null
+
+            val result = newRepo(SiteAdapterRegistry(adapters = listOf(BlankBodyAdapter())))
+                .addWebBook(BlankBodyAdapter.WORK_URL)
+
+            assertTrue("構造疑いは失敗で返る", result.isFailure)
+            // 例外型が呼び出し側（ViewModel）まで保たれ、層2 のフォールバック分岐が効く。
+            assertTrue(
+                "ScrapeStructureException が保たれる: ${result.exceptionOrNull()}",
+                result.exceptionOrNull() is ScrapeStructureException,
+            )
+            // 破損取込は蔵書に載せない（本棚にゴミ本を残さない）。
+            coVerify(exactly = 0) { bookDao.insertBook(any()) }
+        } finally {
+            filesDir.deleteRecursively()
+        }
+    }
+
+    /**
+     * 目次は正常（2章）だが全章の本文が全行 blank を返すアダプタ（ScrapeIntegrity 条件② の再現）。
+     * canonicalWorkUrl は blankbody.example のみ受理する。
+     */
+    private class BlankBodyAdapter : NovelSiteAdapter {
+        override val siteKey: String = "blankbody"
+        override val displayName: String = "空本文サイト"
+
+        private val refs = listOf(
+            ScrapedChapterRef("第一話", "$WORK_URL/episodes/1"),
+            ScrapedChapterRef("第二話", "$WORK_URL/episodes/2"),
+        )
+
+        override fun canonicalWorkUrl(inputUrl: String): String? {
+            val host = runCatching { java.net.URI(inputUrl.trim()).host?.lowercase() }.getOrNull() ?: return null
+            return if (host == "blankbody.example") WORK_URL else null
+        }
+
+        override suspend fun fetchToc(workUrl: String): ScrapedToc =
+            ScrapedToc(ScrapedWorkMeta("空作品", null, workUrl), refs)
+
+        // 全行 blank（空文字＋全角空白のみ）＝実文字 0。破損時にセレクタが空を返す状況を模す。
+        override suspend fun fetchChapter(ref: ScrapedChapterRef): RawChapter =
+            RawChapter(ref.title, mutableListOf("", "　", ""))
+
+        override val healthProbe: HealthProbe = HealthProbe(WORK_URL, minChapters = 1)
+
+        companion object {
+            const val WORK_URL = "https://blankbody.example/works/9"
         }
     }
 }
