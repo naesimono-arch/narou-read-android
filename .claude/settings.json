@@ -104,6 +104,16 @@
           }
         ]
       }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/inject_subagent_briefing.py\""
+          }
+        ]
+      }
     ]
   }
 }
