@@ -61,16 +61,17 @@
               (1) 全リンクのブラウザ候補に本アプリが常時出るのは UX 破壊。
               (2) Blocked サイト（なろう等）のリンクまで横取りして「公式で読んで」と返すのは本末転倒。
               任意サイトの受け口は上の ACTION_SEND が担うため、VIEW は自前 DL 可能な対応ホストだけに絞る。
-              scheme×host の4組（http/https × kakuyomu.jp/www.kakuyomu.jp）を明示する。
+              data 属性は filter 内でプールされ scheme×host の直積で照合される（http/https × kakuyomu.jp/www.kakuyomu.jp）
+              ＝1タグ1属性に分割（IntentFilterUniqueDataAttributes 準拠・「組で束縛される」誤読を防ぐ。マッチ集合は同一）。
             -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="http" android:host="kakuyomu.jp" />
-                <data android:scheme="https" android:host="kakuyomu.jp" />
-                <data android:scheme="http" android:host="www.kakuyomu.jp" />
-                <data android:scheme="https" android:host="www.kakuyomu.jp" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="kakuyomu.jp" />
+                <data android:host="www.kakuyomu.jp" />
             </intent-filter>
         </activity>
 
