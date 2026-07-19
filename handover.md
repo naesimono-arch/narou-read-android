@@ -29,6 +29,31 @@
 - **まず最優先Aの明快さ・バグを一掃**（数日で"他者が困らない"状態へ）。最優先Bの中核設計は並行で下ごしらえ。
 - **branch**: ui/refine はリッチ化の枝として温存（捨てない）。基礎開発の本流は追って main から新ブランチを切る想定。当面の記録はこの台帳へ集約。
 
+### 汎用DL基盤 実装トラック（branch `feat/scraping-prep`・一次情報＝`.claude/plans/scraping-foundation-design-2026-07-20.md`）
+> 設計判断 D1〜D6・調査ダイジェスト（受け皿アーキ／サイト規約）・カクヨム実構造・フェーズ順は plan が正本。
+> **P2（scrape/ アダプタ抽象＋カクヨム抽出器＋fixtureゴールデン）は着地・JVM 常時緑**（完了の正本＝git log）。
+
+- **★裁定待ち①（不可逆スキーマ・最優先で解消）**: Room 版衝突。並列 worktree `feat/delete-source-pdf` が
+  **v20＝`sourceUri`（削除用PDF URI）を main 未マージで消費**済み。私の `sourceUrl`（Web作品URL）+`sourceSite` と
+  意味が別。要裁定＝(a)2ブランチのマージ順序（先着が v20 保持・後着 v21 退避） (b)provenance を1列統合するか独立2列か。
+  **付くまで migration の版番号を確定・コミットしない**（P3 の BookEntity 書込もここに依存）。
+- **★裁定待ち②（サイト裁定リストとの齟齬）**: (a)アルファポリス＝ユーザーOK側だが規約第10条3項が複製を広範に禁止＝
+  「除外・公式直行のみ」に倒すか要確認 (b)ハーメルン＝ユーザーOK側リストに無い（除外意図か記載漏れか） (c)注1(Pixiv)・
+  注2(アルファポリス大量DL制限)の**注記本文が未受領**。初号機カクヨムはこれら齟齬と無関係で先行済み。
+- **残フェーズ**:
+  - **P3 パイプライン接続**: `DefaultBookRepository.extractBook`(:72-77) を源泉抽象へ一般化＋**BookRepository IF に
+    Web源メソッド追加**（`addBook(pdfUri)` 固定のため extractBook 差替だけでは不足＝Plan 指摘）。Web源は
+    アダプタで TOC/章取得→`HtmlExporter.exportToPwa` で同契約 HTML。取込導線＝Manifest に `ACTION_SEND`(text/plain)＋
+    `ACTION_VIEW`(http/https) の intent-filter を MainActivity へ（onNewIntent 既存 deep link に相乗り）。
+    contentSha256 の Web本文連結ハッシュ流用は insert 経路(:296)に計算地点新設。★裁定①解消が前提。
+  - **P4 破損監視の実行時層**: アダプタの実行時ヘルスチェック（抽出空/短の検知→「公式サイトで読む」フォールバック提示）＋
+    debug ヘルスボード（高負荷モードと同じ本棚⋮開発節）。fixture ゴールデン（保守の核）は P2 で着地済み。
+  - **P5 発見層 refactor**: `NarouNovel` 直参照＝**26ファイル・93出現**を `WorkSummary` 挿入で剥がす（大・独立コミット群）。
+    `viewmodel/DiscoveryViewModel.kt:66-71` の `ResultContext`→`DiscoveryQuery` Parcelable 連鎖も改修。
+  - **P6 後始末**: STATUS/handover/ADR（アダプタ機構＝新規 ADR 候補）・/stale-check・fixture 撮り直し手順の docs 化。
+- **fixture 撮り直し手順の docs 化（宿題）**: `test/resources/scrape_fixtures/kakuyomu/` は 2026-07-20 スナップショット。
+  カクヨム構造変更でゴールデンが赤くなったときの「撮り直し→期待値更新」手順を docs/knowledge か tools に残す。
+
 ## 思いつき・取りこぼし（随時追記）
 
 > レビュー中・実装中に出た宿題や着想で、まだ下の各節に整理していないものをここへ。育ったら該当節へ移す。

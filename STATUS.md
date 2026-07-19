@@ -20,6 +20,14 @@
   `.claude/plans/richness-expansion-round-2026-07-19.md`。
 - **既知バグ: なし**（単話の嘘見出し問題は 2026-07-16 修正済み＝題名マーカー0件時は作品タイトルを単一章名へ流用・golden 第4本 N5368ML で恒久回帰）。
 
+- **汎用Web小説DL基盤（最優先B・branch `feat/scraping-prep`）**: `scrape/` サイトアダプタ抽象（`NovelSiteAdapter`＋
+  `SiteAdapterRegistry` の規約3値ゲート＝Supported/Blocked/Unsupported・なろうグループは Blocked で公式送り）＋
+  **カクヨム抽出器**（TOC＝`__NEXT_DATA__` Apollo ストア／本文＝`.widget-episodeBody`・ルビ→中間記法 `|base《ruby》`＝
+  既存 ChapterProcessor/HtmlExporter に合流し PDF 蔵書とバイト同契約）＋**fixture ゴールデン**（実HTMLスナップショットで
+  構造破損を `testDebugUnitTest` 常時検知＝破損監視の核）が着地。パイプライン接続(P3)・発見層refactor(P5)は
+  **Room 版衝突の裁定待ちで保留**（`feat/delete-source-pdf` が v20/sourceUri を未マージ消費）。一次情報＝
+  `.claude/plans/scraping-foundation-design-2026-07-20.md`／残タスクと裁定＝`handover.md`「汎用DL基盤 実装トラック」。
+
 ## 1. 観察ログ（未確定の所見のみ・確定したら handover か ADR へ）
 
 - **#2 章往復で章末着地**（⚠️未確認）: Claude 側で2回観察したがユーザー手元で再現せず＝確定バグでない。フレーキー or 操作アーティファクトの可能性。深追い不要だが頭の片隅に。
