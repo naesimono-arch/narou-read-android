@@ -48,6 +48,7 @@
   - **P5 発見層 refactor**: `NarouNovel` 直参照＝**26ファイル・93出現**を `WorkSummary` 挿入で剥がす（大・独立コミット群）。
     `viewmodel/DiscoveryViewModel.kt:66-71` の `ResultContext`→`DiscoveryQuery` Parcelable 連鎖も改修。
   - **P6 後始末**: STATUS/handover/ADR（アダプタ機構＝新規 ADR 候補）・/stale-check・fixture 撮り直し手順の docs 化。
+- **[参照資料] 競合のスクレイピング実装解析（2026-07-20 ユーザー作成）**: `/mnt/c/Users/qingj/Desktop/project/book-api-analysis/07-competitor-scraping-techniques.md`＝唯一の実スクレイプ競合 B（約38サイト・jsoup・3抽出戦略・per-host レート制御/WebView Cookie 間借り等の「作法」）のデコンパイル解析。**内容が濃いため直読みせず、新アダプタ設計時に委譲ダイジェストで参照**（ユーザー指示）。
 - **fixture 撮り直し手順の docs 化（宿題）**: `test/resources/scrape_fixtures/kakuyomu/` は 2026-07-20 スナップショット。
   カクヨム構造変更でゴールデンが赤くなったときの「撮り直し→期待値更新」手順を docs/knowledge か tools に残す。
 
