@@ -42,7 +42,24 @@
 
 ## スコープ外・後続（plan/handover が正本）
 
-- パイプライン接続（P3）・破損監視の実行時層（P4）・発見層の WorkSummary 化（P5）は本ADRの機構の上に段階実装。
-- Room スキーマ（取込元URL/サイト種別の永続化）は `feat/delete-source-pdf` の v20 と版衝突中＝**マージ順序と列統合の裁定待ち**
-  （handover「汎用DL基盤 実装トラック」★裁定待ち①）。本ADRの scrape 層はスキーマ非依存で先行着地している。
 - 対象サイトの個別規約照合は各アダプタ着手時（設計ラウンドでは全数検証しない）。アルファポリス/ハーメルンの裁定は保留（★裁定待ち②）。
+
+## 追記（2026-07-20・P3〜P5 実装で確定した追加裁定）
+
+P3（パイプライン接続）〜P5（発見層の脱なろう）は着地済み（完了の正本＝git log）。実装時に確定した設計裁定と Why-not:
+
+1. **Room 版衝突は v21 退避＋19_20 複製で解決**（ユーザー裁定）: `feat/delete-source-pdf` が v20/sourceUri を先着消費
+   → 当基盤は v21 へ退避し `MIGRATION_19_20` を同一SQLで複製・schemas/20.json も複製配置（task_diary #39 定石）。
+   provenance 列は**統合せず独立2列**（`sourceUrl`=Web作品URL・`sourceSite`=アダプタキー。`sourceUri`=PDF削除用 content:// と
+   意味差を近傍コメントで明示）。**マージ統合時に 19_20 の二重定義を一方へ寄せる**こと。
+2. **Web源は pending_jobs 非対象**: PDF の再開キューは content:// URI＋FGS 前提。Web取込の失敗は即時通知・リトライは
+   ユーザーの再共有で足りる（低頻度・軽量）。Why not キュー共通化＝URI 主キーと FGS 配線の改修コストに見合う頻度がない。
+3. **ACTION_VIEW は対応ホスト限定・ACTION_SEND が任意サイトの受け口**: 全 http/https の VIEW filter は「全リンクのブラウザ候補に
+   アプリが出る」UX破壊＋Blocked サイトのリンク横取りになるため却下。共有（SEND）経由なら任意URLを受け、Registry 3値で案内。
+4. **取込時の構造疑い検知は保守的な床値**（ScrapeIntegrity 3条件・合計20字床）: 過検知（実在作の取込拒否）回避を最優先し、
+   見逃しは fixture ゴールデン（本ADR §3）と全章空チェックが補完する二段構え。
+5. **WorkSummary は UI 消費の全数調査（15プロパティ）から設計**: novelType/end はマッパ内で `serialState` 意味論enumへ吸収・
+   `ncode`/`genreCode` はなろう固有の残置例外（KDoc 明記）・allcount センチネルは持ち込まない。`NarouNovel` は Moshi DTO として
+   narou/ に閉じ込め（境界規則: main で NarouNovel 型参照可は narou/ のみ・機械 grep で検証可能）。
+   `novelDetailsBulk` のみ NarouNovel 据置＝of=t-n-ga で writer 欠落＝WorkSummary 写像すると新着検知が全滅するため narou 内部限定。
+   Why not 発見検索語彙（DiscoveryQuery/NarouNovelType）の同時汎用化＝D5 初期スコープ外（発見はなろうAPIのまま価値先出し）。

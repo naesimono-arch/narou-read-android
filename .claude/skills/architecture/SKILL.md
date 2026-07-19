@@ -27,7 +27,8 @@ when_to_use: 「アーキテクチャを教えて」／「全体構成を確認�
 | データアクセス | `repository/BookRepository.kt`（Room + 抽出呼び出し。`NovelReaderApplication` がシングルトン保持し Service/ViewModel 共用） | DB操作は IO Dispatcher |
 | DBスキーマ | `AppDatabase.kt`＋各 Entity が正典（version・Migration 含む） | 変更は必ず `/db-migration` スキルを先に実行 |
 | 生成物の保存先 | `context.filesDir/novels/{bookId}/`（`index.html`＋`chap_N.html`） | — |
-| 発見・検索（なろうAPI） | API層=`narou/`／VM=`viewmodel/Discovery*` 等／UI=`ui/discovery/`（詳細は下記「発見・検索層（なろうAPI）」） | 命名の非対称（傘は Discovery・テキスト検索部分だけ Search）＝`search` だけの grep は取りこぼす。検索履歴は Room でなく DataStore 別系統 |
+| 発見・検索（なろうAPI） | API層=`narou/`／VM=`viewmodel/Discovery*` 等／UI=`ui/discovery/`（詳細は下記「発見・検索層（なろうAPI）」） | 命名の非対称（傘は Discovery・テキスト検索部分だけ Search）＝`search` だけの grep は取りこぼす。検索履歴は Room でなく DataStore 別系統。**UI⇄API 境界はサイト非依存 `discovery/model/WorkSummary`**（`NarouNovel` は Moshi DTO として narou/ 内限定＝境界規則は ADR 0024 追記） |
+| 汎用Web小説取込（scrape層） | `scrape/`（IF=`NovelSiteAdapter`・解決/規約ゲート=`SiteAdapterRegistry` の3値・初号機=`adapter/KakuyomuAdapter.kt`・HTTP=`ScrapeHttpClient`〔Crawl-delay 内蔵〕・破損検知=`ScrapeIntegrity`/`AdapterHealthCheck`）。取込導線＝MainActivity intent（ACTION_SEND 全サイト／ACTION_VIEW 対応ホスト限定）→`BookshelfViewModel`→`BookRepository.addWebBook`→既存 `ChapterProcessor`/`HtmlExporter` で PDF 蔵書と同契約 HTML | 設計の正本＝ADR 0024（＋追記）。fixture ゴールデン（`test/resources/scrape_fixtures/`）が破損監視の核＝赤くなったら `tools/capture_scrape_fixture.sh` ヘッダの手順。Web源は pending_jobs 非対象。なろう系 URL は Blocked＝公式送り（ADR 0010/0012） |
 
 ## コードから読み取りにくい設計判断・罠
 

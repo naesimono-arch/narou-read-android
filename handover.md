@@ -42,13 +42,13 @@
   ハーメルンの扱い等の規約あいまいは保留（後日まとめて裁定）。注記受領＝**注1 Pixiv: R-18 はログイン必須＝アプリ内ブラウザ認証
   （Cookie/セッション保持）が前提**・メンバーページ登録もログイン要／**注2 アルファポリス: 連続DL制限あり＝Crawl-delay 厚め＋
   制限検知バックオフ・リトライ**を実装時に組む。初号機カクヨムは保留と無関係で先行済み（P2）。一次情報＝plan「サイト齟齬・規約」節。
-- **残フェーズ**（P3 は着地＝Room v21・addWebBook・共有/リンク取込導線。完了の正本＝git log。
-  設計メモ: ACTION_VIEW は対応ホスト限定〔全 http/https だと全リンクのブラウザ候補に化ける〕・任意サイトの受け口は
-  ACTION_SEND が担う／Web源は pending_jobs 不使用＝失敗は即時通知・リトライはユーザー再共有）:
-  - **P6 後始末**: STATUS/handover/ADR（アダプタ機構＝新規 ADR 候補）・/stale-check・fixture 撮り直し手順の docs 化。
+- **P3〜P6 全フェーズ着地（2026-07-20・完了の正本＝git log・追加裁定の正本＝ADR 0024 追記）**。
+- **[実機検証残・ユーザー同席時に /device-verify]**: ①Room v19→21 migration の実機通過（蔵書生存）
+  ②カクヨム実URLでの取込（共有シート→ACTION_SEND→addWebBook→読書画面で開けること）③Blocked（なろうURL共有）の
+  公式送り導線 ④debug ヘルスボードの実行 ⑤取込済みWeb蔵書の栞書影/フィルタ表示。JVM は全緑だがネットワーク実疎通と
+  intent 実配達は実機のみ検証可。**実機投入レーンの専有に注意**＝`feat/delete-source-pdf` レーンとどちらが実機を握るか
+  着手前に決める（/db-migration 原則・双方投入は hash 再衝突を招く）。
 - **[参照資料] 競合のスクレイピング実装解析（2026-07-20 ユーザー作成）**: `/mnt/c/Users/qingj/Desktop/project/book-api-analysis/07-competitor-scraping-techniques.md`＝唯一の実スクレイプ競合 B（約38サイト・jsoup・3抽出戦略・per-host レート制御/WebView Cookie 間借り等の「作法」）のデコンパイル解析。**内容が濃いため直読みせず、新アダプタ設計時に委譲ダイジェストで参照**（ユーザー指示）。
-- **fixture 撮り直し手順の docs 化（宿題）**: `test/resources/scrape_fixtures/kakuyomu/` は 2026-07-20 スナップショット。
-  カクヨム構造変更でゴールデンが赤くなったときの「撮り直し→期待値更新」手順を docs/knowledge か tools に残す。
 
 ## 思いつき・取りこぼし（随時追記）
 
