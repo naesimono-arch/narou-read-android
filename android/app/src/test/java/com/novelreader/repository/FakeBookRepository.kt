@@ -90,6 +90,16 @@ class FakeBookRepository : BookRepository {
         onProgress: (step: Int, stepLocalPercent: Float, phase: String, title: String) -> Unit,
     ): Result<BookRepository.AddBookResult> = addBookResult
 
+    /** addWebBook の戻り値を差し込むためのフック（実ネットワーク/HTML生成を持たないスタブ。addBookResult と同流儀）。 */
+    var addWebBookResult: Result<BookRepository.AddBookResult> =
+        Result.failure(NotImplementedError("addWebBookResult をテストで設定してください"))
+
+    // Web 取込の実挙動検証は DefaultBookRepository 側（AddWebBookTest）で行うため、Fake は結果を返すだけ。
+    override suspend fun addWebBook(
+        inputUrl: String,
+        onProgress: ((Int, String) -> Unit)?,
+    ): Result<BookRepository.AddBookResult> = addWebBookResult
+
     override suspend fun addPendingJob(uri: String, displayName: String) {
         pendingJobs[uri] = PendingJobEntity(uri, displayName, pendingJobs.size.toLong())
     }

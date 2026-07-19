@@ -66,6 +66,21 @@ interface BookRepository {
         onProgress: (step: Int, stepLocalPercent: Float, phase: String, title: String) -> Unit = { _, _, _, _ -> },
     ): Result<AddBookResult>
 
+    /** Web小説を取り込む（汎用Web小説DL基盤・P3）。任意の作品/話ページ URL を渡すと、対応サイトの
+     *  アダプタで目次→各章本文を取得し、PDF 蔵書と同契約の index.html/chap_N.html を生成して Room へ登録する。
+     *
+     *  対応サイト以外（規約で自前DL不可の Blocked／未整備の Unsupported）は [Result.failure]（IllegalArgumentException・
+     *  メッセージに種別）で返す。**UI 側は呼び出し前に [com.novelreader.scrape.SiteAdapterRegistry] を直接引いて
+     *  Blocked/Unsupported を出し分ける前提**（公式サイト導線への誘導）ゆえ、repository では失敗で足りる。
+     *
+     *  同一作品 URL の再取込は [AddBookResult.Duplicate]（重い取得の前に sourceUrl で弾く＝PDF の hash 遮断と同位置）。
+     *
+     *  @param onProgress 「章 i/N 取得中」粒度の進捗（第1引数＝1始まりの章番号、第2引数＝表示文言）。null で無効。 */
+    suspend fun addWebBook(
+        inputUrl: String,
+        onProgress: ((Int, String) -> Unit)? = null,
+    ): Result<AddBookResult>
+
     /** enqueue の記帳。REPLACE のため再開時の再投入でも二重行にならない。 */
     suspend fun addPendingJob(uri: String, displayName: String)
 

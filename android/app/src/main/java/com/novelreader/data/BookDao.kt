@@ -43,6 +43,16 @@ interface BookDao {
     @Query("SELECT * FROM books WHERE contentSha256 = :hash LIMIT 1")
     suspend fun findByContentSha256(hash: String): BookEntity?
 
+    /** Web 取込の重複ガード用の既存蔵書照合（汎用Web小説DL基盤・P3）。
+     *  なぜ contentSha256 照合（findByContentSha256）と別に要るか: Web 取込は本文を取得しないと
+     *  内容ハッシュを計算できないが、作品トップの正規 URL（sourceUrl）はURL投入直後に確定する。
+     *  同一作品の再取込を「目次・全章の取得という重い処理を走らせる前」に弾くための URL 指紋照合＝
+     *  PDF 経路の「変換前遮断」（findByContentSha256）と同じ位置づけ。PDF 由来の蔵書は sourceUrl が
+     *  NULL のため SQL の NULL 比較で決してヒットしない（＝Web 取込分だけを対象にできる）。
+     *  完全一致 1 件で足りるため LIMIT 1。 */
+    @Query("SELECT * FROM books WHERE sourceUrl = :sourceUrl LIMIT 1")
+    suspend fun findBySourceUrl(sourceUrl: String): BookEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBook(book: BookEntity)
 
