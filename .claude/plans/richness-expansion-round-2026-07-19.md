@@ -126,6 +126,18 @@
   Compose上は撤去。モックは形状統一の反映が後続宿題＝正本昇格時に空レイヤをR1s形へ差し替える）。
 - コミットは全画面の実機目視OK後にまとめて（ユーザー指示）。
 
+## 次セッションの入口（2026-07-19 時点・高負荷スカイ v8 着手用）
+
+- **状態**: 星図M高負荷スカイは v7.5 まで実機合格・コミット済み（`git log` の feat 参照）。実装正本＝
+  `HighLoadSkyM.kt`（冒頭 KDoc に設計全容）。検分は ⋮開発節の6ボタン（流星/衛星/彗星/BH/暗黒雲＋トグル）。
+- **次タスク**: v8＝月齢・惑星・流星群の夜（上の v7〜v9 ロードマップ節が正本）。委譲仕様には
+  〈美学原則（空は巨大・天体は小さい）・検分ボタン同梱標準・HighLoadSkyM.kt 隔離・OFF 時厳密不変〉を毎回含める。
+- **エージェント運用**: general-purpose は effort xhigh が frontmatter 定義で有効になっているはず（新セッションから・
+  要一発確認＝サブ transcript を `grep '"effort"'`）。有効なら委譲プロンプトへの ultrathink 前置は不要になる。
+  定型規律は SubagentStart hook が自動注入済み。ストール対処・版スナップショット退避＝/orchestration §5。
+- **描画知見**: docs/knowledge/ の `compose-additive-layer-cannot-darken` / `particle-band-needs-gaussian-placement` /
+  `infinite-chunk-procedural-space`（v8 で月・惑星を足す際も加算レイヤの制約と数値自己検証の型が効く）。
+
 ## 規律の要点（ブリーフ§3〜5 の再掲・破らない）
 
 - モックは candidates/richness/ に新規のみ・正本非破壊・自己完結・決定的生成・コミットしない
