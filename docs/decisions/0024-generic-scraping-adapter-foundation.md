@@ -63,3 +63,22 @@ P3（パイプライン接続）〜P5（発見層の脱なろう）は着地済�
    narou/ に閉じ込め（境界規則: main で NarouNovel 型参照可は narou/ のみ・機械 grep で検証可能）。
    `novelDetailsBulk` のみ NarouNovel 据置＝of=t-n-ga で writer 欠落＝WorkSummary 写像すると新着検知が全滅するため narou 内部限定。
    Why not 発見検索語彙（DiscoveryQuery/NarouNovelType）の同時汎用化＝D5 初期スコープ外（発見はなろうAPIのまま価値先出し）。
+
+## 追記（2026-07-23・汎用アダプタ G1＝設定表駆動エンジン。ユーザー裁定「汎用アダプタで GO」）
+
+一次情報＝`.claude/plans/generic-adapter-design-2026-07-23.md`。実装＝git log（`scrape/generic/`）。
+
+1. **汎用機は「1プロファイル=1アダプタインスタンス」**（`GenericSiteAdapter(profile, http)`・siteKey=profile.siteKey）。
+   Why not「1アダプタ=多サイト」＝sourceSite 列・HealthProbe・AdapterHealthCheck・ScrapeIntegrity が全て siteKey 単位の
+   既存契約であり、多サイト集約はこの全てに分岐を強いる。表の各行を第一級アダプタにすれば**無改修で適合**する。
+2. **設定表は Kotlin 定数（`SiteProfiles`）**。Why not 外部リソース/リモート設定＝コンパイル時型検査の喪失・
+   fixture golden（siteKey=fixture ディレクトリ名で1対1）とのズレが実行時まで検知不能・「破損は golden で機械検知」
+   （本ADR §3）の自動更新なし方針と矛盾。手動同期点（Manifest VIEW ホスト列挙）は `SiteProfilesTest` が機械照合。
+3. **JSON/AJAX 系サイトは表に押し込まない（非対称戦略）**: カクヨム（`__NEXT_DATA__`）は専用アダプタ温存。
+   CSS セレクタ表は SSR 静的 HTML 専用（暁が初号・競合実装解析の「重要は厚く・他は薄く」を踏襲）。
+4. **pendingHosts ゲート**: 規約裁定待ちサイト（ハーメルン/アルファポリス/Pixiv/野いちご/ベリーズカフェ）は
+   blockedHosts 直後の明示リストで公式送りへ。Why not Unsupported のまま放置＝将来 catch-all（G2）導入時に
+   裁定待ちサイトへ誤発動する構造穴。裁定確定後は行削除だけで解放できる（登録ゲート＝本ADR §2 の運用と同型）。
+5. **G2（ヒューリスティック本文自動検出）と Wayback は見送り＝要否から別裁定**。G3 recon（2026-07-23）で
+   OK側の表駆動候補は暁で打ち止めと判明（ナノ/エムペ！/ALICE+ は HP レンタル型＝ユーザー毎構造で表不成立・
+   エムペは bot 403 遮断・Arcadia は TLS 失効で検証不能）＝個人サイト系を拾う実質手段が G2 のみ、が次の裁定材料。
