@@ -1,6 +1,7 @@
 package com.novelreader.scrape
 
-import com.novelreader.scrape.adapter.AkatsukiAdapter
+import com.novelreader.scrape.generic.GenericSiteAdapter
+import com.novelreader.scrape.generic.SiteProfiles
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -10,7 +11,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * 暁抽出の恒久回帰＝**破損監視の核**（KakuyomuGoldenTest と同方針）。
+ * 暁抽出の恒久回帰＝**破損監視の核**（KakuyomuGoldenTest と同方針）。旧・暁専用アダプタ実装を
+ * [GenericSiteAdapter]＋[SiteProfiles.AKATSUKI] へ移植したため、これらの固定値は**汎用エンジンの回帰**を兼ねる
+ * （挙動差ゼロが移植の完了条件）。
  *
  * 保存済み実 HTML（`test/resources/scrape_fixtures/akatsuki/`・2026-07-23 取得スナップショット）を
  * ネットワーク非依存でパースし、目次件数・話順・本文抽出（ルビ変換・前後書き除外）を固定値と突き合わせる。
@@ -22,7 +25,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class AkatsukiGoldenTest {
 
-    private val adapter = AkatsukiAdapter()
+    private val adapter = GenericSiteAdapter(SiteProfiles.AKATSUKI)
     private val workUrl = "https://www.akatsuki-novels.com/stories/index/novel_id~4679"
 
     private fun fixture(name: String): String =

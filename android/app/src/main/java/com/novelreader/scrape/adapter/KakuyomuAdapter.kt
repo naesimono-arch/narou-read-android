@@ -8,6 +8,7 @@ import com.novelreader.scrape.ScrapeHttpClient
 import com.novelreader.scrape.ScrapedChapterRef
 import com.novelreader.scrape.ScrapedToc
 import com.novelreader.scrape.ScrapedWorkMeta
+import com.novelreader.scrape.convertRuby
 import org.json.JSONArray
 import org.json.JSONObject
 import org.jsoup.Jsoup
@@ -141,12 +142,8 @@ class KakuyomuAdapter(
         return sb.toString()
     }
 
-    /** `<ruby>漢字<rt>かんじ</rt></ruby>`（<rb> 包みも許容）→ `|漢字《かんじ》`。ASCII パイプは applyRuby の要件。 */
-    private fun convertRuby(ruby: Element): String {
-        val reading = ruby.select("rt").text().trim()
-        val base = ruby.clone().apply { select("rt, rp").remove() }.text().trim()
-        return if (base.isNotEmpty() && reading.isNotEmpty()) "|$base《$reading》" else ruby.text()
-    }
+    // ルビ変換（`<ruby>` → `|base《reading》`）は GenericSiteAdapter と共有する com.novelreader.scrape.convertRuby
+    // を使う（旧 private 実装と同一・出力契約不変）。二重実装を1本化しドリフト源を潰す。
 
     private fun resolveAuthorName(store: JSONObject, work: JSONObject): String? {
         // author は {__ref:"UserAccount:..."} の形。フィールド名は "author" 前方一致で拾う（引数付きキー対策）。

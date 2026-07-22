@@ -1,18 +1,21 @@
 package com.novelreader.scrape
 
-import com.novelreader.scrape.adapter.AkatsukiAdapter
+import com.novelreader.scrape.generic.GenericSiteAdapter
+import com.novelreader.scrape.generic.SiteProfiles
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 暁アダプタの純ロジック単体テスト（ネットワーク・fixture 非依存）。URL 正規化と大文字/小文字/rb 省略形のルビ変換を固定する。
- * Jsoup・java.net.URI はいずれも純 JVM 実装のため Robolectric 不要（org.json を要する目次解析は AkatsukiGoldenTest 側）。
+ * 暁プロファイル（[SiteProfiles.AKATSUKI]）を [GenericSiteAdapter] 経由で回す純ロジック単体テスト
+ * （ネットワーク・fixture 非依存）。旧・暁専用アダプタの同名テストを移植したもの＝URL 正規化と
+ * 大文字/小文字/rb 省略形のルビ変換の固定値がそのまま汎用エンジンの回帰になる。
+ * Jsoup・java.net.URI はいずれも純 JVM 実装のため Robolectric 不要。
  */
-class AkatsukiAdapterUnitTest {
+class AkatsukiProfileUnitTest {
 
-    private val adapter = AkatsukiAdapter()
+    private val adapter = GenericSiteAdapter(SiteProfiles.AKATSUKI)
     private val canonical = "https://www.akatsuki-novels.com/stories/index/novel_id~4679"
 
     @Test

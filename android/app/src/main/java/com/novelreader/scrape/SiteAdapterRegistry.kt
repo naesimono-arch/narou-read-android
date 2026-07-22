@@ -1,7 +1,8 @@
 package com.novelreader.scrape
 
-import com.novelreader.scrape.adapter.AkatsukiAdapter
 import com.novelreader.scrape.adapter.KakuyomuAdapter
+import com.novelreader.scrape.generic.GenericSiteAdapter
+import com.novelreader.scrape.generic.SiteProfiles
 
 /**
  * URL → アダプタ解決の中心。**規約ゲートをここに集約**する。
@@ -39,6 +40,14 @@ class SiteAdapterRegistry(
             return Resolution.Blocked(it.label)
         }
 
+        // 規約裁定待ち（pending）ゲート: 現状は自前 DL の可否が未確定なため、保守側に倒して Blocked 相当
+        // （公式サイトで読む導線）で返す。なぜここか＝将来 catch-all（設定に無いホストの本文自動検出＝G2）を
+        // 足したとき、裁定前のこれらサイトが誤って取り込み対象へ滑り落ちる構造穴を、blockedHosts の直後で
+        // 先回り封鎖するため。裁定が下りたら該当行を外すだけで解放できる（アダプタ追加は別途 G3）。
+        pendingHosts.firstOrNull { host == it.host || host.endsWith(".${it.host}") }?.let {
+            return Resolution.Blocked(it.label)
+        }
+
         for (adapter in adapters) {
             val work = adapter.canonicalWorkUrl(inputUrl)
             if (work != null) return Resolution.Supported(adapter, work)
@@ -57,15 +66,27 @@ class SiteAdapterRegistry(
             BlockedHost("mid.syosetu.com", "ミッドナイト"),
         )
 
+        /**
+         * 規約裁定待ち（pending）サイト。自前 DL の可否が未確定＝保守側に倒して blockedHosts と同じ
+         * 「公式サイトで読む」導線（[Resolution.Blocked]）へ逃がす。裁定が下りたら該当行を外すだけで
+         * Unsupported→アダプタ追加（G3）の通常経路に戻せる（機序＝設計正本 2026-07-23 の pendingHosts ゲート）。
+         */
+        private val pendingHosts = listOf(
+            BlockedHost("syosetu.org", "ハーメルン"),
+            BlockedHost("alphapolis.co.jp", "アルファポリス"),
+            BlockedHost("pixiv.net", "pixiv"),
+            BlockedHost("no-ichigo.jp", "野いちご"),
+            BlockedHost("berrys-cafe.jp", "ベリーズカフェ"),
+        )
+
         private fun defaultAdapters(): List<NovelSiteAdapter> {
             // 全アダプタで1つの [ScrapeHttpClient] を共有する＝グローバル床（全ホスト横断の最低間隔）が
             // 実際に全ホストへ効く。個別に new すると各インスタンスが自ホストの状態しか持たず、
             // 複数サイトへ同時 DL したとき端末→網の総送出レートに床が掛からない（新サイト増設の前提土台）。
             val http = ScrapeHttpClient()
-            return listOf(
-                KakuyomuAdapter(http),
-                AkatsukiAdapter(http),
-            )
+            // JSON（__NEXT_DATA__）系のカクヨムは専用アダプタで温存し、旧来型サーバサイド HTML 勢は
+            // SiteProfiles の設定表 1 行ごとに GenericSiteAdapter を量産する（1 プロファイル=1 アダプタ）。
+            return listOf(KakuyomuAdapter(http)) + SiteProfiles.ALL.map { GenericSiteAdapter(it, http) }
         }
 
         private fun hostOf(url: String): String? = runCatching {
