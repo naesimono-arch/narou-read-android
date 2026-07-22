@@ -4,19 +4,22 @@ package com.novelreader.ui
  * 読書フローの Back スタック（純データ構造・Compose 非依存＝JVM 単体テストで不変条件を固定できる）。
  *
  * 画面はファイル名で表す: [INDEX]（"index.html"）＝目次／それ以外＝章。
- * [screens] は本棚から読書画面へ「実際に辿った経路」の写しで（＝不変条件①）、末尾が現在地。
- * Back は末尾を1枚取り除いて経路を1手ずつ逆再生し、空になったら本棚へ抜ける。
+ * [screens] は本棚から読書画面へ「実際に辿った経路」の写しで、末尾が現在地。
+ * この経路は前進操作（[openChapter]/[openToc]/[sibling]/[returnTo]）が既出画面への巻き戻し・退避元探索に使う。
  *
- * 【なぜ「訪れた画面を無条件に積む」旧 navHistory を採らないか】（2026-07-12 の全逆再生バグ再発防止）:
- * 旧実装は前進・後退を問わず訪れたファイルを全て push したため、目次⇄章を覗くたびに段が増え、
- * Back が [目次,章,目次,章,…] を延々と逆再生した（重大 UX 問題）。本構造は次の2規則でそれを封じる:
+ * 【Back の定義＝経路逆再生でなく「必ず一つ上の階層へ」】（2026-07-19 ユーザー裁定・不変条件①）:
+ * [back] は末尾を1枚 pop するのではなく、章なら目次を開き（[openToc] と同一＝左上 ← ボタンと一致）・
+ * 目次なら本棚へ抜ける（null）。辿った経路には依存しない＝話送り・参照覗き等の L2↔L2 横移動を Back で
+ * 逆走させない（裁定の第2要件）。これは 07/15 の「実経路を逆再生し直行なら Back 1発で本棚」設計の
+ * 意図的撤回である（直行入場でも Back は目次を経て本棚＝左上 ← と一致。可視の 1→2 タップ化は裁定が織り込んだ回帰）。
+ *
+ * 【なぜ「訪れた画面を無条件に積む」旧 navHistory を採らないか】（前進の深さを縛る規則・2026-07-12 バグ再発防止）:
+ * 旧実装は前進・後退を問わず訪れたファイルを全て push したため、目次⇄章を覗くたびに段が増えた（重大 UX 問題）。
+ * 本構造は前進を次の2規則で縛り、経路が無制限に伸びるのを封じる:
  *   1. 既出画面への移動は「その画面まで巻き戻す」＝重複を積まない（Jetpack の popUpTo(inclusive=false) 相当）。
  *      目次ボタンで既存の目次へ戻る／「続きに戻る」で退避元章へ復帰、が全てここに集約される。
  *   2. 章⇄章の話送り・続き復帰は「置き換え」（横移動）＝深さを増やさない。
  * この2規則により、覗き（目次→章→目次→別章…）を何度繰り返してもスタック深さは増えない（＝不変条件②）。
- *
- * 07/12 の固定2階層（本棚>目次>本文で Back を常に collapse）との違い: 本棚→本文直行（続きから）で入場した
- * 経路には目次が挟まらないため、Back 1発で本棚へ抜ける（固定2階層が目次を強制通過させていた悪 UX を解消）。
  */
 data class ReadingBackStack(val screens: List<String>) {
 
@@ -58,7 +61,8 @@ data class ReadingBackStack(val screens: List<String>) {
     fun openToc(): ReadingBackStack = navigate(INDEX, lateral = false)
 
     /**
-     * 前後章の話送り（横移動＝置き換えで深さ不変＝不変条件①: 何話読んでも Back 一段で目次/本棚へ）。
+     * 前後章の話送り（横移動＝置き換えで深さ不変＝不変条件②: 何話読み進めても段が増えないため
+     * Back（＝一階層 up）は常に目次へまっすぐ上がるだけで済む）。
      * 端章の prev/next は目次（[INDEX]）へ抜けるため、その場合は [openToc] へ委譲する
      * （目次を横移動で置き換えると直行本文の下段を失うため）。
      */
@@ -72,18 +76,20 @@ data class ReadingBackStack(val screens: List<String>) {
     fun returnTo(file: String): ReadingBackStack = navigate(file, lateral = true)
 
     /**
-     * システム Back。末尾を1枚取り除く。取り除いた結果が空になる（現在地が入場画面だった）なら
-     * null を返す＝これ以上戻る先が無い＝本棚へ抜ける合図。呼び出し側が null で onNavigateToBookshelf する。
+     * システム Back＝「必ず一つ上の階層へ」（2026-07-19 裁定）。経路の逆再生ではない:
+     *   ・章 → 目次を開く（[openToc] と同一＝左上 ← ボタンと完全一致。既存目次へ巻き戻し・直行入場で無ければ積む）
+     *   ・目次 → これ以上の上位が無い＝null を返す（呼び出し側が onNavigateToBookshelf で本棚へ抜ける）
+     * [openToc] へ委譲することで Back と章の ← が定義上つねに同じ遷移になり、分岐の二重管理を無くす。
      */
     fun back(): ReadingBackStack? =
-        if (screens.size <= 1) null else ReadingBackStack(screens.dropLast(1))
+        if (current == INDEX) null else openToc()
 
     companion object {
         /** 目次を表すファイル名（章ファイルと区別する唯一のセンチネル）。 */
         const val INDEX: String = "index.html"
 
         /**
-         * 入場スタック＝辿った経路の起点1枚。startFile が章なら [本文直行]＝Back 1発で本棚、
+         * 入場スタック＝辿った経路の起点1枚。startFile が章なら [本文直行]＝Back で目次を経てから本棚（2段）、
          * "index.html" なら [目次]＝そこから開いた章が push されて Back で目次→本棚。
          * （startFile は getLastRead()＝続きが在れば章・無ければ "index.html"＝MainActivity/BookshelfScreen）。
          */

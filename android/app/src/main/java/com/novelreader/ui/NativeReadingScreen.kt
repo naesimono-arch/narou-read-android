@@ -208,10 +208,10 @@ fun ReadingScreen(
     onNavigateToBookshelf: () -> Unit,
 ) {
     // 読書ナビの Back スタック（実データ構造＝ReadingBackStack）。末尾が現在地。
-    // なぜ「現在地1個」でなく実スタックへ再設計したか（2026-07-15 決定・07/12 固定2階層の棄却）:
-    // 07/12 は「本棚>目次>本文」の固定2階層で Back を常に collapse したが、本棚→本文直行（続きから）でも
-    // Back が目次を強制通過する悪 UX だった。実スタックにすると Back が実際に辿った経路だけを逆再生する
-    // （直行なら Back 1発で本棚・目次経由なら目次→本棚）。push/replace/pop 規則と不変条件は ReadingBackStack 参照。
+    // なぜ「現在地1個」でなく経路を保持するスタックか（前進操作の巻き戻し・参照退避元の探索に使うため）:
+    // 目次ボタンで既存目次へ戻る／「続きに戻る」で退避元章へ復帰、が経路上の位置を必要とする。
+    // ただし Back 自体は経路逆再生ではなく「必ず一つ上の階層へ」（2026-07-19 裁定＝章は目次・目次は本棚）。
+    // 直行入場でも Back は目次を経て本棚へ抜け、左上 ← ボタンと一致する（push/巻き戻し規則は ReadingBackStack 参照）。
     // なぜ旧 navHistory 全逆再生バグを再発させないか: 覗き（目次⇄章）は ReadingBackStack が
     // 「既出は巻き戻し・話送りは置き換え」で段を増やさないため、何度覗いてもスタック深さは不変（不変条件②）。
     // なぜ rememberSaveable に bookId.value（生 String）をキーとして含めるか:
@@ -252,7 +252,7 @@ fun ReadingScreen(
     val navigateForward: (String) -> Unit = { target ->
         // 前後章の話送りは横移動（置き換え＝深さ不変）・目次ボタン/章の Up（"index.html"）は目次を開く。
         // どちらも ReadingBackStack.sibling が振り分ける（"index.html"→既存目次へ巻き戻し・無ければ積む）。
-        // なぜ replace か: 何話読んでも Back 一段で目次/本棚へ抜けるため（旧固定2階層の「本文→目次」を維持）。
+        // なぜ replace か: 話送りで段を増やさず、Back（＝一階層 up）が常に目次へまっすぐ上がるようにするため。
         backStack = backStack.sibling(target)
         if (target != "index.html") {
             lastChapterFile = target
@@ -282,22 +282,22 @@ fun ReadingScreen(
         }
     }
 
-    // Back キー: 実際に辿った経路（backStack）を末尾から1枚ずつ逆再生する（2026-07-15 再設計・07/12 固定2階層の棄却）。
-    // back() が null（スタックが入場画面1枚だけ＝もう戻る先が無い）を返したら本棚へ抜ける。
-    // これで「本棚→本文直行なら Back 1発で本棚／本棚→目次→本文なら Back で目次→本棚」が実経路どおりになる。
-    // App bar の ←（Up）は今回据え置き＝別経路（各画面が直接呼ぶ）: 章の ← は onNavigateTo("index.html")＝目次を
+    // Back キー＝「必ず一つ上の階層へ」（2026-07-19 裁定）。back() は章なら目次を開き・目次なら null（本棚）を返す。
+    // null のとき onNavigateToBookshelf で本棚へ抜ける。横スワイプ Back と左上 ← ボタンを同一モデル（一階層 up）へ一本化した。
+    // これで「本棚→本文直行でも Back は目次を経て本棚（2段）／目次経由なら目次→本棚」が入場形に依らず ← と一致する
+    // ＝07/15 の「実経路を逆再生し直行なら Back 1発で本棚」の意図的撤回（可視の 1→2 タップ化は裁定が織り込んだ回帰）。
+    // App bar の ←（Up）は無改修＝別経路（各画面が直接呼ぶ）: 章の ← は onNavigateTo("index.html")＝目次を
     // 開く（backStack にも反映）／目次の ← は onNavigateToBookshelf で本棚へ直行（スタックを介さない親ジャンプ）。
-    // Up は「目次を開く/本棚へ跳ぶ」の可視挙動を変えないため Back とは別物のまま（Back のみ経路反映へ再設計）。
-    // 【旧 navHistory 全逆再生バグの再発防止】Back は必ず「1枚 pop」だけ＝訪れた画面を再 push しない。
-    // 覗きで段が増えないのは ReadingBackStack 側の push/replace/巻き戻し規則が担保する（不変条件②）。
-    // 【生命線】戻り時に saveProgress を呼ばない理由: 章へ戻ると saveProgress は scrollIndex=0 を書き、
-    // その章の保存済みスクロールを先頭へ潰してしまう。戻り先（目次経由で再選択した章）は ChapterScreen
-    // 再表示時の debounce/onStop フラッシュで正しい現在位置が保存されるため、ここでは backStack の
-    // 更新に留め、進捗の破壊的上書きを避ける（前進時のみ「新しく開いた章＝先頭から」を保存する非対称設計）。
-    // lastChapterFile は現在章ハイライト用に維持する（Back では更新しない）。
+    // Back を ← 側へ寄せたため両者の可視挙動は今や一致する（back() は openToc へ委譲＝定義上つねに同一遷移）。
+    // 【旧 navHistory 全逆再生バグの再発防止】前進操作が経路を無制限に伸ばさない（既出巻き戻し・話送り置き換え）ため、
+    // Back が上がる目次の位置も一意に定まる。覗きで段が増えないのは ReadingBackStack 側規則が担保する（不変条件②）。
+    // 【生命線】Back で saveProgress を呼ばず backStack 更新だけに留める理由: 新仕様の Back は章を再表示せず必ず
+    // 目次へ上がる（目次は進捗保存のブロック対象）ため、章先頭への scrollIndex=0 破壊的上書きは Back 経路では起きない。
+    // 章の現在位置保存は ChapterScreen 再表示時の debounce/onStop フラッシュに一元化する（前進で新章を開いたときのみ
+    // 「先頭から」を保存する非対称設計を Back でも崩さない）。lastChapterFile は現在章ハイライト用に維持（Back では更新しない）。
     // 参照モード（jumpOrigin）の解除は「続きに戻る」チップ・滞留昇格・目次からの続き章再選択が担う。
-    // Back で覗き章を pop して目次へ戻っても jumpOrigin は残すが、目次上では referenceMode は無害
-    // （抑止・チップは章表示中のみ効く）＝旧固定2階層と同じ挙動を保つ（invariant④: jumpOrigin 挙動を壊さない）。
+    // Back で覗き章から目次へ上がっても jumpOrigin は残すが、目次上では referenceMode は無害
+    // （抑止・チップは章表示中のみ効く）＝参照の挙動を壊さない（invariant④: jumpOrigin 挙動を壊さない）。
     BackHandler(enabled = true) {
         val popped = backStack.back()
         if (popped != null) {
@@ -836,7 +836,7 @@ private fun ChapterScreen(
     // タップを無視して二重起動を防ぐ。「続きを読む」「作品ページ」の両ボタンで共有し、跨ぎ連打も抑える。
     var lastLaunchAt by remember { mutableStateOf(0L) }
 
-    // Back キー（実経路を逆再生＝backStack を1枚 pop、空なら本棚へ）は親の ReadingScreen が
+    // Back キー（＝一階層 up＝章なら目次・目次なら本棚。2026-07-19 裁定）は親の ReadingScreen が
     // backStack＋BackHandler で一元管理する。経路スタックを所有するのが ReadingScreen のため、
     // rememberSaveable 永続化もそちらに集約した（ここでは扱わない）。
 
@@ -1703,8 +1703,8 @@ internal fun ChapterScreenContent(
                 }
             },
             navigationIcon = {
-                // 章の ← は Back と同じく「その本の目次へ」戻る（2階層統一・2026-07-12）。
-                // 本棚へは目次画面の ← が担う（本文→目次→本棚。旧: ここから本棚へ直行していた）。
+                // 章の ← は「その本の目次へ」戻る。横スワイプ Back も同一モデルへ一本化済み（一階層 up・2026-07-19 裁定）。
+                // 本棚へは目次画面の ← が担う（本文→目次→本棚）。
                 IconButton(onClick = { onNavigateTo("index.html") }) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
