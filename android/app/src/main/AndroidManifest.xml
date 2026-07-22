@@ -57,11 +57,12 @@
 
             <!--
               P3 取込導線その2（対応サイトのリンクタップ受け）: ブラウザ等でのリンクタップ→本アプリ。
-              なぜ全 http/https にせず host を対応サイト（kakuyomu）に限定するか:
+              なぜ全 http/https にせず host を対応サイト（kakuyomu・akatsuki）に限定するか:
               (1) 全リンクのブラウザ候補に本アプリが常時出るのは UX 破壊。
               (2) Blocked サイト（なろう等）のリンクまで横取りして「公式で読んで」と返すのは本末転倒。
               任意サイトの受け口は上の ACTION_SEND が担うため、VIEW は自前 DL 可能な対応ホストだけに絞る。
-              data 属性は filter 内でプールされ scheme×host の直積で照合される（http/https × kakuyomu.jp/www.kakuyomu.jp）
+              data 属性は filter 内でプールされ scheme×host の直積で照合される
+              （http/https × kakuyomu.jp/www.kakuyomu.jp/akatsuki-novels.com/www.akatsuki-novels.com）
               ＝1タグ1属性に分割（IntentFilterUniqueDataAttributes 準拠・「組で束縛される」誤読を防ぐ。マッチ集合は同一）。
             -->
             <intent-filter>
@@ -72,6 +73,8 @@
                 <data android:scheme="https" />
                 <data android:host="kakuyomu.jp" />
                 <data android:host="www.kakuyomu.jp" />
+                <data android:host="akatsuki-novels.com" />
+                <data android:host="www.akatsuki-novels.com" />
             </intent-filter>
         </activity>
 

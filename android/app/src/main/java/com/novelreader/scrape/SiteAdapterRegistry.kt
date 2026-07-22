@@ -1,5 +1,6 @@
 package com.novelreader.scrape
 
+import com.novelreader.scrape.adapter.AkatsukiAdapter
 import com.novelreader.scrape.adapter.KakuyomuAdapter
 
 /**
@@ -63,6 +64,7 @@ class SiteAdapterRegistry(
             val http = ScrapeHttpClient()
             return listOf(
                 KakuyomuAdapter(http),
+                AkatsukiAdapter(http),
             )
         }
 
