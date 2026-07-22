@@ -207,8 +207,10 @@ class BookshelfViewModelTest {
         assertEquals(SiteAdapterRegistry.Resolution.Unsupported, viewModel.resolveWebImport("https://example.com/x"))
     }
 
+    // 案d（2026-07-23）: 取込中は ProcessingBanner（isProcessing 駆動）で見せる＝「取り込み中」Snackbar は
+    // 発行しない。バナーは set（isProcessing=true）してから finally で必ず clear（null）する。
     @Test
-    fun `importWebNovel - Added は取込中と追加完了の Snackbar を出す`() = runTest {
+    fun `importWebNovel - Added はバナーを set→clear し完了 Snackbar を出す（取込中 Snackbar は出さない）`() = runTest {
         val book = BookEntity("id01", "テスト作品", "/p/a")
         coEvery { mockRepository.addWebBook(any(), any()) } returns
             Result.success(BookRepository.AddBookResult.Added(book))
@@ -216,13 +218,34 @@ class BookshelfViewModelTest {
         viewModel.importWebNovel("https://kakuyomu.jp/works/123")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        verify { mockApp.emitError("取り込み中です…") }
-        verify { mockApp.emitError("「テスト作品」を追加しました") }
+        // 旧「取り込み中です…」Snackbar は廃止（残留バグの真因）。
+        verify(exactly = 0) { mockApp.emitError("取り込み中です…") }
+        // 取込中バナーを set（isProcessing=true）→ finally で clear（null）。
+        verify { mockApp.updateProcessingState(match { it?.isProcessing == true }) }
+        verify { mockApp.updateProcessingState(null) }
+        // 完了は一過性の情報通知（transient=true）＝UI 側で Short 自動消滅。
+        verify { mockApp.emitError("「テスト作品」を追加しました", transient = true) }
         coVerify { mockRepository.addWebBook("https://kakuyomu.jp/works/123", any()) }
     }
 
+    // onProgress（章 i/N 取得中）を ProcessingState.phase へ流し、バナー副見出しへ進捗を出す。
     @Test
-    fun `importWebNovel - Duplicate は取込済み Snackbar を出す`() = runTest {
+    fun `importWebNovel - onProgress の章進捗をバナー phase へ流す`() = runTest {
+        val book = BookEntity("id01", "テスト作品", "/p/a")
+        coEvery { mockRepository.addWebBook(any(), any()) } answers {
+            // addWebBook の第2引数（onProgress）を取り出して章進捗を1回コールバックする。
+            secondArg<((Int, String) -> Unit)?>()?.invoke(2, "章 2/5 取得中")
+            Result.success(BookRepository.AddBookResult.Added(book))
+        }
+
+        viewModel.importWebNovel("https://kakuyomu.jp/works/123")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify { mockApp.updateProcessingState(match { it?.phase == "章 2/5 取得中" }) }
+    }
+
+    @Test
+    fun `importWebNovel - Duplicate は取込済み Snackbar を出しバナーを clear する`() = runTest {
         val existing = BookEntity("id01", "既存作品", "/p/a")
         coEvery { mockRepository.addWebBook(any(), any()) } returns
             Result.success(BookRepository.AddBookResult.Duplicate(existing))
@@ -230,18 +253,23 @@ class BookshelfViewModelTest {
         viewModel.importWebNovel("https://kakuyomu.jp/works/123")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        verify { mockApp.emitError("取り込み済みです") }
+        // 取込済みも一過性の情報通知（transient=true）。
+        verify { mockApp.emitError("取り込み済みです", transient = true) }
+        verify { mockApp.updateProcessingState(null) }
     }
 
     @Test
-    fun `importWebNovel - 失敗は失敗 Snackbar を出す（再試行なし）`() = runTest {
+    fun `importWebNovel - 失敗は失敗 Snackbar を出す（再試行なし・バナーは clear）`() = runTest {
         coEvery { mockRepository.addWebBook(any(), any()) } returns
             Result.failure(RuntimeException("network down"))
 
         viewModel.importWebNovel("https://kakuyomu.jp/works/123")
         testDispatcher.scheduler.advanceUntilIdle()
 
+        // 失敗系は従来どおり「閉じる」付きで残置（transient なし＝既定 false）。
         verify { mockApp.emitError("取り込みに失敗しました") }
+        // 失敗経路でも finally でバナーを必ず畳む。
+        verify { mockApp.updateProcessingState(null) }
     }
 
     // 破損監視・層2: 構造変更の疑い（ScrapeStructureException）は「公式サイトで読む」逃げ道つきで通知する。

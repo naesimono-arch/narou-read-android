@@ -73,9 +73,12 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
     fun updateProcessingState(state: ProcessingState?) { _processingState.value = state }
     /** retryUri を渡すと UI 側で「再試行」アクション付き Snackbar になる（取込失敗時）。
      *  openUrl を渡すと「公式サイトで読む」アクション付きになる（破損監視・層2＝構造疑いの逃げ道）。
-     *  復元系の情報通知はどちらも null（従来どおり文言のみ）。 */
-    fun emitError(msg: String, retryUri: String? = null, openUrl: String? = null) {
-        _errorEvents.trySend(AppErrorEvent(msg, retryUri, openUrl))
+     *  transient=true は取込完了/取込済みのような一過性の情報通知＝UI 側で actionLabel を付けず
+     *  Short で自動消滅させる目印（actionLabel 付き Snackbar は Material3 で duration 既定が Indefinite に
+     *  なり画面へ残留するため。案d の残留バグ対処）。
+     *  復元系の情報通知・案内はいずれも既定（文言＋「閉じる」で残置＝挙動不変）。 */
+    fun emitError(msg: String, retryUri: String? = null, openUrl: String? = null, transient: Boolean = false) {
+        _errorEvents.trySend(AppErrorEvent(msg, retryUri, openUrl, transient))
     }
 
     // 起動時リカバリの多重実行ガード。Activity 再作成のたびに呼ばれても実処理はプロセスごとに1回。

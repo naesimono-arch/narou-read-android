@@ -48,9 +48,15 @@
   ③Blocked なろうURL→公式サイトへ即送客（books 増えず）④ヘルスボード実疎通 OK（593章・先頭1760字）⑤Web蔵書の
   目次/本文/実ルビ描画。**実機は本レーン専有（v21）＝`feat/delete-source-pdf` の v20 APK は以後この端末に入れない**
   （migration 逆走禁止）。v19 DB バックアップ＝セッション scratchpad（消滅可・空DBだったため価値は形式的）。
-- **[要裁定・Web取込スナックバーの残留]**（2026-07-20 実機検証で観察）: 取込完了後も「取り込み中です…」（Indefinite）が
-  残り、完了メッセージ『…を追加しました』が直列キューの後ろで埋もれる（既知の `Channel.BUFFERED` 直列消費と同根の見え方）。
-  改善案＝取込中を Indefinite でなく完了時に自置換 or 進捗つき1本化。既存の重複スナックバー集約裁定（本節上方）と合流して判断。
+- **[実装済み・実機目視待ち・Web取込スナックバーの残留解消]**（2026-07-20 実機観察→2026-07-23 真因対処）: 機序＝取込中を
+  actionLabel 付きスナックバー（Material3 で Indefinite 既定）で発行し、showSnackbar が dismiss まで suspend→単一 collect が
+  塞がり完了文が Channel(BUFFERED) に埋没。PDF 取込は ProcessingBanner でスナックバー非使用＝同症状なし。対処＝PDF と同一
+  パターンへ収斂: Web取込中は ProcessingBanner（全スキン `isProcessing` 駆動・開始 set→finally 確実 clear・「章 i/N 取得中」を
+  phase 差込）・完了/取込済みは `AppErrorEvent.transient=true`→Short 自動消滅（Blocked/Unsupported 等の既存挙動不変）。
+  重複集約案（「N件は取り込み済み」・2026-07-16 案）は補完として別途判断。**割り切り（実機目視時に確認・要すれば裁定）**:
+  ①バナー「停止」は PdfProcessingService 向け配線＝Web取込（viewModelScope）には効かない ②PDF 用4段ステッパーが Web でも
+  凍結表示 ③`isProcessing` 立ち上がりでバッテリー最適化ダイアログが Web でも発火し得る ④PDF/Web 同時実行時は単一
+  ProcessingState を相互上書き（稀・設計上の限界）。
 - **[参照資料] 競合のスクレイピング実装解析（2026-07-20 ユーザー作成）**: `/mnt/c/Users/qingj/Desktop/project/book-api-analysis/07-competitor-scraping-techniques.md`＝唯一の実スクレイプ競合 B（約38サイト・jsoup・3抽出戦略・per-host レート制御/WebView Cookie 間借り等の「作法」）のデコンパイル解析。**内容が濃いため直読みせず、新アダプタ設計時に委譲ダイジェストで参照**（ユーザー指示）。
 
 ## 思いつき・取りこぼし（随時追記）

@@ -334,7 +334,12 @@ fun BookshelfScreen(
                         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(event.openUrl))) }
                     }
                 }
-                // それ以外（強制終了リカバリ等の情報通知）は従来どおり「閉じる」のみ。
+                // 一過性の情報通知（取込完了/取込済み）は actionLabel を付けず Short で自動消滅させる。
+                // actionLabel を付けると Material3 の duration 既定が Indefinite になり画面へ残留するため
+                // （Web 取込の「取り込み中」残留バグと同根＝案d）。
+                event.transient ->
+                    snackbarHostState.showSnackbar(message = event.message, duration = SnackbarDuration.Short)
+                // それ以外（Blocked/Unsupported 案内・強制終了リカバリ等の情報通知）は従来どおり「閉じる」のみ。
                 else -> snackbarHostState.showSnackbar(message = event.message, actionLabel = "閉じる")
             }
         }

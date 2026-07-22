@@ -86,7 +86,14 @@ sealed interface BookshelfUiState {
  * 「公式サイトで読む」＝作品URLを外部ブラウザで開く逃げ道を出すために運ぶ。retryUri と排他（どちらも
  * アクション付きだが用途が別。retryUri は同一 URI 再取込・openUrl は ACTION_VIEW での外部送客）。
  */
-data class AppErrorEvent(val message: String, val retryUri: String? = null, val openUrl: String? = null)
+data class AppErrorEvent(
+    val message: String,
+    val retryUri: String? = null,
+    val openUrl: String? = null,
+    // 一過性フラグ: 取込完了/取込済み等の情報通知は UI 側で actionLabel を付けず Short で自動消滅させる目印。
+    // actionLabel 付き Snackbar は Material3 で duration 既定が Indefinite になり画面へ残留するため（案d）。
+    val transient: Boolean = false,
+)
 
 /**
  * なろう紐付けシート（NcodeLinkSheet）の候補検索の状態。
@@ -361,48 +368,72 @@ class BookshelfViewModel @JvmOverloads constructor(
 
     /** ルーティング結果の案内文を app 共有 Snackbar チャネルへ流す薄い委譲（本棚 SnackbarHost が購読）。
      *  Blocked/Unsupported の案内・取込中/完了/失敗の通知に共通で使う（PDF 取込の重複通知と同じ経路）。 */
-    fun emitSnackbar(message: String) = app.emitError(message)
+    // transient=true は一過性の情報通知（取込完了/取込済み）＝UI 側で Short 自動消滅にする。
+    // 既定 false は従来どおり「閉じる」付きで残置（Blocked/Unsupported 案内・強制終了リカバリ等＝挙動不変）。
+    fun emitSnackbar(message: String, transient: Boolean = false) = app.emitError(message, transient = transient)
 
     /**
      * Supported 確定後の実取込（P3）。取得は必ず [BookRepository.addWebBook] 経由＝UI 層で fetch しない。
      *
-     * 通知機構の選択（最小スナックバー・相乗りしない）: PDF 取込の ProcessingState バナーは
-     * PdfProcessingService（content:// URI ＋ pending_jobs 前提の FGS キュー）が唯一の供給元で、バナーの
-     * 「停止」も同 Service へ ACTION_STOP を送る配線。Web 取込はこの機構に相乗りできない（download を
-     * FGS キューへ載せる配線が別途要る）ため、確定事項の許容どおり app 共有 Snackbar チャネルで
-     * 「取込中…→完了/失敗」を出す最小実装にする。
+     * 取込中の表示（案d・2026-07-23 裁定）: 取込中は app 共有の [ProcessingState] へ載せ、全スキン共通の
+     * ProcessingBanner（`processingState.isProcessing` 駆動）で見せる。PDF 取込と同じ器を流用する。
+     *
+     * なぜ旧「取込中スナックバー」をやめたか（残留バグの真因）: 「取り込み中です…」を Snackbar で出すと、
+     * 本棚の errorEvents collect が actionLabel（「閉じる」）付き showSnackbar＝Material3 で duration 既定が
+     * Indefinite になり dismiss まで suspend、その間に届く完了文『…を追加しました』が Channel(BUFFERED) に
+     * 埋没して表示されなかった。バナーは非ブロッキングのため collect を塞がず、完了スナックバーが確実に出る。
      *
      * なぜ viewModelScope か: 本 VM は NovelReaderApp 直下で Activity スコープに生成され構成変更・画面遷移を
      * 跨いで生存する（アプリ滞在中は継続）。FGS で背面存続まではさせない（最小実装の割り切り）。
+     *
+     * 既知の割り切り（単一 ProcessingState の共有）: バナーの供給元は PDF・Web で共有の1本の StateFlow。
+     * PDF 変換中に Web 取込を重ねると相互に上書きし合う（同時実行は稀・単一状態の設計上の限界。恒久解＝
+     * 供給元別のスタック化は本タスクの範囲外）。
      */
     fun importWebNovel(url: String) {
         viewModelScope.launch {
-            emitSnackbar("取り込み中です…")
-            repository.addWebBook(url).fold(
-                onSuccess = { outcome ->
-                    when (outcome) {
-                        is BookRepository.AddBookResult.Added ->
-                            emitSnackbar("「${outcome.book.title}」を追加しました")
-                        // 同一作品 URL は addWebBook が重い取得の前に sourceUrl で弾いて Duplicate を返す。
-                        is BookRepository.AddBookResult.Duplicate ->
-                            emitSnackbar("取り込み済みです")
-                    }
-                },
-                onFailure = { e ->
-                    // 真因はログに残す（握り潰さない）。Blocked/Unsupported は呼び出し前ゲートで除外済みのため、
-                    // ここに来るのは取得/解析/構造疑い等の失敗。
-                    android.util.Log.e("BookshelfViewModel", "Web取込失敗", e)
-                    // 破損監視（層2）: サイト構造変更の疑い（ScrapeStructureException＝ScrapeException 派生）だけは
-                    // 「公式サイトで読む」逃げ道を添える（作品URLを外部ブラウザで開く＝U3 Blocked と同じ ACTION_VIEW 流儀）。
-                    // 逃げ道が保険の実体（脆さ織り込み）。それ以外の一過性失敗は従来どおり平易な失敗通知のみ
-                    // （リトライ＝ユーザーの再共有操作＝確定事項）。
-                    if (e is ScrapeStructureException) {
-                        app.emitError("取得に失敗しました。サイト構造が変わった可能性があります", openUrl = url)
-                    } else {
-                        emitSnackbar("取り込みに失敗しました")
-                    }
-                },
-            )
+            // 取込中バナーの初期状態。stepTotal は既定 4 のまま保つ（バナーの4段ステッパーはラベル4語を
+            // ハードコードしており、ここを変えると点とラベルがずれるため PDF の器へ合わせる）。
+            // title を空にすると D バナーが「PDF処理中…」へフォールバックし Web で誤表示になるため非空にする。
+            // 作品題名は addWebBook 完了まで判らない（onProgress は章番号と文言のみで題名を運ばない）ので
+            // 汎用ラベルを出し、章取得の進捗は phase へ差し込む（バナー文言はデータ差し込みのみ・意匠不変）。
+            val banner = ProcessingState(isProcessing = true, title = "Web小説", phase = "取り込み中です…")
+            app.updateProcessingState(banner)
+            try {
+                repository.addWebBook(url, onProgress = { _, text ->
+                    // 章取得の進捗（「章 i/N 取得中」）を副見出しへ流す（title/ステッパーは PDF の器のまま）。
+                    app.updateProcessingState(banner.copy(phase = text))
+                }).fold(
+                    onSuccess = { outcome ->
+                        when (outcome) {
+                            // 完了は一過性の情報通知＝Short で自動消滅させる（transient=true）。
+                            is BookRepository.AddBookResult.Added ->
+                                emitSnackbar("「${outcome.book.title}」を追加しました", transient = true)
+                            // 同一作品 URL は addWebBook が重い取得の前に sourceUrl で弾いて Duplicate を返す。
+                            is BookRepository.AddBookResult.Duplicate ->
+                                emitSnackbar("取り込み済みです", transient = true)
+                        }
+                    },
+                    onFailure = { e ->
+                        // 真因はログに残す（握り潰さない）。Blocked/Unsupported は呼び出し前ゲートで除外済みのため、
+                        // ここに来るのは取得/解析/構造疑い等の失敗。失敗系は従来どおり「閉じる」付きで残置（transient なし）。
+                        android.util.Log.e("BookshelfViewModel", "Web取込失敗", e)
+                        // 破損監視（層2）: サイト構造変更の疑い（ScrapeStructureException＝ScrapeException 派生）だけは
+                        // 「公式サイトで読む」逃げ道を添える（作品URLを外部ブラウザで開く＝U3 Blocked と同じ ACTION_VIEW 流儀）。
+                        // 逃げ道が保険の実体（脆さ織り込み）。それ以外の一過性失敗は従来どおり平易な失敗通知のみ
+                        // （リトライ＝ユーザーの再共有操作＝確定事項）。
+                        if (e is ScrapeStructureException) {
+                            app.emitError("取得に失敗しました。サイト構造が変わった可能性があります", openUrl = url)
+                        } else {
+                            emitSnackbar("取り込みに失敗しました")
+                        }
+                    },
+                )
+            } finally {
+                // 成功/失敗/コルーチンキャンセルのいずれでも取込中バナーを必ず畳む（バナー残留防止）。
+                // updateProcessingState は非 suspend の値代入のためキャンセル巻き戻し中でも確実に完了する。
+                app.updateProcessingState(null)
+            }
         }
     }
 
