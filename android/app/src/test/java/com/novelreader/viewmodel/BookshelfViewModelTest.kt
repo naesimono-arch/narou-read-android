@@ -16,6 +16,7 @@ import com.novelreader.discovery.model.workSummary
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
 import com.novelreader.repository.BookRepository
+import com.novelreader.repository.SourceDeleteOutcome
 import com.novelreader.scrape.ScrapeStructureException
 import com.novelreader.scrape.SiteAdapterRegistry
 import io.mockk.*
@@ -108,7 +109,32 @@ class BookshelfViewModelTest {
         val book = BookEntity("id01", "テスト本", "/nonexistent/path")
         viewModel.deleteBook(book)
         testDispatcher.scheduler.advanceUntilIdle()
-        coVerify { mockRepository.deleteBook(book) }
+        // 単体 deleteBook は取込元を消さない（deleteSource=false 既定）。
+        coVerify { mockRepository.deleteBook(book, false) }
+    }
+
+    @Test
+    fun `deleteBooks - 取込元削除に失敗した本があれば emitError で通知する`() = runTest {
+        val book = BookEntity("id01", "本A", "/p", sourceUri = "content://docs/src1")
+        coEvery { mockRepository.deleteBook(book, true) } returns SourceDeleteOutcome.Failed
+
+        viewModel.deleteBooks(listOf(book), deleteSource = true)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify { mockRepository.deleteBook(book, true) }
+        // 失敗は握りつぶさず Snackbar（Application.emitError）で知らせる（本削除自体は成立）。
+        verify { mockApp.emitError(any(), any()) }
+    }
+
+    @Test
+    fun `deleteBooks - 全て成功なら emitError を出さない`() = runTest {
+        val book = BookEntity("id02", "本B", "/p", sourceUri = "content://docs/src2")
+        coEvery { mockRepository.deleteBook(book, true) } returns SourceDeleteOutcome.Deleted
+
+        viewModel.deleteBooks(listOf(book), deleteSource = true)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify(exactly = 0) { mockApp.emitError(any(), any()) }
     }
 
     // ── Fake 実装での結線確認 ────────────────────────────────────────────

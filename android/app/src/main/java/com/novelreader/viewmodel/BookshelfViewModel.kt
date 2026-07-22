@@ -22,6 +22,7 @@ import com.novelreader.narou.model.DiscoveryResult
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
 import com.novelreader.repository.BookRepository
+import com.novelreader.repository.SourceDeleteOutcome
 import com.novelreader.scrape.ScrapeStructureException
 import com.novelreader.scrape.SiteAdapterRegistry
 import java.io.File
@@ -266,10 +267,21 @@ class BookshelfViewModel @JvmOverloads constructor(
         // 投げるため防御する（取れなくても通常の変換は一時権限で成立し、再開だけが不可になる）。
         // なお FileProvider の content:// URI（取り込み経路）は persistable permission を取れず
         // ここは runCatching で無害に失敗する＝その本の再開が効かないだけ（PdfImportViewModel 側と同じ前提）。
+        //
+        // 取込元PDF削除（本削除時に取込元も消す）のため、まず READ|WRITE を試みる。書込権限まで保持できた本だけが
+        // 後で DocumentsContract.deleteDocument できる（DefaultBookRepository.addBook が persistedUriPermissions を
+        // 照会して sourceUri を記録する判定材料になる）。picker には write フラグを付与済み（pdfPicker の contract）。
+        // 書込非対応プロバイダでは READ|WRITE が SecurityException になるため、READ のみへフォールバックして
+        // 少なくとも再開用の読み取り権限は確保する（この本は取込元PDF削除の対象外＝sourceUri は NULL のまま）。
+        val resolver = getApplication<Application>().contentResolver
         runCatching {
-            getApplication<Application>().contentResolver.takePersistableUriPermission(
-                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+            resolver.takePersistableUriPermission(
+                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             )
+        }.onFailure {
+            runCatching {
+                resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
         }
         val intent = Intent(getApplication(), PdfProcessingService::class.java).apply {
             action = PdfProcessingService.ACTION_START
@@ -446,8 +458,20 @@ class BookshelfViewModel @JvmOverloads constructor(
     // 複数選択→まとめて削除（残8）。選択モードの削除確認ダイアログを確定したときに呼ぶ。1コルーチンで
     // 順次 deleteBook（各々が本文HTML・DB行・進捗をIOで消す不可逆操作）。books は hot StateFlow のため
     // 消えた分だけ本棚へ即時反映される。Undo は持たない＝確認ダイアログで事前同意を取る設計（案B裁定）。
-    fun deleteBooks(books: List<BookEntity>) {
-        viewModelScope.launch(Dispatchers.IO) { books.forEach { repository.deleteBook(it) } }
+    // deleteSource=true のとき、取込元 URI を保持する本は取込元PDF本体も削除する（ダイアログのチェック）。
+    // ioDispatcher 注入は単体 deleteBook と同理由（テストで advanceUntilIdle→検証の順序を成立させる）。
+    fun deleteBooks(books: List<BookEntity>, deleteSource: Boolean = false) {
+        viewModelScope.launch(ioDispatcher) {
+            var failed = 0
+            books.forEach {
+                if (repository.deleteBook(it, deleteSource) == SourceDeleteOutcome.Failed) failed++
+            }
+            // 取込元PDFの削除に失敗した本があれば Snackbar で知らせる（本削除自体は成立済み＝handover 提起③）。
+            // 既に移動/削除済み・権限失効・削除非対応プロバイダなど、アプリでは救えない外部要因が主因のため通知に留める。
+            if (failed > 0) {
+                app.emitError("取込元PDFの削除に失敗しました（${failed}件・移動/削除済みか、削除に対応しない保存先の可能性）")
+            }
+        }
     }
 
     // (b) Web由来・未取込カードを本棚から外す。webNovels は hot に uiState へ combine 済みのため、

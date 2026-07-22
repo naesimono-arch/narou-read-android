@@ -27,17 +27,12 @@
 
 ### 着手順序・branch（2026-07-20 裁定）
 - **まず最優先Aの明快さ・バグを一掃**（数日で"他者が困らない"状態へ）。最優先Bの中核設計は並行で下ごしらえ。
-- **branch**: ui/refine はリッチ化の枝として温存（捨てない）。基礎開発の本流は追って main から新ブランチを切る想定。当面の記録はこの台帳へ集約。
+- **branch**: 2026-07-23 の全ブランチ統合で ui/refine / ui/wa-modern は削除済み（いずれも main 同一＝固有コミット0で失うものなし。リッチ化の**成果物**は main に全て入っている）。リッチ化・基礎開発とも再開時は main から新ブランチを切る。当面の記録はこの台帳へ集約。
 
-### 汎用DL基盤 実装トラック（branch `feat/scraping-prep`・一次情報＝`.claude/plans/scraping-foundation-design-2026-07-20.md`）
+### 汎用DL基盤 実装トラック（main 統合済み 2026-07-23・一次情報＝`.claude/plans/scraping-foundation-design-2026-07-20.md`）
 > 設計判断 D1〜D6・調査ダイジェスト（受け皿アーキ／サイト規約）・カクヨム実構造・フェーズ順は plan が正本。
 > **P2（scrape/ アダプタ抽象＋カクヨム抽出器＋fixtureゴールデン）は着地・JVM 常時緑**（完了の正本＝git log）。
 
-- **[裁定済み 2026-07-20] Room 版衝突＝feat/scraping-prep を後に統合・独立2列**: 並列 `feat/delete-source-pdf` が
-  **v20＝`sourceUri`（削除用PDF URI）を先着**（このブランチが後着）。→ 当ブランチは **v21 へ退避**＝`MIGRATION_19_20`
-  （sourceUri 追加）を**同一内容で複製**してパスを繋ぎ、`sourceUrl`（Web作品URL）＋`sourceSite`（アダプタキー）を
-  **独立2列**（provenance は統合しない）で `MIGRATION_20_21` に追加。schemas/21.json 追加・MigrationTest chain 追記・
-  `/db-migration` 必須。**マージ時に 19_20 が両ブランチで二重定義にならないよう統合レビューで一方に寄せる**。
 - **[裁定確定 2026-07-23] 規約グレー勢のまとめ裁定＝ハーメルン保留・他4サイト NG（正本＝ADR 0024 追記）**:
   アルファポリス/Pixiv/野いちご/ベリーズカフェは NG＝blockedHosts（公式送り）へ。**ただしグレー領域の保守裁定であり
   規約明文違反の認定ではない**（包括条項の保守読み・詳細と再訪の道＝ADR 0024 追記 2026-07-23）。ハーメルンのみ
@@ -49,8 +44,8 @@
 - **実機検証 全5点 PASS（2026-07-20・OPPO PGEM10）**: ①v19→21 migration 通過（user_version=21・新3列・既存行保存・
   クラッシュ0）②カクヨム実URL取込（ACTION_SEND→39章同契約HTML→本棚表示・sourceUrl/sourceSite/contentSha256 焼付け）
   ③Blocked なろうURL→公式サイトへ即送客（books 増えず）④ヘルスボード実疎通 OK（593章・先頭1760字）⑤Web蔵書の
-  目次/本文/実ルビ描画。**実機は本レーン専有（v21）＝`feat/delete-source-pdf` の v20 APK は以後この端末に入れない**
-  （migration 逆走禁止）。v19 DB バックアップ＝セッション scratchpad（消滅可・空DBだったため価値は形式的）。
+  目次/本文/実ルビ描画。**実機は v21＝旧 v20 以下の APK は入れない**（migration 逆走禁止。2026-07-23 統合で
+  レーン分立は解消済み＝統合後 main の v21 は identity hash 互換）。v19 DB バックアップ＝セッション scratchpad（消滅可・空DBだったため価値は形式的）。
 - **[実装済み・実機目視待ち・Web取込スナックバーの残留解消]**（2026-07-20 実機観察→2026-07-23 真因対処）: 機序＝取込中を
   actionLabel 付きスナックバー（Material3 で Indefinite 既定）で発行し、showSnackbar が dismiss まで suspend→単一 collect が
   塞がり完了文が Channel(BUFFERED) に埋没。PDF 取込は ProcessingBanner でスナックバー非使用＝同症状なし。対処＝PDF と同一
@@ -135,7 +130,7 @@
 - **[目次/本文] モーション最適化 — 残りは P1＋P2体感確認のみ**（2026-07-15）: 確定差分は適用・**遷移は実機確認済みで slide push に統一**（ADR 0019・ルート遷移＋目次⇄本文を同じ向き/尺 250ms＝進む右→左/戻る左→右）／本文 stretch オーバースクロール無効化（D2・目次/本棚は据え置き）。競合解析＝`docs/reference/06-competitor-reading-motion.md`。**残**: **P1**＝章→章（話送り）は**スワイプ経由はスライド化済み**（2026-07-16 引っ張りプレビュー実装＝ドラッグ追従＋確定スライド）・**ボタン（前章/次章）経由のみ瞬間のまま据え置き**＝要望が出たらスライド化／**P2＝実装済み・体感確認待ち**（2026-07-16 スケルトン差替えで実装＝遷移中は本棚グリッドを BookshelfSkeleton へ差替え。framestats で pop アニメ中 6〜15ms に浄化・最悪 104.8→71ms・差戻しヒッチ無しを実測。**残＝①ユーザー体感確認〔本棚へ戻る際スケルトンが一瞬見える見え方の可否含む〕②残るなら次の的は目次画面の初回コンポーズ 93/81ms〔P2対象外の副次〕を別タスク化**。経緯・全数値＝`.claude/plans/reading-transition-jank-measurement-2026-07-16.md` 末尾「修正実装と再計測」節）。
 - **[本棚/通知] スナックバー「閉じる」疑い＝白・残るは複数重複時の連続再表示UXの要否判断**（2026-07-16 実機切り分け済み）: 配線健全・bounds 中心の精密タップで確実に効く＝真のバグではない。無反応に見えた正体＝adb タップ精度＋**複数重複の一括投入時に `Channel.BUFFERED` 直列消費で同型スナックバー（Indefinite）が閉じた直後に即再表示される複合**（実機で確定再現。スワイプ dismiss も正常）。改善するなら重複メッセージの集約（「N件は取り込み済み」）or duration 有限化＝要否はユーザー判断。一次情報＝`.claude/plans/device-verify-followup-2026-07-16.md`。
 - **[読書画面] 縦書き表示モード — 実装は全フェーズ完了（P0〜P5・P2.5。P4=章送りも2026-07-17実装済み）・残は実機確認と意匠裁定のみ**: 連続横スクロール（右→左）× 自前Compose組版（ADR 0020・プラン=`.claude/plans/vertical-reading-mode.md`・P0全実測=`vertical-mode-p0-2*.md`）。P4の機構＝縦書きLazyRowの終端で未消費の横デルタを `ChapterPullConnection`（nestedScroll）で捕捉し既存 dragOffsetPx/settleSwipe へ接続・方向は横書きの鏡像（縦書きは右引き=次章）・覗きパネルも縦書き本文で描く。スパイク計測器は`android/app/src/debug/`に収載済み（P6 OPPO較正で再利用）。P4は実機体感確認済み（2026-07-17 ユーザー確認）。**残**: ①**縦書き時の前章/次章ボタンの矢印方向が逆**（2026-07-17 ユーザー指摘）: 下端バーは [前章←｜目次｜表示設定｜次章→] だが、縦書きの進行方向は右→左＝次章は左・前章は右。矢印アイコンの反転だけで済ますか、ボタン配置ごと鏡像にするかは意匠判断（/visual-language 接地・モック正本と突き合わせてから）。スワイプ・a11y customActions のラベルは方向非依存で無関係。 ②P2.5題字の目視（実機残） ③章見出しの話数ラベル分離とゴシック化（データ/トークン未整備＝要design裁定）。
-- **[取込/削除] 本削除時にPDF本体も削除するか確認するダイアログ**（2026-07-15 ユーザー提起）: 現状は前提が無い——取込時のPDFは`cacheDir`への一時コピー→変換→即削除（`DefaultBookRepository.kt:184`付近）で、`BookEntity`スキーマに取込元URIを保持する列が無い（books は取込元 URI を持たない、と既存コメントに明記済み）。変換完了後は`takePersistableUriPermission`も解放される。**単純なダイアログ追加ではなく設計変更が要る**: ①取込元URIをスキーマへ永続化するmigration ②変換後も読み取り+書き込み永続権限を保持し続ける必要（端末上限128件の予算を消費し続ける・現状は用済み次第解放する設計と衝突） ③削除実行時、プロバイダ都合でdeleteが失敗しうる（既に移動/削除済み・権限失効・書き込み非対応プロバイダ）ハンドリングが要る。
+- **[取込/削除・実機検証の残] 本削除時に取込元PDFも削除（Room v20・実装済み・JVM緑）**: 設計3点は実装完了＝①`books.sourceUri` 永続化 migration（v19→v20）②取込時 READ|WRITE 永続権限を本の生存中保持〔起動時掃除の keepUris に `books.sourceUri` を合流〕③`DocumentsContract.deleteDocument` の失敗を Snackbar 通知して本削除は成立。UI＝削除ダイアログの opt-in チェック（既定OFF・`sourceUri` を持つ本がある時のみ・D構造＋M/P/J全スキン共通の `DeleteSourcePdfOption`）。**残＝実機検証**（adb 投入は要ユーザー許可＝memory `feedback-ask-before-device-testing`）: (a) 統合版 APK の上書き install で蔵書生存（実機は既に v21＝migration は走らず identity hash 互換の実証になる） (b) 実ファイル削除が SAF プロバイダ（Downloads/ドライブ等）で実際に消えるか＝書込永続権限が取れるかはプロバイダ依存 (c) 権限失効/移動済みで delete 失敗時の Snackbar 表示 (d) 端末永続権限上限128件＝蔵書>128 で write 権限が溢れ古い本の取込元削除が効かなくなる縮退の実挙動（UI 警告は未実装・要否は実機体感後に判断）。捨て本で検証（実蔵書で破壊フロー禁止＝memory `device-verify-delegation-no-destructive-on-real-library`）。
 
 ---
 

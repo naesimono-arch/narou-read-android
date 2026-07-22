@@ -84,6 +84,7 @@ import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.discovery.model.WorkSummary
+import com.novelreader.ui.DeleteSourcePdfOption
 import com.novelreader.ui.HighLoadSkyMenuSection
 import com.novelreader.ui.NewEpisodeNotificationMenuSection
 import com.novelreader.ui.newEpisodeCountFor
@@ -173,7 +174,7 @@ internal fun BookshelfLogM(
     onToggleSelect: (String) -> Unit,
     onEnterSelection: (String) -> Unit,
     onExitSelection: () -> Unit,
-    onDeleteBooks: (List<BookEntity>) -> Unit,
+    onDeleteBooks: (List<BookEntity>, deleteSource: Boolean) -> Unit,
     onOpenBook: (BookEntity) -> Unit,
     onOpenWebNovel: (WebNovelEntity) -> Unit,
     onResumeWebNovel: (WebNovelEntity, Int) -> Unit,
@@ -405,14 +406,21 @@ internal fun BookshelfLogM(
     // 複数選択削除の確認（D/P と同語＝不可逆を本文で明示）。モックにダイアログ意匠は無いため OS 面の Material を使う。
     if (showDeleteConfirm) {
         val targets = books.filter { it.id in selectedIds }
+        val deletableCount = targets.count { it.sourceUri != null }
+        var alsoDeleteSource by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("選択した${targets.size}冊を本棚から削除しますか？") },
-            text = { Text("変換済みの本文データも削除されます。この操作は取り消せません。") },
+            text = {
+                Column {
+                    Text("変換済みの本文データも削除されます。この操作は取り消せません。")
+                    DeleteSourcePdfOption(deletableCount, alsoDeleteSource) { alsoDeleteSource = it }
+                }
+            },
             confirmButton = {
                 TextButton(onClick = {
                     showDeleteConfirm = false
-                    onDeleteBooks(targets)
+                    onDeleteBooks(targets, alsoDeleteSource)
                     onExitSelection()
                 }) { Text("削除する") }
             },

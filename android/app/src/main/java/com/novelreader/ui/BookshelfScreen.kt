@@ -1,6 +1,7 @@
 package com.novelreader.ui
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -24,6 +25,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -53,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -154,8 +157,11 @@ fun BookshelfScreen(
     // PDF ファイル選択ランチャー（複数同時選択対応）。
     // OpenMultipleDocuments はキャンセル時 空リストを返す。取込は addBooks へ委ね、なろう形式でない
     // PDF の仕分け・確認は VM 側で行う（OS ピッカーはファイル名/中身での絞り込み・ソート不可のため）。
+    // contract は write 権限付き（OpenMultiplePdfWithWrite）＝取込元PDF削除機能のため、後から
+    // DocumentsContract.deleteDocument できるよう書込永続権限を要求する（write 非対応プロバイダでは
+    // take 側の BookshelfViewModel.addBook が READ へフォールバック＝その本は取込元PDF削除の対象外）。
     val pdfPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenMultipleDocuments()
+        OpenMultiplePdfWithWrite()
     ) { uris ->
         if (uris.isNotEmpty()) viewModel.addBooks(uris)
     }
@@ -289,7 +295,7 @@ fun BookshelfScreen(
                 onOpenBook(book.id, lastReadFile)
             }
         },
-        onDeleteBooks = { viewModel.deleteBooks(it) },
+        onDeleteBooks = { booksToDelete, deleteSource -> viewModel.deleteBooks(booksToDelete, deleteSource) },
         onOpenDiscovery = onOpenDiscovery,
         onOpenWardrobe = onOpenWardrobe,
         onCancelProcessing = { viewModel.cancelProcessing() },
@@ -490,7 +496,7 @@ internal fun BookshelfContent(
     onToggleView: () -> Unit,
     onFabClick: () -> Unit,
     onOpenBook: (BookEntity) -> Unit,
-    onDeleteBooks: (List<BookEntity>) -> Unit,
+    onDeleteBooks: (List<BookEntity>, deleteSource: Boolean) -> Unit,
     onOpenDiscovery: () -> Unit,
     // 装いの間への入口（既定 no-op＝既存テスト・呼び出しの互換のため）。
     onOpenWardrobe: () -> Unit = {},
@@ -615,7 +621,7 @@ internal fun BookshelfContent(
                 onToggleSelect = toggleSelect,
                 onEnterSelection = enterSelection,
                 onExitSelection = exitSelection,
-                onDeleteBooks = { onDeleteBooks(it) },
+                onDeleteBooks = onDeleteBooks,
                 onOpenBook = onOpenBook,
                 onOpenWebNovel = onOpenWebNovel,
                 onResumeWebNovel = onResumeWebNovel,
@@ -684,7 +690,7 @@ internal fun BookshelfContent(
                 onExitSelection = exitSelection,
                 // 全選択: 骨格所有の selectedIds をまとめて差し替える（対象 id の算出は一覧側が蔵書のみで行う）。
                 onSelectAll = { ids -> selectedIds.clear(); selectedIds.addAll(ids) },
-                onDeleteBooks = { onDeleteBooks(it) },
+                onDeleteBooks = onDeleteBooks,
                 onOpenBook = onOpenBook,
                 onOpenWebNovel = onOpenWebNovel,
                 onResumeWebNovel = onResumeWebNovel,
@@ -750,7 +756,7 @@ internal fun BookshelfContent(
                 onEnterSelection = enterSelection,
                 onExitSelection = exitSelection,
                 onSelectAll = { ids -> selectedIds.clear(); selectedIds.addAll(ids) },
-                onDeleteBooks = { onDeleteBooks(it) },
+                onDeleteBooks = onDeleteBooks,
                 onOpenBook = onOpenBook,
                 onOpenWebNovel = onOpenWebNovel,
                 onResumeWebNovel = onResumeWebNovel,
@@ -1257,14 +1263,23 @@ internal fun BookshelfContent(
     // 逃げ道として置く（正本 .dlg）。確定で選択本をまとめて削除し選択モードを抜ける（Undo は持たない）。
     if (showDeleteConfirm) {
         val targets = books.filter { it.id in selectedIds }
+        // 取込元 URI を保持する（＝取込元PDFを削除できる）本の件数。0 なら取込元削除チェックは出さない。
+        val deletableCount = targets.count { it.sourceUri != null }
+        // 既定 OFF（ユーザー選択=削除ダイアログのチェック・破壊的なので明示 ON を要求）。ダイアログを開くたびリセット。
+        var alsoDeleteSource by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("選択した${targets.size}冊を本棚から削除しますか？") },
-            text = { Text("変換済みの本文データも削除されます。この操作は取り消せません。") },
+            text = {
+                Column {
+                    Text("変換済みの本文データも削除されます。この操作は取り消せません。")
+                    DeleteSourcePdfOption(deletableCount, alsoDeleteSource) { alsoDeleteSource = it }
+                }
+            },
             confirmButton = {
                 TextButton(onClick = {
                     showDeleteConfirm = false
-                    onDeleteBooks(targets)
+                    onDeleteBooks(targets, alsoDeleteSource)
                     exitSelection()
                 }) { Text("削除する") }
             },
@@ -1278,6 +1293,36 @@ internal fun BookshelfContent(
     // ⋮メニューは D/C 構造でこの BookshelfContent 内にあり、M/P/J は早期 return 済みのためここに来ない（reachable=D/C）。
     if (showHealthBoard) {
         AdapterHealthBoardDialog(onDismiss = { showHealthBoard = false })
+    }
+}
+
+/**
+ * 削除確認ダイアログ内の「取込元のPDFファイルも削除する」オプション行（本棚D構造＋M/P/J 全スキン共通）。
+ *
+ * なぜ共通ヘルパーか: 削除確認ダイアログは意匠上「OS 面（素の Material AlertDialog）」＝スキンで塗り分けない
+ * 約束（各スキンのダイアログ実装コメント参照）。このチェック行も同じく全画面で単一実装にし、文言・件数表示・
+ * 表示条件を1箇所に集約する。deletableCount==0（＝取込元 URI を持つ本が選択に無い＝消せる取込元PDFが無い）なら
+ * 何も描かない。checked/onCheckedChange は呼び出し側の remember 状態へ接続（ダイアログを開くたび既定 OFF）。
+ * 行全体を toggleable にして Checkbox とラベルのどちらをタップしても切り替わる（Checkbox 自体は onCheckedChange=null
+ * ＝行のトグルへ委譲する Material 標準の a11y マージ形）。
+ */
+@Composable
+internal fun DeleteSourcePdfOption(
+    deletableCount: Int,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    if (deletableCount <= 0) return
+    Spacer(Modifier.height(Spacing.S12))
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, role = Role.Checkbox, onValueChange = onCheckedChange),
+    ) {
+        Checkbox(checked = checked, onCheckedChange = null)
+        Spacer(Modifier.width(Spacing.S8))
+        Text("取込元のPDFファイルも削除する（${deletableCount}件）")
     }
 }
 
@@ -1727,4 +1772,18 @@ internal fun AdapterHealthBoardDialog(onDismiss: () -> Unit) {
             }
         },
     )
+}
+
+/**
+ * OpenMultipleDocuments に書き込み永続権限フラグを付ける ActivityResultContract。
+ *
+ * なぜ必要か: 取込元PDF削除機能（本削除時に取込元PDF本体も消す）には、選択された PDF に対し後から
+ * DocumentsContract.deleteDocument できる書込権限が要る。素の OpenMultipleDocuments は読み取りしか要求
+ * しないため、intent に FLAG_GRANT_WRITE_URI_PERMISSION を足して書込も要求する（読み取りは既定で付く）。
+ * 実際に書込永続権限を保持できるかはプロバイダ次第で、take 側（BookshelfViewModel.addBook）が
+ * READ|WRITE→READ のフォールバックで確定する（書込を持てない本は取込元PDF削除の対象外＝sourceUri は NULL）。
+ */
+private class OpenMultiplePdfWithWrite : ActivityResultContracts.OpenMultipleDocuments() {
+    override fun createIntent(context: Context, input: Array<String>): Intent =
+        super.createIntent(context, input).addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
 }

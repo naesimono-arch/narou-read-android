@@ -12,6 +12,21 @@ import com.novelreader.narou.model.Ncode
 import kotlinx.coroutines.flow.Flow
 
 /**
+ * 本削除時の「取込元PDF本体も削除する」の結末。呼び出し側（BookshelfViewModel）は Failed の件数を集計して
+ * Snackbar 通知するのに使う。NoSource/NotRequested は通知不要（正常系）。
+ */
+enum class SourceDeleteOutcome {
+    /** 削除可能な取込元を持たない本（sourceUri==null＝旧蔵書・FileProvider 取込・権限非保持）。何もしない。 */
+    NoSource,
+    /** ユーザーが「取込元も削除」を選ばなかった（sourceUri はあるが本削除のみ）。取込元PDFは残す。 */
+    NotRequested,
+    /** 取込元PDF本体の削除に成功した。 */
+    Deleted,
+    /** 取込元PDF本体の削除を試みたが失敗した（既に移動/削除済み・権限失効・削除非対応プロバイダ等）。本削除は成立。 */
+    Failed,
+}
+
+/**
  * 書籍データアクセス層の抽象。蔵書（books）・読書進捗（progress）・処理キュー（pending_jobs）への
  * アクセスと、PDF 取込（addBook）の窓口を定義する。
  *
@@ -96,14 +111,24 @@ interface BookRepository {
     /** books テーブルに存在しない bookId の HTML ディレクトリを削除する（孤立HTML掃除）。 */
     suspend fun cleanOrphanHtmlDirs()
 
-    /** 起動時クリーンアップ: pending_jobs 非紐付けの「孤児」永続 URI 権限を解放する（恒久リーク回収）。 */
+    /** 起動時クリーンアップ: 孤児（pending_jobs にも books.sourceUri にも紐付かない）永続 URI 権限を
+     *  解放する（恒久リーク回収）。keepUris には「保持すべき URI」＝現在の pending_jobs URI ∪ books.sourceUri
+     *  を渡すこと（呼び出し側で union）。 */
     suspend fun releaseOrphanedPermissions(keepUris: Set<String>)
+
+    /** 取込元 URI を保持する（＝削除可能な取込元PDFを持つ）全蔵書の sourceUri 集合。
+     *  releaseOrphanedPermissions の keepUris を組み立てる呼び出し側（NovelReaderApplication）が使う。 */
+    suspend fun getPersistedSourceUris(): Set<String>
 
     /** 起動時クリーンアップ: どの棚項目（books.ncode / web_novels）にも紐付かない孤児の
      *  web_reading_progress 行を回収する（UX監査 privacy・削除の完全性）。@return 削除した行数。 */
     suspend fun pruneOrphanWebReadingProgress(): Int
 
-    suspend fun deleteBook(book: BookEntity)
+    /** 本を蔵書から削除する（DB行・進捗・本文HTML・紐付き Web 読書位置を掃除）。
+     *  deleteSource=true かつ book.sourceUri!=null のとき、取込元 PDF 本体（SAF ドキュメント）も削除する。
+     *  本削除に伴い book.sourceUri の永続 URI 権限は削除成否に関わらず解放する（本が消えれば保持不要のため）。
+     *  @return 取込元PDF削除の結末（呼び出し側が失敗を Snackbar 通知するのに使う。[SourceDeleteOutcome] 参照）。 */
+    suspend fun deleteBook(book: BookEntity, deleteSource: Boolean = false): SourceDeleteOutcome
 
     /** PDF↔Web継続読書: なろう作品との紐付け（null で解除）。 */
     suspend fun linkNcode(bookId: BookId, ncode: Ncode?)

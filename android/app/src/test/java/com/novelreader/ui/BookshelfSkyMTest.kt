@@ -74,7 +74,7 @@ class BookshelfSkyMTest {
                         onToggleView = {},
                         onFabClick = {},
                         onOpenBook = onOpenBook,
-                        onDeleteBooks = {},
+                        onDeleteBooks = { _, _ -> },
                         onOpenDiscovery = {},
                         onCancelProcessing = {},
                         snackbarHostState = remember { SnackbarHostState() },

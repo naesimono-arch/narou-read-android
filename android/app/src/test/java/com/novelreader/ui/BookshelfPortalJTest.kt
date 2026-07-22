@@ -100,7 +100,7 @@ class BookshelfPortalJTest {
                         onToggleView = {},
                         onFabClick = onFabClick,
                         onOpenBook = onOpenBook,
-                        onDeleteBooks = {},
+                        onDeleteBooks = { _, _ -> },
                         onOpenDiscovery = onOpenDiscovery,
                         onOpenWardrobe = onOpenWardrobe,
                         onCancelProcessing = {},

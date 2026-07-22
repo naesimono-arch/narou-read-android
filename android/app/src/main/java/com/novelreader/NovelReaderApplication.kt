@@ -131,9 +131,11 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
             // 生存中しか出せないため、再試行されずに終わった分の権限が次回起動時に「pending_jobs 非紐付け」
             // として孤立し恒久リークする（端末上限128件へ）。ここで解放する。pending が空でも走らせる必要が
             // あるため、下の early return より前に置く（リークの典型形＝pending_jobs 行ゼロ＋孤児権限1件）。
-            // keepPermissionUris（＝現在の pending URI 全体・空 pending なら空集合）を渡すことで、
-            // 再開対象（resumable）の権限は解放しない。
-            repository.releaseOrphanedPermissions(plan.keepPermissionUris)
+            // keepPermissionUris（＝現在の pending URI 全体・空 pending なら空集合）に加え、取込元PDF削除機能で
+            // books が保持する取込元 URI（sourceUri）も keep へ合流させる。これを足さないと、変換完了後も本の
+            // 生存中ずっと保持すべき取込元権限を毎起動で誤解放し、その後の取込元PDF削除が権限失効で失敗する
+            // （releaseOrphanedPermissions の KDoc「keepUris の構成」参照）。
+            repository.releaseOrphanedPermissions(plan.keepPermissionUris + repository.getPersistedSourceUris())
             if (pending.isEmpty()) return@launch
             plan.lost.forEach { repository.removePendingJob(it.uri) }
             if (plan.lost.isNotEmpty()) {

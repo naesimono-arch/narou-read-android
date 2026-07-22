@@ -22,10 +22,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // v18: progress に reachedEnd 列を追加（読了＝『了』印・読了フィルタの永続化／ssot Major 2026-07-12）。
     // v19: books に shioriTipIndex / shioriLenFrac 列を追加（栞書影の先端種・棒長を取込時に真の乱数で
     //      1回抽選して永続化＝以後この本は固定の絵になる。既存行は NULL＝title 由来の従来値へフォールバック）。
-    // v20: books に sourceUri 列を追加（取込元PDFの SAF `content://` URI＝本削除時に取込元PDF本体も消すため）。
-    //      並列 feat/delete-source-pdf 先着 v20 と同一 SQL の複製でマイグレーションパスを接続する（値の書込は同ブランチ側）。
+    // v20: books に sourceUri 列を追加（取込元 PDF の SAF ドキュメント URI を永続化＝本削除時に「取込元PDF本体も
+    //      削除する」を成立させる。既存行は NULL＝削除可能な取込元を持たない本として扱う。BookEntity.sourceUri の why 参照）。
     // v21: books に sourceUrl / sourceSite 列を追加（Web取込元の作品URL〔`https://`〕とサイトアダプタキー〔例 "kakuyomu"〕。
     //      PDF由来は両方 NULL＝汎用Web小説DL基盤の取込元記録。sourceUri〔削除用の content://〕とは別物・混同注意）。
+    //      v20/v21 が別版に分かれているのは並列レーン開発（feat/delete-source-pdf ∥ feat/scraping-prep）の名残＝
+    //      2026-07 の統合マージで一本化済み（並列 version 先取りの定石は task_diary #39）。
     version = 21,
     exportSchema = true,
 )
@@ -306,14 +308,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        /** v19→v20: books に sourceUri 列（取込元 PDF の SAF `content://` URI）を追加する。
-         *  なぜ複製か: この v20＝sourceUri は並列ブランチ feat/delete-source-pdf が先着で消費済み（実機投入レーン）。
-         *  当ブランチ（feat/scraping-prep）は自分の追加（sourceUrl/sourceSite）を v21 へ退避したうえで、
-         *  先行レーンの MIGRATION_19_20 を**同一 SQL で複製**し 19→20→21 のマイグレーションパスを接続する
-         *  （task_diary #39 の定石＝並列 version 先取りへのパス繋ぎ。前例 v14→v15 の複製と同機序）。
-         *  ⚠ マージ統合時にはこの二重定義を一方へ寄せること（両ブランチの MIGRATION_19_20 は SQL 厳密一致ゆえ
-         *    どちらを残しても等価。統合担当が一本化して重複を解消する）。
-         *  列の意味・nullable の根拠は BookEntity.sourceUri の why 参照（削除機能用の content://・当ブランチは値を書かない）。
+        /** v19→v20: books に sourceUri 列を追加する（取込元 PDF の SAF ドキュメント URI＝`content://…`）。
+         *  本削除時に「取込元PDF本体も削除する」を成立させるための永続化。nullable（TEXT）。既存行（本列追加=
+         *  v20 より前に取り込んだ蔵書）は NULL で補完され、削除可能な取込元を持たない本として扱う（削除チェックの
+         *  対象外＝BookEntity.sourceUri の why 参照）。未設定が既定状態のため DEFAULT 句なし（ncode/contentSha256
+         *  と同型の nullable 追加）。新規追加のみで既存カラム名に依存しないため PRAGMA 分岐は不要。
+         *  ※開発時は並列2レーン（feat/delete-source-pdf 先着 v20 ∥ feat/scraping-prep が同一 SQL を複製して
+         *    パス接続）だったが、2026-07 の統合マージで本定義へ一本化済み（定石＝task_diary #39）。
          *  minSdk 26 の SQLite 3.18.x は ADD COLUMN をサポートしている。 */
         // なぜ internal か: androidTest の MigrationTest が本物の Migration を検証するため（複製だと本体変更にテストが追従しない）。
         internal val MIGRATION_19_20 = object : Migration(19, 20) {

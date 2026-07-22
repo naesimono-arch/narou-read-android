@@ -123,10 +123,10 @@ class MigrationTest {
         // 18→19: books に shioriTipIndex / shioriLenFrac 列を追加（栞書影の個体差の永続化）。19.json も6テーブル全部を含むので true で厳格検証。
         helper.runMigrationsAndValidate(TEST_DB_CHAIN, 19, true, AppDatabase.MIGRATION_18_19).close()
 
-        // 19→20: books に sourceUri 列を追加（並列 feat/delete-source-pdf 先着分の複製）。20.json も6テーブル全部を含むので true で厳格検証。
+        // 19→20: books に sourceUri 列を追加（取込元PDFの永続化＝本削除時に取込元も消す土台）。20.json も6テーブル全部を含むので true で厳格検証。
         helper.runMigrationsAndValidate(TEST_DB_CHAIN, 20, true, AppDatabase.MIGRATION_19_20).close()
 
-        // 20→21: books に sourceUrl / sourceSite 列を追加（Web取込元の記録＝当ブランチ固有）。21.json も6テーブル全部を含むので true で厳格検証。
+        // 20→21: books に sourceUrl / sourceSite 列を追加（Web取込元の記録）。21.json も6テーブル全部を含むので true で厳格検証。
         helper.runMigrationsAndValidate(TEST_DB_CHAIN, 21, true, AppDatabase.MIGRATION_20_21).close()
     }
 
@@ -178,10 +178,10 @@ class MigrationTest {
             // （DEFAULT 句なし・未抽選が既定＝描画側で title 由来の決定論値へフォールバックすることの土台）。
             assertTrue("既存行の shioriTipIndex は NULL のはず", c.isNull(c.getColumnIndexOrThrow("shioriTipIndex")))
             assertTrue("既存行の shioriLenFrac は NULL のはず", c.isNull(c.getColumnIndexOrThrow("shioriLenFrac")))
-            // sourceUri は v20 追加（並列 feat/delete-source-pdf 先着分の複製）の nullable 列＝v7 既存行は NULL で補完される
-            // （DEFAULT 句なし・削除機能用の content:// は既存本には無いのが既定）。
+            // sourceUri は v20 追加の nullable 列＝v7 既存行は NULL で補完される（DEFAULT 句なし・削除可能な
+            // 取込元を持たない本＝本削除時の取込元削除の対象外であることの土台）。
             assertTrue("既存行の sourceUri は NULL のはず", c.isNull(c.getColumnIndexOrThrow("sourceUri")))
-            // sourceUrl / sourceSite は v21 追加（当ブランチ固有）の nullable 列＝v7 既存行は NULL で補完される
+            // sourceUrl / sourceSite は v21 追加の nullable 列＝v7 既存行は NULL で補完される
             // （DEFAULT 句なし・PDF由来の蔵書は Web 取込元 URL/サイトを持たないのが既定）。
             assertTrue("既存行の sourceUrl は NULL のはず", c.isNull(c.getColumnIndexOrThrow("sourceUrl")))
             assertTrue("既存行の sourceSite は NULL のはず", c.isNull(c.getColumnIndexOrThrow("sourceSite")))

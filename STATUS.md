@@ -8,12 +8,11 @@
 ## 0. 現在の状態
 
 - **UX/Design 全層監査**: 指摘（Critical 3/Major 24/Minor 29）＋派生改修（CTA一貫性=案A／没入時黒帯明滅=window背景をテーマ色へ再定義／複数選択削除=案B下端バー＋変種B「キャンセル」）まで実装・実機検証済み（ui/polish は main 統合・撤去済み）。残＝発見帯 collapse 退避アニメ体感の追い込み（deferred）・第三者人間テスト便・監査派生 backlog＝`handover.md` ★節が正本。監査の一次情報＝`.claude/plans/ux-design-full-audit-2026-07-12.md`（§A/§B）＋`.claude/plans/ux-audit-batch-execution-20260712.md`（実行記録）。
-- **直近の統合（このブランチ束ね）**: `reading/vertical-p4`（縦書き章送り P4・実機体感確認済み）・`build/r8-shrink`（release の R8 収縮＝minify+shrinkResources・APK 20.3→7.8MB）・`perf/macrobenchmark`（性能回帰基盤＝起動/本棚スクロール/章送り/大PDF取込の予算 assert・実機実証済み。設計と全実測＝`.claude/plans/macrobenchmark-kickoff-2026-07-17.md`＋`docs/knowledge/coloros-*`／`macrobenchmark-frametiming-scroll-pitfalls.md`）・`hooks/fabrication-detector`（実行捏造検知器 Tier E3「先行実行フレーミング」）・`ui/skin-framework`（UIスキン機構＝ADR 0021＋0022〔画面構造の二層化〕。M星図/Pカートリッジ/Jポータルの3スキン×全5画面〔本棚/読書/目次/設定/発見〕を Compose 実装。**C3 実機スモーク完了＝J 全5画面掃引＋M/P 本棚を release R8 下で PASS（M/P 全画面は既存 PASS・C は色層）・5スキンとも shrinkResources による資産欠落なし**）を main へ統合。縦書き本体（P0〜P3・P5・P2.5）は統合済み＝縦書きはユーザー到達可能（ADR 0020〔連続横スクロール×自前Compose組版〕）。**R8 リリース収縮の実機回帰完了＝4重点経路（Moshi なろう検索/PDFBox 取込抽出/WorkManager クラス名復元/enum テーマ SEPIA 永続）全 PASS・収縮起因クラッシュ無し**（release APK を debug 署名し install -r で実蔵書DB保持のまま検証。PDFBox は取込時に日本語タイトルを抽出＝CID/CMap 経路通過を確認）。
-- **ゲート（統合後 ext4 worktree 実測・2026-07-18・全緑）**: `testDebugUnitTest` **752件**（失敗0・5ブランチのテスト群を統合）／`tools/check_design_tokens.py` OK=192/NG=0（M/P/J 3スキンの期待表を含む・＋Spacing lint: 余白スケール7段 {4,8,12,16,24,32,40}＝ADR0014 §C・NG=0・WARN=0）／`:app:lintDebug` **0 errors・31 warnings**（+3 は新規スキン/bench ファイル由来の非ブロック警告＝未使用 param/Windows 非互換名など・ModifierParameter×3 と UsableSpace×2 は従前どおり意図的）。R8 リリース収縮・C3 実機スモークは実機検証完了（上記参照・OPPO PGEM10）。
-- **Room v19**（栞書影の個体差 `shioriTipIndex`/`shioriLenFrac` 永続化＝取込時1回抽選〔先端**174種**から〕・既存行NULL→title由来へフォールバック）。⚠️ **旧APKへの逆走は禁止**（migration N→N-1 不在でクラッシュ＝古い→新しいの一方向のみ）。no-op 再スタンプの機序＝`task_diary.md` #39 追補。
-- **実機**: OPPO PGEM10 `192.168.1.210:5555`（切れたら `adb-bridge`）・**v21 APK（本ブランチ debug）導入済み**＝
-  v19→21 migration 実測通過・汎用DL基盤の実機5点 PASS（handover「汎用DL基盤」節）。**実機はこのレーン専有＝
-  feat/delete-source-pdf の v20 APK を入れると migration 逆走でクラッシュ**（統合後ビルドから再合流）。検証ワークフロー＝memory `workflow-autonomous-device-verification`／`workflow-notify-each-step-visual-check`。
+- **前回の統合（2026-07-18 束ね）**: `reading/vertical-p4`（縦書き章送り P4・実機体感確認済み）・`build/r8-shrink`（release の R8 収縮＝minify+shrinkResources・APK 20.3→7.8MB）・`perf/macrobenchmark`（性能回帰基盤＝起動/本棚スクロール/章送り/大PDF取込の予算 assert・実機実証済み。設計と全実測＝`.claude/plans/macrobenchmark-kickoff-2026-07-17.md`＋`docs/knowledge/coloros-*`／`macrobenchmark-frametiming-scroll-pitfalls.md`）・`hooks/fabrication-detector`（実行捏造検知器 Tier E3「先行実行フレーミング」）・`ui/skin-framework`（UIスキン機構＝ADR 0021＋0022〔画面構造の二層化〕。M星図/Pカートリッジ/Jポータルの3スキン×全5画面〔本棚/読書/目次/設定/発見〕を Compose 実装。**C3 実機スモーク完了＝J 全5画面掃引＋M/P 本棚を release R8 下で PASS（M/P 全画面は既存 PASS・C は色層）・5スキンとも shrinkResources による資産欠落なし**）を main へ統合。縦書き本体（P0〜P3・P5・P2.5）は統合済み＝縦書きはユーザー到達可能（ADR 0020〔連続横スクロール×自前Compose組版〕）。**R8 リリース収縮の実機回帰完了＝4重点経路（Moshi なろう検索/PDFBox 取込抽出/WorkManager クラス名復元/enum テーマ SEPIA 永続）全 PASS・収縮起因クラッシュ無し**（release APK を debug 署名し install -r で実蔵書DB保持のまま検証。PDFBox は取込時に日本語タイトルを抽出＝CID/CMap 経路通過を確認）。
+- **直近の統合（2026-07-23）**: `feat/scraping-prep`（汎用Web小説DL基盤 P2〜P6＋暁＋G1・Room v21）と `feat/delete-source-pdf`（本削除時に取込元PDF本体も削除・Room v20）を main へ統合＝**MIGRATION_19_20 の並列複製を一本化**（19→20→21 パス接続・task_diary #39 の定石の後始末）。`ui/refine`・`ui/wa-modern` は main 同一（固有コミット0）のため worktree ごと削除＝**作業ブランチ全解消・main 一本**（リッチ化再開時は main から切り直す）。
+- **ゲート（統合後 ext4 worktree 実測・2026-07-23・全緑）**: `testDebugUnitTest` **861件**（失敗0・両ブランチのテスト群を統合）／`compileDebugAndroidTestSources` 成功（MigrationTest 19→20→21 チェーン込み）／`tools/check_design_tokens.py` OK=192/NG=0（M/P/J 3スキンの期待表を含む・＋Spacing lint: 余白スケール7段 {4,8,12,16,24,32,40}＝ADR0014 §C・NG=0・WARN=0）／`:app:lintDebug` **0 errors・32 warnings**（非ブロック警告のみ）。R8 リリース収縮・C3 実機スモークは実機検証完了（上記参照・OPPO PGEM10）。
+- **Room v21**（v20＝本削除時に取込元PDF本体も削除する機能＝取込元 SAF URI を `books.sourceUri` へ永続化。取込時に READ|WRITE 永続権限を本の生存中保持し〔起動時の孤児権限掃除 `releaseOrphanedPermissions` の keepUris に `books.sourceUri` を合流〕、本削除時に `DocumentsContract.deleteDocument` で消す。削除はダイアログの opt-in チェック〔既定OFF・`sourceUri` を持つ本が選択にある時のみ表示〕。書込非対応プロバイダ/なろう縦書きFileProvider取込/旧蔵書は `sourceUri=NULL` で対象外・削除失敗〔移動/削除済み・権限失効・削除非対応〕は Snackbar 通知し本削除は成立。**v21**＝`sourceUrl`/`sourceSite`〔Web取込元の作品URL・サイトアダプタキー＝再取得を同じ抽出器へ回す土台。PDF由来は両方NULL〕。v19＝栞書影の個体差 `shioriTipIndex`/`shioriLenFrac` 永続化〔取込時1回抽選・既存行NULL→title由来へフォールバック〕）。⚠️ **旧APKへの逆走は禁止**（migration N→N-1 不在でクラッシュ＝古い→新しいの一方向のみ）。no-op 再スタンプの機序＝`task_diary.md` #39 追補。
+- **実機**: OPPO PGEM10 `192.168.1.210:5555`（切れたら `adb-bridge`）・**v21 APK（feat/scraping-prep debug 版）導入済み**＝v19→21 migration 実測通過・汎用DL基盤の実機5点 PASS。統合後 main の v21 は entity 集合が scraping-prep 版と同一＝identity hash 互換（そのまま上書き install 可・再スタンプ不要）。**取込元PDF削除機能（v20 由来）の実機確認は未実施**＝handover 参照。検証ワークフロー＝memory `workflow-autonomous-device-verification`／`workflow-notify-each-step-visual-check`。
 - **抽出パイプライン＝純 Kotlin（PDFBox-Android）単独**（Chaquopy/Python は 2026-07-05 Phase 5 で完全撤去。復旧は git 履歴から）。**本文解析は文書ごと自動検出（`DetectedRules.detect`＝サイズ/列ピッチ/ページ番号座標を実測・検出不能時は ParserRules 定数へフォールバック）**。精度回帰ゲート＝**JVM `JvmGoldenRegressionTest`（golden3本を `testDebugUnitTest` で常時検証・約10秒）**＋実機 `PdfExtractorDeviceSpikeTest`（同一合格ライン・assets 手動配置時のみ）。
 - **機能の現在地**（構成の詳細は `/architecture` スキルとコードが正本）: PDF抽出＋ふりがな読書（テーマ3種・没入クローム＝タップトグル・左右スワイプ章送り〔引っ張りプレビュー＋章キャッシュ〕・読書位置/読了永続化）／なろう発見・検索（ADR 0007・規約線＝0010・PDF取込導線＝0011/0013）／Web読書位置記録・続きから再開（ADR 0012）／新着通知（既定OFFオプトイン）／層別 Auto Backup（ADR 0015）／本棚＝栞書影・読書状態フィルタ・二層ソート（ADR 0016）。意匠の正本構造＝ADR 0005/0014。
 - **高負荷スカイモード（星図M・ADR 0023 試作）**: debug ビルド限定トグル（本棚⋮開発節）で ON。チャンク式無限プロシージャル
@@ -22,7 +21,7 @@
   `.claude/plans/richness-expansion-round-2026-07-19.md`。
 - **既知バグ: なし**（単話の嘘見出し問題は 2026-07-16 修正済み＝題名マーカー0件時は作品タイトルを単一章名へ流用・golden 第4本 N5368ML で恒久回帰）。
 
-- **汎用Web小説DL基盤（最優先B・branch `feat/scraping-prep`）**: `scrape/` サイトアダプタ抽象（`NovelSiteAdapter`＋
+- **汎用Web小説DL基盤（最優先B・main 統合済み）**: `scrape/` サイトアダプタ抽象（`NovelSiteAdapter`＋
   `SiteAdapterRegistry` の規約3値ゲート＝Supported/Blocked/Unsupported・なろうグループは Blocked で公式送り）＋
   **カクヨム抽出器**（TOC＝`__NEXT_DATA__` Apollo ストア／本文＝`.widget-episodeBody`・ルビ→中間記法 `|base《ruby》`＝
   既存 ChapterProcessor/HtmlExporter に合流し PDF 蔵書とバイト同契約）＋**fixture ゴールデン**（実HTMLスナップショットで
@@ -50,7 +49,7 @@
   （アダプタ宣言 `crawlDelayMs`・既定2500ms）＋グローバル床1s＋429/503 Full Jitter バックオフ（Retry-After 尊重・
   403/404 即中止）。一次情報＝`.claude/plans/scraping-foundation-design-2026-07-20.md`／
   裁定＝`handover.md`「汎用DL基盤 実装トラック」＋ADR 0024。
-- **2026-07-23 自律ラウンド（本ブランチ・JVM 828件緑）**: ①「戻る」階層統一 Option A 実装
+- **2026-07-23 自律ラウンド（main 統合済み・当時 JVM 828件緑）**: ①「戻る」階層統一 Option A 実装
   （`ReadingBackStack.back()` を経路逆再生→階層 up へ再定義・設計正本＝`.claude/plans/back-unification-design-2026-07-23.md`）
   ②Web取込スナックバー残留の真因対処（取込中＝ProcessingBanner へ収斂・完了＝transient Short 化）
   ③`inject_subagent_briefing.py` の自動テスト16件新設（hooks 全236件緑）。実機スモークは端末到達不能で未実施＝
