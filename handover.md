@@ -70,6 +70,9 @@
   「汎用アダプタでいいよ・（まとめ裁定は）保留で」。→ OK側の小規模サイト・個人サイト向けに競合式
   「汎用抽出エンジン＋サイト設定表」型の GenericSiteAdapter を設計・実装する（設計から着手・裁定待ち勢
   〔ハーメルン/アルファポリス/Pixiv/野いちご/ベリーズカフェ〕はこの汎用機に**載せない**＝Blocked/保留ゲート不変）。
+  **設計正本＝`.claude/plans/generic-adapter-design-2026-07-23.md`**（1プロファイル=1アダプタ・Kotlin定数表・
+  G1=エンジン＋暁移植＋pendingHosts ゲート／G2 ヒューリスティック見送り／G3=Arcadia等の recon は後続）。
+  実装は暁の実機検証完了後に着手（検証中の地面を動かさない直列化）。
 - **[参照資料] 競合のスクレイピング実装解析（2026-07-20 ユーザー作成）**: `/mnt/c/Users/qingj/Desktop/project/book-api-analysis/07-competitor-scraping-techniques.md`＝唯一の実スクレイプ競合 B（約38サイト・jsoup・3抽出戦略・per-host レート制御/WebView Cookie 間借り等の「作法」）のデコンパイル解析。**内容が濃いため直読みせず、新アダプタ設計時に委譲ダイジェストで参照**（ユーザー指示）。
 
 ## 思いつき・取りこぼし（随時追記）
