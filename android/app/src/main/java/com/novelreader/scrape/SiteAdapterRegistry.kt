@@ -56,9 +56,15 @@ class SiteAdapterRegistry(
             BlockedHost("mid.syosetu.com", "ミッドナイト"),
         )
 
-        private fun defaultAdapters(): List<NovelSiteAdapter> = listOf(
-            KakuyomuAdapter(),
-        )
+        private fun defaultAdapters(): List<NovelSiteAdapter> {
+            // 全アダプタで1つの [ScrapeHttpClient] を共有する＝グローバル床（全ホスト横断の最低間隔）が
+            // 実際に全ホストへ効く。個別に new すると各インスタンスが自ホストの状態しか持たず、
+            // 複数サイトへ同時 DL したとき端末→網の総送出レートに床が掛からない（新サイト増設の前提土台）。
+            val http = ScrapeHttpClient()
+            return listOf(
+                KakuyomuAdapter(http),
+            )
+        }
 
         private fun hostOf(url: String): String? = runCatching {
             java.net.URI(url.trim()).host?.lowercase()

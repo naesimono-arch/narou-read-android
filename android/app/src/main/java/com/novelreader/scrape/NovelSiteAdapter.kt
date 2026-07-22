@@ -23,6 +23,13 @@ interface NovelSiteAdapter {
     val displayName: String
 
     /**
+     * このサイトへ課す最低リクエスト間隔（ミリ秒）。[ScrapeHttpClient] が per-host スロットルで下限に使う。
+     * 既定 2500ms＝robots に Crawl-delay 宣言が無いサイトでも相手網へ十分優しい保守値（章連続 DL の礼儀）。
+     * サイト固有に robots 等で緩め/厳しめが判れば override する。グローバル床（全ホスト横断 1000ms）は別途常に効く。
+     */
+    val crawlDelayMs: Long get() = 2500L
+
+    /**
      * 任意の URL（作品トップ・話ページのいずれでも）を当該サイトの**作品トップ正規 URL**へ解決する。
      * このサイトの URL でなければ null（＝`matches` 兼用）。
      */

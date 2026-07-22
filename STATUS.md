@@ -35,7 +35,9 @@
   （discovery/model/）を UI⇄API 境界に挿入し、main の narou/ 外から `NarouNovel` 型参照ゼロ（機械 grep で検証・
   NarouNovelType 検索語彙と ResultContext/DiscoveryQuery は D5 初期スコープどおり不変＝発見はなろうAPIのまま）。
   **P6 後始末も完了**（ADR 0024 追記・architecture/db-migration skill 追従・/stale-check 通過）＝**P2〜P6 全フェーズ着地**。
-  実機検証は全5点 PASS 済み（handover 参照）。一次情報＝`.claude/plans/scraping-foundation-design-2026-07-20.md`／
+  実機検証は全5点 PASS 済み（handover 参照）。**scrape HTTP 土台強化済み（2026-07-23）**＝per-host Crawl-delay
+  （アダプタ宣言 `crawlDelayMs`・既定2500ms）＋グローバル床1s＋429/503 Full Jitter バックオフ（Retry-After 尊重・
+  403/404 即中止）。一次情報＝`.claude/plans/scraping-foundation-design-2026-07-20.md`／
   裁定＝`handover.md`「汎用DL基盤 実装トラック」＋ADR 0024。
 - **2026-07-23 自律ラウンド（本ブランチ・JVM 828件緑）**: ①「戻る」階層統一 Option A 実装
   （`ReadingBackStack.back()` を経路逆再生→階層 up へ再定義・設計正本＝`.claude/plans/back-unification-design-2026-07-23.md`）

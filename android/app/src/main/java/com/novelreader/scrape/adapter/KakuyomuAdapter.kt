@@ -24,7 +24,7 @@ import org.jsoup.nodes.TextNode
  * - **章本文は DOM**: `.widget-episodeBody.js-episode-body > p`。空行は `<p class="blank">`。章題は `.widget-episodeTitle`。
  *   ルビは標準 `<ruby>base<rt>reading</rt></ruby>`（出現時のみ）→ 中間記法 `|base《reading》` へ変換。
  *
- * robots: `/works/{id}/episodes/{id}` は許容（`/read$` のみ Disallow）。Crawl-delay:1 は [ScrapeHttpClient] が担保。
+ * robots: `/works/{id}/episodes/{id}` は許容（`/read$` のみ Disallow）。スロットルは [ScrapeHttpClient] が担保。
  */
 class KakuyomuAdapter(
     private val http: ScrapeHttpClient = ScrapeHttpClient(),
@@ -32,6 +32,10 @@ class KakuyomuAdapter(
 
     override val siteKey: String = "kakuyomu"
     override val displayName: String = "カクヨム"
+
+    // カクヨム robots は Crawl-delay:1 だが、章連続 DL の礼儀として 2500ms を明示宣言する（相手網に優しい保守値）。
+    // この値を getString へ渡して per-host スロットルの下限に使う（宣言だけでは効かないため取得呼び出しで引き渡す）。
+    override val crawlDelayMs: Long = 2500L
 
     // 破損監視（層3）の自己診断: fixture ゴールデン（KakuyomuGoldenTest）の元作品を使う＝期待値の二重管理を避ける。
     // minChapters=100 は当該作の実章数（撮影時 593 話）を大きく下回る保守値。著者の整理でも 100 話を割ることは
@@ -49,12 +53,12 @@ class KakuyomuAdapter(
     override suspend fun fetchToc(workUrl: String): ScrapedToc {
         val workId = WORK_ID_RE.find(workUrl)?.groupValues?.get(1)
             ?: throw ScrapeException("workId を URL から抽出できない: $workUrl")
-        val html = http.getString(workUrl)
+        val html = http.getString(workUrl, crawlDelayMs)
         return parseToc(html, workId)
     }
 
     override suspend fun fetchChapter(ref: ScrapedChapterRef): RawChapter {
-        val html = http.getString(ref.chapterUrl)
+        val html = http.getString(ref.chapterUrl, crawlDelayMs)
         return parseChapter(html, ref.title)
     }
 
