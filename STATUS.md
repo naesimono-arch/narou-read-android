@@ -43,9 +43,10 @@
   ④目次66話フラット・ルビ実描画 ⑤ヘルスボード OK 章数66。ユーザー目視スクショ送付済み。
   **汎用アダプタ G1 着地（2026-07-23）**＝`scrape/generic/` に SiteProfile（Kotlin 定数表）＋GenericSiteAdapter
   （1プロファイル=1アダプタ・暁を表1行目へ移植し専用 AkatsukiAdapter 退役・golden 固定値不変で回帰昇格）＋
-  **pendingHosts ゲート**（裁定待ち5サイト〔ハーメルン/アルファポリス/Pixiv/野いちご/ベリーズカフェ〕を公式送りへ・
-  裁定後は行削除で解放）。カクヨムは JSON 系＝専用のまま温存。設計正本＝`.claude/plans/generic-adapter-design-2026-07-23.md`。
-  G3 recon＝表駆動の新規候補ゼロ（HPレンタル型3件不成立・Arcadia 証明書切れ）＝次の裁定点は G2 ヒューリスティックの要否。**scrape HTTP 土台強化済み（2026-07-23）**＝per-host Crawl-delay
+  **規約ゲート（2026-07-23 まとめ裁定反映済み）**＝ハーメルンのみ pendingHosts（保留）・アルファポリス/Pixiv/
+  野いちご/ベリーズカフェは NG＝blockedHosts（**グレー領域の保守裁定＝ADR 0024 追記が正本**・公式送り）。
+  カクヨムは JSON 系＝専用のまま温存。設計正本＝`.claude/plans/generic-adapter-design-2026-07-23.md`。
+  G3 recon＝表駆動の新規候補ゼロ・**G2 ヒューリスティックは今はやらない（裁定済み）**＝対応面拡大はいったん打ち止め。**scrape HTTP 土台強化済み（2026-07-23）**＝per-host Crawl-delay
   （アダプタ宣言 `crawlDelayMs`・既定2500ms）＋グローバル床1s＋429/503 Full Jitter バックオフ（Retry-After 尊重・
   403/404 即中止）。一次情報＝`.claude/plans/scraping-foundation-design-2026-07-20.md`／
   裁定＝`handover.md`「汎用DL基盤 実装トラック」＋ADR 0024。

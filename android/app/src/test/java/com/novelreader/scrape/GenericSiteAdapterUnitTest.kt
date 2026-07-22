@@ -72,8 +72,9 @@ class GenericSiteAdapterUnitTest {
     }
 
     /**
-     * pending ゲート回帰: 規約裁定待ち5サイトの URL は Supported にならず Blocked（公式送り）へ落ちる。
-     * catch-all（G2）追加時にこれらが取り込み対象へ滑り落ちないことの防波堤（設計正本 pendingHosts）。
+     * 規約ゲート回帰: NG 裁定4サイト（2026-07-23 グレー保守裁定＝blockedHosts）＋裁定待ちハーメルン（pendingHosts）の
+     * URL は Supported にならず Blocked（公式送り）へ落ちる。
+     * catch-all（G2）追加時にこれらが取り込み対象へ滑り落ちないことの防波堤（設計正本 pendingHosts ゲート）。
      */
     @Test
     fun pendingHosts_areNeverSupported() {

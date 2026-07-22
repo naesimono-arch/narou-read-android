@@ -64,19 +64,25 @@ class SiteAdapterRegistry(
             BlockedHost("noc.syosetu.com", "ノクターン"),
             BlockedHost("mnlt.syosetu.com", "ムーンライト"),
             BlockedHost("mid.syosetu.com", "ミッドナイト"),
+            // ---- 以下4件は 2026-07-23 ユーザー裁定＝NG。ただし上のなろう群と性質が違う点に注意:
+            // いずれも規約の**包括条項（複製・翻案等の一括禁止）による「グレー領域の保守裁定」**であり、
+            // 自動取得を名指しで禁じる明文があったわけではない（私的複製との関係は法解釈依存）。
+            // 後日の再裁定で解放される可能性を織り込んで記録を残す（裁定材料＝ADR 0024 追記 2026-07-23・
+            // 技術検討資産〔アルファポリスのバックオフ要件・Pixiv の Cookie 認証設計論点〕は handover に温存）。
+            BlockedHost("alphapolis.co.jp", "アルファポリス"), // 規約10条3項の包括禁止（グレー・保守裁定）
+            BlockedHost("pixiv.net", "pixiv"), // ログイン必須設計も要る＝規約と技術の複合で見送り（グレー・保守裁定）
+            BlockedHost("no-ichigo.jp", "野いちご"), // 規約第5条の包括複製禁止（グレー・保守裁定）
+            BlockedHost("berrys-cafe.jp", "ベリーズカフェ"), // 同上（野いちごと同一運営・同文条項）
         )
 
         /**
          * 規約裁定待ち（pending）サイト。自前 DL の可否が未確定＝保守側に倒して blockedHosts と同じ
          * 「公式サイトで読む」導線（[Resolution.Blocked]）へ逃がす。裁定が下りたら該当行を外すだけで
          * Unsupported→アダプタ追加（G3）の通常経路に戻せる（機序＝設計正本 2026-07-23 の pendingHosts ゲート）。
+         * 2026-07-23 まとめ裁定で残るはハーメルンのみ（他4件は NG 裁定で blockedHosts へ移動）。
          */
         private val pendingHosts = listOf(
             BlockedHost("syosetu.org", "ハーメルン"),
-            BlockedHost("alphapolis.co.jp", "アルファポリス"),
-            BlockedHost("pixiv.net", "pixiv"),
-            BlockedHost("no-ichigo.jp", "野いちご"),
-            BlockedHost("berrys-cafe.jp", "ベリーズカフェ"),
         )
 
         private fun defaultAdapters(): List<NovelSiteAdapter> {
