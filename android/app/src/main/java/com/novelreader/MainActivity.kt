@@ -37,6 +37,7 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
@@ -677,15 +678,9 @@ private fun NovelReaderApp(
                             KTab.DISCOVER -> "discovery"
                             KTab.SETTINGS -> "settings"
                         }
-                        if (route != currentRoute) {
-                            navController.navigate(route) {
-                                // タブは同格切替＝スタックを深くしない。bookshelf を起点に保存/復元付きで
-                                // 入れ替える（標準のボトムナビ流儀。restoreState でタブ状態を保持）。
-                                popUpTo("bookshelf") { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        }
+                        // 遷移可否の判定はスナップショット currentRoute でなくライブの currentDestination で行う
+                        // （navigateKTab 内へ集約。なぜライブ値かは同関数の KDoc 参照＝稀な「さがす→本棚に行けない」の防御的是正）。
+                        navigateKTab(navController, route)
                     },
                 )
             }
@@ -693,6 +688,32 @@ private fun NovelReaderApp(
             } // Surface（画面ルートの配色接地）
         } // CompositionLocalProvider(LocalSkyParallax)
     } // Box（backdrop ＋ NavHost）
+}
+
+/**
+ * K恒常ナビのタブ選択遷移（本棚/さがす/設定の同格入れ替え）。onSelect から切り出したのは
+ * ①テスト可能な継ぎ目にするため ②旧実装がクリック用ラムダに閉じ込めていたスナップショット currentRoute への
+ * 依存を経路ごと断つため。
+ *
+ * なぜ重複抑止をライブの currentDestination で行うか（防御的・症状は再現不能）:
+ * 旧実装は `route != currentRoute`（= currentBackStackEntryAsState 由来）で重複遷移を弾いていた。だが
+ * currentBackStackEntryAsState は navigation-compose 2.7.5 実装上 `collectAsState(currentBackStackEntryFlow)` で、
+ * その flow は `MutableSharedFlow(..., BufferOverflow.DROP_OLDEST)`（バイトコードで確認）。ゆえにこの currentRoute は
+ * (a) 実バックスタックより最大1フレーム遅延し (b) 連打時は中間の遷移が drop され実状態と乖離しうる。
+ * 乖離窓でスナップショットが遷移先ルートと一致すると事前ガードがタップを無音で握り潰し、
+ * 「さがす→本棚に稀に遷移できない（他タブを経由すると復帰）」状態を作りうる——と推定されるが再現不能のため防御的に是正。
+ * currentDestination は navigate/pop と同期更新されるライブ値なので、判定をここへ移してスナップショット遅延/drop への
+ * 依存を断つ。判定基準は同じ「今と別ルートなら遷移」＝同一タブ再タップの no-op 挙動は不変（回帰テストで固定）。
+ */
+internal fun navigateKTab(navController: NavController, route: String) {
+    if (navController.currentDestination?.route == route) return
+    navController.navigate(route) {
+        // タブは同格切替＝スタックを深くしない。bookshelf を起点に保存/復元付きで入れ替える
+        // （標準のボトムナビ流儀。restoreState でタブ状態を保持）。
+        popUpTo("bookshelf") { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
 }
 
 /**
