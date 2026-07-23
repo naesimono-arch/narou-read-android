@@ -7,6 +7,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -15,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -211,6 +213,9 @@ internal fun GridBookCard(
     // 「読了」フィルタと徴（しるし）がズレないようにする。
     val isFinished = readingStatusFor(progress, totalChaps) == ReadingStatus.FINISHED
 
+    // キャプション行右端の可視⋮メニューの開閉（カード毎に独立）。
+    var menuOpen by remember { mutableStateOf(false) }
+
     // タップ時にスケールダウンするアニメーション（Apple Books 的な触感）
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -334,34 +339,75 @@ internal fun GridBookCard(
             }
         }
 
-        // 表紙下は著者＋状態のみ（モック .au → .pr）。題字は表紙内で描くため本欄には出さない。
+        // 表紙下は著者＋状態（左）＋可視⋮（右端・K形の是正＝モック .caprow .dots）。題字は表紙内で描くため本欄には出さない。
         // 著者はゴシック（既定）・補助色。栞表紙が作品の識別子なので下段は静かに添えるだけ。
         Spacer(Modifier.height(Spacing.S8))
-        if (book.author.isNotBlank()) {
-            Text(
-                text = book.author,
-                fontSize = FontLabel,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(Spacing.S8))
+        Row(verticalAlignment = Alignment.Top) {
+            Column(modifier = Modifier.weight(1f)) {
+                if (book.author.isNotBlank()) {
+                    Text(
+                        text = book.author,
+                        fontSize = FontLabel,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(Spacing.S8))
+                }
+                BookProgressRow(
+                    totalChaps = totalChaps,
+                    progressFraction = progressFraction,
+                    flexBar = true,
+                )
+                // よみかけ（進捗あり）に限り「いつぶりか」を静かに添える（continuity Minor・モック未表現）。
+                RelativeReadLabel(
+                    progressFraction = progressFraction,
+                    lastReadAt = progress?.lastReadAt ?: 0L,
+                    modifier = Modifier.padding(top = Spacing.S4),
+                )
+                // 続きあり（モックは進捗行の下・上4px）
+                newEpisodeCountFor(novelDetail, totalChaps)?.let { newCount ->
+                    NewChaptersBadge(newCount = newCount, modifier = Modifier.padding(top = Spacing.S4))
+                }
+            }
+            // 可視⋮（K実装 KCardMenuButton と同型）。選択モード中は書影上の選択マークへ場を譲り隠す。
+            // タップ＝カードメニュー。D の蔵書カードは単一削除の専用配線を持たず、複数選択の入口「選択」だけを露出して
+            // 長押しに隠れていた選択導線を発見可能にする（K の KGridBookCard ⋮ と同じ回答＝新機能・VM 変更は作らない）。
+            if (!selectionMode) {
+                Box {
+                    CardMenuButton(onClick = { menuOpen = true })
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("選択") },
+                            onClick = { menuOpen = false; onEnterSelection() },
+                        )
+                    }
+                }
+            }
         }
-        BookProgressRow(
-            totalChaps = totalChaps,
-            progressFraction = progressFraction,
-            flexBar = true,
+    }
+}
+
+/**
+ * キャプション行右端の可視⋮（32dpタップ面・モック .caprow .dots）。書影上でなく通常面に載るためスクリム不要＝
+ * トークン色で描く（書影右上案は栞書影の縦題字と衝突するため移設＝K の実機検分 2026-07-23 と同じ是正）。
+ * internal 昇格＝Web由来カード（WebBookCard.kt）でも同じ可視⋮を共有するため（系1）。
+ */
+@Composable
+internal fun CardMenuButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(9.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Filled.MoreVert,
+            contentDescription = "メニュー",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
         )
-        // よみかけ（進捗あり）に限り「いつぶりか」を静かに添える（continuity Minor・モック未表現）。
-        RelativeReadLabel(
-            progressFraction = progressFraction,
-            lastReadAt = progress?.lastReadAt ?: 0L,
-            modifier = Modifier.padding(top = Spacing.S4),
-        )
-        // 続きあり（モックは進捗行の下・上4px）
-        newEpisodeCountFor(novelDetail, totalChaps)?.let { newCount ->
-            NewChaptersBadge(newCount = newCount, modifier = Modifier.padding(top = Spacing.S4))
-        }
     }
 }
 
@@ -514,8 +560,9 @@ internal fun ListBookCard(
 // 選択=藍塗り＋白チェック。選択塗り＝primary(藍トークン)。リング/スクリムは画像可読性のための
 // 固定色（朱印バッジと同じ発想＝テーマ色に紐づかない用途）。
 // ============================================================
+// internal 昇格＝Web由来カード（WebBookCard.kt・系3 の複数選択参加）でも同じ選択マークを共有するため。
 @Composable
-private fun SelectionCheck(selected: Boolean, modifier: Modifier = Modifier) {
+internal fun SelectionCheck(selected: Boolean, modifier: Modifier = Modifier) {
     val primary = MaterialTheme.colorScheme.primary
     Box(
         modifier = modifier

@@ -448,23 +448,8 @@ internal fun BrandRow(
                 modifier = Modifier.size(18.dp),
             )
         }
-        Spacer(Modifier.width(Spacing.S8))
-        // メニュー（.btn.sq＝⋮）。テーマ3択（P は3変種）＋新着通知トグルを載せる（D メニューと同機能）。
-        Box {
-            var menuOpen by remember { mutableStateOf(false) }
-            PlasticSquareButton(onClick = { menuOpen = true }) {
-                Icon(
-                    Icons.Filled.MoreVert,
-                    contentDescription = "メニュー",
-                    tint = InkCartridge,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                ThemeMenuSection(appTheme, onThemeChange, followingSystem, onFollowSystem) { menuOpen = false }
-                NewEpisodeNotificationMenuSection()
-            }
-        }
+        // メニュー（⋮）は撤去した（系2）: 中身がテーマ4択＋新着通知＝いずれも設定タブ（SettingsScreenK）へ移行済みで
+        // 重複していた。撤去すると⋮は空になるためボタンごと除く（装い・表示切替は別ボタンとして温存＝モック P の頭も⋮無し）。
     }
 }
 

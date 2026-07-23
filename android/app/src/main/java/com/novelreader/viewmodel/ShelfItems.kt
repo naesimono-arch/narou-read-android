@@ -316,3 +316,43 @@ fun filterBooksByQuery(books: List<BookEntity>, query: String): List<BookEntity>
     if (q.isEmpty()) return books
     return books.filter { it.title.lowercase().contains(q) || it.author.lowercase().contains(q) }
 }
+
+// ============================================================
+// 複数選択削除に Web由来カードを統合するための純ロジック（系3・2026-07-24）。
+//
+// 選択キーの接頭辞規約: Web由来（未取込）カードは ShelfItem.Web.key＝"web:<ncode>" で選択集合に載る。
+// 蔵書は従来どおり bare な book.id で載る（"web:" 接頭辞を持たない）。両者は "web:" の有無で機械的に分離できる
+// （book.id は Room 生成の ID で "web:" 始まりにはならない前提）。この非対称（web だけ接頭辞）を採ったのは、
+// 全スキン共有の selectedIds を蔵書側は無改変のまま保ち、Web参加を差分で足すため（M/P/J 一覧の蔵書選択を壊さない）。
+// ============================================================
+
+/** 選択キー接頭辞（ShelfItem.Web.key と同一）。Web由来カードの選択キーは "web:<ncode>"。 */
+const val WEB_SELECTION_KEY_PREFIX: String = "web:"
+
+/** 選択キー一覧から Web由来（"web:<ncode>"）の ncode 一覧を取り出す純関数（蔵書の bare id は除外）。 */
+fun webNcodesInSelection(selectedKeys: List<String>): List<String> =
+    selectedKeys.filter { it.startsWith(WEB_SELECTION_KEY_PREFIX) }
+        .map { it.removePrefix(WEB_SELECTION_KEY_PREFIX) }
+
+/** 選択キー一覧から蔵書（"web:" 接頭辞でない＝bare book.id）の id 一覧を取り出す純関数。 */
+fun bookIdsInSelection(selectedKeys: List<String>): List<String> =
+    selectedKeys.filterNot { it.startsWith(WEB_SELECTION_KEY_PREFIX) }
+
+/**
+ * 複数選択削除の確認ダイアログ本文を、選択内訳（蔵書数・Web数）で出し分ける純関数。
+ *
+ * なぜ出し分けるか: 現行の一律文言「変換済みの本文データも削除されます」は Web作品には虚偽＝Web は本文データを
+ * 端末に持たず（WebView 読書）、外すことで失うものが無く再検索で即復元できる。内訳ごとに正しい不可逆性を伝える:
+ *  ・蔵書のみ = 本文データも消える不可逆／・Webのみ = 失うもの無し・再検索で戻せる／・混在 = 両者を併記。
+ */
+fun deleteConfirmBody(bookCount: Int, webCount: Int): String = when {
+    webCount <= 0 ->
+        // 蔵書のみ（従来文言を維持）。bookCount==0 の異常系もここへ落ちるが、削除は count>0 でしか到達しない。
+        "変換済みの本文データも削除されます。この操作は取り消せません。"
+    bookCount <= 0 ->
+        // Web のみ＝失うもの無し・再検索で即復元可（現行文言が虚偽になる対象）。
+        "本棚から外します。Web作品は失うものがなく、あとで再検索すればすぐ戻せます。"
+    else ->
+        // 混在＝蔵書の不可逆と Web の可逆を併記。
+        "蔵書は変換済みの本文データも削除され、取り消せません（Web作品は本棚から外すだけで、再検索で戻せます）。"
+}

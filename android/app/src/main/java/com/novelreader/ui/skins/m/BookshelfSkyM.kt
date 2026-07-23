@@ -280,6 +280,8 @@ internal fun BookshelfSkyM(
             SkyPlate(
                 boundCount = boundCount,
                 totalCount = books.size,
+                // 冊数（K形の明示冊数）＝ライブラリ総数（蔵書＋Web由来）。D/K の libraryCount と同一定義で全スキン一致させる。
+                libraryCount = books.size + webNovelCount,
                 onOpenDiscovery = onOpenDiscovery,
                 onToggleList = onToggleList,
                 onOpenWardrobe = onOpenWardrobe,
@@ -384,6 +386,7 @@ internal fun BookshelfSkyM(
 private fun SkyPlate(
     boundCount: Int,
     totalCount: Int,
+    libraryCount: Int,
     onOpenDiscovery: () -> Unit,
     onToggleList: () -> Unit,
     onOpenWardrobe: () -> Unit,
@@ -403,8 +406,9 @@ private fun SkyPlate(
                 fontWeight = FontWeight.Medium,
                 color = TextSeizu,
             )
+            // 銘の meta（モック .plate .meta＝「12冊 ・ 結んだ星座 8 / 12」）＝K形の明示冊数を先頭に添える。
             Text(
-                "結ばれた星座 $boundCount / $totalCount",
+                "${libraryCount}冊 ・ 結ばれた星座 $boundCount / $totalCount",
                 fontSize = 10.sp,              // .plate .meta 10px
                 letterSpacing = 0.12.em,
                 color = DimSeizu,
@@ -427,9 +431,8 @@ private fun SkyPlate(
                 Icon(Icons.Filled.MoreVert, contentDescription = "メニュー", tint = DimSeizu)
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                // M は固定1変種＝テーマ節を出さない（settings-M のテーマ固定表示と同思想・ADR 0022 §2）。
-                NewEpisodeNotificationMenuSection()
-                // 高負荷スカイ試作トグル（ADR 0023）＝debug かつ星図M のときだけ節ごと出る（内部で自己ゲート）。
+                // 新着通知は設定タブ（SettingsScreenK）へ移行済みのため⋮から撤去（系2）。M は固定1変種でテーマ節も元々無い。
+                // 残すのは M 固有の非設定項目＝高負荷スカイ試作トグル（ADR 0023・debug かつ星図M のときだけ内部ゲートで出る）。
                 HighLoadSkyMenuSection(highLoadSkyM, onHighLoadSkyChange, onDismissMenu = { menuOpen = false })
             }
         }

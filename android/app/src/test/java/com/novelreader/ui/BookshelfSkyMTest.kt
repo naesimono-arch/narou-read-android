@@ -189,14 +189,16 @@ class BookshelfSkyMTest {
     }
 
     @Test
-    fun `Mの一覧モードの⋮メニューはテーマ節を畳み通知節は残す`() {
+    fun `Mの一覧モードの⋮メニューはテーマ・通知を撤去し高負荷スカイのみ残す（系2）`() {
         setContent(
             Skin.SEIZU_M, BookshelfUiState.Content(emptyList()),
             skyViewM = false,
         )
         composeTestRule.onNodeWithContentDescription("メニュー").performClick()
-        // M は固定1変種＝テーマ3択は無意味なので節ごと非表示（supportedThemes が単一真実源）。
+        // テーマ・通知は設定タブ（SettingsScreenK）へ移行済みで⋮から撤去（系2）。M は元々テーマ節なし。
+        // 残るのは M 固有の非設定項目＝高負荷スカイ試作トグル（ADR 0023・debug ビルドの星図M でのみ出る）。
         composeTestRule.onNodeWithText("テーマ").assertDoesNotExist()
-        composeTestRule.onNodeWithText("通知").assertIsDisplayed()
+        composeTestRule.onNodeWithText("通知").assertDoesNotExist()
+        composeTestRule.onNodeWithText("高負荷スカイ（試作）").assertIsDisplayed()
     }
 }

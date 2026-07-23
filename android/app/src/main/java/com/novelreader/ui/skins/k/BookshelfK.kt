@@ -92,9 +92,11 @@ import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.viewmodel.ReadingStatus
 import com.novelreader.viewmodel.ShelfItem
 import com.novelreader.viewmodel.chapterNumberOf
+import com.novelreader.viewmodel.deleteConfirmBody
 import com.novelreader.viewmodel.filterShelfByStatus
 import com.novelreader.viewmodel.mergeShelfItems
 import com.novelreader.viewmodel.readingStatusFor
+import com.novelreader.viewmodel.webNcodesInSelection
 
 // ============================================================
 // 明快K「本棚」（正本モック＝docs/design-candidates/skins/bookshelf-K.html）。
@@ -252,7 +254,8 @@ internal fun BookshelfK(
                                     onEnterSelection = { onEnterSelection(item.book.id) },
                                     modifier = Modifier.animateItem(),
                                 )
-                                // Web由来（未取込）。外す操作に確認を挟まないのは D/P/J と同じ判断（失う進捗が無く詳細から即戻せる）。
+                                // Web由来（未取込）。⋮単体の「本棚から外す」は確認を挟まない（失う進捗が無く即戻せる）。
+                                // 複数選択削除（系3）は確認ダイアログを挟む＝内訳文言で Web の可逆性を明示する。
                                 is ShelfItem.Web -> KWebGridBookCard(
                                     novel = item.novel,
                                     lastReadEpisode = item.lastReadEpisode,
@@ -261,6 +264,11 @@ internal fun BookshelfK(
                                     onImport = { onImportWebNovel(item.novel) },
                                     onRemove = { onRemoveWebNovel(item.novel) },
                                     modifier = Modifier.animateItem(),
+                                    // 選択キーは ShelfItem.Web.key="web:<ncode>"（蔵書は bare id）。
+                                    selectionMode = selectionMode,
+                                    selected = item.key in selectedIds,
+                                    onToggleSelect = { onToggleSelect(item.key) },
+                                    onEnterSelection = { onEnterSelection(item.key) },
                                 )
                             }
                         }
@@ -297,6 +305,11 @@ internal fun BookshelfK(
                                     onImport = { onImportWebNovel(item.novel) },
                                     onRemove = { onRemoveWebNovel(item.novel) },
                                     modifier = Modifier.animateItem(),
+                                    // 複数選択削除（系3）: 選択キーは ShelfItem.Web.key="web:<ncode>"。
+                                    selectionMode = selectionMode,
+                                    selected = item.key in selectedIds,
+                                    onToggleSelect = { onToggleSelect(item.key) },
+                                    onEnterSelection = { onEnterSelection(item.key) },
                                 )
                             }
                         }
@@ -311,8 +324,15 @@ internal fun BookshelfK(
                     count = selectedIds.size,
                     onCancel = onExitSelection,
                     onSelectAll = {
-                        // 全選択の対象は蔵書（Book）のみ＝Web未取込は選択削除の対象外（D/P/J と同一）。
-                        onSelectAll(shelfItems.filterIsInstance<ShelfItem.Book>().map { it.book.id })
+                        // 全選択に Web由来カードも含める（系3）。選択キーは蔵書=bare book.id・Web=ShelfItem.Web.key("web:<ncode>")。
+                        onSelectAll(
+                            shelfItems.map { item ->
+                                when (item) {
+                                    is ShelfItem.Book -> item.book.id
+                                    is ShelfItem.Web -> item.key
+                                }
+                            }
+                        )
                     },
                     onDelete = { showDeleteConfirm = true },
                 )
@@ -341,25 +361,33 @@ internal fun BookshelfK(
         )
     }
 
-    // 複数選択削除の確認（D/P/J と同語＝不可逆を本文で明示・取込元PDF削除オプションは共通 DeleteSourcePdfOption）。
+    // 複数選択削除の確認（D と同語＝内訳ごとに正しい不可逆性を本文で明示・取込元PDF削除オプションは共通 DeleteSourcePdfOption）。
     // K モックにダイアログ意匠は無いため OS 面の Material AlertDialog を使う（各スキンのダイアログ流儀と同じ）。
     if (showDeleteConfirm) {
-        val targets = books.filter { it.id in selectedIds }
-        val deletableCount = targets.count { it.sourceUri != null }
+        val bookTargets = books.filter { it.id in selectedIds }
+        // Web由来（未取込）カードも選択削除の対象（系3）。選択キー "web:<ncode>" を ncode へ分解し webNovels と突合する。
+        val webNcodes = webNcodesInSelection(selectedIds).toSet()
+        val webTargets = webNovels.filter { it.ncode in webNcodes }
+        val deletableCount = bookTargets.count { it.sourceUri != null }
+        val total = bookTargets.size + webTargets.size
         var alsoDeleteSource by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("選択した${targets.size}冊を本棚から削除しますか？") },
+            // 蔵書とWebが混じり得るため中立の「件」で数える。
+            title = { Text("選択した${total}件を本棚から削除しますか？") },
             text = {
                 Column {
-                    Text("変換済みの本文データも削除されます。この操作は取り消せません。")
+                    // 選択内訳（蔵書数・Web数）で本文を出し分け（系3）＝Web に「本文データも削除」の虚偽を出さない。
+                    Text(deleteConfirmBody(bookTargets.size, webTargets.size))
                     DeleteSourcePdfOption(deletableCount, alsoDeleteSource) { alsoDeleteSource = it }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     showDeleteConfirm = false
-                    onDeleteBooks(targets, alsoDeleteSource)
+                    // 蔵書は本文データごと削除／Web は本棚から外す（既存 removeWebNovel を一括適用）。空側は呼ばない。
+                    if (bookTargets.isNotEmpty()) onDeleteBooks(bookTargets, alsoDeleteSource)
+                    webTargets.forEach { onRemoveWebNovel(it) }
                     onExitSelection()
                 }) { Text("削除する") }
             },
@@ -628,6 +656,11 @@ private fun KWebGridBookCard(
     onImport: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
+    // 複数選択削除（系3）: Web由来カードも長押しで選択モードに参加する（選択キー "web:<ncode>" は呼び出し側が扱う）。
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
+    onEnterSelection: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val hasProgress = lastReadEpisode > 0
@@ -636,9 +669,10 @@ private fun KWebGridBookCard(
         modifier = modifier
             .semantics(mergeDescendants = true) {}
             .combinedClickable(
-                // 進捗あれば主タップ＝続きから（D/J と統一）／未読は目次。長押しは⋮を開く。
-                onClick = if (hasProgress) onResume else onOpen,
-                onLongClick = { menuOpen = true },
+                // 選択モード中はタップ/長押しで選択トグル。通常時は進捗あれば主タップ=続きから／未読は目次、長押しで選択モードへ（系3）。
+                // 旧・長押し＝⋮は、キャプション行右端の可視⋮（KCardMenuButton）が代替導線になったため選択入口へ譲る。
+                onClick = { if (selectionMode) onToggleSelect() else if (hasProgress) onResume() else onOpen() },
+                onLongClick = { if (selectionMode) onToggleSelect() else onEnterSelection() },
             ),
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
@@ -664,6 +698,23 @@ private fun KWebGridBookCard(
                     .background(WebCardOverlayScrim)
                     .padding(horizontal = Spacing.S4, vertical = Spacing.S4),
             )
+            // 選択中は書影へ藍の細縁取り＋淡い藍かぶせ（KGridBookCard と同じ .bk.sel）。
+            if (selected) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
+                        .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp)),
+                )
+            }
+            // 選択モード中は書影右上に選択マーク（蔵書カードと共有の KSelectionCheck）。
+            if (selectionMode) {
+                KSelectionCheck(
+                    selected = selected,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.S8),
+                )
+            }
         }
 
         Spacer(Modifier.height(Spacing.S8))
@@ -695,15 +746,18 @@ private fun KWebGridBookCard(
                     )
                 }
             }
-            Box {
-                KCardMenuButton(onClick = { menuOpen = true })
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    // 進捗ありのとき主タップは続きから＝目次導線を⋮へ降格して残す（D/J と同判断）。
-                    if (hasProgress) {
-                        DropdownMenuItem(text = { Text("なろうの目次を開く") }, onClick = { menuOpen = false; onOpen() })
+            // 選択モード中は書影上の選択マークへ場を譲り⋮を隠す（KGridBookCard と同じ）。
+            if (!selectionMode) {
+                Box {
+                    KCardMenuButton(onClick = { menuOpen = true })
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        // 進捗ありのとき主タップは続きから＝目次導線を⋮へ降格して残す（D/J と同判断）。
+                        if (hasProgress) {
+                            DropdownMenuItem(text = { Text("なろうの目次を開く") }, onClick = { menuOpen = false; onOpen() })
+                        }
+                        DropdownMenuItem(text = { Text("縦書きPDFを取り込む") }, onClick = { menuOpen = false; onImport() })
+                        DropdownMenuItem(text = { Text("本棚から外す") }, onClick = { menuOpen = false; onRemove() })
                     }
-                    DropdownMenuItem(text = { Text("縦書きPDFを取り込む") }, onClick = { menuOpen = false; onImport() })
-                    DropdownMenuItem(text = { Text("本棚から外す") }, onClick = { menuOpen = false; onRemove() })
                 }
             }
         }

@@ -95,7 +95,7 @@ class WebBookCardTest {
     }
 
     @Test
-    fun `Grid 長押しメニューから onRemove と onImport が呼ばれる`() {
+    fun `Grid 可視⋮メニューから onRemove と onImport が呼ばれる`() {
         var removeCalled = false
         var importCalled = false
         val novel = webNovel("n1234a", "蜘蛛ですが、なにか？")
@@ -111,19 +111,39 @@ class WebBookCardTest {
             }
         }
 
-        // ⋮ は撤去され、削除メニューは長押しで開く（栞モックはフラット構図＝⋮無し）。
-        // 1. 書影を長押ししてドロップダウンメニューを開く
-        composeTestRule.onNodeWithContentDescription("蜘蛛ですが、なにか？")
-            .performTouchInput { longClick() }
+        // 系1: メニューはキャプション行右端の可視⋮から開く（旧・長押しは系3で複数選択の入口へ譲った）。
+        // 1. 可視⋮をタップしてドロップダウンメニューを開く
+        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
         // 2. 「縦書きPDFを取り込む」をタップ
         composeTestRule.onNodeWithText("縦書きPDFを取り込む").performClick()
         assertTrue(importCalled)
 
-        // 3. もう一度長押しして「本棚から外す」をタップ
-        composeTestRule.onNodeWithContentDescription("蜘蛛ですが、なにか？")
-            .performTouchInput { longClick() }
+        // 3. もう一度⋮を開いて「本棚から外す」をタップ
+        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
         composeTestRule.onNodeWithText("本棚から外す").performClick()
         assertTrue(removeCalled)
+    }
+
+    @Test
+    fun `Grid 長押しで onEnterSelection が呼ばれる（系3＝複数選択の入口）`() {
+        var enterSelection = false
+        val novel = webNovel("n1234a", "蜘蛛ですが、なにか？")
+        composeTestRule.setContent {
+            MaterialTheme {
+                WebGridBookCard(
+                    novel = novel,
+                    onOpen = {},
+                    onImport = {},
+                    onRemove = {},
+                    onEnterSelection = { enterSelection = true },
+                    modifier = Modifier.width(120.dp),
+                )
+            }
+        }
+        // 長押し＝選択モードへ（旧・長押しメニューは可視⋮へ移設済み）。
+        composeTestRule.onNodeWithContentDescription("蜘蛛ですが、なにか？")
+            .performTouchInput { longClick() }
+        assertTrue(enterSelection)
     }
 
     @Test
@@ -213,8 +233,7 @@ class WebBookCardTest {
                 )
             }
         }
-        composeTestRule.onNodeWithContentDescription("蜘蛛ですが、なにか？")
-            .performTouchInput { longClick() }
+        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
         composeTestRule.onNodeWithText("なろうの目次を開く").performClick()
         assertTrue("⋮メニューの目次で onOpen が呼ばれる", openCalled)
     }
@@ -233,8 +252,8 @@ class WebBookCardTest {
                 )
             }
         }
-        composeTestRule.onNodeWithContentDescription("蜘蛛ですが、なにか？")
-            .performTouchInput { longClick() }
+        // 可視⋮を開いても、未読カードは主タップが目次のため「なろうの目次を開く」を出さない。
+        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
         composeTestRule.onNodeWithText("なろうの目次を開く").assertDoesNotExist()
     }
 

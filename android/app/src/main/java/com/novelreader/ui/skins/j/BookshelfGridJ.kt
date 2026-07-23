@@ -199,6 +199,8 @@ internal fun BookshelfGridJ(
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             // ── g-top（本棚題字＋見つける/装いの間/デッキへ戻る/メニュー）＝スワイプで動かない固定クローム ──
             GridTopBar(
+                // 冊数（K形の明示冊数）＝ライブラリ総数（蔵書＋Web由来）。D/K/M の libraryCount と同一定義。
+                count = books.size + webNovels.size,
                 appTheme = appTheme,
                 onThemeChange = onThemeChange,
                 followingSystem = followingSystem,
@@ -340,6 +342,7 @@ internal fun BookshelfGridJ(
 // ============================================================
 @Composable
 private fun GridTopBar(
+    count: Int,
     appTheme: ReadingTheme,
     onThemeChange: (ReadingTheme) -> Unit,
     followingSystem: Boolean,
@@ -356,15 +359,27 @@ private fun GridTopBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.S4), // .g-top gap 6px
     ) {
-        Text(
-            "本棚",
-            fontFamily = MinchoFamily,
-            fontSize = 24.sp,             // .g-top h1 24px
-            fontWeight = FontWeight.Medium,
-            letterSpacing = 0.12.em,
-            color = InkPortal,
-            modifier = Modifier.weight(1f),
-        )
+        // 本棚題字＋薄く冊数（モック .head .ttl＝h1＋.count・K形の明示冊数）。Row に weight(1f) を持たせ右のアイコン群を押し出す。
+        Row(modifier = Modifier.weight(1f)) {
+            Text(
+                "本棚",
+                fontFamily = MinchoFamily,
+                fontSize = 24.sp,             // .g-top h1 24px
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.12.em,
+                color = InkPortal,
+                modifier = Modifier.alignByBaseline(),
+            )
+            Spacer(Modifier.width(Spacing.S8))
+            // .count 12px soft（題字とベースラインを揃え、控えめに添える）。
+            Text(
+                "${count}冊",
+                fontSize = 12.sp,             // .head .count 12px
+                letterSpacing = 0.08.em,
+                color = SoftPortal,
+                modifier = Modifier.alignByBaseline(),
+            )
+        }
         // 見つける（🔍）。
         PortalIconButton(onClick = onOpenDiscovery) {
             Icon(Icons.Filled.Search, contentDescription = "見つける", tint = InkPortal, modifier = Modifier.size(19.dp))
@@ -377,7 +392,7 @@ private fun GridTopBar(
         PortalIconButton(onClick = onToggleDeck) {
             Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = "デッキ表示に切替", tint = InkPortal, modifier = Modifier.size(19.dp))
         }
-        // メニュー⋮（テーマ3択＋PDF追加＋新着通知）。デッキ面の⋮と同内容（PDF追加はモックの topbar 三点へ移植）。
+        // メニュー⋮。テーマ・新着通知は設定タブ（SettingsScreenK）へ移行済みのため撤去（系2）。非設定項目の「PDFを追加」のみ残す。
         Box {
             var menuOpen by remember { mutableStateOf(false) }
             PortalIconButton(onClick = { menuOpen = true }) {
@@ -389,9 +404,6 @@ private fun GridTopBar(
                     onClick = { menuOpen = false; onFabClick() },
                     leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
                 )
-                HorizontalDivider()
-                PortalThemeMenuSection(appTheme, onThemeChange, followingSystem, onFollowSystem) { menuOpen = false }
-                NewEpisodeNotificationMenuSection()
             }
         }
     }

@@ -752,16 +752,13 @@ private fun PortalTopBar(
                 Icon(Icons.Filled.MoreVert, contentDescription = "メニュー", tint = InkPortal, modifier = Modifier.size(19.dp))
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                // PDF追加＝モックは扉クロームに追加導線を持たない（発見扉は「新しい物語＝発見」で、手元 PDF 取込とは別）。
-                // メニュー導線（モックの topbar 三点＝本メニュー）へ移植して全数担保する（M の SkyHorizon・P の SlotAdd と同趣旨）。
+                // テーマ・新着通知は設定タブ（SettingsScreenK）へ移行済みのため⋮から撤去（系2）。非設定項目の「PDFを追加」は残す。
+                // PDF追加＝モックは扉クロームに追加導線を持たない（発見扉は発見専用）。メニュー導線へ移植して全数担保（M の SkyHorizon・P の SlotAdd と同趣旨）。
                 DropdownMenuItem(
                     text = { Text("PDFを追加") },
                     onClick = { menuOpen = false; onFabClick() },
                     leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
                 )
-                HorizontalDivider()
-                PortalThemeMenuSection(appTheme, onThemeChange, followingSystem, onFollowSystem) { menuOpen = false }
-                NewEpisodeNotificationMenuSection()
             }
         }
         // 位置 idx「n / N」（中央・明朝・字間広め。発見扉では空）。

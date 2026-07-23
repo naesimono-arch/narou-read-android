@@ -4,7 +4,9 @@ import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ShelfItemsTest {
@@ -530,5 +532,48 @@ class ShelfItemsTest {
         assertEquals(1, counts[ReadingStatus.READING])
         assertEquals(1, counts[ReadingStatus.FINISHED])
         assertNull(counts[ReadingStatus.UNREAD]) // 未読の Web は無い＝キー無し（0件チップの dim 前提）
+    }
+
+    // ============================================================
+    // 系3: 複数選択削除の Web統合（キー分解・削除確認文言の出し分け）の純ロジック
+    // ============================================================
+
+    @Test
+    fun `選択キーからWeb ncode と 蔵書id を接頭辞で分解する`() {
+        // 蔵書は bare id、Web は "web:<ncode>"（ShelfItem.Web.key）で選択集合に混在する。"web:" の有無で機械分離。
+        val keys = listOf("b1", "web:N1111AA", "b2", "web:N2222BB")
+
+        assertEquals(listOf("N1111AA", "N2222BB"), webNcodesInSelection(keys))
+        assertEquals(listOf("b1", "b2"), bookIdsInSelection(keys))
+    }
+
+    @Test
+    fun `分解は空選択・片側のみでも破綻しない`() {
+        assertEquals(emptyList<String>(), webNcodesInSelection(emptyList()))
+        assertEquals(emptyList<String>(), bookIdsInSelection(emptyList()))
+        // Web のみ
+        assertEquals(listOf("N1"), webNcodesInSelection(listOf("web:N1")))
+        assertEquals(emptyList<String>(), bookIdsInSelection(listOf("web:N1")))
+        // 蔵書のみ
+        assertEquals(emptyList<String>(), webNcodesInSelection(listOf("b1")))
+        assertEquals(listOf("b1"), bookIdsInSelection(listOf("b1")))
+    }
+
+    @Test
+    fun `削除確認の本文は選択内訳で出し分ける（Webに本文削除の虚偽を出さない）`() {
+        // 蔵書のみ＝従来の不可逆文言（本文データも削除・取り消せない）。
+        val bookOnly = deleteConfirmBody(bookCount = 2, webCount = 0)
+        assertTrue(bookOnly.contains("本文データ"))
+        assertTrue(bookOnly.contains("取り消せません"))
+
+        // Web のみ＝失うもの無し・再検索で戻せる（「本文データ」の語を出さない＝現行文言の虚偽を避ける）。
+        val webOnly = deleteConfirmBody(bookCount = 0, webCount = 3)
+        assertFalse(webOnly.contains("本文データ"))
+        assertTrue(webOnly.contains("再検索"))
+
+        // 混在＝蔵書の不可逆と Web の可逆を併記する。
+        val mixed = deleteConfirmBody(bookCount = 1, webCount = 1)
+        assertTrue(mixed.contains("本文データ"))
+        assertTrue(mixed.contains("再検索"))
     }
 }

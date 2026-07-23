@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -19,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -57,6 +59,12 @@ fun WebGridBookCard(
     // 機能②: WebView 読書位置（最後に開いた話。0＝未読）。>0 でメタ行を「続きから 第N話」導線へ差し替える。
     lastReadEpisode: Int = 0,
     onResume: () -> Unit = {},  // 「続きから 第N話」タップ＝記録した話へ WebView で直接（カード本体タップは目次のまま）
+    // 複数選択削除（系3）: Web由来カードも長押しで選択モードに参加する（選択キー "web:<ncode>" は呼び出し側が扱う）。
+    // 旧・長押し＝⋮メニューは、下のキャプション行右端の可視⋮（系1）が代替導線になったため、長押しを選択入口へ譲る。
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
+    onEnterSelection: () -> Unit = {},
 ) {
     // なぜ expanded を Card 内で閉じるか: 各カードの ⋮ ドロップダウンメニューの開閉は独立しており、他カードと共有しないため
     var menuExpanded by remember { mutableStateOf(false) }
@@ -84,9 +92,9 @@ fun WebGridBookCard(
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current,
-                // 進捗あれば主タップ=再開（PDFと統一）／未読は従来どおり目次(onOpen)。
-                onClick = if (hasProgress) onResume else onOpen,
-                onLongClick = { menuExpanded = true },
+                // 選択モード中はタップ/長押しで選択トグル。通常時は進捗あれば主タップ=再開／未読は目次、長押しで選択モードへ（系3）。
+                onClick = { if (selectionMode) onToggleSelect() else if (hasProgress) onResume() else onOpen() },
+                onLongClick = { if (selectionMode) onToggleSelect() else onEnterSelection() },
             ),
     ) {
         // 書影＝栞（紙地＋色の棒＋先端＋表紙内の縦組み明朝題字）。縦横比 2:3・角丸2px。
@@ -101,50 +109,72 @@ fun WebGridBookCard(
                     .aspectRatio(2f / 3f)
                     .clip(RoundedCornerShape(2.dp)),
             )
-
-            // 操作メニューのアンカー（可視の⋮は持たず長押しで開く。栞モックはフラット構図＝⋮無し）。
-            Box(modifier = Modifier.align(Alignment.TopEnd)) {
-                WebBookDropdownMenu(
-                    expanded = menuExpanded,
-                    onDismiss = { menuExpanded = false },
-                    // 進捗ありのとき主タップは再開に統一したため、目次導線を⋮へ降格して残す。
-                    onOpenIndex = if (hasProgress) ({ menuExpanded = false; onOpen() }) else null,
-                    onImport = { menuExpanded = false; onImport() },
-                    onRemove = { menuExpanded = false; onRemove() },
+            // 選択中は書影へ藍の細縁取り＋淡い藍かぶせ（蔵書 GridBookCard の .bk.sel と同じ）。
+            if (selected) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
+                        .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)),
+                )
+            }
+            // 選択モード中は書影右上に選択マーク（蔵書カードと共有の SelectionCheck）。
+            if (selectionMode) {
+                SelectionCheck(
+                    selected = selected,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.S8),
                 )
             }
         }
 
         Spacer(Modifier.height(Spacing.S12))
-        // メタ題字（明朝）
-        Text(
-            text = novel.title,
-            fontFamily = MinchoFamily,
-            fontSize = FontSubTitle,
-            lineHeight = 19.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Spacer(Modifier.height(Spacing.S8))
-        // メタ行: 機能②の読書記録があれば「続きから 第N話」を静かに添える（藍＝primary）。
-        // なぜ非クリックにするか（continuity Major）: 主タップ（カード本体）が再開に統一されたため、
-        // 旧・小リンク（<48dp タップ標的）を廃し、ここは状態表示だけの静かなラベルに落とす。
-        // 無ければ従来の「なろう・未取込」（青磁＝secondary）＝主タップは目次(onOpen)。
-        if (lastReadEpisode > 0) {
-            Text(
-                text = "続きから 第${lastReadEpisode}話",
-                fontSize = FontLabel,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        } else {
-            Text(
-                text = "なろう・未取込",
-                fontSize = FontMicroLabel,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.secondary,
-            )
+        // キャプション行＝題字・メタ（左）＋可視⋮（右端・系1）。選択モード中は書影上の選択マークへ場を譲り⋮を隠す。
+        Row(verticalAlignment = Alignment.Top) {
+            Column(modifier = Modifier.weight(1f)) {
+                // メタ題字（明朝）
+                Text(
+                    text = novel.title,
+                    fontFamily = MinchoFamily,
+                    fontSize = FontSubTitle,
+                    lineHeight = 19.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(Spacing.S8))
+                // メタ行: 機能②の読書記録があれば「続きから 第N話」を静かに添える（藍＝primary・非クリック）。
+                // 無ければ従来の「なろう・未取込」（青磁＝secondary）＝主タップは目次(onOpen)。
+                if (lastReadEpisode > 0) {
+                    Text(
+                        text = "続きから 第${lastReadEpisode}話",
+                        fontSize = FontLabel,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                } else {
+                    Text(
+                        text = "なろう・未取込",
+                        fontSize = FontMicroLabel,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
+                }
+            }
+            // 可視⋮（系1・蔵書カードと共有の CardMenuButton）。長押しの⋮を廃し常設ボタンで目次/取込/外すへ到達させる。
+            if (!selectionMode) {
+                Box {
+                    CardMenuButton(onClick = { menuExpanded = true })
+                    WebBookDropdownMenu(
+                        expanded = menuExpanded,
+                        onDismiss = { menuExpanded = false },
+                        // 進捗ありのとき主タップは再開に統一したため、目次導線を⋮へ降格して残す。
+                        onOpenIndex = if (hasProgress) ({ menuExpanded = false; onOpen() }) else null,
+                        onImport = { menuExpanded = false; onImport() },
+                        onRemove = { menuExpanded = false; onRemove() },
+                    )
+                }
+            }
         }
     }
 }
@@ -160,6 +190,11 @@ fun WebListBookCard(
     // 機能②: WebView 読書位置（最後に開いた話。0＝未読）。>0 でメタ行を「続きから 第N話」導線へ差し替える。
     lastReadEpisode: Int = 0,
     onResume: () -> Unit = {},
+    // 複数選択削除（系3）: grid カードと同じく Web由来の一覧行も長押しで選択モードに参加する（キー "web:<ncode>"）。
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
+    onEnterSelection: () -> Unit = {},
 ) {
     // なぜ expanded を Card 内で閉じるか: 各リスト行の ⋮ ドロップダウンメニューの開閉は独立しており、他カードと共有しないため
     var menuExpanded by remember { mutableStateOf(false) }
@@ -181,12 +216,17 @@ fun WebListBookCard(
                 // 1冊=1トラバーサル単位に束ねる（critic Major）。行末の⋮は別フォーカスとして残る。
                 .semantics(mergeDescendants = true) {}
                 .graphicsLayer { scaleX = scale; scaleY = scale }
+                // 選択中は行全体に淡い藍かぶせ（蔵書の目録行 ListBookCard と同じ）。
+                .background(
+                    if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                    else Color.Transparent
+                )
                 .combinedClickable(
                     interactionSource = interactionSource,
                     indication = LocalIndication.current,
-                    // 進捗あれば主タップ=再開（PDFと統一）／未読は目次(onOpen)。
-                    onClick = if (hasProgress) onResume else onOpen,
-                    onLongClick = { menuExpanded = true },
+                    // 選択モード中はタップ/長押しで選択トグル。通常時は進捗あれば主タップ=再開／未読は目次、長押しで選択モードへ（系3）。
+                    onClick = { if (selectionMode) onToggleSelect() else if (hasProgress) onResume() else onOpen() },
+                    onLongClick = { if (selectionMode) onToggleSelect() else onEnterSelection() },
                 )
                 // 色帯を行の高さいっぱいに伸ばすため（PDF 蔵書の目録行と同じ骨格）。
                 .height(IntrinsicSize.Min)
@@ -248,22 +288,28 @@ fun WebListBookCard(
                     )
                 }
             }
-            Box {
-                IconButton(onClick = { menuExpanded = true }) {
-                    Icon(
-                        Icons.Filled.MoreVert,
-                        contentDescription = "メニュー",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            // 行末: 選択モード中は選択マーク（蔵書 ListBookCard と同じ）／通常は可視⋮メニュー（系3＝長押しを選択へ譲り⋮は常設で担保）。
+            if (selectionMode) {
+                Spacer(Modifier.width(Spacing.S8))
+                SelectionCheck(selected = selected)
+            } else {
+                Box {
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Icon(
+                            Icons.Filled.MoreVert,
+                            contentDescription = "メニュー",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    WebBookDropdownMenu(
+                        expanded = menuExpanded,
+                        onDismiss = { menuExpanded = false },
+                        // 進捗ありのとき目次導線を⋮へ降格して残す（grid と同じ判断）。
+                        onOpenIndex = if (hasProgress) ({ menuExpanded = false; onOpen() }) else null,
+                        onImport = { menuExpanded = false; onImport() },
+                        onRemove = { menuExpanded = false; onRemove() },
                     )
                 }
-                WebBookDropdownMenu(
-                    expanded = menuExpanded,
-                    onDismiss = { menuExpanded = false },
-                    // 進捗ありのとき目次導線を⋮へ降格して残す（grid と同じ判断）。
-                    onOpenIndex = if (hasProgress) ({ menuExpanded = false; onOpen() }) else null,
-                    onImport = { menuExpanded = false; onImport() },
-                    onRemove = { menuExpanded = false; onRemove() },
-                )
             }
         }
         // 行下のヘアライン区切り（モック .li の border-bottom 1px、BookCard.kt と共通・本棚系 --hl）
