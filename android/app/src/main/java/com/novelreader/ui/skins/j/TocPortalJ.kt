@@ -1,6 +1,7 @@
 package com.novelreader.ui.skins.j
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,16 +22,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -53,8 +58,11 @@ import com.novelreader.ui.theme.GoldPortal
 import com.novelreader.ui.theme.InkTocPortal
 import com.novelreader.ui.theme.InnerPortal
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.ResumeInkPortal
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.tocInitialFirstVisibleIndex
+import com.novelreader.ui.tocReadProgressPercent
+import kotlinx.coroutines.launch
 
 // ============================================================
 // スキンJ「ポータル」の目次＝この物語世界の「廊下を進む道程」（正本 toc-J.html・ADR 0022 §1 の構造分岐先）。
@@ -132,6 +140,7 @@ private fun String.trimTrailingSeparator(): String =
 @Composable
 internal fun TocPortalJ(
     tocState: TocState,
+    workTitle: String?,
     currentChapterFile: String?,
     onSelectChapter: (fileName: String) -> Unit,
     onNavigateToBookshelf: () -> Unit,
@@ -156,31 +165,46 @@ internal fun TocPortalJ(
                 .navigationBarsPadding(),
         ) {
             // 象徴文字（.glyph 薬）はその物語の象徴＝目次画面は書籍 ID/題名を受け取らないため描けない（発明せず省く・報告参照）。
-            TocPortalTopBar(onNavigateToBookshelf)
+            // K形伝播（正本 toc-J.html）: ヘッダに作品名サブ・直下に現在地バー・各行に話数ラベル/✓/ここから再開を追加。
+            TocPortalTopBar(workTitle, onNavigateToBookshelf)
             when (tocState) {
-                is TocState.Content -> LazyColumn(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    state = rememberLazyListState(
+                is TocState.Content -> {
+                    // listState を持ち上げる（現在地チップのタップで現在章へスクロールさせるため・D/M/P/K と同型）。
+                    val listState = rememberLazyListState(
                         // 現在章付近を開いた瞬間から表示（D/M/P と同じ導出＝現在章の1つ手前・未読は先頭）。
                         initialFirstVisibleItemIndex = tocInitialFirstVisibleIndex(entries, currentChapterFile),
-                    ),
-                    contentPadding = PaddingValues(0.dp), // .scroll に余白なし（末尾のみ .pad 24px を後置）。
-                ) {
-                    itemsIndexed(entries, key = { _, e -> e.fileName }) { index, entry ->
-                        val step = when {
-                            index == currentIndex -> RowStep.CUR
-                            currentIndex >= 0 && index < currentIndex -> RowStep.PASSED
-                            else -> RowStep.AHEAD
+                    )
+                    val scope = rememberCoroutineScope()
+                    // 現在地バー（モック toc-J.html .here）: 現在話チップ（淡い金地・金字・金枠）＋読了率。
+                    TocHereBarJ(
+                        currentIndex = currentIndex,
+                        total = entries.size,
+                        onJumpToCurrent = {
+                            scope.launch { listState.animateScrollToItem((currentIndex - 1).coerceAtLeast(0)) }
+                        },
+                    )
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        state = listState,
+                        contentPadding = PaddingValues(0.dp), // .scroll に余白なし（末尾のみ .pad 24px を後置）。
+                    ) {
+                        itemsIndexed(entries, key = { _, e -> e.fileName }) { index, entry ->
+                            val step = when {
+                                index == currentIndex -> RowStep.CUR
+                                currentIndex >= 0 && index < currentIndex -> RowStep.PASSED
+                                else -> RowStep.AHEAD
+                            }
+                            TocChapterRow(
+                                epLabel = "第${index + 1}話",
+                                // 表示層で末尾区切りをトリム（データ entry.title は不変）。空題フォールバックは
+                                // トリム後に判定＝区切りだけの題は "第N話" へ落とす。
+                                title = entry.title.trimTrailingSeparator().ifEmpty { "第${index + 1}話" },
+                                step = step,
+                                onClick = { onSelectChapter(entry.fileName) },
+                            )
                         }
-                        TocChapterRow(
-                            // 表示層で末尾区切りをトリム（データ entry.title は不変）。空題フォールバックは
-                            // トリム後に判定＝区切りだけの題は "第N話" へ落とす。
-                            title = entry.title.trimTrailingSeparator().ifEmpty { "第${index + 1}話" },
-                            step = step,
-                            onClick = { onSelectChapter(entry.fileName) },
-                        )
+                        item { Spacer(Modifier.height(Spacing.S24)) } // .pad height:24px → S24（末尾の余白）。
                     }
-                    item { Spacer(Modifier.height(Spacing.S24)) } // .pad height:24px → S24（末尾の余白）。
                 }
                 is TocState.Empty -> TocEmptyBody(Modifier.weight(1f))
                 // Loading/Error は J 意匠のモック未定義＝最小限（内側面・題字は既に描かれている）。
@@ -192,29 +216,83 @@ internal fun TocPortalJ(
 }
 
 // ============================================================
-// topbar（モック .topbar: 戻る＋「目次」。数値カウンタなし＝J は光量で進行を語る）
+// topbar（モック .top: 戻る＋「目次」＋作品名サブ .work＋下端ヘアライン）
 // ============================================================
 @Composable
-private fun TocPortalTopBar(onNavigateToBookshelf: () -> Unit) {
+private fun TocPortalTopBar(workTitle: String?, onNavigateToBookshelf: () -> Unit) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                // .top padding 2px 12px 12px → 上 S4 / 横 S12 / 下 S12。
+                .padding(start = Spacing.S12, end = Spacing.S12, top = Spacing.S4, bottom = Spacing.S12),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onNavigateToBookshelf) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "本棚に戻る", tint = InkTocPortal)
+            }
+            Column(modifier = Modifier.padding(start = Spacing.S8)) { // .top gap 6px → S8
+                Text(
+                    "目次",
+                    fontFamily = MinchoFamily,
+                    fontSize = 19.sp,                    // .top h1 19px
+                    letterSpacing = 0.14.em,             // letter-spacing:.14em
+                    fontWeight = FontWeight.Medium,      // font-weight:500
+                    color = InkTocPortal,                // --ink #E7ECE1
+                )
+                // 作品名サブ（.work 明朝12.5px --soft）。渡された場合のみ（捏造禁止＝未紐付けは行ごと出さない）。
+                if (!workTitle.isNullOrBlank()) {
+                    Text(
+                        workTitle,
+                        fontFamily = MinchoFamily,
+                        fontSize = 12.5.sp,              // .work 12.5px
+                        color = SoftToc,                 // .work color var(--soft)
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = Spacing.S4), // .work margin-top 3px → S4
+                    )
+                }
+            }
+        }
+        HorizontalDivider(color = LineToc, thickness = 1.dp) // .top border-bottom 1px var(--line)
+    }
+}
+
+// ============================================================
+// 現在地バー（モック .here: 現在話チップ〔淡い金地・金字・金枠〕＋読了率）
+// ============================================================
+@Composable
+private fun TocHereBarJ(
+    currentIndex: Int,
+    total: Int,
+    onJumpToCurrent: () -> Unit,
+) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)                       // .topbar height 56px
-            .padding(horizontal = Spacing.S12),  // .topbar padding 0 12px
+        // .here padding 14px 18px 12px → 上 S16・横 S16・下 S12（14/18px は S16 へ丸め＝ADR 0014 スケール）。
+        modifier = Modifier.fillMaxWidth().padding(start = Spacing.S16, end = Spacing.S16, top = Spacing.S16, bottom = Spacing.S12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onNavigateToBookshelf) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "本棚に戻る", tint = InkTocPortal)
+        if (currentIndex >= 0) {
+            Text(
+                "いま読んでいる: 第${currentIndex + 1}話",
+                fontSize = 12.sp, // .herechip 12px
+                fontWeight = FontWeight.Bold,
+                color = GoldPortal, // color var(--gold)
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(GoldPortal.copy(alpha = 0.12f)) // --gold-tint rgba(226,200,120,.12)
+                    .border(1.dp, GoldPortal.copy(alpha = 0.28f), RoundedCornerShape(999.dp)) // border rgba(226,200,120,.28)
+                    .clickable(onClick = onJumpToCurrent)
+                    .padding(horizontal = Spacing.S16, vertical = Spacing.S8), // .herechip 6px 14px
+            )
         }
-        Text(
-            "目次",
-            fontFamily = MinchoFamily,
-            fontSize = 19.sp,                    // .topbar h1 19px
-            letterSpacing = 0.14.em,             // letter-spacing:.14em
-            fontWeight = FontWeight.Medium,      // font-weight:500
-            color = InkTocPortal,                // --ink #E7ECE1
-            modifier = Modifier.padding(start = Spacing.S8), // .topbar gap 8px
-        )
+        Spacer(Modifier.weight(1f))
+        val progress = buildString {
+            append("全${total}話")
+            // 読了率は現在章が既知のときのみ（未読は分母だけ＝捏造禁止）。可視の✓（既読）数と一致。
+            if (currentIndex >= 0 && total > 0) append("・読了率${tocReadProgressPercent(currentIndex, total)}%")
+        }
+        Text(progress, fontSize = 11.5.sp, color = SoftToc) // .prog 11.5px var(--soft)
     }
 }
 
@@ -223,6 +301,7 @@ private fun TocPortalTopBar(onNavigateToBookshelf: () -> Unit) {
 // ============================================================
 @Composable
 private fun TocChapterRow(
+    epLabel: String,
     title: String,
     step: RowStep,
     onClick: () -> Unit,
@@ -248,25 +327,59 @@ private fun TocChapterRow(
             Box(Modifier.width(2.dp).fillMaxHeight().background(railColor)) // .rail::before 2px 縦線
             TocNode(step)                                                   // .node（線の上に重ねる）
         }
-        // 章題（.tx）＋下線（border-bottom）。
+        // 章題ブロック（.tx＝話数ラベル＋章題＋行末状態）＋下線（border-bottom）。
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                fontFamily = MinchoFamily,
-                fontSize = 15.sp,                // .tx 15px
-                lineHeight = 23.sp,              // line-height:1.55 × 15 = 23.25 → 23sp
-                // 現在章＝金 Bold／passed（読了）＝--dim へ沈める（読了の見当識・モック明示）／未読＝--ink。
-                color = when (step) {
-                    RowStep.CUR -> GoldPortal
-                    RowStep.PASSED -> DimToc
-                    RowStep.AHEAD -> InkTocPortal
-                },
-                fontWeight = if (step == RowStep.CUR) FontWeight.Bold else FontWeight.Normal,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                // .tx padding 18px 24px 18px 2px → S16 / S24 / S16 / S4（18は S16・2は S4 へ丸め＝ADR 0014 スケール）。
-                modifier = Modifier.padding(start = Spacing.S4, top = Spacing.S16, end = Spacing.S24, bottom = Spacing.S16),
-            )
+            Row(
+                // .tx padding 16px 18px 16px 2px → 上 S16・右 S16・下 S16・左 S4。gap 12px → S12。
+                modifier = Modifier.padding(start = Spacing.S4, top = Spacing.S16, end = Spacing.S16, bottom = Spacing.S16),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S12),
+            ) {
+                // 話数ラベル（.ep width 52px・ゴシック11px --soft。K形伝播で追加）。
+                Text(
+                    text = epLabel,
+                    fontSize = 11.sp,
+                    letterSpacing = 0.02.em,
+                    color = SoftToc,
+                    modifier = Modifier.width(52.dp),
+                )
+                Text(
+                    text = title,
+                    fontFamily = MinchoFamily,
+                    fontSize = 15.sp,                // .ti 15px
+                    lineHeight = 23.sp,              // line-height:1.55 × 15 = 23.25 → 23sp
+                    // 現在章＝金 Bold／passed（読了）＝--dim へ沈める（読了の見当識・モック明示）／未読＝--ink。
+                    color = when (step) {
+                        RowStep.CUR -> GoldPortal
+                        RowStep.PASSED -> DimToc
+                        RowStep.AHEAD -> InkTocPortal
+                    },
+                    fontWeight = if (step == RowStep.CUR) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                // 行末（.end）: 現在章＝唯一の実アクション「ここから再開」／既読＝金の✓／未読＝なし。
+                when (step) {
+                    RowStep.CUR -> Text(
+                        "ここから再開",
+                        fontSize = 11.sp,            // .resume 11px
+                        fontWeight = FontWeight.Bold, // weight 700
+                        color = ResumeInkPortal,     // color #15241A（金の上の森の暗インク）
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(GoldPortal)  // .resume background var(--gold)
+                            .padding(horizontal = Spacing.S12, vertical = Spacing.S8), // .resume 6px 12px
+                    )
+                    RowStep.PASSED -> Icon(
+                        Icons.Filled.Check,
+                        contentDescription = null,   // 既読の意味は行全体の見え（沈めた題名＋金の道/節）が担う（装飾）
+                        tint = GolddToc,             // .end svg stroke var(--goldd)
+                        modifier = Modifier.size(16.dp), // .end svg 16x16
+                    )
+                    RowStep.AHEAD -> Unit
+                }
+            }
             HorizontalDivider(color = LineToc, thickness = 1.dp) // .tx border-bottom 1px var(--line)
         }
     }

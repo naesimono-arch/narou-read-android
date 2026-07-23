@@ -27,8 +27,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -36,8 +38,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -63,6 +67,9 @@ import com.novelreader.ui.theme.DimSeizu
 import com.novelreader.ui.theme.FaintStarSeizu
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.MoonSlateSeizu
+import com.novelreader.ui.theme.OnStarSeizu
+import com.novelreader.ui.theme.ResumeGradEndSeizu
+import com.novelreader.ui.theme.ResumeGradStartSeizu
 import com.novelreader.ui.theme.SkyGradMidSeizu
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.StarCoreSeizu
@@ -73,9 +80,11 @@ import com.novelreader.ui.theme.TextSeizu
 import com.novelreader.ui.theme.TocCurStarSeizu
 import com.novelreader.ui.theme.TocInkSeizu
 import com.novelreader.ui.tocInitialFirstVisibleIndex
+import com.novelreader.ui.tocReadProgressPercent
 import kotlin.math.PI
 import kotlin.math.hypot
 import kotlin.math.sin
+import kotlinx.coroutines.launch
 
 // ============================================================
 // スキンM「星図」の目次＝この物語の星座を辿る図（正本 toc-M.html・ADR 0022 §1 の構造分岐先）。
@@ -116,6 +125,7 @@ private val TocChromeScrim = SkyGradMidSeizu.copy(alpha = 0.30f) // 上部クロ
 @Composable
 internal fun TocSkyM(
     tocState: TocState,
+    workTitle: String?,
     currentChapterFile: String?,
     onSelectChapter: (fileName: String) -> Unit,
     onNavigateToBookshelf: () -> Unit,
@@ -179,36 +189,49 @@ internal fun TocSkyM(
                 .navigationBarsPadding(),
         ) {
             TocSkyTopBar(
-                // sync＝本棚と同期する話数（現在話/全話）。現在章が無い（未読/空）ときは出さない
-                //（モック空状態の topbar が .sync を持たないのと同型・発明を避ける）。
-                syncText = if (currentIndex >= 0) "${currentIndex + 1} / ${entries.size} 話" else null,
+                // K形伝播（正本 toc-M.html .topbar）: 副題は作品名（.work）。進捗は下の現在地バー（.here）へ移した。
+                workTitle = workTitle,
                 onNavigateToBookshelf = onNavigateToBookshelf,
             )
             when (tocState) {
-                is TocState.Content -> LazyColumn(
-                    // スクロール差分を backdrop の視差へ流す（本棚面と同じ onPostScroll consumed.y＝画面遷移で連続）。
-                    modifier = Modifier.fillMaxWidth().weight(1f).nestedScroll(parallaxNestedScroll),
-                    state = rememberLazyListState(
+                is TocState.Content -> {
+                    // listState を持ち上げる（現在地チップのタップで現在章へスクロールさせるため・D/K と同型）。
+                    val listState = rememberLazyListState(
                         // 現在章付近を開いた瞬間から表示（D と同じ導出＝現在章の1つ手前・未読は先頭）。
                         initialFirstVisibleItemIndex = tocInitialFirstVisibleIndex(entries, currentChapterFile),
-                    ),
-                    // .scroll padding:8px 0 → 上下 S8。
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        top = Spacing.S8, bottom = Spacing.S8,
-                    ),
-                ) {
-                    itemsIndexed(entries, key = { _, e -> e.fileName }) { index, entry ->
-                        val lit = when {
-                            index == currentIndex -> RowLit.CUR
-                            currentIndex >= 0 && index < currentIndex -> RowLit.READ
-                            else -> RowLit.AHEAD
+                    )
+                    val scope = rememberCoroutineScope()
+                    // 現在地バー（K形伝播・モック toc-M.html .here）: 現在話チップ（星光地・星光字）＋進捗。
+                    TocHereBarM(
+                        currentIndex = currentIndex,
+                        total = entries.size,
+                        onJumpToCurrent = {
+                            scope.launch { listState.animateScrollToItem((currentIndex - 1).coerceAtLeast(0)) }
+                        },
+                    )
+                    LazyColumn(
+                        // スクロール差分を backdrop の視差へ流す（本棚面と同じ onPostScroll consumed.y＝画面遷移で連続）。
+                        modifier = Modifier.fillMaxWidth().weight(1f).nestedScroll(parallaxNestedScroll),
+                        state = listState,
+                        // .scroll padding:6px 0 24px → 上 S8・下 S24。
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            top = Spacing.S8, bottom = Spacing.S24,
+                        ),
+                    ) {
+                        itemsIndexed(entries, key = { _, e -> e.fileName }) { index, entry ->
+                            val lit = when {
+                                index == currentIndex -> RowLit.CUR
+                                currentIndex >= 0 && index < currentIndex -> RowLit.READ
+                                else -> RowLit.AHEAD
+                            }
+                            TocChapterRow(
+                                epLabel = "第${index + 1}話",
+                                title = entry.title.ifEmpty { "第${index + 1}章" },
+                                lit = lit,
+                                phase = phase,
+                                onClick = { onSelectChapter(entry.fileName) },
+                            )
                         }
-                        TocChapterRow(
-                            title = entry.title.ifEmpty { "第${index + 1}章" },
-                            lit = lit,
-                            phase = phase,
-                            onClick = { onSelectChapter(entry.fileName) },
-                        )
                     }
                 }
                 is TocState.Empty -> TocEmptyBody(Modifier.weight(1f))
@@ -221,11 +244,11 @@ internal fun TocSkyM(
 }
 
 // ============================================================
-// topbar（モック .topbar: 戻る＋「目次」＋話数 sync）
+// topbar（モック .topbar: 戻る＋「目次」＋作品名サブ .work）
 // ============================================================
 @Composable
 private fun TocSkyTopBar(
-    syncText: String?,
+    workTitle: String?,
     onNavigateToBookshelf: () -> Unit,
 ) {
     Row(
@@ -254,12 +277,15 @@ private fun TocSkyTopBar(
                 fontWeight = FontWeight.Medium,
                 color = TextSeizu,
             )
-            if (syncText != null) {
+            // 作品名サブ（.work 明朝13px --dim）。渡された場合のみ（捏造禁止＝未紐付けは行ごと出さない）。
+            if (!workTitle.isNullOrBlank()) {
                 Text(
-                    syncText,
-                    fontSize = 10.sp,      // .sync 10px
-                    letterSpacing = 0.14.em,
-                    color = StarSeizu,     // .sync color var(--star)
+                    workTitle,
+                    fontFamily = MinchoFamily,
+                    fontSize = 13.sp,      // .work 13px（明朝）
+                    color = DimSeizu,      // .work color var(--dim)
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -267,10 +293,55 @@ private fun TocSkyTopBar(
 }
 
 // ============================================================
-// 章行（モック .li: 左ガター〔縦結線＋星点〕＋章名）
+// 現在地バー（モック .here: 現在話チップ〔星光地・星光字・先頭に灯る星〕＋進捗）
+// ============================================================
+@Composable
+private fun TocHereBarM(
+    currentIndex: Int,
+    total: Int,
+    onJumpToCurrent: () -> Unit,
+) {
+    Row(
+        // .here padding 12px 18px → 縦 S12・横 S16（18px は S16 へ丸め＝ADR 0014 スケール）。
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.S16, vertical = Spacing.S12),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (currentIndex >= 0) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(StarSeizu.copy(alpha = 0.12f)) // --star-tint（星光10%地）
+                    .clickable(onClick = onJumpToCurrent)
+                    .padding(horizontal = Spacing.S16, vertical = Spacing.S8), // .herechip 6px 14px
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S8), // gap 7px → S8
+            ) {
+                // ::before 6px の灯る金の星（box-shadow 0 0 7px α.8）。既存の星グロー描画を流用する。
+                Box(Modifier.size(6.dp).drawBehind { drawDotGlow(blurDp = 7f, alpha = 0.8f); drawCircle(StarSeizu) })
+                Text(
+                    "いま読んでいる 第${currentIndex + 1}話",
+                    fontSize = 12.5.sp, // .herechip 12.5px
+                    fontWeight = FontWeight.Bold,
+                    color = StarSeizu,
+                )
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        val progress = buildString {
+            append("全${total}話")
+            // 読了率は現在章が既知のときのみ（未読は分母だけ＝捏造禁止）。可視の金の星（既読）数と一致。
+            if (currentIndex >= 0 && total > 0) append(" ・ 読了率 ${tocReadProgressPercent(currentIndex, total)}%")
+        }
+        Text(progress, fontSize = 11.5.sp, color = DimSeizu) // .prog 11.5px var(--dim)
+    }
+}
+
+// ============================================================
+// 章行（モック .li: 左ガター〔縦結線＋星点〕＋話数ラベル＋章名。現在章は行末に「ここから再開」）
 // ============================================================
 @Composable
 private fun TocChapterRow(
+    epLabel: String,
     title: String,
     lit: RowLit,
     phase: State<Float>?,
@@ -288,6 +359,7 @@ private fun TocChapterRow(
             .then(if (lit == RowLit.CUR) Modifier.background(StarSeizu.copy(alpha = 0.07f)) else Modifier)
             .clickable(onClick = onClick)
             .height(IntrinsicSize.Min),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         // ガター（.gut width 50px）: 中央に縦結線（::before 1px）と星点（.dot）。
         Box(
@@ -297,6 +369,14 @@ private fun TocChapterRow(
             Box(Modifier.width(1.dp).fillMaxHeight().background(seg))
             TocDot(lit = lit, phase = phase)
         }
+        // 話数ラベル（.ep width 52px・ゴシック11px --dim。K形伝播で追加）。
+        Text(
+            text = epLabel,
+            fontSize = 11.sp,
+            letterSpacing = 0.02.em,
+            color = DimSeizu,
+            modifier = Modifier.width(52.dp),
+        )
         Text(
             text = title,
             fontFamily = MinchoFamily,
@@ -307,11 +387,34 @@ private fun TocChapterRow(
             fontWeight = if (lit == RowLit.CUR) FontWeight.Bold else FontWeight.Normal,
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
-            // .tx padding 18px 24px 18px 2px → S16 / S24 / S16 / S4（18は S16 へ・2は S4 へ丸め＝ADR 0014 スケール）。
+            // .tx padding 16px 16px 16px 0 → 縦 S16・右 S16・左 0（左のアキは .ep 幅が担う）。
             modifier = Modifier
                 .weight(1f)
-                .padding(start = Spacing.S4, top = Spacing.S16, end = Spacing.S24, bottom = Spacing.S16),
+                .padding(top = Spacing.S16, end = Spacing.S16, bottom = Spacing.S16),
         )
+        // 行末（.end padding-right 16px）: 現在章のみ唯一の実アクション「ここから再開」（この画面の強調）。
+        // 既読マークは行末✓でなくガターの金の星（星座点火が M 署名＝既に TocDot が担う）。
+        if (lit == RowLit.CUR) {
+            Row(
+                modifier = Modifier
+                    .padding(end = Spacing.S16)
+                    .clip(RoundedCornerShape(999.dp))
+                    // .resume linear-gradient(135deg,#EbdFb4,#D8C68C)＝金のグラデ pill。
+                    .background(Brush.linearGradient(listOf(ResumeGradStartSeizu, ResumeGradEndSeizu)))
+                    .padding(horizontal = Spacing.S12, vertical = Spacing.S8), // .resume 6px 12px
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S4), // gap 6px → S4
+            ) {
+                // ▶ 再生アイコン（fill #141B33＝夜天上の暗インク OnStar）。
+                Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = OnStarSeizu, modifier = Modifier.size(11.dp))
+                Text(
+                    "ここから再開",
+                    fontSize = 11.sp,             // .resume 11px
+                    fontWeight = FontWeight.ExtraBold, // font-weight 800
+                    color = OnStarSeizu,          // color #141B33
+                )
+            }
+        }
     }
 }
 

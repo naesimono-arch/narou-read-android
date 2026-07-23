@@ -67,24 +67,25 @@ class TocSkyMTest {
     }
 
     @Test
-    fun `M装着では星図目次の話数syncが出る＝D構造でない`() {
+    fun `M装着では星図目次の話数ラベルが出る＝D構造でない`() {
         setToc(Skin.SEIZU_M, TocState.Content(entries), currentChapterFile = "chap_2.html")
-        // 星図の署名＝本棚と同期する話数 sync（D 目次には無い＝画面丸ごと分岐している）。
-        composeTestRule.onNodeWithText("2 / 3 話").assertIsDisplayed()
+        // K形伝播後の星図の識別点＝各行の話数ラベル .ep「第N話」（D 目次は話数を章題へインラインし独立ラベルを持たない）。
+        composeTestRule.onNodeWithText("第2話").assertIsDisplayed()
         composeTestRule.onNodeWithText("第一章 出会い").assertIsDisplayed()
     }
 
     @Test
-    fun `D装着では星図syncが出ず従来のD描画のまま`() {
+    fun `D装着では話数ラベルが出ず従来のD描画のまま`() {
         setToc(Skin.WAMODERN_D, TocState.Content(entries), currentChapterFile = "chap_2.html")
-        composeTestRule.onNodeWithText("2 / 3 話").assertDoesNotExist()
+        composeTestRule.onNodeWithText("第2話").assertDoesNotExist()
         composeTestRule.onNodeWithText("第二章 旅立ち").assertIsDisplayed()
     }
 
     @Test
-    fun `現在章の検出が話数syncに現れる（強調とcanvas点火の源）`() {
+    fun `現在章の検出が現在地チップに現れる（強調とcanvas点火の源）`() {
         setToc(Skin.SEIZU_M, TocState.Content(entries), currentChapterFile = "chap_3.html")
-        composeTestRule.onNodeWithText("3 / 3 話").assertIsDisplayed()
+        // 現在地チップ「いま読んでいる 第N話」が現在章（chap_3＝第3話）を指す。
+        composeTestRule.onNodeWithText("いま読んでいる 第3話").assertIsDisplayed()
     }
 
     @Test

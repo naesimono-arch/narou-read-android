@@ -24,11 +24,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,7 +70,9 @@ import com.novelreader.ui.theme.PlasticHiCartridge
 import com.novelreader.ui.theme.PlasticLoCartridge
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.tocInitialFirstVisibleIndex
+import com.novelreader.ui.tocReadProgressPercent
 import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 // ============================================================
 // スキンP「カートリッジ」の目次＝携帯機のステージセレクト（正本 toc-P.html・はっちゃけ版・ADR 0022 §1 の構造分岐先）。
@@ -146,6 +150,7 @@ private val FutureNodeFill = FutureNodeCartridge // 未読ノード地 #e6e2d6�
 @Composable
 internal fun TocCartridgeP(
     tocState: TocState,
+    workTitle: String?,
     currentChapterFile: String?,
     onSelectChapter: (fileName: String) -> Unit,
     onNavigateToBookshelf: () -> Unit,
@@ -174,7 +179,8 @@ internal fun TocCartridgeP(
             },
     ) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-            TocTopBarP(onNavigateToBookshelf)
+            // K形伝播: トップバーに作品名サブ（.work）を追加。
+            TocTopBarP(workTitle, onNavigateToBookshelf)
 
             when (tocState) {
                 is TocState.Content -> {
@@ -182,17 +188,26 @@ internal fun TocCartridgeP(
                     // CLEAR%＝読了済み（現在章より前＝done ノード）の割合。目次画面はスクロール進捗を受け取らないため、
                     // done ノード数（currentIndex）を単一真実源にする（捏造せず可視の緑ノード数と一致）。未読は 0。
                     val cleared = currentIndex.coerceAtLeast(0)
-                    val pct = if (total == 0) 0 else (cleared * 100f / total).roundToInt()
-                    // STAGE＝現在いるステージ番号（現在章の話数）。未読は 0（まだどのステージにも入っていない）。
-                    val stage = if (currentIndex >= 0) currentIndex + 1 else 0
-                    CartridgeHud(stage = stage, total = total, pct = pct)
+                    val pct = tocReadProgressPercent(cleared, total)
+                    // listState を持ち上げる（HUD の現在地チップのタップで現在章へスクロールさせるため・D/M/K と同型）。
+                    val listState = rememberLazyListState(
+                        // 現在章付近を開いた瞬間から表示（D/M と同じ導出＝現在章の1つ手前・未読は先頭）。
+                        initialFirstVisibleItemIndex = tocInitialFirstVisibleIndex(entries, currentChapterFile),
+                    )
+                    val scope = rememberCoroutineScope()
+                    // HUD（緑LCD）: K形伝播で STAGE 数値を現在地チップへ置換（現在地チップ＋STAGE SELECT＋進捗ゲージ）。
+                    CartridgeHud(
+                        currentIndex = currentIndex,
+                        total = total,
+                        pct = pct,
+                        onJumpToCurrent = {
+                            scope.launch { listState.animateScrollToItem((currentIndex - 1).coerceAtLeast(0)) }
+                        },
+                    )
 
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth().weight(1f),
-                        state = rememberLazyListState(
-                            // 現在章付近を開いた瞬間から表示（D/M と同じ導出＝現在章の1つ手前・未読は先頭）。
-                            initialFirstVisibleItemIndex = tocInitialFirstVisibleIndex(entries, currentChapterFile),
-                        ),
+                        state = listState,
                         // .scroll padding:4px 0 8px → 上 S4 / 下 S8。
                         contentPadding = PaddingValues(top = Spacing.S4, bottom = Spacing.S8),
                     ) {
@@ -221,35 +236,47 @@ internal fun TocCartridgeP(
 }
 
 // ============================================================
-// トップバー（.top: 戻る＋「目次」）
+// トップバー（.top: 戻る＋「目次」＋作品名サブ .work）
 // ============================================================
 @Composable
-private fun TocTopBarP(onBack: () -> Unit) {
+private fun TocTopBarP(workTitle: String?, onBack: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            // .top padding:4px 14px 8px → 上 S4 / 横 S16 / 下 S8。
-            .padding(start = Spacing.S16, end = Spacing.S16, top = Spacing.S4, bottom = Spacing.S8),
+            // .top padding:2px 12px 8px → 上 S4 / 横 S12 / 下 S8。
+            .padding(start = Spacing.S12, end = Spacing.S12, top = Spacing.S4, bottom = Spacing.S8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "本棚に戻る", tint = InkCartridge)
         }
-        Text(
-            "目次",
-            fontSize = 19.sp,             // .top h1 19px（ゴシック・weight 700）
-            fontWeight = FontWeight.Bold,
-            color = InkCartridge,
-            modifier = Modifier.padding(start = Spacing.S8), // .top gap 6px → S8
-        )
+        Column(modifier = Modifier.padding(start = Spacing.S8)) { // .top gap 6px → S8
+            Text(
+                "目次",
+                fontSize = 18.sp,             // .top h1 18px（ゴシック・weight 700）
+                fontWeight = FontWeight.Bold,
+                color = InkCartridge,
+            )
+            // 作品名サブ（.work ゴシック12.5px --ink-soft）。渡された場合のみ（捏造禁止＝未紐付けは行ごと出さない）。
+            if (!workTitle.isNullOrBlank()) {
+                Text(
+                    workTitle,
+                    fontSize = 12.5.sp,       // .work 12.5px
+                    color = InkSoftCartridge, // .work color var(--ink-soft)
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = Spacing.S4), // .work margin-top 2px → S4
+                )
+            }
+        }
     }
 }
 
 // ============================================================
-// 携帯機HUD（.hud＝緑LCD の現在地・全体進捗）
+// 携帯機HUD（.hud＝緑LCD の現在地チップ・全体進捗）
 // ============================================================
 @Composable
-private fun CartridgeHud(stage: Int, total: Int, pct: Int) {
+private fun CartridgeHud(currentIndex: Int, total: Int, pct: Int, onJumpToCurrent: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -261,14 +288,14 @@ private fun CartridgeHud(stage: Int, total: Int, pct: Int) {
                 drawRect(Brush.verticalGradient(listOf(LcdHiCartridge, LcdCartridge)))
                 drawLcdDots(LcdDotToc)  // ドット色は目次面の正本 α（rgba(43,54,22,.15)）を渡す。
             }
-            // .hud padding:9px 13px → 縦 S8 / 横 S12。
-            .padding(horizontal = Spacing.S12, vertical = Spacing.S8),
+            // .hud padding:11px 13px → 縦 S12 / 横 S12。
+            .padding(horizontal = Spacing.S12, vertical = Spacing.S12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // アバター（.av＝駒スプライトの小窓）。
         Box(
             modifier = Modifier
-                .size(34.dp)                       // .av 34x34
+                .size(36.dp)                       // .av 36x36
                 .clip(RoundedCornerShape(7.dp))
                 .background(HudAvBg)
                 .border(1.dp, HudAvStroke, RoundedCornerShape(7.dp)),
@@ -279,22 +306,36 @@ private fun CartridgeHud(stage: Int, total: Int, pct: Int) {
             }
         }
         Spacer(Modifier.width(Spacing.S12))        // .hud gap 11px → S12
-        // 現在地（.mid＝STAGE 127/340）。
+        // 現在地（.mid＝現在地チップ〔K形〕＋STAGE SELECT ラベル）。
         Column(modifier = Modifier.weight(1f)) {
+            // 現在地チップ（.herechip＝LCD刻印風の枠チップ・タップで現在章へ）。現在章が無い（未読）ときは出さない。
+            if (currentIndex >= 0) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .border(1.4.dp, NowTagBorder, RoundedCornerShape(999.dp)) // border rgba(43,54,22,.55)
+                        .clickable(onClick = onJumpToCurrent)
+                        .padding(horizontal = Spacing.S12, vertical = Spacing.S4), // .herechip 5px 12px
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.S4), // gap 6px
+                ) {
+                    Text("▶", fontFamily = PixelFamily, fontSize = 10.sp, color = LcdInkCartridge) // .pin
+                    Text(
+                        "いま読んでいる ・ 第${currentIndex + 1} / 全${total}話",
+                        fontSize = 12.5.sp,           // .herechip 12.5px（ゴシック・weight 700）
+                        fontWeight = FontWeight.Bold,
+                        color = LcdInkCartridge,
+                    )
+                }
+            }
             Text(
-                "STAGE",
+                "STAGE SELECT",
                 fontFamily = PixelFamily,
                 fontSize = 8.5.sp,                 // .mid .k 8.5px
                 letterSpacing = 0.22.em,
                 color = HudStatKey,
-            )
-            Text(
-                "$stage / $total",
-                fontFamily = PixelFamily,
-                fontSize = 16.sp,                  // .mid .v 16px
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.05.em,
-                color = LcdInkCartridge,
+                // .k margin-top 7px → S8（チップがある時だけ・未読は詰める）。
+                modifier = if (currentIndex >= 0) Modifier.padding(top = Spacing.S8) else Modifier,
             )
         }
         Spacer(Modifier.width(Spacing.S12))        // .hud gap 11px → S12
@@ -348,6 +389,8 @@ private fun TocChapterRowP(
     onClick: () -> Unit,
 ) {
     val isCur = index == currentIndex
+    // 既読＝現在章より前（done ノード）。K形伝播でモック toc-P .row.done＝題名を沈めて行末に✓。
+    val isRead = currentIndex >= 0 && index < currentIndex
     // ノード話数の描画に使う計測器（Canvas 内で drawText＝ノード中心へ厳密センタリング）。
     val measurer = rememberTextMeasurer()
     Row(
@@ -392,32 +435,44 @@ private fun TocChapterRowP(
                 }
             }
         }
-        // 章題（右カラム＝一定の開始位置で可読。現在章のみ lcd-ink 太字・他は ink で沈めない＝モック忠実）。
+        // 章題（右カラム＝一定の開始位置で可読）。現在章＝lcd-ink 太字／既読＝--ink-soft へ沈める（K形伝播・モック .row.done）／未読＝ink。
         Text(
             text = title,
             fontSize = 14.5.sp,                    // .rtitle 14.5px（ゴシック）
             lineHeight = 20.6.sp,                  // line-height 1.42 × 14.5
             fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal,
-            color = if (isCur) LcdInkCartridge else InkCartridge,
+            color = when {
+                isCur -> LcdInkCartridge
+                isRead -> InkSoftCartridge         // .row.done .rtitle color var(--ink-soft)
+                else -> InkCartridge
+            },
             maxLines = 2,                          // line-clamp 2
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .weight(1f)
                 .padding(start = Spacing.S16),      // レーン端(72)→章題左(88) の 16px → S16
         )
-        // 現在章タグ（.now＝▶ NOW。1点強調の言葉。1ラベル1言葉）。
-        if (isCur) {
-            Text(
-                "▶ NOW",
-                fontFamily = PixelFamily,
-                fontSize = 9.sp,                   // .now 9px
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.1.em,
-                color = LcdInkCartridge,
+        // 行末（K形）: 現在章＝唯一の実アクション「▶ ここから再開」／既読＝✓／未読＝なし。
+        when {
+            isCur -> Text(
+                "▶ ここから再開",
+                fontSize = 11.5.sp,                // .resume 11.5px（ゴシック・weight 800）
+                fontWeight = FontWeight.ExtraBold,
+                color = LcdInkCartridge,           // lcd-ink（緑LCD上の暗文字）
                 modifier = Modifier
-                    .padding(start = Spacing.S12)   // .now margin-left 10px → S12
-                    .border(1.dp, NowTagBorder, RoundedCornerShape(3.dp))
-                    .padding(horizontal = Spacing.S8, vertical = Spacing.S4), // .now padding 3px 6px
+                    .padding(start = Spacing.S12)   // 章題との間隔
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(LcdCartridge)       // .resume background var(--lcd)
+                    .border(1.dp, LcdInkCartridge.copy(alpha = 0.5f), RoundedCornerShape(999.dp)) // border rgba(43,54,22,.5)
+                    .padding(horizontal = Spacing.S12, vertical = Spacing.S8), // .resume 6px 12px
+            )
+            isRead -> Icon(
+                Icons.Filled.Check,
+                contentDescription = null,         // 既読の意味は行全体の見え（沈めた題名＋灯った緑ノード）が担う（装飾）
+                tint = LcdInkCartridge.copy(alpha = 0.85f), // .rcheck color lcd-ink opacity .85
+                modifier = Modifier
+                    .padding(start = Spacing.S8)
+                    .size(18.dp),                  // .rcheck 18x18
             )
         }
     }
