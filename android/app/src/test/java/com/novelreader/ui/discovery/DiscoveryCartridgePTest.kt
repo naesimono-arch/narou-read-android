@@ -122,10 +122,11 @@ class DiscoveryCartridgePTest {
     }
 
     @Test
-    fun `ホームの検索アイコンでonOpenSearchが呼ばれる`() {
+    fun `ホームの検索フィールドでonOpenSearchが呼ばれる`() {
         var searched = false
         setHome(Skin.CARTRIDGE_P, DiscoveryUiState.Empty, onOpenSearch = { searched = true })
-        composeTestRule.onNodeWithContentDescription("探す").performClick()
+        // K 形伝播で検索アイコンは実検索フィールド（機体の入力窓＋SEARCH キー）へ格上げ。プレースホルダ文タップで onOpenSearch。
+        composeTestRule.onNodeWithText("作品名・作者名・キーワードで探す").performClick()
         assertTrue(searched)
     }
 

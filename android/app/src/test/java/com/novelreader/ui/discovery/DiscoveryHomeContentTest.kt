@@ -9,7 +9,6 @@ import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onFirst
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -83,11 +82,12 @@ class DiscoveryHomeContentTest {
     }
 
     @Test
-    fun `検索アイコンでonOpenSearchが呼ばれる`() {
+    fun `検索フィールドでonOpenSearchが呼ばれる`() {
         var searched = false
         setContent(DiscoveryUiState.Empty, onOpenSearch = { searched = true })
-        // ラベルは用語辞書（docs/patterns/discovery-terminology.md）＝検索画面名「探す」に一致させた。
-        composeTestRule.onNodeWithContentDescription("探す").performClick()
+        // K 形伝播でトップバーの検索アイコン1個は撤去し、常時可視の実検索フィールドへ格上げした（モック .search）。
+        // プレースホルダ文をタップ＝行全体の clickable が onOpenSearch を発火する。
+        composeTestRule.onNodeWithText("作品名・作者名・キーワードで探す").performClick()
         assertTrue(searched)
     }
 
