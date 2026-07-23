@@ -12,8 +12,8 @@ class ShelfItemsTest {
     private fun book(id: String, addedAt: Long, ncode: String? = null) =
         BookEntity(id = id, title = "本$id", htmlDirPath = "/p/$id", addedAt = addedAt, ncode = ncode)
 
-    private fun web(ncode: String, addedAt: Long) =
-        WebNovelEntity(ncode = ncode, title = "Web$ncode", writer = "作者", generalAllNo = 10, addedAt = addedAt)
+    private fun web(ncode: String, addedAt: Long, generalAllNo: Int = 10) =
+        WebNovelEntity(ncode = ncode, title = "Web$ncode", writer = "作者", generalAllNo = generalAllNo, addedAt = addedAt)
 
     @Test
     fun `蔵書とWeb由来が最近の活動順で混在する`() {
@@ -263,28 +263,153 @@ class ShelfItemsTest {
         val (fb, fw) = filterShelfByStatus(
             books, webs, selectedStatus = null,
             progressMap = emptyMap(), chapterCounts = emptyMap(),
+            webReadingProgress = emptyMap(),
         )
 
         assertEquals(books, fb)
         assertEquals(webs, fw)
     }
 
+    // 注: 旧「Web判定材料が未配線(null)なら全部落ちる」テストは撤去した。webReadingProgress を必須引数化し
+    //     null フォールバック分岐そのものを削ったため（配線漏れをコンパイル時に強制検出する）。蔵書側フィルタの
+    //     回帰は下の「Web判定材料を配線しても蔵書側フィルタは従来どおり」がカバーする。
+
+    // ────── webReadingStatusFor（Web作品の読書状態分類・全分岐） ──────
+    // 近似2点（最終話を開いた=読了／generalAllNo は登録時スナップショット）を含む確定仕様を固定する。
+
     @Test
-    fun `状態選択中は該当状態の蔵書だけ残りWebカードは全部落ちる`() {
-        // b1=よみかけ（chap_3/全10章）・b2=未読（進捗なし）。READING 選択で b1 のみ残る。
+    fun `webReadingStatusFor - 読書位置なし(null)は未読`() {
+        assertEquals(ReadingStatus.UNREAD, webReadingStatusFor(lastReadEpisode = null, generalAllNo = 10))
+    }
+
+    @Test
+    fun `webReadingStatusFor - lastReadEpisode0は未読`() {
+        assertEquals(ReadingStatus.UNREAD, webReadingStatusFor(lastReadEpisode = 0, generalAllNo = 10))
+    }
+
+    @Test
+    fun `webReadingStatusFor - 途中(0より大きく全話数未満)はよみかけ`() {
+        assertEquals(ReadingStatus.READING, webReadingStatusFor(lastReadEpisode = 5, generalAllNo = 10))
+    }
+
+    @Test
+    fun `webReadingStatusFor - 最終話到達(全話数と同値)は読了`() {
+        // 近似①: 最終話を開いた＝読了の割り切り。
+        assertEquals(ReadingStatus.FINISHED, webReadingStatusFor(lastReadEpisode = 10, generalAllNo = 10))
+    }
+
+    @Test
+    fun `webReadingStatusFor - 全話数を超える読書位置も読了(登録時スナップショットが縮んだ場合の防御)`() {
+        // 近似②の裏面: generalAllNo は登録時スナップショットゆえ、後で話数が減った等で ep>allNo になっても読了扱い。
+        assertEquals(ReadingStatus.FINISHED, webReadingStatusFor(lastReadEpisode = 12, generalAllNo = 10))
+    }
+
+    @Test
+    fun `webReadingStatusFor - generalAllNo0のガード 読んでいてもよみかけ(読了に誤分類しない)`() {
+        // 話数不明(0)は読了条件から外す。ep>0 なら読了ではなくよみかけへ落とす。
+        assertEquals(ReadingStatus.READING, webReadingStatusFor(lastReadEpisode = 3, generalAllNo = 0))
+    }
+
+    @Test
+    fun `webReadingStatusFor - generalAllNo0かつ未読は未読`() {
+        assertEquals(ReadingStatus.UNREAD, webReadingStatusFor(lastReadEpisode = 0, generalAllNo = 0))
+    }
+
+    // ────── filterShelfByStatus（Web判定材料を配線した本来の挙動） ──────
+
+    @Test
+    fun `未読フィルタは未読のWebだけ残す(行なし・0話)`() {
+        // wUnreadA=読書位置行なし・wUnreadB=0話・wReading=途中(3/10)・wFinished=最終話到達(10/10)。
+        val webs = listOf(
+            web("NUNREADA", 400), web("NUNREADB", 300), web("NREADING", 200), web("NFINISH0", 100),
+        )
+        val progress = mapOf("NUNREADB" to 0, "NREADING" to 3, "NFINISH0" to 10)
+
+        val (fb, fw) = filterShelfByStatus(
+            emptyList(), webs, selectedStatus = ReadingStatus.UNREAD,
+            progressMap = emptyMap(), chapterCounts = emptyMap(),
+            webReadingProgress = progress,
+        )
+
+        assertEquals(emptyList<BookEntity>(), fb)
+        assertEquals(listOf("NUNREADA", "NUNREADB"), fw.map { it.ncode })
+    }
+
+    @Test
+    fun `読みかけフィルタは途中のWebだけ残す`() {
+        val webs = listOf(web("NUNREAD1", 300), web("NREADING", 200), web("NFINISH0", 100))
+        val progress = mapOf("NREADING" to 4, "NFINISH0" to 10)
+
+        val (_, fw) = filterShelfByStatus(
+            emptyList(), webs, selectedStatus = ReadingStatus.READING,
+            progressMap = emptyMap(), chapterCounts = emptyMap(),
+            webReadingProgress = progress,
+        )
+
+        assertEquals(listOf("NREADING"), fw.map { it.ncode })
+    }
+
+    @Test
+    fun `読了フィルタは最終話到達のWebだけ残す`() {
+        val webs = listOf(web("NREADING", 200), web("NFINISH0", 100))
+        val progress = mapOf("NREADING" to 4, "NFINISH0" to 10)
+
+        val (_, fw) = filterShelfByStatus(
+            emptyList(), webs, selectedStatus = ReadingStatus.FINISHED,
+            progressMap = emptyMap(), chapterCounts = emptyMap(),
+            webReadingProgress = progress,
+        )
+
+        assertEquals(listOf("NFINISH0"), fw.map { it.ncode })
+    }
+
+    @Test
+    fun `読了フィルタでgeneralAllNo0のWebは残らない(読了ガード)`() {
+        // generalAllNo=0 は話数不明。読み込んでいても FINISHED に分類されない（READING 扱い）＝読了フィルタで消える。
+        val webs = listOf(web("NNOCOUNT", 200, generalAllNo = 0))
+        val progress = mapOf("NNOCOUNT" to 99)
+
+        val (_, fw) = filterShelfByStatus(
+            emptyList(), webs, selectedStatus = ReadingStatus.FINISHED,
+            progressMap = emptyMap(), chapterCounts = emptyMap(),
+            webReadingProgress = progress,
+        )
+
+        assertEquals(emptyList<WebNovelEntity>(), fw)
+    }
+
+    @Test
+    fun `Web分類は ncode を再正規化して進捗を引く(表記ゆれで漏れない)`() {
+        // エンティティ側 ncode が小文字でも、lookup 前に trim+uppercase するため正規化済みキーの進捗に一致する。
+        val webs = listOf(web("n1234ab", 200))
+        val progress = mapOf("N1234AB" to 10) // 保存時正規化済みキー（大文字）
+
+        val (_, fw) = filterShelfByStatus(
+            emptyList(), webs, selectedStatus = ReadingStatus.FINISHED,
+            progressMap = emptyMap(), chapterCounts = emptyMap(),
+            webReadingProgress = progress,
+        )
+
+        assertEquals(listOf("n1234ab"), fw.map { it.ncode })
+    }
+
+    @Test
+    fun `Web判定材料を配線しても蔵書側フィルタは従来どおり`() {
+        // books 側回帰: 配線ありでも books は readingStatusFor で分類され、Web と独立に動く。
+        // b1=よみかけ(chap_3/10)・b2=未読。READING 選択で b1 のみ・Web は未読の wA が落ちる。
         val books = listOf(book("b1", 300), book("b2", 100))
-        val webs = listOf(web("N1111AA", 200))
+        val webs = listOf(web("NWEBA", 200))
         val progressMap = mapOf("b1" to ProgressEntity("b1", "chap_3.html"))
         val chapterCounts = mapOf("b1" to 10, "b2" to 10)
 
         val (fb, fw) = filterShelfByStatus(
             books, webs, selectedStatus = ReadingStatus.READING,
             progressMap = progressMap, chapterCounts = chapterCounts,
+            webReadingProgress = emptyMap(), // 配線済み・進捗ゼロ＝Web は全て未読
         )
 
         assertEquals(listOf("b1"), fb.map { it.id })
-        // ラベル絞り込みと同じく、状態は books のみに付く概念のため Web カードは全落とし。
-        assertEquals(emptyList<WebNovelEntity>(), fw)
+        assertEquals(emptyList<WebNovelEntity>(), fw) // NWEBA は未読ゆえ READING フィルタで消える
     }
 
     // ────── relativeReadLabel（最後に読んだ相対時刻・continuity Minor） ──────
@@ -344,6 +469,7 @@ class ShelfItemsTest {
         val (fb, fw) = filterShelfByStatus(
             books, emptyList(), selectedStatus = ReadingStatus.FINISHED,
             progressMap = progressMap, chapterCounts = chapterCounts,
+            webReadingProgress = emptyMap(),
         )
 
         assertEquals(emptyList<BookEntity>(), fb)
@@ -363,9 +489,46 @@ class ShelfItemsTest {
         val (fb, fw) = filterShelfByStatus(
             books, emptyList(), selectedStatus = ReadingStatus.FINISHED,
             progressMap = progressMap, chapterCounts = chapterCounts,
+            webReadingProgress = emptyMap(),
         )
 
         assertEquals(listOf("b1"), fb.map { it.id })
         assertEquals(emptyList<WebNovelEntity>(), fw)
+    }
+
+    // ────── shelfStatusCounts（状態チップ件数・蔵書とWebを合流して数える） ──────
+
+    @Test
+    fun `状態件数は蔵書とWeb作品を同一状態へ合流して数える`() {
+        // 蔵書: b1=よみかけ(chap_3/10)・b2=未読(進捗なし)・b3=読了(reachedEnd)。
+        val books = listOf(book("b1", 300), book("b2", 200), book("b3", 100))
+        val progressMap = mapOf(
+            "b1" to ProgressEntity("b1", "chap_3.html"),
+            "b3" to ProgressEntity("b3", "chap_10.html", reachedEnd = true),
+        )
+        val chapterCounts = mapOf("b1" to 10, "b3" to 10)
+        // Web: NWR=よみかけ(4/10)・NWU=未読(0話)・NWF=読了(10/10)・NWU2=進捗行なし＝未読。
+        val webs = listOf(web("NWR", 400), web("NWU", 350), web("NWF", 320), web("NWU2", 310))
+        val webReadingProgress = mapOf("NWR" to 4, "NWU" to 0, "NWF" to 10)
+
+        val counts = shelfStatusCounts(books, webs, progressMap, chapterCounts, webReadingProgress)
+
+        // よみかけ: b1 + NWR = 2／未読: b2 + NWU + NWU2 = 3／読了: b3 + NWF = 2
+        assertEquals(2, counts[ReadingStatus.READING])
+        assertEquals(3, counts[ReadingStatus.UNREAD])
+        assertEquals(2, counts[ReadingStatus.FINISHED])
+    }
+
+    @Test
+    fun `状態件数はWeb作品のみでも数える(蔵書0件でWebが件数に入る＝本バグの回帰防止)`() {
+        // 蔵書ゼロでも Web が状態件数に載ることを固定（旧実装は蔵書のみ集計で Web が常に0だった＝チップが誤って dim）。
+        val webs = listOf(web("NWR", 200), web("NWF", 100))
+        val webReadingProgress = mapOf("NWR" to 3, "NWF" to 10)
+
+        val counts = shelfStatusCounts(emptyList(), webs, emptyMap(), emptyMap(), webReadingProgress)
+
+        assertEquals(1, counts[ReadingStatus.READING])
+        assertEquals(1, counts[ReadingStatus.FINISHED])
+        assertNull(counts[ReadingStatus.UNREAD]) // 未読の Web は無い＝キー無し（0件チップの dim 前提）
     }
 }

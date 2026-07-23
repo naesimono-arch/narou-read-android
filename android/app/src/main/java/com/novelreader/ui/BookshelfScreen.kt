@@ -102,6 +102,7 @@ import com.novelreader.viewmodel.ShelfItem
 import com.novelreader.viewmodel.filterShelfByStatus
 import com.novelreader.viewmodel.mergeShelfItems
 import com.novelreader.viewmodel.readingStatusFor
+import com.novelreader.viewmodel.shelfStatusCounts
 import kotlinx.coroutines.launch
 
 /**
@@ -579,11 +580,11 @@ internal fun BookshelfContent(
 
     val visibleBooks = books
 
-    // 各読書状態の件数（ia Minor 2026-07-12・0件チップの dim 判定用）。可視の蔵書で数える。
-    val statusCounts = remember(visibleBooks, progressMap, chapterCountMap) {
-        visibleBooks
-            .groupingBy { readingStatusFor(progressMap[it.id], chapterCountMap[it.id] ?: 0) }
-            .eachCount()
+    // 各読書状態の件数（ia Minor 2026-07-12・0件チップの dim 判定用）。可視の蔵書に加え Web作品も
+    // 合流して数える（全スキンが filterShelfByStatus に webReadingProgress を配線済み＝実フィルタが Web を
+    // 含むため、チップ件数だけ蔵書のみだと件数と表示が食い違う）。判定は shelfStatusCounts 内で共有関数を使う。
+    val statusCounts = remember(visibleBooks, webNovels, progressMap, chapterCountMap, webReadingProgress) {
+        shelfStatusCounts(visibleBooks, webNovels, progressMap, chapterCountMap, webReadingProgress)
     }
 
     // スキンM/P/J は本棚を画面丸ごと各スキン構造へ委譲する薄いルーター（ADR 0022 §1）。表示モード
@@ -846,10 +847,11 @@ internal fun BookshelfContent(
     }
 
     // 蔵書と Web由来を「最近の活動順」で1本に混在させる（bookshelf-fusion-D の並置。純関数で合成）。
-    // 前段で読書状態フィルタを噛ませる（選択中は該当蔵書のみ・Web カードは落とす＝filterShelfByStatus の why）。
+    // 前段で読書状態フィルタを噛ませる（選択中は該当状態の蔵書＋該当状態の Web を残す）。
+    // webReadingProgress を渡すことで Web も状態分類される（未渡し=null だと従来どおり Web 全落とし）。
     val shelfItems = remember(visibleBooks, webNovels, progressMap, selectedStatus, chapterCountMap, webReadingProgress, webLastReadAt) {
         val (filteredBooks, filteredWeb) =
-            filterShelfByStatus(visibleBooks, webNovels, selectedStatus, progressMap, chapterCountMap)
+            filterShelfByStatus(visibleBooks, webNovels, selectedStatus, progressMap, chapterCountMap, webReadingProgress)
         mergeShelfItems(filteredBooks, progressMap, filteredWeb, webReadingProgress, webLastReadAt)
     }
     val isProcessing = processingState.isProcessing
