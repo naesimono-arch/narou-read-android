@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.Color
 import com.novelreader.ui.theme.skins.SkinC
 import com.novelreader.ui.theme.skins.SkinD
 import com.novelreader.ui.theme.skins.SkinJ
+import com.novelreader.ui.theme.skins.SkinK
 import com.novelreader.ui.theme.skins.SkinM
 import com.novelreader.ui.theme.skins.SkinP
 
@@ -28,7 +29,9 @@ import com.novelreader.ui.theme.skins.SkinP
  * displayName/tagline は装いの間カルーセルの表示文言（正本＝wardrobe-D.html の cname/cone）。
  */
 enum class Skin(val displayName: String, val tagline: String) {
-    WAMODERN_D("和モダン", "白と藍・標準の装い"),
+    // 明快K＝新デフォルト（2026-07-23）。先頭に置く理由: enum 順＝装いの間カルーセル順で、既定スキンを先頭に見せる。
+    MEIKAI_K("明快", "迷わない・標準の装い"),
+    WAMODERN_D("和モダン", "白と藍・余白の装い"),
     YAKO_C("夜行", "深炭と温白・夜の没入"),
     SEIZU_M("星図", "群青の夜天・金の結線"),
     CARTRIDGE_P("カートリッジ", "退色プラスチックと緑のLCD"),
@@ -40,7 +43,7 @@ enum class Skin(val displayName: String, val tagline: String) {
  * 保存値が不正になってもクラッシュさせず既定 D へ静かに戻すため（"reading_theme" と同じ防御）。
  */
 fun skinFromName(name: String?): Skin =
-    name?.let { runCatching { Skin.valueOf(it) }.getOrNull() } ?: Skin.WAMODERN_D
+    name?.let { runCatching { Skin.valueOf(it) }.getOrNull() } ?: Skin.MEIKAI_K
 
 /**
  * 栞書影の紙／墨／識別色明度。スキンが明示供給する。
@@ -70,6 +73,7 @@ interface SkinTokens {
 
 val Skin.tokens: SkinTokens
     get() = when (this) {
+        Skin.MEIKAI_K -> SkinK
         Skin.WAMODERN_D -> SkinD
         Skin.YAKO_C -> SkinC
         Skin.SEIZU_M -> SkinM

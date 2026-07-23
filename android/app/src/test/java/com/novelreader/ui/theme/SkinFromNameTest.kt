@@ -12,8 +12,9 @@ import org.junit.Test
 class SkinFromNameTest {
 
     @Test
-    fun `キー不在(null)は既定の和モダンDへ`() {
-        assertEquals(Skin.WAMODERN_D, skinFromName(null))
+    fun `キー不在(null)は既定の明快Kへ`() {
+        // 2026-07-23 デフォルトを和モダンD→明快Kへ変更（plan default-ui-clarity-K）
+        assertEquals(Skin.MEIKAI_K, skinFromName(null))
     }
 
     @Test
@@ -25,8 +26,8 @@ class SkinFromNameTest {
     }
 
     @Test
-    fun `不正値(改名・削除済みスキン)はクラッシュせず既定Dへ`() {
-        assertEquals(Skin.WAMODERN_D, skinFromName("REMOVED_SKIN_X"))
-        assertEquals(Skin.WAMODERN_D, skinFromName(""))
+    fun `不正値(改名・削除済みスキン)はクラッシュせず既定Kへ`() {
+        assertEquals(Skin.MEIKAI_K, skinFromName("REMOVED_SKIN_X"))
+        assertEquals(Skin.MEIKAI_K, skinFromName(""))
     }
 }

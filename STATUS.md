@@ -7,6 +7,16 @@
 
 ## 0. 現在の状態
 
+- **新デフォルトUI「明快K」（feat/ui-playground・2026-07-23・実装済み/コミット前）**: 最優先Aの核回答＝
+  Skin 6値目 `MEIKAI_K` を新設し**既定スキンへ切替**（既存の明示保存 D/M/P/J/C は不変・装いの間で相互選択可）。
+  構造＝〈ラベル付き恒常ボトムナビ3タブ（本棚/さがす/設定・NavHost外静止・タブ間crossfade）＋全画面明示タイトル＋
+  **設定画面新設**（テーマ4択/きせかえ/新着通知/診断を集約）＋本棚3列グリッド（キャプション行に可視⋮）＋
+  さがす（検索第一強調＋公式サイト逃げ道）＋目次（現在地チップ＋ここから再開＋既読✓）〉。読書はD構造温存。
+  モック正本＝`docs/design-candidates/skins/*-K.html`（K専用・監督headless目視で裁定）・設計/裁定の一次情報＝
+  `.claude/plans/default-ui-clarity-K-2026-07-23.md`。根拠＝競合4機の実機目視（全機ボトムナビ型）＋UX正本（自明性A0/
+  You Are Here/UX15）。ゲート＝テスト861件緑・tokens OK192/NG0・lint 0err/33warn（+1=K設定のInlinedApi・既存同型）。
+  実機（PGEM10）＝K全4画面＋読書/装いの間/テーマ切替を監督screencap検分でPASS・**ユーザー目視待ち**。
+
 - **UX/Design 全層監査**: 指摘（Critical 3/Major 24/Minor 29）＋派生改修（CTA一貫性=案A／没入時黒帯明滅=window背景をテーマ色へ再定義／複数選択削除=案B下端バー＋変種B「キャンセル」）まで実装・実機検証済み（ui/polish は main 統合・撤去済み）。残＝発見帯 collapse 退避アニメ体感の追い込み（deferred）・第三者人間テスト便・監査派生 backlog＝`handover.md` ★節が正本。監査の一次情報＝`.claude/plans/ux-design-full-audit-2026-07-12.md`（§A/§B）＋`.claude/plans/ux-audit-batch-execution-20260712.md`（実行記録）。
 - **前回の統合（2026-07-18 束ね）**: `reading/vertical-p4`（縦書き章送り P4・実機体感確認済み）・`build/r8-shrink`（release の R8 収縮＝minify+shrinkResources・APK 20.3→7.8MB）・`perf/macrobenchmark`（性能回帰基盤＝起動/本棚スクロール/章送り/大PDF取込の予算 assert・実機実証済み。設計と全実測＝`.claude/plans/macrobenchmark-kickoff-2026-07-17.md`＋`docs/knowledge/coloros-*`／`macrobenchmark-frametiming-scroll-pitfalls.md`）・`hooks/fabrication-detector`（実行捏造検知器 Tier E3「先行実行フレーミング」）・`ui/skin-framework`（UIスキン機構＝ADR 0021＋0022〔画面構造の二層化〕。M星図/Pカートリッジ/Jポータルの3スキン×全5画面〔本棚/読書/目次/設定/発見〕を Compose 実装。**C3 実機スモーク完了＝J 全5画面掃引＋M/P 本棚を release R8 下で PASS（M/P 全画面は既存 PASS・C は色層）・5スキンとも shrinkResources による資産欠落なし**）を main へ統合。縦書き本体（P0〜P3・P5・P2.5）は統合済み＝縦書きはユーザー到達可能（ADR 0020〔連続横スクロール×自前Compose組版〕）。**R8 リリース収縮の実機回帰完了＝4重点経路（Moshi なろう検索/PDFBox 取込抽出/WorkManager クラス名復元/enum テーマ SEPIA 永続）全 PASS・収縮起因クラッシュ無し**（release APK を debug 署名し install -r で実蔵書DB保持のまま検証。PDFBox は取込時に日本語タイトルを抽出＝CID/CMap 経路通過を確認）。
 - **直近の統合（2026-07-23）**: `feat/scraping-prep`（汎用Web小説DL基盤 P2〜P6＋暁＋G1・Room v21）と `feat/delete-source-pdf`（本削除時に取込元PDF本体も削除・Room v20）を main へ統合＝**MIGRATION_19_20 の並列複製を一本化**（19→20→21 パス接続・task_diary #39 の定石の後始末）。`ui/refine`・`ui/wa-modern` は main 同一（固有コミット0）のため worktree ごと削除＝**作業ブランチ全解消・main 一本**（リッチ化再開時は main から切り直す）。

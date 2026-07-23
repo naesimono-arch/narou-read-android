@@ -170,7 +170,7 @@ internal fun DiscoveryResultContent(
             )
             return
         }
-        Skin.WAMODERN_D, Skin.YAKO_C -> Unit // 既定描画へ（この下の共通実装が D/C を描く）
+        Skin.MEIKAI_K, Skin.WAMODERN_D, Skin.YAKO_C -> Unit // 既定描画へ（この下の共通実装が D/C を描く）
     }
 
     // F-C: process death 復帰中は VM の init が SavedStateHandle から文脈を復元する。旧実装はここで

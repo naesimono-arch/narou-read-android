@@ -74,6 +74,7 @@ import com.novelreader.ui.theme.FontHomeTitle
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.skins.j.BookshelfGridJ
 import com.novelreader.ui.skins.j.BookshelfPortalJ
+import com.novelreader.ui.skins.k.BookshelfK
 import com.novelreader.ui.skins.m.BookshelfLogM
 import com.novelreader.ui.skins.m.BookshelfSkyM
 import com.novelreader.ui.skins.m.HlSkyDebug
@@ -190,6 +191,11 @@ fun BookshelfScreen(
     // （実機で要否を詰める。将来グリッドを廃するならこのトグルと GridBookCard 経路ごと整理する）。
     var isGridView by remember { mutableStateOf(prefs.getBoolean("is_grid_view", false)) }
 
+    // スキンK（明快）のグリッド⇄リスト状態（M の m_sky_view・P の p_rack_view と同型の「スキン別ビュー状態」）。
+    // 既定 true＝K 装着時は3列グリッドで開く（モック正本 bookshelf-K.html の既定形）。共有 is_grid_view を
+    // 流用しない理由: K でトグルした値が D の目録既定（false）を汚す＝スキンを跨いだ状態漏れを避けるため。
+    var kGridView by remember { mutableStateOf(prefs.getBoolean("k_grid_view", true)) }
+
     // スキンM（星図）の 星図⇄一覧 モード（ADR 0022 §1・永続化）。既定 true＝M 装着時は星図で開く。
     // M 以外のスキンでは Content 側の分岐条件（LocalSkin==SEIZU_M）が成立せず、この値は眠ったまま。
     var mSkyView by remember { mutableStateOf(prefs.getBoolean("m_sky_view", true)) }
@@ -266,10 +272,19 @@ fun BookshelfScreen(
         onFollowSystem = onFollowSystem,
         highLoadSkyM = highLoadSkyM,
         onHighLoadSkyChange = onHighLoadSkyChange,
-        isGridView = isGridView,
-        onToggleView = {
-            isGridView = !isGridView
-            prefs.edit().putBoolean("is_grid_view", isGridView).apply()
+        // K は専用状態 k_grid_view を、他スキンは共有 is_grid_view を見る（値もトグルもスキンで出し分け＝
+        // 下流の描画層は「いまのビュー状態」を1系統で受けるだけでスキンを意識しない）。
+        isGridView = if (LocalSkin.current == Skin.MEIKAI_K) kGridView else isGridView,
+        onToggleView = if (LocalSkin.current == Skin.MEIKAI_K) {
+            {
+                kGridView = !kGridView
+                prefs.edit().putBoolean("k_grid_view", kGridView).apply()
+            }
+        } else {
+            {
+                isGridView = !isGridView
+                prefs.edit().putBoolean("is_grid_view", isGridView).apply()
+            }
         },
         skyViewM = mSkyView,
         onToggleSkyM = {
@@ -772,6 +787,44 @@ internal fun BookshelfContent(
             )
             return
         }
+        Skin.MEIKAI_K -> {
+            // 明快K: 画面丸ごと K 構造へ委譲（ヘッダ「本棚」＋冊数＋表示切替のみ・3列グリッド・状態フィルタ・
+            // Webカード操作・選択削除・取込中バナー・空状態・PDF追加FAB）。⋮/ハンガー/検索は設定・さがすタブへ
+            // 移管済み（K設計）。選択モード状態は骨格所有の単一状態機械を共有渡し（M/P/J と同型・BackHandler 1本が効く）。
+            BookshelfK(
+                books = visibleBooks,
+                webNovels = webNovels,
+                webReadingProgress = webReadingProgress,
+                webLastReadAt = webLastReadAt,
+                progressMap = progressMap,
+                chapterCountMap = chapterCountMap,
+                newEpisodeNovelMap = newEpisodeNovelMap,
+                processingState = processingState,
+                selectedStatus = selectedStatus,
+                statusCounts = statusCounts,
+                onSelectStatus = { selectedStatusName = it?.name },
+                isGridView = isGridView,
+                onToggleView = onToggleView,
+                selectionMode = selectionMode,
+                selectedIds = selectedIds,
+                onToggleSelect = toggleSelect,
+                onEnterSelection = enterSelection,
+                onExitSelection = exitSelection,
+                onSelectAll = { ids -> selectedIds.clear(); selectedIds.addAll(ids) },
+                onDeleteBooks = onDeleteBooks,
+                onOpenBook = onOpenBook,
+                onOpenWebNovel = onOpenWebNovel,
+                onResumeWebNovel = onResumeWebNovel,
+                onImportWebNovel = onImportWebNovel,
+                onRemoveWebNovel = onRemoveWebNovel,
+                onOpenDiscovery = onOpenDiscovery,
+                onFabClick = onFabClick,
+                onCancelProcessing = onCancelProcessing,
+                snackbarHostState = snackbarHostState,
+                isLoading = isLoading,
+            )
+            return
+        }
         Skin.WAMODERN_D, Skin.YAKO_C -> Unit // 既定描画へ（この下の共通実装が D/C を描く）
     }
 
@@ -883,7 +936,7 @@ internal fun BookshelfContent(
                                     contentDescription = "デッキ表示に切替",
                                 )
                             }
-                            Skin.WAMODERN_D, Skin.YAKO_C -> IconButton(onClick = onToggleView) {
+                            Skin.MEIKAI_K, Skin.WAMODERN_D, Skin.YAKO_C -> IconButton(onClick = onToggleView) {
                                 Icon(
                                     imageVector = if (isGridView) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView,
                                     contentDescription = if (isGridView) "リスト表示" else "グリッド表示",

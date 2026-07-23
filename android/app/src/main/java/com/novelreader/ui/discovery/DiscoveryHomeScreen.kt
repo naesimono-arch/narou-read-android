@@ -60,6 +60,7 @@ import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.skins.j.DiscoveryHomePortalJ
+import com.novelreader.ui.skins.k.DiscoveryHomeK
 import com.novelreader.ui.skins.m.DiscoveryHomeSkyM
 import com.novelreader.ui.skins.p.DiscoveryHomeCartridgeP
 import com.novelreader.viewmodel.DiscoveryUiState
@@ -173,6 +174,22 @@ internal fun DiscoveryHomeContent(
         // 扉の回廊構造へ委譲。
         Skin.PORTAL_J -> {
             DiscoveryHomePortalJ(
+                order = order,
+                state = state,
+                onBack = onBack,
+                onOpenDetail = onOpenDetail,
+                onOpenGenre = onOpenGenre,
+                onPickBiggenre = onPickBiggenre,
+                onOpenSearch = onOpenSearch,
+                onPickMood = onPickMood,
+                onSelectOrder = onSelectOrder,
+                onRefresh = onRefresh,
+            )
+            return
+        }
+        // 明快構造（さがす＝実検索＋自己説明見出し＋公式サイト逃げ道）へ委譲。
+        Skin.MEIKAI_K -> {
+            DiscoveryHomeK(
                 order = order,
                 state = state,
                 onBack = onBack,

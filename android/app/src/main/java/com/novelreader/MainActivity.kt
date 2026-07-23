@@ -18,8 +18,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -31,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
@@ -49,10 +55,14 @@ import com.novelreader.ui.discovery.DiscoverySearchScreen
 import com.novelreader.ui.discovery.NovelDetailScreen
 import com.novelreader.ui.discovery.PdfImportScreen
 import com.novelreader.ui.discovery.WebReaderScreen
+import com.novelreader.ui.skins.k.KBottomNav
+import com.novelreader.ui.skins.k.KTab
+import com.novelreader.ui.skins.k.SettingsScreenK
 import com.novelreader.ui.skins.m.LocalSkyParallax
 import com.novelreader.ui.skins.m.SkyBackdropM
 import com.novelreader.ui.skins.m.SkyParallaxController
 import com.novelreader.ui.skins.m.SkyParallaxFactor
+import com.novelreader.ui.theme.MotionDurationKTabSwitch
 import com.novelreader.ui.theme.MotionDurationNavTransition
 import com.novelreader.ui.theme.MotionDurationSeizuFadeIn
 import com.novelreader.ui.theme.MotionDurationSeizuFadeInDelay
@@ -340,27 +350,59 @@ private fun NovelReaderApp(
 
     // 画面遷移: M はフェードスルー（退出 fadeOut 先行→進入 fadeIn。固定天球ゆえ slide だと空ごと動く＝ADR 0019 追記
     // 「M星図の例外」）＝コンテンツのみがシームレスに差し替わる。他スキンは横スライド push 不変（ADR 0019・方向で階層移動を伝える）。
+    // 明快K: 恒常ボトムナビ（3タブ・plan default-ui-clarity-K）。現在ルートがタブ3画面のときだけ
+    // NavHost の「外」（Column の下端）に静止表示する。画面側に持たせない理由: 画面遷移アニメと一緒に
+    // バーが滑ると「別ページへ移動した」と読めてしまう＝タブバー静止がタブの標準文法のため。
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
+    val kCurrentTab = when (currentRoute) {
+        "bookshelf" -> KTab.BOOKSHELF
+        "discovery" -> KTab.DISCOVER
+        "settings" -> KTab.SETTINGS
+        else -> null
+    }
+    val kTabRoutes = setOf("bookshelf", "discovery", "settings")
+    // タブ間の遷移だけ slide でなく短い crossfade へ差し替える（MotionDurationKTabSwitch の why 参照）。
+    fun AnimatedContentTransitionScope<NavBackStackEntry>.isKTabSwitch(): Boolean =
+        appSkin == Skin.MEIKAI_K &&
+            initialState.destination.route in kTabRoutes &&
+            targetState.destination.route in kTabRoutes
+
     val d = MotionDurationNavTransition
     Box(modifier = Modifier.fillMaxSize()) {
         if (skyParallax != null) SkyBackdropM(skyParallax, highLoadSkyM, Modifier.fillMaxSize())
         CompositionLocalProvider(LocalSkyParallax provides skyParallax) {
+            // 画面ルートに Surface を敷いて LocalContentColor を配色へ接地する。素の Box/Column 直下では
+            // 既定が黒のままで、明示色を持たない Text（K本棚タイトル等）が全テーマで黒く沈む＝2026-07-23
+            // ユーザー指摘「ダークで本棚タイトルが見えない」の真因。M星図だけは常駐 backdrop（後ろの空）を
+            // 透過で見せる必要があるため透明＋現在色の素通しにする（挙動不変）。
+            Surface(
+                color = if (isSeizu) Color.Transparent else MaterialTheme.colorScheme.background,
+                contentColor = if (isSeizu) LocalContentColor.current else MaterialTheme.colorScheme.onBackground,
+            ) {
+            Column(Modifier.fillMaxSize()) {
     NavHost(
         navController = navController,
         startDestination = "bookshelf",
+        modifier = Modifier.weight(1f),
         enterTransition = {
-            if (isSeizu) fadeIn(tween(MotionDurationSeizuFadeIn, delayMillis = MotionDurationSeizuFadeInDelay))
+            if (isKTabSwitch()) fadeIn(tween(MotionDurationKTabSwitch))
+            else if (isSeizu) fadeIn(tween(MotionDurationSeizuFadeIn, delayMillis = MotionDurationSeizuFadeInDelay))
             else slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(d))
         },
         exitTransition = {
-            if (isSeizu) fadeOut(tween(MotionDurationSeizuFadeOut))
+            if (isKTabSwitch()) fadeOut(tween(MotionDurationKTabSwitch))
+            else if (isSeizu) fadeOut(tween(MotionDurationSeizuFadeOut))
             else slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(d))
         },
         popEnterTransition = {
-            if (isSeizu) fadeIn(tween(MotionDurationSeizuFadeIn, delayMillis = MotionDurationSeizuFadeInDelay))
+            if (isKTabSwitch()) fadeIn(tween(MotionDurationKTabSwitch))
+            else if (isSeizu) fadeIn(tween(MotionDurationSeizuFadeIn, delayMillis = MotionDurationSeizuFadeInDelay))
             else slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(d))
         },
         popExitTransition = {
-            if (isSeizu) fadeOut(tween(MotionDurationSeizuFadeOut))
+            if (isKTabSwitch()) fadeOut(tween(MotionDurationKTabSwitch))
+            else if (isSeizu) fadeOut(tween(MotionDurationSeizuFadeOut))
             else slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(d))
         },
     ) {
@@ -613,7 +655,42 @@ private fun NovelReaderApp(
                 }
             }
         }
+        // 明快K: 設定画面（K のボトムナビからのみ到達。テーマ/きせかえ/通知を1画面へ集約＝分散解消）。
+        composable("settings") {
+            SettingsScreenK(
+                appTheme = appTheme,
+                onThemeChange = onThemeChange,
+                followingSystem = followingSystem,
+                onFollowSystem = onFollowSystem,
+                currentSkin = appSkin,
+                onOpenWardrobe = { navController.navigate("wardrobe") { launchSingleTop = true } },
+            )
+        }
     }
+            // K の恒常ナビ（タブ3画面のときのみ・深い画面では消えて没入を守る）。
+            if (appSkin == Skin.MEIKAI_K && kCurrentTab != null) {
+                KBottomNav(
+                    current = kCurrentTab,
+                    onSelect = { tab ->
+                        val route = when (tab) {
+                            KTab.BOOKSHELF -> "bookshelf"
+                            KTab.DISCOVER -> "discovery"
+                            KTab.SETTINGS -> "settings"
+                        }
+                        if (route != currentRoute) {
+                            navController.navigate(route) {
+                                // タブは同格切替＝スタックを深くしない。bookshelf を起点に保存/復元付きで
+                                // 入れ替える（標準のボトムナビ流儀。restoreState でタブ状態を保持）。
+                                popUpTo("bookshelf") { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    },
+                )
+            }
+            } // Column（NavHost ＋ K恒常ナビ）
+            } // Surface（画面ルートの配色接地）
         } // CompositionLocalProvider(LocalSkyParallax)
     } // Box（backdrop ＋ NavHost）
 }

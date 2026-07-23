@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.model.TocEntry
 import com.novelreader.ui.skins.j.TocPortalJ
+import com.novelreader.ui.skins.k.TocK
 import com.novelreader.ui.skins.m.TocSkyM
 import com.novelreader.ui.skins.p.TocCartridgeP
 import com.novelreader.ui.theme.FontCaption
@@ -82,6 +83,7 @@ sealed interface TocState {
  *
  * @param tocState 目次のロード状態（Loading/Empty/Error/Content）
  * @param colors 読書テーマの色トークン（直書き色は禁止。正典は Theme.kt）
+ * @param workTitle 作品名（明快K の目次ヘッダのサブタイトルに使う。他スキンは未使用＝既定 null で挙動不変）
  * @param currentChapterFile 最後に表示していた章のファイル名（null なら未読。ハイライト＋自動スクロールに使う）
  * @param onSelectChapter 章ファイル名を引数にして章選択時に呼ぶコールバック
  * @param onNavigateToBookshelf 本棚に戻るコールバック
@@ -92,6 +94,8 @@ sealed interface TocState {
 fun NativeTableOfContentsScreen(
     tocState: TocState,
     colors: ReadingColors,
+    // 作品名は明快K のヘッダ副題専用。既定 null＝D/C/M/P/J は受け取らず描画も不変（追加は加算のみ・挙動非変更）。
+    workTitle: String? = null,
     currentChapterFile: String?,
     onSelectChapter: (fileName: String) -> Unit,
     onNavigateToBookshelf: () -> Unit,
@@ -127,6 +131,19 @@ fun NativeTableOfContentsScreen(
         Skin.PORTAL_J -> {
             TocPortalJ(
                 tocState = tocState,
+                currentChapterFile = currentChapterFile,
+                onSelectChapter = onSelectChapter,
+                onNavigateToBookshelf = onNavigateToBookshelf,
+                onRetry = onRetry,
+            )
+            return
+        }
+        // 明快構造（目次＝ヘッダ作品名＋現在地チップ＋既読/現在/未読の語彙化）へ委譲。
+        Skin.MEIKAI_K -> {
+            TocK(
+                tocState = tocState,
+                colors = colors,
+                workTitle = workTitle,
                 currentChapterFile = currentChapterFile,
                 onSelectChapter = onSelectChapter,
                 onNavigateToBookshelf = onNavigateToBookshelf,
