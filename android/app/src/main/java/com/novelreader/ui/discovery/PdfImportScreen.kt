@@ -46,6 +46,47 @@ import com.novelreader.ui.theme.FontTopBarTitle
 import com.novelreader.ui.theme.Spacing
 
 /**
+ * 目次到達時に PDF 生成フォーム(.c-under-nav)へビューポートを寄せる注入 JS（onPageCommitVisible 主経路用）。
+ *
+ * 【なぜ要素出現駆動か】旧実装は onPageFinished（画像・広告含む全リソース読込完了）でのみ scrollIntoView して
+ * いたため、重い目次ページでは全読込までの数秒がまるごとスクロール開始ラグになっていた。初描画時点で注入し、
+ * 対象要素が既に DOM に在れば即スクロール、無ければ MutationObserver で出現を待って1回だけ寄せることで、
+ * 全読込を待たずに体感ラグを消す。
+ * 【冪等化】window.__nrAutoScrollDone フラグで onPageFinished フォールバックとの二重スクロールを防ぐ。
+ * 【監視リーク防止】要素が来なくても10秒で必ず observer.disconnect()（DOM 常駐の監視を残さない）。
+ * 【規約厳守】ビューポート移動(scrollIntoView)のみ。CSS 注入・DOM 改変・広告除去は ADR 0010/0011 違反。
+ */
+private const val AUTO_SCROLL_JS_ON_VISIBLE = """
+(function(){
+  if (window.__nrAutoScrollDone) return;
+  function tryScroll(){
+    if (window.__nrAutoScrollDone) return true;
+    var el = document.querySelector('.c-under-nav');
+    if (el) { el.scrollIntoView(); window.__nrAutoScrollDone = true; return true; }
+    return false;
+  }
+  if (tryScroll()) return;
+  if (window.__nrAutoScrollObserving) return;
+  window.__nrAutoScrollObserving = true;
+  var obs = new MutationObserver(function(){ if (tryScroll()) obs.disconnect(); });
+  obs.observe(document.documentElement, { childList: true, subtree: true });
+  setTimeout(function(){ obs.disconnect(); }, 10000);
+})();
+"""
+
+/**
+ * onPageFinished フォールバック用 JS。onPageCommitVisible 非対応環境・注入失敗への防御。
+ * window.__nrAutoScrollDone を見て冪等（主経路が既にスクロール済みなら何もしない）。
+ */
+private const val AUTO_SCROLL_JS_FALLBACK = """
+(function(){
+  if (window.__nrAutoScrollDone) return;
+  var el = document.querySelector('.c-under-nav');
+  if (el) { el.scrollIntoView(); window.__nrAutoScrollDone = true; }
+})();
+"""
+
+/**
  * 縦書きPDF取り込み画面（ADR 0011・案B）。取り込み専用の使い捨て WebView を1画面だけ持つ。
  *
  * 設計方針（route/Content の stateless 分割をあえて採らない理由）:
@@ -77,8 +118,10 @@ fun PdfImportScreen(
     val webViewHolder = remember { mutableStateOf<WebView?>(null) }
 
     val menuUrl = remember(ncode) { narouWorkUrl(ncode) }
-    // 目次ページ判定用に小文字化した ncode（narouWorkUrl も小文字でパスを組むため onPageFinished の url と一致する）。
+    // 目次ページ判定用に小文字化した ncode（narouWorkUrl も小文字でパスを組むため WebView の url と一致する）。
     val lowerNcode = remember(ncode) { ncode.value.trim().lowercase() }
+    // 目次ページ URL 判定用の正規表現。onPageCommitVisible と onPageFinished の双方で使うため hoist（重複回避）。
+    val menuUrlRegex = remember(lowerNcode) { Regex("^https://ncode\\.syosetu\\.com/$lowerNcode/?$") }
 
     // 取り込み開始イベント: Toast を出して画面を閉じる（一度きり）。
     LaunchedEffect(Unit) {
@@ -144,17 +187,23 @@ fun PdfImportScreen(
                         // User-Agent はデフォルトのまま（ADR 0011。偽装すると挙動が実機と乖離する）。
 
                         webViewClient = object : WebViewClient() {
+                            // 初描画時点で注入する主経路。目次ページ（ncode.syosetu.com/<ncode>/ 形）到達時のみ発火。
+                            // 【なぜ onPageCommitVisible か】旧実装は onPageFinished（画像・広告含む全リソース読込完了）で
+                            // のみ scrollIntoView していたため、重い目次ページでは全読込までの数秒がまるごとスクロール開始
+                            // ラグになっていた。初描画時点で注入し「対象要素の DOM 出現」を駆動源に変えることで全読込を待たない。
+                            override fun onPageCommitVisible(view: WebView?, url: String?) {
+                                if (url != null && menuUrlRegex.matches(url)) {
+                                    view?.evaluateJavascript(AUTO_SCROLL_JS_ON_VISIBLE, null)
+                                }
+                            }
+
                             override fun onPageFinished(view: WebView?, url: String?) {
-                                // 目次ページ（ncode.syosetu.com/<ncode>/ 形）到達時のみ PDF フォーム位置へ自動スクロール。
+                                // フォールバック（温存）: onPageCommitVisible が呼ばれない環境・注入失敗への防御。
+                                // JS 側の window.__nrAutoScrollDone フラグで主経路と冪等化（二重スクロールしない）。
                                 // 【規約厳守】注入 JS はビューポート移動(scrollIntoView)のみ。CSS 注入・DOM 改変・
                                 // 広告除去は ADR 0010/0011 の規約違反のため絶対に足さない。
-                                if (url != null &&
-                                    Regex("^https://ncode\\.syosetu\\.com/$lowerNcode/?$").matches(url)
-                                ) {
-                                    view?.evaluateJavascript(
-                                        "document.querySelector('.c-under-nav')?.scrollIntoView();",
-                                        null
-                                    )
+                                if (url != null && menuUrlRegex.matches(url)) {
+                                    view?.evaluateJavascript(AUTO_SCROLL_JS_FALLBACK, null)
                                 }
                             }
 
