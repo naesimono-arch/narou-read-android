@@ -1,0 +1,188 @@
+<!-- @dsCard group="UI-n / K形伝播ドラフト（和モダンD）" name="D. さがす — K形×和モダンD意匠（検索第一＋発見＋公式逃げ道＋恒常ナビ）" -->
+<!--
+  K形状伝播ドラフト: 明快Kの「さがす」形を和モダンD意匠で再構成。
+  【D意匠を温存】明朝の大タイトル署名／セクション見出しは.28em淡色字間装飾（Dの世界観・K流のgothic bold見出しは採らない）／
+    青磁の縦ルール付き気分カード／ランキングは明朝数字（上位3位=藍）＋「読了目安」を人の言葉で併記（Dの“公式より丁寧”署名）／
+    2px直角・ヘアライン体系・余白主導。
+  【K形を組込】最上部に実検索フィールド（検索第一）／発見コンテンツ（きょうの気分/ジャンル/ランキング）／
+    末尾「公式サイトで探す」逃げ道リンク行／恒常ボトムナビ（さがす選択中・K骨格を固定コピー）／明示タイトル「さがす」。
+  ink-soft はD原値#7C808B を温存。単一画面・ライトのみ。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>D さがす — K形×和モダン</title>
+<style>
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;--ai-tint:rgba(28,61,90,.10);--seiji:#9CB3A8;
+    --field:#F0EEE8;     /* 検索フィールド地（和紙地系の淡グレー） */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    padding:24px;font-family:var(--gothic);-webkit-font-smoothing:antialiased}
+
+  .phone{width:390px;height:844px;background:var(--base);border-radius:40px;overflow:hidden;
+    position:relative;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.28)}
+
+  .sb{height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:11px;color:var(--ink-soft)}
+
+  /* 固定トップ: 明示タイトル「さがす」（D明朝署名）＋実検索フィールド（K形・検索第一） */
+  .top{flex-shrink:0;padding:6px 24px 14px}
+  .top h1{font-family:var(--mincho);font-size:27px;color:var(--ink);font-weight:500;letter-spacing:.14em}
+  .search{margin-top:14px;height:50px;display:flex;align-items:center;gap:10px;background:var(--field);
+    border:1px solid var(--line);border-radius:2px;padding:0 16px;cursor:text}
+  .search svg{width:19px;height:19px;stroke:var(--ink-soft);fill:none;stroke-width:1.8;flex-shrink:0}
+  .search span{font-size:13.5px;color:var(--ink-soft)}
+
+  .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 24px 20px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+
+  /* セクション見出し（D署名の.28em淡色字間装飾を温存） */
+  .sec{font-size:10.5px;letter-spacing:.28em;color:var(--ink-soft);margin:20px 0 12px}
+  .sec:first-child{margin-top:8px}
+
+  /* きょうの気分（D意匠）: 2列カード・青磁の縦ルール・明朝の言葉・2px直角 */
+  .mood{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .md{position:relative;border:1px solid var(--line);border-radius:2px;padding:12px 16px 12px 18px;cursor:pointer}
+  .md:hover{border-color:var(--ai)}
+  .md::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:2px;background:var(--seiji)}
+  .md b{font-family:var(--mincho);font-size:13.5px;color:var(--ink);font-weight:600;display:block;line-height:1.5}
+  .md span{display:block;font-size:10px;color:var(--ink-soft);margin-top:4px;letter-spacing:.04em}
+
+  /* ジャンルから（D意匠）: 横スクロールの淡いチップ */
+  .gchips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+  .gchips::-webkit-scrollbar{display:none}
+  .gc{flex-shrink:0;font-size:11.5px;color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:8px 16px;cursor:pointer;white-space:nowrap}
+  .gc:hover{border-color:var(--ai);color:var(--ai)}
+
+  /* ランキング（D意匠）: orderタブ＝ヘアライン上の藍下線／行＝明朝数字（上位3位=藍）＋読了目安併記 */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-top:4px;overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab-o{flex-shrink:0;font-size:12.5px;color:var(--ink-soft);padding:12px;cursor:pointer;position:relative;letter-spacing:.06em}
+  .tab-o.on{color:var(--ai);font-weight:600}
+  .tab-o.on::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--ai)}
+  .rk{display:flex;gap:16px;padding:16px 0;border-bottom:1px solid var(--line);cursor:pointer}
+  .rk .no{font-family:var(--mincho);font-size:20px;color:var(--ink-soft);width:30px;flex-shrink:0;text-align:center;line-height:1.2;padding-top:4px}
+  .rk.top3 .no{color:var(--ai)}
+  .rk .bd{flex:1;min-width:0}
+  .rk .t{font-family:var(--mincho);font-size:14.5px;color:var(--ink);line-height:1.5;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .rk .a{font-size:11px;color:var(--ink-soft);margin-top:4px}
+  .rk .a em{font-style:normal;color:var(--seiji);margin-left:8px;letter-spacing:.06em}
+  .rk .m{display:flex;gap:12px;font-size:10.5px;color:var(--ink-soft);margin-top:8px;letter-spacing:.03em}
+  .rk .m .pt{color:var(--ai)}
+
+  /* 末尾「公式サイトで探す」逃げ道（K形）: ヘアラインで区切った外部リンク行 */
+  .official{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:16px;padding:16px 2px 6px;
+    border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-soft);cursor:pointer}
+  .official svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6;flex-shrink:0}
+
+  /* ===== 共通ボトムナビ（bookshelf-K.html:229-248 を固定コピー・色のみD） ===== */
+  .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    text-decoration:none;cursor:pointer;color:var(--ink-soft)}
+  .tab.on{color:var(--ai)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .tab.on .ic .pill{background:var(--ai-tint)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
+  .tab.on .lb{font-weight:700}
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+
+    <!-- 明示タイトル＋実検索（K形・検索第一／D明朝署名） -->
+    <div class="top">
+      <h1>さがす</h1>
+      <div class="search">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+        <span>作品名・作者名・キーワードで探す</span>
+      </div>
+    </div>
+
+    <div class="scroll">
+      <!-- 発見コンテンツ（D discovery の内容素材を再構成） -->
+      <div class="sec">きょうの気分</div>
+      <div class="mood">
+        <div class="md"><b>30分の小さな旅</b><span>短編 ・ 読了30分まで</span></div>
+        <div class="md"><b>今夜の一気読み</b><span>完結済 ・ 10万字以上</span></div>
+        <div class="md"><b>会話でさくさく</b><span>会話率 60% 以上</span></div>
+        <div class="md"><b>挿絵と歩く</b><span>挿絵のある作品</span></div>
+      </div>
+
+      <div class="sec">ジャンルから</div>
+      <div class="gchips">
+        <span class="gc">恋愛</span><span class="gc">ファンタジー</span><span class="gc">文芸</span><span class="gc">SF</span><span class="gc">その他</span><span class="gc">ノンジャンル</span>
+      </div>
+
+      <div class="sec">ランキング</div>
+      <div class="tabs">
+        <span class="tab-o on">週間</span><span class="tab-o">日間</span><span class="tab-o">月間</span><span class="tab-o">四半期</span><span class="tab-o">累計</span><span class="tab-o">新着</span>
+      </div>
+      <div class="rk top3"><div class="no">1</div><div class="bd">
+        <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+        <div class="a">霧島あおい<em>ハイファンタジー</em></div>
+        <div class="m"><span>連載中 127話</span><span>約8時間</span><span class="pt">週間 12,345pt</span></div>
+      </div></div>
+      <div class="rk top3"><div class="no">2</div><div class="bd">
+        <div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div>
+        <div class="a">夜灯すばる<em>異世界〔恋愛〕</em></div>
+        <div class="m"><span>連載中 43話</span><span>約3時間</span><span class="pt">週間 9,812pt</span></div>
+      </div></div>
+      <div class="rk top3"><div class="no">3</div><div class="bd">
+        <div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+        <div class="a">白河すずら<em>異世界〔恋愛〕</em></div>
+        <div class="m"><span>完結 88話</span><span>約6時間</span><span class="pt">週間 8,204pt</span></div>
+      </div></div>
+      <div class="rk"><div class="no">4</div><div class="bd">
+        <div class="t">転生したら最弱スキルだったので草むしりしていた</div>
+        <div class="a">青葉みのり<em>ハイファンタジー</em></div>
+        <div class="m"><span>連載中 210話</span><span>約14時間</span><span class="pt">週間 7,530pt</span></div>
+      </div></div>
+      <div class="rk"><div class="no">5</div><div class="bd">
+        <div class="t">辺境伯家の次男は今日も書庫にこもる</div>
+        <div class="a">水無月れん<em>歴史</em></div>
+        <div class="m"><span>短編</span><span>約25分</span><span class="pt">週間 6,981pt</span></div>
+      </div></div>
+
+      <!-- 末尾: 公式サイトで探す逃げ道（K形） -->
+      <div class="official">
+        <span>小説家になろう公式サイトで探す</span>
+        <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg>
+      </div>
+    </div>
+
+    <!-- ===== 共通ボトムナビ（さがす 選択中） ===== -->
+    <nav class="tabbar">
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg>
+        </span>
+        <span class="lb">本棚</span>
+      </a>
+      <a class="tab on">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg>
+        </span>
+        <span class="lb">さがす</span>
+      </a>
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </span>
+        <span class="lb">設定</span>
+      </a>
+    </nav>
+  </div>
+</body>
+</html>

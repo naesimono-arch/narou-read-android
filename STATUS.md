@@ -29,6 +29,15 @@
   の粒天の川＋天体系（流星/衛星/彗星/BH）＋奥行き層（空気遠近/暗黒雲/帯2層）＋検分ボタン6種。release は常に OFF・通常モード
   厳密不変（DeepSkyM の durationScale は既定1f恒等）。jank 2.56%（ON時実測）。裁定履歴と残ロードマップ（v8/v9・D展開）＝
   `.claude/plans/richness-expansion-round-2026-07-19.md`。
+- **2026-07-23 バグ4件修正＋K形伝播（feat/ui-playground）**: ①Web作品が読書状態フィルタ/件数に分類されない
+  →`webReadingStatusFor` 新設・全5スキン配線・必須引数化（読了＝最終話到達の近似と明記） ②Web読書の左上←＝
+  階層Up固定（システムBack は WebView 履歴戻り温存＝発見系「←=Up/Back=履歴」と同型） ③PDF取込の自動スクロール
+  ＝要素出現駆動化（onPageFinished 全読込待ちが真因） ④さがす→本棚の稀な遷移不能＝タブ判定をライブ
+  `currentDestination` へ（スナップショットの1フレーム遅延＋DROP_OLDEST が機序・推定と明記）。
+  **K形伝播**＝Kの構造装置（恒常ボトムナビ・明示タイトル・可視⋮・検索第一＋公式逃げ道・現在地チップ等）を
+  D/M/P/J モックへ伝播、16枚を `skins/*-{D,M,P,J}.html` へ正本昇格（ユーザー合格 2026-07-23）。Compose 実装は
+  進行中。一次情報＝`.claude/plans/k-shape-propagation-2026-07-23.md`。ゲート＝テスト878件緑・lint 0err/33warn・
+  tokens OK192/NG0。
 - **既知バグ: なし**（単話の嘘見出し問題は 2026-07-16 修正済み＝題名マーカー0件時は作品タイトルを単一章名へ流用・golden 第4本 N5368ML で恒久回帰）。
 
 - **汎用Web小説DL基盤（最優先B・main 統合済み）**: `scrape/` サイトアダプタ抽象（`NovelSiteAdapter`＋

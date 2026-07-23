@@ -1,27 +1,19 @@
-<!-- @dsCard group="UI-n / 本棚（スキン候補）" name="P. カートリッジ（レトロ携帯ゲーム機）" -->
-<!-- 思想: 物語はゲームのカセット。差して電源を入れれば続きが始まる＝本棚はカセットライブラリ、
-             「続きから」はいまスロットに挿さっている1本、進捗はセーブデータ（話数/クリア率/プレイ時間）。
-     署名要素: ①退色プラスチック筐体に嵌め込まれた緑の液晶(LCD)＝NOW PLAYING画面 ②CSS/canvasのドット絵ラベル(8×8ピクセルスプライト)
-               ③7セグ/ビットマップ風の英数チャンネル(STAGE/CLEAR/TIME・%) ④角を面取りしたカセット筐体＝1冊=1カセット ⑤リブ(グリップ溝)
-     破壊するもの: 「topbar＋グリッド/リスト＋FAB」というアプリの入れ物そのもの。上半分を"据置の液晶ゲーム画面"にし、
-                   本棚を"下段のカセット差し替え"へ。一覧はグリッドでなくカセットラック(単列)。FABは無く、追加は空きスロット。
-     機能の織り込み（bookshelf-fusion-D 全数をPの言葉へ・v2ラベル監査＝1ラベル1言葉）: 見つける導線＝「新しい物語を見つける」帯・
-               ラベル絞り込みチップ・取込中＝緑LCDの取り込み中バナー・ラック⇄一覧の表示切替・メニュー・続きあり＝
-               セーブの「続き12話」更新しるし・装いの間入口＝機体トップの「装い」ボタン（ADR 0021 決定7＝本棚topbar相当のみ）。
-     避けたもの: 前回E案の毒々しさ＝ネオン/原色/高彩度。液晶はくすんだオリーブ緑、装飾色は退色した赤・青の低彩度のみ(最大3系統)。
-                 ピクセル感(ドット絵・面取り・溝)は"記号"として少量に効かせ、作品タイトル本文はゴシックで現代の可読性を保つ。
-     上部=H3 二画面ヒンジ（2026-07-17 承認）: ラック表示の上半分は固定LCDではなく「二画面ヒンジ」。携帯機を上下2画面（上=NOW PLAYING／
-               下=ラック）に見立て、中央のヒンジバーを上下ドラッグで取り分を無段階配分→離すと 大／均衡／最小 の3段へ吸着。最小段は
-               1行ミニストリップ（題名＋微ゲージ＋▶）でラックが主役。どの段でも NOW PLAYING と ▶ は残る。Compose翻訳＝topWeight を
-               rememberSaveable・ヒンジ draggable(Vertical) で topHeight 追従・onDragStopped で最寄りディテントへ animateTo 吸着・
-               上画面はフル⇔ミニを Crossfade・下は残り space の LazyColumn・reduce-motion=吸着アニメ無効の即時スナップ。
-               機構の決定版モック＝docs/design-candidates/skins/candidates/p-header/bookshelf-P-header-H3-hinge.html（記録として残置）。 -->
+<!-- @dsCard group="UI-n / K形伝播ドラフト" name="P. カートリッジ（本棚・K形伝播ドラフト）" -->
+<!--
+  K形伝播ドラフト＝明快Kの「形（構造）」をカートリッジPの意匠へ移植。
+  ・温存（P意匠）: 退色プラ筐体＋ネジ4点／緑LCDの NOW PLAYING（続きから）／面取りカセット筐体＋リブ＋ドット絵ラベル／
+    ラック=単列カセット／退色トーン（LCD緑・赤・青の3系統）／pixel英数スペック。
+  ・組込（K形）: ①明示タイトル「本棚」＋冊数 ②恒常ボトムナビ3タブ〈本棚/さがす/設定〉＝K骨格を固定コピー・色のみP
+    ③各カセットに可視⋮（キャプション行右端） ④状態バッジ（IN SLOT/続き/未読/CLEAR） ⑤「第N/M話」 ⑥FAB「＋PDFを追加」。
+  ・発見帯（新しい物語を見つける）は「さがす」タブへ分離＝本棚からは撤去（K形の発見分離）。
+  ・静止則（ADR 0022 §3）遵守＝keyframes/自動再生ゼロ。JSは形状生成（ドット絵/ゲージ）のみ。
+-->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>UI-n P 本棚 — カートリッジ</title>
+<title>K形伝播 P 本棚 — カートリッジ</title>
 <style>
   :root{
     --plastic:#dbd6c8; --plastic-hi:#e9e5da; --plastic-lo:#c3bfae; --panel:#cfcabb;
@@ -29,19 +21,16 @@
     --lcd:#a4af80; --lcd-hi:#b4be92; --lcd-ink:#2b3616; --lcd-frame:#33352b;   /* ①液晶グリーン */
     --red:#b5564e; --red-lo:#8d4139;                                            /* ②退色レッド */
     --blue:#5c7d96; --blue-lo:#c4c0b2; --blue-ink:#3f5a70;                       /* ③退色ブルー */
-    --w1:#c7a15c; --w2:#736c85; --w3:#7f9a5e; --w4:#bf8f9c;
+    --w1:#c7a15c; --w2:#736c85; --w3:#7f9a5e; --w4:#bf8f9c; --w5:#5f7d86;
     --pixel:ui-monospace,"SFMono-Regular",Menlo,Consolas,"Courier New",monospace;
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#2a2c27;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:30px;font-family:var(--gothic)}
-  .cap{color:#c8c3b4;font-size:13px;margin-bottom:16px;text-align:center;line-height:1.7;max-width:760px}
+  .cap{color:#c8c3b4;font-size:12.5px;margin-bottom:16px;text-align:center;line-height:1.7;max-width:520px}
   .cap b{color:#f0ede2}
-  .stage{display:flex;gap:34px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
-  .col{display:flex;flex-direction:column;align-items:center;gap:10px}
-  .col .mode{font-family:var(--pixel);font-size:11px;letter-spacing:.14em;color:#b7b2a3}
 
-  /* ===== 筐体 ===== */
+  /* ===== 筐体（Pの退色プラ筐体・390×844） ===== */
   .phone{width:390px;height:844px;border-radius:34px;position:relative;overflow:hidden;
     background:linear-gradient(150deg,var(--plastic-hi),var(--plastic) 22%,var(--plastic-lo));
     box-shadow:0 24px 60px rgba(0,0,0,.55), inset 0 2px 0 rgba(255,255,255,.5), inset 0 -3px 8px rgba(0,0,0,.14);
@@ -50,496 +39,268 @@
     background:radial-gradient(circle at 35% 30%,#e7e3d7,#a8a496 70%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
   .screw::after{content:"";position:absolute;inset:2.5px;border-top:1.4px solid rgba(0,0,0,.28);transform:rotate(40deg)}
   .screw.tl{top:14px;left:14px}.screw.tr{top:14px;right:14px}.screw.bl{bottom:14px;left:14px}.screw.br{bottom:14px;right:14px}
-  .sb{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;
+  .sb{height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;
     font-family:var(--pixel);font-size:11px;letter-spacing:.06em;color:var(--ink-soft);flex-shrink:0}
   .sb .batt{display:inline-flex;align-items:center;gap:3px}
   .sb .batt b{display:inline-block;width:16px;height:8px;border:1.4px solid var(--ink-soft);border-radius:1px;position:relative}
   .sb .batt b::after{content:"";position:absolute;inset:1.5px;right:5px;background:var(--ink-soft)}
   .sb .batt b::before{content:"";position:absolute;right:-3px;top:2px;width:2px;height:4px;background:var(--ink-soft)}
 
-  /* 機体トップ（銘板＝topbar相当。装い/表示切替/メニューを機体ボタンとして載せる） */
-  .brand{display:flex;align-items:center;justify-content:space-between;padding:2px 20px 12px;flex-shrink:0;gap:8px}
-  .brand .name{font-family:var(--pixel);font-size:14px;font-weight:700;letter-spacing:.1em;color:#4a473e;white-space:nowrap}
-  .brand .name .tri{color:var(--red)}
-  .ctl{display:flex;align-items:center;gap:7px}
-  .ctl .btn{height:32px;border:none;cursor:pointer;border-radius:8px;display:flex;align-items:center;gap:5px;padding:0 9px;
-    background:linear-gradient(var(--plastic-hi),var(--plastic-lo));color:var(--ink);
-    box-shadow:0 2px 3px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.5)}
-  .ctl .btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7}
-  .ctl .btn.dress{background:linear-gradient(var(--lcd-hi),var(--lcd));color:var(--lcd-ink);box-shadow:0 2px 3px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.35)}
-  .ctl .btn .lab{font-family:var(--pixel);font-size:10px;font-weight:700;letter-spacing:.06em}
-  .ctl .btn.sq{width:32px;justify-content:center;padding:0}
+  /* ヘッダ: Pの銘板(POCKET NOVEL)をeyebrowに残しつつ、K形の明示タイトル「本棚」＋冊数を主役に。右=表示切替 */
+  .head{flex-shrink:0;display:flex;align-items:flex-end;justify-content:space-between;padding:2px 20px 12px}
+  .head .eyebrow{font-family:var(--pixel);font-size:10px;font-weight:700;letter-spacing:.14em;color:#6f6b5f}
+  .head .eyebrow .tri{color:var(--red)}
+  .head .titlerow{display:flex;align-items:baseline;gap:10px;margin-top:5px}
+  .head h1{font-family:var(--gothic);font-size:23px;font-weight:700;color:var(--ink);letter-spacing:.04em}
+  .head .count{font-family:var(--pixel);font-size:12px;color:var(--ink-soft);letter-spacing:.08em}
+  .head .view{width:38px;height:38px;border:none;cursor:pointer;border-radius:9px;display:grid;place-items:center;color:var(--ink);align-self:center;
+    background:linear-gradient(var(--plastic-hi),var(--plastic-lo));box-shadow:0 2px 3px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.5)}
+  .head .view svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7}
 
-  /* ===== 液晶（NOW PLAYING＝続きから） ===== */
-  .lcdframe{margin:0 20px 12px;padding:10px;border-radius:14px;flex-shrink:0;
+  /* ===== 液晶（NOW PLAYING＝続きから・P署名） ===== */
+  .lcdframe{margin:0 20px 11px;padding:9px;border-radius:14px;flex-shrink:0;
     background:linear-gradient(#2b2d24,#3a3d33);box-shadow:inset 0 3px 8px rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.35)}
-  .lcd{border-radius:8px;padding:13px 15px 14px;position:relative;overflow:hidden;
+  .lcd{border-radius:8px;padding:12px 14px 13px;position:relative;overflow:hidden;
     background:radial-gradient(120% 90% at 50% 0%,var(--lcd-hi),var(--lcd));box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
   .lcd::before{content:"";position:absolute;inset:0;pointer-events:none;
     background-image:radial-gradient(rgba(43,54,22,.16) 0.6px,transparent 0.7px);background-size:3px 3px}
   .lcd-top{font-family:var(--pixel);font-size:10px;letter-spacing:.22em;color:var(--lcd-ink);opacity:.85;display:flex;align-items:center;gap:6px}
   .lcd-top .bl{width:6px;height:6px;background:var(--lcd-ink)}
-  .lcd-main{display:flex;gap:12px;align-items:center;margin-top:9px}
-  .lcd canvas.big{width:44px;height:44px;image-rendering:pixelated;flex-shrink:0}
-  .lcd-title{font-family:var(--gothic);font-weight:700;font-size:15px;line-height:1.32;color:var(--lcd-ink);letter-spacing:.01em}
-  .lcd-stats{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:11px}
+  .lcd-main{display:flex;gap:12px;align-items:center;margin-top:8px}
+  .lcd canvas.big{width:42px;height:42px;image-rendering:pixelated;flex-shrink:0}
+  .lcd-title{font-family:var(--gothic);font-weight:700;font-size:14.5px;line-height:1.3;color:var(--lcd-ink);letter-spacing:.01em}
+  .lcd-stats{display:grid;grid-template-columns:1fr 1fr;gap:3px 16px;margin-top:10px}
   .lcd-stats .st{display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px dashed rgba(43,54,22,.35);padding-bottom:2px}
   .lcd-stats .k{font-family:var(--pixel);font-size:9.5px;letter-spacing:.14em;color:var(--lcd-ink);opacity:.7}
-  .lcd-stats .v{font-family:var(--pixel);font-size:15px;font-weight:700;letter-spacing:.04em;color:var(--lcd-ink)}
-  .lcd-gauge{display:flex;gap:1.5px;margin-top:11px}
-  .lcd-gauge i{flex:1;height:9px;background:rgba(43,54,22,.16)}
+  .lcd-stats .v{font-family:var(--pixel);font-size:14px;font-weight:700;letter-spacing:.04em;color:var(--lcd-ink)}
+  .lcd-gauge{display:flex;gap:1.5px;margin-top:10px}
+  .lcd-gauge i{flex:1;height:8px;background:rgba(43,54,22,.16)}
   .lcd-gauge i.on{background:var(--lcd-ink)}
-
-  .start{margin:0 20px 12px;flex-shrink:0;border:none;cursor:pointer;width:calc(100% - 40px);
-    display:flex;align-items:center;justify-content:center;gap:10px;padding:14px;border-radius:13px;
+  .start{margin:0 20px 11px;flex-shrink:0;border:none;cursor:pointer;width:calc(100% - 40px);
+    display:flex;align-items:center;justify-content:center;gap:10px;padding:13px;border-radius:12px;
     background:linear-gradient(var(--red),var(--red-lo));color:#fff;
     box-shadow:0 4px 0 var(--red-lo), 0 6px 12px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.3)}
-  .start .lab{font-family:var(--gothic);font-weight:800;font-size:16px}
-  .start .ps{font-family:var(--pixel);font-size:9px;letter-spacing:.16em;opacity:.85;margin-left:2px}
+  .start .lab{font-family:var(--gothic);font-weight:800;font-size:15.5px}
 
-  /* ===== H3 二画面ヒンジ（2026-07-17承認）: ラック表示の上画面＝可変高。フル⇔ミニをクロスフェード =====
-     LIST面は従来どおり固定 .lcdframe を使うため、上の .lcd/.lcdframe/.start は温存し、ここは追加のみ。 */
-  .tops{margin:0 20px;flex-shrink:0;position:relative;overflow:hidden;height:220px;
-    border-radius:14px;background:linear-gradient(#2b2d24,#3a3d33);
-    box-shadow:inset 0 3px 8px rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.35);transition:height .26s cubic-bezier(.2,.8,.3,1)}
-  .tops.drag{transition:none}
-  .full{position:absolute;left:0;right:0;top:0;padding:10px}
-  /* つづきボタンは .full 内に入るため .start の基底 margin/width を上書き（LIST面の .start は非影響） */
-  .full .start{margin:10px 0 0;border:none;cursor:pointer;width:100%;
-    display:flex;align-items:center;justify-content:center;gap:10px;padding:13px;border-radius:11px;
-    background:linear-gradient(var(--red),var(--red-lo));color:#fff;
-    box-shadow:0 4px 0 var(--red-lo), 0 6px 12px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.3)}
-  .full .start .lab{font-family:var(--gothic);font-weight:800;font-size:16px}
-
-  /* ミニ（最小段の1行ストリップ＝つづきから到達口） */
-  .mini{position:absolute;left:0;right:0;top:0;height:100%;display:flex;align-items:center;gap:11px;padding:0 15px;
-    opacity:0;pointer-events:none}
-  .mini .bl{width:6px;height:6px;flex-shrink:0;background:var(--lcd-ink)}
-  .mini .np{font-family:var(--pixel);font-size:8.5px;letter-spacing:.2em;color:var(--lcd-ink);opacity:.65;flex-shrink:0}
-  .mini .tt{flex:1;min-width:0;font-family:var(--gothic);font-weight:700;font-size:13px;color:var(--lcd-ink);
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .mini .strip{position:absolute;inset:6px;border-radius:8px;background:radial-gradient(120% 120% at 50% 0%,var(--lcd-hi),var(--lcd));
-    box-shadow:inset 0 0 0 1px rgba(0,0,0,.25);z-index:0}
-  .mini .strip::before{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(43,54,22,.16) .6px,transparent .7px);background-size:3px 3px}
-  .mini .row{position:relative;z-index:1;display:flex;align-items:center;gap:10px;width:100%;padding:0 4px}
-  .mini .mg{flex-shrink:0;display:flex;gap:1.5px;align-items:center}
-  .mini .mg i{width:3px;height:10px;background:rgba(43,54,22,.2)}
-  .mini .mg i.on{background:var(--lcd-ink)}
-  .mini .pct{font-family:var(--pixel);font-size:11px;font-weight:700;color:var(--lcd-ink);flex-shrink:0}
-  .mini .play{width:26px;height:26px;flex-shrink:0;border-radius:6px;display:grid;place-items:center;
-    background:linear-gradient(var(--red),var(--red-lo));color:#fff;font-size:12px;box-shadow:0 2px 0 var(--red-lo)}
-
-  /* ヒンジバー（DSの蝶番＝ドラッグの把手・現在段を表示） */
-  .hinge{margin:6px 20px;flex-shrink:0;height:26px;border-radius:8px;cursor:ns-resize;touch-action:none;position:relative;
-    display:flex;align-items:center;justify-content:center;gap:14px;
-    background:linear-gradient(var(--plastic-hi),var(--plastic-lo));
-    box-shadow:0 2px 4px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.5), inset 0 -2px 3px rgba(0,0,0,.12)}
-  .hinge::before,.hinge::after{content:"";width:6px;height:6px;border-radius:50%;
-    background:radial-gradient(circle at 35% 30%,#e7e3d7,#a29e90 70%);box-shadow:inset 0 0 0 1px rgba(0,0,0,.14)}
-  .hinge .grip{display:flex;gap:4px;flex-direction:column}
-  .hinge .grip i{width:22px;height:3px;border-radius:2px;background:var(--plastic-lo);box-shadow:inset 0 1px 1px rgba(0,0,0,.25)}
-  .hinge .det{position:absolute;right:12px;font-family:var(--pixel);font-size:8.5px;letter-spacing:.14em;color:var(--ink-soft)}
-  /* reduce-motion＝吸着アニメ無効の即時スナップ */
-  @media (prefers-reduced-motion:reduce){ .tops{transition:none !important} }
-
-  /* 取込中＝緑LCDの取り込み中バナー（実装 ProcessingBanner に対応。造形＝緑LCD、ラベルは標準語「取り込み中」1語） */
-  .writing{margin:0 20px 12px;flex-shrink:0;border-radius:11px;position:relative;overflow:hidden;padding:11px 14px 12px;
-    background:radial-gradient(120% 90% at 50% 0%,var(--lcd-hi),var(--lcd));box-shadow:inset 0 0 0 1px rgba(0,0,0,.25), 0 1px 0 rgba(255,255,255,.35)}
-  .writing::before{content:"";position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(rgba(43,54,22,.16) .6px,transparent .7px);background-size:3px 3px}
-  .writing .wh{position:relative;z-index:2;display:flex;align-items:center;gap:9px}
-  .writing .wtag{font-family:var(--pixel);font-size:9.5px;font-weight:700;letter-spacing:.16em;color:var(--lcd-ink)}
-  .writing .wt{flex:1;min-width:0;font-family:var(--gothic);font-size:12.5px;font-weight:700;color:var(--lcd-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .writing .wcount{font-family:var(--pixel);font-size:10px;color:var(--lcd-ink);flex-shrink:0}
-  .writing .wstop{font-family:var(--pixel);font-size:10px;font-weight:700;color:var(--lcd-ink);border:1px solid rgba(43,54,22,.5);border-radius:4px;padding:3px 7px;background:transparent;cursor:pointer;flex-shrink:0}
-  .writing .wphase{position:relative;z-index:2;font-family:var(--gothic);font-size:10.5px;color:var(--lcd-ink);opacity:.85;margin-top:6px}
-  .writing .wsteps{position:relative;z-index:2;display:flex;align-items:center;margin-top:9px}
-  .writing .wsteps .pd{width:9px;height:9px;border-radius:50%;background:rgba(43,54,22,.22);flex-shrink:0}
-  .writing .wsteps .pd.on{background:var(--lcd-ink)}
-  .writing .wsteps .pl{flex:1;height:2px;background:rgba(43,54,22,.22)}
-  .writing .wsteps .pl.on{background:var(--lcd-ink)}
-  .writing .wlabels{position:relative;z-index:2;display:flex;margin-top:5px}
-  .writing .wlabels span{flex:1;text-align:center;font-family:var(--pixel);font-size:8.5px;letter-spacing:.04em;color:var(--lcd-ink);opacity:.6}
-  .writing .wlabels span.on{opacity:1;font-weight:700}
-
-  /* カセットライブラリ */
-  .lib-h{display:flex;align-items:baseline;justify-content:space-between;padding:0 24px 10px;flex-shrink:0}
-  .lib-h .t{font-family:var(--pixel);font-size:11px;font-weight:700;letter-spacing:.16em;color:#4a473e}
-  .lib-h .n{font-family:var(--pixel);font-size:11px;color:var(--ink-soft);letter-spacing:.1em}
-  .rack{flex:1;overflow:auto;padding:2px 20px 22px;scrollbar-width:none;display:flex;flex-direction:column;gap:12px}
-  .rack::-webkit-scrollbar{display:none}
-
-  /* 見つける導線の帯 */
-  .shop{border:none;cursor:pointer;width:100%;display:flex;align-items:center;gap:11px;padding:12px 14px;border-radius:10px;
-    background:linear-gradient(var(--plastic-hi),var(--panel));box-shadow:inset 0 0 0 1px var(--line), inset 0 1px 0 rgba(255,255,255,.5)}
-  .shop .si{width:34px;height:34px;flex-shrink:0;border-radius:8px;background:linear-gradient(var(--lcd-hi),var(--lcd));display:grid;place-items:center;box-shadow:inset 0 0 0 1px rgba(43,54,22,.25)}
-  .shop .si svg{width:19px;height:19px;stroke:var(--lcd-ink);fill:none;stroke-width:2}
-  .shop .st{flex:1;min-width:0;text-align:left}
-  .shop .st .l1{font-family:var(--gothic);font-size:13.5px;font-weight:700;color:var(--ink)}
-  .shop .st .l2{font-family:var(--pixel);font-size:9px;letter-spacing:.16em;color:var(--ink-soft);margin-top:2px}
-  .shop .ar{width:16px;height:16px;stroke:var(--ink-soft);fill:none;stroke-width:2;flex-shrink:0}
-
-  /* ラベル絞り込みチップ */
-  .chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:1px}.chips::-webkit-scrollbar{display:none}
+  /* ラベル絞り込みチップ（P温存・選択=緑LCD） */
+  .chips{flex-shrink:0;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding:0 20px 10px}.chips::-webkit-scrollbar{display:none}
   .chip{flex-shrink:0;font-family:var(--gothic);font-size:12px;color:var(--ink-mid);background:var(--plastic-hi);
-    border:1px solid var(--line);border-radius:999px;padding:7px 15px;cursor:pointer;white-space:nowrap}
+    border:1px solid var(--line);border-radius:999px;padding:6px 14px;cursor:pointer;white-space:nowrap}
   .chip.on{color:var(--lcd-ink);background:var(--lcd);border-color:transparent;font-weight:700;box-shadow:inset 0 0 0 1px rgba(43,54,22,.25)}
 
-  /* 1本のカセット */
+  .lib-h{flex-shrink:0;display:flex;align-items:baseline;justify-content:space-between;padding:2px 24px 8px}
+  .lib-h .t{font-family:var(--pixel);font-size:10.5px;font-weight:700;letter-spacing:.16em;color:#4a473e}
+
+  /* カセットラック（単列・P署名レイアウト） */
+  .rack{flex:1;overflow:auto;padding:2px 20px 96px;scrollbar-width:none;display:flex;flex-direction:column;gap:11px}
+  .rack::-webkit-scrollbar{display:none}
   .cart{position:relative;cursor:pointer;padding:0;
     clip-path:polygon(0 7px,7px 0,calc(100% - 7px) 0,100% 7px,100% 100%,0 100%);
     background:linear-gradient(150deg,var(--plastic-hi),var(--panel));filter:drop-shadow(0 3px 4px rgba(0,0,0,.2))}
+  .cart.inslot{background:linear-gradient(150deg,#e6ecd6,#d7e0c2)}
   .cart .ridge{height:9px;background:repeating-linear-gradient(90deg,var(--plastic-lo) 0 2px,transparent 2px 5px);opacity:.6;margin:3px 12px 0}
-  .cbody{display:flex;align-items:center;gap:12px;padding:7px 14px 12px}
-  .clabel{position:relative;width:52px;height:52px;flex-shrink:0;border-radius:5px;display:grid;place-items:center;box-shadow:inset 0 0 0 1.5px rgba(0,0,0,.14), 0 1px 2px rgba(0,0,0,.15)}
-  .clabel canvas{width:36px;height:36px;image-rendering:pixelated}
+  .cart .slot{position:absolute;top:0;right:0;font-family:var(--pixel);font-size:8.5px;font-weight:700;letter-spacing:.12em;color:var(--lcd-ink);background:var(--lcd);padding:3px 8px;clip-path:polygon(6px 0,100% 0,100% 100%,0 100%)}
+  .cbody{display:flex;align-items:center;gap:12px;padding:7px 12px 12px}
+  .clabel{position:relative;width:50px;height:50px;flex-shrink:0;border-radius:5px;display:grid;place-items:center;box-shadow:inset 0 0 0 1.5px rgba(0,0,0,.14), 0 1px 2px rgba(0,0,0,.15)}
+  .clabel canvas{width:34px;height:34px;image-rendering:pixelated}
   .cmeta{flex:1;min-width:0}
   .cmeta .ct{font-family:var(--gothic);font-weight:700;font-size:13.5px;line-height:1.3;color:var(--ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .cmeta .cb{font-size:11px;color:var(--ink-soft);margin-top:3px}
-  .csave{flex-shrink:0;width:82px;text-align:right}
-  .csave .stage{font-family:var(--pixel);font-size:11px;letter-spacing:.03em;color:var(--ink)}
+  .cmeta .web{display:inline-block;font-family:var(--pixel);font-size:8px;font-weight:700;letter-spacing:.08em;color:var(--blue-ink);border:1px solid var(--blue);border-radius:3px;padding:1px 5px;margin-right:6px;vertical-align:1px}
+
+  /* 右カラム: 上=可視⋮（K形・キャプション行右端）／下=セーブデータ（第N/M話・ゲージ・状態バッジ） */
+  .cright{flex-shrink:0;width:88px;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+  .dots{width:30px;height:28px;border:none;cursor:pointer;border-radius:7px;display:grid;place-items:center;color:var(--ink-soft);
+    background:linear-gradient(var(--plastic-hi),var(--plastic-lo));box-shadow:inset 0 0 0 1px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.12)}
+  .dots svg{width:15px;height:15px;fill:currentColor}
+  .csave{text-align:right}
+  .csave .stage{font-family:var(--pixel);font-size:11px;letter-spacing:.02em;color:var(--ink)}
+  .csave.nodata .stage{color:var(--ink-soft)}
   .csave .gauge{display:flex;gap:1.5px;justify-content:flex-end;margin-top:5px}
   .csave .gauge i{width:5px;height:8px;background:var(--blue-lo)}
   .csave .gauge i.on{background:var(--blue)}
-  .csave .pct{font-family:var(--pixel);font-size:11px;font-weight:700;color:var(--blue-ink);margin-top:4px}
-  /* ===== 遊び心（P1 CLEAR封印）: 進捗の「100%」表記そのものを CLEAR‼ 文字印へ差し替える（100%とCLEARは意味重複ゆえ同じ場所を占める）=====
-     遊び心: 【何が】進捗100%の表記が CLEAR‼ の文字印（LCD緑・刻印質感）になる。
-             【どの動作で】その物語を初めて読了した瞬間（進捗 false→true＝100%到達）に一度きり押印。
-             【どう変わる】読了前＝「62%」等 → 100%到達で「100%」が CLEAR‼ へ差し替わり、既読了は常時 CLEAR‼（%へは戻らない）。
-     Compose 翻訳の想定: reachedEnd の false→true 遷移でのみ進捗テキストを CLEAR‼ 刻印チップへ差し替え scale 1.15→1.0 で一度押印、以後静的。署名の LCD 緑に閉じる。 */
-  .csave .clearmark{display:inline-block;margin-top:4px;font-family:var(--pixel);font-size:10px;font-weight:700;letter-spacing:.04em;
-    color:var(--lcd-ink);background:var(--lcd);border-radius:3px;padding:2px 6px;transform:rotate(0deg);
-    box-shadow:inset 0 0 0 1px rgba(43,54,22,.5), inset 0 1px 1px rgba(0,0,0,.22)}
-  .csave .clearmark.stamp{animation:clearStamp .2s cubic-bezier(.2,.8,.3,1) 1 both}
-  @keyframes clearStamp{0%{transform:rotate(0deg) scale(1.15);opacity:0}55%{opacity:1}100%{transform:rotate(0deg) scale(1)}}
-  .li .ls .clr{color:var(--lcd-ink);background:var(--lcd);border-radius:2px;padding:1px 5px;font-size:8.5px;font-weight:700}
-  @media (prefers-reduced-motion:reduce){ .csave .clearmark.stamp{animation:none;opacity:1;transform:rotate(0deg) scale(1)} }
-  /* 続きあり＝更新のしるし */
-  .csave .upd{display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-family:var(--pixel);font-size:9.5px;font-weight:700;color:var(--lcd-ink);background:var(--lcd);border-radius:3px;padding:2px 6px}
-  .csave.nodata .stage{color:var(--ink-soft)}
-  .csave .new{display:inline-block;font-family:var(--pixel);font-size:9px;font-weight:700;letter-spacing:.12em;color:#fff;background:var(--red);padding:2px 6px;border-radius:2px;margin-top:6px}
-  .csave .nd{font-family:var(--pixel);font-size:9.5px;letter-spacing:.1em;color:var(--ink-soft);margin-top:5px}
-  .cart.inslot{background:linear-gradient(150deg,#e6ecd6,#d7e0c2)}
-  .cart.inslot .slot{position:absolute;top:0;right:0;font-family:var(--pixel);font-size:8.5px;font-weight:700;letter-spacing:.12em;color:var(--lcd-ink);background:var(--lcd);padding:3px 8px;clip-path:polygon(6px 0,100% 0,100% 100%,0 100%)}
+  .csave .pct{font-family:var(--pixel);font-size:11px;font-weight:700;color:var(--blue-ink);margin-top:3px}
+  .csave .upd{display:inline-flex;align-items:center;gap:4px;margin-top:5px;font-family:var(--pixel);font-size:9px;font-weight:700;color:var(--lcd-ink);background:var(--lcd);border-radius:3px;padding:2px 6px}
+  .csave .new{display:inline-block;font-family:var(--pixel);font-size:9px;font-weight:700;letter-spacing:.1em;color:#fff;background:var(--red);padding:2px 6px;border-radius:2px;margin-top:5px}
+  .csave .clearmark{display:inline-block;margin-top:4px;font-family:var(--pixel);font-size:9.5px;font-weight:700;letter-spacing:.04em;
+    color:var(--lcd-ink);background:var(--lcd);border-radius:3px;padding:2px 6px;box-shadow:inset 0 0 0 1px rgba(43,54,22,.5), inset 0 1px 1px rgba(0,0,0,.22)}
 
-  /* ===== 遊び心（P2 ラベル現像）: 取込中カセット＝ラベルが上から一段ずつ焼き込まれる（＝カセットに書き込まれる現像）=====
-     遊び心: 【何が】取込中カセットのラベルが 8×8 ドット絵として上の段から一段ずつ焼き込まれる。ステップ（題名→本文→分割→HTML）が進むほど行が埋まり、完了で全ドット点灯＝カセット完成。
-             【どの動作で】PDF の取り込み（ProcessingBanner の進行＝上部の取込中バナーと連動）。
-             【どう変わる】取込前＝ラベルは無し → 取込中＝ドットが下へ伸びる → 完了＝ラベル完成でラックへ着床。
-     Compose 翻訳の想定: ProcessingBanner の progress(0..1) を 0..8 行に量子化し Canvas でスプライトを上から N 行だけ描画（進むと単調に増え戻さない）。色は署名の LCD 緑（--lcd-ink）に閉じる。 */
-  .cart.burning{background:linear-gradient(150deg,#e6ecd6,#d7e0c2)}
-  .cart.burning .slot{position:absolute;top:0;right:0;font-family:var(--pixel);font-size:8.5px;font-weight:700;letter-spacing:.12em;
-    color:var(--lcd-ink);background:var(--lcd);padding:3px 8px;clip-path:polygon(6px 0,100% 0,100% 100%,0 100%)}
-  .clabel.burn{background:#3b4326;box-shadow:inset 0 0 0 1.5px rgba(43,54,22,.6), 0 1px 2px rgba(0,0,0,.2)}
-  .clabel.burn canvas{width:40px;height:40px}
-  .clabel.burn .scan{position:absolute;left:6px;right:6px;height:2px;background:var(--lcd-hi);box-shadow:0 0 6px 1px var(--lcd-hi);
-    animation:scanBlink .8s steps(2) infinite}
-  @keyframes scanBlink{50%{opacity:.35}}
-  .clabel .burnpct{position:absolute;bottom:-16px;left:0;right:0;text-align:center;font-family:var(--pixel);font-size:8px;color:var(--lcd-ink)}
-  @media (prefers-reduced-motion:reduce){ .clabel.burn .scan{animation:none} }
+  /* FAB「＋PDFを追加」（K形・P意匠=退色レッドの隆起ボタン。ボトムナビの上に浮く） */
+  .fab{position:absolute;right:16px;bottom:78px;z-index:6;display:inline-flex;align-items:center;gap:8px;
+    height:50px;padding:0 19px 0 15px;border:none;cursor:pointer;border-radius:25px;
+    background:linear-gradient(var(--red),var(--red-lo));color:#fff;font-family:var(--gothic);font-size:14px;font-weight:800;letter-spacing:.02em;
+    box-shadow:0 4px 0 var(--red-lo), 0 8px 16px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.3)}
+  .fab svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round}
 
-  /* 空きスロット＝PDF追加 */
-  .slotadd{border:none;cursor:pointer;background:transparent;padding:0;width:100%;clip-path:polygon(0 7px,7px 0,calc(100% - 7px) 0,100% 7px,100% 100%,0 100%)}
-  .slotadd .in{margin:2px;border:2px dashed var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;gap:10px;padding:16px;color:var(--ink-soft)}
-  .slotadd .pl{font-family:var(--pixel);font-size:22px;font-weight:700;color:var(--ink-soft)}
-  .slotadd .txt{text-align:left}
-  .slotadd .txt .l1{font-family:var(--gothic);font-weight:700;font-size:13px;color:#575349}
-  .slotadd .txt .l2{font-family:var(--pixel);font-size:9px;letter-spacing:.14em;color:var(--ink-soft);margin-top:2px}
-
-  /* 一覧（表示切替の結果＝単列の詰めたリスト） */
-  .list{flex:1;overflow:auto;padding:2px 22px 22px;scrollbar-width:none;display:flex;flex-direction:column}.list::-webkit-scrollbar{display:none}
-  .li{display:flex;align-items:center;gap:13px;padding:13px 4px;border-bottom:1px solid var(--line);cursor:pointer}
-  .li:last-of-type{border-bottom:none}
-  .li .chip-lb{width:34px;height:40px;flex-shrink:0;border-radius:4px 4px 3px 3px;position:relative;box-shadow:inset 0 2px 0 rgba(255,255,255,.25),inset 0 0 0 1px rgba(0,0,0,.14)}
-  .li .chip-lb::before{content:"";position:absolute;left:5px;right:5px;top:5px;height:5px;background:repeating-linear-gradient(90deg,rgba(0,0,0,.16) 0 2px,transparent 2px 5px)}
-  .li .lm{flex:1;min-width:0}
-  .li .lt{font-family:var(--gothic);font-size:13.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .li .la{font-size:10.5px;color:var(--ink-soft);margin-top:3px}
-  .li .ls{flex-shrink:0;text-align:right;font-family:var(--pixel);font-size:10.5px;color:var(--ink-mid)}
-  .li .ls .p{color:var(--blue-ink);font-weight:700}
-  .li .ls .n{color:#fff;background:var(--red);border-radius:2px;padding:1px 5px;font-size:8.5px;font-weight:700;letter-spacing:.1em}
-  .li .ls .u{color:var(--lcd-ink);background:var(--lcd);border-radius:2px;padding:1px 5px;font-size:8.5px;font-weight:700}
-
-  .deck{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:8px 26px 12px}
-  .deck .holes{display:flex;gap:4px}
-  .deck .holes i{width:5px;height:5px;border-radius:50%;background:var(--plastic-lo);box-shadow:inset 0 1px 1px rgba(0,0,0,.2)}
-  .deck .mk{font-family:var(--pixel);font-size:9px;letter-spacing:.18em;color:var(--ink-soft)}
+  /* ===== 共通ボトムナビ（K骨格を固定コピー・色のみPトークンへ。選択=緑LCDピル＋lcd-ink） ===== */
+  .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--plastic)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    text-decoration:none;cursor:pointer;color:var(--ink-soft)}
+  .tab.on{color:var(--lcd-ink)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .tab.on .ic .pill{background:var(--lcd);box-shadow:inset 0 0 0 1px rgba(43,54,22,.25)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
+  .tab.on .lb{font-weight:700}
 </style>
 </head>
 <body>
-  <p class="cap"><b>P. カートリッジ</b> ／ 承認済みの機体×液晶×ラックを保ったまま、現行本棚(fusion-D)の機能をPの言葉で織り込み。左＝ラック表示（上部=H3 二画面ヒンジ：中央バーを上下ドラッグ→大/均衡/最小に吸着・見つける導線・ラベル絞り込み・取り込み中バナー・続きあり=セーブの更新しるし・機体トップに装い/表示切替/メニュー）。右＝表示切替の結果＝一覧。</p>
+  <p class="cap"><b>P. カートリッジ ／ 本棚（K形伝播ドラフト）</b> ／ 緑LCDの NOW PLAYING・単列カセットラック・退色プラ筐体を温存し、明示タイトル「本棚」＋冊数・各カセットに可視⋮・状態バッジ・第N/M話・FAB・恒常ボトムナビ（K骨格）を組込。</p>
 
-  <div class="stage">
-    <!-- ラック表示 -->
-    <div class="col"><span class="mode">RACK / ラック表示</span>
-    <div class="phone" role="application" aria-label="P案 カートリッジ本棚 ラック">
-      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
-      <div class="sb"><span>9:41</span><span class="batt">SAVE&nbsp;<b></b></span></div>
-      <div class="brand">
-        <span class="name"><span class="tri">▶</span> POCKET NOVEL</span>
-        <div class="ctl">
-          <button class="btn dress" aria-label="装いの間（スキンを着せ替える）"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="12" height="14" rx="2"/><path d="M9 6V5a3 3 0 0 1 6 0v1"/><rect x="11" y="9" width="9" height="11" rx="2" fill="var(--lcd)"/></svg><span class="lab">装い</span></button>
-          <button class="btn sq" aria-label="一覧へ切替"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><line x1="3.5" y1="6" x2="3.51" y2="6"/><line x1="3.5" y1="12" x2="3.51" y2="12"/><line x1="3.5" y1="18" x2="3.51" y2="18"/></svg></button>
-          <button class="btn sq" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg></button>
+  <div class="phone" role="application" aria-label="P案 カートリッジ本棚（K形伝播）">
+    <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
+    <div class="sb"><span>9:41</span><span class="batt">SAVE&nbsp;<b></b></span></div>
+
+    <!-- ヘッダ（K形: 明示タイトル＋冊数／P銘板をeyebrowに温存） -->
+    <div class="head">
+      <div class="ttl">
+        <div class="eyebrow"><span class="tri">▶</span> POCKET NOVEL</div>
+        <div class="titlerow"><h1>本棚</h1><span class="count">5冊</span></div>
+      </div>
+      <button class="view" aria-label="表示切替（ラック／一覧）">
+        <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><line x1="3.5" y1="6" x2="3.51" y2="6"/><line x1="3.5" y1="12" x2="3.51" y2="12"/><line x1="3.5" y1="18" x2="3.51" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- NOW PLAYING＝続きから（P署名） -->
+    <div class="lcdframe">
+      <div class="lcd">
+        <div class="lcd-top"><span class="bl"></span>NOW PLAYING</div>
+        <div class="lcd-main">
+          <canvas class="big" width="8" height="8" data-sprite="potion" data-col="#2b3616" aria-hidden="true"></canvas>
+          <div class="lcd-title">追放された万能薬師、辺境でスローライフを始める</div>
+        </div>
+        <div class="lcd-stats">
+          <div class="st"><span class="k">STAGE</span><span class="v">127</span></div>
+          <div class="st"><span class="k">TOTAL</span><span class="v">340</span></div>
+          <div class="st"><span class="k">CLEAR</span><span class="v">62%</span></div>
+          <div class="st"><span class="k">TIME</span><span class="v">24:17</span></div>
+        </div>
+        <div class="lcd-gauge" data-n="20" data-f="12" aria-label="進捗62パーセント"></div>
+      </div>
+    </div>
+    <button class="start"><span class="lab">▶ つづきから読む</span></button>
+
+    <!-- ラベル絞り込み（P温存） -->
+    <div class="chips">
+      <span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span>
+    </div>
+
+    <div class="lib-h"><span class="t">CARTRIDGE LIBRARY</span></div>
+
+    <div class="rack">
+      <!-- ① 続きから＝挿さっているカセット＋続きあり -->
+      <div class="cart inslot" role="button" aria-label="追放された万能薬師、いま挿入中・続き12話あり・第127話">
+        <span class="slot">▶ IN SLOT</span>
+        <div class="ridge"></div>
+        <div class="cbody">
+          <div class="clabel" style="background:var(--w1)"><canvas width="8" height="8" data-sprite="potion" data-col="#5a4413"></canvas></div>
+          <div class="cmeta"><div class="ct">追放された万能薬師、辺境でスローライフを始める</div><div class="cb">霧島あおい</div></div>
+          <div class="cright">
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
+            <div class="csave"><div class="stage">第127/340</div><div class="gauge" data-n="10" data-f="6"></div><span class="upd">＋続き12</span></div>
+          </div>
         </div>
       </div>
 
-      <!-- 上画面（可変高）＝NOW PLAYING。H3二画面ヒンジ：フル⇔ミニをクロスフェード -->
-      <div class="tops" id="tops">
-        <div class="full" id="full">
-          <div class="lcd">
-            <div class="lcd-top"><span class="bl"></span>NOW PLAYING</div>
-            <div class="lcd-main">
-              <canvas class="big" width="8" height="8" data-sprite="potion" data-col="#2b3616" aria-hidden="true"></canvas>
-              <div class="lcd-title">追放された万能薬師、辺境でスローライフを始める</div>
-            </div>
-            <div class="lcd-stats">
-              <div class="st"><span class="k">STAGE</span><span class="v">127</span></div>
-              <div class="st"><span class="k">TOTAL</span><span class="v">340</span></div>
-              <div class="st"><span class="k">CLEAR</span><span class="v">62%</span></div>
-              <div class="st"><span class="k">TIME</span><span class="v">24:17</span></div>
-            </div>
-            <div class="lcd-gauge" data-n="20" data-f="12" aria-label="進捗62パーセント"></div>
-          </div>
-          <button class="start"><span class="lab">▶ つづきから読む</span></button>
-        </div>
-        <!-- 最小段の1行ストリップ（題名＋微ゲージ＋▶＝つづきから到達口） -->
-        <div class="mini" id="mini">
-          <span class="strip" aria-hidden="true"></span>
-          <div class="row">
-            <span class="np">NOW</span>
-            <span class="tt">追放された万能薬師、辺境でスローライフを始める</span>
-            <span class="mg" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i></span>
-            <span class="pct">62%</span>
-            <span class="play" role="button" aria-label="つづきから読む">▶</span>
+      <!-- ② よみかけ -->
+      <div class="cart" role="button" aria-label="黒の魔王と契約した俺、よみかけ・第43話">
+        <div class="ridge"></div>
+        <div class="cbody">
+          <div class="clabel" style="background:var(--w2)"><canvas width="8" height="8" data-sprite="sword" data-col="#eae7ef"></canvas></div>
+          <div class="cmeta"><div class="ct">黒の魔王と契約した俺、気づけば最強の従者になっていた</div><div class="cb">夜灯すばる</div></div>
+          <div class="cright">
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
+            <div class="csave"><div class="stage">第43/150</div><div class="gauge" data-n="10" data-f="3"></div><div class="pct">28%</div></div>
           </div>
         </div>
       </div>
 
-      <!-- ヒンジバー（ドラッグの把手・現在段を表示。上下ドラッグで上下2画面の取り分を無段階配分→離すと3段吸着） -->
-      <div class="hinge" id="hinge" role="slider" tabindex="0" aria-label="上下2画面の配分（ヒンジ）" aria-valuetext="均衡">
-        <span class="grip" aria-hidden="true"><i></i><i></i></span>
-        <span class="det" id="det">均衡</span>
+      <!-- ③ Web作品・よみかけ（Web識別マーカー） -->
+      <div class="cart" role="button" aria-label="最果てのダンジョン、Web作品・第3話まで既読">
+        <div class="ridge"></div>
+        <div class="cbody">
+          <div class="clabel" style="background:var(--w5)"><canvas width="8" height="8" data-sprite="sword" data-col="#dfeaef"></canvas></div>
+          <div class="cmeta"><div class="ct"><span class="web">WEB</span>最果てのダンジョンで細々と暮らすことにした</div><div class="cb">灰羽まくら</div></div>
+          <div class="cright">
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
+            <div class="csave"><div class="stage">第3/62</div><div class="gauge" data-n="10" data-f="1"></div><span class="upd">＋続き4</span></div>
+          </div>
+        </div>
       </div>
 
-      <!-- 取込中バナー＝NOW WRITING（カセット書き込み中） -->
-      <div class="writing" role="status" aria-label="カセット書き込み中">
-        <div class="wh">
-          <span class="wtag">取り込み中</span>
-          <span class="wt">山賊令嬢の華麗なる転身</span>
-          <span class="wcount">1/3件</span>
-          <button class="wstop">停止</button>
-        </div>
-        <div class="wphase">本文を読み込み中… 45%（3/12ページ）</div>
-        <div class="wsteps"><span class="pd on"></span><span class="pl on"></span><span class="pd on"></span><span class="pl"></span><span class="pd"></span><span class="pl"></span><span class="pd"></span></div>
-        <div class="wlabels"><span class="on">題名</span><span class="on">本文</span><span>分割</span><span>HTML</span></div>
-      </div>
-
-      <div class="lib-h"><span class="t">CARTRIDGE LIBRARY</span><span class="n">04 本</span></div>
-
-      <div class="rack">
-        <!-- 見つける導線 -->
-        <button class="shop" aria-label="新しい物語を見つける">
-          <span class="si"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span>
-          <span class="st"><span class="l1">新しい物語を見つける</span></span>
-          <svg class="ar" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-
-        <!-- ラベル絞り込みチップ -->
-        <div class="chips">
-          <span class="chip on">すべて</span><span class="chip">異世界</span><span class="chip">完結済み</span><span class="chip">あとで読む</span>
-        </div>
-
-        <!-- 遊び心（P2 ラベル現像）: 取込中の一本＝上部の取込中バナー「山賊令嬢の華麗なる転身」に対応。
-             ラベルを 8×8 ドット絵として上から焼き込み中（本文ステップ＝下へ4段・進捗50%）。完了で全ドット点灯＝ラック着床。 -->
-        <div class="cart burning" role="button" aria-label="山賊令嬢の華麗なる転身、取り込み中・ラベル焼込み中">
-          <span class="slot">▶ 書込中</span>
-          <div class="ridge"></div>
-          <div class="cbody">
-            <div class="clabel burn">
-              <canvas width="8" height="8" data-sprite="crown" data-col="#a4af80" data-rows="4"></canvas>
-              <span class="scan" style="top:24px" aria-hidden="true"></span>
-              <span class="burnpct">50%</span>
-            </div>
-            <div class="cmeta"><div class="ct">山賊令嬢の華麗なる転身</div><div class="cb">取り込み中…</div></div>
-            <div class="csave nodata"><div class="stage">書込中</div></div>
-          </div>
-        </div>
-
-        <!-- ① 続きから＝挿さっている本＋続きあり -->
-        <div class="cart inslot w1" role="button" aria-label="追放された万能薬師、いま再生中・続き12話あり">
-          <span class="slot">▶ IN SLOT</span>
-          <div class="ridge"></div>
-          <div class="cbody">
-            <div class="clabel" style="background:var(--w1)"><canvas width="8" height="8" data-sprite="potion" data-col="#5a4413"></canvas></div>
-            <div class="cmeta"><div class="ct">追放された万能薬師、辺境でスローライフを始める</div><div class="cb">霧島あおい</div></div>
-            <div class="csave"><div class="stage">第127話</div><div class="gauge" data-n="10" data-f="6"></div><div class="pct">62%</div><span class="upd">＋続き12話</span></div>
-          </div>
-        </div>
-
-        <!-- ② 読みかけ -->
-        <div class="cart w2" role="button" aria-label="黒の魔王と契約した俺">
-          <div class="ridge"></div>
-          <div class="cbody">
-            <div class="clabel" style="background:var(--w2)"><canvas width="8" height="8" data-sprite="sword" data-col="#eae7ef"></canvas></div>
-            <div class="cmeta"><div class="ct">黒の魔王と契約した俺、気づけば最強の従者になっていた</div><div class="cb">夜灯すばる</div></div>
-            <div class="csave"><div class="stage">第43話</div><div class="gauge" data-n="10" data-f="3"></div><div class="pct">28%</div></div>
-          </div>
-        </div>
-
-        <!-- ③ 未読 -->
-        <div class="cart w3" role="button" aria-label="転生したら最弱スキルだった、未読">
-          <div class="ridge"></div>
-          <div class="cbody">
-            <div class="clabel" style="background:var(--w3)"><canvas width="8" height="8" data-sprite="sprout" data-col="#31441c"></canvas></div>
-            <div class="cmeta"><div class="ct">転生したら最弱スキルだったので、ひたすら草むしりしていた</div><div class="cb">青葉みのり</div></div>
+      <!-- ④ 未読 -->
+      <div class="cart" role="button" aria-label="転生したら最弱スキルだった、未読・全88話">
+        <div class="ridge"></div>
+        <div class="cbody">
+          <div class="clabel" style="background:var(--w3)"><canvas width="8" height="8" data-sprite="sprout" data-col="#31441c"></canvas></div>
+          <div class="cmeta"><div class="ct">転生したら最弱スキルだったので、ひたすら草むしりしていた</div><div class="cb">青葉みのり</div></div>
+          <div class="cright">
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
             <div class="csave nodata"><div class="stage">全88話</div><div class="new">未読</div></div>
           </div>
         </div>
+      </div>
 
-        <!-- ④ 読了済み＝CLEAR封印（進捗100%の表記が CLEAR‼ 文字印へ差し替わった状態。遊び心P1） -->
-        <div class="cart w4" role="button" aria-label="公爵令嬢の嗜み、読了・CLEAR">
-          <div class="ridge"></div>
-          <div class="cbody">
-            <div class="clabel" style="background:var(--w4)"><canvas width="8" height="8" data-sprite="flower" data-col="#5e3a45"></canvas></div>
-            <div class="cmeta"><div class="ct">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="cb">白河すずら</div></div>
-            <div class="csave"><div class="stage">全88話</div><div class="gauge" data-n="10" data-f="10"></div><div class="clearmark" aria-label="読了・CLEAR">CLEAR‼</div></div>
+      <!-- ⑤ 読了＝CLEAR封印（進捗100%表記がCLEAR‼へ差替。静止・押印アニメ無し） -->
+      <div class="cart" role="button" aria-label="公爵令嬢の嗜み、読了・CLEAR・全88話">
+        <div class="ridge"></div>
+        <div class="cbody">
+          <div class="clabel" style="background:var(--w4)"><canvas width="8" height="8" data-sprite="flower" data-col="#5e3a45"></canvas></div>
+          <div class="cmeta"><div class="ct">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="cb">白河すずら</div></div>
+          <div class="cright">
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
+            <div class="csave"><div class="stage">全88話</div><div class="gauge" data-n="10" data-f="10"></div><span class="clearmark" aria-label="読了・CLEAR">CLEAR‼</span></div>
           </div>
         </div>
-
-        <!-- 空きスロット＝PDF追加 -->
-        <button class="slotadd" aria-label="新しいカセットを追加（PDFを取り込む）">
-          <div class="in"><span class="pl">＋</span><div class="txt"><div class="l1">PDFを追加</div></div></div>
-        </button>
       </div>
+    </div>
 
-      <div class="deck">
-        <div class="holes"><i></i><i></i><i></i><i></i><i></i></div>
-        <span class="mk">POCKET NOVEL · COLOR</span>
-        <div class="holes"><i></i><i></i><i></i><i></i><i></i></div>
-      </div>
-    </div></div>
+    <!-- FAB（K形） -->
+    <button class="fab" aria-label="PDFを追加"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>PDFを追加</button>
 
-    <!-- 一覧表示（表示切替の結果） -->
-    <div class="col"><span class="mode">LIST / 一覧表示</span>
-    <div class="phone" role="application" aria-label="P案 カートリッジ本棚 一覧">
-      <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
-      <div class="sb"><span>9:41</span><span class="batt">SAVE&nbsp;<b></b></span></div>
-      <div class="brand">
-        <span class="name"><span class="tri">▶</span> POCKET NOVEL</span>
-        <div class="ctl">
-          <button class="btn dress" aria-label="装いの間（スキンを着せ替える）"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="12" height="14" rx="2"/><path d="M9 6V5a3 3 0 0 1 6 0v1"/><rect x="11" y="9" width="9" height="11" rx="2" fill="var(--lcd)"/></svg><span class="lab">装い</span></button>
-          <button class="btn sq" aria-label="ラックへ切替"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7"/><rect x="13.5" y="3.5" width="7" height="7"/><rect x="13.5" y="13.5" width="7" height="7"/><rect x="3.5" y="13.5" width="7" height="7"/></svg></button>
-          <button class="btn sq" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="12" cy="19" r="1.4"/></svg></button>
-        </div>
-      </div>
-
-      <div class="lcdframe">
-        <div class="lcd">
-          <div class="lcd-top"><span class="bl"></span>NOW PLAYING</div>
-          <div class="lcd-main">
-            <canvas class="big" width="8" height="8" data-sprite="potion" data-col="#2b3616" aria-hidden="true"></canvas>
-            <div class="lcd-title">追放された万能薬師、辺境でスローライフを始める</div>
-          </div>
-          <div class="lcd-stats">
-            <div class="st"><span class="k">STAGE</span><span class="v">127</span></div>
-            <div class="st"><span class="k">TOTAL</span><span class="v">340</span></div>
-            <div class="st"><span class="k">CLEAR</span><span class="v">62%</span></div>
-            <div class="st"><span class="k">TIME</span><span class="v">24:17</span></div>
-          </div>
-          <div class="lcd-gauge" data-n="20" data-f="12" aria-label="進捗62パーセント"></div>
-        </div>
-      </div>
-
-      <button class="start"><span class="lab">▶ つづきから読む</span></button>
-
-      <div class="lib-h"><span class="t">CARTRIDGE LIBRARY</span><span class="n">一覧 · 04 本</span></div>
-
-      <div class="list">
-        <button class="shop" style="margin-bottom:12px" aria-label="新しい物語を見つける">
-          <span class="si"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span>
-          <span class="st"><span class="l1">新しい物語を見つける</span></span>
-          <svg class="ar" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-        <div class="chips" style="margin-bottom:6px"><span class="chip on">すべて</span><span class="chip">異世界</span><span class="chip">完結済み</span><span class="chip">あとで読む</span></div>
-
-        <div class="li"><span class="chip-lb" style="background:var(--w1)"></span><div class="lm"><div class="lt">追放された万能薬師、辺境でスローライフを始める</div><div class="la">霧島あおい</div></div><div class="ls">第127話 <span class="p">62%</span> <span class="u">続き12</span></div></div>
-        <div class="li"><span class="chip-lb" style="background:var(--w2)"></span><div class="lm"><div class="lt">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="la">夜灯すばる</div></div><div class="ls">第43話 <span class="p">28%</span></div></div>
-        <div class="li"><span class="chip-lb" style="background:var(--w3)"></span><div class="lm"><div class="lt">転生したら最弱スキルだったので草むしりしていた</div><div class="la">青葉みのり</div></div><div class="ls">全88話 <span class="n">未読</span></div></div>
-        <div class="li"><span class="chip-lb" style="background:var(--w4)"></span><div class="lm"><div class="lt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="la">白河すずら</div></div><div class="ls">全88話 <span class="clr">CLEAR‼</span></div></div>
-
-        <button class="slotadd" style="margin-top:14px" aria-label="新しいカセットを追加（PDFを取り込む）">
-          <div class="in"><span class="pl">＋</span><div class="txt"><div class="l1">PDFを追加</div></div></div>
-        </button>
-      </div>
-
-      <div class="deck">
-        <div class="holes"><i></i><i></i><i></i><i></i><i></i></div>
-        <span class="mk">POCKET NOVEL · COLOR</span>
-        <div class="holes"><i></i><i></i><i></i><i></i><i></i></div>
-      </div>
-    </div></div>
+    <!-- ===== 共通ボトムナビ（本棚 選択中・K骨格固定コピー） ===== -->
+    <nav class="tabbar">
+      <a class="tab on">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg>
+        </span>
+        <span class="lb">本棚</span>
+      </a>
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg>
+        </span>
+        <span class="lb">さがす</span>
+      </a>
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </span>
+        <span class="lb">設定</span>
+      </a>
+    </nav>
   </div>
 
 <script>
+  // 形状生成のみ（静止則＝keyframes/自動再生なし）: ドット絵ラベル＋進捗ゲージの充填
   const SPRITES = {
     potion:[ "...##...","...##...","..####..",".######.",".######.",".######.",".######.","..####.." ],
     sword: [ "....#...","...###..","....#...","....#...",".#######","....#...","...###..","..#.#.#." ],
     sprout:[ ".#....#.","##....##",".##..##.","...##...","...##...","...##...",".#####..","########" ],
     flower:[ "..#..#..",".######.","########",".######.","...##...","...##...","..#.#.#.","#..##..#" ],
-    crown: [ "#.....#.","#.#.#.#.","#.#.#.##","########",".######.",".######.",".######.","########" ],  /* 遊び心P2: 取込中カセットのドット絵 */
   };
   document.querySelectorAll('canvas[data-sprite]').forEach(cv=>{
     const g=cv.getContext('2d'), p=SPRITES[cv.dataset.sprite];
-    // 遊び心P2（ラベル現像）: data-rows = いま焼き込まれている段数(0..8)。未指定は完成(8)。取込中カセットは進捗で単調に増える
-    const rows = cv.dataset.rows===undefined ? 8 : +cv.dataset.rows;
     g.fillStyle=cv.dataset.col;
-    p.forEach((row,y)=>{ if(y<rows) [...row].forEach((ch,x)=>{ if(ch==='#') g.fillRect(x,y,1,1); }); });
+    p.forEach((row,y)=>[...row].forEach((ch,x)=>{ if(ch==='#') g.fillRect(x,y,1,1); }));
   });
   document.querySelectorAll('[data-n]').forEach(el=>{
     const n=+el.dataset.n, f=+el.dataset.f;
     for(let i=0;i<n;i++){ const s=document.createElement('i'); if(i<f) s.className='on'; el.appendChild(s); }
   });
-
-  // ===== H3 二画面ヒンジの配分ロジック（ラック表示のみ。ドラッグ→吸着デモ） =====
-  const tops=document.getElementById('tops'), full=document.getElementById('full'), mini=document.getElementById('mini'),
-        hinge=document.getElementById('hinge'), det=document.getElementById('det');
-  if(tops && hinge){
-    const DETENTS = [ {h:56,name:'最小'}, {h:220,name:'均衡'}, {h:340,name:'大'} ];
-    const MIN=DETENTS[0].h, MAX=DETENTS[2].h;
-    let h = DETENTS[1].h; // 既定=均衡
-    function apply(v){
-      h = Math.max(MIN, Math.min(MAX, v));
-      tops.style.height = h+'px';
-      // フル⇔ミニのクロスフェード（高さ 100〜160px を境目に入れ替え）
-      const fk = Math.max(0, Math.min(1, (h-100)/60));   // 0=ミニ 1=フル
-      full.style.opacity = fk.toFixed(3);
-      full.style.pointerEvents = fk>0.5?'auto':'none';
-      mini.style.opacity = (1-fk).toFixed(3);
-      mini.style.pointerEvents = fk<0.5?'auto':'none';
-      const near = DETENTS.reduce((a,b)=> Math.abs(b.h-h)<Math.abs(a.h-h)?b:a);
-      det.textContent = near.name; hinge.setAttribute('aria-valuetext', near.name);
-    }
-    function snap(){
-      const near = DETENTS.reduce((a,b)=> Math.abs(b.h-h)<Math.abs(a.h-h)?b:a);
-      apply(near.h);
-    }
-    let dragging=false, startY=0, startH=0;
-    hinge.addEventListener('pointerdown', e=>{
-      dragging=true; startY=e.clientY; startH=h; tops.classList.add('drag');
-      hinge.setPointerCapture(e.pointerId);
-    });
-    hinge.addEventListener('pointermove', e=>{ if(dragging) apply(startH + (e.clientY-startY)); });
-    function endDrag(){ if(!dragging) return; dragging=false; tops.classList.remove('drag'); snap(); }
-    hinge.addEventListener('pointerup', endDrag);
-    hinge.addEventListener('pointercancel', endDrag);
-    // キーボード：上下で段送り
-    hinge.addEventListener('keydown', e=>{
-      const i = DETENTS.findIndex(d=>d.name===det.textContent);
-      if(e.key==='ArrowUp'){ e.preventDefault(); apply(DETENTS[Math.min(2,i+1)].h); }
-      if(e.key==='ArrowDown'){ e.preventDefault(); apply(DETENTS[Math.max(0,i-1)].h); }
-    });
-    apply(h);
-  }
 </script>
 </body>
 </html>
