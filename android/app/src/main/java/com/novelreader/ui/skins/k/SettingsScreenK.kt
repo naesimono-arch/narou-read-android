@@ -52,14 +52,19 @@ import com.novelreader.ui.AdapterHealthBoardDialog
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.Spacing
+import com.novelreader.ui.theme.tokens
 
 /**
- * 明快K: 設定画面（モック正本＝skins/settings-K.html）。
+ * 設定画面（モック正本＝skins/settings-{D,M,P,J,K}.html の共通節構成）。
  *
  * なぜ新設か: 現行アプリは独立した設定画面を持たず、テーマ・通知・きせかえが本棚⋮と読書シートに
  * 分散していた＝「どこに何があるか」を記憶で補わせる構造（第三者テストの分かりにくさの一因）。
- * K は恒常ナビの3目的地の一つとして設定を昇格し、〈見出し＋説明文つきの行〉で全項目を自己説明させる。
- * D 他スキンの⋮メニューは不変（この画面は K のナビからのみ到達）。
+ * K で恒常ナビの3目的地の一つとして設定を昇格し、〈見出し＋説明文つきの行〉で全項目を自己説明させた。
+ *
+ * 2026-07-23 に恒常ナビを全スキンへ伝播したのに伴い本画面も全スキン共用へ拡張。意匠は MaterialTheme の
+ * colorScheme/typography（NovelReaderTheme がスキンごとに供給）へ追従して自然に染まる＝per-skin の深化
+ * （P の液晶スウォッチ等）は次ラウンド。名称の K は歴史的経緯（初出が明快K）でそのまま残す。
+ * 各スキンの⋮メニュー内の設定相当は当面残置（重複解消は第2波・別班所有）。
  */
 @Composable
 fun SettingsScreenK(
@@ -89,26 +94,47 @@ fun SettingsScreenK(
             modifier = Modifier.padding(top = Spacing.S16, bottom = Spacing.S8),
         )
 
+        // 単一変種スキン（星図M・夜行C＝supportedThemes=[DARK]）はテーマ節を「現在の相の固定表示」に畳む。
+        // なぜ: これらの装いは相を1つしか持たず NovelReaderTheme が supportedThemes.first() へクランプする＝
+        // 3択ダイアログを出しても選んで変わらない嘘のUIになるため（モック settings-M.html の注記どおり）。
+        // per-skin の文言（「星図 ・ 夜の相」等の装い名つき表現）は次ラウンドの深化＝ここは汎用文で割り切る。
+        val supportedThemes = currentSkin.tokens.supportedThemes
         KSettingsGroupLabel("表示")
         KSettingsCard {
-            KSettingsRow(
-                icon = Icons.Outlined.Contrast,
-                title = "テーマ",
-                description = null,
-                trailing = {
-                    Text(
-                        if (followingSystem) "システムに従う" else appTheme.displayNameK(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-                onClick = { showThemeDialog = true },
-            )
+            if (supportedThemes.size <= 1) {
+                KSettingsRow(
+                    icon = Icons.Outlined.Contrast,
+                    title = "テーマ",
+                    description = "この装いはひとつの相のみです。ほかの装いは「きせかえ」から選べます",
+                    trailing = {
+                        Text(
+                            supportedThemes.firstOrNull()?.displayNameK() ?: appTheme.displayNameK(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    onClick = null,
+                )
+            } else {
+                KSettingsRow(
+                    icon = Icons.Outlined.Contrast,
+                    title = "テーマ",
+                    description = null,
+                    trailing = {
+                        Text(
+                            if (followingSystem) "システムに従う" else appTheme.displayNameK(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    onClick = { showThemeDialog = true },
+                )
+            }
             KSettingsRow(
                 icon = Icons.Outlined.Checkroom,
                 title = "きせかえ",

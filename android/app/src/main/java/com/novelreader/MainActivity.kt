@@ -351,23 +351,25 @@ private fun NovelReaderApp(
 
     // 画面遷移: M はフェードスルー（退出 fadeOut 先行→進入 fadeIn。固定天球ゆえ slide だと空ごと動く＝ADR 0019 追記
     // 「M星図の例外」）＝コンテンツのみがシームレスに差し替わる。他スキンは横スライド push 不変（ADR 0019・方向で階層移動を伝える）。
-    // 明快K: 恒常ボトムナビ（3タブ・plan default-ui-clarity-K）。現在ルートがタブ3画面のときだけ
-    // NavHost の「外」（Column の下端）に静止表示する。画面側に持たせない理由: 画面遷移アニメと一緒に
-    // バーが滑ると「別ページへ移動した」と読めてしまう＝タブバー静止がタブの標準文法のため。
+    // 恒常ボトムナビ（3タブ・plan default-ui-clarity-K）を全スキンへ伝播（2026-07-23・K形の構造装置を
+    // D/C/M/P/J へ一般化）。現在ルートがタブ3画面のときだけ NavHost の「外」（Column の下端）に静止表示する。
+    // 画面側に持たせない理由: 画面遷移アニメと一緒にバーが滑ると「別ページへ移動した」と読めてしまう＝
+    // タブバー静止がタブの標準文法のため。
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    val kCurrentTab = when (currentRoute) {
+    val currentTab = when (currentRoute) {
         "bookshelf" -> KTab.BOOKSHELF
         "discovery" -> KTab.DISCOVER
         "settings" -> KTab.SETTINGS
         else -> null
     }
-    val kTabRoutes = setOf("bookshelf", "discovery", "settings")
-    // タブ間の遷移だけ slide でなく短い crossfade へ差し替える（MotionDurationKTabSwitch の why 参照）。
-    fun AnimatedContentTransitionScope<NavBackStackEntry>.isKTabSwitch(): Boolean =
-        appSkin == Skin.MEIKAI_K &&
-            initialState.destination.route in kTabRoutes &&
-            targetState.destination.route in kTabRoutes
+    val tabRoutes = setOf("bookshelf", "discovery", "settings")
+    // タブ間の遷移だけ slide でなく短い crossfade へ差し替える（全スキン共通・MotionDurationKTabSwitch の why 参照）。
+    // 旧実装は MEIKAI_K 限定だったが恒常ナビの全スキン化に合わせ一般化した。M（isSeizu）ではタブ遷移がこの
+    // crossfade を使い、非タブ遷移は従来どおり Seizu フェード（下の分岐が isTabSwitch を先に見るため両立する）。
+    fun AnimatedContentTransitionScope<NavBackStackEntry>.isTabSwitch(): Boolean =
+        initialState.destination.route in tabRoutes &&
+            targetState.destination.route in tabRoutes
 
     val d = MotionDurationNavTransition
     Box(modifier = Modifier.fillMaxSize()) {
@@ -387,22 +389,22 @@ private fun NovelReaderApp(
         startDestination = "bookshelf",
         modifier = Modifier.weight(1f),
         enterTransition = {
-            if (isKTabSwitch()) fadeIn(tween(MotionDurationKTabSwitch))
+            if (isTabSwitch()) fadeIn(tween(MotionDurationKTabSwitch))
             else if (isSeizu) fadeIn(tween(MotionDurationSeizuFadeIn, delayMillis = MotionDurationSeizuFadeInDelay))
             else slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(d))
         },
         exitTransition = {
-            if (isKTabSwitch()) fadeOut(tween(MotionDurationKTabSwitch))
+            if (isTabSwitch()) fadeOut(tween(MotionDurationKTabSwitch))
             else if (isSeizu) fadeOut(tween(MotionDurationSeizuFadeOut))
             else slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(d))
         },
         popEnterTransition = {
-            if (isKTabSwitch()) fadeIn(tween(MotionDurationKTabSwitch))
+            if (isTabSwitch()) fadeIn(tween(MotionDurationKTabSwitch))
             else if (isSeizu) fadeIn(tween(MotionDurationSeizuFadeIn, delayMillis = MotionDurationSeizuFadeInDelay))
             else slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(d))
         },
         popExitTransition = {
-            if (isKTabSwitch()) fadeOut(tween(MotionDurationKTabSwitch))
+            if (isTabSwitch()) fadeOut(tween(MotionDurationKTabSwitch))
             else if (isSeizu) fadeOut(tween(MotionDurationSeizuFadeOut))
             else slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(d))
         },
@@ -656,7 +658,8 @@ private fun NovelReaderApp(
                 }
             }
         }
-        // 明快K: 設定画面（K のボトムナビからのみ到達。テーマ/きせかえ/通知を1画面へ集約＝分散解消）。
+        // 設定画面（全スキンの恒常ボトムナビから到達＝2026-07-23 に K 限定から一般化）。テーマ/きせかえ/通知を
+        // 1画面へ集約＝分散解消。意匠は colorScheme トークン追従で各スキンに染まる（SettingsScreenK の KDoc 参照）。
         composable("settings") {
             SettingsScreenK(
                 appTheme = appTheme,
@@ -668,10 +671,12 @@ private fun NovelReaderApp(
             )
         }
     }
-            // K の恒常ナビ（タブ3画面のときのみ・深い画面では消えて没入を守る）。
-            if (appSkin == Skin.MEIKAI_K && kCurrentTab != null) {
+            // 恒常ナビ（全スキン・タブ3画面のときのみ・深い画面では消えて没入を守る）。配色は KBottomNav 側で
+            // colorScheme トークン（primary/onSurfaceVariant/surface）を参照＝各スキンの署名色で選択ピル/tint が
+            // 自然に染まる（スキン専用の意匠発明はしない・タスク裁定「トークン追従で近似」）。
+            if (currentTab != null) {
                 KBottomNav(
-                    current = kCurrentTab,
+                    current = currentTab,
                     onSelect = { tab ->
                         val route = when (tab) {
                             KTab.BOOKSHELF -> "bookshelf"
