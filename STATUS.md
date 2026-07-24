@@ -47,6 +47,7 @@
   非KはCLASSIC固定）。モック正本昇格済み（bookshelf-K/bookshelf-list-K 新設/discovery-K）。UI追加はモック先行が恒久ルール化
   （memory `feedback-mock-before-any-ui-addition`）。一次情報＝`.claude/plans/ui-density-swipe-round-2026-07-24.md`。
   ゲート＝testDebugUnitTest 緑・golden 差分なし（対象コンポーネント外）・tokens OK192/NG0・lint 0err/33warn。
+  **実機＝install 済みだが激しいスタック報告（2026-07-24）→ 最優先宿題として計測から（handover 正本・決め打ち修正しない）**。
 - **既知バグ: なし**（単話の嘘見出し問題は 2026-07-16 修正済み＝題名マーカー0件時は作品タイトルを単一章名へ流用・golden 第4本 N5368ML で恒久回帰）。
 
 - **汎用Web小説DL基盤（最優先B・main 統合済み）**: `scrape/` サイトアダプタ抽象（`NovelSiteAdapter`＋
