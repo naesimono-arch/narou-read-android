@@ -142,8 +142,10 @@ private fun RelativeReadLabel(
 // 続きありバッジ（モック fusion .new-chapters）: 青磁ドット＋藍文字「続き N話」。
 // PDF↔Web継続読書の「新着の気配」を本棚でも静かに知らせる。
 // ============================================================
+// internal 昇格＝K の圧縮S目録カード（KListBookCard）でもこの続きバッジを共有するため
+// （CardMenuButton / SelectionCheck を internal 化した先例と同じ・再実装を避ける）。
 @Composable
-private fun NewChaptersBadge(newCount: Int, modifier: Modifier = Modifier) {
+internal fun NewChaptersBadge(newCount: Int, modifier: Modifier = Modifier) {
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier

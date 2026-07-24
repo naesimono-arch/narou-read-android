@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -63,7 +65,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -74,16 +83,20 @@ import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.DeleteSourcePdfOption
-import com.novelreader.ui.ListBookCard
+import com.novelreader.ui.NewChaptersBadge
 import com.novelreader.ui.ProcessingBanner
-import com.novelreader.ui.WebListBookCard
+import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.components.ShioriCover
+import com.novelreader.ui.components.shioriAccentFor
+import com.novelreader.ui.components.shioriHue
+import com.novelreader.ui.theme.FontCardTitle
 import com.novelreader.ui.theme.FontChipLarge
 import com.novelreader.ui.theme.FontLabel
 import com.novelreader.ui.theme.FontMicroLabel
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.Insets
 import com.novelreader.ui.theme.LocalShelfColors
+import com.novelreader.ui.theme.LocalShioriColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationReveal
@@ -111,12 +124,14 @@ import com.novelreader.viewmodel.webNcodesInSelection
 //   （骨格側の BackHandler 1本が効く）。合成は D/J と同一の純関数 filterShelfByStatus＋mergeShelfItems（再実装なし）。
 //
 // 意匠の差（D からの写像でなく K モックへの忠実翻訳）:
-//   ・グリッド＝3列固定（D の Adaptive 2列より密＝表示冊数増）。カード＝栞書影（ShioriCover 再利用）＋題名(明朝)
-//     ＋「第N/M話」進捗＋状態（未読/読了/Web既読）＋可視⋮。D の GridBookCard（著者＋進捗バー＋朱印・⋮無し）とは
-//     構造が別のため K 専用カードを新設する。朱印「了」は K では出さない＝モックが状態を文字「読了」で表すため。
+//   ・グリッド＝2列固定（2列改A・書影≈140dp・2026-07-24 ユーザー裁定＝3列6冊は小さすぎ→2列約5冊へ拡大）。
+//     カード＝栞書影（ShioriCover 再利用）＋題名(明朝・1行)＋「第N/M話」進捗＋状態（未読/読了/Web既読）＋可視⋮。
+//     D の GridBookCard（著者＋進捗バー＋朱印・⋮無し）とは構造が別のため K 専用カードを新設する。
+//     朱印「了」は K では出さない＝モックが状態を文字「読了」で表すため。
 //   ・状態フィルタチップ＝藍塗りピル（選択中）／アウトライン。D の FilterChipItem（角丸2dp・藍文字）とは意匠が
 //     別（モック .chip は border-radius:999・選択で塗り）ゆえ K 専用チップを置く。
-//   ・リストモードはモック未規定＝発明せず D の描画（ListBookCard/WebListBookCard）を流用する。
+//   ・リストモード＝K 専用の圧縮S（KListBookCard/KWebListBookCard を新設）。旧・D 流用は 2026-07-24 裁定で置換
+//     （正本モック bookshelf-list-density-K の圧縮S＝題字明朝2行＋著者/状態のメタ1行統合・行高≈127dp・約5行/画面）。
 // 色/字/余白はトークン経由（hex 直書き禁止・ADR 0014）。メタ文字は AA の LocalShelfColors.infoText を使う。
 // ============================================================
 
@@ -228,9 +243,9 @@ internal fun BookshelfK(
                     )
                 }
                 isGridView -> {
-                    // グリッド3列固定（.grid grid-template-columns:repeat(3,1fr)）。
+                    // グリッド2列固定（2列改A）。実効360dp幅で書影≈140dp になる算術＝360−48(左右S24)−32(列間S32)=280/2=140。
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(3),
+                        columns = GridCells.Fixed(2),
                         state = gridState,
                         // Column 内で残り空間を占める（weight＝ヘッダ/チップの下の全域。fillMaxSize は縦過剰確保になる）。
                         modifier = Modifier.fillMaxWidth().weight(1f),
@@ -238,8 +253,9 @@ internal fun BookshelfK(
                         contentPadding = PaddingValues(
                             start = Spacing.S24, top = Spacing.S4, end = Spacing.S24, bottom = Insets.ScrollBottomForFab,
                         ),
+                        // 行間は S16 維持。列間は 2列改A で S32 へ拡大（書影を大きく見せるための余白拡大）。
                         verticalArrangement = Arrangement.spacedBy(Spacing.S16),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.S12),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.S32),
                     ) {
                         items(shelfItems, key = { it.key }) { item ->
                             when (item) {
@@ -275,7 +291,8 @@ internal fun BookshelfK(
                     }
                 }
                 else -> {
-                    // リストモード＝モック未規定ゆえ D の目録描画（ListBookCard/WebListBookCard）を流用（発明しない）。
+                    // リストモード＝K 専用の圧縮S（KListBookCard/KWebListBookCard）。旧・D 流用（ListBookCard/WebListBookCard）は
+                    // 2026-07-24 ユーザー裁定で置換（正本モック bookshelf-list-density-K の圧縮S＝題字明朝2行＋著者/状態のメタ1行統合）。
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxWidth().weight(1f),
@@ -285,7 +302,7 @@ internal fun BookshelfK(
                     ) {
                         items(shelfItems, key = { it.key }) { item ->
                             when (item) {
-                                is ShelfItem.Book -> ListBookCard(
+                                is ShelfItem.Book -> KListBookCard(
                                     book = item.book,
                                     progress = progressMap[item.book.id],
                                     novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
@@ -297,7 +314,7 @@ internal fun BookshelfK(
                                     onToggleSelect = { onToggleSelect(item.book.id) },
                                     onEnterSelection = { onEnterSelection(item.book.id) },
                                 )
-                                is ShelfItem.Web -> WebListBookCard(
+                                is ShelfItem.Web -> KWebListBookCard(
                                     novel = item.novel,
                                     lastReadEpisode = item.lastReadEpisode,
                                     onOpen = { onOpenWebNovel(item.novel) },
@@ -552,11 +569,12 @@ private fun KGridBookCard(
                 title = book.title,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(2f / 3f)
-                    .clip(RoundedCornerShape(3.dp))
-                    // 書影の輪郭線。栞書影の紙色はライト=Surface・セピア=Background と地色同値（SkinD.shiori）＝
-                    // 枠が無いと本と地が一体化する（2026-07-23 ユーザー指摘の真因）。outline の半透明で全テーマ一律に縁取る。
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(3.dp)),
+                    .aspectRatio(3f / 4f)
+                    // 書影の輪郭＝影（2026-07-24 ユーザー裁定＝モックは box-shadow・旧・線 border は誤訳だった）。
+                    // shadow は clip より前＝影を要素の外周へ落としてから角丸で本体をクリップする。
+                    // ダークテーマは背景が暗く影が沈みやすい＝視認が保てる elevation は実機検分で詰める（現状 2dp 暫定）。
+                    .shadow(elevation = 2.dp, shape = RoundedCornerShape(3.dp))
+                    .clip(RoundedCornerShape(3.dp)),
                 // 取込時に抽選・永続した先端種/棒長（旧蔵書は null＝title 由来へフォールバックで見た目不変・D と同じ）。
                 persistedTipIndex = book.shioriTipIndex,
                 persistedLenFrac = book.shioriLenFrac,
@@ -585,12 +603,13 @@ private fun KGridBookCard(
         // キャプション行＝題名・状態（左）＋可視⋮（右端）。Play Books 等と同型の標準配置＝書影と衝突しない。
         Row {
             Column(Modifier.weight(1f)) {
-                // 題名（.t＝明朝・2行clamp）。表紙内(ShioriCover)の縦組み題字とは別に、下段へ横組みで添える（モック .cvt＋.t の二重表示）。
+                // 題名（.t＝明朝・1行clamp）。表紙内(ShioriCover)の縦組み題字とは別に、下段へ横組みで添える（モック .cvt＋.t の二重表示）。
+                // 2列改A で書影を大きく取るぶんキャプションは1行へ圧縮（2026-07-24 裁定）。
                 Text(
                     text = book.title,
                     fontFamily = MinchoFamily,
                     fontSize = FontSubTitle,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
@@ -664,6 +683,8 @@ private fun KWebGridBookCard(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val hasProgress = lastReadEpisode > 0
+    // 破線フレーム色（青磁＝secondary）。DrawScope 内では @Composable の MaterialTheme を読めないため事前に捕捉する。
+    val seiji = MaterialTheme.colorScheme.secondary
 
     Column(
         modifier = modifier
@@ -676,27 +697,42 @@ private fun KWebGridBookCard(
             ),
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
+            // 未取込＝D改（2026-07-24 ユーザー裁定）: 影は付けない＝「まだ実体がない一冊」を浮かせない
+            // （実体のある蔵書カードだけ手順2の影を持つ）。輪郭は下の青磁破線が担う。
             ShioriCover(
                 title = novel.title,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(2f / 3f)
-                    .clip(RoundedCornerShape(3.dp))
-                    // 書影の輪郭線（KGridBookCard と同理由＝紙色が地色同値で一体化するため）。
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(3.dp)),
+                    .aspectRatio(3f / 4f)
+                    .clip(RoundedCornerShape(3.dp)),
             )
-            // Web マーカー（.web＝左上・任意の識別）。半透明白地に藍字＝画像可読の固定色（後述 KCardMenuButton と同扱い）。
-            Text(
-                "Web",
-                fontSize = FontMicroLabel,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
+            // 紙地一段沈め＝取込前の「仮置き」感（正本モック D改: 紙地を field 系へ）。ShioriCover の上へ
+            // onSurface 5% を薄く被せてテーマ非依存で一段くすませる（alpha は実機検分で調整）。
+            Box(
                 modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(Spacing.S4)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(WebCardOverlayScrim)
-                    .padding(horizontal = Spacing.S4, vertical = Spacing.S4),
+                    .matchParentSize()
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)),
+            )
+            // 青磁の破線フレーム（D改＝旧・白ピルの代替）。輪郭が未確定＝「仮置き＝まだ手元にない」の比喩。線幅1.5dp・角丸3dp。
+            // dashPathEffect の破線間隔はレイアウト余白でなくストローク模様の構造値＝Spacing 尺の対象外（実機で調整）。
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .drawBehind {
+                        val stroke = 1.5.dp.toPx()
+                        drawRoundRect(
+                            color = seiji,
+                            // 半ストローク内側へ寄せ、線全体を書影内に収める（角丸3dp整合）。
+                            topLeft = Offset(stroke / 2f, stroke / 2f),
+                            size = Size(size.width - stroke, size.height - stroke),
+                            cornerRadius = CornerRadius(3.dp.toPx()),
+                            style = Stroke(
+                                width = stroke,
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()), 0f),
+                            ),
+                        )
+                    },
             )
             // 選択中は書影へ藍の細縁取り＋淡い藍かぶせ（KGridBookCard と同じ .bk.sel）。
             if (selected) {
@@ -721,11 +757,12 @@ private fun KWebGridBookCard(
         // キャプション行＝題名・状態（左）＋可視⋮（右端）。書影上に置かない理由は KGridBookCard と同じ（縦題字衝突）。
         Row {
             Column(Modifier.weight(1f)) {
+                // 題名（.t＝明朝・1行clamp）。2列改A で書影を大きく取るぶんキャプションは1行へ圧縮（2026-07-24 裁定・蔵書カードと同じ）。
                 Text(
                     text = novel.title,
                     fontFamily = MinchoFamily,
                     fontSize = FontSubTitle,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
@@ -764,9 +801,222 @@ private fun KWebGridBookCard(
     }
 }
 
-// 書影上に載る Web マーカーの固定スクリム（半透明白）。任意の書影色の上で読ませる画像可読用途の固定色＝
-// テーマ配色に紐づかない（D の SelectionCheck 白リング・朱印バッジと同じ ADR 0014 の固定色スロット）。
-private val WebCardOverlayScrim = Color.White.copy(alpha = 0.85f)
+// ============================================================
+// リスト（目録）書籍カード＝圧縮S（新設・D 流用をやめ K 版面で組む）。
+// 正本モック＝bookshelf-list-density-K.html の 圧縮S セクション（2026-07-24 ユーザー裁定で採用）。
+// 様式: 左端4dp色帯（作品識別色＝書架の栞と同じ title 由来 accent で「1冊=1色相」を保つ・ListBookCard と同一導出）
+//   ＋題字（明朝・2行clamp・FontSubTitle＝K グリッド題字と同トークンで揃える）＋メタ1行（ゴシック・著者名と状態を
+//   中黒で連結）＋上下 S24＋下ヘアライン。進捗バー・状態の独立行は持たない（圧縮S＝縦だけ詰める穏やかな圧縮）。
+// 機能パリティは D の ListBookCard から全数移植（タップ=開く／長押し=選択入口／選択モード・選択マーク／
+//   新着「続きN話」バッジ／可視⋮=選択の入口）。⋮はモック 圧縮S の各行に .dots があるため K グリッドと同じく常設する。
+// ============================================================
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun KListBookCard(
+    book: BookEntity,
+    progress: ProgressEntity?,
+    // 続き（新着）バッジ用の作品要約（VM が一括照会し配布・null=未紐付け/未取得/失敗）。D の ListBookCard と同じ。
+    novelDetail: WorkSummary?,
+    totalChaps: Int,
+    onOpen: () -> Unit,
+    selectionMode: Boolean,
+    selected: Boolean,
+    onToggleSelect: () -> Unit,
+    onEnterSelection: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val status = readingStatusFor(progress, totalChaps)
+    val chapNum = chapterNumberOf(progress?.lastReadFilename)
+    val newCount = newEpisodeCountFor(novelDetail, totalChaps)
+    // 作品識別色（左端の色帯）。書架の栞と同じ title 由来 accent で「1冊=1色相」を保つ（ListBookCard と同一導出＝再実装なし）。
+    val accentLightness = LocalShioriColors.current.accentLightness
+    val barColor = remember(book.title, accentLightness) { shioriAccentFor(shioriHue(book.title), accentLightness) }
+
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                // 1冊=1トラバーサル単位に束ねる（行末⋮は別フォーカスとして残る＝D の目録行と同流儀）。
+                .semantics(mergeDescendants = true) {}
+                // 選択中は行全体に淡い藍かぶせ（D の ListBookCard と同じ・目録は色帯があるため控えめ）。
+                .background(
+                    if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                    else Color.Transparent,
+                )
+                .combinedClickable(
+                    // 通常＝タップで開く／長押しで選択モードへ。選択モード中はタップ/長押しで選択トグル（D と同挙動）。
+                    onClick = { if (selectionMode) onToggleSelect() else onOpen() },
+                    onLongClick = { if (selectionMode) onToggleSelect() else onEnterSelection() },
+                )
+                // 色帯を行の高さいっぱいに伸ばすため内容の最小内在高さに合わせる（D の目録行と同骨格）。
+                .height(IntrinsicSize.Min)
+                .padding(top = Spacing.S24, bottom = Spacing.S24),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // 左端の色帯（本の小口メタファ・作品識別色）。行の高さに合わせて stretch。
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(barColor),
+            )
+            Spacer(Modifier.width(Spacing.S16))
+            Column(modifier = Modifier.weight(1f)) {
+                // 題字（明朝・2行clamp）。書影のない目録では題字が主役＝正本モック圧縮Sの16px級（FontCardTitle・D目録と同値）。
+                // グリッドのキャプション（FontSubTitle）とは役割が違う＝書影の添え字 vs 行の主役。
+                Text(
+                    text = book.title,
+                    fontFamily = MinchoFamily,
+                    fontSize = FontCardTitle,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(Spacing.S8))
+                // メタ1行（ゴシック）: 著者名・状態を中黒で連結（著者が空なら状態のみ）。新着があれば末尾に「続きN話」。
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (book.author.isNotBlank()) {
+                        Text(
+                            text = book.author,
+                            fontSize = FontMicroLabel,
+                            color = LocalShelfColors.current.infoText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            // 著者が長くても状態・バッジを押し出さない（D の目録行と同じ収縮）。
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        Text("・", fontSize = FontMicroLabel, color = LocalShelfColors.current.infoText)
+                    }
+                    // 状態部＝グリッドの KBookStatusLine を再利用（読了/未読(藍ドット)/第N/M話）＝徴を1箇所に集約。
+                    KBookStatusLine(status = status, chapNum = chapNum, totalChaps = totalChaps)
+                    // 続き（新着）バッジ＝D の ListBookCard と同じ NewChaptersBadge を共有（internal 昇格）。メタ行末尾へ。
+                    newCount?.let {
+                        Spacer(Modifier.width(Spacing.S8))
+                        NewChaptersBadge(newCount = it)
+                    }
+                }
+            }
+            // 行末＝選択モード中は選択マーク／通常は可視⋮（選択入口）。書影の縦題字衝突が無い行だが K グリッドと導線を揃える。
+            if (selectionMode) {
+                Spacer(Modifier.width(Spacing.S8))
+                KSelectionCheck(selected = selected)
+            } else {
+                Box {
+                    KCardMenuButton(onClick = { menuOpen = true })
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        // 単一削除の専用配線は無く、⋮は複数選択の入口「選択」を露出する（KGridBookCard と同じ回答＝新機能/VM 変更なし）。
+                        DropdownMenuItem(
+                            text = { Text("選択") },
+                            onClick = { menuOpen = false; onEnterSelection() },
+                        )
+                    }
+                }
+            }
+        }
+        // 行下のヘアライン区切り（モック .lc の border-bottom 1px・本棚系 --hl）。
+        HorizontalDivider(thickness = 1.dp, color = LocalShelfColors.current.hairline)
+    }
+}
+
+// ============================================================
+// リスト（目録）Web由来カード＝圧縮S（新設・D 流用をやめる）。KWebGridBookCard の目録版。
+// 未取込の徴は既存キャプション文言（青磁「なろう・未取込」）が担い、色帯は取込済み蔵書と同じ title 由来色（無印＝1冊=1色相）。
+// 機能パリティは D の WebListBookCard から全数移植（タップ=進捗あれば再開/無ければ目次・長押し=選択入口・
+//   選択マーク・⋮=目次(進捗時)/取込/外す・resume 分岐）。⋮メニューは KWebGridBookCard と同じ項目を inline で持つ。
+// ============================================================
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun KWebListBookCard(
+    novel: WebNovelEntity,
+    lastReadEpisode: Int,
+    onOpen: () -> Unit,
+    onResume: () -> Unit,
+    onImport: () -> Unit,
+    onRemove: () -> Unit,
+    selectionMode: Boolean,
+    selected: Boolean,
+    onToggleSelect: () -> Unit,
+    onEnterSelection: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val hasProgress = lastReadEpisode > 0
+    val accentLightness = LocalShioriColors.current.accentLightness
+    val barColor = remember(novel.title, accentLightness) { shioriAccentFor(shioriHue(novel.title), accentLightness) }
+
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .semantics(mergeDescendants = true) {}
+                .background(
+                    if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                    else Color.Transparent,
+                )
+                .combinedClickable(
+                    // 選択モード中はトグル。通常は進捗あれば主タップ=続きから／無ければ目次、長押しで選択モードへ（系3）。
+                    onClick = { if (selectionMode) onToggleSelect() else if (hasProgress) onResume() else onOpen() },
+                    onLongClick = { if (selectionMode) onToggleSelect() else onEnterSelection() },
+                )
+                .height(IntrinsicSize.Min)
+                .padding(top = Spacing.S24, bottom = Spacing.S24),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(barColor),
+            )
+            Spacer(Modifier.width(Spacing.S16))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = novel.title,
+                    fontFamily = MinchoFamily,
+                    // 目録の題字は行の主役＝FontCardTitle（KListBookCard と同じ。グリッドキャプションの FontSubTitle とは役割が別）。
+                    fontSize = FontCardTitle,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(Spacing.S8))
+                // メタ行: 進捗あれば「第N話まで既読」（K グリッド Web と同文言）／無ければ「なろう・未取込」（青磁＝未取込の徴）。
+                if (hasProgress) {
+                    Text(
+                        "第${lastReadEpisode}話まで既読",
+                        fontSize = FontMicroLabel,
+                        color = LocalShelfColors.current.infoText,
+                    )
+                } else {
+                    Text(
+                        "なろう・未取込",
+                        fontSize = FontMicroLabel,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.secondary,
+                    )
+                }
+            }
+            if (selectionMode) {
+                Spacer(Modifier.width(Spacing.S8))
+                KSelectionCheck(selected = selected)
+            } else {
+                Box {
+                    KCardMenuButton(onClick = { menuOpen = true })
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        // 進捗ありのとき主タップは続きから＝目次導線を⋮へ降格して残す（KWebGridBookCard と同判断）。
+                        if (hasProgress) {
+                            DropdownMenuItem(text = { Text("なろうの目次を開く") }, onClick = { menuOpen = false; onOpen() })
+                        }
+                        DropdownMenuItem(text = { Text("縦書きPDFを取り込む") }, onClick = { menuOpen = false; onImport() })
+                        DropdownMenuItem(text = { Text("本棚から外す") }, onClick = { menuOpen = false; onRemove() })
+                    }
+                }
+            }
+        }
+        HorizontalDivider(thickness = 1.dp, color = LocalShelfColors.current.hairline)
+    }
+}
 
 /**
  * キャプション行右端の可視⋮（32dpタップ面）。書影上でなく通常面に載るためスクリム不要＝トークン色で描く

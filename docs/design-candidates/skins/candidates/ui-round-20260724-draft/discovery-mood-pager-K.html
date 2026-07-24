@@ -1,0 +1,202 @@
+<!-- @dsCard group="UI-n / K候補（気分ページャ）" name="Kさがす きょうの気分 ページャ化（P1/P2/P3・日替わり）" -->
+<!--
+  draft・正本非昇格・元ネタ: plan ui-density-swipe-round-2026-07-24
+  ねらい: 「きょうの気分」を 4件固定 enum から「パターン（4件1組）×複数」へ拡張し、横スワイプのページャ化。
+  P1（現行そのまま）/P2（気分転換）/P3（読み方で選ぶ）の3ページ。初期表示ページは端末日付で日替わり（乱数不使用）。
+  ・phone: さがす画面。気分セクションを今日のページ（例＝P2）中心のカルーセルで表示（左右にP1/P3が覗く）＋
+    3点ドットインジケータ（可視代替義務）＋「今日はP2から」の小注記。
+  ・下部: 全パターン内訳（P1/P2/P3 を横並置・12択すべて可視）。
+  トークンは discovery-K.html を流用（気分カード=藍縦ルール＋明朝見出し／新色なし・余白7段スケール）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kさがす — きょうの気分ページャ</title>
+<style>
+  :root{
+    --base:#FBFAF8; --ink:#1C1F26; --ink-soft:#6A6E78; --line:#ECEAE4;
+    --ai:#1C3D5A; --ai-pill:rgba(28,61,90,.10); --field:#F0EEE8;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;min-height:100vh;display:flex;flex-direction:column;align-items:center;
+    gap:32px;padding:32px 24px;font-family:var(--gothic);-webkit-font-smoothing:antialiased}
+
+  .phone{width:412px;height:915px;background:var(--base);border-radius:38px;overflow:hidden;position:relative;
+    box-shadow:0 24px 60px rgba(0,0,0,.26);display:flex;flex-direction:column}
+  .sb{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:12px;color:var(--ink-soft);flex-shrink:0}
+
+  .top{flex-shrink:0;padding:2px 20px 12px}
+  .top h1{font-family:var(--gothic);font-weight:700;font-size:22px;color:var(--ink);letter-spacing:.02em}
+  .search{margin-top:14px;height:52px;display:flex;align-items:center;gap:10px;background:var(--field);
+    border-radius:12px;padding:0 16px;cursor:text}
+  .search svg{width:20px;height:20px;stroke:var(--ink-soft);fill:none;stroke-width:1.8;flex-shrink:0}
+  .search span{font-size:14px;color:var(--ink-soft)}
+
+  .scroll{flex:1;overflow:auto;padding:6px 0 20px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+  .sec{font-family:var(--gothic);font-weight:700;font-size:13px;color:var(--ink);margin:8px 20px 12px;
+    display:flex;align-items:baseline;justify-content:space-between}
+  .sec .pat{font-weight:400;font-size:11px;color:var(--ink-soft)}
+
+  /* ===== 気分ページャ（カルーセル・今日のページ中心・左右が覗く） ===== */
+  .mp-view{overflow:hidden}
+  .mp-track{display:flex;transform:translateX(-70%);transition:transform .3s ease} /* P2(index1)を中央へ */
+  .mp-page{flex:0 0 80%;padding:0 8px}
+  .mp-page.side{opacity:.5} /* 非アクティブページは沈めて現在地を示す */
+  .mood{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .md{position:relative;border:1px solid var(--line);border-radius:10px;padding:14px 14px 14px 18px;cursor:pointer;background:var(--base)}
+  .md::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:3px;background:var(--ai)}
+  .md b{font-family:var(--mincho);font-size:13.5px;color:var(--ink);font-weight:600;display:block;line-height:1.4}
+  .md span{display:block;font-size:10.5px;color:var(--ink-soft);margin-top:5px}
+
+  /* ドットインジケータ＋日替わり注記 */
+  .dots{display:flex;justify-content:center;gap:8px;margin-top:14px}
+  .dots i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+  .dots i.on{background:var(--ai);width:18px;border-radius:4px} /* 現在ページ＝藍の伸びたピル */
+  .daynote{text-align:center;font-size:11px;color:var(--ink-soft);margin-top:8px;line-height:1.5}
+  .daynote b{color:var(--ink);font-weight:700}
+
+  /* ジャンル/ランキング（discovery-K 踏襲・気分ページャの周辺文脈として簡略同居） */
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:0 20px 4px;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex-shrink:0;font-size:12.5px;color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:8px 16px;cursor:pointer}
+  .chip.all{color:var(--ai);border-color:var(--ai)}
+  .rk{display:flex;gap:14px;align-items:baseline;padding:12px 20px;border-bottom:1px solid var(--line)}
+  .rk .no{font-family:var(--mincho);font-size:18px;color:var(--ai);width:22px;flex-shrink:0;text-align:center}
+  .rk .t{font-family:var(--mincho);font-size:14px;color:var(--ink);line-height:1.4}
+  .rk .a{font-size:11.5px;color:var(--ink-soft);margin-top:3px}
+
+  /* 恒常ボトムナビ */
+  .nav{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
+  .nt{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;color:var(--ink-soft)}
+  .nt .ico{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .nt svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.7;position:relative;z-index:1}
+  .nt span{font-size:11px}
+  .nt.on{color:var(--ai)}
+  .nt.on .ico::before{content:"";position:absolute;inset:0;width:56px;height:32px;border-radius:16px;background:var(--ai-pill)}
+
+  /* ===== 下部: 全パターン内訳 ===== */
+  .breakdown{width:100%;max-width:900px}
+  .bd-h{font-family:var(--gothic);font-size:14px;font-weight:700;color:var(--ink);text-align:center;margin-bottom:4px}
+  .bd-s{font-family:var(--gothic);font-size:11.5px;color:var(--ink-soft);text-align:center;margin-bottom:16px;line-height:1.6}
+  .bd-cols{display:flex;gap:20px;flex-wrap:wrap;justify-content:center}
+  .bd-col{flex:1;min-width:250px;background:var(--base);border-radius:18px;padding:16px 16px 20px;box-shadow:0 12px 30px rgba(0,0,0,.13)}
+  .bd-col h3{font-family:var(--gothic);font-size:13px;font-weight:700;color:var(--ink)}
+  .bd-col .cap{font-family:var(--gothic);font-size:10.5px;color:var(--ink-soft);margin:3px 0 14px}
+  .bd-col.today{outline:2px solid var(--ai);outline-offset:2px} /* 今日開くページを藍枠で示す */
+  .bd-col .badge{display:inline-block;font-size:10px;font-weight:700;color:#fff;background:var(--ai);border-radius:6px;padding:2px 8px;margin-left:6px;vertical-align:middle}
+</style>
+</head>
+<body>
+
+  <!-- ===== さがす画面（気分ページャ・今日はP2） ===== -->
+  <div class="phone">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="top">
+      <h1>さがす</h1>
+      <div class="search">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+        <span>作品名・作者名・キーワードで探す</span>
+      </div>
+    </div>
+
+    <div class="scroll">
+      <div class="sec"><span>きょうの気分</span><span class="pat">② 気分転換</span></div>
+
+      <div class="mp-view">
+        <div class="mp-track">
+          <!-- P1（左に覗く・沈める） -->
+          <div class="mp-page side">
+            <div class="mood">
+              <div class="md"><b>ちょっとそこまで</b><span>短編・30分で読める</span></div>
+              <div class="md"><b>どっぷり一気読み</b><span>完結・10万字以上</span></div>
+              <div class="md"><b>会話劇を楽しむ</b><span>会話率が高い</span></div>
+              <div class="md"><b>挿絵のある旅</b><span>挿絵つき作品</span></div>
+            </div>
+          </div>
+          <!-- P2（今日・中央・アクティブ） -->
+          <div class="mp-page">
+            <div class="mood">
+              <div class="md"><b>泣ける・しんみり</b><span>涙腺じんわり</span></div>
+              <div class="md"><b>スカッと爽快</b><span>痛快・無双系</span></div>
+              <div class="md"><b>ほのぼの日常</b><span>まったり癒し</span></div>
+              <div class="md"><b>ハラハラ冒険</b><span>手に汗にぎる</span></div>
+            </div>
+          </div>
+          <!-- P3（右に覗く・沈める） -->
+          <div class="mp-page side">
+            <div class="mood">
+              <div class="md"><b>完結をまとめて</b><span>完結済だけ</span></div>
+              <div class="md"><b>連載を追いかける</b><span>更新中を追う</span></div>
+              <div class="md"><b>短編を数本</b><span>〜1万字</span></div>
+              <div class="md"><b>超長編にどっぷり</b><span>50万字以上</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dots"><i></i><i class="on"></i><i></i></div>
+      <div class="daynote">日替わりで開くページが変わる。<b>今日は②〈気分転換〉</b>から。左右スワイプでP1〈そのまま〉・P3〈読み方で選ぶ〉へ。</div>
+
+      <div class="sec" style="margin-top:22px"><span>ジャンルから</span></div>
+      <div class="chips">
+        <span class="chip">恋愛</span><span class="chip">ファンタジー</span><span class="chip">文芸</span><span class="chip">SF</span><span class="chip all">すべて→</span>
+      </div>
+
+      <div class="sec" style="margin-top:22px"><span>ランキング</span><span class="pat">週間</span></div>
+      <div class="rk"><span class="no">1</span><div><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="a">霧島あおい・連載中 127話</div></div></div>
+      <div class="rk"><span class="no">2</span><div><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="a">夜灯すばる・連載中 43話</div></div></div>
+      <div class="rk"><span class="no">3</span><div><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="a">白河すずら・完結 88話</div></div></div>
+    </div>
+
+    <div class="nav">
+      <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span><span>本棚</span></div>
+      <div class="nt on"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></span><span>さがす</span></div>
+      <div class="nt"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>設定</span></div>
+    </div>
+  </div>
+
+  <!-- ===== 全パターン内訳（P1/P2/P3 を横並置・12択すべて可視） ===== -->
+  <div class="breakdown">
+    <div class="bd-h">全パターン内訳（実機ではスワイプで1ページずつ・日替わりで開始ページが変わる）</div>
+    <div class="bd-s">クエリ対応は実装時に DiscoveryQuery の可否を確認し、不能な項目は近似で誤魔化さず差し替える。Room 変更なし（enum/定数のみ）。</div>
+    <div class="bd-cols">
+      <div class="bd-col">
+        <h3>P1 そのまま</h3>
+        <div class="cap">現行の4件（読書時間・量・会話・挿絵）</div>
+        <div class="mood">
+          <div class="md"><b>ちょっとそこまで</b><span>短編・30分で読める</span></div>
+          <div class="md"><b>どっぷり一気読み</b><span>完結・10万字以上</span></div>
+          <div class="md"><b>会話劇を楽しむ</b><span>会話率が高い</span></div>
+          <div class="md"><b>挿絵のある旅</b><span>挿絵つき作品</span></div>
+        </div>
+      </div>
+      <div class="bd-col today">
+        <h3>P2 気分転換<span class="badge">今日</span></h3>
+        <div class="cap">読後感・ジャンルの気分で選ぶ</div>
+        <div class="mood">
+          <div class="md"><b>泣ける・しんみり</b><span>涙腺じんわり</span></div>
+          <div class="md"><b>スカッと爽快</b><span>痛快・無双系</span></div>
+          <div class="md"><b>ほのぼの日常</b><span>まったり癒し</span></div>
+          <div class="md"><b>ハラハラ冒険</b><span>手に汗にぎる</span></div>
+        </div>
+      </div>
+      <div class="bd-col">
+        <h3>P3 読み方で選ぶ</h3>
+        <div class="cap">連載状態・長さで選ぶ</div>
+        <div class="mood">
+          <div class="md"><b>完結をまとめて</b><span>完結済だけ</span></div>
+          <div class="md"><b>連載を追いかける</b><span>更新中を追う</span></div>
+          <div class="md"><b>短編を数本</b><span>〜1万字</span></div>
+          <div class="md"><b>超長編にどっぷり</b><span>50万字以上</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

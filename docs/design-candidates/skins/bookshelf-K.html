@@ -1,15 +1,19 @@
-<!-- @dsCard group="UI-n / デフォルト（明快K）" name="K. 明快（本棚・ドラフト）" 
-  ⚠️未反映注記（2026-07-23 実機検分による実装差分・逆同期待ち）:
-   ・カードの可視⋮は書影右上でなく「キャプション行右端」（栞書影の縦題字と衝突するため移設）
-   ・⋮のスクリム地は廃止（通常面上のためトークン色 onSurfaceVariant）
--->
+<!-- @dsCard group="UI-n / デフォルト（明快K）" name="K. 明快（本棚・栞書影＋2列改A・2026-07-24）" -->
 <!--
   スキンK「明快」= 新デフォルト。思想は「装飾でなく構造の明快化」。
   ・恒常ボトムナビ3タブ〈本棚／さがす／設定〉＝現在地と目的地一覧を常時可視化。
   ・全画面に明示タイトル・ラベル付きアイコン・過剰装飾を排し一画面一強調（藍＝CTA/選択中のみ）。
   色は新パレットを発明せず D トークン（和紙地/藍/ink系）を再利用し、コントラストのみ AA(4.5:1) へ引き上げ。
-  → ink-soft は D の #7C808B（地 #FBFAF8 で約3.7:1＝AA未達）を #6A6E78（約4.8:1）へ引き上げた K 専用値。
+  → ink-soft は D #7C808B（地上約3.7:1＝AA未達）を #6A6E78（約4.8:1）へ引き上げた K 専用値。
   UIラベル=ゴシック・書名=明朝は既存 Typography 踏襲。ライトテーマのみのモック。
+
+  【2026-07-24 更新（UIラウンド最終裁定の正本昇格・plan ui-density-swipe-round-2026-07-24 §最終裁定まとめ）】
+  ・グリッド＝2列改A（書影≈144dp・3:4比率・列間/左右余白を拡大・キャプション題字1行＋可視⋮＋状態行・約5冊/画面）。
+  ・書影＝栞書影準拠（紙地＋題字由来色の細い栞棒＋先端＋縦組み明朝題字）。旧・濃色グラデ板は廃止。
+  ・書影の輪郭は線（border）でなく柔らかい影（box-shadow）＝§F 裁定「線→影」。
+  ・Web未取込カード＝D改（青磁1.5px破線フレームのみ・紙地一段沈め field 色・白ピル廃止・キャプション「なろう・未取込」）。
+  ・可視⋮は書影上でなくキャプション行右端へ移設（縦題字との衝突回避・スクリム廃止＝旧「逆同期待ち」注記を消化）。
+  ・ビューポート幅は実機実効 360dp（PGEM10 実測基準）。ヘッダ/フィルタチップ/ボトムナビ/FAB は現状維持。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -19,14 +23,15 @@
 <title>K 本棚 — 明快</title>
 <style>
   :root{
-    /* === D トークン実値の再利用（fusion-D 系 bookshelf-D.html より採取） === */
     --base:#FBFAF8;        /* 和紙地 */
     --ink:#1C1F26;         /* 主文字 */
-    --ink-soft:#6A6E78;    /* K専用: D #7C808B を AA(4.5:1)へ引き上げ。意味を運ぶラベル/説明に使用 */
+    --ink-soft:#6A6E78;    /* K専用: AA(4.5:1)へ引き上げた補助文字 */
     --line:#ECEAE4;        /* ヘアライン */
     --ai:#1C3D5A;          /* 藍アクセント（CTA/選択中のみ） */
-    --ai-tint:rgba(28,61,90,.10); /* 藍10%＝選択タブのピル地 */
-    --seiji-ink:#50685C;   /* 青磁ink（補助・4.5:1） */
+    --ai-tint:rgba(28,61,90,.10);
+    --seiji-ink:#50685C;   /* 青磁ink（Web未取込の破線署名・既存トークン） */
+    --field:#F0EEE8;       /* 一段沈めた紙地（未取込カード地） */
+    --paper:#FDFCFA;       /* 栞書影の紙＝地色同値域（影で背景から浮かせる） */
     --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   }
@@ -34,15 +39,15 @@
   body{background:#E4E3DD;min-height:100vh;display:flex;align-items:center;justify-content:center;
     padding:24px;font-family:var(--gothic);-webkit-font-smoothing:antialiased}
 
-  /* === スマホ画面枠（単一・412×915・ライトテーマ） === */
-  .phone{width:412px;height:915px;background:var(--base);border-radius:40px;overflow:hidden;
+  /* === スマホ画面枠（実機実効 360dp 幅・ライトテーマ） === */
+  .phone{width:360px;height:820px;background:var(--base);border-radius:38px;overflow:hidden;
     position:relative;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.30)}
 
   .sb{height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
     padding:0 24px;font-size:11px;color:var(--ink-soft);letter-spacing:.02em}
   .sb .r{display:flex;gap:6px;align-items:center}
 
-  /* ヘッダ: タイトル「本棚」ゴシック bold 22px ＋ 薄く冊数 ＋ 右端に表示切替のみ（⋮なし） */
+  /* ヘッダ: タイトル「本棚」ゴシック bold ＋ 薄く冊数 ＋ 右端に表示切替のみ（現状維持） */
   .head{flex-shrink:0;display:flex;align-items:baseline;justify-content:space-between;padding:6px 20px 12px}
   .head .ttl{display:flex;align-items:baseline;gap:10px}
   .head h1{font-family:var(--gothic);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.04em}
@@ -52,50 +57,55 @@
   .head .view:hover{background:var(--line)}
   .head .view svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6}
 
-  /* 状態フィルタチップ: 「すべて」選択中＝藍塗りピル白字／他＝アウトライン */
+  /* 状態フィルタチップ（現状維持） */
   .chips{flex-shrink:0;display:flex;gap:8px;padding:0 20px 12px;overflow-x:auto;scrollbar-width:none}
   .chips::-webkit-scrollbar{display:none}
   .chip{flex-shrink:0;font-size:12.5px;padding:6px 15px;border-radius:999px;cursor:pointer;
     border:1px solid var(--line);color:var(--ink-soft);background:transparent;letter-spacing:.02em}
   .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
 
-  /* スクロール本体（FAB＋ボトムナビ分の余白を確保） */
-  .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:2px 20px 128px;scrollbar-width:none}
+  /* スクロール本体（FAB＋ボトムナビ分の余白を確保・左右余白は拡大＝2列改A） */
+  .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 24px 120px;scrollbar-width:none}
   .scroll::-webkit-scrollbar{display:none}
 
-  /* 本のグリッド3列（Dの2列より密＝表示冊数増） */
-  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px 12px}
+  /* 本のグリッド＝2列改A（書影≈140dp・3:4・列間24/行間16・約5冊/画面） */
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px 24px}
   .bk{cursor:pointer}
-  .cv{position:relative;aspect-ratio:2/3;border-radius:3px;overflow:hidden;
-    display:flex;align-items:flex-end;box-shadow:0 2px 6px rgba(0,0,0,.16)}
-  .cv .cvt{padding:9px 10px;color:#fff;font-family:var(--mincho);font-size:12px;font-weight:600;
-    line-height:1.35;letter-spacing:.02em;text-shadow:0 1px 3px rgba(0,0,0,.35);
-    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-  /* カード右上の可視⋮（32pxタップ面・半透明白地に濃ink） */
-  .cv .dots{position:absolute;top:5px;right:5px;width:32px;height:32px;border:none;cursor:pointer;
-    border-radius:9px;background:rgba(255,255,255,.82);color:var(--ink);display:grid;place-items:center}
-  .cv .dots svg{width:16px;height:16px;fill:currentColor}
-  /* Web作品の小マーカー（左上・任意の識別） */
-  .cv .web{position:absolute;top:6px;left:6px;font-size:9px;font-weight:700;letter-spacing:.06em;
-    padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.85);color:var(--ai)}
 
-  /* 題名（明朝12.5px・2行clamp） */
-  .t{font-family:var(--mincho);font-size:12.5px;color:var(--ink);line-height:1.4;margin-top:8px;
-    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  /* ===== 栞書影（紙地＋題字由来色の栞棒＋先端＋縦組み明朝題字・輪郭は線でなく影＝§F 裁定） ===== */
+  .cv{position:relative;aspect-ratio:3/4;border-radius:3px;overflow:hidden;background:var(--paper);
+    box-shadow:0 3px 10px rgba(0,0,0,.14)}
+  .cv .bar{position:absolute;top:0;left:var(--barx,26%);width:2.5px;height:var(--barlen,46%);background:var(--band,var(--ink-soft))}
+  /* 先端＝結び玉（正本 TIPS 相当・単調な小円） */
+  .cv .bar::after{content:"";position:absolute;left:50%;top:100%;transform:translate(-50%,-1px);
+    width:7px;height:7px;border-radius:50%;background:var(--band,var(--ink-soft))}
+  .cv .vt{position:absolute;top:14px;right:12px;bottom:14px;max-width:66%;overflow:hidden;
+    writing-mode:vertical-rl;font-family:var(--mincho);font-size:12px;font-weight:600;
+    color:var(--ink);line-height:1.6;letter-spacing:.05em}
+  /* Web未取込＝D改: 青磁1.5px破線フレームのみ・紙地一段沈め field・影なし（＝沈める） */
+  .cv.narou{background:var(--field);border:1.5px dashed var(--seiji-ink);box-shadow:none}
+
+  /* キャプション行: 題字明朝1行（左）＋可視⋮（右端・K実機是正の位置） */
+  .cap{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-top:8px}
+  .cap .t{flex:1;min-width:0;font-family:var(--mincho);font-size:12px;color:var(--ink);line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .cap .dots{width:28px;height:28px;flex-shrink:0;border:none;background:transparent;color:var(--ink-soft);
+    display:grid;place-items:center;cursor:pointer;margin-top:-2px}
+  .cap .dots svg{width:16px;height:16px;fill:currentColor}
   /* 進捗／状態バッジ（ゴシック・ink-soft） */
-  .st{margin-top:6px;font-size:10.5px;color:var(--ink-soft);letter-spacing:.03em;
+  .st{margin-top:4px;font-size:10.5px;color:var(--ink-soft);letter-spacing:.03em;
     display:flex;align-items:center;gap:5px;min-height:14px}
-  .st.done{color:var(--ink-soft)}
   .st .dot{width:6px;height:6px;border-radius:50%;background:var(--ai);flex-shrink:0}
+  .st.narou{color:var(--seiji-ink)} /* なろう・未取込＝D改の青磁テキスト署名 */
 
-  /* 拡張FAB「＋ PDFを追加」（藍・ラベル付き・ボトムナビの上に浮く） */
-  .fab{position:absolute;right:18px;bottom:80px;z-index:6;display:inline-flex;align-items:center;gap:8px;
+  /* 拡張FAB「＋ PDFを追加」（現状維持） */
+  .fab{position:absolute;right:16px;bottom:80px;z-index:6;display:inline-flex;align-items:center;gap:8px;
     height:52px;padding:0 20px 0 16px;border:none;cursor:pointer;border-radius:26px;
     background:var(--ai);color:#fff;font-family:var(--gothic);font-size:14px;font-weight:600;
     letter-spacing:.03em;box-shadow:0 8px 20px rgba(28,61,90,.36)}
   .fab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
 
-  /* ===== 共通ボトムナビ（bookshelf-K / settings-K で完全同一の CSS・選択タブのみ差替） ===== */
+  /* ===== 共通ボトムナビ（現状維持） ===== */
   .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
   .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
     text-decoration:none;cursor:pointer;color:var(--ink-soft)}
@@ -130,91 +140,80 @@
       <span class="chip">読了</span>
     </div>
 
-    <!-- 本のグリッド（9冊・うち2冊はWeb作品） -->
+    <!-- 本のグリッド（2列改A・栞書影・うち2冊は Web 未取込＝D改） -->
     <div class="scroll">
       <div class="grid">
 
         <div class="bk">
-          <div class="cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)">
-            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
-            <span class="cvt">追放された万能薬師</span>
+          <div class="cv" style="--band:hsl(210 48% 52%);--barx:26%;--barlen:46%">
+            <span class="bar"></span><span class="vt">追放された万能薬師、辺境でスローライフを始める</span>
           </div>
-          <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+          <div class="cap"><span class="t">追放された万能薬師、辺境でスローライフを始める</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
           <div class="st">第127/205話</div>
         </div>
 
         <div class="bk">
-          <div class="cv" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)">
-            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
-            <span class="cvt">黒の魔王と契約した俺</span>
+          <div class="cv" style="--band:hsl(280 48% 52%);--barx:34%;--barlen:42%">
+            <span class="bar"></span><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span>
           </div>
-          <div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div>
+          <div class="cap"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
           <div class="st">第43/150話</div>
         </div>
 
         <div class="bk">
-          <div class="cv" style="background:linear-gradient(160deg,#46584C,#2C362F)">
-            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
-            <span class="cvt">草むしりと世界樹</span>
+          <div class="cv" style="--band:hsl(95 48% 52%);--barx:22%;--barlen:50%">
+            <span class="bar"></span><span class="vt">転生したら最弱スキルだったので草むしりしていた</span>
           </div>
-          <div class="t">転生したら最弱スキルだったので草むしりしていた</div>
+          <div class="cap"><span class="t">転生したら最弱スキルだったので草むしりしていた</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
           <div class="st"><span class="dot"></span>未読</div>
         </div>
 
         <div class="bk">
-          <div class="cv" style="background:linear-gradient(160deg,#2F5A5E,#1E3A3D)">
-            <span class="web">Web</span>
-            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
-            <span class="cvt">最果てのダンジョン</span>
+          <div class="cv narou" style="--band:hsl(190 48% 52%);--barx:30%;--barlen:44%">
+            <span class="bar"></span><span class="vt">最果てのダンジョンで細々と暮らすことにした</span>
           </div>
-          <div class="t">最果てのダンジョンで細々と暮らすことにした</div>
-          <div class="st">第3話まで既読</div>
+          <div class="cap"><span class="t">最果てのダンジョンで細々と暮らすことにした</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st narou">なろう・未取込</div>
         </div>
 
         <div class="bk">
-          <div class="cv" style="background:linear-gradient(160deg,#4F4A63,#312E3D)">
-            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
-            <span class="cvt">公爵令嬢の嗜み</span>
+          <div class="cv" style="--band:hsl(340 48% 52%);--barx:24%;--barlen:48%">
+            <span class="bar"></span><span class="vt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
           </div>
-          <div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+          <div class="cap"><span class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
           <div class="st">第8/72話</div>
         </div>
 
         <div class="bk">
-          <div class="cv" style="background:linear-gradient(160deg,#63534A,#3A2F28)">
-            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
-            <span class="cvt">聖女は隣国で</span>
+          <div class="cv" style="--band:hsl(150 48% 52%);--barx:28%;--barlen:40%">
+            <span class="bar"></span><span class="vt">聖女は隣国で薬草を育てて暮らしたい</span>
           </div>
-          <div class="t">聖女は隣国で薬草を育てて暮らしたい</div>
-          <div class="st done">読了</div>
+          <div class="cap"><span class="t">聖女は隣国で薬草を育てて暮らしたい</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">読了</div>
         </div>
 
         <div class="bk">
-          <div class="cv" style="background:linear-gradient(160deg,#4A4F63,#2E3140)">
-            <span class="web">Web</span>
-            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
-            <span class="cvt">辺境ぐらしの隠居魔導士</span>
+          <div class="cv narou" style="--band:hsl(50 48% 52%);--barx:24%;--barlen:46%">
+            <span class="bar"></span><span class="vt">辺境ぐらしの隠居魔導士、今日ものんびり</span>
           </div>
-          <div class="t">辺境ぐらしの隠居魔導士、今日ものんびり</div>
-          <div class="st">第3話まで既読</div>
+          <div class="cap"><span class="t">辺境ぐらしの隠居魔導士、今日ものんびり</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st narou">なろう・未取込</div>
         </div>
 
         <div class="bk">
-          <div class="cv" style="background:linear-gradient(160deg,#5A4A4F,#37292E)">
-            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
-            <span class="cvt">剣聖の孫娘</span>
+          <div class="cv" style="--band:hsl(230 48% 52%);--barx:34%;--barlen:48%">
+            <span class="bar"></span><span class="vt">星降る夜の図書館で君を待っている</span>
           </div>
-          <div class="t">剣聖の孫娘は今日も鍛錬を欠かさない</div>
-          <div class="st">第55/98話</div>
-        </div>
-
-        <div class="bk">
-          <div class="cv" style="background:linear-gradient(160deg,#4A5E52,#2E382F)">
-            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
-            <span class="cvt">星降る夜の図書館</span>
-          </div>
-          <div class="t">星降る夜の図書館で君を待っている</div>
-          <div class="st done">読了</div>
+          <div class="cap"><span class="t">星降る夜の図書館で君を待っている</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">読了</div>
         </div>
 
       </div>
