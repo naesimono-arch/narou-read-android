@@ -98,6 +98,7 @@ import com.novelreader.ui.theme.PlasticLoCartridge
 import com.novelreader.ui.theme.RedCartridge
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.viewmodel.DiscoveryUiState
+import com.novelreader.viewmodel.MoodPattern
 import com.novelreader.viewmodel.MoodPreset
 import com.novelreader.viewmodel.PagingState
 import com.novelreader.viewmodel.ResultContext
@@ -563,7 +564,8 @@ private fun MoodShelf(onPickMood: (MoodPreset) -> Unit) {
             .padding(top = Spacing.S4),
         horizontalArrangement = Arrangement.spacedBy(Spacing.S12),  // .shelf gap 13px → S12
     ) {
-        MoodPreset.entries.forEach { preset ->
+        // 12件へ増えた全entriesでなく従来4件の組に固定（K以外のページャ化は未裁定・2026-07-24）。
+        MoodPattern.CLASSIC.presets.forEach { preset ->
             MoodPackage(preset, color = CartridgeLabelPalette[preset.ordinal % CartridgeLabelPalette.size], onClick = { onPickMood(preset) })
         }
     }

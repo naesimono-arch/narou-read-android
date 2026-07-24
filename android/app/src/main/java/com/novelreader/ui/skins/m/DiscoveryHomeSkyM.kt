@@ -84,6 +84,7 @@ import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.StarSeizu
 import com.novelreader.ui.theme.TextSeizu
 import com.novelreader.viewmodel.DiscoveryUiState
+import com.novelreader.viewmodel.MoodPattern
 import com.novelreader.viewmodel.MoodPreset
 import com.novelreader.viewmodel.PagingState
 import com.novelreader.viewmodel.ResultContext
@@ -455,7 +456,7 @@ private fun SkySectionLabel(text: String, topSpace: androidx.compose.ui.unit.Dp)
 // ============================================================
 @Composable
 private fun MoodGridSky(onPickMood: (MoodPreset) -> Unit) {
-    val presets = MoodPreset.entries
+    val presets = MoodPattern.CLASSIC.presets // 12件へ増えた全entriesでなく従来4件の組に固定（K以外のページャ化は未裁定・2026-07-24）
     Column {
         presets.chunked(2).forEach { rowPresets ->
             Row(

@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,7 +62,9 @@ import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.viewmodel.DiscoveryUiState
+import com.novelreader.viewmodel.MoodPattern
 import com.novelreader.viewmodel.MoodPreset
+import java.time.LocalDate
 
 // ============================================================
 // 明快K: さがす（発見ホーム）＝正本モック discovery-K.html の忠実翻訳（ADR 0022 §1 の構造分岐先）。
@@ -171,22 +176,71 @@ private fun SectionHeadingK(text: String, topSpace: androidx.compose.ui.unit.Dp 
     )
 }
 
-/** きょうの気分（モック .mood）: 2列カード。左に藍の縦ルール・明朝の見出し。 */
+/**
+ * きょうの気分（モック .mood → 2026-07-24 ページャ化・正本 discovery-K.html）: 4件1組×[MoodPattern] 3組を
+ * 横スワイプで行き来し、初期表示の組だけが日替わり（決定的＝MoodPattern.forEpochDay）。
+ * 可視代替の義務（隠しスワイプ禁止）＝下のドットインジケータと日替わり注記が「他の組がある」ことを常時可視化する。
+ */
 @Composable
 private fun MoodSectionK(onPickMood: (MoodPreset) -> Unit) {
+    // remember＝セッション中は固定（日付を跨いでも表示中の画面を勝手に差し替えない。次回の composition から新しい日の組）。
+    val todayPattern = remember { MoodPattern.forEpochDay(LocalDate.now().toEpochDay()) }
+    val moodPagerState = rememberPagerState(
+        initialPage = todayPattern.ordinal,
+        pageCount = { MoodPattern.entries.size },
+    )
     Column {
         SectionHeadingK("きょうの気分", topSpace = Spacing.S8) // .sec:first-child margin-top 8px
-        // 4プリセット固定の2列（親が LazyColumn ゆえ LazyGrid をネストせず chunked(2) の Row で組む）。
-        MoodPreset.entries.chunked(2).forEach { rowPresets ->
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.S12),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.S12), // .mood gap 12px
-            ) {
-                rowPresets.forEach { preset ->
-                    MoodCardK(preset, onClick = { onPickMood(preset) }, modifier = Modifier.weight(1f))
+        HorizontalPager(
+            state = moodPagerState,
+            // 右端に次ページの頭を覗かせる＝「まだ横にある」のシグニファイア（モックの左右覗きの Compose 翻訳）。
+            contentPadding = PaddingValues(end = Spacing.S24),
+            pageSpacing = Spacing.S12,
+        ) { page ->
+            val pattern = MoodPattern.entries[page]
+            Column {
+                // 4プリセット1組の2列（親が LazyColumn ゆえ LazyGrid をネストせず chunked(2) の Row で組む）。
+                pattern.presets.chunked(2).forEach { rowPresets ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.S12),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.S12), // .mood gap 12px
+                    ) {
+                        rowPresets.forEach { preset ->
+                            MoodCardK(preset, onClick = { onPickMood(preset) }, modifier = Modifier.weight(1f))
+                        }
+                    }
                 }
             }
         }
+        // ドットインジケータ（モック .dots）＝現在組を可視化。寸法は構造値ゆえスケール外の raw dp。
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = Spacing.S4, bottom = Spacing.S4),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            MoodPattern.entries.forEachIndexed { i, _ ->
+                val active = i == moodPagerState.currentPage
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = Spacing.S4)
+                        // 現在組は横長ピル＝方向のあるインジケータ（Material の pager 慣習）。
+                        .size(width = if (active) 16.dp else 6.dp, height = 6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(
+                            if (active) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.outlineVariant,
+                        ),
+                )
+            }
+        }
+        // 日替わり注記（モックの1行）: 初期組が日で変わることの自己説明。
+        Text(
+            "日替わり・きょうは「${todayPattern.displayName}」から",
+            fontSize = FontLabel,
+            color = LocalShelfColors.current.infoText,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

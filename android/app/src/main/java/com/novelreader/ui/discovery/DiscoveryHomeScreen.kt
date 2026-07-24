@@ -73,6 +73,7 @@ import com.novelreader.ui.skins.m.DiscoveryHomeSkyM
 import com.novelreader.ui.skins.p.DiscoveryHomeCartridgeP
 import com.novelreader.viewmodel.DiscoveryUiState
 import com.novelreader.viewmodel.DiscoveryViewModel
+import com.novelreader.viewmodel.MoodPattern
 import com.novelreader.viewmodel.MoodPreset
 import com.novelreader.ui.theme.Spacing
 
@@ -436,7 +437,7 @@ private fun MoodSection(
             letterSpacing = 3.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        val presets = MoodPreset.entries
+        val presets = MoodPattern.CLASSIC.presets // 12件へ増えた全entriesでなく従来4件の組に固定（K以外のページャ化は未裁定・2026-07-24）
         // 4プリセット固定の2列（LazyGrid をネストしない: 親が LazyColumn のため固定 Row で組む）
         presets.chunked(2).forEach { rowPresets ->
             Row(

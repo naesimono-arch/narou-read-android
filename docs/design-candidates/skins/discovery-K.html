@@ -8,6 +8,9 @@
   ④セクション見出しは淡い字間装飾でなく gothic bold ink で自己説明（Dの .28em 淡色見出しを廃止）。
   色は D トークンを土台に、ink-soft のみ AA(4.5:1) へ引き上げ（#7C808B→#6A6E78）。
   UIラベル=ゴシック・気分見出し/作品名/順位数字=明朝（既存 Typography 踏襲）。単一画面モック・ライトのみ。
+  【2026-07-24 更新】「きょうの気分」を横スワイプのページャ（1ページ4枚・左右に隣ページの覗き・下に3点ドット＋
+  日替わり注記の一行）へ更新（candidates/ui-round-20260724-draft/discovery-mood-pager-K.html で確定・表示は P2 気分転換）。
+  他セクション（検索第一・ジャンル・ランキング・公式逃げ道）は現状維持。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -49,12 +52,25 @@
   .sec{font-family:var(--gothic);font-weight:700;font-size:13px;color:var(--ink);margin:20px 0 12px}
   .sec:first-child{margin-top:8px}
 
-  /* きょうの気分: 2列×2行。左に藍の縦ルール・明朝の見出し */
+  /* きょうの気分: 1ページ4枚（2列×2行）。左に藍の縦ルール・明朝の見出し */
   .mood{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .md{position:relative;border:1px solid var(--line);border-radius:10px;padding:14px 14px 14px 18px;cursor:pointer}
   .md::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:3px;background:var(--ai)}
   .md b{font-family:var(--mincho);font-size:14.5px;color:var(--ink);font-weight:600;display:block;line-height:1.45}
   .md span{display:block;font-size:11px;color:var(--ink-soft);margin-top:5px}
+
+  /* 気分ページャ（2026-07-24 確定・discovery-mood-pager-K で合格）: 今日のページ中心・左右に隣ページが覗く */
+  .sec.flex{display:flex;align-items:baseline;justify-content:space-between}
+  .sec .pat{font-weight:400;font-size:11px;color:var(--ink-soft)}
+  .mp-view{overflow:hidden;margin:0 -20px} /* scroll の左右余白を食い、隣ページを画面端まで覗かせる */
+  .mp-track{display:flex;transform:translateX(-70%)} /* P2(index1)を中央へ寄せる（80%幅×index+余白） */
+  .mp-page{flex:0 0 80%;padding:0 8px}
+  .mp-page.side{opacity:.5} /* 非アクティブページは沈めて現在地を示す */
+  .dots{display:flex;justify-content:center;gap:8px;margin-top:14px}
+  .dots i{width:7px;height:7px;border-radius:50%;background:var(--line)}
+  .dots i.on{background:var(--ai);width:18px;border-radius:4px} /* 現在ページ＝藍の伸びたピル */
+  .daynote{text-align:center;font-size:11px;color:var(--ink-soft);margin-top:8px;line-height:1.5}
+  .daynote b{color:var(--ink);font-weight:700}
 
   /* ジャンルから: 横スクロールチップ */
   .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
@@ -103,13 +119,34 @@
     </div>
 
     <div class="scroll">
-      <div class="sec">きょうの気分</div>
-      <div class="mood">
-        <div class="md"><b>30分の小さな旅</b><span>短編・読了30分まで</span></div>
-        <div class="md"><b>今夜の一気読み</b><span>完結済・10万字以上</span></div>
-        <div class="md"><b>会話でさくさく</b><span>会話率60%以上</span></div>
-        <div class="md"><b>挿絵と歩く</b><span>挿絵のある作品</span></div>
+      <div class="sec flex"><span>きょうの気分</span><span class="pat">② 気分転換</span></div>
+      <div class="mp-view">
+        <div class="mp-track">
+          <!-- P1 そのまま（左に覗く・沈める） -->
+          <div class="mp-page side"><div class="mood">
+            <div class="md"><b>ちょっとそこまで</b><span>短編・30分で読める</span></div>
+            <div class="md"><b>どっぷり一気読み</b><span>完結・10万字以上</span></div>
+            <div class="md"><b>会話劇を楽しむ</b><span>会話率が高い</span></div>
+            <div class="md"><b>挿絵のある旅</b><span>挿絵つき作品</span></div>
+          </div></div>
+          <!-- P2 気分転換（今日・中央・アクティブ） -->
+          <div class="mp-page"><div class="mood">
+            <div class="md"><b>泣ける・しんみり</b><span>涙腺じんわり</span></div>
+            <div class="md"><b>スカッと爽快</b><span>痛快・無双系</span></div>
+            <div class="md"><b>ほのぼの日常</b><span>まったり癒し</span></div>
+            <div class="md"><b>ハラハラ冒険</b><span>手に汗にぎる</span></div>
+          </div></div>
+          <!-- P3 読み方で選ぶ（右に覗く・沈める） -->
+          <div class="mp-page side"><div class="mood">
+            <div class="md"><b>完結をまとめて</b><span>完結済だけ</span></div>
+            <div class="md"><b>連載を追いかける</b><span>更新中を追う</span></div>
+            <div class="md"><b>短編を数本</b><span>〜1万字</span></div>
+            <div class="md"><b>超長編にどっぷり</b><span>50万字以上</span></div>
+          </div></div>
+        </div>
       </div>
+      <div class="dots"><i></i><i class="on"></i><i></i></div>
+      <div class="daynote">日替わりで開くページが変わる。<b>今日は②〈気分転換〉</b>から。左右スワイプで P1〈そのまま〉・P3〈読み方で選ぶ〉へ。</div>
 
       <div class="sec">ジャンルから</div>
       <div class="chips">

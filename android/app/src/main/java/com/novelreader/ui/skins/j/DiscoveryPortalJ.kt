@@ -83,6 +83,7 @@ import com.novelreader.ui.theme.PlumPortal
 import com.novelreader.ui.theme.SoftPortal
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.viewmodel.DiscoveryUiState
+import com.novelreader.viewmodel.MoodPattern
 import com.novelreader.viewmodel.MoodPreset
 import com.novelreader.viewmodel.PagingState
 import com.novelreader.viewmodel.ResultContext
@@ -448,7 +449,7 @@ private fun PortalSectionLabel(text: String, topSpace: androidx.compose.ui.unit.
 // ============================================================
 @Composable
 private fun MoodDoors(onPickMood: (MoodPreset) -> Unit) {
-    val presets = MoodPreset.entries
+    val presets = MoodPattern.CLASSIC.presets // 12件へ増えた全entriesでなく従来4件の組に固定（K以外のページャ化は未裁定・2026-07-24）
     Column {
         presets.chunked(2).forEach { rowPresets ->
             Row(

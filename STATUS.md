@@ -39,6 +39,14 @@
   完了（2026-07-24）**＝恒常ボトムナビ/設定の全スキン開放・目次チップ/再開/既読・さがす検索第一/公式逃げ道・
   本棚可視⋮/冊数・Web複数選択削除統合（機構裁定＝ADR 0021 追記）。一次情報＝
   `.claude/plans/k-shape-propagation-2026-07-23.md`。ゲート＝テスト882件緑。**残＝実機目視（全スキン掃引）**。
+- **2026-07-24 UIラウンド（feat/ui-playground・実装済み/実機目視待ち）**: ユーザー4裁定＋構造化を実装＝
+  ①K本棚グリッド**2列改A**（書影≈140dp・3:4・約5冊/画面）・リスト**圧縮S**（KList/KWebListBookCard 新設・D流用廃止）
+  ②書影輪郭**線→影**（shadow 2dp 暫定・ダーク影値は実機検分）③未取込Web＝**D改破線**（白ピル廃止・青磁破線＋紙地沈め・
+  取込済みは無印確定）④**タブPager化**＝tabs 単一ルート＋`TabPagerHost`（横スワイプ・crossfade廃止・navigateKTab退役・
+  Back=page0へ・スロット契約＝**ADR 0022 追記が正本**）⑤**気分パターン3組×日替わり**（MoodPattern・K はページャ＋ドット・
+  非KはCLASSIC固定）。モック正本昇格済み（bookshelf-K/bookshelf-list-K 新設/discovery-K）。UI追加はモック先行が恒久ルール化
+  （memory `feedback-mock-before-any-ui-addition`）。一次情報＝`.claude/plans/ui-density-swipe-round-2026-07-24.md`。
+  ゲート＝testDebugUnitTest 緑・golden 差分なし（対象コンポーネント外）・tokens OK192/NG0・lint 0err/33warn。
 - **既知バグ: なし**（単話の嘘見出し問題は 2026-07-16 修正済み＝題名マーカー0件時は作品タイトルを単一章名へ流用・golden 第4本 N5368ML で恒久回帰）。
 
 - **汎用Web小説DL基盤（最優先B・main 統合済み）**: `scrape/` サイトアダプタ抽象（`NovelSiteAdapter`＋
