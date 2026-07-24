@@ -36,8 +36,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavBackStackEntry
-import androidx.navigation.NavController
+import androidx.compose.foundation.pager.rememberPagerState
+import com.novelreader.ui.tabs.TabPagerHost
+import kotlinx.coroutines.launch
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
@@ -300,12 +301,12 @@ private fun NovelReaderApp(
             val startFile = viewModel.getLastRead(BookId(bookId)) ?: "index.html"
             navController.navigate("reading/$bookId/$startFile") {
                 launchSingleTop = true
-                // bookshelf を残して起点を固定＝Back が必ず本棚へ戻る（固定起点の保証）。
-                popUpTo("bookshelf") { inclusive = false }
+                // tabs（タブ層）を残して起点を固定＝Back が必ずタブ層へ戻る（固定起点の保証。旧 "bookshelf" ルートのタブ Pager 化に追従）。
+                popUpTo("tabs") { inclusive = false }
             }
         } else {
-            // 削除済み等で本が無い確定ケース: 最低限の保証として固定起点（本棚）へ着地する。
-            navController.popBackStack("bookshelf", false)
+            // 削除済み等で本が無い確定ケース: 最低限の保証として固定起点（タブ層＝本棚ページ）へ着地する。
+            navController.popBackStack("tabs", false)
         }
         // ナビ後に消費済みへ（null で再ナビを防ぐ。key 変化で本 Effect は即再実行され早期 return する）。
         onDeepLinkConsumed()
@@ -357,19 +358,22 @@ private fun NovelReaderApp(
     // タブバー静止がタブの標準文法のため。
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    val currentTab = when (currentRoute) {
-        "bookshelf" -> KTab.BOOKSHELF
-        "discovery" -> KTab.DISCOVER
-        "settings" -> KTab.SETTINGS
-        else -> null
+    // タブ3面（本棚/さがす/設定）は NavHost のルート分岐から Pager（"tabs" 単一ルート）へ移行
+    // （2026-07-24 ユーザー裁定＝横スワイプでシームレスにタブ移動・ADR 0022 スロット契約）。
+    // Pager 状態は枠（ここ）が所有する＝ボトムナビの現在タブ表示と選択遷移が同じ1状態から導出される。
+    // rememberPagerState は内部 Saver 持ち＝回転/プロセス死でも現在タブを保持（旧 saveState/restoreState の代替）。
+    val tabPagerState = rememberPagerState(pageCount = { KTab.entries.size })
+    val tabScope = rememberCoroutineScope()
+    // 深い画面（読書等）では null＝恒常ナビを消して没入を守る（従来と同じ判定を「tabs ルートか」へ置換）。
+    val currentTab = if (currentRoute == "tabs") KTab.entries[tabPagerState.currentPage] else null
+    // タブ選択＝Pager のスクロール（タップでもスワイプでも同じスライド運動言語。旧 crossfade は
+    // Pager のスワイプ追従と矛盾するため廃止＝isTabSwitch 分岐ごと撤去）。同一タブ再タップは
+    // animateScrollToPage が同ページで no-op＝旧 navigateKTab の重複抑止と同じ挙動が構造的に出る。
+    val onSelectTab: (KTab) -> Unit = { tab ->
+        tabScope.launch {
+            tabPagerState.animateScrollToPage(tab.ordinal, animationSpec = tween(MotionDurationKTabSwitch))
+        }
     }
-    val tabRoutes = setOf("bookshelf", "discovery", "settings")
-    // タブ間の遷移だけ slide でなく短い crossfade へ差し替える（全スキン共通・MotionDurationKTabSwitch の why 参照）。
-    // 旧実装は MEIKAI_K 限定だったが恒常ナビの全スキン化に合わせ一般化した。M（isSeizu）ではタブ遷移がこの
-    // crossfade を使い、非タブ遷移は従来どおり Seizu フェード（下の分岐が isTabSwitch を先に見るため両立する）。
-    fun AnimatedContentTransitionScope<NavBackStackEntry>.isTabSwitch(): Boolean =
-        initialState.destination.route in tabRoutes &&
-            targetState.destination.route in tabRoutes
 
     val d = MotionDurationNavTransition
     Box(modifier = Modifier.fillMaxSize()) {
@@ -386,33 +390,33 @@ private fun NovelReaderApp(
             Column(Modifier.fillMaxSize()) {
     NavHost(
         navController = navController,
-        startDestination = "bookshelf",
+        startDestination = "tabs",
         modifier = Modifier.weight(1f),
+        // タブ間はもう NavHost 遷移でない（Pager が担う）＝isTabSwitch 分岐は不要になった。
+        // 残る分岐＝M星図のフェードスルー（固定天球ゆえ slide だと空ごと動く・ADR 0019 追記）と他スキンの横スライド push。
         enterTransition = {
-            if (isTabSwitch()) fadeIn(tween(MotionDurationKTabSwitch))
-            else if (isSeizu) fadeIn(tween(MotionDurationSeizuFadeIn, delayMillis = MotionDurationSeizuFadeInDelay))
+            if (isSeizu) fadeIn(tween(MotionDurationSeizuFadeIn, delayMillis = MotionDurationSeizuFadeInDelay))
             else slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(d))
         },
         exitTransition = {
-            if (isTabSwitch()) fadeOut(tween(MotionDurationKTabSwitch))
-            else if (isSeizu) fadeOut(tween(MotionDurationSeizuFadeOut))
+            if (isSeizu) fadeOut(tween(MotionDurationSeizuFadeOut))
             else slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(d))
         },
         popEnterTransition = {
-            if (isTabSwitch()) fadeIn(tween(MotionDurationKTabSwitch))
-            else if (isSeizu) fadeIn(tween(MotionDurationSeizuFadeIn, delayMillis = MotionDurationSeizuFadeInDelay))
+            if (isSeizu) fadeIn(tween(MotionDurationSeizuFadeIn, delayMillis = MotionDurationSeizuFadeInDelay))
             else slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(d))
         },
         popExitTransition = {
-            if (isTabSwitch()) fadeOut(tween(MotionDurationKTabSwitch))
-            else if (isSeizu) fadeOut(tween(MotionDurationSeizuFadeOut))
+            if (isSeizu) fadeOut(tween(MotionDurationSeizuFadeOut))
             else slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(d))
         },
     ) {
 
-        composable("bookshelf") {
+        // タブ層＝単一ルート "tabs"（本棚/さがす/設定の3面を TabPagerHost のスロットへ・ADR 0022 スロット契約）。
+        // 深い画面（読書・目次・発見詳細等）は従来どおり NavHost ルート＝この上へ push される。
+        composable("tabs") {
             // 遷移ジャンク対策（P2・Perfetto 2026-07-16 で主因確定）: 本棚グリッドの初回 measure（実測51ms/
-            // フレーム）が slide push のアニメフレームと同居して落ちるため、「本棚が enter アニメ中」の間だけ
+            // フレーム）が slide push のアニメフレームと同居して落ちるため、「tabs が enter アニメ中」の間だけ
             // 重いグリッドをスケルトンへ差替える（BookshelfContent 側の分岐参照）。currentState/targetState は
             // 遷移の端点でしか変化しない離散 State＝毎フレーム recompose を増やさない（連続 fraction は読まない）。
             // exit（本棚→先へ進む）は既測グリッドで安価なため対象外＝実カードのままスライドアウトし視覚劣化なし。
@@ -422,7 +426,11 @@ private fun NovelReaderApp(
                         transition.currentState != EnterExitState.Visible
                 }
             }
-            BookshelfScreen(
+            TabPagerHost(
+                pagerState = tabPagerState,
+                pages = listOf(
+                    {
+                    BookshelfScreen(
                 viewModel = viewModel,
                 deferHeavyContent = deferHeavyContent,
                 appTheme = appTheme,
@@ -439,7 +447,8 @@ private fun NovelReaderApp(
                     navController.navigate("reading/$bookId/$startFile") { launchSingleTop = true }
                 },
                 onOpenDiscovery = {
-                    navController.navigate("discovery") { launchSingleTop = true }
+                    // タブ化に伴い「さがすへ」＝Pager のページ切替（ルート遷移でなくなった）。
+                    onSelectTab(KTab.DISCOVER)
                 },
                 // 着せ替えの入口は本棚トップバーのみ（意図的設計＝ADR 0021 決定7。設定シート内には置かない）。
                 onOpenWardrobe = {
@@ -455,12 +464,12 @@ private fun NovelReaderApp(
                     navController.navigate("web-reader/$ncode/$startEpisode") { launchSingleTop = true }
                 },
             )
-        }
-
-        composable("discovery") {
-            DiscoveryHomeScreen(
+                    },
+                    {
+                    DiscoveryHomeScreen(
                 viewModel = discoveryViewModel,
-                onBack = { navController.popBackStack() },
+                // タブ化に伴い「戻る」＝階層 up＝本棚ページへ（システム Back は TabPagerHost の BackHandler が同じ契約で受ける）。
+                onBack = { onSelectTab(KTab.BOOKSHELF) },
                 // 境界: nav ルートは String。Ncode を .value でほどいてパスへ載せる。
                 onOpenDetail = { ncode -> navController.navigate("discovery/detail/${ncode.value}") { launchSingleTop = true } },
                 onOpenGenre = { navController.navigate("discovery/genre") { launchSingleTop = true } },
@@ -475,6 +484,20 @@ private fun NovelReaderApp(
                     discoveryViewModel.openResult(preset.toResultContext())
                     navController.navigate("discovery/result") { launchSingleTop = true }
                 },
+            )
+                    },
+                    {
+                    // 設定タブ（旧 composable("settings") から移設・引数不変。KDoc は SettingsScreenK 参照）。
+                    SettingsScreenK(
+                        appTheme = appTheme,
+                        onThemeChange = onThemeChange,
+                        followingSystem = followingSystem,
+                        onFollowSystem = onFollowSystem,
+                        currentSkin = appSkin,
+                        onOpenWardrobe = { navController.navigate("wardrobe") { launchSingleTop = true } },
+                    )
+                    },
+                ),
             )
         }
 
@@ -658,18 +681,6 @@ private fun NovelReaderApp(
                 }
             }
         }
-        // 設定画面（全スキンの恒常ボトムナビから到達＝2026-07-23 に K 限定から一般化）。テーマ/きせかえ/通知を
-        // 1画面へ集約＝分散解消。意匠は colorScheme トークン追従で各スキンに染まる（SettingsScreenK の KDoc 参照）。
-        composable("settings") {
-            SettingsScreenK(
-                appTheme = appTheme,
-                onThemeChange = onThemeChange,
-                followingSystem = followingSystem,
-                onFollowSystem = onFollowSystem,
-                currentSkin = appSkin,
-                onOpenWardrobe = { navController.navigate("wardrobe") { launchSingleTop = true } },
-            )
-        }
     }
             // 恒常ナビ（全スキン・タブ3画面のときのみ・深い画面では消えて没入を守る）。配色は KBottomNav 側で
             // colorScheme トークン（primary/onSurfaceVariant/surface）を参照＝各スキンの署名色で選択ピル/tint が
@@ -677,48 +688,15 @@ private fun NovelReaderApp(
             if (currentTab != null) {
                 KBottomNav(
                     current = currentTab,
-                    onSelect = { tab ->
-                        val route = when (tab) {
-                            KTab.BOOKSHELF -> "bookshelf"
-                            KTab.DISCOVER -> "discovery"
-                            KTab.SETTINGS -> "settings"
-                        }
-                        // 遷移可否の判定はスナップショット currentRoute でなくライブの currentDestination で行う
-                        // （navigateKTab 内へ集約。なぜライブ値かは同関数の KDoc 参照＝稀な「さがす→本棚に行けない」の防御的是正）。
-                        navigateKTab(navController, route)
-                    },
+                    // タブ選択＝Pager スクロール（onSelectTab）。旧 navigateKTab（NavHost ルート入替＋スナップショット
+                    // 遅延の防御）は、タブがルートでなくなったため機構ごと退役＝レースの土壌が消えた。
+                    onSelect = onSelectTab,
                 )
             }
             } // Column（NavHost ＋ K恒常ナビ）
             } // Surface（画面ルートの配色接地）
         } // CompositionLocalProvider(LocalSkyParallax)
     } // Box（backdrop ＋ NavHost）
-}
-
-/**
- * K恒常ナビのタブ選択遷移（本棚/さがす/設定の同格入れ替え）。onSelect から切り出したのは
- * ①テスト可能な継ぎ目にするため ②旧実装がクリック用ラムダに閉じ込めていたスナップショット currentRoute への
- * 依存を経路ごと断つため。
- *
- * なぜ重複抑止をライブの currentDestination で行うか（防御的・症状は再現不能）:
- * 旧実装は `route != currentRoute`（= currentBackStackEntryAsState 由来）で重複遷移を弾いていた。だが
- * currentBackStackEntryAsState は navigation-compose 2.7.5 実装上 `collectAsState(currentBackStackEntryFlow)` で、
- * その flow は `MutableSharedFlow(..., BufferOverflow.DROP_OLDEST)`（バイトコードで確認）。ゆえにこの currentRoute は
- * (a) 実バックスタックより最大1フレーム遅延し (b) 連打時は中間の遷移が drop され実状態と乖離しうる。
- * 乖離窓でスナップショットが遷移先ルートと一致すると事前ガードがタップを無音で握り潰し、
- * 「さがす→本棚に稀に遷移できない（他タブを経由すると復帰）」状態を作りうる——と推定されるが再現不能のため防御的に是正。
- * currentDestination は navigate/pop と同期更新されるライブ値なので、判定をここへ移してスナップショット遅延/drop への
- * 依存を断つ。判定基準は同じ「今と別ルートなら遷移」＝同一タブ再タップの no-op 挙動は不変（回帰テストで固定）。
- */
-internal fun navigateKTab(navController: NavController, route: String) {
-    if (navController.currentDestination?.route == route) return
-    navController.navigate(route) {
-        // タブは同格切替＝スタックを深くしない。bookshelf を起点に保存/復元付きで入れ替える
-        // （標準のボトムナビ流儀。restoreState でタブ状態を保持）。
-        popUpTo("bookshelf") { saveState = true }
-        launchSingleTop = true
-        restoreState = true
-    }
 }
 
 /**

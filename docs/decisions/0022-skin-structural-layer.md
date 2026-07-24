@@ -112,3 +112,26 @@ M の学名ドット `--id` 4色・P のラベル/ジャンル色 w1-w4/g1-g6・
   Dシート色を無音取得する穴は残る。是正するなら SkinTokens 化（シート色等を束へ昇格）など別機構＝将来課題として台帳へ。
 - なお色のみ型スキン（C 夜行が実証）は enum＋トークン束＋検査期待表の3接点で完結し、`Skin.tokens` の when が
   従前から exhaustive＝既に定型。本追記は没入型（画面丸ごと差し替え）の接続だけを対象とする。
+
+## 追記（2026-07-24）: タブ層の恒常枠を「スロット契約」として固定（Pager 化）
+
+ユーザー要望「確定している形を固定化し、その枠の上で中身だけ入れ替え可能に」＋「タブを横スワイプで
+シームレスに移動」への構造回答。タブ3面（本棚/さがす/設定）を NavHost の3ルートから **単一ルート
+`"tabs"` ＋ `TabPagerHost`（HorizontalPager）** へ移行し、恒常枠を次の契約で固定する（`ui/tabs/TabPagerHost.kt`）:
+
+- **枠（固定 API）** ＝〈恒常ボトムナビ（KBottomNav・NavHost 外静止）＋ TabPagerHost〉。**枠にはスキン分岐を
+  持ち込まない**——スキン意匠は各スロット（BookshelfScreen 等の exhaustive when＝追記 2026-07-19）だけが担う。
+  今後モック・デザインを増やすときは、この枠の上でスロットの中身だけを滑らせる。
+- **スロット** ＝ `pages: List<@Composable () -> Unit>`（index = KTab.ordinal）。深い画面（読書・目次・発見詳細等）は
+  従来どおり NavHost ルートとしてタブ層の上へ push される（Pager はタブ層のみ）。
+- **ジェスチャー裁定**: タブ横スワイプは UX18-C3 の4問審査を全問通過（毎セッション級頻度／ボトムナビの空間配列
+  からの導出／可視代替＝ナビ自体／Pager は端の戻るジェスチャと共存する標準挙動）。
+- **旧 crossfade（MotionDurationKTabSwitch）は廃止**: スワイプ追従（指と同期して滑る）とタップ切替の運動言語を
+  一致させるため、タップも同トークン長のページスライドへ。**M星図の「タブ間 crossfade」例外も同時に消滅**——
+  固定天球 backdrop は NavHost 外に常駐しページだけが滑るため「空ごと動く」問題（ADR 0019 追記の懸念）は起きない。
+- **navigateKTab 退役**: タブがナビゲーションでなくなり、currentBackStackEntryAsState の DROP_OLDEST レース
+  （2026-07-23 防御的是正の対象）は土壌ごと消滅。同一タブ再タップの no-op は animateScrollToPage の標準挙動で成立。
+- **Back 契約**: タブ層の Back＝階層 up＝本棚（page 0）へ。page 0 では消費せずアプリ退出へ委ねる
+  （旧 `popUpTo("bookshelf")` 流儀の継承。契約テスト＝KTabNavigationTest）。
+- **却下: タブごとの独立バックスタック温存（rememberSaveable 付き NavHost 多重化）**: Pager と saveState/restoreState の
+  二重状態管理になり、枠の単純さ（スロット契約）を壊す。タブ状態は Pager のページ保持（rememberPagerState 内蔵 Saver）で足りる。
