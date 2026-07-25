@@ -38,6 +38,8 @@ WSL2 は USB を直接認識しない。**必ず最初に `adb-bridge`** を実�
   **実機へ install・起動・input する前に、ユーザーが端末を使用中の可能性を考慮すること**
   （深夜・長時間の自律検証では PushNotification で予告するのが安全）。
 
+## 1. APK 投入 — 蔵書DBを消さない
+
 - **上書きインストール（`install -r` / `installDebug`）で蔵書DBを保持**する。署名は Windows の
   `debug.keystore` を `~/.android` へコピー済みで一致（memory `wsl-debug-keystore-share-for-install`）。
   **uninstall は最終手段**。
