@@ -1,7 +1,6 @@
 ---
 name: stale-check
-description: md・skill・hooks・settings の陳腐化を検出する。軽量(差分ベース)とフル(並列全網羅)の2モード。実態とドキュメントのズレを確度別に報告し、修正案を提示する。
-when_to_use: 「陳腐化チェック」／「ドキュメントやskillが古くないか確認したい」／「stale check」／「管理ファイルの整合性を点検したい」 などの依頼で使う。
+description: md・skill・hooks・settings の陳腐化を検出する（軽量=差分／フル=全網羅の2モード）。実態とのズレを確度別に報告し修正案を提示。「陳腐化チェック」「stale check」「ドキュメントやskillが古くないか確認したい」等の依頼で使う。
 ---
 
 # stale-check — 管理ファイル陳腐化チェック

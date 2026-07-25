@@ -1,7 +1,6 @@
 ---
 name: db-migration
-description: Room DBのスキーマ変更手順。Entityを変更する際のMigrationオブジェクト作成・version管理・禁止事項を説明する。
-when_to_use: 「Entityを変更したい」／「DBスキーマを変える」／「Migrationを書く」／「Room version」 などの依頼で使う。
+description: Room DBのスキーマ変更手順（Migration作成・version管理・禁止事項）。「Entityを変更したい」「DBスキーマを変える」「Migrationを書く」「Room version」等の依頼で使う。
 ---
 
 # Room DBスキーマ変更手順

@@ -1,7 +1,6 @@
 ---
 name: device-verify
-description: 実機検証の入口。adb接続(WSL)・APK投入・androidTest実行・実機DB確認・OPPO/ColorOS固有の壁の回避作法を網羅する。
-when_to_use: 「実機で検証したい」／「adbで操作したい」／「androidTestを実機で実行」／「実機のDBを確認したい」／「APKをインストールしたい」 などの依頼で使う。
+description: 実機検証の入口。adb接続(WSL)・APK投入・androidTest・実機DB確認・OPPO/ColorOS固有の壁の回避作法。「実機で検証したい」「adbで操作したい」「androidTestを実機で実行」「APKをインストールしたい」等の依頼で使う。
 ---
 
 # 実機検証の作法（OPPO PGEM10 / ColorOS / WSL）
