@@ -81,7 +81,7 @@ UI-n の「視覚言語D（和モダン・余白）」は配色・読書テー�
   `.claude/statusline-local.sh` と `.claude/.monthly_cost_cache` が `??`（未追跡）で出る。
   機械固有ファイルなので **コミット時に誤って `git add` しない**こと。必要なら UI-n の
   `.gitignore` に上記4行を取り込む（独立した `chore:` コミット）。
-- **未追跡スクラッチ（2026-07-02 整理済み）**: 旧 `UI_FIXES_TODO.md` は `.claude/plans/ui-fixes-HANDOVER-2026-06-24.md` へ移設（STATUS §1 の参照リンク切れも解消）。`commit_details.md`（git log 由来の派生表）と `planmode-bypass-incident.txt`（教訓は memory へ集約）は削除。`narou_api_manual.md`・`アーキテクチャ解説.txt` は既に不在。ツリー上の滞留スクラッチは解消済み。
+- **未追跡スクラッチ（2026-07-02 整理済み）**: 旧 `UI_FIXES_TODO.md` は `.claude/plans/archive/ui-fixes-HANDOVER-2026-06-24.md` へ移設（STATUS §1 の参照リンク切れも解消）。`commit_details.md`（git log 由来の派生表）と `planmode-bypass-incident.txt`（教訓は memory へ集約）は削除。`narou_api_manual.md`・`アーキテクチャ解説.txt` は既に不在。ツリー上の滞留スクラッチは解消済み。
 
 ## 6. 2026-06-30 引継ぎ作成セッションでやったこと
 
