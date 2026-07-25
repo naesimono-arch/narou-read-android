@@ -44,7 +44,7 @@ when_to_use: 「栞の意匠を増やしたい」／「先端ワンポイント�
 
 ### E. 統合
 1. **Kotlin 移植**: 既存の `SHIORI_TIPS` ラムダを Rosetta stone に、JS draw → DrawScope へ翻訳（翻訳表は下）。SHIORI_TIPS 末尾へ**正順で追記**。bulk（数十以上）はサブへ委譲可＝ただし全数 diff 照合＋最難関（arcTo/save-rotate/部分弧）をスポット目視。
-2. **正本HTML・書影モック同期**: `shiori-tips-D.html` と `bookshelf-shiori-grid-D.html` の TIPS を Kotlin と同順の総数へ（scratchpad の build_shohon.js / build_gridD_sync.js が手本）。`bookshelf-shiori-consistency-D.html`/`palette-D` も TIPS を持つが色/整合が主眼で任意（174系列へは 2026-07-16 同期済み）。
+2. **正本HTML・書影モック同期**: `shiori-tips-D.html` と `bookshelf-shiori-grid-D.html` の TIPS を Kotlin と同順の総数へ（両者とも `const TIPS=[…]` を自前で持つ＝Kotlin の SHIORI_TIPS から機械生成すると取りこぼさない）。`bookshelf-shiori-consistency-D.html`/`bookshelf-shiori-palette-D.html` も TIPS を持つが色/整合が主眼で任意（174系列へは 2026-07-16 同期済み）。
 3. **ゴールデン再生成**: `node .claude/skills/shiori-tips/tools/shiori_golden.js <新tipCount>` → `ShioriGeneratorTest` の `tipCount` と3件の tipIndex 期待値を差し替え（hue/xFrac/lenFrac は不変）。
 4. **テスト**: 自分でフォアグラウンド実行（背景だとコミットゲートのセンチネルが出ない＝memory `background-gradle-test-skips-sentinel-hook`）。ext4 worktree は `--init-script` 不要。Bashツールは env 明示（`/build` スキル参照）。確証には `--rerun-tasks` で強制再実行。
 
