@@ -1,5 +1,6 @@
 package com.novelreader.ui.skins.k
 
+import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -73,10 +74,12 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
@@ -243,9 +246,16 @@ internal fun BookshelfK(
                     )
                 }
                 isGridView -> {
-                    // グリッド2列固定（2列改A）。実効360dp幅で書影≈140dp になる算術＝360−48(左右S24)−32(列間S32)=280/2=140。
+                    // 列数のみ向き応答（2026-07-26 ユーザー裁定・案L5）: 縦=2列（2列改A・書影≈140dp＝
+                    // 360−48(左右S24)−32(列間S32)=280/2）／横=5列（書影≈131dp級・可視域約162dpに書影約93%）。
+                    // なぜ横だけ列数を変えるか: 縦と同じ2列だと横800dp級で書影が364dpへ肥大し1画面の収納数が
+                    // 激減する（正本モック skins/bookshelf-K-landscape.html）。余白・アスペクト比・キャプション
+                    // 構成は縦横同値＝裁定の変数は列数のみ。判定は既存流儀の LocalConfiguration.orientation
+                    //（回転で Configuration が変われば自動で再コンポーズされる）。
+                    val isLandscape =
+                        LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
+                        columns = GridCells.Fixed(if (isLandscape) 5 else 2),
                         state = gridState,
                         // Column 内で残り空間を占める（weight＝ヘッダ/チップの下の全域。fillMaxSize は縦過剰確保になる）。
                         modifier = Modifier.fillMaxWidth().weight(1f),
@@ -572,8 +582,12 @@ private fun KGridBookCard(
                     .aspectRatio(3f / 4f)
                     // 書影の輪郭＝影（2026-07-24 ユーザー裁定＝モックは box-shadow・旧・線 border は誤訳だった）。
                     // shadow は clip より前＝影を要素の外周へ落としてから角丸で本体をクリップする。
-                    // ダークテーマは背景が暗く影が沈みやすい＝視認が保てる elevation は実機検分で詰める（現状 2dp 暫定）。
-                    .shadow(elevation = 2.dp, shape = RoundedCornerShape(3.dp))
+                    // elevation はトークン供給（ShioriColors.coverShadowElevation）: 明面 2dp／ダーク 6dp
+                    //（案(a) 2026-07-26 ユーザー裁定＝旧 2dp 暫定は暗面で影が沈み視認不能のため増強）。
+                    .shadow(
+                        elevation = LocalShioriColors.current.coverShadowElevation,
+                        shape = RoundedCornerShape(3.dp),
+                    )
                     .clip(RoundedCornerShape(3.dp)),
                 // 取込時に抽選・永続した先端種/棒長（旧蔵書は null＝title 由来へフォールバックで見た目不変・D と同じ）。
                 persistedTipIndex = book.shioriTipIndex,
@@ -714,25 +728,12 @@ private fun KWebGridBookCard(
                     .clip(RoundedCornerShape(3.dp))
                     .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)),
             )
-            // 青磁の破線フレーム（D改＝旧・白ピルの代替）。輪郭が未確定＝「仮置き＝まだ手元にない」の比喩。線幅1.5dp・角丸3dp。
-            // dashPathEffect の破線間隔はレイアウト余白でなくストローク模様の構造値＝Spacing 尺の対象外（実機で調整）。
+            // 青磁の破線フレーム（D改＝旧・白ピルの代替）。輪郭が未確定＝「仮置き＝まだ手元にない」の比喩。
+            // 角丸3dp＝書影 clip と整合。描画本体は共有 narouDashedOutline（リスト帯と1定義を共用）。
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .drawBehind {
-                        val stroke = 1.5.dp.toPx()
-                        drawRoundRect(
-                            color = seiji,
-                            // 半ストローク内側へ寄せ、線全体を書影内に収める（角丸3dp整合）。
-                            topLeft = Offset(stroke / 2f, stroke / 2f),
-                            size = Size(size.width - stroke, size.height - stroke),
-                            cornerRadius = CornerRadius(3.dp.toPx()),
-                            style = Stroke(
-                                width = stroke,
-                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()), 0f),
-                            ),
-                        )
-                    },
+                    .narouDashedOutline(color = seiji, cornerRadius = 3.dp),
             )
             // 選択中は書影へ藍の細縁取り＋淡い藍かぶせ（KGridBookCard と同じ .bk.sel）。
             if (selected) {
@@ -942,8 +943,8 @@ private fun KWebListBookCard(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val hasProgress = lastReadEpisode > 0
-    val accentLightness = LocalShioriColors.current.accentLightness
-    val barColor = remember(novel.title, accentLightness) { shioriAccentFor(shioriHue(novel.title), accentLightness) }
+    // 破線署名色（青磁＝secondary）。DrawScope 内では @Composable の MaterialTheme を読めないため事前に捕捉する。
+    val seiji = MaterialTheme.colorScheme.secondary
 
     Column(modifier = modifier) {
         Row(
@@ -962,12 +963,16 @@ private fun KWebListBookCard(
                 .padding(top = Spacing.S24, bottom = Spacing.S24),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // 未取込の破線署名（2026-07-26 ユーザー裁定＝リスト表示の破線欠落を是正）。
+            // なぜ帯を破線化するか: グリッドの破線はカードの実体（書影）の輪郭を「未確定＝仮置き」に描く署名で、
+            // 目録行で書影に対応する実体要素は左端の帯（小口メタファ＝consistency-D の書架⇄目録対応）。
+            // 塗り帯（旧・title 由来色＝モードB署名）をやめ、グリッドと同値の青磁破線（narouDashedOutline 共有）の
+            // 中空輪郭で「まだ手元にない一冊」を目録でも同じ言葉で示す。帯幅4dp・角丸2dp は蔵書行の帯と同寸。
             Box(
                 modifier = Modifier
                     .width(4.dp)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(barColor),
+                    .narouDashedOutline(color = seiji, cornerRadius = 2.dp),
             )
             Spacer(Modifier.width(Spacing.S16))
             Column(modifier = Modifier.weight(1f)) {
@@ -1016,6 +1021,28 @@ private fun KWebListBookCard(
         }
         HorizontalDivider(thickness = 1.dp, color = LocalShelfColors.current.hairline)
     }
+}
+
+/**
+ * 未取込Webカードの青磁破線輪郭（D改署名・2026-07-24 裁定）: 線幅1.5dp・破線間隔4dp/3dp。
+ * なぜ共有 Modifier に集約するか: グリッド書影とリスト帯は別 Composable で、破線値を各所へ写経すると
+ * リスト新設時の署名脱落（2026-07-26 是正の真因＝圧縮S 新設時にグリッド inline 描画が持ち込まれなかった）
+ * が再発する＝「未取込の破線署名」を1定義に束ねて構造的に防ぐ。
+ * dashPathEffect の破線間隔はレイアウト余白でなくストローク模様の構造値＝Spacing 尺の対象外（実機で調整）。
+ */
+private fun Modifier.narouDashedOutline(color: Color, cornerRadius: Dp): Modifier = drawBehind {
+    val stroke = 1.5.dp.toPx()
+    drawRoundRect(
+        color = color,
+        // 半ストローク内側へ寄せ、線全体を領域内に収める（clip の角丸と整合）。
+        topLeft = Offset(stroke / 2f, stroke / 2f),
+        size = Size(size.width - stroke, size.height - stroke),
+        cornerRadius = CornerRadius(cornerRadius.toPx()),
+        style = Stroke(
+            width = stroke,
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()), 0f),
+        ),
+    )
 }
 
 /**

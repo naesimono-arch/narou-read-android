@@ -17,6 +17,7 @@
 | 発見系 | `discovery/discovery-{home,genre,search,detail}-D.html` | ⚠️ InfoText AA 未反映（handover 留置） |
 | 装いの間（スキン選択） | `skins/wardrobe-D.html` | 入口は本棚 topbar のみ（ADR 0021 決定7） |
 | スキンC 夜行 | `skins/bookshelf-C.html`・`skins/reading-C.html` | 色トークン層のみ実装済み・構造/演出層は別タスク |
+| スキンK 本棚（横画面グリッド） | `skins/bookshelf-K-landscape.html` | 5列＝案L5（2026-07-26 裁定）。縦正本 `skins/bookshelf-K.html`（2列改A）との差は列数のみ・破線/余白/キャプション同値 |
 | スキンM 星図・P カートリッジ・J ポータル | `skins/{bookshelf,reading,discovery,toc,settings}-{M,P,J}.html` | **実装対象の正本**（2026-07-17 確定・Compose未実装）。P目次＝はっちゃけ版採用 |
 | スキン候補（ステージング） | `skins/candidates/` | **正本ではない**。Q読書の庭＝差し戻し保留・L/N/O/R/S＝保留・hatchake/＝P試作の不採用分（目次のみ採用済み） |
 

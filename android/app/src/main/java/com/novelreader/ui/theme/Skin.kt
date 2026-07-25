@@ -4,6 +4,8 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.novelreader.ui.theme.skins.SkinC
 import com.novelreader.ui.theme.skins.SkinD
 import com.novelreader.ui.theme.skins.SkinJ
@@ -56,6 +58,12 @@ data class ShioriColors(
     val paper: Color,           // 栞表紙の紙地
     val ink: Color,             // 題字の墨
     val accentLightness: Float, // 識別色（棒・先端・目録色帯）の HSL 明度 L（S=0.48 固定）
+    // 栞書影の影 elevation（§F「線→影」裁定の翻訳値・現消費者は K 本棚グリッド）。
+    // なぜテーマ別トークンか: 純黒影は暗面で沈み視認が保てない＝ダークのみ 6dp 級へ増強する
+    // ユーザー裁定・案(a)（2026-07-26＝モック候補値 0 4px 14px 黒55% の Compose 目安）。
+    // 既定 2dp＝明面（ライト/セピア）の従来値。luminance 推定でなくスキン×テーマから明示供給する
+    // （上記 KDoc の「暗黙結合の根絶」と同じ理由）。
+    val coverShadowElevation: Dp = 2.dp,
 )
 
 /**
