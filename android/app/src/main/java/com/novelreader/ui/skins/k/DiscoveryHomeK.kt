@@ -180,14 +180,17 @@ private fun SectionHeadingK(text: String, topSpace: androidx.compose.ui.unit.Dp 
  * きょうの気分（モック .mood → 2026-07-24 ページャ化・正本 discovery-K.html）: 4件1組×[MoodPattern] 3組を
  * 横スワイプで行き来し、初期表示の組だけが日替わり（決定的＝MoodPattern.forEpochDay）。
  * 可視代替の義務（隠しスワイプ禁止）＝下のドットインジケータと日替わり注記が「他の組がある」ことを常時可視化する。
+ * 2026-07-26 循環化: 端で止まらず右端→先頭・左端→末尾へ続く（仮想大カウント＋剰余写像。意匠・寸法は不変）。
  */
 @Composable
 private fun MoodSectionK(onPickMood: (MoodPreset) -> Unit) {
     // remember＝セッション中は固定（日付を跨いでも表示中の画面を勝手に差し替えない。次回の composition から新しい日の組）。
     val todayPattern = remember { MoodPattern.forEpochDay(LocalDate.now().toEpochDay()) }
     val moodPagerState = rememberPagerState(
-        initialPage = todayPattern.ordinal,
-        pageCount = { MoodPattern.entries.size },
+        // 循環スワイプ: Pager にネイティブ循環が無いため仮想大カウント＋剰余写像で実現。
+        // 中央帯から開始（loopInitialPage）＝初日組を保ったまま左右どちらへも実用上無限にスワイプできる。
+        initialPage = MoodPattern.loopInitialPage(todayPattern),
+        pageCount = { MoodPattern.LOOP_PAGE_COUNT },
     )
     Column {
         SectionHeadingK("きょうの気分", topSpace = Spacing.S8) // .sec:first-child margin-top 8px
@@ -197,7 +200,7 @@ private fun MoodSectionK(onPickMood: (MoodPreset) -> Unit) {
             contentPadding = PaddingValues(end = Spacing.S24),
             pageSpacing = Spacing.S12,
         ) { page ->
-            val pattern = MoodPattern.entries[page]
+            val pattern = MoodPattern.forPage(page) // 仮想ページ→実3組の剰余写像（循環）
             Column {
                 // 4プリセット1組の2列（親が LazyColumn ゆえ LazyGrid をネストせず chunked(2) の Row で組む）。
                 pattern.presets.chunked(2).forEach { rowPresets ->
@@ -218,8 +221,10 @@ private fun MoodSectionK(onPickMood: (MoodPreset) -> Unit) {
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // 仮想ページを論理組へ戻してから照合＝ドットは従来どおり実3組を指す（循環化でも見た目不変）。
+            val logicalPage = MoodPattern.forPage(moodPagerState.currentPage).ordinal
             MoodPattern.entries.forEachIndexed { i, _ ->
-                val active = i == moodPagerState.currentPage
+                val active = i == logicalPage
                 Box(
                     modifier = Modifier
                         .padding(horizontal = Spacing.S4)

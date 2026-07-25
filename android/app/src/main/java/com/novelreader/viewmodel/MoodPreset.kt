@@ -132,5 +132,24 @@ enum class MoodPattern(
             val i = ((epochDay % entries.size) + entries.size) % entries.size
             return entries[i.toInt()]
         }
+
+        /**
+         * K ページャの循環用・仮想ページ総数（2026-07-26 ユーザー裁定「端で止まらない循環スワイプ」）。
+         * なぜ仮想大カウントか: Compose Pager にネイティブな循環が無いため、実組数の大倍数を仮想ページと
+         * して与え [forPage] の剰余で実組へ写像する標準手法を採る。1000周は指スワイプで端に届かない量。
+         */
+        val LOOP_PAGE_COUNT: Int = entries.size * 1000
+
+        /** 仮想ページ→実組の写像（循環の核）。負値ガードは forEpochDay と同じ防御（呼び出し側の仕様変更耐性）。 */
+        fun forPage(page: Int): MoodPattern {
+            val i = ((page % entries.size) + entries.size) % entries.size
+            return entries[i]
+        }
+
+        /** 循環ページャの初期ページ＝中央帯のうち start と剰余が一致する位置（左右どちらへもほぼ等量スワイプ可）。 */
+        fun loopInitialPage(start: MoodPattern): Int {
+            val center = LOOP_PAGE_COUNT / 2
+            return center - (center % entries.size) + start.ordinal
+        }
     }
 }
