@@ -15,13 +15,13 @@ import java.security.MessageDigest
 
 /**
  * 恒久回帰ゲート: JVM 単体テスト（Robolectric）で pdfbox-android が実PDF を抽出し、
- * ParserRules / DetectedRules リファクタが golden 3本の抽出結果を保存しているかを testDebugUnitTest で守る。
+ * ParserRules / DetectedRules リファクタが golden 4本の抽出結果を保存しているかを testDebugUnitTest で守る。
  *
  * [PDFBoxResourceLoader.init] を Robolectric の Context で効かせ、AAR 同梱の CMap/glyphlist を
  * ロードして CID→Unicode グリフ解決を実機と一致させる（これにより実機 androidTest を待たず本文抽出の
  * 回帰を testDebugUnitTest 内で検出できる）。実機 [PdfExtractorDeviceSpikeTest] と合格ラインを揃える。
  *
- * 合格ライン（短中編2本は body_sha256 完全一致・長編 N6169DZ は許容帯）。
+ * 合格ライン（短編・中編・単話の3本は body_sha256 完全一致・長編 N6169DZ のみ許容帯）。
  * PDF と golden はどちらも git 追跡下（sample_pdfs 配下の .pdf と ab-review/golden_regression 配下の .pdf.json）。
  * gradle の cwd がモジュールでもルートでも解決できるよう user.dir から両ディレクトリを持つ祖先を遡って探す
  * （無ければ assert 前に fail させ「無い」ことを明示する＝スキップしない）。
