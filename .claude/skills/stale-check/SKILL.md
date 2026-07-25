@@ -64,6 +64,7 @@ CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/decisions/` / `.clau
 11. permissions パス実在（settings の allow/deny ルールが指すパスの消滅＝死 permission。ワイルドカード始まりの断片は対象外）
 12. hook 動作点検（全 hook の構文チェック＋`test_*.py` 自己テストの実行。サイレント失敗クラス対策）
 13. task_diary エントリID の一意性（`#N.` 見出しの重複採番検知。並行ブランチ採番がマージで衝突するのを早期検知＝#30 二重採番の再発防止。検知しても自動リネームはしない＝下記「注意」）
+14. 台帳のサイズ番人（STATUS=現況のみ・目安60行／handover=やることのみ の規約から再肥大していないか）
 
 機械チェックを足したくなったら、このスクリプトに関数を追加して `CHECKS` に登録する。
 

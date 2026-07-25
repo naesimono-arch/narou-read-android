@@ -33,11 +33,11 @@ when_to_use: 「栞の意匠を増やしたい」／「先端ワンポイント�
 - **⚠ サブモデルの env 上書き（サイレント）**: このマシンは `~/.claude/settings.json` の env で `CLAUDE_CODE_SUBAGENT_MODEL=opus` 固定。**呼出側で `model:"sonnet"` を渡しても黙って opus で走る**（エラー出ず）。真に安いモデルにするなら (a) `CLAUDE_CODE_SUBAGENT_MODEL=sonnet claude` で起動し直す (b) env 無関係の agy へ委譲、のどちらか。走行後の実モデルは `grep -oE '"model":"[^"]*"' tasks/<id>.output` で確認。詳細 memory `claude-code-subagent-model-control`。
 
 ### B. 機械検証（自己申告 GREEN は信じない）
-各 entries ファイルを `node tools/verify_tips.js <entries.js> <constName>` にかける。判定: ①色は a/pp のみ ②canvasプリミティブのみ ③例外なし ④包絡（正しいアフィン変換スタックで実座標判定）⑤ファイル内 nm/rd 重複なし。**HARD FAILS 0 が通過条件**。
+各 entries ファイルを `node .claude/skills/shiori-tips/tools/verify_tips.js <entries.js> <constName>` にかける。判定: ①色は a/pp のみ ②canvasプリミティブのみ ③例外なし ④包絡（正しいアフィン変換スタックで実座標判定）⑤ファイル内 nm/rd 重複なし。**HARD FAILS 0 が通過条件**。
 - 包絡は `save/restore` スタックの実装必須（怠ると translate がループで累積し偽陽性＝y99 等）。tools/verify_tips.js は実装済み。
 
 ### C. 横断 dedup
-全 nm/rd の衝突を検出（テーマ跨ぎの同名）。`node tools/cross_dedup.js`（正本 shiori-tips-D.html の既存名＋新 entries を突合）。同名は改名 or drop。同音異字（例 富士/藤＝ふじ）は別意匠なら可。
+全 nm/rd の衝突を検出（テーマ跨ぎの同名）。`node .claude/skills/shiori-tips/tools/cross_dedup.js`（正本 shiori-tips-D.html の既存名＋新 entries を突合）。同名は改名 or drop。同音異字（例 富士/藤＝ふじ）は別意匠なら可。
 
 ### D. 提示（人の審級）
 全数カタログHTMLを組み `chrome <file>` で見せる。ext4 の .html は UNC 読み込みが脆いので `/mnt/c` へ複製して開く。opt-out 方式（省くものだけ番号指定・残り全採用）。
@@ -45,7 +45,7 @@ when_to_use: 「栞の意匠を増やしたい」／「先端ワンポイント�
 ### E. 統合
 1. **Kotlin 移植**: 既存の `SHIORI_TIPS` ラムダを Rosetta stone に、JS draw → DrawScope へ翻訳（翻訳表は下）。SHIORI_TIPS 末尾へ**正順で追記**。bulk（数十以上）はサブへ委譲可＝ただし全数 diff 照合＋最難関（arcTo/save-rotate/部分弧）をスポット目視。
 2. **正本HTML・書影モック同期**: `shiori-tips-D.html` と `bookshelf-shiori-grid-D.html` の TIPS を Kotlin と同順の総数へ（scratchpad の build_shohon.js / build_gridD_sync.js が手本）。`bookshelf-shiori-consistency-D.html`/`palette-D` も TIPS を持つが色/整合が主眼で任意（174系列へは 2026-07-16 同期済み）。
-3. **ゴールデン再生成**: `node tools/shiori_golden.js <新tipCount>` → `ShioriGeneratorTest` の `tipCount` と3件の tipIndex 期待値を差し替え（hue/xFrac/lenFrac は不変）。
+3. **ゴールデン再生成**: `node .claude/skills/shiori-tips/tools/shiori_golden.js <新tipCount>` → `ShioriGeneratorTest` の `tipCount` と3件の tipIndex 期待値を差し替え（hue/xFrac/lenFrac は不変）。
 4. **テスト**: 自分でフォアグラウンド実行（背景だとコミットゲートのセンチネルが出ない＝memory `background-gradle-test-skips-sentinel-hook`）。ext4 worktree は `--init-script` 不要。Bashツールは env 明示（`/build` スキル参照）。確証には `--rerun-tasks` で強制再実行。
 
 ### JS canvas → Kotlin DrawScope 翻訳表（既存31ラムダで全パターン確認可）
