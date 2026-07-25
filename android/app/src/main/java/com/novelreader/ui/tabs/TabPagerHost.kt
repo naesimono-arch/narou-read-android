@@ -38,7 +38,13 @@ internal fun TabPagerHost(
     BackHandler(enabled = pagerState.currentPage != 0) {
         scope.launch { pagerState.animateScrollToPage(0, animationSpec = tween(MotionDurationKTabSwitch)) }
     }
-    HorizontalPager(state = pagerState, modifier = modifier) { page ->
+    HorizontalPager(
+        state = pagerState,
+        modifier = modifier,
+        // 既定0だとタブ settle 毎に隣ページが破棄され、スワイプ開始のたび UI スレッド anim 段で
+        // 再コンポーズが走るのがスワイプ jank の主因（2026-07-25 framestats 実測）→ 前後1ページ常駐化。
+        beyondViewportPageCount = 1,
+    ) { page ->
         pages[page]()
     }
 }
