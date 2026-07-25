@@ -1,5 +1,7 @@
 package com.novelreader.ui.skins.j
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,7 +30,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.NorthEast
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -49,6 +52,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -79,6 +83,7 @@ import com.novelreader.ui.theme.PlumPortal
 import com.novelreader.ui.theme.SoftPortal
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.viewmodel.DiscoveryUiState
+import com.novelreader.viewmodel.MoodPattern
 import com.novelreader.viewmodel.MoodPreset
 import com.novelreader.viewmodel.PagingState
 import com.novelreader.viewmodel.ResultContext
@@ -122,6 +127,11 @@ private val LightBarDim = GreenPortal.copy(alpha = 0.35f)       // .rk::before �
 private val Top3BarTail = GreenPortal.copy(alpha = 0.6f)        // .rk.top3::before gradient 末端 rgba(159,207,169,.6)
 private val CondGreenBorder = GreenPortal.copy(alpha = 0.45f)   // .cd border rgba(159,207,169,.45)
 
+// K 形伝播の実検索フィールド地（モック discovery-J.html --field rgba(233,240,228,.06)＝地色を僅かに持ち上げる。
+// 濃色ダミー板を避ける狙い）。InkPortal は温白 rgb(233,240,228)（Soft2Portal と同 base）で、α のみ .06（--field 指定値）。
+// mock の backdrop-filter:blur(6px) は Compose の標準 Modifier に対応が無く省略（地の透過で近い印象を出す）。
+private val SearchFieldBgPortal = InkPortal.copy(alpha = 0.06f)
+
 // 気分の扉の固有大気（ADR 0022 §5 のデータ駆動 ambient＝MoodPreset entries と 1:1）。
 // モックの扉色（森リニア中間色）は Portal val 不在＝発明せず、署名3色 radial の角配置で「行き先」を描き分ける。
 // tint/角/α はモック .amb-tabi/.amb-yoru/.amb-hana/.amb-sasi の radial 指定（色系統・at 位置・α）を写す。
@@ -164,11 +174,12 @@ internal fun DiscoveryHomePortalJ(
         CorridorPeeks() // 左右端の扉の気配（.peek.l 宵紫／.peek.r 森緑）＝回廊に並ぶ扉
 
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-            // .top: 見出し＋検索。戻る（← 本棚へ）はモック省略の D 機能を欠落させず先頭へ写す（M/P と同型）。
+            // .top 上段: 見出し＋戻る（← 本棚へ＝モック省略の D 機能を J 意匠で欠落なく写した先頭導線・M/P と同型）。
+            // 検索はトップバーのアイコン1個から下の実検索フィールドへ分離・格上げした（K 形伝播）。
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = Spacing.S24, end = Spacing.S24, top = Spacing.S12, bottom = Spacing.S16),
+                    .padding(start = Spacing.S24, end = Spacing.S24, top = Spacing.S12, bottom = Spacing.S8),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onBack) {
@@ -183,11 +194,10 @@ internal fun DiscoveryHomePortalJ(
                     color = InkPortal,
                     modifier = Modifier.weight(1f).padding(start = Spacing.S8),
                 )
-                IconButton(onClick = onOpenSearch) {
-                    // 用語辞書（着地画面名「探す」）に合わせる＝D 発見の検索アイコンと同一 accessible name。
-                    Icon(Icons.Filled.Search, contentDescription = "探す", tint = InkPortal)
-                }
             }
+
+            // 固定トップの実検索フィールド（K 形伝播・モック .search）＝検索第一・常時可視。導線は onOpenSearch を再利用。
+            SearchFieldPortal(onOpenSearch)
 
             LazyColumn(
                 modifier = Modifier.fillMaxWidth().weight(1f),
@@ -223,6 +233,9 @@ internal fun DiscoveryHomePortalJ(
                     state is DiscoveryUiState.Empty -> item { PortalStatusLine("作品が見つかりませんでした") }
                     state is DiscoveryUiState.Error -> item { PortalErrorLine(state.message, onRefresh) }
                 }
+
+                // 末尾: 公式サイトで探す逃げ道（K 形伝播・モック .official）。K の OfficialLinkK と同一導線を配線。
+                item { OfficialLinkPortal() }
             }
         }
     }
@@ -347,6 +360,77 @@ internal fun DiscoveryResultPortalJ(
 }
 
 // ============================================================
+// 固定トップの実検索フィールド（K 形伝播・モック .search）＋末尾の公式サイト逃げ道（.official）。
+//   検索タップ＝onOpenSearch、公式起動＝なろう公式 ACTION_VIEW。いずれも K 実装（DiscoveryHomeK の
+//   SearchHeaderK / OfficialLinkK）と同一導線を再利用する（新規機能は発明しない）。
+// ============================================================
+@Composable
+private fun SearchFieldPortal(onOpenSearch: () -> Unit) {
+    Row(
+        modifier = Modifier
+            // .search（margin-top 16px）。見出しは上段 Row が担うため横 S24＋上下の呼吸のみ。
+            .padding(start = Spacing.S24, end = Spacing.S24, top = Spacing.S8, bottom = Spacing.S16)
+            .fillMaxWidth()
+            .height(52.dp)                    // .search 52px（構造値）
+            .clip(RoundedCornerShape(14.dp))  // .search border-radius 14px
+            .background(SearchFieldBgPortal)   // --field rgba(233,240,228,.06)＝地色を僅かに持ち上げる
+            .border(1.dp, LinePortal, RoundedCornerShape(14.dp)) // --line
+            .clickable(onClick = onOpenSearch)
+            .padding(horizontal = Spacing.S16), // .search padding 0 16px
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Outlined.Search,
+            contentDescription = null,        // 隣接プレースホルダ文が読み上げを担う
+            tint = GoldPortal,                // .search svg stroke --gold（モックが検索アイコンに金を指定＝正本準拠）
+            modifier = Modifier.size(20.dp),  // .search svg 20px
+        )
+        Text(
+            "作品名・作者名・キーワードで探す",
+            fontSize = 13.5.sp,               // .search span 13.5px
+            color = SoftPortal,               // --soft
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = Spacing.S12), // .search gap 11px → S12
+        )
+    }
+}
+
+@Composable
+private fun OfficialLinkPortal() {
+    val context = LocalContext.current
+    Column {
+        // .official border-top 1px var(--line)＝回廊のヘアライン。
+        Box(modifier = Modifier.fillMaxWidth().padding(top = Spacing.S12).height(1.dp).background(LinePortal))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://yomou.syosetu.com/")))
+                    }
+                }
+                .padding(top = Spacing.S16, bottom = Spacing.S4), // .official padding 18px 2px 4px
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "小説家になろう公式サイトで探す",
+                fontSize = 13.sp, // .official 13px
+                // mock は :hover で森緑へ変わるが Compose は静止＝--soft のまま（発見クロームのテーマ不変・ADR 0022 §2）。
+                color = SoftPortal,
+            )
+            Icon(
+                Icons.Filled.NorthEast, // .official ↗（外部リンク＝右上矢印）
+                contentDescription = null,
+                tint = SoftPortal,
+                modifier = Modifier.size(15.dp), // .official svg 15px
+            )
+        }
+    }
+}
+
+// ============================================================
 // 節見出し（モック .sec: 字間の広い soft2 の小見出し）
 // ============================================================
 @Composable
@@ -365,7 +449,7 @@ private fun PortalSectionLabel(text: String, topSpace: androidx.compose.ui.unit.
 // ============================================================
 @Composable
 private fun MoodDoors(onPickMood: (MoodPreset) -> Unit) {
-    val presets = MoodPreset.entries
+    val presets = MoodPattern.CLASSIC.presets // 12件へ増えた全entriesでなく従来4件の組に固定（K以外のページャ化は未裁定・2026-07-24）
     Column {
         presets.chunked(2).forEach { rowPresets ->
             Row(

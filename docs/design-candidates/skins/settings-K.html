@@ -1,0 +1,172 @@
+<!-- @dsCard group="UI-n / デフォルト（明快K）" name="K. 明快（設定・ドラフト）" -->
+<!--
+  スキンK「明快」設定画面。本棚⋮に分散していた項目（テーマ/きせかえ/通知/診断/情報）を新設の設定画面へ移設。
+  グループ化リスト＋説明文で自明性を確保。過剰装飾を排し一画面一強調（藍＝通知トグルON/選択中タブのみ）。
+  色は D トークン再利用＋ink-soft を AA(4.5:1) へ引き上げた K 専用値。ボトムナビは bookshelf-K と同一 CSS/マークアップ。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K 設定 — 明快</title>
+<style>
+  :root{
+    /* === D トークン実値の再利用（bookshelf-K と同一） === */
+    --base:#FBFAF8;        /* 和紙地 */
+    --ink:#1C1F26;         /* 主文字 */
+    --ink-soft:#6A6E78;    /* K専用: D #7C808B を AA(4.5:1)へ引き上げ */
+    --line:#ECEAE4;        /* ヘアライン */
+    --ai:#1C3D5A;          /* 藍アクセント（トグルON/選択中のみ） */
+    --ai-tint:rgba(28,61,90,.10);
+    --seiji-ink:#50685C;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    padding:24px;font-family:var(--gothic);-webkit-font-smoothing:antialiased}
+
+  /* === スマホ画面枠（bookshelf-K と同一） === */
+  .phone{width:412px;height:915px;background:var(--base);border-radius:40px;overflow:hidden;
+    position:relative;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.30)}
+
+  .sb{height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:11px;color:var(--ink-soft);letter-spacing:.02em}
+  .sb .r{display:flex;gap:6px;align-items:center}
+
+  /* ヘッダ: タイトル「設定」ゴシック bold 22px */
+  .head{flex-shrink:0;padding:6px 20px 14px}
+  .head h1{font-family:var(--gothic);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.04em}
+
+  .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:2px 20px 24px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+
+  /* グループ見出し（12px ink-soft・字間広め） */
+  .gh{font-size:12px;color:var(--ink-soft);letter-spacing:.14em;margin:20px 4px 8px;font-weight:600}
+  .gh:first-child{margin-top:4px}
+
+  /* グループ = 和紙地カード＋ヘアライン枠。行間はヘアライン区切り */
+  .group{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--base)}
+
+  /* 各行: 左24pxアイコン＋主ラベル(15px)＋下に説明文(12.5px ink-soft)・行高やや余裕 */
+  .row{display:flex;align-items:center;gap:14px;padding:15px 16px;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .ri{width:24px;height:24px;flex-shrink:0;color:var(--ink-soft)}
+  .ri svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .rt{flex:1;min-width:0}
+  .rl{font-family:var(--gothic);font-size:15px;color:var(--ink);letter-spacing:.02em}
+  .rd{font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin-top:4px;letter-spacing:.01em}
+  .rr{flex-shrink:0;display:flex;align-items:center;gap:8px}
+  .rv{font-size:13px;color:var(--ink-soft);letter-spacing:.02em}
+  .chev{width:18px;height:18px;fill:none;stroke:var(--ink-soft);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+  /* 非活性風の行（文字と組版＝読書中設定へ委譲） */
+  .row.disabled{opacity:.5}
+
+  /* トグル（ON＝藍） */
+  .toggle{width:46px;height:28px;border-radius:14px;background:#D6D4CD;position:relative}
+  .toggle.on{background:var(--ai)}
+  .toggle .knob{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+  .toggle.on .knob{left:21px}
+
+  /* ===== 共通ボトムナビ（bookshelf-K / settings-K で完全同一の CSS・選択タブのみ差替） ===== */
+  .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    text-decoration:none;cursor:pointer;color:var(--ink-soft)}
+  .tab.on{color:var(--ai)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .tab.on .ic .pill{background:var(--ai-tint)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
+  .tab.on .lb{font-weight:700}
+</style>
+</head>
+<body>
+  <div class="phone">
+    <!-- ステータスバー -->
+    <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+
+    <!-- ヘッダ -->
+    <div class="head"><h1>設定</h1></div>
+
+    <div class="scroll">
+
+      <!-- 表示 -->
+      <div class="gh">表示</div>
+      <div class="group">
+        <div class="row">
+          <span class="ri"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+          <div class="rt"><div class="rl">テーマ</div></div>
+          <div class="rr"><span class="rv">システムに従う</span><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+        </div>
+        <div class="row disabled">
+          <span class="ri"><svg viewBox="0 0 24 24"><path d="M5 6.5h14M12 6.5V19"/></svg></span>
+          <div class="rt"><div class="rl">文字と組版</div><div class="rd">文字サイズ・行間は読書中の表示設定から</div></div>
+        </div>
+        <div class="row">
+          <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 0 0 0 16c1 0 1.5-.8 1.5-1.6 0-1 .8-1.4 1.6-1.4H17a3 3 0 0 0 3-3c0-4.4-3.6-8-8-8z"/><circle cx="8.2" cy="11" r=".9" fill="currentColor" stroke="none"/><circle cx="12" cy="8.4" r=".9" fill="currentColor" stroke="none"/><circle cx="15.6" cy="11" r=".9" fill="currentColor" stroke="none"/></svg></span>
+          <div class="rt"><div class="rl">きせかえ</div><div class="rd">本棚や画面の装いを変える（現在: 明快）</div></div>
+          <div class="rr"><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+        </div>
+      </div>
+
+      <!-- 通知 -->
+      <div class="gh">通知</div>
+      <div class="group">
+        <div class="row">
+          <span class="ri"><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg></span>
+          <div class="rt"><div class="rl">新着話の通知</div><div class="rd">Web作品の新しい話を1日1回確認して通知します</div></div>
+          <div class="rr"><span class="toggle on"><span class="knob"></span></span></div>
+        </div>
+      </div>
+
+      <!-- データ -->
+      <div class="gh">データ</div>
+      <div class="group">
+        <div class="row">
+          <span class="ri"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 4 13 2.5-7H21"/></svg></span>
+          <div class="rt"><div class="rl">取り込み状態の診断</div><div class="rd">Web取込の健全性を確認（開発版のみ）</div></div>
+          <div class="rr"><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+        </div>
+      </div>
+
+      <!-- このアプリ -->
+      <div class="gh">このアプリ</div>
+      <div class="group">
+        <div class="row">
+          <span class="ri"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><path d="M12 11.2v5"/><path d="M12 8.2h.01"/></svg></span>
+          <div class="rt"><div class="rl">バージョン</div></div>
+          <div class="rr"><span class="rv">1.0</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ===== 共通ボトムナビ（設定 選択中） ===== -->
+    <nav class="tabbar">
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg>
+        </span>
+        <span class="lb">本棚</span>
+      </a>
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg>
+        </span>
+        <span class="lb">さがす</span>
+      </a>
+      <a class="tab on">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </span>
+        <span class="lb">設定</span>
+      </a>
+    </nav>
+  </div>
+</body>
+</html>

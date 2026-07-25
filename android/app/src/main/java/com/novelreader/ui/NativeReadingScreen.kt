@@ -564,6 +564,8 @@ fun ReadingScreen(
             NativeTableOfContentsScreen(
                 tocState = tocState,
                 colors = readingColors,
+                // 明快K の目次ヘッダ副題に作品名を渡す（他スキンは未使用＝既定 null で無視）。
+                workTitle = bookTitle,
                 currentChapterFile = lastChapterFile,
                 // 章選択は参照ジャンプ扱い（C1）。続き位置と別章なら jumpOrigin へ退避し自動保存を抑止する。
                 onSelectChapter = onSelectChapterFromToc,

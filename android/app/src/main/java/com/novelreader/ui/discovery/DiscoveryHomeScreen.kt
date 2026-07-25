@@ -1,5 +1,7 @@
 package com.novelreader.ui.discovery
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -20,7 +23,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.NorthEast
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,7 +46,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
@@ -55,15 +62,18 @@ import com.novelreader.ui.theme.FontMicroLabel
 import com.novelreader.ui.theme.FontPresetCaption
 import com.novelreader.ui.theme.FontPresetTitle
 import com.novelreader.ui.theme.FontScreenTitle
+import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.skins.j.DiscoveryHomePortalJ
+import com.novelreader.ui.skins.k.DiscoveryHomeK
 import com.novelreader.ui.skins.m.DiscoveryHomeSkyM
 import com.novelreader.ui.skins.p.DiscoveryHomeCartridgeP
 import com.novelreader.viewmodel.DiscoveryUiState
 import com.novelreader.viewmodel.DiscoveryViewModel
+import com.novelreader.viewmodel.MoodPattern
 import com.novelreader.viewmodel.MoodPreset
 import com.novelreader.ui.theme.Spacing
 
@@ -186,6 +196,22 @@ internal fun DiscoveryHomeContent(
             )
             return
         }
+        // 明快構造（さがす＝実検索＋自己説明見出し＋公式サイト逃げ道）へ委譲。
+        Skin.MEIKAI_K -> {
+            DiscoveryHomeK(
+                order = order,
+                state = state,
+                onBack = onBack,
+                onOpenDetail = onOpenDetail,
+                onOpenGenre = onOpenGenre,
+                onPickBiggenre = onPickBiggenre,
+                onOpenSearch = onOpenSearch,
+                onPickMood = onPickMood,
+                onSelectOrder = onSelectOrder,
+                onRefresh = onRefresh,
+            )
+            return
+        }
         Skin.WAMODERN_D, Skin.YAKO_C -> Unit // 既定描画へ（この下の共通実装が D/C を描く）
     }
 
@@ -219,17 +245,8 @@ internal fun DiscoveryHomeContent(
                         )
                     }
                 },
-                actions = {
-                    IconButton(onClick = onOpenSearch) {
-                        Icon(
-                            imageVector = Icons.Filled.Search,
-                            // 用語統一（監査 ia Minor・docs/patterns/discovery-terminology.md）: このアイコンの着地は
-                            // 検索画面＝画面タイトルが「探す」。accessible name も着地画面の呼称「探す」へ揃える
-                            // （「検索」は検索範囲/検索履歴等の複合ラベルにのみ残す＝辞書の使い分け）。
-                            contentDescription = "探す"
-                        )
-                    }
-                },
+                // トップバーの検索アイコン（1個）は撤去し、常時可視の実検索フィールド（下の SearchFieldD＝検索第一）へ
+                // 格上げする（K 形伝播・モック discovery-D.html のトップバー表現に従う）。
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
@@ -237,79 +254,169 @@ internal fun DiscoveryHomeContent(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            item { MoodSection(onPickMood = onPickMood) }
+            // 固定トップ（モック .top）: 実検索フィールド＝検索第一（K 形伝播）。見出し「見つける」は上の TopAppBar が
+            // 担い、検索はトップバーのアイコン1個から常時可視の実フィールドへ格上げ（モック discovery-D.html に従う）。
+            SearchFieldD(onOpenSearch = onOpenSearch)
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                item { MoodSection(onPickMood = onPickMood) }
 
-            item { GenreEntrySection(onOpenGenre = onOpenGenre, onPickBiggenre = onPickBiggenre) }
+                item { GenreEntrySection(onOpenGenre = onOpenGenre, onPickBiggenre = onPickBiggenre) }
 
-            // タブはスクロールしても上端に残す（長いランキングの途中でも order を切替できるように）
-            stickyHeader {
-                OrderTabRow(
-                    selected = order,
-                    onSelect = onSelectOrder,
-                )
-            }
+                // タブはスクロールしても上端に残す（長いランキングの途中でも order を切替できるように）
+                stickyHeader {
+                    OrderTabRow(
+                        selected = order,
+                        onSelect = onSelectOrder,
+                    )
+                }
 
-            // 再取得(Loading)中は直近 Content の骨格を出し続けてスクロールアンカーを保つ（初回ロードは
-            // 骨格未確定＝status ボックス）。Empty/Error は一覧を畳んで良い（真に0件・失敗ゆえ status が妥当）。
-            val rowsContent = when (val s = state) {
-                is DiscoveryUiState.Content -> s
-                is DiscoveryUiState.Loading -> lastContent
-                else -> null
-            }
-            when {
-                rowsContent != null -> {
-                    itemsIndexed(
-                        rowsContent.novels,
-                        // なぜ ncode をキーにするか: order 切替や再取得でリスト内容が入れ替わっても各行の
-                        // 識別を安定させ、状態・アニメの誤流用を防ぐ（本棚 items(key = { it.id }) と同方針）。
-                        // ncode はモデル上 null 許容だが発見結果には常に存在する。防御的に欠損時のみ index
-                        // へ退避する（型が違うため ncode 文字列と index の衝突は起きない）。
-                        key = { index, novel -> novel.ncode ?: index },
-                    ) { index, novel ->
-                        Column(modifier = Modifier.padding(horizontal = Spacing.S24)) {
-                            NovelListRow(
-                                rank = index + 1,
-                                novel = novel,
-                                order = order,
-                                // 境界: novel.ncode は Moshi 由来の String。詳細遷移の引数は型付き Ncode へ包む。
-                                onClick = { novel.ncode?.let { onOpenDetail(Ncode(it)) } },
-                            )
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                // 再取得(Loading)中は直近 Content の骨格を出し続けてスクロールアンカーを保つ（初回ロードは
+                // 骨格未確定＝status ボックス）。Empty/Error は一覧を畳んで良い（真に0件・失敗ゆえ status が妥当）。
+                val rowsContent = when (val s = state) {
+                    is DiscoveryUiState.Content -> s
+                    is DiscoveryUiState.Loading -> lastContent
+                    else -> null
+                }
+                when {
+                    rowsContent != null -> {
+                        itemsIndexed(
+                            rowsContent.novels,
+                            // なぜ ncode をキーにするか: order 切替や再取得でリスト内容が入れ替わっても各行の
+                            // 識別を安定させ、状態・アニメの誤流用を防ぐ（本棚 items(key = { it.id }) と同方針）。
+                            // ncode はモデル上 null 許容だが発見結果には常に存在する。防御的に欠損時のみ index
+                            // へ退避する（型が違うため ncode 文字列と index の衝突は起きない）。
+                            key = { index, novel -> novel.ncode ?: index },
+                        ) { index, novel ->
+                            Column(modifier = Modifier.padding(horizontal = Spacing.S24)) {
+                                NovelListRow(
+                                    rank = index + 1,
+                                    novel = novel,
+                                    order = order,
+                                    // 境界: novel.ncode は Moshi 由来の String。詳細遷移の引数は型付き Ncode へ包む。
+                                    onClick = { novel.ncode?.let { onOpenDetail(Ncode(it)) } },
+                                )
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                            }
                         }
                     }
+                    state is DiscoveryUiState.Loading -> item {
+                        // fillMaxWidth は旧 DiscoveryStatusBox 内部の fillMaxSize が担っていた横いっぱい＝
+                        // 中央寄せの前提。box からサイズ固定を外したので呼び出し側で明示する（見た目維持）。
+                        DiscoveryStatusBox(
+                            DiscoveryStatus.Loading,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .fillParentMaxHeight(0.5f),
+                        )
+                    }
+                    state is DiscoveryUiState.Empty -> item {
+                        DiscoveryStatusBox(
+                            DiscoveryStatus.Empty("作品が見つかりませんでした"),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .fillParentMaxHeight(0.5f),
+                        )
+                    }
+                    state is DiscoveryUiState.Error -> item {
+                        DiscoveryStatusBox(
+                            DiscoveryStatus.Error(state.message, onRetry = onRefresh),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .fillParentMaxHeight(0.5f),
+                        )
+                    }
                 }
-                state is DiscoveryUiState.Loading -> item {
-                    // fillMaxWidth は旧 DiscoveryStatusBox 内部の fillMaxSize が担っていた横いっぱい＝
-                    // 中央寄せの前提。box からサイズ固定を外したので呼び出し側で明示する（見た目維持）。
-                    DiscoveryStatusBox(
-                        DiscoveryStatus.Loading,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .fillParentMaxHeight(0.5f),
-                    )
-                }
-                state is DiscoveryUiState.Empty -> item {
-                    DiscoveryStatusBox(
-                        DiscoveryStatus.Empty("作品が見つかりませんでした"),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .fillParentMaxHeight(0.5f),
-                    )
-                }
-                state is DiscoveryUiState.Error -> item {
-                    DiscoveryStatusBox(
-                        DiscoveryStatus.Error(state.message, onRetry = onRefresh),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .fillParentMaxHeight(0.5f),
-                    )
-                }
+
+                // 末尾: 公式サイトで探す逃げ道（K 形伝播・モック .official）。K の OfficialLinkK と同一導線を配線。
+                item { OfficialLinkD() }
             }
+        }
+    }
+}
+
+/**
+ * 固定トップの実検索フィールド（モック discovery-D.html .search）: 和紙地（surfaceVariant）＋2px 直角＋ヘアライン。
+ * タップで検索画面へ（onOpenSearch＝D 経路の既存導線を再利用・新規機能は発明しない）。K の SearchHeaderK と
+ * 同じ「検索第一」の役割だが、意匠は D モックに忠実（K の 12dp 角丸でなく D 署名の 2dp 直角・枠線あり）。
+ */
+@Composable
+private fun SearchFieldD(onOpenSearch: () -> Unit) {
+    Row(
+        modifier = Modifier
+            // .top 内の .search（margin-top 14px）。見出しは TopAppBar が担うため横 S24＋上下の呼吸のみ。
+            .padding(start = Spacing.S24, end = Spacing.S24, top = Spacing.S8, bottom = Spacing.S12)
+            .fillMaxWidth()
+            .height(50.dp)                       // .search 50px（構造値＝スケール外）
+            .clip(RoundedCornerShape(2.dp))      // .search border-radius 2px（D 署名の直角）
+            .background(MaterialTheme.colorScheme.surfaceVariant) // --field（和紙地系の薄地）
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(2.dp)) // --line ヘアライン
+            .clickable(onClick = onOpenSearch)
+            .padding(horizontal = Spacing.S16),  // .search padding 0 16px
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Outlined.Search,
+            contentDescription = null,           // 隣接プレースホルダ文が読み上げを担う（K と同型）
+            tint = LocalShelfColors.current.infoText, // .search svg stroke --ink-soft（意味メタは AA の infoText で受ける）
+            modifier = Modifier.size(19.dp),     // .search svg 19px
+        )
+        Text(
+            "作品名・作者名・キーワードで探す",
+            fontSize = FontSubTitle,             // .search span 13.5px≈FontSubTitle 13sp（ヒント文＝検索プレースホルダ字面）
+            color = LocalShelfColors.current.infoText,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = Spacing.S12), // .search gap 10px → S12
+        )
+    }
+}
+
+/**
+ * 末尾「公式サイトで探す」逃げ道（K 形伝播・モック discovery-D.html .official）: ヘアラインで区切った外部リンク行。
+ * なろう公式（yomou.syosetu.com）を外部ブラウザで開く導線は K の [com.novelreader.ui.skins.k] OfficialLinkK と
+ * 同一＝素の ACTION_VIEW（BookshelfScreen の Blocked 送客と同流儀）。ブラウザ不在の稀ケースは
+ * ActivityNotFoundException を握って無害化する（案内リンクゆえ逃げ道が塞がるより無反応の方が害が小さい）。
+ */
+@Composable
+private fun OfficialLinkD() {
+    val context = LocalContext.current
+    Column(modifier = Modifier.padding(horizontal = Spacing.S24)) {
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.outlineVariant,
+            modifier = Modifier.padding(top = Spacing.S16), // .official margin-top 16px
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://yomou.syosetu.com/")))
+                    }
+                }
+                .padding(top = Spacing.S16, bottom = Spacing.S8), // .official padding 16px 2px 6px（横は列マージン）
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "小説家になろう公式サイトで探す",
+                fontSize = FontButtonLabel, // .official 12.5px＝FontButtonLabel 12.5sp
+                color = LocalShelfColors.current.infoText,
+            )
+            Icon(
+                Icons.Filled.NorthEast, // .official ↗（外部リンク＝右上矢印）
+                contentDescription = null,
+                tint = LocalShelfColors.current.infoText,
+                modifier = Modifier.size(15.dp), // .official svg 15px
+            )
         }
     }
 }
@@ -330,7 +437,7 @@ private fun MoodSection(
             letterSpacing = 3.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        val presets = MoodPreset.entries
+        val presets = MoodPattern.CLASSIC.presets // 12件へ増えた全entriesでなく従来4件の組に固定（K以外のページャ化は未裁定・2026-07-24）
         // 4プリセット固定の2列（LazyGrid をネストしない: 親が LazyColumn のため固定 Row で組む）
         presets.chunked(2).forEach { rowPresets ->
             Row(

@@ -213,12 +213,43 @@ fun readingStatusFor(progress: ProgressEntity?, totalChaps: Int): ReadingStatus 
 }
 
 /**
+ * Web作品（web_novels 由来・未取込）1件の読書状態を分類する（本棚フィルタ「よみかけ/未読/読了」用）。
+ *
+ * 判定規則（UI仕様として確定・2点の割り切り＝近似を含む）:
+ *   ・未読     = 読書位置なし（lastReadEpisode==null）または lastReadEpisode==0
+ *   ・よみかけ = lastReadEpisode>0 かつ 読了条件を満たさない
+ *   ・読了     = generalAllNo>0 かつ lastReadEpisode>=generalAllNo
+ *
+ * なぜ近似①「最終話を開いた＝読了」か: Web は WebView 読書ゆえ記録できるのは「最後に開いた話数
+ *   (lastReadEpisode)」だけで、話の末尾まで読み切った実績（蔵書側 reachedEnd に相当するもの）を持てない。
+ *   最終話を開いた事実をもって読了とみなす割り切りで代替する。
+ * なぜ近似②「generalAllNo は登録時スナップショット」か: 全話数は本棚登録時点の値で、その後の連載更新には
+ *   追随しない。連載が伸びれば実際は未完でも「最終話到達」と判定し得るが、基準点を登録時の1値に固定する割り切り。
+ * 蔵書側 readingStatusFor との対比: あちらは末尾到達フラグ reachedEnd の実績にのみ読了を結ぶ厳密判定
+ *   （ShelfItems.kt の readingStatusFor 参照）。Web は末尾実績を持てず非対称ゆえ、上記近似で代替する。
+ * generalAllNo<=0 のガード: 話数不明の作品を「読了」へ誤分類しないよう読了条件から外し、未読/よみかけへ落とす。
+ */
+fun webReadingStatusFor(lastReadEpisode: Int?, generalAllNo: Int): ReadingStatus {
+    val ep = lastReadEpisode ?: 0
+    return when {
+        ep <= 0 -> ReadingStatus.UNREAD
+        generalAllNo > 0 && ep >= generalAllNo -> ReadingStatus.FINISHED
+        else -> ReadingStatus.READING
+    }
+}
+
+/**
  * 読書状態フィルタの純関数（mergeShelfItems の前段に噛ませる）。
  *
  * - selectedStatus=null（「すべて」）は無加工で素通しする。
- * - 状態選択中の Web由来カードは**全部落とす**。なぜ: 未取込カードは読書進捗を持たず、「未読」ではなく
- *   「未取込」という別状態。「すべて」以外にマッチし得ないカードを混ぜると誤解を生むため（旧ラベル絞りと同じ判断）。
  * - books は各本の読書状態（readingStatusFor）が selectedStatus に一致するものだけ残す。
+ * - Web由来カードも webReadingStatusFor で分類し selectedStatus 一致のみ残す（Web作品も未読/読みかけ/読了
+ *   フィルタへ正しく分類される＝本来の挙動）。
+ *
+ * webReadingProgress を必須（非null）にしている理由: これを省略できると、新スキンが本関数を呼ぶ際に
+ * 配線を忘れても無音でコンパイルが通り、Web 作品が全フィルタから消える（＝本バグの再発）。コンパイル時に
+ * 全呼び出し元へ配線を強制するため、後方互換の null フォールバックは撤去した。Web 判定材料が無い場面では
+ * emptyMap を明示的に渡す（＝全 Web を進捗ゼロ＝未読として分類する）こと。
  */
 fun filterShelfByStatus(
     books: List<BookEntity>,
@@ -226,11 +257,49 @@ fun filterShelfByStatus(
     selectedStatus: ReadingStatus?,
     progressMap: Map<String, ProgressEntity>,
     chapterCounts: Map<String, Int>,
+    // ncode(正規化済み大文字)→最後に開いた話。Web作品の状態分類(webReadingStatusFor)に使う。必須（上のドキュメント参照）。
+    webReadingProgress: Map<String, Int>,
 ): Pair<List<BookEntity>, List<WebNovelEntity>> {
     if (selectedStatus == null) return books to webNovels
-    return books.filter {
+    val filteredBooks = books.filter {
         readingStatusFor(progressMap[it.id], chapterCounts[it.id] ?: 0) == selectedStatus
-    } to emptyList()
+    }
+    // Web も状態分類して該当のみ残す。ncode 再正規化は参照側 mergeShelfItems（webItem）と揃える
+    // ＝保存時正規化(trim+uppercase)と同形で引き、表記ゆれで分類が漏れるのを防ぐ二重の安全。
+    val filteredWeb = webNovels.filter {
+        webReadingStatusFor(
+            webReadingProgress[it.ncode.trim().uppercase()],
+            it.generalAllNo,
+        ) == selectedStatus
+    }
+    return filteredBooks to filteredWeb
+}
+
+/**
+ * 状態チップの件数集計（純関数）。蔵書は readingStatusFor、Web作品は webReadingStatusFor で分類し、
+ * 同一 ReadingStatus へ合流して数える。
+ *
+ * なぜ Web を含めるか: 状態フィルタ（filterShelfByStatus）が Web も分類対象にしたため、チップの件数だけ
+ * 蔵書のみだと「READING が 0 件で dim なのにフィルタすると Web が出る」といった件数と表示の食い違いが起きる。
+ * 判定は filterShelfByStatus と同じ2関数を共有し、チップ件数と絞り込み後の実件数を必ず一致させる（独自再実装しない）。
+ */
+fun shelfStatusCounts(
+    books: List<BookEntity>,
+    webNovels: List<WebNovelEntity>,
+    progressMap: Map<String, ProgressEntity>,
+    chapterCounts: Map<String, Int>,
+    webReadingProgress: Map<String, Int>,
+): Map<ReadingStatus, Int> {
+    val counts = mutableMapOf<ReadingStatus, Int>()
+    books.forEach {
+        val s = readingStatusFor(progressMap[it.id], chapterCounts[it.id] ?: 0)
+        counts[s] = (counts[s] ?: 0) + 1
+    }
+    webNovels.forEach {
+        val s = webReadingStatusFor(webReadingProgress[it.ncode.trim().uppercase()], it.generalAllNo)
+        counts[s] = (counts[s] ?: 0) + 1
+    }
+    return counts
 }
 
 /**
@@ -246,4 +315,44 @@ fun filterBooksByQuery(books: List<BookEntity>, query: String): List<BookEntity>
     val q = query.trim().lowercase()
     if (q.isEmpty()) return books
     return books.filter { it.title.lowercase().contains(q) || it.author.lowercase().contains(q) }
+}
+
+// ============================================================
+// 複数選択削除に Web由来カードを統合するための純ロジック（系3・2026-07-24）。
+//
+// 選択キーの接頭辞規約: Web由来（未取込）カードは ShelfItem.Web.key＝"web:<ncode>" で選択集合に載る。
+// 蔵書は従来どおり bare な book.id で載る（"web:" 接頭辞を持たない）。両者は "web:" の有無で機械的に分離できる
+// （book.id は Room 生成の ID で "web:" 始まりにはならない前提）。この非対称（web だけ接頭辞）を採ったのは、
+// 全スキン共有の selectedIds を蔵書側は無改変のまま保ち、Web参加を差分で足すため（M/P/J 一覧の蔵書選択を壊さない）。
+// ============================================================
+
+/** 選択キー接頭辞（ShelfItem.Web.key と同一）。Web由来カードの選択キーは "web:<ncode>"。 */
+const val WEB_SELECTION_KEY_PREFIX: String = "web:"
+
+/** 選択キー一覧から Web由来（"web:<ncode>"）の ncode 一覧を取り出す純関数（蔵書の bare id は除外）。 */
+fun webNcodesInSelection(selectedKeys: List<String>): List<String> =
+    selectedKeys.filter { it.startsWith(WEB_SELECTION_KEY_PREFIX) }
+        .map { it.removePrefix(WEB_SELECTION_KEY_PREFIX) }
+
+/** 選択キー一覧から蔵書（"web:" 接頭辞でない＝bare book.id）の id 一覧を取り出す純関数。 */
+fun bookIdsInSelection(selectedKeys: List<String>): List<String> =
+    selectedKeys.filterNot { it.startsWith(WEB_SELECTION_KEY_PREFIX) }
+
+/**
+ * 複数選択削除の確認ダイアログ本文を、選択内訳（蔵書数・Web数）で出し分ける純関数。
+ *
+ * なぜ出し分けるか: 現行の一律文言「変換済みの本文データも削除されます」は Web作品には虚偽＝Web は本文データを
+ * 端末に持たず（WebView 読書）、外すことで失うものが無く再検索で即復元できる。内訳ごとに正しい不可逆性を伝える:
+ *  ・蔵書のみ = 本文データも消える不可逆／・Webのみ = 失うもの無し・再検索で戻せる／・混在 = 両者を併記。
+ */
+fun deleteConfirmBody(bookCount: Int, webCount: Int): String = when {
+    webCount <= 0 ->
+        // 蔵書のみ（従来文言を維持）。bookCount==0 の異常系もここへ落ちるが、削除は count>0 でしか到達しない。
+        "変換済みの本文データも削除されます。この操作は取り消せません。"
+    bookCount <= 0 ->
+        // Web のみ＝失うもの無し・再検索で即復元可（現行文言が虚偽になる対象）。
+        "本棚から外します。Web作品は失うものがなく、あとで再検索すればすぐ戻せます。"
+    else ->
+        // 混在＝蔵書の不可逆と Web の可逆を併記。
+        "蔵書は変換済みの本文データも削除され、取り消せません（Web作品は本棚から外すだけで、再検索で戻せます）。"
 }

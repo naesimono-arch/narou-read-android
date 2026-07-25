@@ -14,15 +14,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -31,23 +35,29 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.model.TocEntry
 import com.novelreader.ui.skins.j.TocPortalJ
+import com.novelreader.ui.skins.k.TocK
 import com.novelreader.ui.skins.m.TocSkyM
 import com.novelreader.ui.skins.p.TocCartridgeP
+import com.novelreader.ui.theme.FontButtonLabel
 import com.novelreader.ui.theme.FontCaption
+import com.novelreader.ui.theme.FontLabel
 import com.novelreader.ui.theme.FontSectionTitle
 import com.novelreader.ui.theme.FontSheetTitle
+import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
@@ -55,6 +65,8 @@ import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.colors
 import com.novelreader.ui.theme.Spacing
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 /**
  * 目次のロード状態。
@@ -82,6 +94,7 @@ sealed interface TocState {
  *
  * @param tocState 目次のロード状態（Loading/Empty/Error/Content）
  * @param colors 読書テーマの色トークン（直書き色は禁止。正典は Theme.kt）
+ * @param workTitle 作品名（目次ヘッダの作品名サブに使う。K形伝播で D/C/M/P/J も受け取る＝各スキンの header に副題を出す。null なら副題を出さない）
  * @param currentChapterFile 最後に表示していた章のファイル名（null なら未読。ハイライト＋自動スクロールに使う）
  * @param onSelectChapter 章ファイル名を引数にして章選択時に呼ぶコールバック
  * @param onNavigateToBookshelf 本棚に戻るコールバック
@@ -92,6 +105,8 @@ sealed interface TocState {
 fun NativeTableOfContentsScreen(
     tocState: TocState,
     colors: ReadingColors,
+    // 作品名は目次ヘッダの作品名サブ（K形伝播で D/C/M/P/J も表示）。既定 null＝副題を出さない（未紐付け等で欠落時は行ごと省く＝捏造禁止）。
+    workTitle: String? = null,
     currentChapterFile: String?,
     onSelectChapter: (fileName: String) -> Unit,
     onNavigateToBookshelf: () -> Unit,
@@ -105,6 +120,8 @@ fun NativeTableOfContentsScreen(
         Skin.SEIZU_M -> {
             TocSkyM(
                 tocState = tocState,
+                // K形伝播（2026-07-23）: 作品名サブ・現在地チップの作品名として渡す（正本 toc-M.html .work）。
+                workTitle = workTitle,
                 currentChapterFile = currentChapterFile,
                 onSelectChapter = onSelectChapter,
                 onNavigateToBookshelf = onNavigateToBookshelf,
@@ -116,6 +133,8 @@ fun NativeTableOfContentsScreen(
         Skin.CARTRIDGE_P -> {
             TocCartridgeP(
                 tocState = tocState,
+                // K形伝播（2026-07-23）: 作品名サブとして渡す（正本 toc-P.html .work）。
+                workTitle = workTitle,
                 currentChapterFile = currentChapterFile,
                 onSelectChapter = onSelectChapter,
                 onNavigateToBookshelf = onNavigateToBookshelf,
@@ -127,6 +146,21 @@ fun NativeTableOfContentsScreen(
         Skin.PORTAL_J -> {
             TocPortalJ(
                 tocState = tocState,
+                // K形伝播（2026-07-23）: 作品名サブとして渡す（正本 toc-J.html .work）。
+                workTitle = workTitle,
+                currentChapterFile = currentChapterFile,
+                onSelectChapter = onSelectChapter,
+                onNavigateToBookshelf = onNavigateToBookshelf,
+                onRetry = onRetry,
+            )
+            return
+        }
+        // 明快構造（目次＝ヘッダ作品名＋現在地チップ＋既読/現在/未読の語彙化）へ委譲。
+        Skin.MEIKAI_K -> {
+            TocK(
+                tocState = tocState,
+                colors = colors,
+                workTitle = workTitle,
                 currentChapterFile = currentChapterFile,
                 onSelectChapter = onSelectChapter,
                 onNavigateToBookshelf = onNavigateToBookshelf,
@@ -142,14 +176,28 @@ fun NativeTableOfContentsScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    // モック toc-D .topbar h1: 明朝・やや大きめ・字間を開けた「和」の題字
-                    Text(
-                        "目次",
-                        fontFamily = MinchoFamily,
-                        fontSize = FontSheetTitle,
-                        fontWeight = FontWeight.Medium,
-                        letterSpacing = 0.12.em,
-                    )
+                    // モック toc-D .htxt: 明朝の題字「目次」＋作品名サブ（K形伝播で追加）。
+                    Column {
+                        Text(
+                            "目次",
+                            fontFamily = MinchoFamily,
+                            fontSize = FontSheetTitle,
+                            fontWeight = FontWeight.Medium,
+                            letterSpacing = 0.12.em,
+                        )
+                        // 作品名サブ（.work 明朝13px ink-soft）。渡された場合のみ（捏造禁止＝未紐付けは行ごと出さない）。
+                        // 色は意味を運ぶ作品名ゆえ AA 準拠の infoText を使う（K の TocHeaderK と同裁定＝ink-soft の素値は AA 割れ）。
+                        if (!workTitle.isNullOrBlank()) {
+                            Text(
+                                workTitle,
+                                fontFamily = MinchoFamily,
+                                fontSize = FontSubTitle,
+                                color = colors.infoText,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateToBookshelf) {
@@ -221,14 +269,86 @@ fun NativeTableOfContentsScreen(
                 )
             }
 
-            is TocState.Content -> TocList(
-                entries = tocState.entries,
-                colors = colors,
-                currentChapterFile = currentChapterFile,
-                onSelectChapter = onSelectChapter,
-                innerPadding = innerPadding,
+            is TocState.Content -> {
+                val entries = tocState.entries
+                // 現在章 index（tocInitialFirstVisibleIndex/TocList と同じ突合＝fileName 一致）。未読/不一致は -1。
+                val currentIndex = entries.indexOfFirst { it.fileName == currentChapterFile }
+                // listState をここへ持ち上げる（現在地チップのタップで現在章へスクロールさせるため。K の HereBarK と同型）。
+                val listState = rememberLazyListState(
+                    initialFirstVisibleItemIndex = tocInitialFirstVisibleIndex(entries, currentChapterFile),
+                )
+                val scope = rememberCoroutineScope()
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                ) {
+                    // 現在地バー（K形伝播・モック toc-D .here）: 現在話チップ＋進捗。
+                    HereBarD(
+                        currentIndex = currentIndex,
+                        total = entries.size,
+                        colors = colors,
+                        // チップタップで現在章の1つ手前へ（前後文脈を残す＝初期位置と同じ導出・K と同型）。
+                        onJumpToCurrent = {
+                            scope.launch { listState.animateScrollToItem((currentIndex - 1).coerceAtLeast(0)) }
+                        },
+                    )
+                    TocList(
+                        entries = entries,
+                        colors = colors,
+                        currentChapterFile = currentChapterFile,
+                        listState = listState,
+                        onSelectChapter = onSelectChapter,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 目次の読了率（％）を導出する純関数。D/M/P/J の現在地バー・HUD が同式を共有する（各スキンでの再実装を避ける）。
+ * @param readCount 読み終えた話数（現在話より前＝現在章 index。未読は 0）。可視の既読マーク数を単一真実源にする。
+ * @param total 全話数。0 以下なら 0%（0 除算防止）。
+ * 現在話は読了に数えないため画面の既読マーク数と一致する（捏造せず可視の状態と揃える・K の HereBarK と同式）。
+ */
+internal fun tocReadProgressPercent(readCount: Int, total: Int): Int =
+    if (total <= 0) 0 else (readCount * 100f / total).roundToInt()
+
+/** 現在地バー（モック toc-D .here）: 左＝現在話チップ（藍10%地・藍字・タップで該当行へ）／右＝進捗（全話数・読了率）。 */
+@Composable
+private fun HereBarD(
+    currentIndex: Int,
+    total: Int,
+    colors: ReadingColors,
+    onJumpToCurrent: () -> Unit,
+) {
+    Row(
+        // .here padding 12px 20px → 縦 S12・横 S16（20px は S16 へ丸め＝K の HereBarK と同裁定・ADR 0014 スケール）。
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.S16, vertical = Spacing.S12),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (currentIndex >= 0) {
+            Text(
+                "いま読んでいる 第${currentIndex + 1}話",
+                fontSize = FontButtonLabel, // .herechip 12.5px
+                fontWeight = FontWeight.Bold,
+                color = colors.accent, // var(--ai)
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(colors.accent.copy(alpha = 0.10f)) // --ai-tint 藍10%
+                    .clickable(onClick = onJumpToCurrent)
+                    .padding(horizontal = Spacing.S16, vertical = Spacing.S8), // .herechip 6px 14px
             )
         }
+        Spacer(Modifier.weight(1f))
+        val progress = buildString {
+            append("全${total}話")
+            // 読了率は現在章が既知（見当識が立つ）ときのみ。未読は分母だけ出す（捏造禁止）。
+            if (currentIndex >= 0 && total > 0) append("・読了率${tocReadProgressPercent(currentIndex, total)}%")
+        }
+        Text(progress, fontSize = FontCaption, color = colors.infoText) // .prog 12px
     }
 }
 
@@ -251,43 +371,33 @@ internal fun tocInitialFirstVisibleIndex(
     return if (currentIndex >= 0) (currentIndex - 1).coerceAtLeast(0) else 0
 }
 
-/** 章リスト本体（Content 状態）。旧実装のリスト描画をそのまま切り出したもの。 */
+/**
+ * 章リスト本体（Content 状態）。listState は呼び出し側で持ち上げ済み（現在地チップのスクロール連携のため）。
+ * 初期スクロール位置（現在章の1つ手前・未読は先頭）は listState 生成時に tocInitialFirstVisibleIndex で注入済み。
+ */
 @Composable
 private fun TocList(
     entries: List<TocEntry>,
     colors: ReadingColors,
     currentChapterFile: String?,
+    listState: LazyListState,
     onSelectChapter: (fileName: String) -> Unit,
-    innerPadding: androidx.compose.foundation.layout.PaddingValues,
+    modifier: Modifier = Modifier,
 ) {
     val currentIndex = entries.indexOfFirst { it.fileName == currentChapterFile }
 
-    // 初期表示を現在章付近に「瞬間配置」する（開いた瞬間からその位置に居る）。
-    // なぜ LaunchedEffect+scrollToItem をやめ initialFirstVisibleItemIndex にしたか: 前者は初回
-    // コンポジション後に走るため 1 フレームだけ先頭が見えてから現在章へ飛ぶ（チラつき）。initial 指定なら
-    // 最初のフレームから正位置に置ける。entries と currentChapterFile は Content 到達時点で確定済み
-    // （同期パース結果＋rememberSaveable の lastChapterFile）なので初期値だけで導出できる。終端付近の
-    // 空白抑制（clamp）は LazyList の標準挙動に委ねる。
-    val listState = rememberLazyListState(
-        initialFirstVisibleItemIndex = tocInitialFirstVisibleIndex(entries, currentChapterFile),
-    )
-
     LazyColumn(
         state = listState,
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(innerPadding),
+        modifier = modifier.fillMaxSize(),
     ) {
         // key に fileName を使う: TocEntry.fileName は目次内の各章 href（chap_1.html 等）で章ごとに一意。
         // 一意で安定なキーにより、目次の非同期ロード差し替え・現在章スクロール時もアイテムの同一性が
         // 保たれる。contentType は付けない: 全行が同一構造（左バー＋テキスト行）で1種類のため。
         itemsIndexed(entries, key = { _, entry -> entry.fileName }) { index, entry ->
             val isCurrent = index == currentIndex
-            // 既読区別（監査 ia Minor 15-§E）: 現在章より前は読み終えた章なので淡色（textSecondary）へ落とし、
-            // 「あとどれだけ」の見当識を与える。currentIndex から導出でき目次データ追加は不要。currentIndex<0
-            // （未読・現在章が目次に無い）なら既読は無い＝全章を未読色のまま出す。
-            // モック toc-D.html は現在章（.li.cur）しか区別せず既読表現を持たないため、この淡色化はモック非表現
-            // ＝最終ユーザー確認バッチ行き。色は既存 ReadingColors トークンのみ使用（直書き禁止）。
+            // 既読区別: 現在章より前は読み終えた章なので淡色（textSecondary）へ落とし、行末に✓を出す（K形伝播で
+            // モック toc-D.html .li.read＝題名を沈めて✓を追加）。currentIndex から導出でき目次データ追加は不要。
+            // currentIndex<0（未読・現在章が目次に無い）なら既読は無い＝全章を未読色のまま出す。色は既存 ReadingColors のみ。
             val isRead = currentIndex >= 0 && index < currentIndex
             Surface(
                 modifier = Modifier
@@ -297,8 +407,12 @@ private fun TocList(
                 color = if (isCurrent) colors.accent.copy(alpha = 0.06f) else Color.Transparent,
             ) {
                 Column {
-                    // height(IntrinsicSize.Min) で左バーの fillMaxHeight をテキスト行高に一致させる
-                    Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                    // height(IntrinsicSize.Min) で左バーの fillMaxHeight をテキスト行高に一致させる。
+                    // verticalAlignment=Center で行末の✓/再開チップを本文行の中央に据える（K形伝播の追加要素）。
+                    Row(
+                        modifier = Modifier.height(IntrinsicSize.Min),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         // 現在章は行頭の左アクセントバーで一目で分かるようにする。
                         // 非現在章も透明な同幅バーを置き、全行のテキスト開始位置を揃える。
                         Box(
@@ -311,7 +425,9 @@ private fun TocList(
                         )
                         Text(
                             text = entry.title.ifEmpty { "第${index + 1}章" },
-                            modifier = Modifier.padding(horizontal = Spacing.S24, vertical = Spacing.S16),
+                            modifier = Modifier
+                                .weight(1f) // 行末の✓/再開チップの分を残す（未読行は end 無し＝従来と同じ見え）
+                                .padding(horizontal = Spacing.S24, vertical = Spacing.S16),
                             fontSize = FontSectionTitle,
                             fontFamily = MinchoFamily,
                             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
@@ -323,6 +439,30 @@ private fun TocList(
                                 else -> colors.text
                             },
                         )
+                        // 行末（モック .li .end）: 現在＝唯一の実アクション「ここから再開」／既読＝✓／未読＝なし。
+                        when {
+                            isCurrent -> Text(
+                                "ここから再開",
+                                fontSize = FontLabel, // .resume 11px
+                                fontWeight = FontWeight.Bold,
+                                // 塗り藍ボタンの実文字＝対比保証の primary/onPrimary 対（K の ChapterRowK と同型。
+                                // タップは行 Surface の clickable が担う＝二重クリックを避け別 onClick は付けない）。
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier
+                                    .padding(end = Spacing.S16) // .end padding-right 18px → S16
+                                    .clip(RoundedCornerShape(999.dp))
+                                    .background(MaterialTheme.colorScheme.primary)
+                                    .padding(horizontal = Spacing.S12, vertical = Spacing.S4), // .resume 5px 11px
+                            )
+                            isRead -> Icon(
+                                Icons.Filled.Check,
+                                contentDescription = null, // 「既読」の意味は行全体の見えが担う（装飾アイコン）
+                                tint = colors.infoText, // .end svg stroke ink-soft（意味メタの AA 値）
+                                modifier = Modifier
+                                    .padding(end = Spacing.S16)
+                                    .size(16.dp), // .end svg 16x16
+                            )
+                        }
                     }
                     HorizontalDivider(color = colors.divider, thickness = 0.5.dp)
                 }

@@ -1,0 +1,246 @@
+<!-- @dsCard group="UI-n / K形伝播ドラフト（和モダンD）" name="D. 本棚 — K形×和モダンD意匠（発見帯退役・恒常ナビ）" -->
+<!--
+  K形状伝播ドラフト: 明快Kの「形」（構造装置）を和モダンD意匠で再構成した本棚。
+  【D意匠を温存】和紙地#FBFAF8・藍#1C3D5A・青磁#9CB3A8・明朝タイトル/書名・2px直角基調・
+    ヘアライン体系・余白主導・栞ルール＋先端意匠（結び玉/小輪/菱/括り）・書影内明朝タイトル・
+    2列グリッド（Dの既存レイアウト感を基準＝密度もD側で温存。3列はK意匠側ゆえ採らない）。
+  【K形を組込】恒常ボトムナビ3タブ（bookshelf-K骨格を固定コピー・色のみD）／明示タイトル「本棚」＋冊数／
+    状態フィルタチップ／カード＝書影＋題名＋「第N/M話」＋状態バッジ／キャプション行右端の可視⋮
+    （K実機検分の是正形＝書影上でなくキャプション行・スクリム地なし・ink-soft）／拡張FAB「＋PDFを追加」。
+  【発見帯は載せない】K形では発見は「さがす」タブへ分離（fusion-D の発見帯融合構造は退役＝ユーザー採否裁定事項）。
+  ink-soft はD原値#7C808B を温存（KのAA引き上げ#6A6E78 はK固有裁定ゆえ持ち込まない）。単一画面・ライトのみ。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>D 本棚 — K形×和モダン</title>
+<style>
+  :root{
+    --base:#FBFAF8;      /* 和紙地（D） */
+    --ink:#1C1F26;       /* 主文字（D） */
+    --ink-soft:#7C808B;  /* 補助文字（D原値を温存） */
+    --line:#ECEAE4;      /* ヘアライン（D） */
+    --ai:#1C3D5A;        /* 藍アクセント（D） */
+    --ai-tint:rgba(28,61,90,.10); /* 藍10%＝選択タブのピル地（K骨格が要求） */
+    --seiji:#9CB3A8;     /* 青磁（続きあり/なろう未取込の署名色・D） */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    padding:24px;font-family:var(--gothic);-webkit-font-smoothing:antialiased}
+
+  /* スマホ画面枠（390×844・単一・ライト） */
+  .phone{width:390px;height:844px;background:var(--base);border-radius:40px;overflow:hidden;
+    position:relative;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.28)}
+
+  .sb{height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:11px;color:var(--ink-soft)}
+
+  /* ヘッダ: 明示タイトル「本棚」＝D明朝27px署名＋薄く冊数（K形）／右端に表示切替（D .ibアイコン） */
+  .top{flex-shrink:0;padding:8px 24px 14px;display:flex;align-items:flex-end;justify-content:space-between}
+  .top .ttl{display:flex;align-items:baseline;gap:12px}
+  .top h1{font-family:var(--mincho);font-size:27px;color:var(--ink);font-weight:500;letter-spacing:.14em}
+  .top .count{font-size:12px;color:var(--ink-soft);letter-spacing:.06em}
+  .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;
+    place-items:center;color:var(--ink);cursor:pointer}
+  .ib:hover{background:var(--line)}
+  .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.5}
+
+  /* 状態フィルタチップ（K形）＝D意匠の2px直角チップ・選択は藍アウトライン（塗り潰さないのがD流） */
+  .chips{flex-shrink:0;display:flex;gap:8px;padding:0 24px 14px;overflow-x:auto;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex-shrink:0;font-size:12px;color:var(--ink-soft);border:1px solid var(--line);
+    border-radius:2px;padding:8px 14px;cursor:pointer;white-space:nowrap;letter-spacing:.04em}
+  .chip.on{color:var(--ai);border-color:var(--ai);font-weight:600}
+
+  /* スクロール本体（FAB＋ボトムナビ分の余白確保） */
+  .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:2px 24px 120px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+
+  /* 2列グリッド（Dの既存レイアウト感を基準＝余白主導の密度を温存） */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:24px 16px}
+  .bk{display:flex;flex-direction:column;cursor:pointer}
+
+  /* 書影（D署名）: 2px直角・栞ルール＋先端意匠・書影内明朝タイトル */
+  .cv{position:relative;aspect-ratio:2/3;border-radius:2px;overflow:hidden;display:flex;align-items:flex-end;
+    box-shadow:0 2px 6px rgba(0,0,0,.14)}
+  .cv .rule{position:absolute;left:12px;top:12px;height:var(--rule-len,44%);width:2px;background:var(--ai);color:var(--ai);opacity:.85}
+  .cv .rule::after{content:'';position:absolute;left:1px;top:100%;transform:translateX(-50%)}
+  .shiori-a{--rule-len:52%} .shiori-b{--rule-len:38%} .shiori-c{--rule-len:58%} .shiori-d{--rule-len:44%}
+  .shiori-a .rule::after{width:7px;height:7px;border-radius:50%;background:currentColor}                        /* 結び玉 */
+  .shiori-b .rule::after{width:8px;height:8px;border:1.5px solid currentColor;border-radius:50%}                /* 小輪 */
+  .shiori-c .rule::after{width:6px;height:6px;background:currentColor;transform:translateX(-50%) rotate(45deg)} /* 菱 */
+  .shiori-d .rule::after{width:12px;height:2px;background:currentColor}                                         /* 括り */
+  .cv .ttl-in{padding:12px 12px 16px 24px;color:var(--base);z-index:2}
+  .cv .ttl-in b{font-family:var(--mincho);font-size:13px;font-weight:600;line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-shadow:0 1px 3px rgba(28,31,38,.4)}
+  .bk.narou .cv .rule{background:var(--seiji);color:var(--seiji)}  /* なろう未取込＝青磁署名 */
+
+  /* キャプション行（K形の是正形）: 題名＝明朝／右端に可視⋮（スクリム地なし・ink-soft・28pxタップ面） */
+  .caprow{display:flex;align-items:flex-start;gap:6px;margin-top:8px}
+  .caprow .title{flex:1;min-width:0;font-family:var(--mincho);font-size:13px;color:var(--ink);font-weight:500;
+    line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .dots{flex-shrink:0;width:28px;height:28px;margin:-3px -6px 0 0;border:none;background:transparent;
+    color:var(--ink-soft);display:grid;place-items:center;cursor:pointer;border-radius:8px}
+  .dots:hover{background:var(--line)}
+  .dots svg{width:16px;height:16px;fill:currentColor}
+
+  /* 状態バッジ／「第N/M話」（K形）＝ゴシック極小 ink-soft。続きあり=青磁ドット＋藍字（D署名） */
+  .state{margin-top:7px;font-size:10.5px;color:var(--ink-soft);letter-spacing:.03em;
+    display:flex;align-items:center;gap:6px;min-height:14px}
+  .state .dot{width:6px;height:6px;border-radius:50%;background:var(--seiji);flex-shrink:0}
+  .state .cont{color:var(--ai);font-weight:500}
+  .state.narou{color:var(--seiji);font-weight:500}
+
+  /* 拡張FAB「＋ PDFを追加」（K形）＝藍・ラベル付き・ボトムナビの上に浮く */
+  .fab{position:absolute;right:20px;bottom:80px;z-index:6;display:inline-flex;align-items:center;gap:8px;
+    height:52px;padding:0 20px 0 16px;border:none;cursor:pointer;border-radius:26px;
+    background:var(--ai);color:#fff;font-family:var(--gothic);font-size:14px;font-weight:600;
+    letter-spacing:.03em;box-shadow:0 8px 20px rgba(28,61,90,.34)}
+  .fab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+
+  /* ===== 共通ボトムナビ（bookshelf-K.html:229-248 を固定コピー・色のみD） ===== */
+  .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    text-decoration:none;cursor:pointer;color:var(--ink-soft)}
+  .tab.on{color:var(--ai)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .tab.on .ic .pill{background:var(--ai-tint)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
+  .tab.on .lb{font-weight:700}
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+
+    <!-- ヘッダ: 明示タイトル＋冊数（K形）／D明朝署名 -->
+    <div class="top">
+      <div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div>
+      <button class="ib" aria-label="表示切替">
+        <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- 状態フィルタチップ（K形・D意匠の2px直角） -->
+    <div class="chips">
+      <span class="chip on">すべて</span>
+      <span class="chip">よみかけ</span>
+      <span class="chip">未読</span>
+      <span class="chip">読了</span>
+    </div>
+
+    <!-- 本棚グリッド（2列・6冊・発見帯なし） -->
+    <div class="scroll">
+      <div class="grid">
+
+        <div class="bk">
+          <div class="cv shiori-a" style="background:linear-gradient(160deg,#3A4F63,#28323E)">
+            <div class="rule"></div>
+            <div class="ttl-in"><b>追放された万能薬師、辺境でスローライフを始める</b></div>
+          </div>
+          <div class="caprow">
+            <div class="title">追放された万能薬師、辺境でスローライフを始める</div>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
+          </div>
+          <div class="state">第127/205話<span class="dot"></span><span class="cont">続き 12話</span></div>
+        </div>
+
+        <div class="bk narou">
+          <div class="cv shiori-b" style="background:linear-gradient(160deg,#43554C,#2C3631)">
+            <div class="rule"></div>
+            <div class="ttl-in"><b>黒の魔王と契約した俺、気づけば最強の従者に</b></div>
+          </div>
+          <div class="caprow">
+            <div class="title">黒の魔王と契約した俺、気づけば最強の従者に</div>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
+          </div>
+          <div class="state narou">なろう・未取込</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv shiori-c" style="background:linear-gradient(160deg,#5E4C46,#3B2F2B)">
+            <div class="rule"></div>
+            <div class="ttl-in"><b>公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</b></div>
+          </div>
+          <div class="caprow">
+            <div class="title">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
+          </div>
+          <div class="state">第88/88話・読了</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv shiori-d" style="background:linear-gradient(160deg,#554C59,#362F3A)">
+            <div class="rule"></div>
+            <div class="ttl-in"><b>転生したら最弱スキルだったので草むしりしていた</b></div>
+          </div>
+          <div class="caprow">
+            <div class="title">転生したら最弱スキルだったので草むしりしていた</div>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
+          </div>
+          <div class="state">未読・全210話</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv shiori-b" style="background:linear-gradient(160deg,#5A4A4F,#37292E)">
+            <div class="rule"></div>
+            <div class="ttl-in"><b>剣聖の孫娘は今日も鍛錬を欠かさない</b></div>
+          </div>
+          <div class="caprow">
+            <div class="title">剣聖の孫娘は今日も鍛錬を欠かさない</div>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
+          </div>
+          <div class="state">第55/98話</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv shiori-a" style="background:linear-gradient(160deg,#4A5E52,#2E382F)">
+            <div class="rule"></div>
+            <div class="ttl-in"><b>星降る夜の図書館で君を待っている</b></div>
+          </div>
+          <div class="caprow">
+            <div class="title">星降る夜の図書館で君を待っている</div>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
+          </div>
+          <div class="state">第64/64話・読了</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 拡張FAB（K形） -->
+    <button class="fab">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>PDFを追加
+    </button>
+
+    <!-- ===== 共通ボトムナビ（本棚 選択中） ===== -->
+    <nav class="tabbar">
+      <a class="tab on">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg>
+        </span>
+        <span class="lb">本棚</span>
+      </a>
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg>
+        </span>
+        <span class="lb">さがす</span>
+      </a>
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </span>
+        <span class="lb">設定</span>
+      </a>
+    </nav>
+  </div>
+</body>
+</html>

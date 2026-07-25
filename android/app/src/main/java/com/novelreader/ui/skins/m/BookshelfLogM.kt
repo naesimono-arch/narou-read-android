@@ -208,7 +208,7 @@ internal fun BookshelfLogM(
     // 蔵書＋Web由来を「最近の活動順」で1本にマージ＝D/P と同一の純関数（並び規則 ADR 0016 を共有＝再実装なし）。
     val shelfItems = remember(books, webNovels, progressMap, selectedStatus, chapterCountMap, webReadingProgress, webLastReadAt) {
         val (filteredBooks, filteredWeb) =
-            filterShelfByStatus(books, webNovels, selectedStatus, progressMap, chapterCountMap)
+            filterShelfByStatus(books, webNovels, selectedStatus, progressMap, chapterCountMap, webReadingProgress)
         mergeShelfItems(filteredBooks, progressMap, filteredWeb, webReadingProgress, webLastReadAt)
     }
 
@@ -488,8 +488,7 @@ private fun LogPlate(
                 Icon(Icons.Filled.MoreVert, contentDescription = "メニュー", tint = DimSeizu, modifier = Modifier.size(19.dp))
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                // M は固定1変種＝テーマ節を出さない（星図面と同思想・ADR 0022 §2）。新着通知節のみ。
-                NewEpisodeNotificationMenuSection()
+                // 新着通知は設定タブ（SettingsScreenK）へ移行済みのため⋮から撤去（系2）。残すのは M 固有の非設定項目のみ。
                 // 高負荷スカイ試作トグル（ADR 0023）＝debug かつ星図M のときだけ節ごと出る（内部で自己ゲート）。
                 HighLoadSkyMenuSection(highLoadSkyM, onHighLoadSkyChange, onDismissMenu = { menuOpen = false })
             }

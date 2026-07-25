@@ -18,8 +18,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -31,6 +36,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.foundation.pager.rememberPagerState
+import com.novelreader.ui.tabs.TabPagerHost
+import kotlinx.coroutines.launch
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
@@ -49,10 +57,14 @@ import com.novelreader.ui.discovery.DiscoverySearchScreen
 import com.novelreader.ui.discovery.NovelDetailScreen
 import com.novelreader.ui.discovery.PdfImportScreen
 import com.novelreader.ui.discovery.WebReaderScreen
+import com.novelreader.ui.skins.k.KBottomNav
+import com.novelreader.ui.skins.k.KTab
+import com.novelreader.ui.skins.k.SettingsScreenK
 import com.novelreader.ui.skins.m.LocalSkyParallax
 import com.novelreader.ui.skins.m.SkyBackdropM
 import com.novelreader.ui.skins.m.SkyParallaxController
 import com.novelreader.ui.skins.m.SkyParallaxFactor
+import com.novelreader.ui.theme.MotionDurationKTabSwitch
 import com.novelreader.ui.theme.MotionDurationNavTransition
 import com.novelreader.ui.theme.MotionDurationSeizuFadeIn
 import com.novelreader.ui.theme.MotionDurationSeizuFadeInDelay
@@ -289,12 +301,12 @@ private fun NovelReaderApp(
             val startFile = viewModel.getLastRead(BookId(bookId)) ?: "index.html"
             navController.navigate("reading/$bookId/$startFile") {
                 launchSingleTop = true
-                // bookshelf を残して起点を固定＝Back が必ず本棚へ戻る（固定起点の保証）。
-                popUpTo("bookshelf") { inclusive = false }
+                // tabs（タブ層）を残して起点を固定＝Back が必ずタブ層へ戻る（固定起点の保証。旧 "bookshelf" ルートのタブ Pager 化に追従）。
+                popUpTo("tabs") { inclusive = false }
             }
         } else {
-            // 削除済み等で本が無い確定ケース: 最低限の保証として固定起点（本棚）へ着地する。
-            navController.popBackStack("bookshelf", false)
+            // 削除済み等で本が無い確定ケース: 最低限の保証として固定起点（タブ層＝本棚ページ）へ着地する。
+            navController.popBackStack("tabs", false)
         }
         // ナビ後に消費済みへ（null で再ナビを防ぐ。key 変化で本 Effect は即再実行され早期 return する）。
         onDeepLinkConsumed()
@@ -340,13 +352,48 @@ private fun NovelReaderApp(
 
     // 画面遷移: M はフェードスルー（退出 fadeOut 先行→進入 fadeIn。固定天球ゆえ slide だと空ごと動く＝ADR 0019 追記
     // 「M星図の例外」）＝コンテンツのみがシームレスに差し替わる。他スキンは横スライド push 不変（ADR 0019・方向で階層移動を伝える）。
+    // 恒常ボトムナビ（3タブ・plan default-ui-clarity-K）を全スキンへ伝播（2026-07-23・K形の構造装置を
+    // D/C/M/P/J へ一般化）。現在ルートがタブ3画面のときだけ NavHost の「外」（Column の下端）に静止表示する。
+    // 画面側に持たせない理由: 画面遷移アニメと一緒にバーが滑ると「別ページへ移動した」と読めてしまう＝
+    // タブバー静止がタブの標準文法のため。
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
+    // タブ3面（本棚/さがす/設定）は NavHost のルート分岐から Pager（"tabs" 単一ルート）へ移行
+    // （2026-07-24 ユーザー裁定＝横スワイプでシームレスにタブ移動・ADR 0022 スロット契約）。
+    // Pager 状態は枠（ここ）が所有する＝ボトムナビの現在タブ表示と選択遷移が同じ1状態から導出される。
+    // rememberPagerState は内部 Saver 持ち＝回転/プロセス死でも現在タブを保持（旧 saveState/restoreState の代替）。
+    val tabPagerState = rememberPagerState(pageCount = { KTab.entries.size })
+    val tabScope = rememberCoroutineScope()
+    // 深い画面（読書等）では null＝恒常ナビを消して没入を守る（従来と同じ判定を「tabs ルートか」へ置換）。
+    val currentTab = if (currentRoute == "tabs") KTab.entries[tabPagerState.currentPage] else null
+    // タブ選択＝Pager のスクロール（タップでもスワイプでも同じスライド運動言語。旧 crossfade は
+    // Pager のスワイプ追従と矛盾するため廃止＝isTabSwitch 分岐ごと撤去）。同一タブ再タップは
+    // animateScrollToPage が同ページで no-op＝旧 navigateKTab の重複抑止と同じ挙動が構造的に出る。
+    val onSelectTab: (KTab) -> Unit = { tab ->
+        tabScope.launch {
+            tabPagerState.animateScrollToPage(tab.ordinal, animationSpec = tween(MotionDurationKTabSwitch))
+        }
+    }
+
     val d = MotionDurationNavTransition
     Box(modifier = Modifier.fillMaxSize()) {
         if (skyParallax != null) SkyBackdropM(skyParallax, highLoadSkyM, Modifier.fillMaxSize())
         CompositionLocalProvider(LocalSkyParallax provides skyParallax) {
+            // 画面ルートに Surface を敷いて LocalContentColor を配色へ接地する。素の Box/Column 直下では
+            // 既定が黒のままで、明示色を持たない Text（K本棚タイトル等）が全テーマで黒く沈む＝2026-07-23
+            // ユーザー指摘「ダークで本棚タイトルが見えない」の真因。M星図だけは常駐 backdrop（後ろの空）を
+            // 透過で見せる必要があるため透明＋現在色の素通しにする（挙動不変）。
+            Surface(
+                color = if (isSeizu) Color.Transparent else MaterialTheme.colorScheme.background,
+                contentColor = if (isSeizu) LocalContentColor.current else MaterialTheme.colorScheme.onBackground,
+            ) {
+            Column(Modifier.fillMaxSize()) {
     NavHost(
         navController = navController,
-        startDestination = "bookshelf",
+        startDestination = "tabs",
+        modifier = Modifier.weight(1f),
+        // タブ間はもう NavHost 遷移でない（Pager が担う）＝isTabSwitch 分岐は不要になった。
+        // 残る分岐＝M星図のフェードスルー（固定天球ゆえ slide だと空ごと動く・ADR 0019 追記）と他スキンの横スライド push。
         enterTransition = {
             if (isSeizu) fadeIn(tween(MotionDurationSeizuFadeIn, delayMillis = MotionDurationSeizuFadeInDelay))
             else slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(d))
@@ -365,9 +412,11 @@ private fun NovelReaderApp(
         },
     ) {
 
-        composable("bookshelf") {
+        // タブ層＝単一ルート "tabs"（本棚/さがす/設定の3面を TabPagerHost のスロットへ・ADR 0022 スロット契約）。
+        // 深い画面（読書・目次・発見詳細等）は従来どおり NavHost ルート＝この上へ push される。
+        composable("tabs") {
             // 遷移ジャンク対策（P2・Perfetto 2026-07-16 で主因確定）: 本棚グリッドの初回 measure（実測51ms/
-            // フレーム）が slide push のアニメフレームと同居して落ちるため、「本棚が enter アニメ中」の間だけ
+            // フレーム）が slide push のアニメフレームと同居して落ちるため、「tabs が enter アニメ中」の間だけ
             // 重いグリッドをスケルトンへ差替える（BookshelfContent 側の分岐参照）。currentState/targetState は
             // 遷移の端点でしか変化しない離散 State＝毎フレーム recompose を増やさない（連続 fraction は読まない）。
             // exit（本棚→先へ進む）は既測グリッドで安価なため対象外＝実カードのままスライドアウトし視覚劣化なし。
@@ -377,7 +426,11 @@ private fun NovelReaderApp(
                         transition.currentState != EnterExitState.Visible
                 }
             }
-            BookshelfScreen(
+            TabPagerHost(
+                pagerState = tabPagerState,
+                pages = listOf(
+                    {
+                    BookshelfScreen(
                 viewModel = viewModel,
                 deferHeavyContent = deferHeavyContent,
                 appTheme = appTheme,
@@ -394,7 +447,8 @@ private fun NovelReaderApp(
                     navController.navigate("reading/$bookId/$startFile") { launchSingleTop = true }
                 },
                 onOpenDiscovery = {
-                    navController.navigate("discovery") { launchSingleTop = true }
+                    // タブ化に伴い「さがすへ」＝Pager のページ切替（ルート遷移でなくなった）。
+                    onSelectTab(KTab.DISCOVER)
                 },
                 // 着せ替えの入口は本棚トップバーのみ（意図的設計＝ADR 0021 決定7。設定シート内には置かない）。
                 onOpenWardrobe = {
@@ -410,12 +464,12 @@ private fun NovelReaderApp(
                     navController.navigate("web-reader/$ncode/$startEpisode") { launchSingleTop = true }
                 },
             )
-        }
-
-        composable("discovery") {
-            DiscoveryHomeScreen(
+                    },
+                    {
+                    DiscoveryHomeScreen(
                 viewModel = discoveryViewModel,
-                onBack = { navController.popBackStack() },
+                // タブ化に伴い「戻る」＝階層 up＝本棚ページへ（システム Back は TabPagerHost の BackHandler が同じ契約で受ける）。
+                onBack = { onSelectTab(KTab.BOOKSHELF) },
                 // 境界: nav ルートは String。Ncode を .value でほどいてパスへ載せる。
                 onOpenDetail = { ncode -> navController.navigate("discovery/detail/${ncode.value}") { launchSingleTop = true } },
                 onOpenGenre = { navController.navigate("discovery/genre") { launchSingleTop = true } },
@@ -430,6 +484,20 @@ private fun NovelReaderApp(
                     discoveryViewModel.openResult(preset.toResultContext())
                     navController.navigate("discovery/result") { launchSingleTop = true }
                 },
+            )
+                    },
+                    {
+                    // 設定タブ（旧 composable("settings") から移設・引数不変。KDoc は SettingsScreenK 参照）。
+                    SettingsScreenK(
+                        appTheme = appTheme,
+                        onThemeChange = onThemeChange,
+                        followingSystem = followingSystem,
+                        onFollowSystem = onFollowSystem,
+                        currentSkin = appSkin,
+                        onOpenWardrobe = { navController.navigate("wardrobe") { launchSingleTop = true } },
+                    )
+                    },
+                ),
             )
         }
 
@@ -614,6 +682,19 @@ private fun NovelReaderApp(
             }
         }
     }
+            // 恒常ナビ（全スキン・タブ3画面のときのみ・深い画面では消えて没入を守る）。配色は KBottomNav 側で
+            // colorScheme トークン（primary/onSurfaceVariant/surface）を参照＝各スキンの署名色で選択ピル/tint が
+            // 自然に染まる（スキン専用の意匠発明はしない・タスク裁定「トークン追従で近似」）。
+            if (currentTab != null) {
+                KBottomNav(
+                    current = currentTab,
+                    // タブ選択＝Pager スクロール（onSelectTab）。旧 navigateKTab（NavHost ルート入替＋スナップショット
+                    // 遅延の防御）は、タブがルートでなくなったため機構ごと退役＝レースの土壌が消えた。
+                    onSelect = onSelectTab,
+                )
+            }
+            } // Column（NavHost ＋ K恒常ナビ）
+            } // Surface（画面ルートの配色接地）
         } // CompositionLocalProvider(LocalSkyParallax)
     } // Box（backdrop ＋ NavHost）
 }

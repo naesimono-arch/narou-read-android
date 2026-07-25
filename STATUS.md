@@ -7,6 +7,16 @@
 
 ## 0. 現在の状態
 
+- **新デフォルトUI「明快K」（feat/ui-playground・2026-07-23・実装済み/コミット前）**: 最優先Aの核回答＝
+  Skin 6値目 `MEIKAI_K` を新設し**既定スキンへ切替**（既存の明示保存 D/M/P/J/C は不変・装いの間で相互選択可）。
+  構造＝〈ラベル付き恒常ボトムナビ3タブ（本棚/さがす/設定・NavHost外静止・タブ間crossfade）＋全画面明示タイトル＋
+  **設定画面新設**（テーマ4択/きせかえ/新着通知/診断を集約）＋本棚3列グリッド（キャプション行に可視⋮）＋
+  さがす（検索第一強調＋公式サイト逃げ道）＋目次（現在地チップ＋ここから再開＋既読✓）〉。読書はD構造温存。
+  モック正本＝`docs/design-candidates/skins/*-K.html`（K専用・監督headless目視で裁定）・設計/裁定の一次情報＝
+  `.claude/plans/default-ui-clarity-K-2026-07-23.md`。根拠＝競合4機の実機目視（全機ボトムナビ型）＋UX正本（自明性A0/
+  You Are Here/UX15）。ゲート＝テスト861件緑・tokens OK192/NG0・lint 0err/33warn（+1=K設定のInlinedApi・既存同型）。
+  実機（PGEM10）＝K全4画面＋読書/装いの間/テーマ切替を監督screencap検分でPASS・**ユーザー目視待ち**。
+
 - **UX/Design 全層監査**: 指摘（Critical 3/Major 24/Minor 29）＋派生改修（CTA一貫性=案A／没入時黒帯明滅=window背景をテーマ色へ再定義／複数選択削除=案B下端バー＋変種B「キャンセル」）まで実装・実機検証済み（ui/polish は main 統合・撤去済み）。残＝発見帯 collapse 退避アニメ体感の追い込み（deferred）・第三者人間テスト便・監査派生 backlog＝`handover.md` ★節が正本。監査の一次情報＝`.claude/plans/ux-design-full-audit-2026-07-12.md`（§A/§B）＋`.claude/plans/ux-audit-batch-execution-20260712.md`（実行記録）。
 - **前回の統合（2026-07-18 束ね）**: `reading/vertical-p4`（縦書き章送り P4・実機体感確認済み）・`build/r8-shrink`（release の R8 収縮＝minify+shrinkResources・APK 20.3→7.8MB）・`perf/macrobenchmark`（性能回帰基盤＝起動/本棚スクロール/章送り/大PDF取込の予算 assert・実機実証済み。設計と全実測＝`.claude/plans/macrobenchmark-kickoff-2026-07-17.md`＋`docs/knowledge/coloros-*`／`macrobenchmark-frametiming-scroll-pitfalls.md`）・`hooks/fabrication-detector`（実行捏造検知器 Tier E3「先行実行フレーミング」）・`ui/skin-framework`（UIスキン機構＝ADR 0021＋0022〔画面構造の二層化〕。M星図/Pカートリッジ/Jポータルの3スキン×全5画面〔本棚/読書/目次/設定/発見〕を Compose 実装。**C3 実機スモーク完了＝J 全5画面掃引＋M/P 本棚を release R8 下で PASS（M/P 全画面は既存 PASS・C は色層）・5スキンとも shrinkResources による資産欠落なし**）を main へ統合。縦書き本体（P0〜P3・P5・P2.5）は統合済み＝縦書きはユーザー到達可能（ADR 0020〔連続横スクロール×自前Compose組版〕）。**R8 リリース収縮の実機回帰完了＝4重点経路（Moshi なろう検索/PDFBox 取込抽出/WorkManager クラス名復元/enum テーマ SEPIA 永続）全 PASS・収縮起因クラッシュ無し**（release APK を debug 署名し install -r で実蔵書DB保持のまま検証。PDFBox は取込時に日本語タイトルを抽出＝CID/CMap 経路通過を確認）。
 - **直近の統合（2026-07-23）**: `feat/scraping-prep`（汎用Web小説DL基盤 P2〜P6＋暁＋G1・Room v21）と `feat/delete-source-pdf`（本削除時に取込元PDF本体も削除・Room v20）を main へ統合＝**MIGRATION_19_20 の並列複製を一本化**（19→20→21 パス接続・task_diary #39 の定石の後始末）。`ui/refine`・`ui/wa-modern` は main 同一（固有コミット0）のため worktree ごと削除＝**作業ブランチ全解消・main 一本**（リッチ化再開時は main から切り直す）。
@@ -19,6 +29,25 @@
   の粒天の川＋天体系（流星/衛星/彗星/BH）＋奥行き層（空気遠近/暗黒雲/帯2層）＋検分ボタン6種。release は常に OFF・通常モード
   厳密不変（DeepSkyM の durationScale は既定1f恒等）。jank 2.56%（ON時実測）。裁定履歴と残ロードマップ（v8/v9・D展開）＝
   `.claude/plans/richness-expansion-round-2026-07-19.md`。
+- **2026-07-23 バグ4件修正＋K形伝播（feat/ui-playground）**: ①Web作品が読書状態フィルタ/件数に分類されない
+  →`webReadingStatusFor` 新設・全5スキン配線・必須引数化（読了＝最終話到達の近似と明記） ②Web読書の左上←＝
+  階層Up固定（システムBack は WebView 履歴戻り温存＝発見系「←=Up/Back=履歴」と同型） ③PDF取込の自動スクロール
+  ＝要素出現駆動化（onPageFinished 全読込待ちが真因） ④さがす→本棚の稀な遷移不能＝タブ判定をライブ
+  `currentDestination` へ（スナップショットの1フレーム遅延＋DROP_OLDEST が機序・推定と明記）。
+  **K形伝播**＝Kの構造装置（恒常ボトムナビ・明示タイトル・可視⋮・検索第一＋公式逃げ道・現在地チップ等）を
+  D/M/P/J モックへ伝播、16枚を `skins/*-{D,M,P,J}.html` へ正本昇格（ユーザー合格 2026-07-23）。**Compose 実装
+  完了（2026-07-24）**＝恒常ボトムナビ/設定の全スキン開放・目次チップ/再開/既読・さがす検索第一/公式逃げ道・
+  本棚可視⋮/冊数・Web複数選択削除統合（機構裁定＝ADR 0021 追記）。一次情報＝
+  `.claude/plans/k-shape-propagation-2026-07-23.md`。ゲート＝テスト882件緑。**残＝実機目視（全スキン掃引）**。
+- **2026-07-24 UIラウンド（feat/ui-playground・実装済み/実機目視待ち）**: ユーザー4裁定＋構造化を実装＝
+  ①K本棚グリッド**2列改A**（書影≈140dp・3:4・約5冊/画面）・リスト**圧縮S**（KList/KWebListBookCard 新設・D流用廃止）
+  ②書影輪郭**線→影**（shadow 2dp 暫定・ダーク影値は実機検分）③未取込Web＝**D改破線**（白ピル廃止・青磁破線＋紙地沈め・
+  取込済みは無印確定）④**タブPager化**＝tabs 単一ルート＋`TabPagerHost`（横スワイプ・crossfade廃止・navigateKTab退役・
+  Back=page0へ・スロット契約＝**ADR 0022 追記が正本**）⑤**気分パターン3組×日替わり**（MoodPattern・K はページャ＋ドット・
+  非KはCLASSIC固定）。モック正本昇格済み（bookshelf-K/bookshelf-list-K 新設/discovery-K）。UI追加はモック先行が恒久ルール化
+  （memory `feedback-mock-before-any-ui-addition`）。一次情報＝`.claude/plans/ui-density-swipe-round-2026-07-24.md`。
+  ゲート＝testDebugUnitTest 緑・golden 差分なし（対象コンポーネント外）・tokens OK192/NG0・lint 0err/33warn。
+  **実機＝install 済みだが激しいスタック報告（2026-07-24）→ 最優先宿題として計測から（handover 正本・決め打ち修正しない）**。
 - **既知バグ: なし**（単話の嘘見出し問題は 2026-07-16 修正済み＝題名マーカー0件時は作品タイトルを単一章名へ流用・golden 第4本 N5368ML で恒久回帰）。
 
 - **汎用Web小説DL基盤（最優先B・main 統合済み）**: `scrape/` サイトアダプタ抽象（`NovelSiteAdapter`＋

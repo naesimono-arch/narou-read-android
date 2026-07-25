@@ -120,10 +120,12 @@ fun WebReaderScreen(
             TopAppBar(
                 title = { Text(text = "なろうで読む", fontSize = FontTopBarTitle) },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        val wv = webViewHolder.value
-                        if (wv != null && wv.canGoBack()) wv.goBack() else onBack()
-                    }) {
+                    // 左上←は階層 Up 固定（onBack）。旧実装は WebView 履歴優先だったが（なろうの「次へ」等の
+                    // ページ内遷移を戻す意図）、左上←に対するユーザーの期待は「上位画面へ戻る」であり履歴戻りとズレる
+                    // ため Up 固定へ変更（監督裁定）。ページ内リンク・前エピソードへの復帰導線はシステム Back
+                    // （BackHandler の canGoBack→goBack 優先）に温存し、←=Up／Back=履歴 pop の分業とする
+                    // （発見サブツリーの D統一設計と同型思想）。
+                    IconButton(onClick = { onBack() }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "戻る"

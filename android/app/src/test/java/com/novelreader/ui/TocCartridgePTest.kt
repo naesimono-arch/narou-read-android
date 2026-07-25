@@ -68,30 +68,30 @@ class TocCartridgePTest {
     }
 
     @Test
-    fun `P装着では緑LCD HUDのSTAGE話数が出る＝D構造でない`() {
+    fun `P装着では緑LCD HUDの現在地チップ話数が出る＝D構造でない`() {
         setToc(Skin.CARTRIDGE_P, TocState.Content(entries), currentChapterFile = "chap_2.html")
-        // カートリッジの署名＝HUD の STAGE 話数（D 目次には無い＝画面丸ごと分岐している）。
-        composeTestRule.onNodeWithText("2 / 3").assertIsDisplayed()
+        // K形伝播後のカートリッジの署名＝HUD の現在地チップ「第N / 全M話」（D 目次のチップは話数のみ＝この STAGE 表記は持たない）。
+        composeTestRule.onNodeWithText("第2 / 全3話", substring = true).assertIsDisplayed()
         composeTestRule.onNodeWithText("第一章 出会い").assertIsDisplayed()
     }
 
     @Test
-    fun `D装着ではSTAGEが出ず従来のD描画のまま`() {
+    fun `D装着ではHUDの現在地チップが出ず従来のD描画のまま`() {
         setToc(Skin.WAMODERN_D, TocState.Content(entries), currentChapterFile = "chap_2.html")
-        composeTestRule.onNodeWithText("2 / 3").assertDoesNotExist()
+        composeTestRule.onNodeWithText("第2 / 全3話", substring = true).assertDoesNotExist()
         composeTestRule.onNodeWithText("第二章 旅立ち").assertIsDisplayed()
     }
 
     @Test
-    fun `現在章の検出がSTAGE話数に現れる（強調と道点火の源）`() {
+    fun `現在章の検出がHUDの現在地チップに現れる（強調と道点火の源）`() {
         setToc(Skin.CARTRIDGE_P, TocState.Content(entries), currentChapterFile = "chap_3.html")
-        composeTestRule.onNodeWithText("3 / 3").assertIsDisplayed()
+        composeTestRule.onNodeWithText("第3 / 全3話", substring = true).assertIsDisplayed()
     }
 
     @Test
-    fun `現在章に▶NOWの1点強調が出る`() {
+    fun `現在章に唯一の実アクションここから再開が出る`() {
         setToc(Skin.CARTRIDGE_P, TocState.Content(entries), currentChapterFile = "chap_2.html")
-        composeTestRule.onNodeWithText("▶ NOW").assertIsDisplayed()
+        composeTestRule.onNodeWithText("▶ ここから再開").assertIsDisplayed()
     }
 
     @Test

@@ -158,7 +158,7 @@ internal fun BookshelfListCartridgeP(
     // 蔵書＋Web由来を「最近の活動順」で1本にマージ＝D else 経路と同一の純関数（並び規則 ADR 0016 を共有＝再実装なし）。
     val shelfItems = remember(books, webNovels, progressMap, selectedStatus, chapterCountMap, webReadingProgress, webLastReadAt) {
         val (filteredBooks, filteredWeb) =
-            filterShelfByStatus(books, webNovels, selectedStatus, progressMap, chapterCountMap)
+            filterShelfByStatus(books, webNovels, selectedStatus, progressMap, chapterCountMap, webReadingProgress)
         mergeShelfItems(filteredBooks, progressMap, filteredWeb, webReadingProgress, webLastReadAt)
     }
     // hero＝NOW PLAYING（いま挿さっている1本＝先頭の「よみかけ」蔵書）。ラック面と同一規則で一貫させる。

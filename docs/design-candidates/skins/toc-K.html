@@ -1,0 +1,109 @@
+<!-- @dsCard group="UI-n / スキンK候補（明快）" name="K. 目次 — 明快（現在地チップ＋既読/現在/未読を一目で）" -->
+<!--
+  スキンK「明快」の目次（深い画面＝ボトムナビは出さない・没入優先。設計プラン確定事項2/3）。
+  核は「いま自分がどこか」を常時明示: ①ヘッダに「目次」＋作品名サブ ②直下に現在地チップ「いま読んでいる」
+  ③各行の状態を語彙化（既読=題名を沈めて✓／現在=藍ルール＋地＋唯一の実アクション「ここから再開」／未読=通常）。
+  一画面の強調は現在話の「ここから再開」チップ1つ（沈めて立てる）。
+  色は D トークン土台・ink-soft のみ AA(4.9:1) へ引き上げ。話数=ゴシック・題名=明朝（既存 Typography 踏襲）。単一画面・ライトのみ。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>スキンK 目次 — 明快</title>
+<style>
+  :root{
+    --base:#FBFAF8;      /* 和紙地（D踏襲） */
+    --ink:#1C1F26;       /* 主文字（D踏襲） */
+    --ink-soft:#6A6E78;  /* 補助文字。D #7C808B 不足→AA(4.9:1)へ引き上げ */
+    --line:#ECEAE4;      /* ヘアライン（D踏襲） */
+    --ai:#1C3D5A;        /* 藍アクセント（D踏襲） */
+    --ai-pill:rgba(28,61,90,.10); /* 藍10%＝現在地チップ/現在話行の地 */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;font-family:var(--gothic)}
+
+  .phone{width:412px;height:915px;background:var(--base);border-radius:38px;overflow:hidden;position:relative;
+    box-shadow:0 24px 60px rgba(0,0,0,.26);display:flex;flex-direction:column}
+
+  .sb{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:12px;color:var(--ink-soft);flex-shrink:0}
+
+  /* ヘッダ: ←戻る（44pxタップ面）＋「目次」＋作品名サブ（1行省略） */
+  .top{flex-shrink:0;display:flex;align-items:center;gap:4px;padding:2px 12px 12px;border-bottom:1px solid var(--line)}
+  .back{width:44px;height:44px;flex-shrink:0;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--ink);cursor:pointer}
+  .back svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8}
+  .htxt{min-width:0}
+  .htxt h1{font-family:var(--gothic);font-weight:700;font-size:18px;color:var(--ink);line-height:1.2}
+  .htxt .work{font-family:var(--mincho);font-size:13px;color:var(--ink-soft);margin-top:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* 現在地バー: 左＝現在話チップ（藍10%地・藍字・タップで該当行へ）／右＝進捗 */
+  .here{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px}
+  .herechip{display:inline-flex;align-items:center;gap:6px;background:var(--ai-pill);color:var(--ai);
+    font-size:12.5px;font-weight:700;border-radius:999px;padding:6px 14px;cursor:pointer}
+  .prog{font-size:12px;color:var(--ink-soft);flex-shrink:0}
+
+  .scroll{flex:1;overflow:auto;padding:2px 0 20px}
+
+  /* 章行: 話数=ゴシック12px ink-soft ／ 題名=明朝15px。左ルール分の余白を全行で確保し整列 */
+  .row{display:flex;align-items:center;gap:12px;padding:15px 18px 15px 15px;border-left:3px solid transparent;
+    border-bottom:1px solid var(--line);cursor:pointer}
+  .row .ep{font-family:var(--gothic);font-size:12px;color:var(--ink-soft);width:44px;flex-shrink:0}
+  .row .tt{flex:1;min-width:0;font-family:var(--mincho);font-size:15px;color:var(--ink);line-height:1.5}
+  .row .end{flex-shrink:0;display:flex;align-items:center}
+  .row .end svg{width:16px;height:16px;stroke:var(--ink-soft);fill:none;stroke-width:2}
+
+  /* 既読: 題名を沈めて行末に✓ */
+  .row.read .tt{color:var(--ink-soft)}
+
+  /* 現在話: 藍の左ルール＋藍10%地＋題名は濃字。行末は唯一の実アクション（この画面の強調） */
+  .row.cur{border-left-color:var(--ai);background:var(--ai-pill)}
+  .row.cur .tt{color:var(--ink);font-weight:600}
+  .row.cur .resume{font-size:11px;font-weight:700;color:#fff;background:var(--ai);border-radius:999px;padding:5px 11px;white-space:nowrap}
+</style>
+</head>
+<body>
+  <div class="phone" role="img" aria-label="スキンK 目次画面">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+
+    <div class="top">
+      <button class="back" aria-label="戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <div class="htxt">
+        <h1>目次</h1>
+        <div class="work">追放された万能薬師、辺境でスローライフを始める</div>
+      </div>
+    </div>
+
+    <div class="here">
+      <span class="herechip">いま読んでいる: 第12話</span>
+      <span class="prog">全65話・読了率18%</span>
+    </div>
+
+    <div class="scroll">
+      <div class="row read"><span class="ep">第1話</span><span class="tt">旅立ちの朝、薬箱を背負って</span><span class="end"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+      <div class="row read"><span class="ep">第2話</span><span class="tt">辺境の村へ、はじめての往診</span><span class="end"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+      <div class="row read"><span class="ep">第3話</span><span class="tt">井戸端の噂と、薬草畑の計画</span><span class="end"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+      <div class="row read"><span class="ep">第4話</span><span class="tt">領主様のご機嫌、いささか斜めにて</span><span class="end"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+      <div class="row read"><span class="ep">第5話</span><span class="tt">熱病の子供と、夜通しの看病</span><span class="end"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+      <div class="row read"><span class="ep">第6話</span><span class="tt">隣町の薬師、名乗りを上げる</span><span class="end"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+      <div class="row read"><span class="ep">第7話</span><span class="tt">市場のざわめきと、薬草の値段</span><span class="end"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+      <div class="row read"><span class="ep">第8話</span><span class="tt">雨上がりの街道を、北へ行く</span><span class="end"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+      <div class="row read"><span class="ep">第9話</span><span class="tt">古い井戸と、忘れられた約束</span><span class="end"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+      <div class="row read"><span class="ep">第10話</span><span class="tt">夜営の火、語られぬ過去のこと</span><span class="end"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+      <div class="row read"><span class="ep">第11話</span><span class="tt">遠雷、辺境の空に鳴りわたる</span><span class="end"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span></div>
+      <div class="row cur"><span class="ep">第12話</span><span class="tt">城門にて、彼女は静かに剣を置いた</span><span class="end"><span class="resume">ここから再開</span></span></div>
+      <div class="row"><span class="ep">第13話</span><span class="tt">領主の館へ、招かれざる客として</span><span class="end"></span></div>
+      <div class="row"><span class="ep">第14話</span><span class="tt">薬草園の落成、ささやかな祝宴</span><span class="end"></span></div>
+      <div class="row"><span class="ep">第15話</span><span class="tt">長い夜の終わりに交わした言葉</span><span class="end"></span></div>
+      <div class="row"><span class="ep">第16話</span><span class="tt">冬支度と、備蓄の薬づくり</span><span class="end"></span></div>
+      <div class="row"><span class="ep">第17話</span><span class="tt">旅の商人がもたらした報せ</span><span class="end"></span></div>
+      <div class="row"><span class="ep">第18話</span><span class="tt">森の奥、失われた薬草を求めて</span><span class="end"></span></div>
+      <div class="row"><span class="ep">第19話</span><span class="tt">疫病の影、静かに忍び寄る</span><span class="end"></span></div>
+      <div class="row"><span class="ep">第20話</span><span class="tt">決意の朝、再び旅立ちのとき</span><span class="end"></span></div>
+    </div>
+  </div>
+</body>
+</html>

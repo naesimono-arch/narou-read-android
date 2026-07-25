@@ -1,5 +1,7 @@
 package com.novelreader.ui.skins.m
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,7 +29,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.NorthEast
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -51,6 +54,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -80,6 +84,7 @@ import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.StarSeizu
 import com.novelreader.ui.theme.TextSeizu
 import com.novelreader.viewmodel.DiscoveryUiState
+import com.novelreader.viewmodel.MoodPattern
 import com.novelreader.viewmodel.MoodPreset
 import com.novelreader.viewmodel.PagingState
 import com.novelreader.viewmodel.ResultContext
@@ -126,6 +131,10 @@ private val WindowStar = StarSeizu.copy(alpha = 0.5f)          // .md .win 結�
 // 地色 #0D1636（SkyGradMidSeizu）の α 掛け全面スクリムで再現する（直書き禁止＝トークン経由・α は体感同等で実機後詰め）。
 private val DiscoverySkyScrim = SkyGradMidSeizu.copy(alpha = 0.30f)  // 全面を一段沈める（旧 CAP0.30 相当）
 
+// K 形伝播の実検索フィールド地（モック discovery-M.html --field rgba(14,22,52,.55)＝夜天と同系の透過。濃色ダミー板
+// を避ける狙い）。base 0x0E1634 は MoodWindowBg と同一 RGB（夜空を覗く窓と同系）で、α のみ .55（--field 指定値）。
+private val SearchFieldBgSeizu = Color(0xFF0E1634).copy(alpha = 0.55f)
+
 // ============================================================
 // 発見ホーム（モック左フレーム）
 // ============================================================
@@ -170,7 +179,8 @@ internal fun DiscoveryHomeSkyM(
             .drawBehind { drawRect(DiscoverySkyScrim) }, // backdrop の空を一段沈める（カード/chip の可読）
     ) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-            // .top: 見出し＋検索。戻る（← 本棚へ）はモック省略の D 機能を欠落させず M 意匠で先頭へ写す。
+            // .top 上段: 見出し＋戻る（← 本棚へ＝モック省略の D 機能を M 意匠で欠落なく写した先頭導線）。
+            // 検索はトップバーのアイコン1個から下の実検索フィールドへ分離・格上げした（K 形伝播）。
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = Spacing.S24, end = Spacing.S24, top = Spacing.S8, bottom = Spacing.S8),
                 verticalAlignment = Alignment.CenterVertically,
@@ -187,11 +197,10 @@ internal fun DiscoveryHomeSkyM(
                     color = TextSeizu,
                     modifier = Modifier.weight(1f).padding(start = Spacing.S8),
                 )
-                IconButton(onClick = onOpenSearch) {
-                    // 用語辞書（着地画面名「探す」）に合わせる＝D 発見の検索アイコンと同一 accessible name。
-                    Icon(Icons.Filled.Search, contentDescription = "探す", tint = TextSeizu)
-                }
             }
+
+            // 固定トップの実検索フィールド（K 形伝播・モック .search）＝検索第一・常時可視。導線は onOpenSearch を再利用。
+            SearchFieldSky(onOpenSearch)
 
             LazyColumn(
                 // スクロール差分を backdrop の視差へ流す（本棚面と同じ onPostScroll consumed.y＝画面遷移で連続）。
@@ -230,6 +239,9 @@ internal fun DiscoveryHomeSkyM(
                     state is DiscoveryUiState.Error ->
                         item { SkyErrorLine(state.message, onRefresh) }
                 }
+
+                // 末尾: 公式サイトで探す逃げ道（K 形伝播・モック .official）。K の OfficialLinkK と同一導線を配線。
+                item { OfficialLinkSky() }
             }
         }
     }
@@ -356,6 +368,76 @@ internal fun DiscoveryResultSkyM(
 }
 
 // ============================================================
+// 固定トップの実検索フィールド（K 形伝播・モック .search）＋末尾の公式サイト逃げ道（.official）。
+//   検索フィールドのタップ先＝onOpenSearch、公式サイト起動＝なろう公式 ACTION_VIEW。いずれも K 実装
+//   （DiscoveryHomeK の SearchHeaderK / OfficialLinkK）と同一導線を再利用する（新規機能は発明しない）。
+// ============================================================
+@Composable
+private fun SearchFieldSky(onOpenSearch: () -> Unit) {
+    Row(
+        modifier = Modifier
+            // .search（margin-top 14px）。見出しは上段 Row が担うため横 S24＋上下の呼吸のみ。
+            .padding(start = Spacing.S24, end = Spacing.S24, top = Spacing.S4, bottom = Spacing.S12)
+            .fillMaxWidth()
+            .height(52.dp)                    // .search 52px（構造値）
+            .clip(RoundedCornerShape(14.dp))  // .search border-radius 14px
+            .background(SearchFieldBgSeizu)    // --field rgba(14,22,52,.55)
+            .border(1.dp, LineAlpha, RoundedCornerShape(14.dp)) // --line
+            .clickable(onClick = onOpenSearch)
+            .padding(horizontal = Spacing.S16), // .search padding 0 16px
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Outlined.Search,
+            contentDescription = null,        // 隣接プレースホルダ文が読み上げを担う
+            tint = DimSeizu,                  // .search svg stroke --dim
+            modifier = Modifier.size(20.dp),  // .search svg 20px
+        )
+        Text(
+            "作品名・作者名・キーワードで探す",
+            fontSize = 14.sp,                 // .search span 14px
+            color = DimSeizu,                 // --dim
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = Spacing.S12), // .search gap 11px → S12
+        )
+    }
+}
+
+@Composable
+private fun OfficialLinkSky() {
+    val context = LocalContext.current
+    Column {
+        // border-top 1px var(--line)（.official）＝月光スレートの区切り。
+        Box(modifier = Modifier.fillMaxWidth().padding(top = Spacing.S12).height(1.dp).background(LineAlpha))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://yomou.syosetu.com/")))
+                    }
+                }
+                .padding(top = Spacing.S16, bottom = Spacing.S4), // .official padding 18px 2px 4px
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "小説家になろう公式サイトで探す",
+                fontSize = 13.sp, // .official 13px
+                color = DimSeizu, // --dim
+            )
+            Icon(
+                Icons.Filled.NorthEast, // .official ↗（外部リンク＝右上矢印）
+                contentDescription = null,
+                tint = DimSeizu,
+                modifier = Modifier.size(15.dp), // .official svg 15px
+            )
+        }
+    }
+}
+
+// ============================================================
 // 節見出し（モック .sec: 字間の広い月光スレートの小見出し）
 // ============================================================
 @Composable
@@ -374,7 +456,7 @@ private fun SkySectionLabel(text: String, topSpace: androidx.compose.ui.unit.Dp)
 // ============================================================
 @Composable
 private fun MoodGridSky(onPickMood: (MoodPreset) -> Unit) {
-    val presets = MoodPreset.entries
+    val presets = MoodPattern.CLASSIC.presets // 12件へ増えた全entriesでなく従来4件の組に固定（K以外のページャ化は未裁定・2026-07-24）
     Column {
         presets.chunked(2).forEach { rowPresets ->
             Row(

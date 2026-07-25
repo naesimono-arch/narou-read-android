@@ -1,5 +1,7 @@
 package com.novelreader.ui.skins.p
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,7 +32,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.NorthEast
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -51,6 +54,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -81,6 +85,9 @@ import com.novelreader.ui.theme.CartridgePlum
 import com.novelreader.ui.theme.InkCartridge
 import com.novelreader.ui.theme.InkMidCartridge
 import com.novelreader.ui.theme.InkSoftCartridge
+import com.novelreader.ui.theme.LcdCartridge
+import com.novelreader.ui.theme.LcdHiCartridge
+import com.novelreader.ui.theme.LcdInkCartridge
 import com.novelreader.ui.theme.LineDiscCartridge
 import com.novelreader.ui.theme.PanelCartridge
 import com.novelreader.ui.theme.PhosCartridge
@@ -91,6 +98,7 @@ import com.novelreader.ui.theme.PlasticLoCartridge
 import com.novelreader.ui.theme.RedCartridge
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.viewmodel.DiscoveryUiState
+import com.novelreader.viewmodel.MoodPattern
 import com.novelreader.viewmodel.MoodPreset
 import com.novelreader.viewmodel.PagingState
 import com.novelreader.viewmodel.ResultContext
@@ -220,7 +228,8 @@ internal fun DiscoveryHomeCartridgeP(
     ) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             Marquee()  // .marquee＝店の看板（POCKET NOVEL / ● OPEN）
-            // .head: 見出し「見つける」＋検索。戻る（← 本棚へ）はモック省略の D 機能を欠落させず先頭へ写す。
+            // .head 上段: 見出し「見つける」＋戻る（← 本棚へ＝モック省略の D 機能を P 意匠で欠落なく写した先頭導線）。
+            // 検索はトップバーのアイコン1個から下の実検索フィールド（SEARCH キー付き）へ分離・格上げした（K 形伝播）。
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -237,11 +246,10 @@ internal fun DiscoveryHomeCartridgeP(
                     color = InkCartridge,
                     modifier = Modifier.weight(1f).padding(start = Spacing.S12),
                 )
-                PlasticIconButton(onClick = onOpenSearch) {
-                    // 用語辞書（着地画面名「探す」）に合わせる＝D 発見の検索アイコンと同一 accessible name。
-                    Icon(Icons.Filled.Search, contentDescription = "探す", tint = InkCartridge, modifier = Modifier.size(21.dp))
-                }
             }
+
+            // 固定トップの実検索フィールド（K 形伝播・モック .search＝機体の入力窓＋SEARCH キー）＝検索第一。導線は onOpenSearch を再利用。
+            SearchFieldCartridge(onOpenSearch)
 
             LazyColumn(
                 modifier = Modifier.fillMaxWidth().weight(1f),
@@ -264,6 +272,9 @@ internal fun DiscoveryHomeCartridgeP(
                         onRefresh = onRefresh,
                     )
                 }
+
+                // 末尾: 公式サイトで探す逃げ道（K 形伝播・モック .official）。K の OfficialLinkK と同一導線を配線。
+                item { OfficialLinkCartridge() }
             }
         }
     }
@@ -424,6 +435,102 @@ private fun PlasticIconButton(onClick: () -> Unit, content: @Composable () -> Un
 }
 
 // ============================================================
+// 固定トップの実検索フィールド（K 形伝播・モック .search＝凹んだ機体の入力窓＋LCD 緑の SEARCH キー）＋
+//   末尾の公式サイト逃げ道（.official）。検索タップ＝onOpenSearch、公式起動＝なろう公式 ACTION_VIEW。いずれも
+//   K 実装（DiscoveryHomeK の SearchHeaderK / OfficialLinkK）と同一導線を再利用する（新規機能は発明しない）。
+// ============================================================
+@Composable
+private fun SearchFieldCartridge(onOpenSearch: () -> Unit) {
+    Row(
+        modifier = Modifier
+            // .search（margin-top 12px）。見出しは上段 Row が担うため横 S16＋上下の呼吸のみ。
+            .padding(start = Spacing.S16, end = Spacing.S16, top = Spacing.S4, bottom = Spacing.S12)
+            .fillMaxWidth()
+            .height(50.dp)                    // .search 50px（構造値）
+            .clip(RoundedCornerShape(12.dp))  // .search border-radius 12px
+            // .search bg linear-gradient(#cfcabb, --field #c9c5b5)＝凹んだプラの入力窓。--field #c9c5b5 は
+            // --line #c9c5b6（LineDiscCartridge）と Δ1＝知覚下微差ゆえ畳む（P の「代表単色/Δ吸収」流儀）。
+            .background(Brush.verticalGradient(listOf(PanelCartridge, LineDiscCartridge)))
+            .clickable(onClick = onOpenSearch)
+            .padding(horizontal = Spacing.S12), // .search padding 0 15px → S12
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.S12), // .search gap 10px → S12
+    ) {
+        Icon(
+            Icons.Outlined.Search,
+            contentDescription = null,        // 隣接プレースホルダ文が読み上げを担う
+            tint = InkMidCartridge,           // .search svg stroke --ink-mid
+            modifier = Modifier.size(20.dp),  // .search svg 20px
+        )
+        Text(
+            "作品名・作者名・キーワードで探す",
+            fontSize = 14.sp,                 // .search .ph 14px
+            // mock .ph の色 --ink-soft は plastic 上 AA 不足＝意味を運ぶプレースホルダは --ink-mid（icon と同色・P 既定作法）。
+            color = InkMidCartridge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),   // .search .ph flex:1
+        )
+        // .go＝機体の実行キー（LCD 緑）。K 形の「検索フィールド第一」を P は入力窓の SEARCH キーで表す（タップ先は行全体＝onOpenSearch）。
+        Text(
+            "SEARCH",
+            fontFamily = PixelFamily,
+            fontSize = 9.sp,                  // .go 9px
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.12.em,          // .go letter-spacing .12em
+            color = LcdInkCartridge,          // .go color --lcd-ink
+            modifier = Modifier
+                .clip(RoundedCornerShape(4.dp))  // .go border-radius 4px
+                .background(LcdCartridge)        // .go bg --lcd
+                .padding(horizontal = Spacing.S8, vertical = Spacing.S4), // .go padding 4px 8px
+        )
+    }
+}
+
+@Composable
+private fun OfficialLinkCartridge() {
+    val context = LocalContext.current
+    Column {
+        // .official border-top 1px var(--line)＝プラ地のヘアライン。
+        Box(modifier = Modifier.fillMaxWidth().padding(top = Spacing.S16).height(1.dp).background(LineDiscCartridge))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://yomou.syosetu.com/")))
+                    }
+                }
+                .padding(top = Spacing.S12, bottom = Spacing.S4), // .official padding 14px 4px 4px
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S12), // .ol gap 10px → S12
+            ) {
+                // .oi＝機体の外部端子アイコン箱（LCD 緑のグラデ）。
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)              // .oi 30px
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(Brush.verticalGradient(listOf(LcdHiCartridge, LcdCartridge))),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.NorthEast, contentDescription = null, tint = LcdInkCartridge, modifier = Modifier.size(16.dp)) // .oi svg 16px --lcd-ink
+                }
+                Text(
+                    "小説家になろう公式サイトで探す",
+                    fontSize = 13.sp,             // .ot 13px
+                    color = InkMidCartridge,      // .ot --ink-mid
+                )
+            }
+            Icon(Icons.Filled.NorthEast, contentDescription = null, tint = InkMidCartridge, modifier = Modifier.size(16.dp)) // .ar 16px
+        }
+    }
+}
+
+// ============================================================
 // 節見出し（.sec＝▸ 付きの字間広い pixel 小見出し）
 // ============================================================
 @Composable
@@ -457,7 +564,8 @@ private fun MoodShelf(onPickMood: (MoodPreset) -> Unit) {
             .padding(top = Spacing.S4),
         horizontalArrangement = Arrangement.spacedBy(Spacing.S12),  // .shelf gap 13px → S12
     ) {
-        MoodPreset.entries.forEach { preset ->
+        // 12件へ増えた全entriesでなく従来4件の組に固定（K以外のページャ化は未裁定・2026-07-24）。
+        MoodPattern.CLASSIC.presets.forEach { preset ->
             MoodPackage(preset, color = CartridgeLabelPalette[preset.ordinal % CartridgeLabelPalette.size], onClick = { onPickMood(preset) })
         }
     }

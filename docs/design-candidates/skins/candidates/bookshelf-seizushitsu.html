@@ -1,0 +1,264 @@
+<!--
+  テーマ名「製図室」（せいずしつ）
+  コンセプト: 蔵書は図面棚に眠る青写真。プルシアンブルーの紙に白の線画と図枠、朱の検印だけで組む技術者の書斎。
+  書影＝図面1葉（内枠・方眼・表題欄・彩色マークアップ）。未取込は斜線ハッチの「未着図」。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>製図室 本棚 — 青写真</title>
+<style>
+  :root{
+    --bp:#123A5E;          /* 青写真の紙面 */
+    --bp-deep:#0D2C49;     /* クローム帯 */
+    --wt:#E9F2F9;          /* 製図線の白 */
+    --dim:#9FB8CE;         /* 補助文字（青地でAA確保） */
+    --frame:rgba(233,242,249,.55);
+    --grid:rgba(233,242,249,.07);
+    --shu:#C24A21;         /* 検印の朱＝唯一のCTA色 */
+    --shu-soft:#F09B7A;    /* 朱の淡色（未着図の署名文字） */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#081D33;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    padding:24px;font-family:var(--gothic);-webkit-font-smoothing:antialiased}
+
+  /* === スマホ画面枠 360x800（紙面全体にごく薄い方眼＝製図紙の地） === */
+  .phone{width:360px;height:800px;border-radius:38px;overflow:hidden;position:relative;
+    display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.5);
+    background:
+      repeating-linear-gradient(0deg,var(--grid) 0 1px,transparent 1px 28px),
+      repeating-linear-gradient(90deg,var(--grid) 0 1px,transparent 1px 28px),
+      var(--bp)}
+
+  .sb{height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:11px;color:var(--dim);letter-spacing:.06em}
+  .sb .r{display:flex;gap:6px;align-items:center}
+
+  /* ヘッダ: 図面の表題欄ふうに、冊数は枠付きセルで */
+  .head{flex-shrink:0;display:flex;align-items:baseline;justify-content:space-between;padding:6px 20px 12px}
+  .head .ttl{display:flex;align-items:baseline;gap:10px}
+  .head h1{font-size:22px;font-weight:700;color:var(--wt);letter-spacing:.18em}
+  .head .count{font-size:11px;color:var(--dim);letter-spacing:.1em;
+    border:1px solid var(--frame);padding:2px 9px}
+  .head .view{width:38px;height:38px;border:none;background:transparent;border-radius:8px;
+    display:grid;place-items:center;color:var(--wt);cursor:pointer;align-self:center}
+  .head .view:hover{background:rgba(233,242,249,.1)}
+  .head .view svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6}
+
+  /* 状態フィルタチップ＝スタンプ枠。選択中は白反転（青焼きの抜き） */
+  .chips{flex-shrink:0;display:flex;gap:8px;padding:0 20px 12px;overflow-x:auto;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex-shrink:0;font-size:12px;padding:6px 15px;cursor:pointer;letter-spacing:.08em;
+    border:1px solid var(--frame);color:var(--dim);background:transparent;border-radius:2px}
+  .chip.on{background:var(--wt);border-color:var(--wt);color:var(--bp);font-weight:700}
+
+  .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 24px 120px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px 24px}
+  .bk{cursor:pointer}
+
+  /* ===== 書影＝図面1葉（内枠・表題欄・作品固有色のマークアップ円と引出線） ===== */
+  .cv{position:relative;aspect-ratio:3/4;border-radius:2px;overflow:hidden;
+    background:#16436B;border:1px solid var(--frame);
+    box-shadow:0 3px 10px rgba(0,0,0,.35)}
+  .cv::before{content:"";position:absolute;inset:5px;border:1px solid rgba(233,242,249,.26);pointer-events:none}
+  /* 彩色マークアップ＝作品固有色（--tint）。書影ごとの色域を担う */
+  .cv .fig{position:absolute;left:16px;bottom:34px;width:32px;height:32px;border-radius:50%;
+    border:1.5px solid var(--tint)}
+  .cv .fig::before{content:"";position:absolute;left:50%;top:-9px;bottom:-9px;width:1px;background:var(--tint);opacity:.55}
+  .cv .fig::after{content:"";position:absolute;top:50%;left:-9px;right:-9px;height:1px;background:var(--tint);opacity:.55}
+  .cv .lead{position:absolute;left:44px;bottom:62px;width:34px;height:1px;background:var(--tint);opacity:.75;transform:rotate(-28deg);transform-origin:left bottom}
+  /* 表題欄（タイトルブロック）。FIG.番号は装飾 */
+  .cv .tb{position:absolute;left:5px;right:5px;bottom:5px;height:15px;border:1px solid rgba(233,242,249,.4);
+    display:flex;align-items:center;justify-content:space-between;padding:0 5px;
+    font-size:7px;letter-spacing:.16em;color:var(--dim)}
+  .cv .tb i{font-style:normal;color:var(--tint)}
+  .cv .vt{position:absolute;top:12px;right:11px;bottom:26px;max-width:62%;overflow:hidden;
+    writing-mode:vertical-rl;font-family:var(--mincho);font-size:12px;font-weight:600;
+    color:var(--wt);line-height:1.6;letter-spacing:.05em}
+  /* Web未取込＝「未着図」: 斜線ハッチ＋朱の破線枠・沈めて影なし */
+  .cv.narou{background:repeating-linear-gradient(45deg,rgba(233,242,249,.05) 0 6px,transparent 6px 13px),rgba(18,58,94,.4);
+    border:1.5px dashed var(--shu-soft);box-shadow:none}
+  .cv.narou::before{border-color:transparent}
+
+  /* キャプション行: 題字明朝1行（左）＋可視⋮（右端） */
+  .cap{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-top:8px}
+  .cap .t{flex:1;min-width:0;font-family:var(--mincho);font-size:12px;color:var(--wt);line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .cap .dots{width:28px;height:28px;flex-shrink:0;border:none;background:transparent;color:var(--dim);
+    display:grid;place-items:center;cursor:pointer;margin-top:-2px}
+  .cap .dots svg{width:16px;height:16px;fill:currentColor}
+  /* 状態行（諸元）: 字送りを広げて図面の注記らしく */
+  .st{margin-top:4px;font-size:10.5px;color:var(--dim);letter-spacing:.08em;
+    display:flex;align-items:center;gap:5px;min-height:14px}
+  .st .dot{width:6px;height:6px;border-radius:50%;background:var(--wt);flex-shrink:0}
+  .st.narou{color:var(--shu-soft)}
+
+  /* FAB＝朱の検印。押されて図面が増える */
+  .fab{position:absolute;right:16px;bottom:80px;z-index:6;display:inline-flex;align-items:center;gap:8px;
+    height:52px;padding:0 20px 0 16px;border:none;cursor:pointer;border-radius:26px;
+    background:var(--shu);color:#FFF6F1;font-family:var(--gothic);font-size:14px;font-weight:700;
+    letter-spacing:.06em;box-shadow:0 8px 20px rgba(194,74,33,.4)}
+  .fab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+
+  /* ===== 恒常ボトムナビ＝図面下辺の表題欄（セルを縦罫で区切る） ===== */
+  .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--frame);background:var(--bp-deep)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    text-decoration:none;cursor:pointer;color:#8AA6BD}
+  .tab+.tab{border-left:1px solid rgba(233,242,249,.16)}
+  .tab.on{color:var(--wt)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill{position:absolute;inset:0;border-radius:4px;background:transparent}
+  .tab.on .ic .pill{background:rgba(233,242,249,.12)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-size:11px;letter-spacing:.1em}
+  .tab.on .lb{font-weight:700}
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+
+    <!-- ヘッダ（表題欄ふう） -->
+    <div class="head">
+      <div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div>
+      <button class="view" aria-label="表示切替">
+        <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="4" width="6.6" height="6.6" rx="1.4"/><rect x="4" y="13.4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="13.4" width="6.6" height="6.6" rx="1.4"/></svg>
+      </button>
+    </div>
+
+    <!-- 状態フィルタチップ -->
+    <div class="chips">
+      <span class="chip on">すべて</span>
+      <span class="chip">よみかけ</span>
+      <span class="chip">未読</span>
+      <span class="chip">読了</span>
+    </div>
+
+    <!-- 図面グリッド（2列・うち2葉は未着図＝Web未取込） -->
+    <div class="scroll">
+      <div class="grid">
+
+        <div class="bk">
+          <div class="cv" style="--tint:hsl(210 55% 72%)">
+            <span class="fig"></span><span class="lead"></span>
+            <span class="vt">追放された万能薬師、辺境でスローライフを始める</span>
+            <span class="tb"><span>N.R. ARCHIVE</span><i>FIG.01</i></span>
+          </div>
+          <div class="cap"><span class="t">追放された万能薬師、辺境でスローライフを始める</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">第127/205話</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv" style="--tint:hsl(280 55% 74%)">
+            <span class="fig" style="left:20px;bottom:44px"></span><span class="lead" style="left:50px;bottom:70px"></span>
+            <span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span>
+            <span class="tb"><span>N.R. ARCHIVE</span><i>FIG.02</i></span>
+          </div>
+          <div class="cap"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">第43/150話</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv" style="--tint:hsl(95 50% 70%)">
+            <span class="fig" style="left:14px;bottom:52px;width:26px;height:26px"></span><span class="lead" style="left:38px;bottom:76px"></span>
+            <span class="vt">転生したら最弱スキルだったので草むしりしていた</span>
+            <span class="tb"><span>N.R. ARCHIVE</span><i>FIG.03</i></span>
+          </div>
+          <div class="cap"><span class="t">転生したら最弱スキルだったので草むしりしていた</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st"><span class="dot"></span>未読</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv narou" style="--tint:hsl(190 50% 72%)">
+            <span class="vt">最果てのダンジョンで細々と暮らすことにした</span>
+            <span class="tb"><span>未着図</span><i>—</i></span>
+          </div>
+          <div class="cap"><span class="t">最果てのダンジョンで細々と暮らすことにした</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st narou">なろう・未取込</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv" style="--tint:hsl(340 55% 76%)">
+            <span class="fig" style="left:18px;bottom:38px"></span><span class="lead" style="left:47px;bottom:65px"></span>
+            <span class="vt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
+            <span class="tb"><span>N.R. ARCHIVE</span><i>FIG.05</i></span>
+          </div>
+          <div class="cap"><span class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">第8/72話</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv" style="--tint:hsl(150 45% 68%)">
+            <span class="fig" style="left:15px;bottom:48px;width:30px;height:30px"></span><span class="lead" style="left:42px;bottom:74px"></span>
+            <span class="vt">聖女は隣国で薬草を育てて暮らしたい</span>
+            <span class="tb"><span>N.R. ARCHIVE</span><i>FIG.06</i></span>
+          </div>
+          <div class="cap"><span class="t">聖女は隣国で薬草を育てて暮らしたい</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">読了</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv narou" style="--tint:hsl(50 55% 70%)">
+            <span class="vt">辺境ぐらしの隠居魔導士、今日ものんびり</span>
+            <span class="tb"><span>未着図</span><i>—</i></span>
+          </div>
+          <div class="cap"><span class="t">辺境ぐらしの隠居魔導士、今日ものんびり</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st narou">なろう・未取込</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv" style="--tint:hsl(230 55% 76%)">
+            <span class="fig" style="left:22px;bottom:42px"></span><span class="lead" style="left:52px;bottom:69px"></span>
+            <span class="vt">星降る夜の図書館で君を待っている</span>
+            <span class="tb"><span>N.R. ARCHIVE</span><i>FIG.08</i></span>
+          </div>
+          <div class="cap"><span class="t">星降る夜の図書館で君を待っている</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">読了</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- FAB（朱の検印） -->
+    <button class="fab">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>PDFを追加
+    </button>
+
+    <!-- ===== 恒常ボトムナビ（本棚 選択中） ===== -->
+    <nav class="tabbar">
+      <a class="tab on">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg>
+        </span>
+        <span class="lb">本棚</span>
+      </a>
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg>
+        </span>
+        <span class="lb">さがす</span>
+      </a>
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </span>
+        <span class="lb">設定</span>
+      </a>
+    </nav>
+  </div>
+</body>
+</html>

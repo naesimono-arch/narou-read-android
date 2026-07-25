@@ -175,14 +175,16 @@ class BookshelfPortalJTest {
     }
 
     @Test
-    fun `Jグリッド面もデッキと同じ⋮メニュー（PDF追加＋テーマ節）を出す`() {
+    fun `Jグリッド面の⋮メニューはPDF追加を残しテーマ・通知は撤去（系2）`() {
         var fab = false
         setContent(
             Skin.PORTAL_J, BookshelfUiState.Content(listOf(book("b1", "扉の本"))),
             deckViewJ = false, onFabClick = { fab = true },
         )
         composeTestRule.onNodeWithContentDescription("メニュー").performClick()
-        composeTestRule.onNodeWithText("テーマ").assertIsDisplayed()
+        // テーマ・通知は設定タブへ移行済みで⋮から撤去。非設定項目の「PDFを追加」は残る。
+        composeTestRule.onNodeWithText("テーマ").assertDoesNotExist()
+        composeTestRule.onNodeWithText("システムに従う").assertDoesNotExist()
         composeTestRule.onNodeWithText("PDFを追加")
             .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
         assertTrue("グリッド面の PDF追加が結線されていない", fab)
@@ -215,53 +217,13 @@ class BookshelfPortalJTest {
     }
 
     @Test
-    fun `Jのデッキメニューはテーマ3択と通知節を出す`() {
+    fun `JのデッキメニューはPDF追加を残しテーマ・通知は撤去（系2）`() {
+        // テーマ・通知は設定タブ（SettingsScreenK）へ移行済みで⋮から撤去。非設定項目の「PDFを追加」は残る。
         setContent(Skin.PORTAL_J, BookshelfUiState.Content(listOf(book("b1", "扉の本"))))
         composeTestRule.onNodeWithContentDescription("メニュー").performClick()
-        // J は3変種（DARK/LIGHT/SEPIA）＝テーマ節を出す（M の1変種畳みとの対比・supportedThemes 単一真実源）。
-        composeTestRule.onNodeWithText("テーマ").assertIsDisplayed()
-        composeTestRule.onNodeWithText("通知").assertIsDisplayed()
-    }
-
-    // ────── ⋮メニューのテーマ節＝システムに従う＋3択の4択統一（2026-07-17 裁定②・D と同粒度） ──────
-
-    @Test
-    fun `Jのデッキメニューのテーマ節は読書シートと同じ4択を出す`() {
-        // 不整合是正の要: 本棚⋮が3択のままで「システムに従う」を選べなかった退行を固定で塞ぐ（D と同一規則）。
-        setContent(Skin.PORTAL_J, BookshelfUiState.Content(listOf(book("b1", "扉の本"))))
-        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
-        composeTestRule.onNodeWithText("システムに従う").assertIsDisplayed()
-        composeTestRule.onNodeWithText("ライト").assertIsDisplayed()
-        composeTestRule.onNodeWithText("セピア").assertIsDisplayed()
-        composeTestRule.onNodeWithText("ダーク").assertIsDisplayed()
-    }
-
-    @Test
-    fun `J追従中は「システムに従う」のみ選択表示で明示3択は未選択`() {
-        // followingSystem=true（reading_theme 未宣言）のとき、チェックは「システムに従う」1つだけ＝
-        // 「何を宣言したか」を表す読書シートと同一規則（appTheme=DARK でもダークには付かない）。
-        setContent(
-            Skin.PORTAL_J, BookshelfUiState.Content(listOf(book("b1", "扉の本"))),
-            appTheme = ReadingTheme.DARK,
-            followingSystem = true,
-        )
-        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
-        composeTestRule.onAllNodesWithContentDescription("選択中").assertCountEquals(1)
-    }
-
-    @Test
-    fun `Jの「システムに従う」タップでonFollowSystemが呼ばれる`() {
-        // 明示テーマ固定から OS 追従へ戻す導線が J デッキ⋮からも効くことを固定する（不整合の是正点）。
-        var followed = false
-        setContent(
-            Skin.PORTAL_J, BookshelfUiState.Content(listOf(book("b1", "扉の本"))),
-            appTheme = ReadingTheme.LIGHT,
-            followingSystem = false,
-            onFollowSystem = { followed = true },
-        )
-        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
-        composeTestRule.onNodeWithText("システムに従う").performClick()
-        assertTrue(followed)
+        composeTestRule.onNodeWithText("テーマ").assertDoesNotExist()
+        composeTestRule.onNodeWithText("システムに従う").assertDoesNotExist()
+        composeTestRule.onNodeWithText("PDFを追加").assertIsDisplayed()
     }
 
     @Test

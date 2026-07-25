@@ -61,6 +61,11 @@ const val MotionDurationCrossfade: Int = 250
 // motion は ADR 0005-B 実機後詰め層のため値・型とも実機で決めてよい（HTMLモック非対象）。
 const val MotionDurationNavTransition: Int = 250
 
+// 明快K: ボトムナビのタブ切替（本棚⇄さがす⇄設定）。なぜ slide でなく短い crossfade か:
+// タブは「同格の目的地の切替」で階層移動ではない＝方向を語る slide は誤った空間語彙になる
+// （ADR 0019 の slide は push/pop 用）。バーは静止しコンテンツだけ素早く入れ替わるのがタブの標準文法。
+const val MotionDurationKTabSwitch: Int = 150
+
 // M星図スキンだけの画面遷移＝フェードスルー（退出 fadeOut 先行→進入 fadeIn。ADR 0019 追記「M星図の例外」・
 // 2026-07-19 ユーザー裁定）。なぜ M だけ slide でなく fade か: M は固定天球（常駐 backdrop）を全画面で共有する
 // アーキテクチャで、slide は「世界（空）ごと」動かしてしまい壁紙が切り替わる違和感を生む＝コンテンツのみを

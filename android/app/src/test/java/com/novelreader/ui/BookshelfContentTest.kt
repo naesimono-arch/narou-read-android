@@ -201,45 +201,19 @@ class BookshelfContentTest {
         composeTestRule.onNodeWithText("この分類の本はありません").assertDoesNotExist()
     }
 
-    // ────── ⋮メニューのテーマ節（システムに従う＋ライト/セピア/ダークの4択・2026-07-17 裁定） ──────
+    // ────── 本棚⋮の撤去（テーマ・通知・診断は設定タブ SettingsScreenK へ移行・系2 2026-07-24） ──────
 
     @Test
-    fun `⋮メニューのテーマ節は読書シートと同じ4択を出す`() {
-        // 不整合是正の要: 本棚⋮が3択のままで「システムに従う」を選べなかった退行を固定で塞ぐ。
-        setContent(BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))))
-        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
-        composeTestRule.onNodeWithText("システムに従う").assertIsDisplayed()
-        composeTestRule.onNodeWithText("ライト").assertIsDisplayed()
-        composeTestRule.onNodeWithText("セピア").assertIsDisplayed()
-        composeTestRule.onNodeWithText("ダーク").assertIsDisplayed()
-    }
-
-    @Test
-    fun `追従中は「システムに従う」のみ選択表示で明示3択は未選択`() {
-        // followingSystem=true（reading_theme 未宣言）のとき、チェックは「システムに従う」1つだけ＝
-        // 「何を宣言したか」を表す読書シートと同一規則（appTheme=DARK でもダークには付かない）。
+    fun `本棚からテーマ・通知の重複導線を撤去した（系2）`() {
+        // 設定重複の撤去を固定: 本棚トップバーの⋮（テーマ4択・通知・診断）を撤去したため、本棚のどこにも
+        // テーマの「システムに従う」は出ない（設定タブが単一正本）。カードの可視⋮（系1）は残るが中身は「選択」のみ。
         setContent(
             BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))),
             appTheme = ReadingTheme.DARK,
             followingSystem = true,
         )
-        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
-        composeTestRule.onAllNodesWithContentDescription("選択中").assertCountEquals(1)
-    }
-
-    @Test
-    fun `「システムに従う」タップでonFollowSystemが呼ばれる`() {
-        // 明示テーマ固定から OS 追従へ戻す導線が本棚からも効くことを固定する（不整合の是正点）。
-        var followed = false
-        setContent(
-            BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))),
-            appTheme = ReadingTheme.LIGHT,
-            followingSystem = false,
-            onFollowSystem = { followed = true },
-        )
-        composeTestRule.onNodeWithContentDescription("メニュー").performClick()
-        composeTestRule.onNodeWithText("システムに従う").performClick()
-        assertTrue(followed)
+        composeTestRule.onNodeWithText("システムに従う").assertDoesNotExist()
+        composeTestRule.onNodeWithText("ライト").assertDoesNotExist()
     }
 
     // ────── 複数選択→まとめて削除（残8・案B裁定） ──────

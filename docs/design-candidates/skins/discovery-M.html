@@ -1,49 +1,55 @@
-<!-- @dsCard group="UI-n / 発見（スキン候補）" name="M. 星図 — 発見ホーム（観測ランキング・気分プリセット・大胆な夜空）" -->
+<!-- @dsCard group="UI-n / K形伝播ドラフト（星図M）" name="M×K形. さがす — 星図（検索第一＋観測ランキング＋逃げ道＋恒常ナビ・ドラフト）" -->
 <!--
-  思想の翻訳: 発見＝夜空の観測。ランキングは星表（明るい星＝上位）。D発見の構造（気分プリセット×order×ランキング）をMトークンへ写像。
-  遊びを足した所: 地の夜空を大胆に（星屑を厚く＋淡い天の川の帯＋見出し背後に大きな淡い星座）。気分プリセット＝夜空を覗く窓（小さな星座片）。順位＝明朝の星等数字＋上位の一星。
-  破壊するもの: 藍ヘアライン体系を月光スレートの線＋星光の点へ。
-  規格層は不変: 意味を運ぶ文字は4.5:1以上・和文letterSpacing 0。夜空は地に留め本文の可読を越えない。
-  ※ 3系統: 群青の夜天／星光の金（上位順位・pt）／月光スレート（線・チップ・補助文字）。
+  K形状伝播ドラフト（2026-07-23）: 明快Kの「さがす」の形（検索第一→発見コンテンツ→公式サイト逃げ道→恒常ナビ）を星図Mの意匠で再構成。
+  ・形（K由来）: 明示タイトル「さがす」（タブ語彙と一致）・最上部に実検索フィールド（検索第一）・末尾に「公式サイトで探す」逃げ道行・恒常ボトムナビ3タブ（さがす選択中）。
+  ・意匠（M温存）: 群青の夜天＋厚い星屑＋淡い天の川canvas／気分プリセット＝夜空を覗く窓（星座片）／ランキング＝星表（明朝の星等数字＋上位の一星）／月光スレートの線・チップ。
+  ・ボトムナビ骨格は bookshelf-K.html:229-248 を固定コピーし色のみ M トークンへ差替。M元 discovery の検索は右上アイコンのみ→K形の実フィールドへ昇格。
 -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>UI-n M 発見 — 星図</title>
+<title>M×K形 さがす — 星図</title>
 <style>
   :root{
     --text:#DCE3F2;--dim:#8791AD;--star:#E9DDB4;
     --line:rgba(150,168,214,.20);
+    --field:rgba(14,22,52,.55);   /* 検索フィールド地＝夜天と同系の透過（濃色ダミーでなく） */
+    --navbg:#0A1128;
+    --star-tint:rgba(233,221,180,.14);
     --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#06080F;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
-  .cap{color:#7C86A2;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:640px}
+  body{background:#06080F;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic);-webkit-font-smoothing:antialiased}
+  .cap{color:#7C86A2;font-size:13px;margin-bottom:16px;text-align:center;line-height:1.7;max-width:560px}
   .cap b{color:#DCE3F2}
-  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
-  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
-  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#7C86A2}
 
   .phone{width:390px;height:844px;border-radius:42px;overflow:hidden;position:relative;display:flex;flex-direction:column;
-    box-shadow:0 30px 72px rgba(0,0,0,.72);font-family:var(--gothic);
+    box-shadow:0 30px 72px rgba(0,0,0,.72);
     background:
       radial-gradient(90% 40% at 60% 2%,rgba(66,86,158,.26),transparent 60%),
       linear-gradient(178deg,#0B1330 0%,#0D1636 48%,#080E26 100%);}
-  .skybg{position:absolute;inset:0;z-index:0}
+  .skybg{position:absolute;inset:0;z-index:0;pointer-events:none}
   .layer{position:relative;z-index:1;display:flex;flex-direction:column;height:100%}
+
   .sb{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font-size:12px;color:#6E7794;flex-shrink:0}
 
-  .top{padding:6px 26px 8px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
-  .top h1{font-family:var(--mincho);font-size:26px;color:var(--text);font-weight:500;letter-spacing:.16em}
-  .ib{width:40px;height:40px;border:none;background:transparent;border-radius:10px;display:grid;place-items:center;color:var(--text);cursor:pointer}
-  .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.5}
-  .scroll{flex:1;overflow:auto;padding:0 26px 40px;scrollbar-width:none}.scroll::-webkit-scrollbar{display:none}
-  .sec{font-size:10.5px;letter-spacing:.28em;color:var(--dim);margin:28px 0 16px}
+  /* 固定トップ: 明示タイトル「さがす」＋実検索フィールド（検索第一・常時可視） */
+  .top{flex-shrink:0;padding:2px 24px 12px}
+  .top h1{font-family:var(--mincho);font-size:24px;color:var(--text);font-weight:500;letter-spacing:.16em}
+  .search{margin-top:14px;height:52px;display:flex;align-items:center;gap:11px;background:var(--field);
+    border:1px solid var(--line);border-radius:14px;padding:0 16px;cursor:text}
+  .search svg{width:20px;height:20px;stroke:var(--dim);fill:none;stroke-width:1.7;flex-shrink:0}
+  .search span{font-size:14px;color:var(--dim)}
 
-  /* 気分プリセット＝夜空を覗く窓。2列・ゆったり・小さな星座片つき */
+  .scroll{flex:1;overflow:auto;padding:0 24px 24px;scrollbar-width:none}.scroll::-webkit-scrollbar{display:none}
+  /* 見出し＝月光スレート・字間広め（M元 discovery の作法を温存） */
+  .sec{font-size:10.5px;letter-spacing:.28em;color:var(--dim);margin:26px 0 15px}
+  .sec:first-child{margin-top:20px}
+
+  /* 気分プリセット＝夜空を覗く窓（小さな星座片つき・2列） */
   .mood{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .md{border:1px solid var(--line);border-radius:12px;padding:18px 16px 16px;cursor:pointer;position:relative;min-height:82px;
     display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;background:rgba(14,22,52,.28)}
@@ -54,13 +60,13 @@
   .gchips{display:flex;gap:9px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}.gchips::-webkit-scrollbar{display:none}
   .gc{flex-shrink:0;font-size:11.5px;color:#C3CADB;border:1px solid var(--line);border-radius:999px;padding:9px 17px;cursor:pointer}
 
-  .tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-top:28px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
-  .tab{flex-shrink:0;font-size:12.5px;color:var(--dim);padding:12px 12px;cursor:pointer;position:relative;letter-spacing:.06em}
-  .tab.on{color:var(--star)}
-  .tab.on::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--star)}
+  .tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-top:26px;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+  .rtab{flex-shrink:0;font-size:12.5px;color:var(--dim);padding:12px 12px;cursor:pointer;position:relative;letter-spacing:.06em}
+  .rtab.on{color:var(--star)}
+  .rtab.on::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--star)}
 
   /* ランキング＝星表。順位＝明朝の星等数字（上位3位は星光の一星） */
-  .rk{display:flex;gap:16px;padding:22px 2px;cursor:pointer}
+  .rk{display:flex;gap:16px;padding:22px 2px;cursor:pointer;border-bottom:1px solid rgba(150,168,214,.08)}
   .rk .no{font-family:var(--mincho);font-size:19px;color:var(--dim);width:26px;flex-shrink:0;text-align:center;line-height:1.2;padding-top:2px;position:relative}
   .rk.top3 .no{color:var(--star)}
   .rk.top3 .no::after{content:"";position:absolute;left:50%;top:-9px;transform:translateX(-50%);width:5px;height:5px;
@@ -73,124 +79,133 @@
   .rk .m{display:flex;gap:14px;font-size:10.5px;color:#9AA4C0;margin-top:10px;letter-spacing:.03em}
   .rk .m .pt{color:var(--star)}
 
-  .back{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);padding:4px 26px 0;cursor:pointer}
-  .back svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5}
-  .ctx{padding:16px 26px 0}
-  .ctx h2{font-family:var(--mincho);font-size:22px;color:var(--text);font-weight:500;letter-spacing:.08em}
-  .ctx .sub{font-size:11px;color:var(--dim);margin-top:10px;line-height:1.7}
-  .conds{display:flex;gap:8px;flex-wrap:wrap;padding:18px 26px 4px}
-  .cd{font-size:10.5px;color:var(--star);border:1px solid rgba(233,221,180,.4);border-radius:999px;padding:5px 13px;opacity:.9}
-  .cd.adj{color:var(--dim);border-color:var(--line);cursor:pointer}
-  .cnt{padding:14px 26px 0;font-size:11px;color:var(--dim);letter-spacing:.08em}
+  /* 公式サイトへの逃げ道（K形の要件）: ヘアラインで区切った外部リンク行を末尾に */
+  .official{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;padding:18px 2px 4px;
+    border-top:1px solid var(--line);font-size:13px;color:var(--dim);cursor:pointer}
+  .official svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6;flex-shrink:0}
+
+  /* ===== 恒常ボトムナビ（bookshelf-K.html:229-248 の骨格・SVG・ラベルを固定コピー。色のみ M トークンへ） ===== */
+  .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--navbg)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;text-decoration:none;cursor:pointer;color:var(--dim)}
+  .tab.on{color:var(--star)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .tab.on .ic .pill{background:var(--star-tint)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
+  .tab.on .lb{font-weight:700}
 </style>
 </head>
 <body>
-  <p class="cap"><b>M. 星図 — 発見ホーム</b> ／ D発見の構造（気分プリセット×order×ランキング）をMトークンへ写像。地の夜空を大胆に（星屑・天の川・見出し背後の大きな星座）、順位は明朝の星等数字＋上位の一星。右＝プリセットtap後の共通着地。</p>
-  <div class="stage">
+  <p class="cap"><b>M×K形. さがす</b> ／ 検索第一＋発見コンテンツ＋公式サイト逃げ道＋恒常ナビ（Kの形）を、星図Mの夜天・星表で再構成。気分＝夜空を覗く窓、順位＝星等数字＋上位の一星。</p>
+  <div class="phone" role="img" aria-label="M×K形 さがす画面ドラフト">
+    <canvas class="skybg" aria-hidden="true"></canvas>
+    <div class="layer">
+      <div class="sb"><span>9:41</span><span>●●● ▢ 84%</span></div>
 
-    <div class="wrap"><span class="mode">発見ホーム</span>
-    <div class="phone" role="img" aria-label="M案 発見ホーム">
-      <canvas class="skybg" aria-hidden="true"></canvas>
-      <div class="layer">
-        <div class="sb"><span>9:41</span><span>●●● ▢ 84%</span></div>
-        <div class="top"><h1>見つける</h1>
-          <button class="ib" aria-label="検索"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
-        </div>
-        <div class="scroll">
-          <div class="sec" style="margin-top:18px">きょうの気分</div>
-          <div class="mood">
-            <div class="md"><svg class="win" width="34" height="20" viewBox="0 0 34 20" aria-hidden="true"><g stroke="rgba(233,221,180,.5)" stroke-width="1" fill="none"><line x1="4" y1="14" x2="14" y2="6"/><line x1="14" y1="6" x2="28" y2="10"/></g><g fill="#E9DDB4"><circle cx="4" cy="14" r="1.3"/><circle cx="14" cy="6" r="1.8"/><circle cx="28" cy="10" r="1.3"/></g></svg><b>30分の小さな旅</b><span>短編 ・ 読了 30分まで</span></div>
-            <div class="md"><svg class="win" width="34" height="20" viewBox="0 0 34 20" aria-hidden="true"><g stroke="rgba(233,221,180,.5)" stroke-width="1" fill="none"><line x1="5" y1="6" x2="16" y2="14"/><line x1="16" y1="14" x2="29" y2="7"/></g><g fill="#E9DDB4"><circle cx="5" cy="6" r="1.3"/><circle cx="16" cy="14" r="1.8"/><circle cx="29" cy="7" r="1.3"/></g></svg><b>今夜の一気読み</b><span>完結済 ・ 10万字以上</span></div>
-            <div class="md"><svg class="win" width="34" height="20" viewBox="0 0 34 20" aria-hidden="true"><g stroke="rgba(233,221,180,.5)" stroke-width="1" fill="none"><line x1="4" y1="10" x2="17" y2="5"/><line x1="17" y1="5" x2="30" y2="13"/></g><g fill="#E9DDB4"><circle cx="4" cy="10" r="1.3"/><circle cx="17" cy="5" r="1.8"/><circle cx="30" cy="13" r="1.3"/></g></svg><b>会話でさくさく</b><span>会話率 60% 以上</span></div>
-            <div class="md"><svg class="win" width="34" height="20" viewBox="0 0 34 20" aria-hidden="true"><g stroke="rgba(233,221,180,.5)" stroke-width="1" fill="none"><line x1="5" y1="13" x2="15" y2="7"/><line x1="15" y1="7" x2="29" y2="9"/></g><g fill="#E9DDB4"><circle cx="5" cy="13" r="1.3"/><circle cx="15" cy="7" r="1.8"/><circle cx="29" cy="9" r="1.3"/></g></svg><b>挿絵と歩く</b><span>挿絵のある作品</span></div>
-          </div>
-
-          <div class="sec">ジャンルから</div>
-          <div class="gchips">
-            <span class="gc">恋愛</span><span class="gc">ファンタジー</span><span class="gc">文芸</span><span class="gc">SF</span><span class="gc">その他</span><span class="gc">ノンジャンル</span>
-          </div>
-
-          <div class="tabs">
-            <span class="tab on">週間</span><span class="tab">日間</span><span class="tab">月間</span><span class="tab">四半期</span><span class="tab">累計</span><span class="tab">新着</span>
-          </div>
-
-          <div class="rk top3"><div class="no">1</div><div class="bd">
-            <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
-            <div class="a">霧島あおい<em>ハイファンタジー</em></div>
-            <div class="m"><span>連載中 127話</span><span>約 8時間</span><span class="pt">週間 12,345pt</span></div>
-          </div></div>
-          <div class="rk top3"><div class="no">2</div><div class="bd">
-            <div class="t">黒の魔王と契約した俺、気づけば最強の従者になっていた</div>
-            <div class="a">夜灯すばる<em>異世界〔恋愛〕</em></div>
-            <div class="m"><span>連載中 43話</span><span>約 3時間</span><span class="pt">週間 9,812pt</span></div>
-          </div></div>
-          <div class="rk"><div class="no">4</div><div class="bd">
-            <div class="t">転生したら最弱スキルだったので、ひたすら草むしりしていた</div>
-            <div class="a">青葉みのり<em>ハイファンタジー</em></div>
-            <div class="m"><span>連載中 88話</span><span>約 6時間</span><span class="pt">週間 7,530pt</span></div>
-          </div></div>
+      <!-- 固定トップ: タイトル＋実検索フィールド（検索第一） -->
+      <div class="top">
+        <h1>さがす</h1>
+        <div class="search">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+          <span>作品名・作者名・キーワードで探す</span>
         </div>
       </div>
-    </div></div>
 
-    <div class="wrap"><span class="mode">結果一覧（共通着地）</span>
-    <div class="phone" role="img" aria-label="M案 発見 結果一覧">
-      <canvas class="skybg" aria-hidden="true"></canvas>
-      <div class="layer">
-        <div class="sb"><span>9:41</span><span>●●● ▢ 84%</span></div>
-        <div class="back"><svg viewBox="0 0 24 24"><polyline points="14 6 8 12 14 18"/></svg>見つける</div>
-        <div class="ctx">
-          <h2>30分の小さな旅</h2>
-          <div class="sub">短い時間で完結する物語。読了目安 30分まで・短編のみ。</div>
+      <div class="scroll">
+        <div class="sec">きょうの気分</div>
+        <div class="mood">
+          <div class="md"><svg class="win" width="34" height="20" viewBox="0 0 34 20" aria-hidden="true"><g stroke="rgba(233,221,180,.5)" stroke-width="1" fill="none"><line x1="4" y1="14" x2="14" y2="6"/><line x1="14" y1="6" x2="28" y2="10"/></g><g fill="#E9DDB4"><circle cx="4" cy="14" r="1.3"/><circle cx="14" cy="6" r="1.8"/><circle cx="28" cy="10" r="1.3"/></g></svg><b>30分の小さな旅</b><span>短編 ・ 読了 30分まで</span></div>
+          <div class="md"><svg class="win" width="34" height="20" viewBox="0 0 34 20" aria-hidden="true"><g stroke="rgba(233,221,180,.5)" stroke-width="1" fill="none"><line x1="5" y1="6" x2="16" y2="14"/><line x1="16" y1="14" x2="29" y2="7"/></g><g fill="#E9DDB4"><circle cx="5" cy="6" r="1.3"/><circle cx="16" cy="14" r="1.8"/><circle cx="29" cy="7" r="1.3"/></g></svg><b>今夜の一気読み</b><span>完結済 ・ 10万字以上</span></div>
+          <div class="md"><svg class="win" width="34" height="20" viewBox="0 0 34 20" aria-hidden="true"><g stroke="rgba(233,221,180,.5)" stroke-width="1" fill="none"><line x1="4" y1="10" x2="17" y2="5"/><line x1="17" y1="5" x2="30" y2="13"/></g><g fill="#E9DDB4"><circle cx="4" cy="10" r="1.3"/><circle cx="17" cy="5" r="1.8"/><circle cx="30" cy="13" r="1.3"/></g></svg><b>会話でさくさく</b><span>会話率 60% 以上</span></div>
+          <div class="md"><svg class="win" width="34" height="20" viewBox="0 0 34 20" aria-hidden="true"><g stroke="rgba(233,221,180,.5)" stroke-width="1" fill="none"><line x1="5" y1="13" x2="15" y2="7"/><line x1="15" y1="7" x2="29" y2="9"/></g><g fill="#E9DDB4"><circle cx="5" cy="13" r="1.3"/><circle cx="15" cy="7" r="1.8"/><circle cx="29" cy="9" r="1.3"/></g></svg><b>挿絵と歩く</b><span>挿絵のある作品</span></div>
         </div>
-        <div class="conds">
-          <span class="cd">短編</span><span class="cd">〜30分</span><span class="cd">週間人気順</span><span class="cd adj">条件を調整</span>
+
+        <div class="sec">ジャンルから</div>
+        <div class="gchips">
+          <span class="gc">恋愛</span><span class="gc">ファンタジー</span><span class="gc">文芸</span><span class="gc">SF</span><span class="gc">その他</span><span class="gc">ノンジャンル</span>
         </div>
-        <div class="cnt">1,204 作品</div>
-        <div class="scroll" style="padding-top:6px">
-          <div class="rk"><div class="no">1</div><div class="bd">
-            <div class="t">雨宿りの喫茶店で魔女に出会った</div>
-            <div class="a">早瀬ことり<em>現実世界〔恋愛〕</em></div>
-            <div class="m"><span>短編</span><span>約 12分</span><span class="pt">週間 3,204pt</span></div>
-          </div></div>
-          <div class="rk"><div class="no">2</div><div class="bd">
-            <div class="t">最後の魔王が残した、たったひとつの願いごと</div>
-            <div class="a">灰島ちひろ<em>ハイファンタジー</em></div>
-            <div class="m"><span>短編</span><span>約 28分</span><span class="pt">週間 2,877pt</span></div>
-          </div></div>
-          <div class="rk"><div class="no">3</div><div class="bd">
-            <div class="t">駅前の占い師は未来を視ない</div>
-            <div class="a">結城まほろ<em>ヒューマンドラマ</em></div>
-            <div class="m"><span>短編</span><span>約 19分</span><span class="pt">週間 2,410pt</span></div>
-          </div></div>
+
+        <div class="sec">ランキング</div>
+        <div class="tabs">
+          <span class="rtab on">週間</span><span class="rtab">日間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span>
+        </div>
+        <div class="rk top3"><div class="no">1</div><div class="bd">
+          <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+          <div class="a">霧島あおい<em>ハイファンタジー</em></div>
+          <div class="m"><span>連載中 127話</span><span>約 8時間</span><span class="pt">週間 12,345pt</span></div>
+        </div></div>
+        <div class="rk top3"><div class="no">2</div><div class="bd">
+          <div class="t">黒の魔王と契約した俺、気づけば最強の従者になっていた</div>
+          <div class="a">夜灯すばる<em>異世界〔恋愛〕</em></div>
+          <div class="m"><span>連載中 43話</span><span>約 3時間</span><span class="pt">週間 9,812pt</span></div>
+        </div></div>
+        <div class="rk top3"><div class="no">3</div><div class="bd">
+          <div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+          <div class="a">白河すずら<em>異世界〔恋愛〕</em></div>
+          <div class="m"><span>完結 88話</span><span>約 5時間</span><span class="pt">週間 8,640pt</span></div>
+        </div></div>
+        <div class="rk"><div class="no">4</div><div class="bd">
+          <div class="t">転生したら最弱スキルだったので、ひたすら草むしりしていた</div>
+          <div class="a">青葉みのり<em>ハイファンタジー</em></div>
+          <div class="m"><span>連載中 88話</span><span>約 6時間</span><span class="pt">週間 7,530pt</span></div>
+        </div></div>
+        <div class="rk"><div class="no">5</div><div class="bd">
+          <div class="t">辺境伯家の次男は今日も書庫にこもる</div>
+          <div class="a">水無月れん<em>ヒューマンドラマ</em></div>
+          <div class="m"><span>短編</span><span>約 24分</span><span class="pt">週間 6,201pt</span></div>
+        </div></div>
+
+        <!-- 公式サイトへの逃げ道（末尾） -->
+        <div class="official">
+          <span>小説家になろう公式サイトで探す</span>
+          <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg>
         </div>
       </div>
-    </div></div>
 
+      <!-- ===== 恒常ボトムナビ（さがす 選択中） ===== -->
+      <nav class="tabbar">
+        <a class="tab">
+          <span class="ic"><span class="pill"></span>
+            <svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg>
+          </span>
+          <span class="lb">本棚</span>
+        </a>
+        <a class="tab on">
+          <span class="ic"><span class="pill"></span>
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg>
+          </span>
+          <span class="lb">さがす</span>
+        </a>
+        <a class="tab">
+          <span class="ic"><span class="pill"></span>
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </span>
+          <span class="lb">設定</span>
+        </a>
+      </nav>
+    </div>
   </div>
 
 <script>
-// 大胆な夜空＝厚い星屑＋淡い天の川の帯＋見出し背後の大きな淡い星座（地に留め本文可読を越えない）
+// 大胆な夜空＝厚い星屑＋淡い天の川の帯＋見出し背後の大きな淡い星座（地に留め本文可読を越えない）。M意匠の温存
 (function(){
   const W=390,H=844,dpr=Math.max(1,window.devicePixelRatio||1);
   let seed=13579;const rnd=()=>{seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;};
   const DUST=[];for(let i=0;i<110;i++){const band=rnd()<.5;DUST.push([rnd()*W, band?(60+rnd()*230):(44+rnd()*(H-70)), rnd()*1+.3, rnd()*(band?.4:.28)+.05]);}
-  const CONST=[[70,150],[130,120],[200,168],[268,132],[320,180]]; // 見出し背後の大きな淡い星座
+  const CONST=[[70,150],[130,120],[200,168],[268,132],[320,180]];
   function glow(ctx,x,y,r,a){const g=ctx.createRadialGradient(x,y,0,x,y,r);
     g.addColorStop(0,'rgba(233,221,180,'+a+')');g.addColorStop(1,'rgba(233,221,180,0)');
     ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();
     ctx.fillStyle='rgba(245,248,255,'+Math.min(1,a+.2)+')';ctx.beginPath();ctx.arc(x,y,1.4,0,7);ctx.fill();}
-  document.querySelectorAll('.skybg').forEach(cv=>{
-    const ctx=cv.getContext('2d');cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';ctx.scale(dpr,dpr);
-    // 天の川の淡い帯
-    const mw=ctx.createLinearGradient(0,80,390,300);mw.addColorStop(0,'rgba(120,140,210,0)');mw.addColorStop(.5,'rgba(120,140,210,.06)');mw.addColorStop(1,'rgba(120,140,210,0)');
-    ctx.fillStyle=mw;ctx.fillRect(0,60,390,240);
-    for(const [x,y,r,a] of DUST){ctx.fillStyle='rgba(214,224,250,'+a+')';ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
-    // 見出し背後の大きな淡い星座（結線＋星）
-    ctx.strokeStyle='rgba(150,168,214,.12)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(CONST[0][0],CONST[0][1]);
-    for(let i=1;i<CONST.length;i++)ctx.lineTo(CONST[i][0],CONST[i][1]);ctx.stroke();
-    for(const [x,y] of CONST)glow(ctx,x,y,4,.18);
-  });
+  const cv=document.querySelector('.skybg'),ctx=cv.getContext('2d');
+  cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';ctx.scale(dpr,dpr);
+  const mw=ctx.createLinearGradient(0,80,390,300);mw.addColorStop(0,'rgba(120,140,210,0)');mw.addColorStop(.5,'rgba(120,140,210,.06)');mw.addColorStop(1,'rgba(120,140,210,0)');
+  ctx.fillStyle=mw;ctx.fillRect(0,60,390,240);
+  for(const [x,y,r,a] of DUST){ctx.fillStyle='rgba(214,224,250,'+a+')';ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+  ctx.strokeStyle='rgba(150,168,214,.12)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(CONST[0][0],CONST[0][1]);
+  for(let i=1;i<CONST.length;i++)ctx.lineTo(CONST[i][0],CONST[i][1]);ctx.stroke();
+  for(const [x,y] of CONST)glow(ctx,x,y,4,.18);
 })();
 </script>
 </body>

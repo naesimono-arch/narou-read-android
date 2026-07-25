@@ -122,10 +122,11 @@ class DiscoverySkyMTest {
     }
 
     @Test
-    fun `ホームの検索アイコンでonOpenSearchが呼ばれる`() {
+    fun `ホームの検索フィールドでonOpenSearchが呼ばれる`() {
         var searched = false
         setHome(Skin.SEIZU_M, DiscoveryUiState.Empty, onOpenSearch = { searched = true })
-        composeTestRule.onNodeWithContentDescription("探す").performClick()
+        // K 形伝播で検索アイコンは常時可視の実検索フィールドへ格上げ（モック .search）。プレースホルダ文タップで onOpenSearch。
+        composeTestRule.onNodeWithText("作品名・作者名・キーワードで探す").performClick()
         assertTrue(searched)
     }
 

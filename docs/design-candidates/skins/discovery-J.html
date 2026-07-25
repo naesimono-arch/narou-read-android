@@ -1,89 +1,96 @@
-<!-- @dsCard group="UI-n / 発見（スキンJ）" name="J. ポータル・デッキ — 発見（まだ開かぬ扉が並ぶ回廊：気分の扉×いま人がくぐる扉／結果一覧）" -->
+<!-- @dsCard group="UI-n / K形伝播ドラフト（スキンJ）" name="J×K形. さがす — 扉の回廊に明快Kの形（実検索を最上部・末尾に公式サイト逃げ道・恒常ナビ）" -->
+<!--
+  K形伝播ドラフト（discovery-J＝さがす）。K plan の確定事項4に従う。
+  ・伝播する「形」= 明示タイトル「さがす」(タブ同語彙)・最上部に実検索フィールド(検索第一)・
+    末尾「公式サイトで探す」逃げ道リンク行・恒常ボトムナビ(さがす選択中)。
+    ボトムナビ骨格は bookshelf-K.html:229-248 を固定コピー・色のみJトークン。
+  ・温存する意匠 = Jの"まだ開かぬ扉が並ぶ回廊"＝きょうの気分＝各扉に固有の大気(ambient)＋象徴文字、
+    ランキング＝"いま人がくぐる扉"の左光条＋明朝順位・上位3位のみ金の一強調、peek帯、pt数字に読了目安併記。
+  ・変更点(K形): Jの title「見つける」→「さがす」・右上検索アイコン→最上部の実検索フィールドへ格上げ。
+  署名色: 金(順位＝唯一の強調/選択タブ)・森緑(世界)・宵紫(peek)。単一画面・ダークのみ。
+-->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>UI-n J 発見 — ポータル・デッキ</title>
+<title>J×K形 さがす — 扉の回廊に明快の形</title>
 <style>
-  /* J案 発見: 本棚Jの「扉」を発見へ画面構造ごと展開＝ここは"まだ開いていない扉が並ぶ回廊"。
-     左右端の淡い光帯＝回廊に並ぶ扉の気配（本棚Jの peek 帯を踏襲）。
-     ①気分の扉＝行き先の扉。各扉に固有の大気(ambient)＋象徴文字を灯し「どの世界へ向かうか」を絵で見せる（＝遊び）。
-     ②ランキング＝"いま多くの人がくぐっている扉"。各行に扉の光条を灯し、順位は明朝＋上位3位のみ金で立てる（一画面一強調）。
-     機能はD発見ホームと1対1（気分プリセット／ジャンル／order切替タブ／ランキング／結果一覧の共通着地）。
-     pt生数字に読了目安を人の言葉で併記（本棚Jと同じ誠実さ）。
-     署名色: 金(順位＝唯一の強調)・森緑(世界)・宵紫(他の世界＝本棚Jの peek 紫)の3系統以内。 */
   :root{
-    --page:#0C0E0B; --ink:#F1F4EC; --soft:rgba(233,240,228,.60); --soft2:rgba(233,240,228,.40);
-    --line:rgba(233,240,228,.10); --gold:#E2C878; --green:#9FCFA9; --plum:#B79AD0;
-    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --page:#0C0E0B; --surface:#141C15;
+    --ink:#F1F4EC; --soft:rgba(233,240,228,.60); --soft2:rgba(233,240,228,.40);
+    --line:rgba(233,240,228,.11);
+    --gold:#E2C878; --gold-tint:rgba(226,200,120,.16); --green:#9FCFA9; --plum:#B79AD0;
+    --field:rgba(233,240,228,.06); /* 検索フィールド地＝地色をわずかに持ち上げ（濃色ダミー板を避ける） */
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#070806;display:flex;flex-direction:column;align-items:center;min-height:100vh;
-    padding:26px;font-family:var(--gothic)}
-  .cap{color:#9DAE97;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.6;max-width:840px}
-  .cap b{color:#E9F0E4}
-  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
-  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
-  .wrap .mode{font-size:12px;letter-spacing:.24em;color:#8FA089}
-  .phone{width:390px;height:844px;background:var(--page);border-radius:42px;overflow:hidden;position:relative;
-    box-shadow:0 26px 64px rgba(0,0,0,.7);display:flex;flex-direction:column;font-family:var(--gothic)}
-  /* 回廊の大気＝上部の淡い森金グラデ */
-  .phone::before{content:"";position:absolute;left:0;right:0;top:0;height:300px;z-index:0;pointer-events:none;
+  body{background:#070806;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    padding:24px;font-family:var(--gothic);-webkit-font-smoothing:antialiased}
+
+  .phone{width:390px;height:844px;background:var(--page);border-radius:42px;overflow:hidden;
+    position:relative;display:flex;flex-direction:column;box-shadow:0 26px 64px rgba(0,0,0,.7)}
+
+  /* 回廊の大気＋左右の扉の気配（J温存） */
+  .portal{position:absolute;left:0;right:0;top:0;height:300px;z-index:0;pointer-events:none;
     background:radial-gradient(90% 60% at 50% -8%,rgba(214,196,120,.11),transparent 58%),
               radial-gradient(120% 80% at 50% -20%,rgba(31,52,38,.55),transparent 60%)}
-  /* 回廊の左右に並ぶ扉の気配（本棚Jの peek 帯：左＝宵紫／右＝森金） */
   .peek{position:absolute;top:0;bottom:0;width:12px;z-index:1;pointer-events:none}
   .peek.l{left:0;background:linear-gradient(90deg,rgba(120,86,150,.55),transparent)}
   .peek.r{right:0;background:linear-gradient(270deg,rgba(159,207,169,.45),transparent)}
 
-  .sb{position:relative;z-index:3;height:40px;display:flex;align-items:center;justify-content:space-between;
-    padding:0 24px;font-size:11px;color:var(--soft);flex-shrink:0}
-  .top{position:relative;z-index:3;padding:14px 24px 18px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
+  .sb{position:relative;z-index:3;height:40px;flex-shrink:0;display:flex;align-items:center;
+    justify-content:space-between;padding:0 24px;font-size:11px;color:var(--soft)}
+
+  /* 固定トップ: 明示タイトル「さがす」＋実検索フィールド（第一強調・K形の検索第一） */
+  .top{position:relative;z-index:3;flex-shrink:0;padding:4px 24px 14px}
   .top h1{font-family:var(--mincho);font-size:28px;color:var(--ink);font-weight:500;letter-spacing:.14em}
-  .top .sub{display:block;font-size:11px;color:var(--soft);letter-spacing:.06em;margin-top:6px;font-family:var(--gothic)}
-  .ib{width:40px;height:40px;border:none;background:transparent;border-radius:11px;display:grid;place-items:center;
-    color:var(--ink);cursor:pointer}
-  .ib:hover{background:rgba(233,240,228,.06)}
-  .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.5}
-  .scroll{position:relative;z-index:3;flex:1;overflow:auto;padding:0 24px 40px}
+  .search{margin-top:16px;height:52px;display:flex;align-items:center;gap:11px;border-radius:14px;
+    padding:0 16px;cursor:text;background:var(--field);border:1px solid var(--line);backdrop-filter:blur(6px)}
+  .search svg{width:20px;height:20px;stroke:var(--gold);fill:none;stroke-width:1.7;flex-shrink:0}
+  .search span{font-size:13.5px;color:var(--soft)}
 
-  .sec{font-size:10.5px;letter-spacing:.28em;color:var(--soft2);margin:8px 0 14px}
-  .sec.gap{margin-top:36px}
+  /* スクロールバー非表示: headless検分で白バーが意匠面に出たため（他スキン draft は非表示済みの流儀） */
+  .scroll{position:relative;z-index:3;flex:1;overflow:auto;padding:2px 24px 24px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
 
-  /* 気分の扉: 2列。各扉に固有の大気＋象徴文字＋明朝の行き先名。タップで結果一覧（その世界）へ */
+  /* セクション見出し（J踏襲＝淡色字間の回廊ラベル） */
+  .sec{font-size:10.5px;letter-spacing:.28em;color:var(--soft2);margin:20px 0 14px}
+  .sec:first-child{margin-top:6px}
+
+  /* きょうの気分＝行き先の扉（各扉に固有の大気＋象徴文字＝J温存） */
   .doors{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .door{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:12px;padding:20px 18px 18px;
-    min-height:112px;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-end}
+    min-height:108px;cursor:pointer;display:flex;flex-direction:column;justify-content:flex-end}
   .door:hover{border-color:rgba(233,240,228,.28)}
   .door .amb{position:absolute;inset:0;z-index:0}
-  .door .g{position:absolute;top:-8px;right:4px;z-index:0;font-family:var(--mincho);font-size:96px;line-height:1;
+  .door .g{position:absolute;top:-8px;right:4px;z-index:0;font-family:var(--mincho);font-size:92px;line-height:1;
     color:rgba(233,240,228,.06);pointer-events:none}
   .door b{position:relative;z-index:1;font-family:var(--mincho);font-size:14.5px;color:#EDF2E7;font-weight:600;line-height:1.5}
   .door span{position:relative;z-index:1;display:block;font-size:10px;color:var(--soft);margin-top:6px;letter-spacing:.03em}
-  /* 4つの行き先の大気（森金／宵紫／金／森緑の3系統内で描き分け） */
   .amb-tabi{background:radial-gradient(120% 90% at 25% 12%,rgba(159,207,169,.24),transparent 62%),linear-gradient(165deg,#1A2A1F,#101711)}
   .amb-yoru{background:radial-gradient(120% 90% at 78% 14%,rgba(120,86,150,.34),transparent 62%),linear-gradient(165deg,#1E1826,#120E17)}
   .amb-hana{background:radial-gradient(120% 90% at 30% 12%,rgba(214,196,120,.26),transparent 60%),linear-gradient(165deg,#26210F,#15120A)}
   .amb-sasi{background:radial-gradient(120% 90% at 76% 14%,rgba(159,207,169,.2),transparent 62%),linear-gradient(165deg,#182318,#0F160F)}
 
-  /* ジャンル入口: 横スクロールの淡いチップ */
+  /* ジャンル入口: 横スクロールの淡いチップ（J温存） */
   .gchips{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+  .gchips::-webkit-scrollbar{display:none}
   .gc{flex-shrink:0;font-size:11.5px;color:var(--soft);border:1px solid var(--line);border-radius:999px;
     padding:9px 16px;cursor:pointer;background:transparent}
   .gc:hover{border-color:rgba(159,207,169,.5);color:var(--green)}
 
-  /* orderタブ: 選択＝ink太字＋森緑の細い下線（強調色の金は順位に温存） */
-  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-top:20px;overflow-x:auto;scrollbar-width:none}
-  .tab{flex-shrink:0;font-size:12.5px;color:var(--soft);padding:13px 12px;cursor:pointer;position:relative;letter-spacing:.06em}
-  .tab.on{color:var(--ink);font-weight:600}
-  .tab.on::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--green)}
+  /* orderタブ: 選択＝ink太字＋森緑の細い下線（強調の金はランキング順位に温存） */
+  .rtabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-top:20px;overflow-x:auto;scrollbar-width:none}
+  .rtabs::-webkit-scrollbar{display:none}
+  .rtab{flex-shrink:0;font-size:12.5px;color:var(--soft);padding:13px 12px;cursor:pointer;position:relative;letter-spacing:.06em}
+  .rtab.on{color:var(--ink);font-weight:600}
+  .rtab.on::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--green)}
 
-  /* ランキング行＝いま人がくぐる扉。左に扉の光条（上位3位は金・以降は森緑で淡く）。順位＝明朝 */
+  /* ランキング行＝いま人がくぐる扉。左に扉の光条（上位3位は金・以降は森緑で淡く）／順位＝明朝 */
   .rk{position:relative;display:flex;gap:16px;padding:18px 0 18px 16px;border-bottom:1px solid var(--line);cursor:pointer}
-  .rk::before{content:"";position:absolute;left:0;top:16px;bottom:16px;width:3px;border-radius:2px;
-    background:var(--green);opacity:.35}
+  .rk::before{content:"";position:absolute;left:0;top:16px;bottom:16px;width:3px;border-radius:2px;background:var(--green);opacity:.35}
   .rk.top3::before{width:4px;opacity:1;background:linear-gradient(180deg,var(--gold),rgba(159,207,169,.6))}
   .rk .no{font-family:var(--mincho);font-size:20px;color:var(--soft2);width:28px;flex-shrink:0;text-align:center;line-height:1.2;padding-top:3px}
   .rk.top3 .no{color:var(--gold);font-size:23px}
@@ -95,112 +102,114 @@
   .rk .m{display:flex;gap:14px;font-size:10.5px;color:var(--soft);margin-top:9px;letter-spacing:.03em}
   .rk .m .pt{color:var(--green)}
 
-  /* 結果一覧: 文脈ヘッダ＋条件チップ＋件数 */
-  .back{position:relative;z-index:3;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--soft);
-    padding:6px 24px 0;cursor:pointer;flex-shrink:0}
-  .back svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5}
-  .ctx{position:relative;z-index:3;padding:12px 24px 0;flex-shrink:0}
-  .ctx h2{font-family:var(--mincho);font-size:22px;color:var(--ink);font-weight:500;letter-spacing:.1em}
-  .ctx .csub{font-size:11px;color:var(--soft);margin-top:10px;line-height:1.7}
-  .conds{position:relative;z-index:3;display:flex;gap:8px;flex-wrap:wrap;padding:16px 24px 4px;flex-shrink:0}
-  .cd{font-size:10.5px;color:var(--green);border:1px solid rgba(159,207,169,.45);border-radius:999px;padding:5px 12px}
-  .cd.adj{color:var(--soft);border-color:var(--line);cursor:pointer}
-  .cnt{position:relative;z-index:3;padding:14px 24px 0;font-size:11px;color:var(--green);letter-spacing:.08em;flex-shrink:0}
+  /* 末尾「公式サイトで探す」逃げ道（K形の確定事項4）: ヘアラインで区切る外部リンク行（J森緑の外部誘導色） */
+  .official{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;
+    padding:18px 2px 4px;border-top:1px solid var(--line);font-size:13px;color:var(--soft);cursor:pointer}
+  .official:hover{color:var(--green)}
+  .official svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6;flex-shrink:0}
+
+  /* ===== 恒常ボトムナビ（bookshelf-K.html:229-248 の骨格を固定コピー・色のみJトークン） ===== */
+  .tabbar{position:relative;z-index:6;flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--surface)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    text-decoration:none;cursor:pointer;color:var(--soft)}
+  .tab.on{color:var(--gold)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .tab.on .ic .pill{background:var(--gold-tint)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
+  .tab.on .lb{font-weight:700}
 </style>
 </head>
 <body>
-  <p class="cap"><b>J. ポータル・デッキ — 発見</b> ／ まだ開いていない扉が並ぶ回廊（左右端＝並ぶ扉の気配）。「気分の扉」は各扉に固有の大気＋象徴文字を灯し行き先を絵で見せる。ランキングは"いま多くの人がくぐる扉"＝左の光条＋明朝順位・上位3位のみ金（画面唯一の強調）。pt生数字に読了目安を併記。右はプリセットtap後の結果一覧（検索/ジャンルの共通着地）。</p>
-  <div class="stage">
+  <div class="phone" role="img" aria-label="J×K形 さがす">
+    <div class="portal" aria-hidden="true"></div>
+    <div class="peek l" aria-hidden="true"></div><div class="peek r" aria-hidden="true"></div>
 
-    <!-- 発見ホーム＝扉の回廊 -->
-    <div class="wrap"><span class="mode">発見ホーム</span>
-    <div class="phone" role="img" aria-label="J案 発見ホーム">
-      <div class="peek l" aria-hidden="true"></div><div class="peek r" aria-hidden="true"></div>
-      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-      <div class="top"><h1>見つける</h1>
-        <button class="ib" aria-label="検索"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg></button>
-      </div>
-      <div class="scroll">
-        <div class="sec">きょうの気分</div>
-        <div class="doors">
-          <div class="door"><div class="amb amb-tabi"></div><div class="g">旅</div><b>30分の小さな旅</b><span>短編 ・ 読了30分まで</span></div>
-          <div class="door"><div class="amb amb-yoru"></div><div class="g">夜</div><b>今夜の一気読み</b><span>完結済 ・ 10万字以上</span></div>
-          <div class="door"><div class="amb amb-hana"></div><div class="g">話</div><b>会話でさくさく</b><span>会話率 60% 以上</span></div>
-          <div class="door"><div class="amb amb-sasi"></div><div class="g">絵</div><b>挿絵と歩く</b><span>挿絵のある作品</span></div>
-        </div>
-        <div class="sec gap">ジャンルから</div>
-        <div class="gchips">
-          <span class="gc">恋愛</span><span class="gc">ファンタジー</span><span class="gc">文芸</span><span class="gc">SF</span><span class="gc">その他</span><span class="gc">ノンジャンル</span>
-        </div>
-        <div class="tabs">
-          <span class="tab on">週間</span><span class="tab">日間</span><span class="tab">月間</span><span class="tab">四半期</span><span class="tab">累計</span><span class="tab">新着</span>
-        </div>
-        <div class="rk top3"><div class="no">1</div><div class="bd">
-          <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
-          <div class="a">霧島あおい<em>ハイファンタジー</em></div>
-          <div class="m"><span>連載中 127話</span><span>約8時間</span><span class="pt">週間 12,345pt</span></div>
-        </div></div>
-        <div class="rk top3"><div class="no">2</div><div class="bd">
-          <div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div>
-          <div class="a">夜灯すばる<em>異世界〔恋愛〕</em></div>
-          <div class="m"><span>連載中 43話</span><span>約3時間</span><span class="pt">週間 9,812pt</span></div>
-        </div></div>
-        <div class="rk top3"><div class="no">3</div><div class="bd">
-          <div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
-          <div class="a">白河すずら<em>異世界〔恋愛〕</em></div>
-          <div class="m"><span>完結 88話</span><span>約6時間</span><span class="pt">週間 8,204pt</span></div>
-        </div></div>
-        <div class="rk"><div class="no">4</div><div class="bd">
-          <div class="t">転生したら最弱スキルだったので草むしりしていた</div>
-          <div class="a">青葉みのり<em>ハイファンタジー</em></div>
-          <div class="m"><span>連載中 210話</span><span>約14時間</span><span class="pt">週間 7,530pt</span></div>
-        </div></div>
-        <div class="rk"><div class="no">5</div><div class="bd">
-          <div class="t">辺境伯家の次男は今日も書庫にこもる</div>
-          <div class="a">水無月れん<em>歴史</em></div>
-          <div class="m"><span>短編</span><span>約25分</span><span class="pt">週間 6,981pt</span></div>
-        </div></div>
-      </div>
-    </div></div>
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
 
-    <!-- プリセット結果一覧（検索/ジャンルの共通着地） -->
-    <div class="wrap"><span class="mode">結果一覧（共通着地）</span>
-    <div class="phone" role="img" aria-label="J案 結果一覧">
-      <div class="peek l" aria-hidden="true"></div><div class="peek r" aria-hidden="true"></div>
-      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-      <div class="back"><svg viewBox="0 0 24 24"><polyline points="14 6 8 12 14 18"/></svg>見つける</div>
-      <div class="ctx">
-        <h2>30分の小さな旅</h2>
-        <div class="csub">短い時間で完結する物語。読了目安 30分まで・短編のみ。</div>
+    <!-- 明示タイトル＋実検索フィールド（検索第一） -->
+    <div class="top">
+      <h1>さがす</h1>
+      <div class="search">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+        <span>作品名・作者名・キーワードで探す</span>
       </div>
-      <div class="conds">
-        <span class="cd">短編</span><span class="cd">〜30分</span><span class="cd">週間人気順</span><span class="cd adj">条件を調整</span>
-      </div>
-      <div class="cnt">1,204 作品</div>
-      <div class="scroll" style="padding-top:8px">
-        <div class="rk"><div class="no">1</div><div class="bd">
-          <div class="t">雨宿りの喫茶店で魔女に出会った</div>
-          <div class="a">早瀬ことり<em>現実世界〔恋愛〕</em></div>
-          <div class="m"><span>短編</span><span>約12分</span><span class="pt">週間 3,204pt</span></div>
-        </div></div>
-        <div class="rk"><div class="no">2</div><div class="bd">
-          <div class="t">最後の魔王が残した、たったひとつの願いごと</div>
-          <div class="a">灰島ちひろ<em>ハイファンタジー</em></div>
-          <div class="m"><span>短編</span><span>約28分</span><span class="pt">週間 2,877pt</span></div>
-        </div></div>
-        <div class="rk"><div class="no">3</div><div class="bd">
-          <div class="t">駅前の占い師は未来を視ない</div>
-          <div class="a">結城まほろ<em>ヒューマンドラマ</em></div>
-          <div class="m"><span>短編</span><span>約19分</span><span class="pt">週間 2,410pt</span></div>
-        </div></div>
-        <div class="rk"><div class="no">4</div><div class="bd">
-          <div class="t">俺の飼い猫が古代竜だった件について</div>
-          <div class="a">綿貫そら<em>コメディー</em></div>
-          <div class="m"><span>短編</span><span>約8分</span><span class="pt">週間 2,098pt</span></div>
-        </div></div>
-      </div>
-    </div></div>
+    </div>
 
+    <div class="scroll">
+      <div class="sec">きょうの気分</div>
+      <div class="doors">
+        <div class="door"><div class="amb amb-tabi"></div><div class="g">旅</div><b>30分の小さな旅</b><span>短編 ・ 読了30分まで</span></div>
+        <div class="door"><div class="amb amb-yoru"></div><div class="g">夜</div><b>今夜の一気読み</b><span>完結済 ・ 10万字以上</span></div>
+        <div class="door"><div class="amb amb-hana"></div><div class="g">話</div><b>会話でさくさく</b><span>会話率 60% 以上</span></div>
+        <div class="door"><div class="amb amb-sasi"></div><div class="g">絵</div><b>挿絵と歩く</b><span>挿絵のある作品</span></div>
+      </div>
+
+      <div class="sec">ジャンルから</div>
+      <div class="gchips">
+        <span class="gc">恋愛</span><span class="gc">ファンタジー</span><span class="gc">文芸</span><span class="gc">SF</span><span class="gc">その他</span><span class="gc">ノンジャンル</span>
+      </div>
+
+      <div class="sec" style="margin-top:32px">ランキング</div>
+      <div class="rtabs">
+        <span class="rtab on">週間</span><span class="rtab">日間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span>
+      </div>
+      <div class="rk top3"><div class="no">1</div><div class="bd">
+        <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+        <div class="a">霧島あおい<em>ハイファンタジー</em></div>
+        <div class="m"><span>連載中 127話</span><span>約8時間</span><span class="pt">週間 12,345pt</span></div>
+      </div></div>
+      <div class="rk top3"><div class="no">2</div><div class="bd">
+        <div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div>
+        <div class="a">夜灯すばる<em>異世界〔恋愛〕</em></div>
+        <div class="m"><span>連載中 43話</span><span>約3時間</span><span class="pt">週間 9,812pt</span></div>
+      </div></div>
+      <div class="rk top3"><div class="no">3</div><div class="bd">
+        <div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div>
+        <div class="a">白河すずら<em>異世界〔恋愛〕</em></div>
+        <div class="m"><span>完結 88話</span><span>約6時間</span><span class="pt">週間 8,204pt</span></div>
+      </div></div>
+      <div class="rk"><div class="no">4</div><div class="bd">
+        <div class="t">転生したら最弱スキルだったので草むしりしていた</div>
+        <div class="a">青葉みのり<em>ハイファンタジー</em></div>
+        <div class="m"><span>連載中 210話</span><span>約14時間</span><span class="pt">週間 7,530pt</span></div>
+      </div></div>
+      <div class="rk"><div class="no">5</div><div class="bd">
+        <div class="t">辺境伯家の次男は今日も書庫にこもる</div>
+        <div class="a">水無月れん<em>歴史</em></div>
+        <div class="m"><span>短編</span><span>約25分</span><span class="pt">週間 6,981pt</span></div>
+      </div></div>
+
+      <!-- 末尾: 公式サイトで探す逃げ道 -->
+      <div class="official">
+        <span>小説家になろう公式サイトで探す</span>
+        <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg>
+      </div>
+    </div>
+
+    <!-- ===== 恒常ボトムナビ（さがす 選択中／K骨格を固定コピー） ===== -->
+    <nav class="tabbar">
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg>
+        </span>
+        <span class="lb">本棚</span>
+      </a>
+      <a class="tab on">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg>
+        </span>
+        <span class="lb">さがす</span>
+      </a>
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </span>
+        <span class="lb">設定</span>
+      </a>
+    </nav>
   </div>
 </body>
 </html>

@@ -1,0 +1,309 @@
+<!--
+  テーマ名: カプセル売場（ガチャ）
+  コンセプト1: 本棚が街角のカプセルトイ売場に化ける——什器の島に並ぶのは本ではなく、透明ドームを載せた8台のガチャ機。
+  コンセプト2: ドームの中のカプセル残量が読み進みで減り、読了は「完売」の丸札、未取込はまだシャッターの降りた「準備中」の台。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>カプセル売場 — 本棚</title>
+<style>
+  :root{
+    --floor:#FFFCF6;        /* 明るい店内 */
+    --momo:#E4467C;         /* 桃＝構造・強調・選択中 */
+    --momo-tint:rgba(228,70,124,.14);
+    --tama:#FFD24D;         /* 玉子色＝コイン・FAB */
+    --plas:#FFFFFF;         /* 什器の白プラ */
+    --ink:#33303B;          /* 主文字 */
+    --soft:#797585;         /* 補助文字 */
+    --prep:#5E7B92;         /* 準備中＝未取込の署名色 */
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#3B3746;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    padding:24px;font-family:var(--gothic);-webkit-font-smoothing:antialiased}
+
+  /* ===== 売場（360×800）＝パステル縞の壁＋天井のダウンライト ===== */
+  .phone{width:360px;height:800px;border-radius:38px;overflow:hidden;position:relative;
+    display:flex;flex-direction:column;box-shadow:0 26px 62px rgba(0,0,0,.5);
+    background:
+      radial-gradient(80% 26% at 50% -4%,rgba(255,255,255,.95),rgba(255,255,255,0) 70%),
+      repeating-linear-gradient(90deg,rgba(255,182,205,.16) 0 20px,rgba(180,224,240,.14) 20px 40px),
+      linear-gradient(180deg,#FFFDF9 0%,#FDF3F0 70%,#F6ECF4 100%)}
+
+  .sb{position:relative;z-index:3;height:36px;flex-shrink:0;display:flex;align-items:center;
+    justify-content:space-between;padding:0 24px;font-size:11px;color:#8F8A9B;letter-spacing:.02em}
+
+  /* ヘッダ＝ポップ看板の明示タイトル「本棚」＋冊数バッジ＋表示切替 */
+  .head{position:relative;z-index:3;flex-shrink:0;display:flex;align-items:center;
+    justify-content:space-between;padding:2px 20px 10px}
+  .head .ttl{display:flex;align-items:center;gap:10px}
+  .head h1{font-size:25px;font-weight:900;color:var(--momo);letter-spacing:.08em;
+    text-shadow:0 2px 0 #fff,0 3px 0 rgba(0,0,0,.10)}
+  .head .count{font-size:11.5px;font-weight:800;color:#7A4A00;background:var(--tama);
+    border-radius:999px;padding:4px 11px;box-shadow:0 2px 0 rgba(0,0,0,.10)}
+  .head .view{width:38px;height:38px;border:none;border-radius:50%;cursor:pointer;color:#5B5768;
+    display:grid;place-items:center;background:var(--plas);
+    box-shadow:0 3px 0 rgba(0,0,0,.10),inset 0 0 0 1.5px rgba(0,0,0,.05)}
+  .head .view svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8}
+
+  /* 什器の天板を彩るカプセルの帯（売場の署名） */
+  .trim{position:relative;z-index:3;flex-shrink:0;display:flex;gap:5px;padding:0 20px 9px}
+  .trim i{flex:1;height:11px;border-radius:11px 11px 3px 3px;box-shadow:inset 0 -2px 0 rgba(0,0,0,.10)}
+
+  /* 状態チップ＝カプセル型（左半分に色玉） */
+  .chips{position:relative;z-index:3;flex-shrink:0;display:flex;gap:8px;overflow-x:auto;
+    scrollbar-width:none;padding:0 20px 11px}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{position:relative;flex-shrink:0;cursor:pointer;overflow:hidden;font-size:12.5px;font-weight:800;
+    color:#6B6779;background:var(--plas);border-radius:999px;padding:6px 15px 6px 24px;
+    box-shadow:inset 0 0 0 1.5px #EDE7EF,0 2px 0 rgba(0,0,0,.06)}
+  .chip::before{content:"";position:absolute;left:0;top:0;bottom:0;width:14px;background:var(--tama)}
+  .chip.on{color:#fff;background:var(--momo);box-shadow:0 2px 0 rgba(160,30,70,.35)}
+
+  /* ===== ガチャ機の島（8台・2列） ===== */
+  .scroll{position:relative;z-index:3;flex:1;overflow-y:auto;overflow-x:hidden;
+    padding:4px 20px 124px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px 18px}
+  .bk{cursor:pointer}
+
+  /* 書影＝1台のガチャ機（透明ドーム＋白プラの前面パネル） */
+  .cv{position:relative;aspect-ratio:3/4;border-radius:12px 12px 10px 10px;overflow:hidden;
+    background:linear-gradient(180deg,#F3F1F6 0%,#E8E5EE 46%,#FFFFFF 47%,#F2F0F5 100%);
+    box-shadow:0 4px 0 rgba(0,0,0,.08),0 8px 16px rgba(80,60,90,.14),inset 0 0 0 1.5px rgba(0,0,0,.05)}
+  /* 透明ドーム＝中のカプセルが作品の色（実データの色域を色玉に写す） */
+  .dome{position:absolute;left:8px;right:8px;top:7px;height:47%;overflow:hidden;
+    border-radius:50% 50% 8px 8px / 62% 62% 8px 8px;
+    background:linear-gradient(180deg,rgba(236,246,252,.75),rgba(214,232,244,.55));
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.95),inset 0 -7px 12px rgba(60,60,90,.10)}
+  .caps{position:absolute;left:0;right:0;bottom:0;height:var(--fill,80%);
+    background-size:42px 34px;background-position:0 100%;
+    background-image:
+      radial-gradient(circle at 22% 28%,hsl(var(--h) 82% 66%) 0 8px,transparent 9px),
+      radial-gradient(circle at 74% 66%,hsl(var(--h) 58% 82%) 0 8px,transparent 9px),
+      radial-gradient(circle at 78% 16%,#FFE07A 0 7px,transparent 8px),
+      radial-gradient(circle at 26% 84%,#FFFFFF 0 7px,transparent 8px)}
+  .hl{position:absolute;left:15%;top:7%;width:24%;height:38%;border-radius:50%;transform:rotate(-16deg);
+    background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,0));pointer-events:none}
+  .tag{position:absolute;right:8px;top:34%;z-index:3;width:38px;height:38px;border-radius:50%;
+    display:grid;place-items:center;font-size:10.5px;font-weight:900;color:#fff;background:var(--momo);
+    box-shadow:0 3px 0 rgba(160,30,70,.35);transform:rotate(-9deg);letter-spacing:.02em}
+  .tag.prep{background:var(--prep);box-shadow:0 3px 0 rgba(50,80,105,.35)}
+
+  /* 前面パネル（題字＋ツマミ＋コイン投入口＋取り出し口） */
+  .panel{position:absolute;left:7px;right:7px;bottom:7px;height:44%;border-radius:8px;
+    background:linear-gradient(180deg,#FFFFFF,#F0F1F5);box-shadow:inset 0 0 0 1.5px rgba(0,0,0,.05)}
+  .pt{position:absolute;left:9px;right:9px;top:8px;font-size:10.5px;font-weight:800;color:#3E3B48;
+    line-height:1.3;letter-spacing:.01em;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .knob{position:absolute;left:10px;bottom:9px;width:26px;height:26px;border-radius:50%;
+    background:radial-gradient(circle at 34% 28%,#FFFFFF,#D7D3E0);
+    box-shadow:0 2px 0 rgba(0,0,0,.12),inset 0 0 0 1.5px rgba(0,0,0,.06)}
+  .knob::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:14px;height:3px;border-radius:2px;background:#8E89A0;
+    box-shadow:0 0 0 0 transparent,0 0 0 0 transparent}
+  .knob::before{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(90deg);
+    width:14px;height:3px;border-radius:2px;background:#8E89A0}
+  .coin{position:absolute;left:44px;bottom:20px;width:4px;height:13px;border-radius:2px;background:#9A94A8}
+  .tray{position:absolute;right:9px;bottom:9px;width:48px;height:17px;border-radius:4px 4px 7px 7px;
+    background:linear-gradient(180deg,#3E3A49,#2A2733);box-shadow:inset 0 2px 3px rgba(0,0,0,.5)}
+  /* 未取込＝まだ設置していない台（ドームにシャッター・彩度を落とす） */
+  .cv.narou .dome{background:repeating-linear-gradient(90deg,#CBCFD8 0 5px,#B9BEC9 5px 10px);
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.7),inset 0 -7px 12px rgba(50,60,80,.14)}
+  .cv.narou .caps,.cv.narou .hl{display:none}
+  .cv.narou .pt{color:#6E7683}
+  .cv.narou .panel{background:linear-gradient(180deg,#F7F8FA,#E9EBEF)}
+
+  /* キャプション行（題字1行＋可視⋮）＋状態行 */
+  .cap{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-top:8px}
+  .cap .t{flex:1;min-width:0;font-size:12px;font-weight:700;color:var(--ink);line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .cap .dots{width:28px;height:28px;flex-shrink:0;border:none;cursor:pointer;margin-top:-3px;border-radius:50%;
+    color:#6B6779;background:var(--plas);display:grid;place-items:center;box-shadow:0 2px 0 rgba(0,0,0,.08)}
+  .cap .dots svg{width:16px;height:16px;fill:currentColor}
+  .st{margin-top:4px;font-size:10.5px;font-weight:700;color:var(--soft);letter-spacing:.03em;
+    display:flex;align-items:center;gap:5px;min-height:14px}
+  .st .dot{width:6px;height:6px;border-radius:50%;background:var(--momo);flex-shrink:0}
+  .st.narou{color:var(--prep)}
+
+  /* FAB（コイン投入の丸み・玉子色） */
+  .fab{position:absolute;right:16px;bottom:80px;z-index:6;display:inline-flex;align-items:center;gap:8px;
+    height:52px;padding:0 20px 0 16px;border:none;cursor:pointer;border-radius:26px;
+    background:linear-gradient(180deg,#FFDE6A,#FFB61F);color:#7A3F00;
+    font-family:var(--gothic);font-size:14px;font-weight:900;letter-spacing:.03em;
+    box-shadow:0 5px 0 rgba(190,120,10,.55),0 10px 18px rgba(180,120,20,.3)}
+  .fab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round}
+
+  /* ===== 恒常ボトムナビ（本棚 選択中・什器の白プラ＋桃） ===== */
+  .tabbar{position:relative;z-index:6;flex-shrink:0;height:64px;display:flex;
+    border-top:1px solid #EDE7EF;background:#FFFFFF}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    text-decoration:none;cursor:pointer;color:#8B8697}
+  .tab.on{color:var(--momo)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .tab.on .ic .pill{background:var(--momo-tint)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-size:11px;letter-spacing:.04em}
+  .tab.on .lb{font-weight:800}
+</style>
+</head>
+<body>
+  <div class="phone" role="application" aria-label="カプセル売場スキン 本棚">
+    <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+
+    <!-- ヘッダ＝明示タイトル＋冊数 -->
+    <div class="head">
+      <div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div>
+      <button class="view" aria-label="表示切替">
+        <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="4" width="6.6" height="6.6" rx="1.4"/><rect x="4" y="13.4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="13.4" width="6.6" height="6.6" rx="1.4"/></svg>
+      </button>
+    </div>
+
+    <!-- カプセルの帯 -->
+    <div class="trim" aria-hidden="true">
+      <i style="background:#FF8FB1"></i><i style="background:#FFD24D"></i><i style="background:#8FD7E8"></i>
+      <i style="background:#A8E6A3"></i><i style="background:#C4A9F0"></i><i style="background:#FFAE72"></i>
+      <i style="background:#7FC7F5"></i><i style="background:#FF8FB1"></i>
+    </div>
+
+    <!-- 状態チップ -->
+    <div class="chips">
+      <span class="chip on">すべて</span>
+      <span class="chip">よみかけ</span>
+      <span class="chip">未読</span>
+      <span class="chip">読了</span>
+    </div>
+
+    <!-- ガチャ機＝8冊（うち2冊は未取込＝準備中の台） -->
+    <div class="scroll">
+      <div class="grid">
+
+        <div class="bk">
+          <div class="cv" style="--h:210;--fill:38%">
+            <span class="dome"><span class="caps"></span><span class="hl"></span></span>
+            <span class="panel"><span class="pt">追放された万能薬師、辺境でスローライフを始める</span>
+              <span class="knob"></span><span class="coin"></span><span class="tray"></span></span>
+          </div>
+          <div class="cap"><span class="t">追放された万能薬師、辺境でスローライフを始める</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">第127/205話</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv" style="--h:280;--fill:70%">
+            <span class="dome"><span class="caps"></span><span class="hl"></span></span>
+            <span class="panel"><span class="pt">黒の魔王と契約した俺、気づけば最強の従者に</span>
+              <span class="knob"></span><span class="coin"></span><span class="tray"></span></span>
+          </div>
+          <div class="cap"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">第43/150話</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv" style="--h:95;--fill:96%">
+            <span class="dome"><span class="caps"></span><span class="hl"></span></span>
+            <span class="panel"><span class="pt">転生したら最弱スキルだったので草むしりしていた</span>
+              <span class="knob"></span><span class="coin"></span><span class="tray"></span></span>
+          </div>
+          <div class="cap"><span class="t">転生したら最弱スキルだったので草むしりしていた</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st"><span class="dot"></span>未読</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv narou" style="--h:190;--fill:0%">
+            <span class="dome"><span class="caps"></span><span class="hl"></span></span>
+            <span class="tag prep">準備中</span>
+            <span class="panel"><span class="pt">最果てのダンジョンで細々と暮らすことにした</span>
+              <span class="knob"></span><span class="coin"></span><span class="tray"></span></span>
+          </div>
+          <div class="cap"><span class="t">最果てのダンジョンで細々と暮らすことにした</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st narou">なろう・未取込</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv" style="--h:340;--fill:88%">
+            <span class="dome"><span class="caps"></span><span class="hl"></span></span>
+            <span class="panel"><span class="pt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
+              <span class="knob"></span><span class="coin"></span><span class="tray"></span></span>
+          </div>
+          <div class="cap"><span class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">第8/72話</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv" style="--h:150;--fill:0%">
+            <span class="dome"><span class="caps"></span><span class="hl"></span></span>
+            <span class="tag">完売</span>
+            <span class="panel"><span class="pt">聖女は隣国で薬草を育てて暮らしたい</span>
+              <span class="knob"></span><span class="coin"></span><span class="tray"></span></span>
+          </div>
+          <div class="cap"><span class="t">聖女は隣国で薬草を育てて暮らしたい</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">読了</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv narou" style="--h:50;--fill:0%">
+            <span class="dome"><span class="caps"></span><span class="hl"></span></span>
+            <span class="tag prep">準備中</span>
+            <span class="panel"><span class="pt">辺境ぐらしの隠居魔導士、今日ものんびり</span>
+              <span class="knob"></span><span class="coin"></span><span class="tray"></span></span>
+          </div>
+          <div class="cap"><span class="t">辺境ぐらしの隠居魔導士、今日ものんびり</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st narou">なろう・未取込</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv" style="--h:230;--fill:0%">
+            <span class="dome"><span class="caps"></span><span class="hl"></span></span>
+            <span class="tag">完売</span>
+            <span class="panel"><span class="pt">星降る夜の図書館で君を待っている</span>
+              <span class="knob"></span><span class="coin"></span><span class="tray"></span></span>
+          </div>
+          <div class="cap"><span class="t">星降る夜の図書館で君を待っている</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">読了</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- FAB -->
+    <button class="fab" aria-label="PDFを追加">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>PDFを追加
+    </button>
+
+    <!-- ===== 恒常ボトムナビ（本棚 選択中） ===== -->
+    <nav class="tabbar">
+      <a class="tab on">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg>
+        </span>
+        <span class="lb">本棚</span>
+      </a>
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg>
+        </span>
+        <span class="lb">さがす</span>
+      </a>
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </span>
+        <span class="lb">設定</span>
+      </a>
+    </nav>
+  </div>
+</body>
+</html>

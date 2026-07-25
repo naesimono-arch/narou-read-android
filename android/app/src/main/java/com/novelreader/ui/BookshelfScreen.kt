@@ -74,6 +74,7 @@ import com.novelreader.ui.theme.FontHomeTitle
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.skins.j.BookshelfGridJ
 import com.novelreader.ui.skins.j.BookshelfPortalJ
+import com.novelreader.ui.skins.k.BookshelfK
 import com.novelreader.ui.skins.m.BookshelfLogM
 import com.novelreader.ui.skins.m.BookshelfSkyM
 import com.novelreader.ui.skins.m.HlSkyDebug
@@ -98,9 +99,12 @@ import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.viewmodel.ReadingStatus
 import com.novelreader.viewmodel.ShelfItem
+import com.novelreader.viewmodel.deleteConfirmBody
 import com.novelreader.viewmodel.filterShelfByStatus
 import com.novelreader.viewmodel.mergeShelfItems
 import com.novelreader.viewmodel.readingStatusFor
+import com.novelreader.viewmodel.shelfStatusCounts
+import com.novelreader.viewmodel.webNcodesInSelection
 import kotlinx.coroutines.launch
 
 /**
@@ -190,6 +194,11 @@ fun BookshelfScreen(
     // （実機で要否を詰める。将来グリッドを廃するならこのトグルと GridBookCard 経路ごと整理する）。
     var isGridView by remember { mutableStateOf(prefs.getBoolean("is_grid_view", false)) }
 
+    // スキンK（明快）のグリッド⇄リスト状態（M の m_sky_view・P の p_rack_view と同型の「スキン別ビュー状態」）。
+    // 既定 true＝K 装着時は3列グリッドで開く（モック正本 bookshelf-K.html の既定形）。共有 is_grid_view を
+    // 流用しない理由: K でトグルした値が D の目録既定（false）を汚す＝スキンを跨いだ状態漏れを避けるため。
+    var kGridView by remember { mutableStateOf(prefs.getBoolean("k_grid_view", true)) }
+
     // スキンM（星図）の 星図⇄一覧 モード（ADR 0022 §1・永続化）。既定 true＝M 装着時は星図で開く。
     // M 以外のスキンでは Content 側の分岐条件（LocalSkin==SEIZU_M）が成立せず、この値は眠ったまま。
     var mSkyView by remember { mutableStateOf(prefs.getBoolean("m_sky_view", true)) }
@@ -266,10 +275,19 @@ fun BookshelfScreen(
         onFollowSystem = onFollowSystem,
         highLoadSkyM = highLoadSkyM,
         onHighLoadSkyChange = onHighLoadSkyChange,
-        isGridView = isGridView,
-        onToggleView = {
-            isGridView = !isGridView
-            prefs.edit().putBoolean("is_grid_view", isGridView).apply()
+        // K は専用状態 k_grid_view を、他スキンは共有 is_grid_view を見る（値もトグルもスキンで出し分け＝
+        // 下流の描画層は「いまのビュー状態」を1系統で受けるだけでスキンを意識しない）。
+        isGridView = if (LocalSkin.current == Skin.MEIKAI_K) kGridView else isGridView,
+        onToggleView = if (LocalSkin.current == Skin.MEIKAI_K) {
+            {
+                kGridView = !kGridView
+                prefs.edit().putBoolean("k_grid_view", kGridView).apply()
+            }
+        } else {
+            {
+                isGridView = !isGridView
+                prefs.edit().putBoolean("is_grid_view", isGridView).apply()
+            }
         },
         skyViewM = mSkyView,
         onToggleSkyM = {
@@ -547,9 +565,6 @@ internal fun BookshelfContent(
         saver = listSaver(save = { it.toList() }, restore = { it.toMutableStateList() }),
     ) { mutableStateListOf<String>() }
     var showDeleteConfirm by remember { mutableStateOf(false) }
-    // 破損監視（層3）: debug ヘルスボードのダイアログ開閉。⋮メニューを閉じてから開くため画面ローカルへ持つ
-    // （DropdownMenu 内に置くと閉じた瞬間ダイアログもコンポジションから外れて消えるため。showDeleteConfirm と同型）。
-    var showHealthBoard by remember { mutableStateOf(false) }
     val exitSelection: () -> Unit = { selectionMode = false; selectedIds.clear() }
     val toggleSelect: (String) -> Unit = { id ->
         if (id in selectedIds) selectedIds.remove(id) else selectedIds.add(id)
@@ -564,11 +579,11 @@ internal fun BookshelfContent(
 
     val visibleBooks = books
 
-    // 各読書状態の件数（ia Minor 2026-07-12・0件チップの dim 判定用）。可視の蔵書で数える。
-    val statusCounts = remember(visibleBooks, progressMap, chapterCountMap) {
-        visibleBooks
-            .groupingBy { readingStatusFor(progressMap[it.id], chapterCountMap[it.id] ?: 0) }
-            .eachCount()
+    // 各読書状態の件数（ia Minor 2026-07-12・0件チップの dim 判定用）。可視の蔵書に加え Web作品も
+    // 合流して数える（全スキンが filterShelfByStatus に webReadingProgress を配線済み＝実フィルタが Web を
+    // 含むため、チップ件数だけ蔵書のみだと件数と表示が食い違う）。判定は shelfStatusCounts 内で共有関数を使う。
+    val statusCounts = remember(visibleBooks, webNovels, progressMap, chapterCountMap, webReadingProgress) {
+        shelfStatusCounts(visibleBooks, webNovels, progressMap, chapterCountMap, webReadingProgress)
     }
 
     // スキンM/P/J は本棚を画面丸ごと各スキン構造へ委譲する薄いルーター（ADR 0022 §1）。表示モード
@@ -772,6 +787,44 @@ internal fun BookshelfContent(
             )
             return
         }
+        Skin.MEIKAI_K -> {
+            // 明快K: 画面丸ごと K 構造へ委譲（ヘッダ「本棚」＋冊数＋表示切替のみ・3列グリッド・状態フィルタ・
+            // Webカード操作・選択削除・取込中バナー・空状態・PDF追加FAB）。⋮/ハンガー/検索は設定・さがすタブへ
+            // 移管済み（K設計）。選択モード状態は骨格所有の単一状態機械を共有渡し（M/P/J と同型・BackHandler 1本が効く）。
+            BookshelfK(
+                books = visibleBooks,
+                webNovels = webNovels,
+                webReadingProgress = webReadingProgress,
+                webLastReadAt = webLastReadAt,
+                progressMap = progressMap,
+                chapterCountMap = chapterCountMap,
+                newEpisodeNovelMap = newEpisodeNovelMap,
+                processingState = processingState,
+                selectedStatus = selectedStatus,
+                statusCounts = statusCounts,
+                onSelectStatus = { selectedStatusName = it?.name },
+                isGridView = isGridView,
+                onToggleView = onToggleView,
+                selectionMode = selectionMode,
+                selectedIds = selectedIds,
+                onToggleSelect = toggleSelect,
+                onEnterSelection = enterSelection,
+                onExitSelection = exitSelection,
+                onSelectAll = { ids -> selectedIds.clear(); selectedIds.addAll(ids) },
+                onDeleteBooks = onDeleteBooks,
+                onOpenBook = onOpenBook,
+                onOpenWebNovel = onOpenWebNovel,
+                onResumeWebNovel = onResumeWebNovel,
+                onImportWebNovel = onImportWebNovel,
+                onRemoveWebNovel = onRemoveWebNovel,
+                onOpenDiscovery = onOpenDiscovery,
+                onFabClick = onFabClick,
+                onCancelProcessing = onCancelProcessing,
+                snackbarHostState = snackbarHostState,
+                isLoading = isLoading,
+            )
+            return
+        }
         Skin.WAMODERN_D, Skin.YAKO_C -> Unit // 既定描画へ（この下の共通実装が D/C を描く）
     }
 
@@ -793,16 +846,14 @@ internal fun BookshelfContent(
     }
 
     // 蔵書と Web由来を「最近の活動順」で1本に混在させる（bookshelf-fusion-D の並置。純関数で合成）。
-    // 前段で読書状態フィルタを噛ませる（選択中は該当蔵書のみ・Web カードは落とす＝filterShelfByStatus の why）。
+    // 前段で読書状態フィルタを噛ませる（選択中は該当状態の蔵書＋該当状態の Web を残す）。
+    // webReadingProgress を渡すことで Web も状態分類される（未渡し=null だと従来どおり Web 全落とし）。
     val shelfItems = remember(visibleBooks, webNovels, progressMap, selectedStatus, chapterCountMap, webReadingProgress, webLastReadAt) {
         val (filteredBooks, filteredWeb) =
-            filterShelfByStatus(visibleBooks, webNovels, selectedStatus, progressMap, chapterCountMap)
+            filterShelfByStatus(visibleBooks, webNovels, selectedStatus, progressMap, chapterCountMap, webReadingProgress)
         mergeShelfItems(filteredBooks, progressMap, filteredWeb, webReadingProgress, webLastReadAt)
     }
     val isProcessing = processingState.isProcessing
-
-    // 本棚トップバーの⋮オーバーフロー（テーマ切替＋開発トグル）の開閉状態
-    var showOverflowMenu by remember { mutableStateOf(false) }
 
     val gridState = rememberLazyGridState()
     val listState = rememberLazyListState()
@@ -838,14 +889,26 @@ internal fun BookshelfContent(
                 // scrollBehavior による吸着アニメーションがもたつき感の原因だったため完全に除去。
                 TopAppBar(
                     title = {
-                        // モック .top h1: 明朝・字間広め・中肉。余白主導のエディトリアル題字。
-                        Text(
-                            "本棚",
-                            fontFamily = MinchoFamily,
-                            fontWeight = FontWeight.Medium,
-                            fontSize = FontHomeTitle,
-                            letterSpacing = 2.sp,
-                        )
+                        // モック .top h1＋.count: 明朝題字＋薄く冊数（K形の明示冊数＝全スキン共通の構造装置）。
+                        // 冊数はタイトルとベースラインで紐付ける（K の KHeader と同じ扱い＝小さくポツンと孤立させない）。
+                        Row {
+                            Text(
+                                "本棚",
+                                fontFamily = MinchoFamily,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = FontHomeTitle,
+                                letterSpacing = 2.sp,
+                                modifier = Modifier.alignByBaseline(),
+                            )
+                            Spacer(Modifier.width(Spacing.S8))
+                            // 冊数＝ライブラリ総数（蔵書＋Web由来）。フィルタ非依存の実データ件数（K の KHeader と同一定義）。
+                            Text(
+                                "${books.size + webNovels.size}冊",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = LocalShelfColors.current.infoText,
+                                modifier = Modifier.alignByBaseline(),
+                            )
+                        }
                     },
                     actions = {
                         IconButton(onClick = onOpenDiscovery) {
@@ -883,7 +946,7 @@ internal fun BookshelfContent(
                                     contentDescription = "デッキ表示に切替",
                                 )
                             }
-                            Skin.WAMODERN_D, Skin.YAKO_C -> IconButton(onClick = onToggleView) {
+                            Skin.MEIKAI_K, Skin.WAMODERN_D, Skin.YAKO_C -> IconButton(onClick = onToggleView) {
                                 Icon(
                                     imageVector = if (isGridView) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView,
                                     contentDescription = if (isGridView) "リスト表示" else "グリッド表示",
@@ -897,96 +960,11 @@ internal fun BookshelfContent(
                                 contentDescription = "着せ替え",
                             )
                         }
-                        // ⋮ オーバーフロー（モック .top の第2アクション）。
-                        // テーマ切替を本棚からも行えるようにする（読書と同じ単一正本 appTheme を変更）。
-                        Box {
-                            IconButton(onClick = { showOverflowMenu = true }) {
-                                Icon(Icons.Filled.MoreVert, contentDescription = "メニュー")
-                            }
-                            DropdownMenu(
-                                expanded = showOverflowMenu,
-                                onDismissRequest = { showOverflowMenu = false },
-                            ) {
-                                // 1変種スキン（C 夜行・M 星図等）ではテーマ3択が無意味＝節ごと畳む
-                                // （ReadingSettingsSheet の skinHasThemeChoice と同じ機構。これまで本メニューだけ
-                                // 畳み漏れで C でも3択が出ていた＝supportedThemes を単一真実源に是正）。
-                                if (LocalSkinTokens.current.supportedThemes.size > 1) {
-                                Text(
-                                    "テーマ",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(start = Spacing.S16, top = Spacing.S8, bottom = Spacing.S4),
-                                )
-                                // システムに従う/ライト/セピア/ダーク。選択中に藍のチェックを付ける。
-                                // なぜ「システムに従う」を先頭に足すか（2026-07-17 ユーザー裁定）: 読書設定シートは
-                                // 4択（システムに従う＋3択）なのに本棚⋮だけ3択のままで、一度でも明示テーマを押すと
-                                // 本棚からは OS 追従へ戻せない不整合があった。同じ単一真実源（followingSystem＝
-                                // reading_theme 未宣言・切替は onFollowSystem）を読書シートと共有して4択を統一する。
-                                DropdownMenuItem(
-                                    text = { Text("システムに従う") },
-                                    onClick = {
-                                        onFollowSystem()
-                                        showOverflowMenu = false
-                                    },
-                                    leadingIcon = {
-                                        // 追従中のみチェック（宣言＝未宣言かを表す。明示3択とは排他）。
-                                        if (followingSystem) {
-                                            Icon(
-                                                Icons.Filled.Check,
-                                                contentDescription = "選択中",
-                                                tint = MaterialTheme.colorScheme.primary,
-                                            )
-                                        } else {
-                                            Spacer(Modifier.width(Spacing.S24))
-                                        }
-                                    },
-                                )
-                                // ライト/セピア/ダーク。選択中に藍のチェックを付ける。
-                                ReadingTheme.values().forEach { theme ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                when (theme) {
-                                                    ReadingTheme.LIGHT -> "ライト"
-                                                    ReadingTheme.SEPIA -> "セピア"
-                                                    ReadingTheme.DARK -> "ダーク"
-                                                }
-                                            )
-                                        },
-                                        onClick = {
-                                            onThemeChange(theme)
-                                            showOverflowMenu = false
-                                        },
-                                        leadingIcon = {
-                                            // 選択中のみチェック表示（未選択はアイコン領域を空けて字頭を揃える）。
-                                            // 追従中は明示3択をどれも未選択にする（「何を宣言したか」を表す＝読書シートと同一規則）。
-                                            if (!followingSystem && appTheme == theme) {
-                                                Icon(
-                                                    Icons.Filled.Check,
-                                                    contentDescription = "選択中",
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                )
-                                            } else {
-                                                Spacer(Modifier.width(Spacing.S24))
-                                            }
-                                        },
-                                    )
-                                }
-                                HorizontalDivider()
-                                } // テーマ節ここまで（1変種スキンでは節ごと非表示）
-                                // 新着話通知のオプトイン（UX監査 C3・公理13「沈黙が既定値」＝既定OFF）。
-                                // なぜここか: 本アプリ唯一の常設メニュー面で、専用設定画面を新設せずに済む
-                                // （UX/19: 設定面は増やさない）。トグルの説明文が priming を兼ねるため、
-                                // ON 操作の直後に OS 権限ダイアログを出してよい（無説明の権限要求にならない）。
-                                NewEpisodeNotificationMenuSection()
-                                // 破損監視（層3）: 全アダプタの自己診断を回す debug ヘルスボード入口（高負荷トグルと同じ開発節）。
-                                // release では BuildConfig.DEBUG=false で節ごと消える（到達不能）。開いてから実ネットワークが走る。
-                                AdapterHealthMenuSection(onOpen = {
-                                    showOverflowMenu = false // 先に閉じてからダイアログを開く（メニューがダイアログを隠さない）
-                                    showHealthBoard = true
-                                })
-                            }
-                        }
+                        // ⋮ オーバーフロー（テーマ4択・新着通知・debug診断）は撤去した（2026-07-24 K形伝播・系2）。
+                        // なぜ撤去か（全スキンの⋮を貫く同基準）: これらは設定タブ（SettingsScreenK＝テーマ/通知/取込診断）へ
+                        // 移行済みで、同一機能が本棚⋮と設定の2箇所に重複していた。設定を単一正本に寄せ、重複導線を断つ。
+                        // D では⋮内の項目が上記3つだけ＝撤去すると空になるため、⋮ボタンごと除く（空メニューを残さない）。
+                        // 非設定項目（表示切替・装いの間）は別アイコンとして温存済み。
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface,
@@ -1037,7 +1015,13 @@ internal fun BookshelfContent(
                     count = selectedIds.size,
                     onCancel = exitSelection,
                     onSelectAll = {
-                        val allIds = shelfItems.filterIsInstance<ShelfItem.Book>().map { it.book.id }
+                        // 全選択に Web由来カードも含める（系3）。選択キーは蔵書=bare book.id・Web=ShelfItem.Web.key("web:<ncode>")。
+                        val allIds = shelfItems.map { item ->
+                            when (item) {
+                                is ShelfItem.Book -> item.book.id
+                                is ShelfItem.Web -> item.key
+                            }
+                        }
                         selectedIds.clear()
                         selectedIds.addAll(allIds)
                     },
@@ -1210,6 +1194,11 @@ internal fun BookshelfContent(
                                         onImport = { onImportWebNovel(item.novel) },
                                         onRemove = { onRemoveWebNovel(item.novel) },
                                         modifier = Modifier.animateItem(),
+                                        // 複数選択削除（系3）: Web由来カードも選択に参加。選択キーは ShelfItem.Web.key="web:<ncode>"。
+                                        selectionMode = selectionMode,
+                                        selected = item.key in selectedIds,
+                                        onToggleSelect = { toggleSelect(item.key) },
+                                        onEnterSelection = { enterSelection(item.key) },
                                     )
                                 }
                             }
@@ -1238,7 +1227,6 @@ internal fun BookshelfContent(
                                         onToggleSelect = { toggleSelect(item.book.id) },
                                         onEnterSelection = { enterSelection(item.book.id) },
                                     )
-                                    // グリッドと同じ判断（確認ダイアログ無し＝失うものが無く即座に戻せる）。
                                     is ShelfItem.Web -> WebListBookCard(
                                         novel = item.novel,
                                         // 機能②: 記録があれば「続きから読む 第N話」を出す（0＝未読で非表示）。
@@ -1248,6 +1236,11 @@ internal fun BookshelfContent(
                                         onImport = { onImportWebNovel(item.novel) },
                                         onRemove = { onRemoveWebNovel(item.novel) },
                                         modifier = Modifier.animateItem(),
+                                        // 複数選択削除（系3）: Web由来カードも選択に参加。選択キーは ShelfItem.Web.key="web:<ncode>"。
+                                        selectionMode = selectionMode,
+                                        selected = item.key in selectedIds,
+                                        onToggleSelect = { toggleSelect(item.key) },
+                                        onEnterSelection = { enterSelection(item.key) },
                                     )
                                 }
                             }
@@ -1258,28 +1251,35 @@ internal fun BookshelfContent(
         }
     }
 
-    // 複数選択削除の確認ダイアログ（残8・案B裁定）。不可逆（本文データも消える）を本文コピーで明示。
-    // 寒色D に danger-red は無い＝破壊確定「削除する」を主CTA塗りにせず藍で扱い、「やめる」を低摩擦の
-    // 逃げ道として置く（正本 .dlg）。確定で選択本をまとめて削除し選択モードを抜ける（Undo は持たない）。
+    // 複数選択削除の確認ダイアログ（残8・案B裁定＋系3 の Web統合）。破壊確定「削除する」を主CTA塗りにせず藍で扱い、
+    // 「やめる」を低摩擦の逃げ道に置く（正本 .dlg）。確定で蔵書は本文ごと削除・Web は本棚から外し、選択モードを抜ける（Undo なし）。
     if (showDeleteConfirm) {
-        val targets = books.filter { it.id in selectedIds }
-        // 取込元 URI を保持する（＝取込元PDFを削除できる）本の件数。0 なら取込元削除チェックは出さない。
-        val deletableCount = targets.count { it.sourceUri != null }
+        val bookTargets = books.filter { it.id in selectedIds }
+        // Web由来（未取込）カードも選択削除の対象（系3）。選択キー "web:<ncode>" を ncode へ分解し webNovels と突合する。
+        val webNcodes = webNcodesInSelection(selectedIds).toSet()
+        val webTargets = webNovels.filter { it.ncode in webNcodes }
+        // 取込元 URI を保持する（＝取込元PDFを削除できる）蔵書の件数。0 なら取込元削除チェックは出さない（Web は sourceUri を持たない＝不変）。
+        val deletableCount = bookTargets.count { it.sourceUri != null }
+        val total = bookTargets.size + webTargets.size
         // 既定 OFF（ユーザー選択=削除ダイアログのチェック・破壊的なので明示 ON を要求）。ダイアログを開くたびリセット。
         var alsoDeleteSource by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("選択した${targets.size}冊を本棚から削除しますか？") },
+            // 蔵書とWebが混じり得るため中立の「件」で数える（蔵書のみでも自然）。
+            title = { Text("選択した${total}件を本棚から削除しますか？") },
             text = {
                 Column {
-                    Text("変換済みの本文データも削除されます。この操作は取り消せません。")
+                    // 選択内訳（蔵書数・Web数）で本文を出し分け（系3）＝Web に「本文データも削除」の虚偽を出さない。
+                    Text(deleteConfirmBody(bookTargets.size, webTargets.size))
                     DeleteSourcePdfOption(deletableCount, alsoDeleteSource) { alsoDeleteSource = it }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     showDeleteConfirm = false
-                    onDeleteBooks(targets, alsoDeleteSource)
+                    // 蔵書は本文データごと削除／Web は本棚から外す（既存 removeWebNovel を一括適用）。空側は呼ばない。
+                    if (bookTargets.isNotEmpty()) onDeleteBooks(bookTargets, alsoDeleteSource)
+                    webTargets.forEach { onRemoveWebNovel(it) }
                     exitSelection()
                 }) { Text("削除する") }
             },
@@ -1288,12 +1288,8 @@ internal fun BookshelfContent(
             },
         )
     }
-
-    // 破損監視（層3）: debug ヘルスボード。開いた瞬間に実ネットワークで全アダプタの自己診断を回す（手動実行時のみ）。
-    // ⋮メニューは D/C 構造でこの BookshelfContent 内にあり、M/P/J は早期 return 済みのためここに来ない（reachable=D/C）。
-    if (showHealthBoard) {
-        AdapterHealthBoardDialog(onDismiss = { showHealthBoard = false })
-    }
+    // debug ヘルスボード（スクレイパー健全性診断）は本棚⋮撤去に伴い設定タブ（SettingsScreenK）の診断入口へ一本化した（系2）。
+    // AdapterHealthBoardDialog 本体は SettingsScreenK が引き続き呼び出す＝関数定義はそのまま残す（本画面からの起動のみ撤去）。
 }
 
 /**

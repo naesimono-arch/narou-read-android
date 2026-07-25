@@ -196,7 +196,7 @@ internal fun ChapterContent(
                     bodyMaxWidth = bodyMaxWidth,
                 )
                 // D/C（WAMODERN_D/YAKO_C）は共通の章見出し（else を書かず全列挙＝新スキンを compile error で捕捉）。
-                Skin.WAMODERN_D, Skin.YAKO_C -> ChapterHeader(
+                Skin.MEIKAI_K, Skin.WAMODERN_D, Skin.YAKO_C -> ChapterHeader(
                     title = content.title,
                     colors = colors,
                     fontSize = fontSize,
@@ -329,7 +329,7 @@ private fun ParagraphItem(
                 Skin.CARTRIDGE_P -> SceneDividerP(colors = colors, modifier = modifier)
                 // J＝中央 40% 幅の一条の光（--rule グラデ・reading-J hr）。
                 Skin.PORTAL_J -> SceneDividerJ(colors = colors, modifier = modifier)
-                Skin.WAMODERN_D, Skin.YAKO_C -> Canvas(
+                Skin.MEIKAI_K, Skin.WAMODERN_D, Skin.YAKO_C -> Canvas(
                     modifier = modifier
                         .fillMaxWidth()
                         .padding(vertical = Spacing.S16)
