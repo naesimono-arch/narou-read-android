@@ -245,19 +245,34 @@ def check_referenced_files():
         if not (ROOT / rel).exists():
             add("ref", "stale", "high", f"主要ファイルが存在しない: {rel}")
 
-    # ドキュメントがバッククォートで名指しする *.md / *.py の相対参照が実在するか。
-    for d in ("STATUS.md", "handover.md", "task_diary.md", "CLAUDE.md"):
+    # ドキュメント・skill がバッククォートで名指しする相対参照が実在するか。
+    # task_diary.md は対象に含めない: 凍結アーカイブ＝当時の事実の記録であり、そこに出る
+    # ファイル名が現在消えているのはむしろ正しい（撤去済みフックの実例記述などが毎回ノイズになる）。
+    # skill も対象に含める: shiori-tips の `tools/*.js` のような cwd 依存パスは、
+    # 拡張子と走査対象の両方から漏れて機械チェックが原理的に検出できなかった（2026-07-25）。
+    targets = ["STATUS.md", "handover.md", "CLAUDE.md"]
+    targets += sorted(str(p.relative_to(ROOT)) for p in (ROOT / ".claude/skills").rglob("SKILL.md"))
+    for d in targets:
         txt = read_text(d)
         if not txt:
             continue
-        for m in re.finditer(r"`([\w./-]+\.(?:md|py))`", txt):
-            ref = m.group(1)
-            # URL・絶対・plans 配下・ワイルドカード的記述は対象外（誤検知回避）。
-            # MEMORY.md は auto-memory の索引で ~/.claude 配下の外部ファイル（リポジトリ内に無いのが正）。
-            if ref.startswith(("http", "/")) or ".claude/plans" in ref or "*" in ref or ref == "MEMORY.md":
+        for line in txt.splitlines():
+            # 行内に外部の絶対パス／ホーム参照が在れば、同じ行の裸ファイル名はその外部ディレクトリ
+            # 配下を指す＝リポジトリ内に無いのが正。誤検知の最多パターンだった
+            # （例: `/mnt/c/…/アプリ公開戦略/`（`外部リサーチ実査結果_….md`）という列挙）。
+            if re.search(r"`[~/][^`]*`", line):
                 continue
-            if not _ref_exists(ref, d):
-                add("ref", "warn", "info", f"{d} が参照する '{ref}' が見つからない（参照切れの疑い）")
+            # 「撤去済み」等の過去形の言及は、消えていること自体が記述の主旨。
+            if re.search(r"撤去|廃止|退役|消滅|削除済み", line):
+                continue
+            for m in re.finditer(r"`([\w./-]+\.(?:md|py|js|sh))`", line):
+                ref = m.group(1)
+                # URL・絶対・plans 配下・ワイルドカード的記述は対象外（誤検知回避）。
+                # MEMORY.md は auto-memory の索引で ~/.claude 配下の外部ファイル（リポジトリ内に無いのが正）。
+                if ref.startswith(("http", "/")) or ".claude/plans" in ref or "*" in ref or ref == "MEMORY.md":
+                    continue
+                if not _ref_exists(ref, d):
+                    add("ref", "warn", "info", f"{d} が参照する '{ref}' が見つからない（参照切れの疑い）")
 
 
 # ── 7. テストコマンドの一貫性 ────────────────────────────────────────────
@@ -517,6 +532,28 @@ def check_size_budgets():
             add("size_budget", "warn", "info", f"CLAUDE.md が {size} バイト。肥大の兆候（痩身直後は約8KB）")
 
 
+# ── 15. stale-check 自身の項目表とスクリプトの一致 ─────────────────────────
+def check_self_item_table():
+    """SKILL.md の「見る項目」列挙数 ↔ CHECKS 登録数。
+
+    なぜ要るか: 2026-07-12 に check_size_budgets を足したとき SKILL.md の列挙が 13 項目のまま
+    放置され、13日後のフル走査（人間＋エージェント3体）まで誰も気づかなかった。stale-check は
+    他人の陳腐化を見張るのに自分の陳腐化だけ見張れていない＝ドッグフーディングの穴なので塞ぐ。
+    見出し節を限定して数えるのは、手順節にも番号付きリストが在り単純な `^\\d+\\.` では過大に
+    数えてしまうため。
+    """
+    txt = read_text(".claude/skills/stale-check/SKILL.md") or ""
+    m = re.search(r"## check_machine\.py が見る項目.*?\n(.*?)(?=\n## )", txt, re.S)
+    if not m:
+        add("self", "warn", "info", "stale-check SKILL.md の項目表セクションが見つからない（見出しを変えた？）")
+        return
+    listed = len(re.findall(r"^\d+\. ", m.group(1), re.M))
+    if listed != len(CHECKS):
+        add("self", "stale", "high",
+            f"stale-check SKILL.md の項目表 {listed} 件 ↔ CHECKS 登録 {len(CHECKS)} 件が不一致"
+            "（チェックを足したら SKILL.md の列挙も足すこと）")
+
+
 CHECKS = [
     check_versions,
     check_db,
@@ -532,6 +569,7 @@ CHECKS = [
     check_hook_smoke,
     check_diary_id_unique,
     check_size_budgets,
+    check_self_item_table,
 ]
 
 
