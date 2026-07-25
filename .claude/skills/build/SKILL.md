@@ -5,16 +5,15 @@ description: ビルド・テストの実行コマンドと環境セットアッ�
 
 # ビルド環境セットアップ
 
-JAVA_HOME は設定済み（Linux/WSL は `~/.bashrc`、Windows は環境変数）のため通常は追加設定不要。
-もし `java: command not found` が出た場合は手動で通す（OS で JDK の在処が異なる）：
+**環境そのもの（JDK・SDK の在処・`gw` の中身・`--init-script` の理由）はグローバル
+`~/.claude/CLAUDE.md` が正本**（常時ロード＝ここへ複製しない）。以下はコマンド帳と固有の罠のみ。
+
+JAVA_HOME は設定済み（Linux/WSL は `~/.bashrc`、Windows は環境変数）で通常は追加設定不要。
+`java: command not found` のときだけ手動で通す（OS で JDK の在処が異なる）:
 
 ```bash
-# Linux / WSL（このマシンの正本。グローバル ~/.claude/CLAUDE.md と一致）
-export JAVA_HOME="$HOME/opt/jdk-17"   # Temurin 17。AGP 8.6.1 に合わせ 17
-export PATH="$JAVA_HOME/bin:$PATH"
-
-# Windows（Git Bash 等）
-export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"
+export JAVA_HOME="$HOME/opt/jdk-17"                             # Linux/WSL（Temurin 17＝AGP 8.6.1 に合わせる）
+export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"  # Windows（Git Bash 等）
 export PATH="$JAVA_HOME/bin:$PATH"
 ```
 
@@ -24,11 +23,8 @@ export PATH="$JAVA_HOME/bin:$PATH"
 
 ## Linux / WSL（このマシンの正本）
 
-`/mnt/c` 上では2つの WSL 固有ワークアラウンドが**必須**:
-- `gradlew` は CRLF 改行で `./gradlew` が直接実行できない → ラッパー jar を直接起動する `gw` 関数を使う
-  （`~/.bashrc` 定義の薄いラッパー。`gradle-wrapper.jar` を `--no-daemon --console=plain` で起動し、
-  ビルド直前に `local.properties` の `sdk.dir` 行を除去して Linux SDK(`ANDROID_HOME`)へ自動フォールバックさせる）。
-- `/mnt/c`(drvfs) で AAPT2 が EPERM で落ちる → 成果物を ext4 へ逃がす `--init-script` を**必ず**付ける。
+`/mnt/c`(canonical) では `gw` と `--init-script` の2点が**必須**（CRLF と AAPT2 の EPERM が理由＝
+機序はグローバル CLAUDE.md）。**ext4 の worktree では `--init-script` は不要**＝素の `gw <task>` でよい。
 
 ```bash
 cd android
@@ -56,6 +52,8 @@ sed -i '/^sdk\.dir/d' local.properties   # Android Studio が書き戻す Window
   （memory `background-gradle-test-skips-sentinel-hook`）→ テストはフォアグラウンドで。
 
 ## Windows
+
+※このマシンでは Linux/WSL が正本。グローバル CLAUDE.md も Linux 版のため、**Windows 手順の記録はここだけ**。
 
 ```bash
 cd android && ./gradlew assembleDebug       # デバッグAPKビルド
