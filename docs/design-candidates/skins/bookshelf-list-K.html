@@ -1,9 +1,11 @@
-<!-- @dsCard group="UI-n / デフォルト（明快K）" name="K. 明快（本棚・リスト表示＝圧縮S・2026-07-24）" -->
+<!-- @dsCard group="UI-n / デフォルト（明快K）" name="K. 明快（本棚・リスト表示＝案A 題字1行・2026-07-26）" -->
 <!--
-  リスト表示モードの正本（2026-07-24 新設）。従来はモック未規定で D 流用だった本棚リスト型を、
-  UIラウンド最終裁定の「圧縮S」で規定する（plan ui-density-swipe-round-2026-07-24 §最終裁定まとめ）。
-  圧縮S＝題字明朝2行を温存・著者＋状態を1メタ行へ統合・上下 S24・行高≈127dp・実機約5行/画面
-  （実機実効 360dp 幅・PGEM10 実測基準。現行 約3.5行から約1.5倍）。書影なし・左4dp色帯（小口メタファ）。
+  リスト表示モードの正本（2026-07-24 新設の圧縮Sを 2026-07-26 mockview 裁定で案Aへ再圧縮）。
+  案A＝圧縮Sから題字明朝の2行目だけを削って1行 ellipsis 化（著者＋状態の1メタ行・⋮・状態は温存）。
+  行 padding 上下12・メタ margin-top 4・行高≈71dp・実機≈8.6冊/画面（実機実効 360dp 幅・
+  リスト可視領域≈616dpの実寸算出。タップ標的48dp以上維持＝UX05-C）。書影なし・左4dp色帯（小口メタファ）。
+  Web未取込行＝.web（field 沈め＋青磁1.5px破線・角丸6px・帯は枠内6pxインセット＝グリッド正本 .cv.narou と同値の意匠）。
+  書影色相はグリッド正本（1冊=1色相の正）に一致（2026-07-26 是正: 辺境ぐらし hsl95→50・異界の栞 hsl150→25）。
   ヘッダ／フィルタチップ／ボトムナビは bookshelf-K.html と同一マークアップ（グリッド↔リストは表示切替で往復）。
   トークンは K 正本を流用（新色なし・余白7段スケール）。
 -->
@@ -17,6 +19,8 @@
   :root{
     --base:#FBFAF8; --ink:#1C1F26; --ink-soft:#6A6E78; --line:#ECEAE4;
     --ai:#1C3D5A; --ai-tint:rgba(28,61,90,.10);
+    --seiji-ink:#50685C;   /* 青磁ink（Web未取込の破線署名・グリッド正本と同値） */
+    --field:#F0EEE8;       /* 一段沈めた紙地（未取込行の地・グリッド正本と同値） */
     --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   }
@@ -52,19 +56,26 @@
   /* 1画面が満ちる様を実寸で見せる＝clip */
   .list{flex:1;overflow:hidden;padding:0 20px}
 
-  /* 圧縮S 行: 書影なし・左4dp色帯・題字明朝2行＋著者・状態を1メタ行へ統合・上下 S24 */
-  .lc{position:relative;display:flex;align-items:flex-start;gap:12px;border-bottom:1px solid var(--line);
-    padding:24px 4px 24px 16px;cursor:pointer}
-  .lc::before{content:"";position:absolute;left:0;top:24px;bottom:24px;width:4px;border-radius:2px;
+  /* 案A 行: 書影なし・左4dp色帯・題字明朝1行 ellipsis＋著者・状態の1メタ行温存・上下 S12（行高≈71dp） */
+  .lc{position:relative;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);
+    padding:12px 4px 12px 16px;cursor:pointer}
+  .lc::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:4px;border-radius:2px;
     background:var(--band,var(--ink-soft))}
   .lc .bd{flex:1;min-width:0}
-  .lc .t{font-family:var(--mincho);font-size:16px;color:var(--ink);line-height:1.6;min-height:51px;
-    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  /* 著者・状態を「・」区切りで1メタ行に統合（圧縮S）。区切りは中黒＝flex gap を使わず余白スケール逸脱を避ける */
-  .lc .m{font-family:var(--gothic);font-size:13px;color:var(--ink-soft);margin-top:12px;line-height:1.4}
+  .lc .t{font-family:var(--mincho);font-size:16px;color:var(--ink);line-height:1.5;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* 著者・状態を「・」区切りで1メタ行に統合（圧縮S から温存）。区切りは中黒＝flex gap を使わず余白スケール逸脱を避ける */
+  .lc .m{font-family:var(--gothic);font-size:13px;color:var(--ink-soft);margin-top:4px;line-height:1.4}
   .lc .dots{width:32px;height:32px;flex-shrink:0;border:none;background:transparent;color:var(--ink-soft);
-    display:grid;place-items:center;cursor:pointer;margin-top:2px}
+    display:grid;place-items:center;cursor:pointer}
   .lc .dots svg{width:16px;height:16px;fill:currentColor}
+
+  /* Web未取込行（破線＝グリッド正本 .cv.narou と同値: 1.5px dashed 青磁・field 沈め）。
+     行全体を中空フレームで括り「まだ手元にない一冊」を目録でも同じ言葉で示す。帯は枠の左角丸6pxを
+     跨がないよう枠内へ6pxインセット（--band は保持＝1冊=1色相の識別は帯が担う） */
+  .lc.web{background:var(--field);border:1.5px dashed var(--seiji-ink);border-radius:6px;border-bottom-style:dashed}
+  .lc.web::before{left:6px}
+  .lc.web .m,.lc.web .m span{color:var(--seiji-ink)}
 
   /* ===== 共通ボトムナビ（bookshelf-K と同一） ===== */
   .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
@@ -98,14 +109,18 @@
       <span class="chip">読了</span>
     </div>
 
-    <!-- 圧縮S リスト（≈5行/画面） -->
+    <!-- 案A リスト（≈8.6行/画面・3行目=Web未取込の破線行） -->
     <div class="list">
       <div class="lc" style="--band:hsl(210 48% 52%)"><div class="bd"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="m"><span>霧島あおい</span>・<span>第127/205話</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
       <div class="lc" style="--band:hsl(280 48% 52%)"><div class="bd"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="m"><span>夜灯すばる</span>・<span>第43/150話</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
-      <div class="lc" style="--band:hsl(150 48% 52%)"><div class="bd"><div class="t">異界の栞と紙の旅</div><div class="m"><span>白河すずら</span>・<span>未読</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+      <div class="lc web" style="--band:hsl(190 48% 52%)"><div class="bd"><div class="t">最果てのダンジョンで細々と暮らすことにした</div><div class="m"><span>浅葱まこと</span>・<span>なろう・未取込</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
       <div class="lc" style="--band:hsl(340 48% 52%)"><div class="bd"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="m"><span>青葉みのり</span>・<span>第8/72話</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
       <div class="lc" style="--band:hsl(230 48% 52%)"><div class="bd"><div class="t">星降る夜の図書館で君を待っている</div><div class="m"><span>水無月れん</span>・<span>読了</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
-      <div class="lc" style="--band:hsl(95 48% 52%)"><div class="bd"><div class="t">辺境ぐらしの隠居魔導士、今日ものんびり</div><div class="m"><span>霜月かなで</span>・<span>第55/98話</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+      <div class="lc" style="--band:hsl(50 48% 52%)"><div class="bd"><div class="t">辺境ぐらしの隠居魔導士、今日ものんびり</div><div class="m"><span>霜月かなで</span>・<span>第55/98話</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+      <div class="lc" style="--band:hsl(95 48% 52%)"><div class="bd"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="m"><span>常磐ゆずり</span>・<span>未読</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+      <div class="lc" style="--band:hsl(150 48% 52%)"><div class="bd"><div class="t">聖女は隣国で薬草を育てて暮らしたい</div><div class="m"><span>花野こむぎ</span>・<span>読了</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+      <div class="lc" style="--band:hsl(25 48% 52%)"><div class="bd"><div class="t">異界の栞と紙の旅</div><div class="m"><span>白河すずら</span>・<span>未読</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+      <div class="lc" style="--band:hsl(170 48% 52%)"><div class="bd"><div class="t">湖畔の魔女は静かに暮らしたい</div><div class="m"><span>藤浪ことは</span>・<span>第12/64話</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
     </div>
 
     <nav class="tabbar">
