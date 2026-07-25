@@ -40,3 +40,14 @@ ab-review/sample_pdfs/
 
 # 穴3実機スパイクのローカル資産（正本は sample_pdfs/ と ab-review/golden_regression/。9MB重複を避けコミットしない）
 android/app/src/androidTest/assets/spike/
+
+# 縦書きP0計測（2026-07-17）で追加した検体PDF。計25MB とリポジトリを膨らませるため手元保持のみ。
+# 既存4件（N1453LW/N2959KI/N5368ML/N6169DZ）は追跡済み＝この6件だけ非追跡という非対称は容量が理由。
+# 測定結果自体は .claude/plans/vertical-mode-p0-* に文書として残っており、再取得なしで参照できる。
+# ワイルドカードにせず個別列挙するのは、新規検体を足したときに黙って無視されるのを防ぐため。
+sample_pdfs/N0833HI.pdf
+sample_pdfs/N2367FS.pdf
+sample_pdfs/N3957FQ.pdf
+sample_pdfs/N7038HV.pdf
+sample_pdfs/N8809BK.pdf
+sample_pdfs/N9463BR.pdf
