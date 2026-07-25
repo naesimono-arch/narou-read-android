@@ -532,54 +532,46 @@ def check_size_budgets():
             add("size_budget", "warn", "info", f"CLAUDE.md が {size} バイト。肥大の兆候（痩身直後は約8KB）")
 
 
-# ── 15. stale-check 自身の項目表とスクリプトの一致 ─────────────────────────
-def check_self_item_table():
-    """SKILL.md の「見る項目」列挙数 ↔ CHECKS 登録数。
-
-    なぜ要るか: 2026-07-12 に check_size_budgets を足したとき SKILL.md の列挙が 13 項目のまま
-    放置され、13日後のフル走査（人間＋エージェント3体）まで誰も気づかなかった。stale-check は
-    他人の陳腐化を見張るのに自分の陳腐化だけ見張れていない＝ドッグフーディングの穴なので塞ぐ。
-    見出し節を限定して数えるのは、手順節にも番号付きリストが在り単純な `^\\d+\\.` では過大に
-    数えてしまうため。
-    """
-    txt = read_text(".claude/skills/stale-check/SKILL.md") or ""
-    m = re.search(r"## check_machine\.py が見る項目.*?\n(.*?)(?=\n## )", txt, re.S)
-    if not m:
-        add("self", "warn", "info", "stale-check SKILL.md の項目表セクションが見つからない（見出しを変えた？）")
-        return
-    listed = len(re.findall(r"^\d+\. ", m.group(1), re.M))
-    if listed != len(CHECKS):
-        add("self", "stale", "high",
-            f"stale-check SKILL.md の項目表 {listed} 件 ↔ CHECKS 登録 {len(CHECKS)} 件が不一致"
-            "（チェックを足したら SKILL.md の列挙も足すこと）")
-
-
+# ── 項目一覧（この表が正本＝`--list` で出力する） ──────────────────────────
+# なぜ説明文をここへ同居させるか: 以前は SKILL.md 側に項目表を複製し、件数の一致を
+# check_self_item_table で見張っていた。しかしそれは二重管理を前提にした対症療法で、
+# 件数しか照合できず内容のズレは素通しだった（2026-07-12 に check_size_budgets を足した際、
+# SKILL.md の列挙が 13 項目のまま 13 日間放置されたのが発端）。複製を無くせば腐る対象自体が
+# 消えるため、説明を CHECKS に同居させ SKILL.md からは `--list` を案内するだけにした。
+# 新しいチェックを足すときは関数と説明をこの表に1行で追加する（タプルなので説明の書き忘れは
+# 実行時に必ず落ちる＝黙って列挙が欠けることがない）。
 CHECKS = [
-    check_versions,
-    check_db,
-    check_hooks_registration,
-    check_hook_git_tracked,
-    check_conflict_markers,
-    check_referenced_files,
-    check_test_commands,
-    check_gradlew_path,
-    check_skill_frontmatter,
-    check_plans_references,
-    check_permission_paths,
-    check_hook_smoke,
-    check_diary_id_unique,
-    check_size_budgets,
-    check_self_item_table,
+    (check_versions, "版数照合（CLAUDE.md ↔ gradle: minSdk / targetSdk）"),
+    (check_db, "DB整合（AppDatabase.kt の version ↔ schemas 最大 ↔ MIGRATION 連番 ↔ db-migration の履歴表）"),
+    (check_hooks_registration, "hook 双方向照合（settings 参照 ↔ 実ファイル: 壊れた参照／未登録の死hook）"),
+    (check_hook_git_tracked, "hook の git 追跡（実ファイル ↔ git ls-files: コミット漏れ）"),
+    (check_conflict_markers, "コンフリクトマーカー残存"),
+    (check_referenced_files, "参照ファイルの実在（ドキュメントが名指しする .md / .py）"),
+    (check_test_commands, "テストコマンドの一貫性"),
+    (check_gradlew_path, "gradlew パス健全性（build skill）"),
+    (check_skill_frontmatter, "skill frontmatter 妥当性（name ↔ ディレクトリ名）"),
+    (check_plans_references, "plans 参照の実在（リポジトリ内 .claude/plans/*.md＝項目6が除外しているための専用チェック）"),
+    (check_permission_paths, "permissions パス実在（settings の allow/deny が指すパスの消滅＝死 permission）"),
+    (check_hook_smoke, "hook 動作点検（全 hook の構文チェック＋test_*.py 自己テストの実行）"),
+    (check_diary_id_unique, "task_diary エントリID の一意性（#N 見出しの重複採番検知・自動リネームはしない）"),
+    (check_size_budgets, "台帳のサイズ番人（STATUS=現況のみ・目安60行／handover=やることのみ）"),
 ]
 
 
 def main():
+    # --list: 項目一覧の照会。SKILL.md に列挙を複製させないための出口（上の CHECKS 冒頭コメント参照）。
+    if "--list" in sys.argv:
+        print(f"=== stale-check の機械チェック項目（全 {len(CHECKS)} 種）===")
+        for i, (fn, label) in enumerate(CHECKS, 1):
+            print(f"{i:2d}. {label}  [{fn.__name__}]")
+        return
+
     as_json = "--json" in sys.argv
     full = "--full" in sys.argv
     state = load_state()
     changed = None if full else changed_since(state.get("last_checked_commit"))
 
-    for c in CHECKS:
+    for c, _label in CHECKS:
         try:
             c()
         except Exception as e:  # 1チェックの例外で全体を落とさない

@@ -28,7 +28,7 @@ CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/decisions/` / `.clau
    ```
    python .claude/skills/stale-check/check_machine.py
    ```
-   - 13種の機械チェックを**全件**実行し、「前回チェック以降に変わった管理ファイル」一覧の提示と、
+   - 登録済みの機械チェックを**全件**実行し、「前回チェック以降に変わった管理ファイル」一覧の提示と、
      状態ファイル `.claude/.stale_check_state.json` の自動更新まで行う。
    - 状態記録が無い初回は「初回フォールバック」と表示される → その場合は全管理ファイルを意味確認の対象にする。
 2. 出力の「前回チェック以降に変わった管理ファイル」に挙がったものだけ、下記**意味チェック観点**で精読する
@@ -51,23 +51,17 @@ CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/decisions/` / `.clau
 
 ## check_machine.py が見る項目（機械的に確定）
 
-1. 版数照合（CLAUDE.md ↔ gradle: minSdk / targetSdk）
-2. DB整合（AppDatabase.kt の version ↔ schemas 最大 ↔ MIGRATION 連番 ↔ db-migration skill 履歴表）
-3. hook 双方向照合（settings 参照 ↔ 実ファイル: 壊れた参照／未登録の死hook）
-4. hook の git 追跡（実ファイル ↔ git ls-files: コミット漏れ）
-5. コンフリクトマーカー残存
-6. 参照ファイルの実在（ドキュメントが名指しする .md / .py）
-7. テストコマンドの一貫性
-8. gradlew パス健全性（build skill）
-9. skill frontmatter 妥当性（name ↔ ディレクトリ名）
-10. plans 参照の実在（管理md・docs・skill が名指しするリポジトリ内 `.claude/plans/*.md`。項目6が plans を除外しているための専用チェック。`~/.claude/plans/` は対象外＝マシンローカル）
-11. permissions パス実在（settings の allow/deny ルールが指すパスの消滅＝死 permission。ワイルドカード始まりの断片は対象外）
-12. hook 動作点検（全 hook の構文チェック＋`test_*.py` 自己テストの実行。サイレント失敗クラス対策）
-13. task_diary エントリID の一意性（`#N.` 見出しの重複採番検知。並行ブランチ採番がマージで衝突するのを早期検知＝#30 二重採番の再発防止。検知しても自動リネームはしない＝下記「注意」）
-14. 台帳のサイズ番人（STATUS=現況のみ・目安60行／handover=やることのみ の規約から再肥大していないか）
-15. stale-check 自身の整合（この項目表の件数 ↔ `CHECKS` 登録数。自分の陳腐化だけ見張れない穴を塞ぐ）
+**項目一覧の正本はスクリプト側の `CHECKS` 表**。照会はこれで行う:
 
-機械チェックを足したくなったら、このスクリプトに関数を追加して `CHECKS` に登録する。
+```
+python .claude/skills/stale-check/check_machine.py --list
+```
+
+**ここへ列挙を複製しない**——以前はこの skill に項目表を持ち、件数の一致だけを機械照合していたが、
+件数しか見ないので内容のズレは素通しな上、表そのものが腐った（2026-07-12 に1項目足したとき
+列挙が 13 項目のまま 13 日間放置された）。複製を無くせば腐る対象自体が消える。
+機械チェックを足すときは `CHECKS` に〈関数, 1行説明〉を1行で追加する
+（タプルなので説明の書き忘れは実行時に必ず落ちる＝黙って列挙が欠けない）。
 
 ## 意味チェック観点（Claude／エージェントが担当・機械化困難）
 
