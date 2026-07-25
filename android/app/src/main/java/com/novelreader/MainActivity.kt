@@ -430,6 +430,9 @@ private fun NovelReaderApp(
             }
             TabPagerHost(
                 pagerState = tabPagerState,
+                // 遷移ジャム対策の続き（2026-07-26）: enter アニメ中は隣タブ面の常駐コンポーズも凍結する
+                //（本棚グリッドの skeleton 差替えと同じ信号を共有。機序は TabPagerHost 側のコメント参照）。
+                deferNeighborPages = deferHeavyContent,
                 pages = listOf(
                     {
                     BookshelfScreen(
