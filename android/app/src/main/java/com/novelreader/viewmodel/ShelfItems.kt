@@ -51,6 +51,20 @@ internal fun recencyKeyOf(addedAt: Long, lastReadAt: Long): RecencyKey =
     else RecencyKey(tier = 1, value = addedAt)
 
 /**
+ * Web 由来（未取込）カードの並び順キー。**tier 特権なし＝常に tier0** で、「自身の直近の操作時刻」
+ * （触った web＝最終接触時刻・未接触＝棚に置いた時刻 addedAt）を通常キーとして並ぶ。
+ *
+ * なぜ蔵書の recencyKeyOf を使わないか（2026-07-26 実機ユーザー報告の裁定変更）: 旧実装は未接触 web を
+ * 蔵書と同じ規則で tier1（上層）へ写像していたが、実棚では蔵書がほぼ全て「触った本」（tier0）になるため、
+ * 未接触 web カードが唯一の tier1 住人として**恒久最上位に張り付き**、直近に取り込んだ・読んだ作品を
+ * 差し置いた（tier が値に優先する比較ゆえ、読んだ直後の本 tier0 は何をしても上回れない）。
+ * tier1 は「取込という意図的操作を経た未読の実蔵書」の特権に限定し、web カード（発見メモ・取込前）は
+ * 特権なしの通常キーへ降ろす＝ADR 0016 初版の「Web 由来カードは tier0 扱い」への部分回帰（要 ADR 追記）。
+ */
+internal fun webRecencyKeyOf(addedAt: Long, lastReadAt: Long): RecencyKey =
+    RecencyKey(tier = 0, value = if (lastReadAt > 0L) lastReadAt else addedAt)
+
+/**
  * 蔵書リストと Web由来（未取込）リストを「最近の活動順」で1本にマージする純関数。
  *
  * - 蔵書の並びは BookDao.getAllBooks（二層: 未読を上・触った本を下）が正本で、ここでは崩さない。
@@ -58,10 +72,9 @@ internal fun recencyKeyOf(addedAt: Long, lastReadAt: Long): RecencyKey =
  *   **意図的な式の重複**: DAO クエリの並びキーは SELECT 列に出ておらず、取り出すには一覧クエリの
  *   返却型ごと変える必要があり、既存呼び出し・テストへの波及が大きい。規則は recencyKeyOf の
  *   数行なので、返却型変更よりコメントで対にする方を選んだ（挙動の正は DAO 側）。
- * - Web 由来（未取込）カードも蔵書と同一の二層規則へ写像する（2026-07-16 層反転に追従）:
- *   web 読書進捗で「触った」記録がある（webLastReadAt に接触時刻がある）カードは tier0（下層）＝その
- *   最終接触時刻で並べ、未接触のカードは tier1（上層）＝発見/追加時刻（addedAt）降順で並べる。
- *   蔵書の recencyKeyOf(addedAt, lastReadAt) にそのまま食わせられる（web の lastReadAt＝最終接触時刻）。
+ * - Web 由来（未取込）カードは **tier 特権なし（常に tier0）** で「直近の操作時刻」により並ぶ
+ *   （webRecencyKeyOf。触った web＝最終接触時刻・未接触＝addedAt）。未接触 web を tier1 へ写像すると
+ *   実棚（蔵書が全て tier0）で恒久最上位に張り付くための裁定変更＝2026-07-26。詳細は webRecencyKeyOf の KDoc。
  * - 取込済み（books.ncode と同一 ncode）の Web カードは非表示にする＝PDF 取込が完了した時点で
  *   蔵書カードへ「自然昇格」し、二重表示しない。比較は保存時正規化（trim+uppercase）と同じ形で行う。
  * - 同値キーのときは蔵書を先に置く（読める実体がある方が優先という判断）。
@@ -73,10 +86,10 @@ fun mergeShelfItems(
     // 機能②: ncode(正規化済み大文字)→最後に開いた話。Web カードの「続きから読む 第N話」表示に使う。
     // 既定 emptyList 相当（emptyMap）は既存テスト・呼び出しの互換のため（読書位置なしなら全カード未読表示で不変）。
     webReadingProgress: Map<String, Int> = emptyMap(),
-    // ncode(正規化済み大文字)→web 読書の最終接触時刻(lastReadAt)。二層ソートで「触った web を下層へ沈める」ために使う。
+    // ncode(正規化済み大文字)→web 読書の最終接触時刻(lastReadAt)。web カードの並びキー（触った web は接触時刻で並ぶ）に使う。
     // なぜ episode 表示用マップと別立てか: 表示は episode(話数)・並びは接触時刻(ミリ秒)と必要な量が異なり、
     // episode を時刻代わりに使うと蔵書の lastReadAt と桁が違い層内順が壊れる（近似で並びを嘘にしない）。
-    // 既定 emptyMap は既存テスト・呼び出し互換（接触時刻なしなら全 web が未接触＝上層扱いで従来どおり）。
+    // 既定 emptyMap は既存テスト・呼び出し互換（接触時刻なしなら全 web が未接触＝自身の addedAt で並ぶ）。
     webLastReadAt: Map<String, Long> = emptyMap(),
 ): List<ShelfItem> {
     val importedNcodes = books.mapNotNull { it.ncode?.trim()?.uppercase() }.toSet()
@@ -85,11 +98,11 @@ fun mergeShelfItems(
         val lastReadAt = progressMap[book.id]?.lastReadAt ?: 0L
         ShelfItem.Book(book, recencyKeyOf(book.addedAt, lastReadAt))
     }
-    // Web 由来カードも蔵書と同一の二層規則でキー化する（触った=tier0/接触時刻・未接触=tier1/addedAt）。
-    // 蔵書列は DAO が二層降順、web 列はここで同じキー降順に整列してから二層キーでマージする。
+    // Web 由来カードは tier 特権なしの通常キー（webRecencyKeyOf＝常に tier0・直近の操作時刻）でキー化する。
+    // 蔵書列は DAO が二層降順、web 列はここでキー降順に整列してから同じ RecencyKey 比較でマージする。
     val webItems: List<Pair<WebNovelEntity, RecencyKey>> = webNovels
         .filterNot { it.ncode.trim().uppercase() in importedNcodes }
-        .map { it to recencyKeyOf(it.addedAt, webLastReadAt[it.ncode.trim().uppercase()] ?: 0L) }
+        .map { it to webRecencyKeyOf(it.addedAt, webLastReadAt[it.ncode.trim().uppercase()] ?: 0L) }
         .sortedByDescending { it.second }
 
     // Web カードに読書位置を載せる。web_novels.ncode も web_reading_progress.ncode も trim+uppercase 正規化済みで

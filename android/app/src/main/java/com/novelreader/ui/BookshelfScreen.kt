@@ -548,7 +548,7 @@ internal fun BookshelfContent(
     val webNovels = (uiState as? BookshelfUiState.Content)?.webNovels ?: emptyList()
     // 機能②: Web カードの読書位置（ncode→最後に開いた話）。mergeShelfItems が各 Web カードへ載せる。
     val webReadingProgress = (uiState as? BookshelfUiState.Content)?.webReadingProgress ?: emptyMap()
-    // 二層ソート用の web 最終接触時刻（ncode→lastReadAt）。触った web を下層へ沈める（層反転・2026-07-16）。
+    // web 最終接触時刻（ncode→lastReadAt）。触った web カードを接触時刻で並べる（webRecencyKeyOf・2026-07-26 裁定変更）。
     val webLastReadAt = (uiState as? BookshelfUiState.Content)?.webLastReadAt ?: emptyMap()
 
     // 読書状態フィルタの選択（「すべて/よみかけ/未読/読了」＝モック .filters）。回転・再生成で選択が

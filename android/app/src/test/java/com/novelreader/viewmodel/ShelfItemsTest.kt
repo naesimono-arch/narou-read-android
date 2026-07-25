@@ -19,26 +19,71 @@ class ShelfItemsTest {
 
     @Test
     fun `蔵書とWeb由来が最近の活動順で混在する`() {
-        // books は DAO 並び（降順）を模す: b1(300) > b2(100)
-        val books = listOf(book("b1", 300), book("b2", 100))
+        // 触った蔵書（tier0/lastReadAt）と未取込 Web（tier0/addedAt）は「直近の操作時刻」で交互に混在する。
+        // books は DAO 並び（tier0 内 lastReadAt 降順）を模す: b1(300) > b2(100)、web は addedAt=200 で間に入る。
+        val books = listOf(book("b1", 10), book("b2", 20))
+        val progress = mapOf(
+            "b1" to ProgressEntity("b1", "chap_1.html", lastReadAt = 300),
+            "b2" to ProgressEntity("b2", "chap_1.html", lastReadAt = 100),
+        )
         val webs = listOf(web("N1111AA", 200))
 
-        val items = mergeShelfItems(books, emptyMap(), webs)
+        val items = mergeShelfItems(books, progress, webs)
 
         assertEquals(listOf("book:b1", "web:N1111AA", "book:b2"), items.map { it.key })
     }
 
+    // ────── 未取込 Web カードの恒久先頭を廃止する裁定変更（2026-07-26 実機ユーザー報告） ──────
+    // 旧規則（未接触 web＝tier1）では、蔵書が全て「触った本」(tier0) の実棚で未接触 web が唯一の
+    // tier1 住人となり恒久最上位に張り付いた。web は tier 特権なし（常に tier0・直近の操作時刻）へ変更。
+
     @Test
-    fun `触った蔵書は未接触の Web カードより下層に沈む（層反転・2026-07-16）`() {
-        // 反転後: b1 は読んだ実績（lastReadAt=400）ゆえ tier0（下層）、未接触 Web（addedAt=300）は tier1（上層）＝上。
-        // 旧規則では読書中の b1 が上だったが、実使用フィードバックで未読/未接触を上へ反転した。
+    fun `未取込Webカードがあっても直近に取り込んだ蔵書が先頭に来る（2026-07-26 裁定変更①）`() {
+        // 棚: 未接触 web(addedAt=100)・既読 bOld(lastReadAt=50)。そこへ bNew を取込（addedAt=200・未読=tier1）。
+        // 期待: 取り込んだ bNew が先頭。web は tier1 に居座らず自身の追加時刻(100)で既読 bOld(50) の上に並ぶだけ。
+        // books は DAO 並び（未読 tier1 が先・既読 tier0 が後）を模す。
+        val books = listOf(book("bNew", 200), book("bOld", 10))
+        val progress = mapOf("bOld" to ProgressEntity("bOld", "chap_1.html", lastReadAt = 50))
+        val webs = listOf(web("NPIN01", 100))
+
+        val items = mergeShelfItems(books, progress, webs)
+
+        assertEquals(listOf("book:bNew", "web:NPIN01", "book:bOld"), items.map { it.key })
+    }
+
+    @Test
+    fun `未取込Webカードがあっても直近に読んだ蔵書が先頭に来る（2026-07-26 裁定変更②）`() {
+        // 旧規則の逆転を固定: b1 を読んだ（lastReadAt=400）直後は、未接触 web（addedAt=300）より b1 が上。
+        // 旧規則では web が tier1（上層）で b1 は何をしても上回れなかった（＝恒久先頭バグの機序そのもの）。
         val books = listOf(book("b1", 100))
         val progress = mapOf("b1" to ProgressEntity("b1", "chap_1.html", lastReadAt = 400))
         val webs = listOf(web("N1111AA", 300))
 
         val items = mergeShelfItems(books, progress, webs)
 
-        assertEquals(listOf("web:N1111AA", "book:b1"), items.map { it.key })
+        assertEquals(listOf("book:b1", "web:N1111AA"), items.map { it.key })
+    }
+
+    @Test
+    fun `未取込Webカードのみの棚では従来どおり追加順で上位に並ぶ（2026-07-26 裁定変更③）`() {
+        // 蔵書ゼロなら web カードが棚の先頭群に来る（tier0 でも競合が居なければ最上位）。層内は addedAt 降順。
+        val webs = listOf(web("NNEWER01", 300), web("NOLDER01", 100))
+
+        val items = mergeShelfItems(emptyList(), emptyMap(), webs)
+
+        assertEquals(listOf("web:NNEWER01", "web:NOLDER01"), items.map { it.key })
+    }
+
+    @Test
+    fun `未読の蔵書は後から置いたWebカードより上（tier1 特権は蔵書のみ＝ADR0016 の枠は維持）`() {
+        // 裁定変更で降ろしたのは web カードだけ。取込という意図的操作を経た未読の実蔵書（tier1）は、
+        // より新しい addedAt の未接触 web（tier0/9999）より上に居る＝二層構造そのものは壊していない。
+        val books = listOf(book("bUnread", 100))
+        val webs = listOf(web("NWEB01", 9999))
+
+        val items = mergeShelfItems(books, emptyMap(), webs)
+
+        assertEquals(listOf("book:bUnread", "web:NWEB01"), items.map { it.key })
     }
 
     @Test
@@ -66,8 +111,9 @@ class ShelfItemsTest {
     }
 
     @Test
-    fun `未接触の Web 新刊は読書中の蔵書より上に入る（Webも層反転）`() {
-        // 反転後: 未接触 Web(addedAt=9999・tier1=上層) は、読書中 b1(lastReadAt=50・tier0=下層) より上。
+    fun `置いたばかりのWebカードは古い既読蔵書より上（tier特権ではなく通常キーで勝つ）`() {
+        // 未接触 web(addedAt=9999) と昔読んだ b1(lastReadAt=50) は同じ tier0＝時刻比較で web が上。
+        // 2026-07-26 裁定変更後も「直近に操作したもの（棚に置く操作を含む）が上」の枠内で web は正しく浮上する。
         val books = listOf(book("b1", 10))
         val progress = mapOf("b1" to ProgressEntity("b1", "chap_1.html", lastReadAt = 50))
         val webs = listOf(web("N9999ZZ", 9999))
@@ -106,8 +152,9 @@ class ShelfItemsTest {
     }
 
     @Test
-    fun `Web は触った記録ありで下層・未接触で上層（web も蔵書と同一の二層規則）`() {
-        // 触った web(NTOUCH01・最終接触 5000) は tier0（下層）、未接触 web(NFRESH01・addedAt=9999) は tier1（上層）＝上。
+    fun `Webカード同士は直近の操作時刻順（触ったWebは接触時刻・未接触は追加時刻）`() {
+        // 両者とも tier0（2026-07-26 裁定変更＝web に tier 特権なし）。触った NTOUCH01 は最終接触 5000、
+        // 未接触 NFRESH01 は addedAt=9999 がキー＝NFRESH01 が上。
         // webLastReadAt は episode 表示用マップとは別に「接触時刻」を運ぶ（並びは時刻で決める）。
         val webs = listOf(web("NTOUCH01", 100), web("NFRESH01", 9999))
         val webLastReadAt = mapOf("NTOUCH01" to 5000L)
@@ -122,10 +169,13 @@ class ShelfItemsTest {
 
     @Test
     fun `同値キーは蔵書を先に置く`() {
-        val books = listOf(book("b1", 200))
+        // web は常に tier0（2026-07-26 裁定変更）のため、同値は「触った蔵書(tier0/lastReadAt=200)」と
+        // 「未接触 web(tier0/addedAt=200)」の間でのみ成立する（旧 fixture の未読蔵書は tier1 で同値にならない）。
+        val books = listOf(book("b1", 10))
+        val progress = mapOf("b1" to ProgressEntity("b1", "chap_1.html", lastReadAt = 200))
         val webs = listOf(web("N1111AA", 200))
 
-        val items = mergeShelfItems(books, emptyMap(), webs)
+        val items = mergeShelfItems(books, progress, webs)
 
         assertEquals(listOf("book:b1", "web:N1111AA"), items.map { it.key })
     }
