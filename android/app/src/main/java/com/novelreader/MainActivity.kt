@@ -36,9 +36,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import com.novelreader.ui.tabs.TabPagerHost
 import kotlinx.coroutines.launch
+import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
@@ -302,11 +304,11 @@ private fun NovelReaderApp(
             navController.navigate("reading/$bookId/$startFile") {
                 launchSingleTop = true
                 // tabs（タブ層）を残して起点を固定＝Back が必ずタブ層へ戻る（固定起点の保証。旧 "bookshelf" ルートのタブ Pager 化に追従）。
-                popUpTo("tabs") { inclusive = false }
+                popUpTo(TAB_HOST_ROUTE) { inclusive = false }
             }
         } else {
             // 削除済み等で本が無い確定ケース: 最低限の保証として固定起点（タブ層＝本棚ページ）へ着地する。
-            navController.popBackStack("tabs", false)
+            navController.popBackStack(TAB_HOST_ROUTE, false)
         }
         // ナビ後に消費済みへ（null で再ナビを防ぐ。key 変化で本 Effect は即再実行され早期 return する）。
         onDeepLinkConsumed()
@@ -365,7 +367,7 @@ private fun NovelReaderApp(
     val tabPagerState = rememberPagerState(pageCount = { KTab.entries.size })
     val tabScope = rememberCoroutineScope()
     // 深い画面（読書等）では null＝恒常ナビを消して没入を守る（従来と同じ判定を「tabs ルートか」へ置換）。
-    val currentTab = if (currentRoute == "tabs") KTab.entries[tabPagerState.currentPage] else null
+    val currentTab = if (currentRoute == TAB_HOST_ROUTE) KTab.entries[tabPagerState.currentPage] else null
     // タブ選択＝Pager のスクロール（タップでもスワイプでも同じスライド運動言語。旧 crossfade は
     // Pager のスワイプ追従と矛盾するため廃止＝isTabSwitch 分岐ごと撤去）。同一タブ再タップは
     // animateScrollToPage が同ページで no-op＝旧 navigateKTab の重複抑止と同じ挙動が構造的に出る。
@@ -390,7 +392,7 @@ private fun NovelReaderApp(
             Column(Modifier.fillMaxSize()) {
     NavHost(
         navController = navController,
-        startDestination = "tabs",
+        startDestination = TAB_HOST_ROUTE,
         modifier = Modifier.weight(1f),
         // タブ間はもう NavHost 遷移でない（Pager が担う）＝isTabSwitch 分岐は不要になった。
         // 残る分岐＝M星図のフェードスルー（固定天球ゆえ slide だと空ごと動く・ADR 0019 追記）と他スキンの横スライド push。
@@ -414,7 +416,7 @@ private fun NovelReaderApp(
 
         // タブ層＝単一ルート "tabs"（本棚/さがす/設定の3面を TabPagerHost のスロットへ・ADR 0022 スロット契約）。
         // 深い画面（読書・目次・発見詳細等）は従来どおり NavHost ルート＝この上へ push される。
-        composable("tabs") {
+        composable(TAB_HOST_ROUTE) {
             // 遷移ジャンク対策（P2・Perfetto 2026-07-16 で主因確定）: 本棚グリッドの初回 measure（実測51ms/
             // フレーム）が slide push のアニメフレームと同居して落ちるため、「tabs が enter アニメ中」の間だけ
             // 重いグリッドをスケルトンへ差替える（BookshelfContent 側の分岐参照）。currentState/targetState は
@@ -667,7 +669,9 @@ private fun NovelReaderApp(
                             onThemeChange = onThemeChange,
                             followingSystem = followingSystem,
                             onFollowSystem = onFollowSystem,
-                            onNavigateToBookshelf = { navController.popBackStack("bookshelf", false) },
+                            // 目次→本棚の脱出。旧 popBackStack("bookshelf") はタブ化でルートが消え黙殺されていた
+                            // （真因と2段構成の理由＝popToBookshelfTab の KDoc）。
+                            onNavigateToBookshelf = { popToBookshelfTab(navController, tabPagerState) },
                         )
                     } else {
                         // 確定して本が存在しない（削除済み／復元不能）ケース。白画面デッドエンドを残さず、
@@ -675,7 +679,7 @@ private fun NovelReaderApp(
                         ReadingErrorScreen(
                             message = "この書籍は見つかりませんでした",
                             colors = rememberReadingColors(appTheme),
-                            onNavigateToBookshelf = { navController.popBackStack("bookshelf", false) },
+                            onNavigateToBookshelf = { popToBookshelfTab(navController, tabPagerState) },
                         )
                     }
                 }
@@ -697,6 +701,27 @@ private fun NovelReaderApp(
             } // Surface（画面ルートの配色接地）
         } // CompositionLocalProvider(LocalSkyParallax)
     } // Box（backdrop ＋ NavHost）
+}
+
+/**
+ * タブ層（本棚/さがす/設定 Pager）の NavHost ルート名の単一正本。
+ * なぜ定数か: 2026-07-24 のタブ Pager 化で本棚がルート "bookshelf" からページへ変わった際、
+ * 読書フローの脱出だけが旧ルート名文字列のまま残り、スタックに無いルートへの pop として黙殺された
+ * （2026-07-25 実機バグ・目次に幽閉）。pop 先とルート登録を同一定数で結び、リネーム時の取り残しを型で封じる。
+ */
+internal const val TAB_HOST_ROUTE = "tabs"
+
+/**
+ * 読書フロー（目次・読書エラー画面）から「本棚へ戻る」の単一実装（Back 契約=2026-07-19 裁定の「目次→本棚」）。
+ * K タブ化（2026-07-24・ADR 0022）で本棚は NavHost ルートでなく tabs 内 Pager のページになったため、
+ * 「タブ層へ pop」＋「Pager を本棚ページへスナップ」の2段で階層 up を表現する。
+ * スナップが要る理由: deep link（通知）入場では Pager が他タブに居ることがあり、pop だけでは
+ * 「目次→さがす/設定」に化けて契約が破れる（通常の本棚経由入場では既に本棚ページ＝no-op）。
+ * requestScrollToPage は非 suspend で Pager 非表示中（読書画面が前面）でも安全＝次の合成で適用される。
+ */
+internal fun popToBookshelfTab(navController: NavController, tabPagerState: PagerState) {
+    tabPagerState.requestScrollToPage(KTab.BOOKSHELF.ordinal)
+    navController.popBackStack(TAB_HOST_ROUTE, false)
 }
 
 /**
