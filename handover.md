@@ -222,6 +222,10 @@
 - **antigravity-delegate サブエージェントの同期実行が保証されない**（2026-07-07・委譲5件中3件で再発): agy をバックグラウンド起動したまま「待機中」で終了し完了通知が来ない。プロンプト明記・SendMessage 再開でも再発。運用回避（CLAUDE.md 委譲判断節に反映済み）＝完了判定を報告でなく**成果物の存在**（`git status`/grep/`ps`）で行う。**根治候補**＝プラグイン側で agy 起動を同期実行へ強制するか wrapper にポーリング内蔵。優先度中（運用回避が効き非ブロッキング）。
 - **worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す運用**: Lint の自動コミットゲートは現存しない（かつての canonical ローカル hook `check_lint_on_commit.py` は撤去済み・git 未追跡＝そもそも task_diary #419 のとおり導入以来 fail-open で一度も走っていなかった）＝lint の担保はこの手動スイープのみ。ext4 worktree なら in-tree で回るので冒頭で1回スイープする。基準＝0 errors/31 warnings（2026-07-18 時点＝+3 は新規スキン/bench ファイル由来の非ブロック警告。ModifierParameter×3・UsableSpace×2 は従前どおり意図的）。
 
+- **[較正待ち] 委譲粒度の谷=30 の実測較正**: 委譲ターン計測フック（`count_delegation_turns.py`・2026-07-25 新設＝
+  30/60/90…回で子へ中間通告＋完走時 `~/.claude/projects/...-novel-reader-andloid/delegation-stats.jsonl` へ記録）の
+  分布が貯まったら（目安20〜30件）谷の位置を確かめ、orchestration §0 の「~30」を実測で更新する。
+
 ## 実行捏造検知器（ADR 0006）残タスク
 
 > エンジン＝`.claude/hooks/detect_fabricated_execution_core.py`。完了分は **ADR 0006（増補含む）と git log が正本**。以下は開きのみ。

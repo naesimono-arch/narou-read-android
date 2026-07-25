@@ -66,6 +66,7 @@ CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/decisions/` / `.clau
 13. task_diary エントリID の一意性（`#N.` 見出しの重複採番検知。並行ブランチ採番がマージで衝突するのを早期検知＝#30 二重採番の再発防止。検知しても自動リネームはしない＝下記「注意」）
 14. 台帳のサイズ番人（STATUS=現況のみ・目安60行／handover=やることのみ の規約から再肥大していないか）
 15. stale-check 自身の整合（この項目表の件数 ↔ `CHECKS` 登録数。自分の陳腐化だけ見張れない穴を塞ぐ）
+16. 委譲ターン計測フックの整合（count_delegation_turns.py: PostToolUse/SubagentStop 両配線の存在・記録先 delegation-stats.jsonl・通告間隔の定数↔docstring 一致）
 
 機械チェックを足したくなったら、このスクリプトに関数を追加して `CHECKS` に登録する。
 

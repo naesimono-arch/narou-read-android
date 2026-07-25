@@ -41,6 +41,15 @@
             "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/consume_protected_sentinel.py\""
           }
         ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/count_delegation_turns.py\""
+          }
+        ]
       }
     ],
     "PreToolUse": [
@@ -111,6 +120,16 @@
           {
             "type": "command",
             "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/inject_subagent_briefing.py\""
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/count_delegation_turns.py\""
           }
         ]
       }
