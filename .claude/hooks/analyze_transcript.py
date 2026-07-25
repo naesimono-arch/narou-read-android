@@ -109,8 +109,6 @@ def main() -> int:
     ap.add_argument("--tier", default="ABCDE",
                     help="検査する Tier（例 'B' / 'AB' / 'ABCDE'。C=misread型 / D=入力側捏造 / E=完了主張束）")
     ap.add_argument("--scope", choices=["all", "last_turn"], default="all")
-    ap.add_argument("--sentinel-dir", default=None,
-                    help="センチネル(.python_tests_passed 等)のあるディレクトリ（live 裏取り用）")
     ap.add_argument("--min-confidence", type=float, default=0.0)
     ap.add_argument("--repo", default=None,
                     help="SHA 実在照合に使う git リポジトリ（Tier A2 の gitStatus 由来FP降格。"
@@ -158,8 +156,7 @@ def main() -> int:
             print(paint(f"[スキップ] {path}: {e}", "yellow"), file=sys.stderr)
             continue
         report = core.analyze(text, transcript_path=path, scope=args.scope,
-                              sentinel_dir=args.sentinel_dir, tiers=args.tier,
-                              sha_exists=verifier)
+                              tiers=args.tier, sha_exists=verifier)
         reports.append((path, report))
 
     if args.format == "json":

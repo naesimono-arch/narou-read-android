@@ -2,7 +2,8 @@
 """
 ブランチガード系フックのコマンド検知正規表現を回帰固定するテスト。
 対象: hooks_common.py（COMMIT_CMD_RE / COMMIT_GENERATING_RE の単一定義）と、
-      それを共有する各コミット系フック（guard / consume / granularity / schema / lint / task_diary）
+      それを共有する各コミット系フック（正本は下の COMMIT_RE_HOOKS / GENERATING_RE_HOOKS
+      ＝ここに名前を再掲すると撤去時に乖離するため列挙しない）
 
 なぜ subprocess（exit code）ではなく正規表現を直接検証するか:
   guard の exit code はカレントブランチ（main か否か）とセンチネル有無に依存し環境的で不安定。

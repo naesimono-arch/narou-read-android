@@ -33,12 +33,10 @@ if HOOKS_DIR not in sys.path:
 from test_detect_fabricated_execution import asst_text, asst_tool, tool_result, GRADLE_OK
 
 # Tier B の block を決定化するための遠未来タイムスタンプ。
-# なぜ: フックは sentinel_dir を実 .claude/（HOOKS_DIR の親）に固定算出する＝stdin で
-# 差し替え不可。実 .kotlin_tests_passed が存在すると、その mtime が主張時刻以降のとき
-# _sentinel_state が fresh 判定し、Tier B の confidence を 0.8→0.6 へ減衰させる。すると
-# アダプタの block 条件（unverified_test_claim ∧ conf≥0.8）を外れて block 漏れする。
-# 主張 ts を遠未来に置けば mtime < 主張時刻となり fresh=False＝conf 0.8 を維持でき、
-# センチネルの有無に依らず block を決定化できる（ビルダ既定の TS=2026 のままだと不安定）。
+# 当初の理由（実 .kotlin_tests_passed の mtime でセンチネルが fresh 判定し confidence が
+# 0.8→0.6 へ減衰、block 条件 conf≥0.8 を外れて block 漏れする）は 2026-07-25 の
+# センチネル照合退役で解消した。値は据え置く——実時刻に依存しない固定 TS であること自体が
+# テストの決定性に効くため（ビルダ既定の TS=2026 は現在時刻と前後しうる）。
 FUTURE_TS = "2099-01-01T00:00:00Z"
 
 

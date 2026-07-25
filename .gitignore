@@ -13,12 +13,9 @@ android/local.properties
 .vscode/
 .claude/settings.local.json
 
-# テスト実行センチネル（コミット時テスト強制 hook のランタイム生成物）
-# （.python_tests_passed は 2026-07-06 の Python ゲート撤去で生成者が消滅したため行ごと削除済み）
-.claude/.kotlin_tests_passed
-
-# Android Lint のベースライン（check_lint_on_commit hook のランタイム生成物・マシン固有の基準値）
-.claude/lint_baseline.json
+# テスト実行センチネル（コミット時テスト強制 hook のランタイム生成物）は全廃＝ignore 行も無し。
+# （.python_tests_passed＝2026-07-06 の Python ゲート撤去／.kotlin_tests_passed＝2026-07-12 の
+#  テスト強制3点フック撤去。いずれも生成者が消滅したので行ごと削除した）
 
 # 保護ブランチへの明示コミット許可センチネル（ブランチガード hook の一回限り上書き）
 .claude/.allow_protected_commit

@@ -492,7 +492,6 @@ class Finding:
     claim_excerpt: str
     missing_token: Optional[str] = None
     expected_tool_pattern: Optional[str] = None
-    sentinel_state: Optional[dict] = None
     suppressed_reason: Optional[str] = None
 
 
@@ -1205,38 +1204,12 @@ def detect_tier_a3(utterances: List[Utterance]) -> List[Finding]:
     return findings
 
 
-def _iso_to_epoch(ts: str) -> Optional[float]:
-    """ISO8601（末尾 Z 可）→ epoch 秒。失敗は None。"""
-    if not ts:
-        return None
-    try:
-        from datetime import datetime
-        return datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
-    except (ValueError, TypeError):
-        return None
-
-
-def _sentinel_state(sentinel_dir: Optional[str], claim_ts: str) -> Optional[dict]:
-    """
-    既存センチネル（.kotlin_tests_passed）の存在と、
-    主張時刻との mtime 前後関係を返す。sentinel_dir 未指定なら None（照合しない）。
-    （.python_tests_passed は Phase 5 の Python 撤去＋mark_python hook 廃止（2026-07-06）で
-    生成者が消滅したため照合対象から外した。残骸ファイルを拾うと誤ったナッジになる。）
-    なぜ live 時のみ有効か: センチネルは現在の FS 状態を表すため、過去セッションの
-    事後解析では意味が薄い。よって「補助的な信頼度ナッジ」に留める。
-    """
-    if not sentinel_dir:
-        return None
-    claim_epoch = _iso_to_epoch(claim_ts)
-    state = {"present": False, "fresh": False}
-    for name in (".kotlin_tests_passed",):
-        p = os.path.join(sentinel_dir, name)
-        if os.path.exists(p):
-            state["present"] = True
-            mt = os.path.getmtime(p)
-            if claim_epoch is not None and mt >= claim_epoch:
-                state["fresh"] = True
-    return state
+# センチネル照合（.kotlin_tests_passed の mtime で Tier B を弱く降格させる仕組み）は
+# 2026-07-25 に退役させた。生成者 mark_kotlin_tests_passed.py が 2026-07-12 の裁定
+# （コミットは可逆・テストは再実行可能で ROI 基準を満たさない）で撤去され、残骸の mtime は
+# その時点で凍結＝以後どの主張時刻より必ず古く fresh 判定が恒久 False になっていたため。
+# 先行して .python_tests_passed が同じ理由で外されており（2026-07-06）、その処置が
+# kotlin 側だけ漏れていた。復活させるなら生成者フックの再導入とセットでないと機能しない。
 
 
 def _tier_b_reference(text: str, sent: str) -> Optional[str]:
@@ -1284,8 +1257,7 @@ def _tier_b_reference(text: str, sent: str) -> Optional[str]:
 
 
 def detect_tier_b(utterances: List[Utterance], all_utterances: List[Utterance],
-                  tool_index: Dict[str, ToolResult], corpus: EvidenceCorpus,
-                  sentinel_dir: Optional[str]) -> List[Finding]:
+                  tool_index: Dict[str, ToolResult], corpus: EvidenceCorpus) -> List[Finding]:
     """
     テスト成功を断言しているのに、セッション内に対応する成功テスト実行が無い → 未検証主張。
     corroboration（裏取り）は主張と同順以前の成功実行。降格条件は truncation / Agent 委譲未解決。
@@ -1377,10 +1349,6 @@ def detect_tier_b(utterances: List[Utterance], all_utterances: List[Utterance],
                 suppressed = "subagent_unresolved"
 
             confidence = 0.5 if suppressed else 0.8
-            st = _sentinel_state(sentinel_dir, u.timestamp)
-            # センチネルが「新鮮に存在」＝実行痕跡はあるが本文が解析範囲外の可能性 → 弱い裏取りで降格
-            if not suppressed and st and st.get("fresh"):
-                confidence = 0.6
 
             findings.append(Finding(
                 tier="B", rule="unverified_test_claim",
@@ -1388,7 +1356,7 @@ def detect_tier_b(utterances: List[Utterance], all_utterances: List[Utterance],
                 msg_id=u.msg_id, timestamp=u.timestamp,
                 claim_excerpt=sent.strip()[:200],
                 expected_tool_pattern=TEST_RUNNER_CMD_RE.pattern,
-                sentinel_state=st, suppressed_reason=suppressed,
+                suppressed_reason=suppressed,
             ))
     return findings
 
@@ -2280,7 +2248,7 @@ def detect_tier_e3(records: List[dict], all_utterances: List[Utterance],
 # ─────────────────────────────────────────────────────────────────────────────
 
 def analyze(text: str, transcript_path: Optional[str] = None,
-            scope: str = "all", sentinel_dir: Optional[str] = None,
+            scope: str = "all",
             tiers: str = "ABCD", sha_exists=None) -> Report:
     """
     トランスクリプト JSONL 文字列を解析し Report を返す。唯一のエントリ。
@@ -2328,7 +2296,7 @@ def analyze(text: str, transcript_path: Optional[str] = None,
         findings += detect_tier_a2(target, corpus, sha_exists=sha_exists)
         findings += detect_tier_a3(target)
     if "B" in tiers:
-        findings += detect_tier_b(target, all_utterances, tool_index, corpus, sentinel_dir)
+        findings += detect_tier_b(target, all_utterances, tool_index, corpus)
     if "C" in tiers:
         findings += detect_tier_c1(target, all_utterances, tool_index, corpus)
         findings += detect_tier_c2(target, corpus)

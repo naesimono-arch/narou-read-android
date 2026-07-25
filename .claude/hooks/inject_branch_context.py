@@ -51,7 +51,7 @@ status_line = (
     if status_exists
     else "STATUS.md は **このブランチに存在しない**（lab 系の長期作業ブランチにのみ置く方針）。"
          # なぜ ~/.claude/plans か: active plan の実体はホーム側（plan モードの保存先）で、実ゲート
-         # （check_commit_granularity 等）もホーム側を読む。リポジトリ内 .claude/plans/ はアーカイブ置き場。
+         # （remind_commit_plan.py 等）もホーム側を読む。リポジトリ内 .claude/plans/ はアーカイブ置き場。
          "→ 現況の正本は、ephemeral な作業ブランチなら **active plan ファイル**（`~/.claude/plans/`。"
          "リポジトリ内 `.claude/plans/` はアーカイブ）、main なら `handover.md` を参照すること。"
 )

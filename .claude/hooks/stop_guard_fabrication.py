@@ -16,7 +16,7 @@ Stop フック: ターン終了時に、直近の assistant 発話の「実行�
   - 偽陽性・例外・transcript 不在は必ず exit 0（ユーザー作業を妨げない）。
 
 なぜ scope=last_turn か: 直近の発話の主張だけを対象にする（証拠・成功実行はセッション全域から
-集める）。センチネル(.kotlin_tests_passed)は現行セッションの実行痕跡なので裏取りに使える。
+集める）。
 """
 import io
 import json
@@ -61,16 +61,12 @@ def main() -> int:
     except OSError:
         return 0
 
-    # センチネルは .claude/ 直下（hooks の親）
-    claude_dir = os.path.dirname(HOOKS_DIR)
-
     # SHA 実在照合はセッションの cwd（hook 入力）で行う。無ければ照合なし（従来動作）。
     verifier = hooks_common.make_sha_verifier(data.get("cwd") or os.getcwd())
 
     try:
         report = core.analyze(text, transcript_path=tpath, scope="last_turn",
-                              sentinel_dir=claude_dir, tiers="ABC",
-                              sha_exists=verifier)
+                              tiers="ABC", sha_exists=verifier)
     except Exception:
         # 解析中の想定外例外でユーザーを止めない（非妨害の原則）
         return 0
