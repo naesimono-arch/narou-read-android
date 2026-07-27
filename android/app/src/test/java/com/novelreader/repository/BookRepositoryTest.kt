@@ -559,6 +559,24 @@ class BookRepositoryTest {
         )
     }
 
+    @Test
+    fun `orphanedWebProgressNcodes - 保存契約違反の過去行（小文字・空白）も storageKey 突合で生存判定する`() {
+        // 2026-07-27 是正の固定: keep は storageKey 形・all は DB 生値。無正規化の差集合だと
+        // " n0002bb " は「生きている本の読書位置」なのに孤児扱いで削除されてしまう。
+        assertEquals(
+            setOf("N0001AA"),
+            orphanedWebProgressNcodes(setOf("N0001AA", " n0002bb "), setOf("N0002BB")),
+        )
+    }
+
+    @Test
+    fun `orphanedWebProgressNcodes - 孤児の戻り値は削除キーに使う生値のまま`() {
+        assertEquals(
+            setOf(" n0009zz "),
+            orphanedWebProgressNcodes(setOf(" n0009zz ", "N0002BB"), setOf("N0002BB")),
+        )
+    }
+
     // ── 取込前の空き容量チェック（UX監査 add・10-H）────────────────────────────
     // 必要見込み = max(pdfSize×係数, フロア) を空きが下回れば false（＝変換に入らず容量不足エラーへ）。
 

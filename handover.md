@@ -225,8 +225,7 @@
   ② BookshelfScreen 同居の他ファイル専用部品193行の移設（呼ぶのは skins/ と SettingsScreenK のみ）
   ③ Baseline Profile 生成＝**見送り裁定（2026-07-27）**。profileinstaller/macrobenchmark/StartupBudget は揃っており generator 1本で起動20〜30%改善見込み・要実機
   ④ 計測・調査群＝**見送り裁定（同）**: ShioriCover の Path 毎フレーム確保（drawWithCache 候補・BookshelfScrollBenchmark が予算内なら実害なし＝先に測る）／OkHttp ディスクキャッシュ未設定／Room AutoMigration 不使用の方針 ADR 1行／Native 接頭辞・ビュー切替名の整理
-  ⑤ **裁定候補2件（ncode 型化で発見・挙動温存中）**: isImported だけ ignoreCase 比較の第4流儀（`sameWorkAs` に隔離済み・uppercase 突合への統一は挙動変更）／prune の無正規化突合（分割後は LibraryDeleter 側・保存契約頼み）
-  ⑥ 小粒観察: `DiscoveryHomeK.kt:296` の items に key 無し／`BookshelfSkyM.kt:646` の表示用 lowercase（trim なし・実害なし）
+  ⑤ 小粒観察: `DiscoveryHomeK.kt:296` の items に key 無し／`BookshelfSkyM.kt:646` の表示用 lowercase（trim なし・実害なし）
 - **検索画面 S3＝カテゴリ列の LazyColumn 化（保留・要否判断）**: 重さの正体は「カテゴリ展開状態での操作毎の全画面再コンポーズ」で、S1（選択判定 Set 化・Regex 定数化）/S2（strong skipping＋@Immutable）は解消済み・実機体感は軽快（2026-07-11 実測）。残る理論コスト＝非 Lazy Column 上の22カテゴリ/115チップ（`DiscoverySearchScreen.kt:203-207`）の画面外存在コストと「全展開のまま再訪」の初回構成。**体感問題が再報告されるまで保留が妥当**。
 - MigrationTest が「16.json 形状（web_reading_progress 無し）→17」経路を構造的に検証できない（chain テストは 14→15 でテーブルが生まれる系譜のみ通過）。既知の実機 v16→v17 未検証と同根の coverage-hole として記録。
 

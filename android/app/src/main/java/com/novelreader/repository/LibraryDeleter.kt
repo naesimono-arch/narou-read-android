@@ -146,8 +146,13 @@ internal class LibraryDeleter(
  * 全 ncode から、books.ncode / web_novels に生きている ncode（keep）を差し引く。
  * orphanedPermissionUris と同じ流儀で、掃除の中核ロジックを contentResolver/Room 非依存で単体テストする
  * （pruneOrphanWebReadingProgress が snapshot 取得と実削除の副作用を担い、判定はここ）。
+ *
+ * 突合は storageKey 形で行う（keep は呼び出し側で storageKey 化済み・all は DB 生値のまま渡す）。
+ * なぜ生値を単純差集合しないか: 保存契約（書き込み側が storageKey 正規化）に違反した過去行が
+ * あった場合、無正規化の突合では「生きている本の読書位置」を孤児と誤判定して削除してしまう
+ * （2026-07-27 是正・ユーザー裁定）。戻り値は DAO の deleteByNcode キーに使うため生値のまま返す。
  */
 internal fun orphanedWebProgressNcodes(
     allNcodes: Set<String>,
     keepNcodes: Set<String>,
-): Set<String> = allNcodes - keepNcodes
+): Set<String> = allNcodes.filterTo(mutableSetOf()) { Ncode(it).storageKey !in keepNcodes }
