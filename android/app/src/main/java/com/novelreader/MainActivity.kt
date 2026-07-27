@@ -121,9 +121,9 @@ class MainActivity : ComponentActivity() {
         // 保存済みの「生 enum 名」がどの版の綴りかを移行コードが判別できるようにするための版番号。
         // 未記録の既存/新規インストールは現行スキーマ＝v1 として一度だけ刻む（以後の移行がこの版を
         // 読んで綴りを変換する）。app_prefs は他の読書設定（reading_theme 等）と同じ置き場。
-        val settingsPrefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
-        if (!settingsPrefs.contains(KEY_SETTINGS_SCHEMA_VERSION)) {
-            settingsPrefs.edit().putInt(KEY_SETTINGS_SCHEMA_VERSION, SETTINGS_SCHEMA_VERSION).apply()
+        val settingsPrefs = getSharedPreferences(PrefKeys.FILE_APP_PREFS, MODE_PRIVATE)
+        if (!settingsPrefs.contains(PrefKeys.SETTINGS_SCHEMA_VERSION)) {
+            settingsPrefs.edit().putInt(PrefKeys.SETTINGS_SCHEMA_VERSION, SETTINGS_SCHEMA_VERSION).apply()
         }
 
         // Edge-to-Edge 表示を有効化（ステータスバー・ナビバー領域までコンテンツを描画）
@@ -153,39 +153,39 @@ class MainActivity : ComponentActivity() {
             // （旧: 本棚=システム追従・読書=独立prefの2系統で不一致だった＝handover B「11 本棚テーマ追従」を解消）
             // 既定: reading_theme 未保存時はシステムのライト/ダークに追従。以後はユーザー選択を永続。
             val context = LocalContext.current
-            val prefs = remember { context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
+            val prefs = remember { context.getSharedPreferences(PrefKeys.FILE_APP_PREFS, Context.MODE_PRIVATE) }
             val systemDark = isSystemInDarkTheme()
             var appTheme by remember { mutableStateOf(loadInitialTheme(prefs, systemDark)) }
             // 「システムに従う」状態＝reading_theme 未保存。明示選択で解除、追従選択でキー削除により復帰。
             // なぜキー削除で表すか: 「未宣言＝追従」という loadInitialTheme の既存規約をそのまま正本にし、
             // 第4の enum 値や別フラグを増やさない（設定は「開かれない」が理想＝UX/19）。
-            var followingSystem by remember { mutableStateOf(prefs.getString("reading_theme", null) == null) }
+            var followingSystem by remember { mutableStateOf(prefs.getString(PrefKeys.READING_THEME, null) == null) }
             val onThemeChange: (ReadingTheme) -> Unit = { theme ->
                 appTheme = theme
                 followingSystem = false
-                prefs.edit().putString("reading_theme", theme.name).apply()
+                prefs.edit().putString(PrefKeys.READING_THEME, theme.name).apply()
             }
             val onFollowSystem: () -> Unit = {
-                prefs.edit().remove("reading_theme").apply()
+                prefs.edit().remove(PrefKeys.READING_THEME).apply()
                 followingSystem = true
                 appTheme = if (systemDark) ReadingTheme.DARK else ReadingTheme.LIGHT
             }
             // UIスキン（着せ替え）。reading_theme と同じ「MainActivity へ巻き上げた単一状態＋prefs 永続」流儀。
             // キー不在=D（既定装い）。装着は装いの間（wardrobe）からのみ変更される。
-            var appSkin by remember { mutableStateOf(skinFromName(prefs.getString("app_skin", null))) }
+            var appSkin by remember { mutableStateOf(skinFromName(prefs.getString(PrefKeys.APP_SKIN, null))) }
             val onSkinChange: (Skin) -> Unit = { skin ->
                 appSkin = skin
-                prefs.edit().putString("app_skin", skin.name).apply()
+                prefs.edit().putString(PrefKeys.APP_SKIN, skin.name).apply()
             }
             // 高負荷スカイ（星図M・試作／ADR 0023）。reading_theme・app_skin と同じ「MainActivity 巻き上げ＋prefs 永続」流儀。
             // なぜ BuildConfig.DEBUG で潰すか: release ではトグル UI を出さず値も常に false＝出荷時は現行の空のまま
             //（試作は debug 限定の実機探索）。debug でのみ prefs 値を尊重して backdrop へ引数で渡す。
             var highLoadSkyM by remember {
-                mutableStateOf(BuildConfig.DEBUG && prefs.getBoolean("sky_high_load_m", false))
+                mutableStateOf(BuildConfig.DEBUG && prefs.getBoolean(PrefKeys.SKY_HIGH_LOAD_M, false))
             }
             val onHighLoadSkyChange: (Boolean) -> Unit = { on ->
                 highLoadSkyM = on
-                prefs.edit().putBoolean("sky_high_load_m", on).apply()
+                prefs.edit().putBoolean(PrefKeys.SKY_HIGH_LOAD_M, on).apply()
             }
 
             // Material3 配色もテーマ3値（ライト/セピア/ダーク）へ追従させる。
@@ -239,11 +239,9 @@ class MainActivity : ComponentActivity() {
         /** 変換完了通知 → 読書画面 deep link 用の bookId extra キー（M11）。 */
         const val EXTRA_BOOK_ID = "com.novelreader.extra.BOOK_ID"
 
-        /** 設定スキーマ版（evolve）。enum の生 String 保存の改名耐性のため prefs に記録する現行版。 */
+        /** 設定スキーマ版（evolve）。enum の生 String 保存の改名耐性のため prefs に記録する現行版。
+         *  キー文字列は [PrefKeys.SETTINGS_SCHEMA_VERSION]（全設定キーの正本＝PrefKeys へ集約済み）。 */
         const val SETTINGS_SCHEMA_VERSION = 1
-
-        /** 設定スキーマ版の prefs キー。 */
-        const val KEY_SETTINGS_SCHEMA_VERSION = "settings_schema_version"
     }
 }
 
@@ -253,7 +251,7 @@ class MainActivity : ComponentActivity() {
  */
 private fun loadInitialTheme(prefs: SharedPreferences, systemDark: Boolean): ReadingTheme {
     val systemFallback = if (systemDark) ReadingTheme.DARK else ReadingTheme.LIGHT
-    val saved = prefs.getString("reading_theme", null) ?: return systemFallback
+    val saved = prefs.getString(PrefKeys.READING_THEME, null) ?: return systemFallback
     return runCatching { ReadingTheme.valueOf(saved) }.getOrDefault(systemFallback)
 }
 

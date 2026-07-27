@@ -113,6 +113,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.novelreader.NovelReaderApplication
+import com.novelreader.PrefKeys
 import com.novelreader.model.BookId
 import com.novelreader.model.ChapterFilename
 import com.novelreader.model.ChapterContent as ChapterContentModel
@@ -298,6 +299,9 @@ fun ReadingScreen(
     // 参照モード（jumpOrigin）の解除は「続きに戻る」チップ・滞留昇格・目次からの続き章再選択が担う。
     // Back で覗き章から目次へ上がっても jumpOrigin は残すが、目次上では referenceMode は無害
     // （抑止・チップは章表示中のみ効く）＝参照の挙動を壊さない（invariant④: jumpOrigin 挙動を壊さない）。
+    // PredictiveBackHandler にしない理由: Back は内部スタック（章⇄目次）の階層 up＝離散的な状態切替で、
+    // 進捗連動で見せられるプレビュー面が無い（NavHost pop の predictive 対応も navigation-compose 2.7.5 には無い）。
+    // ジェスチャ確定時のみ発火する現行セマンティクスを保つ（進捗途中で back() が走ると覗き状態が壊れる）。
     BackHandler(enabled = true) {
         val popped = backStack.back()
         if (popped != null) {
@@ -358,7 +362,7 @@ fun ReadingScreen(
     // 直接読まない（初期決定・永続化は MainActivity 側 = loadInitialTheme/onThemeChange が担う）。
     // context/prefs は文字サイズ・行間（読書固有設定）の読み書きに引き続き使う。
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
+    val prefs = remember { context.getSharedPreferences(PrefKeys.FILE_APP_PREFS, Context.MODE_PRIVATE) }
     val readingColors = rememberReadingColors(readingTheme)
 
     // なぜ「UI状態の更新」と「永続化」を2つのコールバックに分けるか:
@@ -371,13 +375,13 @@ fun ReadingScreen(
     // なぜ coerceIn か: 将来レンジを狭めた場合に保存済みの範囲外値で
     // レイアウトが崩れないよう、読み出し時点で必ず現行レンジに丸める。
     var fontSize by remember {
-        mutableIntStateOf(prefs.getInt("reading_font_size", 18).coerceIn(14, 24))
+        mutableIntStateOf(prefs.getInt(PrefKeys.READING_FONT_SIZE, 18).coerceIn(14, 24))
     }
     // ドラッグ中の毎値：本文プレビュー追従のため状態のみ更新（永続化しない）
     val onFontSizeChange: (Int) -> Unit = { size -> fontSize = size }
     // 確定時のみ：現在の fontSize を永続化する。apply は非同期ディスク書込のため UI をブロックしない
     val onFontSizePersist: () -> Unit = {
-        prefs.edit().putInt("reading_font_size", fontSize).apply()
+        prefs.edit().putInt(PrefKeys.READING_FONT_SIZE, fontSize).apply()
     }
 
     // 本文の行間（em）。
@@ -386,24 +390,24 @@ fun ReadingScreen(
     // （字面より上の leading）が前行と被るリスクは残る。段落間スペースも lineHeight=2.5em
     // 前提で微調整済みのため、可変幅を狭く保つことでルビ被りと段落リズムの破綻を抑える。
     var lineHeightEm by remember {
-        mutableFloatStateOf(prefs.getFloat("reading_line_height", 2.5f).coerceIn(2.3f, 2.8f))
+        mutableFloatStateOf(prefs.getFloat(PrefKeys.READING_LINE_HEIGHT, 2.5f).coerceIn(2.3f, 2.8f))
     }
     // フォントサイズと同型：ドラッグ中は状態のみ・永続化は確定時に一度だけ
     val onLineHeightChange: (Float) -> Unit = { v -> lineHeightEm = v }
     val onLineHeightPersist: () -> Unit = {
-        prefs.edit().putFloat("reading_line_height", lineHeightEm).apply()
+        prefs.edit().putFloat(PrefKeys.READING_LINE_HEIGHT, lineHeightEm).apply()
     }
 
     // 本文の左右余白（dp）。既定 15 は設定化前の固定値と同じ＝既存ユーザーの見た目を変えない。
     // スマホ幅では widthIn(max=600dp) が効かず実質この余白だけが行長を決めるため、
     // 行長を詰めたい要望（旧 backlog C-05/06）はこの1値の設定化で吸収する。
     var bodyMarginDp by remember {
-        mutableIntStateOf(prefs.getInt("reading_body_margin", 15).coerceIn(10, 40))
+        mutableIntStateOf(prefs.getInt(PrefKeys.READING_BODY_MARGIN, 15).coerceIn(10, 40))
     }
     // フォントサイズと同型：ドラッグ中は状態のみ・永続化は確定時に一度だけ
     val onBodyMarginChange: (Int) -> Unit = { v -> bodyMarginDp = v }
     val onBodyMarginPersist: () -> Unit = {
-        prefs.edit().putInt("reading_body_margin", bodyMarginDp).apply()
+        prefs.edit().putInt(PrefKeys.READING_BODY_MARGIN, bodyMarginDp).apply()
     }
 
     // 縦書きモード（全書籍共通・app_prefs の単一 Boolean "reading_vertical"＝プラン裁定「設定は全書籍共通」）。
@@ -411,11 +415,11 @@ fun ReadingScreen(
     // なぜ確定コールバック（onXxxPersist）を分けないか: これはトグルでスライダーのようなドラッグ中の
     // 毎値発火が無く、1タップ＝1確定。状態更新と永続化を1つのコールバックで即時に行う（無駄な間引き不要）。
     var verticalMode by remember {
-        mutableStateOf(prefs.getBoolean("reading_vertical", false))
+        mutableStateOf(prefs.getBoolean(PrefKeys.READING_VERTICAL, false))
     }
     val onVerticalModeChange: (Boolean) -> Unit = { enabled ->
         verticalMode = enabled
-        prefs.edit().putBoolean("reading_vertical", enabled).apply()
+        prefs.edit().putBoolean(PrefKeys.READING_VERTICAL, enabled).apply()
     }
 
     // ステータスバーアイコン明暗はここでは設定しない（所有権は NovelReaderTheme の SideEffect に一本化）。
@@ -1032,9 +1036,9 @@ private fun ChapterScreen(
     // なぜ prefs で永続化しアプリ通算初回のみにするか: セッション毎の表示は、復帰操作を既に
     // 学習済みのユーザーには冗長。ヒントの目的（復帰手段の可視化）は一度の学習で達成されるため、
     // 表示済みフラグを prefs に持たせて通算初回だけに絞る。他の読書設定と同じ app_prefs に置く。
-    val chromeHintPrefs = remember { context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
+    val chromeHintPrefs = remember { context.getSharedPreferences(PrefKeys.FILE_APP_PREFS, Context.MODE_PRIVATE) }
     var chromeHintConsumed by remember {
-        mutableStateOf(chromeHintPrefs.getBoolean("immersive_hint_shown", false))
+        mutableStateOf(chromeHintPrefs.getBoolean(PrefKeys.IMMERSIVE_HINT_SHOWN, false))
     }
     var showChromeHint by remember { mutableStateOf(false) }
     LaunchedEffect(topAppBarState) {
@@ -1045,7 +1049,7 @@ private fun ChapterScreen(
                     chromeHintConsumed = true
                     // 表示に踏み切った時点で永続フラグを立てる＝以後のセッションでは二度と出さない。
                     // apply は非同期ディスク書込のため UI をブロックしない。
-                    chromeHintPrefs.edit().putBoolean("immersive_hint_shown", true).apply()
+                    chromeHintPrefs.edit().putBoolean(PrefKeys.IMMERSIVE_HINT_SHOWN, true).apply()
                     showChromeHint = true
                     delay(2600)
                     showChromeHint = false

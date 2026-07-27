@@ -11,22 +11,19 @@ import android.content.Context
  * ときだけに限定する（機能は撤去せずオプトインへ寄せる）。
  *
  * なぜ既存の app_prefs（SharedPreferences）に相乗りか: テーマ/文字サイズ等の既存ユーザー設定が
- * すべて "app_prefs" に集約されており（MainActivity.kt:83 ほか）、設定の置き場を一本化するため。
+ * すべて app_prefs に集約されており（置き場・キーの正本＝[PrefKeys]）、設定の置き場を一本化するため。
  */
 object NewEpisodeNotificationPreference {
-    private const val PREFS_NAME = "app_prefs"
-    private const val KEY_ENABLED = "new_episode_notify_enabled"
-
     private fun prefs(context: Context) =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        context.getSharedPreferences(PrefKeys.FILE_APP_PREFS, Context.MODE_PRIVATE)
 
     /** 通知が ON か。既定は false（オプトイン）。 */
     fun isEnabled(context: Context): Boolean =
-        prefs(context).getBoolean(KEY_ENABLED, false)
+        prefs(context).getBoolean(PrefKeys.NEW_EPISODE_NOTIFY_ENABLED, false)
 
     /** ON/OFF を永続化する。実際のスケジュール切替は
      *  [NovelReaderApplication.setNewEpisodeNotificationEnabled] が担う（状態層と制御を分離）。 */
     fun setEnabled(context: Context, enabled: Boolean) {
-        prefs(context).edit().putBoolean(KEY_ENABLED, enabled).apply()
+        prefs(context).edit().putBoolean(PrefKeys.NEW_EPISODE_NOTIFY_ENABLED, enabled).apply()
     }
 }
