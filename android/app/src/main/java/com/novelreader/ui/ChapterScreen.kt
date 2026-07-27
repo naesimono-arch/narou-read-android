@@ -41,11 +41,9 @@ import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.computeContinuation
 import com.novelreader.narou.narouEpisodeUrl
 import com.novelreader.narou.narouWorkUrl
-import com.novelreader.narou.model.Ncode
 import com.novelreader.parser.ChapterHtmlParser
-import com.novelreader.ui.theme.ReadingTheme
+import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.theme.rememberReadingColors
-import com.novelreader.viewmodel.NcodeSearchUiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
@@ -71,30 +69,13 @@ internal fun ChapterScreen(
     currentFile: String,
     htmlDirPath: String,
     tocEntries: List<TocEntry>,
-    bookTitle: String,
-    ncode: Ncode?,
-    onLinkNcode: (Ncode?) -> Unit,
-    // なろう紐付けシートの候補検索（state は VM の単一正本／検索・再試行は VM へ依頼）。
-    ncodeSearchState: NcodeSearchUiState,
-    onSearchNcode: (query: String) -> Unit,
-    onRetryNcodeSearch: () -> Unit,
-    readingTheme: ReadingTheme,
-    onThemeChange: (ReadingTheme) -> Unit,
-    followingSystem: Boolean,
-    onFollowSystem: () -> Unit,
-    fontSize: Int,
-    onFontSizeChange: (Int) -> Unit,
-    // 永続化はスライダー確定時のみ呼ぶ（ドラッグ中の毎値書き込みを避ける）
-    onFontSizePersist: () -> Unit,
-    lineHeightEm: Float,
-    onLineHeightChange: (Float) -> Unit,
-    onLineHeightPersist: () -> Unit,
-    bodyMarginDp: Int,
-    onBodyMarginChange: (Int) -> Unit,
-    onBodyMarginPersist: () -> Unit,
-    // 縦書きモード（全書籍共通・app_prefs reading_vertical）。ReadingScreen が読み書きし本文分岐へ渡す。
-    verticalMode: Boolean,
-    onVerticalModeChange: (Boolean) -> Unit,
+    // なろう紐付けの束（書名・Nコード・候補検索）。state は VM の単一正本／検索・再試行は VM へ依頼する。
+    // 束の定義と「既定値を置かない理由」は ReadingFace.kt 冒頭。
+    ncodeLink: NcodeLink,
+    // テーマ4択の束。MainActivity が本棚と共有する単一正本（2026-07-17 裁定②）をそのまま受ける。
+    theme: ThemeControl,
+    // 文字組設定の束（文字サイズ・行間・左右余白・縦書き）。ReadingScreen が app_prefs で読み書きする。
+    typography: ReadingTypography,
     initialScrollIndex: Int,
     initialScrollOffset: Int,
     onSaveScroll: (index: Int, offset: Int) -> Unit,
@@ -108,15 +89,19 @@ internal fun ChapterScreen(
     onReachedEnd: () -> Unit,
     // メニューの章跨ぎ維持（2026-07-16 実機フィードバック）: 章→章は AnimatedContent の別サブコンポジション
     // ＝topAppBarState が作り直されるため、表示状態は親 ReadingScreen が章を跨いで保持し、入場時の初期値
-    // として受け取る。トグル結果は onChromeVisibleChange で親へ還流する。既定は従来挙動（入場時没入）。
-    chromeVisibleInitial: Boolean = false,
-    onChromeVisibleChange: (Boolean) -> Unit = {},
+    // として受け取る。トグル結果は onChromeVisibleChange で親へ還流する。false＝入場時没入（従来挙動）。
+    chromeVisibleInitial: Boolean,
+    onChromeVisibleChange: (Boolean) -> Unit,
     // 章パースのキャッシュ（親 ReadingScreen 所有・章を跨いで共有）。遷移後の初期表示と覗き先読みが使う。
-    chapterCache: MutableMap<String, ChapterContentModel> = mutableMapOf(),
+    chapterCache: MutableMap<String, ChapterContentModel>,
     // 章の初期スクロール位置の解決（親 ReadingScreen の1本＝セッション内記憶→入場復元→先頭）。
     // 覗きパネルへこの結果を焼き込み、着地（initialScrollIndex/Offset）と必ず一致させる。
-    resolveInitialScroll: (String) -> Pair<Int, Int> = { 0 to 0 },
+    resolveInitialScroll: (String) -> Pair<Int, Int>,
 ) {
+    // ── 束の展開（本体の参照名を変えない局所別名＝挙動・値とも既存と同一） ──
+    val ncode = ncodeLink.ncode
+    val readingTheme = theme.appTheme
+
     val colors = rememberReadingColors(readingTheme)
     // 画面ローカルの UI 状態（表示設定シート開閉・紐付けシート開閉・ボトムバー実測高・コルーチンスコープ・
     // 非横取り NestedScroll 接続）は描画層 ChapterScreenContent 内に保持する（route/Content 分割＝BookshelfContent
@@ -483,27 +468,36 @@ internal fun ChapterScreen(
     ChapterScreenContent(
         parseResult = parseResult,
         colors = colors,
-        fontSize = fontSize,
-        onFontSizeChange = onFontSizeChange,
-        onFontSizePersist = onFontSizePersist,
-        lineHeightEm = lineHeightEm,
-        onLineHeightChange = onLineHeightChange,
-        onLineHeightPersist = onLineHeightPersist,
-        bodyMarginDp = bodyMarginDp,
-        onBodyMarginChange = onBodyMarginChange,
-        onBodyMarginPersist = onBodyMarginPersist,
-        readingTheme = readingTheme,
-        onThemeChange = onThemeChange,
-        followingSystem = followingSystem,
-        onFollowSystem = onFollowSystem,
-        lazyListState = lazyListState,
-        topAppBarState = topAppBarState,
-        scrollBehavior = scrollBehavior,
-        prevFile = prevFile,
-        nextFile = nextFile,
-        // スキンM の章扉「第 N 話」と上端結線進捗の材料（目次未ロード中は null＝出さない）。
-        chapterNumber = if (currentIndex >= 0) currentIndex + 1 else null,
-        totalChapters = tocEntries.size.takeIf { it > 0 },
+        // 素通しの3束（文字組・テーマ・なろう紐付け）は route が受けたものをそのまま渡す。
+        typography = typography,
+        theme = theme,
+        ncodeLink = ncodeLink,
+        // 没入クローム／本文スクロールの state holder は route が所有する（副作用と共有するため）。
+        chrome = ReadingChrome(
+            lazyListState = lazyListState,
+            topAppBarState = topAppBarState,
+            scrollBehavior = scrollBehavior,
+            barsVisualReady = barsVisualReady,
+            showChromeHint = showChromeHint,
+        ),
+        // 章ナビは route が tocEntries から算出する（隣章・活性条件・章位置）。
+        nav = ChapterNav(
+            prevFile = prevFile,
+            nextFile = nextFile,
+            navEnabled = navEnabled,
+            isLastChapter = isLastChapter,
+            // スキンM の章扉「第 N 話」と上端結線進捗の材料（目次未ロード中は null＝出さない）。
+            chapterNumber = if (currentIndex >= 0) currentIndex + 1 else null,
+            totalChapters = tocEntries.size.takeIf { it > 0 },
+            onNavigateTo = onNavigateTo,
+            onNavigateToBookshelf = onNavigateToBookshelf,
+        ),
+        // 継続導線。Custom Tabs 起動（再入ガード付き）は route の2つのコールバックが担う。
+        continuationCta = ContinuationCta(
+            continuationInfo = continuationInfo,
+            onReadContinuation = onReadContinuation,
+            onOpenWorkPage = onOpenWorkPage,
+        ),
         // 覗きの初期位置は着地と同じ resolveInitialScroll で焼き込む（覗き＝遷移後表示の完全一致）。
         prevPeek = prevPreview?.let { c ->
             val (index, offset) = resolveInitialScroll(prevFile)
@@ -513,26 +507,9 @@ internal fun ChapterScreen(
             val (index, offset) = resolveInitialScroll(nextFile)
             ChapterPeek(c, index, offset)
         },
-        barsVisualReady = barsVisualReady,
-        navEnabled = navEnabled,
-        isLastChapter = isLastChapter,
-        ncode = ncode,
-        continuationInfo = continuationInfo,
-        showChromeHint = showChromeHint,
         // 参照ジャンプ中（C1）は「続きに戻る」チップを表示する。
         showReturnChip = referenceMode,
         onReturnToContinuation = onReturnToContinuation,
-        bookTitle = bookTitle,
-        ncodeSearchState = ncodeSearchState,
-        onSearchNcode = onSearchNcode,
-        onRetryNcodeSearch = onRetryNcodeSearch,
-        onLinkNcode = onLinkNcode,
-        onReadContinuation = onReadContinuation,
-        onOpenWorkPage = onOpenWorkPage,
-        onNavigateTo = onNavigateTo,
-        onNavigateToBookshelf = onNavigateToBookshelf,
         onRetryParse = { retryKey++ },
-        verticalMode = verticalMode,
-        onVerticalModeChange = onVerticalModeChange,
     )
 }

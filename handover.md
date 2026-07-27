@@ -221,7 +221,6 @@
 ## リファクタ / 技術的負債（deferred）
 
 - **[2026-07-27 リファクタ大バッチの残り]**（消化分の正本＝git log・裁定と依存グラフの一次情報＝`.claude/plans/refactor-batch-2026-07-27.md`）:
-  ① NativeReadingScreen の引数束ね（44→20前後）と remember 整理（純移動644行は消化済み・残1477行）
   ③ Baseline Profile 生成＝**見送り裁定（2026-07-27）**。profileinstaller/macrobenchmark/StartupBudget は揃っており generator 1本で起動20〜30%改善見込み・要実機
   ④ 計測・調査群＝**見送り裁定（同）**: ShioriCover の Path 毎フレーム確保（drawWithCache 候補・BookshelfScrollBenchmark が予算内なら実害なし＝先に測る）／OkHttp ディスクキャッシュ未設定／Room AutoMigration 不使用の方針 ADR 1行／Native 接頭辞・ビュー切替名の整理
   ⑤ 小粒観察: `DiscoveryHomeK.kt:296` の items に key 無し／`BookshelfSkyM.kt:646` の表示用 lowercase（trim なし・実害なし）

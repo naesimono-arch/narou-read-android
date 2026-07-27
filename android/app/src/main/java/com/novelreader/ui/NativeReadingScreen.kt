@@ -35,7 +35,6 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -55,8 +54,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.TopAppBarScrollBehavior
-import androidx.compose.material3.TopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
@@ -101,7 +98,6 @@ import com.novelreader.model.BookId
 import com.novelreader.model.ChapterFilename
 import com.novelreader.model.ChapterContent as ChapterContentModel
 import com.novelreader.model.ParseResult
-import com.novelreader.narou.ContinuationInfo
 import com.novelreader.narou.model.Ncode
 import com.novelreader.parser.ChapterHtmlParser
 import com.novelreader.typeset.ParagraphPosition
@@ -116,6 +112,7 @@ import com.novelreader.ui.theme.MotionDurationSeizuFadeIn
 import com.novelreader.ui.theme.MotionDurationSeizuFadeInDelay
 import com.novelreader.ui.theme.MotionDurationSeizuFadeOut
 import com.novelreader.ui.theme.ReadingColors
+import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.skins.j.NextDoorEdgeGlowJ
 import com.novelreader.ui.skins.m.ReadingProgressStarM
 import com.novelreader.ui.skins.m.drawSeizuReadingScrim
@@ -128,7 +125,6 @@ import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.rememberReadingColors
 import com.novelreader.viewmodel.BookshelfViewModel
-import com.novelreader.viewmodel.NcodeSearchUiState
 import com.novelreader.ui.theme.Insets
 import com.novelreader.ui.theme.Spacing
 
@@ -567,29 +563,37 @@ fun ReadingScreen(
                     currentFile = file,
                     htmlDirPath = htmlDirPath,
                     tocEntries = tocEntries,
-                    bookTitle = bookTitle,
-                    ncode = ncode,
-                    // 紐付けの永続化。books は hot StateFlow のため、書き込みは MainActivity → ncode 引数へ
-                    // 自動で還流し、確定直後から継続導線が紐付け済み表示に切り替わる。
-                    onLinkNcode = { newNcode -> viewModel.linkNcode(bookId, newNcode) },
-                    ncodeSearchState = ncodeSearchState,
-                    onSearchNcode = { query -> viewModel.searchNcodeCandidates(query) },
-                    onRetryNcodeSearch = { viewModel.retryNcodeSearch() },
-                    readingTheme = readingTheme,
-                    onThemeChange = onThemeChange,
-                    followingSystem = followingSystem,
-                    onFollowSystem = onFollowSystem,
-                    fontSize = fontSize,
-                    onFontSizeChange = onFontSizeChange,
-                    onFontSizePersist = onFontSizePersist,
-                    lineHeightEm = lineHeightEm,
-                    onLineHeightChange = onLineHeightChange,
-                    onLineHeightPersist = onLineHeightPersist,
-                    bodyMarginDp = bodyMarginDp,
-                    onBodyMarginChange = onBodyMarginChange,
-                    onBodyMarginPersist = onBodyMarginPersist,
-                    verticalMode = verticalMode,
-                    onVerticalModeChange = onVerticalModeChange,
+                    // なろう紐付けの束（全フィールド必須＝配線忘れはコンパイルエラー。理由は ReadingFace.kt 冒頭）。
+                    ncodeLink = NcodeLink(
+                        bookTitle = bookTitle,
+                        ncode = ncode,
+                        ncodeSearchState = ncodeSearchState,
+                        onSearchNcode = { query -> viewModel.searchNcodeCandidates(query) },
+                        onRetryNcodeSearch = { viewModel.retryNcodeSearch() },
+                        // 紐付けの永続化。books は hot StateFlow のため、書き込みは MainActivity → ncode 引数へ
+                        // 自動で還流し、確定直後から継続導線が紐付け済み表示に切り替わる。
+                        onLinkNcode = { newNcode -> viewModel.linkNcode(bookId, newNcode) },
+                    ),
+                    // テーマは MainActivity が持つ単一正本（本棚と共有）＝本棚側と同じ ThemeControl を使い回す。
+                    theme = ThemeControl(
+                        appTheme = readingTheme,
+                        onThemeChange = onThemeChange,
+                        followingSystem = followingSystem,
+                        onFollowSystem = onFollowSystem,
+                    ),
+                    typography = ReadingTypography(
+                        fontSize = fontSize,
+                        onFontSizeChange = onFontSizeChange,
+                        onFontSizePersist = onFontSizePersist,
+                        lineHeightEm = lineHeightEm,
+                        onLineHeightChange = onLineHeightChange,
+                        onLineHeightPersist = onLineHeightPersist,
+                        bodyMarginDp = bodyMarginDp,
+                        onBodyMarginChange = onBodyMarginChange,
+                        onBodyMarginPersist = onBodyMarginPersist,
+                        verticalMode = verticalMode,
+                        onVerticalModeChange = onVerticalModeChange,
+                    ),
                     // 初期位置は resolveInitialScroll の1本で解決（セッション内記憶→入場復元→先頭）。
                     // 旧「最後に読んだ章のみ復元」は②として吸収済み＝章を跨いで戻っても読んだ場所へ着地する。
                     initialScrollIndex = resolveInitialScroll(file).first,
@@ -640,7 +644,11 @@ private const val VERTICAL_RESTORE_TIMEOUT_MS = 2_000L
  * Scaffold＋上下バー（オーバーレイ）＋継続導線＋各シートを描画する葉（BookshelfContent と同方針）。
  * 画面ローカルの UI 状態（設定シート/紐付けシート開閉・ボトムバー実測高・タップ用コルーチンスコープ・
  * 非横取り NestedScroll 接続）のみ内部に保持する（過剰な hoisting は避ける）。
- * Custom Tabs 起動（再入ガード付き）は副作用のため route の [onReadContinuation]/[onOpenWorkPage] へ委譲する。
+ * Custom Tabs 起動（再入ガード付き）は副作用のため route の
+ * [ContinuationCta.onReadContinuation]/[ContinuationCta.onOpenWorkPage] へ委譲する。
+ *
+ * 引数は役割ごとの束で受ける（2026-07-27 純構造リファクタ・定義と「なぜ」は ReadingFace.kt）。
+ * 束には既定値を置かない＝新しい呼び出し元の配線忘れをコンパイルエラーへ格上げするため。
  */
 // internal（旧 private）: 没入モードの customActions（a11y 到達回復）を Robolectric semantics テストで
 // 直接検証するため、描画層 Content を同一モジュール内テストへ開く（private だと file スコープで到達不可）。
@@ -649,63 +657,60 @@ private const val VERTICAL_RESTORE_TIMEOUT_MS = 2_000L
 internal fun ChapterScreenContent(
     parseResult: ParseResult,
     colors: ReadingColors,
-    fontSize: Int,
-    onFontSizeChange: (Int) -> Unit,
-    onFontSizePersist: () -> Unit,
-    lineHeightEm: Float,
-    onLineHeightChange: (Float) -> Unit,
-    onLineHeightPersist: () -> Unit,
-    bodyMarginDp: Int,
-    onBodyMarginChange: (Int) -> Unit,
-    onBodyMarginPersist: () -> Unit,
-    readingTheme: ReadingTheme,
-    onThemeChange: (ReadingTheme) -> Unit,
-    followingSystem: Boolean,
-    onFollowSystem: () -> Unit,
-    // トップバー退避・スクロール位置の state holder は route が保持する副作用（没入ヒント・スクロール保存）と
-    // 共有するため route で生成し、ここへ渡す（描画はこの holder を読むだけ＝純移動）。
-    lazyListState: LazyListState,
-    topAppBarState: TopAppBarState,
-    scrollBehavior: TopAppBarScrollBehavior,
-    prevFile: String,
-    nextFile: String,
-    // スキンM（星図）の章扉・上端結線進捗の材料（ADR 0022 §1 の部品分岐）。null＝目次未ロード等で不明。
-    // 既定 null は既存呼び出し・テストの互換のため（M 以外のスキンでは未使用）。
-    chapterNumber: Int? = null,
-    totalChapters: Int? = null,
+    typography: ReadingTypography,
+    theme: ThemeControl,
+    chrome: ReadingChrome,
+    nav: ChapterNav,
+    ncodeLink: NcodeLink,
+    continuationCta: ContinuationCta,
     // スワイプ覗きプレビュー（隣章のパース済み本文＋着地と同一規則の初期位置・route が先読み構築）。
     // null=先読み中/端章/章欠損＝覗きは無地の紙面に縮退する（ドラッグと章送り自体は可）。
-    prevPeek: ChapterPeek? = null,
-    nextPeek: ChapterPeek? = null,
-    // 初期退避（没入入場の実測待ち）が完了するまで false＝上下バーを alpha=0 で隠す（route が算出）。
-    // 既定 true は既存テスト・呼び出しの互換のため。
-    barsVisualReady: Boolean = true,
-    navEnabled: Boolean,
-    isLastChapter: Boolean,
-    ncode: Ncode?,
-    continuationInfo: ContinuationInfo?,
-    showChromeHint: Boolean,
+    prevPeek: ChapterPeek?,
+    nextPeek: ChapterPeek?,
     // 参照ジャンプ（C1）の「続きに戻る」チップ表示と復帰コールバック。
     showReturnChip: Boolean,
     onReturnToContinuation: () -> Unit,
-    bookTitle: String,
-    ncodeSearchState: NcodeSearchUiState,
-    onSearchNcode: (query: String) -> Unit,
-    onRetryNcodeSearch: () -> Unit,
-    onLinkNcode: (Ncode?) -> Unit,
-    // 継続カードの外部遷移（Custom Tabs）は route が再入ガード付きで実行する。
-    onReadContinuation: () -> Unit,
-    onOpenWorkPage: () -> Unit,
-    onNavigateTo: (String) -> Unit,
-    onNavigateToBookshelf: () -> Unit,
     onRetryParse: () -> Unit,
-    // 縦書きモード（P3 配線）。本文スロットだけを VerticalChapterContent へ分岐する。
-    // 既定 false＝ユーザー可視の挙動は不変。
-    verticalMode: Boolean = false,
-    // 縦書きトグルの永続化コールバック（route が app_prefs "reading_vertical" へ書く）。P5 で実値化。
-    // 既定 no-op＝既存テストの呼び出しは配線不要のまま。
-    onVerticalModeChange: (Boolean) -> Unit = {},
 ) {
+    // ── 束の展開（本体の参照名を変えない局所別名＝挙動・描画とも既存と同一） ──
+    val fontSize = typography.fontSize
+    val onFontSizeChange = typography.onFontSizeChange
+    val onFontSizePersist = typography.onFontSizePersist
+    val lineHeightEm = typography.lineHeightEm
+    val onLineHeightChange = typography.onLineHeightChange
+    val onLineHeightPersist = typography.onLineHeightPersist
+    val bodyMarginDp = typography.bodyMarginDp
+    val onBodyMarginChange = typography.onBodyMarginChange
+    val onBodyMarginPersist = typography.onBodyMarginPersist
+    val verticalMode = typography.verticalMode
+    val onVerticalModeChange = typography.onVerticalModeChange
+    val readingTheme = theme.appTheme
+    val onThemeChange = theme.onThemeChange
+    val followingSystem = theme.followingSystem
+    val onFollowSystem = theme.onFollowSystem
+    val lazyListState = chrome.lazyListState
+    val topAppBarState = chrome.topAppBarState
+    val scrollBehavior = chrome.scrollBehavior
+    val barsVisualReady = chrome.barsVisualReady
+    val showChromeHint = chrome.showChromeHint
+    val prevFile = nav.prevFile
+    val nextFile = nav.nextFile
+    val navEnabled = nav.navEnabled
+    val isLastChapter = nav.isLastChapter
+    val chapterNumber = nav.chapterNumber
+    val totalChapters = nav.totalChapters
+    val onNavigateTo = nav.onNavigateTo
+    val onNavigateToBookshelf = nav.onNavigateToBookshelf
+    val bookTitle = ncodeLink.bookTitle
+    val ncode = ncodeLink.ncode
+    val ncodeSearchState = ncodeLink.ncodeSearchState
+    val onSearchNcode = ncodeLink.onSearchNcode
+    val onRetryNcodeSearch = ncodeLink.onRetryNcodeSearch
+    val onLinkNcode = ncodeLink.onLinkNcode
+    val continuationInfo = continuationCta.continuationInfo
+    val onReadContinuation = continuationCta.onReadContinuation
+    val onOpenWorkPage = continuationCta.onOpenWorkPage
+
     val scope = rememberCoroutineScope()
 
     // ── モード切替時の段落位置維持（同一章内・P5）──
