@@ -1,5 +1,7 @@
 # 2026-07-27 リファクタ大バッチ（/orchestration）
 
+> **完了（2026-07-27）**: Wave 1〜3 全消化・16コミット（正本＝git log）。各波ともゲート（testDebugUnitTest／lintDebug／トークン検査）を監督が直接再実行して GREEN 確認。残タスク・見送り裁定・裁定候補は handover.md「リファクタ/技術的負債」へ移記済み＝以下は経緯の一次情報として保全。
+
 **対象ブランチ: `device/verify-round-0725`**（worktree `/home/qingj/wt/device-verify-round-0725`・ext4＝素の gradlew 可）
 
 ## 入力
