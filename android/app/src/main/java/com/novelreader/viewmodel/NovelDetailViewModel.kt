@@ -87,7 +87,7 @@ class NovelDetailViewModel(application: Application) : AndroidViewModel(applicat
         .flatMapLatest { nc ->
             if (nc == null) flowOf(false)
             else bookRepository.allBooks.map { books ->
-                // 表記ゆれ無視の同一作品判定は Ncode.sameWorkAs（trim+ignoreCase 比較＝従来と同一の演算）に集約。
+                // 表記ゆれ無視の同一作品判定は Ncode.sameWorkAs（storageKey 突合＝2026-07-27 に全流儀と統一）に集約。
                 books.any { it.ncode?.let { n -> Ncode(n).sameWorkAs(nc) } == true }
             }
         }

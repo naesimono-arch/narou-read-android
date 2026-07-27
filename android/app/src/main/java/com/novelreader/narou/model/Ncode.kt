@@ -38,13 +38,13 @@ value class Ncode(val value: String) {
      *  無視するため case 正規化は不要＝従来の「詳細取得は trim のみ」流儀をそのまま型に移す。 */
     val apiParam: String get() = value.trim()
 
-    /** 表記ゆれ（前後空白・大小文字）を無視した同一作品判定。
-     *  なぜ storageKey 同士の == でなく equals(ignoreCase) か: 既存サイト
-     *  （NovelDetailViewModel.isImported）の挙動を 1 ビットも変えないため。ASCII の Nコードでは
-     *  両者は等価だが、一般の Unicode では uppercase 比較と ignoreCase 比較は一致しない
-     *  （例: "ß"）ので、既存の比較演算をそのまま型へ移す。 */
-    fun sameWorkAs(other: Ncode): Boolean =
-        value.trim().equals(other.value.trim(), ignoreCase = true)
+    /** 表記ゆれ（前後空白・大小文字）を無視した同一作品判定＝storageKey 同士の一致。
+     *  型化時は既存サイト（NovelDetailViewModel.isImported）の equals(ignoreCase) を素通しで
+     *  移していたが、保存・突合の正本は storageKey（trim＋大文字）であり、非 ASCII では
+     *  ignoreCase 比較と uppercase 突合の結果が割れ得る（例: "ß"）＝同一作品判定だけが
+     *  第4流儀として残っていた。2026-07-27 ユーザー裁定で storageKey 突合へ統一
+     *  （ASCII の実在 Nコードでは従来と同値＝実挙動は不変）。 */
+    fun sameWorkAs(other: Ncode): Boolean = storageKey == other.storageKey
 
     companion object {
         /** 生入力（検索結果の ncode・手動入力欄）から「値そのものを保存キー形に正規化した」
