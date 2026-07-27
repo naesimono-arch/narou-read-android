@@ -145,6 +145,8 @@ fun PdfImportScreen(
     }
 
     // 多段フロー（目次→生成→completed）のため、システム back はまず WebView 履歴を戻す。履歴が無ければ画面 pop。
+    // PredictiveBackHandler にしない理由: WebView の履歴 pop に進捗連動で描けるプレビュー面が無い
+    //（goBack は確定時に一括で走る）。確定時発火の BackHandler が意味的に正しい。
     BackHandler {
         val wv = webViewHolder.value
         if (wv != null && wv.canGoBack()) wv.goBack() else onBack()

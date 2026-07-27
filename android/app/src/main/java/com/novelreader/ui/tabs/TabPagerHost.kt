@@ -44,6 +44,10 @@ internal fun TabPagerHost(
 ) {
     val scope = rememberCoroutineScope()
     // page 0 以外での Back＝本棚へ戻す（タブは同格だが「家」は本棚＝旧 popUpTo("bookshelf") 流儀の継承）。
+    // PredictiveBackHandler にしない理由: これは純粋な状態遷移（Pager の水平スクロール）で、Back 進捗に
+    // 連動させると Pager 自身の横スワイプと同軸の第二演出になり語彙が衝突する（ADR 0019 のスライド統一とも別系）。
+    // page 0 では enabled=false＝割込みゼロになり、マニフェストの enableOnBackInvokedCallback とセットで
+    // システムの「ホームへ戻る」Predictive プレビューがそのまま効く（ここが本アプリで唯一の退出点）。
     BackHandler(enabled = pagerState.currentPage != 0) {
         scope.launch { pagerState.animateScrollToPage(0, animationSpec = tween(MotionDurationKTabSwitch)) }
     }
