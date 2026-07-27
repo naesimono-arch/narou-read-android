@@ -40,7 +40,6 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checkroom
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
@@ -63,6 +62,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.novelreader.NewEpisodeNotificationPreference
 import com.novelreader.NovelReaderApplication
+import com.novelreader.PrefKeys
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
@@ -72,18 +72,19 @@ import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.theme.FontButtonLabel
 import com.novelreader.ui.theme.FontHomeTitle
 import com.novelreader.ui.theme.FontSubTitle
-import com.novelreader.ui.skins.j.BookshelfGridJ
-import com.novelreader.ui.skins.j.BookshelfPortalJ
-import com.novelreader.ui.skins.k.BookshelfK
-import com.novelreader.ui.skins.m.BookshelfLogM
-import com.novelreader.ui.skins.m.BookshelfSkyM
 import com.novelreader.ui.skins.m.HlSkyDebug
-import com.novelreader.ui.skins.p.BookshelfCartridgeP
-import com.novelreader.ui.skins.p.BookshelfListCartridgeP
+import com.novelreader.ui.skins.rememberShelfFace
+import com.novelreader.ui.skins.rememberShelfViewToggle
+import com.novelreader.ui.skins.ShelfActions
+import com.novelreader.ui.skins.ShelfChrome
+import com.novelreader.ui.skins.ShelfData
+import com.novelreader.ui.skins.ShelfFace
+import com.novelreader.ui.skins.ShelfSelection
+import com.novelreader.ui.skins.ShelfWebActions
+import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.theme.Insets
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.LocalSkin
-import com.novelreader.ui.theme.LocalSkinTokens
 import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.MinchoFamily
 import androidx.compose.ui.semantics.semantics
@@ -178,8 +179,8 @@ fun BookshelfScreen(
     }
 
     // 「二度と表示しない」フラグをSharedPreferencesで永続化、mutableStateOfでリアルタイム反映
-    val prefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
-    var batteryDialogDismissed by remember { mutableStateOf(prefs.getBoolean("battery_dialog_dismissed", false)) }
+    val prefs = remember { context.getSharedPreferences(PrefKeys.FILE_APP_PREFS, android.content.Context.MODE_PRIVATE) }
+    var batteryDialogDismissed by remember { mutableStateOf(prefs.getBoolean(PrefKeys.BATTERY_DIALOG_DISMISSED, false)) }
 
     // バッテリー最適化除外ダイアログの表示フラグ（onFabClickより先に宣言必須）。
     // rememberSaveable: 回転・ダーク切替（Activity 再生成）でダイアログと「二度と表示しない」
@@ -187,37 +188,16 @@ fun BookshelfScreen(
     var showBatteryOptDialog by rememberSaveable { mutableStateOf(false) }
     var doNotShowAgain by rememberSaveable { mutableStateOf(false) }
 
-    // グリッド/リスト表示の切り替え状態（SharedPreferencesで永続化）。
-    // 永続化を伴うためルート層で所有し、値とトグルを描画層へ渡す（描画層は VM/prefs 非依存に保つ）。
-    // 既定=false（リスト＝文字目録）: 骨格3「文字目録」を本棚の既定骨格に採用（表紙を持たない
-    // このアプリでは題字主役の目録が素直＝生成書影を捨てて装画を捏造しない）。グリッドは切替で残す
-    // （実機で要否を詰める。将来グリッドを廃するならこのトグルと GridBookCard 経路ごと整理する）。
-    var isGridView by remember { mutableStateOf(prefs.getBoolean("is_grid_view", false)) }
-
-    // スキンK（明快）のグリッド⇄リスト状態（M の m_sky_view・P の p_rack_view と同型の「スキン別ビュー状態」）。
-    // 既定 true＝K 装着時は3列グリッドで開く（モック正本 bookshelf-K.html の既定形）。共有 is_grid_view を
-    // 流用しない理由: K でトグルした値が D の目録既定（false）を汚す＝スキンを跨いだ状態漏れを避けるため。
-    var kGridView by remember { mutableStateOf(prefs.getBoolean("k_grid_view", true)) }
-
-    // スキンM（星図）の 星図⇄一覧 モード（ADR 0022 §1・永続化）。既定 true＝M 装着時は星図で開く。
-    // M 以外のスキンでは Content 側の分岐条件（LocalSkin==SEIZU_M）が成立せず、この値は眠ったまま。
-    var mSkyView by remember { mutableStateOf(prefs.getBoolean("m_sky_view", true)) }
-
-    // スキンP（カートリッジ）の ラック⇄一覧 モード（ADR 0022 §1・永続化）。既定 true＝P 装着時はラックで開く。
-    // P 以外では分岐条件（LocalSkin==CARTRIDGE_P）が成立せず眠ったまま（M の mSkyView と同型）。
-    var pRackView by remember { mutableStateOf(prefs.getBoolean("p_rack_view", true)) }
-
-    // スキンJ（ポータル）の デッキ⇄一覧 モード（ADR 0022 §1・永続化）。既定 true＝J 装着時はポータルデッキで開く。
-    // J 以外では分岐条件（LocalSkin==PORTAL_J）が成立せず眠ったまま（M/P のトグルと同型）。
-    var jDeckView by remember { mutableStateOf(prefs.getBoolean("j_deck_view", true)) }
+    // スキン別ビュー状態（is_grid_view/k_grid_view/m_sky_view/p_rack_view/j_deck_view）はここには置かない:
+    // 各スキンが自分の足元で所有する（skins/ShelfViewToggle.kt・p_hinge_detent と同流儀＝2026-07-27 移設）。
 
     // 通知権限 priming（notify Minor 2026-07-12）: システム権限ダイアログの前に理由説明を挟むためのフラグ。
     // 一度提示したら以後は出さない（notif_priming_shown で永続化）＝毎回のFABタップで問い直さない。
-    var notifPrimingShown by remember { mutableStateOf(prefs.getBoolean("notif_priming_shown", false)) }
+    var notifPrimingShown by remember { mutableStateOf(prefs.getBoolean(PrefKeys.NOTIF_PRIMING_SHOWN, false)) }
     var showNotifPriming by remember { mutableStateOf(false) }
     val markPrimingShown: () -> Unit = {
         notifPrimingShown = true
-        prefs.edit().putBoolean("notif_priming_shown", true).apply()
+        prefs.edit().putBoolean(PrefKeys.NOTIF_PRIMING_SHOWN, true).apply()
     }
 
     // PDF選択を実際に開始するヘルパー（通知権限チェック後に呼ぶ）
@@ -269,62 +249,40 @@ fun BookshelfScreen(
         chapterCountMap = chapterCountMap,
         newEpisodeNovelMap = newEpisodeNovelMap,
         processingState = processingState,
-        appTheme = appTheme,
-        onThemeChange = onThemeChange,
-        followingSystem = followingSystem,
-        onFollowSystem = onFollowSystem,
-        highLoadSkyM = highLoadSkyM,
-        onHighLoadSkyChange = onHighLoadSkyChange,
-        // K は専用状態 k_grid_view を、他スキンは共有 is_grid_view を見る（値もトグルもスキンで出し分け＝
-        // 下流の描画層は「いまのビュー状態」を1系統で受けるだけでスキンを意識しない）。
-        isGridView = if (LocalSkin.current == Skin.MEIKAI_K) kGridView else isGridView,
-        onToggleView = if (LocalSkin.current == Skin.MEIKAI_K) {
-            {
-                kGridView = !kGridView
-                prefs.edit().putBoolean("k_grid_view", kGridView).apply()
-            }
-        } else {
-            {
-                isGridView = !isGridView
-                prefs.edit().putBoolean("is_grid_view", isGridView).apply()
-            }
-        },
-        skyViewM = mSkyView,
-        onToggleSkyM = {
-            mSkyView = !mSkyView
-            prefs.edit().putBoolean("m_sky_view", mSkyView).apply()
-        },
-        rackViewP = pRackView,
-        onToggleRackP = {
-            pRackView = !pRackView
-            prefs.edit().putBoolean("p_rack_view", pRackView).apply()
-        },
-        deckViewJ = jDeckView,
-        onToggleDeckJ = {
-            jDeckView = !jDeckView
-            prefs.edit().putBoolean("j_deck_view", jDeckView).apply()
-        },
-        onFabClick = onFabClick,
-        // 開く際の再開ファイル解決（suspend の DB 参照）はルート層の責務。描画層は BookEntity を渡すだけ。
-        onOpenBook = { book ->
-            scope.launch {
-                // 境界: book.id は Room 由来の String＝型付き API へ渡す直前に BookId へ包む。
-                val lastReadFile = viewModel.getLastRead(BookId(book.id)) ?: "index.html"
-                onOpenBook(book.id, lastReadFile)
-            }
-        },
-        onDeleteBooks = { booksToDelete, deleteSource -> viewModel.deleteBooks(booksToDelete, deleteSource) },
-        onOpenDiscovery = onOpenDiscovery,
-        onOpenWardrobe = onOpenWardrobe,
-        onCancelProcessing = { viewModel.cancelProcessing() },
-        snackbarHostState = snackbarHostState,
+        // 画面操作の束（全フィールド必須＝配線忘れはコンパイルエラー。既定値を置かない理由は ShelfFace.kt 冒頭）。
+        actions = ShelfActions(
+            // 開く際の再開ファイル解決（suspend の DB 参照）はルート層の責務。描画層は BookEntity を渡すだけ。
+            onOpenBook = { book ->
+                scope.launch {
+                    // 境界: book.id は Room 由来の String＝型付き API へ渡す直前に BookId へ包む。
+                    val lastReadFile = viewModel.getLastRead(BookId(book.id)) ?: "index.html"
+                    onOpenBook(book.id, lastReadFile)
+                }
+            },
+            onFabClick = onFabClick,
+            onOpenDiscovery = onOpenDiscovery,
+            onOpenWardrobe = onOpenWardrobe,
+            onCancelProcessing = { viewModel.cancelProcessing() },
+        ),
         // (b)+機能②: Web由来カードのタップ＝なろうをアプリ内 WebView で開く（目次＝startEpisode 0・ADR 0012）。
         // 旧 Custom Tabs 送客(0010)から WebReader へ移行し、読書位置を URL 観測で記録できるようにする。
-        onOpenWebNovel = { novel -> onReadWebNovel(novel.ncode, 0) },
-        // 続きから読む＝記録した話(episode)へ WebView で直接着地する。
-        onResumeWebNovel = { novel, episode -> onReadWebNovel(novel.ncode, episode) },
-        onImportWebNovel = { novel -> onImportWebNovel(novel.ncode) },
-        onRemoveWebNovel = { viewModel.removeWebNovel(it.ncode) },
+        webActions = ShelfWebActions(
+            onOpenWebNovel = { novel -> onReadWebNovel(novel.ncode, 0) },
+            // 続きから読む＝記録した話(episode)へ WebView で直接着地する。
+            onResumeWebNovel = { novel, episode -> onReadWebNovel(novel.ncode, episode) },
+            onImportWebNovel = { novel -> onImportWebNovel(novel.ncode) },
+            onRemoveWebNovel = { viewModel.removeWebNovel(it.ncode) },
+        ),
+        theme = ThemeControl(
+            appTheme = appTheme,
+            onThemeChange = onThemeChange,
+            followingSystem = followingSystem,
+            onFollowSystem = onFollowSystem,
+        ),
+        onDeleteBooks = { booksToDelete, deleteSource -> viewModel.deleteBooks(booksToDelete, deleteSource) },
+        snackbarHostState = snackbarHostState,
+        highLoadSkyM = highLoadSkyM,
+        onHighLoadSkyChange = onHighLoadSkyChange,
         deferHeavyContent = deferHeavyContent,
     )
 
@@ -405,7 +363,7 @@ fun BookshelfScreen(
     if (showBatteryOptDialog) {
         val dismiss: (openSettings: Boolean) -> Unit = { openSettings ->
             if (doNotShowAgain) {
-                prefs.edit().putBoolean("battery_dialog_dismissed", true).apply()
+                prefs.edit().putBoolean(PrefKeys.BATTERY_DIALOG_DISMISSED, true).apply()
                 batteryDialogDismissed = true  // リアルタイムで状態に反映
             }
             showBatteryOptDialog = false
@@ -502,46 +460,22 @@ internal fun BookshelfContent(
     // 続きありバッジ用のなろう詳細（key=ncode）。カードは自分の book.ncode 分を引いて突き合わせる。
     newEpisodeNovelMap: Map<String, WorkSummary>,
     processingState: ProcessingState,
-    appTheme: ReadingTheme,
-    onThemeChange: (ReadingTheme) -> Unit,
-    // 「システムに従う」の単一真実源（読書設定シートと共有）。既定 false / no-op は既存テスト・呼出しの互換のため。
-    followingSystem: Boolean = false,
-    onFollowSystem: () -> Unit = {},
-    // 高負荷スカイ試作トグル（ADR 0023）。M 構造（BookshelfSkyM/LogM）の⋮メニューへ debug 限定で素通し。既定 false / no-op は互換のため。
+    // 画面操作／Webカード操作／テーマ4択の束（2026-07-27 純構造リファクタ）。旧・個別引数の
+    // 「既定 no-op＝互換のため」は配線忘れを沈黙させる欠陥クラスだったため、束は全フィールド必須
+    //（理由の詳細＝skins/ShelfFace.kt 冒頭）。
+    actions: ShelfActions,
+    webActions: ShelfWebActions,
+    theme: ThemeControl,
+    // 削除は選択モードの終端操作＝骨格所有の選択状態機械（ShelfSelection）へここで束ねる（束の生成は本関数内）。
+    onDeleteBooks: (List<BookEntity>, deleteSource: Boolean) -> Unit,
+    snackbarHostState: SnackbarHostState,
+    // 高負荷スカイ試作トグル（ADR 0023）。M 構造（BookshelfSkyM/LogM）の⋮メニューへ debug 限定で素通し。
+    // 既定 false / no-op を残す理由: debug 専用ノブで、未配線でも release 挙動が変わらない（欠陥クラス外）。
     highLoadSkyM: Boolean = false,
     onHighLoadSkyChange: (Boolean) -> Unit = {},
-    isGridView: Boolean,
-    onToggleView: () -> Unit,
-    onFabClick: () -> Unit,
-    onOpenBook: (BookEntity) -> Unit,
-    onDeleteBooks: (List<BookEntity>, deleteSource: Boolean) -> Unit,
-    onOpenDiscovery: () -> Unit,
-    // 装いの間への入口（既定 no-op＝既存テスト・呼び出しの互換のため）。
-    onOpenWardrobe: () -> Unit = {},
-    onCancelProcessing: () -> Unit,
-    snackbarHostState: SnackbarHostState,
-    // (b) Web由来・未取込カードの操作。既定 no-op は既存テスト・呼び出しの互換のため
-    // （Web カードが無い状態では従来の描画・結線が完全に不変であることを保つ）。
-    onOpenWebNovel: (WebNovelEntity) -> Unit = {},
-    // 機能②: カードの「続きから読む 第N話」タップ＝記録した話(episode)へ WebView で直接着地する。
-    onResumeWebNovel: (novel: WebNovelEntity, episode: Int) -> Unit = { _, _ -> },
-    onImportWebNovel: (WebNovelEntity) -> Unit = {},
-    onRemoveWebNovel: (WebNovelEntity) -> Unit = {},
     // 遷移ジャンク対策（P2・Perfetto 2026-07-16）: true の間（＝本棚の enter アニメ中）は重い Lazy コンテナを
     // スケルトンへ差替える。既定 false＝既存の呼出し・Robolectric テストの描画は完全に不変。
     deferHeavyContent: Boolean = false,
-    // スキンM（星図）の表示モード（星図⇄一覧・ADR 0022 §1）。M 以外のスキンでは無視される。
-    // 既定 true＝M 装着時は星図が既定（永続はルート層の onToggleSkyM に委譲）。
-    skyViewM: Boolean = true,
-    onToggleSkyM: () -> Unit = {},
-    // スキンP（カートリッジ）の表示モード（ラック⇄一覧・ADR 0022 §1）。P 以外のスキンでは無視される。
-    // 既定 true＝P 装着時はラックが既定（永続はルート層の onToggleRackP に委譲）。
-    rackViewP: Boolean = true,
-    onToggleRackP: () -> Unit = {},
-    // スキンJ（ポータル）の表示モード（デッキ⇄一覧・ADR 0022 §1）。J 以外のスキンでは無視される。
-    // 既定 true＝J 装着時はポータルデッキが既定（永続はルート層の onToggleDeckJ に委譲）。
-    deckViewJ: Boolean = true,
-    onToggleDeckJ: () -> Unit = {},
 ) {
     val isLoading = uiState is BookshelfUiState.Loading
     val books = (uiState as? BookshelfUiState.Content)?.books ?: emptyList()
@@ -586,247 +520,69 @@ internal fun BookshelfContent(
         shelfStatusCounts(visibleBooks, webNovels, progressMap, chapterCountMap, webReadingProgress)
     }
 
-    // スキンM/P/J は本棚を画面丸ごと各スキン構造へ委譲する薄いルーター（ADR 0022 §1）。表示モード
-    // （星図⇄一覧・ラック⇄一覧・デッキ⇄一覧）で没入面／自スキン一覧のどちらへ委譲するかを内側の if で分ける。
-    // exhaustive（else 不使用＝新スキンを無音でDに落とさない）。D/C（WAMODERN_D/YAKO_C）はこの下の共通描画
-    // （D 構造へトークン写像）へ落ちる。各スキン一覧側は選択削除・Webカード操作・状態フィルタ・PDF追加・
-    // 取込中バナー・スナックバー・空状態を全数引き継ぐ（本骨格所有の単一状態機械を共有渡し＝二重実装回避。
-    // 上の BackHandler も 1 本のまま効く）。旧・D構造フォールバックの格下げ是正（ADR 0022 追記その2）。
-    when (LocalSkin.current) {
-        Skin.SEIZU_M -> if (skyViewM) {
-            // 星図ビュー: 画面丸ごと M 構造へ委譲（星図は閲覧と読書導線に徹する）。
-            BookshelfSkyM(
-                books = visibleBooks,
-                progressMap = progressMap,
-                chapterCountMap = chapterCountMap,
-                newEpisodeNovelMap = newEpisodeNovelMap,
-                processingState = processingState,
-                webNovelCount = webNovels.size,
-                selectedStatus = selectedStatus,
-                statusCounts = statusCounts,
-                onSelectStatus = { selectedStatusName = it?.name },
-                onOpenBook = onOpenBook,
-                onOpenDiscovery = onOpenDiscovery,
-                onOpenWardrobe = onOpenWardrobe,
-                onFabClick = onFabClick,
-                onToggleList = onToggleSkyM,
-                onCancelProcessing = onCancelProcessing,
-                snackbarHostState = snackbarHostState,
-                isLoading = isLoading,
-                highLoadSkyM = highLoadSkyM,
-                onHighLoadSkyChange = onHighLoadSkyChange,
-            )
-            return
-        } else {
-            // 一覧トグル側も M 自身の意匠『観測野帳』へ委譲。
-            BookshelfLogM(
-                books = visibleBooks,
-                webNovels = webNovels,
-                webReadingProgress = webReadingProgress,
-                webLastReadAt = webLastReadAt,
-                progressMap = progressMap,
-                chapterCountMap = chapterCountMap,
-                newEpisodeNovelMap = newEpisodeNovelMap,
-                processingState = processingState,
-                selectedStatus = selectedStatus,
-                statusCounts = statusCounts,
-                onSelectStatus = { selectedStatusName = it?.name },
-                selectionMode = selectionMode,
-                selectedIds = selectedIds,
-                onToggleSelect = toggleSelect,
-                onEnterSelection = enterSelection,
-                onExitSelection = exitSelection,
-                onDeleteBooks = onDeleteBooks,
-                onOpenBook = onOpenBook,
-                onOpenWebNovel = onOpenWebNovel,
-                onResumeWebNovel = onResumeWebNovel,
-                onImportWebNovel = onImportWebNovel,
-                onRemoveWebNovel = onRemoveWebNovel,
-                onOpenDiscovery = onOpenDiscovery,
-                onOpenWardrobe = onOpenWardrobe,
-                onFabClick = onFabClick,
-                onToggleSky = onToggleSkyM,
-                onCancelProcessing = onCancelProcessing,
-                snackbarHostState = snackbarHostState,
-                isLoading = isLoading,
-                highLoadSkyM = highLoadSkyM,
-                onHighLoadSkyChange = onHighLoadSkyChange,
-            )
+    // ── 引数の束（2026-07-27 純構造リファクタ）: 面へ渡す契約を6束に集約（定義と Why＝skins/ShelfFace.kt）──
+    val shelfData = ShelfData(
+        books = visibleBooks,
+        webNovels = webNovels,
+        webReadingProgress = webReadingProgress,
+        webLastReadAt = webLastReadAt,
+        progressMap = progressMap,
+        chapterCountMap = chapterCountMap,
+        newEpisodeNovelMap = newEpisodeNovelMap,
+    )
+    val chrome = ShelfChrome(
+        selectedStatus = selectedStatus,
+        statusCounts = statusCounts,
+        onSelectStatus = { selectedStatusName = it?.name },
+        processingState = processingState,
+        isLoading = isLoading,
+    )
+    val selection = ShelfSelection(
+        selectionMode = selectionMode,
+        selectedIds = selectedIds,
+        onToggleSelect = toggleSelect,
+        onEnterSelection = enterSelection,
+        onExitSelection = exitSelection,
+        // 全選択: 骨格所有の selectedIds をまとめて差し替える（対象 id の算出は一覧側が蔵書のみで行う）。
+        onSelectAll = { ids -> selectedIds.clear(); selectedIds.addAll(ids) },
+        onDeleteBooks = onDeleteBooks,
+    )
+
+    // 装着スキンの面へ委譲する受付（ADR 0022 §1 の薄いルーターの sealed 化）。スキン列挙と面のビュー切替は
+    // rememberShelfFace（skins/）が持ち、ここは役割2分岐だけ＝没入面（閲覧専用）には選択・Web操作の束を
+    // 渡すシグネチャ自体が無い（コンパイル時制約）。null＝D/C はこの下の共通描画（D 構造へトークン写像）。
+    // 各面は選択削除・Webカード操作・状態フィルタ・PDF追加・取込中バナー・スナックバー・空状態を全数
+    // 引き継ぐ（本骨格所有の単一状態機械を共有渡し＝二重実装回避。上の BackHandler も 1 本のまま効く）。
+    when (val face = rememberShelfFace(highLoadSkyM, onHighLoadSkyChange)) {
+        is ShelfFace.Immersive -> {
+            face.content(shelfData, chrome, actions, theme, snackbarHostState)
             return
         }
-        Skin.CARTRIDGE_P -> if (rackViewP) {
-            // ラックビュー: 画面丸ごと P 構造へ委譲（続きから/カセット閲覧/取込中/絞り込み/追加/装い/メニュー）。
-            BookshelfCartridgeP(
-                books = visibleBooks,
-                progressMap = progressMap,
-                chapterCountMap = chapterCountMap,
-                newEpisodeNovelMap = newEpisodeNovelMap,
-                processingState = processingState,
-                selectedStatus = selectedStatus,
-                statusCounts = statusCounts,
-                appTheme = appTheme,
-                onThemeChange = onThemeChange,
-                // テーマ4択の統一（2026-07-17 裁定②）: 「システムに従う」の単一真実源を P ラックの⋮へ素通し。
-                followingSystem = followingSystem,
-                onFollowSystem = onFollowSystem,
-                onSelectStatus = { selectedStatusName = it?.name },
-                onOpenBook = onOpenBook,
-                onOpenDiscovery = onOpenDiscovery,
-                onOpenWardrobe = onOpenWardrobe,
-                onFabClick = onFabClick,
-                onToggleList = onToggleRackP,
-                onCancelProcessing = onCancelProcessing,
-                snackbarHostState = snackbarHostState,
-                isLoading = isLoading,
-            )
-            return
-        } else {
-            // 一覧トグル側も P 自身の意匠（bookshelf-P の `.li` 面）へ委譲。
-            BookshelfListCartridgeP(
-                books = visibleBooks,
-                webNovels = webNovels,
-                webReadingProgress = webReadingProgress,
-                webLastReadAt = webLastReadAt,
-                progressMap = progressMap,
-                chapterCountMap = chapterCountMap,
-                newEpisodeNovelMap = newEpisodeNovelMap,
-                processingState = processingState,
-                selectedStatus = selectedStatus,
-                statusCounts = statusCounts,
-                appTheme = appTheme,
-                onThemeChange = onThemeChange,
-                followingSystem = followingSystem,
-                onFollowSystem = onFollowSystem,
-                onSelectStatus = { selectedStatusName = it?.name },
-                selectionMode = selectionMode,
-                selectedIds = selectedIds,
-                onToggleSelect = toggleSelect,
-                onEnterSelection = enterSelection,
-                onExitSelection = exitSelection,
-                // 全選択: 骨格所有の selectedIds をまとめて差し替える（対象 id の算出は一覧側が蔵書のみで行う）。
-                onSelectAll = { ids -> selectedIds.clear(); selectedIds.addAll(ids) },
-                onDeleteBooks = onDeleteBooks,
-                onOpenBook = onOpenBook,
-                onOpenWebNovel = onOpenWebNovel,
-                onResumeWebNovel = onResumeWebNovel,
-                onImportWebNovel = onImportWebNovel,
-                onRemoveWebNovel = onRemoveWebNovel,
-                onOpenDiscovery = onOpenDiscovery,
-                onOpenWardrobe = onOpenWardrobe,
-                onFabClick = onFabClick,
-                onToggleRack = onToggleRackP,
-                onCancelProcessing = onCancelProcessing,
-                snackbarHostState = snackbarHostState,
-                isLoading = isLoading,
-            )
+        is ShelfFace.Listing -> {
+            face.content(shelfData, chrome, actions, theme, selection, webActions, snackbarHostState)
             return
         }
-        Skin.PORTAL_J -> if (deckViewJ) {
-            // デッキビュー: 画面丸ごと J 構造へ委譲（横スワイプ閲覧/続きから/絞り込み/取込中/見つける/装い/メニュー）。
-            BookshelfPortalJ(
-                books = visibleBooks,
-                progressMap = progressMap,
-                chapterCountMap = chapterCountMap,
-                newEpisodeNovelMap = newEpisodeNovelMap,
-                processingState = processingState,
-                selectedStatus = selectedStatus,
-                statusCounts = statusCounts,
-                appTheme = appTheme,
-                onThemeChange = onThemeChange,
-                // テーマ4択の統一（2026-07-17 裁定②）: 「システムに従う」の単一真実源を J デッキの⋮へ素通し。
-                followingSystem = followingSystem,
-                onFollowSystem = onFollowSystem,
-                onSelectStatus = { selectedStatusName = it?.name },
-                onOpenBook = onOpenBook,
-                onOpenDiscovery = onOpenDiscovery,
-                onOpenWardrobe = onOpenWardrobe,
-                onFabClick = onFabClick,
-                onToggleList = onToggleDeckJ,
-                onCancelProcessing = onCancelProcessing,
-                snackbarHostState = snackbarHostState,
-                isLoading = isLoading,
-            )
-            return
-        } else {
-            // 一覧トグル側も J 自身の意匠（bookshelf-J の「グリッド一覧」面）へ委譲。
-            BookshelfGridJ(
-                books = visibleBooks,
-                webNovels = webNovels,
-                webReadingProgress = webReadingProgress,
-                webLastReadAt = webLastReadAt,
-                progressMap = progressMap,
-                chapterCountMap = chapterCountMap,
-                newEpisodeNovelMap = newEpisodeNovelMap,
-                processingState = processingState,
-                selectedStatus = selectedStatus,
-                statusCounts = statusCounts,
-                appTheme = appTheme,
-                onThemeChange = onThemeChange,
-                followingSystem = followingSystem,
-                onFollowSystem = onFollowSystem,
-                onSelectStatus = { selectedStatusName = it?.name },
-                selectionMode = selectionMode,
-                selectedIds = selectedIds,
-                onToggleSelect = toggleSelect,
-                onEnterSelection = enterSelection,
-                onExitSelection = exitSelection,
-                onSelectAll = { ids -> selectedIds.clear(); selectedIds.addAll(ids) },
-                onDeleteBooks = onDeleteBooks,
-                onOpenBook = onOpenBook,
-                onOpenWebNovel = onOpenWebNovel,
-                onResumeWebNovel = onResumeWebNovel,
-                onImportWebNovel = onImportWebNovel,
-                onRemoveWebNovel = onRemoveWebNovel,
-                onOpenDiscovery = onOpenDiscovery,
-                onOpenWardrobe = onOpenWardrobe,
-                onFabClick = onFabClick,
-                onToggleDeck = onToggleDeckJ,
-                onCancelProcessing = onCancelProcessing,
-                snackbarHostState = snackbarHostState,
-                isLoading = isLoading,
-            )
-            return
-        }
-        Skin.MEIKAI_K -> {
-            // 明快K: 画面丸ごと K 構造へ委譲（ヘッダ「本棚」＋冊数＋表示切替のみ・3列グリッド・状態フィルタ・
-            // Webカード操作・選択削除・取込中バナー・空状態・PDF追加FAB）。⋮/ハンガー/検索は設定・さがすタブへ
-            // 移管済み（K設計）。選択モード状態は骨格所有の単一状態機械を共有渡し（M/P/J と同型・BackHandler 1本が効く）。
-            BookshelfK(
-                books = visibleBooks,
-                webNovels = webNovels,
-                webReadingProgress = webReadingProgress,
-                webLastReadAt = webLastReadAt,
-                progressMap = progressMap,
-                chapterCountMap = chapterCountMap,
-                newEpisodeNovelMap = newEpisodeNovelMap,
-                processingState = processingState,
-                selectedStatus = selectedStatus,
-                statusCounts = statusCounts,
-                onSelectStatus = { selectedStatusName = it?.name },
-                isGridView = isGridView,
-                onToggleView = onToggleView,
-                selectionMode = selectionMode,
-                selectedIds = selectedIds,
-                onToggleSelect = toggleSelect,
-                onEnterSelection = enterSelection,
-                onExitSelection = exitSelection,
-                onSelectAll = { ids -> selectedIds.clear(); selectedIds.addAll(ids) },
-                onDeleteBooks = onDeleteBooks,
-                onOpenBook = onOpenBook,
-                onOpenWebNovel = onOpenWebNovel,
-                onResumeWebNovel = onResumeWebNovel,
-                onImportWebNovel = onImportWebNovel,
-                onRemoveWebNovel = onRemoveWebNovel,
-                onOpenDiscovery = onOpenDiscovery,
-                onFabClick = onFabClick,
-                onCancelProcessing = onCancelProcessing,
-                snackbarHostState = snackbarHostState,
-                isLoading = isLoading,
-            )
-            return
-        }
-        Skin.WAMODERN_D, Skin.YAKO_C -> Unit // 既定描画へ（この下の共通実装が D/C を描く）
+        null -> Unit // 既定描画へ（この下の共通実装が D/C を描く）
     }
+
+    // ── 束の展開（D/C 共通描画用の局所別名＝以降の本体参照を変えない） ──
+    val onOpenBook = actions.onOpenBook
+    val onFabClick = actions.onFabClick
+    val onOpenDiscovery = actions.onOpenDiscovery
+    val onOpenWardrobe = actions.onOpenWardrobe
+    val onCancelProcessing = actions.onCancelProcessing
+    val onOpenWebNovel = webActions.onOpenWebNovel
+    val onResumeWebNovel = webActions.onResumeWebNovel
+    val onImportWebNovel = webActions.onImportWebNovel
+    val onRemoveWebNovel = webActions.onRemoveWebNovel
+
+    // グリッド/リスト表示の切り替え状態（旧 is_grid_view＝route 所有からの移設）。上の when で M/P/J/K は
+    // return 済み＝ここから先は D/C 専用の共通描画で、この状態も D/C 構造だけの持ち物（K は専用 k_grid_view）。
+    // 既定=false（リスト＝文字目録）: 骨格3「文字目録」を本棚の既定骨格に採用（表紙を持たない
+    // このアプリでは題字主役の目録が素直＝生成書影を捨てて装画を捏造しない）。グリッドは切替で残す
+    // （実機で要否を詰める。将来グリッドを廃するならこのトグルと GridBookCard 経路ごと整理する）。
+    val gridToggle = rememberShelfViewToggle(PrefKeys.IS_GRID_VIEW, default = false)
+    val isGridView = gridToggle.value
 
     // 了スタンプ（案A・ADR0014 §motion 追補）: 本棚がある本を「初めて読了として描く」瞬間に朱印を一度だけ押印するための記録。
     // 未読了で描かれた本の id を貯め、読了へ遷移したら押印し、完了で id を除去する（＝以後は静的表示）。
@@ -919,39 +675,13 @@ internal fun BookshelfContent(
                                 contentDescription = "見つける",
                             )
                         }
-                        // グリッド/リスト切り替え（モック .top の第1アクション）。永続化はルート層の onToggleView に委譲。
-                        // スキンM の一覧フォールバック中はこのボタンが「星図へ戻る」になる（星図⇄一覧の2態＝
-                        // bookshelf-M.html。M にグリッドは無い＝可読フォールバックは文字目録のみ）。
-                        // exhaustive（else 不使用＝新スキンを無音でDトグルに落とさない）。
-                        when (LocalSkin.current) {
-                            Skin.SEIZU_M -> IconButton(onClick = onToggleSkyM) {
-                                Icon(
-                                    imageVector = Icons.Filled.AutoAwesome,
-                                    contentDescription = "星図表示に切替",
-                                )
-                            }
-                            // P の一覧フォールバック中はこのボタンが「ラック表示に戻る」になる（ラック⇄一覧の2態＝
-                            // bookshelf-P.html。P にグリッドは無く、一覧＝D 構造の可読フォールバックが担う）。
-                            Skin.CARTRIDGE_P -> IconButton(onClick = onToggleRackP) {
-                                Icon(
-                                    imageVector = Icons.Filled.GridView,
-                                    contentDescription = "ラック表示に切替",
-                                )
-                            }
-                            // J の一覧フォールバック中はこのボタンが「デッキ表示に戻る」になる（デッキ⇄一覧の2態＝
-                            // bookshelf-J.html。J のグリッド面＝一覧へ降格の概念で、その可読フォールバックが D 構造）。
-                            Skin.PORTAL_J -> IconButton(onClick = onToggleDeckJ) {
-                                Icon(
-                                    imageVector = Icons.Filled.GridView,
-                                    contentDescription = "デッキ表示に切替",
-                                )
-                            }
-                            Skin.MEIKAI_K, Skin.WAMODERN_D, Skin.YAKO_C -> IconButton(onClick = onToggleView) {
-                                Icon(
-                                    imageVector = if (isGridView) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView,
-                                    contentDescription = if (isGridView) "リスト表示" else "グリッド表示",
-                                )
-                            }
+                        // グリッド/リスト切り替え（モック .top の第1アクション）。この描画部は D/C 専用
+                        // （M/P/J/K は上流の when で return 済み＝旧・スキン別トグル分岐は到達不能の残骸だったため撤去）。
+                        IconButton(onClick = gridToggle::toggle) {
+                            Icon(
+                                imageVector = if (isGridView) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView,
+                                contentDescription = if (isGridView) "リスト表示" else "グリッド表示",
+                            )
                         }
                         // 装いの間（UIスキン選択）への入口。入口は本棚のみ＝意図的設計（ADR 0021 決定7）。
                         IconButton(onClick = onOpenWardrobe) {
@@ -1696,29 +1426,9 @@ internal fun HighLoadSkyMenuSection(
     }
 }
 
-/**
- * ⋮メニューの「スクレイパー健全性を診断」入口（破損監視・層3）＝debug ビルド限定で高負荷トグルと同じ「開発」節。
- *
- * なぜ⋮メニューへ置くか: 本アプリ唯一の常設設定面で専用画面を新設しない（[HighLoadSkyMenuSection] と同じ流儀）。
- * release では [BuildConfig.DEBUG]=false で節ごと消え到達不能。実ネットワークはダイアログを開いた手動実行時のみ走る。
- * ダイアログ本体は画面レベルへ巻き上げる（[onOpen] でメニューを閉じてから開く＝メニューがダイアログを隠さない）。
- * 高負荷トグルと違い星図M限定ではない（スクレイパー健全性はスキン非依存）ため [LocalSkin] で絞らない。
- */
-@Composable
-internal fun AdapterHealthMenuSection(onOpen: () -> Unit) {
-    if (!BuildConfig.DEBUG) return
-    HorizontalDivider()
-    Text(
-        "開発",
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = Spacing.S16, top = Spacing.S8, bottom = Spacing.S4),
-    )
-    DropdownMenuItem(
-        text = { Text("スクレイパー健全性を診断") },
-        onClick = onOpen,
-    )
-}
+// 旧 AdapterHealthMenuSection（⋮メニューの診断入口）は撤去済み: 本棚⋮の撤去（系2・2026-07-24）で
+// 呼出元がゼロになった dead code のため（診断入口は SettingsScreenK が単一正本）。下の
+// AdapterHealthBoardDialog 本体は SettingsScreenK が現役で呼ぶ＝巻き添え削除しないこと。
 
 /**
  * 破損監視・層3 の debug ヘルスボード。開いた瞬間に全登録アダプタの自己診断（[AdapterHealthCheck]）を

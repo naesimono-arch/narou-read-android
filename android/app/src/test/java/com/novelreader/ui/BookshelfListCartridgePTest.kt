@@ -12,9 +12,13 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.longClick
+import com.novelreader.PrefKeys
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
+import com.novelreader.ui.skins.ShelfActions
+import com.novelreader.ui.skins.ShelfWebActions
+import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.LocalSkinTokens
 import com.novelreader.ui.theme.ReadingTheme
@@ -27,6 +31,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
@@ -60,7 +65,6 @@ class BookshelfListCartridgePTest {
         progressMap: Map<String, ProgressEntity> = emptyMap(),
         chapterCountMap: Map<String, Int> = emptyMap(),
         rackViewP: Boolean = false, // 既定＝一覧面（本テストの主対象）
-        onToggleRackP: () -> Unit = {},
         onOpenBook: (BookEntity) -> Unit = {},
         onDeleteBooks: (List<BookEntity>, Boolean) -> Unit = { _, _ -> },
         onOpenDiscovery: () -> Unit = {},
@@ -70,6 +74,11 @@ class BookshelfListCartridgePTest {
         onRemoveWebNovel: (WebNovelEntity) -> Unit = {},
         processingState: ProcessingState = ProcessingState(),
     ) {
+        // ラック⇄一覧のビュー状態は P 自身が prefs 所有（2026-07-27 移設）＝pref 先置きで面を選ぶ
+        // （旧引数 rackViewP の代替。アサーション意図は不変）。
+        RuntimeEnvironment.getApplication()
+            .getSharedPreferences(PrefKeys.FILE_APP_PREFS, android.content.Context.MODE_PRIVATE)
+            .edit().putBoolean(PrefKeys.P_RACK_VIEW, rackViewP).commit()
         composeTestRule.setContent {
             CompositionLocalProvider(LocalSkin provides skin, LocalSkinTokens provides skin.tokens) {
                 MaterialTheme {
@@ -79,21 +88,29 @@ class BookshelfListCartridgePTest {
                         chapterCountMap = chapterCountMap,
                         newEpisodeNovelMap = emptyMap(),
                         processingState = processingState,
-                        appTheme = ReadingTheme.LIGHT,
-                        onThemeChange = {},
-                        isGridView = false,
-                        onToggleView = {},
-                        onFabClick = onFabClick,
-                        onOpenBook = onOpenBook,
+                        // 束は全フィールド必須（既定 no-op 廃止＝2026-07-27 純構造リファクタ）。旧テストの
+                        // 個別引数と同じ値を束へ写しただけ＝アサーション意図は不変。
+                        actions = ShelfActions(
+                            onOpenBook = onOpenBook,
+                            onFabClick = onFabClick,
+                            onOpenDiscovery = onOpenDiscovery,
+                            onOpenWardrobe = onOpenWardrobe,
+                            onCancelProcessing = {},
+                        ),
+                        webActions = ShelfWebActions(
+                            onOpenWebNovel = {},
+                            onResumeWebNovel = { _, _ -> },
+                            onImportWebNovel = onImportWebNovel,
+                            onRemoveWebNovel = onRemoveWebNovel,
+                        ),
+                        theme = ThemeControl(
+                            appTheme = ReadingTheme.LIGHT,
+                            onThemeChange = {},
+                            followingSystem = false,
+                            onFollowSystem = {},
+                        ),
                         onDeleteBooks = onDeleteBooks,
-                        onOpenDiscovery = onOpenDiscovery,
-                        onOpenWardrobe = onOpenWardrobe,
-                        onCancelProcessing = {},
                         snackbarHostState = remember { SnackbarHostState() },
-                        onImportWebNovel = onImportWebNovel,
-                        onRemoveWebNovel = onRemoveWebNovel,
-                        rackViewP = rackViewP,
-                        onToggleRackP = onToggleRackP,
                     )
                 }
             }
@@ -111,10 +128,10 @@ class BookshelfListCartridgePTest {
 
     @Test
     fun `一覧内のラック切替ボタンでラックへ戻るトグルが結線される`() {
-        var toggled = 0
-        setContent(BookshelfUiState.Content(emptyList()), onToggleRackP = { toggled++ })
+        // トグル状態は P 自身が所有（移設後）＝押下の結果「ラック面が実際に出る」ことで結線を検証する。
+        setContent(BookshelfUiState.Content(emptyList()))
         composeTestRule.onNodeWithContentDescription("ラック表示に切替").performClick()
-        assertTrue("一覧→ラックのトグルが呼ばれていない", toggled == 1)
+        composeTestRule.onNodeWithContentDescription("一覧表示に切替").assertIsDisplayed()
     }
 
     @Test

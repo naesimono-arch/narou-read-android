@@ -9,8 +9,12 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.novelreader.PrefKeys
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.ui.skins.ShelfActions
+import com.novelreader.ui.skins.ShelfWebActions
+import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.skins.m.buildDeepSkyField
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.LocalSkinTokens
@@ -24,6 +28,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
@@ -54,9 +59,13 @@ class BookshelfSkyMTest {
         progressMap: Map<String, ProgressEntity> = emptyMap(),
         chapterCountMap: Map<String, Int> = emptyMap(),
         skyViewM: Boolean = true,
-        onToggleSkyM: () -> Unit = {},
         onOpenBook: (BookEntity) -> Unit = {},
     ) {
+        // 星図⇄一覧のビュー状態は M 自身が prefs 所有（2026-07-27 移設・p_hinge_detent と同流儀）＝
+        // テストは pref 先置きで面を選ぶ（旧引数 skyViewM の代替。アサーション意図は不変）。
+        RuntimeEnvironment.getApplication()
+            .getSharedPreferences(PrefKeys.FILE_APP_PREFS, android.content.Context.MODE_PRIVATE)
+            .edit().putBoolean(PrefKeys.M_SKY_VIEW, skyViewM).commit()
         composeTestRule.setContent {
             // LocalSkin（ルーター分岐）と LocalSkinTokens（メニューのテーマ節畳み判定）は本番では
             // NovelReaderTheme が対で供給する＝テストでも対で流し、判定源のズレを作らない。
@@ -68,18 +77,29 @@ class BookshelfSkyMTest {
                         chapterCountMap = chapterCountMap,
                         newEpisodeNovelMap = emptyMap(),
                         processingState = ProcessingState(),
-                        appTheme = ReadingTheme.DARK,
-                        onThemeChange = {},
-                        isGridView = false,
-                        onToggleView = {},
-                        onFabClick = {},
-                        onOpenBook = onOpenBook,
+                        // 束は全フィールド必須（既定 no-op 廃止＝2026-07-27 純構造リファクタ）。旧テストの
+                        // 個別引数と同じ値を束へ写しただけ＝アサーション意図は不変。
+                        actions = ShelfActions(
+                            onOpenBook = onOpenBook,
+                            onFabClick = {},
+                            onOpenDiscovery = {},
+                            onOpenWardrobe = {},
+                            onCancelProcessing = {},
+                        ),
+                        webActions = ShelfWebActions(
+                            onOpenWebNovel = {},
+                            onResumeWebNovel = { _, _ -> },
+                            onImportWebNovel = {},
+                            onRemoveWebNovel = {},
+                        ),
+                        theme = ThemeControl(
+                            appTheme = ReadingTheme.DARK,
+                            onThemeChange = {},
+                            followingSystem = false,
+                            onFollowSystem = {},
+                        ),
                         onDeleteBooks = { _, _ -> },
-                        onOpenDiscovery = {},
-                        onCancelProcessing = {},
                         snackbarHostState = remember { SnackbarHostState() },
-                        skyViewM = skyViewM,
-                        onToggleSkyM = onToggleSkyM,
                     )
                 }
             }
@@ -106,30 +126,30 @@ class BookshelfSkyMTest {
 
     @Test
     fun `星図内の一覧ボタンと一覧側の星図ボタンで両方向トグルが結線される`() {
-        var toggled = 0
-        setContent(
-            Skin.SEIZU_M, BookshelfUiState.Content(emptyList()),
-            skyViewM = true, onToggleSkyM = { toggled++ },
-        )
+        // トグル状態は M 自身が所有（移設後）＝コールバック計数でなく「面が実際に切り替わる」ことで結線を検証する。
+        setContent(Skin.SEIZU_M, BookshelfUiState.Content(emptyList()), skyViewM = true)
+        // 星図→一覧: 一覧面の署名＝「星図表示に切替」ボタンが現れる。
         composeTestRule.onNodeWithContentDescription("一覧表示に切替").performClick()
-        assertTrue("星図→一覧のトグルが呼ばれていない", toggled == 1)
+        composeTestRule.onNodeWithContentDescription("星図表示に切替").assertIsDisplayed()
+        // 一覧→星図: 戻る方向も同じ実挙動で担保（両方向）。
+        composeTestRule.onNodeWithContentDescription("星図表示に切替").performClick()
+        composeTestRule.onNodeWithContentDescription("一覧表示に切替").assertIsDisplayed()
     }
 
     @Test
     fun `M装着×一覧モードはM自身の観測野帳＋星図へ戻るボタンが出る`() {
-        var toggled = false
         setContent(
             Skin.SEIZU_M, BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))),
-            skyViewM = false, onToggleSkyM = { toggled = true },
+            skyViewM = false,
         )
         // 一覧＝M 自身の意匠『観測野帳』（ADR 0022 追記その2＝旧・D構造フォールバックの格下げ是正）。
         // 銘の meta「観測 N 天体」が署名＝D 構造ではない。D の発見帯（「新しい物語を見つける」）は出ない。
         composeTestRule.onNodeWithText("新しい物語を見つける").assertDoesNotExist()
         // 星図面と地平を共有＝「まだ知らない星を探しに」が出る（観測野帳の下辺 SkyHorizon）。
         composeTestRule.onNodeWithText("まだ知らない星を探しに").assertIsDisplayed()
-        // 銘の操作クラスタの「星図表示に切替」で星図へ戻るトグルが結線される。
+        // 銘の操作クラスタの「星図表示に切替」で星図面へ実際に戻る（トグル状態は M 所有＝実挙動で結線検証）。
         composeTestRule.onNodeWithContentDescription("星図表示に切替").performClick()
-        assertTrue("一覧→星図のトグルが呼ばれていない", toggled)
+        composeTestRule.onNodeWithContentDescription("一覧表示に切替").assertIsDisplayed()
     }
 
     @Test

@@ -15,8 +15,12 @@ import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
+import com.novelreader.PrefKeys
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.ui.skins.ShelfActions
+import com.novelreader.ui.skins.ShelfWebActions
+import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.skins.j.PaletteFind
 import com.novelreader.ui.skins.j.PortalDoorPalettes
 import com.novelreader.ui.skins.j.PortalTimePhase
@@ -40,6 +44,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
@@ -72,7 +77,6 @@ class BookshelfPortalJTest {
         progressMap: Map<String, ProgressEntity> = emptyMap(),
         chapterCountMap: Map<String, Int> = emptyMap(),
         deckViewJ: Boolean = true,
-        onToggleDeckJ: () -> Unit = {},
         onOpenBook: (BookEntity) -> Unit = {},
         onOpenDiscovery: () -> Unit = {},
         onOpenWardrobe: () -> Unit = {},
@@ -83,6 +87,11 @@ class BookshelfPortalJTest {
         followingSystem: Boolean = false,
         onFollowSystem: () -> Unit = {},
     ) {
+        // デッキ⇄一覧のビュー状態は J 自身が prefs 所有（2026-07-27 移設）＝pref 先置きで面を選ぶ
+        // （旧引数 deckViewJ の代替。アサーション意図は不変）。
+        RuntimeEnvironment.getApplication()
+            .getSharedPreferences(PrefKeys.FILE_APP_PREFS, android.content.Context.MODE_PRIVATE)
+            .edit().putBoolean(PrefKeys.J_DECK_VIEW, deckViewJ).commit()
         composeTestRule.setContent {
             CompositionLocalProvider(LocalSkin provides skin, LocalSkinTokens provides skin.tokens) {
                 MaterialTheme {
@@ -92,21 +101,29 @@ class BookshelfPortalJTest {
                         chapterCountMap = chapterCountMap,
                         newEpisodeNovelMap = emptyMap(),
                         processingState = processingState,
-                        appTheme = appTheme,
-                        onThemeChange = onThemeChange,
-                        followingSystem = followingSystem,
-                        onFollowSystem = onFollowSystem,
-                        isGridView = false,
-                        onToggleView = {},
-                        onFabClick = onFabClick,
-                        onOpenBook = onOpenBook,
+                        // 束は全フィールド必須（既定 no-op 廃止＝2026-07-27 純構造リファクタ）。旧テストの
+                        // 個別引数と同じ値を束へ写しただけ＝アサーション意図は不変。
+                        actions = ShelfActions(
+                            onOpenBook = onOpenBook,
+                            onFabClick = onFabClick,
+                            onOpenDiscovery = onOpenDiscovery,
+                            onOpenWardrobe = onOpenWardrobe,
+                            onCancelProcessing = {},
+                        ),
+                        webActions = ShelfWebActions(
+                            onOpenWebNovel = {},
+                            onResumeWebNovel = { _, _ -> },
+                            onImportWebNovel = {},
+                            onRemoveWebNovel = {},
+                        ),
+                        theme = ThemeControl(
+                            appTheme = appTheme,
+                            onThemeChange = onThemeChange,
+                            followingSystem = followingSystem,
+                            onFollowSystem = onFollowSystem,
+                        ),
                         onDeleteBooks = { _, _ -> },
-                        onOpenDiscovery = onOpenDiscovery,
-                        onOpenWardrobe = onOpenWardrobe,
-                        onCancelProcessing = {},
                         snackbarHostState = remember { SnackbarHostState() },
-                        deckViewJ = deckViewJ,
-                        onToggleDeckJ = onToggleDeckJ,
                     )
                 }
             }
@@ -133,22 +150,21 @@ class BookshelfPortalJTest {
 
     @Test
     fun `デッキ内のグリッドボタンで一覧トグルが結線される`() {
-        var toggled = 0
+        // トグル状態は J 自身が所有（移設後）＝押下の結果「一覧（グリッド）面が実際に出る」ことで結線を検証する。
         setContent(
             Skin.PORTAL_J, BookshelfUiState.Content(listOf(book("b1", "扉の本"))),
-            deckViewJ = true, onToggleDeckJ = { toggled++ },
+            deckViewJ = true,
         )
         composeTestRule.onNodeWithContentDescription("一覧表示に切替").performClick()
-        assertTrue("デッキ→一覧のトグルが呼ばれていない", toggled == 1)
+        composeTestRule.onNodeWithContentDescription("デッキ表示に切替").assertIsDisplayed()
     }
 
     @Test
     fun `J装着×一覧モードはJグリッド面＋デッキへ戻るボタンが出る`() {
         // ADR 0022 追記その2の是正: 一覧側は D構造フォールバックでなく J自身の意匠（グリッド面）へ委譲する。
-        var toggled = false
         setContent(
             Skin.PORTAL_J, BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))),
-            deckViewJ = false, onToggleDeckJ = { toggled = true },
+            deckViewJ = false,
         )
         // J グリッド面の見つける導線（.find-guide）。
         composeTestRule.onNodeWithText("新しい物語を見つける").assertIsDisplayed()
@@ -156,9 +172,9 @@ class BookshelfPortalJTest {
         composeTestRule.onNodeWithText("吾輩は猫である").assertIsDisplayed()
         // D 構造（ListBookCard＝題名を contentDescription で持つ）は出ない＝Dの見た目の型を引き継いでいない。
         composeTestRule.onNodeWithContentDescription("吾輩は猫である").assertDoesNotExist()
-        // 一覧⇄デッキトグルの座。
+        // 一覧⇄デッキトグルの座＝押すとデッキ面へ実際に戻る（トグル状態は J 所有＝実挙動で結線検証）。
         composeTestRule.onNodeWithContentDescription("デッキ表示に切替").performClick()
-        assertTrue("一覧→デッキのトグルが呼ばれていない", toggled)
+        composeTestRule.onNodeWithContentDescription("一覧表示に切替").assertIsDisplayed()
     }
 
     @Test

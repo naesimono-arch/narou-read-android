@@ -81,6 +81,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.novelreader.PrefKeys
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
@@ -92,6 +93,12 @@ import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.components.ShioriCover
 import com.novelreader.ui.components.shioriAccentFor
 import com.novelreader.ui.components.shioriHue
+import com.novelreader.ui.skins.ShelfActions
+import com.novelreader.ui.skins.ShelfChrome
+import com.novelreader.ui.skins.ShelfData
+import com.novelreader.ui.skins.ShelfSelection
+import com.novelreader.ui.skins.ShelfWebActions
+import com.novelreader.ui.skins.rememberShelfViewToggle
 import com.novelreader.ui.theme.FontCardTitle
 import com.novelreader.ui.theme.FontChipLarge
 import com.novelreader.ui.theme.FontLabel
@@ -141,40 +148,45 @@ import com.novelreader.viewmodel.webNcodesInSelection
 
 @Composable
 internal fun BookshelfK(
-    // 表示対象の蔵書（骨格 visibleBooks）と Web由来（未取込）。マージ純関数へそのまま渡す。
-    books: List<BookEntity>,
-    webNovels: List<WebNovelEntity>,
-    webReadingProgress: Map<String, Int>,
-    webLastReadAt: Map<String, Long>,
-    progressMap: Map<String, ProgressEntity>,
-    chapterCountMap: Map<String, Int>,
-    newEpisodeNovelMap: Map<String, WorkSummary>,
-    processingState: ProcessingState,
-    selectedStatus: ReadingStatus?,
-    statusCounts: Map<ReadingStatus, Int>,
-    onSelectStatus: (ReadingStatus?) -> Unit,
-    // グリッド⇄リスト表示切替（永続はルート層の onToggleView に委譲＝D と同じ prefs 単一所有）。
-    isGridView: Boolean,
-    onToggleView: () -> Unit,
-    // 選択モードは骨格（BookshelfContent）と共有する単一の状態機械（D/P/M/J と同じ）。ここでは所有せず引数で受ける。
-    selectionMode: Boolean,
-    selectedIds: List<String>,
-    onToggleSelect: (String) -> Unit,
-    onEnterSelection: (String) -> Unit,
-    onExitSelection: () -> Unit,
-    onSelectAll: (List<String>) -> Unit,
-    onDeleteBooks: (List<BookEntity>, deleteSource: Boolean) -> Unit,
-    onOpenBook: (BookEntity) -> Unit,
-    onOpenWebNovel: (WebNovelEntity) -> Unit,
-    onResumeWebNovel: (WebNovelEntity, Int) -> Unit,
-    onImportWebNovel: (WebNovelEntity) -> Unit,
-    onRemoveWebNovel: (WebNovelEntity) -> Unit,
-    onOpenDiscovery: () -> Unit,
-    onFabClick: () -> Unit,
-    onCancelProcessing: () -> Unit,
+    // 引数の束（2026-07-27 純構造リファクタ）: 一覧面＝編集操作あり＝選択状態機械と Web 操作の束も受ける。
+    // K は theme 束を受けない（テーマUIは設定タブ SettingsScreenK へ移管済み）。actions.onOpenWardrobe も
+    // 意匠上未使用（装いの間へは設定タブから入る＝K設計）＝束の契約は全面共通のまま、表出はスキンが選ぶ。
+    data: ShelfData,
+    chrome: ShelfChrome,
+    actions: ShelfActions,
+    // 選択モードは骨格（BookshelfContent）と共有する単一の状態機械（D/P/M/J と同じ）。ここでは所有せず束で受ける。
+    selection: ShelfSelection,
+    webActions: ShelfWebActions,
     snackbarHostState: SnackbarHostState,
-    isLoading: Boolean,
 ) {
+    // ── 束の展開（本体の参照名を変えない局所別名＝挙動・描画とも既存と同一） ──
+    val books = data.books
+    val webNovels = data.webNovels
+    val webReadingProgress = data.webReadingProgress
+    val webLastReadAt = data.webLastReadAt
+    val progressMap = data.progressMap
+    val chapterCountMap = data.chapterCountMap
+    val newEpisodeNovelMap = data.newEpisodeNovelMap
+    val processingState = chrome.processingState
+    val selectedStatus = chrome.selectedStatus
+    val statusCounts = chrome.statusCounts
+    val onSelectStatus = chrome.onSelectStatus
+    val isLoading = chrome.isLoading
+    val selectionMode = selection.selectionMode
+    val selectedIds = selection.selectedIds
+    val onToggleSelect = selection.onToggleSelect
+    val onEnterSelection = selection.onEnterSelection
+    val onExitSelection = selection.onExitSelection
+    val onSelectAll = selection.onSelectAll
+    val onDeleteBooks = selection.onDeleteBooks
+    val onOpenBook = actions.onOpenBook
+    val onOpenWebNovel = webActions.onOpenWebNovel
+    val onResumeWebNovel = webActions.onResumeWebNovel
+    val onImportWebNovel = webActions.onImportWebNovel
+    val onRemoveWebNovel = webActions.onRemoveWebNovel
+    val onOpenDiscovery = actions.onOpenDiscovery
+    val onFabClick = actions.onFabClick
+    val onCancelProcessing = actions.onCancelProcessing
     // 蔵書＋Web由来を「最近の活動順」で1本にマージ＝D/J と同一の純関数（並び規則 ADR 0016 を共有・再実装なし）。
     val shelfItems = remember(books, webNovels, progressMap, selectedStatus, chapterCountMap, webReadingProgress, webLastReadAt) {
         val (filteredBooks, filteredWeb) =
@@ -184,6 +196,13 @@ internal fun BookshelfK(
     // 冊数（ヘッダ）＝ライブラリ総数（フィルタ非依存の「実データ件数」）。Web由来も棚の1点として数える。
     val libraryCount = books.size + webNovels.size
     val isProcessing = processingState.isProcessing
+
+    // グリッド⇄リスト表示状態（旧 k_grid_view＝route 所有）は K 自身が所有する（skins/ShelfViewToggle・
+    // p_hinge_detent と同じ prefs 直参照の流儀）。既定 true＝K 装着時はグリッドで開く（モック正本
+    // bookshelf-K.html の既定形）。共有 is_grid_view を流用しない理由: K でトグルした値が D の
+    // 目録既定（false）を汚す＝スキンを跨いだ状態漏れを避けるため（キー分離は従来どおり）。
+    val gridToggle = rememberShelfViewToggle(PrefKeys.K_GRID_VIEW, default = true)
+    val isGridView = gridToggle.value
 
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val gridState = rememberLazyGridState()
@@ -204,7 +223,7 @@ internal fun BookshelfK(
             KHeader(
                 count = libraryCount,
                 isGridView = isGridView,
-                onToggleView = onToggleView,
+                onToggleView = gridToggle::toggle,
             )
 
             // 取込中バナー（.proc 相当＝D の ProcessingBanner を流用）。出没のみ Motion スロット（reveal/dismiss）。

@@ -15,9 +15,13 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
+import com.novelreader.PrefKeys
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
+import com.novelreader.ui.skins.ShelfActions
+import com.novelreader.ui.skins.ShelfWebActions
+import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.LocalSkinTokens
 import com.novelreader.ui.theme.ReadingTheme
@@ -30,6 +34,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
@@ -64,7 +69,6 @@ class BookshelfLogMTest {
         progressMap: Map<String, ProgressEntity> = emptyMap(),
         chapterCountMap: Map<String, Int> = emptyMap(),
         skyViewM: Boolean = false, // 既定＝観測野帳（本テストの主対象）
-        onToggleSkyM: () -> Unit = {},
         onOpenBook: (BookEntity) -> Unit = {},
         onDeleteBooks: (List<BookEntity>, Boolean) -> Unit = { _, _ -> },
         onOpenDiscovery: () -> Unit = {},
@@ -74,6 +78,11 @@ class BookshelfLogMTest {
         onRemoveWebNovel: (WebNovelEntity) -> Unit = {},
         processingState: ProcessingState = ProcessingState(),
     ) {
+        // 星図⇄一覧のビュー状態は M 自身が prefs 所有（2026-07-27 移設）＝pref 先置きで面を選ぶ
+        // （旧引数 skyViewM の代替。アサーション意図は不変）。
+        RuntimeEnvironment.getApplication()
+            .getSharedPreferences(PrefKeys.FILE_APP_PREFS, android.content.Context.MODE_PRIVATE)
+            .edit().putBoolean(PrefKeys.M_SKY_VIEW, skyViewM).commit()
         composeTestRule.setContent {
             CompositionLocalProvider(LocalSkin provides skin, LocalSkinTokens provides skin.tokens) {
                 MaterialTheme {
@@ -83,21 +92,29 @@ class BookshelfLogMTest {
                         chapterCountMap = chapterCountMap,
                         newEpisodeNovelMap = emptyMap(),
                         processingState = processingState,
-                        appTheme = ReadingTheme.DARK,
-                        onThemeChange = {},
-                        isGridView = false,
-                        onToggleView = {},
-                        onFabClick = onFabClick,
-                        onOpenBook = onOpenBook,
+                        // 束は全フィールド必須（既定 no-op 廃止＝2026-07-27 純構造リファクタ）。旧テストの
+                        // 個別引数と同じ値を束へ写しただけ＝アサーション意図は不変。
+                        actions = ShelfActions(
+                            onOpenBook = onOpenBook,
+                            onFabClick = onFabClick,
+                            onOpenDiscovery = onOpenDiscovery,
+                            onOpenWardrobe = onOpenWardrobe,
+                            onCancelProcessing = {},
+                        ),
+                        webActions = ShelfWebActions(
+                            onOpenWebNovel = {},
+                            onResumeWebNovel = { _, _ -> },
+                            onImportWebNovel = onImportWebNovel,
+                            onRemoveWebNovel = onRemoveWebNovel,
+                        ),
+                        theme = ThemeControl(
+                            appTheme = ReadingTheme.DARK,
+                            onThemeChange = {},
+                            followingSystem = false,
+                            onFollowSystem = {},
+                        ),
                         onDeleteBooks = onDeleteBooks,
-                        onOpenDiscovery = onOpenDiscovery,
-                        onOpenWardrobe = onOpenWardrobe,
-                        onCancelProcessing = {},
                         snackbarHostState = remember { SnackbarHostState() },
-                        onImportWebNovel = onImportWebNovel,
-                        onRemoveWebNovel = onRemoveWebNovel,
-                        skyViewM = skyViewM,
-                        onToggleSkyM = onToggleSkyM,
                     )
                 }
             }
@@ -121,10 +138,10 @@ class BookshelfLogMTest {
 
     @Test
     fun `一覧内の星図切替ボタンで星図へ戻るトグルが結線される`() {
-        var toggled = 0
-        setContent(BookshelfUiState.Content(emptyList()), onToggleSkyM = { toggled++ })
+        // トグル状態は M 自身が所有（移設後）＝押下の結果「星図面が実際に出る」ことで結線を検証する。
+        setContent(BookshelfUiState.Content(emptyList()))
         composeTestRule.onNodeWithContentDescription("星図表示に切替").performClick()
-        assertTrue("一覧→星図のトグルが呼ばれていない", toggled == 1)
+        composeTestRule.onNodeWithContentDescription("一覧表示に切替").assertIsDisplayed()
     }
 
     @Test

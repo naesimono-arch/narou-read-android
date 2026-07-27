@@ -56,8 +56,8 @@ object PrefKeys {
     const val IMMERSIVE_HINT_SHOWN = "immersive_hint_shown"
 
     // ── app_prefs: 本棚（BookshelfScreen / skins 配下）──
-    // 使用側は現時点では文字列直書きのまま（当該ファイルは並行改修中のため張り替えは追って実施）。
-    // 値の正本はこちら＝新規の読み書きは必ずこの定数を参照すること。
+    // 使用側の直書きは 2026-07-27 の純構造リファクタで全数この定数参照へ張替済み。
+    // 値の正本はこちら＝新規の読み書きも必ずこの定数を参照すること。
 
     /** 電池最適化の案内ダイアログを閉じた（Boolean）。 */
     const val BATTERY_DIALOG_DISMISSED = "battery_dialog_dismissed"

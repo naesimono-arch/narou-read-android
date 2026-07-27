@@ -83,11 +83,16 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.novelreader.PrefKeys
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.NewEpisodeNotificationMenuSection
 import com.novelreader.ui.newEpisodeCountFor
+import com.novelreader.ui.skins.ShelfActions
+import com.novelreader.ui.skins.ShelfChrome
+import com.novelreader.ui.skins.ShelfData
+import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.theme.BlueCartridge
 import com.novelreader.ui.theme.BlueInkCartridge
 import com.novelreader.ui.theme.BlueLoCartridge
@@ -203,30 +208,36 @@ private fun nearestDetentIndex(heightDp: Float): Int =
 
 @Composable
 internal fun BookshelfCartridgeP(
-    books: List<BookEntity>,
-    progressMap: Map<String, ProgressEntity>,
-    chapterCountMap: Map<String, Int>,
-    newEpisodeNovelMap: Map<String, WorkSummary>,
-    processingState: ProcessingState,
-    selectedStatus: ReadingStatus?,
-    statusCounts: Map<ReadingStatus, Int>,
-    appTheme: com.novelreader.ui.theme.ReadingTheme,
-    onThemeChange: (com.novelreader.ui.theme.ReadingTheme) -> Unit,
-    // 「システムに従う」の単一真実源（reading_theme 未宣言かどうか）。読書設定シート・D 本棚⋮と同じ
-    // MainActivity 状態を素通しで受け、P ラックの⋮テーマ節でも4択を統一する（2026-07-17 ユーザー裁定②・
-    // 別状態を新設せず二重管理を避ける）。既定 false / no-op は既存テスト・呼出しの互換のため。
-    followingSystem: Boolean = false,
-    onFollowSystem: () -> Unit = {},
-    onSelectStatus: (ReadingStatus?) -> Unit,
-    onOpenBook: (BookEntity) -> Unit,
-    onOpenDiscovery: () -> Unit,
-    onOpenWardrobe: () -> Unit,
-    onFabClick: () -> Unit,
-    onToggleList: () -> Unit,
-    onCancelProcessing: () -> Unit,
+    // 引数の束（2026-07-27 純構造リファクタ）: 没入面＝閲覧専用のため ShelfSelection/ShelfWebActions は
+    // シグネチャに存在しない（コンパイル時制約）。theme＝「システムに従う」含む4択の単一真実源
+    //（読書設定シート・D 本棚⋮と共有＝2026-07-17 ユーザー裁定②・別状態を新設せず二重管理を避ける）。
+    data: ShelfData,
+    chrome: ShelfChrome,
+    actions: ShelfActions,
+    theme: ThemeControl,
     snackbarHostState: SnackbarHostState,
-    isLoading: Boolean,
+    // ラック⇄一覧の面切替（旧 onToggleList）。状態は rememberShelfFace が所有し閉包で結線される。
+    onToggleFace: () -> Unit,
 ) {
+    // ── 束の展開（本体の参照名を変えない局所別名＝挙動・描画とも既存と同一） ──
+    val books = data.books
+    val progressMap = data.progressMap
+    val chapterCountMap = data.chapterCountMap
+    val newEpisodeNovelMap = data.newEpisodeNovelMap
+    val processingState = chrome.processingState
+    val selectedStatus = chrome.selectedStatus
+    val statusCounts = chrome.statusCounts
+    val onSelectStatus = chrome.onSelectStatus
+    val isLoading = chrome.isLoading
+    val appTheme = theme.appTheme
+    val onThemeChange = theme.onThemeChange
+    val followingSystem = theme.followingSystem
+    val onFollowSystem = theme.onFollowSystem
+    val onOpenBook = actions.onOpenBook
+    val onOpenDiscovery = actions.onOpenDiscovery
+    val onOpenWardrobe = actions.onOpenWardrobe
+    val onFabClick = actions.onFabClick
+    val onCancelProcessing = actions.onCancelProcessing
     // 状態フィルタ適用後の可視作品（チップは D と同じ readingStatusFor を単一真実源に使う）。
     val visible = remember(books, progressMap, chapterCountMap, selectedStatus) {
         if (selectedStatus == null) books
@@ -240,14 +251,14 @@ internal fun BookshelfCartridgeP(
     // ===== H3 二画面ヒンジの状態（hero の有無に依らず順序安定のため無条件に宣言・使用は hero!=null 時のみ）=====
     val context = LocalContext.current
     val density = LocalDensity.current
-    val prefs = remember(context) { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
+    val prefs = remember(context) { context.getSharedPreferences(PrefKeys.FILE_APP_PREFS, android.content.Context.MODE_PRIVATE) }
     // reduce-motion（アニメーター無効）: 吸着アニメを止め即時スナップ（正本 cap の prefers-reduced-motion 分岐・M/J と同判定）。
     val reduceMotion = remember(context) {
         Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
     }
     // ヒンジの取り分を「設定」として尊重: 選んだディテント index を pref p_hinge_detent へ永続化（装い等と同じ app_prefs 流儀）。
     // rememberSaveable でプロセス内（回転・ダーク切替の Activity 再生成）も保持＝アプリ再起動でも取り分が戻る。既定=均衡(1)。
-    var detentIndex by rememberSaveable { mutableStateOf(prefs.getInt("p_hinge_detent", 1).coerceIn(0, 2)) }
+    var detentIndex by rememberSaveable { mutableStateOf(prefs.getInt(PrefKeys.P_HINGE_DETENT, 1).coerceIn(0, 2)) }
     // ライブ高さ(dp)。ドラッグ中は同期更新・離すと最寄りディテントへ animate。plain state のままレイアウト/描画位相で読み、
     // フレーム毎の recomposition を避ける（compose-state-deferred-reads：高さは layout、alpha は graphicsLayer 内で読む）。
     var hingeHeightDp by remember { mutableFloatStateOf(HingeDetentsDp[detentIndex]) }
@@ -259,7 +270,7 @@ internal fun BookshelfCartridgeP(
     val onHingeSettle: suspend () -> Unit = {
         val nearest = nearestDetentIndex(hingeHeightDp)
         detentIndex = nearest
-        prefs.edit().putInt("p_hinge_detent", nearest).apply()
+        prefs.edit().putInt(PrefKeys.P_HINGE_DETENT, nearest).apply()
         val target = HingeDetentsDp[nearest]
         // 吸着は「バーを段へ settle させる」＝Motion.kt の MotionSpringBarSettle（読書没入バーの吸着 spring）を流用。
         if (reduceMotion) hingeHeightDp = target
@@ -289,7 +300,7 @@ internal fun BookshelfCartridgeP(
                 followingSystem = followingSystem,
                 onFollowSystem = onFollowSystem,
                 onOpenWardrobe = onOpenWardrobe,
-                onToggleList = onToggleList,
+                onToggleList = onToggleFace,
                 // ラック面では表示切替ボタンは「一覧へ」＝List アイコン（既定）。
                 inListMode = false,
             )

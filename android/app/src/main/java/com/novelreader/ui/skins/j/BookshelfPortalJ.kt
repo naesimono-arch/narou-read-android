@@ -70,6 +70,10 @@ import com.novelreader.data.ProgressEntity
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.NewEpisodeNotificationMenuSection
 import com.novelreader.ui.newEpisodeCountFor
+import com.novelreader.ui.skins.ShelfActions
+import com.novelreader.ui.skins.ShelfChrome
+import com.novelreader.ui.skins.ShelfData
+import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.theme.AmbDarkGoldPortal
 import com.novelreader.ui.theme.AmbEnBaseBotPortal
 import com.novelreader.ui.theme.AmbEnBaseTopPortal
@@ -288,30 +292,36 @@ internal fun portalAmbientParamsFor(phase: PortalTimePhase): PortalAmbientParams
 
 @Composable
 internal fun BookshelfPortalJ(
-    books: List<BookEntity>,
-    progressMap: Map<String, ProgressEntity>,
-    chapterCountMap: Map<String, Int>,
-    newEpisodeNovelMap: Map<String, WorkSummary>,
-    processingState: ProcessingState,
-    selectedStatus: ReadingStatus?,
-    statusCounts: Map<ReadingStatus, Int>,
-    appTheme: ReadingTheme,
-    onThemeChange: (ReadingTheme) -> Unit,
-    // 「システムに従う」の単一真実源（reading_theme 未宣言かどうか）。読書設定シート・D 本棚⋮と同じ
-    // MainActivity 状態を素通しで受け、J デッキの⋮テーマ節でも4択を統一する（2026-07-17 ユーザー裁定②・
-    // 別状態を新設せず二重管理を避ける）。既定 false / no-op は既存テスト・呼出しの互換のため。
-    followingSystem: Boolean = false,
-    onFollowSystem: () -> Unit = {},
-    onSelectStatus: (ReadingStatus?) -> Unit,
-    onOpenBook: (BookEntity) -> Unit,
-    onOpenDiscovery: () -> Unit,
-    onOpenWardrobe: () -> Unit,
-    onFabClick: () -> Unit,
-    onToggleList: () -> Unit,
-    onCancelProcessing: () -> Unit,
+    // 引数の束（2026-07-27 純構造リファクタ）: 没入面＝閲覧専用のため ShelfSelection/ShelfWebActions は
+    // シグネチャに存在しない（コンパイル時制約）。theme＝「システムに従う」含む4択の単一真実源
+    //（読書設定シート・D 本棚⋮と共有＝2026-07-17 ユーザー裁定②・別状態を新設せず二重管理を避ける）。
+    data: ShelfData,
+    chrome: ShelfChrome,
+    actions: ShelfActions,
+    theme: ThemeControl,
     snackbarHostState: SnackbarHostState,
-    isLoading: Boolean,
+    // デッキ⇄一覧の面切替（旧 onToggleList）。状態は rememberShelfFace が所有し閉包で結線される。
+    onToggleFace: () -> Unit,
 ) {
+    // ── 束の展開（本体の参照名を変えない局所別名＝挙動・描画とも既存と同一） ──
+    val books = data.books
+    val progressMap = data.progressMap
+    val chapterCountMap = data.chapterCountMap
+    val newEpisodeNovelMap = data.newEpisodeNovelMap
+    val processingState = chrome.processingState
+    val selectedStatus = chrome.selectedStatus
+    val statusCounts = chrome.statusCounts
+    val onSelectStatus = chrome.onSelectStatus
+    val isLoading = chrome.isLoading
+    val appTheme = theme.appTheme
+    val onThemeChange = theme.onThemeChange
+    val followingSystem = theme.followingSystem
+    val onFollowSystem = theme.onFollowSystem
+    val onOpenBook = actions.onOpenBook
+    val onOpenDiscovery = actions.onOpenDiscovery
+    val onOpenWardrobe = actions.onOpenWardrobe
+    val onFabClick = actions.onFabClick
+    val onCancelProcessing = actions.onCancelProcessing
     // 状態フィルタ適用後の可視作品（チップは D と同じ readingStatusFor を単一真実源に使う＝M/P と同型）。
     val visible = remember(books, progressMap, chapterCountMap, selectedStatus) {
         if (selectedStatus == null) books
@@ -384,7 +394,7 @@ internal fun BookshelfPortalJ(
                 onFollowSystem = onFollowSystem,
                 onOpenDiscovery = onOpenDiscovery,
                 onOpenWardrobe = onOpenWardrobe,
-                onToggleList = onToggleList,
+                onToggleList = onToggleFace,
                 onFabClick = onFabClick,
             )
             // 絞り込みチップ（.chipbar＝読書状態フィルタへ写像・M/P と同機能。作品ゼロでも「すべて」導線は残す）。

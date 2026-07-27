@@ -13,8 +13,12 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.performSemanticsAction
+import com.novelreader.PrefKeys
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.ui.skins.ShelfActions
+import com.novelreader.ui.skins.ShelfWebActions
+import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.LocalSkinTokens
 import com.novelreader.ui.theme.ReadingTheme
@@ -54,13 +58,19 @@ class BookshelfCartridgePTest {
     private fun book(id: String, title: String, author: String = "") =
         BookEntity(id = id, title = title, author = author, htmlDirPath = "/nonexistent/$id")
 
+    /** ラック⇄一覧のビュー状態（P 自身が prefs 所有）を先置きする（ヒンジの setHingeDetentPref と同流儀）。 */
+    private fun setRackViewPref(rack: Boolean) {
+        RuntimeEnvironment.getApplication()
+            .getSharedPreferences(PrefKeys.FILE_APP_PREFS, android.content.Context.MODE_PRIVATE)
+            .edit().putBoolean(PrefKeys.P_RACK_VIEW, rack).commit()
+    }
+
     private fun setContent(
         skin: Skin,
         uiState: BookshelfUiState,
         progressMap: Map<String, ProgressEntity> = emptyMap(),
         chapterCountMap: Map<String, Int> = emptyMap(),
         rackViewP: Boolean = true,
-        onToggleRackP: () -> Unit = {},
         onOpenBook: (BookEntity) -> Unit = {},
         onOpenDiscovery: () -> Unit = {},
         onOpenWardrobe: () -> Unit = {},
@@ -71,6 +81,9 @@ class BookshelfCartridgePTest {
         followingSystem: Boolean = false,
         onFollowSystem: () -> Unit = {},
     ) {
+        // ラック⇄一覧のビュー状態は P 自身が prefs 所有（2026-07-27 移設・p_hinge_detent と同流儀）＝
+        // pref 先置きで面を選ぶ（旧引数 rackViewP の代替。アサーション意図は不変）。
+        setRackViewPref(rackViewP)
         composeTestRule.setContent {
             CompositionLocalProvider(LocalSkin provides skin, LocalSkinTokens provides skin.tokens) {
                 MaterialTheme {
@@ -80,21 +93,29 @@ class BookshelfCartridgePTest {
                         chapterCountMap = chapterCountMap,
                         newEpisodeNovelMap = emptyMap(),
                         processingState = ProcessingState(),
-                        appTheme = appTheme,
-                        onThemeChange = onThemeChange,
-                        followingSystem = followingSystem,
-                        onFollowSystem = onFollowSystem,
-                        isGridView = false,
-                        onToggleView = {},
-                        onFabClick = onFabClick,
-                        onOpenBook = onOpenBook,
+                        // 束は全フィールド必須（既定 no-op 廃止＝2026-07-27 純構造リファクタ）。旧テストの
+                        // 個別引数と同じ値を束へ写しただけ＝アサーション意図は不変。
+                        actions = ShelfActions(
+                            onOpenBook = onOpenBook,
+                            onFabClick = onFabClick,
+                            onOpenDiscovery = onOpenDiscovery,
+                            onOpenWardrobe = onOpenWardrobe,
+                            onCancelProcessing = onCancelProcessing,
+                        ),
+                        webActions = ShelfWebActions(
+                            onOpenWebNovel = {},
+                            onResumeWebNovel = { _, _ -> },
+                            onImportWebNovel = {},
+                            onRemoveWebNovel = {},
+                        ),
+                        theme = ThemeControl(
+                            appTheme = appTheme,
+                            onThemeChange = onThemeChange,
+                            followingSystem = followingSystem,
+                            onFollowSystem = onFollowSystem,
+                        ),
                         onDeleteBooks = { _, _ -> },
-                        onOpenDiscovery = onOpenDiscovery,
-                        onOpenWardrobe = onOpenWardrobe,
-                        onCancelProcessing = onCancelProcessing,
                         snackbarHostState = remember { SnackbarHostState() },
-                        rackViewP = rackViewP,
-                        onToggleRackP = onToggleRackP,
                     )
                 }
             }
@@ -120,27 +141,23 @@ class BookshelfCartridgePTest {
 
     @Test
     fun `ラック内の一覧ボタンで一覧トグルが結線される`() {
-        var toggled = 0
-        setContent(
-            Skin.CARTRIDGE_P, BookshelfUiState.Content(emptyList()),
-            rackViewP = true, onToggleRackP = { toggled++ },
-        )
+        // トグル状態は P 自身が所有（移設後）＝押下の結果「一覧面が実際に出る」ことで結線を検証する。
+        setContent(Skin.CARTRIDGE_P, BookshelfUiState.Content(emptyList()), rackViewP = true)
         composeTestRule.onNodeWithContentDescription("一覧表示に切替").performClick()
-        assertTrue("ラック→一覧のトグルが呼ばれていない", toggled == 1)
+        composeTestRule.onNodeWithContentDescription("ラック表示に切替").assertIsDisplayed()
     }
 
     @Test
     fun `P装着×一覧モードはD構造フォールバック＋ラックへ戻るボタンが出る`() {
-        var toggled = false
         setContent(
             Skin.CARTRIDGE_P, BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))),
-            rackViewP = false, onToggleRackP = { toggled = true },
+            rackViewP = false,
         )
         // 一覧＝D 構造へトークン写像（可読フォールバック）。
         composeTestRule.onNodeWithText("新しい物語を見つける").assertIsDisplayed()
-        // グリッド切替の座がスキンPでは「ラック表示へ戻る」になる。
+        // グリッド切替の座がスキンPでは「ラック表示へ戻る」になる＝押すとラック面へ実際に戻る（結線の実挙動検証）。
         composeTestRule.onNodeWithContentDescription("ラック表示に切替").performClick()
-        assertTrue("一覧→ラックのトグルが呼ばれていない", toggled)
+        composeTestRule.onNodeWithContentDescription("一覧表示に切替").assertIsDisplayed()
     }
 
     @Test
@@ -200,6 +217,7 @@ class BookshelfCartridgePTest {
 
     @Test
     fun `取込中はカートリッジ書き込みバナーが出る`() {
+        setRackViewPref(true)
         composeTestRule.setContent {
             CompositionLocalProvider(
                 LocalSkin provides Skin.CARTRIDGE_P,
@@ -214,18 +232,28 @@ class BookshelfCartridgePTest {
                         processingState = ProcessingState(
                             isProcessing = true, title = "山賊令嬢の華麗なる転身", phase = "本文を読み込み中…",
                         ),
-                        appTheme = ReadingTheme.LIGHT,
-                        onThemeChange = {},
-                        isGridView = false,
-                        onToggleView = {},
-                        onFabClick = {},
-                        onOpenBook = {},
+                        // 束は全フィールド必須（既定 no-op 廃止＝2026-07-27 純構造リファクタ）。値は旧引数と同じ no-op。
+                        actions = ShelfActions(
+                            onOpenBook = {},
+                            onFabClick = {},
+                            onOpenDiscovery = {},
+                            onOpenWardrobe = {},
+                            onCancelProcessing = {},
+                        ),
+                        webActions = ShelfWebActions(
+                            onOpenWebNovel = {},
+                            onResumeWebNovel = { _, _ -> },
+                            onImportWebNovel = {},
+                            onRemoveWebNovel = {},
+                        ),
+                        theme = ThemeControl(
+                            appTheme = ReadingTheme.LIGHT,
+                            onThemeChange = {},
+                            followingSystem = false,
+                            onFollowSystem = {},
+                        ),
                         onDeleteBooks = { _, _ -> },
-                        onOpenDiscovery = {},
-                        onCancelProcessing = {},
                         snackbarHostState = remember { SnackbarHostState() },
-                        rackViewP = true,
-                        onToggleRackP = {},
                     )
                 }
             }
@@ -262,9 +290,10 @@ class BookshelfCartridgePTest {
 
     /** app_prefs へヒンジのディテント index を先置きし、pref からの復元を検証するためのヘルパー。 */
     private fun setHingeDetentPref(index: Int) {
+        // キーは PrefKeys 参照（2026-07-27 の全数張替に追従＝setRackViewPref と同流儀）。
         RuntimeEnvironment.getApplication()
-            .getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
-            .edit().putInt("p_hinge_detent", index).commit()
+            .getSharedPreferences(PrefKeys.FILE_APP_PREFS, android.content.Context.MODE_PRIVATE)
+            .edit().putInt(PrefKeys.P_HINGE_DETENT, index).commit()
     }
 
     private fun readingBookState() = BookshelfUiState.Content(listOf(book("b1", "読みかけの物語")))
