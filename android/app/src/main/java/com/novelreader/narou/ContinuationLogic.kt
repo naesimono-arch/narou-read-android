@@ -4,7 +4,6 @@ import com.novelreader.discovery.model.SerialState
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.Ncode
-import java.util.Locale
 
 sealed interface ContinuationInfo {
     val ncode: Ncode
@@ -113,10 +112,9 @@ private fun computeContinuationCore(
  * なろうの特定話（エピソード）ページURLを生成する。
  */
 fun narouEpisodeUrl(ncode: Ncode, episode: Int): String {
-    // なぜ小文字化するか: なろうのWebサーバーはURLパスに含まれるNコードを
-    // 小文字で要求するため、安全のために Locale.ROOT で小文字化して結合する。
-    // 正規化は Ncode 集約でなくこのサイトで従来どおり施す（用途別正規化のため。Ncode の KDoc 参照）。
-    val lowerNcode = ncode.value.trim().lowercase(Locale.ROOT)
+    // なぜ小文字化するか: なろうのWebサーバーはURLパスに含まれるNコードを小文字で要求するため。
+    // 正規化は Ncode.urlSlug（trim+小文字＝不変ロケール）に集約（2026-07-27 型化。Ncode の KDoc 参照）。
+    val lowerNcode = ncode.urlSlug
     return "https://ncode.syosetu.com/$lowerNcode/$episode/"
 }
 
@@ -124,10 +122,9 @@ fun narouEpisodeUrl(ncode: Ncode, episode: Int): String {
  * なろうの作品（作品トップ）ページURLを生成する。
  */
 fun narouWorkUrl(ncode: Ncode): String {
-    // なぜ小文字化するか: なろうのWebサーバーはURLパスに含まれるNコードを
-    // 小文字で要求するため、安全のために Locale.ROOT で小文字化して結合する。
-    // 正規化は Ncode 集約でなくこのサイトで従来どおり施す（用途別正規化のため。Ncode の KDoc 参照）。
-    val lowerNcode = ncode.value.trim().lowercase(Locale.ROOT)
+    // なぜ小文字化するか: なろうのWebサーバーはURLパスに含まれるNコードを小文字で要求するため。
+    // 正規化は Ncode.urlSlug（trim+小文字＝不変ロケール）に集約（2026-07-27 型化。Ncode の KDoc 参照）。
+    val lowerNcode = ncode.urlSlug
     return "https://ncode.syosetu.com/$lowerNcode/"
 }
 
@@ -142,8 +139,8 @@ fun narouWorkUrl(ncode: Ncode): String {
  * URL 文字列を読むだけで話数が得られる（加工に当たらない）。
  */
 fun parseNarouEpisodeNumber(url: String, ncode: Ncode): Int? {
-    // なろうは URL パスの ncode を小文字で扱う（narouWorkUrl/narouEpisodeUrl と同じ正規化で照合する）。
-    val lower = ncode.value.trim().lowercase(Locale.ROOT)
+    // なろうは URL パスの ncode を小文字で扱う（narouWorkUrl/narouEpisodeUrl と同じ Ncode.urlSlug で照合する）。
+    val lower = ncode.urlSlug
     // https?://ncode.syosetu.com/<ncode>/<N>/ 形のみ受理。末尾スラッシュ有無を許容し、話数は正の整数。
     // ncode は Regex.escape で literal 扱い（万一メタ文字が混じっても誤マッチしない防御）。
     val regex = Regex("^https?://ncode\\.syosetu\\.com/${Regex.escape(lower)}/(\\d+)/?$")

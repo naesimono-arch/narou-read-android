@@ -60,7 +60,7 @@ class NovelDetailViewModel(application: Application) : AndroidViewModel(applicat
         .flatMapLatest { nc ->
             if (nc == null) flowOf(false)
             else bookRepository.webNovels.map { list ->
-                val normalized = nc.value.trim().uppercase()
+                val normalized = nc.storageKey
                 list.any { it.ncode == normalized }
             }
         }
@@ -74,7 +74,7 @@ class NovelDetailViewModel(application: Application) : AndroidViewModel(applicat
         .flatMapLatest { nc ->
             if (nc == null) flowOf(0)
             else bookRepository.webReadingProgress.map { list ->
-                val normalized = nc.value.trim().uppercase()
+                val normalized = nc.storageKey
                 list.firstOrNull { it.ncode == normalized }?.lastReadEpisode ?: 0
             }
         }
@@ -87,7 +87,8 @@ class NovelDetailViewModel(application: Application) : AndroidViewModel(applicat
         .flatMapLatest { nc ->
             if (nc == null) flowOf(false)
             else bookRepository.allBooks.map { books ->
-                books.any { it.ncode?.trim()?.equals(nc.value.trim(), ignoreCase = true) == true }
+                // 表記ゆれ無視の同一作品判定は Ncode.sameWorkAs（trim+ignoreCase 比較＝従来と同一の演算）に集約。
+                books.any { it.ncode?.let { n -> Ncode(n).sameWorkAs(nc) } == true }
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
@@ -103,8 +104,8 @@ class NovelDetailViewModel(application: Application) : AndroidViewModel(applicat
             } else {
                 bookRepository.putWebNovel(
                     WebNovelEntity(
-                        // 保存正規化は NcodeLinkSheet の紐付けと同系（trim+uppercase）＝二重カード防止。
-                        ncode = nc.value.trim().uppercase(),
+                        // 保存正規化は NcodeLinkSheet の紐付けと同じ Ncode.storageKey（trim+大文字）＝二重カード防止。
+                        ncode = nc.storageKey,
                         // WorkSummary.title/author は非 null（マッパが欠落を弾く）ため従来の ?: フォールバックは不要。
                         title = state.novel.summary.title,
                         writer = state.novel.summary.author,

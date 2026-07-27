@@ -118,8 +118,8 @@ fun PdfImportScreen(
     val webViewHolder = remember { mutableStateOf<WebView?>(null) }
 
     val menuUrl = remember(ncode) { narouWorkUrl(ncode) }
-    // 目次ページ判定用に小文字化した ncode（narouWorkUrl も小文字でパスを組むため WebView の url と一致する）。
-    val lowerNcode = remember(ncode) { ncode.value.trim().lowercase() }
+    // 目次ページ判定用の URL スラッグ形 ncode（narouWorkUrl も同じ Ncode.urlSlug でパスを組むため WebView の url と一致する）。
+    val lowerNcode = remember(ncode) { ncode.urlSlug }
     // 目次ページ URL 判定用の正規表現。onPageCommitVisible と onPageFinished の双方で使うため hoist（重複回避）。
     val menuUrlRegex = remember(lowerNcode) { Regex("^https://ncode\\.syosetu\\.com/$lowerNcode/?$") }
 

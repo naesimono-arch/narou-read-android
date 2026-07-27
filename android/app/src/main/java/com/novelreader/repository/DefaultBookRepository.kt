@@ -106,19 +106,19 @@ class DefaultBookRepository(
 
     override suspend fun putWebNovel(novel: WebNovelEntity) = webNovelDao.insert(novel)
 
-    // なぜ削除も trim().uppercase() 正規化か: 保存側（putWebNovel の契約）と同じ正規化を通さないと、
+    // なぜ削除も storageKey 正規化か: 保存側（putWebNovel の契約）と同じ Ncode.storageKey を通さないと、
     // 表記ゆれの ncode で削除が空振りしてカードが残り続けるため（NcodeLinkSheet の保存正規化と同系）。
     // 併せて Web読書位置履歴も相乗り削除する（UX監査 privacy）: カードを外したのに位置履歴だけ端末へ
     // 残る穴を塞ぐ。ただし同 ncode を紐付けた蔵書がまだ在れば「続きから」に要るため残す（下記 helper が判定）。
     override suspend fun removeWebNovel(ncode: Ncode) = withContext(Dispatchers.IO) {
-        val key = ncode.value.trim().uppercase()
+        val key = ncode.storageKey
         webNovelDao.deleteByNcode(key)
         cascadeDeleteWebProgressIfUnreferenced(key)
     }
 
     override val webReadingProgress: Flow<List<WebReadingProgressEntity>> = webReadingProgressDao.getAll()
 
-    // なぜ trim().uppercase() 正規化か: 記録側と本棚カード/紐付け側の ncode 表記を一致させ、
+    // なぜ storageKey（trim+大文字）正規化か: 記録側と本棚カード/紐付け側の ncode 表記を一致させ、
     // 「読んだのに続きから読むが出ない」空振りを防ぐ（putWebNovel/removeWebNovel と同系の保存正規化）。
     //
     // なぜ furthest-wins（無条件 upsert でなく episode>既存のときだけ更新）か（UX監査 continuity・公理14/公理6）:
@@ -132,7 +132,7 @@ class DefaultBookRepository(
     //   IO 上で交錯し得るが、furthest-wins は単調なので最悪でも「一時的に低い話数が残り、次の前進で
     //   訂正される」だけ（先端の恒久喪失は起きない）。厳密原子性は複雑さに見合わないため許容する。
     override suspend fun recordWebReadingEpisode(ncode: Ncode, episode: Int) = withContext(Dispatchers.IO) {
-        val key = ncode.value.trim().uppercase()
+        val key = ncode.storageKey
         val existing = webReadingProgressDao.get(key)
         if (existing == null || episode > existing.lastReadEpisode) {
             webReadingProgressDao.upsert(
@@ -146,7 +146,7 @@ class DefaultBookRepository(
     }
 
     override suspend fun getWebReadingProgress(ncode: Ncode): WebReadingProgressEntity? =
-        withContext(Dispatchers.IO) { webReadingProgressDao.get(ncode.value.trim().uppercase()) }
+        withContext(Dispatchers.IO) { webReadingProgressDao.get(ncode.storageKey) }
 
     /** べき等ガードの純判定を切り出したもの: 抽出後のタイトル＋著者に一致する既存蔵書を返す
      *  （無ければ null）。実 PDF 抽出を挟まず単体テストできるよう addBook 本体から分離する。 */
@@ -580,7 +580,7 @@ class DefaultBookRepository(
         // 紐付いていた Web読書位置履歴も相乗り削除する（UX監査 privacy）: 本を消したのに、その本に
         // 紐付いた ncode の WebView 読書位置だけ端末へ残る穴を塞ぐ。ただし同 ncode が web_novels カード
         // として独立に棚に在るなら、その Web 読書はまだ現役なので残す（helper が参照有無で判定）。
-        book.ncode?.let { cascadeDeleteWebProgressIfUnreferenced(it.trim().uppercase()) }
+        book.ncode?.let { cascadeDeleteWebProgressIfUnreferenced(Ncode(it).storageKey) }
         // HTMLディレクトリ削除は DB 外の副作用のためトランザクション外に置く（ファイルIO は Room の
         // トランザクションでロールバックできず、失敗しても DB 削除は成立させたい＝掃除は次回起動の
         // cleanOrphanHtmlDirs が拾う）。
@@ -616,9 +616,9 @@ class DefaultBookRepository(
      *  専用 suspend クエリを足さずに済む（呼び出しは削除操作の直後のみで高頻度でない）。 */
     private suspend fun cascadeDeleteWebProgressIfUnreferenced(normalizedNcode: String) {
         val referencedByBook = bookDao.getAllBooks().first()
-            .any { it.ncode?.trim()?.uppercase() == normalizedNcode }
+            .any { b -> b.ncode?.let { Ncode(it).storageKey } == normalizedNcode }
         val referencedByCard = webNovelDao.getAll().first()
-            .any { it.ncode.trim().uppercase() == normalizedNcode }
+            .any { Ncode(it.ncode).storageKey == normalizedNcode }
         if (!referencedByBook && !referencedByCard) {
             webReadingProgressDao.deleteByNcode(normalizedNcode)
         }
@@ -636,8 +636,8 @@ class DefaultBookRepository(
      */
     override suspend fun pruneOrphanWebReadingProgress(): Int = withContext(Dispatchers.IO) {
         val keep = buildSet {
-            bookDao.getAllBooks().first().forEach { b -> b.ncode?.let { add(it.trim().uppercase()) } }
-            webNovelDao.getAll().first().forEach { add(it.ncode.trim().uppercase()) }
+            bookDao.getAllBooks().first().forEach { b -> b.ncode?.let { add(Ncode(it).storageKey) } }
+            webNovelDao.getAll().first().forEach { add(Ncode(it.ncode).storageKey) }
         }
         val all = webReadingProgressDao.getAll().first().map { it.ncode }.toSet()
         val orphans = orphanedWebProgressNcodes(all, keep)

@@ -44,8 +44,8 @@ interface BookRepository {
     val webNovels: Flow<List<WebNovelEntity>>
 
     /** Web 作品を本棚に置く。同一 ncode は最新情報で上書き（REPLACE）。
-     *  ncode は NcodeLinkSheet の紐付け保存と同じ `.trim().uppercase()` 正規化で渡すこと
-     *  （表記ゆれで同一作品が二重カード化するのを防ぐ）。 */
+     *  ncode は保存キー正規化＝[com.novelreader.narou.model.Ncode.storageKey]（trim+大文字）で渡すこと
+     *  （表記ゆれで同一作品が二重カード化するのを防ぐ。正規化の正本は Ncode のアクセサ＝手書き正規化を書かない）。 */
     suspend fun putWebNovel(novel: WebNovelEntity)
 
     /** Web 作品を本棚から外す（取込完了時の昇格削除にも使う）。 */
@@ -56,7 +56,8 @@ interface BookRepository {
     val webReadingProgress: Flow<List<WebReadingProgressEntity>>
 
     /** WebView 読書で話ページ(.../N/)に到達したときに読書位置を記録する（last-wins 上書き）。
-     *  ncode は putWebNovel と同じ `.trim().uppercase()` 正規化で保存すること（表記ゆれで別作品扱いにしない）。 */
+     *  ncode は putWebNovel と同じ [com.novelreader.narou.model.Ncode.storageKey] 正規化で保存すること
+     *  （表記ゆれで別作品扱いにしない。正規化の正本は Ncode のアクセサ）。 */
     suspend fun recordWebReadingEpisode(ncode: Ncode, episode: Int)
 
     /** 指定作品の現在の読書位置（未記録なら null）。WebReader 起動時の1件照会用。 */

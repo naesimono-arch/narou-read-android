@@ -28,6 +28,12 @@
 - **S（K・P 完了後）**: スキン固有状態移設＋スキンOO化①②＋EmptyBookshelf 移設（BookshelfScreen/skins/玄関＝K・P と交差）
 - **R（N 完了後）**: DefaultBookRepository 6責務分割＋SearchDraft/ShelfItems→domain/（N が同 Repository を触るため直列）
 
+## N班の残余（裁定候補・意図的に未修正＝挙動温存）
+- **isImported の第4流儀**（`NovelDetailViewModel.kt:91`）: 唯一 ignoreCase 比較（他は uppercase キー突合）。非ASCIIで結果が割れ得る。
+  挙動温存で `sameWorkAs` アクセサに隔離済み＝統一は挙動変更なので要裁定。
+- **prune の無正規化突合**（`DefaultBookRepository.kt:641`）: DB 生値を keep 集合と無正規化で突合（保存契約頼み）。既存挙動のまま。
+- **表示用 lowercase（trimなし）**（`BookshelfSkyM.kt:646`）: 表示のみ・urlSlug と食い違うが実害なし＝観察のみ。
+
 ## Wave 3（Gradle・実機は直列）
 - 監督ゲート一括: `testDebugUnitTest`＋`lintDebug`＋`check_design_tokens.py`（/build 接地後・worktree は init-script 不要）
 - Baseline Profile 生成（裁定＋adb 許可後・`/device-verify` 接地）

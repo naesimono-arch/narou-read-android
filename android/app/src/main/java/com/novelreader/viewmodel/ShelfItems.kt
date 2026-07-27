@@ -3,6 +3,7 @@ package com.novelreader.viewmodel
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
+import com.novelreader.narou.model.Ncode
 
 /**
  * 融合本棚の表示1行/1枠（(b) Web由来・未取込カードの並置＝bookshelf-fusion-D モック）。
@@ -92,7 +93,7 @@ fun mergeShelfItems(
     // 既定 emptyMap は既存テスト・呼び出し互換（接触時刻なしなら全 web が未接触＝自身の addedAt で並ぶ）。
     webLastReadAt: Map<String, Long> = emptyMap(),
 ): List<ShelfItem> {
-    val importedNcodes = books.mapNotNull { it.ncode?.trim()?.uppercase() }.toSet()
+    val importedNcodes = books.mapNotNull { b -> b.ncode?.let { Ncode(it).storageKey } }.toSet()
 
     val bookItems = books.map { book ->
         val lastReadAt = progressMap[book.id]?.lastReadAt ?: 0L
@@ -101,14 +102,14 @@ fun mergeShelfItems(
     // Web 由来カードは tier 特権なしの通常キー（webRecencyKeyOf＝常に tier0・直近の操作時刻）でキー化する。
     // 蔵書列は DAO が二層降順、web 列はここでキー降順に整列してから同じ RecencyKey 比較でマージする。
     val webItems: List<Pair<WebNovelEntity, RecencyKey>> = webNovels
-        .filterNot { it.ncode.trim().uppercase() in importedNcodes }
-        .map { it to webRecencyKeyOf(it.addedAt, webLastReadAt[it.ncode.trim().uppercase()] ?: 0L) }
+        .filterNot { Ncode(it.ncode).storageKey in importedNcodes }
+        .map { it to webRecencyKeyOf(it.addedAt, webLastReadAt[Ncode(it.ncode).storageKey] ?: 0L) }
         .sortedByDescending { it.second }
 
     // Web カードに読書位置を載せる。web_novels.ncode も web_reading_progress.ncode も trim+uppercase 正規化済みで
     // 保存されるため、同じ正規化キーで引ける（表記ゆれで「読んだのに続きが出ない」を防ぐ二重の安全として再正規化）。
     fun webItem(n: WebNovelEntity): ShelfItem.Web =
-        ShelfItem.Web(n, webReadingProgress[n.ncode.trim().uppercase()] ?: 0)
+        ShelfItem.Web(n, webReadingProgress[Ncode(n.ncode).storageKey] ?: 0)
 
     // 両列とも二層キー降順ソート済みの前提でマージする（books は DAO・webItems は直前の sort が保証）。
     val result = ArrayList<ShelfItem>(bookItems.size + webItems.size)
@@ -281,7 +282,7 @@ fun filterShelfByStatus(
     // ＝保存時正規化(trim+uppercase)と同形で引き、表記ゆれで分類が漏れるのを防ぐ二重の安全。
     val filteredWeb = webNovels.filter {
         webReadingStatusFor(
-            webReadingProgress[it.ncode.trim().uppercase()],
+            webReadingProgress[Ncode(it.ncode).storageKey],
             it.generalAllNo,
         ) == selectedStatus
     }
@@ -309,7 +310,7 @@ fun shelfStatusCounts(
         counts[s] = (counts[s] ?: 0) + 1
     }
     webNovels.forEach {
-        val s = webReadingStatusFor(webReadingProgress[it.ncode.trim().uppercase()], it.generalAllNo)
+        val s = webReadingStatusFor(webReadingProgress[Ncode(it.ncode).storageKey], it.generalAllNo)
         counts[s] = (counts[s] ?: 0) + 1
     }
     return counts

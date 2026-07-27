@@ -9,11 +9,12 @@ import org.junit.Test
  * 識別子 value class 群（BookIdentifiers.kt の BookId/ChapterFilename と、対で導入された
  * narou.model.Ncode）の**現行挙動の固定**。
  *
- * 目的: 後続で予定されている「ncode 型化」リファクタの安全網。現行の各型は意図的に
+ * 目的: 「ncode 型化」リファクタの安全網。各型のコンストラクタ/equals は意図的に
  * 「正規化・検証を一切持たない素通し」（大文字小文字・前後空白・不正形式をそのまま保持し、
- * equals は下地 String に委譲＝正規化は narouWorkUrl 等の用途サイトごとに分散）であり、
- * リファクタで型側へ正規化/検証を集約するなら本テストが**意図的に**落ちて差分を可視化する。
- * ＝落ちたら「挙動変更を選んだ」証跡としてテストを更新すること（黙って通る変更は正規化漏れの疑い）。
+ * equals は下地 String に委譲）。2026-07-27 の型化で用途別正規化は Ncode の**アクセサ**
+ * （storageKey/urlSlug/apiParam/sameWorkAs＝加算のみ）へ集約されたが、生成経路と等価性は
+ * 従来どおり＝素通し固定テストは生きたまま。落ちたら「挙動変更を選んだ」証跡としてテストを
+ * 更新すること（黙って通る変更は正規化漏れの疑い）。アクセサの挙動固定は本クラス後半。
  */
 class BookIdentifiersTest {
 
@@ -53,6 +54,48 @@ class BookIdentifiersTest {
         assertEquals("chap_1.html", ChapterFilename("chap_1.html").value)
         assertEquals(ChapterFilename("index.html"), ChapterFilename("index.html"))
         assertNotEquals(ChapterFilename("index.html"), ChapterFilename("chap_1.html"))
+    }
+
+    // ---- ここから Ncode 用途別アクセサ（2026-07-27 型化）の挙動固定 ----
+
+    @Test
+    fun ncode_storageKey_trimsAndUppercases() {
+        // 保存キー形: trim＋大文字（NcodeLinkSheet 由来の保存正規化と同一）。元の value は不変。
+        assertEquals("N1234AB", Ncode(" n1234ab ").storageKey)
+        assertEquals("N1234AB", Ncode("N1234AB").storageKey)
+        assertEquals(" n1234ab ", Ncode(" n1234ab ").value)
+        // 不正形式・空も検証せず機械的に変換（弾くのは isValidNcode 等の呼び出し側のまま）。
+        assertEquals("NOT-AN-NCODE", Ncode(" not-an-ncode ").storageKey)
+        assertEquals("", Ncode("  ").storageKey)
+    }
+
+    @Test
+    fun ncode_urlSlug_trimsAndLowercases() {
+        // URL スラッグ形: trim＋小文字（narouWorkUrl/narouEpisodeUrl の URL パス正規化と同一）。
+        assertEquals("n1234ab", Ncode(" N1234AB ").urlSlug)
+        assertEquals("n1234ab", Ncode("n1234ab").urlSlug)
+    }
+
+    @Test
+    fun ncode_apiParam_trimsOnlyAndPreservesCase() {
+        // API パラメータ形: trim のみ（なろう API は大小無視のため case を保持して送る）。
+        assertEquals("N1234ab", Ncode(" N1234ab ").apiParam)
+        assertEquals("", Ncode("   ").apiParam)
+    }
+
+    @Test
+    fun ncode_sameWorkAs_ignoresWhitespaceAndCase_butEqualsStaysStrict() {
+        // 表記ゆれ無視の同一作品判定（trim+ignoreCase）。equals の厳密性（素通し）はそのまま。
+        assertEquals(true, Ncode(" n1234ab ").sameWorkAs(Ncode("N1234AB")))
+        assertEquals(false, Ncode("n1234ab").sameWorkAs(Ncode("n9999zz")))
+        assertNotEquals(Ncode(" n1234ab "), Ncode("N1234AB"))
+    }
+
+    @Test
+    fun ncode_normalizedForStorage_wrapsStorageKeyAsValue() {
+        // 境界ファクトリ: 値そのものが保存キー形に正規化された Ncode を作る（linkNcode が素通し永続化するため）。
+        assertEquals(Ncode("N1234AB"), Ncode.normalizedForStorage(" n1234ab "))
+        assertEquals("N1234AB", Ncode.normalizedForStorage(" n1234ab ").value)
     }
 
     @Test

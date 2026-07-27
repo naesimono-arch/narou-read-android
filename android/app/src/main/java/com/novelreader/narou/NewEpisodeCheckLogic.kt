@@ -1,6 +1,7 @@
 package com.novelreader.narou
 
 import com.novelreader.narou.model.NarouNovel
+import com.novelreader.narou.model.Ncode
 
 /**
  * U1 新着話チェックの通知1件分（Worker が通知を組み立てるのに必要な最小情報）。
@@ -40,7 +41,7 @@ fun computeNewEpisodeAlerts(
     val newMarks = mutableMapOf<String, Int>()
 
     for (novel in currents) {
-        val ncode = novel.ncode?.trim()?.uppercase() ?: continue
+        val ncode = novel.ncode?.let { Ncode(it).storageKey } ?: continue
         val allNo = novel.generalAllNo ?: continue
         val (bookId, bookTitle) = linkedBooks[ncode] ?: continue
 

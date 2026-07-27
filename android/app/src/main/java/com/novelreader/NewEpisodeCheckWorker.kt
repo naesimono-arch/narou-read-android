@@ -40,7 +40,7 @@ class NewEpisodeCheckWorker(
         val books = app.repository.allBooks.first()
         // 正規化済み ncode → (bookId, 蔵書タイトル)。通知の文言・着地先はローカルの本に揃える。
         val linkedBooks = books.mapNotNull { book ->
-            book.ncode?.trim()?.uppercase()?.takeIf { it.isNotEmpty() }
+            book.ncode?.let { Ncode(it).storageKey }?.takeIf { it.isNotEmpty() }
                 ?.let { it to (book.id to book.title) }
         }.toMap()
 
@@ -115,7 +115,7 @@ class NewEpisodeCheckWorker(
         /** 新着話通知の tag を組む単一の正本。通知の発行（showNotification）と取り下げ
          *  （NovelReaderApplication.cancelNewEpisodeNotification）で必ず同じ文字列にするため関数化する。
          *  ncode は linkedBooks のキー（正規化済み）だが、取り下げ側は book.ncode を直接渡しうるため
-         *  ここでも trim+uppercase を掛けてズレを吸収する。 */
-        fun notificationTag(ncode: String): String = "new_episode_${ncode.trim().uppercase()}"
+         *  ここでも Ncode.storageKey（trim+大文字）を掛けてズレを吸収する。 */
+        fun notificationTag(ncode: String): String = "new_episode_${Ncode(ncode).storageKey}"
     }
 }
