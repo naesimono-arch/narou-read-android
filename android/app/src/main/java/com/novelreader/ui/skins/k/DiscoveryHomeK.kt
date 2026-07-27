@@ -293,7 +293,9 @@ private fun GenreSectionK(onOpenGenre: () -> Unit, onPickBiggenre: (code: Int, l
             modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.S4),
             horizontalArrangement = Arrangement.spacedBy(Spacing.S8), // .chips gap 8px
         ) {
-            items(NarouGenres.BIGGENRES) { (code, label) ->
+            // key＝大ジャンルコード（安定・全件で一意）。key 無しだと Lazy の既定＝位置キーになり、
+            // 将来この列の並びが変わったとき再利用が位置に貼り付いて別ジャンルへ状態が付いて回る。
+            items(NarouGenres.BIGGENRES, key = { it.first }) { (code, label) ->
                 GenreChipK(label, accent = false, onClick = { onPickBiggenre(code, label) })
             }
             // 「すべて→」＝ジャンル一覧入口（D の「すべて →」に相当・藍枠藍字）。
