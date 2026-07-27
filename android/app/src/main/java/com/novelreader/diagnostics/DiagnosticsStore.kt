@@ -11,7 +11,7 @@ import java.io.File
  * **書き込みは同期**。クラッシュ経路（[CrashReporter]）から呼ばれ、その直後にプロセスが死ぬため、
  * ワーカーへ投げると書き終わる前に消える。1件が数KBなので同期でも体感に影響しない。
  */
-class DiagnosticsStore(rootDir: File) {
+class DiagnosticsStore(private val rootDir: File) {
 
     private val eventsDir = File(rootDir, DIR_EVENTS)
 
@@ -39,6 +39,28 @@ class DiagnosticsStore(rootDir: File) {
 
     /** 保管件数（回収導線やテストの確認用）。 */
     fun count(): Int = listEventFiles().size
+
+    /**
+     * フレーム落ちの要約を1ファイルへ追記する（1回の前面セッション＝背面へ回るたびに1ブロック）。
+     *
+     * イベントのような1件1ファイルにしないのは、知りたいのが「日をまたいだ傾向」で、
+     * 時系列に並んだ1本のテキストの方が読みやすいため。無限成長は [MAX_JANK_BYTES] で頭打ちにし、
+     * 溢れたら**古い側を捨てる**（新しい方が知りたい情報なので、末尾を残す）。
+     */
+    fun appendJank(text: String) {
+        runCatching {
+            rootDir.mkdirs()
+            val file = File(rootDir, FILE_JANK)
+            file.appendText(text)
+            if (file.length() > MAX_JANK_BYTES) {
+                file.writeText(trimToTail(file.readText(), MAX_JANK_BYTES / 2))
+            }
+        }
+    }
+
+    /** 追記済みのフレーム落ち要約（回収用。無ければ空文字）。 */
+    fun dumpJank(): String =
+        runCatching { File(rootDir, FILE_JANK).readText() }.getOrDefault("")
 
     private fun listEventFiles(): List<String> =
         eventsDir.list()?.filter { it.startsWith(PREFIX) }?.toList() ?: emptyList()
@@ -70,5 +92,23 @@ class DiagnosticsStore(rootDir: File) {
          */
         internal fun expired(names: List<String>, keep: Int): List<String> =
             names.sortedDescending().drop(keep)
+
+        private const val FILE_JANK = "jank.txt"
+
+        /** フレーム落ち要約ファイルの上限（約256KB）。行数にして数千セッション分＝傾向を見るには十分。 */
+        internal const val MAX_JANK_BYTES = 256L * 1024L
+
+        /**
+         * 末尾 [maxBytes] 相当を残して古い側を捨てる純関数。**行の途中では切らない**
+         * （切ると壊れた1行が先頭に残り、読む側が数値を誤読する）。
+         * 改行が1つも無い＝1行が上限を超える異常な入力のときは、丸ごと捨てずそのまま返す
+         * （捨てると症状の唯一の記録が消えるため、多少溢れても残す方を選ぶ）。
+         */
+        internal fun trimToTail(text: String, maxBytes: Long): String {
+            if (text.length <= maxBytes) return text
+            val tail = text.takeLast(maxBytes.toInt())
+            val cut = tail.indexOf('\n')
+            return if (cut < 0) text else tail.substring(cut + 1)
+        }
     }
 }

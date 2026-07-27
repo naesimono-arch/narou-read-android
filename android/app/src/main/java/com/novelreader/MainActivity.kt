@@ -213,6 +213,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // フレーム落ち計測（JankStats）の window 接続。
+    // なぜ onCreate ではなく onResume か: JankStats は window と **View 階層** の両方に繋ぐため、
+    // 階層が確実に存在する時点で張る必要がある（setContent 直後は composition がまだ走っていない）。
+    // Activity 再生成で複数回呼ばれるが、多重購読はラッパ側（JankTracker.attach）が前の購読を
+    // 止めてから張り直すので同一フレームの多重計上にはならない。
+    override fun onResume() {
+        super.onResume()
+        (application as NovelReaderApplication).jankTracker
+            .attach(window, findViewById(android.R.id.content))
+    }
+
     // launchMode=singleTop のため、Activity 稼働中に通知タップが来ると新規インスタンスを作らず
     // ここへ届く。setIntent で getIntent を最新化しつつ deep link 対象を差し替える。
     override fun onNewIntent(intent: Intent) {
@@ -366,6 +377,17 @@ private fun NovelReaderApp(
     val tabScope = rememberCoroutineScope()
     // 深い画面（読書等）では null＝恒常ナビを消して没入を守る（従来と同じ判定を「tabs ルートか」へ置換）。
     val currentTab = if (currentRoute == TAB_HOST_ROUTE) KTab.entries[tabPagerState.currentPage] else null
+
+    // 診断への画面名の供給（フレーム落ちの画面別集計＋異常終了の「どの画面で消えたか」）。
+    // タブ層を route 名 "tabs" のままにせず Pager のページ名まで分解するのは、本棚/さがす/設定が
+    // 1つの名前に混ざると「どのタブが重いか」が見えず、タブスワイプの体感ジャンク（2026-07-24 報告）に
+    // 実測で当たれないため。深い画面（読書・目次・発見詳細）は route がそのまま画面名になる。
+    val diagnosticsScreen = currentTab?.let { "tabs/${it.name.lowercase()}" } ?: currentRoute ?: "(none)"
+    val diagnosticsApp = activityContext.applicationContext as NovelReaderApplication
+    LaunchedEffect(diagnosticsScreen) {
+        diagnosticsApp.jankTracker.setScreen(diagnosticsScreen)
+        diagnosticsApp.sessionWatch.noteScreen(diagnosticsScreen)
+    }
     // タブ選択＝Pager のスクロール（タップでもスワイプでも同じスライド運動言語。旧 crossfade は
     // Pager のスワイプ追従と矛盾するため廃止＝isTabSwitch 分岐ごと撤去）。同一タブ再タップは
     // animateScrollToPage が同ページで no-op＝旧 navigateKTab の重複抑止と同じ挙動が構造的に出る。

@@ -13,6 +13,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.novelreader.diagnostics.CrashReporter
 import com.novelreader.diagnostics.DiagnosticsRecorder
 import com.novelreader.diagnostics.DiagnosticsStore
+import com.novelreader.diagnostics.JankTracker
 import com.novelreader.diagnostics.SessionWatch
 import com.novelreader.narou.DataStoreSearchHistoryStore
 import com.novelreader.narou.NovelApiRepository
@@ -69,6 +70,9 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
     val sessionWatch: SessionWatch by lazy {
         SessionWatch(getSharedPreferences(PrefKeys.FILE_APP_PREFS, MODE_PRIVATE), diagnostics)
     }
+
+    /** 実利用のフレーム落ち計測（画面別）。window への接続は MainActivity が行う。 */
+    val jankTracker: JankTracker by lazy { JankTracker() }
 
     /** 検索履歴＋ピン留め（発見機能 D1）のシングルトン。 */
     val searchHistoryStore: SearchHistoryStore by lazy { DataStoreSearchHistoryStore(this) }
@@ -194,10 +198,15 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
             override fun onStart(owner: LifecycleOwner) {
                 isAppInForeground = true
                 sessionWatch.onForeground()
+                jankTracker.setTrackingEnabled(true)
             }
             override fun onStop(owner: LifecycleOwner) {
                 isAppInForeground = false
                 sessionWatch.onBackground()
+                // 背面では計測しない（描画が無く電池を食うだけ）。区間の集計はここで吐き出して捨てる
+                // ＝プロセスが背面で kill されても、そこまでの計測は残る。
+                jankTracker.setTrackingEnabled(false)
+                jankTracker.flushTo(diagnostics.store)
             }
         })
         // U1 新着チェックは既定 OFF のオプトイン（UX監査 C3・公理13）。ユーザーが明示 ON にしたときだけ

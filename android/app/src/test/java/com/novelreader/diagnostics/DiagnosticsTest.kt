@@ -109,6 +109,29 @@ class DiagnosticsTest {
     }
 
     @Test
+    fun `trimToTail は上限以下なら丸ごと残す`() {
+        assertEquals("a\nb\n", DiagnosticsStore.trimToTail("a\nb\n", 100))
+    }
+
+    @Test
+    fun `trimToTail は古い側を捨て行の途中では切らない`() {
+        // 行の途中で切ると壊れた1行が先頭に残り、読む側が数値を誤読する。
+        val text = "old line 1\nold line 2\nnewest line\n"
+        val trimmed = DiagnosticsStore.trimToTail(text, 20)
+        assertTrue(trimmed.endsWith("newest line\n"))
+        assertFalse(trimmed.contains("old line 1"))
+        // 先頭は必ず行頭から始まる（途中で切られた残骸が無い）
+        trimmed.lineSequence().first().let { assertTrue(it.isEmpty() || text.contains("\n$it")) }
+    }
+
+    @Test
+    fun `trimToTail は改行の無い巨大な1行を捨てずに残す`() {
+        // 丸ごと捨てると症状の唯一の記録が消えるため、多少溢れても残す方を選ぶ約束。
+        val single = "x".repeat(100)
+        assertEquals(single, DiagnosticsStore.trimToTail(single, 10))
+    }
+
+    @Test
     fun `異常終了は「開いたまま」かつ時刻が既知のときだけ数える`() {
         assertTrue(SessionWatch.shouldReportAbnormalExit(wasOpen = true, lastSeenAt = 1_700_000_000_000))
         // 正常に背面へ回っていた＝以後の kill は Android の正常動作なので数えない

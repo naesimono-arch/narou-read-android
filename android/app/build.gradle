@@ -147,6 +147,13 @@ dependencies {
     // 1.3+ へのバンプは動作検証と別便で行う。挿入コード自体は main（全 variant）に入るが android.os.Trace 可用性判定で
     // 実機のみ発行され、出荷挙動は不変（トレース捕捉が無ければネイティブ側で軽い no-op）。
     implementation 'androidx.tracing:tracing-ktx:1.2.0'
+    // JankStats: 実利用でのフレーム落ちを画面別に自己計測する（com.novelreader.diagnostics）。
+    // なぜ Macrobenchmark と別に要るか: Macrobenchmark は「手元で決まった操作を測って予算を守る」回帰装置で、
+    // 実機を日常使いしてもらったときにどの画面が落ちるかは測れない。JankStats は実行中のアプリ自身が
+    // フレーム時間を拾うため、手元で再現できない体感ジャンク（2026-07-24 報告）に実測で当たれる。
+    // なぜ 1.0.0-beta02: 本ライブラリの安定版は未リリースで beta が実質の最新系列。API は
+    // createAndTrack + PerformanceMetricsState の2点のみで、収集を止めれば影響も消える薄い依存。
+    implementation 'androidx.metrics:metrics-performance:1.0.0-beta02'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
     // U1 新着話チェックの定期実行（24h 周期・ネットワーク制約）。2.9.1 固定は旧 compileSdk 34 天井の名残
     // （compileSdk 35 化済み＝2.10+ も解決可能になったが、バンプは動作検証と別便で行う。2026-07-27 裁定）。

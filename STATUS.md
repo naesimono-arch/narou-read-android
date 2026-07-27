@@ -43,6 +43,12 @@
 - **性能・リリース基盤**: Macrobenchmark（起動／本棚スクロール／章送り／大PDF取込の予算を P90/P99 で assert・設計と全実測＝`.claude/plans/macrobenchmark-kickoff-2026-07-17.md`）。
   release は R8 収縮（minify＋shrinkResources）で出荷し、収縮起因の欠落が無いことは実機回帰で確認済み。
 
+- **端末内診断＝`diagnostics/`（外部送信ゼロ）**: クラッシュ（既定ハンドラの前段に挟んで記録し必ず委譲）／異常終了の推定
+  （前面セッションの開閉フラグ。`ApplicationExitInfo` は API30+ で日常検証機の Huawei P30＝API29 では使えないための代替・
+  停電/再起動が混ざり過大に出る限界つき）／フレーム落ち（JankStats の画面別ヒストグラム・前面のみ収集）。
+  保管＝`filesDir/diagnostics/`（events 最大30件・jank.txt 256KB 上限）、回収＝debug なら `adb shell run-as com.novelreader`。
+  **書き出しUIは未実装**（UI追加はモック先行が要るため別ラウンド）。
+
 - **ゲート**（数値は測り直せば変わるので書かない＝疑わしければその場で回す）: `testDebugUnitTest` 緑／`tools/check_design_tokens.py` NG=0
   （＋余白スケール7段 {4,8,12,16,24,32,40} の Spacing lint＝ADR0014 §C。SKIP は内訳列挙＋ベースライン超過で exit 1）／`:app:lintDebug` errors=0（warnings は非ブロック）。
   push 時は GitHub Actions（`.github/workflows/ci.yml`）が同3ゲートを自動実行（実機必須の androidTest/macrobenchmark と golden 画像比較は対象外＝YAML コメントに理由）。
