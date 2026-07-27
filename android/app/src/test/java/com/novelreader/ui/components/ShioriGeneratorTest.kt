@@ -87,7 +87,7 @@ class ShioriGeneratorTest {
     @Test
     fun `SHIORI_TIP_COUNT は描画側 SHIORI_TIPS の実数と一致する（乖離検出）`() {
         // 正本の二重化ガード: 抽選側が使う SHIORI_TIP_COUNT（ShioriGenerator＝Compose 非依存）と、
-        // 描画側の実配列 SHIORI_TIPS（ShioriCover）の要素数がズレると、抽選が実在しない先端を指すか
+        // 描画側の実配列 SHIORI_TIPS（ShioriTips.kt）の要素数がズレると、抽選が実在しない先端を指すか
         // 一部の先端が永遠に引かれなくなる。先端を足したら定数も更新する規約をここで機械担保する。
         assertEquals(SHIORI_TIPS.size, SHIORI_TIP_COUNT)
     }
