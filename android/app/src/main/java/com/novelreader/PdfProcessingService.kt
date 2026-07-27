@@ -87,7 +87,7 @@ class PdfProcessingService : Service() {
             // Service の scope ではなく applicationScope で走らせる: この直後の stopSelf →
             // onDestroy の scope.cancel に巻き込まれると全消しが中断されるため。
             (application as? NovelReaderApplication)?.let { app ->
-                // enqueue の記帳との直列化は clearPendingJobs 内の pendingJobMutex が担う（旧 pendingJobDispatcher は
+                // enqueue の記帳との直列化は clearPendingJobs（実体は PendingJobStore）内の pendingJobMutex が担う（旧 pendingJobDispatcher は
                 // Room の再ディスパッチで DB 着地を直列化できず「追加直後に停止」で破棄済みジョブが復活する窓があった）。
                 app.applicationScope.launch { app.repository.clearPendingJobs() }
             }
@@ -169,7 +169,7 @@ class PdfProcessingService : Service() {
         // 「取り込み中に強制終了→次回起動リカバリで再開」した本は ncode 無しで登録される（稀なケース）。
         // その本は既存の手動紐付け（NcodeLinkSheet）で回復可能なため、この欠落は許容する。
         (application as? NovelReaderApplication)?.let { app ->
-            // 全消し(clearPendingJobs)との直列化は addPendingJob 内の pendingJobMutex が担う（旧 pendingJobDispatcher 撤去）。
+            // 全消し(clearPendingJobs)との直列化は addPendingJob（実体は PendingJobStore）内の pendingJobMutex が担う（旧 pendingJobDispatcher 撤去）。
             app.applicationScope.launch {
                 app.repository.addPendingJob(uri.toString(), resolveDisplayName(uri))
             }
