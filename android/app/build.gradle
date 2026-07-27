@@ -33,7 +33,9 @@ def copyBenchmarkPdfAsset = tasks.register('copyBenchmarkPdfAsset', Copy) {
 
 android {
     namespace 'com.novelreader'
-    compileSdk 34
+    // compileSdk 35・targetSdk 34: コンパイル天井のみ 35 へ（2026-07-27 裁定）。targetSdk は据え置き＝実行時挙動は不変。
+    // 依存（lifecycle/work/Compose BOM 等）のバンプは動作検証と別便で行う（天井が外れただけで版は据え置き）。
+    compileSdk 35
 
     defaultConfig {
         applicationId "com.novelreader"
@@ -137,30 +139,30 @@ dependencies {
     // なぜ明示 1.4.1: 推移解決の 1.3.1 は SDK 分岐が閉じた switch（〜34）で、Android 16(SDK 36) 実機だと
     // ベースラインプロファイル注入が RESULT_UNSUPPORTED_ART_VERSION になり Macrobenchmark
     // （CompilationMode.DEFAULT）が走れない。1.4.1 は SDK>=31 を上限なしで V015_S 扱い（bytecode 検分済み）
-    // かつ minCompileSdk=34 なので compileSdk 34 制約と整合。実利用でも初回起動のプロファイル注入が直る。
+    // かつ minCompileSdk=34 なので現構成（compileSdk 35）でもそのまま解決できる。実利用でも初回起動のプロファイル注入が直る。
     implementation 'androidx.profileinstaller:profileinstaller:1.4.1'
     // Perfetto トレース区間（androidx.tracing.trace）。取込パイプラインのフェーズを Macrobenchmark の
     // TraceSectionMetric で計測するために使う（挿入は Sections ラッパー経由＝JVM 単体テストは no-op で巻き込まない）。
-    // なぜ 1.2.0: compileSdk 34 と整合する安定版（1.3+ は compileSdk 35 前提を避ける＝lifecycle/compose を 34 世代に
-    // 固定しているのと同じ制約系）。挿入コード自体は main（全 variant）に入るが android.os.Trace 可用性判定で
+    // なぜ 1.2.0 のまま: 旧 compileSdk 34 天井起因の固定。compileSdk 35 化済み（2026-07-27 裁定）で天井は外れたが、
+    // 1.3+ へのバンプは動作検証と別便で行う。挿入コード自体は main（全 variant）に入るが android.os.Trace 可用性判定で
     // 実機のみ発行され、出荷挙動は不変（トレース捕捉が無ければネイティブ側で軽い no-op）。
     implementation 'androidx.tracing:tracing-ktx:1.2.0'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
-    // U1 新着話チェックの定期実行（24h 周期・ネットワーク制約）。2.9.1 は compileSdk 34 で解決できる安定版
-    // （2.10+ は compileSdk 35 前提のため避ける＝lifecycle 2.6.2 固定と同じ制約系）。
+    // U1 新着話チェックの定期実行（24h 周期・ネットワーク制約）。2.9.1 固定は旧 compileSdk 34 天井の名残
+    // （compileSdk 35 化済み＝2.10+ も解決可能になったが、バンプは動作検証と別便で行う。2026-07-27 裁定）。
     implementation 'androidx.work:work-runtime-ktx:2.9.1'
     // collectAsStateWithLifecycle 提供。ライフサイクル STOPPED 以下で StateFlow の collect を止め、
     // バックグラウンドでの無駄な購読/再コンポーズを避ける（従来の collectAsState は常時 collect）。
-    // なぜ 2.6.2 固定: lifecycle-runtime-ktx と版を揃える。かつ compileSdk 34 制約下では 2.7+ を避ける
-    // （2.8.x は compileSdk 35 前提で本プロジェクトでは解決できないため）。
+    // なぜ 2.6.2 固定: lifecycle-runtime-ktx と版を揃える。2.8.x を阻んでいた旧 compileSdk 34 天井は
+    // 35 化（2026-07-27 裁定）で外れたが、バンプは動作検証と別便で行う。
     implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.6.2'
     // ProcessLifecycleOwner 提供（アプリ全体の前面/背面判定）。変換完了通知の二重報告抑止に使う
-    // （UX監査 notify §86）。版は他の lifecycle 群と揃える（compileSdk 34 制約下の 2.6.2 固定）。
+    // （UX監査 notify §86）。版は他の lifecycle 群と揃える（2.6.2 固定＝旧 compileSdk 34 天井の名残。35 化済みだがバンプは別便）。
     implementation 'androidx.lifecycle:lifecycle-process:2.6.2'
     implementation 'androidx.activity:activity-compose:1.8.1'
     // なぜ 2025.02.00: 案B（削除時の詰め直しアニメ復活）に必要な Modifier.animateItem() が
     // foundation 1.7.0+ のため。1.7 系の最終パッチ(1.7.8/material3 1.3.1)を採り、
-    // 1.8 系(BOM 2025.04+)は compileSdk 35 必須のため compileSdk 34 の本プロジェクトでは不可。
+    // 1.8 系(BOM 2025.04+)を阻んでいた旧 compileSdk 34 天井は 35 化（2026-07-27 裁定）で外れたが、BOM バンプは動作検証と別便で行う。
     implementation platform('androidx.compose:compose-bom:2025.02.00')
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.ui:ui-graphics'
@@ -212,7 +214,8 @@ dependencies {
     // 葉 Composable の UI テストを JVM（Robolectric）で回すための基盤（ADR 0009）。
     // なぜ androidTest ではなく Robolectric か: 実機不要で testDebugUnitTest ゲートに同乗でき、
     // ColorOS の freeze/kill 問題（task_diary #36-38）を避けられるため。
-    // 版固定 4.11.1: compileSdk/targetSdk 34 を正式サポートする安定版（4.12 系は不要な追従リスク）。
+    // 版固定 4.11.1: 実行時 SDK＝targetSdk 34 を正式サポートする安定版（4.12 系は不要な追従リスク。
+    // Robolectric が見るのはエミュレートする実行時 SDK であり compileSdk 35 化とは独立）。
     testImplementation 'org.robolectric:robolectric:4.11.1'
     // Retrofit の実 URL エンコード（日本語 word の percent-encoding・of/order 等）を実リクエストで検証するため。
     // 版は okhttp 4.12.0 と同系で固定（MockWebServer は OkHttp 同梱物）。
