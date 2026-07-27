@@ -74,12 +74,12 @@ import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.narou.SearchHistory
 import com.novelreader.narou.model.NarouCuratedKeywords
-import com.novelreader.viewmodel.toggleWordToken
-import com.novelreader.viewmodel.wordTokens
+import com.novelreader.domain.toggleWordToken
+import com.novelreader.domain.wordTokens
 import com.novelreader.viewmodel.DiscoveryViewModel
-import com.novelreader.viewmodel.SearchDraft
-import com.novelreader.viewmodel.SearchRange
-import com.novelreader.viewmodel.withRangeToggled
+import com.novelreader.domain.SearchDraft
+import com.novelreader.domain.SearchRange
+import com.novelreader.domain.withRangeToggled
 
 
 /**

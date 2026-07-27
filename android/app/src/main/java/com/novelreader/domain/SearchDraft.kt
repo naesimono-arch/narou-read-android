@@ -1,4 +1,7 @@
-package com.novelreader.viewmodel
+// なぜ domain/ か: 本ファイルは ViewModel でない純ロジック（検索下書きのデータ型と純関数のみ・
+// Android 依存は Parcelable/Immutable 注釈だけ）のため、ViewModel 実装が住む viewmodel/ から
+// 「UI 状態管理を持たない業務ロジックの置き場」として独立させた（2026-07-27 構造リファクタ）。
+package com.novelreader.domain
 
 import android.os.Parcelable
 import androidx.compose.runtime.Immutable

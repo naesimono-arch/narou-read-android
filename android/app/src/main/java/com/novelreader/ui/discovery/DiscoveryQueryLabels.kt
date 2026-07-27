@@ -5,7 +5,7 @@ import com.novelreader.narou.model.NarouAttr
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouNovelType
 import com.novelreader.narou.model.NarouLastup
-import com.novelreader.viewmodel.wordTokens
+import com.novelreader.domain.wordTokens
 import java.util.Locale
 
 // ============================================================

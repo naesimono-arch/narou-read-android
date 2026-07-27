@@ -98,14 +98,14 @@ import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.ProcessingState
-import com.novelreader.viewmodel.ReadingStatus
-import com.novelreader.viewmodel.ShelfItem
-import com.novelreader.viewmodel.deleteConfirmBody
-import com.novelreader.viewmodel.filterShelfByStatus
-import com.novelreader.viewmodel.mergeShelfItems
-import com.novelreader.viewmodel.readingStatusFor
-import com.novelreader.viewmodel.shelfStatusCounts
-import com.novelreader.viewmodel.webNcodesInSelection
+import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.ShelfItem
+import com.novelreader.domain.deleteConfirmBody
+import com.novelreader.domain.filterShelfByStatus
+import com.novelreader.domain.mergeShelfItems
+import com.novelreader.domain.readingStatusFor
+import com.novelreader.domain.shelfStatusCounts
+import com.novelreader.domain.webNcodesInSelection
 import kotlinx.coroutines.launch
 
 /**

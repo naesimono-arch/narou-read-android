@@ -106,10 +106,10 @@ import com.novelreader.ui.theme.ResumeSurfacePortal
 import com.novelreader.ui.theme.SoftPortal
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.viewmodel.ProcessingState
-import com.novelreader.viewmodel.ReadingStatus
-import com.novelreader.viewmodel.chapterNumberOf
-import com.novelreader.viewmodel.progressFractionFor
-import com.novelreader.viewmodel.readingStatusFor
+import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.chapterNumberOf
+import com.novelreader.domain.progressFractionFor
+import com.novelreader.domain.readingStatusFor
 import java.time.LocalTime
 import kotlin.math.roundToInt
 

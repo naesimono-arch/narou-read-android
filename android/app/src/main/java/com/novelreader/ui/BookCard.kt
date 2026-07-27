@@ -55,11 +55,11 @@ import com.novelreader.ui.theme.MotionSpringCard
 import com.novelreader.ui.theme.ShioriSealScrimDark
 import com.novelreader.ui.theme.ShioriSealVermilion
 import com.novelreader.ui.theme.ShioriSealVermilionDark
-import com.novelreader.viewmodel.ReadingStatus
-import com.novelreader.viewmodel.chapterNumberOf
-import com.novelreader.viewmodel.progressFractionFor
-import com.novelreader.viewmodel.readingStatusFor
-import com.novelreader.viewmodel.relativeReadLabel
+import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.chapterNumberOf
+import com.novelreader.domain.progressFractionFor
+import com.novelreader.domain.readingStatusFor
+import com.novelreader.domain.relativeReadLabel
 import com.novelreader.ui.theme.Spacing
 
 // 朱印バッジの左下オフセット（拡張7段スケール外の構造値）。正本 grid-D .seal は left/bottom を 9px の

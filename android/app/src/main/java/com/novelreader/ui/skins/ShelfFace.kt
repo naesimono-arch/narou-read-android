@@ -20,7 +20,7 @@ import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Skin
 import com.novelreader.viewmodel.ProcessingState
-import com.novelreader.viewmodel.ReadingStatus
+import com.novelreader.domain.ReadingStatus
 
 // ============================================================
 // 本棚スキン面の契約（2026-07-27 純構造リファクタ）

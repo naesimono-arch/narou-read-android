@@ -2,6 +2,8 @@ package com.novelreader.viewmodel
 
 import androidx.lifecycle.SavedStateHandle
 import com.novelreader.NovelReaderApplication
+import com.novelreader.domain.SearchDraft
+import com.novelreader.domain.SearchFilters
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.NovelApiRepository
 import com.novelreader.narou.model.DiscoveryPage

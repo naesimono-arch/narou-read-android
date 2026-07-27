@@ -1,4 +1,7 @@
-package com.novelreader.viewmodel
+// なぜ domain/ か: 本ファイルは ViewModel でない純ロジック（本棚表示モデルと並び・分類・選択の
+// 純関数のみ。Android フレームワーク非依存）のため、ViewModel 実装が住む viewmodel/ から
+// 「UI 状態管理を持たない業務ロジックの置き場」として独立させた（2026-07-27 構造リファクタ）。
+package com.novelreader.domain
 
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity

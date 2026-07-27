@@ -106,13 +106,13 @@ import com.novelreader.ui.theme.StarGlowInnerSeizu
 import com.novelreader.ui.theme.StarSeizu
 import com.novelreader.ui.theme.TextSeizu
 import com.novelreader.viewmodel.ProcessingState
-import com.novelreader.viewmodel.ReadingStatus
-import com.novelreader.viewmodel.ShelfItem
-import com.novelreader.viewmodel.chapterNumberOf
-import com.novelreader.viewmodel.filterShelfByStatus
-import com.novelreader.viewmodel.mergeShelfItems
-import com.novelreader.viewmodel.progressFractionFor
-import com.novelreader.viewmodel.readingStatusFor
+import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.ShelfItem
+import com.novelreader.domain.chapterNumberOf
+import com.novelreader.domain.filterShelfByStatus
+import com.novelreader.domain.mergeShelfItems
+import com.novelreader.domain.progressFractionFor
+import com.novelreader.domain.readingStatusFor
 
 // ============================================================
 // スキンM「星図」の本棚＝一覧ビュー『観測野帳』（正本 bookshelf-M.html 下部 l* 名前空間・L3 2026-07-17 承認）。
