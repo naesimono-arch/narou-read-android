@@ -80,6 +80,7 @@ import androidx.compose.ui.unit.sp
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.discovery.model.WorkSummary
+import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.skins.ShelfActions
 import com.novelreader.ui.skins.ShelfChrome
@@ -652,7 +653,9 @@ private fun ConstellationCell(
                     Box(Modifier.size(5.dp).clip(CircleShape).background(idColor))
                     book.ncode?.let {
                         Text(
-                            it.lowercase(),
+                            // 表示も urlSlug（trim＋小文字）で出す＝前後空白が混じった保存値でも URL 生成側と
+                            // 同じ見え方に揃う（生 lowercase() は trim を欠き、表示だけ食い違う余地があった）。
+                            Ncode(it).urlSlug,
                             fontSize = 9.5.sp, // .desig 9.5px
                             letterSpacing = 0.16.em,
                             fontStyle = FontStyle.Italic,
