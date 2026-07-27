@@ -240,7 +240,8 @@ internal fun BookshelfGridJ(
                     Spacer(Modifier.height(Spacing.S12))
                 }
 
-                items(shelfItems, key = { it.key }) { item ->
+                // contentType=型: 蔵書/Web はカード構成が別物のため、要素の再利用プールを型ごとに分ける（性能のみ・見た目不変）
+                items(shelfItems, key = { it.key }, contentType = { it::class }) { item ->
                     when (item) {
                         is ShelfItem.Book -> {
                             val progress = progressMap[item.book.id]

@@ -306,7 +306,8 @@ internal fun BookshelfSkyM(
                 // クリアランスは固定バーの実測高（下記 onSizeChanged）＝バー高そのぶん確保。
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = horizonClearance),
             ) {
-                items(visible, key = { it.id }) { book ->
+                // contentType: 単一型（蔵書のみ）でも明示して要素再利用を確実にする（性能のみ・見た目不変）
+                items(visible, key = { it.id }, contentType = { it::class }) { book ->
                     val index = visible.indexOf(book)
                     ConstellationCell(
                         book = book,

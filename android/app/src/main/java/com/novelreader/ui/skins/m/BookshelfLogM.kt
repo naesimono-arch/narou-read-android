@@ -324,7 +324,8 @@ internal fun BookshelfLogM(
             ) {
                 epochs.forEach { epoch ->
                     item(key = "epoch:${epoch.label}") { EpochHeader(epoch.label, epoch.isNow) }
-                    items(epoch.entries, key = { it.key }) { si ->
+                    // contentType=型: 蔵書/Web は行構成が別物のため、要素の再利用プールを型ごとに分ける（epoch 見出し item{} とも分離。性能のみ・見た目不変）
+                    items(epoch.entries, key = { it.key }, contentType = { it::class }) { si ->
                         when (si) {
                             is ShelfItem.Book -> ObservationRecord(
                                 book = si.book,

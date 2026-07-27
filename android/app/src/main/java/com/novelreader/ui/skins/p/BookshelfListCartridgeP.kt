@@ -226,7 +226,8 @@ internal fun BookshelfListCartridgeP(
                 item { ShopBand(onClick = onOpenDiscovery); Spacer(Modifier.height(Spacing.S12)) }
                 item { CartridgeChips(selectedStatus, statusCounts, onSelectStatus); Spacer(Modifier.height(Spacing.S8)) }
 
-                items(shelfItems, key = { it.key }) { item ->
+                // contentType=型: 蔵書/Web は行構成が別物のため、要素の再利用プールを型ごとに分ける（性能のみ・見た目不変）
+                items(shelfItems, key = { it.key }, contentType = { it::class }) { item ->
                     when (item) {
                         is ShelfItem.Book -> CartridgeListRow(
                             book = item.book,

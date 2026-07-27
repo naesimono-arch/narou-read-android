@@ -334,7 +334,8 @@ internal fun BookshelfCartridgeP(
                 item { ShopBand(onClick = onOpenDiscovery) }
                 // ラベル絞り込み（.chips）＝実データのフィルタは読書状態＝D と同一機能（M と同じ写像）。
                 item { CartridgeChips(selectedStatus, statusCounts, onSelectStatus) }
-                items(visible, key = { it.id }) { book ->
+                // contentType: 単一型（蔵書のみ）だが、先頭の item{}（導線/チップ）と再利用が混ざらないよう明示する（性能のみ・見た目不変）
+                items(visible, key = { it.id }, contentType = { it::class }) { book ->
                     CartridgeCard(
                         book = book,
                         progress = progressMap[book.id],

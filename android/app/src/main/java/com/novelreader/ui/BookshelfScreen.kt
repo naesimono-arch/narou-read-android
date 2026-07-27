@@ -1158,7 +1158,8 @@ internal fun BookshelfContent(
                             verticalArrangement = Arrangement.spacedBy(Spacing.S24),
                             horizontalArrangement = Arrangement.spacedBy(Spacing.S24),
                         ) {
-                            items(shelfItems, key = { it.key }) { item ->
+                            // contentType=型: 蔵書/Web はカード構成が別物のため、要素の再利用プールを型ごとに分ける（性能のみ・見た目不変）
+                            items(shelfItems, key = { it.key }, contentType = { it::class }) { item ->
                                 when (item) {
                                     is ShelfItem.Book -> {
                                         // 了スタンプ（案A）: 読了かつ「未読了で見た記録」がある本＝初めて読了として描く瞬間に一度だけ押印。
@@ -1212,7 +1213,8 @@ internal fun BookshelfContent(
                             // 行間スペーシングは置かない: 各行が自前の縦余白＋下ヘアラインで区切るモック .li 準拠のため。
                             contentPadding = PaddingValues(start = Spacing.S24, top = Spacing.S4, end = Spacing.S24, bottom = Insets.ScrollBottomForFab),
                         ) {
-                            items(shelfItems, key = { it.key }) { item ->
+                            // contentType=型: 蔵書/Web はカード構成が別物のため、要素の再利用プールを型ごとに分ける（性能のみ・見た目不変）
+                            items(shelfItems, key = { it.key }, contentType = { it::class }) { item ->
                                 when (item) {
                                     is ShelfItem.Book -> ListBookCard(
                                         book = item.book,

@@ -268,7 +268,8 @@ internal fun BookshelfK(
                         verticalArrangement = Arrangement.spacedBy(Spacing.S16),
                         horizontalArrangement = Arrangement.spacedBy(Spacing.S32),
                     ) {
-                        items(shelfItems, key = { it.key }) { item ->
+                        // contentType=型: 蔵書/Web はカード構成が別物のため、要素の再利用プールを型ごとに分ける（性能のみ・見た目不変）
+                        items(shelfItems, key = { it.key }, contentType = { it::class }) { item ->
                             when (item) {
                                 is ShelfItem.Book -> KGridBookCard(
                                     book = item.book,
@@ -311,7 +312,8 @@ internal fun BookshelfK(
                             start = Spacing.S24, top = Spacing.S4, end = Spacing.S24, bottom = Insets.ScrollBottomForFab,
                         ),
                     ) {
-                        items(shelfItems, key = { it.key }) { item ->
+                        // contentType=型: 蔵書/Web はカード構成が別物のため、要素の再利用プールを型ごとに分ける（性能のみ・見た目不変）
+                        items(shelfItems, key = { it.key }, contentType = { it::class }) { item ->
                             when (item) {
                                 is ShelfItem.Book -> KListBookCard(
                                     book = item.book,
