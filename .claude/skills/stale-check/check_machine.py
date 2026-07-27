@@ -532,6 +532,51 @@ def check_size_budgets():
             add("size_budget", "warn", "info", f"CLAUDE.md が {size} バイト。肥大の兆候（痩身直後は約8KB）")
 
 
+# ── 15. 委譲ターン計測フックの整合 ───────────────────────────────────────
+def check_delegation_meter():
+    """count_delegation_turns.py の配線・記録先・閾値記述の整合。
+
+    なぜ要るか: 本フックは PostToolUse（計測・通告）と SubagentStop（完走記録）の2イベント
+    配線で1機能を成す。片方だけ配線が消えると「通告は出るが記録されない」等の半死に状態が
+    fail-open ゆえ無症状で続く（task_diary #44 と同じサイレント失敗クラス）。項目3の双方向
+    照合は「ファイル実在」しか見ないため、イベント被覆はここで見る。
+    """
+    hook_name = "count_delegation_turns.py"
+    src = read_text(f".claude/hooks/{hook_name}")
+    settings = read_text(".claude/settings.json")
+    if src is None or settings is None:
+        add("delegation-meter", "error", "info",
+            f"{hook_name} か settings.json が読めず点検をスキップ")
+        return
+    try:
+        cfg = json.loads(settings)
+    except json.JSONDecodeError:
+        return  # settings 全体の破損は項目3側が露呈させる（ここで重複報告しない）
+    for event in ("PostToolUse", "SubagentStop"):
+        cmds = [h.get("command", "")
+                for grp in cfg.get("hooks", {}).get(event, [])
+                for h in grp.get("hooks", [])]
+        if not any(hook_name in c for c in cmds):
+            add("delegation-meter", "stale", "high",
+                f"{hook_name} が {event} に未配線（計測/記録の片肺運転）")
+    if "delegation-stats.jsonl" not in src:
+        add("delegation-meter", "stale", "high",
+            f"{hook_name} の記録先ファイル名が delegation-stats.jsonl から変わった/消えた"
+            "（較正データの追記先が分裂している可能性）")
+    m = re.search(r"NOTIFY_INTERVAL\s*=\s*(\d+)", src)
+    if not m:
+        add("delegation-meter", "stale", "high",
+            f"{hook_name} に NOTIFY_INTERVAL 定数が見つからない（通告間隔の正本が不明化）")
+    else:
+        # docstring の「N 回ごと」記述と定数の乖離（片方だけ較正し直した見落とし）を検知
+        for doc_n in re.findall(r"(\d+)\s*回ごと", src):
+            if doc_n != m.group(1):
+                add("delegation-meter", "stale", "high",
+                    f"{hook_name} の通告間隔が不一致: 定数 NOTIFY_INTERVAL={m.group(1)} ↔ "
+                    f"docstring 記述「{doc_n} 回ごと」（較正時の片側更新）")
+                break
+
+
 # ── 項目一覧（この表が正本＝`--list` で出力する） ──────────────────────────
 # なぜ説明文をここへ同居させるか: 以前は SKILL.md 側に項目表を複製し、件数の一致を
 # check_self_item_table で見張っていた。しかしそれは二重管理を前提にした対症療法で、
@@ -555,6 +600,7 @@ CHECKS = [
     (check_hook_smoke, "hook 動作点検（全 hook の構文チェック＋test_*.py 自己テストの実行）"),
     (check_diary_id_unique, "task_diary エントリID の一意性（#N 見出しの重複採番検知・自動リネームはしない）"),
     (check_size_budgets, "台帳のサイズ番人（STATUS=現況のみ・目安60行／handover=やることのみ）"),
+    (check_delegation_meter, "委譲ターン計測フックの整合（count_delegation_turns.py の PostToolUse/SubagentStop 両配線・記録先・通告間隔）"),
 ]
 
 

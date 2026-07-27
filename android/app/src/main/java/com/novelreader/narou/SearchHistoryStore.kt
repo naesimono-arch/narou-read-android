@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.novelreader.PrefKeys
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
@@ -78,7 +79,7 @@ interface SearchHistoryStore {
 // 検索履歴は非クリティカルなので黙って作り直して落とさない方針。
 private val Context.searchHistoryDataStore: DataStore<Preferences>
         by preferencesDataStore(
-            name = "narou_search_history",
+            name = PrefKeys.FILE_NAROU_SEARCH_HISTORY,
             corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
         )
 
@@ -89,8 +90,9 @@ class DataStoreSearchHistoryStore(context: Context) : SearchHistoryStore {
     companion object {
         // なぜ改行区切りの素朴なシリアライズか: 検索語は単一行入力（改行が混入し得ない）で、
         // JSONシリアライザを持ち込むほどの構造ではないため。
-        private val KEY_PINNED = stringPreferencesKey("pinned")
-        private val KEY_RECENT = stringPreferencesKey("recent")
+        // キー文字列の正本は PrefKeys（型付き Preferences.Key への包みだけをここで行う）。
+        private val KEY_PINNED = stringPreferencesKey(PrefKeys.SEARCH_HISTORY_PINNED)
+        private val KEY_RECENT = stringPreferencesKey(PrefKeys.SEARCH_HISTORY_RECENT)
 
         private fun decode(raw: String?): List<String> =
             raw?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()

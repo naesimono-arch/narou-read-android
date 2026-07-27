@@ -6,6 +6,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.novelreader.NovelReaderApplication
+import com.novelreader.domain.LENGTH_STEPS
+import com.novelreader.domain.SearchDraft
+import com.novelreader.domain.TIME_STEPS
+import com.novelreader.domain.buildCustomRange
+import com.novelreader.domain.normalizeCustomRangeInput
+import com.novelreader.domain.toggleRangeStep
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.SearchHistory
 import com.novelreader.narou.SearchHistoryStore

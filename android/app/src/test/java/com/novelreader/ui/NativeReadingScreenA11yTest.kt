@@ -11,6 +11,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onFirst
 import com.novelreader.model.ParseResult
+import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.colors
 import com.novelreader.viewmodel.NcodeSearchUiState
@@ -57,44 +58,66 @@ class NativeReadingScreenA11yTest {
         onNavigateTo: (String) -> Unit = {},
     ) {
         composeTestRule.setContent {
+            // 束は全フィールド必須（既定値なし＝配線忘れをコンパイルエラーにする・ReadingFace.kt 冒頭）。
+            // 旧・既定値に頼っていた値は実値で明示する（verticalMode=false／barsVisualReady=true／
+            // chapterNumber・totalChapters・prevPeek・nextPeek=null）＝描画内容は従来と同一。
             ChapterScreenContent(
                 // 静的描画（無限アニメ回避）。customActions はルート Box に付くため parseResult には非依存。
                 parseResult = ParseResult.Error("章を開けませんでした", "c0003.html"),
                 colors = colors,
-                fontSize = 18,
-                onFontSizeChange = {},
-                onFontSizePersist = {},
-                lineHeightEm = 2.5f,
-                onLineHeightChange = {},
-                onLineHeightPersist = {},
-                bodyMarginDp = 20,
-                onBodyMarginChange = {},
-                onBodyMarginPersist = {},
-                readingTheme = ReadingTheme.LIGHT,
-                onThemeChange = {},
-                followingSystem = true,
-                onFollowSystem = {},
-                lazyListState = rememberLazyListState(),
-                topAppBarState = topAppBarState,
-                scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(topAppBarState),
-                prevFile = prevFile,
-                nextFile = nextFile,
-                navEnabled = navEnabled,
-                isLastChapter = false,
-                ncode = null,
-                continuationInfo = null,
-                showChromeHint = false,
+                typography = ReadingTypography(
+                    fontSize = 18,
+                    onFontSizeChange = {},
+                    onFontSizePersist = {},
+                    lineHeightEm = 2.5f,
+                    onLineHeightChange = {},
+                    onLineHeightPersist = {},
+                    bodyMarginDp = 20,
+                    onBodyMarginChange = {},
+                    onBodyMarginPersist = {},
+                    verticalMode = false,
+                    onVerticalModeChange = {},
+                ),
+                theme = ThemeControl(
+                    appTheme = ReadingTheme.LIGHT,
+                    onThemeChange = {},
+                    followingSystem = true,
+                    onFollowSystem = {},
+                ),
+                chrome = ReadingChrome(
+                    lazyListState = rememberLazyListState(),
+                    topAppBarState = topAppBarState,
+                    scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(topAppBarState),
+                    barsVisualReady = true,
+                    showChromeHint = false,
+                ),
+                nav = ChapterNav(
+                    prevFile = prevFile,
+                    nextFile = nextFile,
+                    navEnabled = navEnabled,
+                    isLastChapter = false,
+                    chapterNumber = null,
+                    totalChapters = null,
+                    onNavigateTo = onNavigateTo,
+                    onNavigateToBookshelf = {},
+                ),
+                ncodeLink = NcodeLink(
+                    bookTitle = "テスト書名",
+                    ncode = null,
+                    ncodeSearchState = NcodeSearchUiState.Loading,
+                    onSearchNcode = {},
+                    onRetryNcodeSearch = {},
+                    onLinkNcode = {},
+                ),
+                continuationCta = ContinuationCta(
+                    continuationInfo = null,
+                    onReadContinuation = {},
+                    onOpenWorkPage = {},
+                ),
+                prevPeek = null,
+                nextPeek = null,
                 showReturnChip = false,
                 onReturnToContinuation = {},
-                bookTitle = "テスト書名",
-                ncodeSearchState = NcodeSearchUiState.Loading,
-                onSearchNcode = {},
-                onRetryNcodeSearch = {},
-                onLinkNcode = {},
-                onReadContinuation = {},
-                onOpenWorkPage = {},
-                onNavigateTo = onNavigateTo,
-                onNavigateToBookshelf = {},
                 onRetryParse = {},
             )
         }

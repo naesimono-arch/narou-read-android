@@ -22,7 +22,7 @@ interface WebReadingProgressDao {
 
     // なぜ ncode 指定の削除が要るか（UX監査 privacy・公理15③/削除の完全性）: WebView で読んだ位置履歴
     // （ncode+話数+時刻）が本削除・Webカード除去でも消えず端末に永久残留する穴を塞ぐため。呼び出し側は
-    // 記録時と同じ trim().uppercase() 正規化キーで渡すこと（表記ゆれで削除が空振りしないように）。
+    // 記録時と同じ保存キー正規化＝Ncode.storageKey（trim+大文字）で渡すこと（表記ゆれで削除が空振りしないように）。
     @Query("DELETE FROM web_reading_progress WHERE ncode = :ncode")
     suspend fun deleteByNcode(ncode: String)
 }

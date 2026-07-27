@@ -423,8 +423,8 @@ class NovelApiRepository(
      * title/writer 欠落（[com.novelreader.narou.toWorkDetail] が null）や該当なしは null。
      */
     suspend fun novelDetail(ncode: Ncode): WorkDetail? {
-        // 境界変換点: Retrofit(NarouApiService) は生 String を要求するため .value をここでほどく。
-        val trimmedNcode = ncode.value.trim()
+        // 境界変換点: Retrofit(NarouApiService) は生 String を要求するため API パラメータ形（Ncode.apiParam＝trim のみ）でほどく。
+        val trimmedNcode = ncode.apiParam
         val cacheKey = "detail_$trimmedNcode"
         val now = timeSource()
         val cached = getCacheValid(cacheKey, now)
@@ -473,7 +473,7 @@ class NovelApiRepository(
             // 頭打ちになり、501 件目以降の詳細＝新着検知がサイレント欠落する。チャンクごとに個別照会して
             // 結果を連結することで全件を漏れなく取得する（現実には 501 件超は稀だが、欠落は静かで気付けないため防ぐ）。
             ncodes.chunked(API_LIM_MAX).flatMap { chunk ->
-                val ncodeParam = chunk.joinToString("-") { it.value.trim() }
+                val ncodeParam = chunk.joinToString("-") { it.apiParam }
                 // なぜ of = "t-n-ga" なのか: U1 新着チェックにおいて必要な項目はタイトル(t)、Nコード(n)、全話数(ga)のみであり、転送量を最小限に抑えるため。
                 // なぜ意図的にキャッシュに乗せないか: 新着話の検知は情報の鮮度が本質であり、6時間TTLキャッシュに乗せると当日中の更新を翌日扱いにするなど検知の遅延を引き起こすため。また、このメソッドは1日1回等のWorkerによる呼び出しを想定しており、APIレート制限等の負荷も問題にならないため（チャンク間の待機も既存のマージ経路＝2サブクエリ連投に倣い設けない）。
                 val list = service.search(

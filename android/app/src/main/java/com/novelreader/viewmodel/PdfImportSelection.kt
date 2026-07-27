@@ -5,7 +5,7 @@ package com.novelreader.viewmodel
  *
  * なぜ純関数として分離するか: 「なろう形式かどうかの判定」と「本棚に巻順で並ぶ投入順」は
  * Android 非依存の判断ロジックであり、ContentResolver / Uri を伴う VM とは切り離して
- * JVM 単体テストで担保したい（[ShelfItems] と同じ方針＝viewmodel パッケージの純ロジック）。
+ * JVM 単体テストで担保したい（domain/ShelfItems.kt と同じ方針の純ロジック）。
  * VM 側は Uri↔表示名の解決だけを担い、判断はここへ委ねる。
  */
 

@@ -1,5 +1,20 @@
 package com.novelreader.viewmodel
 
+import com.novelreader.domain.LENGTH_STEPS
+import com.novelreader.domain.SearchDraft
+import com.novelreader.domain.SearchFilters
+import com.novelreader.domain.SearchRange
+import com.novelreader.domain.buildCustomRange
+import com.novelreader.domain.containsWordToken
+import com.novelreader.domain.normalizeCustomRangeInput
+import com.novelreader.domain.parseCustomRange
+import com.novelreader.domain.selectedStepIndices
+import com.novelreader.domain.toggleLastup
+import com.novelreader.domain.toggleRangeStep
+import com.novelreader.domain.toggleType
+import com.novelreader.domain.toggleWordToken
+import com.novelreader.domain.withRangeToggled
+import com.novelreader.domain.wordTokens
 import com.novelreader.narou.model.NarouAttr
 import com.novelreader.narou.model.NarouLastup
 import com.novelreader.narou.model.NarouNovelType

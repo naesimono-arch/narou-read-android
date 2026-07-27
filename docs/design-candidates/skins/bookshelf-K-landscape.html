@@ -1,0 +1,259 @@
+<!-- @dsCard group="UI-n / デフォルト（明快K）" name="K. 明快（本棚・横画面グリッド5列・2026-07-26）" -->
+<!--
+  スキンK「明快」本棚の横画面グリッド正本（2026-07-26 ユーザー裁定＝案L5 採用・ドラフト比較の勝者を単体昇格）。
+  ・ビューポート＝実機実効 800×360dp（PGEM10 実測: 実効360dp幅の横向き。plan ui-density-swipe-round-2026-07-24 §B）。
+  ・裁定の変数は列数のみ＝5列（書影131×175dp・可視域約162dpに書影約93%・行ピッチ234dp＝収納効率最大）。
+    書影アスペクト比 3:4・キャプション題字1行＋可視⋮＋状態行・左右余白24/列間24/行間16 は縦正本
+    bookshelf-K.html（2列改A）と同値＝縦横で差があるのは列数だけ（Compose 翻訳も列数のみ向き分岐）。
+  ・未取込カードの青磁破線は縦正本と同一（1.5px 破線・Compose 値は dashPathEffect 4dp/3dp）＝横画面でも必ず出る。
+  ・:root トークンは bookshelf-K.html と同値（新値なし）。列数・書影寸法は構造値でトークン外。
+  ・ヘッダ・チップ・FAB・ボトムナビは縦正本と同構造（横画面でのクローム圧縮は別裁定＝ここでは規定しない）。
+  ・プレースホルダは実データの色域を模す（栞紙=地色同値・題字由来色の栞棒。恒久ルール＝handover 逆同期則）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K 本棚 — 明快（横画面5列）</title>
+<style>
+  /* :root は正本 bookshelf-K.html と同値（新値なし） */
+  :root{
+    --base:#FBFAF8;        /* 和紙地 */
+    --ink:#1C1F26;         /* 主文字 */
+    --ink-soft:#6A6E78;    /* K専用: AA(4.5:1)へ引き上げた補助文字 */
+    --line:#ECEAE4;        /* ヘアライン */
+    --ai:#1C3D5A;          /* 藍アクセント（CTA/選択中のみ） */
+    --ai-tint:rgba(28,61,90,.10);
+    --seiji-ink:#50685C;   /* 青磁ink（Web未取込の破線署名・既存トークン） */
+    --field:#F0EEE8;       /* 一段沈めた紙地（未取込カード地） */
+    --paper:#FDFCFA;       /* 栞書影の紙＝地色同値域（影で背景から浮かせる） */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    padding:24px;font-family:var(--gothic);-webkit-font-smoothing:antialiased}
+
+  /* === スマホ画面枠（横向き＝実機実効 800×360dp・ライトテーマ） === */
+  .phone{width:800px;height:360px;background:var(--base);border-radius:38px;overflow:hidden;
+    position:relative;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.30)}
+
+  .sb{height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:11px;color:var(--ink-soft);letter-spacing:.02em}
+  .sb .r{display:flex;gap:6px;align-items:center}
+
+  /* ヘッダ・チップは縦正本と同構造（横画面での圧縮は別裁定＝規定しない） */
+  .head{flex-shrink:0;display:flex;align-items:baseline;justify-content:space-between;padding:6px 20px 12px}
+  .head .ttl{display:flex;align-items:baseline;gap:10px}
+  .head h1{font-family:var(--gothic);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.04em}
+  .head .count{font-size:12px;color:var(--ink-soft);letter-spacing:.06em}
+  .head .view{width:38px;height:38px;border:none;background:transparent;border-radius:10px;
+    display:grid;place-items:center;color:var(--ink);cursor:pointer;align-self:center}
+  .head .view svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6}
+
+  .chips{flex-shrink:0;display:flex;gap:8px;padding:0 20px 12px;overflow-x:auto;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex-shrink:0;font-size:12.5px;padding:6px 15px;border-radius:999px;cursor:pointer;
+    border:1px solid var(--line);color:var(--ink-soft);background:transparent;letter-spacing:.02em}
+  .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
+
+  /* スクロール本体（縦正本と同じ overflow-y:auto。左右余白24＝縦と同値） */
+  .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 24px 120px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+
+  /* 本のグリッド＝5列（案L5・書影131×175dp）。行間16/列間24 は縦正本と同値＝差は列数のみ */
+  .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px 24px}
+  .bk{cursor:pointer}
+
+  /* ===== 栞書影（縦正本と同一: 紙地＋題字由来色の栞棒＋先端＋縦組み明朝題字・輪郭は影＝§F 裁定） ===== */
+  .cv{position:relative;aspect-ratio:3/4;border-radius:3px;overflow:hidden;background:var(--paper);
+    box-shadow:0 3px 10px rgba(0,0,0,.14)}
+  .cv .bar{position:absolute;top:0;left:var(--barx,26%);width:2.5px;height:var(--barlen,46%);background:var(--band,var(--ink-soft))}
+  .cv .bar::after{content:"";position:absolute;left:50%;top:100%;transform:translate(-50%,-1px);
+    width:7px;height:7px;border-radius:50%;background:var(--band,var(--ink-soft))}
+  .cv .vt{position:absolute;top:14px;right:12px;bottom:14px;max-width:66%;overflow:hidden;
+    writing-mode:vertical-rl;font-family:var(--mincho);font-size:12px;font-weight:600;
+    color:var(--ink);line-height:1.6;letter-spacing:.05em}
+  /* Web未取込＝D改（縦正本と同一の破線意匠）。Compose 翻訳は dashPathEffect(4dp,3dp)・線幅1.5dp・角丸3dp
+     ＝BookshelfK.kt narouDashedOutline と同値。横画面でもこの破線が必ず出るのが意匠の正。 */
+  .cv.narou{background:var(--field);border:1.5px dashed var(--seiji-ink);box-shadow:none}
+
+  .cap{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-top:8px}
+  .cap .t{flex:1;min-width:0;font-family:var(--mincho);font-size:12px;color:var(--ink);line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .cap .dots{width:28px;height:28px;flex-shrink:0;border:none;background:transparent;color:var(--ink-soft);
+    display:grid;place-items:center;cursor:pointer;margin-top:-2px}
+  .cap .dots svg{width:16px;height:16px;fill:currentColor}
+  .st{margin-top:4px;font-size:10.5px;color:var(--ink-soft);letter-spacing:.03em;
+    display:flex;align-items:center;gap:5px;min-height:14px}
+  .st .dot{width:6px;height:6px;border-radius:50%;background:var(--ai);flex-shrink:0}
+  .st.narou{color:var(--seiji-ink)}
+
+  .fab{position:absolute;right:16px;bottom:80px;z-index:6;display:inline-flex;align-items:center;gap:8px;
+    height:52px;padding:0 20px 0 16px;border:none;cursor:pointer;border-radius:26px;
+    background:var(--ai);color:#fff;font-family:var(--gothic);font-size:14px;font-weight:600;
+    letter-spacing:.03em;box-shadow:0 8px 20px rgba(28,61,90,.36)}
+  .fab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+
+  /* ===== 共通ボトムナビ（縦正本と同一） ===== */
+  .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    text-decoration:none;cursor:pointer;color:var(--ink-soft)}
+  .tab.on{color:var(--ai)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .tab.on .ic .pill{background:var(--ai-tint)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
+  .tab.on .lb{font-weight:700}
+</style>
+</head>
+<body>
+  <div class="phone">
+    <!-- ステータスバー -->
+    <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+
+    <!-- ヘッダ -->
+    <div class="head">
+      <div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div>
+      <button class="view" aria-label="表示切替">
+        <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="4" width="6.6" height="6.6" rx="1.4"/><rect x="4" y="13.4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="13.4" width="6.6" height="6.6" rx="1.4"/></svg>
+      </button>
+    </div>
+
+    <!-- 状態フィルタチップ -->
+    <div class="chips">
+      <span class="chip on">すべて</span>
+      <span class="chip">よみかけ</span>
+      <span class="chip">未読</span>
+      <span class="chip">読了</span>
+    </div>
+
+    <!-- 本のグリッド（5列・栞書影・うち2冊は Web 未取込＝D改破線） -->
+    <div class="scroll">
+      <div class="grid">
+
+        <div class="bk">
+          <div class="cv" style="--band:hsl(210 48% 52%);--barx:26%;--barlen:46%">
+            <span class="bar"></span><span class="vt">追放された万能薬師、辺境でスローライフを始める</span>
+          </div>
+          <div class="cap"><span class="t">追放された万能薬師、辺境でスローライフを始める</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">第127/205話</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv" style="--band:hsl(280 48% 52%);--barx:34%;--barlen:42%">
+            <span class="bar"></span><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span>
+          </div>
+          <div class="cap"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">第43/150話</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv" style="--band:hsl(95 48% 52%);--barx:22%;--barlen:50%">
+            <span class="bar"></span><span class="vt">転生したら最弱スキルだったので草むしりしていた</span>
+          </div>
+          <div class="cap"><span class="t">転生したら最弱スキルだったので草むしりしていた</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st"><span class="dot"></span>未読</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv narou" style="--band:hsl(190 48% 52%);--barx:30%;--barlen:44%">
+            <span class="bar"></span><span class="vt">最果てのダンジョンで細々と暮らすことにした</span>
+          </div>
+          <div class="cap"><span class="t">最果てのダンジョンで細々と暮らすことにした</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st narou">なろう・未取込</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv" style="--band:hsl(340 48% 52%);--barx:24%;--barlen:48%">
+            <span class="bar"></span><span class="vt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
+          </div>
+          <div class="cap"><span class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">第8/72話</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv" style="--band:hsl(150 48% 52%);--barx:28%;--barlen:40%">
+            <span class="bar"></span><span class="vt">聖女は隣国で薬草を育てて暮らしたい</span>
+          </div>
+          <div class="cap"><span class="t">聖女は隣国で薬草を育てて暮らしたい</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">読了</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv narou" style="--band:hsl(50 48% 52%);--barx:24%;--barlen:46%">
+            <span class="bar"></span><span class="vt">辺境ぐらしの隠居魔導士、今日ものんびり</span>
+          </div>
+          <div class="cap"><span class="t">辺境ぐらしの隠居魔導士、今日ものんびり</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st narou">なろう・未取込</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv" style="--band:hsl(230 48% 52%);--barx:34%;--barlen:48%">
+            <span class="bar"></span><span class="vt">星降る夜の図書館で君を待っている</span>
+          </div>
+          <div class="cap"><span class="t">星降る夜の図書館で君を待っている</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">読了</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv" style="--band:hsl(25 48% 52%);--barx:30%;--barlen:44%">
+            <span class="bar"></span><span class="vt">異世界喫茶は今日も満席 〜珈琲と魔法のある日常〜</span>
+          </div>
+          <div class="cap"><span class="t">異世界喫茶は今日も満席 〜珈琲と魔法のある日常〜</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">第12/88話</div>
+        </div>
+
+        <div class="bk">
+          <div class="cv" style="--band:hsl(170 48% 52%);--barx:26%;--barlen:48%">
+            <span class="bar"></span><span class="vt">竜騎士団の末席から始める宮廷生活</span>
+          </div>
+          <div class="cap"><span class="t">竜騎士団の末席から始める宮廷生活</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st"><span class="dot"></span>未読</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 拡張FAB -->
+    <button class="fab">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>PDFを追加
+    </button>
+
+    <!-- ===== 共通ボトムナビ（本棚 選択中） ===== -->
+    <nav class="tabbar">
+      <a class="tab on">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg>
+        </span>
+        <span class="lb">本棚</span>
+      </a>
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg>
+        </span>
+        <span class="lb">さがす</span>
+      </a>
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </span>
+        <span class="lb">設定</span>
+      </a>
+    </nav>
+  </div>
+</body>
+</html>

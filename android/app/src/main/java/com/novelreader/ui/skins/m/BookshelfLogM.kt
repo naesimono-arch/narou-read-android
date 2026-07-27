@@ -85,9 +85,12 @@ import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.DeleteSourcePdfOption
-import com.novelreader.ui.HighLoadSkyMenuSection
-import com.novelreader.ui.NewEpisodeNotificationMenuSection
 import com.novelreader.ui.newEpisodeCountFor
+import com.novelreader.ui.skins.ShelfActions
+import com.novelreader.ui.skins.ShelfChrome
+import com.novelreader.ui.skins.ShelfData
+import com.novelreader.ui.skins.ShelfSelection
+import com.novelreader.ui.skins.ShelfWebActions
 import com.novelreader.ui.theme.DimSeizu
 import com.novelreader.ui.theme.Insets
 import com.novelreader.ui.theme.MinchoFamily
@@ -101,13 +104,13 @@ import com.novelreader.ui.theme.StarGlowInnerSeizu
 import com.novelreader.ui.theme.StarSeizu
 import com.novelreader.ui.theme.TextSeizu
 import com.novelreader.viewmodel.ProcessingState
-import com.novelreader.viewmodel.ReadingStatus
-import com.novelreader.viewmodel.ShelfItem
-import com.novelreader.viewmodel.chapterNumberOf
-import com.novelreader.viewmodel.filterShelfByStatus
-import com.novelreader.viewmodel.mergeShelfItems
-import com.novelreader.viewmodel.progressFractionFor
-import com.novelreader.viewmodel.readingStatusFor
+import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.ShelfItem
+import com.novelreader.domain.chapterNumberOf
+import com.novelreader.domain.filterShelfByStatus
+import com.novelreader.domain.mergeShelfItems
+import com.novelreader.domain.progressFractionFor
+import com.novelreader.domain.readingStatusFor
 
 // ============================================================
 // スキンM「星図」の本棚＝一覧ビュー『観測野帳』（正本 bookshelf-M.html 下部 l* 名前空間・L3 2026-07-17 承認）。
@@ -156,41 +159,49 @@ private class LogEpoch(val label: String, val isNow: Boolean, val entries: List<
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun BookshelfLogM(
-    // 表示対象の蔵書（骨格 visibleBooks）と Web 由来（未取込）。
-    books: List<BookEntity>,
-    webNovels: List<WebNovelEntity>,
-    webReadingProgress: Map<String, Int>,
-    webLastReadAt: Map<String, Long>,
-    progressMap: Map<String, ProgressEntity>,
-    chapterCountMap: Map<String, Int>,
-    newEpisodeNovelMap: Map<String, WorkSummary>,
-    processingState: ProcessingState,
-    selectedStatus: ReadingStatus?,
-    statusCounts: Map<ReadingStatus, Int>,
-    onSelectStatus: (ReadingStatus?) -> Unit,
-    // 選択モードは骨格（BookshelfContent）と共有する単一の状態機械（D/P と同じ）。ここでは所有せず引数で受ける。
-    selectionMode: Boolean,
-    selectedIds: List<String>,
-    onToggleSelect: (String) -> Unit,
-    onEnterSelection: (String) -> Unit,
-    onExitSelection: () -> Unit,
-    onDeleteBooks: (List<BookEntity>, deleteSource: Boolean) -> Unit,
-    onOpenBook: (BookEntity) -> Unit,
-    onOpenWebNovel: (WebNovelEntity) -> Unit,
-    onResumeWebNovel: (WebNovelEntity, Int) -> Unit,
-    onImportWebNovel: (WebNovelEntity) -> Unit,
-    onRemoveWebNovel: (WebNovelEntity) -> Unit,
-    onOpenDiscovery: () -> Unit,
-    onOpenWardrobe: () -> Unit,
-    onFabClick: () -> Unit,
-    onToggleSky: () -> Unit,
-    onCancelProcessing: () -> Unit,
+    // 引数の束（2026-07-27 純構造リファクタ）: 一覧面＝編集操作あり＝選択状態機械と Web 操作の束も受ける。
+    data: ShelfData,
+    chrome: ShelfChrome,
+    actions: ShelfActions,
+    // 選択モードは骨格（BookshelfContent）と共有する単一の状態機械（D/P と同じ）。ここでは所有せず束で受ける。
+    selection: ShelfSelection,
+    webActions: ShelfWebActions,
     snackbarHostState: SnackbarHostState,
-    isLoading: Boolean,
-    // 高負荷スカイ試作トグル（ADR 0023）＝⋮メニューへ debug 限定で出す。既定 false / no-op は既存呼出し・テスト互換のため。
-    highLoadSkyM: Boolean = false,
-    onHighLoadSkyChange: (Boolean) -> Unit = {},
+    // 一覧⇄星図の面切替（旧 onToggleSky）。状態は rememberShelfFace が所有し閉包で結線される。
+    onToggleFace: () -> Unit,
+    // 高負荷スカイ試作トグル（ADR 0023）＝⋮メニューへ debug 限定で出す。M 固有のためファクトリが引数で配る
+    //（束に載せない）。既定値は付けない＝配線忘れを no-op で沈黙させない。
+    highLoadSkyM: Boolean,
+    onHighLoadSkyChange: (Boolean) -> Unit,
 ) {
+    // ── 束の展開（本体の参照名を変えない局所別名＝挙動・描画とも既存と同一） ──
+    val books = data.books
+    val webNovels = data.webNovels
+    val webReadingProgress = data.webReadingProgress
+    val webLastReadAt = data.webLastReadAt
+    val progressMap = data.progressMap
+    val chapterCountMap = data.chapterCountMap
+    val newEpisodeNovelMap = data.newEpisodeNovelMap
+    val processingState = chrome.processingState
+    val selectedStatus = chrome.selectedStatus
+    val statusCounts = chrome.statusCounts
+    val onSelectStatus = chrome.onSelectStatus
+    val isLoading = chrome.isLoading
+    val selectionMode = selection.selectionMode
+    val selectedIds = selection.selectedIds
+    val onToggleSelect = selection.onToggleSelect
+    val onEnterSelection = selection.onEnterSelection
+    val onExitSelection = selection.onExitSelection
+    val onDeleteBooks = selection.onDeleteBooks
+    val onOpenBook = actions.onOpenBook
+    val onOpenWebNovel = webActions.onOpenWebNovel
+    val onResumeWebNovel = webActions.onResumeWebNovel
+    val onImportWebNovel = webActions.onImportWebNovel
+    val onRemoveWebNovel = webActions.onRemoveWebNovel
+    val onOpenDiscovery = actions.onOpenDiscovery
+    val onOpenWardrobe = actions.onOpenWardrobe
+    val onFabClick = actions.onFabClick
+    val onCancelProcessing = actions.onCancelProcessing
     // reduce-motion（アニメーター無効）を尊重＝脈動・選択点灯を静止（ADR 0022 §3・星図面と同判定）。
     val context = LocalContext.current
     val reduceMotion = remember {
@@ -296,7 +307,7 @@ internal fun BookshelfLogM(
                     recordCount = recordCount,
                     latestLabel = latestLabel,
                     onOpenDiscovery = onOpenDiscovery,
-                    onToggleSky = onToggleSky,
+                    onToggleSky = onToggleFace,
                     onOpenWardrobe = onOpenWardrobe,
                     highLoadSkyM = highLoadSkyM,
                     onHighLoadSkyChange = onHighLoadSkyChange,
@@ -324,7 +335,8 @@ internal fun BookshelfLogM(
             ) {
                 epochs.forEach { epoch ->
                     item(key = "epoch:${epoch.label}") { EpochHeader(epoch.label, epoch.isNow) }
-                    items(epoch.entries, key = { it.key }) { si ->
+                    // contentType=型: 蔵書/Web は行構成が別物のため、要素の再利用プールを型ごとに分ける（epoch 見出し item{} とも分離。性能のみ・見た目不変）
+                    items(epoch.entries, key = { it.key }, contentType = { it::class }) { si ->
                         when (si) {
                             is ShelfItem.Book -> ObservationRecord(
                                 book = si.book,

@@ -73,6 +73,10 @@
   .bk{cursor:pointer}
 
   /* ===== 栞書影（紙地＋題字由来色の栞棒＋先端＋縦組み明朝題字・輪郭は線でなく影＝§F 裁定） ===== */
+  /* ダークテーマ時の書影影＝案(a) 採用（2026-07-26 ユーザー裁定・本ファイルはライト正本のため値注記のみ）:
+     box-shadow 0 4px 14px rgba(0,0,0,.55) 相当。Compose 翻訳は elevation 6dp
+     （トークン＝ShioriColors.coverShadowElevation・ライトは下の 0 3px 10px 黒14%＝2dp のまま不変）。
+     リング/ハローの追加意匠（旧候補(b)(c)）は不採用。 */
   .cv{position:relative;aspect-ratio:3/4;border-radius:3px;overflow:hidden;background:var(--paper);
     box-shadow:0 3px 10px rgba(0,0,0,.14)}
   .cv .bar{position:absolute;top:0;left:var(--barx,26%);width:2.5px;height:var(--barlen,46%);background:var(--band,var(--ink-soft))}

@@ -63,6 +63,12 @@ import com.novelreader.data.WebNovelEntity
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.DeleteSourcePdfOption
 import com.novelreader.ui.newEpisodeCountFor
+import com.novelreader.ui.skins.ShelfActions
+import com.novelreader.ui.skins.ShelfChrome
+import com.novelreader.ui.skins.ShelfData
+import com.novelreader.ui.skins.ShelfSelection
+import com.novelreader.ui.skins.ShelfWebActions
+import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.theme.BlueInkCartridge
 import com.novelreader.ui.theme.InkCartridge
 import com.novelreader.ui.theme.InkMidCartridge
@@ -80,13 +86,13 @@ import com.novelreader.ui.theme.RedCartridge
 import com.novelreader.ui.theme.RedLoCartridge
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.viewmodel.ProcessingState
-import com.novelreader.viewmodel.ReadingStatus
-import com.novelreader.viewmodel.ShelfItem
-import com.novelreader.viewmodel.chapterNumberOf
-import com.novelreader.viewmodel.filterShelfByStatus
-import com.novelreader.viewmodel.mergeShelfItems
-import com.novelreader.viewmodel.progressFractionFor
-import com.novelreader.viewmodel.readingStatusFor
+import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.ShelfItem
+import com.novelreader.domain.chapterNumberOf
+import com.novelreader.domain.filterShelfByStatus
+import com.novelreader.domain.mergeShelfItems
+import com.novelreader.domain.progressFractionFor
+import com.novelreader.domain.readingStatusFor
 import kotlin.math.roundToInt
 
 // ============================================================
@@ -117,44 +123,51 @@ import kotlin.math.roundToInt
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun BookshelfListCartridgeP(
-    // 表示対象の蔵書（状態フィルタ適用済み＝骨格 visibleBooks）と Web由来（未取込）。
-    books: List<BookEntity>,
-    webNovels: List<WebNovelEntity>,
-    // 機能②の Web 読書位置（ncode→最後に開いた話）と二層ソート用の最終接触時刻。マージ純関数へそのまま渡す。
-    webReadingProgress: Map<String, Int>,
-    webLastReadAt: Map<String, Long>,
-    progressMap: Map<String, ProgressEntity>,
-    chapterCountMap: Map<String, Int>,
-    newEpisodeNovelMap: Map<String, WorkSummary>,
-    processingState: ProcessingState,
-    selectedStatus: ReadingStatus?,
-    statusCounts: Map<ReadingStatus, Int>,
-    appTheme: ReadingTheme,
-    onThemeChange: (ReadingTheme) -> Unit,
-    followingSystem: Boolean,
-    onFollowSystem: () -> Unit,
-    onSelectStatus: (ReadingStatus?) -> Unit,
-    // 選択モードは骨格（BookshelfContent）と共有する単一の状態機械（D と同じ）。ここでは所有せず引数で受ける。
-    selectionMode: Boolean,
-    selectedIds: List<String>,
-    onToggleSelect: (String) -> Unit,
-    onEnterSelection: (String) -> Unit,
-    onExitSelection: () -> Unit,
-    onSelectAll: (List<String>) -> Unit,
-    onDeleteBooks: (List<BookEntity>, deleteSource: Boolean) -> Unit,
-    onOpenBook: (BookEntity) -> Unit,
-    onOpenWebNovel: (WebNovelEntity) -> Unit,
-    onResumeWebNovel: (WebNovelEntity, Int) -> Unit,
-    onImportWebNovel: (WebNovelEntity) -> Unit,
-    onRemoveWebNovel: (WebNovelEntity) -> Unit,
-    onOpenDiscovery: () -> Unit,
-    onOpenWardrobe: () -> Unit,
-    onFabClick: () -> Unit,
-    onToggleRack: () -> Unit,
-    onCancelProcessing: () -> Unit,
+    // 引数の束（2026-07-27 純構造リファクタ）: 一覧面＝編集操作あり＝選択状態機械と Web 操作の束も受ける。
+    data: ShelfData,
+    chrome: ShelfChrome,
+    actions: ShelfActions,
+    theme: ThemeControl,
+    // 選択モードは骨格（BookshelfContent）と共有する単一の状態機械（D と同じ）。ここでは所有せず束で受ける。
+    selection: ShelfSelection,
+    webActions: ShelfWebActions,
     snackbarHostState: SnackbarHostState,
-    isLoading: Boolean,
+    // 一覧⇄ラックの面切替（旧 onToggleRack）。状態は rememberShelfFace が所有し閉包で結線される。
+    onToggleFace: () -> Unit,
 ) {
+    // ── 束の展開（本体の参照名を変えない局所別名＝挙動・描画とも既存と同一） ──
+    val books = data.books
+    val webNovels = data.webNovels
+    val webReadingProgress = data.webReadingProgress
+    val webLastReadAt = data.webLastReadAt
+    val progressMap = data.progressMap
+    val chapterCountMap = data.chapterCountMap
+    val newEpisodeNovelMap = data.newEpisodeNovelMap
+    val processingState = chrome.processingState
+    val selectedStatus = chrome.selectedStatus
+    val statusCounts = chrome.statusCounts
+    val onSelectStatus = chrome.onSelectStatus
+    val isLoading = chrome.isLoading
+    val appTheme = theme.appTheme
+    val onThemeChange = theme.onThemeChange
+    val followingSystem = theme.followingSystem
+    val onFollowSystem = theme.onFollowSystem
+    val selectionMode = selection.selectionMode
+    val selectedIds = selection.selectedIds
+    val onToggleSelect = selection.onToggleSelect
+    val onEnterSelection = selection.onEnterSelection
+    val onExitSelection = selection.onExitSelection
+    val onSelectAll = selection.onSelectAll
+    val onDeleteBooks = selection.onDeleteBooks
+    val onOpenBook = actions.onOpenBook
+    val onOpenWebNovel = webActions.onOpenWebNovel
+    val onResumeWebNovel = webActions.onResumeWebNovel
+    val onImportWebNovel = webActions.onImportWebNovel
+    val onRemoveWebNovel = webActions.onRemoveWebNovel
+    val onOpenDiscovery = actions.onOpenDiscovery
+    val onOpenWardrobe = actions.onOpenWardrobe
+    val onFabClick = actions.onFabClick
+    val onCancelProcessing = actions.onCancelProcessing
     // 蔵書＋Web由来を「最近の活動順」で1本にマージ＝D else 経路と同一の純関数（並び規則 ADR 0016 を共有＝再実装なし）。
     val shelfItems = remember(books, webNovels, progressMap, selectedStatus, chapterCountMap, webReadingProgress, webLastReadAt) {
         val (filteredBooks, filteredWeb) =
@@ -190,7 +203,7 @@ internal fun BookshelfListCartridgeP(
                 followingSystem = followingSystem,
                 onFollowSystem = onFollowSystem,
                 onOpenWardrobe = onOpenWardrobe,
-                onToggleList = onToggleRack,
+                onToggleList = onToggleFace,
                 // 一覧面では表示切替ボタンは「ラックへ戻る」＝2x2グリッド図柄（.btn.sq aria-label「ラックへ切替」）。
                 inListMode = true,
             )
@@ -226,7 +239,8 @@ internal fun BookshelfListCartridgeP(
                 item { ShopBand(onClick = onOpenDiscovery); Spacer(Modifier.height(Spacing.S12)) }
                 item { CartridgeChips(selectedStatus, statusCounts, onSelectStatus); Spacer(Modifier.height(Spacing.S8)) }
 
-                items(shelfItems, key = { it.key }) { item ->
+                // contentType=型: 蔵書/Web は行構成が別物のため、要素の再利用プールを型ごとに分ける（性能のみ・見た目不変）
+                items(shelfItems, key = { it.key }, contentType = { it::class }) { item ->
                     when (item) {
                         is ShelfItem.Book -> CartridgeListRow(
                             book = item.book,

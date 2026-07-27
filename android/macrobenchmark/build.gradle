@@ -5,7 +5,8 @@ plugins {
 
 android {
     namespace 'com.novelreader.macrobenchmark'
-    compileSdk 34
+    // :app の compileSdk 35 化（2026-07-27 裁定）に追従（targetSdk 34 は据え置き＝計測対象の実行時挙動は不変）
+    compileSdk 35
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17

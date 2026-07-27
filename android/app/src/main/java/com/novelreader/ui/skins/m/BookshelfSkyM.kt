@@ -80,9 +80,11 @@ import androidx.compose.ui.unit.sp
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.discovery.model.WorkSummary
-import com.novelreader.ui.HighLoadSkyMenuSection
-import com.novelreader.ui.NewEpisodeNotificationMenuSection
+import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.newEpisodeCountFor
+import com.novelreader.ui.skins.ShelfActions
+import com.novelreader.ui.skins.ShelfChrome
+import com.novelreader.ui.skins.ShelfData
 import com.novelreader.ui.theme.DimSeizu
 import com.novelreader.ui.theme.FaintStarSeizu
 import com.novelreader.ui.theme.Insets
@@ -107,10 +109,10 @@ import com.novelreader.ui.theme.StarGlowOuterSeizu
 import com.novelreader.ui.theme.StarSeizu
 import com.novelreader.ui.theme.TextSeizu
 import com.novelreader.viewmodel.ProcessingState
-import com.novelreader.viewmodel.ReadingStatus
-import com.novelreader.viewmodel.chapterNumberOf
-import com.novelreader.viewmodel.progressFractionFor
-import com.novelreader.viewmodel.readingStatusFor
+import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.chapterNumberOf
+import com.novelreader.domain.progressFractionFor
+import com.novelreader.domain.readingStatusFor
 import kotlin.math.PI
 import kotlin.math.hypot
 import kotlin.math.sin
@@ -171,27 +173,35 @@ internal fun idColorFor(bookId: String): Color =
 
 @Composable
 internal fun BookshelfSkyM(
-    books: List<BookEntity>,
-    progressMap: Map<String, ProgressEntity>,
-    chapterCountMap: Map<String, Int>,
-    newEpisodeNovelMap: Map<String, WorkSummary>,
-    processingState: ProcessingState,
-    webNovelCount: Int,
-    selectedStatus: ReadingStatus?,
-    statusCounts: Map<ReadingStatus, Int>,
-    onSelectStatus: (ReadingStatus?) -> Unit,
-    onOpenBook: (BookEntity) -> Unit,
-    onOpenDiscovery: () -> Unit,
-    onOpenWardrobe: () -> Unit,
-    onFabClick: () -> Unit,
-    onToggleList: () -> Unit,
-    onCancelProcessing: () -> Unit,
+    // 引数の束（2026-07-27 純構造リファクタ）: 中身データ／額縁状態／画面操作の3束＋面固有の残り。
+    // 没入面＝閲覧専用のため ShelfSelection/ShelfWebActions はシグネチャに存在しない（コンパイル時制約）。
+    data: ShelfData,
+    chrome: ShelfChrome,
+    actions: ShelfActions,
     snackbarHostState: SnackbarHostState,
-    isLoading: Boolean,
-    // 高負荷スカイ試作トグル（ADR 0023）＝⋮メニューへ debug 限定で出す。既定 false / no-op は既存呼出し・テスト互換のため。
-    highLoadSkyM: Boolean = false,
-    onHighLoadSkyChange: (Boolean) -> Unit = {},
+    // 星図⇄一覧の面切替（旧 onToggleList）。状態は rememberShelfFace が所有し閉包で結線される。
+    onToggleFace: () -> Unit,
+    // 高負荷スカイ試作トグル（ADR 0023）＝⋮メニューへ debug 限定で出す。M 固有のためファクトリが引数で配る
+    //（束に載せない）。既定値は付けない＝配線忘れを no-op で沈黙させない。
+    highLoadSkyM: Boolean,
+    onHighLoadSkyChange: (Boolean) -> Unit,
 ) {
+    // ── 束の展開（本体の参照名を変えない局所別名＝挙動・描画とも既存と同一） ──
+    val books = data.books
+    val progressMap = data.progressMap
+    val chapterCountMap = data.chapterCountMap
+    val newEpisodeNovelMap = data.newEpisodeNovelMap
+    val webNovelCount = data.webNovels.size
+    val processingState = chrome.processingState
+    val selectedStatus = chrome.selectedStatus
+    val statusCounts = chrome.statusCounts
+    val onSelectStatus = chrome.onSelectStatus
+    val isLoading = chrome.isLoading
+    val onOpenBook = actions.onOpenBook
+    val onOpenDiscovery = actions.onOpenDiscovery
+    val onOpenWardrobe = actions.onOpenWardrobe
+    val onFabClick = actions.onFabClick
+    val onCancelProcessing = actions.onCancelProcessing
     // reduce-motion: アニメーター無効（開発者設定/省電力のスケール0）を尊重して脈動を静止させる
     //（ADR 0022 §3 の必須条件。モックの prefers-reduced-motion 分岐＝pulse 0.55 固定と同値）。
     val context = LocalContext.current
@@ -283,7 +293,7 @@ internal fun BookshelfSkyM(
                 // 冊数（K形の明示冊数）＝ライブラリ総数（蔵書＋Web由来）。D/K の libraryCount と同一定義で全スキン一致させる。
                 libraryCount = books.size + webNovelCount,
                 onOpenDiscovery = onOpenDiscovery,
-                onToggleList = onToggleList,
+                onToggleList = onToggleFace,
                 onOpenWardrobe = onOpenWardrobe,
                 highLoadSkyM = highLoadSkyM,
                 onHighLoadSkyChange = onHighLoadSkyChange,
@@ -306,7 +316,8 @@ internal fun BookshelfSkyM(
                 // クリアランスは固定バーの実測高（下記 onSizeChanged）＝バー高そのぶん確保。
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = horizonClearance),
             ) {
-                items(visible, key = { it.id }) { book ->
+                // contentType: 単一型（蔵書のみ）でも明示して要素再利用を確実にする（性能のみ・見た目不変）
+                items(visible, key = { it.id }, contentType = { it::class }) { book ->
                     val index = visible.indexOf(book)
                     ConstellationCell(
                         book = book,
@@ -642,7 +653,9 @@ private fun ConstellationCell(
                     Box(Modifier.size(5.dp).clip(CircleShape).background(idColor))
                     book.ncode?.let {
                         Text(
-                            it.lowercase(),
+                            // 表示も urlSlug（trim＋小文字）で出す＝前後空白が混じった保存値でも URL 生成側と
+                            // 同じ見え方に揃う（生 lowercase() は trim を欠き、表示だけ食い違う余地があった）。
+                            Ncode(it).urlSlug,
                             fontSize = 9.5.sp, // .desig 9.5px
                             letterSpacing = 0.16.em,
                             fontStyle = FontStyle.Italic,

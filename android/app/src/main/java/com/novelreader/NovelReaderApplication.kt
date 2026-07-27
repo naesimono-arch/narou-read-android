@@ -46,12 +46,12 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
      *  起動時リカバリはこちらで走らせる。Application はプロセスと同寿命なので cancel 不要。 */
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    // pending_jobs 記帳の直列化は DefaultBookRepository 内の Mutex（pendingJobMutex）へ移した。
+    // pending_jobs 記帳の直列化は repository 層の Mutex（PendingJobStore.pendingJobMutex）へ移した。
     // 旧実装はここに Dispatchers.IO.limitedParallelism(1) を置いて投入順 FIFO を狙ったが、各リポジトリ
     // メソッドの withContext(Dispatchers.IO) 再ディスパッチ＋Room suspend DAO の内部再ディスパッチで
     // 単一スロットが DB 着地を1件も直列化できず（coroutine 意味論として不成立）、「追加直後に停止」で
     // 破棄済みジョブが復活する窓が残っていた。ロックを DAO 呼び出し完了まで保持する Mutex で恒久修正した
-    // （詳細は DefaultBookRepository.pendingJobMutex の why 参照）。呼び出し側は素の applicationScope.launch でよい。
+    // （詳細は PendingJobStore.pendingJobMutex の why 参照）。呼び出し側は素の applicationScope.launch でよい。
 
     /** なろうAPIを利用したディスカバリ用リポジトリのシングルトン（既存 repository と別系統） */
     val novelApiRepository: NovelApiRepository by lazy { NovelApiRepository() }

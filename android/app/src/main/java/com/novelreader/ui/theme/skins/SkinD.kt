@@ -5,6 +5,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import com.novelreader.ui.theme.*
 
 /**
@@ -224,6 +225,7 @@ object SkinD : SkinTokens {
     override fun shiori(theme: ReadingTheme): ShioriColors = when (theme) {
         ReadingTheme.LIGHT -> ShioriColors(SurfaceLight, OnSurfaceLight, 0.52f)
         ReadingTheme.SEPIA -> ShioriColors(BackgroundSepia, OnBackgroundSepia, 0.48f)
-        ReadingTheme.DARK -> ShioriColors(ShioriCoverPaperDark, ShioriCoverInkDark, 0.62f)
+        // ダークのみ影 6dp（案(a) 2026-07-26 裁定＝黒影が暗面 #14171C で沈むため増強。ライト/セピアは既定 2dp 不変）。
+        ReadingTheme.DARK -> ShioriColors(ShioriCoverPaperDark, ShioriCoverInkDark, 0.62f, coverShadowElevation = 6.dp)
     }
 }

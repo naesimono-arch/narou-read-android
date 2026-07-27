@@ -36,9 +36,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import com.novelreader.ui.tabs.TabPagerHost
 import kotlinx.coroutines.launch
+import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
@@ -119,9 +121,9 @@ class MainActivity : ComponentActivity() {
         // 保存済みの「生 enum 名」がどの版の綴りかを移行コードが判別できるようにするための版番号。
         // 未記録の既存/新規インストールは現行スキーマ＝v1 として一度だけ刻む（以後の移行がこの版を
         // 読んで綴りを変換する）。app_prefs は他の読書設定（reading_theme 等）と同じ置き場。
-        val settingsPrefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
-        if (!settingsPrefs.contains(KEY_SETTINGS_SCHEMA_VERSION)) {
-            settingsPrefs.edit().putInt(KEY_SETTINGS_SCHEMA_VERSION, SETTINGS_SCHEMA_VERSION).apply()
+        val settingsPrefs = getSharedPreferences(PrefKeys.FILE_APP_PREFS, MODE_PRIVATE)
+        if (!settingsPrefs.contains(PrefKeys.SETTINGS_SCHEMA_VERSION)) {
+            settingsPrefs.edit().putInt(PrefKeys.SETTINGS_SCHEMA_VERSION, SETTINGS_SCHEMA_VERSION).apply()
         }
 
         // Edge-to-Edge 表示を有効化（ステータスバー・ナビバー領域までコンテンツを描画）
@@ -151,39 +153,39 @@ class MainActivity : ComponentActivity() {
             // （旧: 本棚=システム追従・読書=独立prefの2系統で不一致だった＝handover B「11 本棚テーマ追従」を解消）
             // 既定: reading_theme 未保存時はシステムのライト/ダークに追従。以後はユーザー選択を永続。
             val context = LocalContext.current
-            val prefs = remember { context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE) }
+            val prefs = remember { context.getSharedPreferences(PrefKeys.FILE_APP_PREFS, Context.MODE_PRIVATE) }
             val systemDark = isSystemInDarkTheme()
             var appTheme by remember { mutableStateOf(loadInitialTheme(prefs, systemDark)) }
             // 「システムに従う」状態＝reading_theme 未保存。明示選択で解除、追従選択でキー削除により復帰。
             // なぜキー削除で表すか: 「未宣言＝追従」という loadInitialTheme の既存規約をそのまま正本にし、
             // 第4の enum 値や別フラグを増やさない（設定は「開かれない」が理想＝UX/19）。
-            var followingSystem by remember { mutableStateOf(prefs.getString("reading_theme", null) == null) }
+            var followingSystem by remember { mutableStateOf(prefs.getString(PrefKeys.READING_THEME, null) == null) }
             val onThemeChange: (ReadingTheme) -> Unit = { theme ->
                 appTheme = theme
                 followingSystem = false
-                prefs.edit().putString("reading_theme", theme.name).apply()
+                prefs.edit().putString(PrefKeys.READING_THEME, theme.name).apply()
             }
             val onFollowSystem: () -> Unit = {
-                prefs.edit().remove("reading_theme").apply()
+                prefs.edit().remove(PrefKeys.READING_THEME).apply()
                 followingSystem = true
                 appTheme = if (systemDark) ReadingTheme.DARK else ReadingTheme.LIGHT
             }
             // UIスキン（着せ替え）。reading_theme と同じ「MainActivity へ巻き上げた単一状態＋prefs 永続」流儀。
             // キー不在=D（既定装い）。装着は装いの間（wardrobe）からのみ変更される。
-            var appSkin by remember { mutableStateOf(skinFromName(prefs.getString("app_skin", null))) }
+            var appSkin by remember { mutableStateOf(skinFromName(prefs.getString(PrefKeys.APP_SKIN, null))) }
             val onSkinChange: (Skin) -> Unit = { skin ->
                 appSkin = skin
-                prefs.edit().putString("app_skin", skin.name).apply()
+                prefs.edit().putString(PrefKeys.APP_SKIN, skin.name).apply()
             }
             // 高負荷スカイ（星図M・試作／ADR 0023）。reading_theme・app_skin と同じ「MainActivity 巻き上げ＋prefs 永続」流儀。
             // なぜ BuildConfig.DEBUG で潰すか: release ではトグル UI を出さず値も常に false＝出荷時は現行の空のまま
             //（試作は debug 限定の実機探索）。debug でのみ prefs 値を尊重して backdrop へ引数で渡す。
             var highLoadSkyM by remember {
-                mutableStateOf(BuildConfig.DEBUG && prefs.getBoolean("sky_high_load_m", false))
+                mutableStateOf(BuildConfig.DEBUG && prefs.getBoolean(PrefKeys.SKY_HIGH_LOAD_M, false))
             }
             val onHighLoadSkyChange: (Boolean) -> Unit = { on ->
                 highLoadSkyM = on
-                prefs.edit().putBoolean("sky_high_load_m", on).apply()
+                prefs.edit().putBoolean(PrefKeys.SKY_HIGH_LOAD_M, on).apply()
             }
 
             // Material3 配色もテーマ3値（ライト/セピア/ダーク）へ追従させる。
@@ -237,11 +239,9 @@ class MainActivity : ComponentActivity() {
         /** 変換完了通知 → 読書画面 deep link 用の bookId extra キー（M11）。 */
         const val EXTRA_BOOK_ID = "com.novelreader.extra.BOOK_ID"
 
-        /** 設定スキーマ版（evolve）。enum の生 String 保存の改名耐性のため prefs に記録する現行版。 */
+        /** 設定スキーマ版（evolve）。enum の生 String 保存の改名耐性のため prefs に記録する現行版。
+         *  キー文字列は [PrefKeys.SETTINGS_SCHEMA_VERSION]（全設定キーの正本＝PrefKeys へ集約済み）。 */
         const val SETTINGS_SCHEMA_VERSION = 1
-
-        /** 設定スキーマ版の prefs キー。 */
-        const val KEY_SETTINGS_SCHEMA_VERSION = "settings_schema_version"
     }
 }
 
@@ -251,7 +251,7 @@ class MainActivity : ComponentActivity() {
  */
 private fun loadInitialTheme(prefs: SharedPreferences, systemDark: Boolean): ReadingTheme {
     val systemFallback = if (systemDark) ReadingTheme.DARK else ReadingTheme.LIGHT
-    val saved = prefs.getString("reading_theme", null) ?: return systemFallback
+    val saved = prefs.getString(PrefKeys.READING_THEME, null) ?: return systemFallback
     return runCatching { ReadingTheme.valueOf(saved) }.getOrDefault(systemFallback)
 }
 
@@ -302,11 +302,11 @@ private fun NovelReaderApp(
             navController.navigate("reading/$bookId/$startFile") {
                 launchSingleTop = true
                 // tabs（タブ層）を残して起点を固定＝Back が必ずタブ層へ戻る（固定起点の保証。旧 "bookshelf" ルートのタブ Pager 化に追従）。
-                popUpTo("tabs") { inclusive = false }
+                popUpTo(TAB_HOST_ROUTE) { inclusive = false }
             }
         } else {
             // 削除済み等で本が無い確定ケース: 最低限の保証として固定起点（タブ層＝本棚ページ）へ着地する。
-            navController.popBackStack("tabs", false)
+            navController.popBackStack(TAB_HOST_ROUTE, false)
         }
         // ナビ後に消費済みへ（null で再ナビを防ぐ。key 変化で本 Effect は即再実行され早期 return する）。
         onDeepLinkConsumed()
@@ -365,7 +365,7 @@ private fun NovelReaderApp(
     val tabPagerState = rememberPagerState(pageCount = { KTab.entries.size })
     val tabScope = rememberCoroutineScope()
     // 深い画面（読書等）では null＝恒常ナビを消して没入を守る（従来と同じ判定を「tabs ルートか」へ置換）。
-    val currentTab = if (currentRoute == "tabs") KTab.entries[tabPagerState.currentPage] else null
+    val currentTab = if (currentRoute == TAB_HOST_ROUTE) KTab.entries[tabPagerState.currentPage] else null
     // タブ選択＝Pager のスクロール（タップでもスワイプでも同じスライド運動言語。旧 crossfade は
     // Pager のスワイプ追従と矛盾するため廃止＝isTabSwitch 分岐ごと撤去）。同一タブ再タップは
     // animateScrollToPage が同ページで no-op＝旧 navigateKTab の重複抑止と同じ挙動が構造的に出る。
@@ -390,7 +390,7 @@ private fun NovelReaderApp(
             Column(Modifier.fillMaxSize()) {
     NavHost(
         navController = navController,
-        startDestination = "tabs",
+        startDestination = TAB_HOST_ROUTE,
         modifier = Modifier.weight(1f),
         // タブ間はもう NavHost 遷移でない（Pager が担う）＝isTabSwitch 分岐は不要になった。
         // 残る分岐＝M星図のフェードスルー（固定天球ゆえ slide だと空ごと動く・ADR 0019 追記）と他スキンの横スライド push。
@@ -414,7 +414,7 @@ private fun NovelReaderApp(
 
         // タブ層＝単一ルート "tabs"（本棚/さがす/設定の3面を TabPagerHost のスロットへ・ADR 0022 スロット契約）。
         // 深い画面（読書・目次・発見詳細等）は従来どおり NavHost ルート＝この上へ push される。
-        composable("tabs") {
+        composable(TAB_HOST_ROUTE) {
             // 遷移ジャンク対策（P2・Perfetto 2026-07-16 で主因確定）: 本棚グリッドの初回 measure（実測51ms/
             // フレーム）が slide push のアニメフレームと同居して落ちるため、「tabs が enter アニメ中」の間だけ
             // 重いグリッドをスケルトンへ差替える（BookshelfContent 側の分岐参照）。currentState/targetState は
@@ -428,6 +428,9 @@ private fun NovelReaderApp(
             }
             TabPagerHost(
                 pagerState = tabPagerState,
+                // 遷移ジャム対策の続き（2026-07-26）: enter アニメ中は隣タブ面の常駐コンポーズも凍結する
+                //（本棚グリッドの skeleton 差替えと同じ信号を共有。機序は TabPagerHost 側のコメント参照）。
+                deferNeighborPages = deferHeavyContent,
                 pages = listOf(
                     {
                     BookshelfScreen(
@@ -667,7 +670,9 @@ private fun NovelReaderApp(
                             onThemeChange = onThemeChange,
                             followingSystem = followingSystem,
                             onFollowSystem = onFollowSystem,
-                            onNavigateToBookshelf = { navController.popBackStack("bookshelf", false) },
+                            // 目次→本棚の脱出。旧 popBackStack("bookshelf") はタブ化でルートが消え黙殺されていた
+                            // （真因と2段構成の理由＝popToBookshelfTab の KDoc）。
+                            onNavigateToBookshelf = { popToBookshelfTab(navController, tabPagerState) },
                         )
                     } else {
                         // 確定して本が存在しない（削除済み／復元不能）ケース。白画面デッドエンドを残さず、
@@ -675,7 +680,7 @@ private fun NovelReaderApp(
                         ReadingErrorScreen(
                             message = "この書籍は見つかりませんでした",
                             colors = rememberReadingColors(appTheme),
-                            onNavigateToBookshelf = { navController.popBackStack("bookshelf", false) },
+                            onNavigateToBookshelf = { popToBookshelfTab(navController, tabPagerState) },
                         )
                     }
                 }
@@ -697,6 +702,27 @@ private fun NovelReaderApp(
             } // Surface（画面ルートの配色接地）
         } // CompositionLocalProvider(LocalSkyParallax)
     } // Box（backdrop ＋ NavHost）
+}
+
+/**
+ * タブ層（本棚/さがす/設定 Pager）の NavHost ルート名の単一正本。
+ * なぜ定数か: 2026-07-24 のタブ Pager 化で本棚がルート "bookshelf" からページへ変わった際、
+ * 読書フローの脱出だけが旧ルート名文字列のまま残り、スタックに無いルートへの pop として黙殺された
+ * （2026-07-25 実機バグ・目次に幽閉）。pop 先とルート登録を同一定数で結び、リネーム時の取り残しを型で封じる。
+ */
+internal const val TAB_HOST_ROUTE = "tabs"
+
+/**
+ * 読書フロー（目次・読書エラー画面）から「本棚へ戻る」の単一実装（Back 契約=2026-07-19 裁定の「目次→本棚」）。
+ * K タブ化（2026-07-24・ADR 0022）で本棚は NavHost ルートでなく tabs 内 Pager のページになったため、
+ * 「タブ層へ pop」＋「Pager を本棚ページへスナップ」の2段で階層 up を表現する。
+ * スナップが要る理由: deep link（通知）入場では Pager が他タブに居ることがあり、pop だけでは
+ * 「目次→さがす/設定」に化けて契約が破れる（通常の本棚経由入場では既に本棚ページ＝no-op）。
+ * requestScrollToPage は非 suspend で Pager 非表示中（読書画面が前面）でも安全＝次の合成で適用される。
+ */
+internal fun popToBookshelfTab(navController: NavController, tabPagerState: PagerState) {
+    tabPagerState.requestScrollToPage(KTab.BOOKSHELF.ordinal)
+    navController.popBackStack(TAB_HOST_ROUTE, false)
 }
 
 /**

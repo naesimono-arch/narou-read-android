@@ -5,7 +5,13 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import com.novelreader.ui.theme.MotionDurationKTabSwitch
 import kotlinx.coroutines.launch
@@ -31,14 +37,44 @@ import kotlinx.coroutines.launch
 internal fun TabPagerHost(
     pagerState: PagerState,
     modifier: Modifier = Modifier,
+    // 画面遷移（NavHost push/pop）アニメ中は true。本棚グリッドの deferHeavyContent と同じ離散 State を
+    // 呼び元（MainActivity の tabs ルート）が渡す＝遷移の端点でしか変化せず毎フレーム recompose を増やさない。
+    deferNeighborPages: Boolean = false,
     pages: List<@Composable () -> Unit>,
 ) {
     val scope = rememberCoroutineScope()
     // page 0 以外での Back＝本棚へ戻す（タブは同格だが「家」は本棚＝旧 popUpTo("bookshelf") 流儀の継承）。
+    // PredictiveBackHandler にしない理由: これは純粋な状態遷移（Pager の水平スクロール）で、Back 進捗に
+    // 連動させると Pager 自身の横スワイプと同軸の第二演出になり語彙が衝突する（ADR 0019 のスライド統一とも別系）。
+    // page 0 では enabled=false＝割込みゼロになり、マニフェストの enableOnBackInvokedCallback とセットで
+    // システムの「ホームへ戻る」Predictive プレビューがそのまま効く（ここが本アプリで唯一の退出点）。
     BackHandler(enabled = pagerState.currentPage != 0) {
         scope.launch { pagerState.animateScrollToPage(0, animationSpec = tween(MotionDurationKTabSwitch)) }
     }
-    HorizontalPager(state = pagerState, modifier = modifier) { page ->
+    // 遷移ジャム対策（2026-07-26 framestats 実測）: pop enter アニメ中に隣ページ（さがす面）の初回コンポーズが
+    // 同居すると、pop 冒頭2フレームが約400ms（隣ページ常駐なし比で約2倍＝445/402↔212/153ms）へ悪化する。
+    // アニメ中は常駐を 0 にし、settle 後に 1 へ戻して隣ページの初回コンポーズをアニメ外の単独フレームへ移送する
+    //（P2 本棚スケルトンと同じ「重い仕事をアニメ窓の外へ移送」設計。隣ページは画面外＝視覚影響なし）。
+    var residentNeighborPages by remember { mutableIntStateOf(if (deferNeighborPages) 0 else 1) }
+    LaunchedEffect(deferNeighborPages) {
+        if (deferNeighborPages) {
+            residentNeighborPages = 0
+        } else {
+            // 本棚のスケルトン→実グリッド差戻し（defer 解除と同フレーム）と隣ページ初回コンポーズが同一フレームに
+            // 同居すると post-anim フレームが二重に重くなるため、2フレームずらして別フレームへ分離する。
+            withFrameNanos {}
+            withFrameNanos {}
+            residentNeighborPages = 1
+        }
+    }
+    HorizontalPager(
+        state = pagerState,
+        modifier = modifier,
+        // 既定0だとタブ settle 毎に隣ページが破棄され、スワイプ開始のたび UI スレッド anim 段で
+        // 再コンポーズが走るのがスワイプ jank の主因（2026-07-25 framestats 実測）→ 前後1ページ常駐化。
+        // 遷移アニメ中のみ 0 へ落とす（上の residentNeighborPages コメント参照）。
+        beyondViewportPageCount = residentNeighborPages,
+    ) { page ->
         pages[page]()
     }
 }

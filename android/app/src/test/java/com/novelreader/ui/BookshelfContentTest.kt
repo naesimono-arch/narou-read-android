@@ -14,8 +14,12 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import com.novelreader.PrefKeys
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.ui.skins.ShelfActions
+import com.novelreader.ui.skins.ShelfWebActions
+import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.ProcessingState
@@ -24,6 +28,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
@@ -58,6 +63,11 @@ class BookshelfContentTest {
         followingSystem: Boolean = false,
         onFollowSystem: () -> Unit = {},
     ) {
+        // グリッド/リスト状態は D 描画部が prefs 所有へ移設済み（旧引数 isGridView の撤去）＝pref 先置きで
+        // 旧テストと同じグリッド描画を保つ（アサーション意図は不変）。
+        RuntimeEnvironment.getApplication()
+            .getSharedPreferences(PrefKeys.FILE_APP_PREFS, android.content.Context.MODE_PRIVATE)
+            .edit().putBoolean(PrefKeys.IS_GRID_VIEW, true).commit()
         composeTestRule.setContent {
             MaterialTheme {
                 BookshelfContent(
@@ -67,17 +77,28 @@ class BookshelfContentTest {
                     chapterCountMap = chapterCountMap,
                     newEpisodeNovelMap = emptyMap(),
                     processingState = ProcessingState(),
-                    appTheme = appTheme,
-                    onThemeChange = onThemeChange,
-                    followingSystem = followingSystem,
-                    onFollowSystem = onFollowSystem,
-                    isGridView = true,
-                    onToggleView = {},
-                    onFabClick = onFabClick,
-                    onOpenBook = {},
+                    // 束は全フィールド必須（既定 no-op 廃止＝2026-07-27 純構造リファクタ）。旧テストの
+                    // 個別引数と同じ値を束へ写しただけ＝アサーション意図は不変。
+                    actions = ShelfActions(
+                        onOpenBook = {},
+                        onFabClick = onFabClick,
+                        onOpenDiscovery = onOpenDiscovery,
+                        onOpenWardrobe = {},
+                        onCancelProcessing = {},
+                    ),
+                    webActions = ShelfWebActions(
+                        onOpenWebNovel = {},
+                        onResumeWebNovel = { _, _ -> },
+                        onImportWebNovel = {},
+                        onRemoveWebNovel = {},
+                    ),
+                    theme = ThemeControl(
+                        appTheme = appTheme,
+                        onThemeChange = onThemeChange,
+                        followingSystem = followingSystem,
+                        onFollowSystem = onFollowSystem,
+                    ),
                     onDeleteBooks = onDeleteBooks,
-                    onOpenDiscovery = onOpenDiscovery,
-                    onCancelProcessing = {},
                     snackbarHostState = remember { SnackbarHostState() },
                 )
             }

@@ -59,7 +59,6 @@ import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.viewmodel.NcodeSearchUiState
 import com.novelreader.ui.theme.Spacing
-import java.util.Locale
 
 /**
  * 手元の書籍（PDF）となろう上の作品を紐付けるためのボトムシート。
@@ -286,11 +285,12 @@ internal fun NcodeLinkSheet(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable {
-                                                val ncode = novel.ncode?.trim()
+                                                val ncode = novel.ncode
                                                 if (ncode != null) {
-                                                    // なろう公式の標準Nコード表記に合わせて大文字化して確定させる
-                                                    // （正規化は Ncode 集約でなくこのサイトで施す＝用途別正規化。Ncode の KDoc 参照）
-                                                    onConfirm(Ncode(ncode.uppercase(Locale.ROOT)))
+                                                    // なろう公式の標準Nコード表記＝保存キー形（trim+大文字）へ正規化して確定させる。
+                                                    // 下流（linkNcode→Room）は値を素通しで永続化するため、包む時点で
+                                                    // Ncode.normalizedForStorage に正規化を集約する（Ncode の KDoc 参照）。
+                                                    onConfirm(Ncode.normalizedForStorage(ncode))
                                                 }
                                             }
                                             .padding(vertical = Spacing.S12)
@@ -400,8 +400,8 @@ internal fun NcodeLinkSheet(
                             shape = RoundedCornerShape(2.dp)
                         )
                         .clickable(enabled = isValid) {
-                            // 手動入力も大文字化して確定（正規化はこのサイト。Ncode の KDoc 参照）。
-                            onConfirm(Ncode(manualNcode.trim().uppercase(Locale.ROOT)))
+                            // 手動入力も保存キー形（trim+大文字）へ正規化して確定（Ncode.normalizedForStorage に集約）。
+                            onConfirm(Ncode.normalizedForStorage(manualNcode))
                         }
                         .padding(horizontal = Spacing.S16, vertical = Spacing.S12),
                     contentAlignment = Alignment.Center

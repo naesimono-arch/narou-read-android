@@ -1,7 +1,7 @@
 package com.novelreader.ui
 
-// progressFractionFor は BookCard から viewmodel 層へ移設された（読書状態フィルタと共有するため）。
-import com.novelreader.viewmodel.progressFractionFor
+// progressFractionFor は BookCard から純ロジック層（現 domain/ShelfItems.kt）へ移設された（読書状態フィルタと共有するため）。
+import com.novelreader.domain.progressFractionFor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue

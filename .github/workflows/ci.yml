@@ -1,0 +1,63 @@
+# CI: JVM で完結するゲートのみを回す（実機必須のものは対象外＝下記コメント参照）。
+#
+# 対象外とその理由:
+# - androidTest（app/src/androidTest: PdfPipelineDeviceTest・MigrationTest・NativeReadingScreenTest 等）:
+#   接続端末が必須（connectedAndroidTest）。本プロジェクトでは実機 OPPO での /device-verify 運用が正で、
+#   エミュレータ CI 化は未整備（connectedAndroidTest 直叩きは蔵書DB消失の禁忌もある＝CLAUDE.md）。
+# - :macrobenchmark: com.android.test モジュールで実機計測専用＝runner では実行不能。
+# - verifyRoborazziDebug（スクリーンショット golden 比較）: golden は WSL(Linux) 記録が正で、
+#   JVM のフォントレンダリングは環境依存（ScreenshotTestSupport.kt / ADR 0009 増補1）。
+#   GitHub runner のフォント環境では偽赤が出るため既定ゲートに載せない。
+#   なお Screenshot*Test 自体は Robolectric(JVM) 製なので testDebugUnitTest に同乗して
+#   コンポジション（semantics 層）としては毎回走る（roborazzi プロパティ未指定時の
+#   captureRoboImage は no-op という標準挙動を利用。比較だけが CI 対象外）。
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# 同一 ref への連続 push で古い実行をキャンセル（最新コミットの結果だけが要る）
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      # デザイントークン検査を最初に回す（純 Python・数秒＝最速で drift を検知して fail-fast）。
+      # ubuntu-latest 同梱の python3（stdlib のみ使用）で足りるため setup-python は不要。
+      - name: Design token check
+        run: python3 tools/check_design_tokens.py
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17' # AGP 8.6.1 / Gradle 8.9 に合わせたローカル環境（Temurin 17）と同一系列
+
+      # Gradle のビルドキャッシュ・wrapper キャッシュを跨ぎ実行で共有
+      - uses: gradle/actions/setup-gradle@v4
+
+      # gradlew は git index が 100644（実行ビット無し）のため checkout 直後は Permission denied になる。
+      # 改行は LF（file コマンドで確認済み）なので CRLF 変換の前処理は不要＝chmod のみ。
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      # 単体テスト（Robolectric semantics/スクリーンショット系・PDF 抽出 golden 回帰
+      # 〔JvmGoldenRegressionTest: 参照する sample_pdfs/ と ab-review/golden_regression/ は
+      # git 追跡済み＝checkout だけで揃う〕を含む）。
+      # Android SDK は runner 同梱（ANDROID_HOME 設定済み・ライセンス承諾済み）を利用し、
+      # 不足コンポーネントは AGP が自動取得する。
+      - name: Unit tests
+        working-directory: android
+        run: ./gradlew testDebugUnitTest
+
+      # Lint: errors=0 がゲート（AGP 既定の abortOnError=true で errors があれば失敗）。
+      # warnings は既定で非ブロック＝件数の増減では落ちない。
+      - name: Android Lint
+        working-directory: android
+        run: ./gradlew :app:lintDebug

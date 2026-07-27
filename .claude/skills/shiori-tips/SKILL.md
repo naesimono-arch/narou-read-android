@@ -13,7 +13,7 @@ description: 栞書影の先端ワンポイント意匠（SHIORI_TIPS）を安�
 | 役割 | 場所 |
 |---|---|
 | 意匠の正本（tipカタログ・nm/rd付き） | `docs/design-candidates/shiori-tips-D.html` の `const TIPS=[…]` |
-| 実機の描画 | `android/.../ui/components/ShioriCover.kt` の `SHIORI_TIPS: List<ShioriTip>` |
+| 実機の描画 | `android/.../ui/components/ShioriTips.kt` の `SHIORI_TIPS: List<ShioriTip>` |
 | 書影モック（表紙デモ描画） | `docs/design-candidates/bookshelf-shiori-grid-D.html` の `const TIPS=[…]`（bare arrow） |
 | 決定論のゴールデン | `android/.../ui/components/ShioriGeneratorTest.kt`（`tipCount` と tipIndex 期待値） |
 

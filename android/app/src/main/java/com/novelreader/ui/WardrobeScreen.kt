@@ -116,6 +116,8 @@ fun WardrobeScreen(
     )
 
     // 戻るボタンとシステムバックの着地を一致させる（サブ画面ゆえハード戻るも onBack へ流す）。
+    // PredictiveBackHandler にしない理由: onBack＝NavHost pop で、戻り演出は遷移側（slide push 逆再生・
+    // ADR 0019）が担う。navigation-compose 2.7.5 に進捗連動 pop は無く、置換しても駆動できる面が無い。
     BackHandler { onBack() }
 
     Scaffold(containerColor = scheme.background) { inner ->

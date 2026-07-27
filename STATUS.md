@@ -11,7 +11,7 @@
 
 - **ブランチ**: main 一本（作業ブランチ・worktree とも全解消済み。再開時は main から切り直す）。
 
-- **最優先の宿題**: 2026-07-24 UIラウンドの実機で**激しいスタック（もたつき）報告**あり → **まず計測**から着手する（体感の訴えは真の合図・決め打ち修正はしない）。手順と経緯は `handover.md` が正本。
+- **実機スタック報告（2026-07-24）は計測→対処済み**（主因＝タブPager の隣ページ破棄・`beyondViewportPageCount=1` で常駐化・尾部 P99 450→73ms）。残＝ユーザー体感確認・macrobenchmark 回帰固定（`handover.md` が正本）。
 
 - **デフォルトUI＝「明快K」**（`Skin.MEIKAI_K` が既定。既存の明示保存 D/M/P/J/C は不変・装いの間で相互選択可）。構造＝
   〈ラベル付き恒常ボトムナビ3タブ（本棚／さがす／設定）＋全画面の明示タイトル＋設定画面＋本棚グリッド（キャプション行に可視⋮）＋
@@ -44,7 +44,8 @@
   release は R8 収縮（minify＋shrinkResources）で出荷し、収縮起因の欠落が無いことは実機回帰で確認済み。
 
 - **ゲート**（数値は測り直せば変わるので書かない＝疑わしければその場で回す）: `testDebugUnitTest` 緑／`tools/check_design_tokens.py` NG=0
-  （＋余白スケール7段 {4,8,12,16,24,32,40} の Spacing lint＝ADR0014 §C）／`:app:lintDebug` errors=0（warnings は非ブロック）。
+  （＋余白スケール7段 {4,8,12,16,24,32,40} の Spacing lint＝ADR0014 §C。SKIP は内訳列挙＋ベースライン超過で exit 1）／`:app:lintDebug` errors=0（warnings は非ブロック）。
+  push 時は GitHub Actions（`.github/workflows/ci.yml`）が同3ゲートを自動実行（実機必須の androidTest/macrobenchmark と golden 画像比較は対象外＝YAML コメントに理由）。
 
 - **既知バグ: なし**。
 

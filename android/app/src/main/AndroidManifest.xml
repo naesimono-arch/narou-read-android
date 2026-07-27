@@ -20,9 +20,14 @@
       旧判断が恐れた resolvedFile==null の行き止まりは成立しなくなる。
       ルール本体: API31+ は @xml/data_extraction_rules、API26-30 は @xml/backup_rules。
     -->
+    <!-- enableOnBackInvokedCallback=true: Predictive Back（戻りプレビュー）へのオプトイン（API 33+。それ未満では無視される）。
+         ルート（本棚タブ page 0）ではアプリ側の Back 割込みが全て enabled=false になるため、システムの
+         「ホームへ戻る」プレビューアニメがそのまま効く。深い画面の BackHandler は activity-compose の
+         OnBackInvokedDispatcher 互換層経由で従来どおり動く（挙動変化なし）。 -->
     <application
         android:name=".NovelReaderApplication"
         android:allowBackup="true"
+        android:enableOnBackInvokedCallback="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"

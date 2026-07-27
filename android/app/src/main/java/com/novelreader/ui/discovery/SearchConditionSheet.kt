@@ -58,16 +58,16 @@ import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.viewmodel.DiscoveryViewModel
-import com.novelreader.viewmodel.LENGTH_STEPS
-import com.novelreader.viewmodel.LENGTH_STEPS_DEF
-import com.novelreader.viewmodel.SearchDraft
-import com.novelreader.viewmodel.SearchFilters
-import com.novelreader.viewmodel.TIME_STEPS
-import com.novelreader.viewmodel.TIME_STEPS_DEF
-import com.novelreader.viewmodel.buildCustomRange
-import com.novelreader.viewmodel.selectedStepIndices
-import com.novelreader.viewmodel.toggleLastup
-import com.novelreader.viewmodel.toggleType
+import com.novelreader.domain.LENGTH_STEPS
+import com.novelreader.domain.LENGTH_STEPS_DEF
+import com.novelreader.domain.SearchDraft
+import com.novelreader.domain.SearchFilters
+import com.novelreader.domain.TIME_STEPS
+import com.novelreader.domain.TIME_STEPS_DEF
+import com.novelreader.domain.buildCustomRange
+import com.novelreader.domain.selectedStepIndices
+import com.novelreader.domain.toggleLastup
+import com.novelreader.domain.toggleType
 import com.novelreader.ui.theme.Spacing
 
 /**

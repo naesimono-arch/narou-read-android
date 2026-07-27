@@ -293,6 +293,17 @@ def css_prop_value(text: str, selector: str, prop: str) -> str | None:
 # （＝以後 spacing-context の直書き .dp は WARN でなく NG＝逆走を止める）。履歴は git log 参照。
 GRACE_FILES: set[str] = set()
 
+# ---- SKIP ベースライン（「全滅 SKIP でも緑」の盲点封鎖） ---------------------------
+# なぜこの機構か: SKIP は「その変数宣言がモックに無い＝照合対象外」で、ファイルごとに使う変数が
+# 違う以上 SKIP 自体は正常。だが判定が「宣言が在るときだけ照合」のため、モック側で変数名を一斉
+# リネームすると全照合が NG でなく SKIP へ落ち、OK が減っても exit 0 の緑のまま通る盲点があった
+# （2026-07-27 時点の実測 OK=192 NG=0 SKIP=42）。そこで実測 SKIP 数を定数として焼き込み、
+# 超過（＝照合が SKIP へ漏れ始めた合図）で exit 1 にするラチェットを敷く。
+# ベースライン更新手順: モック改版・期待表の増減で SKIP 数が意図的に変わったら、
+#   python3 tools/check_design_tokens.py を実行 → 出力の [SKIP] 一覧が全件意図どおりか目視 →
+#   本定数を新しい実測値へ書き換える（減った場合も [INFO] が出るので追従して締め直す）。
+SKIP_BASELINE = 42
+
 def find_decls(text: str, var: str) -> list[str]:
     return [m.upper() for m in re.findall(rf"{re.escape(var)}\s*:\s*#([0-9A-Fa-f]{{6}})\b", text)]
 
@@ -300,6 +311,9 @@ def main() -> int:
     tokens = parse_color_kt()
     ok = ng = skip = 0
     failures: list[str] = []
+    # SKIP の内訳（識別子＋理由）。総数だけだと「どの照合が対象外へ落ちたか」が追えず、
+    # ベースライン超過時の原因特定も目視更新（手順は SKIP_BASELINE コメント）もできないため列挙する。
+    skip_details: list[str] = []
 
     def check(label: str, actual: list[str], expected: str | None, token_name: str) -> None:
         nonlocal ok, ng, skip
@@ -308,6 +322,7 @@ def main() -> int:
             ng += 1
         elif not actual:
             skip += 1
+            skip_details.append(f"[SKIP] {label}: 変数宣言がモックに無い＝照合対象外（対応トークン {token_name}）")
         elif expected in actual:
             ok += 1
         else:
@@ -518,7 +533,19 @@ def main() -> int:
     print(f"spacing phase(b) check: NG={compose_ng} WARN={compose_warn}")
     for line in failures:
         print(line)
-    return 1 if ng else 0
+    for line in skip_details:
+        print(line)
+
+    # SKIP ベースライン照合（機序・更新手順は SKIP_BASELINE の定義コメント）。
+    # 超過のみ fail: 減少は照合カバレッジの増加＝良化なので止めず、締め直しを促すだけにする。
+    baseline_breach = skip > SKIP_BASELINE
+    if baseline_breach:
+        print(f"[NG] SKIP={skip} がベースライン {SKIP_BASELINE} を超過: 照合が SKIP へ漏れた"
+              f"（モックの変数リネーム等）疑い。上の [SKIP] 一覧を精査し、意図的なら SKIP_BASELINE を更新")
+    elif skip < SKIP_BASELINE:
+        print(f"[INFO] SKIP={skip} < ベースライン {SKIP_BASELINE}: 照合カバレッジが増えた。"
+              f"SKIP_BASELINE を {skip} へ締め直し推奨")
+    return 1 if (ng or baseline_breach) else 0
 
 if __name__ == "__main__":
     sys.exit(main())
