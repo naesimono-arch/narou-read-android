@@ -85,8 +85,6 @@ import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.DeleteSourcePdfOption
-import com.novelreader.ui.HighLoadSkyMenuSection
-import com.novelreader.ui.NewEpisodeNotificationMenuSection
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.skins.ShelfActions
 import com.novelreader.ui.skins.ShelfChrome

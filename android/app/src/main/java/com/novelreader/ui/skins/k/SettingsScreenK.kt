@@ -259,9 +259,10 @@ private fun KThemeOption(label: String, selected: Boolean, onSelect: () -> Unit)
 }
 
 /**
- * 新着話通知のトグル行。配線は本棚⋮の NewEpisodeNotificationMenuSection と同一
- * （状態源＝NewEpisodeNotificationPreference・切替＝Application 経由・33+ は権限ダイアログ）。
- * 見た目だけ K の説明文つき行に置き換える＝二重管理になるのは見た目のみで状態は単一。
+ * 新着話通知のトグル行。ここが通知オプトインの単一入口（本棚⋮の通知節は撤去済み＝2026-07-24 の K形伝播）。
+ * 配線は状態源＝NewEpisodeNotificationPreference・切替＝Application 経由・33+ は権限ダイアログ。
+ * 見た目は K の説明文つき行。旧・共通トグル部品（NewEpisodeNotificationToggle）は本行が引き取ったことで
+ * 呼び出しがゼロになり 2026-07-27 に削除した＝通知 UI はこの1実装だけ（復元するなら git 履歴から）。
  */
 @Composable
 private fun NewEpisodeNotificationRowK() {

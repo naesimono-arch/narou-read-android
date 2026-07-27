@@ -87,7 +87,6 @@ import com.novelreader.PrefKeys
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.discovery.model.WorkSummary
-import com.novelreader.ui.NewEpisodeNotificationMenuSection
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.skins.ShelfActions
 import com.novelreader.ui.skins.ShelfChrome

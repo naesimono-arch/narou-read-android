@@ -25,7 +25,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -38,10 +37,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -54,25 +51,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import com.novelreader.NewEpisodeNotificationPreference
-import com.novelreader.NovelReaderApplication
 import com.novelreader.PrefKeys
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
-import com.novelreader.data.WebNovelEntity
 import com.novelreader.model.BookId
 import com.novelreader.ui.discovery.FilterChipItem
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.theme.FontButtonLabel
 import com.novelreader.ui.theme.FontHomeTitle
 import com.novelreader.ui.theme.FontSubTitle
-import com.novelreader.ui.skins.m.HlSkyDebug
 import com.novelreader.ui.skins.rememberShelfFace
 import com.novelreader.ui.skins.rememberShelfViewToggle
 import com.novelreader.ui.skins.ShelfActions
@@ -84,13 +76,7 @@ import com.novelreader.ui.skins.ShelfWebActions
 import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.theme.Insets
 import com.novelreader.ui.theme.LocalShelfColors
-import com.novelreader.ui.theme.LocalSkin
-import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.MinchoFamily
-import androidx.compose.ui.semantics.semantics
-import com.novelreader.BuildConfig
-import com.novelreader.scrape.AdapterHealthCheck
-import com.novelreader.scrape.SiteAdapterRegistry
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationReveal
@@ -1021,37 +1007,7 @@ internal fun BookshelfContent(
         )
     }
     // debug ヘルスボード（スクレイパー健全性診断）は本棚⋮撤去に伴い設定タブ（SettingsScreenK）の診断入口へ一本化した（系2）。
-    // AdapterHealthBoardDialog 本体は SettingsScreenK が引き続き呼び出す＝関数定義はそのまま残す（本画面からの起動のみ撤去）。
-}
-
-/**
- * 削除確認ダイアログ内の「取込元のPDFファイルも削除する」オプション行（本棚D構造＋M/P/J 全スキン共通）。
- *
- * なぜ共通ヘルパーか: 削除確認ダイアログは意匠上「OS 面（素の Material AlertDialog）」＝スキンで塗り分けない
- * 約束（各スキンのダイアログ実装コメント参照）。このチェック行も同じく全画面で単一実装にし、文言・件数表示・
- * 表示条件を1箇所に集約する。deletableCount==0（＝取込元 URI を持つ本が選択に無い＝消せる取込元PDFが無い）なら
- * 何も描かない。checked/onCheckedChange は呼び出し側の remember 状態へ接続（ダイアログを開くたび既定 OFF）。
- * 行全体を toggleable にして Checkbox とラベルのどちらをタップしても切り替わる（Checkbox 自体は onCheckedChange=null
- * ＝行のトグルへ委譲する Material 標準の a11y マージ形）。
- */
-@Composable
-internal fun DeleteSourcePdfOption(
-    deletableCount: Int,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    if (deletableCount <= 0) return
-    Spacer(Modifier.height(Spacing.S12))
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .toggleable(value = checked, role = Role.Checkbox, onValueChange = onCheckedChange),
-    ) {
-        Checkbox(checked = checked, onCheckedChange = null)
-        Spacer(Modifier.width(Spacing.S8))
-        Text("取込元のPDFファイルも削除する（${deletableCount}件）")
-    }
+    // 本体 AdapterHealthBoardDialog は ui/AdapterHealthBoardDialog.kt へ移設済み＝SettingsScreenK が引き続き呼び出す。
 }
 
 // ============================================================
@@ -1309,176 +1265,6 @@ private fun SkeletonLine(
             .height(11.dp)
             .clip(RoundedCornerShape(2.dp))
             .background(color),
-    )
-}
-
-/**
- * ⋮メニューの「通知」節（見出し＋新着話通知トグル＋権限ダイアログ結線）。
- * D 構造のトップバーと M 星図（BookshelfSkyM）の両メニューが同一実装を使うために抽出した
- * （スキン構造分岐＝ADR 0022 §1 で画面が割れても、通知オプトインの挙動は1系統に保つ）。
- */
-@Composable
-internal fun NewEpisodeNotificationMenuSection() {
-    Text(
-        "通知",
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = Spacing.S16, top = Spacing.S8, bottom = Spacing.S4),
-    )
-    val notifContext = LocalContext.current
-    var newEpisodeNotifEnabled by remember {
-        mutableStateOf(NewEpisodeNotificationPreference.isEnabled(notifContext))
-    }
-    val newEpisodeNotifPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { /* 拒否されても Worker は動かす＝バッジ側の提示は生きる（通知だけ出ない） */ }
-    NewEpisodeNotificationToggle(
-        enabled = newEpisodeNotifEnabled,
-        onEnabledChange = { enabled ->
-            newEpisodeNotifEnabled = enabled
-            (notifContext.applicationContext as NovelReaderApplication)
-                .setNewEpisodeNotificationEnabled(enabled)
-            // API33+ で未付与なら OS 権限ダイアログ（<33 は常に GRANTED＝発火しない）。
-            if (enabled && ContextCompat.checkSelfPermission(
-                    notifContext, Manifest.permission.POST_NOTIFICATIONS
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                newEpisodeNotifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        },
-        modifier = Modifier.padding(horizontal = Spacing.S16),
-    )
-}
-
-/**
- * ⋮メニューの「高負荷スカイ（試作）」節（ADR 0023）＝debug ビルドかつ星図M装着時のみ露出する開発トグル。
- *
- * なぜ⋮メニュー（テーマ・通知の並ぶ設定面）へ置くか: 本アプリ唯一の常設設定面で、専用設定画面を新設しない
- * （UX/19: 設定面は増やさない）。試作の実機探索は debug 限定＝release では [BuildConfig.DEBUG]=false で節ごと消え、
- * 値も MainActivity 側で常に false 扱い（出荷時は現行の空）。星図M以外では無意味ゆえ [LocalSkin] で M に絞る。
- *
- * 状態は呼び出し側（MainActivity へ巻き上げた highLoadSkyM ＋prefs "sky_high_load_m"）にホイスト＝ON/OFF が即
- * 常駐 backdrop（SkyBackdropM の highLoad 引数）へ伝わり、その場で空が切り替わる（通知トグルと同じ stateless 流儀）。
- */
-@Composable
-internal fun HighLoadSkyMenuSection(
-    highLoad: Boolean,
-    onHighLoadChange: (Boolean) -> Unit,
-    onDismissMenu: () -> Unit = {}, // 検分トリガーは押下時にメニューを閉じてから発火（DropdownMenu が空を隠すのを避ける）
-) {
-    if (!BuildConfig.DEBUG || LocalSkin.current != Skin.SEIZU_M) return
-    HorizontalDivider()
-    Text(
-        "開発",
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = Spacing.S16, top = Spacing.S8, bottom = Spacing.S4),
-    )
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.S16)
-            // TalkBack で「ラベル＋スイッチ」を1トラバーサル単位にまとめる（通知トグルと同流儀）。
-            .semantics(mergeDescendants = true) {}
-            .padding(vertical = Spacing.S8),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Column(Modifier.weight(1f).padding(end = Spacing.S16)) {
-            Text(text = "高負荷スカイ（試作）", style = MaterialTheme.typography.bodyLarge)
-            Text(
-                text = "多深度視差・加算合成の重い空（debug のみ）",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Switch(checked = highLoad, onCheckedChange = onHighLoadChange)
-    }
-    // 高負荷 ON のときだけ「即時トリガー」行を出す（確率60s/3分・周期42日・33chに1度を待たずに実機検分するため）。
-    // 各ボタンは onDismissMenu() でメニューを閉じてから HlSkyDebug を叩く＝発火が空で見える。彗星はトグル（押すたび表示/非表示）。
-    if (highLoad) {
-        Text(
-            "即時トリガー（検分用）",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = Spacing.S16, top = Spacing.S4, bottom = Spacing.S4),
-        )
-        // 各ラベルと発火をペアで持ち、RowScope 内で weight を効かせるため直接展開（weight は RowScope 受信者に紐付く）。
-        val triggers = listOf<Pair<String, () -> Unit>>(
-            "流星" to { HlSkyDebug.fireMeteor() },
-            "衛星" to { HlSkyDebug.fireSatellite() },
-            "彗星" to { HlSkyDebug.toggleComet() }, // トグル: 押すたび強制表示/非表示
-            "BH" to { HlSkyDebug.fireBh() },
-            "暗黒雲" to { HlSkyDebug.fireCloud() }, // 1発: 可視中央へ雲を湧かせ視差2.2×で流れ去らせる（流星等と同流儀）
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.S8, vertical = Spacing.S4),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.S4),
-        ) {
-            for ((label, onFire) in triggers) {
-                TextButton(
-                    onClick = { onDismissMenu(); onFire() }, // 先に閉じてから発火＝メニューが空を隠さない
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = Spacing.S4, vertical = Spacing.S4),
-                ) { Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1) }
-            }
-        }
-    }
-}
-
-// 旧 AdapterHealthMenuSection（⋮メニューの診断入口）は撤去済み: 本棚⋮の撤去（系2・2026-07-24）で
-// 呼出元がゼロになった dead code のため（診断入口は SettingsScreenK が単一正本）。下の
-// AdapterHealthBoardDialog 本体は SettingsScreenK が現役で呼ぶ＝巻き添え削除しないこと。
-
-/**
- * 破損監視・層3 の debug ヘルスボード。開いた瞬間に全登録アダプタの自己診断（[AdapterHealthCheck]）を
- * 実ネットワークで1回だけ回し、アダプタ名＋緑/赤（OK/NG）＋理由テキストを一覧表示する。結果は永続化しない
- * （その場診断・P4 スコープ）。緑=colorScheme.primary・赤=colorScheme.error の意味色で表す（新規トークンは足さない）。
- *
- * defensive に [BuildConfig.DEBUG] を再ガードする（入口も debug 限定だが二重で release 到達を断つ）。
- */
-@Composable
-internal fun AdapterHealthBoardDialog(onDismiss: () -> Unit) {
-    if (!BuildConfig.DEBUG) return
-    // null=診断中／非 null=結果。LaunchedEffect(Unit) で開いた1回だけ実行する（再コンポーズで再取得しない）。
-    var reports by remember { mutableStateOf<List<AdapterHealthCheck.Report>?>(null) }
-    LaunchedEffect(Unit) {
-        // registry の既定アダプタ（本番の KakuyomuAdapter＝実 OkHttp）をそのまま診断する。取得は各アダプタ内蔵の
-        // ScrapeHttpClient 経由で Crawl-delay を守るため、章1件でも数秒かかる（debug の手動診断ゆえ許容）。
-        reports = AdapterHealthCheck(SiteAdapterRegistry().registeredAdapters).runAll()
-    }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onDismiss) { Text("閉じる") } },
-        title = { Text("スクレイパー健全性") },
-        text = {
-            val current = reports
-            if (current == null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.size(Spacing.S24))
-                    Spacer(Modifier.width(Spacing.S16))
-                    Text("診断中…（Crawl-delay を守るため数秒かかります）")
-                }
-            } else {
-                Column {
-                    current.forEach { r ->
-                        Column(Modifier.padding(vertical = Spacing.S4)) {
-                            Text(
-                                text = "${if (r.healthy) "OK" else "NG"}  ${r.displayName}（${r.siteKey}）",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = if (r.healthy) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.error,
-                            )
-                            Text(
-                                text = r.detail,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-        },
     )
 }
 
