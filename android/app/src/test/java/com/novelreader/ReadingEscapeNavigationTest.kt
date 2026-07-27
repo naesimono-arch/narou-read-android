@@ -9,6 +9,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.novelreader.ui.skins.k.KTab
 import com.novelreader.ui.tabs.TabPagerHost
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -20,7 +21,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * 読書フロー脱出（[popToBookshelfTab]）の契約テスト。
+ * 読書フロー脱出（[popToTab]）の契約テスト。
  *
  * 固定する契約（Back 統一裁定 2026-07-19「目次→本棚」× K タブ構造 2026-07-24）:
  *   ① 目次で back()==null になった後の脱出が「実際に有効な pop」であり、タブ層＝本棚ページへ着地する。
@@ -71,7 +72,7 @@ class ReadingEscapeNavigationTest {
         // ① 通常入場（本棚ページから読書へ）: 脱出でタブ層へ戻り本棚ページのまま。
         setUpNav(initialTabPage = 0)
         assertEquals("reading/{bookId}/{startFile}", currentRoute())
-        composeTestRule.runOnIdle { popToBookshelfTab(navController, pager) }
+        composeTestRule.runOnIdle { popToTab(navController, pager, KTab.BOOKSHELF) }
         composeTestRule.waitForIdle()
         assertEquals("脱出は有効な pop としてタブ層へ戻ること", TAB_HOST_ROUTE, currentRoute())
         assertEquals("着地は本棚ページ", 0, composeTestRule.runOnIdle { pager.currentPage })
@@ -81,7 +82,7 @@ class ReadingEscapeNavigationTest {
     fun escapeFromReading_snapsPagerToBookshelf_evenFromOtherTabPage() {
         // ② deep link 入場相当: Pager が設定タブに居ても契約は「目次→本棚」＝pop＋スナップで本棚着地。
         setUpNav(initialTabPage = 2)
-        composeTestRule.runOnIdle { popToBookshelfTab(navController, pager) }
+        composeTestRule.runOnIdle { popToTab(navController, pager, KTab.BOOKSHELF) }
         composeTestRule.waitForIdle()
         assertEquals(TAB_HOST_ROUTE, currentRoute())
         assertEquals("他タブに居ても本棚ページへスナップ", 0, composeTestRule.runOnIdle { pager.currentPage })
@@ -97,7 +98,7 @@ class ReadingEscapeNavigationTest {
         assertFalse("スタックに無いルートへの pop は黙って無視される（バグの機序）", popped)
         assertEquals("現在地が動かない＝幽閉の再現", "reading/{bookId}/{startFile}", currentRoute())
         // 対して正しい脱出は同じ状態から必ず成功する（①との対比で機序を1テスト内でも可視化）。
-        composeTestRule.runOnIdle { popToBookshelfTab(navController, pager) }
+        composeTestRule.runOnIdle { popToTab(navController, pager, KTab.BOOKSHELF) }
         composeTestRule.waitForIdle()
         assertTrue("正規の脱出後はタブ層", currentRoute() == TAB_HOST_ROUTE)
     }

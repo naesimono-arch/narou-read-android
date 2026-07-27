@@ -135,3 +135,9 @@ M の学名ドット `--id` 4色・P のラベル/ジャンル色 w1-w4/g1-g6・
   （旧 `popUpTo("bookshelf")` 流儀の継承。契約テスト＝KTabNavigationTest）。
 - **却下: タブごとの独立バックスタック温存（rememberSaveable 付き NavHost 多重化）**: Pager と saveState/restoreState の
   二重状態管理になり、枠の単純さ（スロット契約）を壊す。タブ状態は Pager のページ保持（rememberPagerState 内蔵 Saver）で足りる。
+- **深い画面 → タブへの Up は `popToTab(nav, pager, KTab)` 一択**（`MainActivity.kt`・追記 2026-07-27）:
+  この Pager 化で消えた旧ルート名 `"bookshelf"`/`"discovery"` への `popBackStack(route, …)` は**例外を投げず
+  false を返して黙殺される**ため、押しても何も起きない ← ボタンがコンパイルもテストも通ってしまう
+  （07-25「目次に幽閉」・07-27「検索→作品詳細の ← 無反応」は同一機序の連続発生）。タブ層への pop 先は
+  ルート名リテラルで書けない形（`KTab` enum ＋ `TAB_HOST_ROUTE` 定数）へ閉じる。契約テスト＝
+  `ReadingEscapeNavigationTest`（読書側）／`DiscoveryUpNavigationTest`（発見側）。

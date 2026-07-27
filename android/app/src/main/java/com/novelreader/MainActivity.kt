@@ -543,9 +543,12 @@ private fun NovelReaderApp(
             DiscoveryResultScreen(
                 viewModel = discoveryViewModel,
                 // F-D: App bar の ← は経路に依らず発見ホームへ固定 Up する。全ての結果経路
-                // （検索/ジャンル/気分/キーワード）が discovery を必ず下位に持つため、discovery まで
-                // pop すれば一段上の親へ一貫して戻れる。履歴 Back（onBack）は端末 Back と「条件を変更」に委ねる。
-                onUp = { navController.popBackStack("discovery", false) },
+                // （検索/ジャンル/気分/キーワード）はタブ層の「さがす」ページを必ず下位に持つため、
+                // タブ層へ pop ＋ さがすページへスナップすれば一段上の親へ一貫して戻れる。
+                // 履歴 Back（onBack）は端末 Back と「条件を変更」に委ねる。
+                // 旧 popBackStack("discovery", false) はタブ Pager 化（2026-07-24）でルート "discovery" が
+                // 消えた後も残留し、pop が黙殺されて ← が完全に無反応だった（2026-07-27 実機バグの真因）。
+                onUp = { popToTab(navController, tabPagerState, KTab.DISCOVER) },
                 onBack = { navController.popBackStack() },
                 // 境界: nav ルートは String。Ncode を .value でほどいてパスへ載せる。
                 onOpenDetail = { ncode -> navController.navigate("discovery/detail/${ncode.value}") { launchSingleTop = true } },
@@ -576,10 +579,12 @@ private fun NovelReaderApp(
                             launchSingleTop = true
                             // why(F-A): キーワードタップの結果一覧は「どの経路で detail に来たか」で Back 先が
                             // 割れていた（result 経由なら result が隠れて残り、home 直行なら残らない）。
-                            // popUpTo("discovery", inclusive=false) で discovery より上（既存 result・detail）を
-                            // 全て畳んでから result を1枚積むことで、両経路とも [bookshelf, discovery, result] に固定する。
+                            // タブ層より上（既存 result・detail）を全て畳んでから result を1枚積むことで、
+                            // 両経路とも [tabs, result] に固定する。
                             // resultContext は VM 単一保持のため、result を常に1枚に保つ SSOT もこれで維持される。
-                            popUpTo("discovery") { inclusive = false }
+                            // 旧 popUpTo("discovery") はタブ Pager 化でルートが消えた後も残留＝畳みが無言で
+                            // 効かず、経路によってスタックが割れたままだった（← 無反応と同根の残留リテラル）。
+                            popUpTo(TAB_HOST_ROUTE) { inclusive = false }
                         }
                     }
                 },
@@ -589,9 +594,11 @@ private fun NovelReaderApp(
                 onReadFromToc = { navController.navigate("web-reader/$ncode/0") { launchSingleTop = true } },
                 onResumeReading = { episode -> navController.navigate("web-reader/$ncode/$episode") { launchSingleTop = true } },
                 // D 統一（2026-07-12）: 作品詳細の ← は経路に依らず発見ホームへ固定 Up（DiscoveryResultScreen.onUp と同型）。
-                // 全ての detail 経路（発見ホーム直/結果一覧経由/キーワード検索）が discovery を必ず下位に持つため、
-                // discovery まで pop すれば一段上の親へ一貫して戻れる。経路依存の履歴 Back は端末 Back に委ねる。
-                onUp = { navController.popBackStack("discovery", false) },
+                // 全ての detail 経路（発見ホーム直/結果一覧経由/キーワード検索）はタブ層の「さがす」ページを必ず
+                // 下位に持つため、タブ層へ pop ＋ さがすページへスナップで一段上の親へ一貫して戻れる。
+                // 経路依存の履歴 Back は端末 Back に委ねる。
+                // 旧 popBackStack("discovery", false) の残留がここでも ← を無反応にしていた（同上・真因）。
+                onUp = { popToTab(navController, tabPagerState, KTab.DISCOVER) },
             )
         }
 
@@ -671,8 +678,8 @@ private fun NovelReaderApp(
                             followingSystem = followingSystem,
                             onFollowSystem = onFollowSystem,
                             // 目次→本棚の脱出。旧 popBackStack("bookshelf") はタブ化でルートが消え黙殺されていた
-                            // （真因と2段構成の理由＝popToBookshelfTab の KDoc）。
-                            onNavigateToBookshelf = { popToBookshelfTab(navController, tabPagerState) },
+                            // （真因と2段構成の理由＝popToTab の KDoc）。
+                            onNavigateToBookshelf = { popToTab(navController, tabPagerState, KTab.BOOKSHELF) },
                         )
                     } else {
                         // 確定して本が存在しない（削除済み／復元不能）ケース。白画面デッドエンドを残さず、
@@ -680,7 +687,7 @@ private fun NovelReaderApp(
                         ReadingErrorScreen(
                             message = "この書籍は見つかりませんでした",
                             colors = rememberReadingColors(appTheme),
-                            onNavigateToBookshelf = { popToBookshelfTab(navController, tabPagerState) },
+                            onNavigateToBookshelf = { popToTab(navController, tabPagerState, KTab.BOOKSHELF) },
                         )
                     }
                 }
@@ -713,15 +720,21 @@ private fun NovelReaderApp(
 internal const val TAB_HOST_ROUTE = "tabs"
 
 /**
- * 読書フロー（目次・読書エラー画面）から「本棚へ戻る」の単一実装（Back 契約=2026-07-19 裁定の「目次→本棚」）。
- * K タブ化（2026-07-24・ADR 0022）で本棚は NavHost ルートでなく tabs 内 Pager のページになったため、
- * 「タブ層へ pop」＋「Pager を本棚ページへスナップ」の2段で階層 up を表現する。
+ * 深い画面（読書・目次・発見の結果一覧/作品詳細）から「タブ層の特定タブへ階層 up する」単一実装。
+ * K タブ化（2026-07-24・ADR 0022）で本棚・さがすは NavHost ルートでなく tabs 内 Pager のページになったため、
+ * 「タブ層へ pop」＋「Pager を目的タブへスナップ」の2段で階層 up を表現する。
  * スナップが要る理由: deep link（通知）入場では Pager が他タブに居ることがあり、pop だけでは
- * 「目次→さがす/設定」に化けて契約が破れる（通常の本棚経由入場では既に本棚ページ＝no-op）。
- * requestScrollToPage は非 suspend で Pager 非表示中（読書画面が前面）でも安全＝次の合成で適用される。
+ * 「目次→さがす/設定」のように着地が化けて契約が破れる（同じタブから入場した通常経路では no-op）。
+ * requestScrollToPage は非 suspend で Pager 非表示中（深い画面が前面）でも安全＝次の合成で適用される。
+ *
+ * なぜ「タブ名を [KTab] で受ける1関数」に集約するか（2026-07-27 実機バグの再発防止）:
+ * 消えたルート名（"bookshelf"/"discovery"）への [NavController.popBackStack] は例外を投げず false を返して
+ * 黙殺されるため、押しても何も起きない ← ボタンとしてコンパイルも通り、テストも緑のまま出荷される。
+ * タブ層への pop 先を「文字列リテラルでは書けない」形（enum＋[TAB_HOST_ROUTE] 定数）へ閉じることで、
+ * ルートの改名・廃止で pop 先が宙に浮く欠陥クラス自体を表現不能にする。
  */
-internal fun popToBookshelfTab(navController: NavController, tabPagerState: PagerState) {
-    tabPagerState.requestScrollToPage(KTab.BOOKSHELF.ordinal)
+internal fun popToTab(navController: NavController, tabPagerState: PagerState, tab: KTab) {
+    tabPagerState.requestScrollToPage(tab.ordinal)
     navController.popBackStack(TAB_HOST_ROUTE, false)
 }
 
