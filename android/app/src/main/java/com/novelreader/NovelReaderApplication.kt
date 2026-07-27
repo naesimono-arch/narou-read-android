@@ -10,6 +10,10 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.novelreader.diagnostics.CrashReporter
+import com.novelreader.diagnostics.DiagnosticsRecorder
+import com.novelreader.diagnostics.DiagnosticsStore
+import com.novelreader.diagnostics.SessionWatch
 import com.novelreader.narou.DataStoreSearchHistoryStore
 import com.novelreader.narou.NovelApiRepository
 import com.novelreader.narou.SearchHistoryStore
@@ -55,6 +59,16 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
 
     /** なろうAPIを利用したディスカバリ用リポジトリのシングルトン（既存 repository と別系統） */
     val novelApiRepository: NovelApiRepository by lazy { NovelApiRepository() }
+
+    /** 端末内診断（クラッシュ／異常終了）の採取係。外部送信は一切しない＝保管は filesDir 配下のみ。 */
+    val diagnostics: DiagnosticsRecorder by lazy {
+        DiagnosticsRecorder(this, DiagnosticsStore(java.io.File(filesDir, "diagnostics")))
+    }
+
+    /** 前面セッションの開閉監視（異常終了の推定）。設定は他と同じ app_prefs へ置く。 */
+    val sessionWatch: SessionWatch by lazy {
+        SessionWatch(getSharedPreferences(PrefKeys.FILE_APP_PREFS, MODE_PRIVATE), diagnostics)
+    }
 
     /** 検索履歴＋ピン留め（発見機能 D1）のシングルトン。 */
     val searchHistoryStore: SearchHistoryStore by lazy { DataStoreSearchHistoryStore(this) }
@@ -159,6 +173,11 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
 
     override fun onCreate() {
         super.onCreate()
+        // 端末内診断をどの初期化よりも先に立ち上げる（外部送信ゼロ・記録先は filesDir/diagnostics）。
+        // 最初に置く理由: 以降の初期化（PDFBox 資産ロード・WorkManager 等）で落ちた場合も記録を残すため。
+        // クラッシュを記録したらセッションを閉じ、次回起動で「異常終了」として二重に数えない。
+        CrashReporter.install(diagnostics) { sessionWatch.onCrashRecorded() }
+        sessionWatch.onProcessStart()
         // PDFBox-Android のフォント/CMap 資産ローダを初期化する。ToUnicode CMap 非搭載の CID フォントを
         // グリフ→Unicode 解決するのに AAR 同梱資産を使うため、あらゆる PDDocument.load より前に一度だけ必要
         // （task_diary #31）。PdfProcessingService は MainActivity 無しでも走る（プロセス再生成・サービス起動
@@ -168,9 +187,18 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
         createNotificationChannel()
         // アプリ前面/背面を追跡する（変換完了通知の二重報告抑止・公理13-D §86）。
         // Application.onCreate はメインスレッドのため observer 登録の前提を満たす。
+        // 同じ前面/背面の signal を診断のセッション開閉にも使う（観測点を増やさない）。
+        // 背面へ回った時点でセッションを閉じるのは、そこから先の OEM kill は Android の正常動作で
+        // 異常として数えるべきでないため（数えると EMUI/ColorOS 端末で偽陽性だらけになる）。
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onStart(owner: LifecycleOwner) { isAppInForeground = true }
-            override fun onStop(owner: LifecycleOwner) { isAppInForeground = false }
+            override fun onStart(owner: LifecycleOwner) {
+                isAppInForeground = true
+                sessionWatch.onForeground()
+            }
+            override fun onStop(owner: LifecycleOwner) {
+                isAppInForeground = false
+                sessionWatch.onBackground()
+            }
         })
         // U1 新着チェックは既定 OFF のオプトイン（UX監査 C3・公理13）。ユーザーが明示 ON にしたときだけ
         // 定期実行を仕込む。OFF なら背景照会（日次 ncode 群の syosetu 送信）自体が走らない。

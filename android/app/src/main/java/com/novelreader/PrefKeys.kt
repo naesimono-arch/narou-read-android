@@ -83,6 +83,18 @@ object PrefKeys {
     /** P装い: ヒンジ開度のデテント段（Int 0..2）。 */
     const val P_HINGE_DETENT = "p_hinge_detent"
 
+    // ── app_prefs: 診断（com.novelreader.diagnostics）──
+    // 異常終了の推定に使う3点。値はいずれも「前回プロセスの状態」で、次の起動で読んで判定する。
+
+    /** 前面セッションが開いているか（Boolean）。開いたまま次の起動が来たら異常終了と推定する。 */
+    const val DIAG_SESSION_OPEN = "diag_session_open"
+
+    /** 前面での最終確認時刻（Long・epochMillis）。異常終了イベントの発生時刻として使う。 */
+    const val DIAG_LAST_SEEN_AT = "diag_last_seen_at"
+
+    /** 前面での最終表示画面（String）。異常終了イベントの発生画面として使う。 */
+    const val DIAG_LAST_SCREEN = "diag_last_screen"
+
     // ── narou_search_history: なろう検索履歴（DataStore・DataStoreSearchHistoryStore）──
 
     /** ピン留め検索語（String・改行区切り）。 */
