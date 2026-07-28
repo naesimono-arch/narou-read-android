@@ -23,9 +23,11 @@ statusLine コマンド: 1行目=ブランチ／worktree、2行目=モデル・�
   徹し、re や argparse など重い／不要なモジュールは import しない。
 """
 import json
+import os
 import subprocess
 import sys
 import time
+import unicodedata
 
 # Windows の既定コンソールは cp932 で、絵文字(📂🌿)を encode できず UnicodeEncodeError になる。
 # 追加 import を避けつつ stdout を UTF-8 に再構成する（reconfigure は Python 3.7+ で利用可）。
@@ -101,7 +103,7 @@ def fmt_tokens(n):
     return str(n)
 
 
-def fmt_left(resets_at):
+def fmt_left(resets_at, prefix=True):
     """リセットまでの残りを日本語で。過ぎている／不明なら空文字（区画ごと出さない）。"""
     if not resets_at:
         return ""
@@ -111,53 +113,102 @@ def fmt_left(resets_at):
     d, rem = divmod(sec, 86400)
     h, m = divmod(rem, 3600)
     m //= 60
+    head = "残り" if prefix else ""
     if d:
-        return f"残り{d}日{h}時間"
+        return f"{head}{d}日{h}時間"
     if h:
-        return f"残り{h}時間{m}分"
-    return f"残り{m}分"
+        return f"{head}{h}時間{m}分"
+    return f"{head}{m}分"
 
 
-def status_line(data, rate, month):
-    """2行目を組み立てる。欠けているフィールドの区画は丸ごと省く（null 埋めの "--" を出さない）。"""
-    parts = []
+def disp_width(s):
+    """端末表示幅の概算（全角・絵文字＝2桁）。
+    なぜ len() では駄目か: この行は絵文字と日本語が主体で、文字数と占有桁数が倍近くずれる。
+    ずれたまま判定すると縮退が効かず見切れる。"""
+    w = 0
+    for ch in s:
+        o = ord(ch)
+        if o == 0xFE0F or unicodedata.combining(ch):
+            continue  # 異体字セレクタ・結合文字は幅を持たない
+        if 0x1F300 <= o <= 0x1FAFF or 0x2600 <= o <= 0x27BF:
+            w += 2
+        elif unicodedata.east_asian_width(ch) in ("W", "F"):
+            w += 2
+        else:
+            w += 1
+    return w
 
+
+def status_line(data, rate, month, columns=0):
+    """2行目を組み立てる。欠けているフィールドの区画は丸ごと省く（null 埋めの "--" を出さない）。
+
+    なぜ段階縮退するか（2026-07-29 ユーザー報告）:
+      全部入りは実測で 100 桁を超え、末尾の当月累計から順に見切れて読めなくなっていた。
+      端末が切り捨てる位置は制御できないので、こちらで優先度の低い情報から先に落とす。
+      落とす順＝①ラベル語とコンテキスト内訳 ②利用枠のリセット残り ③当月累計 ④枠ラベル。
+      COLUMNS は Claude Code が実行前に設定する（v2.1.153+）。無ければ縮退しない。
+    """
     cw = data.get("context_window") or {}
     size = cw.get("context_window_size")
-    model = (data.get("model") or {}).get("display_name")
-    if model:
-        # 拡張コンテキスト（1M）かどうかは context_window_size でしか判別できない＝モデル名に添える。
-        parts.append(f"🤖 {model}" + (" (1M)" if size and size >= 1_000_000 else ""))
+    model = (data.get("model") or {}).get("display_name") or ""
+    # display_name 自身が「Opus 5 (1M context)」と拡張枠を自称することがある＝二重表示を避ける。
+    # 拡張枠は context_window_size でしか確実に判別できないため、名乗っていないときだけ添える。
+    model = model.replace("(1M context)", "(1M)")
+    if size and size >= 1_000_000 and "1M" not in model:
+        model += " (1M)"
 
     cost = (data.get("cost") or {}).get("total_cost_usd")
-    if cost is not None:
-        parts.append(f"💰 ¥{round(cost * rate):,} セッション")
-
-    # プラン利用枠（Pro/Max のみ・最初の API レスポンス後に現れる）。ccusage の「5hブロック」推定の代替。
-    # ラベルを和文にするのは、同じ値を見せる組み込みの /usage が英語表示で変更できないため
-    # ——「英語で分かりにくい」を埋めるのがこの常時表示の役目（2026-07-29 ユーザー指摘）。
-    segs = []
     rl = data.get("rate_limits") or {}
-    for key, label in (("five_hour", "5時間"), ("seven_day", "週")):
-        win = rl.get(key) or {}
-        pct = win.get("used_percentage")
-        if pct is None:
-            continue
-        left = fmt_left(win.get("resets_at"))
-        segs.append(f"{label} {pct:.0f}%" + (f"({left})" if left else ""))
-    if segs:
-        parts.append("🔋 " + " / ".join(segs))
-
     pct = cw.get("used_percentage")
-    if pct is not None:
-        used = cw.get("total_input_tokens")
-        detail = f" ({fmt_tokens(used)}/{fmt_tokens(size)})" if used and size else ""
-        parts.append(f"🧠 {pct:.0f}%{detail}")
+    used = cw.get("total_input_tokens")
 
-    if month:
-        parts.append(f"📅 ¥{month} 今月")
+    def render(level):
+        parts = []
+        if model:
+            parts.append(f"🤖 {model}")
 
-    return " | ".join(parts)
+        if cost is not None:
+            parts.append(f"💰 ¥{round(cost * rate):,}" + (" セッション" if level < 1 else ""))
+
+        # プラン利用枠（Pro/Max のみ・最初の API レスポンス後に現れる）。ccusage の「5hブロック」推定の代替。
+        # ラベルを和文にするのは、同じ値を見せる組み込みの /usage が英語表示で変更できないため
+        # ——「英語で分かりにくい」を埋めるのがこの常時表示の役目（2026-07-29 ユーザー指摘）。
+        segs = []
+        for key, label in (("five_hour", "5時間"), ("seven_day", "週")):
+            win = rl.get(key) or {}
+            wpct = win.get("used_percentage")
+            if wpct is None:
+                continue
+            if level >= 4:
+                segs.append(f"{wpct:.0f}%")
+                continue
+            seg = f"{label} {wpct:.0f}%"
+            if level < 2:
+                left = fmt_left(win.get("resets_at"), prefix=(level < 1))
+                if left:
+                    seg += f"({left})"
+            segs.append(seg)
+        if segs:
+            parts.append("🔋 " + ("/".join(segs) if level >= 4 else " / ".join(segs)))
+
+        if pct is not None:
+            detail = f" ({fmt_tokens(used)}/{fmt_tokens(size)})" if level < 1 and used and size else ""
+            parts.append(f"🧠 {pct:.0f}%{detail}")
+
+        if month and level < 3:
+            parts.append(f"📅 ¥{month}" + (" 今月" if level < 1 else ""))
+
+        return " | ".join(parts)
+
+    line = render(0)
+    if not columns:
+        return line
+    for level in range(5):
+        line = render(level)
+        # 右端には MCP エラー等の通知が同居しうるので数桁の余白を残す
+        if disp_width(line) <= columns - 2:
+            return line
+    return line
 
 
 def main():
@@ -172,7 +223,12 @@ def main():
     print(git_line())
 
     if isinstance(data, dict):
-        line = status_line(data, rate, month)
+        # COLUMNS は Claude Code が実行前に現在の端末幅で設定する（tput cols はパイプ越しで効かない）
+        try:
+            columns = int(os.environ.get("COLUMNS", "0"))
+        except ValueError:
+            columns = 0
+        line = status_line(data, rate, month, columns)
         if line:
             print(line)
 
