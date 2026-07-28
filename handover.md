@@ -183,11 +183,11 @@
 - **[SDK] targetSdk/compileSdk 36 移行 — 完了（2026-07-29・実機掃引まで含む）**。以後この便で残る注意点のみ: 16KB ページ要件は自前 `jniLibs` 無しでも Compose・datastore 由来の `.so` が 4ABI×2 入るため**依存バンプのたびに再確認が要る**（ELF `p_align=0x4000` と `zipalign -P 16` の2点。現状は合格）。また JVM テストは全ファイルが `@Config(sdk = [34])` 固定＝**targetSdk 35/36 固有の実行時挙動はテストでは一切捕まらない**（実機が唯一の検証手段）。
 - **[署名/AAB] リリース署名 — 配線と署名付き AAB の生成は完了（2026-07-29）。残＝①鍵のバックアップ②実機インストール検証**: upload keystore は `/mnt/c/Users/qingj/keystores/novel-reader-upload.jks`（RSA 2048・**2053-12-14 まで**・alias `upload`・DN `CN=NovelReader Upload, O=TTA, C=JP`）。資格情報は `android/local.properties`（gitignore 済み）の `release.*` 4行から読み、鍵が無い環境では未署名で通るフォールバック付き＝別 worktree でも release ビルドは死なない。`bundleRelease` の AAB は bundletool 1.18.3 の universal APK で **v2/v3 署名・targetSdk 36・16KB 整列**を確認済み。Play Console 照合用の upload 証明書 SHA-1 = `FB:ED:C1:33:BC:1B:44:CA:35:B5:99:0D:47:6B:7C:27:B4:03:43:E3`。実機インストール検証も完了（2026-07-29・upload 鍵署名の universal APK を実機投入し、起動／Room 読み書き／なろう API 検索／作品の本棚追加まで R8 収縮後も正常。**PDF 取込経路（PDFBox）だけは SAF 操作が要るため release ビルドで未検証**＝R8 ルールを触ったときは必ず手動で通すこと）。**残: 鍵ファイルと `local.properties` のパスワードのバックアップ（ユーザー作業。紛失時は Play への鍵差し替え申請が発生）**。
 - **[ID] applicationId 変更（初回アップロード前・必須）**: `com.novelreader` は公開後永久変更不可。ブランド名確定と同時に固有 ID へ変更。`${applicationId}` 参照（FileProvider 等）は自動追従・ハードコードの有無を grep で確認。実機では別アプリ扱い＝既存検証端末のデータ引き継ぎなし・benchmark の `applicationIdSuffix` 追従も確認。
-- **[Play要件] プライバシーポリシー**: 収集ゼロでも**静的・非PDF の公開 URL が必須**。記載項目リスト＝実査結果 B-4（API 通信・WebView・Auto Backup・端末内完結・将来 AdMob 時の更新義務）。ホスティング先の決定＋アプリ内からのリンク設置。
-- **[Play要件] Data safety 申告の下書き**: 「収集・共有なし」基調＋Auto Backup・API 通信の整理（競合実例＝実査 B-4）。AdMob 導入時は申告・ポリシー同時更新が義務。
+- **[Play要件] プライバシーポリシー — 下書き済み（2026-07-29・`docs/store/privacy-policy-draft.md`）**。残＝①プレースホルダ確定（アプリ名/屋号〔組織アカウント公開名義と一致必須〕/問い合わせメール/公開日）②ホスティング先の裁定（推奨=GitHub Pages 公開専用リポジトリ分離・独自ドメイン化なら後日 Cloudflare Pages）③公開後にアプリ内からのリンク設置。※作成過程の事実訂正: 「Cookie 一切読み取らず」は不正確＝PDF 取込 DL 時のみ同一サイトへ Cookie 転送（`PdfImportViewModel.kt`）——両ドキュメントに正確に反映済み。
+- **[Play要件] Data safety 申告 — 下書き済み（2026-07-29・`docs/store/data-safety-draft.md`）**。残＝①**Auto Backup を「収集なし」で通す解釈の裁定**（公式ヘルプに明示記述なし＝解釈判断。推奨と保険案は §1 併記）②提出時に実フォーム設問文言との突合（下書きは 2026-07-29 時点ヘルプ基準）。AdMob 導入時の差分は §3 に整理済み。
 - **[機能] In-App Review API 実装**: 読了・章送り完了など満足直後に自動表示。事前質問・★5誘導・呼び出しボタンは禁止/非推奨。テストは内部テストトラックで（本番は割り当て制限で確認困難）。
 - **[素材] ストア掲載素材**: アイコン 512²・フィーチャーグラフィック 1024×500・スクショ最低2枚（1枚目＝PDF ふりがな付き縦書き／本棚を文言付きで）・タイトル30字（「[固有ブランド] - 縦書き小説リーダー」型・他社商標入れない）・短い説明80字冒頭に差別化語・詳細4000字（表記ゆれ自然配置）。命名確定が前置。商標チェック＝J-PlatPat 称呼検索＋ストア同名確認＋ドメイン/SNS 可用性（手順＝実査 C-5）。
-- **[運用] versionCode/versionName 運用設計**: 現 1/"1.0"。トラック（内部→オープン→製品）ごとの採番規約を決める。
+- **[運用] versionCode/versionName 運用設計 — ADR 0025 として提案済み（2026-07-29・Proposed）**。残＝ユーザー裁定のみ: 案A（versionCode 通し連番×versionName semver 風・推奨）の採否＋テストトラック versionName suffix の有無（既定=付けない）。採択後に build.gradle へ反映。
 - **[フェーズ2・課金時] 特商法表記**: 買い切り IAP 販売開始時に「特定商取引法に基づく表記」が必要（実査 B-3・住所/電話の省略運用可否は専門家確認）。掲載＝アプリ内 or プライバシーポリシー同居 URL。資金決済法は買い切りのみなら非該当（B-6）。
 
 ## ★UX/Design 全層監査 — 残タスク（2026-07-12）

@@ -32,3 +32,4 @@
 | [0022](0022-skin-structural-layer.md) | スキン第二層＝画面構造の切替（M/P/J: 画面入口の薄い when(skin) ルーター・読書/設定は共通骨格＋部品分岐・M=[DARK]/J=[D,L,S]読書のみ変種/P=[LIGHT]開始・「現在地の脈動」類型承認・食い違い値は家系分離。画面ファクトリ束/読書複製/P即3テーマ 却下） | — |
 | [0023](0023-high-load-sky-mode.md) | 高負荷スカイモード＝美しさ特化・負荷許容のプロダクト概念（当面M夜空・debugトグル試作から。HTML正本原則のこの領域での例外＝実機トグル先行探索・モーション裁定も「実機トグルで先に見せて裁定」へ差替・jank%ゲートは維持。HTMLで追い込み/通常モード直重化 却下） | — |
 | [0024](0024-generic-scraping-adapter-foundation.md) | 汎用Web小説DL基盤＝サイトごと抽出器を scrape/ に分離（NovelSiteAdapter）・出力は既存 RawChapter で HtmlExporter に合流しPDF蔵書とバイト同契約・規約線は SiteAdapterRegistry の3値ゲート（Supported/Blocked/Unsupported・なろうはBlockedで公式送り）・破損は fixtureゴールデンで機械検知（Web用新経路/一律スクレイピング/暗黙非対応/ライブ疎通テスト 却下） | — |
+| [0025](0025-version-numbering-scheme.md) | **Proposed（ユーザー裁定待ち）** versionCode/versionName 採番規約＝versionCode 通し連番（意味なし・アップロード毎+1）×versionName semver 風（意味はこちらのみ・初回公開 1.0.0。日付ベース/versionName 導出 却下案として比較） | — |
