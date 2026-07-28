@@ -31,6 +31,18 @@ def copyBenchmarkPdfAsset = tasks.register('copyBenchmarkPdfAsset', Copy) {
     into benchmarkPdfAssetsDir
 }
 
+// リリース署名の資格情報は local.properties（gitignore 済み）から読む。鍵ファイル自体はリポジトリ外に置き、
+// ここには絶対パスだけが書かれる（`~` は展開されないので storeFile は絶対パスで指定すること）。
+// なぜこの分離か: 鍵とパスワードをリポジトリへ一切入れないため（漏洩したら upload key の差し替えが要る）。
+// なぜ「鍵が無ければ未署名で通す」か: 鍵を持たない環境（別 worktree・引き継ぎ直後・将来の CI）でも
+// assembleRelease/bundleRelease が構成エラーで落ちず、署名の有無だけが変わるようにするため。
+def localProps = new Properties()
+def localPropsFile = rootProject.file('local.properties')
+if (localPropsFile.exists()) {
+    localPropsFile.withInputStream { localProps.load(it) }
+}
+def hasReleaseKeystore = localProps['release.storeFile'] != null
+
 android {
     namespace 'com.novelreader'
     // compileSdk 36・targetSdk 36: Google Play の新規アプリ向け targetSdk 要件に合わせた公開準備の移行（2026-07-29）。
@@ -51,8 +63,25 @@ android {
         }
     }
 
+    signingConfigs {
+        // upload keystore（Play App Signing のアップロード鍵）。資格情報の出所は冒頭コメント参照。
+        // 鍵が無い環境ではこのブロック自体を作らない＝未定義の signingConfig を参照させない。
+        if (hasReleaseKeystore) {
+            release {
+                storeFile file(localProps['release.storeFile'])
+                storePassword localProps['release.storePassword']
+                keyAlias localProps['release.keyAlias']
+                keyPassword localProps['release.keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // 鍵を持つ環境でだけ署名する。無い場合は未署名成果物になる＝Play へ上げる前に必ず鍵の配置が要る。
+            if (hasReleaseKeystore) {
+                signingConfig signingConfigs.release
+            }
             // R8 収縮＋難読化＋リソース削減。keep はライブラリ同梱の consumer ルールを
             // 前提に不足分だけ proguard-rules.pro へ書く（設計根拠は同ファイル冒頭コメント）。
             minifyEnabled true

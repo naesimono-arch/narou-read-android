@@ -73,6 +73,24 @@ JDK は Temurin 17.0.19 据え置き（AGP 8.9 の要件を満たす）。
 3. `bundleRelease` で AAB を生成し、`bundletool` で実機インストール検証（R8 収縮済み構成での欠落確認を兼ねる）。
 4. 実機は debug 署名の APK と別署名＝**既存の蔵書データは引き継がれない**。検証は捨て本で（memory `device-verify-delegation-no-destructive-on-real-library`）。
 
+### 手順 B の実施結果（2026-07-29）
+
+鍵の生成・配線・署名付き AAB の生成まで完了。**残るは①鍵のバックアップ（ユーザー作業）②実機インストール検証**。
+
+- **鍵**: `/mnt/c/Users/qingj/keystores/novel-reader-upload.jks`（Windows 側＝WSL を作り直しても残る・OneDrive 等でバックアップしやすい、が 2026-07-29 のユーザー裁定）。
+  RSA 2048・有効期限 **2053-12-14**（10000日＝要件の 25年+ を満たす）・alias `upload`・DN `CN=NovelReader Upload, O=TTA, C=JP`。
+  DN はブランド名未定のため暫定。**初回アップロード前なら作り直しは自由**なので、確定後に必要なら差し替える。
+- **配線**: `android/local.properties`（gitignore 済み）の `release.storeFile/storePassword/keyAlias/keyPassword` を `app/build.gradle` が読む。
+  パスワードは 32桁英数字を機械生成し local.properties にのみ記載（チャット・git には出していない）。
+  鍵が無い環境では `signingConfigs.release` 自体を作らず**未署名で通す**フォールバック＝別 worktree・引き継ぎ直後でも release ビルドが構成エラーで死なない。
+  事故防止に `.gitignore` へ `*.jks`／`*.keystore` も追加（正しい運用なら鍵はリポジトリ外なので本来は現れない＝二重の防波堤）。
+- **検証**: `bundleRelease` → AAB 12.5MB・`jarsigner -verify` で **jar verified.**。bundletool 1.18.3（scoop の
+  `/mnt/c/Users/qingj/scoop/apps/bundletool/current/bundletool.jar`・WSL の JDK 17 で `java -jar` 実行可）で universal APK を生成し、
+  `apksigner verify -v` が **v2/v3 = true**（v1 は false＝minSdk 26 なので正常）・`aapt2 dump badging` が **targetSdk 36 / 4ABI**・
+  `zipalign -c -P 16` 合格を確認。upload 証明書 SHA-1 = `FB:ED:C1:33:BC:1B:44:CA:35:B5:99:0D:47:6B:7C:27:B4:03:43:E3`（Play Console 照合用）。
+- **注意（次に触る人向け）**: `apksigner` は PATH に `java` が無いと**何も出力せず黙って終わる**。`PATH="$JAVA_HOME/bin:$PATH"` を付けること
+  （JAVA_HOME の export だけでは足りない＝一度これで空出力を踏んだ）。
+
 ## ゲート・作法
 
 - ここは **ext4 worktree** ＝ `--init-script` 不要。`cd android && gw testDebugUnitTest` が in-tree・ネイティブ速度で通る。

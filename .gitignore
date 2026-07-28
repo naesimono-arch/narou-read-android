@@ -9,6 +9,10 @@ android/build/
 android/app/build/
 android/macrobenchmark/build/
 android/local.properties
+# 署名鍵の事故防止（正しい運用では鍵はリポジトリ外に置くので本来ここには現れない＝二重の防波堤）。
+# upload key が漏れると Play への差し替え申請まで発生するため、誤配置を無視より前に防ぐ意味で置く。
+*.jks
+*.keystore
 .idea/
 .vscode/
 .claude/settings.local.json
