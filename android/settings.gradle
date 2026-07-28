@@ -5,15 +5,18 @@ pluginManagement {
         gradlePluginPortal()
     }
     plugins {
-        id 'com.android.application' version '8.6.1' apply false
-        id 'com.android.test' version '8.6.1' apply false
+        // AGP 8.9.1: compileSdk 36 を解決できる最小系列（8.6.1 は 35 が天井）。
+        // Gradle は 8.11.1 以上が要件のため wrapper を先に上げてある（逆順だと構成段階で止まる）。
+        id 'com.android.application' version '8.9.1' apply false
+        id 'com.android.test' version '8.9.1' apply false
         id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
         // なぜ Kotlin 本体と同一 version: parcelize は Kotlin コンパイラプラグインのため版ズレは即ビルド破綻する
         id 'org.jetbrains.kotlin.plugin.parcelize' version '1.9.22' apply false
         id 'com.google.devtools.ksp' version '1.9.22-1.0.17' apply false
-        // Roborazzi スクリーンショットテスト（ADR 0009 増補1）。version 1.30.1 は Kotlin 1.9.22・AGP 8.6.1
-        // でビルドされた版で本プロジェクトのツールチェーンと完全一致するため、metadata バージョン不整合の
-        // リスクがない（新しい版は Kotlin 2.0 でビルドされ 1.9.22 コンパイラでの読み取りに難がある）。
+        // Roborazzi スクリーンショットテスト（ADR 0009 増補1）。version 1.30.1 は Kotlin 1.9.22 でビルドされた版で
+        // 本プロジェクトのコンパイラと一致するため、metadata バージョン不整合のリスクがない
+        // （新しい版は Kotlin 2.0 でビルドされ 1.9.22 コンパイラでの読み取りに難がある）＝据え置きの理由は Kotlin 側。
+        // AGP は 8.6.1 でビルドされた版だが、8.9.1 化（2026-07-29）後も全スクリーンショットテストの通過を実測済み。
         id 'io.github.takahirom.roborazzi' version '1.30.1' apply false
     }
 }

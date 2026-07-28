@@ -86,7 +86,7 @@ class ImportBenchReceiver : BroadcastReceiver() {
 
             // なぜ VmPolicy を LAX に落とすか（benchmark 限定コードの割り切り）:
             // 本番経路の Intent 契約は `data = 取込元 Uri` で、Service は contentResolver.openInputStream で読む。
-            // ここでは assets 由来の file:// を渡すが、targetSdk 34 の既定 VmPolicy は file:// Uri を Intent で
+            // ここでは assets 由来の file:// を渡すが、targetSdk 24 以降の既定 VmPolicy は file:// Uri を Intent で
             // プロセス外（AMS）へ渡すと FileUriExposedException で死ぬ（DETECT_VM_FILE_URI_EXPOSURE）。本番の
             // content:// なら起きないが、ベンチでは FileProvider を足さず本番の startForegroundService 契約を崩さない
             // ために、この計測専用プロセスに限り exposure 検出を無効化する（出荷物に存在しない bench コードの割り切り）。

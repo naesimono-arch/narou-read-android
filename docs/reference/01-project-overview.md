@@ -11,7 +11,7 @@ API機能を検討する前提として、対象アプリが「今どういう�
 - UI: Jetpack Compose ネイティブ描画（WebViewではない）。ルビは `RubyText` で自前描画。
 - 抽出: Kotlin ネイティブ実装（**PDFBox-Android** 2.0.27.0）。
   - 旧構成の Chaquopy(Python 3.12)+pdfminer は 2026-07-05 に完全撤去済み（APK 67→24MiB）。
-- ビルド: compileSdk 34 / minSdk 26 / targetSdk 34 / AGP 8.6.1 / JDK 17。
+- ビルド: compileSdk 36 / minSdk 26 / targetSdk 36 / AGP 8.9.1 / Gradle 8.11.1 / JDK 17（正本＝`android/app/build.gradle`）。
 
 ## 処理パイプライン（現状）
 

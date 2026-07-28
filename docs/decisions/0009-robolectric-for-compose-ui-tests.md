@@ -21,7 +21,9 @@ Compose UI テストの実行環境は実質2択だった:
 
 **葉 Composable の semantics ベース UI テストは (a) Robolectric で書き、`testDebugUnitTest` ゲートに同乗させる。**
 
-- 依存: `org.robolectric:robolectric:4.11.1`（compileSdk/targetSdk 34 を正式サポートする安定版）＋ `androidx.compose.ui:ui-test-junit4`（compose-bom 2025.02.00 管理下・版指定不要）＋ `ui-test-manifest`（`createComposeRule` の ComponentActivity 供給）。
+- 依存: `org.robolectric:robolectric:4.11.1`（SDK 34 までを正式サポートする安定版。**2026-07-29 の targetSdk 36 化後も据え置き**＝
+  全テストが `@Config(sdk = [34])` で実行時 SDK を明示固定しており manifest の targetSdk 経路に乗らないため。
+  代償として JVM テストは SDK 34 の挙動しか見ない＝targetSdk 35/36 固有の実行時変化は実機検証の担当）＋ `androidx.compose.ui:ui-test-junit4`（compose-bom 2025.02.00 管理下・版指定不要）＋ `ui-test-manifest`（`createComposeRule` の ComponentActivity 供給）。
 - `testOptions.unitTests.includeAndroidResources = true` を有効化（Robolectric が merged manifest/リソースを読むのに必須。純JVMテストには無影響）。
 - テストは **semantics（テキスト・contentDescription・onClick・ProgressBarRangeInfo）ベース**で書く。各部品3〜6ケース・過剰網羅しない。
 

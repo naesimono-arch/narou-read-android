@@ -5,8 +5,9 @@ plugins {
 
 android {
     namespace 'com.novelreader.macrobenchmark'
-    // :app の compileSdk 35 化（2026-07-27 裁定）に追従（targetSdk 34 は据え置き＝計測対象の実行時挙動は不変）
-    compileSdk 35
+    // :app の compileSdk/targetSdk 36 化（2026-07-29 公開準備）に追従。
+    // targetSdk も揃える: ここがズレると計測用テストAPK と計測対象アプリで実行時挙動の前提が食い違う。
+    compileSdk 36
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -18,7 +19,7 @@ android {
 
     defaultConfig {
         minSdk 26
-        targetSdk 34
+        targetSdk 36
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
 
