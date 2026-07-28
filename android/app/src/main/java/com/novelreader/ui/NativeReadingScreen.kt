@@ -1146,9 +1146,13 @@ internal fun ChapterScreenContent(
             // 開閉のたびに下端がガタつく（本文側 ChapterContent と同じ対策をバー自身にも適用）。
             windowInsets = WindowInsets.systemBarsIgnoringVisibility
                 .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
-            // なぜ alpha 0.95f か: スクロール中も文字が透けて読めるよう
-            // 背景色を半透明にするため（html_exporter.py の .nav-footer に対応）
-            containerColor = colors.navBackground.copy(alpha = 0.95f),
+            // なぜ不透明か: モック reading-D は上下バーとも background:var(--bar)（不透明）＝
+            // 不透明な上部バー（topBarBackground）との対称が正。旧 .copy(alpha=0.95f) は WebView 期
+            // html_exporter.py .nav-footer の持ち越しで、BottomAppBar の Surface は nav バー inset 帯まで
+            // この色で塗るため、5% 透過が inset 帯（ボタン行の下の無地部分）で本文の透けとして見えていた
+            //（2026-07-29 実機・上下バー非対称の真因）。M の navBackground も焼き込み済み不透明トークン＝
+            // 使用側で alpha を掛けない前提（SkinM.kt）。
+            containerColor = colors.navBackground,
             contentColor = colors.topBarIcon,
         ) {
             // C①案A: 下端を4分割 [前章｜目次｜表示設定｜次章]。表示設定を右上隅の歯車から下端へ集約し、

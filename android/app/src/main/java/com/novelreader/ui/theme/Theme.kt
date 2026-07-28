@@ -35,7 +35,9 @@ data class ReadingColors(
     // textSecondary.copy(alpha=0.6) の二重帳簿を避け、その合成結果を素地上で焼き込んだ役割別シェード
     // （Design/10§9「alpha でなく専用シェード」＝コード衛生）。
     val placeholder: Color,
-    val navBackground: Color,     // 下部ナビバー（使用側で半透明化する）
+    // 下部ナビバー・ピル地。バー本体は不透明で使う（上部バーとの対称・モック .bottombar は不透明
+    // var(--bar)。2026-07-29 に旧 0.95f 透過を廃止）。ヒント系の非操作ピルのみ使用側で半透明化する。
+    val navBackground: Color,
     val topBarBackground: Color,  // 読書画面トップバー
     val topBarTitle: Color,       // トップバーのタイトル文字
     val topBarIcon: Color,        // トップバー・ナビバーのアイコン

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -82,7 +83,11 @@ internal fun TocK(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
-            .statusBarsPadding(),
+            .statusBarsPadding()
+            // nav バー inset を root で処理する（M/J の目次・D/C の Scaffold 既定と同じ hard-cut 流儀）。
+            // これが無いとリスト末尾が物理下端まで届き、最終行がジェスチャーバーと重なる（2026-07-29 実機）。
+            // background の後に置くことで地色は nav 帯まで塗られたまま内容だけ持ち上がる。
+            .navigationBarsPadding(),
     ) {
         TocHeaderK(workTitle, colors, onNavigateToBookshelf)
 

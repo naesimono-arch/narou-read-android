@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -178,7 +179,10 @@ internal fun TocCartridgeP(
                 )
             },
     ) {
-        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+        // navigationBarsPadding: nav バー inset を root で処理（M/J の目次と同じ流儀）。これが無いと
+        // 下端固定フッタ Deck（通気孔＋銘板）が nav 帯に食い込む（K のリスト重なりと同じ欠落クラス・
+        // 2026-07-29）。筐体プラ地は外側 Box の drawBehind が担うため nav 帯まで塗られたまま。
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             // K形伝播: トップバーに作品名サブ（.work）を追加。
             TocTopBarP(workTitle, onNavigateToBookshelf)
 

@@ -21,3 +21,9 @@
 
 ## 進行記録
 - 2026-07-29: スイープ開始。B1(Agent A)+B2(Agent B) 並行起動。
+- B2 完了→検分→コミット `9f84228`（Play ドキュメント3点＋handover 更新）。裁定残: Auto Backup「収集なし」解釈・ADR 0025 採否・プレースホルダ4点・ホスティング先。
+- B1 完了（真因: 下部バー=alpha0.95 が機序〔WebView 期持ち越し〕・目次=K/P のみ navigationBars 未処理。D/C/M/J は処理済み実測確認）。監督ゲート再実行 GREEN（943件）。**コミットは B4 の実機機能確認 PASS 後**（handover L215-216 の行削除と同梱）。
+- B5（表示設定ライブプレビュー候補モック）起動・走行中。
+- B4（実機検証バッチ: inset 検証I①-④＋discovery pop 検証II(a)-(d)・取込/削除は実行しない縛り）起動・走行中。B3（In-App Review）は Gradle/実機の直列化のため B4 完了後。
+- B5 完了→検分→コミット `da4ad11`（候補モック4案・mockview 裁定待ち）。
+- B4 完了: II(a)(b) PASS・(c) 構造上検証不可（即取込＝詳細に入る経路なし・JVM固定で足りる）・検証I は**実機の全4蔵書本文欠落**（upload 鍵検証の uninstall→AutoBackup 片肺復元・knowledge 化済み）で全 SKIPPED。→ 対処: inset 修正は JVM 緑＋真因確定でコミット・**捨て本 Web 取込を監督承認**（追加は非破壊・削除は自分が作った捨て本のみ＝memory の捨て本原則）して検証I+II(d) を再実施・ユーザーへ蔵書欠落を PushNotification。
