@@ -26,6 +26,7 @@ import com.novelreader.repository.SourceDeleteOutcome
 import com.novelreader.scrape.ScrapeStructureException
 import com.novelreader.scrape.SiteAdapterRegistry
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -547,12 +548,36 @@ class BookshelfViewModel @JvmOverloads constructor(
 
     suspend fun getProgress(bookId: BookId): ProgressEntity? = repository.getProgress(bookId)
 
+    // In-App Review の打診イベント（one-shot）。errorEvents/PdfImportEvent と同じ Channel 流儀＝
+    // 受信時に消費され、画面回転の再購読で再発火しない。CONFLATED: 打診は1回で足りるため
+    // UI が未購読の一瞬に複数積まれても最新1件だけ残ればよい。
+    private val reviewPromptChannel = Channel<Unit>(Channel.CONFLATED)
+    val reviewPromptEvents: Flow<Unit> = reviewPromptChannel.receiveAsFlow()
+
+    // 同一セッション（VM 生存中）に打診を1回へ絞る腕木（true=装填済み）。
+    // なぜ AtomicBoolean: markReachedEnd は IO ディスパッチャ上の並行 launch から呼ばれるため、
+    // 素の var の check-then-set では複数冊のほぼ同時読了で二重打診しうる。CAS で構造的に潰す。
+    private val reviewPromptArmed = AtomicBoolean(true)
+
     // 読了記録（最終章の末尾到達＝『了』印・読了フィルタの正本／ssot Major 2026-07-12）。
     // なぜ progressChannel（CONFLATED）を経由せず独立 launch か: チャネルは位置エンティティ搬送用で
     // CONFLATED により中間値を捨てる。読了は位置とは別次元の一度きりのフラグ立てで、位置更新と競合しても
     // 別列（reachedEnd）を UPDATE するため互いを潰さない。冪等な UPDATE なので多重呼び出しも無害。
+    // なぜ素の Dispatchers.IO でなく注入 ioDispatcher か: レビュー打診イベントの発火有無を JVM テストが
+    // advanceUntilIdle で決定的に観測するため（本番は既定値が Dispatchers.IO＝挙動不変）。
     fun markReachedEnd(bookId: BookId) {
-        viewModelScope.launch(Dispatchers.IO) { repository.markReachedEnd(bookId) }
+        viewModelScope.launch(ioDispatcher) {
+            // In-App Review のトリガ（監督裁定: 読了の瞬間＝reachedEnd false→true 遷移のみ）。
+            // UPDATE 前に現在値を読むのは「初めての読了」だけを満足ピークとして拾うため
+            // （既読了本の再読・章再入場の冪等呼び出しでは打診しない）。進捗行なし（null）は未読了と同義。
+            val firstCompletion = repository.getProgress(bookId)?.reachedEnd != true
+            repository.markReachedEnd(bookId)
+            // Play 側にも表示クォータ管理はあるが、呼び出し自体を満足ピーク1点に絞るのが本機能の設計
+            //（章送りトリガを入れない裁定と同根＝連続読了でも同一セッションでは1回しか打診しない）。
+            if (firstCompletion && reviewPromptArmed.compareAndSet(true, false)) {
+                reviewPromptChannel.trySend(Unit)
+            }
+        }
     }
 
     // 章移動時の保存。スクロール位置は default 0 のまま送ることで章先頭にリセットする。

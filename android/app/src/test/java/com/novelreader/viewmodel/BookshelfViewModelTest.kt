@@ -424,4 +424,73 @@ class BookshelfViewModelTest {
         assertEquals(mapOf("N1111AA" to summaryA), viewModel.newEpisodeNovelMap.value)
         job.cancel()
     }
+
+    // ── In-App Review トリガ（読了 reachedEnd false→true 遷移・監督裁定 2026-07-29）─────────
+    // ReviewManager 実物は Play 開発者サービス必須で JVM から叩けないため、ここでは
+    // 「打診イベント（reviewPromptEvents）がいつ流れるか」の契約だけを固定する
+    // （実表示は内部テストトラックで確認＝handover）。
+
+    @Test
+    fun `markReachedEnd - 未読了からの遷移で打診イベントが1回だけ流れる`() = runTest {
+        coEvery { mockRepository.getProgress(BookId("b1")) } returns
+            ProgressEntity(bookId = "b1", lastReadFilename = "chap_9.html", reachedEnd = false)
+        val received = mutableListOf<Unit>()
+        val job = launch { viewModel.reviewPromptEvents.collect { received.add(it) } }
+
+        viewModel.markReachedEnd(BookId("b1"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, received.size)
+        coVerify(exactly = 1) { mockRepository.markReachedEnd(BookId("b1")) }
+        job.cancel()
+    }
+
+    @Test
+    fun `markReachedEnd - 既読了の再到達では打診しない（記録の冪等 UPDATE は行う）`() = runTest {
+        coEvery { mockRepository.getProgress(BookId("b1")) } returns
+            ProgressEntity(bookId = "b1", lastReadFilename = "chap_9.html", reachedEnd = true)
+        val received = mutableListOf<Unit>()
+        val job = launch { viewModel.reviewPromptEvents.collect { received.add(it) } }
+
+        viewModel.markReachedEnd(BookId("b1"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // 既読了本の再読は false→true 遷移ではない＝満足ピークの初回読了だけに絞る契約。
+        assertEquals(0, received.size)
+        // sticky マーク自体は従来どおり冪等に呼ぶ（読了記録の挙動を変えない）。
+        coVerify(exactly = 1) { mockRepository.markReachedEnd(BookId("b1")) }
+        job.cancel()
+    }
+
+    @Test
+    fun `markReachedEnd - 同一セッションでは2冊目の初回読了でも打診しない`() = runTest {
+        coEvery { mockRepository.getProgress(any()) } returns null // 行なし＝未読了扱い
+        val received = mutableListOf<Unit>()
+        val job = launch { viewModel.reviewPromptEvents.collect { received.add(it) } }
+
+        viewModel.markReachedEnd(BookId("b1"))
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.markReachedEnd(BookId("b2"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // セッション1回制限（reviewPromptArmed）: 連続読了でも打診の連打はしない。
+        assertEquals(1, received.size)
+        // 読了記録そのものは2冊とも通常どおり行われる（打診制限は記録に波及しない）。
+        coVerify(exactly = 1) { mockRepository.markReachedEnd(BookId("b1")) }
+        coVerify(exactly = 1) { mockRepository.markReachedEnd(BookId("b2")) }
+        job.cancel()
+    }
+
+    @Test
+    fun `markReachedEnd - 進捗行なし(null)は未読了と同義で打診する`() = runTest {
+        coEvery { mockRepository.getProgress(BookId("b1")) } returns null
+        val received = mutableListOf<Unit>()
+        val job = launch { viewModel.reviewPromptEvents.collect { received.add(it) } }
+
+        viewModel.markReachedEnd(BookId("b1"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, received.size)
+        job.cancel()
+    }
 }

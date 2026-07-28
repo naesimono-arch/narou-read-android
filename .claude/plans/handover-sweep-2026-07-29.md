@@ -27,3 +27,5 @@
 - B4（実機検証バッチ: inset 検証I①-④＋discovery pop 検証II(a)-(d)・取込/削除は実行しない縛り）起動・走行中。B3（In-App Review）は Gradle/実機の直列化のため B4 完了後。
 - B5 完了→検分→コミット `da4ad11`（候補モック4案・mockview 裁定待ち）。
 - B4 完了: II(a)(b) PASS・(c) 構造上検証不可（即取込＝詳細に入る経路なし・JVM固定で足りる）・検証I は**実機の全4蔵書本文欠落**（upload 鍵検証の uninstall→AutoBackup 片肺復元・knowledge 化済み）で全 SKIPPED。→ 対処: inset 修正は JVM 緑＋真因確定でコミット・**捨て本 Web 取込を監督承認**（追加は非破壊・削除は自分が作った捨て本のみ＝memory の捨て本原則）して検証I+II(d) を再実施・ユーザーへ蔵書欠落を PushNotification。
+- **2026-07-29 ユーザー指示「実機はいったんストップ」**＝実機検証ラウンド2（捨て本取込→検証I+II(d)）は未着手のまま停止（再開指示の SendMessage は transcript 不在で不達＝実機未接触）。inset 修正コミット `d3cfd99` 済み・実機機能確認は再開待ち。B3（In-App Review・実機不使用）は走行継続。
+- **2026-07-29 ユーザー「実機go」**＝ラウンド2を新規エージェントで起動（**ビルド/install 禁止＝07:58 投入済み APK のまま**・捨て本 Web 取込→検証I①〜④＋II(d)→捨て本のみ削除・B3 と Gradle 非干渉）。

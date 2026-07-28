@@ -1,5 +1,6 @@
 package com.novelreader
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -47,6 +48,7 @@ import androidx.navigation.navArgument
 import com.novelreader.model.BookId
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.Ncode
+import com.novelreader.review.PlayReviewPrompter
 import com.novelreader.scrape.SiteAdapterRegistry
 import com.novelreader.ui.BookshelfScreen
 import com.novelreader.ui.ReadingErrorScreen
@@ -290,6 +292,17 @@ private fun NovelReaderApp(
     // 発見系（ホーム/ジャンル/結果一覧）はクエリ文脈を画面間で受け渡すため単一VMを共有する。
     // ロードは ensureHomeLoaded の遅延型なので、ここで生成しても本棚起動時に通信は発生しない。
     val discoveryViewModel: DiscoveryViewModel = viewModel()
+
+    // In-App Review の打診（読了 reachedEnd false→true の one-shot イベント）。
+    // なぜここで受けるか: launchReviewFlow は Activity 参照が要るため VM には持ち込めず、
+    // イベントを Activity 直下の composition（＝どの画面に居ても購読が生きる場所）で受けて
+    // ReviewPrompter へ渡す。NovelReaderApp は MainActivity.setContent 直下でのみ構成される＝
+    // LocalContext は必ず Activity（as? は Robolectric 等で万一 Activity でない場合の無害化）。
+    val reviewPrompter = remember { PlayReviewPrompter() }
+    LaunchedEffect(Unit) {
+        val activity = activityContext as? Activity ?: return@LaunchedEffect
+        viewModel.reviewPromptEvents.collect { reviewPrompter.promptReview(activity) }
+    }
 
     // 変換完了通知タップからの deep link 着地（M11）。状態依存の非決定な着地を排し、
     // 常に「本棚を起点に該当の本の読書画面」へ疑似バックスタックで着地させる。
