@@ -1,0 +1,259 @@
+<!-- @dsCard group="UI-n / 読書 表示設定ライブプレビュー（候補比較）" name="D. 表示設定シートの調整中退避 — 4案（押している間だけ引く）" -->
+<!-- @derives source="reading-D.html + settings-D.html"（候補段階＝裁定前。採用案確定時に DERIVED_SYNC 登録 or 正本直差分へ転写して本ファイルは削除） -->
+<!-- 課題（handover 2026-07-29 ユーザー要望）: 表示設定シートが本文を覆い、文字サイズ・行間・本文余白の
+     調整結果が見えない。スライダーを「押している間だけ」シート・スクリム・操作クロームを引き、
+     本文への効き目を見ながら追い込めるようにする。4案は〈引く対象×引き量〉の意匠として成立する組合せ。
+     シート項目は実装 ReadingSettingsSheet.kt 現行（システムに従う＋3テーマ／縦書き／スライダー3本）に
+     合わせた＝正本 settings-D.html は3択時代のまま（逆同期は別課題として報告済み）。
+     背後の本文は恒久ルールどおり実データの色域（実 ink×実 bg・ルビ付き）＝透け具合の裁定材料。
+     スライダーは実際に本文へ効く（フォント/行間/余白がドラッグ中に追従）。 -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n D 表示設定ライブプレビュー — 4案比較</title>
+<style>
+  /*==harness==*/
+  /* トークンは reading-D（t-light）＋ settings-D の複製（候補段階の写経＝裁定後に整理）。
+     新規に発明した値は「退避の較正値」のみ＝各案の alpha と遷移尺（下の PROPOSAL コメント）。 */
+  :root{
+    --bg:#FBFAF8;--ink:#1C1F26;--soft:#7C808B;--ruby:#616C77;--line:#ECEAE4;
+    --ai:#1C3D5A;--rule:#1C3D5A;--bar:#FBFAF8;--bar-line:#ECEAE4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;
+    padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.6;max-width:820px}
+  .cap b{color:#2A2C28}
+  .note{color:#6A6C67;font-size:11.5px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:820px}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px;max-width:372px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#6A6C67;text-align:center}
+  .wrap .desc{font-size:11px;color:#6A6C67;text-align:center;line-height:1.6}
+  .phone{width:372px;height:780px;border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;
+    font-family:var(--mincho);background:var(--bg)}
+  /*==/harness==*/
+
+  /* ---- 背後の読書画面（reading-D t-light の実値。本文はスライダーに実追従） ---- */
+  .sb{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;
+    font-size:11px;color:var(--soft);font-family:var(--gothic);flex-shrink:0}
+  .topbar{position:relative;z-index:4;height:50px;display:flex;align-items:center;gap:4px;padding:0 16px;
+    background:var(--bar);border-bottom:1px solid var(--bar-line);flex-shrink:0}
+  .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;
+    place-items:center;color:var(--ink)}
+  .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar .ct{flex:1;font-family:var(--gothic);font-size:13.5px;color:var(--ink);letter-spacing:.04em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .reader{flex:1;overflow:hidden;position:relative;z-index:1;
+    padding:8px var(--mg,20px) 92px}
+  .chap-h{text-align:center;margin:16px 0 24px}
+  .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--ai);letter-spacing:.3em}
+  .chap-h .t{font-size:18px;color:var(--ink);margin-top:8px;line-height:1.6;font-weight:600}
+  .chap-h .rule{width:48px;height:2px;background:var(--rule);margin:16px auto 0;opacity:.85}
+  .reader p{font-size:var(--fs,18px);line-height:var(--lh,2.5);color:var(--ink);text-indent:1em;margin-bottom:.3em}
+  .reader ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  .reader hr{border:none;height:1px;width:42%;margin:16px auto;background:var(--rule);opacity:.5}
+  .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:60px;display:flex;align-items:center;
+    background:var(--bar);border-top:1px solid var(--bar-line)}
+  .bottombar .bb{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:4px;color:var(--ink)}
+  .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .bottombar .bl{font-family:var(--gothic);font-size:9.5px;color:var(--soft);letter-spacing:.02em}
+  .bottombar .set svg{stroke:var(--ai)}
+  .bottombar .set .bl{color:var(--ai);font-weight:600}
+
+  /* ---- スクリム＋シート（settings-D の実値。z はシートを最上位に） ---- */
+  .scrim{position:absolute;inset:0;background:rgba(20,23,28,.28);z-index:5}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:6;background:var(--bg);
+    border-radius:20px 20px 0 0;padding:12px 24px 32px;box-shadow:0 -10px 30px rgba(0,0,0,.18)}
+  .grab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 16px}
+  .sheet h2{font-family:var(--mincho);font-size:17px;color:var(--ink);font-weight:600;
+    letter-spacing:.08em;margin-bottom:4px}
+  .scope-note{font-family:var(--gothic);font-size:11px;color:var(--soft);letter-spacing:.04em;
+    line-height:1.5;margin-bottom:24px}
+  .lbl{font-family:var(--gothic);font-size:12px;color:var(--soft);letter-spacing:.06em;margin-bottom:12px}
+  .sec{margin-bottom:24px}
+  .sec:last-child{margin-bottom:0}
+  .chips{display:flex;gap:12px;flex-wrap:wrap}
+  .chip{text-align:center;padding:12px 16px;border-radius:10px;font-family:var(--gothic);font-size:13.5px;
+    border:1px solid var(--line);color:var(--ink);background:transparent}
+  .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
+  .row-lbl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+  .val{font-family:var(--gothic);font-size:12px;color:var(--ai);margin-left:8px;border-radius:2px}
+  .slider{display:flex;align-items:center;gap:16px}
+  .end{font-family:var(--mincho);color:var(--ink);flex-shrink:0}
+  .end.g{font-family:var(--gothic);font-size:12px;color:var(--soft)}
+  /* 実 input[type=range] を settings-D の track/fill/knob 意匠へ寄せる（藍フィル＋18px 藍つまみ）。
+     --p は JS がドラッグ毎に更新するフィル割合 */
+  .slider input{-webkit-appearance:none;appearance:none;flex:1;height:18px;background:transparent;
+    cursor:pointer;touch-action:none}
+  .slider input::-webkit-slider-runnable-track{height:2px;border-radius:2px;
+    background:linear-gradient(to right,var(--ai) 0 var(--p,40%),var(--line) var(--p,40%) 100%)}
+  .slider input::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;
+    background:var(--ai);box-shadow:0 2px 6px rgba(28,61,90,.4);margin-top:-8px}
+
+  /* ---- 退避インタラクション（PROPOSAL: 引き 160ms ease-out ／ 復帰 260ms ease） ----
+     押下で .phone.peek＋触った行に .hot が付き、離すと外れる。復帰をやや長くするのは
+     「手を離した瞬間にシートが戻ってくる圧」を弱め、読後の視線移動に余韻を残すため。 */
+  .scrim,.sheet,.sheet>*,.topbar,.bottombar,.val{
+    transition:opacity 260ms ease,background-color 260ms ease,box-shadow 260ms ease}
+  .phone.peek :is(.scrim,.sheet,.sheet>*,.topbar,.bottombar,.val){
+    transition-duration:160ms;transition-timing-function:ease-out}
+
+  /* 案1「薄明」: シート面のみ半透明ゴースト（α.35）・スクリムと上下バーは残す。 */
+  .c1.peek .sheet{opacity:.35}
+
+  /* 案2「幕引き」: シート＋スクリムを引く（スクリム0・シートα.22）。バーは残す。 */
+  .c2.peek .scrim{opacity:0}
+  .c2.peek .sheet{opacity:.22}
+
+  /* 案3「一行残し」: シート・スクリム・上下バー全部を完全透明化。触っている行だけ
+     白ピル（α.92 の面）で浮遊＝効き目最大視認と操作の足場の両立。
+     ピルは 0 スプレッドの box-shadow で面を張る（padding を変えず配置ジャンプさせない）。 */
+  .c3.peek :is(.scrim,.topbar,.bottombar){opacity:0}
+  .c3.peek .sheet{background:transparent;box-shadow:none}
+  .c3.peek .sheet>*:not(.hot){opacity:0}
+  .c3.peek .sec.hot{background:rgba(251,250,248,.92);border-radius:4px;
+    box-shadow:0 0 0 12px rgba(251,250,248,.92),0 10px 30px rgba(0,0,0,.18)}
+
+  /* 案4「骨だけ」: 全部引き、行の面も張らない＝トラック・つまみ・ラベルだけが本文の上に浮く。
+     値と文字ラベルは可読性のため微かな地色ハロー（値のみ小さな面）で支える。 */
+  .c4.peek :is(.scrim,.topbar,.bottombar){opacity:0}
+  .c4.peek .sheet{background:transparent;box-shadow:none}
+  .c4.peek .sheet>*:not(.hot){opacity:0}
+  .c4.peek .sec.hot :is(.lbl,.end){text-shadow:0 0 8px var(--bg),0 0 3px var(--bg)}
+  .c4.peek .sec.hot .val{background:rgba(251,250,248,.9);box-shadow:0 0 0 6px rgba(251,250,248,.9)}
+</style>
+</head>
+<body>
+  <p class="cap"><b>D. 表示設定シートの調整中退避 — 4案比較</b> ／ スライダーを<b>押している間だけ</b>シート等が引き、離すと復帰する。スライダーは本文へ実際に効く（文字サイズ・行間・余白がドラッグ中に追従）＝透け具合と効き目の見えを実挙動で裁定する。</p>
+  <p class="note">提案較正値: 引き 160ms ease-out ／ 復帰 260ms ease。ゴースト α は案1=.35・案2=.22（提示レンジ .15〜.35 内）。背後の本文は実 ink（#1C1F26）×実 bg（#FBFAF8）のルビ付き＝地色板のごまかし無し。シート項目は実装現行（システムに従う・縦書き・スライダー3本）に合わせた。</p>
+  <div class="stage" id="stage"></div>
+
+  <!-- 1台分のテンプレート。4案は phone の c1〜c4 クラス（CSS）だけが違う＝JS で複製する。
+       なぜ複製方式か: 4台の手書き重複は退避対象の書き分けミス（案間の DOM 差分）を生みやすく、
+       比較モックの目的＝「CSS の退避規則だけが変数」を DOM 共有で機械的に保証するため。 -->
+  <template id="phone-t">
+    <div class="wrap">
+      <span class="mode"></span>
+      <div class="phone" role="group">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+        <div class="topbar">
+          <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+          <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+        </div>
+        <div class="reader">
+          <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
+          <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+          <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+          <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。もう<ruby>戦<rt>たたか</rt></ruby>う<ruby>理由<rt>りゆう</rt></ruby>はない、とでも<ruby>言<rt>い</rt></ruby>うように。</p>
+          <hr>
+          <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+          <p><ruby>宿<rt>やど</rt></ruby>の<ruby>主人<rt>あるじ</rt></ruby>が<ruby>運<rt>はこ</rt></ruby>んできた<ruby>粥<rt>かゆ</rt></ruby>は<ruby>湯気<rt>ゆげ</rt></ruby>を<ruby>立<rt>た</rt></ruby>てていて、<ruby>匙<rt>さじ</rt></ruby>を<ruby>取<rt>と</rt></ruby>る<ruby>手<rt>て</rt></ruby>が<ruby>少<rt>すこ</rt></ruby>し<ruby>震<rt>ふる</rt></ruby>えた。</p>
+          <p><ruby>街道<rt>かいどう</rt></ruby>はまだ<ruby>泥<rt>どろ</rt></ruby>に<ruby>沈<rt>しず</rt></ruby>んでいたが、<ruby>南<rt>みなみ</rt></ruby>の<ruby>空<rt>そら</rt></ruby>は<ruby>晴<rt>は</rt></ruby>れ<ruby>渡<rt>わた</rt></ruby>り、<ruby>遠<rt>とお</rt></ruby>くの<ruby>尾根<rt>おね</rt></ruby>が<ruby>白<rt>しろ</rt></ruby>く<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+          <p><ruby>荷物<rt>にもつ</rt></ruby>をまとめるのに、<ruby>大<rt>たい</rt></ruby>した<ruby>時間<rt>じかん</rt></ruby>はかからなかった。</p>
+        </div>
+        <div class="bottombar">
+          <button class="bb" aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+          <button class="bb" aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+          <button class="bb set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+          <button class="bb" aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+        </div>
+        <div class="scrim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <h2>表示設定</h2>
+          <p class="scope-note">配色や文字の設定は、すべての本に適用されます</p>
+          <div class="sec">
+            <div class="lbl">テーマ</div>
+            <div class="chips"><button class="chip">システムに従う</button><button class="chip on">ライト</button><button class="chip">セピア</button><button class="chip">ダーク</button></div>
+          </div>
+          <div class="sec">
+            <div class="lbl">本文の向き</div>
+            <div class="chips"><button class="chip">縦書き</button></div>
+          </div>
+          <div class="sec sl" data-k="fs">
+            <div class="row-lbl"><span class="lbl" style="margin:0">文字サイズ</span><span class="val"></span></div>
+            <div class="slider">
+              <span class="end" style="font-size:14px">あ</span>
+              <input type="range" min="14" max="24" step="1" value="18" aria-label="文字サイズ">
+              <span class="end" style="font-size:24px">あ</span>
+            </div>
+          </div>
+          <div class="sec sl" data-k="lh">
+            <div class="row-lbl"><span class="lbl" style="margin:0">行間</span><span class="val"></span></div>
+            <div class="slider">
+              <span class="end g">狭</span>
+              <input type="range" min="2.3" max="2.8" step="0.1" value="2.5" aria-label="行間">
+              <span class="end g">広</span>
+            </div>
+          </div>
+          <div class="sec sl" data-k="mg">
+            <div class="row-lbl"><span class="lbl" style="margin:0">本文余白</span><span class="val"></span></div>
+            <div class="slider">
+              <span class="end g">狭</span>
+              <input type="range" min="10" max="40" step="5" value="20" aria-label="本文余白">
+              <span class="end g">広</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <span class="desc"></span>
+    </div>
+  </template>
+
+<script>
+  // 4案の定義。DOM は共通テンプレート＝差分は phone に付ける退避クラスのみ（案間の DOM 差分を排除）。
+  const PLANS = [
+    {cls:'c1', mode:'案1 薄明', desc:'シート面のみ α.35 ゴースト（スクリム・バーは残す）。最小介入＝文脈を保ったまま淡く確認'},
+    {cls:'c2', mode:'案2 幕引き', desc:'シート α.22＋スクリム0（バーは残す）。本文を素の明るさで確認・枠の気配は残して迷子防止'},
+    {cls:'c3', mode:'案3 一行残し', desc:'シート・幕・上下バー全部を透明化＋触っている行だけ白ピルで浮遊。効き目最大視認と操作の足場の両立'},
+    {cls:'c4', mode:'案4 骨だけ', desc:'全部透明化・行の面も張らない（トラック・つまみ・値のみ）。視界占有の極小＝本文がほぼ全面'},
+  ];
+  const stage = document.getElementById('stage');
+  const tpl = document.getElementById('phone-t');
+  const FMT = {fs:v=>`${v}sp`, lh:v=>Number(v).toFixed(1), mg:v=>`${v}dp`};
+
+  for (const plan of PLANS) {
+    const node = tpl.content.cloneNode(true);
+    const phone = node.querySelector('.phone');
+    phone.classList.add(plan.cls);
+    node.querySelector('.mode').textContent = plan.mode;
+    node.querySelector('.desc').textContent = plan.desc;
+    phone.setAttribute('aria-label', `D案 表示設定ライブプレビュー ${plan.mode}`);
+    const reader = phone.querySelector('.reader');
+    for (const sec of phone.querySelectorAll('.sec.sl')) {
+      const input = sec.querySelector('input');
+      const val = sec.querySelector('.val');
+      const k = sec.dataset.k;
+      const apply = () => {
+        const v = input.value;
+        val.textContent = FMT[k](v);
+        // フィル割合（settings-D の .fill 相当）をトラックのグラデ境界へ反映
+        const p = (v - input.min) / (input.max - input.min) * 100;
+        input.style.setProperty('--p', p + '%');
+        // 本文へ実際に効かせる（sp/dp→px は既存モック規約どおり 1:1 写像）
+        if (k === 'fs') reader.style.setProperty('--fs', v + 'px');
+        if (k === 'lh') reader.style.setProperty('--lh', v);
+        if (k === 'mg') reader.style.setProperty('--mg', v + 'px');
+      };
+      apply();
+      input.addEventListener('input', apply);
+      // 押している間だけ退避（離す・キャンセルの解除は window 側で一括＝つまみ外で指を離しても復帰する）
+      input.addEventListener('pointerdown', () => { phone.classList.add('peek'); sec.classList.add('hot'); });
+    }
+    stage.appendChild(node);
+  }
+  const release = () => {
+    document.querySelectorAll('.phone.peek').forEach(p => p.classList.remove('peek'));
+    document.querySelectorAll('.sec.hot').forEach(s => s.classList.remove('hot'));
+  };
+  addEventListener('pointerup', release);
+  addEventListener('pointercancel', release);
+</script>
+</body>
+</html>
