@@ -55,7 +55,7 @@ android {
         minSdk 26
         targetSdk 36
         versionCode 1
-        versionName "1.0"
+        versionName "1.0.0" // 採番規約＝ADR 0025（案A: versionCode 通し連番×versionName semver 風）
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

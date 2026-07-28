@@ -1,6 +1,6 @@
 # 0025. versionCode/versionName 採番規約（内部→オープン→製品トラック運用）
 
-- 状態: **Proposed（ユーザー裁定待ち・2026-07-29）**
+- 状態: **Accepted（2026-07-29 ユーザー裁定＝案A採用・テストトラック suffix なし）**
 - 関連: `android/app/build.gradle`（現在値 `versionCode 1` / `versionName "1.0"`）・`handover.md`「Google Play 公開準備」[運用] 項・完全フロー資料 §3/§6（`/mnt/c/Users/qingj/Desktop/project/アプリ公開戦略/`）
 
 ## 背景（要求と制約）
@@ -46,10 +46,10 @@ Google Play 側の制約（採番の自由度を規定する外部事実）:
 3. トラック昇格は Play Console 上の昇格操作のみ＝リポジトリ側の変更なし。
 4. versionCode の現在値は build.gradle が唯一の正本（他所へ転記しない）。
 
-## ユーザー裁定が要る点
+## ユーザー裁定（2026-07-29 確定）
 
-- 案Aの採否（および初回公開を `1.0.0` とする表記）。
-- テストトラックの versionName に `-beta` 等の suffix を付けたいか（案Aは「付けない」を既定とした。オープンテストはストアに露出するため、付けるなら見え方の好みの問題＝意匠でなく表記の裁定）。
+- 案A採用・初回公開 `1.0.0`（build.gradle へ同日反映済み）。
+- テストトラックの versionName suffix は**付けない**（既定どおり）。
 
 ## 帰結（案A採用時）
 
