@@ -203,10 +203,13 @@ def status_line(data, rate, month, columns=0):
     line = render(0)
     if not columns:
         return line
+    # 余白 24 桁の根拠（実測 2026-07-29）: COLUMNS は端末全幅で渡るが、fullscreen TUI では
+    # statusline 行の右側 ~20 桁強を Claude Code 自身の UI 要素が占め、実表示域はそれより狭い
+    # （COLUMNS=133 のとき幅 131 の行が幅 ~111 で見切れた＝予約 ~22 桁）。ゆえに余白 2 では
+    # 縮退が一度も発動せず末尾が欠ける。実測予約 22 + 安全 2 = 24 桁を確保する。
     for level in range(5):
         line = render(level)
-        # 右端には MCP エラー等の通知が同居しうるので数桁の余白を残す
-        if disp_width(line) <= columns - 2:
+        if disp_width(line) <= columns - 24:
             return line
     return line
 
