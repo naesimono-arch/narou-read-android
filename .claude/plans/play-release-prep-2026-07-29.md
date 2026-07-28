@@ -31,7 +31,12 @@ handover の「AGP 8.6.1 / compileSdk 34」前提は**部分的に古い**。実
 - ③大画面での向き固定・リサイズ不可の無効化 → Manifest に **`screenOrientation`・`resizeableActivity` の指定なし**＝影響を受ける宣言が存在しない。
 - ①**edge-to-edge 強制だけが残る**。targetSdk 34→36 は 35 の変更も一度に受けるため、全画面＋没入モード＋IME の insets を実機で掃引する必要がある。
 
-**16KB ページ要件は対象外**: `.so`／`jniLibs` ともに無し（PDFBox-Android は純 Java）。AAB を開いて確認する手間は不要。
+**16KB ページ要件は「対象だが充足済み」**（2026-07-29 の実測でこの起票時記述を訂正）: 自前の `jniLibs` は無いが、
+release APK には**推移依存由来の `.so` が 4ABI × 2 本**入る（`libandroidx.graphics.path.so`＝Compose 由来・
+`libdatastore_shared_counter.so`＝datastore-preferences 1.1.1 由来）。「PDFBox-Android は純 Java」は事実だが、
+**他の依存が持ち込む分を見落としていた**のが起票時の誤り。実測結果は ELF の PT_LOAD が全て `p_align=0x4000`(16KB)、
+ZIP 側も `zipalign -c -v -P 16 4` が Verification successful ＝**要件は既に満たしている**（対処不要）。
+検査手順: `assembleRelease` → APK 内 `lib/**/*.so` の PT_LOAD `p_align` と zipalign の2点。依存バンプ時は再確認が要る。
 
 **SDK は導入済み**（2026-07-29 canonical で実施・`~/Android/Sdk`）: `platforms;android-36`・`build-tools;36.0.0`。
 JDK は Temurin 17.0.19 据え置き（AGP 8.9 の要件を満たす）。
@@ -54,7 +59,8 @@ JDK は Temurin 17.0.19 据え置き（AGP 8.9 の要件を満たす）。
   WorkManager 2.9.1・Roborazzi 1.30.1・Robolectric 4.11.1・JDK 17）。Roborazzi 1.30.1 は AGP 8.6.1 でビルドされた版だが、
   AGP 8.9.1 でも全スクリーンショットテストが通ることを実測。
 - ゲート結果: `testDebugUnitTest` **943件 skipped=0 failed=0** ／ `:app:lintDebug` **エラー0**（警告75・SDK 36 由来の新規エラーなし）
-  ／ `check_design_tokens.py` **OK=192 NG=0** ／ `:macrobenchmark:assembleBenchmark` 成功。
+  ／ `check_design_tokens.py` **OK=192 NG=0** ／ `:macrobenchmark:assembleBenchmark` 成功
+  ／ `:app:assembleRelease`（R8 収縮＋難読化＋リソース削減）成功＝**SDK 36 化で R8 構成は無傷**（unsigned APK 8.5MB）。
 - **Robolectric 4.11.1（サポート上限 SDK 34）が targetSdk 36 で落ちなかった理由**——偽 GREEN ではない:
   Robolectric テスト45ファイルの**全て**が `@Config(sdk = [34])` を明示しており、既定の「merged manifest の targetSdk を
   実行時 SDK にする」経路に乗らない。**裏返せば JVM テストは SDK 34 の挙動しか見ておらず、targetSdk 35/36 固有の変化は
