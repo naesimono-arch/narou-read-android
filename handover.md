@@ -118,6 +118,10 @@
 
 - **[試験実装済み・採否は実機所感で後日裁定（2026-07-29 ユーザー）] さがすランキングの期間 横スワイプ**: 全6期間を内側 Pager 化・端でも外側タブへ非伝播（nestedScroll 封止＝副作用で端の stretch overscroll 無し）・期間タブはページ連動・**単独コミット隔離済み＝差し戻しは当該 feat コミットの revert 一発**（件名「さがすランキングを全6期間の横スワイプPager化」・import 残りは無害な未使用警告のみ）。新 APK で触った所感→採用 or revert を裁定。
 
+- **[性能・実測済み／切り分け残（2026-07-29）] 第三者実機（Huawei P30 / Android 10 / EMUI・60Hz）で読書画面の jank を実測**: debug 版・稼働1h45m の累積で **Janky 10.11%（122/1207）・99%tile 61ms・0.4〜0.5秒級の停止4回**。crash/ANR はゼロ。内訳は **draw 8.14ms + GPU 発行 11.29ms が支配的で traversal は 0.06ms＝レイアウトは無罪**（`RubyText`/`ChapterContent` は最適化済みのため**決め打ち修正はしない**）。実測値・回収手順・EMUI 固有の罠＝`docs/knowledge/emui-p30-jank-log-collection.md`。
+  - ⚠️ **当該端末は現在 release(R8) 版が入っている**（2026-07-29 に debug 署名で `install -r`・蔵書DB保持・`run-as` 不可＝prefs/DB は読めない）。debug へ戻すには debug APK を `install -r`。
+  - 残: ①release 版の**実使用** gfxinfo を回収して debug の 10.11% と比較（install 直後で統計ゼロ・起動待ち）②画面遷移の境目で `dumpsys gfxinfo <pkg> reset` を打ち本棚/さがす/読書のどれが重いか切り分け③それでも足りなければ Perfetto（EMUI での動作は未検証）。
+
 > レビュー中・実装中に出た宿題や着想で、まだ下の各節に整理していないものをここへ。育ったら該当節へ移す。
 
 - **[実装済み・実機確認待ち・「戻る」操作の階層統一]**（2026-07-19 ユーザー裁定→2026-07-23 実装・設計正本＝`.claude/plans/back-unification-design-2026-07-23.md`）: `ReadingBackStack.back()` を「実経路逆再生」から「階層 up」（章→目次・目次→null＝本棚）へ再定義し、システム Back／左上←の全経路を統一（07/15「直行なら Back 1発で本棚」の意図的撤回・不変条件テストで固定）。**実機確認済み（2026-07-25・K/D 両スキン・本文経由/直行/←/タブ回帰の全経路 PASS）**——その過程で「目次→本棚が pop 黙殺で幽閉」の実バグを発見・同日根治（K タブ化で bookshelf ルート消滅の取り残し＝`popToBookshelfTab` へ単一化・`ReadingEscapeNavigationTest` で固定）。**残**: ①直行入場 Back 2段＝**2026-07-29 裁定「階層up維持で確定」＝解消** ②発見サブツリー（結果一覧/詳細）＝**階層up一本化 実装済み（2026-07-29 裁定「わかりやすく」・←＝Back＝詳細→直近result→ホーム・検索へは「条件を変更」明示導線のみ・ADR 0026 新設〔旧D統一は未起票と判明→正式記録の上で改訂〕）→残は実機目視のみ** ③**[2026-07-29 実機PASS＝完了]** 07-25 の幽閉修正は読書側だけを張り替え、**発見側に残った消えたルート `"discovery"` への pop 3箇所を取り残していた**＝検索→結果一覧→作品詳細の ← が完全無反応（ユーザー実機報告）。`popToTab(nav, pager, KTab)` へ一般化し、pop 先をルート名リテラルで書けない形へ閉じて欠陥クラスごと封鎖（ADR 0022 追記・`DiscoveryUpNavigationTest`）。2026-07-29 実機で (a)(b)(d) PASS・(c) は構造上実機不可（Supported URL は即取込＝詳細に入る経路が無い）＝JVM `DiscoveryUpNavigationTest`/`ReadingEscapeNavigationTest` 固定で完。
