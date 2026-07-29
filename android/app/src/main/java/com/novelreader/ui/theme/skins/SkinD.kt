@@ -58,7 +58,10 @@ object SkinD : SkinTokens {
         inverseSurface       = InverseSurfaceLight,
         inverseOnSurface     = InverseOnSurfaceLight,
         inversePrimary       = InversePrimaryLight,
-    )
+        // surfaceContainer の未指定4段を D の面へ束ね直す（High=素地#FBFAF8＝モック .dlg の実色／
+        // 残りはコンテナ面）。放置すると M3 baseline の紫が削除確認ダイアログ等に出る
+        // ＝ K の最重要面の実害（機序と根拠＝SkinContainerTiers.kt）。
+    ).withSkinContainerTiers()
 
     private val DarkColorScheme = darkColorScheme(
         primary              = PrimaryDark,
@@ -89,7 +92,7 @@ object SkinD : SkinTokens {
         inverseSurface       = InverseSurfaceDark,
         inverseOnSurface     = InverseOnSurfaceDark,
         inversePrimary       = InversePrimaryDark,
-    )
+    ).withSkinContainerTiers()
 
     // セピアはライトの暖色変種＝素地・墨・面・ヘアライン・藍だけを琥珀紙トーンへ差し替え、
     // secondary（青磁＝未読の意味色）や error はライトと共有して意味色のブレを避ける。
@@ -111,7 +114,10 @@ object SkinD : SkinTokens {
         surfaceContainer     = SurfaceContainerSepia,
         outline              = OutlineSepia,
         outlineVariant       = OutlineVariantSepia,
-    )
+        // なぜライトから copy した後にもう一度束ね直すか: LightColorScheme は適用済みだが、ここで
+        // surface（琥珀紙）と surfaceContainer を差し替えるため、4段が寒色ライトの値のまま取り残される。
+        // ※セピア/ダークにダイアログ意匠のモックは無い＝ライトの規則（面＝素地）の移植（SkinContainerTiers.kt の TODO）。
+    ).withSkinContainerTiers()
 
     override fun material(theme: ReadingTheme): ColorScheme = when (theme) {
         ReadingTheme.LIGHT -> LightColorScheme

@@ -167,6 +167,15 @@
 
 ## モック逆同期・意匠の宿題
 
+- **[AlertDialog 本文が AA 未達（2026-07-30 発見）]**: M3 は `textContentColor` を `onSurfaceVariant` へ配線するが、
+  本プロジェクトは ADR 0014-D で onSurfaceVariant を「装飾専用・**意味を運ぶ文字は InfoText 系へ分離**」と裁定している。
+  実測 D LIGHT で `#7C808B` on `#FBFAF8` ＝ **3.94:1**（M3 baseline の紫面だった頃の 3.23:1 からは改善したが未達のまま）。
+  削除確認は「不可逆」を伝える面なので本文が読みにくいのは実害。対処案＝ダイアログ本文だけ InfoText 系へ寄せる／
+  AlertDialog を包む薄いラッパを1本作る。
+  ⚠️ **`tools/check_design_tokens.py` の a11y ペア表に `onSurfaceVariant⇄surfaceContainerHigh` が無く機械検査をすり抜ける**＝
+  直すときにペア表への追加も同時にやらないと、直しても検査が守らない。
+- **[向き応答していない固定値の棚卸し]**: `Insets.ScrollBottomForFab` / `ChromeHintBottom` はいずれも縦向き前提の 96dp 固定。
+  横向きの構造裁定（`awaiting-human.md` §3-1）のついでに見直す。
 > 棚卸しの一次情報＝`.claude/plans/mock-drift-inventory-2026-07-16.md`（正本モック全数の未反映リスト・優先順位）。
 
 - **恒久ルール**（破ると実害が出た実績つき）:

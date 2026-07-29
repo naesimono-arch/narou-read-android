@@ -67,7 +67,10 @@ object SkinJ : SkinTokens {
         inverseSurface       = InkPortal,        // 明面反転＝onBackground
         inverseOnSurface     = PanelPortal,      // 反転面上の暗色
         inversePrimary       = InversePrimaryPortal, // gold を明面用に暗化（#F1F4EC 上 4.52:1）
-    )
+        // surfaceContainer の未指定4段を J の面へ束ね直す（High=ダイアログ面＝回廊の外殻 --page／
+        // 残りは森のパネル面＝上の「同パネル面」の宣言どおり）。放置すると M3 baseline の紫が
+        // 確認ダイアログ等に出る（機序と根拠＝SkinContainerTiers.kt。J にダイアログ意匠のモックは無い）。
+    ).withSkinContainerTiers()
 
     override fun material(theme: ReadingTheme): ColorScheme = PortalColorScheme // 固定ダーク森面＝theme 非依存
 

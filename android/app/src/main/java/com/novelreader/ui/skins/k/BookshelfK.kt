@@ -459,7 +459,11 @@ internal fun BookshelfK(
     }
 
     // 複数選択削除の確認（D と同語＝内訳ごとに正しい不可逆性を本文で明示・取込元PDF削除オプションは共通 DeleteSourcePdfOption）。
-    // K モックにダイアログ意匠は無いため OS 面の Material AlertDialog を使う（各スキンのダイアログ流儀と同じ）。
+    // 構造は Material AlertDialog をそのまま使う（各スキンのダイアログ流儀と同じ）。
+    // ⚠️ 面の色は「モックに無いから OS 既定」ではない——D 系モック（bookshelf-multiselect-D／reimport-sweep-D）が
+    // `.dlg{background:var(--base)}`＝素地・分離はスクリムと影、と規定しており、それを surfaceContainerHigh へ
+    // 移植してある（SkinContainerTiers.kt）。旧コメントの「モックに意匠が無い」という前提が誤りで、
+    // M3 baseline の紫面が仕様として通っていた（2026-07-30 実機で発覚・是正）。
     if (showDeleteConfirm) {
         val bookTargets = books.filter { it.id in selectedIds }
         // Web由来（未取込）カードも選択削除の対象（系3）。選択キー "web:<ncode>" を ncode へ分解し webNovels と突合する。

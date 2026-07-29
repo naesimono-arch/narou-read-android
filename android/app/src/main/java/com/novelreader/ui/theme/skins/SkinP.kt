@@ -68,7 +68,10 @@ object SkinP : SkinTokens {
         inverseSurface       = InkCartridge,         // 明面反転（墨面）
         inverseOnSurface     = PlasticHiCartridge,   // 反転面上の淡色
         inversePrimary       = InversePrimaryCartridge, // red を暗面用に明化（#2c2b26 上 4.55:1）
-    )
+        // surfaceContainer の未指定4段を P の面へ束ね直す（High=ダイアログ面＝筐体面 --plastic／
+        // 残りは --plastic-hi ハイライト面）。放置すると M3 baseline の紫が確認ダイアログ等に出る
+        // （機序と根拠＝SkinContainerTiers.kt。P にダイアログ意匠のモックは無い）。
+    ).withSkinContainerTiers()
 
     override fun material(theme: ReadingTheme): ColorScheme = CartridgeColorScheme // 固定筐体面＝theme 非依存（chrome はテーマ不変・ADR 0022 §2）
 

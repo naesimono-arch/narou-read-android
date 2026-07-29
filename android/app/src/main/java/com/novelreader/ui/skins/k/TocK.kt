@@ -26,17 +26,23 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.TocState
@@ -51,6 +57,7 @@ import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.tocInitialFirstVisibleIndex
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
@@ -102,6 +109,8 @@ internal fun TocK(
                     initialFirstVisibleItemIndex = tocInitialFirstVisibleIndex(entries, currentChapterFile),
                 )
                 val scope = rememberCoroutineScope()
+                // 話数ラベル列の整列幅は「この本で出る最長ラベル」から決める（機序＝rememberEpLabelWidth）。
+                val epLabelWidth = rememberEpLabelWidth(total)
 
                 HereBarK(
                     currentIndex = currentIndex,
@@ -121,6 +130,7 @@ internal fun TocK(
                     itemsIndexed(entries, key = { _, entry -> entry.fileName }) { index, entry ->
                         ChapterRowK(
                             epLabel = "第${index + 1}話",
+                            epLabelWidth = epLabelWidth,
                             title = entry.title.ifEmpty { "第${index + 1}話" },
                             isCurrent = index == currentIndex,
                             // 既読＝現在章より前（currentIndex<0＝未読なら既読は無い）。D TocList と同じ導出。
@@ -266,13 +276,50 @@ private fun HereBarK(currentIndex: Int, total: Int, colors: ReadingColors, onJum
     }
 }
 
+/** モック toc-K.html `.row .ep{width:44px}`＝話数ラベル列の整列幅の下限（2桁までの実測値・スケール外の構造幅）。 */
+private val EpLabelMinWidth = 44.dp
+
+/**
+ * 話数ラベル列（`.ep`）の整列幅を、この本で実際に出る最長ラベル「第[total]話」の実採寸から決める。
+ *
+ * なぜ 44dp 固定ではだめか（真因・2026-07-29 実機検証）: モックの `width:44px` は2桁ラベルを前提にした
+ * 実測値で、3桁「第132話」は 44dp にわずかに収まらず「第132」「話」で折り返し、行高まで崩れる。
+ * 実蔵書には 221 話・282 話・860 話の本があり通常利用で必ず踏む（なろう系は4桁も普通）。
+ *
+ * なぜ「幅を広げる」ではなく「最長ラベルから決める」か: 44dp は KDoc どおり**整列用の構造幅**＝
+ * 全行で題名の開始 x を揃えることが設計意図。単に定数を広げると2桁の本まで間延びし、行ごとに
+ * 可変にすると整列そのものが壊れる。幅を [total]（＝リスト単位で不変）だけの関数にすれば、
+ * 「1リスト内では全行同幅＝整列は不変」「本ごとに桁数へ追従」の両立になる。
+ *
+ * 桁数ごとの見え方: 2桁以下は採寸値が 44dp を下回るため [EpLabelMinWidth] のまま（モック忠実・
+ * 間延びしない）、3桁以上は必要なぶんだけ広がる（4桁も同じ式で自動追従＝桁数の上限を持たない）。
+ *
+ * dp 単位で切り上げるのは、採寸 px → dp → [Modifier.width] の px 戻しで 1px 足りずに折り返す
+ * 境界事故を避けるため（3桁はちょうど 44dp 前後＝境界そのものに乗る）。
+ */
+@Composable
+private fun rememberEpLabelWidth(total: Int): Dp {
+    val measurer = rememberTextMeasurer()
+    // 採寸スタイルは実際の描画と同一にする（Text は LocalTextStyle に fontSize だけ被せている）。
+    val style = LocalTextStyle.current.merge(TextStyle(fontSize = FontCaption))
+    val density = LocalDensity.current
+    return remember(total, style, density, measurer) {
+        val widestPx = measurer.measure(text = "第${total}話", style = style).size.width
+        val measured = with(density) { widestPx.toDp() }
+        ceil(measured.value).dp.coerceAtLeast(EpLabelMinWidth)
+    }
+}
+
 /**
  * 章行（モック .row）: 話数ラベル（ゴシック）＋題名（明朝）。左ルール分の幅を全行で確保して整列。
  * 既読=題名を沈めて行末に✓／現在=藍の左ルール＋藍10%地＋唯一の実アクション「ここから再開」／未読=通常。
+ *
+ * [epLabelWidth] はリスト全行で共有する整列幅（導出＝[rememberEpLabelWidth]）。行ごとに計算しない。
  */
 @Composable
 private fun ChapterRowK(
     epLabel: String,
+    epLabelWidth: Dp,
     title: String,
     isCurrent: Boolean,
     isRead: Boolean,
@@ -308,7 +355,8 @@ private fun ChapterRowK(
                     epLabel,
                     fontSize = FontCaption, // .row .ep 12px（ゴシック）
                     color = colors.infoText,
-                    modifier = Modifier.width(44.dp), // .ep width 44px（整列用の構造幅＝スケール外）
+                    // .ep width 44px（整列用の構造幅）を下限に、桁数へ追従する整列幅（rememberEpLabelWidth）。
+                    modifier = Modifier.width(epLabelWidth),
                 )
                 Text(
                     title,

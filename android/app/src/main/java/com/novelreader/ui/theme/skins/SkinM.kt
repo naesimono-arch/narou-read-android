@@ -65,7 +65,10 @@ object SkinM : SkinTokens {
         inverseSurface       = TextSeizu,        // 明面反転＝onBackground（D DARK: inverseSurface=onSurface）
         inverseOnSurface     = PanelSeizu,       // 反転面上の暗色（パネル面系）
         inversePrimary       = InversePrimarySeizu, // star を明面用に暗化（#DCE3F2 上 4.56:1）
-    )
+        // surfaceContainer の未指定4段を M の面へ束ね直す（High=ダイアログ面＝夜天の地／残りはパネル
+        // 合成面＝上の「別面を持たず同値」の宣言どおり）。放置すると M3 baseline の紫が再取込ダイアログ・
+        // 設定の Switch 未選択トラックに出る（機序と根拠＝SkinContainerTiers.kt。M にダイアログ意匠のモックは無い）。
+    ).withSkinContainerTiers()
 
     override fun material(theme: ReadingTheme): ColorScheme = SeizuColorScheme // 固定1変種＝theme 非依存（防御的）
 

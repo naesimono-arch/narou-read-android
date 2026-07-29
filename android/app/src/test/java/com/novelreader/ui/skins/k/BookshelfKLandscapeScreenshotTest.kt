@@ -1,7 +1,11 @@
 package com.novelreader.ui.skins.k
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.novelreader.ui.theme.ReadingTheme
 import org.junit.Rule
@@ -31,11 +35,28 @@ import org.robolectric.annotation.GraphicsMode
  * 書影の実寸だけで、色トークンとフォントスケール破綻は縦向きの全数マトリクスが既に張っている。
  * 同じ検出力を横向きでも買い直す価値は無い。
  *
+ * ## 縦の実効ビューポートについて（2026-07-29 実機検証で露見した golden の穴と、その塞ぎ方の限界）
+ * 旧版はこの画面**単体**を撮っていたため、恒常ボトムナビ（[KBottomNav]）が縦を食う事実が golden に
+ * 写らず、「横向きではカードが1枚も収まらない」破綻が緑のまま通り続けた。ナビは MainActivity の
+ * `Column { NavHost(weight(1f)); KBottomNav }` で**本文の高さを実際に削る**部品なので、ここでも同じ
+ * 入れ子で撮り、削られた後のビューポートを golden に載せる。
+ *
+ * **写せない残り＝システムバー**: Robolectric の window insets は全て 0 で、`@Config(qualifiers)` には
+ * インセットを与える修飾子が無い（証拠: [KBottomNavScreenshotTest] の golden 高が
+ * `navigationBarsPadding()` 込みで 64+1=65dp ちょうど＝nav インセットが 0 で入っている）。
+ * `ViewCompat.dispatchApplyWindowInsets` で合成インセットを流し込むことは原理的には可能だが、
+ * その値（ステータスバー高・ジェスチャーバー高）は端末ごとの推測値になり、**推測を回帰の基準線に
+ * 焼き込む**ことになる＝「緑なのに実機は破綻」の再生産。よってバーは意図的に写さない。
+ * したがってこの golden の実効ビューポートは**実機より 1 段広い**。バーぶんまで含めた最終判断は
+ * 実機確認（awaiting-human）に委ねる。
+ *
  * このテストが赤くなる条件:
  *  ・横向き時の列数が 5 から変わる（縦と同じ2列へ戻す・4列や6列へ変える）
  *  ・向き判定そのものが壊れる（回転しても縦の2列のまま＝書影が肥大する）
  *  ・列間 S32・左右 S24・書影アスペクト 3:4・キャプション1行 clamp が横向きだけ別値になる
  *  ・ヘッダ/フィルタチップ/FAB が横向きで別レイアウトへ分岐した場合
+ *  ・恒常ナビを差し引いた実効ビューポートに収まるカード枚数が変わる
+ *    （ヘッダ/チップをスクロール追従にする・ナビを rail 化する等の構造変更はここに出る）
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -58,14 +79,21 @@ class BookshelfKLandscapeScreenshotTest {
             fontScale,
             goldenName("BookshelfK", "grid_landscape", theme, fontScale),
         ) { _ ->
-            BookshelfK(
-                data = KShelfFixtures.mixedData(),
-                chrome = KShelfFixtures.chrome(KShelfFixtures.mixedStatusCounts),
-                actions = KShelfFixtures.actions,
-                selection = KShelfFixtures.selection,
-                webActions = KShelfFixtures.webActions,
-                snackbarHostState = remember { SnackbarHostState() },
-            )
+            // MainActivity と同じ入れ子（本文が weight(1f)・その下に恒常ナビ）＝ナビが縦を削った後の
+            // 実効ビューポートで撮る。ナビを外して撮ると画面が実機より 65dp 高く見える。
+            Column(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f)) {
+                    BookshelfK(
+                        data = KShelfFixtures.mixedData(),
+                        chrome = KShelfFixtures.chrome(KShelfFixtures.mixedStatusCounts),
+                        actions = KShelfFixtures.actions,
+                        selection = KShelfFixtures.selection,
+                        webActions = KShelfFixtures.webActions,
+                        snackbarHostState = remember { SnackbarHostState() },
+                    )
+                }
+                KBottomNav(current = KTab.BOOKSHELF, onSelect = {})
+            }
         }
     }
 }

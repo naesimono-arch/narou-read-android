@@ -320,7 +320,9 @@ internal fun BookshelfGridJ(
         )
     }
 
-    // 複数選択削除の確認（D/P と同語＝不可逆を本文で明示）。J モックにダイアログ意匠は無いため OS 面の Material を使う。
+    // 複数選択削除の確認（D/P と同語＝不可逆を本文で明示）。構造は Material AlertDialog。
+    // 面の色は D 系モックの `.dlg{background:var(--base)}`（素地・分離はスクリムと影）を surfaceContainerHigh へ
+    // 移植したものが効く（SkinContainerTiers.kt）＝OS 既定の紫面ではない。
     if (showDeleteConfirm) {
         val targets = books.filter { it.id in selectedIds }
         val deletableCount = targets.count { it.sourceUri != null }

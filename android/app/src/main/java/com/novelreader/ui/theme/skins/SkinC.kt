@@ -65,7 +65,10 @@ object SkinC : SkinTokens {
         inverseSurface       = InverseSurfaceYako,    // 明面反転（D DARK 流儀）
         inverseOnSurface     = InverseOnSurfaceYako,
         inversePrimary       = InversePrimaryYako,
-    )
+        // surfaceContainer の未指定4段を C の面へ束ね直す（High=ダイアログ面＝素地 --bg／残りは
+        // --surface-2＝上の「別面を持たず同値」の宣言どおり）。放置すると M3 baseline の紫が
+        // 確認ダイアログ等に出る（機序と根拠＝SkinContainerTiers.kt。C にダイアログ意匠のモックは無い）。
+    ).withSkinContainerTiers()
 
     override fun material(theme: ReadingTheme): ColorScheme = NightColorScheme // 固定1変種＝theme 非依存（防御的）
 
