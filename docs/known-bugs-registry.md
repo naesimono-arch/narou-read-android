@@ -34,11 +34,18 @@
 ## 検知手段の語彙
 
 `不変条件テスト名` / `個別回帰テスト名` / `lint ルール名（lint:Xxx）` / `check_machine.py のチェック名（check_xxx）` /
-`知見のみ` / `なし`。テストクラス名・機械チェック名・参照パスは `` ` `` で囲って書く——
+`CI ゲート（CI: Gradleタスク名）` / `知見のみ` / `なし`。テストクラス名・機械チェック名・参照パスは `` ` `` で囲って書く——
 `check_machine.py` の `known-bugs-registry` チェックが**実在を機械照合**し、リネーム・削除で嘘になった行を落とす。
 
-`lint:` 接頭辞の値は実在照合ができないため未検証として報告される。**なお Android Lint は現在どの日常ゲートにも
-配線されていない**（コミット時 lint フックは撤去済み）ため、lint 行は release の `lintVital` 経路でしか働かない。
+**CI ゲートだけは `` ` `` で囲まず素のテキストで `CI: <Gradleタスク名>` と書く**——Gradle のタスク名は
+テストクラス名・`check_xxx`・パスのどの照合パターンにも当たらず、コードスパンにすると info が出るだけだから
+（下の構造封鎖と同じ扱い）。素のテキストでも実在照合は効く: `check_machine.py` が `CI:` に続くタスク名を
+`.github/workflows/ci.yml` の本文と突合し、**ステップを外した瞬間にその行を落とす**
+（ワークフローは1行消せば消えるのに台帳は緑のまま「CI が守っている」と嘘をつく＝13日間 dead だったのと同じ形を塞ぐ）。
+
+`lint:` 接頭辞の値だけは実在照合ができないため未検証として報告される。なお Android Lint は
+**コミット時フックとしては撤去済み**（＝ローカルの日常ゲートには無い）が、CI の `lintDebug` ステップで
+毎 push 走るため、lint 行は release の `lintVital` 経路と CI の2経路で効く。
 
 **構造封鎖（必須引数・exhaustive when 等）は `[o] 固定` と同格に扱う**——コンパイラが止めるので、
 テストより強い（実行すら要らず、見落としが原理的に起きない）。これを `[~] 部分` に埋めると
@@ -73,16 +80,13 @@
 | `[!] なし` | `runcatching-swallows-cancellation` | キャンセルしたはずの処理が生き続ける／構造化並行性が壊れる | `runCatching` が `CancellationException` まで飲む | addBook のキャンセル例外の握り潰しを解消 | なし | — |
 | `[!] なし` | `shared-mutable-state-without-mutex` | 記帳・キャッシュが並行アクセスで壊れる | `limitedParallelism(1)` は排他にならない（直列化≠相互排除）という誤解 | pending_jobs 記帳を Mutex 排他へ／NovelApiRepository キャッシュのスレッド安全化 | なし | — |
 | `[!] なし` | `test-dispatcher-escape-flaky` | 単体テストがフレーキーに落ちる | 本番コードの `launch(Dispatchers.IO)` が TestDispatcher 管理外＝`advanceUntilIdle` が待てない | BookshelfViewModelTest をディスパッチャ注入で決定化 | なし | — |
-| `[!] なし` | `androidtest-not-compiled-by-default-gate` | androidTest が本番シグネチャ変更に追従せずコンパイル破綻したまま潜伏 | 既定ゲート `testDebugUnitTest` は androidTest をコンパイルしない | ReadingScreen のテーマ引数追加への追従／followingSystem 必須化への追従（**2回発生**） | なし | — |
 | `[!] なし` | `fgs-notification-id-collision` | 完了・失敗の通知が出た瞬間に消える | 終端通知を FGS 通知と同一 ID へ投稿＝サービス停止の道連れ | PDF 終端通知を FGS 通知と別 ID へ分離 | なし | — |
 | `[!] なし` | `remembersaveable-missing-state-loss` | 回転・プロセス復帰でシートの開閉やヒント表示が戻る | `remember` のまま保存しない | 読書画面シート開閉の rememberSaveable 化・没入ヒントを通算初回のみへ | なし | — |
 | `[!] なし` | `no-network-timeout` | 通信が返らないまま画面が固まる | OkHttp 既定の `callTimeout` は無制限 | OkHttp クライアントへタイムアウト設定 | なし | — |
 | `[!] なし` | `datastore-corruption-crash` | 永続層の破損・IOException でアプリが落ちる | DataStore の読み出しに復旧経路が無い | 検索履歴 DataStore の IOException/破損時クラッシュを防止 | なし | — |
 | `[!] なし` | `queue-drop-on-concurrent-import` | 処理中に別の PDF を追加すると無言で捨てられる | 単一処理前提のサービスが同時投入を落とす | PDF 処理のキュー化 | なし | `docs/patterns/service-queue-loop.md` |
-| `[!] なし` | `release-r8-only-build-break` | debug は通るのに release だけビルド不能になる | R8 が新依存の未知属性で落ちる。日常ゲートに release ビルドが無い | In-App Review 導入で停止した release R8 ビルドを dontwarn で復旧 | なし | — |
 | `[!] なし` | `transition-window-first-compose-jank` | 画面遷移・タブ切替が 400ms 級で引っかかる | アニメ窓に初回コンポーズが同居する（隣ページ破棄→再コンポーズ等） | 隣ページ常駐化／遷移中は常駐0＋settle 後に移送／遷移中の構造プレースホルダ | なし（macrobenchmark は回帰固定へ未接続） | `docs/knowledge/emui-p30-jank-log-collection.md` |
 | `[!] 知見のみ` | `fixed-bar-clearance-hardcoded-guess` | 固定バー・FAB の下に本文やラベルが潜って読めない | クリアランスを定数で当て推量（120dp・64/80dp・FAB 分）し、実高とずれる | M星図本棚のバー実高を実測クリアランス化／本棚下端の FAB 余白確保／縦書きのバー余白 64/80dp 誤翻訳を除去 | 知見のみ | `docs/knowledge/compose-lazy-mirror-contentpadding-axis-shift.md` |
-| `[!] 知見のみ` | `roborazzi-verify-not-in-default-gate` | golden が実装と乖離したまま何週間も潜伏する | 既定ゲートに `verify` が同乗していない＝記録だけして照合しない | 陳腐化していた golden 24枚を再記録 | 知見のみ | `docs/knowledge/golden-regression-baselines.md` |
 | `[!] 知見のみ` | `oem-background-kill` | バックグラウンドの取込が OEM に殺される | ColorOS/EMUI の電池最適化が FGS でも凍結する | WakeLock を PDF 単位で再取得／FGS の onTimeout・startForeground 例外防御／電池最適化除外の誘導 | 知見のみ | `docs/knowledge/coloros-hans-freezes-fgs-despite-bg-allow.md` |
 | `[!] 知見のみ` | `theme-invariant-surface-loses-contrast` | 片方のテーマだけ文字が白飛び／黒潰れする | テーマ追従色を「テーマ不変の面」へ載せる（面と content color の所属ずれ） | P設定シートの文字色をテーマ不変の墨に固定 | 知見のみ | `docs/knowledge/compose-root-surface-content-color.md` |
 | `[!] 知見のみ` | `webview-position-mis-record` | Web 読書の位置が回転・戻り遷移で巻き戻る | WebView のスクロール位置を「戻り」でも記録してしまう／回転で state を捨てる | WebReader の回転巻き戻りを saveState で解消／戻り遷移では読書位置を記録しない | 知見のみ | `docs/decisions/0012-narou-reading-webview-position-tracking.md` |
@@ -115,7 +119,10 @@
 | `[o] 固定` | `immersive-window-ownership` | 章を送るたび没入が壊れる・消灯抑止が外れる・バーが一瞬出る | ウィンドウ資源を章スコープが `DisposableEffect` で所有し、退場側の後始末が入場側に勝つ | 読書メニューのタップトグル固定化＋window 幾何固定／window 背景をテーマ背景へ／ステータスバー明暗を Theme へ一本化／所有権を画面スコープへ移動 | `ReadingWindowContractTest`（所有権をソース走査で固定） | `docs/knowledge/compose-animatedcontent-exit-dispose-outlives-enter.md`, `docs/knowledge/immersive-toggle-cutout-letterbox-flicker.md`, `docs/knowledge/m3-topappbar-heightoffset-negative-crash.md` |
 | `[o] 固定` | `db-version-collision-parallel-branches` | 並列ブランチが同じ Room version を先取りし、実機の schema hash と衝突する | 連番の採番が分散する | Room version 9／10 への退避（no-op migration で再スタンプ） | `check_db`, `.claude/hooks/check_sequence_id_collision.py` | `docs/decisions/0025-version-numbering-scheme.md` |
 | `[o] 固定` | `hardcoded-color-outside-tokens` | 同じ役割の色が2値に割れる・直書きが残る | トークン層を経由せず値を直書きする | ヘアライン役割2トークン化・直書き3件解消／章見出しルール色の正本化 | `tools/check_design_tokens.py` | `docs/decisions/0014-design-principles-and-source-layers.md` |
-| `[o] 固定` | `intent-filter-data-attrs` | VIEW intent-filter のマッチ集合が意図とずれる | 1つの data タグへ複数属性を書くと直積で解釈される | data タグを1属性1タグへ分割 | `lint:IntentFilterUniqueDataAttributes`（※ lint は日常ゲート未配線） | — |
+| `[o] 固定` | `intent-filter-data-attrs` | VIEW intent-filter のマッチ集合が意図とずれる | 1つの data タグへ複数属性を書くと直積で解釈される | data タグを1属性1タグへ分割 | `lint:IntentFilterUniqueDataAttributes`（CI の lintDebug で実行） | — |
+| `[o] 固定` | `androidtest-not-compiled-by-default-gate` | androidTest が本番シグネチャ変更に追従せずコンパイル破綻したまま潜伏 | 既定ゲート `testDebugUnitTest` は androidTest をコンパイルしない | ReadingScreen のテーマ引数追加への追従／followingSystem 必須化への追従（**2回発生**） | CI: assembleDebugAndroidTest（ビルドのみ・実行は端末必須で対象外） | — |
+| `[o] 固定` | `roborazzi-verify-not-in-default-gate` | golden が実装と乖離したまま何週間も潜伏する | 既定ゲートに `verify` が同乗していない＝記録だけして照合しない | 陳腐化していた golden 24枚を再記録 | CI: verifyRoborazziDebug（単体テストと同じ1パスで48枚を照合） | `docs/knowledge/golden-regression-baselines.md` |
+| `[o] 固定` | `release-r8-only-build-break` | debug は通るのに release だけビルド不能になる | R8 が新依存の未知属性で落ちる。日常ゲートに release ビルドが無い | In-App Review 導入で停止した release R8 ビルドを dontwarn で復旧 | CI: assembleRelease（鍵不在でも未署名で通る＝R8 破綻のみを見る） | — |
 
 ## B. tooling（`.claude/hooks` / skills / `tools/` / statusline）
 

@@ -1,16 +1,24 @@
-# CI: JVM で完結するゲートのみを回す（実機必須のものは対象外＝下記コメント参照）。
+# CI: 端末を要さないゲート（JVM 実行とビルド）を回す。「実機での実行」が要るものだけが対象外。
 #
 # 対象外とその理由:
-# - androidTest（app/src/androidTest: PdfPipelineDeviceTest・MigrationTest・NativeReadingScreenTest 等）:
+# - androidTest の**実行**（app/src/androidTest: PdfPipelineDeviceTest・MigrationTest・NativeReadingScreenTest 等）:
 #   接続端末が必須（connectedAndroidTest）。本プロジェクトでは実機 OPPO での /device-verify 運用が正で、
 #   エミュレータ CI 化は未整備（connectedAndroidTest 直叩きは蔵書DB消失の禁忌もある＝CLAUDE.md）。
+#   ただし**ビルドは端末不要**なので assembleDebugAndroidTest としてゲートへ載せてある（下記ステップ）。
+#   実行だけが対象外＝この区別が本ワークフローの元々の意図（「実機必須のもの」＝実行）。
 # - :macrobenchmark: com.android.test モジュールで実機計測専用＝runner では実行不能。
-# - verifyRoborazziDebug（スクリーンショット golden 比較）: golden は WSL(Linux) 記録が正で、
-#   JVM のフォントレンダリングは環境依存（ScreenshotTestSupport.kt / ADR 0009 増補1）。
-#   GitHub runner のフォント環境では偽赤が出るため既定ゲートに載せない。
-#   なお Screenshot*Test 自体は Robolectric(JVM) 製なので testDebugUnitTest に同乗して
-#   コンポジション（semantics 層）としては毎回走る（roborazzi プロパティ未指定時の
-#   captureRoboImage は no-op という標準挙動を利用。比較だけが CI 対象外）。
+#
+# 旧「対象外」判断の撤回（2026-07-30・verifyRoborazziDebug を対象へ編入）:
+#   旧理由は「JVM のフォントレンダリングは環境依存＝GitHub runner のフォント環境では偽赤が出る」だったが、
+#   実測でこの前提が誤りと確定した。Robolectric はフォントをホストから取らず、AOSP のフォント一式を
+#   nativeruntime-dist-compat（版は 1.0.2 に固定）へ同梱し一時ディレクトリへ展開して使う
+#   （DroidSansFallback.ttf 等＝CJK も同梱）。裏取り: 記録機（WSL）の fontconfig には日本語フォントが
+#   1本も無い（fc-list :lang=ja が 0件）のに golden の日本語グリフは正しく出ている＝ホスト非依存の証拠。
+#   描画は Robolectric 4.11.1 ＋ 全 Screenshot*Test の @Config(sdk=[34]) ＋ linux-x86_64 の同一 .so で固定され、
+#   ubuntu runner も WSL も同じ組合せになる。ADR 0009 増補1 の「golden は WSL(Linux) 記録が正」は
+#   OS 差（Windows 記録の排除）を言ったもので、Linux runner とは衝突しない。
+#   ※ 万一 runner 側で環境差の偽赤が出た場合、正しい対処は閾値で黙らせることではなく
+#     「記録機を runner に一本化する」か本ステップを戻すこと（差分画像は build/outputs/roborazzi に出る）。
 name: CI
 
 on:
@@ -25,7 +33,9 @@ concurrency:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # 45→60: androidTest ビルドと release(R8) ビルドを足した分の余裕（cold runner は
+    # キャッシュ不発時に全 variant をコンパイルする）。走行時間そのものは Actions の実測で見る。
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -49,15 +59,52 @@ jobs:
 
       # 単体テスト（Robolectric semantics/スクリーンショット系・PDF 抽出 golden 回帰
       # 〔JvmGoldenRegressionTest: 参照する sample_pdfs/ と ab-review/golden_regression/ は
-      # git 追跡済み＝checkout だけで揃う〕を含む）。
+      # git 追跡済み＝checkout だけで揃う〕を含む）＋ スクリーンショット golden の画像比較。
       # Android SDK は runner 同梱（ANDROID_HOME 設定済み・ライセンス承諾済み）を利用し、
       # 不足コンポーネントは AGP が自動取得する。
-      - name: Unit tests
+      #
+      # なぜ testDebugUnitTest ではなく verifyRoborazziDebug を回すのか:
+      # verify は testDebugUnitTest 本体を roborazzi.test.verify=true 付きで実行する形なので、
+      # 単体テスト全件（実測 1072 件）と golden 比較（48 枚）が**同じ1パス**で終わる。
+      # 2ステップに分けると system property が変わって test タスクが丸ごと2回走り、時間がほぼ倍になる。
+      # golden 不一致は captureRoboImage が AssertionError を投げてテストを落とす＝ビルドが赤になる
+      # （golden 1枚を差し替えた陽性確認で BUILD FAILED を実測済み）。
+      # 旧ステップの無修飾 testDebugUnitTest（全サブプロジェクト対象）から :app: 修飾に変わるが、
+      # :macrobenchmark は src/main しか持たず unit test の source set が無いので実行対象は減らない。
+      #
+      # 既知の限界: golden PNG は test タスクの宣言済み入力ではないため、golden **だけ**を差し替えた変更は
+      # UP-TO-DATE / FROM-CACHE で素通りしうる（ローカル warm で実測）。本ステップが塞ぐのは
+      # 「実装が動いて golden が取り残される」向きで、そちらは実装変更が test タスクの入力を変えるため必ず再実行される。
+      - name: Unit tests + screenshot golden verify
         working-directory: android
-        run: ./gradlew testDebugUnitTest
+        run: ./gradlew :app:verifyRoborazziDebug
+
+      # androidTest の「ビルドだけ」をゲートへ（実行は端末必須＝冒頭コメント）。
+      # なぜ必要か: 既定ゲートの testDebugUnitTest は androidTest ソースをコンパイルしないため、
+      # 本番のシグネチャ変更に追従しないまま壊れて潜伏する（実際に2回発生＝docs/known-bugs-registry.md の
+      # androidtest-not-compiled-by-default-gate）。
+      # なぜ compileDebugAndroidTestKotlin ではなく assembleDebugAndroidTest か: Kotlin コンパイルに加えて
+      # マニフェスト結合・リソース結合・dex 化まで通り、androidTest 専用依存の欠落も捕まえられる。
+      # 追加コストは実測でわずか（compile まで 26s → assemble まで 35s）で、強い方を選ばない理由がない。
+      # 直前の単体テストと debug variant のコンパイル成果物を共有するのでこの位置に置く。
+      - name: Build androidTest (ビルドのみ・端末不要)
+        working-directory: android
+        run: ./gradlew :app:assembleDebugAndroidTest
 
       # Lint: errors=0 がゲート（AGP 既定の abortOnError=true で errors があれば失敗）。
       # warnings は既定で非ブロック＝件数の増減では落ちない。
       - name: Android Lint
         working-directory: android
         run: ./gradlew :app:lintDebug
+
+      # release だけビルド不能になる型を捕まえる（R8 が新依存の未知属性で落ちる等。実際に In-App Review
+      # 導入で停止＝docs/known-bugs-registry.md の release-r8-only-build-break）。debug は通るので
+      # 他のどのステップでも代替できない。
+      # なぜ最後か: 実測で最も重く（ローカル warm で 2m10s。R8 収縮＋リソース収縮＋lintVitalRelease を含む）、
+      # かつ唯一 release variant を丸ごとコンパイルするため。安い順に落とす fail-fast を保つ。
+      # 署名鍵は不要: app/build.gradle は local.properties に鍵が無ければ signingConfig を組まず
+      # 未署名で通す設計（鍵の無い worktree で実測）。本ステップの目的は R8 起因のビルド破綻の検知であって
+      # 署名の検証ではないので、CI に鍵を置く必要はない。
+      - name: Release build (R8)
+        working-directory: android
+        run: ./gradlew :app:assembleRelease

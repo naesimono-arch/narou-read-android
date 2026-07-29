@@ -579,6 +579,7 @@ def check_delegation_meter():
 
 # ── 16. 既知バグレジストリ（L4）の名指し実在照合 ─────────────────────────
 # 状態列の語彙（レジストリ冒頭の凡例が正本。ここは機械側の写しではなく「受理する値の定義」）。
+_CI_WORKFLOW = ".github/workflows/ci.yml"
 _REGISTRY_STATES = {"[!] なし", "[!] 知見のみ", "[~] 部分", "[o] 固定"}
 # 検知ありを主張する状態＝検証可能な名指しを1つ以上持たねばならない。
 _REGISTRY_DEFENDED = {"[~] 部分", "[o] 固定"}
@@ -663,10 +664,28 @@ def check_known_bugs_registry():
                         f"{bug_id}: '{tok}' はどの照合パターンにも当たらない"
                         "（テストクラス名は `XxxTest`・機械チェックは `check_xxx`・参照はパスで書くこと）")
 
+        # CI ゲートの主張（検知手段セルの素テキスト "CI: <Gradleタスク名>"）を workflow と突合する。
+        # なぜコードスパンで書かせないか: Gradle タスク名は上のどの照合パターン（XxxTest / check_xxx /
+        # パス）にも当たらず info を出すだけになるため、台帳側では素のテキストで書く規約にしてある。
+        # なぜ存在照合まで要るか: ワークフローのステップは1行消せば消え、台帳は緑のまま「CI が守っている」と
+        # 嘘をつく——このリポジトリが13日間踏んだ恒久 dead 化と同じ形。パスの実在確認だけでは足りないので
+        # タスク名そのものを workflow 本文に対して照合する。
+        for task in re.findall(r"CI:\s*([A-Za-z][\w:.]*)", cells[5]):
+            wf = read_text(_CI_WORKFLOW)
+            if wf is None:
+                add("known-bugs", "stale", "high",
+                    f"{bug_id}: CI ゲートを主張しているが {_CI_WORKFLOW} が読めない（移動・削除）")
+            elif task not in wf:
+                add("known-bugs", "stale", "high",
+                    f"{bug_id}: CI ゲート '{task}' が {_CI_WORKFLOW} に無い"
+                    "（ステップを外したなら状態列も無防備側へ戻すこと）")
+            else:
+                verifiable_here += 1
+
         if state in _REGISTRY_DEFENDED and verifiable_here == 0:
             add("known-bugs", "stale", "high",
                 f"{bug_id}: 状態 '{state}' は検知ありを主張しているのに、"
-                "検証可能な名指し（テストクラス名／check_xxx ／パス／lint:）が1つも無い")
+                "検証可能な名指し（テストクラス名／check_xxx ／パス／lint: ／CI: タスク名）が1つも無い")
 
     if refs_seen == 0:
         add("known-bugs", "stale", "high",

@@ -61,6 +61,31 @@ cd android && ./gradlew installDebug        # インストール
 cd android && ./gradlew compileDebugKotlin  # Kotlinコンパイル確認
 ```
 
+## CI と同じゲートをローカルで回す
+
+CI（`.github/workflows/ci.yml`）が毎 push で回すのは次の5つ。**日常の自己検証は
+`testDebugUnitTest` だけでよく**（CLAUDE.md「自己検証必須」）、以下は push 前に赤を前倒しで拾いたいときや、
+該当領域を触ったときに個別で回す。ext4 worktree なら `gw <task>` がそのまま通る（`--init-script` 不要）。
+
+```bash
+cd android
+gw :app:verifyRoborazziDebug      # 単体テスト全件＋golden 48枚の画像比較（testDebugUnitTest を内包する1パス）
+gw :app:assembleDebugAndroidTest  # androidTest の「ビルド」だけ（実行は端末必須＝/device-verify）
+gw :app:lintDebug                 # 基準 0 errors
+gw :app:assembleRelease           # release の R8 収縮が通るか（鍵不在でも未署名で通る）
+python3 tools/check_design_tokens.py
+```
+
+- **`verifyRoborazziDebug` は `testDebugUnitTest` を内包する**（同じ test タスクを `roborazzi.test.verify=true`
+  付きで実行する形）。両方を別々に回すとテストが丸ごと2回走るだけなので、golden も見たいときは verify 側だけでよい。
+- **見た目を変えたときは従来どおり `recordRoborazziDebug` で再記録**してから verify（`/visual-language`）。
+- **落とし穴**: golden PNG は test タスクの宣言済み入力ではないため、**golden だけ**を差し替えた直後の
+  `verifyRoborazziDebug` は UP-TO-DATE で素通りする（実測）。golden を手で差し替えて照合し直したいときは
+  `gw :app:verifyRoborazziDebug :app:testDebugUnitTest --tests "*XxxScreenshotTest*"` のようにテストフィルタを
+  付けて強制再実行する（フィルタ自体が入力差分になる）。実装を変えた場合は入力が変わるので普通に再実行される。
+- `assembleDebugAndroidTest` は**端末不要**。androidTest は既定ゲートでコンパイルされず、本番のシグネチャ変更に
+  追従しないまま壊れて潜伏した実績が2回あるためゲート化してある（`docs/known-bugs-registry.md`）。
+
 ## PDF 抽出ロジックのテスト
 
 PDF 抽出（縦書き列復元・ルビ紐付け・章分割・HTML 出力）は Kotlin ネイティブ実装
