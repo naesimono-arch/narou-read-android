@@ -5,6 +5,7 @@ import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.domain.ReadingStatus
 import com.novelreader.domain.ShelfItem
+import com.novelreader.domain.activeWebNovels
 import com.novelreader.domain.bookIdsInSelection
 import com.novelreader.domain.chapterNumberOf
 import com.novelreader.domain.deleteConfirmBody
@@ -108,6 +109,55 @@ class ShelfItemsTest {
         val items = mergeShelfItems(books, emptyMap(), webs)
 
         assertEquals(listOf("book:b1", "web:N2222BB"), items.map { it.key })
+    }
+
+    // ────── 昇格の供給点適用（2026-07-29 実機報告『ヘッダの冊数が実際とずれる』の固定） ──────
+    // 取込が済んでも web_novels 行は残す設計のため、昇格を一覧生成の内側だけで適用すると、同じリストを
+    // 素で数えるヘッダ冊数・状態チップ件数がゴースト行まで数えて実カード枚数より多く出る。
+
+    @Test
+    fun `activeWebNovels - 取込済み ncode の Web 行は正味一覧から落ちる（表記ゆれ込み）`() {
+        // 蔵書は小文字・前後空白つき、web 行は大文字＝保存正規化（trim+大文字）で一致して落ちること。
+        val books = listOf(book("b1", 300, ncode = " n1111aa "))
+        val webs = listOf(web("N1111AA", 200), web("N2222BB", 100))
+
+        assertEquals(listOf("N2222BB"), activeWebNovels(books, webs).map { it.ncode })
+    }
+
+    @Test
+    fun `activeWebNovels - ncode 未紐付けの蔵書は Web 行を落とさない`() {
+        // ncode=null（通常のファイル選択取込・Web取込）は昇格の材料を持たない＝素通しであること。
+        val books = listOf(book("b1", 300), book("b2", 200))
+        val webs = listOf(web("N1111AA", 100))
+
+        assertEquals(listOf("N1111AA"), activeWebNovels(books, webs).map { it.ncode })
+    }
+
+    @Test
+    fun `ヘッダ冊数（books＋webNovels の素の和）が棚のカード枚数と一致する`() {
+        // 症状の直接固定: 「本棚に置く」→ 同じ作品を取り込む、で web_novels 行が残る棚。
+        // activeWebNovels 適用後は 素の和(1+0) == 一覧の枚数(1)。適用前は 2 対 1 でヘッダが1冊多かった。
+        val books = listOf(book("b1", 300, ncode = "N1111AA"))
+        val rawWebs = listOf(web("N1111AA", 200))
+
+        val webs = activeWebNovels(books, rawWebs)
+        val items = mergeShelfItems(books, emptyMap(), webs)
+
+        assertEquals(items.size, books.size + webs.size)
+        assertEquals(listOf("book:b1"), items.map { it.key })
+    }
+
+    @Test
+    fun `状態チップ件数も昇格後の正味一覧で数える（ゴースト行を数えない）`() {
+        // 未読の蔵書1冊＋その作品の取込済み Web 行1件。チップは合計1件でなければならない
+        // （素の webNovels を渡していた旧経路では UNREAD が 2 になり、絞り込み後の実件数1と食い違った）。
+        val books = listOf(book("b1", 300, ncode = "N1111AA"))
+        val webs = activeWebNovels(books, listOf(web("N1111AA", 200)))
+
+        val counts = shelfStatusCounts(books, webs, emptyMap(), emptyMap(), emptyMap())
+
+        assertEquals(1, counts.values.sum())
+        assertEquals(1, counts[ReadingStatus.UNREAD])
     }
 
     @Test

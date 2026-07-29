@@ -16,6 +16,7 @@ import com.novelreader.domain.FolderScanReport
 import com.novelreader.domain.ReimportPlan
 import com.novelreader.domain.ScanProgress
 import com.novelreader.domain.ScanTarget
+import com.novelreader.domain.activeWebNovels
 import com.novelreader.domain.buildReimportPlans
 import com.novelreader.domain.buildScanTargets
 import com.novelreader.domain.pruneReimportSeenIds
@@ -83,7 +84,12 @@ sealed interface BookshelfUiState {
     data object Loading : BookshelfUiState
     /** DB 発行後の確定状態。books が空なら「蔵書ゼロ」を表す（Loading とは別物）。
      *  webNovels は (b) Web由来・未取込カード（融合本棚）。既定 emptyList は既存テスト・
-     *  呼び出しの互換のため（Web カード非対応の経路は蔵書のみで従来どおり成立する）。 */
+     *  呼び出しの互換のため（Web カード非対応の経路は蔵書のみで従来どおり成立する）。
+     *
+     *  不変条件（2026-07-29）: webNovels は**「自然昇格」適用後の正味一覧**＝蔵書へ取込済み
+     *  （books.ncode 一致）の行を含まない（[com.novelreader.domain.activeWebNovels]）。よって
+     *  `books.size + webNovels.size` は棚に実際に出るカード枚数と一致し、ヘッダ冊数・状態チップ件数を
+     *  この2リストから素直に数えてよい。この不変条件を壊すと冊数が実カード枚数より多く出る。 */
     data class Content(
         val books: List<BookEntity>,
         val webNovels: List<WebNovelEntity> = emptyList(),
@@ -215,7 +221,12 @@ class BookshelfViewModel @JvmOverloads constructor(
         ) { books, webNovels, webReadingProgress ->
             BookshelfUiState.Content(
                 books = books,
-                webNovels = webNovels,
+                // 「自然昇格」をここで一度だけ適用する（2026-07-29 実機報告『ヘッダの冊数が実際とずれる』の対処）。
+                // 取込が済んでも web_novels 行は残す設計のため、素の webNovels には棚に1枚も出ないゴースト行が
+                // 混じる。旧実装は昇格を一覧生成（mergeShelfItems）の内側でしか適用しておらず、同じリストを素で
+                // 数えるヘッダ冊数（books.size + webNovels.size）と状態チップ件数がゴーストごと数えて実カード枚数
+                // より多く出ていた。供給点で落とせば、数える側・絞る側・並べる側が同一の正味リストを見る。
+                webNovels = activeWebNovels(books, webNovels),
                 // ncode→最後に開いた話へ畳む（描画層は Map を引くだけ＝mergeShelfItems が Web カードへ載せる）。
                 webReadingProgress = webReadingProgress.associate { it.ncode to it.lastReadEpisode },
                 // ncode→最終接触時刻。触った web カードを接触時刻で並べるのに使う（表示用 episode とは別量）。

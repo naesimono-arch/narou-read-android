@@ -6,6 +6,8 @@ import com.novelreader.NovelReaderApplication
 import com.novelreader.PdfProcessingService
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.data.WebNovelEntity
+import com.novelreader.domain.mergeShelfItems
 import com.novelreader.narou.NarouApiException
 import com.novelreader.narou.NovelApiRepository
 import com.novelreader.model.BookId
@@ -486,6 +488,39 @@ class BookshelfViewModelTest {
         coVerify(exactly = 2) {
             mockNovelApiRepository.discover(match { it.word == "最遊記" })
         }
+    }
+
+    // ── 棚データの供給点で「自然昇格」を適用する（2026-07-29 実機報告『ヘッダの冊数が実際とずれる』）──
+    // ヘッダ冊数・状態チップ件数は uiState の books/webNovels を素で数えるため、取込後も残る web_novels 行
+    // （棚には昇格で出ない）が混じると冊数だけ多く出る。供給点で落ちることをここで固定する。
+
+    @Test
+    fun `uiState - 取込済み ncode の Web 行は webNovels から落ちる（ヘッダ冊数が実カード枚数と一致）`() = runTest {
+        // 棚: 「本棚に置く」で web_novels に入れた作品を、その後 ncode 付きで取り込んだ状態。
+        // 取込側は web_novels 行を消さない（昇格＝表示で引っ込める設計）ため、素の webNovels には行が残る。
+        val books = listOf(BookEntity("id01", "本A", "/p/a", ncode = "N1111AA"))
+        every { mockRepository.allBooks } returns flowOf(books)
+        every { mockRepository.webNovels } returns flowOf(
+            listOf(
+                WebNovelEntity(ncode = "N1111AA", title = "作品A", writer = "作者", generalAllNo = 10, addedAt = 200),
+                WebNovelEntity(ncode = "N2222BB", title = "作品B", writer = "作者", generalAllNo = 10, addedAt = 100),
+            )
+        )
+        viewModel = BookshelfViewModel(mockApp, testDispatcher)
+
+        // WhileSubscribed のため能動的に購読して combine を起動する。
+        val job = launch { viewModel.uiState.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val content = viewModel.uiState.value as BookshelfUiState.Content
+        assertEquals(listOf("N2222BB"), content.webNovels.map { it.ncode })
+        // ヘッダ冊数の式そのもの。修正前は 1+2=3 で、棚に出るカード（蔵書1＋Web1＝2枚）と食い違っていた。
+        assertEquals(
+            mergeShelfItems(content.books, emptyMap(), content.webNovels).size,
+            content.books.size + content.webNovels.size,
+        )
+        assertEquals(2, content.books.size + content.webNovels.size)
+        job.cancel()
     }
 
     // ── 続きありバッジ用の詳細一括照会（旧 BookCard の produceState を VM へ移設）───────────

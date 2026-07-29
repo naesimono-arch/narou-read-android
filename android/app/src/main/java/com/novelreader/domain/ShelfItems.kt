@@ -69,6 +69,33 @@ internal fun webRecencyKeyOf(addedAt: Long, lastReadAt: Long): RecencyKey =
     RecencyKey(tier = 0, value = if (lastReadAt > 0L) lastReadAt else addedAt)
 
 /**
+ * 蔵書へ取り込み済みの作品を表す ncode の保存キー集合（trim+大文字＝[Ncode.storageKey]）。
+ * 「自然昇格」（取込済みの Web カードを棚から引っ込める）判定の単一正本で、[activeWebNovels] と
+ * [mergeShelfItems] が共有する（規則を二重実装せず、数える側と並べる側が食い違わないようにする）。
+ */
+internal fun importedNcodeKeys(books: List<BookEntity>): Set<String> =
+    books.mapNotNull { b -> b.ncode?.let { Ncode(it).storageKey } }.toSet()
+
+/**
+ * 「自然昇格」を適用した Web由来カードの正味一覧＝**蔵書へ取り込み済み（books.ncode 一致）の行を落とす**。
+ *
+ * なぜ必要か（2026-07-29 実機報告「本棚ヘッダの冊数が実際とずれる」の真因）: なろう作品を「本棚に置く」と
+ * web_novels に行が入り、その作品を取り込んでも（ADR 0011 の縦書きPDF取り込み・NcodeLinkSheet の手動紐付け）
+ * web_novels 行は**意図的に残す**設計になっている（棚からは昇格で引っ込め、行の掃除はユーザー操作に委ねる）。
+ * ところが昇格規則は一覧生成 [mergeShelfItems] の内側にしか無かったため、同じ web_novels を素で数える側
+ * ——ヘッダ冊数（`books.size + webNovels.size`）と状態チップ件数（[shelfStatusCounts]）——は、棚に1枚も
+ * 出ていないゴースト行まで数えていた。結果、ヘッダの冊数が実カード枚数より「取込済み Web 行の数」だけ多くなる。
+ *
+ * そこで昇格を**棚データの供給点で一度だけ**適用し、数える側・絞る側・並べる側が同じ正味リストを見るようにする
+ * （適用箇所＝BookshelfViewModel.uiState。表示側で辻褄を合わせるのではなく、ゴースト行を棚データへ入れない）。
+ */
+fun activeWebNovels(books: List<BookEntity>, webNovels: List<WebNovelEntity>): List<WebNovelEntity> {
+    val imported = importedNcodeKeys(books)
+    // 比較は保存時正規化（trim+大文字）と同じ形で行う＝表記ゆれで昇格が漏れないようにする。
+    return webNovels.filterNot { Ncode(it.ncode).storageKey in imported }
+}
+
+/**
  * 蔵書リストと Web由来（未取込）リストを「最近の活動順」で1本にマージする純関数。
  *
  * - 蔵書の並びは BookDao.getAllBooks（二層: 未読を上・触った本を下）が正本で、ここでは崩さない。
@@ -81,6 +108,11 @@ internal fun webRecencyKeyOf(addedAt: Long, lastReadAt: Long): RecencyKey =
  *   実棚（蔵書が全て tier0）で恒久最上位に張り付くための裁定変更＝2026-07-26。詳細は webRecencyKeyOf の KDoc。
  * - 取込済み（books.ncode と同一 ncode）の Web カードは非表示にする＝PDF 取込が完了した時点で
  *   蔵書カードへ「自然昇格」し、二重表示しない。比較は保存時正規化（trim+uppercase）と同じ形で行う。
+ *   ※この昇格は 2026-07-29 以降 [activeWebNovels] が棚データの供給点（BookshelfViewModel.uiState）で
+ *   適用済みのため、本関数内の除外は通常 no-op。それでも残すのは、純関数を直接呼ぶテスト・将来の別供給経路
+ *   への防御網として。なお本関数の books は状態フィルタ後の部分集合が渡りうる（filterShelfByStatus →
+ *   mergeShelfItems の順で使う）ため、**ここだけでは昇格を取りこぼす**（フィルタで蔵書側が落ちるとゴースト
+ *   Web カードが復活する）。昇格の正は供給点側であって、この行ではない。
  * - 同値キーのときは蔵書を先に置く（読める実体がある方が優先という判断）。
  */
 fun mergeShelfItems(
@@ -96,7 +128,7 @@ fun mergeShelfItems(
     // 既定 emptyMap は既存テスト・呼び出し互換（接触時刻なしなら全 web が未接触＝自身の addedAt で並ぶ）。
     webLastReadAt: Map<String, Long> = emptyMap(),
 ): List<ShelfItem> {
-    val importedNcodes = books.mapNotNull { b -> b.ncode?.let { Ncode(it).storageKey } }.toSet()
+    val importedNcodes = importedNcodeKeys(books)
 
     val bookItems = books.map { book ->
         val lastReadAt = progressMap[book.id]?.lastReadAt ?: 0L
