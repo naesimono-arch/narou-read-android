@@ -36,8 +36,9 @@ ab-review/_compute_logs/
 ab-review/sample_pdfs/
 
 # 機械固有のローカル設定（statusline スクリプト・月次コストキャッシュ）。両OS共有の /mnt/c 上に出るため追跡しない
+# キャッシュは末尾 * で .tmp.<PID>（非同期再計算の中間ファイル。kill 時に残留しうる）ごと除外する
 .claude/statusline-local.sh
-.claude/.monthly_cost_cache
+.claude/.monthly_cost_cache*
 
 # 穴3実機スパイクのローカル資産（正本は sample_pdfs/ と ab-review/golden_regression/。9MB重複を避けコミットしない）
 android/app/src/androidTest/assets/spike/
