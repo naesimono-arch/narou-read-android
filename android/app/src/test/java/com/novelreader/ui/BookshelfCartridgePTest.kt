@@ -43,7 +43,8 @@ import org.robolectric.annotation.Config
  *  2) ラック⇄一覧トグルの結線（ラック内の一覧ボタン・一覧側のラックボタンの両方向）
  *  3) hero（よみかけ先頭）の NOW PLAYING＋「つづきから読む」と未読の「未読」バッジの出し分け＋開く結線
  *  4) P（3変種スキン）の⋮メニューでテーマ節が出ること（M の1変種畳みとの対比＝supportedThemes 単一真実源）
- *  5) 取込中＝カートリッジ書き込みバナー・装い/PDF追加/見つける導線の結線
+ *  5) 取込中＝カートリッジ書き込みバナー・PDF追加の結線と発見・装い導線の不在
+ *     （2026-07-29 K形正本追従＝発見は「さがす」タブ・装いは設定タブへ移管）
  *
  * NovelReaderTheme でなく LocalSkin を直接 provide するのは、Theme の SideEffect（window 直叩き）を
  * テストから切り離しルーター分岐だけを検証するため（トークン束の契約は SkinMPJTest が担う）。
@@ -72,8 +73,6 @@ class BookshelfCartridgePTest {
         chapterCountMap: Map<String, Int> = emptyMap(),
         rackViewP: Boolean = true,
         onOpenBook: (BookEntity) -> Unit = {},
-        onOpenDiscovery: () -> Unit = {},
-        onOpenWardrobe: () -> Unit = {},
         onFabClick: () -> Unit = {},
         onCancelProcessing: () -> Unit = {},
         appTheme: ReadingTheme = ReadingTheme.LIGHT,
@@ -98,8 +97,9 @@ class BookshelfCartridgePTest {
                         actions = ShelfActions(
                             onOpenBook = onOpenBook,
                             onFabClick = onFabClick,
-                            onOpenDiscovery = onOpenDiscovery,
-                            onOpenWardrobe = onOpenWardrobe,
+                            // 発見・装いは P の両面から撤去済み（K形正本追従）＝束の契約上 no-op を渡す。
+                            onOpenDiscovery = {},
+                            onOpenWardrobe = {},
                             onCancelProcessing = onCancelProcessing,
                         ),
                         webActions = ShelfWebActions(
@@ -135,7 +135,9 @@ class BookshelfCartridgePTest {
     @Test
     fun `D装着ではラックが出ず従来描画のまま`() {
         setContent(Skin.WAMODERN_D, BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))))
-        composeTestRule.onNodeWithText("新しい物語を見つける").assertIsDisplayed()
+        // D の判定＝文字目録の行題字（Text）。CD=題名でないのは、D 既定の文字目録は題字を素の Text で描き、
+        // CD=題名を持つのは栞書影（グリッド面のみ）のため（2026-07-29 ゲートFAIL の真因＝マーカー選定ミス）。
+        composeTestRule.onNodeWithText("吾輩は猫である").assertIsDisplayed()
         composeTestRule.onNodeWithText("CARTRIDGE LIBRARY").assertDoesNotExist()
     }
 
@@ -153,8 +155,8 @@ class BookshelfCartridgePTest {
             Skin.CARTRIDGE_P, BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))),
             rackViewP = false,
         )
-        // 一覧＝D 構造へトークン写像（可読フォールバック）。
-        composeTestRule.onNodeWithText("新しい物語を見つける").assertIsDisplayed()
+        // 一覧＝P 自身の一覧面（署名＝「一覧 · NN 本」見出し。ShopBand は撤去済み＝K形正本追従）。
+        composeTestRule.onNodeWithText("一覧 · 01 本").assertIsDisplayed()
         // グリッド切替の座がスキンPでは「ラック表示へ戻る」になる＝押すとラック面へ実際に戻る（結線の実挙動検証）。
         composeTestRule.onNodeWithContentDescription("ラック表示に切替").performClick()
         composeTestRule.onNodeWithContentDescription("一覧表示に切替").assertIsDisplayed()
@@ -209,7 +211,7 @@ class BookshelfCartridgePTest {
     @Test
     fun `Pのラック頭から⋮（テーマ・通知）を撤去した（系2）`() {
         // テーマ・通知は設定タブ（SettingsScreenK）へ移行済み＝P の頭に⋮メニューは無い（モック P も頭は⋮無し）。
-        // 装い・表示切替は別ボタンとして温存。撤去すると⋮は空になるためボタンごと除いた。
+        // 表示切替は別ボタンとして温存（装いは 2026-07-29 K形正本追従で設定タブへ移管済み）。撤去すると⋮は空になるためボタンごと除いた。
         setContent(Skin.CARTRIDGE_P, BookshelfUiState.Content(emptyList()))
         composeTestRule.onNodeWithContentDescription("メニュー").assertDoesNotExist()
         composeTestRule.onNodeWithText("システムに従う").assertDoesNotExist()
@@ -263,26 +265,22 @@ class BookshelfCartridgePTest {
     }
 
     @Test
-    fun `装い・PDF追加・見つける導線が結線される`() {
-        var wardrobe = false
+    fun `PDF追加が結線され発見・装い導線は出ない`() {
         var fab = false
-        var discovery = false
         setContent(
             Skin.CARTRIDGE_P, BookshelfUiState.Content(emptyList()),
-            onOpenWardrobe = { wardrobe = true },
             onFabClick = { fab = true },
-            onOpenDiscovery = { discovery = true },
         )
-        composeTestRule.onNodeWithContentDescription("着せ替え").performClick()
-        composeTestRule.onNodeWithText("新しい物語を見つける").performClick()
+        // 発見（ShopBand）・装いボタンは撤去済み（2026-07-29 K形正本 bookshelf-P.html 追従＝
+        // 発見は「さがす」タブ・装いは設定タブへ移管）。再出現の退行をここで固定する。
+        composeTestRule.onNodeWithText("新しい物語を見つける").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("着せ替え").assertDoesNotExist()
         // PDF追加は LazyColumn 末尾の空きスロット。テスト表示域では折り返し下端に部分表示となり
         // ジェスチャの中心座標が可視域外へ落ちる（本番配線は node の click action で担保済み＝assertHasClickAction）。
         // 幾何に依存せず配線そのものを検証するため semantics の OnClick を直接発火する。
         composeTestRule.onNodeWithText("PDFを追加").assertHasClickAction()
         composeTestRule.onNodeWithText("PDFを追加")
             .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
-        assertTrue("装いの間の結線が無い", wardrobe)
-        assertTrue("見つける導線の結線が無い", discovery)
         assertTrue("PDF追加の結線が無い", fab)
     }
 

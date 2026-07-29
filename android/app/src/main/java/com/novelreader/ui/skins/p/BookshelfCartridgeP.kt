@@ -35,14 +35,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -233,8 +230,7 @@ internal fun BookshelfCartridgeP(
     val followingSystem = theme.followingSystem
     val onFollowSystem = theme.onFollowSystem
     val onOpenBook = actions.onOpenBook
-    val onOpenDiscovery = actions.onOpenDiscovery
-    val onOpenWardrobe = actions.onOpenWardrobe
+    // onOpenDiscovery/onOpenWardrobe は撤去済み（2026-07-29 K形正本追従＝発見は「さがす」タブ・装いは設定タブへ移管）。
     val onFabClick = actions.onFabClick
     val onCancelProcessing = actions.onCancelProcessing
     // 状態フィルタ適用後の可視作品（チップは D と同じ readingStatusFor を単一真実源に使う）。
@@ -298,7 +294,6 @@ internal fun BookshelfCartridgeP(
                 onThemeChange = onThemeChange,
                 followingSystem = followingSystem,
                 onFollowSystem = onFollowSystem,
-                onOpenWardrobe = onOpenWardrobe,
                 onToggleList = onToggleFace,
                 // ラック面では表示切替ボタンは「一覧へ」＝List アイコン（既定）。
                 inListMode = false,
@@ -340,8 +335,8 @@ internal fun BookshelfCartridgeP(
                 ),
                 verticalArrangement = Arrangement.spacedBy(Spacing.S12),
             ) {
-                // 見つける導線（.shop）＝新しい物語を見つける（発見ホームへ）。
-                item { ShopBand(onClick = onOpenDiscovery) }
+                // 見つける導線（ShopBand）は撤去した（2026-07-29 ユーザー裁定＝K形正本 bookshelf-P.html 追従。
+                // 発見は恒常ナビ「さがす」タブへ完全分離）。
                 // ラベル絞り込み（.chips）＝実データのフィルタは読書状態＝D と同一機能（M と同じ写像）。
                 item { CartridgeChips(selectedStatus, statusCounts, onSelectStatus) }
                 // contentType: 単一型（蔵書のみ）だが、先頭の item{}（導線/チップ）と再利用が混ざらないよう明示する（性能のみ・見た目不変）
@@ -387,7 +382,8 @@ internal fun BookshelfCartridgeP(
 }
 
 // ============================================================
-// 機体トップ（.brand＝topbar 相当。銘板＋装い/表示切替/メニューを機体ボタンとして載せる）
+// 機体トップ（.brand＝topbar 相当。銘板＋表示切替を機体ボタンとして載せる。
+// 装いボタンは撤去＝2026-07-29 K形正本追従で装いの間の入口は設定タブ「きせかえ」へ移管）
 // ============================================================
 @Composable
 internal fun BrandRow(
@@ -395,7 +391,6 @@ internal fun BrandRow(
     onThemeChange: (com.novelreader.ui.theme.ReadingTheme) -> Unit,
     followingSystem: Boolean,
     onFollowSystem: () -> Unit,
-    onOpenWardrobe: () -> Unit,
     onToggleList: () -> Unit,
     // 表示切替ボタンの向き: 一覧面では「ラックへ戻る」＝2x2グリッド（.btn.sq aria-label「ラックへ切替」）、
     // ラック面では「一覧へ」＝リスト線（.btn.sq aria-label「一覧へ切替」）。モックの2面で図柄が入れ替わる。
@@ -425,31 +420,6 @@ internal fun BrandRow(
                 color = InkMidCartridge,      // #4a473e 相当＝AA を満たす --ink-mid で受ける
             )
         }
-        // 装い（.btn.dress）＝装いの間へ。緑LCD の押しボタン意匠でほのめかす。
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(Brush.verticalGradient(listOf(LcdHiCartridge, LcdCartridge)))
-                .clickable(onClick = onOpenWardrobe)
-                .padding(horizontal = Spacing.S8, vertical = Spacing.S8),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                Icons.Filled.Checkroom,
-                contentDescription = "着せ替え",
-                tint = LcdInkCartridge,
-                modifier = Modifier.size(18.dp),
-            )
-            Text(
-                "装い",
-                fontFamily = PixelFamily,
-                fontSize = 10.sp,             // .ctl .btn .lab 10px
-                fontWeight = FontWeight.Bold,
-                color = LcdInkCartridge,
-                modifier = Modifier.padding(start = Spacing.S4),
-            )
-        }
-        Spacer(Modifier.width(Spacing.S8))
         // 表示切替（.btn.sq）。ラック⇄一覧を往復＝両面とも P 自身の意匠（ADR 0022 追記その2＝D 構造フォールバック廃止）。
         PlasticSquareButton(onClick = onToggleList) {
             Icon(
@@ -1084,48 +1054,6 @@ internal fun LibraryHeader(count: Int, countPrefix: String = "") {
             fontSize = 11.sp,                 // .lib-h .n 11px
             letterSpacing = 0.1.em,
             color = InkMidCartridge,          // モック --ink-soft は AA 不足のため意味メタは --ink-mid
-        )
-    }
-}
-
-// ============================================================
-// 見つける導線（.shop）
-// ============================================================
-@Composable
-internal fun ShopBand(onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(Brush.verticalGradient(listOf(PlasticHiCartridge, PanelCartridge)))
-            .border(1.dp, LineCartridge, RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.S12, vertical = Spacing.S12),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // 緑LCD の検索アイコン枠（.shop .si）。
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Brush.verticalGradient(listOf(LcdHiCartridge, LcdCartridge))),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(Icons.Filled.Search, contentDescription = null, tint = LcdInkCartridge, modifier = Modifier.size(19.dp))
-        }
-        Text(
-            "新しい物語を見つける",
-            fontSize = 13.5.sp,               // .shop .l1 13.5px（ゴシック）
-            fontWeight = FontWeight.Bold,
-            color = InkCartridge,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).padding(horizontal = Spacing.S12),
-        )
-        Icon(
-            Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            tint = InkSoftCartridge,
-            modifier = Modifier.size(16.dp),
         )
     }
 }

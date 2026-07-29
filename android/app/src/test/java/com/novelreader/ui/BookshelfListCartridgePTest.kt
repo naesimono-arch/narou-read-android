@@ -44,7 +44,8 @@ import org.robolectric.annotation.Config
  *  2) `.li` の状態別表記＝未読バッジ・読了 CLEAR‼（水平・reachedEnd 実績）・よみかけの %
  *  3) 選択モード＝長押しで下端の選択バー（N本選択中・全選択・削除）が出て、削除確認へ進むこと
  *  4) Web由来（未取込）行の表示と⋮操作（取り込む/外す）の結線
- *  5) 見つける導線・PDF追加・装い・hero NOW PLAYING・取込中バナーの結線（ラック面と同じ機体語彙で）
+ *  5) PDF追加・hero NOW PLAYING・取込中バナーの結線と発見・装い導線の不在
+ *     （2026-07-29 K形正本追従＝発見は「さがす」タブ・装いは設定タブへ移管）
  *
  * ルーターは BookshelfContent 経由で検証する（rackViewP=false で一覧面へ落ちる）。選択モード状態は
  * BookshelfContent が所有する単一の状態機械＝長押し→再コンポーズ→選択バー描画まで端から端で通す。
@@ -67,8 +68,6 @@ class BookshelfListCartridgePTest {
         rackViewP: Boolean = false, // 既定＝一覧面（本テストの主対象）
         onOpenBook: (BookEntity) -> Unit = {},
         onDeleteBooks: (List<BookEntity>, Boolean) -> Unit = { _, _ -> },
-        onOpenDiscovery: () -> Unit = {},
-        onOpenWardrobe: () -> Unit = {},
         onFabClick: () -> Unit = {},
         onImportWebNovel: (WebNovelEntity) -> Unit = {},
         onRemoveWebNovel: (WebNovelEntity) -> Unit = {},
@@ -93,8 +92,9 @@ class BookshelfListCartridgePTest {
                         actions = ShelfActions(
                             onOpenBook = onOpenBook,
                             onFabClick = onFabClick,
-                            onOpenDiscovery = onOpenDiscovery,
-                            onOpenWardrobe = onOpenWardrobe,
+                            // 発見・装いは P の両面から撤去済み（K形正本追従）＝束の契約上 no-op を渡す。
+                            onOpenDiscovery = {},
+                            onOpenWardrobe = {},
                             onCancelProcessing = {},
                         ),
                         webActions = ShelfWebActions(
@@ -218,24 +218,19 @@ class BookshelfListCartridgePTest {
     }
 
     @Test
-    fun `見つける導線・装い・PDF追加が結線される`() {
-        var discovery = false
-        var wardrobe = false
+    fun `PDF追加が結線され発見・装い導線は出ない`() {
         var fab = false
         setContent(
             BookshelfUiState.Content(emptyList()),
-            onOpenDiscovery = { discovery = true },
-            onOpenWardrobe = { wardrobe = true },
             onFabClick = { fab = true },
         )
-        composeTestRule.onNodeWithText("新しい物語を見つける").performClick()
-        composeTestRule.onNodeWithContentDescription("着せ替え").performClick()
+        // 発見（ShopBand）・装いボタンは撤去済み（2026-07-29 K形正本追従＝ラック面と同じ裁定）。
+        composeTestRule.onNodeWithText("新しい物語を見つける").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("着せ替え").assertDoesNotExist()
         // PDF追加は一覧末尾の空きスロット＝下端で部分表示となりタップ中心が可視域外へ落ちる。
         // 幾何に依存せず配線を検証するため semantics の OnClick を直接発火する（ラック面テストと同手法）。
         composeTestRule.onNodeWithText("PDFを追加")
             .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick) { it() }
-        assertTrue("見つける導線の結線が無い", discovery)
-        assertTrue("装いの間の結線が無い", wardrobe)
         assertTrue("PDF追加の結線が無い", fab)
     }
 

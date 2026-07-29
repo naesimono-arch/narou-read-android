@@ -41,7 +41,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -198,7 +197,7 @@ internal fun BookshelfLogM(
     val onResumeWebNovel = webActions.onResumeWebNovel
     val onImportWebNovel = webActions.onImportWebNovel
     val onRemoveWebNovel = webActions.onRemoveWebNovel
-    val onOpenDiscovery = actions.onOpenDiscovery
+    // onOpenDiscovery は撤去済み（2026-07-29 K形正本追従＝発見は「さがす」タブへ分離。装いは M 署名として温存）。
     val onOpenWardrobe = actions.onOpenWardrobe
     val onFabClick = actions.onFabClick
     val onCancelProcessing = actions.onCancelProcessing
@@ -306,7 +305,6 @@ internal fun BookshelfLogM(
                 LogPlate(
                     recordCount = recordCount,
                     latestLabel = latestLabel,
-                    onOpenDiscovery = onOpenDiscovery,
                     onToggleSky = onToggleFace,
                     onOpenWardrobe = onOpenWardrobe,
                     highLoadSkyM = highLoadSkyM,
@@ -396,10 +394,8 @@ internal fun BookshelfLogM(
                 },
         )
 
-        // 下辺の地平（発見導線＋未取込カウント＋新しい星を迎える）＝星図面と同一部品（世界＝地平が切れない）。
+        // 下辺の地平（新しい星を迎える）＝星図面と同一部品（世界＝地平が切れない。発見導線の撤去理由は SkyHorizon 定義側）。
         SkyHorizon(
-            webNovelCount = webNovels.size,
-            onOpenDiscovery = onOpenDiscovery,
             onFabClick = onFabClick,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -444,13 +440,13 @@ internal fun BookshelfLogM(
 }
 
 // ============================================================
-// 銘＋操作クラスタ（モック .lplate: 見つける/星図へ戻す/装いの間/メニュー）
+// 銘＋操作クラスタ（モック .lplate: 星図へ戻す/装いの間/メニュー＝M署名クラスタ。
+// 見つける🔍は撤去＝2026-07-29 K形正本追従で発見は恒常ナビ「さがす」タブへ移管・装いはモックが温存）
 // ============================================================
 @Composable
 private fun LogPlate(
     recordCount: Int,
     latestLabel: String?,
-    onOpenDiscovery: () -> Unit,
     onToggleSky: () -> Unit,
     onOpenWardrobe: () -> Unit,
     highLoadSkyM: Boolean = false,
@@ -482,9 +478,6 @@ private fun LogPlate(
                     fontSize = 10.sp, letterSpacing = 0.12.em, color = DimSeizu,
                 )
             }
-        }
-        PlateIcon(onClick = onOpenDiscovery) {
-            Icon(Icons.Filled.Search, contentDescription = "見つける", tint = DimSeizu, modifier = Modifier.size(19.dp))
         }
         // 星図へ戻す（モック .lib「星図表示に戻す」＝星座線図）。ラベルは既存トグル語 "星図表示に切替" と統一。
         PlateIcon(onClick = onToggleSky) {

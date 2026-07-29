@@ -48,7 +48,7 @@ import org.robolectric.annotation.Config
  *  4) 時系列節（今夜／未収蔵の星）の見出しが観測の recency で綴じられること
  *  5) 選択モード＝長押しで選択ヘッダ（N 天体を選択・星を消す）が出て削除確認へ進むこと
  *  6) Web由来（未収蔵）行の「この星を迎える」（取込）と⋯メニュー（外す）の結線
- *  7) 見つける導線・装い・PDF追加・取込中バナーの結線（星図面と同じ地平/機体語彙で）
+ *  7) 装い・PDF追加・取込中バナーの結線と発見導線の不在（2026-07-29 K形正本追従＝発見は「さがす」タブへ分離）
  *
  * ルーターは BookshelfContent 経由で検証する（skyViewM=false で観測野帳へ落ちる）。選択モード状態は
  * BookshelfContent が所有する単一の状態機械＝長押し→再コンポーズ→選択ヘッダ描画まで端から端で通す。
@@ -71,7 +71,6 @@ class BookshelfLogMTest {
         skyViewM: Boolean = false, // 既定＝観測野帳（本テストの主対象）
         onOpenBook: (BookEntity) -> Unit = {},
         onDeleteBooks: (List<BookEntity>, Boolean) -> Unit = { _, _ -> },
-        onOpenDiscovery: () -> Unit = {},
         onOpenWardrobe: () -> Unit = {},
         onFabClick: () -> Unit = {},
         onImportWebNovel: (WebNovelEntity) -> Unit = {},
@@ -97,7 +96,8 @@ class BookshelfLogMTest {
                         actions = ShelfActions(
                             onOpenBook = onOpenBook,
                             onFabClick = onFabClick,
-                            onOpenDiscovery = onOpenDiscovery,
+                            // 発見導線は面から撤去済み（K形正本追従）＝束の契約上 no-op を渡す。
+                            onOpenDiscovery = {},
                             onOpenWardrobe = onOpenWardrobe,
                             onCancelProcessing = {},
                         ),
@@ -128,12 +128,13 @@ class BookshelfLogMTest {
             progressMap = mapOf("b1" to ProgressEntity(bookId = "b1", lastReadFilename = "chap_2.html", lastReadAt = System.currentTimeMillis())),
             chapterCountMap = mapOf("b1" to 10),
         )
-        // 観測野帳の署名＝銘の題字が Text（星図面と地平を共有＝「まだ知らない星を探しに」）。
+        // 観測野帳の署名＝銘の題字が Text（星図面と地平を共有＝「新しい星を迎える」。
+        // 発見行「まだ知らない星を探しに」は 2026-07-29 K形正本追従で撤去済み＝不在も固定）。
         composeTestRule.onNodeWithText("吾輩は猫である").assertIsDisplayed()
-        composeTestRule.onNodeWithText("まだ知らない星を探しに").assertIsDisplayed()
-        // D 構造（栞書影カード＝題名を contentDescription で持つ・発見帯「新しい物語を見つける」）は出ない。
+        composeTestRule.onNodeWithText("新しい星を迎える").assertIsDisplayed()
+        composeTestRule.onNodeWithText("まだ知らない星を探しに").assertDoesNotExist()
+        // D 構造（栞書影カード＝題名を contentDescription で持つ）は出ない。
         composeTestRule.onNodeWithContentDescription("吾輩は猫である").assertDoesNotExist()
-        composeTestRule.onNodeWithText("新しい物語を見つける").assertDoesNotExist()
     }
 
     @Test
@@ -227,22 +228,21 @@ class BookshelfLogMTest {
     }
 
     @Test
-    fun `見つける導線・装い・PDF追加が結線される`() {
-        var discovery = false
+    fun `装い・PDF追加が結線され見つける導線は出ない`() {
         var wardrobe = false
         var fab = false
         setContent(
             BookshelfUiState.Content(emptyList()),
-            onOpenDiscovery = { discovery = true },
             onOpenWardrobe = { wardrobe = true },
             onFabClick = { fab = true },
         )
-        composeTestRule.onNodeWithText("まだ知らない星を探しに").performClick()
+        // 発見導線（ヘッダ🔍・地平の発見行）は撤去済み（2026-07-29 K形正本追従）。装いは M 署名として温存。
+        composeTestRule.onNodeWithText("まだ知らない星を探しに").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("見つける").assertDoesNotExist()
         composeTestRule.onNodeWithContentDescription("着せ替え").performClick()
         // PDF追加＝地平の「新しい星を迎える」。下端で部分表示となり得るため semantics OnClick を直接発火する。
         composeTestRule.onNodeWithText("新しい星を迎える")
             .performSemanticsAction(SemanticsActions.OnClick) { it() }
-        assertTrue("見つける導線の結線が無い", discovery)
         assertTrue("装いの間の結線が無い", wardrobe)
         assertTrue("PDF追加の結線が無い", fab)
     }
@@ -275,8 +275,9 @@ class BookshelfLogMTest {
             BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))),
             skin = Skin.WAMODERN_D,
         )
-        // D 構造＝発見帯が出る＝観測野帳ではない。
-        composeTestRule.onNodeWithText("新しい物語を見つける").assertIsDisplayed()
+        // D の判定＝文字目録の行題字（Text）。CD=題名でないのは、D 既定の文字目録は題字を素の Text で描き、
+        // CD=題名を持つのは栞書影（グリッド面のみ）のため（2026-07-29 ゲートFAIL の真因＝マーカー選定ミス）。
+        composeTestRule.onNodeWithText("吾輩は猫である").assertIsDisplayed()
         composeTestRule.onNodeWithText("未収蔵の星").assertDoesNotExist()
     }
 }

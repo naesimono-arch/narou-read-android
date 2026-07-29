@@ -107,20 +107,25 @@ class BookshelfSkyMTest {
     }
 
     @Test
-    fun `M装着×星図モードでは星図が出てD構造の帯は出ない`() {
+    fun `M装着×星図モードでは星図が出てD構造は出ない`() {
         setContent(Skin.SEIZU_M, BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))))
-        // 星図の署名＝地平の導線（発見・PDF追加）と銘。
-        composeTestRule.onNodeWithText("まだ知らない星を探しに").assertIsDisplayed()
+        // 星図の署名＝地平の導線（PDF追加）と銘。発見導線「まだ知らない星を探しに」は撤去済み
+        //（2026-07-29 K形正本 bookshelf-M.html 追従＝発見は「さがす」タブへ分離。不在の固定は下で行う）。
         composeTestRule.onNodeWithText("新しい星を迎える").assertIsDisplayed()
-        // D 構造（発見帯・栞書影グリッド）は出ない＝画面丸ごと分岐している。
-        composeTestRule.onNodeWithText("新しい物語を見つける").assertDoesNotExist()
+        composeTestRule.onNodeWithText("まだ知らない星を探しに").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("見つける").assertDoesNotExist()
+        // D 構造（栞書影グリッド）は出ない＝画面丸ごと分岐している。
         composeTestRule.onNodeWithContentDescription("吾輩は猫である").assertDoesNotExist()
     }
 
     @Test
     fun `D装着では星図が出ず従来描画のまま`() {
         setContent(Skin.WAMODERN_D, BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))))
-        composeTestRule.onNodeWithText("新しい物語を見つける").assertIsDisplayed()
+        // D の判定＝トップバー題字「本棚」＋文字目録の行題字（Text）。CD=題名でないのは、D 既定の
+        // 文字目録は題字を素の Text で描き、CD=題名を持つのは栞書影（グリッド面のみ）のため
+        //（2026-07-29 ゲートFAIL の真因＝マーカー選定ミス。displayed 検査は維持＝行が実寸で描かれる証拠）。
+        composeTestRule.onNodeWithText("本棚").assertIsDisplayed()
+        composeTestRule.onNodeWithText("吾輩は猫である").assertIsDisplayed()
         composeTestRule.onNodeWithText("まだ知らない星を探しに").assertDoesNotExist()
     }
 
@@ -143,10 +148,9 @@ class BookshelfSkyMTest {
             skyViewM = false,
         )
         // 一覧＝M 自身の意匠『観測野帳』（ADR 0022 追記その2＝旧・D構造フォールバックの格下げ是正）。
-        // 銘の meta「観測 N 天体」が署名＝D 構造ではない。D の発見帯（「新しい物語を見つける」）は出ない。
-        composeTestRule.onNodeWithText("新しい物語を見つける").assertDoesNotExist()
-        // 星図面と地平を共有＝「まだ知らない星を探しに」が出る（観測野帳の下辺 SkyHorizon）。
-        composeTestRule.onNodeWithText("まだ知らない星を探しに").assertIsDisplayed()
+        // 星図面と地平を共有＝「新しい星を迎える」が出る（観測野帳の下辺 SkyHorizon。発見行は撤去済み）。
+        composeTestRule.onNodeWithText("新しい星を迎える").assertIsDisplayed()
+        composeTestRule.onNodeWithText("まだ知らない星を探しに").assertDoesNotExist()
         // 銘の操作クラスタの「星図表示に切替」で星図面へ実際に戻る（トグル状態は M 所有＝実挙動で結線検証）。
         composeTestRule.onNodeWithContentDescription("星図表示に切替").performClick()
         composeTestRule.onNodeWithContentDescription("一覧表示に切替").assertIsDisplayed()

@@ -164,8 +164,7 @@ internal fun BookshelfListCartridgeP(
     val onResumeWebNovel = webActions.onResumeWebNovel
     val onImportWebNovel = webActions.onImportWebNovel
     val onRemoveWebNovel = webActions.onRemoveWebNovel
-    val onOpenDiscovery = actions.onOpenDiscovery
-    val onOpenWardrobe = actions.onOpenWardrobe
+    // onOpenDiscovery/onOpenWardrobe は撤去済み（2026-07-29 K形正本追従＝発見は「さがす」タブ・装いは設定タブへ移管）。
     val onFabClick = actions.onFabClick
     val onCancelProcessing = actions.onCancelProcessing
     // 蔵書＋Web由来を「最近の活動順」で1本にマージ＝D else 経路と同一の純関数（並び規則 ADR 0016 を共有＝再実装なし）。
@@ -202,7 +201,6 @@ internal fun BookshelfListCartridgeP(
                 onThemeChange = onThemeChange,
                 followingSystem = followingSystem,
                 onFollowSystem = onFollowSystem,
-                onOpenWardrobe = onOpenWardrobe,
                 onToggleList = onToggleFace,
                 // 一覧面では表示切替ボタンは「ラックへ戻る」＝2x2グリッド図柄（.btn.sq aria-label「ラックへ切替」）。
                 inListMode = true,
@@ -235,8 +233,8 @@ internal fun BookshelfListCartridgeP(
                     start = Spacing.S24, end = Spacing.S24, bottom = Spacing.S24,
                 ),
             ) {
-                // 見つける導線（.shop）と読書状態フィルタ（.chips）は一覧スクロールの先頭に置く（モック .list 構造）。
-                item { ShopBand(onClick = onOpenDiscovery); Spacer(Modifier.height(Spacing.S12)) }
+                // 見つける導線（ShopBand）は撤去した（2026-07-29 ユーザー裁定＝K形正本追従・撤去理由はラック面と同じ）。
+                // 読書状態フィルタ（.chips）は一覧スクロールの先頭に置く（モック .list 構造）。
                 item { CartridgeChips(selectedStatus, statusCounts, onSelectStatus); Spacer(Modifier.height(Spacing.S8)) }
 
                 // contentType=型: 蔵書/Web は行構成が別物のため、要素の再利用プールを型ごとに分ける（性能のみ・見た目不変）

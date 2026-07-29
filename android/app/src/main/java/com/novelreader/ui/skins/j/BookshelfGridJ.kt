@@ -36,9 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -175,8 +173,8 @@ internal fun BookshelfGridJ(
     val onResumeWebNovel = webActions.onResumeWebNovel
     val onImportWebNovel = webActions.onImportWebNovel
     val onRemoveWebNovel = webActions.onRemoveWebNovel
-    val onOpenDiscovery = actions.onOpenDiscovery
-    val onOpenWardrobe = actions.onOpenWardrobe
+    // onOpenDiscovery/onOpenWardrobe は撤去済み（2026-07-29 K形正本追従＝発見は「さがす」タブ・装いは設定タブへ移管。
+    // デッキ面 BookshelfPortalJ のクローム導線は K形モック対象外＝残置）。
     val onFabClick = actions.onFabClick
     val onCancelProcessing = actions.onCancelProcessing
     // 蔵書＋Web由来を「最近の活動順」で1本にマージ＝D else 経路と同一の純関数（再実装なし）。
@@ -217,8 +215,6 @@ internal fun BookshelfGridJ(
                 onThemeChange = onThemeChange,
                 followingSystem = followingSystem,
                 onFollowSystem = onFollowSystem,
-                onOpenDiscovery = onOpenDiscovery,
-                onOpenWardrobe = onOpenWardrobe,
                 onToggleDeck = onToggleFace,
                 onFabClick = onFabClick,
             )
@@ -242,10 +238,8 @@ internal fun BookshelfGridJ(
                 verticalArrangement = Arrangement.spacedBy(Spacing.S24),   // .grid row-gap 22px
                 horizontalArrangement = Arrangement.spacedBy(Spacing.S16), // .grid col-gap 16px
             ) {
-                // 見つける導線（.find-guide）＝スクロール先頭・全幅。
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    FindGuideBandJ(onClick = onOpenDiscovery)
-                }
+                // 見つける導線（FindGuideBandJ）は撤去した（2026-07-29 ユーザー裁定＝K形正本 bookshelf-J.html 追従。
+                // 発見は恒常ナビ「さがす」タブへ完全分離）。
                 // 絞り込みチップ（.chipbar＝読書状態フィルタ・デッキ面と同一部品）＝全幅。
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     PortalChips(selectedStatus, statusCounts, onSelectStatus)
@@ -351,7 +345,8 @@ internal fun BookshelfGridJ(
 }
 
 // ============================================================
-// g-top（.g-top＝本棚題字＋見つける・装いの間・デッキへ戻る・メニュー）
+// g-top（.g-top＝本棚題字＋デッキへ戻る・メニュー。
+// 見つける🔍・装いの間は撤去＝2026-07-29 K形正本追従で発見は「さがす」タブ・装いは設定タブへ移管）
 // ============================================================
 @Composable
 private fun GridTopBar(
@@ -360,8 +355,6 @@ private fun GridTopBar(
     onThemeChange: (ReadingTheme) -> Unit,
     followingSystem: Boolean,
     onFollowSystem: () -> Unit,
-    onOpenDiscovery: () -> Unit,
-    onOpenWardrobe: () -> Unit,
     onToggleDeck: () -> Unit,
     onFabClick: () -> Unit,
 ) {
@@ -393,14 +386,6 @@ private fun GridTopBar(
                 modifier = Modifier.alignByBaseline(),
             )
         }
-        // 見つける（🔍）。
-        PortalIconButton(onClick = onOpenDiscovery) {
-            Icon(Icons.Filled.Search, contentDescription = "見つける", tint = InkPortal, modifier = Modifier.size(19.dp))
-        }
-        // 装いの間（金縁＝スキン切替入口・ADR 0021 決定7）。
-        PortalIconButton(onClick = onOpenWardrobe, ward = true) {
-            Icon(Icons.Filled.Checkroom, contentDescription = "着せ替え", tint = GoldPortal, modifier = Modifier.size(19.dp))
-        }
         // デッキ表示へ戻る（一覧⇄デッキトグル）。開いた本＝没入デッキの語＝MenuBook で「読む面へ戻る」を表す。
         PortalIconButton(onClick = onToggleDeck) {
             Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = "デッキ表示に切替", tint = InkPortal, modifier = Modifier.size(19.dp))
@@ -419,32 +404,6 @@ private fun GridTopBar(
                 )
             }
         }
-    }
-}
-
-/** 見つける導線（.find-guide＝金の縁でほのめかす発見入口・デッキ面の🔍と役割が重なるが両方持つ＝D と同思想）。 */
-@Composable
-private fun FindGuideBandJ(onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = Spacing.S16)         // .find-guide margin-bottom 18px→S16
-            .clip(RoundedCornerShape(12.dp))        // .find-guide border-radius 12px
-            .background(ResumeSurfacePortal.copy(alpha = 0.02f)) // .find-guide background rgba(233,240,228,.02)
-            .border(1.dp, LinePortal, RoundedCornerShape(12.dp)) // border 1px --line
-            .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.S16, vertical = Spacing.S12), // .find-guide padding 13px 16px
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(Icons.Filled.Search, contentDescription = null, tint = SoftPortal, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(Spacing.S8)) // .find-guide gap 10px→S8
-        Text(
-            "新しい物語を見つける",
-            fontSize = 12.5.sp,             // .find-guide .t 12.5px
-            color = InkPortal,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
     }
 }
 

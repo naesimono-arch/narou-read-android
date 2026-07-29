@@ -36,4 +36,6 @@ collapsing header 本来型（`graphicsLayer{ translationY }`＋`collapsedFracti
 - 同型の潜在issue: 同ファイルの `ProcessingBanner`（`slideIn/OutVertically` のみ＝バー直下で目立たないが同根）。
 - 補足: 高さアニメでも閾値式は方式Aの短所（指と非連動）が残る＝snap 解消 ≠ 完全な自然さ。
 
-コード: `BookshelfScreen.kt` の `FindGuideBand` と、それを包む hoist 済みヘッダの `AnimatedVisibility`（c10679e）。
+コード: 方式Aの採用例だった本棚発見帯 `FindGuideBand` は **2026-07-29 に画面ごと撤去**（K形正本追従＝発見は
+「さがす」タブへ分離・ADR 0021 追記）。当時の実装は git 履歴 c10679e の `BookshelfScreen.kt` を参照。
+方式B の現行実例と「罠」の知見（shrink/expand 併記必須）は生きている＝将来ヘッダ要素を畳むときはここから始める。

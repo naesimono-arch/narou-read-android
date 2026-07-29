@@ -56,7 +56,8 @@ import org.robolectric.annotation.Config
  *  2) デッキ⇄一覧トグルの結線（デッキ内のグリッドボタン・一覧側のデッキボタンの両方向）
  *  3) hero（よみかけ先頭）の「続きから読む」＋開く結線／未読は「読む」で「続きから読む」は出ない出し分け
  *  4) J（3変種スキン）の⋮メニューでテーマ節が出ること（M の1変種畳みとの対比＝supportedThemes 単一真実源）
- *  5) 取込中＝扉を仕立てているバナー・装い/見つける導線・PDF追加(メニュー移植)の結線
+ *  5) 取込中＝扉を仕立てているバナー・デッキ面クロームの装い/見つける導線（K形モック対象外＝残置）・
+ *     PDF追加(メニュー移植)の結線。グリッド面の発見・装い導線は撤去済み（2026-07-29 K形正本追従）＝不在も固定
  *
  * NovelReaderTheme でなく LocalSkin を直接 provide するのは、Theme の SideEffect（window 直叩き）を
  * テストから切り離しルーター分岐だけを検証するため（トークン束の契約は SkinMPJTest が担う）。
@@ -137,14 +138,17 @@ class BookshelfPortalJTest {
         composeTestRule.onNodeWithText("← スワイプで次の物語へ →").assertIsDisplayed()
         // D 構造（ListBookCard＝題名を contentDescription で持つ）は出ない＝画面丸ごと分岐している。
         composeTestRule.onNodeWithContentDescription("吾輩は猫である").assertDoesNotExist()
-        // D の発見帯「新しい物語を見つける」も出ない（J では発見は最後尾の扉＝改行入りの別ノード）。
+        // 発見帯「新しい物語を見つける」も出ない（D 帯・J グリッドの FindGuideBandJ とも撤去済み＝K形正本追従）。
         composeTestRule.onNodeWithText("新しい物語を見つける").assertDoesNotExist()
     }
 
     @Test
     fun `D装着ではデッキが出ず従来描画のまま`() {
         setContent(Skin.WAMODERN_D, BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))))
-        composeTestRule.onNodeWithText("新しい物語を見つける").assertIsDisplayed()
+        // D の判定＝文字目録の行題字（Text）。CD=題名でないのは、D 既定の文字目録（ListBookCard）は題字を
+        // 素の Text で描き、CD=題名を持つのは栞書影（グリッド面のみ）のため（2026-07-29 ゲートFAIL の真因＝
+        // マーカー選定ミス。旧コメント「ListBookCard＝題名を contentDescription で持つ」は誤りだった）。
+        composeTestRule.onNodeWithText("吾輩は猫である").assertIsDisplayed()
         composeTestRule.onNodeWithText("← スワイプで次の物語へ →").assertDoesNotExist()
     }
 
@@ -166,8 +170,11 @@ class BookshelfPortalJTest {
             Skin.PORTAL_J, BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))),
             deckViewJ = false,
         )
-        // J グリッド面の見つける導線（.find-guide）。
-        composeTestRule.onNodeWithText("新しい物語を見つける").assertIsDisplayed()
+        // 見つける導線（FindGuideBandJ）と g-top の🔍/装いは撤去済み（2026-07-29 K形正本 bookshelf-J.html 追従＝
+        // 発見は「さがす」タブ・装いは設定タブへ移管）。グリッド面での再出現の退行をここで固定する。
+        composeTestRule.onNodeWithText("新しい物語を見つける").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("見つける").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("着せ替え").assertDoesNotExist()
         // 升目セルの題名（.cin）は素の Text＝J グリッドが描いている。
         composeTestRule.onNodeWithText("吾輩は猫である").assertIsDisplayed()
         // D 構造（ListBookCard＝題名を contentDescription で持つ）は出ない＝Dの見た目の型を引き継いでいない。
@@ -255,7 +262,9 @@ class BookshelfPortalJTest {
     }
 
     @Test
-    fun `装い・見つける・PDF追加が結線される`() {
+    fun `デッキ面クロームの装い・見つける・PDF追加が結線される`() {
+        // デッキ面（BookshelfPortalJ）は K形モックの対象外＝クロームの装い/見つけるは残置（ADR 0021 追記 2026-07-29）。
+        // グリッド面からの撤去後も、この残置導線の結線が生きていることを固定する。
         var wardrobe = false
         var fab = false
         var discovery = false

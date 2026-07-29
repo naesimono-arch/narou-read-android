@@ -38,7 +38,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -146,7 +145,6 @@ import kotlin.math.sin
 private val ChipOnBorder = StarSeizu.copy(alpha = 0.5f)          // .chip.on border rgba(233,221,180,.5)
 private val LineAlpha = MoonSlateSeizu.copy(alpha = 0.2f)        // --line rgba(150,168,214,.2)
 private val PanelTranslucent = Color(0xFF0E1634).copy(alpha = 0.5f)   // .banner rgba(14,22,52,.5)
-private val DiscoverTranslucent = Color(0xFF0E1634).copy(alpha = 0.42f) // .discover rgba(14,22,52,.42)
 private val TrackAlpha = MoonSlateSeizu.copy(alpha = 0.25f)      // .banner .track rgba(150,168,214,.25)
 
 // ---- ラベルの較正色（bookshelf-M .const の直書き値。この画面専用＝ADR 0022 §5 の in-file 集約）----
@@ -198,7 +196,7 @@ internal fun BookshelfSkyM(
     val onSelectStatus = chrome.onSelectStatus
     val isLoading = chrome.isLoading
     val onOpenBook = actions.onOpenBook
-    val onOpenDiscovery = actions.onOpenDiscovery
+    // onOpenDiscovery は撤去済み（2026-07-29 K形正本追従＝発見は「さがす」タブへ分離。装いは M 署名として温存）。
     val onOpenWardrobe = actions.onOpenWardrobe
     val onFabClick = actions.onFabClick
     val onCancelProcessing = actions.onCancelProcessing
@@ -292,7 +290,6 @@ internal fun BookshelfSkyM(
                 totalCount = books.size,
                 // 冊数（K形の明示冊数）＝ライブラリ総数（蔵書＋Web由来）。D/K の libraryCount と同一定義で全スキン一致させる。
                 libraryCount = books.size + webNovelCount,
-                onOpenDiscovery = onOpenDiscovery,
                 onToggleList = onToggleFace,
                 onOpenWardrobe = onOpenWardrobe,
                 highLoadSkyM = highLoadSkyM,
@@ -371,8 +368,6 @@ internal fun BookshelfSkyM(
         )
 
         SkyHorizon(
-            webNovelCount = webNovelCount,
-            onOpenDiscovery = onOpenDiscovery,
             onFabClick = onFabClick,
             // 実高を測ってスクロール下端クリアランス（上記）へ反映する。
             modifier = Modifier
@@ -391,14 +386,14 @@ internal fun BookshelfSkyM(
 }
 
 // ============================================================
-// 銘＋操作クラスタ（モック .plate: 見つける/一覧切替/装いの間/メニュー）
+// 銘＋操作クラスタ（モック .plate: 一覧切替/装いの間/メニュー＝M署名クラスタ。
+// 見つける🔍は撤去＝2026-07-29 K形正本追従で発見は恒常ナビ「さがす」タブへ移管・装いはモックが温存）
 // ============================================================
 @Composable
 private fun SkyPlate(
     boundCount: Int,
     totalCount: Int,
     libraryCount: Int,
-    onOpenDiscovery: () -> Unit,
     onToggleList: () -> Unit,
     onOpenWardrobe: () -> Unit,
     highLoadSkyM: Boolean = false,
@@ -425,9 +420,6 @@ private fun SkyPlate(
                 color = DimSeizu,
                 modifier = Modifier.padding(top = Spacing.S4),
             )
-        }
-        IconButton(onClick = onOpenDiscovery) {
-            Icon(Icons.Filled.Search, contentDescription = "見つける", tint = DimSeizu)
         }
         IconButton(onClick = onToggleList) {
             Icon(Icons.AutoMirrored.Filled.List, contentDescription = "一覧表示に切替", tint = DimSeizu)
@@ -942,14 +934,14 @@ private fun DrawScope.drawStarGlow(center: Offset, radius: Float, glow: Float) {
 }
 
 // ============================================================
-// 下辺の地平（モック .horizon: 発見導線＋未取込カウント＋新しい星を迎える）
+// 下辺の地平（モック .horizon）: 発見導線（まだ知らない星を探しに＋未取込カウント）は撤去した
+// （2026-07-29 ユーザー裁定＝K形正本 bookshelf-M.html 追従。発見は恒常ナビ「さがす」タブへ完全分離）。
+// 残るのは「新しい星を迎える」＝PDF追加の導線のみ（K形の FAB への置換はモック裁定待ちの別件＝撤去では発明しない）。
 // ============================================================
-// 観測野帳（一覧）の下辺（.lhorizon＝発見導線＋未取込カウント＋新しい星を迎える）は星図 .horizon と
-// 同一構成・同一文言ゆえ internal 昇格で共有（世界＝地平が星図↔一覧で切れない）。
+// 観測野帳（一覧）の下辺（.lhorizon）も星図 .horizon と同一構成・同一文言ゆえ internal 昇格で共有
+// （世界＝地平が星図↔一覧で切れない）。
 @Composable
 internal fun SkyHorizon(
-    webNovelCount: Int,
-    onOpenDiscovery: () -> Unit,
     onFabClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -972,40 +964,6 @@ internal fun SkyHorizon(
             .padding(top = Spacing.S12, bottom = Spacing.S8),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.S16)
-                .clip(RoundedCornerShape(14.dp))
-                .background(DiscoverTranslucent)
-                .border(1.dp, LineAlpha, RoundedCornerShape(14.dp))
-                .clickable(onClick = onOpenDiscovery)
-                .padding(horizontal = Spacing.S16, vertical = Spacing.S12),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.S12),
-        ) {
-            // 方位磁針（モック .cmp の円＋針を簡約した円＋4条星で「観測」を示す）。
-            FourPointStar(color = StarSeizu, modifier = Modifier.size(19.dp))
-            Text(
-                "まだ知らない星を探しに",
-                fontSize = 12.5.sp,            // .discover .dt .l 12.5px
-                color = TextSeizu,
-                modifier = Modifier.weight(1f),
-            )
-            if (webNovelCount > 0) {
-                // なろう・未取込＝未収蔵の星のカウント（モック .uncoll。Web カード操作は一覧側が担う）。
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(4.dp).clip(CircleShape).background(MoonSlateSeizu.copy(alpha = 0.5f)))
-                    Text(
-                        "なろう・未取込 $webNovelCount",
-                        fontSize = 9.5.sp,     // .uncoll 9.5px
-                        color = DimSeizu,
-                        modifier = Modifier.padding(start = Spacing.S4),
-                    )
-                }
-            }
-            Text("›", fontSize = 14.sp, color = DimSeizu)
-        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
