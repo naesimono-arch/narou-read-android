@@ -53,3 +53,20 @@ object Insets {
      *  枠内へ寄せるインセット。枠の角丸寸から決まる構造値＝リズムの余白ではない（正本 .web::before left:6px）。 */
     val NarouListBandInset = 6.dp
 }
+
+/**
+ * 部品内部の造形寸法（base scale 外＝ADR 0014 §C の除外軸・2026-07-30 裁定）。
+ *
+ * [Spacing] が画面のリズム（要素と要素の呼吸）、[Insets] が他要素の寸法から決まる回避距離なのに対し、
+ * ここに載るのは**1つの部品の内側を形づくる寸法**で、由来は正本モックの部品 CSS そのもの。
+ *
+ * なぜスケールへ丸めないか: 極小字を囲う造形は 4dp 刻みでは表現できず、丸めるとバッジの見た目が
+ * 変わる＝モック正本の改変になる（意匠の自己判断禁止）。かといってリテラル直書きだと
+ * tools/check_design_tokens.py の余白 lint が拾い、「直しようがない違反」として恒久的に赤を出し続ける。
+ * 命名トークンにすれば値は正本のまま・lint も通り・「なぜこの値か」が名前と由来コメントで残る。
+ */
+object ComponentPadding {
+    /** 欠落バッジ「本文なし」の内側（正本 `bookshelf-reimport-badge-D.html` の `.miss` padding:2px 7px）。 */
+    val MissingBadgeH = 7.dp
+    val MissingBadgeV = 2.dp
+}

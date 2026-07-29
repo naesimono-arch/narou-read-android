@@ -62,8 +62,8 @@ internal fun TocTransitionSkeleton(colors: ReadingColors, modifier: Modifier = M
     Column(modifier = modifier) {
         widthFractions.forEach { fraction ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // 実リストの左アクセントバー（4dp）ぶんの透明域＝テキスト開始位置を実行と揃える。
-                Spacer(modifier = Modifier.width(4.dp))
+                // 実リストの左アクセントバー（S4）ぶんの透明域＝テキスト開始位置を実行と揃える。
+                Spacer(modifier = Modifier.width(Spacing.S4))
                 // 実行の Text は padding(S24/S16)＋lineHeight 24sp＝1行ぶんの行高。骨は同じ外形の中で
                 // 棒を縦中央に置く（24.dp は 24.sp の等倍近似。骨は内容非依存の汎形＝fontScale 追従はしない）。
                 Box(

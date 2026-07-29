@@ -42,6 +42,7 @@ import com.novelreader.narou.computeContinuation
 import com.novelreader.ui.components.ShioriCover
 import com.novelreader.ui.components.shioriAccentFor
 import com.novelreader.ui.components.shioriHue
+import com.novelreader.ui.theme.ComponentPadding
 import com.novelreader.ui.theme.FontCardTitle
 import com.novelreader.ui.theme.FontLabel
 import com.novelreader.ui.theme.FontMicroLabel
@@ -179,7 +180,10 @@ internal fun MissingContentBadge(modifier: Modifier = Modifier) {
             .clip(RoundedCornerShape(2.dp))
             .background(MaterialTheme.colorScheme.background)
             .border(1.dp, LocalShelfColors.current.hairline, RoundedCornerShape(2.dp))
-            .padding(horizontal = 7.dp, vertical = 2.dp),
+            .padding(
+                horizontal = ComponentPadding.MissingBadgeH,
+                vertical = ComponentPadding.MissingBadgeV,
+            ),
     ) {
         Text(
             text = "本文なし",
