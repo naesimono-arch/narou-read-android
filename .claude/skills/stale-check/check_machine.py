@@ -712,6 +712,296 @@ def check_known_bugs_registry():
             f"{rel} から名指しを1件も抽出できない（コードスパン記法が失われた＝照合が恒久 dead 化している）")
 
 
+# ── 17. hook の出力経路照合（イベント × モデルに届く出力方法） ────────────
+# **この表が本チェックの中核**。Claude Code の外部仕様なので推測で書かず、確定できたセルだけを
+# 断定し、裏の取れていないセルは presumed に列挙して指摘の重み（high→info）を落とす。
+#
+# 確定の出典（すべてリポジトリ内の一次情報）:
+#   - plain stdout がモデルのコンテキストへ入るのは UserPromptSubmit / UserPromptExpansion /
+#     SessionStart のみ（公式仕様。task_diary #28 が引用し、PostToolUse で踏んだ実例つき）。
+#   - additionalContext: PostToolUse（#28 実測）／PreToolUse（#28 追補・2026-07-07 の live probe）／
+#     SessionStart（inject_branch_context.py が稼働）／SubagentStart（公式 doc ＋ 2026-07-19 実測＝
+#     auto-memory `hook-subagent-start-injection`）。
+#   - Stop は additionalContext を持たない＝`{"decision":"block","reason":…}` で返す
+#     （#28／stop_guard_fabrication.py。test_stop_guard_fabrication.py の陽性コントロールが回帰固定）。
+#   - PreToolUse の permission decision はホスト側でマージされる公式仕様（ADR 0008 の事実確認）。
+#   - exit 2 の stderr が届くのは PreToolUse（guard 群のブロック実績）／PostToolUse
+#     （remind_commit_plan.py・#28 記述）。**exit 0 の stderr はどのイベントでもデバッグログ止まり**。
+#
+# presumed に入れたセル＝本リポジトリに実配線も実測も無く公式記述の類推で埋めた推測。
+# SubagentStop は行ごと推測（Stop と同系と仮定）。UserPromptExpansion は #28 の列挙以外は不明。
+_EVENT_DELIVERY = {
+    "UserPromptSubmit": {"stdout": True, "additionalContext": True, "decision": True, "exit2": True,
+                         "presumed": {"additionalContext", "decision", "exit2"}},
+    "UserPromptExpansion": {"stdout": True, "additionalContext": True, "decision": False, "exit2": False,
+                            "presumed": {"additionalContext", "decision", "exit2"}},
+    "SessionStart": {"stdout": True, "additionalContext": True, "decision": False, "exit2": False,
+                     "presumed": {"decision", "exit2"}},
+    "SubagentStart": {"stdout": False, "additionalContext": True, "decision": False, "exit2": False,
+                      "presumed": {"stdout", "decision", "exit2"}},
+    "PreToolUse": {"stdout": False, "additionalContext": True, "decision": True, "exit2": True,
+                   "presumed": set()},
+    "PostToolUse": {"stdout": False, "additionalContext": True, "decision": True, "exit2": True,
+                    "presumed": {"decision"}},
+    "Stop": {"stdout": False, "additionalContext": False, "decision": True, "exit2": True,
+             "presumed": {"exit2"}},
+    "SubagentStop": {"stdout": False, "additionalContext": False, "decision": True, "exit2": True,
+                     "presumed": {"stdout", "additionalContext", "decision", "exit2"}},
+}
+
+
+def _hook_events_by_file():
+    """settings の `hooks` ブロックから {hook.py: {イベント名,…}} を作る。
+
+    項目3の `_registered_hooks()` と分ける理由: あちらは JSON 全文の正規表現で拾うため
+    statusLine の `statusline.py`（フックではない）まで含む。出力経路はイベント別の性質なので、
+    ここは hooks ブロックだけを構造的に辿る。
+    """
+    mapping = collections.defaultdict(set)
+    for sf in (".claude/settings.json", ".claude/settings.local.json"):
+        txt = read_text(sf)
+        if not txt:
+            continue
+        try:
+            cfg = json.loads(txt)
+        except json.JSONDecodeError:
+            continue  # settings 破損は項目3が露呈させる（重複報告しない）
+        for event, groups in (cfg.get("hooks") or {}).items():
+            for grp in groups or []:
+                for h in (grp.get("hooks") or []):
+                    for m in re.finditer(r"hooks/([\w.-]+\.py)", h.get("command", "") or ""):
+                        mapping[m.group(1)].add(event)
+    return mapping
+
+
+def _dict_value(node, key):
+    """ast.Dict からリテラルキー key の値ノードを取る（無ければ None）。"""
+    if not isinstance(node, ast.Dict):
+        return None
+    for k, v in zip(node.keys, node.values):
+        if isinstance(k, ast.Constant) and k.value == key:
+            return v
+    return None
+
+
+def _classify_print(call):
+    """print() 1件を (channel, ac_event, reason) に分類する。
+
+    channel: "stdout"（素の標準出力）/ "stderr" / "additionalContext" / "decision" / None（判定不能）。
+    ac_event: additionalContext を出す場合に埋め込まれた hookEventName リテラル（無ければ None）。
+    """
+    dest = "stdout"
+    for kw in call.keywords:
+        if kw.arg == "file":
+            t = kw.value
+            if isinstance(t, ast.Attribute) and isinstance(t.value, ast.Name) and t.value.id == "sys":
+                dest = t.attr
+            else:
+                return None, None, "print(file=…) の出力先が静的に決まらない"
+    if dest == "stderr":
+        return "stderr", None, None
+    if dest != "stdout":
+        return None, None, f"print(file=sys.{dest}) を解釈できない"
+    if not call.args:
+        return "stdout", None, None  # print() の空行も素の stdout
+    arg = call.args[0]
+    if not (isinstance(arg, ast.Call) and isinstance(arg.func, ast.Attribute) and arg.func.attr == "dumps"):
+        return "stdout", None, None  # 文字列・f-string・連結＝素の stdout
+    if not arg.args or not isinstance(arg.args[0], ast.Dict):
+        return None, None, "json.dumps(<非リテラル>) で出力形式を静的判定できない"
+    payload = arg.args[0]
+    hso = _dict_value(payload, "hookSpecificOutput")
+    if hso is not None:
+        if not isinstance(hso, ast.Dict):
+            return None, None, "hookSpecificOutput がリテラル dict でない"
+        ev = _dict_value(hso, "hookEventName")
+        ev_name = ev.value if isinstance(ev, ast.Constant) and isinstance(ev.value, str) else None
+        if _dict_value(hso, "additionalContext") is not None:
+            return "additionalContext", ev_name, (
+                None if ev_name else "hookEventName がリテラルでなく配線イベントと突合できない")
+        if _dict_value(hso, "permissionDecision") is not None:
+            return "decision", ev_name, None
+        return None, None, "hookSpecificOutput に additionalContext も permissionDecision も無い"
+    if _dict_value(payload, "decision") is not None:
+        return "decision", None, None
+    return None, None, "json.dumps した dict が additionalContext/decision のどちらでもない"
+
+
+def _analyze_hook_output(src, filename):
+    """hook ソースから「どの経路へ何を出しているか」を抽出する。構文エラーなら None。"""
+    try:
+        tree = ast.parse(src, filename=filename)
+    except SyntaxError:
+        return None  # 項目12（構文チェック）が high で露呈させるのでここでは黙る
+    # except ブロック配下のノード集合。fail-open の診断ログ（意図的に届かない stderr）と
+    # 本流の通告を区別するために使う。
+    in_except = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ExceptHandler):
+            for d in ast.walk(node):
+                in_except.add(id(d))
+    res = {"channels": set(), "ac_events": set(), "exit2": False,
+           "stderr_outside_except": False, "reasons": []}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "print":
+            ch, ev, reason = _classify_print(node)
+            if reason:
+                res["reasons"].append(f"L{node.lineno}: {reason}")
+            if ch:
+                res["channels"].add(ch)
+                if ch == "stderr" and id(node) not in in_except:
+                    res["stderr_outside_except"] = True
+            if ev:
+                res["ac_events"].add(ev)
+        # exit 2（＝stderr をモデルへ届ける唯一の手段）を使う経路があるか。
+        # bool は int の subclass なので True(==1) を 2 と誤認しないよう型で弾く。
+        val = None
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) \
+                and node.func.attr == "exit" and node.args:
+            val = node.args[0]
+        elif isinstance(node, ast.Return):
+            val = node.value
+        if isinstance(val, ast.Constant) and isinstance(val.value, int) \
+                and not isinstance(val.value, bool) and val.value == 2:
+            res["exit2"] = True
+    return res
+
+
+def check_hook_output_channel():
+    """「配線イベント → モデルに届く出力経路 → コードが実際に使っている経路」を機械照合する。
+
+    なぜ要るか: 既知バグレジストリで `hook-output-not-delivered` は**採録中の最多再発（7回）**
+    でありながら検知手段が無かった。症状は「フックは動いているのに通告がモデルに一切届かない」で、
+    機序は**イベントごとに届く出力先が違う（stdout / stderr / additionalContext）のを取り違える**こと。
+    7件中5件は「素の stdout を PreToolUse/PostToolUse で出していた」＝この照合1本で機械化できる形だった。
+    項目12（hook 動作点検）は構文と自己テストしか見ないので、経路の正しさは誰も見ていなかった。
+
+    fail-open にしない工夫: 静的に判定できない出力（json.dumps(<変数>) 等）は黙って通さず
+    「判定不能」として件数と理由を必ず出す。対象が0本になった場合（hooks ブロックの構造変更）は
+    「この検査が恒久 dead 化した」とみなして high で落とす。
+    """
+    events_by_file = _hook_events_by_file()
+    if not events_by_file:
+        add("hook-output", "stale", "high",
+            "settings の hooks ブロックから hook を1本も抽出できない"
+            "（配線の構造が変わった＝出力経路検査が恒久 dead 化している）")
+        return
+    ok_n = bad_n = und_n = 0
+    for name in sorted(events_by_file):
+        events = events_by_file[name]
+        src = read_text(f".claude/hooks/{name}")
+        if src is None:
+            und_n += 1  # 実ファイル欠落そのものは項目3が high で報告する
+            add("hook-output", "warn", "info",
+                f"{name}: 実ファイルが読めず出力経路を判定不能（配線は {', '.join(sorted(events))}）")
+            continue
+        res = _analyze_hook_output(src, name)
+        if res is None:
+            und_n += 1
+            add("hook-output", "warn", "info", f"{name}: 構文エラーで出力経路を判定不能")
+            continue
+        known = {e for e in events if e in _EVENT_DELIVERY}
+        violated = undecided = False
+        for e in sorted(events - known):
+            undecided = True
+            add("hook-output", "warn", "info",
+                f"{name}: イベント '{e}' が対応表に無い（新イベント＝表を一次情報で更新すること）")
+
+        def _sev(channel):
+            """確定セルだけを根拠にできるなら high、推測セルが混じるなら info へ落とす。"""
+            return "high" if all(channel not in _EVENT_DELIVERY[e]["presumed"] for e in known) else "info"
+
+        if known:
+            # ① 素の stdout: 届くイベントが配線に1つも無ければ違反（7件中5件がこの形）。
+            if "stdout" in res["channels"]:
+                deliver = {e for e in known if _EVENT_DELIVERY[e]["stdout"]}
+                if not deliver:
+                    sev = _sev("stdout")
+                    if sev == "high":
+                        violated = True
+                    else:
+                        undecided = True
+                    add("hook-output", "stale", sev,
+                        f"{name}: 素の stdout へ出力しているが、配線イベント "
+                        f"{', '.join(sorted(known))} は stdout をモデルへ届けない"
+                        "（additionalContext か stderr+exit 2 へ移すこと・task_diary #28）")
+                elif deliver != known:
+                    undecided = True
+                    add("hook-output", "warn", "info",
+                        f"{name}: 素の stdout が {', '.join(sorted(deliver))} でのみ届き "
+                        f"{', '.join(sorted(known - deliver))} では届かない（イベント分岐の確認が要る）")
+            # ② additionalContext: 支持しないイベントだけに配線されていないか。
+            if "additionalContext" in res["channels"]:
+                deliver = {e for e in known if _EVENT_DELIVERY[e]["additionalContext"]}
+                if not deliver:
+                    sev = _sev("additionalContext")
+                    if sev == "high":
+                        violated = True
+                    else:
+                        undecided = True
+                    add("hook-output", "stale", sev,
+                        f"{name}: additionalContext を出しているが、配線イベント "
+                        f"{', '.join(sorted(known))} はこれを受け取らない（Stop 系なら decision/reason で返す）")
+            # ③ hookEventName リテラルと配線イベントの突合（雛形コピーの取り残し）。
+            #    ホストはこの値で注入先を解決するため、配線外の値だと無音で捨てられる。
+            for ev in sorted(res["ac_events"]):
+                if ev not in known:
+                    violated = True
+                    add("hook-output", "stale", "high",
+                        f"{name}: hookEventName='{ev}' が配線イベント {', '.join(sorted(known))} に無い"
+                        "（雛形コピーの取り残し＝注入が無音で捨てられる）")
+            # ④ decision JSON を受け取らないイベントだけに配線されていないか。
+            if "decision" in res["channels"]:
+                deliver = {e for e in known if _EVENT_DELIVERY[e]["decision"]}
+                if not deliver:
+                    sev = _sev("decision")
+                    if sev == "high":
+                        violated = True
+                    else:
+                        undecided = True
+                    add("hook-output", "stale", sev,
+                        f"{name}: decision JSON を出しているが、配線イベント "
+                        f"{', '.join(sorted(known))} はこれを解釈しない")
+            # ⑤ stderr は exit 2 とセットでのみ届く。exit 2 の経路が無い stderr は
+            #    どのイベントでもデバッグログ止まり＝本流の通告なら違反、except 内の
+            #    fail-open 診断ログなら設計どおり（info で可視化だけする）。
+            if "stderr" in res["channels"] and not res["exit2"]:
+                if res["stderr_outside_except"]:
+                    violated = True
+                    add("hook-output", "stale", "high",
+                        f"{name}: stderr へ通告しているが exit 2 の経路が無い"
+                        "（exit 0 の stderr はデバッグログ止まりでモデルに届かない）")
+                else:
+                    undecided = True
+                    add("hook-output", "warn", "info",
+                        f"{name}: except 内の stderr のみ（exit 2 なし）＝デバッグログ止まり。"
+                        "モデルに知らせるべき状態遷移ならこれでは届かない")
+            elif res["exit2"]:
+                deliver = {e for e in known if _EVENT_DELIVERY[e]["exit2"]}
+                if not deliver:
+                    sev = _sev("exit2")
+                    if sev == "high":
+                        violated = True
+                    else:
+                        undecided = True
+                    add("hook-output", "stale", sev,
+                        f"{name}: exit 2 を使うが、配線イベント {', '.join(sorted(known))} は"
+                        "exit 2 の stderr をモデルへ渡さない")
+        for r in res["reasons"]:
+            undecided = True
+            add("hook-output", "warn", "info", f"{name}: 出力形式を静的判定できない — {r}")
+        if violated:
+            bad_n += 1
+        elif undecided:
+            und_n += 1
+        else:
+            ok_n += 1
+    # 常に1行出す: 「0件だから健全」と「検査自体が空振り」を外形で区別できるようにする
+    # （この検査が沈黙したら本末転倒＝task_diary #44 の無症状故障対策）。
+    add("hook-output", "ok" if not bad_n else "stale", "info",
+        f"出力経路検査: 対象 {len(events_by_file)} 本 = 適合 {ok_n} / 違反 {bad_n} / 判定不能 {und_n}")
+
+
 # ── 項目一覧（この表が正本＝`--list` で出力する） ──────────────────────────
 # なぜ説明文をここへ同居させるか: 以前は SKILL.md 側に項目表を複製し、件数の一致を
 # check_self_item_table で見張っていた。しかしそれは二重管理を前提にした対症療法で、
@@ -737,6 +1027,7 @@ CHECKS = [
     (check_size_budgets, "台帳のサイズ番人（STATUS=現況のみ・目安60行／handover=やることのみ）"),
     (check_delegation_meter, "委譲ターン計測フックの整合（count_delegation_turns.py の PostToolUse/SubagentStop 両配線・記録先・通告間隔）"),
     (check_known_bugs_registry, "既知バグレジストリ（L4）の名指し実在照合（docs/known-bugs-registry.md のテストクラス名・check_xxx・参照パスが実在するか／検知ありを主張する行に名指しがあるか）"),
+    (check_hook_output_channel, "hook の出力経路照合（配線イベント × モデルに届く経路: 素の stdout 不達・hookEventName の取り残し・exit 2 無しの stderr。判定不能も件数を出す）"),
 ]
 
 

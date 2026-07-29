@@ -72,6 +72,16 @@ if os.path.exists(sentinel):
             "additionalContext": "[ブランチガード] 保護ブランチへのコミット成功を確認し、上書きセンチネルを消費しました（次の保護ブランチコミットにはユーザーの再発行が必要）。",
         }}, ensure_ascii=False))
     except OSError as e:
-        print(f"[ブランチガード] 警告: センチネル削除に失敗: {e}", file=sys.stderr)
+        # ここも additionalContext で返す。なぜ stderr ではダメか: 本フックは exit 0 固定
+        # （PostToolUse をブロックしない）で、exit 0 の stderr はデバッグログ止まり＝モデルに
+        # 一切届かない（task_diary #28）。しかも削除失敗は「センチネルが残ったまま＝次の保護
+        # ブランチコミットが人間の再認可なしに通る」という認可状態の異常であり、成功通知より
+        # 届ける必要が高い。届かない経路へ出していたのは既知バグ型 hook-output-not-delivered。
+        print(json.dumps({"hookSpecificOutput": {
+            "hookEventName": "PostToolUse",
+            "additionalContext": f"[ブランチガード] 警告: 上書きセンチネルの削除に失敗しました（{e}）。"
+                                 f"センチネル {sentinel} が残存＝次の保護ブランチコミットが再認可なしに通ります。"
+                                 "ユーザーに削除を依頼してください。",
+        }}, ensure_ascii=False))
 
 sys.exit(0)
