@@ -260,7 +260,12 @@
 - **antigravity-delegate サブエージェントの同期実行が保証されない**（2026-07-07・委譲5件中3件で再発): agy をバックグラウンド起動したまま「待機中」で終了し完了通知が来ない。プロンプト明記・SendMessage 再開でも再発。運用回避（CLAUDE.md 委譲判断節に反映済み）＝完了判定を報告でなく**成果物の存在**（`git status`/grep/`ps`）で行う。**根治候補**＝プラグイン側で agy 起動を同期実行へ強制するか wrapper にポーリング内蔵。優先度中（運用回避が効き非ブロッキング）。※2026-07-26 にプラグインごと無効化したため当面は発生しない＝**agy 解除時に再燃する宿題**として保管（CLAUDE.md 委譲節）。
 - **worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す運用**: lint の**ローカル**自動コミットゲートは現存しない（かつての canonical ローカル hook `check_lint_on_commit.py` は撤去済み・git 未追跡＝そもそも task_diary #419 のとおり導入以来 fail-open で一度も走っていなかった）。ただし 2026-07-30 以降 **CI の Android Lint ステップが毎 push で errors=0 を担保する**ので「lint の担保はこの手動スイープのみ」ではなくなった＝このスイープの役目は**push 前に赤を見つける**前倒し検知に変わった。ext4 worktree なら in-tree で回るので冒頭で1回スイープする。基準＝0 errors/31 warnings（2026-07-18 時点＝+3 は新規スキン/bench ファイル由来の非ブロック警告。ModifierParameter×3・UsableSpace×2 は従前どおり意図的）。
 
-- **[要裁定] 再発防止 L3（knowledge の自動注入フック）の採否 — 判断材料は L4 の可視化結果**: L1/L2/L4 は着地済み（L4＝`docs/known-bugs-registry.md`）。残る判断は「knowledge へ `triggers:` を持たせ Edit/Write 時に該当知見を自動注入するフック」を作るか。**L4 が出した無防備の内訳を見て決める**——無防備 29/63 件のうち `知見のみ` は 8 件（残り 21 件は knowledge すら無い＝注入する材料が無く L3 では救えない）。つまり L3 の効き幅は最大でも 8 件で、しかも「読ませる」止まり。同じ工数を **①a11y（コントラスト/48dp/fontScale・無防備3件）②コルーチン世代・排他・キャンセル（同4件）** の機械検知に投じる方が期待値が高い、というのが台帳の読み。**L3 を見送るならその判断を ADR 化**（不採用も記録する規約）。
+- **[要裁定] 再発防止 L3（knowledge の自動注入フック）の採否 — 判断材料は L4 の可視化結果**: L1/L2/L4 は着地済み（L4＝`docs/known-bugs-registry.md`）。残る判断は「knowledge へ `triggers:` を持たせ Edit/Write 時に該当知見を自動注入するフック」を作るか。**L4 が出した無防備の内訳を見て決める**——現在 **21/63 件**（`なし` 15・`知見のみ` 6）。L3 が触れるのは `知見のみ` の6件だけで、残り15件は knowledge すら無く注入する材料が存在しない。
+  **2026-07-30 の実証で論点が動いた**＝「知見のみ」は**注入せずとも機械検知へ変換できる**（tooling の2件で実演＝撤去フックの残骸検知・委譲のスコープ外削除通告。knowledge を「読ませる文書」でなく「検知を書くための設計書」として使う路線）。
+  残る6件の見通し: **変換できる**＝`snackbar-indefinite-blocks-queue`（Indefinite×actionLabel の同時使用を走査）・`theme-invariant-surface-loses-contrast`（a11y contrast check に「面がテーマ不変か」のフラグを足す）。
+  **部分的**＝`fixed-bar-clearance-hardcoded-guess`（述語を「直上に固定バーがある構造」まで絞れるか）・`webview-position-mis-record`（位置記録の呼び出し口を全数登録制に）。
+  **静的検査では無理**＝`oem-background-kill`・`benchmark-device-run-fragility`（実機依存。ただし「防御コードが在るか」の構造検査なら可）。
+  → **L3 は不採用の方向で、ADR には「効かないから」ではなく「上位互換（機械検知への変換）があるから」と書く**（不採用も記録する規約）。
   - **③既定ゲートの穴（androidTest 未コンパイル・golden verify 非同乗・release R8 未検証）は 2026-07-30 に解消済み**＝3件とも CI へ結線して `[o] 固定` へ移動（無防備は 32→29 件）。この3件が「同じ工数ならこちらが先」の実例で、L3 の期待値比較はその分さらに①②寄りになった。
 - **[較正待ち] 委譲粒度の谷=30 の実測較正**: 委譲ターン計測フック（`count_delegation_turns.py`・2026-07-25 新設＝
   30/60/90…回で子へ中間通告＋完走時 `~/.claude/projects/...-novel-reader-andloid/delegation-stats.jsonl` へ記録）の

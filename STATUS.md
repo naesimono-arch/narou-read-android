@@ -58,7 +58,9 @@
 
 - **ゲート**（数値は測り直せば変わるので書かない＝疑わしければその場で回す）: `testDebugUnitTest` 緑／`tools/check_design_tokens.py` NG=0
   （＋余白スケール7段 {4,8,12,16,24,32,40} の Spacing lint＝ADR0014 §C。SKIP は内訳列挙＋ベースライン超過で exit 1）／`:app:lintDebug` errors=0（warnings は非ブロック）。
-  push 時は GitHub Actions（`.github/workflows/ci.yml`）が同3ゲートを自動実行（実機必須の androidTest/macrobenchmark と golden 画像比較は対象外＝YAML コメントに理由）。
+  push 時は GitHub Actions（`.github/workflows/ci.yml`）が上記3つ＋**golden 画像照合**（`verifyRoborazziDebug`＝単体テストと同じ1パス）
+  ＋**androidTest のコンパイル**＋**release R8 ビルド**の計5ゲートを自動実行（実機必須の androidTest 実行と macrobenchmark は引き続き対象外＝YAML コメントに理由）。
+  どのバグ型がどのゲートに守られているか（と**どこが無防備か**）の一覧＝`docs/known-bugs-registry.md`。
 
 - **既知バグ: なし**。
 
