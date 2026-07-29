@@ -3,7 +3,7 @@
 対象ブランチ: `reading/vertical-mode`（コミットはしない・実機/adb 禁止のデータ追補タスク）
 計測日: 2026-07-17 ／ ハーネス: `ab-review/submission-B`（PDFBox 2.0.31 / Kotlin, 既存3作品と同一抽出器）
 本文再構成規約: 各章 segment を出現順連結し `plain.text` と `ruby.base` のみ採用（`ruby.reading` 除外）。
-照合走査は タイトル＋章題＋本文 を対象（タイトル申告があるため）。集計スクリプト所在: `scratchpad/verify.py`・`scratchpad/aggregate.py`（成果集約後に削除）。
+照合走査は タイトル＋章題＋本文 を対象（タイトル申告があるため）。集計スクリプト所在: `scratchpad/verify.py`・`scratchpad/aggregate.py`（成果集約後に削除済み＝現存しない。成果は下記 JSON）。
 
 ## 0. 抽出成果（JSON 出力・6本）
 

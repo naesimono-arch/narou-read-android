@@ -2,6 +2,10 @@
 
 > **対象ブランチ**: ui/polish ／ **監査対象**: novel-reader コードベース全体（Kotlin 約17,400行）
 
+> **file:line は 2026-07-12 時点で凍結**。以降の移設で現ツリーと一致しない箇所がある
+> （例: `viewmodel/ShelfItems.kt` は `domain/` へ移設済み）。指摘の中身が一次情報であって、
+> パスは当時の証拠位置＝機械的に張り替えない。現在地はコード側を引くこと。
+
 > **正本の役割分担**: この文書は監査の**一次情報（全指摘の evidence・敵対的検証ノート）の細部アーカイブ**。
 > やること（backlog）の正本は `handover.md`「特別監査項目」節。現況は `STATUS.md`。指摘の判定基準は `/mnt/c/Users/qingj/Desktop/project/UX`（UX24層＋Design10層）。
 

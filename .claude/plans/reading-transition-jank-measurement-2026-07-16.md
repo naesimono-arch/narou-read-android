@@ -90,6 +90,7 @@
 
 **結果（frametimeline deadline-miss の支配スライス実名・ms）**:
 - 最悪フレーム（run1c・104.79ms）の UI スレッド内訳: `doFrame` 90ms → `traversal` 72ms のうち **`measure` 51ms → `AndroidOwner:onMeasure` 51ms（単独最大・フレームの約半分）**、内側に `BookshelfContent (BookshelfScreen.kt:733)`。ほか `draw-VRI/Record View#draw` 14ms・`Recomposer:recompose` 18ms（`NavHost.kt:195` 14.6ms・`AnimatedContent.kt:713` 11.4ms）。
+  ※ここの `NavHost.kt`/`AnimatedContent.kt` は Compose ライブラリ側のソース位置（トレースのスタック実名）＝本リポジトリには存在しない。
 - 条件差分: 本棚を介す run1c は `AndroidOwner:onMeasure` 合計 **1406ms**／目次⇄本文のみの run2c は **253ms**・最悪 jank 104.8→66.8ms。`ShioriCover` は全体 3.3ms（max 0.36ms）・run2c では 0。
 
 **判定**:

@@ -22,7 +22,7 @@
 
 ### C1: トークン層（機械バッチ寄り）
 - モック CSS 変数 → `Color.kt` へ M/P/J の系統別 val（1:1 対応表を委譲仕様書に全数列挙・較正値クラスの規律=memory `agy-mechanical-batch-calibrated-values` 準拠）
-- `SkinM/SkinP/SkinJ.kt`（SkinTokens 実装）＋ enum `Skin` へ値追加（**実装と同一コミット**）
+- `SkinM.kt`/`SkinP.kt`/`SkinJ.kt`（SkinTokens 実装）＋ enum `Skin` へ値追加（**実装と同一コミット**）
 - `tools/check_design_tokens.py` のスキン別期待表へ M/P/J 行を追加
 - ゲート: `gw testDebugUnitTest` 緑＋`check_design_tokens.py` OK
 

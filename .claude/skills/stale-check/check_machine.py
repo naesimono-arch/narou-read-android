@@ -214,8 +214,134 @@ def check_conflict_markers():
 
 
 # ── 6. 参照ファイルの実在 ────────────────────────────────────────────────
+# 「その参照先はもう無い（無いのが正しい）」と文書が明言している印になる語彙。
+# 過去形・完了形に限定する: `削除` 単独を入れると「削除機能」を説明する散文まで
+# 抑止してしまい、検査を骨抜きにする（抑止則は狭く保つほど検査の信用が残る）。
+_GONE_RE = re.compile(
+    r"撤去|廃止|退役|消滅|削除済み|削除された|現存しない|存在しない|残っていない"
+    r"|含まれない|非収蔵|収蔵していない|使い捨て|破棄"
+    # 「アーカイブへ移した」も同義（旧パスを歴史として書き残す ADR 0005 の書き方）。
+    # 素の `移設` は入れない: 移設を告げながら旧パスを指したままの記述こそ検出したい対象だから。
+    r"|アーカイブ移設|移設済み|移設ずみ"
+)
+# メタ変数記法を含む参照は実パスではない（`NNNN-kebab-case.md` の採番テンプレート・`{bookId}` 等）。
+_PLACEHOLDER_RE = re.compile(r"NNN|[{}<>*]")
+_HEADING_RE = re.compile(r"^#{1,6}\s")
+# 新しい箇条書き項目の開始（＝直前の項目の継続行ではない）。字下げされた `- ` は継続。
+_NEW_ITEM_RE = re.compile(r"^(?:[-*+]\s|\d+[.)]\s)")
+
+
+def _gone_scope(lines):
+    """行番号 → その行に在る参照へ『もう無い』注記が効いているか、を先に解く。
+
+    なぜ行単位の判定では足りないか: 注記は参照と同じ行に書けるとは限らない。
+    このリポジトリで実際に使われている断り書きは3通りあり、どれも読み手には自明だが
+    機械には見えない形をしている（2026-07-30 の参照全数棚卸しで確認した実在の書き方）:
+
+      (1) 同じ行に併記          … 従来から効いていた唯一の形
+      (2) 直後の継続行に注記    … `※…` や字下げの続き。参照は行末、注記は次行というのが常態
+      (3) 前置きの引用ブロック  … `> …` の断り書き。文書前置き（最初の `##` より前）なら
+                                   文書全体に、節の中なら次の見出しまでに効く
+
+    取りこぼすとどうなるか: 正しく注記された参照が毎回ノイズとして出続け、検査そのものが
+    信用されなくなる（狼少年化）。対象ドキュメントを広げる前にここを先に固めるのはそのため。
+    """
+    n = len(lines)
+    scoped = [False] * n
+
+    # ── (3) 引用ブロックの断り書き ──
+    # 文書前置き＝最初の `##` 以降の見出しより前。タイトル行（`# …`）の直後に置かれた
+    # 前置き引用は文書全体の断り書きとして使われている（docs/reference/04-06 の収蔵注記が実例）。
+    first_section = next((i for i, ln in enumerate(lines)
+                          if re.match(r"^#{2,6}\s", ln)), n)
+    for i, ln in enumerate(lines):
+        if not ln.lstrip().startswith(">") or not _GONE_RE.search(ln):
+            continue
+        if i < first_section:
+            end = n                      # 前置き＝文書全体
+        else:
+            end = next((j for j in range(i + 1, n) if _HEADING_RE.match(lines[j])), n)
+        for j in range(i, end):
+            scoped[j] = True
+
+    # ── (1)(2) 同一行 + 直後の継続行 ──
+    # 継続行＝空行でも見出しでも新しい箇条書き項目でもない行。段落境界を越えないので
+    # 「無関係な後続の記述がたまたま撤去に言及していた」で誤って抑止することがない。
+    for i in range(n):
+        if scoped[i]:
+            continue
+        if _GONE_RE.search(lines[i]):
+            scoped[i] = True
+            continue
+        for j in range(i + 1, min(i + 4, n)):   # 直後3行まで
+            nxt = lines[j]
+            if not nxt.strip() or _HEADING_RE.match(nxt) or _NEW_ITEM_RE.match(nxt):
+                break
+            if _GONE_RE.search(nxt):
+                scoped[i] = True
+                break
+    return scoped
+
+
+def _gone_basenames(lines):
+    """文書のどこかで「この名前のファイルはもう無い」と名指しされたファイル名の集合。
+
+    なぜ位置に依らない判定を別に持つか: 冒頭で「本文中の X は当時のファイルで現存しない」と
+    まとめて断り、本文の離れた箇所で X に言及する書き方があるため（ADR 0004 が実例）。
+    名前の一致を要求するので、引用ブロックの一括抑止より狭く効く＝誤抑止が起きにくい。
+    """
+    names = set()
+    for ln in lines:
+        if not _GONE_RE.search(ln):
+            continue
+        for m in re.finditer(r"`?([\w.\-]+\.(?:md|py|js|sh|kt|html))`?", ln):
+            names.add(m.group(1))
+    return names
+
+
+# 実行時に filesDir へ生成される HTML＝リポジトリに無いのが正（`chap_N.html` は N がメタ変数）。
+_RUNTIME_HTML_RE = re.compile(r"^(?:index|chap_[\w.]*)\.html$")
+
+# 参照解決で走査するツリー。build/ 生成物は無関係かつ重いので入れない。
+# `android/macrobenchmark/src` は 2026-07-30 追加: app モジュールしか見ておらず、
+# 実在する `StartupBudget.kt`（計測モジュール）を参照切れと誤検知していた（対象文書を
+# 広げて初めて露見した既存の穴）。android/ を丸ごと走査しないのは build/ を踏むため。
+_SEARCH_ROOTS = (
+    ROOT / "android/app/src",
+    ROOT / "android/macrobenchmark/src",
+    ROOT / ".claude",
+    ROOT / "docs",
+    ROOT / "tools",
+)
+
+
+def _mock_ref_exists(ref, doc):
+    """モック HTML の実在。True=在る / False=無い（＝報告対象） / None=そもそも検査対象外。
+
+    なぜ解決先を docs/design-candidates に限るか: HTML 参照には〈正本モック〉と〈実行時生成物〉と
+    〈競合アプリ調査のローカル成果〉が混在していて、リポジトリ全体を探すと後2者を軒並み
+    参照切れと誤検知する。検出したいのは「正本モックが消えたのに文書が指し続けている」ケース
+    だけなので、モック置き場に限って突合し、それ以外は判定を放棄する（None）。
+    """
+    base = ref.rsplit("/", 1)[-1]
+    if _RUNTIME_HTML_RE.match(base):
+        return None
+    mocks = ROOT / "docs/design-candidates"
+    if not mocks.is_dir():
+        return None
+    if (ROOT / ref).exists() or ((ROOT / doc).parent / ref).exists():
+        return True
+    suffix = "/" + ref
+    if any(p.as_posix().endswith(suffix) or p.name == ref for p in mocks.rglob(base)):
+        return True
+    # モック置き場のどこにも同名が無い。モック名かどうかの判定材料が無いので、
+    # 「モックを名指しているのに消えている」と断定できるのは docs/design-candidates を
+    # 明示的に指している参照だけ。裸のファイル名は判定を放棄する（誤検知を作らない）。
+    return False if "design-candidates" in ref else None
+
+
 def _ref_exists(ref, doc):
-    """参照ファイルが実在するか。パス付きは相対で厳密確認、ファイル名のみは主要ツリーを basename 検索。
+    """参照ファイルが実在するか。パス付きは相対で厳密確認、ファイル名のみは主要ツリーを基準検索。
 
     なぜ basename 検索するか: ドキュメントは `PdfBookExtractor.kt` のようにファイル名だけで言及することが多く、
     実体は android/app/src/ の深い階層にある。ルート直下だけ見ると実在ファイルを
@@ -234,13 +360,13 @@ def _ref_exists(ref, doc):
         # （`theme/Color.kt` の実体は ui/theme/・`network/NarouApiService.kt` は narou/network/ 配下）。
         # 厳密な相対解決だけだと、実在するファイルを軒並み参照切れと誤検知する（2026-07-29 実測で7件全部が誤検知）。
         suffix = "/" + ref
-        for base in (ROOT / "android/app/src", ROOT / ".claude", ROOT / "docs", ROOT / "tools"):
+        for base in _SEARCH_ROOTS:
             if base.is_dir() and any(p.as_posix().endswith(suffix) for p in base.rglob(ref.rsplit("/", 1)[-1])):
                 return True
         return False
     if (ROOT / ref).exists():
         return True
-    for base in (ROOT / "android/app/src", ROOT / ".claude", ROOT / "docs", ROOT / "ab-review", ROOT / "tools"):
+    for base in _SEARCH_ROOTS + (ROOT / "ab-review",):
         if base.is_dir() and next(base.rglob(ref), None) is not None:
             return True
     return False
@@ -268,29 +394,61 @@ def check_referenced_files():
     # 拡張子と走査対象の両方から漏れて機械チェックが原理的に検出できなかった（2026-07-25）。
     targets = ["STATUS.md", "handover.md", "CLAUDE.md"]
     targets += sorted(str(p.relative_to(ROOT)) for p in (ROOT / ".claude/skills").rglob("SKILL.md"))
+    # 2026-07-30 拡張: docs/** と .claude/plans 直下も対象へ。
+    # なぜ必要だったか: 本チェックの対象は STATUS/handover/CLAUDE と skill だけで、一方の
+    # 項目10（plans 参照）は対象文書こそ広いが探すパターンが `.claude/plans/*.md` 参照だけ。
+    # 両者のカバレッジが直交していたため、**ADR・knowledge・patterns・reference・plans の
+    # 一般ファイル参照はどちらの検査も通っていなかった**。2026-07-30 の全数棚卸しで、その空白域に
+    # 移設ずみ・削除ずみを指す参照が実際に溜まっていた（`viewmodel/SearchDraft.kt`＝domain/ へ移設、
+    # ADR 0022 が「candidates/ に残置」と書いたまま実体だけ別コミットで消滅、等）ため塞ぐ。
+    docs_dir = ROOT / "docs"
+    if docs_dir.is_dir():
+        targets += sorted(str(p.relative_to(ROOT)).replace("\\", "/") for p in docs_dir.rglob("*.md"))
+    # .claude/plans は直下のみ（glob）＝ archive/ を自然に外す。archive は凍結された当時の記述で、
+    # 参照が現ツリーと合わないのが正しい（まとめての断りは archive/README.md が持つ）。
+    plans_dir = ROOT / ".claude/plans"
+    if plans_dir.is_dir():
+        targets += sorted(str(p.relative_to(ROOT)).replace("\\", "/") for p in plans_dir.glob("*.md"))
     for d in targets:
         txt = read_text(d)
         if not txt:
             continue
-        for line in txt.splitlines():
+        # HTML コメントは除外（項目10 と同じ理由）: 「この参照は消した」という経緯説明が
+        # 旧パス文字列を含むのは正当。行番号がずれないよう改行数だけ残して落とす。
+        txt = re.sub(r"<!--.*?-->", lambda m: "\n" * m.group(0).count("\n"), txt, flags=re.DOTALL)
+        lines = txt.splitlines()
+        scoped = _gone_scope(lines)
+        gone_names = _gone_basenames(lines)
+        for i, line in enumerate(lines):
             # 行内に外部の絶対パス／ホーム参照が在れば、同じ行の裸ファイル名はその外部ディレクトリ
             # 配下を指す＝リポジトリ内に無いのが正。誤検知の最多パターンだった
             # （例: `/mnt/c/…/アプリ公開戦略/`（`外部リサーチ実査結果_….md`）という列挙）。
             if re.search(r"`[~/][^`]*`", line):
                 continue
-            # 「撤去済み」等の過去形の言及は、消えていること自体が記述の主旨。
-            if re.search(r"撤去|廃止|退役|消滅|削除済み", line):
+            # 「もう無い」と文書が断っている参照は対象外。同一行だけでなく直後の注記行・
+            # 前置きの引用ブロック・冒頭での名指し宣言まで見る（_gone_scope の docstring）。
+            if scoped[i]:
                 continue
             # .kt も対象（2026-07-29 追加）: skill の「コピー元の実例」ポインタ（new-screen §5 等）と
             # architecture skill の所在表は Kotlin ファイルを名指しするのに、拡張子表から漏れて
             # 改廃を検出できなかった。行番号サフィックス（`Foo.kt:120-140`）はパス部分だけ見る。
-            for m in re.finditer(r"`([\w./-]+\.(?:md|py|js|sh|kt))(?::\d+(?:-\d+)?)?`", line):
+            # .html は 2026-07-30 追加（モック正本の消滅検出）＝解決先を design-candidates に限る。
+            for m in re.finditer(r"`([\w./-]+\.(?:md|py|js|sh|kt|html))(?::\d+(?:-\d+)?)?`", line):
                 ref = m.group(1)
                 # URL・絶対・plans 配下・ワイルドカード的記述は対象外（誤検知回避）。
                 # MEMORY.md は auto-memory の索引で ~/.claude 配下の外部ファイル（リポジトリ内に無いのが正）。
                 # "..." は中略記号（`android/.../ui/components/Foo.kt`）＝実パスではない。
-                if (ref.startswith(("http", "/")) or ".claude/plans" in ref or "*" in ref
+                if (ref.startswith(("http", "/")) or ".claude/plans" in ref
+                        or _PLACEHOLDER_RE.search(ref)
                         or "..." in ref or ref == "MEMORY.md"):
+                    continue
+                if ref.rsplit("/", 1)[-1] in gone_names:
+                    continue
+                if ref.endswith(".html"):
+                    if _mock_ref_exists(ref, d) is not False:
+                        continue
+                    add("ref", "warn", "info",
+                        f"{d} が参照するモック '{ref}' が docs/design-candidates 配下に無い（正本モック消滅の疑い）")
                     continue
                 if not _ref_exists(ref, d):
                     add("ref", "warn", "info", f"{d} が参照する '{ref}' が見つからない（参照切れの疑い）")
@@ -344,10 +502,14 @@ def check_skill_frontmatter():
 
 # ── 10. plans 参照の実在（管理md・skill が名指しする .claude/plans/*.md）────
 def check_plans_references():
-    """なぜ専用チェックか: check_referenced_files は .claude/plans を誤検知回避のため除外しており、
-    2026-07-06 のフル照合で architecture skill の plans 参照切れを機械が見逃した実績がある。
-    plans はアーカイブでも「存在しないファイルを指す台帳は読者を誤誘導する」（CLAUDE.md の
-    一時ファイル規約）ため、参照の実在だけは機械で担保する。"""
+    """なぜ専用チェックか: check_referenced_files は `.claude/plans/…` を**指す**参照を除外しており
+    （項目6 の ref スキップ条件）、2026-07-06 のフル照合で architecture skill の plans 参照切れを
+    機械が見逃した実績がある。plans はアーカイブでも「存在しないファイルを指す台帳は読者を誤誘導する」
+    （CLAUDE.md の一時ファイル規約）ため、参照の実在だけは機械で担保する。
+
+    2026-07-30 追記: 項目6 の**対象文書**は docs/** と .claude/plans 直下まで広がったが、
+    上記のとおり除外しているのは「参照先が plans であること」なので本チェックの役割は変わらない。
+    加えて本チェックは task_diary.md を発信元に含む（項目6 は凍結アーカイブとして除外）＝ここも差分。"""
     docs = ["CLAUDE.md", "STATUS.md", "handover.md", "task_diary.md"]
     docs_dir = ROOT / "docs"
     if docs_dir.is_dir():
@@ -1233,17 +1395,59 @@ def check_removed_hook_references():
 # 消えるため、説明を CHECKS に同居させ SKILL.md からは `--list` を案内するだけにした。
 # 新しいチェックを足すときは関数と説明をこの表に1行で追加する（タプルなので説明の書き忘れは
 # 実行時に必ず落ちる＝黙って列挙が欠けることがない）。
+# ── 19. 抑止則の自己テスト ───────────────────────────────────────────────
+def check_suppression_selftest():
+    """項目6 の抑止則が、意図した形だけを抑止し・それ以外は素通しすることを毎回確かめる。
+
+    なぜ検査器の中に自己テストを持つか: 抑止則は「出さない」方向の仕掛けなので、壊れても
+    出力が静かになるだけで気づけない（既知バグ `stale-check-false-positive` そのもの）。
+    語彙を1語足した／継続行の条件を触った、で黙って検出力が消えるのを止める。
+    外部フィクスチャを置くと本体と一緒に腐るので、期待値はここにインラインで持つ。
+    """
+    # (本文, 抑止されるべきか) — 参照は常に1行目の末尾に置く。
+    cases = [
+        ("`a.md`\n", False),                                  # 素の参照＝抑止しない
+        ("`a.md` は撤去済み\n", True),                         # (1) 同一行
+        ("`a.md`\n  ※現存しない。\n", True),                   # (2) 直後の注記行
+        ("`a.md`\n\n  ※現存しない。\n", False),                # 空行で切れる＝別の段落
+        ("`a.md`\n## 次の節\n※現存しない。\n", False),          # 見出しで切れる
+        ("`a.md`\n- 別項目は撤去済み\n", False),                # 新しい箇条書きで切れる
+        ("# T\n> 本書の参照は非収蔵。\n\n## 節\n`a.md`\n", True),  # (3) 前置き引用＝文書全体
+        ("# T\n## 節1\n> ここは撤去済み。\n`a.md`\n", True),      # (3) 節内引用＝節に効く
+        ("# T\n## 節1\n> ここは撤去済み。\n## 節2\n`a.md`\n", False),  # 次の見出しで切れる
+        ("`a.md` を移設する予定\n", False),                     # 素の「移設」は効かない
+    ]
+    for i, (text, want) in enumerate(cases):
+        lines = text.splitlines()
+        got = _gone_scope(lines)[next(j for j, l in enumerate(lines) if "`a.md`" in l)]
+        if got != want:
+            add("selftest", "stale", "high",
+                f"抑止則が期待と違う（ケース{i}: 期待={'抑止' if want else '素通し'} / 実際={'抑止' if got else '素通し'}）")
+    # (4) 名指し宣言は文書全体へ効き、名前が違えば効かない。
+    named = _gone_basenames(["冒頭: 本文中の `gone.py` は現存しない。"])
+    if "gone.py" not in named:
+        add("selftest", "stale", "high", "名指しの廃止宣言を拾えていない（項目6 の抑止(4)）")
+    if "other.py" in named:
+        add("selftest", "stale", "high", "名指ししていないファイル名まで抑止対象にしている（抑止過剰）")
+    # 実行時生成 HTML とメタ変数記法は、検出の対象外であり続けること。
+    for ref in ("chap_N.html", "index.html"):
+        if _mock_ref_exists(ref, "docs/knowledge/README.md") is not None:
+            add("selftest", "stale", "high", f"実行時生成 HTML '{ref}' をモック実在チェックに掛けている")
+    if not _PLACEHOLDER_RE.search("NNNN-kebab-case.md"):
+        add("selftest", "stale", "high", "採番テンプレート記法をメタ変数として除外できていない")
+
+
 CHECKS = [
     (check_versions, "版数照合（CLAUDE.md ↔ gradle: minSdk / targetSdk）"),
     (check_db, "DB整合（AppDatabase.kt の version ↔ schemas 最大 ↔ MIGRATION 連番 ↔ db-migration の履歴表）"),
     (check_hooks_registration, "hook 双方向照合（settings 参照 ↔ 実ファイル: 壊れた参照／未登録の死hook）"),
     (check_hook_git_tracked, "hook の git 追跡（実ファイル ↔ git ls-files: コミット漏れ）"),
     (check_conflict_markers, "コンフリクトマーカー残存"),
-    (check_referenced_files, "参照ファイルの実在（ドキュメント・skill が名指しする .md / .py / .js / .sh / .kt）"),
+    (check_referenced_files, "参照ファイルの実在（CLAUDE/STATUS/handover・skill・docs/**・.claude/plans 直下が名指しする .md/.py/.js/.sh/.kt と、design-candidates のモック .html。『撤去済み』等の断り書きが同一行・直後の注記行・前置き引用ブロック・冒頭の名指し宣言のいずれかに在れば対象外）"),
     (check_test_commands, "テストコマンドの一貫性"),
     (check_gradlew_path, "gradlew パス健全性（build skill）"),
     (check_skill_frontmatter, "skill frontmatter 妥当性（name ↔ ディレクトリ名）"),
-    (check_plans_references, "plans 参照の実在（リポジトリ内 .claude/plans/*.md＝項目6が除外しているための専用チェック）"),
+    (check_plans_references, "plans 参照の実在（`.claude/plans/*.md` を名指す参照＝項目6 が参照側で除外しているのと、task_diary.md を発信元に含むのが差分）"),
     (check_permission_paths, "permissions パス実在（settings の allow/deny が指すパスの消滅＝死 permission）"),
     (check_hook_smoke, "hook 動作点検（全 hook の構文チェック＋test_*.py 自己テストの実行）"),
     (check_diary_id_unique, "task_diary エントリID の一意性（#N 見出しの重複採番検知・自動リネームはしない）"),
@@ -1251,6 +1455,7 @@ CHECKS = [
     (check_delegation_meter, "委譲ターン計測フックの整合（count_delegation_turns.py の PostToolUse/SubagentStop 両配線・記録先・通告間隔）"),
     (check_known_bugs_registry, "既知バグレジストリ（L4）の名指し実在照合（docs/known-bugs-registry.md のテストクラス名・check_xxx・参照パスが実在するか／検知ありを主張する行に名指しがあるか）"),
     (check_hook_output_channel, "hook の出力経路照合（配線イベント × モデルに届く経路: 素の stdout 不達・hookEventName の取り残し・exit 2 無しの stderr。判定不能も件数を出す）"),
+    (check_suppression_selftest, "抑止則の自己テスト（項目6 の『もう無い』注記判定＝同一行/直後の注記行/引用ブロック/名指し宣言が、意図した形だけを抑止し段落・見出し境界を越えないこと）"),
     (check_removed_hook_references, "撤去フックの残存参照（git 履歴の撤去フック名＋旧ソースが作っていた生成物を現ツリーと突合。settings/実コード/.gitignore/実行コマンドは高・コメントや文書の言及は info）"),
 ]
 

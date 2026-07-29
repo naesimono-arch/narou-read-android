@@ -117,6 +117,7 @@ APIでメタ取得 → `ncode.syosetu.com/{ncode}/{話数}/` のHTMLを取得・
 
 - **案A採用なら**: ①INTERNET権限＋OkHttp＋kotlinx.serialization 依存追加 → ②`NarouApiRepository`（1本のランキング取得＋JSONパース＋キャッシュ）で**縦スライス1本**を通す → ③ランキング画面モック（/design）→ Compose 翻訳。まず「週間ランキング一覧が出る」最小疎通をゴールに。
 - **案B/Cを視野に入れるなら**: 先に**規約・robotsの調査メモ**（本フォルダに `04-content-fetch-legal.md` 等）を作り、本文取得の可否を独立に固めてから技術検討へ。
+  ※このメモは**未着手＝存在しない**（案A 先行が確定したため。規約線の実際の決着は ADR 0024 の `SiteAdapterRegistry` 3値ゲート）。
 
 > 本フォルダはスクラッチ。方向確定後、恒久的な設計判断は `docs/decisions/`（ADR）、
 > やることは `handover.md` の §D へ昇格させる。
