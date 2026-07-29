@@ -40,9 +40,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -194,25 +196,33 @@ private fun MoodSectionK(onPickMood: (MoodPreset) -> Unit) {
     )
     Column {
         SectionHeadingK("きょうの気分", topSpace = Spacing.S8) // .sec:first-child margin-top 8px
-        HorizontalPager(
-            state = moodPagerState,
-            // 右端に次ページの頭を覗かせる＝「まだ横にある」のシグニファイア（モックの左右覗きの Compose 翻訳）。
-            contentPadding = PaddingValues(end = Spacing.S24),
-            pageSpacing = Spacing.S12,
-        ) { page ->
-            val pattern = MoodPattern.forPage(page) // 仮想ページ→実3組の剰余写像（循環）
-            Column {
-                // 4プリセット1組の2列（親が LazyColumn ゆえ LazyGrid をネストせず chunked(2) の Row で組む）。
-                pattern.presets.chunked(2).forEach { rowPresets ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.S12),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.S12), // .mood gap 12px
-                    ) {
-                        rowPresets.forEach { preset ->
-                            MoodCardK(preset, onClick = { onPickMood(preset) }, modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
+        // 高さの安定枠（2026-07-29 実機報告「表示が2行を超えると下の描画ががくんと動く」の真因対処）:
+        // Pager は wrap-content＝表示中ページの高さへ都度スナップする一方、ページ高は文言の折返し行数
+        //（端末幅・フォントスケール依存）で組ごとに違う→組の切替や日替わり初期組のたび下部が段差で動く。
+        // 正本モック discovery-K.html は .mp-track（flex・align-items 既定 stretch）で「全ページ＝最高
+        // ページと同高」を構造で規定している。その翻訳として全3組の格子を不可視・操作不可で重ね、
+        // 枠高＝最大組高をその場の実測で予約する（幅・フォントスケールに追従＝固定 dp の発明をしない）。
+        Box {
+            MoodPattern.entries.forEach { pattern ->
+                MoodPageGridK(
+                    pattern = pattern,
+                    onPickMood = null, // 計測専用ゴースト＝タップ配線なし（短いページの下で誤タップさせない）
+                    modifier = Modifier
+                        // Pager の contentPadding(end=S24) と同幅に合わせ、折返し行数の計算を実ページと一致させる。
+                        .padding(end = Spacing.S24)
+                        .alpha(0f)
+                        // 不可視の計測専用ゆえ TalkBack へ幻のカード群を読ませない。
+                        .clearAndSetSemantics {},
+                )
+            }
+            HorizontalPager(
+                state = moodPagerState,
+                // 右端に次ページの頭を覗かせる＝「まだ横にある」のシグニファイア（モックの左右覗きの Compose 翻訳）。
+                contentPadding = PaddingValues(end = Spacing.S24),
+                pageSpacing = Spacing.S12,
+            ) { page ->
+                // 仮想ページ→実3組の剰余写像（循環）。
+                MoodPageGridK(pattern = MoodPattern.forPage(page), onPickMood = onPickMood)
             }
         }
         // ドットインジケータ（モック .dots）＝現在組を可視化。寸法は構造値ゆえスケール外の raw dp。
@@ -249,12 +259,41 @@ private fun MoodSectionK(onPickMood: (MoodPreset) -> Unit) {
     }
 }
 
+/**
+ * 1組4プリセットの2列格子（親が LazyColumn ゆえ LazyGrid をネストせず chunked(2) の Row で組む）。
+ * [onPickMood] null＝高さ計測専用ゴースト（MoodSectionK の安定枠）としてタップを配線しない。
+ */
 @Composable
-private fun MoodCardK(preset: MoodPreset, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun MoodPageGridK(
+    pattern: MoodPattern,
+    onPickMood: ((MoodPreset) -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        pattern.presets.chunked(2).forEach { rowPresets ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.S12),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S12), // .mood gap 12px
+            ) {
+                rowPresets.forEach { preset ->
+                    MoodCardK(
+                        preset,
+                        onClick = onPickMood?.let { pick -> { pick(preset) } },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoodCardK(preset: MoodPreset, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
+            // onClick null＝計測専用ゴースト。clickable を積まない＝クリック・フォーカスの標的にしない。
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(vertical = Spacing.S12), // .md padding 14px → 縦 S12
     ) {
         // 左の藍ルール（モック .md::before＝3px 藍の縦帯）。高さ・幅は構造値ゆえスケール外の raw dp。
