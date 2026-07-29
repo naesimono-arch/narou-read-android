@@ -577,6 +577,102 @@ def check_delegation_meter():
                 break
 
 
+# ── 16. 既知バグレジストリ（L4）の名指し実在照合 ─────────────────────────
+# 状態列の語彙（レジストリ冒頭の凡例が正本。ここは機械側の写しではなく「受理する値の定義」）。
+_REGISTRY_STATES = {"[!] なし", "[!] 知見のみ", "[~] 部分", "[o] 固定"}
+# 検知ありを主張する状態＝検証可能な名指しを1つ以上持たねばならない。
+_REGISTRY_DEFENDED = {"[~] 部分", "[o] 固定"}
+
+
+def check_known_bugs_registry():
+    """docs/known-bugs-registry.md が名指しする検知手段・参照が実在するかを照合する。
+
+    なぜ要るか: L4 の台帳は「どのバグ型が無防備か」を一目で示すのが唯一の効用で、
+    その判断材料は〈テストクラス名／機械チェック名／knowledge のパス〉という**外部への名指し**でできている。
+    名指し先がリネーム・削除で消えても Markdown は何事もなく緑のまま読めてしまい、
+    「守られている」という嘘が残る——このリポジトリには恒久 dead 化した判定が 13 日間気づかれなかった
+    実例があり、台帳側にも同じ穴が開く。実在照合だけは機械で担保する。
+
+    fail-open にしない工夫: レジストリが読めない／行が1件も取れない／名指しが1件も抽出できない場合は
+    「検知器そのものが死んでいる」とみなして必ず落とす（黙って全通過させない）。
+    """
+    rel = "docs/known-bugs-registry.md"
+    txt = read_text(rel)
+    if txt is None:
+        add("known-bugs", "stale", "high",
+            f"{rel} が読めない（L4 レジストリの消失／移動。参照する SKILL.md・handover と併せて追随させること）")
+        return
+
+    # データ行＝状態セルがコードスパンで始まる 7 列の行。凡例（2 列）やヘッダは自然に外れる。
+    rows = [ln for ln in txt.splitlines() if ln.startswith("| `[") and ln.count("|") == 8]
+    if not rows:
+        add("known-bugs", "stale", "high",
+            f"{rel} から表の行を1件も抽出できない（表の列数が変わった＝この照合が恒久 dead 化している）")
+        return
+
+    test_root = ROOT / "android/app/src/test"
+    check_names = {fn.__name__ for fn, _label in CHECKS}
+    refs_seen = 0
+
+    for ln in rows:
+        cells = [c.strip() for c in ln.split("|")[1:-1]]
+        state = cells[0].strip("`")
+        bug_id = cells[1].strip("`")
+        if state not in _REGISTRY_STATES:
+            add("known-bugs", "stale", "high",
+                f"{bug_id}: 状態 '{state}' が語彙外（受理値: {' / '.join(sorted(_REGISTRY_STATES))}）")
+            continue
+
+        # 検知手段セルと関連 knowledge セルのコードスパンだけを照合対象にする
+        # （症状・機序セルの `items` のような語り中の識別子まで拾うと偽陽性になる）。
+        # verifiable は**検知手段セルの分だけ**数える: knowledge セルの参照を数えてしまうと
+        # 「検知手段は空文だが関連 knowledge が在るので防御あり」を通してしまい、
+        # まさにこの台帳が禁じている「知見＝防御」の誤読を機械側で再現することになる。
+        verifiable_here = 0
+        for cell_i, cell in ((5, cells[5]), (6, cells[6])):
+            for tok in re.findall(r"`([^`]+)`", cell):
+                counts = cell_i == 5
+                refs_seen += 1
+                if tok.startswith("lint:"):
+                    # lint ルールの実在はオフラインで確認できない。黙殺すると「語彙外を素通し」に
+                    # なるため info で必ず表に出す（未検証であること自体を可視化する）。
+                    add("known-bugs", "warn", "info",
+                        f"{bug_id}: '{tok}' は lint ルール名＝機械照合の対象外（人間が有効性を確認すること）")
+                    verifiable_here += counts
+                elif re.fullmatch(r"check_\w+", tok):
+                    if tok in check_names:
+                        verifiable_here += counts
+                    else:
+                        add("known-bugs", "stale", "high",
+                            f"{bug_id}: 機械チェック '{tok}' が CHECKS に存在しない")
+                elif re.fullmatch(r"[A-Z]\w*Test", tok):
+                    if test_root.is_dir() and next(test_root.rglob(f"{tok}.kt"), None) is not None:
+                        verifiable_here += counts
+                    else:
+                        add("known-bugs", "stale", "high",
+                            f"{bug_id}: テストクラス '{tok}' が android/app/src/test に存在しない"
+                            "（削除・リネームなら状態列も無防備側へ戻すこと）")
+                elif "/" in tok and tok.endswith((".md", ".py", ".sh", ".kt")):
+                    if (ROOT / tok).exists():
+                        verifiable_here += counts
+                    else:
+                        add("known-bugs", "stale", "high",
+                            f"{bug_id}: 参照 '{tok}' が存在しない")
+                else:
+                    add("known-bugs", "warn", "info",
+                        f"{bug_id}: '{tok}' はどの照合パターンにも当たらない"
+                        "（テストクラス名は `XxxTest`・機械チェックは `check_xxx`・参照はパスで書くこと）")
+
+        if state in _REGISTRY_DEFENDED and verifiable_here == 0:
+            add("known-bugs", "stale", "high",
+                f"{bug_id}: 状態 '{state}' は検知ありを主張しているのに、"
+                "検証可能な名指し（テストクラス名／check_xxx ／パス／lint:）が1つも無い")
+
+    if refs_seen == 0:
+        add("known-bugs", "stale", "high",
+            f"{rel} から名指しを1件も抽出できない（コードスパン記法が失われた＝照合が恒久 dead 化している）")
+
+
 # ── 項目一覧（この表が正本＝`--list` で出力する） ──────────────────────────
 # なぜ説明文をここへ同居させるか: 以前は SKILL.md 側に項目表を複製し、件数の一致を
 # check_self_item_table で見張っていた。しかしそれは二重管理を前提にした対症療法で、
@@ -601,6 +697,7 @@ CHECKS = [
     (check_diary_id_unique, "task_diary エントリID の一意性（#N 見出しの重複採番検知・自動リネームはしない）"),
     (check_size_budgets, "台帳のサイズ番人（STATUS=現況のみ・目安60行／handover=やることのみ）"),
     (check_delegation_meter, "委譲ターン計測フックの整合（count_delegation_turns.py の PostToolUse/SubagentStop 両配線・記録先・通告間隔）"),
+    (check_known_bugs_registry, "既知バグレジストリ（L4）の名指し実在照合（docs/known-bugs-registry.md のテストクラス名・check_xxx・参照パスが実在するか／検知ありを主張する行に名指しがあるか）"),
 ]
 
 

@@ -70,6 +70,9 @@ python .claude/skills/stale-check/check_machine.py --list
 - `docs/decisions/` の ADR ↔ 実装（恒久決定が実装とズレていないか。例: hook 仕様変更が ADR に未反映）
 - `docs/reference/frontend-design/SKILL.md` などがプロジェクト用途に対し有効か
 - CLAUDE.md のルール ↔ 現行 hook / skill の実運用の整合
+- `docs/known-bugs-registry.md`（既知バグレジストリ＝L4）の棚卸し: 前回以降の `fix:` コミットで
+  **再発しうる機序**が新たに出ていないか／既存 ID の再発で状態（`[!]`/`[~]`/`[o]`）が実態とずれていないか
+  （名指しの実在は機械チェック側が見る＝ここで項目を列挙しない）
 
 ## 出力フォーマット
 
