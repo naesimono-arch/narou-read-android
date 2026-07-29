@@ -13,6 +13,10 @@ tokens.json＋Style Dictionary の生成自動化は現段階では過剰（KB 0
   - reading-D のみ 3 テーマ（.t-light/.t-sepia/.t-dark の順に宣言が並ぶ）を順序前提で全数照合する。
   - 変数がファイルに無い場合は SKIP（モック改版でレイアウトごと消えた場合はこの表を保守する）。
 
+a11y コントラスト検査（2026-07-30 追加。既知バグ `a11y-contrast-below-aa` の検知手段）:
+  - 「意味を運ぶ文字は WCAG 4.5:1」（ADR 0014-D の審級）を機械で測る。詳細は下の
+    「a11y コントラスト」節の設計コメントを参照。
+
 実行: python3 tools/check_design_tokens.py   （リポジトリルートから。不一致で exit 1）
 """
 import re
@@ -307,6 +311,411 @@ SKIP_BASELINE = 42
 def find_decls(text: str, var: str) -> list[str]:
     return [m.upper() for m in re.findall(rf"{re.escape(var)}\s*:\s*#([0-9A-Fa-f]{{6}})\b", text)]
 
+# ====================================================================================
+# a11y コントラスト検査（WCAG 2.x 相対輝度・既知バグ `a11y-contrast-below-aa` の検知手段）
+# ====================================================================================
+# なぜ必要か: ADR 0014-D は「意味を運ぶ文字は WCAG 4.5:1 ＞ 美学」を審級として宣言し、
+# ルビ3色・発見系メタ6箇所・未読ラベルを実際に AA へ引き上げた。だがその判定は毎回手計算で、
+# 「直した箇所だけ検算し、他は未検査のまま」だった（既知バグレジストリの機序欄＝「コントラストを
+# 測る機械が無い」）。スキンが D/C/M/P/J/K の6種へ増えた今、手計算での全面担保は破綻している。
+#
+# 【設計の核心＝前景×面の対応をどう確定したか】
+# 全組合せの総当たりは雑音（載らない前景×背景の比に意味は無い）。ここでは「対応が型として宣言
+# されている組」だけを測る＝ソースの構造そのものが対応表になっているものに限定する:
+#   (1) ReadingColors（Theme.kt の data class）: 1 つの struct が面（background/blockBackground/
+#       topBarBackground/navBackground）と前景（text/infoText/ruby/topBarTitle/topBarIcon/accent）を
+#       同時に宣言する＝同一 struct 内の組は「その画面でその面の上に載る」ことが型で確定している。
+#       各スキンの why コメントが実際に「素地 5.14:1／ブロック地 4.70:1」等と主張しており、
+#       本検査はその主張の検算にもなる。
+#   (2) ShelfColors（本棚系の家系トークン）× 同スキン同テーマの Material 面: ADR 0014 の適用裁定が
+#       まさに「ライト素地 5.79:1・カード 5.30:1」と 素地(background)／カード(surfaceVariant) の
+#       2 面で測っており、実装も BookCard.kt が colorScheme.background の上に infoText を描く
+#       （`.miss` バッジ）ことを確認済み＝この2面が対応。
+#   (3) Material3 ColorScheme の onX ⇄ X: Material の規約そのもの（onSurface は surface の上に描く）。
+#       対応の出所が外部規約＝推測が入らない。
+# 逆に「どの面に載るか実コードから一意に決まらない」前景（accent の面／線用途・signatureAccent・
+# 構造画面専用パレット・ambient の α 付き色）は測らない。ただし黙って落とさず件数と理由を出す
+# （SKIP_BASELINE と同じ fail-open 忌避の思想）。
+#
+# 【検査する軸＝スキン × テーマ（実測に基づく決定）】
+# 実測: K は `object SkinK : SkinTokens by SkinD`＝D へ全委譲で値が同一（測っても D の重複）。
+# C/M は supportedThemes=[DARK] の固定1変種。D/P/J は3変種だが P/J は material/shelf が theme 非依存。
+# よって「各スキンの supportedThemes を実際にパースして、その組合せだけ回す」＝存在しない変種を
+# 測らないので偽陽性が構造的に出ない。K のみ委譲検出で対象外（理由付きで件数計上）。
+#
+# 【閾値と例外の裁定】
+#   - 文字 4.5:1（WCAG 1.4.3 AA・通常サイズ）。
+#   - アイコン等の非テキスト 3:1（WCAG 1.4.11）。topBarIcon のみ該当。
+#   - **大きな文字の 3:1 例外は採らない**。理由: トークン層はフォントサイズを持たず、同じ
+#     `text`/`accent` トークンが本文（最小サイズ）から見出しまで共用される。大きい方に合わせて
+#     緩めると最小サイズの用途が無検査になる＝厳しい側（4.5:1）で一律に測るのが安全側。
+#   - 装飾テキスト（意味を運ばない）は WCAG 対象外＝測らない。どのロールが装飾かは Theme.kt の
+#     KDoc が明示している（textSecondary＝「装飾的補助テキスト…意味を運ばない」、placeholder＝
+#     「例示/不活性…WCAG 概ね対象外」）。この宣言をそのまま対象外表 READING_OUT_OF_SCOPE にする。
+#   - 線（divider/hr/blockBorder/outline）はテキストでもUI操作部品でもない区切り＝対象外
+#     （WCAG 1.4.11 は「状態や境界の識別に必須な UI 部品」を対象とし、装飾的ヘアラインは含まない）。
+
+def _rel_luminance(hex6: str) -> float:
+    """WCAG 2.x 相対輝度。sRGB を線形化して ITU-R BT.709 係数で合成する。"""
+    def lin(v: int) -> float:
+        c = v / 255.0
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = (int(hex6[i:i + 2], 16) for i in (0, 2, 4))
+    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+
+def contrast_ratio(fg: str, bg: str) -> float:
+    """WCAG 2.x コントラスト比 (L1+0.05)/(L2+0.05)。"""
+    l1, l2 = sorted((_rel_luminance(fg), _rel_luminance(bg)), reverse=True)
+    return (l1 + 0.05) / (l2 + 0.05)
+
+# --- Kotlin の軽量パース（既存の regex 流儀を踏襲。AST は持たない） -------------------
+
+def _strip_comments(text: str) -> str:
+    """`//` 行コメントと `/* */` ブロックを空白化する。
+    なぜ必要か: 値のコメントに `--rd-block-bg=rgba(...)` のような `名前=値` の字面があり、
+    引数パーサが偽の引数として拾ってしまう（実測）。値の解釈にコメントは要らないので落とす。
+    """
+    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
+    return re.sub(r"//[^\n]*", "", text)
+
+def _balanced(text: str, open_idx: int, op: str = "(", cl: str = ")") -> tuple[str, int]:
+    """open_idx（開き括弧の位置）から対応する閉じ括弧までの内側と、閉じ括弧の次位置を返す。"""
+    depth = 0
+    for i in range(open_idx, len(text)):
+        if text[i] == op:
+            depth += 1
+        elif text[i] == cl:
+            depth -= 1
+            if depth == 0:
+                return text[open_idx + 1:i], i + 1
+    return "", len(text)
+
+_HEX_ARG = re.compile(r"(\w+)\s*=\s*(Color\(0x[0-9A-Fa-f]{8}\)|[A-Za-z_]\w*)")
+
+def _resolve(expr: str, tokens: dict[str, str]) -> str | None:
+    """`Color(0xFFRRGGBB)` か Color.kt の val 名を 'RRGGBB' へ解決する。
+    α付き（0xAARRGGBB で AA != FF）は「単一の面へ焼き込めない透過色」＝測れないので None。"""
+    m = re.fullmatch(r"Color\(0x([0-9A-Fa-f]{2})([0-9A-Fa-f]{6})\)", expr)
+    if m:
+        return m.group(2).upper() if m.group(1).upper() == "FF" else None
+    return tokens.get(expr)
+
+def _named_args(inner: str, tokens: dict[str, str]) -> tuple[dict[str, str], list[str]]:
+    """`name = 値` の並びを {name: RRGGBB} と、解決できなかった name のリストで返す。"""
+    got: dict[str, str] = {}
+    unresolved: list[str] = []
+    for m in _HEX_ARG.finditer(inner):
+        if m.group(2) in ("true", "false", "null"):
+            continue  # ReadingColors.isLight 等の非色フィールド＝コントラストの対象ではない
+        v = _resolve(m.group(2), tokens)
+        if v:
+            got[m.group(1)] = v
+        else:
+            unresolved.append(m.group(1))
+    return got, unresolved
+
+_BRANCH = re.compile(r"((?:ReadingTheme\.(?:LIGHT|SEPIA|DARK)\s*,\s*)*ReadingTheme\.(?:LIGHT|SEPIA|DARK))\s*->")
+
+def _member_body(text: str, decl_re: str) -> str | None:
+    """`override fun x(...) = <本体>` の本体テキストを返す（when ブロックなら中身、単式なら行末まで）。"""
+    m = re.search(decl_re, text)
+    if not m:
+        return None
+    rest = text[m.end():]
+    stripped = rest.lstrip()
+    if stripped.startswith("when"):
+        brace = rest.index("{", rest.index("when"))
+        return _balanced(rest, brace, "{", "}")[0]
+    return rest.split("\n", 1)[0]
+
+def _theme_dispatch(body: str, supported: list[str]) -> dict[str, tuple[str, int]]:
+    """when 本体（または単式）から {テーマ: (本体テキスト, 分岐開始オフセット)} を作る。
+    when を持たない（theme 非依存の固定値を返す）実装では全テーマが同じ式を指す。"""
+    branches = list(_BRANCH.finditer(body))
+    if not branches:
+        return {t: (body, 0) for t in supported}
+    out: dict[str, tuple[str, int]] = {}
+    for i, m in enumerate(branches):
+        end = branches[i + 1].start() if i + 1 < len(branches) else len(body)
+        for t in re.findall(r"ReadingTheme\.(LIGHT|SEPIA|DARK)", m.group(1)):
+            out[t] = (body[m.end():end], 0)
+    return out
+
+def parse_skin(kt_rel: str, tokens: dict[str, str]) -> dict:
+    """1 スキンファイルから supportedThemes / reading / shelf / material を解決値で取り出す。
+
+    委譲スキン（`object SkinK : SkinTokens by SkinD`）は {"delegate": "SkinD"} を返す。
+    """
+    raw = (THEME_DIR / kt_rel).read_text(encoding="utf-8")
+    text = _strip_comments(raw)
+    dm = re.search(r"object\s+(\w+)\s*:\s*SkinTokens\s+by\s+(\w+)", text)
+    if dm:
+        return {"delegate": dm.group(2)}
+
+    sm = re.search(r"supportedThemes[^=]*=\s*listOf\(([^)]*)\)", text, re.S)
+    supported = re.findall(r"ReadingTheme\.(LIGHT|SEPIA|DARK)", sm.group(1)) if sm else []
+
+    unresolved: list[str] = []
+
+    # --- Material ColorScheme: 名前付きスキーム定義 → material(theme) のディスパッチ ---
+    schemes: dict[str, dict[str, str]] = {}
+    for m in re.finditer(r"val\s+(\w+)\s*=\s*(?:light|dark)ColorScheme\s*\(", text):
+        inner = _balanced(text, m.end() - 1)[0]
+        got, un = _named_args(inner, tokens)
+        schemes[m.group(1)] = got
+        unresolved += [f"{kt_rel}:{m.group(1)}.{n}" for n in un]
+    # `Base.copy(...)` 派生（D の SepiaColorScheme）。定義順にファイルへ現れる前提（実測どおり）。
+    for m in re.finditer(r"val\s+(\w+)\s*=\s*(\w+)\.copy\s*\(", text):
+        base = schemes.get(m.group(2))
+        if base is None:
+            continue
+        inner = _balanced(text, m.end() - 1)[0]
+        got, un = _named_args(inner, tokens)
+        schemes[m.group(1)] = {**base, **got}
+        unresolved += [f"{kt_rel}:{m.group(1)}.{n}" for n in un]
+
+    material: dict[str, dict[str, str]] = {}
+    body = _member_body(text, r"override fun material\([^)]*\)\s*:\s*ColorScheme\s*=\s*")
+    if body is not None:
+        for theme, (expr, _) in _theme_dispatch(body, supported).items():
+            name = re.search(r"\b(\w+)\b", expr)
+            if name and name.group(1) in schemes:
+                material[theme] = schemes[name.group(1)]
+
+    # --- ReadingColors: when 分岐ごとに ReadingColors(...) の名前付き引数を解決 ---
+    reading: dict[str, dict[str, str]] = {}
+    body = _member_body(text, r"override fun reading\([^)]*\)\s*:\s*ReadingColors\s*=\s*")
+    if body is not None:
+        for theme, (expr, _) in _theme_dispatch(body, supported).items():
+            cm = re.search(r"ReadingColors\s*\(", expr)
+            if not cm:
+                continue
+            got, un = _named_args(_balanced(expr, cm.end() - 1)[0], tokens)
+            reading[theme] = got
+            unresolved += [f"{kt_rel}:reading({theme}).{n}" for n in un]
+
+    # --- ShelfColors: 位置引数 (hairline, unreadLabel, infoText)。単一 val 定義の場合も辿る ---
+    shelf: dict[str, dict[str, str]] = {}
+    body = _member_body(text, r"override fun shelf\([^)]*\)\s*:\s*ShelfColors\s*=\s*")
+    if body is not None:
+        for theme, (expr, _) in _theme_dispatch(body, supported).items():
+            cm = re.search(r"ShelfColors\s*\(", expr)
+            if not cm:  # `= NightShelf` 形式＝private val の定義側を引く
+                name = re.search(r"\b(\w+)\b", expr)
+                vm = re.search(rf"val\s+{name.group(1)}\s*=\s*ShelfColors\s*\(", text) if name else None
+                if not vm:
+                    continue
+                inner = _balanced(text, vm.end() - 1)[0]
+            else:
+                inner = _balanced(expr, cm.end() - 1)[0]
+            args = [a.strip() for a in inner.split(",")]
+            fields = ("hairline", "unreadLabel", "infoText")
+            vals = {}
+            for f, a in zip(fields, args):
+                v = _resolve(a, tokens)
+                if v:
+                    vals[f] = v
+                else:
+                    unresolved.append(f"{kt_rel}:shelf({theme}).{f}")
+            shelf[theme] = vals
+
+    return {"supported": supported, "material": material, "reading": reading,
+            "shelf": shelf, "unresolved": unresolved}
+
+# --- 検査するスキン（1 スキン=1 ファイル。SKIN_READING と同じ流儀の表駆動） ----------
+CONTRAST_SKINS = {
+    "D": "skins/SkinD.kt", "C": "skins/SkinC.kt", "M": "skins/SkinM.kt",
+    "P": "skins/SkinP.kt", "J": "skins/SkinJ.kt", "K": "skins/SkinK.kt",
+}
+
+# ReadingColors 内の (前景, 面, 最低比, 役割)。対応は同一 struct の型宣言＋実描画で確認済み。
+READING_PAIRS = [
+    ("text", "background", 4.5, "本文"),
+    ("text", "blockBackground", 4.5, "前書き/後書きブロック内の本文"),
+    ("infoText", "background", 4.5, "意味を運ぶ補助テキスト（エラー本文・空状態説明・目次メタ）"),
+    ("ruby", "background", 4.5, "ルビ＝著者指定の読み（意味搬送小文字）"),
+    ("ruby", "blockBackground", 4.5, "ブロック内のルビ（ChapterContent の Surface 内 RubyText）"),
+    ("topBarTitle", "topBarBackground", 4.5, "トップバーのタイトル文字"),
+    ("topBarIcon", "topBarBackground", 3.0, "トップバーのアイコン（非テキスト 3:1）"),
+    ("topBarIcon", "navBackground", 3.0, "ナビバーのアイコン（非テキスト 3:1）"),
+    # accent は面/線にも使う多義トークンだが、「文字として載る面」は実コードで2つに確定できる:
+    #   ChapterContent.kt: block.label を colors.accent で blockBackground の Surface 上に描く。
+    #   NativeTableOfContentsScreen.kt: 現在章の章題を colors.accent で描く（行地は accent の 6% 淡色
+    #   ＝素地とほぼ同輝度。合成せず素地 background を代表面として測る）。
+    ("accent", "blockBackground", 4.5, "前書き/後書きのラベル文字"),
+    ("accent", "background", 4.5, "目次の現在章タイトル"),
+]
+
+# ReadingColors のうち「面でも前景でもない／WCAG 対象外」と Theme.kt の KDoc が宣言するロール。
+# 黙って落とさず件数と理由を出すためにデータとして持つ（fail-open 忌避）。
+READING_OUT_OF_SCOPE = [
+    ("textSecondary", "装飾的補助テキスト＝意味を運ばない（Theme.kt KDoc の宣言）"),
+    ("placeholder", "例示/不活性テキスト＝WCAG 概ね対象外（Theme.kt KDoc の宣言）"),
+    ("hr", "本文中の区切り線＝テキストでもUI部品でもない"),
+    ("divider", "目次の区切り線＝同上"),
+    ("blockBorder", "ブロック枠線＝同上"),
+    ("rule", "章見出しの装飾ルール＝同上（各スキンが装飾線と明記）"),
+]
+
+# ShelfColors の意味色 × 同スキン同テーマの Material 面（棚地＝background・カード面＝surfaceVariant）。
+SHELF_PAIRS = [
+    ("unreadLabel", "background", 4.5, "未読ラベル（棚地の上）"),
+    ("unreadLabel", "surfaceVariant", 4.5, "未読ラベル（カード面の上）"),
+    ("infoText", "background", 4.5, "情報メタ（棚地の上）"),
+    ("infoText", "surfaceVariant", 4.5, "情報メタ（カード面の上）"),
+]
+
+# Material3 の onX ⇄ X（規約上「X の面に onX を描く」）。inversePrimary は inverseSurface 上のアクセント。
+MATERIAL_PAIRS = [
+    ("onBackground", "background"), ("onSurface", "surface"),
+    ("onSurfaceVariant", "surfaceVariant"),
+    ("onPrimary", "primary"), ("onPrimaryContainer", "primaryContainer"),
+    ("onSecondary", "secondary"), ("onSecondaryContainer", "secondaryContainer"),
+    ("onTertiary", "tertiary"), ("onTertiaryContainer", "tertiaryContainer"),
+    ("onError", "error"), ("onErrorContainer", "errorContainer"),
+    ("inverseOnSurface", "inverseSurface"), ("inversePrimary", "inverseSurface"),
+]
+
+# ---- 既知の意図的例外（ベースライン） ----------------------------------------------
+# なぜベースラインを置くか: 「症状を隠す」ためではない。意匠の裁定は人間が持つ（CLAUDE.md
+# /visual-language）ので、機械は「未達である事実」を消さずに可視化したまま緑に保ち、裁定が
+# 済んだものだけ理由付きでここへ載せる。閾値を下げて黙らせるのは禁止（それは検知手段の破壊）。
+# 保守則:
+#   - ここの項目が是正されて合格したら [INFO] が出る → 行を削除して締め直す。
+#   - ここの項目が検査対象に現れなくなったら [NG]（対応表かトークン名が drift した合図）。
+# 【重要】ここには2種類が載る。混同しないこと:
+#   (a) 裁定済みの意図的例外 — ADR/トークンコメントに根拠がある。原則そのまま。
+#   (b) 【要裁定】— 初回計測（2026-07-30）で見つかった未裁定の実違反。色を機械が勝手に決め直すのは
+#       禁止（意匠の裁定は人間・CLAUDE.md /visual-language）なので、赤を消さずに可視化したまま
+#       裁定待ちで置く。裁定が済んだら「色を直して行を消す」が正しい終わり方で、
+#       (a) へ格下げして永住させるのは原則否。
+# key = "スキン/テーマ/前景⇄面"
+_DECO_ON_SV = ("(a) 裁定済: onSurfaceVariant は『装飾的補助（著者名・キャプション）』専用スロットで "
+               "意味を運ぶ用途は InfoText 系へ役割分離済み（ADR 0014-D 適用裁定・Color.kt の why）。"
+               "装飾は WCAG 対象外のため未達を許容する")
+_UNUSED_ON_SECONDARY = ("(a) 裁定済: secondary は装飾・面・署名の補助色で、対の onSecondary は "
+                        "UI 実装から1箇所も参照されない（実測 0 件）。Material 契約上の充足値であり "
+                        "実際に文字が載る面ではない")
+_P_ACCENT_TEXT = ("【要裁定】P の accent=液晶グリーン #A4AF80 は Color.kt が『装飾/面用途に限る』と "
+                  "宣言しているのに、共通読書エンジンが accent を文字色として使う"
+                  "（ChapterContent の前書き/後書きラベル・目次の現在章タイトル）。明面スクリーンでは "
+                  "1.4〜1.9:1 で完全に読めない。P 専用の文字用アクセントを切るか、ラベル/現在章の "
+                  "色役割を accent から分離するかの意匠裁定が要る")
+_P_SHELF_ON_PANEL = ("【要裁定】P の --ink-mid #5A574C は素地 plastic 上 4.98:1 だけを検算しており "
+                     "カード面 --panel #CFCABB 上を測っていなかった（4.42:1）。ADR 0014 の先例"
+                     "（UnreadSeiji/InfoText は素地・カードの両面で AA を満たす最小暗化）に照らすと "
+                     "同型の最小暗化が要る")
+_P_RUBY_ON_BLOCK = ("【要裁定】P DARK のルビは読書面 --screen 上 4.63:1 だけを検算しており、"
+                    "前書き/後書きブロック地 #33352C 上を測っていなかった（4.12:1）。"
+                    "D はルビを素地・ブロック地の両面で検算済み＝P だけ片面検算の取り残し")
+CONTRAST_BASELINE: dict[str, str] = {
+    "D/LIGHT/material:onSurfaceVariant⇄surfaceVariant": _DECO_ON_SV,
+    "D/SEPIA/material:onSurfaceVariant⇄surfaceVariant": _DECO_ON_SV,
+    "P/LIGHT/material:onSurfaceVariant⇄surfaceVariant": _DECO_ON_SV,
+    "P/SEPIA/material:onSurfaceVariant⇄surfaceVariant": _DECO_ON_SV,
+    "P/DARK/material:onSurfaceVariant⇄surfaceVariant": _DECO_ON_SV,
+    "D/LIGHT/material:onSecondary⇄secondary": _UNUSED_ON_SECONDARY,
+    "D/SEPIA/material:onSecondary⇄secondary": _UNUSED_ON_SECONDARY,
+    "P/LIGHT/material:onSecondary⇄secondary": _UNUSED_ON_SECONDARY,
+    "P/SEPIA/material:onSecondary⇄secondary": _UNUSED_ON_SECONDARY,
+    "P/DARK/material:onSecondary⇄secondary": _UNUSED_ON_SECONDARY,
+    "P/LIGHT/reading:accent⇄blockBackground": _P_ACCENT_TEXT,
+    "P/LIGHT/reading:accent⇄background": _P_ACCENT_TEXT,
+    "P/SEPIA/reading:accent⇄blockBackground": _P_ACCENT_TEXT,
+    "P/SEPIA/reading:accent⇄background": _P_ACCENT_TEXT,
+    "P/LIGHT/shelf:unreadLabel⇄surfaceVariant": _P_SHELF_ON_PANEL,
+    "P/LIGHT/shelf:infoText⇄surfaceVariant": _P_SHELF_ON_PANEL,
+    "P/SEPIA/shelf:unreadLabel⇄surfaceVariant": _P_SHELF_ON_PANEL,
+    "P/SEPIA/shelf:infoText⇄surfaceVariant": _P_SHELF_ON_PANEL,
+    "P/DARK/shelf:unreadLabel⇄surfaceVariant": _P_SHELF_ON_PANEL,
+    "P/DARK/shelf:infoText⇄surfaceVariant": _P_SHELF_ON_PANEL,
+    "P/DARK/reading:ruby⇄blockBackground": _P_RUBY_ON_BLOCK,
+}
+
+# 実測の検査ペア数。regex が壊れて対象が静かに消えても緑のまま通る盲点を塞ぐラチェット
+# （SKIP_BASELINE と同じ思想）。増える分には止めず [INFO] で締め直しを促す。
+CONTRAST_PAIRS_BASELINE = 297
+
+def check_contrast(failures: list[str], notes: list[str]) -> tuple[int, int, int, int, int]:
+    """コントラスト検査。(合格, 違反, ベースライン済, 対象外, 検査ペア総数) を返す。"""
+    tokens = parse_color_kt()
+    ok = ng = based = skipped = 0
+    seen_keys: set[str] = set()
+    skip_reasons: dict[str, int] = {}
+
+    def note_skip(reason: str, n: int = 1) -> None:
+        nonlocal skipped
+        skipped += n
+        skip_reasons[reason] = skip_reasons.get(reason, 0) + n
+
+    for skin_id, kt_rel in CONTRAST_SKINS.items():
+        spec = parse_skin(kt_rel, tokens)
+        if "delegate" in spec:
+            note_skip(f"スキン{skin_id}: {spec['delegate']} へトークン束を全委譲＝値が同一（委譲元で検査済み）")
+            continue
+        if not spec["supported"]:
+            failures.append(f"[NG] コントラスト: {kt_rel} の supportedThemes を抽出できない（パース前提が崩れた＝要保守）")
+            ng += 1
+            continue
+        for name in spec["unresolved"]:
+            note_skip(f"値を単色へ解決できない（α付き Color 等・要素 {name}）")
+
+        for theme in spec["supported"]:
+            groups = [
+                ("reading", spec["reading"].get(theme, {}), spec["reading"].get(theme, {}), READING_PAIRS),
+                # shelf だけ前景と面の出所が別（家系トークン × Material 面）＝2 引数を分けて渡す形が要る
+                ("shelf", spec["shelf"].get(theme, {}), spec["material"].get(theme, {}), SHELF_PAIRS),
+                ("material", spec["material"].get(theme, {}), spec["material"].get(theme, {}),
+                 [(f, b, 4.5, "Material3 の onX ⇄ X") for f, b in MATERIAL_PAIRS]),
+            ]
+            for gname, fg_src, bg_src, pairs in groups:
+                for fg, bg, minimum, role in pairs:
+                    # 群名を鍵に含める: reading.infoText⇄background と shelf.infoText⇄background は
+                    # 別の組（前景の出所が違う）だが名前が衝突する。1つのベースライン行が両方を
+                    # 黙って覆う fail-open を防ぐため群で分ける。
+                    key = f"{skin_id}/{theme}/{gname}:{fg}⇄{bg}"
+                    fg_hex, bg_hex = fg_src.get(fg), bg_src.get(bg)
+                    if not fg_hex or not bg_hex:
+                        note_skip(f"{gname}: トークン未定義で組が作れない（{key}）")
+                        continue
+                    seen_keys.add(key)
+                    ratio = contrast_ratio(fg_hex, bg_hex)
+                    if ratio >= minimum:
+                        ok += 1
+                        if key in CONTRAST_BASELINE:
+                            notes.append(f"[INFO] コントラスト例外 {key} は {ratio:.2f}:1 で合格＝是正済み。"
+                                         f"CONTRAST_BASELINE から削除して締め直す")
+                    elif key in CONTRAST_BASELINE:
+                        based += 1
+                        notes.append(f"[BASELINE] {key} #{fg_hex} on #{bg_hex} = {ratio:.2f}:1 "
+                                     f"(< {minimum}) 既知の意図的例外: {CONTRAST_BASELINE[key]}")
+                    else:
+                        failures.append(f"[NG] コントラスト {key}: #{fg_hex} on #{bg_hex} = "
+                                        f"{ratio:.2f}:1 < {minimum}:1 ({role})")
+                        ng += 1
+        # ReadingColors の WCAG 対象外ロール（宣言由来）を件数として計上する
+        for field, reason in READING_OUT_OF_SCOPE:
+            n = sum(1 for t in spec["supported"] if field in spec["reading"].get(t, {}))
+            if n:
+                note_skip(f"reading.{field}: {reason}", n)
+
+    for key in sorted(set(CONTRAST_BASELINE) - seen_keys):
+        failures.append(f"[NG] CONTRAST_BASELINE の項目 {key} が検査対象に現れない"
+                        f"（対応表かトークン名の drift＝ベースラインが死んでいる）")
+        ng += 1
+
+    total = ok + ng + based
+    for reason, n in sorted(skip_reasons.items()):
+        notes.append(f"[OUT-OF-SCOPE] x{n} {reason}")
+    if total < CONTRAST_PAIRS_BASELINE:
+        failures.append(f"[NG] 検査ペア数 {total} がベースライン {CONTRAST_PAIRS_BASELINE} を下回った"
+                        f"（パース破損等で対象が静かに消えた疑い）")
+        ng += 1
+    elif total > CONTRAST_PAIRS_BASELINE:
+        notes.append(f"[INFO] 検査ペア数 {total} > ベースライン {CONTRAST_PAIRS_BASELINE}: "
+                     f"CONTRAST_PAIRS_BASELINE を {total} へ締め直し推奨")
+    return ok, ng, based, skipped, total
+
 def main() -> int:
     tokens = parse_color_kt()
     ok = ng = skip = 0
@@ -529,9 +938,18 @@ def main() -> int:
             failures.append(f"[NG] Typography.kt {name}={sp}sp: モック群の font-size px に不在（drift）")
             ng += 1
 
+    # a11y コントラスト（WCAG 4.5:1）。既存の failures へ [NG] を積み、内訳は notes へ。
+    contrast_notes: list[str] = []
+    c_ok, contrast_ng, c_base, c_skip, c_total = check_contrast(failures, contrast_notes)
+    ng += contrast_ng
+
     print(f"design token check: OK={ok} NG={ng} SKIP={skip}")
     print(f"spacing phase(b) check: NG={compose_ng} WARN={compose_warn}")
+    print(f"a11y contrast check: PASS={c_ok} NG={contrast_ng} BASELINE={c_base} "
+          f"OUT-OF-SCOPE={c_skip} (pairs={c_total})")
     for line in failures:
+        print(line)
+    for line in contrast_notes:
         print(line)
     for line in skip_details:
         print(line)
