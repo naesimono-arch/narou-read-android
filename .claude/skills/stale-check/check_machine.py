@@ -43,7 +43,7 @@ STATE_FILE = ROOT / ".claude/.stale_check_state.json"
 # 軽量モードで「前回チェック以降に変わった管理ファイル」を絞り込むための対象プレフィックス。
 # これに該当する差分だけ Claude が意味確認すればよい（コア12チェックは常に全件実行）。
 MANAGED_PREFIXES = (
-    "CLAUDE.md", "STATUS.md", "handover.md", "task_diary.md",
+    "CLAUDE.md", "STATUS.md", "handover.md", "awaiting-human.md", "task_diary.md",
     ".claude/skills/", ".claude/hooks/", ".claude/settings", ".mcp.json", "docs/",
 )
 
@@ -201,7 +201,7 @@ def check_hook_git_tracked():
 
 # ── 5. コンフリクトマーカー検知 ──────────────────────────────────────────
 def check_conflict_markers():
-    targets = ["CLAUDE.md", "STATUS.md", "handover.md", "task_diary.md"]
+    targets = ["CLAUDE.md", "STATUS.md", "handover.md", "awaiting-human.md", "task_diary.md"]
     skills_dir = ROOT / ".claude/skills"
     if skills_dir.is_dir():
         targets += [str(p.relative_to(ROOT)).replace("\\", "/") for p in skills_dir.glob("*/SKILL.md")]
@@ -392,7 +392,7 @@ def check_referenced_files():
     # ファイル名が現在消えているのはむしろ正しい（撤去済みフックの実例記述などが毎回ノイズになる）。
     # skill も対象に含める: shiori-tips の `tools/*.js` のような cwd 依存パスは、
     # 拡張子と走査対象の両方から漏れて機械チェックが原理的に検出できなかった（2026-07-25）。
-    targets = ["STATUS.md", "handover.md", "CLAUDE.md"]
+    targets = ["STATUS.md", "handover.md", "awaiting-human.md", "CLAUDE.md"]
     targets += sorted(str(p.relative_to(ROOT)) for p in (ROOT / ".claude/skills").rglob("SKILL.md"))
     # 2026-07-30 拡張: docs/** と .claude/plans 直下も対象へ。
     # なぜ必要だったか: 本チェックの対象は STATUS/handover/CLAUDE と skill だけで、一方の
@@ -510,7 +510,7 @@ def check_plans_references():
     2026-07-30 追記: 項目6 の**対象文書**は docs/** と .claude/plans 直下まで広がったが、
     上記のとおり除外しているのは「参照先が plans であること」なので本チェックの役割は変わらない。
     加えて本チェックは task_diary.md を発信元に含む（項目6 は凍結アーカイブとして除外）＝ここも差分。"""
-    docs = ["CLAUDE.md", "STATUS.md", "handover.md", "task_diary.md"]
+    docs = ["CLAUDE.md", "STATUS.md", "handover.md", "awaiting-human.md", "task_diary.md"]
     docs_dir = ROOT / "docs"
     if docs_dir.is_dir():
         docs += [str(p.relative_to(ROOT)).replace("\\", "/") for p in docs_dir.rglob("*.md")]
@@ -698,12 +698,32 @@ def check_size_budgets():
         elif n > 60:
             add("size_budget", "warn", "info", f"STATUS.md が {n} 行（目安60行超）。肥大の兆候")
 
-    txt = read_text("handover.md")
-    if txt is not None:
+    # 打ち消し線＝完了項目の残置。ADR 0028 で台帳を二分したので awaiting-human.md も同じ規約の下にある。
+    for ledger in ("handover.md", "awaiting-human.md"):
+        txt = read_text(ledger)
+        if txt is None:
+            continue
         strikes = len(re.findall(r"~~.+?~~", txt))
         if strikes:
             add("size_budget", "stale", "high",
-                f"handover.md に打ち消し線（完了項目の残置）が {strikes} 件。規約は「完了したら消す」＝行ごと削除すること")
+                f"{ledger} に打ち消し線（完了項目の残置）が {strikes} 件。規約は「完了したら消す」＝行ごと削除すること")
+
+        # なぜ打ち消し線だけでは足りないか: 2026-07-30 の分離作業で判明した実際の肥大は、打ち消し線を
+        # 一切使わず「実装済み。残＝実機目視のみ」の形で完了経緯を本文に残す型だった（打ち消し線検査は
+        # 0件のまま通り、handover が 42,000 字まで膨らんだ）。完了は git log が正本なので削り、人間待ちが
+        # 残るなら awaiting-human.md へ移すのが ADR 0028 の運用。
+        # 箇条書き行に限り、かつ「残＝／残は」の形に絞る＝引用ブロックの運用注記（「完了したら消す」）や
+        # 「残る注意点」のような通常表現を誤検知しないため（絞る前は誤検知4:真陽性1だった）。
+        leftovers = [
+            ln for ln in txt.splitlines()
+            if re.match(r"^\s*-\s", ln)
+            and re.search(r"実装済み|全フェーズ完了|実機PASS|PASS 済|目視OK", ln)
+            and re.search(r"残[＝=は]", ln)
+        ]
+        if leftovers:
+            add("size_budget", "stale", "info",
+                f"{ledger} に「完了＋残＝…」型の項目が {len(leftovers)} 件。完了経緯は git log が正本＝削り、"
+                f"残りが人間待ちなら awaiting-human.md へ（ADR 0028）。先頭: {leftovers[0].strip()[:60]}")
 
     txt = read_text("CLAUDE.md")
     if txt is not None:
