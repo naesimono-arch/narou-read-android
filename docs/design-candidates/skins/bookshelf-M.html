@@ -8,6 +8,8 @@
     ④第N/M話（既存の観測諸元） ⑤FAB「PDFを追加」（星光の金・恒常ナビの上に浮く） ⑥恒常ボトムナビ3タブ（本棚選択中）。
   ・K形で発見導線は「さがす」タブへ分離済み＝本棚下辺の発見バナー（まだ知らない星を探しに）は退役し、下辺はFAB＋恒常ナビへ。
   ・ボトムナビ骨格は bookshelf-K.html:229-248 をマークアップ・SVG・ラベルごと固定コピーし色のみ M トークンへ差替。
+  ・チップ行＝読書状態フィルタ（すべて/よみかけ/未読/読了）。実装は全スキン状態フィルタへ統一済み（SkyChips が正）のため、
+    ラベルチップ（異世界/完結済み/あとで読む）だった旧描画を実装へ追従して描き直した（2026-07-29 モック乖離の解消）。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -67,6 +69,7 @@
   .banner .bt .s{font-family:var(--gothic);font-size:9.5px;color:var(--dim);margin-top:4px;letter-spacing:.03em}
   .banner .track{width:100%;height:2px;background:rgba(150,168,214,.25);border-radius:2px;margin-top:6px;position:relative}
   .banner .track i{position:absolute;left:0;top:0;height:2px;width:25%;background:var(--star);border-radius:2px;box-shadow:0 0 5px rgba(233,221,180,.6)}
+  /* 読書状態フィルタチップ（すべて/よみかけ/未読/読了＝実装 SkyChips が正。選択＝星光縁） */
   .chips{display:flex;gap:8px;overflow-x:auto;padding:12px 20px 4px;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
   .chip{flex-shrink:0;font-family:var(--gothic);font-size:11px;color:var(--dim);border:1px solid var(--line);
     border-radius:999px;padding:6px 14px;cursor:pointer;letter-spacing:.02em}
@@ -209,8 +212,9 @@
           <div class="track"><i></i></div>
         </div>
       </div>
+      <!-- 読書状態フィルタ（「すべて」既定選択。並び・選択の意味は実装 SkyChips＝正に一致） -->
       <div class="chips">
-        <span class="chip on">すべて</span><span class="chip">異世界</span><span class="chip">完結済み</span><span class="chip">あとで読む</span>
+        <span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span>
       </div>
     </div>
 

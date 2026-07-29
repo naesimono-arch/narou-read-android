@@ -7,6 +7,8 @@
   ・温存する意匠 = Jポータルの森ダーク世界・扉の大気(ambient)グラデ＋象徴文字による書影・
     peek帯（左右に並ぶ扉の気配）・金(強調)/森緑(世界・続きあり)/宵紫(他の扉)の3系統。
   ・可視⋮の常設は K 形の回答（旧Jグリッドは長押しが⋮唯一導線という問題があった）＝キャプション行右端に必ず置く。
+  ・チップ行＝読書状態フィルタ（すべて/よみかけ/未読/読了）。実装は全スキン状態フィルタへ統一済み（PortalChips が正）のため、
+    ラベルチップ（異世界/完結済み/あとで読む）だった旧描画を実装へ追従して描き直した（2026-07-29 モック乖離の解消）。
   署名色: 金(構造・強調/選択タブ/FAB)・森緑(続きあり・未読)・宵紫(peek)。単一画面・ダークのみ。
 -->
 <!DOCTYPE html>
@@ -56,7 +58,7 @@
     background:rgba(0,0,0,.2);display:grid;place-items:center;color:var(--soft);cursor:pointer;backdrop-filter:blur(6px)}
   .head .view svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.6}
 
-  /* 巡る扉を絞る（ラベル絞り込みチップ＝J固有の温存。選択＝金縁） */
+  /* 扉を読書状態で絞る（状態フィルタチップ＝実装 PortalChips が正。選択＝金縁のJ語彙） */
   .chips{position:relative;z-index:3;flex-shrink:0;display:flex;gap:8px;overflow-x:auto;
     scrollbar-width:none;padding:0 22px 12px}
   .chips::-webkit-scrollbar{display:none}
@@ -150,9 +152,9 @@
       </button>
     </div>
 
-    <!-- 巡る扉を絞る（ラベルチップ＝J温存） -->
+    <!-- 読書状態フィルタ（「すべて」既定選択。並び・選択の意味は実装 PortalChips＝正に一致） -->
     <div class="chips">
-      <span class="chip on">すべて</span><span class="chip">異世界</span><span class="chip">完結済み</span><span class="chip">あとで読む</span>
+      <span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span>
     </div>
 
     <div class="scroll">
