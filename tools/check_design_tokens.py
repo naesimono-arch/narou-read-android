@@ -90,19 +90,23 @@ def parse_reading_colors(kt_rel: str) -> dict[str, dict[str, str]]:
 # ---- 期待表（保守対象。モック改版・トークン改名時はここを更新する） ---------------
 
 # 標準変数セット（発見系・UI-n 4画面等の :root）→ Color.kt ライトトークン。
-# 変数がファイルに存在するときのみ照合（--soft/--ink-soft の揺れは両方マップ）。
-STANDARD_VARS = {
-    "--base": "BackgroundLight",
-    "--bg": "BackgroundLight",
-    "--ink": "OnBackgroundLight",
-    "--ink-soft": "OnSurfaceVariantLight",
-    "--soft": "OnSurfaceVariantLight",
-    "--line": "OutlineVariantLight",
-    "--ai": "PrimaryLight",
-    "--seiji": "SecondaryLight",
-    "--seiji-ink": "UnreadSeiji",
-    "--sj-ink": "UnreadSeiji",
-}
+# 表の単位は「1 論理トークン = 別名の集合」。
+# なぜ別名を集合で持つか（2026-07-30 の SKIP 棚卸しで是正）: モックは世代で命名が揺れており
+# （--base/--bg・--ink-soft/--soft・--seiji-ink/--sj-ink）、これを平坦な dict で別エントリとして
+# 持つと「使われていない方の別名」が毎ファイル SKIP として計上される。実測 SKIP 42 件のうち 32 件が
+# これで、内訳は「別名の片方が不在なだけ」の空振り 22 件＋「同じ役割の不在を別名の数だけ二重計上」10 件。
+# どちらも照合できていない実体ではないのに SKIP_BASELINE ラチェットの雑音になり、本物の照合漏れを埋没させる。
+# 判定: 別名のうち宣言されているものを全て照合する（両方宣言されていれば両方＝カバレッジは減らさない）。
+# 1 つも宣言が無いときだけ 1 件の SKIP を出し、理由を EXPECTED_SKIPS に明記させる。
+STANDARD_VAR_GROUPS: list[tuple[tuple[str, ...], str]] = [
+    (("--base", "--bg"), "BackgroundLight"),
+    (("--ink",), "OnBackgroundLight"),
+    (("--ink-soft", "--soft"), "OnSurfaceVariantLight"),
+    (("--line",), "OutlineVariantLight"),
+    (("--ai",), "PrimaryLight"),
+    (("--seiji",), "SecondaryLight"),
+    (("--seiji-ink", "--sj-ink"), "UnreadSeiji"),
+]
 
 # 標準変数セットで照合する正本モック（探索・歴史記録のモックは対象外＝drift 検査の意味がない）。
 STANDARD_FILES = [
@@ -119,12 +123,13 @@ STANDARD_FILES = [
 ]
 
 # 本棚系（目録・栞整合）の家系トークン（--hl/--track のライト値。ADR 0014 適用裁定）。
-SHELF_VARS = {
-    "--hl": "ShelfHairlineLight",
-    "--track": "ShelfHairlineLight",
-    "--seiji-ink": "UnreadSeiji",
-    "--sj-ink": "UnreadSeiji",
-}
+# --hl と --track は同じ ShelfHairlineLight を指すが「別名」ではなく別役割（強調線／進捗の溝）で、
+# どちらのモックも両方を宣言している＝両方の宣言を要求する（別エントリのまま置く）。
+SHELF_VAR_GROUPS: list[tuple[tuple[str, ...], str]] = [
+    (("--hl",), "ShelfHairlineLight"),
+    (("--track",), "ShelfHairlineLight"),
+    (("--seiji-ink", "--sj-ink"), "UnreadSeiji"),
+]
 SHELF_FILES = [
     "bookshelf-mokuroku-D.html",
     "bookshelf-shiori-consistency-D.html",
@@ -300,13 +305,63 @@ GRACE_FILES: set[str] = set()
 # ---- SKIP ベースライン（「全滅 SKIP でも緑」の盲点封鎖） ---------------------------
 # なぜこの機構か: SKIP は「その変数宣言がモックに無い＝照合対象外」で、ファイルごとに使う変数が
 # 違う以上 SKIP 自体は正常。だが判定が「宣言が在るときだけ照合」のため、モック側で変数名を一斉
-# リネームすると全照合が NG でなく SKIP へ落ち、OK が減っても exit 0 の緑のまま通る盲点があった
-# （2026-07-27 時点の実測 OK=192 NG=0 SKIP=42）。そこで実測 SKIP 数を定数として焼き込み、
-# 超過（＝照合が SKIP へ漏れ始めた合図）で exit 1 にするラチェットを敷く。
-# ベースライン更新手順: モック改版・期待表の増減で SKIP 数が意図的に変わったら、
-#   python3 tools/check_design_tokens.py を実行 → 出力の [SKIP] 一覧が全件意図どおりか目視 →
-#   本定数を新しい実測値へ書き換える（減った場合も [INFO] が出るので追従して締め直す）。
-SKIP_BASELINE = 42
+# リネームすると全照合が NG でなく SKIP へ落ち、OK が減っても exit 0 の緑のまま通る盲点があった。
+# そこで実測 SKIP 数を定数として焼き込み、超過（＝照合が SKIP へ漏れ始めた合図）で exit 1 にする。
+#
+# なぜ「数」だけでは足りず EXPECTED_SKIPS（下）を併置するか（2026-07-30 の棚卸しで追加）:
+# 数のラチェットは「A の照合が消えて B の照合が復活した」を素通しする（差し引き 0 で緑のまま）。
+# また 42 件の SKIP が匿名の塊で、どれが構造上の対象外でどれが本物の追従漏れかを誰も言えず、
+# 「照合できていない 18%」が固定化していた。SKIP を鍵付きで列挙し理由を必須にすることで、
+#   - 未知の SKIP が生まれたら NG（＝新しい照合漏れを名指しで検知）
+#   - 表にある SKIP が消えたら INFO/NG（＝復活したので締め直す／表が drift した）
+# となり、SKIP の総数ではなく「SKIP の中身」がラチェットになる。
+#
+# 【現在の内訳】SKIP=10（別名グループ化で雑音 32 件＝別名の空振り 22・二重計上 10 を解消した後の実測値。
+# 照合できていた OK は 193 件のまま増減なし＝カバレッジを削って SKIP を減らしたのではない）。
+#   - モック追従待ち 3 件 = fusion-D / shiori-grid-D / shiori-consistency-D。未読・未取込ラベルが
+#     装飾色のままで濃青磁 UnreadSeiji へ追従しておらず、対応する CSS 変数自体が無い（要意匠裁定）。
+#   - 役割不在 7 件 = 発見系 5 画面・toc-D・settings-D。未読ラベルという役割がその画面に無い。
+#   - 構造的に照合不能な変数（rgba 宣言・テーマ別 3 宣言が揃わない等）は SKIP ではなく
+#     READING_VARS_* の期待表から除外済み＝各表の why コメントが理由の正本（C の導出値・M の
+#     rgba --line・P の chrome 単一宣言・J の ambient）。
+# ベースライン更新手順: モック改版・期待表の増減で SKIP が意図的に変わったら、
+#   python3 tools/check_design_tokens.py を実行 → [SKIP] 一覧が全件意図どおりか目視 →
+#   EXPECTED_SKIPS を増減し、本定数を新しい実測値へ書き換える。
+SKIP_BASELINE = 10
+
+# SKIP 1 件ごとの理由（鍵 = 上の [SKIP] ラベルと同一文字列。別名グループは "--a|--b" で表す）。
+# 「モックの意匠を機械が直すのは禁止」（CLAUDE.md /visual-language）なので、追従漏れは隠さず
+# ここへ理由付きで可視化したまま置き、人間の裁定で解消したら行を消す＝CONTRAST_BASELINE と同じ思想。
+_SKIP_NO_UNREAD_ROLE = (
+    "(c) 役割不在: この画面は未読/未取込の状態ラベルを持たない＝UnreadSeiji に対応する CSS 変数が"
+    "存在しないのが正しい。宣言が現れたら照合が始まる（そのとき本行を削除して締め直す）")
+_SKIP_MOCK_LAGS_UNREAD = (
+    "(b) モック追従待ち【要裁定】: 未読/未取込ラベルはあるが装飾色のままで、濃青磁 UnreadSeiji "
+    "#50685C（素地 5.79:1）へ追従していないため対応変数が無い。ADR 0014-D『意味を運ぶ文字は "
+    "WCAG 4.5:1 ＞ 美学』の裁定は実装側（BookCard.kt・SkinD.shelf）にだけ入り、モックが取り残された。"
+    "モックの色は意匠＝人間の裁定領域のため機械では直さない")
+EXPECTED_SKIPS: dict[str, str] = {
+    # --- (c) 未読ラベルという役割がその画面に無い ---
+    "discovery/discovery-home-D.html --seiji-ink|--sj-ink": _SKIP_NO_UNREAD_ROLE,
+    "discovery/discovery-search-D.html --seiji-ink|--sj-ink": _SKIP_NO_UNREAD_ROLE,
+    "discovery/discovery-genre-D.html --seiji-ink|--sj-ink": _SKIP_NO_UNREAD_ROLE,
+    # 詳細画面の「未読」は説明キャプションの地の文だけで、状態ラベルとしては描かれない
+    "discovery/discovery-detail-D.html --seiji-ink|--sj-ink": _SKIP_NO_UNREAD_ROLE,
+    "discovery/reading-continuation-D.html --seiji-ink|--sj-ink": _SKIP_NO_UNREAD_ROLE,
+    "toc-D.html --seiji-ink|--sj-ink": _SKIP_NO_UNREAD_ROLE,
+    "settings-D.html --seiji-ink|--sj-ink": _SKIP_NO_UNREAD_ROLE,
+    # --- (b) 役割はあるが装飾色のまま＝モック側の追従待ち ---
+    "discovery/bookshelf-fusion-D.html --seiji-ink|--sj-ink":
+        _SKIP_MOCK_LAGS_UNREAD + "。実箇所 `.bk-card.narou-unimported .meta-row`（なろう・未取込）が "
+        "--seiji #9CB3A8＝素地 2.14:1",
+    "bookshelf-shiori-grid-D.html --seiji-ink|--sj-ink":
+        _SKIP_MOCK_LAGS_UNREAD + "。実箇所 `.bk .mr`（なろう・未取込）が --seiji #9CB3A8＝2.14:1、"
+        "`.bk .sr`（短編・未読）が --ink-soft #7C808B＝3.79:1",
+    "bookshelf-shiori-consistency-D.html --seiji-ink|--sj-ink":
+        _SKIP_MOCK_LAGS_UNREAD + "。実箇所 `.li .m .u`（未読）が --sj #9CB3A8＝2.14:1、"
+        "`.bk .sr`（短編・未読）が --sub #7C808B＝3.79:1。同世代の bookshelf-mokuroku-D は "
+        "64c52da で --sj-ink へ追従済み＝本ファイルだけ取り残された取りこぼし",
+}
 
 def find_decls(text: str, var: str) -> list[str]:
     return [m.upper() for m in re.findall(rf"{re.escape(var)}\s*:\s*#([0-9A-Fa-f]{{6}})\b", text)]
@@ -723,16 +778,13 @@ def main() -> int:
     # SKIP の内訳（識別子＋理由）。総数だけだと「どの照合が対象外へ落ちたか」が追えず、
     # ベースライン超過時の原因特定も目視更新（手順は SKIP_BASELINE コメント）もできないため列挙する。
     skip_details: list[str] = []
+    observed_skips: set[str] = set()   # 実際に SKIP になった別名グループのラベル
+    group_labels: set[str] = set()     # 評価した別名グループのラベル（SKIP に落ちたかは問わない）
+    stale_skip_notes: list[str] = []   # EXPECTED_SKIPS の締め直し案内
 
-    def check(label: str, actual: list[str], expected: str | None, token_name: str) -> None:
-        nonlocal ok, ng, skip
-        if expected is None:
-            failures.append(f"[NG] {label}: トークン {token_name} が Color.kt に見つからない")
-            ng += 1
-        elif not actual:
-            skip += 1
-            skip_details.append(f"[SKIP] {label}: 変数宣言がモックに無い＝照合対象外（対応トークン {token_name}）")
-        elif expected in actual:
+    def check(label: str, actual: list[str], expected: str, token_name: str) -> None:
+        nonlocal ok, ng
+        if expected in actual:
             ok += 1
         else:
             failures.append(f"[NG] {label}: モック宣言 {actual} ⇄ {token_name}=#{expected}")
@@ -745,9 +797,33 @@ def main() -> int:
             ng += 1
             continue
         text = path.read_text(encoding="utf-8")
-        var_map = STANDARD_VARS if rel in STANDARD_FILES else SHELF_VARS
-        for var, token_name in var_map.items():
-            check(f"{rel} {var}", find_decls(text, var), tokens.get(token_name), token_name)
+        groups = STANDARD_VAR_GROUPS if rel in STANDARD_FILES else SHELF_VAR_GROUPS
+        for names, token_name in groups:
+            glabel = f"{rel} {'|'.join(names)}"
+            group_labels.add(glabel)
+            expected = tokens.get(token_name)
+            if expected is None:
+                failures.append(f"[NG] {glabel}: トークン {token_name} が Color.kt に見つからない")
+                ng += 1
+                continue
+            # 別名は「どれか 1 つが在れば足りる」ではなく「在るものは全部照合する」。
+            # 片方だけ見て打ち切ると、両方宣言されたモックで残りが無検査になるため。
+            declared = [(n, d) for n in names if (d := find_decls(text, n))]
+            if not declared:
+                skip += 1
+                observed_skips.add(glabel)
+                reason = EXPECTED_SKIPS.get(glabel)
+                if reason is None:
+                    failures.append(
+                        f"[NG] 未文書化の SKIP: {glabel}（対応トークン {token_name}）。"
+                        f"モックの変数リネーム等で照合が静かに落ちた疑い＝原因を確かめ、"
+                        f"意図的なら理由を EXPECTED_SKIPS へ登録する")
+                    ng += 1
+                else:
+                    skip_details.append(f"[SKIP] {glabel}（対応トークン {token_name}）: {reason}")
+                continue
+            for name, decls in declared:
+                check(f"{rel} {name}", decls, expected, token_name)
 
     # 各スキンの reading: テーマ順序照合（SKIN_READING 表駆動。D は移設前と完全同値）
     for skin_id, spec in SKIN_READING.items():
@@ -938,6 +1014,20 @@ def main() -> int:
             failures.append(f"[NG] Typography.kt {name}={sp}sp: モック群の font-size px に不在（drift）")
             ng += 1
 
+    # EXPECTED_SKIPS の逆照合（CONTRAST_BASELINE と同じ保守則）。
+    #   - 表にあるのに SKIP しなくなった＝照合が復活した → INFO（良化なので止めず締め直しを促す）
+    #   - そもそも評価対象に現れない＝ファイル名や別名グループが drift した → NG（表が死んでいる）
+    for glabel in sorted(EXPECTED_SKIPS):
+        if glabel in observed_skips:
+            continue
+        if glabel in group_labels:
+            stale_skip_notes.append(f"[INFO] EXPECTED_SKIPS の {glabel} は照合が復活した"
+                                    f"（変数宣言がモックに現れた）。行を削除して締め直す")
+        else:
+            failures.append(f"[NG] EXPECTED_SKIPS の項目 {glabel} が検査対象に現れない"
+                            f"（ファイル表・別名グループの drift＝この行が死んでいる）")
+            ng += 1
+
     # a11y コントラスト（WCAG 4.5:1）。既存の failures へ [NG] を積み、内訳は notes へ。
     contrast_notes: list[str] = []
     c_ok, contrast_ng, c_base, c_skip, c_total = check_contrast(failures, contrast_notes)
@@ -950,6 +1040,8 @@ def main() -> int:
     for line in failures:
         print(line)
     for line in contrast_notes:
+        print(line)
+    for line in stale_skip_notes:
         print(line)
     for line in skip_details:
         print(line)
