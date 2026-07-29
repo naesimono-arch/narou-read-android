@@ -83,7 +83,10 @@ import java.util.Locale
 fun DiscoveryResultScreen(
     viewModel: DiscoveryViewModel,
     onUp: () -> Unit,
-    onBack: () -> Unit,
+    // 「条件を変更/調整」導線専用（SEARCH 発の結果一覧→検索画面へ・履歴 pop）。システム Back はここを
+    // 通らない＝Back も ← も階層 up（onUp）で一本（MainActivity の BackHandler が受ける・2026-07-29 統一
+    // ＝ADR 0026）。旧名 onBack は「Back の受け口」と誤読され pop を再配線される罠のため用途名へ改名。
+    onEditConditions: () -> Unit,
     onOpenDetail: (ncode: Ncode) -> Unit,
 ) {
     val context by viewModel.resultContext.collectAsStateWithLifecycle()
@@ -93,7 +96,7 @@ fun DiscoveryResultScreen(
         ctx = context,
         state = state,
         onUp = onUp,
-        onBack = onBack,
+        onEditConditions = onEditConditions,
         onOpenDetail = onOpenDetail,
         onChangeOrder = { viewModel.changeResultOrder(it) },
         onChangeGenreFilter = { biggenres, genres -> viewModel.changeResultGenreFilter(biggenres, genres) },
@@ -114,7 +117,8 @@ internal fun DiscoveryResultContent(
     ctx: ResultContext?,
     state: DiscoveryUiState,
     onUp: () -> Unit,
-    onBack: () -> Unit,
+    // 「条件を変更/調整」専用（KDoc は DiscoveryResultScreen 側参照）。Back/← は onUp（階層 up）で一本。
+    onEditConditions: () -> Unit,
     onOpenDetail: (ncode: Ncode) -> Unit,
     onChangeOrder: (NarouOrder) -> Unit,
     onChangeGenreFilter: (biggenres: Set<Int>, genres: Set<Int>) -> Unit,
@@ -131,7 +135,7 @@ internal fun DiscoveryResultContent(
                 ctx = ctx,
                 state = state,
                 onUp = onUp,
-                onBack = onBack,
+                onEditConditions = onEditConditions,
                 onOpenDetail = onOpenDetail,
                 onChangeOrder = onChangeOrder,
                 onChangeGenreFilter = onChangeGenreFilter,
@@ -146,7 +150,7 @@ internal fun DiscoveryResultContent(
                 ctx = ctx,
                 state = state,
                 onUp = onUp,
-                onBack = onBack,
+                onEditConditions = onEditConditions,
                 onOpenDetail = onOpenDetail,
                 onChangeOrder = onChangeOrder,
                 onChangeGenreFilter = onChangeGenreFilter,
@@ -161,7 +165,7 @@ internal fun DiscoveryResultContent(
                 ctx = ctx,
                 state = state,
                 onUp = onUp,
-                onBack = onBack,
+                onEditConditions = onEditConditions,
                 onOpenDetail = onOpenDetail,
                 onChangeOrder = onChangeOrder,
                 onChangeGenreFilter = onChangeGenreFilter,
@@ -200,9 +204,10 @@ internal fun DiscoveryResultContent(
                     )
                 },
                 navigationIcon = {
-                    // F-D（公理1）: App bar の ← は経路に依らず「発見ホーム」への固定 Up にする。
-                    // 旧実装は onBack(履歴 pop)で、検索/ジャンル経由だと検索画面・ジャンル画面へ落ち Up が
-                    // 経路で別階層へ割れていた。履歴 Back は端末 Back に委ね、Up は常に一段上の親へ揃える。
+                    // 階層 up（2026-07-29 一本化・ADR 0026）: ← は一段上の親＝発見ホームへ。検索/ジャンル画面は
+                    // 結果の親でなく「条件編集の横道」＝up は飛ばす（検索画面へは「条件を変更」が明示導線）。
+                    // システム Back も同じ up（MainActivity の BackHandler）＝旧「←＝固定 Up／Back＝履歴 pop」の
+                    // 二本立て（D 統一 2026-07-12・F-D 公理1）は廃止し、読書側と同じ一規則に揃えた。
                     IconButton(onClick = onUp) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -421,7 +426,7 @@ internal fun DiscoveryResultContent(
                             // 静的チップと縦センターを揃える（上のFlowRowコメント参照）
                             .align(Alignment.CenterVertically)
                             .minimumInteractiveComponentSize()
-                            .clickable { onBack() },
+                            .clickable { onEditConditions() },
                     ) {
                         Text(
                             text = "条件を変更",
@@ -439,8 +444,8 @@ internal fun DiscoveryResultContent(
                         DiscoveryStatusBox(DiscoveryStatus.Loading, modifier = Modifier.fillMaxSize())
                     is DiscoveryUiState.Empty -> ResultEmpty(
                         source = ctx.source,
-                        onAdjust = onBack,          // SEARCH: 条件シート（検索画面）へ戻す
-                        onBackToDiscovery = onUp,   // GENRE/MOOD/KEYWORD: 戻り先に条件シートが無いので発見ホームへ
+                        onAdjust = onEditConditions, // SEARCH: 条件シート（検索画面）へ戻す
+                        onBackToDiscovery = onUp,    // GENRE/MOOD/KEYWORD: 戻り先に条件シートが無いので発見ホームへ
                         modifier = Modifier.fillMaxSize(),
                     )
                     is DiscoveryUiState.Error -> DiscoveryStatusBox(

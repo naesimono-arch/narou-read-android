@@ -33,3 +33,4 @@
 | [0023](0023-high-load-sky-mode.md) | 高負荷スカイモード＝美しさ特化・負荷許容のプロダクト概念（当面M夜空・debugトグル試作から。HTML正本原則のこの領域での例外＝実機トグル先行探索・モーション裁定も「実機トグルで先に見せて裁定」へ差替・jank%ゲートは維持。HTMLで追い込み/通常モード直重化 却下） | — |
 | [0024](0024-generic-scraping-adapter-foundation.md) | 汎用Web小説DL基盤＝サイトごと抽出器を scrape/ に分離（NovelSiteAdapter）・出力は既存 RawChapter で HtmlExporter に合流しPDF蔵書とバイト同契約・規約線は SiteAdapterRegistry の3値ゲート（Supported/Blocked/Unsupported・なろうはBlockedで公式送り）・破損は fixtureゴールデンで機械検知（Web用新経路/一律スクレイピング/暗黙非対応/ライブ疎通テスト 却下） | — |
 | [0025](0025-version-numbering-scheme.md) | versionCode/versionName 採番規約＝versionCode 通し連番（意味なし・アップロード毎+1）×versionName semver 風（意味はこちらのみ・初回公開 1.0.0・テストトラック suffix なし。日付ベース/versionName 導出 却下案として比較。2026-07-29 Accepted） | — |
+| [0026](0026-discovery-back-hierarchy-up-unification.md) | 発見サブツリーの戻り規則＝階層 up 一本化（←・Back とも 詳細→直近の結果一覧→発見ホーム。旧「D 統一 2026-07-12」＝←固定 Up／Back 履歴 pop の二本立てを改訂・初の正式記録も兼ねる。検索/ジャンルは横道＝onEditConditions 明示導線のみ。二本立て維持/←を既定 pop へ/履歴全遡り 却下） | — |

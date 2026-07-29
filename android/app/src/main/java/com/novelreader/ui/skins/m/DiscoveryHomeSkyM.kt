@@ -255,7 +255,8 @@ internal fun DiscoveryResultSkyM(
     ctx: ResultContext?,
     state: DiscoveryUiState,
     onUp: () -> Unit,
-    onBack: () -> Unit,
+    // 「条件を変更」導線専用（検索画面へ）。Back/← は onUp（階層 up）で一本（2026-07-29 統一＝ADR 0026）。
+    onEditConditions: () -> Unit,
     onOpenDetail: (ncode: Ncode) -> Unit,
     onChangeOrder: (NarouOrder) -> Unit,
     onChangeGenreFilter: (biggenres: Set<Int>, genres: Set<Int>) -> Unit,
@@ -325,11 +326,11 @@ internal fun DiscoveryResultSkyM(
             }
 
             // .conds: 条件チップ（星光枠 .cd）＋調整可チップ（.cd.adj）。D の条件ドロップダウン一式を M 意匠へ写す。
-            ResultCondsSky(ctx, onChangeOrder, onChangeGenreFilter, onBack)
+            ResultCondsSky(ctx, onChangeOrder, onChangeGenreFilter, onEditConditions)
 
             when (val s = state) {
                 is DiscoveryUiState.Loading -> SkyStatusLine("観測しています…")
-                is DiscoveryUiState.Empty -> ResultEmptySky(ctx.source, onAdjust = onBack, onBackToDiscovery = onUp)
+                is DiscoveryUiState.Empty -> ResultEmptySky(ctx.source, onAdjust = onEditConditions, onBackToDiscovery = onUp)
                 is DiscoveryUiState.Error -> SkyErrorLine(s.message, onRefresh)
                 is DiscoveryUiState.Content -> LazyColumn(
                     // スクロール差分を backdrop の視差へ流す（onPostScroll consumed.y＝画面遷移で連続）。
@@ -721,7 +722,7 @@ private fun ResultCondsSky(
     ctx: ResultContext,
     onChangeOrder: (NarouOrder) -> Unit,
     onChangeGenreFilter: (biggenres: Set<Int>, genres: Set<Int>) -> Unit,
-    onBack: () -> Unit,
+    onEditConditions: () -> Unit,
 ) {
     FlowRow(
         modifier = Modifier.fillMaxWidth().padding(start = Spacing.S24, end = Spacing.S24, top = Spacing.S16, bottom = Spacing.S4),
@@ -787,7 +788,7 @@ private fun ResultCondsSky(
 
         if (ctx.source == ResultSource.SEARCH) {
             // 「条件を変更」で戻る先は検索画面＝SEARCH のみ（他発だと戻り先に条件シートが無く騙し導線・D と同判定）。
-            CondChip("条件を変更", adjustable = true, onClick = onBack)
+            CondChip("条件を変更", adjustable = true, onClick = onEditConditions)
         }
     }
 }

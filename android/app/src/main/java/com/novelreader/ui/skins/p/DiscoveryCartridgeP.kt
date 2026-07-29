@@ -289,7 +289,8 @@ internal fun DiscoveryResultCartridgeP(
     ctx: ResultContext?,
     state: DiscoveryUiState,
     onUp: () -> Unit,
-    onBack: () -> Unit,
+    // 「条件を調整」導線専用（検索画面へ）。Back/← は onUp（階層 up）で一本（2026-07-29 統一＝ADR 0026）。
+    onEditConditions: () -> Unit,
     onOpenDetail: (ncode: Ncode) -> Unit,
     onChangeOrder: (NarouOrder) -> Unit,
     onChangeGenreFilter: (biggenres: Set<Int>, genres: Set<Int>) -> Unit,
@@ -341,11 +342,11 @@ internal fun DiscoveryResultCartridgeP(
             DemoPanel(ctx)
 
             // .conds＝条件チップ（青ink 枠 .cd／調整可 .cd.adj は退色レッド）。D の条件ドロップダウン一式を写す。
-            ResultConds(ctx, onChangeOrder, onChangeGenreFilter, onBack)
+            ResultConds(ctx, onChangeOrder, onChangeGenreFilter, onEditConditions)
 
             when (val s = state) {
                 is DiscoveryUiState.Loading -> PhosStatusLine("LOADING…", "読み込んでいます")
-                is DiscoveryUiState.Empty -> ResultEmptyCartridge(ctx.source, onAdjust = onBack, onBackToDiscovery = onUp)
+                is DiscoveryUiState.Empty -> ResultEmptyCartridge(ctx.source, onAdjust = onEditConditions, onBackToDiscovery = onUp)
                 is DiscoveryUiState.Error -> InkErrorLine(s.message, onRefresh)
                 is DiscoveryUiState.Content -> LazyColumn(
                     modifier = Modifier.fillMaxWidth().weight(1f),
@@ -935,7 +936,7 @@ private fun ResultConds(
     ctx: ResultContext,
     onChangeOrder: (NarouOrder) -> Unit,
     onChangeGenreFilter: (biggenres: Set<Int>, genres: Set<Int>) -> Unit,
-    onBack: () -> Unit,
+    onEditConditions: () -> Unit,
 ) {
     FlowRow(
         modifier = Modifier.fillMaxWidth().padding(start = Spacing.S16, end = Spacing.S16, top = Spacing.S12, bottom = Spacing.S4),
@@ -1001,7 +1002,7 @@ private fun ResultConds(
 
         if (ctx.source == ResultSource.SEARCH) {
             // 「条件を調整」で戻る先は検索画面＝SEARCH のみ（他発だと戻り先に条件シートが無く騙し導線・D と同判定）。
-            CondChip("条件を調整", adjustable = true, onClick = onBack)
+            CondChip("条件を調整", adjustable = true, onClick = onEditConditions)
         }
     }
 }

@@ -89,7 +89,7 @@ class DiscoveryCartridgePTest {
                         ctx = ctx,
                         state = state,
                         onUp = onUp,
-                        onBack = {},
+                        onEditConditions = {},
                         onOpenDetail = onOpenDetail,
                         onChangeOrder = {},
                         onChangeGenreFilter = { _, _ -> },

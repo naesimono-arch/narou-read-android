@@ -48,7 +48,7 @@ class DiscoveryResultContentTest {
                     ctx = ctx,
                     state = state,
                     onUp = {},
-                    onBack = {},
+                    onEditConditions = {},
                     onOpenDetail = {},
                     onChangeOrder = {},
                     onChangeGenreFilter = { _, _ -> },

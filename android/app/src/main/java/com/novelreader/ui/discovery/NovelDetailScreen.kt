@@ -130,8 +130,10 @@ fun NovelDetailScreen(
     // 廃し、目次(初回)と続きから(記録話へ直接)の2着地をルート層のナビへ委ねる（描画層は callback を叩くだけ）。
     onReadFromToc: () -> Unit,
     onResumeReading: (episode: Int) -> Unit,
-    // 作品詳細の ← は「Result 同型の固定Up」＝到達経路（発見ホーム/結果一覧）に依らず discovery(発見ホーム)へ
-    // 一貫して戻す（D 統一・2026-07-12）。経路依存の履歴 Back は端末 Back に委ねる（DiscoveryResultScreen.onUp と同型）。
+    // 作品詳細の ← は階層 up＝一段上の「直近の結果一覧」へ（発見ホーム直行入場だけは発見ホームへ）。
+    // システム Back も同じ up で一本（MainActivity の BackHandler・分岐の機序は upFromDiscoveryDetail の KDoc）。
+    // 旧「←＝発見ホーム固定 Up／Back＝履歴 pop」の二本立て（D 統一・2026-07-12）は 2026-07-29 ユーザー裁定
+    // 「わかりやすく」で廃止＝読書側（章→目次→本棚）と同じ一規則（ADR 0026）。
     onUp: () -> Unit,
 ) {
     LaunchedEffect(ncode) {
@@ -226,7 +228,8 @@ internal fun NovelDetailContent(
                     }
                 },
                 navigationIcon = {
-                    // 固定Up（D 統一）: 経路に依らず発見ホームへ。DiscoveryResultScreen の ← と同型。
+                    // 階層 up（2026-07-29 一本化・ADR 0026）: 一段上＝直近の結果一覧へ（ホーム直行入場は発見ホームへ）。
+                    // Back も同じ up（旧「固定 Up／履歴 pop」二本立て＝D 統一 2026-07-12 は廃止）。
                     IconButton(onClick = onUp) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,

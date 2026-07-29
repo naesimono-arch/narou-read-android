@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterExitState
@@ -47,6 +48,7 @@ import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import com.novelreader.model.BookId
 import com.novelreader.narou.model.DiscoveryQuery
+import com.novelreader.narou.webNewEpisodeMarkKey
 import com.novelreader.narou.model.Ncode
 import com.novelreader.review.PlayReviewPrompter
 import com.novelreader.scrape.SiteAdapterRegistry
@@ -319,6 +321,9 @@ private fun NovelReaderApp(
             (appContext as NovelReaderApplication).let { app ->
                 app.cancelCompletionNotification(bookId)
                 book.ncode?.let { app.cancelNewEpisodeNotification(it) }
+                // Web 蔵書の新着通知は "web:<bookId>" キー（NewEpisodeCheckLogic.webNewEpisodeMarkKey）
+                // で発行されるため、ncode 経路とは別に取り下げる（U1 Web 統合 2026-07-29 の追従）。
+                if (book.sourceUrl != null) app.cancelNewEpisodeNotification(webNewEpisodeMarkKey(book.id))
             }
             // 読書位置は保存済み進捗を尊重する（生命線）。未読なら index.html。
             // 境界: bookId は deep link 由来の String＝型付き API へ渡す直前に BookId へ包む。
@@ -575,16 +580,20 @@ private fun NovelReaderApp(
         }
 
         composable("discovery/result") {
+            // 階層 up 一本化（2026-07-29 ユーザー裁定「わかりやすく」・ADR 0026）: ← もシステム Back も
+            // 「一段上＝発見ホーム」へ。旧「←＝発見ホーム固定 Up／Back＝履歴 pop」の二本立て
+            // （D 統一 2026-07-12）は廃止し、読書側（章→目次→本棚・2026-07-23 統一）と同じ
+            // 「両操作とも階層を1段上がる」一規則へ揃えた。
+            // 検索/ジャンル画面は結果の親でなく「条件編集の横道」＝up はそれらを飛ばして畳む
+            // （全ての結果経路はタブ層「さがす」ページを必ず下位に持つ＝popToTab で一貫して一段上へ）。
+            // 検索画面へ戻るのは「条件を変更」（onEditConditions）だけが明示導線として担う。
+            // 旧ルート名リテラル pop の黙殺バグ（2026-07-27）と封鎖の経緯は popToTab の KDoc。
+            val upToDiscoverHome = { popToTab(navController, tabPagerState, KTab.DISCOVER) }
+            BackHandler { upToDiscoverHome() }
             DiscoveryResultScreen(
                 viewModel = discoveryViewModel,
-                // F-D: App bar の ← は経路に依らず発見ホームへ固定 Up する。全ての結果経路
-                // （検索/ジャンル/気分/キーワード）はタブ層の「さがす」ページを必ず下位に持つため、
-                // タブ層へ pop ＋ さがすページへスナップすれば一段上の親へ一貫して戻れる。
-                // 履歴 Back（onBack）は端末 Back と「条件を変更」に委ねる。
-                // 旧 popBackStack("discovery", false) はタブ Pager 化（2026-07-24）でルート "discovery" が
-                // 消えた後も残留し、pop が黙殺されて ← が完全に無反応だった（2026-07-27 実機バグの真因）。
-                onUp = { popToTab(navController, tabPagerState, KTab.DISCOVER) },
-                onBack = { navController.popBackStack() },
+                onUp = upToDiscoverHome,
+                onEditConditions = { navController.popBackStack() },
                 // 境界: nav ルートは String。Ncode を .value でほどいてパスへ載せる。
                 onOpenDetail = { ncode -> navController.navigate("discovery/detail/${ncode.value}") { launchSingleTop = true } },
             )
@@ -595,6 +604,12 @@ private fun NovelReaderApp(
             arguments = listOf(navArgument("ncode") { type = NavType.StringType }),
         ) { backStackEntry ->
             val ncode = backStackEntry.arguments?.getString("ncode") ?: return@composable
+            // 階層 up 一本化（2026-07-29 ユーザー裁定・ADR 0026）: 作品詳細の ← もシステム Back も
+            // 「一段上＝直近の結果一覧」へ（発見ホーム直行入場だけは一段上＝発見ホーム）。
+            // 旧「←＝発見ホーム固定 Up／Back＝履歴 pop」の二本立て（D 統一 2026-07-12）は廃止。
+            // 分岐が安全である機序（詳細の直下は必ず〈結果一覧 or タブ層〉）は upFromDiscoveryDetail の KDoc。
+            val upFromDetail = { upFromDiscoveryDetail(navController, tabPagerState) }
+            BackHandler { upFromDetail() }
             NovelDetailScreen(
                 // 境界: nav 引数は String。詳細画面へは型付き Ncode へ包んで渡す。
                 ncode = Ncode(ncode),
@@ -628,12 +643,7 @@ private fun NovelReaderApp(
                 // 機能②: なろうをアプリ内 WebView で読む（ADR 0012）。目次(初回)＝0／続きから＝記録話 N を渡す。
                 onReadFromToc = { navController.navigate("web-reader/$ncode/0") { launchSingleTop = true } },
                 onResumeReading = { episode -> navController.navigate("web-reader/$ncode/$episode") { launchSingleTop = true } },
-                // D 統一（2026-07-12）: 作品詳細の ← は経路に依らず発見ホームへ固定 Up（DiscoveryResultScreen.onUp と同型）。
-                // 全ての detail 経路（発見ホーム直/結果一覧経由/キーワード検索）はタブ層の「さがす」ページを必ず
-                // 下位に持つため、タブ層へ pop ＋ さがすページへスナップで一段上の親へ一貫して戻れる。
-                // 経路依存の履歴 Back は端末 Back に委ねる。
-                // 旧 popBackStack("discovery", false) の残留がここでも ← を無反応にしていた（同上・真因）。
-                onUp = { popToTab(navController, tabPagerState, KTab.DISCOVER) },
+                onUp = upFromDetail,
             )
         }
 
@@ -690,6 +700,18 @@ private fun NovelReaderApp(
             // 「まだ判らない（Loading）」と「本当に無い（Content かつ不在）」を分けて扱える。
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+            // 遷移ジャンク対策（案A・2026-07-29 裁定）: 本棚→読書（目次/本文）push の enter アニメ中だけ
+            // 重い実内容を構造骨へ差し替える信号（tabs ルートの P2 と同じ離散2値＝遷移の端点でしか変化せず
+            // 毎フレーム recompose を増やさない）。この route の上へ積むルートは無い＝popEnter で再入場する
+            // 経路が存在しないため、この信号は push 窓でのみ立つ（pop 対象外の裁定と機構的に整合）。
+            // 差し替えタイミングは P2 先例と同じ settle+0ms を採用（理由は ReadingScreen 側の同信号コメント）。
+            val deferHeavyContent by remember {
+                derivedStateOf {
+                    transition.targetState == EnterExitState.Visible &&
+                        transition.currentState != EnterExitState.Visible
+                }
+            }
+
             when (val state = uiState) {
                 // DB 初回発行前（cold start / process death 復元中）。白画面を出さず最小のローディングを描く。
                 is BookshelfUiState.Loading -> ReadingLoadingPlaceholder(readingTheme = appTheme)
@@ -715,6 +737,9 @@ private fun NovelReaderApp(
                             // 目次→本棚の脱出。旧 popBackStack("bookshelf") はタブ化でルートが消え黙殺されていた
                             // （真因と2段構成の理由＝popToTab の KDoc）。
                             onNavigateToBookshelf = { popToTab(navController, tabPagerState, KTab.BOOKSHELF) },
+                            // push 遷移窓の骨差し替え（案A）。startFile が目次なら目次骨・章なら本文骨に
+                            // ReadingScreen 側で振り分ける。
+                            deferHeavyContent = deferHeavyContent,
                         )
                     } else {
                         // 確定して本が存在しない（削除済み／復元不能）ケース。白画面デッドエンドを残さず、
@@ -771,6 +796,27 @@ internal const val TAB_HOST_ROUTE = "tabs"
 internal fun popToTab(navController: NavController, tabPagerState: PagerState, tab: KTab) {
     tabPagerState.requestScrollToPage(tab.ordinal)
     navController.popBackStack(TAB_HOST_ROUTE, false)
+}
+
+/**
+ * 発見・作品詳細からの階層 up（← とシステム Back の共通実装・2026-07-29 一本化＝ADR 0026）。
+ * 発見の階層は〈発見ホーム（タブ）→ 結果一覧 → 作品詳細〉で、詳細の一段上＝「直近の結果一覧」。
+ * 発見ホームから直接開いた詳細（直下がタブ層）だけは一段上＝発見ホーム＝Pager スナップ込みの [popToTab]
+ * （素の pop だと deep link 相当で Pager が他タブに居るとき着地が化けるため）。
+ *
+ * なぜ「1 pop」が常に一段上になるか: キーワード再検索（詳細のキーワードタップ）は結果一覧を
+ * [tabs, result] へ畳んでから積む（onSearchKeywords の popUpTo・[DiscoveryUpNavigationTest] 契約④）ため、
+ * 結果一覧・詳細が多段に重なることはなく、詳細の直下は必ず〈結果一覧 or タブ層〉の2択に保たれている。
+ * 「再検索の重なりは同じ結果一覧段＝up は履歴を全部は遡らない」という裁定もこの畳みが機構的に担う。
+ * なぜ [TAB_HOST_ROUTE] 定数比較か: 「タブ層直上か」の判定をルート名リテラルで書かない
+ * （2026-07-27 のリテラル封鎖＝[popToTab] KDoc と同じ規律。定数はルート登録と同一の単一正本）。
+ */
+internal fun upFromDiscoveryDetail(navController: NavController, tabPagerState: PagerState) {
+    if (navController.previousBackStackEntry?.destination?.route == TAB_HOST_ROUTE) {
+        popToTab(navController, tabPagerState, KTab.DISCOVER)
+    } else {
+        navController.popBackStack()
+    }
 }
 
 /**
