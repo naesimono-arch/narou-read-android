@@ -64,6 +64,7 @@ import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.discovery.NovelListRow
+import com.novelreader.ui.discovery.RankingListSkeleton
 import com.novelreader.ui.theme.FontBody
 import com.novelreader.ui.theme.FontButtonLabel
 import com.novelreader.ui.theme.FontCaption
@@ -499,8 +500,8 @@ private fun OrderTabsK(
 /**
  * ランキングの期間ページャ（2026-07-29 期間スワイプ化）: NarouOrder 全期間を 1期間=1ページで並べ、
  * 横スワイプ・タブタップの両方から遷移する（同期機構は DiscoveryHomeK 本体・単一情報源は order）。
- * 高さは wrap＝現在ページ準拠。未読込ページ（status 1行）へ settle すると下部（公式リンク）が
- * せり上がる＝期間別控え（[contents]）が骨格を出す再訪時はこの段差が出ない。
+ * 高さは wrap＝現在ページ準拠。どのページも「行数ぶんの高さ」を持つ（再訪＝期間別控えの行／初訪＝構造
+ * スケルトン）ため、ページを送っても外側 LazyColumn の総コンテンツ高が崩れない＝スクロール位置を保つ。
  */
 @Composable
 private fun RankingPagerK(
@@ -536,8 +537,13 @@ private fun RankingPagerK(
  *     行で覆い隠さない＝真に0件・失敗を隠さない旧裁定の継承）。
  *  2) 再取得(Loading)中と隣ページは期間別の直近 Content を骨格として出し続ける
  *    （スクロールアンカー維持＝stale-while-revalidate の期間別化）。
- *  3) 控えの無いページは「読み込んでいます」1行（隣ページは settle で settledPage→onSelectOrder が
- *     実読込を開始するため、覗き見えた時点の表示としても虚偽にならない）。VM は非改変。
+ *  3) 控えの無いページは行数ぶんの構造スケルトン（[RankingListSkeleton]）。なぜ「読み込んでいます」1行では
+ *     いけないか: ページ高が行数ぶん→1行へ崩壊し、このページャを1 item として抱く外側 LazyColumn の総
+ *     コンテンツ高ごと縮んで、LazyListState が可視アンカーを失い先頭へクランプされる（＝2026-07-19 に
+ *     修正済みの既知バグを、期間別控えへ分割したことで「初訪ページ」という新しい経路で踏み直した。
+ *     stale-while-revalidate は控えのある再訪しか救えず初訪には原理的に効かない）。骨は高さを保つだけで
+ *     読み込み中という意味は変えない＝隣ページは settle で settledPage→onSelectOrder が実読込を始めるため
+ *     覗き見えた時点の表示としても虚偽にならない。VM は非改変。
  */
 @Composable
 private fun RankingPageK(
@@ -566,7 +572,9 @@ private fun RankingPageK(
                 )
             }
             cached != null -> RankingRowsK(cached, pageOrder, onOpenDetail)
-            else -> RankingStatus("読み込んでいます")
+            // 控え無し（初訪ページ／初回ロード）＝行数ぶんの骨で高さを保つ。ここを status 1行にすると
+            // 高さ崩壊→先頭クランプが再発する（上の分岐3の理由）。
+            else -> RankingListSkeleton()
         }
     }
 }
@@ -590,7 +598,11 @@ private fun RankingRowsK(
     }
 }
 
-/** ランキング領域の状態一文（読込中／空／失敗理由＝意味テキストゆえ infoText）。 */
+/**
+ * ランキング領域の状態一文（空／失敗理由＝意味テキストゆえ infoText）。
+ * 読込中はここでなく [RankingListSkeleton] が受ける＝「無い・失敗した」だけを1行に畳む
+ *（畳んで良いのは真に0件・失敗のときだけ、という既存裁定）。
+ */
 @Composable
 private fun RankingStatus(text: String) {
     Text(
