@@ -1,145 +1,243 @@
-<!-- @dsCard group="UI-n / 本文欠落→再取込提案（候補比較）" name="D. 案B 本棚カードの欠落バッジ→再取込ダイアログ — 開く前に棚で見える（棚面＋4分岐ダイアログ）" -->
-<!-- @derives source="discovery/bookshelf-fusion-D.html（カード語彙）+ bookshelf-multiselect-D.html（scrim/dlg 様式）"（候補段階＝裁定前。採用時は正本直差分へ転写して本ファイルは削除） -->
+<!-- @dsCard group="UI-n / 本文欠落→再取込提案（候補比較）" name="K. 案B 本棚カードの欠落バッジ→再取込ダイアログ — 現行既定K下敷き（棚面＋4分岐ダイアログ）" -->
+<!-- @derives source="skins/bookshelf-K.html（2026-07-24 2列改A正本＝トークン・部品語彙を写経）+ bookshelf-multiselect-D.html（scrim/dlg 骨格）"（候補段階＝裁定前。採用時は正本直差分へ転写して本ファイルは削除） -->
 <!--
-  【2026-07-29 不採用（案C＝bookshelf-reimport-sweep-D.html 採用）・candidates として保存】
-  ⚠ 参照注意: 本棚下敷きが旧世代基盤（discovery/bookshelf-fusion-D.html＝K タブ化以前・ボトムナビ3タブ／
-  明示タイトル＋冊数／栞書影／キャプション行可視⋮を持たない）。新提案の下敷きには使わないこと。
-  カード単位の個別再取込導線（バッジ→ダイアログ4分岐）の設計自体は案C の「残り3冊は個別に」の受け皿として有効。
--->
-<!--
+  2026-07-29 差し戻し反映: 初版の本棚下敷きが discovery/bookshelf-fusion-D.html（K タブ化以前の旧世代）だったため、
+  現行既定 K（skins/bookshelf-K.html＝ボトムナビ3タブ・明示タイトル＋冊数・2列改A栞書影・キャプション行の可視⋮・
+  状態フィルタ・360dp）を下敷きに全面描き直した。設計（下記）は初版のまま維持。採用裁定は未了＝3案とも候補。
+
   課題（2026-07-29 ユーザー裁定「作る」）: 実機で全蔵書の本文ファイル欠落（DB に本はあるが files/novels/ が無い）。
   案A（エラー面ハブ）は「開いて初めて分かる」＝欠落が複数冊のとき1冊ずつ踏む必要がある。
 
   ◆案Bの狙い: 開く前に棚で欠落が見える——復旧をカード起点の1タップにする（欠落の把握と復旧を本棚で完結）。
 
-  設計:
-  ・欠落バッジ「本文なし」＝書影左上のヘアラインチップ（fusion-D の Web マーカーと同じ置き場・D の base 地×藍字）。
-    書影はメタデータ由来（栞先端＝決定論選択）＝本文が欠落しても普段どおり描ける→バッジだけが差分＝棚の静けさを壊さない。
-  ・進捗行の代わりに藍の状態行「本文データが見つかりません」（意味を運ぶ文字＝AA を満たす --ai。ADR 0014-D）。
-  ・棚のバッジは「欠落の事実」のみを示し、sourceUri の分岐（下の4系統）はタップ後のダイアログで初めて出す
+  設計（初版から不変）:
+  ・欠落バッジ「本文なし」＝欠落の事実のみを示し、sourceUri の分岐（下の4系統）はタップ後のダイアログで初めて出す
     ＝棚面に4種のバッジを発明しない（情報過密の回避）。
-  ・ダイアログ様式は bookshelf-multiselect-D.html の scrim/dlg/btn を踏襲（D に danger 無し＝CTA は藍テキスト）。
+  ・書影はメタデータ由来（栞先端＝決定論選択）＝本文が欠落しても普段どおり描ける→バッジと状態行だけが差分。
   分岐（各1状態）: ① sourceUri 有効＝再取込する ／ ② 権限失効＝PDFを選ぶ（ファイル名ヒント）／
-                   ③ NULL（旧取込）＝PDFを選ぶ ／ ④ Web 本＝Webから再取得。
+                   ③ NULL（v20 前の旧取込）＝PDFを選ぶ ／ ④ Web 本＝Webから再取得。
   全分岐共通（C2）: 進捗 DB は触らない＝「読書位置としおりはそのまま残ります」を明記。
-  準拠: ADR 0005（視覚言語D）・ADR 0014（トークン層）。チップ行は現行実装＝読書状態フィルタで描く。
+
+  K 語彙への翻訳判断（案C 描き直しと同基準＝採用時にどちらの案でも共通部品にできる）:
+  ・欠落バッジ＝書影左下のヘアラインチップ・状態行とも ink-soft＝K の「一画面一強調（藍は CTA/選択中のみ）」を守る
+    （藍の強調はダイアログの実行ボタンに1点集中）。
+  ・なろう未取込（青磁破線・field 沈め）の語彙は使わない＝あちらは「実体を持たない発見メモ」、こちらは
+    「実体を失った蔵書」で意味が別（衝突させると棚の分類が嘘になる）。
+  ・ダイアログ見出しは K の UI ラベル規約＝ゴシック bold（明朝は書名のみ）。
+  準拠: ADR 0005（視覚言語D・K は D トークン再利用）・ADR 0014（トークン層・意味を運ぶ文字は AA）。
 -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>UI-n D 本文欠落 案B — 棚カードの欠落バッジ→再取込ダイアログ</title>
+<title>K 本文欠落 案B — 棚カードの欠落バッジ→再取込ダイアログ</title>
 <style>
   /*==harness==*/
-  /* トークンは bookshelf-D 系正本の :root 写経（候補段階の写経＝裁定後に整理） */
+  /* トークンは skins/bookshelf-K.html の :root 写経（候補段階の写経＝裁定後に整理） */
   :root{
-    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
-    --ai:#1C3D5A;--seiji:#9CB3A8;--seiji-ink:#50685C;
+    --base:#FBFAF8;        /* 和紙地 */
+    --ink:#1C1F26;         /* 主文字 */
+    --ink-soft:#6A6E78;    /* K専用: AA(4.5:1)へ引き上げた補助文字 */
+    --line:#ECEAE4;        /* ヘアライン */
+    --ai:#1C3D5A;          /* 藍アクセント（CTA/選択中のみ） */
+    --ai-tint:rgba(28,61,90,.10);
+    --seiji-ink:#50685C;   /* 青磁ink（既存トークン。本ファイルでは未使用＝未取込語彙と混同しないため） */
+    --field:#F0EEE8;       /* 一段沈めた紙地 */
+    --paper:#FDFCFA;       /* 栞書影の紙 */
     --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  body{background:#E4E3DD;min-height:100vh;display:flex;flex-direction:column;align-items:center;
+    padding:24px;font-family:var(--gothic);-webkit-font-smoothing:antialiased}
   .cap{color:#5A5C57;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.7;max-width:840px}
   .cap b{color:#2A2C28}
   .note{color:#6A6C67;font-size:11.5px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:840px}
   .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
-  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px;max-width:372px}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px;max-width:360px}
   .wrap .mode{font-size:12px;letter-spacing:.2em;color:#6A6C67;text-align:center}
   .wrap .desc{font-size:11px;color:#6A6C67;text-align:center;line-height:1.6}
-  .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
-    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column}
+  /* K 正本と同じ実機実効 360dp 幅・ライトテーマ */
+  .phone{width:360px;height:820px;background:var(--base);border-radius:38px;overflow:hidden;
+    position:relative;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.30)}
   /*==/harness==*/
 
-  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--ink-soft);flex-shrink:0}
-  .top{padding:8px 24px 14px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
-  .top h1{font-family:var(--mincho);font-size:27px;color:var(--ink);font-weight:500;letter-spacing:.14em}
+  .sb{height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:11px;color:var(--ink-soft);letter-spacing:.02em}
+  .sb .r{display:flex;gap:6px;align-items:center}
 
-  /* 読書状態フィルタ（現行実装と同じ4チップ＝正本の現在形で下敷きを描く） */
-  .chips{flex-shrink:0;display:flex;gap:8px;padding:0 24px 14px;overflow-x:auto;scrollbar-width:none}
+  /* ヘッダ（K 正本写経: ゴシック bold タイトル＋薄い冊数＋表示切替のみ） */
+  .head{flex-shrink:0;display:flex;align-items:baseline;justify-content:space-between;padding:6px 20px 12px}
+  .head .ttl{display:flex;align-items:baseline;gap:10px}
+  .head h1{font-family:var(--gothic);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.04em}
+  .head .count{font-size:12px;color:var(--ink-soft);letter-spacing:.06em}
+  .head .view{width:38px;height:38px;border:none;background:transparent;border-radius:10px;
+    display:grid;place-items:center;color:var(--ink);cursor:pointer;align-self:center}
+  .head .view svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6}
+
+  /* 状態フィルタチップ（K 正本写経: 選択＝藍塗り白字） */
+  .chips{flex-shrink:0;display:flex;gap:8px;padding:0 20px 12px;overflow-x:auto;scrollbar-width:none}
   .chips::-webkit-scrollbar{display:none}
-  .chip{flex-shrink:0;font-size:12px;color:var(--ink-soft);border:1px solid var(--line);border-radius:999px;padding:7px 15px;cursor:pointer}
-  .chip.on{color:var(--ai);border-color:var(--ai);font-weight:600}
+  .chip{flex-shrink:0;font-size:12.5px;padding:6px 15px;border-radius:999px;cursor:pointer;
+    border:1px solid var(--line);color:var(--ink-soft);background:transparent;letter-spacing:.02em}
+  .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
 
-  .scroll{flex:1;overflow:auto;padding:0 24px 40px}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:4px}
+  .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 24px 120px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+
+  /* 本のグリッド＝2列改A（K 正本写経: 栞書影・キャプション行可視⋮・状態行） */
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px 24px}
   .bk{cursor:pointer}
-  .cv{position:relative;aspect-ratio:2/3;border-radius:2px;overflow:hidden;display:flex;align-items:flex-end}
-  .cv .rule{position:absolute;left:14px;top:14px;bottom:14px;width:2px;background:var(--ai);opacity:.85}
-  .cv .ttl-in{padding:16px 16px 16px 24px;color:#fff}
-  .cv .ttl-in b{font-family:var(--mincho);font-size:14px;font-weight:600;line-height:1.4;
-    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-shadow:0 1px 3px rgba(0,0,0,.3)}
-  /* 欠落バッジ: 書影左上のヘアラインチップ（base 地×藍字＝暗い書影の上でも読める。バッジは事実のみ・分岐は出さない） */
-  .cv .miss{position:absolute;top:8px;left:8px;z-index:2;font-size:9.5px;font-weight:600;letter-spacing:.08em;
-    padding:3px 8px;border-radius:2px;background:var(--base);border:1px solid var(--line);color:var(--ai)}
-  .meta{margin-top:12px}
-  .meta .t{font-family:var(--mincho);font-size:13px;color:var(--ink);line-height:1.45;
-    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .meta .pr{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:10.5px;color:var(--ai)}
-  .meta .pr .pb{flex:1;height:1px;background:var(--line);position:relative}
-  .meta .pr .pb i{position:absolute;left:0;top:-0.5px;height:2px;background:var(--ai)}
-  .meta .u{font-size:10.5px;color:var(--seiji-ink);margin-top:8px;letter-spacing:.08em}
-  /* 欠落の状態行: 進捗行の場所に、意味を運ぶ藍で（タップ誘導まで1行に収める） */
-  .meta .miss-row{font-size:10.5px;color:var(--ai);margin-top:8px;letter-spacing:.03em;font-weight:600}
+  .cv{position:relative;aspect-ratio:3/4;border-radius:3px;overflow:hidden;background:var(--paper);
+    box-shadow:0 3px 10px rgba(0,0,0,.14)}
+  .cv .bar{position:absolute;top:0;left:var(--barx,26%);width:2.5px;height:var(--barlen,46%);background:var(--band,var(--ink-soft))}
+  .cv .bar::after{content:"";position:absolute;left:50%;top:100%;transform:translate(-50%,-1px);
+    width:7px;height:7px;border-radius:50%;background:var(--band,var(--ink-soft))}
+  .cv .vt{position:absolute;top:14px;right:12px;bottom:14px;max-width:66%;overflow:hidden;
+    writing-mode:vertical-rl;font-family:var(--mincho);font-size:12px;font-weight:600;
+    color:var(--ink);line-height:1.6;letter-spacing:.05em}
+  /* 欠落バッジ: 書影左下のヘアラインチップ（ink-soft＝一画面一強調を守り藍を使わない。
+     左下＝栞棒（上辺起点）と縦題字（右辺）のどちらとも重ならない静かな隅） */
+  .cv .miss{position:absolute;left:8px;bottom:8px;z-index:2;font-size:9px;font-weight:600;letter-spacing:.08em;
+    padding:2px 7px;border-radius:2px;background:var(--base);border:1px solid var(--line);color:var(--ink-soft)}
 
-  /* 再取込ダイアログ（bookshelf-multiselect-D.html の scrim/dlg 様式を踏襲） */
+  /* キャプション行（K 正本写経: 題字明朝1行＋可視⋮） */
+  .cap2{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-top:8px}
+  .cap2 .t{flex:1;min-width:0;font-family:var(--mincho);font-size:12px;color:var(--ink);line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .cap2 .dots{width:28px;height:28px;flex-shrink:0;border:none;background:transparent;color:var(--ink-soft);
+    display:grid;place-items:center;cursor:pointer;margin-top:-2px}
+  .cap2 .dots svg{width:16px;height:16px;fill:currentColor}
+  .st{margin-top:4px;font-size:10.5px;color:var(--ink-soft);letter-spacing:.03em;
+    display:flex;align-items:center;gap:5px;min-height:14px}
+  .st .dot{width:6px;height:6px;border-radius:50%;background:var(--ai);flex-shrink:0}
+
+  /* 拡張FAB（K 正本写経） */
+  .fab{position:absolute;right:16px;bottom:80px;z-index:6;display:inline-flex;align-items:center;gap:8px;
+    height:52px;padding:0 20px 0 16px;border:none;cursor:pointer;border-radius:26px;
+    background:var(--ai);color:#fff;font-family:var(--gothic);font-size:14px;font-weight:600;
+    letter-spacing:.03em;box-shadow:0 8px 20px rgba(28,61,90,.36)}
+  .fab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+
+  /* 共通ボトムナビ（K 正本写経・本棚選択中） */
+  .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    text-decoration:none;cursor:pointer;color:var(--ink-soft)}
+  .tab.on{color:var(--ai)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .tab.on .ic .pill{background:var(--ai-tint)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
+  .tab.on .lb{font-weight:700}
+
+  /* 再取込ダイアログ（multiselect-D の scrim/dlg 骨格＋K の UI ラベル規約＝見出しゴシック bold。
+     scrim は FAB(z6)・ボトムナビも覆う＝z7/z8 */
   .behind{opacity:.5;pointer-events:none}
-  .scrim{position:absolute;inset:0;background:rgba(20,23,28,.34);z-index:5}
-  .dlg{position:absolute;left:24px;right:24px;top:50%;transform:translateY(-50%);z-index:6;
+  .scrim{position:absolute;inset:0;background:rgba(20,23,28,.34);z-index:7}
+  .dlg{position:absolute;left:20px;right:20px;top:50%;transform:translateY(-50%);z-index:8;
     background:var(--base);border-radius:16px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,.4)}
-  .dlg h2{font-family:var(--mincho);font-size:17px;color:var(--ink);font-weight:600;letter-spacing:.05em;line-height:1.55;margin-bottom:12px}
+  .dlg h2{font-family:var(--gothic);font-size:16.5px;color:var(--ink);font-weight:700;letter-spacing:.03em;line-height:1.55;margin-bottom:12px}
   .dlg p{font-size:12.5px;color:var(--ink-soft);line-height:1.75;margin-bottom:16px}
   .dlg p .warn{color:var(--ink);font-weight:600}
   /* 取込元の手がかり行（②のみ＝選び直しの判断材料。意味を運ぶ値は --ink） */
-  .dlg .src{border:1px solid var(--line);border-radius:2px;padding:10px 14px;margin-bottom:16px}
+  .dlg .src{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:16px}
   .dlg .src .lbl{font-size:10px;color:var(--ink-soft);letter-spacing:.1em}
   .dlg .src .val{font-size:12px;color:var(--ink);margin-top:4px;line-height:1.5;word-break:break-all}
   .dlg-acts{display:flex;justify-content:flex-end;align-items:center;gap:8px}
   .btn-cancel{border:none;background:transparent;color:var(--ink);font-size:14px;font-weight:600;padding:12px 18px;border-radius:2px;cursor:pointer}
-  .btn-go{border:none;background:transparent;color:var(--ai);font-size:14px;font-weight:600;padding:12px 18px;border-radius:2px;cursor:pointer}
+  .btn-go{border:none;background:transparent;color:var(--ai);font-size:14px;font-weight:700;padding:12px 18px;border-radius:2px;cursor:pointer}
 </style>
 </head>
 <body>
-  <p class="cap"><b>案B. 本棚カードの欠落バッジ→再取込ダイアログ</b> ／ 狙い: <b>開く前に棚で欠落が見える</b>——復旧をカード起点の1タップに（欠落の把握と復旧を本棚で完結）。</p>
-  <p class="note">棚のバッジは「本文なし」の事実のみ（4種のバッジを発明しない）。sourceUri の分岐はタップ後のダイアログで提示＝ダイアログ4状態を並置。書影はメタデータ由来＝欠落でも普段どおり描ける（バッジだけが差分）。</p>
+  <p class="cap"><b>案B（K下敷き描き直し）. 本棚カードの欠落バッジ→再取込ダイアログ</b> ／ 狙い: <b>開く前に棚で欠落が見える</b>——復旧をカード起点の1タップに（欠落の把握と復旧を本棚で完結）。</p>
+  <p class="note">下敷き＝現行既定 K（skins/bookshelf-K.html 2列改A・栞書影・状態フィルタ・FAB・恒常ナビ3タブ・360dp）。棚のバッジは「本文なし」の事実のみ（4種のバッジを発明しない）＝sourceUri の分岐はタップ後のダイアログで提示。バッジ・状態行は ink-soft＝藍の強調はダイアログ実行ボタンに1点集中（K 一画面一強調）。</p>
 
   <div class="stage">
 
-    <!-- 棚面: 欠落2冊が混ざった本棚 -->
+    <!-- 棚面: 欠落3冊が通常の本に混ざった本棚 -->
     <div class="wrap"><span class="mode">棚面（欠落バッジ）</span>
-    <div class="phone" role="img" aria-label="案B 棚面 欠落バッジ">
-      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-      <div class="top"><h1>本棚</h1></div>
+    <div class="phone" role="img" aria-label="案B 棚面 欠落バッジ（K下敷き）">
+      <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+      <div class="head">
+        <div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div>
+        <button class="view" aria-label="表示切替">
+          <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="4" width="6.6" height="6.6" rx="1.4"/><rect x="4" y="13.4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="13.4" width="6.6" height="6.6" rx="1.4"/></svg>
+        </button>
+      </div>
       <div class="chips">
         <span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span>
       </div>
       <div class="scroll"><div class="grid">
-        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)"><span class="rule"></span><div class="ttl-in"><b>追放された万能薬師</b></div></div>
-          <div class="meta"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="pr"><span>127話</span><span class="pb"><i style="width:62%"></i></span><span>62%</span></div></div></div>
-        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><span class="miss">本文なし</span><span class="rule"></span><div class="ttl-in"><b>黒の魔王と契約した俺</b></div></div>
-          <div class="meta"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="miss-row">本文データが見つかりません — タップで再取込</div></div></div>
-        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#46584C,#2C362F)"><span class="rule"></span><div class="ttl-in"><b>草むしりと世界樹</b></div></div>
-          <div class="meta"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="u">未読</div></div></div>
-        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#4F4A63,#312E3D)"><span class="miss">本文なし</span><span class="rule"></span><div class="ttl-in"><b>公爵令嬢の嗜み</b></div></div>
-          <div class="meta"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="miss-row">Webから再取得できます</div></div></div>
+        <div class="bk">
+          <div class="cv" style="--band:hsl(210 48% 52%);--barx:26%;--barlen:46%"><span class="bar"></span><span class="vt">追放された万能薬師、辺境でスローライフを始める</span></div>
+          <div class="cap2"><span class="t">追放された万能薬師、辺境でスローライフを始める</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">第127/205話</div>
+        </div>
+        <div class="bk">
+          <div class="cv" style="--band:hsl(280 48% 52%);--barx:34%;--barlen:42%"><span class="bar"></span><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span><span class="miss">本文なし</span></div>
+          <div class="cap2"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">本文なし・タップで再取込</div>
+        </div>
+        <div class="bk">
+          <div class="cv" style="--band:hsl(95 48% 52%);--barx:22%;--barlen:50%"><span class="bar"></span><span class="vt">転生したら最弱スキルだったので草むしりしていた</span></div>
+          <div class="cap2"><span class="t">転生したら最弱スキルだったので草むしりしていた</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st"><span class="dot"></span>未読</div>
+        </div>
+        <div class="bk">
+          <div class="cv" style="--band:hsl(230 48% 52%);--barx:34%;--barlen:48%"><span class="bar"></span><span class="vt">星降る夜の図書館で君を待っている</span><span class="miss">本文なし</span></div>
+          <div class="cap2"><span class="t">星降る夜の図書館で君を待っている</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">Web作品・再取得できます</div>
+        </div>
+        <div class="bk">
+          <div class="cv" style="--band:hsl(340 48% 52%);--barx:24%;--barlen:48%"><span class="bar"></span><span class="vt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span><span class="miss">本文なし</span></div>
+          <div class="cap2"><span class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">本文なし・タップで再取込</div>
+        </div>
+        <div class="bk">
+          <div class="cv" style="--band:hsl(150 48% 52%);--barx:28%;--barlen:40%"><span class="bar"></span><span class="vt">聖女は隣国で薬草を育てて暮らしたい</span></div>
+          <div class="cap2"><span class="t">聖女は隣国で薬草を育てて暮らしたい</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">読了</div>
+        </div>
       </div></div>
+      <button class="fab"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>PDFを追加</button>
+      <nav class="tabbar">
+        <a class="tab on"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg></span><span class="lb">本棚</span></a>
+        <a class="tab"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg></span><span class="lb">さがす</span></a>
+        <a class="tab"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="lb">設定</span></a>
+      </nav>
     </div>
-    <p class="desc">欠落カード＝書影は普段どおり＋左上バッジ＋進捗行の場所に藍の状態行。タップで下の分岐ダイアログへ。</p></div>
+    <p class="desc">欠落カード＝栞書影は普段どおり＋左下バッジ＋状態行（ともに ink-soft）。タップで下の分岐ダイアログへ。</p></div>
 
     <!-- ① sourceUri 有効 -->
     <div class="wrap"><span class="mode">① 自動再取込（sourceUri 有効）</span>
-    <div class="phone" role="img" aria-label="案B ダイアログ sourceUri 有効">
+    <div class="phone" role="img" aria-label="案B ダイアログ sourceUri 有効（K下敷き）">
       <div class="behind">
-      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-      <div class="top"><h1>本棚</h1></div>
-      <div class="chips"><span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span></div>
-      <div class="scroll"><div class="grid">
-        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><span class="miss">本文なし</span><span class="rule"></span><div class="ttl-in"><b>黒の魔王と契約した俺</b></div></div>
-          <div class="meta"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="miss-row">本文データが見つかりません</div></div></div>
-        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)"><span class="rule"></span><div class="ttl-in"><b>追放された万能薬師</b></div></div>
-          <div class="meta"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="pr"><span>127話</span><span class="pb"><i style="width:62%"></i></span><span>62%</span></div></div></div>
-      </div></div>
+        <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+        <div class="head"><div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div></div>
+        <div class="chips"><span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span></div>
+        <div class="scroll"><div class="grid">
+          <div class="bk">
+            <div class="cv" style="--band:hsl(280 48% 52%);--barx:34%;--barlen:42%"><span class="bar"></span><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span><span class="miss">本文なし</span></div>
+            <div class="cap2"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span>
+              <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+            <div class="st">本文なし・タップで再取込</div>
+          </div>
+          <div class="bk">
+            <div class="cv" style="--band:hsl(210 48% 52%);--barx:26%;--barlen:46%"><span class="bar"></span><span class="vt">追放された万能薬師、辺境でスローライフを始める</span></div>
+            <div class="cap2"><span class="t">追放された万能薬師、辺境でスローライフを始める</span>
+              <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+            <div class="st">第127/205話</div>
+          </div>
+        </div></div>
       </div>
       <div class="scrim"></div>
       <div class="dlg">
@@ -152,15 +250,19 @@
 
     <!-- ② 権限失効 -->
     <div class="wrap"><span class="mode">② 権限失効（記録あり・読めない）</span>
-    <div class="phone" role="img" aria-label="案B ダイアログ 権限失効">
+    <div class="phone" role="img" aria-label="案B ダイアログ 権限失効（K下敷き）">
       <div class="behind">
-      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-      <div class="top"><h1>本棚</h1></div>
-      <div class="chips"><span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span></div>
-      <div class="scroll"><div class="grid">
-        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><span class="miss">本文なし</span><span class="rule"></span><div class="ttl-in"><b>黒の魔王と契約した俺</b></div></div>
-          <div class="meta"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="miss-row">本文データが見つかりません</div></div></div>
-      </div></div>
+        <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+        <div class="head"><div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div></div>
+        <div class="chips"><span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span></div>
+        <div class="scroll"><div class="grid">
+          <div class="bk">
+            <div class="cv" style="--band:hsl(280 48% 52%);--barx:34%;--barlen:42%"><span class="bar"></span><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span><span class="miss">本文なし</span></div>
+            <div class="cap2"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span>
+              <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+            <div class="st">本文なし・タップで再取込</div>
+          </div>
+        </div></div>
       </div>
       <div class="scrim"></div>
       <div class="dlg">
@@ -174,15 +276,19 @@
 
     <!-- ③ NULL（旧取込） -->
     <div class="wrap"><span class="mode">③ 記録なし（v20 前の旧取込）</span>
-    <div class="phone" role="img" aria-label="案B ダイアログ 記録なし">
+    <div class="phone" role="img" aria-label="案B ダイアログ 記録なし（K下敷き）">
       <div class="behind">
-      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-      <div class="top"><h1>本棚</h1></div>
-      <div class="chips"><span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span></div>
-      <div class="scroll"><div class="grid">
-        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#46584C,#2C362F)"><span class="miss">本文なし</span><span class="rule"></span><div class="ttl-in"><b>草むしりと世界樹</b></div></div>
-          <div class="meta"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="miss-row">本文データが見つかりません</div></div></div>
-      </div></div>
+        <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+        <div class="head"><div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div></div>
+        <div class="chips"><span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span></div>
+        <div class="scroll"><div class="grid">
+          <div class="bk">
+            <div class="cv" style="--band:hsl(340 48% 52%);--barx:24%;--barlen:48%"><span class="bar"></span><span class="vt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span><span class="miss">本文なし</span></div>
+            <div class="cap2"><span class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
+              <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+            <div class="st">本文なし・タップで再取込</div>
+          </div>
+        </div></div>
       </div>
       <div class="scrim"></div>
       <div class="dlg">
@@ -195,19 +301,23 @@
 
     <!-- ④ Web 本 -->
     <div class="wrap"><span class="mode">④ Web 作品（sourceUrl あり）</span>
-    <div class="phone" role="img" aria-label="案B ダイアログ Web 作品">
+    <div class="phone" role="img" aria-label="案B ダイアログ Web 作品（K下敷き）">
       <div class="behind">
-      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-      <div class="top"><h1>本棚</h1></div>
-      <div class="chips"><span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span></div>
-      <div class="scroll"><div class="grid">
-        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#4F4A63,#312E3D)"><span class="miss">本文なし</span><span class="rule"></span><div class="ttl-in"><b>公爵令嬢の嗜み</b></div></div>
-          <div class="meta"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="miss-row">Webから再取得できます</div></div></div>
-      </div></div>
+        <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+        <div class="head"><div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div></div>
+        <div class="chips"><span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span></div>
+        <div class="scroll"><div class="grid">
+          <div class="bk">
+            <div class="cv" style="--band:hsl(230 48% 52%);--barx:34%;--barlen:48%"><span class="bar"></span><span class="vt">星降る夜の図書館で君を待っている</span><span class="miss">本文なし</span></div>
+            <div class="cap2"><span class="t">星降る夜の図書館で君を待っている</span>
+              <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+            <div class="st">Web作品・再取得できます</div>
+          </div>
+        </div></div>
       </div>
       <div class="scrim"></div>
       <div class="dlg">
-        <h2>『公爵令嬢の嗜み』を<br>Webから再取得しますか？</h2>
+        <h2>『星降る夜の図書館』を<br>Webから再取得しますか？</h2>
         <p>Web から取り込んだ作品です。作品ページからもう一度取得して復元します。<span class="warn">読書位置としおりはそのまま残ります。</span></p>
         <div class="dlg-acts"><button class="btn-cancel">やめる</button><button class="btn-go">再取得する</button></div>
       </div>

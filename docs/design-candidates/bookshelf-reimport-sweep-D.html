@@ -1,9 +1,9 @@
-<!-- @dsCard group="UI-n / 本文欠落→再取込提案（採用案）" name="K. 案C 一括検出バナー→まとめて再取込 — 現行既定K下敷き（検出/内訳確認/進行中）" -->
-<!-- @derives source="skins/bookshelf-K.html（2026-07-24 2列改A正本＝トークン・部品語彙を写経）+ bookshelf-multiselect-D.html（scrim/dlg 骨格）"（採用案・正本化前。正本直差分へ転写したら本ファイルは削除） -->
+<!-- @dsCard group="UI-n / 本文欠落→再取込提案（候補比較）" name="K. 案C 一括検出バナー→まとめて再取込 — 現行既定K下敷き（検出/内訳確認/進行中）" -->
+<!-- @derives source="skins/bookshelf-K.html（2026-07-24 2列改A正本＝トークン・部品語彙を写経）+ bookshelf-multiselect-D.html（scrim/dlg 骨格）"（候補段階＝裁定前。採用時は正本直差分へ転写して本ファイルは削除） -->
 <!--
-  2026-07-29 ユーザー裁定: 案C 採用。同日差し戻し＝初版の本棚下敷きが discovery/bookshelf-fusion-D.html（K タブ化
-  以前の旧世代）だったため、現行既定 K（skins/bookshelf-K.html＝ボトムナビ3タブ・明示タイトル＋冊数・2列改A栞書影・
-  キャプション行の可視⋮・状態フィルタ・360dp）を下敷きに全面描き直した。設計（下記）は初版のまま維持。
+  2026-07-29 差し戻し反映: 初版の本棚下敷きが discovery/bookshelf-fusion-D.html（K タブ化以前の旧世代）だったため、
+  現行既定 K（skins/bookshelf-K.html＝ボトムナビ3タブ・明示タイトル＋冊数・2列改A栞書影・キャプション行の可視⋮・
+  状態フィルタ・360dp）を下敷きに全面描き直した。設計（下記）は初版のまま維持。採用裁定は未了＝3案とも候補。
 
   ◆案Cの狙い: 全滅級の欠落を起動時に一括検出——自動で戻せる分（sourceUri 有効＋Web本）をまとめて戻す。
 
@@ -34,7 +34,7 @@
 <title>K 本文欠落 案C — 一括検出バナー→まとめて再取込</title>
 <style>
   /*==harness==*/
-  /* トークンは skins/bookshelf-K.html の :root 写経（採用案の写経＝正本化時に整理） */
+  /* トークンは skins/bookshelf-K.html の :root 写経（候補段階の写経＝裁定後に整理） */
   :root{
     --base:#FBFAF8;        /* 和紙地 */
     --ink:#1C1F26;         /* 主文字 */
@@ -180,7 +180,7 @@
 </style>
 </head>
 <body>
-  <p class="cap"><b>案C（採用・K下敷き描き直し）. 一括検出バナー→まとめて再取込</b> ／ 狙い: <b>全滅級の欠落を起動時に一括検出</b>——自動で戻せる分（sourceUri 有効＋Web本）をまとめて戻す。</p>
+  <p class="cap"><b>案C（K下敷き描き直し）. 一括検出バナー→まとめて再取込</b> ／ 狙い: <b>全滅級の欠落を起動時に一括検出</b>——自動で戻せる分（sourceUri 有効＋Web本）をまとめて戻す。</p>
   <p class="note">下敷き＝現行既定 K（skins/bookshelf-K.html 2列改A・栞書影・状態フィルタ・FAB・恒常ナビ3タブ・360dp）。CTA は「自動で戻せる9冊」のみ（SAF ピッカー必須の3冊を一括に混ぜない＝嘘防止）。欠落カードは栞書影＋ink-soft バッジ＝藍の強調は検出バナーの CTA に1点集中（K 一画面一強調）。</p>
 
   <div class="stage">

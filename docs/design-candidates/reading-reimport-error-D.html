@@ -1,11 +1,6 @@
 <!-- @dsCard group="UI-n / 本文欠落→再取込提案（候補比較）" name="D. 案A 読書エラー面＝復旧ハブ — 開いて失敗したその画面から再取込（4分岐）" -->
 <!-- @derives source="reading-D.html（t-light トークン）+ NativeReadingScreen.kt:441-454 の C2 エラー面"（候補段階＝裁定前。採用時は正本直差分へ転写して本ファイルは削除） -->
 <!--
-  【2026-07-29 不採用（案C＝bookshelf-reimport-sweep-D.html 採用）・candidates として保存】
-  ⚠ 参照注意: 本ファイルは読書面のみで本棚を含まないが、同便の案B/C 初版は本棚下敷きが旧世代基盤
-  （discovery/bookshelf-fusion-D.html＝K タブ化以前）だった。新提案の下敷きには使わないこと。
--->
-<!--
   課題（2026-07-29 ユーザー裁定「作る」）: 実機で全蔵書の本文ファイル欠落が発生（DB に本はあるが files/novels/ が無い
   ＝開くと「読み込みに失敗しました／本文データがこの端末にありません」で行き止まり）。
   現状実装は固定文言＋「本棚に戻る」のみ（再取込がピッカー起点＝本棚からしか始められなかった時代の制約）。
@@ -47,7 +42,8 @@
   .wrap{display:flex;flex-direction:column;align-items:center;gap:9px;max-width:372px}
   .wrap .mode{font-size:12px;letter-spacing:.2em;color:#6A6C67;text-align:center}
   .wrap .desc{font-size:11px;color:#6A6C67;text-align:center;line-height:1.6}
-  .phone{width:372px;height:780px;background:var(--bg);border-radius:40px;overflow:hidden;position:relative;
+  /* ハーネス寸法は reading-D.html 正本と同値（372×800）＝読書面は K タブ化の影響を受けない層 */
+  .phone{width:372px;height:800px;background:var(--bg);border-radius:40px;overflow:hidden;position:relative;
     box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column}
   /*==/harness==*/
 
