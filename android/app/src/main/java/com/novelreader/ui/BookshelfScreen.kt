@@ -78,6 +78,7 @@ import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
 import com.novelreader.domain.ReimportPlan
+import com.novelreader.domain.ScanProgress
 import com.novelreader.domain.ShelfItem
 import com.novelreader.domain.deleteConfirmBody
 import com.novelreader.domain.filterShelfByStatus
@@ -139,13 +140,21 @@ fun BookshelfScreen(
     val processingState by viewModel.processingState.collectAsStateWithLifecycle()
     // 複数PDF取込で「なろう形式でないPDF」が混在したときの確認プロンプト（null=非表示）。
     val importPrompt by viewModel.importPrompt.collectAsStateWithLifecycle()
-    // 本文欠落→再取込（2026-07-29 案B＋案C）。bookId→復旧手段（null=初回検出前＝空扱い）と一括バナー可否。
+    // 本文欠落→再取込（2026-07-29 案B＋案C、同日 案X 増補）。bookId→復旧手段（null=初回検出前＝空扱い）。
     val reimportPlans = viewModel.reimportPlans.collectAsStateWithLifecycle().value ?: emptyMap()
     val sweepBannerVisible by viewModel.sweepBannerVisible.collectAsStateWithLifecycle()
+    // 案X: フォルダ走査の進捗（null=走査していない）・結果（null=結果ダイアログ非表示）・記憶済みの場所。
+    val folderScan by viewModel.folderScan.collectAsStateWithLifecycle()
+    val folderScanReport by viewModel.folderScanReport.collectAsStateWithLifecycle()
+    val pdfFolderTreeUri by viewModel.pdfFolderTreeUri.collectAsStateWithLifecycle()
     // 案B: 欠落カードのタップで開く復旧ダイアログの対象（null=非表示）。案C: 一括内訳ダイアログの開閉。
     // ダイアログは M3 AlertDialog（route 層所有）＝削除確認・取込プロンプトと同じ扱いで全スキンに被さる。
     var reimportTarget by remember { mutableStateOf<BookEntity?>(null) }
     var showSweepDialog by remember { mutableStateOf(false) }
+    // フォルダ選択の結果を「この1冊の走査」へ回すか「一括復旧」へ回すかの行き先（案X）。
+    // なぜ状態で持つか: ピッカーのコールバックは launch 時の文脈を受け取れないため、どちらの導線から
+    // 開いたかをここで覚えておく（null=一括復旧）。
+    var pendingScanBook by remember { mutableStateOf<BookEntity?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -153,8 +162,38 @@ fun BookshelfScreen(
     // 分岐②③（権限失効/記録なし）の PDF 選び直しピッカー（単数）。write 要求は通常取込と同理由
     // （OpenPdfWithWrite 参照）。選んだ PDF は通常の addBook へ＝repository 層のハッシュ/題名照合が
     // 既存行への復元に合流させる（同一判定は既存機序＝新しい突合を発明しない）。
+    // 案X 以後この導線は「自分で選びたい人」向けの副経路になった（主経路はフォルダ走査）。
     val reimportPdfPicker = rememberLauncherForActivityResult(OpenPdfWithWrite()) { uri ->
         if (uri != null) viewModel.addBook(uri)
+    }
+
+    // 案X: 「PDFのある場所」のフォルダ選択（ACTION_OPEN_DOCUMENT_TREE）。
+    // 選ばれたツリーは VM が永続化し、以後の欠落は選び直さずに走査できる（＝案X の要）。
+    val pdfFolderPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { treeUri ->
+        val target = pendingScanBook
+        pendingScanBook = null
+        if (treeUri == null) return@rememberLauncherForActivityResult
+        viewModel.rememberPdfFolder(treeUri)
+        if (target != null) {
+            // 場所を選んでいる間にその本が復旧を終えた等で走査対象から外れることがある。
+            // 無反応で終わらせず理由を告げる（せっかくフォルダを選んだのに何も起きない、を作らない）。
+            if (!viewModel.scanFolderForBook(target, treeUri)) {
+                viewModel.emitSnackbar("この本は再取込の対象ではなくなりました", transient = true)
+            }
+        } else {
+            viewModel.runSweepReimport(treeUri)
+        }
+    }
+
+    // 欠落本1冊をフォルダ走査で探す共通導線（案B ダイアログ②③の主ボタン）。
+    // 場所を記憶済みならその場で走査し、未記憶ならフォルダ選択を出す（＝2度目以降は選ばせない）。
+    val scanForBook: (BookEntity) -> Unit = { book ->
+        if (!viewModel.scanFolderForBook(book)) {
+            pendingScanBook = book
+            pdfFolderPicker.launch(null)
+        }
     }
 
     // PDF ファイル選択ランチャー（複数同時選択対応）。
@@ -291,6 +330,8 @@ fun BookshelfScreen(
         sweepBannerVisible = sweepBannerVisible,
         onSweepLater = { viewModel.dismissSweepBanner() },
         onSweepConfirm = { showSweepDialog = true },
+        folderScan = folderScan,
+        onScanStop = { viewModel.cancelFolderScan() },
     )
 
     // エラーは一度きりのイベントとして Channel から受信し Snackbar 表示する（VM イベント購読＝ルート層の責務）。
@@ -459,67 +500,86 @@ fun BookshelfScreen(
                     onDismissRequest = dismiss,
                     title = { Text("『${book.title}』を元のPDFから再取込しますか？") },
                     text = {
-                        Text(
-                            "変換した本文ファイルがこの端末にありません。記録されている取込元 PDF から" +
-                                "もう一度変換します。読書位置としおりはそのまま残ります。",
-                        )
+                        Text("記録されている取込元 PDF からもう一度変換します。読書位置としおりは残ります。")
                     },
                     confirmButton = {
                         TextButton(onClick = { viewModel.reimportFromSource(book); dismiss() }) { Text("再取込する") }
                     },
                     dismissButton = { TextButton(onClick = dismiss) { Text("やめる") } },
                 )
-                is ReimportPlan.PickPdfPermissionLost -> AlertDialog(
-                    onDismissRequest = dismiss,
-                    title = { Text("PDFを選び直してください") },
-                    text = {
-                        Column {
-                            Text(
-                                "取込元の記録はありますが、読み出す権限が切れています。同じ PDF を" +
-                                    "もう一度選ぶと、読書位置ごと復元されます。",
-                            )
-                            // 取込元の手がかり行（②のみ＝選び直しの判断材料。URI から復元できないときは出さない）。
-                            plan.fileNameHint?.let { hint ->
-                                Spacer(Modifier.height(Spacing.S12))
-                                Text(
-                                    "取込元の PDF: $hint",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { reimportPdfPicker.launch(arrayOf("application/pdf")); dismiss() }) {
-                            Text("PDFを選ぶ")
-                        }
-                    },
-                    dismissButton = { TextButton(onClick = dismiss) { Text("やめる") } },
-                )
-                ReimportPlan.PickPdfNoRecord -> AlertDialog(
-                    onDismissRequest = dismiss,
-                    title = { Text("PDFを選んで再取込") },
-                    text = {
-                        Text(
-                            "この本には取込元の記録がありません（記録機能より前に取り込まれた本）。" +
-                                "同じ PDF を選ぶと、読書位置ごと復元されます。",
+                // ②③（PDF 由来で取込元へ到達できない）は「内容の指紋を持つか」で導線が割れる（案X）。
+                // 分岐名（権限失効／記録なし）で割らないのは、人にとってはどちらも同じ操作になったため。
+                is ReimportPlan.PickPdfPermissionLost, is ReimportPlan.PickPdfNoRecord -> {
+                    if (plan.scanSha256 != null) {
+                        // 指紋あり＝フォルダを1回教えれば自動で見つかる（主経路）。
+                        val hint = (plan as? ReimportPlan.PickPdfPermissionLost)?.fileNameHint
+                        AlertDialog(
+                            onDismissRequest = dismiss,
+                            title = { Text("PDFのある場所から探しますか？") },
+                            text = {
+                                Column {
+                                    // 文言は短く（ユーザー裁定 2026-07-29「長すぎる」）。どの本かは背後のカードで
+                                    // 分かるため書名を繰り返さず、「何をすれば戻るか」と「失わないもの」だけを言う。
+                                    Text(
+                                        if (pdfFolderTreeUri != null) {
+                                            "教えていただいたフォルダを調べて復元します。読書位置としおりは残ります。"
+                                        } else {
+                                            "フォルダを教えていただければ、中身を照合して自動で見つけます。" +
+                                                "読書位置としおりは残ります。"
+                                        },
+                                    )
+                                    // 取込元の手がかり行は、ファイル名として妥当な文字列を復元できたときだけ出す。
+                                    // 実機の主要プロバイダ（MediaStore Documents）では復元できず null になる
+                                    // ＝内部 ID を「取込元の PDF」と称して見せない（sourceFileNameHint の KDoc）。
+                                    hint?.let {
+                                        Spacer(Modifier.height(Spacing.S12))
+                                        Text(
+                                            "取込元の PDF: $it",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { scanForBook(book); dismiss() }) { Text("場所から探す") }
+                            },
+                            dismissButton = {
+                                Row {
+                                    // 自分で選びたい人向けの副経路（従来のピッカー）は残す＝選択肢を奪わない。
+                                    TextButton(onClick = {
+                                        reimportPdfPicker.launch(arrayOf("application/pdf")); dismiss()
+                                    }) { Text("自分で選ぶ") }
+                                    TextButton(onClick = dismiss) { Text("やめる") }
+                                }
+                            },
                         )
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { reimportPdfPicker.launch(arrayOf("application/pdf")); dismiss() }) {
-                            Text("PDFを選ぶ")
-                        }
-                    },
-                    dismissButton = { TextButton(onClick = dismiss) { Text("やめる") } },
-                )
+                    } else {
+                        // 指紋なし（v11 前の旧取込）＝機械照合の材料が無い唯一の分岐。
+                        // 「探せません」を黙らず理由ごと伝える（案X で救えない本を隠さない）。
+                        AlertDialog(
+                            onDismissRequest = dismiss,
+                            title = { Text("PDFを選んで再取込") },
+                            text = {
+                                Text(
+                                    "内容の記録がない古い取込のため、自動では探せません。" +
+                                        "同じ PDF を選んでください。読書位置としおりは残ります。",
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    reimportPdfPicker.launch(arrayOf("application/pdf")); dismiss()
+                                }) { Text("PDFを選ぶ") }
+                            },
+                            dismissButton = { TextButton(onClick = dismiss) { Text("やめる") } },
+                        )
+                    }
+                }
                 is ReimportPlan.AutoWeb -> AlertDialog(
                     onDismissRequest = dismiss,
                     title = { Text("『${book.title}』をWebから再取得しますか？") },
                     text = {
-                        Text(
-                            "Web から取り込んだ作品です。作品ページからもう一度取得して復元します。" +
-                                "読書位置としおりはそのまま残ります。",
-                        )
+                        Text("作品ページからもう一度取得して復元します。読書位置としおりは残ります。")
                     },
                     confirmButton = {
                         TextButton(onClick = { viewModel.importWebNovel(plan.sourceUrl); dismiss() }) { Text("再取得する") }
@@ -530,49 +590,141 @@ fun BookshelfScreen(
         }
     }
 
-    // ── 一括再取込の内訳確認ダイアログ（案C・正本 bookshelf-reimport-sweep-D の .roll）──────────
-    // CTA は自動で戻せる分（①＋④）のみ実行＝SAF ピッカー必須分（②③）を混ぜない（「まとめて」の嘘防止）。
+    // ── 一括再取込の内訳確認ダイアログ（案C＋案X・正本 bookshelf-reimport-sweep-D の .roll）──────────
+    // 内訳は sourceUri の分岐名でなく「復旧経路」で並べる（案X 以後、②③はどちらも『場所を1回教える』
+    // という同じ操作で戻るため、分岐名で分けると人には嘘になる）。
+    // 機械では戻せない群（内容指紋なし＝v11 前の旧取込）だけを中空ドットで正直に残す。
     if (showSweepDialog) {
         val breakdown = reimportBreakdown(reimportPlans.values)
         val closeSweep = { showSweepDialog = false }
+        val hasFolder = pdfFolderTreeUri != null
+        val canScan = breakdown.scannable > 0
+        // フォルダを選ばせる導線（未記憶で走査対象がある／「別の場所を選ぶ」）の共通アクション。
+        val chooseFolder = {
+            pendingScanBook = null
+            pdfFolderPicker.launch(null)
+            closeSweep()
+        }
         AlertDialog(
             onDismissRequest = closeSweep,
             title = { Text("${breakdown.total}冊をまとめて再取込しますか？") },
             text = {
                 Column {
                     // 内訳（0冊の系統は出さない＝存在しない分類で数字を水増ししない）。
-                    // 藍ドット＝自動で戻る群／中空ドット＝ユーザー操作が要る群（モック .roll の translation）。
+                    // 藍ドット＝機械で戻る群／中空ドット＝人が1冊ずつ選ぶしかない群（モック .roll の translation）。
                     ReimportBreakdownRow(breakdown.autoPdf, true, "元のPDFから自動で再変換（取込元の記録と権限あり）")
                     ReimportBreakdownRow(breakdown.autoWeb, true, "Webから自動で再取得（Web作品）")
-                    ReimportBreakdownRow(breakdown.pickPermissionLost, false, "PDFの選び直しが必要（読み出し権限が切れています）")
-                    ReimportBreakdownRow(breakdown.pickNoRecord, false, "PDFの選択が必要（取込元の記録がない旧い取込）")
+                    ReimportBreakdownRow(breakdown.scannable, true, "PDFのある場所から自動で見つけて戻す")
+                    ReimportBreakdownRow(
+                        breakdown.unscannable, false,
+                        "1冊ずつPDFを選ぶ必要（内容の記録がない古い取込＝自動照合できません）",
+                    )
                     Spacer(Modifier.height(Spacing.S12))
                     Text(
-                        when {
-                            breakdown.autoTotal == 0 ->
-                                "いずれもPDFの選び直しが必要です。本棚のカードから個別に再取込できます。" +
-                                    "読書位置としおりはそのまま残ります。"
-                            breakdown.manualTotal == 0 ->
-                                "自動で戻せる ${breakdown.autoTotal}冊 を再取込します。読書位置としおりはそのまま残ります。"
-                            else ->
-                                "自動で戻せる ${breakdown.autoTotal}冊 を先に再取込します。残り ${breakdown.manualTotal}冊 は" +
-                                    "本棚のカードから個別に再取込できます。読書位置としおりはそのまま残ります。"
+                        // 文言は短く（ユーザー裁定 2026-07-29「長すぎる」）＝機序の説明を削り、
+                        // 「次に何が起きるか」と「失わないもの」だけを残す。内訳は上の行が既に語っている。
+                        buildString {
+                            when {
+                                canScan && !hasFolder -> append("フォルダを一度だけ教えてください。中身を照合して自動で見つけます。")
+                                canScan -> append("教えていただいたフォルダを調べて ${breakdown.recoverableTotal}冊 を戻します。")
+                                breakdown.autoTotal > 0 -> append("自動で戻せる ${breakdown.autoTotal}冊 を再取込します。")
+                                else -> append("この方法で戻せる本はありません。")
+                            }
+                            if (breakdown.unscannable > 0) {
+                                append("残り ${breakdown.unscannable}冊 はカードから個別に。")
+                            }
+                            append("読書位置としおりは残ります。")
                         },
                     )
                 }
             },
             confirmButton = {
-                if (breakdown.autoTotal > 0) {
-                    TextButton(onClick = { viewModel.runSweepReimport(); closeSweep() }) {
-                        Text("${breakdown.autoTotal}冊を再取込する")
-                    }
-                } else {
-                    // 自動対象ゼロ＝実行するものが無い。内訳の提示だけが役目なので「閉じる」1本にする。
-                    TextButton(onClick = closeSweep) { Text("閉じる") }
+                when {
+                    // 走査対象があり場所が未記憶＝まず場所を教わる（自動分もその後まとめて実行される）。
+                    canScan && !hasFolder ->
+                        TextButton(onClick = chooseFolder) { Text("PDFのある場所を選ぶ") }
+                    // 場所を知っている＝選ばせず即実行（案X が目指した「2度目以降は無操作」）。
+                    canScan ->
+                        TextButton(onClick = { viewModel.runSweepReimport(); closeSweep() }) {
+                            Text("${breakdown.recoverableTotal}冊を再取込する")
+                        }
+                    breakdown.autoTotal > 0 ->
+                        TextButton(onClick = { viewModel.runSweepReimport(); closeSweep() }) {
+                            Text("${breakdown.autoTotal}冊を再取込する")
+                        }
+                    // 実行するものが無い＝内訳の提示だけが役目なので「閉じる」1本にする。
+                    else -> TextButton(onClick = closeSweep) { Text("閉じる") }
                 }
             },
             dismissButton = {
-                if (breakdown.autoTotal > 0) TextButton(onClick = closeSweep) { Text("やめる") }
+                if (breakdown.recoverableTotal > 0) {
+                    Row {
+                        // 記憶した場所に無い本があるとき用の逃げ道（別の保存先を教え直す）。
+                        if (canScan && hasFolder) {
+                            TextButton(onClick = chooseFolder) { Text("別の場所を選ぶ") }
+                        }
+                        TextButton(onClick = closeSweep) { Text("やめる") }
+                    }
+                }
+            },
+        )
+    }
+
+    // ── フォルダ走査の結果ダイアログ（案X・正本 bookshelf-reimport-sweep-D「走査結果」）────────────
+    // 一致分は既に取込キューへ投入済み（VM）＝ここは「何が戻り、何が戻らなかったか」を告げる場。
+    folderScanReport?.let { report ->
+        val closeReport = { viewModel.dismissFolderScanReport() }
+        AlertDialog(
+            onDismissRequest = closeReport,
+            title = {
+                Text(
+                    when {
+                        report.matchedCount > 0 -> "${report.matchedCount}冊が見つかりました"
+                        report.cancelled -> "途中で停止しました"
+                        else -> "一致するPDFが見つかりませんでした"
+                    },
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        // 文言は短く（ユーザー裁定 2026-07-29）。件数は事実として要るので残し、説明を削る。
+                        buildString {
+                            append("${report.candidateCount}件 のうち ${report.hashedCount}件 を調べました。")
+                            if (report.matchedCount > 0) {
+                                append("${report.matchedCount}冊 を戻します。終わった本から読めるようになります。")
+                                append("読書位置としおりは残ります。")
+                            } else if (!report.cancelled) {
+                                // 0冊のときは「なぜ」を言う＝症状だけ告げて放り出さない。
+                                append("同じ内容のPDFがありませんでした。別の場所にあるかもしれません。")
+                            }
+                        },
+                    )
+                    if (report.unmatchedCount > 0 || report.unreadableCount > 0) {
+                        Spacer(Modifier.height(Spacing.S12))
+                        ReimportBreakdownRow(
+                            report.unmatchedCount, false,
+                            "見つかりませんでした（別の場所にあるか、PDFがもう端末にありません）",
+                        )
+                        ReimportBreakdownRow(
+                            report.unreadableCount, false,
+                            "読み取れないファイルがありました（破損／権限の穴）",
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                // 戻らなかった本が残るときだけ、次の一手（別の場所）を主ボタンに置く。
+                if (report.unmatchedCount > 0) {
+                    TextButton(onClick = { closeReport(); pendingScanBook = null; pdfFolderPicker.launch(null) }) {
+                        Text("別の場所を選ぶ")
+                    }
+                } else {
+                    TextButton(onClick = closeReport) { Text("閉じる") }
+                }
+            },
+            dismissButton = {
+                if (report.unmatchedCount > 0) TextButton(onClick = closeReport) { Text("閉じる") }
             },
         )
     }
@@ -641,6 +793,9 @@ internal fun BookshelfContent(
     sweepBannerVisible: Boolean = false,
     onSweepLater: () -> Unit = {},
     onSweepConfirm: () -> Unit = {},
+    // 案X: フォルダ走査の進捗（null=走査していない）と停止。既定は「走査していない」＝従来どおりの描画。
+    folderScan: ScanProgress? = null,
+    onScanStop: () -> Unit = {},
 ) {
     val isLoading = uiState is BookshelfUiState.Loading
     val books = (uiState as? BookshelfUiState.Content)?.books ?: emptyList()
@@ -705,6 +860,8 @@ internal fun BookshelfContent(
         sweepBannerVisible = sweepBannerVisible,
         onSweepLater = onSweepLater,
         onSweepConfirm = onSweepConfirm,
+        folderScan = folderScan,
+        onScanStop = onScanStop,
     )
     val selection = ShelfSelection(
         selectionMode = selectionMode,
@@ -897,6 +1054,33 @@ internal fun BookshelfContent(
                         onReimport = onSweepConfirm,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                }
+
+                // PDF フォルダ走査の進捗バナー（案X）。検出バナーと同じスロット・同じ Motion で排他表示。
+                // 退場アニメの間 folderScan は既に null になっているため、直前の非 null 値を保持して描く
+                // （素の null 参照だと最後のフレームで中身が消えて枠だけ残る）。
+                // 保持箱をスナップショット状態にしないのは composition 中の state 書き込みを避けるため＝
+                // 再コンポーズは folderScan の変化が既に起こすので、ここは読み書きできる箱で足りる。
+                val lastScan = remember { arrayOfNulls<ScanProgress>(1) }
+                folderScan?.let { lastScan[0] = it }
+                AnimatedVisibility(
+                    visible = folderScan != null,
+                    enter = slideInVertically(
+                        animationSpec = tween(MotionDurationReveal),
+                        initialOffsetY = { -it },
+                    ) + fadeIn(animationSpec = tween(MotionDurationReveal)),
+                    exit = slideOutVertically(
+                        animationSpec = tween(MotionDurationDismiss),
+                        targetOffsetY = { -it },
+                    ) + fadeOut(animationSpec = tween(MotionDurationDismiss)),
+                ) {
+                    lastScan[0]?.let { progress ->
+                        ReimportScanBanner(
+                            progress = progress,
+                            onStop = onScanStop,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
         },

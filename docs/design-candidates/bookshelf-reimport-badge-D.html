@@ -18,6 +18,18 @@
                    ③ NULL（v20 前の旧取込）＝PDFを選ぶ ／ ④ Web 本＝Webから再取得。
   全分岐共通（C2）: 進捗 DB は触らない＝「読書位置としおりはそのまま残ります」を明記。
 
+  ★2026-07-29 実機検証→案X 増補（ユーザー裁定・本ファイルは案X 反映後が現行。詳細＝bookshelf-reimport-sweep-D.html 冒頭）:
+  ・②③の「同じ PDF を選び直してください」は現実には成立しない。なろうPDF のファイル名は Nコード
+    （n0000xx.pdf）で人間には中身が判別できず、実機の sourceUri は MediaStore Documents 由来
+    （content://…/document/document%3A1000027648）でファイル名の手がかりすら残らない（＝旧実装はここから
+    "1000027648" を切り出して『取込元の PDF: 1000027648』と誤表示していた）。
+    → ②③の主ボタンを「PDFのある場所から探す」へ差し替える。アプリが内容の指紋（contentSha256）で照合するので
+      ユーザーはファイルを見分けなくてよい。自分で選びたい人向けに「自分で選ぶ」を副ボタンとして残す。
+  ・分岐の見出しは sourceUri の有無ではなく **照合できるか** で割る（②③は人にとって同じ操作になったため）:
+      「内容の記録あり＝場所から自動照合できる」／「内容の記録なし（v11 前の旧取込）＝1冊ずつ選ぶしかない」。
+  ・取込元の手がかり行（.src）は、ファイル名として妥当な文字列（拡張子つき）が復元できたときだけ出す。
+    provider の内部 ID を「取込元の PDF」と称して見せない（手がかりが無いなら黙って出さない方が正しい）。
+
   K 語彙への翻訳判断（案C 描き直しと同基準＝採用時にどちらの案でも共通部品にできる）:
   ・欠落バッジ＝書影左下のヘアラインチップ・状態行とも ink-soft＝K の「一画面一強調（藍は CTA/選択中のみ）」を守る
     （藍の強調はダイアログの実行ボタンに1点集中）。
@@ -146,7 +158,8 @@
   .dlg .src{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:16px}
   .dlg .src .lbl{font-size:10px;color:var(--ink-soft);letter-spacing:.1em}
   .dlg .src .val{font-size:12px;color:var(--ink);margin-top:4px;line-height:1.5;word-break:break-all}
-  .dlg-acts{display:flex;justify-content:flex-end;align-items:center;gap:8px}
+  /* 3ボタン（主＋副＋やめる）になる分岐があるため折り返しを許す＝Compose の AlertDialogFlowRow と同挙動 */
+  .dlg-acts{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px}
   .btn-cancel{border:none;background:transparent;color:var(--ink);font-size:14px;font-weight:600;padding:12px 18px;border-radius:2px;cursor:pointer}
   .btn-go{border:none;background:transparent;color:var(--ai);font-size:14px;font-weight:700;padding:12px 18px;border-radius:2px;cursor:pointer}
 </style>
@@ -242,14 +255,14 @@
       <div class="scrim"></div>
       <div class="dlg">
         <h2>『黒の魔王と契約した俺』を<br>元のPDFから再取込しますか？</h2>
-        <p>変換した本文ファイルがこの端末にありません。記録されている取込元 PDF からもう一度変換します。<span class="warn">読書位置としおりはそのまま残ります。</span></p>
+        <p>記録されている取込元 PDF からもう一度変換します。<span class="warn">読書位置としおりは残ります。</span></p>
         <div class="dlg-acts"><button class="btn-cancel">やめる</button><button class="btn-go">再取込する</button></div>
       </div>
     </div>
     <p class="desc">権限が生きている本＝確認1枚で自動再変換（既存の取込キューに乗せる）。</p></div>
 
-    <!-- ② 権限失効 -->
-    <div class="wrap"><span class="mode">② 権限失効（記録あり・読めない）</span>
+    <!-- ② 権限失効（内容の指紋あり＝場所から自動照合できる） -->
+    <div class="wrap"><span class="mode">② 権限失効（指紋あり＝場所から探す）</span>
     <div class="phone" role="img" aria-label="案B ダイアログ 権限失効（K下敷き）">
       <div class="behind">
         <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
@@ -266,16 +279,16 @@
       </div>
       <div class="scrim"></div>
       <div class="dlg">
-        <h2>PDFを選び直してください</h2>
-        <p>取込元の記録はありますが、読み出す権限が切れています。同じ PDF をもう一度選ぶと、<span class="warn">読書位置ごと復元されます。</span></p>
-        <div class="src"><div class="lbl">取込元の PDF（選び直しの手がかり）</div><div class="val">黒の魔王と契約した俺、気づけば最強の従者になっていた.pdf</div></div>
-        <div class="dlg-acts"><button class="btn-cancel">やめる</button><button class="btn-go">PDFを選ぶ</button></div>
+        <h2>PDFのある場所から探しますか？</h2>
+        <p>フォルダを教えていただければ、<span class="warn">中身を照合して自動で見つけます</span>。読書位置としおりは残ります。</p>
+        <div class="src"><div class="lbl">取込元の PDF（復元できたときだけ表示）</div><div class="val">黒の魔王と契約した俺、気づけば最強の従者になっていた.pdf</div></div>
+        <div class="dlg-acts"><button class="btn-cancel">やめる</button><button class="btn-cancel">自分で選ぶ</button><button class="btn-go">場所から探す</button></div>
       </div>
     </div>
-    <p class="desc">権限失効＝ファイル名を手がかりにピッカーへ。選び直せば以後は自動再取込に戻る。</p></div>
+    <p class="desc">主ボタン＝フォルダ走査（内容の指紋で照合）。場所を記憶済みなら選択ダイアログは出ずそのまま走査へ。手がかり行は provider がファイル名を残したときだけ出す（MediaStore 由来では出ない）。副ボタンで従来のピッカーも残す。</p></div>
 
-    <!-- ③ NULL（旧取込） -->
-    <div class="wrap"><span class="mode">③ 記録なし（v20 前の旧取込）</span>
+    <!-- ③ 内容の記録なし（v11 前の旧取込＝照合できない） -->
+    <div class="wrap"><span class="mode">③ 指紋なし（v11 前＝1冊ずつ選ぶ）</span>
     <div class="phone" role="img" aria-label="案B ダイアログ 記録なし（K下敷き）">
       <div class="behind">
         <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
@@ -293,11 +306,11 @@
       <div class="scrim"></div>
       <div class="dlg">
         <h2>PDFを選んで再取込</h2>
-        <p>この本には取込元の記録がありません（記録機能より前に取り込まれた本）。同じ PDF を選ぶと、<span class="warn">読書位置ごと復元されます。</span></p>
+        <p><span class="warn">内容の記録がない古い取込</span>のため、自動では探せません。同じ PDF を選んでください。読書位置としおりは残ります。</p>
         <div class="dlg-acts"><button class="btn-cancel">やめる</button><button class="btn-go">PDFを選ぶ</button></div>
       </div>
     </div>
-    <p class="desc">sourceUri=NULL＝手がかり無しの汎用ピッカー。同一判定は title＋author（BookDao 既存機序）。</p></div>
+    <p class="desc">contentSha256=NULL＝機械照合の材料が無い唯一の分岐。ここだけは人が選ぶしかない（黙って落とさず理由を言う）。同一判定は title＋author（BookDao 既存機序）。</p></div>
 
     <!-- ④ Web 本 -->
     <div class="wrap"><span class="mode">④ Web 作品（sourceUrl あり）</span>
@@ -318,7 +331,7 @@
       <div class="scrim"></div>
       <div class="dlg">
         <h2>『星降る夜の図書館』を<br>Webから再取得しますか？</h2>
-        <p>Web から取り込んだ作品です。作品ページからもう一度取得して復元します。<span class="warn">読書位置としおりはそのまま残ります。</span></p>
+        <p>作品ページからもう一度取得して復元します。<span class="warn">読書位置としおりは残ります。</span></p>
         <div class="dlg-acts"><button class="btn-cancel">やめる</button><button class="btn-go">再取得する</button></div>
       </div>
     </div>

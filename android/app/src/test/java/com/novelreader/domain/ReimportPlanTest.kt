@@ -9,9 +9,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 本文欠落→再取込提案（2026-07-29 案B＋案C）の純ロジック検証。
- * テスト契約: 検出（実体有無）／4分岐の分類／指紋の一度だけ表示／まとめて再取込の対象選別（①④のみ）。
+ * 本文欠落→再取込提案（2026-07-29 案B＋案C、同日 案X 増補）の純ロジック検証。
+ * テスト契約: 検出（実体有無）／4分岐の分類／走査可否の分類（案X）／指紋の一度だけ表示／
+ * 一括復旧の対象選別／ファイル名ヒントの妥当性判定（実機実測 URI 固定）。
  * 再取込が既存行を保持する契約は repository 層のテスト（BookRepositoryTest / AddWebBookTest）が固定する。
+ * フォルダ走査そのものの検証は PdfFolderScanTest。
  */
 class ReimportPlanTest {
 
@@ -19,8 +21,12 @@ class ReimportPlanTest {
         id: String = "b1",
         sourceUri: String? = null,
         sourceUrl: String? = null,
+        contentSha256: String? = null,
         htmlDirPath: String = "/nonexistent/$id",
-    ) = BookEntity(id, "本$id", htmlDirPath, "著", sourceUri = sourceUri, sourceUrl = sourceUrl)
+    ) = BookEntity(
+        id, "本$id", htmlDirPath, "著",
+        sourceUri = sourceUri, sourceUrl = sourceUrl, contentSha256 = contentSha256,
+    )
 
     // ── 検出（実体有無）: hasContent は index.html の実在を代表点にする ─────────────────
 
@@ -78,21 +84,35 @@ class ReimportPlanTest {
         val plan = classifyReimport(book(sourceUri = "content://docs/a"), hasPersistedRead = { true })
         assertEquals(ReimportPlan.AutoPdf("content://docs/a"), plan)
         assertTrue(plan.isAuto)
+        // ①は取込元から直接戻せる＝走査対象に混ぜない（混ぜると二重取込になる）。
+        assertNull(plan.scanSha256)
     }
 
     @Test
-    fun `classifyReimport - sourceUri あり＋権限失効＝PickPdfPermissionLost（分岐②・ファイル名ヒント付き）`() {
+    fun `classifyReimport - sourceUri あり＋権限失効＝PickPdfPermissionLost（分岐②・指紋を運ぶ）`() {
         val uri = "content://com.android.externalstorage.documents/document/primary%3ADownload%2Fkuro.pdf"
-        val plan = classifyReimport(book(sourceUri = uri), hasPersistedRead = { false })
-        assertEquals(ReimportPlan.PickPdfPermissionLost("kuro.pdf"), plan)
+        val plan = classifyReimport(book(sourceUri = uri, contentSha256 = "abc"), hasPersistedRead = { false })
+        assertEquals(ReimportPlan.PickPdfPermissionLost("kuro.pdf", "abc"), plan)
         assertFalse(plan.isAuto)
+        assertEquals("abc", plan.scanSha256)
     }
 
     @Test
-    fun `classifyReimport - sourceUri NULL＝PickPdfNoRecord（分岐③・v20 前の旧取込）`() {
-        val plan = classifyReimport(book(), hasPersistedRead = { true })
-        assertEquals(ReimportPlan.PickPdfNoRecord, plan)
+    fun `classifyReimport - sourceUri NULL＝PickPdfNoRecord（分岐③・指紋があれば走査で救える）`() {
+        val plan = classifyReimport(book(contentSha256 = "def"), hasPersistedRead = { true })
+        assertEquals(ReimportPlan.PickPdfNoRecord("def"), plan)
         assertFalse(plan.isAuto)
+        assertEquals("def", plan.scanSha256)
+    }
+
+    @Test
+    fun `classifyReimport - 指紋 NULL の旧取込は走査対象にならない（黙って落とさず null で表す）`() {
+        val lost = classifyReimport(
+            book(sourceUri = "content://docs/a", contentSha256 = null), hasPersistedRead = { false },
+        )
+        val noRecord = classifyReimport(book(contentSha256 = null), hasPersistedRead = { true })
+        assertNull(lost.scanSha256)
+        assertNull(noRecord.scanSha256)
     }
 
     @Test
@@ -103,6 +123,7 @@ class ReimportPlanTest {
         )
         assertEquals(ReimportPlan.AutoWeb("https://example.com/works/1"), plan)
         assertTrue(plan.isAuto)
+        assertNull(plan.scanSha256)
     }
 
     @Test
@@ -118,7 +139,7 @@ class ReimportPlanTest {
         assertEquals(ReimportPlan.AutoPdf("content://docs/a"), plans["m1"])
     }
 
-    // ── ファイル名ヒント（分岐②の選び直し材料）────────────────────────────────
+    // ── ファイル名ヒント（分岐②の表示と走査候補の優先順位付け）────────────────────────
 
     @Test
     fun `sourceFileNameHint - SAF 授権ID（primary区切り）からファイル名を復元する`() {
@@ -141,8 +162,21 @@ class ReimportPlanTest {
     }
 
     @Test
-    fun `sourceFileNameHint - 復元できない URI は null（ダイアログは手がかり行を出さないだけ）`() {
+    fun `sourceFileNameHint - MediaStore Documents の内部IDはファイル名でない（実機実測・誤表示の回帰固定）`() {
+        // 2026-07-29 実機の蔵書7冊が全てこの形式。旧実装は "1000027648" を切り出し、ダイアログに
+        // 『取込元の PDF: 1000027648』と表示していた＝手がかりとして無価値かつファイル名だと誤認させる。
+        assertNull(
+            sourceFileNameHint(
+                "content://com.android.providers.media.documents/document/document%3A1000027648",
+            ),
+        )
+    }
+
+    @Test
+    fun `sourceFileNameHint - 拡張子を持たない不透明IDは一律に採用しない（UUID 形式も同断）`() {
+        assertNull(sourceFileNameHint("content://com.example.provider/document/9f8c1b7e-4a21-4f00-9b3e-0d1f2a3b4c5d"))
         assertNull(sourceFileNameHint("content://docs/"))
+        assertNull(sourceFileNameHint("content://docs/abc"))
     }
 
     // ── 指紋の一度だけ表示（案C・「新規に検出した際に一度だけ」）───────────────────────
@@ -172,27 +206,56 @@ class ReimportPlanTest {
         assertTrue(shouldShowReimportSweep(setOf("a", "b"), pruned))
     }
 
-    // ── まとめて再取込の対象選別（①④のみ＝ピッカー必須分を混ぜない）──────────────────
+    @Test
+    fun `sweep指紋 - 1冊も動かせなかった実行では消費しない（実機で確認された欠陥の回帰固定）`() {
+        // 初版の欠陥: runSweepReimport が実行の頭で無条件に指紋を保存していたため、自動対象0冊
+        // （＝uninstall 後の実機構成そのもの）では「実行→何も起きない→バナーが二度と出ない」になった。
+        assertFalse(shouldConsumeSweepBanner(autoSubmitted = 0, scanMatched = 0))
+        // 走査で1冊でも当たれば消費してよい（ユーザーの操作が実を結んだ）。
+        assertTrue(shouldConsumeSweepBanner(autoSubmitted = 0, scanMatched = 1))
+        // 自動分だけ投入できた場合も同様（走査は0冊でも操作は前進している）。
+        assertTrue(shouldConsumeSweepBanner(autoSubmitted = 2, scanMatched = 0))
+    }
+
+    // ── 一括復旧の対象選別（自動＋走査／人が選ぶしかない分の分離）──────────────────────
 
     @Test
-    fun `reimportBreakdown - 4系統を数え autoTotal は①④だけを含む`() {
+    fun `reimportBreakdown - 復旧経路で3群に割れる（自動・走査・人が選ぶ）`() {
         val plans = listOf(
             ReimportPlan.AutoPdf("content://docs/1"),
             ReimportPlan.AutoPdf("content://docs/2"),
             ReimportPlan.AutoWeb("https://example.com/w/1"),
-            ReimportPlan.PickPdfPermissionLost("a.pdf"),
-            ReimportPlan.PickPdfNoRecord,
+            ReimportPlan.PickPdfPermissionLost("a.pdf", "sha-a"),
+            ReimportPlan.PickPdfNoRecord("sha-b"),
+            ReimportPlan.PickPdfNoRecord(null), // v11 前＝走査で救えない唯一の系統
         )
         val b = reimportBreakdown(plans)
         assertEquals(2, b.autoPdf)
         assertEquals(1, b.autoWeb)
         assertEquals(1, b.pickPermissionLost)
-        assertEquals(1, b.pickNoRecord)
-        assertEquals(5, b.total)
-        assertEquals(3, b.autoTotal)     // ①2冊＋④1冊＝自動実行の対象
-        assertEquals(2, b.manualTotal)   // ②③はカード起点の個別対応へ回す
-        // 実行対象の選別そのもの（VM runSweepReimport の filterIsInstance と同じ規則）: isAuto が①④だけ true。
+        assertEquals(2, b.pickNoRecord)
+        assertEquals(6, b.total)
+        assertEquals(3, b.autoTotal)        // ①2冊＋④1冊＝取込元の記録だけで戻せる
+        assertEquals(3, b.manualTotal)      // ②1冊＋③2冊
+        assertEquals(2, b.scannable)        // うち指紋あり＝フォルダ走査で戻せる
+        assertEquals(1, b.unscannable)      // 指紋なし＝人が1冊ずつ選ぶしかない
+        // 不変条件: ②③は必ず走査可否のどちらかに入る（黙って消える本が出ない）。
+        assertEquals(b.manualTotal, b.scannable + b.unscannable)
+        assertEquals(5, b.recoverableTotal) // ワンアクションで戻る見込み＝自動＋走査
+        // 実行対象の選別そのもの（VM submitAutoReimports の filterIsInstance と同じ規則）。
         assertEquals(3, plans.count { it.isAuto })
+    }
+
+    @Test
+    fun `reimportBreakdown - 実機構成（全冊が権限失効＋指紋あり）では自動0冊・走査で全冊`() {
+        // 2026-07-29 実機実測: 蔵書は全冊 PDF 由来・contentSha256 あり・uninstall で永続権限は消える。
+        // 旧設計（①④だけを一括対象）ではこの構成で autoTotal=0＝「まとめて再取込」が常に無効だった。
+        val plans = List(4) { ReimportPlan.PickPdfPermissionLost(null, "sha-$it") }
+        val b = reimportBreakdown(plans)
+        assertEquals(0, b.autoTotal)
+        assertEquals(4, b.scannable)
+        assertEquals(0, b.unscannable)
+        assertEquals(4, b.recoverableTotal)
     }
 
     // ── 状態行文言（案B・棚面に4種の語彙を発明しない）───────────────────────────
@@ -200,8 +263,8 @@ class ReimportPlanTest {
     @Test
     fun `reimportStatusLabel - PDF系は同文・Webだけ再取得の文言`() {
         assertEquals("本文なし・タップで再取込", reimportStatusLabel(ReimportPlan.AutoPdf("u")))
-        assertEquals("本文なし・タップで再取込", reimportStatusLabel(ReimportPlan.PickPdfPermissionLost(null)))
-        assertEquals("本文なし・タップで再取込", reimportStatusLabel(ReimportPlan.PickPdfNoRecord))
+        assertEquals("本文なし・タップで再取込", reimportStatusLabel(ReimportPlan.PickPdfPermissionLost(null, null)))
+        assertEquals("本文なし・タップで再取込", reimportStatusLabel(ReimportPlan.PickPdfNoRecord(null)))
         assertEquals("Web作品・再取得できます", reimportStatusLabel(ReimportPlan.AutoWeb("u")))
     }
 }

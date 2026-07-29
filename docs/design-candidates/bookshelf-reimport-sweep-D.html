@@ -7,15 +7,38 @@
 
   ◆案Cの狙い: 全滅級の欠落を起動時に一括検出——自動で戻せる分（sourceUri 有効＋Web本）をまとめて戻す。
 
-  設計（初版から不変）:
+  ★2026-07-29 実機検証→案X 増補（ユーザー裁定・本ファイルは案X 反映後が現行）:
+    実蔵書4冊で「まとめて再取込」が常に0冊になった。真因＝**uninstall すれば永続 URI 権限も必ず一緒に消える**
+    （Auto Backup は URI 権限を復元しない）。よって想定した主機序では PDF 本は 100% ②権限失効へ落ち、
+    ①（権限生存）を自動対象にした設計では自動対象が構造的に常にゼロ。
+    さらに②③の受け皿だった「同じ PDF を選び直してください」も成立しない: なろうPDF のファイル名は Nコード
+    （n0000xx.pdf）で人間には中身が判別できず、実機の sourceUri は MediaStore Documents 由来
+    （content://…/document/document%3A1000027648）でファイル名の手がかりすら残らない。
+    → 探す作業を人間からアプリへ移す（案X）: ユーザーは「PDFのある場所」をフォルダ選択で1回だけ教える。
+      アプリが配下のPDFを列挙し、各PDFの sha256 を欠落本の contentSha256 と自動照合して一致分を復元する。
+      選んだツリー権限は永続化する＝次回以降は「フォルダを選ぶ」すら不要な自動走査になる
+      （＝「①が主機序では成立しない」という構造問題そのものへの解）。
+
+  設計（初版から不変の部分）:
   ・検出バナー＝TopAppBar 直下のヘアライン枠。回転体を使わない（進行中でなく「知らせ」の状態）。
-  ・一括確認ダイアログに sourceUri 分岐の内訳を全系統併記（この1枚が分岐4状態の同時提示）:
-      8冊=自動再変換（sourceUri 有効）／1冊=Web 再取得（sourceUrl）／
-      2冊=権限失効（個別に選び直し）／1冊=記録なし（v20 前の旧取込＝個別にPDF選択）。
-    CTA は「自動で戻せる9冊」だけを実行＝ピッカー必須の3冊を一括フローに混ぜない
-    （SAF ピッカーは1冊ずつユーザー操作が必須＝「まとめて」と約束すると嘘になるため。残りはカード起点で個別に）。
   ・進行中＝既存 ProcessingBanner（取込キュー）にそのまま乗せる＝新規UIを発明しない。復旧済みカードから順に通常表示へ戻る。
   ・全分岐共通（C2）: 進捗 DB は触らない＝「読書位置としおりはそのまま残ります」を明記。
+
+  設計（案X で改めた部分）:
+  ・一括確認ダイアログの内訳は「sourceUri の分岐名」でなく **復旧経路** で並べる。②③はどちらも
+    「フォルダを1回教えれば自動で戻る」＝人にとっては同じ操作なので、分岐名で分けると嘘になる。
+      2冊=元のPDFから自動で再変換／1冊=Webから自動で再取得／
+      8冊=PDFのある場所から自動で見つけて戻す（内容の指紋で照合）／
+      1冊=1冊ずつPDFを選ぶ必要（v11 前の旧取込＝内容の記録が無く照合できない）。
+    最後の1系統だけが中空ドット（＝機械では戻せない）。ここを黙って落とさず正直に出すのが要件。
+  ・CTA は「場所を教わっているか」で1本に決まる:
+      未記憶かつ走査対象あり → 「PDFのある場所を選ぶ」（選ばせた直後に auto も走査もまとめて実行）
+      記憶済みかつ走査対象あり → 「N冊を再取込する」（N＝自動＋走査対象。副に「別の場所を選ぶ」）
+      走査対象なし・自動のみ → 従来どおり「N冊を再取込する」／どちらも0 → 「閉じる」
+  ・走査中＝検出バナーと同じヘッダ直下スロットに .proc 語彙の走査バナー（スピナー・照合件数・停止）。
+    ステッパーは出さない（PDF 変換の4段とは別物＝Web 取込と同じ判断）。停止は「今読んでいる1件の完了後」で、
+    そこまでの一致は捨てずに結果へ出す。
+  ・走査結果＝一致/不一致/読めなかった件数を告げるダイアログ。不一致が残るときだけ「別の場所を選ぶ」を添える。
 
   K 語彙への翻訳判断:
   ・欠落カード＝栞書影は普段どおり描く（書影はメタデータ由来＝決定論選択で本文が無くても描ける）＋書影左下に
@@ -180,8 +203,8 @@
 </style>
 </head>
 <body>
-  <p class="cap"><b>案C（K下敷き描き直し）. 一括検出バナー→まとめて再取込</b> ／ 狙い: <b>全滅級の欠落を起動時に一括検出</b>——自動で戻せる分（sourceUri 有効＋Web本）をまとめて戻す。</p>
-  <p class="note">下敷き＝現行既定 K（skins/bookshelf-K.html 2列改A・栞書影・状態フィルタ・FAB・恒常ナビ3タブ・360dp）。CTA は「自動で戻せる9冊」のみ（SAF ピッカー必須の3冊を一括に混ぜない＝嘘防止）。欠落カードは栞書影＋ink-soft バッジ＝藍の強調は検出バナーの CTA に1点集中（K 一画面一強調）。</p>
+  <p class="cap"><b>案C＋案X（K下敷き）. 一括検出バナー→場所を1回教えて自動照合</b> ／ 狙い: <b>全滅級の欠落を起動時に一括検出</b>——取込元の記録で戻せる分は自動で、残りは<b>「PDFのある場所」を1回教われば内容の指紋で自動照合</b>して戻す。</p>
+  <p class="note">下敷き＝現行既定 K（skins/bookshelf-K.html 2列改A・栞書影・状態フィルタ・FAB・恒常ナビ3タブ・360dp）。案X の理由＝uninstall では永続URI権限も消えるため①は構造的に0冊、かつ実機の取込元URIは MediaStore Documents 由来でファイル名の手がかりも残らない（人間には選び直せない／アプリは内容で判別できる）。走査バナーは検出バナーと同じスロット・.proc 語彙。藍の強調は一画面につき1点（バナーCTA／ダイアログの主ボタン）。</p>
 
   <div class="stage">
 
@@ -276,16 +299,97 @@
       <div class="dlg">
         <h2>12冊をまとめて再取込しますか？</h2>
         <div class="roll">
-          <div class="r auto"><b>8冊</b><span>元のPDFから自動で再変換 <span class="why">（取込元の記録と権限あり）</span></span></div>
+          <div class="r auto"><b>2冊</b><span>元のPDFから自動で再変換 <span class="why">（取込元の記録と権限あり）</span></span></div>
           <div class="r auto"><b>1冊</b><span>Webから自動で再取得 <span class="why">（Web作品）</span></span></div>
-          <div class="r manual"><b>2冊</b><span>PDFの選び直しが必要 <span class="why">（読み出し権限が切れています）</span></span></div>
-          <div class="r manual"><b>1冊</b><span>PDFの選択が必要 <span class="why">（取込元の記録がない旧い取込）</span></span></div>
+          <div class="r auto"><b>8冊</b><span>PDFのある場所から自動で見つけて戻す</span></div>
+          <div class="r manual"><b>1冊</b><span>1冊ずつPDFを選ぶ必要 <span class="why">（内容の記録がない古い取込＝自動照合できません）</span></span></div>
         </div>
-        <p>自動で戻せる 9冊 を先に再取込します。残り 3冊 は本棚のカードから個別に再取込できます。<span class="warn">読書位置としおりはそのまま残ります。</span></p>
-        <div class="dlg-acts"><button class="btn-cancel">やめる</button><button class="btn-go">9冊を再取込する</button></div>
+        <p>フォルダを一度だけ教えてください。中身を照合して自動で見つけます。残り 1冊 はカードから個別に。<span class="warn">読書位置としおりは残ります。</span></p>
+        <div class="dlg-acts"><button class="btn-cancel">やめる</button><button class="btn-go">PDFのある場所を選ぶ</button></div>
       </div>
     </div>
-    <p class="desc">藍ドット＝自動で戻る群／ヘアラインドット＝ユーザー操作が要る群。見出しは K 規約＝ゴシック bold（明朝は書名のみ）。</p></div>
+    <p class="desc">藍ドット＝機械で戻る群（自動＋フォルダ走査）／ヘアラインドット＝人が1冊ずつ選ぶしかない群。場所を記憶済みなら CTA は「11冊を再取込する」＋副ボタン「別の場所を選ぶ」。見出しは K 規約＝ゴシック bold（明朝は書名のみ）。</p></div>
+
+    <!-- 走査中: 検出バナーと同じスロットに .proc 語彙（ステッパー無し・停止つき） -->
+    <div class="wrap"><span class="mode">走査中（照合の進捗・停止可）</span>
+    <div class="phone" role="img" aria-label="案X フォルダ走査中（K下敷き）">
+      <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+      <div class="head">
+        <div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div>
+        <button class="view" aria-label="表示切替">
+          <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="4" width="6.6" height="6.6" rx="1.4"/><rect x="4" y="13.4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="13.4" width="6.6" height="6.6" rx="1.4"/></svg>
+        </button>
+      </div>
+      <div class="proc" role="status">
+        <div class="hd">
+          <span class="sp" aria-hidden="true"></span>
+          <div class="bt">
+            <div class="t">PDFを照合しています</div>
+            <div class="ph">3冊 見つかりました</div>
+          </div>
+          <span class="cnt">12 / 48</span>
+          <button class="stop">停止</button>
+        </div>
+        <div class="bar"><i style="width:25%"></i></div>
+      </div>
+      <div class="chips"><span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span></div>
+      <div class="scroll"><div class="grid">
+        <div class="bk">
+          <div class="cv" style="--band:hsl(210 48% 52%);--barx:26%;--barlen:46%"><span class="bar"></span><span class="vt">追放された万能薬師、辺境でスローライフを始める</span><span class="miss">本文なし</span></div>
+          <div class="cap2"><span class="t">追放された万能薬師、辺境でスローライフを始める</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">本文なし・タップで再取込</div>
+        </div>
+        <div class="bk">
+          <div class="cv" style="--band:hsl(280 48% 52%);--barx:34%;--barlen:42%"><span class="bar"></span><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span><span class="miss">本文なし</span></div>
+          <div class="cap2"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">本文なし・タップで再取込</div>
+        </div>
+      </div></div>
+      <button class="fab"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>PDFを追加</button>
+      <nav class="tabbar">
+        <a class="tab on"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg></span><span class="lb">本棚</span></a>
+        <a class="tab"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg></span><span class="lb">さがす</span></a>
+        <a class="tab"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="lb">設定</span></a>
+      </nav>
+    </div>
+    <p class="desc">検出バナーと同じヘッダ直下スロット・同じ .proc 語彙（スピナー藍トップ／ヘアライン枠）。ステッパーは出さない（PDF変換の4段とは別物）。件数は「照合済み / フォルダ内のPDF総数」、副行は当たった冊数。</p></div>
+
+    <!-- 走査結果: 戻せた冊数／見つからなかった冊数を告げる -->
+    <div class="wrap"><span class="mode">走査結果</span>
+    <div class="phone" role="img" aria-label="案X 走査結果ダイアログ（K下敷き）">
+      <div class="behind">
+        <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+        <div class="head"><div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div></div>
+        <div class="chips"><span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span></div>
+        <div class="scroll"><div class="grid">
+          <div class="bk">
+            <div class="cv" style="--band:hsl(210 48% 52%);--barx:26%;--barlen:46%"><span class="bar"></span><span class="vt">追放された万能薬師、辺境でスローライフを始める</span><span class="miss">本文なし</span></div>
+            <div class="cap2"><span class="t">追放された万能薬師、辺境でスローライフを始める</span>
+              <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+            <div class="st">再取込の順番待ち</div>
+          </div>
+          <div class="bk">
+            <div class="cv" style="--band:hsl(280 48% 52%);--barx:34%;--barlen:42%"><span class="bar"></span><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span><span class="miss">本文なし</span></div>
+            <div class="cap2"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span>
+              <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+            <div class="st">再取込の順番待ち</div>
+          </div>
+        </div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="dlg">
+        <h2>7冊が見つかりました</h2>
+        <p>48件 のPDFを調べ、7冊 を戻します。終わった本から読めるようになります。<span class="warn">読書位置としおりは残ります。</span></p>
+        <div class="roll">
+          <div class="r manual"><b>1冊</b><span>見つかりませんでした <span class="why">（別の場所にあるか、PDFがもう端末にありません）</span></span></div>
+          <div class="r manual"><b>2件</b><span>読み取れないファイルがありました <span class="why">（破損／権限の穴）</span></span></div>
+        </div>
+        <div class="dlg-acts"><button class="btn-cancel">閉じる</button><button class="btn-go">別の場所を選ぶ</button></div>
+      </div>
+    </div>
+    <p class="desc">一致0冊なら見出しは「一致するPDFが見つかりませんでした」、停止で終えたら「途中で停止しました」。不一致が残るときだけ「別の場所を選ぶ」を添える（無ければ「閉じる」1本）。</p></div>
 
     <!-- 進行中: 既存 ProcessingBanner の取込キューに乗せる -->
     <div class="wrap"><span class="mode">進行中（既存取込キュー再利用）</span>

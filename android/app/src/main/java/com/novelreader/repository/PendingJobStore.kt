@@ -3,6 +3,7 @@ package com.novelreader.repository
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 import com.novelreader.data.PendingJobDao
 import com.novelreader.data.PendingJobEntity
 import kotlinx.coroutines.Dispatchers
@@ -113,6 +114,14 @@ internal class PendingJobStore(
     suspend fun releaseOrphanedPermissions(keepUris: Set<String>) = withContext(Dispatchers.IO) {
         val persistedReadUris = context.contentResolver.persistedUriPermissions
             .filter { it.isReadPermission }
+            // SAF ツリー権限（ACTION_OPEN_DOCUMENT_TREE で得た「PDFのある場所」＝案X）は孤児掃除の対象外。
+            // なぜ除外が要るか（真因）: 孤児判定は「persisted − keepUris」の差集合で、keepUris の構成は
+            // pending_jobs の URI と books.sourceUri＝いずれも document URI しかない。ツリー URI は構造上
+            // どちらにも現れないため、除外しないと次の起動で必ず解放され、「一度教えた場所を覚えている」
+            // という案X の前提（次回は選ばずに自動走査）が毎回壊れる。
+            // 上限予算の観点でも安全: ツリー権限は同時に1件だけ保持する（新しい場所を選んだ時点で
+            // BookshelfViewModel が古いツリー権限を解放する）。
+            .filterNot { DocumentsContract.isTreeUri(it.uri) }
             .map { it.uri.toString() }
             .toSet()
         orphanedPermissionUris(persistedReadUris, keepUris).forEach { uri ->

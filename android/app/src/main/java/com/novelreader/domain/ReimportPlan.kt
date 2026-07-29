@@ -4,7 +4,7 @@ import com.novelreader.data.BookEntity
 import java.net.URLDecoder
 
 // ============================================================
-// 本文欠落→再取込提案（2026-07-29 裁定・案B＋案C）
+// 本文欠落→再取込提案（2026-07-29 裁定・案B＋案C、同日 実機検証を受けた案X 増補）
 //
 // 「books 行はあるが本文実体（index.html 等）が無い」蔵書を起動時に一括検出し、
 // 復旧手段を sourceUri/sourceUrl の状態で4分岐に分類する純ロジック。
@@ -12,29 +12,61 @@ import java.net.URLDecoder
 // （knowledge upload-signing-verify-wipes-device-library）。
 // ファイル実在判定・永続権限照会は Android 依存のため関数注入で受け、
 // 分類そのものは JVM 単体テスト可能な純関数に保つ。
+//
+// 【案X＝実機で確定した真因への対処】初版（案B/C）は自動復旧の対象を①AutoPdf（永続URI権限が生存する
+// PDF）と④AutoWeb に限っていたが、実蔵書4冊で「まとめて再取込」が常に0冊になった。真因は
+// **uninstall すれば永続 URI 権限も必ず一緒に消える**こと（Auto Backup は URI 権限を復元しない）。
+// つまり想定した主機序では PDF 本は 100% ②PickPdfPermissionLost へ落ち、①は「本文ファイルだけが
+// 消えた」稀なケースでしか成立しない＝自動対象は構造的に常にゼロだった。
+// さらに②③は「PDFを選び直してください」と SAF ピッカーを出すが、なろうPDFのファイル名は Nコード
+// （n0000xx.pdf）で人間には中身が判別できない。一方アプリは中身で判別できる（contentSha256）。
+// そこで探す作業を人間からアプリへ移す＝「PDFのある場所」を SAF フォルダ選択で1回だけ教われば、
+// 配下のPDFを列挙して指紋照合し自動で戻す（走査の純ロジックは domain/PdfFolderScan.kt）。
+// 本ファイルの責務は「どの本が走査で戻せるか（＝内容指紋を持つか）」までを分類に含めること。
 // ============================================================
 
 /**
  * 欠落本1冊の復旧手段（モック bookshelf-reimport-badge-D.html の4分岐）。
- * 分岐①④＝自動復旧可能（ユーザー操作は確認のみ）／②③＝SAF ピッカーでの選び直しが必須。
- * 案C の「まとめて再取込」は①④だけを対象にする（ピッカー必須分を混ぜると「まとめて」が嘘になる）。
+ * 分岐①④＝取込元の記録だけで自動復旧できる／②③＝取込元へ到達する手段が無い。
+ *
+ * ②③でも [scanSha256] が非 null なら「PDFのある場所を1回教えてもらう」だけで機械照合できる（案X）。
+ * 1冊ずつの SAF ピッカーが真に必要なのは [scanSha256] が null の本（v11 前の旧取込＝contentSha256 が
+ * NULL で照合材料が無い）だけになった。
  */
 sealed interface ReimportPlan {
     /** ① sourceUri 記録あり・読取権限が生存＝元のPDFから自動で再変換できる。 */
     data class AutoPdf(val sourceUri: String) : ReimportPlan
 
-    /** ② sourceUri 記録はあるが永続権限が失効＝同じPDFの選び直しが必要（fileNameHint が手がかり）。 */
-    data class PickPdfPermissionLost(val fileNameHint: String?) : ReimportPlan
+    /** ② sourceUri 記録はあるが永続権限が失効。uninstall→Auto Backup の主機序ではPDF本が全てここへ落ちる
+     *  （権限は DB と一緒には戻らない）。fileNameHint は走査候補の優先順位付けと個別選び直しの手がかり、
+     *  contentSha256 はフォルダ走査での機械照合キー（NULL＝v11 前の旧取込で照合不能）。 */
+    data class PickPdfPermissionLost(
+        val fileNameHint: String?,
+        val contentSha256: String?,
+    ) : ReimportPlan
 
-    /** ③ sourceUri NULL（v20 前の旧取込等）＝手がかり無しでPDFを選んでもらう。 */
-    data object PickPdfNoRecord : ReimportPlan
+    /** ③ sourceUri NULL（v20 前の旧取込等）＝取込元の手がかりが無い。
+     *  ただし contentSha256 は v11 以降なら入っている＝フォルダ走査では②と同じく機械照合できる。 */
+    data class PickPdfNoRecord(val contentSha256: String?) : ReimportPlan
 
     /** ④ Web 取込本（sourceUrl あり）＝作品ページから自動で再取得できる。 */
     data class AutoWeb(val sourceUrl: String) : ReimportPlan
 
-    /** 自動復旧可能な分岐か（案C の一括対象＝①④）。 */
+    /** 自動復旧可能な分岐か（取込元の記録だけで戻せる＝①④）。 */
     val isAuto: Boolean
         get() = this is AutoPdf || this is AutoWeb
+
+    /**
+     * フォルダ走査（案X）で機械照合するときのキー。null＝走査では戻せない。
+     * ①④を除外するのは、取込元の記録から直接戻せる本を重い全走査の対象に混ぜないため
+     * （①は再変換を、④はWeb再取得を既に投入済み＝二重取込になる）。
+     */
+    val scanSha256: String?
+        get() = when (this) {
+            is PickPdfPermissionLost -> contentSha256
+            is PickPdfNoRecord -> contentSha256
+            is AutoPdf, is AutoWeb -> null
+        }
 }
 
 /**
@@ -48,11 +80,11 @@ fun classifyReimport(
 ): ReimportPlan {
     val sourceUrl = book.sourceUrl
     if (sourceUrl != null) return ReimportPlan.AutoWeb(sourceUrl)
-    val sourceUri = book.sourceUri ?: return ReimportPlan.PickPdfNoRecord
+    val sourceUri = book.sourceUri ?: return ReimportPlan.PickPdfNoRecord(book.contentSha256)
     return if (hasPersistedRead(sourceUri)) {
         ReimportPlan.AutoPdf(sourceUri)
     } else {
-        ReimportPlan.PickPdfPermissionLost(sourceFileNameHint(sourceUri))
+        ReimportPlan.PickPdfPermissionLost(sourceFileNameHint(sourceUri), book.contentSha256)
     }
 }
 
@@ -70,11 +102,29 @@ fun buildReimportPlans(
         .associate { it.id to classifyReimport(it, hasPersistedRead) }
 
 /**
- * SAF ドキュメント URI からファイル名の手がかりを取り出す（分岐②の選び直し材料）。
+ * 「ファイル名として妥当か」の定義＝末尾に拡張子（. と 1〜8 文字の英数字）を持つこと。
+ *
+ * なぜこの定義か（2026-07-29 実機実測で発覚した誤表示の根治）: 授権 ID に実ファイル名を埋め込む
+ * プロバイダ（externalstorage の "primary:Download/foo.pdf"、downloads の "raw:/storage/…/foo.pdf"）は
+ * 必ず拡張子ごとファイル名を含む。一方、不透明な内部 ID を使うプロバイダ——実測された MediaStore
+ * Documents（"document:1000027648"）や UUID 形式——は拡張子を持たない。よって「拡張子の有無」が
+ * 〈人間がファイルを探す手がかりになる文字列〉と〈provider の内部 ID〉を分ける構造的な境界になる。
+ * 数字だけを弾く等の対症的な条件にしないのは、UUID 形式など別の不透明 ID をまた取りこぼすため。
+ */
+private val FILE_NAME_WITH_EXTENSION = Regex(""".+\.[A-Za-z0-9]{1,8}$""")
+
+/**
+ * SAF ドキュメント URI からファイル名の手がかりを取り出す（分岐②の表示と走査候補の優先順位付け）。
  * 権限失効後は ContentProvider へ DISPLAY_NAME を照会できない（SecurityException）ため、
  * URI 文字列そのものから復元する: 最終セグメントを URL デコードし、
  * "primary:Download/foo.pdf" / "raw:/storage/.../foo.pdf" 形式の授権 ID から末尾のファイル名を切り出す。
- * 形式が読めない URI では null（ダイアログは手がかり行を出さないだけで成立する）。
+ *
+ * 切り出せても [FILE_NAME_WITH_EXTENSION] を満たさない文字列は null にする。実機の蔵書は全冊が
+ * MediaStore Documents 由来（"…/document/document%3A1000027648"）で、旧実装はここから "1000027648" を
+ * 取り出してダイアログに『取込元の PDF: 1000027648』と表示していた——手がかりとして無価値なだけでなく、
+ * ファイル名だと誤認させる。手がかりが無いなら黙って出さない方が正しい（ダイアログは手がかり行を
+ * 落とすだけで成立する）。この事実は案X（フォルダ走査＝内容指紋での自動照合）が必須である根拠でもある:
+ * 主要プロバイダではファイル名の手がかりすら残らず、人間には選び直す材料が無い。
  */
 fun sourceFileNameHint(sourceUri: String): String? {
     val lastSegment = sourceUri.substringAfterLast('/')
@@ -82,32 +132,52 @@ fun sourceFileNameHint(sourceUri: String): String? {
     val decoded = runCatching { URLDecoder.decode(lastSegment, "UTF-8") }.getOrNull() ?: return null
     // 授権 ID（"primary:Download/foo.pdf" 等）は「最後の : の後ろ」→さらに「最後の / の後ろ」がファイル名。
     val name = decoded.substringAfterLast(':').substringAfterLast('/').trim()
-    return name.ifBlank { null }
+    return name.takeIf { FILE_NAME_WITH_EXTENSION.matches(it) }
 }
 
-/** 案C バナーに出す内訳（分岐4系統の冊数。モックの .roll と1対1）。 */
+/**
+ * 案C バナーに出す内訳。
+ * [autoPdf]/[autoWeb]/[pickPermissionLost]/[pickNoRecord] は sourceUri/sourceUrl による分岐4系統の冊数
+ * （分類の構造そのもの＝診断・テスト用に保つ）。
+ * 一括確認ダイアログが実際に見せるのは「復旧経路」による3分類＝[autoTotal]／[scannable]／[unscannable] で、
+ * これは案X 以後「ユーザーが何をすれば戻るか」が②③という分岐名と一致しなくなったため（②③はどちらも
+ * フォルダを1回教えれば自動で戻る＝人にとっては同じ操作）。
+ */
 data class ReimportBreakdown(
     val autoPdf: Int,
     val autoWeb: Int,
     val pickPermissionLost: Int,
     val pickNoRecord: Int,
+    /** ②③のうち内容指紋を持つ＝フォルダ走査で機械照合できる冊数（案X の主対象）。 */
+    val scannable: Int,
+    /** ②③のうち内容指紋が無い＝走査では戻せず1冊ずつPDFを選ぶしかない冊数（v11 前の旧取込）。 */
+    val unscannable: Int,
 ) {
     val total: Int get() = autoPdf + autoWeb + pickPermissionLost + pickNoRecord
 
-    /** 自動で戻せる冊数（①＋④＝一括再取込の実行対象）。 */
+    /** 取込元の記録だけで戻せる冊数（①＋④＝確認だけで実行できる分）。 */
     val autoTotal: Int get() = autoPdf + autoWeb
 
-    /** ユーザー操作（SAF 選び直し）が要る冊数（②＋③）。 */
+    /** 取込元の記録では戻せない冊数（②＋③）。内訳は [scannable] ＋ [unscannable]（不変条件）。 */
     val manualTotal: Int get() = pickPermissionLost + pickNoRecord
+
+    /** 一括復旧のワンアクションで戻る見込みの冊数（自動＋フォルダ走査）。CTA の冊数表示に使う。 */
+    val recoverableTotal: Int get() = autoTotal + scannable
 }
 
 /** 検出結果から内訳冊数を数える（一括確認ダイアログの表示データ）。 */
-fun reimportBreakdown(plans: Collection<ReimportPlan>): ReimportBreakdown = ReimportBreakdown(
-    autoPdf = plans.count { it is ReimportPlan.AutoPdf },
-    autoWeb = plans.count { it is ReimportPlan.AutoWeb },
-    pickPermissionLost = plans.count { it is ReimportPlan.PickPdfPermissionLost },
-    pickNoRecord = plans.count { it is ReimportPlan.PickPdfNoRecord },
-)
+fun reimportBreakdown(plans: Collection<ReimportPlan>): ReimportBreakdown {
+    // 走査可否は②③の中だけで数える（scanSha256 が①④で必ず null を返す＝定義上の保証）。
+    val manual = plans.filter { !it.isAuto }
+    return ReimportBreakdown(
+        autoPdf = plans.count { it is ReimportPlan.AutoPdf },
+        autoWeb = plans.count { it is ReimportPlan.AutoWeb },
+        pickPermissionLost = plans.count { it is ReimportPlan.PickPdfPermissionLost },
+        pickNoRecord = plans.count { it is ReimportPlan.PickPdfNoRecord },
+        scannable = manual.count { it.scanSha256 != null },
+        unscannable = manual.count { it.scanSha256 == null },
+    )
+}
 
 /**
  * 案C バナーを出すか（「新規に検出した際に一度だけ表示」のユーザー裁定）。
@@ -117,6 +187,24 @@ fun reimportBreakdown(plans: Collection<ReimportPlan>): ReimportBreakdown = Reim
  */
 fun shouldShowReimportSweep(missingIds: Set<String>, seenIds: Set<String>): Boolean =
     (missingIds - seenIds).isNotEmpty()
+
+/**
+ * 一括復旧の1操作でバナー指紋を消費してよいか（＝以後この欠落集合では知らせを出さない）。
+ *
+ * なぜ関数として切り出すか（初版の欠陥の再発防止）: 旧 runSweepReimport は実行の先頭で無条件に
+ * 指紋を保存していたため、自動対象が0冊で「実行したのに何も起きない」ときでもバナーが二度と
+ * 出なくなり、1タップで復旧導線そのものを失っていた。判定を名前のある純関数に固定して
+ * JVM テストで縛る（VM 側は永続化の副作用だけを持つ）。
+ *
+ * 規則: 実際に1冊でも復旧を投入できたときだけ消費する。1冊も動かせなかったなら知らせは残す
+ * （＝ユーザーは同じバナーからやり直せる。明示的に閉じたい人には「あとで」がある）。
+ * フォルダ走査を始めた操作では [scanMatched] が確定する走査完了時にこの判定を行う（開始時ではない）。
+ *
+ * @param autoSubmitted ①元PDF＋④Web で取込キューへ投入した冊数。
+ * @param scanMatched フォルダ走査で指紋一致した冊数（走査していない／未完了なら 0）。
+ */
+fun shouldConsumeSweepBanner(autoSubmitted: Int, scanMatched: Int): Boolean =
+    autoSubmitted > 0 || scanMatched > 0
 
 /**
  * 検出のたびに seen 集合を現欠落へ刈り込む（seen = seen ∩ missing）。

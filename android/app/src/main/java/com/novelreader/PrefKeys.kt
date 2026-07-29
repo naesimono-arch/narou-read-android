@@ -84,6 +84,15 @@ object PrefKeys {
      *  同一集合では再表示しない＝「新規に検出した際に一度だけ表示」の指紋（domain/ReimportPlan.kt）。 */
     const val REIMPORT_SWEEP_SEEN_IDS = "reimport_sweep_seen_ids"
 
+    /** 蔵書PDFの保管フォルダとして選ばれた SAF ツリー URI（String・案X＝domain/PdfFolderScan.kt）。
+     *  値の意味: ACTION_OPEN_DOCUMENT_TREE の結果 URI 文字列。ここに値がある＝「一度場所を教わった」で、
+     *  以後の本文欠落は folder picker を出さずに走査できる（案X の要）。
+     *  ⚠ 値は端末固有の content:// 文字列で、他端末へバックアップ復元しても意味を持たない。読み出し側
+     *  （BookshelfViewModel）は persistedUriPermissions に生きた権限がある場合だけ「記憶済み」と扱う
+     *  ＝権限を失った URI を覚えているふりをしない（走査が SecurityException で全滅するのを防ぐ）。
+     *  ⚠ キー文字列は不変（冒頭の【重要】参照）。 */
+    const val PDF_LIBRARY_TREE_URI = "pdf_library_tree_uri"
+
     /** P装い: ヒンジ開度のデテント段（Int 0..2）。 */
     const val P_HINGE_DETENT = "p_hinge_detent"
 

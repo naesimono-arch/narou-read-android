@@ -90,6 +90,7 @@ import com.novelreader.ui.DeleteSourcePdfOption
 import com.novelreader.ui.MissingContentBadge
 import com.novelreader.ui.NewChaptersBadge
 import com.novelreader.ui.ProcessingBanner
+import com.novelreader.ui.ReimportScanBanner
 import com.novelreader.ui.ReimportSweepBanner
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.components.ShioriCover
@@ -115,6 +116,7 @@ import com.novelreader.ui.theme.MotionDurationReveal
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.ScanProgress
 import com.novelreader.domain.ShelfItem
 import com.novelreader.domain.chapterNumberOf
 import com.novelreader.domain.deleteConfirmBody
@@ -255,6 +257,26 @@ internal fun BookshelfK(
                     onReimport = chrome.onSweepConfirm,
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+
+            // PDF フォルダ走査の進捗バナー（案X・正本 .proc）。検出バナーと同じスロット・同じ Motion 出没で、
+            // 表示は排他（VM が走査中は sweepBannerVisible を false にする）。
+            // 退場アニメの間 folderScan は既に null になっているため直前の非 null 値を保持して描く
+            // （保持箱をスナップショット状態にしない理由＝BookshelfScreen の同処理コメント参照）。
+            val lastScan = remember { arrayOfNulls<ScanProgress>(1) }
+            chrome.folderScan?.let { lastScan[0] = it }
+            AnimatedVisibility(
+                visible = chrome.folderScan != null,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
+            ) {
+                lastScan[0]?.let { progress ->
+                    ReimportScanBanner(
+                        progress = progress,
+                        onStop = chrome.onScanStop,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
 
             // 状態フィルタチップ行（.chips）。棚が非空のときだけ意味を持つが、D と同じく常時出して「すべて」へ戻れる導線を保つ。

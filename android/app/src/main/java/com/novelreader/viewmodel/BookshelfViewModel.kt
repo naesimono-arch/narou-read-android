@@ -12,9 +12,15 @@ import androidx.lifecycle.viewModelScope
 import com.novelreader.NovelReaderApplication
 import com.novelreader.PdfProcessingService
 import com.novelreader.PrefKeys
+import com.novelreader.domain.FolderScanReport
 import com.novelreader.domain.ReimportPlan
+import com.novelreader.domain.ScanProgress
+import com.novelreader.domain.ScanTarget
 import com.novelreader.domain.buildReimportPlans
+import com.novelreader.domain.buildScanTargets
 import com.novelreader.domain.pruneReimportSeenIds
+import com.novelreader.domain.scanPdfFolder
+import com.novelreader.domain.shouldConsumeSweepBanner
 import com.novelreader.domain.shouldShowReimportSweep
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
@@ -28,6 +34,7 @@ import com.novelreader.narou.model.DiscoveryResult
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
 import com.novelreader.repository.BookRepository
+import com.novelreader.repository.PdfTreeScanner
 import com.novelreader.repository.SourceDeleteOutcome
 import com.novelreader.scrape.ScrapeStructureException
 import com.novelreader.scrape.SiteAdapterRegistry
@@ -41,6 +48,9 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** 本 VM のログタグ（ログ検索の継続性のため従来の文字列を維持）。 */
+private const val TAG = "BookshelfViewModel"
 
 /** PDF取込時のエラー種別。UI層でユーザー向けメッセージに変換する。 */
 sealed class BookImportError(val userMessage: String) : Exception(userMessage) {
@@ -330,10 +340,44 @@ class BookshelfViewModel @JvmOverloads constructor(
         appPrefs.getStringSet(PrefKeys.REIMPORT_SWEEP_SEEN_IDS, emptySet())?.toSet() ?: emptySet()
     )
 
-    /** 案C バナーの表示可否。「新規に検出した際に一度だけ」＝seen 指紋に無い欠落があるときだけ true。 */
+    // ── 案X: 「PDFのある場所」の記憶とフォルダ走査（domain/PdfFolderScan.kt の Android 側配線）──────
+    // 真因（実機確定）: uninstall→Auto Backup では永続 URI 権限が戻らないため、PDF 本は全て②へ落ち
+    // ①の自動対象は構造的に0冊になる。さらに実機の sourceUri は MediaStore Documents 由来でファイル名の
+    // 手がかりすら残らない（sourceFileNameHint の KDoc）＝人間には選び直す材料が無い。
+    // よって「場所を1回教える→アプリが内容指紋で全冊照合」を復旧の主経路にする。
+
+    /** 記憶済みの PDF 保管フォルダ（SAF ツリー URI 文字列）。null＝まだ教わっていない。 */
+    private val _pdfFolderTreeUri = MutableStateFlow(
+        appPrefs.getString(PrefKeys.PDF_LIBRARY_TREE_URI, null)?.takeIf { saved ->
+            // 権限が生きているツリーだけを「記憶済み」と扱う（覚えているふりをすると走査が
+            // SecurityException で全滅し、ユーザーには「0冊でした」と嘘の結果が出る）。
+            application.contentResolver.persistedUriPermissions.any {
+                it.uri.toString() == saved && it.isReadPermission
+            }
+        }
+    )
+    val pdfFolderTreeUri: StateFlow<String?> = _pdfFolderTreeUri.asStateFlow()
+
+    /** 走査中の進捗（null＝走査していない）。バナーの「N件中M件」と停止ボタンの表示条件。 */
+    private val _folderScan = MutableStateFlow<ScanProgress?>(null)
+    val folderScan: StateFlow<ScanProgress?> = _folderScan.asStateFlow()
+
+    /** 走査結果（null＝結果ダイアログ非表示）。回転で消えないよう Channel でなく状態で持つ（_importPrompt と同流儀）。 */
+    private val _folderScanReport = MutableStateFlow<FolderScanReport?>(null)
+    val folderScanReport: StateFlow<FolderScanReport?> = _folderScanReport.asStateFlow()
+
+    // 停止要求。なぜコルーチン cancel でなくフラグか: cancel すると途中経過（どこまで調べて何冊当たったか）を
+    // 巻き戻してしまい「停止したら何も起きなかった」ことになる。フラグならファイル境界で協調的に抜けて
+    // 部分成果をそのまま結果として返せる（PDF 取込の ACTION_STOP がページ境界で止まるのと同じ意味論）。
+    // AtomicBoolean なのは走査が IO ディスパッチャ、停止操作が Main から来るため。
+    private val scanCancelRequested = AtomicBoolean(false)
+    private var folderScanJob: Job? = null
+
+    /** 案C バナーの表示可否。「新規に検出した際に一度だけ」＝seen 指紋に無い欠落があるときだけ true。
+     *  走査中は出さない（同じヘッダ直下スロットに走査バナーが出るため＝二重表示を作らない）。 */
     val sweepBannerVisible: StateFlow<Boolean> =
-        combine(reimportPlans, sweepSeenIds) { plans, seen ->
-            plans != null && shouldShowReimportSweep(plans.keys, seen)
+        combine(reimportPlans, sweepSeenIds, _folderScan) { plans, seen, scan ->
+            plans != null && scan == null && shouldShowReimportSweep(plans.keys, seen)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     private fun persistSweepSeenIds(ids: Set<String>) {
@@ -348,16 +392,167 @@ class BookshelfViewModel @JvmOverloads constructor(
         reimportPlans.value?.let { persistSweepSeenIds(it.keys.toSet()) }
     }
 
-    /** 案C「まとめて再取込」実行: 自動復旧可能分（①元PDF＋④Web）だけを既存の取込経路へ投入する。
-     *  SAF ピッカー必須分（②③）は混ぜない（1冊ずつユーザー操作が必須＝「まとめて」を嘘にしないための除外）。
+    /**
+     * 一括復旧の実行（案C＋案X）。
+     * ①元PDF＋④Web を既存の取込経路へ投入し、指紋照合できる欠落本（②③のうち contentSha256 あり）が
+     * 残っていれば PDF 保管フォルダを走査する。
+     *
+     * @param folder 走査に使うフォルダ。省略時は記憶済みツリー（無ければ走査しない＝呼び出し側が
+     *   フォルダ選択を出してから [rememberPdfFolder] 経由で入り直す）。
+     */
+    fun runSweepReimport(folder: Uri? = null) {
+        val plans = reimportPlans.value ?: return
+        val actedIds = plans.keys.toSet()
+        val submitted = submitAutoReimports(plans)
+        val targets = buildScanTargets(books.value, plans)
+        val tree = folder ?: _pdfFolderTreeUri.value?.let(Uri::parse)
+        if (tree != null && targets.isNotEmpty()) {
+            // 走査を始める操作では消費判定を走査完了まで遅らせる（一致冊数がまだ判らないため）。
+            startFolderScan(tree, targets, actedIds, autoSubmitted = submitted)
+            return
+        }
+        // 走査へ進まない場合はここで判定する（規則の正本＝domain の shouldConsumeSweepBanner）。
+        if (shouldConsumeSweepBanner(submitted, scanMatched = 0)) persistSweepSeenIds(actedIds)
+    }
+
+    /** ①元PDF＋④Web を既存の取込経路へ投入する（戻り値＝投入した冊数）。
      *  直列化は既存機構に乗せる: PDF＝FGS の ArrayDeque キュー（Service が逐次処理）／
      *  Web＝importWebNovels の単一コルーチン逐次実行＝新しい並列実行を発明しない。 */
-    fun runSweepReimport() {
-        val plans = reimportPlans.value ?: return
-        persistSweepSeenIds(plans.keys.toSet())
-        plans.values.filterIsInstance<ReimportPlan.AutoPdf>().forEach { addBook(Uri.parse(it.sourceUri)) }
+    private fun submitAutoReimports(plans: Map<String, ReimportPlan>): Int {
+        val autoPdf = plans.values.filterIsInstance<ReimportPlan.AutoPdf>()
+        autoPdf.forEach { addBook(Uri.parse(it.sourceUri)) }
         val webUrls = plans.values.filterIsInstance<ReimportPlan.AutoWeb>().map { it.sourceUrl }
         if (webUrls.isNotEmpty()) importWebNovels(webUrls)
+        return autoPdf.size + webUrls.size
+    }
+
+    /**
+     * フォルダ選択（ACTION_OPEN_DOCUMENT_TREE）の結果を記憶する（走査は呼ばない＝呼び出し側が続けて
+     * [runSweepReimport] か [scanFolderForBook] を回す）。
+     * ツリー権限の永続化が案X の要: これが成立して初めて「次回以降はフォルダを選ばずに自動走査」になる。
+     */
+    fun rememberPdfFolder(treeUri: Uri) {
+        val resolver = getApplication<Application>().contentResolver
+        val taken = runCatching {
+            resolver.takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }.isSuccess
+        if (!taken) {
+            // 永続化できないプロバイダでも「今回の走査」は Intent の一時権限で成立する＝機能は落とさず
+            // 記憶だけ諦める（次回はまたフォルダ選択から）。黙らせずログに残す。
+            android.util.Log.w(TAG, "ツリー権限を永続化できませんでした（今回限りの走査になります）: $treeUri")
+            return
+        }
+        // 別の場所へ乗り換えたら古いツリー権限は返す（永続権限は端末上限128件の共有予算＝1件に保つ）。
+        _pdfFolderTreeUri.value
+            ?.takeIf { it != treeUri.toString() }
+            ?.let { old ->
+                runCatching {
+                    resolver.releasePersistableUriPermission(
+                        Uri.parse(old), Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
+                }
+            }
+        _pdfFolderTreeUri.value = treeUri.toString()
+        appPrefs.edit().putString(PrefKeys.PDF_LIBRARY_TREE_URI, treeUri.toString()).apply()
+    }
+
+    /**
+     * 案B ダイアログ②③（案X の単体版）: この1冊だけを「PDFのある場所」から探す。
+     * @return false＝走査できなかった（指紋が無い本／使えるフォルダが無い）。呼び出し側はこの戻り値で
+     *   フォルダ選択を出すか個別選択へ落とすかを決める（VM から picker は起動できないため）。
+     */
+    fun scanFolderForBook(book: BookEntity, folder: Uri? = null): Boolean {
+        val plans = reimportPlans.value ?: return false
+        val target = buildScanTargets(listOf(book), plans).firstOrNull() ?: return false
+        val tree = folder ?: _pdfFolderTreeUri.value?.let(Uri::parse) ?: return false
+        // actedIds は空＝この経路ではバナー指紋に触れない（1冊の復旧で一括バナーを消費しない）。
+        startFolderScan(tree, listOf(target), actedIds = emptySet(), autoSubmitted = 0)
+        return true
+    }
+
+    /** 走査の停止（走査バナーの「停止」）。実際の中断は「今読んでいる1件の完了後」＝部分成果は結果に残る。 */
+    fun cancelFolderScan() {
+        scanCancelRequested.set(true)
+    }
+
+    /** 走査結果ダイアログを閉じる。 */
+    fun dismissFolderScanReport() {
+        _folderScanReport.value = null
+    }
+
+    /**
+     * フォルダ走査の実体。列挙とハッシュ計算（Android 依存）は [PdfTreeScanner] へ、
+     * 照合・集計（純ロジック）は [scanPdfFolder] へ委ね、ここは配線と結果の後始末だけを持つ。
+     *
+     * @param actedIds バナー消費の対象 id 集合（空＝この走査ではバナー指紋に触れない＝1冊復旧の経路）。
+     * @param autoSubmitted 同じ操作で①④の自動再取込へ投入した冊数（走査が0冊でも消費してよい根拠）。
+     */
+    private fun startFolderScan(
+        treeUri: Uri,
+        targets: List<ScanTarget>,
+        actedIds: Set<String>,
+        autoSubmitted: Int,
+    ) {
+        // 走査は同時1本（進捗バナーが1つしかなく、二重起動は表示も停止操作も破綻する）。
+        if (folderScanJob?.isActive == true) return
+        scanCancelRequested.set(false)
+        _folderScan.value = ScanProgress(hashed = 0, total = 0, matched = 0)
+        folderScanJob = viewModelScope.launch(ioDispatcher) {
+            val scanner = PdfTreeScanner(getApplication<Application>())
+            val report = try {
+                scanPdfFolder(
+                    targets = targets,
+                    enumerate = { scanner.enumeratePdfs(treeUri, isCancelled = scanCancelRequested::get) },
+                    hashOf = { scanner.sha256Of(Uri.parse(it.uri)) },
+                    // 蔵書PDFらしいファイル名（なろう縦書きPDF の Nコード命名）を先に照合する順序付け。
+                    // ファイル名の手がかり（fileNameHint）が取れないプロバイダ（MediaStore Documents）では
+                    // これが唯一の優先材料になる＝早期終了の効きを支える。
+                    isLikelyNovelPdf = ::isNarouPdfFileName,
+                    isCancelled = scanCancelRequested::get,
+                    onProgress = { _folderScan.value = it },
+                )
+            } catch (e: Throwable) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                // 根が読めない＝権限失効・場所ごと消えた等。「0冊でした」と混同させず失敗として告げる
+                // （症状を隠すと「このフォルダに本は無い」と誤って伝わる）。真因はログへ。
+                android.util.Log.e(TAG, "PDFフォルダの走査に失敗", e)
+                emitSnackbar("フォルダを読み取れませんでした。場所をもう一度選び直してください")
+                // 使えないと判った場所を覚え続けない（次回はフォルダ選択からやり直す）。
+                forgetPdfFolder()
+                null
+            } finally {
+                _folderScan.value = null
+            }
+            if (report != null) {
+                // 一致した本を既存の復元経路へ投入する（新しい復元経路は発明しない）:
+                // addBook→FGS キュー→PdfBookImporter の restoreByHash が既存行を保持したまま本文だけ
+                // 再生成する（進捗・栞・追加日は updateRestoredContent の部分 UPDATE で不変）。
+                // addBook は startForegroundService＋権限取得＝UI 側の操作のため Main で1件ずつ呼ぶ
+                // （投入順＝Service のキュー順を確定させる。addBooks と同じ作法）。
+                withContext(Dispatchers.Main) {
+                    report.matches.forEach { addBook(Uri.parse(it.candidate.uri)) }
+                }
+                _folderScanReport.value = report
+                // 何かが動いたときだけバナーを消費する（規則の正本＝domain の shouldConsumeSweepBanner）。
+                // actedIds が空＝1冊復旧の経路＝一括バナーの指紋には触れない（空集合で上書きしない）。
+                if (actedIds.isNotEmpty() && shouldConsumeSweepBanner(autoSubmitted, report.matchedCount)) {
+                    persistSweepSeenIds(actedIds)
+                }
+            }
+        }
+    }
+
+    /** 記憶している場所を忘れる（権限も返す）。走査が根から失敗したときに呼ぶ。 */
+    private fun forgetPdfFolder() {
+        _pdfFolderTreeUri.value?.let { old ->
+            runCatching {
+                getApplication<Application>().contentResolver.releasePersistableUriPermission(
+                    Uri.parse(old), Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+        }
+        _pdfFolderTreeUri.value = null
+        appPrefs.edit().remove(PrefKeys.PDF_LIBRARY_TREE_URI).apply()
     }
 
     /** 案B ダイアログ①: 記録済み取込元 PDF から自動再取込（既存 FGS キューに乗り、repository 層の
@@ -661,7 +856,7 @@ class BookshelfViewModel @JvmOverloads constructor(
                     onFailure = { e ->
                         // 真因はログに残す（握り潰さない）。Blocked/Unsupported は呼び出し前ゲートで除外済みのため、
                         // ここに来るのは取得/解析/構造疑い等の失敗。失敗系は従来どおり「閉じる」付きで残置（transient なし）。
-                        android.util.Log.e("BookshelfViewModel", "Web取込失敗", e)
+                        android.util.Log.e(TAG, "Web取込失敗", e)
                         // 破損監視（層2）: サイト構造変更の疑い（ScrapeStructureException＝ScrapeException 派生）だけは
                         // 「公式サイトで読む」逃げ道を添える（作品URLを外部ブラウザで開く＝U3 Blocked と同じ ACTION_VIEW 流儀）。
                         // 逃げ道が保険の実体（脆さ織り込み）。それ以外の一過性失敗は従来どおり平易な失敗通知のみ

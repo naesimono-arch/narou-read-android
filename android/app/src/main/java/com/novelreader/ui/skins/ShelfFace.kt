@@ -22,6 +22,7 @@ import com.novelreader.ui.theme.Skin
 import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
 import com.novelreader.domain.ReimportPlan
+import com.novelreader.domain.ScanProgress
 
 // ============================================================
 // 本棚スキン面の契約（2026-07-27 純構造リファクタ）
@@ -70,12 +71,17 @@ internal data class ShelfChrome(
     val onSelectStatus: (ReadingStatus?) -> Unit,
     val processingState: ProcessingState,
     val isLoading: Boolean,
-    /** 本文欠落の一括検出バナー（案C・2026-07-29）を出すか。判定（新規検出の指紋）は VM が持つ。 */
+    /** 本文欠落の一括検出バナー（案C・2026-07-29）を出すか。判定（新規検出の指紋）は VM が持つ。
+     *  走査中は VM 側で false になる＝同じスロットに出る [folderScan] のバナーと排他。 */
     val sweepBannerVisible: Boolean,
     /** 案C バナー「あとで」＝指紋を保存して以後この集合では出さない（VM へ委譲）。 */
     val onSweepLater: () -> Unit,
     /** 案C バナー「まとめて再取込」＝内訳確認ダイアログを開く（ダイアログは route 層所有＝全スキン共通）。 */
     val onSweepConfirm: () -> Unit,
+    /** PDF フォルダ走査の進捗（案X・2026-07-29）。null＝走査していない＝走査バナーを出さない。 */
+    val folderScan: ScanProgress?,
+    /** 走査バナーの「停止」＝今読んでいる1件の完了後に中断し、そこまでの一致は結果に残す（VM へ委譲）。 */
+    val onScanStop: () -> Unit,
 )
 
 /**
