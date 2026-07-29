@@ -87,8 +87,16 @@ sqlite3 /tmp/…/db "SELECT …"
 
 ## 6. テキスト入力は ADB Keyboard（フリック座標タップ禁止）
 
-端末に **ADB Keyboard（`com.android.adbkeyboard/.AdbIME`）が導入済みで、これが既定 IME**
-（2026-07-16 確認）。日本語を含むテキスト入力は、画面のフリックキーボードを座標タップで
+端末に **ADB Keyboard（`com.android.adbkeyboard/.AdbIME`）は導入済み**。ただし **2026-07-30 実測の
+既定 IME は Gboard**（`com.google.android.inputmethod.latin/...LatinIME`）＝**broadcast は AdbIME が
+アクティブな時しか効かない**ので、**使う前に切り替えが要る**（旧記述「これが既定 IME」は実態と外れていた）:
+
+```bash
+adb shell settings get secure default_input_method   # ★まず現在値を控える（終了時に戻すため）
+adb shell ime set com.android.adbkeyboard/.AdbIME    # 注入する前に切り替え
+```
+
+日本語を含むテキスト入力は、画面のフリックキーボードを座標タップで
 打とうとせず（過去に多数のエージェントがこれで苦戦）、broadcast で直接注入する:
 
 ```bash
@@ -101,9 +109,9 @@ adb shell am broadcast -a ADB_CLEAR_TEXT   # 入力欄クリア
 
 - **`adb shell input text` は使わない**: ASCII 限定な上、IME 状態を狂わせる副作用を実測
   （2026-07-16: SAF picker の「追加」ボタンが無反応化。復旧は `ime set` で切替）。
-- 検証の都合で IME を切り替えたら、終了時に必ず既定へ戻す:
-  `adb shell ime set com.android.adbkeyboard/.AdbIME`
-  （現在値の確認は `adb shell settings get secure default_input_method`）。
+- 検証の都合で IME を切り替えたら、**終了時に必ず開始時の値へ戻す**（＝控えておいた値。2026-07-30 時点は Gboard）:
+  `adb shell ime set <開始時の値>`。**戻し先を AdbIME と決め打ちしない**——ユーザーが日常使いする端末なので、
+  ADB Keyboard のまま返すと日本語入力が壊れたまま渡すことになる。
 
 ## 7. 検証ワークフロー（人間の関門）
 
