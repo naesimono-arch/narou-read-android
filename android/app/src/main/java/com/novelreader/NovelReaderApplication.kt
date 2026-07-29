@@ -21,16 +21,16 @@ import com.novelreader.narou.SearchHistoryStore
 import com.novelreader.repository.BookRepository
 import com.novelreader.repository.DefaultBookRepository
 import com.novelreader.viewmodel.AppErrorEvent
+import com.novelreader.viewmodel.ProcessingSource
 import com.novelreader.viewmodel.ProcessingState
+import com.novelreader.viewmodel.ProcessingStateHub
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
@@ -77,9 +77,11 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
     /** 検索履歴＋ピン留め（発見機能 D1）のシングルトン。 */
     val searchHistoryStore: SearchHistoryStore by lazy { DataStoreSearchHistoryStore(this) }
 
-    /** サービス↔ViewModel間の処理状態共有（書き込みは updateProcessingState のみ） */
-    private val _processingState = MutableStateFlow<ProcessingState?>(null)
-    val processingState: StateFlow<ProcessingState?> = _processingState.asStateFlow()
+    /** サービス↔ViewModel間の処理状態共有（書き込みは updateProcessingState のみ）。
+     *  供給元別スロット（PDF=Service／WEB=BookshelfViewModel）を持つハブに委譲し、並走時の
+     *  相互上書きを構造的に断つ（分離を選んだ理由＝ProcessingStateHub の KDoc）。 */
+    private val processingStateHub = ProcessingStateHub()
+    val processingState: StateFlow<ProcessingState?> get() = processingStateHub.displayState
 
     // エラーは一度きりのイベント。StateFlow だと構成変更（画面回転）で再表示され、
     // 複数購読時に重複する恐れがあるため、単一コンシューマ向けの Channel で配送する。
@@ -88,15 +90,43 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
     private val _errorEvents = Channel<AppErrorEvent>(Channel.BUFFERED)
     val errorEvents: Flow<AppErrorEvent> = _errorEvents.receiveAsFlow()
 
-    fun updateProcessingState(state: ProcessingState?) { _processingState.value = state }
+    /** source 既定 PDF: 既存の PdfProcessingService 呼び出し（多数）を不変に保つための互換既定。
+     *  Web 取込（BookshelfViewModel.importWebNovel）だけが明示的に WEB を渡す。 */
+    fun updateProcessingState(state: ProcessingState?, source: ProcessingSource = ProcessingSource.PDF) {
+        processingStateHub.update(source, state)
+    }
+
+    /** 指定供給元の生スロット値（表示合成でなく自スロットだけを読む口。用途＝ProcessingStateHub.stateOf）。 */
+    fun processingStateOf(source: ProcessingSource): ProcessingState? = processingStateHub.stateOf(source)
+
     /** retryUri を渡すと UI 側で「再試行」アクション付き Snackbar になる（取込失敗時）。
      *  openUrl を渡すと「公式サイトで読む」アクション付きになる（破損監視・層2＝構造疑いの逃げ道）。
      *  transient=true は取込完了/取込済みのような一過性の情報通知＝UI 側で actionLabel を付けず
      *  Short で自動消滅させる目印（actionLabel 付き Snackbar は Material3 で duration 既定が Indefinite に
      *  なり画面へ残留するため。案d の残留バグ対処）。
+     *  aggregationKey は同型メッセージの一括投入（複数PDF再取込→全件「取り込み済み」等）を UI 手前で
+     *  「N件は取り込み済みです」へ集約するための同型印（AppErrorEvent.aggregationKey を参照）。
      *  復元系の情報通知・案内はいずれも既定（文言＋「閉じる」で残置＝挙動不変）。 */
-    fun emitError(msg: String, retryUri: String? = null, openUrl: String? = null, transient: Boolean = false) {
-        _errorEvents.trySend(AppErrorEvent(msg, retryUri, openUrl, transient))
+    fun emitError(
+        msg: String,
+        retryUri: String? = null,
+        openUrl: String? = null,
+        transient: Boolean = false,
+        aggregationKey: String? = null,
+    ) {
+        _errorEvents.trySend(AppErrorEvent(msg, retryUri, openUrl, transient, aggregationKey))
+    }
+
+    /** バッファ済みエラーイベントを今あるだけ吸い出す（無ければ空リスト・待たない）。
+     *  用途は同型スナックバーの集約（BookshelfViewModel.errorEvents）だけ:
+     *  Channel は単一コンシューマ前提のため、この吸い出しは errorEvents を collect している
+     *  同じコルーチンの中からのみ呼ぶこと（並行して呼ぶとイベントの順序・取り合いが壊れる）。 */
+    fun drainPendingErrorEvents(): List<AppErrorEvent> {
+        val drained = mutableListOf<AppErrorEvent>()
+        while (true) {
+            drained += _errorEvents.tryReceive().getOrNull() ?: break
+        }
+        return drained
     }
 
     // 起動時リカバリの多重実行ガード。Activity 再作成のたびに呼ばれても実処理はプロセスごとに1回。

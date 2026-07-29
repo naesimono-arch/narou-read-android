@@ -17,6 +17,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.novelreader.narou.model.Ncode
 import com.novelreader.viewmodel.BookImportError
+import com.novelreader.viewmodel.ProcessingSource
 import com.novelreader.viewmodel.ProcessingState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -104,8 +105,11 @@ class PdfProcessingService : Service() {
                 // 即時フィードバック: バナーと通知を「停止しています…」へ。
                 // 通知バーは onProgress が高頻度で上書きするが、停止フラグはフィールド側に
                 // 保持してあるので onProgress も isStopping を読んで巻き戻さない。
+                // 表示合成（processingState.value）でなく自スロット（PDF）を読む: Web 取込と並走中に
+                // 他供給元の状態へ isStopping を刻む取り違えを構造的に断つ（供給元分離＝ProcessingStateHub）。
                 (application as? NovelReaderApplication)?.let {
-                    it.processingState.value?.let { st -> it.updateProcessingState(st.copy(isStopping = true)) }
+                    it.processingStateOf(ProcessingSource.PDF)
+                        ?.let { st -> it.updateProcessingState(st.copy(isStopping = true)) }
                 }
                 updateProgressNotification(0, "", isStopping = true)
             } else {
@@ -152,8 +156,14 @@ class PdfProcessingService : Service() {
             (application as? NovelReaderApplication)?.let { app ->
                 app.applicationScope.launch {
                     val name = resolveDisplayName(uri)
-                    if (app.isAppInForeground) app.emitError(duplicateMessage(name))
-                    else showDuplicateNotification(name)
+                    // aggregationKey: 複数PDF一括再取込で全件重複のとき、UI 手前で「N件は取り込み済みです」
+                    // へ集約する同型印（2026-07-16 実機確定の連続再表示の対処＝aggregateErrorEvents）。
+                    if (app.isAppInForeground) {
+                        app.emitError(
+                            duplicateMessage(name),
+                            aggregationKey = com.novelreader.viewmodel.AppErrorEvent.KEY_DUPLICATE_IMPORT,
+                        )
+                    } else showDuplicateNotification(name)
                 }
             }
             return START_NOT_STICKY
@@ -383,9 +393,14 @@ class PdfProcessingService : Service() {
                             showCompletionNotification(outcome.book.id, outcome.book.title)
                         // 既に蔵書済み（べき等スキップ）は完了ではなく「取込済み」をフィードバックする。
                         // 前面は in-app Snackbar・背面はトレイ通知（上の onStartCommand 側と同じ原則）。
+                        // aggregationKey は onStartCommand 側の重複通知と同じ同型印（一括投入時の集約対象）。
                         is com.novelreader.repository.BookRepository.AddBookResult.Duplicate ->
-                            if (app.isAppInForeground) app.emitError(duplicateMessage(outcome.existing.title))
-                            else showDuplicateNotification(outcome.existing.title)
+                            if (app.isAppInForeground) {
+                                app.emitError(
+                                    duplicateMessage(outcome.existing.title),
+                                    aggregationKey = com.novelreader.viewmodel.AppErrorEvent.KEY_DUPLICATE_IMPORT,
+                                )
+                            } else showDuplicateNotification(outcome.existing.title)
                     }
                     app.updateProcessingState(null)
                 },
