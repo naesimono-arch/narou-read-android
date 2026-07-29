@@ -28,6 +28,7 @@ import os
 import re
 import subprocess
 import sys
+import tokenize
 from pathlib import Path
 
 # Windows のコンソール既定コードページでの文字化けを防ぐ（既存 hook と同じ作法）。
@@ -1002,6 +1003,228 @@ def check_hook_output_channel():
         f"出力経路検査: 対象 {len(events_by_file)} 本 = 適合 {ok_n} / 違反 {bad_n} / 判定不能 {und_n}")
 
 
+# ── 18. 撤去フックの残存参照（dead consumer）照合 ─────────────────────────
+# CLAUDE.md「フックの撤去は『参照する側』まで含めて1セット」の機械化。手順（撤去したフック名で
+# リポジトリ全体を grep し、他フックのロジック・コメント・docstring・.gitignore・skill の記述に
+# 残骸が無いことを確認する）をそのまま検査へ移す。
+#
+# なぜ「生成物」まで追うか: 2026-07-12 の実例（既知バグ `removed-hook-leaves-dead-consumer`）で
+# 恒久 dead 化したのは**フック名の参照ではなく生成物の参照**だった——mark_kotlin_tests_passed.py を
+# 撤去した後、センチネル `.kotlin_tests_passed` の mtime を見る判定だけが残り、生成者が居ないので
+# 「必ず古い」＝判定が恒久 False のまま13日間テストは緑で通り続けた。名前だけ照合しても
+# あの事故は捕まらないので、**撤去されたフックの旧ソースから生成物リテラルを取り出して**
+# 現ツリーの参照と突合する（旧ソースが「何を作っていたか」の一次情報＝推測が要らない）。
+#
+# 撤去の判定に履歴を使う理由: 「いま .claude/hooks/ に無い名前が他所から名指しされている」だけなら
+# 現在の状態で足りるが、それでは生成物の名前を知る術が無い（生成物は名前から導けない）。
+# `git log --diff-filter=D` は「撤去された事実」と「旧ソース」を同時にくれる唯一の一次情報。
+_ARTIFACT_DENY = {".claude", ".git", ".github", ".gitignore", ".vscode", ".idea", ".gradle", ".env"}
+_ARTIFACT_EXT = (".json", ".jsonl", ".txt", ".log", ".flag", ".lock", ".state")
+# 生成物を「書いている」形の粗い指標（生成者が別ファイルへ引き継がれた場合の降格判定に使う）。
+_WRITE_HINT_RE = re.compile(r"open\s*\(|write_text|writelines|\.write\(|touch|mkdir|dump\(|>>")
+
+
+def _looks_like_artifact(s):
+    """文字列リテラルが「フックの生成物ファイル名」らしいか。
+
+    偽陽性が怖いのは名前が汎用すぎるとき（'.claude' のような語は現ツリー中どこにでも当たる）。
+    ドット始まり（センチネル）か既知の成果物拡張子に限り、リポジトリの構造ディレクトリは除外する。
+    """
+    if not s or len(s) < 6 or any(c.isspace() for c in s) or "." not in s:
+        return False
+    if s in _ARTIFACT_DENY or s.endswith((".py", ".md", ".kt", ".kts", ".gradle", ".java")):
+        return False
+    return s.startswith(".") or s.endswith(_ARTIFACT_EXT)
+
+
+def _removed_hooks():
+    """git 履歴から「削除され、いま実在しない」フック → 直近の削除 (sha, path)。
+
+    --no-renames を付けるのは、改名を「旧名の撤去」として扱うため（旧名の参照が残っていれば
+    それも dead consumer）。取得できなければ None（環境要因＝呼び出し側で info 扱い）。
+    """
+    out = _git(["log", "--diff-filter=D", "--no-renames", "--name-only",
+                "--pretty=format:%H", "--", ".claude/hooks"])
+    if not out:
+        return None
+    actual = _actual_hooks()
+    removed, sha = {}, None
+    for line in out.splitlines():
+        line = line.strip()
+        if re.fullmatch(r"[0-9a-f]{40}", line):
+            sha = line
+        elif line.endswith(".py") and sha:
+            name = Path(line).name
+            # 直近の削除だけ残す（log は新しい順＝先に入った方が新しい）。再追加された名前は対象外。
+            if name not in actual and name not in removed:
+                removed[name] = (sha, line)
+    return removed
+
+
+def _tracked_basenames():
+    """git 追跡下にあるファイルの basename 集合（生成物候補の足切りに使う）。"""
+    return {Path(p).name for p in _git(["ls-files"]).splitlines() if p}
+
+
+def _removed_hook_artifacts(sha, path, tracked):
+    """撤去直前のソースから生成物リテラルを取り出す（読めなければ空集合）。
+
+    追跡下に実在する名前（settings.json 等）を落とすのはなぜか: 撤去フックが**読んでいただけ**の
+    共有ファイルまで「生成物」と見なすと、リポジトリ中の全言及が鳴って検知が使い物にならない
+    （実測: settings.json だけで 20 件の偽陽性）。生成物として意味があるのは「生成者が消えた今、
+    誰も作らないファイル」＝リポジトリに実体を持たないものだけ。
+    """
+    src = _git(["show", f"{sha}^:{path}"])
+    if not src:
+        return set()
+    try:
+        tree = ast.parse(src)
+        lits = {n.value for n in ast.walk(tree)
+                if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+    except SyntaxError:
+        lits = set(re.findall(r"[\"']([^\"'\n]+)[\"']", src))
+    return {s for s in lits if _looks_like_artifact(s) and Path(s).name not in tracked}
+
+
+def _py_prose_spans(src):
+    """Python ソースの「散文」領域（コメント／docstring）を {行: [(開始列, 終了列), …]} で返す。
+
+    行単位でなく列まで見るのは、`code  # …撤去済みフック名…` の行末コメントで実コードの参照まで
+    散文扱いに落ちるのを防ぐため（見逃しは偽陰性＝この検査の存在意義を削る）。
+    """
+    spans = collections.defaultdict(list)
+    try:
+        for t in tokenize.generate_tokens(io.StringIO(src).readline):
+            if t.type == tokenize.COMMENT:
+                spans[t.start[0]].append((t.start[1], 10 ** 6))
+    except (tokenize.TokenError, SyntaxError, IndentationError, ValueError):
+        return None
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return spans
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) \
+                and isinstance(node.value.value, str):
+            for ln in range(node.lineno, (node.end_lineno or node.lineno) + 1):
+                spans[ln].append((0, 10 ** 6))
+    return spans
+
+
+def _classify_reference(rel, lineno, line, col, term, prose_cache):
+    """参照1件を ('live'|'prose', 位置の説明) に分類する。live＝機械が実際に食っている位置。"""
+    if rel.endswith(".py"):
+        if rel not in prose_cache:
+            src = read_text(rel)
+            prose_cache[rel] = _py_prose_spans(src) if src is not None else None
+        spans = prose_cache[rel]
+        if spans is None:
+            return "live", "Python（構文解析できず散文判定不能＝安全側で live）"
+        if any(a <= col < b for a, b in spans.get(lineno, ())):
+            return "prose", "コメント／docstring"
+        if Path(rel).name.startswith("test_"):
+            # 自己テストは歴史的ペイロードを固定文言で再現するのが仕事＝残っていて正しい。
+            return "prose", "自己テストの固定文言"
+        return "live", "Python の実コード"
+    if Path(rel).name == ".gitignore":
+        return ("prose", "コメント") if line.lstrip().startswith("#") else ("live", ".gitignore の実エントリ")
+    if rel.startswith(".claude/settings") and rel.endswith(".json"):
+        return "live", "settings の配線（項目3も別角度で報告する）"
+    if rel.endswith(".md"):
+        # live 扱いは「その名前をインタプリタが実行する形」に限る。当初は行内に python/sh と .py が
+        # 在れば live としたが、撤去フックを語る文章は必ず両方を含む（実測で4件すべて偽陽性）。
+        # 判定は名前そのものが実行対象の位置に来ているかで行う。
+        cmd = re.search(r"(?:python3?|bash|sh)\s+[^\s`'\"]*" + re.escape(term), line)
+        return ("live", "文書中の実行コマンド") if cmd else ("prose", "文書中の記述")
+    return "prose", "分類対象外の位置（人手で確認すること）"
+
+
+def check_removed_hook_references():
+    """撤去済みフックの名前・生成物が、現ツリーの「機械が食う位置」に残っていないか照合する。
+
+    報告の向き: 高＝live（settings の配線・Python の実コード・.gitignore の実エントリ・文書中の
+    実行コマンド）。info＝prose（コメント／docstring／文書の記述／自己テストの固定文言）。
+    散文の言及は歴史の記述として正当なので落とさないが、CLAUDE.md の手順が「コメント・docstring も
+    確認対象」と書いている以上、件数は必ず表に出す。
+
+    fail-open にしない工夫: 履歴から撤去フックを1本も抽出できなければ「パス指定が実態と合わなく
+    なった＝この照合が恒久 dead 化」とみなして落とす。git 自体が使えない場合だけ info でスキップ。
+    """
+    removed = _removed_hooks()
+    if removed is None:
+        add("removed-hook", "warn", "info", "git log を実行できず撤去フック照合をスキップ")
+        return
+    if not removed:
+        add("removed-hook", "stale", "high",
+            "git 履歴から撤去済みフックを1本も抽出できない"
+            "（.claude/hooks のパス指定が実態と合っていない＝この照合が恒久 dead 化している）")
+        return
+
+    # 検索語 → (種別, 由来フック)。名前は拡張子込み／拡張子抜きの両方を拾う（CLAUDE.md の手順どおり）。
+    terms = {}
+    tracked = _tracked_basenames()
+    for name, (sha, path) in removed.items():
+        stem = name[:-3]
+        terms[stem] = ("名前", name)  # stem で grep すれば "<stem>.py" 表記も同時に当たる
+        for art in _removed_hook_artifacts(sha, path, tracked):
+            terms.setdefault(art, ("生成物", name))
+
+    args = ["grep", "-n", "-I", "-F"]
+    for t in terms:
+        args += ["-e", t]
+    hits_raw = _git(args)  # 0 件なら空文字（git grep は無ヒットで exit 1＝_git は空を返す）
+
+    prose_cache, live_n, prose_n = {}, 0, 0
+    per_term = collections.defaultdict(list)
+    for hit in hits_raw.splitlines():
+        m = re.match(r"^([^:]+):(\d+):(.*)$", hit)
+        if not m:
+            continue
+        rel, lineno, line = m.group(1), int(m.group(2)), m.group(3)
+        if rel == "docs/known-bugs-registry.md":
+            continue  # 台帳は「この事故が在った」と書くのが仕事＝自己言及で毎回鳴らせない
+        for term, (kind, origin) in terms.items():
+            col = line.find(term)
+            if col < 0:
+                continue
+            per_term[term].append((kind, origin, rel, lineno, line, col))
+
+    for term, occurrences in sorted(per_term.items()):
+        kind, origin = occurrences[0][0], occurrences[0][1]
+        classified = []
+        for _k, _o, rel, lineno, line, col in occurrences:
+            cls, where = _classify_reference(rel, lineno, line, col, term, prose_cache)
+            classified.append((cls, where, rel, lineno, line))
+        # 生成物が現存ファイルの live な書き込み側にも現れるなら、生成者が引き継がれている＝dead ではない。
+        producer_alive = kind == "生成物" and any(
+            cls == "live" and _WRITE_HINT_RE.search(line) for cls, _w, _r, _l, line in classified)
+        # live は1件ずつ高で挙げる（直すべき対象）。散文の言及は語ごとに1行へ畳む——
+        # 撤去の経緯を書いた文書・コメントは正当に何十件も在り、1件1行にすると
+        # 情報欄が撤去フックの話題で埋まって他の指摘が読まれなくなる（実測 30 行）。
+        # 件数と代表箇所は残す＝CLAUDE.md の手順（コメント・docstring まで確認）を人が辿れる。
+        prose_hits = []
+        for cls, where, rel, lineno, _line in classified:
+            if cls == "live" and not producer_alive:
+                live_n += 1
+                add("removed-hook", "stale", "high",
+                    f"{rel}:{lineno} が撤去済みフック {origin} の{kind} '{term}' を参照（{where}）。"
+                    "生成者が居ない参照は恒久 dead 化する＝参照ごと消すか生成者を戻すこと")
+            else:
+                prose_n += 1
+                prose_hits.append(f"{rel}:{lineno}")
+        if prose_hits:
+            head = "／".join(prose_hits[:3]) + (f" ほか{len(prose_hits) - 3}件" if len(prose_hits) > 3 else "")
+            note = "（生成者は別ファイルへ引き継がれている模様）" if producer_alive else ""
+            add("removed-hook", "warn", "info",
+                f"撤去済み {origin} の{kind} '{term}' への言及 {len(prose_hits)} 件"
+                f"（コメント／文書の記述＝経緯の記録として正当）{note}: {head}")
+    # 常に1行出す: 「0件だから健全」と「検査が空振り」を外形で区別する（項目17 と同じ理由）。
+    arts = sum(1 for k, _o in terms.values() if k == "生成物")
+    add("removed-hook", "ok" if not live_n else "stale", "info",
+        f"撤去フック照合: 履歴の撤去 {len(removed)} 本 / 生成物リテラル {arts} 件 / "
+        f"現ツリーの残存参照 {live_n + prose_n} 件（live {live_n} / 散文 {prose_n}）")
+
+
 # ── 項目一覧（この表が正本＝`--list` で出力する） ──────────────────────────
 # なぜ説明文をここへ同居させるか: 以前は SKILL.md 側に項目表を複製し、件数の一致を
 # check_self_item_table で見張っていた。しかしそれは二重管理を前提にした対症療法で、
@@ -1028,6 +1251,7 @@ CHECKS = [
     (check_delegation_meter, "委譲ターン計測フックの整合（count_delegation_turns.py の PostToolUse/SubagentStop 両配線・記録先・通告間隔）"),
     (check_known_bugs_registry, "既知バグレジストリ（L4）の名指し実在照合（docs/known-bugs-registry.md のテストクラス名・check_xxx・参照パスが実在するか／検知ありを主張する行に名指しがあるか）"),
     (check_hook_output_channel, "hook の出力経路照合（配線イベント × モデルに届く経路: 素の stdout 不達・hookEventName の取り残し・exit 2 無しの stderr。判定不能も件数を出す）"),
+    (check_removed_hook_references, "撤去フックの残存参照（git 履歴の撤去フック名＋旧ソースが作っていた生成物を現ツリーと突合。settings/実コード/.gitignore/実行コマンドは高・コメントや文書の言及は info）"),
 ]
 
 
