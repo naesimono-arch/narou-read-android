@@ -1,9 +1,14 @@
 package com.novelreader.ui
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.runtime.CompositionLocalProvider
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.LocalSkinTokens
@@ -12,6 +17,7 @@ import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.colors
 import com.novelreader.ui.theme.tokens
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -48,6 +54,8 @@ class ReadingSettingsSheetTest {
         // J の「システムに従う」（扉プレビュー下の追従入口）結線検証用。既定 false/空＝既存テストは不変。
         followingSystem: Boolean = false,
         onFollowSystem: () -> Unit = {},
+        // 案3ライブプレビューの押下行通知（押下=該当行・解放=null）の契約検証用。既定 no-op＝既存テストは不変。
+        onAdjustingRowChange: (ReadingSettingsAdjustingRow?) -> Unit = {},
     ) {
         composeTestRule.setContent {
             // LocalSkin（意匠分岐）と LocalSkinTokens（テーマ節の畳み判定）は本番では対で供給される。
@@ -69,17 +77,28 @@ class ReadingSettingsSheetTest {
                     onBodyMarginPersist = {},
                     verticalMode = verticalMode,
                     onVerticalModeChange = onVerticalModeChange,
+                    onAdjustingRowChange = onAdjustingRowChange,
                 )
             }
         }
     }
+
+    /** スライダーは文字ラベルを持たないため ProgressBarRangeInfo（現在値・レンジ・steps）で一意特定する。 */
+    private fun sliderNode(current: Float, range: ClosedFloatingPointRange<Float>, steps: Int) =
+        composeTestRule.onNode(
+            SemanticsMatcher.expectValue(
+                SemanticsProperties.ProgressBarRangeInfo,
+                ProgressBarRangeInfo(current, range, steps),
+            ),
+        )
 
     @Test
     fun `M装着ではテーマ3択の代わりに固定表示行を出しスライダー値は不変`() {
         setSheet(skin = Skin.SEIZU_M)
         // 固定表示（settings-M .theme-fixed）＝何が装着されているか＋変種切替の所在。
         composeTestRule.onNodeWithText("星図 ・ 夜の相").assertIsDisplayed()
-        composeTestRule.onNodeWithText("ほかの装いは本棚の「装いの間」から").assertIsDisplayed()
+        // 入口移管（2026-07-29 本棚→設定タブ「きせかえ」）後の実導線を指す文言であること。
+        composeTestRule.onNodeWithText("ほかの装いは設定の「きせかえ」から").assertIsDisplayed()
         // 3択チップは出ない（1変種＝押しても変わらないチップを出さない）。
         composeTestRule.onNodeWithText("ライト").assertDoesNotExist()
         // ロジック共有の証左＝スライダー現在値は D と同一書式のまま。
@@ -140,6 +159,41 @@ class ReadingSettingsSheetTest {
         setSheet(verticalMode = false, onVerticalModeChange = { toggled = it })
         composeTestRule.onNodeWithText("縦書き").performClick()
         assertEquals(true, toggled)
+    }
+
+    @Test
+    fun `スライダー押下中は該当行を通知し解放でnullへ戻る（案3ライブプレビュー契約）`() {
+        val events = mutableListOf<ReadingSettingsAdjustingRow?>()
+        setSheet(onAdjustingRowChange = { events += it })
+        val fontSlider = sliderNode(current = 18f, range = 14f..24f, steps = 9)
+        // M3 Slider の押下検出は DragInteraction 経由＝touch slop を超える移動でドラッグ開始させる
+        // （down だけでは PressInteraction が emit されない現行実装のため）。
+        fontSlider.performTouchInput {
+            down(center)
+            moveBy(Offset(viewConfiguration.touchSlop + 24f, 0f))
+        }
+        composeTestRule.runOnIdle {
+            assertEquals(ReadingSettingsAdjustingRow.FONT_SIZE, events.last())
+        }
+        // 押下中もレイアウトは不変（退避は graphicsLayer alpha のみ）＝他節のノードは存在し続ける。
+        composeTestRule.onNodeWithText("テーマ").assertExists()
+        composeTestRule.onNodeWithText("行間").assertExists()
+        // 解放＝復帰。通知は null へ戻る。
+        fontSlider.performTouchInput { up() }
+        composeTestRule.runOnIdle { assertNull(events.last()) }
+    }
+
+    @Test
+    fun `行間スライダー押下はLINE_HEIGHT行として通知される（行の対応関係）`() {
+        val events = mutableListOf<ReadingSettingsAdjustingRow?>()
+        setSheet(onAdjustingRowChange = { events += it })
+        sliderNode(current = 2.5f, range = 2.3f..2.8f, steps = 4).performTouchInput {
+            down(center)
+            moveBy(Offset(viewConfiguration.touchSlop + 24f, 0f))
+        }
+        composeTestRule.runOnIdle {
+            assertEquals(ReadingSettingsAdjustingRow.LINE_HEIGHT, events.last())
+        }
     }
 
     @Test

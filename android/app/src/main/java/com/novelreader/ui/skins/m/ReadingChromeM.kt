@@ -320,7 +320,9 @@ fun ThemeFixedRowM(modifier: Modifier = Modifier) {
                 color = TextSeizu,
             )
             Text(
-                "ほかの装いは本棚の「装いの間」から",
+                // 2026-07-29 本棚の装いの間入口撤去（設定タブ「きせかえ」へ移管＝ADR 0021 追記）に追従。
+                // 「きせかえ」は SettingsScreenK の行ラベル表記と一致させる（実導線と文言の齟齬を作らない）。
+                "ほかの装いは設定の「きせかえ」から",
                 fontSize = 10.5.sp,            // .tf-s 10.5px
                 color = DimSeizu,
                 modifier = Modifier.padding(top = Spacing.S4),

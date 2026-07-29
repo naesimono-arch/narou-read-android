@@ -11,6 +11,7 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -175,6 +176,11 @@ fun ReadingScreen(
     followingSystem: Boolean,
     onFollowSystem: () -> Unit,
     onNavigateToBookshelf: () -> Unit,
+    // 遷移ジャンク対策（案A・2026-07-29 裁定）: NavHost の本棚→読書 push の enter アニメ窓だけ true
+    //（MainActivity が遷移の離散状態 currentState/targetState から導出＝P2 本棚と同じ信号）。窓の間、
+    // 初期表示面（目次 or 章）の重い実内容を構造骨（TransitionSkeletons.kt）へ差し替える。
+    // 既定 false＝既存テスト・呼び出しは無変更。
+    deferHeavyContent: Boolean = false,
 ) {
     // 読書ナビの Back スタック（実データ構造＝ReadingBackStack）。末尾が現在地。
     // なぜ「現在地1個」でなく経路を保持するスタックか（前進操作の巻き戻し・参照退避元の探索に使うため）:
@@ -509,8 +515,21 @@ fun ReadingScreen(
     // 戻る=章→目次は左から右へ戻す）。同一 nav ルート内の state 切替（resolvedFile の出し分け）を
     // AnimatedContent で包む。章→章（話送り）は現状どおり瞬間＝向きを付けない（P1 は別枠のため据え置き）。
     // 尺は MotionDurationNavTransition（250ms）で NavHost の遷移と共有する。
-    AnimatedContent(
-        targetState = resolvedFile,
+    // standalone AnimatedContent から Transition レシーバ版へ持ち替え（2026-07-29・案A）: 遷移の離散状態
+    //（currentState/targetState＝端点でのみ変化）を目次→章 push の骨差し替え信号に使うため。standalone 版は
+    // 内部で同じ updateTransition を作って委譲するだけ＝描画・尺・イージングは従来と同一（label も同名を維持）。
+    val tocBodyTransition = updateTransition(targetState = resolvedFile, label = "toc-body-slide")
+    // 目次→章 push の遷移窓だけ true（P2 と同じ離散2値＝毎フレーム recompose を生まない）。向きの契約
+    //（pop・話送りの除外）は純関数 isTocToChapterPush が担い JVM テストで固定する。
+    // 差し替えタイミングは P2 先例と同じ settle+0ms（currentState が targetState に追いつく瞬間）を採用:
+    // 既存の離散信号だけで組めてフレームカウント機構が不要な上、P2 framestats 実測で差し戻しフレームに
+    // 17ms 超のヒッチが無かったため。モック提案の settle+2f（+33ms）は後日の実測比較枠として残す。
+    val deferChapterForTocPush by remember {
+        derivedStateOf {
+            isTocToChapterPush(tocBodyTransition.currentState, tocBodyTransition.targetState)
+        }
+    }
+    tocBodyTransition.AnimatedContent(
         transitionSpec = {
             val d = MotionDurationNavTransition
             val toToc = targetState == "index.html"
@@ -530,12 +549,14 @@ fun ReadingScreen(
                 else -> EnterTransition.None togetherWith ExitTransition.None
             }
         },
-        label = "toc-body-slide",
     ) { file ->
         if (file == "index.html") {
             NativeTableOfContentsScreen(
                 tocState = tocState,
                 colors = readingColors,
+                // 本棚→目次 push の窓のみ骨（NavHost 由来の信号を素通し）。章→目次（pop）は退場側が既測
+                // コンテンツで安価なため対象外＝deferChapterForTocPush は目次面には配線しない（2026-07-29 裁定）。
+                deferHeavyContent = deferHeavyContent,
                 // 明快K の目次ヘッダ副題に作品名を渡す（他スキンは未使用＝既定 null で無視）。
                 workTitle = bookTitle,
                 currentChapterFile = lastChapterFile,
@@ -561,6 +582,9 @@ fun ReadingScreen(
                     // AnimatedContent の各サブコンポジションは自身の state（file）で描画する＝遷移中の退場側が
                     // 外側の新しい resolvedFile を読んで中身が入れ替わるのを防ぐため、以降は resolvedFile でなく file を使う。
                     currentFile = file,
+                    // push 遷移窓の本文骨（案A）: 本棚→本文（NavHost enter）と目次→本文（この AnimatedContent の
+                    // push 向きのみ）の OR。退場側の章（章→目次 pop）はどちらの信号も立たない＝実内容のまま抜ける。
+                    deferHeavyContent = deferHeavyContent || deferChapterForTocPush,
                     htmlDirPath = htmlDirPath,
                     tocEntries = tocEntries,
                     // なろう紐付けの束（全フィールド必須＝配線忘れはコンパイルエラー。理由は ReadingFace.kt 冒頭）。
@@ -625,6 +649,17 @@ fun ReadingScreen(
     }
 }
 
+/**
+ * 目次→章の push 遷移か（読書内 AnimatedContent の骨差し替え信号・案A）。
+ * push 限定の理由（2026-07-29 裁定）: pop（章→目次）は退場側が既測コンテンツで安価＝差し替え不要、
+ * 話送り（章→章）は遷移なしの瞬間切替＝骨を挟むと1フレームのちらつき退行になるため、向きで機械的に排除する。
+ * 純関数に切り出すのは、この向きの契約（push のみ true）を JVM テストで固定するため。
+ * @param currentFile 遷移の出発面（Transition.currentState＝アニメ完了までは旧 state のまま）
+ * @param targetFile 遷移の到着面（Transition.targetState）
+ */
+internal fun isTocToChapterPush(currentFile: String, targetFile: String): Boolean =
+    currentFile == "index.html" && targetFile != "index.html"
+
 /** 読書再開位置。targetFile（最後に読んだ章）と一致する章のみスクロール位置を復元する。 */
 private data class ChapterRestore(
     val targetFile: String?,
@@ -671,6 +706,9 @@ internal fun ChapterScreenContent(
     showReturnChip: Boolean,
     onReturnToContinuation: () -> Unit,
     onRetryParse: () -> Unit,
+    // push 遷移窓（本棚/目次→本文の slide 250ms）の間だけ true（route＝ChapterScreen 経由で受ける）。
+    // 既定 false＝既存テスト・golden は無変更（P2 BookshelfContent と同じ受け口設計）。
+    deferHeavyContent: Boolean = false,
 ) {
     // ── 束の展開（本体の参照名を変えない局所別名＝挙動・描画とも既存と同一） ──
     val fontSize = typography.fontSize
@@ -771,6 +809,15 @@ internal fun ChapterScreenContent(
     // シートだけ閉じてしまい、開いていた文脈が飛ぶ。検索シート（DiscoverySearchScreen）と
     // 同様に開閉を Saveable 化して復元する（Boolean は既定 Saver で保存可＝Saver 不要）。
     var showSettings by rememberSaveable { mutableStateOf(false) }
+
+    // 案3「一行残し」ライブプレビュー（2026-07-29 裁定・reading-settings-livepreview-D.html VARIANT 3）:
+    // 表示設定シートのスライダー押下中フラグ。押している間だけ読書クローム（上下バー）も
+    // シート・スクリムと一緒に完全透明化し、本文への効き目を全面で見せる。
+    // rememberSaveable にしない理由: 押下はプロセス再生成をまたがない一瞬の対話状態のため。
+    var settingsAdjusting by remember { mutableStateOf(false) }
+    // 退避割合（0=通常/1=退避）。尺・easing はシート側と同一トークン（animateSettingsPeek）＝視覚同期。
+    // 値は上下バーの graphicsLayer 内でのみ読む（draw 段の deferred read）。
+    val settingsPeek = animateSettingsPeek(settingsAdjusting)
 
     // なろう紐付けシートの開閉状態。
     // なぜ rememberSaveable か: 上の表示設定シートと同じく、プロセス再生成でシートだけ
@@ -999,7 +1046,22 @@ internal fun ChapterScreenContent(
                         .graphicsLayer { translationX = dragOffsetPx },
                     contentAlignment = Alignment.Center,
                 ) {
-                when (val result = parseResult) {
+                // 遷移ジャンク対策（案A・2026-07-29 裁定・正本モック transition-skeleton-D.html）:
+                // push 遷移窓の間は本文の実測テキスト（初回 measure が支配コスト＝Perfetto 2026-07-16 で
+                // 67ms 級と実測・ChapterContent.kt:77）をコンポーズせず、本文の行リズムへ載せた段落骨だけを
+                // 描く。クローム（上下バー・シート・覗き機構）は軽量なので実描画のまま＝P2「重い可変部だけ骨」
+                // と同じ分担。パース Loading のスピナーも窓内は骨で置き換わる（遷移中の回転体は視線を奪うため
+                // 骨に統一）。縦横分岐（verticalMode）の上流で差し替える＝縦書きの遷移も同経路で効き、骨は
+                // 横書き汎形1種のみ（2026-07-29 裁定＝縦書き専用骨は作らない。250ms の場所取りに組方向の
+                // 忠実さより「1種で全設定に成立する汎形」を優先）。
+                if (deferHeavyContent) {
+                    ReadingBodySkeleton(
+                        colors = colors,
+                        fontSize = fontSize,
+                        lineHeightEm = lineHeightEm,
+                        bodyMarginDp = bodyMarginDp,
+                    )
+                } else when (val result = parseResult) {
                     is ParseResult.Loading -> CircularProgressIndicator()
 
                     is ParseResult.Success -> {
@@ -1138,8 +1200,8 @@ internal fun ChapterScreenContent(
                 .graphicsLayer {
                     // 退避割合 × 実測高さ分だけ下へずらす（collapsedFraction=1 で完全に画面外）
                     translationY = bottomBarHeightPx * topAppBarState.collapsedFraction
-                    // 初期退避の実測待ち中は不可視（既定 state が表示位置で生まれるための一瞬の露出を防ぐ）
-                    alpha = if (barsVisualReady) 1f else 0f
+                    // 初期実測待ちの不可視化＋案3ライブプレビュー退避（スライダー押下中は完全透明）の合成。
+                    alpha = readingBarAlpha(barsVisualReady, settingsPeek.value)
                 },
             // なぜ IgnoringVisibility か: トグルと同フレームで systemBars を hide/show するため、
             // 可視追従の既定 insets だとバー内パディングが 0⇄実測値で振れ、バー高の再測定で
@@ -1155,15 +1217,22 @@ internal fun ChapterScreenContent(
             containerColor = colors.navBackground,
             contentColor = colors.topBarIcon,
         ) {
-            // C①案A: 下端を4分割 [前章｜目次｜表示設定｜次章]。表示設定を右上隅の歯車から下端へ集約し、
-            // 藍＋太字で画面唯一の強調にする（原則4「一画面一強調」）。前後章は目次未ロード中の disabled を維持。
+            // C①案A: 下端を4分割。横書き＝[前章｜目次｜表示設定｜次章]。表示設定を右上隅の歯車から下端へ
+            // 集約し、藍＋太字で画面唯一の強調にする（原則4「一画面一強調」）。前後章は目次未ロード中の
+            // disabled を維持。
+            // 縦書き（右→左進行）中は端の2ボタンを鏡像配置＝[次章｜目次｜表示設定｜前章]（2026-07-29 ユーザー
+            // 裁定）。なぜ鏡像か: 縦書きは左へ読み進む＝「左端＝進む先」なので、押す方向と進む方向を一致させる。
+            // 矢印アイコンはスロット固定（左端＝左向き・右端＝右向き）のまま、担う遷移（ラベル・遷移先）だけを
+            // 入れ替える＝反転後の配置に合う向きが自然に保たれる。モック正本 reading-vertical-scroll-D.html の
+            // 下端バーは reading-D の横書き並びの流用（冒頭注記どおり）＝縦書き専用の並びは未規定のため、
+            // 本裁定を正とする（モック改訂は別便）。
             BottomBarButton(
                 icon = Icons.AutoMirrored.Filled.ArrowBack,
-                label = "前章",
+                label = if (verticalMode) "次章" else "前章",
                 colors = colors,
                 // 目次未ロード中は無効化（disabled トークンで淡色化）。押下時の目次フォールバックを防ぐ
                 enabled = navEnabled,
-                onClick = { onNavigateTo(prevFile) },
+                onClick = { onNavigateTo(if (verticalMode) nextFile else prevFile) },
             )
             // 目次ボタンは常に有効（ロード状況に関わらず目次を開ける＝開けばスケルトン表示）
             BottomBarButton(
@@ -1182,10 +1251,11 @@ internal fun ChapterScreenContent(
             )
             BottomBarButton(
                 icon = Icons.AutoMirrored.Filled.ArrowForward,
-                label = "次章",
+                // 右端スロット: 横書き＝次章／縦書き＝前章（鏡像配置。理由は左端スロットのコメント参照）。
+                label = if (verticalMode) "前章" else "次章",
                 colors = colors,
                 enabled = navEnabled,
-                onClick = { onNavigateTo(nextFile) },
+                onClick = { onNavigateTo(if (verticalMode) prevFile else nextFile) },
             )
         }
 
@@ -1194,19 +1264,26 @@ internal fun ChapterScreenContent(
                 // なぜ graphicsLayer か: レイアウトを再計算せず描画位置のみを変えるため。
                 // これによりバーの追従中でも本文の位置が一切動かない。
                 translationY = topAppBarState.heightOffset
-                // 初期退避の実測待ち中は不可視（既定 state が表示位置で生まれるための一瞬の露出を防ぐ）
-                alpha = if (barsVisualReady) 1f else 0f
+                // 初期実測待ちの不可視化＋案3ライブプレビュー退避（スライダー押下中は完全透明）の合成。
+                alpha = readingBarAlpha(barsVisualReady, settingsPeek.value)
             },
             title = {
                 when (val r = parseResult) {
-                    is ParseResult.Success -> Text(
-                        text = r.content.title,
-                        fontFamily = MinchoFamily,
-                        fontSize = FontSectionTitle,
-                        maxLines = 1,
-                        // 長い章タイトルは文字途中で切らず末尾を「…」で省略する
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    // 2026-07-29 裁定(a): 縦書きモード中は章題テキストを出さない（バー自体・戻る←・
+                    // 操作アイコンは従来どおり）。真因＝縦書きは列高確保のため上端クリアランスを意図的に
+                    // 省略しており（VerticalChapterContent の contentPadding 理由コメント参照）、バー可視時に
+                    // 列上端が題字の下へ潜って重なる。章題は本文先頭の章見出し（VerticalChapterHeader）が
+                    // 担う・モック正本の没入挙動（没入時は章見出しが唯一の章タイトル表示）と整合。
+                    is ParseResult.Success -> if (!verticalMode) {
+                        Text(
+                            text = r.content.title,
+                            fontFamily = MinchoFamily,
+                            fontSize = FontSectionTitle,
+                            maxLines = 1,
+                            // 長い章タイトルは文字途中で切らず末尾を「…」で省略する
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     else -> Unit
                 }
             },
@@ -1479,8 +1556,23 @@ internal fun ChapterScreenContent(
                 verticalMode = verticalMode,
                 // 切替前に段落位置を捕捉してから永続化するラッパを渡す（素の onVerticalModeChange ではない）。
                 onVerticalModeChange = onVerticalModeToggle,
-                onDismiss = { showSettings = false },
+                // 案3ライブプレビュー: スライダー押下中は上下バーも退避する（シート内の押下検出の還流）。
+                onAdjustingChange = { settingsAdjusting = it },
+                // dismiss 時は調整中フラグも必ず解除する（押下中に外タップ等で閉じられた場合に
+                // バーが透明のまま取り残されないための防御。通常はシート破棄時の null 通知が先に解除する）。
+                onDismiss = {
+                    showSettings = false
+                    settingsAdjusting = false
+                },
             )
         }
     }
 }
+
+/**
+ * 読書クローム（上下バー）の描画 alpha。初期実測待ちの不可視化（barsVisualReady=false は常に 0）と、
+ * 案3ライブプレビュー退避（settingsPeek: 0=通常/1=退避）を合成する純関数。
+ * なぜ関数へ切り出すか: 上下バーの graphicsLayer 2箇所で同一規則を共有し、合成規則を JVM テストで固定するため。
+ */
+internal fun readingBarAlpha(barsVisualReady: Boolean, settingsPeek: Float): Float =
+    if (barsVisualReady) 1f - settingsPeek else 0f

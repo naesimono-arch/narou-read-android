@@ -75,6 +75,18 @@ const val MotionDurationSeizuFadeOut: Int = MotionDurationNavTransition / 2     
 const val MotionDurationSeizuFadeIn: Int = MotionDurationNavTransition / 2        // 進入の尺（125ms）
 const val MotionDurationSeizuFadeInDelay: Int = MotionDurationNavTransition / 2   // 進入の遅延（退出ぶん＝先に退出）
 
+// 表示設定シートのライブプレビュー退避（案3「一行残し」・2026-07-29 ユーザー裁定。
+// 正本モック＝docs/design-candidates/reading-settings-livepreview-D.html の PROPOSAL 較正値）。
+// スライダーを押している間だけシート・スクリム・読書クローム（上下バー）を引き、離すと復帰する。
+// なぜ復帰(260ms)を引き(160ms)より長くするか: 「手を離した瞬間にシートが戻ってくる圧」を弱め、
+// 本文の効き目を見た後の視線移動に余韻を残すため（モック PROPOSAL コメントの写経）。
+// easing はモック CSS の ease-out / ease を CubicBezierEasing で同値写経する
+//（禁止則②: duration/easing を野良既定に委ねずトークン経由）。両尺とも禁止則①の 350ms 上限内。
+const val MotionDurationSettingsPeekHide: Int = 160
+const val MotionDurationSettingsPeekReturn: Int = 260
+val MotionEasingSettingsPeekHide: Easing = CubicBezierEasing(0f, 0f, 0.58f, 1f) // CSS ease-out
+val MotionEasingSettingsPeekReturn: Easing = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f) // CSS ease
+
 // 読了バッジ「了」の押印（案A・ADR 0014 §motion 追補「適用裁定の記録」）。本棚がある本を
 // 「初めて読了として描く」瞬間に一度だけ再生する朱印のスタンプ。値の組み立て（scale 1.2→1.0 の単調ダウン＋
 // 回転 -7°→0°＋透過）は BookCard の seal graphicsLayer 側で行い、ここは duration/easing スロットのみ正本化する

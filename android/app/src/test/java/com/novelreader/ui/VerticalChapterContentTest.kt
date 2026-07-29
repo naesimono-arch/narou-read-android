@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import com.novelreader.model.ChapterContent
 import com.novelreader.model.ParseResult
@@ -109,6 +110,26 @@ class VerticalChapterContentTest {
         composeTestRule
             .onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.HorizontalScrollAxisRange), useUnmergedTree = true)
             .assertExists()
+    }
+
+    @Test
+    fun `縦書き中はTopAppBarに章題テキストを出さない（2026-07-29裁定a）`() {
+        setChapterScreenContent(verticalMode = true)
+        // TopAppBar の章題 Text は縦書きでは出さない。縦書きは列高確保のため上端クリアランスを省略して
+        // おり、バー可視時に列上端が題字の下へ潜るため（NativeReadingScreen.kt の title 分岐コメント参照）。
+        // 縦書きの章見出し（VerticalChapterHeader）は Text でなく contentDescription＝Text ノードは 0 になる。
+        composeTestRule.onAllNodesWithText("テスト章").assertCountEquals(0)
+        // 章題は本文先頭の章見出しが担い続ける（heading・contentDescription で読み上げ到達も維持）。
+        composeTestRule
+            .onNode(hasContentDescription("テスト章"), useUnmergedTree = true)
+            .assertExists()
+    }
+
+    @Test
+    fun `横書きではTopAppBarの章題テキストを従来どおり出す（裁定aの適用範囲固定）`() {
+        setChapterScreenContent(verticalMode = false)
+        // バー題字＋本文の章見出し（横書き ChapterHeader は Text 描画）の2ノード＝バー側が消えていない証拠。
+        composeTestRule.onAllNodesWithText("テスト章").assertCountEquals(2)
     }
 
     /** [ChapterScreenContent] を ParseResult.Success で描画し、本文スロットの分岐を検証可能にする。 */

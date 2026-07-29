@@ -97,6 +97,10 @@ internal fun ChapterScreen(
     // 章の初期スクロール位置の解決（親 ReadingScreen の1本＝セッション内記憶→入場復元→先頭）。
     // 覗きパネルへこの結果を焼き込み、着地（initialScrollIndex/Offset）と必ず一致させる。
     resolveInitialScroll: (String) -> Pair<Int, Int>,
+    // push 遷移窓（本棚/目次→本文）の本文骨差し替え信号（案A・2026-07-29）。route は素通しし、
+    // 差し替え自体は描画層 ChapterScreenContent の本文スロットで行う（副作用＝parse/継続照会は窓中も
+    // 走らせておく＝settle 直後に実内容へ最短で差し替わる）。既定 false＝既存呼び出しは無変更。
+    deferHeavyContent: Boolean = false,
 ) {
     // ── 束の展開（本体の参照名を変えない局所別名＝挙動・値とも既存と同一） ──
     val ncode = ncodeLink.ncode
@@ -511,5 +515,7 @@ internal fun ChapterScreen(
         showReturnChip = referenceMode,
         onReturnToContinuation = onReturnToContinuation,
         onRetryParse = { retryKey++ },
+        // push 遷移窓の本文骨（案A）＝親 ReadingScreen 由来の信号を描画層へ素通し。
+        deferHeavyContent = deferHeavyContent,
     )
 }

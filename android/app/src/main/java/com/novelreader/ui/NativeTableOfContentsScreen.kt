@@ -111,7 +111,31 @@ fun NativeTableOfContentsScreen(
     onSelectChapter: (fileName: String) -> Unit,
     onNavigateToBookshelf: () -> Unit,
     onRetry: () -> Unit,
+    // push 遷移窓（本棚→目次の slide 250ms）の間だけ true（ReadingScreen が NavHost の離散遷移状態から供給）。
+    // 既定 false＝既存呼び出し・Preview・golden は無変更（P2 BookshelfContent と同じ受け口設計）。
+    deferHeavyContent: Boolean = false,
 ) {
+    // 遷移ジャンク対策（案A・2026-07-29 裁定・正本モック transition-skeleton-D.html）: 本棚→目次 push の
+    // enter アニメ窓の間は、重い実内容（スキン別目次＋LazyColumn の初回コンポーズ＝Perfetto 2026-07-16 で
+    // 93ms 級と実測）をコンポーズせず、行外形を実寸一致させた構造骨だけを描く（P2 BookshelfSkeleton と同じ
+    // 差し替え機序）。スキンルーターより上流に置くのは、骨をスキン共通の1式で済ませる裁定のため
+    //（骨色は ReadingColors の既存トークンでテーマ/スキン追従。M/P/J/K は着地時にスキン実ヘッダが初出する
+    // ＝現在章ハイライトと同じ「答え合わせ」扱い。D/C はトップバー実描画を共有し差し替えでバーが動かない）。
+    if (deferHeavyContent) {
+        Scaffold(
+            containerColor = colors.background,
+            topBar = { TocTopBarD(colors = colors, workTitle = workTitle, onNavigateToBookshelf = onNavigateToBookshelf) },
+        ) { innerPadding ->
+            TocTransitionSkeleton(
+                colors = colors,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
+        }
+        return
+    }
+
     // スキンM/P/J は目次を画面丸ごと各スキン構造へ委譲する薄いルーター（ADR 0022 §1）。
     // スキン追加時の書き忘れを compile error で捕捉するため else を書かない（無音Dフォールバック防止）。
     // D/C（WAMODERN_D/YAKO_C）は共通の default 経路（この下の Scaffold）で描く。
@@ -173,48 +197,7 @@ fun NativeTableOfContentsScreen(
 
     Scaffold(
         containerColor = colors.background,
-        topBar = {
-            TopAppBar(
-                title = {
-                    // モック toc-D .htxt: 明朝の題字「目次」＋作品名サブ（K形伝播で追加）。
-                    Column {
-                        Text(
-                            "目次",
-                            fontFamily = MinchoFamily,
-                            fontSize = FontSheetTitle,
-                            fontWeight = FontWeight.Medium,
-                            letterSpacing = 0.12.em,
-                        )
-                        // 作品名サブ（.work 明朝13px ink-soft）。渡された場合のみ（捏造禁止＝未紐付けは行ごと出さない）。
-                        // 色は意味を運ぶ作品名ゆえ AA 準拠の infoText を使う（K の TocHeaderK と同裁定＝ink-soft の素値は AA 割れ）。
-                        if (!workTitle.isNullOrBlank()) {
-                            Text(
-                                workTitle,
-                                fontFamily = MinchoFamily,
-                                fontSize = FontSubTitle,
-                                color = colors.infoText,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateToBookshelf) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "本棚に戻る",
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = colors.background,
-                    // システムテーマ（MaterialTheme）ではなく読書テーマに追従させるため明示指定
-                    titleContentColor = colors.text,
-                    navigationIconContentColor = colors.topBarIcon,
-                ),
-            )
-        },
+        topBar = { TocTopBarD(colors = colors, workTitle = workTitle, onNavigateToBookshelf = onNavigateToBookshelf) },
     ) { innerPadding ->
         when (tocState) {
             // ロード中: 章リストの骨格だけを見せて「読み込んでいる」ことを伝える（白画面や誤空表示を防ぐ）
@@ -305,6 +288,59 @@ fun NativeTableOfContentsScreen(
             }
         }
     }
+}
+
+/**
+ * 目次トップバー（D/C 共通経路）。実内容と遷移骨（deferHeavyContent 分岐）の両方が同一描画を使う
+ * ＝差し替えでバーが1pxも動かない（純抽出＝描画・引数とも旧インライン topBar と同一）。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TocTopBarD(
+    colors: ReadingColors,
+    workTitle: String?,
+    onNavigateToBookshelf: () -> Unit,
+) {
+    TopAppBar(
+        title = {
+            // モック toc-D .htxt: 明朝の題字「目次」＋作品名サブ（K形伝播で追加）。
+            Column {
+                Text(
+                    "目次",
+                    fontFamily = MinchoFamily,
+                    fontSize = FontSheetTitle,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.12.em,
+                )
+                // 作品名サブ（.work 明朝13px ink-soft）。渡された場合のみ（捏造禁止＝未紐付けは行ごと出さない）。
+                // 色は意味を運ぶ作品名ゆえ AA 準拠の infoText を使う（K の TocHeaderK と同裁定＝ink-soft の素値は AA 割れ）。
+                if (!workTitle.isNullOrBlank()) {
+                    Text(
+                        workTitle,
+                        fontFamily = MinchoFamily,
+                        fontSize = FontSubTitle,
+                        color = colors.infoText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        },
+        navigationIcon = {
+            IconButton(onClick = onNavigateToBookshelf) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "本棚に戻る",
+                )
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = colors.background,
+            // システムテーマ（MaterialTheme）ではなく読書テーマに追従させるため明示指定
+            titleContentColor = colors.text,
+            navigationIconContentColor = colors.topBarIcon,
+        ),
+    )
 }
 
 /**
