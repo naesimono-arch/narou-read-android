@@ -57,6 +57,23 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
+      # ktlint: 未使用 import の機械検知（2026-07-30 追加）。
+      # なぜ要るのか: 導入前は ktlint/detekt/spotless のいずれも無く、Android Lint は未使用 import を
+      # 既定で拾わない（かつ warnings は非ブロック）ため、87件/34ファイル まで無検知で溜まっていた。
+      # 対象ルールは .editorconfig で no-unused-imports 1本に絞ってある（理由は同ファイル）。
+      # なぜコンパイル系より前か: ktlint はソースを構文解析するだけでコンパイルを要さない＝最も安いので、
+      # 既存ステップの「安い順に落とす fail-fast」方針に合わせてこの位置に置く。
+      #
+      # ⚠️ continue-on-error: true は**暫定**。追加時点の :app には既存違反 87件 が残っており、
+      # ブロッキングにすると掃除が終わるまで CI が常時赤になって他の全ステップの結果が読めなくなる。
+      # 一括削除は別レーンの担当なので、本ステップは「検出できる状態にする」までを受け持つ。
+      # **既存違反の掃除が終わった時点で、この continue-on-error 行を削除してブロッキングへ戻すこと。**
+      # 消し忘れると「検知しているのに落ちない」＝導入した意味が消えるので、掃除コミットと同じ便で外す。
+      - name: ktlint (未使用 import 検知・掃除完了までは非ブロック)
+        continue-on-error: true
+        working-directory: android
+        run: ./gradlew :app:ktlintCheck
+
       # 単体テスト（Robolectric semantics/スクリーンショット系・PDF 抽出 golden 回帰
       # 〔JvmGoldenRegressionTest: 参照する sample_pdfs/ と ab-review/golden_regression/ は
       # git 追跡済み＝checkout だけで揃う〕を含む）＋ スクリーンショット golden の画像比較。

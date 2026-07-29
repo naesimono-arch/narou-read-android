@@ -9,6 +9,35 @@ plugins {
     // Roborazzi: 葉 Composable のスクリーンショット回帰（テーマ退行・トークン波及・フォントスケール破綻の機械検知）。
     // recordRoborazziDebug / verifyRoborazziDebug タスクを供給する（ADR 0009 増補1）。
     id 'io.github.takahirom.roborazzi'
+    // ktlint: 未使用 import の機械検知（設定は下の ktlint ブロック＋リポジトリ直下 .editorconfig）。
+    // :app のみに適用する（未使用 import は全て :app 側。:macrobenchmark は実機計測専用の小モジュールで
+    // 適用するにはルートの build.gradle を触る必要があり、本便の作業範囲外）。
+    id 'org.jlleitschuh.gradle.ktlint'
+}
+
+// ktlint の設定。ルールの取捨はリポジトリ直下 .editorconfig が正本（ktlint 0.48+ では
+// disabledRules プロパティが廃止され .editorconfig が唯一の指定手段のため）。
+ktlint {
+    // 明示ピン必須: プラグイン 12.3.0 の既定は ktlint 1.0.1 と古い。1.5.0 は 12.3.0 の
+    // KtLintSupportedVersionsTest が実際に通している最新版＝プラグインと組み合わせた実績がある。
+    version = '1.5.0'
+    // Android の慣習（Kotlin 公式 style ではなく android_studio style）を基準にする。
+    // 現状は .editorconfig で標準ルールセットを一括 disabled にしているため実効差は無いが、
+    // 将来ルールを開けるときに Kotlin 公式 style の指摘が一斉に出るのを防ぐ意図で先に宣言しておく。
+    android = true
+    // 違反があればタスクは落とす（＝レポートを正直に赤にする）。CI 側の初回非ブロック化は
+    // .github/workflows/ci.yml の continue-on-error で行う——ここで握り潰すと
+    // 「掃除が終わってもゲートが効いていない」状態に気づけなくなるため、握り潰す側を CI に寄せる。
+    ignoreFailures = false
+    filter {
+        // 生成コード（BuildConfig・Room/Moshi の KSP 出力等）は対象外。人が直せない指摘でノイズになるうえ、
+        // KSP 生成物は AGP が Kotlin の source set に足すので黙っていると lint 対象に入ってしまう。
+        // なぜ buildDir 絶対パスでなく "/generated/" 判定か: canonical ビルドは init スクリプトで buildDir を
+        // ext4 へ退避するため buildDir の位置が環境で変わる。生成物は退避先でも .../generated/... に出るので
+        // パスの一区画で判定する方が環境非依存。src 配下に generated を含む実パスが無いことは確認済み（誤除外なし）。
+        // クロージャ内で Project の API を触らない＝configuration-cache（本プロジェクトは既定 ON）でも安全。
+        exclude { it.file.absolutePath.replace('\\', '/').contains('/generated/') }
+    }
 }
 
 // benchmark variant の assets へ載せる実PDF（追跡済み・約8.5MB の N6169DZ.pdf）の中間出力先。
@@ -47,7 +76,8 @@ android {
     namespace 'com.novelreader'
     // compileSdk 36・targetSdk 36: Google Play の新規アプリ向け targetSdk 要件に合わせた公開準備の移行（2026-07-29）。
     // 34→36 は 35 の挙動変更も一度に受ける（edge-to-edge 強制・predictive back 既定 ON）。
-    // 依存（lifecycle/work/Compose BOM 等）のバンプは動作検証と別便で行う（天井が外れただけで版は据え置き）。
+    // 天井が外れて据え置いていた依存（lifecycle/work/Compose BOM 等）は 2026-07-30 に一括バンプ済み。
+    // 以後の上限を決めるのは compileSdk ではなく **Kotlin 1.9.22（KGP 1.9.22）** 側＝各依存のコメント参照。
     compileSdk 36
 
     defaultConfig {
@@ -156,6 +186,27 @@ android {
         resources {
             excludes += '/META-INF/{AL2.0,LGPL2.1}'
         }
+        // ── 16KB ページ要件の確認手順（依存バンプのたびに実施すること）──
+        // なぜ設定ではなく手順か: 本モジュールは自前 jniLibs を持たないので「ここに書けば直る」設定が無い。
+        // それでも Compose(ui/graphics) と datastore 由来の .so が 4ABI×2＝8 本入るため、依存を上げると
+        // 上流が同梱する .so が差し替わり、16KB 非対応の版が紛れ込みうる（Android 15+ の 16KB ページ端末で
+        // 起動不能になる）。AGP 任せにできないのはこの「上流由来」の性質ゆえ＝バンプのたびに人が見る。
+        //
+        //   前提: release APK を先に作る（./gradlew :app:assembleRelease）。zipalign の -P は
+        //         build-tools 35.0.0 以降のみ対応（34.0.0 には無い）。NDK 未導入のため ELF 検分は OS の readelf を使う。
+        //
+        //   ① APK 内の .so が 16KB 境界に zip 整列しているか
+        //      ~/Android/Sdk/build-tools/35.0.0/zipalign -c -P 16 -v 4 \
+        //        app/build/outputs/apk/release/app-release-unsigned.apk | tail -1
+        //      → 最終行が "Verification succesful"（sic: Android 側の綴り）かつ exit 0 なら合格
+        //
+        //   ② .so 自身の ELF LOAD セグメントが 16KB 単位か（p_align）
+        //      python3 -m zipfile -e app/build/outputs/apk/release/app-release-unsigned.apk /tmp/apkx
+        //      find /tmp/apkx/lib -name '*.so' -exec readelf -lW {} + | awk '/LOAD/{print $NF}' | sort -u
+        //      → 出力が 0x4000 のみなら合格。0x1000 が混ざったらその .so を持つ依存が非対応＝バンプを戻す
+        //
+        //   ①②は別物なので両方要る（①は APK 内の配置・②は .so 自身の作り。①だけ通っても②が 0x1000 なら実機で落ちる）。
+        //   実測値: 2026-07-30 時点の release APK は .so 8 本すべて 0x4000・① も合格。
     }
 }
 
@@ -173,8 +224,15 @@ dependencies {
     implementation 'androidx.profileinstaller:profileinstaller:1.4.1'
     // Perfetto トレース区間（androidx.tracing.trace）。取込パイプラインのフェーズを Macrobenchmark の
     // TraceSectionMetric で計測するために使う（挿入は Sections ラッパー経由＝JVM 単体テストは no-op で巻き込まない）。
-    // なぜ 1.2.0 のまま: 旧 compileSdk 34 天井起因の固定。compileSdk 36 化済み（2026-07-29）で天井は外れたが、
-    // 1.3+ へのバンプは動作検証と別便で行う。挿入コード自体は main（全 variant）に入るが android.os.Trace 可用性判定で
+    // なぜ 1.2.0 据え置き（2026-07-30 再評価・compileSdk 天井とは無関係の恒久的な理由に置き換え）:
+    // 1.3.0 は Kotlin 2.0 でビルドされた版で、本プロジェクト（KGP 1.9.22）は消費対象外。実体の
+    // androidx.tracing:tracing-android:1.3.0 は @Metadata mv=2.0.0 / kotlin-stdlib 2.0.21 依存。
+    // ※ mv=2.0.0 自体は Kotlin 1.9.22 の受理上限とちょうど同値で（JvmMetadataVersion INSTANCE=1.9.0・
+    //   INSTANCE_NEXT=2.0.0）機械的に即死とは限らないが、AndroidX は「Kotlin 2.0 で出した版は
+    //   KGP 2.0.0+ でのみ消費可」と明言している。ベンダが非対応と言う組合せを実測なしで踏まない＝上げない。
+    // 併せて 1.3.0 では tracing-ktx が classes.jar 空の shim 化し実体が tracing-android へ移っており、
+    // 版だけ上げると解決される成果物の形まで変わる。Kotlin 2.x へ上げる便で一緒に見ること。
+    // 挿入コード自体は main（全 variant）に入るが android.os.Trace 可用性判定で
     // 実機のみ発行され、出荷挙動は不変（トレース捕捉が無ければネイティブ側で軽い no-op）。
     implementation 'androidx.tracing:tracing-ktx:1.2.0'
     // JankStats: 実利用でのフレーム落ちを画面別に自己計測する（com.novelreader.diagnostics）。
@@ -184,23 +242,46 @@ dependencies {
     // なぜ 1.0.0-beta02: 本ライブラリの安定版は未リリースで beta が実質の最新系列。API は
     // createAndTrack + PerformanceMetricsState の2点のみで、収集を止めれば影響も消える薄い依存。
     implementation 'androidx.metrics:metrics-performance:1.0.0-beta02'
-    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
-    // U1 新着話チェックの定期実行（24h 周期・ネットワーク制約）。2.9.1 固定は旧 compileSdk 34 天井の名残
-    // （compileSdk 36 化済み＝2.10+ も解決可能になったが、バンプは動作検証と別便で行う。2026-07-29）。
-    implementation 'androidx.work:work-runtime-ktx:2.9.1'
+    // lifecycle 群の版は 3 依存（runtime-ktx / runtime-compose / process）で必ず揃える。
+    // なぜ 2.8.7 が上限か（2026-07-30 に 2.6.2 から引き上げ）: 2.9.0-beta01 のリリースノートが
+    // 「This library now targets Kotlin 2.0 language level and requires KGP 2.0.0 or newer.」と明言しており、
+    // 実artifactも 2.9.x 以降は @Metadata mv=2.0.0 / kotlin-stdlib 2.0.21 依存になる（本プロジェクトは KGP 1.9.22）。
+    // 2.8.7 は kotlin-stdlib 1.8.22 依存・mv 1.8.0・minCompileSdk 34 で現構成のまま解決できる。
+    // 加えて Compose 1.8.3（compose-bom 2025.07.00）の ui が lifecycle-runtime-compose/viewmodel 2.8.7 を
+    // 推移要求するため、2.8.7 を明示宣言すると「宣言値＝解決値」になり版ズレの読み違いが起きない。
+    // 注意: 2.8.x で lifecycle-runtime-ktx の aar は classes.jar 空の shim になり、実体（RepeatOnLifecycleKt 等）は
+    // 推移する lifecycle-runtime-android へ移動している。本座標を消すと推移経路ごと消えるので残すこと。
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
+    // U1 新着話チェックの定期実行（24h 周期・ネットワーク制約）。
+    // なぜ 2.10.5（2026-07-30 に 2.9.1 から引き上げ・2.10 系の最終パッチ）: work-runtime 2.10.5 は
+    // @Metadata mv=1.8.0 / kotlin-stdlib 1.8.22 依存で Kotlin 1.9.22 のまま解決でき、minCompileSdk 35 も
+    // compileSdk 36 化で満たす。2.11.x へ行かない理由は mv=2.1.0 / kotlin-stdlib 2.1.20＝Kotlin 1.9.22 の
+    // 受理上限（JvmMetadataVersion.INSTANCE_NEXT=2.0.0）を超え、コンパイル時にメタデータ非互換で確実に落ちるため。
+    implementation 'androidx.work:work-runtime-ktx:2.10.5'
     // collectAsStateWithLifecycle 提供。ライフサイクル STOPPED 以下で StateFlow の collect を止め、
     // バックグラウンドでの無駄な購読/再コンポーズを避ける（従来の collectAsState は常時 collect）。
-    // なぜ 2.6.2 固定: lifecycle-runtime-ktx と版を揃える。2.8.x を阻んでいた旧 compileSdk 34 天井は
-    // 36 化（2026-07-29）で外れたが、バンプは動作検証と別便で行う。
-    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.6.2'
+    // 版は lifecycle-runtime-ktx と揃える（上限 2.8.7 の根拠は同依存のコメント）。
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.7'
     // ProcessLifecycleOwner 提供（アプリ全体の前面/背面判定）。変換完了通知の二重報告抑止に使う
-    // （UX監査 notify §86）。版は他の lifecycle 群と揃える（2.6.2 固定＝旧 compileSdk 34 天井の名残。36 化済みだがバンプは別便）。
-    implementation 'androidx.lifecycle:lifecycle-process:2.6.2'
+    // （UX監査 notify §86）。版は他の lifecycle 群と揃える（上限 2.8.7 の根拠は lifecycle-runtime-ktx のコメント）。
+    implementation 'androidx.lifecycle:lifecycle-process:2.8.7'
     implementation 'androidx.activity:activity-compose:1.8.1'
-    // なぜ 2025.02.00: 案B（削除時の詰め直しアニメ復活）に必要な Modifier.animateItem() が
-    // foundation 1.7.0+ のため。1.7 系の最終パッチ(1.7.8/material3 1.3.1)を採り、
-    // 1.8 系(BOM 2025.04+)を阻んでいた旧 compileSdk 34 天井は 36 化（2026-07-29）で外れたが、BOM バンプは動作検証と別便で行う。
-    implementation platform('androidx.compose:compose-bom:2025.02.00')
+    // なぜ 2025.07.00（2026-07-30 に 2025.02.00 から引き上げ）= Compose 1.8.3 / material3 1.3.2:
+    // **Kotlin 1.9.22＋kotlinCompilerExtensionVersion 1.5.10 で使える最後の BOM**。
+    //   ・上げられる理由: 1.8 系を阻んでいたのは minCompileSdk 35 で、compileSdk 36 化（2026-07-29）で解消。
+    //     Compose 1.8.3 の実artifact（ui/ui-graphics/foundation/ui-tooling）は @Metadata mv=1.9.0・
+    //     kotlin-stdlib 1.9.24 依存＝Kotlin 1.9.22 のまま解決できる。生成コードが呼ぶ runtime 側 API
+    //     （sourceInformation(MarkerStart/End)・traceEventStart/End・isTraceInProgress）は 1.7.8 と同一で、
+    //     Compose コンパイラの VersionChecker は runtime の**下限**しか見ない＝1.5.10 の生成コードと組める。
+    //   ・上げない理由（2025.08.00 以降＝Compose 1.9.0+）: mv=2.0.0 / kotlin-stdlib 2.0.21 になり、
+    //     AndroidX が「Kotlin 2.0 で出した版は KGP 2.0.0+ でのみ消費可」と明言している。1.11.x に至っては
+    //     mv=2.1.0 で Kotlin 1.9.22 の受理上限（INSTANCE_NEXT=2.0.0）を超え確実に落ちる。
+    //     BOM をこれ以上上げるには Kotlin 2.x 化が先＝ただし Kotlin 1.9.22 は Roborazzi 1.30.1 との連鎖で
+    //     固定されている（settings.gradle 参照）ので、Compose・Kotlin・Roborazzi は 1 便でまとめて上げること。
+    //   ・案B（削除時の詰め直しアニメ）に必要な Modifier.animateItem() は foundation 1.7.0+ で、1.8.3 でも健在。
+    // ⚠️ BOM を動かしたら 16KB ページ整列の再確認が要る（手順は上の packagingOptions ブロックのコメント）。
+    //    Compose・datastore 由来の .so が 4ABI×2＝8 本入るため、自前 jniLibs が無くても影響を受ける。
+    implementation platform('androidx.compose:compose-bom:2025.07.00')
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.ui:ui-graphics'
     implementation 'androidx.compose.ui:ui-tooling-preview'
@@ -211,7 +292,13 @@ dependencies {
     // HTMLパーサー (Jsoup)
     implementation 'org.jsoup:jsoup:1.17.2'
 
-    // なぜ: List<TextSegment> は Compose stability 推論で不安定→読書 LazyColumn の項目が skippable にならないため（strong skipping 無効の Kotlin 1.9 環境）
+    // なぜ: List<TextSegment> は Compose stability 推論で不安定→読書 LazyColumn の項目が skippable にならないため。
+    // 導入時（2026-07-08）は strong skipping が無効で、これが skippable 化の唯一の手段だった。
+    // その後 2026-07-11 に kotlinOptions で experimentalStrongSkipping=true を有効化しており（上記参照）、
+    // 「strong skipping 無効の環境だから要る」という当初の理由は現在は成立しない＝旧コメントを 2026-07-30 に是正。
+    // なお strong skipping 有効下でも本依存は無害で、ImmutableList は「unstable 引数の等値比較に頼らず
+    // 安定と宣言できる」点で今も意味を持つ。要否の再判定（外せるか）は composeCompilerReports で
+    // skippable 状態を実測してから行うこと＝憶測で外すと LazyColumn の再コンポーズが静かに増える。
     implementation 'org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.7'
 
     // PDF抽出 (PDFBox-Android / Tom Roush 版)。旧 Chaquopy(Python+pdfminer) から移植した唯一の抽出経路。
@@ -266,8 +353,9 @@ dependencies {
     // Retrofit の実 URL エンコード（日本語 word の percent-encoding・of/order 等）を実リクエストで検証するため。
     // 版は okhttp 4.12.0 と同系で固定（MockWebServer は OkHttp 同梱物）。
     testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
-    // BOM 管理下なので ui-test の版指定は不要（compose-bom 2025.02.00 が解決）。
-    testImplementation platform('androidx.compose:compose-bom:2025.02.00')
+    // BOM 管理下なので ui-test の版指定は不要（compose-bom が解決）。版は implementation 側の BOM と必ず揃える
+    // ——揃えないと本番と test でコンパイル対象の Compose が食い違い、Roborazzi の golden が理由不明にズレる。
+    testImplementation platform('androidx.compose:compose-bom:2025.07.00')
     testImplementation 'androidx.compose.ui:ui-test-junit4'
     // createComposeRule が起動する ComponentActivity の宣言を unit test の manifest に供給する。
     // debugImplementation 側にも在るが、testDebugUnitTest のクラスパスへ確実に載せるため明示追加。
@@ -283,7 +371,8 @@ dependencies {
     // Room migration の実機検証（MigrationTestHelper）。identity hash 起因の起動即クラッシュを
     // 2度実測したプロジェクトのため（task_diary #39）、「実機で踏む」を「テストで捕まえる」に変える。
     androidTestImplementation "androidx.room:room-testing:$room_version"
-    androidTestImplementation platform('androidx.compose:compose-bom:2025.02.00')
+    // 版は implementation 側の BOM と揃える（上のコメント参照）
+    androidTestImplementation platform('androidx.compose:compose-bom:2025.07.00')
     androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
     debugImplementation 'androidx.compose.ui:ui-tooling'
     debugImplementation 'androidx.compose.ui:ui-test-manifest'

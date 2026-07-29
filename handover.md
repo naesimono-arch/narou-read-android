@@ -256,6 +256,16 @@
 
 ## リファクタ / 技術的負債（deferred）
 
+- **[要判断・2026-07-30 の依存バンプで確定] 全依存の天井は compileSdk ではなく Kotlin 1.9.22 だった**:
+  `JvmMetadataVersion` の受入上限が 1.9.0（次版 2.0.0）で、**`mv=2.1.0` の artifact は機械的に確実死**（Compose 1.11 系・work 2.11 系）、
+  `mv=2.0.0` 群（Compose 1.9+・lifecycle 2.9+・tracing 1.3+）はベンダが KGP 2.0.0+ 必須と明言。
+  そして Kotlin を上げられないのは **Roborazzi 1.30.1 が Kotlin 1.9.22 ビルドである連鎖**（settings.gradle のコメントが正本）。
+  ⇒ 次に依存を動かすときは **Kotlin 2.x ＋ compose compiler plugin ＋ Roborazzi を1便**にするしかない。
+  この構造を ADR 化しておかないと、また「別便で」の据え置きが溜まる（実際5件溜まって今回まとめて解消した）。
+  なお `tracing-ktx` だけは今回も据え置き（1.3.0 が Kotlin 2.0 ビルド＝上限超え）。
+- **[小・同便で判明] `activity-compose` は宣言 1.8.1 に対し解決 1.8.2**（material3 が推移要求）。今回の変更起因ではなく従前から。
+  宣言を実態へ揃えると読み違いが減る。
+
 - **[2026-07-27 リファクタ大バッチの残り]**（消化分の正本＝git log・裁定と依存グラフの一次情報＝`.claude/plans/refactor-batch-2026-07-27.md`）:
   ③ Baseline Profile 生成＝**見送り裁定（2026-07-27）**。profileinstaller/macrobenchmark/StartupBudget は揃っており generator 1本で起動20〜30%改善見込み・要実機
   ④ 計測・調査群＝**見送り裁定（同）**: ShioriCover の Path 毎フレーム確保（drawWithCache 候補・BookshelfScrollBenchmark が予算内なら実害なし＝先に測る）／OkHttp ディスクキャッシュ未設定／Room AutoMigration 不使用の方針 ADR 1行／Native 接頭辞・ビュー切替名の整理

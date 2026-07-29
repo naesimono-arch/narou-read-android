@@ -18,6 +18,14 @@ pluginManagement {
         // （新しい版は Kotlin 2.0 でビルドされ 1.9.22 コンパイラでの読み取りに難がある）＝据え置きの理由は Kotlin 側。
         // AGP は 8.6.1 でビルドされた版だが、8.9.1 化（2026-07-29）後も全スクリーンショットテストの通過を実測済み。
         id 'io.github.takahirom.roborazzi' version '1.30.1' apply false
+        // ktlint: 未使用 import の機械検知（2026-07-30 導入）。導入前は ktlint/detekt/spotless のいずれも無く、
+        // Android Lint は未使用 import を既定で拾わない＋warning は非ブロックのため 87件/34ファイル 溜まっていた。
+        // なぜ 12.3.0 か: 本プロジェクトの Gradle は 8.11.1。12.3.0 は Gradle 8 系（8.13）に追随した最後の系列で、
+        // かつ configuration-cache 対応（KtlintInstallGitHookTask を @UntrackedTask 化）を明示的に取り込んだ版
+        // ——本プロジェクトは org.gradle.configuration-cache=true なのでここが効く。
+        // 13.x/14.x は Gradle 9・Java 25・Isolated Projects 対応が主眼で、Gradle 8.11.1 では利得が無く risk だけ増える
+        // （min Gradle は各版とも 7.4 と公称されており 8.11.1 で動く見込みだが、実測していない版を選ぶ理由が無い）。
+        id 'org.jlleitschuh.gradle.ktlint' version '12.3.0' apply false
     }
 }
 dependencyResolutionManagement {

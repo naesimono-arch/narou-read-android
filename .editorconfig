@@ -1,0 +1,33 @@
+# ktlint の設定（2026-07-30 新設）。
+#
+# これは何か: ktlint はルールの有効/無効を .editorconfig からしか読まない（0.48+ で Gradle 側の
+# disabledRules プロパティが廃止された）ため、「どのルールで落とすか」の正本はこのファイル。
+# プラグインの適用と版の固定は android/app/build.gradle・android/settings.gradle 側。
+#
+# なぜ標準ルールセットを丸ごと disabled にして 1 本だけ開けるのか:
+# 導入時点の :app には未使用 import が 87件/34ファイル 溜まっていた。ここで ktlint の標準ルールを
+# 全開にすると、書式（インデント・改行・import 順・命名・trailing comma …）の指摘が数千件単位で出て、
+# 「CI が常時赤で誰も見ない」か「全部 format して巨大 diff がレビュー不能になる」のどちらかに倒れる。
+# 本便の目的は未使用 import の検知と再発防止に限定されているので、
+#   ① 安全に自動修正できる（ktlintFormat で機械的に消せる・意味を変えない）
+#   ② 人間のレビューで見落とされ続けた実績がある
+# を満たす no-unused-imports だけを開ける。書式系を足すかは、掃除が終わって CI をブロッキングに
+# 切り替えたあとで別途判断すること（ルールを足すときは同時に ktlintFormat を1回流して差分を単独コミットにする）。
+#
+# 仕組み: ktlint はルールセット単位のプロパティ（ktlint_standard）より個別ルールのプロパティ
+# （ktlint_standard_<rule-id>）を優先する。よって「全部 disabled → 1 本だけ enabled」が成立する。
+# rule-id は ktlint 1.5.0 の NoUnusedImportsRule が StandardRule("no-unused-imports") で登録する名前。
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+[*.{kt,kts}]
+# 標準ルールセットを一括 disabled にしてから、必要な 1 本だけを個別に enabled で上書きする
+ktlint_standard = disabled
+ktlint_standard_no-unused-imports = enabled
+# 実験的ルールセットは使わない（安定していないルールで CI を揺らさない）
+ktlint_experimental = disabled
