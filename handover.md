@@ -120,7 +120,17 @@
 
 - **[性能・実測済み／切り分け残（2026-07-29）] 第三者実機（Huawei P30 / Android 10 / EMUI・60Hz）で読書画面の jank を実測**: debug 版・稼働1h45m の累積で **Janky 10.11%（122/1207）・99%tile 61ms・0.4〜0.5秒級の停止4回**。crash/ANR はゼロ。内訳は **draw 8.14ms + GPU 発行 11.29ms が支配的で traversal は 0.06ms＝レイアウトは無罪**（`RubyText`/`ChapterContent` は最適化済みのため**決め打ち修正はしない**）。実測値・回収手順・EMUI 固有の罠＝`docs/knowledge/emui-p30-jank-log-collection.md`。
   - ⚠️ **当該端末は現在 release(R8) 版が入っている**（2026-07-29 に debug 署名で `install -r`・蔵書DB保持・`run-as` 不可＝prefs/DB は読めない）。debug へ戻すには debug APK を `install -r`。
-  - 残: ①release 版の**実使用** gfxinfo を回収して debug の 10.11% と比較（install 直後で統計ゼロ・起動待ち）②画面遷移の境目で `dumpsys gfxinfo <pkg> reset` を打ち本棚/さがす/読書のどれが重いか切り分け③それでも足りなければ Perfetto（EMUI での動作は未検証）。
+  - **残①（次にやること）＝release 版の実使用 gfxinfo の回収**。方針は **「持ち主にしばらく普通に使ってもらってから回収」（2026-07-29 ユーザー裁定）**＝こちらから起動・input はしない（実使用同士でないと debug の 10.11% と比較する意味が薄れるため）。回収手順:
+    ```bash
+    adb-bridge                                     # 先にこれ（WSL は毎回）
+    adb shell ps -A | grep novel                   # ★プロセス生存を先に確認（死んでいたら統計は消えている＝やり直し）
+    adb shell dumpsys gfxinfo com.novelreader      # 非破壊で吸う。reset や force-stop はこの後
+    ```
+    比較対象（debug 版・稼働1h45m）: `Janky 122/1207 = 10.11%` / 99%tile 61ms / 400ms=1 450ms=1 500ms=2。
+    **gfxinfo はプロセス生存中の累積**＝アプリが kill・再起動されると消えるので、使ってもらった後は早めに吸う。
+    `logcat -G 16M` の拡大は**端末再起動で既定へ戻る**ため、その場合は回収前に打ち直す。
+  - 残②: 画面遷移の境目で `dumpsys gfxinfo com.novelreader reset` を打ち、本棚/さがす/読書のどれが重いか切り分け（累積統計は時刻を持たず画面を特定できないため）。
+  - 残③: それでも足りなければ Perfetto で関数レベルまで（EMUI での動作は未検証・ColorOS では別端末で hang 実績あり）。
 
 > レビュー中・実装中に出た宿題や着想で、まだ下の各節に整理していないものをここへ。育ったら該当節へ移す。
 
