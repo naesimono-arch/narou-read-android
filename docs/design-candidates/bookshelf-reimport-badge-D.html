@@ -1,0 +1,219 @@
+<!-- @dsCard group="UI-n / 本文欠落→再取込提案（候補比較）" name="D. 案B 本棚カードの欠落バッジ→再取込ダイアログ — 開く前に棚で見える（棚面＋4分岐ダイアログ）" -->
+<!-- @derives source="discovery/bookshelf-fusion-D.html（カード語彙）+ bookshelf-multiselect-D.html（scrim/dlg 様式）"（候補段階＝裁定前。採用時は正本直差分へ転写して本ファイルは削除） -->
+<!--
+  【2026-07-29 不採用（案C＝bookshelf-reimport-sweep-D.html 採用）・candidates として保存】
+  ⚠ 参照注意: 本棚下敷きが旧世代基盤（discovery/bookshelf-fusion-D.html＝K タブ化以前・ボトムナビ3タブ／
+  明示タイトル＋冊数／栞書影／キャプション行可視⋮を持たない）。新提案の下敷きには使わないこと。
+  カード単位の個別再取込導線（バッジ→ダイアログ4分岐）の設計自体は案C の「残り3冊は個別に」の受け皿として有効。
+-->
+<!--
+  課題（2026-07-29 ユーザー裁定「作る」）: 実機で全蔵書の本文ファイル欠落（DB に本はあるが files/novels/ が無い）。
+  案A（エラー面ハブ）は「開いて初めて分かる」＝欠落が複数冊のとき1冊ずつ踏む必要がある。
+
+  ◆案Bの狙い: 開く前に棚で欠落が見える——復旧をカード起点の1タップにする（欠落の把握と復旧を本棚で完結）。
+
+  設計:
+  ・欠落バッジ「本文なし」＝書影左上のヘアラインチップ（fusion-D の Web マーカーと同じ置き場・D の base 地×藍字）。
+    書影はメタデータ由来（栞先端＝決定論選択）＝本文が欠落しても普段どおり描ける→バッジだけが差分＝棚の静けさを壊さない。
+  ・進捗行の代わりに藍の状態行「本文データが見つかりません」（意味を運ぶ文字＝AA を満たす --ai。ADR 0014-D）。
+  ・棚のバッジは「欠落の事実」のみを示し、sourceUri の分岐（下の4系統）はタップ後のダイアログで初めて出す
+    ＝棚面に4種のバッジを発明しない（情報過密の回避）。
+  ・ダイアログ様式は bookshelf-multiselect-D.html の scrim/dlg/btn を踏襲（D に danger 無し＝CTA は藍テキスト）。
+  分岐（各1状態）: ① sourceUri 有効＝再取込する ／ ② 権限失効＝PDFを選ぶ（ファイル名ヒント）／
+                   ③ NULL（旧取込）＝PDFを選ぶ ／ ④ Web 本＝Webから再取得。
+  全分岐共通（C2）: 進捗 DB は触らない＝「読書位置としおりはそのまま残ります」を明記。
+  準拠: ADR 0005（視覚言語D）・ADR 0014（トークン層）。チップ行は現行実装＝読書状態フィルタで描く。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n D 本文欠落 案B — 棚カードの欠落バッジ→再取込ダイアログ</title>
+<style>
+  /*==harness==*/
+  /* トークンは bookshelf-D 系正本の :root 写経（候補段階の写経＝裁定後に整理） */
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;--seiji:#9CB3A8;--seiji-ink:#50685C;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.7;max-width:840px}
+  .cap b{color:#2A2C28}
+  .note{color:#6A6C67;font-size:11.5px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:840px}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px;max-width:372px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#6A6C67;text-align:center}
+  .wrap .desc{font-size:11px;color:#6A6C67;text-align:center;line-height:1.6}
+  .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column}
+  /*==/harness==*/
+
+  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--ink-soft);flex-shrink:0}
+  .top{padding:8px 24px 14px;display:flex;align-items:flex-end;justify-content:space-between;flex-shrink:0}
+  .top h1{font-family:var(--mincho);font-size:27px;color:var(--ink);font-weight:500;letter-spacing:.14em}
+
+  /* 読書状態フィルタ（現行実装と同じ4チップ＝正本の現在形で下敷きを描く） */
+  .chips{flex-shrink:0;display:flex;gap:8px;padding:0 24px 14px;overflow-x:auto;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex-shrink:0;font-size:12px;color:var(--ink-soft);border:1px solid var(--line);border-radius:999px;padding:7px 15px;cursor:pointer}
+  .chip.on{color:var(--ai);border-color:var(--ai);font-weight:600}
+
+  .scroll{flex:1;overflow:auto;padding:0 24px 40px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:4px}
+  .bk{cursor:pointer}
+  .cv{position:relative;aspect-ratio:2/3;border-radius:2px;overflow:hidden;display:flex;align-items:flex-end}
+  .cv .rule{position:absolute;left:14px;top:14px;bottom:14px;width:2px;background:var(--ai);opacity:.85}
+  .cv .ttl-in{padding:16px 16px 16px 24px;color:#fff}
+  .cv .ttl-in b{font-family:var(--mincho);font-size:14px;font-weight:600;line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-shadow:0 1px 3px rgba(0,0,0,.3)}
+  /* 欠落バッジ: 書影左上のヘアラインチップ（base 地×藍字＝暗い書影の上でも読める。バッジは事実のみ・分岐は出さない） */
+  .cv .miss{position:absolute;top:8px;left:8px;z-index:2;font-size:9.5px;font-weight:600;letter-spacing:.08em;
+    padding:3px 8px;border-radius:2px;background:var(--base);border:1px solid var(--line);color:var(--ai)}
+  .meta{margin-top:12px}
+  .meta .t{font-family:var(--mincho);font-size:13px;color:var(--ink);line-height:1.45;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .meta .pr{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:10.5px;color:var(--ai)}
+  .meta .pr .pb{flex:1;height:1px;background:var(--line);position:relative}
+  .meta .pr .pb i{position:absolute;left:0;top:-0.5px;height:2px;background:var(--ai)}
+  .meta .u{font-size:10.5px;color:var(--seiji-ink);margin-top:8px;letter-spacing:.08em}
+  /* 欠落の状態行: 進捗行の場所に、意味を運ぶ藍で（タップ誘導まで1行に収める） */
+  .meta .miss-row{font-size:10.5px;color:var(--ai);margin-top:8px;letter-spacing:.03em;font-weight:600}
+
+  /* 再取込ダイアログ（bookshelf-multiselect-D.html の scrim/dlg 様式を踏襲） */
+  .behind{opacity:.5;pointer-events:none}
+  .scrim{position:absolute;inset:0;background:rgba(20,23,28,.34);z-index:5}
+  .dlg{position:absolute;left:24px;right:24px;top:50%;transform:translateY(-50%);z-index:6;
+    background:var(--base);border-radius:16px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+  .dlg h2{font-family:var(--mincho);font-size:17px;color:var(--ink);font-weight:600;letter-spacing:.05em;line-height:1.55;margin-bottom:12px}
+  .dlg p{font-size:12.5px;color:var(--ink-soft);line-height:1.75;margin-bottom:16px}
+  .dlg p .warn{color:var(--ink);font-weight:600}
+  /* 取込元の手がかり行（②のみ＝選び直しの判断材料。意味を運ぶ値は --ink） */
+  .dlg .src{border:1px solid var(--line);border-radius:2px;padding:10px 14px;margin-bottom:16px}
+  .dlg .src .lbl{font-size:10px;color:var(--ink-soft);letter-spacing:.1em}
+  .dlg .src .val{font-size:12px;color:var(--ink);margin-top:4px;line-height:1.5;word-break:break-all}
+  .dlg-acts{display:flex;justify-content:flex-end;align-items:center;gap:8px}
+  .btn-cancel{border:none;background:transparent;color:var(--ink);font-size:14px;font-weight:600;padding:12px 18px;border-radius:2px;cursor:pointer}
+  .btn-go{border:none;background:transparent;color:var(--ai);font-size:14px;font-weight:600;padding:12px 18px;border-radius:2px;cursor:pointer}
+</style>
+</head>
+<body>
+  <p class="cap"><b>案B. 本棚カードの欠落バッジ→再取込ダイアログ</b> ／ 狙い: <b>開く前に棚で欠落が見える</b>——復旧をカード起点の1タップに（欠落の把握と復旧を本棚で完結）。</p>
+  <p class="note">棚のバッジは「本文なし」の事実のみ（4種のバッジを発明しない）。sourceUri の分岐はタップ後のダイアログで提示＝ダイアログ4状態を並置。書影はメタデータ由来＝欠落でも普段どおり描ける（バッジだけが差分）。</p>
+
+  <div class="stage">
+
+    <!-- 棚面: 欠落2冊が混ざった本棚 -->
+    <div class="wrap"><span class="mode">棚面（欠落バッジ）</span>
+    <div class="phone" role="img" aria-label="案B 棚面 欠落バッジ">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="top"><h1>本棚</h1></div>
+      <div class="chips">
+        <span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span>
+      </div>
+      <div class="scroll"><div class="grid">
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)"><span class="rule"></span><div class="ttl-in"><b>追放された万能薬師</b></div></div>
+          <div class="meta"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="pr"><span>127話</span><span class="pb"><i style="width:62%"></i></span><span>62%</span></div></div></div>
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><span class="miss">本文なし</span><span class="rule"></span><div class="ttl-in"><b>黒の魔王と契約した俺</b></div></div>
+          <div class="meta"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="miss-row">本文データが見つかりません — タップで再取込</div></div></div>
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#46584C,#2C362F)"><span class="rule"></span><div class="ttl-in"><b>草むしりと世界樹</b></div></div>
+          <div class="meta"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="u">未読</div></div></div>
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#4F4A63,#312E3D)"><span class="miss">本文なし</span><span class="rule"></span><div class="ttl-in"><b>公爵令嬢の嗜み</b></div></div>
+          <div class="meta"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="miss-row">Webから再取得できます</div></div></div>
+      </div></div>
+    </div>
+    <p class="desc">欠落カード＝書影は普段どおり＋左上バッジ＋進捗行の場所に藍の状態行。タップで下の分岐ダイアログへ。</p></div>
+
+    <!-- ① sourceUri 有効 -->
+    <div class="wrap"><span class="mode">① 自動再取込（sourceUri 有効）</span>
+    <div class="phone" role="img" aria-label="案B ダイアログ sourceUri 有効">
+      <div class="behind">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="top"><h1>本棚</h1></div>
+      <div class="chips"><span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span></div>
+      <div class="scroll"><div class="grid">
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><span class="miss">本文なし</span><span class="rule"></span><div class="ttl-in"><b>黒の魔王と契約した俺</b></div></div>
+          <div class="meta"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="miss-row">本文データが見つかりません</div></div></div>
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)"><span class="rule"></span><div class="ttl-in"><b>追放された万能薬師</b></div></div>
+          <div class="meta"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="pr"><span>127話</span><span class="pb"><i style="width:62%"></i></span><span>62%</span></div></div></div>
+      </div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="dlg">
+        <h2>『黒の魔王と契約した俺』を<br>元のPDFから再取込しますか？</h2>
+        <p>変換した本文ファイルがこの端末にありません。記録されている取込元 PDF からもう一度変換します。<span class="warn">読書位置としおりはそのまま残ります。</span></p>
+        <div class="dlg-acts"><button class="btn-cancel">やめる</button><button class="btn-go">再取込する</button></div>
+      </div>
+    </div>
+    <p class="desc">権限が生きている本＝確認1枚で自動再変換（既存の取込キューに乗せる）。</p></div>
+
+    <!-- ② 権限失効 -->
+    <div class="wrap"><span class="mode">② 権限失効（記録あり・読めない）</span>
+    <div class="phone" role="img" aria-label="案B ダイアログ 権限失効">
+      <div class="behind">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="top"><h1>本棚</h1></div>
+      <div class="chips"><span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span></div>
+      <div class="scroll"><div class="grid">
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><span class="miss">本文なし</span><span class="rule"></span><div class="ttl-in"><b>黒の魔王と契約した俺</b></div></div>
+          <div class="meta"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="miss-row">本文データが見つかりません</div></div></div>
+      </div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="dlg">
+        <h2>PDFを選び直してください</h2>
+        <p>取込元の記録はありますが、読み出す権限が切れています。同じ PDF をもう一度選ぶと、<span class="warn">読書位置ごと復元されます。</span></p>
+        <div class="src"><div class="lbl">取込元の PDF（選び直しの手がかり）</div><div class="val">黒の魔王と契約した俺、気づけば最強の従者になっていた.pdf</div></div>
+        <div class="dlg-acts"><button class="btn-cancel">やめる</button><button class="btn-go">PDFを選ぶ</button></div>
+      </div>
+    </div>
+    <p class="desc">権限失効＝ファイル名を手がかりにピッカーへ。選び直せば以後は自動再取込に戻る。</p></div>
+
+    <!-- ③ NULL（旧取込） -->
+    <div class="wrap"><span class="mode">③ 記録なし（v20 前の旧取込）</span>
+    <div class="phone" role="img" aria-label="案B ダイアログ 記録なし">
+      <div class="behind">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="top"><h1>本棚</h1></div>
+      <div class="chips"><span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span></div>
+      <div class="scroll"><div class="grid">
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#46584C,#2C362F)"><span class="miss">本文なし</span><span class="rule"></span><div class="ttl-in"><b>草むしりと世界樹</b></div></div>
+          <div class="meta"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="miss-row">本文データが見つかりません</div></div></div>
+      </div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="dlg">
+        <h2>PDFを選んで再取込</h2>
+        <p>この本には取込元の記録がありません（記録機能より前に取り込まれた本）。同じ PDF を選ぶと、<span class="warn">読書位置ごと復元されます。</span></p>
+        <div class="dlg-acts"><button class="btn-cancel">やめる</button><button class="btn-go">PDFを選ぶ</button></div>
+      </div>
+    </div>
+    <p class="desc">sourceUri=NULL＝手がかり無しの汎用ピッカー。同一判定は title＋author（BookDao 既存機序）。</p></div>
+
+    <!-- ④ Web 本 -->
+    <div class="wrap"><span class="mode">④ Web 作品（sourceUrl あり）</span>
+    <div class="phone" role="img" aria-label="案B ダイアログ Web 作品">
+      <div class="behind">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="top"><h1>本棚</h1></div>
+      <div class="chips"><span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span></div>
+      <div class="scroll"><div class="grid">
+        <div class="bk"><div class="cv" style="background:linear-gradient(160deg,#4F4A63,#312E3D)"><span class="miss">本文なし</span><span class="rule"></span><div class="ttl-in"><b>公爵令嬢の嗜み</b></div></div>
+          <div class="meta"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="miss-row">Webから再取得できます</div></div></div>
+      </div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="dlg">
+        <h2>『公爵令嬢の嗜み』を<br>Webから再取得しますか？</h2>
+        <p>Web から取り込んだ作品です。作品ページからもう一度取得して復元します。<span class="warn">読書位置としおりはそのまま残ります。</span></p>
+        <div class="dlg-acts"><button class="btn-cancel">やめる</button><button class="btn-go">再取得する</button></div>
+      </div>
+    </div>
+    <p class="desc">Web 本は PDF を持たない＝sourceUrl から自動再取得（WebBookImporter 既存経路）。</p></div>
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,175 @@
+<!-- @dsCard group="UI-n / 本文欠落→再取込提案（候補比較）" name="D. 案A 読書エラー面＝復旧ハブ — 開いて失敗したその画面から再取込（4分岐）" -->
+<!-- @derives source="reading-D.html（t-light トークン）+ NativeReadingScreen.kt:441-454 の C2 エラー面"（候補段階＝裁定前。採用時は正本直差分へ転写して本ファイルは削除） -->
+<!--
+  【2026-07-29 不採用（案C＝bookshelf-reimport-sweep-D.html 採用）・candidates として保存】
+  ⚠ 参照注意: 本ファイルは読書面のみで本棚を含まないが、同便の案B/C 初版は本棚下敷きが旧世代基盤
+  （discovery/bookshelf-fusion-D.html＝K タブ化以前）だった。新提案の下敷きには使わないこと。
+-->
+<!--
+  課題（2026-07-29 ユーザー裁定「作る」）: 実機で全蔵書の本文ファイル欠落が発生（DB に本はあるが files/novels/ が無い
+  ＝開くと「読み込みに失敗しました／本文データがこの端末にありません」で行き止まり）。
+  現状実装は固定文言＋「本棚に戻る」のみ（再取込がピッカー起点＝本棚からしか始められなかった時代の制約）。
+  v20 で books.sourceUri（取込元 PDF の SAF URI・永続 READ 権限つき）が入ったため、この場で再取込を提案できる。
+
+  ◆案Aの狙い: 遭遇した瞬間に最短で直す——開いて失敗したその画面が、そのまま復旧ハブになる。
+
+  分岐は sourceUri の状態で4系統（各1面）:
+    ① sourceUri 有効        → 主ボタン「元のPDFから再取込」＝ワンタップで自動再変換
+    ② 権限失効              → 記録は在るが読めない＝「PDFを選び直して再取込」（取込元ファイル名をヒント表示）
+    ③ NULL（v20 前の旧取込）→ 記録が無い＝「PDFを選んで再取込」（汎用ピッカー起点）
+    ④ Web 本（sourceUrl）   → 「Webから再取得」＝作品ページから自動復元
+  全分岐共通の要件（C2）: 進捗 DB は触らない＝「読書位置としおりはそのまま残ります」を必ず明記。
+  準拠: ADR 0005（視覚言語D）・ADR 0014（トークン層・意味を運ぶ文字は AA＝説明文は --ink）。
+  エラー見出し・説明の骨格は実装 ReadingErrorScreen.kt（中央寄せ縦積み）を踏襲し、D の章見出しルール（藍 48×2）を冠する。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI-n D 本文欠落 案A — エラー面＝復旧ハブ（4分岐）</title>
+<style>
+  /*==harness==*/
+  /* トークンは reading-D.html の .t-light 写経（候補段階の写経＝裁定後に整理） */
+  :root{
+    --bg:#FBFAF8;--ink:#1C1F26;--soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;--acc-on:#fff;--rule:#1C3D5A;
+    --seiji:#9CB3A8;--seiji-ink:#50685C;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.7;max-width:840px}
+  .cap b{color:#2A2C28}
+  .note{color:#6A6C67;font-size:11.5px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:840px}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px;max-width:372px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#6A6C67;text-align:center}
+  .wrap .desc{font-size:11px;color:#6A6C67;text-align:center;line-height:1.6}
+  .phone{width:372px;height:780px;background:var(--bg);border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column}
+  /*==/harness==*/
+
+  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;
+    font-size:11px;color:var(--soft);flex-shrink:0}
+
+  /* 中央寄せの復旧ハブ（実装 ReadingErrorScreen の中央縦積み骨格を踏襲） */
+  .hub{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:0 36px 48px;text-align:center}
+  /* 章見出しルール（reading-D .chap-h .rule と同語彙）＝エラー面にも同じ「間」を冠する */
+  .hub .rule{width:48px;height:2px;background:var(--rule);opacity:.85;margin-bottom:20px}
+  .hub h2{font-family:var(--mincho);font-size:18px;color:var(--ink);font-weight:600;
+    letter-spacing:.04em;line-height:1.7}
+  /* 機序説明文＝意味を運ぶ文字（ADR 0014-D: alpha で沈めず AA を満たす --ink） */
+  .hub .why{font-size:12.5px;color:var(--ink);line-height:1.9;margin-top:14px;max-width:280px}
+
+  /* 取込元カード（ヘアライン枠＝D の静かな情報枠。ファイル名は分岐の判断材料＝--ink） */
+  .src{width:100%;max-width:280px;border:1px solid var(--line);border-radius:2px;
+    padding:12px 16px;margin-top:22px;text-align:left}
+  .src .lbl{font-size:10px;color:var(--soft);letter-spacing:.1em}
+  .src .val{font-size:12px;color:var(--ink);margin-top:5px;line-height:1.5;word-break:break-all}
+  .src .state{display:inline-block;font-size:10px;letter-spacing:.06em;margin-top:8px;
+    padding:3px 9px;border:1px solid var(--line);border-radius:2px;color:var(--soft)}
+  .src .state.ok{color:var(--ai);border-color:var(--ai)}
+  .src .state.web{color:var(--seiji-ink);border-color:var(--seiji)}
+
+  /* 主ボタン（藍塗り＝D の主CTA語彙。全分岐で1枚だけ＝迷わせない） */
+  .cta{display:inline-flex;align-items:center;gap:8px;border:none;cursor:pointer;margin-top:24px;
+    background:var(--ai);color:var(--acc-on);font-family:var(--gothic);font-size:14px;font-weight:600;
+    padding:15px 26px;border-radius:12px;box-shadow:0 8px 20px rgba(28,61,90,.35)}
+  .cta svg{width:17px;height:17px;stroke:var(--acc-on);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  /* C2 の約束（進捗 DB 不変）＝全分岐共通の一文 */
+  .keep{font-size:11px;color:var(--soft);margin-top:12px;letter-spacing:.03em}
+  .back{border:none;background:transparent;color:var(--ai);font-size:13px;font-weight:600;
+    margin-top:26px;cursor:pointer;padding:10px 16px}
+</style>
+</head>
+<body>
+  <p class="cap"><b>案A. 読書エラー面＝復旧ハブ</b> ／ 狙い: <b>遭遇した瞬間に最短で直す</b>——開いて失敗したその画面が、そのまま復旧ハブになる（現状の「本棚に戻る」行き止まりを廃止）。</p>
+  <p class="note">4面＝sourceUri の4分岐。主ボタンは常に1枚（分岐でラベルと機序説明だけが変わる）。全分岐で「読書位置としおりはそのまま残ります」（C2＝進捗DB不変）を明記。</p>
+
+  <div class="stage">
+
+    <!-- ① sourceUri 有効＝ワンタップ自動再取込 -->
+    <div class="wrap"><span class="mode">① 自動再取込（sourceUri 有効）</span>
+    <div class="phone" role="img" aria-label="案A ① sourceUri 有効">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="hub">
+        <span class="rule"></span>
+        <h2>本文データが<br>この端末にありません</h2>
+        <p class="why">本の情報と読書位置は残っていますが、変換した本文ファイルが見つかりません。取込元の PDF からもう一度変換できます。</p>
+        <div class="src">
+          <div class="lbl">取込元の PDF</div>
+          <div class="val">追放された万能薬師、辺境でスローライフを始める.pdf</div>
+          <span class="state ok">読み出しできます</span>
+        </div>
+        <button class="cta"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><polyline points="21 3 21 9 15 9"/></svg>元のPDFから再取込</button>
+        <div class="keep">読書位置としおりはそのまま残ります</div>
+        <button class="back">本棚に戻る</button>
+      </div>
+    </div>
+    <p class="desc">v20 の sourceUri＋永続READ権限が生きている本＝タップだけで自動再変換。</p></div>
+
+    <!-- ② 権限失効＝選び直しへ誘導（ファイル名ヒントつき） -->
+    <div class="wrap"><span class="mode">② 権限失効（記録あり・読めない）</span>
+    <div class="phone" role="img" aria-label="案A ② 権限失効">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="hub">
+        <span class="rule"></span>
+        <h2>本文データが<br>この端末にありません</h2>
+        <p class="why">取込元の PDF は記録されていますが、読み出す権限が切れています。同じ PDF をもう一度選ぶと、読書位置ごと復元されます。</p>
+        <div class="src">
+          <div class="lbl">取込元の PDF（選び直しの手がかり）</div>
+          <div class="val">追放された万能薬師、辺境でスローライフを始める.pdf</div>
+          <span class="state">読み出し権限が切れています</span>
+        </div>
+        <button class="cta"><svg viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>PDFを選び直して再取込</button>
+        <div class="keep">読書位置としおりはそのまま残ります</div>
+        <button class="back">本棚に戻る</button>
+      </div>
+    </div>
+    <p class="desc">権限だけ失効した本＝ファイル名を手がかりにピッカーで選び直す。</p></div>
+
+    <!-- ③ NULL＝v20 前の旧取込（記録なし） -->
+    <div class="wrap"><span class="mode">③ 記録なし（v20 前の旧取込）</span>
+    <div class="phone" role="img" aria-label="案A ③ 記録なし">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="hub">
+        <span class="rule"></span>
+        <h2>本文データが<br>この端末にありません</h2>
+        <p class="why">この本には取込元の記録がありません（記録機能より前に取り込まれた本）。同じ PDF を選ぶと、読書位置ごと復元されます。</p>
+        <div class="src">
+          <div class="lbl">取込元の PDF</div>
+          <div class="val">記録がありません</div>
+        </div>
+        <button class="cta"><svg viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>PDFを選んで再取込</button>
+        <div class="keep">読書位置としおりはそのまま残ります</div>
+        <button class="back">本棚に戻る</button>
+      </div>
+    </div>
+    <p class="desc">sourceUri=NULL の本＝汎用ピッカーへ。同一判定は title＋author（BookDao 既存機序）。</p></div>
+
+    <!-- ④ Web 本＝Web 再取得で自動復元 -->
+    <div class="wrap"><span class="mode">④ Web 作品（sourceUrl あり）</span>
+    <div class="phone" role="img" aria-label="案A ④ Web 作品">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="hub">
+        <span class="rule"></span>
+        <h2>本文データが<br>この端末にありません</h2>
+        <p class="why">この作品は Web から取り込んだ本です。作品ページからもう一度取得して復元できます。</p>
+        <div class="src">
+          <div class="lbl">取込元の作品ページ</div>
+          <div class="val">ncode.syosetu.com/n4530gd</div>
+          <span class="state web">Web作品</span>
+        </div>
+        <button class="cta"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>Webから再取得</button>
+        <div class="keep">読書位置としおりはそのまま残ります</div>
+        <button class="back">本棚に戻る</button>
+      </div>
+    </div>
+    <p class="desc">Web 本は PDF を持たない＝sourceUrl から自動再取得（WebBookImporter 既存経路）。</p></div>
+
+  </div>
+</body>
+</html>
