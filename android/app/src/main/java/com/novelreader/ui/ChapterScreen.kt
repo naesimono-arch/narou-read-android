@@ -28,7 +28,6 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.novelreader.NovelReaderApplication
@@ -281,8 +280,6 @@ internal fun ChapterScreen(
         LazyListState(initialScrollIndex, initialScrollOffset)
     }
 
-    // スクロール位置を継続保存する（読書中にプロセスが kill されても続きから読めるように）。
-    // 読書中の連続発火を debounce で間引き、DB 書き込みを最小化する。
     // なぜ rememberUpdatedState か: onSaveScroll は呼び出し側（ReadingScreen）で
     // resolvedFile 等を capture して毎コンポジション新しく生成されるラムダ。これを
     // LaunchedEffect のキーに含めると章移動でもないのに保存コルーチンが再起動してしまい、
@@ -291,14 +288,16 @@ internal fun ChapterScreen(
     val latestOnSaveScroll by rememberUpdatedState(onSaveScroll)
     // 参照モードの最新値を State 越しに読む（コルーチンを再起動させずに抑止/再開を切り替えるため）。
     val referenceModeState = rememberUpdatedState(referenceMode)
-    LaunchedEffect(lazyListState, currentFile) {
-        snapshotFlow {
-            lazyListState.firstVisibleItemIndex to lazyListState.firstVisibleItemScrollOffset
-        }
-            .debounce(400)
-            // 参照ジャンプ中（C1）は現在地を書かない＝続き先端の DB 値を守る。昇格後に再開する。
-            .collect { (index, offset) -> if (!referenceModeState.value) latestOnSaveScroll(index, offset) }
-    }
+
+    // スクロール位置の継続保存（debounce 間引き＋ON_STOP フラッシュ＋章破棄フラッシュ）を1部品へ集約。
+    // 集約の理由は [ChapterScrollPersistence] の KDoc（3経路が同じ「取りこぼしを消す」責務を分担するため
+    // ばらけていると1つ欠けても気づけない。実際 2026-07-29 まで章破棄経路だけが欠けていた）。
+    ChapterScrollPersistence(
+        lazyListState = lazyListState,
+        currentFile = currentFile,
+        referenceMode = referenceMode,
+        onSaveScroll = onSaveScroll,
+    )
 
     // 滞留昇格（C1）: 参照ジャンプ先に一定スクロール到達 or 一定時間の滞在で「読み進め」と判断し、
     // 参照モードを解除して現在地を正規の読書位置として保存する（参照ジャンプと読み進めの区別）。
@@ -351,51 +350,16 @@ internal fun ChapterScreen(
         }
     }
 
-    // 離脱時（アプリ background 化＝ON_STOP）に最終スクロール位置を即時フラッシュする。
-    // なぜ必要か（公理6）: 上の debounce(400) は「最後の 400ms 分」を溜めてから書くため、
-    // スクロール直後にホーム/アプリ切替で離脱するとその 400ms 分が未保存のまま失われ、
-    // 再開時に位置がわずかに巻き戻る。ON_STOP で現在の LazyListState を直接書いて取りこぼしを消す。
-    // 【生命線の安全性】
-    //  ・この DisposableEffect は ChapterScreen 内＝実章表示中のみ構成される（目次 index.html 表示中は
-    //    ReadingScreen が NativeTableOfContentsScreen を描き ChapterScreen 自体が構成されない）。
-    //    ゆえにフラッシュ対象は必ず実章で、目次を「読書位置」として書く事故は構造的に起きない
-    //    （ブロックリスト方式と非干渉）。latestOnSaveScroll→onSaveScroll は resolvedFile（実章）を保存する。
-    //  ・書く値は実際の firstVisibleItem 位置なので、章先頭に居るとき以外に 0 を書く「ゼロ上書き」は起きない。
-    //  ・debounce と ON_STOP が同値を二重送出しても保存先は CONFLATED チャネル＋単一行 REPLACE のため
-    //    冪等で、順序破綻や巻き戻りは生じない。
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, lazyListState) {
-        val observer = LifecycleEventObserver { _, event ->
-            // 参照ジャンプ中（C1）は ON_STOP でも書かない＝続き先端の DB 値を守る。
-            if (event == Lifecycle.Event.ON_STOP && !referenceModeState.value) {
-                latestOnSaveScroll(
-                    lazyListState.firstVisibleItemIndex,
-                    lazyListState.firstVisibleItemScrollOffset,
-                )
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
     // ────── 没入バー契約＋消灯抑止（d-chrome Design/09 D・F）──────
     // なぜ view から window を辿るか: Edge-to-Edge（MainActivity で setDecorFitsSystemWindows(false)）済みの
     // ウィンドウに対し、Compose から WindowInsetsController でシステムバーの可視性を直接駆動するため。
+    //
+    // 【所有権の境界・2026-07-29】keepScreenOn と systemBarsBehavior／目次復帰といった「ウィンドウ単位の
+    // 資源」はここ（章スコープ）では所有しない＝親 ReadingScreen の [ReadingWindowContract] が持つ。
+    // 章スコープで所有すると章送りのたびに破棄→再生成が起き、退場側の後始末が入場側の設定を上書きする
+    // （理由の詳細は ReadingWindowContract の KDoc）。ここが駆動するのは「今の章のクローム表示状態に
+    // 追随したシステムバーの hide/show」だけ＝章ごとに正しく作り直されるべき状態のみ。
     val view = LocalView.current
-    DisposableEffect(view) {
-        val window = (view.context as? Activity)?.window
-        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
-        // 09-F 消灯抑止: 読書中（章表示中のみ）は画面を消灯させない。長章の無操作読書で暗転しないように。
-        view.keepScreenOn = true
-        // 09-D バー契約: システムバーを隠しても縁スワイプで一時的に呼び戻せる挙動にする。
-        controller?.systemBarsBehavior =
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        onDispose {
-            // 読書画面を離れたら消灯抑止を解除し、システムバーを必ず戻す（本棚・発見系を没入にしない）。
-            view.keepScreenOn = false
-            controller?.show(WindowInsetsCompat.Type.systemBars())
-        }
-    }
 
     // 09-D バー契約: 自作の上下バー（collapsedFraction）とシステムバーを同フレームで出入りさせる。
     // これが無いと自作バーは退避してもOSのステータス/ナビバーが黒衣で残り、読書画面が一度も「無」に
@@ -503,13 +467,28 @@ internal fun ChapterScreen(
             onOpenWorkPage = onOpenWorkPage,
         ),
         // 覗きの初期位置は着地と同じ resolveInitialScroll で焼き込む（覗き＝遷移後表示の完全一致）。
+        // 話数（章扉の1行）も同じ理由で焼き込む: 隣章の目次 index は currentIndex∓1 で、着地側の
+        // chapterNumber（= 目次 index + 1）と同じ規則で導く。currentIndex<0（目次未ロード）のときは
+        // そもそも prev/next が index.html へ縮退し覗き自体が出ないため null で足りる。
         prevPeek = prevPreview?.let { c ->
             val (index, offset) = resolveInitialScroll(prevFile)
-            ChapterPeek(c, index, offset)
+            ChapterPeek(
+                content = c,
+                initialScrollIndex = index,
+                initialScrollOffset = offset,
+                chapterNumber = if (currentIndex >= 1) currentIndex else null,
+                totalChapters = tocEntries.size.takeIf { it > 0 },
+            )
         },
         nextPeek = nextPreview?.let { c ->
             val (index, offset) = resolveInitialScroll(nextFile)
-            ChapterPeek(c, index, offset)
+            ChapterPeek(
+                content = c,
+                initialScrollIndex = index,
+                initialScrollOffset = offset,
+                chapterNumber = if (currentIndex >= 0) currentIndex + 2 else null,
+                totalChapters = tocEntries.size.takeIf { it > 0 },
+            )
         },
         // 参照ジャンプ中（C1）は「続きに戻る」チップを表示する。
         showReturnChip = referenceMode,
@@ -518,4 +497,81 @@ internal fun ChapterScreen(
         // push 遷移窓の本文骨（案A）＝親 ReadingScreen 由来の信号を描画層へ素通し。
         deferHeavyContent = deferHeavyContent,
     )
+}
+
+/**
+ * 章のスクロール位置を保存し続ける副作用の束（route から切り出した状態保持部品）。
+ *
+ * 保存経路は3つあり、いずれも「debounce の間引きで取りこぼす窓」を塞ぐために存在する:
+ *  1. **読書中の継続保存** — 連続スクロールを `debounce(400)` で間引いて DB 書き込みを最小化する。
+ *  2. **ON_STOP フラッシュ**（公理6）— スクロール直後にホーム/アプリ切替で離脱すると 1. の「最後の 400ms 分」が
+ *     未保存のまま失われ、再開時に位置がわずかに巻き戻る。離脱時に現在値を直接書いて消す。
+ *  3. **章破棄フラッシュ**（2026-07-29 追加）— 1. の collector は章サブコンポジションと同時に**キャンセル**される。
+ *     そのためスクロール停止から 400ms 未満で章を送る/目次へ上がると、その章の最終位置がどこにも書かれず、
+ *     戻ってきたとき古い位置（多くは入場直後に保存された章先頭）へ着地していた。ON_STOP と同じ理由・
+ *     同じ書き方をプロセス離脱でなく**部品の破棄**に対しても適用し、経路の穴を塞ぐ。
+ *
+ * なぜ1つの composable に集約するか: 3経路は同一の責務（最終位置の取りこぼしゼロ）を分担しており、
+ * route 本体に散らばっていると 3. のような欠落があっても「どこにも無い」ことに気づけない。まとめて
+ * 1部品にすることで、経路の全数が1か所で読め、Robolectric から直接検証もできる。
+ *
+ * 【生命線の安全性】（従来の ON_STOP フラッシュから不変）
+ *  ・この部品は [ChapterScreen] 内＝実章表示中のみ構成される（目次 index.html 表示中は ReadingScreen が
+ *    NativeTableOfContentsScreen を描き ChapterScreen 自体が構成されない）。ゆえにフラッシュ対象は必ず実章で、
+ *    目次を「読書位置」として書く事故は構造的に起きない（ブロックリスト方式と非干渉）。
+ *  ・書く値は実際の firstVisibleItem 位置なので、章先頭に居るとき以外に 0 を書く「ゼロ上書き」は起きない。
+ *  ・複数経路が同値を二重送出しても保存先は CONFLATED チャネル＋単一行 REPLACE のため冪等で、
+ *    順序破綻や巻き戻りは生じない。
+ *  ・参照ジャンプ中（C1）は3経路とも書かない＝続き先端の DB 値を守る。
+ *
+ * @param currentFile 章ファイル名。LaunchedEffect のキーに含め、章が変われば collector を作り直す。
+ */
+// internal（private でない）: 章破棄時のフラッシュという「消えるときにだけ効く」不変条件を
+// Robolectric テストで直接固定するため（route ごと組むと Application/VM 依存で組めない）。
+@OptIn(FlowPreview::class)
+@Composable
+internal fun ChapterScrollPersistence(
+    lazyListState: LazyListState,
+    currentFile: String,
+    referenceMode: Boolean,
+    onSaveScroll: (index: Int, offset: Int) -> Unit,
+) {
+    // コルーチン/オブザーバを再起動させずに最新値を読むための State 越し参照（理由は呼び出し側の同名コメント）。
+    val latestOnSaveScroll by rememberUpdatedState(onSaveScroll)
+    val referenceModeState = rememberUpdatedState(referenceMode)
+
+    // 1. 読書中の継続保存（debounce 間引き）。
+    LaunchedEffect(lazyListState, currentFile) {
+        snapshotFlow {
+            lazyListState.firstVisibleItemIndex to lazyListState.firstVisibleItemScrollOffset
+        }
+            .debounce(400)
+            // 参照ジャンプ中（C1）は現在地を書かない＝続き先端の DB 値を守る。昇格後に再開する。
+            .collect { (index, offset) -> if (!referenceModeState.value) latestOnSaveScroll(index, offset) }
+    }
+
+    // 2. ON_STOP フラッシュ ＋ 3. 章破棄フラッシュ。
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, lazyListState) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP && !referenceModeState.value) {
+                latestOnSaveScroll(
+                    lazyListState.firstVisibleItemIndex,
+                    lazyListState.firstVisibleItemScrollOffset,
+                )
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            // 章送り・目次へ上がる・読書画面自体の離脱のいずれでもここを通る。上の collector はこの直後に
+            // キャンセルされるため、debounce 待ちだった最終位置を書けるのはこの瞬間が最後になる。
+            if (!referenceModeState.value) {
+                latestOnSaveScroll(
+                    lazyListState.firstVisibleItemIndex,
+                    lazyListState.firstVisibleItemScrollOffset,
+                )
+            }
+        }
+    }
 }

@@ -105,7 +105,10 @@ internal object KotlinSourceScanner {
      * 行コメント除去は文字列リテラル中の `//`（URL 等）も食うが、消えるのはその行の残りだけで、
      * 関数宣言は行頭側にあるため宣言の取りこぼしにはならない（現ツリーで実測確認済み）。
      */
-    private fun stripComments(source: String): String =
+    // internal（旧 private）: 他のソース不変条件テストも「実コードに X が無いこと」を検査するため同じ除去が要る。
+    // 生テキストへの contains は why を説明するコメント中の言及まで拾って偽陽性になる（2026-07-29 に
+    // ReadingWindowContractTest が実際に踏んだ＝ChapterScreen の所有権コメントで fail した）。重複実装を避けて開く。
+    internal fun stripComments(source: String): String =
         source
             .replace(BLOCK_COMMENT, " ")
             .replace(LINE_COMMENT, " ")

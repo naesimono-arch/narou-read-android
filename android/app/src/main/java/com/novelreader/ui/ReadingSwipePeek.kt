@@ -23,6 +23,14 @@ internal data class ChapterPeek(
     val content: ChapterContentModel,
     val initialScrollIndex: Int,
     val initialScrollOffset: Int,
+    // 覗く章の話数と全話数（目次順・1始まり）。null＝目次未ロードで不明。
+    // なぜ位置だけでなくこの2値も焼き込むか（2026-07-29 修正）: 章扉はスキンM/P/J で話数行を持ち
+    //（ChapterHeaderM/P・ChapterHeaderJ、J は章末印 ChapterEndMarkJ も）、null だとその1行ごと消えて
+    // 章扉の高さが着地側より低くなる。すると覗きで章頭を見ているとき、確定スライド直後に本文が
+    // 1行ぶん下へずれる＝この型の KDoc が謳う「覗き＝遷移後表示の完全一致」が破れていた。
+    // 位置と同じく「着地と同じ材料を焼き込む」ことで構造的に一致させる（D/C/K は話数行を持たず不変）。
+    val chapterNumber: Int? = null,
+    val totalChapters: Int? = null,
 )
 
 /**
@@ -77,6 +85,9 @@ internal fun ChapterPeekPanel(
                 lineHeightEm = lineHeightEm,
                 bodyMarginDp = bodyMarginDp,
                 lazyListState = peekListState,
+                // 章扉の話数行を着地側と揃える（欠けると扉の高さが変わり settle 直後に本文がずれる）。
+                chapterNumber = peek.chapterNumber,
+                totalChapters = peek.totalChapters,
                 readingTheme = readingTheme,
             )
         }

@@ -1,5 +1,6 @@
 package com.novelreader.ui
 
+import android.app.Activity
 import android.content.Context
 import android.provider.Settings
 import android.util.Log
@@ -76,6 +77,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.customActions
@@ -459,6 +464,11 @@ fun ReadingScreen(
         return
     }
 
+    // ウィンドウ単位の資源（消灯抑止・バー契約・目次でのバー復帰）は画面スコープのここで所有する。
+    // 章スコープ（ChapterScreen）で持つと章送りのたびに破棄→再生成が起き、退場側の後始末が入場側の
+    // 設定を上書きしていた（真因と実測は ReadingWindowContract の KDoc）。
+    ReadingWindowContract(showingChapter = resolvedFile != "index.html")
+
     // メニューの章跨ぎ維持（2026-07-16 実機フィードバック）: 表示状態を章サブコンポジションの外＝ここで
     // 保持し、前章/次章の連続操作でメニューが閉じないようにする（「一度出したら再度タップするまで残る」）。
     // 既定 false＝本の入場時は従来どおり没入。rememberSaveable でプロセス再生成にも耐える。
@@ -645,6 +655,52 @@ fun ReadingScreen(
                     resolveInitialScroll = resolveInitialScroll,
                 )
             }
+        }
+    }
+}
+
+/**
+ * 読書ウィンドウ契約（d-chrome Design/09-D バー契約・09-F 消灯抑止）の**所有者**。
+ *
+ * なぜ画面スコープ（ReadingScreen）が持つのか＝2026-07-29 の真因修正:
+ * keepScreenOn・systemBarsBehavior・「読書面を離れるときのバー復帰」は**ウィンドウ単位の共有資源**なのに、
+ * 従来は章スコープの ChapterScreen が `DisposableEffect` で所有していた。章→章は AnimatedContent の
+ * 別サブコンポジションで、**退場側は入場側より後（1フレーム以上あと）に破棄される**ため、実際の実行順は
+ * 〈新章の入場エフェクトが systemBars を hide → 旧章の onDispose が show＋keepScreenOn=false〉となり、
+ * 後から走る旧章の後始末が勝っていた。結果、没入読書中に章を送るたびシステムバーが復帰し消灯抑止も外れる
+ *（2026-07-29 ユーザー実機で「章送り直後に画面上端へステータスバーが出る」を確認）。しかも新章側の
+ * 可視性駆動は `distinctUntilChanged` 済みで再発火しないため、次にユーザーがバーをトグルするまで戻らない。
+ * 資源の**寿命（本を開いている間）と所有者のスコープを一致**させることで、破棄順に依存する競合そのものを
+ * 消す（退場側の onDispose を握り潰す・順序を待ち合わせる、といった対症療法は採らない）。
+ *
+ * 章面でのシステムバーの hide/show は引き続き ChapterScreen が `collapsedFraction` 連動で駆動する
+ * ＝「章ごとに作り直されるべき状態」だけを章スコープに残す分担。
+ *
+ * @param showingChapter 章本文を表示中か（false＝目次）。目次は没入対象外なのでバーを戻し消灯抑止も外す
+ *   （従来 ChapterScreen の onDispose が担っていた復帰の移設先）。章→章では値が変わらず再実行されない。
+ *   なお目次へ戻る際の復帰タイミングは、旧実装の「スライド完了時（章サブコンポジションの破棄時）」から
+ *   「スライド開始時」へ前倒しになる＝遷移中から行き先（目次＝非没入）の見た目に揃う方向の変化。
+ */
+// internal（private でない）: 章跨ぎで消灯抑止が外れない不変条件を Robolectric テストで直接固定するため。
+@Composable
+internal fun ReadingWindowContract(showingChapter: Boolean) {
+    // なぜ view から window を辿るか: Edge-to-Edge（MainActivity で setDecorFitsSystemWindows(false)）済みの
+    // ウィンドウに対し、Compose から WindowInsetsController でシステムバーを直接駆動するため。
+    val view = LocalView.current
+    DisposableEffect(view, showingChapter) {
+        val window = (view.context as? Activity)?.window
+        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+        // 09-F 消灯抑止: 章本文の表示中だけ画面を消灯させない（長章の無操作読書で暗転しないように）。
+        view.keepScreenOn = showingChapter
+        // 09-D バー契約: システムバーを隠しても縁スワイプで一時的に呼び戻せる挙動にする。
+        controller?.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        // 目次面ではバーを必ず戻す。章面では触らない＝没入入場の初期退避（ChapterScreen 側）と競合させない。
+        if (!showingChapter) controller?.show(WindowInsetsCompat.Type.systemBars())
+        onDispose {
+            // 読書画面自体を離れたときの後始末（本棚・発見系を没入のまま残さない）。
+            view.keepScreenOn = false
+            controller?.show(WindowInsetsCompat.Type.systemBars())
         }
     }
 }
