@@ -2,6 +2,7 @@ package com.novelreader.ui.skins.k
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,19 +37,27 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
@@ -62,11 +72,13 @@ import com.novelreader.ui.theme.FontListItemTitle
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.MotionDurationKTabSwitch
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.viewmodel.DiscoveryUiState
 import com.novelreader.viewmodel.MoodPattern
 import com.novelreader.viewmodel.MoodPreset
 import java.time.LocalDate
+import kotlinx.coroutines.flow.drop
 
 // ============================================================
 // 明快K: さがす（発見ホーム）＝正本モック discovery-K.html の忠実翻訳（ADR 0022 §1 の構造分岐先）。
@@ -98,6 +110,63 @@ internal fun DiscoveryHomeK(
     onSelectOrder: (NarouOrder) -> Unit,
     onRefresh: () -> Unit,
 ) {
+    // ── ランキングの期間スワイプ（2026-07-29 ユーザー指示「横スワイプで週間月間の遷移を」）──
+    // 期間ページャ（1期間=1ページ）と期間タブは order（VM homeOrder）を単一情報源に同期する:
+    //   タップ → onSelectOrder → order 変化 → 下の LaunchedEffect(order) がページをアニメ送り
+    //   スワイプ → settledPage 確定 → onSelectOrder → order 追従（タブの選択表示はドラッグ中も
+    //   currentPage 由来で先行追従）。双方向を order 経由に束ねることで発火ループを構造的に断つ
+    //  （setHomeOrder は同値 no-op・ページ一致時は animate しない）。
+    val rankingPagerState = rememberPagerState(
+        initialPage = order.ordinal,
+        pageCount = { NarouOrder.entries.size },
+    )
+    // LaunchedEffect のキーは pagerState のみ＝order/onSelectOrder は寿命中に差し替わるため
+    // rememberUpdatedState で常に最新を参照する（stale capture 防止・compose-side-effects 定石）。
+    val currentOrder by rememberUpdatedState(order)
+    val currentOnSelectOrder by rememberUpdatedState(onSelectOrder)
+    LaunchedEffect(rankingPagerState) {
+        // settledPage＝スナップ完了ページだけを拾う（ドラッグ中の中間値で VM を叩かない）。
+        // drop(1): snapshotFlow は購読時に現在値を即時発行する。プロセス復元等で保存済みページと
+        // order が食い違うケースで、初回発行が VM を過去ページへ引き戻すのを防ぎ、order 側を正として
+        // ページの方を直す（直下の LaunchedEffect(order) が担当）。
+        snapshotFlow { rankingPagerState.settledPage }.drop(1).collect { page ->
+            val target = NarouOrder.entries[page]
+            if (target != currentOrder) currentOnSelectOrder(target)
+        }
+    }
+    LaunchedEffect(order) {
+        // タブタップ（onSelectOrder 経由）や外部要因の order 変更にページを追従アニメさせる。
+        // 尺はタブ切替の既存スロット MotionDurationKTabSwitch を踏襲＝新値を発明しない（監督裁定）。
+        // スワイプ進行中は触らない（指の主導権優先。settle 後は上の settledPage 側が order を追従させ整合する）。
+        if (rankingPagerState.currentPage != order.ordinal && !rankingPagerState.isScrollInProgress) {
+            rankingPagerState.animateScrollToPage(order.ordinal, animationSpec = tween(MotionDurationKTabSwitch))
+        }
+    }
+    // 期間別 stale-while-revalidate: 期間ごとの直近 Content を控え、再訪ページは再取得(Loading)中も
+    // 行の骨格を出し続けてスクロールアンカーを保つ。旧実装の単一控え（期間跨ぎ流用）はページャ化で
+    // 誤誘導になる（週間の行が月間ページに載る）ため期間別へ分割した。
+    val rankingContents = remember { mutableStateMapOf<NarouOrder, DiscoveryUiState.Content>() }
+    LaunchedEffect(state, order) {
+        // 合成中の書き戻しを避け側効果で控える（旧 RankingStaleRows と同じ理由）。order 切替直後の
+        // 1フレームは旧期間の Content が新 order 名義で届き得る（order と state が別 flow で到着するため）が、
+        // 直後の Loading→新 Content で上書きされ、Error/Empty 時は描画分岐が status を優先するため実害は閉じる。
+        (state as? DiscoveryUiState.Content)?.let { rankingContents[order] = it }
+    }
+    // ランキング領域の横ジェスチャ封止: 子（期間ページャ／期間タブの横スクロール）が消費し切れない
+    // 横成分をこの層で全量消費し、外側タブ Pager（本棚⇄さがす⇄設定）へ渡さない。なぜ: Compose の
+    // 入れ子スクロールは余りを親へ伝播させる既定で、端ページ（日間/新着）でさらに引くとアプリの
+    // タブごと切り替わる誤操作になる（2026-07-29 監督裁定＝ランキング上の横ジェスチャは期間移動専用に
+    // 閉じる。実機体感で異論が出たら差し戻す前提）。副作用: 余りを食うため端の stretch overscroll は
+    // 出ない（端では静止）。縦(y)は素通し＝ホーム全体の縦スクロールを妨げない。
+    val rankingEdgeSeal = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset =
+                Offset(available.x, 0f)
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity =
+                Velocity(available.x, 0f)
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -115,8 +184,26 @@ internal fun DiscoveryHomeK(
             item { MoodSectionK(onPickMood) }
             item { GenreSectionK(onOpenGenre, onPickBiggenre) }
             item { SectionHeadingK("ランキング") }
-            item { OrderTabsK(order, onSelectOrder) }
-            item { RankingStaleRows(state, order, onOpenDetail, onRefresh) }
+            item {
+                OrderTabsK(
+                    // 選択表示は order でなくページャ現在地に従える＝スワイプのドラッグ中から追従する
+                    //（settle 前の中間状態でもタブが今向かっている期間を指す）。
+                    selected = NarouOrder.entries[rankingPagerState.currentPage],
+                    onSelectOrder = onSelectOrder,
+                    modifier = Modifier.nestedScroll(rankingEdgeSeal),
+                )
+            }
+            item {
+                RankingPagerK(
+                    pagerState = rankingPagerState,
+                    order = order,
+                    state = state,
+                    contents = rankingContents,
+                    onOpenDetail = onOpenDetail,
+                    onRefresh = onRefresh,
+                    modifier = Modifier.nestedScroll(rankingEdgeSeal),
+                )
+            }
             item { OfficialLinkK() }
         }
     }
@@ -359,10 +446,19 @@ private fun GenreChipK(label: String, accent: Boolean, onClick: () -> Unit) {
     )
 }
 
-/** ランキングの期間タブ（モック .rtabs）: 選択タブは藍 bold＋2dp 下線、列全体の下端にヘアライン。 */
+/**
+ * ランキングの期間タブ（モック .rtabs）: 選択タブは藍 bold＋2dp 下線、列全体の下端にヘアライン。
+ * [selected] は呼び出し側がページャ現在地から導出する（期間スワイプ連動・2026-07-29）。
+ * [modifier] で横ジェスチャ封止（rankingEdgeSeal）を受ける＝タブ列上の横スワイプの余りも
+ * 外側タブ Pager へ渡さない（期間タブを撫でたらアプリのタブが変わる誤操作の防止）。
+ */
 @Composable
-private fun OrderTabsK(order: NarouOrder, onSelectOrder: (NarouOrder) -> Unit) {
-    Column {
+private fun OrderTabsK(
+    selected: NarouOrder,
+    onSelectOrder: (NarouOrder) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -370,16 +466,19 @@ private fun OrderTabsK(order: NarouOrder, onSelectOrder: (NarouOrder) -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(Spacing.S16), // .rtabs gap 18px → S16
         ) {
             NarouOrder.entries.forEach { o ->
-                val selected = o == order
+                val isSelected = o == selected
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         o.uiLabel,
                         fontSize = FontSubTitle, // .rtab 13px
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                         // 未選択タブも意味を運ぶ文字＝infoText（AA・ADR 0014-D）。選択は藍（primary）据え置き。
-                        color = if (selected) MaterialTheme.colorScheme.primary
+                        color = if (isSelected) MaterialTheme.colorScheme.primary
                         else LocalShelfColors.current.infoText,
                         modifier = Modifier
+                            // 現在期間を支援技術へも伝える（選択表示が色/太字の視覚だけに閉じないように。
+                            // ページャ連動テストの観測点も兼ねる）。
+                            .semantics { this.selected = isSelected }
                             .clickable { onSelectOrder(o) }
                             .padding(vertical = Spacing.S8), // .rtab padding 10px 0 → 縦 S8
                     )
@@ -388,7 +487,7 @@ private fun OrderTabsK(order: NarouOrder, onSelectOrder: (NarouOrder) -> Unit) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(2.dp)
-                            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent),
+                            .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent),
                     )
                 }
             }
@@ -398,44 +497,63 @@ private fun OrderTabsK(order: NarouOrder, onSelectOrder: (NarouOrder) -> Unit) {
 }
 
 /**
- * ランキング一覧（モック .rk）。行は D 共通の [NovelListRow] を再利用する＝順位数字は明朝・上位3位のみ藍・
- * 以降 infoText・行タップで詳細（K の意匠要件と D 実装が一致するデータ駆動行のため意匠を再発明しない・ADR 0014-D）。
- *
- * 期間タブ切替時のスクロール位置リセット対策（D/P と同じ stale-while-revalidate）: 再取得は一旦
- * Loading を挟み一覧が status 1件へ全置換されて総高が崩れると LazyListState が先頭へクランプされる。
- * 直近 Content を控え、再取得中はその行群（同 key=ncode）を出し続けてスクロールアンカーを保つ。
- * Empty/Error は真に0件・失敗ゆえ status を出して良い。VM は非改変。
+ * ランキングの期間ページャ（2026-07-29 期間スワイプ化）: NarouOrder 全期間を 1期間=1ページで並べ、
+ * 横スワイプ・タブタップの両方から遷移する（同期機構は DiscoveryHomeK 本体・単一情報源は order）。
+ * 高さは wrap＝現在ページ準拠。未読込ページ（status 1行）へ settle すると下部（公式リンク）が
+ * せり上がる＝期間別控え（[contents]）が骨格を出す再訪時はこの段差が出ない。
  */
 @Composable
-private fun RankingStaleRows(
-    state: DiscoveryUiState,
+private fun RankingPagerK(
+    pagerState: PagerState,
     order: NarouOrder,
+    state: DiscoveryUiState,
+    contents: Map<NarouOrder, DiscoveryUiState.Content>,
+    onOpenDetail: (ncode: Ncode) -> Unit,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    HorizontalPager(
+        state = pagerState,
+        modifier = modifier,
+        // ドラッグ中に隣期間の行が地続きの1枚に見えないよう、画面横マージンと同じ S24 を溝にする
+        //（既存スケール値の再利用＝新値の発明なし）。
+        pageSpacing = Spacing.S24,
+        // ページ高が期間ごとに違う（行数・status 1行）ため、ドラッグ中は上端基準で揃える。
+        verticalAlignment = Alignment.Top,
+    ) { page ->
+        val pageOrder = NarouOrder.entries[page]
+        RankingPageK(pageOrder, order, state, contents[pageOrder], onOpenDetail, onRefresh)
+    }
+}
+
+/**
+ * 期間1ページぶんのランキング一覧（モック .rk）。行は D 共通の [NovelListRow] を再利用する＝順位数字は
+ * 明朝・上位3位のみ藍・以降 infoText・行タップで詳細（K の意匠要件と D 実装が一致するデータ駆動行のため
+ * 意匠を再発明しない・ADR 0014-D）。
+ *
+ * 分岐の優先順位（旧 RankingStaleRows の裁定を期間別に引き継ぐ）:
+ *  1) 選択中ページは生きた state が正: Content=最新行・Empty/Error=正直に status（控えがあっても
+ *     行で覆い隠さない＝真に0件・失敗を隠さない旧裁定の継承）。
+ *  2) 再取得(Loading)中と隣ページは期間別の直近 Content を骨格として出し続ける
+ *    （スクロールアンカー維持＝stale-while-revalidate の期間別化）。
+ *  3) 控えの無いページは「読み込んでいます」1行（隣ページは settle で settledPage→onSelectOrder が
+ *     実読込を開始するため、覗き見えた時点の表示としても虚偽にならない）。VM は非改変。
+ */
+@Composable
+private fun RankingPageK(
+    pageOrder: NarouOrder,
+    order: NarouOrder,
+    state: DiscoveryUiState,
+    cached: DiscoveryUiState.Content?,
     onOpenDetail: (ncode: Ncode) -> Unit,
     onRefresh: () -> Unit,
 ) {
-    var lastContent by remember { mutableStateOf<DiscoveryUiState.Content?>(null) }
-    // 合成中の書き戻しを避け Content を側効果で控える（Content 分岐は state を直接描くため表示遅延なし）。
-    LaunchedEffect(state) { (state as? DiscoveryUiState.Content)?.let { lastContent = it } }
-    val rowsContent = when (state) {
-        is DiscoveryUiState.Content -> state
-        is DiscoveryUiState.Loading -> lastContent
-        else -> null
-    }
+    val isCurrent = pageOrder == order
     Column(modifier = Modifier.fillMaxWidth()) {
         when {
-            rowsContent != null -> rowsContent.novels.forEachIndexed { index, novel ->
-                NovelListRow(
-                    rank = index + 1,
-                    novel = novel,
-                    order = order,
-                    // 境界: novel.ncode は Moshi 由来の String。詳細遷移の引数は型付き Ncode へ包む。
-                    onClick = { novel.ncode?.let { onOpenDetail(Ncode(it)) } },
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            }
-            state is DiscoveryUiState.Loading -> RankingStatus("読み込んでいます")
-            state is DiscoveryUiState.Empty -> RankingStatus("作品が見つかりませんでした")
-            state is DiscoveryUiState.Error -> {
+            isCurrent && state is DiscoveryUiState.Content -> RankingRowsK(state, pageOrder, onOpenDetail)
+            isCurrent && state is DiscoveryUiState.Empty -> RankingStatus("作品が見つかりませんでした")
+            isCurrent && state is DiscoveryUiState.Error -> {
                 RankingStatus(state.message)
                 Text(
                     "再試行",
@@ -447,7 +565,28 @@ private fun RankingStaleRows(
                         .padding(vertical = Spacing.S8),
                 )
             }
+            cached != null -> RankingRowsK(cached, pageOrder, onOpenDetail)
+            else -> RankingStatus("読み込んでいます")
         }
+    }
+}
+
+/** ランキング行群（旧 RankingStaleRows から行描画だけを分離。控え・状態分岐は [RankingPageK] が担う）。 */
+@Composable
+private fun RankingRowsK(
+    content: DiscoveryUiState.Content,
+    order: NarouOrder,
+    onOpenDetail: (ncode: Ncode) -> Unit,
+) {
+    content.novels.forEachIndexed { index, novel ->
+        NovelListRow(
+            rank = index + 1,
+            novel = novel,
+            order = order,
+            // 境界: novel.ncode は Moshi 由来の String。詳細遷移の引数は型付き Ncode へ包む。
+            onClick = { novel.ncode?.let { onOpenDetail(Ncode(it)) } },
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
