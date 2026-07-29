@@ -221,7 +221,22 @@ def _ref_exists(ref, doc):
     「参照切れ」と誤検知する。生成物 build/ は無関係かつ重いので検索対象から外す。
     """
     if "/" in ref:
-        return (ROOT / ref).exists() or ((ROOT / doc).parent / ref).exists()
+        if (ROOT / ref).exists() or ((ROOT / doc).parent / ref).exists():
+            return True
+        # Kotlin のパスは com/novelreader/ 起点の相対で書く慣行（architecture skill が冒頭で明示宣言し、
+        # new-screen skill の実例ポインタも踏襲）。ルート相対だけ見ると実在ファイルを参照切れと誤検知する。
+        for base in (ROOT / "android/app/src/main/java/com/novelreader",
+                     ROOT / "android/app/src/test/java/com/novelreader"):
+            if (base / ref).exists():
+                return True
+        # 末尾一致のフォールバック: ドキュメントは文脈で自明な上位を省いた部分パスで名指しする
+        # （`theme/Color.kt` の実体は ui/theme/・`network/NarouApiService.kt` は narou/network/ 配下）。
+        # 厳密な相対解決だけだと、実在するファイルを軒並み参照切れと誤検知する（2026-07-29 実測で7件全部が誤検知）。
+        suffix = "/" + ref
+        for base in (ROOT / "android/app/src", ROOT / ".claude", ROOT / "docs", ROOT / "tools"):
+            if base.is_dir() and any(p.as_posix().endswith(suffix) for p in base.rglob(ref.rsplit("/", 1)[-1])):
+                return True
+        return False
     if (ROOT / ref).exists():
         return True
     for base in (ROOT / "android/app/src", ROOT / ".claude", ROOT / "docs", ROOT / "ab-review", ROOT / "tools"):
@@ -265,11 +280,16 @@ def check_referenced_files():
             # 「撤去済み」等の過去形の言及は、消えていること自体が記述の主旨。
             if re.search(r"撤去|廃止|退役|消滅|削除済み", line):
                 continue
-            for m in re.finditer(r"`([\w./-]+\.(?:md|py|js|sh))`", line):
+            # .kt も対象（2026-07-29 追加）: skill の「コピー元の実例」ポインタ（new-screen §5 等）と
+            # architecture skill の所在表は Kotlin ファイルを名指しするのに、拡張子表から漏れて
+            # 改廃を検出できなかった。行番号サフィックス（`Foo.kt:120-140`）はパス部分だけ見る。
+            for m in re.finditer(r"`([\w./-]+\.(?:md|py|js|sh|kt))(?::\d+(?:-\d+)?)?`", line):
                 ref = m.group(1)
                 # URL・絶対・plans 配下・ワイルドカード的記述は対象外（誤検知回避）。
                 # MEMORY.md は auto-memory の索引で ~/.claude 配下の外部ファイル（リポジトリ内に無いのが正）。
-                if ref.startswith(("http", "/")) or ".claude/plans" in ref or "*" in ref or ref == "MEMORY.md":
+                # "..." は中略記号（`android/.../ui/components/Foo.kt`）＝実パスではない。
+                if (ref.startswith(("http", "/")) or ".claude/plans" in ref or "*" in ref
+                        or "..." in ref or ref == "MEMORY.md"):
                     continue
                 if not _ref_exists(ref, d):
                     add("ref", "warn", "info", f"{d} が参照する '{ref}' が見つからない（参照切れの疑い）")
@@ -706,7 +726,7 @@ CHECKS = [
     (check_hooks_registration, "hook 双方向照合（settings 参照 ↔ 実ファイル: 壊れた参照／未登録の死hook）"),
     (check_hook_git_tracked, "hook の git 追跡（実ファイル ↔ git ls-files: コミット漏れ）"),
     (check_conflict_markers, "コンフリクトマーカー残存"),
-    (check_referenced_files, "参照ファイルの実在（ドキュメントが名指しする .md / .py）"),
+    (check_referenced_files, "参照ファイルの実在（ドキュメント・skill が名指しする .md / .py / .js / .sh / .kt）"),
     (check_test_commands, "テストコマンドの一貫性"),
     (check_gradlew_path, "gradlew パス健全性（build skill）"),
     (check_skill_frontmatter, "skill frontmatter 妥当性（name ↔ ディレクトリ名）"),
