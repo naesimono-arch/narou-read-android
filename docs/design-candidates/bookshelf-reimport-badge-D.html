@@ -30,6 +30,22 @@
   ・取込元の手がかり行（.src）は、ファイル名として妥当な文字列（拡張子つき）が復元できたときだけ出す。
     provider の内部 ID を「取込元の PDF」と称して見せない（手がかりが無いなら黙って出さない方が正しい）。
 
+  ★2026-07-29 実害への対処（⑤ を正本直差分で追加）:
+  ・実害＝復旧導線が動かず、ユーザーは**欠落本を削除して取り込み直し**、読書位置・追加日・栞を永久に失った
+    （実機DB実測＝全7冊の addedAt が入れ直し時刻）。導線の失敗がそのままデータ喪失に直結した。
+  ・機序＝復元は既存 books 行を **contentSha256 / title＋author / sourceUrl** で見つけて本文だけ差し替える
+    （updateRestoredContent＝id・progress・addedAt・栞・ncode が不変のまま戻る）。この鍵は全て books 行に載る
+    ため、行を消すと鍵ごと消え、progress も同トランザクションで消え、取り込み直しは新 UUID の別の本になる。
+    ＝**欠落本の削除は「復元の最後の機会」を消す破壊的操作**だが、UI は通常の削除として扱っていた。
+  ・対処＝削除確認ダイアログに、欠落本を含むときだけ警告ブロックを1つ足す（欠落0冊なら従来と完全同一）。
+    文言は①失うものを具体名で（読書位置・しおり・追加日＝①〜④が「残ります」と約束している当のもの＝
+    語彙を反転して使う）②脅さず代替手段（カードからの再取込）を必ず添える——実害の本質は「まだ戻せると
+    知らないまま消した」ことで、警告文だけでは同じ結末を防げないため。
+  ・確定ボタンは「復元せずに削除する」＝本文コピーを読み飛ばしても最後の一語で取り返しのつかなさが分かる
+    （**この2語の追加は本ラウンドの自己決定＝要ユーザー裁定**。既存の「削除する」を欠落0冊時は温存）。
+  ・⑤ をこのファイルに置く理由: 差分の根拠が「欠落かどうか」＝本ファイルの主題であるため。削除確認そのものの
+    正本は bookshelf-multiselect-D.html＝**あちらへの逆同期が未了**（欠落を含む場合の分岐を追記する要）。
+
   K 語彙への翻訳判断（案C 描き直しと同基準＝採用時にどちらの案でも共通部品にできる）:
   ・欠落バッジ＝書影左下のヘアラインチップ・状態行とも ink-soft＝K の「一画面一強調（藍は CTA/選択中のみ）」を守る
     （藍の強調はダイアログの実行ボタンに1点集中）。
@@ -158,6 +174,15 @@
   .dlg .src{border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:16px}
   .dlg .src .lbl{font-size:10px;color:var(--ink-soft);letter-spacing:.1em}
   .dlg .src .val{font-size:12px;color:var(--ink);margin-top:4px;line-height:1.5;word-break:break-all}
+  /* 選択マーク（⑤ 削除確認の背面用・bookshelf-multiselect-D の .chk 写経＝値は同一）。
+     非選択=白リング＋暗スクリム／選択=藍塗り＋白チェック＋書影に藍細縁取り＋淡い藍かぶせ。 */
+  .chk{position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;z-index:3;
+    display:grid;place-items:center;border:1.5px solid rgba(255,255,255,.9);background:rgba(28,31,38,.26)}
+  .chk svg{width:13px;height:13px;stroke:#fff;stroke-width:2.6;fill:none;opacity:0}
+  .bk.sel .chk{background:var(--ai);border-color:var(--ai)}
+  .bk.sel .chk svg{opacity:1}
+  .bk.sel .cv{box-shadow:inset 0 0 0 2px var(--ai)}
+  .bk.sel .cv::after{content:"";position:absolute;inset:0;background:rgba(28,61,90,.14);z-index:2}
   /* 3ボタン（主＋副＋やめる）になる分岐があるため折り返しを許す＝Compose の AlertDialogFlowRow と同挙動 */
   .dlg-acts{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px}
   .btn-cancel{border:none;background:transparent;color:var(--ink);font-size:14px;font-weight:600;padding:12px 18px;border-radius:2px;cursor:pointer}
@@ -336,6 +361,38 @@
       </div>
     </div>
     <p class="desc">Web 本は PDF を持たない＝sourceUrl から自動再取得（WebBookImporter 既存経路）。</p></div>
+
+    <!-- ⑤ 欠落本を含む削除の確認（2026-07-29 実害への対処・正本直差分で追加） -->
+    <div class="wrap"><span class="mode">⑤ 欠落本を含む削除の確認</span>
+    <div class="phone" role="img" aria-label="欠落本を含む削除の確認ダイアログ（K下敷き）">
+      <div class="behind">
+        <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+        <div class="head"><div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div></div>
+        <div class="chips"><span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span></div>
+        <div class="scroll"><div class="grid">
+          <div class="bk sel">
+            <div class="cv" style="--band:hsl(280 48% 52%);--barx:34%;--barlen:42%"><span class="bar"></span><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span><span class="miss">本文なし</span>
+              <span class="chk"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></div>
+            <div class="cap2"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span></div>
+            <div class="st">本文なし・タップで再取込</div>
+          </div>
+          <div class="bk">
+            <div class="cv" style="--band:hsl(210 48% 52%);--barx:26%;--barlen:46%"><span class="bar"></span><span class="vt">追放された万能薬師、辺境でスローライフを始める</span>
+              <span class="chk"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></div>
+            <div class="cap2"><span class="t">追放された万能薬師、辺境でスローライフを始める</span></div>
+            <div class="st">第127/205話</div>
+          </div>
+        </div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="dlg">
+        <h2>選択した1件を本棚から削除しますか？</h2>
+        <p><span class="warn">「本文なし」の本は、削除すると復元できなくなります。</span>この本は、カードから再取込すれば読書位置・しおり・追加日を保ったまま戻せます。削除して取り込み直すと別の本になり、これらは戻りません。</p>
+        <p>変換済みの本文データも削除されます。この操作は取り消せません。</p>
+        <div class="dlg-acts"><button class="btn-cancel">やめる</button><button class="btn-go">復元せずに削除する</button></div>
+      </div>
+    </div>
+    <p class="desc">欠落本を含むときだけ、削除確認の本文先頭に警告ブロックが増え、確定ボタンが「復元せずに削除する」になる（欠落0冊なら従来と完全同一）。<b>削除確認そのものの正本は bookshelf-multiselect-D「削除確認（欠落本を含む）」＝逆同期済み</b>（段落間アキもあちらの 24px が正・本ファイルの 16px は再取込ダイアログ群の律動）。本パネルは欠落4分岐の文脈側の控えで、骨格と下端の選択バーは multiselect-D のまま。</p></div>
 
   </div>
 </body>

@@ -267,4 +267,59 @@ class ReimportPlanTest {
         assertEquals("本文なし・タップで再取込", reimportStatusLabel(ReimportPlan.PickPdfNoRecord(null)))
         assertEquals("Web作品・再取得できます", reimportStatusLabel(ReimportPlan.AutoWeb("u")))
     }
+
+    // ── 欠落本の削除＝復元の最後の機会を消す警告（2026-07-29 実害への対処）──────────────
+
+    @Test
+    fun `countMissingContentTargets - 欠落判定は復旧導線と同じ plans への所属だけで決まる`() {
+        // plans は buildReimportPlans の結果＝「本文欠落と判定された本」だけが載る（棚バッジと同一の根拠）。
+        val plans = mapOf<String, ReimportPlan>(
+            "b1" to ReimportPlan.PickPdfPermissionLost(null, "sha1"),
+            "b3" to ReimportPlan.AutoWeb("https://example.com/works/1"),
+        )
+        assertEquals(0, countMissingContentTargets(emptyList(), plans))
+        assertEquals(0, countMissingContentTargets(listOf("b2"), plans))          // 健在の本のみ
+        assertEquals(1, countMissingContentTargets(listOf("b1", "b2"), plans))    // 混在
+        assertEquals(2, countMissingContentTargets(listOf("b1", "b3"), plans))    // 全部欠落
+        // 分岐の種類では変わらない（①〜④のどれでも「行を消せば鍵が消える」ことは同じ）。
+        assertEquals(1, countMissingContentTargets(listOf("b3"), plans))
+    }
+
+    @Test
+    fun `missingContentDeleteWarning - 欠落0冊なら null＝通常の削除は文言も操作も変えない`() {
+        // 不変条件: この null が「通常の本の削除体験を変えない」ことの単一の保証点
+        //（UI 側は null で警告ブロックを描かず、確定ボタンも従来の「削除する」に戻る）。
+        assertNull(missingContentDeleteWarning(missingCount = 0, bookCount = 3))
+        assertNull(missingContentDeleteWarning(missingCount = 0, bookCount = 0))
+        assertEquals("削除する", deleteConfirmLabel(false))
+    }
+
+    @Test
+    fun `missingContentDeleteWarning - 失うものを具体名で言い代替手段を必ず添える`() {
+        val w = missingContentDeleteWarning(missingCount = 1, bookCount = 1)!!
+        // 実害（読書位置・追加日の喪失）を名指しする＝再取込ダイアログ群の「残ります」の対語。
+        assertTrue("失うものが具体名で出ていない", w.detail.contains("読書位置・しおり・追加日"))
+        // 警告だけでは同じ結末を防げない＝「まだ戻せる」手段を必ず示す（実害の本質は無知であって不注意でない）。
+        assertTrue("代替手段（再取込）が示されていない", w.detail.contains("再取込"))
+        // 強調部は棚バッジと同じ語「本文なし」で、失効するのは復元手段であることを名指しする。
+        assertTrue(w.emphasis.contains("本文なし"))
+        assertTrue(w.emphasis.contains("復元できなくなります"))
+    }
+
+    @Test
+    fun `missingContentDeleteWarning - 対象の言い方は単数・全部欠落・混在で切り替わる`() {
+        // 選択1件の削除（実装上の「単数削除」＝専用配線は無く選択1件で同じダイアログ）は「1冊」と数えない。
+        assertTrue(missingContentDeleteWarning(1, 1)!!.detail.startsWith("この本は"))
+        // 全部が欠落＝選択そのものを指す。
+        assertTrue(missingContentDeleteWarning(3, 3)!!.detail.startsWith("選択した3冊は"))
+        // 混在＝選択の一部であることを明示（健在の本まで戻せないと誤解させない）。
+        assertTrue(missingContentDeleteWarning(1, 3)!!.detail.startsWith("選択のうち1冊は"))
+    }
+
+    @Test
+    fun `deleteConfirmLabel - 欠落を含むときだけ確定ボタンが何を捨てるかを名乗る`() {
+        // 本文コピーは読み飛ばされうる＝押す直前の最後の一語でも取り返しのつかなさが分かるようにする。
+        assertEquals("復元せずに削除する", deleteConfirmLabel(true))
+        assertEquals("削除する", deleteConfirmLabel(false))
+    }
 }

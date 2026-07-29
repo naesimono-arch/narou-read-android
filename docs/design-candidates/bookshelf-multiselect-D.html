@@ -119,6 +119,9 @@
   .dlg h2{font-family:var(--mincho);font-size:17px;color:var(--ink);font-weight:600;letter-spacing:.05em;line-height:1.55;margin-bottom:12px}
   .dlg p{font-family:var(--gothic);font-size:12.5px;color:var(--ink-soft);line-height:1.75;margin-bottom:24px}
   .dlg p .warn{color:var(--ink);font-weight:600}
+  /* 欠落バッジ（bookshelf-reimport-badge-D の .miss 写経＝値同一）。不透明チップなので任意の書影色の上で読める。 */
+  .cv .miss{position:absolute;left:8px;bottom:8px;z-index:2;font-size:9px;font-weight:600;letter-spacing:.08em;
+    padding:2px 7px;border-radius:2px;background:var(--base);border:1px solid var(--line);color:var(--ink-soft)}
   .dlg-acts{display:flex;justify-content:flex-end;align-items:center;gap:8px}
   /* 寒色D に danger-red は無い＝破壊確定「削除する」を主CTA塗りにせず藍で扱い、「やめる」を低摩擦の逃げ道に。 */
   .btn-cancel{border:none;background:transparent;color:var(--ink);font-size:14px;font-weight:600;
@@ -195,7 +198,46 @@
       </div>
     </div></div>
     <p class="note"><b>削除確認</b>：不可逆（本文データも消える）を本文コピーで明示。破壊確定「削除する」を主CTA塗りにせず藍で扱い、「やめる」を低摩擦の逃げ道に。
-      <b>実機検証は必ず"捨て本"で</b>（実蔵書DBを消さない・/device-verify 禁忌）。</p>
+      <b>実機検証は必ず"捨て本"で</b>（実蔵書DBを消さない・/device-verify 禁忌）。<br>
+      ※未反映（逆同期待ち）：実装の見出しは Web カード統合（系3）以後「選択した<b>N件</b>」＝蔵書とWebが混ざり得るための中立表記。
+      本文も内訳（蔵書のみ／Webのみ／混在）で3通りに出し分ける（domain/ShelfItems.deleteConfirmBody）。</p>
+    </div>
+
+    <!-- ══ 削除確認ダイアログ（欠落本を含む場合）══ 2026-07-29 実害への対処・逆同期で追加 -->
+    <div class="wrap"><span class="mode">削除確認（欠落本を含む）</span>
+    <div class="phone" role="img" aria-label="欠落本を含む削除確認ダイアログ">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="behind">
+        <div class="top"><h1>本棚</h1><span class="modehint">選択中</span></div>
+        <div class="filter-row">
+          <span class="lchip on">すべて</span><span class="lchip">未読</span><span class="lchip">読書中</span><span class="lchip">読了</span>
+        </div>
+        <div class="scroll"><div class="grid">
+          <div class="bk sel"><div class="cv shiori-a" style="background:linear-gradient(160deg,#3A4F63,#28323E)"><span class="rule"></span><span class="miss">本文なし</span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span></div></div>
+          <div class="bk"><div class="cv shiori-b" style="background:linear-gradient(160deg,#5E4A5C,#3B2F3A)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span></div></div>
+          <div class="bk"><div class="cv shiori-d" style="background:linear-gradient(160deg,#46584C,#2C362F)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span></div></div>
+          <div class="bk"><div class="cv shiori-c" style="background:linear-gradient(160deg,#4F4A63,#312E3D)"><span class="rule"></span><span class="chk"><svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg></span></div></div>
+        </div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="dlg">
+        <h2>選択した1件を本棚から削除しますか？</h2>
+        <p><span class="warn">「本文なし」の本は、削除すると復元できなくなります。</span>この本は、カードから再取込すれば読書位置・しおり・追加日を保ったまま戻せます。削除して取り込み直すと別の本になり、これらは戻りません。</p>
+        <p><span class="warn">変換済みの本文データも削除されます。</span>この操作は取り消せません。</p>
+        <div class="dlg-acts">
+          <button class="btn-cancel">やめる</button>
+          <button class="btn-del">復元せずに削除する</button>
+        </div>
+      </div>
+    </div></div>
+    <p class="note"><b>欠落本を含む削除</b>：選択に「本文なし」の本が1冊でもあるときだけ、本文の<b>先頭</b>に警告段落が1つ増え、確定ボタンが
+      <b>「復元せずに削除する」</b>になる。欠落0冊なら上の通常版と完全に同一（描画も高さも変わらない）。
+      <b>なぜ要るか</b>：復元は既存 books 行を contentSha256／title＋author／sourceUrl で見つけて本文だけ差し替える機序で、
+      鍵はすべて books 行に載っている＝行を消すと全復元経路が同時に閉じ、取り込み直しは新 UUID の別の本になる
+      （読書位置・しおり・追加日が戻らない）。<b>2026-07-29 に実際にこれで7冊分の読書位置と追加日が失われた</b>。
+      文言は①失うものを具体名で言う②脅さず代替手段（カードからの再取込）を必ず添える——実害の本質は「まだ戻せると
+      知らないまま消した」ことなので、警告文だけでは同じ結末を防げないため。分岐4系統の詳細は
+      <b>bookshelf-reimport-badge-D.html ⑤</b>（欠落側の正本）。</p>
     </div>
 
   </div>

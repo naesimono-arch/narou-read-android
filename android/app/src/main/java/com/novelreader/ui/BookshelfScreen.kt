@@ -44,7 +44,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -76,13 +79,17 @@ import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.ProcessingState
+import com.novelreader.domain.MissingContentDeleteWarning
 import com.novelreader.domain.ReadingStatus
 import com.novelreader.domain.ReimportPlan
 import com.novelreader.domain.ScanProgress
 import com.novelreader.domain.ShelfItem
+import com.novelreader.domain.countMissingContentTargets
 import com.novelreader.domain.deleteConfirmBody
+import com.novelreader.domain.deleteConfirmLabel
 import com.novelreader.domain.filterShelfByStatus
 import com.novelreader.domain.mergeShelfItems
+import com.novelreader.domain.missingContentDeleteWarning
 import com.novelreader.domain.readingStatusFor
 import com.novelreader.domain.reimportBreakdown
 import com.novelreader.domain.reimportStatusLabel
@@ -1315,6 +1322,12 @@ internal fun BookshelfContent(
         // 取込元 URI を保持する（＝取込元PDFを削除できる）蔵書の件数。0 なら取込元削除チェックは出さない（Web は sourceUri を持たない＝不変）。
         val deletableCount = bookTargets.count { it.sourceUri != null }
         val total = bookTargets.size + webTargets.size
+        // 欠落本を含む削除は「復元の最後の機会」を消す（機序＝domain/ReimportPlan.kt の該当節）。
+        // 判定の根拠は棚バッジ・カードタップの復旧導線と同じ reimportPlans ＝欠落の定義を二重化しない。
+        val lossWarning = missingContentDeleteWarning(
+            missingCount = countMissingContentTargets(bookTargets.map { it.id }, reimportPlans),
+            bookCount = bookTargets.size,
+        )
         // 既定 OFF（ユーザー選択=削除ダイアログのチェック・破壊的なので明示 ON を要求）。ダイアログを開くたびリセット。
         var alsoDeleteSource by remember { mutableStateOf(false) }
         AlertDialog(
@@ -1323,6 +1336,9 @@ internal fun BookshelfContent(
             title = { Text("選択した${total}件を本棚から削除しますか？") },
             text = {
                 Column {
+                    // 欠落本の警告は本文の先頭に置く（後段の一般文＝「取り消せません」より固有かつ重い情報のため）。
+                    // 欠落0冊なら描画そのものが無い＝通常の削除ダイアログは従来と1ピクセルも変わらない。
+                    MissingContentDeleteWarningText(lossWarning)
                     // 選択内訳（蔵書数・Web数）で本文を出し分け（系3）＝Web に「本文データも削除」の虚偽を出さない。
                     Text(deleteConfirmBody(bookTargets.size, webTargets.size))
                     DeleteSourcePdfOption(deletableCount, alsoDeleteSource) { alsoDeleteSource = it }
@@ -1335,7 +1351,7 @@ internal fun BookshelfContent(
                     if (bookTargets.isNotEmpty()) onDeleteBooks(bookTargets, alsoDeleteSource)
                     webTargets.forEach { onRemoveWebNovel(it) }
                     exitSelection()
-                }) { Text("削除する") }
+                }) { Text(deleteConfirmLabel(lossWarning != null)) }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) { Text("やめる") }
@@ -1344,6 +1360,39 @@ internal fun BookshelfContent(
     }
     // debug ヘルスボード（スクレイパー健全性診断）は本棚⋮撤去に伴い設定タブ（SettingsScreenK）の診断入口へ一本化した（系2）。
     // 本体 AdapterHealthBoardDialog は ui/AdapterHealthBoardDialog.kt へ移設済み＝SettingsScreenK が引き続き呼び出す。
+}
+
+// ============================================================
+// 欠落本を含む削除の警告ブロック
+// 正本＝bookshelf-multiselect-D「削除確認（欠落本を含む）」（削除確認そのものの正本）／
+// 分岐4系統の文脈＝bookshelf-reimport-badge-D ⑤。
+//
+// なぜ削除ダイアログの部品として切り出すか: 削除確認ダイアログは D/C（本ファイル）と K/M/P/J（skins/）の
+// 5実体に分かれており、警告を各所で書き下ろすと文言と判定が割れる。DeleteSourcePdfOption と同じく
+// 「削除ダイアログの共有部品」として1つにし、各面は1行呼ぶだけにする。
+// [warning] が null（＝欠落0冊）なら何も描かない＝通常の削除の見た目・高さを一切変えない。
+//
+// 意匠: モックの .dlg p は --ink-soft（AlertDialog 既定の onSurfaceVariant と同値）で、その中の
+// .warn だけが --ink（onSurface）＋font-weight 600。インラインの強調なので改行で分けず
+// AnnotatedString の SpanStyle で翻訳する。段落間アキは削除確認の正本 multiselect-D の
+// .dlg p{margin-bottom:24px} → Spacing.S24（reimport-badge 側の 16px は再取込ダイアログ群の律動で、
+// ここは削除ダイアログの律動に合わせる）。
+// ============================================================
+@Composable
+internal fun MissingContentDeleteWarningText(warning: MissingContentDeleteWarning?) {
+    if (warning == null) return
+    Text(
+        buildAnnotatedString {
+            withStyle(
+                SpanStyle(
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+            ) { append(warning.emphasis) }
+            append(warning.detail)
+        },
+    )
+    Spacer(Modifier.height(Spacing.S24))
 }
 
 // ============================================================

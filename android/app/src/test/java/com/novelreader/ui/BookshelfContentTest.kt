@@ -2,6 +2,7 @@ package com.novelreader.ui
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -17,10 +18,15 @@ import androidx.compose.ui.test.performTouchInput
 import com.novelreader.PrefKeys
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
+import com.novelreader.domain.ReimportPlan
 import com.novelreader.ui.skins.ShelfActions
 import com.novelreader.ui.skins.ShelfWebActions
 import com.novelreader.ui.skins.ThemeControl
+import com.novelreader.ui.theme.LocalSkin
+import com.novelreader.ui.theme.LocalSkinTokens
 import com.novelreader.ui.theme.ReadingTheme
+import com.novelreader.ui.theme.Skin
+import com.novelreader.ui.theme.tokens
 import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.ProcessingState
 import org.junit.Assert.assertTrue
@@ -55,6 +61,8 @@ class BookshelfContentTest {
         chapterCountMap: Map<String, Int> = emptyMap(),
         onFabClick: () -> Unit = {},
         onDeleteBooks: (List<BookEntity>, Boolean) -> Unit = { _, _ -> },
+        // 本文欠落本の地図（bookId→復旧手段）。既定 emptyMap＝欠落なし＝他テストの描画は完全に不変。
+        reimportPlans: Map<String, ReimportPlan> = emptyMap(),
         deferHeavyContent: Boolean = false,
         // テーマ節（⋮メニュー）の検証用。読書設定シートと同じ単一真実源をそのまま差し込む。
         appTheme: ReadingTheme = ReadingTheme.LIGHT,
@@ -100,6 +108,7 @@ class BookshelfContentTest {
                     ),
                     onDeleteBooks = onDeleteBooks,
                     snackbarHostState = remember { SnackbarHostState() },
+                    reimportPlans = reimportPlans,
                 )
             }
         }
@@ -251,5 +260,113 @@ class BookshelfContentTest {
         composeTestRule.onNodeWithText("削除").performClick()
         composeTestRule.onNodeWithText("削除する").performClick()
         assertTrue(deleted?.map { it.id } == listOf("b1"))
+    }
+
+    // ────── 欠落本の削除＝復元の最後の機会を消す警告（2026-07-29 実害への対処） ──────
+
+    @Test
+    fun `本文欠落本を削除しようとすると復元不能になる旨と代替手段を警告する`() {
+        setContent(
+            BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"), book("b2", "坊っちゃん"))),
+            // b1 だけが本文欠落（棚バッジ・カードタップの復旧導線と同じ地図）。
+            reimportPlans = mapOf("b1" to ReimportPlan.PickPdfPermissionLost(null, "sha1")),
+        )
+        composeTestRule.onNodeWithContentDescription("吾輩は猫である").performTouchInput { longClick() }
+        composeTestRule.onNodeWithText("削除").performClick()
+        // 何が失われるか（読書位置・しおり・追加日）と、まだ戻せる手段（カードから再取込）の両方を出す。
+        composeTestRule.onNodeWithText("復元できなくなります", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("読書位置・しおり・追加日", substring = true).assertIsDisplayed()
+        // 「再取込」単体だと欠落カードの状態行（本文なし・タップで再取込）とも一致して多重ヒットするため、
+        // ダイアログ本文にしか現れない言い回しで照合する。
+        composeTestRule.onNodeWithText("カードから再取込すれば", substring = true).assertIsDisplayed()
+        // 確定ボタンも何を捨てるかを名乗る（本文を読み飛ばしても最後の一語で分かる）。
+        composeTestRule.onNodeWithText("復元せずに削除する").assertIsDisplayed()
+        composeTestRule.onNodeWithText("削除する").assertDoesNotExist()
+    }
+
+    @Test
+    fun `本文が健在な本の削除では警告を出さない（通常の削除体験を変えない）`() {
+        // 退行検知の要: 判定が「欠落かどうか」でなく「削除かどうか」に化けたら、この赤で気づく。
+        setContent(
+            BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))),
+            // 欠落しているのは選択対象でない b2 ＝対象の欠落だけを見ていることも同時に固定する。
+            reimportPlans = mapOf("b2" to ReimportPlan.PickPdfPermissionLost(null, "sha2")),
+        )
+        composeTestRule.onNodeWithContentDescription("吾輩は猫である").performTouchInput { longClick() }
+        composeTestRule.onNodeWithText("削除").performClick()
+        composeTestRule.onNodeWithText("復元できなくなります", substring = true).assertDoesNotExist()
+        composeTestRule.onNodeWithText("削除する").assertIsDisplayed()
+    }
+
+    // ────── 明快K の削除確認（ADR 0027 で初回公開に出荷される唯一のスキン＝穴を残せない） ──────
+
+    /**
+     * K 面（skins/k/BookshelfK）を装着して描く。D 面用の [setContent] と分けるのは、既存テストへ
+     * CompositionLocalProvider を被せる改変を持ち込まないため（D の描画条件を1文字も動かさない）。
+     */
+    private fun setKContent(
+        uiState: BookshelfUiState,
+        reimportPlans: Map<String, ReimportPlan> = emptyMap(),
+        onDeleteBooks: (List<BookEntity>, Boolean) -> Unit = { _, _ -> },
+    ) {
+        composeTestRule.setContent {
+            CompositionLocalProvider(
+                LocalSkin provides Skin.MEIKAI_K,
+                LocalSkinTokens provides Skin.MEIKAI_K.tokens,
+            ) {
+                MaterialTheme {
+                    BookshelfContent(
+                        uiState = uiState,
+                        progressMap = emptyMap(),
+                        newEpisodeNovelMap = emptyMap(),
+                        processingState = ProcessingState(),
+                        actions = ShelfActions(
+                            onOpenBook = {},
+                            onFabClick = {},
+                            onOpenDiscovery = {},
+                            onOpenWardrobe = {},
+                            onCancelProcessing = {},
+                        ),
+                        webActions = ShelfWebActions(
+                            onOpenWebNovel = {},
+                            onResumeWebNovel = { _, _ -> },
+                            onImportWebNovel = {},
+                            onRemoveWebNovel = {},
+                        ),
+                        theme = ThemeControl(
+                            appTheme = ReadingTheme.LIGHT,
+                            onThemeChange = {},
+                            followingSystem = false,
+                            onFollowSystem = {},
+                        ),
+                        onDeleteBooks = onDeleteBooks,
+                        snackbarHostState = remember { SnackbarHostState() },
+                        reimportPlans = reimportPlans,
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `K面でも本文欠落本の削除は復元不能になる旨を警告する`() {
+        setKContent(
+            BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))),
+            reimportPlans = mapOf("b1" to ReimportPlan.PickPdfPermissionLost(null, "sha1")),
+        )
+        // K の書影は mergeDescendants の semantics ＝題字テキストでカードを掴み、長押しで選択モードへ。
+        composeTestRule.onNodeWithText("吾輩は猫である").performTouchInput { longClick() }
+        composeTestRule.onNodeWithText("削除").performClick()
+        composeTestRule.onNodeWithText("復元できなくなります", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("復元せずに削除する").assertIsDisplayed()
+    }
+
+    @Test
+    fun `K面の通常削除は従来どおり（警告なし・削除するのまま）`() {
+        setKContent(BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))))
+        composeTestRule.onNodeWithText("吾輩は猫である").performTouchInput { longClick() }
+        composeTestRule.onNodeWithText("削除").performClick()
+        composeTestRule.onNodeWithText("復元できなくなります", substring = true).assertDoesNotExist()
+        composeTestRule.onNodeWithText("削除する").assertIsDisplayed()
     }
 }

@@ -70,6 +70,7 @@ import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.DeleteSourcePdfOption
+import com.novelreader.ui.MissingContentDeleteWarningText
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.skins.ShelfActions
 import com.novelreader.ui.skins.ShelfChrome
@@ -96,8 +97,11 @@ import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
 import com.novelreader.domain.ShelfItem
 import com.novelreader.domain.chapterNumberOf
+import com.novelreader.domain.countMissingContentTargets
+import com.novelreader.domain.deleteConfirmLabel
 import com.novelreader.domain.filterShelfByStatus
 import com.novelreader.domain.mergeShelfItems
+import com.novelreader.domain.missingContentDeleteWarning
 import com.novelreader.domain.progressFractionFor
 import com.novelreader.domain.readingStatusFor
 import java.time.LocalTime
@@ -320,12 +324,20 @@ internal fun BookshelfGridJ(
     if (showDeleteConfirm) {
         val targets = books.filter { it.id in selectedIds }
         val deletableCount = targets.count { it.sourceUri != null }
+        // 欠落本を含む削除は「復元の最後の機会」を消す（機序＝domain/ReimportPlan.kt の該当節）。J は欠落バッジ自体が
+        // 未翻訳（モック未裁定＝スキン後回し枠）だが、削除の破壊性はスキンに依存しないため警告は先に入れる。
+        val lossWarning = missingContentDeleteWarning(
+            missingCount = countMissingContentTargets(targets.map { it.id }, data.reimportPlans),
+            bookCount = targets.size,
+        )
         var alsoDeleteSource by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("選択した${targets.size}冊を本棚から削除しますか？") },
             text = {
                 Column {
+                    // 欠落本の警告は本文の先頭（後段の一般文より固有かつ重い）。欠落0冊なら描画そのものが無い。
+                    MissingContentDeleteWarningText(lossWarning)
                     Text("変換済みの本文データも削除されます。この操作は取り消せません。")
                     DeleteSourcePdfOption(deletableCount, alsoDeleteSource) { alsoDeleteSource = it }
                 }
@@ -335,7 +347,7 @@ internal fun BookshelfGridJ(
                     showDeleteConfirm = false
                     onDeleteBooks(targets, alsoDeleteSource)
                     onExitSelection()
-                }) { Text("削除する") }
+                }) { Text(deleteConfirmLabel(lossWarning != null)) }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) { Text("やめる") }

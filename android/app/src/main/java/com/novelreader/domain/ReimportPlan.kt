@@ -219,3 +219,72 @@ fun reimportStatusLabel(plan: ReimportPlan): String = when (plan) {
     is ReimportPlan.AutoWeb -> "Web作品・再取得できます"
     else -> "本文なし・タップで再取込"
 }
+
+// ============================================================
+// 欠落本の削除＝「復元の最後の機会」を消す破壊的操作（2026-07-29 の実害への対処）
+//
+// 【真因】復元（PdfBookImporter の restoreByHash／title＋author 経路・WebBookImporter の restoreTarget）は
+// 既存の books 行を見つけて updateRestoredContent で本文だけ差し替える＝id・progress・addedAt・栞（shioriTipIndex/
+// shioriLenFrac）・ncode が不変のまま戻る。この「見つける鍵」は contentSha256 と title＋author、そして
+// sourceUri/sourceUrl のいずれも **books 行そのもの** に載っている。よって欠落本の books 行を消すと:
+//   ・鍵が全て消える（照合先が存在しない）
+//   ・progress 行も同一トランザクションで消える（LibraryDeleter.deleteBook）
+//   ・以後 同じ PDF を取り込んでも新規 UUID の別行になる（PdfBookImporter の bookId＝UUID.randomUUID）
+// ＝読書位置・読了の印・追加日・栞の意匠・なろう紐付けが原理的に再結合できない。実害（2026-07-29）はこれで、
+// ユーザーは復旧導線が動かず欠落本を削除→取り込み直し、全7冊の addedAt と progress を失った。
+// 削除ダイアログがこの不可逆性を語らず「通常の削除」として振る舞っていたことが直接の原因。
+//
+// 判定を純関数に切り出す理由: 表示分岐（どのスキンの削除ダイアログでも同じ警告が要る）と文言を1か所に固定し、
+// 「欠落0冊なら null＝通常の削除は一文字も変わらない」という不変条件を JVM テストで縛るため。
+// ============================================================
+
+/**
+ * 欠落本を含む削除の警告文（削除確認ダイアログの追加ブロック）。
+ * 正本＝モック bookshelf-multiselect-D「削除確認（欠落本を含む）」の .dlg p（分岐4系統の文脈は
+ * bookshelf-reimport-badge-D ⑤）。[emphasis] が .warn（--ink・600＝失うものの核心）、
+ * [detail] が地の文（--ink-soft）。
+ */
+data class MissingContentDeleteWarning(val emphasis: String, val detail: String)
+
+/**
+ * 削除対象（蔵書 id）のうち本文欠落＝復元の最後の機会を持つ冊数。
+ * 判定を [plans]（buildReimportPlans の結果）への所属だけで行うのは、棚のバッジ・カードタップの復旧導線と
+ * 「欠落とは何か」の定義を1点に保つため（ここで独自の実体チェックを書くと定義が二重化して片方だけ腐る）。
+ */
+fun countMissingContentTargets(bookIds: List<String>, plans: Map<String, ReimportPlan>): Int =
+    bookIds.count { it in plans }
+
+/**
+ * 欠落本を含む削除の警告。[missingCount]==0 なら null＝通常の削除ダイアログは文言も操作も従来と同一。
+ *
+ * 文言の根拠: ①失うものを具体名で言う（読書位置・しおり・追加日＝再取込ダイアログ群が「残ります」と
+ * 約束している当のもの＝語彙を反転させて使う）②脅すのでなく代替手段（カードからの再取込）を必ず添える
+ * ——実害の本質は「まだ戻せると知らないまま消した」ことで、警告だけでは同じ結末を防げないため。
+ * 「本文なし」は棚バッジの語をそのまま使う（ユーザーが画面で見ている語と一致させる）。
+ *
+ * @param missingCount 削除対象のうち本文欠落の冊数。
+ * @param bookCount 削除対象の蔵書総数（Web カードは含めない＝Web は失うものが無く別文言）。
+ */
+fun missingContentDeleteWarning(missingCount: Int, bookCount: Int): MissingContentDeleteWarning? {
+    if (missingCount <= 0) return null
+    // 対象の言い方は3通り。1冊だけ選んで消す（実装上の「単数削除」＝選択1件）ときに「1冊」と数えると
+    // 不自然な日本語になるため、そこだけ「この本」と呼ぶ。
+    val subject = when {
+        bookCount <= 1 -> "この本"
+        missingCount >= bookCount -> "選択した${missingCount}冊"
+        else -> "選択のうち${missingCount}冊"
+    }
+    return MissingContentDeleteWarning(
+        emphasis = "「本文なし」の本は、削除すると復元できなくなります。",
+        detail = "${subject}は、カードから再取込すれば読書位置・しおり・追加日を保ったまま戻せます。" +
+            "削除して取り込み直すと別の本になり、これらは戻りません。",
+    )
+}
+
+/**
+ * 削除確定ボタンの文言。欠落本を含むときだけ「復元せずに」を冠して、押す直前の最後の一語でも
+ * 何を捨てるのかが分かるようにする（本文コピーは読み飛ばされうる＝実害の再発点はここ）。
+ * 通常の削除は従来どおり「削除する」＝既存テスト・スキンの語彙を変えない。
+ */
+fun deleteConfirmLabel(hasMissingContent: Boolean): String =
+    if (hasMissingContent) "復元せずに削除する" else "削除する"

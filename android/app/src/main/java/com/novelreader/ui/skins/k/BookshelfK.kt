@@ -88,6 +88,7 @@ import com.novelreader.data.WebNovelEntity
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.DeleteSourcePdfOption
 import com.novelreader.ui.MissingContentBadge
+import com.novelreader.ui.MissingContentDeleteWarningText
 import com.novelreader.ui.NewChaptersBadge
 import com.novelreader.ui.ProcessingBanner
 import com.novelreader.ui.ReimportScanBanner
@@ -119,9 +120,12 @@ import com.novelreader.domain.ReadingStatus
 import com.novelreader.domain.ScanProgress
 import com.novelreader.domain.ShelfItem
 import com.novelreader.domain.chapterNumberOf
+import com.novelreader.domain.countMissingContentTargets
 import com.novelreader.domain.deleteConfirmBody
+import com.novelreader.domain.deleteConfirmLabel
 import com.novelreader.domain.filterShelfByStatus
 import com.novelreader.domain.mergeShelfItems
+import com.novelreader.domain.missingContentDeleteWarning
 import com.novelreader.domain.readingStatusFor
 import com.novelreader.domain.reimportStatusLabel
 import com.novelreader.domain.webNcodesInSelection
@@ -463,6 +467,12 @@ internal fun BookshelfK(
         val webTargets = webNovels.filter { it.ncode in webNcodes }
         val deletableCount = bookTargets.count { it.sourceUri != null }
         val total = bookTargets.size + webTargets.size
+        // 欠落本を含む削除は「復元の最後の機会」を消す（機序＝domain/ReimportPlan.kt の該当節）。冊数は蔵書分だけを
+        // 数える（title の「件」は Web カード込みの中立表記だが、復元手段を失うのは books 行を持つ蔵書のみ）。
+        val lossWarning = missingContentDeleteWarning(
+            missingCount = countMissingContentTargets(bookTargets.map { it.id }, data.reimportPlans),
+            bookCount = bookTargets.size,
+        )
         var alsoDeleteSource by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
@@ -470,6 +480,8 @@ internal fun BookshelfK(
             title = { Text("選択した${total}件を本棚から削除しますか？") },
             text = {
                 Column {
+                    // 欠落本の警告は本文の先頭（後段の一般文より固有かつ重い）。欠落0冊なら描画そのものが無い。
+                    MissingContentDeleteWarningText(lossWarning)
                     // 選択内訳（蔵書数・Web数）で本文を出し分け（系3）＝Web に「本文データも削除」の虚偽を出さない。
                     Text(deleteConfirmBody(bookTargets.size, webTargets.size))
                     DeleteSourcePdfOption(deletableCount, alsoDeleteSource) { alsoDeleteSource = it }
@@ -482,7 +494,7 @@ internal fun BookshelfK(
                     if (bookTargets.isNotEmpty()) onDeleteBooks(bookTargets, alsoDeleteSource)
                     webTargets.forEach { onRemoveWebNovel(it) }
                     onExitSelection()
-                }) { Text("削除する") }
+                }) { Text(deleteConfirmLabel(lossWarning != null)) }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) { Text("やめる") }
