@@ -1,7 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cd *android* && *gradlew testDebugUnitTest*)"
+      "Bash(cd *android* && *gradlew testDebugUnitTest*)",
+      "Bash(adb shell dumpsys *)",
+      "Bash(adb shell getprop *)",
+      "Bash(adb shell cat *)",
+      "Bash(adb exec-out screencap *)",
+      "Bash(adb logcat -d *)",
+      "Bash(adb devices)",
+      "Bash(adb devices *)",
+      "Bash(mockview *)",
+      "mcp__semble__search",
+      "mcp__semble__find_related"
     ]
   },
   "statusLine": {
