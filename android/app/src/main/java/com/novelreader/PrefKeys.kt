@@ -80,6 +80,10 @@ object PrefKeys {
     /** 通知許可プライミングの表示済みフラグ（Boolean）。 */
     const val NOTIF_PRIMING_SHOWN = "notif_priming_shown"
 
+    /** 本文欠落の一括検出バナー（案C）を提示済みの欠落 bookId 集合（StringSet）。
+     *  同一集合では再表示しない＝「新規に検出した際に一度だけ表示」の指紋（domain/ReimportPlan.kt）。 */
+    const val REIMPORT_SWEEP_SEEN_IDS = "reimport_sweep_seen_ids"
+
     /** P装い: ヒンジ開度のデテント段（Int 0..2）。 */
     const val P_HINGE_DETENT = "p_hinge_detent"
 

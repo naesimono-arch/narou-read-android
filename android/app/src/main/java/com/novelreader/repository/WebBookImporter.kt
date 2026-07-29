@@ -57,7 +57,14 @@ internal class WebBookImporter(
 
             // ② sourceUrl 重複ガード（重い取得の前に弾く＝PDF の hash 遮断と同じ「重い処理の前に弾く」位置）。
             // 同一作品 URL の蔵書が既にあれば目次・全章の取得を一切走らせず Duplicate を返す。
-            bookDao.findBySourceUrl(workUrl)?.let { return@runCatching AddBookResult.Duplicate(it) }
+            // 復元モード（本文欠落→再取込・2026-07-29 案B/C）: 既存行があっても本文実体が欠落していれば
+            // Duplicate で止めず、既存行（id・進捗・栞・addedAt）を保持したまま再取得して本文だけ作り直す
+            // ＝重複行を作らない（分岐④「Webから再取得」の実体）。
+            val existingWeb = bookDao.findBySourceUrl(workUrl)
+            val restoreTarget = existingWeb?.takeIf { !it.hasContent(context.filesDir) }
+            if (existingWeb != null && restoreTarget == null) {
+                return@runCatching AddBookResult.Duplicate(existingWeb)
+            }
 
             // ③ 目次取得 → 各章本文取得。Crawl-delay は ScrapeHttpClient が内蔵するため、ここで追加の sleep はしない。
             val toc = adapter.fetchToc(workUrl)
@@ -80,11 +87,27 @@ internal class WebBookImporter(
 
             // ⑤ PDF 蔵書と同契約の HTML を生成する（前後書き整形 → exportToPwa）。outputDir は既存 bookId
             // ディレクトリ規約（filesDir/novels/<bookId>）と同一＝掃除・復元経路をそのまま共有する。
-            val bookId = UUID.randomUUID().toString().take(8)
+            // 復元時は既存行の id ディレクトリへ直接生成する（id 不変＝進捗・栞の紐付けを保つ）。
+            // torn 残骸（index 無しで chap だけ残る等）が新しい一式へ混入しないよう先に消す。
+            val bookId = restoreTarget?.id ?: UUID.randomUUID().toString().take(8)
             val outputDir = BookEntity.resolveHtmlDir(context.filesDir, bookId)
+            if (restoreTarget != null) outputDir.deleteRecursively()
             try {
                 val finalChapters = ChapterProcessor.processForewordAfterword(rawChapters)
                 HtmlExporter.exportToPwa(finalChapters, bookId, toc.meta.title, outputDir)
+
+                if (restoreTarget != null) {
+                    // ⑥' 復元の確定: 既存行を部分 UPDATE（updateRestoredContent）＝id・進捗・栞・addedAt・
+                    // sourceUrl/sourceSite 不変。contentSha256 は再取得後の最新本文で更新する（連載の追補が
+                    // あれば指紋も変わるのが正）。sourceUri は Web 本では常に NULL＝既存値をそのまま渡す。
+                    bookDao.updateRestoredContent(
+                        restoreTarget.id, outputDir.absolutePath, contentSha256, restoreTarget.sourceUri,
+                    )
+                    return@runCatching AddBookResult.Added(
+                        restoreTarget.copy(htmlDirPath = outputDir.absolutePath, contentSha256 = contentSha256),
+                        restored = true,
+                    )
+                }
 
                 // ⑥ Room 登録。栞の個体差は PDF 経路と同じ抽選ロジックを再利用（取込時に真の乱数で1回だけ固定）。
                 // author が null（サイトに著者名が無い）のときは BookEntity.author の既定値流儀に合わせて空文字にする。

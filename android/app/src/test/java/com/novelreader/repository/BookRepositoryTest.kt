@@ -646,4 +646,146 @@ class BookRepositoryTest {
             cacheDir.deleteRecursively()
         }
     }
+
+    // ── 本文欠落→再取込の復元モード（2026-07-29 案B/C）──────────────────────────────
+    // 契約: 既存行を保持し本文だけ再生成（id 不変・insertBook を呼ばない・進捗 DAO に触れない＝
+    // 読書位置/栞/読了/追加日が残る）。本文が実在する既存本は従来どおり Duplicate（挙動不変の回帰）。
+
+    /** 復元テスト共通の repo 組み立て: 抽出 fake は outputDir へ index.html を書き、渡された bookId を記録する。 */
+    private fun restoreRepoWith(
+        extractedIds: MutableList<String>,
+        meta: BookMeta = BookMeta("復元本", "著者R"),
+    ): DefaultBookRepository {
+        val fakeExtract: (File, String, File, PdfProgress) -> BookMeta = { _, bookId, outputDir, _ ->
+            extractedIds.add(bookId)
+            outputDir.mkdirs()
+            File(outputDir, "index.html").writeText("<html>restored</html>")
+            meta
+        }
+        return DefaultBookRepository(
+            context, bookDao, progressDao, pendingJobDao,
+            webReadingProgressDao = FakeWebReadingProgressDao(),
+            runInTransaction = { block -> block() },
+            extractBook = fakeExtract,
+        )
+    }
+
+    @Test
+    fun `addBook - ハッシュ一致でも本文欠落なら Duplicate にせず既存行へ復元する（id 不変・進捗無傷）`() = runTest {
+        val filesDir = createTempDir(prefix = "restoreFiles")
+        val cacheDir = createTempDir(prefix = "restoreCache")
+        try {
+            every { context.filesDir } returns filesDir
+            every { context.cacheDir } returns cacheDir
+            val pdfUri = mockk<Uri>(relaxed = true)
+            every { pdfUri.toString() } returns "content://docs/restore1"
+            val pdfBytes = "restore pdf bytes".toByteArray()
+            every { context.contentResolver.openInputStream(pdfUri) } returns ByteArrayInputStream(pdfBytes)
+            val hash = sha256Hex(ByteArrayInputStream(pdfBytes))
+
+            // 既存行: 本文実体なし（ディレクトリ不存在）＝実機で起きた Auto Backup 後の姿。
+            val existing = BookEntity(
+                "olde1234", "復元本", File(filesDir, "novels/olde1234").absolutePath, "著者R",
+                addedAt = 123L, contentSha256 = hash, shioriTipIndex = 3, shioriLenFrac = 0.4f,
+                sourceUri = "content://docs/original",
+            )
+            coEvery { bookDao.findByContentSha256(hash) } returns existing
+
+            val extractedIds = mutableListOf<String>()
+            val result = restoreRepoWith(extractedIds).addBook(pdfUri)
+
+            val added = result.getOrThrow() as BookRepository.AddBookResult.Added
+            assertTrue("復元フラグが立つ", added.restored)
+            assertEquals("id は不変＝重複行を作らない", "olde1234", added.book.id)
+            // 本文は既存 id の規約ディレクトリへ再生成される。
+            assertTrue(File(filesDir, "novels/olde1234/index.html").exists())
+            assertEquals("抽出は既存 id で走る", listOf("olde1234"), extractedIds)
+            // 部分 UPDATE のみ＝insertBook（REPLACE＝全列巻き戻しリスク）を通らない。
+            // sourceUri は今回権限を取り直していない（persistedUriPermissions 空）ため既存値を温存する。
+            coVerify(exactly = 1) {
+                bookDao.updateRestoredContent(
+                    "olde1234", File(filesDir, "novels/olde1234").absolutePath, hash, "content://docs/original",
+                )
+            }
+            coVerify(exactly = 0) { bookDao.insertBook(any()) }
+            // 進捗（読書位置・栞・読了）には一切触れない＝「そのまま残ります」の実装保証。
+            coVerify(exactly = 0) { progressDao.deleteByBookId(any()) }
+        } finally {
+            filesDir.deleteRecursively()
+            cacheDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `addBook - ハッシュ一致で本文が実在すれば従来どおり Duplicate（復元は発動しない）`() = runTest {
+        val filesDir = createTempDir(prefix = "dupFiles")
+        val cacheDir = createTempDir(prefix = "dupCache")
+        try {
+            every { context.filesDir } returns filesDir
+            every { context.cacheDir } returns cacheDir
+            val pdfUri = mockk<Uri>(relaxed = true)
+            every { pdfUri.toString() } returns "content://docs/dup1"
+            val pdfBytes = "dup pdf bytes".toByteArray()
+            every { context.contentResolver.openInputStream(pdfUri) } returns ByteArrayInputStream(pdfBytes)
+            val hash = sha256Hex(ByteArrayInputStream(pdfBytes))
+
+            // 既存行: 本文実体あり（index.html を実置き）。
+            val dir = File(filesDir, "novels/live5678").apply { mkdirs() }
+            File(dir, "index.html").writeText("<html>alive</html>")
+            val existing = BookEntity("live5678", "生存本", dir.absolutePath, "著", contentSha256 = hash)
+            coEvery { bookDao.findByContentSha256(hash) } returns existing
+
+            val extractedIds = mutableListOf<String>()
+            val result = restoreRepoWith(extractedIds).addBook(pdfUri)
+
+            val dup = result.getOrThrow() as BookRepository.AddBookResult.Duplicate
+            assertEquals(existing, dup.existing)
+            assertEquals("重い抽出は走らない（変換前遮断は不変）", emptyList<String>(), extractedIds)
+            coVerify(exactly = 0) { bookDao.insertBook(any()) }
+            coVerify(exactly = 0) { bookDao.updateRestoredContent(any(), any(), any(), any()) }
+        } finally {
+            filesDir.deleteRecursively()
+            cacheDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `addBook - 旧取込（ハッシュNULL）の欠落本は題名·著者一致で既存行へ復元し規約位置へ移し替える`() = runTest {
+        val filesDir = createTempDir(prefix = "titleRestoreFiles")
+        val cacheDir = createTempDir(prefix = "titleRestoreCache")
+        try {
+            every { context.filesDir } returns filesDir
+            every { context.cacheDir } returns cacheDir
+            val pdfUri = mockk<Uri>(relaxed = true)
+            every { pdfUri.toString() } returns "content://docs/restore3"
+            val pdfBytes = "old import pdf bytes".toByteArray()
+            every { context.contentResolver.openInputStream(pdfUri) } returns ByteArrayInputStream(pdfBytes)
+
+            // 旧取込行: contentSha256 NULL（v11 前）＝ハッシュ遮断を素通りし、抽出後の題名＋著者で合流する。
+            coEvery { bookDao.findByContentSha256(any()) } returns null
+            val existing = BookEntity(
+                "oldnull9", "復元本", File(filesDir, "novels/oldnull9").absolutePath, "著者R",
+                contentSha256 = null, sourceUri = null,
+            )
+            coEvery { bookDao.findByTitleAndAuthor("復元本", "著者R") } returns existing
+
+            val extractedIds = mutableListOf<String>()
+            val result = restoreRepoWith(extractedIds).addBook(pdfUri)
+
+            val added = result.getOrThrow() as BookRepository.AddBookResult.Added
+            assertTrue(added.restored)
+            assertEquals("oldnull9", added.book.id)
+            // 新IDで抽出された一式が既存 id の規約位置へ移し替わる（孤立ディレクトリを残さない）。
+            assertTrue(File(filesDir, "novels/oldnull9/index.html").exists())
+            assertEquals("novels 配下は既存 id の1ディレクトリだけ", listOf("oldnull9"),
+                File(filesDir, "novels").listFiles()!!.map { it.name })
+            // 旧取込行に今回の内容指紋が初めて焼かれる（以後は変換前遮断が効くようになる）。
+            assertEquals(sha256Hex(ByteArrayInputStream(pdfBytes)), added.book.contentSha256)
+            coVerify(exactly = 0) { bookDao.insertBook(any()) }
+            coVerify(exactly = 1) { bookDao.updateRestoredContent("oldnull9", any(), any(), null) }
+        } finally {
+            filesDir.deleteRecursively()
+            cacheDir.deleteRecursively()
+        }
+    }
 }

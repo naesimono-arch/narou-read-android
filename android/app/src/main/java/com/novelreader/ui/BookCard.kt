@@ -45,6 +45,7 @@ import com.novelreader.ui.components.shioriHue
 import com.novelreader.ui.theme.FontCardTitle
 import com.novelreader.ui.theme.FontLabel
 import com.novelreader.ui.theme.FontMicroLabel
+import com.novelreader.ui.theme.FontMissingBadge
 import com.novelreader.ui.theme.FontSealBadge
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.LocalShioriColors
@@ -162,6 +163,34 @@ internal fun NewChaptersBadge(newCount: Int, modifier: Modifier = Modifier) {
     }
 }
 
+// ============================================================
+// 欠落バッジ「本文なし」（案B・正本 bookshelf-reimport-badge-D .miss）: 書影左下のヘアラインチップ。
+// ink-soft＝一画面一強調（藍は復旧ダイアログの実行ボタンに1点集中）を守り藍を使わない。
+// 左下＝栞棒（上辺起点）と縦題字（右辺）のどちらとも重ならない静かな隅（朱印『了』と同隅だが、
+// 欠落カードは了印を出さない＝呼び出し側で排他。実体を失った本に読了の徴を重ねない）。
+// internal 共有＝K のカード（BookshelfK）も同じバッジを使う（NewChaptersBadge の internal 昇格と同流儀）。
+// ============================================================
+@Composable
+internal fun MissingContentBadge(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            // モック .miss: background=--base（棚地と同じ紙色）＝colorScheme.background。surface でないのは
+            // K/D とも棚面の地が background トークンで塗られているため（バッジを地色で書影から浮かせる意匠）。
+            .clip(RoundedCornerShape(2.dp))
+            .background(MaterialTheme.colorScheme.background)
+            .border(1.dp, LocalShelfColors.current.hairline, RoundedCornerShape(2.dp))
+            .padding(horizontal = 7.dp, vertical = 2.dp),
+    ) {
+        Text(
+            text = "本文なし",
+            fontSize = FontMissingBadge,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.7.sp, // モック .08em ≒ 9px×0.08
+            color = LocalShelfColors.current.infoText,
+        )
+    }
+}
+
 /**
  * 手元PDFの章数（totalChaps）となろう詳細（novelDetail）を突き合わせ、新着話数を返す。null=バッジ非表示。
  *
@@ -202,6 +231,9 @@ internal fun GridBookCard(
     playSealStamp: Boolean = false,
     // 押印アニメ完了時に呼ぶ。呼び出し側が「押印済み」を記録して二度と再生しないためのラッチ。
     onSealStamped: () -> Unit = {},
+    // 本文欠落（案B・2026-07-29）: 非 null なら欠落本＝書影左下に「本文なし」バッジ＋状態行をこの文言で
+    // 置き換える（文言は domain.reimportStatusLabel が正本）。既定 null は既存呼び出し・テストの互換。
+    missingLabel: String? = null,
 ) {
     val chapNum = chapterNumberOf(progress?.lastReadFilename)
 
@@ -277,7 +309,16 @@ internal fun GridBookCard(
             // なぜ左下か（2026-07-12）: 右下だと表紙内の縦組み題字（右起点で読む）と重なるため左下へ移した
             //（正本 .seal も right→left に同期）。朱色は accent（title 由来色相）と無関係の固定「読了の徴」＝専用トークン。
             // 背景は紙地へ半透過で溶かす（ライトは surface 50%／ダークは正本の固定暗色トークン 50%）。coverIsDark 再利用。
-            if (isFinished) {
+            // 欠落バッジ（案B）: 左下＝了印と同じ静かな隅。欠落カードは了印を出さない（下の isFinished 条件で排他）
+            // ＝実体を失った本に読了の徴を重ねず、モックどおり欠落表現だけを載せる。
+            if (missingLabel != null) {
+                MissingContentBadge(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = Spacing.S8, bottom = Spacing.S8),
+                )
+            }
+            if (isFinished && missingLabel == null) {
                 val sealColor = if (coverIsDark) ShioriSealVermilionDark else ShioriSealVermilion
                 val sealBg = if (coverIsDark) ShioriSealScrimDark.copy(alpha = 0.5f)
                 else MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
@@ -356,20 +397,26 @@ internal fun GridBookCard(
                     )
                     Spacer(Modifier.height(Spacing.S8))
                 }
-                BookProgressRow(
-                    totalChaps = totalChaps,
-                    progressFraction = progressFraction,
-                    flexBar = true,
-                )
-                // よみかけ（進捗あり）に限り「いつぶりか」を静かに添える（continuity Minor・モック未表現）。
-                RelativeReadLabel(
-                    progressFraction = progressFraction,
-                    lastReadAt = progress?.lastReadAt ?: 0L,
-                    modifier = Modifier.padding(top = Spacing.S4),
-                )
-                // 続きあり（モックは進捗行の下・上4px）
-                newEpisodeCountFor(novelDetail, totalChaps)?.let { newCount ->
-                    NewChaptersBadge(newCount = newCount, modifier = Modifier.padding(top = Spacing.S4))
+                if (missingLabel != null) {
+                    // 欠落本の状態行（案B）: 進捗行・相対時刻・続きバッジを欠落文言1行に置き換える
+                    // （本文が無い本に進捗の数字を出すと嘘になる。復旧すれば通常表示へ自然に戻る）。
+                    Text(text = missingLabel, fontSize = FontLabel, color = LocalShelfColors.current.infoText)
+                } else {
+                    BookProgressRow(
+                        totalChaps = totalChaps,
+                        progressFraction = progressFraction,
+                        flexBar = true,
+                    )
+                    // よみかけ（進捗あり）に限り「いつぶりか」を静かに添える（continuity Minor・モック未表現）。
+                    RelativeReadLabel(
+                        progressFraction = progressFraction,
+                        lastReadAt = progress?.lastReadAt ?: 0L,
+                        modifier = Modifier.padding(top = Spacing.S4),
+                    )
+                    // 続きあり（モックは進捗行の下・上4px）
+                    newEpisodeCountFor(novelDetail, totalChaps)?.let { newCount ->
+                        NewChaptersBadge(newCount = newCount, modifier = Modifier.padding(top = Spacing.S4))
+                    }
                 }
             }
             // 可視⋮（K実装 KCardMenuButton と同型）。選択モード中は書影上の選択マークへ場を譲り隠す。
@@ -435,6 +482,9 @@ internal fun ListBookCard(
     selected: Boolean = false,
     onToggleSelect: () -> Unit = {},
     onEnterSelection: () -> Unit = {},
+    // 本文欠落（案B）: 非 null なら進捗行をこの文言で置き換える（GridBookCard と同契約。
+    // 目録は書影を持たないためバッジは出さず状態行だけが欠落を運ぶ）。既定 null は既存呼出し互換。
+    missingLabel: String? = null,
 ) {
     val chapNum = chapterNumberOf(progress?.lastReadFilename)
 
@@ -530,17 +580,22 @@ internal fun ListBookCard(
                     }
                 }
                 Spacer(Modifier.height(Spacing.S12))
-                BookProgressRow(
-                    totalChaps = totalChaps,
-                    progressFraction = progressFraction,
-                    flexBar = false,
-                )
-                // よみかけに限り「いつぶりか」を静かに添える（continuity Minor・モック未表現）。
-                RelativeReadLabel(
-                    progressFraction = progressFraction,
-                    lastReadAt = progress?.lastReadAt ?: 0L,
-                    modifier = Modifier.padding(top = Spacing.S4),
-                )
+                if (missingLabel != null) {
+                    // 欠落本の状態行（案B）: 進捗行・相対時刻を欠落文言1行に置き換える（GridBookCard と同理由）。
+                    Text(text = missingLabel, fontSize = FontLabel, color = LocalShelfColors.current.infoText)
+                } else {
+                    BookProgressRow(
+                        totalChaps = totalChaps,
+                        progressFraction = progressFraction,
+                        flexBar = false,
+                    )
+                    // よみかけに限り「いつぶりか」を静かに添える（continuity Minor・モック未表現）。
+                    RelativeReadLabel(
+                        progressFraction = progressFraction,
+                        lastReadAt = progress?.lastReadAt ?: 0L,
+                        modifier = Modifier.padding(top = Spacing.S4),
+                    )
+                }
             }
             // 選択モード中は行末に選択マーク（正本 .chk）。選択で藍塗り＋白チェック。
             if (selectionMode) {

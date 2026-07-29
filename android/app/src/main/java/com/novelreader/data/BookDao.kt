@@ -71,4 +71,13 @@ interface BookDao {
     // 古い BookEntity スナップショットで他列（addedAt 等）を巻き戻すリスクがあるため。
     @Query("UPDATE books SET ncode = :ncode WHERE id = :bookId")
     suspend fun updateNcode(bookId: String, ncode: String?)
+
+    /** 本文欠落本の再取込（復元モード・2026-07-29 案B/C）: 既存行を保持したまま本文の再生成結果だけを書き戻す。
+     *  なぜ部分 UPDATE か（updateNcode と同根＋読書資産の保全）: insertBook(REPLACE) は DELETE+INSERT で
+     *  全列を差し替えるため、addedAt・ncode・栞抽選値（shioriTipIndex/LenFrac）を取込時スナップショットで
+     *  巻き戻すリスクがある。復元で変わり得るのは本文の所在（htmlDirPath）・内容指紋（contentSha256＝
+     *  旧取込の NULL 行がここで初めて埋まる）・取込元（sourceUri＝選び直しで権限を取り直した場合）だけ。
+     *  進捗（progress 行）には一切触れない＝「読書位置としおりはそのまま残ります」の実装保証。 */
+    @Query("UPDATE books SET htmlDirPath = :htmlDirPath, contentSha256 = :contentSha256, sourceUri = :sourceUri WHERE id = :bookId")
+    suspend fun updateRestoredContent(bookId: String, htmlDirPath: String, contentSha256: String, sourceUri: String?)
 }

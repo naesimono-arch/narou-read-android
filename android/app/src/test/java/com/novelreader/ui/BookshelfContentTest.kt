@@ -34,8 +34,8 @@ import org.robolectric.annotation.Config
 /**
  * BookshelfContent（本棚の stateless 描画層）の状態分岐＋主要コールバック結線テスト（ADR 0009）。
  * state-holder / UI 分割で VM から切り出した葉が対象。Loading/Content(空)/Content(蔵書あり) の
- * 描画分岐（cold start の空フラッシュ対策 F-O の要）と、検索導線・追加導線の結線がサイレント退行
- * しないことを固定する。プラットフォーム副作用（PDF 選択・権限・バッテリー）はルート層 BookshelfScreen
+ * 描画分岐（cold start の空フラッシュ対策 F-O の要）と、追加導線の結線がサイレント退行
+ * しないことを固定する（発見・装い導線は 2026-07-29 K形正本追従で本棚から撤去済み＝不在も固定する）。プラットフォーム副作用（PDF 選択・権限・バッテリー）はルート層 BookshelfScreen
  * が持つためここでは検証しない（過剰網羅を避ける）。
  */
 @RunWith(RobolectricTestRunner::class)
@@ -54,7 +54,6 @@ class BookshelfContentTest {
         progressMap: Map<String, ProgressEntity> = emptyMap(),
         chapterCountMap: Map<String, Int> = emptyMap(),
         onFabClick: () -> Unit = {},
-        onOpenDiscovery: () -> Unit = {},
         onDeleteBooks: (List<BookEntity>, Boolean) -> Unit = { _, _ -> },
         deferHeavyContent: Boolean = false,
         // テーマ節（⋮メニュー）の検証用。読書設定シートと同じ単一真実源をそのまま差し込む。
@@ -82,7 +81,8 @@ class BookshelfContentTest {
                     actions = ShelfActions(
                         onOpenBook = {},
                         onFabClick = onFabClick,
-                        onOpenDiscovery = onOpenDiscovery,
+                        // 発見・装いは D 描画部から撤去済み（K形正本追従）＝束の契約上 no-op を渡す。
+                        onOpenDiscovery = {},
                         onOpenWardrobe = {},
                         onCancelProcessing = {},
                     ),
@@ -106,11 +106,9 @@ class BookshelfContentTest {
     }
 
     @Test
-    fun `Content(空)ではEmptyBookshelfを出し見つける導線帯は出さない`() {
+    fun `Content(空)ではEmptyBookshelfを出す`() {
         setContent(BookshelfUiState.Content(emptyList()))
         composeTestRule.onNodeWithText("本棚はまだ空です").assertIsDisplayed()
-        // 空棚では帯と EmptyBookshelf が重なるため帯は出さない設計
-        composeTestRule.onNodeWithText("新しい物語を見つける").assertDoesNotExist()
     }
 
     @Test
@@ -123,33 +121,33 @@ class BookshelfContentTest {
     @Test
     fun `遷移中(deferHeavyContent)はカードをスケルトンへ差替えヘッダは残す`() {
         // P2 遷移ジャンク対策の配線担保: enter アニメ中は重い Lazy グリッドがコンポジションから外れ
-        //（＝表紙カードが存在しない）、帯・フィルタのヘッダは実表示のまま残ることを固定する。
+        //（＝表紙カードが存在しない）、フィルタのヘッダは実表示のまま残ることを固定する
+        //（発見帯は 2026-07-29 K形正本追従で撤去済み＝ヘッダの生存確認は状態チップで行う）。
         setContent(BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))), deferHeavyContent = true)
         composeTestRule.onNodeWithContentDescription("吾輩は猫である").assertDoesNotExist()
-        composeTestRule.onNodeWithText("新しい物語を見つける").assertIsDisplayed()
+        composeTestRule.onNodeWithText("すべて").assertIsDisplayed()
     }
 
     @Test
-    fun `Content(蔵書あり)では書名と見つける導線帯を出し空メッセージは出さない`() {
+    fun `Content(蔵書あり)では書名を出し空メッセージと発見・装い導線は出さない`() {
         setContent(BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))))
         // 栞書影は題字を Canvas 描画するため text ノードを持たず、表紙の contentDescription=題名 で確認する。
         composeTestRule.onNodeWithContentDescription("吾輩は猫である").assertIsDisplayed()
-        composeTestRule.onNodeWithText("新しい物語を見つける").assertIsDisplayed()
         composeTestRule.onNodeWithText("本棚はまだ空です").assertDoesNotExist()
+        // 発見帯・トップバー🔍・装いの間（Checkroom）は撤去済み（2026-07-29 K形正本 bookshelf-D.html 追従＝
+        // 発見は「さがす」タブ・装いは設定タブへ移管）。再出現の退行をここで固定する。
+        composeTestRule.onNodeWithText("新しい物語を見つける").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("見つける").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("着せ替え").assertDoesNotExist()
     }
 
     @Test
-    fun `検索アイコンでonOpenDiscovery・追加ボタンでonFabClickが呼ばれる`() {
-        var openedDiscovery = false
+    fun `追加ボタンでonFabClickが呼ばれる`() {
         var fabClicked = false
         setContent(
             BookshelfUiState.Content(emptyList()),
             onFabClick = { fabClicked = true },
-            onOpenDiscovery = { openedDiscovery = true },
         )
-        // ラベルは用語辞書（docs/patterns/discovery-terminology.md）＝着地画面名「見つける」に一致させた。
-        composeTestRule.onNodeWithContentDescription("見つける").performClick()
-        assertTrue(openedDiscovery)
         // 空状態の「PDFを追加する」ボタンも FAB と同じ onFabClick を叩く
         composeTestRule.onNodeWithText("PDFを追加する").performClick()
         assertTrue(fabClicked)
@@ -159,7 +157,7 @@ class BookshelfContentTest {
 
     @Test
     fun `蔵書ありなら固定4状態チップが出て「すべて」既定で全カード表示`() {
-        // ラベルと違い状態チップは固定4個で常設（表示条件は FindGuideBand と同じ＝棚が非空なら出す）。
+        // ラベルと違い状態チップは固定4個で常設（棚が非空なら出す）。
         // なぜ両本によみかけ進捗を与えるか: 未読カードは進捗行に「未読」を描くため、チップ「未読」と文字が
         // 衝突して onNodeWithText が複数ノードで落ちる。よみかけ進捗（N話 X%）にしてカード側の「未読」を消し、
         // 4チップが各1ノードで数えられるようにする。

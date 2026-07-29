@@ -21,6 +21,7 @@ import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Skin
 import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.ReimportPlan
 
 // ============================================================
 // 本棚スキン面の契約（2026-07-27 純構造リファクタ）
@@ -52,6 +53,10 @@ internal data class ShelfData(
     val chapterCountMap: Map<String, Int>,
     /** 続きありバッジ用のなろう詳細（key=ncode）。 */
     val newEpisodeNovelMap: Map<String, WorkSummary>,
+    /** 本文欠落本の bookId→復旧手段（案B バッジ・2026-07-29）。キー存在＝欠落。
+     *  K と D/C 共通描画が「本文なし」バッジ・状態行に使う（M/P/J はモック未裁定のため未表出＝タップ時の
+     *  復旧ダイアログは route 層の onOpenBook 差し替えで全スキン共通に効く）。 */
+    val reimportPlans: Map<String, ReimportPlan>,
 )
 
 /**
@@ -65,12 +70,21 @@ internal data class ShelfChrome(
     val onSelectStatus: (ReadingStatus?) -> Unit,
     val processingState: ProcessingState,
     val isLoading: Boolean,
+    /** 本文欠落の一括検出バナー（案C・2026-07-29）を出すか。判定（新規検出の指紋）は VM が持つ。 */
+    val sweepBannerVisible: Boolean,
+    /** 案C バナー「あとで」＝指紋を保存して以後この集合では出さない（VM へ委譲）。 */
+    val onSweepLater: () -> Unit,
+    /** 案C バナー「まとめて再取込」＝内訳確認ダイアログを開く（ダイアログは route 層所有＝全スキン共通）。 */
+    val onSweepConfirm: () -> Unit,
 )
 
 /**
  * 全スキン面が共有する画面操作の束（開く・追加・見つける・装い・取込停止）。
- * onOpenWardrobe は K では意匠上未使用（装いの間へは設定タブから入る＝K設計）だが、
- * 実配線された本物のコールバックを渡す＝no-op 既定値は置かない。
+ * onOpenDiscovery/onOpenWardrobe は 2026-07-29 の K形正本追従で大半の面から撤去済み
+ * （発見は恒常ナビ「さがす」タブ・装いは設定タブ「きせかえ」へ移管＝ADR 0021 追記）。
+ * 残る使用はモックが温存するスキン署名のみ＝M 銘クラスタの装い（4条星）・J デッキ面クロームの
+ * 見つける/装い（K形モック対象外）。束には残す＝実配線された本物のコールバックを渡す
+ * （no-op 既定値は置かない＝配線忘れをコンパイルエラーへ格上げする流儀は不変）。
  */
 @Immutable
 internal data class ShelfActions(

@@ -87,8 +87,10 @@ import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.DeleteSourcePdfOption
+import com.novelreader.ui.MissingContentBadge
 import com.novelreader.ui.NewChaptersBadge
 import com.novelreader.ui.ProcessingBanner
+import com.novelreader.ui.ReimportSweepBanner
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.components.ShioriCover
 import com.novelreader.ui.components.shioriAccentFor
@@ -119,6 +121,7 @@ import com.novelreader.domain.deleteConfirmBody
 import com.novelreader.domain.filterShelfByStatus
 import com.novelreader.domain.mergeShelfItems
 import com.novelreader.domain.readingStatusFor
+import com.novelreader.domain.reimportStatusLabel
 import com.novelreader.domain.webNcodesInSelection
 
 // ============================================================
@@ -239,6 +242,21 @@ internal fun BookshelfK(
                 )
             }
 
+            // 本文欠落の一括検出バナー（案C・正本 bookshelf-reimport-sweep-D .alert＝ヘッダ直下スロット）。
+            // 表示可否（新規検出の指紋）は VM が判定・内訳ダイアログは route 層所有＝ここは知らせを描くだけ。
+            AnimatedVisibility(
+                visible = chrome.sweepBannerVisible,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
+            ) {
+                ReimportSweepBanner(
+                    missingCount = data.reimportPlans.size,
+                    onLater = chrome.onSweepLater,
+                    onReimport = chrome.onSweepConfirm,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
             // 状態フィルタチップ行（.chips）。棚が非空のときだけ意味を持つが、D と同じく常時出して「すべて」へ戻れる導線を保つ。
             KStatusChipRow(
                 selectedStatus = selectedStatus,
@@ -300,6 +318,8 @@ internal fun BookshelfK(
                                     onToggleSelect = { onToggleSelect(item.book.id) },
                                     onEnterSelection = { onEnterSelection(item.book.id) },
                                     modifier = Modifier.animateItem(),
+                                    // 本文欠落（案B）: バッジ＋状態行の差し替え。文言は domain が正本。
+                                    missingLabel = data.reimportPlans[item.book.id]?.let { reimportStatusLabel(it) },
                                 )
                                 // Web由来（未取込）。⋮単体の「本棚から外す」は確認を挟まない（失う進捗が無く即戻せる）。
                                 // 複数選択削除（系3）は確認ダイアログを挟む＝内訳文言で Web の可逆性を明示する。
@@ -345,6 +365,8 @@ internal fun BookshelfK(
                                     selected = item.book.id in selectedIds,
                                     onToggleSelect = { onToggleSelect(item.book.id) },
                                     onEnterSelection = { onEnterSelection(item.book.id) },
+                                    // 本文欠落（案B）: 状態部の差し替え（目録行は書影なし＝バッジは出ない）。
+                                    missingLabel = data.reimportPlans[item.book.id]?.let { reimportStatusLabel(it) },
                                 )
                                 is ShelfItem.Web -> KWebListBookCard(
                                     novel = item.novel,
@@ -581,6 +603,10 @@ private fun KGridBookCard(
     onToggleSelect: () -> Unit,
     onEnterSelection: () -> Unit,
     modifier: Modifier = Modifier,
+    // 本文欠落（案B・正本 bookshelf-reimport-badge-D）: 非 null なら書影左下に「本文なし」バッジ＋
+    // 状態行をこの文言で置き換える（文言は domain.reimportStatusLabel が正本）。タップは onOpen のまま
+    // ＝route 層が欠落本を復旧ダイアログへ差し替える（カードは知らない＝結線を一点に保つ）。
+    missingLabel: String? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val status = readingStatusFor(progress, totalChaps)
@@ -625,6 +651,12 @@ private fun KGridBookCard(
                         .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp)),
                 )
             }
+            // 欠落バッジ（案B・.miss）: 書影左下＝栞棒（上辺起点）と縦題字（右辺）のどちらとも重ならない静かな隅。
+            if (missingLabel != null) {
+                MissingContentBadge(
+                    modifier = Modifier.align(Alignment.BottomStart).padding(start = Spacing.S8, bottom = Spacing.S8),
+                )
+            }
             // 選択モード中のみ書影右上に選択マーク（⋮は書影上に置かない＝下のキャプション行へ。
             // なぜ: 栞書影の縦組み題字は右端上起点＝TopEnd の⋮と必ず衝突する。実機検分 2026-07-23 で確認）。
             if (selectionMode) {
@@ -650,7 +682,12 @@ private fun KGridBookCard(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Spacer(Modifier.height(Spacing.S4))
-                KBookStatusLine(status = status, chapNum = chapNum, totalChaps = totalChaps)
+                if (missingLabel != null) {
+                    // 欠落本の状態行（案B・.st）: 進捗の徴を欠落文言に置き換える（本文が無い本に話数を出すと嘘になる）。
+                    Text(missingLabel, fontSize = FontMicroLabel, color = LocalShelfColors.current.infoText)
+                } else {
+                    KBookStatusLine(status = status, chapNum = chapNum, totalChaps = totalChaps)
+                }
             }
             if (!selectionMode) {
                 Box {
@@ -850,6 +887,9 @@ private fun KListBookCard(
     onToggleSelect: () -> Unit,
     onEnterSelection: () -> Unit,
     modifier: Modifier = Modifier,
+    // 本文欠落（案B）: 非 null ならメタ行の状態部をこの文言で置き換える（KGridBookCard と同契約。
+    // 目録行は書影を持たないため状態文言だけが欠落を運ぶ）。
+    missingLabel: String? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val status = readingStatusFor(progress, totalChaps)
@@ -917,7 +957,12 @@ private fun KListBookCard(
                         Text("・", fontSize = FontMicroLabel, color = LocalShelfColors.current.infoText)
                     }
                     // 状態部＝グリッドの KBookStatusLine を再利用（読了/未読(藍ドット)/第N/M話）＝徴を1箇所に集約。
-                    KBookStatusLine(status = status, chapNum = chapNum, totalChaps = totalChaps)
+                    // 本文欠落（案B）はグリッドと同じ置き換え（進捗の徴を出さず欠落文言のみ）。
+                    if (missingLabel != null) {
+                        Text(missingLabel, fontSize = FontMicroLabel, color = LocalShelfColors.current.infoText)
+                    } else {
+                        KBookStatusLine(status = status, chapNum = chapNum, totalChaps = totalChaps)
+                    }
                     // 続き（新着）バッジ＝D の ListBookCard と同じ NewChaptersBadge を共有（internal 昇格）。メタ行末尾へ。
                     newCount?.let {
                         Spacer(Modifier.width(Spacing.S8))

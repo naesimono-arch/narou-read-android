@@ -74,9 +74,20 @@ data class BookEntity(
         return if (stored.exists()) stored else resolveHtmlDir(filesDir, id)
     }
 
+    /**
+     * この蔵書の本文実体が端末に在るか（本文欠落検出＝2026-07-29 案B/C の単一判定点）。
+     * index.html（目次）の実在を代表点にする: 取込パイプライン（HtmlExporter）は index を含む一式を
+     * 生成するため、index が無い＝一式が無い/書きかけ（torn）とみなして欠落扱いにする（安全側）。
+     * uninstall→Auto Backup が DB のみ復元したケースはディレクトリごと消えるのでここで検出できる。
+     */
+    fun hasContent(filesDir: File): Boolean = File(resolvedHtmlDir(filesDir), INDEX_HTML).exists()
+
     companion object {
         /** HTML 実体を格納する filesDir 直下のサブディレクトリ名（取込・掃除・復元で共有する単一の規約）。 */
         const val NOVELS_SUBDIR = "novels"
+
+        /** 本文一式の代表ファイル名（目次）。実在＝本文あり の判定点（[hasContent]）。 */
+        const val INDEX_HTML = "index.html"
 
         /** bookId から HTML ディレクトリを再導出する（filesDir/novels/<bookId>）。取込時の書き出し先・
          *  孤立HTML掃除の走査・復元時の位置復帰が同一規約を通るための一元化点。 */

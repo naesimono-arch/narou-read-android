@@ -144,4 +144,5 @@ val FontLabel = 11.sp           // 著者名・チップ・件数/進捗数字
 val FontMicroLabel = 10.5.sp    // 極小ラベル（項目名・セクション極小見出し・メタキャプション）
 val FontPresetCaption = 10.sp   // 気分プリセット説明
 val FontSealBadge = 9.5.sp      // 『了』バッジ
+val FontMissingBadge = 9.sp     // 「本文なし」欠落バッジ（案B・bookshelf-reimport-badge-D .miss の 9px）
 val FontNavLabel = 9.5.sp       // 読書下端バーのアイコン下ラベル（C①案A・reading-gear-alt-D 案A② の 9.5px）

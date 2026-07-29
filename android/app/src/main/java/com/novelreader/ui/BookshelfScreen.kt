@@ -13,15 +13,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -34,12 +31,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.listSaver
@@ -50,9 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -85,11 +77,14 @@ import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.ReimportPlan
 import com.novelreader.domain.ShelfItem
 import com.novelreader.domain.deleteConfirmBody
 import com.novelreader.domain.filterShelfByStatus
 import com.novelreader.domain.mergeShelfItems
 import com.novelreader.domain.readingStatusFor
+import com.novelreader.domain.reimportBreakdown
+import com.novelreader.domain.reimportStatusLabel
 import com.novelreader.domain.shelfStatusCounts
 import com.novelreader.domain.webNcodesInSelection
 import kotlinx.coroutines.launch
@@ -118,7 +113,10 @@ fun BookshelfScreen(
     onHighLoadSkyChange: (Boolean) -> Unit = {},
     onOpenBook: (bookId: String, startFile: String) -> Unit,
     onOpenDiscovery: () -> Unit,
-    // 装いの間（UIスキン選択）への入口。入口は本棚トップバーのみ（意図的設計＝ADR 0021 決定7）。
+    // 装いの間（UIスキン選択）への入口。2026-07-29 K形正本追従で本棚の入口は撤去し設定タブ「きせかえ」へ移管
+    //（ADR 0021 追記）。D 自身は使わないがここで受け続けるのは、モックが温存するスキン署名の入口
+    //（M 銘クラスタの4条星・J デッキ面クローム）が ShelfActions 経由で使うため。onOpenDiscovery も同様
+    //（発見は「さがす」タブへ分離済み・J デッキの発見扉だけが残置導線として使う）。
     onOpenWardrobe: () -> Unit = {},
     // (b) Web由来カードの「縦書きPDFを取り込む」→ 取り込み画面（discovery/detail/{ncode}/import）への
     // ナビゲーション。navController は MainActivity が握るためコールバックで委譲する。
@@ -141,9 +139,23 @@ fun BookshelfScreen(
     val processingState by viewModel.processingState.collectAsStateWithLifecycle()
     // 複数PDF取込で「なろう形式でないPDF」が混在したときの確認プロンプト（null=非表示）。
     val importPrompt by viewModel.importPrompt.collectAsStateWithLifecycle()
+    // 本文欠落→再取込（2026-07-29 案B＋案C）。bookId→復旧手段（null=初回検出前＝空扱い）と一括バナー可否。
+    val reimportPlans = viewModel.reimportPlans.collectAsStateWithLifecycle().value ?: emptyMap()
+    val sweepBannerVisible by viewModel.sweepBannerVisible.collectAsStateWithLifecycle()
+    // 案B: 欠落カードのタップで開く復旧ダイアログの対象（null=非表示）。案C: 一括内訳ダイアログの開閉。
+    // ダイアログは M3 AlertDialog（route 層所有）＝削除確認・取込プロンプトと同じ扱いで全スキンに被さる。
+    var reimportTarget by remember { mutableStateOf<BookEntity?>(null) }
+    var showSweepDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // 分岐②③（権限失効/記録なし）の PDF 選び直しピッカー（単数）。write 要求は通常取込と同理由
+    // （OpenPdfWithWrite 参照）。選んだ PDF は通常の addBook へ＝repository 層のハッシュ/題名照合が
+    // 既存行への復元に合流させる（同一判定は既存機序＝新しい突合を発明しない）。
+    val reimportPdfPicker = rememberLauncherForActivityResult(OpenPdfWithWrite()) { uri ->
+        if (uri != null) viewModel.addBook(uri)
+    }
 
     // PDF ファイル選択ランチャー（複数同時選択対応）。
     // OpenMultipleDocuments はキャンセル時 空リストを返す。取込は addBooks へ委ね、なろう形式でない
@@ -239,7 +251,12 @@ fun BookshelfScreen(
         actions = ShelfActions(
             // 開く際の再開ファイル解決（suspend の DB 参照）はルート層の責務。描画層は BookEntity を渡すだけ。
             onOpenBook = { book ->
-                scope.launch {
+                if (reimportPlans.containsKey(book.id)) {
+                    // 本文欠落本のタップ＝読書画面（本文が無く空になる）でなく復旧ダイアログへ（案B）。
+                    // route 層で差し替えるのは、バッジ未表出のスキン（M/P/J＝モック未裁定）でも
+                    // タップ起点の復旧が全スキン共通に成立するため。
+                    reimportTarget = book
+                } else scope.launch {
                     // 境界: book.id は Room 由来の String＝型付き API へ渡す直前に BookId へ包む。
                     val lastReadFile = viewModel.getLastRead(BookId(book.id)) ?: "index.html"
                     onOpenBook(book.id, lastReadFile)
@@ -270,6 +287,10 @@ fun BookshelfScreen(
         highLoadSkyM = highLoadSkyM,
         onHighLoadSkyChange = onHighLoadSkyChange,
         deferHeavyContent = deferHeavyContent,
+        reimportPlans = reimportPlans,
+        sweepBannerVisible = sweepBannerVisible,
+        onSweepLater = { viewModel.dismissSweepBanner() },
+        onSweepConfirm = { showSweepDialog = true },
     )
 
     // エラーは一度きりのイベントとして Channel から受信し Snackbar 表示する（VM イベント購読＝ルート層の責務）。
@@ -426,6 +447,159 @@ fun BookshelfScreen(
             },
         )
     }
+
+    // ── 本文欠落→再取込ダイアログ（案B・正本 bookshelf-reimport-badge-D の4分岐）────────────────
+    // 対象の plan が消えたら（背後で復旧が完走した等）ダイアログごと静かに消える＝古い操作を残さない。
+    // 全分岐で「読書位置としおりは残る」を明記（C2・進捗 DB に触れない実装保証は BookDao.updateRestoredContent）。
+    reimportTarget?.let { book ->
+        reimportPlans[book.id]?.let { plan ->
+            val dismiss = { reimportTarget = null }
+            when (plan) {
+                is ReimportPlan.AutoPdf -> AlertDialog(
+                    onDismissRequest = dismiss,
+                    title = { Text("『${book.title}』を元のPDFから再取込しますか？") },
+                    text = {
+                        Text(
+                            "変換した本文ファイルがこの端末にありません。記録されている取込元 PDF から" +
+                                "もう一度変換します。読書位置としおりはそのまま残ります。",
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { viewModel.reimportFromSource(book); dismiss() }) { Text("再取込する") }
+                    },
+                    dismissButton = { TextButton(onClick = dismiss) { Text("やめる") } },
+                )
+                is ReimportPlan.PickPdfPermissionLost -> AlertDialog(
+                    onDismissRequest = dismiss,
+                    title = { Text("PDFを選び直してください") },
+                    text = {
+                        Column {
+                            Text(
+                                "取込元の記録はありますが、読み出す権限が切れています。同じ PDF を" +
+                                    "もう一度選ぶと、読書位置ごと復元されます。",
+                            )
+                            // 取込元の手がかり行（②のみ＝選び直しの判断材料。URI から復元できないときは出さない）。
+                            plan.fileNameHint?.let { hint ->
+                                Spacer(Modifier.height(Spacing.S12))
+                                Text(
+                                    "取込元の PDF: $hint",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { reimportPdfPicker.launch(arrayOf("application/pdf")); dismiss() }) {
+                            Text("PDFを選ぶ")
+                        }
+                    },
+                    dismissButton = { TextButton(onClick = dismiss) { Text("やめる") } },
+                )
+                ReimportPlan.PickPdfNoRecord -> AlertDialog(
+                    onDismissRequest = dismiss,
+                    title = { Text("PDFを選んで再取込") },
+                    text = {
+                        Text(
+                            "この本には取込元の記録がありません（記録機能より前に取り込まれた本）。" +
+                                "同じ PDF を選ぶと、読書位置ごと復元されます。",
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { reimportPdfPicker.launch(arrayOf("application/pdf")); dismiss() }) {
+                            Text("PDFを選ぶ")
+                        }
+                    },
+                    dismissButton = { TextButton(onClick = dismiss) { Text("やめる") } },
+                )
+                is ReimportPlan.AutoWeb -> AlertDialog(
+                    onDismissRequest = dismiss,
+                    title = { Text("『${book.title}』をWebから再取得しますか？") },
+                    text = {
+                        Text(
+                            "Web から取り込んだ作品です。作品ページからもう一度取得して復元します。" +
+                                "読書位置としおりはそのまま残ります。",
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { viewModel.importWebNovel(plan.sourceUrl); dismiss() }) { Text("再取得する") }
+                    },
+                    dismissButton = { TextButton(onClick = dismiss) { Text("やめる") } },
+                )
+            }
+        }
+    }
+
+    // ── 一括再取込の内訳確認ダイアログ（案C・正本 bookshelf-reimport-sweep-D の .roll）──────────
+    // CTA は自動で戻せる分（①＋④）のみ実行＝SAF ピッカー必須分（②③）を混ぜない（「まとめて」の嘘防止）。
+    if (showSweepDialog) {
+        val breakdown = reimportBreakdown(reimportPlans.values)
+        val closeSweep = { showSweepDialog = false }
+        AlertDialog(
+            onDismissRequest = closeSweep,
+            title = { Text("${breakdown.total}冊をまとめて再取込しますか？") },
+            text = {
+                Column {
+                    // 内訳（0冊の系統は出さない＝存在しない分類で数字を水増ししない）。
+                    // 藍ドット＝自動で戻る群／中空ドット＝ユーザー操作が要る群（モック .roll の translation）。
+                    ReimportBreakdownRow(breakdown.autoPdf, true, "元のPDFから自動で再変換（取込元の記録と権限あり）")
+                    ReimportBreakdownRow(breakdown.autoWeb, true, "Webから自動で再取得（Web作品）")
+                    ReimportBreakdownRow(breakdown.pickPermissionLost, false, "PDFの選び直しが必要（読み出し権限が切れています）")
+                    ReimportBreakdownRow(breakdown.pickNoRecord, false, "PDFの選択が必要（取込元の記録がない旧い取込）")
+                    Spacer(Modifier.height(Spacing.S12))
+                    Text(
+                        when {
+                            breakdown.autoTotal == 0 ->
+                                "いずれもPDFの選び直しが必要です。本棚のカードから個別に再取込できます。" +
+                                    "読書位置としおりはそのまま残ります。"
+                            breakdown.manualTotal == 0 ->
+                                "自動で戻せる ${breakdown.autoTotal}冊 を再取込します。読書位置としおりはそのまま残ります。"
+                            else ->
+                                "自動で戻せる ${breakdown.autoTotal}冊 を先に再取込します。残り ${breakdown.manualTotal}冊 は" +
+                                    "本棚のカードから個別に再取込できます。読書位置としおりはそのまま残ります。"
+                        },
+                    )
+                }
+            },
+            confirmButton = {
+                if (breakdown.autoTotal > 0) {
+                    TextButton(onClick = { viewModel.runSweepReimport(); closeSweep() }) {
+                        Text("${breakdown.autoTotal}冊を再取込する")
+                    }
+                } else {
+                    // 自動対象ゼロ＝実行するものが無い。内訳の提示だけが役目なので「閉じる」1本にする。
+                    TextButton(onClick = closeSweep) { Text("閉じる") }
+                }
+            },
+            dismissButton = {
+                if (breakdown.autoTotal > 0) TextButton(onClick = closeSweep) { Text("やめる") }
+            },
+        )
+    }
+}
+
+/** 一括確認ダイアログの内訳1行（モック .roll .r）。count=0 の系統は描かない。auto=藍ドット／manual=中空ドット。 */
+@Composable
+private fun ReimportBreakdownRow(count: Int, auto: Boolean, label: String) {
+    if (count == 0) return
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(vertical = Spacing.S4),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .then(
+                    if (auto) Modifier.background(MaterialTheme.colorScheme.primary)
+                    else Modifier.border(1.dp, MaterialTheme.colorScheme.onSurfaceVariant, androidx.compose.foundation.shape.CircleShape),
+                ),
+        )
+        Spacer(Modifier.width(Spacing.S8))
+        Text("${count}冊", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.width(Spacing.S8))
+        Text(label, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+    }
 }
 
 /**
@@ -462,6 +636,11 @@ internal fun BookshelfContent(
     // 遷移ジャンク対策（P2・Perfetto 2026-07-16）: true の間（＝本棚の enter アニメ中）は重い Lazy コンテナを
     // スケルトンへ差替える。既定 false＝既存の呼出し・Robolectric テストの描画は完全に不変。
     deferHeavyContent: Boolean = false,
+    // 本文欠落→再取込（2026-07-29 案B＋案C）。既定値は既存呼び出し・テストの互換（空＝欠落なし表示で従来どおり）。
+    reimportPlans: Map<String, ReimportPlan> = emptyMap(),
+    sweepBannerVisible: Boolean = false,
+    onSweepLater: () -> Unit = {},
+    onSweepConfirm: () -> Unit = {},
 ) {
     val isLoading = uiState is BookshelfUiState.Loading
     val books = (uiState as? BookshelfUiState.Content)?.books ?: emptyList()
@@ -515,6 +694,7 @@ internal fun BookshelfContent(
         progressMap = progressMap,
         chapterCountMap = chapterCountMap,
         newEpisodeNovelMap = newEpisodeNovelMap,
+        reimportPlans = reimportPlans,
     )
     val chrome = ShelfChrome(
         selectedStatus = selectedStatus,
@@ -522,6 +702,9 @@ internal fun BookshelfContent(
         onSelectStatus = { selectedStatusName = it?.name },
         processingState = processingState,
         isLoading = isLoading,
+        sweepBannerVisible = sweepBannerVisible,
+        onSweepLater = onSweepLater,
+        onSweepConfirm = onSweepConfirm,
     )
     val selection = ShelfSelection(
         selectionMode = selectionMode,
@@ -554,8 +737,7 @@ internal fun BookshelfContent(
     // ── 束の展開（D/C 共通描画用の局所別名＝以降の本体参照を変えない） ──
     val onOpenBook = actions.onOpenBook
     val onFabClick = actions.onFabClick
-    val onOpenDiscovery = actions.onOpenDiscovery
-    val onOpenWardrobe = actions.onOpenWardrobe
+    // onOpenDiscovery/onOpenWardrobe の局所別名は撤去済み（2026-07-29 K形正本追従＝D 共通描画は発見・装い導線を持たない）。
     val onCancelProcessing = actions.onCancelProcessing
     val onOpenWebNovel = webActions.onOpenWebNovel
     val onResumeWebNovel = webActions.onResumeWebNovel
@@ -653,15 +835,7 @@ internal fun BookshelfContent(
                         }
                     },
                     actions = {
-                        IconButton(onClick = onOpenDiscovery) {
-                            Icon(
-                                imageVector = Icons.Filled.Search,
-                                // 着地は発見ホーム（画面名「見つける」）＝ラベルと着地を一致させる
-                                // （用語辞書 docs/patterns/discovery-terminology.md・「探す」は検索画面の語）。
-                                contentDescription = "見つける",
-                            )
-                        }
-                        // グリッド/リスト切り替え（モック .top の第1アクション）。この描画部は D/C 専用
+                        // グリッド/リスト切り替え（モック .top の唯一のアクション）。この描画部は D/C 専用
                         // （M/P/J/K は上流の when で return 済み＝旧・スキン別トグル分岐は到達不能の残骸だったため撤去）。
                         IconButton(onClick = gridToggle::toggle) {
                             Icon(
@@ -669,18 +843,12 @@ internal fun BookshelfContent(
                                 contentDescription = if (isGridView) "リスト表示" else "グリッド表示",
                             )
                         }
-                        // 装いの間（UIスキン選択）への入口。入口は本棚のみ＝意図的設計（ADR 0021 決定7）。
-                        IconButton(onClick = onOpenWardrobe) {
-                            Icon(
-                                imageVector = Icons.Filled.Checkroom,
-                                contentDescription = "着せ替え",
-                            )
-                        }
-                        // ⋮ オーバーフロー（テーマ4択・新着通知・debug診断）は撤去した（2026-07-24 K形伝播・系2）。
+                        // 見つける🔍・装いの間（Checkroom）は撤去した（2026-07-29 ユーザー裁定＝K形正本 bookshelf-D.html 追従）:
+                        // 発見は恒常ナビ「さがす」タブへ完全分離・装いの間の入口は設定タブ「きせかえ」へ移管（ADR 0021 追記）。
+                        // ⋮ オーバーフロー（テーマ4択・新着通知・debug診断）は撤去済み（2026-07-24 K形伝播・系2）。
                         // なぜ撤去か（全スキンの⋮を貫く同基準）: これらは設定タブ（SettingsScreenK＝テーマ/通知/取込診断）へ
                         // 移行済みで、同一機能が本棚⋮と設定の2箇所に重複していた。設定を単一正本に寄せ、重複導線を断つ。
-                        // D では⋮内の項目が上記3つだけ＝撤去すると空になるため、⋮ボタンごと除く（空メニューを残さない）。
-                        // 非設定項目（表示切替・装いの間）は別アイコンとして温存済み。
+                        // D では⋮内の項目が上記3つだけ＝撤去すると空になるため、⋮ボタンごと除いた（空メニューを残さない）。
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface,
@@ -706,6 +874,27 @@ internal fun BookshelfContent(
                         processingState = processingState,
                         onStop = onCancelProcessing,
                         // 幅指定は呼び出し側の責務。従来の内部 fillMaxWidth と同じ描画を維持。
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+
+                // 本文欠落の一括検出バナー（案C）。取込中バナーと同じヘッダ直下スロット・同じ Motion 出没。
+                // 表示可否（新規検出の指紋）は VM が判定＝ここは可視フラグの写しを描くだけ。
+                AnimatedVisibility(
+                    visible = sweepBannerVisible,
+                    enter = slideInVertically(
+                        animationSpec = tween(MotionDurationReveal),
+                        initialOffsetY = { -it },
+                    ) + fadeIn(animationSpec = tween(MotionDurationReveal)),
+                    exit = slideOutVertically(
+                        animationSpec = tween(MotionDurationDismiss),
+                        targetOffsetY = { -it },
+                    ) + fadeOut(animationSpec = tween(MotionDurationDismiss)),
+                ) {
+                    ReimportSweepBanner(
+                        missingCount = reimportPlans.size,
+                        onLater = onSweepLater,
+                        onReimport = onSweepConfirm,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -787,53 +976,12 @@ internal fun BookshelfContent(
                 // ため空棚では出さない）。
                 EmptyBookshelf(onAddClick = onFabClick, modifier = Modifier.fillMaxSize())
             } else {
-                // 帯＋フィルタを Lazy コンテナの外＝固定ヘッダへ hoist する（2026-07-14 C② collapse 再設計・裁定＝完全退避）。
-                // なぜ hoist か: 発見帯『新しい物語を見つける』は位置も役割も変わらない同一要素のため、スクロールで
-                // restyle（箱→1行・墨→藍）すると「変わらないものが姿だけ変える」違和感を生む（2026-07-14 実機却下の
-                // 本質原因）。よって帯は restyle せず、先頭到達時のみフル表示・下スクロールで AnimatedVisibility で畳んで
-                // 退避する（フルの見た目のまま隠すだけ）。フィルタ行は常時表示＝sticky にして「フィルタが常に届く」を担保する。
-                // LazyVerticalGrid に stickyHeader が無く本棚はグリッド/リスト2モードのため、Lazy の外への hoist が
-                // 両モード一律 sticky の素直な解（発見は第二の柱＝いずれ再調整予定・handover ★残1 の設計メモ）。
-                val density = LocalDensity.current
-                val showBand by remember(isGridView, density) {
-                    derivedStateOf {
-                        // 先頭の書影が最上部付近にある時のみ帯フル表示。8dp は微小スクロールでの帯のちらつきを防ぐ
-                        // デッドゾーン（余白トークンでなく操作の hysteresis 閾値のため .dp 直書きでよい・spacing lint 対象外）。
-                        val threshold = with(density) { Spacing.S8.toPx() }
-                        val (index, offset) = if (isGridView) {
-                            gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset
-                        } else {
-                            listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
-                        }
-                        index == 0 && offset < threshold
-                    }
-                }
+                // 発見帯『新しい物語を見つける』（FindGuideBand）は撤去した（2026-07-29 ユーザー裁定＝K形正本
+                // bookshelf-D.html 追従。発見は恒常ナビ「さがす」タブへ完全分離＝本棚は発見導線を持たない）。
+                // フィルタ行の hoist（Lazy コンテナの外＝固定ヘッダ）は温存: LazyVerticalGrid に stickyHeader が無く
+                // 本棚はグリッド/リスト2モードのため、外への hoist が両モード一律 sticky の素直な解（2026-07-14 裁定）。
                 Column(modifier = Modifier.fillMaxSize()) {
-                    // 発見帯（完全退避）: restyle でなく「高さを 0 へ畳んで」退避する（fade 併用・reveal250/dismiss150＝Motion.kt が正本）。
-                    // なぜ slide でなく shrink/expand か: slideOut+fadeOut だと AnimatedVisibility 既定の size 縮小が
-                    // 置き換わり、退避アニメ中は帯の占有スペースがフルのまま予約され続け、終了の瞬間に一気に除去される
-                    // →下のグリッドが最後にカクッと跳ねる（2026-07-14 実機所見「消える瞬間のくっと」の真因）。自作モックの
-                    // max-height:0 遷移に忠実な高さ連続縮小に戻し、スクロールと連続して畳むことでスナップを無くす。
-                    // shrinkTowards/expandFrom=Top＝上端（バー側）を固定し下端を畳む＝フィルタ以下が滑らかに追従する。
-                    AnimatedVisibility(
-                        visible = showBand,
-                        enter = expandVertically(
-                            animationSpec = tween(MotionDurationReveal),
-                            expandFrom = Alignment.Top,
-                        ) + fadeIn(animationSpec = tween(MotionDurationReveal)),
-                        exit = shrinkVertically(
-                            animationSpec = tween(MotionDurationDismiss),
-                            shrinkTowards = Alignment.Top,
-                        ) + fadeOut(animationSpec = tween(MotionDurationDismiss)),
-                    ) {
-                        FindGuideBand(
-                            onClick = onOpenDiscovery,
-                            modifier = Modifier.padding(
-                                start = Spacing.S24, top = Spacing.S12, end = Spacing.S24, bottom = Spacing.S4,
-                            ),
-                        )
-                    }
-                    // 読書状態フィルタのチップ行（sticky＝常時表示。帯が退避しても残し「すべて」へ戻れる導線を保つ）。
+                    // 読書状態フィルタのチップ行（sticky＝常時表示。「すべて」へ戻れる導線を保つ）。
                     StatusChipRow(
                         selectedStatus = selectedStatus,
                         onSelect = { selectedStatusName = it?.name },
@@ -898,6 +1046,8 @@ internal fun BookshelfContent(
                                             onEnterSelection = { enterSelection(item.book.id) },
                                             playSealStamp = finished && sealSeenUnfinished.contains(item.book.id),
                                             onSealStamped = { sealSeenUnfinished.remove(item.book.id) },
+                                            // 本文欠落（案B）: バッジ＋状態行の差し替え。文言は domain が正本。
+                                            missingLabel = reimportPlans[item.book.id]?.let { reimportStatusLabel(it) },
                                         )
                                     }
                                     // (b) Web由来カード。外す操作は確認ダイアログを挟まない: 蔵書削除と違い
@@ -944,6 +1094,8 @@ internal fun BookshelfContent(
                                         selected = item.book.id in selectedIds,
                                         onToggleSelect = { toggleSelect(item.book.id) },
                                         onEnterSelection = { enterSelection(item.book.id) },
+                                        // 本文欠落（案B）: 状態行の差し替え（目録は書影なし＝バッジは出ない）。
+                                        missingLabel = reimportPlans[item.book.id]?.let { reimportStatusLabel(it) },
                                     )
                                     is ShelfItem.Web -> WebListBookCard(
                                         novel = item.novel,
@@ -1125,54 +1277,6 @@ private fun StatusFilterEmptyText(modifier: Modifier = Modifier) {
 }
 
 // ============================================================
-// 見つける導線帯（モック bookshelf-fusion-D .find-guide）
-// 本棚先頭に置く静かな発見入口。TopAppBar の🔍と役割が重なるが、モックは両方持つ
-// （帯＝発見機能を知らない人への明示導線／🔍＝知っている人の常設ショートカット）。
-// ============================================================
-@Composable
-private fun FindGuideBand(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(2.dp))
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(2.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.S16, vertical = Spacing.S12),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Filled.Search,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(15.dp),
-        )
-        Spacer(Modifier.width(Spacing.S8))
-        Text(
-            text = "新しい物語を見つける",
-            fontSize = FontButtonLabel,
-            color = MaterialTheme.colorScheme.onSurface,
-            // フォントスケール拡大時の窮屈対策（2026-07-08 実機所見）: weight(1f) の文字箱は
-            // シェブロンの縁まで届くため、拡大で字面が右端アイコンに密着して見えた。
-            // 1行固定＋末尾省略で高さ崩れも防ぐ（帯は導線であり全文可読が必須の文言ではない）。
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        // 拡大時もテキストとシェブロンの間に最低8dpの呼吸を確保（先頭アイコン側と対称）
-        Spacer(Modifier.width(Spacing.S8))
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(14.dp),
-        )
-    }
-}
-
-// ============================================================
 // 本棚スケルトン（F-O）: DB 初回発行前に表紙の場所取りを出し、cold start の空フラッシュを防ぐ。
 // 既存カード寸法（グリッド=2列・書影2:3／リスト=46×69）に合わせた静的プレースホルダ。
 // 意匠を発明しないため新規色は使わず surfaceVariant/outlineVariant トークンのみで構成する。
@@ -1278,6 +1382,16 @@ private fun SkeletonLine(
  * READ|WRITE→READ のフォールバックで確定する（書込を持てない本は取込元PDF削除の対象外＝sourceUri は NULL）。
  */
 private class OpenMultiplePdfWithWrite : ActivityResultContracts.OpenMultipleDocuments() {
+    override fun createIntent(context: Context, input: Array<String>): Intent =
+        super.createIntent(context, input).addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+}
+
+/**
+ * 単数版（本文欠落→再取込の分岐②③＝PDF の選び直し・2026-07-29 案B）。write 要求の理由は
+ * [OpenMultiplePdfWithWrite] と同一（選び直した PDF でも「取込元PDF削除」と以後の自動再取込を成立させる
+ * ＝take 側 BookshelfViewModel.addBook の READ|WRITE→READ フォールバックも同経路で共有する）。
+ */
+private class OpenPdfWithWrite : ActivityResultContracts.OpenDocument() {
     override fun createIntent(context: Context, input: Array<String>): Intent =
         super.createIntent(context, input).addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
 }

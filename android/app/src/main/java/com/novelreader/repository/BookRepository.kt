@@ -66,9 +66,12 @@ interface BookRepository {
     /** addBook の取込結果。同一PDFの二重取込（UX監査 F-G 公理3べき等性）を呼び出し側で
      *  区別できるよう、新規登録と重複スキップを型で分ける（Service の通知文面を分岐させる）。 */
     sealed interface AddBookResult {
-        /** 新規に蔵書登録した本。 */
-        data class Added(val book: BookEntity) : AddBookResult
-        /** 既に同一の本が蔵書済みのため登録をスキップした（変換成果は破棄済み）。既存の本を返す。 */
+        /** 新規に蔵書登録した本。restored=true は「既存行を保持したまま本文だけ再生成した」復元
+         *  （本文欠落→再取込・2026-07-29 案B/C）。新サブタイプにしない理由: 既存の網羅 when
+         *  （PdfProcessingService 等）を壊さず、復元は「本が使える状態になった」点で Added と同義のため。 */
+        data class Added(val book: BookEntity, val restored: Boolean = false) : AddBookResult
+        /** 既に同一の本が蔵書済みのため登録をスキップした（変換成果は破棄済み）。既存の本を返す。
+         *  本文実体が欠落している既存本はこの分岐に入らず、復元（Added(restored=true)）へ回る。 */
         data class Duplicate(val existing: BookEntity) : AddBookResult
     }
 

@@ -2,6 +2,7 @@ package com.novelreader.viewmodel
 
 import android.app.Application
 import android.content.ContentResolver
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -10,6 +11,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.novelreader.NovelReaderApplication
 import com.novelreader.PdfProcessingService
+import com.novelreader.PrefKeys
+import com.novelreader.domain.ReimportPlan
+import com.novelreader.domain.buildReimportPlans
+import com.novelreader.domain.pruneReimportSeenIds
+import com.novelreader.domain.shouldShowReimportSweep
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
@@ -95,7 +101,47 @@ data class AppErrorEvent(
     // 一過性フラグ: 取込完了/取込済み等の情報通知は UI 側で actionLabel を付けず Short で自動消滅させる目印。
     // actionLabel 付き Snackbar は Material3 で duration 既定が Indefinite になり画面へ残留するため（案d）。
     val transient: Boolean = false,
-)
+    // 同型集約の印（2026-07-29 裁定④）: 同じ key の一括投入（複数PDF再取込→全件「取り込み済み」）を
+    // UI へ渡す手前で「N件は取り込み済みです」1本に集約する（aggregateErrorEvents）。
+    // 2026-07-16 実機確定の複合＝Channel(BUFFERED) の直列消費で「閉じた直後に同型が即再表示」が対象。
+    // retryUri/openUrl（アクション持ち）は集約すると操作を失うため key を付けない運用が前提。
+    val aggregationKey: String? = null,
+) {
+    companion object {
+        /** 重複取込（既に蔵書済み）通知の集約キー。PDF（Service 側2箇所）と Web 取込の Duplicate が共有する。 */
+        const val KEY_DUPLICATE_IMPORT = "duplicate-import"
+    }
+}
+
+/**
+ * 同一バッチ（いま届いた1件＋バッファ済みの吸い出し分）のエラーイベントを同型集約する純関数。
+ * aggregationKey が同じイベントが2件以上あれば、最初の出現位置に「N件は取り込み済みです」1件へ畳む
+ * （1件だけなら原文のまま＝「「title」は既に取り込み済みです」の個別情報を捨てない）。
+ * key 無し（失敗・再試行・案内などアクション持ち含む）は順序ごと素通しする。
+ * transient は全員一致のときだけ引き継ぐ: PDF 重複（「閉じる」残置）と Web 重複（Short 自動消滅）が
+ * 混在したとき、勝手に自動消滅へ倒して見落としを作らないため（安全側＝残置）。
+ * 注意: 集約文言は現状唯一のキー（KEY_DUPLICATE_IMPORT）専用。キーを増やすときはここで文言を分岐する。
+ */
+internal fun aggregateErrorEvents(events: List<AppErrorEvent>): List<AppErrorEvent> {
+    if (events.size < 2) return events
+    val countByKey = events.mapNotNull { it.aggregationKey }.groupingBy { it }.eachCount()
+    val emitted = mutableSetOf<String>()
+    return events.mapNotNull { e ->
+        val key = e.aggregationKey
+        when {
+            key == null || countByKey.getValue(key) < 2 -> e
+            emitted.add(key) -> {
+                val group = events.filter { it.aggregationKey == key }
+                AppErrorEvent(
+                    message = "${group.size}件は取り込み済みです",
+                    transient = group.all { it.transient },
+                    aggregationKey = key,
+                )
+            }
+            else -> null // 同キーの2件目以降は集約済み＝落とす
+        }
+    }
+}
 
 /**
  * なろう紐付けシート（NcodeLinkSheet）の候補検索の状態。
@@ -126,6 +172,10 @@ data class ProcessingState(
     val queueTotal: Int = 1,
     // 停止操作後、処理中の1冊が完了するまでの「停止しています…」状態。
     val isStopping: Boolean = false,
+    // 供給元（PDF=Service の4段ステップ変換／WEB=章単位取得）。バナーのステッパー出し分けと
+    // 停止操作のディスパッチ先の判定に使う。既定 PDF は既存の Service 構築呼び出しを不変に保つ互換値
+    // （実際の刻印は ProcessingStateHub.update が supply 元スロットで強制する＝設定忘れでもズレない）。
+    val source: ProcessingSource = ProcessingSource.PDF,
 )
 
 // ioDispatcher: 進捗保存チャネルの消費など「テストで advanceUntilIdle→coVerify の順に
@@ -226,13 +276,114 @@ class BookshelfViewModel @JvmOverloads constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
+    // ── 本文欠落→再取込提案（2026-07-29 裁定・案B バッジ＋案C 一括バナー）──────────────────
+    // 検出定義: books 行はあるが本文実体（index.html）が無い（機序＝uninstall→Auto Backup が DB のみ復元）。
+    // 分類・指紋の純ロジックは domain/ReimportPlan.kt（JVM テスト対象）。ここは Android 依存（ファイル実在・
+    // 永続権限・prefs）の注入と配線だけを持つ。
+
+    private val appPrefs = application.getSharedPreferences(PrefKeys.FILE_APP_PREFS, Context.MODE_PRIVATE)
+
+    // 再検出の合図。取込/再取込の完走（isProcessing の true→false 立ち下がり）で bump する。
+    // なぜ必要か: ハッシュ一致の復元は行の値が1つも変わらないことがあり（同一パス・同一指紋・同一 sourceUri
+    // の UPDATE）、books StateFlow が equals 同値で再発行しない＝ファイル実在の再確認をこの tick で強制する。
+    private val reimportRecheckTick = MutableStateFlow(0)
+
+    /** 欠落本の bookId→復旧手段（案B バッジ・案C バナーの共通データ源）。null＝初回検出前。
+     *  なぜ null 初期値か: emptyMap 初期値だと「検出未完了」と「欠落ゼロ」が区別できず、
+     *  下の onEach が seen 指紋を誤って空へ刈り込む。 */
+    val reimportPlans: StateFlow<Map<String, ReimportPlan>?> =
+        combine(uiState, reimportRecheckTick) { s, _ -> (s as? BookshelfUiState.Content)?.books }
+            .map { list ->
+                list?.let {
+                    val filesDir = getApplication<Application>().filesDir
+                    val resolver = getApplication<Application>().contentResolver
+                    buildReimportPlans(
+                        it,
+                        isContentMissing = { book -> !book.hasContent(filesDir) },
+                        hasPersistedRead = { uri ->
+                            resolver.persistedUriPermissions.any { p ->
+                                p.uri.toString() == uri && p.isReadPermission
+                            }
+                        },
+                    )
+                }
+            }
+            // 検出が確定するたび seen 指紋を現欠落へ刈り込む（seen = seen ∩ missing）。
+            // なぜ: 一度復旧した本が将来また欠落したとき、それは「新規の検出」＝バナーを出し直すべきイベント。
+            // なぜ init の常駐 collector でなくチェーン内 onEach か（監督ゲート FAIL 2026-07-29 の真因是正）:
+            // 常駐 collector は WhileSubscribed を事実上 Eagerly 化し、VM 構築と同時に uiState 上流（DB 購読）
+            // まで hot にしてしまう＝「未購読なら uiState は Loading のまま」という F-O 契約を破り、
+            // 検出のファイル走査も購読の無い場面（JVM テスト含む）で走ってしまう。刈り込みは「現在欠落でない
+            // id を seen から外すだけ」＝現在の表示判定 (missing−seen) を変えないため、購読中にだけ走れば足りる。
+            .onEach { plans ->
+                if (plans == null) return@onEach // 初回検出前は指紋に触れない（null 初期値の why 参照）
+                val pruned = pruneReimportSeenIds(sweepSeenIds.value, plans.keys)
+                if (pruned != sweepSeenIds.value) persistSweepSeenIds(pruned)
+            }
+            // ファイル実在チェックは IO。注入 ioDispatcher なのはテストで advanceUntilIdle が検出完了を待てるように
+            //（progressChannel 消費と同理由。本番は既定 Dispatchers.IO＝挙動不変）。
+            .flowOn(ioDispatcher)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    // 案C バナーの提示済み指紋（欠落 bookId 集合）。prefs 正本・StateFlow はその鏡（combine で反応させるため）。
+    private val sweepSeenIds = MutableStateFlow(
+        appPrefs.getStringSet(PrefKeys.REIMPORT_SWEEP_SEEN_IDS, emptySet())?.toSet() ?: emptySet()
+    )
+
+    /** 案C バナーの表示可否。「新規に検出した際に一度だけ」＝seen 指紋に無い欠落があるときだけ true。 */
+    val sweepBannerVisible: StateFlow<Boolean> =
+        combine(reimportPlans, sweepSeenIds) { plans, seen ->
+            plans != null && shouldShowReimportSweep(plans.keys, seen)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    private fun persistSweepSeenIds(ids: Set<String>) {
+        sweepSeenIds.value = ids
+        // getStringSet が返した参照を書き戻さないよう常にコピーを渡す（SharedPreferences の既知の罠）。
+        appPrefs.edit().putStringSet(PrefKeys.REIMPORT_SWEEP_SEEN_IDS, ids.toSet()).apply()
+    }
+
+    /** 案C バナー「あとで」: 現欠落集合を提示済み指紋として保存（同一集合では再表示しない）。
+     *  バッジ（案B）は消えない＝バナーを閉じても復旧手段はカード起点で残る設計。 */
+    fun dismissSweepBanner() {
+        reimportPlans.value?.let { persistSweepSeenIds(it.keys.toSet()) }
+    }
+
+    /** 案C「まとめて再取込」実行: 自動復旧可能分（①元PDF＋④Web）だけを既存の取込経路へ投入する。
+     *  SAF ピッカー必須分（②③）は混ぜない（1冊ずつユーザー操作が必須＝「まとめて」を嘘にしないための除外）。
+     *  直列化は既存機構に乗せる: PDF＝FGS の ArrayDeque キュー（Service が逐次処理）／
+     *  Web＝importWebNovels の単一コルーチン逐次実行＝新しい並列実行を発明しない。 */
+    fun runSweepReimport() {
+        val plans = reimportPlans.value ?: return
+        persistSweepSeenIds(plans.keys.toSet())
+        plans.values.filterIsInstance<ReimportPlan.AutoPdf>().forEach { addBook(Uri.parse(it.sourceUri)) }
+        val webUrls = plans.values.filterIsInstance<ReimportPlan.AutoWeb>().map { it.sourceUrl }
+        if (webUrls.isNotEmpty()) importWebNovels(webUrls)
+    }
+
+    /** 案B ダイアログ①: 記録済み取込元 PDF から自動再取込（既存 FGS キューに乗り、repository 層の
+     *  ハッシュ一致→復元モードが既存行を保持したまま本文だけ再生成する）。 */
+    fun reimportFromSource(book: BookEntity) {
+        book.sourceUri?.let { addBook(Uri.parse(it)) }
+    }
+
     // Application の StateFlow を購読して processingState を提供
     val processingState: StateFlow<ProcessingState> = app.processingState
         .map { it ?: ProcessingState() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProcessingState())
 
-    // エラーは一度きりのイベント。Application の Channel を購読してそのまま UI へ流す。
-    val errorEvents: Flow<AppErrorEvent> = app.errorEvents
+    // エラーは一度きりのイベント。Application の Channel を購読し、同型集約（裁定④）を挟んで UI へ流す:
+    // いま届いた1件に加えバッファ済みの同時投入分をその場で吸い出し、同 aggregationKey の2件以上を
+    // 「N件は取り込み済みです」1本へ畳む。actionLabel 付き Snackbar（Indefinite）表示中に後続が
+    // Channel(BUFFERED) へ溜まる構造（2026-07-16 実機確定）ゆえ、閉じた直後の次イベント処理時には
+    // 残りが揃って吸い出せる＝最悪でも「個別1本＋集約1本」に収まる。
+    // トレードオフ（why）: 吸い出した分はローカルリストに移る＝表示途中で画面が破棄されると残りは失われるが、
+    // 対象は情報通知（重複・案内）で、アクション持ち（retryUri/openUrl）も downstream の逐次表示で
+    // 1件ずつ dismiss されるまで emit が suspend するため従来と同じ滞留挙動になる。
+    val errorEvents: Flow<AppErrorEvent> = flow {
+        app.errorEvents.collect { first ->
+            aggregateErrorEvents(listOf(first) + app.drainPendingErrorEvents()).forEach { emit(it) }
+        }
+    }
 
     // 進捗（章移動＋章内スクロール位置）の保存要求を単一チャネルに集約する。
     // なぜ1本に統合するか: 以前は章移動用とスクロール用で2本のチャネル＋2コルーチンに
@@ -246,6 +397,16 @@ class BookshelfViewModel @JvmOverloads constructor(
     private val progressChannel = Channel<ProgressEntity>(Channel.CONFLATED)
 
     init {
+        // 取込完走（isProcessing の true→false 立ち下がり）で欠落を再検出する（reimportRecheckTick の why）。
+        // 生の app.processingState を読むのは cancelProcessing と同じ理由（stateIn の反映遅れを避ける）。
+        viewModelScope.launch {
+            var wasProcessing = false
+            app.processingState.collect { s ->
+                val now = s?.isProcessing == true
+                if (wasProcessing && !now) reimportRecheckTick.value++
+                wasProcessing = now
+            }
+        }
         // なぜ ioDispatcher 注入か: 素の Dispatchers.IO だとテストの TestDispatcher 管理外で走り、
         // advanceUntilIdle がチャネル消費完了を待てず coVerify とレースする（本番は既定＝IO のまま）。
         viewModelScope.launch(ioDispatcher) {
@@ -353,14 +514,44 @@ class BookshelfViewModel @JvmOverloads constructor(
             }
         }.getOrNull()?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment.orEmpty()
 
-    // 変換の全体停止。キュー待ちを破棄し、処理中の1冊もページ境界で即中断する
-    // （純 Kotlin 化で割り込みが可能になった）。Service へ STOP を送るだけ。
+    // 変換の全体停止（バナーの「停止」）。表示中バナーの供給元で停止先を選ぶ:
+    // PDF＝Service へ ACTION_STOP（キュー破棄＋処理中の1冊をページ境界で中断）／
+    // WEB＝viewModelScope の取込ジョブを cancel（章境界＝次の suspend 点で中断）。
+    // 真因（2026-07-29 裁定①）: Web 取込は Service でなく viewModelScope 起動のため、従来の
+    // ACTION_STOP 一辺倒では cancel がどこにも届かず「停止」が Web に対して無効だった。
+    // PDF/Web 並走時は表示優先（PDF）の側だけ止まる＝PDF 完了後に Web バナーが浮上すれば改めて停止できる。
     fun cancelProcessing() {
+        // VM 公開の processingState（stateIn 経由）でなく app の生 StateFlow を読む:
+        // stateIn は購読状況次第で反映が遅れうるが、停止判定は「今この瞬間の表示元」で行う必要がある。
+        if (app.processingState.value?.source == ProcessingSource.WEB) {
+            cancelWebImports()
+            return
+        }
         val intent = Intent(getApplication(), PdfProcessingService::class.java).apply {
             action = PdfProcessingService.ACTION_STOP
         }
         // 既に前面で動作中の FGS への命令送信。新規起動が不要なため startService を使う。
         getApplication<Application>().startService(intent)
+    }
+
+    // 実行中の Web 取込ジョブ（停止から cancel するための保持）。通常は0〜1件だが、取込中に別 URL を
+    // 共有すると並行しうるため List で持つ。viewModelScope（Main）内でのみ触る＝同期不要。
+    private val webImportJobs = mutableListOf<Job>()
+
+    // 実行中 Web 取込の本数（Main 限定で増減）。最後の1本が終わるまで WEB スロットを畳まないための計数。
+    // webImportJobs.count { isActive } で代用しない理由: finally 実行時点の自ジョブは
+    // 「まだ completed でない」ため自分を数えてしまい、最後の1本の判定が不能になる。
+    private var activeWebImports = 0
+
+    /** Web 取込の全停止。PDF の ACTION_STOP と同じ意味論に合わせる:
+     *  即時に「停止しています…」を出し（停止ボタンも同フラグで消える＝連打防止）、実中断は次の章境界
+     *  （fetchToc/fetchChapter の suspend 点）。部分取込は残さない＝取得ループ中は未書込・HTML 生成後の
+     *  中断は WebBookImporter の catch(Throwable) が出力ディレクトリごと掃除して rethrow する。 */
+    private fun cancelWebImports() {
+        app.processingStateOf(ProcessingSource.WEB)?.let {
+            app.updateProcessingState(it.copy(isStopping = true), ProcessingSource.WEB)
+        }
+        webImportJobs.forEach { it.cancel() }
     }
 
     // 取込失敗 Snackbar の「再試行」（M7）。失敗した URI をそのまま再投入する。
@@ -383,7 +574,9 @@ class BookshelfViewModel @JvmOverloads constructor(
      *  Blocked/Unsupported の案内・取込中/完了/失敗の通知に共通で使う（PDF 取込の重複通知と同じ経路）。 */
     // transient=true は一過性の情報通知（取込完了/取込済み）＝UI 側で Short 自動消滅にする。
     // 既定 false は従来どおり「閉じる」付きで残置（Blocked/Unsupported 案内・強制終了リカバリ等＝挙動不変）。
-    fun emitSnackbar(message: String, transient: Boolean = false) = app.emitError(message, transient = transient)
+    // aggregationKey は同型一括投入の集約印（AppErrorEvent.aggregationKey 参照）。
+    fun emitSnackbar(message: String, transient: Boolean = false, aggregationKey: String? = null) =
+        app.emitError(message, transient = transient, aggregationKey = aggregationKey)
 
     /**
      * Supported 確定後の実取込（P3）。取得は必ず [BookRepository.addWebBook] 経由＝UI 層で fetch しない。
@@ -399,32 +592,70 @@ class BookshelfViewModel @JvmOverloads constructor(
      * なぜ viewModelScope か: 本 VM は NovelReaderApp 直下で Activity スコープに生成され構成変更・画面遷移を
      * 跨いで生存する（アプリ滞在中は継続）。FGS で背面存続まではさせない（最小実装の割り切り）。
      *
-     * 既知の割り切り（単一 ProcessingState の共有）: バナーの供給元は PDF・Web で共有の1本の StateFlow。
-     * PDF 変換中に Web 取込を重ねると相互に上書きし合う（同時実行は稀・単一状態の設計上の限界。恒久解＝
-     * 供給元別のスタック化は本タスクの範囲外）。
+     * バナーは供給元別スロット（WEB）へ書く: 旧実装は PDF（Service）と単一 StateFlow を直接共有し、
+     * 並走時に相互上書きしていた（裁定③の真因）。分離の設計判断＝ProcessingStateHub の KDoc。
+     * 停止（裁定①）: 起動したジョブを webImportJobs に保持し cancelProcessing → cancelWebImports が cancel する。
      */
-    fun importWebNovel(url: String) {
-        viewModelScope.launch {
-            // 取込中バナーの初期状態。stepTotal は既定 4 のまま保つ（バナーの4段ステッパーはラベル4語を
-            // ハードコードしており、ここを変えると点とラベルがずれるため PDF の器へ合わせる）。
+    fun importWebNovel(url: String) = importWebNovels(listOf(url))
+
+    /** 複数 URL の逐次取込（案C の Web 一括再取得が使う）。1コルーチンで順に回す＝相手サイトへ並列アクセスを
+     *  作らない（低頻度アクセスの原則）・重い取込ジョブは直列化する既存方針の Web 版。停止（cancelProcessing→
+     *  cancelWebImports）はこのジョブごと cancel＝残りの URL も含めて止まる。 */
+    fun importWebNovels(urls: List<String>) {
+        // 完了済みジョブの参照を機会的に掃除する（cancel 対象を実行中だけに保ち、リストを溜めない）。
+        webImportJobs.removeAll { it.isCompleted }
+        val job = viewModelScope.launch {
+            urls.forEach { runWebImport(it) }
+        }
+        webImportJobs += job
+    }
+
+    // importWebNovel(s) の1冊分の実体（旧 importWebNovel の launch 本体を suspend 化して逐次実行できるようにした
+    // だけ＝バナー・停止・エラー処理のロジックは不変）。
+    private suspend fun runWebImport(url: String) {
+        // run{} は移設した旧 launch 本体の字下げを不変に保つための無操作スコープ（diff を最小化し
+        // ProcessingStateHub 配線ロジックへの実質変更が無いことをレビューで確認しやすくする）。
+        run {
+            activeWebImports++
+            // 取込中バナーの初期状態。source=WEB でステッパー（PDF 4段の器）は出さず、章進捗（phase）へ
+            // 一本化する（裁定②＝Web で「ステップ 1/4」が凍結表示されていた問題の解消。出し分けは
+            // ProcessingBanner 側が source で行う＝新しい意匠は発明しない）。
             // title を空にすると D バナーが「PDF処理中…」へフォールバックし Web で誤表示になるため非空にする。
             // 作品題名は addWebBook 完了まで判らない（onProgress は章番号と文言のみで題名を運ばない）ので
             // 汎用ラベルを出し、章取得の進捗は phase へ差し込む（バナー文言はデータ差し込みのみ・意匠不変）。
-            val banner = ProcessingState(isProcessing = true, title = "Web小説", phase = "取り込み中です…")
-            app.updateProcessingState(banner)
+            val banner = ProcessingState(
+                isProcessing = true, title = "Web小説", phase = "取り込み中です…",
+                source = ProcessingSource.WEB,
+            )
+            app.updateProcessingState(banner, ProcessingSource.WEB)
             try {
                 repository.addWebBook(url, onProgress = { _, text ->
-                    // 章取得の進捗（「章 i/N 取得中」）を副見出しへ流す（title/ステッパーは PDF の器のまま）。
-                    app.updateProcessingState(banner.copy(phase = text))
+                    // 章取得の進捗（「章 i/N 取得中」）を副見出しへ流す。isStopping は現スロットから引き継ぐ:
+                    // 停止タップ直後にこの進捗コールバックが banner の初期値（false）で巻き戻すのを防ぐ
+                    // （PDF 側 onProgress が停止フラグをライブ読みするのと同じ機序）。
+                    val stopping = app.processingStateOf(ProcessingSource.WEB)?.isStopping == true
+                    app.updateProcessingState(
+                        banner.copy(phase = text, isStopping = stopping), ProcessingSource.WEB,
+                    )
                 }).fold(
                     onSuccess = { outcome ->
                         when (outcome) {
                             // 完了は一過性の情報通知＝Short で自動消滅させる（transient=true）。
+                            // restored＝本文欠落からの再取得（案B④/案C）は「追加」でなく「復元」と告げる
+                            // （既存行保持＝重複行を作らない意味論をユーザー文言でも正しく表す）。
                             is BookRepository.AddBookResult.Added ->
-                                emitSnackbar("「${outcome.book.title}」を追加しました", transient = true)
+                                emitSnackbar(
+                                    if (outcome.restored) "「${outcome.book.title}」を復元しました"
+                                    else "「${outcome.book.title}」を追加しました",
+                                    transient = true,
+                                )
                             // 同一作品 URL は addWebBook が重い取得の前に sourceUrl で弾いて Duplicate を返す。
+                            // 集約キー: PDF 側の重複通知と同型＝一括投入時は「N件は取り込み済みです」へ畳む対象。
                             is BookRepository.AddBookResult.Duplicate ->
-                                emitSnackbar("取り込み済みです", transient = true)
+                                emitSnackbar(
+                                    "取り込み済みです", transient = true,
+                                    aggregationKey = AppErrorEvent.KEY_DUPLICATE_IMPORT,
+                                )
                         }
                     },
                     onFailure = { e ->
@@ -445,7 +676,10 @@ class BookshelfViewModel @JvmOverloads constructor(
             } finally {
                 // 成功/失敗/コルーチンキャンセルのいずれでも取込中バナーを必ず畳む（バナー残留防止）。
                 // updateProcessingState は非 suspend の値代入のためキャンセル巻き戻し中でも確実に完了する。
-                app.updateProcessingState(null)
+                // 並行 Web 取込がまだ生きている間は畳まない: 先に終わった側の null 書きが後続の表示を
+                // 潰す（裁定③と同型の Web/Web 版）を最後の1本の判定で防ぐ。
+                activeWebImports--
+                if (activeWebImports == 0) app.updateProcessingState(null, ProcessingSource.WEB)
             }
         }
     }

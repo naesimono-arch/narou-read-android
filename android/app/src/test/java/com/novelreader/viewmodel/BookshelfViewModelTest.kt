@@ -20,12 +20,15 @@ import com.novelreader.repository.SourceDeleteOutcome
 import com.novelreader.scrape.ScrapeStructureException
 import com.novelreader.scrape.SiteAdapterRegistry
 import io.mockk.*
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -61,6 +64,8 @@ class BookshelfViewModelTest {
         every { mockApp.repository } returns mockRepository
         every { mockApp.novelApiRepository } returns mockNovelApiRepository
         every { mockApp.processingState } returns MutableStateFlow<ProcessingState?>(null).asStateFlow()
+        // relaxed の自動生成でなく明示 null: onProgress の isStopping 引き継ぎ判定を「未停止」に確定させる。
+        every { mockApp.processingStateOf(any()) } returns null
         every { mockApp.errorEvents } returns emptyFlow()
         every { mockRepository.allBooks } returns flowOf(emptyList())
         // (b) uiState は allBooks と webNovels の combine になった。webNovels を stub しないと
@@ -246,9 +251,15 @@ class BookshelfViewModelTest {
 
         // 旧「取り込み中です…」Snackbar は廃止（残留バグの真因）。
         verify(exactly = 0) { mockApp.emitError("取り込み中です…") }
-        // 取込中バナーを set（isProcessing=true）→ finally で clear（null）。
-        verify { mockApp.updateProcessingState(match { it?.isProcessing == true }) }
-        verify { mockApp.updateProcessingState(null) }
+        // 取込中バナーを WEB スロットへ set（isProcessing=true・source=WEB）→ finally で clear（null）。
+        // PDF スロット（Service 側）と分離して書くことが裁定③（相互上書き是正）の契約。
+        verify {
+            mockApp.updateProcessingState(
+                match { it?.isProcessing == true && it.source == ProcessingSource.WEB },
+                ProcessingSource.WEB,
+            )
+        }
+        verify { mockApp.updateProcessingState(null, ProcessingSource.WEB) }
         // 完了は一過性の情報通知（transient=true）＝UI 側で Short 自動消滅。
         verify { mockApp.emitError("「テスト作品」を追加しました", transient = true) }
         coVerify { mockRepository.addWebBook("https://kakuyomu.jp/works/123", any()) }
@@ -267,7 +278,7 @@ class BookshelfViewModelTest {
         viewModel.importWebNovel("https://kakuyomu.jp/works/123")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        verify { mockApp.updateProcessingState(match { it?.phase == "章 2/5 取得中" }) }
+        verify { mockApp.updateProcessingState(match { it?.phase == "章 2/5 取得中" }, ProcessingSource.WEB) }
     }
 
     @Test
@@ -279,9 +290,14 @@ class BookshelfViewModelTest {
         viewModel.importWebNovel("https://kakuyomu.jp/works/123")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        // 取込済みも一過性の情報通知（transient=true）。
-        verify { mockApp.emitError("取り込み済みです", transient = true) }
-        verify { mockApp.updateProcessingState(null) }
+        // 取込済みも一過性の情報通知（transient=true）＋同型集約キー（一括投入時の「N件」集約対象）。
+        verify {
+            mockApp.emitError(
+                "取り込み済みです", transient = true,
+                aggregationKey = AppErrorEvent.KEY_DUPLICATE_IMPORT,
+            )
+        }
+        verify { mockApp.updateProcessingState(null, ProcessingSource.WEB) }
     }
 
     @Test
@@ -294,8 +310,8 @@ class BookshelfViewModelTest {
 
         // 失敗系は従来どおり「閉じる」付きで残置（transient なし＝既定 false）。
         verify { mockApp.emitError("取り込みに失敗しました") }
-        // 失敗経路でも finally でバナーを必ず畳む。
-        verify { mockApp.updateProcessingState(null) }
+        // 失敗経路でも finally でバナー（WEB スロット）を必ず畳む。
+        verify { mockApp.updateProcessingState(null, ProcessingSource.WEB) }
     }
 
     // 破損監視・層2: 構造変更の疑い（ScrapeStructureException）は「公式サイトで読む」逃げ道つきで通知する。
@@ -315,6 +331,99 @@ class BookshelfViewModelTest {
             )
         }
         verify(exactly = 0) { mockApp.emitError("取り込みに失敗しました") }
+    }
+
+    // ── 停止の Web 実効化（2026-07-29 裁定①）＋供給元分離（裁定③）＋同型集約（裁定④）──────────
+
+    // 裁定①の契約: Web 取込は Service でなく viewModelScope 起動のため、従来の ACTION_STOP では
+    // cancel が届かなかった。表示中バナーが WEB なら保持ジョブを cancel することを固定する。
+    @Test
+    fun `cancelProcessing - Web 取込表示中は Service へ送らず Web ジョブを cancel する`() = runTest {
+        // 「キャンセルされるまで終わらない取込」で走行中を再現する（実ネットワークなし）。
+        coEvery { mockRepository.addWebBook(any(), any()) } coAnswers { awaitCancellation() }
+        viewModel.importWebNovel("https://kakuyomu.jp/works/123")
+        testDispatcher.scheduler.runCurrent()
+        // 表示中バナー＝WEB（本番では ProcessingStateHub が合成する表示状態をここでは直接差し込む）。
+        val webBanner = ProcessingState(isProcessing = true, title = "Web小説", source = ProcessingSource.WEB)
+        every { mockApp.processingState } returns MutableStateFlow<ProcessingState?>(webBanner).asStateFlow()
+        every { mockApp.processingStateOf(ProcessingSource.WEB) } returns webBanner
+
+        viewModel.cancelProcessing()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // 即時フィードバック: PDF 停止と同じく「停止しています…」（isStopping=true）を先に刻む。
+        verify { mockApp.updateProcessingState(match { it?.isStopping == true }, ProcessingSource.WEB) }
+        // ジョブが cancel され finally で WEB スロットが畳まれる（＝cancel が実際に届いた証拠）。
+        verify { mockApp.updateProcessingState(null, ProcessingSource.WEB) }
+        // Service（PDF の ACTION_STOP 経路）へは何も送らない。
+        verify(exactly = 0) { mockApp.startService(any()) }
+    }
+
+    @Test
+    fun `cancelProcessing - PDF 表示中は従来どおり Service へ ACTION_STOP を送る`() {
+        mockkConstructor(Intent::class)
+        try {
+            every { anyConstructed<Intent>().setAction(any()) } returns mockk(relaxed = true)
+            // 表示中バナー＝PDF（source 既定値）。
+            every { mockApp.processingState } returns MutableStateFlow<ProcessingState?>(
+                ProcessingState(isProcessing = true)
+            ).asStateFlow()
+
+            viewModel.cancelProcessing()
+
+            verify { anyConstructed<Intent>().setAction(PdfProcessingService.ACTION_STOP) }
+            verify { mockApp.startService(any()) }
+        } finally {
+            unmockkConstructor(Intent::class)
+        }
+    }
+
+    // 裁定③の Web/Web 版: 並行取込で先に終わった側の finally がバナーを畳んで後続の表示を潰さない
+    // （最後の1本が終わったときだけ WEB スロットを null にする）。
+    @Test
+    fun `importWebNovel - 並行2件では先行完了でバナーを畳まず最後の完了で畳む`() = runTest {
+        val book = BookEntity("id01", "作品1", "/p/a")
+        val gate1 = CompletableDeferred<Unit>()
+        val gate2 = CompletableDeferred<Unit>()
+        coEvery { mockRepository.addWebBook("https://kakuyomu.jp/works/1", any()) } coAnswers {
+            gate1.await(); Result.success(BookRepository.AddBookResult.Added(book))
+        }
+        coEvery { mockRepository.addWebBook("https://kakuyomu.jp/works/2", any()) } coAnswers {
+            gate2.await(); Result.success(BookRepository.AddBookResult.Added(book))
+        }
+
+        viewModel.importWebNovel("https://kakuyomu.jp/works/1")
+        viewModel.importWebNovel("https://kakuyomu.jp/works/2")
+        testDispatcher.scheduler.runCurrent()
+
+        gate1.complete(Unit) // 1件目だけ完了（2件目は走行中）
+        testDispatcher.scheduler.runCurrent()
+        verify(exactly = 0) { mockApp.updateProcessingState(null, ProcessingSource.WEB) }
+
+        gate2.complete(Unit) // 最後の1本が完了した時点で畳む
+        testDispatcher.scheduler.advanceUntilIdle()
+        verify(exactly = 1) { mockApp.updateProcessingState(null, ProcessingSource.WEB) }
+    }
+
+    // 裁定④の配送側契約: いま届いた1件＋バッファ吸い出し分を同型集約してから UI へ流す。
+    @Test
+    fun `errorEvents - 同型キーの一括投入は「N件は取り込み済みです」へ集約して流す`() = runTest {
+        val key = AppErrorEvent.KEY_DUPLICATE_IMPORT
+        every { mockApp.errorEvents } returns flowOf(
+            AppErrorEvent("「A」は既に取り込み済みです", aggregationKey = key),
+        )
+        every { mockApp.drainPendingErrorEvents() } returns listOf(
+            AppErrorEvent("「B」は既に取り込み済みです", aggregationKey = key),
+            AppErrorEvent("取り込み元が見つかりません"), // key 無しは素通し（順序保持）
+            AppErrorEvent("「C」は既に取り込み済みです", aggregationKey = key),
+        )
+
+        val received = viewModel.errorEvents.toList()
+
+        assertEquals(
+            listOf("3件は取り込み済みです", "取り込み元が見つかりません"),
+            received.map { it.message },
+        )
     }
 
     // ── なろう紐付け候補検索（旧 NcodeLinkSheet の produceState を VM へ移設）─────────────

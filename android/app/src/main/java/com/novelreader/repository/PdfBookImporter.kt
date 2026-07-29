@@ -68,6 +68,15 @@ internal class PdfBookImporter(
         }
     }
 
+    /** 「書き込み永続権限を実際に保持している」ときだけ取込元 URI を返す（それ以外は null）。
+     *  新規登録（⑤）と復元（④'）が同じ判定を共有するために切り出した（判定の why は呼び出し側コメント）。 */
+    private fun heldWritableSourceUri(pdfUri: Uri): String? =
+        pdfUri.toString().takeIf { uriStr ->
+            context.contentResolver.persistedUriPermissions.any {
+                it.uri.toString() == uriStr && it.isWritePermission
+            }
+        }
+
     /** PDFをキャッシュにコピーし、ネイティブ(PDFBox)抽出でHTML生成後にRoomへ登録する。 */
     suspend fun addBook(
         pdfUri: Uri,
@@ -85,7 +94,8 @@ internal class PdfBookImporter(
             // catch から参照するため try の外で宣言する（②で確定・③の失敗時に掃除）。
             // 置き場は BookEntity.resolveHtmlDir に一元化した決定的規約（filesDir/novels/<bookId>）を使う
             // ＝掃除・復元と同一導出（UX監査 portable の復元耐性下地）。
-            val outputDir = BookEntity.resolveHtmlDir(context.filesDir, bookId)
+            // var なのは復元モード（下記①'）で出力先を「既存行の規約ディレクトリ」へ差し替えるため。
+            var outputDir = BookEntity.resolveHtmlDir(context.filesDir, bookId)
             try {
                 val inputStream = context.contentResolver.openInputStream(pdfUri)
                     ?: throw IOException("PDFファイルを開けません（URI権限が失われた可能性があります）")
@@ -108,7 +118,11 @@ internal class PdfBookImporter(
                 val contentSha256 = Sections.trace("Import#sha256") { tempFile.inputStream().use { sha256Hex(it) } }
                 // 照合は facade の findExistingBookByHash と同一の DAO クエリ（分割前と同じ1回の SELECT）。
                 val existingByHash = bookDao.findByContentSha256(contentSha256)
-                if (existingByHash != null) {
+                // 復元モード（本文欠落→再取込・2026-07-29 案B/C）: 同一内容の既存行があっても本文実体が
+                // 欠落していれば Duplicate で止めず、既存行（id・進捗・栞・addedAt）を保持したまま本文だけ
+                // 再生成する＝重複行を作らない。欠落の機序＝uninstall→Auto Backup が DB のみ復元。
+                val restoreByHash = existingByHash?.takeIf { !it.hasContent(context.filesDir) }
+                if (existingByHash != null && restoreByHash == null) {
                     // outputDir はまだ mkdirs していないので掃除不要。変換の成否が確定した（＝重複）ので
                     // 成功/重複時と同じく pending_jobs を落とし永続権限も返す（NonCancellable で保護）。
                     withContext(NonCancellable) { pendingJobs.settleJob(pdfUri) }
@@ -130,7 +144,13 @@ internal class PdfBookImporter(
                     )
                 }
 
-                // ② 出力先ディレクトリを確定
+                // ② 出力先ディレクトリを確定。ハッシュ一致の復元は既存行の規約ディレクトリへ直接生成する
+                // （id 不変＝進捗・栞の紐付けをそのまま保つ）。書きかけ残骸（torn＝index 無しで chap だけ残る等）が
+                // 新しい一式へ混入しないよう、生成前にディレクトリごと消す。
+                if (restoreByHash != null) {
+                    outputDir = BookEntity.resolveHtmlDir(context.filesDir, restoreByHash.id)
+                    outputDir.deleteRecursively()
+                }
                 if (!outputDir.mkdirs() && !outputDir.exists()) {
                     throw IOException("出力ディレクトリの作成に失敗しました: ${outputDir.absolutePath}")
                 }
@@ -145,7 +165,9 @@ internal class PdfBookImporter(
                     // 同期実行され、進捗コールバックも非 suspend のため begin/end は同一スレッドに閉じる。
                     // 内部の Extract#* 区間はこの Import#extract の子スライスとして入れ子になる。
                     Sections.trace("Import#extract") {
-                        extractBook(tempFile, bookId, outputDir) { step, stepLocalPercent, phase, title ->
+                        // 復元時は既存行の id で抽出する（生成物と行の対応を揺らさない。HtmlExporter は
+                        // bookId を本文へ埋めないが、ログ・トレースの対応も既存 id に揃えるのが安全側）。
+                        extractBook(tempFile, restoreByHash?.id ?: bookId, outputDir) { step, stepLocalPercent, phase, title ->
                             extractionScope.ensureActive()
                             onProgress(step, stepLocalPercent, phase, title)
                         }
@@ -164,14 +186,50 @@ internal class PdfBookImporter(
                 // ①'内容ハッシュの変換前遮断（別 URI・同内容を変換前に弾く＝F-G 恒久策）→ ④ここ。
                 // ①' を潜り抜けるのは「旧取込分（contentSha256 が NULL で照合不能）」の再取込のみで、
                 // その受け皿としてタイトル＋著者で弾く（＝ハッシュ列導入前に入れた本の再取込も従来どおり弾ける）。
-                val existing = bookDao.findByTitleAndAuthor(meta.title, meta.author)
-                if (existing != null) {
+                // 復元と同居させる注意: ハッシュ復元中は抽出済みの自分自身の行（title＋author 同一・
+                // かつ本文は直前に再生成済み＝hasContent true）がここでヒットし、Duplicate 判定が
+                // 生成したての本文を deleteRecursively してしまう。復元中は照合自体をスキップする。
+                val existing = if (restoreByHash != null) null else bookDao.findByTitleAndAuthor(meta.title, meta.author)
+                if (existing != null && existing.hasContent(context.filesDir)) {
                     outputDir.deleteRecursively()
                     // 変換の成否が確定した（＝重複と判明）ので pending_jobs を落とす。DB 書き込みを伴わない
                     // が settlePendingJob は権限解放も行うため、登録成功時と同じく NonCancellable で保護する。
                     withContext(NonCancellable) { pendingJobs.settleJob(pdfUri) }
                     extractionScope.ensureActive()
                     AddBookResult.Duplicate(existing)
+                } else if (existing != null || restoreByHash != null) {
+                    // 復元の確定（案B/C）。2経路が合流する:
+                    //   ・restoreByHash＝ハッシュ一致（分岐①②の同一PDF）→ 既に既存行の規約ディレクトリへ生成済み
+                    //   ・existing（title＋author 一致・本文欠落）＝旧取込で contentSha256 が NULL の本（分岐③）が
+                    //     再選択された受け皿 → 新IDディレクトリへ抽出済みの一式を既存行の規約位置へ移し替える
+                    // どちらも既存行を部分 UPDATE（updateRestoredContent）＝id・進捗・栞・addedAt・ncode 不変。
+                    val restoreTarget = restoreByHash ?: existing!!
+                    val book = withContext(NonCancellable) {
+                        val finalDir = if (restoreByHash != null) outputDir else {
+                            val canonical = BookEntity.resolveHtmlDir(context.filesDir, restoreTarget.id)
+                            canonical.deleteRecursively() // torn 残骸の混入防止（②と同じ理由）
+                            if (!outputDir.renameTo(canonical)) {
+                                // 同一 filesystem（filesDir/novels 配下）で rename 失敗は異常系だが、
+                                // 生成済み本文を捨てないようコピーで救済してから元を消す（防御的フォールバック）。
+                                outputDir.copyRecursively(canonical, overwrite = true)
+                                outputDir.deleteRecursively()
+                            }
+                            canonical
+                        }
+                        // 取込元 URI は「今回の再取込で書込永続権限を保持できた」ときだけ更新する（新規登録と同じ
+                        // 判定＝分岐②の選び直しで以後の自動再取込が復活する）。取れなければ既存値を温存
+                        // （復元自体は成立しており、権限情報を後退させない）。
+                        val newSourceUri = heldWritableSourceUri(pdfUri) ?: restoreTarget.sourceUri
+                        bookDao.updateRestoredContent(restoreTarget.id, finalDir.absolutePath, contentSha256, newSourceUri)
+                        pendingJobs.settleJob(pdfUri)
+                        restoreTarget.copy(
+                            htmlDirPath = finalDir.absolutePath,
+                            contentSha256 = contentSha256,
+                            sourceUri = newSourceUri,
+                        )
+                    }
+                    extractionScope.ensureActive()
+                    AddBookResult.Added(book, restored = true)
                 } else {
                     // ⑤ Room 登録のみ NonCancellable で保護する。
                     // HTML 生成済み→DB 登録前の一瞬でキャンセルされると本棚に出ない孤立本になるため、この最終確定
@@ -196,11 +254,7 @@ internal class PdfBookImporter(
                         // （BookshelfViewModel.addBook が READ|WRITE を試み、非対応プロバイダは READ へフォールバック）
                         // で行われ、ここでは persistedUriPermissions を照会してその実結果を確定させる。これにより
                         // なろう縦書きPDF（FileProvider の content:// で永続権限を取れない経路）は自動的に NULL になる。
-                        val sourceUri = pdfUri.toString().takeIf { uriStr ->
-                            context.contentResolver.persistedUriPermissions.any {
-                                it.uri.toString() == uriStr && it.isWritePermission
-                            }
-                        }
+                        val sourceUri = heldWritableSourceUri(pdfUri)
                         val b = BookEntity(bookId, meta.title, outputDir.absolutePath, meta.author, addedAt = System.currentTimeMillis(), contentSha256 = contentSha256, ncode = ncode?.value, shioriTipIndex = shiori.tipIndex, shioriLenFrac = shiori.lenFrac, sourceUri = sourceUri)
                         // trace 区間: DB 登録（books への1行 insert）。
                         // ⚠ 計測上の注意（区間名一致とは別問題）: insertBook は suspend で Room が自前 executor へ

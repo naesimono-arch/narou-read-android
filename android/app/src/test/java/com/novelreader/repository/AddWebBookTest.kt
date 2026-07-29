@@ -122,20 +122,65 @@ class AddWebBookTest {
 
     @Test
     fun `addWebBook - 既登録の作品URLは fetch せず Duplicate を返す`() = runTest {
-        val existing = BookEntity(
-            "id01", "既存作品", "/p", "既存著者",
-            sourceUrl = "https://faketest.example/works/1", sourceSite = "faketest",
-        )
-        coEvery { bookDao.findBySourceUrl("https://faketest.example/works/1") } returns existing
+        // Duplicate の前提＝「既登録かつ本文実体あり」。復元モード導入（2026-07-29 案B/C）で重複判定が
+        // hasContent（index.html 実在）を見るようになったため、fixture は実体ファイルまで作って前提を明示する
+        // （旧 fixture は存在しないパス "/p" ＝暗黙に「本文欠落」を表してしまい、復元経路へ流れて意味が変わる）。
+        val filesDir = createTempDir(prefix = "webDupFiles")
+        try {
+            every { context.filesDir } returns filesDir
+            val dir = File(filesDir, "novels/id01").apply { mkdirs() }
+            File(dir, "index.html").writeText("<html>alive</html>")
+            val existing = BookEntity(
+                "id01", "既存作品", dir.absolutePath, "既存著者",
+                sourceUrl = "https://faketest.example/works/1", sourceSite = "faketest",
+            )
+            coEvery { bookDao.findBySourceUrl("https://faketest.example/works/1") } returns existing
 
-        val result = newRepo().addWebBook(FakeAdapter.WORK_URL)
+            val result = newRepo().addWebBook(FakeAdapter.WORK_URL)
 
-        val dup = result.getOrThrow() as AddBookResult.Duplicate
-        assertEquals(existing, dup.existing)
-        // 重複ガードは目次・本文の取得より前で弾く（相手サイトへ無駄アクセスしない）。
-        assertEquals("目次取得は走らない", 0, adapter.fetchTocCount)
-        assertEquals("章取得は走らない", 0, adapter.fetchChapterCount)
-        coVerify(exactly = 0) { bookDao.insertBook(any()) }
+            val dup = result.getOrThrow() as AddBookResult.Duplicate
+            assertEquals(existing, dup.existing)
+            // 重複ガードは目次・本文の取得より前で弾く（相手サイトへ無駄アクセスしない）。
+            assertEquals("目次取得は走らない", 0, adapter.fetchTocCount)
+            assertEquals("章取得は走らない", 0, adapter.fetchChapterCount)
+            coVerify(exactly = 0) { bookDao.insertBook(any()) }
+        } finally {
+            filesDir.deleteRecursively()
+        }
+    }
+
+    // ── ②' 本文欠落→再取込の復元モード（2026-07-29 案B④/案C）: 既登録でも本文が無ければ再取得して
+    //     既存行へ復元する（id 不変・insertBook を呼ばない＝読書位置/栞/読了/追加日が残る）─────────
+
+    @Test
+    fun `addWebBook - 既登録でも本文欠落なら Duplicate にせず再取得して既存行へ復元する`() = runTest {
+        val filesDir = createTempDir(prefix = "webRestoreFiles")
+        try {
+            every { context.filesDir } returns filesDir
+            // 既存行: 本文実体なし（ディレクトリ不存在）＝Auto Backup が DB のみ復元した姿。
+            val existing = BookEntity(
+                "webid001", "テスト作品", File(filesDir, "novels/webid001").absolutePath, "テスト著者",
+                addedAt = 42L, sourceUrl = FakeAdapter.WORK_URL, sourceSite = "faketest",
+            )
+            coEvery { bookDao.findBySourceUrl(FakeAdapter.WORK_URL) } returns existing
+
+            val result = newRepo().addWebBook(FakeAdapter.WORK_URL)
+
+            val added = result.getOrThrow() as AddBookResult.Added
+            assertTrue("復元フラグが立つ", added.restored)
+            assertEquals("id は不変＝重複行を作らない", "webid001", added.book.id)
+            assertEquals("出所は不変", FakeAdapter.WORK_URL, added.book.sourceUrl)
+            // 再取得は実際に走る（重複ガードの「fetch しない」とは逆＝復元は取得が本体）。
+            assertEquals(1, adapter.fetchTocCount)
+            assertEquals(3, adapter.fetchChapterCount)
+            // 本文は既存 id の規約ディレクトリへ再生成される。
+            assertTrue(File(filesDir, "novels/webid001/index.html").exists())
+            // 部分 UPDATE のみ＝insertBook（REPLACE＝全列巻き戻しリスク）を通らない。sourceUri は Web 本で常に null。
+            coVerify(exactly = 1) { bookDao.updateRestoredContent("webid001", any(), any(), null) }
+            coVerify(exactly = 0) { bookDao.insertBook(any()) }
+        } finally {
+            filesDir.deleteRecursively()
+        }
     }
 
     // ── ③ 規約ゲート: Blocked / Unsupported は Result.failure ────────────────────────
