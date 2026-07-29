@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
 /**
@@ -125,7 +126,15 @@ class ScrapeHttpClient(
         const val USER_AGENT = "NovelReader-Android/1.0"
 
         private val defaultClient: OkHttpClient by lazy {
-            OkHttpClient.Builder().build()
+            // なぜ callTimeout（全体上限）が要るか: OkHttp の既定では全体タイムアウトが無制限で、
+            // 低速だが切れない接続に当たると1回の GET が永久に完了しない。この client は章本文の取得に
+            // 使われ、呼び出し元（WebBookImporter.addWebBook）は章を直列に回すため、1本詰まると
+            // 取込全体が無言で止まり進捗バーが動かないまま固まる（no-network-timeout の症状）。
+            // 章 HTML は数十〜数百 KB で数秒で返るのが正常なので、上位のリトライ（retryWithBackoff）が
+            // 一過性失敗として拾える程度の余裕を見て 30 秒で打ち切る（なろう API クライアントと同値）。
+            OkHttpClient.Builder()
+                .callTimeout(30, TimeUnit.SECONDS)
+                .build()
         }
 
         /** 本番の生 GET。非2xx は [HttpStatusException]（code＋Retry-After 秒）、空本文は [ScrapeException]。 */

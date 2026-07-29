@@ -253,7 +253,10 @@ class BookshelfViewModel @JvmOverloads constructor(
                 book.id to (File(book.htmlDirPath).listFiles { f -> f.name.matches(chapPattern) }?.size ?: 0)
             }
         }
-        .flowOn(Dispatchers.IO)
+        // ioDispatcher 注入: 素の Dispatchers.IO だと章数え上げが TestDispatcher 管理外のスレッドで走り、
+        // advanceUntilIdle が完了を待てずに chapterCountMap を観測するテストがフレーキーになる
+        // （deleteBook/deleteBooks と同理由。本番は既定値＝Dispatchers.IO のまま＝挙動不変）。
+        .flowOn(ioDispatcher)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     // 進捗行の割合計算（F-N）にスクロール位置も要るため、値を lastReadFilename 文字列ではなく
@@ -677,7 +680,8 @@ class BookshelfViewModel @JvmOverloads constructor(
      */
     fun addBooks(uris: List<Uri>) {
         if (uris.isEmpty()) return
-        viewModelScope.launch(Dispatchers.IO) {
+        // ioDispatcher 注入は deleteBook と同理由（素の Dispatchers.IO は TestDispatcher 管理外で走る）。
+        viewModelScope.launch(ioDispatcher) {
             val resolver = getApplication<Application>().contentResolver
             val names = uris.map { resolveDisplayName(resolver, it) }
             val plan = planNarouPdfImport(names)
@@ -918,13 +922,15 @@ class BookshelfViewModel @JvmOverloads constructor(
     // (b) Web由来・未取込カードを本棚から外す。webNovels は hot に uiState へ combine 済みのため、
     // 削除すれば本棚から即時に消える（deleteBook と同じ配送経路）。
     fun removeWebNovel(ncode: String) {
-        viewModelScope.launch(Dispatchers.IO) { repository.removeWebNovel(Ncode(ncode)) }
+        // ioDispatcher 注入は deleteBook と同理由（素の Dispatchers.IO は TestDispatcher 管理外で走る）。
+        viewModelScope.launch(ioDispatcher) { repository.removeWebNovel(Ncode(ncode)) }
     }
 
     // PDF↔Web継続読書: なろう作品との紐付け（null で解除）。
     // books は hot StateFlow のため、書き込めば読書画面の継続導線へ自動で反映される。
     fun linkNcode(bookId: BookId, ncode: Ncode?) {
-        viewModelScope.launch(Dispatchers.IO) { repository.linkNcode(bookId, ncode) }
+        // ioDispatcher 注入は deleteBook と同理由（素の Dispatchers.IO は TestDispatcher 管理外で走る）。
+        viewModelScope.launch(ioDispatcher) { repository.linkNcode(bookId, ncode) }
     }
 
     // ────── なろう紐付けシートの候補検索（旧 NcodeLinkSheet の produceState を VM へ移設）──────

@@ -1,5 +1,6 @@
 package com.novelreader.ui.discovery
 
+import com.novelreader.sourcescan.KotlinSourceScanner
 import com.novelreader.ui.theme.Skin
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail

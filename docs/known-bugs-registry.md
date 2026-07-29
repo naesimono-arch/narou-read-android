@@ -76,12 +76,8 @@
 | `[!] なし` | `fontscale-large-breaks-layout` | フォントスケール拡大時に要素が密着・はみ出す | 固定 dp の間隔が拡大した文字幅を吸収できない | 発見バーのテキストとシェブロンの密着解消 | なし | — |
 | `[!] なし` | `stale-generation-coroutine-finally` | 新しいバッチの通知が旧処理の後始末で消える・サービスが道連れ停止する | 旧世代コルーチンの `finally` が世代を見ずに共有状態を書き戻す | onTimeout 後の道連れ停止を世代ガードで防止／processSingleUri 側 finally へ世代ガード横展開 | なし | `docs/patterns/service-queue-loop.md` |
 | `[!] なし` | `cancelled-scope-reuse-silent-stop` | 一度タイムアウトすると以後の取込が無言で動かない | キャンセル済み `CoroutineScope` を再利用（launch が即死し例外も出ない） | FGS タイムアウト後にコルーチンスコープを再生成 | なし | — |
-| `[!] なし` | `runcatching-swallows-cancellation` | キャンセルしたはずの処理が生き続ける／構造化並行性が壊れる | `runCatching` が `CancellationException` まで飲む | addBook のキャンセル例外の握り潰しを解消 | なし | — |
 | `[!] なし` | `shared-mutable-state-without-mutex` | 記帳・キャッシュが並行アクセスで壊れる | `limitedParallelism(1)` は排他にならない（直列化≠相互排除）という誤解 | pending_jobs 記帳を Mutex 排他へ／NovelApiRepository キャッシュのスレッド安全化 | なし | — |
-| `[!] なし` | `test-dispatcher-escape-flaky` | 単体テストがフレーキーに落ちる | 本番コードの `launch(Dispatchers.IO)` が TestDispatcher 管理外＝`advanceUntilIdle` が待てない | BookshelfViewModelTest をディスパッチャ注入で決定化 | なし | — |
-| `[!] なし` | `fgs-notification-id-collision` | 完了・失敗の通知が出た瞬間に消える | 終端通知を FGS 通知と同一 ID へ投稿＝サービス停止の道連れ | PDF 終端通知を FGS 通知と別 ID へ分離 | なし | — |
 | `[!] なし` | `remembersaveable-missing-state-loss` | 回転・プロセス復帰でシートの開閉やヒント表示が戻る | `remember` のまま保存しない | 読書画面シート開閉の rememberSaveable 化・没入ヒントを通算初回のみへ | なし | — |
-| `[!] なし` | `no-network-timeout` | 通信が返らないまま画面が固まる | OkHttp 既定の `callTimeout` は無制限 | OkHttp クライアントへタイムアウト設定 | なし | — |
 | `[!] なし` | `datastore-corruption-crash` | 永続層の破損・IOException でアプリが落ちる | DataStore の読み出しに復旧経路が無い | 検索履歴 DataStore の IOException/破損時クラッシュを防止 | なし | — |
 | `[!] なし` | `queue-drop-on-concurrent-import` | 処理中に別の PDF を追加すると無言で捨てられる | 単一処理前提のサービスが同時投入を落とす | PDF 処理のキュー化 | なし | `docs/patterns/service-queue-loop.md` |
 | `[!] なし` | `transition-window-first-compose-jank` | 画面遷移・タブ切替が 400ms 級で引っかかる | アニメ窓に初回コンポーズが同居する（隣ページ破棄→再コンポーズ等） | 隣ページ常駐化／遷移中は常駐0＋settle 後に移送／遷移中の構造プレースホルダ | なし（macrobenchmark は回帰固定へ未接続） | `docs/knowledge/emui-p30-jank-log-collection.md` |
@@ -123,6 +119,10 @@
 | `[o] 固定` | `androidtest-not-compiled-by-default-gate` | androidTest が本番シグネチャ変更に追従せずコンパイル破綻したまま潜伏 | 既定ゲート `testDebugUnitTest` は androidTest をコンパイルしない | ReadingScreen のテーマ引数追加への追従／followingSystem 必須化への追従（**2回発生**） | CI: assembleDebugAndroidTest（ビルドのみ・実行は端末必須で対象外） | — |
 | `[o] 固定` | `roborazzi-verify-not-in-default-gate` | golden が実装と乖離したまま何週間も潜伏する | 既定ゲートに `verify` が同乗していない＝記録だけして照合しない | 陳腐化していた golden 24枚を再記録 | CI: verifyRoborazziDebug（単体テストと同じ1パスで48枚を照合） | `docs/knowledge/golden-regression-baselines.md` |
 | `[o] 固定` | `release-r8-only-build-break` | debug は通るのに release だけビルド不能になる | R8 が新依存の未知属性で落ちる。日常ゲートに release ビルドが無い | In-App Review 導入で停止した release R8 ビルドを dontwarn で復旧 | CI: assembleRelease（鍵不在でも未署名で通る＝R8 破綻のみを見る） | — |
+| `[o] 固定` | `runcatching-swallows-cancellation` | キャンセルしたはずの処理が生き続ける／構造化並行性が壊れる | `runCatching` が `CancellationException` まで飲む | addBook のキャンセル例外の握り潰しを解消 | `HazardousPatternScanTest`（キャンセル文脈の runCatching を全数列挙し登録簿と突合。**機械が保証するのは「再送出が無い」ことまで**＝登録簿7件の免除根拠「本文が非 suspend」は人間の読み） | — |
+| `[o] 固定` | `test-dispatcher-escape-flaky` | 単体テストがフレーキーに落ちる | 本番コードの `launch(Dispatchers.IO)` が TestDispatcher 管理外＝`advanceUntilIdle` が待てない | BookshelfViewModelTest をディスパッチャ注入で決定化 | `HazardousPatternScanTest`（launch/flowOn/shareIn/stateIn の Dispatchers 直書きを全数列挙。withContext は呼び出し元が待つので対象外） | — |
+| `[o] 固定` | `fgs-notification-id-collision` | 完了・失敗の通知が出た瞬間に消える | 終端通知を FGS 通知と同一 ID へ投稿＝サービス停止の道連れ | PDF 終端通知を FGS 通知と別 ID へ分離 | `HazardousPatternScanTest`（notify/startForeground の投稿口を全数登録制にし、宣言 ID と実コード・TERMINAL 役と FGS の ID 一致・ID 定数の相互差分まで検査） | — |
+| `[o] 固定` | `no-network-timeout` | 通信が返らないまま画面が固まる | OkHttp 既定の `callTimeout` は無制限 | OkHttp クライアントへタイムアウト設定 | `HazardousPatternScanTest`（OkHttpClient 生成式に callTimeout があるか） | — |
 
 ## B. tooling（`.claude/hooks` / skills / `tools/` / statusline）
 
