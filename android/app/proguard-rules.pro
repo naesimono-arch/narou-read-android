@@ -30,6 +30,17 @@
 -keep class com.novelreader.**JsonAdapter { <init>(...); }
 -keepnames @com.squareup.moshi.JsonClass class com.novelreader.**
 
+# Play Core review-ktx 2.0.2（In-App Review）の ReviewManagerKtxKt は GMS Tasks の
+# OnSuccessListener を SAM 変換で実装し、生成される合成クラスが GMS 内部アノテーション
+# com.google.android.gms.common.annotation.NoNullnessRewrite への参照を残す。この
+# アノテーションは play-services-base 側にのみ存在し review-ktx の推移的依存には含まれない
+# ＝アプリに載らない。アノテーション参照は実行時に解決されないため欠落しても動作に影響しないが、
+# R8 は Missing class をエラー扱いにして minifyReleaseWithR8 を停止させる。
+# 2026-07-29 実測: In-App Review 導入後の初回 release ビルドがこれで BUILD FAILED になった
+# （handover の「consumer rules で足りる＝自前 keep 不要」の見立ては誤りだったことが確定）。
+# gemalto.jp2 と同じ「意図して載せていない任意依存」の宣言で収束させる。
+-dontwarn com.google.android.gms.common.annotation.NoNullnessRewrite
+
 # enum 定数名の防御的固定: ReadingTheme は SharedPreferences に name を永続し
 # valueOf() で復元する（MainActivity）＝アプリ更新を跨いだ名前互換が必須。
 # enum の name はバイトコード上 <clinit> の文字列リテラル由来で難読化の直接影響は
