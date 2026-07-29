@@ -38,6 +38,12 @@ def briefing_for(agent_type, project_dir):
             'export PATH="$JAVA_HOME/bin:$PATH" && '
             "java -cp gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain testDebugUnitTest"
         )
+        # androidTest は「コンパイルだけ」を条件付きで回す（CLAUDE.md 自己検証必須節と対応）。
+        # 既定ゲートの testDebugUnitTest は androidTest をコンパイルしないため、本番の public
+        # シグネチャ変更に追従しないまま壊れて潜伏する（実際に2回発生）。毎回回すと重いので条件付き。
+        androidtest_gate = gate.replace(
+            "GradleWrapperMain testDebugUnitTest",
+            "GradleWrapperMain :app:assembleDebugAndroidTest")
         return (
             "【プロジェクト定型規律（SubagentStart 自動注入・委譲仕様より優先度は低い＝矛盾時は委譲仕様に従う）】\n"
             "- コミット・push・adb/実機操作・docs/design-candidates/（正本モック）の変更は禁止（監督が実施）。\n"
@@ -46,6 +52,8 @@ def briefing_for(agent_type, project_dir):
             "- Kotlin の src/main・src/test を変更したら必ずゲートを回す:\n"
             f"  {gate}\n"
             "  （./gradlew は Permission denied・非対話シェルは .bashrc を読まないため env 明示が必須）\n"
+            "- 本番の public シグネチャを変えたら androidTest のコンパイルも確認する:\n"
+            f"  {androidtest_gate}\n"
             "- コード内コメントは日本語・自明でないロジックには「なぜ」を書く（what のみのコメント禁止）。\n"
             "- 報告様式: 25行以内。必須＝変更ファイル一覧／機序・真因／較正値と自己決定した判断／ゲート出力要約（実行数・失敗数）。"
         )
