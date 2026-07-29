@@ -110,6 +110,21 @@ internal fun DiscoveryHomeK(
     onPickMood: (MoodPreset) -> Unit,
     onSelectOrder: (NarouOrder) -> Unit,
     onRefresh: () -> Unit,
+    // きょうの気分ページャの初期組（日替わり）。既定＝端末日付から決定的に導出＝実アプリの挙動は不変。
+    //
+    // なぜ引数へ持ち上げるか（2026-07-30・state hoisting）: 旧実装は MoodSectionK の内部で
+    // LocalDate.now() を直に呼んでおり、**Composable の中にテスト不能な依存（実時計）が埋まっていた**。
+    // LocalDate.now() は JDK クラス＝Robolectric の shadow 対象外（差し替わるのは instrumented クラス内の
+    // System.currentTimeMillis であって java.time の内部時計ではない）ため、テストからは日付を固定できず
+    // 「この画面の絵は3日周期で変わる」＝スクリーンショット回帰を張れない状態だった。
+    // 時計への依存を呼び出し側の境界（既定値）へ追い出し、画面本体は「与えられた組を描く純粋な関数」にする。
+    //
+    // remember の位置が「気分 item の中」から「画面」へ上がる副次効果（意図した改善・退行ではない）:
+    // 旧実装の remember は LazyColumn の item 内にあり、気分ブロックを画面外へスクロールして戻すと
+    // item ごと破棄・再生成されて日付が再導出されていた＝旧コメントの謳う「セッション中は固定」は
+    // 実体としては item の寿命ぶんしか効いていなかった。画面スコープへ上げたことで、その記述どおり
+    // 「表示中の画面を日付跨ぎで勝手に差し替えない／次回コンポジションから新しい日の組」になる。
+    initialMoodPattern: MoodPattern = remember { MoodPattern.forEpochDay(LocalDate.now().toEpochDay()) },
 ) {
     // ── ランキングの期間スワイプ（2026-07-29 ユーザー指示「横スワイプで週間月間の遷移を」）──
     // 期間ページャ（1期間=1ページ）と期間タブは order（VM homeOrder）を単一情報源に同期する:
@@ -182,7 +197,7 @@ internal fun DiscoveryHomeK(
             // .scroll padding:6px 20px 20px → 横 S24（D 発見の横マージンと同じ）・下 S24。
             contentPadding = PaddingValues(start = Spacing.S24, end = Spacing.S24, bottom = Spacing.S24),
         ) {
-            item { MoodSectionK(onPickMood) }
+            item { MoodSectionK(onPickMood, initialMoodPattern) }
             item { GenreSectionK(onOpenGenre, onPickBiggenre) }
             item { SectionHeadingK("ランキング") }
             item {
@@ -271,11 +286,13 @@ private fun SectionHeadingK(text: String, topSpace: androidx.compose.ui.unit.Dp 
  * 横スワイプで行き来し、初期表示の組だけが日替わり（決定的＝MoodPattern.forEpochDay）。
  * 可視代替の義務（隠しスワイプ禁止）＝下のドットインジケータと日替わり注記が「他の組がある」ことを常時可視化する。
  * 2026-07-26 循環化: 端で止まらず右端→先頭・左端→末尾へ続く（仮想大カウント＋剰余写像。意匠・寸法は不変）。
+ *
+ * [todayPattern] は呼び出し側（[DiscoveryHomeK] の既定引数）が解決済みの初期組。
+ * ここで LocalDate.now() を呼ばない理由＝実時計への依存を画面の境界へ追い出すため（[DiscoveryHomeK] の
+ * initialMoodPattern のコメントが正本）。この関数は「与えられた組から描く」だけの決定的な描画に徹する。
  */
 @Composable
-private fun MoodSectionK(onPickMood: (MoodPreset) -> Unit) {
-    // remember＝セッション中は固定（日付を跨いでも表示中の画面を勝手に差し替えない。次回の composition から新しい日の組）。
-    val todayPattern = remember { MoodPattern.forEpochDay(LocalDate.now().toEpochDay()) }
+private fun MoodSectionK(onPickMood: (MoodPreset) -> Unit, todayPattern: MoodPattern) {
     val moodPagerState = rememberPagerState(
         // 循環スワイプ: Pager にネイティブ循環が無いため仮想大カウント＋剰余写像で実現。
         // 中央帯から開始（loopInitialPage）＝初日組を保ったまま左右どちらへも実用上無限にスワイプできる。

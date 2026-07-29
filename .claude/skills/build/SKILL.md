@@ -69,7 +69,8 @@ CI（`.github/workflows/ci.yml`）が毎 push で回すのは次の5つ。**日�
 
 ```bash
 cd android
-gw :app:verifyRoborazziDebug      # 単体テスト全件＋golden 48枚の画像比較（testDebugUnitTest を内包する1パス）
+gw :app:verifyRoborazziDebug      # 単体テスト全件＋golden の画像比較（testDebugUnitTest を内包する1パス）
+                                  # 枚数は増えるので書かない＝実数は `ls android/app/src/test/screenshots/*.png | wc -l`
 gw :app:assembleDebugAndroidTest  # androidTest の「ビルド」だけ（実行は端末必須＝/device-verify）
 gw :app:lintDebug                 # 基準 0 errors
 gw :app:assembleRelease           # release の R8 収縮が通るか（鍵不在でも未署名で通る）
