@@ -1,7 +1,7 @@
 package com.novelreader.pdf
 
 /**
- * 抽出した 1 文字分の情報（移植元 python/pdf_extractor.py の char dict と等価）。
+ * 抽出した 1 文字分の情報（移植元 pdf_extractor.py の char dict と等価）。
  * top は「ページ上端から文字上端までの距離」、bottom は「ページ上端から文字下端までの距離」。
  * rubyText は _associate_ruby で親文字へ後付けされるルビ（初期 null）。
  */

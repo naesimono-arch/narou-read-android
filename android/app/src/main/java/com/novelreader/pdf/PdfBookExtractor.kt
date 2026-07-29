@@ -56,9 +56,23 @@ internal object PdfBoxEngine : PdfEngine {
 
 /**
  * PDF 1 冊を HTML（index.html / chap_N.html）へ変換するオーケストレータ。
- * 移植元: python app.process_pdf（4ステップ進捗・例外分類）＋ submission-B Main.extractBook（meta→本文→章→前後書き）。
+ * 移植元: app.process_pdf（4ステップ進捗・例外分類）＋ submission-B Main.extractBook（meta→本文→章→前後書き）。
  *
  * 抽出コア（PdfExtractor/ChapterProcessor/HtmlExporter）は移植済みの純ロジックをそのまま呼ぶ。
+ *
+ * ---
+ * **※ この pdf パッケージ全体に関わる注記（代表箇所として本ファイルに集約）**
+ *
+ * 本パッケージの各所にある「移植元 python/…」「Python と同一」等のコメントは、**git 履歴上の出自**を
+ * 指すだけである。PDF 抽出は 2026-07-05 に Chaquopy(Python) から純 Kotlin(PDFBox-Android) へ完全移植され、
+ * **`python/` ディレクトリはリポジトリに実在しない**。したがって「Python 実装に合わせる」ことを
+ * 現在の受入条件と読んではならない（追従すべき現物が無い＝照合不能）。
+ *
+ * 出力の受入条件は現在は次の2つが正本:
+ * - HTML の書式 … `src/test/resources/golden_html/` ＋ `HtmlExporterGoldenTest`
+ * - 本文抽出の結果 … `ab-review/golden_regression/` 配下の `.pdf.json` ＋ `JvmGoldenRegressionTest`
+ *   （ここでワイルドカードを書かないのは、Kotlin のブロックコメントがネスト可能で
+ *    パス中の `/` と `*` の並びがコメント開始として解釈され、KDoc が閉じなくなるため）
  */
 object PdfBookExtractor {
 
@@ -135,7 +149,7 @@ object PdfBookExtractor {
                 onProgress(3, 0f, "HTMLを生成しています…", currentTitle)
                 // trace 区間: HTML 書き出し（章ごとの chap_N.html／index.html 生成）。
                 Sections.trace("Extract#exportHtml") {
-                    HtmlExporter.exportToPwa(finalChapters, bookId, meta.title, outputDir) { pct, phase ->
+                    HtmlExporter.exportToPwa(finalChapters, meta.title, outputDir) { pct, phase ->
                         // app.py: _notify(3, (pct - 88) / 12, phase)。HtmlExporter は 88〜99 を出す。
                         onProgress(3, (pct - 88).toFloat() / 12, phase, currentTitle)
                     }

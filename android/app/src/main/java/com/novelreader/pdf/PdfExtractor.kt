@@ -146,7 +146,7 @@ object PdfExtractor {
 
     /**
      * 表紙文字列から「最大フォントサイズの文字を top→x0 順で結合」してタイトルを得る。
-     * 移植元 python extract_book_title と同一。座標計算を伴わない純関数なのでユニットテスト可能。
+     * 移植元 extract_book_title と同一。座標計算を伴わない純関数なのでユニットテスト可能。
      */
     fun titleFromChars(chars: List<CharBox>): String {
         if (chars.isEmpty()) return "不明なタイトル"
@@ -161,7 +161,7 @@ object PdfExtractor {
 
     /**
      * 表紙文字列から著者（タイトル未満の最大サイズ群・フッター除外）を結合して得る。
-     * 移植元 python extract_book_author の思想を相対化: サイズは絶対 12pt 固定でなく「表紙内の最大サイズ
+     * 移植元 extract_book_author の思想を相対化: サイズは絶対 12pt 固定でなく「表紙内の最大サイズ
      * ＝タイトル、より小さい最大サイズ＝著者」と実配置から選ぶ（検出できなければ FONT_SIZE_AUTHOR へ退避）。
      * フッター帯はページ高さ相対（実高さ×COVER_FOOTER_Y/COVER_PAGE_HEIGHT・幅±COVER_FOOTER_Y_TOL）で除く。
      * フッターを除くのは、ページ番号/シリーズ名（発行元表記）が著者と同サイズで下部に出るため。

@@ -1,14 +1,14 @@
 package com.novelreader.pdf
 
 /**
- * Python html.escape(s, quote=True) の忠実移植（パッケージ共有のトップレベルヘルパー）。
+ * HTML エスケープ（パッケージ共有のトップレベルヘルパー。移植元 html.escape(s, quote=True)）。
  *
- * quote=True が Python の既定＝ " と ' もエスケープする。ChapterProcessor（本文）と
- * HtmlExporter（作品名・章タイトル）の双方が Python 出力とバイト等価であるために、
- * 同一実装を 1 箇所へ集約する。**なぜ集約するか**: 複製すると片方だけ修正して
- * escape 挙動が drift し、バイト等価ゴールデンが静かに崩れる事故を招くため。
+ * `"` と `'` も実体参照にする（属性値へ本文由来の文字列が入っても壊れないようにするため）。
+ * ChapterProcessor（本文）と HtmlExporter（作品名・章タイトル）の双方が同一実装を使う。
+ * **なぜ 1 箇所へ集約するか**: 複製すると片方だけ修正して escape 挙動が drift し、
+ * `golden_html/` とのバイト等価（HtmlExporterGoldenTest）が静かに崩れる事故を招くため。
  *
- * 置換順は & を最優先（後続の &lt; 等の & を二重エスケープしないため）＝Python 実装と同一。
+ * 置換順は & を最優先（後続の `&lt;` 等が生む & を二重エスケープしないため）＝順序は入替え不可。
  */
 internal fun htmlEscape(s: String): String =
     s.replace("&", "&amp;")

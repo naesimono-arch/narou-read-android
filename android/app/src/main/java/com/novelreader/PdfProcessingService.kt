@@ -354,7 +354,7 @@ class PdfProcessingService : Service() {
         // この本の位置（分子）は開始時点のスナップショットで固定する。
         // doneCount は完了時（finally）にしか増えないため、処理中は常にこの本の番号を指す。
         val currentNumber = lock.withLock { doneCount + 1 }
-        // Python step0 で実タイトルが判明するまでの即時フォールバック表示名。
+        // 抽出 step0（PdfBookExtractor の表紙メタ読み取り）で実タイトルが判明するまでの即時フォールバック表示名。
         val displayName = resolveDisplayName(uri)
         // 変換開始直後にバナー/通知へ表示名を出す（step0 のコールバックを待たない即時フィードバック）。
         app.updateProcessingState(

@@ -4,16 +4,18 @@ package com.novelreader.pdf
 data class ProcessedChapter(val title: String, var body: String)
 
 /**
- * 段落リストを話数・前書き・後書きに分割/整形する（移植元 python/chapter_processor.py の HTML 版）。
+ * 段落リストを話数・前書き・後書きに分割/整形する（移植元 chapter_processor.py の HTML 版。
+ * 「移植元」の意味は PdfBookExtractor の注記を参照＝python/ は現存しない）。
  *
- * submission-B の ChapterProcessor(plain/Node 版) ではなく本番 Python の HTML 版を移植元とする（設計判断2）:
+ * plain/Node 版でなく HTML 中間表現を採る理由（設計判断2）は今も生きている:
  * 読み戻し経路（Jsoup/ChapterHtmlParser/TextSegment/RubyText）を無改修で温存するため、
- * 章本文は HTML 中間表現のまま生成する。
+ * 章本文は HTML 文字列のまま生成する。
  */
 object ChapterProcessor {
 
     // モジュールロード時にコンパイルしておく（移植元 _RUBY_PATTERN と同一パターン）。
-    // Kotlin Regex も既定で貪欲＝Python re と同一マッチ挙動。
+    // 量指定子は貪欲だが、親文字側 `[^《]+`・ルビ側 `[^》]+` が区切り文字を除外しているため
+    // 隣接する 2 つのルビ記法をまたいで飲み込むことはない（貪欲/非貪欲で結果は変わらない）。
     private val RUBY_PATTERN = Regex("""\|([^《]+)《([^》]+)》""")
 
     /**
@@ -65,8 +67,9 @@ object ChapterProcessor {
      * |base《ruby》 マーカーを <ruby> タグへ変換する（移植元 _apply_ruby と 1:1）。
      * 親文字とルビの長さが一致する場合は 1 文字ずつ紐付ける（zip）。長さが異なる場合はまとめて 1 つの ruby に。
      *
-     * length/zip は Kotlin では Char 単位＝Python len()/zip の code point 単位と BMP 文字では一致する
-     * （なろう本文は日本語 BMP のため実害なし。非 BMP のサロゲートペアのみ差が出るが対象外）。
+     * length/zip は Kotlin では Char（UTF-16 単位）で数えるため、非 BMP のサロゲートペアを含む親文字では
+     * 1 文字ずつの紐付けが崩れる。なろう本文は日本語 BMP のみで実害が無いと判断して対象外にしている
+     * （＝将来 emoji 等を含む本文を扱うならここが最初に壊れる箇所）。
      */
     private fun applyRuby(text: String): String =
         RUBY_PATTERN.replace(text) { m ->
@@ -90,7 +93,10 @@ object ChapterProcessor {
      * その後ルビマーカー(| 《 》＝escape 対象外)を <ruby> へ変換する。順序を守れば両者は共存できる。
      *
      * 前書き: 次の通常章の先頭へ前置。後書き: 直前の章末へ追記（前章が無ければドロップ）。
-     * div/hr の HTML 文字列は Python f-string とバイト等価に揃える（Task 7 のゴールデンの前提）。
+     *
+     * ここで埋める `<hr>` は装飾でなく **読み戻し側との契約**: ChapterHtmlParser が
+     * `"hr" -> TextSegment.HorizontalRule` として拾い、各スキンの場面転換線（SceneDividerM/P/J 等）を描く。
+     * タグを変えると場面転換線が無音で消える（ゴールデンは本文 sha256 までしか見ておらず検出できない）。
      */
     fun processForewordAfterword(chaptersData: List<RawChapter>): List<ProcessedChapter> {
         val finalChapters = mutableListOf<ProcessedChapter>()

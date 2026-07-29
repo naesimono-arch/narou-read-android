@@ -94,7 +94,7 @@ internal class WebBookImporter(
             if (restoreTarget != null) outputDir.deleteRecursively()
             try {
                 val finalChapters = ChapterProcessor.processForewordAfterword(rawChapters)
-                HtmlExporter.exportToPwa(finalChapters, bookId, toc.meta.title, outputDir)
+                HtmlExporter.exportToPwa(finalChapters, toc.meta.title, outputDir)
 
                 if (restoreTarget != null) {
                     // ⑥' 復元の確定: 既存行を部分 UPDATE（updateRestoredContent）＝id・進捗・栞・addedAt・

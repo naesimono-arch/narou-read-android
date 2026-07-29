@@ -33,7 +33,7 @@ class HtmlExporterChapterCountInvariantTest {
         // 単数・複数・二桁の代表 N で不変条件を固定する。
         for (n in listOf(1, 2, 5, 23)) {
             val out = tmp.newFolder("out_$n")
-            HtmlExporter.exportToMobileHtml(chapters(n), out, "テスト小説", "id") { _, _ -> }
+            HtmlExporter.exportToMobileHtml(chapters(n), out, "テスト小説") { _, _ -> }
             val index = File(out, "index.html").readBytes().toString(Charsets.UTF_8)
 
             val toc = tocEntryCount(index)

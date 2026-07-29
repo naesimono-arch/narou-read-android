@@ -4,7 +4,8 @@ import kotlin.math.abs
 import kotlin.math.max
 
 /**
- * なろう縦書き PDF 解析の判定ルール（移植元 python/pdf_rules.py と 1:1）。
+ * なろう縦書き PDF 解析の判定ルール（移植元 pdf_rules.py と 1:1。
+ * 「移植元」の意味は PdfBookExtractor の注記を参照＝python/ は現存しない）。
  *
  * 座標系: pdfminer 版は top = page_height - y1 で上原点へ変換していた。
  * PDFBox-Android の TextPosition も上原点（y は下方向が正）で単位は PDF point のため、
@@ -16,8 +17,8 @@ import kotlin.math.max
  * 本文処理は原則 [DetectedRules] 経由で相対値を使い、検出不能な項目だけここへ退避する
  * （＝生成側が同じ形状のまま寸法を微調整しても、検出が追随して破綻しないようにするため）。
  *
- * 移植元との差分: pdf_rules.py の START_Y_BODY / START_Y_TITLE は定義のみで本文処理から
- * 一度も参照されないデッド定数のため移植しない（Python 側 grep で未参照を確認済み）。
+ * 移植元との差分（Why-not の記録）: pdf_rules.py の START_Y_BODY / START_Y_TITLE は定義のみで
+ * 本文処理から一度も参照されないデッド定数だったため移植していない（移植時に移植元を grep して確認済み）。
  */
 object ParserRules {
     // 1. フォントサイズ / フォント名（検出不能時のフォールバック実測値）
@@ -48,7 +49,8 @@ object ParserRules {
     const val TOLERANCE = 0.1
 
     /**
-     * Python の math.isclose(a, b, rel_tol=1e-9, abs_tol=absTol) と等価。
+     * CPython 標準ライブラリ math.isclose(a, b, rel_tol=1e-9, abs_tol=absTol) と同じ判定式
+     * （外部仕様への参照＝撤去された python/ ではなく現存する言語仕様を指す）。
      * abs(a-b) <= max(rel_tol*max(|a|,|b|), abs_tol)
      */
     fun isClose(a: Double, b: Double, absTol: Double = TOLERANCE, relTol: Double = 1e-9): Boolean =

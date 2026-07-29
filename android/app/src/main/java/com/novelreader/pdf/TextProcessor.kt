@@ -5,11 +5,15 @@ import kotlin.math.roundToInt
 
 /**
  * 文字座標から縦書きの列を再構成し、ルビを紐付けて段落文字列を組み立てる。
- * 移植元 python/pdf_extractor.py の _group_chars_by_line / _associate_ruby /
- * _build_line_str / _process_pages を Kotlin で再現する。
+ * 移植元 pdf_extractor.py の _group_chars_by_line / _associate_ruby /
+ * _build_line_str / _process_pages（「移植元」の意味は PdfBookExtractor の注記を参照）。
  *
- * ルビは中間表現として「|親文字《よみ》」マーカーで段落文字列に埋め込む（Python 踏襲）。
- * 後段の chapter_processor が <ruby> タグへ変換する。
+ * ルビは中間表現として「|親文字《よみ》」マーカーで段落文字列に埋め込み、後段の
+ * [ChapterProcessor] が `<ruby>` タグへ変換する。**この記法は今も live な内部契約**で、
+ * 二重に守られている:
+ * - `JvmGoldenRegressionTest` がこの段落文字列そのものを body_sha256 と 《 の出現数で固定する
+ * - Web 取込側 [com.novelreader.scrape.NovelSiteAdapter] も同じ記法で本文を返し、同じ変換段を通る
+ * ＝記法を変えるなら PDF/Web 両経路とゴールデンを同時に更新すること。
  */
 object TextProcessor {
 
@@ -226,9 +230,9 @@ object TextProcessor {
                     val diffX = prevX - x
                     if (diffX > rules.lineStepX * 1.5) {
                         isNewParagraph = true
-                        // 空行数 = round(diffX/lineStepX) - 1。roundToInt は Python round と .5 の丸め
-                        // 方向が異なるが、diffX/lineStepX が厳密に .5 になるのは実データで稀
-                        // （submission-B の章数一致検証で問題ないことを確認済み）。
+                        // 空行数 = round(diffX/lineStepX) - 1。厳密に .5 のとき roundToInt は上へ丸めるが、
+                        // 実測 PDF で diffX/lineStepX がちょうど .5 になる例は確認されておらず
+                        // （submission-B の章数一致検証で問題なし）、丸め方向は結果に効いていない。
                         blankLineCount = (diffX / rules.lineStepX).roundToInt() - 1
                     }
                 }
