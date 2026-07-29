@@ -1,7 +1,7 @@
 # 0016. 本棚既定ソートの二層化（層反転済み: 未読=addedAt 降順を上層・触った本=lastReadAt 降順を下層）
 
 - 状態: 改訂（2026-07-16・実使用フィードバックによる層反転。旧決定=読書中が上を棄却）／初版採用は 2026-07-12（`ui/polish`＝UX/Design 全層監査 ia Major の消化）
-- 関連: 実装 `viewmodel/ShelfItems.kt`（`RecencyKey`）・`data/BookDao.kt`（ORDER BY 同一規則）／監査一次情報 `.claude/plans/ux-design-full-audit-2026-07-12.md` §B [ia] 15-§B／目録モックの持ち越しメモ「①ソートの既定（最近読んだ順/追加順/五十音）」に対する裁定
+- 関連: 実装 `domain/ShelfItems.kt`（`RecencyKey`。採用当時は `viewmodel/` 配下・後に `domain/` へ移設）・`data/BookDao.kt`（ORDER BY 同一規則）／監査一次情報 `.claude/plans/ux-design-full-audit-2026-07-12.md` §B [ia] 15-§B／目録モックの持ち越しメモ「①ソートの既定（最近読んだ順/追加順/五十音）」に対する裁定
 
 ## 背景
 

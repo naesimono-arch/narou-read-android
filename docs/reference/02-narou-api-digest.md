@@ -1,6 +1,6 @@
 # 02 なろう小説API — アプリ視点ダイジェスト
 
-> **完全なリファレンスの正本 = `../novel-reader_andloid/docs/reference/narou_api_manual.md`。**
+> **完全なリファレンスの正本 = `docs/reference/narou_api_manual.md`（同フォルダ）。**
 > ここはそこから「このアプリの機能検討に効く要点」だけを抜いたもの。数値・全パラメータは正本を見る。
 
 ## エンドポイント / 基本

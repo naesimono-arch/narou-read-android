@@ -37,7 +37,8 @@ M/P/J は本棚〜各画面の構造ごと別物の**構造スキン**であり�
 
 **追記 2026-07-17**: 上表 P 行の予告どおり、ユーザーがテーマ3変種の追補ドラフトを承認したため
 **P = `[LIGHT, SEPIA, DARK]`（既定=LIGHT）へ拡張**した。値の出自＝`docs/design-candidates/skins/candidates/reading-P-themes-draft.html`
-（承認後に正本 `reading-P.html` の `.t-light/.t-sepia/.t-dark` へ統合・ドラフトは candidates/ に一次情報として残置）。
+（承認後に正本 `reading-P.html` の `.t-light/.t-sepia/.t-dark` へ統合。**ドラフト自体は正本昇格後に候補モック掃除で削除済み＝現存しない**——
+値の正本は `reading-P.html` 側で、ドラフトの中身が要るときは削除コミットから引く）。
 SEPIA/DARK の地色は settings-P スウォッチ実値（#e4d2a4／#2a2d24）の正本値昇格で、無根拠の発明ではない（§2 の要件を充足）。
 **J と同型で変種が作用するのは読書系トークンのみ**＝material/shelf/shiori は theme 非依存の固定筐体面（プラ筐体・緑LCD・
 HUD/コンソールは P の署名＝テーマ不変）。派生値（placeholder/hr/blockBg＝rgba 焼き込み）は SkinP.reading にインライン集約・

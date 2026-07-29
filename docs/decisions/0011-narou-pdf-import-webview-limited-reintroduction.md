@@ -53,6 +53,7 @@
 
 - **`setDownloadListener` が最終 PDF（`pdfnovels.net/<token>/<NCODE>.pdf`）で発火するか**が唯一の未検証点だった。中間ページが `window.location=<pdf>`（フルナビゲーション）なら application/pdf を描画不能と判断して発火＝配線は素直。もし `fetch`＋`blob:`＋`<a download>` 実装なら発火せず、`shouldInterceptRequest` で `pdfnovels.net` の GET を横取りする**フォールバック**が要る——という分岐だった。
 - **検証手順**: 使い捨て WebView 1画面（debug ソースセット `spike/PdfDownloadSpikeActivity.kt`・logcat タグ `PdfSpike`）で n2959ki を通し、実機 PGEM10（Android 16 / WebView Chromium 149）で観測。
+  ※このスパイク用ファイルは**コミットせず破棄した使い捨て**＝リポジトリには存在しない（下記の実測値が成果物）。
 
 ### スパイク結果（2026-07-09 実測・発火確定）
 

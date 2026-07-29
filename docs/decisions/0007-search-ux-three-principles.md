@@ -3,7 +3,7 @@
 - ステータス: Accepted
 - 日付: 2026-07-07
 - 出自: ユーザー実機フィードバック（2026-07-07・Phase 1〜2 検索機能への最初の表層所感）× `docs/reference/05-competitor-search-ui-field-report.md`（競合5アプリの検索UI実機目視）
-- 関連実装: `ui/discovery/`・`viewmodel/DiscoveryViewModel.kt`・`viewmodel/SearchDraft.kt`・`narou/model/DiscoveryQuery.kt`・`narou/NovelApiRepository.kt`
+- 関連実装: `ui/discovery/`・`viewmodel/DiscoveryViewModel.kt`・`domain/SearchDraft.kt`（採用当時は `viewmodel/` 配下・後に `domain/` へ移設）・`narou/model/DiscoveryQuery.kt`・`narou/NovelApiRepository.kt`
 - 意匠の上位規範: ADR 0005（視覚言語D）。本 ADR は「操作の設計原則」であり見た目の正本は引き続きモック＋0005。
 
 ## Context（背景）

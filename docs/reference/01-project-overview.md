@@ -29,7 +29,7 @@ API機能を検討する前提として、対象アプリが「今どういう�
   → 読書画面（ChapterHtmlParser → LazyColumn + RubyText）
 ```
 
-構成の詳細は `../novel-reader_andloid/.claude/skills/architecture/SKILL.md` を参照。
+構成の詳細は `.claude/skills/architecture/SKILL.md` を参照（本書は外部の調査リポジトリで書かれた当時の `../novel-reader_andloid/…` 相対パスを、収蔵後のリポジトリ内パスへ張り替えてある）。
 
 ## API検討にとって決定的な「現状の前提」
 

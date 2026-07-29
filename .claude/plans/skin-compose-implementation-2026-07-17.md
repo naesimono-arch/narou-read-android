@@ -78,6 +78,7 @@ cd /home/qingj/wt/ui-skin-framework && claude
    - 発見 `DiscoveryHomeSkyM.kt`（委譲→検収済。ホーム＋結果一覧・モック省略の D 機能は全数 M 意匠へ移植）
 4. **P テーマ3変種の追補ドラフト**: `docs/design-candidates/skins/candidates/reading-P-themes-draft.html`
    （SEPIA/DARK 地色=settings-P スウォッチ実値昇格・WCAG 実算済み・承認後に reading-P 正本統合→SkinP 3テーマ化）。
+   ※このドラフトは正本統合後の候補モック掃除で**削除済み＝現存しない**。値の正本は `docs/design-candidates/skins/reading-P.html` と ADR 0022。
 
 ### 人間の関門（3件・ここで停止中）
 

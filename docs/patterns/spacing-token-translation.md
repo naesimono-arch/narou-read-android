@@ -1,7 +1,7 @@
 # 余白リテラル → Spacing/Insets トークン翻訳（と較正値の保護）
 
 > 旧ID: —（2026-07-13 新規・F(2) 残債19ファイル再翻訳が動機）
-> 正本コード: `theme/Spacing.kt`（7段スケール）・`theme/Insets.kt`〔Insets object〕・検査 `tools/check_design_tokens.py` Phase B。
+> 正本コード: `theme/Spacing.kt`（7段スケール `Spacing` object＋**同ファイル内の `Insets` object**＝別ファイルではない）・検査 `tools/check_design_tokens.py` Phase B。
 
 ## パターン
 

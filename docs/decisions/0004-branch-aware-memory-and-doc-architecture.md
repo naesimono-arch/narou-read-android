@@ -3,6 +3,8 @@
 - ステータス: Accepted
 - 日付: 2026-06-29
 - 関連実装: `.claude/hooks/{statusline,inject_branch_context,guard_commit_branch,consume_protected_sentinel,guard_sentinel_creation}.py` / `.claude/settings.json`
+- **本文中の `check_commit_granularity.py` / `check_lint_on_commit.py` は当時のファイルで現存しない**（2026-07-12 に「テスト強制3点」として撤去。ROI 不成立のユーザー裁定）。
+  当時の配線を説明する記述としてそのまま残す＝**本 ADR の判断（statusline＋SessionStart 注入＋commit ガードでブランチ識別を機構化）は現存フックだけで成立しており不変**。
 - 関連コミット: `cb5078f`（infra 追加）, `9247b76` / `96c8f14` / `96a9061` / `280038a` / `7416c85`
 
 ## Context（背景）

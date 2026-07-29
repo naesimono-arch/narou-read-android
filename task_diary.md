@@ -11,6 +11,12 @@
 > - 旧 Part II / Part III はそれぞれ上記へ移設済み。固定ID（`§N`）の対応は末尾の「移設マッピング」を参照。
 >
 > ※ 各エントリ番号（#1〜）は他文書・表内参照（`§N`）の固定IDのため、リナンバーしないこと。
+>
+> ※ **本文中のファイルパスは書かれた当時のもの**で、実在しない参照が混じる（凍結の正しい帰結＝機械的に張り替えない）。
+> 現在解決しないのは主に、Material3 ライブラリ側のソース（`ModalBottomSheet.kt`・`SheetDefaults.kt`）／実機・実行時に生成される
+> ファイル（`chap_N.html`・`/sdcard/…`・スクショ）／gitignore 済みのローカル設定（`local.properties`）／リポジトリ外の
+> ツール資産（`~/.claude/hooks/…`・agy の `.agents/`・`AGENTS.md`）／撤去済みフック（`check_lint_on_commit.py`＝2026-07-12 撤去）。
+> **現況の根拠には使わない**（現況は `STATUS.md`・やることは `handover.md`）。
 
 ---
 
