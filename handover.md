@@ -120,8 +120,13 @@
 - **[ID] applicationId の変更（初回アップロード前・必須／ブランド名確定後に着手）**: `com.novelreader` は公開後**永久変更不可**。
   作業＝固有 ID へ変更 →`${applicationId}` 参照（FileProvider 等）は自動追従するので**ハードコードの有無を grep で確認**→
   benchmark の `applicationIdSuffix` 追従も確認。⚠️ 実機では**別アプリ扱い**＝既存検証端末のデータ引き継ぎは無い。
-- **[SDK 36 の残る注意点]**（移行自体は完了）: 16KB ページ要件は自前 `jniLibs` 無しでも Compose・datastore 由来の `.so` が 4ABI×2 入るため
-  **依存バンプのたびに再確認が要る**（ELF `p_align=0x4000` と `zipalign -P 16` の2点）。また JVM テストは全ファイルが `@Config(sdk = [34])` 固定＝
+- **[SDK 36 の残る注意点]**（移行自体は完了）: **16KB ページ要件は現状そもそも非該当**＝2026-07-30 の実測で
+  **debug/release とも APK に `.so` が1本も入っていない**（`unzip -l <apk> | grep '\.so$'` が0件）。旧記述の「Compose・datastore 由来の
+  `.so` が 4ABI×2 入る」は誤りで、Compose も datastore も純 Kotlin/Java・PDFBox-Android も純 Java 実装のため入る道理が無い。
+  `zipalign -c -P 16` は通る（resources.arsc の整列は満たす）が、**要件の本体であるネイティブライブラリの `p_align` は検査対象がゼロ**。
+  ⇒ 依存バンプのたびの再確認は不要。ただし**将来 `.so` を持つ依存（画像コーデック・暗号・DB エンジン等）を入れた瞬間に該当する**ので、
+  そのときは ELF `p_align=0x4000` と `zipalign -P 16` の2点を見る（`zipalign` の `-P` は build-tools 35+ が要る）。
+  また JVM テストは全ファイルが `@Config(sdk = [34])` 固定＝
   **targetSdk 35/36 固有の実行時挙動はテストでは一切捕まらない**（実機が唯一の検証手段）。
 - **[Play要件] プライバシーポリシー**: 下書き＝`docs/store/privacy-policy-draft.md`（ホスティングは GitHub Pages で裁定済み）。
   Claude 側の残り＝**公開後にアプリ内からのリンクを設置する**（プレースホルダ確定と公開はブランド名待ち＝`awaiting-human.md`）。

@@ -27,8 +27,10 @@
   v20＝`books.sourceUri` 永続化＋本削除時に取込元PDFも削除（削除ダイアログの opt-in・既定OFF）。v19＝栞書影の個体差。
   ⚠️ **旧APKへの逆走は禁止**（migration N→N-1 が無くクラッシュ＝古い→新しいの一方向のみ）。変更手順＝`/db-migration`。
 
-- **実機**: OPPO PGEM10 `192.168.2.47:5555`（IP は変動あり・切れたら `adb-bridge`）・v21 APK 導入済み。作法＝`/device-verify`（adb 前にユーザーへ一度確認）。
-  ⚠️ **実機の既存4蔵書は本文欠落中**（upload 鍵検証の uninstall 起因＝knowledge 参照）。復旧導線（下記）実装済み＝次回 APK 投入後の実復旧がそのまま検証を兼ねる。
+- **実機**: OPPO PGEM10（IP は DHCP で変動＝ハードコードせず `adb-bridge` で張り直す）・v21 APK 導入済み。作法＝`/device-verify`（adb 前にユーザーへ一度確認）。
+  **蔵書7冊・全冊とも本文健在**（2026-07-30 実測。旧記述の「4蔵書が本文欠落中」は解消・torn 状態の本も無い）。
+  ⚠️ 同一 WiFi 上に**第三者端末（Huawei P30）が居り、`adb-bridge` は既存 TCP を優先して掴む**＝操作前に端末を取り違えていないか確認
+  （機序と手順＝memory `adb-bridge-stale-tcp-holds-wrong-device`／P30 を触らない理由＝`awaiting-human.md` §2）。
 
 - **抽出パイプライン＝純 Kotlin（PDFBox-Android）単独**（Chaquopy/Python は 2026-07-05 に完全撤去・復旧は git 履歴から）。
   本文解析は文書ごとの自動検出（`DetectedRules.detect`＝サイズ／列ピッチ／ページ番号座標を実測。検出不能時のみ `ParserRules` 定数へフォールバック）。
@@ -40,7 +42,10 @@
   ／着せ替え＝装いの間（スキン D/M/P/J/C/K・ADR 0021・0022。**入口は設定タブ「きせかえ」＝2026-07-29 改訂**・本棚の発見/装い導線は撤去）／高負荷スカイモード（星図M・debug 限定トグル・ADR 0023。release は常にOFF）
   ／In-App Review（初回読了トリガ・実表示確認は内部トラック待ち）／蔵書復旧導線（本文欠落バッジ＋起動時一括検出→再取込・2026-07-29）
   ／U1 新着チェックは Web 蔵書も対象（読了本のみ再フェッチ）／読書の表示設定はライブプレビュー（押下中一行残し）／push 遷移スケルトン。
-  **2026-07-29 実装群は実機目視ツアー未実施**（チェックリスト＝`.claude/plans/handover-sweep-2026-07-29.md` 末尾が正本）。
+  **実機目視ツアーの正本＝`awaiting-human.md` §1**（ADR 0028 で台帳を二分＝人間の目視・裁定待ちはそちら）。
+  ⚠️ **蔵書復旧導線は「実装済み」だが PDF 本では機能しない**——自動再取込の対象①が「永続 URI 権限が生きている PDF」を前提にしており、
+  主機序である uninstall では権限も道連れで消えるため構造的に常に0冊になる（機序＝`docs/knowledge/auto-backup-does-not-restore-uri-permissions.md`・
+  裁定は案X へ移行済みで**本体は未実装**）。「次の APK 投入で実復旧が検証を兼ねる」という旧記述は成立しない。
 
 - **汎用Web小説DL基盤**: `scrape/` のサイトアダプタ抽象＋規約3値ゲート（Supported／Blocked／Unsupported）。取込結果は PDF 蔵書とバイト同契約へ合流。
   対応＝**カクヨム**（JSON 系＝専用アダプタ）＋**暁**（`scrape/generic/` の SiteProfile 表駆動）。なろうグループ・アルファポリス・Pixiv・野いちご・ベリーズカフェは Blocked（公式へ送客）、ハーメルンは保留。
