@@ -265,7 +265,16 @@ dependencies {
     // ProcessLifecycleOwner 提供（アプリ全体の前面/背面判定）。変換完了通知の二重報告抑止に使う
     // （UX監査 notify §86）。版は他の lifecycle 群と揃える（上限 2.8.7 の根拠は lifecycle-runtime-ktx のコメント）。
     implementation 'androidx.lifecycle:lifecycle-process:2.8.7'
-    implementation 'androidx.activity:activity-compose:1.8.1'
+    // なぜ 1.8.2（2026-07-31 に 1.8.1 から「宣言を実態へ」揃えた）:
+    // material3-android 1.3.2 が activity-compose 1.8.2 を直に要求しており、加えて androidx.activity は
+    // atomic group（activity / activity-ktx / activity-compose が同版で動く）ため、1.8.1 と宣言しても
+    // 実際には conflict resolution で 1.8.2 が選ばれていた（実測＝dependencyInsight の Selection reasons
+    // "By constraint: activity-ktx is in atomic group androidx.activity" ＋ "By conflict resolution:
+    // between versions 1.8.2, 1.8.1 and 1.7.0"）。宣言値と解決値がズレたままだと版の読み違いを招くので揃える。
+    // これは版上げではなく**宣言の実態合わせ**＝解決される版はどの座標も変わらない（実測: :app:dependencies の
+    // 差分は本宣言行が `1.8.1 -> 1.8.2` から `1.8.2` になるだけで、版が動いた座標は 0）。だから ADR 0029 の
+    // 「Kotlin 1.9.22 天井・次は1便」とは独立に入れられる（同 ADR も本座標を「天井とは無関係」と記録している）。
+    implementation 'androidx.activity:activity-compose:1.8.2'
     // なぜ 2025.07.00（2026-07-30 に 2025.02.00 から引き上げ）= Compose 1.8.3 / material3 1.3.2:
     // **Kotlin 1.9.22＋kotlinCompilerExtensionVersion 1.5.10 で使える最後の BOM**。
     //   ・上げられる理由: 1.8 系を阻んでいたのは minCompileSdk 35 で、compileSdk 36 化（2026-07-29）で解消。
