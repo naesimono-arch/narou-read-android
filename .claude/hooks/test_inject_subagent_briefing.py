@@ -33,6 +33,7 @@ ROOT = os.path.dirname(os.path.dirname(HOOKS_DIR))
 # 注入文を種別判定するための安定部分文字列（本文全文ではなく骨格語に依存＝文言微修正に強い）。
 IMPLEMENTER_MARK = "プロジェクト定型規律"
 RESEARCH_MARK = "調査報告の定型"
+DEVICE_MARK = "実機検証の禁忌"
 
 
 def run_hook(payload, project_dir_env=None):
@@ -108,6 +109,25 @@ class AgentTypeRouting(unittest.TestCase):
         self.assertIn(IMPLEMENTER_MARK, context_of(run_hook({"agent_type": "General-Purpose"})))
         self.assertIn(RESEARCH_MARK, context_of(run_hook({"agent_type": "Explore"})))
         self.assertIn(RESEARCH_MARK, context_of(run_hook({"agent_type": "Plan"})))
+
+    def test_device_verify_gets_device_rules(self):
+        # 実機系は「共通規律＋実機固有の禁忌」の両方を受け取る。
+        # なぜ中身まで固定するか: 本分岐の目的が「監督がブリーフへ手で転記していた禁忌の
+        # 転記漏れを機械で塞ぐ」ことなので、項目が黙って抜けたら分岐の意味が消えるため。
+        proc = run_hook({"agent_type": "device-verify"})
+        self.assertEqual(proc.returncode, 0)
+        ctx = context_of(proc)
+        self.assertIn(IMPLEMENTER_MARK, ctx)
+        self.assertIn(DEVICE_MARK, ctx)
+        for must in ("実蔵書を絶対に消さない", "connectedAndroidTest", "取り違え", "platform-tools"):
+            with self.subTest(rule=must):
+                self.assertIn(must, ctx)
+
+    def test_device_rules_do_not_leak_into_other_types(self):
+        # 実機禁忌が実装系・調査系へ混入しないこと（注入の肥大と、実機を触ってよいという誤解の防止）。
+        for t in ("general-purpose", "claude", "explore", "plan"):
+            with self.subTest(agent_type=t):
+                self.assertNotIn(DEVICE_MARK, context_of(run_hook({"agent_type": t})))
 
     def test_out_of_scope_agent_types_no_injection(self):
         # 外部調査・設定系（module docstring の対象外種別）は一切注入しない。

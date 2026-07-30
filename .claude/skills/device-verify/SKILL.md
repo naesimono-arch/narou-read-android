@@ -8,12 +8,35 @@ description: 実機検証の入口。adb接続(WSL)・APK投入・androidTest・
 実機 = PGEM10（Android 16 / ColorOS）。**事実の正本は `task_diary.md`（#N は固定ID）と
 memory `workflow-autonomous-device-verification`**。このスキルは操作手順の入口に徹する。
 
-## 0. 実機を触る前に — `adb-bridge` を一発
+## 0. 実機を触る前に — まず「何台繋がっているか」
 
-WSL2 は USB を直接認識しない。**必ず最初に `adb-bridge`** を実行する（PATH 済・冪等:
+### 0-a. 1台だけのとき（通常）— `adb-bridge` を一発
+
+WSL2 は USB を直接認識しない。**まず `adb-bridge`** を実行する（PATH 済・冪等:
 未接続なら Windows `adb.exe` 経由で tcpip 化→wlan0 IP へ connect、接続済みなら確認のみ）。
 以後は素の `adb …`（`~/.local/bin/adb` ラッパー＝Windows の承認済み鍵を vendor key 提示・
 鍵ローテーション自動追従）で操作する。
+
+### 0-b. ⚠️ 2台繋がっているときは `adb-bridge` を打ってはいけない（2026-07-31 実証）
+
+**`adb-bridge` は既存 TCP があると「接続済み」と判断して早期リターンする**（memory
+`adb-bridge-stale-tcp-holds-wrong-device`）。PGEM10 が tcpip で繋がっている状態で
+第三者端末（Huawei P30 等）を USB で挿すと——
+
+- P30 は **Windows 側 `adb.exe` にしか現れない**（WSL の素の `adb` には出ない）
+- ここで `adb-bridge` を打つと **PGEM10 を掴んだまま早期リターン**する
+- 結果、**P30 のつもりで PGEM10 を操作する**（統計を吸う・install する）
+
+**必ず最初に両側を突合して model を確認すること**:
+
+```bash
+adb devices -l        # WSL 側（tcpip の端末が出る）
+adb.exe devices -l    # Windows 側（USB の端末が出る）
+```
+
+**目的の端末が Windows 側にしか居なければ、`adb.exe -s <serial> …` で名指しする**
+（`adb-bridge` も tcpip 化も不要。読み取り主体の回収なら interop 経由で完結する）。
+最初に `adb.exe -s <serial> shell getprop ro.product.model` を打ち、期待する型番が返ることを確かめる。
 
 - **禁止**: PATH に `platform-tools` を前置きしない（素の `adb` が生 adb に化けて実機を見失う）。
 - IP は DHCP で変動するためハードコードしない。
