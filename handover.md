@@ -28,12 +28,18 @@
   `skins/wardrobe-D.html` の和モダン tagline（「余白の装い」）逆同期も同便で。
 - **[装いの間・K ミニチュア]** 現状はトークン D 委譲の自動描画で機能は成立。K らしさ（ナビ付きミニチュア）を出すかは磨き込み判断。
 - **[遷移 jank・残り]**（実機スタック報告の計測ラウンドの残り。対処済み分の機序と why は `TabPagerHost` のコメントが正本）
-  - **残③【相手が特定できた・2026-07-30 画面別計測】**: 重いのは**さがすの「ランキング期間の横スワイプ」**で、
+  - **残③【相手は特定済み・ただし有力2案とも潰れた（2026-07-31）】**: 重いのは**さがすの「ランキング期間の横スワイプ」**で、
     **Janky 11.89%（29/244）・p95/p99 とも 150ms**。段階内訳が `draw/record 100.6ms` に一点集中しており、
-    **GPU も measure/layout も無罪＝UIスレッドのコンポーズ／記録段**。つまり perfetto を待たずに相手は判っている。
-    効く手＝隣接期間ページの先行実体化（`TabPagerHost` の `beyondViewportPageCount=1` と同型で実績あり）か、
-    行の `key` 安定化＋`contentType` 指定。案2（`isScrollInProgress` 連動 defer）は補助策として温存。
+    **GPU も measure/layout も無罪＝UIスレッドのコンポーズ／記録段**。
     ※ 同じ「さがす」でも**縦スクロールは 2.29% と静か**なので、面全体が重いのではなくページ実体化が重い。
+    ⚠️ **試した2案はいずれも使えないと判明**（同じ道を再探索しないこと）:
+    ①**隣接ページの先行実体化（`beyondViewportPageCount=1`）は実機の退行を生む**——Pager の高さは測定した
+    ページの最大高で決まるため、未訪問ページの骨30行にページャ高が引っ張られ、現在ページの下に空白が広がる
+    （機序と、`TabPagerHost`/`WardrobeScreen` では無罪な理由＝`docs/knowledge/pager-resident-pages-break-wrap-height.md`）。
+    ②**`key` 安定化＋`contentType` は対象が存在しない**——ページ内は LazyColumn/LazyRow ではなく素の `Column`＋`forEachIndexed`。
+    **残る手は真因側**＝〈行を外側 LazyColumn の item へ平坦化して可視行だけ合成〉〈ページ高を現在ページだけから決める測定〉。
+    いずれも**高さ設計の作り直しとセット**なので、着手するなら計測より先に構造の設計から。
+    案2（`isScrollInProgress` 連動 defer）は補助策として温存。
   - **残④**: macrobenchmark（`.claude/plans/macrobenchmark-kickoff-2026-07-17.md`）へ**タブスワイプ＋遷移シナリオ**を足して回帰固定。
   - **副次**: 章送りは **1回につき重フレーム1枚**（48〜113ms・`draw/record 59.6ms`）。回数が少ないので体感は一瞬止まる程度だが、
     「ボタン送りのスライド化」を将来やるなら**この1枚を先に軽くしないとアニメが必ず引っかかる**。
@@ -72,15 +78,9 @@
 
 ## 未修正・調査中のバグ
 
-- **[作品詳細のあらすじが初見の画面内に出てこない]**: **ユーザー目視で「あらすじはある。ただしスクロールしなければ出てこない」**（2026-07-31）。
-  ⚠️ **第2波エージェントの「あらすじが常に空」は誤診**——見出しと区切り線までしか撮れておらず、本文はその下にあった。
-  データ側も無罪（実 API を叩いて `story` が返ることを確認済み＝`api.syosetu.com/novelapi/api/?out=json&ncode=n9669bk&lim=1`）。
-  **残る問題は情報設計**＝作品詳細で最初に読みたいのはあらすじのはずなのに、見出しに辿り着くまでに何が入っているか。
-  **公開スクリーンショットに載る主要画面**なので、初見であらすじ本文が見えないのは実害。
-  ⚠️ 並び順・余白は意匠＝`/visual-language` の分業に従い、実装の自己判断で構図を変えないこと（調査→裁定が先）。
-- **[新着タブが並び順と無関係な「累計 N pt」を出す]**: `ui/discovery/DiscoveryCommon.kt:78` 付近が `TOTAL` と `NEW` を
-  同じ枝で処理しており、更新日時順に並ぶ新着タブでも累計ptを表示する＝実機で 1位22pt・2位27,031pt・3位0pt と並び
-  **壊れて見える**（並び自体は正常）。直す方向は「並び順と表示指標を一致させる」＝新着なら更新日時。
+- **[新着の更新日時が M/P/J スキンでは出ない]**（2026-07-31・K/D は是正済み）: 指標の排他は `orderMetricLabel()` に集約したが、
+  **M/P/J は `NovelListRow` を使わず自前の行実装から `pointLabel` を直接呼んでいる**ため新着では何も出ない。
+  誤情報ではない（壊れて見える累計ptは消えている）ので退行ではなく、各1行を `orderMetricLabel` へ差し替えれば揃う。
 - **[削除警告が「守れない約束」になりうる（2026-07-30 実機実測）]**: なろう縦書きPDF取込の本は
   `sourceUri`／`sourceUrl` が**両方 NULL**（実測＝保有しているのは `ncode` と `contentSha256` のみ）。よって本文が欠落すると
   再取込プランは③`PickPdfNoRecord`＝「PDF のある場所から探しますか？」へ落ちるが、**その PDF はアプリ自身の
@@ -95,9 +95,6 @@
   「本棚に置く」で `web_novels` に行を作った作品を **URL 共有→`addWebBook`** で取り込むと、ncode が無く昇格判定に掛からず web カードが残る。
   ヘッダ冊数と一覧枚数は一致するので**冊数ずれとしては現れない**。対処は「取込時に ncode を記録する」等のデータ意味論の変更で影響範囲が広い。
   着手時は ADR 0011 と `NcodeLinkSheet` の手動紐付けとの整合を先に見ること。
-- **[蔵書復旧ダイアログが取込元を数値IDで表示する]**: 記録済み `sourceUri` は全冊 MediaStore Documents Provider 形式
-  （`content://…/document/document%3A<数値ID>`）で**ファイル名を含まない**のに、`sourceFileNameHint()` は `primary:Download/foo.pdf` 形式のみ想定＝
-  「取込元の PDF: 1000027648」と無意味な数値が出る（機序の詳細＝`docs/knowledge/auto-backup-does-not-restore-uri-permissions.md`）。
 - **[本文読書中の章遷移で「描画が上部にジャンプする」]**（実機ユーザー報告・**報告者自身も再現できていない**＝再現手順の取得が先決＝`awaiting-human.md` §1-4）:
   - **調査済み＝同じ道を再探索しないこと**: 本文で章遷移時にスクロールが 0 へリセットされる経路は**実コードに存在しない**と判定。
     根拠 ①章→章は `AnimatedContent` が file でキーするため別サブコンポジション＝`LazyListState` は毎回新規（**新章が先頭から始まるのは設計どおり**）
@@ -172,13 +169,19 @@
 
 ## モック逆同期・意匠の宿題
 
-- **[AlertDialog 本文が AA 未達（2026-07-30 発見）]**: M3 は `textContentColor` を `onSurfaceVariant` へ配線するが、
-  本プロジェクトは ADR 0014-D で onSurfaceVariant を「装飾専用・**意味を運ぶ文字は InfoText 系へ分離**」と裁定している。
-  実測 D LIGHT で `#7C808B` on `#FBFAF8` ＝ **3.94:1**（M3 baseline の紫面だった頃の 3.23:1 からは改善したが未達のまま）。
-  削除確認は「不可逆」を伝える面なので本文が読みにくいのは実害。対処案＝ダイアログ本文だけ InfoText 系へ寄せる／
-  AlertDialog を包む薄いラッパを1本作る。
-  ⚠️ **`tools/check_design_tokens.py` の a11y ペア表に `onSurfaceVariant⇄surfaceContainerHigh` が無く機械検査をすり抜ける**＝
-  直すときにペア表への追加も同時にやらないと、直しても検査が守らない。
+- **[ダイアログのラッパ移行が未完＝16箇所]**（2026-07-31・`NovelReaderAlertDialog` を新設した便の残り）:
+  本文の AA 未達は「M3 の `textContentColor` が `onSurfaceVariant` を引く」のが真因で、単一結節点のラッパで解いた。
+  **残るのは呼び出し側の差し替え**＝`ui/BookshelfScreen.kt`(10)・`ui/AdapterHealthBoardDialog.kt`・
+  `ui/skins/k/BookshelfK.kt`・`ui/skins/k/SettingsScreenK.kt`・`ui/skins/j/BookshelfGridJ.kt`・
+  `ui/skins/m/BookshelfLogM.kt`・`ui/skins/p/BookshelfListCartridgeP.kt`（import 名の変更のみで意味は変わらない）。
+  **移行台帳付き lint が `check_design_tokens.py` で数え続ける**ので放置しても数は見える（台帳外の新規流入は即 NG）。
+- **[作品詳細 `discovery-detail-D.html` の翻訳ズレ5件（2026-07-31 検出・今回は意図的に入れなかった）]**:
+  ①`.sec{margin:24px 0 12px}` の下 12px に対し実装は `S8` ②`.detail-meta-top` はモックが `space-between`・実装は
+  `spacedBy(S12)` の左寄せ ③`.genre-label` の枠線チップ（1px seiji／padding 4・8／radius 2）が実装で欠落
+  ④`.status-grid` の上下ヘアライン＋中央縦罫が欠落 ⑤`.last-updated{margin-top:16px}` に対し実装は `S24`。
+  ⚠️ **これらを直すと「あらすじが下へ押し出される」方向に効く**（①③④は要素高が増える）。2026-07-31 に
+  書影ヒーローを 200→120dp へ縮めてあらすじを可視化した直後なので、**入れるなら回収 dp を再計算してから**。
+  なお「ヒーロー 190px→実装 200dp」のズレは 120dp 化の逆同期で解消済み。
 - **[向き応答していない固定値の棚卸し]**: `Insets.ScrollBottomForFab` / `ChromeHintBottom` はいずれも縦向き前提の 96dp 固定。
   横向きの構造裁定（`awaiting-human.md` §3-1）のついでに見直す。
 > 棚卸しの一次情報＝`.claude/plans/mock-drift-inventory-2026-07-16.md`（正本モック全数の未反映リスト・優先順位）。
@@ -277,6 +280,11 @@
 - **検索画面 S3＝カテゴリ列の LazyColumn 化（保留・要否判断）**: 重さの正体は「カテゴリ展開状態での操作毎の全画面再コンポーズ」で、
   S1/S2 は解消済み・実機体感は軽快（2026-07-11 実測）。残る理論コスト＝非 Lazy Column 上の22カテゴリ/115チップ
   （`DiscoverySearchScreen.kt:203-207`）の画面外存在コストと「全展開のまま再訪」の初回構成。**体感問題が再報告されるまで保留が妥当**。
+- **[golden の空白] D 系本棚のスクリーンショットが1枚も無い**（2026-07-31 に判明・`screenshots/` は `BookshelfK_*` のみ）:
+  2026-07-30 に出荷スキン K へ golden を張った便の裏返しで、**D/C の本棚は絵での回帰が一切効いていない**。
+  実際この空白のせいで、K で見つけた「状態行が⋮の分だけ幅不足」と**同型の欠陥が D 側に残っていた**（同日是正）。
+  当座は `ui/GridStatusLineWrapTest.kt` が D・K 双方の状態行を `lineCount==1` で固定しているが、絵の回帰ではない。
+  ⚠️ ADR 0027 で初回公開は K 単独＝**出荷は止まらない**ので優先度は低い。張るなら K と同じ状態セットで。
 - **MigrationTest の coverage-hole**: 「16.json 形状（`web_reading_progress` 無し）→17」経路を構造的に検証できない（chain テストは 14→15 でテーブルが生まれる系譜のみ通過）。既知の実機 v16→v17 未検証と同根。
 
 ## workflow / tooling
@@ -290,11 +298,11 @@
   **部分的**は `fixed-bar-clearance-hardcoded-guess`・`webview-position-mis-record`／**静的検査では無理**は `oem-background-kill`・`benchmark-device-run-fragility`
   （実機依存。ただし「防御コードが在るか」の構造検査なら可）。
   → **L3 は不採用の方向で、ADR には「効かないから」ではなく「上位互換（機械検知への変換）があるから」と書く**（不採用も記録する規約）。
-- **[番人の未整備] `awaiting-human.md` がどの機械チェックにも掛かっていない**（ADR 0028 の宿題）: stale-check の
-  `check_size_budgets`（打ち消し線）・`check_referenced_files`（名指しファイルの実在）・トークン予算チェックは
-  対象を `CLAUDE.md`/`STATUS.md`/`handover.md`/`task_diary.md` で**列挙**しているため新設ファイルが素通りする。
-  `.claude/skills/stale-check/check_machine.py` の対象リストへ `awaiting-human.md` を足す
-  （ADR 0017 決定5＝規約は機械の番人とセット。宣言だけのルールは数週間で崩れる、が大掃除前の実測）。
+- **[台帳が肥大している]**（2026-07-31 に新設した数値予算が info で検出）: 台帳2枚の合計 **36,867字**で
+  警告線（予算 42,000字 の 3/4）超え・内訳は `handover.md` **24,776字**・`awaiting-human.md` 12,091字。
+  ⚠️ **溜まっているのは「完了したのに消していない項目」ではなく、着手されないまま育った backlog**（スキン磨き込み・
+  UX監査残・思いつき）。**片方をもう片方へ移しても総量は1文字も減らない**（だから予算は合計で見ている）＝
+  減らすには「やらないと決めて消す」か「別文書へ外部化する」しかない。判断が要るので機械では畳めない。
 - **[較正待ち] 委譲粒度の谷=30 の実測較正**: 委譲ターン計測フック（`count_delegation_turns.py`＝30/60/90…回で子へ中間通告＋完走時
   `~/.claude/projects/...-novel-reader-andloid/delegation-stats.jsonl` へ記録）の分布が貯まったら（目安20〜30件）谷の位置を確かめ、orchestration §0 の「~30」を実測で更新する。
 - **[bestpractice 突合の回収候補]**: ①`block_destructive_migration.py` の Bash 経路が素朴な部分文字列一致（`FOO=1 cmd`・`$()` ですり抜け）＝
@@ -364,9 +372,8 @@
   （中身は debug 限定の1項目のみ・実害小）③M の再取込ダイアログ（3ボタン）が2段に割れ、確定「場所から探す」だけが上段に浮く
   （M3 AlertDialog のボタン溢れ時の既定挙動だが主アクションが分離して見える）④本を削除しても
   `cache/pdf_import/<ncode>.pdf` が残る（削除時の「取込元PDFも削除」は `sourceUri` を持つ本だけが対象＝なろうPDF由来は対象外）。
-- **[文字の折り返し・所見]**（同日の実機観察）: グリッドの状態行「本文なし・タップで再取込」が2列グリッドで「…再/取込」と割れる
-  （選択モードでは ⋮ が消えて1行に収まる）／M のカード readout が「まだ星は結ばれてい/ない」で割れる／
-  設定の「きせかえ」副文が「（現在: 和モダ/ン）」と閉じ括弧だけ次行に落ちる／設定カードで「文字と組版」行だけリーディングアイコンが無い。
+- **[設定カードで「文字と組版」行だけリーディングアイコンが無い]**（2026-07-30 の実機観察の残り。
+  同便で見つかった文字の折り返し3件は 2026-07-31 に是正済み＝真因はいずれも別で、モック構造からの逸脱2件と禁則の巻き添え1件）。
 > レビュー中・実装中に出た宿題や着想で、まだ上の各節に整理していないものをここへ。育ったら該当節へ移す。
 
 - **[スキン・候補] 2026-07-25 モデルA/B生成実験の生存2案**: 製図室（青写真）＝`skins/candidates/bookshelf-seizushitsu.html`・

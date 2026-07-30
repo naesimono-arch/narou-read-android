@@ -51,6 +51,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -533,6 +534,28 @@ private fun RankingPagerK(
     HorizontalPager(
         state = pagerState,
         modifier = modifier,
+        // ⚠️ ここに beyondViewportPageCount（隣接ページ常駐）を**足してはいけない**（2026-07-31 に試して撤回）。
+        //
+        // 動機は正しかった: 期間の横スワイプだけが Janky 11.89%（29/244）・p95/p99 とも 150ms で、段階内訳は
+        // draw/record 100.6ms への一点集中。既定の 0 では隣ページがドラッグで可視化した最初のフレームで初めて
+        // 合成され、しかも1ページ＝取得件数ぶん（DiscoveryQuery.limit＝30行）の**素の Column**なので、
+        // その一括合成が1フレームに乗る。常駐させれば静止中の余裕フレームへ前倒しできる——TabPagerHost で
+        // 実績のある手（P99 450→73ms）。a11y も壊れない（画面外ページはクリップ後領域が空＝Compose の
+        // a11y 木 getAllUncoveredSemanticsNodesToMap に登録されず TalkBack は読まない）。
+        //
+        // それでも使えない理由＝**このページャの高さ規約と両立しない**。下の [RankingPagerK] KDoc が
+        // 「高さは wrap＝現在ページ準拠」と宣言しているとおり、外側 LazyColumn の単一 item として wrap 高で
+        // 収まることが設計の前提。ところが Pager の交差軸サイズは**測定したページの最大高**で決まるため、
+        // 隣接ページを常駐＝測定させた瞬間に「現在ページ準拠」が崩れ、高さが最も高い隣ページに引きずられる。
+        // 実害（golden で検出）: 現在ページが 10 行の Content・隣が未訪問で 30 行の骨のとき、ページャは
+        // 30 行ぶんの高さになり、上端揃え（verticalAlignment=Top）の現在ページの下に 20 行ぶんの空白が空いた。
+        // 実データは全期間 30 行で揃うため平時は見えないが、現在期間が Empty/Error（status 1行）に落ちた
+        // 瞬間に、1行の文言の下へ 30 行ぶんの空白が広がる＝ユーザーに見える退行になる。
+        //
+        // 次に手を入れるなら、常駐化ではなく**真因（1ページ＝30行の非 lazy ツリー）**を削る方向で。
+        // 候補: ランキング行を外側 LazyColumn の item へ平坦化して可視行だけ合成させる（高さ規約の
+        // 作り直しとセット）／ページ高を現在ページだけから決める測定に変える。いずれも高さの設計変更を伴う。
+
         // ドラッグ中に隣期間の行が地続きの1枚に見えないよう、画面横マージンと同じ S24 を溝にする
         //（既存スケール値の再利用＝新値の発明なし）。
         pageSpacing = Spacing.S24,
@@ -562,6 +585,18 @@ private fun RankingPagerK(
  *     読み込み中という意味は変えない＝隣ページは settle で settledPage→onSelectOrder が実読込を始めるため
  *     覗き見えた時点の表示としても虚偽にならない。VM は非改変。
  */
+/**
+ * 期間ページの testTag（1期間=1ページ）。
+ *
+ * なぜ本番コードにテスト用の目印を置くか: このページャが守るべき不変条件は「**どのページに**何が載るか」
+ * （期間別の控えを分けた狙い＝週間の行が月間ページに載る誤誘導を起こさないこと）であって、
+ * 「セマンティクス木のどこかに在るか」ではない。木全体を数える検証は、合成されるページ数が変われば
+ * 意味が変わってしまう脆い代理指標で、実際 2026-07-31 に隣接ページ常駐を試した際、実装が正しいまま
+ * 誤検知した（その常駐化自体は高さ規約と両立せず撤回。経緯は [RankingPagerK] 内のコメント）。
+ * ページを名指しできれば、検証は合成戦略に左右されず設計の意図そのものを見る。
+ */
+internal fun rankingPageTestTag(order: NarouOrder): String = "rankingPage_${order.name}"
+
 @Composable
 private fun RankingPageK(
     pageOrder: NarouOrder,
@@ -572,7 +607,14 @@ private fun RankingPageK(
     onRefresh: () -> Unit,
 ) {
     val isCurrent = pageOrder == order
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            // 期間ページの識別子。テストが「どのページの子孫か」で数えられるようにする（理由は
+            // rankingPageTestTag の KDoc）。TalkBack への影響は無い
+            //（testTag は AccessibilityNodeInfo へ出ない純粋なテスト用プロパティ）。
+            .testTag(rankingPageTestTag(pageOrder)),
+    ) {
         when {
             isCurrent && state is DiscoveryUiState.Content -> RankingRowsK(state, pageOrder, onOpenDetail)
             isCurrent && state is DiscoveryUiState.Empty -> RankingStatus("作品が見つかりませんでした")

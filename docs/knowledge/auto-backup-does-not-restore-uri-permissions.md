@@ -33,7 +33,10 @@
   次回以降は「フォルダを選ぶ」すら不要な自動走査にできる＝「①が主機序では成立しない」という構造問題そのものへの解になる。
 - **記録済み `sourceUri` の形にも注意**: MediaStore Documents Provider 経由だと
   `content://com.android.providers.media.documents/document/document%3A<数値ID>` の形でファイル名を含まない。
-  UI に「取込元の PDF: 1000027648」と数値が出るのはこれが原因（`primary:Download/foo.pdf` 形式しか想定していない表示関数の穴）。
+  かつて UI に「取込元の PDF: 1000027648」と数値が出ていたのはこれが原因（`primary:Download/foo.pdf` 形式しか想定していない表示関数の穴）。
+  **表示側は是正済み**＝`sourceFileNameHint()` が拡張子の有無で〈人が探せる文字列〉と〈provider の内部ID〉を分け、
+  後者は `null` を返して行ごと出さない（回帰は `ReimportPlanTest` が実測値 `1000027648` と UUID 形式を名指しで固定）。
+  **ただし「ファイル名を含まない `sourceUri` が実在する」という事実自体は変わらない**＝ここを前提に設計すること。
 
 ## 一般化
 
