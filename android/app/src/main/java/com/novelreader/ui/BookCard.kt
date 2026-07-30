@@ -386,42 +386,35 @@ internal fun GridBookCard(
             }
         }
 
-        // 表紙下は著者＋状態（左）＋可視⋮（右端・K形の是正＝モック .caprow .dots）。題字は表紙内で描くため本欄には出さない。
+        // 表紙下＝キャプション行（正本 skins/bookshelf-D.html `.caprow`）: 著者（左）＋可視⋮（右端）。
+        // 題字は表紙内で描くため本欄には出さない＝モックの `.caprow .title` の席に著者が入る（2026-07-12 裁定）。
         // 著者はゴシック（既定）・補助色。栞表紙が作品の識別子なので下段は静かに添えるだけ。
+        //
+        // 状態行（`.state`）はこの行に**入れず**、下にカード全幅で置く（モックでも .caprow と .state は兄弟）。
+        // 真因（2026-07-30 実機観察の是正・K の KGridBookCard と同型）: 旧実装は .state 相当を .caprow の
+        // 左カラム（weight(1f)）へ入れ子にしており、状態行の幅がカード幅 −⋮のタップ面 32dp になっていた。
+        // D の2列グリッドは 360dp 端末でカード幅 144dp（Adaptive(124dp)・contentPadding 24×2・列間 24）＝
+        // 状態行に残るのは 112dp で、「本文なし・タップで再取込」（FontLabel 11sp ≒ 132dp）がちょうど溢れ
+        // 「…再／取込」と割れる。⋮ が消える選択モードでだけ収まっていたことが幅の出所の証拠。
         Spacer(Modifier.height(Spacing.S8))
-        Row(verticalAlignment = Alignment.Top) {
-            Column(modifier = Modifier.weight(1f)) {
-                if (book.author.isNotBlank()) {
-                    Text(
-                        text = book.author,
-                        fontSize = FontLabel,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(Spacing.S8))
-                }
-                if (missingLabel != null) {
-                    // 欠落本の状態行（案B）: 進捗行・相対時刻・続きバッジを欠落文言1行に置き換える
-                    // （本文が無い本に進捗の数字を出すと嘘になる。復旧すれば通常表示へ自然に戻る）。
-                    Text(text = missingLabel, fontSize = FontLabel, color = LocalShelfColors.current.infoText)
-                } else {
-                    BookProgressRow(
-                        totalChaps = totalChaps,
-                        progressFraction = progressFraction,
-                        flexBar = true,
-                    )
-                    // よみかけ（進捗あり）に限り「いつぶりか」を静かに添える（continuity Minor・モック未表現）。
-                    RelativeReadLabel(
-                        progressFraction = progressFraction,
-                        lastReadAt = progress?.lastReadAt ?: 0L,
-                        modifier = Modifier.padding(top = Spacing.S4),
-                    )
-                    // 続きあり（モックは進捗行の下・上4px）
-                    newEpisodeCountFor(novelDetail, totalChaps)?.let { newCount ->
-                        NewChaptersBadge(newCount = newCount, modifier = Modifier.padding(top = Spacing.S4))
-                    }
-                }
+        Row(
+            verticalAlignment = Alignment.Top,
+            // ⋮ を隠す選択モードでも行高を変えない＝モード切替でカード高（グリッドの行高）が跳ねない。
+            // 値は⋮のタップ面と同一定数＝ここで新しい寸法を決めていない。
+            modifier = Modifier.heightIn(min = CardMenuTapSize),
+        ) {
+            if (book.author.isNotBlank()) {
+                Text(
+                    text = book.author,
+                    fontSize = FontLabel,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                // 著者不明の本でも⋮は右端に留める（モックの .caprow は常に flex 1 の左要素を持つ）。
+                Spacer(Modifier.weight(1f))
             }
             // 可視⋮（K実装 KCardMenuButton と同型）。選択モード中は書影上の選択マークへ場を譲り隠す。
             // タップ＝カードメニュー。D の蔵書カードは単一削除の専用配線を持たず、複数選択の入口「選択」だけを露出して
@@ -438,8 +431,39 @@ internal fun GridBookCard(
                 }
             }
         }
+        // 状態行（モック `.state{margin-top:7px}`）＝カード全幅。著者の有無で間隔を変えないのは、
+        // モックの margin-top が .caprow の中身に依らず常に効くため（＝行位置がカードごとにぶれない）。
+        Spacer(Modifier.height(Spacing.S8))
+        if (missingLabel != null) {
+            // 欠落本の状態行（案B）: 進捗行・相対時刻・続きバッジを欠落文言1行に置き換える
+            // （本文が無い本に進捗の数字を出すと嘘になる。復旧すれば通常表示へ自然に戻る）。
+            Text(text = missingLabel, fontSize = FontLabel, color = LocalShelfColors.current.infoText)
+        } else {
+            BookProgressRow(
+                totalChaps = totalChaps,
+                progressFraction = progressFraction,
+                flexBar = true,
+            )
+            // よみかけ（進捗あり）に限り「いつぶりか」を静かに添える（continuity Minor・モック未表現）。
+            RelativeReadLabel(
+                progressFraction = progressFraction,
+                lastReadAt = progress?.lastReadAt ?: 0L,
+                modifier = Modifier.padding(top = Spacing.S4),
+            )
+            // 続きあり（モックは進捗行の下・上4px）
+            newEpisodeCountFor(novelDetail, totalChaps)?.let { newCount ->
+                NewChaptersBadge(newCount = newCount, modifier = Modifier.padding(top = Spacing.S4))
+            }
+        }
     }
 }
+
+/**
+ * 可視⋮のタップ面（モック `.caprow .dots` は 28px だが、最小タップ面 32dp まで広げてある）。
+ * 定数として括り出すのは、キャプション行の最小行高がこの寸法と一致していないと
+ * 「選択モードで⋮が消える＝行が縮んでカード高が跳ねる」ため（同値であることが不変条件）。
+ */
+private val CardMenuTapSize = 32.dp
 
 /**
  * キャプション行右端の可視⋮（32dpタップ面・モック .caprow .dots）。書影上でなく通常面に載るためスクリム不要＝
@@ -450,7 +474,7 @@ internal fun GridBookCard(
 internal fun CardMenuButton(onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .size(32.dp)
+            .size(CardMenuTapSize)
             .clip(RoundedCornerShape(9.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,

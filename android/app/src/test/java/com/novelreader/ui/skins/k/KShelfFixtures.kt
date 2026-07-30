@@ -6,6 +6,7 @@ import com.novelreader.data.WebNovelEntity
 import com.novelreader.discovery.model.SerialState
 import com.novelreader.discovery.model.workSummary
 import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.ReimportPlan
 import com.novelreader.ui.skins.ShelfActions
 import com.novelreader.ui.skins.ShelfChrome
 import com.novelreader.ui.skins.ShelfData
@@ -131,8 +132,26 @@ internal object KShelfFixtures {
                 serialState = SerialState.ONGOING,
             ),
         ),
-        // 本文欠落（案B バッジ）は別レーンが触っている最中の新機能＝この golden の対象外（空で固定）。
+        // 本文欠落なし＝通常の状態行（読了／未読／第N/M話）だけを撮る面。欠落カードは
+        // [missingContentData]（専用 case）が担う＝1枚に混ぜて通常の描き分けを潰さない。
         reimportPlans = emptyMap(),
+    )
+
+    /**
+     * 混在棚＋本文欠落1冊（案B＝書影左下の「本文なし」バッジ＋状態行の置き換え）。
+     *
+     * なぜ専用 case が要るか（2026-07-30 実機観察の盲点）: 欠落の状態行「本文なし・タップで再取込」は
+     * K の状態行の中で最長で、2列グリッドでは**この文言だけが折り返す**。既存 golden は
+     * [mixedData] が `reimportPlans = emptyMap()` のため欠落カードを一度も撮っておらず、
+     * 状態行がカード全幅を得ているかどうか（＝可視⋮の 32dp を奪われていないか）を検査できなかった。
+     *
+     * 分岐は [ReimportPlan.PickPdfNoRecord]＝実機で最も多い系統（uninstall で永続URI権限が道連れになり
+     * PDF 本はここへ落ちる）。状態行の文言は `reimportStatusLabel` が正本で、①②③は同文＝どの分岐でも同じ絵。
+     */
+    fun missingContentData(): ShelfData = mixedData().copy(
+        reimportPlans = mapOf(
+            readingBook.id to ReimportPlan.PickPdfNoRecord(contentSha256 = "sha-fixture"),
+        ),
     )
 
     /** 空棚（初回起動で最初に見える顔＝CTA2つの空状態）。 */

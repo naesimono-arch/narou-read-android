@@ -28,6 +28,9 @@ import org.robolectric.annotation.GraphicsMode
  *  - list_mixed（リスト＝案A 題字1行）＝グリッドとはレイアウトが別物（色帯・行高≈71dp・下ヘアライン・
  *    Web行の破線フレーム・続きバッジ）。グリッド golden では一切カバーされない第2の版面。
  *  - empty（空棚）＝初回起動で最初に見える面。CTA2つの並びは拡大時に折り返す危険がある。
+ *  - grid_missing（欠落カード）＝状態行が K で最長になる唯一の状態「本文なし・タップで再取込」。
+ *    2026-07-30 の実機でここだけが2列グリッドで折り返しており、既存3状態はどれもこの文言を持たない
+ *    ＝**状態行がカード全幅を得ているか**を検査できる唯一の絵（可視⋮の 32dp を奪われると赤くなる）。
  *
  * テーマ×スケールの張り方（枚数を無闇に増やさないための方針）:
  *  代表状態 grid_mixed は既存流儀どおり 3テーマ × fontScale{1.0,2.0} の全数。
@@ -37,7 +40,9 @@ import org.robolectric.annotation.GraphicsMode
  *
  * このテストが赤くなる条件（＝常に緑にならないことの担保）:
  *  ・グリッドの列数（縦2列）・書影のアスペクト比/角丸/影・キャプションの行数や字面（明朝1行 ellipsis）
- *  ・状態行の語彙と徴（「読了」／藍ドット＋「未読」／「第N/M話」）・可視⋮の位置と大きさ
+ *  ・状態行の語彙と徴（「読了」／藍ドット＋「未読」／「第N/M話」／欠落「本文なし・タップで再取込」）
+ *  ・状態行がキャプション行の**外**（カード全幅）に置かれていること・可視⋮の位置と大きさ
+ *  ・キャプション行の最小高（⋮のタップ面と同値＝選択モードで⋮が消えてもカード高が変わらない）
  *  ・フィルタチップの形（丸ピル）・選択塗り・0件時の淡色不活性
  *  ・Web未取込の署名（青磁1.5dp破線・紙地5%沈め・「なろう・未取込」の色と太さ）
  *  ・リスト行の高さ・左端4dp色帯・メタ行の連結（著者・状態・続きN話バッジ）・下ヘアライン
@@ -66,7 +71,11 @@ class BookshelfKScreenshotTest(
     fun capture() {
         // グリッド⇄リストは K 自身が prefs で所有する＝引数でなく先置きで面を選ぶ。
         setKGridView(caseId != CASE_LIST)
-        val data = if (caseId == CASE_EMPTY) KShelfFixtures.emptyData() else KShelfFixtures.mixedData()
+        val data = when (caseId) {
+            CASE_EMPTY -> KShelfFixtures.emptyData()
+            CASE_MISSING -> KShelfFixtures.missingContentData()
+            else -> KShelfFixtures.mixedData()
+        }
         // 型を明示する（emptyMap() 側の型引数を if 式の推論任せにしない）。
         val counts: Map<ReadingStatus, Int> =
             if (caseId == CASE_EMPTY) emptyMap() else KShelfFixtures.mixedStatusCounts
@@ -90,6 +99,9 @@ class BookshelfKScreenshotTest(
         private const val CASE_LIST = "list_mixed"
         private const val CASE_EMPTY = "empty"
 
+        /** 欠落カード（案B）。状態行が K で最長になる唯一の状態＝折り返しの検査点（KShelfFixtures 参照）。 */
+        private const val CASE_MISSING = "grid_missing"
+
         @JvmStatic
         @Parameters(name = "{0}_{1}_scale{2}")
         fun data(): List<Array<Any>> = buildList {
@@ -102,6 +114,9 @@ class BookshelfKScreenshotTest(
                 add(arrayOf<Any>(CASE_LIST, ReadingTheme.LIGHT, s))
                 add(arrayOf<Any>(CASE_EMPTY, ReadingTheme.LIGHT, s))
             }
+            // 欠落カードは等倍のみ＝実機で折り返した条件（360dp・fontScale 1.0）そのものを固定する。
+            // 2.0 では K の状態行はどの文言でも折り返す（幅の問題ではない）ため、ここでは撮らない。
+            add(arrayOf<Any>(CASE_MISSING, ReadingTheme.LIGHT, 1.0f))
         }
     }
 }

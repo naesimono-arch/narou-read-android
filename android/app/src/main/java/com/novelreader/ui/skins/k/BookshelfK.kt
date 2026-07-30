@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -43,7 +44,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -114,6 +114,7 @@ import com.novelreader.ui.theme.LocalShioriColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationReveal
+import com.novelreader.ui.theme.NovelReaderAlertDialog
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
@@ -478,7 +479,7 @@ internal fun BookshelfK(
             bookCount = bookTargets.size,
         )
         var alsoDeleteSource by remember { mutableStateOf(false) }
-        AlertDialog(
+        NovelReaderAlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             // 蔵書とWebが混じり得るため中立の「件」で数える。
             title = { Text("選択した${total}件を本棚から削除しますか？") },
@@ -706,27 +707,30 @@ private fun KGridBookCard(
         }
 
         Spacer(Modifier.height(Spacing.S8))
-        // キャプション行＝題名・状態（左）＋可視⋮（右端）。Play Books 等と同型の標準配置＝書影と衝突しない。
-        Row {
-            Column(Modifier.weight(1f)) {
-                // 題名（.t＝明朝・1行clamp）。表紙内(ShioriCover)の縦組み題字とは別に、下段へ横組みで添える（モック .cvt＋.t の二重表示）。
-                // 2列改A で書影を大きく取るぶんキャプションは1行へ圧縮（2026-07-24 裁定）。
-                Text(
-                    text = book.title,
-                    fontFamily = MinchoFamily,
-                    fontSize = FontSubTitle,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Spacer(Modifier.height(Spacing.S4))
-                if (missingLabel != null) {
-                    // 欠落本の状態行（案B・.st）: 進捗の徴を欠落文言に置き換える（本文が無い本に話数を出すと嘘になる）。
-                    Text(missingLabel, fontSize = FontMicroLabel, color = LocalShelfColors.current.infoText)
-                } else {
-                    KBookStatusLine(status = status, chapNum = chapNum, totalChaps = totalChaps)
-                }
-            }
+        // キャプション行（正本 bookshelf-K.html `.cap`）＝題名（左）＋可視⋮（右端）。
+        // 状態行（`.st`）はこの行に入れず、下に**カード全幅**で置く（モックでも .cap と .st は兄弟要素）。
+        //
+        // 真因（2026-07-30 実機観察の是正）: 旧実装は .st を .cap の左カラム（weight(1f)）へ入れ子にしていた。
+        // そのぶん状態行の使える幅がカード幅 −⋮のタップ面 32dp になり、2列グリッドでは
+        // 「本文なし・タップで再取込」がちょうど溢れて「…再／取込」と割れていた。⋮ が消える選択モードでだけ
+        // 1行に収まっていたことが、足りない幅の出所が⋮であることの証拠。幅の決め打ちで広げるのではなく、
+        // モックどおりの入れ子（.st は .cap の外）へ戻して状態行にカード全幅を与える。
+        Row(
+            // ⋮ を隠す選択モードでも行高が変わらないようにする＝モード切替でカード高（グリッドの行高）が跳ねない。
+            // 値は⋮のタップ面と同一定数を使う＝ここで新しい寸法を決めていない。
+            modifier = Modifier.heightIn(min = KCardMenuTapSize),
+        ) {
+            // 題名（.t＝明朝・1行clamp）。表紙内(ShioriCover)の縦組み題字とは別に、下段へ横組みで添える（モック .cvt＋.t の二重表示）。
+            // 2列改A で書影を大きく取るぶんキャプションは1行へ圧縮（2026-07-24 裁定）。
+            Text(
+                text = book.title,
+                fontFamily = MinchoFamily,
+                fontSize = FontSubTitle,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
             if (!selectionMode) {
                 Box {
                     KCardMenuButton(onClick = { menuOpen = true })
@@ -740,6 +744,13 @@ private fun KGridBookCard(
                     }
                 }
             }
+        }
+        Spacer(Modifier.height(Spacing.S4))
+        if (missingLabel != null) {
+            // 欠落本の状態行（案B・.st）: 進捗の徴を欠落文言に置き換える（本文が無い本に話数を出すと嘘になる）。
+            Text(missingLabel, fontSize = FontMicroLabel, color = LocalShelfColors.current.infoText)
+        } else {
+            KBookStatusLine(status = status, chapNum = chapNum, totalChaps = totalChaps)
         }
     }
 }
@@ -1186,6 +1197,13 @@ private fun Modifier.narouDashedOutline(color: Color, cornerRadius: Dp): Modifie
 }
 
 /**
+ * 可視⋮のタップ面（モック `.cap .dots` は 28px だが、最小タップ面 32dp まで広げてある）。
+ * 定数として括り出すのは、キャプション行の最小行高がこの寸法に一致していないと
+ * 「選択モードで⋮が消える＝行が縮んでカード高が跳ねる」ため（同じ値であることが不変条件）。
+ */
+private val KCardMenuTapSize = 32.dp
+
+/**
  * キャプション行右端の可視⋮（32dpタップ面）。書影上でなく通常面に載るためスクリム不要＝トークン色で描く
  * （書影右上案は栞書影の縦題字と衝突するため移設＝実機検分 2026-07-23）。
  */
@@ -1193,7 +1211,7 @@ private fun Modifier.narouDashedOutline(color: Color, cornerRadius: Dp): Modifie
 private fun KCardMenuButton(onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .size(32.dp)
+            .size(KCardMenuTapSize)
             .clip(RoundedCornerShape(9.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
