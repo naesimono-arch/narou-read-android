@@ -107,11 +107,21 @@ android {
     }
 
     buildTypes {
+        // ── 公開スコープ機能ゲート SKIN_SWITCHING_ENABLED（ADR 0027）──
+        // スキン軸（装いの間・設定「きせかえ」行・保存値の復元）を外へ出すか。初回公開は明快K 単独＝release は false。
+        // なぜ defaultConfig に既定値を置かず buildType ごとに書くか: defaultConfig に true を置くと、将来足した
+        // buildType が黙って true を継承する＝公開系の派生ビルドで温存中の装いが漏れても誰も気づかない。
+        // buildType ごとの明示なら、宣言を書き忘れた新 buildType は BuildConfig にフィールドが生えず
+        // 参照側（Features）がコンパイルエラーで落ちる＝漏れる代わりに気づける側へ倒す。
+        debug {
+            buildConfigField 'boolean', 'SKIN_SWITCHING_ENABLED', 'true'
+        }
         release {
             // 鍵を持つ環境でだけ署名する。無い場合は未署名成果物になる＝Play へ上げる前に必ず鍵の配置が要る。
             if (hasReleaseKeystore) {
                 signingConfig signingConfigs.release
             }
+            buildConfigField 'boolean', 'SKIN_SWITCHING_ENABLED', 'false'
             // R8 収縮＋難読化＋リソース削減。keep はライブラリ同梱の consumer ルールを
             // 前提に不足分だけ proguard-rules.pro へ書く（設計根拠は同ファイル冒頭コメント）。
             minifyEnabled true
@@ -119,6 +129,8 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         benchmark {
+            // initWith は release の buildConfigFields ごと写す＝SKIN_SWITCHING_ENABLED=false も継承される
+            // （計測構成を公開構成と一致させる＝ADR 0027 決定1）。実測で確認済み（generateBenchmarkBuildConfig の出力）。
             initWith release
             // 実機で野良ビルドを直接インストールできるよう debug 署名を使う
             signingConfig signingConfigs.debug
@@ -156,6 +168,7 @@ android {
         compose true
         // BuildConfig 生成を明示 ON（AGP 8.x は既定 OFF）。高負荷スカイ試作トグルを debug ビルド限定で
         // 露出するため BuildConfig.DEBUG を参照する（ADR 0023・release では常に false 扱い）。
+        // 公開スコープ機能ゲート SKIN_SWITCHING_ENABLED（ADR 0027・上の buildTypes）も同じ生成物に載る。
         buildConfig true
     }
     composeOptions {

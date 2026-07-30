@@ -6,6 +6,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.novelreader.Features
 import com.novelreader.ui.theme.skins.SkinC
 import com.novelreader.ui.theme.skins.SkinD
 import com.novelreader.ui.theme.skins.SkinJ
@@ -21,7 +22,7 @@ import com.novelreader.ui.theme.skins.SkinP
 // ============================================================
 
 /**
- * UIスキンの選択軸。永続化は `.name` を SharedPreferences `"app_skin"` へ（キー不在=D）。
+ * UIスキンの選択軸。永続化は `.name` を SharedPreferences `"app_skin"` へ（キー不在＝既定の明快K）。
  * 並び順は装いの間カルーセルと同じ「和モダン → 夜行」（ADR 0021 決定7）。
  *
  * スキン値の追加規約: 未実装の値を先出しすると `Skin.tokens` の when が「実装のない分岐／D へフォールバック
@@ -42,10 +43,26 @@ enum class Skin(val displayName: String, val tagline: String) {
 
 /**
  * 永続化文字列からの復元。`valueOf` を直接使わない理由: 将来スキンを削除・改名した既存端末で
- * 保存値が不正になってもクラッシュさせず既定 D へ静かに戻すため（"reading_theme" と同じ防御）。
+ * 保存値が不正になってもクラッシュさせず既定の明快K へ静かに戻すため（"reading_theme" と同じ防御）。
+ *
+ * 公開スコープ機能ゲート（ADR 0027 適用点3）の関門でもある。**入口（設定「きせかえ」行・装いの間ルート）を
+ * 塞ぐだけでは穴が残る**: 本関数が弾くのは不正な文字列だけで、`SEIZU_M` のような正当な保存値は素通りする＝
+ * すでに D/M を選んである端末（開発者の検証機）や Auto Backup 復元（ADR 0015 で prefs はバックアップ対象）は
+ * 公開ビルドを入れてもその装いのまま起動してしまう。一覧・ルート・復元は必ず1セットで塞ぐ。
+ *
+ * **prefs の保存値は書き換えない**（読み替えるだけ）。解禁時にその端末の選択が自然に戻り、公開ビルドが
+ * ユーザーデータを破壊的に触らないため（ADR 0027 決定3）。
+ *
+ * @param skinSwitchingEnabled スキン軸を出してよいか。既定は本番配線（[Features]）だが、JVM テストは
+ *   debug の BuildConfig しか見ないため**引数で受けて両値を固定できる**形にしてある（ADR 0027 決定4）。
  */
-fun skinFromName(name: String?): Skin =
-    name?.let { runCatching { Skin.valueOf(it) }.getOrNull() } ?: Skin.MEIKAI_K
+fun skinFromName(
+    name: String?,
+    skinSwitchingEnabled: Boolean = Features.skinSwitchingEnabled,
+): Skin {
+    val restored = name?.let { runCatching { Skin.valueOf(it) }.getOrNull() } ?: Skin.MEIKAI_K
+    return if (skinSwitchingEnabled) restored else Skin.MEIKAI_K
+}
 
 /**
  * 栞書影の紙／墨／識別色明度。スキンが明示供給する。

@@ -71,6 +71,9 @@ class SettingsScreenKScreenshotTest(
                     onFollowSystem = {},
                     currentSkin = Skin.MEIKAI_K,
                     onOpenWardrobe = {},
+                    // 公開スコープ機能ゲート（ADR 0027）は on 側で撮る＝この golden は debug 版の面を固定する
+                    // （off 側＝きせかえ行が消えた面は画素でなく構造で縛る＝SettingsScreenKSkinGateTest）。
+                    skinSwitchingEnabled = true,
                 )
             }
         }

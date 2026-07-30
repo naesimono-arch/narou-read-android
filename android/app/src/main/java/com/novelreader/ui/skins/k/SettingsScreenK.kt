@@ -74,6 +74,10 @@ fun SettingsScreenK(
     onFollowSystem: () -> Unit,
     currentSkin: Skin,
     onOpenWardrobe: () -> Unit,
+    // 公開スコープ機能ゲート（ADR 0027 適用点1）。BuildConfig を本画面から直接読まず引数で受けるのは、
+    // JVM テストが debug の BuildConfig しか見ず「行が消えている」側を固定できないため（ADR 0027 決定4）。
+    // 本番の値は呼び出し元（MainActivity）が Features から供給する。
+    skinSwitchingEnabled: Boolean,
 ) {
     var showThemeDialog by remember { mutableStateOf(false) }
     var showHealthBoard by remember { mutableStateOf(false) }
@@ -98,6 +102,8 @@ fun SettingsScreenK(
         // なぜ: これらの装いは相を1つしか持たず NovelReaderTheme が supportedThemes.first() へクランプする＝
         // 3択ダイアログを出しても選んで変わらない嘘のUIになるため（モック settings-M.html の注記どおり）。
         // per-skin の文言（「星図 ・ 夜の相」等の装い名つき表現）は次ラウンドの深化＝ここは汎用文で割り切る。
+        // この畳んだ側の副文は隠したはずの「きせかえ」を案内するが、公開ビルドでは到達しない＝
+        // 単一変種スキンは M/C だけで、そこへ着くには装いの間が要り、skinFromName のクランプで明快K（3変種）に固定されるため。
         val supportedThemes = currentSkin.tokens.supportedThemes
         KSettingsGroupLabel("表示")
         KSettingsCard {
@@ -135,19 +141,24 @@ fun SettingsScreenK(
                     onClick = { showThemeDialog = true },
                 )
             }
-            KSettingsRow(
-                icon = Icons.Outlined.Checkroom,
-                title = "きせかえ",
-                description = wardrobeRowDescription(currentSkin.displayName),
-                trailing = {
-                    Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-                onClick = onOpenWardrobe,
-            )
+            // 公開ビルドではスキン軸ごと隠す（ADR 0027）＝この行が装いの間への唯一の入口なので、
+            // 出さないことが「装いの間へ人が辿り着けない」ことと同義になる（ルート未登録の関門は MainActivity 側）。
+            // テーマ行（上）は Skin と独立した軸なので残す——ここまで消すとダークモードが失われ明確な後退になる。
+            if (skinSwitchingEnabled) {
+                KSettingsRow(
+                    icon = Icons.Outlined.Checkroom,
+                    title = "きせかえ",
+                    description = wardrobeRowDescription(currentSkin.displayName),
+                    trailing = {
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    onClick = onOpenWardrobe,
+                )
+            }
             // 文字サイズ等は読書中の表示設定が正本＝ここからは変えられない事実をそのまま案内する
             //（行を隠すと「文字設定はどこ？」の疑問符が残る。場所を教える行として置く＝自明性A0）。
             KSettingsRow(

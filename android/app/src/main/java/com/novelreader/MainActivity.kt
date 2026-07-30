@@ -43,6 +43,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import com.novelreader.ui.tabs.TabPagerHost
 import kotlinx.coroutines.launch
 import androidx.navigation.NavController
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
@@ -175,7 +176,8 @@ class MainActivity : ComponentActivity() {
                 appTheme = if (systemDark) ReadingTheme.DARK else ReadingTheme.LIGHT
             }
             // UIスキン（着せ替え）。reading_theme と同じ「MainActivity へ巻き上げた単一状態＋prefs 永続」流儀。
-            // キー不在=D（既定装い）。装着は装いの間（wardrobe）からのみ変更される。
+            // キー不在＝既定装いの明快K（2026-07-23 の既定変更に追従した記述の是正）。装着は装いの間（wardrobe）からのみ変更され、
+            // 公開ビルドでは skinFromName が保存値ごと明快K へクランプする（ADR 0027 適用点3）。
             var appSkin by remember { mutableStateOf(skinFromName(prefs.getString(PrefKeys.APP_SKIN, null))) }
             val onSkinChange: (Skin) -> Unit = { skin ->
                 appSkin = skin
@@ -270,6 +272,23 @@ private fun loadInitialTheme(prefs: SharedPreferences, systemDark: Boolean): Rea
     return runCatching { ReadingTheme.valueOf(saved) }.getOrDefault(systemFallback)
 }
 
+/**
+ * 装いの間ルート（"wardrobe"）の登録可否を1か所に閉じる（ADR 0027 適用点2）。
+ *
+ * なぜ NavHost 直下に素の `if` を書かず拡張関数へ切り出すか: [NovelReaderApp] の NavHost は ViewModel を
+ * 要求する塊で JVM テストから組めず、「フラグ off でルートが存在しない」ことを固定できない。ここだけ
+ * 切り出せば小さな NavHost へ載せて `graph.findNode` で両値を検証できる（WardrobeRouteGateTest）。
+ *
+ * 到達不能にする意味: 入口（設定「きせかえ」行）を隠し忘れても、ルートが無ければ画面自体に着けない。
+ */
+internal fun NavGraphBuilder.wardrobeRoute(
+    skinSwitchingEnabled: Boolean,
+    content: @Composable () -> Unit,
+) {
+    if (!skinSwitchingEnabled) return
+    composable("wardrobe") { content() }
+}
+
 @Composable
 private fun NovelReaderApp(
     appTheme: ReadingTheme,
@@ -288,6 +307,9 @@ private fun NovelReaderApp(
     onWebImportConsumed: () -> Unit,
 ) {
     val navController = rememberNavController()
+    // 公開スコープ機能ゲート（ADR 0027）。読み口は Features 1点で、ここから適用点（ルート登録・設定行）へ配る
+    // ＝課金実装後に判定が「購入したか」へ変わっても、書き換えるのは Features の中身だけで済む。
+    val skinSwitchingEnabled = Features.skinSwitchingEnabled
     val appContext = LocalContext.current.applicationContext
     val activityContext = LocalContext.current
     val viewModel: BookshelfViewModel = viewModel()
@@ -538,6 +560,7 @@ private fun NovelReaderApp(
                         onFollowSystem = onFollowSystem,
                         currentSkin = appSkin,
                         onOpenWardrobe = { navController.navigate("wardrobe") { launchSingleTop = true } },
+                        skinSwitchingEnabled = skinSwitchingEnabled,
                     )
                     },
                 ),
@@ -545,7 +568,11 @@ private fun NovelReaderApp(
         }
 
         // 装いの間（UIスキン選択・ADR 0021 決定7）。引数なしフルスクリーン＋戻るの最小形（discovery と同型）。
-        composable("wardrobe") {
+        // 公開ビルドでは登録ごと落とす（ADR 0027 適用点2）。
+        // なぜ navigate 側（上の M/J 本棚トップバー・設定タブ）を個別に潰さないか: 設定タブの入口は行ごと消え、
+        // 本棚トップバーの入口は M/J の面にしか無く、skinFromName のクランプで M/J 自体が到達不能になるため
+        // ＝残る navigate は呼ばれる経路を持たない。適用点は3つに保つ（ADR 0027 決定2）。
+        wardrobeRoute(skinSwitchingEnabled) {
             WardrobeScreen(
                 currentSkin = appSkin,
                 onSkinChange = onSkinChange,

@@ -1,6 +1,6 @@
 # 0027. 初回公開のスコープ機能ゲート＝スキン機能ごと隠す（明快K 単独公開）
 
-- 状態: **Accepted（2026-07-29 ユーザー裁定）— 実装は未着手（裁定の記録）**
+- 状態: **Accepted（2026-07-29 ユーザー裁定）／実装済み（2026-07-31・フラグ `BuildConfig.SKIN_SWITCHING_ENABLED` ＋適用点3つ＋テスト）**
 - 関連: ADR 0021（UIスキン機構）・0022（スキン構造層）・0023（高負荷スカイ）・0025（採番規約）／`handover.md`「Google Play 公開準備 — 技術トラック」／`android/app/src/main/java/com/novelreader/ui/theme/Skin.kt`・`MainActivity.kt`・`ui/WardrobeScreen.kt`・`android/app/build.gradle`
 
 ## 背景（要求と制約）
@@ -71,7 +71,7 @@ release 版でスキンの実機回帰をいつでも回せる利点があるが
 ## 帰結
 
 - 公開ビルドの装いは**明快K 固定**。テーマ選択（ライト/セピア/ダーク/システムに従う）は残る。
-- **隠してもAPKサイズは減らない見込み**: `skinFromName` の `valueOf` が実行時文字列駆動のため、R8 は D/C/M/P/J を到達不能と証明できず、enum も各 `SkinX` トークンも APK に残る。**要実測**（`shrinkResources` がスキン専用リソースだけ落とす可能性も同時に見る＝落ちていると解禁時に初めて気づく）。
+- **隠してもAPKサイズは減らない（2026-07-31 実測で確認）**: `skinFromName` の `valueOf` が実行時文字列駆動のため、R8 は D/C/M/P/J を到達不能と証明できず、enum も各 `SkinX` トークンも APK に残る。実測の内訳は下の「実測（2026-07-31）」節。
 - 高負荷スカイモード（ADR 0023）は M スキン限定のため二重に無効化される。既存の `BuildConfig.DEBUG` ガードはそのまま残す（撤去しない＝解禁後も debug 限定であるべき）。
 - **検証機の見え方が変わる**: 保存値が D/M のままの端末に公開ビルドを入れると明快K で起動する（prefs は温存＝debug ビルドに戻せば元の装いに復帰）。
 - **解禁時は「フラグ反転＋R8 実機回帰」が1セット**。release を初めて通る塊なので、回帰を省略しない。
@@ -126,6 +126,30 @@ release 版でスキンの実機回帰をいつでも回せる利点があるが
 3. **クラッシュ・データ破損クラスの不具合は凍結対象外**（出荷しなくても debug ビルドでの実機検証を壊すため）。
    意匠の不備（色が沈む・余白が揃わない）は凍結対象。
 
-## 未了（実装時の作業）
+## 実測（2026-07-31・実装と同時に取得）
 
-本 ADR は裁定の記録のみで、コードは未変更。着手時は `build.gradle` への `buildConfigField` 新設＋上記適用点3つ＋テスト（純粋関数をフラグ両値で・Robolectric で設定行の非表示）。作業項目は `handover.md`「Google Play 公開準備」節が正本。
+「隠してもサイズは減らないはず」「`shrinkResources` がスキン専用リソースだけ落としていないか」の2点を、
+release ビルドを**フラグ off / on の2本**作って突き合わせた（on 側＝ゲート導入前と同じ到達性）。
+
+- **D/C/M/P/J は落ちない（予想どおり）**: `Skin` enum・`SkinC/D/J/K/M/P` トークン束・M/P/J の本棚面
+  （`BookshelfLogM`・`BookshelfSkyM`・`BookshelfCartridgeP`・`BookshelfPortalJ`）はいずれも off ビルドの
+  `mapping.txt` に出力先クラスを持つ＝APK に残る。enum 定数名6種も DEX に残存（`valueOf` 駆動のため当然）。
+- **落ちるのは装いの間だけ**: off では `ui/WardrobeScreenKt` とそのラムダ族・`ComposableSingletons` が
+  **クラスごと削除**（`usage.txt` に本体名が列挙／`mapping.txt` から消える）。on では同じクラスが残る。
+  併せて、そこだけが読んでいたメンバも落ちる（例: `SkinM.signatureAccent`＝装いの間ミニチュアの署名色）。
+- **サイズは実質変わらない**: `classes.dex` は展開 5,051,604→5,039,268 バイト（−12,336）・圧縮 2,443,175→2,435,287
+  バイト（−7,888）と確かに縮むが、**APK 全体は 8,654,747 バイトで完全同値**だった。
+  ⚠️ **同値になる機序は未特定**。初稿は「16KB ページ整列で `.so` の前に入るパディングが吸収する」と説明していたが、
+  **この APK にはネイティブライブラリが1本も入っていない**（`unzip -l <apk> | grep '\.so$'` が debug/release とも
+  0件＝`docs/knowledge/apk-has-no-native-libs-16kb-page-not-applicable.md`）ので、その説明は成立しない。
+  zip 側の整列パディングが吸収した可能性は残るが未検証。**観測された事実は「APK は縮まない」だけ**である。
+  ⇒ いずれにせよ**公開スコープを絞る動機に「配信サイズ」を数えてはいけない**（動機は露出の制御だけ）。
+- **`shrinkResources` の懸念は構造的に不成立**: 本プロジェクトの自前リソースは10ファイル
+  （launcher/notification アイコン・`values/{colors,strings,themes}.xml`・`xml/` の3設定）だけで、
+  **スキン専用のリソースは1つも無い**（配色も字面も Kotlin 側の値・`res/font/` も無い）。落とされる物が存在しない。
+
+## 未了（解禁時の作業）
+
+実装は入った（フラグ `SKIN_SWITCHING_ENABLED`＝`Features.skinSwitchingEnabled`・適用点3つ・両値テスト）。
+残るのは解禁便＝**フラグ反転＋R8 実機回帰が1セット**（上の「帰結」）。release を初めて通る塊なので回帰を省略しない。
+公開ビルドでの見え方（きせかえ行が無い・装いの間へ着けない・検証機が明快K で起動する）の実機目視も解禁前に一度要る。
