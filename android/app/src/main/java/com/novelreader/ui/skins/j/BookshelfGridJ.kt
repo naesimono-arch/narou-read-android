@@ -37,7 +37,6 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -87,6 +86,7 @@ import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationReveal
 import com.novelreader.ui.theme.AmbGridBackdropPortal
+import com.novelreader.ui.theme.NovelReaderAlertDialog
 import com.novelreader.ui.theme.PagePortal
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.ResumeInkPortal
@@ -333,7 +333,7 @@ internal fun BookshelfGridJ(
             bookCount = targets.size,
         )
         var alsoDeleteSource by remember { mutableStateOf(false) }
-        AlertDialog(
+        NovelReaderAlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("選択した${targets.size}冊を本棚から削除しますか？") },
             text = {

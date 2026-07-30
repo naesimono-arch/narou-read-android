@@ -72,6 +72,7 @@ import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.theme.Insets
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
+import com.novelreader.ui.theme.NovelReaderAlertDialog
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationReveal
@@ -390,7 +391,7 @@ fun BookshelfScreen(
             showNotifPriming = false
             pdfPicker.launch(arrayOf("application/pdf"))
         }
-        AlertDialog(
+        NovelReaderAlertDialog(
             onDismissRequest = openPickerDirectly,
             title = { Text("変換の進捗を通知でお知らせできます") },
             text = {
@@ -429,7 +430,7 @@ fun BookshelfScreen(
                 context.startActivity(intent)
             }
         }
-        AlertDialog(
+        NovelReaderAlertDialog(
             onDismissRequest = { dismiss(false) },
             title = { Text("バックグラウンド処理について") },
             text = {
@@ -459,7 +460,7 @@ fun BookshelfScreen(
     // で改名済みの正当ななろうPDFも救済できるようにする（取りこぼしを不可逆にしない）。
     importPrompt?.let { prompt ->
         val total = prompt.narou.size + prompt.nonNarou.size
-        AlertDialog(
+        NovelReaderAlertDialog(
             onDismissRequest = { viewModel.dismissImportPrompt() },
             title = { Text("なろう形式でないPDFがあります") },
             text = {
@@ -503,7 +504,7 @@ fun BookshelfScreen(
         reimportPlans[book.id]?.let { plan ->
             val dismiss = { reimportTarget = null }
             when (plan) {
-                is ReimportPlan.AutoPdf -> AlertDialog(
+                is ReimportPlan.AutoPdf -> NovelReaderAlertDialog(
                     onDismissRequest = dismiss,
                     title = { Text("『${book.title}』を元のPDFから再取込しますか？") },
                     text = {
@@ -520,7 +521,7 @@ fun BookshelfScreen(
                     if (plan.scanSha256 != null) {
                         // 指紋あり＝フォルダを1回教えれば自動で見つかる（主経路）。
                         val hint = (plan as? ReimportPlan.PickPdfPermissionLost)?.fileNameHint
-                        AlertDialog(
+                        NovelReaderAlertDialog(
                             onDismissRequest = dismiss,
                             title = { Text("PDFのある場所から探しますか？") },
                             text = {
@@ -564,7 +565,7 @@ fun BookshelfScreen(
                     } else {
                         // 指紋なし（v11 前の旧取込）＝機械照合の材料が無い唯一の分岐。
                         // 「探せません」を黙らず理由ごと伝える（案X で救えない本を隠さない）。
-                        AlertDialog(
+                        NovelReaderAlertDialog(
                             onDismissRequest = dismiss,
                             title = { Text("PDFを選んで再取込") },
                             text = {
@@ -582,7 +583,7 @@ fun BookshelfScreen(
                         )
                     }
                 }
-                is ReimportPlan.AutoWeb -> AlertDialog(
+                is ReimportPlan.AutoWeb -> NovelReaderAlertDialog(
                     onDismissRequest = dismiss,
                     title = { Text("『${book.title}』をWebから再取得しますか？") },
                     text = {
@@ -612,7 +613,7 @@ fun BookshelfScreen(
             pdfFolderPicker.launch(null)
             closeSweep()
         }
-        AlertDialog(
+        NovelReaderAlertDialog(
             onDismissRequest = closeSweep,
             title = { Text("${breakdown.total}冊をまとめて再取込しますか？") },
             text = {
@@ -681,7 +682,7 @@ fun BookshelfScreen(
     // 一致分は既に取込キューへ投入済み（VM）＝ここは「何が戻り、何が戻らなかったか」を告げる場。
     folderScanReport?.let { report ->
         val closeReport = { viewModel.dismissFolderScanReport() }
-        AlertDialog(
+        NovelReaderAlertDialog(
             onDismissRequest = closeReport,
             title = {
                 Text(
@@ -1330,7 +1331,7 @@ internal fun BookshelfContent(
         )
         // 既定 OFF（ユーザー選択=削除ダイアログのチェック・破壊的なので明示 ON を要求）。ダイアログを開くたびリセット。
         var alsoDeleteSource by remember { mutableStateOf(false) }
-        AlertDialog(
+        NovelReaderAlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             // 蔵書とWebが混じり得るため中立の「件」で数える（蔵書のみでも自然）。
             title = { Text("選択した${total}件を本棚から削除しますか？") },
@@ -1372,7 +1373,8 @@ internal fun BookshelfContent(
 // 「削除ダイアログの共有部品」として1つにし、各面は1行呼ぶだけにする。
 // [warning] が null（＝欠落0冊）なら何も描かない＝通常の削除の見た目・高さを一切変えない。
 //
-// 意匠: モックの .dlg p は --ink-soft（AlertDialog 既定の onSurfaceVariant と同値）で、その中の
+// 意匠: モックの .dlg p は --ink-soft（＝役割トークン ShelfColors.infoText。2026-07-31 に本文既定は
+// NovelReaderAlertDialog で M3 の onSurfaceVariant から infoText へ是正済み＝この行は既定と同値）で、その中の
 // .warn だけが --ink（onSurface）＋font-weight 600。インラインの強調なので改行で分けず
 // AnnotatedString の SpanStyle で翻訳する。段落間アキは削除確認の正本 multiselect-D の
 // .dlg p{margin-bottom:24px} → Spacing.S24（reimport-badge 側の 16px は再取込ダイアログ群の律動で、

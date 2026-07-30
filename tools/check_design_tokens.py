@@ -496,11 +496,46 @@ def _theme_dispatch(body: str, supported: list[str]) -> dict[str, tuple[str, int
             out[t] = (body[m.end():end], 0)
     return out
 
-def parse_skin(kt_rel: str, tokens: dict[str, str]) -> dict:
+_TIER_CALL = re.compile(r"\s*\.\s*withSkinContainerTiers\s*\(\s*\)")
+
+def parse_container_tiers() -> dict[str, str]:
+    """`SkinContainerTiers.kt` の `copy(surfaceContainerHigh = surface, ...)` を {束ね先: 参照元} で返す。
+
+    なぜ Python 側へ写経せず字面から引くか: この検査が **ダイアログ面を1件も測っていなかった真因**が
+    ここにある。`surfaceContainer` 4 段は `lightColorScheme(...)` の名前付き引数に現れず
+    `.withSkinContainerTiers()` という**関数呼び出しの中**で束ねられるため、名前付き引数だけを読む
+    パーサからは 4 段が丸ごと存在しないスロットに見えていた（対応表に組を足しても
+    「トークン未定義で組が作れない」の SKIP に落ちるだけで検査は形骸化する）。
+    束ね直しの表を Python 側へ複製すると Kotlin 改訂で静かに乖離するので、Kotlin の唯一の正本を読む。
+    """
+    text = _strip_comments((THEME_DIR / "skins/SkinContainerTiers.kt").read_text(encoding="utf-8"))
+    m = re.search(r"withSkinContainerTiers\(\)\s*:\s*ColorScheme\s*=\s*copy\s*\(", text)
+    if not m:
+        return {}
+    inner = _balanced(text, m.end() - 1)[0]
+    return dict(re.findall(r"(\w+)\s*=\s*(\w+)", inner))
+
+def _apply_container_tiers(scheme: dict[str, str], tiers: dict[str, str],
+                           text: str, after_idx: int) -> dict[str, str]:
+    """定義の直後に `.withSkinContainerTiers()` が続くときだけ、Kotlin と同じ束ね直しを適用する。
+
+    適用順序も Kotlin と一致させる（`Base.copy(surface = ...)` の後に呼ぶ D セピアは、copy で
+    差し替えた新しい surface を基準に 4 段が再束ねされる＝基底から引き継いだ寒色ライト値は残らない）。
+    """
+    if not _TIER_CALL.match(text, after_idx):
+        return scheme
+    out = dict(scheme)
+    for slot, src in tiers.items():
+        if src in out:
+            out[slot] = out[src]
+    return out
+
+def parse_skin(kt_rel: str, tokens: dict[str, str], tiers: dict[str, str] | None = None) -> dict:
     """1 スキンファイルから supportedThemes / reading / shelf / material を解決値で取り出す。
 
     委譲スキン（`object SkinK : SkinTokens by SkinD`）は {"delegate": "SkinD"} を返す。
     """
+    tiers = tiers or {}
     raw = (THEME_DIR / kt_rel).read_text(encoding="utf-8")
     text = _strip_comments(raw)
     dm = re.search(r"object\s+(\w+)\s*:\s*SkinTokens\s+by\s+(\w+)", text)
@@ -515,18 +550,18 @@ def parse_skin(kt_rel: str, tokens: dict[str, str]) -> dict:
     # --- Material ColorScheme: 名前付きスキーム定義 → material(theme) のディスパッチ ---
     schemes: dict[str, dict[str, str]] = {}
     for m in re.finditer(r"val\s+(\w+)\s*=\s*(?:light|dark)ColorScheme\s*\(", text):
-        inner = _balanced(text, m.end() - 1)[0]
+        inner, after = _balanced(text, m.end() - 1)
         got, un = _named_args(inner, tokens)
-        schemes[m.group(1)] = got
+        schemes[m.group(1)] = _apply_container_tiers(got, tiers, text, after)
         unresolved += [f"{kt_rel}:{m.group(1)}.{n}" for n in un]
     # `Base.copy(...)` 派生（D の SepiaColorScheme）。定義順にファイルへ現れる前提（実測どおり）。
     for m in re.finditer(r"val\s+(\w+)\s*=\s*(\w+)\.copy\s*\(", text):
         base = schemes.get(m.group(2))
         if base is None:
             continue
-        inner = _balanced(text, m.end() - 1)[0]
+        inner, after = _balanced(text, m.end() - 1)
         got, un = _named_args(inner, tokens)
-        schemes[m.group(1)] = {**base, **got}
+        schemes[m.group(1)] = _apply_container_tiers({**base, **got}, tiers, text, after)
         unresolved += [f"{kt_rel}:{m.group(1)}.{n}" for n in un]
 
     material: dict[str, dict[str, str]] = {}
@@ -612,12 +647,20 @@ READING_OUT_OF_SCOPE = [
     ("rule", "章見出しの装飾ルール＝同上（各スキンが装飾線と明記）"),
 ]
 
-# ShelfColors の意味色 × 同スキン同テーマの Material 面（棚地＝background・カード面＝surfaceVariant）。
+# ShelfColors の意味色 × 同スキン同テーマの Material 面（棚地＝background・カード面＝surfaceVariant・
+# ダイアログ面＝surfaceContainerHigh）。
 SHELF_PAIRS = [
     ("unreadLabel", "background", 4.5, "未読ラベル（棚地の上）"),
     ("unreadLabel", "surfaceVariant", 4.5, "未読ラベル（カード面の上）"),
     ("infoText", "background", 4.5, "情報メタ（棚地の上）"),
     ("infoText", "surfaceVariant", 4.5, "情報メタ（カード面の上）"),
+    # ダイアログ本文。対応の出所は theme/NovelReaderAlertDialog.kt の既定引数
+    # `textContentColor = LocalShelfColors.current.infoText`＝ソースが型として宣言している組
+    #（M3 既定の onSurfaceVariant は ADR 0014-D で装飾専用スロットへ縮退済みのため使えない）。
+    # 現状は全スキンで surfaceContainerHigh == surface == background ゆえ「情報メタ（棚地の上）」と
+    # 同値だが、SkinContainerTiers.kt の TODO どおり各スキンのダイアログ意匠が起こされて面の実色が
+    # 分かれた瞬間に、この組だけが正しい面を測り続ける（別組として持つ理由）。
+    ("infoText", "surfaceContainerHigh", 4.5, "ダイアログ本文（NovelReaderAlertDialog の既定色）"),
 ]
 
 # Material3 の onX ⇄ X（規約上「X の面に onX を描く」）。inversePrimary は inverseSurface 上のアクセント。
@@ -629,6 +672,22 @@ MATERIAL_PAIRS = [
     ("onTertiary", "tertiary"), ("onTertiaryContainer", "tertiaryContainer"),
     ("onError", "error"), ("onErrorContainer", "errorContainer"),
     ("inverseOnSurface", "inverseSurface"), ("inversePrimary", "inverseSurface"),
+]
+
+# ダイアログ面（`DialogTokens.ContainerColor` = SurfaceContainerHigh）に載る M3 既定の前景。
+# なぜ MATERIAL_PAIRS と別表か: 上は「onX ⇄ X」という Material の命名規約で対応が決まる組で、
+# こちらは**部品トークンの配線**（DialogTokens / TextButtonTokens）で対応が決まる組＝出所が違う。
+# 対応は material3 1.3.2 のバイトコードで確認（DialogTokens: ContainerColor=SurfaceContainerHigh・
+# HeadlineColor=OnSurface・SupportingTextColor=OnSurfaceVariant／TextButtonTokens: LabelTextColor=Primary）。
+# 本文（SupportingTextColor）をここに入れない理由: アプリは NovelReaderAlertDialog で本文色を
+# InfoText 系へ差し替える＝実際に載るのは onSurfaceVariant ではない（その組は SHELF_PAIRS 側で測る）。
+# 迂回して raw AlertDialog を直呼びする流入は、値でなく呼び出し側の問題なので下の lint が止める。
+# 他の 3 段（Lowest/Low/Highest）は組を作らない: SkinContainerTiers.kt の実測どおり、それらを引く
+# 部品（Card/ModalBottomSheet/Switch トラック）は呼び出し側が containerColor を明示しているか
+# 非テキストで、載る前景が一意に決まらないため（雑音を足すと検査が形骸化する）。
+DIALOG_MATERIAL_PAIRS = [
+    ("onSurface", "surfaceContainerHigh", 4.5, "ダイアログ題字（DialogTokens.HeadlineColor）"),
+    ("primary", "surfaceContainerHigh", 4.5, "ダイアログ操作ラベル（TextButtonTokens.LabelTextColor）"),
 ]
 
 # ---- 既知の意図的例外（ベースライン） ----------------------------------------------
@@ -660,6 +719,11 @@ _P_SHELF_ON_PANEL = ("【要裁定】P の --ink-mid #5A574C は素地 plastic �
                      "カード面 --panel #CFCABB 上を測っていなかった（4.42:1）。ADR 0014 の先例"
                      "（UnreadSeiji/InfoText は素地・カードの両面で AA を満たす最小暗化）に照らすと "
                      "同型の最小暗化が要る")
+_P_DIALOG_ACTION = ("【要裁定】P の primary＝退色レッド #B5564E がダイアログ面（筐体面 #DBD6C8）上 3.28:1。"
+                    "確認/やめる の操作ラベルは TextButton の既定色（TextButtonTokens.LabelTextColor="
+                    "Primary）で描かれる＝削除確認の主操作という意味を運ぶ文字。ラベル色の決定は意匠の"
+                    "裁定（人間・CLAUDE.md /visual-language）なので機械では直さず可視化のまま置く。"
+                    "候補: --red-lo #8D4139 は同面 4.91:1（正本モック側のボタン実色との突合が要る）")
 _P_RUBY_ON_BLOCK = ("【要裁定】P DARK のルビは読書面 --screen 上 4.63:1 だけを検算しており、"
                     "前書き/後書きブロック地 #33352C 上を測っていなかった（4.12:1）。"
                     "D はルビを素地・ブロック地の両面で検算済み＝P だけ片面検算の取り残し")
@@ -685,16 +749,27 @@ CONTRAST_BASELINE: dict[str, str] = {
     "P/DARK/shelf:unreadLabel⇄surfaceVariant": _P_SHELF_ON_PANEL,
     "P/DARK/shelf:infoText⇄surfaceVariant": _P_SHELF_ON_PANEL,
     "P/DARK/reading:ruby⇄blockBackground": _P_RUBY_ON_BLOCK,
+    "P/LIGHT/material:primary⇄surfaceContainerHigh": _P_DIALOG_ACTION,
+    "P/SEPIA/material:primary⇄surfaceContainerHigh": _P_DIALOG_ACTION,
+    "P/DARK/material:primary⇄surfaceContainerHigh": _P_DIALOG_ACTION,
 }
 
 # 実測の検査ペア数。regex が壊れて対象が静かに消えても緑のまま通る盲点を塞ぐラチェット
 # （SKIP_BASELINE と同じ思想）。増える分には止めず [INFO] で締め直しを促す。
-CONTRAST_PAIRS_BASELINE = 297
+CONTRAST_PAIRS_BASELINE = 330
 
 def check_contrast(failures: list[str], notes: list[str]) -> tuple[int, int, int, int, int]:
     """コントラスト検査。(合格, 違反, ベースライン済, 対象外, 検査ペア総数) を返す。"""
     tokens = parse_color_kt()
+    # surfaceContainer 4 段は Kotlin 側の束ね直し関数の中にしか無い＝パースできないと
+    # ダイアログ面の組が全部 SKIP へ落ちて静かに無検査になる（この検査が件1を見逃した真因そのもの）。
+    # 落ちたら黙らず fail-closed にする。
+    tiers = parse_container_tiers()
     ok = ng = based = skipped = 0
+    if not tiers:
+        failures.append("[NG] コントラスト: SkinContainerTiers.kt の束ね直し表を抽出できない"
+                        "（パース前提が崩れた＝要保守。surfaceContainer 4 段が無検査になる）")
+        ng += 1
     seen_keys: set[str] = set()
     skip_reasons: dict[str, int] = {}
 
@@ -704,7 +779,7 @@ def check_contrast(failures: list[str], notes: list[str]) -> tuple[int, int, int
         skip_reasons[reason] = skip_reasons.get(reason, 0) + n
 
     for skin_id, kt_rel in CONTRAST_SKINS.items():
-        spec = parse_skin(kt_rel, tokens)
+        spec = parse_skin(kt_rel, tokens, tiers)
         if "delegate" in spec:
             note_skip(f"スキン{skin_id}: {spec['delegate']} へトークン束を全委譲＝値が同一（委譲元で検査済み）")
             continue
@@ -721,7 +796,7 @@ def check_contrast(failures: list[str], notes: list[str]) -> tuple[int, int, int
                 # shelf だけ前景と面の出所が別（家系トークン × Material 面）＝2 引数を分けて渡す形が要る
                 ("shelf", spec["shelf"].get(theme, {}), spec["material"].get(theme, {}), SHELF_PAIRS),
                 ("material", spec["material"].get(theme, {}), spec["material"].get(theme, {}),
-                 [(f, b, 4.5, "Material3 の onX ⇄ X") for f, b in MATERIAL_PAIRS]),
+                 [(f, b, 4.5, "Material3 の onX ⇄ X") for f, b in MATERIAL_PAIRS] + DIALOG_MATERIAL_PAIRS),
             ]
             for gname, fg_src, bg_src, pairs in groups:
                 for fg, bg, minimum, role in pairs:
@@ -770,6 +845,67 @@ def check_contrast(failures: list[str], notes: list[str]) -> tuple[int, int, int
         notes.append(f"[INFO] 検査ペア数 {total} > ベースライン {CONTRAST_PAIRS_BASELINE}: "
                      f"CONTRAST_PAIRS_BASELINE を {total} へ締め直し推奨")
     return ok, ng, based, skipped, total
+
+# ====================================================================================
+# raw AlertDialog 直呼びの検出（ダイアログ本文色の迂回）
+# ====================================================================================
+# なぜトークン検査に呼び出し側の lint を置くか: 本文色の是正は theme/NovelReaderAlertDialog.kt に
+# 集約したが、M3 の `AlertDialog` を直に呼べば既定（onSurfaceVariant＝装飾専用スロット）へ落ちる。
+# 「以後は必ずラッパを使う」は宣言だけのルールで数週間で崩れる（ADR 0017 決定5）＝番人とセットにする。
+# 判定は import 行でなく**呼び出しの字面**。BookshelfScreen.kt が `material3.*` のワイルドカード
+# import で 10 箇所を直呼びしており（実測）、import 判定では丸ごと素通りしたため。
+# 直前が語構成文字なら除外＝`NovelReaderAlertDialog(`（ラッパ自身の呼び出し）を拾わない。
+# `.` は除外しない＝完全修飾 `androidx.compose.material3.AlertDialog(` も捕まえる。
+UI_SRC_DIR = ROOT / "android/app/src/main/java/com/novelreader/ui"
+RAW_ALERT_DIALOG_WRAPPER = "theme/NovelReaderAlertDialog.kt"   # UI_SRC_DIR 起点。唯一の直呼び許可箇所
+_RAW_ALERT_DIALOG_CALL = re.compile(r"(?<!\w)AlertDialog\s*\(")
+
+# 移行台帳（2026-07-31 時点で raw を残しているファイル＝ラッパ新設と同便では差し替えない）。
+# なぜ台帳方式か: 差し替えは呼び出し側の所有権（別レーンが同ファイルを触っている）で、同便に混ぜられない。
+# 台帳に無いファイルの新規流入は即 NG＝「次に同じものが入ってきたら止まる」を今日から効かせつつ、
+# 残作業は機械が数え続ける（報告文に書くだけだと消える）。保守則は CONTRAST_BASELINE と同じ:
+#   - 差し替え済みで raw が消えた → [INFO]。行を削除して締め直す。
+#   - ファイルごと消えた/移動した → [NG]（台帳の行が死んでいる）。
+# 2026-07-31: 16 箇所 7 ファイルの差し替えが完了したので**空へ締め直した**（保守則どおり）。
+# 空が既定の姿＝raw 直呼びは1件も許されない。行を足してよいのは「同便で差し替えられない移行が
+# 実際に発生したとき」だけで、足した行は差し替え完了と同時に消す（[INFO] が締め直しを促す）。
+PENDING_RAW_ALERT_DIALOG: dict[str, str] = {}
+
+def check_raw_alert_dialog(failures: list[str], notes: list[str]) -> tuple[int, int, int]:
+    """(ラッパ経由=OK, 新規流入=NG, 移行待ち) を返す。"""
+    ok = ng = pending = 0
+    found: set[str] = set()
+    for path in sorted(UI_SRC_DIR.rglob("*.kt")):
+        rel = path.relative_to(UI_SRC_DIR).as_posix()
+        if rel == RAW_ALERT_DIALOG_WRAPPER:
+            continue
+        # コメント（「構造は Material AlertDialog をそのまま使う」等の説明文）を先に落とす＝偽陽性回避。
+        hits = len(_RAW_ALERT_DIALOG_CALL.findall(_strip_comments(path.read_text(encoding="utf-8"))))
+        if not hits:
+            continue
+        found.add(rel)
+        if rel in PENDING_RAW_ALERT_DIALOG:
+            pending += hits
+            notes.append(f"[PENDING] {rel}: raw AlertDialog 直呼び {hits} 件"
+                         f"（{PENDING_RAW_ALERT_DIALOG[rel]}）＝NovelReaderAlertDialog へ差し替え待ち")
+        else:
+            failures.append(f"[NG] {rel}: raw AlertDialog を直呼びしている（{hits} 件）。本文が M3 既定の "
+                            f"onSurfaceVariant（装飾専用スロット・ADR 0014-D）で描かれ AA を割る＝"
+                            f"theme/NovelReaderAlertDialog.kt を使うこと")
+            ng += 1
+    for rel in sorted(PENDING_RAW_ALERT_DIALOG):
+        if rel in found:
+            continue
+        if (UI_SRC_DIR / rel).exists():
+            notes.append(f"[INFO] 移行台帳の {rel} は raw 直呼びが消えた＝差し替え済み。行を削除して締め直す")
+        else:
+            failures.append(f"[NG] 移行台帳の {rel} が存在しない（ファイル移動・改名＝台帳の行が死んでいる）")
+            ng += 1
+    # 差し替え済みの件数（ラッパ定義ファイル自身は数えない）＝移行の進捗が数字で見える。
+    ok = sum(len(re.findall(r"NovelReaderAlertDialog\s*\(", _strip_comments(p.read_text(encoding="utf-8"))))
+             for p in UI_SRC_DIR.rglob("*.kt")
+             if p.relative_to(UI_SRC_DIR).as_posix() != RAW_ALERT_DIALOG_WRAPPER)
+    return ok, ng, pending
 
 def main() -> int:
     tokens = parse_color_kt()
@@ -1033,7 +1169,12 @@ def main() -> int:
     c_ok, contrast_ng, c_base, c_skip, c_total = check_contrast(failures, contrast_notes)
     ng += contrast_ng
 
+    # ダイアログ本文色の迂回（raw AlertDialog 直呼び）。値でなく呼び出し側の規律なので別集計。
+    d_ok, dialog_ng, d_pending = check_raw_alert_dialog(failures, contrast_notes)
+    ng += dialog_ng
+
     print(f"design token check: OK={ok} NG={ng} SKIP={skip}")
+    print(f"dialog wrapper lint: WRAPPED={d_ok} NG={dialog_ng} PENDING={d_pending}")
     print(f"spacing phase(b) check: NG={compose_ng} WARN={compose_warn}")
     print(f"a11y contrast check: PASS={c_ok} NG={contrast_ng} BASELINE={c_base} "
           f"OUT-OF-SCOPE={c_skip} (pairs={c_total})")

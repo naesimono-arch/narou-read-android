@@ -41,7 +41,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -97,6 +96,7 @@ import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.MoonSlateSeizu
 import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationReveal
+import com.novelreader.ui.theme.NovelReaderAlertDialog
 import com.novelreader.ui.theme.RubySeizu
 import com.novelreader.ui.theme.SkyGradEndSeizu
 import com.novelreader.ui.theme.Spacing
@@ -428,7 +428,7 @@ internal fun BookshelfLogM(
             bookCount = targets.size,
         )
         var alsoDeleteSource by remember { mutableStateOf(false) }
-        AlertDialog(
+        NovelReaderAlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("選択した${targets.size}冊を本棚から削除しますか？") },
             text = {

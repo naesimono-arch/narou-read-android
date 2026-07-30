@@ -30,7 +30,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -79,6 +78,7 @@ import com.novelreader.ui.theme.LcdInkCartridge
 import com.novelreader.ui.theme.LineCartridge
 import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationReveal
+import com.novelreader.ui.theme.NovelReaderAlertDialog
 import com.novelreader.ui.theme.PanelCartridge
 import com.novelreader.ui.theme.PlasticHiCartridge
 import com.novelreader.ui.theme.PlasticLoCartridge
@@ -322,7 +322,7 @@ internal fun BookshelfListCartridgeP(
             bookCount = targets.size,
         )
         var alsoDeleteSource by remember { mutableStateOf(false) }
-        AlertDialog(
+        NovelReaderAlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("選択した${targets.size}冊を本棚から削除しますか？") },
             text = {

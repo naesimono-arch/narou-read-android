@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -27,6 +26,7 @@ import androidx.compose.ui.Modifier
 import com.novelreader.BuildConfig
 import com.novelreader.scrape.AdapterHealthCheck
 import com.novelreader.scrape.SiteAdapterRegistry
+import com.novelreader.ui.theme.NovelReaderAlertDialog
 import com.novelreader.ui.theme.Spacing
 
 /**
@@ -46,7 +46,7 @@ internal fun AdapterHealthBoardDialog(onDismiss: () -> Unit) {
         // ScrapeHttpClient 経由で Crawl-delay を守るため、章1件でも数秒かかる（debug の手動診断ゆえ許容）。
         reports = AdapterHealthCheck(SiteAdapterRegistry().registeredAdapters).runAll()
     }
-    AlertDialog(
+    NovelReaderAlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = { TextButton(onClick = onDismiss) { Text("閉じる") } },
         title = { Text("スクレイパー健全性") },
