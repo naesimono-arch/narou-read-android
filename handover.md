@@ -52,9 +52,6 @@
     ランキング横 **11.89%**（p99 150ms）。**遷移窓は浄化済みと確認**＝push 最悪 59.7ms・**100ms超ゼロ**、pop 最悪 80.4ms
     （旧ベースライン pop 177〜205ms から明確に改善＝「遷移中は軽量表示」の効果を実測で確認できた）。
 - **[読書] 本文調整/トグルの説明を出す**（何のトグルか分かるように）。
-- **[本棚] 長押し時の触覚フィードバック（haptic）**＝**後回しでOK**とユーザー明言。
-- **[非Kスキンの気分]** 現状 CLASSIC 固定。ページャ化・日替わりの各スキン適用は別ラウンド（J の扉 glyph が P1 前提）。
-
 ### 最優先B：幅広いサイト対応＝汎用オフラインDL基盤（検索→DL→アプリ内で読む）
 
 - なろう限定を脱し、**汎用の取得/抽出基盤**でハーメルン/アルファポリス等も見据える（サイトごとに抽出器を分離できる設計）。オフラインDL＝手元の**蔵書コレクション**の位置づけ。
@@ -82,9 +79,6 @@
 
 ## 未修正・調査中のバグ
 
-- **[新着の更新日時が M/P/J スキンでは出ない]**（2026-07-31・K/D は是正済み）: 指標の排他は `orderMetricLabel()` に集約したが、
-  **M/P/J は `NovelListRow` を使わず自前の行実装から `pointLabel` を直接呼んでいる**ため新着では何も出ない。
-  誤情報ではない（壊れて見える累計ptは消えている）ので退行ではなく、各1行を `orderMetricLabel` へ差し替えれば揃う。
 - **[削除警告が「守れない約束」になりうる（2026-07-30 実機実測）]**: なろう縦書きPDF取込の本は
   `sourceUri`／`sourceUrl` が**両方 NULL**（実測＝保有しているのは `ncode` と `contentSha256` のみ）。よって本文が欠落すると
   再取込プランは③`PickPdfNoRecord`＝「PDF のある場所から探しますか？」へ落ちるが、**その PDF はアプリ自身の
@@ -150,12 +144,6 @@
 
 ## モック逆同期・意匠の宿題
 
-- **[ダイアログのラッパ移行が未完＝16箇所]**（2026-07-31・`NovelReaderAlertDialog` を新設した便の残り）:
-  本文の AA 未達は「M3 の `textContentColor` が `onSurfaceVariant` を引く」のが真因で、単一結節点のラッパで解いた。
-  **残るのは呼び出し側の差し替え**＝`ui/BookshelfScreen.kt`(10)・`ui/AdapterHealthBoardDialog.kt`・
-  `ui/skins/k/BookshelfK.kt`・`ui/skins/k/SettingsScreenK.kt`・`ui/skins/j/BookshelfGridJ.kt`・
-  `ui/skins/m/BookshelfLogM.kt`・`ui/skins/p/BookshelfListCartridgeP.kt`（import 名の変更のみで意味は変わらない）。
-  **移行台帳付き lint が `check_design_tokens.py` で数え続ける**ので放置しても数は見える（台帳外の新規流入は即 NG）。
 - **[作品詳細 `discovery-detail-D.html` の翻訳ズレ5件（2026-07-31 検出・今回は意図的に入れなかった）]**:
   ①`.sec{margin:24px 0 12px}` の下 12px に対し実装は `S8` ②`.detail-meta-top` はモックが `space-between`・実装は
   `spacedBy(S12)` の左寄せ ③`.genre-label` の枠線チップ（1px seiji／padding 4・8／radius 2）が実装で欠落
@@ -181,9 +169,6 @@
   2026-07-29 の「縦書き時タイトル非表示」で重なりの実害は緩和したが**構造差は残る**＝実機目視の結果しだいでモック逆同期 or 実装是正のどちらかへ。
 - **`fusion-D`**: 発見帯の未反映は **obsolete**（2026-07-30 実機で全スキンから帯の撤去を確認＝描き直す対象が消えた）。
   `bookshelf-D`・`fusion-D` とも旧世代＝**提案の構造下敷きに使わない**（語彙参照のみ可・下敷きは `skins/bookshelf-K.html`）。
-- **発見系モックの情報/装飾テキスト再分類（留置中）**: `InfoText` トークン（実装済み＝発見系の情報メタ6箇所を AA(4.5:1) へ・Light #5C606D／Sepia #6C6148／Dark #8A929B）の
-  `discovery/*.html` への追従は、`--ink-soft` を共有する**10〜16箇所/ファイルの個別再分類**＋`--info-ink` 変数の新設＋`tools/check_design_tokens.py` への
-  マッピング追加が必要＝構造的大改修と判定して留置。**現状の一致検査は InfoText を未トラッキングで PASS＝この層ズレは未検知**である点に注意。
 - **richness モック正本の形状統一反映**: `toc-M-rich-R1` / `discovery-M-rich-R1` は画面別seed時代の空のまま（Compose は一枚化で統一済み）。
   正本昇格時に空レイヤを R1s 形へ差し替える（一次情報＝`.claude/plans/richness-expansion-round-2026-07-19.md` 差し戻し節）。
 
@@ -192,28 +177,13 @@
 - **[縦書き] 章見出しの話数ラベル分離とゴシック化**: データ/トークンが未整備なので**まず整備が要る**（ここまでは Claude 側）。
   意匠の最終形は design 裁定＝`awaiting-human.md` §3。全体像は ADR 0020・プラン `.claude/plans/vertical-reading-mode.md`。
   スパイク計測器は `android/app/src/debug/` に収載済み（P6 の OPPO 較正で再利用できる）。
-- **[モーション P1]** 章→章（話送り）は**スワイプ経由はスライド化済み**（引っ張りプレビュー）・**ボタン（前章/次章）経由のみ瞬間のまま据え置き**＝
-  要望が出たらスライド化（ADR 0019・競合解析＝`docs/reference/06-competitor-reading-motion.md`・全数値＝`.claude/plans/reading-transition-jank-measurement-2026-07-16.md`）。
 - **[U1 新着チェック・Web 統合の残り]** ①**通知後の「続き取得」導線が未整備**（同一 URL 再共有は Duplicate ガードで弾かれる＝差分更新の導線は別途設計）
   ②本棚「続きあり」バッジへの Web 新着反映の配線（marks を読む側＝小）。
-
-## なろうAPI 発見・検索機能（第2の柱）
-
-> Phase 0〜4 完了（現況＝`STATUS.md` §0）。目標ロードマップ・作る機能一覧の一次情報＝plan `~/.claude/plans/api-agy-woolly-swan.md`。
-> 構造系の監査残課題は下の「リファクタ / 技術的負債」。
 
 ## リファクタ / 技術的負債（deferred）
 
 - **[大物・1便で]** Kotlin 2.x ＋ compose compiler plugin ＋ Roborazzi の同時バンプ（据え置き中の `tracing-ktx` も同乗）。
   **分割しても進まない**構造的理由・段階表・golden 再記録の見込み＝**ADR 0029**。
-- **[小] `activity-compose` は宣言 1.8.1 に対し解決 1.8.2**（material3 が推移要求・従前から）。宣言を実態へ揃えると読み違いが減る。
-- **[2026-07-27 リファクタ大バッチの残り]**（裁定と依存グラフ＝`.claude/plans/refactor-batch-2026-07-27.md`）:
-  ③ Baseline Profile 生成＝**見送り裁定**（profileinstaller/macrobenchmark/StartupBudget は揃っており generator 1本で起動20〜30%改善見込み・要実機）
-  ④ 計測・調査群＝**見送り裁定**: ShioriCover の Path 毎フレーム確保（drawWithCache 候補・`BookshelfScrollBenchmark` が予算内なら実害なし＝先に測る）／
-  OkHttp ディスクキャッシュ未設定／Room AutoMigration 不使用の方針 ADR 1行／Native 接頭辞・ビュー切替名の整理
-- **検索画面 S3＝カテゴリ列の LazyColumn 化（保留・要否判断）**: 重さの正体は「カテゴリ展開状態での操作毎の全画面再コンポーズ」で、
-  S1/S2 は解消済み・実機体感は軽快（2026-07-11 実測）。残る理論コスト＝非 Lazy Column 上の22カテゴリ/115チップ
-  （`DiscoverySearchScreen.kt:203-207`）の画面外存在コストと「全展開のまま再訪」の初回構成。**体感問題が再報告されるまで保留が妥当**。
 - **[golden の空白] D 系本棚のスクリーンショットが1枚も無い**（2026-07-31 に判明・`screenshots/` は `BookshelfK_*` のみ）:
   2026-07-30 に出荷スキン K へ golden を張った便の裏返しで、**D/C の本棚は絵での回帰が一切効いていない**。
   実際この空白のせいで、K で見つけた「状態行が⋮の分だけ幅不足」と**同型の欠陥が D 側に残っていた**（同日是正）。
@@ -232,24 +202,19 @@
   **部分的**は `fixed-bar-clearance-hardcoded-guess`・`webview-position-mis-record`／**静的検査では無理**は `oem-background-kill`・`benchmark-device-run-fragility`
   （実機依存。ただし「防御コードが在るか」の構造検査なら可）。
   → **L3 は不採用の方向で、ADR には「効かないから」ではなく「上位互換（機械検知への変換）があるから」と書く**（不採用も記録する規約）。
-- **[台帳が肥大している]**（2026-07-31 に新設した数値予算が info で検出）: 台帳2枚の合計 **36,867字**で
-  警告線（予算 42,000字 の 3/4）超え・内訳は `handover.md` **24,776字**・`awaiting-human.md` 12,091字。
-  ⚠️ **溜まっているのは「完了したのに消していない項目」ではなく、着手されないまま育った backlog**（スキン磨き込み・
-  UX監査残・思いつき）。**片方をもう片方へ移しても総量は1文字も減らない**（だから予算は合計で見ている）＝
-  減らすには「やらないと決めて消す」か「別文書へ外部化する」しかない。判断が要るので機械では畳めない。
 - **[較正待ち] 委譲粒度の谷=30 の実測較正**: 委譲ターン計測フック（`count_delegation_turns.py`＝30/60/90…回で子へ中間通告＋完走時
   `~/.claude/projects/...-novel-reader-andloid/delegation-stats.jsonl` へ記録）の分布が貯まったら（目安20〜30件）谷の位置を確かめ、orchestration §0 の「~30」を実測で更新する。
 - **[bestpractice 突合の回収候補]**: ①`block_destructive_migration.py` の Bash 経路が素朴な部分文字列一致（`FOO=1 cmd`・`$()` ですり抜け）＝
   settings permissions の `if` フィールド化を検討（主経路の Edit/Write 捕捉は健在で実害小）
   ②サブエージェントの部品別モデル配分（fan-out/読み=haiku・照合=sonnet・監査=opus。現状は env `CLAUDE_CODE_SUBAGENT_MODEL` で opus 固定＝見直しは settings 変更を伴う）。
-- **[agy 解除時に再燃する宿題] antigravity-delegate サブエージェントの同期実行が保証されない**（委譲5件中3件で再発＝バックグラウンド起動のまま完了通知が来ない）。
-  運用回避＝完了判定を報告でなく**成果物の存在**（`git status`/grep/`ps`）で行う。**根治候補**＝プラグイン側で agy 起動を同期実行へ強制するか wrapper にポーリング内蔵。
-  ※2026-07-26 にプラグインごと無効化したため当面は発生しない。
 - **[運用] worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す**: ローカルの自動コミットゲートは現存しない（かつての hook は撤去済み＝導入以来 fail-open だった）。
   2026-07-30 以降は **CI の Android Lint が毎 push で errors=0 を担保する**ので、このスイープの役目は**push 前に赤を見つける**前倒し検知。
   基準＝0 errors/31 warnings（ModifierParameter×3・UsableSpace×2 は意図的）。
 
 ## 思いつき・取りこぼし（随時追記）
+
+> レビュー中・実装中に出た宿題や着想で、まだ上の各節に整理していないものをここへ。育ったら該当節へ移す。
+> **実機で見れば決まるものは `awaiting-human.md` §1 のツアーへ移す**——ここに溜めても誰も見に来ないため。
 
 - **[実機検証 2026-07-30 第2波の所見]**:
   ①**暗テーマ×縦書きでクローム表示中、ステータスバー帯に「表示設定」の文字が重なった**（2フレーム連続で再現・
@@ -271,10 +236,3 @@
   `cache/pdf_import/<ncode>.pdf` が残る（削除時の「取込元PDFも削除」は `sourceUri` を持つ本だけが対象＝なろうPDF由来は対象外）。
 - **[設定カードで「文字と組版」行だけリーディングアイコンが無い]**（2026-07-30 の実機観察の残り。
   同便で見つかった文字の折り返し3件は 2026-07-31 に是正済み＝真因はいずれも別で、モック構造からの逸脱2件と禁則の巻き添え1件）。
-> レビュー中・実装中に出た宿題や着想で、まだ上の各節に整理していないものをここへ。育ったら該当節へ移す。
-
-- **[スキン・候補] 2026-07-25 モデルA/B生成実験の生存2案**: 製図室（青写真）＝`skins/candidates/bookshelf-seizushitsu.html`・
-  カプセル売場（ガチャ）＝`skins/candidates/bookshelf-capsule.html`（12案中この2つのみユーザー合格）。正式スキン化は別ラウンドで。
-  起案手順の知見＝`docs/knowledge/skin-concept-first-mock-second.md`（コンセプト行で数打ち→当たりだけモック化）。
-- **[スキン・着想] アニメ等のキャラクターをもとにしたスキンモック**（2026-07-17 ユーザー着想）: 次のスキン起案ラウンドの案。
-  着手時の論点＝実在IPの意匠・名称は権利面の検討が要る（特定作品の直写でなく「キャラクター的な世界観の翻案」に留めるか、の裁定から）。
