@@ -22,7 +22,6 @@ import androidx.compose.material.icons.outlined.Contrast
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.MonitorHeart
 import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -49,6 +48,7 @@ import com.novelreader.BuildConfig
 import com.novelreader.NewEpisodeNotificationPreference
 import com.novelreader.NovelReaderApplication
 import com.novelreader.ui.AdapterHealthBoardDialog
+import com.novelreader.ui.theme.NovelReaderAlertDialog
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.Spacing
@@ -138,7 +138,7 @@ fun SettingsScreenK(
             KSettingsRow(
                 icon = Icons.Outlined.Checkroom,
                 title = "きせかえ",
-                description = "本棚や画面の装いを変える（現在: ${currentSkin.displayName}）",
+                description = wardrobeRowDescription(currentSkin.displayName),
                 trailing = {
                     Icon(
                         Icons.AutoMirrored.Filled.KeyboardArrowRight,
@@ -225,7 +225,7 @@ private fun KThemeDialog(
     onFollowSystem: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    NovelReaderAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("テーマ") },
         text = {
@@ -376,6 +376,43 @@ private fun KSettingsRow(
         trailing()
     }
 }
+
+/**
+ * WORD JOINER（U+2060）＝前後での行分割を禁止する不可視文字。字幅を持たず描画にも現れない。
+ */
+private const val WordJoiner = '\u2060'
+
+/**
+ * 文字列の内部での行分割を禁止する（各文字の間へ [WordJoiner] を挟む）。
+ *
+ * サロゲートペアを崩さないようコードポイント単位で歩く（絵文字混じりの装い名が来ても壊さない）。
+ */
+private fun String.unbreakable(): String = buildString(length * 2) {
+    var i = 0
+    while (i < this@unbreakable.length) {
+        val n = Character.charCount(this@unbreakable.codePointAt(i))
+        if (isNotEmpty()) append(WordJoiner)
+        append(this@unbreakable, i, i + n)
+        i += n
+    }
+}
+
+/**
+ * 「きせかえ」行の説明文（モック settings-D.html `.rd`）。括弧の値部だけを行分割不可にする。
+ *
+ * 真因（2026-07-30 実機観察「（現在: 和モダ／ンD）」）: この一文はモック幅 390px では1行に収まるが、
+ * 実機の 360dp 幅では説明欄が足りず必ず折り返す。折り返し自体は避けられない一方、既定の貪欲改行は
+ * **値の途中**で割る——`）` を行頭に置かない禁則は効くので `ン）` が道連れで落ち、閉じ括弧だけが
+ * こぼれたように見える。「値を割ってはいけない」という規則は行分割器に無いので、こちらで与える。
+ *
+ * なぜ幅を広げる／文言を削る対処を採らないか: 実機幅がモック幅より狭い以上、どんな幅でも装い名が
+ * 長くなれば再発する（＝症状の先送り）。ここで直すべきは幅ではなく**割れ目の位置**で、値を一塊に
+ * すれば割れ目は「（」の直前＝文と値の境目へ移り、「本棚や画面の装いを変える／（現在: 和モダンD）」
+ * と読める2行になる。値を trailing（テーマ行の現在値と同じ場所）へ移す案は情報設計＝モック側の裁定
+ * が要るため採らない（監督へ申し送り）。
+ */
+internal fun wardrobeRowDescription(skinDisplayName: String): String =
+    "本棚や画面の装いを変える" + "（現在: $skinDisplayName）".unbreakable()
 
 /** テーマの表示名（K 設定・ダイアログ共用）。既存 enum に表示名が無いためここで写像する。 */
 private fun ReadingTheme.displayNameK(): String = when (this) {

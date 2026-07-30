@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -70,9 +71,12 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -113,6 +117,7 @@ import com.novelreader.domain.chapterNumberOf
 import com.novelreader.domain.progressFractionFor
 import com.novelreader.domain.readingStatusFor
 import kotlin.math.PI
+import kotlin.math.ceil
 import kotlin.math.hypot
 import kotlin.math.sin
 
@@ -575,6 +580,47 @@ internal fun SkyChips(
 // ============================================================
 // 星座セル（1作=1星座）: 経緯線・星屑・境界線・結線・星光を canvas に、題字ラベルを傍らに。
 // ============================================================
+/** モック bookshelf-M.html `.const{width:196px}`＝銘ブロックの内容幅の既定（クラス側の宣言値）。 */
+private val ConstBlockBaseWidth = 196.dp
+
+/** 同モック内で最も広い `.const`（hero の inline `width:308px`）＝銘ブロックを広げてよい上限。 */
+private val ConstBlockMaxWidth = 308.dp
+
+/** 銘の readout（モック `.const .prog` 10.5px）。描画と採寸で必ず同じ値を使う。 */
+private val ConstReadoutFontSize = 10.5.sp
+
+/**
+ * 銘ブロック（モック `.const`）の内容幅を、この本の readout が1行で収まるように決める。
+ *
+ * なぜ固定値ではだめか（真因・2026-07-30 実機観察）: 未読の readout「未読 · 全N話　まだ星は結ばれていない」は
+ * モックでも幅いっぱいの文字列で、モック自身がこのカードだけ `.const` を既定 196px から **206px へ広げて**
+ * 1行に収めている。つまり 196px は2桁話数でも余裕が無い。実装はさらに内容幅が 168dp しか無かったため
+ * （左右 24dp padding の誤訳＝上の Column 参照）、通常利用で必ず「…結ばれてい／ない」と割れていた。
+ *
+ * なぜ「広い固定値」にしないか: 話数は本ごとに桁数が変わり（実蔵書に 221・282・860話）、どんな固定値を
+ * 選んでも上の桁で再発する＝症状を先送りするだけ。目次の話数ラベル幅（TocK の rememberEpLabelWidth・
+ * 2026-07-30）と同じく「実際に出る文字列を実描画と同じスタイルで採寸して幅を決める」形にする。
+ *
+ * 下限＝モック `.const` の既定 196dp（短い readout の本まで痩せさせない＝版面のリズムを保つ）。
+ * 上限＝モック内最大の `.const`（hero の 308px）。上限に当たるほど長い readout（4桁話数×大きな
+ * fontScale 等）では折り返すが、そこは「銘が星図を覆い尽くす」方が害が大きいという判断で、
+ * 上限をモックに実在する最大値へ据える（新しい寸法を発明しない）。
+ *
+ * dp へ切り上げるのは、採寸 px →dp→ [Modifier.width] の px 戻しで 1px 足りず折り返す境界事故を防ぐため。
+ */
+@Composable
+private fun rememberConstBlockWidth(readout: String): Dp {
+    val measurer = rememberTextMeasurer()
+    // 採寸スタイルは実際の描画と同一にする（readout の Text は LocalTextStyle に fontSize だけ被せている）。
+    val style = LocalTextStyle.current.merge(TextStyle(fontSize = ConstReadoutFontSize))
+    val density = LocalDensity.current
+    return remember(readout, style, density, measurer) {
+        val px = measurer.measure(readout, style, softWrap = false, maxLines = 1).size.width
+        val needed = with(density) { Dp(ceil(px.toDp().value)) }
+        needed.coerceIn(ConstBlockBaseWidth, ConstBlockMaxWidth)
+    }
+}
+
 @Composable
 private fun ConstellationCell(
     book: BookEntity,
@@ -594,6 +640,12 @@ private fun ConstellationCell(
     val newCount = newEpisodeCountFor(novelDetail, totalChaps)
     val idColor = idColorFor(book.id)
     val cellHeight = if (isHero) 200.dp else 150.dp
+    // 銘の readout（モック .prog）。銘ブロックの幅を決めるため描画より前に確定させる（機序＝rememberConstBlockWidth）。
+    val readout = when {
+        isUnread -> "未読 · 全${totalChaps}話　まだ星は結ばれていない"
+        else -> "第${chapNum ?: 1}話 / 全${totalChaps}話 · ${((frac ?: 0f) * 100).toInt()}%"
+    }
+    val blockWidth = rememberConstBlockWidth(readout)
 
     Box(
         modifier = Modifier
@@ -626,8 +678,11 @@ private fun ConstellationCell(
         Column(
             modifier = Modifier
                 .align(if (labelOnLeft) Alignment.CenterStart else Alignment.CenterEnd)
-                .width(216.dp)
-                .padding(horizontal = Spacing.S24),
+                // モックの `left:24px` / `right:24px` は画面端からの**片側**オフセットで、`.const{width}` の方が
+                // 内容幅（＝padding を含まない）。旧実装は 216dp の枠に左右 24dp の padding を入れており、
+                // 内容幅が 168dp＝モック既定 196px より 28dp 狭かった（真因・下の readout 折り返しの出所）。
+                .padding(start = if (labelOnLeft) Spacing.S24 else 0.dp, end = if (labelOnLeft) 0.dp else Spacing.S24)
+                .width(blockWidth),
             horizontalAlignment = if (labelOnLeft) Alignment.Start else Alignment.End,
         ) {
             if (isHero) {
@@ -677,11 +732,8 @@ private fun ConstellationCell(
                 )
             }
             Text(
-                text = when {
-                    isUnread -> "未読 · 全${totalChaps}話　まだ星は結ばれていない"
-                    else -> "第${chapNum ?: 1}話 / 全${totalChaps}話 · ${((frac ?: 0f) * 100).toInt()}%"
-                },
-                fontSize = 10.5.sp,            // .prog 10.5px
+                text = readout,
+                fontSize = ConstReadoutFontSize, // .prog 10.5px（幅の採寸と同一値を使う＝ズレたら折り返す）
                 color = if (isUnread) UnreadProgSeizu else RubySeizu, // .prog #9AA4C0＝RubySeizu と同値
                 modifier = Modifier.padding(top = Spacing.S8),
             )
