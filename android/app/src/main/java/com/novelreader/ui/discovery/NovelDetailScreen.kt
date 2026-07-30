@@ -83,6 +83,24 @@ import com.novelreader.ui.theme.Spacing
 import java.util.Locale
 
 /**
+ * 作品詳細の書影ヒーローの高さ（2026-07-31 ユーザー裁定・旧 200dp）。
+ *
+ * なぜ縮めたか: 実機で「あらすじがスクロールしないと出てこない」＝ファーストビューの押し下げが真因だった。
+ * 内訳はヒーロー 200＋作者行 34＋ステータス表 101 でここまで 351dp、あらすじ見出しは 375dp 目に来る一方、
+ * 固定バー（未取込×既読は4アクション＝240dp）と TopAppBar・システムバーを引いたビューポートは
+ * 360×800dp 級で約 444dp しかなく、本文は 1.7 行しか覗かなかった。並び順（モック正本 discovery-detail-D.html の
+ * ヒーロー→作者→ステータス→あらすじ）は意匠なので変えず、押し下げ量だけを 80dp 削る裁定。
+ *
+ * なぜ定数化したか: この値はヒーローの高さと「題字を App bar へ出す」スクロール閾値の**両方**が参照する。
+ * 旧実装は 200 をリテラルで二重に書いており、片方だけ直せば閾値が静かにズレる（畳の目が合わなくなる）。
+ *
+ * 縦横比について: [BookCover] は比を持たず Modifier で与えた寸法をそのまま塗るグラデーション面で、
+ * ここは `fillMaxWidth()` の帯として使う（モック正本も `.cv{aspect-ratio:2/3}` を `.hero-cv{aspect-ratio:auto}` で
+ * 明示的に打ち消している）。よって高さを変えても幅は連動せず、比の破綻は起きない。
+ */
+private val DetailHeroHeight = 120.dp
+
+/**
  * なろうAPIの日付文字列（`general_lastup`＝"2024-01-05 12:34:56" 形式想定）を
  * 「2024年1月5日 更新」ラベルへ整形する。整形できなければ null（呼び出し側は表示を省く）。
  *
@@ -192,8 +210,9 @@ internal fun NovelDetailContent(
     // App bar に作品名を常駐表示し、今どの作品を見ているかの手掛かりが消えないようにするため。
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
-    // ヒーロー高さ(200dp)の6割ほどスクロールしたら、書影上に載る本文タイトルが上端へ抜ける頃合いと見なす。
-    val heroThresholdPx = remember(density) { with(density) { 200.dp.toPx() * 0.6f } }
+    // ヒーロー高さの6割ほどスクロールしたら、書影上に載る本文タイトルが上端へ抜ける頃合いと見なす。
+    // 高さは [DetailHeroHeight] を単一情報源として引く（リテラル二重書きだと高さ変更で閾値だけ取り残される）。
+    val heroThresholdPx = remember(density) { with(density) { DetailHeroHeight.toPx() * 0.6f } }
     val showBarTitle by remember {
         derivedStateOf { scrollState.value > heroThresholdPx }
     }
@@ -490,7 +509,7 @@ internal fun NovelDetailContent(
                             showTitle = true,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(200.dp)
+                                .height(DetailHeroHeight)
                         )
 
                         // 作者・ジャンル行
