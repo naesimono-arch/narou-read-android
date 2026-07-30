@@ -70,7 +70,7 @@ import com.novelreader.ui.discovery.ChipKind
 import com.novelreader.ui.discovery.ConditionChip
 import com.novelreader.ui.discovery.conditionChipLabels
 import com.novelreader.ui.discovery.novelStatusLabel
-import com.novelreader.ui.discovery.pointLabel
+import com.novelreader.ui.discovery.rememberOrderMetricLabel
 import com.novelreader.ui.discovery.readTimeLabel
 import com.novelreader.ui.theme.AuthorInkSeizu
 import com.novelreader.ui.theme.BrightStarSeizu
@@ -703,7 +703,9 @@ internal fun SkyRankRow(
             ) {
                 Text(novelStatusLabel(novel), fontSize = 10.5.sp, color = RubySeizu) // .rk .m 10.5px #9AA4C0
                 readTimeLabel(novel)?.let { Text(it, fontSize = 10.5.sp, color = RubySeizu) }
-                pointLabel(order, novel)?.let {
+                // 並び順を決めた指標をひとつだけ（pt 系の期間は pt・新着は更新日時）。D 共通の
+                // NovelListRow と同じ関数を通す＝スキン間で「順位の根拠」の規則を割らない。
+                rememberOrderMetricLabel(order, novel)?.let {
                     Text(it, fontSize = 10.5.sp, fontWeight = FontWeight.Medium, color = StarSeizu) // .pt var(--star)
                 }
             }

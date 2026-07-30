@@ -14,6 +14,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -23,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.discovery.model.SerialState
 import com.novelreader.discovery.model.WorkSummary
+import com.novelreader.domain.relativeReadLabel
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.ui.theme.FontLabel
@@ -32,6 +34,11 @@ import com.novelreader.ui.theme.FontRankNumeral
 import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.Spacing
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import java.util.Locale
 
 // ============================================================
@@ -68,23 +75,138 @@ fun readTimeLabel(work: WorkSummary): String? {
     }
 }
 
-/** 現在の order タブに対応するポイントラベル（「週間 12,345pt」）。値が無ければ null。 */
+/**
+ * 現在の order タブに対応するポイントラベル（「週間 12,345pt」）。値が無ければ null。
+ *
+ * 不変条件: **この行の数値は「その並び順を決めた指標」でなければならない**。順位数字のすぐ隣に置かれる
+ * 数値を、読み手は「順位の根拠」として読むためで、根拠でない数値を並べると順位そのものが壊れて見える。
+ *
+ * だから新着（[NarouOrder.NEW]）は pt を出さない（2026-07-30 実機報告の真因是正）。
+ * なろうAPI の order=new は novelupdated_at 降順＝**ポイントは並びに一切関与しない**
+ * （根拠は [com.novelreader.narou.NovelApiRepository.mergeByOrder] の NEW 分岐と narou_api_manual.md §3）。
+ * 旧実装は TOTAL と同じ枝で累計ptへ倒しており、実機の新着タブが「1位 22pt・2位 27,031pt・3位 0pt」と
+ * 並んだ＝**並び自体は正しいのに壊れて見える**表示になっていた。
+ *
+ * 新着で代わりに出す指標は更新日時＝[updatedAtLabel]（2026-07-31 ユーザー裁定）。
+ */
 fun pointLabel(order: NarouOrder, work: WorkSummary): String? {
     val (prefix, value) = when (order) {
         NarouOrder.DAILY -> "日間" to work.points?.daily
         NarouOrder.WEEKLY -> "週間" to work.points?.weekly
         NarouOrder.MONTHLY -> "月間" to work.points?.monthly
         NarouOrder.QUARTER -> "四半期" to work.points?.quarter
-        NarouOrder.TOTAL, NarouOrder.NEW -> "累計" to work.points?.global
+        NarouOrder.TOTAL -> "累計" to work.points?.global
+        // 新着は pt が並びに関与しない＝説明にならない数値は出さない（上の KDoc が理由）。
+        // 枝を独立させておくことで、期間が増えたとき「どのptで並ぶのか」の判断を when が強制する。
+        NarouOrder.NEW -> return null
     }
     if (value == null) return null
     return "$prefix ${String.format(Locale.JAPAN, "%,d", value)}pt"
 }
 
+/** なろうAPI の日時文字列が拠って立つ暦（[updatedAtLabel] の判定基準・理由は同関数の KDoc）。 */
+private val NarouCalendarZone: ZoneId = ZoneId.of("Asia/Tokyo")
+
+/** `novelupdated_at` の書式（narou_api_manual.md §4「YYYY-MM-DD HH:MM:SS」）。 */
+private val UpdatedAtPattern: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.JAPAN)
+
+/** 当日ぶんの時刻表記。作品詳細の取得時刻表示（SimpleDateFormat("HH:mm")）と同じ書式を流用＝新書式を作らない。 */
+private val UpdatedAtTimePattern: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("HH:mm", Locale.JAPAN)
+
+/**
+ * 新着順の一覧行に出す更新日時ラベル。当日なら「05:45 更新」・それ以前は「昨日 更新」「3日前 更新」。
+ * [raw] は [com.novelreader.discovery.model.WorkSummary.updatedAt]（なろうは novelupdated_at の生文字列）。
+ *
+ * **なぜ2段の粒度か**: 新着順は更新の新しい順で、実測（2026-07-31 05:49 取得の order=new 上位20件）では
+ * 4分前〜20分前に密集する。ここに日粒度だけを当てると全行が「今日」になり順位の根拠を一切説明しない。
+ * 逆に古い作品まで時刻だけを出すと「何日前の 05:45 か」が消える。だから当日は時刻・それ以前は日付相対にする。
+ *
+ * **どの暦で「今日」を判定するか＝なろうの JST 固定**（端末タイムゾーンに追従しない）。理由:
+ *  (1) この文字列はオフセットを持たない壁時計で、なろうがJSTで発行し、なろうのページもJSTで表示する。
+ *      端末TZへ変換すると、ユーザーが「なろうで読む」で飛んだ先の更新時刻と表示が食い違い突合できなくなる。
+ *  (2) 同アプリの [formatLastupLabel]（作品詳細「2026年7月5日 更新」）は既に生文字列の日付部をそのまま
+ *      出しており＝JST壁時計基準。ここだけ端末TZ基準にすると同じ作品の更新日が画面間でずれる。
+ * 端末が別TZだと「今日」は日本の暦日を指すが、根拠がひとつに揃う方を採る（上記(1)(2)）。
+ *
+ * **なぜ相対側へ暦日の開始時刻を渡すか**: [com.novelreader.domain.relativeReadLabel] の閾値は経過時間の
+ * 24時間窓で、暦日の境界ではない。素の経過ミリ秒を渡すと「昨日 23:59 更新／今 00:01」が差 2分＝「今日」と
+ * 判定され、直前で暦日により当日でないと決めた判断と矛盾する。両引数を暦日の 00:00 に揃えて渡すと
+ * 差がちょうど N 日になり、同関数の閾値が暦日差の意味へ素直に写る（1日→昨日・2〜6→N日前・7→1週間前…）。
+ * 語彙は同関数のまま＝発明しない。
+ *
+ * **[nowMillis] を引数で受ける理由**: 関数内で実時計を読むとこのラベルはテスト不能になる
+ * （境界＝当日00:00・昨日23:59・日跨ぎ直後を固定できない）。時計への依存は呼び出し側の境界へ追い出す
+ * （ui/skins/k/DiscoveryHomeK.kt の initialMoodPattern と同じ state hoisting の判断）。
+ *
+ * @return 欠損（null）・書式外・未来日時は **null＝何も出さない**。空文字や「不明」で埋めず、現在時刻でも
+ *   代用しない（[com.novelreader.discovery.model.WorkSummary.updatedAt] が定めた約束）。順位の根拠として
+ *   読まれる値なので、根拠が無いことを別の値で埋めると誤情報になるため。
+ *   なぜ [DateTimeParseException] だけを捕えるか: なろうはこの書式を公式に保証しておらず想定外の形が来うる
+ *   一方、ここは付帯的なメタ表示で画面を落とす価値が無い。捕捉は書式不一致に限定し他の例外は覆い隠さない
+ *   （[formatLastupLabel] と同じ流儀）。
+ */
+internal fun updatedAtLabel(raw: String?, nowMillis: Long): String? {
+    val updated = raw?.let {
+        try {
+            LocalDateTime.parse(it, UpdatedAtPattern)
+        } catch (e: DateTimeParseException) {
+            null
+        }
+    } ?: return null
+
+    val today = Instant.ofEpochMilli(nowMillis).atZone(NarouCalendarZone).toLocalDate()
+    val updatedDate = updated.toLocalDate()
+    if (updatedDate == today) return "${updated.format(UpdatedAtTimePattern)} 更新"
+
+    // 暦日の 00:00 同士で比較する（上の KDoc「なぜ暦日の開始時刻を渡すか」）。未来日時は
+    // relativeReadLabel が null を返す＝何も出さない（端末時計のズレ等で起きうる防御）。
+    val relative = relativeReadLabel(
+        lastReadAt = updatedDate.atStartOfDay(NarouCalendarZone).toInstant().toEpochMilli(),
+        now = today.atStartOfDay(NarouCalendarZone).toInstant().toEpochMilli(),
+    ) ?: return null
+    return "$relative 更新"
+}
+
+/**
+ * 一覧行に出す「その並び順を決めた指標」を1つだけ返す。pt で並ぶ期間は [pointLabel]、新着は [updatedAtLabel]。
+ *
+ * なぜ排他か: 順位数字の隣の値は「順位の根拠」として読まれるため、根拠は常にひとつでなければ
+ * 何が並びを決めたのか判別できなくなる。when を order で分岐させ、期間が増えたときに
+ * 「その期間は何で並ぶのか」の判断をコンパイラが強制する形にしてある。
+ */
+internal fun orderMetricLabel(order: NarouOrder, work: WorkSummary, nowMillis: Long): String? =
+    when (order) {
+        NarouOrder.NEW -> updatedAtLabel(work.updatedAt, nowMillis)
+        NarouOrder.DAILY, NarouOrder.WEEKLY, NarouOrder.MONTHLY,
+        NarouOrder.QUARTER, NarouOrder.TOTAL -> pointLabel(order, work)
+    }
+
+/**
+ * [orderMetricLabel] の Composable 版。「今」を行の初回コンポーズ時刻で凍結して渡す。
+ *
+ * なぜ用意するか: D 以外のスキン（J/M/P）は [NovelListRow] を使わず自前で一覧行を描くため、
+ * 「実時計は remember で凍結して純関数へ渡す」という規律を各スキンへ写経させることになる。
+ * 写経は必ずどこかで崩れる（1箇所でも素の System.currentTimeMillis() を書けば、その行だけ
+ * 再コンポーズのたびに「今」が動き、同一フレーム内で行ごとに違う暦日判定をしうる）ので、
+ * 規律ごと1箇所へ閉じる。時計を引数化した理由そのものは [updatedAtLabel] の KDoc を参照。
+ */
+@Composable
+internal fun rememberOrderMetricLabel(order: NarouOrder, work: WorkSummary): String? {
+    val nowMillis = remember { System.currentTimeMillis() }
+    return orderMetricLabel(order, work, nowMillis)
+}
+
 /**
  * 一覧の1行（モック .rk）。
  * @param rank 1始まりの表示順位。上位3位のみ藍（primary）、以降は補助色。
- * @param order pt ラベルの種別決定に使う（結果一覧では基本 order を渡す）。
+ * @param order メタ行末の指標（pt／更新日時）の種別決定に使う（結果一覧では基本 order を渡す）。
+ * @param nowMillis 更新日時ラベルの「今」。既定は行の初回コンポーズ時刻を [remember] で凍結する。
+ *   なぜ引数か: 関数内で実時計を読むと [orderMetricLabel] の暦日境界がテストから固定できないため、
+ *   時計依存を呼び出し側の境界へ追い出す（DiscoveryHomeK の initialMoodPattern と同じ state hoisting）。
+ *   なぜ remember で凍結するか: 再コンポーズのたびに読み直すと一覧が同一フレーム内で別々の「今」を持ちうる。
+ *   代償として日跨ぎ直後は行が再生成されるまで「05:45 更新」が残るが、粒度が日なので実害は無い。
  */
 @Composable
 fun NovelListRow(
@@ -93,6 +215,7 @@ fun NovelListRow(
     order: NarouOrder,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    nowMillis: Long = remember { System.currentTimeMillis() },
 ) {
     Row(
         modifier = modifier
@@ -168,7 +291,9 @@ fun NovelListRow(
                         color = LocalShelfColors.current.infoText,
                     )
                 }
-                pointLabel(order, novel)?.let {
+                // 並び順を決めた指標をひとつだけ（pt 系の期間は pt・新着は更新日時）。字面・色は
+                // 従来の pt と同一トークンのまま＝同じ役どころに新しい意匠を発明しない。
+                orderMetricLabel(order, novel, nowMillis)?.let {
                     Text(
                         text = it,
                         fontSize = FontMicroLabel,

@@ -32,6 +32,7 @@ class NarouNovelMapperTest {
             weeklyPoint = 20,
             monthlyPoint = 30,
             quarterPoint = 40,
+            novelupdatedAt = "2026-07-31 05:45:59",
         )
 
         val summary = novel.toWorkSummary()
@@ -54,6 +55,37 @@ class NarouNovelMapperTest {
         assertEquals(20, points.weekly)
         assertEquals(30, points.monthly)
         assertEquals(40, points.quarter)
+        // 新着順の並びを決める値。生文字列のまま素通しする（解釈は表示層の責務＝WorkSummary.updatedAt の KDoc）。
+        assertEquals("2026-07-31 05:45:59", summary.updatedAt)
+    }
+
+    /**
+     * updatedAt は novelupdated_at 由来であり general_lastup（最終掲載日）とは別物であること。
+     *
+     * なぜ固定するか: なろうは似た日時項目を複数返し（nu=作品更新日時／gl=最終掲載日）、新着順(order=new)の
+     * 並びを決めるのは前者だけ。取り違えると一覧の「更新日時」が並び順を説明しなくなり、
+     * ポイントを出していた頃と同じ「並びが壊れて見える」表示へ静かに戻る。実データでも両者は数十秒ずれる
+     * （2026-07-31 実測: nu=05:41:45 / gl=05:41:04 の作品が存在）。
+     */
+    @Test
+    fun toWorkSummary_updatedAtComesFromNovelupdatedAtNotGeneralLastup() {
+        val novel = NarouNovel(
+            title = "a",
+            writer = "w",
+            novelupdatedAt = "2026-07-31 05:41:45",
+            generalLastup = "2026-07-31 05:41:04",
+        )
+        assertEquals("2026-07-31 05:41:45", novel.toWorkSummary()?.updatedAt)
+    }
+
+    /**
+     * novelupdated_at 欠損時は updatedAt が null のまま運ばれること（現在時刻や general_lastup で代用しない）。
+     * 順位の根拠として読まれる値ゆえ、根拠が無いことを別の値で埋めると誤情報になるため（WorkSummary の約束）。
+     */
+    @Test
+    fun toWorkSummary_updatedAtStaysNullWhenAbsent() {
+        val novel = NarouNovel(title = "a", writer = "w", generalLastup = "2026-07-31 05:41:04")
+        assertNull(novel.toWorkSummary()?.updatedAt)
     }
 
     /** novelType の二重キー（of 指定=noveltype / of 無指定=novel_type）どちらでも連載状態が定まる。 */

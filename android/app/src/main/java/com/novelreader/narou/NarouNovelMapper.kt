@@ -39,6 +39,10 @@ fun NarouNovel.toWorkSummary(): WorkSummary? {
         readMinutes = time,
         genreCode = genre,
         points = toWorkPoints(),
+        // 新着順（order=new）の並びを決める値＝novelupdated_at。general_lastup（最終掲載日）とは別物で、
+        // 並びの根拠は前者なのでこちらを運ぶ（後者は作品詳細が別途 WorkDetail.generalLastup で使う）。
+        // OF_LIST に nu を含めてあるので一覧応答でも欠損しない（詳細は of=null＝全項目）。
+        updatedAt = novelupdatedAt,
     )
 }
 

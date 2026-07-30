@@ -51,6 +51,22 @@ data class WorkSummary(
     val genreCode: Int?,
     /** 期間別ポイント。どのポイントも欠損ならマッパが集約して null にする（[WorkPoints] の KDoc 参照）。 */
     val points: WorkPoints?,
+    /**
+     * 作品が最後に更新された日時の**生文字列**（なろうは ← novelupdated_at・"yyyy-MM-dd HH:mm:ss"）。欠損時 null。
+     *
+     * なぜ運ぶ必要があるか: 新着順（なろう order=new）の並びを決めている唯一の値がこれで、
+     * 一覧行がこの値を持たないと「順位の根拠を説明できない」（順位数字の隣にポイントを置いて
+     * 並びが壊れて見えた 2026-07-30 実機報告の真因＝[com.novelreader.ui.discovery.pointLabel] の KDoc）。
+     *
+     * なぜ Long のエポックでなく生文字列か: (1) この値の用途は表示と大小比較だけで、"yyyy-MM-dd HH:mm:ss" は
+     * 辞書順＝時系列順のため比較にパースが要らない（[com.novelreader.narou.NovelApiRepository.mergeByOrder] の
+     * NEW 分岐が既にその性質を使っている）。(2) サイト非依存モデルがタイムゾーン解釈を先に固定してしまうと、
+     * 別の書式・別TZを返すサイトのアダプタが後から嵌まる。解釈はそれを必要とする表示層の責務に留める。
+     *
+     * 欠損・解釈不能時の約束: **表示側は何も出さない**（空文字・"不明"・0 埋め・現在時刻での代用は禁止）。
+     * 更新日時は順位の根拠として読まれるため、根拠が無いことを黙って別の値で埋めると誤情報になる。
+     */
+    val updatedAt: String? = null,
 )
 
 /**

@@ -17,6 +17,7 @@ fun workSummary(
     readMinutes: Int? = null,
     genreCode: Int? = null,
     points: WorkPoints? = null,
+    updatedAt: String? = null,
 ): WorkSummary = WorkSummary(
     title = title,
     author = author,
@@ -29,6 +30,7 @@ fun workSummary(
     readMinutes = readMinutes,
     genreCode = genreCode,
     points = points,
+    updatedAt = updatedAt,
 )
 
 fun workPoints(

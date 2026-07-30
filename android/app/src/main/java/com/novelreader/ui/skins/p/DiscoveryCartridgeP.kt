@@ -70,7 +70,7 @@ import com.novelreader.ui.discovery.ChipKind
 import com.novelreader.ui.discovery.ConditionChip
 import com.novelreader.ui.discovery.conditionChipLabels
 import com.novelreader.ui.discovery.novelStatusLabel
-import com.novelreader.ui.discovery.pointLabel
+import com.novelreader.ui.discovery.rememberOrderMetricLabel
 import com.novelreader.ui.discovery.readTimeLabel
 import com.novelreader.ui.theme.BlueCartridge
 import com.novelreader.ui.theme.BlueInkCartridge
@@ -165,14 +165,23 @@ private fun phosGlow(): Shadow {
 }
 
 /** 現在 order のポイント数値（HI-SCORE .sc .v＝数値のみ）。DiscoveryCommon.pointLabel と同じ order→field
- *  写像だが、当該画面は編集不可のためそちら（"週間 12,345pt"）でなく数値だけが要る＝ここで最小複製する。 */
+ *  写像だが、当該画面は編集不可のためそちら（"週間 12,345pt"）でなく数値だけが要る＝ここで最小複製する。
+ *
+ *  新着（NEW）だけ null を返す理由（2026-07-31・一覧行と同じ真因の是正）: なろうの order=new は
+ *  novelupdated_at 降順で並び、**ポイントは並びに一切関与しない**。HI-SCORE 板は順位の隣に置く数値で、
+ *  読み手はそれを順位の根拠として読むため、根拠でない累計ptを載せると並びが壊れて見える
+ *  （一覧行で実機報告された症状と同型＝DiscoveryCommon.pointLabel の KDoc）。
+ *  一覧行は代わりに更新日時を出すが、この板は「数値＋固定単位 pt」の造形で時刻を置く器が無い
+ *  （単位ラベルまで変えると意匠変更になり正本モックの前例が要る）。よって数値を出さない側へ倒す。
+ *  呼び出し側は null で ".sc 列ごと畳む" 既設の分岐に乗る＝新しい表示状態を増やさない。 */
 private fun boardPointValue(order: NarouOrder, novel: WorkSummary): String? {
     val v = when (order) {
         NarouOrder.DAILY -> novel.points?.daily
         NarouOrder.WEEKLY -> novel.points?.weekly
         NarouOrder.MONTHLY -> novel.points?.monthly
         NarouOrder.QUARTER -> novel.points?.quarter
-        NarouOrder.TOTAL, NarouOrder.NEW -> novel.points?.global
+        NarouOrder.TOTAL -> novel.points?.global
+        NarouOrder.NEW -> null
     } ?: return null
     return String.format(Locale.JAPAN, "%,d", v)
 }
@@ -1079,7 +1088,8 @@ private fun TryRow(novel: WorkSummary, order: NarouOrder, onClick: () -> Unit) {
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = Spacing.S4),
             )
-            // .m＝メタ行（状態 ・ 読了 ・ pt〔青ink〕）。pt は pointLabel を再利用。
+            // .m＝メタ行（状態 ・ 読了 ・ 指標〔青ink〕）。指標は D 共通の rememberOrderMetricLabel を再利用
+            // ＝pt 系の期間は pt・新着は更新日時。スキン間で「順位の根拠」の規則を割らない。
             Row(
                 modifier = Modifier.padding(top = Spacing.S8),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
@@ -1088,7 +1098,7 @@ private fun TryRow(novel: WorkSummary, order: NarouOrder, onClick: () -> Unit) {
                 readTimeLabel(novel)?.let {
                     Text(it, fontFamily = PixelFamily, fontSize = 10.sp, color = InkMidCartridge)
                 }
-                pointLabel(order, novel)?.let {
+                rememberOrderMetricLabel(order, novel)?.let {
                     Text(it, fontFamily = PixelFamily, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = BlueInkCartridge)  // .m .pt 青ink
                 }
             }
