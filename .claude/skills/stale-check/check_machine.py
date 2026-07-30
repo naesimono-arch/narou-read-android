@@ -725,6 +725,37 @@ def check_size_budgets():
                 f"{ledger} に「完了＋残＝…」型の項目が {len(leftovers)} 件。完了経緯は git log が正本＝削り、"
                 f"残りが人間待ちなら awaiting-human.md へ（ADR 0028）。先頭: {leftovers[0].strip()[:60]}")
 
+    # 台帳2枚の**合計**文字数。ADR 0028 の宿題（対象リストへの awaiting-human.md 追加）は済んでいたが、
+    # handover/awaiting-human には STATUS(60行)・CLAUDE(16KB) のような**数値予算が1つも無かった**
+    # ＝上の2検査（打ち消し線・「完了＋残＝」型）を素通りする書き方で膨らめば無防備のまま。
+    # なぜ per-file でなく合計が主判定か: 二分は**移し替え**であって痩身ではない。片方の溢れをもう片方へ
+    # 移すと per-file 予算は両方とも緑になり、「session 冒頭で開く総量」（ADR 0028 症状3＝トークンコスト）は
+    # 1文字も減っていないのに番人が黙る。合計で見ればその抜け道が原理的に塞がる。
+    # なぜ 42,000 字か: 発明値ではなく ADR 0028 が「肥大の実測」として記録した分割前 handover の実サイズ。
+    # 「分割したのに分割前の総量へ戻った」は最も反論しにくい肥大の事実なので、そこを high の線に採る。
+    # なぜバイトでなく文字数か: 記録された 42,000 が「字」だから。日本語主体の台帳はバイトが約2倍に出る
+    # （実測 handover 24,776 字 = 49,563 バイト）ため、単位を取り違えると予算が黙って2倍に緩む。
+    LEDGER_TOTAL_BUDGET = 42000
+    ledger_chars = {rel: len(read_text(rel) or "") for rel in ("handover.md", "awaiting-human.md")}
+    total = sum(ledger_chars.values())
+    breakdown = "・".join(f"{k} {v:,}字" for k, v in ledger_chars.items())
+    if total > LEDGER_TOTAL_BUDGET:
+        add("size_budget", "stale", "high",
+            f"台帳2枚の合計が {total:,} 字（ADR 0028 が記録した分割前 handover の肥大値 {LEDGER_TOTAL_BUDGET:,} 字に到達）"
+            f"＝二分の効果が消えている。完了経緯は git log が正本＝行ごと削ること（内訳: {breakdown}）")
+    elif total > LEDGER_TOTAL_BUDGET * 3 // 4:
+        add("size_budget", "warn", "info",
+            f"台帳2枚の合計が {total:,} 字（肥大値 {LEDGER_TOTAL_BUDGET:,} 字の3/4超）。肥大の兆候（内訳: {breakdown}）")
+    # per-file は「二分の釣り合い」の兆候として info のみ。片方が肥大値の半分を超える＝もう一方の台帳が
+    # 事実上機能していない（＝二分前の1枚台帳へ戻りつつある）合図。awaiting-human も同じ線で見る:
+    # 人間待ちは積むのが自然だが、積むべきは「待ち1件＝何を目視するか」の短い行で、
+    # 経緯を抱えたまま積むのは handover と同じ病（ADR 0028 症状1）だから緩める理由が無い。
+    for rel, n in ledger_chars.items():
+        if n > LEDGER_TOTAL_BUDGET // 2:
+            add("size_budget", "warn", "info",
+                f"{rel} が {n:,} 字（台帳1枚あたりの目安 {LEDGER_TOTAL_BUDGET // 2:,} 字超）。"
+                f"完了経緯の残留・1項目あたりの長文化を疑うこと")
+
     txt = read_text("CLAUDE.md")
     if txt is not None:
         size = len(txt.encode("utf-8"))
