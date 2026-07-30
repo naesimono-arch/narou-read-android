@@ -23,6 +23,7 @@ import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.tokens
 import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.ProcessingState
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -39,6 +40,8 @@ import org.robolectric.annotation.Config
  *  2) 星図⇄一覧トグルの結線（星図内の一覧ボタン・一覧側の星図ボタンの両方向）
  *  3) hero（よみかけ先頭）の「この星から読む」と未読の「最初の星を灯す」の出し分け＋開く結線
  *  4) M（1変種スキン）の⋮メニューでテーマ節が畳まれること（C から続く畳み漏れの回帰固定）
+ *  5) 面トグルの永続先が m_sky_view であり、D/K の表示状態キーを巻き込まないこと
+ *     （スキンごとに別キーが設計＝2026-07-30 実機観察「is_grid_view が変わらない」への回答）
  *
  * NovelReaderTheme でなく LocalSkin を直接 provide するのは、Theme の SideEffect（window 直叩き）を
  * テストから切り離しルーター分岐だけを検証するため（トークン束の契約は SkinMPJTest が担う）。
@@ -139,6 +142,33 @@ class BookshelfSkyMTest {
         // 一覧→星図: 戻る方向も同じ実挙動で担保（両方向）。
         composeTestRule.onNodeWithContentDescription("星図表示に切替").performClick()
         composeTestRule.onNodeWithContentDescription("一覧表示に切替").assertIsDisplayed()
+    }
+
+    @Test
+    fun `Mの面トグルは m_sky_view だけを書き替える（D・K の表示状態を汚さない）`() {
+        // 2026-07-30 の実機観察「M で面を切り替えても is_grid_view=true のまま／別に m_sky_view が生えた」への回帰。
+        // 構造上これは**正常**で、表示面の状態はスキンごとに別キー（ShelfViewToggle・BookshelfK の
+        // 「共有 is_grid_view を流用しない理由」）。M の星図⇄一覧と D のグリッド⇄リストは別の軸で、
+        // 同じキーに寄せると「D で目録にした人が M を一度触るとグリッドに化ける」交差汚染が起きる。
+        // ゆえに固定すべき不変条件は〈自分のキーへ即時永続する〉かつ〈他スキンのキーに触れない〉の2点。
+        // この2点は今まで一度もテストされておらず、実機の観測を「バグらしきもの」に見せていた穴でもある。
+        val prefs = RuntimeEnvironment.getApplication()
+            .getSharedPreferences(PrefKeys.FILE_APP_PREFS, android.content.Context.MODE_PRIVATE)
+        // 実機と同じ前提を作る＝D と K で既に表示面を選んだ後のユーザー。
+        prefs.edit()
+            .putBoolean(PrefKeys.IS_GRID_VIEW, true)
+            .putBoolean(PrefKeys.K_GRID_VIEW, true)
+            .commit()
+
+        setContent(Skin.SEIZU_M, BookshelfUiState.Content(emptyList()), skyViewM = true)
+        composeTestRule.onNodeWithContentDescription("一覧表示に切替").performClick()
+
+        assertFalse(
+            "M の面切替が m_sky_view へ即時永続していない（再入で星図に戻ってしまう）",
+            prefs.getBoolean(PrefKeys.M_SKY_VIEW, true),
+        )
+        assertTrue("M の面切替が D の is_grid_view を書き替えた", prefs.getBoolean(PrefKeys.IS_GRID_VIEW, false))
+        assertTrue("M の面切替が K の k_grid_view を書き替えた", prefs.getBoolean(PrefKeys.K_GRID_VIEW, false))
     }
 
     @Test
