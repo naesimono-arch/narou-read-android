@@ -35,7 +35,7 @@
 
 - **現況（現在値のみ・目安60行）→ `STATUS.md`**（ブランチ追従・main が正本）／**やること → `handover.md`**（悩んだらまず見る。完了したら打ち消し線で残さず**消す**）
 - **人間の目視・裁定・外部手続き待ち → `awaiting-human.md`**（handover は「Claude が今すぐ動けるもの」だけ。二分の軸＝待ちの種類・迷ったら handover 側＝ADR 0028）
-- **完了の履歴 → git log が正本**／**判断・Why-not → `docs/decisions/`**（方式比較の前にまず README 索引を確認。不採用判断・コミットを生まない判断も ADR 化を検討）
+- **完了の履歴 → git log が正本**／**判断・Why-not → `docs/decisions/`**（方式比較の前にまず README 索引を確認。不採用判断・コミットを生まない判断も ADR 化を検討）／**凍結・見送り → `docs/backlog-frozen.md`**（捨てず解凍条件つき）
 - **腐りにくい知見 → 新規は `docs/knowledge/` に1知見=1ファイル**（`task_diary.md` は凍結アーカイブ＝既存 #N 参照は有効・新規追記はしない）／実装パターンの「なぜ」→ `docs/patterns/`／外部APIなど参照資料 → `docs/reference/`／過去プランの一次情報 → `.claude/plans/`（役目を終えたら `archive/` へ）
 - auto-memory は**ブランチ不変情報のみ**（ブランチ固有の状態・進捗は STATUS/handover が正本）。ブランチ固有内容を `@import` で親パスから引かない。運用詳細＝memory `docs-status-vs-handover-split`・整合点検＝`/stale-check`。
 

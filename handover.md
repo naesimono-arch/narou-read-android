@@ -10,6 +10,10 @@
 > それ以外の置き場（知見・ADR・一次情報など）の割り振りは **CLAUDE.md「管理ドキュメントの体系」が正本**——
 > ここへ再掲すると片方だけ古くなる（2026-07-25 に STATUS 側で実際に起きた）。
 > 打ち消し線を溜めると「やったことリスト」に化けて台帳の役目を失う（運用: memory `docs-status-vs-handover-split`）。
+>
+> **凍結・見送り・won't-fix と決めた項目は `docs/backlog-frozen.md` へ退避する**（捨てない・解凍条件つき）。
+> 打ち消し線と同じく、**着手しないと決まったものを置き続けると台帳は「やること」でなく「いつかやるかもリスト」に化ける**——
+> 実際 2026-07-31 時点で凍結済み5節が 6,257 字を占めており、それが肥大の最大の単一要因だった。
 
 ## ★最優先方針（2026-07-20 転換 — デフォルトUI明快化＋幅広いサイト対応）
 
@@ -141,31 +145,8 @@
 - **[ID] applicationId の変更（初回アップロード前・必須／ブランド名確定後に着手）**: `com.novelreader` は公開後**永久変更不可**。
   作業＝固有 ID へ変更 →`${applicationId}` 参照（FileProvider 等）は自動追従するので**ハードコードの有無を grep で確認**→
   benchmark の `applicationIdSuffix` 追従も確認。⚠️ 実機では**別アプリ扱い**＝既存検証端末のデータ引き継ぎは無い。
-- **[SDK 36 の残る注意点]**（移行自体は完了）: **16KB ページ要件は現状そもそも非該当**＝2026-07-30 の実測で
-  **debug/release とも APK に `.so` が1本も入っていない**（`unzip -l <apk> | grep '\.so$'` が0件）。旧記述の「Compose・datastore 由来の
-  `.so` が 4ABI×2 入る」は誤りで、Compose も datastore も純 Kotlin/Java・PDFBox-Android も純 Java 実装のため入る道理が無い。
-  `zipalign -c -P 16` は通る（resources.arsc の整列は満たす）が、**要件の本体であるネイティブライブラリの `p_align` は検査対象がゼロ**。
-  ⇒ 依存バンプのたびの再確認は不要。ただし**将来 `.so` を持つ依存（画像コーデック・暗号・DB エンジン等）を入れた瞬間に該当する**ので、
-  そのときは ELF `p_align=0x4000` と `zipalign -P 16` の2点を見る（`zipalign` の `-P` は build-tools 35+ が要る）。
-  また JVM テストは全ファイルが `@Config(sdk = [34])` 固定＝
-  **targetSdk 35/36 固有の実行時挙動はテストでは一切捕まらない**（実機が唯一の検証手段）。
 - **[Play要件] プライバシーポリシー**: 下書き＝`docs/store/privacy-policy-draft.md`（ホスティングは GitHub Pages で裁定済み）。
   Claude 側の残り＝**公開後にアプリ内からのリンクを設置する**（プレースホルダ確定と公開はブランド名待ち＝`awaiting-human.md`）。
-
-## ★UX/Design 全層監査 — 残タスク（2026-07-12）
-
-> **これは何か**: `/mnt/c/Users/qingj/Desktop/project/UX`（UX24層＋Design10層＋公理候補）に対する全体監査（45体・敵対的検証済み）の、
-> **残っている作業だけ**の action list。消化済み分の一次情報＝`.claude/plans/ux-design-full-audit-2026-07-12.md`（§A 統合報告／§B 全指摘詳細）＋
-> `.claude/plans/ux-audit-batch-execution-20260712.md`。ゲート＝`cd android && testDebugUnitTest`＋`python3 tools/check_design_tokens.py`。
-> **意匠絡みは Compose で自己判断せず ADR0005/0014＋モック正本に先に接地**。
-
-### 残4: 監査派生 backlog
-
-- **蔵書内フィルタ/series 束ね UI**: ロジック `filterBooksByQuery` は実装済み・UI はモック未表現のため保留（`BookshelfScreen.kt:442`／`ShelfItems.kt:37`）。series 束ねはスキーマ変更要（設計案のみ）。
-- **目次の部/編 折り畳み**: 抽出パイプラインに階層データ無し＝**抽出側の新機能**。実PDF→HTML は「フラット確定」＝畳みは前提データ欠如で現状不成立。
-- **lint 残 warnings（任意改善・非ブロック）**: UsableSpace×2（`DefaultBookRepository.kt` の抽出前空き容量チェック）＝
-  `getAllocatableBytes` は消去可能キャッシュ込みの楽観値で事前チェックが甘くなり ENOSPC で変換終盤失敗を招くため、現状の保守的 `usableSpace` は意図的。
-  触るなら API26 分岐・例外処理込みの設計判断が要る（純機械修正ではない）。
 
 ## モック逆同期・意匠の宿題
 
@@ -206,48 +187,6 @@
 - **richness モック正本の形状統一反映**: `toc-M-rich-R1` / `discovery-M-rich-R1` は画面別seed時代の空のまま（Compose は一枚化で統一済み）。
   正本昇格時に空レイヤを R1s 形へ差し替える（一次情報＝`.claude/plans/richness-expansion-round-2026-07-19.md` 差し戻し節）。
 
-## スキン磨き込み backlog（M/P/J）
-
-> ⚠️ **ADR 0027 追記により初回公開までは新規着手しない**（既存実装は削除せず・解禁は課金アップデート便と同時）。
-> 例外＝共通実装の波及・exhaustive when を通す最小翻訳・クラッシュ/データ破損。意匠の裁定待ち分は `awaiting-human.md` §3-2。
-> 検分の一次情報＝`.claude/plans/ui-refine-richness-round-2026-07-18.md`／リッチ化の型＝`.claude/plans/richness-expansion-brief-2026-07-19.md`（R1の型10技法・着手時は全読）。
-
-- **[高負荷モード横展開（ADR 0023）]**: ①星図M v8（月齢/惑星/流星群）・v9（変光星/ジャイロ視差）＝ロードマップと全裁定は
-  `.claude/plans/richness-expansion-round-2026-07-19.md` ②知見の和モダンD展開→以降各画面 ③**製品トグルの置き場所・既定値・reduce-motion 優先関係の確定**
-  （現状は debug トグルのみ＝ADR 0023 の宿題）。
-- **[リッチ化の横展開]**（fresh セッションで実施＝2026-07-19 裁定）: 深空リッチ化は本棚Mのみ→M目次/発見・P質感・J発光層へ「R1級」展開。
-- **[取込バナーのスキン残]** M `SkyProcessingBanner`／P `WritingBanner` の Web 0%凍結（`source` フィールド配布済み＝各1行の出し分け）。
-  Web 一括の本間でバナーが一瞬畳まれる軽微ちらつきは割り切り済み（気になったら）。
-- **[構造穴]** `NativeReadingScreen`/`ReadingSettingsSheet` のスキン差分は「加算的クローム/値選択」で exhaustive when 化の対象外＝
-  **新スキン追加時にシート色・クローム欠落が無音で起きる**残存リスク（是正は SkinTokens 化など別機構。ルーター30分岐は when 化済み）。
-- **[J のトークン整備]** 発見Jの不足トークン棚卸し（扉固有森リニア #1A2A1F 等・回廊森 rgba(31,52,38,.55)・光条α群＝`DiscoveryPortalJ.kt` 設計コメント参照。
-  本棚Jは Amb*Portal パレット化済み＝同じ流儀で。本棚Jの「薬と草の base が近縁」も実機で弱ければ base ストップ追い込み）／
-  `settings-J` 不足4値（--sheet #141C15・--sheet-line・扉プレビュー大気3値）／
-  **内側半透明白の base val 新設**（目次Jの --soft/--dim/--line は GlyphDarkPortal の RGB 借用＝意味が読みにくい。`SoftTocPortal` 等 or base val 1本で意図明快化・値不変。本棚Jの .resume ≒InkPortal 近似の厳密化も同時に）。
-- **[J のその他]** 目次に書籍文脈が届かない（目次画面が書籍ID/題名を受けないため象徴文字glyph を省略中＝出すなら骨格のシグネチャ拡張）／
-  象徴文字glyph の semantics（極淡96spの装飾テキストが TalkBack 読み上げ対象になり得る→ノイズなら `clearAndSetSemantics {}`）／
-  **時刻大気の発展**（①時刻3相の base/floor 色相トークン化 ②長時間常駐で時間帯を跨いだときの追従＝現状は起動時1回固定・produceState＋5〜10分ポーリングが拡張余地）。
-- **[M/P のアニメ・データ]** M昇華アニメ＆P1押印アニメのトリガ配線（同型課題＝「読了の瞬間」イベントが本棚Composableに流入しない。
-  栞の `playSealStamp/onSealStamped` ラッチと同型の配線を骨格から通せば一度きり再生可能）／
-  P2現像の実カード昇格（ProcessingState から仮カセットカードをラック先頭に＝未生成の本を並べる placeholder 方針の設計判断が先）／
-  カセットカードの semantics 整備（読了カセットに「読了・CLEAR」等の contentDescription）／
-  **読書時間の計測データ新設**（P本棚LCDの TIME 表示は捏造回避で現在非表示・セッション累積の記録機構が要る）／
-  **連続読書日数（streak）の記録新設**（P3『連続プレイの炎』のデータ源。prefs で日付集合を持つ最小実装から）／
-  J扉の incipit（BookEntity に synopsis 相当が無く省略。抽出時に第1章冒頭を保存すれば表示可能）。
-- **[P の見送り分]** 読書の浮遊puck（モックの没入時浮遊操作は共有 tap-to-reveal に畳んだ＝実機で不便なら独立部品化）／
-  設定のLCD値チップ・液晶スウォッチ型テーマ選択（標準部品を優先して未採用＝P密度を上げたければ再検討）／
-  **ヒンジのアクセシブル代替**（ドラッグ専用でキーボード/スイッチ操作の段送りが無い。tap-to-cycle か semantics カスタムアクション。
-  段の取り分 HingeDetentsDp=56/180/260 の体感も実機微調整可）。
-- **[横展開候補]** ①「続きに戻る」チップ（`NativeReadingScreen` 参照ジャンプ）も同構造の半透明ピル＝暗色スキン×明色要素で透けうる（稀な状態のため未対処）
-  ②題末区切りダッシュのトリムは J目次のみ＝データ由来なので D/M/P 目次・章扉にも潜在（要すれば共通ユーティリティ化）
-  ③**hashCode 直割当の偏り**は J扉パレットのみ fmix32 で是正済み（`docs/knowledge/string-hashcode-low-bit-bias-palette-skew.md`）＝
-  同型の M `idColorFor`・P `labelColorFor` も目視で気になったら同適用
-  ④M視差の信号源精密化（代表セル高150dp×index の近似＝境界で最大12px段差の理論値。実機で目につけば実測高の累積へ）。
-- **[磨き込み候補・グレー所見]**（裁定不要・リッチ化ラウンドの入力）: M発見のカード枠/ジャンルchip境界が星空地で薄い・M本棚の未読/読了chipの淡さ・
-  J/P の非選択チップ/タブ文字が4.5:1近傍・J発見「今夜の一気読み」カードのみ青紫（パレット外）・P情報密度/太ベゼル/没入SAVE帯の声量・
-  P本棚LCD版の主CTA（上端の小さな赤▶）が弱い・M本棚一覧の天体ドット多色の意味整理。
-- **[精査待ち]** ①P章扉のpixel話数を一段強調（モック追補要）④J一覧の栞先端色を扉ambientに連動（一覧是正の設計と合流して精査）。
-
 ## 読書・目次まわりの残り
 
 - **[縦書き] 章見出しの話数ラベル分離とゴシック化**: データ/トークンが未整備なので**まず整備が要る**（ここまでは Claude 側）。
@@ -265,13 +204,8 @@
 
 ## リファクタ / 技術的負債（deferred）
 
-- **[要判断] 全依存の天井は compileSdk ではなく Kotlin 1.9.22 だった**（2026-07-30 の依存バンプで確定）:
-  `JvmMetadataVersion` の受入上限が 1.9.0（次版 2.0.0）で、**`mv=2.1.0` の artifact は機械的に確実死**（Compose 1.11 系・work 2.11 系）、
-  `mv=2.0.0` 群（Compose 1.9+・lifecycle 2.9+・tracing 1.3+）はベンダが KGP 2.0.0+ 必須と明言。
-  そして Kotlin を上げられないのは **Roborazzi 1.30.1 が Kotlin 1.9.22 ビルドである連鎖**（`settings.gradle` のコメントが正本）。
-  ⇒ 次に依存を動かすときは **Kotlin 2.x ＋ compose compiler plugin ＋ Roborazzi を1便**にするしかない。
-  **この構造を ADR 化しておかないと、また「別便で」の据え置きが溜まる**（実際5件溜まって今回まとめて解消した）。
-  なお `tracing-ktx` だけは今回も据え置き（1.3.0 が Kotlin 2.0 ビルド＝上限超え）。
+- **[大物・1便で]** Kotlin 2.x ＋ compose compiler plugin ＋ Roborazzi の同時バンプ（据え置き中の `tracing-ktx` も同乗）。
+  **分割しても進まない**構造的理由・段階表・golden 再記録の見込み＝**ADR 0029**。
 - **[小] `activity-compose` は宣言 1.8.1 に対し解決 1.8.2**（material3 が推移要求・従前から）。宣言を実態へ揃えると読み違いが減る。
 - **[2026-07-27 リファクタ大バッチの残り]**（裁定と依存グラフ＝`.claude/plans/refactor-batch-2026-07-27.md`）:
   ③ Baseline Profile 生成＝**見送り裁定**（profileinstaller/macrobenchmark/StartupBudget は揃っており generator 1本で起動20〜30%改善見込み・要実機）
@@ -314,43 +248,6 @@
 - **[運用] worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す**: ローカルの自動コミットゲートは現存しない（かつての hook は撤去済み＝導入以来 fail-open だった）。
   2026-07-30 以降は **CI の Android Lint が毎 push で errors=0 を担保する**ので、このスイープの役目は**push 前に赤を見つける**前倒し検知。
   基準＝0 errors/31 warnings（ModifierParameter×3・UsableSpace×2 は意図的）。
-
-## 実行捏造検知器（ADR 0006）残タスク
-
-> エンジン＝`.claude/hooks/detect_fabricated_execution_core.py`。完了分は **ADR 0006（増補含む）と git log が正本**。以下は開きのみ。
-
-- **Tier B 汎用主張の免罪の限界**（事象D）: 「セッション内に成功実行が1回でもあれば免罪」で後半の汎用捏造を取りこぼす。
-  Tier E カテゴリ別突合が**現ターン分**の同根系列を吸収したが、**過去ターンの汎用主張の掘り下げは将来課題**。
-- **[保留設計] 案3＝委譲主張の E2 突合（opt-in）**: 「〜を委譲した／agy に生成させた」等の委譲完了主張を、
-  委譲先 transcript（`subagents/agent-<id>.jsonl`）の tool_use とカテゴリ突合して裏取りする案。**真陽性サンプルが皆無のため保留**（設計要点のみ保全）。
-- **D5 対象語突合の字面依存FPクラス**: D5 は帰属対象の名詞（違和感/懸念/指摘…）の**字面**を実入力に探すため、
-  ユーザーが真に指摘したが当該名詞を書かなかった場合「あなたの指摘は的を射て」型が潜在FP化しうる（現コーパス実測 0件・非ブロック Tier D で被害限定）。同義語・意味突合は将来課題。
-- **Tier E の Stop 昇格の再判断**: 新既定 ABCDE での CLI 運用実績（真陽性の積み上がり・FP 率）が揃ったら再判断。
-  昇格には conf 設計の引き上げ（現 0.55-0.7 → Stop 閾値 0.8）または Stop 側の per-rule 閾値の新設計が必要。
-- **意味照合系検知器**（着想段階・スコープ外構想）＝生成コード不具合・外部リサーチ捏造（正解データ事象B/C）。
-
-## D. 長期・品質（backlog）
-
-- **超長編抽出エッジ残差の③アポストロフィ座標順**（N6169DZ・章題ドリフト残2件）: `兎'ｓ`↔`'鳥…` の座標順ずれで**1:1コードポイント置換不可**＝実質 won't-fix。
-  基準＝`ab-review/golden_regression`、詳細＝task_diary #35。
-
-## A2. UIスキン機構（M/P/J 統合済み＝main／残＝C 夜行・将来送り）
-
-> 機構の裁定＝ADR 0021・0022／フェーズ詳細＝`.claude/plans/ui-skin-framework-2026-07-17.md`・`.claude/plans/skin-compose-implementation-2026-07-17.md`／
-> 生成規範＝`.claude/plans/skin-design-digest-2026-07-17.md`＋memory `feedback-skin-design-judgment-criteria`。
-> **C 夜行の再着手はユーザーからのイメージ聴取が前提＝`awaiting-human.md` §4。**
-
-- **[C 夜行の「らしさ本体」＝構造・演出層]**（別タスク・都度追加）: モックの体感は
-  〈本棚=続きからヒーロー＋静かな1列リスト・栞書影の C 用ミュート・ember の効かせどころ（章番号エブロウ/上端ヘアライン進捗/続きからラベル）・
-  極小クローム＋読書の浮きピル〉に宿っており**色トークンだけでは D ダークと区別がつかない**（実機で確認済み）。
-  **着手はモック作成（発見/目次/設定の C 版含む欠落分）から**＝スキンごと構造切替の枠は外枠に含めず、実装は画面単位で都度。
-- **[保留中の候補]** Q 読書の庭＝差し戻し保留（最終版は `skins/candidates/*-Q.html`）／候補 L/N/O/R/S＝本棚1枚のみ（同 candidates/）／
-  P はっちゃけ試作の不採用4画面＝`skins/candidates/hatchake/`。旧A〜J原本は claude.ai/design `ui-n-phase0/`。
-- **[ツール]** 候補比較＝`tools/build_skin_gallery.py`・画面別ギャラリー（等倍・スキン単体可）＝`tools/build_screen_gallery.py [ID]`。
-  プレビューは必ず `mockview`。DesignSync は主セッション限定。任意＝claude.ai 側への収蔵バックアップ同期は未実施。
-- **[将来送り（ADR 0021）]** 栞「型」軸（A箔/C小口/D蔵書印/E綴じ紐）／D 以外のテーマ変種／旧候補の移植（I は退役のまま）。
-  A〜J 資産は claude.ai/design（プロジェクト `Novel Reader UI`・projectId `bb5a35c8-70ac-4efa-bb03-1579d3f11d93` の `ui-n-phase0/`・`DesignSync: get_file` で再取得可）に保持。
-  `bookshelf-D` へのセピア変種追加も再検討枠（現状は `SepiaColorScheme` が本棚セピアの正本）。
 
 ## 思いつき・取りこぼし（随時追記）
 
