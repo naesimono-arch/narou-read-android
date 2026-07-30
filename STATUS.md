@@ -30,7 +30,7 @@
 - **実機**: OPPO PGEM10（IP は DHCP で変動＝ハードコードせず `adb-bridge` で張り直す）・v21 APK 導入済み。作法＝`/device-verify`（adb 前にユーザーへ一度確認）。
   **蔵書7冊・全冊とも本文健在**（2026-07-30 実測。旧記述の「4蔵書が本文欠落中」は解消・torn 状態の本も無い）。
   ⚠️ 同一 WiFi 上に**第三者端末（Huawei P30）が居り、`adb-bridge` は既存 TCP を優先して掴む**＝操作前に端末を取り違えていないか確認
-  （機序と手順＝memory `adb-bridge-stale-tcp-holds-wrong-device`／P30 を触らない理由＝`awaiting-human.md` §2）。
+  （機序と手順＝memory `adb-bridge-stale-tcp-holds-wrong-device`／**P30 は他人の端末＝起動・input は相手の操作に割り込む**ので読み取り以外はしない＝`docs/knowledge/emui-p30-jank-log-collection.md`）。
 
 - **抽出パイプライン＝純 Kotlin（PDFBox-Android）単独**（Chaquopy/Python は 2026-07-05 に完全撤去・復旧は git 履歴から）。
   本文解析は文書ごとの自動検出（`DetectedRules.detect`＝サイズ／列ピッチ／ページ番号座標を実測。検出不能時のみ `ParserRules` 定数へフォールバック）。

@@ -36,6 +36,29 @@ Layout Cache: 1817/5000 entries, hit ratio 0.9097
 
 メモリは TOTAL 108MB / Graphics 6.2MB / Views 10 で健全。**dropbox に crash・ANR は1件も無い**。
 
+### 1b. release(R8) の実使用（2026-07-31 回収・稼働 2h21m の累積）
+
+同じ端末・同じ「持ち主に普通に使ってもらう」条件で、release(R8) 版の累積を非破壊で吸った結果
+（`flags` に DEBUGGABLE 無しで release を確認・`Stats since` が2回の読み取りで不変＝reset されていない全寿命窓）:
+
+| 指標 | debug (1h45m30s) | **release (2h21m)** |
+|---|---|---|
+| Total frames | 1207 | **27976**（標本23倍） |
+| **Janky frames** | **122 (10.11%)** | **253 (0.90%)** |
+| 50th / 90th / 95th / 99th | 6 / 16 / 22 / **61**ms | 5 / 8 / 9 / **15**ms |
+| Missed Vsync | 7 (0.58%) | 4 (0.014%) |
+| Slow UI thread | 49 (4.06%) | 76 (0.27%)（実数増・率は15倍改善） |
+| Frame deadline missed | 50 (4.14%) | 86 (0.31%) |
+| HISTOGRAM 末尾 | 400=1 450=1 **500=2** | 350=1 400=1・**450/500 は 0** |
+
+`data_app_crash`・`data_app_anr` は **0件**（dropbox 432件は全て system_server_wtf / keymaster / system_app_* ＝システム側）。
+
+⇒ **0.4〜0.5秒級の停止は消滅し、追うべき jank は残っていない＝深追い不要**（画面別 `reset` 切り分けも Perfetto も不要）。
+
+⚠️ **この差を「コード改善の効果」と読んではいけない**。R8 適用の寄与とビルド差が混ざっている。
+また `framestats` の10フレームは回収時アプリが背面だったため代表性が低く、**証拠力は累積 HISTOGRAM の側にある**。
+メモリ（PSS 48.2MB）も背面トリム後の値で、前面時の前回値 108MB とは単純比較できない。
+
 ### 2. 濡れ衣に注意
 
 logcat に出た `Choreographer: Skipped 132 frames!` は PID が `com.huawei.phoneservice` のもので、
@@ -43,10 +66,19 @@ logcat に出た `Choreographer: Skipped 132 frames!` は PID が `com.huawei.ph
 
 ## 対処（実機を触る順序）
 
-1. **`adb logcat -G 16M` を最初に打つ**（EMUI 既定は小さく、実測で2分弱しか保持しない）。
-   `-G` は永続せず端末再起動で既定へ戻る＝調査のたびに打つ。
+0. **端末は `adb.exe -s <serial>` で名指しする。`adb-bridge` を打ってはいけない**（2026-07-31 に判明）。
+   P30 を USB で挿すと **Windows 側 `adb.exe` からしか見えない**（WSL の素の `adb` には現れない）一方、
+   PGEM10 は tcpip で WSL 側が掴んでいる。この状態で `adb-bridge` を実行すると**既存 TCP（PGEM10）を
+   優先して早期リターンする**ため、P30 のつもりで**PGEM10 から統計を吸ってしまう**
+   （memory `adb-bridge-stale-tcp-holds-wrong-device` と同じ罠。2台繋がっているときに顕在化する）。
+   最初に `adb.exe -s <serial> shell getprop ro.product.model` で `ELE-L29` を確認してから本題に入る。
+1. **`adb logcat -g` で現在のバッファ量を確認し、既定へ戻っていたときだけ `-G 16M` を打つ**。
+   `-G` は永続せず端末再起動で既定へ戻るが、**再実行はバッファを再確保して保持中のログを捨てる**——
+   持ち主が使ってくれた時間帯のログが目的なら、既に拡大済みの端末で打ち直すのは有害無益
+   （2026-07-31 実測: uptime 14日で 07-29 の設定が生存しており、打ち直していれば 2h14m 分を失っていた）。
 2. **`dumpsys gfxinfo <pkg>` を先に、非破壊で吸う**。累積統計はプロセスが死ぬと消えるため、
    `force-stop`・再インストール・アプリ再起動より前に取る（`--reset` は破壊的なので回収前に使わない）。
+   吸えた窓が本当に全寿命かは **`Stats since` が2回の読み取りで不変**なことで確かめられる（誰も reset していない証拠）。
 3. crash/ANR の有無は `dumpsys dropbox` で確認する（**永続**＝logcat と違い数日残る）。
    `/data/anr/` の trace は system 所有で shell からは読めない。
 4. **他人の端末では、触る前に使用中かを確認する**:
