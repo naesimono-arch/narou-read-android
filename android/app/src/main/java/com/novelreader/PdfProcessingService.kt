@@ -389,8 +389,12 @@ class PdfProcessingService : Service() {
                         // 凍結し、アプリ帰還時に解凍→「前面で完走」が常態＝背面限定の通知は事実上永久に出ない
                         // （docs/knowledge/ の ColorOS Hans 凍結知見を参照）。ユーザーは通知タップでの着手を
                         // 要望しており、本棚出現との二重報告は許容と裁定。
+                        // restored=true（本文欠落からの再取込＝既存行を保持したまま本文だけ再生成）は
+                        // 「追加」でなく「復元」と告げる。in-app 側（BookshelfViewModel の Web 取込）は
+                        // 既に同じ出し分けを持っており、Service 経由（PDF 取込）だけが復元でも
+                        // 「変換完了／追加しました」を出していた＝同じ出来事の呼び名が導線で食い違っていた。
                         is com.novelreader.repository.BookRepository.AddBookResult.Added ->
-                            showCompletionNotification(outcome.book.id, outcome.book.title)
+                            showCompletionNotification(outcome.book.id, outcome.book.title, outcome.restored)
                         // 既に蔵書済み（べき等スキップ）は完了ではなく「取込済み」をフィードバックする。
                         // 前面は in-app Snackbar・背面はトレイ通知（上の onStartCommand 側と同じ原則）。
                         // aggregationKey は onStartCommand 側の重複通知と同じ同型印（一括投入時の集約対象）。
@@ -580,11 +584,18 @@ class PdfProcessingService : Service() {
 
     /** 変換完了通知。NOTIFICATION_ID（FGS 通知）とは必ず別 ID で投稿する: 同 ID だとサービス停止時に
      *  システムが FGS 通知ごと除去し「完了した瞬間に通知が消える」（2026-07-14 実機バグの真因）。
-     *  tag=bookId で冊ごとに分離し、複数冊バッチでも完了通知が互いを上書きせずスタックする。 */
-    private fun showCompletionNotification(bookId: String, title: String) {
+     *  tag=bookId で冊ごとに分離し、複数冊バッチでも完了通知が互いを上書きせずスタックする。
+     *
+     *  @param restored 本文欠落からの復元（[com.novelreader.repository.BookRepository.AddBookResult.Added.restored]）か。
+     *   新規登録と復元は「本が使える状態になった」点で同義のため同じ通知・同じ deep link を使い、
+     *   文言だけ出し分ける。復元側の本文は in-app Snackbar（BookshelfViewModel）の
+     *   「〜を復元しました」と同一の言い回しに揃える＝同じ出来事を導線ごとに別の言葉で呼ばない。 */
+    // restored に既定値を付けない: 既定 false は新しい呼び出しが配線を忘れても無音で「変換完了」に
+    // 化ける欠陥クラス（skins/ShelfFace.kt 冒頭の束の設計と同じ理由）＝全呼び出しで明示させる。
+    private fun showCompletionNotification(bookId: String, title: String, restored: Boolean) {
         val notification = NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
-            .setContentTitle("変換完了")
-            .setContentText("$title を追加しました")
+            .setContentTitle(if (restored) "復元完了" else "変換完了")
+            .setContentText(if (restored) "$title を復元しました" else "$title を追加しました")
             .setSmallIcon(R.drawable.ic_notification)
             .setAutoCancel(true)
             // タップで該当の本の読書画面へ deep link する（M11）。
