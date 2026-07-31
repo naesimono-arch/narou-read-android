@@ -3,6 +3,7 @@ package com.novelreader.ui.skins.k
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.novelreader.model.TocEntry
 import com.novelreader.ui.TocState
+import com.novelreader.ui.screenshot.goldenName
 import com.novelreader.ui.theme.ReadingTheme
 import org.junit.Rule
 import org.junit.Test

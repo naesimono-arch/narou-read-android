@@ -13,6 +13,7 @@ import com.novelreader.discovery.model.workPoints
 import com.novelreader.discovery.model.workSummary
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.ui.screenshot.ScreenshotConfig
+import com.novelreader.ui.screenshot.goldenName
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.viewmodel.DiscoveryUiState
 import com.novelreader.viewmodel.MoodPattern

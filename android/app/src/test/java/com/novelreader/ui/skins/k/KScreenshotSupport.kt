@@ -68,10 +68,6 @@ internal fun ComposeContentTestRule.captureSkinK(
     captureRoot(fileName)
 }
 
-/** golden ファイル名の共通部（`<画面>_<状態>_<テーマ>_<スケール>.png`）。既存 golden の命名規約に揃える。 */
-internal fun goldenName(screen: String, caseId: String, theme: ReadingTheme, fontScale: Float): String =
-    "${screen}_${caseId}_${ScreenshotConfig.themeLabel(theme)}_${ScreenshotConfig.scaleLabel(fontScale)}.png"
-
 /**
  * K 本棚のグリッド⇄リスト表示状態を先置きする。
  *

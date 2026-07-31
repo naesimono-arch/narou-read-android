@@ -7,6 +7,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.novelreader.ui.screenshot.ScreenshotConfig
+import com.novelreader.ui.screenshot.goldenName
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Skin
 import org.junit.Rule

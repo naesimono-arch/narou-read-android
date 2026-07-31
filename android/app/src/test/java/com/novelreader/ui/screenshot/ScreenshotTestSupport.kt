@@ -51,6 +51,13 @@ internal object ScreenshotConfig {
 }
 
 /**
+ * golden ファイル名の共通部（`<画面>_<状態>_<テーマ>_<スケール>.png`）。既存 golden の命名規約に揃える。
+ * スキン非依存の純粋な整形＝スキン別の support ではなくここに置く（K/D 双方の状態別 golden が使う）。
+ */
+internal fun goldenName(screen: String, caseId: String, theme: ReadingTheme, fontScale: Float): String =
+    "${screen}_${caseId}_${ScreenshotConfig.themeLabel(theme)}_${ScreenshotConfig.scaleLabel(fontScale)}.png"
+
+/**
  * 指定テーマ・フォントスケールで content を描画し、golden PNG を記録/検証する。
  *
  * - NovelReaderTheme(theme) で包む＝Material colorScheme・ShelfColors をテーマ追従させる。
