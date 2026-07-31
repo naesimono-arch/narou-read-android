@@ -307,6 +307,7 @@ internal fun BookshelfPortalJ(
     val progressMap = data.progressMap
     val chapterCountMap = data.chapterCountMap
     val newEpisodeNovelMap = data.newEpisodeNovelMap
+    val webNewEpisodeTotals = data.webNewEpisodeTotals
     val processingState = chrome.processingState
     val selectedStatus = chrome.selectedStatus
     val statusCounts = chrome.statusCounts
@@ -365,6 +366,7 @@ internal fun BookshelfPortalJ(
                     progress = progressMap[book.id],
                     totalChaps = chapterCountMap[book.id] ?: 0,
                     novelDetail = book.ncode?.let { newEpisodeNovelMap[it] },
+                    webSiteTotal = webNewEpisodeTotals[book.id],
                     hasPrev = hasPrev,
                     hasNext = hasNext,
                     timePhase = timePhase,
@@ -439,6 +441,9 @@ private fun PortalPage(
     progress: ProgressEntity?,
     totalChaps: Int,
     novelDetail: WorkSummary?,
+    // 続きバッジの Web 蔵書側の観測値（Worker が最後に見たサイト総話数。null=なろう本/未チェック）。
+    // 判定は D と同じ newEpisodeCountFor（既定値を置かない＝配線忘れをコンパイルエラーへ）。
+    webSiteTotal: Int?,
     hasPrev: Boolean,
     hasNext: Boolean,
     timePhase: PortalTimePhase,
@@ -449,7 +454,7 @@ private fun PortalPage(
     val pct = ((frac ?: 0f) * 100).roundToInt()
     val status = readingStatusFor(progress, totalChaps)
     val isUnread = status == ReadingStatus.UNREAD
-    val newCount = newEpisodeCountFor(novelDetail, totalChaps)
+    val newCount = newEpisodeCountFor(novelDetail, totalChaps, webSiteTotal)
     // 扉固有 ambient パレット＝bookId 安定ハッシュで4世界から選ぶ（並び替え不変・扉間の色相差の本体）。
     val palette = portalDoorPaletteFor(book.id)
     // 〈遊び心〉J1「開く扉」: --open＝その作品の読了率（実データ progressFractionFor）。0%＝半ば閉じた扉／

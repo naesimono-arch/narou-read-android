@@ -194,6 +194,7 @@ internal fun BookshelfSkyM(
     val progressMap = data.progressMap
     val chapterCountMap = data.chapterCountMap
     val newEpisodeNovelMap = data.newEpisodeNovelMap
+    val webNewEpisodeTotals = data.webNewEpisodeTotals
     val webNovelCount = data.webNovels.size
     val processingState = chrome.processingState
     val selectedStatus = chrome.selectedStatus
@@ -326,6 +327,7 @@ internal fun BookshelfSkyM(
                         progress = progressMap[book.id],
                         totalChaps = chapterCountMap[book.id] ?: 0,
                         novelDetail = book.ncode?.let { newEpisodeNovelMap[it] },
+                        webSiteTotal = webNewEpisodeTotals[book.id],
                         isHero = book.id == heroId,
                         labelOnLeft = index % 2 == 0,
                         zoneIndex = index,
@@ -627,6 +629,9 @@ private fun ConstellationCell(
     progress: ProgressEntity?,
     totalChaps: Int,
     novelDetail: WorkSummary?,
+    // 続きバッジの Web 蔵書側の観測値（Worker が最後に見たサイト総話数。null=なろう本/未チェック）。
+    // 判定は D と同じ newEpisodeCountFor（既定値を置かない＝配線忘れをコンパイルエラーへ）。
+    webSiteTotal: Int?,
     isHero: Boolean,
     labelOnLeft: Boolean,
     zoneIndex: Int,
@@ -637,7 +642,7 @@ private fun ConstellationCell(
     val frac = progressFractionFor(chapNum, totalChaps, progress?.scrollIndex ?: 0, progress?.scrollOffset ?: 0)
     val status = readingStatusFor(progress, totalChaps)
     val isUnread = status == ReadingStatus.UNREAD
-    val newCount = newEpisodeCountFor(novelDetail, totalChaps)
+    val newCount = newEpisodeCountFor(novelDetail, totalChaps, webSiteTotal)
     val idColor = idColorFor(book.id)
     val cellHeight = if (isHero) 200.dp else 150.dp
     // 銘の readout（モック .prog）。銘ブロックの幅を決めるため描画より前に確定させる（機序＝rememberConstBlockWidth）。

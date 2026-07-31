@@ -2,6 +2,7 @@ package com.novelreader.repository
 
 import android.net.Uri
 import com.novelreader.data.BookEntity
+import com.novelreader.data.NewEpisodeMarkEntity
 import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
@@ -30,6 +31,13 @@ class FakeBookRepository : BookRepository {
 
     override val allBooks: Flow<List<BookEntity>> = booksState
     override val allProgress: Flow<List<ProgressEntity>> = progressState
+
+    // U1 新着チェックの基準値（本番は Worker が書き UI が読む）。テストは setNewEpisodeMarks で直接与える。
+    private val newEpisodeMarksState = MutableStateFlow<List<NewEpisodeMarkEntity>>(emptyList())
+    override val newEpisodeMarks: Flow<List<NewEpisodeMarkEntity>> = newEpisodeMarksState
+
+    /** テストのための基準値プリセット（Web 蔵書の「続きあり」バッジ判定の入力）。 */
+    fun setNewEpisodeMarks(marks: List<NewEpisodeMarkEntity>) { newEpisodeMarksState.value = marks }
 
     // (b) Web由来・未取込カードのインメモリ代替（Room と同じく addedAt 降順で観測させる）。
     private val webNovelsState = MutableStateFlow<List<WebNovelEntity>>(emptyList())

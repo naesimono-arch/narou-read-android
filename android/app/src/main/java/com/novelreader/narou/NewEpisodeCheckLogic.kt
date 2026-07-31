@@ -98,6 +98,30 @@ data class WebBookCheckState(
  */
 fun webNewEpisodeMarkKey(bookId: String): String = "web:$bookId"
 
+/** 基準値キーの逆写像（[webNewEpisodeMarkKey] の対）。Web 蔵書のキーでなければ null＝なろうの基準値行。
+ *  なぜ対で置くか: "web:" という名前空間の綴りを組む側と解く側で二重定義すると、片方だけ変えたときに
+ *  無音で全件マッチしなくなる（バッジが黙って出なくなる型の欠陥）。接頭辞の知識はこの1ファイルに閉じる。 */
+fun bookIdFromWebNewEpisodeMarkKey(markKey: String): String? =
+    markKey.removePrefix("web:").takeIf { it != markKey && it.isNotEmpty() }
+
+/**
+ * 本棚「続きあり」バッジの Web 蔵書版＝表示すべき新着話数（null＝バッジを出さない）。
+ *
+ * なろう側は実時間の詳細照会（総話数）と手元章数の差で出す（ContinuationLogic.computeContinuation）。
+ * Web 蔵書には実時間の照会が無い——サイトへの再フェッチは低頻度アクセスの原則（ADR 0024）で
+ * Worker の1日1回に限っているため、**最後に Worker が観測したサイト総話数（new_episode_marks の基準値）**が
+ * 端末の持つ唯一の観測値になる。よってバッジもその値と手元章数の差で出す＝通知と同じ増分を指す。
+ *
+ * @param siteTotal 基準値（[webNewEpisodeMarkKey] の行）。null＝未チェック（＝観測がない＝出さない）。
+ * @param deviceChapterCount 手元の取込済み章数（chap_N.html の枚数）。0 以下は比較基準が作れず出さない
+ *        （なろう版 computeContinuationCore の pdfChapterCount<=0 と同じ防御）。
+ */
+fun webNewEpisodeCount(siteTotal: Int?, deviceChapterCount: Int): Int? {
+    if (siteTotal == null || deviceChapterCount <= 0) return null
+    // 再取込で手元章数が基準値へ追いつけば差は 0 以下＝自然にバッジが消える（追いつき判定を別に持たない）。
+    return (siteTotal - deviceChapterCount).takeIf { it > 0 }
+}
+
 /**
  * この Web 蔵書を今回サイト照会（目次の再フェッチ）の対象にするか＝**既読話数の統合点**。
  * 「最終章を開いた（既読話数 >= 取込済み章数）」本だけを対象にする。なぜ:

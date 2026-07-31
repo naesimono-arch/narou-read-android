@@ -177,6 +177,7 @@ internal fun BookshelfK(
     val progressMap = data.progressMap
     val chapterCountMap = data.chapterCountMap
     val newEpisodeNovelMap = data.newEpisodeNovelMap
+    val webNewEpisodeTotals = data.webNewEpisodeTotals
     val processingState = chrome.processingState
     val selectedStatus = chrome.selectedStatus
     val statusCounts = chrome.statusCounts
@@ -385,6 +386,7 @@ internal fun BookshelfK(
                                     book = item.book,
                                     progress = progressMap[item.book.id],
                                     novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
+                                    webSiteTotal = webNewEpisodeTotals[item.book.id],
                                     totalChaps = chapterCountMap[item.book.id] ?: 0,
                                     onOpen = { onOpenBook(item.book) },
                                     modifier = Modifier.animateItem(),
@@ -929,6 +931,9 @@ private fun KListBookCard(
     progress: ProgressEntity?,
     // 続き（新着）バッジ用の作品要約（VM が一括照会し配布・null=未紐付け/未取得/失敗）。D の ListBookCard と同じ。
     novelDetail: WorkSummary?,
+    // 続きバッジの Web 蔵書側の観測値（Worker が最後に見たサイト総話数。null=なろう本/未チェック）。
+    // 判定は D と同じ newEpisodeCountFor（既定値を置かない＝配線忘れをコンパイルエラーへ）。
+    webSiteTotal: Int?,
     totalChaps: Int,
     onOpen: () -> Unit,
     selectionMode: Boolean,
@@ -943,7 +948,7 @@ private fun KListBookCard(
     var menuOpen by remember { mutableStateOf(false) }
     val status = readingStatusFor(progress, totalChaps)
     val chapNum = chapterNumberOf(progress?.lastReadFilename)
-    val newCount = newEpisodeCountFor(novelDetail, totalChaps)
+    val newCount = newEpisodeCountFor(novelDetail, totalChaps, webSiteTotal)
     // 作品識別色（左端の色帯）。書架の栞と同じ title 由来 accent で「1冊=1色相」を保つ（ListBookCard と同一導出＝再実装なし）。
     val accentLightness = LocalShioriColors.current.accentLightness
     val barColor = remember(book.title, accentLightness) { shioriAccentFor(shioriHue(book.title), accentLightness) }

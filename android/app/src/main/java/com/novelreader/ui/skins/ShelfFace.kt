@@ -54,6 +54,9 @@ internal data class ShelfData(
     val chapterCountMap: Map<String, Int>,
     /** 続きありバッジ用のなろう詳細（key=ncode）。 */
     val newEpisodeNovelMap: Map<String, WorkSummary>,
+    /** 続きありバッジ用の Web 蔵書の観測値（key=bookId→Worker が最後に見たサイト総話数）。
+     *  なろう詳細と別系統なのは観測手段の違いだけで、判定は同一（ui/BookCard.newEpisodeCountFor）。 */
+    val webNewEpisodeTotals: Map<String, Int>,
     /** 本文欠落本の bookId→復旧手段（案B バッジ・2026-07-29）。キー存在＝欠落。
      *  K と D/C 共通描画が「本文なし」バッジ・状態行に使う（M/P/J はモック未裁定のため未表出＝タップ時の
      *  復旧ダイアログは route 層の onOpenBook 差し替えで全スキン共通に効く）。 */

@@ -5,6 +5,7 @@ import androidx.core.content.ContextCompat
 import com.novelreader.NovelReaderApplication
 import com.novelreader.PdfProcessingService
 import com.novelreader.data.BookEntity
+import com.novelreader.data.NewEpisodeMarkEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.domain.mergeShelfItems
@@ -77,6 +78,8 @@ class BookshelfViewModelTest {
         // 機能②: combine は webReadingProgress も束ねる（3本目）。同じ理由で空の即時 emit を stub しないと
         // 未 emit で combine が発火せず books 派生（newEpisodeNovelMap 等）が止まる。
         every { mockRepository.webReadingProgress } returns flowOf(emptyList())
+        // U1 基準値（続きありバッジの Web 側入力）。relaxed の自動 Flow は emit しないため空を明示する。
+        every { mockRepository.newEpisodeMarks } returns flowOf(emptyList())
 
         // ioDispatcher に testDispatcher を渡す: progressChannel 消費・deleteBook 等の fire-and-forget な
         // IO 書き込みを testDispatcher の scheduler 上で回し、advanceUntilIdle が消費完了を待てるようにする
@@ -566,6 +569,24 @@ class BookshelfViewModelTest {
 
         // 失敗した ncode は落ち、成功分だけが残る（本棚を通信エラーで騒がせない）
         assertEquals(mapOf("N1111AA" to summaryA), viewModel.newEpisodeNovelMap.value)
+        job.cancel()
+    }
+
+    @Test
+    fun `webNewEpisodeTotalMap - Web 基準値だけを bookId 別に取り出しなろう行は落とす`() = runTest {
+        every { mockRepository.newEpisodeMarks } returns flowOf(
+            listOf(
+                NewEpisodeMarkEntity("web:id01", lastNotifiedAllNo = 13, lastCheckedAt = 0L),
+                // なろうの基準値（キー＝正規化 ncode）は本棚の Web バッジ判定に混ぜない。
+                NewEpisodeMarkEntity("N1111AA", lastNotifiedAllNo = 30, lastCheckedAt = 0L),
+            ),
+        )
+        viewModel = BookshelfViewModel(mockApp, testDispatcher)
+
+        val job = launch { viewModel.webNewEpisodeTotalMap.collect {} }
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(mapOf("id01" to 13), viewModel.webNewEpisodeTotalMap.value)
         job.cancel()
     }
 

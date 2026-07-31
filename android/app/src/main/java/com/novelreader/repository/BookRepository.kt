@@ -2,6 +2,7 @@ package com.novelreader.repository
 
 import android.net.Uri
 import com.novelreader.data.BookEntity
+import com.novelreader.data.NewEpisodeMarkEntity
 import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
@@ -39,6 +40,13 @@ interface BookRepository {
 
     val allBooks: Flow<List<BookEntity>>
     val allProgress: Flow<List<ProgressEntity>>
+
+    /** U1 新着チェックの基準値（new_episode_marks 全行）。キーは正規化 ncode か "web:<bookId>"
+     *  （[com.novelreader.narou.webNewEpisodeMarkKey] が正本）。
+     *  なぜ UI から購読するのか: Web 蔵書の新着は Worker のサイト再フェッチでしか観測できず、この行が
+     *  端末に残る唯一の観測結果＝本棚の「続きあり」バッジの Web 側データ源になるため（2026-07-31）。
+     *  書き込みは Worker（AppDatabase の DAO 直参照）が持ち、本 interface は読み取りのみを公開する。 */
+    val newEpisodeMarks: Flow<List<NewEpisodeMarkEntity>>
 
     /** (b) Web由来・未取込カード: 本棚に置いた Web 作品（未取込）の一覧（addedAt 降順）。 */
     val webNovels: Flow<List<WebNovelEntity>>

@@ -220,6 +220,7 @@ internal fun BookshelfCartridgeP(
     val progressMap = data.progressMap
     val chapterCountMap = data.chapterCountMap
     val newEpisodeNovelMap = data.newEpisodeNovelMap
+    val webNewEpisodeTotals = data.webNewEpisodeTotals
     val processingState = chrome.processingState
     val selectedStatus = chrome.selectedStatus
     val statusCounts = chrome.statusCounts
@@ -346,6 +347,7 @@ internal fun BookshelfCartridgeP(
                         progress = progressMap[book.id],
                         totalChaps = chapterCountMap[book.id] ?: 0,
                         novelDetail = book.ncode?.let { newEpisodeNovelMap[it] },
+                        webSiteTotal = webNewEpisodeTotals[book.id],
                         isInSlot = book.id == hero?.id,
                         onOpen = { onOpenBook(book) },
                     )
@@ -1115,6 +1117,9 @@ private fun CartridgeCard(
     progress: ProgressEntity?,
     totalChaps: Int,
     novelDetail: WorkSummary?,
+    // 続きバッジの Web 蔵書側の観測値（Worker が最後に見たサイト総話数。null=なろう本/未チェック）。
+    // 判定は D と同じ newEpisodeCountFor（既定値を置かない＝配線忘れをコンパイルエラーへ）。
+    webSiteTotal: Int?,
     isInSlot: Boolean,
     onOpen: () -> Unit,
 ) {
@@ -1126,7 +1131,7 @@ private fun CartridgeCard(
     // 遊び心P1: この実績があるときだけ進捗表示を CLEAR‼ 刻印へ差し替える（近似の pct>=100 では判定しない＝正直さ）。
     val isFinished = status == ReadingStatus.FINISHED
     val pct = ((frac ?: 0f) * 100).roundToInt()
-    val newCount = newEpisodeCountFor(novelDetail, totalChaps)
+    val newCount = newEpisodeCountFor(novelDetail, totalChaps, webSiteTotal)
     val labelColor = labelColorFor(book.id)
     // 面取り筐体（clip-path polygon 上7px＝CutCornerShape 上端7dp。署名④）。
     val cartShape = CutCornerShape(topStart = 7.dp, topEnd = 7.dp)

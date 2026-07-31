@@ -185,6 +185,7 @@ internal fun BookshelfLogM(
     val progressMap = data.progressMap
     val chapterCountMap = data.chapterCountMap
     val newEpisodeNovelMap = data.newEpisodeNovelMap
+    val webNewEpisodeTotals = data.webNewEpisodeTotals
     val processingState = chrome.processingState
     val selectedStatus = chrome.selectedStatus
     val statusCounts = chrome.statusCounts
@@ -345,6 +346,7 @@ internal fun BookshelfLogM(
                                 progress = progressMap[si.book.id],
                                 totalChaps = chapterCountMap[si.book.id] ?: 0,
                                 novelDetail = si.book.ncode?.let { newEpisodeNovelMap[it] },
+                                webSiteTotal = webNewEpisodeTotals[si.book.id],
                                 isLive = si.book.id == liveBookId,
                                 selectionMode = selectionMode,
                                 selected = si.book.id in selectedIds,
@@ -640,6 +642,9 @@ private fun ObservationRecord(
     progress: ProgressEntity?,
     totalChaps: Int,
     novelDetail: WorkSummary?,
+    // 続きバッジの Web 蔵書側の観測値（Worker が最後に見たサイト総話数。null=なろう本/未チェック）。
+    // 判定は D と同じ newEpisodeCountFor（既定値を置かない＝配線忘れをコンパイルエラーへ）。
+    webSiteTotal: Int?,
     isLive: Boolean,
     selectionMode: Boolean,
     selected: Boolean,
@@ -655,7 +660,7 @@ private fun ObservationRecord(
     val isUnread = status == ReadingStatus.UNREAD
     val isDone = status == ReadingStatus.FINISHED
     val pct = ((frac ?: 0f) * 100).toInt()
-    val newCount = newEpisodeCountFor(novelDetail, totalChaps)
+    val newCount = newEpisodeCountFor(novelDetail, totalChaps, webSiteTotal)
     val idColor = idColorFor(book.id)
 
     // 選択の瞬間だけ温白リングが一度点灯する（justpicked＝mlringlit 0.5s）。reduce-motion では点灯させない。

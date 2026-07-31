@@ -30,6 +30,7 @@ import com.novelreader.model.BookId
 import com.novelreader.model.ChapterFilename
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.narou.NarouApiException
+import com.novelreader.narou.bookIdFromWebNewEpisodeMarkKey
 import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.DiscoveryResult
 import com.novelreader.narou.model.NarouOrder
@@ -297,6 +298,21 @@ class BookshelfViewModel @JvmOverloads constructor(
                 }
             }
             result
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    // 「続きあり」バッジの Web 蔵書側データ源（bookId→Worker が最後に観測したサイト総話数）。
+    //
+    // なぜ newEpisodeNovelMap と別系統か: なろう紐付け本は詳細 API を実時間で引ける（上の照会）が、
+    // Web 蔵書はサイトへの再フェッチを1日1回の Worker に限っている（低頻度アクセス＝ADR 0024）ため、
+    // 端末が持つ観測値は new_episode_marks の基準値だけ。同じ「続きあり」判定へ載せるには、その行を
+    // 本棚が購読して読む以外に手が無い（U1 は書く側だけが結線済みで、読む側が欠けていた＝本配線の真因）。
+    // なろうの基準値行（キー＝正規化 ncode）は bookIdFromWebNewEpisodeMarkKey が null を返して自然に落ちる。
+    val webNewEpisodeTotalMap: StateFlow<Map<String, Int>> = repository.newEpisodeMarks
+        .map { marks ->
+            marks.mapNotNull { mark ->
+                bookIdFromWebNewEpisodeMarkKey(mark.ncode)?.let { it to mark.lastNotifiedAllNo }
+            }.toMap()
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 

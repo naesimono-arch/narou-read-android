@@ -6,6 +6,8 @@ import androidx.room.withTransaction
 import com.novelreader.data.AppDatabase
 import com.novelreader.data.BookDao
 import com.novelreader.data.BookEntity
+import com.novelreader.data.NewEpisodeMarkDao
+import com.novelreader.data.NewEpisodeMarkEntity
 import com.novelreader.data.PendingJobDao
 import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressDao
@@ -48,6 +50,7 @@ class DefaultBookRepository(
     private val pendingJobDao: PendingJobDao = AppDatabase.getDatabase(context).pendingJobDao(),
     private val webNovelDao: WebNovelDao = AppDatabase.getDatabase(context).webNovelDao(),
     private val webReadingProgressDao: WebReadingProgressDao = AppDatabase.getDatabase(context).webReadingProgressDao(),
+    private val newEpisodeMarkDao: NewEpisodeMarkDao = AppDatabase.getDatabase(context).newEpisodeMarkDao(),
     // なぜトランザクション実行を関数注入にするか（テスト可能な原子性）:
     // deleteBook の books削除＋progress削除を1トランザクションに束ねて「孤児progress行」を防ぐ。だが本クラスは
     // DAO 個別注入で JVM 単体テストする設計（クラス doc 参照）のため、実 AppDatabase.withTransaction に直接依存すると
@@ -81,6 +84,7 @@ class DefaultBookRepository(
     override val allBooks: Flow<List<BookEntity>> = bookDao.getAllBooks()
     override val allProgress: Flow<List<ProgressEntity>> = progressDao.getAllProgress()
     override val webNovels: Flow<List<WebNovelEntity>> = webNovelDao.getAll()
+    override val newEpisodeMarks: Flow<List<NewEpisodeMarkEntity>> = newEpisodeMarkDao.observeAll()
 
     override suspend fun putWebNovel(novel: WebNovelEntity) = webNovelDao.insert(novel)
 

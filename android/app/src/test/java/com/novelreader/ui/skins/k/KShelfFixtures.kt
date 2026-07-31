@@ -132,6 +132,8 @@ internal object KShelfFixtures {
                 serialState = SerialState.ONGOING,
             ),
         ),
+        // Web 蔵書の続きバッジは golden の対象外（この fixture に Web 取込本を置かない）＝空で従来の絵を保つ。
+        webNewEpisodeTotals = emptyMap(),
         // 本文欠落なし＝通常の状態行（読了／未読／第N/M話）だけを撮る面。欠落カードは
         // [missingContentData]（専用 case）が担う＝1枚に混ぜて通常の描き分けを潰さない。
         reimportPlans = emptyMap(),
@@ -163,6 +165,7 @@ internal object KShelfFixtures {
         progressMap = emptyMap(),
         chapterCountMap = emptyMap(),
         newEpisodeNovelMap = emptyMap(),
+        webNewEpisodeTotals = emptyMap(),
         reimportPlans = emptyMap(),
     )
 

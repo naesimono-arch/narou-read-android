@@ -145,6 +145,8 @@ fun BookshelfScreen(
     val chapterCountMap by viewModel.chapterCountMap.collectAsStateWithLifecycle()
     // 続きありバッジ用のなろう詳細（key=ncode）。VM が本棚一覧の紐付け作品をまとめて照会し配布する。
     val newEpisodeNovelMap by viewModel.newEpisodeNovelMap.collectAsStateWithLifecycle()
+    // 続きありバッジの Web 蔵書側（key=bookId）。Worker が最後に観測したサイト総話数（U1 の基準値）。
+    val webNewEpisodeTotals by viewModel.webNewEpisodeTotalMap.collectAsStateWithLifecycle()
     val processingState by viewModel.processingState.collectAsStateWithLifecycle()
     // 複数PDF取込で「なろう形式でないPDF」が混在したときの確認プロンプト（null=非表示）。
     val importPrompt by viewModel.importPrompt.collectAsStateWithLifecycle()
@@ -293,6 +295,7 @@ fun BookshelfScreen(
         progressMap = progressMap,
         chapterCountMap = chapterCountMap,
         newEpisodeNovelMap = newEpisodeNovelMap,
+        webNewEpisodeTotals = webNewEpisodeTotals,
         processingState = processingState,
         // 画面操作の束（全フィールド必須＝配線忘れはコンパイルエラー。既定値を置かない理由は ShelfFace.kt 冒頭）。
         actions = ShelfActions(
@@ -779,6 +782,10 @@ internal fun BookshelfContent(
     chapterCountMap: Map<String, Int> = emptyMap(),
     // 続きありバッジ用のなろう詳細（key=ncode）。カードは自分の book.ncode 分を引いて突き合わせる。
     newEpisodeNovelMap: Map<String, WorkSummary>,
+    // 続きありバッジ用の Web 蔵書の観測値（key=bookId→Worker が最後に見たサイト総話数）。既定 emptyMap は
+    // chapterCountMap と同じ扱い＝既存テスト・呼び出しの互換（空＝Web 由来の続きは出ない＝従来どおりの描画）。
+    // 本番の唯一の呼び出し元（BookshelfScreen）は VM の webNewEpisodeTotalMap を必ず渡す。
+    webNewEpisodeTotals: Map<String, Int> = emptyMap(),
     processingState: ProcessingState,
     // 画面操作／Webカード操作／テーマ4択の束（2026-07-27 純構造リファクタ）。旧・個別引数の
     // 「既定 no-op＝互換のため」は配線忘れを沈黙させる欠陥クラスだったため、束は全フィールド必須
@@ -857,6 +864,7 @@ internal fun BookshelfContent(
         progressMap = progressMap,
         chapterCountMap = chapterCountMap,
         newEpisodeNovelMap = newEpisodeNovelMap,
+        webNewEpisodeTotals = webNewEpisodeTotals,
         reimportPlans = reimportPlans,
     )
     val chrome = ShelfChrome(
@@ -1226,6 +1234,7 @@ internal fun BookshelfContent(
                                             book = item.book,
                                             progress = progressMap[item.book.id],
                                             novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
+                                            webSiteTotal = webNewEpisodeTotals[item.book.id],
                                             totalChaps = chapterCountMap[item.book.id] ?: 0,
                                             onOpen = { onOpenBook(item.book) },
                                             // 削除時の詰め直しアニメ。旧animateItemPlacementはFoundation1.6系で高速フリング中に
@@ -1278,6 +1287,7 @@ internal fun BookshelfContent(
                                         book = item.book,
                                         progress = progressMap[item.book.id],
                                         novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
+                                        webSiteTotal = webNewEpisodeTotals[item.book.id],
                                         totalChaps = chapterCountMap[item.book.id] ?: 0,
                                         onOpen = { onOpenBook(item.book) },
                                         // グリッドと同理由: 1.7系でstable化したanimateItem()で詰め直しアニメを復活（案B）。

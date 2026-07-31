@@ -2,6 +2,7 @@ package com.novelreader.narou
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -137,5 +138,36 @@ class WebNewEpisodeCheckLogicTest {
         assertEquals("web:b1", webNewEpisodeMarkKey("b1"))
         // 正規化 ncode（trim+大文字の英数のみ）にコロンは現れない＝同一テーブル同居でも名前空間が機械的に分かれる。
         assertTrue(webNewEpisodeMarkKey("b1").contains(":"))
+    }
+
+    @Test
+    fun `基準値キーの逆写像は Web 行だけを bookId へ戻し なろう行は null`() {
+        assertEquals("b1", bookIdFromWebNewEpisodeMarkKey(webNewEpisodeMarkKey("b1")))
+        // なろうの基準値行（正規化 ncode）は Web ではない＝本棚の Web バッジ判定へ混ぜない。
+        assertNull(bookIdFromWebNewEpisodeMarkKey("N1234AB"))
+        // 接頭辞だけの壊れたキーは bookId が空＝復元不能なので null（空 id で全件誤爆させない）。
+        assertNull(bookIdFromWebNewEpisodeMarkKey("web:"))
+    }
+
+    // ---- 本棚「続きあり」バッジの Web 側判定（2026-07-31 配線） ----
+
+    @Test
+    fun `バッジ話数は 最後に観測したサイト総話数 と 手元章数 の差`() {
+        assertEquals(3, webNewEpisodeCount(siteTotal = 13, deviceChapterCount = 10))
+    }
+
+    @Test
+    fun `追いつき済み・巻き戻り・未チェック・章数ゼロ はバッジを出さない`() {
+        assertNull(webNewEpisodeCount(siteTotal = 10, deviceChapterCount = 10)) // 追いつき
+        assertNull(webNewEpisodeCount(siteTotal = 8, deviceChapterCount = 10))  // サイト側の話数削除
+        assertNull(webNewEpisodeCount(siteTotal = null, deviceChapterCount = 10)) // 未チェック（観測なし）
+        assertNull(webNewEpisodeCount(siteTotal = 13, deviceChapterCount = 0))  // 比較基準が作れない
+    }
+
+    @Test
+    fun `再取込で手元章数が基準値へ追いつくとバッジは自然に消える`() {
+        // 通知直後（サイト13・手元10）→ 再取込で手元13 になった後の同じ基準値。
+        assertEquals(3, webNewEpisodeCount(siteTotal = 13, deviceChapterCount = 10))
+        assertNull(webNewEpisodeCount(siteTotal = 13, deviceChapterCount = 13))
     }
 }

@@ -39,6 +39,7 @@ import com.novelreader.data.ProgressEntity
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.narou.ContinuationInfo
 import com.novelreader.narou.computeContinuation
+import com.novelreader.narou.webNewEpisodeCount
 import com.novelreader.ui.components.ShioriCover
 import com.novelreader.ui.components.shioriAccentFor
 import com.novelreader.ui.components.shioriHue
@@ -196,17 +197,27 @@ internal fun MissingContentBadge(modifier: Modifier = Modifier) {
 }
 
 /**
- * 手元PDFの章数（totalChaps）となろう詳細（novelDetail）を突き合わせ、新着話数を返す。null=バッジ非表示。
+ * 手元の章数（totalChaps）と「取込元の総話数」を突き合わせ、新着話数を返す。null=バッジ非表示。
+ * 全スキンの「続きあり」バッジが通る唯一の判定点。
  *
  * なぜ Repository を直接叩かず引数の novelDetail を使うか（アーキ監査残課題1）:
  * 以前はカードごとに produceState で novelApiRepository.novelDetail を直撃しており、カード枚数ぶん
  * Repository を直撃＝テスト不能・本棚を開くたび並列発火だった。照会は BookshelfViewModel へ一括で吊り上げ、
  * カードは配布された詳細を受け取って突き合わせるだけの純粋関数に落とした（通信・キャッシュ・失敗握り潰しは VM 側）。
  * これは純 Kotlin の純粋計算なので Compose 非依存で単体テストできる。
+ *
+ * @param novelDetail なろう紐付け本の実時間の詳細（VM が一括照会）。未紐付け・照会失敗は null。
+ * @param webSiteTotal Web 蔵書（汎用DL基盤取込）で Worker が最後に観測したサイト総話数（U1 の基準値）。
+ *   なぜ入力を2本持つか: 総話数の観測手段が系統ごとに違う（なろう＝実時間API／Web＝1日1回の Worker 観測）
+ *   だけで、「総話数 − 手元章数」という判定は同一。入力だけ増やして判定点は1つに保つ。
+ *   両方在りうる本（なろう紐付け かつ Web 取込）は実時間側を優先する＝古い観測で新しい値を上書きしない。
  */
-internal fun newEpisodeCountFor(novelDetail: WorkSummary?, totalChaps: Int): Int? {
-    if (novelDetail == null || totalChaps <= 0) return null
-    return (computeContinuation(totalChaps, novelDetail) as? ContinuationInfo.NewEpisodes)?.newCount
+internal fun newEpisodeCountFor(novelDetail: WorkSummary?, totalChaps: Int, webSiteTotal: Int?): Int? {
+    if (totalChaps <= 0) return null
+    if (novelDetail != null) {
+        return (computeContinuation(totalChaps, novelDetail) as? ContinuationInfo.NewEpisodes)?.newCount
+    }
+    return webNewEpisodeCount(webSiteTotal, totalChaps)
 }
 
 // ============================================================
@@ -219,6 +230,9 @@ internal fun GridBookCard(
     progress: ProgressEntity?,
     // 続きありバッジ用の作品要約（VM が一括照会し配布。null=未紐付け/未取得/失敗）。
     novelDetail: WorkSummary?,
+    // 続きありバッジの Web 蔵書側の観測値（Worker が最後に見たサイト総話数。null=なろう本/未チェック）。
+    // 既定値を置かない＝配線忘れをコンパイルエラーへ格上げする（束の流儀＝skins/ShelfFace.kt 冒頭）。
+    webSiteTotal: Int?,
     // 章数（chap_N.html の枚数）。VM の chapterCountMap から渡す＝カード毎の重複IOを廃し、
     // 状態フィルタ（readingStatusFor）と同じ値を共有する。
     totalChaps: Int,
@@ -451,7 +465,7 @@ internal fun GridBookCard(
                 modifier = Modifier.padding(top = Spacing.S4),
             )
             // 続きあり（モックは進捗行の下・上4px）
-            newEpisodeCountFor(novelDetail, totalChaps)?.let { newCount ->
+            newEpisodeCountFor(novelDetail, totalChaps, webSiteTotal)?.let { newCount ->
                 NewChaptersBadge(newCount = newCount, modifier = Modifier.padding(top = Spacing.S4))
             }
         }
@@ -501,6 +515,9 @@ internal fun ListBookCard(
     progress: ProgressEntity?,
     // 続きありバッジ用の作品要約（VM が一括照会し配布。null=未紐付け/未取得/失敗）。
     novelDetail: WorkSummary?,
+    // 続きありバッジの Web 蔵書側の観測値（Worker が最後に見たサイト総話数。null=なろう本/未チェック）。
+    // 既定値を置かない＝配線忘れをコンパイルエラーへ格上げする（束の流儀＝skins/ShelfFace.kt 冒頭）。
+    webSiteTotal: Int?,
     // 章数（chap_N.html の枚数）。VM の chapterCountMap から渡す＝カード毎の重複IOを廃し、
     // 状態フィルタ（readingStatusFor）と同じ値を共有する。
     totalChaps: Int,
@@ -584,7 +601,7 @@ internal fun ListBookCard(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 // 著者＋続きあり（青磁）。モックの目録は著者脇に「続き N話」を寄せる。
-                val newCount = newEpisodeCountFor(novelDetail, totalChaps)
+                val newCount = newEpisodeCountFor(novelDetail, totalChaps, webSiteTotal)
                 if (book.author.isNotBlank() || newCount != null) {
                     Spacer(Modifier.height(Spacing.S8))
                     Row(verticalAlignment = Alignment.CenterVertically) {

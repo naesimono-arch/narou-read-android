@@ -177,10 +177,13 @@ internal fun VerticalChapterContent(
 /**
  * 章見出し（モック .chap-h の縦書き翻訳）。題を縦書き明朝で組版し、その左（＝読み順で題の後）に藍の短い縦ルール。
  *
- * なぜ話数ラベル（モック .num ゴシック小）を出さないか: [ChapterContent.title] は話数と題を分離した
- * データを持たず（横書き [ChapterContent] の ChapterHeader も title 全体を1つに描く）、鏡写しのため
- * 同じく title 全体を1列として組む。ラベル書体も横書き同様に明朝で揃える（GothicFamily トークンは未定義＝
- * ゴシック化は意匠の自己判断になるため避け、横書きと一致させる）。
+ * なぜ話数ラベル（モック .num ゴシック小）を今も出さないか: 横書き [ChapterContent] の ChapterHeader が
+ * title 全体を1つに描くのと鏡写しに揃えているため。**残っているのは意匠の裁定だけ**で、実装側の器は
+ * 2026-07-31 に用意した——分離は [com.novelreader.domain.splitChapterTitle]（純関数・目次順との照合つき）、
+ * 書体は [com.novelreader.ui.theme.GothicFamily]。どちらもまだこの見出しは読んでいない（＝描画は不変）。
+ * 裁定が要るのは「ラベルを出すか／生の接頭辞のままか M/P/J のように index から漢数字で組み直すか／
+ * ゴシック化するか」＝正本モックの前例が要る意匠判断で、横書きの ChapterHeader と同時に決める必要がある
+ * （縦だけ変えると同一スキン内で章見出しの構成が割れる）。
  */
 @Composable
 private fun VerticalChapterHeader(

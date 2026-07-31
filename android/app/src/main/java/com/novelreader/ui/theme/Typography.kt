@@ -15,6 +15,16 @@ import androidx.compose.ui.unit.sp
 // 直書き FontFamily.Serif の散在を防ぐため、明朝はこの単一トークン経由で参照する（④ Typography 土台）。
 val MinchoFamily = FontFamily.Serif
 
+// ゴシック（ラベル側の署名）。上の header が宣言する「title=明朝 / label=ゴシック」の対で、
+// 明朝トークンだけが在り相方が欠けていた＝ラベルをゴシックにしたい箇所（章見出しの話数ラベル
+// `.num` 等）で書体を指定しようとすると FontFamily を直書きするしかなく、意匠の自己判断になっていた。
+// なぜ FontFamily.SansSerif か: MinchoFamily=Serif の対称で、Android の SansSerif は CJK で
+// Noto Sans CJK（＝ゴシック系）へ解決される＝フォント同梱なしでモックの
+// --gothic("Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif) と同じ系統に落ちる。
+// 現状これを読む描画は無い（＝この定義だけでは画面は1pxも変わらない）。どこにゴシックを当てるかは意匠＝
+// design 裁定の領分で、本トークンはその裁定が下りたときに直書きせず翻訳できる器として先に用意する。
+val GothicFamily = FontFamily.SansSerif
+
 // ============================================================
 // 日本語最適化タイポグラフィ
 // Material3 のデフォルトは英語前提で letterSpacing が広すぎるため、

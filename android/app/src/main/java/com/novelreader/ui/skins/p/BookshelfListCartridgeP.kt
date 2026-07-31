@@ -147,6 +147,7 @@ internal fun BookshelfListCartridgeP(
     val progressMap = data.progressMap
     val chapterCountMap = data.chapterCountMap
     val newEpisodeNovelMap = data.newEpisodeNovelMap
+    val webNewEpisodeTotals = data.webNewEpisodeTotals
     val processingState = chrome.processingState
     val selectedStatus = chrome.selectedStatus
     val statusCounts = chrome.statusCounts
@@ -248,6 +249,7 @@ internal fun BookshelfListCartridgeP(
                             book = item.book,
                             progress = progressMap[item.book.id],
                             novelDetail = item.book.ncode?.let { newEpisodeNovelMap[it] },
+                            webSiteTotal = webNewEpisodeTotals[item.book.id],
                             totalChaps = chapterCountMap[item.book.id] ?: 0,
                             selectionMode = selectionMode,
                             selected = item.book.id in selectedIds,
@@ -357,6 +359,9 @@ private fun CartridgeListRow(
     book: BookEntity,
     progress: ProgressEntity?,
     novelDetail: WorkSummary?,
+    // 続きバッジの Web 蔵書側の観測値（Worker が最後に見たサイト総話数。null=なろう本/未チェック）。
+    // 判定は D と同じ newEpisodeCountFor（既定値を置かない＝配線忘れをコンパイルエラーへ）。
+    webSiteTotal: Int?,
     totalChaps: Int,
     selectionMode: Boolean,
     selected: Boolean,
@@ -369,7 +374,7 @@ private fun CartridgeListRow(
     // 読了は reachedEnd 実績で判定（progressFractionFor が高%でも実績なしは FINISHED にしない＝嘘の100%を出さない）。
     val status = readingStatusFor(progress, totalChaps)
     val pct = ((frac ?: 0f) * 100).roundToInt()
-    val newCount = newEpisodeCountFor(novelDetail, totalChaps)
+    val newCount = newEpisodeCountFor(novelDetail, totalChaps, webSiteTotal)
 
     Column {
         Row(
