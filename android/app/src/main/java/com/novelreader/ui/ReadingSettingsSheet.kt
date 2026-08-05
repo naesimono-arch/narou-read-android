@@ -400,10 +400,22 @@ internal fun ReadingSettingsSheetContent(
             // 3本のスライダーの間に挟まず、チップ系設定をまとめると視覚リズムが揃う。(2) このシートの Column は
             // スクロールを持たず、末尾に足すと縦長端末で画面外に切れて到達不能になり得るため、常時可視な上部へ
             // 置いて確実に届かせる。見出し語（labelMedium）は他設定と同じ体裁。チップ選択(accent塗り)＝縦書きON。
-            Text(
-                text = "本文の向き",
-                style = MaterialTheme.typography.labelMedium,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "本文の向き",
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                // trailing の現在値（モック settings-D 案C・2026-08-06 裁定）: 単独チップだけでは
+                // 「現在の状態を示す表示」か「押すと何かが起きるボタン」かが読めないため、節ラベル行の
+                // 右端へ今の組み方向を常時出す（説明文は置かない＝説明レス。押した結果は現在値の変化として
+                // ここに現れる）。色は意味を運ぶ文字＝AA を満たす infoText（スライダー3節の現在値と同色）。
+                Text(
+                    text = if (verticalMode) "縦書き" else "横書き",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.infoText,
+                )
+            }
             Spacer(Modifier.height(Spacing.S8))
             FilterChip(
                 selected = verticalMode,
@@ -440,11 +452,13 @@ internal fun ReadingSettingsSheetContent(
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.weight(1f),
                 )
-                // 現在値は右端の藍数字（モック settings-D の値表示）。ラベル連結より視線移動が少ない
+                // 現在値は右端の trailing 数字（モック settings-D .val）。ラベル連結より視線移動が少ない。
+                // 色は infoText（2026-08-06 案C裁定＝trailing 現在値は「意味を運ぶ文字」。旧・藍 accent は
+                // 選択・アクション役割へ限定する二役分離。行間・本文余白・本文の向きの trailing も同色）。
                 Text(
                     text = "${fontSize}sp",
                     style = MaterialTheme.typography.labelMedium,
-                    color = colors.accent,
+                    color = colors.infoText,
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -490,7 +504,7 @@ internal fun ReadingSettingsSheetContent(
                     // 「2,5」のようにカンマ表記に化けるため、表示を一貫させる。
                     text = String.format(Locale.US, "%.1f", lineHeightEm),
                     style = MaterialTheme.typography.labelMedium,
-                    color = colors.accent,
+                    color = colors.infoText,
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -535,7 +549,7 @@ internal fun ReadingSettingsSheetContent(
                 Text(
                     text = "${bodyMarginDp}dp",
                     style = MaterialTheme.typography.labelMedium,
-                    color = colors.accent,
+                    color = colors.infoText,
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {

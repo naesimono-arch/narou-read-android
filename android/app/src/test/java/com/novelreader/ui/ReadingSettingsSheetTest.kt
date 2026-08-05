@@ -4,8 +4,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -146,10 +148,21 @@ class ReadingSettingsSheetTest {
     }
 
     @Test
-    fun `縦書きトグルの見出しとチップを表示する`() {
+    fun `縦書きトグルの見出しとチップと現在値を表示する`() {
         setSheet()
         composeTestRule.onNodeWithText("本文の向き").assertIsDisplayed()
         composeTestRule.onNodeWithText("縦書き").assertIsDisplayed()
+        // trailing の現在値（モック settings-D 案C・2026-08-06 裁定）: 横書き中は節ラベル右端に「横書き」。
+        composeTestRule.onNodeWithText("横書き").assertIsDisplayed()
+    }
+
+    @Test
+    fun `縦書きON時はtrailing現在値が縦書きへ変わる`() {
+        // ON では現在値も「縦書き」になりチップ label と文言が重複するため、現在値側の検証は
+        // 「横書きの不在」＋「縦書き2ノード（チップ＋現在値）」で行う（onNodeWithText の一意性を保つ）。
+        setSheet(verticalMode = true)
+        composeTestRule.onNodeWithText("横書き").assertDoesNotExist()
+        composeTestRule.onAllNodesWithText("縦書き").assertCountEquals(2)
     }
 
     @Test

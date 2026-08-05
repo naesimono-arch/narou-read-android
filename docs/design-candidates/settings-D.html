@@ -21,6 +21,7 @@
   :root{
     --bg:#FBFAF8;--ink:#1C1F26;--soft:#7C808B;--line:#ECEAE4;
     --ai:#1C3D5A;--seiji:#9CB3A8;
+    --info:#5C606D;/* 意味メタ（InfoTextLight 実値）。trailing 現在値＝2026-08-06 案C裁定で新設 */
     --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   }
@@ -58,11 +59,6 @@
   .chip{text-align:center;padding:12px 16px;border-radius:10px;font-family:var(--gothic);font-size:13.5px;
     border:1px solid var(--line);color:var(--ink);background:transparent;cursor:pointer}
   .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
-  /* 節の補助説明（2026-08-05 追加・handover 最優先A「本文調整/トグルの説明を出す」）。
-     様式は既存の .scope-note を流用＝ゴシック極小・muted・新しいCSS変数を作らない。
-     違いは位置だけ（scope-note＝見出し直下の予告／hint＝操作要素の直下に置く結果の説明）。 */
-  .hint{font-family:var(--gothic);font-size:11px;color:var(--soft);letter-spacing:.04em;
-    line-height:1.5;margin-top:8px}
   /* スライダー（文字サイズ・行間）。両端ラベル＋トラック＋藍つまみ */
   .slider{display:flex;align-items:center;gap:16px}
   .end{font-family:var(--mincho);color:var(--ink);flex-shrink:0}
@@ -71,27 +67,32 @@
   .track .fill{position:absolute;left:0;top:0;height:2px;background:var(--ai);border-radius:2px}
   .track .knob{position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--ai);
     transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(28,61,90,.4)}
-  .val{font-family:var(--gothic);font-size:12px;color:var(--ai);margin-left:8px}
+  /* 節ラベル行の trailing 現在値（案C・2026-08-06 裁定）。意味を運ぶ文字＝--info（AA）。
+     旧値の藍（--ai）は選択・アクションの役割へ限定し情報表示に流用しない（2026-08-06 K モック
+     逆同期で確立した二役分離〔意味=--info／装飾=--soft〕に従う）。 */
+  .val{font-family:var(--gothic);font-size:12px;color:var(--info);margin-left:8px}
   .row-lbl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
 </style>
 </head>
 <body>
-  <p class="cap"><b>D. 和モダン・余白 — 表示設定</b> ／ 読書画面から立ち上がるボトムシート。テーマ4択（システムに従う＋3テーマ・選択＝藍塗り）／本文の向き（縦書き）／文字サイズ 14〜24sp／行間 2.3〜2.8em／本文余白 10〜40dp。明朝見出し・ゴシックラベル・ヘアライン体系を踏襲。<b>2026-08-05</b>: 実装への逆同期3点と、曖昧な2箇所（縦書きトグル・本文余白）への説明1行を追加。</p>
+  <p class="cap"><b>D. 和モダン・余白 — 表示設定</b> ／ 読書画面から立ち上がるボトムシート。テーマ4択（システムに従う＋3テーマ・選択＝藍塗り）／本文の向き（縦書き）／文字サイズ 14〜24sp／行間 2.3〜2.8em／本文余白 10〜40dp。明朝見出し・ゴシックラベル・ヘアライン体系を踏襲。<b>2026-08-05</b>: 実装への逆同期3点。<b>2026-08-06</b>: 説明の出し方は案C（節ラベル trailing に現在値・説明レス）で裁定＝説明1行（旧案A）を撤去し「本文の向き」へ現在値 trailing を追加、trailing 現在値の色は意味メタ --info へ。</p>
 
-  <!-- ===== 説明の出し方: 採用案と分岐案（handover 最優先A「本文調整/トグルの説明を出す」）=====
-       採用＝案A「常時キャプション」: 操作要素の直下に 11px muted の1行（.hint）。曖昧な節にだけ置く。
-         採る理由: 単独チップの「状態か動作か」という曖昧さと、狭/広が重複する2スライダーの
-         「何が変わるか」を、どちらも構造を変えずに解消できる。実装側も Text を1行足すだけで翻訳が済む。
+  <!-- ===== 説明の出し方: 裁定の記録（handover 最優先A「本文調整/トグルの説明を出す」）=====
+       採用＝案C「情報行（現在値を右端に出す）」（2026-08-06 ユーザー裁定・説明レス）:
+         節ラベル行の右端へ現在値を出す（本文の向き ……… 横書き）。設定画面 KSettingsRow のテーマ行
+         （trailing に現在値）と同じ語彙で、シート内の縦幅を増やさない。説明文は置かない＝
+         「押すと何が起きるか」は語らず「今どうなっているか」を常時可視にする（現在値が変われば
+         押した結果もそこに現れる）。本文余白側は値の右端表示（20dp）を既に持つ＝案C の形そのもの。
+         現在値は意味を運ぶ文字＝色は --info（.val の why コメント参照）。
 
-       分岐案B「二択チップ化（説明を要らなくする）」: 本文の向きを〈横書き｜縦書き〉の2択チップにする。
-         テーマ3択と同じ離散選択の語彙になり、選択中の一方が藍で塗られるので説明文ゼロで状態が読める＝
-         余白主導には最も忠実。代償は実装の制御形の変更（単独 FilterChip → 排他2択）と、
-         横書き=既定を「わざわざ選ぶもの」に見せてしまう点。B を採るならこの節の .hint は削除する。
+       不採用・案A「常時キャプション」（2026-08-05 一次採用 → 2026-08-06 裁定で撤去）:
+         操作要素の直下に 11px muted の説明1行（.hint）を曖昧な節にだけ置く案。構造を変えずに
+         済む利点はあったが、説明文の常設が退けられ案C 採用に伴い .hint ごと撤去。
 
-       分岐案C「情報行（現在値を右端に出す）」: 節ラベル行の右端へ現在値を出す（本文の向き ……… 横書き）。
-         設定画面 KSettingsRow のテーマ行（trailing に現在値）と同じ語彙で、シート内の縦幅を増やさない。
-         代償は「今どうなっているか」しか言わず「押すと何が起きるか」を答えないこと＝今回の的を外す。
-         C は本文余白側（値 20dp を既に右端表示）とは相性が良く、A と併用も可能。 -->
+       不採用・案B「二択チップ化（説明を要らなくする）」（2026-08-06 裁定・案C 採用）:
+         本文の向きを〈横書き｜縦書き〉の2択チップにする案。選択中の一方が藍で塗られ説明文ゼロで
+         状態が読めるが、実装の制御形の変更（単独 FilterChip → 排他2択）と、横書き=既定を
+         「わざわざ選ぶもの」に見せてしまう代償があり不採用。 -->
 
   <div class="phone" role="img" aria-label="D案 表示設定シート">
     <div class="behind">辺境の城門に辿り着いたのは、長い雨がようやく上がった頃だった。濡れた石畳が夕陽を照り返し、橙の光が水たまりに滲んでいる。彼女はそう呟くと、腰の剣をそっと地に置いた。もう戦う理由はない、とでも言うように。</div>
@@ -116,13 +117,13 @@
 
       <!-- 本文の向き（縦書きトグル）。実装は単独の FilterChip＝押すたび縦書き/横書きが入れ替わる。
            チップ1個だけが並ぶ形は「現在の状態を示す表示」なのか「押すと何かが起きるボタン」なのか
-           判別できず、handover 最優先A「何のトグルか分かるように」の的そのもの。→ .hint で結果を明示する。 -->
+           判別できない（handover 最優先A「何のトグルか分かるように」の的）→ 節ラベル行の trailing に
+           現在値（横書き/縦書き）を常時出す（案C・2026-08-06 裁定）。ここでは未選択＝横書き中を描く。 -->
       <div class="sec">
-        <div class="lbl">本文の向き</div>
+        <div class="row-lbl"><span class="lbl" style="margin:0">本文の向き</span><span class="val">横書き</span></div>
         <div class="chips">
           <button class="chip">縦書き</button>
         </div>
-        <p class="hint">押すと本文を縦書き（右から左）に組み替えます。未選択のあいだは横書きです</p>
       </div>
 
       <div class="sec">
@@ -143,10 +144,9 @@
         </div>
       </div>
 
-      <!-- 本文余白（10〜40dp・5dp刻み）。両端が「狭／広」で行間と同じ＝2本並ぶと「何が狭くなるのか」が
-           区別できないため、この節にだけ .hint を置いて対象（左右の余白）と結果（1行が短くなる）を言う。
-           文字サイズ・行間に .hint を足さないのは、両端の「あ」大小・現在値表示だけで対象が自明で、
-           全節に説明を敷くと D の余白主導が情報過密に転ぶため（説明は曖昧な所にだけ置く）。 -->
+      <!-- 本文余白（10〜40dp・5dp刻み）。行間と同じ「狭／広」両端が並ぶが説明文は置かない
+           （案C・2026-08-06 裁定＝説明レス）。対象の区別は節ラベル「本文余白」と trailing 現在値の
+           単位（dp）に委ねる＝この節は値の右端表示を既に持ち案C の形そのもの。 -->
       <div class="sec">
         <div class="row-lbl"><span class="lbl" style="margin:0">本文余白</span><span class="val">20dp</span></div>
         <div class="slider">
@@ -154,7 +154,6 @@
           <span class="track"><span class="fill" style="width:33%"></span><span class="knob" style="left:33%"></span></span>
           <span class="end g">広</span>
         </div>
-        <p class="hint">本文の左右にとる余白。広げるほど1行が短くなります</p>
       </div>
     </div>
   </div>

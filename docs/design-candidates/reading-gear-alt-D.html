@@ -19,6 +19,7 @@
     --bg:#FBFAF8;--ink:#1C1F26;--soft:#7C808B;--ruby:#616C77;--rule:#1C3D5A;
     --blk-bg:#F1F0EC;--blk-bd:#E4E2DB;--bar:#FBFAF8;--bar-line:#ECEAE4;--accent:#1C3D5A;
     --line:#ECEAE4;
+    --info:#5C606D;/* 意味メタ（InfoTextLight 実値）。trailing 現在値＝正本 settings-D の 2026-08-06 案C裁定へ追従 */
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
@@ -113,7 +114,8 @@
   .track{flex:1;height:2px;background:var(--line);position:relative;border-radius:2px}
   .track .fill{position:absolute;left:0;top:0;height:2px;background:var(--ai);border-radius:2px}
   .track .knob{position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--ai);transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(28,61,90,.4)}
-  .val{font-family:var(--gothic);font-size:12px;color:var(--ai);margin-left:8px}
+  /* trailing 現在値は --info（「.sheet クラスタは正本再利用」宣言の維持＝正本 settings-D の 2026-08-06 案C裁定へ追従） */
+  .val{font-family:var(--gothic);font-size:12px;color:var(--info);margin-left:8px}
   .row-lbl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
   .behind-dim{opacity:.5}
 </style>
