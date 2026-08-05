@@ -172,11 +172,10 @@
 - **[小・後始末] 旧 r1 worktree が dirty で残置**: `…/.claude/worktrees/agent-a6f1a16df9c6147de`（ブランチ
   `deps/kotlin2-oneshot-2026-08-05`＝r2 に superseded）が modified/untracked を抱え `worktree remove` を拒否（2026-08-06）。
   未抽出の知見が無いか中身を確認してから `--force` 撤去 or 退避する（恐れるべきは未抽出の知識ごと消すこと。r2 worktree は撤去済み）。
-- **[切り分け] pdf-import ベンチが FGS timeout で完走しない**（資産の結線は 2026-08-06 修理済み＝真因と正道は
-  `docs/knowledge/agp-srcdir-taskprovider-drops-builtby.md`）: broadcast 受理→FGS `startForegroundCount:0` のまま
-  20s で Stop FGS timeout→取込中断。同時間帯にベンチプロセスがヒープ飽和（384MB・GC50回/13.6s ブロック）。
-  targetSdk 34→36（07-29）以降 pdf-import の実走記録が無い。旧 main の R8 Missing class によるビルド不能は
-  Kotlin2 統合（2026-08-06）で解消済み＝現行環境で切り分け可能。真因特定まで（timeout 延長で症状を隠さない）。
+- **[小] ベンチ seed 配達を pdf-import の修理形へ横展開する**: ColorOS は dead プロセスへの shell broadcast も
+  状態依存で沈黙不達する（knowledge `coloros-broadcast-silent-drop.md` の 2026-08-06 改訂＝「dead だけが確実」は覆った）。
+  shelf-scroll／chapter-flip の seed は旧処方のまま＝不達時は count 不一致の **loud fail** で止まる（サイレントではない）
+  ので緊急ではないが、走行安定のため `PdfImportBenchmark.kt` の形〈前面生存プロセスへ配達＋resultData 実在検証＋UI 検証〉へ揃える。
 
 ## workflow / tooling
 

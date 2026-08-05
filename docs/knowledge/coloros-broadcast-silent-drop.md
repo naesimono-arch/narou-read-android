@@ -38,3 +38,15 @@ am broadcast --include-stopped-packages -n <package>/<ReceiverClass> -a <action>
 
 実装現物＝`macrobenchmark/…/BookshelfScrollBenchmark.kt` の `seedLibrary`。
 経緯の一次情報＝`.claude/plans/macrobenchmark-kickoff-2026-07-17.md` ②節。
+
+## 追記 2026-08-06: 上の処方「dead への shell broadcast」も状態依存で落ちる＝生存前面配達＋resultData 実在検証へ改訂
+
+- pdf-import ベンチの clear（shell 発・force-stop 後の dead 宛・`--include-stopped-packages` 付き）が
+  **3/3 沈黙不達**（同時刻の alive 宛は 3/3 配達・同日朝の同型 seed は成功＝時間帯/端末状態依存・機序未特定）。
+  ＝2026-07-17 の「dead だけが確実」は**恒常則ではなかった**（第3の遮断様態）。
+- さらに罠: ordered broadcast の**初期値 result=0 が「期待値 0」と衝突すると不達を検知できない**——
+  検証は resultCode でなく **resultData に実在する内容（例「cleared books N」）を載せ、その実在で判定**する。
+- **現行の処方**: `am start` で前面生存させてから配達＋resultData 実在検証＋副作用の UI 検証（0冊表示等）。
+  実装現物＝`macrobenchmark/…/PdfImportBenchmark.kt`（2026-08-06 修理）。shelf-scroll/chapter-flip の seed は
+  旧処方のまま（不達時は count 不一致で loud fail＝サイレントではない）＝横展開は handover 小物。
+  切り分けの全時系列＝`.claude/plans/macrobenchmark-kickoff-2026-07-17.md` ⑦。

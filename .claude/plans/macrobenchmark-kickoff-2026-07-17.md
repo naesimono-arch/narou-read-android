@@ -122,3 +122,17 @@
 - **予算焼き込み**＝重い方（WithTransition）基準で **P50 11.0（×≈1.5・1フレーム内）／P90 18.0（×≈1.45）／P99 50.0（×≈1.6・FlipBudget と同根同値）**。resolveBudget 方式（引数パース不能は fail 維持）。PASS 経路 exit 0・FAIL 経路（--budget-p50 1）exit 1 を実機実証。
 - **y=0.15H は実機実証済み**（=475px・全スワイプがコミット・内側ページャへの奪われゼロ＝較正不要と確定・コメント更新）。
 - **副産物＝旧ベンチは実機で構造的に完走不能だった真因2件を修正**: (1) `awaitTab` はページコミットまでしか待たず**settle アニメ中の click をページャが食う**（600ms 固定マージンで命中を実証） (2) 本文からの Back は目次に着地（→2段 pop 化）＋読書後は二層ソートで本が viewport 外へ沈む（→開閉を iteration 末尾1回へ・reseed が並びを毎回リセットするため決定的）。
+
+## ⑦pdf-import 不完走の真因切り分けと修理（2026-08-06・PASS 復帰）
+
+- **FGS・targetSdk 36 は無罪**: `startForegroundCount:0` は起動許可判定行の**起動前値**の誤読・「Stop FGS timeout」は
+  AMS のタイマー解除 debug 行（健常 25s 完走時にも同行出現を実測）。FGS は 57ms で正常起動→アプリ自身の正常停止だった。
+- **真因は2層**: L1＝ColorOS が dead プロセスへの shell ordered broadcast を状態依存で沈黙不達
+  （clear 不発→残骸101冊→SHA 早期遮断 Duplicate→**2026-08-05 新設の上書き確認ダイアログが本棚を a11y 遮蔽**→
+  完了検知 10分タイムアウト。ベンチプロセスのヒープ飽和はこのポーリングの下流症状）／
+  L2＝旧完了信号「著者テキスト」が現行カード意匠に不存在（成功取込後ダンプで 0件を実測）。
+- **修理**（`PdfImportBenchmark.kt`）: clear は前面生存プロセスへ配達＋resultData「cleared books」実在検証＋0冊 UI 検証／
+  完了検知は card content-desc 部分一致＋「1冊」従確認へ張替え（broadcast の改訂知見＝`coloros-broadcast-silent-drop.md` 追記）。
+- **再走 PASS**（3反復・assert 込み・3分47秒）: Import#extract median **22.29s**（≤35s）／Extract#engine **20.84s**（≤33s）／
+  exportHtml 279ms／insertDb 1.0ms＝07-18 基線（24.1s/22.7s）と整合＝**Kotlin2 バンプ起因の取込退行なしを最終確認**。
+- 残: shelf-scroll／chapter-flip の seed は旧処方（dead 配達）のまま＝不達時は loud fail。横展開は handover 小物。
