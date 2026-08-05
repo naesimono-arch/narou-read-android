@@ -211,8 +211,6 @@
   **部分的**は `fixed-bar-clearance-hardcoded-guess`・`webview-position-mis-record`／**静的検査では無理**は `oem-background-kill`・`benchmark-device-run-fragility`
   （実機依存。ただし「防御コードが在るか」の構造検査なら可）。
   → **L3 は不採用の方向で、ADR には「効かないから」ではなく「上位互換（機械検知への変換）があるから」と書く**（不採用も記録する規約）。
-- **[較正待ち] 委譲粒度の谷=30 の実測較正**: 委譲ターン計測フック（`count_delegation_turns.py`＝30/60/90…回で子へ中間通告＋完走時
-  `~/.claude/projects/...-novel-reader-andloid/delegation-stats.jsonl` へ記録）の分布が貯まったら（目安20〜30件）谷の位置を確かめ、orchestration §0 の「~30」を実測で更新する。
 - **[bestpractice 突合の回収候補]**: ①`block_destructive_migration.py` の Bash 経路が素朴な部分文字列一致（`FOO=1 cmd`・`$()` ですり抜け）＝
   settings permissions の `if` フィールド化を検討（主経路の Edit/Write 捕捉は健在で実害小）
   ②サブエージェントの部品別モデル配分（fan-out/読み=haiku・照合=sonnet・監査=opus。現状は env `CLAUDE_CODE_SUBAGENT_MODEL` で opus 固定＝見直しは settings 変更を伴う）。
