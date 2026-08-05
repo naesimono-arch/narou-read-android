@@ -70,6 +70,8 @@ class BookshelfViewModelTest {
         // relaxed の自動生成でなく明示 null: onProgress の isStopping 引き継ぎ判定を「未停止」に確定させる。
         every { mockApp.processingStateOf(any()) } returns null
         every { mockApp.errorEvents } returns emptyFlow()
+        // 上書き確認依頼（Service→VM）の搬送路。relaxed 自動生成でなく空 Flow を明示（errorEvents と同流儀）。
+        every { mockApp.overwritePrompts } returns emptyFlow()
         every { mockRepository.allBooks } returns flowOf(emptyList())
         // (b) uiState は allBooks と webNovels の combine になった。webNovels を stub しないと
         // relaxed mock の Flow が emit せず combine が一度も発火しない（books 派生も止まる）ため、
@@ -159,6 +161,8 @@ class BookshelfViewModelTest {
         every { fakeApp.novelApiRepository } returns mockNovelApiRepository
         every { fakeApp.processingState } returns MutableStateFlow<ProcessingState?>(null).asStateFlow()
         every { fakeApp.errorEvents } returns emptyFlow()
+        // init が collect する搬送路（setUp と同じ理由で空 Flow を明示）。
+        every { fakeApp.overwritePrompts } returns emptyFlow()
 
         val vm = BookshelfViewModel(fakeApp, testDispatcher)
         // getLastRead は repository.getLastRead への素の委譲＝Fake のインメモリ状態がそのまま返る
@@ -248,7 +252,7 @@ class BookshelfViewModelTest {
     @Test
     fun `importWebNovel - Added はバナーを set→clear し完了 Snackbar を出す（取込中 Snackbar は出さない）`() = runTest {
         val book = BookEntity("id01", "テスト作品", "/p/a")
-        coEvery { mockRepository.addWebBook(any(), any()) } returns
+        coEvery { mockRepository.addWebBook(any(), any(), any()) } returns
             Result.success(BookRepository.AddBookResult.Added(book))
 
         viewModel.importWebNovel("https://kakuyomu.jp/works/123")
@@ -267,16 +271,16 @@ class BookshelfViewModelTest {
         verify { mockApp.updateProcessingState(null, ProcessingSource.WEB) }
         // 完了は一過性の情報通知（transient=true）＝UI 側で Short 自動消滅。
         verify { mockApp.emitError("「テスト作品」を追加しました", transient = true) }
-        coVerify { mockRepository.addWebBook("https://kakuyomu.jp/works/123", any()) }
+        coVerify { mockRepository.addWebBook("https://kakuyomu.jp/works/123", any(), any()) }
     }
 
     // onProgress（章 i/N 取得中）を ProcessingState.phase へ流し、バナー副見出しへ進捗を出す。
     @Test
     fun `importWebNovel - onProgress の章進捗をバナー phase へ流す`() = runTest {
         val book = BookEntity("id01", "テスト作品", "/p/a")
-        coEvery { mockRepository.addWebBook(any(), any()) } answers {
+        coEvery { mockRepository.addWebBook(any(), any(), any()) } answers {
             // addWebBook の第2引数（onProgress）を取り出して章進捗を1回コールバックする。
-            secondArg<((Int, String) -> Unit)?>()?.invoke(2, "章 2/5 取得中")
+            thirdArg<((Int, String) -> Unit)?>()?.invoke(2, "章 2/5 取得中")
             Result.success(BookRepository.AddBookResult.Added(book))
         }
 
@@ -286,28 +290,104 @@ class BookshelfViewModelTest {
         verify { mockApp.updateProcessingState(match { it?.phase == "章 2/5 取得中" }, ProcessingSource.WEB) }
     }
 
+    // ── 重複拒否の撤廃→上書き確認（2026-08-05 仕様）──────────────────────────────
+    // 契約: Duplicate は棄却通知でなく「確認要求（overwritePrompt 状態）」として立つ。
+    // 確認→overwrite=true の再投入／キャンセル→再投入なし（蔵書・進捗は無変更）。
+
     @Test
-    fun `importWebNovel - Duplicate は取込済み Snackbar を出しバナーを clear する`() = runTest {
+    fun `importWebNovel - Duplicate は Snackbar を出さず上書き確認を立てバナーを clear する`() = runTest {
         val existing = BookEntity("id01", "既存作品", "/p/a")
-        coEvery { mockRepository.addWebBook(any(), any()) } returns
+        coEvery { mockRepository.addWebBook(any(), any(), any()) } returns
             Result.success(BookRepository.AddBookResult.Duplicate(existing))
 
         viewModel.importWebNovel("https://kakuyomu.jp/works/123")
         testDispatcher.scheduler.advanceUntilIdle()
 
-        // 取込済みも一過性の情報通知（transient=true）＋同型集約キー（一括投入時の「N件」集約対象）。
-        verify {
-            mockApp.emitError(
-                "取り込み済みです", transient = true,
-                aggregationKey = AppErrorEvent.KEY_DUPLICATE_IMPORT,
-            )
-        }
+        // 旧仕様の棄却 Snackbar（「取り込み済みです」）は出さない＝ダイアログへ一本化。
+        verify(exactly = 0) { mockApp.emitError(any(), any(), any(), any(), any()) }
+        // 確認要求が状態に立つ（URL＝再投入の材料・題名＝ダイアログ見出し）。
+        assertEquals(
+            listOf<OverwriteRequest>(
+                OverwriteRequest.Web("https://kakuyomu.jp/works/123", "既存作品"),
+            ),
+            viewModel.overwritePrompt.value,
+        )
         verify { mockApp.updateProcessingState(null, ProcessingSource.WEB) }
     }
 
     @Test
+    fun `confirmOverwrite - 確認中の URL を overwrite=true で再投入しプロンプトを消す`() = runTest {
+        val existing = BookEntity("id01", "既存作品", "/p/a")
+        coEvery { mockRepository.addWebBook(any(), eq(false), any()) } returns
+            Result.success(BookRepository.AddBookResult.Duplicate(existing))
+        // 上書き再投入は復元経路で Added(restored=true) が返る（AddWebBookTest で固定済みの repository 契約）。
+        coEvery { mockRepository.addWebBook(any(), eq(true), any()) } returns
+            Result.success(BookRepository.AddBookResult.Added(existing, restored = true))
+
+        viewModel.importWebNovel("https://kakuyomu.jp/works/123")
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.confirmOverwrite()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // overwrite=true で同一 URL が再投入される。
+        coVerify(exactly = 1) { mockRepository.addWebBook("https://kakuyomu.jp/works/123", eq(true), any()) }
+        // 上書きの完了は「復元」でなく「上書きしました」と告げる（同じ restored 経路でも出来事が違う）。
+        verify { mockApp.emitError("「既存作品」を上書きしました", transient = true) }
+        assertEquals(emptyList<OverwriteRequest>(), viewModel.overwritePrompt.value)
+    }
+
+    @Test
+    fun `dismissOverwritePrompt - キャンセルは何も再投入せずプロンプトだけ消す`() = runTest {
+        val existing = BookEntity("id01", "既存作品", "/p/a")
+        coEvery { mockRepository.addWebBook(any(), any(), any()) } returns
+            Result.success(BookRepository.AddBookResult.Duplicate(existing))
+
+        viewModel.importWebNovel("https://kakuyomu.jp/works/123")
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.dismissOverwritePrompt()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // 最初の1回（Duplicate 検出）以外に addWebBook が走らない＝無変更でキャンセルされた証拠。
+        coVerify(exactly = 1) { mockRepository.addWebBook(any(), any(), any()) }
+        assertEquals(emptyList<OverwriteRequest>(), viewModel.overwritePrompt.value)
+    }
+
+    @Test
+    fun `importWebNovels - 複数 URL の Duplicate はバッチ完了後に1つの確認へ集約される`() = runTest {
+        val a = BookEntity("id01", "作品A", "/p/a")
+        val b = BookEntity("id02", "作品B", "/p/b")
+        coEvery { mockRepository.addWebBook("https://kakuyomu.jp/works/1", any(), any()) } returns
+            Result.success(BookRepository.AddBookResult.Duplicate(a))
+        coEvery { mockRepository.addWebBook("https://kakuyomu.jp/works/2", any(), any()) } returns
+            Result.success(BookRepository.AddBookResult.Duplicate(b))
+
+        viewModel.importWebNovels(listOf("https://kakuyomu.jp/works/1", "https://kakuyomu.jp/works/2"))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // 2件が1つの確認リストに揃う（現行「N件は取り込み済みです」集約に対応する確認の形）。
+        assertEquals(
+            listOf("作品A", "作品B"),
+            viewModel.overwritePrompt.value.map { it.existingTitle },
+        )
+    }
+
+    @Test
+    fun `enqueue - 同一 URL の再共有連打で確認が二重に積まれない`() = runTest {
+        val existing = BookEntity("id01", "既存作品", "/p/a")
+        coEvery { mockRepository.addWebBook(any(), any(), any()) } returns
+            Result.success(BookRepository.AddBookResult.Duplicate(existing))
+
+        viewModel.importWebNovel("https://kakuyomu.jp/works/123")
+        testDispatcher.scheduler.advanceUntilIdle()
+        viewModel.importWebNovel("https://kakuyomu.jp/works/123")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(1, viewModel.overwritePrompt.value.size)
+    }
+
+    @Test
     fun `importWebNovel - 失敗は失敗 Snackbar を出す（再試行なし・バナーは clear）`() = runTest {
-        coEvery { mockRepository.addWebBook(any(), any()) } returns
+        coEvery { mockRepository.addWebBook(any(), any(), any()) } returns
             Result.failure(RuntimeException("network down"))
 
         viewModel.importWebNovel("https://kakuyomu.jp/works/123")
@@ -322,7 +402,7 @@ class BookshelfViewModelTest {
     // 破損監視・層2: 構造変更の疑い（ScrapeStructureException）は「公式サイトで読む」逃げ道つきで通知する。
     @Test
     fun `importWebNovel - 構造疑いは公式サイト逃げ道つき Snackbar を出す`() = runTest {
-        coEvery { mockRepository.addWebBook(any(), any()) } returns
+        coEvery { mockRepository.addWebBook(any(), any(), any()) } returns
             Result.failure(ScrapeStructureException("本文が全章で空"))
 
         viewModel.importWebNovel("https://kakuyomu.jp/works/123")
@@ -345,7 +425,7 @@ class BookshelfViewModelTest {
     @Test
     fun `cancelProcessing - Web 取込表示中は Service へ送らず Web ジョブを cancel する`() = runTest {
         // 「キャンセルされるまで終わらない取込」で走行中を再現する（実ネットワークなし）。
-        coEvery { mockRepository.addWebBook(any(), any()) } coAnswers { awaitCancellation() }
+        coEvery { mockRepository.addWebBook(any(), any(), any()) } coAnswers { awaitCancellation() }
         viewModel.importWebNovel("https://kakuyomu.jp/works/123")
         testDispatcher.scheduler.runCurrent()
         // 表示中バナー＝WEB（本番では ProcessingStateHub が合成する表示状態をここでは直接差し込む）。
@@ -390,10 +470,10 @@ class BookshelfViewModelTest {
         val book = BookEntity("id01", "作品1", "/p/a")
         val gate1 = CompletableDeferred<Unit>()
         val gate2 = CompletableDeferred<Unit>()
-        coEvery { mockRepository.addWebBook("https://kakuyomu.jp/works/1", any()) } coAnswers {
+        coEvery { mockRepository.addWebBook("https://kakuyomu.jp/works/1", any(), any()) } coAnswers {
             gate1.await(); Result.success(BookRepository.AddBookResult.Added(book))
         }
-        coEvery { mockRepository.addWebBook("https://kakuyomu.jp/works/2", any()) } coAnswers {
+        coEvery { mockRepository.addWebBook("https://kakuyomu.jp/works/2", any(), any()) } coAnswers {
             gate2.await(); Result.success(BookRepository.AddBookResult.Added(book))
         }
 

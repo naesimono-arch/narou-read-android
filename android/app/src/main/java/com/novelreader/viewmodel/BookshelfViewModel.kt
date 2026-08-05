@@ -128,8 +128,34 @@ data class AppErrorEvent(
     val aggregationKey: String? = null,
 ) {
     companion object {
-        /** 重複取込（既に蔵書済み）通知の集約キー。PDF（Service 側2箇所）と Web 取込の Duplicate が共有する。 */
+        /** 重複取込通知の集約キー。上書き確認への置換（2026-08-05）後の残る発火元は Service の
+         *  「取込中の同一 URI 二重投入」ガードのみ（蔵書済み重複は OverwriteRequest のダイアログへ移行）。 */
         const val KEY_DUPLICATE_IMPORT = "duplicate-import"
+    }
+}
+
+/**
+ * 「上書きしますか」確認の1件分（重複拒否の撤廃→確認への置換・2026-08-05 仕様）。
+ * 従来は同一作品の再取込を Duplicate 通知で棄却して終わりだったが、既存行を保持したまま本文を
+ * 差し替える再投入（repository の overwrite=true）に必要な最小情報と、ダイアログ表示用の既存題名を運ぶ。
+ * U1「続き取得」の実体: Web は再取得で新着話も含めて落ちるため、この確認が差分更新の導線を兼ねる。
+ */
+sealed interface OverwriteRequest {
+    /** 既存蔵書の題名（ダイアログ見出しに使う）。 */
+    val existingTitle: String
+
+    /** 同一対象の再共有連打で確認を二重に積まないための識別子。 */
+    val key: String
+
+    /** Web 取込（URL 共有/リンク）で同一 sourceUrl の蔵書があった。 */
+    data class Web(val url: String, override val existingTitle: String) : OverwriteRequest {
+        override val key: String get() = "web:$url"
+    }
+
+    /** PDF 取込（Service 経由）で同一内容/同一作品の蔵書があった。
+     *  ncode は縦書きPDF取込（ADR 0011）の紐付けを再投入へ引き継ぐ（新規行へ化けた場合の保険）。 */
+    data class Pdf(val uriString: String, val ncode: String?, override val existingTitle: String) : OverwriteRequest {
+        override val key: String get() = "pdf:$uriString"
     }
 }
 
@@ -648,6 +674,13 @@ class BookshelfViewModel @JvmOverloads constructor(
     private val progressChannel = Channel<ProgressEntity>(Channel.CONFLATED)
 
     init {
+        // Service（PDF）からの上書き確認依頼を状態へ積み替える（搬送の why＝NovelReaderApplication の
+        // overwritePrompts）。PDF はキュー処理の進行に応じて1件ずつ届くため、到着ごとに追記する
+        // （表示中のダイアログは件数が増えて更新される＝Web バッチのような completion 待ち集約は
+        // Service を跨ぐと持てない。到着順追記が現実の進行と一致する）。
+        viewModelScope.launch {
+            app.overwritePrompts.collect { enqueueOverwriteRequests(listOf(it)) }
+        }
         // 取込完走（isProcessing の true→false 立ち下がり）で欠落を再検出する（reimportRecheckTick の why）。
         // 生の app.processingState を読むのは cancelProcessing と同じ理由（stateIn の反映遅れを避ける）。
         viewModelScope.launch {
@@ -673,7 +706,9 @@ class BookshelfViewModel @JvmOverloads constructor(
 
     // ncode: 縦書きPDF取り込み（ADR 0011）から呼ぶときのみ非 null。取り込む本になろう作品を紐付ける。
     // 通常のファイル選択取り込みでは省略（null）＝従来どおり紐付けはユーザーが後から NcodeLinkSheet で行う。
-    fun addBook(uri: Uri, ncode: Ncode? = null) {
+    // overwrite: 上書き確認ダイアログの「上書きする」からの再投入のみ true（Service→repository へ伝搬し、
+    // 既存行を保持したまま本文を差し替える。意味論の正本＝BookRepository.addBook の契約コメント）。
+    fun addBook(uri: Uri, ncode: Ncode? = null, overwrite: Boolean = false) {
         // 強制終了からの再開（起動時リカバリの再投入）にはプロセスを跨いで有効な読み取り権限が
         // 必要なため、intent の FLAG_GRANT（一時権限＝プロセス消滅で失効）に加えて永続権限を取る。
         // picker は OpenDocument なので取得可能だが、プロバイダによっては SecurityException を
@@ -701,6 +736,8 @@ class BookshelfViewModel @JvmOverloads constructor(
             data = uri
             // ncode を積むのは新規登録時の紐付け用（Service→repository.addBook へ伝搬）。null なら積まない。
             ncode?.let { putExtra(PdfProcessingService.EXTRA_NCODE, it.value) }
+            // 上書き印（確認済みの再投入のみ）。false のとき積まないのは既存 Intent との同型を保つため。
+            if (overwrite) putExtra(PdfProcessingService.EXTRA_OVERWRITE, true)
             // content:// URI の読み取り権限を Service に委譲
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
@@ -754,6 +791,36 @@ class BookshelfViewModel @JvmOverloads constructor(
     /** 確認プロンプトをキャンセル（何も取り込まない）。 */
     fun dismissImportPrompt() {
         _importPrompt.value = null
+    }
+
+    // ── 重複取込→上書き確認（重複拒否の撤廃・2026-08-05 仕様）─────────────────────────
+    // なぜ StateFlow か: _importPrompt と同じ理由（ユーザーが選ぶまで表示を保持。回転・再購読でも消えない）。
+    // List で持つのは複数件の同時投入（URL 一括共有・複数PDF）を現行の「N件は取り込み済みです」集約に
+    // 対応する形＝件数をまとめた1ダイアログで確認するため。
+    private val _overwritePrompt = MutableStateFlow<List<OverwriteRequest>>(emptyList())
+    val overwritePrompt: StateFlow<List<OverwriteRequest>> = _overwritePrompt.asStateFlow()
+
+    /** 確認待ちへ積む。呼び出しは viewModelScope（Main）内のみ＝素の value 代入で競合しない。 */
+    private fun enqueueOverwriteRequests(requests: List<OverwriteRequest>) {
+        if (requests.isEmpty()) return
+        // 同一対象の再共有連打・Service からの再通知で同じ確認を二重に積まない（key で1対象1行）。
+        _overwritePrompt.value = (_overwritePrompt.value + requests).distinctBy { it.key }
+    }
+
+    /** 「上書きする」: 確認中の全件を overwrite=true で再投入する（Web は逐次取込・PDF は Service キュー）。 */
+    fun confirmOverwrite() {
+        val requests = _overwritePrompt.value
+        _overwritePrompt.value = emptyList()
+        val webUrls = requests.filterIsInstance<OverwriteRequest.Web>().map { it.url }
+        if (webUrls.isNotEmpty()) importWebNovels(webUrls, overwrite = true)
+        requests.filterIsInstance<OverwriteRequest.Pdf>().forEach { req ->
+            addBook(Uri.parse(req.uriString), req.ncode?.let { Ncode(it) }, overwrite = true)
+        }
+    }
+
+    /** 「やめる」: 何も取り込まず確認を破棄する（蔵書・進捗は無変更のまま）。 */
+    fun dismissOverwritePrompt() {
+        _overwritePrompt.value = emptyList()
     }
 
     // 表示名（ファイル名）を ContentProvider から解決する。取れなければ URI 末尾でフォールバックし、
@@ -852,19 +919,26 @@ class BookshelfViewModel @JvmOverloads constructor(
 
     /** 複数 URL の逐次取込（案C の Web 一括再取得が使う）。1コルーチンで順に回す＝相手サイトへ並列アクセスを
      *  作らない（低頻度アクセスの原則）・重い取込ジョブは直列化する既存方針の Web 版。停止（cancelProcessing→
-     *  cancelWebImports）はこのジョブごと cancel＝残りの URL も含めて止まる。 */
-    fun importWebNovels(urls: List<String>) {
+     *  cancelWebImports）はこのジョブごと cancel＝残りの URL も含めて止まる。
+     *  overwrite=true は確認ダイアログの「上書きする」からの再投入のみ（既存行を保持したまま本文差し替え）。 */
+    fun importWebNovels(urls: List<String>, overwrite: Boolean = false) {
         // 完了済みジョブの参照を機会的に掃除する（cancel 対象を実行中だけに保ち、リストを溜めない）。
         webImportJobs.removeAll { it.isCompleted }
         val job = viewModelScope.launch {
-            urls.forEach { runWebImport(it) }
+            // 重複拒否の撤廃（2026-08-05）: Duplicate はバッチ内で溜め、完了後に1つの上書き確認へまとめる
+            // （現行の「N件は取り込み済みです」集約に対応する確認の形。1件ずつ出すとダイアログが連打になる）。
+            // 停止（cancel）でループが中断されたら確認は出さない＝ユーザーは「止めた」のであって
+            // 「上書きするか決めたい」のではない（CancellationException がこの行に到達させない）。
+            val duplicates = mutableListOf<OverwriteRequest>()
+            urls.forEach { runWebImport(it, overwrite, duplicates) }
+            enqueueOverwriteRequests(duplicates)
         }
         webImportJobs += job
     }
 
     // importWebNovel(s) の1冊分の実体（旧 importWebNovel の launch 本体を suspend 化して逐次実行できるようにした
-    // だけ＝バナー・停止・エラー処理のロジックは不変）。
-    private suspend fun runWebImport(url: String) {
+    // だけ＝バナー・停止・エラー処理のロジックは不変）。Duplicate は通知でなく duplicates へ積む（呼び元が集約）。
+    private suspend fun runWebImport(url: String, overwrite: Boolean, duplicates: MutableList<OverwriteRequest>) {
         // run{} は移設した旧 launch 本体の字下げを不変に保つための無操作スコープ（diff を最小化し
         // ProcessingStateHub 配線ロジックへの実質変更が無いことをレビューで確認しやすくする）。
         run {
@@ -881,7 +955,7 @@ class BookshelfViewModel @JvmOverloads constructor(
             )
             app.updateProcessingState(banner, ProcessingSource.WEB)
             try {
-                repository.addWebBook(url, onProgress = { _, text ->
+                repository.addWebBook(url, overwrite = overwrite, onProgress = { _, text ->
                     // 章取得の進捗（「章 i/N 取得中」）を副見出しへ流す。isStopping は現スロットから引き継ぐ:
                     // 停止タップ直後にこの進捗コールバックが banner の初期値（false）で巻き戻すのを防ぐ
                     // （PDF 側 onProgress が停止フラグをライブ読みするのと同じ機序）。
@@ -895,19 +969,22 @@ class BookshelfViewModel @JvmOverloads constructor(
                             // 完了は一過性の情報通知＝Short で自動消滅させる（transient=true）。
                             // restored＝本文欠落からの再取得（案B④/案C）は「追加」でなく「復元」と告げる
                             // （既存行保持＝重複行を作らない意味論をユーザー文言でも正しく表す）。
+                            // 上書き確認からの再投入（overwrite）は同じ restored 経路だが出来事が違う
+                            // （欠けた本文の復旧でなく生きた本文の置換）ため「上書きしました」と告げる。
                             is BookRepository.AddBookResult.Added ->
                                 emitSnackbar(
-                                    if (outcome.restored) "「${outcome.book.title}」を復元しました"
-                                    else "「${outcome.book.title}」を追加しました",
+                                    when {
+                                        overwrite && outcome.restored -> "「${outcome.book.title}」を上書きしました"
+                                        outcome.restored -> "「${outcome.book.title}」を復元しました"
+                                        else -> "「${outcome.book.title}」を追加しました"
+                                    },
                                     transient = true,
                                 )
                             // 同一作品 URL は addWebBook が重い取得の前に sourceUrl で弾いて Duplicate を返す。
-                            // 集約キー: PDF 側の重複通知と同型＝一括投入時は「N件は取り込み済みです」へ畳む対象。
+                            // 重複拒否の撤廃（2026-08-05）: 通知して終わりにせず上書き確認の候補へ積む
+                            // （バッチ完了後に importWebNovels がまとめて1ダイアログにする）。
                             is BookRepository.AddBookResult.Duplicate ->
-                                emitSnackbar(
-                                    "取り込み済みです", transient = true,
-                                    aggregationKey = AppErrorEvent.KEY_DUPLICATE_IMPORT,
-                                )
+                                duplicates += OverwriteRequest.Web(url, outcome.existing.title)
                         }
                     },
                     onFailure = { e ->

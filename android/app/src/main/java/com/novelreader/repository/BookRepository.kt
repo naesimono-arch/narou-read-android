@@ -86,10 +86,16 @@ interface BookRepository {
     /** PDFをキャッシュにコピーし、ネイティブ(PDFBox)抽出でHTML生成後にRoomへ登録する。
      *  ncode: なろう縦書きPDF取り込み（ADR 0011）で、取り込む本に紐付ける Nコード。通常のファイル選択
      *  取り込みでは null（従来どおり紐付けはユーザーが後から NcodeLinkSheet で行う）。新規登録時のみ
-     *  BookEntity.ncode へ書き込む（重複スキップ時は既存本を上書きしない＝下記実装コメント参照）。 */
+     *  BookEntity.ncode へ書き込む（重複スキップ時は既存本を上書きしない＝下記実装コメント参照）。
+     *
+     *  overwrite: 重複拒否→上書き確認（2026-08-05 仕様）の第2投。false（既定）は従来どおり同一内容・
+     *  同一作品を [AddBookResult.Duplicate] で弾く。true は Duplicate にせず既存行を保持したまま本文を
+     *  再変換して差し替える（＝復元と同じ部分 UPDATE 経路。id・読書位置・栞・追加日・ncode は保つ）。
+     *  ユーザーが確認ダイアログで「上書きする」を選んだ再投入だけが true を渡す。 */
     suspend fun addBook(
         pdfUri: Uri,
         ncode: Ncode? = null,
+        overwrite: Boolean = false,
         onProgress: (step: Int, stepLocalPercent: Float, phase: String, title: String) -> Unit = { _, _, _, _ -> },
     ): Result<AddBookResult>
 
@@ -102,9 +108,13 @@ interface BookRepository {
      *
      *  同一作品 URL の再取込は [AddBookResult.Duplicate]（重い取得の前に sourceUrl で弾く＝PDF の hash 遮断と同位置）。
      *
+     *  overwrite=true は Duplicate にせず既存行を保持したまま再取得して本文を差し替える（[addBook] の
+     *  overwrite と同じ意味論。連載の新着話もこの再取得で取り込まれる＝「続き取得」の実体）。
+     *
      *  @param onProgress 「章 i/N 取得中」粒度の進捗（第1引数＝1始まりの章番号、第2引数＝表示文言）。null で無効。 */
     suspend fun addWebBook(
         inputUrl: String,
+        overwrite: Boolean = false,
         onProgress: ((Int, String) -> Unit)? = null,
     ): Result<AddBookResult>
 

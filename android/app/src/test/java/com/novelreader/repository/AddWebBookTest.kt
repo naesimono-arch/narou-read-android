@@ -5,6 +5,7 @@ import com.novelreader.data.BookDao
 import com.novelreader.data.BookEntity
 import com.novelreader.data.PendingJobDao
 import com.novelreader.data.ProgressDao
+import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.data.WebReadingProgressDao
 import com.novelreader.domain.activeWebNovels
@@ -52,6 +53,9 @@ class AddWebBookTest {
         context = mockk(relaxed = true)
         bookDao = mockk(relaxed = true)
         progressDao = mockk(relaxed = true)
+        // clamp（上書き後の読書位置丸め）が読む行。relaxed の自動値でなく「進捗なし」を既定に固定し、
+        // clamp 系テストだけが実行値を上書きする（自動生成 mock が返ると clamp 判定が偶発的に走る）。
+        coEvery { progressDao.getProgress(any()) } returns null
         pendingJobDao = mockk(relaxed = true)
         webReadingProgressDao = mockk(relaxed = true)
         adapter = FakeAdapter()
@@ -185,6 +189,107 @@ class AddWebBookTest {
         } finally {
             filesDir.deleteRecursively()
         }
+    }
+
+    // ── ②'' 上書きモード（重複拒否の撤廃・2026-08-05 仕様）: overwrite=true は本文が生きていても
+    //     Duplicate にせず、既存行を保持したまま再取得して本文を差し替える（読書位置/栞/追加日が残る）──
+
+    @Test
+    fun `addWebBook - overwrite は本文が生きていても既存行へ再取得で差し替える（行数不変・content 更新）`() = runTest {
+        val filesDir = createTempDir(prefix = "webOverwriteFiles")
+        try {
+            every { context.filesDir } returns filesDir
+            // 既存行: 本文実体あり（＝overwrite=false なら Duplicate になる前提を明示する fixture）。
+            val dir = File(filesDir, "novels/id01").apply { mkdirs() }
+            File(dir, "index.html").writeText("<html>old</html>")
+            val existing = BookEntity(
+                "id01", "テスト作品", dir.absolutePath, "テスト著者",
+                addedAt = 42L, sourceUrl = FakeAdapter.WORK_URL, sourceSite = "faketest",
+            )
+            coEvery { bookDao.findBySourceUrl(FakeAdapter.WORK_URL) } returns existing
+
+            val result = newRepo().addWebBook(FakeAdapter.WORK_URL, overwrite = true)
+
+            val added = result.getOrThrow() as AddBookResult.Added
+            assertTrue("上書きは復元経路（既存行保持の部分 UPDATE）を通る", added.restored)
+            assertEquals("id は不変＝行数不変（重複行を作らない）", "id01", added.book.id)
+            // 再取得は実際に走り、本文一式が同じ id ディレクトリへ作り直される。
+            assertEquals(1, adapter.fetchTocCount)
+            assertEquals(3, adapter.fetchChapterCount)
+            val toc = ChapterHtmlParser.parseToc(File(dir, "index.html"))
+            assertEquals("旧本文が新しい一式（3章）へ置き換わる", 3, toc.size)
+            // content（htmlDirPath/contentSha256）は部分 UPDATE で更新・insertBook は通らない
+            // ＝progress 行・addedAt・栞列に触れない（読書位置/栞/追加日の保持は UPDATE 対象外性で担保）。
+            coVerify(exactly = 1) { bookDao.updateRestoredContent("id01", any(), any(), null) }
+            coVerify(exactly = 0) { bookDao.insertBook(any()) }
+        } finally {
+            filesDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `addWebBook - overwrite で話数が減ったら読書位置を最終章の先頭へ clamp する`() = runTest {
+        val filesDir = createTempDir(prefix = "webClampFiles")
+        try {
+            every { context.filesDir } returns filesDir
+            val dir = File(filesDir, "novels/id01").apply { mkdirs() }
+            File(dir, "index.html").writeText("<html>old</html>")
+            val existing = BookEntity(
+                "id01", "テスト作品", dir.absolutePath, "テスト著者",
+                sourceUrl = FakeAdapter.WORK_URL, sourceSite = "faketest",
+            )
+            coEvery { bookDao.findBySourceUrl(FakeAdapter.WORK_URL) } returns existing
+            // 旧版で第5話まで読んでいた進捗。新しい一式は3章（FakeAdapter）＝chap_5.html が消える。
+            coEvery { progressDao.getProgress("id01") } returns
+                ProgressEntity("id01", "chap_5.html", scrollIndex = 7, scrollOffset = 30, lastReadAt = 99L, reachedEnd = true)
+
+            newRepo().addWebBook(FakeAdapter.WORK_URL, overwrite = true).getOrThrow()
+
+            // 最終章（chap_3）の先頭（0,0）へ丸める。lastReadAt は既存値のまま＝「最近読んだ順」を動かさない。
+            // reachedEnd は updatePosition が触らないクエリ設計（ProgressDao）なので巻き戻らない。
+            coVerify(exactly = 1) { progressDao.updatePosition("id01", "chap_3.html", 0, 0, 99L) }
+        } finally {
+            filesDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `addWebBook - overwrite でも読書位置が新章数の範囲内なら進捗に触らない`() = runTest {
+        val filesDir = createTempDir(prefix = "webNoClampFiles")
+        try {
+            every { context.filesDir } returns filesDir
+            val dir = File(filesDir, "novels/id01").apply { mkdirs() }
+            File(dir, "index.html").writeText("<html>old</html>")
+            val existing = BookEntity(
+                "id01", "テスト作品", dir.absolutePath, "テスト著者",
+                sourceUrl = FakeAdapter.WORK_URL, sourceSite = "faketest",
+            )
+            coEvery { bookDao.findBySourceUrl(FakeAdapter.WORK_URL) } returns existing
+            coEvery { progressDao.getProgress("id01") } returns
+                ProgressEntity("id01", "chap_2.html", scrollIndex = 7, scrollOffset = 30, lastReadAt = 99L)
+
+            newRepo().addWebBook(FakeAdapter.WORK_URL, overwrite = true).getOrThrow()
+
+            // 範囲内（新3章の chap_2）は無変更＝スクロール位置も読書順も一切動かさない。
+            coVerify(exactly = 0) { progressDao.updatePosition(any(), any(), any(), any(), any()) }
+        } finally {
+            filesDir.deleteRecursively()
+        }
+    }
+
+    // ── clamp 判定の純関数（clampedChapterFilename）──────────────────────────────
+
+    @Test
+    fun `clampedChapterFilename - 範囲外は最終章・境界と範囲内は null・規約外と章数0も null`() {
+        // 範囲外（話数減）→ 最終章のファイル名へ丸める。
+        assertEquals("chap_3.html", clampedChapterFilename("chap_5.html", 3))
+        // 境界（ちょうど最終章）と範囲内は丸め不要。
+        assertNull(clampedChapterFilename("chap_3.html", 3))
+        assertNull(clampedChapterFilename("chap_1.html", 3))
+        // 規約外のファイル名は判断材料が無い＝安全側で触らない。
+        assertNull(clampedChapterFilename("index.html", 3))
+        // 章数0（生成失敗級の異常）は丸め先が存在しない＝触らない。
+        assertNull(clampedChapterFilename("chap_5.html", 0))
     }
 
     // ── ③ 規約ゲート: Blocked / Unsupported は Result.failure ────────────────────────

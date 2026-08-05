@@ -21,6 +21,7 @@ import com.novelreader.narou.SearchHistoryStore
 import com.novelreader.repository.BookRepository
 import com.novelreader.repository.DefaultBookRepository
 import com.novelreader.viewmodel.AppErrorEvent
+import com.novelreader.viewmodel.OverwriteRequest
 import com.novelreader.viewmodel.ProcessingSource
 import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.viewmodel.ProcessingStateHub
@@ -115,6 +116,20 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
         aggregationKey: String? = null,
     ) {
         _errorEvents.trySend(AppErrorEvent(msg, retryUri, openUrl, transient, aggregationKey))
+    }
+
+    // 上書き確認の依頼（重複拒否→確認への置換・2026-08-05 仕様）。Service（PDF）が Duplicate を検出した
+    // ときに UI へ「上書きしますか」を問うための搬送路。errorEvents と同じ Channel 流儀だが、消費側
+    // （BookshelfViewModel）は受けて StateFlow へ積み替える＝ユーザーが選ぶまで表示を保持する必要がある
+    // ため（プロンプトは一度きりのイベントでなく決定待ちの状態。_importPrompt と同じ理由）。
+    // Web 取込の Duplicate は VM 内で完結する（VM 自身が検出者）ため、この経路は通らない。
+    private val _overwritePrompts = Channel<OverwriteRequest>(Channel.BUFFERED)
+    val overwritePrompts: Flow<OverwriteRequest> = _overwritePrompts.receiveAsFlow()
+
+    /** Service から上書き確認を依頼する（VM 不在＝アプリ滞在外なら Channel にバッファされ、
+     *  次に本棚が開いた時点でダイアログとして現れる）。 */
+    fun requestOverwritePrompt(request: OverwriteRequest) {
+        _overwritePrompts.trySend(request)
     }
 
     /** バッファ済みエラーイベントを今あるだけ吸い出す（無ければ空リスト・待たない）。

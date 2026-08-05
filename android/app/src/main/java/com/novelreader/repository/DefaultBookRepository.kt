@@ -76,8 +76,8 @@ class DefaultBookRepository(
     // 手書き DI（NovelReaderApplication）と既存テストの生成コードを一切変えないため。テストの差替継ぎ目は
     // 従来どおり DAO/関数の粒度で足りている（協力クラスは同じ注入物から決定的に組み上がる）。
     private val pendingJobs = PendingJobStore(context, pendingJobDao)
-    private val pdfImporter = PdfBookImporter(context, bookDao, pendingJobs, extractBook)
-    private val webImporter = WebBookImporter(context, bookDao, registry)
+    private val pdfImporter = PdfBookImporter(context, bookDao, progressDao, pendingJobs, extractBook)
+    private val webImporter = WebBookImporter(context, bookDao, progressDao, registry)
     private val libraryDeleter = LibraryDeleter(context, bookDao, progressDao, webNovelDao, webReadingProgressDao, runInTransaction)
     private val progressStore = ReadingProgressStore(progressDao, webReadingProgressDao)
 
@@ -119,14 +119,16 @@ class DefaultBookRepository(
     override suspend fun addBook(
         pdfUri: Uri,
         ncode: Ncode?,
+        overwrite: Boolean,
         onProgress: (step: Int, stepLocalPercent: Float, phase: String, title: String) -> Unit,
-    ): Result<AddBookResult> = pdfImporter.addBook(pdfUri, ncode, onProgress)
+    ): Result<AddBookResult> = pdfImporter.addBook(pdfUri, ncode, overwrite, onProgress)
 
     // 実装は WebBookImporter（P3 裁定＝pending_jobs を使わない理由などはそちら）。
     override suspend fun addWebBook(
         inputUrl: String,
+        overwrite: Boolean,
         onProgress: ((Int, String) -> Unit)?,
-    ): Result<AddBookResult> = webImporter.addWebBook(inputUrl, onProgress)
+    ): Result<AddBookResult> = webImporter.addWebBook(inputUrl, overwrite, onProgress)
 
     // ── 処理キューの永続化（pending_jobs）: 実装は PendingJobStore（Mutex 直列化の why はそちら）──
     override suspend fun addPendingJob(uri: String, displayName: String) = pendingJobs.add(uri, displayName)

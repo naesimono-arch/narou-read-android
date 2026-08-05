@@ -72,6 +72,9 @@ class BookRepositoryTest {
         every { context.cacheDir } returns testCacheDir
         bookDao = mockk(relaxed = true)
         progressDao = mockk(relaxed = true)
+        // clamp（上書き/復元後の読書位置丸め）が読む行。relaxed の自動生成 mock でなく「進捗なし」を
+        // 既定に固定し、clamp を検証するテストだけが実値を上書きする（AddWebBookTest と同流儀）。
+        coEvery { progressDao.getProgress(any()) } returns null
         pendingJobDao = mockk(relaxed = true)
         webReadingProgressDao = FakeWebReadingProgressDao()
         // 検証対象の DAO だけ明示注入する（webNovelDao 等の残りはデフォルト引数のまま＝
@@ -824,6 +827,47 @@ class BookRepositoryTest {
             assertEquals("重い抽出は走らない（変換前遮断は不変）", emptyList<String>(), extractedIds)
             coVerify(exactly = 0) { bookDao.insertBook(any()) }
             coVerify(exactly = 0) { bookDao.updateRestoredContent(any(), any(), any(), any()) }
+        } finally {
+            filesDir.deleteRecursively()
+            cacheDir.deleteRecursively()
+        }
+    }
+
+    // ── 上書きモード（重複拒否の撤廃・2026-08-05 仕様）: overwrite=true は本文が実在しても
+    //    Duplicate にせず、既存行を保持したまま再変換で差し替える（Web 経路 AddWebBookTest ②'' の PDF 版）──
+
+    @Test
+    fun `addBook - overwrite はハッシュ一致・本文実在でも既存行へ再変換で差し替える（行数不変）`() = runTest {
+        val filesDir = createTempDir(prefix = "pdfOverwriteFiles")
+        val cacheDir = createTempDir(prefix = "pdfOverwriteCache")
+        try {
+            every { context.filesDir } returns filesDir
+            every { context.cacheDir } returns cacheDir
+            val pdfUri = mockk<Uri>(relaxed = true)
+            every { pdfUri.toString() } returns "content://docs/ovw1"
+            val pdfBytes = "ovw pdf bytes".toByteArray()
+            every { context.contentResolver.openInputStream(pdfUri) } returns ByteArrayInputStream(pdfBytes)
+            val hash = sha256Hex(ByteArrayInputStream(pdfBytes))
+
+            // 既存行: 本文実体あり＝overwrite=false なら上のテストのとおり Duplicate になる前提。
+            val dir = File(filesDir, "novels/live5678").apply { mkdirs() }
+            File(dir, "index.html").writeText("<html>alive</html>")
+            val existing = BookEntity("live5678", "生存本", dir.absolutePath, "著", contentSha256 = hash)
+            coEvery { bookDao.findByContentSha256(hash) } returns existing
+
+            val extractedIds = mutableListOf<String>()
+            val result = restoreRepoWith(extractedIds).addBook(pdfUri, overwrite = true)
+
+            val added = result.getOrThrow() as BookRepository.AddBookResult.Added
+            assertTrue("上書きは復元経路（既存行保持の部分 UPDATE）を通る", added.restored)
+            assertEquals("id は不変＝行数不変（重複行を作らない）", "live5678", added.book.id)
+            // 抽出は既存 id で実際に走り、同じ規約ディレクトリへ本文が作り直される。
+            assertEquals(listOf("live5678"), extractedIds)
+            assertTrue(File(filesDir, "novels/live5678/index.html").exists())
+            coVerify(exactly = 1) { bookDao.updateRestoredContent("live5678", dir.absolutePath, hash, any()) }
+            coVerify(exactly = 0) { bookDao.insertBook(any()) }
+            // 進捗行の削除は通らない＝読書位置/栞/読了/追加日が残る（復元と同じ実装保証）。
+            coVerify(exactly = 0) { progressDao.deleteByBookId(any()) }
         } finally {
             filesDir.deleteRecursively()
             cacheDir.deleteRecursively()

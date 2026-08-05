@@ -5,6 +5,7 @@ import android.net.Uri
 import android.util.Log
 import com.novelreader.data.BookDao
 import com.novelreader.data.BookEntity
+import com.novelreader.data.ProgressDao
 import com.novelreader.narou.model.Ncode
 import com.novelreader.pdf.BookMeta
 import com.novelreader.pdf.CorruptedPdfError
@@ -40,6 +41,8 @@ private const val TAG = "BookRepository"
 internal class PdfBookImporter(
     private val context: Context,
     private val bookDao: BookDao,
+    // 上書き取込後の読書位置 clamp（章数が減ったとき最終章へ丸める）に使う。読み書きとも progress 行のみ。
+    private val progressDao: ProgressDao,
     private val pendingJobs: PendingJobStore,
     private val extractBook: (pdfFile: File, bookId: String, outputDir: File, onProgress: PdfProgress) -> BookMeta,
 ) {
@@ -77,10 +80,12 @@ internal class PdfBookImporter(
             }
         }
 
-    /** PDFをキャッシュにコピーし、ネイティブ(PDFBox)抽出でHTML生成後にRoomへ登録する。 */
+    /** PDFをキャッシュにコピーし、ネイティブ(PDFBox)抽出でHTML生成後にRoomへ登録する。
+     *  overwrite の意味論は [BookRepository.addBook] の契約コメント参照（重複を弾かず既存行へ差し替える）。 */
     suspend fun addBook(
         pdfUri: Uri,
         ncode: Ncode?,
+        overwrite: Boolean,
         onProgress: (step: Int, stepLocalPercent: Float, phase: String, title: String) -> Unit,
     ): Result<AddBookResult> = withContext(Dispatchers.IO) {
         // withContext(Dispatchers.IO) の CoroutineScope を捕捉する。抽出の進捗コールバック（非 suspend）から
@@ -121,7 +126,9 @@ internal class PdfBookImporter(
                 // 復元モード（本文欠落→再取込・2026-07-29 案B/C）: 同一内容の既存行があっても本文実体が
                 // 欠落していれば Duplicate で止めず、既存行（id・進捗・栞・addedAt）を保持したまま本文だけ
                 // 再生成する＝重複行を作らない。欠落の機序＝uninstall→Auto Backup が DB のみ復元。
-                val restoreByHash = existingByHash?.takeIf { !it.hasContent(context.filesDir) }
+                // 上書きモード（2026-08-05 仕様＝重複拒否の撤廃）: 確認ダイアログで「上書き」を選んだ
+                // 再投入（overwrite=true）は本文が生きていても同じ経路へ流す（既存行保持のまま再変換）。
+                val restoreByHash = existingByHash?.takeIf { overwrite || !it.hasContent(context.filesDir) }
                 if (existingByHash != null && restoreByHash == null) {
                     // outputDir はまだ mkdirs していないので掃除不要。変換の成否が確定した（＝重複）ので
                     // 成功/重複時と同じく pending_jobs を落とし永続権限も返す（NonCancellable で保護）。
@@ -190,7 +197,10 @@ internal class PdfBookImporter(
                 // かつ本文は直前に再生成済み＝hasContent true）がここでヒットし、Duplicate 判定が
                 // 生成したての本文を deleteRecursively してしまう。復元中は照合自体をスキップする。
                 val existing = if (restoreByHash != null) null else bookDao.findByTitleAndAuthor(meta.title, meta.author)
-                if (existing != null && existing.hasContent(context.filesDir)) {
+                // overwrite=true は Duplicate 判定を外し下の合流分岐（既存行への差し替え）へ流す:
+                // 同一作品の改稿版 PDF（内容が違う＝ハッシュ不一致）はここでしか既存行と出会えないため、
+                // この1条件が「上書きしますか」確認後の PDF 差し替えの実体になる。
+                if (existing != null && existing.hasContent(context.filesDir) && !overwrite) {
                     outputDir.deleteRecursively()
                     // 変換の成否が確定した（＝重複と判明）ので pending_jobs を落とす。DB 書き込みを伴わない
                     // が settlePendingJob は権限解放も行うため、登録成功時と同じく NonCancellable で保護する。
@@ -221,6 +231,9 @@ internal class PdfBookImporter(
                         // （復元自体は成立しており、権限情報を後退させない）。
                         val newSourceUri = heldWritableSourceUri(pdfUri) ?: restoreTarget.sourceUri
                         bookDao.updateRestoredContent(restoreTarget.id, finalDir.absolutePath, contentSha256, newSourceUri)
+                        // 読書位置の clamp（上書き/復元共通・Web 経路と同じ機序）: 差し替え後の章数より
+                        // 先を指す進捗は開けない章になるため最終章の先頭へ丸める（clampedChapterFilename の why）。
+                        clampReadingPosition(progressDao, restoreTarget.id, chapterFileCount(finalDir))
                         pendingJobs.settleJob(pdfUri)
                         restoreTarget.copy(
                             htmlDirPath = finalDir.absolutePath,

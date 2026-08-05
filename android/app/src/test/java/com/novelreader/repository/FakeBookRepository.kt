@@ -95,6 +95,7 @@ class FakeBookRepository : BookRepository {
     override suspend fun addBook(
         pdfUri: Uri,
         ncode: Ncode?,
+        overwrite: Boolean,
         onProgress: (step: Int, stepLocalPercent: Float, phase: String, title: String) -> Unit,
     ): Result<BookRepository.AddBookResult> = addBookResult
 
@@ -102,11 +103,19 @@ class FakeBookRepository : BookRepository {
     var addWebBookResult: Result<BookRepository.AddBookResult> =
         Result.failure(NotImplementedError("addWebBookResult をテストで設定してください"))
 
+    /** addWebBook 呼び出しの記録（url→overwrite）。上書き確認フロー（確認→overwrite=true 再投入・
+     *  キャンセル→再投入なし）を VM テストが呼び出し実績で検証するためのフック。 */
+    val addWebBookCalls = mutableListOf<Pair<String, Boolean>>()
+
     // Web 取込の実挙動検証は DefaultBookRepository 側（AddWebBookTest）で行うため、Fake は結果を返すだけ。
     override suspend fun addWebBook(
         inputUrl: String,
+        overwrite: Boolean,
         onProgress: ((Int, String) -> Unit)?,
-    ): Result<BookRepository.AddBookResult> = addWebBookResult
+    ): Result<BookRepository.AddBookResult> {
+        addWebBookCalls += inputUrl to overwrite
+        return addWebBookResult
+    }
 
     override suspend fun addPendingJob(uri: String, displayName: String) {
         pendingJobs[uri] = PendingJobEntity(uri, displayName, pendingJobs.size.toLong())

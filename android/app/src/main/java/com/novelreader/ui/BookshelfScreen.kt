@@ -150,6 +150,7 @@ fun BookshelfScreen(
     val processingState by viewModel.processingState.collectAsStateWithLifecycle()
     // 複数PDF取込で「なろう形式でないPDF」が混在したときの確認プロンプト（null=非表示）。
     val importPrompt by viewModel.importPrompt.collectAsStateWithLifecycle()
+    val overwritePrompt by viewModel.overwritePrompt.collectAsStateWithLifecycle()
     // 本文欠落→再取込（2026-07-29 案B＋案C、同日 案X 増補）。bookId→復旧手段（null=初回検出前＝空扱い）。
     val reimportPlans = viewModel.reimportPlans.collectAsStateWithLifecycle().value ?: emptyMap()
     val sweepBannerVisible by viewModel.sweepBannerVisible.collectAsStateWithLifecycle()
@@ -496,6 +497,36 @@ fun BookshelfScreen(
                     }
                     TextButton(onClick = { viewModel.dismissImportPrompt() }) { Text("キャンセル") }
                 }
+            },
+        )
+    }
+
+    // ── 重複取込→上書き確認ダイアログ（重複拒否の撤廃・2026-08-05 仕様）─────────────────
+    // 既存の再取込ダイアログ群の語彙（NovelReaderAlertDialog・『題名』見出し・「読書位置としおりは
+    // 残ります」・「やめる」）をそのまま再利用する＝新しい意匠は発明しない。複数件は現行の
+    // 「N件は取り込み済みです」集約に対応して1ダイアログにまとめる（1件なら題名を出し個別情報を捨てない）。
+    if (overwritePrompt.isNotEmpty()) {
+        val n = overwritePrompt.size
+        NovelReaderAlertDialog(
+            onDismissRequest = { viewModel.dismissOverwritePrompt() },
+            title = {
+                Text(
+                    if (n == 1) "『${overwritePrompt.first().existingTitle}』は取り込み済みです"
+                    else "${n}件は取り込み済みです",
+                )
+            },
+            text = {
+                // 失うものが無いこと（進捗・栞の保持）と、何が起きるか（置換・新着話の追補）だけを短く言う
+                // ＝再取込ダイアログ群と同じ「次に何が起きるか＋失わないもの」の文型（sweep ダイアログの why）。
+                Text("同じ作品がすでに本棚にあります。もう一度取り込んで置き換えますか？新しい話があれば追加されます。読書位置としおりは残ります。")
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmOverwrite() }) {
+                    Text(if (n == 1) "上書きする" else "${n}件を上書きする")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissOverwritePrompt() }) { Text("やめる") }
             },
         )
     }

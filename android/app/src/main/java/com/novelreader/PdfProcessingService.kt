@@ -125,6 +125,9 @@ class PdfProcessingService : Service() {
         val uri = intent.data ?: return START_NOT_STICKY
         // 縦書きPDF取り込み（ADR 0011）から渡る紐付け対象 ncode。通常のファイル選択取り込みでは未指定＝null。
         val ncode = intent.getStringExtra(EXTRA_NCODE)
+        // 上書き確認済みの再投入（BookshelfViewModel.confirmOverwrite）のみ true。キュー項目ごとに運ぶ
+        // ＝通常取込と上書き再投入が同一キューに混在しても互いの意味論を汚さない。
+        val overwrite = intent.getBooleanExtra(EXTRA_OVERWRITE, false)
 
         // べき等ガード（UX監査 F-G 公理3）: 既にキュー待ち／処理中の同一 URI は変換前に弾く。
         // これで「同じ PDF を連続で追加」→ 蔵書2冊＋変換二重実行（旧 uriQueue.add の重複チェック無）を防ぐ。
@@ -135,7 +138,7 @@ class PdfProcessingService : Service() {
             if (!activeUris.register(uri.toString())) {
                 Pair(true, false)
             } else {
-                uriQueue.add(QueuedUri(uri, ncode))
+                uriQueue.add(QueuedUri(uri, ncode, overwrite))
                 totalCount++
                 isStopping = false  // 新規追加で停止状態を解除（同一インスタンス再利用時の取りこぼし防止）
                 val start = if (!isLoopRunning) { isLoopRunning = true; true } else false
@@ -303,7 +306,7 @@ class PdfProcessingService : Service() {
                         coroutineScope {
                             // myGeneration を渡す: このループが旧世代化（onTimeout でスコープ差し替え）した後に
                             // 遅延キャンセルされた1冊の finally が、新世代バッチの doneCount を汚さないようにするため。
-                            val bookJob = launch { processSingleUri(uri, item.ncode, myGeneration) }
+                            val bookJob = launch { processSingleUri(uri, item.ncode, item.overwrite, myGeneration) }
                             // 登録と停止済み再確認をアトミックに行う（launch 直後・登録前に
                             // ACTION_STOP が来た場合の cancel 取り逃しを防ぐ）。
                             lock.withLock {
@@ -348,7 +351,7 @@ class PdfProcessingService : Service() {
         }
     }
 
-    private suspend fun processSingleUri(uri: Uri, ncode: String? = null, myGeneration: Int = loopGeneration) {
+    private suspend fun processSingleUri(uri: Uri, ncode: String? = null, overwrite: Boolean = false, myGeneration: Int = loopGeneration) {
         val app = application as NovelReaderApplication
         val repository = app.repository
         // この本の位置（分子）は開始時点のスナップショットで固定する。
@@ -363,7 +366,8 @@ class PdfProcessingService : Service() {
 
         try {
             // ncode（縦書きPDF取り込み ADR 0011 経由のみ非 null）を新規登録時の紐付けとして伝搬する。
-            val result = repository.addBook(uri, ncode?.let { Ncode(it) }, onProgress = { step, stepLocalPercent, phase, title ->
+            // overwrite は上書き確認済みの再投入のみ true（重複を弾かず既存行へ差し替える）。
+            val result = repository.addBook(uri, ncode?.let { Ncode(it) }, overwrite, onProgress = { step, stepLocalPercent, phase, title ->
                 val progress = (step * 25 + stepLocalPercent * 25).toInt().coerceIn(0, 100)
                 // 分母（総件数）は毎回ライブ読みする。なぜスナップショットにしないか:
                 // この本の処理中にキューへ追加された分（totalCount 増加）を即座に「n/m」へ
@@ -394,17 +398,20 @@ class PdfProcessingService : Service() {
                         // 既に同じ出し分けを持っており、Service 経由（PDF 取込）だけが復元でも
                         // 「変換完了／追加しました」を出していた＝同じ出来事の呼び名が導線で食い違っていた。
                         is com.novelreader.repository.BookRepository.AddBookResult.Added ->
-                            showCompletionNotification(outcome.book.id, outcome.book.title, outcome.restored)
-                        // 既に蔵書済み（べき等スキップ）は完了ではなく「取込済み」をフィードバックする。
-                        // 前面は in-app Snackbar・背面はトレイ通知（上の onStartCommand 側と同じ原則）。
-                        // aggregationKey は onStartCommand 側の重複通知と同じ同型印（一括投入時の集約対象）。
-                        is com.novelreader.repository.BookRepository.AddBookResult.Duplicate ->
-                            if (app.isAppInForeground) {
-                                app.emitError(
-                                    duplicateMessage(outcome.existing.title),
-                                    aggregationKey = com.novelreader.viewmodel.AppErrorEvent.KEY_DUPLICATE_IMPORT,
-                                )
-                            } else showDuplicateNotification(outcome.existing.title)
+                            showCompletionNotification(outcome.book.id, outcome.book.title, outcome.restored, overwrite)
+                        // 既に蔵書済み: 重複拒否の撤廃（2026-08-05 仕様）＝棄却通知で終わりにせず
+                        // 「上書きしますか」の確認を UI へ依頼する（BookshelfViewModel が状態に保持し、
+                        // 本棚ルートのダイアログで確認→「上書きする」で overwrite=true の再投入が戻ってくる）。
+                        // 背面時は従来どおりトレイ通知でも「取込済み」を知らせる: ダイアログはアプリ内に
+                        // しか出せず、通知が無いと背面取込の結末が無言になるため（通知から戻ると確認が待っている）。
+                        is com.novelreader.repository.BookRepository.AddBookResult.Duplicate -> {
+                            app.requestOverwritePrompt(
+                                com.novelreader.viewmodel.OverwriteRequest.Pdf(
+                                    uri.toString(), ncode, outcome.existing.title,
+                                ),
+                            )
+                            if (!app.isAppInForeground) showDuplicateNotification(outcome.existing.title)
+                        }
                     }
                     app.updateProcessingState(null)
                 },
@@ -590,12 +597,28 @@ class PdfProcessingService : Service() {
      *   新規登録と復元は「本が使える状態になった」点で同義のため同じ通知・同じ deep link を使い、
      *   文言だけ出し分ける。復元側の本文は in-app Snackbar（BookshelfViewModel）の
      *   「〜を復元しました」と同一の言い回しに揃える＝同じ出来事を導線ごとに別の言葉で呼ばない。 */
-    // restored に既定値を付けない: 既定 false は新しい呼び出しが配線を忘れても無音で「変換完了」に
+    // restored/overwrite に既定値を付けない: 既定 false は新しい呼び出しが配線を忘れても無音で「変換完了」に
     // 化ける欠陥クラス（skins/ShelfFace.kt 冒頭の束の設計と同じ理由）＝全呼び出しで明示させる。
-    private fun showCompletionNotification(bookId: String, title: String, restored: Boolean) {
+    // overwrite は「上書き確認からの再投入」印。同じ restored 経路でも出来事が違う（欠けた本文の復旧でなく
+    // 生きた本文の置換）ため呼び名を分ける＝in-app 側（BookshelfViewModel の Web 取込）と同じ出し分け。
+    // overwrite=true でも restored=false（確認〜再投入の間に本が削除され新規登録へ化けた稀ケース）は
+    // 事実どおり「追加しました」と告げる。
+    private fun showCompletionNotification(bookId: String, title: String, restored: Boolean, overwrite: Boolean) {
         val notification = NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
-            .setContentTitle(if (restored) "復元完了" else "変換完了")
-            .setContentText(if (restored) "$title を復元しました" else "$title を追加しました")
+            .setContentTitle(
+                when {
+                    overwrite && restored -> "上書き完了"
+                    restored -> "復元完了"
+                    else -> "変換完了"
+                },
+            )
+            .setContentText(
+                when {
+                    overwrite && restored -> "$title を上書きしました"
+                    restored -> "$title を復元しました"
+                    else -> "$title を追加しました"
+                },
+            )
             .setSmallIcon(R.drawable.ic_notification)
             .setAutoCancel(true)
             // タップで該当の本の読書画面へ deep link する（M11）。
@@ -638,6 +661,9 @@ class PdfProcessingService : Service() {
         const val ACTION_STOP = "com.novelreader.action.STOP_PROCESSING"
         // 縦書きPDF取り込み（ADR 0011）で、取り込む本に紐付ける ncode を Intent で運ぶ extra キー。
         const val EXTRA_NCODE = "com.novelreader.extra.NCODE"
+        // 上書き確認済みの再投入（重複拒否の撤廃・2026-08-05）を示す extra キー。true のとき repository の
+        // 重複判定を外し、既存行を保持したまま本文を差し替える（BookRepository.addBook の overwrite 契約）。
+        const val EXTRA_OVERWRITE = "com.novelreader.extra.OVERWRITE"
         // 進行中（FGS）通知専用。終端通知（完了/取込済み/失敗）をこの ID で出してはならない:
         // FGS 通知になった通知はサービス停止時にシステムが除去するため、投稿した瞬間に消える
         // （2026-07-14 実機バグの真因）。新着話通知は 2001（NewEpisodeCheckWorker）。
@@ -656,7 +682,9 @@ class PdfProcessingService : Service() {
  * 処理キューの1要素。取り込み対象 URI と、それに紐付ける ncode（縦書きPDF取り込み ADR 0011 経由のみ非 null）。
  * べき等ガード（activeUris）は URI キーのままにし、ncode は insert 時の付帯情報としてのみ運ぶ。
  */
-private data class QueuedUri(val uri: Uri, val ncode: String?)
+// overwrite: 上書き確認済みの再投入（既存行へ差し替え）。既定を持たせない＝積む側で常に明示させる
+// （restored と同じ「配線忘れが無音で通常取込に化ける」欠陥クラスの予防）。
+private data class QueuedUri(val uri: Uri, val ncode: String?, val overwrite: Boolean)
 
 /**
  * 取込中（キュー待ち＋変換中）の URI 集合を管理する純ロジック。二重取込のべき等ガード

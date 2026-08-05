@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.novelreader.data.BookDao
 import com.novelreader.data.BookEntity
+import com.novelreader.data.ProgressDao
 import com.novelreader.pdf.ChapterProcessor
 import com.novelreader.pdf.HtmlExporter
 import com.novelreader.pdf.RawChapter
@@ -30,12 +31,15 @@ private const val TAG = "BookRepository"
 internal class WebBookImporter(
     private val context: Context,
     private val bookDao: BookDao,
+    // 上書き取込後の読書位置 clamp（話数が減ったとき最終章へ丸める）に使う。読み書きとも progress 行のみ。
+    private val progressDao: ProgressDao,
     private val registry: SiteAdapterRegistry,
 ) {
 
     /** Web小説を取り込む（汎用Web小説DL基盤・P3）。詳細契約は [BookRepository.addWebBook] を参照。 */
     suspend fun addWebBook(
         inputUrl: String,
+        overwrite: Boolean,
         onProgress: ((Int, String) -> Unit)?,
     ): Result<AddBookResult> = withContext(Dispatchers.IO) {
         // なぜ pending_jobs（永続キュー）を使わないか（P3 裁定）: PDF 取込は SAF 権限の再取得や OEM kill 後の
@@ -60,8 +64,11 @@ internal class WebBookImporter(
             // 復元モード（本文欠落→再取込・2026-07-29 案B/C）: 既存行があっても本文実体が欠落していれば
             // Duplicate で止めず、既存行（id・進捗・栞・addedAt）を保持したまま再取得して本文だけ作り直す
             // ＝重複行を作らない（分岐④「Webから再取得」の実体）。
+            // 上書きモード（2026-08-05 仕様＝重複拒否の撤廃）: ユーザーが確認ダイアログで「上書き」を
+            // 選んだ再投入（overwrite=true）は、本文実体が生きていても同じ復元経路へ流す＝既存行を保持した
+            // まま再取得して本文を差し替える。連載の新着話はこの再取得に含まれる（U1「続き取得」の実体）。
             val existingWeb = bookDao.findBySourceUrl(workUrl)
-            val restoreTarget = existingWeb?.takeIf { !it.hasContent(context.filesDir) }
+            val restoreTarget = existingWeb?.takeIf { overwrite || !it.hasContent(context.filesDir) }
             if (existingWeb != null && restoreTarget == null) {
                 return@runCatching AddBookResult.Duplicate(existingWeb)
             }
@@ -100,9 +107,20 @@ internal class WebBookImporter(
                     // ⑥' 復元の確定: 既存行を部分 UPDATE（updateRestoredContent）＝id・進捗・栞・addedAt・
                     // sourceUrl/sourceSite 不変。contentSha256 は再取得後の最新本文で更新する（連載の追補が
                     // あれば指紋も変わるのが正）。sourceUri は Web 本では常に NULL＝既存値をそのまま渡す。
-                    bookDao.updateRestoredContent(
-                        restoreTarget.id, outputDir.absolutePath, contentSha256, restoreTarget.sourceUri,
-                    )
+                    // 確定の2書き込み（行 UPDATE→進捗 clamp）は NonCancellable で最後まで通す:
+                    // この途中でキャンセルされると下の catch(Throwable) が生成済み本文を消し、
+                    // 「行だけ更新済み・本文なし」の torn 状態になる（PDF 経路の確定が NonCancellable で
+                    // 保護されているのと同じ理由。生成完了後の確定は数msの DB 書きのみ＝中断を許す価値がない）。
+                    withContext(kotlinx.coroutines.NonCancellable) {
+                        bookDao.updateRestoredContent(
+                            restoreTarget.id, outputDir.absolutePath, contentSha256, restoreTarget.sourceUri,
+                        )
+                        // 読書位置の clamp（上書き/復元共通）: 新しい一式の章数より先の章を指す progress は
+                        // 開けない章＝壊れた再開点になる（作者が話を削除した・古い版へ戻った等）。最終章の
+                        // 先頭へ丸め、実際に存在する位置から再開できるようにする。読了印（reachedEnd）と
+                        // lastReadAt は実績なので触らない（clampReadingPosition の KDoc 参照）。
+                        clampReadingPosition(restoreTarget.id, finalChapters.size)
+                    }
                     return@runCatching AddBookResult.Added(
                         restoreTarget.copy(htmlDirPath = outputDir.absolutePath, contentSha256 = contentSha256),
                         restored = true,
@@ -151,6 +169,44 @@ internal class WebBookImporter(
             },
         )
     }
+
+    // 進捗 clamp の実体は top-level の [clampReadingPosition]（PDF 上書き経路＝PdfBookImporter と共有）。
+    private suspend fun clampReadingPosition(bookId: String, newChapterCount: Int) =
+        clampReadingPosition(progressDao, bookId, newChapterCount)
+}
+
+/** 進捗行が新章数の外を指していたら最終章の先頭へ丸めて書き戻す（判定の正本は [clampedChapterFilename]）。
+ *  Web/PDF 両方の上書き・復元経路が共有する。lastReadAt は既存値をそのまま渡す: updatePosition は
+ *  lastReadAt も書くクエリだが、clamp は読書行為ではないため「最近読んだ順」の並びを動かしてはならない。
+ *  reachedEnd は updatePosition が触らない設計（sticky・ProgressDao の why）なので追加の防御は不要。 */
+internal suspend fun clampReadingPosition(progressDao: ProgressDao, bookId: String, newChapterCount: Int) {
+    val progress = progressDao.getProgress(bookId) ?: return
+    val clamped = clampedChapterFilename(progress.lastReadFilename, newChapterCount) ?: return
+    // スクロール位置は旧章のものなので持ち越さない（章が変わる＝座標系が変わる。章先頭 0,0 が正）。
+    progressDao.updatePosition(bookId, clamped, 0, 0, progress.lastReadAt)
+}
+
+// 章本文ファイル名の規約（HtmlExporter が chap_1.html..chap_N.html を生成する）に対する clamp 判定。
+private val CHAPTER_FILENAME = Regex("""chap_(\d+)\.html""")
+
+/** 出力一式に含まれる章本文ファイル（chap_N.html）の枚数。PDF 上書き経路の clamp 基準
+ *  （PDF は抽出結果の章数を TOC のような一次値で持たないため、生成物から数えるのが正）。 */
+internal fun chapterFileCount(htmlDir: java.io.File): Int =
+    htmlDir.listFiles()?.count { CHAPTER_FILENAME.matches(it.name) } ?: 0
+
+/**
+ * 読書位置の clamp 判定（純関数・JVM テスト対象）。上書き/復元の再取得で章数が減ったとき、
+ * 進捗が指す章（chap_N.html）が新しい一式に存在しなければ最終章のファイル名を返す（呼び出し側が
+ * その章の先頭へ丸める）。丸め不要（範囲内・章数0・規約外のファイル名）なら null＝進捗に触らない。
+ *
+ * なぜ「消す」でなく「最終章へ丸める」か: 進捗行の削除は読書位置・読了印・最近読んだ順の並びを
+ * まとめて失う過剰反応。存在する最も近い位置（＝最終章）へ寄せれば、ユーザーは違和感なく再開できる。
+ * 規約外のファイル名（防御・通常は発生しない）は判断材料が無いので触らない方が安全側。
+ */
+internal fun clampedChapterFilename(lastReadFilename: String, newChapterCount: Int): String? {
+    if (newChapterCount < 1) return null
+    val n = CHAPTER_FILENAME.matchEntire(lastReadFilename)?.groupValues?.get(1)?.toIntOrNull() ?: return null
+    return if (n > newChapterCount) "chap_$newChapterCount.html" else null
 }
 
 /**
