@@ -2,7 +2,6 @@ package com.novelreader.narou
 
 import com.novelreader.narou.model.NarouAttr
 import com.novelreader.narou.model.DiscoveryQuery
-import com.novelreader.narou.model.DiscoveryResult
 import com.novelreader.narou.model.NarouLastup
 import com.novelreader.narou.model.NarouNovel
 import com.novelreader.narou.model.NarouNovelType

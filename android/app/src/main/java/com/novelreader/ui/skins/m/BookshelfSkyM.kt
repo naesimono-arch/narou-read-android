@@ -96,7 +96,6 @@ import com.novelreader.ui.theme.MoonSlateSeizu
 import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationReveal
 import com.novelreader.ui.theme.OnStarSeizu
-import com.novelreader.ui.theme.PanelSeizu
 import com.novelreader.ui.theme.ResumeGradEndSeizu
 import com.novelreader.ui.theme.ResumeGradStartSeizu
 import com.novelreader.ui.theme.RubySeizu

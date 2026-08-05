@@ -8,7 +8,6 @@ import com.novelreader.data.BookEntity
 import com.novelreader.data.PendingJobDao
 import com.novelreader.data.PendingJobEntity
 import com.novelreader.data.ProgressDao
-import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelDao
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.data.WebReadingProgressDao

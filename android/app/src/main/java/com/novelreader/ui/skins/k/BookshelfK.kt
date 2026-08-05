@@ -116,7 +116,6 @@ import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationReveal
 import com.novelreader.ui.theme.NovelReaderAlertDialog
 import com.novelreader.ui.theme.Spacing
-import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
 import com.novelreader.domain.ScanProgress
 import com.novelreader.domain.ShelfItem

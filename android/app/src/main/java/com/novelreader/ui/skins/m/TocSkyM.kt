@@ -61,7 +61,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import com.novelreader.model.TocEntry
 import com.novelreader.ui.TocState
 import com.novelreader.ui.theme.DimSeizu
 import com.novelreader.ui.theme.FaintStarSeizu

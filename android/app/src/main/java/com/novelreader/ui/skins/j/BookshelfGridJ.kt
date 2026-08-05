@@ -11,7 +11,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -59,7 +58,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -93,7 +91,6 @@ import com.novelreader.ui.theme.ResumeInkPortal
 import com.novelreader.ui.theme.ResumeSurfacePortal
 import com.novelreader.ui.theme.SoftPortal
 import com.novelreader.ui.theme.Spacing
-import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
 import com.novelreader.domain.ShelfItem
 import com.novelreader.domain.chapterNumberOf

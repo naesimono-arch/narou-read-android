@@ -103,7 +103,6 @@ import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.StarGlowInnerSeizu
 import com.novelreader.ui.theme.StarSeizu
 import com.novelreader.ui.theme.TextSeizu
-import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
 import com.novelreader.domain.ShelfItem
 import com.novelreader.domain.chapterNumberOf

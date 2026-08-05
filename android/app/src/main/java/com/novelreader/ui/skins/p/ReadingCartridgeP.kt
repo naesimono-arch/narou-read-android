@@ -41,7 +41,6 @@ import com.novelreader.ui.theme.LcdHiCartridge
 import com.novelreader.ui.theme.LcdInkCartridge
 import com.novelreader.ui.theme.LineCartridge
 import com.novelreader.ui.theme.MinchoFamily
-import com.novelreader.ui.theme.PlasticCartridge
 import com.novelreader.ui.theme.RedCartridge
 import com.novelreader.ui.theme.RedLoCartridge
 import com.novelreader.ui.theme.SheetCartridge

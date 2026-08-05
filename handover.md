@@ -192,8 +192,7 @@
   **「緑のまま壊れている」**状態だったため AGP も上げる必要があった）。
   - **やること＝このブランチを取り込むかの判断と実行**（現行作業ブランチとの統合順序・タイミング）。⚠️ 取り込み前に**実機系が3つ未消化**＝
     release R8 の実機回帰・macrobenchmark 実走・`MigrationTest`（androidTest・Room 2.8.4 の `MigrationTestHelper` が旧書式 JSON を読めるかは端末で要確認）。
-  - 派生の宿題2件（本便では意図的に触っていない）: ①`:app:ktlintCheck` が2件赤＝`Probe3MeasureCost.kt:28`・`Probe4ReverseLayout.kt:22` の
-    未使用 import（**本便と無関係の既存債**・CI は continue-on-error）②Kotlin 2.2 の KT-73255 警告（Moshi の `@Json` 付き引数で多数）＝
+  - 派生の宿題（本便では意図的に触っていない）: Kotlin 2.2 の KT-73255 警告（Moshi の `@Json` 付き引数で多数）＝
     `-Xannotation-default-target` は挙動を変える指定なので方針を決めてから別便で。
 - **[実機・要再測] 本棚スクロールの「リスト面」ベースラインが未取得**（2026-08-05 にシーダーを是正した副産物）:
   `BookshelfScrollBenchmark.scrollList` はこれまで面を指定できておらず K のグリッドを測っていた。

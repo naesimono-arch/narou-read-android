@@ -10,7 +10,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -82,11 +81,9 @@ import com.novelreader.ui.theme.NovelReaderAlertDialog
 import com.novelreader.ui.theme.PanelCartridge
 import com.novelreader.ui.theme.PlasticHiCartridge
 import com.novelreader.ui.theme.PlasticLoCartridge
-import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.RedCartridge
 import com.novelreader.ui.theme.RedLoCartridge
 import com.novelreader.ui.theme.Spacing
-import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
 import com.novelreader.domain.ShelfItem
 import com.novelreader.domain.chapterNumberOf

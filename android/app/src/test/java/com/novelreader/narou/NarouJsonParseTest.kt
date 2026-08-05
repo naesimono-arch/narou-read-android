@@ -6,7 +6,6 @@ import com.squareup.moshi.Types
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import java.io.File
 
 class NarouJsonParseTest {
 
