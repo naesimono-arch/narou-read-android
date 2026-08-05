@@ -89,8 +89,9 @@ sealed interface BookshelfUiState {
      *  webNovels は (b) Web由来・未取込カード（融合本棚）。既定 emptyList は既存テスト・
      *  呼び出しの互換のため（Web カード非対応の経路は蔵書のみで従来どおり成立する）。
      *
-     *  不変条件（2026-07-29）: webNovels は**「自然昇格」適用後の正味一覧**＝蔵書へ取込済み
-     *  （books.ncode 一致）の行を含まない（[com.novelreader.domain.activeWebNovels]）。よって
+     *  不変条件（2026-07-29・判定拡張 2026-08-05）: webNovels は**「自然昇格」適用後の正味一覧**＝蔵書へ取込済み
+     *  （books.ncode 一致、または ncode 無し取込＝題名＋作者の完全一致）の行を含まない
+     *  （判定の単一正本＝[com.novelreader.domain.activeWebNovels] が使う isPromotedWeb）。よって
      *  `books.size + webNovels.size` は棚に実際に出るカード枚数と一致し、ヘッダ冊数・状態チップ件数を
      *  この2リストから素直に数えてよい。この不変条件を壊すと冊数が実カード枚数より多く出る。 */
     data class Content(

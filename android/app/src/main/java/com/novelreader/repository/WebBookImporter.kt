@@ -118,7 +118,11 @@ internal class WebBookImporter(
                     htmlDirPath = outputDir.absolutePath,
                     author = toc.meta.author ?: "",
                     addedAt = System.currentTimeMillis(),
-                    // ncode は Web 取込では持たない（なろう継続読書の紐付けは別経路で、ここでは付けない）。
+                    // ncode は Web 取込では持たない（なろう継続読書の紐付けは別経路＝NcodeLinkSheet の
+                    // 人間確定のみ。題名突合の自動推定で埋めない理由＝BookEntity.ncode の原則コメント）。
+                    // 「本棚に置く」済み同一作品との二重カードは、表示層の自然昇格が題名＋作者一致でも
+                    // 引っ込めて解消する（ShelfItems.isPromotedWeb・2026-07-29 発見バグの対処）＝
+                    // データへ推定を書かずに棚の重複だけを消す分担。
                     ncode = null,
                     contentSha256 = contentSha256,
                     shioriTipIndex = shiori.tipIndex,

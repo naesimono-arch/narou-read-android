@@ -5,7 +5,10 @@ import com.novelreader.data.BookDao
 import com.novelreader.data.BookEntity
 import com.novelreader.data.PendingJobDao
 import com.novelreader.data.ProgressDao
+import com.novelreader.data.WebNovelEntity
 import com.novelreader.data.WebReadingProgressDao
+import com.novelreader.domain.activeWebNovels
+import com.novelreader.domain.mergeShelfItems
 import com.novelreader.parser.ChapterHtmlParser
 import com.novelreader.pdf.RawChapter
 import com.novelreader.repository.BookRepository.AddBookResult
@@ -20,6 +23,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -220,6 +224,42 @@ class AddWebBookTest {
                 chap1.contains("<ruby>親<rt>よみ</rt></ruby>"),
             )
             assertTrue("中間記法のパイプが本文に残らない", !chap1.contains("|親《よみ》"))
+        } finally {
+            filesDir.deleteRecursively()
+        }
+    }
+
+    // ── ⑥ 自然昇格の通し固定（2026-07-29 発見バグ）: 「本棚に置く」済みの同一作品を URL 共有で
+    //     取り込んでも本棚に2枚並ばない。addWebBook は ncode を推定で書かない（BookEntity.ncode の
+    //     人間確定原則・なろう URL は blockedHosts で本経路を通れない＝取込は対応サイト形から行われる）ため、
+    //     同定は表示層（ShelfItems の題名＋作者一致昇格）が担う——取込→棚データ供給点の結線をここで固定する。──
+
+    @Test
+    fun `addWebBook - 本棚に置いた同一作品を URL 共有取込しても本棚に2枚並ばない（題名・作者で昇格）`() = runTest {
+        val filesDir = createTempDir(prefix = "webPromoteFiles")
+        try {
+            every { context.filesDir } returns filesDir
+            coEvery { bookDao.findBySourceUrl(any()) } returns null
+            // 挿入される BookEntity を捕捉する（relaxed の既定応答でなく実引数で棚を組むため）。
+            val inserted = slot<BookEntity>()
+            coEvery { bookDao.insertBook(capture(inserted)) } returns Unit
+            // 「本棚に置く」済みの同一作品＝なろう発見面が作った web_novels 行（ncode あり）。
+            // 題名・作者は FakeAdapter が返す作品メタと同一＝クロス投稿の同一作品を模す。
+            val shelved = WebNovelEntity(
+                ncode = "N1234AB", title = "テスト作品", writer = "テスト著者",
+                generalAllNo = 3, addedAt = 100,
+            )
+
+            val result = newRepo().addWebBook(FakeAdapter.WORK_URL)
+
+            assertTrue(result.isSuccess)
+            val book = inserted.captured
+            assertNull("ncode は推定で書かない（人間確定原則は不変）", book.ncode)
+            // 供給点（activeWebNovels）で web 行が落ち、棚は蔵書カード1枚だけになる。
+            val active = activeWebNovels(listOf(book), listOf(shelved))
+            assertTrue("同一作品の web 行は正味一覧から落ちる", active.isEmpty())
+            val items = mergeShelfItems(listOf(book), emptyMap(), active)
+            assertEquals(listOf("book:${book.id}"), items.map { it.key })
         } finally {
             filesDir.deleteRecursively()
         }

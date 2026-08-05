@@ -126,11 +126,82 @@ class ShelfItemsTest {
 
     @Test
     fun `activeWebNovels - ncode 未紐付けの蔵書は Web 行を落とさない`() {
-        // ncode=null（通常のファイル選択取込・Web取込）は昇格の材料を持たない＝素通しであること。
+        // ncode=null（通常のファイル選択取込・Web取込）で題名・作者も一致しない蔵書は
+        // 昇格の材料を持たない＝素通しであること。
         val books = listOf(book("b1", 300), book("b2", 200))
         val webs = listOf(web("N1111AA", 100))
 
         assertEquals(listOf("N1111AA"), activeWebNovels(books, webs).map { it.ncode })
+    }
+
+    // ────── Web 取込経路の自然昇格（2026-07-29 発見バグの固定） ──────
+    // addWebBook は books.ncode に null を書く意図的設計（BookEntity.ncode の人間確定原則・
+    // カクヨム等の URL になろうの ncode を知る材料が無い）のため、従来の ncode 突合だけでは
+    // 「本棚に置く」済みの同一作品カードが昇格せず、同じ作品が蔵書カードと web カードの2枚で並んだ。
+    // 同定はデータへ書かず、表示層の昇格判定を「題名＋作者の完全一致」へ広げて解消する
+    // （精度ガードの why＝ShelfItems.importedTitleWriterKeys の KDoc）。
+
+    /** Web 取込本（ncode=null・sourceUrl あり）を模す。addWebBook が挿入する BookEntity の形。 */
+    private fun webBook(id: String, title: String, author: String) = BookEntity(
+        id = id, title = title, htmlDirPath = "/p/$id", author = author,
+        addedAt = 300, sourceUrl = "https://kakuyomu.example/works/$id", sourceSite = "kakuyomu",
+    )
+
+    @Test
+    fun `activeWebNovels - Web取込本と題名・作者が一致する Web 行は落ちる（ncode 無しの自然昇格）`() {
+        // 現行バグの再現形: ncode=null の Web 取込本は従来 ncode 突合に掛からず web 行が残った。
+        val books = listOf(webBook("w1", "テスト作品", "テスト著者"))
+        val webs = listOf(
+            WebNovelEntity("N1111AA", "テスト作品", "テスト著者", 10, 200),
+            WebNovelEntity("N2222BB", "別の作品", "テスト著者", 10, 100),
+        )
+
+        assertEquals(listOf("N2222BB"), activeWebNovels(books, webs).map { it.ncode })
+    }
+
+    @Test
+    fun `activeWebNovels - 題名・作者の前後空白ゆれでも昇格する（trim 突合）`() {
+        val books = listOf(webBook("w1", " テスト作品 ", "テスト著者 "))
+        val webs = listOf(WebNovelEntity("N1111AA", "テスト作品", " テスト著者", 10, 200))
+
+        assertTrue(activeWebNovels(books, webs).isEmpty())
+    }
+
+    @Test
+    fun `activeWebNovels - 題名一致でも作者不一致なら落とさない（同名別作品の保護）`() {
+        val books = listOf(webBook("w1", "テスト作品", "別の著者"))
+        val webs = listOf(WebNovelEntity("N1111AA", "テスト作品", "テスト著者", 10, 200))
+
+        assertEquals(listOf("N1111AA"), activeWebNovels(books, webs).map { it.ncode })
+    }
+
+    @Test
+    fun `activeWebNovels - 大小文字違いの欧文題は落とさない（畳まず精度側に倒す裁定）`() {
+        // 「iris」「IRIS」級の別作品を同一視しない＝題名は表記そのものが同一性（ncode の storageKey と違う）。
+        val books = listOf(webBook("w1", "IRIS", "テスト著者"))
+        val webs = listOf(WebNovelEntity("N1111AA", "iris", "テスト著者", 10, 200))
+
+        assertEquals(listOf("N1111AA"), activeWebNovels(books, webs).map { it.ncode })
+    }
+
+    @Test
+    fun `activeWebNovels - 作者が空同士の題名一致は落とさない（空 == 空の誤昇格防止）`() {
+        // author 未取得（既定 ""）の蔵書と writer 空の web 行が空文字一致で同定される穴を塞ぐ。
+        val books = listOf(BookEntity("w1", "テスト作品", "/p/w1"))
+        val webs = listOf(WebNovelEntity("N1111AA", "テスト作品", "", 10, 200))
+
+        assertEquals(listOf("N1111AA"), activeWebNovels(books, webs).map { it.ncode })
+    }
+
+    @Test
+    fun `mergeShelfItems の防御網でも題名・作者一致の Web カードは非表示になる`() {
+        // 供給点（activeWebNovels）適用漏れの経路でも二重表示しない＝防御網も同じ単一正本（isPromotedWeb）を通ること。
+        val books = listOf(webBook("w1", "テスト作品", "テスト著者"))
+        val webs = listOf(WebNovelEntity("N1111AA", "テスト作品", "テスト著者", 10, 200))
+
+        val items = mergeShelfItems(books, emptyMap(), webs)
+
+        assertEquals(listOf("book:w1"), items.map { it.key })
     }
 
     @Test

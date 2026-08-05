@@ -77,7 +77,56 @@ internal fun importedNcodeKeys(books: List<BookEntity>): Set<String> =
     books.mapNotNull { b -> b.ncode?.let { Ncode(it).storageKey } }.toSet()
 
 /**
- * 「自然昇格」を適用した Web由来カードの正味一覧＝**蔵書へ取り込み済み（books.ncode 一致）の行を落とす**。
+ * 蔵書側の「題名＋作者」同一性キー集合（trim 一致・両方非空のみ）＝ncode を持たない蔵書のための第2の昇格材料。
+ *
+ * なぜ要るか（2026-07-29 発見「Web 取込経路では自然昇格が成立しない」）: Web 取込（addWebBook）は
+ * `books.ncode` に null を書く意図的設計（BookEntity.ncode の「紐付けは人間の確定操作のみ・自動判定で
+ * 埋めない」原則。取込元 URL はカクヨム等＝なろうの ncode を知る材料が構造的に無い）のため、ncode 突合
+ * だけでは「本棚に置く」済みの同一作品（なろう版）カードを昇格できず、同じ作品が蔵書カードと web カードの
+ * 2枚で棚に並ぶ。そこで ncode はデータへ推定書込せず、**表示層の昇格判定だけ**を「ncode 一致 OR
+ * 題名＋作者の完全一致」へ広げる——誤同定しても隠れるのは表示のみで web_novels 行は残る＝可逆
+ * （本を削除すればカードが戻る。データを推定で書く案との比較＝この方式を選んだ理由は本コメント末尾）。
+ *
+ * 精度側に倒す3つのガード（近似同定ゆえ、誤って隠す方向の失敗だけは避ける）:
+ *  - 題名だけで同定しない: 同名別作品の誤昇格リスク（BookEntity.ncode が自動紐付けを禁じたのと同じ理由）。
+ *    作者名まで完全一致を要求する。取りこぼし（表記が1字でも違う）は現状維持＝2枚のままで、
+ *    NcodeLinkSheet の手動紐付け（→ncode 昇格）で回復できる。
+ *  - 空文字はキー化しない: author 未取得（""）の蔵書と writer 空の web 行が「空 == 空」で
+ *    無関係に同定される穴を塞ぐ。
+ *  - 大小文字を畳まない: 欧文題「iris」「IRIS」級の別作品を同一視しないため、trim のみで突合する
+ *    （ncode の storageKey と違い、題名は表記そのものが作品の同一性の一部）。
+ *
+ * なぜ ncode をデータへ書く案（取込時に web_novels から題名突合で引き当てて books.ncode へ記録）を
+ * 採らなかったか: ①BookEntity.ncode の原則「人間の確定を必須にする」に真っ向から反する（誤紐付けは
+ * 継続読書の誤誘導まで起こす） ②ncode+sourceUrl 両保持の本は U1 新着チェックが両パス（なろう API と
+ * サイト再フェッチ）で二重照会・二重通知になる ③誤同定が永続データに固着する（表示層なら本の削除で戻る）。
+ */
+internal fun importedTitleWriterKeys(books: List<BookEntity>): Set<Pair<String, String>> =
+    books.mapNotNull { b ->
+        val title = b.title.trim()
+        val author = b.author.trim()
+        if (title.isEmpty() || author.isEmpty()) null else title to author
+    }.toSet()
+
+/**
+ * 自然昇格の判定本体（[activeWebNovels] と [mergeShelfItems] が共有する単一正本）。
+ * ncode 一致（保存時正規化＝trim+大文字で突合・表記ゆれで漏れない）か、題名＋作者の完全一致
+ * （[importedTitleWriterKeys] の精度ガードつき）のどちらかで「取込済み」とみなす。
+ */
+internal fun isPromotedWeb(
+    novel: WebNovelEntity,
+    importedNcodes: Set<String>,
+    importedTitleWriters: Set<Pair<String, String>>,
+): Boolean {
+    if (Ncode(novel.ncode).storageKey in importedNcodes) return true
+    val title = novel.title.trim()
+    val writer = novel.writer.trim()
+    return title.isNotEmpty() && writer.isNotEmpty() && (title to writer) in importedTitleWriters
+}
+
+/**
+ * 「自然昇格」を適用した Web由来カードの正味一覧＝**蔵書へ取り込み済みと同定される行を落とす**
+ * （同定規則は下記の2本立て＝[isPromotedWeb]）。
  *
  * なぜ必要か（2026-07-29 実機報告「本棚ヘッダの冊数が実際とずれる」の真因）: なろう作品を「本棚に置く」と
  * web_novels に行が入り、その作品を取り込んでも（ADR 0011 の縦書きPDF取り込み・NcodeLinkSheet の手動紐付け）
@@ -88,11 +137,15 @@ internal fun importedNcodeKeys(books: List<BookEntity>): Set<String> =
  *
  * そこで昇格を**棚データの供給点で一度だけ**適用し、数える側・絞る側・並べる側が同じ正味リストを見るようにする
  * （適用箇所＝BookshelfViewModel.uiState。表示側で辻褄を合わせるのではなく、ゴースト行を棚データへ入れない）。
+ *
+ * 昇格の判定は2本立て（[isPromotedWeb] が単一正本）: ①ncode 一致（従来） ②題名＋作者の完全一致
+ * （2026-07-29 発見の「Web 取込（ncode=null）では昇格が成立せず同一作品が2枚並ぶ」の対処。
+ * なぜ表示層で同定するか・精度ガード＝[importedTitleWriterKeys] の KDoc 参照）。
  */
 fun activeWebNovels(books: List<BookEntity>, webNovels: List<WebNovelEntity>): List<WebNovelEntity> {
-    val imported = importedNcodeKeys(books)
-    // 比較は保存時正規化（trim+大文字）と同じ形で行う＝表記ゆれで昇格が漏れないようにする。
-    return webNovels.filterNot { Ncode(it.ncode).storageKey in imported }
+    val importedNcodes = importedNcodeKeys(books)
+    val importedTitleWriters = importedTitleWriterKeys(books)
+    return webNovels.filterNot { isPromotedWeb(it, importedNcodes, importedTitleWriters) }
 }
 
 /**
@@ -106,8 +159,8 @@ fun activeWebNovels(books: List<BookEntity>, webNovels: List<WebNovelEntity>): L
  * - Web 由来（未取込）カードは **tier 特権なし（常に tier0）** で「直近の操作時刻」により並ぶ
  *   （webRecencyKeyOf。触った web＝最終接触時刻・未接触＝addedAt）。未接触 web を tier1 へ写像すると
  *   実棚（蔵書が全て tier0）で恒久最上位に張り付くための裁定変更＝2026-07-26。詳細は webRecencyKeyOf の KDoc。
- * - 取込済み（books.ncode と同一 ncode）の Web カードは非表示にする＝PDF 取込が完了した時点で
- *   蔵書カードへ「自然昇格」し、二重表示しない。比較は保存時正規化（trim+uppercase）と同じ形で行う。
+ * - 取込済み（books.ncode と同一 ncode、または題名＋作者の完全一致＝[isPromotedWeb]）の Web カードは
+ *   非表示にする＝取込が完了した時点で蔵書カードへ「自然昇格」し、二重表示しない。
  *   ※この昇格は 2026-07-29 以降 [activeWebNovels] が棚データの供給点（BookshelfViewModel.uiState）で
  *   適用済みのため、本関数内の除外は通常 no-op。それでも残すのは、純関数を直接呼ぶテスト・将来の別供給経路
  *   への防御網として。なお本関数の books は状態フィルタ後の部分集合が渡りうる（filterShelfByStatus →
@@ -129,6 +182,7 @@ fun mergeShelfItems(
     webLastReadAt: Map<String, Long> = emptyMap(),
 ): List<ShelfItem> {
     val importedNcodes = importedNcodeKeys(books)
+    val importedTitleWriters = importedTitleWriterKeys(books)
 
     val bookItems = books.map { book ->
         val lastReadAt = progressMap[book.id]?.lastReadAt ?: 0L
@@ -137,7 +191,7 @@ fun mergeShelfItems(
     // Web 由来カードは tier 特権なしの通常キー（webRecencyKeyOf＝常に tier0・直近の操作時刻）でキー化する。
     // 蔵書列は DAO が二層降順、web 列はここでキー降順に整列してから同じ RecencyKey 比較でマージする。
     val webItems: List<Pair<WebNovelEntity, RecencyKey>> = webNovels
-        .filterNot { Ncode(it.ncode).storageKey in importedNcodes }
+        .filterNot { isPromotedWeb(it, importedNcodes, importedTitleWriters) }
         .map { it to webRecencyKeyOf(it.addedAt, webLastReadAt[Ncode(it.ncode).storageKey] ?: 0L) }
         .sortedByDescending { it.second }
 
