@@ -1,4 +1,20 @@
-// プロジェクト全体のビルド設定（plugins DSL に移行済み、settings.gradle で宣言）
+// プロジェクト全体のビルド設定（plugins DSL に移行済み、版の宣言は settings.gradle）
+
+// ルートで KGP を「解決だけして適用しない」宣言。ルート自身は Kotlin を持たないので apply false。
+// なぜ要るか: :app と :macrobenchmark が別々に kotlin.android を適用すると KGP が
+// サブプロジェクトごとに別クラスローダへ読み込まれ、KGP 2.x は起動のたびに
+// "The Kotlin Gradle plugin was loaded multiple times in different subprojects,
+//  which is not supported and may break the build" を出す。ルート（共通の親）で先に宣言すると
+// 単一のクラスローダに載って子はそれを継承する＝Gradle/JetBrains が案内する正規の解消手順そのもの。
+// 版はここに書かない（settings.gradle の pluginManagement.plugins が唯一の採番箇所＝二重管理を作らない）。
+// AGP も同じブロックで宣言する必要がある: KGP だけをルートへ上げると KGP はルートのクラスローダに載る一方
+// AGP は :app 側のままになり、KotlinAndroidTarget の生成時に com/android/build/gradle/api/BaseVariant を
+// 解決できず NoClassDefFoundError で構成が落ちる（実測）。両方を同じ（ルートの）クラスローダに載せて解消する。
+plugins {
+    id 'com.android.application' apply false
+    id 'com.android.test' apply false
+    id 'org.jetbrains.kotlin.android' apply false
+}
 
 task clean(type: Delete) {
     delete rootProject.buildDir
