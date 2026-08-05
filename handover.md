@@ -169,9 +169,6 @@
 - **[Kotlin2 マージ済み（2026-08-06 main へ ff 統合）の派生宿題]** Kotlin 2.2 の KT-73255 警告（Moshi の `@Json` 付き引数で多数）＝
   `-Xannotation-default-target` は挙動を変える指定なので方針を決めてから別便で（実測台帳＝
   `.claude/plans/macrobenchmark-kickoff-2026-07-17.md` ⑤・連鎖の正本＝ADR 0029。CI は次の push で新 toolchain を初走行）。
-- **[小・後始末] 旧 r1 worktree が dirty で残置**: `…/.claude/worktrees/agent-a6f1a16df9c6147de`（ブランチ
-  `deps/kotlin2-oneshot-2026-08-05`＝r2 に superseded）が modified/untracked を抱え `worktree remove` を拒否（2026-08-06）。
-  未抽出の知見が無いか中身を確認してから `--force` 撤去 or 退避する（恐れるべきは未抽出の知識ごと消すこと。r2 worktree は撤去済み）。
 - **[小] ベンチ seed 配達を pdf-import の修理形へ横展開する**: ColorOS は dead プロセスへの shell broadcast も
   状態依存で沈黙不達する（knowledge `coloros-broadcast-silent-drop.md` の 2026-08-06 改訂＝「dead だけが確実」は覆った）。
   shelf-scroll／chapter-flip の seed は旧処方のまま＝不達時は count 不一致の **loud fail** で止まる（サイレントではない）
