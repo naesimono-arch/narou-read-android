@@ -35,7 +35,9 @@ import com.novelreader.narou.model.DiscoveryQuery
 import com.novelreader.narou.model.DiscoveryResult
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
+import androidx.core.content.FileProvider
 import com.novelreader.repository.BookRepository
+import com.novelreader.repository.NarouPdfCache
 import com.novelreader.repository.PdfTreeScanner
 import com.novelreader.repository.SourceDeleteOutcome
 import com.novelreader.scrape.ScrapeStructureException
@@ -337,6 +339,7 @@ class BookshelfViewModel @JvmOverloads constructor(
                 list?.let {
                     val filesDir = getApplication<Application>().filesDir
                     val resolver = getApplication<Application>().contentResolver
+                    val cacheDir = getApplication<Application>().cacheDir
                     buildReimportPlans(
                         it,
                         isContentMissing = { book -> !book.hasContent(filesDir) },
@@ -345,6 +348,9 @@ class BookshelfViewModel @JvmOverloads constructor(
                                 p.uri.toString() == uri && p.isReadPermission
                             }
                         },
+                        // ①'（AutoCachePdf）: なろう取込時の DL 実体が cache に残っていれば直接再変換で戻せる。
+                        // 所在・名前照合の規約は NarouPdfCache が正本（保存側 PdfImportViewModel と同一点）。
+                        cachedNarouPdfPath = { ncode -> NarouPdfCache.findFor(cacheDir, ncode)?.absolutePath },
                     )
                 }
             }
@@ -445,15 +451,34 @@ class BookshelfViewModel @JvmOverloads constructor(
         if (shouldConsumeSweepBanner(submitted, scanMatched = 0)) persistSweepSeenIds(actedIds)
     }
 
-    /** ①元PDF＋④Web を既存の取込経路へ投入する（戻り値＝投入した冊数）。
+    /** ①元PDF＋①'cache PDF＋④Web を既存の取込経路へ投入する（戻り値＝投入した冊数）。
      *  直列化は既存機構に乗せる: PDF＝FGS の ArrayDeque キュー（Service が逐次処理）／
      *  Web＝importWebNovels の単一コルーチン逐次実行＝新しい並列実行を発明しない。 */
     private fun submitAutoReimports(plans: Map<String, ReimportPlan>): Int {
         val autoPdf = plans.values.filterIsInstance<ReimportPlan.AutoPdf>()
         autoPdf.forEach { addBook(Uri.parse(it.sourceUri)) }
+        val cachePdf = plans.values.filterIsInstance<ReimportPlan.AutoCachePdf>()
+        cachePdf.forEach { reimportFromCache(it) }
         val webUrls = plans.values.filterIsInstance<ReimportPlan.AutoWeb>().map { it.sourceUrl }
         if (webUrls.isNotEmpty()) importWebNovels(webUrls)
-        return autoPdf.size + webUrls.size
+        return autoPdf.size + cachePdf.size + webUrls.size
+    }
+
+    /** ①'（AutoCachePdf）: 取込時に DL した cache 内 PDF を FileProvider で content:// 化し、既存の
+     *  取込経路（addBook→FGS→ハッシュ/題名照合の復元）へ再投入する。作法は取込時の
+     *  PdfImportViewModel.handoffToImport と同一＝新しい復元経路は発明しない。 */
+    fun reimportFromCache(plan: ReimportPlan.AutoCachePdf) {
+        val context = getApplication<Application>()
+        // manifest の <provider authorities="${applicationId}.fileprovider"> と一致させる（packageName から
+        // 組み立てるのは benchmark ビルドの applicationIdSuffix 追従＝PdfImportViewModel と同じ why）。
+        val uri = FileProvider.getUriForFile(
+            context, "${context.packageName}.fileprovider", File(plan.cacheFilePath),
+        )
+        // 経路によっては Service プロセスへ intent の grant が届かない可能性への防御として自パッケージへ
+        // 明示 grant する（取込時の handoffToImport と同じ防御を対称に保つ）。
+        context.grantUriPermission(context.packageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        // ncode を添える理由は ReimportPlan.AutoCachePdf の KDoc（照合が既存行へ合流しなかったときの保険）。
+        addBook(uri, Ncode(plan.ncode))
     }
 
     /**

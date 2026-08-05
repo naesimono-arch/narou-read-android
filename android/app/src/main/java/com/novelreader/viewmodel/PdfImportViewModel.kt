@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import com.novelreader.PdfProcessingService
 import com.novelreader.narou.model.Ncode
 import com.novelreader.narou.retryWithBackoff
+import com.novelreader.repository.NarouPdfCache
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -107,8 +108,9 @@ class PdfImportViewModel(application: Application) : AndroidViewModel(applicatio
 
         val filename = deriveFilename(url, contentDisposition, ncode)
         val context = getApplication<Application>()
-        // 保存先は file_paths.xml の cache-path pdf_import/ と一致させる（FileProvider の公開範囲）。
-        val dir = File(context.cacheDir, "pdf_import")
+        // 保存先の規約は NarouPdfCache に集約（file_paths.xml の cache-path とも一致させる正本。
+        // 欠落本の復旧（ReimportPlan.AutoCachePdf）がこの保存名 <ncode>.pdf を照合キーに使う）。
+        val dir = NarouPdfCache.dir(context.cacheDir)
         val outFile = File(dir, filename)
 
         _uiState.value = PdfImportUiState.Downloading

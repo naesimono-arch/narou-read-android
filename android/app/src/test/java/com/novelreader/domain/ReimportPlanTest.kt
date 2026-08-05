@@ -22,10 +22,11 @@ class ReimportPlanTest {
         sourceUri: String? = null,
         sourceUrl: String? = null,
         contentSha256: String? = null,
+        ncode: String? = null,
         htmlDirPath: String = "/nonexistent/$id",
     ) = BookEntity(
         id, "本$id", htmlDirPath, "著",
-        sourceUri = sourceUri, sourceUrl = sourceUrl, contentSha256 = contentSha256,
+        sourceUri = sourceUri, sourceUrl = sourceUrl, contentSha256 = contentSha256, ncode = ncode,
     )
 
     // ── 検出（実体有無）: hasContent は index.html の実在を代表点にする ─────────────────
@@ -124,6 +125,67 @@ class ReimportPlanTest {
         assertEquals(ReimportPlan.AutoWeb("https://example.com/works/1"), plan)
         assertTrue(plan.isAuto)
         assertNull(plan.scanSha256)
+    }
+
+    // ── ①' AutoCachePdf（なろう取込の cache PDF 直接再変換・2026-08-05）──────────────────
+    // 対象＝sourceUri/sourceUrl 両 NULL・ncode あり（実機実測: なろう縦書きPDF取込の本はこの形）。
+    // ③PickPdfNoRecord へ落とすと SAF から辿れない PDF を「探しますか？」と提案する嘘になるため、
+    // cache 現存時はその前で拾う（削除警告が約束する「カードから再取込で戻せます」を実行可能に保つ）。
+
+    @Test
+    fun `classifyReimport - ncode あり＋cache 現存＝AutoCachePdf（分岐①'・③より優先）`() {
+        val plan = classifyReimport(
+            book(contentSha256 = "abc", ncode = "n1453lw"),
+            hasPersistedRead = { error("sourceUri が無い本では権限照会を呼ばない") },
+            cachedNarouPdfPath = { ncode -> "/cache/pdf_import/$ncode.pdf" },
+        )
+        assertEquals(ReimportPlan.AutoCachePdf("/cache/pdf_import/n1453lw.pdf", "n1453lw"), plan)
+        assertTrue(plan.isAuto)
+        // ①'は cache から直接戻せる＝フォルダ走査に混ぜない（混ぜると同じ本へ二重投入になる）。
+        assertNull(plan.scanSha256)
+    }
+
+    @Test
+    fun `classifyReimport - ncode ありでも cache 不在なら従来どおり PickPdfNoRecord（正直に落ちる）`() {
+        // OS が逼迫時に cache を消した後の形。嘘の自動提案をせず、指紋があれば走査で救う③へ。
+        val plan = classifyReimport(
+            book(contentSha256 = "abc", ncode = "n1453lw"),
+            hasPersistedRead = { true },
+            cachedNarouPdfPath = { null },
+        )
+        assertEquals(ReimportPlan.PickPdfNoRecord("abc"), plan)
+    }
+
+    @Test
+    fun `classifyReimport - ncode NULL の本では cache 照会自体を呼ばない`() {
+        val plan = classifyReimport(
+            book(contentSha256 = "abc"),
+            hasPersistedRead = { true },
+            cachedNarouPdfPath = { error("ncode が無い本で cache を探しに行かない") },
+        )
+        assertEquals(ReimportPlan.PickPdfNoRecord("abc"), plan)
+    }
+
+    @Test
+    fun `classifyReimport - sourceUrl があれば cache より AutoWeb 優先（Web 再取得の方が確実）`() {
+        val plan = classifyReimport(
+            book(sourceUrl = "https://example.com/works/1", ncode = "n1453lw"),
+            hasPersistedRead = { true },
+            cachedNarouPdfPath = { "/cache/pdf_import/n1453lw.pdf" },
+        )
+        assertEquals(ReimportPlan.AutoWeb("https://example.com/works/1"), plan)
+    }
+
+    @Test
+    fun `classifyReimport - sourceUri がある本は cache を見ない（①'は sourceUri NULL 限定のスコープ）`() {
+        // 権限失効した SAF 取込本が偶然同じ ncode を紐付けていても、②の導線（元ファイルの選び直し／
+        // フォルダ走査）を cache が横取りしない＝①'の対象は「取込元の記録を一切持たない本」だけ。
+        val plan = classifyReimport(
+            book(sourceUri = "content://docs/a", contentSha256 = "abc", ncode = "n1453lw"),
+            hasPersistedRead = { false },
+            cachedNarouPdfPath = { error("sourceUri を持つ本で cache を探しに行かない") },
+        )
+        assertTrue(plan is ReimportPlan.PickPdfPermissionLost)
     }
 
     @Test
@@ -225,6 +287,7 @@ class ReimportPlanTest {
             ReimportPlan.AutoPdf("content://docs/1"),
             ReimportPlan.AutoPdf("content://docs/2"),
             ReimportPlan.AutoWeb("https://example.com/w/1"),
+            ReimportPlan.AutoCachePdf("/cache/pdf_import/n1.pdf", "n1"), // ①'＝なろう取込の cache 実体
             ReimportPlan.PickPdfPermissionLost("a.pdf", "sha-a"),
             ReimportPlan.PickPdfNoRecord("sha-b"),
             ReimportPlan.PickPdfNoRecord(null), // v11 前＝走査で救えない唯一の系統
@@ -232,18 +295,19 @@ class ReimportPlanTest {
         val b = reimportBreakdown(plans)
         assertEquals(2, b.autoPdf)
         assertEquals(1, b.autoWeb)
+        assertEquals(1, b.autoCachePdf)
         assertEquals(1, b.pickPermissionLost)
         assertEquals(2, b.pickNoRecord)
-        assertEquals(6, b.total)
-        assertEquals(3, b.autoTotal)        // ①2冊＋④1冊＝取込元の記録だけで戻せる
+        assertEquals(7, b.total)
+        assertEquals(4, b.autoTotal)        // ①2冊＋①'1冊＋④1冊＝記録・cache 実体だけで戻せる
         assertEquals(3, b.manualTotal)      // ②1冊＋③2冊
         assertEquals(2, b.scannable)        // うち指紋あり＝フォルダ走査で戻せる
         assertEquals(1, b.unscannable)      // 指紋なし＝人が1冊ずつ選ぶしかない
         // 不変条件: ②③は必ず走査可否のどちらかに入る（黙って消える本が出ない）。
         assertEquals(b.manualTotal, b.scannable + b.unscannable)
-        assertEquals(5, b.recoverableTotal) // ワンアクションで戻る見込み＝自動＋走査
+        assertEquals(6, b.recoverableTotal) // ワンアクションで戻る見込み＝自動＋走査
         // 実行対象の選別そのもの（VM submitAutoReimports の filterIsInstance と同じ規則）。
-        assertEquals(3, plans.count { it.isAuto })
+        assertEquals(4, plans.count { it.isAuto })
     }
 
     @Test
@@ -263,6 +327,7 @@ class ReimportPlanTest {
     @Test
     fun `reimportStatusLabel - PDF系は同文・Webだけ再取得の文言`() {
         assertEquals("本文なし・タップで再取込", reimportStatusLabel(ReimportPlan.AutoPdf("u")))
+        assertEquals("本文なし・タップで再取込", reimportStatusLabel(ReimportPlan.AutoCachePdf("/c/n1.pdf", "n1")))
         assertEquals("本文なし・タップで再取込", reimportStatusLabel(ReimportPlan.PickPdfPermissionLost(null, null)))
         assertEquals("本文なし・タップで再取込", reimportStatusLabel(ReimportPlan.PickPdfNoRecord(null)))
         assertEquals("Web作品・再取得できます", reimportStatusLabel(ReimportPlan.AutoWeb("u")))

@@ -52,20 +52,36 @@ sealed interface ReimportPlan {
     /** ④ Web 取込本（sourceUrl あり）＝作品ページから自動で再取得できる。 */
     data class AutoWeb(val sourceUrl: String) : ReimportPlan
 
-    /** 自動復旧可能な分岐か（取込元の記録だけで戻せる＝①④）。 */
+    /**
+     * ①' なろう縦書きPDF取込の本（sourceUri/sourceUrl 両 NULL・保有は ncode と contentSha256 のみ）で、
+     * 取込時に DL した PDF がアプリ自身の cache（pdf_import/<ncode>.pdf）に現存する
+     * ＝それを直接再変換して、ユーザー操作なしで復旧できる。
+     *
+     * なぜこの分岐が要るか（2026-07-30 実機実測の「守れない約束」の解消）: この本を③PickPdfNoRecord へ
+     * 落とすと「PDF のある場所から探しますか？」と SAF ピッカーを出すが、その PDF はアプリ専用 cache に
+     * しか存在せず SAF から辿れない（/sdcard/Download にも無いことを実測）＝提案が実行不能になる。
+     * 案X のフォルダ走査でも救えない（ユーザーの手元フォルダに PDF ファイルが無いため）。
+     * cache の現存だけが唯一の到達手段なので、③より先にここで拾う。
+     *
+     * [ncode] は再変換の投入時に紐付けを引き継ぐために運ぶ（万一ハッシュ/題名照合が既存行へ合流
+     * しなかったときでも、新規行がなろう紐付けを失わないため）。
+     */
+    data class AutoCachePdf(val cacheFilePath: String, val ncode: String) : ReimportPlan
+
+    /** 自動復旧可能な分岐か（取込元の記録・cache 実体だけで戻せる＝①①'④）。 */
     val isAuto: Boolean
-        get() = this is AutoPdf || this is AutoWeb
+        get() = this is AutoPdf || this is AutoWeb || this is AutoCachePdf
 
     /**
      * フォルダ走査（案X）で機械照合するときのキー。null＝走査では戻せない。
-     * ①④を除外するのは、取込元の記録から直接戻せる本を重い全走査の対象に混ぜないため
-     * （①は再変換を、④はWeb再取得を既に投入済み＝二重取込になる）。
+     * ①①'④を除外するのは、取込元の記録・cache 実体から直接戻せる本を重い全走査の対象に混ぜないため
+     * （①①'は再変換を、④はWeb再取得を既に投入済み＝二重取込になる）。
      */
     val scanSha256: String?
         get() = when (this) {
             is PickPdfPermissionLost -> contentSha256
             is PickPdfNoRecord -> contentSha256
-            is AutoPdf, is AutoWeb -> null
+            is AutoPdf, is AutoWeb, is AutoCachePdf -> null
         }
 }
 
@@ -77,10 +93,22 @@ sealed interface ReimportPlan {
 fun classifyReimport(
     book: BookEntity,
     hasPersistedRead: (uriString: String) -> Boolean,
+    cachedNarouPdfPath: (ncode: String) -> String? = { null },
 ): ReimportPlan {
     val sourceUrl = book.sourceUrl
     if (sourceUrl != null) return ReimportPlan.AutoWeb(sourceUrl)
-    val sourceUri = book.sourceUri ?: return ReimportPlan.PickPdfNoRecord(book.contentSha256)
+    val sourceUri = book.sourceUri
+    if (sourceUri == null) {
+        // ①'（AutoCachePdf）は sourceUri NULL のときだけ・③より先に判定する（分岐の KDoc 参照）。
+        // 内容一致の検証はここでしない（現存チェックのみ）: 実際の投入先である既存取込経路が
+        // ハッシュ→題名の順で既存行へ照合する（PdfBookImporter）ため、cache が同 ncode の新しい版へ
+        // 入れ替わっていても題名一致の復元で戻る＝ここで book.contentSha256 との一致を強要すると
+        // むしろその救済経路を殺す。判定コスト（分類は books 変化のたび走る）を抑える意味もある。
+        val ncode = book.ncode
+        val cached = ncode?.let(cachedNarouPdfPath)
+        if (ncode != null && cached != null) return ReimportPlan.AutoCachePdf(cached, ncode)
+        return ReimportPlan.PickPdfNoRecord(book.contentSha256)
+    }
     return if (hasPersistedRead(sourceUri)) {
         ReimportPlan.AutoPdf(sourceUri)
     } else {
@@ -96,10 +124,11 @@ fun buildReimportPlans(
     books: List<BookEntity>,
     isContentMissing: (BookEntity) -> Boolean,
     hasPersistedRead: (uriString: String) -> Boolean,
+    cachedNarouPdfPath: (ncode: String) -> String? = { null },
 ): Map<String, ReimportPlan> =
     books.asSequence()
         .filter(isContentMissing)
-        .associate { it.id to classifyReimport(it, hasPersistedRead) }
+        .associate { it.id to classifyReimport(it, hasPersistedRead, cachedNarouPdfPath) }
 
 /**
  * 「ファイル名として妥当か」の定義＝末尾に拡張子（. と 1〜8 文字の英数字）を持つこと。
@@ -146,6 +175,8 @@ fun sourceFileNameHint(sourceUri: String): String? {
 data class ReimportBreakdown(
     val autoPdf: Int,
     val autoWeb: Int,
+    /** ①'＝取込時 PDF がアプリの cache に現存し直接再変換できる冊数（なろう縦書きPDF取込の本）。 */
+    val autoCachePdf: Int,
     val pickPermissionLost: Int,
     val pickNoRecord: Int,
     /** ②③のうち内容指紋を持つ＝フォルダ走査で機械照合できる冊数（案X の主対象）。 */
@@ -153,10 +184,10 @@ data class ReimportBreakdown(
     /** ②③のうち内容指紋が無い＝走査では戻せず1冊ずつPDFを選ぶしかない冊数（v11 前の旧取込）。 */
     val unscannable: Int,
 ) {
-    val total: Int get() = autoPdf + autoWeb + pickPermissionLost + pickNoRecord
+    val total: Int get() = autoPdf + autoWeb + autoCachePdf + pickPermissionLost + pickNoRecord
 
-    /** 取込元の記録だけで戻せる冊数（①＋④＝確認だけで実行できる分）。 */
-    val autoTotal: Int get() = autoPdf + autoWeb
+    /** 取込元の記録・cache 実体だけで戻せる冊数（①＋①'＋④＝確認だけで実行できる分）。 */
+    val autoTotal: Int get() = autoPdf + autoWeb + autoCachePdf
 
     /** 取込元の記録では戻せない冊数（②＋③）。内訳は [scannable] ＋ [unscannable]（不変条件）。 */
     val manualTotal: Int get() = pickPermissionLost + pickNoRecord
@@ -172,6 +203,7 @@ fun reimportBreakdown(plans: Collection<ReimportPlan>): ReimportBreakdown {
     return ReimportBreakdown(
         autoPdf = plans.count { it is ReimportPlan.AutoPdf },
         autoWeb = plans.count { it is ReimportPlan.AutoWeb },
+        autoCachePdf = plans.count { it is ReimportPlan.AutoCachePdf },
         pickPermissionLost = plans.count { it is ReimportPlan.PickPdfPermissionLost },
         pickNoRecord = plans.count { it is ReimportPlan.PickPdfNoRecord },
         scannable = manual.count { it.scanSha256 != null },

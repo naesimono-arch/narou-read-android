@@ -518,6 +518,20 @@ fun BookshelfScreen(
                     },
                     dismissButton = { TextButton(onClick = dismiss) { Text("やめる") } },
                 )
+                // ①'（cache 直接再変換）: なろう取込時の PDF がアプリ内に残っている＝操作なしで戻せる。
+                // SAF ピッカーやフォルダ走査へ落とさないのは、この PDF がアプリ専用領域にあり
+                // ユーザーからは辿れないため（ReimportPlan.AutoCachePdf の KDoc）。構造・語彙は①と同型。
+                is ReimportPlan.AutoCachePdf -> NovelReaderAlertDialog(
+                    onDismissRequest = dismiss,
+                    title = { Text("『${book.title}』を取込時のPDFから再取込しますか？") },
+                    text = {
+                        Text("取込時にアプリ内へ保存した PDF からもう一度変換します。読書位置としおりは残ります。")
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { viewModel.reimportFromCache(plan); dismiss() }) { Text("再取込する") }
+                    },
+                    dismissButton = { TextButton(onClick = dismiss) { Text("やめる") } },
+                )
                 // ②③（PDF 由来で取込元へ到達できない）は「内容の指紋を持つか」で導線が割れる（案X）。
                 // 分岐名（権限失効／記録なし）で割らないのは、人にとってはどちらも同じ操作になったため。
                 is ReimportPlan.PickPdfPermissionLost, is ReimportPlan.PickPdfNoRecord -> {
@@ -624,6 +638,7 @@ fun BookshelfScreen(
                     // 内訳（0冊の系統は出さない＝存在しない分類で数字を水増ししない）。
                     // 藍ドット＝機械で戻る群／中空ドット＝人が1冊ずつ選ぶしかない群（モック .roll の translation）。
                     ReimportBreakdownRow(breakdown.autoPdf, true, "元のPDFから自動で再変換（取込元の記録と権限あり）")
+                    ReimportBreakdownRow(breakdown.autoCachePdf, true, "取込時にアプリ内へ保存したPDFから自動で再変換（なろうから取込）")
                     ReimportBreakdownRow(breakdown.autoWeb, true, "Webから自動で再取得（Web作品）")
                     ReimportBreakdownRow(breakdown.scannable, true, "PDFのある場所から自動で見つけて戻す")
                     ReimportBreakdownRow(
