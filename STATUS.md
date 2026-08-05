@@ -43,9 +43,10 @@
   ／In-App Review（初回読了トリガ・実表示確認は内部トラック待ち）／蔵書復旧導線（本文欠落バッジ＋起動時一括検出→再取込・2026-07-29）
   ／U1 新着チェックは Web 蔵書も対象（読了本のみ再フェッチ）／読書の表示設定はライブプレビュー（押下中一行残し）／push 遷移スケルトン。
   **実機目視ツアーの正本＝`awaiting-human.md` §1**（ADR 0028 で台帳を二分＝人間の目視・裁定待ちはそちら）。
-  ⚠️ **蔵書復旧導線は「実装済み」だが PDF 本では機能しない**——自動再取込の対象①が「永続 URI 権限が生きている PDF」を前提にしており、
-  主機序である uninstall では権限も道連れで消えるため構造的に常に0冊になる（機序＝`docs/knowledge/auto-backup-does-not-restore-uri-permissions.md`・
-  裁定は案X へ移行済みで**本体は未実装**）。「次の APK 投入で実復旧が検証を兼ねる」という旧記述は成立しない。
+  ⚠️ 蔵書復旧の現在値: **案X 実装済み**（SAF フォルダ1回指定→ツリー走査→contentSha256 照合→復元・ツリー権限永続化＝2度目以降は無操作）。
+  **なろうPDF 由来本（sourceUri 無し）は cache 内 PDF の直接再変換（AutoCachePdf）でも自動復旧**し、削除時は同 ncode 最後の1冊で cache を相乗り削除＋起動時の孤児掃除。
+  手元にも cache にも PDF が無い本だけは救えない（前提＝`domain/PdfFolderScan.kt` ヘッダ）。旧機序が常に0冊だった知見の正本＝
+  `docs/knowledge/auto-backup-does-not-restore-uri-permissions.md`。**実機での実復旧確認は未**。
 
 - **汎用Web小説DL基盤**: `scrape/` のサイトアダプタ抽象＋規約3値ゲート（Supported／Blocked／Unsupported）。取込結果は PDF 蔵書とバイト同契約へ合流。
   対応＝**カクヨム**（JSON 系＝専用アダプタ）＋**暁**（`scrape/generic/` の SiteProfile 表駆動）。なろうグループ・アルファポリス・Pixiv・野いちご・ベリーズカフェは Blocked（公式へ送客）、ハーメルンは保留。
