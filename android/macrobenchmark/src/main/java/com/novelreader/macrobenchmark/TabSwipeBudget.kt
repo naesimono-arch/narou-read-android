@@ -7,21 +7,23 @@ import java.io.File
 /**
  * タブ横スワイプ／遷移（[TabSwipeBenchmark]）の frame timing 予算判定ヘルパー。
  *
- * ## ⚠️ このシナリオの予算は**まだ較正されていない**（既定定数を置いていない）
- * [ScrollBudget] / [FlipBudget] は「初回実測 × 余裕係数」で既定値を決めている。本シナリオはその初回実測が
- * 無い（実機実行が要る）ため、**推測値を既定として焼き込まない**——推測を回帰の基準線にすると
- * 「緑なのに実機は破綻」／「厳しすぎて常時赤」のどちらかを必ず作り、しかもその由来が後から辿れなくなる。
+ * ## 予算の由来（2026-08-06 実機較正＝初回実測 × 余裕係数。それまでは意図的に未較正だった）
+ * OPPO PGEM10（Android 16 / ColorOS・100冊＋実HTML50章シード・5反復・`tools/run_macrobenchmark.sh
+ * --scenario tab-swipe`）の初回実測 `frameDurationCpuMs`:
+ *   swipeTabs               P50 6.33 / P90 10.99 / P99 19.70ms（同日の別走行2回の P99 は 18.06 / 23.60ms）
+ *   swipeTabsWithTransition P50 7.18 / P90 12.42 / P99 31.28ms
+ * 2テスト共通予算のため**重い方（swipeTabsWithTransition）を基準に**丸める（[ScrollBudget] が
+ * list/grid の遅い方へ合わせたのと同じ判断）:
+ *   P50 11.0ms＝実測 7.18 × ≈1.5（60fps の1フレーム 16.7ms 内に確実に収める意図）
+ *   P90 18.0ms＝実測 12.42 × ≈1.45（1フレーム 16.7ms をわずかに超える程度まで許容）
+ *   P99 50.0ms＝実測 31.28 × ≈1.6（遷移窓は push/pop アニメ・目次経由の2段 pop・隣ページ実体化の
+ *     スパイクが尾に乗る構造コスト。尾は走行間で大きく揺れる——swipeTabs の P99 が走行間で
+ *     18.1→23.6ms（＋30%）を実測——ため、絞ると flaky ゲート化する。[FlipBudget] が P99 だけ
+ *     厚い 50.0ms を取ったのと同根・同値）
  *
- * したがって本オブジェクトは予算を**instrumentation 引数からしか受け取らない**。`enableBudgetAssert` が
- * true なのに引数が1つも無ければ**サイレントに素通しせず fail する**（「判定を頼まれたのに判定できない
- * ならスキップでなく失敗」＝[ScrollBudget] と同じ方針。ここで黙って緑にすると、較正されていないことを
- * 誰も知らないまま「予算ゲートがある」と誤認される＝効かないゲートの典型）。
- *
- * ## 較正の手順（実機が要る作業）
- *  1. `tools/run_macrobenchmark.sh --scenario tab-swipe`（`--assert` 無し）で実測する。
- *  2. 出力の `frameDurationCpuMs` P50/P90/P99 に [ScrollBudget] と同じ考え方で余裕係数を掛ける
- *     （P50＝1フレーム内に収める意図・P99＝走行間で大きく揺れるため厚めに）。
- *  3. その値を**由来のコメント付きで**本ファイルへ既定定数として書き、以後は引数なしでも assert が効く形にする。
+ * 較正前の本オブジェクトは「引数なしの assert は未較正と fail する」設計だった（推測値を既定に
+ * 焼き込むと『緑なのに実機は破綻』か『常時赤』を必ず作るため）。既定定数が入った現在も、
+ * その方針の残骸として**引数のパース不能は黙って既定へ落とさず fail する**（[ScrollBudget] と同じ）。
  *
  * 予算上書き引数名（`budgetP50Ms` / `budgetP90Ms` / `budgetP99Ms`）は [ScrollBudget] / [FlipBudget] と共用する
  * ——シナリオは排他実行（`-e class` で1クラスだけ走らせる）なので衝突しない。既存2つと同じ流儀。
@@ -31,6 +33,11 @@ import java.io.File
  */
 object TabSwipeBudget {
 
+    // 由来は上の KDoc「予算の由来」参照（2026-08-06 PGEM10 初回実測 × 余裕係数・重い方基準）。
+    const val BUDGET_P50_MS = 11.0
+    const val BUDGET_P90_MS = 18.0
+    const val BUDGET_P99_MS = 50.0
+
     /** FrameTimingMetric が benchmarkData.json の sampledMetrics へ出すメトリクス名（[ScrollBudget] と同じ）。 */
     private const val METRIC_KEY = "frameDurationCpuMs"
 
@@ -39,14 +46,14 @@ object TabSwipeBudget {
         InstrumentationRegistry.getArguments().getString("enableBudgetAssert").toBoolean()
 
     /**
-     * 明示指定された分位だけを検証する（未較正のため既定値は無い）。
+     * 適用予算の解決（instrumentation 引数で上書き可・未指定は上の実測由来の既定定数）。
      *
      * 空白でない文字列が指定されて Double としてパース不能なときは、既定へ黙って落とさず fail する
      * （指定ミスを黙殺すると意図と違う予算で緑になる＝ScrollBudget.resolveBudget と同じ判断）。
      */
-    private fun explicitBudget(argKey: String): Double? {
+    private fun resolveBudget(argKey: String, default: Double): Double {
         val raw = InstrumentationRegistry.getArguments().getString(argKey)
-        if (raw == null || raw.isBlank()) return null
+        if (raw == null || raw.isBlank()) return default
         return raw.trim().toDoubleOrNull()
             ?: throw AssertionError(
                 "instrumentation 引数 $argKey='$raw' を Double として解釈できない。" +
@@ -65,17 +72,9 @@ object TabSwipeBudget {
      *   前回走行の残骸とみなして fail する（偽 PASS 防止）。
      */
     fun assertTabSwipeWithinBudget(testName: String, notBeforeEpochMs: Long) {
-        val budgetP50 = explicitBudget("budgetP50Ms")
-        val budgetP90 = explicitBudget("budgetP90Ms")
-        val budgetP99 = explicitBudget("budgetP99Ms")
-        if (budgetP50 == null && budgetP90 == null && budgetP99 == null) {
-            throw AssertionError(
-                "タブスワイプ／遷移の jank 予算は**未較正**（既定値を持たない）。" +
-                    "--assert を使うなら --budget-p50 / --budget-p90 / --budget-p99 で明示するか、" +
-                    "まず --assert 無しで実測して TabSwipeBudget へ由来付きの既定定数を入れること。" +
-                    "推測値を既定に置かないのは意図的（TabSwipeBudget の KDoc 参照）。"
-            )
-        }
+        val budgetP50 = resolveBudget("budgetP50Ms", BUDGET_P50_MS)
+        val budgetP90 = resolveBudget("budgetP90Ms", BUDGET_P90_MS)
+        val budgetP99 = resolveBudget("budgetP99Ms", BUDGET_P99_MS)
 
         val roots = collectSearchRoots()
         val json = roots.asSequence()
@@ -119,9 +118,9 @@ object TabSwipeBudget {
         val p99 = metric.getDouble("P99")
 
         val violations = buildList {
-            if (budgetP50 != null && p50 > budgetP50) add("P50=${p50}ms > 予算 ${budgetP50}ms")
-            if (budgetP90 != null && p90 > budgetP90) add("P90=${p90}ms > 予算 ${budgetP90}ms")
-            if (budgetP99 != null && p99 > budgetP99) add("P99=${p99}ms > 予算 ${budgetP99}ms")
+            if (p50 > budgetP50) add("P50=${p50}ms > 予算 ${budgetP50}ms")
+            if (p90 > budgetP90) add("P90=${p90}ms > 予算 ${budgetP90}ms")
+            if (p99 > budgetP99) add("P99=${p99}ms > 予算 ${budgetP99}ms")
         }
         if (violations.isNotEmpty()) {
             throw AssertionError(
@@ -134,7 +133,7 @@ object TabSwipeBudget {
         android.util.Log.i(
             "TabSwipeBudget",
             "PASS $testName $METRIC_KEY P50=${p50}ms P90=${p90}ms P99=${p99}ms " +
-                "(適用予算 P50<=${budgetP50 ?: "未指定"} P90<=${budgetP90 ?: "未指定"} P99<=${budgetP99 ?: "未指定"})"
+                "(適用予算 P50<=${budgetP50}ms P90<=${budgetP90}ms P99<=${budgetP99}ms)"
         )
     }
 

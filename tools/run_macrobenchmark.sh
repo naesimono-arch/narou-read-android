@@ -24,7 +24,8 @@
 #   tools/run_macrobenchmark.sh --scenario chapter-flip  # 長時間の章送り jank（frame timing）を計測
 #   tools/run_macrobenchmark.sh --scenario chapter-flip --assert                  # 章送り予算 assert を有効化して計測
 #   tools/run_macrobenchmark.sh --scenario tab-swipe     # タブ横スワイプ＋遷移 jank（frame timing）を計測
-#   tools/run_macrobenchmark.sh --scenario tab-swipe --assert --budget-p99 60   # 予算は未較正＝明示指定が要る
+#   tools/run_macrobenchmark.sh --scenario tab-swipe --assert                    # タブスワイプ予算 assert を有効化して計測
+#   tools/run_macrobenchmark.sh --scenario tab-swipe --assert --budget-p50 1     # タブスワイプ予算を絞って FAIL 経路を実証
 #   tools/run_macrobenchmark.sh --scenario pdf-import    # 大PDF取込のフェーズ別時間（TraceSectionMetric）を計測
 #   tools/run_macrobenchmark.sh --scenario pdf-import --assert                    # 取込予算 assert を有効化して計測
 #   tools/run_macrobenchmark.sh --scenario pdf-import --assert --budget-extract 1 # 取込予算を絞って FAIL 経路を実証
@@ -35,9 +36,9 @@
 #   --scenario chapter-flip  章送り jank 計測（ChapterFlipBenchmark）。予算 assert は --assert ＋ --budget-p50 / --budget-p90 / --budget-p99
 #                            （オプションは shelf-scroll と共用・既定予算は FlipBudget 側の定数＝P99 のみ厚い）。
 #   --scenario tab-swipe     恒常タブの横スワイプ＋読書画面への push/pop jank 計測（TabSwipeBenchmark・2テスト）。
-#                            ⚠️ 予算は**未較正**（TabSwipeBudget は既定定数を持たない）。--assert と併用するなら
-#                            --budget-p50 / --budget-p90 / --budget-p99 の明示が必須で、無指定なら「未較正」と fail する
-#                            （推測値を既定に焼き込まない方針。まず --assert 無しで実測 → 由来付きで定数化する）。
+#                            予算 assert は --assert ＋ --budget-p50 / --budget-p90 / --budget-p99
+#                            （オプションは shelf-scroll と共用・既定予算は TabSwipeBudget 側の定数＝
+#                             2026-08-06 実機較正済み。P99 のみ厚いのは chapter-flip と同根）。
 #   --scenario pdf-import    大PDF取込計測（PdfImportBenchmark・N6169DZ 8.5MB を assets 同梱）。予算 assert は
 #                            --assert ＋ --budget-extract / --budget-engine（ms 指定・ImportBudget が median を判定）。
 #
@@ -81,9 +82,8 @@ SERIAL=""
 SCENARIO="startup"  # startup（既定・従来挙動）| shelf-scroll | chapter-flip | tab-swipe | pdf-import
 BUDGET_MEDIAN=""   # startup 専用。空なら透過しない＝StartupBudget 側の既定定数が使われる
 BUDGET_MAX=""      # 同上（--assert と併用前提。単独指定は assert 無効なら無視される）
-BUDGET_P50=""      # shelf-scroll / chapter-flip / tab-swipe 用。空なら透過しない＝ScrollBudget / FlipBudget 側の既定定数が使われる
-                   # （tab-swipe だけは既定定数を持たない＝未較正。--assert と併用するなら明示指定が必須で、
-                   #   無指定だと TabSwipeBudget が「未較正」と fail する＝黙って緑にしない）
+BUDGET_P50=""      # shelf-scroll / chapter-flip / tab-swipe 用。空なら透過しない＝ScrollBudget / FlipBudget /
+                   # TabSwipeBudget 側の既定定数が使われる（tab-swipe も 2026-08-06 に実機較正済み＝既定定数あり）
 BUDGET_P90=""      # 同上
 BUDGET_P99=""      # 同上（いずれも --assert と併用前提）
 BUDGET_EXTRACT=""  # pdf-import 専用（ms）。空なら透過しない＝ImportBudget 側の既定定数が使われる
@@ -114,8 +114,9 @@ done
 # 予算上書きオプションは scenario ごとにメトリクスが異なるため専用に分かれる。畑違いの scenario と
 # 併用されたら黙殺せずエラー終了する（指定を無視して緑にすると誤解を生むため。両方向にガードする）:
 #   --budget-median / --budget-max              startup 専用（StartupBudget）
-#   --budget-p50 / --budget-p90 / --budget-p99  shelf-scroll / chapter-flip 用（ScrollBudget / FlipBudget が
-#                                               同名の instrumentation 引数を読む＝オプション共用。既定定数は別）
+#   --budget-p50 / --budget-p90 / --budget-p99  shelf-scroll / chapter-flip / tab-swipe 用（ScrollBudget /
+#                                               FlipBudget / TabSwipeBudget が同名の instrumentation 引数を
+#                                               読む＝オプション共用。既定定数はそれぞれ別）
 #   --budget-extract / --budget-engine          pdf-import 専用（ImportBudget・ms 指定）
 case "$SCENARIO" in
   startup)
@@ -247,7 +248,7 @@ fi
 if [ -n "$BUDGET_MAX" ]; then
   INSTR_ARGS+=(-e budgetMaxMs "$BUDGET_MAX")
 fi
-# 同上（shelf-scroll / chapter-flip 用。ScrollBudget / FlipBudget が同名引数を読む）。
+# 同上（shelf-scroll / chapter-flip / tab-swipe 用。ScrollBudget / FlipBudget / TabSwipeBudget が同名引数を読む）。
 if [ -n "$BUDGET_P50" ]; then
   INSTR_ARGS+=(-e budgetP50Ms "$BUDGET_P50")
 fi

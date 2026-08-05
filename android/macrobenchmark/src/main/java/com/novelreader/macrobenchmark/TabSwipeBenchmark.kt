@@ -28,12 +28,12 @@ import org.junit.runner.RunWith
  *
  * 2テストの役割分担:
  *  - [swipeTabs]              タブ横スワイプだけ（ページ実体化の窓）。
- *  - [swipeTabsWithTransition] 同じ往復に読書画面への push/pop を足す（遷移アニメ窓との同居）。
+ *  - [swipeTabsWithTransition] 同じ12スワイプの末尾に読書画面への push/pop（本文→目次→本棚の実 pop 経路）を
+ *    **1回**足す（遷移アニメ窓との同居。往復ごとに開閉しない理由は measureBlock 末尾のコメント参照）。
  *    両者の差分が「遷移窓が上乗せする分」＝`deferNeighborPages` / `deferHeavyContent` の効きに対応する。
  *
- * ⚠️ **予算 assert は未較正**（[TabSwipeBudget] 参照）。実測が無いので既定予算値は**置いていない**——
- * 推測値を焼き込むと「緑なのに実機は破綻」を再生産するため。まず `--assert` 無しで実機実測し、
- * その値から較正した定数を [TabSwipeBudget] へ入れる（[ScrollBudget] / [FlipBudget] が辿った順序と同じ）。
+ * 予算 assert は 2026-08-06 に実機較正済み（[TabSwipeBudget] の既定定数と由来コメント参照。
+ * [ScrollBudget] / [FlipBudget] が辿った「まず実測→由来付きで定数化」の順序と同じ）。
  *
  * COLD 性・シード配達・前面ガード・注入方式の各作法は [BookshelfScrollBenchmark] / [ChapterFlipBenchmark]
  * と同一の根拠（ColorOS の broadcast 沈黙不達／COLD の force-stop 仕様／launcher も scrollable を持つ／
@@ -95,8 +95,15 @@ class TabSwipeBenchmark {
                 swipeToNextTab(); awaitTab(from = DISCOVER_MARKER, to = SETTINGS_MARKER, label = "設定")
                 swipeToPrevTab(); awaitTab(from = SETTINGS_MARKER, to = DISCOVER_MARKER, label = "さがす")
                 swipeToPrevTab(); awaitTab(from = DISCOVER_MARKER, to = SHELF_MARKER, label = "本棚")
-                if (withTransition) openBookAndReturn()
             }
+            // 開閉（push/pop）は iteration 末尾に**1回だけ**行う（2026-08-06 実機切り分けで旧設計
+            // 「往復ごとに開閉」から変更）: 本を一度読むと本棚が並び替わり（読書状態が付くと未読99冊の
+            // 下へ沈む＝実機 dump で復帰後の可視域から消えることを確認）、同一 iteration 内の2回目の
+            // find が viewport 外で必ず空振りする。フィルタ操作やスクロールで探しに行くと、その操作の
+            // フレームが計測に混ざり swipeTabs との差分設計が崩れる。開閉を末尾1回に絞れば、find は
+            // 常に「未読状態の本棚」（シード直後の並び＝先頭行に居る）に対して行われ決定的に成立する。
+            // 並びは setupBlock の reseed が毎 iteration リセットするため、iteration 間の汚染も無い。
+            if (withTransition) openBookAndReturn()
         }
 
         if (TabSwipeBudget.isBudgetAssertEnabled()) {
@@ -112,6 +119,14 @@ class TabSwipeBenchmark {
      * ダミー本（bench_seed_N）は本文実体を持たず、開いても遷移の中身が実アプリと別物になる。
      */
     private fun MacrobenchmarkScope.openBookAndReturn() {
+        // タブ settle アニメの完了を固定マージンで跨いでから click する（2026-08-06 実機切り分け）:
+        // 直前の awaitTab は「移動元の gone＋移動先の出現」＝コミットまでしか保証せず、ページャの
+        // settle アニメは まだ走っている。settle 中のタップはページャがアニメ停止に消費して子セルへ
+        // 届かない（実機再現: スワイプ直後の即タップは本が開かず本棚に残る／600ms 待てば 開く）。
+        // この窓は a11y から観測不能（settle 中も徴は出現済み・waitForIdle も Compose アニメを busy と
+        // 見なさない＝ChapterFlipBenchmark の 400ms マージンと同根）ため固定 600ms で跨ぐ。
+        // 計測への影響: 待機中は静止＝フレームが出ないため FrameTiming の分位には乗らない。
+        Thread.sleep(600)
         // 題名ノードの出方はスキンで違う: 明快K のグリッドはキャプション行に題名を Text で出すが、
         // 和モダンD は題名を栞書影へ Canvas 描画するため text ノードを持たず contentDescription にだけ出る。
         // どちらでも掴めるよう text→desc の順で探す（スキン既定が変わっても静かに空振りしない）。
@@ -124,10 +139,18 @@ class TabSwipeBenchmark {
         if (!device.wait(Until.hasObject(By.textStartsWith("第1章")), 10_000)) {
             fail("chap_1 本文（第1章）に着地しなかった（目次着地＝progress リセット未反映の疑い）")
         }
+        // pop は2段（2026-08-06 実機確定）: progress 付きで本を開くと NavHost のスタックは
+        // 本棚→目次→本文 と積まれ、本文からの Back は**目次画面**に着地する（「本棚に戻る」ボタンと
+        // 「目次」題字を実機 dump で確認）。旧実装の「Back 1回→本棚の徴を待つ」は必ず 10s 待って
+        // fail する設計バグだった。目次経由の2段 pop はアプリの実遷移そのもの＝遷移窓の計測対象として
+        // むしろ正しい。各段で着地の徴を確認し、崩れたら黙って計測を続けない。
         device.pressBack()
-        // pop の完了は「本棚の徴が戻る」で判定する（読書画面の消滅だけだと目次経由の中間状態と区別できない）。
+        if (!device.wait(Until.hasObject(TOC_MARKER), 10_000)) {
+            fail("本文からの Back で目次に着地しなかった（ナビ設計の変更疑い＝pop 段数の再確認が要る）")
+        }
+        device.pressBack()
         if (!device.wait(Until.hasObject(SHELF_MARKER), 10_000)) {
-            fail("Back で本棚へ戻らなかった（pop 先が本棚でない疑い）")
+            fail("目次からの Back で本棚へ戻らなかった（pop 先が本棚でない疑い）")
         }
     }
 
@@ -165,8 +188,8 @@ class TabSwipeBenchmark {
      * 届かない＝「タブが切り替わらない」空振りになる。3タブとも上部は見出し（本棚＝TopAppBar・
      * さがす＝「さがす」題字・設定＝「設定」題字）で、横ドラッグを消費する要素が無い唯一の共通帯。
      * 上端に寄せすぎると通知シェードの引き下ろしと競合するため、ステータスバーより十分下へ置く。
-     * ⚠️ この y は**実機未検証の設計値**。空振りするなら [awaitTab] が上の診断文言で fail する
-     * （黙って計測を続けない）ので、初回実測で当たりを確認してから予算を較正すること。
+     * この y は 2026-08-06 の初回実機実測で実証済み（0.15H＝PGEM10 で y=475。swipeTabs 5反復
+     * ×12スワイプが全弾コミットし、内側ページャへの奪われは一度も出なかった）＝較正不要と確定。
      *
      * x は 0.8W↔0.2W（移動 0.6W）＝ページャの確定条件を大きく満たし、起点はどちらもエッジの
      * 戻る/進むジェスチャ帯から十分離れる（章送りベンチと同値）。尺 100ms も同値。
@@ -229,5 +252,11 @@ class TabSwipeBenchmark {
 
         /** 設定＝設定カードの行見出し（きせかえ行は公開ゲートで消えるため、常に在る行を選ぶ）。 */
         val SETTINGS_MARKER: BySelector = By.text("文字と組版")
+
+        /**
+         * 目次画面の徴＝「本棚に戻る」ボタンの contentDescription（2026-08-06 実機 dump で確認）。
+         * 章タイトル text（第N章）は本文にも目次にも出て面の判別にならないため、目次にしか無いノードを使う。
+         */
+        val TOC_MARKER: BySelector = By.desc("本棚に戻る")
     }
 }

@@ -115,3 +115,10 @@
 - **既定予算 assert 付きで 3/4 PASS**: startup TTID median **267.1ms**（max 284.2）／shelf-scroll **Grid P50 9.8/P90 14.5/P99 20.0ms・List P50 8.9/P90 12.5/P99 23.6ms**／chapter-flip P50 6.1/P90 9.8/P99 25.9ms＝いずれも 07-18 較正予算の内側・**バンプ起因の実行時退行の証拠なし**。
 - **List 面はこの走行が初実測**（シーダー是正で `k_grid_view` を書くようになった後の初走行）: Grid とほぼ同分布（P99 で +3.6ms）＝**共通 ScrollBudget のままで面別予算は不要**と判断（handover の「面別見直し」項はこれで消化）。
 - **pdf-import は NG（2段・いずれもバンプ起因でない）**: ①ベンチ APK に PDF 資産が入らない＝`copyBenchmarkPdfAsset` がタスクグラフ外（**main でも再現＝潜伏**・最終成功 07-18 は AGP 8.6.1 期）②資産を手で入れた再走も FGS `startForegroundCount:0`→20s Stop FGS timeout で中断（targetSdk 36 移行後の実走記録が無く切り分け未了・main は minifyBenchmarkWithR8 が R8 Missing class でビルド不能＝比較不能）。修理タスクは handover リファクタ節。
+
+## ⑥tab-swipe 予算較正（2026-08-06・PGEM10・本 worktree ビルド・5反復）
+
+- **実測（frameDurationCpuMs・run3）**: `swipeTabs` P50 6.33／P90 10.99／P99 19.70ms・`swipeTabsWithTransition` P50 7.18／P90 12.42／P99 31.28ms（差分＝遷移窓の上乗せ P50 +0.85／P99 +11.6。**P99 は走行間 ±30% 揺れる**＝18.06〜31.28 を観測）。
+- **予算焼き込み**＝重い方（WithTransition）基準で **P50 11.0（×≈1.5・1フレーム内）／P90 18.0（×≈1.45）／P99 50.0（×≈1.6・FlipBudget と同根同値）**。resolveBudget 方式（引数パース不能は fail 維持）。PASS 経路 exit 0・FAIL 経路（--budget-p50 1）exit 1 を実機実証。
+- **y=0.15H は実機実証済み**（=475px・全スワイプがコミット・内側ページャへの奪われゼロ＝較正不要と確定・コメント更新）。
+- **副産物＝旧ベンチは実機で構造的に完走不能だった真因2件を修正**: (1) `awaitTab` はページコミットまでしか待たず**settle アニメ中の click をページャが食う**（600ms 固定マージンで命中を実証） (2) 本文からの Back は目次に着地（→2段 pop 化）＋読書後は二層ソートで本が viewport 外へ沈む（→開閉を iteration 末尾1回へ・reseed が並びを毎回リセットするため決定的）。
