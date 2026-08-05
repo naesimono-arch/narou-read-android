@@ -346,7 +346,8 @@ class BookshelfViewModel @JvmOverloads constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     // ── 本文欠落→再取込提案（2026-07-29 裁定・案B バッジ＋案C 一括バナー）──────────────────
-    // 検出定義: books 行はあるが本文実体（index.html）が無い（機序＝uninstall→Auto Backup が DB のみ復元）。
+    // 検出定義: books 行はあるが本文実体が無い＝ index.html 不在、または index はあるが章ファイルが欠けた
+    // torn（2026-08-06 裁定で組込。定義の正本は BookEntity.hasContent＝機序も同 KDoc）。
     // 分類・指紋の純ロジックは domain/ReimportPlan.kt（JVM テスト対象）。ここは Android 依存（ファイル実在・
     // 永続権限・prefs）の注入と配線だけを持つ。
 

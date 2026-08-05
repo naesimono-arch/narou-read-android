@@ -76,11 +76,22 @@ data class BookEntity(
 
     /**
      * この蔵書の本文実体が端末に在るか（本文欠落検出＝2026-07-29 案B/C の単一判定点）。
-     * index.html（目次）の実在を代表点にする: 取込パイプライン（HtmlExporter）は index を含む一式を
-     * 生成するため、index が無い＝一式が無い/書きかけ（torn）とみなして欠落扱いにする（安全側）。
-     * uninstall→Auto Backup が DB のみ復元したケースはディレクトリごと消えるのでここで検出できる。
+     * 判定は2段:
+     *  1) index.html（目次）の実在＝一式の代表点（HtmlExporter は全章を書き終えた後に index を最後に置く
+     *     契約のため、index が無い＝一式が無い/書きかけとみなせる）。uninstall→Auto Backup が DB のみ
+     *     復元したケースはディレクトリごと消えるのでここで検出できる。
+     *  2) torn 検出（2026-08-06 裁定「組み込む」）: index はあるが章ファイルが欠けた本も欠落扱いにする。
+     *     判別法は 2026-07-30 実機実測で検証済みの「index.html の章リンクと実ファイルの突合」
+     *     （疑い1冊を短編＝1章のみで正常と判定できた実績のある手法）＝ [isTornContent]。
+     * この関数が false を返すと、棚バッジ（案B）・起動時一括バナー（案C）・復元経路（restoreByHash /
+     * restoreTarget の「本文欠落なら Duplicate で止めず既存行保持のまま再生成」）のすべてが連動する
+     * ＝torn 本もここへ畳み込むだけで3導線が効く（判定点を増やさない）。
      */
-    fun hasContent(filesDir: File): Boolean = File(resolvedHtmlDir(filesDir), INDEX_HTML).exists()
+    fun hasContent(filesDir: File): Boolean {
+        val dir = resolvedHtmlDir(filesDir)
+        if (!File(dir, INDEX_HTML).exists()) return false
+        return !isTornContent(dir)
+    }
 
     companion object {
         /** HTML 実体を格納する filesDir 直下のサブディレクトリ名（取込・掃除・復元で共有する単一の規約）。 */
@@ -92,5 +103,32 @@ data class BookEntity(
         /** bookId から HTML ディレクトリを再導出する（filesDir/novels/<bookId>）。取込時の書き出し先・
          *  孤立HTML掃除の走査・復元時の位置復帰が同一規約を通るための一元化点。 */
         fun resolveHtmlDir(filesDir: File, bookId: String): File = File(filesDir, "$NOVELS_SUBDIR/$bookId")
+
+        /**
+         * index.html が指す目次リンクの生成契約（HtmlExporter.exportToMobileHtml が書く
+         * `<li><a href="chap_N.html">` と同形。HtmlExporterChapterCountInvariantTest と同じパターン）。
+         * なぜ `<li><a href=` まで含めて照合するか（誤検知ゼロの根拠）: 章タイトルは htmlEscape 済み
+         * （`<`→`&lt;`・`"`→`&quot;`）のため、タイトル本文がこの並びを偽装することは構造的にできない
+         * ＝本文由来の文字列を誤ってリンクと数える偽陽性が出ない。
+         */
+        private val INDEX_CHAPTER_LINK = Regex("""<li><a href="(chap_\d+\.html)">""")
+
+        /**
+         * torn（index.html はあるが章ファイルが欠けた本）か（2026-08-06 裁定で欠落判定へ組込）。
+         * 判別法＝2026-07-30 実機実測で検証済みの「index.html の章リンクと実ファイルの突合」。
+         * 実装は「リンクされた各章ファイルの実在」を確認する形にする——単純な件数比較だと、
+         * 無関係な残骸ファイル（例: 再取込前の版の chap が余って残る）が欠けた章と相殺して数だけ合い、
+         * 偽陰性/偽陽性の両方を生みうる。実在照合なら余剰ファイルは無害（偽陽性ゼロ側に倒れる）。
+         *
+         * 安全側の境界条件（誤検知ゼロ最優先＝正常本・短編を torn にしない）:
+         *  ・リンク0本（生成契約外の index＝テスト fixture 等）→ torn でない（従来判定を変えない）
+         *  ・index が読めない（IOException 等）→ torn でない（読めない事実だけで欠落へ倒さない）
+         *  ・リンクに無い余剰ファイルが在る → torn でない（欠けの証拠ではない）
+         */
+        private fun isTornContent(htmlDir: File): Boolean {
+            val html = runCatching { File(htmlDir, INDEX_HTML).readText(Charsets.UTF_8) }.getOrNull()
+                ?: return false
+            return INDEX_CHAPTER_LINK.findAll(html).any { !File(htmlDir, it.groupValues[1]).exists() }
+        }
     }
 }

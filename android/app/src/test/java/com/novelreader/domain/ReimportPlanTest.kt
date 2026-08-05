@@ -1,6 +1,8 @@
 package com.novelreader.domain
 
 import com.novelreader.data.BookEntity
+import com.novelreader.pdf.HtmlExporter
+import com.novelreader.pdf.ProcessedChapter
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -60,6 +62,109 @@ class ReimportPlanTest {
             val dir = File(filesDir, "novels/b1").apply { mkdirs() }
             File(dir, "chap_1.html").writeText("x") // 書きかけ残骸のみ
             assertFalse(book("b1", htmlDirPath = dir.absolutePath).hasContent(filesDir))
+        } finally {
+            filesDir.deleteRecursively()
+        }
+    }
+
+    // ── torn 検出（2026-08-06 裁定「組み込む」）: index はあるが章ファイルが欠けた本も欠落扱い ──
+    // 判別法＝2026-07-30 実機実測で検証済みの「index.html の章リンクと実ファイルの突合」。
+    // fixture は手書き HTML でなく HtmlExporter の実生成物を使う＝生成契約（<li><a href="chap_N.html">）と
+    // 検出正規表現が将来 silent に乖離したらここが落ちる（HtmlExporterChapterCountInvariantTest と同じ狙い）。
+
+    /** HtmlExporter で filesDir/novels/<id> へ n 章の実生成物一式を書き出す。 */
+    private fun exportRealBook(filesDir: File, id: String, n: Int, titles: (Int) -> String = { "第${it}話" }): File {
+        val dir = File(filesDir, "novels/$id")
+        HtmlExporter.exportToMobileHtml(
+            (1..n).map { ProcessedChapter(titles(it), "本文$it") }, dir, "テスト小説",
+        )
+        return dir
+    }
+
+    @Test
+    fun `hasContent - torn（index はあるが章ファイルが欠けた本）は欠落扱い＝真陽性`() {
+        val filesDir = createTempDir(prefix = "tornPositive")
+        try {
+            val dir = exportRealBook(filesDir, "b1", n = 3)
+            File(dir, "chap_2.html").delete() // 中間章だけ欠く（数でなく実在の突合で検出できる形）
+            assertFalse(book("b1", htmlDirPath = dir.absolutePath).hasContent(filesDir))
+        } finally {
+            filesDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `hasContent - 正常本（全章ファイル実在）は torn 扱いにならない＝偽陽性ゼロ`() {
+        val filesDir = createTempDir(prefix = "tornNegative")
+        try {
+            val dir = exportRealBook(filesDir, "b1", n = 3)
+            assertTrue(book("b1", htmlDirPath = dir.absolutePath).hasContent(filesDir))
+        } finally {
+            filesDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `hasContent - 短編（1章のみ）は torn 扱いにならない（2026-07-30 実機の疑い1冊と同形）`() {
+        val filesDir = createTempDir(prefix = "tornShort")
+        try {
+            // 07-30 実測: torn を疑った1冊は「短編＝index の章リンク1本・chap_1 実在」で正常と判定できた。
+            val dir = exportRealBook(filesDir, "b1", n = 1)
+            assertTrue(book("b1", htmlDirPath = dir.absolutePath).hasContent(filesDir))
+            // 同じ短編でも唯一の章が消えれば欠落＝章数によらず突合が対称に働く。
+            File(dir, "chap_1.html").delete()
+            assertFalse(book("b1", htmlDirPath = dir.absolutePath).hasContent(filesDir))
+        } finally {
+            filesDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `hasContent - リンクに無い余剰章ファイルは torn の証拠にしない（件数比較でなく実在照合）`() {
+        val filesDir = createTempDir(prefix = "tornStray")
+        try {
+            // 再取込前の版の残骸などで chap が余っても、リンクされた章が全て実在するなら本文あり。
+            val dir = exportRealBook(filesDir, "b1", n = 2)
+            File(dir, "chap_9.html").writeText("stray")
+            assertTrue(book("b1", htmlDirPath = dir.absolutePath).hasContent(filesDir))
+        } finally {
+            filesDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `hasContent - 章タイトルがリンク風文字列でも誤検知しない（htmlEscape が偽装を構造的に防ぐ）`() {
+        val filesDir = createTempDir(prefix = "tornEscape")
+        try {
+            // タイトル中の < と " は htmlEscape で実体参照になるため、本文由来の文字列が
+            // 目次リンク（<li><a href="chap_N.html">）に化けて「存在しない章」を偽登録することはない。
+            val dir = exportRealBook(filesDir, "b1", n = 1) { """<li><a href="chap_99.html">罠""" }
+            assertTrue(book("b1", htmlDirPath = dir.absolutePath).hasContent(filesDir))
+        } finally {
+            filesDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `hasContent - torn 本も buildReimportPlans の欠落地図へ載る（バッジ・バナー・走査対象への入口）`() {
+        val filesDir = createTempDir(prefix = "tornPlans")
+        try {
+            val tornDir = exportRealBook(filesDir, "t1", n = 2)
+            File(tornDir, "chap_2.html").delete()
+            val okDir = exportRealBook(filesDir, "ok1", n = 2)
+            val books = listOf(
+                book("t1", htmlDirPath = tornDir.absolutePath, contentSha256 = "sha-t"),
+                book("ok1", htmlDirPath = okDir.absolutePath),
+            )
+            // 検出→分類の実配線（BookshelfViewModel）と同じ isContentMissing＝!hasContent で結線して確かめる。
+            val plans = buildReimportPlans(
+                books,
+                isContentMissing = { !it.hasContent(filesDir) },
+                hasPersistedRead = { false },
+            )
+            // torn 本だけが欠落地図へ載り（＝バッジ・バナーの対象）、指紋があるので案X 走査対象にもなる。
+            assertEquals(setOf("t1"), plans.keys)
+            assertEquals("sha-t", plans.getValue("t1").scanSha256)
         } finally {
             filesDir.deleteRecursively()
         }
