@@ -171,21 +171,23 @@
 
 ## リファクタ / 技術的負債（deferred）
 
-- **[大物・実装は完了・残るはマージ判断]** Kotlin 2.x 一括バンプは **2026-08-05 に別ブランチで完遂**——
+- **[大物・マージ GO 待ち]** Kotlin 2.x 一括バンプは **2026-08-05 に別ブランチで完遂**——
   ブランチ `deps/kotlin2-oneshot-2026-08-05-r2`（worktree `…/.claude/worktrees/agent-a54327ab5f2ac65fc`・**未 push・未マージ**）。
   Kotlin 2.2.21／compose compiler plugin 2.2.21／KSP 2.2.21-2.0.5／**Room 2.8.4**／Roborazzi 1.70.0／**AGP 8.10.1**／tracing 1.3.0。
-  **ゲート7つ全緑**（単体1216件失敗0・golden 100枚 unchanged で再記録ゼロ・lint errors 0・release R8 警告0・androidTest/benchmark コンパイル・tokens NG0）。
-  ADR 0029 に増補済み（第4の連鎖＝Room が KSP2 必須で 2.7.0 以降、第5の連鎖＝AGP 同梱 R8 が Kotlin 2.2 メタデータを読めず
-  **「緑のまま壊れている」**状態だったため AGP も上げる必要があった）。
-  - **やること＝このブランチを取り込むかの判断と実行**（現行作業ブランチとの統合順序・タイミング）。⚠️ 取り込み前に**実機系が3つ未消化**＝
-    release R8 の実機回帰・macrobenchmark 実走・`MigrationTest`（androidTest・Room 2.8.4 の `MigrationTestHelper` が旧書式 JSON を読めるかは端末で要確認）。
+  **ゲート7つ全緑**＋**実機3件も 2026-08-06 に消化**（R8 実機回帰 PASS・MigrationTest 実機 OK(5)・macrobench 3/4 PASS＝
+  実測は `.claude/plans/macrobenchmark-kickoff-2026-07-17.md` ⑤。pdf-import NG はバンプ起因でない＝下の2項）。
+  ADR 0029 増補済み。**マージの GO 裁定＝`awaiting-human.md` §3-1（推奨 GO を登録済み）**。
   - 派生の宿題（本便では意図的に触っていない）: Kotlin 2.2 の KT-73255 警告（Moshi の `@Json` 付き引数で多数）＝
     `-Xannotation-default-target` は挙動を変える指定なので方針を決めてから別便で。
-- **[実機・要再測] 本棚スクロールの「リスト面」ベースラインが未取得**（2026-08-05 にシーダーを是正した副産物）:
-  `BookshelfScrollBenchmark.scrollList` はこれまで面を指定できておらず K のグリッドを測っていた。
-  シーダーが `k_grid_view` も書くようにしたので**次の実機走行で初めてリスト面の実数が出る**＝
-  既存の「本棚グリッド 3.82%」系の数字とは比較不能。`tools/run_macrobenchmark.sh --scenario shelf-scroll` で
-  scrollList / scrollGrid を採り直し、必要なら `ScrollBudget` の予算を面別に見直す。
+- **[実機で発見・main でも再現の潜伏バグ] benchmark PDF 資産がタスクグラフ外**（2026-08-06 の Kotlin2 実機検証で発見）:
+  `android/app/build.gradle:59-65,181` の `srcDir(TaskProvider)` 結線では `copyBenchmarkPdfAsset` が assembleBenchmark の
+  依存に入らず、ベンチ APK に `assets/sample_pdfs/N6169DZ.pdf` が入らない（最終成功 07-18＝AGP 8.6.1 期）。
+  **真因（AGP のどの機序で依存が張られないか）を特定して修理**——copy 手動実行→再 merge の回避で PDF 入り APK は作れる。
+- **[修理後の切り分け] pdf-import ベンチが FGS timeout で完走しない**: 資産を入れた再走でも broadcast 受理→FGS
+  `startForegroundCount:0` のまま 20s で Stop FGS timeout→取込中断。同時間帯にベンチプロセスがヒープ飽和
+  （384MB・GC50回/13.6s ブロック）。targetSdk 34→36（07-29）以降 pdf-import の実走記録が無く**バンプ起因かは判定不能**。
+  ⚠️ main は `minifyBenchmarkWithR8` が play-core-ktx の Missing class（R8 8.9.32）で**ビルド不能**＝旧環境比較には
+  この解消が先行条件（Kotlin2 側は R8 8.10.24 で通る＝ビルド可否はむしろ改善）。真因特定まで（timeout 延長で症状を隠さない）。
 
 ## workflow / tooling
 

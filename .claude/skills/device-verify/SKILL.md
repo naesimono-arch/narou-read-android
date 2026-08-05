@@ -140,5 +140,12 @@ adb shell am broadcast -a ADB_CLEAR_TEXT   # 入力欄クリア
 
 Claude が adb を自律駆動する（install / logcat / input / screencap / DB 確認・不具合はその場で
 自律デバッグ）。**報告は必ず実際のコマンド出力に基づくこと（捏造禁止）**。
+
+- **画面タップは uiautomator dump で bounds/resource-id を確認してから打つ（座標の当て推量は禁止）**——
+  2026-08-06 に盲目タップが目次項目へ誤着弾し、参照ジャンプの 20s 滞留昇格で実蔵書の読書進捗を前進させた実害
+  （操作前に取っていた DB 3ファイルのバックアップから復元できた）。同型＝2026-08-05 の章送りハントでも
+  座標タップがボタンに当たらず全試行が空振りしている。
+- **読書位置・進捗など「状態を変えうる」操作フェーズの前に、実機 DB 3ファイルのバックアップを取るのを標準とする**
+  （§3 の手順で pull。上の実害はこれで救われた）。
 CP（コミット）1つ分の検証を終えるごとに一旦停止し、ユーザーへ目視ダブルチェックを依頼してから
 次へ進む（memory `workflow-autonomous-device-verification` / `workflow-notify-each-step-visual-check`）。

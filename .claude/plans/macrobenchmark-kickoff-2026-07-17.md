@@ -109,3 +109,9 @@
 - **スクリプト**: chapter-flip/pdf-import の `--assert` 解禁・`--budget-extract`/`--budget-engine` 新設・畑違いガード全方向張り替え（6経路 exit 2 検査済み）。
 - **実機実証（2026-07-18）**: ③ PASS 経路＝P50 6.8/P90 16.9/P99 31.1ms で exit 0・③ FAIL 経路＝`--budget-p50 1` で AssertionError「P50=7.17ms > 予算 1.0ms」exit 1・④ PASS 経路＝extract 24.0s/engine 22.4s で exit 0（--assert 付き完走＝JSON 探索・パース・判定の実行も同時に実証）・④ FAIL 経路＝`--budget-extract 1` で AssertionError「Import#extractSumMs median=21959.9ms > 予算 1.0ms」exit 1（ロック解除後に完走。この走行の実測 extract 22.0s/engine 20.7s は予算内側＝FAIL は純粋に絞った予算による）。**＝③④とも PASS/FAIL 両経路の実機実証完了**。
 - **副産物＝画面ロックの2様の壊れ方を実証し、スクリプトへロック検査を新設**: ①走行中に消灯→ロック＝perfetto の media 書込み（trace_config.pb）が **EPERM** で iteration 途中死（61GB 空きで容量無関係・iter000/001 は書けて3反復目だけ死ぬ）②ロック状態で開始＝前面ガード「対象アプリが前面に来なかった」で fail（`mCurrentFocus=NotificationShade`・`isKeyguardShowing=true`）。`wm dismiss-keyguard`/スワイプ/keyevent 82 いずれも認証ロックは突破不可＝人間の解除が必要。入口検査（keyguard 検出で die）は現物のロック状態で exit 1 を実証済み。
+
+## ⑤Kotlin2 バンプ検証走行（2026-08-06・PGEM10・ビルド元＝deps/kotlin2-oneshot-2026-08-05-r2）
+
+- **既定予算 assert 付きで 3/4 PASS**: startup TTID median **267.1ms**（max 284.2）／shelf-scroll **Grid P50 9.8/P90 14.5/P99 20.0ms・List P50 8.9/P90 12.5/P99 23.6ms**／chapter-flip P50 6.1/P90 9.8/P99 25.9ms＝いずれも 07-18 較正予算の内側・**バンプ起因の実行時退行の証拠なし**。
+- **List 面はこの走行が初実測**（シーダー是正で `k_grid_view` を書くようになった後の初走行）: Grid とほぼ同分布（P99 で +3.6ms）＝**共通 ScrollBudget のままで面別予算は不要**と判断（handover の「面別見直し」項はこれで消化）。
+- **pdf-import は NG（2段・いずれもバンプ起因でない）**: ①ベンチ APK に PDF 資産が入らない＝`copyBenchmarkPdfAsset` がタスクグラフ外（**main でも再現＝潜伏**・最終成功 07-18 は AGP 8.6.1 期）②資産を手で入れた再走も FGS `startForegroundCount:0`→20s Stop FGS timeout で中断（targetSdk 36 移行後の実走記録が無く切り分け未了・main は minifyBenchmarkWithR8 が R8 Missing class でビルド不能＝比較不能）。修理タスクは handover リファクタ節。
