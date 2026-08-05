@@ -1,0 +1,784 @@
+<!-- @dsCard group="UI-n / デフォルト（明快K）" name="K. 本棚 高負荷モード候補 — 栞アニメーション（先端174種×動きの語彙20・常時再生比較・2026-08-05）" -->
+<!--
+  高負荷モード（栞アニメーション）候補モック — 2026-08-05
+  ・ADR 0023「高負荷モード」の各UI展開（星図M→和モダンD→各画面）の本棚K版: opt-in の贅沢として
+    栞書影の「先端ワンポイント」に、その意匠に対応した動きを入れる。
+  ・通常モードは従来どおり完全静止＝ADR 0022 §3（スキン別の静/動裁定）に抵触しない。
+    動くのは高負荷 ON のときだけ・reduce-motion では完全静止（§3 制約②と同型）。
+  ・導線は新設しない: 星図M「高負荷スカイ（試作）」トグルと同型（debug 限定・release 常時 OFF・
+    設定面の「開発」節に1行）。本モックが裁定するのは動き本体だけ。
+  ・Web未取込カード（narou）は対象外＝「沈めた署名」（破線・影なし・field 地）を保つため静止のまま。
+  ・紙面・栞棒・題字も静止のまま＝動くのは先端だけ（静止時の意匠を壊さない範囲に絞る初回裁定。
+    棒を伝う光・紙の繊維のきらめき等の面アニメは、先端の合否が出てからの追補候補として見送り）。
+  ・割当の原理: 先端174種それぞれに「動きの語彙」20種（ゆれ/そよぎ/箔の瞬き/白刃の閃き/霊光/…）から
+    意匠由来で1つを与え、周期・振幅・位相は個体ごとにジッタ＝隣の本と同期しない（生きて見える生命線）。
+  ・構造下敷き＝skins/bookshelf-K.html（2列改A・恒久ルール: fusion-D は語彙参照のみ・構造下敷き禁止）。
+    先端の描画語彙＝bookshelf-shiori-grid-D.html の TIPS 174種を同順コピー（Kotlin SHIORI_TIPS と同順）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K 本棚 高負荷モード — 栞アニメーション候補</title>
+<style>
+  :root{
+    --base:#FBFAF8;        /* 和紙地 */
+    --ink:#1C1F26;         /* 主文字 */
+    --ink-soft:#6A6E78;    /* K専用: AA(4.5:1)補助文字 */
+    --line:#ECEAE4;        /* ヘアライン */
+    --ai:#1C3D5A;          /* 藍アクセント */
+    --ai-tint:rgba(28,61,90,.10);
+    --seiji-ink:#50685C;   /* 青磁ink（Web未取込の破線署名） */
+    --field:#F0EEE8;       /* 一段沈めた紙地（未取込カード地） */
+    --paper:#FDFCFA;       /* 栞書影の紙 */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;min-height:100vh;display:flex;flex-direction:column;align-items:center;
+    padding:24px;font-family:var(--gothic);-webkit-font-smoothing:antialiased}
+
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:8px;text-align:center;line-height:1.7;max-width:760px}
+  .cap b{color:#2A2C28}
+  .ctrl{display:flex;gap:12px;margin:12px 0 24px}
+  .ctrl button{font-size:12.5px;font-weight:500;cursor:pointer;border-radius:999px;padding:12px 24px;border:none;font-family:var(--gothic)}
+  .ctrl .primary{color:#fff;background:var(--ai)}
+
+  /* === スマホ画面枠（bookshelf-K 準拠・実機実効 360dp・ライトのみ＝K正本と同じ） === */
+  .phone{width:360px;height:820px;background:var(--base);border-radius:38px;overflow:hidden;
+    position:relative;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.30);flex-shrink:0}
+  .sb{height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:11px;color:var(--ink-soft);letter-spacing:.02em}
+  .sb .r{display:flex;gap:6px;align-items:center}
+  .head{flex-shrink:0;display:flex;align-items:baseline;justify-content:space-between;padding:6px 20px 12px}
+  .head .ttl{display:flex;align-items:baseline;gap:10px}
+  .head h1{font-family:var(--gothic);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.04em}
+  .head .count{font-size:12px;color:var(--ink-soft);letter-spacing:.06em}
+  .head .view{width:38px;height:38px;border:none;background:transparent;border-radius:10px;
+    display:grid;place-items:center;color:var(--ink);cursor:pointer;align-self:center}
+  .head .view svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6}
+  .chips{flex-shrink:0;display:flex;gap:8px;padding:0 20px 12px;overflow-x:auto;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex-shrink:0;font-size:12.5px;padding:6px 15px;border-radius:999px;cursor:pointer;
+    border:1px solid var(--line);color:var(--ink-soft);background:transparent;letter-spacing:.02em}
+  .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
+  .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 24px 120px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px 24px}
+  .bk{cursor:pointer}
+
+  /* ===== 栞書影（K正本と同じ: 紙地＋栞棒＋縦組み明朝題字・輪郭は影） ===== */
+  .cv{position:relative;aspect-ratio:3/4;border-radius:3px;overflow:hidden;background:var(--paper);
+    box-shadow:0 3px 10px rgba(0,0,0,.14)}
+  .cv .bar{position:absolute;top:0;left:var(--barx,26%);width:2.5px;height:var(--barlen,46%);background:var(--band,var(--ink-soft))}
+  /* 先端＝結び玉（通常モード/未取込カード用の静止先端。高負荷 .hl では canvas 先端へ置換） */
+  .cv .bar::after{content:"";position:absolute;left:50%;top:100%;transform:translate(-50%,-1px);
+    width:7px;height:7px;border-radius:50%;background:var(--band,var(--ink-soft))}
+  .cv.hl .bar::after{content:none}
+  .cv .vt{position:absolute;top:14px;right:12px;bottom:14px;max-width:66%;overflow:hidden;
+    writing-mode:vertical-rl;font-family:var(--mincho);font-size:12px;font-weight:600;
+    color:var(--ink);line-height:1.6;letter-spacing:.05em}
+  .cv.narou{background:var(--field);border:1.5px dashed var(--seiji-ink);box-shadow:none}
+  /* 先端 canvas: 論理64×56px・棒先端(アタッチ点)は canvas 内 (32,10)。
+     棒中心 = --barx + 1.25px なので left は −32px+1.25px、top は −10px でアタッチ点が棒先端に一致する。 */
+  .cv .tip{position:absolute;left:calc(var(--barx) - 30.75px);top:calc(var(--barlen) - 10px);
+    width:64px;height:56px;pointer-events:none}
+
+  .capr{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-top:8px}
+  .capr .t{flex:1;min-width:0;font-family:var(--mincho);font-size:12px;color:var(--ink);line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .capr .dots{width:28px;height:28px;flex-shrink:0;border:none;background:transparent;color:var(--ink-soft);
+    display:grid;place-items:center;cursor:pointer;margin-top:-2px}
+  .capr .dots svg{width:16px;height:16px;fill:currentColor}
+  .st{margin-top:4px;font-size:10.5px;color:var(--ink-soft);letter-spacing:.03em;
+    display:flex;align-items:center;gap:5px;min-height:14px}
+  .st .dot{width:6px;height:6px;border-radius:50%;background:var(--ai);flex-shrink:0}
+  .st.narou{color:var(--seiji-ink)}
+
+  .fab{position:absolute;right:16px;bottom:80px;z-index:6;display:inline-flex;align-items:center;gap:8px;
+    height:52px;padding:0 20px 0 16px;border:none;cursor:pointer;border-radius:26px;
+    background:var(--ai);color:#fff;font-family:var(--gothic);font-size:14px;font-weight:600;
+    letter-spacing:.03em;box-shadow:0 8px 20px rgba(28,61,90,.36)}
+  .fab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+  .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    text-decoration:none;cursor:pointer;color:var(--ink-soft)}
+  .tab.on{color:var(--ai)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .tab.on .ic .pill{background:var(--ai-tint)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
+  .tab.on .lb{font-weight:700}
+
+  /* ===== 全174種の一覧帯（mockview 比較用・常時再生） ===== */
+  .range{max-width:1120px;margin:44px auto 0;width:100%}
+  .range h2{font-family:var(--mincho);font-size:15px;font-weight:500;letter-spacing:.06em;color:#3a3c37;text-align:center;margin-bottom:4px}
+  .range p{font-size:11.5px;color:#7c7a72;text-align:center;margin-bottom:16px;line-height:1.7}
+  .strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:20px 14px}
+  .sc{display:flex;flex-direction:column;gap:6px}
+  .sc .cv{width:100%}
+  .sc .lb{text-align:center;line-height:1.5}
+  .sc .lb b{display:block;font-family:var(--mincho);font-size:10.5px;font-weight:600;color:#3a3c37}
+  .sc .lb .w{display:block;font-size:10.5px;color:#7c7a72}
+
+  /* ===== 動きの語彙（凡例） ===== */
+  .legend{max-width:860px;margin:40px auto 0;width:100%}
+  .legend h2{font-family:var(--mincho);font-size:15px;font-weight:500;letter-spacing:.06em;color:#3a3c37;text-align:center;margin-bottom:12px}
+  .legend ul{list-style:none}
+  .legend li{display:flex;gap:10px;align-items:baseline;padding:5px 0;border-bottom:1px solid #dbd9d1;font-size:12px;color:#5a5852;line-height:1.6}
+  .legend li b{flex-shrink:0;width:9.5em;font-family:var(--mincho);color:#2a2c28;font-weight:600}
+  .note{max-width:860px;margin:28px auto 60px;font-size:11.5px;color:#7c7a72;line-height:1.9}
+  .note b{color:#3a3c37}
+
+  /* ===== 動きの実体（20語彙）。周期/振幅/位相は JS が個体ごとにジッタを与える ===== */
+  /* ゆれ: 吊り物の振り子（アタッチ点=棒先端が支点）。 */
+  @keyframes hl-sway{from{transform:rotate(calc(var(--amp,2.4deg) * -1))}to{transform:rotate(var(--amp,2.4deg))}}
+  .an-sway{animation:hl-sway 3.8s ease-in-out infinite alternate}
+  /* そよぎ: 草木・紙ものの不規則な風（左右非対称の多段キー）。 */
+  @keyframes hl-breeze{0%,100%{transform:rotate(calc(var(--amp,1.6deg) * -.7))}35%{transform:rotate(var(--amp,1.6deg))}58%{transform:rotate(calc(var(--amp,1.6deg) * .2))}80%{transform:rotate(calc(var(--amp,1.6deg) * .7))}}
+  .an-breeze{animation:hl-breeze 5.2s ease-in-out infinite}
+  /* またたき: 星のまたたき（透過と微スケール）。 */
+  @keyframes hl-twinkle{0%,100%{opacity:.55;transform:scale(.96)}50%{opacity:1;transform:scale(1)}}
+  .an-twinkle{animation:hl-twinkle 2.8s ease-in-out infinite}
+  /* 箔の瞬き: 長い静止のあと一瞬だけ耀く（金彩の光が走る）。 */
+  @keyframes hl-glint{0%,84%,96%,100%{filter:brightness(1)}88%{filter:brightness(1.55) drop-shadow(0 0 3px rgba(255,214,120,.55))}92%{filter:brightness(1.08)}}
+  .an-glint{animation:hl-glint 7s linear infinite}
+  /* 白刃の閃き: 鋭く白い一閃（武具・雷）。 */
+  @keyframes hl-sheen{0%,90%,97%,100%{filter:brightness(1)}92.5%{filter:brightness(1.9) drop-shadow(0 0 2px rgba(255,255,255,.85))}95%{filter:brightness(1.05)}}
+  .an-sheen{animation:hl-sheen 6s linear infinite}
+  /* 回転: 回りもの（独楽・手裏剣・太極）。 */
+  @keyframes hl-spin{to{transform:rotate(360deg)}}
+  .an-spin{animation:hl-spin 12s linear infinite}
+  /* 霊光: 識別色の暈が呼吸する（呪術・神威）。 */
+  @keyframes hl-glow{0%,100%{filter:drop-shadow(0 0 0 rgba(0,0,0,0))}50%{filter:drop-shadow(0 0 4px var(--glow,rgba(120,140,255,.5))) brightness(1.15)}}
+  .an-glow{animation:hl-glow 5.5s ease-in-out infinite}
+  /* 墨と漆の艶: にぶい光沢の呼吸（文房・印章）。 */
+  @keyframes hl-ink{0%,100%{filter:brightness(1) saturate(1)}50%{filter:brightness(1.1) saturate(1.3)}}
+  .an-ink{animation:hl-ink 7s ease-in-out infinite}
+  /* 鳴り: 鈴・錫杖・弓弦——ひと振りして減衰し、しばらく黙る。 */
+  @keyframes hl-ring{0%,55%,80%,100%{transform:rotate(0)}58%{transform:rotate(4deg)}62%{transform:rotate(-3.4deg)}66%{transform:rotate(2.6deg)}70%{transform:rotate(-1.6deg)}74%{transform:rotate(.8deg)}}
+  .an-ring{animation:hl-ring 5s ease-in-out infinite}
+  /* 羽ばたき: 翼の開閉（横スケール）。 */
+  @keyframes hl-flap{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.88)}}
+  .an-flap{animation:hl-flap 2s ease-in-out infinite}
+  /* 跳ね: 長い静止のあと小さく二度はねる。 */
+  @keyframes hl-hop{0%,86%,92%,96%,100%{transform:translateY(0)}88%{transform:translateY(-2.5px)}94%{transform:translateY(-1px)}}
+  .an-hop{animation:hl-hop 5.2s ease-in-out infinite}
+  /* 漂い: 水中・空中のたゆたい（縦の浮き沈み＋微傾き）。 */
+  @keyframes hl-bob{0%,100%{transform:translateY(0) rotate(-.6deg)}50%{transform:translateY(1.4px) rotate(.6deg)}}
+  .an-bob{animation:hl-bob 4.4s ease-in-out infinite}
+  /* ひらり: 散りもの（桜・紅葉）が宙で舞う。 */
+  @keyframes hl-drift{0%,100%{transform:rotate(calc(var(--amp,2.6deg) * -1)) translateY(0)}50%{transform:rotate(var(--amp,2.6deg)) translateY(1.6px)}}
+  .an-drift{animation:hl-drift 5.6s ease-in-out infinite}
+  /* 波: 横のうねり（青海波・州浜）。 */
+  @keyframes hl-wave{0%,100%{transform:translateX(-1.2px)}50%{transform:translateX(1.2px)}}
+  .an-wave{animation:hl-wave 4.2s ease-in-out infinite}
+  /* たちのぼり: 湯気・立涌——ゆっくり立ちのぼる気配。 */
+  @keyframes hl-rise{0%,100%{transform:translateY(1px);opacity:.85}55%{transform:translateY(-.8px);opacity:1}}
+  .an-rise{animation:hl-rise 4.8s ease-in-out infinite}
+  /* 灯のゆらめき: 不規則な明滅＋暖色の暈（行灯・蛍）。 */
+  @keyframes hl-flicker{0%,31%,63%,100%{opacity:1;filter:drop-shadow(0 0 3px var(--glow,rgba(255,190,110,.5)))}7%{opacity:.78}11%{opacity:.96}26%{opacity:.85}58%{opacity:.8}81%{opacity:.9}}
+  .an-flicker{animation:hl-flicker 6.4s linear infinite}
+  /* ほころび: 花・生きものの息（微スケールの呼吸）。 */
+  @keyframes hl-bloom{0%,100%{transform:scale(.985)}50%{transform:scale(1.015)}}
+  .an-bloom{animation:hl-bloom 5s ease-in-out infinite}
+  /* まばたき: 呪眼——長い静止のあと一度だけ瞬く。 */
+  @keyframes hl-blink{0%,90%,96%,100%{transform:scaleY(1)}93%{transform:scaleY(.15)}}
+  .an-blink{animation:hl-blink 6.5s ease-in-out infinite}
+  /* したたり: 雫が落ち、また結ぶ。 */
+  @keyframes hl-drip{0%,60%,88%,100%{transform:translateY(0);opacity:1}72%{transform:translateY(2.2px);opacity:1}78%{transform:translateY(2.2px);opacity:0}79%{transform:translateY(0);opacity:0}}
+  .an-drip{animation:hl-drip 6s ease-in-out infinite}
+  /* 羅針のふるえ: 中心支点の小さな迷い（方位盤）。 */
+  @keyframes hl-wobble{0%,100%{transform:rotate(-1.5deg)}50%{transform:rotate(1.5deg)}}
+  .an-wobble{animation:hl-wobble 6s ease-in-out infinite}
+
+  /* 一時停止（静止時の意匠を壊していないかの突き合わせ用） */
+  body.paused .cv .tip{animation-play-state:paused!important}
+  /* reduce-motion は完全静止（ADR 0022 §3 制約②と同型＝実装必須要件） */
+  @media (prefers-reduced-motion:reduce){.cv .tip{animation:none!important}}
+</style>
+</head>
+<body>
+  <p class="cap"><b>本棚K 高負荷モード候補 — 栞アニメーション</b>　先端<b>174種それぞれ</b>に、その意匠由来の動き（<b>動きの語彙20種</b>×個体ごとの周期ジッタ）を与える。導線は星図Mの高負荷トグルと同型（debug 限定・release OFF）＝本モックは動き本体だけを裁定。上=本棚 in-situ／下=全174種の一覧。</p>
+  <div class="ctrl">
+    <button class="primary" id="pause">⏸ 一時停止（静止意匠と突き合わせ）</button>
+  </div>
+
+  <!-- ===== 本棚 in-situ（bookshelf-K 準拠・8冊中2冊は Web未取込＝静止のまま） ===== -->
+  <div class="phone">
+    <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+    <div class="head">
+      <div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div>
+      <button class="view" aria-label="表示切替">
+        <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="4" width="6.6" height="6.6" rx="1.4"/><rect x="4" y="13.4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="13.4" width="6.6" height="6.6" rx="1.4"/></svg>
+      </button>
+    </div>
+    <div class="chips">
+      <span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span>
+    </div>
+    <div class="scroll">
+      <div class="grid">
+        <div class="bk">
+          <div class="cv hl" style="--band:hsl(210 48% 52%);--barx:26%;--barlen:46%">
+            <span class="bar"></span><canvas class="tip" data-tip="4" data-hue="210"></canvas><span class="vt">追放された万能薬師、辺境でスローライフを始める</span>
+          </div>
+          <div class="capr"><span class="t">追放された万能薬師、辺境でスローライフを始める</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">第127/205話</div>
+        </div>
+        <div class="bk">
+          <div class="cv hl" style="--band:hsl(280 48% 52%);--barx:34%;--barlen:42%">
+            <span class="bar"></span><canvas class="tip" data-tip="84" data-hue="280"></canvas><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span>
+          </div>
+          <div class="capr"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">第43/150話</div>
+        </div>
+        <div class="bk">
+          <div class="cv hl" style="--band:hsl(95 48% 52%);--barx:22%;--barlen:50%">
+            <span class="bar"></span><canvas class="tip" data-tip="63" data-hue="95"></canvas><span class="vt">転生したら最弱スキルだったので草むしりしていた</span>
+          </div>
+          <div class="capr"><span class="t">転生したら最弱スキルだったので草むしりしていた</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st"><span class="dot"></span>未読</div>
+        </div>
+        <div class="bk">
+          <!-- Web未取込: 高負荷でも静止（沈めた署名を保つ＝アニメ対象外の裁定ポイント） -->
+          <div class="cv narou" style="--band:hsl(190 48% 52%);--barx:30%;--barlen:44%">
+            <span class="bar"></span><span class="vt">最果てのダンジョンで細々と暮らすことにした</span>
+          </div>
+          <div class="capr"><span class="t">最果てのダンジョンで細々と暮らすことにした</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st narou">なろう・未取込</div>
+        </div>
+        <div class="bk">
+          <div class="cv hl" style="--band:hsl(340 48% 52%);--barx:24%;--barlen:48%">
+            <span class="bar"></span><canvas class="tip" data-tip="152" data-hue="340"></canvas><span class="vt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
+          </div>
+          <div class="capr"><span class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">第8/72話</div>
+        </div>
+        <div class="bk">
+          <div class="cv hl" style="--band:hsl(150 48% 52%);--barx:28%;--barlen:40%">
+            <span class="bar"></span><canvas class="tip" data-tip="143" data-hue="150"></canvas><span class="vt">聖女は隣国で薬草を育てて暮らしたい</span>
+          </div>
+          <div class="capr"><span class="t">聖女は隣国で薬草を育てて暮らしたい</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">読了</div>
+        </div>
+        <div class="bk">
+          <!-- Web未取込: 同上＝静止のまま -->
+          <div class="cv narou" style="--band:hsl(50 48% 52%);--barx:24%;--barlen:46%">
+            <span class="bar"></span><span class="vt">辺境ぐらしの隠居魔導士、今日ものんびり</span>
+          </div>
+          <div class="capr"><span class="t">辺境ぐらしの隠居魔導士、今日ものんびり</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st narou">なろう・未取込</div>
+        </div>
+        <div class="bk">
+          <div class="cv hl" style="--band:hsl(230 48% 52%);--barx:34%;--barlen:48%">
+            <span class="bar"></span><canvas class="tip" data-tip="15" data-hue="230"></canvas><span class="vt">星降る夜の図書館で君を待っている</span>
+          </div>
+          <div class="capr"><span class="t">星降る夜の図書館で君を待っている</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">読了</div>
+        </div>
+      </div>
+    </div>
+    <button class="fab">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>PDFを追加
+    </button>
+    <nav class="tabbar">
+      <a class="tab on">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg>
+        </span>
+        <span class="lb">本棚</span>
+      </a>
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg>
+        </span>
+        <span class="lb">さがす</span>
+      </a>
+      <a class="tab">
+        <span class="ic"><span class="pill"></span>
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </span>
+        <span class="lb">設定</span>
+      </a>
+    </nav>
+  </div>
+
+  <!-- ===== 全174種一覧（常時再生・栞ごとにバリアント名＋動きの語） ===== -->
+  <section class="range">
+    <h2>先端174種 × 動きの割当（全数・常時再生）</h2>
+    <p>各カード＝1バリアント。ラベル上段=<b>番号 名前</b>（Kotlin SHIORI_TIPS と同順）・下段=動きの語。<br>周期・振幅・位相は個体ごとにジッタ＝実機でも隣の本と同期しない。</p>
+    <div class="strip" id="strip"></div>
+  </section>
+
+  <!-- ===== 動きの語彙（凡例） ===== -->
+  <section class="legend">
+    <h2>動きの語彙 20種（意匠の系 → 動きの根拠）</h2>
+    <ul id="legend"></ul>
+  </section>
+
+  <p class="note">
+    <b>実装への申し送り（裁定後）</b>:
+    ①動くのは高負荷 ON のときだけ・通常モードは完全静止（ADR 0022 §3 の静/動裁定は不変）。
+    ②導線は星図M高負荷トグルと同型＝設定面「開発」節に1行（debug 限定・release 常時 OFF・prefs 同並び）。
+    ③reduce-motion で完全静止。
+    ④Web未取込カードは対象外（沈めた署名を保つ）。
+    ⑤紙面・栞棒・題字は静止のまま＝動くのは先端のみ（棒を伝う光・紙の繊維のきらめき等の面アニメは先端の合否後の追補候補）。
+    ⑥割当表（174種→語彙20種）は本ファイルの M 配列が正本＝Compose 翻訳時は tipIndex→MotionClass の対応表として写す。
+  </p>
+
+<script>
+function hsl(h,s,l,a){return a==null?'hsl('+h+' '+s+'% '+l+'%)':'hsl('+h+' '+s+'% '+l+'% / '+a+')';}
+function S(ctx,a){ctx.strokeStyle=a;ctx.lineCap='round';ctx.lineJoin='round';}
+function star(ctx,cx,cy,rO,rI,n,rot){ctx.beginPath();for(let i=0;i<n*2;i++){const r=i%2?rI:rO,ang=rot+i*Math.PI/n;const px=cx+r*Math.cos(ang),py=cy+r*Math.sin(ang);i?ctx.lineTo(px,py):ctx.moveTo(px,py);}ctx.closePath();}
+
+// ===== 先端ワンポイント 174種（"都度増やす"＝ここと正本 shiori-tips-D.html と Kotlin SHIORI_TIPS へ同順で1行足す）。draw(c,x,ty,a,dark,paper) =====
+const TIPS=[
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2.6;c.beginPath();c.moveTo(x,y);c.lineTo(x-6,y+12);c.moveTo(x,y);c.lineTo(x+6,y+12);c.stroke();}, // 0 魚尾
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+7,4,0,7);c.fill();}, // 1 一粒
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+6,6,0,7);c.fill();}, // 2 結び玉
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2.4;c.beginPath();c.moveTo(x,y);c.lineTo(x-5,y+18);c.moveTo(x,y);c.lineTo(x+5,y+18);c.stroke();}, // 3 二又房
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+3,3.2,0,7);c.fill();S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+5);c.lineTo(x-6,y+22);c.moveTo(x,y+5);c.lineTo(x,y+23);c.moveTo(x,y+5);c.lineTo(x+6,y+22);c.stroke();}, // 4 三又房
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+4,4,0,7);c.fill();S(c,a);c.lineWidth=1.6;for(let k=-2;k<=2;k++){c.beginPath();c.moveTo(x,y+7);c.lineTo(x+k*4,y+24);c.stroke();}}, // 5 総角
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+4);c.quadraticCurveTo(x-11,y-2,x-9,y+4);c.quadraticCurveTo(x-11,y+10,x,y+4);c.moveTo(x,y+4);c.quadraticCurveTo(x+11,y-2,x+9,y+4);c.quadraticCurveTo(x+11,y+10,x,y+4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+4,2,0,7);c.fill();}, // 6 蝶結び
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+5,4,0,7);c.fill();S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+9);c.lineTo(x,y+20);c.stroke();}, // 7 玉と尾
+  (c,x,y,a)=>{c.fillStyle=a;[6,13,20].forEach(d=>{c.beginPath();c.arc(x,y+d,2.6,0,7);c.fill();});}, // 8 数珠
+  (c,x,y,a)=>{S(c,a);c.lineWidth=3;c.beginPath();c.moveTo(x-7,y+1);c.lineTo(x+7,y+1);c.stroke();}, // 9 括り
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2;c.beginPath();c.arc(x,y+7,5,0,7);c.stroke();}, // 10 小輪
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x,y+9,8,0,7);c.stroke();c.beginPath();c.arc(x,y+9,4,0,7);c.stroke();}, // 11 二重丸
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+1);c.lineTo(x+6,y+9);c.lineTo(x,y+17);c.lineTo(x-6,y+9);c.closePath();c.stroke();}, // 12 菱
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x-7,y+1);c.lineTo(x+7,y+1);c.lineTo(x,y+13);c.closePath();c.stroke();}, // 13 逆三角
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.strokeRect(x-6,y+2,12,12);}, // 14 小四角
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;star(c,x,y+10,7,3,5,-Math.PI/2);c.stroke();}, // 15 星
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+2);c.lineTo(x,y+16);c.moveTo(x-7,y+9);c.lineTo(x+7,y+9);c.stroke();}, // 16 十字
+  (c,x,y,a)=>{c.fillStyle=a;[[0,5],[-5,13],[5,13]].forEach(p=>{c.beginPath();c.arc(x+p[0],y+p[1],2.2,0,7);c.fill();});}, // 17 三点
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+6,y+8,x,y+15);c.quadraticCurveTo(x-6,y+8,x,y);c.fill();}, // 18 雫
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+9,7,0,7);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x+3,y+7,7,0,7);c.fill();}, // 19 半月
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-6,y+1);c.lineTo(x+6,y+1);c.lineTo(x,y+11);c.closePath();c.fill();}, // 20 矢尻
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.arc(x,y+9,6,-0.4,Math.PI*1.4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x+4,y+5,2.4,0,7);c.fill();}, // 21 巴
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+8,6,-0.2,Math.PI*1.5);c.quadraticCurveTo(x-3,y+13,x+1,y+10);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.arc(x+2,y+5,1.6,0,7);c.fill();}, // 22 勾玉
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+11);c.quadraticCurveTo(x-6,y+1,x,y+1);c.quadraticCurveTo(x+6,y+1,x+6,y+11);c.closePath();c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+14,1.8,0,7);c.fill();}, // 23 鈴
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x,y+13,5,0,7);c.stroke();c.beginPath();c.arc(x,y+5,3.2,0,7);c.stroke();}, // 24 瓢箪
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+4);c.stroke();c.strokeRect(x-4,y+4,8,16);c.beginPath();c.arc(x,y+7,1,0,7);c.strokeStyle=a;c.stroke();}, // 25 短冊
+  (c,x,y,a)=>{c.save();c.translate(x,y+9);c.rotate(0.06);S(c,a);c.lineWidth=1.4;c.strokeRect(-7,-7,14,14);c.fillStyle=a;c.beginPath();c.arc(0,0,1.8,0,7);c.fill();c.restore();}, // 26 蔵書印
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;for(let k=0;k<5;k++){const an=-Math.PI/2+k*2*Math.PI/5;c.beginPath();c.arc(x+6*Math.cos(an),y+9+6*Math.sin(an),3,0,7);c.stroke();}c.fillStyle=a;c.beginPath();c.arc(x,y+9,1.8,0,7);c.fill();}, // 27 梅
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.5;c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+6,y+8,x,y+16);c.quadraticCurveTo(x-6,y+8,x,y);c.stroke();c.beginPath();c.moveTo(x,y+2);c.lineTo(x,y+14);c.stroke();}, // 28 木の葉
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+5);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+9,4,0,7);c.fill();}, // 29 木の実
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+2);c.quadraticCurveTo(x,y+7,x+6,y+2);c.quadraticCurveTo(x+1,y+9,x+6,y+16);c.quadraticCurveTo(x,y+11,x-6,y+16);c.quadraticCurveTo(x-1,y+9,x-6,y+2);c.closePath();c.stroke();}, // 30 分銅
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+2);c.quadraticCurveTo(x-9,y+3,x-5,y+10);c.quadraticCurveTo(x-2,y+14,x+2,y+11);c.moveTo(x,y+2);c.quadraticCurveTo(x+9,y+3,x+5,y+10);c.quadraticCurveTo(x+2,y+14,x-2,y+11);c.stroke();c.beginPath();c.moveTo(x-2,y+12);c.lineTo(x-3,y+20);c.moveTo(x+2,y+12);c.lineTo(x+3,y+20);c.stroke();}, // 31 淡路結び
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+3,3,0,7);c.fill();S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+5);c.lineTo(x-7,y+21);c.moveTo(x,y+5);c.lineTo(x-2,y+23);c.moveTo(x,y+5);c.lineTo(x+3,y+20);c.stroke();}, // 32 片流し房
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2.2;c.beginPath();c.moveTo(x,y);c.quadraticCurveTo(x+5,y+6,x,y+12);c.quadraticCurveTo(x-5,y+18,x,y+23);c.stroke();}, // 33 撚り房
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2.6;c.beginPath();c.moveTo(x-6,y+3);c.lineTo(x+6,y+3);c.moveTo(x-6,y+9);c.lineTo(x+6,y+9);c.stroke();}, // 34 二重括り
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+22);c.stroke();c.beginPath();c.moveTo(x-4,y+6);c.lineTo(x+4,y+9);c.moveTo(x-4,y+11);c.lineTo(x+4,y+14);c.stroke();}, // 35 巻き結び
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.arc(x,y+6,5,0,7);c.stroke();c.beginPath();c.moveTo(x,y+11);c.lineTo(x,y+23);c.stroke();}, // 36 輪結び
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.rect(x-4,y+2,8,4);c.fill();S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-3,y+6);c.lineTo(x-4,y+20);c.moveTo(x,y+6);c.lineTo(x,y+21);c.moveTo(x+3,y+6);c.lineTo(x+4,y+20);c.stroke();}, // 37 総締め
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();for(let k=0;k<6;k++){const an=-Math.PI/2+k*Math.PI/3,px=x+7*Math.cos(an),py=y+9+7*Math.sin(an);k?c.lineTo(px,py):c.moveTo(px,py);}c.closePath();c.stroke();}, // 38 六角
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();for(let k=0;k<5;k++){const an=-Math.PI/2+k*2*Math.PI/5,px=x+7*Math.cos(an),py=y+8+7*Math.sin(an);k?c.lineTo(px,py):c.moveTo(px,py);}c.closePath();c.stroke();}, // 39 五角
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.arc(x,y+9,7,0,7);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+9,2,0,7);c.fill();}, // 40 環に点
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+4,7,0,Math.PI);c.closePath();c.fill();}, // 41 半円
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x,y+2);c.arc(x,y+2,11,Math.PI*0.30,Math.PI*0.70);c.closePath();c.fill();}, // 42 扇形
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x-7,y+13);c.lineTo(x,y+2);c.lineTo(x+7,y+13);c.stroke();}, // 43 山形
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x,y+1);c.lineTo(x+7,y+9);c.lineTo(x,y+17);c.lineTo(x-7,y+9);c.closePath();c.stroke();c.beginPath();c.moveTo(x,y+5);c.lineTo(x+3.5,y+9);c.lineTo(x,y+13);c.lineTo(x-3.5,y+9);c.closePath();c.stroke();}, // 44 重ね菱
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x-6,y+3);c.lineTo(x+6,y+15);c.moveTo(x+6,y+3);c.lineTo(x-6,y+15);c.stroke();}, // 45 交差
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.5;c.beginPath();c.moveTo(x,y+3);c.arc(x,y+3,12,Math.PI*0.28,Math.PI*0.72);c.closePath();c.stroke();c.beginPath();[0.36,0.5,0.64].forEach(t=>{c.moveTo(x,y+3);c.lineTo(x+12*Math.cos(Math.PI*t),y+3+12*Math.sin(Math.PI*t));});c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+3,1.6,0,7);c.fill();}, // 46 扇
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x,y+5);c.quadraticCurveTo(x-3,y+1,x-7,y+5);c.quadraticCurveTo(x-6,y+11,x,y+12);c.quadraticCurveTo(x+6,y+11,x+7,y+5);c.quadraticCurveTo(x+3,y+1,x,y+5);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,y+7,1.4,0,7);c.fill();}, // 47 千鳥
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-8,y+16);c.lineTo(x-3,y+4);c.quadraticCurveTo(x,y+3,x+3,y+4);c.lineTo(x+8,y+16);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.moveTo(x-3,y+4);c.lineTo(x+3,y+4);c.lineTo(x+2.5,y+7);c.lineTo(x+1.2,y+5);c.lineTo(x,y+7.5);c.lineTo(x-1.2,y+5);c.lineTo(x-2.5,y+7);c.closePath();c.fill();}, // 48 富士
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x-5,y+4);c.lineTo(x-5,y+20);c.moveTo(x+5,y+4);c.lineTo(x+5,y+20);c.moveTo(x-6,y+9);c.lineTo(x+6,y+9);c.stroke();c.lineWidth=2.2;c.beginPath();c.moveTo(x-7,y+4);c.lineTo(x+7,y+4);c.stroke();}, // 49 鳥居
+  (c,x,y,a,d,pp)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x,y+1);c.lineTo(x,y+5);c.stroke();c.fillStyle=a;c.beginPath();c.moveTo(x-6,y+6);c.quadraticCurveTo(x,y+4,x+6,y+6);c.lineTo(x,y+18);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.moveTo(x-4,y+9);c.lineTo(x+4,y+9);c.lineTo(x+2.6,y+12);c.lineTo(x-2.6,y+12);c.closePath();c.fill();}, // 50 独楽
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-7,y+16);c.quadraticCurveTo(x,y+22,x+7,y+16);c.stroke();c.beginPath();c.moveTo(x,y+2);c.lineTo(x,y+16);c.stroke();c.fillStyle=a;c.beginPath();c.moveTo(x+1,y+3);c.lineTo(x+7,y+14);c.lineTo(x+1,y+14);c.closePath();c.fill();}, // 51 帆掛
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-2,y+2);c.lineTo(x-2,y+7);c.quadraticCurveTo(x-8,y+9,x-6,y+15);c.quadraticCurveTo(x-4,y+21,x,y+21);c.quadraticCurveTo(x+4,y+21,x+6,y+15);c.quadraticCurveTo(x+8,y+9,x+2,y+7);c.lineTo(x+2,y+2);c.moveTo(x-2.6,y+2);c.lineTo(x+2.6,y+2);c.stroke();}, // 52 徳利
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-5,y+8);c.lineTo(x-5,y+20);c.lineTo(x+5,y+20);c.lineTo(x+5,y+8);c.quadraticCurveTo(x+5,y+5,x,y+5);c.quadraticCurveTo(x-5,y+5,x-5,y+8);c.closePath();c.stroke();c.beginPath();c.moveTo(x-5,y+9);c.lineTo(x+5,y+9);c.stroke();c.beginPath();c.moveTo(x-2,y+5);c.quadraticCurveTo(x,y,x+2,y+5);c.stroke();}, // 53 御守
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x-3,y+2);c.lineTo(x-3,y+16);c.moveTo(x+3,y+2);c.lineTo(x+3,y+16);c.moveTo(x-7,y+6);c.lineTo(x+7,y+6);c.moveTo(x-7,y+12);c.lineTo(x+7,y+12);c.stroke();}, // 54 井桁
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;const cy=y+9,r=8;c.beginPath();for(let k=0;k<6;k++){const an=-Math.PI/2+k*Math.PI/3,px=x+r*Math.cos(an),py=cy+r*Math.sin(an);k?c.lineTo(px,py):c.moveTo(px,py);}c.closePath();c.stroke();c.beginPath();for(let k=0;k<3;k++){const an=-Math.PI/2+k*Math.PI/3;c.moveTo(x+r*Math.cos(an),cy+r*Math.sin(an));c.lineTo(x-r*Math.cos(an),cy-r*Math.sin(an));}c.stroke();}, // 55 麻の葉
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.5;c.beginPath();c.moveTo(x,y+1);c.lineTo(x,y+22);c.stroke();c.beginPath();[6,12,18].forEach(d=>{c.moveTo(x-6,y+d);c.lineTo(x,y+d-4);c.lineTo(x+6,y+d);});c.stroke();}, // 56 矢羽根
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-2,y+1);c.quadraticCurveTo(x-8,y+7,x-2,y+12);c.quadraticCurveTo(x-8,y+18,x-2,y+23);c.stroke();c.beginPath();c.moveTo(x+2,y+1);c.quadraticCurveTo(x+8,y+7,x+2,y+12);c.quadraticCurveTo(x+8,y+18,x+2,y+23);c.stroke();}, // 57 立涌
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.5;[8,5.5,3].forEach(r=>{c.beginPath();c.arc(x,y+13,r,Math.PI,2*Math.PI);c.stroke();});}, // 58 青海波
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-7,y+3);c.lineTo(x+7,y+3);c.lineTo(x+7,y+16);c.lineTo(x-4,y+16);c.lineTo(x-4,y+7);c.lineTo(x+3,y+7);c.lineTo(x+3,y+12);c.stroke();}, // 59 雷文
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;const dd=(cx,cy,r)=>{c.beginPath();c.moveTo(cx,cy-r);c.lineTo(cx+r,cy);c.lineTo(cx,cy+r);c.lineTo(cx-r,cy);c.closePath();c.stroke();};dd(x-3.5,y+5,3.5);dd(x+3.5,y+5,3.5);dd(x-3.5,y+13,3.5);dd(x+3.5,y+13,3.5);}, // 60 割菱
+  (c,x,y,a)=>{c.save();c.translate(x,y+11);S(c,a);c.lineWidth=1.6;for(let k=0;k<3;k++){c.save();c.rotate(k*2*Math.PI/3);c.beginPath();c.arc(0,0,6,-Math.PI/2,Math.PI*0.4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(0,-6,2.3,0,7);c.fill();c.restore();}c.restore();}, // 61 三つ巴
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;const cy=y+10,R=4;[[0,-R],[R,0],[0,R],[-R,0]].forEach(o=>{c.beginPath();c.arc(x+o[0],cy+o[1],R,0,7);c.stroke();});}, // 62 七宝
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x,y+8);c.lineTo(x,y+22);c.stroke();c.fillStyle=a;c.beginPath();c.moveTo(x,y+8);c.quadraticCurveTo(x-8,y+4,x-6,y+11);c.quadraticCurveTo(x-3,y+12,x,y+8);c.fill();c.beginPath();c.moveTo(x,y+8);c.quadraticCurveTo(x+8,y+4,x+6,y+11);c.quadraticCurveTo(x+3,y+12,x,y+8);c.fill();}, // 63 双葉
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.5;c.beginPath();c.moveTo(x-1,y+1);c.quadraticCurveTo(x+3,y+11,x-2,y+22);c.stroke();c.lineWidth=1.4;c.beginPath();[[1,7],[2.2,10],[2.2,13],[1,16]].forEach(p=>{c.moveTo(x+p[0],y+p[1]);c.lineTo(x+p[0]+3,y+p[1]-2);});c.stroke();}, // 64 稲穂
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x-3,y+2);c.lineTo(x-3,y+22);c.moveTo(x+3,y+2);c.lineTo(x+3,y+22);c.moveTo(x-3,y+9);c.lineTo(x+3,y+9);c.moveTo(x-3,y+16);c.lineTo(x+3,y+16);c.stroke();c.fillStyle=a;c.beginPath();c.moveTo(x+3,y+5);c.quadraticCurveTo(x+8,y+2,x+7,y+7);c.quadraticCurveTo(x+5,y+7,x+3,y+5);c.fill();}, // 65 竹
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+22);c.lineTo(x,y+10);c.quadraticCurveTo(x-5,y+8,x-4,y+4);c.quadraticCurveTo(x-3,y+1,x,y+2);c.quadraticCurveTo(x+3,y+3,x+2,y+6);c.quadraticCurveTo(x+1,y+7,x,y+6);c.stroke();}, // 66 蕨
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x,y+1);c.quadraticCurveTo(x+7,y+6,x,y+12);c.quadraticCurveTo(x-7,y+18,x,y+23);c.stroke();c.beginPath();c.moveTo(x,y+1);c.quadraticCurveTo(x-4,y+1,x-3,y+4);c.moveTo(x,y+23);c.quadraticCurveTo(x+4,y+23,x+3,y+20);c.stroke();}, // 67 唐草
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.2;const pts=[[x-6,y+5],[x-6,y+11],[x-1,y+12],[x-1,y+6],[x+3,y+4],[x+6,y+9]];c.beginPath();pts.forEach((p,i)=>{i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]);});c.stroke();c.fillStyle=a;pts.forEach(p=>{c.beginPath();c.arc(p[0],p[1],1.7,0,7);c.fill();});}, // 68 北斗
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+10,4,0,7);c.fill();S(c,a);c.lineWidth=1.6;c.beginPath();for(let k=0;k<8;k++){const an=k*Math.PI/4;c.moveTo(x+6*Math.cos(an),y+10+6*Math.sin(an));c.lineTo(x+8*Math.cos(an),y+10+8*Math.sin(an));}c.stroke();}, // 69 日輪
+  (c,x,y,a)=>{c.save();c.translate(x,y+11);S(c,a);c.lineWidth=1.4;for(let k=0;k<6;k++){c.save();c.rotate(k*Math.PI/3);c.beginPath();c.moveTo(0,0);c.lineTo(0,-8);c.moveTo(0,-5);c.lineTo(-2.5,-7);c.moveTo(0,-5);c.lineTo(2.5,-7);c.stroke();c.restore();}c.restore();}, // 70 雪華
+  (c,x,y,a,d,pp)=>{const cy=y+9,R=7;c.fillStyle=a;c.beginPath();c.arc(x,cy,R,0,7);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,cy,R,-Math.PI/2,Math.PI/2,false);c.arc(x,cy+R/2,R/2,Math.PI/2,-Math.PI/2,true);c.arc(x,cy-R/2,R/2,Math.PI/2,-Math.PI/2,false);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,cy-R/2,1.5,0,7);c.fill();c.fillStyle=a;c.beginPath();c.arc(x,cy+R/2,1.5,0,7);c.fill();}, // 71 太極
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;const cy=y+10,R=8,p=[];for(let k=0;k<5;k++){const an=-Math.PI/2+k*2*Math.PI/5;p.push([x+R*Math.cos(an),cy+R*Math.sin(an)]);}const o=[0,2,4,1,3];c.beginPath();o.forEach((idx,i)=>{i?c.lineTo(p[idx][0],p[idx][1]):c.moveTo(p[idx][0],p[idx][1]);});c.closePath();c.stroke();}, // 72 晴明桔梗
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;const cy=y+10,R=8,tri=(rot)=>{c.beginPath();for(let k=0;k<3;k++){const an=rot+k*2*Math.PI/3,px=x+R*Math.cos(an),py=cy+R*Math.sin(an);k?c.lineTo(px,py):c.moveTo(px,py);}c.closePath();c.stroke();};tri(-Math.PI/2);tri(Math.PI/2);}, // 73 籠目
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.3;c.beginPath();[-6,-2,2,6].forEach(dx=>{c.moveTo(x+dx,y+2);c.lineTo(x+dx,y+20);});[3,7,11,15,19].forEach(dy=>{c.moveTo(x-7,y+dy);c.lineTo(x+7,y+dy);});c.stroke();}, // 74 九字
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2.4;c.beginPath();c.moveTo(x-7,y+4);c.lineTo(x-1.5,y+4);c.moveTo(x+1.5,y+4);c.lineTo(x+7,y+4);c.moveTo(x-7,y+11);c.lineTo(x+7,y+11);c.moveTo(x-7,y+18);c.lineTo(x-1.5,y+18);c.moveTo(x+1.5,y+18);c.lineTo(x+7,y+18);c.stroke();}, // 75 三爻
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.3;const cy=y+10,R=7.5;c.beginPath();c.arc(x,cy,R,0,7);c.stroke();c.beginPath();c.moveTo(x,cy-R);c.lineTo(x,cy+R);c.moveTo(x-R,cy);c.lineTo(x+R,cy);c.stroke();c.fillStyle=a;[[0,-R],[R,0],[0,R],[-R,0]].forEach(o=>{c.beginPath();c.arc(x+o[0],cy+o[1],1.6,0,7);c.fill();});}, // 76 方位盤
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.5;c.beginPath();c.moveTo(x,y);c.lineTo(x+4,y+4);c.lineTo(x+4,y+22);c.lineTo(x-4,y+22);c.lineTo(x-4,y+4);c.closePath();c.stroke();c.fillStyle=a;[8,13,18].forEach(dy=>{c.beginPath();c.arc(x,y+dy,1.4,0,7);c.fill();});}, // 77 護符
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x,y+4,2.4,0,7);c.stroke();c.beginPath();c.moveTo(x-7,y+9);c.lineTo(x+7,y+9);c.stroke();c.beginPath();c.moveTo(x-3,y+7);c.lineTo(x-5,y+21);c.lineTo(x+5,y+21);c.lineTo(x+3,y+7);c.stroke();}, // 78 形代
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.5;c.strokeRect(x-6,y+4,12,12);c.fillStyle=a;[[-6,4],[6,4],[-6,16],[6,16]].forEach(o=>{c.beginPath();c.arc(x+o[0],y+o[1],1.8,0,7);c.fill();});}, // 79 結界
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x,y+1);c.lineTo(x,y+23);c.stroke();c.lineWidth=1.3;c.beginPath();c.moveTo(x,y+3);c.lineTo(x-6,y+5);c.lineTo(x-2,y+7);c.lineTo(x-7,y+10);c.lineTo(x-2,y+12);c.moveTo(x,y+3);c.lineTo(x+6,y+5);c.lineTo(x+2,y+7);c.lineTo(x+7,y+10);c.lineTo(x+2,y+12);c.stroke();}, // 80 御幣
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x,y+2);c.quadraticCurveTo(x+7,y+7,x+6,y+14);c.quadraticCurveTo(x+6,y+21,x,y+21);c.quadraticCurveTo(x-6,y+21,x-6,y+14);c.quadraticCurveTo(x-7,y+7,x,y+2);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.arc(x-1.5,y+10,1.4,0,7);c.fill();S(c,a);c.lineWidth=1.4;c.beginPath();c.moveTo(x-4,y+23);c.lineTo(x+4,y+23);c.stroke();}, // 81 宝珠
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x,y+2,2,0,7);c.stroke();c.beginPath();c.moveTo(x,y+4);c.lineTo(x,y+6);c.stroke();c.lineWidth=2;c.beginPath();c.moveTo(x-6,y+6);c.lineTo(x+6,y+6);c.stroke();c.fillStyle=a;c.beginPath();c.moveTo(x-2.2,y+6);c.lineTo(x+2.2,y+6);c.lineTo(x+2.2,y+16);c.lineTo(x,y+22);c.lineTo(x-2.2,y+16);c.closePath();c.fill();}, // 82 宝剣
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x,y+3);c.lineTo(x,y+21);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+12,2.4,0,7);c.fill();c.beginPath();c.moveTo(x,y+3);c.lineTo(x,y);c.moveTo(x-4,y+6);c.quadraticCurveTo(x-4,y+1,x,y+2);c.moveTo(x+4,y+6);c.quadraticCurveTo(x+4,y+1,x,y+2);c.stroke();c.beginPath();c.moveTo(x,y+21);c.lineTo(x,y+24);c.moveTo(x-4,y+18);c.quadraticCurveTo(x-4,y+23,x,y+22);c.moveTo(x+4,y+18);c.quadraticCurveTo(x+4,y+23,x,y+22);c.stroke();}, // 83 金剛杵
+  (c,x,y,a,d,pp)=>{S(c,a);c.lineWidth=1.5;const cy=y+10;c.beginPath();c.moveTo(x-8,cy);c.quadraticCurveTo(x,cy-5,x+8,cy);c.quadraticCurveTo(x,cy+5,x-8,cy);c.closePath();c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,cy,2.6,0,7);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x+0.8,cy-0.8,0.9,0,7);c.fill();}, // 84 呪眼
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;const cy=y+10,R=8;c.beginPath();for(let k=0;k<6;k++){const an=-Math.PI/2+k*Math.PI/3,px=x+R*Math.cos(an),py=cy+R*Math.sin(an);k?c.lineTo(px,py):c.moveTo(px,py);}c.closePath();c.stroke();c.beginPath();c.moveTo(x,cy);c.lineTo(x,cy-4);c.moveTo(x,cy);c.lineTo(x-3.5,cy+2.5);c.moveTo(x,cy);c.lineTo(x+3.5,cy+2.5);c.stroke();}, // 85 亀甲
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.5;const cy=y+10;c.beginPath();c.arc(x,cy,8,0,7);c.stroke();c.beginPath();c.arc(x,cy,4.5,0,7);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,cy,1.8,0,7);c.fill();}, // 86 封印
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x,y+7);c.lineTo(x,y+23);c.stroke();c.lineWidth=1.4;c.beginPath();c.arc(x,y+4,4,0,7);c.stroke();c.beginPath();c.arc(x-4,y+3,1.6,0,7);c.stroke();c.beginPath();c.arc(x+4,y+3,1.6,0,7);c.stroke();}, // 87 錫杖
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+3);c.stroke();c.fillStyle=a;c.beginPath();c.moveTo(x-1,y+3);c.quadraticCurveTo(x-4,y+14,x+2,y+23);c.quadraticCurveTo(x+2,y+13,x+2,y+4);c.closePath();c.fill();}, // 88 太刀
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+4);c.stroke();c.beginPath();c.moveTo(x-4,y+5);c.lineTo(x+4,y+5);c.stroke();c.fillStyle=a;c.beginPath();c.moveTo(x-2,y+6);c.lineTo(x+2,y+6);c.lineTo(x,y+22);c.closePath();c.fill();}, // 89 懐剣
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+13);c.stroke();c.fillStyle=a;c.beginPath();c.moveTo(x,y+11);c.lineTo(x+3,y+16);c.lineTo(x,y+24);c.lineTo(x-3,y+16);c.closePath();c.fill();}, // 90 槍
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+12);c.stroke();c.fillStyle=a;c.beginPath();c.moveTo(x,y+11);c.quadraticCurveTo(x+8,y+13,x+6,y+23);c.quadraticCurveTo(x+2,y+18,x,y+12);c.closePath();c.fill();}, // 91 薙刀
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+4);c.lineTo(x,y+23);c.stroke();c.fillStyle=a;c.beginPath();c.moveTo(x,y+3);c.quadraticCurveTo(x+8,y+1,x+7,y+10);c.quadraticCurveTo(x+5,y+5,x,y+6);c.closePath();c.fill();}, // 92 鎌
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+23);c.stroke();c.fillStyle=a;c.beginPath();c.moveTo(x,y+2);c.lineTo(x+7,y+4);c.quadraticCurveTo(x+8,y+9,x+6,y+13);c.lineTo(x,y+11);c.closePath();c.fill();}, // 93 鉞
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-2,y+1);c.lineTo(x+2,y+1);c.lineTo(x+4,y+22);c.lineTo(x-4,y+22);c.closePath();c.fill();c.fillStyle=pp;[[0,6],[-2,12],[2,12],[-1.5,18],[1.5,18]].forEach(o=>{c.beginPath();c.arc(x+o[0],y+o[1],1,0,7);c.fill();});}, // 94 金棒
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+1);c.lineTo(x,y+21);c.stroke();c.lineWidth=1.6;c.beginPath();c.moveTo(x,y+6);c.lineTo(x+5,y+6);c.lineTo(x+5,y+2);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+22,1.8,0,7);c.fill();}, // 95 十手
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+1);c.lineTo(x,y+23);c.stroke();c.beginPath();c.arc(x,y+12,2.2,0,7);c.stroke();c.lineWidth=1.5;c.beginPath();c.moveTo(x-3,y+5);c.quadraticCurveTo(x,y+3,x+3,y+5);c.moveTo(x-3,y+19);c.quadraticCurveTo(x,y+21,x+3,y+19);c.stroke();}, // 96 独鈷
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;star(c,x,y+12,8,3,4,-Math.PI/2);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,y+12,1.6,0,7);c.fill();}, // 97 手裏剣
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+1);c.quadraticCurveTo(x-8,y+12,x,y+23);c.stroke();c.lineWidth=1.3;c.beginPath();c.moveTo(x,y+1);c.lineTo(x,y+23);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+12,1.5,0,7);c.fill();}, // 98 弓
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+11,8,0,7);c.fill();c.fillStyle=pp;c.beginPath();c.rect(x-1.3,y+4,2.6,14);c.fill();c.beginPath();c.rect(x-7,y+9.7,14,2.6);c.fill();}, // 99 鍔
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-3,y+1);c.lineTo(x-2.5,y+20);c.quadraticCurveTo(x,y+24,x+2.5,y+20);c.lineTo(x+3,y+1);c.closePath();c.stroke();c.beginPath();c.moveTo(x-3,y+4);c.lineTo(x+3,y+4);c.stroke();c.beginPath();c.moveTo(x+3,y+8);c.lineTo(x+6,y+9);c.stroke();}, // 100 鞘
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-7,y+15);c.quadraticCurveTo(x-7,y+4,x,y+4);c.quadraticCurveTo(x+7,y+4,x+7,y+15);c.closePath();c.fill();c.beginPath();c.moveTo(x-8,y+15);c.lineTo(x+8,y+15);c.lineTo(x+6,y+18);c.lineTo(x-6,y+18);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,y+7,1.4,0,7);c.fill();}, // 101 兜
+  (c,x,y,a)=>{S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x-2,y+20);c.quadraticCurveTo(x-8,y+14,x-6,y+2);c.moveTo(x+2,y+20);c.quadraticCurveTo(x+8,y+14,x+6,y+2);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+20,2,0,7);c.fill();}, // 102 鍬形
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.fillStyle=a;c.beginPath();c.moveTo(x,y+3);c.lineTo(x+8,y+14);c.quadraticCurveTo(x,y+16,x-8,y+14);c.closePath();c.fill();c.beginPath();c.moveTo(x,y+3);c.lineTo(x,y);c.stroke();c.lineWidth=1.3;c.beginPath();c.moveTo(x-5,y+14);c.lineTo(x-4,y+21);c.moveTo(x+5,y+14);c.lineTo(x+4,y+21);c.stroke();}, // 103 陣笠
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x-7,y+2);c.lineTo(x+7,y+2);c.lineTo(x+7,y+12);c.quadraticCurveTo(x+7,y+20,x,y+23);c.quadraticCurveTo(x-7,y+20,x-7,y+12);c.closePath();c.stroke();c.beginPath();c.moveTo(x,y+2);c.lineTo(x,y+23);c.stroke();}, // 104 盾
+  (c,x,y,a,d,pp)=>{S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+1);c.lineTo(x,y+8);c.stroke();c.fillStyle=a;c.beginPath();c.moveTo(x,y+7);c.quadraticCurveTo(x-8,y+9,x-6,y+18);c.quadraticCurveTo(x-3,y+24,x,y+23);c.quadraticCurveTo(x+3,y+24,x+6,y+18);c.quadraticCurveTo(x+8,y+9,x,y+7);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,y+15,1.6,0,7);c.fill();}, // 105 軍配
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+10,8,0,7);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,y+10,4,0,7);c.fill();}, // 106 蛇の目
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+10,8,0,7);c.fill();c.fillStyle=pp;c.beginPath();c.rect(x-3,y+7,6,6);c.fill();}, // 107 銭
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.5;const cy=y+10;c.beginPath();c.moveTo(x-4.4,cy-4.4);c.quadraticCurveTo(x,cy-8.4,x+4.4,cy-4.4);c.quadraticCurveTo(x+8.4,cy,x+4.4,cy+4.4);c.quadraticCurveTo(x,cy+8.4,x-4.4,cy+4.4);c.quadraticCurveTo(x-8.4,cy,x-4.4,cy-4.4);c.closePath();c.stroke();c.beginPath();c.arc(x,cy,2.4,0,7);c.stroke();}, // 108 木瓜
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;const cy=y+10,Rx=6.5,Ry=8.5;c.beginPath();c.moveTo(x,cy-Ry);c.lineTo(x+Rx,cy);c.lineTo(x,cy+Ry);c.lineTo(x-Rx,cy);c.closePath();c.stroke();const petal=(ex,ey)=>{c.beginPath();c.moveTo(x,cy);c.quadraticCurveTo(x+ex*0.5-ey*0.3,cy+ey*0.5+ex*0.3,x+ex,cy+ey);c.quadraticCurveTo(x+ex*0.5+ey*0.3,cy+ey*0.5-ex*0.3,x,cy);c.stroke();};petal(0,-Ry*0.8);petal(Rx*0.8,0);petal(0,Ry*0.8);petal(-Rx*0.8,0);}, // 109 花菱
+  (c,x,y,a)=>{c.fillStyle=a;[[0,-4,4.5],[-5,3,4.5],[5,3,4.5]].forEach(p=>{c.beginPath();c.arc(x+p[0],y+11+p[1],p[2],0,7);c.fill();});}, // 110 州浜
+  (c,x,y,a)=>{c.fillStyle=a;const tri=(cx,by,w,h)=>{c.beginPath();c.moveTo(cx,by-h);c.lineTo(cx+w,by);c.lineTo(cx-w,by);c.closePath();c.fill();};tri(x,y+9,4,7);tri(x-4.5,y+18,4,7);tri(x+4.5,y+18,4,7);}, // 111 三つ鱗
+  (c,x,y,a)=>{c.fillStyle=a;[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(p=>{c.beginPath();c.rect(x+p[0]*3.2-2.5,y+10+p[1]*3.2-2.5,5,5);c.fill();});}, // 112 四つ目
+  (c,x,y,a,d,pp)=>{const cy=y+11,feather=(rot)=>{c.save();c.translate(x,cy);c.rotate(rot);c.fillStyle=a;c.beginPath();c.moveTo(0,-9);c.quadraticCurveTo(2.6,-2,1.6,9);c.quadraticCurveTo(0,10,-1.6,9);c.quadraticCurveTo(-2.6,-2,0,-9);c.closePath();c.fill();c.strokeStyle=pp;c.lineWidth=1;c.beginPath();c.moveTo(0,-6);c.lineTo(0,8);c.stroke();c.restore();};feather(-0.32);feather(0.32);}, // 113 違い鷹の羽
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x,y+10,8,0,7);c.stroke();c.lineWidth=3;c.beginPath();c.moveTo(x-5.5,y+10);c.lineTo(x+5.5,y+10);c.stroke();}, // 114 丸に一つ引
+  (c,x,y,a)=>{c.fillStyle=a;const by=y+19,bud=(sx,h,w)=>{c.beginPath();c.moveTo(sx,by);c.quadraticCurveTo(sx-w,by-h*0.5,sx,by-h);c.quadraticCurveTo(sx+w,by-h*0.5,sx,by);c.closePath();c.fill();};bud(x,15,3);bud(x-5.5,11,2.6);bud(x+5.5,11,2.6);}, // 115 五三桐
+  (c,x,y,a,d,pp)=>{const cy=y+13;c.fillStyle=a;c.beginPath();c.arc(x,cy,6,0,7);c.fill();c.beginPath();c.moveTo(x,cy-6);c.quadraticCurveTo(x-6,cy-9,x-4,cy-13);c.quadraticCurveTo(x-1,cy-10,x,cy-6);c.closePath();c.fill();c.beginPath();c.moveTo(x,cy-6);c.quadraticCurveTo(x+6,cy-9,x+4,cy-13);c.quadraticCurveTo(x+1,cy-10,x,cy-6);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,cy,1.8,0,7);c.fill();}, // 116 橘
+  (c,x,y,a)=>{c.fillStyle=a;const cy=y+8;c.beginPath();c.moveTo(x,cy-7);c.quadraticCurveTo(x+7,cy-1,x+5,cy+5);c.quadraticCurveTo(x+2,cy+3,x,cy+1);c.quadraticCurveTo(x-2,cy+3,x-5,cy+5);c.quadraticCurveTo(x-7,cy-1,x,cy-7);c.closePath();c.fill();S(c,a);c.lineWidth=1.5;c.beginPath();c.moveTo(x,cy+1);c.lineTo(x,cy+14);c.stroke();}, // 117 沢瀉
+  (c,x,y,a)=>{c.save();c.translate(x,y+10);c.fillStyle=a;for(let k=0;k<3;k++){c.save();c.rotate(k*2*Math.PI/3);c.beginPath();c.moveTo(0,0);c.quadraticCurveTo(-1.3,-3.5,-3.4,-5.2);c.quadraticCurveTo(-5,-6.6,-2.6,-7.8);c.quadraticCurveTo(-0.9,-8.2,0,-6.4);c.quadraticCurveTo(0.9,-8.2,2.6,-7.8);c.quadraticCurveTo(5,-6.6,3.4,-5.2);c.quadraticCurveTo(1.3,-3.5,0,0);c.closePath();c.fill();c.restore();}c.restore();}, // 118 片喰
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;const by=y+21,bud=(sgn)=>{c.beginPath();c.moveTo(x+sgn,by);c.quadraticCurveTo(x+sgn*7,by-6,x+sgn*5,by-13);c.quadraticCurveTo(x+sgn*3,by-18,x,by-19);c.stroke();c.beginPath();c.moveTo(x+sgn*1.5,by-3);c.quadraticCurveTo(x+sgn*4,by-8,x+sgn*3,by-13);c.stroke();};bud(-1);bud(1);}, // 119 抱き茗荷
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;star(c,x,y+10,8,4.2,5,-Math.PI/2);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,y+10,2,0,7);c.fill();}, // 120 桔梗紋
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;const dia=(cy,w,h)=>{c.beginPath();c.moveTo(x,cy-h);c.lineTo(x+w,cy);c.lineTo(x,cy+h);c.lineTo(x-w,cy);c.closePath();c.stroke();};dia(y+11,7,6);dia(y+3,4,3);dia(y+19,4,3);}, // 121 松皮菱
+  (c,x,y,a)=>{c.fillStyle=a;const cy=y+7;c.beginPath();c.moveTo(x,cy-6);c.quadraticCurveTo(x+3,cy-4,x+7,cy-4);c.quadraticCurveTo(x+4,cy,x+7,cy+4);c.quadraticCurveTo(x+3,cy+5,x+1,cy+8);c.lineTo(x-1,cy+8);c.quadraticCurveTo(x-3,cy+5,x-7,cy+4);c.quadraticCurveTo(x-4,cy,x-7,cy-4);c.quadraticCurveTo(x-3,cy-4,x,cy-6);c.closePath();c.fill();S(c,a);c.lineWidth=1.5;c.beginPath();c.moveTo(x,cy+8);c.lineTo(x,cy+15);c.stroke();}, // 122 蔦
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-2,y+10);c.quadraticCurveTo(x+4,y+8,x+8,y+12);c.quadraticCurveTo(x+5,y+15,x+1,y+15);c.quadraticCurveTo(x-3,y+15,x-2,y+10);c.closePath();c.fill();S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-1,y+11);c.quadraticCurveTo(x-6,y+9,x-6,y+3);c.stroke();c.beginPath();c.moveTo(x,y+15);c.lineTo(x-1,y+23);c.moveTo(x+3,y+15);c.lineTo(x+3,y+23);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x-6,y+2,1.7,0,7);c.fill();S(c,a);c.lineWidth=1.3;c.beginPath();c.moveTo(x-7,y+2);c.lineTo(x-8,y+1);c.stroke();}, // 123 鶴
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x,y+5);c.quadraticCurveTo(x-4,y+6,x-8,y+4);c.quadraticCurveTo(x-4,y+9,x-2.5,y+11);c.lineTo(x-4,y+22);c.lineTo(x,y+15);c.lineTo(x+4,y+22);c.lineTo(x+2.5,y+11);c.quadraticCurveTo(x+4,y+9,x+8,y+4);c.quadraticCurveTo(x+4,y+6,x,y+5);c.closePath();c.fill();}, // 124 燕
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x+1,y+13,6,0,7);c.fill();c.beginPath();c.arc(x-3,y+6,3.4,0,7);c.fill();c.beginPath();c.moveTo(x-6,y+5);c.lineTo(x-8,y+5.5);c.lineTo(x-6,y+7);c.closePath();c.fill();c.beginPath();c.moveTo(x+5,y+10);c.lineTo(x+8,y+7);c.lineTo(x+7,y+13);c.closePath();c.fill();S(c,a);c.lineWidth=1.3;c.beginPath();c.moveTo(x-1,y+19);c.lineTo(x-1,y+22);c.moveTo(x+2,y+19);c.lineTo(x+2,y+22);c.stroke();c.fillStyle=pp;c.beginPath();c.arc(x-3.6,y+5.4,0.9,0,7);c.fill();}, // 125 雀
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-1,y+9);c.quadraticCurveTo(x-5,y+4,x-3,y+0);c.quadraticCurveTo(x-1.5,y+3,x-0.3,y+9);c.closePath();c.fill();c.beginPath();c.moveTo(x+1,y+9);c.quadraticCurveTo(x+5,y+4,x+3,y+0);c.quadraticCurveTo(x+1.5,y+3,x+0.3,y+9);c.closePath();c.fill();c.beginPath();c.arc(x,y+11,4.2,0,7);c.fill();c.beginPath();c.moveTo(x-6,y+22);c.quadraticCurveTo(x-7,y+13,x-1,y+13);c.quadraticCurveTo(x+7,y+13,x+6,y+22);c.closePath();c.fill();c.beginPath();c.arc(x+6,y+18,1.6,0,7);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x-1.4,y+10.5,0.9,0,7);c.fill();c.beginPath();c.arc(x+1.4,y+10.5,0.9,0,7);c.fill();}, // 126 兎
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-6,y+7);c.lineTo(x+6,y+7);c.lineTo(x,y+21);c.closePath();c.fill();c.beginPath();c.moveTo(x-6,y+7);c.lineTo(x-7,y+1);c.lineTo(x-2,y+6);c.closePath();c.fill();c.beginPath();c.moveTo(x+6,y+7);c.lineTo(x+7,y+1);c.lineTo(x+2,y+6);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.moveTo(x-4.5,y+10);c.lineTo(x-1.5,y+11);c.lineTo(x-4.5,y+12);c.closePath();c.fill();c.beginPath();c.moveTo(x+4.5,y+10);c.lineTo(x+1.5,y+11);c.lineTo(x+4.5,y+12);c.closePath();c.fill();c.beginPath();c.arc(x,y+17,0.9,0,7);c.fill();}, // 127 狐
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x,y+8);c.quadraticCurveTo(x+3,y+9,x+2.6,y+15);c.quadraticCurveTo(x+1.6,y+20,x,y+21);c.quadraticCurveTo(x-1.6,y+20,x-2.6,y+15);c.quadraticCurveTo(x-3,y+9,x,y+8);c.closePath();c.fill();c.beginPath();c.moveTo(x-2.6,y+9);c.quadraticCurveTo(x-6,y+7,x-6,y+10);c.quadraticCurveTo(x-4,y+10.5,x-2.6,y+10);c.closePath();c.fill();c.beginPath();c.moveTo(x+2.6,y+9);c.quadraticCurveTo(x+6,y+7,x+6,y+10);c.quadraticCurveTo(x+4,y+10.5,x+2.6,y+10);c.closePath();c.fill();S(c,a);c.lineWidth=1.3;c.beginPath();c.moveTo(x-1.6,y+8);c.lineTo(x-4,y+2);c.moveTo(x-3.4,y+3.5);c.lineTo(x-6.5,y+2);c.moveTo(x+1.6,y+8);c.lineTo(x+4,y+2);c.moveTo(x+3.4,y+3.5);c.lineTo(x+6.5,y+2);c.stroke();c.fillStyle=pp;c.beginPath();c.arc(x-1.3,y+12,0.8,0,7);c.fill();c.beginPath();c.arc(x+1.3,y+12,0.8,0,7);c.fill();}, // 128 鹿
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-5,y+22);c.quadraticCurveTo(x-6,y+12,x-1,y+12);c.quadraticCurveTo(x+6,y+12,x+5,y+22);c.closePath();c.fill();c.beginPath();c.arc(x,y+9,4.5,0,7);c.fill();c.beginPath();c.moveTo(x-4.4,y+6);c.lineTo(x-5.6,y+1);c.lineTo(x-1.4,y+5);c.closePath();c.fill();c.beginPath();c.moveTo(x+4.4,y+6);c.lineTo(x+5.6,y+1);c.lineTo(x+1.4,y+5);c.closePath();c.fill();S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x+5,y+20);c.quadraticCurveTo(x+8,y+18,x+6.5,y+14);c.stroke();c.fillStyle=pp;c.beginPath();c.arc(x-1.7,y+9,0.9,0,7);c.fill();c.beginPath();c.arc(x+1.7,y+9,0.9,0,7);c.fill();}, // 129 猫
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;[[-4.6,-4.6],[4.6,-4.6],[-4.6,4.6],[4.6,4.6]].forEach(s=>{c.beginPath();c.arc(x+s[0],y+13+s[1],2,0,7);c.fill();});c.beginPath();c.moveTo(x-1.6,y+7);c.lineTo(x,y+3.5);c.lineTo(x+1.6,y+7);c.closePath();c.fill();c.beginPath();c.arc(x,y+13,6.4,0,7);c.fill();c.beginPath();c.arc(x,y+21.5,2.1,0,7);c.fill();S(c,pp);c.lineWidth=1;c.beginPath();for(let k=0;k<6;k++){const an=k*Math.PI/3-Math.PI/2,px=x+3.4*Math.cos(an),py=y+13+3.4*Math.sin(an);k?c.lineTo(px,py):c.moveTo(px,py);}c.closePath();c.stroke();}, // 130 亀
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x,y+2);c.quadraticCurveTo(x-6,y+3,x-5,y+9);c.quadraticCurveTo(x-4,y+14,x-3,y+17);c.lineTo(x-6,y+22);c.lineTo(x,y+18);c.lineTo(x+6,y+22);c.lineTo(x+3,y+17);c.quadraticCurveTo(x+4,y+14,x+5,y+9);c.quadraticCurveTo(x+6,y+3,x,y+2);c.closePath();c.fill();S(c,a);c.lineWidth=1.3;c.beginPath();c.moveTo(x-4,y+10);c.lineTo(x-7,y+12);c.moveTo(x+4,y+10);c.lineTo(x+7,y+12);c.stroke();c.fillStyle=pp;c.beginPath();c.arc(x-2,y+6,1.2,0,7);c.fill();c.beginPath();c.arc(x+2,y+6,1.2,0,7);c.fill();}, // 131 鯉
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x,y+8);c.quadraticCurveTo(x-8,y+1,x-6,y+9);c.quadraticCurveTo(x-3,y+10,x,y+8);c.closePath();c.fill();c.beginPath();c.moveTo(x,y+8);c.quadraticCurveTo(x+8,y+1,x+6,y+9);c.quadraticCurveTo(x+3,y+10,x,y+8);c.closePath();c.fill();c.beginPath();c.moveTo(x,y+9);c.quadraticCurveTo(x-7,y+12,x-5,y+18);c.lineTo(x-6,y+21);c.quadraticCurveTo(x-2,y+15,x,y+13);c.closePath();c.fill();c.beginPath();c.moveTo(x,y+9);c.quadraticCurveTo(x+7,y+12,x+5,y+18);c.lineTo(x+6,y+21);c.quadraticCurveTo(x+2,y+15,x,y+13);c.closePath();c.fill();c.beginPath();c.moveTo(x-0.8,y+6);c.lineTo(x-0.8,y+16);c.lineTo(x+0.8,y+16);c.lineTo(x+0.8,y+6);c.closePath();c.fill();S(c,a);c.lineWidth=1.1;c.beginPath();c.moveTo(x,y+6);c.quadraticCurveTo(x-3,y+2,x-4,y);c.moveTo(x,y+6);c.quadraticCurveTo(x+3,y+2,x+4,y);c.stroke();}, // 132 揚羽
+  (c,x,y,a)=>{c.fillStyle=a;[[-8,4],[8,4],[-8,11],[8,11]].forEach(w=>{const tx=x+w[0],ty=y+w[1];c.beginPath();c.moveTo(x,y+7.5);c.quadraticCurveTo((x+tx)/2,ty-1.8,tx,ty);c.quadraticCurveTo((x+tx)/2,ty+1.8,x,y+7.5);c.closePath();c.fill();});S(c,a);c.lineWidth=1.9;c.beginPath();c.moveTo(x,y+6);c.lineTo(x,y+23);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+3.2,2.6,0,7);c.fill();}, // 133 蜻蛉
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+4,1.8,0,7);c.fill();c.beginPath();c.moveTo(x,y+5);c.quadraticCurveTo(x-3.6,y+8,x-2,y+13);c.quadraticCurveTo(x,y+15,x+2,y+13);c.quadraticCurveTo(x+3.6,y+8,x,y+5);c.closePath();c.fill();c.beginPath();c.arc(x,y+18,2.4,0,7);c.fill();S(c,a);c.lineWidth=1;for(let k=0;k<8;k++){const an=k*Math.PI/4;c.beginPath();c.moveTo(x+3.4*Math.cos(an),y+18+3.4*Math.sin(an));c.lineTo(x+5*Math.cos(an),y+18+5*Math.sin(an));c.stroke();}c.fillStyle=pp;c.beginPath();c.arc(x,y+18,1,0,7);c.fill();}, // 134 蛍
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.3;[-1,1].forEach(s=>{[[6,5,7,7],[7,9,8,11],[7,12,8,15],[6,15,6,18]].forEach(L=>{c.beginPath();c.moveTo(x+s*1.5,y+9);c.lineTo(x+s*L[0],y+L[1]);c.lineTo(x+s*L[2],y+L[3]);c.stroke();});});c.fillStyle=a;c.beginPath();c.arc(x,y+13,3.5,0,7);c.fill();c.beginPath();c.arc(x,y+8.5,2.3,0,7);c.fill();}, // 135 蜘蛛
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-7,y+16);c.quadraticCurveTo(x-8,y+8,x,y+8);c.quadraticCurveTo(x+8,y+8,x+7,y+16);c.quadraticCurveTo(x,y+19,x-7,y+16);c.closePath();c.fill();c.beginPath();c.arc(x-3.6,y+7,2.6,0,7);c.fill();c.beginPath();c.arc(x+3.6,y+7,2.6,0,7);c.fill();S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+14);c.lineTo(x-8,y+18);c.lineTo(x-5,y+18);c.moveTo(x+6,y+14);c.lineTo(x+8,y+18);c.lineTo(x+5,y+18);c.stroke();c.beginPath();c.moveTo(x-3,y+18);c.lineTo(x-4,y+21);c.moveTo(x+3,y+18);c.lineTo(x+4,y+21);c.stroke();c.fillStyle=pp;c.beginPath();c.arc(x-3.6,y+7,1,0,7);c.fill();c.beginPath();c.arc(x+3.6,y+7,1,0,7);c.fill();}, // 136 蛙
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-7,y+20);c.quadraticCurveTo(x-8,y+14,x-3,y+13);c.lineTo(x+4,y+13);c.quadraticCurveTo(x+8,y+13.5,x+8,y+17);c.lineTo(x+7,y+20);c.closePath();c.fill();S(c,a);c.lineWidth=1.1;c.beginPath();c.moveTo(x+6,y+14);c.lineTo(x+7,y+9);c.moveTo(x+3.6,y+14);c.lineTo(x+3.6,y+9);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x+7,y+8.5,1,0,7);c.fill();c.beginPath();c.arc(x+3.6,y+8.5,1,0,7);c.fill();c.beginPath();c.arc(x-2,y+9,6,0,7);c.fill();S(c,pp);c.lineWidth=1.1;c.beginPath();c.arc(x-2,y+9,4,0.5,Math.PI*1.9);c.stroke();c.beginPath();c.arc(x-1.2,y+9.4,2,0.5,Math.PI*1.9);c.stroke();c.fillStyle=pp;c.beginPath();c.arc(x-0.8,y+9.6,0.7,0,7);c.fill();}, // 137 蝸牛
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-1.5,y+8);c.quadraticCurveTo(x-6,y+6,x-8,y+9);c.quadraticCurveTo(x-7,y+12,x-5.5,y+11);c.quadraticCurveTo(x-4.5,y+15,x-3.5,y+13);c.quadraticCurveTo(x-2.5,y+16,x-1.5,y+14);c.closePath();c.fill();c.beginPath();c.moveTo(x+1.5,y+8);c.quadraticCurveTo(x+6,y+6,x+8,y+9);c.quadraticCurveTo(x+7,y+12,x+5.5,y+11);c.quadraticCurveTo(x+4.5,y+15,x+3.5,y+13);c.quadraticCurveTo(x+2.5,y+16,x+1.5,y+14);c.closePath();c.fill();c.beginPath();c.arc(x,y+9,3,0,7);c.fill();c.beginPath();c.moveTo(x-1.8,y+7);c.lineTo(x-3,y+2);c.lineTo(x-0.4,y+6);c.closePath();c.fill();c.beginPath();c.moveTo(x+1.8,y+7);c.lineTo(x+3,y+2);c.lineTo(x+0.4,y+6);c.closePath();c.fill();}, // 138 蝙蝠
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-2,y+8);c.quadraticCurveTo(x-8,y+6,x-7,y+11);c.quadraticCurveTo(x-4,y+11,x-2,y+9);c.closePath();c.fill();c.beginPath();c.moveTo(x+2,y+8);c.quadraticCurveTo(x+8,y+6,x+7,y+11);c.quadraticCurveTo(x+4,y+11,x+2,y+9);c.closePath();c.fill();c.beginPath();c.arc(x,y+4,2.2,0,7);c.fill();c.beginPath();c.moveTo(x,y+6);c.quadraticCurveTo(x-4.5,y+8,x-4,y+15);c.quadraticCurveTo(x-3,y+21,x,y+22);c.quadraticCurveTo(x+3,y+21,x+4,y+15);c.quadraticCurveTo(x+4.5,y+8,x,y+6);c.closePath();c.fill();S(c,pp);c.lineWidth=1.4;c.beginPath();c.moveTo(x-4,y+11);c.lineTo(x+4,y+11);c.moveTo(x-3.7,y+15);c.lineTo(x+3.7,y+15);c.moveTo(x-2.7,y+18.5);c.lineTo(x+2.7,y+18.5);c.stroke();S(c,a);c.lineWidth=1;c.beginPath();c.moveTo(x-0.8,y+2.5);c.lineTo(x-2.5,y);c.moveTo(x+0.8,y+2.5);c.lineTo(x+2.5,y);c.stroke();}, // 139 蜂
+  (c,x,y,a,d,pp)=>{c.save();c.translate(x,y+11);c.fillStyle=a;for(let k=0;k<5;k++){c.save();c.rotate(k*2*Math.PI/5);c.beginPath();c.moveTo(0,-2.5);c.quadraticCurveTo(-3.8,-4.5,-1.6,-7.5);c.quadraticCurveTo(-0.7,-6.4,0,-7);c.quadraticCurveTo(0.7,-6.4,1.6,-7.5);c.quadraticCurveTo(3.8,-4.5,0,-2.5);c.closePath();c.fill();c.restore();}c.fillStyle=pp;c.beginPath();c.arc(0,0,1.6,0,7);c.fill();c.restore();}, // 140 桜
+  (c,x,y,a,d,pp)=>{const cy=y+11;c.fillStyle=a;for(let k=0;k<5;k++){const an=-Math.PI/2+k*2*Math.PI/5;c.beginPath();c.arc(x+4.5*Math.cos(an),cy+4.5*Math.sin(an),3.4,0,7);c.fill();}c.fillStyle=pp;c.beginPath();c.arc(x,cy,2.6,0,7);c.fill();c.fillStyle=a;for(let k=0;k<5;k++){const an=-Math.PI/2+k*2*Math.PI/5;c.beginPath();c.arc(x+1.5*Math.cos(an),cy+1.5*Math.sin(an),0.9,0,7);c.fill();}}, // 141 椿
+  (c,x,y,a,d,pp)=>{const cy=y+11;c.fillStyle=a;c.beginPath();c.arc(x,cy,5,0,7);c.fill();for(let k=0;k<8;k++){const an=k*Math.PI/4;c.beginPath();c.arc(x+5*Math.cos(an),cy+5*Math.sin(an),3,0,7);c.fill();}c.strokeStyle=pp;c.lineWidth=1.1;c.beginPath();c.arc(x,cy,5,0,7);c.stroke();c.beginPath();for(let k=0;k<6;k++){const an=-Math.PI/2+k*Math.PI/3;c.moveTo(x,cy);c.lineTo(x+4.5*Math.cos(an),cy+4.5*Math.sin(an));}c.stroke();c.fillStyle=pp;c.beginPath();c.arc(x,cy,1.6,0,7);c.fill();}, // 142 牡丹
+  (c,x,y,a)=>{const cy=y+11;S(c,a);c.lineWidth=1.4;c.beginPath();for(let k=0;k<16;k++){const an=k*Math.PI/8;c.moveTo(x+2.6*Math.cos(an),cy+2.6*Math.sin(an));c.lineTo(x+8*Math.cos(an),cy+8*Math.sin(an));}for(let k=0;k<16;k++){const an=(k+0.5)*Math.PI/8;c.moveTo(x+2*Math.cos(an),cy+2*Math.sin(an));c.lineTo(x+5.4*Math.cos(an),cy+5.4*Math.sin(an));}c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,cy,2.4,0,7);c.fill();}, // 143 菊
+  (c,x,y,a,d,pp)=>{const cy=y+11;c.fillStyle=a;star(c,x,cy,8,3.4,5,-Math.PI/2);c.fill();c.strokeStyle=pp;c.lineWidth=1;c.beginPath();for(let k=0;k<5;k++){const an=-Math.PI/2+k*2*Math.PI/5;c.moveTo(x,cy);c.lineTo(x+7*Math.cos(an),cy+7*Math.sin(an));}c.stroke();c.fillStyle=pp;c.beginPath();c.arc(x,cy,1.8,0,7);c.fill();}, // 144 桔梗
+  (c,x,y,a,d,pp)=>{c.save();c.translate(x,y+11);c.fillStyle=a;for(let k=0;k<5;k++){c.save();c.rotate(k*2*Math.PI/5);c.beginPath();c.moveTo(0,-2.2);c.lineTo(-3.2,-6.2);c.lineTo(-2.4,-7.3);c.lineTo(-1.6,-6.4);c.lineTo(-0.8,-7.6);c.lineTo(0,-6.6);c.lineTo(0.8,-7.6);c.lineTo(1.6,-6.4);c.lineTo(2.4,-7.3);c.lineTo(3.2,-6.2);c.closePath();c.fill();c.restore();}c.fillStyle=pp;c.beginPath();c.arc(0,0,1.5,0,7);c.fill();c.restore();}, // 145 撫子
+  (c,x,y,a,d,pp)=>{const cy=y+11;c.fillStyle=a;for(let k=0;k<8;k++){c.save();c.translate(x,cy);c.rotate(k*Math.PI/4);c.beginPath();c.moveTo(0,-2);c.quadraticCurveTo(-3.3,-5.8,-1.5,-7.8);c.quadraticCurveTo(0,-6.8,1.5,-7.8);c.quadraticCurveTo(3.3,-5.8,0,-2);c.closePath();c.fill();c.restore();}c.fillStyle=pp;c.beginPath();c.arc(x,cy,2.2,0,7);c.fill();}, // 146 秋桜
+  (c,x,y,a)=>{const cy=y+13;c.fillStyle=a;c.beginPath();c.moveTo(x,cy);c.quadraticCurveTo(x-2,cy-8,x,cy-12);c.quadraticCurveTo(x+2,cy-8,x,cy);c.closePath();c.fill();c.beginPath();c.moveTo(x,cy-2);c.quadraticCurveTo(x-8,cy-6,x-6,cy+3);c.quadraticCurveTo(x-4,cy-1,x,cy-2);c.closePath();c.fill();c.beginPath();c.moveTo(x,cy-2);c.quadraticCurveTo(x+8,cy-6,x+6,cy+3);c.quadraticCurveTo(x+4,cy-1,x,cy-2);c.closePath();c.fill();S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x-3,cy);c.lineTo(x+3,cy);c.stroke();}, // 147 菖蒲
+  (c,x,y,a)=>{const by=y+20;c.fillStyle=a;const pet=(ang,len)=>{const nx=Math.cos(ang+Math.PI/2),ny=Math.sin(ang+Math.PI/2),w=2.6,mx=x+len*0.5*Math.cos(ang),my=by+len*0.5*Math.sin(ang),tx=x+len*Math.cos(ang),ty=by+len*Math.sin(ang);c.beginPath();c.moveTo(x,by);c.quadraticCurveTo(mx+w*nx,my+w*ny,tx,ty);c.quadraticCurveTo(mx-w*nx,my-w*ny,x,by);c.closePath();c.fill();};pet(-Math.PI/2,14);pet(-Math.PI/2-0.62,12);pet(-Math.PI/2+0.62,12);pet(-Math.PI/2-1.0,8.5);pet(-Math.PI/2+1.0,8.5);}, // 148 蓮
+  (c,x,y,a,d,pp)=>{const cy=y+10;c.fillStyle=a;c.beginPath();c.arc(x,cy,8,0,7);c.fill();c.strokeStyle=pp;c.lineWidth=1.2;c.beginPath();for(let k=0;k<5;k++){const an=-Math.PI/2+k*2*Math.PI/5;c.moveTo(x,cy);c.lineTo(x+8*Math.cos(an),cy+8*Math.sin(an));}c.stroke();c.fillStyle=pp;c.beginPath();c.arc(x,cy,2,0,7);c.fill();c.fillStyle=a;c.beginPath();c.moveTo(x-2,cy+7);c.lineTo(x+2,cy+7);c.lineTo(x+1.4,cy+13);c.lineTo(x-1.4,cy+13);c.closePath();c.fill();}, // 149 朝顔
+  (c,x,y,a,d,pp)=>{const cy=y+11;c.fillStyle=a;for(let k=0;k<6;k++){const an=-Math.PI/2+k*Math.PI/3;c.save();c.translate(x,cy);c.rotate(an+Math.PI/2);c.beginPath();c.moveTo(0,-3);c.quadraticCurveTo(-2.8,-6,0,-8.6);c.quadraticCurveTo(2.8,-6,0,-3);c.closePath();c.fill();c.restore();}c.beginPath();c.arc(x,cy,3.4,0,7);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,cy,2,0,7);c.fill();}, // 150 水仙
+  (c,x,y,a,d,pp)=>{const cy=y+11;c.fillStyle=a;for(let k=0;k<12;k++){const an=k*Math.PI/6;c.beginPath();c.moveTo(x+3.6*Math.cos(an),cy+3.6*Math.sin(an));c.lineTo(x+8*Math.cos(an-0.12),cy+8*Math.sin(an-0.12));c.lineTo(x+8*Math.cos(an+0.12),cy+8*Math.sin(an+0.12));c.closePath();c.fill();}c.beginPath();c.arc(x,cy,4,0,7);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,cy,3,0,7);c.fill();c.fillStyle=a;c.beginPath();c.arc(x,cy,1,0,7);c.fill();}, // 151 向日葵
+  (c,x,y,a)=>{c.fillStyle=a;const P=[[3.5,3,2.6],[3,6.5,2.3],[2.4,10,2.0],[1.8,13.5,1.7],[1.1,17,1.3],[0.4,20,1.0]];P.forEach(p=>{c.beginPath();c.arc(x-p[0],y+p[1],p[2],0,7);c.fill();c.beginPath();c.arc(x+p[0],y+p[1],p[2],0,7);c.fill();});}, // 152 藤
+  (c,x,y,a)=>{c.fillStyle=a;const fl=(fx,fy)=>{for(let k=0;k<4;k++){const an=k*Math.PI/2+Math.PI/4;c.beginPath();c.arc(fx+2*Math.cos(an),fy+2*Math.sin(an),1.6,0,7);c.fill();}};fl(x,y+6);fl(x-4.2,y+10);fl(x+4.2,y+10);fl(x-2.5,y+15);fl(x+2.5,y+15);}, // 153 紫陽花
+  (c,x,y,a)=>{const cy=y+11;c.fillStyle=a;const lobes=[[270,9],[212,8],[328,8],[150,6.5],[30,6.5]];lobes.forEach(L=>{const an=L[0]*Math.PI/180,nx=Math.cos(an+Math.PI/2),ny=Math.sin(an+Math.PI/2),w=2.2;c.beginPath();c.moveTo(x+w*nx,cy+w*ny);c.lineTo(x+L[1]*Math.cos(an),cy+L[1]*Math.sin(an));c.lineTo(x-w*nx,cy-w*ny);c.closePath();c.fill();});c.beginPath();c.arc(x,cy,2.6,0,7);c.fill();S(c,a);c.lineWidth=1.4;c.beginPath();c.moveTo(x,cy+2);c.lineTo(x,cy+9);c.stroke();}, // 154 紅葉
+  (c,x,y,a,d,pp)=>{const by=y+20;c.fillStyle=a;c.beginPath();c.moveTo(x,by);c.quadraticCurveTo(x-8,by-9,x-6,by-13);c.quadraticCurveTo(x-3,by-15,x,by-12);c.quadraticCurveTo(x+3,by-15,x+6,by-13);c.quadraticCurveTo(x+8,by-9,x,by);c.closePath();c.fill();c.strokeStyle=pp;c.lineWidth=0.9;c.beginPath();[-5,-2.5,0,2.5,5].forEach(dx=>{c.moveTo(x,by);c.lineTo(x+dx,by-11.5);});c.stroke();S(c,a);c.lineWidth=1.5;c.beginPath();c.moveTo(x,by);c.lineTo(x,by+3);c.stroke();}, // 155 銀杏
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x,y+2);c.quadraticCurveTo(x-6,y+3,x-6,y+11);c.quadraticCurveTo(x-6,y+21,x,y+23);c.quadraticCurveTo(x+6,y+21,x+6,y+11);c.quadraticCurveTo(x+6,y+3,x,y+2);c.closePath();c.fill();c.strokeStyle=pp;c.lineWidth=1;c.beginPath();for(let i=0;i<4;i++){const yy=y+6+i*4.5;c.moveTo(x-5,yy);c.lineTo(x,yy+3);c.lineTo(x+5,yy);}c.stroke();S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x,y+2);c.lineTo(x,y);c.stroke();}, // 156 松笠
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.5;c.beginPath();c.arc(x,y+3,2,0,7);c.stroke();c.beginPath();c.moveTo(x-2,y+5);c.lineTo(x-2,y+13);c.moveTo(x+2,y+5);c.lineTo(x+2,y+13);c.moveTo(x-2,y+5);c.lineTo(x+2,y+5);c.stroke();c.fillStyle=a;c.beginPath();c.moveTo(x-3,y+13);c.quadraticCurveTo(x-2,y+20,x,y+23);c.quadraticCurveTo(x+2,y+20,x+3,y+13);c.closePath();c.fill();}, // 157 筆
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-3,y+13);c.lineTo(x-4,y+4);c.moveTo(x+3,y+13);c.lineTo(x+5,y+4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x-4,y+3,1.6,0,7);c.fill();c.beginPath();c.arc(x+5,y+3,1.6,0,7);c.fill();S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+13);c.lineTo(x-5,y+23);c.lineTo(x+5,y+23);c.lineTo(x+6,y+13);c.closePath();c.stroke();}, // 158 筆立
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-6,y+6);c.lineTo(x+6,y+6);c.quadraticCurveTo(x+8,y+6,x+8,y+8);c.lineTo(x+8,y+17);c.quadraticCurveTo(x+8,y+19,x+6,y+19);c.lineTo(x-6,y+19);c.quadraticCurveTo(x-8,y+19,x-8,y+17);c.lineTo(x-8,y+8);c.quadraticCurveTo(x-8,y+6,x-6,y+6);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,y+10,4.5,0,Math.PI);c.closePath();c.fill();}, // 159 硯
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-4,y+3);c.lineTo(x+4,y+3);c.lineTo(x+4,y+21);c.quadraticCurveTo(x+4,y+22,x+3,y+22);c.lineTo(x-3,y+22);c.quadraticCurveTo(x-4,y+22,x-4,y+21);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,y+8,1.8,0,7);c.fill();c.strokeStyle=pp;c.lineWidth=1.4;c.beginPath();c.moveTo(x-2.5,y+13);c.lineTo(x+2.5,y+13);c.stroke();}, // 160 墨
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+15,6,0,7);c.fill();c.beginPath();c.moveTo(x+4,y+11);c.lineTo(x+8,y+9);c.lineTo(x+6,y+13);c.closePath();c.fill();c.fillStyle=pp;c.beginPath();c.arc(x-1,y+11,1.6,0,7);c.fill();}, // 161 水滴
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.4;c.beginPath();c.moveTo(x-5,y+6);c.lineTo(x-5,y+18);c.moveTo(x+5,y+6);c.lineTo(x+5,y+18);c.stroke();c.beginPath();c.moveTo(x-1,y+9);c.lineTo(x-1,y+15);c.moveTo(x+2,y+9);c.lineTo(x+2,y+14);c.stroke();c.fillStyle=a;c.beginPath();c.rect(x-5,y+3,10,3);c.fill();c.beginPath();c.rect(x-5,y+18,10,3);c.fill();c.beginPath();c.arc(x-6,y+19.5,1.7,0,7);c.fill();c.beginPath();c.arc(x+6,y+19.5,1.7,0,7);c.fill();}, // 162 巻物
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.5;c.beginPath();c.moveTo(x-6,y+3);c.lineTo(x+6,y+3);c.lineTo(x+6,y+22);c.lineTo(x-6,y+22);c.closePath();c.stroke();c.beginPath();c.moveTo(x-3,y+3);c.lineTo(x-3,y+22);c.stroke();c.lineWidth=1.4;c.beginPath();[7,12,17].forEach(dd=>{c.moveTo(x-5,y+dd);c.lineTo(x-1,y+dd);});c.stroke();}, // 163 冊子
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-8,y+7);c.lineTo(x-4,y+17);c.lineTo(x,y+7);c.lineTo(x+4,y+17);c.lineTo(x+8,y+7);c.stroke();c.lineWidth=2.4;c.beginPath();c.moveTo(x-8,y+7);c.lineTo(x-8,y+17);c.moveTo(x+8,y+7);c.lineTo(x+8,y+17);c.stroke();}, // 164 折本
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.5;c.beginPath();c.moveTo(x-6,y+3);c.lineTo(x+3,y+3);c.lineTo(x+6,y+6);c.lineTo(x+6,y+22);c.lineTo(x-6,y+22);c.closePath();c.stroke();c.beginPath();c.moveTo(x+3,y+3);c.lineTo(x+3,y+6);c.lineTo(x+6,y+6);c.stroke();c.lineWidth=1.3;c.beginPath();c.moveTo(x-2,y+10);c.lineTo(x-2,y+18);c.moveTo(x+1,y+10);c.lineTo(x+1,y+16);c.stroke();}, // 165 料紙
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.rect(x-6,y+5,12,14);c.fill();c.strokeStyle=pp;c.lineWidth=1.8;c.lineCap='round';c.beginPath();c.moveTo(x,y+7.5);c.lineTo(x,y+16.5);c.moveTo(x-3.5,y+9.5);c.lineTo(x+3.5,y+9.5);c.moveTo(x-3.5,y+14.5);c.lineTo(x+3.5,y+14.5);c.stroke();}, // 166 落款印
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.rect(x-2,y+5,8,4);c.fill();c.beginPath();c.arc(x+6,y+7,2,0,7);c.fill();c.beginPath();c.arc(x-3,y+14,5,0,7);c.fill();c.strokeStyle=pp;c.lineWidth=1.4;c.beginPath();c.arc(x-3,y+14,2,0,7);c.stroke();}, // 167 矢立
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.rect(x-6,y+12,12,8);c.fill();c.beginPath();c.rect(x-7,y+8,14,5);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,y+10,1.5,0,7);c.fill();c.strokeStyle=pp;c.lineWidth=1.2;c.beginPath();c.moveTo(x,y+13);c.lineTo(x,y+15);c.stroke();}, // 168 文箱
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-5,y+12);c.lineTo(x+5,y+12);c.arc(x+5,y+15,3,-Math.PI/2,Math.PI/2);c.lineTo(x-5,y+18);c.arc(x-5,y+15,3,Math.PI/2,Math.PI*1.5);c.closePath();c.fill();S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x-3,y+12);c.quadraticCurveTo(x,y+5,x+3,y+12);c.stroke();}, // 169 文鎮
+  (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-8,y+18);c.lineTo(x-8,y+14);c.quadraticCurveTo(x-6,y+8,x-4,y+13);c.quadraticCurveTo(x-2,y+16,x,y+11);c.quadraticCurveTo(x+2,y+16,x+4,y+13);c.quadraticCurveTo(x+6,y+8,x+8,y+14);c.lineTo(x+8,y+18);c.closePath();c.fill();}, // 170 筆架
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x-4,y+12,4,0,7);c.stroke();c.beginPath();c.arc(x+4,y+12,4,0,7);c.stroke();c.beginPath();c.moveTo(x-1,y+11);c.quadraticCurveTo(x,y+9,x+1,y+11);c.stroke();c.beginPath();c.moveTo(x-8,y+11);c.lineTo(x-8,y+8);c.moveTo(x+8,y+11);c.lineTo(x+8,y+8);c.stroke();}, // 171 眼鏡
+  (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-5,y+8);c.lineTo(x+5,y+8);c.lineTo(x+4,y+19);c.lineTo(x-4,y+19);c.closePath();c.fill();c.strokeStyle=pp;c.lineWidth=1.4;c.beginPath();c.moveTo(x-4,y+11);c.lineTo(x+4,y+11);c.stroke();S(c,a);c.lineWidth=1.5;c.beginPath();c.moveTo(x-7,y+21);c.quadraticCurveTo(x,y+24,x+7,y+21);c.stroke();}, // 172 湯呑
+  (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+6);c.lineTo(x+6,y+6);c.lineTo(x+6,y+17);c.lineTo(x-6,y+17);c.closePath();c.stroke();c.lineWidth=1.2;c.beginPath();c.moveTo(x-2,y+6);c.lineTo(x-2,y+17);c.moveTo(x+2,y+6);c.lineTo(x+2,y+17);c.stroke();c.lineWidth=2;c.beginPath();c.moveTo(x-7,y+4);c.lineTo(x+7,y+4);c.stroke();c.lineWidth=1.4;c.beginPath();c.moveTo(x-4,y+17);c.lineTo(x-4,y+21);c.moveTo(x+4,y+17);c.lineTo(x+4,y+21);c.moveTo(x-6,y+21);c.lineTo(x+6,y+21);c.stroke();}, // 173 行灯
+];
+
+// ===== 割当表 M: 174種それぞれ「名前|動きクラス|動きの語(|周期上書きs)」＝Kotlin SHIORI_TIPS と同順。
+// 実装時は tipIndex → MotionClass の対応表としてここが正本（コメント⑥）。
+const M=[
+"魚尾|sway|ゆれ",
+"一粒|sway|微揺れ",
+"結び玉|sway|微揺れ",
+"二又房|sway|房のゆれ",
+"三又房|sway|房のゆれ",
+"総角|sway|房のゆれ",
+"蝶結び|flap|羽のそよぎ|2.6",
+"玉と尾|sway|尾のゆれ",
+"数珠|sway|珠のゆれ",
+"括り|sway|微揺れ",
+"小輪|glint|環の微光",
+"二重丸|glint|環の微光",
+"菱|glint|箔の瞬き",
+"逆三角|glint|箔の瞬き",
+"小四角|glint|箔の瞬き",
+"星|twinkle|またたき",
+"十字|twinkle|微光の呼吸",
+"三点|twinkle|三つ星のまたたき",
+"雫|drip|したたり",
+"半月|glow|月暈|8",
+"矢尻|sheen|鏃の閃き",
+"巴|spin|めぐり|18",
+"勾玉|glow|霊光",
+"鈴|ring|鈴の振り",
+"瓢箪|sway|ゆらり",
+"短冊|breeze|風のそよぎ",
+"蔵書印|ink|朱肉の艶",
+"梅|bloom|ほころび",
+"木の葉|breeze|葉のそよぎ",
+"木の実|sway|微揺れ",
+"分銅|sway|錘のゆれ",
+"淡路結び|sway|結びのゆれ",
+"片流し房|sway|房のゆれ",
+"撚り房|sway|房のゆれ",
+"二重括り|sway|微揺れ",
+"巻き結び|sway|ゆれ",
+"輪結び|sway|ゆれ",
+"総締め|sway|房のゆれ",
+"六角|glint|箔の瞬き",
+"五角|glint|箔の瞬き",
+"環に点|twinkle|微光",
+"半円|glint|箔の瞬き",
+"扇形|sway|あおぎ",
+"山形|glint|箔の瞬き",
+"重ね菱|glint|箔の瞬き",
+"交差|glint|箔の瞬き",
+"扇|sway|あおぎ",
+"千鳥|flap|羽ばたき|2.2",
+"富士|glow|山霞の光|8",
+"鳥居|glow|神さびの気配|8",
+"独楽|spin|回りごま|5",
+"帆掛|bob|波のたゆたい",
+"徳利|sway|ほろ酔いのゆらぎ",
+"御守|sway|御守のゆれ",
+"井桁|glint|箔の瞬き",
+"麻の葉|glint|箔の瞬き",
+"矢羽根|breeze|風のそよぎ",
+"立涌|rise|たちのぼり",
+"青海波|wave|波のうねり",
+"雷文|sheen|雷光の閃き",
+"割菱|glint|箔の瞬き",
+"三つ巴|spin|めぐり|14",
+"七宝|glint|七宝の耀き",
+"双葉|breeze|芽のそよぎ",
+"稲穂|breeze|穂のなびき",
+"竹|breeze|葉ずれ",
+"蕨|breeze|芽のそよぎ",
+"唐草|breeze|蔓のそよぎ",
+"北斗|twinkle|斗星のまたたき",
+"日輪|glow|陽光の暈",
+"雪華|twinkle|雪のきらめき",
+"太極|spin|ゆるり|26",
+"晴明桔梗|glow|霊光",
+"籠目|glow|霊光",
+"九字|sheen|九字の閃き",
+"三爻|glow|霊光",
+"方位盤|wobble|羅針のふるえ",
+"護符|glow|霊光",
+"形代|breeze|紙のそよぎ",
+"結界|glow|結界の明滅",
+"御幣|breeze|紙垂のそよぎ",
+"宝珠|glow|珠の霊光",
+"宝剣|sheen|白刃の閃き",
+"金剛杵|glow|金剛の光",
+"呪眼|blink|まばたき",
+"亀甲|glint|箔の瞬き",
+"封印|glow|封の明滅",
+"錫杖|ring|遊環の鳴り",
+"太刀|sheen|白刃の閃き",
+"懐剣|sheen|白刃の閃き",
+"槍|sheen|穂先の閃き",
+"薙刀|sheen|白刃の閃き",
+"鎌|sheen|刃の閃き",
+"鉞|sheen|刃の閃き",
+"金棒|sheen|鈍色の光|9",
+"十手|sheen|鈍色の光|9",
+"独鈷|glow|金剛の光",
+"手裏剣|spin|回転|9",
+"弓|ring|弦の震え",
+"鍔|glint|鍔の耀き",
+"鞘|ink|漆の艶",
+"兜|glint|金具の耀き",
+"鍬形|sheen|金色の閃き",
+"陣笠|glint|微光",
+"盾|glint|金具の耀き",
+"軍配|sway|あおぎ",
+"蛇の目|glint|紋の瞬き",
+"銭|glint|銭の耀き",
+"木瓜|glint|紋の瞬き",
+"花菱|glint|紋の瞬き",
+"州浜|wave|汀のうねり",
+"三つ鱗|glint|紋の瞬き",
+"四つ目|glint|紋の瞬き",
+"違い鷹の羽|glint|紋の瞬き",
+"丸に一つ引|glint|紋の瞬き",
+"五三桐|glint|紋の瞬き",
+"橘|glint|紋の瞬き",
+"沢瀉|glint|紋の瞬き",
+"片喰|glint|紋の瞬き",
+"抱き茗荷|glint|紋の瞬き",
+"桔梗紋|glint|紋の瞬き",
+"松皮菱|glint|紋の瞬き",
+"蔦|glint|紋の瞬き",
+"鶴|flap|羽ばたき|3.4",
+"燕|flap|翼の返し|1.5",
+"雀|hop|跳ね",
+"兎|hop|跳ね",
+"狐|glow|狐火の明滅",
+"鹿|bloom|息づかい",
+"猫|bloom|まどろみの息",
+"亀|bob|のそり|7.5",
+"鯉|bob|泳ぎ",
+"揚羽|flap|羽ばたき|2",
+"蜻蛉|bob|空中静止のふるえ|1.2",
+"蛍|flicker|蛍火の明滅",
+"蜘蛛|bob|糸の上下|6.5",
+"蛙|hop|跳ね",
+"蝸牛|bob|のそり|9",
+"蝙蝠|flap|羽ばたき|1.7",
+"蜂|bob|羽音のふるえ|0.9",
+"桜|drift|花びらのひらり",
+"椿|bloom|ほころび",
+"牡丹|bloom|ほころび",
+"菊|bloom|ほころび",
+"桔梗|bloom|ほころび",
+"撫子|breeze|そよぎ",
+"秋桜|breeze|そよぎ",
+"菖蒲|breeze|そよぎ",
+"蓮|bloom|ほころび",
+"朝顔|bloom|朝のほころび",
+"水仙|breeze|そよぎ",
+"向日葵|breeze|日追いのゆらぎ|7",
+"藤|sway|藤房のゆれ",
+"紫陽花|bloom|雨間のほころび",
+"紅葉|drift|ひらり",
+"銀杏|drift|ひらり",
+"松笠|sway|微揺れ",
+"筆|ink|墨の艶",
+"筆立|ink|墨の艶",
+"硯|ink|墨溜まりの艶",
+"墨|ink|墨の艶",
+"水滴|drip|したたり",
+"巻物|ink|紙の艶",
+"冊子|ink|紙の艶",
+"折本|ink|紙の艶",
+"料紙|glint|繊維のきらめき",
+"落款印|ink|朱の艶",
+"矢立|ink|墨の艶",
+"文箱|ink|漆の艶",
+"文鎮|glint|金具の耀き",
+"筆架|ink|墨の艶",
+"眼鏡|glint|レンズの光",
+"湯呑|rise|湯気のたちのぼり",
+"行灯|flicker|灯のゆらめき"
+];
+
+// 語彙メタ: o=変形の支点（attach=棒先端(32,10) / center=意匠中心(32,26)）・d=既定周期s。
+const CLS_META={
+  sway:{o:'attach',d:3.8}, breeze:{o:'attach',d:5.2}, twinkle:{o:'center',d:2.8},
+  glint:{o:'center',d:7},  sheen:{o:'center',d:6},   spin:{o:'center',d:12},
+  glow:{o:'center',d:5.5}, ink:{o:'center',d:7},     ring:{o:'attach',d:5},
+  flap:{o:'attach',d:2},   hop:{o:'center',d:5.2},   bob:{o:'center',d:4.4},
+  drift:{o:'attach',d:5.6},wave:{o:'center',d:4.2},  rise:{o:'center',d:4.8},
+  flicker:{o:'center',d:6.4}, bloom:{o:'center',d:5}, blink:{o:'center',d:6.5},
+  drip:{o:'center',d:6},   wobble:{o:'center',d:6},
+};
+
+// 凡例（語彙 → 意匠の系と動きの根拠）
+const VOCAB=[
+  ['ゆれ（sway）','紐・房・吊り意匠（魚尾/房/数珠/藤/御守/分銅 等）——栞紐の先が本の呼吸で揺れる。支点=棒先端'],
+  ['そよぎ（breeze）','草木・紙もの（双葉/稲穂/竹/短冊/紙垂/形代 等）——不規則な風の多段キー'],
+  ['ほころび（bloom）','花・生きものの息（梅/椿/菊/蓮/鹿/猫 等）——微スケールの呼吸'],
+  ['ひらり（drift）','散りもの（桜/紅葉/銀杏）——宙で舞う傾ぎ＋浮き沈み'],
+  ['またたき（twinkle）','天文（星/北斗/雪華/三点 等）——透過と微スケールの明滅'],
+  ['箔の瞬き（glint）','幾何・家紋・金具（菱/七宝/家紋17種/鍔/文鎮 等）——長い静止のあと金彩が一瞬走る'],
+  ['白刃の閃き（sheen）','武具・雷（太刀/槍/九字/雷文 等）——鋭く白い一閃'],
+  ['霊光（glow）','呪術・神威・月日（晴明桔梗/結界/宝珠/狐火/月/日輪 等）——識別色の暈の呼吸'],
+  ['墨と漆の艶（ink）','文房・印章（筆/硯/蔵書印/文箱 等）——にぶい光沢の呼吸'],
+  ['回転（spin）','回りもの（独楽/手裏剣/巴/太極）——等速。太極は 26s のゆるり'],
+  ['鳴り（ring）','鈴・錫杖・弓弦——ひと振りして減衰し、しばらく黙る'],
+  ['羽ばたき（flap）','鳥・蝶・蝙蝠・蝶結び——翼の開閉（横スケール）'],
+  ['跳ね（hop）','雀・兎・蛙——長い静止のあと小さく二度はねる'],
+  ['漂い（bob）','水と虫（鯉/亀/蜻蛉/蜂/蜘蛛/帆掛）——浮き沈み。周期で泳ぎ〜羽音まで表情が変わる'],
+  ['波（wave）','青海波・州浜——横のうねり'],
+  ['たちのぼり（rise）','立涌・湯呑——湯気の気配'],
+  ['灯のゆらめき（flicker）','行灯・蛍——不規則な明滅＋暖色の暈'],
+  ['まばたき（blink）','呪眼——長い静止のあと一度だけ瞬く'],
+  ['したたり（drip）','雫・水滴——落ちて、また結ぶ'],
+  ['羅針のふるえ（wobble）','方位盤——中心支点の小さな迷い'],
+];
+
+const f=x=>x-Math.floor(x); // 個体ジッタ用の小数部（黄金比系列で散らす）
+function applyAnim(el,idx,hue){
+  const parts=M[idx].split('|'), cls=parts[1], durOv=parts[3];
+  const meta=CLS_META[cls];
+  el.classList.add('an-'+cls);
+  const base=durOv?parseFloat(durOv):meta.d;
+  const d=base*(0.85+0.3*f(idx*0.618)); // 周期ジッタ ±15%
+  el.style.animationDuration=d.toFixed(2)+'s';
+  el.style.animationDelay=(-f(idx*0.377)*d).toFixed(2)+'s'; // 負の遅延=位相ずらし（同期させない）
+  el.style.transformOrigin=meta.o==='attach'?'32px 10px':'32px 26px';
+  el.style.setProperty('--amp',(1.8+1.4*f(idx*0.271)).toFixed(2)+'deg'); // 振幅ジッタ
+  el.style.setProperty('--glow',hsl(hue,70,62,.5)); // 霊光/灯の暈は識別色から
+}
+function drawTip(cv){
+  const idx=+cv.dataset.tip, hue=+cv.dataset.hue;
+  const dpr=2, W=64, H=56, ax=32, ay=10;
+  cv.width=W*dpr; cv.height=H*dpr;
+  const ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
+  // Compose(ShioriCover) と同じ基準150スケール＝カバー実幅/150 を先端意匠に掛ける
+  const coverW=cv.parentElement.clientWidth||150, s=coverW/150;
+  const accent=hsl(hue,48,52), paper='#FDFCFA';
+  ctx.translate(ax,ay); ctx.scale(s,s);
+  TIPS[idx](ctx,0,0,accent,false,paper);
+  applyAnim(cv,idx,hue);
+}
+// 一覧帯: 174種全数。色相は正本 PALETTE を巡回・棒位置/長さは決定論で散らす。
+const PALETTE=[20,70,140,175,200,210,260,330];
+function renderStrip(){
+  document.getElementById('strip').innerHTML=M.map((m,i)=>{
+    const hue=PALETTE[i%8], barx=14+(i*7)%23, barlen=40+(i*11)%14;
+    const p=m.split('|');
+    return '<div class="sc"><div class="cv hl" style="--band:'+hsl(hue,48,52)+';--barx:'+barx+'%;--barlen:'+barlen+'%">'
+      +'<span class="bar"></span><canvas class="tip" data-tip="'+i+'" data-hue="'+hue+'"></canvas></div>'
+      +'<div class="lb"><b>'+i+' '+p[0]+'</b><span class="w">'+p[2]+'</span></div></div>';
+  }).join('');
+}
+function renderLegend(){
+  document.getElementById('legend').innerHTML=VOCAB.map(v=>'<li><b>'+v[0]+'</b><span>'+v[1]+'</span></li>').join('');
+}
+renderStrip(); renderLegend();
+requestAnimationFrame(()=>document.querySelectorAll('canvas.tip').forEach(drawTip));
+document.getElementById('pause').addEventListener('click',()=>{
+  const p=document.body.classList.toggle('paused');
+  document.getElementById('pause').textContent=p?'▶ 再生':'⏸ 一時停止（静止意匠と突き合わせ）';
+});
+</script>
+</body>
+</html>
