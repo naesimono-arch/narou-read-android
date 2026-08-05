@@ -164,6 +164,10 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
             // なぜここか: cleanOrphanHtmlDirs と同じ「起動時・Service 非稼働」の安全窓で、
             // 蔵書(books.ncode)にも本棚(web_novels)にも参照されない行だけを回収する。
             repository.pruneOrphanWebReadingProgress()
+            // 取込時 cache PDF（pdf_import/）の孤児掃除。削除時カスケード（LibraryDeleter.deleteBook）の
+            // 取りこぼし（カスケード導入前の残骸・削除途中の kill）を同じ安全窓で回収する。
+            // pending_jobs 参照分の保護は repository 実装が担う（DefaultBookRepository のコメント）。
+            repository.sweepOrphanNarouPdfCache()
             val pending = repository.getPendingJobs()
             // 再開にはプロセスを跨いで有効な読み取り権限が要る。takePersistableUriPermission は
             // addBook 時に取得済みのはずだが、プロバイダ非対応・ユーザーによる権限取消で

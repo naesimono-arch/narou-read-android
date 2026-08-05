@@ -120,6 +120,8 @@ class FakeBookRepository : BookRepository {
 
     override suspend fun cleanOrphanHtmlDirs() { /* Fake はファイルシステムを持たない（no-op） */ }
 
+    override suspend fun sweepOrphanNarouPdfCache(): Int = 0 // Fake はファイルシステムを持たない（no-op）
+
     override suspend fun releaseOrphanedPermissions(keepUris: Set<String>) { /* 永続権限を持たない（no-op） */ }
 
     override suspend fun getPersistedSourceUris(): Set<String> =

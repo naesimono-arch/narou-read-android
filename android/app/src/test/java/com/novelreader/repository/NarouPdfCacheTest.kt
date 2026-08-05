@@ -46,4 +46,38 @@ class NarouPdfCacheTest {
         put("n1453lw.tmp")
         assertNull(NarouPdfCache.findFor(cacheDir, "n1453lw"))
     }
+
+    // ── 削除（本削除時カスケード・起動時孤児掃除の機械部分）────────────────────────
+
+    @Test
+    fun `deleteFor - 対応する PDF だけを消す（別作品の復旧資源は巻き添えにしない）`() {
+        put("n1453lw.pdf")
+        val other = put("n9999zz.pdf")
+        NarouPdfCache.deleteFor(cacheDir, "N1453LW")
+        assertNull(NarouPdfCache.findFor(cacheDir, "n1453lw"))
+        assertEquals(other, NarouPdfCache.findFor(cacheDir, "n9999zz"))
+        NarouPdfCache.deleteFor(cacheDir, "n0000aa") // 不在は no-op（例外にしない）
+    }
+
+    @Test
+    fun `sweepOrphans - 蔵書の ncode と pending 参照だけを残し、残骸は名前を問わず回収する`() {
+        val kept = put("n1453lw.pdf")            // 現存する蔵書の復旧資源（AutoCachePdf）
+        val pending = put("n7777xx.pdf")         // 再開待ちの DL 実体（pending_jobs が参照）
+        put("n9999zz.pdf")                       // 削除済みの本の残骸
+        put("garbage.pdf")                       // ncode 名でない残骸（部分DL等）
+        val swept = NarouPdfCache.sweepOrphans(
+            cacheDir,
+            keepNcodes = setOf("N1453LW"),       // 正規化済み（Ncode.storageKey 形）で渡す契約
+            keepFileNames = setOf("n7777xx.pdf"),
+        )
+        assertEquals(2, swept)
+        assertEquals(kept, NarouPdfCache.findFor(cacheDir, "n1453lw"))
+        assertEquals(pending, NarouPdfCache.findFor(cacheDir, "n7777xx"))
+        assertNull(NarouPdfCache.findFor(cacheDir, "n9999zz"))
+    }
+
+    @Test
+    fun `sweepOrphans - ディレクトリ不在（まだ一度も DL していない端末）は 0 件で正常終了`() {
+        assertEquals(0, NarouPdfCache.sweepOrphans(cacheDir, emptySet(), emptySet()))
+    }
 }

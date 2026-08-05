@@ -141,6 +141,16 @@ class DefaultBookRepository(
     override suspend fun deleteBook(book: BookEntity, deleteSource: Boolean): SourceDeleteOutcome =
         libraryDeleter.deleteBook(book, deleteSource)
     override suspend fun pruneOrphanWebReadingProgress(): Int = libraryDeleter.pruneOrphanWebReadingProgress()
+    override suspend fun sweepOrphanNarouPdfCache(): Int {
+        // pending_jobs の URI（なろう取込は FileProvider の content://…/pdf_import/<name>）から
+        // 実ファイル名を復元して掃除の保護対象に渡す。SAF ピッカー由来の pending URI からも末尾を
+        // 名前として拾うが、それは cache に同名ファイルが偶然あっても「消さない」側に倒れるだけ＝
+        // 過剰保護は無害（消し漏れは次回起動が拾う・誤削除は変換の再開を壊す＝非対称なので安全側へ）。
+        val pendingNames = pendingJobs.getAll().mapNotNullTo(mutableSetOf()) { job ->
+            android.net.Uri.parse(job.uri).lastPathSegment?.substringAfterLast('/')
+        }
+        return libraryDeleter.sweepOrphanNarouPdfCache(pendingNames)
+    }
 
     override suspend fun getPersistedSourceUris(): Set<String> = withContext(Dispatchers.IO) {
         bookDao.getPersistedSourceUris().toSet()

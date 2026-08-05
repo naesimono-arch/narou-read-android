@@ -41,4 +41,33 @@ internal object NarouPdfCache {
                 Ncode(f.nameWithoutExtension).storageKey == key
         }
     }
+
+    /** ncode に対応する取込時 PDF を削除する（不在なら no-op）。呼び出し条件（いつ消してよいか）の
+     *  設計は LibraryDeleter 側のコメントが正本＝ここは名前照合と削除の機械部分だけを持つ。 */
+    fun deleteFor(cacheDir: File, ncode: String) {
+        findFor(cacheDir, ncode)?.delete()
+    }
+
+    /**
+     * 起動時の孤児掃除: どの蔵書（keepNcodes）にも対応せず、再開待ちの取込（keepFileNames）からも
+     * 参照されない cache 内ファイルを削除する。
+     *
+     * PDF 以外・ncode 名でないファイルも掃除対象に含める理由: この領域の書き手は DL 保存
+     * （PdfImportViewModel）だけで、正当に残ってよいのは〈蔵書の復旧資源（ncode 対応の PDF）〉と
+     * 〈pending_jobs が再開に使う DL 実体〉の2種のみ。それ以外はプロセス kill で残った部分DL等の
+     * 残骸で、名前を問わず回収してよい（cleanOrphanHtmlDirs の「DB に無い＝書きかけ」と同じ判定思想）。
+     *
+     * @param keepNcodes 現存する蔵書の ncode（Ncode.storageKey 形）。対応する PDF は②AutoCachePdf の復旧資源＝残す。
+     * @param keepFileNames pending_jobs が参照する cache 内ファイル名（再開予定の DL 実体＝消すと再開が壊れる）。
+     * @return 削除したファイル数（呼び出し側のログ用）。
+     */
+    fun sweepOrphans(cacheDir: File, keepNcodes: Set<String>, keepFileNames: Set<String>): Int {
+        val files = dir(cacheDir).listFiles() ?: return 0
+        return files.count { f ->
+            f.isFile &&
+                f.name !in keepFileNames &&
+                Ncode(f.nameWithoutExtension).storageKey !in keepNcodes &&
+                f.delete()
+        }
+    }
 }

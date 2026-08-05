@@ -136,6 +136,11 @@ interface BookRepository {
      *  web_reading_progress 行を回収する（UX監査 privacy・削除の完全性）。@return 削除した行数。 */
     suspend fun pruneOrphanWebReadingProgress(): Int
 
+    /** 起動時クリーンアップ: どの蔵書（books.ncode）にも対応せず pending_jobs からも参照されない
+     *  取込時 cache PDF（cache/pdf_import/）を回収する（欠落本復旧 AutoCachePdf の資源は残す）。
+     *  @return 削除したファイル数。 */
+    suspend fun sweepOrphanNarouPdfCache(): Int
+
     /** 本を蔵書から削除する（DB行・進捗・本文HTML・紐付き Web 読書位置を掃除）。
      *  deleteSource=true かつ book.sourceUri!=null のとき、取込元 PDF 本体（SAF ドキュメント）も削除する。
      *  本削除に伴い book.sourceUri の永続 URI 権限は削除成否に関わらず解放する（本が消えれば保持不要のため）。

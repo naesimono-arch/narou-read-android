@@ -58,6 +58,23 @@ internal class LibraryDeleter(
         // 紐付いた ncode の WebView 読書位置だけ端末へ残る穴を塞ぐ。ただし同 ncode が web_novels カード
         // として独立に棚に在るなら、その Web 読書はまだ現役なので残す（helper が参照有無で判定）。
         book.ncode?.let { cascadeDeleteWebProgressIfUnreferenced(Ncode(it).storageKey) }
+        // 取込時 cache PDF（cache/pdf_import/<ncode>.pdf・なろう縦書きPDF取込の DL 実体）の後始末。
+        // いつ消すか＝「この ncode を名乗る蔵書行が1冊も残らなくなったとき」。
+        //   ・無条件即消しにしない理由: この PDF は sourceUri/sourceUrl を持たない本の唯一の復旧資源
+        //     （ReimportPlan.AutoCachePdf＝本文欠落時に無操作で戻す鍵）。同 ncode の蔵書行が残る間は
+        //     その本のために残す。行が全て消えた後は復元の鍵（id・進捗・栞）ごと消えており、
+        //     残しても誰も使えないただの残骸＝ここで消す（放置すると数十MB/冊が cache に堆積する実測）。
+        //   ・web_novels カードは判定に含めない理由: Web カードは cache PDF を読まない（復旧は sourceUrl の
+        //     Web 再取得で戻る）＝参照実態が無いものを「参照」と数えると残骸が永久に消えなくなる。
+        //   ・ユーザーのオプトイン（deleteSource）に載せない理由: あれはユーザー自身が保存した SAF 上の
+        //     ファイルの扱いを問うもの。cache はアプリ専用領域でユーザーからは見えず、問うだけ混乱させる。
+        // 削除と本チェックの間にプロセス kill が入って残っても、起動時の sweepOrphanNarouPdfCache が拾う。
+        book.ncode?.let { ncode ->
+            val key = Ncode(ncode).storageKey
+            val stillReferenced = bookDao.getAllBooks().first()
+                .any { b -> b.ncode?.let { Ncode(it).storageKey } == key }
+            if (!stillReferenced) NarouPdfCache.deleteFor(context.cacheDir, ncode)
+        }
         // HTMLディレクトリ削除は DB 外の副作用のためトランザクション外に置く（ファイルIO は Room の
         // トランザクションでロールバックできず、失敗しても DB 削除は成立させたい＝掃除は次回起動の
         // cleanOrphanHtmlDirs が拾う）。
@@ -117,6 +134,30 @@ internal class LibraryDeleter(
                 else Log.w(TAG, "孤立HTMLの削除に失敗: ${dir.absolutePath}")
             }
         }
+    }
+
+    /**
+     * 起動時クリーンアップ: どの蔵書（books.ncode）にも対応しない取込時 cache PDF
+     * （cache/pdf_import/）を回収する。
+     *
+     * なぜ削除時カスケード（deleteBook 内）だけでは足りないか:
+     *   ①カスケード導入以前の削除で既に残った分（実機で実測済みの残骸）はどの削除経路も再訪しない
+     *   ②行削除→cache 削除の間のプロセス kill で取りこぼす
+     * cleanOrphanHtmlDirs / pruneOrphanWebReadingProgress と同じ「起動時に不変条件を回復する」掃除で
+     * 完全化する。【前提】呼び出しは runStartupRecoveryOnce の Service 非稼働ガード下＝変換中の DL 実体を
+     * 誤削除しない。DL そのもの（PdfImportViewModel）も Activity 生成後のユーザー操作でしか始まらず、
+     * プロセスごと1回の起動時掃除とは時間的に重ならない。
+     *
+     * @param pendingImportFileNames pending_jobs が参照する cache 内ファイル名（再開予定の DL 実体）。
+     *   呼び出し側（DefaultBookRepository）が pending URI から復元して渡す。
+     * @return 削除したファイル数（呼び出し側のログ用）。
+     */
+    suspend fun sweepOrphanNarouPdfCache(pendingImportFileNames: Set<String>): Int = withContext(Dispatchers.IO) {
+        val keepNcodes = bookDao.getAllBooks().first()
+            .mapNotNullTo(mutableSetOf()) { b -> b.ncode?.let { Ncode(it).storageKey } }
+        val swept = NarouPdfCache.sweepOrphans(context.cacheDir, keepNcodes, pendingImportFileNames)
+        if (swept > 0) Log.i(TAG, "孤児の取込時cache PDFを掃除: ${swept}件")
+        swept
     }
 
     /**

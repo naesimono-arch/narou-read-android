@@ -31,6 +31,7 @@ import io.mockk.unmockkStatic
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -54,9 +55,21 @@ class BookRepositoryTest {
     // interface BookRepository には出さない実装詳細メソッドなので DefaultBookRepository 型で受ける。
     private lateinit var repository: DefaultBookRepository
 
+    // deleteBook が取込時 cache PDF の相乗り削除で context.cacheDir を読むため、実ディレクトリを stub する。
+    // relaxed mockk の cacheDir はモック File を返すが、その内部 path フィールドは null のままで
+    // File(parent, child) コンストラクタが NPE になる（mockk はフィールドまでは stub しない）＝実 File が必須。
+    private lateinit var testCacheDir: File
+
+    @After
+    fun tearDown() {
+        testCacheDir.deleteRecursively()
+    }
+
     @Before
     fun setUp() {
         context = mockk(relaxed = true)
+        testCacheDir = createTempDir(prefix = "repoTestCache")
+        every { context.cacheDir } returns testCacheDir
         bookDao = mockk(relaxed = true)
         progressDao = mockk(relaxed = true)
         pendingJobDao = mockk(relaxed = true)
@@ -447,6 +460,74 @@ class BookRepositoryTest {
         val repo = repoWith(books = emptyList(), webNovels = emptyList(), webProgressDao = dao)
         repo.deleteBook(book, deleteSource = false)
         assertNull(dao.get("N1234AB"))
+    }
+
+    // ── 取込時 cache PDF の相乗り削除（cache/pdf_import/<ncode>.pdf・2026-08-05）──────────
+    // 「いつ消すか」の設計正本＝LibraryDeleter.deleteBook のコメント。ここはその契約
+    // （最後の1冊で消える／同 ncode の本が残る間は AutoCachePdf の復旧資源として残る）を固定する。
+
+    @Test
+    fun `deleteBook - 同 ncode の最後の1冊を消すと取込時cache PDF も相乗り削除される`() = runTest {
+        val cacheDir = createTempDir(prefix = "narouCache")
+        try {
+            every { context.cacheDir } returns cacheDir
+            val pdf = File(NarouPdfCache.dir(cacheDir), "n1234ab.pdf").apply {
+                parentFile!!.mkdirs(); writeText("pdf")
+            }
+            val book = BookEntity("id01", "本A", "/nonexistent/path", "著A", ncode = "N1234AB")
+            val repo = repoWith(books = emptyList(), webNovels = emptyList(), webProgressDao = FakeWebReadingProgressDao())
+            repo.deleteBook(book, deleteSource = false)
+            assertFalse("残骸を残さない（実機で数十MB/冊の堆積を実測）", pdf.exists())
+        } finally {
+            cacheDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `deleteBook - 同 ncode の蔵書が残る間は cache PDF を残す（AutoCachePdf の復旧資源）`() = runTest {
+        val cacheDir = createTempDir(prefix = "narouCacheKeep")
+        try {
+            every { context.cacheDir } returns cacheDir
+            val pdf = File(NarouPdfCache.dir(cacheDir), "n1234ab.pdf").apply {
+                parentFile!!.mkdirs(); writeText("pdf")
+            }
+            val book = BookEntity("id01", "本A", "/nonexistent/path", "著A", ncode = "N1234AB")
+            val survivor = BookEntity("id02", "本A'", "/nonexistent/path2", "著A", ncode = "n1234ab") // 表記ゆれでも同一作品
+            val repo = repoWith(books = listOf(survivor), webNovels = emptyList(), webProgressDao = FakeWebReadingProgressDao())
+            repo.deleteBook(book, deleteSource = false)
+            assertTrue("残る本の唯一の復旧資源＝消してはならない", pdf.exists())
+        } finally {
+            cacheDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `sweepOrphanNarouPdfCache - 蔵書非対応かつ pending 非参照の cache PDF だけ回収する`() = runTest {
+        val cacheDir = createTempDir(prefix = "narouCacheSweep")
+        mockkStatic(Uri::class)
+        try {
+            every { context.cacheDir } returns cacheDir
+            val dir = NarouPdfCache.dir(cacheDir).apply { mkdirs() }
+            val kept = File(dir, "n1234ab.pdf").apply { writeText("pdf") }     // 蔵書あり
+            val pending = File(dir, "n7777xx.pdf").apply { writeText("pdf") }  // 再開待ち DL 実体
+            val orphan = File(dir, "n9999zz.pdf").apply { writeText("pdf") }   // 残骸
+            val pendingUriStr = "content://com.novelreader.fileprovider/pdf_import/n7777xx.pdf"
+            coEvery { pendingJobDao.getAll() } returns listOf(PendingJobEntity(pendingUriStr, "n7777xx.pdf", 0L))
+            val pendingUri = mockk<Uri>(relaxed = true)
+            every { Uri.parse(pendingUriStr) } returns pendingUri
+            every { pendingUri.lastPathSegment } returns "n7777xx.pdf"
+            val repo = repoWith(
+                books = listOf(BookEntity("id01", "本A", "/p", "著A", ncode = "N1234AB")),
+                webNovels = emptyList(), webProgressDao = FakeWebReadingProgressDao(),
+            )
+            assertEquals(1, repo.sweepOrphanNarouPdfCache())
+            assertTrue(kept.exists())
+            assertTrue("再開予定の DL 実体を消すと変換の再開が壊れる", pending.exists())
+            assertFalse(orphan.exists())
+        } finally {
+            unmockkStatic(Uri::class)
+            cacheDir.deleteRecursively()
+        }
     }
 
     // ── 取込元PDF削除（deleteSource）─────────────────────────────────────
