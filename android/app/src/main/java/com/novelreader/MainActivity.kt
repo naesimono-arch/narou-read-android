@@ -101,6 +101,11 @@ class MainActivity : ComponentActivity() {
     // なぜ State か: singleTop で稼働中に onNewIntent 経由で新しい共有が届くため、値変化を Compose ツリーへ伝える。
     private val pendingWebImportUrl = mutableStateOf<String?>(null)
 
+    // 背面 PDF 取込の「取込済み（上書き確認待ち）」通知タップ→上書き確認ダイアログへの直接テレポート要求
+    // （U1 残り 2026-08-06・機序と extras 設計の why は OverwriteConfirmTeleport）。deepLinkBookId と
+    // 同型の消費流儀（onCreate/onNewIntent で立て→Compose の着地エフェクトが消費して false 戻し）。
+    private val pendingOverwriteConfirmNav = mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -115,6 +120,9 @@ class MainActivity : ComponentActivity() {
             // に限定する＝構成変更（回転）や process death 復元では同じ起動 Intent が再配達され、
             // 制限しないと取込を二重発火してしまう（初回生成のみ処理し、以後の再処理は消費フラグで防ぐ）。
             pendingWebImportUrl.value = extractWebImportUrl(intent)
+            // 上書き確認テレポート（cold start 経路）。savedInstanceState==null 限定の理由は上2つと同じ
+            // ＝復元時の再配達 Intent で着地を再発火させない（復元中の深い画面を勝手に畳まない）。
+            pendingOverwriteConfirmNav.value = OverwriteConfirmTeleport.isRequested(intent)
         }
 
         // 強制終了リカバリ（孤立HTML掃除＋未完了ジョブの通知・再開）。Activity 起動時に
@@ -214,6 +222,9 @@ class MainActivity : ComponentActivity() {
                     // P3: 共有/リンクからの Web 小説取込対象（deepLinkBookId と同型の消費流儀）。
                     pendingWebImportUrl = pendingWebImportUrl.value,
                     onWebImportConsumed = { pendingWebImportUrl.value = null },
+                    // 上書き確認テレポート（通知タップ→確認ダイアログ・同型の消費流儀で false 戻し）。
+                    navigateToOverwriteConfirm = pendingOverwriteConfirmNav.value,
+                    onOverwriteConfirmNavConsumed = { pendingOverwriteConfirmNav.value = false },
                 )
             }
         }
@@ -239,6 +250,9 @@ class MainActivity : ComponentActivity() {
         // 稼働中のアプリへ新たに共有/リンクが来たら取込対象を差し替える。?.let で非該当 Intent（null 抽出）では
         // 上書きしない＝EXTRA_BOOK_ID の消費流儀と同型（無関係な再来 Intent で保留中の取込を潰さない）。
         extractWebImportUrl(intent)?.let { pendingWebImportUrl.value = it }
+        // 上書き確認テレポート（稼働中経路）。if 立てのみ＝無関係な再来 Intent で保留中の要求を潰さない
+        // （上2つの「非該当では上書きしない」流儀と同型）。
+        if (OverwriteConfirmTeleport.isRequested(intent)) pendingOverwriteConfirmNav.value = true
     }
 
     /**
@@ -305,6 +319,9 @@ private fun NovelReaderApp(
     // P3 取込導線: 共有(SEND)/リンク(VIEW)からの Web 小説 URL（deepLinkBookId と同型・消費後に呼び元が null 戻し）。
     pendingWebImportUrl: String?,
     onWebImportConsumed: () -> Unit,
+    // 上書き確認テレポート（通知タップ→確認ダイアログ・U1 残り 2026-08-06）。同型の消費流儀＝消費後 false 戻し。
+    navigateToOverwriteConfirm: Boolean,
+    onOverwriteConfirmNavConsumed: () -> Unit,
 ) {
     val navController = rememberNavController()
     // 公開スコープ機能ゲート（ADR 0027）。読み口は Features 1点で、ここから適用点（ルート登録・設定行）へ配る
@@ -436,6 +453,15 @@ private fun NovelReaderApp(
             tabPagerState.animateScrollToPage(tab.ordinal, animationSpec = tween(MotionDurationKTabSwitch))
         }
     }
+
+    // 上書き確認テレポートの着地（通知タップ→確認ダイアログ・U1 残り 2026-08-06）。
+    // deepLinkBookId の Effect（上方）と違いここに置くのは tabPagerState が要るため（着地＝popToTab）。
+    OverwriteConfirmLandingEffect(
+        requested = navigateToOverwriteConfirm,
+        navController = navController,
+        tabPagerState = tabPagerState,
+        onConsumed = onOverwriteConfirmNavConsumed,
+    )
 
     val d = MotionDurationNavTransition
     Box(modifier = Modifier.fillMaxSize()) {
@@ -823,6 +849,33 @@ internal const val TAB_HOST_ROUTE = "tabs"
 internal fun popToTab(navController: NavController, tabPagerState: PagerState, tab: KTab) {
     tabPagerState.requestScrollToPage(tab.ordinal)
     navController.popBackStack(TAB_HOST_ROUTE, false)
+}
+
+/**
+ * 上書き確認テレポートの着地エフェクト（通知タップ→上書き確認ダイアログ・U1 残り 2026-08-06）。
+ * 着地＝タブ層・本棚ページへの [popToTab] だけ: ダイアログ本体は BookshelfViewModel.overwritePrompt の
+ * 状態駆動で、ホスト（本棚ページの BookshelfScreen）が compose された時点で自動表示される
+ * （帰還時確認と同一機序＝表示経路を増やさない。extras 設計の why は [OverwriteConfirmTeleport]）。
+ * 深い画面（読書等）は pop で畳まれ、Pager が他タブに居ても本棚ページへスナップする（[popToTab] の契約）。
+ * cold start（スタック＝tabs のみ・page 0）では pop もスナップも no-op で安全＝両経路を1実装で受ける。
+ *
+ * なぜ [NovelReaderApp] から切り出すか: NovelReaderApp の NavHost は ViewModel を要求する塊で JVM テストから
+ * 組めず、「旗→着地→消費」の結線を固定できない（[wardrobeRoute] を切り出したのと同じ理由）。
+ * ここだけ切り出せば最小 NavHost＋Pager に載せて検証できる（OverwriteConfirmTeleportTest）。
+ */
+@Composable
+internal fun OverwriteConfirmLandingEffect(
+    requested: Boolean,
+    navController: NavController,
+    tabPagerState: PagerState,
+    onConsumed: () -> Unit,
+) {
+    LaunchedEffect(requested) {
+        if (!requested) return@LaunchedEffect
+        popToTab(navController, tabPagerState, KTab.BOOKSHELF)
+        // 着地後に消費（false 戻し）＝再コンポーズ・復帰での再発火を防ぐ（deepLinkBookId と同型）。
+        onConsumed()
+    }
 }
 
 /**

@@ -166,7 +166,8 @@ class PdfProcessingService : Service() {
                             duplicateMessage(name),
                             aggregationKey = com.novelreader.viewmodel.AppErrorEvent.KEY_DUPLICATE_IMPORT,
                         )
-                    } else showDuplicateNotification(name)
+                    // 取込中の二重投入ガード＝上書き確認は積まれない（純粋な棄却）ためテレポート先が無い。
+                    } else showDuplicateNotification(name, toOverwriteConfirm = false)
                 }
             }
             return START_NOT_STICKY
@@ -410,7 +411,9 @@ class PdfProcessingService : Service() {
                                     uri.toString(), ncode, outcome.existing.title,
                                 ),
                             )
-                            if (!app.isAppInForeground) showDuplicateNotification(outcome.existing.title)
+                            // 上書き確認が積まれた直後の通知＝タップで確認ダイアログへ直接届かせる
+                            // （二段経路〔帰還時確認〕の短絡・U1 残り 2026-08-06）。
+                            if (!app.isAppInForeground) showDuplicateNotification(outcome.existing.title, toOverwriteConfirm = true)
                         }
                     }
                     app.updateProcessingState(null)
@@ -632,17 +635,33 @@ class PdfProcessingService : Service() {
 
     /** 二重取込のフィードバック（UX監査 F-G・背面時のみ）。「変換完了」と誤解させないよう文面を分ける。
      *  FGS 通知（NOTIFICATION_ID）とは別 ID＝進行中の ongoing 通知を潰さず、サービス停止の
-     *  道連れ除去（完了通知バグと同根）も受けない。 */
-    private fun showDuplicateNotification(title: String) {
+     *  道連れ除去（完了通知バグと同根）も受けない。
+     *
+     *  @param toOverwriteConfirm 上書き確認（OverwriteRequest）が積まれた重複か。true ならタップで
+     *   確認ダイアログのホスト（本棚ページ）へ直接テレポートさせる（U1 残り 2026-08-06）。false は
+     *   取込中の二重投入ガード＝確認が存在しないため従来どおり「アプリを開くだけ」。
+     *   既定値を付けない: 既定 false は新しい呼び出しが配線を忘れても無音で旧挙動（ただ開くだけ）に
+     *   化ける欠陥クラス（restored/overwrite と同じ理由）＝全呼び出しで明示させる。 */
+    private fun showDuplicateNotification(title: String, toOverwriteConfirm: Boolean) {
         val notification = NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
             .setContentTitle("取込済み")
             .setContentText(duplicateMessage(title))
             .setSmallIcon(R.drawable.ic_notification)
             .setAutoCancel(true)
-            .setContentIntent(openAppIntent())
+            .setContentIntent(if (toOverwriteConfirm) overwriteConfirmIntent() else openAppIntent())
             .build()
         notificationManager().notify(DUPLICATE_NOTIFICATION_ID, notification)
     }
+
+    /** 「取込済み（上書き確認待ち）」通知タップ用 PendingIntent。着地の機序と extras 設計の why は
+     *  [OverwriteConfirmTeleport] に集約。requestCode=3 は openApp(0)/stop(1)/openBook(2) と分けて
+     *  PendingIntent の取り違えを防ぐ。data 不要＝テレポート Intent は全件同一内容（旗のみ）で、
+     *  むしろ共有される方が正しい（openBookIntent が data で分けるのは bookId が冊ごとに違うため）。 */
+    private fun overwriteConfirmIntent(): PendingIntent =
+        PendingIntent.getActivity(
+            this, 3, OverwriteConfirmTeleport.launchIntent(this),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
 
     private fun showErrorNotification(message: String) {
         val notification = NotificationCompat.Builder(this, NovelReaderApplication.CHANNEL_ID)
