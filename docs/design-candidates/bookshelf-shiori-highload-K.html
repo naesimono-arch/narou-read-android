@@ -17,6 +17,13 @@
     二次動作を持たず tip3 は静止の間合いが無かった＝上の②③④に抵触していたため作り直した。
   ・「先端のみ可動」の自己制約は tip 2（結び玉）のみ緩めた: 締まりの張力が紐（棒）へ伝う scaleY 連動
     （静止時の意匠・和モダンの品・reduce-motion 完全静止は不変）。
+  ・【恒久規則 2026-08-06 ユーザー裁定・全 tip 固定】先端のワンポイントが左右に動くときは、
+    栞の線（紐/リボン本体）もそれに自然に追従させる——付け根（本への挿し込み点）を支点に、
+    先端の横動と同周期・わずかな遅相で傾ぐ/撓む。意図的に静的へ据える場合のみ例外＝その tip の
+    コメントに理由必須。**9〜173 を作り込む際もこの規則に従う**。
+    実装＝線追従層 .flw（bf0〜bf8）: 〈棒＋先端〉を束ねて付け根支点で傾がせる（棒だけ回すと
+    棒先端と装飾のアタッチ点が離れて見えるため）。全 tip 共通の物理規則なので、下記の
+    「9種の非画一性」機械照合の対象外（照合は装飾層 t0〜t8 のみ）。
   ・ADR 0023「高負荷モード」の各UI展開の本棚K版。通常モードは従来どおり完全静止＝ADR 0022 §3 非抵触。
   ・導線は新設しない: 星図M「高負荷スカイ（試作）」トグルと同型（debug 限定・release 常時 OFF）。
   ・Web未取込カード（narou）は対象外＝「沈めた署名」（破線・影なし・field 地）を保つため静止のまま。
@@ -226,7 +233,8 @@
      ②の内訳＝0:rotate+translateY+stroke-width／1:rotate+scale／2:rotate+translateY+scale(+棒 scaleY)／
      3:rotate+skewX／4:rotate+translateX／5:rotate+translateY+filter／6:scale+opacity／
      7:rotate+translateY+stroke-dashoffset／8:translateY+scale。
-     transform 以外（stroke-width・filter・opacity・stroke-dashoffset）はそれぞれ1種だけが持つ＝そのtipの署名。 */
+     transform 以外（stroke-width・filter・opacity・stroke-dashoffset）はそれぞれ1種だけが持つ＝そのtipの署名。
+     ※線追従層（bf0〜bf8・.flw＝恒久規則 2026-08-06）は全 tip 共通の物理規則のため本照合の対象外。 */
 
   /* tip0 魚尾「水中の一閃」性格=瞬発。長い静止→二枚の尾が逆相で交差（減衰）。刃の撓み（stroke-width）が
      .09s 遅れて追い、推進の反動で全体が浮く。溜めてから鋭く放つ曲線が「水を切る」の正体。 */
@@ -319,6 +327,43 @@
   .f8c{animation:t8 8.4s cubic-bezier(.55,0,.28,1) infinite;transform-origin:16px 24px}
   .f8g{animation:t8-g 8.4s cubic-bezier(.5,.05,.35,1) infinite}
 
+  /* ===== 線追従層（恒久規則 2026-08-06・全 tip 共通の物理規則＝9種相異照合の対象外） =====
+     .flw が〈棒＋先端〉を束ね、付け根（top＝本への挿し込み点）を支点に、先端の横動と同周期・
+     微遅相（JS の BF_LAG）で傾ぐ。束ねて回す理由: 棒だけ回すと棒先端と装飾のアタッチ点が
+     離れて見える（先端のマウント座標は静的なため）。振幅は先端の約 1/7〜1/10＝紙栞の紐の腰の硬さ。
+     イージングは各 tip の主動作と同値（連成して見せるため。bf 系は照合対象外なので重複制約なし）。
+     横動が無い/相殺する tip は「最小追従」＝縦張力の微伸び scaleY で応える（例外＝完全静的は現状ゼロ）。 */
+  .flw{position:absolute;inset:0;pointer-events:none;
+    transform-origin:calc(var(--barx,50%) + 1.25px) 0} /* 支点=棒中心の付け根（--barx＋棒半幅） */
+  .fstage .flw{transform-origin:50% 0} /* 拡大ステージの棒は中央固定（left:50%-4px・幅8px） */
+  /* bf0 魚尾: 交差は左右対称で横の合力が相殺＝snap の横波だけが紐を伝う微震（最小追従） */
+  @keyframes bf0{0%,66%,92%,100%{transform:rotate(0)}70%{transform:rotate(.55deg)}74%{transform:rotate(-.4deg)}79%{transform:rotate(.25deg)}85%{transform:rotate(-.1deg)}}
+  /* bf1 一粒: 振り子の反力＝振れと同符号・約1/9 の振幅で傾ぎ、同じ減衰をなぞる */
+  @keyframes bf1{0%,62%,100%{transform:rotate(0)}6%{transform:rotate(1.3deg)}13%{transform:rotate(-1deg)}20%{transform:rotate(.7deg)}27%{transform:rotate(-.45deg)}34%{transform:rotate(.3deg)}41%{transform:rotate(-.18deg)}48%{transform:rotate(.1deg)}55%{transform:rotate(-.04deg)}}
+  /* bf2 結び玉: 座り直しの傾ぎに追従（縦の張力 scaleY は装飾層 t2bar＝棒要素側が担当・別要素なので衝突しない） */
+  @keyframes bf2{0%,55%,88%,100%{transform:rotate(0)}61%{transform:rotate(-.5deg)}66%{transform:rotate(-.45deg)}73%{transform:rotate(.25deg)}81%{transform:rotate(-.08deg)}}
+  /* bf3 二又房: 二周期干渉の合力は非周期＝慣性の大きい紐は支配的な左織り（3.9s）のみへ緩く追従する近似 */
+  @keyframes bf3{0%,18%,88%,100%{transform:rotate(0)}32%{transform:rotate(-.55deg)}47%{transform:rotate(.35deg)}62%{transform:rotate(-.18deg)}76%{transform:rotate(.06deg)}}
+  /* bf4 三又房: 波の運動量と同方向へひと撓みして減衰 */
+  @keyframes bf4{0%,58%,94%,100%{transform:rotate(0)}66%{transform:rotate(.8deg)}75%{transform:rotate(-.5deg)}83%{transform:rotate(.25deg)}89%{transform:rotate(-.08deg)}}
+  /* bf5 総角: 扇の開きは左右対称＝横の合力ゼロ→縦の張力のみ微伸びで追従（最小追従・例外ではない） */
+  @keyframes bf5{0%,20%,80%,100%{transform:scaleY(1)}40%{transform:scaleY(1.012)}62%{transform:scaleY(1.007)}}
+  /* bf6 蝶結び: 左右交互の張りへ微傾ぎ・稀な同時羽ばたきは左右対称＝縦張力の微伸びで応える */
+  @keyframes bf6{0%,8%,36%,72%,96%,100%{transform:rotate(0) scaleY(1)}18%{transform:rotate(-.3deg) scaleY(1)}55%{transform:rotate(.3deg) scaleY(1)}86%{transform:rotate(0) scaleY(1.012)}90%{transform:rotate(0) scaleY(.997)}}
+  /* bf7 玉と尾: 大払いの反力＝払い側へ傾ぎ、頂の一拍を紐も保ってから戻る */
+  @keyframes bf7{0%,30%,74%,100%{transform:rotate(0)}39%{transform:rotate(1.2deg)}49%{transform:rotate(1deg)}57%{transform:rotate(-.35deg)}64%{transform:rotate(.3deg)}}
+  /* bf8 数珠: 繰りは縦のみで横動なし→縦張力の微伸びで追従（最小追従。順送りの節に同期） */
+  @keyframes bf8{0%,50%,84%,100%{transform:scaleY(1)}59%{transform:scaleY(1.01)}67%{transform:scaleY(1.003)}74%{transform:scaleY(1.006)}}
+  .bf-0{animation:bf0 7.4s cubic-bezier(.3,.78,.42,1) infinite}
+  .bf-1{animation:bf1 9.5s cubic-bezier(.36,0,.64,1) infinite}
+  .bf-2{animation:bf2 8.8s cubic-bezier(.16,.84,.3,1) infinite}
+  .bf-3{animation:bf3 3.9s cubic-bezier(.42,.02,.4,1) infinite}
+  .bf-4{animation:bf4 6.8s cubic-bezier(.25,.46,.45,.94) infinite}
+  .bf-5{animation:bf5 11s cubic-bezier(.32,.06,.24,1) infinite}
+  .bf-6{animation:bf6 12s cubic-bezier(.5,.02,.5,.98) infinite}
+  .bf-7{animation:bf7 10.5s cubic-bezier(.9,.02,.35,1) infinite}
+  .bf-8{animation:bf8 8.4s cubic-bezier(.55,0,.28,1) infinite}
+
   /* 参考資料（旧・一括割当案）の折り畳み */
   .ref{max-width:1120px;margin:40px auto 0;width:100%}
   .ref summary{cursor:pointer;font-size:12.5px;color:#7c7a72;text-align:center;padding:8px;list-style-position:inside}
@@ -326,9 +371,9 @@
   /* 静止表示（静止時の意匠を壊していないかの突き合わせ用）。
      play-state:paused ではなく animation:none にする理由: 前者は「途中の姿勢」で凍るため、
      この機能の目的である〈静止時の意匠と同一か〉の照合ができない（初版はここが目的と不一致だった）。 */
-  body.paused .cv .tip,body.paused .mv,body.paused .barlink-t2{animation:none!important}
+  body.paused .cv .tip,body.paused .mv,body.paused .barlink-t2,body.paused .flw{animation:none!important}
   /* reduce-motion は完全静止（ADR 0022 §3 制約②と同型＝実装必須要件） */
-  @media (prefers-reduced-motion:reduce){.cv .tip,.mv,.barlink-t2{animation:none!important}}
+  @media (prefers-reduced-motion:reduce){.cv .tip,.mv,.barlink-t2,.flw{animation:none!important}}
 </style>
 </head>
 <body>
@@ -362,7 +407,7 @@
       <div class="grid">
         <div class="bk">
           <div class="cv hl" style="--band:hsl(210 48% 52%);--barx:26%;--barlen:46%">
-            <span class="bar"></span><span class="tipm" data-tip="0" data-hue="210" data-dl="-2.1"></span><span class="vt">追放された万能薬師、辺境でスローライフを始める</span>
+            <span class="flw bf-0"><span class="bar"></span><span class="tipm" data-tip="0" data-hue="210" data-dl="-2.1"></span></span><span class="vt">追放された万能薬師、辺境でスローライフを始める</span>
           </div>
           <div class="capr"><span class="t">追放された万能薬師、辺境でスローライフを始める</span>
             <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
@@ -370,7 +415,7 @@
         </div>
         <div class="bk">
           <div class="cv hl" style="--band:hsl(280 48% 52%);--barx:34%;--barlen:42%">
-            <span class="bar"></span><span class="tipm" data-tip="2" data-hue="280" data-dl="-5.3"></span><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span>
+            <span class="flw bf-2"><span class="bar"></span><span class="tipm" data-tip="2" data-hue="280" data-dl="-5.3"></span></span><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span>
           </div>
           <div class="capr"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span>
             <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
@@ -378,7 +423,7 @@
         </div>
         <div class="bk">
           <div class="cv hl" style="--band:hsl(95 48% 52%);--barx:22%;--barlen:50%">
-            <span class="bar"></span><span class="tipm" data-tip="4" data-hue="95" data-dl="-0.7"></span><span class="vt">転生したら最弱スキルだったので草むしりしていた</span>
+            <span class="flw bf-4"><span class="bar"></span><span class="tipm" data-tip="4" data-hue="95" data-dl="-0.7"></span></span><span class="vt">転生したら最弱スキルだったので草むしりしていた</span>
           </div>
           <div class="capr"><span class="t">転生したら最弱スキルだったので草むしりしていた</span>
             <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
@@ -395,7 +440,7 @@
         </div>
         <div class="bk">
           <div class="cv hl" style="--band:hsl(340 48% 52%);--barx:24%;--barlen:48%">
-            <span class="bar"></span><span class="tipm" data-tip="7" data-hue="340" data-dl="-3.9"></span><span class="vt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
+            <span class="flw bf-7"><span class="bar"></span><span class="tipm" data-tip="7" data-hue="340" data-dl="-3.9"></span></span><span class="vt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
           </div>
           <div class="capr"><span class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
             <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
@@ -403,7 +448,7 @@
         </div>
         <div class="bk">
           <div class="cv hl" style="--band:hsl(150 48% 52%);--barx:28%;--barlen:40%">
-            <span class="bar"></span><span class="tipm" data-tip="5" data-hue="150" data-dl="-1.6"></span><span class="vt">聖女は隣国で薬草を育てて暮らしたい</span>
+            <span class="flw bf-5"><span class="bar"></span><span class="tipm" data-tip="5" data-hue="150" data-dl="-1.6"></span></span><span class="vt">聖女は隣国で薬草を育てて暮らしたい</span>
           </div>
           <div class="capr"><span class="t">聖女は隣国で薬草を育てて暮らしたい</span>
             <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
@@ -420,7 +465,7 @@
         </div>
         <div class="bk">
           <div class="cv hl" style="--band:hsl(230 48% 52%);--barx:34%;--barlen:48%">
-            <span class="bar"></span><span class="tipm" data-tip="8" data-hue="230" data-dl="-4.7"></span><span class="vt">星降る夜の図書館で君を待っている</span>
+            <span class="flw bf-8"><span class="bar"></span><span class="tipm" data-tip="8" data-hue="230" data-dl="-4.7"></span></span><span class="vt">星降る夜の図書館で君を待っている</span>
           </div>
           <div class="capr"><span class="t">星降る夜の図書館で君を待っている</span>
             <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
@@ -428,7 +473,7 @@
         </div>
         <div class="bk">
           <div class="cv hl" style="--band:hsl(20 48% 52%);--barx:30%;--barlen:52%">
-            <span class="bar"></span><span class="tipm" data-tip="1" data-hue="20" data-dl="-6.2"></span><span class="vt">竜の卵を拾ったので育てることにした</span>
+            <span class="flw bf-1"><span class="bar"></span><span class="tipm" data-tip="1" data-hue="20" data-dl="-6.2"></span></span><span class="vt">竜の卵を拾ったので育てることにした</span>
           </div>
           <div class="capr"><span class="t">竜の卵を拾ったので育てることにした</span>
             <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
@@ -436,7 +481,7 @@
         </div>
         <div class="bk">
           <div class="cv hl" style="--band:hsl(140 48% 52%);--barx:22%;--barlen:44%">
-            <span class="bar"></span><span class="tipm" data-tip="3" data-hue="140" data-dl="-2.8"></span><span class="vt">雨宿りの茶屋で、狐の娘と店を継ぐ</span>
+            <span class="flw bf-3"><span class="bar"></span><span class="tipm" data-tip="3" data-hue="140" data-dl="-2.8"></span></span><span class="vt">雨宿りの茶屋で、狐の娘と店を継ぐ</span>
           </div>
           <div class="capr"><span class="t">雨宿りの茶屋で、狐の娘と店を継ぐ</span>
             <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
@@ -444,7 +489,7 @@
         </div>
         <div class="bk">
           <div class="cv hl" style="--band:hsl(305 48% 52%);--barx:36%;--barlen:46%">
-            <span class="bar"></span><span class="tipm" data-tip="6" data-hue="305" data-dl="-8.5"></span><span class="vt">結び直しの魔法使いは今日も糸を繕う</span>
+            <span class="flw bf-6"><span class="bar"></span><span class="tipm" data-tip="6" data-hue="305" data-dl="-8.5"></span></span><span class="vt">結び直しの魔法使いは今日も糸を繕う</span>
           </div>
           <div class="capr"><span class="t">結び直しの魔法使いは今日も糸を繕う</span>
             <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
@@ -984,6 +1029,9 @@ function svgTip(idx,accent){
   ];
   return bodies[idx];
 }
+// 線追従層（恒久規則 2026-08-06）の遅相秒: 紐が先端の動きへ「わずかに遅れて」応える物理感。
+// 速い動作ほど短く（t0 snap=.06）・ゆったりほど長く（t5=.18）。周期は各 bf-N が tip と同値を持つ。
+const BF_LAG={0:.06,1:.12,2:.08,3:.1,4:.12,5:.18,6:.15,7:.1,8:.12};
 // host へ SVG を実寸で載せ、部品位相（基準遅延＋部品内オフセット）を配る。
 // baseDelay を負にすると初回の長い静止を飛ばして最初の見せ場が早く来る（比較体験のための較正）。
 function mountTip(host,idx,S,accent,baseDelay,barEl){
@@ -996,6 +1044,9 @@ function mountTip(host,idx,S,accent,baseDelay,barEl){
   });
   // tip2 のみ「先端のみ可動」を緩和: 締まりの張力を紐（棒）へ伝える。同一周期 8.8s＝delay を揃えて同期。
   if(idx===2&&barEl){barEl.classList.add('barlink-t2');barEl.style.animationDelay=baseDelay.toFixed(2)+'s';}
+  // 線追従層: マウント位相（baseDelay）＋微遅相を配って先端と連成させる（ラッパは HTML/生成側で付与済み）
+  const flw=host.closest('.flw');
+  if(flw){flw.style.animationDelay=(baseDelay+(BF_LAG[idx]||0)).toFixed(2)+'s';}
 }
 // 裁定対象9種の正本: 物語（性格）と技術要素。dl は拡大ステージの初期位相（見せ場が順に来るよう較正）。
 const FEAT=[
@@ -1011,7 +1062,7 @@ const FEAT=[
 ];
 function renderFeatured(){
   document.getElementById('fgrid').innerHTML=FEAT.map(f=>
-    '<div class="fcard"><div class="fstage" style="--band:'+hsl(f.hue,48,52)+'"><span class="fbar"></span><span class="tipm"></span></div>'
+    '<div class="fcard"><div class="fstage" style="--band:'+hsl(f.hue,48,52)+'"><span class="flw bf-'+f.i+'"><span class="fbar"></span><span class="tipm"></span></span></div>'
     +'<div class="fmeta"><b>'+f.i+' '+f.name+'「'+f.story.split('——')[0]+'」</b><span class="fs">'+f.story.split('——')[1]+'</span><span class="ft">'+f.tech+'</span></div></div>').join('');
   requestAnimationFrame(()=>{
     document.querySelectorAll('.fcard').forEach((card,j)=>{
