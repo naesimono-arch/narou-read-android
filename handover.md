@@ -177,12 +177,11 @@
 
 - **[大物・1便で]** Kotlin 2.x ＋ compose compiler plugin ＋ Roborazzi の同時バンプ（据え置き中の `tracing-ktx` も同乗）。
   **分割しても進まない**構造的理由・段階表・golden 再記録の見込み＝**ADR 0029**。
-- **[要確認] `BookshelfScrollBenchmark` の `scrollList` と `scrollGrid` が同じ面を測っている疑い**（2026-07-31 発見・未修正）:
-  `LibrarySeedReceiver` が書くのは **D 用の `is_grid_view`** だが、benchmark ビルドは ADR 0027 のゲート
-  （`initWith release` で `SKIN_SWITCHING_ENABLED=false` を継承）でスキンが **K にクランプ**され、
-  **K は `k_grid_view`（既定 grid）を読む**。＝面を指定したつもりで指定できておらず、**両方とも K のグリッドを
-  測っている可能性が高い**（そうなら「リスト面の回帰」は今も無防備）。
-  対処は「シーダーが K のキーも書く」か「ベンチ側でスキンを決める」かの**設計判断を伴う**ので、先に方針を決めること。
+- **[実機・要再測] 本棚スクロールの「リスト面」ベースラインが未取得**（2026-08-05 にシーダーを是正した副産物）:
+  `BookshelfScrollBenchmark.scrollList` はこれまで面を指定できておらず K のグリッドを測っていた。
+  シーダーが `k_grid_view` も書くようにしたので**次の実機走行で初めてリスト面の実数が出る**＝
+  既存の「本棚グリッド 3.82%」系の数字とは比較不能。`tools/run_macrobenchmark.sh --scenario shelf-scroll` で
+  scrollList / scrollGrid を採り直し、必要なら `ScrollBudget` の予算を面別に見直す。
 
 ## workflow / tooling
 

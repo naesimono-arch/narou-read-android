@@ -31,6 +31,11 @@ class BookshelfScrollBenchmark {
     @Test
     fun scrollList() {
         // gridMode はテスト毎に異なるため各テスト冒頭で該当モードを指定してシードする（DB 投入自体は冪等）。
+        // ⚠️ 2026-08-05 以前はこの指定が**効いていなかった**（シーダーが D の is_grid_view しか書かず、
+        // benchmark ビルドは ADR 0027 のゲートで明快K へクランプされ K は k_grid_view を読むため）＝
+        // scrollList / scrollGrid が両方とも K のグリッドを測っていた。シーダー側で両キーを書くよう
+        // 是正済み（LibrarySeedReceiver の why 参照）。**この是正で scrollList の実測値は初めてリスト面の
+        // ものになる＝過去のベースラインとは比較不能**（scrollGrid 側は従来と同じ面＝連続性あり）。
         seedLibrary(gridMode = false)
         measureScroll("scrollList")
     }

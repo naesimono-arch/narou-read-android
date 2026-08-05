@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import androidx.room.withTransaction
+import com.novelreader.PrefKeys
 import com.novelreader.data.AppDatabase
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
@@ -110,12 +111,25 @@ class LibrarySeedReceiver : BroadcastReceiver() {
         val appContext = context.applicationContext
 
         // gridMode は「extra に含まれている時のみ」prefs を書く（未指定なら現状のモードを尊重）。
-        // 本棚は app_prefs / is_grid_view を composition で読む（BookshelfScreen 参照）ので、
+        // 本棚は app_prefs のビュー切替キーを composition で読む（ui/skins/ShelfViewToggle）ので、
         // アプリの cold start 前にこの値を確定させておけば list/grid が意図どおり描画される。
+        //
+        // なぜ K の k_grid_view も書くか（2026-08-05 是正・旧実装は is_grid_view だけを書いていた）:
+        // グリッド⇄リストの表示状態はスキンごとに別キー（D=is_grid_view / K=k_grid_view）で、
+        // benchmark ビルドは ADR 0027 の機能ゲート（initWith release ＝SKIN_SWITCHING_ENABLED=false）で
+        // スキンが明快K へクランプされる＝実際に読まれるのは k_grid_view だけだった。つまり旧実装は
+        // 「面を指定したつもりで1つも指定できておらず」、BookshelfScrollBenchmark の scrollList /
+        // scrollGrid が両方とも K の既定（グリッド）を測っていた＝リスト面の回帰が無防備だった。
+        // 両方書くのは、シーダーに「今どのスキンへクランプされるか」を知らせないため——ゲートを反転
+        // （課金解禁）して D で走らせる日が来ても、この Receiver は無改修で正しい面を作れる。
+        // M/P/J の m_sky_view 等は星図⇄一覧など**別の軸**なので gridMode の対象外（ここでは触らない）。
         if (intent.hasExtra("gridMode")) {
             val grid = intent.getBooleanExtra("gridMode", false)
-            appContext.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-                .edit().putBoolean("is_grid_view", grid).apply()
+            appContext.getSharedPreferences(PrefKeys.FILE_APP_PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putBoolean(PrefKeys.IS_GRID_VIEW, grid)
+                .putBoolean(PrefKeys.K_GRID_VIEW, grid)
+                .apply()
         }
 
         // goAsync で処理完了まで Receiver を生かし、DB I/O は別スレッドで回す（メインを塞がない）。

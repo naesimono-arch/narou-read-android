@@ -136,7 +136,15 @@ class ChapterFlipBenchmark {
      * SIGQUIT 除細動ループが前提＝このベンチは必ず同スクリプト経由で実行する。
      *
      * chapterCount 50 を足すと最新の1冊が「章送り計測の書」＝実HTML 50章・progress を chap_1.html へ
-     * 強制リセットしてシードされる（アプリ側シーダーの確定契約）。gridMode は本ベンチでは不使用のため false。
+     * 強制リセットしてシードされる（アプリ側シーダーの確定契約）。
+     *
+     * `gridMode true` を渡す理由（2026-08-05・旧値 false から変更）: 本ベンチは本棚を「計測用の書を
+     * `By.text` で掴んで開く」ためにしか使わず面はどちらでもよいが、シーダーが K の `k_grid_view` も書く
+     * ようになり gridMode が**実際に効くようになった**（それ以前は D の `is_grid_view` しか書かず、
+     * ADR 0027 のゲートで明快K へクランプされる benchmark ビルドでは1つも効いていなかった）。
+     * これまで実機で書影の発見が通っていたのは K の既定＝**グリッド**面なので、検証済みの面を保つため
+     * 明示的に true を渡す（false にすると未検証のリスト面で掴むことになり、章送り計測とは無関係な
+     * 発見失敗を持ち込みかねない）。
      */
     private fun seedChapterBook() {
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
@@ -146,7 +154,7 @@ class ChapterFlipBenchmark {
         val out = device.executeShellCommand(
             "am broadcast --include-stopped-packages" +
                 " -n $TARGET_PACKAGE/$RECEIVER_CLASS -a $ACTION_SEED" +
-                " --ei count $SEED_COUNT --ei chapterCount $CHAPTER_COUNT --ez gridMode false"
+                " --ei count $SEED_COUNT --ei chapterCount $CHAPTER_COUNT --ez gridMode true"
         )
         // am broadcast は ordered 配達の完了まで待ち「Broadcast completed: result=N, data="…"」を出力する。
         // 期待件数に満たなければ即 fail（黙って計測を続けない）。result は投入後の bench_seed 件数。

@@ -184,10 +184,12 @@ class TabSwipeBenchmark {
      * 作法（force-stop で dead 化してから shell 経由）と根拠は ChapterFlipBenchmark.seedChapterBook と同一
      * （ColorOS の broadcast 沈黙不達＝docs/knowledge/coloros-broadcast-silent-drop.md）。
      *
-     * ⚠️ `gridMode` は現状**効かない**（シーダーが書くのは D の `is_grid_view` だが、benchmark ビルドは
-     * ADR 0027 の機能ゲートでスキンが明快K へクランプされ、K は `k_grid_view` を読むため）。本ベンチは
-     * グリッド/リストのどちらでも成立する（面の徴と題名の掴み方を両対応にしてある）ので既存呼び出しと
-     * 同形のまま渡すが、**面を指定したつもりで指定できていない**点は既存2ベンチと共通の未解決事項。
+     * `gridMode true` を渡す理由（2026-08-05・旧値 false から変更）: シーダーが K の `k_grid_view` も書く
+     * ようになり gridMode が**実際に効くようになった**（それ以前は D の `is_grid_view` しか書かず、
+     * ADR 0027 のゲートで明快K へクランプされる benchmark ビルドでは1つも効いていなかった）。
+     * 本ベンチは面の徴と題名の掴み方を両対応にしてあるのでどちらでも成立するが、これまで実測してきたのは
+     * K の既定＝**グリッド**なので、値の連続性を保つため明示的に true を渡す（false にすると測る面が
+     * 変わり、既存の実測値と比較できなくなる）。
      */
     private fun seedLibrary() {
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
@@ -195,7 +197,7 @@ class TabSwipeBenchmark {
         val out = device.executeShellCommand(
             "am broadcast --include-stopped-packages" +
                 " -n $TARGET_PACKAGE/$RECEIVER_CLASS -a $ACTION_SEED" +
-                " --ei count $SEED_COUNT --ei chapterCount $CHAPTER_COUNT --ez gridMode false"
+                " --ei count $SEED_COUNT --ei chapterCount $CHAPTER_COUNT --ez gridMode true"
         )
         val result = Regex("""result=(-?\d+)""").find(out)?.groupValues?.get(1)?.toIntOrNull()
         if (result != SEED_COUNT) {
