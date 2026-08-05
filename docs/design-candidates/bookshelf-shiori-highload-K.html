@@ -1,19 +1,26 @@
-<!-- @dsCard group="UI-n / デフォルト（明快K）" name="K. 本棚 高負荷モード候補 — 栞アニメーション（先端174種×動きの語彙20・常時再生比較・2026-08-05）" -->
+<!-- @dsCard group="UI-n / デフォルト（明快K）" name="K. 本棚 高負荷モード候補 — 栞アニメーション（tip 0〜8 専用振り付け・2026-08-05 改稿）" -->
 <!--
-  高負荷モード（栞アニメーション）候補モック — 2026-08-05
-  ・ADR 0023「高負荷モード」の各UI展開（星図M→和モダンD→各画面）の本棚K版: opt-in の贅沢として
-    栞書影の「先端ワンポイント」に、その意匠に対応した動きを入れる。
-  ・通常モードは従来どおり完全静止＝ADR 0022 §3（スキン別の静/動裁定）に抵触しない。
-    動くのは高負荷 ON のときだけ・reduce-motion では完全静止（§3 制約②と同型）。
-  ・導線は新設しない: 星図M「高負荷スカイ（試作）」トグルと同型（debug 限定・release 常時 OFF・
-    設定面の「開発」節に1行）。本モックが裁定するのは動き本体だけ。
+  高負荷モード（栞アニメーション）候補モック — 2026-08-05（同日ユーザー差し戻しを反映して改稿）
+  ・差し戻しの要旨: 語彙20種の共有クラス方式は「画一的」。まず tip 0〜8 の9種に絞り、
+    1種=1作品の専用振り付け（他と共有しない keyframes・物理と性格を1種ずつ変える）を作る。
+  ・【裁定対象は 0〜8 の9種のみ】。旧・一括割当案（174種×語彙20）はページ末尾の折り畳みに
+    参考資料として残す（裁定対象外。9〜173 への展開方針は 0〜8 の合否後に決める）。
+  ・振り付けの作法: 各 tip の実形状（ShioriTips.kt / grid-D TIPS 0〜8 と同座標）を部品分解した SVG にし、
+    部品ごとに固有の複合振り付け〈主動作＋二次動作＋長い静止間合い〉を与える。同系（紐・房・結び）内の
+    差別化こそ本題＝減衰振り子/一閃/張力/二周期干渉/波の伝播/開閉の息/羽の張り/気まぐれ/繰りの律動。
+  ・「画一的でない」を目視の印象に委ねず機械で担保する4条件（style 冒頭の一覧と対応）:
+    ①keyframes を tip 間で共有しない ②動かすプロパティの組合せが9通りとも異なる（transform 以外の
+    stroke-width/filter/opacity/stroke-dashoffset は各1種だけの署名） ③周期9種すべて相異
+    ④イージングを使い回さない（各 tip 固有の cubic-bezier。ease-in-out 等の既製値は使わない）。
+  ・第2稿での修正（初稿から持ち越した違反の除去）: 初稿は9種中6種が ease-in-out を共有し、
+    プロパティの組合せも 0≡5（rotate+translateY）・1≡4（rotate のみ）が重複、さらに tip1/tip6 は
+    二次動作を持たず tip3 は静止の間合いが無かった＝上の②③④に抵触していたため作り直した。
+  ・「先端のみ可動」の自己制約は tip 2（結び玉）のみ緩めた: 締まりの張力が紐（棒）へ伝う scaleY 連動
+    （静止時の意匠・和モダンの品・reduce-motion 完全静止は不変）。
+  ・ADR 0023「高負荷モード」の各UI展開の本棚K版。通常モードは従来どおり完全静止＝ADR 0022 §3 非抵触。
+  ・導線は新設しない: 星図M「高負荷スカイ（試作）」トグルと同型（debug 限定・release 常時 OFF）。
   ・Web未取込カード（narou）は対象外＝「沈めた署名」（破線・影なし・field 地）を保つため静止のまま。
-  ・紙面・栞棒・題字も静止のまま＝動くのは先端だけ（静止時の意匠を壊さない範囲に絞る初回裁定。
-    棒を伝う光・紙の繊維のきらめき等の面アニメは、先端の合否が出てからの追補候補として見送り）。
-  ・割当の原理: 先端174種それぞれに「動きの語彙」20種（ゆれ/そよぎ/箔の瞬き/白刃の閃き/霊光/…）から
-    意匠由来で1つを与え、周期・振幅・位相は個体ごとにジッタ＝隣の本と同期しない（生きて見える生命線）。
   ・構造下敷き＝skins/bookshelf-K.html（2列改A・恒久ルール: fusion-D は語彙参照のみ・構造下敷き禁止）。
-    先端の描画語彙＝bookshelf-shiori-grid-D.html の TIPS 174種を同順コピー（Kotlin SHIORI_TIPS と同順）。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -195,19 +202,151 @@
   @keyframes hl-wobble{0%,100%{transform:rotate(-1.5deg)}50%{transform:rotate(1.5deg)}}
   .an-wobble{animation:hl-wobble 6s ease-in-out infinite}
 
-  /* 一時停止（静止時の意匠を壊していないかの突き合わせ用） */
-  body.paused .cv .tip{animation-play-state:paused!important}
+  /* ===== 主役: tip 0〜8 の専用振り付け（拡大ステージ・裁定対象） ===== */
+  .feat{max-width:1120px;margin:8px auto 0;width:100%}
+  .feat h2{font-family:var(--mincho);font-size:15px;font-weight:500;letter-spacing:.06em;color:#3a3c37;text-align:center;margin-bottom:4px}
+  .feat p{font-size:11.5px;color:#7c7a72;text-align:center;margin-bottom:16px;line-height:1.7}
+  .fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:24px 18px}
+  .fcard{display:flex;flex-direction:column;gap:8px}
+  .fstage{position:relative;height:190px;background:var(--paper);border-radius:3px;overflow:hidden;
+    box-shadow:0 3px 10px rgba(0,0,0,.14)}
+  /* 拡大3.2×のため棒も 2.5px×3.2=8px＝グリフと太さの縮尺を揃える（拡大クロップとして正確） */
+  .fstage .fbar{position:absolute;top:0;left:calc(50% - 4px);width:8px;height:90px;background:var(--band)}
+  .tipm{position:absolute;pointer-events:none;line-height:0}
+  .fmeta{display:flex;flex-direction:column;gap:2px}
+  .fmeta b{font-family:var(--mincho);font-size:12.5px;font-weight:600;color:#2a2c28}
+  .fmeta .fs{font-size:11.5px;color:#5a5852;line-height:1.6}
+  .fmeta .ft{font-size:10.5px;color:#7c7a72;line-height:1.5}
+
+  /* SVG 部品の変形基準: viewBox="0 0 32 32"・棒先端(アタッチ点)=(16,4)。origin は viewBox 座標の px。 */
+  .tipv .mv{transform-box:view-box}
+
+  /* 9種の非画一性は下の3点で機械的に担保する（裁定時の突き合わせ用）:
+     ①keyframes を tip 間で共有しない ②動かすプロパティの組合せが9通りとも異なる ③周期もイージングも重複させない。
+     ②の内訳＝0:rotate+translateY+stroke-width／1:rotate+scale／2:rotate+translateY+scale(+棒 scaleY)／
+     3:rotate+skewX／4:rotate+translateX／5:rotate+translateY+filter／6:scale+opacity／
+     7:rotate+translateY+stroke-dashoffset／8:translateY+scale。
+     transform 以外（stroke-width・filter・opacity・stroke-dashoffset）はそれぞれ1種だけが持つ＝そのtipの署名。 */
+
+  /* tip0 魚尾「水中の一閃」性格=瞬発。長い静止→二枚の尾が逆相で交差（減衰）。刃の撓み（stroke-width）が
+     .09s 遅れて追い、推進の反動で全体が浮く。溜めてから鋭く放つ曲線が「水を切る」の正体。 */
+  @keyframes t0-L{0%,66%,90%,100%{transform:rotate(0)}69%{transform:rotate(15deg)}73%{transform:rotate(-5deg)}78%{transform:rotate(8deg)}84%{transform:rotate(-2deg)}}
+  @keyframes t0-R{0%,66%,90%,100%{transform:rotate(0)}69%{transform:rotate(-15deg)}73%{transform:rotate(5deg)}78%{transform:rotate(-8deg)}84%{transform:rotate(2deg)}}
+  /* 撓み: 打ち出しで太く（水を押す）→戻りで細く（抜ける）。静止値 2.6 は SVG 属性と同値＝静止意匠不変。 */
+  @keyframes t0-flex{0%,64%,92%,100%{stroke-width:2.6}70%{stroke-width:3.25}75%{stroke-width:2.3}82%{stroke-width:2.75}}
+  @keyframes t0-G{0%,66%,96%,100%{transform:translateY(0)}70%{transform:translateY(-1.1px)}82%{transform:translateY(-.4px)}}
+  .f0l{animation:t0-L 7.4s cubic-bezier(.85,0,.12,1) infinite,t0-flex 7.4s cubic-bezier(.3,.78,.42,1) infinite}
+  .f0r{animation:t0-R 7.4s cubic-bezier(.85,0,.12,1) infinite,t0-flex 7.4s cubic-bezier(.3,.78,.42,1) infinite}
+  .f0l,.f0r{transform-origin:16px 4px}
+  .f0g{animation:t0-G 7.4s cubic-bezier(.3,.78,.42,1) infinite}
+
+  /* tip1 一粒「振り子の余韻」性格=律儀。弾かれた玉が指数減衰で静止へ帰る（主）。玉自身は最下点を通るたび
+     重さで縦につぶれ、振れが減るほど潰れも小さくなる（二次・主動作の2倍周期）。曲線は正弦近似＝本物の振り子。 */
+  @keyframes t1{0%,62%,100%{transform:rotate(0)}6%{transform:rotate(11deg)}13%{transform:rotate(-8deg)}20%{transform:rotate(5.6deg)}27%{transform:rotate(-3.8deg)}34%{transform:rotate(2.5deg)}41%{transform:rotate(-1.5deg)}48%{transform:rotate(.8deg)}55%{transform:rotate(-.3deg)}}
+  /* 潰れの山（9.5/16.5/23.5/30.5%）は t1 の振れの節＝最下点通過に合わせてある。 */
+  @keyframes t1-w{0%,3%{transform:scale(1,1)}9.5%{transform:scale(.93,1.08)}13%{transform:scale(1,1)}16.5%{transform:scale(.955,1.05)}20%{transform:scale(1,1)}23.5%{transform:scale(.972,1.03)}27%{transform:scale(1,1)}30.5%{transform:scale(.985,1.016)}34%,100%{transform:scale(1,1)}}
+  .f1{animation:t1 9.5s cubic-bezier(.36,0,.64,1) infinite;transform-origin:16px 4px}
+  .f1w{animation:t1-w 9.5s cubic-bezier(.2,.7,.4,1) infinite;transform-origin:16px 11px}
+
+  /* tip2 結び玉「締まり直す結び」性格=重い。紐が引かれ玉が潰れながら締まり、張力を一拍保ち、緩んで座り直す。
+     曲線は「急に効いて粘る」＝結びが食い込む手応え。 */
+  @keyframes t2{0%,55%,88%,100%{transform:translateY(0) rotate(0) scale(1,1)}
+    60%{transform:translateY(.9px) rotate(-4deg) scale(1.12,.86)}
+    64%{transform:translateY(.7px) rotate(-4deg) scale(1.09,.89)}
+    72%{transform:translateY(-.2px) rotate(2deg) scale(.97,1.04)}
+    80%{transform:translateY(0) rotate(-.6deg) scale(1.01,.99)}}
+  .f2{animation:t2 8.8s cubic-bezier(.16,.84,.3,1) infinite;transform-origin:16px 10px}
+  /* 唯一の「先端のみ」制約緩和: 締まりの張力が紐（棒）へ伝う。周期・位相は玉と同期（JS が delay を揃える）。 */
+  @keyframes t2bar{0%,55%,88%,100%{transform:scaleY(1)}60%{transform:scaleY(1.02)}64%{transform:scaleY(1.015)}72%{transform:scaleY(.995)}80%{transform:scaleY(1)}}
+  .barlink-t2{transform-origin:top center;animation:t2bar 8.8s cubic-bezier(.16,.84,.3,1) infinite}
+
+  /* tip3 二又房「すれ違う二本」性格=気まぐれ。左右が別周期（3.9s/5.3s）で不意の風に応え、撓み（skewX）が
+     一拍遅れて追う。周期比が整数でないため二本の重なりが長く繰り返さない＝二度と同じ模様にならない。
+     ※初版は左右とも「往復1本」で静止の間合いが無かった＝〈突風→減衰→凪〉へ作り直した。 */
+  @keyframes t3-a{0%,16%,86%,100%{transform:rotate(0)}30%{transform:rotate(-3.8deg)}45%{transform:rotate(2.6deg)}60%{transform:rotate(-1.3deg)}74%{transform:rotate(.4deg)}}
+  @keyframes t3-as{0%,16%,80%,100%{transform:skewX(0)}32%{transform:skewX(-1.1deg)}47%{transform:skewX(.7deg)}62%{transform:skewX(-.3deg)}}
+  @keyframes t3-b{0%,32%,94%,100%{transform:rotate(0)}44%{transform:rotate(3.4deg)}58%{transform:rotate(-2.4deg)}71%{transform:rotate(1.2deg)}84%{transform:rotate(-.4deg)}}
+  @keyframes t3-bs{0%,32%,90%,100%{transform:skewX(0)}46%{transform:skewX(1deg)}60%{transform:skewX(-.6deg)}75%{transform:skewX(.25deg)}}
+  .f3l{animation:t3-a 3.9s cubic-bezier(.42,.02,.4,1) infinite}
+  .f3ls{animation:t3-as 3.9s cubic-bezier(.34,.1,.5,1) infinite}
+  .f3r{animation:t3-b 5.3s cubic-bezier(.38,.06,.46,.98) infinite}
+  .f3rs{animation:t3-bs 5.3s cubic-bezier(.34,.1,.5,1) infinite}
+  .f3l,.f3ls,.f3r,.f3rs{transform-origin:16px 4px}
+
+  /* tip4 三又房「波が渡る」性格=素直。撫でた手のように左→中→右へ波が伝い（JS が 0/.16/.32s の位相差）、
+     頭玉は反動で逆相に振り返る。房全体は波の運動量に引かれて横へ流れる（二次・translateX）。 */
+  @keyframes t4-s{0%,58%,92%,100%{transform:rotate(0)}64%{transform:rotate(7deg)}72%{transform:rotate(-4.6deg)}80%{transform:rotate(2.4deg)}87%{transform:rotate(-1deg)}}
+  @keyframes t4-b{0%,58%,92%,100%{transform:rotate(0)}66%{transform:rotate(-2.6deg)}76%{transform:rotate(1.4deg)}}
+  @keyframes t4-g{0%,56%,96%,100%{transform:translateX(0)}68%{transform:translateX(-.75px)}82%{transform:translateX(.4px)}90%{transform:translateX(-.15px)}}
+  .f4s{animation:t4-s 6.8s cubic-bezier(.25,.46,.45,.94) infinite;transform-origin:16px 9px}
+  .f4b{animation:t4-b 6.8s cubic-bezier(.25,.46,.45,.94) infinite;transform-origin:16px 4px}
+  .f4g{animation:t4-g 6.8s cubic-bezier(.3,.5,.5,1) infinite}
+
+  /* tip5 総角「息を吸う房」性格=ゆったり。五本が外側ほど大きく扇に開き（--k 比例）、ふるえながら保ち、
+     閉じて眠る。開く息に合わせて墨が濃くなる（二次・filter。色相は変えず濃度だけ＝和モダンの品位を保つ）。 */
+  @keyframes t5-s{0%,20%,78%,100%{transform:rotate(0)}38%{transform:rotate(calc(var(--k,0) * 4.5deg))}52%{transform:rotate(calc(var(--k,0) * 3.9deg))}60%{transform:rotate(calc(var(--k,0) * 4.2deg))}}
+  @keyframes t5-b{0%,20%,78%,100%{transform:translateY(0)}40%{transform:translateY(-.5px)}60%{transform:translateY(-.4px)}}
+  @keyframes t5-g{0%,18%,82%,100%{filter:brightness(1) saturate(1)}42%{filter:brightness(.94) saturate(1.14)}62%{filter:brightness(.97) saturate(1.08)}}
+  .f5s{animation:t5-s 11s cubic-bezier(.32,.06,.24,1) infinite;transform-origin:16px 11px}
+  .f5b{animation:t5-b 11s cubic-bezier(.32,.06,.24,1) infinite}
+  .f5g{animation:t5-g 11s cubic-bezier(.4,.1,.3,1) infinite}
+
+  /* tip6 蝶結び「眠る蝶の呼吸」性格=ためらう。左右の羽が交互に張りを帯び（主）、張った羽は墨が薄らぐ
+     （二次・opacity が .28s 遅れて追う＝張力の可視化）。ごく稀に一度だけ揃って羽ばたきかけ、思いとどまる。芯は不動。 */
+  @keyframes t6-L{0%,36%,55%,72%,93%,100%{transform:scale(1,1)}18%{transform:scale(1.06,.97)}86%{transform:scale(.9,1.05)}89%{transform:scale(1.04,.99)}}
+  @keyframes t6-R{0%,18%,36%,72%,93%,100%{transform:scale(1,1)}55%{transform:scale(1.06,.97)}86%{transform:scale(.9,1.05)}89%{transform:scale(1.04,.99)}}
+  @keyframes t6-oL{0%,8%,44%,72%,93%,100%{opacity:1}22%{opacity:.8}86%{opacity:.72}90%{opacity:.95}}
+  @keyframes t6-oR{0%,8%,44%,72%,93%,100%{opacity:1}59%{opacity:.8}86%{opacity:.72}90%{opacity:.95}}
+  .f6l{animation:t6-L 12s cubic-bezier(.5,.02,.5,.98) infinite,t6-oL 12s cubic-bezier(.45,.15,.55,.85) infinite}
+  .f6r{animation:t6-R 12s cubic-bezier(.5,.02,.5,.98) infinite,t6-oR 12s cubic-bezier(.45,.15,.55,.85) infinite}
+  .f6l,.f6r{transform-origin:16px 8px}
+
+  /* tip7 玉と尾「気まぐれの尾」性格=唐突。ふいに大きくひと払いし、払い際に穂先が紙を離れて墨が細り
+     （二次・stroke-dashoffset。dasharray 11 11＝路長ちょうど＝offset 0 の静止時は隙間ゼロ＝意匠不変）、
+     先で一拍とめて二段で戻る。玉は釣り合いに沈む。 */
+  @keyframes t7-t{0%,30%,70%,100%{transform:rotate(0)}38%{transform:rotate(14deg)}48%{transform:rotate(12.5deg)}56%{transform:rotate(-3deg)}63%{transform:rotate(4deg)}}
+  @keyframes t7-ink{0%,32%,72%,100%{stroke-dashoffset:0}40%{stroke-dashoffset:3.2}52%{stroke-dashoffset:2.4}60%{stroke-dashoffset:.6}}
+  @keyframes t7-b{0%,30%,78%,100%{transform:translateY(0)}40%{transform:translateY(.55px)}58%{transform:translateY(-.3px)}}
+  .f7t{stroke-dasharray:11 11;animation:t7-t 10.5s cubic-bezier(.9,.02,.35,1) infinite,t7-ink 10.5s cubic-bezier(.7,0,.4,1) infinite;transform-origin:16px 13px}
+  .f7b{animation:t7-b 10.5s cubic-bezier(.7,0,.4,1) infinite}
+
+  /* tip8 数珠「繰る手」性格=律動。親指が珠を送るように沈みが上→下へ伝い（JS が 0/.22/.44s の位相差）、
+     送り終えた紐全体が一拍遅れて沈み込み（二次）、また長く静まる。読経の拍。 */
+  @keyframes t8{0%,50%,82%,100%{transform:translateY(0) scale(1)}58%{transform:translateY(1.1px) scale(1.14)}66%{transform:translateY(0) scale(1)}}
+  @keyframes t8-g{0%,54%,94%,100%{transform:translateY(0)}70%{transform:translateY(.45px)}84%{transform:translateY(.15px)}}
+  .f8a{animation:t8 8.4s cubic-bezier(.55,0,.28,1) infinite;transform-origin:16px 10px}
+  .f8b{animation:t8 8.4s cubic-bezier(.55,0,.28,1) infinite;transform-origin:16px 17px}
+  .f8c{animation:t8 8.4s cubic-bezier(.55,0,.28,1) infinite;transform-origin:16px 24px}
+  .f8g{animation:t8-g 8.4s cubic-bezier(.5,.05,.35,1) infinite}
+
+  /* 参考資料（旧・一括割当案）の折り畳み */
+  .ref{max-width:1120px;margin:40px auto 0;width:100%}
+  .ref summary{cursor:pointer;font-size:12.5px;color:#7c7a72;text-align:center;padding:8px;list-style-position:inside}
+
+  /* 静止表示（静止時の意匠を壊していないかの突き合わせ用）。
+     play-state:paused ではなく animation:none にする理由: 前者は「途中の姿勢」で凍るため、
+     この機能の目的である〈静止時の意匠と同一か〉の照合ができない（初版はここが目的と不一致だった）。 */
+  body.paused .cv .tip,body.paused .mv,body.paused .barlink-t2{animation:none!important}
   /* reduce-motion は完全静止（ADR 0022 §3 制約②と同型＝実装必須要件） */
-  @media (prefers-reduced-motion:reduce){.cv .tip{animation:none!important}}
+  @media (prefers-reduced-motion:reduce){.cv .tip,.mv,.barlink-t2{animation:none!important}}
 </style>
 </head>
 <body>
-  <p class="cap"><b>本棚K 高負荷モード候補 — 栞アニメーション</b>　先端<b>174種それぞれ</b>に、その意匠由来の動き（<b>動きの語彙20種</b>×個体ごとの周期ジッタ）を与える。導線は星図Mの高負荷トグルと同型（debug 限定・release OFF）＝本モックは動き本体だけを裁定。上=本棚 in-situ／下=全174種の一覧。</p>
+  <p class="cap"><b>本棚K 高負荷モード候補 — 栞アニメーション（改稿）</b>　<b>裁定対象は tip 0〜8 の9種のみ</b>。1種=1作品の専用振り付け＝<b>keyframes・動かすプロパティの組合せ・周期・イージングを9種とも重複させない</b>（各種が〈主動作＋遅れて追う二次動作＋長い静止の間合い〉の複合）。上=拡大ステージ（約3.2×）／中=本棚 in-situ（全12冊。9種すべてを実寸で確認・Web未取込3冊は静止）／末尾の折り畳み=旧・一括割当案（参考・裁定対象外）。導線は星図Mの高負荷トグルと同型（debug 限定・release OFF）。</p>
   <div class="ctrl">
-    <button class="primary" id="pause">⏸ 一時停止（静止意匠と突き合わせ）</button>
+    <button class="primary" id="pause">■ 静止表示（静止意匠と突き合わせ）</button>
   </div>
 
-  <!-- ===== 本棚 in-situ（bookshelf-K 準拠・8冊中2冊は Web未取込＝静止のまま） ===== -->
+  <!-- ===== 主役: tip 0〜8 専用振り付け（拡大・裁定対象） ===== -->
+  <section class="feat">
+    <h2>tip 0〜8 — それぞれの物語（拡大 約3.2×・常時再生）</h2>
+    <p>同系（紐・房・結び）内で<b>物理と性格を1種ずつ変える</b>: 一閃／減衰振り子／張力／二周期干渉／波の伝播／開閉の息／羽の張り／気まぐれ／繰りの律動。<br>transform 以外の署名プロパティは1種に1つだけ割り当てた（0=stroke-width 撓み・5=filter 濃淡・6=opacity 張力・7=stroke-dashoffset 墨切れ・3=skewX・4=translateX）。<br>tip 2 のみ「先端のみ可動」を緩め、締まりの張力が紐（棒）へ伝う。各カードの3行目=〈プロパティ／周期・性格〉。</p>
+    <div class="fgrid" id="fgrid"></div>
+  </section>
+
+  <!-- ===== 本棚 in-situ（bookshelf-K 準拠・全12冊＝裁定対象 tip 0〜8 の9冊＋Web未取込3冊は静止のまま）
+       拡大ステージと同じ振り付けを実寸で見る段。9種すべてを棚に置いたのは「拡大では良いが実寸では
+       読めない／うるさい」を同一ページで判定できるようにするため（初版は6種しか棚に出ていなかった）。 ===== -->
   <div class="phone">
     <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
     <div class="head">
@@ -223,7 +362,7 @@
       <div class="grid">
         <div class="bk">
           <div class="cv hl" style="--band:hsl(210 48% 52%);--barx:26%;--barlen:46%">
-            <span class="bar"></span><canvas class="tip" data-tip="4" data-hue="210"></canvas><span class="vt">追放された万能薬師、辺境でスローライフを始める</span>
+            <span class="bar"></span><span class="tipm" data-tip="0" data-hue="210" data-dl="-2.1"></span><span class="vt">追放された万能薬師、辺境でスローライフを始める</span>
           </div>
           <div class="capr"><span class="t">追放された万能薬師、辺境でスローライフを始める</span>
             <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
@@ -231,7 +370,7 @@
         </div>
         <div class="bk">
           <div class="cv hl" style="--band:hsl(280 48% 52%);--barx:34%;--barlen:42%">
-            <span class="bar"></span><canvas class="tip" data-tip="84" data-hue="280"></canvas><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span>
+            <span class="bar"></span><span class="tipm" data-tip="2" data-hue="280" data-dl="-5.3"></span><span class="vt">黒の魔王と契約した俺、気づけば最強の従者に</span>
           </div>
           <div class="capr"><span class="t">黒の魔王と契約した俺、気づけば最強の従者に</span>
             <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
@@ -239,7 +378,7 @@
         </div>
         <div class="bk">
           <div class="cv hl" style="--band:hsl(95 48% 52%);--barx:22%;--barlen:50%">
-            <span class="bar"></span><canvas class="tip" data-tip="63" data-hue="95"></canvas><span class="vt">転生したら最弱スキルだったので草むしりしていた</span>
+            <span class="bar"></span><span class="tipm" data-tip="4" data-hue="95" data-dl="-0.7"></span><span class="vt">転生したら最弱スキルだったので草むしりしていた</span>
           </div>
           <div class="capr"><span class="t">転生したら最弱スキルだったので草むしりしていた</span>
             <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
@@ -256,7 +395,7 @@
         </div>
         <div class="bk">
           <div class="cv hl" style="--band:hsl(340 48% 52%);--barx:24%;--barlen:48%">
-            <span class="bar"></span><canvas class="tip" data-tip="152" data-hue="340"></canvas><span class="vt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
+            <span class="bar"></span><span class="tipm" data-tip="7" data-hue="340" data-dl="-3.9"></span><span class="vt">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
           </div>
           <div class="capr"><span class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</span>
             <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
@@ -264,7 +403,7 @@
         </div>
         <div class="bk">
           <div class="cv hl" style="--band:hsl(150 48% 52%);--barx:28%;--barlen:40%">
-            <span class="bar"></span><canvas class="tip" data-tip="143" data-hue="150"></canvas><span class="vt">聖女は隣国で薬草を育てて暮らしたい</span>
+            <span class="bar"></span><span class="tipm" data-tip="5" data-hue="150" data-dl="-1.6"></span><span class="vt">聖女は隣国で薬草を育てて暮らしたい</span>
           </div>
           <div class="capr"><span class="t">聖女は隣国で薬草を育てて暮らしたい</span>
             <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
@@ -281,11 +420,44 @@
         </div>
         <div class="bk">
           <div class="cv hl" style="--band:hsl(230 48% 52%);--barx:34%;--barlen:48%">
-            <span class="bar"></span><canvas class="tip" data-tip="15" data-hue="230"></canvas><span class="vt">星降る夜の図書館で君を待っている</span>
+            <span class="bar"></span><span class="tipm" data-tip="8" data-hue="230" data-dl="-4.7"></span><span class="vt">星降る夜の図書館で君を待っている</span>
           </div>
           <div class="capr"><span class="t">星降る夜の図書館で君を待っている</span>
             <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
           <div class="st">読了</div>
+        </div>
+        <div class="bk">
+          <div class="cv hl" style="--band:hsl(20 48% 52%);--barx:30%;--barlen:52%">
+            <span class="bar"></span><span class="tipm" data-tip="1" data-hue="20" data-dl="-6.2"></span><span class="vt">竜の卵を拾ったので育てることにした</span>
+          </div>
+          <div class="capr"><span class="t">竜の卵を拾ったので育てることにした</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">第64/98話</div>
+        </div>
+        <div class="bk">
+          <div class="cv hl" style="--band:hsl(140 48% 52%);--barx:22%;--barlen:44%">
+            <span class="bar"></span><span class="tipm" data-tip="3" data-hue="140" data-dl="-2.8"></span><span class="vt">雨宿りの茶屋で、狐の娘と店を継ぐ</span>
+          </div>
+          <div class="capr"><span class="t">雨宿りの茶屋で、狐の娘と店を継ぐ</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st"><span class="dot"></span>未読</div>
+        </div>
+        <div class="bk">
+          <div class="cv hl" style="--band:hsl(305 48% 52%);--barx:36%;--barlen:46%">
+            <span class="bar"></span><span class="tipm" data-tip="6" data-hue="305" data-dl="-8.5"></span><span class="vt">結び直しの魔法使いは今日も糸を繕う</span>
+          </div>
+          <div class="capr"><span class="t">結び直しの魔法使いは今日も糸を繕う</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st">第12/40話</div>
+        </div>
+        <div class="bk">
+          <!-- Web未取込: 同上＝静止のまま（動く8冊に対する静の比較対象を各行に置く） -->
+          <div class="cv narou" style="--band:hsl(265 48% 52%);--barx:28%;--barlen:42%">
+            <span class="bar"></span><span class="vt">名もなき薬草店の店主になりました</span>
+          </div>
+          <div class="capr"><span class="t">名もなき薬草店の店主になりました</span>
+            <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+          <div class="st narou">なろう・未取込</div>
         </div>
       </div>
     </div>
@@ -314,18 +486,19 @@
     </nav>
   </div>
 
-  <!-- ===== 全174種一覧（常時再生・栞ごとにバリアント名＋動きの語） ===== -->
-  <section class="range">
-    <h2>先端174種 × 動きの割当（全数・常時再生）</h2>
-    <p>各カード＝1バリアント。ラベル上段=<b>番号 名前</b>（Kotlin SHIORI_TIPS と同順）・下段=動きの語。<br>周期・振幅・位相は個体ごとにジッタ＝実機でも隣の本と同期しない。</p>
-    <div class="strip" id="strip"></div>
-  </section>
-
-  <!-- ===== 動きの語彙（凡例） ===== -->
-  <section class="legend">
-    <h2>動きの語彙 20種（意匠の系 → 動きの根拠）</h2>
-    <ul id="legend"></ul>
-  </section>
+  <!-- ===== 参考資料（折り畳み・裁定対象外）: 旧・一括割当案 174種×語彙20 ===== -->
+  <details class="ref" id="ref">
+    <summary>参考資料: 旧・一括割当案（174種×語彙20・差し戻し前の初版＝裁定対象外。開くと描画）</summary>
+    <section class="range">
+      <h2>先端174種 × 旧割当（参考）</h2>
+      <p>差し戻し理由=「画一的」。9〜173 への展開方針は 0〜8 の合否後に決める（この帯は比較の物差しとして残置）。</p>
+      <div class="strip" id="strip"></div>
+    </section>
+    <section class="legend">
+      <h2>旧・動きの語彙 20種（参考）</h2>
+      <ul id="legend"></ul>
+    </section>
+  </details>
 
   <p class="note">
     <b>実装への申し送り（裁定後）</b>:
@@ -333,8 +506,16 @@
     ②導線は星図M高負荷トグルと同型＝設定面「開発」節に1行（debug 限定・release 常時 OFF・prefs 同並び）。
     ③reduce-motion で完全静止。
     ④Web未取込カードは対象外（沈めた署名を保つ）。
-    ⑤紙面・栞棒・題字は静止のまま＝動くのは先端のみ（棒を伝う光・紙の繊維のきらめき等の面アニメは先端の合否後の追補候補）。
-    ⑥割当表（174種→語彙20種）は本ファイルの M 配列が正本＝Compose 翻訳時は tipIndex→MotionClass の対応表として写す。
+    ⑤「先端のみ可動」の緩和は tip 2（結び玉→棒 scaleY 連動）のみ。他の紙面・栞棒・題字は静止。
+    ⑥裁定対象は tip 0〜8 の9種＝正本は FEAT 配列（物語・技術要素つき）と t0〜t8 の keyframes。
+    　旧 M 配列（174種→語彙20）は参考資料＝Compose へ写さない。
+    ⑦CSS の非 transform プロパティは Compose でも<b>近似せず等価に写せる</b>ことを確認済み（写し先を明記する）:
+    　stroke-width→<code>drawLine/Stroke(width)</code>／opacity→<code>Color.copy(alpha)</code>／
+    　stroke-dashoffset→<code>PathEffect.dashPathEffect(intervals, phase)</code>／
+    　filter の濃淡（brightness・saturate）だけは Canvas 描画に等価物が無いため、
+    　<b>色そのものを計算して渡す</b>（accent を HSL で明度−6%・彩度+14% した色を毎フレーム算出）＝
+    　「それらしい別の動き」への差し替えではなく同じ見えを別経路で作る。9種とも1本の Animatable の
+    　進行度から各値を引く形になるので、tip ごとの専用実装ではなく〈進行度→値〉表の差し替えで済む。
   </p>
 
 <script>
@@ -520,8 +701,8 @@ const TIPS=[
   (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+6);c.lineTo(x+6,y+6);c.lineTo(x+6,y+17);c.lineTo(x-6,y+17);c.closePath();c.stroke();c.lineWidth=1.2;c.beginPath();c.moveTo(x-2,y+6);c.lineTo(x-2,y+17);c.moveTo(x+2,y+6);c.lineTo(x+2,y+17);c.stroke();c.lineWidth=2;c.beginPath();c.moveTo(x-7,y+4);c.lineTo(x+7,y+4);c.stroke();c.lineWidth=1.4;c.beginPath();c.moveTo(x-4,y+17);c.lineTo(x-4,y+21);c.moveTo(x+4,y+17);c.lineTo(x+4,y+21);c.moveTo(x-6,y+21);c.lineTo(x+6,y+21);c.stroke();}, // 173 行灯
 ];
 
-// ===== 割当表 M: 174種それぞれ「名前|動きクラス|動きの語(|周期上書きs)」＝Kotlin SHIORI_TIPS と同順。
-// 実装時は tipIndex → MotionClass の対応表としてここが正本（コメント⑥）。
+// ===== 【参考・裁定対象外】旧・一括割当表 M（差し戻し前の初版）: 「名前|動きクラス|動きの語(|周期上書きs)」。
+// Kotlin SHIORI_TIPS と同順。折り畳みの参考帯の描画にのみ使う＝Compose へ写さない（正本は FEAT/t0〜t8）。
 const M=[
 "魚尾|sway|ゆれ",
 "一粒|sway|微揺れ",
@@ -773,11 +954,97 @@ function renderStrip(){
 function renderLegend(){
   document.getElementById('legend').innerHTML=VOCAB.map(v=>'<li><b>'+v[0]+'</b><span>'+v[1]+'</span></li>').join('');
 }
-renderStrip(); renderLegend();
-requestAnimationFrame(()=>document.querySelectorAll('canvas.tip').forEach(drawTip));
+// ===== 主役: tip 0〜8 の専用振り付け（裁定対象・正本） =====
+// 形状は ShioriTips.kt / grid-D TIPS の 0〜8 と同座標（+16,+4 の平行移動のみ＝アタッチ点(16,4)）。
+// canvas でなく部品分解 SVG にする理由: 房の1本・玉・尾を別要素にしないと「部品ごとの位相差・逆相」が
+// 表現できず、初版（1枚 canvas への単一クラス）が画一的に見えた真因がそこにあるため。
+function svgTip(idx,accent){
+  const st='stroke="'+accent+'" fill="none" stroke-linecap="round" stroke-linejoin="round"';
+  const fl='fill="'+accent+'"';
+  const bodies=[
+    // 0 魚尾: 左右刃を別部品＝逆相のハサミ交差。刃は撓み(stroke-width)を .09s 遅らせる。g は推進の反動（浮き）
+    '<g class="mv f0g"><path class="mv f0l" data-doff="0,.09" '+st+' stroke-width="2.6" d="M16 4 L10 16"/><path class="mv f0r" data-doff="0,.09" '+st+' stroke-width="2.6" d="M16 4 L22 16"/></g>',
+    // 1 一粒: 外g=振り子 / 内circle=最下点での縦つぶれ（入れ子にしないと回転と潰しが同じ transform を奪い合う）
+    '<g class="mv f1"><circle class="mv f1w" data-doff=".05" '+fl+' cx="16" cy="11" r="4"/></g>',
+    // 2 結び玉: 単部品＋棒連動（mountTip が barlink-t2 を付与）
+    '<circle class="mv f2" '+fl+' cx="16" cy="10" r="6"/>',
+    // 3 二又房: 左右で周期の異なる別部品＝干渉。外g=rotate / 内path=skewX を遅らせて撓みが追う形にする
+    '<g class="mv f3l"><path class="mv f3ls" data-doff=".13" '+st+' stroke-width="2.4" d="M16 4 L11 22"/></g>'
+     +'<g class="mv f3r"><path class="mv f3rs" data-doff=".18" '+st+' stroke-width="2.4" d="M16 4 L21 22"/></g>',
+    // 4 三又房: 3本に位相差（data-doff）＋頭玉は逆相。外g は波の運動量で横へ流れる
+    '<g class="mv f4g" data-doff=".1"><circle class="mv f4b" data-doff=".05" '+fl+' cx="16" cy="7" r="3.2"/><path class="mv f4s" data-doff="0" '+st+' stroke-width="2" d="M16 9 L10 26"/><path class="mv f4s" data-doff=".16" '+st+' stroke-width="2" d="M16 9 L16 27"/><path class="mv f4s" data-doff=".32" '+st+' stroke-width="2" d="M16 9 L22 26"/></g>',
+    // 5 総角: 5本が --k（-2..2）比例で扇に開く＋頭玉の浮き。外g は息に合わせた墨の濃淡（filter）
+    '<g class="mv f5g" data-doff=".2"><circle class="mv f5b" '+fl+' cx="16" cy="8" r="4"/>'+[-2,-1,0,1,2].map((k,j)=>'<path class="mv f5s" style="--k:'+k+'" data-doff="'+(j*0.07).toFixed(2)+'" '+st+' stroke-width="1.6" d="M16 11 L'+(16+4*k)+' 28"/>').join('')+'</g>',
+    // 6 蝶結び: 左右の羽を別部品＝交互の張り＋稀な同時羽ばたき。張りに .28s 遅れて墨が薄らぐ。芯の玉は不動（世界の支点）
+    '<path class="mv f6l" data-doff="0,.28" '+st+' stroke-width="1.8" d="M16 8 Q5 2 7 8 Q5 14 16 8"/><path class="mv f6r" data-doff="0,.28" '+st+' stroke-width="1.8" d="M16 8 Q27 2 25 8 Q27 14 16 8"/><circle '+fl+' cx="16" cy="8" r="2"/>',
+    // 7 玉と尾: 尾の気まぐれな一払い＋払い際に墨が細る（dashoffset を .12s 遅らせる）。玉は釣り合いに沈む
+    '<circle class="mv f7b" data-doff=".06" '+fl+' cx="16" cy="9" r="4"/><path class="mv f7t" data-doff="0,.12" '+st+' stroke-width="2" d="M16 13 L16 24"/>',
+    // 8 数珠: 3珠に位相差＝繰りの順送り。外g は送り終えた紐全体の沈み込み
+    '<g class="mv f8g" data-doff=".3"><circle class="mv f8a" data-doff="0" '+fl+' cx="16" cy="10" r="2.6"/><circle class="mv f8b" data-doff=".22" '+fl+' cx="16" cy="17" r="2.6"/><circle class="mv f8c" data-doff=".44" '+fl+' cx="16" cy="24" r="2.6"/></g>',
+  ];
+  return bodies[idx];
+}
+// host へ SVG を実寸で載せ、部品位相（基準遅延＋部品内オフセット）を配る。
+// baseDelay を負にすると初回の長い静止を飛ばして最初の見せ場が早く来る（比較体験のための較正）。
+function mountTip(host,idx,S,accent,baseDelay,barEl){
+  host.innerHTML='<svg class="tipv" viewBox="0 0 32 32" width="'+(32*S).toFixed(1)+'" height="'+(32*S).toFixed(1)+'">'+svgTip(idx,accent)+'</svg>';
+  host.querySelectorAll('.mv').forEach(el=>{
+    // data-doff は「animation ごとの遅れ秒」をカンマ区切りで持つ（1部品に2本張る tip0/6/7 用）。
+    // 値が1つなら CSS 側がリストを巡回して全 animation に同じ遅延が効く＝単一 animation の部品もこれで足りる。
+    el.style.animationDelay=(el.dataset.doff||'0').split(',')
+      .map(o=>(baseDelay+parseFloat(o)).toFixed(2)+'s').join(',');
+  });
+  // tip2 のみ「先端のみ可動」を緩和: 締まりの張力を紐（棒）へ伝える。同一周期 8.8s＝delay を揃えて同期。
+  if(idx===2&&barEl){barEl.classList.add('barlink-t2');barEl.style.animationDelay=baseDelay.toFixed(2)+'s';}
+}
+// 裁定対象9種の正本: 物語（性格）と技術要素。dl は拡大ステージの初期位相（見せ場が順に来るよう較正）。
+const FEAT=[
+ {i:0,hue:200,dl:-4.4,name:'魚尾',   story:'水中の一閃——長い静止ののち、二枚の尾がハサミのように素早く交差し、刃が撓み、推進の反動でわずかに浮いて沈み直す',tech:'rotate 逆相（減衰）＋stroke-width 撓み（.09s 遅れ）＋translateY 反動／7.4s・瞬発'},
+ {i:1,hue:20, dl:0.2, name:'一粒',   story:'振り子の余韻——見えない指に弾かれ、本物の振り子の減衰で静止へ帰る。玉は最下点を通るたび重さで縦につぶれる',tech:'rotate 指数減衰9段＋玉の scale 潰し（振れの2倍周期・節に同期）／9.5s・律儀'},
+ {i:2,hue:340,dl:-3.7,name:'結び玉', story:'締まり直す結び——紐が引かれて玉が潰れながら締まり、張力を一拍保ち、緩んで座り直す。張りは紐（棒）にも伝う',tech:'scale 潰し＋translateY 引き込み＋rotate 座り直し／棒 scaleY 連動／8.8s・重い'},
+ {i:3,hue:140,dl:-1.3,name:'二又房', story:'すれ違う二本——二本が別々の周期で不意の風に応え、撓みが遅れて追う。交差と離反の模様が二度と同じにならない',tech:'左右で異周期の rotate＋内側 path の skewX 遅延／3.9s・5.3s・気まぐれ'},
+ {i:4,hue:260,dl:-2.2,name:'三又房', story:'波が渡る——手で撫でたように左→中→右へ波が伝い、頭の玉が反動で振り返り、房全体が波に引かれて横へ流れる',tech:'3本の rotate 位相カスケード＋頭玉の逆相 rotate＋全体 translateX／6.8s・素直'},
+ {i:5,hue:175,dl:-0.2,name:'総角',   story:'息を吸う房——五本がゆっくり扇に開き、ふるえながら保ち、閉じて眠る。開く息に合わせて墨がわずかに濃くなる',tech:'外側ほど大きい rotate（--k 比例）＋頭玉 translateY＋filter 濃淡／11s・ゆったり'},
+ {i:6,hue:330,dl:0.1, name:'蝶結び', story:'眠る蝶の呼吸——左右の羽が交互に張りを帯び、張った羽の墨が薄らぐ。ごく稀に一度だけ羽ばたきかけて、思いとどまる',tech:'左右ループの交互 scale＋opacity 追従（.28s 遅れ）／12s・ためらう'},
+ {i:7,hue:70, dl:-0.6,name:'玉と尾', story:'気まぐれの尾——ふいに大きくひと払いし、払い際に穂先が紙を離れて墨が細り、先で一拍とめて二段で戻る',tech:'尾の非対称 rotate＋stroke-dashoffset の墨切れ＋玉の translateY 沈み／10.5s・唐突'},
+ {i:8,hue:210,dl:-1.3,name:'数珠',   story:'繰る手——親指が珠を順に送るように上から下へ沈みが伝い、紐全体が一拍遅れて沈み、また長く静まる',tech:'3珠の translateY+scale 順送り＋全体 translateY の遅れ沈み／8.4s・律動'},
+];
+function renderFeatured(){
+  document.getElementById('fgrid').innerHTML=FEAT.map(f=>
+    '<div class="fcard"><div class="fstage" style="--band:'+hsl(f.hue,48,52)+'"><span class="fbar"></span><span class="tipm"></span></div>'
+    +'<div class="fmeta"><b>'+f.i+' '+f.name+'「'+f.story.split('——')[0]+'」</b><span class="fs">'+f.story.split('——')[1]+'</span><span class="ft">'+f.tech+'</span></div></div>').join('');
+  requestAnimationFrame(()=>{
+    document.querySelectorAll('.fcard').forEach((card,j)=>{
+      const f=FEAT[j], stage=card.querySelector('.fstage'), host=stage.querySelector('.tipm');
+      const S=3.2, w=stage.clientWidth;
+      host.style.left=(w/2-16*S).toFixed(1)+'px'; host.style.top=(90-4*S).toFixed(1)+'px';
+      mountTip(host,f.i,S,hsl(f.hue,48,52),f.dl,stage.querySelector('.fbar'));
+    });
+  });
+}
+// 本棚 in-situ: 棚スケール（カバー幅/150）で同じ振り付けを実寸マウント。
+function mountInSitu(){
+  document.querySelectorAll('.phone .tipm').forEach(sp=>{
+    const cover=sp.closest('.cv'), cs=getComputedStyle(cover);
+    const bx=parseFloat(cs.getPropertyValue('--barx'))/100, bl=parseFloat(cs.getPropertyValue('--barlen'))/100;
+    const W=cover.clientWidth, H=cover.clientHeight, S=W/150;
+    sp.style.left=(bx*W+1.25-16*S).toFixed(1)+'px'; sp.style.top=(bl*H-4*S).toFixed(1)+'px';
+    mountTip(sp,+sp.dataset.tip,S,hsl(+sp.dataset.hue,48,52),parseFloat(sp.dataset.dl||'0'),cover.querySelector('.bar'));
+  });
+}
+renderFeatured();
+requestAnimationFrame(mountInSitu);
+// 参考帯（旧案）は開いたときだけ描画（隠れた canvas は幅0でスケールが狂うため・初期表示も軽くなる）
+let refDrawn=false;
+document.getElementById('ref').addEventListener('toggle',()=>{
+  if(document.getElementById('ref').open&&!refDrawn){
+    refDrawn=true; renderStrip(); renderLegend();
+    requestAnimationFrame(()=>document.querySelectorAll('#strip canvas.tip').forEach(drawTip));
+  }
+});
 document.getElementById('pause').addEventListener('click',()=>{
   const p=document.body.classList.toggle('paused');
-  document.getElementById('pause').textContent=p?'▶ 再生':'⏸ 一時停止（静止意匠と突き合わせ）';
+  document.getElementById('pause').textContent=p?'▶ 再生':'■ 静止表示（静止意匠と突き合わせ）';
 });
 </script>
 </body>
