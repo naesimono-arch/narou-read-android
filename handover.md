@@ -172,14 +172,12 @@
 
 ## リファクタ / 技術的負債（deferred）
 
-- **[大物・マージ GO 待ち]** Kotlin 2.x 一括バンプは **2026-08-05 に別ブランチで完遂**——
-  ブランチ `deps/kotlin2-oneshot-2026-08-05-r2`（worktree `…/.claude/worktrees/agent-a54327ab5f2ac65fc`・**未 push・未マージ**）。
-  Kotlin 2.2.21／compose compiler plugin 2.2.21／KSP 2.2.21-2.0.5／**Room 2.8.4**／Roborazzi 1.70.0／**AGP 8.10.1**／tracing 1.3.0。
-  **ゲート7つ全緑**＋**実機3件も 2026-08-06 に消化**（R8 実機回帰 PASS・MigrationTest 実機 OK(5)・macrobench 3/4 PASS＝
-  実測は `.claude/plans/macrobenchmark-kickoff-2026-07-17.md` ⑤。pdf-import NG はバンプ起因でない＝下の2項）。
-  ADR 0029 増補済み。**マージの GO 裁定＝`awaiting-human.md` §3-1（推奨 GO を登録済み）**。
-  - 派生の宿題（本便では意図的に触っていない）: Kotlin 2.2 の KT-73255 警告（Moshi の `@Json` 付き引数で多数）＝
-    `-Xannotation-default-target` は挙動を変える指定なので方針を決めてから別便で。
+- **[Kotlin2 マージ済み（2026-08-06 main へ ff 統合）の派生宿題]** Kotlin 2.2 の KT-73255 警告（Moshi の `@Json` 付き引数で多数）＝
+  `-Xannotation-default-target` は挙動を変える指定なので方針を決めてから別便で（実測台帳＝
+  `.claude/plans/macrobenchmark-kickoff-2026-07-17.md` ⑤・連鎖の正本＝ADR 0029。CI は次の push で新 toolchain を初走行）。
+- **[小・後始末] 旧 r1 worktree が dirty で残置**: `…/.claude/worktrees/agent-a6f1a16df9c6147de`（ブランチ
+  `deps/kotlin2-oneshot-2026-08-05`＝r2 に superseded）が modified/untracked を抱え `worktree remove` を拒否（2026-08-06）。
+  未抽出の知見が無いか中身を確認してから `--force` 撤去 or 退避する（恐れるべきは未抽出の知識ごと消すこと。r2 worktree は撤去済み）。
 - **[実機で発見・main でも再現の潜伏バグ] benchmark PDF 資産がタスクグラフ外**（2026-08-06 の Kotlin2 実機検証で発見）:
   `android/app/build.gradle:59-65,181` の `srcDir(TaskProvider)` 結線では `copyBenchmarkPdfAsset` が assembleBenchmark の
   依存に入らず、ベンチ APK に `assets/sample_pdfs/N6169DZ.pdf` が入らない（最終成功 07-18＝AGP 8.6.1 期）。

@@ -154,17 +154,6 @@
 
 ### 3-1. 公開に効くもの（決まらないと初回公開の品質が確定しない）
 
-- **[Kotlin2 一括バンプのマージ GO]**（2026-08-06・実機3件消化済み）: R8 実機回帰 PASS（`run-as: not debuggable` の陽性確認・
-  本棚/本文/ランキング描画 OK・FATAL 0）／MigrationTest 実機 **OK (5 tests)**（Room 2.8.4 が旧書式スキーマ JSON を実機で読めた）／
-  macrobench **3/4 PASS**（startup TTID 267ms・shelf-scroll Grid P99 20.0/List P99 23.6ms・chapter-flip P99 25.9ms＝07-18 予算内。
-  実測台帳＝`.claude/plans/macrobenchmark-kickoff-2026-07-17.md` ⑤）。pdf-import NG は **main でも再現の潜伏バグ＋切り分け未了の
-  FGS timeout＝バンプ起因の退行証拠なし・マージ判断と切り離し可**（修理タスクは handover リファクタ節）。
-  **決めること**＝`deps/kotlin2-oneshot-2026-08-05-r2`（未 push）を main へ取り込むか・検証ブランチとの統合順序。
-  **推奨＝GO**（全ゲート7つ緑＋実機3件。順序はどちらが先でも可＝衝突は deps/ビルド系に限られる見込み）。
-  **放置した場合**＝新版依存が別ブランチに滞留し、以後の依存バンプと pdf-import 修理の切り分けが全部これ待ちになる。
-  ✅ **GO 裁定済み（2026-08-06）・残るは実行のみ**——Claude の merge 実行は権限分類器にブロックされたため、
-  ユーザーが `! git -C /mnt/c/Users/qingj/Desktop/project/novel-reader_andloid merge --ff-only deps/kotlin2-oneshot-2026-08-05-r2`
-  を1回打てば完了（main は 0 ahead＝ff 保証・実測 0/65）。実行後この項を消す。
 
 - **[横向きの本棚で書影カードが1枚も収まらない]**（2026-07-30 実機で発見・**構造の裁定が要るので直していない**）。
   実効ビューポートは実機で **~133〜141dp**（ボトムナビ 65dp ＋ ヘッダ ~68dp ＋ 状態チップ行 ~46dp ＋ システムバーが食う）に対し、
