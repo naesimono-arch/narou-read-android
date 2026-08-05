@@ -201,9 +201,10 @@
 
 ## workflow / tooling
 
-- **[bestpractice 突合の回収候補]**: ①`block_destructive_migration.py` の Bash 経路が素朴な部分文字列一致（`FOO=1 cmd`・`$()` ですり抜け）＝
-  settings permissions の `if` フィールド化を検討（主経路の Edit/Write 捕捉は健在で実害小）
-  ②サブエージェントの部品別モデル配分（fan-out/読み=haiku・照合=sonnet・監査=opus。現状は env `CLAUDE_CODE_SUBAGENT_MODEL` で opus 固定＝見直しは settings 変更を伴う）。
+- **[bestpractice 突合の回収候補]**: サブエージェントの部品別モデル配分（fan-out/読み=haiku・照合=sonnet・監査=opus。現状は env `CLAUDE_CODE_SUBAGENT_MODEL` で opus 固定＝見直しは settings 変更を伴う。
+  2026-08-06 に opus固定指示は解除済み＝再設計の下地は整った——ユーザーの費用/品質選好が要るため実施は提案ベースで）。
+  ※①だった migration ガード Bash 経路は 2026-08-06 に決着＝permissions の `if` は実在せず（hooks 側 `if` は fail-open で強制不成立）、
+  フック内の正規化照合（env-prefix 展開・クォート除去・断片ペア）で対処済み・テスト＝`.claude/hooks/test_block_destructive_migration.py`。
 - **[運用] worktree(ext4) 作業の冒頭で `gw :app:lintDebug` を回す**: ローカルの自動コミットゲートは現存しない（かつての hook は撤去済み＝導入以来 fail-open だった）。
   2026-07-30 以降は **CI の Android Lint が毎 push で errors=0 を担保する**ので、このスイープの役目は**push 前に赤を見つける**前倒し検知。
   基準＝**0 errors**。warnings は非ブロックの参考値（2026-08-06 実測 92＝UseKtx 51・GradleDependency 22 など
