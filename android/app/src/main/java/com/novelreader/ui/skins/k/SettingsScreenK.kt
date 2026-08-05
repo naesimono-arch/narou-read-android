@@ -22,6 +22,7 @@ import androidx.compose.material.icons.outlined.Contrast
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.MonitorHeart
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Title
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -161,8 +162,10 @@ fun SettingsScreenK(
             }
             // 文字サイズ等は読書中の表示設定が正本＝ここからは変えられない事実をそのまま案内する
             //（行を隠すと「文字設定はどこ？」の疑問符が残る。場所を教える行として置く＝自明性A0）。
+            // アイコンはモック正本（settings-K/M ほか）が .ri に T グリフを置く規定の翻訳＝Title が等価
+            //（icon=null は翻訳漏れ。この行だけ無アイコンで題字の開始位置も揃っていなかった＝2026-07-30 実機観察）。
             KSettingsRow(
-                icon = null,
+                icon = Icons.Outlined.Title,
                 title = "文字と組版",
                 description = "文字サイズ・行間・余白は、読書中の「表示設定」から変えられます",
                 trailing = {},
