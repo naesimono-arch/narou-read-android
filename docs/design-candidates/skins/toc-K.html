@@ -4,7 +4,10 @@
   核は「いま自分がどこか」を常時明示: ①ヘッダに「目次」＋作品名サブ ②直下に現在地チップ「いま読んでいる」
   ③各行の状態を語彙化（既読=題名を沈めて✓／現在=藍ルール＋地＋唯一の実アクション「ここから再開」／未読=通常）。
   一画面の強調は現在話の「ここから再開」チップ1つ（沈めて立てる）。
-  色は D トークン土台・ink-soft のみ AA(4.9:1) へ引き上げ。話数=ゴシック・題名=明朝（既存 Typography 踏襲）。単一画面・ライトのみ。
+  色は D トークン土台（SkinK は SkinD へ委譲・ReadingColors LIGHT）。話数=ゴシック・題名=明朝（既存 Typography 踏襲）。単一画面・ライトのみ。
+  【2026-08-06 逆同期（golden TocK_current_light 起点）】旧 K 専用 ink-soft #6A6E78 は実装不採用＝
+  既読題名の沈め色は textSecondary 実値 #7C808B（--ink-soft）・意味メタ（作品名/進捗/話数ラベル/✓）は
+  AA の infoText 実値 #5C606D（--info 新設）。話数ラベル幅は実装では桁数追従（rememberEpLabelWidth・44px は下限）。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -16,7 +19,8 @@
   :root{
     --base:#FBFAF8;      /* 和紙地（D踏襲） */
     --ink:#1C1F26;       /* 主文字（D踏襲） */
-    --ink-soft:#6A6E78;  /* 補助文字。D #7C808B 不足→AA(4.9:1)へ引き上げ */
+    --ink-soft:#7C808B;  /* 装飾補助（textSecondary 実値＝既読題名の沈め色） */
+    --info:#5C606D;      /* 意味メタ（infoText 実値＝作品名/進捗/話数ラベル/✓） */
     --line:#ECEAE4;      /* ヘアライン（D踏襲） */
     --ai:#1C3D5A;        /* 藍アクセント（D踏襲） */
     --ai-pill:rgba(28,61,90,.10); /* 藍10%＝現在地チップ/現在話行の地 */
@@ -37,24 +41,24 @@
   .back svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8}
   .htxt{min-width:0}
   .htxt h1{font-family:var(--gothic);font-weight:700;font-size:18px;color:var(--ink);line-height:1.2}
-  .htxt .work{font-family:var(--mincho);font-size:13px;color:var(--ink-soft);margin-top:2px;
+  .htxt .work{font-family:var(--mincho);font-size:13px;color:var(--info);margin-top:2px;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   /* 現在地バー: 左＝現在話チップ（藍10%地・藍字・タップで該当行へ）／右＝進捗 */
   .here{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px}
   .herechip{display:inline-flex;align-items:center;gap:6px;background:var(--ai-pill);color:var(--ai);
     font-size:12.5px;font-weight:700;border-radius:999px;padding:6px 14px;cursor:pointer}
-  .prog{font-size:12px;color:var(--ink-soft);flex-shrink:0}
+  .prog{font-size:12px;color:var(--info);flex-shrink:0}
 
   .scroll{flex:1;overflow:auto;padding:2px 0 20px}
 
-  /* 章行: 話数=ゴシック12px ink-soft ／ 題名=明朝15px。左ルール分の余白を全行で確保し整列 */
+  /* 章行: 話数=ゴシック12px info（意味メタ） ／ 題名=明朝15px。左ルール分の余白を全行で確保し整列 */
   .row{display:flex;align-items:center;gap:12px;padding:15px 18px 15px 15px;border-left:3px solid transparent;
     border-bottom:1px solid var(--line);cursor:pointer}
-  .row .ep{font-family:var(--gothic);font-size:12px;color:var(--ink-soft);width:44px;flex-shrink:0}
+  .row .ep{font-family:var(--gothic);font-size:12px;color:var(--info);width:44px;flex-shrink:0}
   .row .tt{flex:1;min-width:0;font-family:var(--mincho);font-size:15px;color:var(--ink);line-height:1.5}
   .row .end{flex-shrink:0;display:flex;align-items:center}
-  .row .end svg{width:16px;height:16px;stroke:var(--ink-soft);fill:none;stroke-width:2}
+  .row .end svg{width:16px;height:16px;stroke:var(--info);fill:none;stroke-width:2}
 
   /* 既読: 題名を沈めて行末に✓ */
   .row.read .tt{color:var(--ink-soft)}

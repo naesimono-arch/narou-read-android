@@ -8,6 +8,16 @@
   書影色相はグリッド正本（1冊=1色相の正）に一致（2026-07-26 是正: 辺境ぐらし hsl95→50・異界の栞 hsl150→25）。
   ヘッダ／フィルタチップ／ボトムナビは bookshelf-K.html と同一マークアップ（グリッド↔リストは表示切替で往復）。
   トークンは K 正本を流用（新色なし・余白7段スケール）。
+
+  【2026-08-06 逆同期（golden BookshelfK_list_mixed_light 起点・bookshelf-K.html と同一規則）】
+  ・旧 K 専用 ink-soft #6A6E78 は実装不採用＝装飾補助（チップ非選択/⋮/タブラベル）は --ink-soft #7C808B
+    （OnSurfaceVariantLight）・意味メタ（冊数/著者・状態行）は --info #5C606D（InfoTextLight）へ役割分離。
+  ・冊数＝基線揃え 16px semibold（実装 titleMedium＋infoText）・ttl gap 10→8px（S8）。⋮グリフ 16→18px。
+  ・--field #F0EFEE（実装は行地へ onSurface 5% かぶせ＝グリッド正本と同じ焼き込み値）。
+  ・golden との既知乖離（意匠裁定待ち＝ここでは直さない）: 行ヘアライン --line #ECEAE4 vs 実装
+    ShelfHairlineLight #E4E2DB・未取込行メタ色（実装は著者ごと secondary #9CB3A8＝--seiji-ink 温存）・
+    メタ行 13px vs 実装 FontMicroLabel 10.5sp・題字 16px vs FontCardTitle 16.5sp・
+    未読の藍ドット（実装は「● 未読」）と新着「続きN話」バッジがモック不在・表示切替アイコンの向き。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -17,10 +27,12 @@
 <title>K 本棚 — リスト（圧縮S）</title>
 <style>
   :root{
-    --base:#FBFAF8; --ink:#1C1F26; --ink-soft:#6A6E78; --line:#ECEAE4;
+    --base:#FBFAF8; --ink:#1C1F26; --line:#ECEAE4;
+    --ink-soft:#7C808B;    /* 装飾補助（OnSurfaceVariantLight 実値。チップ非選択/⋮/タブラベル） */
+    --info:#5C606D;        /* 意味メタ（InfoTextLight 実値。冊数/著者・状態行＝AA 暗化シェード） */
     --ai:#1C3D5A; --ai-tint:rgba(28,61,90,.10);
     --seiji-ink:#50685C;   /* 青磁ink（Web未取込の破線署名・グリッド正本と同値） */
-    --field:#F0EEE8;       /* 一段沈めた紙地（未取込行の地・グリッド正本と同値） */
+    --field:#F0EFEE;       /* 一段沈めた紙地（実装＝行地 #FBFAF8 へ onSurface 5% かぶせ・グリッド正本と同値） */
     --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   }
@@ -38,9 +50,10 @@
 
   /* ヘッダ（bookshelf-K と同一マークアップ・表示切替＝グリッドへ戻る） */
   .head{flex-shrink:0;display:flex;align-items:baseline;justify-content:space-between;padding:6px 20px 12px}
-  .head .ttl{display:flex;align-items:baseline;gap:10px}
+  .head .ttl{display:flex;align-items:baseline;gap:8px} /* 実装 Spacer S8 */
   .head h1{font-family:var(--gothic);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.04em}
-  .head .count{font-size:12px;color:var(--ink-soft);letter-spacing:.06em}
+  /* 冊数＝見出しの従属要素として基線と大きさで紐付ける（実装 titleMedium 16sp semibold＋infoText） */
+  .head .count{font-size:16px;font-weight:600;color:var(--info);letter-spacing:.02em}
   .head .view{width:38px;height:38px;border:none;background:transparent;border-radius:10px;
     display:grid;place-items:center;color:var(--ink);cursor:pointer;align-self:center}
   .head .view:hover{background:var(--line)}
@@ -64,11 +77,12 @@
   .lc .bd{flex:1;min-width:0}
   .lc .t{font-family:var(--mincho);font-size:16px;color:var(--ink);line-height:1.5;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  /* 著者・状態を「・」区切りで1メタ行に統合（圧縮S から温存）。区切りは中黒＝flex gap を使わず余白スケール逸脱を避ける */
-  .lc .m{font-family:var(--gothic);font-size:13px;color:var(--ink-soft);margin-top:4px;line-height:1.4}
+  /* 著者・状態を「・」区切りで1メタ行に統合（圧縮S から温存）。区切りは中黒＝flex gap を使わず余白スケール逸脱を避ける。
+     色は意味メタ＝--info（実装 infoText） */
+  .lc .m{font-family:var(--gothic);font-size:13px;color:var(--info);margin-top:4px;line-height:1.4}
   .lc .dots{width:32px;height:32px;flex-shrink:0;border:none;background:transparent;color:var(--ink-soft);
     display:grid;place-items:center;cursor:pointer}
-  .lc .dots svg{width:16px;height:16px;fill:currentColor}
+  .lc .dots svg{width:18px;height:18px;fill:currentColor} /* 実装グリフ 18dp */
 
   /* Web未取込行（破線＝グリッド正本 .cv.narou と同値: 1.5px dashed 青磁・field 沈め）。
      行全体を中空フレームで括り「まだ手元にない一冊」を目録でも同じ言葉で示す。帯は枠の左角丸6pxを

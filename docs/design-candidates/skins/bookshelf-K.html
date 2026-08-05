@@ -3,8 +3,10 @@
   スキンK「明快」= 新デフォルト。思想は「装飾でなく構造の明快化」。
   ・恒常ボトムナビ3タブ〈本棚／さがす／設定〉＝現在地と目的地一覧を常時可視化。
   ・全画面に明示タイトル・ラベル付きアイコン・過剰装飾を排し一画面一強調（藍＝CTA/選択中のみ）。
-  色は新パレットを発明せず D トークン（和紙地/藍/ink系）を再利用し、コントラストのみ AA(4.5:1) へ引き上げ。
-  → ink-soft は D #7C808B（地上約3.7:1＝AA未達）を #6A6E78（約4.8:1）へ引き上げた K 専用値。
+  色は新パレットを発明せず D トークン（和紙地/藍/ink系）を再利用する。
+  → 補助文字は実装で2役へ分離（旧 K 専用値 #6A6E78 は不採用）: 装飾補助＝--ink-soft #7C808B
+    （OnSurfaceVariantLight・チップ非選択/⋮/タブラベル）／意味メタ＝--info #5C606D
+    （InfoTextLight・冊数/状態行。AA は暗化シェード側で担保＝ADR 0014-D の役割分離）。
   UIラベル=ゴシック・書名=明朝は既存 Typography 踏襲。ライトテーマのみのモック。
 
   【2026-07-24 更新（UIラウンド最終裁定の正本昇格・plan ui-density-swipe-round-2026-07-24 §最終裁定まとめ）】
@@ -14,6 +16,16 @@
   ・Web未取込カード＝D改（青磁1.5px破線フレームのみ・紙地一段沈め field 色・白ピル廃止・キャプション「なろう・未取込」）。
   ・可視⋮は書影上でなくキャプション行右端へ移設（縦題字との衝突回避・スクリム廃止＝旧「逆同期待ち」注記を消化）。
   ・ビューポート幅は実機実効 360dp（PGEM10 実測基準）。ヘッダ/フィルタチップ/ボトムナビ/FAB は現状維持。
+
+  【2026-08-06 逆同期（Roborazzi golden BookshelfK_grid_mixed_light 起点・実装準拠へ値を写す）】
+  ・ヘッダ冊数＝タイトルとベースライン揃えの 16px semibold・--info（実装 titleMedium＋infoText。
+    旧 12px は「小さくポツンと孤立」の 2026-07-23 指摘で実装側が先行是正済み）。ttl の gap 10→8px（S8）。
+  ・色トークンを実装実値へ: --ink-soft #7C808B／--info #5C606D 新設（上記の2役分離）・
+    --paper #FBFAF8（ShioriColors.paper＝SurfaceLight と同値）・--field #F0EFEE（実装は onSurface 5% かぶせ＝
+    251·.95+28·.05≈240/239/238 の焼き込み値）。
+  ・⋮タップ面 28→32px・グリフ 16→18px（実装 KCardMenuTapSize=32dp・アイコン 18dp）。
+  ・golden との既知乖離（意匠裁定待ち＝ここでは直さない）: 列間 24px（実装 S32）・表示切替アイコンの向き・
+    なろう・未取込ラベル色（実装 secondary #9CB3A8）・栞先端の TIPS 抽選意匠。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -25,13 +37,14 @@
   :root{
     --base:#FBFAF8;        /* 和紙地 */
     --ink:#1C1F26;         /* 主文字 */
-    --ink-soft:#6A6E78;    /* K専用: AA(4.5:1)へ引き上げた補助文字 */
+    --ink-soft:#7C808B;    /* 装飾補助（OnSurfaceVariantLight 実値。チップ非選択/⋮/タブラベル） */
+    --info:#5C606D;        /* 意味メタ（InfoTextLight 実値。冊数/状態行＝AA 暗化シェード） */
     --line:#ECEAE4;        /* ヘアライン */
     --ai:#1C3D5A;          /* 藍アクセント（CTA/選択中のみ） */
     --ai-tint:rgba(28,61,90,.10);
     --seiji-ink:#50685C;   /* 青磁ink（Web未取込の破線署名・既存トークン） */
-    --field:#F0EEE8;       /* 一段沈めた紙地（未取込カード地） */
-    --paper:#FDFCFA;       /* 栞書影の紙＝地色同値域（影で背景から浮かせる） */
+    --field:#F0EFEE;       /* 一段沈めた紙地（実装＝紙 #FBFAF8 へ onSurface 5% かぶせの焼き込み値） */
+    --paper:#FBFAF8;       /* 栞書影の紙＝実装 ShioriColors.paper（SurfaceLight 同値・影で背景から浮かせる） */
     --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   }
@@ -49,9 +62,10 @@
 
   /* ヘッダ: タイトル「本棚」ゴシック bold ＋ 薄く冊数 ＋ 右端に表示切替のみ（現状維持） */
   .head{flex-shrink:0;display:flex;align-items:baseline;justify-content:space-between;padding:6px 20px 12px}
-  .head .ttl{display:flex;align-items:baseline;gap:10px}
+  .head .ttl{display:flex;align-items:baseline;gap:8px} /* 実装 Spacer S8 */
   .head h1{font-family:var(--gothic);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.04em}
-  .head .count{font-size:12px;color:var(--ink-soft);letter-spacing:.06em}
+  /* 冊数＝見出しの従属要素として基線と大きさで紐付ける（実装 titleMedium 16sp semibold＋infoText） */
+  .head .count{font-size:16px;font-weight:600;color:var(--info);letter-spacing:.02em}
   .head .view{width:38px;height:38px;border:none;background:transparent;border-radius:10px;
     display:grid;place-items:center;color:var(--ink);cursor:pointer;align-self:center}
   .head .view:hover{background:var(--line)}
@@ -93,11 +107,12 @@
   .cap{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-top:8px}
   .cap .t{flex:1;min-width:0;font-family:var(--mincho);font-size:12px;color:var(--ink);line-height:1.4;
     display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
-  .cap .dots{width:28px;height:28px;flex-shrink:0;border:none;background:transparent;color:var(--ink-soft);
+  /* ⋮＝実装 KCardMenuTapSize 32dp・グリフ 18dp（装飾操作＝ink-soft） */
+  .cap .dots{width:32px;height:32px;flex-shrink:0;border:none;background:transparent;color:var(--ink-soft);
     display:grid;place-items:center;cursor:pointer;margin-top:-2px}
-  .cap .dots svg{width:16px;height:16px;fill:currentColor}
-  /* 進捗／状態バッジ（ゴシック・ink-soft） */
-  .st{margin-top:4px;font-size:10.5px;color:var(--ink-soft);letter-spacing:.03em;
+  .cap .dots svg{width:18px;height:18px;fill:currentColor}
+  /* 進捗／状態バッジ（ゴシック・意味メタ＝--info） */
+  .st{margin-top:4px;font-size:10.5px;color:var(--info);letter-spacing:.03em;
     display:flex;align-items:center;gap:5px;min-height:14px}
   .st .dot{width:6px;height:6px;border-radius:50%;background:var(--ai);flex-shrink:0}
   .st.narou{color:var(--seiji-ink)} /* なろう・未取込＝D改の青磁テキスト署名 */
