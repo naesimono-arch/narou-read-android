@@ -184,8 +184,17 @@
 
 ## リファクタ / 技術的負債（deferred）
 
-- **[大物・1便で]** Kotlin 2.x ＋ compose compiler plugin ＋ Roborazzi の同時バンプ（据え置き中の `tracing-ktx` も同乗）。
-  **分割しても進まない**構造的理由・段階表・golden 再記録の見込み＝**ADR 0029**。
+- **[大物・実装は完了・残るはマージ判断]** Kotlin 2.x 一括バンプは **2026-08-05 に別ブランチで完遂**——
+  ブランチ `deps/kotlin2-oneshot-2026-08-05-r2`（worktree `…/.claude/worktrees/agent-a54327ab5f2ac65fc`・**未 push・未マージ**）。
+  Kotlin 2.2.21／compose compiler plugin 2.2.21／KSP 2.2.21-2.0.5／**Room 2.8.4**／Roborazzi 1.70.0／**AGP 8.10.1**／tracing 1.3.0。
+  **ゲート7つ全緑**（単体1216件失敗0・golden 100枚 unchanged で再記録ゼロ・lint errors 0・release R8 警告0・androidTest/benchmark コンパイル・tokens NG0）。
+  ADR 0029 に増補済み（第4の連鎖＝Room が KSP2 必須で 2.7.0 以降、第5の連鎖＝AGP 同梱 R8 が Kotlin 2.2 メタデータを読めず
+  **「緑のまま壊れている」**状態だったため AGP も上げる必要があった）。
+  - **やること＝このブランチを取り込むかの判断と実行**（現行作業ブランチとの統合順序・タイミング）。⚠️ 取り込み前に**実機系が3つ未消化**＝
+    release R8 の実機回帰・macrobenchmark 実走・`MigrationTest`（androidTest・Room 2.8.4 の `MigrationTestHelper` が旧書式 JSON を読めるかは端末で要確認）。
+  - 派生の宿題2件（本便では意図的に触っていない）: ①`:app:ktlintCheck` が2件赤＝`Probe3MeasureCost.kt:28`・`Probe4ReverseLayout.kt:22` の
+    未使用 import（**本便と無関係の既存債**・CI は continue-on-error）②Kotlin 2.2 の KT-73255 警告（Moshi の `@Json` 付き引数で多数）＝
+    `-Xannotation-default-target` は挙動を変える指定なので方針を決めてから別便で。
 - **[実機・要再測] 本棚スクロールの「リスト面」ベースラインが未取得**（2026-08-05 にシーダーを是正した副産物）:
   `BookshelfScrollBenchmark.scrollList` はこれまで面を指定できておらず K のグリッドを測っていた。
   シーダーが `k_grid_view` も書くようにしたので**次の実機走行で初めてリスト面の実数が出る**＝
