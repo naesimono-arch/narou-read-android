@@ -5,6 +5,10 @@ plugins {
     // 退避して process death 復帰させるため（F-C/F-E）。Set<enum> や入れ子 data class を含むため手書き
     // シリアライズは分岐が多く退行しやすい。@Parcelize なら構造追従が自動で、フィールド追加時の更新漏れも防げる。
     id 'org.jetbrains.kotlin.plugin.parcelize'
+    // Compose コンパイラ（KGP 2.x 必須）。Kotlin 2.0 で Compose コンパイラが Kotlin リポジトリへ移管され、
+    // composeOptions.kotlinCompilerExtensionVersion による独立採番の指定は廃止＝本プラグインが正規の供給経路。
+    // 版は settings.gradle で Kotlin 本体と揃えて宣言する（ズレると即ビルド破綻）。
+    id 'org.jetbrains.kotlin.plugin.compose'
     id 'com.google.devtools.ksp'
     // Roborazzi: 葉 Composable のスクリーンショット回帰（テーマ退行・トークン波及・フォントスケール破綻の機械検知）。
     // recordRoborazziDebug / verifyRoborazziDebug タスクを供給する（ADR 0009 増補1）。
@@ -77,7 +81,8 @@ android {
     // compileSdk 36・targetSdk 36: Google Play の新規アプリ向け targetSdk 要件に合わせた公開準備の移行（2026-07-29）。
     // 34→36 は 35 の挙動変更も一度に受ける（edge-to-edge 強制・predictive back 既定 ON）。
     // 天井が外れて据え置いていた依存（lifecycle/work/Compose BOM 等）は 2026-07-30 に一括バンプ済み。
-    // 以後の上限を決めるのは compileSdk ではなく **Kotlin 1.9.22（KGP 1.9.22）** 側＝各依存のコメント参照。
+    // その後の上限だった **Kotlin 1.9.22** も 2026-08-05 の1便で 2.2.21 へ移行し解消（ADR 0029）。
+    // 現在の上限は AGP 8.10.1 / Gradle 8.11.1 側＝各依存と settings.gradle のコメント参照。
     compileSdk 36
 
     defaultConfig {
@@ -146,23 +151,6 @@ android {
     }
     kotlinOptions {
         jvmTarget = '17'
-        // Compose 強い skipping（strong skipping）を有効化する。
-        // なぜ freeCompilerArgs の -P 直渡しか: 本プロジェクトは Kotlin 1.9.22＋composeOptions の
-        // kotlinCompilerExtensionVersion 1.5.10 構成（Kotlin 2.0 の compose plugin ではない）。この構成では
-        // strong skipping は既定 OFF の実験機能で、Compose Compiler プラグインへ experimentalStrongSkipping を
-        // 直接渡して有効化する（Kotlin 2.0.20+ のような既定 ON ではない）。
-        // なぜ有効化するか: unstable パラメータを持つ restartable Composable も skippable になり、@Immutable 化した
-        // SearchDraft/SearchFilters と併せて検索画面のチップ再コンポーズ負荷を下げる。ラムダは捕捉値ベースで自動 remember される。
-        freeCompilerArgs += ['-P', 'plugin:androidx.compose.compiler.plugins.kotlin:experimentalStrongSkipping=true']
-        // Compose compiler の stability/skippability レポート出力。
-        // なぜオプトイン(-PcomposeCompilerReports=true): 常時出力はビルド時間を無駄に増やすため、
-        // skippable 化の機械検証をしたいときだけ有効化する（従来は検証手段ゼロだった）。
-        // layout.buildDirectory 経由なので canonical ビルドの ext4 退避 buildDir にも追従する。
-        if (project.findProperty('composeCompilerReports') == 'true') {
-            def dest = project.layout.buildDirectory.dir('compose_compiler').get().asFile.absolutePath
-            freeCompilerArgs += ['-P', "plugin:androidx.compose.compiler.plugins.kotlin:reportsDestination=${dest}".toString(),
-                                 '-P', "plugin:androidx.compose.compiler.plugins.kotlin:metricsDestination=${dest}".toString()]
-        }
     }
     buildFeatures {
         compose true
@@ -170,9 +158,6 @@ android {
         // 露出するため BuildConfig.DEBUG を参照する（ADR 0023・release では常に false 扱い）。
         // 公開スコープ機能ゲート SKIN_SWITCHING_ENABLED（ADR 0027・上の buildTypes）も同じ生成物に載る。
         buildConfig true
-    }
-    composeOptions {
-        kotlinCompilerExtensionVersion '1.5.10'
     }
     testOptions {
         unitTests {
@@ -223,6 +208,27 @@ android {
     }
 }
 
+// Compose コンパイラの設定（KGP 2.x の compose plugin 拡張）。
+// 旧構成では kotlinOptions.freeCompilerArgs へ `-P plugin:androidx.compose.compiler...` を直渡ししていたが、
+// プラグイン移行後は -P 直渡しが二重指定になり得るため本 DSL が唯一の指定手段。
+//
+// ⚠ strong skipping について（旧 experimentalStrongSkipping=true の後継＝設定を消したのは無効化ではない）:
+// 本プロジェクトは検索画面のチップ再コンポーズ負荷を下げる目的で strong skipping を明示 ON にしていた
+// （unstable パラメータを持つ restartable Composable も skippable になり、ラムダは捕捉値ベースで自動 remember
+//  される）。Kotlin 2.0.20 以降 strong skipping は**既定 ON**になり、旧来の実験フラグは廃止された。
+// つまり指定を消しても挙動は維持される（むしろ既定で有効）＝OFF に倒すなら
+// featureFlags に ComposeFeatureFlag.StrongSkipping.disabled() を明示する必要がある。ここでは既定のままにする。
+composeCompiler {
+    // Compose compiler の stability/skippability レポート出力。
+    // なぜオプトイン(-PcomposeCompilerReports=true): 常時出力はビルド時間を無駄に増やすため、
+    // skippable 化の機械検証をしたいときだけ有効化する。
+    // layout.buildDirectory 経由なので canonical ビルドの ext4 退避 buildDir にも追従する。
+    if (project.findProperty('composeCompilerReports') == 'true') {
+        reportsDestination = layout.buildDirectory.dir('compose_compiler')
+        metricsDestination = layout.buildDirectory.dir('compose_compiler')
+    }
+}
+
 // Room スキーマ JSON の出力先（git 管理対象: android/app/schemas/）
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
@@ -237,17 +243,18 @@ dependencies {
     implementation 'androidx.profileinstaller:profileinstaller:1.4.1'
     // Perfetto トレース区間（androidx.tracing.trace）。取込パイプラインのフェーズを Macrobenchmark の
     // TraceSectionMetric で計測するために使う（挿入は Sections ラッパー経由＝JVM 単体テストは no-op で巻き込まない）。
-    // なぜ 1.2.0 据え置き（2026-07-30 再評価・compileSdk 天井とは無関係の恒久的な理由に置き換え）:
-    // 1.3.0 は Kotlin 2.0 でビルドされた版で、本プロジェクト（KGP 1.9.22）は消費対象外。実体の
-    // androidx.tracing:tracing-android:1.3.0 は @Metadata mv=2.0.0 / kotlin-stdlib 2.0.21 依存。
-    // ※ mv=2.0.0 自体は Kotlin 1.9.22 の受理上限とちょうど同値で（JvmMetadataVersion INSTANCE=1.9.0・
-    //   INSTANCE_NEXT=2.0.0）機械的に即死とは限らないが、AndroidX は「Kotlin 2.0 で出した版は
-    //   KGP 2.0.0+ でのみ消費可」と明言している。ベンダが非対応と言う組合せを実測なしで踏まない＝上げない。
-    // 併せて 1.3.0 では tracing-ktx が classes.jar 空の shim 化し実体が tracing-android へ移っており、
-    // 版だけ上げると解決される成果物の形まで変わる。Kotlin 2.x へ上げる便で一緒に見ること。
+    // なぜ tracing-ktx ではなく tracing（2026-08-05・Kotlin 2.x 化と同便で据え置きを解消）:
+    // 唯一の利用箇所である trace/Sections.kt は `androidx.tracing.Trace.beginSection/endSection`
+    // という **Java の static メソッド**だけを呼んでおり、ktx が足す唯一の API である
+    // `androidx.tracing.trace { }` 拡張関数は使っていない（同ファイルの KDoc が「ktx の trace は block が
+    // crossinline のため suspend 呼び出しを通せない」＝意図的に使わない理由を記録している）。
+    // よって ktx 側は不要＝基底 artifact だけで足りる。1.3.0 では tracing-ktx が classes.jar 空の shim になり
+    // 実体が tracing-android へ移るため、ktx 座標のまま上げると「空の shim を宣言している」状態になり読み違いを招く。
+    // 版 1.3.0 は Kotlin 2.0 ビルド（mv=2.0.0）で、KGP 1.9.22 時代は AndroidX が「KGP 2.0.0+ でのみ消費可」と
+    // 明言していたため据え置いていた（ADR 0029 の残り1件）。本便で KGP 2.2.21 になり前提が解消した。
     // 挿入コード自体は main（全 variant）に入るが android.os.Trace 可用性判定で
     // 実機のみ発行され、出荷挙動は不変（トレース捕捉が無ければネイティブ側で軽い no-op）。
-    implementation 'androidx.tracing:tracing-ktx:1.2.0'
+    implementation 'androidx.tracing:tracing:1.3.0'
     // JankStats: 実利用でのフレーム落ちを画面別に自己計測する（com.novelreader.diagnostics）。
     // なぜ Macrobenchmark と別に要るか: Macrobenchmark は「手元で決まった操作を測って予算を守る」回帰装置で、
     // 実機を日常使いしてもらったときにどの画面が落ちるかは測れない。JankStats は実行中のアプリ自身が
@@ -329,9 +336,25 @@ dependencies {
     implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
 
     // データベース (Room)
-    def room_version = "2.6.1"
+    // ── なぜ 2.8.4（2026-08-05・Kotlin 2.x 便で 2.6.1 から移行。これは「ついで」ではなく必須の連鎖）──
+    // Kotlin 2.2.x には KSP1 が存在せず KSP2 しか無い（KSP1 の `-1.0.x` は 2.1.20 で打ち止め）。
+    // ところが Room 2.6.1 の XProcessing は KSP2 が返す void の JVM シグネチャ `V` を解釈できず、
+    // DAO の Unit 返却メソッドを処理する時点で `IllegalStateException: unexpected jvm signature V` を投げて
+    // kspDebugKotlin が落ちる（本ブランチで実測）。つまり Kotlin 2.x 化は Room の引き上げを強制する。
+    // 2.7.0 が KSP2 対応の最初の版＝公式リリースノートの明示（"Support for KSP2 is also added and is
+    // recommended when using Room with Kotlin 2.0 or higher." / "Room now targets Kotlin language 2.0"）。
+    // その中で最新安定の 2.8.4 を採るのは、room-compiler 2.8.4 の POM が要求する kotlin-stdlib が 2.2.0＝
+    // 本便の KGP 2.2.21 と同系列で、メタデータ受理上限の齟齬が構造的に起きないため（2.7.x は 2.0 系ビルド）。
+    // 2.8 系の追加要件は minSdk 23（本プロジェクト 26）と「Room Gradle Plugin を使う場合の AGP 8.4+」
+    // （本プロジェクトは Room Gradle Plugin を使わず上の ksp { arg(room.schemaLocation) } 方式なので AGP 要件は
+    //  そもそも掛からない。掛かったとしても現行 AGP は 8.4 より新しい＝settings.gradle 参照）＝いずれも充足。
+    // 版を上げるとスキーマ JSON の**書式だけ**変わる（Room 2.7+ が既定値を出力しなくなり notNull:false と
+    // 空の indices/foreignKeys/views が消える）。identityHash・createSql・列定義は不変であることを照合済み＝ADR 0029 増補1。
+    def room_version = "2.8.4"
     implementation "androidx.room:room-runtime:$room_version"
-    implementation "androidx.room:room-ktx:$room_version"
+    // room-ktx は 2.7.0 で room-runtime へ統合され空 artifact になった（公式: "the artifact is now blank.
+    // Please remove it from your dependency list."）。唯一の利用 API である androidx.room.withTransaction は
+    // room-runtime 側に移っているので、宣言を消しても呼び出し側は無変更で解決される。
     ksp "androidx.room:room-compiler:$room_version"
 
     // なろう公式API ディスカバリ (メタデータ取得のみ・本文は扱わない)。HTTP=Retrofit/OkHttp, JSON=Moshi codegen。
@@ -382,12 +405,13 @@ dependencies {
     // createComposeRule が起動する ComponentActivity の宣言を unit test の manifest に供給する。
     // debugImplementation 側にも在るが、testDebugUnitTest のクラスパスへ確実に載せるため明示追加。
     testImplementation 'androidx.compose.ui:ui-test-manifest'
-    // Roborazzi スクリーンショットテスト（ADR 0009 増補1）。版は Roborazzi プラグインと一致させる（1.30.1）。
+    // Roborazzi スクリーンショットテスト（ADR 0009 増補1）。版は Roborazzi プラグインと一致させる（1.70.0）。
     // roborazzi=キャプチャ/比較の中核、roborazzi-compose=onRoot().captureRoboImage 等 Compose 拡張、
     // roborazzi-junit-rule=RoborazziRule（本実装では未使用だが将来の自動命名運用に備え依存だけ入れる）。
-    testImplementation 'io.github.takahirom.roborazzi:roborazzi:1.30.1'
-    testImplementation 'io.github.takahirom.roborazzi:roborazzi-compose:1.30.1'
-    testImplementation 'io.github.takahirom.roborazzi:roborazzi-junit-rule:1.30.1'
+    // 選定根拠は settings.gradle のプラグイン宣言側コメント（Kotlin 2.2.21 との整合・golden 100枚が無変化だった実測）。
+    testImplementation 'io.github.takahirom.roborazzi:roborazzi:1.70.0'
+    testImplementation 'io.github.takahirom.roborazzi:roborazzi-compose:1.70.0'
+    testImplementation 'io.github.takahirom.roborazzi:roborazzi-junit-rule:1.70.0'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     // Room migration の実機検証（MigrationTestHelper）。identity hash 起因の起動即クラッシュを

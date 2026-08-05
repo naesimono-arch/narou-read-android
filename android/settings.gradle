@@ -9,15 +9,35 @@ pluginManagement {
         // Gradle は 8.11.1 以上が要件のため wrapper を先に上げてある（逆順だと構成段階で止まる）。
         id 'com.android.application' version '8.9.1' apply false
         id 'com.android.test' version '8.9.1' apply false
-        id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
+        // ── Kotlin 2.2.21（2026-08-05・ADR 0029 の1便で 1.9.22 から移行）──
+        // なぜ 2.2.21 か（Gradle wrapper 8.11.1 を動かさずに済む最新系列）:
+        // JetBrains の KGP 互換表で 2.2.20–2.2.21 は Gradle 7.6.3–8.14・AGP 7.3.1–8.11.1 が
+        // 「fully supported」＝本プロジェクトの Gradle 8.11.1 と AGP 8.9.1 が両方その内側に収まる。
+        // 隣の系列を採らない理由（いずれも一次ソース確認済み）:
+        //  ・2.1.20–2.1.21 は同表の AGP 上限が 8.7.2＝本プロジェクトの 8.9.1 が範囲外。
+        //  ・2.3.x は KGP 互換表には入るが、Android 公式の Kotlin/D8/R8 互換表が Kotlin 2.3 の必要 R8 を
+        //    8.13.19 と定めている＝AGP 8.13 系が要り、AGP 8.13 の最小 Gradle は 8.13 で wrapper 更新まで連鎖する。
+        //    加えて KSP は 2.3 から Kotlin 版を接頭辞に
+        //    持たない独立採番（2.3.0, 2.3.1, …）へ変わり、Kotlin との対応関係を版名から読めなくなる。
+        // ＝2.2.21 は「Gradle wrapper も AGP 系列も動かさずに済む最上位」。
+        id 'org.jetbrains.kotlin.android' version '2.2.21' apply false
         // なぜ Kotlin 本体と同一 version: parcelize は Kotlin コンパイラプラグインのため版ズレは即ビルド破綻する
-        id 'org.jetbrains.kotlin.plugin.parcelize' version '1.9.22' apply false
-        id 'com.google.devtools.ksp' version '1.9.22-1.0.17' apply false
-        // Roborazzi スクリーンショットテスト（ADR 0009 増補1）。version 1.30.1 は Kotlin 1.9.22 でビルドされた版で
-        // 本プロジェクトのコンパイラと一致するため、metadata バージョン不整合のリスクがない
-        // （新しい版は Kotlin 2.0 でビルドされ 1.9.22 コンパイラでの読み取りに難がある）＝据え置きの理由は Kotlin 側。
-        // AGP は 8.6.1 でビルドされた版だが、8.9.1 化（2026-07-29）後も全スクリーンショットテストの通過を実測済み。
-        id 'io.github.takahirom.roborazzi' version '1.30.1' apply false
+        id 'org.jetbrains.kotlin.plugin.parcelize' version '2.2.21' apply false
+        // Compose コンパイラ。KGP 2.0 で Kotlin リポジトリへ移り、composeOptions.kotlinCompilerExtensionVersion
+        // （旧: 独立採番 1.5.10）ではなく本プラグインで供給される＝版は必ず Kotlin 本体と一致させる。
+        id 'org.jetbrains.kotlin.plugin.compose' version '2.2.21' apply false
+        // KSP は Kotlin のコンパイラ API に直結するため接頭辞を Kotlin 版と完全一致させる（2.2.21-*）。
+        // 2.2.x 系で配信されるのは -2.0.x＝KSP2 のみ（KSP1 の -1.0.x は 2.1.20 で打ち止め）。
+        // 2.0.5 は 2.2.21 に対する最新パッチ。
+        id 'com.google.devtools.ksp' version '2.2.21-2.0.5' apply false
+        // Roborazzi スクリーンショットテスト（ADR 0009 増補1）。1.30.1（Kotlin 1.9.22 ビルド）からの移行。
+        // 旧版を動かせなかったのは「1.30.1 が Kotlin 1.9.22 ビルドで、Kotlin を上げると読めなくなる」側の理由
+        // ＝Kotlin 2.x 化と不可分。1.70.0 は現行の最新リリースで、要求する kotlin-stdlib は 2.0.21
+        // （`:app:dependencies` 実測。2.2.21 へ解決される）＝メタデータ受理上限に余裕がある。
+        // 重要な実測: **既存 golden 100枚が1枚も変化せず verify を通った**（changed=0 / unchanged=100）。
+        // つまり Kotlin 1.9.22＋compose compiler 1.5.10＋Roborazzi 1.30.1 時代に記録した画像と
+        // 描画結果が一致する＝本移行で意匠の退行は起きていない（再記録は不要だった）。
+        id 'io.github.takahirom.roborazzi' version '1.70.0' apply false
         // ktlint: 未使用 import の機械検知（2026-07-30 導入）。導入前は ktlint/detekt/spotless のいずれも無く、
         // Android Lint は未使用 import を既定で拾わない＋warning は非ブロックのため 87件/34ファイル 溜まっていた。
         // なぜ 12.3.0 か: 本プロジェクトの Gradle は 8.11.1。12.3.0 は Gradle 8 系（8.13）に追随した最後の系列で、

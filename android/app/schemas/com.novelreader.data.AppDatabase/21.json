@@ -41,44 +41,37 @@
           {
             "fieldPath": "ncode",
             "columnName": "ncode",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "contentSha256",
             "columnName": "contentSha256",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "shioriTipIndex",
             "columnName": "shioriTipIndex",
-            "affinity": "INTEGER",
-            "notNull": false
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "shioriLenFrac",
             "columnName": "shioriLenFrac",
-            "affinity": "REAL",
-            "notNull": false
+            "affinity": "REAL"
           },
           {
             "fieldPath": "sourceUri",
             "columnName": "sourceUri",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "sourceUrl",
             "columnName": "sourceUrl",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "sourceSite",
             "columnName": "sourceSite",
-            "affinity": "TEXT",
-            "notNull": false
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -86,9 +79,7 @@
           "columnNames": [
             "id"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "progress",
@@ -136,9 +127,7 @@
           "columnNames": [
             "bookId"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "pending_jobs",
@@ -168,9 +157,7 @@
           "columnNames": [
             "uri"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "web_novels",
@@ -212,9 +199,7 @@
           "columnNames": [
             "ncode"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "new_episode_marks",
@@ -244,9 +229,7 @@
           "columnNames": [
             "ncode"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       },
       {
         "tableName": "web_reading_progress",
@@ -276,12 +259,9 @@
           "columnNames": [
             "ncode"
           ]
-        },
-        "indices": [],
-        "foreignKeys": []
+        }
       }
     ],
-    "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
       "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '78b6908f53eaa30ff3f83d670ecd531d')"
