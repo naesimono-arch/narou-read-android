@@ -40,24 +40,48 @@ ktlint {
     }
 }
 
-// benchmark variant の assets へ載せる実PDF（追跡済み・約8.5MB の N6169DZ.pdf）の中間出力先。
-// layout.buildDirectory 経由なので canonical ビルドの ext4 退避 buildDir にも追従する（composeCompilerReports と同流儀）。
-def benchmarkPdfAssetsDir = layout.buildDirectory.dir('generated/benchmarkPdfAssets')
-
-// 大PDF取込ベンチ用に、追跡済みの実PDF 1本(N6169DZ.pdf)だけを benchmark の assets 中間ディレクトリへコピーする。
+// 大PDF取込ベンチ用に、追跡済みの実PDF 1本(N6169DZ.pdf)だけを benchmark の assets へコピーするタスク。
 // なぜ assets 同梱方式か（push 方式が Android 11+ で不成立）: Android 11+ は /sdcard/Android/data への adb push が
 // 不可・/data/local/tmp は SELinux で app 側から読めない＝「実PDF をアプリに読ませる」取込ベンチが push では成立しない。
-// benchmark variant 限定なので出荷 APK（debug/release）は不変。sample_pdfs を丸ごと srcDir にせず N6169DZ.pdf 1本だけを
+// benchmark variant 限定なので出荷 APK（debug/release）は不変。sample_pdfs を丸ごと assets にせず N6169DZ.pdf 1本だけを
 // copy し、他 PDF が APK に混入しないようにする（サイズ・攻撃面の抑制）。
-// destinationDir は中間ディレクトリのルート・子 spec の into('sample_pdfs') で asset エントリを
-// sample_pdfs/N6169DZ.pdf にする（ImportBenchReceiver の open パスと一致）。ルートを出力にするのは、
-// この TaskProvider を下の sourceSets.benchmark.assets.srcDir へそのまま渡すため（出力＝srcDir の根を一致させる）。
-def copyBenchmarkPdfAsset = tasks.register('copyBenchmarkPdfAsset', Copy) {
-    // rootProject.projectDir = android/（settings.gradle の位置）。sample_pdfs はリポジトリ直下＝android/../sample_pdfs。
-    from(rootProject.file('../sample_pdfs/N6169DZ.pdf')) {
-        into 'sample_pdfs'
+//
+// なぜ標準の Copy タスク＋sourceSets.assets.srcDir(TaskProvider) ではないか（2026-08-06 の潜伏バグ修理）:
+// AGP は android{} ブロック（DSL 評価時）に積まれた srcDir を variant 生成時に
+// DefaultSourcesProviderImpl.getSourceList → DefaultAndroidSourceDirectorySet.getSrcDirs()＝
+// project.files(...).getFiles() で**素の Set<File> に潰してから** FileBasedDirectoryEntryImpl（静的
+// ディレクトリ・生産者情報なし）へ包む。TaskProvider を渡しても builtBy がここで脱落するため、
+// copyBenchmarkPdfAsset は assembleBenchmark のタスクグラフに一切乗らず、build ディレクトリが
+// 白紙だと PDF 無しの APK が黙って出来上がる（AGP 8.6.1/8.9.1/8.10.1 のバイトコードで同一実装を
+// 確認済み＝バージョン非依存。過去に成功して見えたのは build 残存物による偶発）。
+// 正当な結線は variant API の addGeneratedSourceDirectory（下の androidComponents ブロック）一択で、
+// これは TaskProviderBasedDirectoryEntryImpl を作り mergeAssets だけでなく lintVitalAnalyzeBenchmark 等
+// 「この assets を読む全タスク」へ依存を自動配線する（手動 dependsOn の網羅が原理的に漏れる問題も解消）。
+// Copy タスクをやめて専用クラスにするのは、addGeneratedSourceDirectory が「AGP が出力先を注入できる
+// DirectoryProperty」を要求するのに対し Copy の destinationDir は素の File で注入を受けられないため。
+abstract class CopyBenchmarkPdfAssetTask extends DefaultTask {
+    @PathSensitive(PathSensitivity.NONE)
+    @InputFile
+    abstract RegularFileProperty getSourcePdf()
+
+    // 出力先は addGeneratedSourceDirectory が build/generated/... 配下へ注入する（自前で set しない）
+    @OutputDirectory
+    abstract DirectoryProperty getOutputDir()
+
+    @TaskAction
+    void copyPdf() {
+        // asset エントリを sample_pdfs/N6169DZ.pdf にする（ImportBenchReceiver の open パスと一致）
+        File destDir = new File(outputDir.get().asFile, 'sample_pdfs')
+        destDir.mkdirs()
+        File src = sourcePdf.get().asFile
+        java.nio.file.Files.copy(src.toPath(), new File(destDir, src.name).toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING)
     }
-    into benchmarkPdfAssetsDir
+}
+
+def copyBenchmarkPdfAsset = tasks.register('copyBenchmarkPdfAsset', CopyBenchmarkPdfAssetTask) {
+    // rootProject.projectDir = android/（settings.gradle の位置）。sample_pdfs はリポジトリ直下＝android/../sample_pdfs。
+    sourcePdf = rootProject.file('../sample_pdfs/N6169DZ.pdf')
 }
 
 // リリース署名の資格情報は local.properties（gitignore 済み）から読む。鍵ファイル自体はリポジトリ外に置き、
@@ -186,14 +210,9 @@ android {
     sourceSets {
         // Room の schemaLocation 出力（git 管理済み JSON）を androidTest から MigrationTestHelper で
         // 読めるようにする。過去版スキーマを assets として同梱しないと migration テストが書けない。
+        // （benchmark の実PDF assets はここに書かない: DSL の srcDir は TaskProvider の依存を運べない＝
+        //   経緯と機序は上の CopyBenchmarkPdfAssetTask のコメント。結線は下の androidComponents ブロック）
         androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
-        // 大PDF取込ベンチ（PdfImportBenchmark）が assets から実PDF を読むための追加 srcDir。
-        // benchmark variant にのみ適用＝debug/release の出荷 APK には一切載らない。
-        // TaskProvider をそのまま渡す＝srcDir の実体（Copy の出力）に暗黙のタスク依存が付き、
-        // merge だけでなく lint 系など「この assets を読む全タスク」へ Gradle が依存を自動配線する
-        // （dir だけ渡して merge に手動 dependsOn する方式は lintVitalAnalyzeBenchmark 等の
-        //  implicit_dependency 検証エラーになることを実測＝手動配線の網羅は原理的に漏れる）。
-        benchmark.assets.srcDir(copyBenchmarkPdfAsset)
     }
     packagingOptions {
         resources {
@@ -220,6 +239,18 @@ android {
         //
         //   ①②は別物なので両方要る（①は APK 内の配置・②は .so 自身の作り。①だけ通っても②が 0x1000 なら実機で落ちる）。
         //   実測値: 2026-07-30 時点の release APK は .so 8 本すべて 0x4000・① も合格。
+    }
+}
+
+// benchmark variant の assets へ実PDF コピーの出力を「タスク依存ごと」結線する。
+// なぜ variant API か・なぜ DSL の sourceSets.assets.srcDir(TaskProvider) では駄目か＝
+// 上の CopyBenchmarkPdfAssetTask のコメント参照（DSL 経路は builtBy が脱落しグラフに乗らない）。
+// addGeneratedSourceDirectory は AGP が出力先（build/generated/assets/...）を outputDir へ注入し、
+// TaskProviderBasedDirectoryEntryImpl 経由で mergeBenchmarkAssets・lintVitalAnalyzeBenchmark 等の
+// 消費側全部へ依存を自動配線する（variant API 7.x〜 の安定APIで AGP 8.6/8.9/8.10 いずれでも同挙動）。
+androidComponents {
+    onVariants(selector().withBuildType('benchmark')) { variant ->
+        variant.sources.assets.addGeneratedSourceDirectory(copyBenchmarkPdfAsset, { it.outputDir })
     }
 }
 

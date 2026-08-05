@@ -172,15 +172,11 @@
 - **[小・後始末] 旧 r1 worktree が dirty で残置**: `…/.claude/worktrees/agent-a6f1a16df9c6147de`（ブランチ
   `deps/kotlin2-oneshot-2026-08-05`＝r2 に superseded）が modified/untracked を抱え `worktree remove` を拒否（2026-08-06）。
   未抽出の知見が無いか中身を確認してから `--force` 撤去 or 退避する（恐れるべきは未抽出の知識ごと消すこと。r2 worktree は撤去済み）。
-- **[実機で発見・main でも再現の潜伏バグ] benchmark PDF 資産がタスクグラフ外**（2026-08-06 の Kotlin2 実機検証で発見）:
-  `android/app/build.gradle:59-65,181` の `srcDir(TaskProvider)` 結線では `copyBenchmarkPdfAsset` が assembleBenchmark の
-  依存に入らず、ベンチ APK に `assets/sample_pdfs/N6169DZ.pdf` が入らない（最終成功 07-18＝AGP 8.6.1 期）。
-  **真因（AGP のどの機序で依存が張られないか）を特定して修理**——copy 手動実行→再 merge の回避で PDF 入り APK は作れる。
-- **[修理後の切り分け] pdf-import ベンチが FGS timeout で完走しない**: 資産を入れた再走でも broadcast 受理→FGS
-  `startForegroundCount:0` のまま 20s で Stop FGS timeout→取込中断。同時間帯にベンチプロセスがヒープ飽和
-  （384MB・GC50回/13.6s ブロック）。targetSdk 34→36（07-29）以降 pdf-import の実走記録が無く**バンプ起因かは判定不能**。
-  ⚠️ main は `minifyBenchmarkWithR8` が play-core-ktx の Missing class（R8 8.9.32）で**ビルド不能**＝旧環境比較には
-  この解消が先行条件（Kotlin2 側は R8 8.10.24 で通る＝ビルド可否はむしろ改善）。真因特定まで（timeout 延長で症状を隠さない）。
+- **[切り分け] pdf-import ベンチが FGS timeout で完走しない**（資産の結線は 2026-08-06 修理済み＝真因と正道は
+  `docs/knowledge/agp-srcdir-taskprovider-drops-builtby.md`）: broadcast 受理→FGS `startForegroundCount:0` のまま
+  20s で Stop FGS timeout→取込中断。同時間帯にベンチプロセスがヒープ飽和（384MB・GC50回/13.6s ブロック）。
+  targetSdk 34→36（07-29）以降 pdf-import の実走記録が無い。旧 main の R8 Missing class によるビルド不能は
+  Kotlin2 統合（2026-08-06）で解消済み＝現行環境で切り分け可能。真因特定まで（timeout 延長で症状を隠さない）。
 
 ## workflow / tooling
 
