@@ -183,8 +183,8 @@
   あわせて恒久規則**「先端ワンポイントが左右に動くときは栞の線も自然に追従（全 tip 固定・例外は design 上の
   こだわりとして理由明記時のみ）」**が裁定され、第2稿へ線追従層を適用済み（`.flw`＝付け根支点・装飾と同周期・遅相。
   横動が無い tip5/8 は縦張力の最小追従＝完全静的の例外 0件。9〜173 を作り込む際も同規則＝ファイル冒頭コメントが正本）。
-  **何を見れば決まるか**＝`mockview docs/design-candidates/bookshelf-shiori-highload-K.html`（線追従込みの改稿後）で
-  〈全体 GO／個別番号の差し戻し〉。**GO が出た分から Compose 実装へ**。
+  ✅ **2026-08-06 全体 GO（tip 0〜8・線追従込み）＝Compose 実装便へ移行済み**。残るは実装投入後の**実機目視**
+  （アニメは実機後詰め層＝ADR 0005 §B・PushNotification→目視 OK の通常フロー）と、9〜173 の作り込み（後続）。
   **GO が出た分から Compose 実装へ**。⚠️ 翻訳時の申し送り: tip5 の `filter: brightness/saturate` だけ
   Compose Canvas に等価物が無く、**色を HSL で算出して渡す**必要がある（他は Stroke(width)・Color.copy(alpha)・
   PathEffect.dashPathEffect(phase) で等価）。9〜173 は初稿の語彙割当のまま（`&lt;details&gt;` に畳んで残置）＝
