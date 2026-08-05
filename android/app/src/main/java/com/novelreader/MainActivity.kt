@@ -201,6 +201,15 @@ class MainActivity : ComponentActivity() {
                 highLoadSkyM = on
                 prefs.edit().putBoolean(PrefKeys.SKY_HIGH_LOAD_M, on).apply()
             }
+            // 栞アニメ高負荷（明快K・ADR 0023 の各UI展開＝2026-08-06 モック全体GO裁定）。上の highLoadSkyM と
+            // 同型の「MainActivity 巻き上げ＋prefs 永続・release は BuildConfig.DEBUG で潰して常時 OFF」。
+            var highLoadShioriK by remember {
+                mutableStateOf(BuildConfig.DEBUG && prefs.getBoolean(PrefKeys.SHIORI_HIGH_LOAD_K, false))
+            }
+            val onHighLoadShioriChange: (Boolean) -> Unit = { on ->
+                highLoadShioriK = on
+                prefs.edit().putBoolean(PrefKeys.SHIORI_HIGH_LOAD_K, on).apply()
+            }
 
             // Material3 配色もテーマ3値（ライト/セピア/ダーク）へ追従させる。
             // 旧実装はセピア時にライト配色を流用しており、本棚・発見系で「ライトとセピアの
@@ -216,6 +225,8 @@ class MainActivity : ComponentActivity() {
                     onSkinChange = onSkinChange,
                     highLoadSkyM = highLoadSkyM,
                     onHighLoadSkyChange = onHighLoadSkyChange,
+                    highLoadShioriK = highLoadShioriK,
+                    onHighLoadShioriChange = onHighLoadShioriChange,
                     // .value の読み取りを composable 内で行うことで onNewIntent の更新が再コンポーズを誘発する。
                     deepLinkBookId = deepLinkBookId.value,
                     onDeepLinkConsumed = { deepLinkBookId.value = null },
@@ -314,6 +325,9 @@ private fun NovelReaderApp(
     // 高負荷スカイ試作（ADR 0023）: backdrop へ渡す現在値＋設定画面（本棚⋮）のトグルが呼ぶ更新。debug 限定は呼び出し元で潰す。
     highLoadSkyM: Boolean,
     onHighLoadSkyChange: (Boolean) -> Unit,
+    // 栞アニメ高負荷（明快K・2026-08-06 裁定）: K 本棚の栞へ渡す現在値＋設定タブ開発節のトグルが呼ぶ更新。同上の debug 限定。
+    highLoadShioriK: Boolean,
+    onHighLoadShioriChange: (Boolean) -> Unit,
     deepLinkBookId: String?,
     onDeepLinkConsumed: () -> Unit,
     // P3 取込導線: 共有(SEND)/リンク(VIEW)からの Web 小説 URL（deepLinkBookId と同型・消費後に呼び元が null 戻し）。
@@ -533,6 +547,8 @@ private fun NovelReaderApp(
                 // 高負荷スカイ試作トグル（ADR 0023）＝本棚⋮メニュー（テーマ・通知の並ぶ設定面）に debug 限定で出す。
                 highLoadSkyM = highLoadSkyM,
                 onHighLoadSkyChange = onHighLoadSkyChange,
+                // 栞アニメ高負荷（明快K・2026-08-06 裁定）＝K 本棚の栞書影だけが読む（トグル UI は設定タブ開発節）。
+                highLoadShioriK = highLoadShioriK,
                 onOpenBook = { bookId, startFile ->
                     // launchSingleTop: 二度押しで同一読書画面がバックスタックに二重 push されるのを防ぐ（M1）。
                     navController.navigate("reading/$bookId/$startFile") { launchSingleTop = true }
@@ -587,6 +603,11 @@ private fun NovelReaderApp(
                         currentSkin = appSkin,
                         onOpenWardrobe = { navController.navigate("wardrobe") { launchSingleTop = true } },
                         skinSwitchingEnabled = skinSwitchingEnabled,
+                        // 栞アニメ高負荷（開発節・2026-08-06 裁定）。行の露出可否はここで BuildConfig を読んで供給
+                        // ＝JVM テストが release 側（行が消える）を引数で固定できる（ADR 0027 決定4 と同じ理由）。
+                        shioriHighLoadRowVisible = BuildConfig.DEBUG,
+                        shioriHighLoadK = highLoadShioriK,
+                        onShioriHighLoadChange = onHighLoadShioriChange,
                     )
                     },
                 ),

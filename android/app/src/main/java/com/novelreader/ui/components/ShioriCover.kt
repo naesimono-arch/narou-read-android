@@ -2,8 +2,12 @@ package com.novelreader.ui.components
 
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.provider.Settings
+import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -16,6 +20,7 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.novelreader.typeset.CharClassifier
@@ -61,6 +66,9 @@ private const val ShioriInnerBorderAlpha = 0.05f
  * @param accentOverride 識別色を差し替える（Web由来・未取込カードの青磁署名など・将来用）。null=title 生成色。
  * @param persistedTipIndex 取込時に抽選し BookEntity に永続化した先端種。null=未抽選（旧蔵書）＝title 由来の決定論値へフォールバック。
  * @param persistedLenFrac 取込時に抽選し永続化した棒長。null=同上。両者とも「非 null なら固定・null なら従来の見た目」。
+ * @param highLoadAnim 高負荷モードの栞アニメ（2026-08-06 ユーザー裁定＝モック bookshelf-shiori-highload-K.html 全体GO）。
+ *   false（既定）＝従来の完全静止パスを1命令も変えずに通す（既存 golden 非影響の構造保証）。true でも動くのは
+ *   〈tip 0〜8×生成色×アニメ非低減〉のときだけ（判定は shioriHighLoadActive・振り付け正本は ShioriHighLoadChoreo）。
  */
 @Composable
 internal fun ShioriCover(
@@ -69,6 +77,7 @@ internal fun ShioriCover(
     accentOverride: Color? = null,
     persistedTipIndex: Int? = null,
     persistedLenFrac: Float? = null,
+    highLoadAnim: Boolean = false,
 ) {
     // 紙／墨／識別色明度は現在スキン×変種から明示供給（旧 luminance/surface 推定を根絶）。
     // D では ライト・セピアは surface/onSurface と、ダークは cover 専用トークンと同値（SkinD.shiori）。
@@ -91,6 +100,23 @@ internal fun ShioriCover(
     // ShioriColors.ink＝D はライト/セピア=onSurface・ダーク=ShioriCoverInkDark）を名前付き alpha で薄める。
     val borderColor = ink.copy(alpha = ShioriInnerBorderAlpha)
 
+    // ── 高負荷アニメの合成判定（トグル OFF＝既定では一切の状態・購読を作らない） ──
+    // reduce-motion はモックの @media (prefers-reduced-motion) 相当＝完全静止（ADR 0022 §3 制約②と同型）。
+    // 判定源は既存流儀（NativeReadingScreen ほか）の ANIMATOR_DURATION_SCALE==0。
+    val reduceMotion = if (highLoadAnim) {
+        val ctx = LocalContext.current
+        remember(ctx) {
+            Settings.Global.getFloat(ctx.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+        }
+    } else {
+        false
+    }
+    val animActive = shioriHighLoadActive(highLoadAnim, accentOverride != null, params.tipIndex, reduceMotion)
+    // アニメ時計は合成時のみ購読（infiniteTransition 相当をトグル ON 時だけ組む＝OFF は既存 golden が1pxも変わらない）。
+    val animClock: State<Long>? = if (animActive) rememberShioriHighLoadClock() else null
+    // カード位相＝title 由来の決定論（棚全体が同期して踊らない。モックの JS 位相配布の写し＝/shiori-anim 等価表）。
+    val animPhaseSec = if (animActive) remember(title) { shioriHighLoadPhaseSec(title) } else 0f
+
     // 題字は Canvas 描画で text ノードを持たないため、表紙自体に contentDescription=題名 を与える。
     // なぜ必須か: これが無いとスクリーンリーダーがグリッドの作品名を読めない（a11y 退行）。
     Canvas(modifier.semantics { contentDescription = title }) {
@@ -105,17 +131,42 @@ internal fun ShioriCover(
         // 消える（実測: density4 で先端が針の点大に縮小）。基準150に対する実幅比 s を固定px意匠に掛け、
         // 相対サイズをモックと一致させる（棒位置 barX・長さ barLen は w/h 比例なので s を掛けない）。
         val s = w / 150f
-        // 棒＝天から色の細線。cap=Butt（正本 lineCap:'butt'＝天端を角で切る）。太さは固定px→s倍。
         val barX = (w * params.xFrac).roundToInt() + 0.5f
         val barLen = (h * params.lenFrac).roundToInt().toFloat()
-        drawLine(accent, Offset(barX, 0f), Offset(barX, barLen), 2.5f * s, StrokeCap.Butt)
-        // 先端＝種で1つ。棒先端(barX,barLen)を pivot に s 倍拡大し、モックの相対サイズを再現する
-        // （先端は固定px座標で描かれるため scale 変換で一括拡大＝各座標を書き換えず正本ロジックを保つ）。
-        // coerceIn は防御（tipCount とインデックスの不整合が起きても落とさない）。
-        scale(s, s, pivot = Offset(barX, barLen)) {
-            SHIORI_TIPS[params.tipIndex.coerceIn(0, SHIORI_TIPS.size - 1)](this, barX, barLen, accent, paper)
+        if (animClock == null) {
+            // ── 従来の完全静止パス（無改変）。トグル OFF・tip 9〜173・Web未取込・reduce-motion はここ ──
+            // 棒＝天から色の細線。cap=Butt（正本 lineCap:'butt'＝天端を角で切る）。太さは固定px→s倍。
+            drawLine(accent, Offset(barX, 0f), Offset(barX, barLen), 2.5f * s, StrokeCap.Butt)
+            // 先端＝種で1つ。棒先端(barX,barLen)を pivot に s 倍拡大し、モックの相対サイズを再現する
+            // （先端は固定px座標で描かれるため scale 変換で一括拡大＝各座標を書き換えず正本ロジックを保つ）。
+            // coerceIn は防御（tipCount とインデックスの不整合が起きても落とさない）。
+            scale(s, s, pivot = Offset(barX, barLen)) {
+                SHIORI_TIPS[params.tipIndex.coerceIn(0, SHIORI_TIPS.size - 1)](this, barX, barLen, accent, paper)
+            }
+        } else {
+            // ── 高負荷アニメ経路（tip 0〜8 専用振り付け＋線追従層＝ShioriHighLoadTips） ──
+            // 時計 State は draw ラムダ内でのみ読む＝毎フレームの無効化を描画フェーズに閉じる（再コンポーズ無し）。
+            val tSec = animClock.value / 1000f + animPhaseSec
+            drawShioriHighLoad(params.tipIndex, barX, barLen, s, accent, params.hue, shiori.accentLightness, tSec)
         }
         drawShioriTitle(title, w, h, ink)
+    }
+}
+
+/**
+ * 高負荷アニメの時計（起動からの経過ms）。withInfiniteAnimationFrameMillis を使う理由:
+ * テストの frame clock（InfiniteAnimationPolicy）に従うため＝Robolectric/compose テストで時間を静止・
+ * 任意送りできる（素の System.nanoTime だとテストから制御不能）。初回フレームを 0 に正規化するのは
+ * 端末稼働時間の巨大値を Float 秒へ落とした際の精度低下（周期ジッタ）を避けるため。
+ */
+@Composable
+private fun rememberShioriHighLoadClock(): State<Long> = produceState(0L) {
+    var start = -1L
+    while (true) {
+        withInfiniteAnimationFrameMillis { frame ->
+            if (start < 0) start = frame
+            value = frame - start
+        }
     }
 }
 

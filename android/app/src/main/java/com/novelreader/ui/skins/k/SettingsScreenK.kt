@@ -79,6 +79,13 @@ fun SettingsScreenK(
     // JVM テストが debug の BuildConfig しか見ず「行が消えている」側を固定できないため（ADR 0027 決定4）。
     // 本番の値は呼び出し元（MainActivity）が Features から供給する。
     skinSwitchingEnabled: Boolean,
+    // 栞アニメ高負荷（ADR 0023 の明快K展開・2026-08-06 裁定）。導線はモック申し送り②「設定面の開発節に1行」＝
+    // 星図M「高負荷スカイ（試作）」トグルと同型（debug 限定・release 常時 OFF）。露出可否を引数で受ける理由は
+    // 上の skinSwitchingEnabled と同じ（ADR 0027 決定4＝release 側の不在を JVM テストで固定する）。
+    // 既定 false / no-op＝既存呼び出し・設定画面 golden は1pxも変わらない（露出は MainActivity の本番配線のみ）。
+    shioriHighLoadRowVisible: Boolean = false,
+    shioriHighLoadK: Boolean = false,
+    onShioriHighLoadChange: (Boolean) -> Unit = {},
 ) {
     var showThemeDialog by remember { mutableStateOf(false) }
     var showHealthBoard by remember { mutableStateOf(false) }
@@ -195,6 +202,32 @@ fun SettingsScreenK(
                     },
                     onClick = { showHealthBoard = true },
                 )
+            }
+        }
+
+        // 開発節（栞アニメ高負荷・2026-08-06 裁定）。明快K 装着時のみ＝この試作は K 本棚の栞にしか効かない
+        //（星図M のトグルが LocalSkin で M に絞るのと同じ理由＝他スキンでは意味の無いノブを出さない）。
+        if (shioriHighLoadRowVisible && currentSkin == Skin.MEIKAI_K) {
+            KSettingsGroupLabel("開発")
+            KSettingsCard {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        // TalkBack で「ラベル＋説明＋スイッチ」を1トラバーサル単位に（通知トグル・星図M 開発節と同流儀）。
+                        .semantics(mergeDescendants = true) {}
+                        .padding(horizontal = Spacing.S16, vertical = Spacing.S12),
+                ) {
+                    Column(Modifier.weight(1f).padding(end = Spacing.S16)) {
+                        Text("栞アニメ（試作）", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "高負荷モード: 本棚の栞先端 0〜8 が動く（開発版のみ）",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = shioriHighLoadK, onCheckedChange = onShioriHighLoadChange)
+                }
             }
         }
 

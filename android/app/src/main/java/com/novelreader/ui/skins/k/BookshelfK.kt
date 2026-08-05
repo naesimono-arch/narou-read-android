@@ -167,6 +167,9 @@ internal fun BookshelfK(
     selection: ShelfSelection,
     webActions: ShelfWebActions,
     snackbarHostState: SnackbarHostState,
+    // 栞アニメ高負荷（ADR 0023 の明快K展開・2026-08-06 裁定）。蔵書グリッドの栞書影（tip 0〜8）だけが読む。
+    // 既定 false＝既存呼び出し（K の golden 含む）は完全静止の従来描画のまま。
+    highLoadShioriK: Boolean = false,
 ) {
     // ── 束の展開（本体の参照名を変えない局所別名＝挙動・描画とも既存と同一） ──
     val books = data.books
@@ -347,6 +350,7 @@ internal fun BookshelfK(
                                     modifier = Modifier.animateItem(),
                                     // 本文欠落（案B）: バッジ＋状態行の差し替え。文言は domain が正本。
                                     missingLabel = data.reimportPlans[item.book.id]?.let { reimportStatusLabel(it) },
+                                    highLoadAnim = highLoadShioriK,
                                 )
                                 // Web由来（未取込）。⋮単体の「本棚から外す」は確認を挟まない（失う進捗が無く即戻せる）。
                                 // 複数選択削除（系3）は確認ダイアログを挟む＝内訳文言で Web の可逆性を明示する。
@@ -647,6 +651,8 @@ private fun KGridBookCard(
     // 状態行をこの文言で置き換える（文言は domain.reimportStatusLabel が正本）。タップは onOpen のまま
     // ＝route 層が欠落本を復旧ダイアログへ差し替える（カードは知らない＝結線を一点に保つ）。
     missingLabel: String? = null,
+    // 栞アニメ高負荷（2026-08-06 裁定）: ShioriCover の高負荷経路へ素通し（対象判定は ShioriCover 側が持つ）。
+    highLoadAnim: Boolean = false,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val status = readingStatusFor(progress, totalChaps)
@@ -680,6 +686,7 @@ private fun KGridBookCard(
                 // 取込時に抽選・永続した先端種/棒長（旧蔵書は null＝title 由来へフォールバックで見た目不変・D と同じ）。
                 persistedTipIndex = book.shioriTipIndex,
                 persistedLenFrac = book.shioriLenFrac,
+                highLoadAnim = highLoadAnim,
             )
             // 選択中は書影へ藍の細縁取り＋淡い藍かぶせ（D の .bk.sel と同じ）。
             if (selected) {

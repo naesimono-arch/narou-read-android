@@ -120,6 +120,8 @@ fun BookshelfScreen(
     // 高負荷スカイ試作トグル（ADR 0023）。⋮メニュー（設定面）へ debug 限定で出す。既定 false / no-op は既存呼出し・テスト互換。
     highLoadSkyM: Boolean = false,
     onHighLoadSkyChange: (Boolean) -> Unit = {},
+    // 栞アニメ高負荷トグル（ADR 0023 の明快K展開・2026-08-06 裁定）。K 本棚の栞書影だけが読む。既定 false は同上の互換。
+    highLoadShioriK: Boolean = false,
     onOpenBook: (bookId: String, startFile: String) -> Unit,
     onOpenDiscovery: () -> Unit,
     // 装いの間（UIスキン選択）への入口。2026-07-29 K形正本追従で本棚の入口は撤去し設定タブ「きせかえ」へ移管
@@ -337,6 +339,7 @@ fun BookshelfScreen(
         snackbarHostState = snackbarHostState,
         highLoadSkyM = highLoadSkyM,
         onHighLoadSkyChange = onHighLoadSkyChange,
+        highLoadShioriK = highLoadShioriK,
         deferHeavyContent = deferHeavyContent,
         reimportPlans = reimportPlans,
         sweepBannerVisible = sweepBannerVisible,
@@ -846,6 +849,8 @@ internal fun BookshelfContent(
     // 既定 false / no-op を残す理由: debug 専用ノブで、未配線でも release 挙動が変わらない（欠陥クラス外）。
     highLoadSkyM: Boolean = false,
     onHighLoadSkyChange: (Boolean) -> Unit = {},
+    // 栞アニメ高負荷（明快K・2026-08-06 裁定）。K 構造（BookshelfK）へ素通し。既定 false の理由は上と同じ。
+    highLoadShioriK: Boolean = false,
     // 遷移ジャンク対策（P2・Perfetto 2026-07-16）: true の間（＝本棚の enter アニメ中）は重い Lazy コンテナを
     // スケルトンへ差替える。既定 false＝既存の呼出し・Robolectric テストの描画は完全に不変。
     deferHeavyContent: Boolean = false,
@@ -941,7 +946,7 @@ internal fun BookshelfContent(
     // 渡すシグネチャ自体が無い（コンパイル時制約）。null＝D/C はこの下の共通描画（D 構造へトークン写像）。
     // 各面は選択削除・Webカード操作・状態フィルタ・PDF追加・取込中バナー・スナックバー・空状態を全数
     // 引き継ぐ（本骨格所有の単一状態機械を共有渡し＝二重実装回避。上の BackHandler も 1 本のまま効く）。
-    when (val face = rememberShelfFace(highLoadSkyM, onHighLoadSkyChange)) {
+    when (val face = rememberShelfFace(highLoadSkyM, onHighLoadSkyChange, highLoadShioriK)) {
         is ShelfFace.Immersive -> {
             face.content(shelfData, chrome, actions, theme, snackbarHostState)
             return

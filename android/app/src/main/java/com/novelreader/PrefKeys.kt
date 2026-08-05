@@ -35,6 +35,9 @@ object PrefKeys {
     /** 高負荷スカイ試作トグル（Boolean・debug 限定＝ADR 0023）。 */
     const val SKY_HIGH_LOAD_M = "sky_high_load_m"
 
+    /** 栞アニメ高負荷トグル（Boolean・debug 限定＝ADR 0023 の明快K展開・2026-08-06 裁定。星図 SKY_HIGH_LOAD_M と同並び）。 */
+    const val SHIORI_HIGH_LOAD_K = "shiori_high_load_k"
+
     /** 新着話通知のオプトイン（Boolean・既定 false＝公理13）。 */
     const val NEW_EPISODE_NOTIFY_ENABLED = "new_episode_notify_enabled"
 

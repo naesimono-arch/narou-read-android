@@ -195,11 +195,14 @@ internal sealed interface ShelfFace {
  *
  * @param highLoadSkyM 高負荷スカイ試作トグル（ADR 0023・debug 限定）。M 構造だけが読む
  *   M 固有の素通しのため、共通の束に載せず引数でここまで運び M の面にだけ配る。
+ * @param highLoadShioriK 栞アニメ高負荷トグル（ADR 0023 の明快K展開・2026-08-06 裁定・debug 限定）。
+ *   K 構造だけが読む（highLoadSkyM と同じ理由で束に載せず K の面にだけ配る）。
  */
 @Composable
 internal fun rememberShelfFace(
     highLoadSkyM: Boolean,
     onHighLoadSkyChange: (Boolean) -> Unit,
+    highLoadShioriK: Boolean,
 ): ShelfFace? = when (LocalSkin.current) {
     Skin.SEIZU_M -> {
         // 星図⇄一覧（旧 m_sky_view）。既定 true＝M 装着時は星図で開く（ADR 0022 §1）。
@@ -302,6 +305,7 @@ internal fun rememberShelfFace(
                 selection = selection,
                 webActions = webActions,
                 snackbarHostState = snackbarHostState,
+                highLoadShioriK = highLoadShioriK,
             )
         }
     }
