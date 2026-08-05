@@ -8,7 +8,8 @@
 <title>C① 読書ギア代替導線 試作 — 和モダン余白</title>
 <style>
   /* C① 試作: 右上隅の「表示設定」歯車を撤去し、中央タップ→下端シートへ起動を移す探索。
-     上端は Up(←)＋章題のみ。表示設定シートは settings-D の .sheet をそのまま再利用（中身は不変）。
+     上端は Up(←)＋章題のみ。表示設定シートは settings-D の .sheet クラスタ（CSS）をそのまま再利用。
+     ※シートの DOM は 2026-08-05 以降 正本より項目が少ない縮約表示（理由は下の .sheet 直前コメント）。
      ※これは探索であって改善確約ではない（handover ★ 残1 C①）。 */
   :root{
     --ai:#1C3D5A;
@@ -98,8 +99,12 @@
   .lbl{font-family:var(--gothic);font-size:12px;color:var(--soft);letter-spacing:.06em;margin-bottom:12px}
   .sec{margin-bottom:24px}
   .sec:last-child{margin-bottom:4px}
+  /* 正本 settings-D の 2026-08-05 逆同期（テーマ4択化に伴う .chip の内側パディング）へ追従。
+     ここは flex:1 を残す＝この試作が描くのは「3択時点のシート」で、等幅のまま内側パディングだけ
+     正本値に揃える（DERIVED_SYNC が突合するのは padding のみ）。DOM を4択・縦書き・本文余白まで
+     写さない理由は下の .sheet DOM 側コメントに記す。 */
   .chips{display:flex;gap:12px}
-  .chip{flex:1;text-align:center;padding:12px 0;border-radius:10px;font-family:var(--gothic);font-size:13.5px;
+  .chip{flex:1;text-align:center;padding:12px 16px;border-radius:10px;font-family:var(--gothic);font-size:13.5px;
     border:1px solid var(--line);color:var(--ink);background:transparent;cursor:pointer}
   .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
   .slider{display:flex;align-items:center;gap:16px}
@@ -187,7 +192,7 @@
     <!-- 案A③ シート展開 -->
     <div class="wrap">
       <span class="mode">案A③ ／ 表示設定シート</span>
-      <span class="sub">「表示設定」タップで<b>下端シート</b>展開（settings-D 正本・中身不変）。テーマ／文字サイズ／行間。本文はうっすら残り<b>読書文脈を保つ</b>。</span>
+      <span class="sub">「表示設定」タップで<b>下端シート</b>展開（settings-D 正本の意匠）。ここでは導線を見るため<b>項目を縮約</b>（テーマ／文字サイズ／行間）。本文はうっすら残り<b>読書文脈を保つ</b>。</span>
       <div class="phone" role="img" aria-label="案A シート">
         <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
         <div class="topbar behind-dim">
@@ -199,6 +204,12 @@
           <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
         </div>
         <div class="scrim"></div>
+        <!-- シート DOM は「3択・スライダー2本」時点のまま意図的に据え置く（2026-08-05 の判断）。
+             正本 settings-D は同日に4択＋本文の向き＋本文余白へ逆同期したが、この試作の裁定対象は
+             シートの中身ではなく起動導線（歯車撤去→中央タップ→下端シート）であり、実項目を全部写すと
+             シート高が 344×680 の枠でほぼ全画面になり「本文がうっすら残る＝読書文脈を保つ」という
+             本案の主張そのものが画面から消える。よって『.sheet クラスタ（CSS）は正本再利用・DOM は
+             導線比較のための縮約表示』へ宣言を狭める。CSS の drift は DERIVED_SYNC が引き続き見張る。 -->
         <div class="sheet">
           <div class="grab"></div>
           <h2>表示設定</h2>
