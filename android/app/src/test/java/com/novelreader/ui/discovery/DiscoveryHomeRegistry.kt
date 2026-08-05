@@ -98,7 +98,8 @@ object DiscoveryHomeRegistry {
      */
     val acknowledgedOutOfScope: Map<String, String> = mapOf(
         "ui/discovery/DiscoveryResultScreen.kt#DiscoveryResultScreen" to
-            "結果一覧は「新クエリなら先頭表示が正」の解釈があり、位置保持を不変条件にするか未裁定（knowledge の未展開の同型）",
+            "結果一覧は「新クエリなら先頭表示が正」で裁定済み（2026-08-06 ユーザー追認＝2026-07-29 sweep ⑨の記録と一致）" +
+                "＝位置保持は不変条件の対象外として恒久登録",
         "ui/discovery/DiscoveryResultScreen.kt#DiscoveryResultContent" to
             "同上（結果一覧の D/C 共通描画）",
         "ui/skins/m/DiscoveryHomeSkyM.kt#DiscoveryResultSkyM" to "同上（結果一覧の M 実装）",
