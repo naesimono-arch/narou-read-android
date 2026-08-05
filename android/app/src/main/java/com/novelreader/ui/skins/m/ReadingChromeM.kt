@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -34,6 +35,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.novelreader.domain.complementNumber
+import com.novelreader.domain.displayLabel
+import com.novelreader.domain.splitChapterTitle
 import com.novelreader.ui.theme.BaseSeizu
 import com.novelreader.ui.theme.DimSeizu
 import com.novelreader.ui.theme.MinchoFamily
@@ -140,6 +144,10 @@ fun DrawScope.drawSeizuReadingScrim() {
 /**
  * 章扉（reading-M .chap-h）＝星座片＋漢数字の話数＋章題＋星線ルール。
  * 章題のサイズはユーザーの文字サイズ設定へ追従（D の ChapterHeader と同じ規格層追従）。
+ *
+ * 話数と題の分離（2026-08-06 裁定①・②③は推奨適用）: 原文接頭辞のある章はそれを話数側に・無い章だけ
+ * index から漢数字で補完し、題は接頭辞を除いた本体を出す——旧実装の「第 N 話」＋接頭辞込み原文 title の
+ * 話数二重（実バグ）を D/縦書きと同じ1系統の規則で解消する（M 固有の意匠は不変）。
  */
 @Composable
 fun ChapterHeaderM(
@@ -150,6 +158,9 @@ fun ChapterHeaderM(
     bodyMarginDp: Int,
     bodyMaxWidth: Dp,
 ) {
+    val parts = remember(title, chapterNumber) { splitChapterTitle(title, chapterNumber) }
+    val numText = parts.displayLabel()
+        ?: parts.complementNumber(chapterNumber)?.let { "第 ${kanjiNumber(it)} 話" }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -169,10 +180,10 @@ fun ChapterHeaderM(
             drawCircle(StarSeizu, 1.5f * sx, Offset(43 * sx, 17 * sy))
             drawCircle(StarSeizu, 2.4f * sx, Offset(51 * sx, 7 * sy))
         }
-        if (chapterNumber != null) {
+        if (numText != null) {
             Spacer(Modifier.height(Spacing.S12))
             Text(
-                text = "第 ${kanjiNumber(chapterNumber)} 話",
+                text = numText,
                 fontSize = 11.sp,              // .num 11px（ゴシック・字間 .32em・星光の金）
                 letterSpacing = 0.32.em,
                 color = colors.accent,
@@ -182,7 +193,7 @@ fun ChapterHeaderM(
         }
         Spacer(Modifier.height(Spacing.S12))
         Text(
-            text = title,
+            text = parts.body,
             fontFamily = MinchoFamily,
             fontSize = (fontSize + 2).sp,      // 規格層追従（D と同じ「本文＋2」）
             fontWeight = FontWeight.Medium,    // .t font-weight 500

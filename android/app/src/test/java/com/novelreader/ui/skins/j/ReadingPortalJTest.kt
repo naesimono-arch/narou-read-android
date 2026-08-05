@@ -60,6 +60,31 @@ class ReadingPortalJTest {
     }
 
     @Test
+    fun `原文接頭辞のある章は接頭辞を話数側に・題と象徴文字は本体から取る（話数二重の解消）`() {
+        // 2026-08-06 裁定①・②③は推奨適用: 旧実装は「第 一 話」と「０１．婚約の…」を同時に描いて
+        // 話数が二重だった。原文接頭辞を話数側へ移し、glyph（題頭文字の大象徴）も本体の頭文字に揃える。
+        composeTestRule.setContent {
+            ChapterHeaderJ(
+                title = "０１．婚約の継続をされたいのですか？",
+                chapterNumber = 1,
+                colors = colors,
+                readingTheme = ReadingTheme.DARK,
+                fontSize = 18,
+                bodyMarginDp = 26,
+                bodyMaxWidth = 600.dp,
+            )
+        }
+        composeTestRule.onNodeWithText("０１").assertIsDisplayed()
+        composeTestRule.onNodeWithText("婚約の継続をされたいのですか？").assertIsDisplayed()
+        // 接頭辞込みの原文題と index 補完の両方が消えている＝1系統になった証拠。
+        composeTestRule.onNodeWithText("０１．婚約の継続をされたいのですか？").assertDoesNotExist()
+        composeTestRule.onNodeWithText("第 一 話").assertDoesNotExist()
+        // glyph は題本体の頭文字（「０」ではなく「婚」）。
+        composeTestRule.onNodeWithText("婚").assertExists()
+        composeTestRule.onNodeWithText("０").assertDoesNotExist()
+    }
+
+    @Test
     fun `章末印は「— 第N話 了 —」を漢数字で出す（遊び心J2の相方）`() {
         composeTestRule.setContent {
             ChapterEndMarkJ(chapterNumber = 127, colors = colors)

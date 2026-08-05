@@ -47,6 +47,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.novelreader.domain.complementNumber
+import com.novelreader.domain.displayLabel
+import com.novelreader.domain.splitChapterTitle
 import com.novelreader.ui.skins.m.kanjiNumber
 import com.novelreader.ui.theme.AmbDarkGoldPortal
 import com.novelreader.ui.theme.AmbDarkMossPortal
@@ -124,6 +127,13 @@ fun ChapterHeaderJ(
     bodyMarginDp: Int,
     bodyMaxWidth: Dp,
 ) {
+    // 話数と題の分離（2026-08-06 裁定①・②③は推奨適用）: 原文接頭辞のある章はそれを話数側に・無い章だけ
+    // index から漢数字で補完し、題は接頭辞を除いた本体を出す——旧実装の「第 N 話」＋接頭辞込み原文 title の
+    // 話数二重（実バグ）を D/M/P と同じ1系統の規則で解消する。glyph も表示する題（body）の頭文字に揃える
+    // （`０１．…` の「０」が象徴文字になるのを防ぐ＝象徴は題の頭文字という意匠意図の維持）。
+    val parts = remember(title, chapterNumber) { splitChapterTitle(title, chapterNumber) }
+    val numText = parts.displayLabel()
+        ?: parts.complementNumber(chapterNumber)?.let { "第 ${kanjiNumber(it)} 話" }
     val amb = portalAmbientFor(readingTheme)
     Box(
         modifier = Modifier
@@ -155,7 +165,7 @@ fun ChapterHeaderJ(
         // はみ出しは親の clipToBounds が切る＝モックの絶対配置＋overflow:hidden と同挙動。
         Box(modifier = Modifier.matchParentSize(), contentAlignment = Alignment.TopCenter) {
             Text(
-                text = title.take(1),
+                text = parts.body.take(1),
                 fontFamily = MinchoFamily,        // .glyph font-family: --mincho
                 fontSize = 180.sp,                // .glyph 210px 相当の大象徴（clip 前提の巨大値）
                 color = amb.glyph,                // .glyph = --glyph（極淡・意味非搬送＝装飾）
@@ -172,9 +182,9 @@ fun ChapterHeaderJ(
                 .padding(top = Spacing.S40, bottom = Spacing.S8),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (chapterNumber != null) {
+            if (numText != null) {
                 Text(
-                    text = "第 ${kanjiNumber(chapterNumber)} 話",
+                    text = numText,
                     fontSize = 11.sp,             // .num 11px（ゴシック・字間 .34em・金）
                     letterSpacing = 0.34.em,
                     color = colors.accent,        // --accent（金＝構造/話数）
@@ -184,7 +194,7 @@ fun ChapterHeaderJ(
                 Spacer(Modifier.height(Spacing.S12)) // .t margin-top 14px → S12
             }
             Text(
-                text = title,
+                text = parts.body,
                 fontFamily = MinchoFamily,        // 本文組版＝明朝（規格層・不変）
                 fontSize = (fontSize + 2).sp,     // 規格層追従（D/M/P と同じ「本文＋2」）
                 fontWeight = FontWeight.SemiBold, // .t font-weight 600

@@ -76,6 +76,44 @@ class ReadingCartridgePTest {
     }
 
     @Test
+    fun `原文接頭辞のある章は接頭辞を話数側に・題は本体だけ出す（話数二重の解消）`() {
+        // 2026-08-06 裁定①・②③は推奨適用: 旧実装は「第1話 ／ 全340話」と「０１．婚約の…」を同時に
+        // 描いて話数が二重だった。原文接頭辞を話数側へ移し、「／ 全M話」（P 固有・重複しない）は保つ。
+        composeTestRule.setContent {
+            ChapterHeaderP(
+                title = "０１．婚約の継続をされたいのですか？",
+                chapterNumber = 1,
+                totalChapters = 340,
+                colors = colors,
+                fontSize = 18,
+                bodyMarginDp = 15,
+                bodyMaxWidth = 600.dp,
+            )
+        }
+        composeTestRule.onNodeWithText("０１ ／ 全340話").assertIsDisplayed()
+        composeTestRule.onNodeWithText("婚約の継続をされたいのですか？").assertIsDisplayed()
+        // 接頭辞込みの原文題と index 補完の両方が消えている＝1系統になった証拠。
+        composeTestRule.onNodeWithText("０１．婚約の継続をされたいのですか？").assertDoesNotExist()
+        composeTestRule.onNodeWithText("第1話 ／ 全340話").assertDoesNotExist()
+    }
+
+    @Test
+    fun `4桁話数でも書式が崩れない（実蔵書最大860話・なろう長編の4桁に備える）`() {
+        composeTestRule.setContent {
+            ChapterHeaderP(
+                title = "雨上がりの城門にて",
+                chapterNumber = 1024,
+                totalChapters = 1240,
+                colors = colors,
+                fontSize = 18,
+                bodyMarginDp = 15,
+                bodyMaxWidth = 600.dp,
+            )
+        }
+        composeTestRule.onNodeWithText("第1024話 ／ 全1240話").assertIsDisplayed()
+    }
+
+    @Test
     fun `連続プレイの炎は連続読書日数「N日」を出す（遊び心P3）`() {
         // データ源は未実装のため本番HUDでは未配線・非表示だが、部品自体は日数を正直に写して描く
         //（ダミー数値の捏造はしない＝呼び出し側が実データを渡すまで骨格から呼ばれない）。

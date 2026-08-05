@@ -2,8 +2,10 @@ package com.novelreader.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -23,6 +25,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
@@ -33,10 +36,15 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.novelreader.domain.complementNumber
+import com.novelreader.domain.displayLabel
+import com.novelreader.domain.splitChapterTitle
 import com.novelreader.model.ChapterContent
 import com.novelreader.model.TextSegment
 import com.novelreader.typeset.DefaultVerticalTypesetter
@@ -44,6 +52,8 @@ import com.novelreader.typeset.TypesetConstraints
 import com.novelreader.typeset.VerticalTypesetter
 import com.novelreader.typeset.render.PaintFontMetrics
 import com.novelreader.ui.compose.VerticalParagraph
+import com.novelreader.ui.skins.m.kanjiNumber
+import com.novelreader.ui.theme.GothicFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.Spacing
 import kotlinx.collections.immutable.ImmutableList
@@ -62,6 +72,13 @@ private const val HEADER_RULE_ALPHA = 0.85f
 // 章見出しルールの寸法（モック .chap-h .rule inline-size:48px×block-size:2px を縦線へ翻訳）。
 private val HeaderRuleLength = 48.dp
 private val HeaderRuleThickness = 2.dp
+// 話数ラベル（モック .chap-h .num: ゴシック 11px）。縦書きでも固定 11sp（横書き D/M/J の .num と同値）。
+private val HeaderNumFontSize = 11.sp
+// .num letter-spacing:.3em の縦書き等価＝字（マス）と字の間の縦方向ギャップ。
+private const val HEADER_NUM_LETTER_SPACING_EM = 0.3f
+// ラベル内の空白（「第 百二十七 話」の区切り空白）1つぶんの追加送り。CSS の半角空白の advance（約1/4em）を
+// 縦方向へ読み替えた自己判断値（モックに縦書き時の明示規定なし＝報告列挙対象）。
+private const val HEADER_NUM_SPACE_GAP_EM = 0.25f
 
 /**
  * 縦書き章本文を LazyRow(reverseLayout=true) でレンダリングする（P3）。
@@ -92,6 +109,9 @@ internal fun VerticalChapterContent(
     lazyListState: LazyListState = rememberLazyListState(),
     // 最終章末尾の継続導線スロット（横書きと同契約＝判断は呼び出し側）。null = 差し込まない。
     continuation: (@Composable () -> Unit)? = null,
+    // 目次順の話数（1始まり）。章見出しの話数ラベル用（横書き ChapterContent と同契約＝向きで見出しを
+    // 変えないため同便で受ける）。null＝目次未ロードで不明（接頭辞なし章はラベルを出さないだけ）。
+    chapterNumber: Int? = null,
 ) {
     val paragraphs = remember(content) { content.segments.splitIntoParagraphs() }
 
@@ -135,6 +155,7 @@ internal fun VerticalChapterContent(
         item {
             VerticalChapterHeader(
                 title = content.title,
+                chapterNumber = chapterNumber,
                 colors = colors,
                 fontSize = fontSize,
                 lineHeightEm = lineHeightEm,
@@ -175,19 +196,18 @@ internal fun VerticalChapterContent(
 }
 
 /**
- * 章見出し（モック .chap-h の縦書き翻訳）。題を縦書き明朝で組版し、その左（＝読み順で題の後）に藍の短い縦ルール。
+ * 章見出し（モック .chap-h の縦書き翻訳）。話数ラベル（.num）→題（.t）→藍の短い縦ルールを右→左に積む
+ * （縦書きの block 軸＝右→左。モック reading-vertical-scroll-D の margin-block-start 8px/16px と同間隔）。
  *
- * なぜ話数ラベル（モック .num ゴシック小）を今も出さないか: 横書き [ChapterContent] の ChapterHeader が
- * title 全体を1つに描くのと鏡写しに揃えているため。**残っているのは意匠の裁定だけ**で、実装側の器は
- * 2026-07-31 に用意した——分離は [com.novelreader.domain.splitChapterTitle]（純関数・目次順との照合つき）、
- * 書体は [com.novelreader.ui.theme.GothicFamily]。どちらもまだこの見出しは読んでいない（＝描画は不変）。
- * 裁定が要るのは「ラベルを出すか／生の接頭辞のままか M/P/J のように index から漢数字で組み直すか／
- * ゴシック化するか」＝正本モックの前例が要る意匠判断で、横書きの ChapterHeader と同時に決める必要がある
- * （縦だけ変えると同一スキン内で章見出しの構成が割れる）。
+ * 話数ラベル（2026-08-06 裁定①・②③は推奨適用）: 原文接頭辞があれば分離してラベルに・無い章だけ index
+ * から「第 N 話」（漢数字）を補完——横書き ChapterHeader と同じ規則（向きで同じ本の見出しを変えない）。
+ * ラベルはゴシック小・アクセント色（モック .num 規定）。縦書きの置き方は「1文字1マスを縦に積む・
+ * 連続半角英数は1マス（縦中横の慣行）」＝横書き規定の等価回転（モックの縦書き .num は漢数字例のみ）。
  */
 @Composable
 private fun VerticalChapterHeader(
     title: String,
+    chapterNumber: Int?,
     colors: ReadingColors,
     fontSize: Int,
     lineHeightEm: Float,
@@ -200,6 +220,11 @@ private fun VerticalChapterHeader(
     val headerRubyPx = headerFontPx * RUBY_FONT_SIZE_RATIO
     val headerAdvancePx = headerFontPx * lineHeightEm
 
+    // 分離規則は横書き ChapterHeader と同一（domain の純関数＝向きによる見出し差を構造的に防ぐ）。
+    val parts = remember(title, chapterNumber) { splitChapterTitle(title, chapterNumber) }
+    val numText = parts.displayLabel()
+        ?: parts.complementNumber(chapterNumber)?.let { "第 ${kanjiNumber(it)} 話" }
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxHeight()
@@ -207,9 +232,9 @@ private fun VerticalChapterHeader(
     ) {
         val columnHeightPx = constraints.maxHeight.toFloat()
         // 見出しは字下げしない（indentFirstColumn=false）。題は縦書き明朝で1〜複数列に組む。
-        val layout = remember(title, columnHeightPx, headerFontPx, headerAdvancePx) {
+        val layout = remember(parts.body, columnHeightPx, headerFontPx, headerAdvancePx) {
             typesetter.typeset(
-                listOf(TextSegment.Plain(title)),
+                listOf(TextSegment.Plain(parts.body)),
                 TypesetConstraints(
                     columnHeightPx = columnHeightPx,
                     fontSizePx = headerFontPx,
@@ -219,14 +244,20 @@ private fun VerticalChapterHeader(
                 ),
             )
         }
-        // Row（LTR）: 左＝ルール・右＝題。読み進めは右→左なので右端の題が先頭に来る（モックの right→left 積み）。
+        // Row（LTR）: 左から〈ルール・題・話数ラベル〉＝読み順（右→左）ではラベル→題→ルール。
+        // 見出し全体を1つの heading ノードに束ねる（ラベルの1マス Text 群を文字単位で読ませない・
+        // 読み上げ順もラベル→題の読み順に固定する）。
         Row(
             modifier = Modifier
                 .fillMaxHeight()
-                .padding(horizontal = Spacing.S16),
+                .padding(horizontal = Spacing.S16)
+                .clearAndSetSemantics {
+                    heading()
+                    contentDescription = if (numText != null) "$numText　${parts.body}" else parts.body
+                },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 藍の短い縦ルール（モック .chap-h .rule）。装飾のため semantics は付けない。
+            // 藍の短い縦ルール（モック .chap-h .rule）。装飾のため個別 semantics は持たない。
             // colors.rule を使う（DARK で accent と乖離＝横書き ChapterHeader と同じ理由）。
             Box(
                 modifier = Modifier
@@ -234,22 +265,88 @@ private fun VerticalChapterHeader(
                     .height(HeaderRuleLength)
                     .background(colors.rule.copy(alpha = HEADER_RULE_ALPHA)),
             )
-            Spacer(Modifier.width(Spacing.S16))
-            // 題（縦書き明朝・中央寄せ）。見出しジャンプ対象＝heading()、読み上げは題そのもの。
+            Spacer(Modifier.width(Spacing.S16)) // .rule margin-block-start:16px（題→ルールの横間隔）
+            // 題（縦書き明朝・中央寄せ）。
             VerticalParagraph(
                 layout = layout,
                 fontSizePx = headerFontPx,
                 rubyFontSizePx = headerRubyPx,
                 textColor = colors.text,
-                modifier = Modifier
-                    .align(Alignment.CenterVertically)
-                    .clearAndSetSemantics {
-                        heading()
-                        contentDescription = title
-                    },
+                modifier = Modifier.align(Alignment.CenterVertically),
             )
+            if (numText != null) {
+                Spacer(Modifier.width(Spacing.S8)) // .t margin-block-start:8px（ラベル→題の横間隔）
+                VerticalHeaderNum(numText = numText, colors = colors)
+            }
         }
     }
+}
+
+/**
+ * 縦書きの話数ラベル（モック .num のゴシック小・アクセント色を縦組みへ等価回転）。
+ * 1文字1マス（連続半角英数は1マス＝縦中横の慣行）を縦に積み、マス間に letter-spacing .3em の等価
+ * ギャップを置く。本文組版器を使わないのは、組版器が字間（letter-spacing）を持たず .3em の「ゆとり」
+ * ＝モック .num の署名を落とすため（短い1列固定のラベルに折り返し・ルビは不要＝Column で足りる）。
+ */
+@Composable
+private fun VerticalHeaderNum(numText: String, colors: ReadingColors) {
+    val density = LocalDensity.current
+    val letterGap = with(density) { (HeaderNumFontSize * HEADER_NUM_LETTER_SPACING_EM).toDp() }
+    val spaceGap = with(density) { (HeaderNumFontSize * HEADER_NUM_SPACE_GAP_EM).toDp() }
+    // 行箱を 1em に刈り込む（Trim.Both）＝spacedBy のギャップが正確に .3em になる（既定の行間 leading が
+    // 乗ると字間が font 依存で膨らむため）。
+    val numStyle = remember(colors.accent) {
+        TextStyle(
+            color = colors.accent,
+            fontSize = HeaderNumFontSize,
+            fontFamily = GothicFamily,
+            lineHeight = HeaderNumFontSize,
+            lineHeightStyle = LineHeightStyle(
+                alignment = LineHeightStyle.Alignment.Center,
+                trim = LineHeightStyle.Trim.Both,
+            ),
+        )
+    }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(letterGap),
+    ) {
+        numLabelUnits(numText).forEach { unit ->
+            if (unit.isBlank()) {
+                // ラベル内の空白（「第 百二十七 話」の区切り）＝空マスでなく小さめの送り（冒頭定数の why）。
+                Spacer(Modifier.height(spaceGap))
+            } else {
+                Text(
+                    text = unit,
+                    style = numStyle,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * ラベルを縦書きの1マス単位へ割る。連続する半角英数字は1マスに束ねる（`第127話` の `127` を縦中横として
+ * 1マスに横置き＝本文組版と同じ慣行）。空白は空白のまま返す（呼び出し側でギャップへ変換）。
+ */
+private fun numLabelUnits(label: String): List<String> {
+    val units = mutableListOf<String>()
+    val run = StringBuilder()
+    for (ch in label) {
+        if (ch in '0'..'9' || ch in 'A'..'Z' || ch in 'a'..'z') {
+            run.append(ch)
+        } else {
+            if (run.isNotEmpty()) {
+                units.add(run.toString())
+                run.clear()
+            }
+            units.add(ch.toString())
+        }
+    }
+    if (run.isNotEmpty()) units.add(run.toString())
+    return units
 }
 
 /** 1段落分を縦書きで描画する。空段落・hr・前後書きブロック・通常テキストの4種を横書き [ChapterContent] と対応させて分岐。 */

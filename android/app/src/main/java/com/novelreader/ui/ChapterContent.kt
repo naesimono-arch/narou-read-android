@@ -39,6 +39,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.novelreader.domain.complementNumber
+import com.novelreader.domain.displayLabel
+import com.novelreader.domain.splitChapterTitle
 import com.novelreader.model.ChapterContent
 import com.novelreader.model.TextSegment
 import com.novelreader.ui.compose.RubyText
@@ -47,8 +50,10 @@ import com.novelreader.ui.skins.j.ChapterHeaderJ
 import com.novelreader.ui.skins.j.SceneDividerJ
 import com.novelreader.ui.skins.m.ChapterHeaderM
 import com.novelreader.ui.skins.m.SceneDividerM
+import com.novelreader.ui.skins.m.kanjiNumber
 import com.novelreader.ui.skins.p.ChapterHeaderP
 import com.novelreader.ui.skins.p.SceneDividerP
+import com.novelreader.ui.theme.GothicFamily
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingTheme
@@ -198,6 +203,7 @@ internal fun ChapterContent(
                 // D/C（WAMODERN_D/YAKO_C）は共通の章見出し（else を書かず全列挙＝新スキンを compile error で捕捉）。
                 Skin.MEIKAI_K, Skin.WAMODERN_D, Skin.YAKO_C -> ChapterHeader(
                     title = content.title,
+                    chapterNumber = chapterNumber,
                     colors = colors,
                     fontSize = fontSize,
                     bodyMarginDp = bodyMarginDp,
@@ -259,16 +265,28 @@ internal fun ChapterContent(
     }
 }
 
-/** 章見出し（モック reading-D .chap-h）。章タイトルを明朝で中央寄せし、下に藍の短いルールを引く。 */
+/**
+ * 章見出し（モック reading-D .chap-h）。話数ラベル（.num）と題（.t）の2要素＋藍の短いルール。
+ * 2026-08-06 裁定①（話数ラベルを出す）・②③は推奨適用: 原文接頭辞があれば分離してラベル側に・
+ * 無い章だけ index から「第 N 話」（漢数字＝モック表記）を補完。ラベルはゴシック小・アクセント色、
+ * 題は明朝のまま（.t）。
+ */
 @Composable
 private fun ChapterHeader(
     title: String,
+    // 目次順の話数（1始まり）。null＝目次未ロードで不明（接頭辞なし章はラベル行ごと出さない）。
+    chapterNumber: Int?,
     colors: ReadingColors,
     fontSize: Int,
     bodyMarginDp: Int,
     // 本文と同一の字数基準の最大幅（版面を本文と揃える）
     bodyMaxWidth: Dp,
 ) {
+    // 分離は純関数（domain/ChapterTitle.kt）。expectedNumber に目次順を渡すのは「数字＋空白」形の
+    // 照合材料（一致したときだけ切る）のため。
+    val parts = remember(title, chapterNumber) { splitChapterTitle(title, chapterNumber) }
+    val numText = parts.displayLabel()
+        ?: parts.complementNumber(chapterNumber)?.let { "第 ${kanjiNumber(it)} 話" }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -278,8 +296,21 @@ private fun ChapterHeader(
             .padding(top = Spacing.S16, bottom = Spacing.S24),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        if (numText != null) {
+            // 話数ラベル（.num: ゴシック 11px・アクセント色・字間 .3em）。モック規定値の直訳。
+            Text(
+                text = numText,
+                fontFamily = GothicFamily,
+                fontSize = 11.sp,
+                letterSpacing = 0.3.em,
+                color = colors.accent,
+                textAlign = TextAlign.Center,
+            )
+            // 題との間隔（.t margin-top: 8px）
+            Spacer(Modifier.height(Spacing.S8))
+        }
         Text(
-            text = title,
+            text = parts.body,
             fontFamily = MinchoFamily,
             // 本文よりわずかに大きい見出しサイズ。ユーザーの文字サイズ設定にも追従させる。
             fontSize = (fontSize + 2).sp,

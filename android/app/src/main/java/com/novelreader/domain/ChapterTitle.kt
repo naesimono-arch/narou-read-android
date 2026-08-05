@@ -9,9 +9,9 @@ package com.novelreader.domain
  * 抱えており、両者を分けて扱う手段が存在しなかった（`ui/VerticalChapterContent.VerticalChapterHeader` の
  * KDoc が「分離したデータを持たない」と明記していたのがこれ）。本ファイルはその分離だけを提供する。
  *
- * **描画はまだどこもこの型を読んでいない**＝現状の見た目は1pxも変わらない。ラベルをどう組むか
- * （生の接頭辞のまま出すのか・M/P/J のように index から「第 百二十七 話」と漢数字で組み直すのか・
- * ゴシック化するのか・そもそも出すのか）は意匠＝design 裁定の領分なので、ここでは決めない。
+ * 2026-08-06 裁定①（話数ラベルを出す）で読書見出し（横書き ChapterHeader・縦書き VerticalChapterHeader・
+ * M/P/J 章扉）が本型を読むようになった。表示規則＝原文接頭辞があれば [displayLabel]・無い章だけ
+ * [complementNumber] で index から「第 N 話」を補完（②③は監督推奨の適用＝最終の見た目確認はユーザー実機目視）。
  */
 data class ChapterTitleParts(
     /** 切り出した話数（半角/全角数字を10進解釈）。null＝ラベルを見つけられなかった。 */
@@ -71,6 +71,33 @@ fun splitChapterTitle(title: String, expectedNumber: Int? = null): ChapterTitleP
     val number = parseEpisodeNumber(match.value) ?: return noLabel
     return ChapterTitleParts(episodeNumber = number, body = body, rawLabel = match.value)
 }
+
+// ---- 章見出し `.num` の表示判断（2026-08-06 裁定①〔話数ラベルを出す〕・②③は推奨適用） ----
+
+// ラベル末尾の区切り（約物・空白）。表示時は落とす——区切りの役目は「題との分離」で、
+// 2要素見出し（.num/.t）では構造がその役目を担うため、残すと区切り約物だけが宙に浮く。
+private val LABEL_TRAILING_SEPARATORS = charArrayOf('．', '.', '、', ':', '：', '　', ' ')
+
+/**
+ * `.num` に置く原文接頭辞の表示形（裁定②の「接頭辞あり」側）。null＝接頭辞なし。
+ * 例: `０１．` → `０１`／`第127話 ` → `第127話`（作者の番号付けの見え方＝ゼロ詰め・全角/半角を保つ）。
+ */
+fun ChapterTitleParts.displayLabel(): String? =
+    rawLabel?.trimEnd(*LABEL_TRAILING_SEPARATORS)?.takeIf { it.isNotEmpty() }
+
+// 題が漢数字の話数ラベルで始まる形（`第一話　…`・`第百二十七章　…`）。[splitChapterTitle] は誤爆回避のため
+// 漢数字を「切らない」（題の先頭語と機械的に区別できない）が、補完可否の判断には使ってよい——
+// 補完の抑止は題を1字も削らず、誤って抑止しても「ラベルが出ない現状維持」で済む安全方向のため。
+private val KANJI_LABEL_FORM = Regex("^第[〇零一二三四五六七八九十百千万]+[話章]")
+
+/**
+ * index（目次順の話数）から「第 N 話」を補完してよいときその N を返す。null＝補完しない。
+ * 裁定②の「接頭辞なし」側: 原文接頭辞がある章は原文を出すので補完せず、題が漢数字ラベルで始まる章も
+ * 補完すると「第 百二十七 話」＋「第百二十七話　城門」の話数二重（本裁定が潰した実バグと同型）に
+ * なるため抑止する。
+ */
+fun ChapterTitleParts.complementNumber(chapterNumber: Int?): Int? =
+    chapterNumber?.takeIf { rawLabel == null && !body.contains(KANJI_LABEL_FORM) }
 
 /** 接頭辞の中の数字列を 10 進で読む（全角数字は半角へ寄せる）。桁あふれ・数字なしは null。 */
 private fun parseEpisodeNumber(rawLabel: String): Int? {

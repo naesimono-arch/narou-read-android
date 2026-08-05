@@ -1168,6 +1168,8 @@ internal fun ChapterScreenContent(
                                     bodyMarginDp = bodyMarginDp,
                                     lazyListState = lazyListState,
                                     continuation = continuationSlot,
+                                    // 章見出しの話数ラベル（横書きと同便＝向きで同じ本の見出しを変えない）。
+                                    chapterNumber = chapterNumber,
                                 )
                             } else {
                                 ChapterContent(

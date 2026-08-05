@@ -116,4 +116,36 @@ class ChapterTitleTest {
         assertNull(parts.episodeNumber)
         assertEquals(raw, parts.body)
     }
+
+    // ---- `.num` 表示ヘルパ（2026-08-06 裁定①・②③は推奨適用） ----
+
+    @Test
+    fun `表示ラベルは末尾の区切り約物と空白を落とす`() {
+        // 形B: `０１．` → `０１`（作者のゼロ詰め全角表記は保つ・区切りの約物だけ落とす）
+        assertEquals("０１", splitChapterTitle("０１．婚約の継続をされたいのですか？").displayLabel())
+        // 形A: `第127話 ` → `第127話`（末尾空白を落とす）
+        assertEquals("第127話", splitChapterTitle("第127話 雨上がりの城門にて").displayLabel())
+        // 接頭辞なし → null
+        assertNull(splitChapterTitle("雨上がりの城門にて").displayLabel())
+    }
+
+    @Test
+    fun `補完は接頭辞なしの章だけに効く`() {
+        // 接頭辞なし → index から補完してよい
+        assertEquals(5, splitChapterTitle("雨上がりの城門にて").complementNumber(5))
+        // 原文接頭辞あり → 原文を出すので補完しない
+        assertNull(splitChapterTitle("０１．婚約の継続をされたいのですか？").complementNumber(1))
+        // index 不明 → 補完材料がない
+        assertNull(splitChapterTitle("雨上がりの城門にて").complementNumber(null))
+    }
+
+    @Test
+    fun `漢数字ラベルで始まる題には補完しない（話数二重の回避）`() {
+        // splitChapterTitle は漢数字を切らない（誤爆回避）が、補完すると「第 一 話」＋「第一話　始まりの朝」の
+        // 二重になる＝補完だけを抑止する（題は1字も削らない安全方向）。
+        assertNull(splitChapterTitle("第一話　始まりの朝", expectedNumber = 1).complementNumber(1))
+        assertNull(splitChapterTitle("第百二十七章　城門", expectedNumber = 127).complementNumber(127))
+        // 「第○＋話/章以外」で始まる普通の題は抑止しない（第一印象＝ラベルではない）
+        assertEquals(3, splitChapterTitle("第一印象は最悪だった").complementNumber(3))
+    }
 }

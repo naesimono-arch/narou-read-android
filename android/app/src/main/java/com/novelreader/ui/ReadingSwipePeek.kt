@@ -76,6 +76,9 @@ internal fun ChapterPeekPanel(
                 lineHeightEm = lineHeightEm,
                 bodyMarginDp = bodyMarginDp,
                 lazyListState = peekListState,
+                // 章見出しの話数ラベルを着地側と揃える（欠けると見出し構成が変わり settle 直後にずれる
+                // ＝横書き側と同じ「着地と同じ材料を焼き込む」契約）。
+                chapterNumber = peek.chapterNumber,
             )
         } else {
             ChapterContent(

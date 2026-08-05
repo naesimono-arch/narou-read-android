@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +34,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.novelreader.domain.complementNumber
+import com.novelreader.domain.displayLabel
+import com.novelreader.domain.splitChapterTitle
 import com.novelreader.ui.theme.BlueCartridge
 import com.novelreader.ui.theme.BlueInkCartridge
 import com.novelreader.ui.theme.BlueInkDarkCartridge
@@ -219,6 +223,11 @@ fun StreakFlameP(streakDays: Int, modifier: Modifier = Modifier) {
 /**
  * 章扉（reading-P .chap-h）＝ピクセルの話数「第N話 ／ 全M話」＋明朝の章題＋緑LCDの3点ルール。
  * 章題のサイズはユーザーの文字サイズ設定へ追従（D/M の ChapterHeader と同じ規格層追従＝本文＋2sp）。
+ *
+ * 話数と題の分離（2026-08-06 裁定①・②③は推奨適用）: 原文接頭辞のある章はそれを話数側に・無い章だけ
+ * index から「第N話」を補完し、題は接頭辞を除いた本体を出す——旧実装の「第N話」＋接頭辞込み原文 title の
+ * 話数二重（実バグ）を D/M/J と同じ1系統の規則で解消する。「／ 全M話」の後置は P 固有の情報
+ * （セーブデータ感の署名・話数と重複しない）のためどちらの経路でも保つ。
  */
 @Composable
 fun ChapterHeaderP(
@@ -230,6 +239,10 @@ fun ChapterHeaderP(
     bodyMarginDp: Int,
     bodyMaxWidth: Dp,
 ) {
+    val parts = remember(title, chapterNumber) { splitChapterTitle(title, chapterNumber) }
+    // P の補完はピクセル数字（算用）＝旧表記を保つ（漢数字は M/J/D 系の表記）。
+    val numBase = parts.displayLabel()
+        ?: parts.complementNumber(chapterNumber)?.let { "第${it}話" }
     // 話数の色 --rd-num は LIGHT/SEPIA=--blue-ink（#3f5a70）・DARK のみ明化（#8fb3cd）。
     // なぜ colors.isLight で分けるか: SEPIA も明面（isLight=true）で blue-ink 続投・DARK だけ暗面で明化＝
     // isLight が light/sepia と dark を正しく二分するため、theme enum を持ち込まずに再現できる。
@@ -241,9 +254,9 @@ fun ChapterHeaderP(
             .padding(horizontal = bodyMarginDp.dp)
             .padding(top = Spacing.S8, bottom = Spacing.S24), // .chap-h margin 6px..26px → S8/S24
     ) {
-        if (chapterNumber != null) {
+        if (numBase != null) {
             Text(
-                text = if (totalChapters != null) "第${chapterNumber}話 ／ 全${totalChapters}話" else "第${chapterNumber}話",
+                text = if (totalChapters != null) "$numBase ／ 全${totalChapters}話" else numBase,
                 fontFamily = PixelFamily,
                 fontSize = 12.sp,                    // .chap-h .num 12px
                 fontWeight = FontWeight.Bold,
@@ -253,7 +266,7 @@ fun ChapterHeaderP(
             Spacer(Modifier.height(Spacing.S12))     // .t margin-top 10px → S12
         }
         Text(
-            text = title,
+            text = parts.body,
             fontFamily = MinchoFamily,               // 本文組版＝明朝（規格層・不変）
             fontSize = (fontSize + 2).sp,            // 規格層追従（D/M と同じ「本文＋2」）
             fontWeight = FontWeight.SemiBold,        // .t font-weight 600
