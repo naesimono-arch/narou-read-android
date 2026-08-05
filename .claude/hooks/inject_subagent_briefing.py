@@ -33,6 +33,20 @@ RESEARCH_TYPES = {"explore", "plan"}
 #   結局ブリーフにも重複して書く羽目になっていた。起動時注入なら漏れようがない。
 DEVICE_TYPES = {"device-verify"}
 
+# 長走行の待ち方（2026-08-06 に実機検証2便が連続で踏んだ駐機事故の焼き込み。機序の正本＝
+#   docs/knowledge/subagent-idle-stop-parks-forever.md）:
+#   サブエージェントは「追跡中のバックグラウンド子ゼロ」でターンを終えるとその場で完了扱いになり、
+#   自走で再開される経路が無い。メインセッションの「background 完了でターン再起動」仕様はサブでは
+#   当てにできず、script が fork して親 bash が即 return する形（adb 経由の非同期実行等）は
+#   実作業が生きていても追跡上は子ゼロになる。
+FOREGROUND_RULE = (
+    "- **長走行コマンドは run_in_background や `&` で切り離さず、フォアグラウンドで timeout を長めに取って待つ**。\n"
+    "  「完了通知を待つ」と宣言してツールを呼ばずターンを終えない——あなたの環境では追跡子ゼロの停止＝\n"
+    "  完了扱いで駐機となり**自走では二度と再開されない**（2026-08-06 に実機検証2便がこれで停止・監督の手動再開\n"
+    "  で復旧した実害）。script が fork して即 return する形（adb 経由の非同期実行など）は、同ターン内で\n"
+    "  出力ファイルを自分でポーリングして回収する。10分を超える見込みの単発コマンドは分割する。"
+)
+
 # 実機固有の禁忌。いずれも「過去に実害が出た」か「今日実際に踏みかけた」もののみ載せる
 #   （一般論を並べると読まれなくなるため）。詳細と症状表は /device-verify skill が正本。
 DEVICE_RULES = (
@@ -83,6 +97,7 @@ def briefing_for(agent_type, project_dir):
                 "【プロジェクト定型規律（SubagentStart 自動注入・委譲仕様より優先度は低い＝矛盾時は委譲仕様に従う）】\n"
                 "- コミット・push・docs/design-candidates/（正本モック）の変更は禁止（監督が実施）。\n"
                 "- 症状だけ隠す修正・try/catch での握り潰し禁止。真因を特定し報告に明記する。\n"
+                + FOREGROUND_RULE + "\n"
                 "- APK を作り直す必要があるときのゲート:\n"
                 f"  {gate}\n"
                 "  （./gradlew は Permission denied・非対話シェルは .bashrc を読まないため env 明示が必須）\n"
@@ -96,6 +111,7 @@ def briefing_for(agent_type, project_dir):
             "- コミット・push・adb/実機操作・docs/design-candidates/（正本モック）の変更は禁止（監督が実施）。\n"
             "- 症状だけ隠す修正・try/catch での握り潰し禁止。真因を特定し報告に明記する。\n"
             "- 完了前に git diff で自分の変更全量を自己確認（意図しないファイル・既存動作パスへの影響が無いこと）。\n"
+            + FOREGROUND_RULE + "\n"
             "- Kotlin の src/main・src/test を変更したら必ずゲートを回す:\n"
             f"  {gate}\n"
             "  （./gradlew は Permission denied・非対話シェルは .bashrc を読まないため env 明示が必須）\n"

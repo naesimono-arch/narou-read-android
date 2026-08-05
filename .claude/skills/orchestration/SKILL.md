@@ -68,6 +68,10 @@ description: 監督（司令塔）モードの運用規範。多数のサブエ�
 
 - **同一ファイルを触るエージェントは並走させない**（監督がキューを持つ）。ファイル素が交わらないものは積極並走。
 - Gradle 等のビルドは並走させず監督の最終ゲートで一括。完了通知前に結果を予測しない・同じファイルを触らない。
+- **「待ちます」駐機はストールと別の既知故障モード**（2026-08-06 実害2件・機序の正本＝
+  `docs/knowledge/subagent-idle-stop-parks-forever.md`）: 子が background 完了通知を当てにしてターンを終えると
+  子ゼロ停止＝完了扱いで駐機。**完了通知の result が「待つ」宣言だけなら即 SendMessage で再開**（transcript 保持
+  ＝一発復旧の実測2件）。予防は SubagentStart 注入の FOREGROUND_RULE が自動配布。
 - **ストール（Stream idle timeout）は珍しくない**。親は自走では目を覚ませない＝**長走行の子には派遣時に watchdog を装備**:
   Bash run_in_background の `until` ループで output ファイルの mtime 停滞（>4分）を検知して1回通知させる。
   復旧＝TaskStop→SendMessage 再開。子は5分TTLのため復旧時は全量再write（1.25×）を織り込んで fresh と比較。

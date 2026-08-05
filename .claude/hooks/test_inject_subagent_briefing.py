@@ -110,6 +110,12 @@ class AgentTypeRouting(unittest.TestCase):
         self.assertIn(RESEARCH_MARK, context_of(run_hook({"agent_type": "Explore"})))
         self.assertIn(RESEARCH_MARK, context_of(run_hook({"agent_type": "Plan"})))
 
+    def test_foreground_wait_rule_reaches_long_runners(self):
+        # 「完了通知待ち」駐機事故（2026-08-06 実害2件＝docs/knowledge/subagent-idle-stop-parks-forever.md）の
+        # 焼き込みが長走行を打ちうる両種別（実装系・実機系）に届くことを固定。骨格語＝「完了扱いで駐機」。
+        for t in ("general-purpose", "device-verify"):
+            self.assertIn("完了扱いで駐機", context_of(run_hook({"agent_type": t})))
+
     def test_device_verify_gets_device_rules(self):
         # 実機系は「共通規律＋実機固有の禁忌」の両方を受け取る。
         # なぜ中身まで固定するか: 本分岐の目的が「監督がブリーフへ手で転記していた禁忌の
