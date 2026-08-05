@@ -56,6 +56,18 @@ Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
 
 5. スキーマ JSON が `android/app/schemas/` に自動出力される → **git に含めること**
 
+## 「identity hash 再スタンプ」を no-op で書かない（2026-08-05 に実害を検出）
+
+並列レーンの版衝突を +1 で回避する再スタンプ（v9→v10・v16→v17 が実例）を **DDL なしの no-op** で書くと、
+**その版をフレッシュインストールした端末**で起動即クラッシュする。機序: 退避元の N.json はそのレーンの
+エンティティ集合から生成される＝合流後に追加されたテーブルを**含まない**。その形状の DB は N+1 へ上がっても
+テーブルが生えず、N+1.json の検証で「期待テーブルが無い」となる。鎖テストは前の版から順に上げるので
+テーブルが生き残り、**この穴だけを構造的に素通しする**。
+
+→ 再スタンプを書くときは `schemas/N.json` と `schemas/(N+1).json` のテーブル集合を必ず差分し、
+差があれば `CREATE TABLE IF NOT EXISTS`（既存経路では冪等に no-op）で補完する。
+機械検知は `app/src/test/.../MigrationShapeCoverageTest`（JVM・端末不要）が全区間を毎ゲート走査する。
+
 ## 禁止事項
 
 - **`fallbackToDestructiveMigration()` は絶対に使用禁止**
@@ -86,14 +98,14 @@ Androidの `SupportSQLiteDatabase` でも `execSQL("PRAGMA table_info(books)")` 
 | v6 → v7   | books に addedAt・progress に lastReadAt 追加（recency ソートの材料） |
 | v7 → v8   | pending_jobs 新設（処理キューの永続化＝強制終了からの再開） |
 | v8 → v9   | books に ncode 追加（PDF↔Web 継続読書の紐付けキー）。並列レーンの v8 先取りで退避 |
-| v9 → v10  | no-op 再スタンプ（マージ合併による identity hash 衝突の回避） |
+| v9 → v10  | 再スタンプ（マージ合併による identity hash 衝突の回避）＋分岐系譜で欠ける pending_jobs の補完 |
 | v10 → v11 | books に contentSha256 追加（別URI・同内容の再取込を変換前に遮断する内容指紋） |
 | v11 → v12 | web_novels 新設（Web由来・未取込カードのメタ置き場） |
 | v12 → v13 | new_episode_marks 新設（新着話チェックの前回通知済み基準値） |
 | v13 → v14 | labels / book_labels 新設（v16 で撤去済み。migration パス保持のため定義は残置） |
 | v14 → v15 | web_reading_progress 新設（なろうWebView読書の位置＝ADR 0012） |
 | v15 → v16 | labels / book_labels を DROP（ラベル廃止＝読書状態の導出値へ置換） |
-| v16 → v17 | no-op 再スタンプ（レーン合流時の hash 衝突回避・前例 v9→v10） |
+| v16 → v17 | 再スタンプ（レーン合流時の hash 衝突回避・前例 v9→v10）＋分岐系譜で欠ける web_reading_progress の補完 |
 | v17 → v18 | progress に reachedEnd 追加（読了「了」印の永続化） |
 | v18 → v19 | books に shioriTipIndex / shioriLenFrac 追加（栞書影の個体差を取込時に焼き付け） |
 | v19 → v20 | books に sourceUri 追加（取込元PDFの content://＝削除機能用） |

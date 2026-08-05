@@ -235,6 +235,45 @@ class MigrationTest {
     }
 
     /**
+     * v9 を**フレッシュインストール**した端末の形状（9.json＝pending_jobs 無し）から v10 へ上げられるか。
+     *
+     * **なぜチェーンテストと別に要るか**: 上の 7→21 チェーンは 7→8 で pending_jobs を作ってから 9→10 に入る
+     * ため、「9.json の形状そのもの」＝api-lab-ai レーン（PendingJobEntity 未登録）で v9 をフレッシュ
+     * インストールした端末の DB を一度も通らない。その形状では pending_jobs が物理的に存在せず、
+     * 旧 MIGRATION_9_10（no-op）だと 10.json の検証で「期待テーブルが無い」＝起動即クラッシュした。
+     * 2026-08-05 に MIGRATION_9_10 へ IF NOT EXISTS 付き CREATE を追加して是正した回帰固定。
+     */
+    @Test
+    fun migrate9FreshShapeTo10_validatesSchema() {
+        helper.createDatabase(TEST_DB_V9_FRESH, 9).close()
+        // 9.json 形状（2テーブル）＋補完された pending_jobs ＝10.json の全テーブルと過不足なく一致するので true で厳格検証。
+        helper.runMigrationsAndValidate(TEST_DB_V9_FRESH, 10, true, AppDatabase.MIGRATION_9_10).close()
+    }
+
+    /**
+     * v16 を**フレッシュインストール**した端末の形状（16.json＝web_reading_progress 無し）から v21 まで上げられるか。
+     *
+     * **なぜチェーンテストと別に要るか**: 上の 7→21 チェーンは 14→15 で web_reading_progress を作ってから
+     * 16→17 に入るため、「16.json の形状そのもの」＝ui/vertical-pdf-import レーン（WebReadingProgressEntity
+     * 未登録）で v16 をフレッシュインストールした端末の DB を**構造的に一度も通らない**（handover に
+     * 「MigrationTest の coverage-hole」として残っていた穴）。その形状では当該テーブルが物理的に存在せず、
+     * 旧 MIGRATION_16_17（no-op）だと 17.json の検証で「期待テーブルが無い」＝起動即クラッシュした。
+     * 2026-08-05 に MIGRATION_16_17 へ IF NOT EXISTS 付き CREATE を追加して是正した回帰固定。
+     * 17 で止めず 21 まで通すのは、この系譜の実機が現行版へ到達できることまで固定するため。
+     */
+    @Test
+    fun migrate16FreshShapeTo21_validatesSchemaAtEachStep() {
+        helper.createDatabase(TEST_DB_V16_FRESH, 16).close()
+        // 16.json 形状（5テーブル）＋補完された web_reading_progress ＝17.json の全テーブルと一致するので true で厳格検証。
+        helper.runMigrationsAndValidate(TEST_DB_V16_FRESH, 17, true, AppDatabase.MIGRATION_16_17).close()
+        // 以降は列追加のみ＝テーブル集合は不変。各段の .json と厳密照合する（チェーン側と同じ粒度）。
+        helper.runMigrationsAndValidate(TEST_DB_V16_FRESH, 18, true, AppDatabase.MIGRATION_17_18).close()
+        helper.runMigrationsAndValidate(TEST_DB_V16_FRESH, 19, true, AppDatabase.MIGRATION_18_19).close()
+        helper.runMigrationsAndValidate(TEST_DB_V16_FRESH, 20, true, AppDatabase.MIGRATION_19_20).close()
+        helper.runMigrationsAndValidate(TEST_DB_V16_FRESH, 21, true, AppDatabase.MIGRATION_20_21).close()
+    }
+
+    /**
      * 最新版 v21 の「フレッシュインストール」が identity hash 検証を通ることを検証する。
      *
      * **何を捕まえるか**: エンティティ（BookEntity/ProgressEntity/PendingJobEntity/WebNovelEntity/NewEpisodeMarkEntity/WebReadingProgressEntity や @Database version）を変えたのに
@@ -276,5 +315,7 @@ class MigrationTest {
         private const val TEST_DB_CHAIN = "migration-chain-test.db"
         private const val TEST_DB_DATA = "migration-data-test.db"
         private const val TEST_DB_FRESH = "migration-fresh-install-test.db"
+        private const val TEST_DB_V9_FRESH = "migration-v9-fresh-shape-test.db"
+        private const val TEST_DB_V16_FRESH = "migration-v16-fresh-shape-test.db"
     }
 }

@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     ],
     // なぜ 17 か: ui/vertical-pdf-import レーンが v16 を実機投入済み（レーン専有）。episode-nav 合流で
     // WebReadingProgressEntity が entities に加わり v16 の identity hash が変わるため、実機 v16 との
-    // 同 version 衝突を no-op 再スタンプ（MIGRATION_16_17）で回避する（前例 v9→v10＝task_diary #39 追補）。
+    // 同 version 衝突を再スタンプ（MIGRATION_16_17）で回避する（前例 v9→v10＝task_diary #39 追補）。
     // v18: progress に reachedEnd 列を追加（読了＝『了』印・読了フィルタの永続化／ssot Major 2026-07-12）。
     // v19: books に shioriTipIndex / shioriLenFrac 列を追加（栞書影の先端種・棒長を取込時に真の乱数で
     //      1回抽選して永続化＝以後この本は固定の絵になる。既存行は NULL＝title 由来の従来値へフォールバック）。
@@ -143,17 +143,28 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        /** v9→v10: スキーマ無変更の identity hash 再スタンプ専用（DDL なし）。
+        /** v9→v10: identity hash 再スタンプ＋系譜分岐で欠けうる pending_jobs の補完。
          *  なぜ必要か: version 9 は api-lab-ai 系（PendingJobEntity 未登録＝schemas/9.json がその記録）が
          *  先に消費し、実機は既にその identity hash で v9 化済み。マージ合併で PendingJobEntity を登録した
          *  本スキーマを同じ version 9 のまま入れると、migration は走らず hash 照合だけが行われ
          *  起動即クラッシュする（task_diary #39 と同機序の「マージ時」変種＝同 #39 追補）。
-         *  v10 へ上げるとこの no-op が走り、実テーブル（7→8 の pending_jobs／8→9 の ncode）は
-         *  そのまま検証を通って新 hash が再記録される。 */
+         *
+         *  なぜ「no-op で足りる」が誤りだったか（2026-08-05 是正）: 旧実装は「実テーブルは 7→8 で作成済み」
+         *  を前提に DDL を持たなかったが、それが成り立つのは v7 以下から上がってきた DB だけ。
+         *  api-lab-ai レーンで **v9 をフレッシュインストール**した端末は Room が 9.json のエンティティ集合
+         *  （PendingJobEntity 抜き）から DB を作る＝pending_jobs が物理的に存在しない。その DB が v10 へ
+         *  上がると no-op のまま 10.json の検証に掛かり「期待テーブルが無い」で起動即クラッシュする。
+         *  IF NOT EXISTS 付きで作り直せば、7→8 経由の DB では何も起きず（冪等）分岐系譜だけが救われる
+         *  ——MIGRATION_15_16 が DROP に IF EXISTS を付けたのと同じ「両系譜を1本の DDL で通す」流儀。
+         *  DDL は MIGRATION_7_8 と同一文字列＝10.json が期待する形と厳密一致させること。 */
         // なぜ internal か: androidTest の MigrationTest が本物の Migration を検証するため（複製だと本体変更にテストが追従しない）。
         internal val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                // 意図的に何もしない（上記コメント参照）
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `pending_jobs` " +
+                    "(`uri` TEXT NOT NULL, `displayName` TEXT NOT NULL, `enqueuedAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`uri`))"
+                )
             }
         }
 
@@ -266,15 +277,28 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        /** v16→v17: スキーマ無変更の identity hash 再スタンプ（no-op＝DDL なし）。
+        /** v16→v17: identity hash 再スタンプ＋系譜分岐で欠けうる web_reading_progress の補完。
          *  なぜ: ui/vertical-pdf-import レーンが v16 を実機投入済みの状態で feat/episode-nav が合流し、
          *  WebReadingProgressEntity の登録でエンティティ集合＝v16 の identity hash が変わった。実機の
          *  branch 版 v16 と同 version を別 hash で名乗ると起動即クラッシュするため +1 で回避する
-         *  （前例 v9→v10＝task_diary #39 追補。テーブル実体は 14→15 で作成済みのため DDL 不要）。 */
+         *  （前例 v9→v10＝task_diary #39 追補）。
+         *
+         *  なぜ「テーブル実体は 14→15 で作成済みだから DDL 不要」が誤りだったか（2026-08-05 是正）:
+         *  それが成り立つのは v15 以下から上がってきた DB だけ。ui/vertical-pdf-import レーンで
+         *  **v16 をフレッシュインストール**した端末は Room が 16.json のエンティティ集合
+         *  （WebReadingProgressEntity 抜き＝実際に 16.json は web_reading_progress を含まない）から DB を
+         *  作るため、このテーブルが物理的に存在しない。その DB が v17 へ上がると no-op のまま 17.json の
+         *  検証に掛かり「期待テーブルが無い」で起動即クラッシュする。IF NOT EXISTS で作り直せば
+         *  14→15 経由の DB では何も起きず（冪等）分岐系譜だけが救われる（MIGRATION_9_10 と同じ是正）。
+         *  DDL は MIGRATION_14_15 と同一文字列＝17.json が期待する形と厳密一致させること。 */
         // なぜ internal か: androidTest の MigrationTest が本物の Migration を検証するため（複製だと本体変更にテストが追従しない）。
         internal val MIGRATION_16_17 = object : Migration(16, 17) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                // no-op: スキーマ実体は不変（entities 登録変更に伴う version 前進のみ）
+                database.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `web_reading_progress` (" +
+                    "`ncode` TEXT NOT NULL, `lastReadEpisode` INTEGER NOT NULL, `lastReadAt` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`ncode`))"
+                )
             }
         }
 
