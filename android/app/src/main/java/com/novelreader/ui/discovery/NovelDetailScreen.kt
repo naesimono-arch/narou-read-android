@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -43,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -511,13 +514,14 @@ internal fun NovelDetailContent(
                                 .height(DetailHeroHeight)
                         )
 
-                        // 作者・ジャンル行
+                        // 作者・ジャンル行（mock .detail-meta-top: justify-content:space-between＝作者を左端・
+                        // ジャンルを右端へ振り分ける。旧 spacedBy(S12) の左詰めはモック逆同期 2026-07-31 で検出されたズレ）
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = Spacing.S16)
                                 .padding(horizontal = Spacing.S24),
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.S12),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
@@ -526,11 +530,21 @@ internal fun NovelDetailContent(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             NarouGenres.genreLabel(novel.summary.genreCode)?.let { label ->
+                                // mock .genre-label: 1px solid var(--seiji) の枠線チップ（padding 4px 8px・radius 2px）。
+                                // 枠線の seiji はモックが不透明のため secondary をそのまま使う（キーワードチップの
+                                // alpha 0.5 淡色化は .kw-chip 側の既存判断で、ここへは持ち込まない）。
                                 Text(
                                     text = label,
                                     fontSize = FontChipLarge,
                                     letterSpacing = 0.5.sp,
-                                    color = MaterialTheme.colorScheme.secondary
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier
+                                        .border(
+                                            width = 1.dp,
+                                            color = MaterialTheme.colorScheme.secondary,
+                                            shape = RoundedCornerShape(2.dp)
+                                        )
+                                        .padding(horizontal = Spacing.S8, vertical = Spacing.S4)
                                 )
                             }
                         }
@@ -550,73 +564,21 @@ internal fun NovelDetailContent(
                         val readTime = readTimeLabel(novel.summary) ?: "—"
                         val readTimeVal = if (length != null) "$readTime$lengthText" else readTime
 
-                        Column(
+                        // mock .status-grid: border-top/bottom 1px var(--line) の外郭ヘアライン＋
+                        // :nth-child(odd) の border-right ＝中央縦罫を持つ2×2表。行の縦罫を全高に届かせるため
+                        // Row を IntrinsicSize.Min で包み VerticalDivider を fillMaxHeight で立てる。
+                        // セル余白も mock .status-item（padding:12px 0・odd padding-right:16px・even padding-left:16px）
+                        // の写経＝旧実装の「中罫だけ・外郭なし」はモック逆同期 2026-07-31 で検出されたズレ。
+                        StatusGridRow2x2(
+                            topLeft = "状態" to statusText,
+                            topRight = "読了目安" to readTimeVal,
+                            bottomLeft = "会話率" to (novel.kaiwaritu?.let { "$it%" } ?: "—"),
+                            bottomRight = "挿絵" to (novel.sasieCnt?.let { "${it}枚" } ?: "—"),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = Spacing.S16)
                                 .padding(horizontal = Spacing.S24)
-                        ) {
-                            Row(modifier = Modifier.fillMaxWidth()) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "状態",
-                                        fontSize = FontMicroLabel,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = statusText,
-                                        fontSize = FontSubTitle,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.padding(top = Spacing.S4)
-                                    )
-                                }
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "読了目安",
-                                        fontSize = FontMicroLabel,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = readTimeVal,
-                                        fontSize = FontSubTitle,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.padding(top = Spacing.S4)
-                                    )
-                                }
-                            }
-                            HorizontalDivider(
-                                color = MaterialTheme.colorScheme.outlineVariant,
-                                modifier = Modifier.padding(vertical = Spacing.S12)
-                            )
-                            Row(modifier = Modifier.fillMaxWidth()) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "会話率",
-                                        fontSize = FontMicroLabel,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = novel.kaiwaritu?.let { "$it%" } ?: "—",
-                                        fontSize = FontSubTitle,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.padding(top = Spacing.S4)
-                                    )
-                                }
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "挿絵",
-                                        fontSize = FontMicroLabel,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = novel.sasieCnt?.let { "${it}枚" } ?: "—",
-                                        fontSize = FontSubTitle,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.padding(top = Spacing.S4)
-                                    )
-                                }
-                            }
-                        }
+                        )
 
                         // あらすじセクション
                         if (!novel.story.isNullOrEmpty()) {
@@ -631,7 +593,8 @@ internal fun NovelDetailContent(
                                     letterSpacing = 3.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(top = Spacing.S24, bottom = Spacing.S8)
+                                    // mock .sec{margin:24px 0 12px}: 見出し下は 12px（旧 S8 はモック逆同期 2026-07-31 で検出されたズレ）
+                                    modifier = Modifier.padding(top = Spacing.S24, bottom = Spacing.S12)
                                 )
                                 Text(
                                     text = novel.story,
@@ -669,7 +632,8 @@ internal fun NovelDetailContent(
                                     letterSpacing = 3.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(top = Spacing.S24, bottom = Spacing.S8)
+                                    // mock .sec{margin:24px 0 12px}: 見出し下は 12px（旧 S8 はモック逆同期 2026-07-31 で検出されたズレ）
+                                    modifier = Modifier.padding(top = Spacing.S24, bottom = Spacing.S12)
                                 )
                                 FlowRow(
                                     horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
@@ -772,7 +736,8 @@ internal fun NovelDetailContent(
                                     letterSpacing = 3.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.padding(top = Spacing.S24, bottom = Spacing.S8)
+                                    // mock .sec{margin:24px 0 12px}: 見出し下は 12px（旧 S8 はモック逆同期 2026-07-31 で検出されたズレ）
+                                    modifier = Modifier.padding(top = Spacing.S24, bottom = Spacing.S12)
                                 )
                                 evalItems.forEachIndexed { index, pair ->
                                     Row(
@@ -824,11 +789,95 @@ internal fun NovelDetailContent(
                             color = LocalShelfColors.current.infoText,
                             modifier = Modifier
                                 .padding(horizontal = Spacing.S24)
-                                .padding(top = Spacing.S24, bottom = Spacing.S24)
+                                // mock .last-updated{margin-top:16px}（旧 S24 はモック逆同期 2026-07-31 で検出されたズレ。
+                                // 下 S24 はモック外＝スクロール末尾の余白でそのまま維持）
+                                .padding(top = Spacing.S16, bottom = Spacing.S24)
                         )
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * ステータス2×2表（mock .status-grid の翻訳）。
+ * 外郭＝border-top/bottom 1px var(--line)、1行目下＝:nth-child(1),(2) の border-bottom、
+ * 中央縦罫＝:nth-child(odd) の border-right。縦罫を行の全高に届かせるため、各行を
+ * Row(IntrinsicSize.Min) で包み VerticalDivider を fillMaxHeight() で立てる（Compose に
+ * CSS grid の子境界線に対応する既製要素が無いための等価構成）。
+ * セル＝mock .status-item（padding:12px 0・odd は padding-right:16px・even は padding-left:16px・
+ * ラベル .lbl と値 .val の縦積み gap 4px）。
+ */
+@Composable
+private fun StatusGridRow2x2(
+    topLeft: Pair<String, String>,
+    topRight: Pair<String, String>,
+    bottomLeft: Pair<String, String>,
+    bottomRight: Pair<String, String>,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        StatusGridRow(left = topLeft, right = topRight)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        StatusGridRow(left = bottomLeft, right = bottomRight)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    }
+}
+
+/** [StatusGridRow2x2] の1行（左右セル＋中央縦罫）。 */
+@Composable
+private fun StatusGridRow(
+    left: Pair<String, String>,
+    right: Pair<String, String>,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            // なぜ IntrinsicSize.Min: 縦罫（VerticalDivider）は fillMaxHeight で行の高さに追従させるが、
+            // 行の高さ自体はセル内容から決めたい。Min 指定でセルの必要最小高＝行高になり、縦罫だけが伸びる。
+            .height(IntrinsicSize.Min)
+    ) {
+        StatusGridCell(
+            label = left.first,
+            value = left.second,
+            modifier = Modifier
+                .weight(1f)
+                .padding(top = Spacing.S12, bottom = Spacing.S12, end = Spacing.S16)
+        )
+        VerticalDivider(
+            color = MaterialTheme.colorScheme.outlineVariant,
+            modifier = Modifier.fillMaxHeight()
+        )
+        StatusGridCell(
+            label = right.first,
+            value = right.second,
+            modifier = Modifier
+                .weight(1f)
+                .padding(top = Spacing.S12, bottom = Spacing.S12, start = Spacing.S16)
+        )
+    }
+}
+
+/** [StatusGridRow2x2] の1セル（.status-item: .lbl 上・.val 下・gap 4px。タイポは旧インライン実装から不変）。 */
+@Composable
+private fun StatusGridCell(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = label,
+            fontSize = FontMicroLabel,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            fontSize = FontSubTitle,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(top = Spacing.S4)
+        )
     }
 }

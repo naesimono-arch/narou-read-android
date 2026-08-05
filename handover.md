@@ -141,13 +141,6 @@
 
 ## モック逆同期・意匠の宿題
 
-- **[作品詳細 `discovery-detail-D.html` の翻訳ズレ5件（2026-07-31 検出・今回は意図的に入れなかった）]**:
-  ①`.sec{margin:24px 0 12px}` の下 12px に対し実装は `S8` ②`.detail-meta-top` はモックが `space-between`・実装は
-  `spacedBy(S12)` の左寄せ ③`.genre-label` の枠線チップ（1px seiji／padding 4・8／radius 2）が実装で欠落
-  ④`.status-grid` の上下ヘアライン＋中央縦罫が欠落 ⑤`.last-updated{margin-top:16px}` に対し実装は `S24`。
-  ⚠️ **これらを直すと「あらすじが下へ押し出される」方向に効く**（①③④は要素高が増える）。2026-07-31 に
-  書影ヒーローを 200→120dp へ縮めてあらすじを可視化した直後なので、**入れるなら回収 dp を再計算してから**。
-  なお「ヒーロー 190px→実装 200dp」のズレは 120dp 化の逆同期で解消済み。
 - **[向き応答していない固定値の棚卸し]**: `Insets.ScrollBottomForFab` / `ChromeHintBottom` はいずれも縦向き前提の 96dp 固定。
   横向きの構造裁定（`awaiting-human.md` §3-1）のついでに見直す。
 > 棚卸しの一次情報＝`.claude/plans/mock-drift-inventory-2026-07-16.md`（正本モック全数の未反映リスト・優先順位）。
