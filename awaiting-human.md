@@ -195,8 +195,10 @@
   「画一的」で差し戻し**＝第2稿は **tip 0〜8 の9種だけ**にそれぞれ専用の振り付けを与えた（keyframes・周期・
   イージング・動かすプロパティの組合せが9種すべて相異＝機械照合済み）。**裁定対象は 0〜8 のみ**。
   導線は星図（ADR 0023）と同型＝debug 限定トグル・release 常時 OFF が既定方針（新意匠不要）。
-  **何を見れば決まるか**＝`mockview docs/design-candidates/bookshelf-shiori-highload-K.html` で
-  拡大表示9種と in-situ 棚（12冊）を見て〈全体 GO／個別番号の差し戻し〉を指定。
+  **何を見れば決まるか**＝`mockview` で第2稿 `bookshelf-shiori-highload-K.html` と**派手版
+  `bookshelf-shiori-highload-K-hade.html`**（2026-08-06 ユーザー要望「派手版も」で増幅版を追加＝二連撃・大振り・波涛・
+  にじみグロー等。9種の個性の相異は 36ペア×4軸の機械照合で維持）を並べて、
+  〈**どちらの稿で全体 GO**／tip 別に第2稿・派手版を混ぜる／個別番号の差し戻し〉を指定。
   **GO が出た分から Compose 実装へ**。⚠️ 翻訳時の申し送り: tip5 の `filter: brightness/saturate` だけ
   Compose Canvas に等価物が無く、**色を HSL で算出して渡す**必要がある（他は Stroke(width)・Color.copy(alpha)・
   PathEffect.dashPathEffect(phase) で等価）。9〜173 は初稿の語彙割当のまま（`&lt;details&gt;` に畳んで残置）＝
