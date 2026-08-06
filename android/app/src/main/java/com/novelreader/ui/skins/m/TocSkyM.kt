@@ -325,13 +325,24 @@ private fun TocHereBarM(
                 )
             }
         }
-        Spacer(Modifier.weight(1f))
         val progress = buildString {
             append("全${total}話")
             // 読了率は現在章が既知のときのみ（未読は分母だけ＝捏造禁止）。可視の金の星（既読）数と一致。
             if (currentIndex >= 0 && total > 0) append(" ・ 読了率 ${tocReadProgressPercent(currentIndex, total)}%")
         }
-        Text(progress, fontSize = 11.5.sp, color = DimSeizu) // .prog 11.5px var(--dim)
+        // なぜ weight(1f)+maxLines=1 か（監査 2026-08-06 G-1・4スキン同型）: fontScale 2.0 でこの進捗文が
+        // チップの余り幅へ折り返して縦に膨張し、現在地バーの行高ごと下の章一覧を押し出す（K/D と同じ機序）。
+        // 余り幅の全量を進捗側へ渡して1行に固定し、入り切らない分は末尾省略で縮退させる。
+        // 右寄せは旧 Spacer(weight(1f)) と同じ見た目を textAlign=End で保つ。
+        Text(
+            progress,
+            fontSize = 11.5.sp, // .prog 11.5px var(--dim)
+            color = DimSeizu,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 

@@ -216,7 +216,12 @@ internal fun NcodeLinkSheet(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(120.dp),
+                                // なぜ固定 height でなく min か（監査 2026-08-06 根因④）: fontScale 2.0 では
+                                // エラー文の折返し＋間隔12dp＋再試行の当たり判定48dpが120dpを超え、固定高だと
+                                // 中央寄せの上下均等クリップで再試行ボタンのタップ標的ごと画面から欠ける。
+                                // min 指定なら 1.0 は従来の120dp帯のまま、拡大時だけ内容高へ伸びる
+                                //（上限は外側 Box の heightIn(max=360dp) が既に持つ）。
+                                .heightIn(min = 120.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
@@ -230,8 +235,9 @@ internal fun NcodeLinkSheet(
                             // なぜカスタム再試行ボタンか: ネットワークエラー時などに、
                             // シートを閉じ直すことなく、その場でワンタップで通信を復旧できるようにするため。
                             // A11y: 枠線ピルは現寸のまま、当たり判定だけ最小48dpへ拡大する。
-                            // なぜ外側Boxをclickableにするか: ここは固定高120dpの中央寄せ領域内なので、
-                            // 外側を48dpにしてもピル外観も周囲レイアウトも一切押し広げずに済むため。
+                            // なぜ外側Boxをclickableにするか: ここは最小高120dpの中央寄せ領域内なので、
+                            // 外側を48dpにしてもピル外観は変わらず、1.0 では周囲レイアウトも押し広げずに済むため
+                            //（2.0 で内容が120dpを超えた分は上の heightIn(min) が領域ごと伸ばして受ける）。
                             Box(
                                 modifier = Modifier
                                     .clickable { onRetry() }

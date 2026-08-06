@@ -10,6 +10,7 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
+import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.colors
 
 /**
@@ -79,6 +80,38 @@ internal fun ComposeContentTestRule.captureThemed(
         ) {
             NovelReaderTheme(theme = theme) {
                 content(theme.colors)
+            }
+        }
+    }
+    onRoot().captureRoboImage(
+        filePath = "${ScreenshotConfig.SCREENSHOT_DIR}/$fileName",
+    )
+}
+
+/**
+ * 任意スキンで content を描画し、golden PNG を記録/検証する（M/J などスキン固有トークン直参照の画面用）。
+ *
+ * なぜ [captureThemed]／K 版 captureSkinK と別に要るか: M/J の目次は golden 0枚で、K/D と同型の
+ * 現在地バー破綻（監査 2026-08-06 G-1・fontScale 2.0 で進捗文が章一覧を押し出す）が絵の回帰に一切
+ * かからなかった。captureThemed はスキン既定（D）で包み、K 版は [ReadingColors] の解決まで含む K 専用形。
+ * M/J 画面は colors 引数を持たない（スキン固有トークンを直参照する）ため、撮る対象と同じ入口
+ * （NovelReaderTheme に当該 skin）で包むだけのこの素の形を使う。
+ */
+internal fun ComposeContentTestRule.captureSkinned(
+    skin: Skin,
+    theme: ReadingTheme,
+    fontScale: Float,
+    fileName: String,
+    content: @Composable () -> Unit,
+) {
+    setContent {
+        val base = LocalDensity.current
+        // フォントスケールだけ差し替える（density は端末値を維持）＝captureThemed と同方式。
+        CompositionLocalProvider(
+            LocalDensity provides Density(density = base.density, fontScale = fontScale),
+        ) {
+            NovelReaderTheme(skin = skin, theme = theme) {
+                content()
             }
         }
     }

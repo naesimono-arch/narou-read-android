@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -246,6 +248,12 @@ internal fun ReadingSettingsSheetContent(
                     else -> Modifier
                 }
             )
+            // なぜ verticalScroll か（監査 2026-08-06 G-2）: fontScale 2.0 では内容全高がシート可視域を超え、
+            // 「行間」「本文余白」の2節が画面外＝到達不能だった（文字を大きくして使う層＝行間・余白を最も
+            // 調整したい層が2項目を変更できない）。スクロールで全設定へ常に到達可能にする。
+            // なぜこの位置か: 上の drawBehind（M/P のシート面グラデ）より後段に置く＝グラデは可視域の寸法で
+            // 描かれて面に固定され、内容だけが流れる（前段に置くと内容全高で描かれ面がスクロールに追従してしまう）。
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = Spacing.S24)
             .padding(bottom = Spacing.S32),
     ) {
@@ -397,9 +405,11 @@ internal fun ReadingSettingsSheetContent(
             Spacer(Modifier.height(Spacing.S24))
             // 縦書きトグル。テーマ3択と同じ FilterChip＋themeChipColors を流用する（新しい部品・色を作らない）。
             // なぜテーマ直下（チップ群のそば）に置くか（並び順の判断）: (1) テーマと同じ離散チップ選択なので
-            // 3本のスライダーの間に挟まず、チップ系設定をまとめると視覚リズムが揃う。(2) このシートの Column は
-            // スクロールを持たず、末尾に足すと縦長端末で画面外に切れて到達不能になり得るため、常時可視な上部へ
-            // 置いて確実に届かせる。見出し語（labelMedium）は他設定と同じ体裁。チップ選択(accent塗り)＝縦書きON。
+            // 3本のスライダーの間に挟まず、チップ系設定をまとめると視覚リズムが揃う。(2) シートを開いた直後に
+            // スクロールなしで見える上部は確実に目に入る＝影響の大きい組方向の切替を埋もれさせない
+            //（シートの Column は 2026-08-06 に verticalScroll を得て末尾でも到達自体は可能になったが、
+            // 「開いた瞬間に見えている」価値は変わらないため配置は維持）。
+            // 見出し語（labelMedium）は他設定と同じ体裁。チップ選択(accent塗り)＝縦書きON。
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "本文の向き",

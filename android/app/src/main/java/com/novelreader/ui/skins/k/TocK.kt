@@ -264,7 +264,6 @@ private fun HereBarK(currentIndex: Int, total: Int, colors: ReadingColors, onJum
                     .padding(horizontal = Spacing.S16, vertical = Spacing.S8), // .herechip padding 6px 14px
             )
         }
-        Spacer(Modifier.weight(1f))
         val progress = buildString {
             append("全${total}話")
             // 読了率は現在章が既知（既読/現在の見当識が立つ）ときのみ。未読は分母だけ出す。
@@ -272,7 +271,20 @@ private fun HereBarK(currentIndex: Int, total: Int, colors: ReadingColors, onJum
                 append("・読了率${(currentIndex * 100f / total).roundToInt()}%")
             }
         }
-        Text(progress, fontSize = FontCaption, color = colors.infoText) // .prog 12px
+        // なぜ weight(1f)+maxLines=1 か（監査 2026-08-06 G-1・4スキン同型）: fontScale 2.0 でこの進捗文が
+        // チップの余り幅へ折り返して縦5行に膨張し、Row の行高ごと現在地バーが伸びて下の章一覧
+        //（LazyColumn weight(1f)）の残り高が 0＝目次のタップ対象が消えていた。余り幅の全量を進捗側へ渡して
+        // 1行に固定し、入り切らない分は末尾省略で縮退させる（章一覧の消失より軽い縮退を選ぶ）。
+        // 右寄せは旧 Spacer(weight(1f)) と同じ見た目を textAlign=End で保つ。
+        Text(
+            progress,
+            fontSize = FontCaption, // .prog 12px
+            color = colors.infoText,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -280,7 +292,7 @@ private fun HereBarK(currentIndex: Int, total: Int, colors: ReadingColors, onJum
 private val EpLabelMinWidth = 44.dp
 
 /**
- * 話数ラベル列（`.ep`）の整列幅を、この本で実際に出る最長ラベル「第[total]話」の実採寸から決める。
+ * 話数ラベル列（`.ep`）の整列幅を、[total] と同桁のあらゆる話数を収める上界（桁数×最大数字幅）から決める。
  *
  * なぜ 44dp 固定ではだめか（真因・2026-07-29 実機検証）: モックの `width:44px` は2桁ラベルを前提にした
  * 実測値で、3桁「第132話」は 44dp にわずかに収まらず「第132」「話」で折り返し、行高まで崩れる。
@@ -290,6 +302,12 @@ private val EpLabelMinWidth = 44.dp
  * 全行で題名の開始 x を揃えることが設計意図。単に定数を広げると2桁の本まで間延びし、行ごとに
  * 可変にすると整列そのものが壊れる。幅を [total]（＝リスト単位で不変）だけの関数にすれば、
  * 「1リスト内では全行同幅＝整列は不変」「本ごとに桁数へ追従」の両立になる。
+ *
+ * なぜ「第[total]話」1本の実採寸ではなく上界方式か（監査 2026-08-06 G-4）: 旧実装は total=1240 の
+ * 1本だけを採寸したが、golden `TocK_ep4digits_light_1.0` では途中行「第1028話」だけが2行に割れて
+ * いた＝採寸した文字列と実際に描く文字列の幅が食い違う。真因が採寸文字列の選び方（数字の字形差）か
+ * Robolectric の丸め差かは未確定のため、どちらでも成立する上界＝「第」「話」の枠幅＋最大幅の数字×桁数
+ * で採寸する（同桁のどの話数もこの幅を超えない。単字採寸の切り上げ合算は連字の字送り以上になる）。
  *
  * 桁数ごとの見え方: 2桁以下は採寸値が 44dp を下回るため [EpLabelMinWidth] のまま（モック忠実・
  * 間延びしない）、3桁以上は必要なぶんだけ広がる（4桁も同じ式で自動追従＝桁数の上限を持たない）。
@@ -304,7 +322,11 @@ private fun rememberEpLabelWidth(total: Int): Dp {
     val style = LocalTextStyle.current.merge(TextStyle(fontSize = FontCaption))
     val density = LocalDensity.current
     return remember(total, style, density, measurer) {
-        val widestPx = measurer.measure(text = "第${total}話", style = style).size.width
+        // 上界＝「第話」の枠幅＋（0〜9の最大幅×桁数）。数字ごとの字形幅差・丸め差があっても
+        // 同桁のどの話数もこの幅に必ず収まる（KDoc「上界方式」参照）。
+        val framePx = measurer.measure(text = "第話", style = style).size.width
+        val maxDigitPx = ('0'..'9').maxOf { d -> measurer.measure(text = d.toString(), style = style).size.width }
+        val widestPx = framePx + maxDigitPx * total.toString().length
         val measured = with(density) { widestPx.toDp() }
         ceil(measured.value).dp.coerceAtLeast(EpLabelMinWidth)
     }

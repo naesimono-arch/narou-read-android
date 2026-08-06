@@ -332,22 +332,22 @@ internal object GoldenCoverageRegistry {
         "ShioriCover" to "書影の栞（題字の記号処理）。",
         // 記録待ちの2件も先に説明を置く（record された瞬間に「説明の無い golden」で赤くならないように）。
         // PNG がまだ無いことは acknowledgedPendingRecord 側が承知しているため stale 判定にも掛からない。
-        "TocSkyM" to "M 目次の現在地バー（監査 G-1 の同型4スキン）。記録待ち。",
-        "TocPortalJ" to "J 目次の現在地バー（監査 G-1 の同型4スキン）。記録待ち。",
+        "TocSkyM" to "M 目次の現在地バー（監査 G-1 の同型4スキン）。2026-08-06 に実装修正と同便で記録。",
+        "TocPortalJ" to "J 目次の現在地バー（監査 G-1 の同型4スキン）。2026-08-06 に実装修正と同便で記録。",
     )
 
     /** 撮影テストが無いまま残す PNG → 理由。現在なし（104↔104 の全単射を維持する）。 */
     val acknowledgedOrphanGoldens: Map<String, String> = emptyMap()
 
-    /** 撮影テストが在るが PNG 未記録 → 理由。 */
-    val acknowledgedPendingRecord: Map<String, String> = mapOf(
-        "TocSkyM" to
-            "監査 G-1（目次の現在地バーが fontScale 2.0 で章一覧を押し出す・4スキン同型）に対し M の" +
-                "撮影ハーネスだけ先に用意した状態。⚠️ 実装（進捗 Text に weight/maxLines が無い）を直す前に" +
-                "record すると破綻が正解として焼き付くため、修正便と同じコミットで記録すること。",
-        "TocPortalJ" to
-            "監査 G-1 の J 版。TocSkyM と同じ理由で記録待ち（実装修正と同じ便で record）。",
-    )
+    /**
+     * 撮影テストが在るが PNG 未記録 → 理由。
+     *
+     * 現在なし。TocSkyM / TocPortalJ は監査 G-1（目次の現在地バーが fontScale 2.0 で章一覧を押し出す・
+     * 4スキン同型）の実装修正を入れたうえで 2026-08-06 に記録済み＝登録を外した。
+     * ここへ足すのは「撮影ハーネスだけ先に置き、実装修正の前で record を待つ」場合に限る
+     * （壊れた絵を正解として焼き付けないための待機＝`docs/knowledge/golden-record-bakes-in-regressions.md`）。
+     */
+    val acknowledgedPendingRecord: Map<String, String> = emptyMap()
 
     /** 代表 case でテーマ×スケール全数を持たない接頭辞 → 理由。 */
     val acknowledgedPartialMatrix: Map<String, String> = mapOf(
@@ -363,6 +363,13 @@ internal object GoldenCoverageRegistry {
             "⚠️ 監査 G-9: このテストの KDoc が主張する「fontScale 非依存」は**虚偽**で、話数ラベルは実 Compose Text" +
                 "（sp→px 換算に fontScale が効く）。2.0 と sepia を落としている現状は穴であり、" +
                 "免除ではなく**未消化の宿題**として登録している。2.0×ep4digits と sepia を足したらこの登録を消すこと。",
+        "TocSkyM" to
+            "M は ADR 0027 で初回出荷スコープ外＝テーマ退行を張る動機が無い。それでも撮るのは監査 G-1" +
+                "（目次の現在地バーが fontScale 2.0 で章一覧を押し出す）が**4スキン同型**で、M/J だけ 0枚だと" +
+                "同じ穴の再発が見えないため。よって light の 1.0/2.0 に限る＝拡大破綻の軸だけを張る束。" +
+                "出荷スコープに入ったらテーマ全数へ広げてこの登録を消すこと。",
+        "TocPortalJ" to
+            "J も同上（ADR 0027 で出荷スコープ外・監査 G-1 の同型確認だけを目的に light の 1.0/2.0）。",
     )
 
     /** スキン → golden の裁定（撮る接頭辞、または撮らない理由）。 */
@@ -372,11 +379,11 @@ internal object GoldenCoverageRegistry {
         Skin.YAKO_C to "撮影あり（D と共通描画・色トークンのみ差）: NativeTableOfContentsScreen の dark 束が張る。",
         Skin.SEIZU_M to
             "ADR 0027 で release 出荷対象外。監査の裁定どおり優先度は最下位だが、目次 HereBar だけは" +
-                "G-1 の同型4スキンに含まれるため例外的に撮影ハーネスを用意済み（TocSkyM・記録待ち）。",
+                "G-1 の同型4スキンに含まれるため例外的に撮影ハーネスを用意済み（TocSkyM・記録済み）。",
         Skin.CARTRIDGE_P to
             "ADR 0027 で release 出荷対象外＝golden 0枚。ADR 0027 の判断が変わるまで撮らない。",
         Skin.PORTAL_J to
             "ADR 0027 で release 出荷対象外。目次 HereBar のみ G-1 の同型4スキンとして撮影ハーネスを用意済み" +
-                "（TocPortalJ・記録待ち）。",
+                "（TocPortalJ・記録済み）。",
     )
 }
