@@ -126,64 +126,26 @@
   `NcodeLinkSheet` の入力欄2本が remember でシートだけ復元される／per-host スロットルの Mutex がインスタンス局所で
   実フェッチする registry が2つある（実効 2req/s 止まりで実害は薄いが、`defaultAdapters` の why が宣言した不変条件は破れている）。
 
-## golden 監査（2026-08-06）— 104枚中20枚が壊れた絵を「正」として固定している
+## golden 監査（2026-08-06）の残り
 
-> **一次情報＝`.claude/plans/golden-and-docs-audit-2026-08-06.md`**（第1部）。上のコード監査で判明した構造的限界
-> 「**golden は退行しか止めない＝初回記録時に既に壊れていた絵は永久に正として固定され CI は緑のまま**」を、
-> 1件の事故でなく面として測った結果。**fontScale 2.0 に限れば 40枚中15枚（約4割）が破綻**。
->
-> ⚠️⚠️ **作業順序が本質**: 直すとき **先に `recordRoborazziDebug` を打ってはいけない**——今の破綻がそのまま
-> 新しい正解として焼き付く（`docs/knowledge/golden-record-bakes-in-regressions.md`）。**実装を直してから**再記録する。
-> 実装4系統を直せば17枚＋KBottomNav 3枚＝計20枚の再記録で片が付く。
+> 一次情報＝`.claude/plans/golden-and-docs-audit-2026-08-06.md` 第1部（＋末尾「1-2. 走査による追加検出」）。
+> 実装の根因①〜⑤と再記録、機械検知3本＋網羅強制テストは消化済み。残るのは下記だけ。
 
-- **[根因① 目次の現在地バーが章一覧を押し出す（4スキン同型・golden 7枚）]** `ui/skins/k/TocK.kt:275` /
-  `ui/NativeTableOfContentsScreen.kt:387` / `ui/skins/m/TocSkyM.kt:334` / `ui/skins/j/TocPortalJ.kt:295`。
-  進捗 Text に weight / maxLines / softWrap のいずれも無く、2.0 で縦5行に膨張して同 Column の
-  `LazyColumn(…weight(1f))` に残り高0が渡る（罫線走査で 1.0 は5本→2.0 は1本＝**章行0本**）。
-  1240話の本で**目次のタップ対象が1件も存在しない**。
-  ⚠️ この golden を撮った `TocKEpisodeDigitsScreenshotTest.kt:34` は「現在地バーが桁数の多い N で崩れる」を
-  **赤くなる条件として明記**しており、**テストが自ら宣言した破綻を含む絵を、そのテストが正解にしている**。
-  → 進捗 Text へ `weight(1f)` + `maxLines=1`。M/J は golden 0枚なので撮影条件も足さないと再発が見えない。
-- **[根因② 表示設定シートの「行間」「本文余白」が 2.0 で到達不能（golden 3枚）]** `ui/ReadingSettingsSheet.kt:436-576`
-  ——**ファイル全体に `verticalScroll` / `rememberScrollState` が0件**。文字を大きくして使う層＝行間と余白を最も
-  調整したい層が、2項目を一切変更できない。実機は `ModalBottomSheet` でシート高が golden より低く実害はより大きい。
-  同ファイル `:400-402` は「末尾に足すと画面外に切れて到達不能になり得る」と**危険を明文で認識しながら**
-  縦書きトグルだけを上へ逃がしている。→ シート本体に `verticalScroll`。
-- **[根因③ 縦中横の寸法と向きが不一致で字面が接触（golden 4枚）]** `typeset/render/PaintFontMetrics.kt:37-41` /
-  `typeset/VerticalTypesetter.kt:161-163` / `typeset/render/GlyphRenderer.kt:51-52,98`。
-  寸法側は「単一の半角 ASCII は90度回転させるので measureText がそのまま縦の占有」と書くが、長さ1ランは
-  `CharClass.UPRIGHT` へ上書きされ**回転しない**。連結成分解析で「月」「3」「日」が単一成分＝**字面が接触**。
-  「3日」「1人」「A社」はなろう本文に頻出＝縦書きで毎回踏む。
-  ⚠️ 純層テストは `FakeMonospaceMetrics` が等幅フェイクのため検出不能で、**その KDoc 自身が「その差の吸収は
-  golden で担保する」と委ねている**。委ねられた唯一のゲートが、壊れた絵を正として修正を阻む側に回っている。
-  → 正立で描くなら縦送りを実インク基準へ、回転させるなら分類を戻す。`PaintFontMetrics.kt:37` の記述も but-for 条件込みで改稿。
-- **[根因④ 固定幅・maxLines 無しのラベルが割れる（golden 6枚）]**
-  `ui/skins/k/KBottomNav.kt:61`（既知・出発点／**実装便を破棄したので壊れた3枚は残ったまま**）／
-  `ui/discovery/DiscoveryCommon.kt:226-237` の順位が `width(34.dp)` のみで**「10」が「1」と「0」に割れる**
-  （なろうランキングは常に10件出る＝2.0 利用者は毎回踏む。同ファイル `:256-258` に同型の実機バグ対処コメントが
-  既にあるのに同じ行の順位列へ及んでいない）／`TocK_ep4digits_light_1.0` は**1.0 なのに**「第1028話」が
-  「第1028」「話」の2行に割れている（`rememberEpLabelWidth` が total=1240 の1本だけを採寸）。
-  ⚠️ 後者は 2026-07-29 実機の「第132話が 44dp に収まらず割れる」退行を二度と通さないために**新設された golden**が、
-  初回記録の時点で同じ折返しを焼き付けたもの＝**この穴は塞がっていない**。
-- **[根因⑤ K の空棚 CTA が 2.0 で1文字ずつ縦積み＋下端切れ（golden 1枚）]** `ui/skins/k/BookshelfK.kt:1334-1338`
-  （weight も折返しも無い Row）/ `:1315-1319`（verticalScroll 無し）。蔵書ゼロ＝新規ユーザーが最初に見る画面。
-  ただし同画面の FAB は 2.0 でも読めるため機能ブロッカーではない。
-- **[網羅の穴]** **画面ルート級で0枚**＝読書画面ルートとクローム（`NativeReadingScreen` / `ReadingChrome`）・
-  装いの間（`WardrobeScreen`）。さがす配下5ルート＋シート2種も0枚。`VerticalChapterContent` は
-  **虚偽の前提（「Canvas 直描きで fontScale 非依存」）で 2.0・sepia を落としている**が、実装のコメント自身が
-  `// sp→px（fontScale 込み）` と書き話数ラベルは実 Compose Text。M/P/J/C スキンは全面0枚（ADR 0027 で出荷外＝優先度最下位。
-  ただし目次 HereBar の同型4スキンだけは根因①として例外）。
-- **[孤児検出が型として存在しない（現在0件＝潜在）]** PNG 104枚とテスト期待名は **104↔104 の全単射**で孤児は0。
-  ただし Roborazzi 1.70.0 の sealed `CaptureResult` は Added/Changed/Recorded/Unchanged の4種のみで
-  **PNG 側から走査する経路が実装にも型にも無い**。`cleanupOldScreenshots` も未設定でしかも無言 delete。
-  → `Screenshot*Test` を1クラス消すと PNG は git に残り verify は緑＝台帳 B表 `removed-hook-leaves-dead-consumer` と同型。
-  caseId 改名は record を打った瞬間に旧名が無言で孤児化する。
-- **[検知への投資（推奨順）]** ①**2.0 破綻の走査を書く**——今回の20枚は3パターンに収まり純 Python の PNG デコードで
-  検出できる（監査中に3人が独立に自作＝実装コストは実証済み）: (a) 1.0 に在った全幅罫線が 2.0 で減る（根因①の7枚を一撃）
-  (b) キャンバス最終行にインクが残る＝下端クリップ (c) 1.0 で1帯だったインクが 2.0 で同一 x 範囲の2帯へ割れる（6枚）。
-  **3本で20枚中14枚が機械検出できる**。②**網羅の機械強制**——`MainActivity` の `composable(...)` ルート一覧 ×
-  THEMES × FONT_SCALES と golden 接頭辞を突合し、未撮影は理由付き除外リストに載せないと赤
-  （`DiscoveryHomeInvariantCoverageTest` の `acknowledgedOutOfScope` が流用できる。同じスクリプトで孤児も閉じる）。
+- **[モック裁定待ち] 目次の「ここから再開」チップ×章題の行リフロー（K/M/J）**: 走査(c)が残す唯一の真の破綻。
+  真因＝`TocK.kt:399-409` のチップが weight を持たない非加重子で実寸312pxを先取りし、内側Row 650px −
+  ep200 − gap48 − チップ312 ＝ 題名に90pxしか残らず全角1字48px＝1行1文字（縦連の正体は話数ラベルでなく章題）。
+  M/J は `TocSkyM.kt:388`・`TocPortalJ.kt:355` が `.width(52.dp)` 固定で ep 自体が3行割れ（走査は未検出）。
+  ⚠️ **ep 幅だけ直すと題名が M:54px J:40px に落ちて悪化＝ep 幅修正と行リフローは同時に入れる**。
+  唯一の合成解＝2.0 でチップを題名の下段へ落とす（1.0 不変を保つには BoxWithConstraints 採寸の条件分岐。
+  weight 分割・dp 上限は 1.0 の版面を変えるため不可）＝意匠変更につきモック先行・`awaiting-human.md` 参照。
+- **[CI 結線・二段構え] 走査3本を ci.yml へ**: まず `continue-on-error: true` で可視化のみ→上のリフロー修正で
+  赤0になってからブロッキングへ（ktlint が 2026-08-05 に辿った経路と同じ）。
+- **[機械で捕まらない穴・設計メモ]** 表示設定シートの `verticalScroll` 欠落（根因②）は**どの走査でも検出不能**
+  ——非スクロール面の溢れは切れずに空白が残るだけで画素に痕跡が出ない＝実装側の不変条件で縛るしかない。
+  等倍側の割れ（根因④の一部）も「1.0 との差」を証拠にする方式では原理的に出ない。
+- **[撮影条件の追加候補]** `SettingsScreenK` の `followingSystem=true`（trailing 文言が最長・
+  `SettingsScreenK.kt:137-148` は weight も maxLines も無し）は未撮影。
+
 
 ## docs 陳腐化監査（2026-08-06）の残り
 
