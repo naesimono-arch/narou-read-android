@@ -152,6 +152,118 @@
   `NcodeLinkSheet` の入力欄2本が remember でシートだけ復元される／per-host スロットルの Mutex がインスタンス局所で
   実フェッチする registry が2つある（実効 2req/s 止まりで実害は薄いが、`defaultAdapters` の why が宣言した不変条件は破れている）。
 
+## golden 監査（2026-08-06）— 104枚中20枚が壊れた絵を「正」として固定している
+
+> **一次情報＝`.claude/plans/golden-and-docs-audit-2026-08-06.md`**（第1部）。上のコード監査で判明した構造的限界
+> 「**golden は退行しか止めない＝初回記録時に既に壊れていた絵は永久に正として固定され CI は緑のまま**」を、
+> 1件の事故でなく面として測った結果。**fontScale 2.0 に限れば 40枚中15枚（約4割）が破綻**。
+>
+> ⚠️⚠️ **作業順序が本質**: 直すとき **先に `recordRoborazziDebug` を打ってはいけない**——今の破綻がそのまま
+> 新しい正解として焼き付く（`docs/knowledge/golden-record-bakes-in-regressions.md`）。**実装を直してから**再記録する。
+> 実装4系統を直せば17枚＋KBottomNav 3枚＝計20枚の再記録で片が付く。
+
+- **[根因① 目次の現在地バーが章一覧を押し出す（4スキン同型・golden 7枚）]** `ui/skins/k/TocK.kt:275` /
+  `ui/NativeTableOfContentsScreen.kt:387` / `ui/skins/m/TocSkyM.kt:334` / `ui/skins/j/TocPortalJ.kt:295`。
+  進捗 Text に weight / maxLines / softWrap のいずれも無く、2.0 で縦5行に膨張して同 Column の
+  `LazyColumn(…weight(1f))` に残り高0が渡る（罫線走査で 1.0 は5本→2.0 は1本＝**章行0本**）。
+  1240話の本で**目次のタップ対象が1件も存在しない**。
+  ⚠️ この golden を撮った `TocKEpisodeDigitsScreenshotTest.kt:34` は「現在地バーが桁数の多い N で崩れる」を
+  **赤くなる条件として明記**しており、**テストが自ら宣言した破綻を含む絵を、そのテストが正解にしている**。
+  → 進捗 Text へ `weight(1f)` + `maxLines=1`。M/J は golden 0枚なので撮影条件も足さないと再発が見えない。
+- **[根因② 表示設定シートの「行間」「本文余白」が 2.0 で到達不能（golden 3枚）]** `ui/ReadingSettingsSheet.kt:436-576`
+  ——**ファイル全体に `verticalScroll` / `rememberScrollState` が0件**。文字を大きくして使う層＝行間と余白を最も
+  調整したい層が、2項目を一切変更できない。実機は `ModalBottomSheet` でシート高が golden より低く実害はより大きい。
+  同ファイル `:400-402` は「末尾に足すと画面外に切れて到達不能になり得る」と**危険を明文で認識しながら**
+  縦書きトグルだけを上へ逃がしている。→ シート本体に `verticalScroll`。
+- **[根因③ 縦中横の寸法と向きが不一致で字面が接触（golden 4枚）]** `typeset/render/PaintFontMetrics.kt:37-41` /
+  `typeset/VerticalTypesetter.kt:161-163` / `typeset/render/GlyphRenderer.kt:51-52,98`。
+  寸法側は「単一の半角 ASCII は90度回転させるので measureText がそのまま縦の占有」と書くが、長さ1ランは
+  `CharClass.UPRIGHT` へ上書きされ**回転しない**。連結成分解析で「月」「3」「日」が単一成分＝**字面が接触**。
+  「3日」「1人」「A社」はなろう本文に頻出＝縦書きで毎回踏む。
+  ⚠️ 純層テストは `FakeMonospaceMetrics` が等幅フェイクのため検出不能で、**その KDoc 自身が「その差の吸収は
+  golden で担保する」と委ねている**。委ねられた唯一のゲートが、壊れた絵を正として修正を阻む側に回っている。
+  → 正立で描くなら縦送りを実インク基準へ、回転させるなら分類を戻す。`PaintFontMetrics.kt:37` の記述も but-for 条件込みで改稿。
+- **[根因④ 固定幅・maxLines 無しのラベルが割れる（golden 6枚）]**
+  `ui/skins/k/KBottomNav.kt:61`（既知・出発点／**実装便を破棄したので壊れた3枚は残ったまま**）／
+  `ui/discovery/DiscoveryCommon.kt:226-237` の順位が `width(34.dp)` のみで**「10」が「1」と「0」に割れる**
+  （なろうランキングは常に10件出る＝2.0 利用者は毎回踏む。同ファイル `:256-258` に同型の実機バグ対処コメントが
+  既にあるのに同じ行の順位列へ及んでいない）／`TocK_ep4digits_light_1.0` は**1.0 なのに**「第1028話」が
+  「第1028」「話」の2行に割れている（`rememberEpLabelWidth` が total=1240 の1本だけを採寸）。
+  ⚠️ 後者は 2026-07-29 実機の「第132話が 44dp に収まらず割れる」退行を二度と通さないために**新設された golden**が、
+  初回記録の時点で同じ折返しを焼き付けたもの＝**この穴は塞がっていない**。
+- **[根因⑤ K の空棚 CTA が 2.0 で1文字ずつ縦積み＋下端切れ（golden 1枚）]** `ui/skins/k/BookshelfK.kt:1334-1338`
+  （weight も折返しも無い Row）/ `:1315-1319`（verticalScroll 無し）。蔵書ゼロ＝新規ユーザーが最初に見る画面。
+  ただし同画面の FAB は 2.0 でも読めるため機能ブロッカーではない。
+- **[網羅の穴]** **画面ルート級で0枚**＝読書画面ルートとクローム（`NativeReadingScreen` / `ReadingChrome`）・
+  装いの間（`WardrobeScreen`）。さがす配下5ルート＋シート2種も0枚。`VerticalChapterContent` は
+  **虚偽の前提（「Canvas 直描きで fontScale 非依存」）で 2.0・sepia を落としている**が、実装のコメント自身が
+  `// sp→px（fontScale 込み）` と書き話数ラベルは実 Compose Text。M/P/J/C スキンは全面0枚（ADR 0027 で出荷外＝優先度最下位。
+  ただし目次 HereBar の同型4スキンだけは根因①として例外）。
+- **[孤児検出が型として存在しない（現在0件＝潜在）]** PNG 104枚とテスト期待名は **104↔104 の全単射**で孤児は0。
+  ただし Roborazzi 1.70.0 の sealed `CaptureResult` は Added/Changed/Recorded/Unchanged の4種のみで
+  **PNG 側から走査する経路が実装にも型にも無い**。`cleanupOldScreenshots` も未設定でしかも無言 delete。
+  → `Screenshot*Test` を1クラス消すと PNG は git に残り verify は緑＝台帳 B表 `removed-hook-leaves-dead-consumer` と同型。
+  caseId 改名は record を打った瞬間に旧名が無言で孤児化する。
+- **[検知への投資（推奨順）]** ①**2.0 破綻の走査を書く**——今回の20枚は3パターンに収まり純 Python の PNG デコードで
+  検出できる（監査中に3人が独立に自作＝実装コストは実証済み）: (a) 1.0 に在った全幅罫線が 2.0 で減る（根因①の7枚を一撃）
+  (b) キャンバス最終行にインクが残る＝下端クリップ (c) 1.0 で1帯だったインクが 2.0 で同一 x 範囲の2帯へ割れる（6枚）。
+  **3本で20枚中14枚が機械検出できる**。②**網羅の機械強制**——`MainActivity` の `composable(...)` ルート一覧 ×
+  THEMES × FONT_SCALES と golden 接頭辞を突合し、未撮影は理由付き除外リストに載せないと赤
+  （`DiscoveryHomeInvariantCoverageTest` の `acknowledgedOutOfScope` が流用できる。同じスクリプトで孤児も閉じる）。
+
+## docs 陳腐化監査（2026-08-06）— 37件・腐りやすさは台帳80% > patterns 56% > skills 33% > ADR 13% ≒ knowledge 9%
+
+> **一次情報＝`.claude/plans/golden-and-docs-audit-2026-08-06.md`**（第2部・全37件の個別 finding つき）。
+> **分岐点は「現在形で書いているか」**——ADR / knowledge は過去形の判断と機序を書くので時間に強く、
+> 台帳 / patterns は現在値と手順を書くので実装が動くたび嘘になる。skills は密度3位だが
+> **必須ゲートとして毎回読まれる＝誤りが即座に行動へ変換される**ため実害の期待値では最上位。
+
+- **[最重・出荷を壊しうる] `docs/knowledge/apk-has-no-native-libs-16kb-page-not-applicable.md`** の
+  「APK に .so は1本も入らない＝16KBページ非該当」が**誤り**。実 APK（release/debug 両方）に **.so は8本**入っている
+  （`androidx.graphics:graphics-path` ＋ `androidx.datastore:datastore-core-android` の4ABI×2）。
+  ⚠️ **偽測定の機序まで特定済み**——この環境に `unzip` が無く `unzip -l <apk> | grep '\.so$'` が無出力→0件を返していた
+  （memory `bash-pipe-masks-exit-code-false-green` の型）。`build.gradle:208,226` は正しく「4ABI×2＝8本」
+  「release APK は .so 8本すべて 0x4000」と書いており**同日付で正面から矛盾**している。
+  実害＝依存バンプ担当が16KBページ整列確認を「非該当だから不要」と恒久的に飛ばし、上流が非対応版に差し替わった瞬間に
+  **Android 15+ の16KBページ端末で起動不能な APK を無検査で出荷**する。→ 撤回か全面改稿し、実測コマンドを
+  `python3 -m zipfile -l` へ（`unzip` 非導入環境でも可。作法は同ディレクトリ `agp-srcdir-taskprovider-drops-builtby.md:18`）。
+- **[コード内コメントの正面矛盾] `domain/ShelfItems.kt:266-273` vs 同 `:295-307`**——上は「reachedEnd は
+  ProgressEntity に無く FINISHED は未成立」と現在形で断定するが、`ProgressEntity.kt:26`（v18 追加）・
+  `MIGRATION_17_18`・`:307` の判定・`ProgressDao.kt:46` の書込まで全て稼働中。**両コメントが同じ典拠を名乗って真逆**。
+- **[必須ゲートの誤り] CI ゲートは6本なのに `/build` と STATUS が「5つ」「計5ゲート」と数えている**（ktlint 欠落）。
+  `ci.yml:73-75` に `ktlintCheck` が実在し 2026-08-05 にブロッキング復帰済みだが、**md 側のどこにも書かれていない**
+  （`grep -rn ktlint --include=*.md .` が0件）。この節どおり回した Claude は未使用 import 1つで CI を赤にする。
+- **[禁止事項への誘導] 禁止中の agy への委譲を skill 2本＋参照台帳が今も規定**（`hallucination/SKILL.md:45-46` /
+  `hallucination-ground-truth.md:34,42` / `shiori-tips/SKILL.md:32(b)`）。CLAUDE.md は「2026-07-24〜 使用禁止」だが
+  **代替手段（Claude サブでの意味監査）がどこにも書かれていない**。`~/.local/bin/agy` は実在するので
+  Bash 直叩きなら**ユーザー裁定に反した委譲が実際に成功してしまう**。
+- **[存在しない env 前提が5箇所] `CLAUDE_CODE_SUBAGENT_MODEL`** — `~/.claude/settings.json` の env は6件で該当変数は無い。
+  `orchestration/SKILL.md:88` / `shiori-tips/SKILL.md:32` / `.claude/agents/general-purpose.md:10` /
+  `.claude/agents/device-verify.md:21` / handover 自身。⚠️ **handover は同じ段で「現状は env で opus 固定」と書いた直後に
+  「2026-08-06 に opus固定指示は解除済み」と自己矛盾している**（下の workflow / tooling 節）。
+- **[その他 A 判定]** `/build` が撤去済み機構と存在しない memory を根拠に「テストは前景で」と縛っている／
+  `/build` の「`gw` が必須な理由＝CRLF」は誤り（gradlew は LF）／ADR 0005 §C「スキン着せ替えは実装しない」が
+  現在形のまま撤回注記なし／ADR README 索引の2エントリが完了済み作業を未着手と書いている／
+  `Motion.kt` のタブ切替コメントが廃止済み crossfade を説明／**handover の「章見出しの話数ラベルは描画側が誰も
+  読んでいない」は false**（描画側5ファイルが使用中）／**STATUS の「公開準備は作業ブランチ（worktree）で進行中」
+  ——そのブランチも worktree も存在しない**／`registry` の `mock-code-drift` 検知手段「手動実行」は誤り（CI が毎push）／
+  `02-narou-api-digest` の order 値 `daily_point` は実在せず `weekly` は別指標／
+  `registry:120` の「48枚」は 0ab7f70(2026-07-30) まで正しく、**同じ日の次便で85枚へ跳ねて9日間放置**され、
+  同行の参照先 `golden-regression-baselines.md` も別系統（PDF抽出の基準値表）を指している。
+- **[検知への投資（順位つき）]** ①**台帳・CI コメント・skill から「現在値の数値」を消すか機械生成にする**——
+  今回の数値ズレ5件（48枚×2・1072件・297組・5ゲート）は全て `ls`/`wc`/checker 実行で1秒で出る。
+  `.claude/skills/build/SKILL.md:73` が既に「枚数は増えるので書かない」と規約化しているので**適用範囲を全 md へ広げ、
+  `/stale-check` に「md 中の『N枚 / N件 / 計Nゲート』を実測と突合する」検査を足す**。②**patterns に
+  「正本コード: <path>」ヘッダを必須化**し、その path の公開シンボル集合が変わったら赤（patterns は9本＝初期コスト小・汚染率2位を直撃）。
+  ③**双方向注記の義務化**——「後の ADR / コミットが前の記述を解除したら解除された側にも注記を打つ」を `/stale-check` へ
+  （今回の片方向更新4件が対象）。**しないこと＝knowledge の全数照合**（46本中4本＝9%で費用対効果が低い。
+  ただし「外部事実を実測と称して書いた knowledge」だけは別枠＝**使ったコマンドと環境の併記を必須**にする）。
+- **[要再確認 8件（F-1〜F-8）]** 実装ワークフローが同時にファイルを編集していた時間帯の指摘で、**その編集は破棄済み**。
+  行番号も根拠も現ツリーで取り直すこと。内容は一次情報の第3部（さがす配下の golden 0枚／`patterns/processing-state.md` が
+  **再発を招く旧処方を規範として提示している**／`string-hashcode-low-bit-bias` が J で無効と判明済みの因果を M/P へ勧誘/
+  `positioning-brief` の機能欠落／`discovery-terminology` の配線依頼2件が撤去済み UI を指す／`backlog-frozen` の
+  file:line 3件が全て別の場所／`PdfBookImporter.kt:349-351` の参照先不在／KBottomNav 3枚の再記録）。
+
 ## 未修正・調査中のバグ
 
 - **[本文読書中の章遷移で「描画が上部にジャンプする」]**（実機ユーザー報告・**報告者自身も再現できていない**＝再現手順の取得が先決＝`awaiting-human.md` §1-4）:

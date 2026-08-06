@@ -73,8 +73,16 @@
 - **既知バグ: 全面監査（2026-08-06）で 25 件**——release 到達 13・debug 限定（M/P/J）8・記録のみ 4。処理待ちの一覧＝`handover.md`、
   機序と直し方＝`.claude/plans/code-health-audit-2026-08-06.md`。最重＝**FGS の `onTimeout` がオーバーロード不一致で dead**
   （台帳 `cancelled-scope-reuse-silent-stop`／`stale-generation-coroutine-finally` の修正がまとめて発火しない）。
-  ⚠️ 監査で判明した**ゲートの構造的限界**: golden は退行しか止めない＝初回記録時の誤りは永久に固定される
-  （`KBottomNav_*_2.0.png` がラベル切れの絵を正として保持していた実例）。
+  **コードは未修正**（今回は発見にとどめる裁定）。
+
+- **ゲートの構造的限界（同日の追監査で「面」として測定）**——一次情報＝`.claude/plans/golden-and-docs-audit-2026-08-06.md`:
+  ①**golden は退行しか止めない**＝初回記録時に壊れていた絵が永久に「正」として固定される。実測で
+  **fontScale 2.0 の golden の約4割が破綻した絵を保持**（根因4系統）。⚠️ 直すときは**実装を先に直してから再記録**
+  （先に `recordRoborazziDebug` を打つと今の破綻が新しい正解として焼き付く）。孤児 golden は現在0だが**検出経路が
+  Roborazzi の型として存在しない**＝テストを消すと PNG は残り verify は緑。
+  ②**ドキュメントは名指しの実在だけが機械照合され、記述の内容が実装と食い違うかは誰も見ていない**＝陳腐化を面で検出。
+  腐りやすさは 台帳 > patterns > skills > ADR ≒ knowledge（分岐点は「現在形で書いているか」）で、
+  **この STATUS 自身にも2件見つかっている**（handover に登録済み）。
 
 ## 1. 観察ログ（未確定の所見のみ・確定したら handover か ADR へ）
 
