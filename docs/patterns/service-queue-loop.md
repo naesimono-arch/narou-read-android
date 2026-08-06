@@ -1,6 +1,7 @@
 # Service 内キュー + シングルループ処理パターン  ★★
 
 > 旧 `task_diary.md` §23（本アプリ固有の実装パターン）
+> 正本コード: `android/app/src/main/java/com/novelreader/PdfProcessingService.kt`
 > ここは **コードが正本**。「なぜこのパターンか」に絞る。
 
 複数の URI が短時間に `onStartCommand()` に来ても無言破棄せず直列処理するパターン。

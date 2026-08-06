@@ -23,8 +23,11 @@ export PATH="$JAVA_HOME/bin:$PATH"
 
 ## Linux / WSL（このマシンの正本）
 
-`/mnt/c`(canonical) では `gw` と `--init-script` の2点が**必須**（CRLF と AAPT2 の EPERM が理由＝
+`/mnt/c`(canonical) では `gw` と `--init-script` の2点が**必須**（`--init-script` の理由＝AAPT2 の EPERM。
 機序はグローバル CLAUDE.md）。**ext4 の worktree では `--init-script` は不要**＝素の `gw <task>` でよい。
+`gw` の実益＝wrapper jar 直起動＋`local.properties` の sdk.dir 自己修復。**CRLF は理由ではない**
+（gradlew は LF＝`ci.yml` の chmod ステップが file コマンド確認済みと明記。`./gradlew` 直接実行を阻む実態は
+git index 100644 の実行ビット欠落＝ext4 worktree では Permission denied。drvfs の canonical は 777 扱いで実行自体は可）。
 
 ```bash
 cd android
@@ -48,8 +51,9 @@ sed -i '/^sdk\.dir/d' local.properties   # Android Studio が書き戻す Window
 ```
 
 - `sed -i` は `/mnt/c`(drvfs) で permissions 警告を出すが**置換自体は成功する**（無害・`2>/dev/null` で抑制可）。
-- `testDebugUnitTest` を `run_in_background` で回すとコミットゲートのセンチネルが生成されない
-  （memory `background-gradle-test-skips-sentinel-hook`）→ テストはフォアグラウンドで。
+- 旧記述「`run_in_background` だとコミットゲートのセンチネルが生成されない→前景で」は**失効**
+  （センチネル生成側は 2026-07-12 撤去＝ADR 0017・消費側判定も 2026-07-25 退役。根拠にしていた
+  memory `background-gradle-test-skips-sentinel-hook` も現存しない）。前景で回す義務は無い。
 
 ## Windows
 
@@ -63,12 +67,13 @@ cd android && ./gradlew compileDebugKotlin  # Kotlinコンパイル確認
 
 ## CI と同じゲートをローカルで回す
 
-CI（`.github/workflows/ci.yml`）が毎 push で回すのは次の5つ。**日常の自己検証は
+CI（`.github/workflows/ci.yml`）が毎 push で回すのは次の6つ。**日常の自己検証は
 `testDebugUnitTest` だけでよく**（CLAUDE.md「自己検証必須」）、以下は push 前に赤を前倒しで拾いたいときや、
 該当領域を触ったときに個別で回す。ext4 worktree なら `gw <task>` がそのまま通る（`--init-script` 不要）。
 
 ```bash
 cd android
+gw --continue :app:ktlintCheck    # 未使用 import 検知（2026-08-05 ブロッキング復帰）。基準 0 件
 gw :app:verifyRoborazziDebug      # 単体テスト全件＋golden の画像比較（testDebugUnitTest を内包する1パス）
                                   # 枚数は増えるので書かない＝実数は `ls android/app/src/test/screenshots/*.png | wc -l`
 gw :app:assembleDebugAndroidTest  # androidTest の「ビルド」だけ（実行は端末必須＝/device-verify）
@@ -76,6 +81,9 @@ gw :app:lintDebug                 # 基準 0 errors
 gw :app:assembleRelease           # release の R8 収縮が通るか（鍵不在でも未署名で通る）
 python3 tools/check_design_tokens.py
 ```
+
+- **ktlint の残数を数えるときは必ず `--continue` を付ける**——無しだと最初に落ちたソースセットで止まり、
+  他ソースセットの report が生成されないまま「あと N 件」と読み違える（`ci.yml` のコメントが一次情報＝実際に踏んだ）。
 
 - **`verifyRoborazziDebug` は `testDebugUnitTest` を内包する**（同じ test タスクを `roborazzi.test.verify=true`
   付きで実行する形）。両方を別々に回すとテストが丸ごと2回走るだけなので、golden も見たいときは verify 側だけでよい。

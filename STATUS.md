@@ -9,8 +9,8 @@
 
 ## 0. 現在の状態
 
-- **ブランチ**: Google Play 公開準備トラックを作業ブランチ（worktree）で進行中（統合時にこの行を main 一本へ戻す）。
-  公開準備の現況: targetSdk/compileSdk 36・リリース署名＋AAB 経路・R8 実機回帰・In-App Review 実装まで済。
+- **公開準備（Google Play）**: main 統合済み（専用の作業ブランチ・worktree は現存しない）。
+  現況: targetSdk/compileSdk 36・リリース署名＋AAB 経路・R8 実機回帰・In-App Review 実装まで済。
   プライバシーポリシー/Data safety 下書き済（裁定済み＝収集なし申告・GitHub Pages 公開）・採番規約 ADR 0025 採択（1.0.0）。
   **残の前置＝ブランド名確定**（applicationId・ストア素材・ポリシー公開が全部これ待ち）＋鍵バックアップ（ユーザー作業）。
 
@@ -66,8 +66,8 @@
 
 - **ゲート**（数値は測り直せば変わるので書かない＝疑わしければその場で回す）: `testDebugUnitTest` 緑／`tools/check_design_tokens.py` NG=0
   （＋余白スケール7段 {4,8,12,16,24,32,40} の Spacing lint＝ADR0014 §C。SKIP は内訳列挙＋ベースライン超過で exit 1）／`:app:lintDebug` errors=0（warnings は非ブロック）。
-  push 時は GitHub Actions（`.github/workflows/ci.yml`）が上記3つ＋**golden 画像照合**（`verifyRoborazziDebug`＝単体テストと同じ1パス）
-  ＋**androidTest のコンパイル**＋**release R8 ビルド**の計5ゲートを自動実行（実機必須の androidTest 実行と macrobenchmark は引き続き対象外＝YAML コメントに理由）。
+  push 時は GitHub Actions（`.github/workflows/ci.yml`）が上記3つ＋**ktlint**（`:app:ktlintCheck`＝未使用 import 検知）＋**golden 画像照合**
+  （`verifyRoborazziDebug`＝単体テストと同じ1パス）＋**androidTest のコンパイル**＋**release R8 ビルド**の計6ゲートを自動実行（実機必須の androidTest 実行と macrobenchmark は引き続き対象外＝YAML コメントに理由）。
   どのバグ型がどのゲートに守られているか（と**どこが無防備か**）の一覧＝`docs/known-bugs-registry.md`。
 
 - **既知バグ: 全面監査（2026-08-06）で 25 件**——release 到達 13・debug 限定（M/P/J）8・記録のみ 4。処理待ちの一覧＝`handover.md`、

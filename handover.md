@@ -185,53 +185,11 @@
   THEMES × FONT_SCALES と golden 接頭辞を突合し、未撮影は理由付き除外リストに載せないと赤
   （`DiscoveryHomeInvariantCoverageTest` の `acknowledgedOutOfScope` が流用できる。同じスクリプトで孤児も閉じる）。
 
-## docs 陳腐化監査（2026-08-06）— 37件・腐りやすさは台帳80% > patterns 56% > skills 33% > ADR 13% ≒ knowledge 9%
+## docs 陳腐化監査（2026-08-06）の残り
 
-> **一次情報＝`.claude/plans/golden-and-docs-audit-2026-08-06.md`**（第2部・全37件の個別 finding つき）。
-> **分岐点は「現在形で書いているか」**——ADR / knowledge は過去形の判断と機序を書くので時間に強く、
-> 台帳 / patterns は現在値と手順を書くので実装が動くたび嘘になる。skills は密度3位だが
-> **必須ゲートとして毎回読まれる＝誤りが即座に行動へ変換される**ため実害の期待値では最上位。
+> 一次情報＝`.claude/plans/golden-and-docs-audit-2026-08-06.md` 第2部・第3部。
+> 確定 A 判定と検知への投資（数値突合・双方向注記・patterns 正本ヘッダ）は消化済み。
 
-- **[最重・出荷を壊しうる] `docs/knowledge/apk-has-no-native-libs-16kb-page-not-applicable.md`** の
-  「APK に .so は1本も入らない＝16KBページ非該当」が**誤り**。実 APK（release/debug 両方）に **.so は8本**入っている
-  （`androidx.graphics:graphics-path` ＋ `androidx.datastore:datastore-core-android` の4ABI×2）。
-  ⚠️ **偽測定の機序まで特定済み**——この環境に `unzip` が無く `unzip -l <apk> | grep '\.so$'` が無出力→0件を返していた
-  （memory `bash-pipe-masks-exit-code-false-green` の型）。`build.gradle:208,226` は正しく「4ABI×2＝8本」
-  「release APK は .so 8本すべて 0x4000」と書いており**同日付で正面から矛盾**している。
-  実害＝依存バンプ担当が16KBページ整列確認を「非該当だから不要」と恒久的に飛ばし、上流が非対応版に差し替わった瞬間に
-  **Android 15+ の16KBページ端末で起動不能な APK を無検査で出荷**する。→ 撤回か全面改稿し、実測コマンドを
-  `python3 -m zipfile -l` へ（`unzip` 非導入環境でも可。作法は同ディレクトリ `agp-srcdir-taskprovider-drops-builtby.md:18`）。
-- **[コード内コメントの正面矛盾] `domain/ShelfItems.kt:266-273` vs 同 `:295-307`**——上は「reachedEnd は
-  ProgressEntity に無く FINISHED は未成立」と現在形で断定するが、`ProgressEntity.kt:26`（v18 追加）・
-  `MIGRATION_17_18`・`:307` の判定・`ProgressDao.kt:46` の書込まで全て稼働中。**両コメントが同じ典拠を名乗って真逆**。
-- **[必須ゲートの誤り] CI ゲートは6本なのに `/build` と STATUS が「5つ」「計5ゲート」と数えている**（ktlint 欠落）。
-  `ci.yml:73-75` に `ktlintCheck` が実在し 2026-08-05 にブロッキング復帰済みだが、**md 側のどこにも書かれていない**
-  （`grep -rn ktlint --include=*.md .` が0件）。この節どおり回した Claude は未使用 import 1つで CI を赤にする。
-- **[禁止事項への誘導] 禁止中の agy への委譲を skill 2本＋参照台帳が今も規定**（`hallucination/SKILL.md:45-46` /
-  `hallucination-ground-truth.md:34,42` / `shiori-tips/SKILL.md:32(b)`）。CLAUDE.md は「2026-07-24〜 使用禁止」だが
-  **代替手段（Claude サブでの意味監査）がどこにも書かれていない**。`~/.local/bin/agy` は実在するので
-  Bash 直叩きなら**ユーザー裁定に反した委譲が実際に成功してしまう**。
-- **[存在しない env 前提が5箇所] `CLAUDE_CODE_SUBAGENT_MODEL`** — `~/.claude/settings.json` の env は6件で該当変数は無い。
-  `orchestration/SKILL.md:88` / `shiori-tips/SKILL.md:32` / `.claude/agents/general-purpose.md:10` /
-  `.claude/agents/device-verify.md:21` / handover 自身。⚠️ **handover は同じ段で「現状は env で opus 固定」と書いた直後に
-  「2026-08-06 に opus固定指示は解除済み」と自己矛盾している**（下の workflow / tooling 節）。
-- **[その他 A 判定]** `/build` が撤去済み機構と存在しない memory を根拠に「テストは前景で」と縛っている／
-  `/build` の「`gw` が必須な理由＝CRLF」は誤り（gradlew は LF）／ADR 0005 §C「スキン着せ替えは実装しない」が
-  現在形のまま撤回注記なし／ADR README 索引の2エントリが完了済み作業を未着手と書いている／
-  `Motion.kt` のタブ切替コメントが廃止済み crossfade を説明／**handover の「章見出しの話数ラベルは描画側が誰も
-  読んでいない」は false**（描画側5ファイルが使用中）／**STATUS の「公開準備は作業ブランチ（worktree）で進行中」
-  ——そのブランチも worktree も存在しない**／`registry` の `mock-code-drift` 検知手段「手動実行」は誤り（CI が毎push）／
-  `02-narou-api-digest` の order 値 `daily_point` は実在せず `weekly` は別指標／
-  `registry:120` の「48枚」は 0ab7f70(2026-07-30) まで正しく、**同じ日の次便で85枚へ跳ねて9日間放置**され、
-  同行の参照先 `golden-regression-baselines.md` も別系統（PDF抽出の基準値表）を指している。
-- **[検知への投資（順位つき）]** ①**台帳・CI コメント・skill から「現在値の数値」を消すか機械生成にする**——
-  今回の数値ズレ5件（48枚×2・1072件・297組・5ゲート）は全て `ls`/`wc`/checker 実行で1秒で出る。
-  `.claude/skills/build/SKILL.md:73` が既に「枚数は増えるので書かない」と規約化しているので**適用範囲を全 md へ広げ、
-  `/stale-check` に「md 中の『N枚 / N件 / 計Nゲート』を実測と突合する」検査を足す**。②**patterns に
-  「正本コード: <path>」ヘッダを必須化**し、その path の公開シンボル集合が変わったら赤（patterns は9本＝初期コスト小・汚染率2位を直撃）。
-  ③**双方向注記の義務化**——「後の ADR / コミットが前の記述を解除したら解除された側にも注記を打つ」を `/stale-check` へ
-  （今回の片方向更新4件が対象）。**しないこと＝knowledge の全数照合**（46本中4本＝9%で費用対効果が低い。
-  ただし「外部事実を実測と称して書いた knowledge」だけは別枠＝**使ったコマンドと環境の併記を必須**にする）。
 - **[要再確認 8件（F-1〜F-8）]** 実装ワークフローが同時にファイルを編集していた時間帯の指摘で、**その編集は破棄済み**。
   行番号も根拠も現ツリーで取り直すこと。内容は一次情報の第3部（さがす配下の golden 0枚／`patterns/processing-state.md` が
   **再発を招く旧処方を規範として提示している**／`string-hashcode-low-bit-bias` が J で無効と判明済みの因果を M/P へ勧誘/

@@ -7,9 +7,9 @@ effort: xhigh
 組み込み general-purpose の同名上書き定義。
 
 目的（2026-07-19 ユーザー指示）: 実装・汎用委譲の思考深度を xhigh へ固定する。
-- モデルは env `CLAUDE_CODE_SUBAGENT_MODEL`（opus 固定・最優先）が勝つため frontmatter に書かない。
-- effort はサブエージェント限定 env が存在しないため、この frontmatter が唯一の個別指定手段
-  （機序＝auto-memory `claude-code-subagent-model-control`）。
+- モデルは frontmatter に書かない＝呼出時の `model` 指定（無ければ親から継承）に委ねる
+  （旧根拠「env `CLAUDE_CODE_SUBAGENT_MODEL` の opus 固定が勝つ」は 2026-08-06 に解除済み＝該当 env は現存しない）。
+- effort はこの frontmatter が唯一の個別指定手段（サブエージェント限定 env は存在しない）。
 - プロジェクト定型規律は SubagentStart hook（inject_subagent_briefing.py）が自動注入する。
 
 あなたは与えられたタスクを完遂する実行エージェント。委譲仕様（プロンプト）と

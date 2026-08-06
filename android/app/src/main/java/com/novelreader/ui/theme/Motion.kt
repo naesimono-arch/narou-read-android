@@ -61,9 +61,12 @@ const val MotionDurationCrossfade: Int = 250
 // motion は ADR 0005-B 実機後詰め層のため値・型とも実機で決めてよい（HTMLモック非対象）。
 const val MotionDurationNavTransition: Int = 250
 
-// 明快K: ボトムナビのタブ切替（本棚⇄さがす⇄設定）。なぜ slide でなく短い crossfade か:
-// タブは「同格の目的地の切替」で階層移動ではない＝方向を語る slide は誤った空間語彙になる
-// （ADR 0019 の slide は push/pop 用）。バーは静止しコンテンツだけ素早く入れ替わるのがタブの標準文法。
+// 明快K: ボトムナビのタブ切替（本棚⇄さがす⇄設定）＝Pager の animateScrollToPage の尺
+// （TabPagerHost・MainActivity の onSelectTab。DiscoveryHomeK のランキング Pager も同スロットを踏襲）。
+// なぜタップも slide（ページスライド）か: タブの Pager 化でスワイプは指追従のスライドになったため、
+// タップだけ旧 crossfade だと同じ切替の運動言語が割れる＝タップも同トークン長のページスライドへ統一
+// （旧 crossfade は廃止＝ADR 0022 追記 2026-07-24。旧理由「方向を語る slide は誤った空間語彙」は
+// Pager 化以前の、バー静止＋コンテンツ入替え前提の裁定だった）。
 const val MotionDurationKTabSwitch: Int = 150
 
 // M星図スキンだけの画面遷移＝フェードスルー（退出 fadeOut 先行→進入 fadeIn。ADR 0019 追記「M星図の例外」・

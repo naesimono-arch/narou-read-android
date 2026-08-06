@@ -82,7 +82,7 @@ jobs:
       #
       # なぜ testDebugUnitTest ではなく verifyRoborazziDebug を回すのか:
       # verify は testDebugUnitTest 本体を roborazzi.test.verify=true 付きで実行する形なので、
-      # 単体テスト全件（実測 1072 件）と golden 比較（48 枚）が**同じ1パス**で終わる。
+      # 単体テスト全件と golden 比較の全枚数が**同じ1パス**で終わる（件数・枚数は増えるので書かない＝タスク出力で確認）。
       # 2ステップに分けると system property が変わって test タスクが丸ごと2回走り、時間がほぼ倍になる。
       # golden 不一致は captureRoboImage が AssertionError を投げてテストを落とす＝ビルドが赤になる
       # （golden 1枚を差し替えた陽性確認で BUILD FAILED を実測済み）。
