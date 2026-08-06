@@ -289,6 +289,12 @@ internal object GoldenCoverageRegistry {
         "TAB_HOST_ROUTE" to setOf(
             "BookshelfK", "BookshelfD", "DiscoveryHomeK", "SettingsScreenK", "KBottomNav",
         ),
+        // さがす配下（2026-08-07 に撮影条件を新設＝監査 G-8 優先度2位の消化）。いずれも出荷素地 K で包み、
+        // ルート層でなく stateless な Content 層を撮る（VM の実 API 取得・実時刻が絵に混ざるのを断つため）。
+        "discovery/search" to setOf("DiscoverySearchScreen"),
+        "discovery/genre" to setOf("DiscoveryGenreScreen"),
+        "discovery/result" to setOf("DiscoveryResultScreen"),
+        "discovery/detail/{ncode}" to setOf("NovelDetailScreen"),
     )
 
     /** 撮らない nav ルート → 理由（監査 2026-08-06 第1部の裁定に対応）。 */
@@ -303,13 +309,14 @@ internal object GoldenCoverageRegistry {
             "監査 G-8: 装いの間（WardrobeScreen）が0枚。ADR 0027 により release ではルートごと登録されない" +
                 "（skinSwitchingEnabled=false）ため出荷面ではないが、debug では到達可能。" +
                 "撮影条件の追加優先度5位（3枚可視カルーセル）。",
-        "discovery/search" to "監査 F-1: さがす配下は実装完了後に撮影条件を足す（優先度2位）。検索条件面。",
-        "discovery/genre" to "監査 F-1: さがす配下は実装完了後に撮影条件を足す（優先度2位）。ジャンル選択面。",
-        "discovery/result" to "監査 F-1: さがす配下は実装完了後に撮影条件を足す（優先度2位）。結果一覧面。",
-        "discovery/detail/{ncode}" to
-            "監査 F-1: さがす配下は実装完了後に撮影条件を足す（優先度2位）。作品詳細面。",
+        // ⚠️ さがす配下の4ルート（search/genre/result/detail）は 2026-08-07 に撮影条件を新設して
+        // routeGoldens へ移した。ここに残るのは取込面だけで、理由も「あとで撮る」から恒久除外へ変わっている。
         "discovery/detail/{ncode}/import" to
-            "監査 F-1: さがす配下は実装完了後に撮影条件を足す（優先度2位）。PDF取込面。",
+            "PdfImportScreen は画面の実体が AndroidView(WebView)＝取り込み専用の使い捨て WebView を1枚持つだけの面" +
+                "（ADR 0011 案B・本番 KDoc が「stateless な Content へ切り出せない」理由も明記）。" +
+                "Robolectric では WebView が外部 HTML を描画しない＝撮れる絵にアプリ側の版面がほとんど無く、" +
+                "撮っても回帰検知にならないため web-reader と同じ恒久除外。当初は「実装完了後に足す（監査 F-1・" +
+                "優先度2位）」と登録していたが、他の3ルートを撮る過程で WebView 主体と判明したため裁定を改めた。",
         "web-reader/{ncode}/{startEpisode}" to
             "WebView 主体の面で、Robolectric では外部 HTML が描画されない＝絵を撮っても" +
                 "アプリ側の版面をほとんど含まない。ここだけは撮影しても回帰検知にならないため恒久除外。",
@@ -330,6 +337,19 @@ internal object GoldenCoverageRegistry {
         "VerticalChapterContent" to "縦書き本文＋章見出し（Canvas 直描き）。",
         "VerticalParagraph" to "縦書きの行組版（約物・縦中横・ルビ・回転）。",
         "ShioriCover" to "書影の栞（題字の記号処理）。",
+        "BookshelfDialogK" to
+            "本棚ルート層のダイアログ群（BookshelfScreen の AlertDialog 群・K 素地）。" +
+                "電池最適化案内（本文124字＝全文言の最長）・通知 priming・なろう形式でないPDF確認・" +
+                "本文欠落からのフォルダ走査、の4つの器を守る。守る軸は fontScale 2.0 での本文の器溢れ" +
+                "（M3 の text スロットは自動スクロールしない）とボタン列の折り返し。" +
+                "⚠️ 一括再取込・走査結果の2ダイアログは**含まない**（理由は同接頭辞の撮影テスト KDoc）。",
+        "ProcessingBannerK" to
+            "処理中バナー（本棚最上段・K 素地）。題名1行・phase 2行・件数バッジ・停止ボタンが" +
+                "1つの Row を奪い合う構造で、拡大時に phase 末尾のページ数が落ちる方向へ壊れる。" +
+                "PDF（4段ステッパーあり）／WEB（ステッパーなし）／停止中の3分岐を守る。",
+        "ShelfSnackbarK" to
+            "本棚の長文 Snackbar（取込元PDF削除の失敗通知・63字＋「閉じる」アクション）。" +
+                "1行の器に長文とアクションが同居する版面の折り合いを守る。",
         // 記録待ちの2件も先に説明を置く（record された瞬間に「説明の無い golden」で赤くならないように）。
         // PNG がまだ無いことは acknowledgedPendingRecord 側が承知しているため stale 判定にも掛からない。
         "TocSkyM" to "M 目次の現在地バー（監査 G-1 の同型4スキン）。2026-08-06 に実装修正と同便で記録。",
@@ -342,10 +362,14 @@ internal object GoldenCoverageRegistry {
     /**
      * 撮影テストが在るが PNG 未記録 → 理由。
      *
-     * 現在なし。TocSkyM / TocPortalJ は監査 G-1（目次の現在地バーが fontScale 2.0 で章一覧を押し出す・
-     * 4スキン同型）の実装修正を入れたうえで 2026-08-06 に記録済み＝登録を外した。
+     * 現在なし。2026-08-07 に新設した7束（BookshelfDialogK / ProcessingBannerK / ShelfSnackbarK /
+     * DiscoverySearchScreen / DiscoveryGenreScreen / DiscoveryResultScreen / NovelDetailScreen）は
+     * **実装の破綻を先に直してから**一括記録し、この登録を外した（電池最適化ダイアログの本文溢れは
+     * NovelReaderAlertDialog の text スロットを縦スクロール化して是正済み）。
+     *
      * ここへ足すのは「撮影ハーネスだけ先に置き、実装修正の前で record を待つ」場合に限る
-     * （壊れた絵を正解として焼き付けないための待機＝`docs/knowledge/golden-record-bakes-in-regressions.md`）。
+     * ——破綻を含んだまま record すると、その破綻が新しい正解として焼き付き、直したときに golden が
+     * 赤くなる＝是正が退行に見える倒錯が起きる（`docs/knowledge/golden-record-bakes-in-regressions.md`）。
      */
     val acknowledgedPendingRecord: Map<String, String> = emptyMap()
 
@@ -374,7 +398,13 @@ internal object GoldenCoverageRegistry {
 
     /** スキン → golden の裁定（撮る接頭辞、または撮らない理由）。 */
     val skinCoverage: Map<Skin, String> = mapOf(
-        Skin.MEIKAI_K to "撮影あり: BookshelfK / DiscoveryHomeK / SettingsScreenK / KBottomNav / TocK（既定スキン＝出荷面）。",
+        Skin.MEIKAI_K to
+            "撮影あり: BookshelfK / DiscoveryHomeK / SettingsScreenK / KBottomNav / TocK（既定スキン＝出荷面）。" +
+                "2026-08-07 に本棚の被せもの3束を追加（BookshelfDialogK / ProcessingBannerK / ShelfSnackbarK・記録待ち）。" +
+                "同日、さがす配下4束（DiscoverySearchScreen / DiscoveryGenreScreen / DiscoveryResultScreen /" +
+                "NovelDetailScreen・記録待ち）も K 素地で撮る＝これらはスキン分岐を持たない共有画面だが、" +
+                "出荷時に載る素地は K のため K で包む（DiscoveryResultScreen だけは LocalSkin で M/P/J へ分岐し、" +
+                "K/D/C は共通実装＝この束が3スキン分の版面を張る）。",
         Skin.WAMODERN_D to "撮影あり: BookshelfD / NativeTableOfContentsScreen（D/C 共通描画）。",
         Skin.YAKO_C to "撮影あり（D と共通描画・色トークンのみ差）: NativeTableOfContentsScreen の dark 束が張る。",
         Skin.SEIZU_M to

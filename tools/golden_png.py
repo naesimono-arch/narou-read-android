@@ -128,6 +128,30 @@ def background_color(width, height, rows, step=4):
     return max(counts.items(), key=lambda kv: kv[1])[0]
 
 
+def row_background(row, width):
+    """1行の最頻色。走査(b) が「下端行の地」を基準色に取るために使う。
+
+    なぜ画面全体の最頻色（[background_color]）ではだめか: **浮遊窓（ダイアログ）を撮った golden では
+    最頻色が絵ごとに裏返る**。`onNode(isDialog()).captureRoboImage` は scrim ごと 720x1280 を撮るが、
+    ダイアログは fontScale 2.0 で画面幅いっぱい（maxWidth 560dp > 端末 360dp）まで育つため、
+    1.0 では最頻色＝scrim なのに 2.0 ではダイアログ面が最頻になり、**scrim の側がインク扱い**へ入れ替わる。
+    走査(b) は 1.0→2.0 の下端インク量の差で判定するので、参照色が入れ替わると量が比較不能になる。
+    実測（2026-08-07・golden 166枚）:
+      ・reimport_scan の 2.0 は下端が全て scrim（ダイアログは y45..1233 に収まる）なのに
+        「最終行インク 720px＝全幅が切れている」と読めた＝偽陽性。
+      ・battery / import_prompt は 1.0 の時点で最頻色がダイアログ面のため 1.0/2.0 とも 720px で並び、
+        「1.0 から接触＝守備範囲外」の参考行へ落ちていた＝**本当に下端で切れても差が出ない盲点**。
+    どちらも「画面全体の最頻色 ≠ 下端行の地」であることが根。この検査が問うているのは
+    「下端行に、下端行の地でない画素が居るか」なので、地は下端行そのものから、かつ**版面が健全な
+    1.0 側から**取る（2.0 側から取ると、切れた内容が自分自身を地と名乗って破綻を取り逃す）。
+    """
+    counts = {}
+    for x in range(0, width * 4, 4):
+        key = bytes(row[x:x + 3])
+        counts[key] = counts.get(key, 0) + 1
+    return max(counts.items(), key=lambda kv: kv[1])[0]
+
+
 def _diff_table(base, threshold):
     """|v - base| > threshold を 1、それ以外を 0 に写す 256 要素の変換表。"""
     return bytes(1 if abs(v - base) > threshold else 0 for v in range(256))
@@ -304,6 +328,16 @@ def all_scaled_pngs(png_dir):
 # 足りず「その器に高さが渡っている」ことが別の修正に依っている場合、両方を宣言しないと片方が
 # 失われても除外が生き残ってしまうため（目次K は器＝LazyColumn を持ちながら現在地バーに高さを
 # 奪われて viewport 0 だった＝監査 G-1。その修正が外れたら除外も外れる必要がある）。
+#
+# 字句は**複数行にまたがってよい**（ファイル本文への部分一致。改行・字下げ込みで一致を要求する）。
+# 同じ1行が同一ファイルに複数在って区別できないときの唯一の手段で、整形で崩れたら除外は失効する
+# ＝赤へ戻る側に倒れるので安全側（下の検索画面が実例）。
+#
+# 検索画面の**本体**スクロールを指す字句。`.verticalScroll(rememberScrollState())` 単独だと、同じ
+# ファイルの選択キーワード追従バー（`heightIn(max = 96.dp)` 付き・bottomBar 側）にも一致してしまい、
+# **本体のスクロールを外しても除外が生き残る**。本体だけに在る連なりで固定する。
+_SEARCH_BODY_SCROLL = ".padding(paddingValues)\n                .verticalScroll(rememberScrollState())"
+
 SCROLLING_SURFACES = {
     "SettingsScreenK_default_light": ("android/app/src/main/java/com/novelreader/ui/skins/k/SettingsScreenK.kt", "verticalScroll"),
     "SettingsScreenK_default_dark": ("android/app/src/main/java/com/novelreader/ui/skins/k/SettingsScreenK.kt", "verticalScroll"),
@@ -319,6 +353,19 @@ SCROLLING_SURFACES = {
     "TocK_ep4digits_light": ("android/app/src/main/java/com/novelreader/ui/skins/k/TocK.kt", ("LazyColumn", "監査 2026-08-06 G-1")),
     "TocSkyM_ep4digits_light": ("android/app/src/main/java/com/novelreader/ui/skins/m/TocSkyM.kt", ("LazyColumn", "監査 2026-08-06 G-1")),
     "TocPortalJ_ep4digits_light": ("android/app/src/main/java/com/novelreader/ui/skins/j/TocPortalJ.kt", ("LazyColumn", "監査 2026-08-06 G-1")),
+    # 2026-08-07 の新設撮影条件（初めて 2.0 の絵が撮られた面）を1枚ずつ実装で判定した分。
+    "DiscoverySearchScreen_drafted_light": ("android/app/src/main/java/com/novelreader/ui/discovery/DiscoverySearchScreen.kt", _SEARCH_BODY_SCROLL),
+    "DiscoverySearchScreen_drafted_dark": ("android/app/src/main/java/com/novelreader/ui/discovery/DiscoverySearchScreen.kt", _SEARCH_BODY_SCROLL),
+    "DiscoverySearchScreen_drafted_sepia": ("android/app/src/main/java/com/novelreader/ui/discovery/DiscoverySearchScreen.kt", _SEARCH_BODY_SCROLL),
+    "NovelDetailScreen_content_light": ("android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt", "verticalScroll(scrollState)"),
+    "NovelDetailScreen_content_dark": ("android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt", "verticalScroll(scrollState)"),
+    "NovelDetailScreen_content_sepia": ("android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt", "verticalScroll(scrollState)"),
+    "BookshelfDialogK_notif_priming_light": ("android/app/src/main/java/com/novelreader/ui/theme/NovelReaderAlertDialog.kt", ("Modifier.verticalScroll(rememberScrollState())", "増補（2026-08-07）")),
+    # 2026-08-07: 条件帯が 2.0 で本文領域を使い切り一覧に残り高0だった破綻を是正した後の登録。
+    # 帯を maxHeight/2 で閉じたので一覧に必ず半分の高さが渡る＝罫線が減るのは可視行が減っただけ。
+    "DiscoveryResultScreen_list_light": ("android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryResultScreen.kt", ("heightIn(max = maxHeight", "verticalScroll")),
+    "DiscoveryResultScreen_list_dark": ("android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryResultScreen.kt", ("heightIn(max = maxHeight", "verticalScroll")),
+    "DiscoveryResultScreen_list_sepia": ("android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryResultScreen.kt", ("heightIn(max = maxHeight", "verticalScroll")),
 }
 
 SCROLL_EXEMPT_REASON = {
@@ -336,6 +383,16 @@ SCROLL_EXEMPT_REASON = {
     "TocK_ep4digits_light": "同上（4桁話数の同一構造）。ただしこの絵は現在章行の題名が「ここから再開」チップに幅を奪われて1行1文字へ潰れており別途破綻＝走査(c) が赤にする",
     "TocSkyM_ep4digits_light": "章一覧は LazyColumn＝同上（M も G-1 修正で現在地バーが1行）。ただしこの絵は話数ラベル `.ep` が 52dp 固定で「第/1024/話」の3行に割れており別途破綻＝どの走査も捕まえていない（走査(c) は行内に隣字が居ると落とすため）",
     "TocPortalJ_ep4digits_light": "章一覧は LazyColumn＝同上（J も G-1 修正で現在地バーが1行）。ただしこの絵も M と同じ `.ep` 52dp 固定の3行割れで別途破綻＝どの走査も捕まえていない",
+    "DiscoverySearchScreen_drafted_light": "本体が Scaffold 本文まるごとの verticalScroll＝2.0 で下へ流れた条件セクションはスクロールで到達できる。bottomBar の選択キーワード追従バーは内側 FlowRow が heightIn(max=96.dp) で閉じているため本体のビューポートを食い潰さない（＝器に高さが渡っていることまで確認済み）。1.0 の罫線4本→2.0 の3本は可視セクションが減っただけ",
+    "DiscoverySearchScreen_drafted_dark": "同上（テーマ違いの同一構造）",
+    "DiscoverySearchScreen_drafted_sepia": "同上（テーマ違いの同一構造）",
+    "NovelDetailScreen_content_light": "詳細本文は Scaffold 本文直下の Column が fillMaxSize+verticalScroll＝ヒーロー/メタ/あらすじ/状態グリッドは下へ流れるだけで到達できる（同じ Box の兄弟が居ない＝高さを奪う相手が構造上いない）。1.0 の区切り7本→2.0 の5本は可視セクションが減っただけ",
+    "NovelDetailScreen_content_dark": "同上（テーマ違いの同一構造）",
+    "NovelDetailScreen_content_sepia": "同上（テーマ違いの同一構造）",
+    "BookshelfDialogK_notif_priming_light": "本文スロットは NovelReaderAlertDialog が verticalScroll で包む（2026-08-07 増補）。2.0 では窓が画面全高まで育ち、最終行のインクは**ダイアログ面そのものの下端**＝角丸の弧が上端 y0・下端 y1279 とも 1.0 の弧と同一形（run 47..672 から始まる）で完全に描かれており、切断ではない。題字と2ボタンは可視で、本文の溢れはスクロールで到達できる",
+    "DiscoveryResultScreen_list_light": "条件帯（FlowRow）が 2.0 で8段に折り返し一覧の weight(1f) へ残り高0を渡していた破綻を 2026-08-07 に是正済み——帯を BoxWithConstraints で maxHeight/2 に閉じ、溢れた段は帯の内部スクロールで到達できる。是正後の実測でインクは下段が最大（27,296＝一覧が実際に描かれている）。罫線が 1.0 の2本→2.0 の0本になるのは、行が高くなって罫線の入る位置まで到達しないため＝可視行が減っただけ",
+    "DiscoveryResultScreen_list_dark": "同上（テーマ違いの同一構造）",
+    "DiscoveryResultScreen_list_sepia": "同上（テーマ違いの同一構造）",
 }
 
 
@@ -356,14 +413,18 @@ def scroll_exemption(case, repo_root=None):
     if not src.is_file():
         return ("stale", f"根拠ファイルが無い（{rel}）＝除外を取り消して赤にする")
     text = src.read_text(encoding="utf-8")
+    # 表示用に改行・字下げを1個の空白へ潰す（複数行字句でも走査の出力を1件1行に保つ。照合は元の字句のまま）。
+    def _flat(token):
+        return " ".join(token.split())
+
     for token in tokens:
         if token not in text:
             return (
                 "stale",
-                f"根拠の字句 `{token}` が {rel} から消えた＝スクロール（またはその器へ高さを渡す修正）を"
+                f"根拠の字句 `{_flat(token)}` が {rel} から消えた＝スクロール（またはその器へ高さを渡す修正）を"
                 "失った可能性。除外を取り消して赤にする",
             )
-    shown = "` `".join(tokens)
+    shown = "` `".join(_flat(t) for t in tokens)
     return ("ok", f"{SCROLL_EXEMPT_REASON.get(case, '')}（根拠: {rel} の `{shown}`）")
 
 

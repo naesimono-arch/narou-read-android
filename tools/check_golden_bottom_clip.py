@@ -39,11 +39,19 @@ BASELINE_PX = 8
 CLIPPED_PX = 8
 
 
-def bottom_row_ink(path):
-    """キャンバス最終行のインク画素数。"""
+def bottom_row(path):
+    """キャンバス最終行（と幅）。"""
     width, height, rows = gp.decode_rgba(path)
-    bg = gp.background_color(width, height, rows)
-    return gp.ink_count(gp.ink_mask_row(rows[height - 1], width, bg, INK_THRESHOLD)), width
+    return rows[height - 1], width
+
+
+def bottom_row_ink(row, width, bg):
+    """最終行のインク画素数。地の色 [bg] は呼び出し側が**1.0 側から1つ**決めて両方へ渡す。
+
+    絵ごとに地を取り直すと、ダイアログ golden で scrim とダイアログ面が 1.0/2.0 で入れ替わり
+    下端の量が比較不能になる（機序＝[gp.row_background] の docstring）。
+    """
+    return gp.ink_count(gp.ink_mask_row(row, width, bg, INK_THRESHOLD))
 
 
 def main(argv):
@@ -53,8 +61,12 @@ def main(argv):
     failures = []
     preexisting = []
     for case, files in pairs.items():
-        small, width = bottom_row_ink(files["1.0"])
-        large, _ = bottom_row_ink(files["2.0"])
+        row_small, width = bottom_row(files["1.0"])
+        row_large, _ = bottom_row(files["2.0"])
+        # 地は「1.0 の下端行の最頻色」＝版面が健全な側で下端に在る色。両スケールをこの1色で測る。
+        bg = gp.row_background(row_small, width)
+        small = bottom_row_ink(row_small, width, bg)
+        large = bottom_row_ink(row_large, width, bg)
         if large > CLIPPED_PX and small <= BASELINE_PX:
             exemption = gp.scroll_exemption(case)
             if exemption and exemption[0] == "ok":
