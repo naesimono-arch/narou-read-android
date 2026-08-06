@@ -84,6 +84,8 @@ import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.narou.model.Ncode
+import com.novelreader.ui.ReimportScanBanner
+import com.novelreader.ui.ReimportSweepBanner
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.skins.ShelfActions
 import com.novelreader.ui.skins.ShelfChrome
@@ -110,8 +112,10 @@ import com.novelreader.ui.theme.StarGlowInnerSeizu
 import com.novelreader.ui.theme.StarGlowOuterSeizu
 import com.novelreader.ui.theme.StarSeizu
 import com.novelreader.ui.theme.TextSeizu
+import com.novelreader.viewmodel.ProcessingSource
 import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.ScanProgress
 import com.novelreader.domain.chapterNumberOf
 import com.novelreader.domain.progressFractionFor
 import com.novelreader.domain.readingStatusFor
@@ -308,6 +312,39 @@ internal fun BookshelfSkyM(
             ) {
                 SkyProcessingBanner(processingState, onCancelProcessing)
             }
+            // 本文欠落の一括検出バナー（案C）と PDF フォルダ走査バナー（案X）。従来この面は chrome の
+            // sweepBannerVisible/folderScan/onScanStop を受け取って捨てており、route 層で起動した走査に
+            // 進捗表示も停止手段も無かった（束の必須引数化は「受け取って捨てる」を止められない＝監査 2026-08-06 B1）。
+            // 意匠はトークン経由でスキン色に染まる共有部品をそのまま使う＝K 面と同型の最小配線（M 意匠版は未裁定）。
+            AnimatedVisibility(
+                visible = chrome.sweepBannerVisible,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
+            ) {
+                ReimportSweepBanner(
+                    missingCount = data.reimportPlans.size,
+                    onLater = chrome.onSweepLater,
+                    onReimport = chrome.onSweepConfirm,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            // 退場アニメの間 folderScan は既に null になっているため直前の非 null 値を保持して描く
+            //（保持箱をスナップショット状態にしない理由＝BookshelfScreen の同処理コメント参照）。
+            val lastScan = remember { arrayOfNulls<ScanProgress>(1) }
+            chrome.folderScan?.let { lastScan[0] = it }
+            AnimatedVisibility(
+                visible = chrome.folderScan != null,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
+            ) {
+                lastScan[0]?.let { progress ->
+                    ReimportScanBanner(
+                        progress = progress,
+                        onStop = chrome.onScanStop,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
             SkyChips(selectedStatus, statusCounts, onSelectStatus)
 
             LazyColumn(
@@ -499,7 +536,6 @@ internal fun SkyProcessingBanner(state: ProcessingState, onCancel: () -> Unit) {
                 color = TextSeizu,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            val overall = ((state.stepIndex + state.stepLocalPercent) / state.stepTotal).coerceIn(0f, 1f)
             Text(
                 state.phase + if (state.queueTotal > 1) " · ${state.queueCurrent}/${state.queueTotal}件" else "",
                 fontSize = 9.5.sp,             // .banner .s 9.5px
@@ -507,19 +543,26 @@ internal fun SkyProcessingBanner(state: ProcessingState, onCancel: () -> Unit) {
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = Spacing.S4),
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = Spacing.S8)
-                    .height(2.dp)
-                    .background(TrackAlpha, RoundedCornerShape(2.dp)),
-            ) {
+            // ステップ駆動の進捗バー（stepIndex/stepLocalPercent/stepTotal）は PDF 供給元専用の器。Web 取込は
+            // phase しか更新しない（章単位取得＝ステップ概念なし・0/0f/4 が全期間固定）ため、無条件に描くと
+            // 恒久 0% のバーになり処理停止と誤認させる（共有 ui/ProcessingBanner の 2026-07-29 裁定②と同機序＝
+            // 監査 2026-08-06 B3）。Web は phase 行「章 i/N 取得中」へ一本化しバーを出さない。
+            if (state.source == ProcessingSource.PDF) {
+                val overall = ((state.stepIndex + state.stepLocalPercent) / state.stepTotal).coerceIn(0f, 1f)
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(overall)
+                        .fillMaxWidth()
+                        .padding(top = Spacing.S8)
                         .height(2.dp)
-                        .background(StarSeizu, RoundedCornerShape(2.dp)),
-                )
+                        .background(TrackAlpha, RoundedCornerShape(2.dp)),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(overall)
+                            .height(2.dp)
+                            .background(StarSeizu, RoundedCornerShape(2.dp)),
+                    )
+                }
             }
         }
         // 停止（モック外の機能ボタン＝D バナーの onStop と機能同数を守る。星図では沈めた文字リンクで）。
@@ -645,8 +688,14 @@ private fun ConstellationCell(
     val idColor = idColorFor(book.id)
     val cellHeight = if (isHero) 200.dp else 150.dp
     // 銘の readout（モック .prog）。銘ブロックの幅を決めるため描画より前に確定させる（機序＝rememberConstBlockWidth）。
+    // 章数不明（chapterCountMap 欠落＝0）は数を描かない: 0 は「章数不明／本文実体なし」の意味しか持たず、
+    // 「全0話」は実在しない事実の捏造になる（DB だけ Auto Backup 復元された端末で全冊該当・監査 2026-08-06 B6。
+    // D 共通 BookProgressRow は totalChaps<=0＝fraction null の枝で「未読」語のみ＝数を出さない規則へ揃える）。
+    // else 枝の totalChaps<=0 は読了実績（reachedEnd→FINISHED）だけが到達する＝話数/％も不明ゆえ章位置だけ残す。
     val readout = when {
+        isUnread && totalChaps <= 0 -> "未読 · まだ星は結ばれていない"
         isUnread -> "未読 · 全${totalChaps}話　まだ星は結ばれていない"
+        totalChaps <= 0 -> "第${chapNum ?: 1}話"
         else -> "第${chapNum ?: 1}話 / 全${totalChaps}話 · ${((frac ?: 0f) * 100).toInt()}%"
     }
     val blockWidth = rememberConstBlockWidth(readout)

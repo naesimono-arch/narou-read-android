@@ -79,6 +79,8 @@ import com.novelreader.PrefKeys
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.discovery.model.WorkSummary
+import com.novelreader.ui.ReimportScanBanner
+import com.novelreader.ui.ReimportSweepBanner
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.skins.ShelfActions
 import com.novelreader.ui.skins.ShelfChrome
@@ -112,8 +114,10 @@ import com.novelreader.ui.theme.MotionSpringBarSettle
 import com.novelreader.ui.theme.RedCartridge
 import com.novelreader.ui.theme.RedLoCartridge
 import com.novelreader.ui.theme.Spacing
+import com.novelreader.viewmodel.ProcessingSource
 import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.ScanProgress
 import com.novelreader.domain.chapterNumberOf
 import com.novelreader.domain.progressFractionFor
 import com.novelreader.domain.readingStatusFor
@@ -320,6 +324,39 @@ internal fun BookshelfCartridgeP(
                 exit = fadeOut(tween(MotionDurationDismiss)),
             ) {
                 WritingBanner(processingState, onCancelProcessing)
+            }
+            // 本文欠落の一括検出バナー（案C）と PDF フォルダ走査バナー（案X）。従来この面は chrome の
+            // sweepBannerVisible/folderScan/onScanStop を受け取って捨てており、route 層で起動した走査に
+            // 進捗表示も停止手段も無かった（束の必須引数化は「受け取って捨てる」を止められない＝監査 2026-08-06 B1）。
+            // 意匠はトークン経由でスキン色に染まる共有部品をそのまま使う＝K 面と同型の最小配線（P 意匠版は未裁定）。
+            AnimatedVisibility(
+                visible = chrome.sweepBannerVisible,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
+            ) {
+                ReimportSweepBanner(
+                    missingCount = data.reimportPlans.size,
+                    onLater = chrome.onSweepLater,
+                    onReimport = chrome.onSweepConfirm,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            // 退場アニメの間 folderScan は既に null になっているため直前の非 null 値を保持して描く
+            //（保持箱をスナップショット状態にしない理由＝BookshelfScreen の同処理コメント参照）。
+            val lastScan = remember { arrayOfNulls<ScanProgress>(1) }
+            chrome.folderScan?.let { lastScan[0] = it }
+            AnimatedVisibility(
+                visible = chrome.folderScan != null,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
+            ) {
+                lastScan[0]?.let { progress ->
+                    ReimportScanBanner(
+                        progress = progress,
+                        onStop = chrome.onScanStop,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
 
             LibraryHeader(count = visible.size)
@@ -879,11 +916,15 @@ internal fun WritingBanner(state: ProcessingState, onStop: () -> Unit) {
             // 遊び心P2（ラベル現像）: 取込フェーズ（stepIndex/stepTotal＝実パイプライン進捗）を 0..8 段へ
             // 量子化し、カセットのラベルを上から焼き込む。モックの独立「取込中カセット」は Compose では
             // 実 BookEntity が未生成のため描けない＝データ源のある本バナーへ現像ラベルを織り込む（届く範囲で最大限）。
-            DevelopLabel(
-                stepIndex = state.stepIndex,
-                stepTotal = state.stepTotal,
-                modifier = Modifier.padding(end = Spacing.S8),
-            )
+            // stepIndex/stepTotal は PDF 供給元専用の器＝Web 取込では 0/4 固定で現像が2段のまま凍結する
+            //（監査 2026-08-06 B3）ため PDF のときだけ描く（下の WritingSteps と同じ出し分け）。
+            if (state.source == ProcessingSource.PDF) {
+                DevelopLabel(
+                    stepIndex = state.stepIndex,
+                    stepTotal = state.stepTotal,
+                    modifier = Modifier.padding(end = Spacing.S8),
+                )
+            }
             Text(
                 "取り込み中",
                 fontFamily = PixelFamily,
@@ -934,13 +975,18 @@ internal fun WritingBanner(state: ProcessingState, onStop: () -> Unit) {
                 modifier = Modifier.padding(top = Spacing.S8),
             )
         }
-        // ステップドット（.wsteps/.wlabels＝stepIndex/stepTotal 駆動＝実パイプラインの進捗）。
-        WritingSteps(
-            stepIndex = state.stepIndex,
-            stepTotal = state.stepTotal,
-            labels = stepLabels,
-            modifier = Modifier.padding(top = Spacing.S8),
-        )
+        // ステップドット（.wsteps/.wlabels＝stepIndex/stepTotal 駆動）は PDF 供給元専用の器。Web 取込は
+        // phase しか更新しない（章単位取得＝ステップ概念なし・stepIndex は 0 固定）ため、無条件に描くと
+        // 「題名」段で凍結したステッパーになり処理停止と誤認させる（共有 ui/ProcessingBanner の
+        // 2026-07-29 裁定②と同機序＝監査 2026-08-06 B3）。Web は phase 行「章 i/N 取得中」へ一本化する。
+        if (state.source == ProcessingSource.PDF) {
+            WritingSteps(
+                stepIndex = state.stepIndex,
+                stepTotal = state.stepTotal,
+                labels = stepLabels,
+                modifier = Modifier.padding(top = Spacing.S8),
+            )
+        }
     }
 }
 
@@ -1210,12 +1256,17 @@ private fun CartridgeCard(
                         Spacer(Modifier.height(Spacing.S4))
                     }
                     if (isUnread) {
-                        Text(
-                            "全${totalChaps}話",
-                            fontFamily = PixelFamily,
-                            fontSize = 11.sp,     // .csave .stage 11px
-                            color = InkSoftCartridge, // .csave.nodata .stage
-                        )
+                        // 章数不明（chapterCountMap 欠落＝0）は数を描かない: 0 は「章数不明／本文実体なし」の
+                        // 意味しか持たず「全0話」は実在しない事実の捏造になる（DB だけ Auto Backup 復元された
+                        // 端末で全冊該当・監査 2026-08-06 B6。D 共通 BookProgressRow の規則へ揃える）。
+                        if (totalChaps > 0) {
+                            Text(
+                                "全${totalChaps}話",
+                                fontFamily = PixelFamily,
+                                fontSize = 11.sp,     // .csave .stage 11px
+                                color = InkSoftCartridge, // .csave.nodata .stage
+                            )
+                        }
                         Text(
                             "未読",
                             fontFamily = PixelFamily,
@@ -1232,12 +1283,15 @@ private fun CartridgeCard(
                     } else if (isFinished) {
                         // 遊び心P1（CLEAR封印）: 読了カセットは stage=全話数・ゲージ満充填・進捗表示を CLEAR‼ 刻印へ。
                         // 100% と CLEAR は意味重複ゆえ「同じ場所」を CLEAR‼ が占める（モック④ .csave 構造に忠実）。
-                        Text(
-                            "全${totalChaps}話",
-                            fontFamily = PixelFamily,
-                            fontSize = 11.sp,     // .csave .stage 11px
-                            color = InkCartridge,
-                        )
+                        // 章数不明（0）は「全0話」を出さない（機序＝上の未読枝コメント。CLEAR‼ は reachedEnd 実績＝残す）。
+                        if (totalChaps > 0) {
+                            Text(
+                                "全${totalChaps}話",
+                                fontFamily = PixelFamily,
+                                fontSize = 11.sp,     // .csave .stage 11px
+                                color = InkCartridge,
+                            )
+                        }
                         SegGauge(
                             total = 10,
                             filled = 10,          // モック data-f="10"＝読了は満充填（reachedEnd が真＝到達済み）
