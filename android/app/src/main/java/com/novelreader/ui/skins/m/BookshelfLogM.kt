@@ -1,6 +1,5 @@
 package com.novelreader.ui.skins.m
 
-import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -69,7 +68,6 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -108,6 +106,7 @@ import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.StarGlowInnerSeizu
 import com.novelreader.ui.theme.StarSeizu
 import com.novelreader.ui.theme.TextSeizu
+import com.novelreader.ui.theme.rememberReduceMotion
 import com.novelreader.domain.ReadingStatus
 import com.novelreader.domain.ScanProgress
 import com.novelreader.domain.ShelfItem
@@ -214,10 +213,8 @@ internal fun BookshelfLogM(
     val onFabClick = actions.onFabClick
     val onCancelProcessing = actions.onCancelProcessing
     // reduce-motion（アニメーター無効）を尊重＝脈動・選択点灯を静止（ADR 0022 §3・星図面と同判定）。
-    val context = LocalContext.current
-    val reduceMotion = remember {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }
+    // 判定は theme/ReduceMotion.kt の単一情報源（旧: ここで直読み＋キー無し remember＝設定変更が届かなかった・監査 C2）。
+    val reduceMotion = rememberReduceMotion()
     // 今夜ノードの脈動位相（モック mlpulse 2.8s・scale 1→1.28 の往復）。draw 段でだけ読むためラムダで供給。
     // reduce 時は無限アニメ自体を作らない（静止値のみ＝電池も浪費しない・モックの rAF 停止と同値）。
     val phase = if (reduceMotion) null else rememberInfiniteTransition(label = "logPulse").animateFloat(

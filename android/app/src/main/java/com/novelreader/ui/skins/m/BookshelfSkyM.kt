@@ -1,6 +1,5 @@
 package com.novelreader.ui.skins.m
 
-import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -69,7 +68,6 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
@@ -112,6 +110,7 @@ import com.novelreader.ui.theme.StarGlowInnerSeizu
 import com.novelreader.ui.theme.StarGlowOuterSeizu
 import com.novelreader.ui.theme.StarSeizu
 import com.novelreader.ui.theme.TextSeizu
+import com.novelreader.ui.theme.rememberReduceMotion
 import com.novelreader.viewmodel.ProcessingSource
 import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
@@ -211,10 +210,8 @@ internal fun BookshelfSkyM(
     val onCancelProcessing = actions.onCancelProcessing
     // reduce-motion: アニメーター無効（開発者設定/省電力のスケール0）を尊重して脈動を静止させる
     //（ADR 0022 §3 の必須条件。モックの prefers-reduced-motion 分岐＝pulse 0.55 固定と同値）。
-    val context = LocalContext.current
-    val reduceMotion = remember {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }
+    // 判定は theme/ReduceMotion.kt の単一情報源（旧: ここで直読み＋キー無し remember＝設定変更が届かなかった・監査 C2）。
+    val reduceMotion = rememberReduceMotion()
     // 脈動位相（周期 8796ms ≒ モック sin(ts/1400) の 2π×1400）。draw 段でだけ読ませるため
     // ラムダで渡す（コンポーズ再実行をフレーム毎に走らせない＝deferred read）。
     // reduce 時は無限アニメ自体を作らない（静止値のみ＝モックの rAF 停止と同値・電池も浪費しない）。

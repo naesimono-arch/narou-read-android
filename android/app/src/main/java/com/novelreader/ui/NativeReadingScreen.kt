@@ -2,7 +2,6 @@ package com.novelreader.ui
 
 import android.app.Activity
 import android.content.Context
-import android.provider.Settings
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -133,6 +132,7 @@ import com.novelreader.ui.theme.rememberReadingColors
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.ui.theme.Insets
 import com.novelreader.ui.theme.Spacing
+import com.novelreader.ui.theme.rememberReduceMotion
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -502,9 +502,8 @@ fun ReadingScreen(
     // 目次⇄本文も slide だと「空ごと」動く＝コンテンツのみをフェードで差し替える（ADR 0019 追記「M星図の例外」）。
     // reduce-motion では即時切替（読書Mのモーションゼロ規律と整合）。他スキンは従来の slide push 不変。
     val isSeizu = LocalSkin.current == Skin.SEIZU_M
-    val reduceMotion = remember {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }
+    // 判定は theme/ReduceMotion.kt の単一情報源（旧: ここで直読み＋キー無し remember＝設定変更が届かなかった・監査 C2）。
+    val reduceMotion = rememberReduceMotion()
     // 【透過の天の川・2026-07-19 裁定】読書Mも常駐 backdrop（R1s 実物の天の川）を透かして見せる（reading-M-rich-R4 中）＝
     // 読書中も hidden=false のまま。ただし本文（index.html 以外）では読書Mモーションゼロ（ADR 0022 §3）との整合で
     // z2 流星のみ抑止する（meteorSuppressed）。目次（index.html）は透過の構造画面＝空も流星も見せる。読書面自体は透明にし

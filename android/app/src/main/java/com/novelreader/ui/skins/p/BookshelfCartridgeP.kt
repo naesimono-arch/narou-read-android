@@ -1,6 +1,5 @@
 package com.novelreader.ui.skins.p
 
-import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
@@ -114,6 +113,7 @@ import com.novelreader.ui.theme.MotionSpringBarSettle
 import com.novelreader.ui.theme.RedCartridge
 import com.novelreader.ui.theme.RedLoCartridge
 import com.novelreader.ui.theme.Spacing
+import com.novelreader.ui.theme.rememberReduceMotion
 import com.novelreader.viewmodel.ProcessingSource
 import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
@@ -248,9 +248,8 @@ internal fun BookshelfCartridgeP(
     val density = LocalDensity.current
     val prefs = remember(context) { context.getSharedPreferences(PrefKeys.FILE_APP_PREFS, android.content.Context.MODE_PRIVATE) }
     // reduce-motion（アニメーター無効）: 吸着アニメを止め即時スナップ（正本 cap の prefers-reduced-motion 分岐・M/J と同判定）。
-    val reduceMotion = remember(context) {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }
+    // 判定は theme/ReduceMotion.kt の単一情報源（旧: ここで直読み＝設定変更が届かなかった・監査 C2）。
+    val reduceMotion = rememberReduceMotion()
     // ヒンジの取り分を「設定」として尊重: 選んだディテント index を pref p_hinge_detent へ永続化（装い等と同じ app_prefs 流儀）。
     // rememberSaveable でプロセス内（回転・ダーク切替の Activity 再生成）も保持＝アプリ再起動でも取り分が戻る。既定=均衡(1)。
     var detentIndex by rememberSaveable { mutableStateOf(prefs.getInt(PrefKeys.P_HINGE_DETENT, 1).coerceIn(0, 2)) }

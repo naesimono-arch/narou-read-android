@@ -1,6 +1,5 @@
 package com.novelreader.ui.skins.j
 
-import android.provider.Settings
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -38,7 +37,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -66,6 +64,7 @@ import com.novelreader.ui.theme.MotionDurationReveal
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Spacing
+import com.novelreader.ui.theme.rememberReduceMotion
 import com.novelreader.ui.theme.skins.SkinJ
 
 // ============================================================
@@ -319,11 +318,9 @@ fun NextDoorEdgeGlowJ(atChapterEnd: Boolean, colors: ReadingColors, modifier: Mo
         animationSpec = tween(if (atChapterEnd) MotionDurationReveal else MotionDurationDismiss),
         label = "nextdoorShow",
     )
-    // reduce-motion 検出（アニメーター無効設定/省電力のスケール0）。M/BookshelfSkyM と同じ判定を流用（ADR 0022 §3）。
-    val context = LocalContext.current
-    val reduceMotion = remember {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }
+    // reduce-motion 検出（アニメーター無効設定/省電力のスケール0）。判定は theme/ReduceMotion.kt の単一情報源
+    //（ADR 0022 §3。旧: ここで直読み＋キー無し remember＝設定変更が届かなかった・監査 C2）。
+    val reduceMotion = rememberReduceMotion()
     // 滲みの呼吸（.edge breathe 2.6s・opacity .55↔1）。animateFloat 値を composition で読むと毎フレーム再コンポーズ
     // されるため、State のまま持ち Canvas draw ラムダ内でだけ読む provider にする（M の deferred-read 作法に統一）。
     // reduce 時は無限アニメを作らず null＝provider が固定 .8 を返す（モック reduce 分岐）。

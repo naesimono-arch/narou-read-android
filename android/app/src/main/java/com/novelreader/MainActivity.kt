@@ -7,7 +7,6 @@ import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -71,6 +70,7 @@ import com.novelreader.ui.skins.m.LocalSkyParallax
 import com.novelreader.ui.skins.m.SkyBackdropM
 import com.novelreader.ui.skins.m.SkyParallaxController
 import com.novelreader.ui.skins.m.SkyParallaxFactor
+import com.novelreader.ui.theme.LocalReduceMotion
 import com.novelreader.ui.theme.MotionDurationKTabSwitch
 import com.novelreader.ui.theme.MotionDurationNavTransition
 import com.novelreader.ui.theme.MotionDurationSeizuFadeIn
@@ -81,6 +81,7 @@ import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.skinFromName
 import com.novelreader.ui.theme.rememberReadingColors
+import com.novelreader.ui.theme.rememberReduceMotion
 import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.BookshelfViewModel
 import com.novelreader.viewmodel.DiscoveryViewModel
@@ -421,16 +422,19 @@ private fun NovelReaderApp(
     // 画面遷移では触らない＝スクロール視差が遷移でリセットされない。他スキンは backdrop 無し（controller=null）。
     val isSeizu = appSkin == Skin.SEIZU_M
     val density = LocalDensity.current
-    // reduce-motion（アニメーター無効設定/省電力）で視差・流星を止める（各 M 画面の脈動判定と同じ源）。
-    val reduceMotion = remember {
-        Settings.Global.getFloat(appContext.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }
+    // reduce-motion（アニメーター無効設定/省電力）で視差・流星を止める。判定源は theme/ReduceMotion.kt の単一情報源で、
+    // ここが**アプリ唯一の live 購読点**＝下の CompositionLocalProvider(LocalReduceMotion) で全画面へ配る。
+    // 旧実装は 8 箇所が個別にキー無し remember で読んでいて、設定 ON がプロセス再起動まで届かなかった（監査 C2）。
+    val reduceMotion = rememberReduceMotion()
     // トーラス周期の初期推定＝画面高（backdrop が onSizeChanged で実測補正）。旧 40dp クランプは撤廃（無限スクロール・裁定①）。
     val configuration = LocalConfiguration.current
     val initialTilePx = with(density) { configuration.screenHeightDp.dp.toPx() }
     val skyParallax = if (isSeizu) rememberSaveable(
         saver = SkyParallaxController.Saver(initialTilePx, SkyParallaxFactor, reduceMotion),
     ) { SkyParallaxController(0f, initialTilePx, SkyParallaxFactor, reduceMotion) } else null
+    // controller は rememberSaveable 所有＝設定変更では作り直されないため、live な判定をここで写す。
+    // これが無いと M の視差・流星はコンストラクタ束縛の旧値で走り続ける（監査 C2 の「二重の凍結」）。
+    SideEffect { skyParallax?.reduceMotion = reduceMotion }
 
     // 画面遷移: M はフェードスルー（退出 fadeOut 先行→進入 fadeIn。固定天球ゆえ slide だと空ごと動く＝ADR 0019 追記
     // 「M星図の例外」）＝コンテンツのみがシームレスに差し替わる。他スキンは横スライド push 不変（ADR 0019・方向で階層移動を伝える）。
@@ -480,7 +484,8 @@ private fun NovelReaderApp(
     val d = MotionDurationNavTransition
     Box(modifier = Modifier.fillMaxSize()) {
         if (skyParallax != null) SkyBackdropM(skyParallax, highLoadSkyM, Modifier.fillMaxSize())
-        CompositionLocalProvider(LocalSkyParallax provides skyParallax) {
+        // reduce-motion は root の 1 購読を全画面へ配る（各画面が個別に購読・凍結しない＝監査 C2 の真因対処）。
+        CompositionLocalProvider(LocalSkyParallax provides skyParallax, LocalReduceMotion provides reduceMotion) {
             // 画面ルートに Surface を敷いて LocalContentColor を配色へ接地する。素の Box/Column 直下では
             // 既定が黒のままで、明示色を持たない Text（K本棚タイトル等）が全テーマで黒く沈む＝2026-07-23
             // ユーザー指摘「ダークで本棚タイトルが見えない」の真因。M星図だけは常駐 backdrop（後ろの空）を
