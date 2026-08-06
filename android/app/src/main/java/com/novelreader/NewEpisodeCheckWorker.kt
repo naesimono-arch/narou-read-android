@@ -143,8 +143,9 @@ class NewEpisodeCheckWorker(
      */
     private suspend fun fetchWebSiteTotals(eligible: List<WebBookCheckState>): Map<String, Int> {
         if (eligible.isEmpty()) return emptyMap()
-        // registry は走行ごとに生成（BookshelfViewModel 等の既存流儀）。1回の doWork 内で1インスタンスを
-        // 共有するため、per-host スロットルは同一走行内の全フェッチへ確実に効く。
+        // registry の生成は走行ごとだが、既定アダプタ束（＝ScrapeHttpClient）はプロセス全体で1つ
+        // （SiteAdapterRegistry.sharedDefaultAdapters）。よって per-host スロットルはこの走行内だけでなく、
+        // 同時に走る取込（DefaultBookRepository）との間でも効く（監査 2026-08-06 C4 の是正）。
         val registry = SiteAdapterRegistry()
         val totals = mutableMapOf<String, Int>()
         for (state in eligible) {

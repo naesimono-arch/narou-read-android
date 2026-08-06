@@ -35,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -89,8 +90,16 @@ internal fun NcodeLinkSheet(
     onConfirm: (ncode: Ncode) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var inputText by remember { mutableStateOf(bookTitle) }
-    var manualNcode by remember { mutableStateOf("") }
+    // なぜ rememberSaveable か（監査 2026-08-06 C3 の是正）: 開閉フラグ（NativeReadingScreen の
+    // showLinkSheet）だけが Saveable 化されているため、素の remember だと構成変更・プロセス再生成で
+    // 「シートは開いたまま戻るのに入力欄だけ空」になり、検索語と N コード 8 文字を打ち直させる。
+    // WebReaderScreen/PdfImportScreen の custom Saver を移植しないのは、あちらの保存対象が
+    // ライブの WebView から状態保存フェーズに吸い出す Bundle で既定 Saver が使えないためで、
+    // ここは素の String＝autoSaver がそのまま Bundle に載る（余計な Saver を足さない）。
+    // bookTitle をキーに取るのは、同じ呼び出し位置で別の本へ差し替わったときに前の本の検索語を
+    // 引きずらせないため（同一本の構成変更ではキー不変＝編集分がそのまま復元される）。
+    var inputText by rememberSaveable(bookTitle) { mutableStateOf(bookTitle) }
+    var manualNcode by rememberSaveable { mutableStateOf("") }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -133,6 +142,9 @@ internal fun NcodeLinkSheet(
             )
 
             // 検索欄
+            // 下線の色分けに使うフォーカス印は remember のまま: 復元後にフォーカスが戻るかは
+            // フレームワークが決めるため、保存すると「フォーカスが無いのに下線だけ強調」の嘘が残る。
+            // 実際のフォーカスが戻れば onFocusChanged が再発火して正しい値が入る。
             var isFocused by remember { mutableStateOf(false) }
             BasicTextField(
                 value = inputText,
@@ -352,6 +364,7 @@ internal fun NcodeLinkSheet(
                 modifier = Modifier.padding(top = Spacing.S16, bottom = Spacing.S8)
             )
 
+            // 検索欄と同じ理由でフォーカス印は remember のまま（保存すると復元後に嘘の強調が残る）。
             var isManualFocused by remember { mutableStateOf(false) }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
