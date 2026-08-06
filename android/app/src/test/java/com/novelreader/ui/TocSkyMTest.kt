@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.novelreader.model.TocEntry
@@ -68,7 +69,9 @@ class TocSkyMTest {
 
     @Test
     fun `M装着では星図目次の話数ラベルが出る＝D構造でない`() {
-        setToc(Skin.SEIZU_M, TocState.Content(entries), currentChapterFile = "chap_2.html")
+        // 現在章を第1話にずらすのは、現在地チップも 2026-08-07 の短縮で同じ「第N話」を描くようになり、
+        // 現在章に重ねると行ラベルを onNodeWithText で名指しできなくなるため（識別したいのは行の .ep）。
+        setToc(Skin.SEIZU_M, TocState.Content(entries), currentChapterFile = "chap_1.html")
         // K形伝播後の星図の識別点＝各行の話数ラベル .ep「第N話」（D 目次は話数を章題へインラインし独立ラベルを持たない）。
         composeTestRule.onNodeWithText("第2話").assertIsDisplayed()
         composeTestRule.onNodeWithText("第一章 出会い").assertIsDisplayed()
@@ -76,7 +79,9 @@ class TocSkyMTest {
 
     @Test
     fun `D装着では話数ラベルが出ず従来のD描画のまま`() {
-        setToc(Skin.WAMODERN_D, TocState.Content(entries), currentChapterFile = "chap_2.html")
+        // 現在章を第1話にずらす理由は上のテストと同じ（D の現在地チップも「第N話」を描くため、
+        // 現在章に重ねると「行ラベルが無い」ことの断言がチップに引っかかって成り立たない）。
+        setToc(Skin.WAMODERN_D, TocState.Content(entries), currentChapterFile = "chap_1.html")
         composeTestRule.onNodeWithText("第2話").assertDoesNotExist()
         composeTestRule.onNodeWithText("第二章 旅立ち").assertIsDisplayed()
     }
@@ -84,8 +89,9 @@ class TocSkyMTest {
     @Test
     fun `現在章の検出が現在地チップに現れる（強調とcanvas点火の源）`() {
         setToc(Skin.SEIZU_M, TocState.Content(entries), currentChapterFile = "chap_3.html")
-        // 現在地チップ「いま読んでいる 第N話」が現在章（chap_3＝第3話）を指す。
-        composeTestRule.onNodeWithText("いま読んでいる 第3話").assertIsDisplayed()
+        // 現在地チップが現在章（chap_3＝第3話）を指す。見える文字は 2026-08-07 の裁定で「第3話」だけに
+        // 短縮され、行の話数ラベルと同字面になったため、チップは読み上げ名（削った前置きを残した側）で名指しする。
+        composeTestRule.onNodeWithContentDescription("いま読んでいる: 第3話").assertIsDisplayed()
     }
 
     @Test

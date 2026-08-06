@@ -1,7 +1,8 @@
 <!-- @dsCard group="UI-n / K形伝播ドラフト（スキンJ）" name="J×K形. 目次 — 世界の廊下に明快Kの形（作品名サブ・現在地チップ・ここから再開・既読✓／ナビ無し）" -->
 <!--
   K形伝播ドラフト（toc-J）。K plan の確定事項5に従う（目次は深い画面＝ボトムナビ無し）。
-  ・伝播する「形」= 明示タイトル「目次」＋作品名サブ・現在地チップ「いま読んでいる: 第N話」＋読了率・
+  ・伝播する「形」= 明示タイトル「目次」＋作品名サブ・現在地チップ「第N話」（2026-08-07 裁定で前置き
+    「いま読んでいる: 」を削り幅を進捗へ戻した。語は aria-label に残す）＋読了率・
     現在章の唯一の実アクション「ここから再開」・既読は行末に✓。
   ・温存する意匠 = Jの"廊下を進む道程"＝左に一本の道(rail)を通し章を道沿いの節目(node)に。
     歩いた章＝道が金に灯り節目が埋まる／現在章＝いま立つ扉＝金の左ルール＋淡い金面＋明朝太字＋金文字＋大気の灯り／
@@ -53,6 +54,7 @@
   /* 現在地バー: 現在話チップ（淡い金地・金字）＋読了率（K形。Jに無かったので追加） */
   .here{position:relative;z-index:2;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
     gap:10px;padding:14px 18px 12px}
+  /* 2026-08-07 裁定: チップの文字は「第N話」だけ。このバー自体が現在地バーなので前置き「いま読んでいる: 」は文脈で伝わる一方、チップは非伸縮子（flex-shrink:0 相当）として幅を先取りし、端末の最大文字サイズ＋4桁話数では進捗（.prog）の可視文字が0になっていた。削った語は aria-label/contentDescription が担う */
   .herechip{display:inline-flex;align-items:center;gap:6px;background:var(--gold-tint);color:var(--gold);
     font-family:var(--gothic);font-size:12px;font-weight:700;border-radius:999px;padding:6px 14px;cursor:pointer;
     border:1px solid rgba(226,200,120,.28)}
@@ -73,6 +75,7 @@
   /* 章題ブロック: 話数(ゴシックsoft)＋章題(明朝)。行末に状態表現（✓/ここから再開） */
   .tx{flex:1;min-width:0;display:flex;align-items:center;gap:12px;
     padding:16px 18px 16px 2px;border-bottom:1px solid var(--line)}
+  /* 52px は2桁ラベルの実測＝整列用の構造幅。実装は「この本の最長ラベル」で上書きする（4桁「第1240話」は52pxに収まらず3行に割れた） */
   .tx .ep{font-family:var(--gothic);font-size:11px;color:var(--soft);width:52px;flex-shrink:0;letter-spacing:.02em}
   .tx .ti{flex:1;min-width:0;font-family:var(--mincho);font-size:15px;color:var(--ink);line-height:1.55;font-weight:400}
   .tx .end{flex-shrink:0;display:flex;align-items:center}
@@ -82,8 +85,10 @@
   /* 現在章＝いま立つ扉。淡い金面＋明朝太字＋金文字＋大気の灯り（J温存）＋唯一の実アクション「ここから再開」（K形） */
   .li.cur{background:radial-gradient(120% 140% at 8% 50%,rgba(226,200,120,.12),transparent 60%),rgba(226,200,120,.06)}
   .li.cur .tx .ti{color:var(--gold);font-weight:700}
-  .li.cur .resume{font-family:var(--gothic);font-size:11px;font-weight:700;color:#15241A;background:var(--gold);
-    border-radius:999px;padding:6px 12px;white-space:nowrap}
+  /* 2026-08-07 裁定: 再開は**アイコンのみ**（丸24px）。文字入り pill は端末の最大文字サイズで幅156dp を先取りし、章題の取り分を潰していた。名前は aria-label/contentDescription が担う */
+  .li.cur .resume{display:inline-flex;align-items:center;justify-content:center;background:var(--gold);
+    border-radius:999px;padding:4px}
+  .li.cur .resume svg{width:16px;height:16px;fill:#15241A;stroke:none}
 </style>
 </head>
 <body>
@@ -102,7 +107,7 @@
 
     <!-- 現在地バー -->
     <div class="here">
-      <span class="herechip">いま読んでいる: 第127話</span>
+      <span class="herechip" role="button" aria-label="いま読んでいる: 第127話">第127話</span>
       <span class="prog">全132話・読了率96%</span>
     </div>
 
@@ -114,7 +119,7 @@
       <div class="li passed"><span class="rail"><span class="node"></span></span>
         <span class="tx"><span class="ep">第126話</span><span class="ti">夜営の火、語られぬ過去のこと</span><span class="end"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span></span></div>
       <div class="li cur"><span class="rail"><span class="node"></span></span>
-        <span class="tx"><span class="ep">第127話</span><span class="ti">雨上がりの城門にて、彼女は静かに剣を置いた</span><span class="end"><span class="resume">ここから再開</span></span></span></div>
+        <span class="tx"><span class="ep">第127話</span><span class="ti">雨上がりの城門にて、彼女は静かに剣を置いた</span><span class="end"><span class="resume" role="button" aria-label="ここから再開"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg></span></span></span></div>
       <div class="li"><span class="rail"><span class="node"></span></span>
         <span class="tx"><span class="ep">第128話</span><span class="ti">市場のざわめきと、薬草の値段</span><span class="end"></span></span></div>
       <div class="li"><span class="rail"><span class="node"></span></span>

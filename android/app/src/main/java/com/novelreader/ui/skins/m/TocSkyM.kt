@@ -27,12 +27,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
@@ -55,13 +57,20 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.TocState
+import com.novelreader.ui.skins.rememberTocEpLabelWidth
+import com.novelreader.ui.skins.tocHereChipContentDescription
+import com.novelreader.ui.skins.tocHereChipLabel
 import com.novelreader.ui.theme.DimSeizu
 import com.novelreader.ui.theme.FaintStarSeizu
 import com.novelreader.ui.theme.MinchoFamily
@@ -120,6 +129,9 @@ private enum class RowLit { READ, CUR, AHEAD }
 // #0D1636（SkyGradMidSeizu）の α 掛けスクリムで再現する（直書き禁止＝トークン経由）。α は体感同等で可・実機後詰め。
 private val TocSkyScrim = SkyGradMidSeizu.copy(alpha = 0.45f)   // 全面ウォッシュ＝章題列の実効輝度を旧0.16相当へ沈める
 private val TocChromeScrim = SkyGradMidSeizu.copy(alpha = 0.30f) // 上部クローム帯の追い沈め（見出し/sync のゴールド・旧0.12相当）
+
+/** モック toc-M.html `.li .ep{width:52px}`＝話数ラベル列の整列幅の下限（2桁までの実測値・スケール外の構造幅）。 */
+private val EpLabelMinWidthM = 52.dp
 
 @Composable
 internal fun TocSkyM(
@@ -200,6 +212,13 @@ internal fun TocSkyM(
                         initialFirstVisibleItemIndex = tocInitialFirstVisibleIndex(entries, currentChapterFile),
                     )
                     val scope = rememberCoroutineScope()
+                    // 話数ラベル列の整列幅は「この本で出る最長ラベル」から決める（機序＝rememberTocEpLabelWidth）。
+                    // 採寸スタイルは実際の描画（.ep＝11sp・letterSpacing .02em）と同一にする。
+                    val epLabelWidth = rememberTocEpLabelWidth(
+                        total = entries.size,
+                        style = LocalTextStyle.current.merge(TextStyle(fontSize = 11.sp, letterSpacing = 0.02.em)),
+                        minWidth = EpLabelMinWidthM,
+                    )
                     // 現在地バー（K形伝播・モック toc-M.html .here）: 現在話チップ（星光地・星光字）＋進捗。
                     TocHereBarM(
                         currentIndex = currentIndex,
@@ -225,6 +244,7 @@ internal fun TocSkyM(
                             }
                             TocChapterRow(
                                 epLabel = "第${index + 1}話",
+                                epLabelWidth = epLabelWidth,
                                 title = entry.title.ifEmpty { "第${index + 1}章" },
                                 lit = lit,
                                 phase = phase,
@@ -317,11 +337,19 @@ private fun TocHereBarM(
             ) {
                 // ::before 6px の灯る金の星（box-shadow 0 0 7px α.8）。既存の星グロー描画を流用する。
                 Box(Modifier.size(6.dp).drawBehind { drawDotGlow(blurDp = 7f, alpha = 0.8f); drawCircle(StarSeizu) })
+                // 見える文字は「第N話」だけ（裁定 2026-08-07・4スキン同型）。前置き「いま読んでいる 」は
+                // このチップが非加重子として幅を先取りする分の実質を占め、進捗の取り分を可視0文字まで潰していた
+                //（M は星と間隔の分だけ最も厳しく、残り 1px＝「全…」すら出なかった）。
+                // 削った語は読み上げ（contentDescription）に残す＝機序と数値は tocHereChipContentDescription が正本。
+                // cd を外側 Row でなく Text へ置くのは、clickable が子をマージするので読み上げは同じ1ノードに
+                // 集まる一方、非マージ木（テスト）では「チップの文字」と「行の話数ラベル」が同じ「第N話」でも
+                // cd の有無で名指し分けられるため。
                 Text(
-                    "いま読んでいる 第${currentIndex + 1}話",
+                    tocHereChipLabel(currentIndex),
                     fontSize = 12.5.sp, // .herechip 12.5px
                     fontWeight = FontWeight.Bold,
                     color = StarSeizu,
+                    modifier = Modifier.semantics { contentDescription = tocHereChipContentDescription(currentIndex) },
                 )
             }
         }
@@ -352,6 +380,8 @@ private fun TocHereBarM(
 @Composable
 private fun TocChapterRow(
     epLabel: String,
+    /** リスト全行で共有する話数ラベルの整列幅（導出＝[rememberTocEpLabelWidth]）。行ごとに計算しない。 */
+    epLabelWidth: Dp,
     title: String,
     lit: RowLit,
     phase: State<Float>?,
@@ -380,12 +410,13 @@ private fun TocChapterRow(
             TocDot(lit = lit, phase = phase)
         }
         // 話数ラベル（.ep width 52px・ゴシック11px --dim。K形伝播で追加）。
+        // 幅はモック固定値でなく桁数追従（[epLabelWidth]）＝52dp 固定では4桁「第1240話」がラベル自体で3行に割れた。
         Text(
             text = epLabel,
             fontSize = 11.sp,
             letterSpacing = 0.02.em,
             color = DimSeizu,
-            modifier = Modifier.width(52.dp),
+            modifier = Modifier.width(epLabelWidth),
         )
         Text(
             text = title,
@@ -402,28 +433,23 @@ private fun TocChapterRow(
                 .weight(1f)
                 .padding(top = Spacing.S16, end = Spacing.S16, bottom = Spacing.S16),
         )
-        // 行末（.end padding-right 16px）: 現在章のみ唯一の実アクション「ここから再開」（この画面の強調）。
+        // 行末（.end padding-right 16px）: 現在章のみ唯一の実アクション＝▶ の丸チップ（この画面の強調）。
         // 既読マークは行末✓でなくガターの金の星（星座点火が M 署名＝既に TocDot が担う）。
+        // 2026-08-07 裁定でチップの文字「ここから再開」を落としアイコンのみへ（機序＝K の TocK.kt 冒頭注記と同型）。
         if (lit == RowLit.CUR) {
-            Row(
+            Icon(
+                Icons.Filled.PlayArrow,
+                // アイコンだけでは何のボタンか分からない＝読み上げ用の名前は必須（裁定の条件）。
+                contentDescription = "ここから再開",
+                tint = OnStarSeizu, // fill #141B33＝夜天上の暗インク
                 modifier = Modifier
                     .padding(end = Spacing.S16)
-                    .clip(RoundedCornerShape(999.dp))
-                    // .resume linear-gradient(135deg,#EbdFb4,#D8C68C)＝金のグラデ pill。
+                    .clip(CircleShape)
+                    // .resume linear-gradient(135deg,#EbdFb4,#D8C68C)＝金のグラデ（pill → 丸へ）。
                     .background(Brush.linearGradient(listOf(ResumeGradStartSeizu, ResumeGradEndSeizu)))
-                    .padding(horizontal = Spacing.S12, vertical = Spacing.S8), // .resume 6px 12px
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.S4), // gap 6px → S4
-            ) {
-                // ▶ 再生アイコン（fill #141B33＝夜天上の暗インク OnStar）。
-                Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = OnStarSeizu, modifier = Modifier.size(11.dp))
-                Text(
-                    "ここから再開",
-                    fontSize = 11.sp,             // .resume 11px
-                    fontWeight = FontWeight.ExtraBold, // font-weight 800
-                    color = OnStarSeizu,          // color #141B33
-                )
-            }
+                    .padding(Spacing.S4)
+                    .size(16.dp), // 16dp グリフ＋S4 の縁＝24dp の丸（K/D/J と同寸＝4スキン同型）
+            )
         }
     }
 }
