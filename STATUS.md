@@ -70,8 +70,11 @@
   ＋**androidTest のコンパイル**＋**release R8 ビルド**の計5ゲートを自動実行（実機必須の androidTest 実行と macrobenchmark は引き続き対象外＝YAML コメントに理由）。
   どのバグ型がどのゲートに守られているか（と**どこが無防備か**）の一覧＝`docs/known-bugs-registry.md`。
 
-- **既知バグ: なし**（2026-08-05 に v16→v17 の起動即クラッシュ経路＝系譜分岐で欠けるテーブルを塞いだ。
-  同型の穴が v9→v10 にもあり同時是正。JVM の `MigrationShapeCoverageTest` が全区間 7→21 を毎ゲート走査する）。
+- **既知バグ: 全面監査（2026-08-06）で 25 件**——release 到達 13・debug 限定（M/P/J）8・記録のみ 4。処理待ちの一覧＝`handover.md`、
+  機序と直し方＝`.claude/plans/code-health-audit-2026-08-06.md`。最重＝**FGS の `onTimeout` がオーバーロード不一致で dead**
+  （台帳 `cancelled-scope-reuse-silent-stop`／`stale-generation-coroutine-finally` の修正がまとめて発火しない）。
+  ⚠️ 監査で判明した**ゲートの構造的限界**: golden は退行しか止めない＝初回記録時の誤りは永久に固定される
+  （`KBottomNav_*_2.0.png` がラベル切れの絵を正として保持していた実例）。
 
 ## 1. 観察ログ（未確定の所見のみ・確定したら handover か ADR へ）
 
