@@ -40,6 +40,7 @@ import com.novelreader.repository.BookRepository
 import com.novelreader.repository.NarouPdfCache
 import com.novelreader.repository.PdfTreeScanner
 import com.novelreader.repository.SourceDeleteOutcome
+import com.novelreader.repository.WebImportInFlightException
 import com.novelreader.scrape.ScrapeStructureException
 import com.novelreader.scrape.SiteAdapterRegistry
 import java.io.File
@@ -861,7 +862,13 @@ class BookshelfViewModel @JvmOverloads constructor(
     // 実行中 Web 取込の本数（Main 限定で増減）。最後の1本が終わるまで WEB スロットを畳まないための計数。
     // webImportJobs.count { isActive } で代用しない理由: finally 実行時点の自ジョブは
     // 「まだ completed でない」ため自分を数えてしまい、最後の1本の判定が不能になる。
-    private var activeWebImports = 0
+    // StateFlow で持つ理由（監査 A2 の UI ガード）: 再取得ダイアログの確定ボタンが「実行中は押せない」を
+    // 購読するため。processingState（表示合成）で代用しない＝あちらは PDF 優先の合成で、PDF 変換と並走中は
+    // WEB の実行中が表示から隠れてガードが素通りする（正確な信号は WEB 専用のこの計数だけが持つ）。
+    private val _activeWebImports = MutableStateFlow(0)
+
+    /** 実行中 Web 取込の本数（読み取り専用・0=なし）。UI の再取得ボタン実行中ガードが購読する。 */
+    val activeWebImports: StateFlow<Int> = _activeWebImports.asStateFlow()
 
     /** Web 取込の全停止。PDF の ACTION_STOP と同じ意味論に合わせる:
      *  即時に「停止しています…」を出し（停止ボタンも同フラグで消える＝連打防止）、実中断は次の章境界
@@ -943,7 +950,7 @@ class BookshelfViewModel @JvmOverloads constructor(
         // run{} は移設した旧 launch 本体の字下げを不変に保つための無操作スコープ（diff を最小化し
         // ProcessingStateHub 配線ロジックへの実質変更が無いことをレビューで確認しやすくする）。
         run {
-            activeWebImports++
+            _activeWebImports.value++
             // 取込中バナーの初期状態。source=WEB でステッパー（PDF 4段の器）は出さず、章進捗（phase）へ
             // 一本化する（裁定②＝Web で「ステップ 1/4」が凍結表示されていた問題の解消。出し分けは
             // ProcessingBanner 側が source で行う＝新しい意匠は発明しない）。
@@ -989,17 +996,29 @@ class BookshelfViewModel @JvmOverloads constructor(
                         }
                     },
                     onFailure = { e ->
-                        // 真因はログに残す（握り潰さない）。Blocked/Unsupported は呼び出し前ゲートで除外済みのため、
-                        // ここに来るのは取得/解析/構造疑い等の失敗。失敗系は従来どおり「閉じる」付きで残置（transient なし）。
-                        android.util.Log.e(TAG, "Web取込失敗", e)
-                        // 破損監視（層2）: サイト構造変更の疑い（ScrapeStructureException＝ScrapeException 派生）だけは
-                        // 「公式サイトで読む」逃げ道を添える（作品URLを外部ブラウザで開く＝U3 Blocked と同じ ACTION_VIEW 流儀）。
-                        // 逃げ道が保険の実体（脆さ織り込み）。それ以外の一過性失敗は従来どおり平易な失敗通知のみ
-                        // （リトライ＝ユーザーの再共有操作＝確定事項）。
-                        if (e is ScrapeStructureException) {
-                            app.emitError("取得に失敗しました。サイト構造が変わった可能性があります", openUrl = url)
-                        } else {
-                            emitSnackbar("取り込みに失敗しました")
+                        // in-flight 遮断（監査 A2）: 同一作品の取得が既に走っている＝失敗ではなく「待てば済む」
+                        // 情報通知。専用型で判別し（WebImportInFlightException の why 参照）、深刻な失敗文言や
+                        // 「公式サイトで読む」逃げ道を出さない。transient=true は取込完了通知と同じ一過性の扱い。
+                        when {
+                            e is WebImportInFlightException -> {
+                                // エラーでなく期待どおりの遮断のためログも情報レベル（例外全文は冗長＝事象名で足りる）。
+                                android.util.Log.i(TAG, "Web取込スキップ: 同一作品が取得中")
+                                emitSnackbar("この作品はすでに取得中です。完了までお待ちください", transient = true)
+                            }
+                            // 破損監視（層2）: サイト構造変更の疑い（ScrapeStructureException＝ScrapeException 派生）だけは
+                            // 「公式サイトで読む」逃げ道を添える（作品URLを外部ブラウザで開く＝U3 Blocked と同じ ACTION_VIEW 流儀）。
+                            // 逃げ道が保険の実体（脆さ織り込み）。
+                            // 真因はログに残す（握り潰さない）。Blocked/Unsupported は呼び出し前ゲートで除外済みのため、
+                            // ここに来るのは取得/解析/構造疑い等の失敗。失敗系は従来どおり「閉じる」付きで残置（transient なし）。
+                            e is ScrapeStructureException -> {
+                                android.util.Log.e(TAG, "Web取込失敗", e)
+                                app.emitError("取得に失敗しました。サイト構造が変わった可能性があります", openUrl = url)
+                            }
+                            // それ以外の一過性失敗は従来どおり平易な失敗通知のみ（リトライ＝ユーザーの再共有操作＝確定事項）。
+                            else -> {
+                                android.util.Log.e(TAG, "Web取込失敗", e)
+                                emitSnackbar("取り込みに失敗しました")
+                            }
                         }
                     },
                 )
@@ -1008,8 +1027,8 @@ class BookshelfViewModel @JvmOverloads constructor(
                 // updateProcessingState は非 suspend の値代入のためキャンセル巻き戻し中でも確実に完了する。
                 // 並行 Web 取込がまだ生きている間は畳まない: 先に終わった側の null 書きが後続の表示を
                 // 潰す（裁定③と同型の Web/Web 版）を最後の1本の判定で防ぐ。
-                activeWebImports--
-                if (activeWebImports == 0) app.updateProcessingState(null, ProcessingSource.WEB)
+                _activeWebImports.value--
+                if (_activeWebImports.value == 0) app.updateProcessingState(null, ProcessingSource.WEB)
             }
         }
     }

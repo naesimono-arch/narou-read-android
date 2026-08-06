@@ -22,7 +22,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -87,7 +89,13 @@ fun WebGridBookCard(
     Column(
         modifier = modifier
             // 1冊=1トラバーサル単位に束ねる（critic Major）。題字/メタ行が別ノードに割れないようにする。
-            .semantics(mergeDescendants = true) {}
+            .semantics(mergeDescendants = true) {
+                // 選択モード中の選択状態宣言（蔵書 GridBookCard と同文・監査 A11。理由はそちらのコメント参照）。
+                if (selectionMode) {
+                    this.selected = selected
+                    this.stateDescription = if (selected) "選択中" else "未選択"
+                }
+            }
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .combinedClickable(
                 interactionSource = interactionSource,
@@ -214,7 +222,13 @@ fun WebListBookCard(
         Row(
             modifier = Modifier
                 // 1冊=1トラバーサル単位に束ねる（critic Major）。行末の⋮は別フォーカスとして残る。
-                .semantics(mergeDescendants = true) {}
+                .semantics(mergeDescendants = true) {
+                    // 選択モード中の選択状態宣言（蔵書 GridBookCard と同文・監査 A11。理由はそちらのコメント参照）。
+                    if (selectionMode) {
+                        this.selected = selected
+                        this.stateDescription = if (selected) "選択中" else "未選択"
+                    }
+                }
                 .graphicsLayer { scaleX = scale; scaleY = scale }
                 // 選択中は行全体に淡い藍かぶせ（蔵書の目録行 ListBookCard と同じ）。
                 .background(

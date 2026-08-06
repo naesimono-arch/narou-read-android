@@ -138,6 +138,12 @@ fun BookshelfScreen(
     // 遷移ジャンク対策（P2）: enter アニメ中だけ重いグリッドをスケルトンへ差替える指示。算出は
     // NavHost の transition を持つ MainActivity の責務（ここは素通し）。既定 false＝既存呼出し不変。
     deferHeavyContent: Boolean = false,
+    // タブ枠でこのページが前面か（2026-08-06 監査 B8。TabPagerHost は beyondViewportPageCount=1 で
+    // 隣ページも常駐コンポーズする＝「コンポーズされている≠見えている」）。選択モード BackHandler の
+    // enabled へ合流させ、他タブ表示中に隠れた本棚が Back を黙って食うのを防ぐ。値の算出は Pager を
+    // 持つ MainActivity の責務（tabPagerState.currentPage == KTab.BOOKSHELF.ordinal を渡す）。
+    // 既定 true は Pager 外の呼び出し・テストの互換（単独表示なら常に前面＝従来挙動）。
+    isFrontTab: Boolean = true,
 ) {
     // Loading と Empty を型で区別する（F-O）。Loading 中はスケルトンを出し、
     // DB から Content(空) が確定して初めて空状態を表示することで cold start の空フラッシュを防ぐ。
@@ -150,6 +156,11 @@ fun BookshelfScreen(
     // 続きありバッジの Web 蔵書側（key=bookId）。Worker が最後に観測したサイト総話数（U1 の基準値）。
     val webNewEpisodeTotals by viewModel.webNewEpisodeTotalMap.collectAsStateWithLifecycle()
     val processingState by viewModel.processingState.collectAsStateWithLifecycle()
+    // 実行中の Web 取込本数（監査 A2）。再取得ダイアログの確定ボタンを実行中は押させないために購読する。
+    // processingState で代用しない: あちらは PDF 優先の表示合成のため、PDF 変換と並走中は WEB の
+    // 実行中が表示から消え、ガードが素通りする（VM 側 activeWebImports の宣言コメント参照）。
+    val activeWebImports by viewModel.activeWebImports.collectAsStateWithLifecycle()
+    val webImportRunning = activeWebImports > 0
     // 複数PDF取込で「なろう形式でないPDF」が混在したときの確認プロンプト（null=非表示）。
     val importPrompt by viewModel.importPrompt.collectAsStateWithLifecycle()
     val overwritePrompt by viewModel.overwritePrompt.collectAsStateWithLifecycle()
@@ -167,7 +178,11 @@ fun BookshelfScreen(
     // フォルダ選択の結果を「この1冊の走査」へ回すか「一括復旧」へ回すかの行き先（案X）。
     // なぜ状態で持つか: ピッカーのコールバックは launch 時の文脈を受け取れないため、どちらの導線から
     // 開いたかをここで覚えておく（null=一括復旧）。
-    var pendingScanBook by remember { mutableStateOf<BookEntity?>(null) }
+    // なぜ rememberSaveable の id(String) か（2026-08-06 監査 A4）: ランチャー登録キーは Saveable＝
+    // 結果は Activity 再生成（SAF ピッカー表示中の回転・ダーク切替等）をまたいで必ず届くのに、行き先が
+    // plain remember だと再生成で null＝一括側へ化け、「1冊復旧」が全 AutoPdf/AutoWeb の一括再取込に
+    // すり替わる。BookEntity は Parcelable でないため id だけを保存し、結果受信時に books から引き直す。
+    var pendingScanBookId by rememberSaveable { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -185,14 +200,17 @@ fun BookshelfScreen(
     val pdfFolderPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { treeUri ->
-        val target = pendingScanBook
-        pendingScanBook = null
+        val targetId = pendingScanBookId
+        pendingScanBookId = null
         if (treeUri == null) return@rememberLauncherForActivityResult
         viewModel.rememberPdfFolder(treeUri)
-        if (target != null) {
+        if (targetId != null) {
+            // id から現物を引き直す（再生成をまたぐと BookEntity の参照は保存できないため。上の宣言コメント参照）。
+            val target = (uiState as? BookshelfUiState.Content)?.books?.firstOrNull { it.id == targetId }
             // 場所を選んでいる間にその本が復旧を終えた等で走査対象から外れることがある。
             // 無反応で終わらせず理由を告げる（せっかくフォルダを選んだのに何も起きない、を作らない）。
-            if (!viewModel.scanFolderForBook(target, treeUri)) {
+            // 引き直し失敗（削除済み・一覧未確定）も同じ通知に合流＝「1冊のつもり」を黙って一括側へ落とさない（監査 A4）。
+            if (target == null || !viewModel.scanFolderForBook(target, treeUri)) {
                 viewModel.emitSnackbar("この本は再取込の対象ではなくなりました", transient = true)
             }
         } else {
@@ -204,7 +222,7 @@ fun BookshelfScreen(
     // 場所を記憶済みならその場で走査し、未記憶ならフォルダ選択を出す（＝2度目以降は選ばせない）。
     val scanForBook: (BookEntity) -> Unit = { book ->
         if (!viewModel.scanFolderForBook(book)) {
-            pendingScanBook = book
+            pendingScanBookId = book.id
             pdfFolderPicker.launch(null)
         }
     }
@@ -347,6 +365,7 @@ fun BookshelfScreen(
         onSweepConfirm = { showSweepDialog = true },
         folderScan = folderScan,
         onScanStop = { viewModel.cancelFolderScan() },
+        isFrontTab = isFrontTab,
     )
 
     // エラーは一度きりのイベントとして Channel から受信し Snackbar 表示する（VM イベント購読＝ルート層の責務）。
@@ -638,10 +657,22 @@ fun BookshelfScreen(
                     onDismissRequest = dismiss,
                     title = { Text("『${book.title}』をWebから再取得しますか？") },
                     text = {
-                        Text("作品ページからもう一度取得して復元します。読書位置としおりは残ります。")
+                        // 実行中は「なぜ押せないか」を本文で告げる（無効ボタンだけ置くと理由の無い行き止まりになる）。
+                        Text(
+                            if (webImportRunning) "いま別の取得が動いています。終わってからもう一度お試しください。"
+                            else "作品ページからもう一度取得して復元します。読書位置としおりは残ります。",
+                        )
                     },
                     confirmButton = {
-                        TextButton(onClick = { viewModel.importWebNovel(plan.sourceUrl); dismiss() }) { Text("再取得する") }
+                        // 実行中ガード（監査 A2）: 一括復旧の走行中に同じ本の再取得を重ねると、2ジョブが同一
+                        // outputDir を解決して片方の deleteRecursively が他方の生成途中を消す（本文欠落の torn 本）。
+                        // repository 側の in-flight ガードが最終防衛だが、押せてしまうと「押したのに失敗通知」に
+                        // なるため UI でも先に閉じる。判定を URL 単位にしない理由: Web 取込は逐次1本なので、
+                        // 走行中は必ずこの1本の完了待ち＝本数だけで正しく塞げる（VM が並列に走らせない設計）。
+                        TextButton(
+                            enabled = !webImportRunning,
+                            onClick = { viewModel.importWebNovel(plan.sourceUrl); dismiss() },
+                        ) { Text("再取得する") }
                     },
                     dismissButton = { TextButton(onClick = dismiss) { Text("やめる") } },
                 )
@@ -660,7 +691,7 @@ fun BookshelfScreen(
         val canScan = breakdown.scannable > 0
         // フォルダを選ばせる導線（未記憶で走査対象がある／「別の場所を選ぶ」）の共通アクション。
         val chooseFolder = {
-            pendingScanBook = null
+            pendingScanBookId = null
             pdfFolderPicker.launch(null)
             closeSweep()
         }
@@ -776,7 +807,7 @@ fun BookshelfScreen(
             confirmButton = {
                 // 戻らなかった本が残るときだけ、次の一手（別の場所）を主ボタンに置く。
                 if (report.unmatchedCount > 0) {
-                    TextButton(onClick = { closeReport(); pendingScanBook = null; pdfFolderPicker.launch(null) }) {
+                    TextButton(onClick = { closeReport(); pendingScanBookId = null; pdfFolderPicker.launch(null) }) {
                         Text("別の場所を選ぶ")
                     }
                 } else {
@@ -862,6 +893,9 @@ internal fun BookshelfContent(
     // 案X: フォルダ走査の進捗（null=走査していない）と停止。既定は「走査していない」＝従来どおりの描画。
     folderScan: ScanProgress? = null,
     onScanStop: () -> Unit = {},
+    // このページがタブ枠の前面か（監査 B8）。選択モード BackHandler の enabled 条件に使う。
+    // 既定 true＝既存の呼び出し・Robolectric テスト（単独表示）は従来挙動のまま。
+    isFrontTab: Boolean = true,
 ) {
     val isLoading = uiState is BookshelfUiState.Loading
     val books = (uiState as? BookshelfUiState.Content)?.books ?: emptyList()
@@ -895,7 +929,11 @@ internal fun BookshelfContent(
         if (id !in selectedIds) selectedIds.add(id)
     }
     // システム戻るで選択モードを解除（右上×非依存の解除導線・変種B裁定）。選択モード中のみ消費する。
-    BackHandler(enabled = selectionMode) { exitSelection() }
+    // isFrontTab を合流させる理由（監査 B8）: タブ枠は隣ページを常駐コンポーズし（TabPagerHost の
+    // beyondViewportPageCount=1）、OnBackPressedDispatcher は後着優先＝ページ側のこのハンドラが
+    // 枠の「本棚へ戻る」に必ず勝つ。前面条件が無いと、選択モードのまま他タブへ移った後の Back を
+    // 隠れた本棚が1回黙って食う（画面は無変化・見えない選択だけが解除される）。
+    BackHandler(enabled = selectionMode && isFrontTab) { exitSelection() }
 
     val visibleBooks = books
 
@@ -1401,6 +1439,8 @@ internal fun BookshelfContent(
                     // 欠落本の警告は本文の先頭に置く（後段の一般文＝「取り消せません」より固有かつ重い情報のため）。
                     // 欠落0冊なら描画そのものが無い＝通常の削除ダイアログは従来と1ピクセルも変わらない。
                     MissingContentDeleteWarningText(lossWarning)
+                    // 削除対象の題名列挙（監査 A11）。理由は DeleteTargetTitlesText のコメント参照。
+                    DeleteTargetTitlesText(bookTargets.map { it.title } + webTargets.map { it.title })
                     // 選択内訳（蔵書数・Web数）で本文を出し分け（系3）＝Web に「本文データも削除」の虚偽を出さない。
                     Text(deleteConfirmBody(bookTargets.size, webTargets.size))
                     DeleteSourcePdfOption(deletableCount, alsoDeleteSource) { alsoDeleteSource = it }
@@ -1455,6 +1495,37 @@ internal fun MissingContentDeleteWarningText(warning: MissingContentDeleteWarnin
             append(warning.detail)
         },
     )
+    Spacer(Modifier.height(Spacing.S24))
+}
+
+// ============================================================
+// 削除対象の題名列挙（2026-08-06 監査 A11 の一部）
+//
+// なぜ出すか: 確認ダイアログが件数（「選択した3件」）しか語らないと、削除対象を確かめる手段が
+// 背後の棚の選択マークだけになる。TalkBack には（カード側の selected 宣言があっても）ダイアログが
+// 被さった時点で棚は読めず、晴眼でもダイアログの陰の選択マークは見通せない。確認の場である
+// ダイアログ自身が「何を消すか」を名指しする。
+// なぜ上限付きか: 全選択（数十冊）では題名がダイアログを覆い、欠落警告や確定ボタンが画面外へ
+// 流れるため。先頭5件＋「ほか N件」で個別確認と一覧性を両立する。単位は表題と同じ中立の「件」
+//（蔵書と Web が混じり得るため）。
+// MissingContentDeleteWarningText と同じ「削除ダイアログの共有部品」＝K/M/P/J の削除確認（skins/）
+// からも1行で呼べる形にし、5実体で文言・上限が割れないようにする。
+// ============================================================
+
+/** 題名列挙の整形（純関数）。上限超過は「ほか N件」へ畳む。 */
+internal fun deleteTargetTitlesLine(titles: List<String>, maxShown: Int = 5): String = buildString {
+    titles.take(maxShown).forEachIndexed { i, title ->
+        if (i > 0) append('\n')
+        append('・').append(title)
+    }
+    if (titles.size > maxShown) append("\nほか ${titles.size - maxShown}件")
+}
+
+@Composable
+internal fun DeleteTargetTitlesText(titles: List<String>) {
+    if (titles.isEmpty()) return
+    Text(deleteTargetTitlesLine(titles))
+    // 段落間アキは削除確認の正本 multiselect-D の律動（.dlg p margin-bottom:24px → S24）＝欠落警告と同じ。
     Spacer(Modifier.height(Spacing.S24))
 }
 

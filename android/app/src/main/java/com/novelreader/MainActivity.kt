@@ -538,6 +538,9 @@ private fun NovelReaderApp(
                     BookshelfScreen(
                 viewModel = viewModel,
                 deferHeavyContent = deferHeavyContent,
+                // 監査 B8: TabPagerHost は隣ページを常駐コンポーズするため、前面でない本棚の
+                // BackHandler が後着優先で勝って Back を1回食う。前面判定を渡して enabled に合流させる。
+                isFrontTab = tabPagerState.currentPage == KTab.BOOKSHELF.ordinal,
                 appTheme = appTheme,
                 onThemeChange = onThemeChange,
                 // 「システムに従う」の単一真実源を本棚⋮のテーマ4択へ素通し（読書設定シートへ渡すのと同じ状態＝

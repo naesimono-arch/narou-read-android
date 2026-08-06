@@ -4,10 +4,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -29,6 +34,7 @@ import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.tokens
 import com.novelreader.viewmodel.BookshelfUiState
 import com.novelreader.viewmodel.ProcessingState
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -69,12 +75,14 @@ class BookshelfContentTest {
         onThemeChange: (ReadingTheme) -> Unit = {},
         followingSystem: Boolean = false,
         onFollowSystem: () -> Unit = {},
+        // 目録（リスト）モードで描くテスト用（既定はグリッド＝既存テストの描画は不変）。
+        gridView: Boolean = true,
     ) {
         // グリッド/リスト状態は D 描画部が prefs 所有へ移設済み（旧引数 isGridView の撤去）＝pref 先置きで
         // 旧テストと同じグリッド描画を保つ（アサーション意図は不変）。
         RuntimeEnvironment.getApplication()
             .getSharedPreferences(PrefKeys.FILE_APP_PREFS, android.content.Context.MODE_PRIVATE)
-            .edit().putBoolean(PrefKeys.IS_GRID_VIEW, true).commit()
+            .edit().putBoolean(PrefKeys.IS_GRID_VIEW, gridView).commit()
         composeTestRule.setContent {
             MaterialTheme {
                 BookshelfContent(
@@ -260,6 +268,61 @@ class BookshelfContentTest {
         composeTestRule.onNodeWithText("削除").performClick()
         composeTestRule.onNodeWithText("削除する").performClick()
         assertTrue(deleted?.map { it.id } == listOf("b1"))
+    }
+
+    // ────── 選択状態の支援技術宣言（2026-08-06 監査 A11） ──────
+
+    @Test
+    fun `選択モード中はカードが選択状態をsemanticsへ宣言する（グリッド）`() {
+        // 宣言が無いと TalkBack は複数削除の対象を確認できない（selected/stateDescription とも 0 件だった退行の固定）。
+        setContent(BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"), book("b2", "坊っちゃん"))))
+        composeTestRule.onNodeWithContentDescription("吾輩は猫である").performTouchInput { longClick() }
+        composeTestRule.onNodeWithContentDescription("吾輩は猫である").assertIsSelected()
+        composeTestRule.onNodeWithContentDescription("坊っちゃん").assertIsNotSelected()
+        // 選択トグルに宣言が追従する（視覚のチェックだけが動く退行を塞ぐ）。
+        composeTestRule.onNodeWithContentDescription("坊っちゃん").performClick()
+        composeTestRule.onNodeWithContentDescription("坊っちゃん").assertIsSelected()
+    }
+
+    @Test
+    fun `選択モード中は目録（リスト）行も選択状態をsemanticsへ宣言する`() {
+        setContent(
+            BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"), book("b2", "坊っちゃん"))),
+            gridView = false,
+        )
+        // 目録行は書影を持たず題字 Text が併合ノードに載る＝テキストで行を掴む。
+        composeTestRule.onNodeWithText("吾輩は猫である").performTouchInput { longClick() }
+        composeTestRule.onNodeWithText("吾輩は猫である").assertIsSelected()
+        composeTestRule.onNodeWithText("坊っちゃん").assertIsNotSelected()
+    }
+
+    @Test
+    fun `通常時のカードは選択状態を宣言しない（ブラウズ中の無関係読み上げ防止）`() {
+        setContent(BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))))
+        composeTestRule.onNodeWithContentDescription("吾輩は猫である")
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.Selected))
+    }
+
+    // ────── 削除確認ダイアログの対象列挙（監査 A11: 件数だけでは削除対象を確認できない） ──────
+
+    @Test
+    fun `削除確認ダイアログに削除対象の題名を列挙する`() {
+        setContent(BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"), book("b2", "坊っちゃん"))))
+        composeTestRule.onNodeWithContentDescription("吾輩は猫である").performTouchInput { longClick() }
+        composeTestRule.onNodeWithContentDescription("坊っちゃん").performClick()
+        composeTestRule.onNodeWithText("削除").performClick()
+        // グリッドの題名は contentDescription（Canvas 書影）＝text の題名はダイアログの列挙にしか無い。
+        composeTestRule.onNodeWithText("・吾輩は猫である", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("・坊っちゃん", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun `題名列挙は5件で打ち切り超過をほかN件へ畳む（純関数）`() {
+        // 全選択（数十冊）で警告・確定ボタンが画面外へ流れるのを防ぐ上限の固定。
+        val line = deleteTargetTitlesLine(List(7) { "本$it" })
+        assertTrue(line.contains("・本4"))
+        assertTrue(!line.contains("本5"))
+        assertEquals("ほか 2件", line.lines().last())
     }
 
     // ────── 欠落本の削除＝復元の最後の機会を消す警告（2026-07-29 実害への対処） ──────

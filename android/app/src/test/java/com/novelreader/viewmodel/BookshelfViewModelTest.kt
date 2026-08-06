@@ -20,6 +20,7 @@ import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
 import com.novelreader.repository.BookRepository
 import com.novelreader.repository.SourceDeleteOutcome
+import com.novelreader.repository.WebImportInFlightException
 import com.novelreader.scrape.ScrapeStructureException
 import com.novelreader.scrape.SiteAdapterRegistry
 import io.mockk.*
@@ -416,6 +417,45 @@ class BookshelfViewModelTest {
             )
         }
         verify(exactly = 0) { mockApp.emitError("取り込みに失敗しました") }
+    }
+
+    // in-flight 遮断（監査 A2）: 同一作品が取得中の後着は「失敗」ではなく「待てば済む」情報通知にする。
+    // 一般失敗文言・構造疑いの逃げ道が出ないこと（＝深刻さの誤伝達をしないこと）まで固定する。
+    @Test
+    fun `importWebNovel - in-flight 遮断は専用の情報通知で告げ一般失敗文言を出さない`() = runTest {
+        coEvery { mockRepository.addWebBook(any(), any(), any()) } returns
+            Result.failure(WebImportInFlightException())
+
+        viewModel.importWebNovel("https://kakuyomu.jp/works/123")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        verify {
+            mockApp.emitError(
+                "この作品はすでに取得中です。完了までお待ちください",
+                transient = true,
+            )
+        }
+        verify(exactly = 0) { mockApp.emitError("取り込みに失敗しました") }
+    }
+
+    // 再取得ボタンの実行中ガード（監査 A2）の観測点。UI は activeWebImports>0 で確定ボタンを無効化するため、
+    // 走行中に 1 が観測でき、完了で 0 へ戻ること（＝押せない状態が残らないこと）を固定する。
+    @Test
+    fun `activeWebImports - 取込中は1で完了後は0へ戻る`() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        coEvery { mockRepository.addWebBook(any(), any(), any()) } coAnswers {
+            gate.await() // 走行中を決定論的に作る（sleep 待ち合わせにしない）
+            Result.success(BookRepository.AddBookResult.Added(BookEntity("id01", "テスト作品", "/p/a")))
+        }
+
+        assertEquals(0, viewModel.activeWebImports.value)
+        viewModel.importWebNovel("https://kakuyomu.jp/works/123")
+        testDispatcher.scheduler.runCurrent()
+        assertEquals("取込中は実行中1本が観測できる", 1, viewModel.activeWebImports.value)
+
+        gate.complete(Unit)
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertEquals("完了で0へ戻る（押せない状態が残らない）", 0, viewModel.activeWebImports.value)
     }
 
     // ── 停止の Web 実効化（2026-07-29 裁定①）＋供給元分離（裁定③）＋同型集約（裁定④）──────────
