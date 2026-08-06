@@ -3,6 +3,7 @@ package com.novelreader.ui.skins.k
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -108,11 +109,15 @@ import kotlinx.coroutines.flow.drop
 //   モック --ink-soft #6A6E78（AA 引き上げ値）は Compose 側の正規 AA メタトークン infoText(#5C606D・より高
 //   コントラスト)で受ける（K=D 字面/色の共有・ADR 0014-D）。字面はゴシック（既定）・気分見出し/順位数字/作品名=明朝。
 //
+// 期間タブ行は sticky（モック discovery-K-period-sticky-A.html＝2026-08-07 ユーザー裁定の候補A）。
+//   ランキングを縦に読み進めても「いま何期間か／隣に何があるか」が行ごと見え続け、直接タップで切り替えられる。
+//
 // ボトムナビ（KBottomNav）はこの画面には含めない＝K 最上位3画面を束ねる上位シェルが搭載する（没入層と分離。
 //   本画面は M/P/J 発見と同型の「発見コンテンツ全画面」を描く）。onBack は K では未使用（タブ画面＝戻る無し）。
 // モーション: モックに keyframes/JS 無し＝静止で実装（M/P 発見と同じ扱い）。
 // ============================================================
 
+@OptIn(ExperimentalFoundationApi::class) // stickyHeader（期間タブ行の固定）。Compose foundation 1.8 では未安定 API
 @Composable
 internal fun DiscoveryHomeK(
     order: NarouOrder,
@@ -221,6 +226,15 @@ internal fun DiscoveryHomeK(
             NarouOrder.entries.getOrNull(page)
         }
     }
+    // 画面の「据わる位置」に居る期間＝ページャが指しているページ（2026-08-07）。
+    // なぜ order（VM）でなくこちらを描画の基準にするか: この2つは常に一致しない。ページャは指を離した瞬間
+    // ——正確には送り量が半ページを越えた瞬間——に次ページを指すのに対し、order が追いつくのは
+    // settledPage→onSelectOrder→homeOrder(StateFlow) の往復が終わってから。据わり位置の中身を order で
+    // 決めると、その遅れのあいだ「もう次の期間に居るのに前の期間の行が据わっている」状態を描いてしまい、
+    // 追従した瞬間に文字だけが差し替わる＝2026-08-07 報告「スワイプの後、一瞬スワイプ前の文字列が出る」。
+    // 位置（translationX）はページャ基準・中身は order 基準、という食い違いが症状の実体なので、
+    // **中身の期間もページャ基準に揃える**（＝ページ1枚1枚が自分の期間を描いていた平坦化前の性質の回復）。
+    val pagerOrder = NarouOrder.entries[rankingPagerState.currentPage]
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -248,13 +262,26 @@ internal fun DiscoveryHomeK(
             item { MoodSectionK(onPickMood, initialMoodPattern) }
             item { GenreSectionK(onOpenGenre, onPickBiggenre) }
             item { SectionHeadingK("ランキング") }
-            item {
+            // 期間タブ行だけを scrollport 上端へ貼り付ける（モック A の `.rtabs{position:sticky;top:0}`）。
+            // 見出し「ランキング」は貼り付けない＝モック A で sticky なのは .rtabs のみ。
+            //
+            // 順位行は平坦化で同階層の item 群になっているので（[rankingSectionK]）、ここを stickyHeader へ
+            // 替えるだけで「タブが残り、その下を順位行が流れる」関係が成立する＝行側は無改変。
+            // z-index はモック A が明示している（気分カードの藍ルール等 positioned 要素対策）が、Compose の
+            // stickyHeader は貼り付き中のヘッダを他 item より前面へ置くのが既定＝翻訳先で足すものは無い。
+            stickyHeader {
                 OrderTabsK(
                     // 選択表示は order でなくページャ現在地に従える＝スワイプのドラッグ中から追従する
                     //（settle 前の中間状態でもタブが今向かっている期間を指す）。
-                    selected = NarouOrder.entries[rankingPagerState.currentPage],
+                    selected = pagerOrder,
                     onSelectOrder = onSelectOrder,
-                    modifier = Modifier.nestedScroll(rankingEdgeSeal),
+                    modifier = Modifier
+                        // 貼り付き中に下を潜る順位行が透けないための地色（モック A の background:var(--base)）。
+                        // padding より**先**に置く＝下の 8dp ぶんも地で覆う（CSS の padding が背景の内側に
+                        // 入るのと同じ関係。順を逆にすると 8dp が透けて行が覗く）。
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(top = Spacing.S8) // モック A の .rtabs padding-top:8px（貼り付き時の呼吸）
+                        .nestedScroll(rankingEdgeSeal),
                 )
             }
             // ランキングの行は**外側 LazyColumn の item へ平坦化**する（2026-08-06）。
@@ -264,7 +291,8 @@ internal fun DiscoveryHomeK(
                 pagerState = rankingPagerState,
                 flingBehavior = rankingFling,
                 edgeSeal = rankingEdgeSeal,
-                order = order,
+                pageOrder = pagerOrder,
+                selectedOrder = order,
                 neighborOrder = { neighborOrderState.value },
                 state = state,
                 contents = rankingContents,
@@ -518,8 +546,11 @@ private fun GenreChipK(label: String, accent: Boolean, onClick: () -> Unit) {
 /**
  * ランキングの期間タブ（モック .rtabs）: 選択タブは藍 bold＋2dp 下線、列全体の下端にヘアライン。
  * [selected] は呼び出し側がページャ現在地から導出する（期間スワイプ連動・2026-07-29）。
- * [modifier] で横ジェスチャ封止（rankingEdgeSeal）を受ける＝タブ列上の横スワイプの余りも
- * 外側タブ Pager へ渡さない（期間タブを撫でたらアプリのタブが変わる誤操作の防止）。
+ * [modifier] で横ジェスチャ封止（rankingEdgeSeal）と、sticky 化に伴う地色・上余白を受ける＝タブ列上の
+ * 横スワイプの余りも外側タブ Pager へ渡さない（期間タブを撫でたらアプリのタブが変わる誤操作の防止）。
+ *
+ * 実装のタブは6本（モックは4本）＝この行自体が横スクロールを持つ（`horizontalScroll`）。sticky 化しても
+ * その性質は変わらず、貼り付いたまま行内を横に繰って隣の期間を出せる。
  */
 @Composable
 private fun OrderTabsK(
@@ -581,6 +612,21 @@ private fun Density.rankingPageStepPx(pagerState: PagerState): Float =
     pagerState.layoutInfo.pageSize + RankingPageSpacing.toPx()
 
 /**
+ * [pageIndex] 番のページを置くべき横位置（px）。ページャの現在地（連続値）との差だけずらす。
+ *
+ * なぜ「自分が何ページ目か」から絶対位置で決めるか（2026-08-07）: 相対式（現在ページを 0 と見なして
+ * `-fraction * step` で置く）だと、**そのレイヤが今どのページの中身を持っているか**を式が知らない。
+ * `currentPage` は送りが半ページを越えた瞬間に切り替わる一方、中身の差し替えは次の合成なので、
+ * その1フレームだけ「前の期間の中身が、次の期間の座席に座る」ことになる（＝報告された一瞬のちらつきの
+ * 微小版）。自分のページ番号から引けば、中身の差し替えが1フレーム遅れても位置はその中身の座席のまま
+ * ＝どのフレームを切り取っても嘘が無い。静止時 0・ドラッグ中の見えは従来式と完全に一致する
+ *（現在ページなら `(cur - (cur + f)) * step = -f * step`）。
+ */
+private fun Density.rankingPageOffsetPx(pagerState: PagerState, pageIndex: Int): Float =
+    (pageIndex - (pagerState.currentPage + pagerState.currentPageOffsetFraction)) *
+        rankingPageStepPx(pagerState)
+
+/**
  * 期間ページャの状態供給アンカー（2026-08-06 平坦化）。**画面には何も描かない**（高さ0の空ページ）。
  *
  * 役割は `PagerState` に `layoutInfo`（pageSize）を供給し続けること。行は外側 LazyColumn へ平坦化された
@@ -631,7 +677,8 @@ private sealed interface RankingSlots {
 }
 
 /**
- * 表示中（選択中）の期間ページに何を並べるかの裁定。旧 RankingPageK の分岐をそのまま引き継ぐ:
+ * 選択中の期間（＝ページャの据わり先と order が一致している期間）に何を並べるかの裁定。
+ * 旧 RankingPageK の分岐をそのまま引き継ぐ:
  *
  *  1) 生きた [state] が正: Content=最新行・Empty/Error=正直に status（控えがあっても行で覆い隠さない
  *     ＝真に0件・失敗を隠さない旧裁定の継承）。
@@ -650,9 +697,10 @@ private fun rankingSlotsK(state: DiscoveryUiState, cached: DiscoveryUiState.Cont
 }
 
 /**
- * ドラッグ中に横から覗く**隣期間**に何を並べるか。隣は選択中でない＝生きた state を見ない
- *（state は常に選択中期間のもので、隣ページに当てると別期間の読込結果を誤って被せることになる）。
- * 控えがあればその行・無ければ骨＝旧実装で隣ページに出していたものと同じ。
+ * **選択中でない期間**に何を並べるか。使い所は2つ＝ドラッグ中に横から覗く隣期間と、送りは確定したが
+ * order の追従がまだ返ってきていない据わり位置（[rankingSectionK]）。どちらも生きた state を見ない
+ *（state は常に選択中期間のもので、別の期間に当てると他期間の読込結果を誤って被せることになる）。
+ * 控えがあればその行・無ければ骨＝平坦化前に非選択ページへ出していたものと同じ。
  */
 private fun rankingNeighborSlotsK(cached: DiscoveryUiState.Content?): RankingSlots =
     cached?.let { RankingSlots.Rows(it.novels) } ?: RankingSlots.Skeleton
@@ -666,26 +714,37 @@ private fun rankingNeighborSlotsK(cached: DiscoveryUiState.Content?): RankingSlo
  * （実測 Janky 11.89〜12.23%・`draw/record` max 131〜167ms の一点集中／`measure/layout`・GPU は無罪）。
  *
  * 横スワイプは各スロットの `scrollable` が [pagerState] を直接動かして実現する（[RankingPagerAnchorK] の
- * KDoc も参照）。期間タブの sticky 化（別途モック裁定待ち）に備え、[OrderTabsK] は独立 item のまま据え置く
- * ＝裁定が下りたら `item {}` を `stickyHeader {}` へ替えるだけで済み、行側は触らずに済む。
+ * KDoc も参照）。期間タブ（[OrderTabsK]）は同階層の `stickyHeader` として上に居る（2026-08-07 裁定）ので、
+ * 縦スクロールでこの行群が上へ流れてもタブ行だけが上端に残る＝行側は sticky 化のために何も持たない。
+ *
+ * [pageOrder]＝**ページャが指している期間**（据わり位置に描く期間）・[selectedOrder]＝VM が選択中の期間。
+ * この2つは食い違う（送りが半ページを越えた瞬間から order の追従が終わるまで）ので、生きた [state] を
+ * 当ててよいのは一致しているときだけ。詳細は [DiscoveryHomeK] の pagerOrder のコメント。
  */
 private fun LazyListScope.rankingSectionK(
     pagerState: PagerState,
     flingBehavior: FlingBehavior,
     edgeSeal: NestedScrollConnection,
-    order: NarouOrder,
+    pageOrder: NarouOrder,
+    selectedOrder: NarouOrder,
     neighborOrder: () -> NarouOrder?,
     state: DiscoveryUiState,
     contents: Map<NarouOrder, DiscoveryUiState.Content>,
     onOpenDetail: (ncode: Ncode) -> Unit,
     onRefresh: () -> Unit,
 ) {
-    val slots = rankingSlotsK(state, contents[order])
+    val slots = if (pageOrder == selectedOrder) {
+        rankingSlotsK(state, contents[pageOrder])
+    } else {
+        // order が追いつく前のページ＝その期間の控え（無ければ骨）で据わる。ここに [state] を当てると
+        // 別期間の読込結果を被せることになる＝隣ページと同じ扱いにする（平坦化前の isCurrent 分岐の回復）。
+        rankingNeighborSlotsK(contents[pageOrder])
+    }
     items(
         count = slots.count,
         // key に期間を含める＝期間を送ると内容が総入れ替えになるため、位置キーの再利用で前の期間の
         // 行の状態が居座らないようにする。
-        key = { index -> "ranking_${order.name}_$index" },
+        key = { index -> "ranking_${pageOrder.name}_$index" },
         // 行・骨・status は中身の形が違う＝再利用プールを分ける（別種の item を使い回させない）。
         contentType = { slots::class.simpleName },
     ) { index ->
@@ -696,7 +755,7 @@ private fun LazyListScope.rankingSectionK(
             pagerState = pagerState,
             flingBehavior = flingBehavior,
             edgeSeal = edgeSeal,
-            pageOrder = order,
+            pageOrder = pageOrder,
             neighbor = if (neighbor != null && neighborSlots != null && index < neighborSlots.count) {
                 {
                     // 覗きは表示だけ＝タップ導線を配線しない（指が乗るのはドラッグ中だけだが、
@@ -706,9 +765,10 @@ private fun LazyListScope.rankingSectionK(
             } else {
                 null
             },
+            neighborPageIndex = neighbor?.ordinal ?: pageOrder.ordinal,
             skeletonHead = slots is RankingSlots.Skeleton && index == 0,
         ) {
-            RankingSlotBodyK(slots, index, order, onOpenDetail, onRefresh)
+            RankingSlotBodyK(slots, index, pageOrder, onOpenDetail, onRefresh)
         }
     }
 }
@@ -725,6 +785,8 @@ private fun LazyListScope.rankingSectionK(
  *  - **覗き**: [neighbor] は現在行に重ねて描き `matchParentSize` を与える＝**親の高さ決定に参加しない**。
  *    これが「ページ高を現在ページだけから決める」の実体で、はみ出しは `clipToBounds` が切る
  *    （旧 Pager が wrap 高＝現在ページ準拠で隣をクリップして覗かせていた見え方を行単位で再現する）。
+ *    [neighborPageIndex]＝その覗きが何ページ目のものか（本体・覗きとも自分の座席へ置く＝
+ *    [rankingPageOffsetPx]）。[neighbor] が無いときは使われない。
  *
  * [skeletonHead] が true のスロットだけが骨領域として名乗る（TalkBack に行数ぶん読ませない）。
  */
@@ -735,12 +797,14 @@ private fun RankingSlotK(
     edgeSeal: NestedScrollConnection,
     pageOrder: NarouOrder,
     neighbor: (@Composable () -> Unit)?,
+    neighborPageIndex: Int,
     skeletonHead: Boolean,
     current: @Composable () -> Unit,
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            // 溝（pageSpacing）ぶん外へはみ出す覗きを、この行の枠で切る。
             .clipToBounds()
             // 期間ページの識別子（理由は rankingPageTestTag の KDoc）。中身の**祖先**に置くことで、
             // テストが「どのページの子孫か」で数えられる形を平坦化後も保つ。
@@ -756,9 +820,7 @@ private fun RankingSlotK(
         Column(
             modifier = Modifier
                 // State 読みを layer 更新に閉じる（deferred read）＝ドラッグ中に composition/layout を起こさない。
-                .graphicsLayer {
-                    translationX = -pagerState.currentPageOffsetFraction * rankingPageStepPx(pagerState)
-                }
+                .graphicsLayer { translationX = rankingPageOffsetPx(pagerState, pageOrder.ordinal) }
                 .then(
                     if (skeletonHead) {
                         // 骨は装飾＝文字を描かないが、旧 status 行が担っていた支援技術への通知は落とさない。
@@ -772,12 +834,8 @@ private fun RankingSlotK(
             Column(
                 modifier = Modifier
                     .matchParentSize()
-                    .graphicsLayer {
-                        val step = rankingPageStepPx(pagerState)
-                        val fraction = pagerState.currentPageOffsetFraction
-                        // 現在行と同じだけ動かしたうえで、進行方向へ1ページぶん先に置く＝横から入ってくる。
-                        translationX = -fraction * step + if (fraction > 0f) step else -step
-                    }
+                    // 覗きも本体と同じ式＝自分のページ番号の座席に置く（進行方向の場合分けは要らない）。
+                    .graphicsLayer { translationX = rankingPageOffsetPx(pagerState, neighborPageIndex) }
                     // 覗くだけの行を TalkBack に読ませない（K の気分ゴースト格子と同じ扱い）。
                     .clearAndSetSemantics {},
             ) { content() }

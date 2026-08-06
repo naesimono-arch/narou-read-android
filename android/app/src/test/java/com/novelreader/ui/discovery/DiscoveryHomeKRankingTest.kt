@@ -9,11 +9,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -39,6 +42,8 @@ import org.robolectric.annotation.Config
  *  1) ランキング行の上での横スワイプで期間が進み（onSelectOrder 発火）、期間タブの選択表示が追従する
  *  2) 期間タブのタップでページが送られ、選択表示（＝ページャ現在地由来）が追従する＝ページが実際に動いた証明
  *  3) 端ページ（日間/新着）での余りスワイプは外側タブ Pager へ伝播しない（rankingEdgeSeal の封止・機構レベル）
+ *  4) 送り確定後、order（VM）が追いつくまでの間も据わり位置に旧期間の行を描かない（2026-08-07 の退行）
+ *  5) 期間タブ行は縦スクロールしても上端に貼り付いたまま残る（2026-08-07 裁定の候補A＝sticky 化）
  *
  * 外側タブ Pager は TabPagerHost と同型の最小ハーネス〈HorizontalPager の中央ページに発見ホーム〉で再現する
  * （実 TabPagerHost は MainActivity 配線・deferNeighborPages 等の無関係な足場を要求するため。封止の機構は
@@ -61,6 +66,31 @@ class DiscoveryHomeKRankingTest {
         novels = listOf(workSummary(title = "作品W", ncode = "N1")),
     )
 
+    /** 月間期間ぶんの Content（期間ごとに別内容＝どの期間の行が描かれているかを文字列で見分ける）。 */
+    private val monthlyContentState = DiscoveryUiState.Content(
+        allcount = 1,
+        novels = listOf(workSummary(title = "作品M", ncode = "N2")),
+    )
+
+    /**
+     * 30件の Content（sticky 検証専用）。件数の根拠: 期間タブ行の**自然位置**を確実に画面外へ追い出せること
+     * ＝「たまたま画面内に居るだけ」と「貼り付いている」を取り違えないため。
+     */
+    private val longContentState = DiscoveryUiState.Content(
+        allcount = 30,
+        novels = (1..30).map { workSummary(title = "作品$it", ncode = "N%03d".format(it)) },
+    )
+
+    /** VM(homeState) の代役。既定は週間の1件（既存3テストの前提を変えない）。 */
+    private val uiState = mutableStateOf<DiscoveryUiState>(contentState)
+
+    /**
+     * onSelectOrder を受けて order を即時に書き戻すか。false＝**VM 往復の遅れ**の再現。
+     * 実機の order は StateFlow(homeOrder) をまたいで戻ってくるため、settle した瞬間のフレームでは
+     * まだ旧期間のままになる（この間に何が描かれるかが本テストの対象）。
+     */
+    private var writeBackOrder = true
+
     private fun setHost(
         initialOrder: NarouOrder = NarouOrder.WEEKLY,
         recordedOrders: MutableList<NarouOrder>? = null,
@@ -77,7 +107,7 @@ class DiscoveryHomeKRankingTest {
                         when (page) {
                             1 -> DiscoveryHomeContent(
                                 order = orderState.value,
-                                state = contentState,
+                                state = uiState.value,
                                 onBack = {},
                                 onOpenDetail = {},
                                 onOpenGenre = {},
@@ -88,7 +118,7 @@ class DiscoveryHomeKRankingTest {
                                 // 発火回数の検証のため記録は全数残す）。
                                 onSelectOrder = {
                                     recordedOrders?.add(it)
-                                    orderState.value = it
+                                    if (writeBackOrder) orderState.value = it
                                 },
                                 onRefresh = {},
                             )
@@ -163,5 +193,79 @@ class DiscoveryHomeKRankingTest {
         // ダミーページが合成されていない＝外側 Pager が微動もしていない傍証。
         composeTestRule.onNodeWithText("外側ダミー左").assertDoesNotExist()
         composeTestRule.onNodeWithText("外側ダミー右").assertDoesNotExist()
+    }
+
+    /**
+     * 2026-08-07 ユーザー報告「ランキングのスワイプの後、一瞬スワイプ前の文字列が出てくる」の回帰テスト。
+     *
+     * 固定する契約: **据わる位置に描かれる行の期間は、VM の order でなくページャが指しているページで決まる**。
+     * スワイプ確定から order が戻ってくるまでには VM 往復（settledPage→onSelectOrder→homeOrder StateFlow）の
+     * 遅れが必ずあり、その間ページャは既に次期間を指している。ここで旧期間の行を据わり位置に描くと、
+     * 追従した瞬間に文字だけが入れ替わる＝報告どおりの一瞬のちらつきになる。
+     *
+     * 遅れは [writeBackOrder]=false で再現する（実機では非同期な往復＝テストからは「まだ返ってきていない」
+     * 状態そのもの）。期間ごとに別内容を控えさせてあるので、描かれている行の期間は文字列で見分けられる。
+     */
+    @Test
+    fun `スワイプ確定後にorderが追従するまでの間も旧期間の行を据わり位置に描かない`() {
+        // 月間を一度表示して控え（期間別 stale-while-revalidate）に「作品M」を積む。
+        uiState.value = monthlyContentState
+        setHost(NarouOrder.MONTHLY)
+        // 週間へ戻す（order と state は同じ snapshot で入れ替わる＝実 VM の setHomeOrder→loadHome と同型）。
+        composeTestRule.runOnIdle {
+            orderState.value = NarouOrder.WEEKLY
+            uiState.value = contentState
+        }
+        composeTestRule.waitForIdle()
+
+        // ここから order は戻ってこない＝スワイプ確定直後のフレームに相当する状態で止める。
+        writeBackOrder = false
+        scrollListTo("作品W")
+        swipeOnRankingRow(toLeft = true)
+
+        composeTestRule.onNodeWithText("作品W")
+            .assertDoesNotExist() // 旧期間（週間）の行が据わり位置に残っている＝報告された症状
+        composeTestRule.onNodeWithText("作品M").assertExists()
+
+        // order が追従しても内容は動かない（＝上で描いていたものが正であり、差し替えの瞬間が無い）。
+        composeTestRule.runOnIdle {
+            orderState.value = NarouOrder.MONTHLY
+            uiState.value = monthlyContentState
+        }
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("作品M").assertExists()
+        composeTestRule.onNodeWithText("作品W").assertDoesNotExist()
+    }
+
+    /** 期間タブ行の上端 y（貼り付き検証の観測点）。行を代表させるのは選択タブの文字ノード。 */
+    private fun tabRowTop(): Double =
+        composeTestRule.onNodeWithText("週間").fetchSemanticsNode().boundsInRoot.top.toDouble()
+
+    /**
+     * 2026-08-07 ユーザー裁定（候補A＝モック discovery-K-period-sticky-A.html）の回帰テスト。
+     *
+     * 固定する契約: **期間タブ行はランキングを縦に読み進めても上端に貼り付いたまま残る**。
+     * 裁定の狙いは「スクロール中も現在地（どの期間か）と隣の選択肢が見え、直接タップで切り替えられる」ことなので、
+     * 「見えている」だけでなく「動かない（＝貼り付いている）」まで見る。
+     *
+     * 3点で名指しする:
+     *  ・スクロール量の違う2地点でタブ行の上端 y が一致する＝流れずに貼り付いている
+     *  ・その状態で可視である（sticky でなければ自然位置はとうに画角外）
+     *  ・直上の見出し「ランキング」は流れ去っている＝タブ行の自然位置を確かに追い越した後の観測である
+     *   （これが無いと「まだタブまで到達していないだけ」でも通ってしまう）
+     */
+    @Test
+    fun `期間タブ行は縦スクロールしても上端に貼り付いたまま残る`() {
+        uiState.value = longContentState
+        setHost(NarouOrder.WEEKLY)
+
+        scrollListTo("作品15")
+        val topAtMiddle = tabRowTop()
+        scrollListTo("作品30")
+        val topAtBottom = tabRowTop()
+
+        assertEquals("スクロールで期間タブ行の上端が動いた＝貼り付いていない", topAtMiddle, topAtBottom, 0.5)
+        composeTestRule.onNodeWithText("週間").assertIsDisplayed()
+        composeTestRule.onAllNodesWithText("ランキング").assertCountEquals(0)
     }
 }
