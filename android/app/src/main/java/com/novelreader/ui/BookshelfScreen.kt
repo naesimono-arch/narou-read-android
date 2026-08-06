@@ -44,6 +44,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -948,7 +950,8 @@ internal fun BookshelfContent(
 
     val visibleBooks = books
 
-    // 各読書状態の件数（ia Minor 2026-07-12・0件チップの dim 判定用）。可視の蔵書に加え Web作品も
+    // 各読書状態の件数（ia Minor 2026-07-12）。用途は 0件チップの扱い＝D/K は a11y の読み上げのみ
+    //（見た目の淡色化は 2026-08-07 裁定で廃止）・M/P は非選択チップの沈め・J は押下の可否。可視の蔵書に加え Web作品も
     // 合流して数える（全スキンが filterShelfByStatus に webReadingProgress を配線済み＝実フィルタが Web を
     // 含むため、チップ件数だけ蔵書のみだと件数と表示が食い違う）。判定は shelfStatusCounts 内で共有関数を使う。
     val statusCounts = remember(visibleBooks, webNovels, progressMap, chapterCountMap, webReadingProgress) {
@@ -995,7 +998,25 @@ internal fun BookshelfContent(
     // 渡すシグネチャ自体が無い（コンパイル時制約）。null＝D/C はこの下の共通描画（D 構造へトークン写像）。
     // 各面は選択削除・Webカード操作・状態フィルタ・PDF追加・取込中バナー・スナックバー・空状態を全数
     // 引き継ぐ（本骨格所有の単一状態機械を共有渡し＝二重実装回避。上の BackHandler も 1 本のまま効く）。
-    when (val face = rememberShelfFace(highLoadSkyM, onHighLoadSkyChange, highLoadShioriK)) {
+    val face = rememberShelfFace(highLoadSkyM, onHighLoadSkyChange, highLoadShioriK)
+
+    // 遷移ジャンク対策（P2）をスキン面へも効かせる配線（2026-08-07）。
+    // 真因: 唯一の deferHeavyContent 読み口はこのルーターの**下流**（D/C 共通描画の中）にしかなく、
+    // M/P/J/K は上の face 分岐で return するため、既定スキン K では対策が一度も効いていなかった
+    //（引数は MainActivity から供給されていたので配線されているように見える＝沈黙死）。
+    // K の本棚は LazyVerticalGrid × ShioriCover（Canvas 描画の書影）で D グリッドと同クラスの初回 measure を
+    // 持ち、しかも release 既定＝実ユーザーが通る唯一の面のため、対策が要るのはむしろこちら。
+    // なぜルーターの上流で差し替えるか: 骨はスキン共通の1式にする裁定（2026-07-29）で、面ごとの版面状態
+    //（K の grid/list トグル等）は面の中にしか無いため。目次（NativeTableOfContentsScreen）が同じ理由で
+    // 同じ位置に骨を置いており、本棚だけがその裁定に追従していなかった。
+    // D/C（face==null）は下流の既存分岐のまま＝実チップ行を残し isGridView 一致の骨を出す従来の見え方を保つ
+    //（上流の汎形骨で置き換えると、版面が一致していた既存の体験がむしろ粗くなる）。
+    if (deferHeavyContent && face != null) {
+        ShelfTransitionSkeleton(modifier = Modifier.fillMaxSize())
+        return
+    }
+
+    when (face) {
         is ShelfFace.Immersive -> {
             face.content(shelfData, chrome, actions, theme, snackbarHostState)
             return
@@ -1603,8 +1624,8 @@ private fun StatusChipRow(
     selectedStatus: ReadingStatus?,
     onSelect: (ReadingStatus?) -> Unit,
     modifier: Modifier = Modifier,
-    // 各状態の件数（ia Minor）。0件の状態チップは dim（enabled=false）にして押下不能にし、
-    // 「押せるのに空表示に落ちる袋小路」を予防する（件数併記でなく最小限の dim を選択）。
+    // 各状態の件数（ia Minor）。**見た目には効かせない**（0件の淡色化は 2026-08-07 ユーザー裁定で廃止＝
+    // 下の各チップのコメント）。現在の用途は TalkBack へ「該当0件」を残す a11y 補填だけ。
     statusCounts: Map<ReadingStatus, Int> = emptyMap(),
 ) {
     Row(
@@ -1620,24 +1641,38 @@ private fun StatusChipRow(
             onClick = { onSelect(null) },
         )
         // よみかけ／未読／読了。ReadingStatus と表示名・並びの対応はここが唯一の正本（モック .filters 順）。
-        // 0件の分類は enabled=false で淡く（disabled トークン）＝押しても空表示になる分類を先に塞ぐ。
+        //
+        // 0件でも淡色化しない（2026-08-07 ユーザー裁定＝検索範囲チップと同じ真因への同じ処方）。
+        // 真因: FilterChip の disabledLabelColor は**選択中にも効く**ため、選択中の分類が0件になった瞬間に
+        // 選択を示す藍がラベルから消え、「選択が外れた」と読める（分類は変わっていないのに）。
+        // 押した先が空であることは、選択後に出る「この分類の本はありません」が既に伝えている＝
+        // 淡色化は重複。押せなさで手前を塞ぐのをやめ、行き止まりの説明を着地先に置く分担へ寄せる。
         FilterChipItem(
             selected = selectedStatus == ReadingStatus.READING,
             label = "よみかけ",
             onClick = { onSelect(ReadingStatus.READING) },
-            enabled = (statusCounts[ReadingStatus.READING] ?: 0) > 0,
+            modifier = emptyStatusSemantics(
+                selected = selectedStatus == ReadingStatus.READING,
+                isEmpty = (statusCounts[ReadingStatus.READING] ?: 0) == 0,
+            ),
         )
         FilterChipItem(
             selected = selectedStatus == ReadingStatus.UNREAD,
             label = "未読",
             onClick = { onSelect(ReadingStatus.UNREAD) },
-            enabled = (statusCounts[ReadingStatus.UNREAD] ?: 0) > 0,
+            modifier = emptyStatusSemantics(
+                selected = selectedStatus == ReadingStatus.UNREAD,
+                isEmpty = (statusCounts[ReadingStatus.UNREAD] ?: 0) == 0,
+            ),
         )
         FilterChipItem(
             selected = selectedStatus == ReadingStatus.FINISHED,
             label = "読了",
             onClick = { onSelect(ReadingStatus.FINISHED) },
-            enabled = (statusCounts[ReadingStatus.FINISHED] ?: 0) > 0,
+            modifier = emptyStatusSemantics(
+                selected = selectedStatus == ReadingStatus.FINISHED,
+                isEmpty = (statusCounts[ReadingStatus.FINISHED] ?: 0) == 0,
+            ),
         )
     }
 }
@@ -1660,6 +1695,27 @@ private fun StatusFilterEmptyText(modifier: Modifier = Modifier) {
 // 意匠を発明しないため新規色は使わず surfaceVariant/outlineVariant トークンのみで構成する。
 // シマー等のアニメは付けない（既存画面に同型の演出が無く、最小の同型要素に留めるため）。
 // ============================================================
+@Composable
+/**
+ * 0件分類チップの a11y 補填（2026-08-07 ユーザー裁定・検索範囲チップの rangeLockSemantics と同型）。
+ *
+ * 淡色化（enabled=false）をやめた副作用として、TalkBack が読んでいた「無効」が消える＝**該当0件が
+ * 音声だけでは分からなくなる**。押した先の「この分類の本はありません」は視覚には出るが、チップ自身の
+ * 読み上げには乗らないため、stateDescription で選択状態と0件を同時に言葉にする（既定の
+ * 「選択済み/未選択」を上書きするので、選択の情報が落ちないよう文言側に 選択中/未選択 を含める）。
+ * 0件でない分類は既定の選択読み上げに委ねる（言い換えを増やさない＝検索範囲と同じ判断）。
+ * K（skins/k/BookshelfK）も同じ文言を使うため internal で共有する（a11y 文言の二重管理を作らない）。
+ */
+internal fun emptyStatusSemantics(selected: Boolean, isEmpty: Boolean): Modifier =
+    if (isEmpty) {
+        Modifier.semantics {
+            stateDescription =
+                if (selected) "選択中。この分類に該当する本はありません" else "未選択。この分類に該当する本はありません"
+        }
+    } else {
+        Modifier
+    }
+
 @Composable
 private fun BookshelfSkeleton(
     isGridView: Boolean,

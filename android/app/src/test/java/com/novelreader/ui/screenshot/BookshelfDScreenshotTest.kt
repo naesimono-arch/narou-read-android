@@ -51,7 +51,8 @@ import org.robolectric.annotation.GraphicsMode
  *  ・進捗行・相対時刻・続きバッジ／Web未取込カードの署名／リスト（文字目録）行の骨格
  *  ・空状態（`EmptyBookshelf`）の見出し・説明・CTA の構図
  *  ・TopAppBar の題字＋冊数のベースライン揃えと表示切替アイコン（⋮ が復活したらここに出る）
- *  ・状態フィルタチップの形・選択塗り・0件時の不活性
+ *  ・状態フィルタチップの形・選択塗り（0件でも淡くしない＝2026-08-07 裁定。D の空棚は EmptyBookshelf へ
+ *    分岐してチップ行自体を描かないため、0件チップの絵を張っているのは K の空棚 golden 側）
  *  ・上記に効くトークン（colorScheme・ShelfColors・ShioriColors・Spacing・Font*）の値変更
  *  ・fontScale 2.0 でのはみ出し／切り詰め挙動の変化
  *

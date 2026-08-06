@@ -78,6 +78,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -99,6 +100,7 @@ import com.novelreader.ui.NewChaptersBadge
 import com.novelreader.ui.ProcessingBanner
 import com.novelreader.ui.ReimportScanBanner
 import com.novelreader.ui.ReimportSweepBanner
+import com.novelreader.ui.emptyStatusSemantics
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.components.ShioriCover
 import com.novelreader.ui.components.shioriAccentFor
@@ -458,7 +460,16 @@ internal fun BookshelfK(
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = Spacing.S16, bottom = Spacing.S16),
+                    .padding(end = Spacing.S16, bottom = Spacing.S16)
+                    // 読み上げ名（2026-08-07 実機 TalkBack で無名と判明）: M3 の
+                    // ExtendedFloatingActionButton は text スロットを clearAndSetSemantics{} で包む
+                    // （展開/縮退アニメで読み上げが揺れないようにするため）。結果、ラベルが見えていても
+                    // ボタンの意味ノードは Role=Button だけで text も contentDescription も空になる
+                    // ＝名前は呼び出し側が与えるしかない（unmerged ツリーで確認＝BookshelfKFabTest）。
+                    // 名前は見える文字と同一にする（label-in-name＝音声操作で「PDFを追加」と言える）。
+                    // 用語: これは端末内PDFの取り込みで、発見（A「見つける」）でも検索（B「探す」）でも
+                    // ない＝docs/patterns/discovery-terminology.md の2語を借りない。
+                    .semantics { contentDescription = "PDFを追加" },
             )
         }
 
@@ -584,32 +595,35 @@ private fun KStatusChipRow(
         horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
     ) {
         // 「すべて」＝選択なし（null）。棚が非空のときだけ出る行なので常に押せる。
-        KStatusChip(label = "すべて", selected = selectedStatus == null, enabled = true) { onSelect(null) }
-        // よみかけ／未読／読了。0件の分類は enabled=false で淡く＝押しても空表示になる分類を先に塞ぐ（D と同規則）。
+        KStatusChip(label = "すべて", selected = selectedStatus == null) { onSelect(null) }
+        // よみかけ／未読／読了。0件でも淡色化しない（2026-08-07 ユーザー裁定・D と同規則＝理由は
+        // BookshelfScreen の StatusChipRow のコメント。K も「選択中の淡色化で選択が消える」同じ真因を持つ）。
         KStatusChip(
             label = "よみかけ",
             selected = selectedStatus == ReadingStatus.READING,
-            enabled = (statusCounts[ReadingStatus.READING] ?: 0) > 0,
+            isEmpty = (statusCounts[ReadingStatus.READING] ?: 0) == 0,
         ) { onSelect(ReadingStatus.READING) }
         KStatusChip(
             label = "未読",
             selected = selectedStatus == ReadingStatus.UNREAD,
-            enabled = (statusCounts[ReadingStatus.UNREAD] ?: 0) > 0,
+            isEmpty = (statusCounts[ReadingStatus.UNREAD] ?: 0) == 0,
         ) { onSelect(ReadingStatus.UNREAD) }
         KStatusChip(
             label = "読了",
             selected = selectedStatus == ReadingStatus.FINISHED,
-            enabled = (statusCounts[ReadingStatus.FINISHED] ?: 0) > 0,
+            isEmpty = (statusCounts[ReadingStatus.FINISHED] ?: 0) == 0,
         ) { onSelect(ReadingStatus.FINISHED) }
     }
 }
 
-/** フィルタチップ1個（.chip＝角丸ピル）。選択＝藍塗り＋白字／非選択＝ヘアライン枠＋補助色／0件＝淡く不活性。 */
+/** フィルタチップ1個（.chip＝角丸ピル）。選択＝藍塗り＋白字／非選択＝ヘアライン枠＋補助色。 */
 @Composable
 private fun KStatusChip(
     label: String,
     selected: Boolean,
-    enabled: Boolean,
+    // 該当0件か。**見た目には効かせない**（0件の淡色化・押下不能は 2026-08-07 裁定で廃止）。
+    // TalkBack へ「該当なし」を残すためだけに受ける＝文言は D と共有（emptyStatusSemantics）。
+    isEmpty: Boolean = false,
     onClick: () -> Unit,
 ) {
     val shape = CircleShape // border-radius:999px＝完全な丸ピル
@@ -618,16 +632,13 @@ private fun KStatusChip(
     } else {
         Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
     }
-    val fg = when {
-        !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-        selected -> MaterialTheme.colorScheme.onPrimary
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
+    val fg = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
     Box(
         modifier = Modifier
             .clip(shape)
             .then(base)
-            .clickable(enabled = enabled, onClick = onClick)
+            .clickable(onClick = onClick)
+            .then(emptyStatusSemantics(selected = selected, isEmpty = isEmpty))
             .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
     ) {
         Text(
@@ -1355,7 +1366,17 @@ private fun KEmptyState(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.S40),
+                .padding(horizontal = Spacing.S40)
+                // なぜ下端に FAB 回避ぶんを敷くか（2026-08-07 実機 PGEM10）: 空棚だけが器を別に持ち
+                // （グリッド/リストは contentPadding で Insets.ScrollBottomForFab を予約済み）、
+                // 拡張FABの下敷きになる帯を一切予約していなかった。fontScale 2.0 では文言と CTA が伸びて
+                // 中央寄せの塊が下へ広がり、CTA「PDFを追加」が FAB に半分覆われる（＝同じ操作の二重表示の
+                // 一方が他方を隠す）。帯の実寸＝FAB の下マージン S16 ＋ 実高 56dp の 72dp で、56dp は
+                // M3 の最小高が単行ラベル（labelLarge は 2.0 でも行高 40dp 級）を上回るため fontScale に
+                // 追従しない（golden 実測でも 1.0/2.0 とも 56dp）＝96dp の既存トークンで足りる。
+                // verticalScroll の**後**に置く＝予約はスクロール内容の一部になり、中央寄せの計算にも入る
+                // （はみ出す高さでも最後までスクロールすれば CTA が必ず帯の外へ出る）。
+                .padding(bottom = Insets.ScrollBottomForFab),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(

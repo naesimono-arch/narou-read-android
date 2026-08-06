@@ -10,7 +10,6 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -215,9 +214,11 @@ class BookshelfContentTest {
     }
 
     @Test
-    fun `0件の状態チップは dim(disabled)で押せず袋小路に落とさない`() {
-        // ia Minor: よみかけ1件だけの棚では「未読」「読了」は 0 件。押せる状態のまま空表示に落とすのでなく、
-        // enabled=false（dim）にして押下不能にする＝空表示の袋小路を先に塞ぐ。
+    fun `0件の状態チップも押せて選択を保つ（淡色化の廃止・2026-08-07裁定）`() {
+        // 旧実装は0件分類を enabled=false（dim）で塞いでいた。真因はそこにあった誤読で、
+        // disabledLabelColor は**選択中にも効く**ため、選択中の分類の件数が0になった瞬間に選択の藍が
+        // ラベルから消え「選択が外れた」と読めた（検索範囲チップと同じ真因＝同じ処方で揃える裁定）。
+        // 現行の分担: チップは押せる・選択は保つ／「押した先が空」は着地先の文言が説明する。
         // なぜ よみかけ にするか: UNREAD 本はカード進捗行に「未読」文字を描き、チップ「未読」と onNodeWithText が
         // 衝突する。よみかけ進捗（N話 X%）ならカードに状態語が出ず、チップだけを一意に指せる。
         setContent(
@@ -227,14 +228,32 @@ class BookshelfContentTest {
             progressMap = mapOf("b1" to ProgressEntity("b1", "chap_3.html")),
             chapterCountMap = mapOf("b1" to 10),
         )
-        // よみかけは 1 件＝enabled。未読・読了は 0 件＝disabled（押せない）。
+        // よみかけ1件だけの棚＝未読・読了は0件。それでも押下は塞がない（dim の退行を固定）。
         composeTestRule.onNodeWithText("よみかけ").assertIsEnabled()
-        composeTestRule.onNodeWithText("読了").assertIsNotEnabled()
-        composeTestRule.onNodeWithText("未読").assertIsNotEnabled()
-        // 読了を押しても絞り込まれない（本は出たまま・空文言は出ない）。
+        composeTestRule.onNodeWithText("読了").assertIsEnabled()
+        composeTestRule.onNodeWithText("未読").assertIsEnabled()
+        // 押せば選択され（＝選択の宣言が生き、藍が保たれる）、空であることは着地先の文言が伝える。
         composeTestRule.onNodeWithText("読了").performClick()
-        composeTestRule.onNodeWithContentDescription("吾輩は猫である").assertIsDisplayed()
-        composeTestRule.onNodeWithText("この分類の本はありません").assertDoesNotExist()
+        composeTestRule.onNodeWithText("読了").assertIsSelected()
+        composeTestRule.onNodeWithText("この分類の本はありません").assertIsDisplayed()
+        composeTestRule.onAllNodesWithContentDescription("吾輩は猫である").assertCountEquals(0)
+        // a11y 補填: disabled を外すと TalkBack の「無効」が消えるため、選択状態と0件を stateDescription で読む。
+        composeTestRule.onNodeWithText("読了").assert(
+            SemanticsMatcher.expectValue(
+                SemanticsProperties.StateDescription,
+                "選択中。この分類に該当する本はありません",
+            )
+        )
+        // 未選択の0件チップも同様（音声だけで「押しても空」が分かる状態を保つ）。
+        composeTestRule.onNodeWithText("未読").assert(
+            SemanticsMatcher.expectValue(
+                SemanticsProperties.StateDescription,
+                "未選択。この分類に該当する本はありません",
+            )
+        )
+        // 0件でないチップは既定の読み上げに委ねる（言い換えを増やさない＝検索範囲チップと同じ判断）。
+        composeTestRule.onNodeWithText("よみかけ")
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.StateDescription))
     }
 
     // ────── 本棚⋮の撤去（テーマ・通知・診断は設定タブ SettingsScreenK へ移行・系2 2026-07-24） ──────
@@ -371,6 +390,7 @@ class BookshelfContentTest {
         uiState: BookshelfUiState,
         reimportPlans: Map<String, ReimportPlan> = emptyMap(),
         onDeleteBooks: (List<BookEntity>, Boolean) -> Unit = { _, _ -> },
+        deferHeavyContent: Boolean = false,
     ) {
         composeTestRule.setContent {
             CompositionLocalProvider(
@@ -379,6 +399,7 @@ class BookshelfContentTest {
             ) {
                 MaterialTheme {
                     BookshelfContent(
+                        deferHeavyContent = deferHeavyContent,
                         uiState = uiState,
                         progressMap = emptyMap(),
                         newEpisodeNovelMap = emptyMap(),
@@ -431,5 +452,29 @@ class BookshelfContentTest {
         composeTestRule.onNodeWithText("削除").performClick()
         composeTestRule.onNodeWithText("復元できなくなります", substring = true).assertDoesNotExist()
         composeTestRule.onNodeWithText("削除する").assertIsDisplayed()
+    }
+
+    // ────── 遷移窓の骨差し替えがスキン面にも効くこと（2026-08-07 に配線の沈黙死を是正） ──────
+
+    @Test
+    fun `K面も遷移中(deferHeavyContent)は面ごと骨へ差し替わる`() {
+        // 退行の固定: deferHeavyContent の読み口は長らく D/C 共通描画（スキンルーターの下流）にしか無く、
+        // 既定スキン K では P2 の遷移ジャンク対策が一度も効いていなかった（引数は届いていたので配線済みに見えた）。
+        setKContent(
+            BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))),
+            deferHeavyContent = true,
+        )
+        // 重い実内容（LazyVerticalGrid × ShioriCover）はコンポーズされない。
+        composeTestRule.onNodeWithText("吾輩は猫である").assertDoesNotExist()
+        // 目次（トップバーは実描画のまま）と違い、本棚は面ごと骨へ差し替える＝実ヘッダの字も出ない。
+        // 理由: 本棚のヘッダはスキン所有でルーター上流に共有物が無く、骨1式で全スキンを賄う裁定を優先した。
+        composeTestRule.onNodeWithText("本棚").assertDoesNotExist()
+    }
+
+    @Test
+    fun `K面のsettle後(defer解除)は実カードが出る`() {
+        setKContent(BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))))
+        composeTestRule.onNodeWithText("吾輩は猫である").assertIsDisplayed()
+        composeTestRule.onNodeWithText("本棚").assertIsDisplayed()
     }
 }
