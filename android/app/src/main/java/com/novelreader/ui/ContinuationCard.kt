@@ -90,7 +90,11 @@ internal fun ContinuationCard(
             // 説明文
             val description = when (info) {
                 is ContinuationInfo.NewEpisodes -> {
-                    "手元のPDFは第${info.pdfEpisodes}話まで。なろうには第${info.nextEpisode}〜${info.totalEpisodes}話（新着${info.newCount}話）が公開されています。"
+                    // 文言（2026-08-07 の棚卸し裁定・展開後45字→35字）: 実数値4つ（手元の話数・新着数・
+                    // 続きの開始と終端）はどれも判断に要るので全部残し、述部「が公開されています」だけを削って
+                    // 体言止めにした。「読了」等の完了語は使わない——pdfEpisodes は**PDFに入っている範囲**で
+                    // あって読んだ位置ではなく、言い換えると事実が変わる。
+                    "手元のPDFは第${info.pdfEpisodes}話まで。なろうに新着${info.newCount}話（第${info.nextEpisode}〜${info.totalEpisodes}話）。"
                 }
                 is ContinuationInfo.UpToDate -> {
                     "手元のPDFは、なろうの公開分（全${info.totalEpisodes}話）に追いついています。"

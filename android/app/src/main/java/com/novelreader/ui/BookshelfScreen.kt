@@ -461,7 +461,18 @@ fun BookshelfScreen(
             title = { Text("バックグラウンド処理について") },
             text = {
                 Column {
-                    Text("ホーム画面に移動するとPDF変換が途中で止まる場合があります。\n\n【推奨設定】\n設定 → バッテリー → アプリごとの消費管理 → NovelReader → バックグラウンドアクティビティを許可\n\n「設定を開く」でバッテリー設定画面に移動します。")
+                    // 文言（2026-08-07 の棚卸し裁定・改行込み124字→78字）: 見出し「【推奨設定】」と前置き
+                    // （症状の説明）と末尾の「「設定を開く」で…」を落とし、目的1文＋設定パスだけにする。
+                    // 末尾文を消したのは重複だからだけでなく**誤りだから**でもある——確定ボタンが投げるのは
+                    // ACTION_APPLICATION_DETAILS_SETTINGS＝アプリ詳細であって「バッテリー設定画面」ではない
+                    // （OPPO で ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS が誤ルーティングされる回避＝task_diary #5）。
+                    // パスから「NovelReader →」を抜いたのは、アプリ詳細に着地した先で自アプリを選び直す手順が
+                    // 生じないため。残りの語（アプリごとの消費管理／バックグラウンドアクティビティを許可）は
+                    // ColorOS の実ラベルなので1字も変えない（変えると設定画面で見つけられなくなる。出典＝task_diary #4）。
+                    Text(
+                        "取り込みが途中で止まらないよう、電池の最適化から除外してください。\n" +
+                            "設定 → バッテリー → アプリごとの消費管理 → バックグラウンドアクティビティを許可"
+                    )
                     Spacer(Modifier.height(Spacing.S8))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
