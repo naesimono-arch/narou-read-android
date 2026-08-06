@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -223,6 +224,12 @@ fun NovelListRow(
             .clickable(onClick = onClick)
             .padding(vertical = Spacing.S16),
     ) {
+        // 順位セルの幅。器を 34.dp 固定にすると FontRankNumeral(20.sp) だけが fontScale で伸び、
+        // 2.0 で「10」が「1」「0」に縦割れして10位が1位に読めていた（順位はランキングの情報本体＝事実誤認。
+        // なろうランキングは常に10件出るので 2.0 利用者は毎回踏む）。34.sp→dp 換算で幅を字と一緒に
+        // 伸ばす（fontScale 1.0 では従来の 34.dp と同寸＝通常表示は不変。全行同幅なのでタイトル列の
+        // 左端揃えも保たれる）。同じ「器dp・中身sp」の非対称は下の作者行 weight 対処と同根。
+        val rankCellWidth = with(LocalDensity.current) { 34.sp.toDp() }
         Text(
             text = rank.toString(),
             fontFamily = MinchoFamily,
@@ -231,8 +238,11 @@ fun NovelListRow(
             // onSurfaceVariant（装飾用）は素地上 3.79:1 で AA 未達（ADR 0014-D 裁定で情報用途のみ分離）。
             color = if (rank <= 3) MaterialTheme.colorScheme.primary
             else LocalShelfColors.current.infoText,
+            // 折返し禁止は幅追従の保険（想定外の桁でも縦割れではなく横はみ出しに倒し、順位の誤読を防ぐ）。
+            maxLines = 1,
+            softWrap = false,
             modifier = Modifier
-                .width(34.dp)
+                .width(rankCellWidth)
                 .padding(top = Spacing.S4),
         )
         Column(modifier = Modifier.weight(1f)) {

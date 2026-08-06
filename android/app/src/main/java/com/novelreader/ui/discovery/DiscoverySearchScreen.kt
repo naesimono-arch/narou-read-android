@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -701,18 +702,26 @@ private fun HistoryChip(
             )
             .padding(start = Spacing.S8, end = if (onDelete != null) Spacing.S8 else Spacing.S12),
     ) {
-        Icon(
-            imageVector = Icons.Filled.PushPin,
-            contentDescription = if (pinned) "ピン留めを解除" else "ピン留めする",
-            // 未ピン時: 線トークン outlineVariant の流用は素地比約1.1:1でほぼ不可視だった
-            // →同画面のアイコン慣行かつモックのピンSVG色（--ink-soft）と同値の onSurfaceVariant へ。
-            tint = if (pinned) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurfaceVariant,
+        // A11y: 旧実装は clickable→padding(vertical)→size(13.dp) の順で横方向に1dpも足されず、
+        // ヒット域が幅13dpしかなかった＝ピンを7dpずれて押すと真横の語ヒット域に落ちて検索が実行される誤爆。
+        // 見た目の13dpアイコンは据え置き、外側の透明Boxを clickable＋最小48dpにして判定だけ拡げる
+        //（外側Box分離＝NcodeLinkSheet・NovelDetailScreen キーワードチップと同型）。
+        Box(
+            contentAlignment = Alignment.Center,
             modifier = Modifier
                 .clickable(onClick = onPinClick)
-                .padding(vertical = Spacing.S8)
-                .size(13.dp),
-        )
+                .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.PushPin,
+                contentDescription = if (pinned) "ピン留めを解除" else "ピン留めする",
+                // 未ピン時: 線トークン outlineVariant の流用は素地比約1.1:1でほぼ不可視だった
+                // →同画面のアイコン慣行かつモックのピンSVG色（--ink-soft）と同値の onSurfaceVariant へ。
+                tint = if (pinned) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(13.dp),
+            )
+        }
         Text(
             text = word,
             fontSize = FontCaption,
@@ -727,15 +736,21 @@ private fun HistoryChip(
                 .padding(horizontal = Spacing.S8, vertical = Spacing.S8),
         )
         if (onDelete != null) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = "履歴から削除",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            // A11y: ピン側と同じ機序（ヒット域が幅13dp）。×は誤爆すると履歴が消えて取り消し導線が無い＝
+            // 語を狙った指が×に落ちる事故を判定幅の確保そのもので防ぐ（外側Box分離・見た目13dpは据え置き）。
+            Box(
+                contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .clickable(onClick = onDelete)
-                    .padding(vertical = Spacing.S8)
-                    .size(13.dp),
-            )
+                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "履歴から削除",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.size(13.dp),
+                )
+            }
         }
     }
 }

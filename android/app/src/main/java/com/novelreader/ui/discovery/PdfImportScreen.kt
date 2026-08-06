@@ -1,6 +1,7 @@
 package com.novelreader.ui.discovery
 
 import android.annotation.SuppressLint
+import android.os.Bundle
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -29,6 +30,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -121,6 +124,26 @@ fun PdfImportScreen(
     val lowerNcode = remember(ncode) { ncode.urlSlug }
     // 目次ページ URL 判定用の正規表現。onPageCommitVisible と onPageFinished の双方で使うため hoist（重複回避）。
     val menuUrlRegex = remember(lowerNcode) { Regex("^https://ncode\\.syosetu\\.com/$lowerNcode/?$") }
+
+    // 構成変更（回転・ダーク切替・fontScale 変更）で Activity が再生成されると WebView も破棄される。
+    // 旧実装は plain remember＋無条件 loadUrl(menuUrl) だったため、なろうの多段フロー
+    // （作品ページ→縦書きPDF→書式設定→生成）の途中で構成変更が起きると作品ページ先頭へ巻き戻っていた。
+    // WebView.saveState/restoreState で「履歴スタック（＝フローのどこに居るか）」ごと持ち回る
+    // （隣の WebReaderScreen が 2026-07-12 persist Major で塞いだ同機序の移植。以下の判断も同源）。
+    // 【規約厳守（ADR 0010/0011）】saveState/restoreState はネイティブ WebView の状態シリアライズ API であり、
+    // evaluateJavascript でも DOM 改変でもない＝注入 JS を scrollIntoView に限る規約を一切侵さない。
+    // なぜ custom Saver でライブの WebView から取り出すか: 状態保存フェーズ（onSaveInstanceState 経由）は
+    // onDispose より前に走るため、onDispose で Bundle へ書いても初回の構成変更に間に合わない。Saver.save を
+    // 「保存フェーズ時点で生存中の WebView へ saveState する」形にして、その時点の最新状態を確実に捕える。
+    // なぜ空 Bundle をセンチネルにするか: rememberSaveable の型パラメータは T : Any（null 不可）のため
+    // 「未保存＝null」が表現できない。「未保存＝空 Bundle」で代替し、消費側は isEmpty で初回判定する
+    // （WebView 不在/saveState 失敗時も空のまま＝安全側で menuUrl ロードに落ちる）。
+    val restoredState = rememberSaveable(
+        saver = Saver<Bundle, Bundle>(
+            save = { webViewHolder.value?.let { wv -> Bundle().apply { wv.saveState(this) } } ?: Bundle() },
+            restore = { it },
+        )
+    ) { Bundle() }
 
     // 取り込み開始イベント: Toast を出して画面を閉じる（一度きり）。
     LaunchedEffect(Unit) {
@@ -228,7 +251,10 @@ fun PdfImportScreen(
                         }
 
                         webViewHolder.value = this
-                        loadUrl(menuUrl)
+                        // 復元状態があれば履歴スタックごと復元（構成変更でPDF生成フローが巻き戻るのを防ぐ）。
+                        // 無ければ初回として作品ページをロードする。復元後に目次ページが再描画された場合も
+                        // 自動スクロール注入は menuUrlRegex 判定＋__nrAutoScrollDone 冪等化で従来どおり安全。
+                        if (!restoredState.isEmpty) restoreState(restoredState) else loadUrl(menuUrl)
                     }
                 },
             )
