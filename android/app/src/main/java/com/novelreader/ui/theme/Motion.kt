@@ -99,3 +99,15 @@ val MotionEasingSettingsPeekReturn: Easing = CubicBezierEasing(0.25f, 0.1f, 0.25
 // 読了という状態変化の伝達＝原則5「静謐＝フィードバックのための motion」に合致（装飾でない・初回一回きり・自動ループ無し）。
 const val MotionDurationSeal: Int = 220
 val MotionEasingSeal: Easing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+
+// 「さがす」検索範囲チップの**最後の1つ**を押したときの応答＝注記の横揺れ（案A・2026-08-07 ユーザー裁定。
+// 正本モック docs/design-candidates/skins/search-range-lock-A.html の `@keyframes nudge` / `.22s ease-in-out`）。
+// なぜ必要か: 制約を「押せなさ（disabled で淡色化）」で示すのをやめた結果、押下が状態を変えない
+// ＝そのままでは無反応（死んだアフォーダンス）になる。「入力は届いた／でも外せない」だけを動きで返す。
+// なぜ同値の MotionDurationSeal(220) を借りずスロットを足すか: 値が同じでも意味が別（押印＝状態変化の祝祭／
+// こちらは状態が変わらないことの通知）で、片方を実機調整したときにもう片方が巻き添えで動くのを避ける。
+// なぜ 220ms か: モック較正値。離散的な enter/exit を縛る禁止則①の 350ms 上限内。
+// なぜ ease-in-out か: 往復（0→−→＋→0）の折返しを角立てずに繋ぐ。色の点滅は伴わない（意味の無い色変化を作らない）。
+// 揺れ幅（振幅）は呼び出し側の意匠差なのでトークン化しない（押下スケールの targetValue と同じ扱い）。
+const val MotionDurationRangeLockNudge: Int = 220
+val MotionEasingRangeLockNudge: Easing = CubicBezierEasing(0.42f, 0f, 0.58f, 1f) // CSS ease-in-out
