@@ -3,11 +3,9 @@ package com.novelreader.macrobenchmark
 import androidx.benchmark.macro.FrameTimingMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.StaleObjectException
-import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.UiObject2
 import androidx.test.uiautomator.Until
 import org.junit.Assert.fail
@@ -30,59 +28,31 @@ class BookshelfScrollBenchmark {
 
     @Test
     fun scrollList() {
-        // gridMode はテスト毎に異なるため各テスト冒頭で該当モードを指定してシードする（DB 投入自体は冪等）。
+        // gridMode はテスト毎に異なるため各テストが該当モードを指定してシードする（DB 投入自体は冪等）。
         // ⚠️ 2026-08-05 以前はこの指定が**効いていなかった**（シーダーが D の is_grid_view しか書かず、
         // benchmark ビルドは ADR 0027 のゲートで明快K へクランプされ K は k_grid_view を読むため）＝
         // scrollList / scrollGrid が両方とも K のグリッドを測っていた。シーダー側で両キーを書くよう
         // 是正済み（LibrarySeedReceiver の why 参照）。**この是正で scrollList の実測値は初めてリスト面の
         // ものになる＝過去のベースラインとは比較不能**（scrollGrid 側は従来と同じ面＝連続性あり）。
-        seedLibrary(gridMode = false)
-        measureScroll("scrollList")
+        measureScroll("scrollList", gridMode = false)
     }
 
     @Test
     fun scrollGrid() {
-        seedLibrary(gridMode = true)
-        measureScroll("scrollGrid")
-    }
-
-    /**
-     * LibrarySeedReceiver へ shell `am broadcast` を送り、100冊を投入して完了を待つ。
-     *
-     * なぜ app-to-app の sendOrderedBroadcast ではなく shell 経由か（2026-07-17 実機実測で確定）:
-     * ColorOS は broadcast を2様に**沈黙不達**にする（いずれも「Broadcast completed: result=0」の正常完了に化ける）。
-     *   ① 背景アプリ（このテストプロセス）発の broadcast は、dead な対象プロセスの起動を伴う配達が遮断される
-     *      （自動起動制限。FLAG_INCLUDE_STOPPED_PACKAGES でも不達を実測）。
-     *   ② プロセスが生きていても OplusHansManager（凍結管理）が凍結中プロセスへの配達をスキップする
-     *      （shell 発でも不達になることを実測）。
-     * 唯一確実だった条件＝「dead（＝非凍結）状態への shell broadcast」（AMS がプロセス起動込みで配達する）。
-     * そこで force-stop で dead 状態を決定論化してから shell で送る。shell 実行のハングリスク
-     * （docs/knowledge/coloros-uiautomation-shell-pipe-eof-hang.md）は run_macrobenchmark.sh の
-     * SIGQUIT 除細動ループが前提＝このベンチは必ず同スクリプト経由で実行する。
-     */
-    private fun seedLibrary(gridMode: Boolean) {
-        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-        // force-stop で「プロセス dead＝HANS 凍結なし」を保証（COLD 計測前なのでアプリ状態を壊す副作用は無い）。
-        device.executeShellCommand("am force-stop $TARGET_PACKAGE")
-        // --include-stopped-packages: force-stop 直後の stopped state で配達除外される穴を塞ぐ保険。
-        val out = device.executeShellCommand(
-            "am broadcast --include-stopped-packages" +
-                " -n $TARGET_PACKAGE/$RECEIVER_CLASS -a $ACTION_SEED" +
-                " --ei count $SEED_COUNT --ez gridMode $gridMode"
-        )
-        // am broadcast は ordered 配達の完了まで待ち「Broadcast completed: result=N, data="…"」を出力する。
-        // 期待件数に満たなければ即 fail（黙って計測を続けない）。result は投入後の bench_seed 件数。
-        val result = Regex("""result=(-?\d+)""").find(out)?.groupValues?.get(1)?.toIntOrNull()
-        if (result != SEED_COUNT) {
-            fail("シード結果 result=$result（期待 $SEED_COUNT）。am broadcast 出力: $out")
-        }
+        measureScroll("scrollGrid", gridMode = true)
     }
 
     /** cold start → 本棚を掴んで下フリング×3・上フリング×3。フレーム時間は FrameTimingMetric が採取する。 */
-    private fun measureScroll(testName: String) {
+    private fun measureScroll(testName: String, gridMode: Boolean) {
         // measureRepeated 開始前の時刻。採用する JSON がこの走行で書き出されたものかを
         // lastModified で検証するために使う（残骸 JSON による偽判定防止＝ScrollBudget 参照）。
         val startedAtEpochMs = System.currentTimeMillis()
+
+        // シードは初回反復の setupBlock で1回だけ行う: 投入は冪等で、本ベンチの measureBlock は棚を
+        // フリングするだけ＝蔵書・progress を汚さないため、毎反復の再配達（前面起動＋broadcast 往復）は
+        // 純オーバーヘッド。毎反復のリセットが要る章送り系（[ChapterFlipBenchmark]／[TabSwipeBenchmark]）
+        // とはここだけ意図的に違う。
+        var seeded = false
 
         benchmarkRule.measureRepeated(
             packageName = TARGET_PACKAGE,
@@ -95,6 +65,13 @@ class BookshelfScrollBenchmark {
             startupMode = null,
             // compilationMode は既定（未指定）＝CompilationMode.DEFAULT。
             setupBlock = {
+                if (!seeded) {
+                    // 配達は 2026-08-06 の修理形（前面生存プロセスへ＋resultData 実在検証＋全消し前置き）＝
+                    // 機序と各検証の why は [clearAndSeedLibrary] の KDoc に集約
+                    // （一次情報＝docs/knowledge/coloros-broadcast-silent-drop.md）。
+                    clearAndSeedLibrary(count = SEED_COUNT, gridMode = gridMode)
+                    seeded = true
+                }
                 killProcess()
                 pressHome()
                 startActivityAndWait()
@@ -103,6 +80,10 @@ class BookshelfScrollBenchmark {
                 if (!device.wait(Until.hasObject(By.pkg(TARGET_PACKAGE)), 10_000)) {
                     fail("対象アプリが前面に来なかった（ホーム画面のまま計測しない）")
                 }
+                // シード副作用の UI 検証: scrollable 待ちは状態フィルタチップ行（水平 scrollable）でも真に
+                // なるため、棚が空のままでも素通りして空振り計測になりうる——冊数ヘッダで「計測する面が
+                // 100冊 を表示している」ことまで留める（詳細な why は [verifySeededShelfCount]）。
+                verifySeededShelfCount(SEED_COUNT)
                 // 本棚のスクロール可能コンテナ（testTag が皆無なので scrollable フラグで掴む）が出るまで待つ。
                 device.wait(Until.hasObject(By.scrollable(true)), 10_000)
             }
@@ -152,8 +133,7 @@ class BookshelfScrollBenchmark {
 
     private companion object {
         val TARGET_PACKAGE = BenchmarkTargets.TARGET_PACKAGE
-        const val RECEIVER_CLASS = "com.novelreader.bench.LibrarySeedReceiver"
-        const val ACTION_SEED = "com.novelreader.benchmark.action.SEED_LIBRARY"
+        // シード配達の宛先・action は共通ヘルパ（LibrarySeeding.kt）側の契約値に集約した。
         const val SEED_COUNT = 100
     }
 }

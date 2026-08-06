@@ -3,9 +3,7 @@ package com.novelreader.macrobenchmark
 import androidx.benchmark.macro.FrameTimingMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
-import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import org.junit.Assert.fail
 import org.junit.Rule
@@ -24,9 +22,10 @@ import org.junit.runner.RunWith
  * 直後に [FlipBudget] が benchmarkData.json を読んで P50/P90/P99 を判定する（初回実測から較正した
  * 予算値・判定の値源の機序は同オブジェクト参照）。既定は従来どおり計測のみ。
  *
- * COLD 性・シード配達・前面ガード・StaleObjectException 再試行の各作法は [BookshelfScrollBenchmark]
- * と同一の根拠（ColorOS の沈黙不達／COLD の force-stop 仕様／launcher も scrollable を持つ／
- * Compose ツリー変化での stale）に基づく。詳細な機序は同クラスの KDoc とコメントを参照。
+ * COLD 性・前面ガード・StaleObjectException 再試行の各作法は [BookshelfScrollBenchmark] と同一の根拠
+ * （COLD の force-stop 仕様／launcher も scrollable を持つ／Compose ツリー変化での stale）に基づく。
+ * シード配達は 2026-08-06 の修理形＝[clearAndSeedLibrary]（前面生存プロセスへ＋resultData 実在検証＋
+ * 全消し前置き。機序の一次情報＝docs/knowledge/coloros-broadcast-silent-drop.md）。
  */
 @RunWith(AndroidJUnit4::class)
 class ChapterFlipBenchmark {
@@ -50,9 +49,15 @@ class ChapterFlipBenchmark {
             startupMode = null,
             // compilationMode は既定（未指定）＝CompilationMode.DEFAULT。
             setupBlock = {
-                // (1) 毎反復シードする。DB 投入自体は冪等だが、目的は progress を chap_1.html へ戻す
-                //     決定論リセット（前反復が第31章まで送った状態を持ち越さない）。件数不一致は即 fail。
-                seedChapterBook()
+                // (1) 毎反復 全消し→シードする。DB 投入自体は冪等だが、目的は progress を chap_1.html へ戻す
+                //     決定論リセット（前反復が第31章まで送った状態を持ち越さない）。配達・検証は修理形＝
+                //     [clearAndSeedLibrary]（前面生存プロセスへ＋resultData 実在検証＋全消し前置き）。
+                //     chapterCount=50 で最新の1冊が「章送り計測の書」＝実HTML 50章・progress=chap_1 に
+                //     なる（アプリ側シーダーの確定契約）。gridMode=true は実機検証済みの K グリッド面を
+                //     保つため（2026-08-05 是正で実際に効くようになった指定＝経緯は [BookshelfScrollBenchmark.scrollList]
+                //     のコメント。false だと未検証のリスト面で書影を掴むことになり、章送り計測と無関係な
+                //     発見失敗を持ち込みかねない）。
+                clearAndSeedLibrary(count = SEED_COUNT, gridMode = true, chapterCount = CHAPTER_COUNT)
 
                 // (2) コールド起動して前面ガード。launcher 自身も scrollable を持つため（同 knowledge §2）、
                 //     scrollable 待ちでは未起動を検知できない。By.pkg で対象アプリの前面化を必ず検証する。
@@ -62,6 +67,10 @@ class ChapterFlipBenchmark {
                 if (!device.wait(Until.hasObject(By.pkg(TARGET_PACKAGE)), 10_000)) {
                     fail("対象アプリが前面に来なかった（ホーム画面のまま計測しない）")
                 }
+
+                // (2') シード副作用の UI 検証: 冊数ヘッダの厳密値（全消し前置きで総数は決定論の 100冊）。
+                //      why の詳細は [verifySeededShelfCount]。
+                verifySeededShelfCount(SEED_COUNT)
 
                 // (3) 本棚（addedAt 降順で計測用の書が先頭付近に出る）から計測用の書を掴んで開く。
                 //     念のため出現待ち10s。見つからなければ fail（本棚未表示 or シード契約違反を黙って計測しない）。
@@ -127,44 +136,6 @@ class ChapterFlipBenchmark {
     }
 
     /**
-     * LibrarySeedReceiver へ shell `am broadcast` を送り、計測用の書（実HTML 50章・progress=chap_1）を
-     * 投入して完了を待つ。作法は [BookshelfScrollBenchmark.seedLibrary] と同一。
-     *
-     * shell 経由（app-to-app の sendOrderedBroadcast ではなく）と force-stop 前置きの理由は ColorOS の
-     * broadcast 沈黙不達（docs/knowledge/coloros-broadcast-silent-drop.md）。「dead＝非凍結状態への
-     * shell broadcast」だけが確実に配達される。shell 実行のハングリスクは run_macrobenchmark.sh の
-     * SIGQUIT 除細動ループが前提＝このベンチは必ず同スクリプト経由で実行する。
-     *
-     * chapterCount 50 を足すと最新の1冊が「章送り計測の書」＝実HTML 50章・progress を chap_1.html へ
-     * 強制リセットしてシードされる（アプリ側シーダーの確定契約）。
-     *
-     * `gridMode true` を渡す理由（2026-08-05・旧値 false から変更）: 本ベンチは本棚を「計測用の書を
-     * `By.text` で掴んで開く」ためにしか使わず面はどちらでもよいが、シーダーが K の `k_grid_view` も書く
-     * ようになり gridMode が**実際に効くようになった**（それ以前は D の `is_grid_view` しか書かず、
-     * ADR 0027 のゲートで明快K へクランプされる benchmark ビルドでは1つも効いていなかった）。
-     * これまで実機で書影の発見が通っていたのは K の既定＝**グリッド**面なので、検証済みの面を保つため
-     * 明示的に true を渡す（false にすると未検証のリスト面で掴むことになり、章送り計測とは無関係な
-     * 発見失敗を持ち込みかねない）。
-     */
-    private fun seedChapterBook() {
-        val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-        // force-stop で「プロセス dead＝HANS 凍結なし」を保証（COLD 計測前なのでアプリ状態を壊す副作用は無い）。
-        device.executeShellCommand("am force-stop $TARGET_PACKAGE")
-        // --include-stopped-packages: force-stop 直後の stopped state で配達除外される穴を塞ぐ保険。
-        val out = device.executeShellCommand(
-            "am broadcast --include-stopped-packages" +
-                " -n $TARGET_PACKAGE/$RECEIVER_CLASS -a $ACTION_SEED" +
-                " --ei count $SEED_COUNT --ei chapterCount $CHAPTER_COUNT --ez gridMode true"
-        )
-        // am broadcast は ordered 配達の完了まで待ち「Broadcast completed: result=N, data="…"」を出力する。
-        // 期待件数に満たなければ即 fail（黙って計測を続けない）。result は投入後の bench_seed 件数。
-        val result = Regex("""result=(-?\d+)""").find(out)?.groupValues?.get(1)?.toIntOrNull()
-        if (result != SEED_COUNT) {
-            fail("シード結果 result=$result（期待 $SEED_COUNT）。am broadcast 出力: $out")
-        }
-    }
-
-    /**
      * 画面中央の高さで右→左の高速スワイプ（＝次章）を shell `input swipe` で注入する。
      *
      * 注入方式の経緯（2026-07-18 切り分け）: 章送り不発は UiObject2.swipe（遅い注入）→
@@ -188,8 +159,7 @@ class ChapterFlipBenchmark {
 
     private companion object {
         val TARGET_PACKAGE = BenchmarkTargets.TARGET_PACKAGE
-        const val RECEIVER_CLASS = "com.novelreader.bench.LibrarySeedReceiver"
-        const val ACTION_SEED = "com.novelreader.benchmark.action.SEED_LIBRARY"
+        // シード配達の宛先・action は共通ヘルパ（LibrarySeeding.kt）側の契約値に集約した。
         const val SEED_COUNT = 100
         const val CHAPTER_COUNT = 50
         const val FLIP_COUNT = 30
