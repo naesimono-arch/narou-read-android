@@ -43,6 +43,9 @@
   ベンチ APK 2種（`.benchmark`/`.macrobenchmark`・Kotlin2 版）が残置。2026-08-06 のコミット群（通知タップ直行ほか）は**未投入**。
   ⚠️ 同一 WiFi 上に**第三者端末（Huawei P30）が居り、`adb-bridge` は既存 TCP を優先して掴む**＝操作前に端末を取り違えていないか確認
   （機序と手順＝memory `adb-bridge-stale-tcp-holds-wrong-device`／**P30 は他人の端末＝起動・input は相手の操作に割り込む**ので読み取り以外はしない＝`docs/knowledge/emui-p30-jank-log-collection.md`）。
+  **2026-08-07 04:21 に本ブランチの debug APK を投入済み**（32コミット分＝監査3本の消化・ユーザー報告バグ2件の
+  真因対処・検知投資4本を含む）。**残るは実機で見ることだけ**＝`awaiting-human.md` §1-A に上から順に消化できる
+  並びで整理済み（ローカルゲートは全て GREEN・2.0 破綻の走査3本も0赤）。
 
 - **抽出パイプライン＝純 Kotlin（PDFBox-Android）単独**（Chaquopy/Python は 2026-07-05 に完全撤去・復旧は git 履歴から）。
   本文解析は文書ごとの自動検出（`DetectedRules.detect`＝サイズ／列ピッチ／ページ番号座標を実測。検出不能時のみ `ParserRules` 定数へフォールバック）。
