@@ -92,29 +92,6 @@
 > **処理したら消す**（完了の正本は git log）。`(rel)` ＝ release 到達・`(dbg)` ＝ `Features.skinSwitchingEnabled` が
 > release で false のため debug 限定（M/P/J スキン）。
 
-- **[最優先・台帳の2行が死んでいる] (rel)** `PdfProcessingService.kt:231` の `onTimeout(startId: Int)` は
-  **API34 の shortService 専用オーバーロード**で、dataSync の実行時間上限（API35 新設）でシステムが呼ぶのは
-  `onTimeout(int, int)`。手元 SDK の逆引き（android-34 は1引数版のみ／35・36 で2引数版が増える）と
-  Android 15 挙動変更ドキュメントの2点で確認済み＝**この override は全バージョンで dead**。
-  結果、台帳 `cancelled-scope-reuse-silent-stop`（scope 再生成）と `stale-generation-coroutine-finally`（世代ガード）の
-  **修正の所在がこの関数本体＝両方まとめて発火しない**。上限到達で `RemoteServiceException` によるプロセス強制終了。
-  ⚠️ 2引数版の引数順は公式ドキュメントのサンプル（`onTimeout(int flags, int startId)`・戻り値 int）が
-  `android.jar` の実シグネチャ（`void onTimeout(int, int)`）と食い違う＝実装時に AOSP で確定させること。
-- **[即クラッシュ・1行] (rel)** `viewmodel/DiscoveryViewModel.kt:269` が `current.novels + next.novels` を無条件連結。
-  `st` オフセット窓＋6h キャッシュで「1ページ目＝旧スナップショット／2ページ目＝ライブ」が正規動作なので、
-  順序が動くランキング・新着では同一 ncode が重複 → Lazy の `SaveableStateProvider(key)` 重複で `IllegalArgumentException`。
-- **[無音のデータ欠落] (rel)** `pdf/ChapterProcessor.kt:109,116` の構造マーカー判定が部分一致（`"前書き" in title`）。
-  Web 取込も同関数を共有するが Web の title は著者の記述文字列。該当話が前後章へ畳み込まれて消え、
-  **第1話が該当すれば `finalChapters.isNotEmpty()` が false で本文ごと破棄**。例外もログも出ない。
-- **[復旧導線が全滅] (rel)** 章0件の PDF 取込が「成功」で確定する（`pdf/TextProcessor.kt:147` の固定トリムが
-  総ページ4以下で全ページ除外 → `repository/PdfBookImporter.kt:174-188` が章数を検査せず Added → `data/BookEntity.kt:131` の
-  `isTornContent` がリンク0本で false ＝ hasContent 健全と誤認定）。Web 側は `ScrapeIntegrity.verify` が同じ穴を塞いでいる。
-- **[復旧が本を壊す] (rel)** `repository/WebBookImporter.kt:70,99-104` に in-flight ガードが無い（PDF 側は
-  `ActiveUriTracker` で構造的に断つ）。一括復旧の走行中に同じ本の再取得を押すと片方の `deleteRecursively()` が
-  他方の生成途中に走り torn 本になる。新規側は別 UUID で二重 insert（sourceUrl に UNIQUE なし）。
-- **[データ層の原子性] (rel)** `data/AppDatabase.kt:364-377` の二重チェックロックに**内側の再チェックが無い**。
-  `NewEpisodeCheckWorker.kt:50` だけが `by lazy` の外から呼ぶ唯一の競合経路。二重生成すると DAO とトランザクション境界が
-  別インスタンスへ割れ、`LibraryDeleter.deleteBook` の原子性が無音で外れる。
 - **[1冊復旧が全件一括へ化ける] (rel)** `ui/BookshelfScreen.kt:170` の `pendingScanBook` が plain `remember`。
   launcher の登録キーは rememberSaveable なので**結果は再生成をまたいで必ず届く**非対称。SAF ピッカー表示中の回転で
   `target == null`＝一括の規約へ落ち、全 AutoPdf を FGS キューへ投入＋全 AutoWeb を再スクレイプする。
@@ -135,9 +112,6 @@
   OnBackPressedDispatcher は後着優先なので枠側に必ず勝つ。
 - **[構成変更で取込フローが巻き戻る] (rel)** `ui/discovery/PdfImportScreen.kt:117,230-231` が plain remember＋無条件 `loadUrl`。
   隣の `WebReaderScreen.kt:86-91` は同じ構図に custom Saver を張って同機序を塞ぎ KDoc に経緯まで書いてある＝移植で済む。
-- **[release ログへ内容識別子] (rel)** `proguard-rules.pro` に `-assumenosideeffects android.util.Log` が無く
-  BuildConfig.DEBUG ガードも無い。`PdfTreeScanner.kt:43,52,62,92` ほか計7箇所で書名・作品URL・SAF パス（`primary:Download/なろう_〇〇.pdf`）が平文。
-  同じ機序は `viewmodel/PdfImportViewModel.kt:100-103` で「ログもまた保存層」として既に真因対処済み＝規約が1箇所にしか適用されていない。
 - **[スキン配線落ち] (dbg)** `ui/skins/ShelfFace.kt:79-87` の案C/案X 5フィールドを M/P/J の6面が**受け取って捨てる**
   （走査の起動は route 層で全スキン共通なのに、進捗表示と停止ボタンの唯一の呼び口が描かれない＝中断不能）／
   Web カードの複数選択削除が M/P/J の一覧3面に未配線（選択モード中のタップが画面遷移に化ける）／

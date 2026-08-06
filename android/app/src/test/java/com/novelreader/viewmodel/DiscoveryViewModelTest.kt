@@ -563,6 +563,30 @@ class DiscoveryViewModelTest {
     }
 
     @Test
+    fun `loadMoreResults - オフセット窓の重なりで同一 ncode が来ても連結結果は一意で順序維持されること`() = runTest {
+        // なぜこの回帰テストか（監査 A5）: 供給側はオフセット窓＋6h キャッシュで「1ページ目＝旧
+        // スナップショット／2ページ目＝ライブ」が正規のため、ランキング/NEW では同一 ncode が二重に入る。
+        // 無条件連結だと Lazy 系の key（ncode）が重複し IllegalArgumentException で落ちる＝
+        // キー供給側（VM）が一意性を保証することをここで固定する。
+        coEvery { mockRepo.discover(any()) } returns DiscoveryResult(100, novelList(3, "a"))
+        viewModel = DiscoveryViewModel(mockApp)
+        openSearchResult(viewModel)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        // 2ページ目の先頭2件（a2,a3）が1ページ目と重複（順位変動で窓が重なった状況を模す）。
+        coEvery { mockRepo.discoverPage(any(), 3) } returns
+            DiscoveryPage(100, novelList(3, "a").drop(1) + novelList(2, "b"), false)
+        viewModel.loadMoreResults()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val s = viewModel.resultState.value as DiscoveryUiState.Content
+        // 重複は先勝ちで畳まれ、初出順が維持される（a1..a3 → b1,b2）。
+        assertEquals(listOf("a1", "a2", "a3", "b1", "b2"), s.novels.map { it.ncode })
+        // 一意性そのもの（Lazy key 契約の直接の前提）も明示的に固定する。
+        assertEquals(s.novels.size, s.novels.mapNotNull { it.ncode }.toSet().size)
+    }
+
+    @Test
     fun `loadMoreResults - API取得上限に達すると ApiLimitReached になり結果は保持されること`() = runTest {
         coEvery { mockRepo.discover(any()) } returns DiscoveryResult(5000, novelList(30, "a"))
         viewModel = DiscoveryViewModel(mockApp)

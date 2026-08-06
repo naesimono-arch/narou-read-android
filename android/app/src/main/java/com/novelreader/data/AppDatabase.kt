@@ -362,8 +362,14 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         fun getDatabase(context: Context): AppDatabase =
+            // 二重チェックロック（監査 A6: singleton-dcl-missing-inner-check）: 内側の `INSTANCE ?:` が必須。
+            // 外側 null 判定〜lock 獲得の間に別スレッドが生成済みだと、再チェック無しでは2つ目の
+            // AppDatabase を作って INSTANCE を上書きする。競合経路は NewEpisodeCheckWorker.doWork が
+            // Application の `by lazy`（大半の経路を直列化）の外からバックグラウンドで呼ぶ1本のみだが、
+            // 二重生成が起きると DAO とトランザクション境界が別インスタンスへ割れて削除の原子性が
+            // 無音で外れ（孤児 progress 残留）、InvalidationTracker の取りこぼしと接続の恒久リークも伴う。
             INSTANCE ?: synchronized(this) {
-                Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
+                INSTANCE ?: Room.databaseBuilder(context, AppDatabase::class.java, "novel_reader_db")
                     .addMigrations(
                         MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                         MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11,

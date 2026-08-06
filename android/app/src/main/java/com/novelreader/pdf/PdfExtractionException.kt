@@ -23,6 +23,15 @@ class CorruptedPdfError(message: String, cause: Throwable? = null) : PdfExtracti
 class InsufficientStorageError(message: String, cause: Throwable? = null) : PdfExtractionException(message, cause)
 
 /**
+ * 抽出は完走したが章が1件も生成されなかった（監査 A3: import-commits-without-integrity-check）。
+ * 機序: TextProcessor の固定トリム（先頭3＋末尾1ページ除外）は総ページ数4以下の PDF で全ページを
+ * 除外し、章0件のまま index.html だけが書かれる。検査なしで確定すると「開けない本」が棚に残り、
+ * hasContent も true（リンク0本は torn 判定外）のため欠落バッジ・再取込導線が全滅し削除以外に
+ * 回復手段が無い。Web 経路の ScrapeIntegrity.verify（空 TOC を取込失敗にする）と対になる PDF 側の型。
+ */
+class EmptyExtractionError(message: String, cause: Throwable? = null) : PdfExtractionException(message, cause)
+
+/**
  * 低レベル例外をユーザー向け [PdfExtractionException] へ分類する（移植元 app.py process_pdf の except 節）。
  *
  * ネイティブ PDFBox は暗号化/破損を主に型で投げるが、型に載らない経路の取りこぼしを防ぐため文字列判定も併用する:

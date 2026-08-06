@@ -223,12 +223,22 @@ class PdfProcessingService : Service() {
         return START_NOT_STICKY
     }
 
-    // Android 14+ の dataSync 型 FGS は1日累計の実行時間上限(約6時間)に達すると
-    // onTimeout が呼ばれる。放置するとシステムに強制終了され通知・状態が残るため、
-    // 実行中ループをキャンセルし(各 PDF の finally で WakeLock 解放)、状態をリセットして
-    // 明示的に停止する。ユーザーには中断を通知して再試行を促す。
-    // 注: API 34 で追加されたコールバックのため、それ未満の端末では呼ばれない。
-    override fun onTimeout(startId: Int) {
+    // dataSync 型 FGS の実行時間上限（API 35 新設・1日累計約6時間）に達するとシステムが
+    // onTimeout(int, int) を呼ぶ。放置すると RemoteServiceException でプロセス強制終了され
+    // 通知・状態が残るため、実行中ループをキャンセルし(各 PDF の finally で WakeLock 解放)、
+    // 状態をリセットして明示的に停止する。ユーザーには中断を通知して再試行を促す。
+    //
+    // なぜ2引数版か（旧1引数版 onTimeout(startId) は削除）: onTimeout(int) は API 34 の
+    // shortService 専用コールバックで、本サービス（dataSync 単一型）では全バージョンで一度も
+    // 呼ばれない dead code だった。API 35+ の 2引数版既定実装は 1引数版へ委譲しない（AOSP の
+    // 実装は空メソッド）ため、この override が dataSync タイムアウトの唯一の受け口になる。
+    //
+    // 引数順の確定根拠（2026-08-06 照合・公式リファレンスの flags 先行サンプルは実物と不一致）:
+    //  ・AOSP frameworks/base core/java/android/app/Service.java（main）
+    //    `public void onTimeout(int startId, @ForegroundServiceType int fgsType)`
+    //  ・android-36 android.jar の javap 実シグネチャ `public void onTimeout(int, int)`（戻り値 void）
+    // fgsType は本サービスでは常に dataSync（宣言型が単一）のため分岐しない。
+    override fun onTimeout(startId: Int, fgsType: Int) {
         Log.w(TAG, "FGS タイムアウト(dataSync 実行時間上限)により処理を中断")
         scope.cancel()
         // なぜ cancel 直後に再生成するか: stopSelf() は非同期で、onDestroy 前に新しい
@@ -706,9 +716,10 @@ class PdfProcessingService : Service() {
 private data class QueuedUri(val uri: Uri, val ncode: String?, val overwrite: Boolean)
 
 /**
- * 取込中（キュー待ち＋変換中）の URI 集合を管理する純ロジック。二重取込のべき等ガード
+ * 取込中（キュー待ち＋変換中）の URI/URL 集合を管理する純ロジック。二重取込のべき等ガード
  * （UX監査 F-G 公理3）の中核で、Android 依存を持たず単体テスト可能にするため Service から分離する。
- * スレッド安全性は持たない（呼び出し側 PdfProcessingService が既存の lock 下で使う前提）。
+ * スレッド安全性は持たない（呼び出し側が自前の lock 下で使う前提。利用箇所＝PdfProcessingService の
+ * activeUris と、Web 取込の in-flight ガード WebBookImporter.inFlightUrls〔監査 A2 で追加〕）。
  */
 internal class ActiveUriTracker {
     private val active = HashSet<String>()
