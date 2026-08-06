@@ -60,8 +60,10 @@ object RubyPlacer {
                 val spanCenter = (spanTop + spanBottom) / 2f
 
                 // ルビ部分文字列の縦長を書記素ごとに実測して合算（等幅前提を置かない）。
+                // 向きは描画側（drawParagraphLayout）がルビ書記素を CharClassifier で分類するのを
+                // 鏡写しに同じ分類器で渡す＝採寸と描画で向きの判断が割れないようにする。
                 val rubyLength = RubyLayoutHelper.splitGraphemes(part)
-                    .fold(0f) { acc, g -> acc + metrics.verticalAdvance(g, rubyFontSizePx) }
+                    .fold(0f) { acc, g -> acc + metrics.verticalAdvance(g, CharClassifier.classify(g), rubyFontSizePx) }
                 // 縦中央合わせ。ルビ長 > 親文字スパンなら y が spanTop より上（負方向）に出る＝
                 // 上下はみ出しを許容（圧縮は後続フェーズ。親プラン P6 の版面較正で扱う）。
                 val y = spanCenter - rubyLength / 2f

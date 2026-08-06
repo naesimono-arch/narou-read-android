@@ -74,7 +74,7 @@ object LineBreaker {
         var y = if (indentFirstColumn) fontSizePx else 0f
 
         for (unit in units) {
-            val adv = metrics.verticalAdvance(unit.text, fontSizePx)
+            val adv = metrics.verticalAdvance(unit.text, unit.charClass, fontSizePx)
             var needBreak = current.isNotEmpty() && (y + adv > columnHeightPx)
 
             // 行頭禁則: 改列するとこの字が次列の頭に来てしまう→改列せず前列へ追い込む（容量超過を許容）。
