@@ -23,8 +23,9 @@
   実装可能な項目はすべて修正・再記録・コミット済み。**検知への投資も同便で入った**＝golden の fontScale 2.0 破綻を
   画素から見る走査3本（`tools/check_golden_*.py`・CI へ可視化として結線済み）／golden の網羅と孤児を突合する
   `GoldenCoverageTest`／`/stale-check` の腐敗検知3種／`patterns` の正本コードヘッダ。
-  **残るのは意匠裁定が要る2件だけ**（目次の「ここから再開」チップが章題を潰す件・ランキング期間の sticky 化）＝
-  `awaiting-human.md` §3-1。
+  **2026-08-07 に裁定6件が出て全て実装済み**（目次チップのアイコン化＋文言短縮／ランキング期間の sticky 化＝A案／
+  ナビ帯は現状維持／長文2件の短縮／検索範囲チップの淡色化撤廃／0件分類チップも同処方）。
+  **残るは実機で見ることだけ**＝`awaiting-human.md` §1-A。
 
 - **デフォルトUI＝「明快K」**（`Skin.MEIKAI_K` が既定。既存の明示保存 D/M/P/J/C は不変・装いの間で相互選択可）。構造＝
   〈ラベル付き恒常ボトムナビ3タブ（本棚／さがす／設定）＋全画面の明示タイトル＋設定画面＋本棚グリッド（キャプション行に可視⋮）＋
@@ -83,10 +84,10 @@
   （`verifyRoborazziDebug`＝単体テストと同じ1パス）＋**androidTest のコンパイル**＋**release R8 ビルド**の計6ゲートを自動実行（実機必須の androidTest 実行と macrobenchmark は引き続き対象外＝YAML コメントに理由）。
   どのバグ型がどのゲートに守られているか（と**どこが無防備か**）の一覧＝`docs/known-bugs-registry.md`。
 
-- **既知バグ: 全面監査（2026-08-06）で 25 件**——release 到達 13・debug 限定（M/P/J）8・記録のみ 4。処理待ちの一覧＝`handover.md`、
-  機序と直し方＝`.claude/plans/code-health-audit-2026-08-06.md`。最重＝**FGS の `onTimeout` がオーバーロード不一致で dead**
-  （台帳 `cancelled-scope-reuse-silent-stop`／`stale-generation-coroutine-finally` の修正がまとめて発火しない）。
-  **コードは未修正**（今回は発見にとどめる裁定）。
+- **既知バグ: 全面監査（2026-08-06）の 25 件は消化済み**（release 到達13・debug 限定8＝**全て修正**、
+  記録のみ4件のうち2件も 2026-08-07 に修正＝`reduceMotion` の凍結と `deferHeavyContent` の K 未配線）。
+  機序と直し方の一次情報＝`.claude/plans/code-health-audit-2026-08-06.md`（完了の正本は git log）。
+  最重だった **FGS の `onTimeout` オーバーロード不一致**も AOSP と android.jar の2点照合で引数順を確定して移行済み。
 
 - **ゲートの構造的限界（同日の追監査で「面」として測定）**——一次情報＝`.claude/plans/golden-and-docs-audit-2026-08-06.md`:
   ①**golden は退行しか止めない**＝初回記録時に壊れていた絵が永久に「正」として固定される。実測で
@@ -95,7 +96,7 @@
   Roborazzi の型として存在しない**＝テストを消すと PNG は残り verify は緑。
   ②**ドキュメントは名指しの実在だけが機械照合され、記述の内容が実装と食い違うかは誰も見ていない**＝陳腐化を面で検出。
   腐りやすさは 台帳 > patterns > skills > ADR ≒ knowledge（分岐点は「現在形で書いているか」）で、
-  **この STATUS 自身にも2件見つかっている**（handover に登録済み）。
+  ⚠️ この限界そのものは残る（だから走査3本と `GoldenCoverageTest` を入れた）が、指摘された個別の陳腐化は修正済み。
 
 ## 1. 観察ログ（未確定の所見のみ・確定したら handover か ADR へ）
 
