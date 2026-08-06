@@ -152,7 +152,7 @@ class DiscoveryHomeInvariantTest(
         assertNotComposed(
             TOP_SECTION,
             "期間切替でランキング領域の高さが崩壊し一覧が先頭へクランプされた" +
-                "（控えの無い面は status 1行に潰さず、行数ぶんの骨格＝RankingListSkeleton で高さを保つこと）",
+                "（控えの無い面は status 1行に潰さず、行数ぶんの骨格＝RankingSkeletonRow で高さを保つこと）",
         )
     }
 

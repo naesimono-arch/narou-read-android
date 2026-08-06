@@ -86,7 +86,9 @@ object DiscoveryHomeRegistry {
             displayName = "K 明快",
             skin = Skin.MEIKAI_K,
             sourceFile = "ui/skins/k/DiscoveryHomeK.kt",
-            composables = listOf("DiscoveryHomeK", "RankingPagerK", "RankingPageK", "RankingRowsK"),
+            // 2026-08-06 の平坦化で選択者の形が変わった（1ページ＝素の Column → 行ごとの LazyColumn item）。
+            // rankingSectionK＝並べる側・rankingSlotsK＝選択中期間の裁定・rankingNeighborSlotsK＝覗く隣期間の裁定。
+            composables = listOf("DiscoveryHomeK", "rankingSectionK", "rankingSlotsK", "rankingNeighborSlotsK"),
             emptyText = EMPTY_DEFAULT,
         ),
     )

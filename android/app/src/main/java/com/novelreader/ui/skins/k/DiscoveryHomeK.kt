@@ -6,12 +6,16 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.FlingBehavior
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,9 +24,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -36,6 +42,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
@@ -45,27 +52,34 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.discovery.NovelListRow
-import com.novelreader.ui.discovery.RankingListSkeleton
+import com.novelreader.ui.discovery.RankingSkeletonDescription
+import com.novelreader.ui.discovery.RankingSkeletonRow
+import com.novelreader.ui.discovery.RankingSkeletonRowCount
 import com.novelreader.ui.theme.FontBody
 import com.novelreader.ui.theme.FontButtonLabel
 import com.novelreader.ui.theme.FontCaption
@@ -184,6 +198,29 @@ internal fun DiscoveryHomeK(
                 Velocity(available.x, 0f)
         }
     }
+    // ── 横スワイプの土台（2026-08-06 平坦化）──
+    // 指のドラッグ・フリング・スナップは従来どおり PagerState に載せる（操作感を自前実装で作り直さない）。
+    // ページャ本体は行を持たなくなるため、この FlingBehavior を各行スロットの scrollable へ配って
+    // 「どの行を触っても同じ1つのページ送りが進む」形にする。
+    val rankingFling = PagerDefaults.flingBehavior(state = rankingPagerState)
+    // ドラッグ中に横から覗く隣期間。**方向だけを離散化して取り出す**のが要点で、
+    // currentPageOffsetFraction を合成で直に読むと毎フレーム再コンポーズになり、重い合成を減らすための
+    // 平坦化と真っ向から矛盾する。derivedStateOf は結果が変わったときだけ通知するので、実際に再コンポーズが
+    // 走るのは「覗く相手が変わった瞬間」だけ＝1スワイプにつき数回に収まる。
+    // 値でなく取得関数として下へ渡す理由: この画面本体で読むと覗き相手が変わるたび画面全体が再コンポーズ
+    // されるため、読む位置を LazyColumn の item スコープ（＝可視行だけ）まで下げる。
+    val neighborOrderState = remember(rankingPagerState) {
+        derivedStateOf {
+            if (!rankingPagerState.isScrollInProgress) return@derivedStateOf null
+            val fraction = rankingPagerState.currentPageOffsetFraction
+            val page = when {
+                fraction > 0f -> rankingPagerState.currentPage + 1
+                fraction < 0f -> rankingPagerState.currentPage - 1
+                else -> return@derivedStateOf null
+            }
+            NarouOrder.entries.getOrNull(page)
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -192,6 +229,16 @@ internal fun DiscoveryHomeK(
     ) {
         // 固定トップ（モック .top）: 画面タイトル＋実検索フィールド（常時可視・第一強調）。
         SearchHeaderK(onOpenSearch)
+
+        // 期間ページャの「本体」＝高さ0・中身空のアンカー（2026-08-06 平坦化）。
+        // なぜ何も描かないページャを置くか: PagerState はスクロール量→ページ位置の換算に
+        // layoutInfo.pageSize を必要とし、それを供給できるのは Pager の measure だけ。行を平坦化して
+        // ページャから中身を抜いた後も、ページ送り・スナップ・currentPage/settledPage の意味を標準実装の
+        // まま保つため、状態供給専用のページャとして残す。
+        // なぜ LazyColumn の**外**に置くか: item として置くと縦スクロールで画面外へ出た瞬間に measure されなく
+        // なり、PagerState が凍って横スワイプが死ぬ（ランキングを見ながら上へスクロールしただけで期間送りが
+        // 効かなくなる）。高さ0ゆえレイアウト・意匠への影響は無い。
+        RankingPagerAnchorK(rankingPagerState)
 
         LazyColumn(
             modifier = Modifier.fillMaxWidth().weight(1f),
@@ -210,17 +257,20 @@ internal fun DiscoveryHomeK(
                     modifier = Modifier.nestedScroll(rankingEdgeSeal),
                 )
             }
-            item {
-                RankingPagerK(
-                    pagerState = rankingPagerState,
-                    order = order,
-                    state = state,
-                    contents = rankingContents,
-                    onOpenDetail = onOpenDetail,
-                    onRefresh = onRefresh,
-                    modifier = Modifier.nestedScroll(rankingEdgeSeal),
-                )
-            }
+            // ランキングの行は**外側 LazyColumn の item へ平坦化**する（2026-08-06）。
+            // 旧実装は1ページ＝取得件数ぶんの素の Column を単一 item として抱いており、LazyColumn の
+            // 間引き粒度が item である以上、画面外の行まで全数が合成・記録されていた（＝jank の真因）。
+            rankingSectionK(
+                pagerState = rankingPagerState,
+                flingBehavior = rankingFling,
+                edgeSeal = rankingEdgeSeal,
+                order = order,
+                neighborOrder = { neighborOrderState.value },
+                state = state,
+                contents = rankingContents,
+                onOpenDetail = onOpenDetail,
+                onRefresh = onRefresh,
+            )
             item { OfficialLinkK() }
         }
     }
@@ -516,110 +566,249 @@ private fun OrderTabsK(
 }
 
 /**
- * ランキングの期間ページャ（2026-07-29 期間スワイプ化）: NarouOrder 全期間を 1期間=1ページで並べ、
- * 横スワイプ・タブタップの両方から遷移する（同期機構は DiscoveryHomeK 本体・単一情報源は order）。
- * 高さは wrap＝現在ページ準拠。どのページも「行数ぶんの高さ」を持つ（再訪＝期間別控えの行／初訪＝構造
- * スケルトン）ため、ページを送っても外側 LazyColumn の総コンテンツ高が崩れない＝スクロール位置を保つ。
+ * ページ送り1つぶんの溝（モックの横マージンと同じ S24＝新値の発明なし）。
+ * ドラッグ中に隣期間の行が地続きの1枚に見えないようにするためのもので、
+ * **アンカーページャの pageSpacing と行スロットの移動量計算が同じ値を見る**ことに意味がある
+ *（片方だけ変えると指の位置と覗きの位置がずれる）。
+ */
+private val RankingPageSpacing = Spacing.S24
+
+/**
+ * ページ送り1つぶんの移動量（px）。`currentPageOffsetFraction` はこの単位に対する比なので、
+ * 覗きの位置もこの値から導く。
+ */
+private fun Density.rankingPageStepPx(pagerState: PagerState): Float =
+    pagerState.layoutInfo.pageSize + RankingPageSpacing.toPx()
+
+/**
+ * 期間ページャの状態供給アンカー（2026-08-06 平坦化）。**画面には何も描かない**（高さ0の空ページ）。
+ *
+ * 役割は `PagerState` に `layoutInfo`（pageSize）を供給し続けること。行は外側 LazyColumn へ平坦化された
+ * ので、このページャ自身は中身を持たない＝ページ高という概念が消え、
+ * `docs/knowledge/pager-resident-pages-break-wrap-height.md` の「隣ページの高さに引きずられる」問題は
+ * 原理的に起こらなくなる（高さは現在期間の行スロット群だけが決める）。
+ *
+ * [userScrollEnabled] を false にするのは、指のジェスチャを受けるのが各行スロットの `scrollable` だから
+ *（このアンカーは画面上で触れない）。プログラム的な `animateScrollToPage` は従来どおり効く。
  */
 @Composable
-private fun RankingPagerK(
-    pagerState: PagerState,
-    order: NarouOrder,
-    state: DiscoveryUiState,
-    contents: Map<NarouOrder, DiscoveryUiState.Content>,
-    onOpenDetail: (ncode: Ncode) -> Unit,
-    onRefresh: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+private fun RankingPagerAnchorK(pagerState: PagerState, modifier: Modifier = Modifier) {
     HorizontalPager(
         state = pagerState,
-        modifier = modifier,
-        // ⚠️ ここに beyondViewportPageCount（隣接ページ常駐）を**足してはいけない**（2026-07-31 に試して撤回）。
-        //
-        // 動機は正しかった: 期間の横スワイプだけが Janky 11.89%（29/244）・p95/p99 とも 150ms で、段階内訳は
-        // draw/record 100.6ms への一点集中。既定の 0 では隣ページがドラッグで可視化した最初のフレームで初めて
-        // 合成され、しかも1ページ＝取得件数ぶん（DiscoveryQuery.limit＝30行）の**素の Column**なので、
-        // その一括合成が1フレームに乗る。常駐させれば静止中の余裕フレームへ前倒しできる——TabPagerHost で
-        // 実績のある手（P99 450→73ms）。a11y も壊れない（画面外ページはクリップ後領域が空＝Compose の
-        // a11y 木 getAllUncoveredSemanticsNodesToMap に登録されず TalkBack は読まない）。
-        //
-        // それでも使えない理由＝**このページャの高さ規約と両立しない**。下の [RankingPagerK] KDoc が
-        // 「高さは wrap＝現在ページ準拠」と宣言しているとおり、外側 LazyColumn の単一 item として wrap 高で
-        // 収まることが設計の前提。ところが Pager の交差軸サイズは**測定したページの最大高**で決まるため、
-        // 隣接ページを常駐＝測定させた瞬間に「現在ページ準拠」が崩れ、高さが最も高い隣ページに引きずられる。
-        // 実害（golden で検出）: 現在ページが 10 行の Content・隣が未訪問で 30 行の骨のとき、ページャは
-        // 30 行ぶんの高さになり、上端揃え（verticalAlignment=Top）の現在ページの下に 20 行ぶんの空白が空いた。
-        // 実データは全期間 30 行で揃うため平時は見えないが、現在期間が Empty/Error（status 1行）に落ちた
-        // 瞬間に、1行の文言の下へ 30 行ぶんの空白が広がる＝ユーザーに見える退行になる。
-        //
-        // 次に手を入れるなら、常駐化ではなく**真因（1ページ＝30行の非 lazy ツリー）**を削る方向で。
-        // 候補: ランキング行を外側 LazyColumn の item へ平坦化して可視行だけ合成させる（高さ規約の
-        // 作り直しとセット）／ページ高を現在ページだけから決める測定に変える。いずれも高さの設計変更を伴う。
-
-        // ドラッグ中に隣期間の行が地続きの1枚に見えないよう、画面横マージンと同じ S24 を溝にする
-        //（既存スケール値の再利用＝新値の発明なし）。
-        pageSpacing = Spacing.S24,
-        // ページ高が期間ごとに違う（行数・status 1行）ため、ドラッグ中は上端基準で揃える。
+        modifier = modifier.fillMaxWidth(),
+        pageSpacing = RankingPageSpacing,
+        userScrollEnabled = false,
         verticalAlignment = Alignment.Top,
-    ) { page ->
-        val pageOrder = NarouOrder.entries[page]
-        RankingPageK(pageOrder, order, state, contents[pageOrder], onOpenDetail, onRefresh)
+    ) {
+        // 高さ0＝この行に場所を取らせない（幅だけがページ寸法として意味を持つ）。
+        Spacer(Modifier.fillMaxWidth())
     }
 }
 
 /**
- * 期間1ページぶんのランキング一覧（モック .rk）。行は D 共通の [NovelListRow] を再利用する＝順位数字は
- * 明朝・上位3位のみ藍・以降 infoText・行タップで詳細（K の意匠要件と D 実装が一致するデータ駆動行のため
- * 意匠を再発明しない・ADR 0014-D）。
+ * ランキング領域1ページぶんの中身を「スロット列」として表したもの（平坦化の単位＝1スロット=1行）。
  *
- * 分岐の優先順位（旧 RankingStaleRows の裁定を期間別に引き継ぐ）:
- *  1) 選択中ページは生きた state が正: Content=最新行・Empty/Error=正直に status（控えがあっても
- *     行で覆い隠さない＝真に0件・失敗を隠さない旧裁定の継承）。
- *  2) 再取得(Loading)中と隣ページは期間別の直近 Content を骨格として出し続ける
- *    （スクロールアンカー維持＝stale-while-revalidate の期間別化）。
- *  3) 控えの無いページは行数ぶんの構造スケルトン（[RankingListSkeleton]）。なぜ「読み込んでいます」1行では
- *     いけないか: ページ高が行数ぶん→1行へ崩壊し、このページャを1 item として抱く外側 LazyColumn の総
- *     コンテンツ高ごと縮んで、LazyListState が可視アンカーを失い先頭へクランプされる（＝2026-07-19 に
- *     修正済みの既知バグを、期間別控えへ分割したことで「初訪ページ」という新しい経路で踏み直した。
- *     stale-while-revalidate は控えのある再訪しか救えず初訪には原理的に効かない）。骨は高さを保つだけで
- *     読み込み中という意味は変えない＝隣ページは settle で settledPage→onSelectOrder が実読込を始めるため
- *     覗き見えた時点の表示としても虚偽にならない。VM は非改変。
+ * なぜ描画そのものでなく**列の記述**を先に作るか: 外側 LazyColumn へ平坦化するには、描く前に
+ * 「何スロットあるか」を確定させる必要がある（`items(count)` に渡す）。状態分岐と描画を分けることで、
+ * 分岐の裁定（下の [rankingSlotsK]）を1箇所に閉じたまま行だけを遅延できる。
  */
-/**
- * 期間ページの testTag（1期間=1ページ）。
- *
- * なぜ本番コードにテスト用の目印を置くか: このページャが守るべき不変条件は「**どのページに**何が載るか」
- * （期間別の控えを分けた狙い＝週間の行が月間ページに載る誤誘導を起こさないこと）であって、
- * 「セマンティクス木のどこかに在るか」ではない。木全体を数える検証は、合成されるページ数が変われば
- * 意味が変わってしまう脆い代理指標で、実際 2026-07-31 に隣接ページ常駐を試した際、実装が正しいまま
- * 誤検知した（その常駐化自体は高さ規約と両立せず撤回。経緯は [RankingPagerK] 内のコメント）。
- * ページを名指しできれば、検証は合成戦略に左右されず設計の意図そのものを見る。
- */
-internal fun rankingPageTestTag(order: NarouOrder): String = "rankingPage_${order.name}"
+private sealed interface RankingSlots {
+    /** 実データの行（1行＝1スロット）。 */
+    data class Rows(val novels: List<WorkSummary>) : RankingSlots
 
-@Composable
-private fun RankingPageK(
-    pageOrder: NarouOrder,
+    /** 状態一文（空／失敗）＝1スロット。[retry] は失敗時の再試行導線を出すか。 */
+    data class Status(val message: String, val retry: Boolean) : RankingSlots
+
+    /** 控えの無いページ＝行数ぶんの骨で高さを保つ。 */
+    object Skeleton : RankingSlots
+
+    val count: Int
+        get() = when (this) {
+            is Rows -> novels.size
+            is Status -> 1
+            is Skeleton -> RankingSkeletonRowCount
+        }
+}
+
+/**
+ * 表示中（選択中）の期間ページに何を並べるかの裁定。旧 RankingPageK の分岐をそのまま引き継ぐ:
+ *
+ *  1) 生きた [state] が正: Content=最新行・Empty/Error=正直に status（控えがあっても行で覆い隠さない
+ *     ＝真に0件・失敗を隠さない旧裁定の継承）。
+ *  2) 再取得(Loading)中は期間別の直近 Content を骨格として出し続ける（stale-while-revalidate）。
+ *  3) 控えの無いページは行数ぶんの構造スケルトン。なぜ「読み込んでいます」1行ではいけないか:
+ *     領域の高さが行数ぶん→1行へ崩壊し、外側 LazyColumn の総コンテンツ高ごと縮んで LazyListState が
+ *     可視アンカーを失い先頭へクランプされる（2026-07-19 に修正済みの既知バグを、期間別控えへ分割した
+ *     ことで「初訪ページ」という経路で踏み直した実例がある）。
+ */
+private fun rankingSlotsK(state: DiscoveryUiState, cached: DiscoveryUiState.Content?): RankingSlots = when {
+    state is DiscoveryUiState.Content -> RankingSlots.Rows(state.novels)
+    state is DiscoveryUiState.Empty -> RankingSlots.Status("作品が見つかりませんでした", retry = false)
+    state is DiscoveryUiState.Error -> RankingSlots.Status(state.message, retry = true)
+    cached != null -> RankingSlots.Rows(cached.novels)
+    else -> RankingSlots.Skeleton
+}
+
+/**
+ * ドラッグ中に横から覗く**隣期間**に何を並べるか。隣は選択中でない＝生きた state を見ない
+ *（state は常に選択中期間のもので、隣ページに当てると別期間の読込結果を誤って被せることになる）。
+ * 控えがあればその行・無ければ骨＝旧実装で隣ページに出していたものと同じ。
+ */
+private fun rankingNeighborSlotsK(cached: DiscoveryUiState.Content?): RankingSlots =
+    cached?.let { RankingSlots.Rows(it.novels) } ?: RankingSlots.Skeleton
+
+/**
+ * ランキング領域を外側 LazyColumn へ平坦化して並べる（2026-08-06・遷移 jank 残③の真因対処）。
+ *
+ * **1行＝1 item** にすることで、LazyColumn が可視行だけを合成・記録するようになる。旧実装は
+ * 1ページ＝取得件数ぶん（`DiscoveryQuery().limit`＝30行）の素の Column を**単一 item**として抱いており、
+ * LazyColumn の間引き粒度が item である以上、画面外の行まで全数が display list に記録されていた
+ * （実測 Janky 11.89〜12.23%・`draw/record` max 131〜167ms の一点集中／`measure/layout`・GPU は無罪）。
+ *
+ * 横スワイプは各スロットの `scrollable` が [pagerState] を直接動かして実現する（[RankingPagerAnchorK] の
+ * KDoc も参照）。期間タブの sticky 化（別途モック裁定待ち）に備え、[OrderTabsK] は独立 item のまま据え置く
+ * ＝裁定が下りたら `item {}` を `stickyHeader {}` へ替えるだけで済み、行側は触らずに済む。
+ */
+private fun LazyListScope.rankingSectionK(
+    pagerState: PagerState,
+    flingBehavior: FlingBehavior,
+    edgeSeal: NestedScrollConnection,
     order: NarouOrder,
+    neighborOrder: () -> NarouOrder?,
     state: DiscoveryUiState,
-    cached: DiscoveryUiState.Content?,
+    contents: Map<NarouOrder, DiscoveryUiState.Content>,
     onOpenDetail: (ncode: Ncode) -> Unit,
     onRefresh: () -> Unit,
 ) {
-    val isCurrent = pageOrder == order
-    Column(
+    val slots = rankingSlotsK(state, contents[order])
+    items(
+        count = slots.count,
+        // key に期間を含める＝期間を送ると内容が総入れ替えになるため、位置キーの再利用で前の期間の
+        // 行の状態が居座らないようにする。
+        key = { index -> "ranking_${order.name}_$index" },
+        // 行・骨・status は中身の形が違う＝再利用プールを分ける（別種の item を使い回させない）。
+        contentType = { slots::class.simpleName },
+    ) { index ->
+        // 覗き相手の読み取りは**この item スコープ**で行う（画面全体でなく可視行だけが再コンポーズされる）。
+        val neighbor = neighborOrder()
+        val neighborSlots = neighbor?.let { rankingNeighborSlotsK(contents[it]) }
+        RankingSlotK(
+            pagerState = pagerState,
+            flingBehavior = flingBehavior,
+            edgeSeal = edgeSeal,
+            pageOrder = order,
+            neighbor = if (neighbor != null && neighborSlots != null && index < neighborSlots.count) {
+                {
+                    // 覗きは表示だけ＝タップ導線を配線しない（指が乗るのはドラッグ中だけだが、
+                    // 見えているだけの行に詳細遷移を持たせない方が事故が無い）。
+                    RankingSlotBodyK(neighborSlots, index, neighbor, onOpenDetail = null, onRefresh = null)
+                }
+            } else {
+                null
+            },
+            skeletonHead = slots is RankingSlots.Skeleton && index == 0,
+        ) {
+            RankingSlotBodyK(slots, index, order, onOpenDetail, onRefresh)
+        }
+    }
+}
+
+/**
+ * ランキングの1スロット（＝平坦化された1行ぶんの枠）。
+ *
+ * 担うもの:
+ *  - **横ジェスチャ**: `scrollable` が [pagerState] を直接動かす。Pager 本体を持たない構成なので、
+ *    指の入力口は行そのものになる（＝旧実装でページャ全域が受けていた範囲と一致する）。
+ *    `reverseDirection = true` は横 LTR の既定（左へ払う＝次ページへ進む）を標準実装と揃えるため。
+ *  - **端の封止**: [edgeSeal] を `scrollable` の親側に置き、消費し切れない横成分を全量食う
+ *    ＝端期間でさらに引いてもアプリのタブ（外側 Pager）が切り替わらない（2026-07-29 監督裁定の継承）。
+ *  - **覗き**: [neighbor] は現在行に重ねて描き `matchParentSize` を与える＝**親の高さ決定に参加しない**。
+ *    これが「ページ高を現在ページだけから決める」の実体で、はみ出しは `clipToBounds` が切る
+ *    （旧 Pager が wrap 高＝現在ページ準拠で隣をクリップして覗かせていた見え方を行単位で再現する）。
+ *
+ * [skeletonHead] が true のスロットだけが骨領域として名乗る（TalkBack に行数ぶん読ませない）。
+ */
+@Composable
+private fun RankingSlotK(
+    pagerState: PagerState,
+    flingBehavior: FlingBehavior,
+    edgeSeal: NestedScrollConnection,
+    pageOrder: NarouOrder,
+    neighbor: (@Composable () -> Unit)?,
+    skeletonHead: Boolean,
+    current: @Composable () -> Unit,
+) {
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            // 期間ページの識別子。テストが「どのページの子孫か」で数えられるようにする（理由は
-            // rankingPageTestTag の KDoc）。TalkBack への影響は無い
-            //（testTag は AccessibilityNodeInfo へ出ない純粋なテスト用プロパティ）。
-            .testTag(rankingPageTestTag(pageOrder)),
+            .clipToBounds()
+            // 期間ページの識別子（理由は rankingPageTestTag の KDoc）。中身の**祖先**に置くことで、
+            // テストが「どのページの子孫か」で数えられる形を平坦化後も保つ。
+            .testTag(rankingPageTestTag(pageOrder))
+            .nestedScroll(edgeSeal)
+            .scrollable(
+                state = pagerState,
+                orientation = Orientation.Horizontal,
+                flingBehavior = flingBehavior,
+                reverseDirection = true,
+            ),
     ) {
-        when {
-            isCurrent && state is DiscoveryUiState.Content -> RankingRowsK(state, pageOrder, onOpenDetail)
-            isCurrent && state is DiscoveryUiState.Empty -> RankingStatus("作品が見つかりませんでした")
-            isCurrent && state is DiscoveryUiState.Error -> {
-                RankingStatus(state.message)
+        Column(
+            modifier = Modifier
+                // State 読みを layer 更新に閉じる（deferred read）＝ドラッグ中に composition/layout を起こさない。
+                .graphicsLayer {
+                    translationX = -pagerState.currentPageOffsetFraction * rankingPageStepPx(pagerState)
+                }
+                .then(
+                    if (skeletonHead) {
+                        // 骨は装飾＝文字を描かないが、旧 status 行が担っていた支援技術への通知は落とさない。
+                        Modifier.semantics { contentDescription = RankingSkeletonDescription }
+                    } else {
+                        Modifier
+                    },
+                ),
+        ) { current() }
+        neighbor?.let { content ->
+            Column(
+                modifier = Modifier
+                    .matchParentSize()
+                    .graphicsLayer {
+                        val step = rankingPageStepPx(pagerState)
+                        val fraction = pagerState.currentPageOffsetFraction
+                        // 現在行と同じだけ動かしたうえで、進行方向へ1ページぶん先に置く＝横から入ってくる。
+                        translationX = -fraction * step + if (fraction > 0f) step else -step
+                    }
+                    // 覗くだけの行を TalkBack に読ませない（K の気分ゴースト格子と同じ扱い）。
+                    .clearAndSetSemantics {},
+            ) { content() }
+        }
+    }
+}
+
+/** 1スロットぶんの中身（行／status／骨）。[onOpenDetail]・[onRefresh] が null＝覗き専用（導線を配線しない）。 */
+@Composable
+private fun RankingSlotBodyK(
+    slots: RankingSlots,
+    index: Int,
+    pageOrder: NarouOrder,
+    onOpenDetail: ((ncode: Ncode) -> Unit)?,
+    onRefresh: (() -> Unit)?,
+) {
+    when (slots) {
+        is RankingSlots.Rows -> {
+            val novel = slots.novels[index]
+            NovelListRow(
+                rank = index + 1,
+                novel = novel,
+                order = pageOrder,
+                // 境界: novel.ncode は Moshi 由来の String。詳細遷移の引数は型付き Ncode へ包む。
+                onClick = { novel.ncode?.let { code -> onOpenDetail?.invoke(Ncode(code)) } },
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        }
+        is RankingSlots.Status -> {
+            RankingStatus(slots.message)
+            if (slots.retry && onRefresh != null) {
                 Text(
                     "再試行",
                     fontSize = FontCaption,
@@ -630,36 +819,28 @@ private fun RankingPageK(
                         .padding(vertical = Spacing.S8),
                 )
             }
-            cached != null -> RankingRowsK(cached, pageOrder, onOpenDetail)
-            // 控え無し（初訪ページ／初回ロード）＝行数ぶんの骨で高さを保つ。ここを status 1行にすると
-            // 高さ崩壊→先頭クランプが再発する（上の分岐3の理由）。
-            else -> RankingListSkeleton()
         }
-    }
-}
-
-/** ランキング行群（旧 RankingStaleRows から行描画だけを分離。控え・状態分岐は [RankingPageK] が担う）。 */
-@Composable
-private fun RankingRowsK(
-    content: DiscoveryUiState.Content,
-    order: NarouOrder,
-    onOpenDetail: (ncode: Ncode) -> Unit,
-) {
-    content.novels.forEachIndexed { index, novel ->
-        NovelListRow(
-            rank = index + 1,
-            novel = novel,
-            order = order,
-            // 境界: novel.ncode は Moshi 由来の String。詳細遷移の引数は型付き Ncode へ包む。
-            onClick = { novel.ncode?.let { onOpenDetail(Ncode(it)) } },
-        )
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        is RankingSlots.Skeleton -> RankingSkeletonRow(index)
     }
 }
 
 /**
+ * 期間ページの testTag（平坦化後は「その期間の行スロット」に付く・2026-08-06 更新）。
+ *
+ * なぜ本番コードにテスト用の目印を置くか: ここで守るべき不変条件は「**どの期間に**何が載るか」
+ * （期間別の控えを分けた狙い＝週間の行が月間ページに載る誤誘導を起こさないこと）であって、
+ * 「セマンティクス木のどこかに在るか」ではない。木全体を数える検証は、合成される範囲が変われば
+ * 意味が変わってしまう脆い代理指標で、実際 2026-07-31 に隣接ページ常駐を試した際、実装が正しいまま
+ * 誤検知した（その常駐化自体は高さ規約と両立せず撤回＝[RankingPagerAnchorK] の KDoc）。
+ * 期間を名指しできれば、検証は合成戦略に左右されず設計の意図そのものを見る——実際、行を LazyColumn へ
+ * 平坦化した今回の変更でも、この目印を「ページの Column」から「行スロットの外枠」へ移すだけで
+ * テスト側の契約（`hasAnyAncestor(hasTestTag(...))`）はそのまま生き延びている。
+ */
+internal fun rankingPageTestTag(order: NarouOrder): String = "rankingPage_${order.name}"
+
+/**
  * ランキング領域の状態一文（空／失敗理由＝意味テキストゆえ infoText）。
- * 読込中はここでなく [RankingListSkeleton] が受ける＝「無い・失敗した」だけを1行に畳む
+ * 読込中はここでなく骨（[RankingSkeletonRow]）が受ける＝「無い・失敗した」だけを1行に畳む
  *（畳んで良いのは真に0件・失敗のときだけ、という既存裁定）。
  */
 @Composable
