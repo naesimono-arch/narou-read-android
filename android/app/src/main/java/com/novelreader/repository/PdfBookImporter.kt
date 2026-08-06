@@ -368,7 +368,8 @@ internal fun hasEnoughStorageFor(usableBytes: Long, pdfSizeBytes: Long): Boolean
  * NonCancellable 内で insertBook と一緒に確定）。未完了のまま kill されたジョブは自分のハッシュを
  * まだ books に持たないため、リカバリ再投入時に findExistingBookByHash は null を返し、自分自身を
  * 誤って遮断することはない。逆に「insert 済みだが settlePendingJob 直前に kill」された極小窓
- * （BookRepository ④/⑤ のコメント参照）では、リカバリ再投入がこのハッシュ照合でヒットして
+ * （本ファイル ④＝:210・⑤＝:267 のコメント参照。旧記述の「BookRepository」は誤称で、そんなクラスは無い）では、
+ * リカバリ再投入がこのハッシュ照合でヒットして
  * 変換前に Duplicate 確定する＝旧実装（抽出後に title＋author で弾く）より二重変換窓が縮む改善であり、
  * 誤ブロックではない。よって「自分のジョブを除外」する防御は追加しない。
  */

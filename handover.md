@@ -131,11 +131,15 @@
 > 一次情報＝`.claude/plans/golden-and-docs-audit-2026-08-06.md` 第2部・第3部。
 > 確定 A 判定と検知への投資（数値突合・双方向注記・patterns 正本ヘッダ）は消化済み。
 
-- **[要再確認 8件（F-1〜F-8）]** 実装ワークフローが同時にファイルを編集していた時間帯の指摘で、**その編集は破棄済み**。
-  行番号も根拠も現ツリーで取り直すこと。内容は一次情報の第3部（さがす配下の golden 0枚／`patterns/processing-state.md` が
-  **再発を招く旧処方を規範として提示している**／`string-hashcode-low-bit-bias` が J で無効と判明済みの因果を M/P へ勧誘/
-  `positioning-brief` の機能欠落／`discovery-terminology` の配線依頼2件が撤去済み UI を指す／`backlog-frozen` の
-  file:line 3件が全て別の場所／`PdfBookImporter.kt:349-351` の参照先不在／KBottomNav 3枚の再記録）。
+- **[docs 監査の残り＝再確認済み・未修正4件]**（2026-08-06 に静止ツリーで取り直した結果。F-2/F-8 は本日解消済み、
+  F-3/F-4/F-5/F-7 は本日修正済み。残るのは下記4件）:
+  - **さがす配下の golden 0枚**（`NovelDetailScreen` / `PdfImportScreen` / `DiscoverySearchScreen` /
+    `DiscoveryResultScreen` / `NcodeLinkSheet` / `SearchConditionSheet`）。`GoldenCoverageTest` の
+    `acknowledgedOutOfScope` に理由付きで登録済み＝**撮ると決めたら登録を消す**。優先度は監査第1部の G-8。
+  - `backlog-frozen.md:121` の③が指す `DiscoverySearchScreen.kt:203-207` は現在「選択中キーワード追従バー」
+    （`SelectedKeywordsBar`）で、記述対象の22カテゴリ/115チップ（同ファイル `:446` 以降）とは別箇所。
+  - `positioning-brief` の他項目（ストア説明文を書くときに全文を実装と突合する）。
+  - 一次情報＝`.claude/plans/golden-and-docs-audit-2026-08-06.md` 第3部。
 
 ## 未修正・調査中のバグ
 
