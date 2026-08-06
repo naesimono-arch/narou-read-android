@@ -63,43 +63,11 @@
   （唯一の実スクレイプ競合 B・約38サイト・jsoup・3抽出戦略・per-host レート制御/WebView Cookie 間借り等の「作法」）。
   **内容が濃いため直読みせず、新アダプタ設計時に委譲ダイジェストで参照**（ユーザー指示）。
 
-## コード健全性監査（2026-08-06）で出た未処理バグ
+## コード健全性監査（2026-08-06）の残り＝記録に留めた4件だけ
 
-> **一次情報＝`.claude/plans/code-health-audit-2026-08-06.md`**（機序・実害・直し方・却下したものの理由まで）。
-> 検知への投資設計は `.claude/plans/code-health-mechanical-detection-2026-08-06.md`（走査ルール20本を ROI 順・上位3本は実装スケッチ付き）。
-> 台帳 `docs/known-bugs-registry.md` の**無防備 17 件が CI のどれにも守られていない**ことへの回答として実施。
-> **処理したら消す**（完了の正本は git log）。`(rel)` ＝ release 到達・`(dbg)` ＝ `Features.skinSwitchingEnabled` が
-> release で false のため debug 限定（M/P/J スキン）。
+> 一次情報＝`.claude/plans/code-health-audit-2026-08-06.md`。実装可能な項目は全て消化済み（正本＝git log）。
+> 下の4件は「直さないと決めた」もの＝**着手するなら判断からやり直す**（ジャンク・機能破綻ではないため後回しにした）。
 
-- **[1冊復旧が全件一括へ化ける] (rel)** `ui/BookshelfScreen.kt:170` の `pendingScanBook` が plain `remember`。
-  launcher の登録キーは rememberSaveable なので**結果は再生成をまたいで必ず届く**非対称。SAF ピッカー表示中の回転で
-  `target == null`＝一括の規約へ落ち、全 AutoPdf を FGS キューへ投入＋全 AutoWeb を再スクレイプする。
-  `BookEntity` は Parcelable でないので remember→rememberSaveable の単純置換では直らない（`book.id` を持つ）。
-- **[fontScale で潰れる器] (rel)** `ui/skins/k/KBottomNav.kt:61` の `.height(64.dp)` でラベル maxHeight が 20dp 固定。
-  **リポジトリ自身の golden `KBottomNav_bookshelf_light_2.0.png` が切り落とされた絵を固定している**（verifyRoborazzi は
-  退行しか止めない）。同型で `ui/NcodeLinkSheet.kt:215-258`（120dp 固定高で再試行ボタンの 48dp 標的が消える）。
-  → `heightIn(min=)` へ＋golden 再記録。
-- **[押し出し・誤爆] (rel)** `ui/discovery/NovelDetailScreen.kt:519-548` の作者行に weight が無くジャンルタグが幅0へ
-  （同一機序の実機バグ記録が `DiscoveryCommon.kt:256-261` に一次情報として残っているのに詳細画面へ伝播していない）／
-  `ui/discovery/DiscoverySearchScreen.kt:711-714,734-737` のピン・× がヒット幅 13dp で隣の語タップを誤爆
-  （× に落ちると**履歴が消えて取り消し導線が無い**。同ファイル外の3画面は 48dp 手当て済み）。
-- **[支援技術から削除対象を確認できない] (rel)** `ui/BookCard.kt:286-293,682-687`（同型5構造）が選択状態を
-  `Role`・`selected`・`stateDescription` のいずれでも宣言せず、`semantics(mergeDescendants)` が子を畳む。
-  削除確認ダイアログも件数のみ。規約自体は存在する（`ui/skins/k/DiscoveryHomeK.kt:500` に why 付きの唯一の宣言）。
-- **[Back を1回黙って食う] (rel)** `ui/BookshelfScreen.kt:898` の `BackHandler(enabled = selectionMode)` に
-  「このページが前面か」の項が無い。`TabPagerHost` は `beyondViewportPageCount = 1` で隣ページを常駐させ、
-  OnBackPressedDispatcher は後着優先なので枠側に必ず勝つ。
-- **[構成変更で取込フローが巻き戻る] (rel)** `ui/discovery/PdfImportScreen.kt:117,230-231` が plain remember＋無条件 `loadUrl`。
-  隣の `WebReaderScreen.kt:86-91` は同じ構図に custom Saver を張って同機序を塞ぎ KDoc に経緯まで書いてある＝移植で済む。
-- **[スキン配線落ち] (dbg)** `ui/skins/ShelfFace.kt:79-87` の案C/案X 5フィールドを M/P/J の6面が**受け取って捨てる**
-  （走査の起動は route 層で全スキン共通なのに、進捗表示と停止ボタンの唯一の呼び口が描かれない＝中断不能）／
-  Web カードの複数選択削除が M/P/J の一覧3面に未配線（選択モード中のタップが画面遷移に化ける）／
-  取込バナーが `ProcessingState.source` を見ず Web 取込で進捗が凍結表示（共有 `ui/ProcessingBanner.kt:102` の分岐が横展開されていない）／
-  `BookshelfPortalJ.kt:314` が `chrome.isLoading` を読み捨て、Loading 中に確定した pagerState が hero 着地を殺す。
-  ⚠️ **必須引数の構造封鎖は「渡し忘れ」しか止めず「受け取って捨てる」を止めない**——台帳の当該行の検知手段欄はこの限界を明記すべき。
-- **[その他 (dbg)]** `BookshelfPortalJ.kt:343-357` の Pager に key が無く蔵書の増減で見ている扉が別作品へ入れ替わる（1行）／
-  J/M/P の本棚カード9箇所が章数不明（0）を「全0話」と数で描く（D 共通は `progressFractionFor` の枝で構造的に起きない）／
-  `ui/skins/p/DiscoveryCartridgeP.kt:671-700` が 66×88dp＋`.clip` でジャンル名を無音で切る。
 - **[記録に留めた4件]** `deferHeavyContent` が D/C 共通描画にしか届かず既定スキン K では常に死んでいる（ジャンク・機能破綻ではない）／
   `reduceMotion` が無キー remember で凍結し設定変更がプロセス再起動まで反映されない（判定源が8箇所に散在）／
   `NcodeLinkSheet` の入力欄2本が remember でシートだけ復元される／per-host スロットルの Mutex がインスタンス局所で
