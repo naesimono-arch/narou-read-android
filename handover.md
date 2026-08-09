@@ -185,15 +185,17 @@
   基準＝**0 errors**。warnings は非ブロックの参考値（2026-08-06 実測 92＝UseKtx 51・GradleDependency 22 など
   lint DB・依存新版検知の外部ドリフトで増える。意図的分＝ModifierParameter×3・UsableSpace×2）。
 
-- **[agy 委譲の復活 — Phase 0 から着手可]**（設計・実測・却下理由の正本＝**ADR 0031**）:
-  プラグインを上流 **0.22.0 へ乗り換える**（ローカルは自作ブランチ `feat/delegation-break-even-gate` に独自6コミット・
-  上流は28コミット先行）。⚠️ **セキュリティ修正 `fa36262`（delegate Bash ゲートの command-injection バイパス）が
-  含まれるため、再有効化より先に追従が必須**。残す独自機能は新規ファイル（`scripts/agy-break-even.py`・サーキットブレーカー）
-  だけなので競合は `hooks/hooks.json` と `prices.json` の2点に限定される（上限ゲート `hooks/force-delegate-gate.py` は
-  ADR 0031 決定1 で**廃止**＝移植不要）。以降 Phase 1（有効化＋**読み取り専用のクロスモデル検証**から開始）→
+- **[agy 委譲の復活 — Phase 0 済・次は Phase 1]**（設計・実測・却下理由の正本＝**ADR 0031**）:
+  2026-08-09 に**上流 0.22.2 へ乗り換え＋`enabledPlugins` を true** まで完了（agy CLI は認証済みで応答を確認）。
+  **残り＝独自機能の再適用**——下限 break-even ゲート（`scripts/agy-break-even.py`）とサーキットブレーカーは
+  自作ブランチ `feat/delegation-break-even-gate` に残置してあり、**現在の master には入っていない**。
+  どちらも新規ファイルなので競合は `hooks/hooks.json` と `prices.json` の2点だけ（上限ゲート
+  `hooks/force-delegate-gate.py` は ADR 0031 決定1 で**廃止**＝移植しない）。
+  以降 Phase 1（**読み取り専用＝調査・クロスモデル検証から開始**。信頼度だけでなく実測でもここが最大の当たり）→
   Phase 2（三層の配線＝`inject_subagent_briefing.py` へ agy 規律〈同期実行・digest・較正値クラス除外〉を追加）→
-  Phase 3（`AGY_USAGE_LOG`／`agy-trace --audit` で実トークンを測り `prices.json` を実単価へ・break-even を較正）。
-  ⚠️ `enabledPlugins` を戻しても**フック配線は起動時固定＝反映は次セッションから**（`docs/knowledge/claude-code-hook-wiring-session-fixed.md`）。
+  Phase 3（効果測定＝`tools/measure_delegatable_tokens.py` で前後比較。**agy 側は測らない**＝ゼロコスト前提）。
+  ⚠️ **節約の期待値を誤らないこと**＝実測ではコストの主体は生成でなく `cache_read`（金額換算の約85%）で、
+  **生成だけを agy へ移しても総計の約3%**にしかならない（ADR 0031 判断材料6）。
 - **[CLAUDE.md 委譲節の三層化]**（ADR 0031 の帰結・Phase 2 と同じ便で）: 「削除行込み diff 全量レビュー」の担い手が
   監督→2層目（品質保証サブ）へ移り、「生成＝agy・判断＝Claude」の二分が三層へ細分される。現行節はこの2点で stale になる。
 
