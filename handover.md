@@ -185,6 +185,18 @@
   基準＝**0 errors**。warnings は非ブロックの参考値（2026-08-06 実測 92＝UseKtx 51・GradleDependency 22 など
   lint DB・依存新版検知の外部ドリフトで増える。意図的分＝ModifierParameter×3・UsableSpace×2）。
 
+- **[agy 委譲の復活 — Phase 0 から着手可]**（設計・実測・却下理由の正本＝**ADR 0031**）:
+  プラグインを上流 **0.22.0 へ乗り換える**（ローカルは自作ブランチ `feat/delegation-break-even-gate` に独自6コミット・
+  上流は28コミット先行）。⚠️ **セキュリティ修正 `fa36262`（delegate Bash ゲートの command-injection バイパス）が
+  含まれるため、再有効化より先に追従が必須**。残す独自機能は新規ファイル（`scripts/agy-break-even.py`・サーキットブレーカー）
+  だけなので競合は `hooks/hooks.json` と `prices.json` の2点に限定される（上限ゲート `hooks/force-delegate-gate.py` は
+  ADR 0031 決定1 で**廃止**＝移植不要）。以降 Phase 1（有効化＋**読み取り専用のクロスモデル検証**から開始）→
+  Phase 2（三層の配線＝`inject_subagent_briefing.py` へ agy 規律〈同期実行・digest・較正値クラス除外〉を追加）→
+  Phase 3（`AGY_USAGE_LOG`／`agy-trace --audit` で実トークンを測り `prices.json` を実単価へ・break-even を較正）。
+  ⚠️ `enabledPlugins` を戻しても**フック配線は起動時固定＝反映は次セッションから**（`docs/knowledge/claude-code-hook-wiring-session-fixed.md`）。
+- **[CLAUDE.md 委譲節の三層化]**（ADR 0031 の帰結・Phase 2 と同じ便で）: 「削除行込み diff 全量レビュー」の担い手が
+  監督→2層目（品質保証サブ）へ移り、「生成＝agy・判断＝Claude」の二分が三層へ細分される。現行節はこの2点で stale になる。
+
 ## 思いつき・取りこぼし（随時追記）
 
 > レビュー中・実装中に出た宿題や着想で、まだ上の各節に整理していないものをここへ。育ったら該当節へ移す。
