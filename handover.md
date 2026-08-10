@@ -210,16 +210,19 @@
   ⚠️ **後始末が2つ未了**: `~/.gemini/antigravity-cli/settings.json` が権限拡張のまま（同ディレクトリの `.bak` から復元）・worktree 未撤去。
 - **[AGENTS.md / .agents / .codex が未追跡]**: agy を常用するなら追跡下に置くか判断が要る。未追跡のままだと
   worktree・他ブランチ・他マシンへ配られず、agy が規約を読めない状態で走る（上の検査で実害を確認）。
-- **[コンテキスト費の実測を反映するか判断]**（2026-08-10・計測コードは worktree の `.agy-probe/measure_*.py`）:
-  main の cache_read 実効寄与（トークン×残ターン＝居座り時間込み）933M の内訳は
-  **Read 36.6% / tool_use 引数 30.9% / Bash 出力 20.2% / assistant 出力 4.2%**。Read の内訳＝編集起点 59.3%・
-  調査 40.7%・台帳 34.7%（`handover.md` だけで 81M）・全量読み 75.4%。agy の射程（Write/Edit 本文）は最大 11.3%、
-  Edit は break-even 割れなので**実質 5.9%**。
-  ⚠️ **CLAUDE.md:22 の「応答の長さがコンテキスト費の約69%」と食い違う**（実測 4.2%・tool_use 引数を足しても 35.1%）。
-  出典が CLAUDE.md 以外に見当たらないため、69% の元計算を確認するか再測して訂正するかの判断が要る。
-  打ち手の候補＝**台帳サイズ規約**（行数でなく文字数で。handover 8,000／STATUS 6,000／awaiting 12,000 で約70M 減）・
-  **Bash 出力の自動切り詰めフック**・**調査 Read の全面サブ委譲**。計測コードを `tools/` へ統合するかも未決
-  （既存 `tools/measure_context_bloat.py` は素の量しか出さず、実効寄与の観点が無い）。
+- **[コンテキスト費 — 打ち手3つの採否判断]**（実測 2026-08-10 再測。計測は `tools/` 収録済み＝
+  `measure_read_residency.py`〔実効寄与の全体像〕・`measure_read_kind.py`〔Read の委譲可否二分〕・
+  `measure_toolinput_and_ledger.py`〔引数内訳と台帳〕。**素の量しか出さない旧 `measure_context_bloat.py` は役目が重なる**＝統廃合は未判断）:
+  main の cache_read 実効寄与（トークン×残ターン＝居座り時間込み）**899M** の内訳は
+  **Read 36.3% / tool_use 引数 31.1% / Bash 出力 20.1% / assistant 出力 4.3%**。
+  Read 326M の内訳＝編集起点 58.7%・調査（読んだきり）41.3%／全量読み 76.0%／台帳 34.1%（111M・うち `handover.md` 80M
+  ＝**単独で全体の 8.9%**・平均 10,864 字・部分読みは 42% どまり）。tool_use 引数 280M の内訳＝Bash command 27.2%・
+  Agent prompt 19.8%・Write 本文 19.6%・Edit 本文 16.9% ＝**agy の射程（Write/Edit 本文）は最大 11.4%**、
+  Edit は break-even 割れなので**実質 6.1%**。
+  ※ 総計は再測ごとに 933M→899M と揺れる（過去セッションの jsonl が失われる分＝比率は安定）。
+  ※ **CLAUDE.md:22 の「約69%」は元計算が ADR 0031 にもコミットにも無く再現不能＝誤りと確定し 4.3% へ訂正済み**（この便）。
+  **未着手の打ち手3つ**＝①**台帳サイズ規約**（行数でなく文字数で。handover 8,000／STATUS 6,000／awaiting 12,000 で約70M 減）
+  ②**Bash 出力の自動切り詰めフック** ③**調査 Read（41.3%）の全面サブ委譲**。
 
 ## 思いつき・取りこぼし（随時追記）
 
