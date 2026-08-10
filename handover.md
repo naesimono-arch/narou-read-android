@@ -203,13 +203,23 @@
   「なぜ」29箇所は正本の20を上回る）。ただし**公開シグネチャを `contentSha256`→`scanSha256` に変えて呼び出し側4ファイルを
   コンパイル不能**にした＝「書かれた仕様には強く、書かれていない契約は守らない」（Opus の処方と同じ構造）。
   ⚠️ **この検査は `AGENTS.md` が worktree に無い状態で走らせた**（未追跡ファイルは wt-new が配れない）。agy は
-  `AGENTS.md`/`.agents/{rules,skills,hooks}` を読む仕様で、**AGENTS.md:26 に今回の失敗を防ぐ規約が既にある**
-  ＝環境設定で改善する見込みが高い。**残る検証はこの1点だけ**（配布は済ませてある）。
-  **再開手順**: worktree で同じブリーフの `agy -p` を再実行（前回は agy 認証が EOF で中断＝要再認証。ネットワークは正常を確認済み）。
-  `git checkout .` で退避テスト5ファイルと正本が戻る。計測スクリプト・退避物は worktree の `.agy-probe/`（未追跡）。
-  ⚠️ **後始末が2つ未了**: `~/.gemini/antigravity-cli/settings.json` が権限拡張のまま（同ディレクトリの `.bak` から復元）・worktree 未撤去。
-- **[AGENTS.md / .agents / .codex が未追跡]**: agy を常用するなら追跡下に置くか判断が要る。未追跡のままだと
-  worktree・他ブランチ・他マシンへ配られず、agy が規約を読めない状態で走る（上の検査で実害を確認）。
+  `AGENTS.md`/`.agents/{rules,skills,hooks}` を読む仕様で、**「自己検証必須」節に今回の失敗を防ぐ規約が既にある**
+  （public シグネチャを変えたら androidTest のコンパイル確認）＝環境設定で改善する見込み。**残る検証はこの1点だけ**。
+  ⚠️ **ただし前提が変わった（2026-08-11）**＝当時 worktree に配られた AGENTS.md は**破損版**だった
+  （`Claude`→`Codex` 全置換が `.claude/hooks/`→`.Codex/hooks/` 等を実在しないパスに化けさせていた）。
+  canonical 側は是正・追跡下に置いたので、**再開時は worktree へ是正版を配り直してから走らせる**
+  （`cp ../../<canonical>/AGENTS.md .` 等。旧版のまま走らせると「規約が読めない」条件の再現になり検査が無意味）。
+  **再開手順**: ①agy を**再認証**（下記）②worktree で `git checkout .` して退避テスト5ファイルと正本を戻す
+  ③是正版 AGENTS.md を配る ④同じブリーフで `agy -p` を同期実行。退避物は worktree の `.agy-probe/`（未追跡）。
+  ⚠️ **認証は Claude Code 内からは通せない（2026-08-11 実測）**: agy に login サブコマンドは無く、
+  認証待ちは**60秒固定**。Bash ツール経由も `!` 経由も stdin が対話的でないため
+  「paste the authorization code here」に貼れず、ブラウザのコールバック頼みでは間に合わない。
+  **独立した WSL ターミナルで `agy -p "PONG"` を起動し、そこにコードを貼る**のが唯一通る経路
+  （トークンは `~/.gemini/antigravity-cli/antigravity-oauth-token` に保存され、以後はセッションから呼べる）。
+  受け取ったコードを Claude へ渡しても使えない——`code_challenge` は起動ごとに変わり、発行元プロセス専用のため。
+  ⚠️ **後始末が2つ未了**（検査再開に要るので**わざと残置**）: `~/.gemini/antigravity-cli/settings.json` が
+  権限拡張のまま（同ディレクトリの `.bak` から復元）・worktree `test/agy-capability-probe` 未撤去。
+  **検査を打ち切ると決めたらこの2つを片付ける**。
 - **[コンテキスト費 — 打ち手3つの採否判断]**（実測 2026-08-10 再測。計測は `tools/` 収録済み＝
   `measure_read_residency.py`〔実効寄与の全体像〕・`measure_read_kind.py`〔Read の委譲可否二分〕・
   `measure_toolinput_and_ledger.py`〔引数内訳と台帳〕。**素の量しか出さない旧 `measure_context_bloat.py` は役目が重なる**＝統廃合は未判断）:
