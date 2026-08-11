@@ -89,16 +89,17 @@ def run(cmd: str, cwd: Path, timeout: int = 1800) -> tuple[int, str]:
 
 
 def generated_tests(wt: Path) -> list[Path]:
-    """git から見て未追跡＝この試行で新しく生えたテストファイル。"""
+    """この試行で生えた／書き換えられたテストファイル。
+
+    新規ファイルだけを見ると取りこぼす——L0 の実測で、agy は新規ファイルを作らず
+    既存の `ShelfItemsTest.kt` へ追記した（既存テストの置き場を自力で見つけた）。
+    """
     _, out = run("git status --porcelain --untracked-files=all", wt)
     found = []
     for line in out.splitlines():
-        line = line.strip()
-        if not line:
+        if len(line) < 4:
             continue
-        path = line.split(maxsplit=1)[-1] if " " in line else line
-        if path.startswith("??"):
-            path = path[2:].strip()
+        path = line[3:].strip().strip('"')
         if path.endswith(".kt") and "src/test" in path:
             found.append(wt / path)
     return found
@@ -127,6 +128,12 @@ def main() -> int:
     ap.add_argument("--worktree", required=True)
     ap.add_argument("--label", required=True)
     ap.add_argument("--brief", help="使ったブリーフのパス（文字数をコストとして記録する）")
+    ap.add_argument(
+        "--classes",
+        help="テストクラス名をカンマ区切りで明示。ベースライン測定用＝生成物を外した状態でも"
+        "既存テストだけで変異を回せるようにする（既存テストが対象関数を間接的に呼ぶため、"
+        "これを測らないと agy の寄与を分離できない）",
+    )
     args = ap.parse_args()
 
     wt = Path(args.worktree).expanduser()
@@ -150,7 +157,7 @@ def main() -> int:
     # --- 生成物 ---
     files = generated_tests(wt)
     result["generated_files"] = [str(f.relative_to(wt)) for f in files]
-    classes = test_classes(files)
+    classes = [c.strip() for c in args.classes.split(",")] if args.classes else test_classes(files)
     result["test_classes"] = classes
 
     body = "\n".join(f.read_text(encoding="utf-8") for f in files if f.exists())
@@ -169,6 +176,20 @@ def main() -> int:
     # --- ゲート1: そもそも緑か ---
     green, _ = gate(wt, None)
     result["green"] = green
+
+    # --- ゲート2の前提: 変異を当てる前に、対象クラスが「変異なしで緑」であること ---
+    # これを確かめずに変異を当てると、元から赤いテストが1件あるだけで Gradle は毎回 FAILED を返し、
+    # 全変異を「殺した」と誤読する（2026-08-11 の agy L0 実測で実際に 7/7 の偽陽性を出した）。
+    target_green, _ = gate(wt, classes)
+    result["target_class_green"] = target_green
+    if not target_green:
+        result["mutation_score"] = "測定不能"
+        result["note"] = (
+            "変異なしで対象クラスが既に赤い＝全変異が偽陽性になるため測定を中止した。"
+            "赤いテストを取り除いてから測り直すこと。"
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 1
 
     # --- ゲート2: 変異を殺せるか ---
     target = wt / TARGET

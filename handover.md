@@ -195,6 +195,15 @@
   例の command-injection 修正そのもの**＝feat を土台にする選択肢は無い。新規ファイルは `agy-break-even.py` だけで、
   **サーキットブレーカーは既存3ファイル（`agy-delegate.sh`・`agy-job.sh`・`prices.json`）への改変**。
   残る道は「**master 版を土台に独自機能を手で足す**」の一方向のみ。
+  🔴 **それ以前に「フックが1つも効いていない」ことが判明（2026-08-11 ライブ実測）＝ここが最優先**:
+  master はゲートを `agents/antigravity-delegate.md` の **frontmatter** で配線しており、
+  Claude Code はプラグイン提供サブエージェントの frontmatter `hooks` を**黙ってドロップする**
+  （memory `plugin-subagent-hooks-ignored`）。実測＝`antigravity-delegate` に `echo` を叩かせたら**素通り**。
+  上流 `SECURITY.md` が「唯一の制限」と呼ぶ防御が発火せず＝**任意コマンドが通る状態**。
+  0.19.0 の command-injection 修正も呼ばれない位置にあり効果ゼロ（＝ADR 0031 決定3 の「追従が必須」は
+  前提が崩れている）。**やること＝plugin-level `hooks/hooks.json` に PreToolUse(Bash) を置き、
+  フック内で `agent_type` を見て自分のサブエージェントのときだけ enforce する**（feat 側の方式が正しかった）。
+  ⚠️ 直すまでは agy サブエージェントに書き込み・実行を伴う委譲をしない（read-only 調査に限る）。
   以降 Phase 1（**読み取り専用＝調査・クロスモデル検証から開始**。信頼度だけでなく実測でもここが最大の当たり）→
   Phase 2（三層の配線＝`inject_subagent_briefing.py` へ agy 規律〈同期実行・digest・較正値クラス除外〉を追加）→
   Phase 3（効果測定＝`tools/measure_delegatable_tokens.py` で前後比較。**agy 側は測らない**＝ゼロコスト前提）。
@@ -216,6 +225,15 @@
   ⚠️ **agy の実行は人間の `!` 必須**＝`--dangerously-skip-permissions`（非対話で書かせる唯一の手段）が
   Claude 側の分類器にブロックされる。`agy -p "$(cat tools/agy-probe/briefs/L0.md)" --dangerously-skip-permissions` を
   worktree で叩いてもらい、`score.py --worktree … --label agy-L0` で採点する。
+  ✅ **L0 実測済み（2026-08-11・ブリーフ95文字）＝変異 7/7 全滅・`src/main` 不触・既存テスト削除ゼロ**。
+  `trim`+大文字正規化も tier 優先の比較も実機バグ由来の tier 特権も捕まえた＝**境界値は自力で洗い出せる**。
+  ⚠️ ただし**指示していない `filterBooksByQuery` まで範囲を広げ、実装を読まずに期待値を書いて赤くした**
+  （「オーバーロード」が `"OverLoad"` に当たると仮定。実装は素の `lowercase().contains`）。しかも**赤いまま提出**
+  ＝L0 に「緑にしろ」が無いため自己検証していない。症状の要約＝**枠内では最大化するが、枠と完了条件を検算しない**。
+  ⚠️ 採点機の欠陥を1つ修正済み: 変異前に「変異なしで対象クラスが緑」を確認していなかったため、
+  赤テストが1件あるだけで全変異を「殺した」と誤読し **7/7 の偽陽性**を出した（確定値は赤1件を除いて再測したもの）。
+  **次の検証仮説**＝L0 で既に 7/7 なら網羅はブリーフの厚さに依存しない＝**効くのは「緑になるまで回せ」の一行だけ**。
+  L2 を走らせれば当否が出る（＝ADR 0031 判断材料2「ブリーフを書く監督の負荷」への直接の答えになる）。
   ✅ **唯一機能した検証形＝復唱チェック**（規約の指定節を行番号付きで逐語引用させ grep 照合＝完全一致）は
   **digest 契約へ昇格済み**＝`docs/patterns/agy-readonly-digest-contract.md`（Phase 1 の返り値契約の正本）。
   **呼び出しの実測（2026-08-11）**: `--yolo` は agy CLI に**無い**（プラグイン wrapper 側のフラグ）＝正しくは

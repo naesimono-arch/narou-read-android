@@ -139,6 +139,17 @@ main（オーケストレーション・委譲判断・最終ゲート）
 （wrapper 名を部分一致で見ていたため `... # agy-delegate` で任意コマンドが通った）。
 ローカル版はこの穴を抱えたままなので、**再有効化の前に追従が必須**。
 
+> 🔴 **2026-08-11 ライブ実測＝この前提は成立していなかった**。追従しても効果はゼロで、**現在このプラグインは無防備**。
+> master 0.22.2 はこのゲートを `agents/antigravity-delegate.md` の **frontmatter** で配線しており、
+> plugin-level `hooks/hooks.json` には PreToolUse が1つも無い。Claude Code は
+> **プラグイン提供サブエージェントの frontmatter `hooks` を仕様として黙ってドロップする**
+> （memory `plugin-subagent-hooks-ignored`。42日前の実証が今回も再現）。
+> 実測＝`antigravity-delegate` に `echo HOOK_PROBE_OK` を叩かせたら素通り（exit 0・拒否なし）。
+> 上流 `SECURITY.md` が「このサブエージェントの実行内容を制限する唯一のもの」と呼ぶ防御が発火していない＝
+> **任意コマンドが通る**。修正の中身は正しく、**置き場所が届いていない**。
+> → Phase 1 より前に、plugin-level `hooks.json` への PreToolUse 配線＋フック内の `agent_type` スコープ判定が要る
+> （＝feat ブランチが採っていた方式が、この点では正しかった）。
+
 ### 決定4: 復活は読み取り専用から段階的に
 
 | Phase | 内容 |
