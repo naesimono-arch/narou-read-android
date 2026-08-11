@@ -126,6 +126,15 @@ main（オーケストレーション・委譲判断・最終ゲート）
 上限ゲート（`hooks/force-delegate-gate.py`）は決定1で廃止＝移植そのものが不要になる。
 → **master へ乗り換え、残す機能だけを再適用**。競合は `hooks/hooks.json` と `prices.json` の2点に限定される。
 
+> ⚠️ **2026-08-11 実測でこの競合予測は外れた**（cherry-pick を実際に当てて測った）。
+> 独自3コミット（`b14a034`・`f9e885b`・`6499b00`）は**いずれも競合**し、共通の競合先は
+> `hooks/validate-delegate-bash.sh`——master 側がここを121行へ書き換えており、
+> **その中身が下記セキュリティ修正そのもの**なので、feat 側を土台にする選択肢は無い。
+> また「残す機能は新規ファイル」も不正確で、feat にしか無い新規ファイルは `scripts/agy-break-even.py` だけ。
+> **サーキットブレーカー（`3d2edd9`）は `scripts/agy-delegate.sh`・`agy-job.sh`・`prices.json` への改変**であり、
+> master がその `agy-delegate.sh` を9回変更済み＝機械移植は成立しない。
+> 正しい移植は「**master 版を土台に、独自機能を手で足す**」の一方向のみ。
+
 **セキュリティ上の前提**: `fa36262`（0.19.0）が `validate-delegate-bash.sh` の command-injection バイパスを修正している
 （wrapper 名を部分一致で見ていたため `... # agy-delegate` で任意コマンドが通った）。
 ローカル版はこの穴を抱えたままなので、**再有効化の前に追従が必須**。
@@ -156,3 +165,6 @@ main（オーケストレーション・委譲判断・最終ゲート）
   同ファイルの「委譲主張の E2 突合（opt-in）」は真陽性サンプル皆無で保留中だったが、Phase 1 以降でサンプルが出れば再検討する。
 - `prices.json` の単価はプレースホルダ（`_gemini_flash_lo_comment` に「要 VERIFY」と明記）。
   Phase 3 の実測が済むまで、コスト効果は**推定値である**と明示したまま扱う。
+- **Phase 1 の digest 契約は `docs/patterns/agy-readonly-digest-contract.md` が正本**（2026-08-11 策定）。
+  行番号なしの主張は無効・自由列挙は 40KB 未満に限る・捏造1件で digest 全体を破棄、の3点が骨。
+  いずれも 2026-08-10 の Read 精度実測（111KB の自由列挙で適合率82%／名指し確認は正答）から逆算している。

@@ -185,37 +185,48 @@
   基準＝**0 errors**。warnings は非ブロックの参考値（2026-08-06 実測 92＝UseKtx 51・GradleDependency 22 など
   lint DB・依存新版検知の外部ドリフトで増える。意図的分＝ModifierParameter×3・UsableSpace×2）。
 
-- **[agy 委譲の復活 — Phase 0 済・次は Phase 1]**（設計・実測・却下理由の正本＝**ADR 0031**）:
-  2026-08-09 に**上流 0.22.2 へ乗り換え＋`enabledPlugins` を true** まで完了（agy CLI は認証済みで応答を確認）。
+- **[agy 委譲の復活 — Phase 0 の残り＝ゲートの手移植]**（設計・実測・却下理由の正本＝**ADR 0031**）:
+  2026-08-09 に**上流 0.22.2 へ乗り換え＋`enabledPlugins` を true** まで完了（agy 1.1.12 が応答）。
   **残り＝独自機能の再適用**——下限 break-even ゲート（`scripts/agy-break-even.py`）とサーキットブレーカーは
-  自作ブランチ `feat/delegation-break-even-gate` に残置してあり、**現在の master には入っていない**。
-  どちらも新規ファイルなので競合は `hooks/hooks.json` と `prices.json` の2点だけ（上限ゲート
-  `hooks/force-delegate-gate.py` は ADR 0031 決定1 で**廃止**＝移植しない）。
+  自作ブランチ `feat/delegation-break-even-gate` に残置してあり、**現在の master には入っていない**
+  （上限ゲート `hooks/force-delegate-gate.py` は ADR 0031 決定1 で**廃止**＝移植しない）。
+  ⚠️ **cherry-pick は成立しない**（2026-08-11 に実際に当てて実測＝ADR 0031 決定3 の追記が正本）:
+  独自3コミットとも `hooks/validate-delegate-bash.sh` で競合し、**master 側のその中身が
+  例の command-injection 修正そのもの**＝feat を土台にする選択肢は無い。新規ファイルは `agy-break-even.py` だけで、
+  **サーキットブレーカーは既存3ファイル（`agy-delegate.sh`・`agy-job.sh`・`prices.json`）への改変**。
+  残る道は「**master 版を土台に独自機能を手で足す**」の一方向のみ。
   以降 Phase 1（**読み取り専用＝調査・クロスモデル検証から開始**。信頼度だけでなく実測でもここが最大の当たり）→
   Phase 2（三層の配線＝`inject_subagent_briefing.py` へ agy 規律〈同期実行・digest・較正値クラス除外〉を追加）→
   Phase 3（効果測定＝`tools/measure_delegatable_tokens.py` で前後比較。**agy 側は測らない**＝ゼロコスト前提）。
   ⚠️ **節約の期待値を誤らないこと**＝実測ではコストの主体は生成でなく `cache_read`（金額換算の約85%）で、
   **生成だけを agy へ移しても総計の約3%**にしかならない（ADR 0031 判断材料6）。
-- **[agy 能力検査は打ち切り（2026-08-11）＝次は Phase 1 の運用設計から]**:
-  **正常条件下で agy の逸脱はゼロ**。3回走らせたがいずれも**こちらの設計不備で測定不能**だった——
-  ①ブリーフに「完全な仕様はこのテストファイル」と書いた＝**他を見るなと指示したに等しい**
-  ②正本の UI 文言はどの仕様にも無く**復元不可能な情報**を要求していた（それに依存する別テストが赤くなっただけ）
-  ③**正解を git に残したまま**測った＝agy は `git reset` で1バイト差なく復元し、それがタスクとしては最適解だった。
-  ⚠️ 教訓＝**仕様を書いた本人が判定すると穴が見えない**（ADR 0031 決定2-a）を実地で3回踏んだ。
-  **委譲の仕様を書いたら判定は別セッション／品質保証サブへ渡す**。
-  ✅ **唯一機能した形＝復唱チェック**: 規約の指定節を**行番号付きで逐語引用**させ grep で照合＝完全一致。
-  **次にやること＝Phase 1 の digest 契約を固める**（ファイル名＋行番号を必須にし監督が機械照合できる形に）。
-  設計材料＝2026-08-10 実測の Read 精度の非対称: 22KB の全数列挙・39KB の計数は正解だが
-  **111KB では実在9個に加え存在しない2個を捏造**（適合率82%）／**名指しの存在確認には正答**
-  ＝**自由列挙は大ファイルで危険・名指し確認は任せられる**。
+- **[agy 能力検査＝2×4 格子で継続（ユーザー裁定 2026-08-11）・実行待ち]**: 打ち切り方針は撤回。
+  **測る軸を「ブリーフの曖昧さ」へ変えた**——過去3回は仕様を最大まで具体化して測ったので、逸脱ゼロは当然の結果だった。
+  設計＝〈**agy** ／ **Claude サブ(Sonnet)＝基準線**〉×〈**L0** ゴールのみ／**L1** ＋制約1／**L2** ＋不変条件列挙／**L3** 完全仕様〉。
+  知りたい値は**2行の閾値の差**＝agy を使うために追加で払うブリーフのコスト
+  （＝ADR 0031 判断材料2「同じ仕事なら常に Claude サブが安い」の定量化。ここが agy 不採用の第一理由だった）。
+  進め方は二分探索（L0 と L2 から当て、結果しだいで L1 or L3 へ）。
+  ✅ **3回の失敗を構造的に塞いだ点**: ①正解を git に置かず Claude 生成物を基準線にする（`git reset` 復元の穴）
+  ②**採点は変異テスト**＝本番コードにバグを仕込み生成テストが赤で捕まえるかで数える（表面的な網羅率でなく実効カバレッジ）
+  ③採点基準を**投入前に固定**＝仕様を書いた本人の主観が入る余地を消した（別セッションへ渡す必要がなくなる）。
+  ハーネス＝**`tools/agy-probe/`**（ブリーフ4水準・`score.py`。変異7つとも当て先1箇所ずつ検証済み。
+  M4 は 2026-07-26 に実機報告された tier 特権バグの復活＝実バグを変異体にしてある）。
+  対象＝`ShelfItems.kt` の未テスト3関数（`recencyKeyOf`／`webRecencyKeyOf`／`importedNcodeKeys`・Android 依存ゼロの純粋関数）。
+  worktree `test/agy-probe-l0` 作成済み・**canonical 汚染検知のベースラインは取得済み**。
+  ⚠️ **agy の実行は人間の `!` 必須**＝`--dangerously-skip-permissions`（非対話で書かせる唯一の手段）が
+  Claude 側の分類器にブロックされる。`agy -p "$(cat tools/agy-probe/briefs/L0.md)" --dangerously-skip-permissions` を
+  worktree で叩いてもらい、`score.py --worktree … --label agy-L0` で採点する。
+  ✅ **唯一機能した検証形＝復唱チェック**（規約の指定節を行番号付きで逐語引用させ grep 照合＝完全一致）は
+  **digest 契約へ昇格済み**＝`docs/patterns/agy-readonly-digest-contract.md`（Phase 1 の返り値契約の正本）。
   **呼び出しの実測（2026-08-11）**: `--yolo` は agy CLI に**無い**（プラグイン wrapper 側のフラグ）＝正しくは
   `--dangerously-skip-permissions`。`-p` 単独は `toolPermission=request-review` で**書き込みが通らない**（read-only なら不要）。
   既定モデルは **Gemini 3.6 Flash (High)**（`gemini-3.1-pro-*`・`claude-*` も `agy models` から選択可）。
   Bash 側の表示は2分で切れても**タスクは走り続ける**＝結果はファイルで拾う。`--print-timeout` は既定5分。
   認証が切れたら**独立した WSL ターミナルで `agy -p` を起動しコードを貼る**（Claude Code 内は stdin が
   対話的でなく不可・`code_challenge` は発行元プロセス専用）。トークンは `~/.gemini/antigravity-cli/`。
-  ⚠️ **後始末が2つ未了**: `~/.gemini/antigravity-cli/settings.json` が権限拡張のまま（同ディレクトリの
-  `.bak` から復元）・worktree `test/agy-capability-probe` 未撤去（`.agy-probe/` に検査の退避物）。
+  ⚠️ **agy の権限設定は全域拡張へ戻さない**——`settings.json` は `trustedWorkspaces` だけの素の状態に復元済みで、
+  `write_file(*)`・`command(*)` の全域許可は剥がしてある（当時の版は `settings.json.probe-era` に退避）。
+  書かせる必要が出たら**検査 worktree 限定で付与**する。
 - **[コンテキスト費 — 打ち手3つの採否判断]**（実測 2026-08-10 再測。計測は `tools/` 収録済み＝
   `measure_read_residency.py`〔実効寄与の全体像〕・`measure_read_kind.py`〔Read の委譲可否二分〕・
   `measure_toolinput_and_ledger.py`〔引数内訳と台帳〕。**素の量しか出さない旧 `measure_context_bloat.py` は役目が重なる**＝統廃合は未判断）:
