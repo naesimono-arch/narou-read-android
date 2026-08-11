@@ -209,9 +209,12 @@
   （**スコープ判定は fail-open・コマンド検査は fail-closed** の非対称。python3 が無いと誰の Bash か判別できず、
   主セッションを誤ブロックする害の方が大きいため）。テストも更新＝**PASS 181→192**・
   残る FAIL 2件（`--help probe`・`byte cap`）は **master 由来で本変更とは無関係**と実測で確認済み。
-  🔴 **ただしライブでは未反映**＝修正後に再度 `echo` を叩かせたが素通りのまま。プラグインの hooks/agents は
-  **起動時ロード**なので、**セッション再起動（必要なら `/plugin marketplace update`）後に再検証が要る**。
-  それまでは無防備な状態が続く。**次にやること＝再起動して `echo` が exit 2 で止まることを確認**。
+  ✅ **セッション再起動後のライブ検証で発火を確認（2026-08-11）＝穴は塞がった**。
+  陽性＝委譲サブの `echo` が `PreToolUse:Bash hook error: … [antigravity-delegate] blocked: …` で停止（exit 2）。
+  陰性＝**同じターンで主セッションの Bash は通る**＝誤爆なし（plugin-level 配線で最も壊しやすい性質）。
+  `${CLAUDE_PLUGIN_ROOT}` も展開された（frontmatter では当てにできなかったもの）。
+  ⚠️ 修正は fork のブランチに置いたまま＝**master へ入れるか（上流へ PR するか）は人間の裁定待ち**
+  ＝`awaiting-human.md` 案件。入れるまでは「このブランチをロードしている限り有効」という状態。
   以降 Phase 1（**読み取り専用＝調査・クロスモデル検証から開始**。信頼度だけでなく実測でもここが最大の当たり）→
   Phase 2（三層の配線＝`inject_subagent_briefing.py` へ agy 規律〈同期実行・digest・較正値クラス除外〉を追加）→
   Phase 3（効果測定＝`tools/measure_delegatable_tokens.py` で前後比較。**agy 側は測らない**＝ゼロコスト前提）。
