@@ -262,6 +262,12 @@
   この規模では成立しない**＝agy 不採用の第一理由が実測で覆った。
   **未実施の格子＝L1・L3 と Claude 側の L2**（必要になったら `tools/agy-probe/` で回せる。
   ただし識別力の問題があるので、**変異はベースラインを測ってから設計し直すこと**）。
+  ⚠️ **検査用 worktree 2つ残置＝生成テストは未コミット**（`test/agy-probe-l0`・`test/claude-probe-l0`）。
+  **捨てる前に判断が要る**＝agy L2 の生成物（`domain/ShelfItemsTest.kt`・202行）は**単独で変異 7/7・緑・
+  `src/main` 不触**で、`ShelfItems` の未テスト3関数（`recencyKeyOf`／`webRecencyKeyOf`／`importedNcodeKeys`）を
+  実際に埋める。**本番へ取り込む価値がある**（既存 `viewmodel/ShelfItemsTest.kt` とはクラス名が衝突するので、
+  取り込むならクラス名かパッケージの整理が要る）。Claude 側（`viewmodel/` へ101行追記・+15テスト）も同様に有効。
+  取り込むなら worktree から拾い、不要なら `wt-rm test/agy-probe-l0`・`wt-rm test/claude-probe-l0` で撤去。
   ✅ **唯一機能した検証形＝復唱チェック**（規約の指定節を行番号付きで逐語引用させ grep 照合＝完全一致）は
   **digest 契約へ昇格済み**＝`docs/patterns/agy-readonly-digest-contract.md`（Phase 1 の返り値契約の正本）。
   **呼び出しの実測（2026-08-11）**: `--yolo` は agy CLI に**無い**（プラグイン wrapper 側のフラグ）＝正しくは
