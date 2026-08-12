@@ -314,6 +314,59 @@ class ShelfItemsTest {
         assertEquals(listOf("book:b1", "web:N1111AA"), items.map { it.key })
     }
 
+    // ────── 二層マージ（二本指走査）の多件数テスト ──────
+    // 既存の並び順テストは概ね蔵書1〜2件・Web1件の小規模フィクスチャで、mergeShelfItems 内の
+    // while ループ（両者が尽きるまでの交互取り出し・片方が尽きた後の tail drain）を多件数では
+    // 検証していなかった。ここでは3件以上を絡めて交互取り出しと両方向の tail drain を直接固定する。
+
+    @Test
+    fun `複数件が交互に入れ替わっても二層マージが崩れない（tier1優先＋tier0内交互＋Web側tail drain）`() {
+        // b3(tier1/50) は value に関わらず常に最上位。残り（tier0）は降順で b1(500) w1(9000) ... と交互になる。
+        // books は DAO 並び（tier1 が先・tier0 内 lastReadAt 降順）を模す＝[b3, b1, b2]。
+        val books = listOf(book("b3", addedAt = 50), book("b1", addedAt = 1), book("b2", addedAt = 2))
+        val progress = mapOf(
+            "b1" to ProgressEntity("b1", "chap_1.html", lastReadAt = 500),
+            "b2" to ProgressEntity("b2", "chap_1.html", lastReadAt = 300),
+        )
+        // webNovels は未ソートで渡してよい（mergeShelfItems 内で webRecencyKeyOf 降順に整列される）。
+        val webs = listOf(web("NLOW0002", 200), web("NHIGH001", 9000), web("NMID0003", 400))
+
+        val items = mergeShelfItems(books, progress, webs)
+
+        // 期待降順: b3(tier1/50=常に最上位) → w(9000) → b1(500) → w(400) → b2(300) → w(200)
+        assertEquals(
+            listOf("book:b3", "web:NHIGH001", "book:b1", "web:NMID0003", "book:b2", "web:NLOW0002"),
+            items.map { it.key },
+        )
+    }
+
+    @Test
+    fun `Web枯渇後に残る蔵書が複数でも順序を保って続く（蔵書側tail drain）`() {
+        // Web は1件のみで早期に尽きる。以降の蔵書2件が入力順（DAO 並び＝lastReadAt 降順）のまま続くこと。
+        val books = listOf(book("b1", 10), book("b2", 20), book("b3", 30))
+        val progress = mapOf(
+            "b1" to ProgressEntity("b1", "chap_1.html", lastReadAt = 900),
+            "b2" to ProgressEntity("b2", "chap_1.html", lastReadAt = 800),
+            "b3" to ProgressEntity("b3", "chap_1.html", lastReadAt = 700),
+        )
+        val webs = listOf(web("NMID0001", 850))
+
+        val items = mergeShelfItems(books, progress, webs)
+
+        assertEquals(listOf("book:b1", "web:NMID0001", "book:b2", "book:b3"), items.map { it.key })
+    }
+
+    @Test
+    fun `同値キーのWeb同士は入力順を維持する（sortedByDescendingの安定性）`() {
+        // 未接触 web の addedAt が同値のとき、内部の sortedByDescending は安定ソートのため
+        // webNovels 引数に渡した順序がそのまま保たれる（不安定ソートへ変わると壊れる契約）。
+        val webs = listOf(web("NFIRST01", 500), web("NSECOND1", 500))
+
+        val items = mergeShelfItems(emptyList(), emptyMap(), webs)
+
+        assertEquals(listOf("web:NFIRST01", "web:NSECOND1"), items.map { it.key })
+    }
+
     @Test
     fun `両方空なら空（本棚の空状態判定に使う）`() {
         assertEquals(emptyList<ShelfItem>(), mergeShelfItems(emptyList(), emptyMap(), emptyList()))
