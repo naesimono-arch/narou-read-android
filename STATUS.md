@@ -9,8 +9,9 @@
 
 ## 0. 現在の状態
 
-- **ブランチ**: Google Play 公開準備トラックを作業ブランチ（worktree）で進行中（統合時にこの行を main 一本へ戻す）。
-  公開準備の現況: targetSdk/compileSdk 36・リリース署名＋AAB 経路・R8 実機回帰・In-App Review 実装まで済。
+- **Google Play 公開準備: main 統合済み**（旧記述「作業ブランチ（worktree）で進行中」は stale＝該当 worktree は存在せず、
+  `compileSdk/targetSdk 36`・release signingConfig とも main の `android/app/build.gradle` に入っている）。
+  現況: targetSdk/compileSdk 36・リリース署名＋AAB 経路・R8 実機回帰・In-App Review 実装まで済。
   プライバシーポリシー/Data safety 下書き済（裁定済み＝収集なし申告・GitHub Pages 公開）・採番規約 ADR 0025 採択（1.0.0）。
   **残の前置＝ブランド名確定**（applicationId・ストア素材・ポリシー公開が全部これ待ち）＋鍵バックアップ（ユーザー作業）。
 
