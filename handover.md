@@ -138,11 +138,11 @@
 
 ## 読書・目次まわりの残り
 
-- **[縦書き] 章見出しの話数ラベル — 器は用意済み・残るは意匠裁定**（2026-07-31 にデータ/トークンを整備）:
-  `domain/ChapterTitle.kt` の `splitChapterTitle` と `Typography.GothicFamily` が入り、
-  **描画側はまだ誰もこの型を読んでいない＝見た目は1pxも変わっていない**（golden 緑がその証拠）。
-  残るのは**どう組むかの意匠**＝`awaiting-human.md` §3-2 へ登録済み。全体像は ADR 0020・`.claude/plans/vertical-reading-mode.md`。
-  スパイク計測器は `android/app/src/debug/` に収載済み（P6 の OPPO 較正で再利用できる）。
+- **[縦書き] 章見出しの話数ラベル — 実装まで完了**（旧記述「描画側はまだ誰もこの型を読んでいない」は **stale**＝
+  2026-08-06 に2要素見出しが入り、`splitChapterTitle` は `ChapterContent`／`VerticalChapterContent`／M・P・J の
+  読書クロームの計5箇所が消費している）。残るのは**実機目視だけ**＝`awaiting-human.md` §1-5。
+  全体像は ADR 0020・`.claude/plans/vertical-reading-mode.md`。
+  縦書きスパイクの計測器は `android/app/src/debug/` に収載済み（P6 の OPPO 較正で再利用できる）。
 
 ## リファクタ / 技術的負債（deferred）
 
@@ -174,8 +174,9 @@
 - **[コンテキスト費 — 打ち手の採否判断]**（実測 2026-08-10・内訳と計測コードの正本＝
   `docs/knowledge/context-cost-breakdown-2026-08-10.md`。要点だけ＝費用は読み込み側に偏り、Read 36.3%／tool_use 引数 31.1%／
   Bash 出力 20.1% に対し **assistant 出力は 4.3%**）:
-  - ①**台帳サイズ規約**（行数でなく文字数で。handover 8,000／STATUS 6,000／awaiting 12,000 ＝約70M 減）→ **2026-08-13 に着手**。
-    残りは `awaiting-human.md`（17,007→12,000）の圧縮と、CLAUDE.md「管理ドキュメントの体系」への上限値の明記。
+  - ①**台帳サイズ規約**＝**規約は CLAUDE.md「管理ドキュメントの体系」へ明記済み**（2026-08-13）。
+    現在値は STATUS 5,542 ✅／handover 11,093 ❌（上限 8,000）／awaiting-human 13,105 ❌（上限 12,000）＝**まだ超過が残る**。
+    次に移せる候補＝「モック逆同期・意匠の宿題」節の**恒久ルール①〜⑤**（やることではなく規律なので `/visual-language` skill 側が正しい置き場）。
   - ②**Bash 出力の自動切り詰めフック**（未着手）
   - ③**調査 Read（Read の 41.3%）の全面サブ委譲**（未着手）
 
