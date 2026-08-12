@@ -185,100 +185,13 @@
   基準＝**0 errors**。warnings は非ブロックの参考値（2026-08-06 実測 92＝UseKtx 51・GradleDependency 22 など
   lint DB・依存新版検知の外部ドリフトで増える。意図的分＝ModifierParameter×3・UsableSpace×2）。
 
-- **[agy 委譲の復活 — Phase 0 の残り＝ゲートの手移植]**（設計・実測・却下理由の正本＝**ADR 0031**）:
-  2026-08-09 に**上流 0.22.2 へ乗り換え＋`enabledPlugins` を true** まで完了（agy 1.1.12 が応答）。
-  **残り＝独自機能の再適用**——下限 break-even ゲート（`scripts/agy-break-even.py`）とサーキットブレーカーは
-  自作ブランチ `feat/delegation-break-even-gate` に残置してあり、**現在の master には入っていない**
-  （上限ゲート `hooks/force-delegate-gate.py` は ADR 0031 決定1 で**廃止**＝移植しない）。
-  ⚠️ **cherry-pick は成立しない**（2026-08-11 に実際に当てて実測＝ADR 0031 決定3 の追記が正本）:
-  独自3コミットとも `hooks/validate-delegate-bash.sh` で競合し、**master 側のその中身が
-  例の command-injection 修正そのもの**＝feat を土台にする選択肢は無い。新規ファイルは `agy-break-even.py` だけで、
-  **サーキットブレーカーは既存3ファイル（`agy-delegate.sh`・`agy-job.sh`・`prices.json`）への改変**。
-  残る道は「**master 版を土台に独自機能を手で足す**」の一方向のみ。
-  🔴 **それ以前に「フックが1つも効いていない」ことが判明（2026-08-11 ライブ実測）＝ここが最優先**:
-  master はゲートを `agents/antigravity-delegate.md` の **frontmatter** で配線しており、
-  Claude Code はプラグイン提供サブエージェントの frontmatter `hooks` を**黙ってドロップする**
-  （memory `plugin-subagent-hooks-ignored`）。実測＝`antigravity-delegate` に `echo` を叩かせたら**素通り**。
-  上流 `SECURITY.md` が「唯一の制限」と呼ぶ防御が発火せず＝**任意コマンドが通る状態**。
-  0.19.0 の command-injection 修正も呼ばれない位置にあり効果ゼロ（＝ADR 0031 決定3 の「追従が必須」は
-  前提が崩れている）。**やること＝plugin-level `hooks/hooks.json` に PreToolUse(Bash) を置き、
-  フック内で `agent_type` を見て自分のサブエージェントのときだけ enforce する**（feat 側の方式が正しかった）。
-  ⚠️ 直すまでは agy サブエージェントに書き込み・実行を伴う委譲をしない（read-only 調査に限る）。
-  ✅ **修正はコミット済み**（git-test ブランチ `fix/plugin-level-gate-wiring`）＝plugin-level `hooks.json` へ
-  PreToolUse(Bash) を配線し、`validate-delegate-bash.sh` に `agent_type` 自己スコープを追加
-  （**スコープ判定は fail-open・コマンド検査は fail-closed** の非対称。python3 が無いと誰の Bash か判別できず、
-  主セッションを誤ブロックする害の方が大きいため）。テストも更新＝**PASS 181→192**・
-  残る FAIL 2件（`--help probe`・`byte cap`）は **master 由来で本変更とは無関係**と実測で確認済み。
-  ✅ **セッション再起動後のライブ検証で発火を確認（2026-08-11）＝穴は塞がった**。
-  陽性＝委譲サブの `echo` が `PreToolUse:Bash hook error: … [antigravity-delegate] blocked: …` で停止（exit 2）。
-  陰性＝**同じターンで主セッションの Bash は通る**＝誤爆なし（plugin-level 配線で最も壊しやすい性質）。
-  `${CLAUDE_PLUGIN_ROOT}` も展開された（frontmatter では当てにできなかったもの）。
-  ⚠️ 修正は fork のブランチに置いたまま＝**master へ入れるか（上流へ PR するか）は人間の裁定待ち**
-  ＝`awaiting-human.md` 案件。入れるまでは「このブランチをロードしている限り有効」という状態。
-  以降 Phase 1（**読み取り専用＝調査・クロスモデル検証から開始**。信頼度だけでなく実測でもここが最大の当たり）→
-  Phase 2（三層の配線＝`inject_subagent_briefing.py` へ agy 規律〈同期実行・digest・較正値クラス除外〉を追加）→
-  Phase 3（効果測定＝`tools/measure_delegatable_tokens.py` で前後比較。**agy 側は測らない**＝ゼロコスト前提）。
-  ⚠️ **節約の期待値を誤らないこと**＝実測ではコストの主体は生成でなく `cache_read`（金額換算の約85%）で、
-  **生成だけを agy へ移しても総計の約3%**にしかならない（ADR 0031 判断材料6）。
-- **[agy 能力検査＝2×4 格子で継続（ユーザー裁定 2026-08-11）・実行待ち]**: 打ち切り方針は撤回。
-  **測る軸を「ブリーフの曖昧さ」へ変えた**——過去3回は仕様を最大まで具体化して測ったので、逸脱ゼロは当然の結果だった。
-  設計＝〈**agy** ／ **Claude サブ(Sonnet)＝基準線**〉×〈**L0** ゴールのみ／**L1** ＋制約1／**L2** ＋不変条件列挙／**L3** 完全仕様〉。
-  知りたい値は**2行の閾値の差**＝agy を使うために追加で払うブリーフのコスト
-  （＝ADR 0031 判断材料2「同じ仕事なら常に Claude サブが安い」の定量化。ここが agy 不採用の第一理由だった）。
-  進め方は二分探索（L0 と L2 から当て、結果しだいで L1 or L3 へ）。
-  ✅ **3回の失敗を構造的に塞いだ点**: ①正解を git に置かず Claude 生成物を基準線にする（`git reset` 復元の穴）
-  ②**採点は変異テスト**＝本番コードにバグを仕込み生成テストが赤で捕まえるかで数える（表面的な網羅率でなく実効カバレッジ）
-  ③採点基準を**投入前に固定**＝仕様を書いた本人の主観が入る余地を消した（別セッションへ渡す必要がなくなる）。
-  ハーネス＝**`tools/agy-probe/`**（ブリーフ4水準・`score.py`。変異7つとも当て先1箇所ずつ検証済み。
-  M4 は 2026-07-26 に実機報告された tier 特権バグの復活＝実バグを変異体にしてある）。
-  対象＝`ShelfItems.kt` の未テスト3関数（`recencyKeyOf`／`webRecencyKeyOf`／`importedNcodeKeys`・Android 依存ゼロの純粋関数）。
-  worktree `test/agy-probe-l0` 作成済み・**canonical 汚染検知のベースラインは取得済み**。
-  ⚠️ **agy の実行は人間の `!` 必須**＝`--dangerously-skip-permissions`（非対話で書かせる唯一の手段）が
-  Claude 側の分類器にブロックされる。`agy -p "$(cat tools/agy-probe/briefs/L0.md)" --dangerously-skip-permissions` を
-  worktree で叩いてもらい、`score.py --worktree … --label agy-L0` で採点する。
-  ✅ **L0 実測済み（2026-08-11・ブリーフ95文字）＝変異 7/7 全滅・`src/main` 不触・既存テスト削除ゼロ**。
-  ⚠️ **ただし 7/7 を額面で読まないこと**＝後から測ったベースライン（既存テストのみ）が **5/7** だった。
-  既存 `viewmodel/ShelfItemsTest.kt` が `mergeShelfItems`／`activeWebNovels` 経由で M1・M2・M4・M6・M7 を
-  巻き添えで殺す。**agy の新規寄与は取りこぼし2つ（M3・M5）を両方埋めたこと＝2/2 で満点**、が正確な読み。
-  ⚠️ **検査の識別力が低い**（差がつくのは7変異中2つだけ）＝次に組むときは
-  **既存テストが殺せない変異**を選ぶこと（ベースラインを先に測ってから変異を設計する）。
-  `trim`+大文字正規化も tier 優先の比較も実機バグ由来の tier 特権も捕まえた＝**境界値は自力で洗い出せる**。
-  ⚠️ ただし**指示していない `filterBooksByQuery` まで範囲を広げ、実装を読まずに期待値を書いて赤くした**
-  （「オーバーロード」が `"OverLoad"` に当たると仮定。実装は素の `lowercase().contains`）。しかも**赤いまま提出**
-  ＝L0 に「緑にしろ」が無いため自己検証していない。症状の要約＝**枠内では最大化するが、枠と完了条件を検算しない**。
-  ⚠️ 採点機の欠陥を1つ修正済み: 変異前に「変異なしで対象クラスが緑」を確認していなかったため、
-  赤テストが1件あるだけで全変異を「殺した」と誤読し **7/7 の偽陽性**を出した（確定値は赤1件を除いて再測したもの）。
-  ✅ **Claude 基準線（Sonnet・同一の95文字ブリーフ）も実測済み＝変異 7/7・緑・`src/main` 不触・既存改変なし**
-  （こちらも同じくベースライン 5/7 込みの値＝**新規寄与 2/2 で agy と同点**）。
-  **網羅は完全に互角で、差は1点だけ＝agy は赤いまま出し、Claude は自分でゲートを回して緑にした**
-  （Claude は範囲外へも広げなかった）。よって**「言われたことしかできない」ではなく、
-  「枠内では最大化するが、枠と完了条件を検算しない」**が症状の正確な記述。
-  ✅ **仮説は実測で支持され、検査は結論に達した（2026-08-11）＝正本は
-  `docs/knowledge/agy-brief-needs-frame-and-done-not-volume.md`**。
-  **L2（607字）＝単独で変異 7/7・緑・範囲逸脱なし**（新規ファイルなので既存の巻き添えを完全排除した純粋値）。
-  L0→L2 で変わったのは**緑と範囲遵守**で、網羅は L0 の時点で上限に張り付いていた。
-  **結論＝agy に要るのは仕様の分量でなく〈対象／枠／完了条件（検証コマンド＋緑になるまで回せ）／配置規約〉の4点＝600字程度**。
-  ⚠️ **ADR 0031 判断材料2 の前提（ブリーフを書く監督の負荷ゆえ同じ仕事なら常に Claude サブが安い）は
-  この規模では成立しない**＝agy 不採用の第一理由が実測で覆った。
-  **未実施の格子＝L1・L3 と Claude 側の L2**（必要になったら `tools/agy-probe/` で回せる。
-  ただし識別力の問題があるので、**変異はベースラインを測ってから設計し直すこと**）。
-  ⚠️ **検査用 worktree 2つ残置＝生成テストは未コミット**（`test/agy-probe-l0`・`test/claude-probe-l0`）。
-  **捨てる前に判断が要る**＝agy L2 の生成物（`domain/ShelfItemsTest.kt`・202行）は**単独で変異 7/7・緑・
-  `src/main` 不触**で、`ShelfItems` の未テスト3関数（`recencyKeyOf`／`webRecencyKeyOf`／`importedNcodeKeys`）を
-  実際に埋める。**本番へ取り込む価値がある**（既存 `viewmodel/ShelfItemsTest.kt` とはクラス名が衝突するので、
-  取り込むならクラス名かパッケージの整理が要る）。Claude 側（`viewmodel/` へ101行追記・+15テスト）も同様に有効。
-  取り込むなら worktree から拾い、不要なら `wt-rm test/agy-probe-l0`・`wt-rm test/claude-probe-l0` で撤去。
-  ✅ **唯一機能した検証形＝復唱チェック**（規約の指定節を行番号付きで逐語引用させ grep 照合＝完全一致）は
-  **digest 契約へ昇格済み**＝`docs/patterns/agy-readonly-digest-contract.md`（Phase 1 の返り値契約の正本）。
-  **呼び出しの実測（2026-08-11）**: `--yolo` は agy CLI に**無い**（プラグイン wrapper 側のフラグ）＝正しくは
-  `--dangerously-skip-permissions`。`-p` 単独は `toolPermission=request-review` で**書き込みが通らない**（read-only なら不要）。
-  既定モデルは **Gemini 3.6 Flash (High)**（`gemini-3.1-pro-*`・`claude-*` も `agy models` から選択可）。
-  Bash 側の表示は2分で切れても**タスクは走り続ける**＝結果はファイルで拾う。`--print-timeout` は既定5分。
-  認証が切れたら**独立した WSL ターミナルで `agy -p` を起動しコードを貼る**（Claude Code 内は stdin が
-  対話的でなく不可・`code_challenge` は発行元プロセス専用）。トークンは `~/.gemini/antigravity-cli/`。
-  ⚠️ **agy の権限設定は全域拡張へ戻さない**——`settings.json` は `trustedWorkspaces` だけの素の状態に復元済みで、
-  `write_file(*)`・`command(*)` の全域許可は剥がしてある（当時の版は `settings.json.probe-era` に退避）。
-  書かせる必要が出たら**検査 worktree 限定で付与**する。
+- **[未テスト3関数のテストを本番へ取り込む]**（agy ブリーフ検査の副産物・**agy 凍結とは独立＝テスト自体は有効**）:
+  検査用 worktree 2つに生成テストが**未コミットで残置**（`test/agy-probe-l0`・`test/claude-probe-l0`）。
+  埋まるのは `ShelfItems.kt` の `recencyKeyOf`／`webRecencyKeyOf`／`importedNcodeKeys`（Android 依存ゼロの純粋関数）。
+  agy L2 版＝`domain/ShelfItemsTest.kt` 202行（**単独で変異 7/7・緑・`src/main` 不触**）／Claude 版＝`viewmodel/` へ 101行追記（+15テスト）。
+  ⚠️ 既存 `viewmodel/ShelfItemsTest.kt` と**クラス名が衝突**＝取り込むならクラス名かパッケージの整理が要る。
+  取り込まないなら `wt-rm test/agy-probe-l0`・`wt-rm test/claude-probe-l0` で撤去（どちらにせよ worktree は畳む）。
+
 - **[コンテキスト費 — 打ち手3つの採否判断]**（実測 2026-08-10 再測。計測は `tools/` 収録済み＝
   `measure_read_residency.py`〔実効寄与の全体像〕・`measure_read_kind.py`〔Read の委譲可否二分〕・
   `measure_toolinput_and_ledger.py`〔引数内訳と台帳〕。**素の量しか出さない旧 `measure_context_bloat.py` は役目が重なる**＝統廃合は未判断）:

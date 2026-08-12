@@ -143,3 +143,36 @@
 - **[agy 解除時に再燃する宿題] antigravity-delegate サブエージェントの同期実行が保証されない**（委譲5件中3件で再発＝バックグラウンド起動のまま完了通知が来ない）。
   運用回避＝完了判定を報告でなく**成果物の存在**（`git status`/grep/`ps`）で行う。**根治候補**＝プラグイン側で agy 起動を同期実行へ強制するか wrapper にポーリング内蔵。
   **解凍条件＝agy の使用禁止が解除され、かつプラグインを再有効化するとき**（2026-07-26 にプラグインごと無効化＝当面発生しない。禁止の経緯＝memory `feedback-avoid-agy-low-trust`）。
+
+## agy 委譲（2026-08-13 再凍結・ユーザー裁定）
+
+> 2026-08-09 に「三層委譲」で復活着手したが、**今回は配線を作るところまでで打ち切り**＝プラグインも無効化した
+> （`~/.claude/settings.json` の `enabledPlugins` で `antigravity@antigravity-for-claude-code: false`）。
+> 設計・実測・却下理由の正本は **ADR 0031**（再凍結の裁定は同 ADR の決定5）。ここは**解凍時に拾う成果物の所在**だけを持つ。
+
+- **[成果物①・plugin-level ゲート配線]** fork の `fix/plugin-level-gate-wiring` に**コミット済み**。
+  `hooks/hooks.json` へ PreToolUse(Bash) を置き、`validate-delegate-bash.sh` が `agent_type` を見て自分のサブエージェントのときだけ enforce する
+  （**スコープ判定は fail-open・コマンド検査は fail-closed** の非対称＝python3 が無いと誰の Bash か判別できず主セッションを誤ブロックする害の方が大きいため）。
+  テスト PASS 181→192・残る FAIL 2件は master 由来。**セッション再起動後のライブ検証で発火を確認済み**（陽性＝委譲サブの `echo` が exit 2 で停止／陰性＝同ターンの主セッション Bash は通る）。
+  ⚠️ master へ入れるか上流へ PR するかは**未裁定**（`awaiting-human.md` 案件）。
+- **[成果物②・break-even ゲート]** `scripts/agy-break-even.py` とサーキットブレーカーは自作ブランチ `feat/delegation-break-even-gate` に残置。
+  **cherry-pick は成立しない**（2026-08-11 に実測＝独自3コミットとも `hooks/validate-delegate-bash.sh` で競合し、master 側のその中身が command-injection 修正そのもの）。
+  残る道は「master 版を土台に手で足す」の一方向のみ。
+- **[成果物③・ブリーフ検査ハーネス]** `tools/agy-probe/`（ブリーフ4水準＋変異採点 `score.py`）。
+  ⚠️ 再利用時は**変異をベースラインを測ってから設計し直す**こと（既存テストが巻き添えで殺す変異が多く、L0 検査は識別力が 7変異中2つしか無かった）。
+- **[凍結しても残る知見]** ブリーフに要るのは分量でなく〈対象／枠／完了条件／配置規約〉の4点＝約600字
+  （正本＝`docs/knowledge/agy-brief-needs-frame-and-done-not-volume.md`）。症状の正確な記述＝**枠内では最大化するが、枠と完了条件を検算しない**。
+- ⚠️ **再有効化するときの必須手順**: Claude Code はプラグイン提供サブエージェントの frontmatter `hooks` を**黙ってドロップする**
+  （memory `plugin-subagent-hooks-ignored`）。**配線が生きていることをライブ検証してから**書き込み・実行を伴う委譲を許すこと——
+  2026-08-11 の実測では「唯一の制限」と呼ばれる防御が1つも発火しておらず、任意コマンドが通る状態だった。
+- **[解凍時に CLAUDE.md へ戻す運用規律]**（本便で「委譲は三層」の行から撤去した分＝ここが唯一の控え）:
+  ①**フォアグラウンド同期で呼ぶ**（バックグラウンドはサブの駐機事故と合成して自走復旧が不能になる）
+  ②**plan モード中は書き込み厳禁・read-only digest のみ**（機序＝`task_diary.md` #40）
+  ③呼び出しは **`--dangerously-skip-permissions`**（`--yolo` は agy CLI に**無く** wrapper 側のフラグ）＝`-p` 単独は
+  `toolPermission=request-review` で書き込みが通らない（read-only なら `-p` だけでよい）
+  ④既定モデルは **Gemini 3.6 Flash (High)**・Bash 側の表示が2分で切れても**タスクは走り続ける**（結果はファイルで拾う）
+  ⑤認証が切れたら**独立した WSL ターミナルで `agy -p` を起動しコードを貼る**（Claude Code 内は stdin が対話的でなく不可）。トークンは `~/.gemini/antigravity-cli/`
+  ⑥**agy の権限設定を全域拡張へ戻さない**（`settings.json` は `trustedWorkspaces` だけの素の状態へ復元済み・当時の版は `settings.json.probe-era`）。
+- **解凍条件＝①ユーザーが再度 agy 活用を判断したとき、または②コスト構造が「生成が支配的」へ変わったとき**
+  （現状は `cache_read` が金額換算の約85%で、**生成だけを移しても総計の約3%**にしかならない＝ADR 0031 判断材料6）。
+  上の「[agy 解除時に再燃する宿題]（同期実行が保証されない）」も同時に解凍する。
