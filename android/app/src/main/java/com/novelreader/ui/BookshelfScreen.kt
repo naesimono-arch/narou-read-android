@@ -946,7 +946,19 @@ internal fun BookshelfContent(
     // beyondViewportPageCount=1）、OnBackPressedDispatcher は後着優先＝ページ側のこのハンドラが
     // 枠の「本棚へ戻る」に必ず勝つ。前面条件が無いと、選択モードのまま他タブへ移った後の Back を
     // 隠れた本棚が1回黙って食う（画面は無変化・見えない選択だけが解除される）。
-    BackHandler(enabled = selectionMode && isFrontTab) { exitSelection() }
+    // なぜ enabled 引数でなく if でコンポーズ自体を切り替えるか（2026-08-14・タブ層 Back と同一の真因対処）:
+    //   旧形は selectionMode=false（無効）で生まれ、長押しで true へ**反転**する形だった。反転の瞬間、
+    //   Dispatcher に他の有効コールバックは1つも無い（枠の Back は page 0 では存在せず、NavController の
+    //   既定 pop も tabs 単独＝バックスタック1段では無効）＝この反転がそのまま hasEnabledCallbacks の
+    //   false→true になり、Predictive Back での「OS へ割込みを登録するか」がこの反転だけに懸かる。
+    //   同じ形だったタブ層 Back は実機（PGEM10 / ColorOS / Android 16）で割込みが届かなかった
+    //   （反転が OS 登録へ反映されないと推定・端末側の所在は未確定）。実機で届いている他の全ハンドラは
+    //   「必要になった時点で有効なコールバックを新規追加する」形＝追加時に登録が走る経路なので、それへ揃える。
+    //   放置した場合の実害: 選択モード中の Back が OS へ抜け、選択が解除されず**アプリが終了する**
+    //   （× 非依存の解除導線が消える＝変種B裁定の前提が壊れる）。全スキン共通・release 到達。
+    if (selectionMode && isFrontTab) {
+        BackHandler { exitSelection() }
+    }
 
     val visibleBooks = books
 

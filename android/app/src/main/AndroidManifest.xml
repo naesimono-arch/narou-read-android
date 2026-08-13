@@ -20,9 +20,13 @@
       旧判断が恐れた resolvedFile==null の行き止まりは成立しなくなる。
       ルール本体: API31+ は @xml/data_extraction_rules、API26-30 は @xml/backup_rules。
     -->
-    <!-- enableOnBackInvokedCallback=true: Predictive Back（戻りプレビュー）へのオプトイン（API 33+。それ未満では無視される）。
-         ルート（本棚タブ page 0）ではアプリ側の Back 割込みが全て enabled=false になるため、システムの
-         「ホームへ戻る」プレビューアニメがそのまま効く。深い画面の BackHandler は activity-compose の
+    <!-- enableOnBackInvokedCallback=true: Predictive Back（戻りプレビュー）へのオプトイン（API 33+。それ未満では無視される。
+         targetSdk 35+ の端末では OS 側が常時 ON 扱いのため、この宣言は「明示の意思表示」の意味になる）。
+         ルート（本棚タブ page 0）ではアプリ側の Back 割込みが1つも**登録されない**ため、システムの
+         「ホームへ戻る」プレビューアニメがそのまま効く。⚠️ 旧記載「割込みが全て enabled=false になる」は
+         Predictive Back 下では不正確＝OS へ割込みが届くかは OnBackInvokedDispatcher への**登録の有無**で決まり、
+         既存コールバックの enabled 反転に頼る形は実機で届かなかった（2026-08-14 バグ①②。機序と対処は
+         TabPagerHost の Back 規則コメントが正本）。深い画面の BackHandler は activity-compose の
          OnBackInvokedDispatcher 互換層経由で従来どおり動く（挙動変化なし）。 -->
     <application
         android:name=".NovelReaderApplication"

@@ -17,6 +17,13 @@ import com.novelreader.ui.theme.MotionDurationKTabSwitch
 import kotlinx.coroutines.launch
 
 /**
+ * タブ層の「家」＝本棚ページのスロット index。タブ間 Back（階層 up）の唯一の着地点。
+ * KTab.BOOKSHELF.ordinal と一致することはスロット契約（KTabNavigationTest の index 対応テスト）が固定する。
+ * 枠側に KTab（K スキンの列挙）を持ち込まないのは ADR 0022＝枠にスキン分岐を入れない規律のため。
+ */
+private const val HOME_TAB_PAGE = 0
+
+/**
  * タブ層の恒常枠（ADR 0022 スロット契約・2026-07-24）。
  *
  * 「確定している形」＝〈恒常ボトムナビ＋タブ3面の水平 Pager〉を固定 API とし、タブの中身は
@@ -31,7 +38,8 @@ import kotlinx.coroutines.launch
  *
  * Back の契約: タブ層でのシステム Back は「階層 up＝本棚（page 0）へ」。page 0 では枠は消費せず
  * Activity 既定（アプリ退出）へ委ねる。深い画面（読書・目次等）は NavHost 側の Back が先に受けるため
- * この BackHandler には到達しない（tabs ルートが前面のときだけ有効）。
+ * この BackHandler には到達しない（tabs ルートが前面のときだけ有効）。規則の実装とその形の理由は
+ * 下の BackHandler 直上のコメント（2026-08-14 実機バグ①②の真因対処）が正本。
  */
 @Composable
 internal fun TabPagerHost(
@@ -43,13 +51,36 @@ internal fun TabPagerHost(
     pages: List<@Composable () -> Unit>,
 ) {
     val scope = rememberCoroutineScope()
-    // page 0 以外での Back＝本棚へ戻す（タブは同格だが「家」は本棚＝旧 popUpTo("bookshelf") 流儀の継承）。
+    // ── タブ層の Back 規則の唯一の決定点（各画面・各スキンへは置かない）─────────────────────────
+    // page 0 以外＝階層 up で本棚（page 0）へ／page 0＝枠は関与せずシステム既定（アプリ退出）。
+    // 「家」が本棚なのは旧 popUpTo("bookshelf") 流儀の継承（タブは同格だが戻り先は1つに決める）。
+    //
+    // なぜ「enabled を反転させる常設の BackHandler」でなく「page 0 以外のときだけ BackHandler を置く」か
+    //（2026-08-14 実機バグ①設定タブの Back で終了／②装いの間で装着後の Back で終了、への真因対処）:
+    //   ・Predictive Back 下（AndroidManifest の enableOnBackInvokedCallback。targetSdk 36 では OS が常時
+    //     ON 扱い）では「アプリが Back を受けるか」は、OnBackPressedDispatcher が OS の
+    //     OnBackInvokedDispatcher へコールバックを**登録しているか**で決まる。登録は
+    //     hasEnabledCallbacks（有効コールバックが1つでも在るか）の変化に追随して行われる。
+    //   ・旧実装は起動時 page 0＝enabled=false で生まれた1個のコールバックを、以後は isEnabled の
+    //     false→true 反転だけで使い回していた。実機（PGEM10 / ColorOS / Android 16）では設定タブへ
+    //     移った後の Back がアプリへ届かず終了する＝**反転が OS 側の登録へ反映されていない**と推定される
+    //     （androidx activity 1.8.2 側に反映経路が在ること自体は bytecode で確認済み。どこで落ちているかは
+    //       端末を跨いで再現・計測しないと確定できないため未確定。ゆえに反転へ依存しない形に構造を変える）。
+    //   ・実機で正しく効いている Back（読書・目次・装いの間・発見の結果一覧/詳細）は全て「必要になった
+    //     時点で enabled=true のコールバックが新規に追加される」形＝追加のたびに登録が走る経路で、反転に
+    //     依存しない。タブ層だけがこの形から外れていたのが①②に共通する構造上の真因。
+    //   ・よって同じ形へ揃える。page 0 では**コールバックが存在しない**（旧 enabled=false と同値で登録も
+    //     外れる＝除去時に hasEnabledCallbacks が再計算される）ので、page 0 のシステム「ホームへ戻る」
+    //     プレビューは従来どおり効く（ここが本アプリで唯一の退出点。撤去でなく登録の作り方だけを変えた）。
+    //   ・page 1⇄2 の移動では if の条件が真のまま＝同じコールバックが登録されたまま残る（再登録は起きない）。
     // PredictiveBackHandler にしない理由: これは純粋な状態遷移（Pager の水平スクロール）で、Back 進捗に
     // 連動させると Pager 自身の横スワイプと同軸の第二演出になり語彙が衝突する（ADR 0019 のスライド統一とも別系）。
-    // page 0 では enabled=false＝割込みゼロになり、マニフェストの enableOnBackInvokedCallback とセットで
-    // システムの「ホームへ戻る」Predictive プレビューがそのまま効く（ここが本アプリで唯一の退出点）。
-    BackHandler(enabled = pagerState.currentPage != 0) {
-        scope.launch { pagerState.animateScrollToPage(0, animationSpec = tween(MotionDurationKTabSwitch)) }
+    if (pagerState.currentPage != HOME_TAB_PAGE) {
+        BackHandler {
+            scope.launch {
+                pagerState.animateScrollToPage(HOME_TAB_PAGE, animationSpec = tween(MotionDurationKTabSwitch))
+            }
+        }
     }
     // 遷移ジャム対策（2026-07-26 framestats 実測）: pop enter アニメ中に隣ページ（さがす面）の初回コンポーズが
     // 同居すると、pop 冒頭2フレームが約400ms（隣ページ常駐なし比で約2倍＝445/402↔212/153ms）へ悪化する。
