@@ -12,7 +12,12 @@
   検索フィールド地 --field は実装 surfaceVariant #F1F0EC。
   golden との既知乖離（構造・文言＝ここでは直さない）: 気分カードの題と説明の文言・初期アクティブページ
   （実装 P1〈そのまま〉・ドット1番）・日替わり注記の短文化（「日替わり・きょうは「そのまま」から」）・
-  ページャ構図（実装は左寄せ＋右覗きのみ）・ランキングタブ（実装 日間/週間/月間/四半期/累計/新着 の6本）。
+  ページャ構図（実装は左寄せ＋右覗きのみ）。
+  【2026-08-14 逆同期（実装が一次ソース）】ランキングタブを実装へ合わせた＝本数 3本→**6本**・順序は
+  `NarouOrder.entries` 順（日間/週間/月間/四半期/累計/新着）・選択初期値は WEEKLY（`DiscoveryQuery.order` の既定）。
+  この行は上の「既知乖離」に「6本」と書きながら本文は3本のままで**自己矛盾**していた（2026-08-13 のモック委譲で発覚）。
+  ⚠️ 一覧行のメタ段数（正本1段 vs 実装 `NovelListRow` 3段＝題名／作者＋ジャンル／状態・読了目安・期間pt）は**未同期**。
+  期間pt が sticky 化の裁定材料のため、裁定と同時に逆同期する（handover「モック逆同期・意匠の宿題」）。
   UIラベル=ゴシック・気分見出し/作品名/順位数字=明朝（既存 Typography 踏襲）。単一画面モック・ライトのみ。
   【2026-07-24 更新】「きょうの気分」を横スワイプのページャ（1ページ4枚・左右に隣ページの覗き・下に3点ドット＋
   日替わり注記の一行）へ更新（candidates/ui-round-20260724-draft/discovery-mood-pager-K.html で確定・表示は P2 気分転換）。
@@ -85,9 +90,11 @@
   .chip{flex-shrink:0;font-size:12.5px;color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:8px 16px;cursor:pointer}
   .chip.all{color:var(--ai);border-color:var(--ai)}
 
-  /* ランキング: タブ＋順位リスト */
-  .rtabs{display:flex;gap:18px;border-bottom:1px solid var(--line);margin-bottom:2px}
-  .rtab{font-size:13px;color:var(--info);padding:10px 0;cursor:pointer;position:relative}
+  /* ランキング: タブ＋順位リスト。
+     タブは6本＝画面幅に収まらないので行自体が横スクロールする（実装 OrderTabsK も同じ .chips 型の横スクロール行） */
+  .rtabs{display:flex;gap:18px;border-bottom:1px solid var(--line);margin-bottom:2px;overflow-x:auto;scrollbar-width:none}
+  .rtabs::-webkit-scrollbar{display:none}
+  .rtab{flex-shrink:0;font-size:13px;color:var(--info);padding:10px 0;cursor:pointer;position:relative}
   .rtab.on{color:var(--ai);font-weight:700}
   .rtab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ai)}
   .rk{display:flex;gap:14px;align-items:baseline;padding:14px 0;border-bottom:1px solid var(--line);cursor:pointer}
@@ -162,7 +169,7 @@
 
       <div class="sec">ランキング</div>
       <div class="rtabs">
-        <span class="rtab on">週間</span><span class="rtab">日間</span><span class="rtab">月間</span>
+        <span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span>
       </div>
       <div class="rk top3"><span class="no">1</span><div class="bd">
         <div class="t">追放された万能薬師、辺境でスローライフを始める</div>

@@ -549,8 +549,10 @@ private fun GenreChipK(label: String, accent: Boolean, onClick: () -> Unit) {
  * [modifier] で横ジェスチャ封止（rankingEdgeSeal）と、sticky 化に伴う地色・上余白を受ける＝タブ列上の
  * 横スワイプの余りも外側タブ Pager へ渡さない（期間タブを撫でたらアプリのタブが変わる誤操作の防止）。
  *
- * 実装のタブは6本（モックは4本）＝この行自体が横スクロールを持つ（`horizontalScroll`）。sticky 化しても
- * その性質は変わらず、貼り付いたまま行内を横に繰って隣の期間を出せる。
+ * タブは6本（[NarouOrder] 全数・entries 順）＝画面幅に収まらないのでこの行自体が横スクロールを持つ
+ *（`horizontalScroll`）。sticky 化してもその性質は変わらず、貼り付いたまま行内を横に繰って隣の期間を出せる。
+ * 正本モック側は 3本のままだった（かつ冒頭コメントは「6本」と書いて自己矛盾していた）ため、
+ * 2026-08-14 に実装を一次ソースとして discovery-K.html を6本＋横スクロールへ逆同期済み。
  */
 @Composable
 private fun OrderTabsK(
