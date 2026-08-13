@@ -8,17 +8,20 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import com.novelreader.model.TocEntry
 import com.novelreader.ui.skins.j.TocPortalJ
 import com.novelreader.ui.skins.k.TocK
 import com.novelreader.ui.skins.m.TocSkyM
+import com.novelreader.ui.skins.p.TocCartridgeP
 import com.novelreader.ui.theme.NovelReaderTheme
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
@@ -37,7 +40,8 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * 目次の現在章行が **fontScale 2.0 の長編（4桁話数）でも読める**ことを4スキン同型で固定する不変条件テスト。
+ * 目次の現在章行が **fontScale 2.0 の長編（4桁話数）でも読める**ことを4スキン同型で固定する不変条件テスト
+ *（2026-08-14 に P も追従＝同じ器で同じ破綻を抱えていたため。P だけ進捗の断言を持たない理由は当該テスト参照）。
  *
  * なぜ golden（絵）でなくレイアウト値の断言か: 破綻は「章題が1行1文字で縦に割れる」「話数ラベル自体が
  * 3行に割れる」「進捗が『全…』で切れる」＝**どれも数値で言い切れる**。golden は変化を見つけるが
@@ -154,6 +158,39 @@ class TocResumeAffordanceLayoutTest {
         assertTitleNotSplitPerCharacter("J")
         assertHereChipShortenedButNamed("J")
         assertProgressIsReadable("J")
+    }
+
+    /**
+     * P（ADR 0027 で初回出荷スコープ外）も同じ器＝同じ破綻を抱えていたため 2026-08-14 に2件を追従させた分の固定。
+     *
+     * 進捗の断言を持たないのは、P には「全N話・読了率N%」に当たるテキストが無く、全体進捗を HUD の
+     * 20分割ゲージ＋CLEAR% が担う構造だから（テキストの可視文字数では測れない＝断言の対象が存在しない）。
+     *
+     * ⚠️ **P だけスクロールを挟む**理由＝**残る構造破綻**（2026-08-14 実測・fontScale 2.0 / 360×640dp）:
+     * P の HUD は Row で、右の進捗（20分割ゲージ 108.5dp ＋「CLEAR N%」124dp）が**非加重子**として幅を先取りし、
+     * チップを載せる `.mid`（weight(1f)）に残る文字幅は約 55dp しかない。そのため短縮後の「第1024話」でも
+     * 1行1文字に割れて縦 165dp を占め、HUD が膨らんだぶん章一覧（LazyColumn weight(1f)）は約2行に潰れる
+     *（＝現在章行が初期表示に入らない）。短縮前は同じ 55dp 幅に19文字が入り、チップ単独で縦 474dp＝
+     * 章一覧の可視 0行・デッキも画面外だったので、この2件は**改善だが不足**。
+     * 残りは「HUD の幅配分をどう変えるか」＝P の版面裁定（新しい意匠判断）なのでここでは触らず、
+     * 現在章まで送ってから**追従した2件だけ**を固定する。裁定が済んだらスクロールを外して初期表示で断言すること。
+     */
+    @Test
+    fun p_currentRow_keepsTitleWidth_atLargeFont() {
+        setToc(Skin.CARTRIDGE_P) {
+            TocCartridgeP(
+                tocState = TocState.Content(longToc()),
+                workTitle = WORK_TITLE,
+                currentChapterFile = "chap_$CURRENT.html",
+                onSelectChapter = {},
+                onNavigateToBookshelf = {},
+                onRetry = {},
+            )
+        }
+        composeTestRule.onNode(hasScrollAction()).performScrollToNode(hasText(CURRENT_TITLE))
+        assertResumeIsIconOnly()
+        assertTitleNotSplitPerCharacter("P")
+        assertHereChipShortenedButNamed("P")
     }
 
     // ---------------------------------------------------------------- 断言

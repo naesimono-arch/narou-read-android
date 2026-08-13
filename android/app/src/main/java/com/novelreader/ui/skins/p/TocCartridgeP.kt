@@ -22,10 +22,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -45,6 +47,8 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -57,6 +61,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.TocState
+import com.novelreader.ui.skins.tocHereChipContentDescription
+import com.novelreader.ui.skins.tocHereChipLabel
 import com.novelreader.ui.theme.FutureNodeCartridge
 import com.novelreader.ui.theme.InkCartridge
 import com.novelreader.ui.theme.InkMidCartridge
@@ -79,19 +85,19 @@ import kotlinx.coroutines.launch
 // スキンP「カートリッジ」の目次＝携帯機のステージセレクト（正本 toc-P.html・はっちゃけ版・ADR 0022 §1 の構造分岐先）。
 //
 // 思想: 目次＝ステージセレクトのマップ。章は蛇行する道でつながったステージノード。
-//   読了済み＝灯った道＋点いた緑ノード、現在の章＝道に立つドット絵の駒＋緑LCDの帯＋「▶ NOW」、未読＝暗い破線＋空ノード。
+//   読了済み＝灯った道＋点いた緑ノード、現在の章＝道に立つドット絵の駒＋緑LCDの帯＋再開の▶（丸アイコン）、未読＝暗い破線＋空ノード。
 //   上部の緑LCD HUD が携帯機の現在地・全体進捗（STAGE/CLEAR）を出す。
 //
 // D 機能の全数移植（M の TocSkyM と同じ流儀）:
-//   ・現在章ハイライト＝ .row.cur（緑バンド＋駒ノード＋▶NOW）。
-//   ・既読/未読区別＝ done ノード（緑充填＋話数）/未読ノード（空＋話数）と、灯り道/暗い破線道で担う
-//     （章題色は沈めない＝モック忠実。1ラベル1言葉の抑制）。
+//   ・現在章ハイライト＝ .row.cur（緑バンド＋駒ノード＋行末の再開▶）。
+//   ・既読/未読区別＝ done ノード（緑充填＋話数）/未読ノード（空＋話数）と、灯り道/暗い破線道で担い、
+//     K形伝播後は既読の章題も --ink-soft へ沈めて行末に✓を置く（モック .row.done 忠実）。
 //   ・章タップで本文へ＝行 clickable → onSelectChapter(fileName)。戻る＝トップバー左の戻る → onNavigateToBookshelf。
-//   ・話数カウンタ＝HUD の STAGE 現在/全 と CLEAR%。初期スクロール位置＝D/M と同じ tocInitialFirstVisibleIndex。
+//   ・進捗＝HUD の現在地チップ（第N話）と CLEAR%＋20分割ゲージ。初期スクロール位置＝D/M と同じ tocInitialFirstVisibleIndex。
 //   ・Loading/Empty/Error は M と同じく最小限（Empty はモック .empty に忠実・Loading/Error はモック未定義＝機体基調の最小文言）。
 //
 // 一画面一強調（ADR 0022 §3 相当の抑制）: 強調は現在章行の1点に集約する
-//   ＝緑LCDバンド（.row.cur background）＋駒ノード＋▶NOW。done の緑ノードは「読了状態」であって強調ではない。
+//   ＝緑LCDバンド（.row.cur background）＋駒ノード＋行末の再開▶。done の緑ノードは「読了状態」であって強調ではない。
 //   HUD は常時表示の機体クローム（現在地の読み取り値）で、強調として現在章と競合させない。
 //
 // モーション: P モックに keyframes/transition/JS は無い（ADR 0022 §3）＝完全静止で実装する。
@@ -202,7 +208,6 @@ internal fun TocCartridgeP(
                     // HUD（緑LCD）: K形伝播で STAGE 数値を現在地チップへ置換（現在地チップ＋STAGE SELECT＋進捗ゲージ）。
                     CartridgeHud(
                         currentIndex = currentIndex,
-                        total = total,
                         pct = pct,
                         onJumpToCurrent = {
                             scope.launch { listState.animateScrollToItem((currentIndex - 1).coerceAtLeast(0)) }
@@ -279,8 +284,10 @@ private fun TocTopBarP(workTitle: String?, onBack: () -> Unit) {
 // ============================================================
 // 携帯機HUD（.hud＝緑LCD の現在地チップ・全体進捗）
 // ============================================================
+// total を受け取らないのは、2026-08-14 の文言短縮で全話数の表示が HUD から無くなったため
+//（分母は 20分割ゲージ＋CLEAR% が担う）。使わない値を引数に残すと「出しているつもり」の誤読を招く。
 @Composable
-private fun CartridgeHud(currentIndex: Int, total: Int, pct: Int, onJumpToCurrent: () -> Unit) {
+private fun CartridgeHud(currentIndex: Int, pct: Int, onJumpToCurrent: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -324,11 +331,28 @@ private fun CartridgeHud(currentIndex: Int, total: Int, pct: Int, onJumpToCurren
                     horizontalArrangement = Arrangement.spacedBy(Spacing.S4), // gap 6px
                 ) {
                     Text("▶", fontFamily = PixelFamily, fontSize = 10.sp, color = LcdInkCartridge) // .pin
+                    // 見える文字は「第N話」だけ（裁定 2026-08-07・K/D/M/J と同型。P は 2026-08-14 に追従）。
+                    // P の HUD は Row で、右の進捗（20分割ゲージ＋CLEAR%）が固定幅の非加重子として幅を先取りする＝
+                    // weight(1f) の .mid に残るのは実測 約104dp（チップの文字が使えるのは 約55dp）しかない
+                    //（fontScale 2.0・360dp 幅）。旧文言「いま読んでいる ・ 第N / 全N話」は 4桁話数で19文字あり、
+                    // その幅で縦474dp まで折り返して HUD だけで画面を埋め、下の章一覧（LazyColumn weight(1f)）を
+                    // 可視0行まで潰していた（K/D/M/J と同じ器・同じ破綻）。短縮後は同条件で縦165dp・章一覧は約2行。
+                    // ⚠️ つまりこの短縮だけでは足りない（HUD の幅配分＝P の版面裁定が別途要る）。
+                    // 削った語は読み上げ（contentDescription）に残す＝機序と数値は tocHereChipContentDescription が正本。
+                    // cd を外側 Row でなく Text へ置くのは M と同じ理由（clickable が読み上げをマージする一方、
+                    // 非マージ木では cd の有無で他の「第N話」表記と名指し分けられる）。
+                    // ⚠️ 全話数（旧「/ 全N話」）は視覚から消える＝P では分母を持つ .prog 相当が無いため
+                    // （K/D/M/J はチップの隣に「全N話・読了率N%」を持つ）。P の全体進捗は同じ HUD の
+                    // 20分割ゲージ＋CLEAR% が担う。分母の数値を別の場所へ出すかは意匠の裁定事項なので、
+                    // ここでは 4スキンと同じ短縮だけを行い新しい表示要素は足さない。
                     Text(
-                        "いま読んでいる ・ 第${currentIndex + 1} / 全${total}話",
+                        tocHereChipLabel(currentIndex),
                         fontSize = 12.5.sp,           // .herechip 12.5px（ゴシック・weight 700）
                         fontWeight = FontWeight.Bold,
                         color = LcdInkCartridge,
+                        modifier = Modifier.semantics {
+                            contentDescription = tocHereChipContentDescription(currentIndex)
+                        },
                     )
                 }
             }
@@ -456,19 +480,25 @@ private fun TocChapterRowP(
                 .weight(1f)
                 .padding(start = Spacing.S16),      // レーン端(72)→章題左(88) の 16px → S16
         )
-        // 行末（K形）: 現在章＝唯一の実アクション「▶ ここから再開」／既読＝✓／未読＝なし。
+        // 行末（K形）: 現在章＝唯一の実アクション＝▶ の丸（アイコンのみ）／既読＝✓／未読＝なし。
+        // 2026-08-07 裁定でチップの文字「ここから再開」を落としアイコンのみへ（P は 2026-08-14 に追従）。
+        // 機序は K の TocK.kt 冒頭注記と同型＝文字入りチップは非加重子として実寸を先取りし、
+        // fontScale 2.0 で章題（weight(1f)）の取り分を 1行1文字まで削っていた。名前は contentDescription が担う。
         when {
-            isCur -> Text(
-                "▶ ここから再開",
-                fontSize = 11.5.sp,                // .resume 11.5px（ゴシック・weight 800）
-                fontWeight = FontWeight.ExtraBold,
-                color = LcdInkCartridge,           // lcd-ink（緑LCD上の暗文字）
+            isCur -> Icon(
+                Icons.Filled.PlayArrow,
+                // アイコンだけでは何のボタンか分からない＝読み上げ用の名前は必須（裁定の条件）。
+                // タップは行全体の clickable が担うので、これは行の読み上げに載る名前として置く。
+                contentDescription = "ここから再開",
+                tint = LcdInkCartridge,             // .resume color var(--lcd-ink)＝緑LCD上の暗インク
                 modifier = Modifier
                     .padding(start = Spacing.S12)   // 章題との間隔
-                    .clip(RoundedCornerShape(999.dp))
+                    .clip(CircleShape)
                     .background(LcdCartridge)       // .resume background var(--lcd)
-                    .border(1.dp, LcdInkCartridge.copy(alpha = 0.5f), RoundedCornerShape(999.dp)) // border rgba(43,54,22,.5)
-                    .padding(horizontal = Spacing.S12, vertical = Spacing.S8), // .resume 6px 12px
+                    // 枠線は P 意匠の刻印表現（現在章の帯 --lcd-band の上で面が沈まないための輪郭）＝丸でも温存する。
+                    .border(1.dp, LcdInkCartridge.copy(alpha = 0.5f), CircleShape) // border rgba(43,54,22,.5)
+                    .padding(Spacing.S4)
+                    .size(16.dp), // 16dp グリフ＋S4 の縁＝24dp の丸（K/D/M/J と同寸＝5スキン同型）
             )
             isRead -> Icon(
                 Icons.Filled.Check,

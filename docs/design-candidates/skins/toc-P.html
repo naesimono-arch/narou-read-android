@@ -3,8 +3,12 @@
   K形伝播ドラフト＝明快Kの「形」をカートリッジPの意匠へ移植（目次画面）。深い画面＝ボトムナビは出さない（Kと同じ没入優先）。
   ・温存（P意匠）: 目次＝ステージセレクトのマップ（蛇行する道＋ステージノード＋ドット絵の駒）／緑LCDの携帯機HUD／
     退色プラ筐体＋ネジ＋銘板デッキ／装飾有彩は緑LCD1系統（退色トーン）。
-  ・組込（K形）: ①明示タイトル「目次」＋作品名サブ ②現在地チップ「いま読んでいる ▸ 第N話」（HUD内・タップで現在章へ）
-    ③現在章に唯一の実アクション「ここから再開」 ④既読は題名を沈めて✓。
+  ・組込（K形）: ①明示タイトル「目次」＋作品名サブ ②現在地チップ「第N話」（HUD内・タップで現在章へ）
+    ③現在章に唯一の実アクション＝再開の▶（丸アイコン） ④既読は題名を沈めて✓。
+  ・2026-08-14: 2026-08-07 の裁定2件（チップ文言の短縮・再開チップのアイコン化）を K/D/M/J から追従。
+    P は ADR 0027 で初回出荷スコープ外だが、同じ器＝同じ破綻（端末の最大文字サイズで章題が縦割れ・HUD が膨らむ）を抱えるため揃えた。
+    ⚠️ 全話数（旧「/ 全N話」）は視覚から消える＝P にはチップの隣に置く進捗テキスト（K/D/M/J の .prog）が無く、
+    全体進捗は同じ HUD の20分割ゲージ＋CLEAR% が担うため。分母を別途出すかは未裁定（新しい表示要素は足していない）。
   ・静止則（ADR 0022 §3）遵守＝keyframes/明滅/自動再生ゼロ。JSは道・ノード・駒・ゲージの形状生成のみ。
 -->
 <!DOCTYPE html>
@@ -60,7 +64,10 @@
   .hud .av{width:36px;height:36px;flex-shrink:0;border-radius:7px;position:relative;z-index:2;display:grid;place-items:center;
     background:rgba(43,54,22,.1);box-shadow:inset 0 0 0 1px rgba(43,54,22,.32)}
   .hud .mid{position:relative;z-index:2;flex:1;min-width:0}
-  /* 現在地チップ（K形・タップで現在章へ）＝LCD刻印風の枠チップ */
+  /* 現在地チップ（K形・タップで現在章へ）＝LCD刻印風の枠チップ。
+     2026-08-07 裁定（P は 2026-08-14 追従）: 見える文字は「第N話」だけ。HUD 右の進捗（20分割ゲージ＋CLEAR%）が
+     固定幅の非伸縮子でチップ側に残る幅は僅かなため、旧文言「いま読んでいる ・ 第N / 全N話」は端末の最大文字サイズ＋
+     4桁話数で数行に折り返し、HUD の高さごと下の章一覧を押し出していた。削った語は aria-label/contentDescription が担う */
   .hud .herechip{display:inline-flex;align-items:center;gap:6px;font-family:var(--gothic);font-size:12.5px;font-weight:700;
     color:var(--lcd-ink);border:1.4px solid rgba(43,54,22,.55);border-radius:999px;padding:5px 12px;cursor:pointer;line-height:1}
   .hud .herechip .pin{font-family:var(--pixel);font-size:10px}
@@ -82,12 +89,16 @@
   .row.done .rtitle{color:var(--ink-soft)}
   .row.done .rcheck{flex-shrink:0;width:18px;height:18px;display:grid;place-items:center;color:var(--lcd-ink);opacity:.85}
   .row.done .rcheck svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.4}
-  /* 現在の章＝緑LCDの帯＋太字＋唯一の実アクション「ここから再開」（K形の1点強調） */
+  /* 現在の章＝緑LCDの帯＋太字＋唯一の実アクション＝再開の▶（K形の1点強調）。
+     2026-08-07 裁定（P は 2026-08-14 追従）: 文字入りチップは非伸縮子として実寸を先取りし、端末の最大文字サイズで
+     章題の取り分を1行1文字まで削っていた＝アイコンのみ（16px グリフ＋4px の縁＝24px の丸）にする。名前は aria-label が担う。
+     枠線は P 意匠の刻印表現（現在章の帯 --lcd-band の上で面が沈まないための輪郭）＝丸でも温存する */
   .row.cur{background:var(--lcd-band)}
   .row.cur .rtitle{color:var(--lcd-ink);font-weight:700}
-  .row.cur .resume{flex-shrink:0;display:inline-flex;align-items:center;gap:5px;font-family:var(--gothic);font-size:11.5px;font-weight:800;
-    color:var(--lcd-ink);background:var(--lcd);border:1px solid rgba(43,54,22,.5);border-radius:999px;padding:6px 12px;white-space:nowrap;cursor:pointer;
+  .row.cur .resume{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
+    background:var(--lcd);border:1px solid rgba(43,54,22,.5);border-radius:999px;padding:4px;cursor:pointer;
     box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+  .row.cur .resume svg{width:16px;height:16px;fill:var(--lcd-ink);stroke:none}
   /* 道とノードのSVG（レーン内=x<72。章題は x≥88 で重ならない） */
   .road{position:absolute;left:0;top:0;pointer-events:none;z-index:3}
 
@@ -99,7 +110,7 @@
 </style>
 </head>
 <body>
-  <p class="cap"><b>P. カートリッジ ／ 目次（K形伝播ドラフト）</b> ／ ステージセレクトのマップ（蛇行する道＋ステージノード＋駒）と緑LCDのHUDを温存し、明示タイトル「目次」＋作品名サブ・現在地チップ・現在章の「ここから再開」・既読✓を組込。深い画面ゆえボトムナビ無し。</p>
+  <p class="cap"><b>P. カートリッジ ／ 目次（K形伝播ドラフト）</b> ／ ステージセレクトのマップ（蛇行する道＋ステージノード＋駒）と緑LCDのHUDを温存し、明示タイトル「目次」＋作品名サブ・現在地チップ（第N話）・現在章の再開▶・既読✓を組込。深い画面ゆえボトムナビ無し。</p>
 
   <div class="phone" role="group" aria-label="P案 目次 ステージセレクト（K形伝播）">
     <span class="screw tl"></span><span class="screw tr"></span><span class="screw bl"></span><span class="screw br"></span>
@@ -115,10 +126,11 @@
     </div>
 
     <!-- HUD（緑LCD）: 現在地チップ＋進捗 -->
-    <div class="hud" aria-label="現在地 第127話・全340話中・読了62パーセント">
+    <!-- HUD の読み上げ名も可視情報に揃える（全話数は 2026-08-14 の短縮でこの画面から消えた＝読み上げでも言わない） -->
+    <div class="hud" aria-label="現在地 第127話・読了62パーセント">
       <span class="av" id="hudav" aria-hidden="true"></span>
       <div class="mid">
-        <span class="herechip" role="button" aria-label="いま読んでいる第127話へ移動"><span class="pin">▶</span> いま読んでいる ・ 第127 / 全340話</span>
+        <span class="herechip" role="button" aria-label="いま読んでいる: 第127話"><span class="pin">▶</span> 第127話</span>
         <div class="k">STAGE SELECT</div>
       </div>
       <div class="rt">
@@ -166,15 +178,18 @@
   const ci=CH.findIndex(c=>c.s==='cur');
   const trail=document.getElementById('trail');
   const CHECK='<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+  /* 再開＝▶ のグリフのみ（K/D/M/J と同一の polygon）。文字は持たない＝名前は aria-label 側 */
+  const PLAY='<svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20"/></svg>';
 
-  /* 章題の行（右カラム）。縦位置は行高66px固定でノードと一致。既読=✓／現在=ここから再開 */
+  /* 章題の行（右カラム）。縦位置は行高66px固定でノードと一致。既読=✓／現在=再開の▶ */
   CH.forEach((c)=>{
     const row=document.createElement('div');
     row.className='row '+c.s;
     row.setAttribute('role','button');
     row.setAttribute('aria-label', c.s==='cur' ? ('第'+c.n+'話 '+c.t+'（現在の章）') : (c.s==='done' ? ('第'+c.n+'話 '+c.t+'（既読）') : ('第'+c.n+'話 '+c.t)));
     const tx=document.createElement('div'); tx.className='rtitle'; tx.textContent=c.t; row.appendChild(tx);
-    if(c.s==='cur'){ const rs=document.createElement('span'); rs.className='resume'; rs.setAttribute('role','button'); rs.innerHTML='▶ ここから再開'; row.appendChild(rs); }
+    if(c.s==='cur'){ const rs=document.createElement('span'); rs.className='resume'; rs.setAttribute('role','button');
+      rs.setAttribute('aria-label','ここから再開'); rs.innerHTML=PLAY; row.appendChild(rs); }
     else if(c.s==='done'){ const ck=document.createElement('span'); ck.className='rcheck'; ck.setAttribute('aria-hidden','true'); ck.innerHTML=CHECK; row.appendChild(ck); }
     trail.appendChild(row);
   });
