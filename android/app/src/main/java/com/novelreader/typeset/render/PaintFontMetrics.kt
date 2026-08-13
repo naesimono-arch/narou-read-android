@@ -2,6 +2,7 @@ package com.novelreader.typeset.render
 
 import android.graphics.Paint
 import android.graphics.Typeface
+import com.novelreader.typeset.CharClass
 import com.novelreader.typeset.FontMetricsProvider
 import com.novelreader.typeset.LeaderJoin
 
@@ -32,10 +33,17 @@ class PaintFontMetrics(typeface: Typeface = Typeface.SERIF) : FontMetricsProvide
         isAntiAlias = true
     }
 
-    override fun verticalAdvance(unitText: String, fontSizePx: Float): Float {
+    override fun verticalAdvance(unitText: String, charClass: CharClass, fontSizePx: Float): Float {
         if (unitText.isEmpty()) return fontSizePx
-        // 単一の半角 ASCII 文字: 90 度回転して置くため、横幅（measureText）がそのまま縦の占有になる。
+        // 単一の半角 ASCII 文字: 縦の占有は向き（charClass）で決まる。
+        // - ROTATE（4字以上ランの各字・ルビ親の英数字）: 90 度回転して置くため、
+        //   回転前の横幅（measureText）がそのまま縦の占有になる。
+        // - UPRIGHT（単独ラン＝VerticalTypesetter が分類器の ROTATE をラン文脈で上書き）:
+        //   回転せず正立で描かれ、字面は em 全高に及ぶ。ここで回転前提の半角幅（約 0.5em）を
+        //   返すと前後の字と接触する（「3日」「1人」で毎回発生＝golden 監査 2026-08-06 G-3 の真因）
+        //   ため、他の正立字と同じ em マスへ倒す。
         if (unitText.length == 1 && isHalfWidthAscii(unitText[0])) {
+            if (charClass != CharClass.ROTATE) return fontSizePx
             paint.textSize = fontSizePx
             return paint.measureText(unitText)
         }

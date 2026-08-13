@@ -67,6 +67,8 @@ import androidx.compose.ui.unit.sp
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.discovery.model.WorkSummary
+import com.novelreader.ui.ReimportScanBanner
+import com.novelreader.ui.ReimportSweepBanner
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.skins.ShelfActions
 import com.novelreader.ui.skins.ShelfChrome
@@ -103,8 +105,10 @@ import com.novelreader.ui.theme.ResumeInkPortal
 import com.novelreader.ui.theme.ResumeSurfacePortal
 import com.novelreader.ui.theme.SoftPortal
 import com.novelreader.ui.theme.Spacing
+import com.novelreader.viewmodel.ProcessingSource
 import com.novelreader.viewmodel.ProcessingState
 import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.ScanProgress
 import com.novelreader.domain.chapterNumberOf
 import com.novelreader.domain.progressFractionFor
 import com.novelreader.domain.readingStatusFor
@@ -321,6 +325,18 @@ internal fun BookshelfPortalJ(
     val onOpenWardrobe = actions.onOpenWardrobe
     val onFabClick = actions.onFabClick
     val onCancelProcessing = actions.onCancelProcessing
+
+    // cold start は必ず Loading（books=空）で初回コンポーズされる（VM の初期値が Loading・ルーターは uiState を
+    // 見ずに委譲する）ため、ここで pager を組むと rememberPagerState の initialPage が「空デッキの 0」で確定し、
+    // データ確定後も hero（読みかけ先頭作）へ着地しない＝isLoading を読み捨てていたのが真因（監査 2026-08-06 B5）。
+    // 他 6 面と同じく isLoading を空状態の門として使い、Content 確定後に初めてデッキを組む＝初期ページが正しい
+    // heroIndex で決まる。Loading 中は外殻の地（PagePortal）だけ描く＝偽の発見扉（「新しい物語を見つける」）の
+    // 空フラッシュも同時に消える（数フレームの帯なのでバナー類の欠けは実害なし）。
+    if (isLoading) {
+        Box(modifier = Modifier.fillMaxSize().background(PagePortal))
+        return
+    }
+
     // 状態フィルタ適用後の可視作品（チップは D と同じ readingStatusFor を単一真実源に使う＝M/P と同型）。
     val visible = remember(books, progressMap, chapterCountMap, selectedStatus) {
         if (selectedStatus == null) books
@@ -354,6 +370,10 @@ internal fun BookshelfPortalJ(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
+            // ページ同一性キー（PagerState は key でページを再対応付けする）。供給元 visible は取込完了の新刊が
+            // 先頭へ挿入される二層ソートのため、key 無しだと index 追跡のまま「見ていた扉」が別作品へ差し替わり
+            // 主導線「続きから読む」が別の本を開く（監査 2026-08-06 B4）。最後尾の発見扉は固定キー "find"。
+            key = { page -> visible.getOrNull(page)?.id ?: "find" },
         ) { page ->
             // ページの左右に隣扉の覗き（peek）。左＝前扉あり・右＝次扉あり（最後尾扉は右 peek なし＝モック実態）。
             val hasPrev = page > 0
@@ -406,6 +426,39 @@ internal fun BookshelfPortalJ(
                 exit = fadeOut(tween(MotionDurationDismiss)),
             ) {
                 PortalProcessingBanner(processingState, onCancelProcessing)
+            }
+            // 本文欠落の一括検出バナー（案C）と PDF フォルダ走査バナー（案X）。この面は従来 chrome の
+            // sweepBannerVisible/folderScan/onScanStop を受け取って捨てており、route 層で起動した走査に
+            // 進捗表示も停止手段も無かった（束の必須引数化は「受け取って捨てる」を止められない＝監査 2026-08-06 B1）。
+            // 意匠はトークン経由でスキン色に染まる共有部品をそのまま使う＝K 面と同型の最小配線（J 意匠版は未裁定）。
+            AnimatedVisibility(
+                visible = chrome.sweepBannerVisible,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
+            ) {
+                ReimportSweepBanner(
+                    missingCount = data.reimportPlans.size,
+                    onLater = chrome.onSweepLater,
+                    onReimport = chrome.onSweepConfirm,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            // 退場アニメの間 folderScan は既に null になっているため直前の非 null 値を保持して描く
+            //（保持箱をスナップショット状態にしない理由＝BookshelfScreen の同処理コメント参照）。
+            val lastScan = remember { arrayOfNulls<ScanProgress>(1) }
+            chrome.folderScan?.let { lastScan[0] = it }
+            AnimatedVisibility(
+                visible = chrome.folderScan != null,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
+            ) {
+                lastScan[0]?.let { progress ->
+                    ReimportScanBanner(
+                        progress = progress,
+                        onStop = chrome.onScanStop,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
 
@@ -481,13 +534,18 @@ private fun PortalPage(
             verticalArrangement = Arrangement.Bottom,
         ) {
             // .arc「辺境編 · 第127話」→ 章位置のみ（arc 名＝データ無し。未読は「全N話」）。
-            Text(
-                text = if (isUnread) "全${totalChaps}話" else "第${chapNum ?: 1}話",
-                fontSize = 11.sp,               // .arc 11px
-                letterSpacing = 0.3.em,
-                color = GoldPortal,
-                modifier = Modifier.padding(bottom = Spacing.S12),
-            )
+            // 章数不明（chapterCountMap 欠落＝0）は数を描かない: 0 は「章数不明／本文実体なし」の意味しか持たず、
+            // 「全0話」は実在しない事実の捏造になる（DB だけ Auto Backup 復元された端末で全冊該当・監査 2026-08-06 B6。
+            // D 共通 BookProgressRow は progressFractionFor が totalChaps<=0 で null の枝＝「未読」語のみで数を出さない）。
+            if (!isUnread || totalChaps > 0) {
+                Text(
+                    text = if (isUnread) "全${totalChaps}話" else "第${chapNum ?: 1}話",
+                    fontSize = 11.sp,               // .arc 11px
+                    letterSpacing = 0.3.em,
+                    color = GoldPortal,
+                    modifier = Modifier.padding(bottom = Spacing.S12),
+                )
+            }
             // .update「更新 · 続き N話」＝扉の奥で物語が進んだ印（森緑ドット＋金文字）。続きありのみ。
             if (newCount != null) {
                 Row(
@@ -984,13 +1042,18 @@ internal fun PortalProcessingBanner(state: ProcessingState, onStop: () -> Unit) 
                 )
             }
         }
-        // 4段ステッパー（.steps/.labels＝stepIndex/stepTotal 駆動＝実パイプラインの進捗）。
-        PortalSteps(
-            stepIndex = state.stepIndex,
-            stepTotal = state.stepTotal,
-            labels = stepLabels,
-            modifier = Modifier.padding(top = Spacing.S12),
-        )
+        // 4段ステッパー（.steps/.labels＝stepIndex/stepTotal 駆動）は PDF 供給元専用の器。Web 取込は
+        // phase しか更新しない（章単位取得＝ステップ概念なし・stepIndex は 0 固定）ため、無条件に描くと
+        // 「題名」段で凍結したステッパーになり処理停止と誤認させる（共有 ui/ProcessingBanner の
+        // 2026-07-29 裁定②と同機序＝監査 2026-08-06 B3）。Web は phase 行「章 i/N 取得中」へ一本化する。
+        if (state.source == ProcessingSource.PDF) {
+            PortalSteps(
+                stepIndex = state.stepIndex,
+                stepTotal = state.stepTotal,
+                labels = stepLabels,
+                modifier = Modifier.padding(top = Spacing.S12),
+            )
+        }
     }
 }
 

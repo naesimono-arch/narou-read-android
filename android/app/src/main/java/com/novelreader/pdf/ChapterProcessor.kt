@@ -4,6 +4,32 @@ package com.novelreader.pdf
 data class ProcessedChapter(val title: String, var body: String)
 
 /**
+ * 章タイトルの出自。[ChapterProcessor.processForewordAfterword] が構造マーカー判定を
+ * 掛けてよいかを決める（＝タイトル文字列を「機械が付けた構造情報」と読むか
+ * 「著者が書いた自由文」と読むかの宣言）。
+ *
+ * なぜ出自を型で持つか（2026-08-06 監査 A1 の真因対処）: 同関数を PDF 取込と Web 取込が共有しており、
+ * 両者でタイトル文字列の意味論が正反対だった。文字列だけを見る限りどんな判定式を選んでも
+ * 「著者が偶然マーカー語を書いた話」を構造マーカーと誤読する余地が残る（誤読の代償は章の消失）。
+ * 呼び出し側は自分が渡すタイトルの出自を必ず知っているので、そこで一度宣言させて曖昧さを断つ。
+ */
+enum class ChapterTitleSource {
+    /**
+     * なろう PDF 生成物の Bold 見出し（[TextProcessor.processPages] が "【題名】" 付きで出す）。
+     * 生成器が付ける構造マーカーを含みうる＝マーカー判定の対象。
+     */
+    PDF_GENERATED,
+
+    /**
+     * サイト目次由来＝著者が書いた自由文（[com.novelreader.repository.WebBookImporter] 経路）。
+     * 構造上ここにマーカーは現れない: 汎用アダプタが SiteProfile.forewordMarkers で
+     * 前書き/後書きブロックを HTML パース時点に本文から除外済みで、章タイトルは常に話の題そのもの。
+     * ＝マーカー判定を一切掛けない（掛ける利得がゼロで、誤爆の損失だけがある）。
+     */
+    AUTHOR_WRITTEN,
+}
+
+/**
  * 段落リストを話数・前書き・後書きに分割/整形する（移植元 chapter_processor.py の HTML 版。
  * 「移植元」の意味は PdfBookExtractor の注記を参照＝python/ は現存しない）。
  *
@@ -85,8 +111,54 @@ object ChapterProcessor {
     // htmlEscape は HtmlExporter（タイトル）と共有するため HtmlEscape.kt のトップレベル関数へ集約した。
     // 同一パッケージのため下記 processForewordAfterword 内の htmlEscape(...) はそのまま解決される。
 
+    /** PDF 生成器が付ける構造マーカーの種別（本文の畳み込み先が前後で逆になるので区別する）。 */
+    private enum class StructuralMarker { FOREWORD, AFTERWORD }
+
     /**
-     * 章列の前書き/後書きを畳み込み HTML 本文へ整形する（移植元 process_foreword_afterword と 1:1）。
+     * PDF 生成見出しが構造マーカーを名乗っているかを判定する（[ChapterTitleSource.PDF_GENERATED] 専用）。
+     *
+     * 判定形の根拠＝golden corpus 4 本（sample_pdfs/）の Bold 見出しを全数抽出した実測:
+     * マーカー見出しは **1444 件すべてが〈話タイトル〉＋末尾「（前書き）」/「（後書き）」** の形で、
+     * 裸の「前書き」「後書き」も半角括弧形も 0 件だった
+     * （例: 「９　手を焼いてるよ（後書き）」。内訳 N2959KI 102 件・N6169DZ 1342 件・他 2 本は 0 件）。
+     * よって「末尾の全角括弧付きマーカー」にアンカーする。
+     *
+     * 却下した案:
+     * - 部分一致（"後書き" in title・移植元 process_foreword_afterword の元実装）＝監査 A1 の穴。
+     *   Web の著者記述題「後書きにかえて」等を誤爆し、その話が前後章へ畳み込まれて章ごと消える
+     *   （先頭章なら本文が丸ごと失われ、例外もログも出ない）。
+     * - trim 後の完全一致のみ（先行の A1 修正）＝上記の実測どおり PDF 側に該当が 1 件も無く、
+     *   本来の畳み込みが全滅した（JvmGoldenRegressionTest N2959KI の章数が 131→233 へ増加して赤）。
+     * - 「末尾が全角括弧で閉じていれば構造マーカー」＝括弧付きの実在話題を誤爆する
+     *   （同 corpus に「１２９　罪人の独白（前編）」「（後編）」が実在）。マーカー語まで含めて突き合わせる。
+     * - 出自分岐だけで文字列判定は元のまま＝PDF 内部の誤爆（本文見出しにマーカー語を含む題）が残る。
+     *   出自分岐は Web を守るが PDF 側の同定精度は上げないので、両方を重ねる。
+     *
+     * 裸の完全一致も残すのは、移植元 python 実装が保証していた最小契約（生成器が話タイトル無しの
+     * 「後書き」単独見出しを出す版）を落とさないため。判定が PDF 経路限定になった今、
+     * この枝が誤爆できる相手（著者記述題）は原理的に届かない＝残しても A1 は再発しない。
+     * 半角括弧「(後書き)」は実測 0 件のため意図的に対象外にする（未実測の形へ判定を広げると、
+     * 広げた分だけ誤爆＝章消失の面が増える。逆に取りこぼした場合は章数が増えるだけで本文は失われず、
+     * ゴールデンの chapter_count が即座に赤くなる＝安全側に倒れる）。
+     */
+    private fun structuralMarkerOf(title: String): StructuralMarker? {
+        // 生成器の見出しは前後に空白が付きうるため trim で吸収してから形を見る。
+        val t = title.trim()
+        return when {
+            t == "前書き" || t.endsWith("（前書き）") -> StructuralMarker.FOREWORD
+            t == "後書き" || t.endsWith("（後書き）") -> StructuralMarker.AFTERWORD
+            else -> null
+        }
+    }
+
+    /**
+     * 章列の前書き/後書きを畳み込み HTML 本文へ整形する（移植元 process_foreword_afterword 相当。
+     * ただしマーカー判定のみ移植元の部分一致から〈出自分岐＋末尾マーカーへのアンカー〉へ意図的に変更
+     * ＝2026-08-06 監査 A1、根拠は [structuralMarkerOf] の KDoc）。
+     *
+     * @param titleSource 渡す章タイトルの出自。既定は本パッケージ本来の PDF 経路。
+     *   **著者が書いたタイトル（Web 取込等）を渡すときは必ず [ChapterTitleSource.AUTHOR_WRITTEN] を明示する**
+     *   ——既定のままだとマーカー判定が掛かり、万一形が一致した話が畳み込まれて章ごと消えるため。
      *
      * 本文は「先に htmlEscape → 後に applyRuby」の順で処理する。なぜこの順か:
      * 抽出本文の生 < > & をそのまま HTML へ流すと Jsoup パースで本文欠落/タグ崩壊が起きるため先に無害化し、
@@ -98,22 +170,28 @@ object ChapterProcessor {
      * `"hr" -> TextSegment.HorizontalRule` として拾い、各スキンの場面転換線（SceneDividerM/P/J 等）を描く。
      * タグを変えると場面転換線が無音で消える（ゴールデンは本文 sha256 までしか見ておらず検出できない）。
      */
-    fun processForewordAfterword(chaptersData: List<RawChapter>): List<ProcessedChapter> {
+    fun processForewordAfterword(
+        chaptersData: List<RawChapter>,
+        titleSource: ChapterTitleSource = ChapterTitleSource.PDF_GENERATED,
+    ): List<ProcessedChapter> {
         val finalChapters = mutableListOf<ProcessedChapter>()
         var tempForeword = ""
 
         for (chap in chaptersData) {
             val title = chap.title
+            // 著者記述タイトル（Web）には構造マーカーが存在しない＝判定自体を掛けない（監査 A1 の面を閉じる）。
+            // PDF 生成見出しのみ [structuralMarkerOf] で同定する（判定形の根拠・却下案は同関数の KDoc）。
+            val marker = if (titleSource == ChapterTitleSource.PDF_GENERATED) structuralMarkerOf(title) else null
             val bodyText = applyRuby(htmlEscape(chap.body.joinToString("\n")))
 
-            if ("前書き" in title) {
+            if (marker == StructuralMarker.FOREWORD) {
                 tempForeword = "<div style=\"background-color: #f9f9f9; padding: 15px; " +
                     "border: 1px solid #eee; margin-bottom: 20px;\">" +
                     "<b>（前書き）</b><br>$bodyText</div><hr>"
                 continue
             }
 
-            if ("後書き" in title) {
+            if (marker == StructuralMarker.AFTERWORD) {
                 if (finalChapters.isNotEmpty()) {
                     val afterwordHtml = "<hr><div style=\"background-color: #f9f9f9; padding: 15px; " +
                         "border: 1px solid #eee; margin-top: 20px;\">" +

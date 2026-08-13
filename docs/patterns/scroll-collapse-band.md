@@ -1,6 +1,9 @@
 # スクロールで畳むヘッダ要素の2方式 ＋ AnimatedVisibility 予約スペース snap の罠
 
 > ここは **コードが正本**。「なぜこのパターンか」とコード参照に絞る。
+> 正本コード: `android/app/src/main/java/com/novelreader/ui/NativeReadingScreen.kt`（方式Bの現行実例。
+> 方式Aの実例 `FindGuideBand` は 2026-07-29 に本棚から撤去済み〔撤去コミット＝f3a26e0・当時の実装＝
+> c10679e 時点の `BookshelfScreen.kt`〕＝末尾「コード:」節）
 > 発端＝本棚発見帯『新しい物語を見つける』の「完全退避」再設計（C②・2026-07-14）。
 
 ## 問題

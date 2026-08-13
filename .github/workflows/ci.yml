@@ -82,7 +82,7 @@ jobs:
       #
       # なぜ testDebugUnitTest ではなく verifyRoborazziDebug を回すのか:
       # verify は testDebugUnitTest 本体を roborazzi.test.verify=true 付きで実行する形なので、
-      # 単体テスト全件（実測 1072 件）と golden 比較（48 枚）が**同じ1パス**で終わる。
+      # 単体テスト全件と golden 比較の全枚数が**同じ1パス**で終わる（件数・枚数は増えるので書かない＝タスク出力で確認）。
       # 2ステップに分けると system property が変わって test タスクが丸ごと2回走り、時間がほぼ倍になる。
       # golden 不一致は captureRoboImage が AssertionError を投げてテストを落とす＝ビルドが赤になる
       # （golden 1枚を差し替えた陽性確認で BUILD FAILED を実測済み）。
@@ -95,6 +95,22 @@ jobs:
       - name: Unit tests + screenshot golden verify
         working-directory: android
         run: ./gradlew :app:verifyRoborazziDebug
+
+      # golden の fontScale 2.0 破綻を画素から走査する（純 Python・標準ライブラリのみ）。
+      # なぜ verify と別に要るか: verify は「撮った1枚 → 同名 golden」の一致しか見ないため、
+      # **初回記録の時点で壊れていた絵**は永久に正として固定される。実際 2026-08-06 の監査で
+      # 104枚中20枚が破綻を焼き付けており、CI は全期間ずっと緑だった。
+      #
+      # ⚠️ continue-on-error の理由（二段構えの第1段）: 現時点で (c) が1件赤く、これは目次の
+      # 「ここから再開」チップが章題を1行1文字に潰す実破綻＝**意匠変更を伴うためモック裁定待ち**
+      # （awaiting-human §3-1）。裁定が出て赤0になったら continue-on-error を外してブロッキングへ
+      # 昇格させる。ktlint が 2026-08-05 に辿ったのと同じ経路で、可視化を先に置いて赤を溜めない。
+      - name: golden の 2.0 破綻走査（可視化のみ・裁定後にブロッキングへ）
+        continue-on-error: true
+        run: |
+          python3 tools/check_golden_rule_loss.py android/app/src/test/screenshots
+          python3 tools/check_golden_bottom_clip.py android/app/src/test/screenshots
+          python3 tools/check_golden_label_split.py android/app/src/test/screenshots
 
       # androidTest の「ビルドだけ」をゲートへ（実行は端末必須＝冒頭コメント）。
       # なぜ必要か: 既定ゲートの testDebugUnitTest は androidTest ソースをコンパイルしないため、

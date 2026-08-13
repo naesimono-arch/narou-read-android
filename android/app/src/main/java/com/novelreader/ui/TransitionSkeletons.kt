@@ -1,23 +1,28 @@
 package com.novelreader.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.novelreader.ui.theme.LocalShelfColors
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.Spacing
 
@@ -44,6 +49,93 @@ internal fun SkeletonBone(color: Color, modifier: Modifier = Modifier) {
             .clip(RoundedCornerShape(2.dp))
             .background(color),
     )
+}
+
+/**
+ * 本棚の遷移骨（案A の本棚版・2026-08-07）。タブ枠 push の enter 窓で、スキン面（M/P/J/K）の代わりに描く。
+ *
+ * なぜ既存 [BookshelfSkeleton]（P2・BookshelfScreen 内）を使い回さないか: あれは D/C 共通描画の内側にあり、
+ * 版面を決める `isGridView` はスキンルーターより下（面が prefs で所有する状態）でしか手に入らない。
+ * 骨をルーターの上流へ置く（＝スキン別の骨は新造しない・2026-07-29 裁定）ためには、面の状態に触れない汎形が要る。
+ *
+ * 版面は既定スキン K のグリッド（ADR 0027 で初回公開に出荷される＝実ユーザーが通る唯一の面）へ合わせる:
+ * 左右 S24・列間 S32・行間 S16・書影 3:4・角丸3dp＝BookshelfK の LazyVerticalGrid と同値。
+ * 骨の語彙（棒11dp・角丸2dp・塊/線の2値塗り）は P2 BookshelfSkeleton の写経、色は本棚トークン
+ * （surfaceVariant＝塊／ShelfColors.hairline＝線）＝スキンとテーマに自動追従する。
+ *
+ * ヘッダ（題字・チップ行）まで骨で場所取りする理由: 骨は面の実ヘッダを持たないため、省くと着地の瞬間に
+ * ヘッダの高さぶん本体が下へ跳ねる。目次の骨が実トップバーを描いて跳ねを消しているのと同じ要求を、
+ * スキン共通の骨では「実ヘッダと同じ外形の骨」で満たす（M/P/J のヘッダ高は K と厳密には一致しないが、
+ * 骨は内容非依存の汎形＝目次の骨が D の行外形で全スキンを賄っているのと同じ扱い）。
+ * インセットを自分で持つ理由: 面（K の statusBarsPadding など）を丸ごと差し替えるため、骨が代わりに避ける。
+ */
+@Composable
+internal fun ShelfTransitionSkeleton(modifier: Modifier = Modifier) {
+    // 2値塗り＝P2 BookshelfSkeleton と同じトークン（塊＝書影・線＝題字/チップ）。
+    val blockColor = MaterialTheme.colorScheme.surfaceVariant
+    val lineColor = LocalShelfColors.current.hairline
+    Column(modifier = modifier.fillMaxSize().statusBarsPadding()) {
+        // ── ヘッダ骨（「本棚」＋「N冊」の場所取り）──
+        // 行高48dp＝実ヘッダの右端 IconButton のタップ面（行高を決めているのはこれ）。padding も KHeader と同値。
+        // 棒幅は実字の見当（題字 24sp×2字＝48dp／冊数 16sp×3字＝48dp）＝内容非依存（蔵書数に依らない）。
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = Spacing.S24, end = Spacing.S8, top = Spacing.S8, bottom = Spacing.S12)
+                .height(48.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SkeletonBone(color = lineColor, modifier = Modifier.width(48.dp))
+            Spacer(modifier = Modifier.width(Spacing.S8))
+            SkeletonBone(color = lineColor, modifier = Modifier.width(48.dp))
+        }
+        // ── 状態フィルタチップ行の骨 ──
+        // 行高30dp＝実チップ（文字 11.5sp≒14dp ＋上下 S8）。骨の語彙は棒だけに留め、ピルの輪郭は描かない
+        //（骨が「内容」に見えないようにする＝目次骨で現在章ハイライトを出さないのと同じ判断）。
+        // 棒幅＝固定4語（すべて/よみかけ/未読/読了）の字数×字送り 11.5sp≒12dp ＋ 左右 S16×2。
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = Spacing.S24, end = Spacing.S24, bottom = Spacing.S12)
+                .height(30.dp),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            listOf(3, 4, 2, 2).forEach { chars ->
+                SkeletonBone(color = lineColor, modifier = Modifier.width(12.dp * chars + Spacing.S16 * 2))
+            }
+        }
+        // ── 書影グリッドの骨（2列×3行＝360dp 級の窓を埋める最小行数）──
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = Spacing.S24, end = Spacing.S24, top = Spacing.S4),
+            verticalArrangement = Arrangement.spacedBy(Spacing.S16),
+        ) {
+            repeat(3) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.S32)) {
+                    repeat(2) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            // 書影（3:4・角丸3dp）＝K の ShioriCover と同寸。影は落とさない（骨は平置き）。
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(3f / 4f)
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(blockColor),
+                            )
+                            // キャプション（題名1行＋状態行）の場所取り。間隔は実カード（S8→題名行→S4→状態行）
+                            // の骨版＝棒2本を S8/S12 で置く（棒高11dp が実文字より低いぶんを下側の間隔で吸う）。
+                            Spacer(modifier = Modifier.height(Spacing.S8))
+                            SkeletonBone(color = lineColor, modifier = Modifier.fillMaxWidth(0.72f))
+                            Spacer(modifier = Modifier.height(Spacing.S12))
+                            SkeletonBone(color = lineColor, modifier = Modifier.fillMaxWidth(0.45f))
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /**

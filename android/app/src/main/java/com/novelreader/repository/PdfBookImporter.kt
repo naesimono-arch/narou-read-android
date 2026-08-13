@@ -9,6 +9,7 @@ import com.novelreader.data.ProgressDao
 import com.novelreader.narou.model.Ncode
 import com.novelreader.pdf.BookMeta
 import com.novelreader.pdf.CorruptedPdfError
+import com.novelreader.pdf.EmptyExtractionError
 import com.novelreader.pdf.EncryptedPdfError
 import com.novelreader.pdf.InsufficientStorageError
 import com.novelreader.pdf.PdfProgress
@@ -60,6 +61,10 @@ internal class PdfBookImporter(
         is EncryptedPdfError        -> BookImportError.EncryptedPdf()
         is InsufficientStorageError -> BookImportError.InsufficientStorage()
         is CorruptedPdfError        -> BookImportError.CorruptedPdf()
+        // 章0件（③' ゲート）も CorruptedPdf 扱い＝「読み取れません」の固定文言に載せる。
+        // なぜ: 同一 PDF の再試行は必ず同じ結果の決定的失敗であり、CorruptedPdf は Service の
+        // isDeterministicFailure が「再試行」を出さない側に分類する（無効な再試行導線を出さない）。
+        is EmptyExtractionError     -> BookImportError.CorruptedPdf()
         else -> {
             val msg = e.message ?: ""
             when {
@@ -185,6 +190,21 @@ internal class PdfBookImporter(
                     // 許すため、その代替としてこの明示クリーンアップで担保する（DB 登録前のみ発火）。
                     outputDir.deleteRecursively()
                     throw e
+                }
+
+                // ③' 章0件ゲート（監査 A3: import-commits-without-integrity-check）: 確定（④以降の
+                // Duplicate/復元/insert いずれか）の前に、生成物に章本文（chap_N.html）が1枚も無い取込を
+                // 失敗で弾く。総ページ数4以下の PDF は TextProcessor の固定トリム（先頭3＋末尾1除外）で
+                // 全ページが落ち、index.html だけの「開けない本」が成功として棚に残っていた（hasContent は
+                // リンク0本を torn と見なさないため復旧導線も出ない＝削除以外に回復不能）。Web 経路の
+                // ScrapeIntegrity.verify（空 TOC は ScrapeStructureException）と同じ「確定前の構造検査」を
+                // PDF 側にも置く。判定は生成物の実枚数（chapterFileCount）＝Web/PDF 上書き clamp と同じ正。
+                if (chapterFileCount(outputDir) == 0) {
+                    // 上の catch(Throwable) は extractBook だけを包むため、ここでは自前で書きかけを消す。
+                    outputDir.deleteRecursively()
+                    throw EmptyExtractionError(
+                        "章が1件も抽出できない（総ページ数不足 or 対応外レイアウトの疑い）",
+                    )
                 }
 
                 // ④ べき等ガード（UX監査 F-G 公理3）: 抽出後のタイトル＋著者で既存蔵書を照合する。
@@ -348,7 +368,8 @@ internal fun hasEnoughStorageFor(usableBytes: Long, pdfSizeBytes: Long): Boolean
  * NonCancellable 内で insertBook と一緒に確定）。未完了のまま kill されたジョブは自分のハッシュを
  * まだ books に持たないため、リカバリ再投入時に findExistingBookByHash は null を返し、自分自身を
  * 誤って遮断することはない。逆に「insert 済みだが settlePendingJob 直前に kill」された極小窓
- * （BookRepository ④/⑤ のコメント参照）では、リカバリ再投入がこのハッシュ照合でヒットして
+ * （本ファイル ④＝:210・⑤＝:267 のコメント参照。旧記述の「BookRepository」は誤称で、そんなクラスは無い）では、
+ * リカバリ再投入がこのハッシュ照合でヒットして
  * 変換前に Duplicate 確定する＝旧実装（抽出後に title＋author で弾く）より二重変換窓が縮む改善であり、
  * 誤ブロックではない。よって「自分のジョブを除外」する防御は追加しない。
  */

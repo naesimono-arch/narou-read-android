@@ -3,16 +3,20 @@ package com.novelreader.ui.discovery
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -230,211 +234,232 @@ internal fun DiscoveryResultContent(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            ctx.subtitle?.let {
-                Text(
-                    text = it,
-                    fontSize = FontLabel,
-                    lineHeight = 18.sp,
-                    // 結果サブタイトルは情報を運ぶ文字＝infoText（AA 4.5:1・ADR 0014-D 裁定で装飾用と分離）。
-                    color = LocalShelfColors.current.infoText,
-                    modifier = Modifier.padding(horizontal = Spacing.S24),
-                )
-            }
-            // 条件チップ（藍の細枠・モック .cd）
-            // なぜ各子に .align(CenterVertically) を付けるか: この行にはクリック可チップ
-            // （外側 Box に .minimumInteractiveComponentSize＝48dp のタップ枠）と、素の静的チップ
-            // （border+padding で実高 約26dp）が高さ混在する。FlowRow の cross-axis 既定は Top 揃えのため、
-            // 背の低い静的チップが上端に張り付き、ピルの縦センターが行内でずれて見える（当たり判定を確保する
-            // 48dp 枠は外せないので、見た目は縦センター揃えで解消する）。
-            // itemVerticalAlignment パラメータは foundation 1.8+ で、BOM 2025.02.00 の 1.7.8 には無いため、
-            // FlowRowScope.align を各子へ付与する方式を採る。
-            FlowRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.S24, vertical = Spacing.S12),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.S8),
-                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.S8),
-            ) {
-                val baseChips = conditionChipLabels(ctx.query)
-                val chips = if (ctx.query.biggenres.isEmpty() && ctx.query.genres.isEmpty()) {
-                    // なぜ: ジャンル未指定時は、並び順チップ（baseChips の最後）の直前に「ジャンル ⌄」チップを追加し、その場変更を可能にする。
-                    val mutable = baseChips.toMutableList()
-                    val placeholder = ConditionChip("ジャンル", ChipKind.GENRE_PLACEHOLDER)
-                    if (mutable.isNotEmpty()) {
-                        mutable.add(mutable.lastIndex, placeholder)
-                    } else {
-                        mutable.add(placeholder)
+            // なぜ条件帯（サブタイトル＋条件チップ）に上限高さと内部スクロールを与えるか（走査(a) 2026-08-07）:
+            // FlowRow は重みを持たない子なので、Column は「必要なだけ」高さを先に渡す。fontScale 2.0 では
+            // 48dp のタップ枠と拡大文字でチップが8段まで折り返し、帯だけで本文領域を使い切って
+            // 下の Box(weight(1f)) に残り高 0 を渡していた＝**結果一覧も空状態 CTA も1行も描かれない**
+            // （golden 2.0 は3テーマとも罫線 2本→0本。器＝LazyColumn は在るのに高さが無い形で、
+            //  目次K の現在地バーで踏んだ監査 2026-08-06 G-1 と同型）。
+            // 文字を縮める・チップを間引くのは対症（もっと長い条件・もっと大きな fontScale で必ず再発する）。
+            // 真因は「帯が無制限に高さを取れること」なので、帯を本文領域の半分までに閉じ込め、溢れた段は
+            // 帯の内部スクロールで到達可能にする（情報は落とさない＝DiscoverySearchScreen の
+            // 選択キーワード追従バーが heightIn+verticalScroll で採っているのと同じ処方）。
+            // 半分にする根拠: この画面の主役は一覧なので残り半分は必ず一覧へ渡す。等倍の帯は golden 実測で
+            // 456px＝228dp（本文領域 576dp の 40%）と上限に触れないため、1.0 の版面（モック正本）は不変。
+            BoxWithConstraints {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = maxHeight / 2)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    ctx.subtitle?.let {
+                        Text(
+                            text = it,
+                            fontSize = FontLabel,
+                            lineHeight = 18.sp,
+                            // 結果サブタイトルは情報を運ぶ文字＝infoText（AA 4.5:1・ADR 0014-D 裁定で装飾用と分離）。
+                            color = LocalShelfColors.current.infoText,
+                            modifier = Modifier.padding(horizontal = Spacing.S24),
+                        )
                     }
-                    mutable
-                } else {
-                    baseChips
-                }
+                    // 条件チップ（藍の細枠・モック .cd）
+                    // なぜ各子に .align(CenterVertically) を付けるか: この行にはクリック可チップ
+                    // （外側 Box に .minimumInteractiveComponentSize＝48dp のタップ枠）と、素の静的チップ
+                    // （border+padding で実高 約26dp）が高さ混在する。FlowRow の cross-axis 既定は Top 揃えのため、
+                    // 背の低い静的チップが上端に張り付き、ピルの縦センターが行内でずれて見える（当たり判定を確保する
+                    // 48dp 枠は外せないので、見た目は縦センター揃えで解消する）。
+                    // itemVerticalAlignment パラメータは foundation 1.8+ で、BOM 2025.02.00 の 1.7.8 には無いため、
+                    // FlowRowScope.align を各子へ付与する方式を採る。
+                    FlowRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = Spacing.S24, vertical = Spacing.S12),
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.S8),
+                        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.S8),
+                    ) {
+                        val baseChips = conditionChipLabels(ctx.query)
+                        val chips = if (ctx.query.biggenres.isEmpty() && ctx.query.genres.isEmpty()) {
+                            // なぜ: ジャンル未指定時は、並び順チップ（baseChips の最後）の直前に「ジャンル ⌄」チップを追加し、その場変更を可能にする。
+                            val mutable = baseChips.toMutableList()
+                            val placeholder = ConditionChip("ジャンル", ChipKind.GENRE_PLACEHOLDER)
+                            if (mutable.isNotEmpty()) {
+                                mutable.add(mutable.lastIndex, placeholder)
+                            } else {
+                                mutable.add(placeholder)
+                            }
+                            mutable
+                        } else {
+                            baseChips
+                        }
 
-                chips.forEach { chip ->
-                    val label = chip.label
-                    // なぜ key(kind, label) か: 下の clickable チップは expanded を remember する。remember は
-                    // スロット位置に紐づくため、条件変更でチップ集合が増減・並び替わると、開いていた
-                    // ドロップダウンの expanded が別チップへ誤流用される。label（並び順「〜順」・ジャンル名等）で
-                    // 固定するのが基本だが、KEYWORD チップ導入で検索語が既存条件と同一文言になりうる
-                    // （例: word="恋愛" と GENRE「恋愛」）。label 単独キーだと重複キーで Compose がクラッシュ
-                    // するため、種別も鍵に含めて衝突を防ぐ（同種内は label が一意＝トークンは重複しない）。
-                    key(chip.kind, label) {
-                        // なぜ ChipKind で判定するか: 以前は表示文字列一致・末尾位置でチップ種別を推測していたが、
-                        // 文言や並び順を変えると静かに壊れるため、生成時に付与した種別（型）で分岐する。
-                        // 大／小ジャンルのクリック可否は「1件のみ選択時」に限る従来仕様を size 条件で維持する。
-                        val isOrderChip = chip.kind == ChipKind.ORDER
-                        val isBiggenreChip = chip.kind == ChipKind.BIG_GENRE && ctx.query.biggenres.size == 1
-                        val isGenreChip = chip.kind == ChipKind.GENRE && ctx.query.genres.size == 1
-                        val isGenrePlaceholderChip = chip.kind == ChipKind.GENRE_PLACEHOLDER
+                        chips.forEach { chip ->
+                            val label = chip.label
+                            // なぜ key(kind, label) か: 下の clickable チップは expanded を remember する。remember は
+                            // スロット位置に紐づくため、条件変更でチップ集合が増減・並び替わると、開いていた
+                            // ドロップダウンの expanded が別チップへ誤流用される。label（並び順「〜順」・ジャンル名等）で
+                            // 固定するのが基本だが、KEYWORD チップ導入で検索語が既存条件と同一文言になりうる
+                            // （例: word="恋愛" と GENRE「恋愛」）。label 単独キーだと重複キーで Compose がクラッシュ
+                            // するため、種別も鍵に含めて衝突を防ぐ（同種内は label が一意＝トークンは重複しない）。
+                            key(chip.kind, label) {
+                                // なぜ ChipKind で判定するか: 以前は表示文字列一致・末尾位置でチップ種別を推測していたが、
+                                // 文言や並び順を変えると静かに壊れるため、生成時に付与した種別（型）で分岐する。
+                                // 大／小ジャンルのクリック可否は「1件のみ選択時」に限る従来仕様を size 条件で維持する。
+                                val isOrderChip = chip.kind == ChipKind.ORDER
+                                val isBiggenreChip = chip.kind == ChipKind.BIG_GENRE && ctx.query.biggenres.size == 1
+                                val isGenreChip = chip.kind == ChipKind.GENRE && ctx.query.genres.size == 1
+                                val isGenrePlaceholderChip = chip.kind == ChipKind.GENRE_PLACEHOLDER
 
-                        val isGenreFilterChip = isBiggenreChip || isGenreChip || isGenrePlaceholderChip
-                        val isClickable = isOrderChip || isGenreFilterChip
+                                val isGenreFilterChip = isBiggenreChip || isGenreChip || isGenrePlaceholderChip
+                                val isClickable = isOrderChip || isGenreFilterChip
 
-                        if (isClickable) {
-                            var expanded by remember { mutableStateOf(false) }
-                            val displayLabel = "$label ⌄"
+                                if (isClickable) {
+                                    var expanded by remember { mutableStateOf(false) }
+                                    val displayLabel = "$label ⌄"
 
-                            // F-P: 当たり判定を 48dp へ。clickable と minimumInteractiveComponentSize を
-                            // 外側 Box に移し、ピル（枠+文字）は中央寄せで見た目のサイズを保つ
-                            // （タップ領域だけ不可視に広がる。DropdownMenu もこの Box を基準に開く）。
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    // 行内で高さ混在する静的チップと縦センターを揃える（上のFlowRowコメント参照）
-                                    .align(Alignment.CenterVertically)
-                                    .minimumInteractiveComponentSize()
-                                    .clickable { expanded = true },
-                            ) {
-                                Text(
-                                    text = displayLabel,
-                                    fontSize = FontMicroLabel,
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-                                    modifier = Modifier
-                                        .border(
-                                            width = 1.dp,
-                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                                            shape = RoundedCornerShape(50),
-                                        )
-                                        .padding(horizontal = Spacing.S12, vertical = Spacing.S4),
-                                )
-
-                                if (isOrderChip) {
-                                    DropdownMenu(
-                                        expanded = expanded,
-                                        onDismissRequest = { expanded = false }
+                                    // F-P: 当たり判定を 48dp へ。clickable と minimumInteractiveComponentSize を
+                                    // 外側 Box に移し、ピル（枠+文字）は中央寄せで見た目のサイズを保つ
+                                    // （タップ領域だけ不可視に広がる。DropdownMenu もこの Box を基準に開く）。
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            // 行内で高さ混在する静的チップと縦センターを揃える（上のFlowRowコメント参照）
+                                            .align(Alignment.CenterVertically)
+                                            .minimumInteractiveComponentSize()
+                                            .clickable { expanded = true },
                                     ) {
-                                        NarouOrder.entries.forEach { order ->
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        text = order.uiLabel,
-                                                        fontWeight = if (ctx.query.order == order) FontWeight.Bold else FontWeight.Normal,
-                                                        fontSize = FontBody
-                                                    )
-                                                },
-                                                onClick = {
-                                                    expanded = false
-                                                    onChangeOrder(order)
-                                                }
-                                            )
-                                        }
-                                    }
-                                } else if (isGenreFilterChip) {
-                                    DropdownMenu(
-                                        expanded = expanded,
-                                        onDismissRequest = { expanded = false }
-                                    ) {
-                                        // 1. すべてのジャンル
-                                        DropdownMenuItem(
-                                            text = {
-                                                Text(
-                                                    text = "すべてのジャンル",
-                                                    fontWeight = if (ctx.query.biggenres.isEmpty() && ctx.query.genres.isEmpty()) FontWeight.Bold else FontWeight.Normal,
-                                                    fontSize = FontBody
+                                        Text(
+                                            text = displayLabel,
+                                            fontSize = FontMicroLabel,
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                                            modifier = Modifier
+                                                .border(
+                                                    width = 1.dp,
+                                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                                    shape = RoundedCornerShape(50),
                                                 )
-                                            },
-                                            onClick = {
-                                                expanded = false
-                                                onChangeGenreFilter(emptySet(), emptySet())
-                                            }
+                                                .padding(horizontal = Spacing.S12, vertical = Spacing.S4),
                                         )
-                                        // 2. 大ジャンル＋配下小ジャンル
-                                        NarouGenres.BIGGENRES.forEach { (bigCode, bigName) ->
-                                            val isCurrentBig = ctx.query.biggenres.size == 1 && ctx.query.biggenres.first() == bigCode
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        text = bigName,
-                                                        fontWeight = if (isCurrentBig) FontWeight.Bold else FontWeight.SemiBold,
-                                                        color = if (isCurrentBig) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Unspecified,
-                                                        fontSize = FontBody
+
+                                        if (isOrderChip) {
+                                            DropdownMenu(
+                                                expanded = expanded,
+                                                onDismissRequest = { expanded = false }
+                                            ) {
+                                                NarouOrder.entries.forEach { order ->
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Text(
+                                                                text = order.uiLabel,
+                                                                fontWeight = if (ctx.query.order == order) FontWeight.Bold else FontWeight.Normal,
+                                                                fontSize = FontBody
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            expanded = false
+                                                            onChangeOrder(order)
+                                                        }
                                                     )
-                                                },
-                                                onClick = {
-                                                    expanded = false
-                                                    onChangeGenreFilter(setOf(bigCode), emptySet())
                                                 }
-                                            )
-                                            NarouGenres.GENRES_BY_BIG[bigCode]?.forEach { (genreCode, genreName) ->
-                                                val isCurrentGenre = ctx.query.genres.size == 1 && ctx.query.genres.first() == genreCode
+                                            }
+                                        } else if (isGenreFilterChip) {
+                                            DropdownMenu(
+                                                expanded = expanded,
+                                                onDismissRequest = { expanded = false }
+                                            ) {
+                                                // 1. すべてのジャンル
                                                 DropdownMenuItem(
                                                     text = {
                                                         Text(
-                                                            text = genreName,
-                                                            modifier = Modifier.padding(start = Spacing.S16),
-                                                            fontWeight = if (isCurrentGenre) FontWeight.Bold else FontWeight.Normal,
-                                                            color = if (isCurrentGenre) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Unspecified,
-                                                            fontSize = FontSubTitle
+                                                            text = "すべてのジャンル",
+                                                            fontWeight = if (ctx.query.biggenres.isEmpty() && ctx.query.genres.isEmpty()) FontWeight.Bold else FontWeight.Normal,
+                                                            fontSize = FontBody
                                                         )
                                                     },
                                                     onClick = {
                                                         expanded = false
-                                                        onChangeGenreFilter(emptySet(), setOf(genreCode))
+                                                        onChangeGenreFilter(emptySet(), emptySet())
                                                     }
                                                 )
+                                                // 2. 大ジャンル＋配下小ジャンル
+                                                NarouGenres.BIGGENRES.forEach { (bigCode, bigName) ->
+                                                    val isCurrentBig = ctx.query.biggenres.size == 1 && ctx.query.biggenres.first() == bigCode
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Text(
+                                                                text = bigName,
+                                                                fontWeight = if (isCurrentBig) FontWeight.Bold else FontWeight.SemiBold,
+                                                                color = if (isCurrentBig) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Unspecified,
+                                                                fontSize = FontBody
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            expanded = false
+                                                            onChangeGenreFilter(setOf(bigCode), emptySet())
+                                                        }
+                                                    )
+                                                    NarouGenres.GENRES_BY_BIG[bigCode]?.forEach { (genreCode, genreName) ->
+                                                        val isCurrentGenre = ctx.query.genres.size == 1 && ctx.query.genres.first() == genreCode
+                                                        DropdownMenuItem(
+                                                            text = {
+                                                                Text(
+                                                                    text = genreName,
+                                                                    modifier = Modifier.padding(start = Spacing.S16),
+                                                                    fontWeight = if (isCurrentGenre) FontWeight.Bold else FontWeight.Normal,
+                                                                    color = if (isCurrentGenre) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Unspecified,
+                                                                    fontSize = FontSubTitle
+                                                                )
+                                                            },
+                                                            onClick = {
+                                                                expanded = false
+                                                                onChangeGenreFilter(emptySet(), setOf(genreCode))
+                                                            }
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
                                     }
+                                } else {
+                                    Text(
+                                        text = label,
+                                        fontSize = FontMicroLabel,
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                                        modifier = Modifier
+                                            // 48dpタップ枠のクリック可チップと縦センターを揃える（上のFlowRowコメント参照）
+                                            .align(Alignment.CenterVertically)
+                                            .border(
+                                                width = 1.dp,
+                                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                                shape = RoundedCornerShape(50),
+                                            )
+                                            .padding(horizontal = Spacing.S12, vertical = Spacing.S4),
+                                    )
                                 }
                             }
-                        } else {
-                            Text(
-                                text = label,
-                                fontSize = FontMicroLabel,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-                                modifier = Modifier
-                                    // 48dpタップ枠のクリック可チップと縦センターを揃える（上のFlowRowコメント参照）
-                                    .align(Alignment.CenterVertically)
-                                    .border(
-                                        width = 1.dp,
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                                        shape = RoundedCornerShape(50),
-                                    )
-                                    .padding(horizontal = Spacing.S12, vertical = Spacing.S4),
-                            )
                         }
-                    }
-                }
 
-                if (ctx.source == ResultSource.SEARCH) {
-                    // why: 「条件を変更」で戻る先はDiscoverySearchScreen(検索画面)。
-                    // ジャンル・気分等で出すと戻り先に条件シートがなく騙し導線になるため、SEARCH のみに限定する。
-                    // F-P: 当たり判定を 48dp へ（clickable を外側 Box に移し文言サイズは維持）。
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            // 静的チップと縦センターを揃える（上のFlowRowコメント参照）
-                            .align(Alignment.CenterVertically)
-                            .minimumInteractiveComponentSize()
-                            .clickable { onEditConditions() },
-                    ) {
-                        Text(
-                            text = "条件を変更",
-                            fontSize = FontMicroLabel,
-                            color = MaterialTheme.colorScheme.secondary,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(horizontal = Spacing.S12, vertical = Spacing.S4),
-                        )
+                        if (ctx.source == ResultSource.SEARCH) {
+                            // why: 「条件を変更」で戻る先はDiscoverySearchScreen(検索画面)。
+                            // ジャンル・気分等で出すと戻り先に条件シートがなく騙し導線になるため、SEARCH のみに限定する。
+                            // F-P: 当たり判定を 48dp へ（clickable を外側 Box に移し文言サイズは維持）。
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    // 静的チップと縦センターを揃える（上のFlowRowコメント参照）
+                                    .align(Alignment.CenterVertically)
+                                    .minimumInteractiveComponentSize()
+                                    .clickable { onEditConditions() },
+                            ) {
+                                Text(
+                                    text = "条件を変更",
+                                    fontSize = FontMicroLabel,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.padding(horizontal = Spacing.S12, vertical = Spacing.S4),
+                                )
+                            }
+                        }
                     }
                 }
             }

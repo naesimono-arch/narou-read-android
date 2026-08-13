@@ -31,7 +31,9 @@ import org.robolectric.annotation.GraphicsMode
  *  ・話数ラベルが折り返す/切り詰まる（整列幅が桁数へ追従しなくなった）
  *  ・整列幅が行ごとに変わる（題名の開始 x が行で揃わなくなった）
  *  ・桁数が増えたぶん題名列が痩せて題名の省略位置・行高が変わる
- *  ・現在地バーの「全N話・読了率X%」が桁数の多い N で崩れる
+ *  ・現在地バーの進捗「全N話・読了率X%」が1行・右端寄せを保てなくなる
+ *   （2.0 で折り返して縦に膨張し章一覧を押し出す破綻は監査 2026-08-06 G-1 で修正済み＝
+ *     以後は末尾省略で縮退する。この縮退の見え方が変わるのも赤）
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

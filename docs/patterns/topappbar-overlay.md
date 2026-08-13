@@ -1,6 +1,7 @@
 # TopAppBar オーバーレイ化 + NestedScrollConnection 非消費パターン  ★★
 
 > 旧 `task_diary.md` §24（本アプリ固有の実装パターン）
+> 正本コード: `android/app/src/main/java/com/novelreader/ui/NativeReadingScreen.kt`
 > ここは **コードが正本**。「なぜこのパターンか」に絞る。
 
 `enterAlwaysScrollBehavior` をそのまま `Scaffold` に渡すと、スクロールを横取りして

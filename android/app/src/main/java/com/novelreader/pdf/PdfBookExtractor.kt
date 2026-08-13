@@ -144,7 +144,11 @@ object PdfBookExtractor {
                 }
 
                 onProgress(2, 1f, "前書き・後書きを処理しています…", currentTitle)
-                val finalChapters = ChapterProcessor.processForewordAfterword(chaptersData)
+                // 出自を明示する（既定値と同じだが、Web 経路との対比をコード上で読めるようにする）。
+                // 章タイトルは PDF 生成器の Bold 見出し＝末尾に「（前書き）」「（後書き）」が付きうる機械生成物。
+                val finalChapters = ChapterProcessor.processForewordAfterword(
+                    chaptersData, ChapterTitleSource.PDF_GENERATED,
+                )
 
                 onProgress(3, 0f, "HTMLを生成しています…", currentTitle)
                 // trace 区間: HTML 書き出し（章ごとの chap_N.html／index.html 生成）。

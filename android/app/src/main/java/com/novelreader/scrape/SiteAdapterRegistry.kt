@@ -17,7 +17,7 @@ import com.novelreader.scrape.generic.SiteProfiles
  * 「これは公式サイト/API で読む対象」と正しく案内するため（なろうは発見層 API＋WebView 読書が正路）。
  */
 class SiteAdapterRegistry(
-    private val adapters: List<NovelSiteAdapter> = defaultAdapters(),
+    private val adapters: List<NovelSiteAdapter> = sharedDefaultAdapters,
 ) {
     sealed interface Resolution {
         /** 自前 DL 可能なサイト。[adapter] と正規化済み作品 URL を持つ。 */
@@ -85,14 +85,33 @@ class SiteAdapterRegistry(
             BlockedHost("syosetu.org", "ハーメルン"),
         )
 
-        private fun defaultAdapters(): List<NovelSiteAdapter> {
-            // 全アダプタで1つの [ScrapeHttpClient] を共有する＝グローバル床（全ホスト横断の最低間隔）が
-            // 実際に全ホストへ効く。個別に new すると各インスタンスが自ホストの状態しか持たず、
-            // 複数サイトへ同時 DL したとき端末→網の総送出レートに床が掛からない（新サイト増設の前提土台）。
+        /**
+         * 既定アダプタ束＝**プロセス全体で1つ**。全アダプタが1つの [ScrapeHttpClient] を共有し、
+         * さらにその束を全 registry が共有することで、グローバル床（全ホスト横断の最低間隔 1req/s）が
+         * 実際にアプリ全体へ効く。
+         *
+         * なぜ「registry ごとに new」ではいけなかったか（監査 2026-08-06 C4 の真因）:
+         * [ScrapeHttpClient] の gate(Mutex)/lastRequestByHost はインスタンスフィールドなので、床は
+         * client インスタンス単位でしか掛からない。以前はここが `defaultAdapters()` 関数で、既定
+         * registry を作るたびに client ごと新規生成していた。実フェッチする registry は
+         * `DefaultBookRepository`（取込）と `NewEpisodeCheckWorker`（新着照会）の2つ、debug の
+         * `AdapterHealthBoardDialog` を数えれば3つあり、互いのロックを見ないまま同一ホストへ
+         * 重なり得た（実効 2req/s）。上の「全アダプタで1つ」という宣言が registry 境界で破れていた。
+         *
+         * なぜ [ScrapeHttpClient] 側を static 化せず「束の共有」で直すか:
+         * あちらは nowMs/sleep/fetch を差し替えられる注入クラス（テストの継ぎ目）で、床の状態を
+         * クラス変数へ上げるとテスト間で状態が漏れ、明示生成したインスタンスまで黙って同じ床を
+         * 共有してしまう。守るべき不変条件は「**既定の結線**では client は1つ」であって
+         * 「client クラスは常に1つ」ではない。アダプタは [http] 以外に可変状態を持たない純粋な
+         * 変換器なので、束ごと使い回して安全（生成コストも消える）。
+         *
+         * lazy は既定で同期化＝初回参照が複数スレッドから来ても実体は1つ。
+         */
+        private val sharedDefaultAdapters: List<NovelSiteAdapter> by lazy {
             val http = ScrapeHttpClient()
             // JSON（__NEXT_DATA__）系のカクヨムは専用アダプタで温存し、旧来型サーバサイド HTML 勢は
             // SiteProfiles の設定表 1 行ごとに GenericSiteAdapter を量産する（1 プロファイル=1 アダプタ）。
-            return listOf(KakuyomuAdapter(http)) + SiteProfiles.ALL.map { GenericSiteAdapter(it, http) }
+            listOf(KakuyomuAdapter(http)) + SiteProfiles.ALL.map { GenericSiteAdapter(it, http) }
         }
 
         private fun hostOf(url: String): String? = runCatching {

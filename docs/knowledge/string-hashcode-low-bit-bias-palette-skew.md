@@ -8,4 +8,10 @@
 
 **横展開候補**: 同型の hashCode 直割当は M の学名色 `idColorFor`（SeizuIdPalette 4色）・P のラベル色 `labelColorFor`（w1-4）にもある。偏りが目視で気になったら同じ fmix32 を適用（handover 記載）。
 
+⚠️ **ただし fmix32 は万能ではない（J で実測済み）**: 本家の J でも **fmix32 適用後に 5/6 の扉が緑系**になった。
+真因の一半は撹拌でなく**パレット自体が緑系 2/4** であること＝入力の偏りは撹拌で消えない。
+未裁定の案件として `awaiting-human.md`「J 扉/升の色相偏り」に残っている。
+よって M/P へ広げるときは **fmix32 を入れて終わりにせず、パレットの色相分布も同時に見る**こと
+（撹拌だけ入れて「対処済み」と記録すると、J と同じ見た目のまま解決した扱いになる）。
+
 一次情報: `ui/skins/j/BookshelfPortalJ.kt` の `fmix32`/`portalDoorPaletteFor`（テスト=BookshelfPortalJTest「4世界全出現」）。

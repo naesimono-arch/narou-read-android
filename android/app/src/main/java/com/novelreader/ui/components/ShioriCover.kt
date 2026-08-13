@@ -2,7 +2,6 @@ package com.novelreader.ui.components
 
 import android.graphics.Paint
 import android.graphics.Typeface
-import android.provider.Settings
 import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
@@ -20,12 +19,12 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.novelreader.typeset.CharClassifier
 import com.novelreader.typeset.render.VertGlyphRenderer
 import com.novelreader.ui.theme.LocalShioriColors
+import com.novelreader.ui.theme.rememberReduceMotion
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
@@ -102,15 +101,9 @@ internal fun ShioriCover(
 
     // ── 高負荷アニメの合成判定（トグル OFF＝既定では一切の状態・購読を作らない） ──
     // reduce-motion はモックの @media (prefers-reduced-motion) 相当＝完全静止（ADR 0022 §3 制約②と同型）。
-    // 判定源は既存流儀（NativeReadingScreen ほか）の ANIMATOR_DURATION_SCALE==0。
-    val reduceMotion = if (highLoadAnim) {
-        val ctx = LocalContext.current
-        remember(ctx) {
-            Settings.Global.getFloat(ctx.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-        }
-    } else {
-        false
-    }
+    // 判定源は theme/ReduceMotion.kt の単一情報源（旧: ここで直読み＋remember＝設定変更が届かなかった・監査 C2）。
+    // トグル OFF のときに読まないのは従来どおり（既定では状態も購読も一切作らない＝golden が1pxも動かない）。
+    val reduceMotion = if (highLoadAnim) rememberReduceMotion() else false
     val animActive = shioriHighLoadActive(highLoadAnim, accentOverride != null, params.tipIndex, reduceMotion)
     // アニメ時計は合成時のみ購読（infiniteTransition 相当をトグル ON 時だけ組む＝OFF は既存 golden が1pxも変わらない）。
     val animClock: State<Long>? = if (animActive) rememberShioriHighLoadClock() else null

@@ -17,6 +17,7 @@ import com.novelreader.model.ChapterFilename
 import com.novelreader.narou.model.Ncode
 import com.novelreader.pdf.BookMeta
 import com.novelreader.pdf.CorruptedPdfError
+import com.novelreader.pdf.EmptyExtractionError
 import com.novelreader.pdf.EncryptedPdfError
 import com.novelreader.pdf.InsufficientStorageError
 import com.novelreader.pdf.PdfProgress
@@ -115,6 +116,14 @@ class BookRepositoryTest {
     @Test
     fun `classifyError - CorruptedPdfError を CorruptedPdf に変換する`() {
         val result = repository.classifyError(CorruptedPdfError("bad structure"))
+        assert(result is BookImportError.CorruptedPdf)
+    }
+
+    @Test
+    fun `classifyError - EmptyExtractionError を CorruptedPdf（決定的失敗）に変換する`() {
+        // 章0件（監査 A3 ゲート）は再試行しても必ず同じ結果＝CorruptedPdf 側に載せて
+        // Service の isDeterministicFailure が「再試行」を出さないことを型で保証する。
+        val result = repository.classifyError(EmptyExtractionError("no chapters"))
         assert(result is BookImportError.CorruptedPdf)
     }
 
@@ -730,11 +739,61 @@ class BookRepositoryTest {
         }
     }
 
+    // ── 章0件ゲート（監査 A3: import-commits-without-integrity-check）──────────────────
+    // 総ページ4以下の PDF は TextProcessor の固定トリムで全ページが除外され、章0件のまま
+    // index.html だけが書かれる。旧実装はこれを Added（成功）で確定し「開けない本」が棚に残った。
+
+    @Test
+    fun `addBook - 章0件の抽出は成功で確定せず失敗で隔離される（未insert・書きかけ削除）`() = runTest {
+        val filesDir = createTempDir(prefix = "emptyChapFiles")
+        val cacheDir = createTempDir(prefix = "emptyChapCache")
+        try {
+            every { context.filesDir } returns filesDir
+            every { context.cacheDir } returns cacheDir
+            val pdfUri = mockk<Uri>(relaxed = true)
+            every { pdfUri.toString() } returns "content://docs/short"
+            every { context.contentResolver.openInputStream(pdfUri) } returns
+                ByteArrayInputStream("short pdf bytes".toByteArray())
+            coEvery { bookDao.findByContentSha256(any()) } returns null
+
+            // 総ページ4以下の PDF を模す: 抽出は例外なく完走するが chap_N.html を1枚も書かない
+            // （全ページ除外→HtmlExporter は index.html だけ無条件に書く、が実機の姿）。
+            val emptyExtract: (File, String, File, PdfProgress) -> BookMeta = { _, _, outputDir, _ ->
+                outputDir.mkdirs()
+                File(outputDir, "index.html").writeText("<html>empty</html>")
+                BookMeta("短編PDF", "著者S")
+            }
+            val repo = DefaultBookRepository(
+                context, bookDao, progressDao, pendingJobDao,
+                webReadingProgressDao = FakeWebReadingProgressDao(),
+                runInTransaction = { block -> block() },
+                extractBook = emptyExtract,
+            )
+
+            val result = repo.addBook(pdfUri)
+
+            assertTrue("章0件は成功で確定しない（旧実装は Added＋変換完了通知）", result.isFailure)
+            assertTrue(
+                "決定的失敗（CorruptedPdf）に分類され、無効な再試行導線を出さない側に載る",
+                result.exceptionOrNull() is BookImportError.CorruptedPdf,
+            )
+            // 「開けない本」を棚に残さない: insert されず index.html だけの書きかけ一式も消える。
+            val novels = File(filesDir, "novels")
+            assertTrue("index.html だけの残骸を残さない", novels.listFiles().isNullOrEmpty())
+            coVerify(exactly = 0) { bookDao.insertBook(any()) }
+        } finally {
+            filesDir.deleteRecursively()
+            cacheDir.deleteRecursively()
+        }
+    }
+
     // ── 本文欠落→再取込の復元モード（2026-07-29 案B/C）──────────────────────────────
     // 契約: 既存行を保持し本文だけ再生成（id 不変・insertBook を呼ばない・進捗 DAO に触れない＝
     // 読書位置/栞/読了/追加日が残る）。本文が実在する既存本は従来どおり Duplicate（挙動不変の回帰）。
 
-    /** 復元テスト共通の repo 組み立て: 抽出 fake は outputDir へ index.html を書き、渡された bookId を記録する。 */
+    /** 復元テスト共通の repo 組み立て: 抽出 fake は outputDir へ index.html＋chap_1.html を書き、
+     *  渡された bookId を記録する。chap_1.html まで書くのは、実抽出の成功が必ず章ファイルを伴う契約を
+     *  fixture にも反映するため（章0件ゲート＝監査 A3 の追加後、index だけの fixture は取込失敗になる）。 */
     private fun restoreRepoWith(
         extractedIds: MutableList<String>,
         meta: BookMeta = BookMeta("復元本", "著者R"),
@@ -743,6 +802,7 @@ class BookRepositoryTest {
             extractedIds.add(bookId)
             outputDir.mkdirs()
             File(outputDir, "index.html").writeText("<html>restored</html>")
+            File(outputDir, "chap_1.html").writeText("<html>chap1</html>")
             meta
         }
         return DefaultBookRepository(

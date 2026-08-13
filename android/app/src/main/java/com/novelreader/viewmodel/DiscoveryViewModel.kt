@@ -266,7 +266,13 @@ class DiscoveryViewModel(
                 _resultState.value = current.copy(paging = PagingState.LoadMoreError(e.userMessage))
                 return@launch
             }
-            val mergedNovels = current.novels + next.novels
+            // ncode で重複排除（先勝ち＝順序維持）。なぜ必要か: 供給側は st オフセット窓＋(query,offset) 単位の
+            // 6h キャッシュ（NovelApiRepository）のため「1ページ目＝旧スナップショット／2ページ目＝ライブ」が正規で、
+            // 順位が動く order（NEW・ランキング）では窓が重なり同一作品が二重に入る。描画側の Lazy 系は
+            // ncode を key にするため、重複キーが同時コンポーズされた瞬間に IllegalArgumentException で落ちる
+            // ＝キー供給側（ここ）で一意性を保証するのが真因対処。ncode 欠損（他サイト由来等の防御）は
+            // 要素自身をキーに退避＝完全同値の重複だけ畳まれ、それ以外は従来どおり素通しする。
+            val mergedNovels = (current.novels + next.novels).distinctBy { it.ncode ?: it }
             _resultState.value = current.copy(
                 novels = mergedNovels,
                 // 総数はページングで変わらない＝初回ページの allcount を維持（総件数表示が自然に追従する）。

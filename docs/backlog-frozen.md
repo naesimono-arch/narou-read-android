@@ -136,7 +136,7 @@
 > `.claude/plans/ux-audit-batch-execution-20260712.md`。ゲート＝`cd android && testDebugUnitTest`＋`python3 tools/check_design_tokens.py`。
 > **意匠絡みは Compose で自己判断せず ADR0005/0014＋モック正本に先に接地**。
 
-- **蔵書内フィルタ/series 束ね UI**: ロジック `filterBooksByQuery` は実装済み・**UI はモック未表現のため保留**（`BookshelfScreen.kt:442`／`ShelfItems.kt:37`）。
+- **蔵書内フィルタ/series 束ね UI**: ロジック `filterBooksByQuery` は実装済み・**UI はモック未表現のため保留**（実体＝`domain/ShelfItems.kt:418`）。
   series 束ねはスキーマ変更要（設計案のみ）。**解凍条件＝モックを起こすと決めたとき**。
 - **目次の部/編 折り畳み**: 抽出パイプラインに階層データ無し＝**抽出側の新機能**。実PDF→HTML は「フラット確定」＝畳みは前提データ欠如で現状不成立。
   **解凍条件＝抽出側が階層を持つようになったとき**。

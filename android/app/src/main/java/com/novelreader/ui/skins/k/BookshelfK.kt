@@ -14,6 +14,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -36,6 +38,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -75,7 +78,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -88,11 +94,13 @@ import com.novelreader.data.WebNovelEntity
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.DeleteSourcePdfOption
 import com.novelreader.ui.MissingContentBadge
+import com.novelreader.ui.DeleteTargetTitlesText
 import com.novelreader.ui.MissingContentDeleteWarningText
 import com.novelreader.ui.NewChaptersBadge
 import com.novelreader.ui.ProcessingBanner
 import com.novelreader.ui.ReimportScanBanner
 import com.novelreader.ui.ReimportSweepBanner
+import com.novelreader.ui.emptyStatusSemantics
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.components.ShioriCover
 import com.novelreader.ui.components.shioriAccentFor
@@ -452,7 +460,16 @@ internal fun BookshelfK(
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = Spacing.S16, bottom = Spacing.S16),
+                    .padding(end = Spacing.S16, bottom = Spacing.S16)
+                    // 読み上げ名（2026-08-07 実機 TalkBack で無名と判明）: M3 の
+                    // ExtendedFloatingActionButton は text スロットを clearAndSetSemantics{} で包む
+                    // （展開/縮退アニメで読み上げが揺れないようにするため）。結果、ラベルが見えていても
+                    // ボタンの意味ノードは Role=Button だけで text も contentDescription も空になる
+                    // ＝名前は呼び出し側が与えるしかない（unmerged ツリーで確認＝BookshelfKFabTest）。
+                    // 名前は見える文字と同一にする（label-in-name＝音声操作で「PDFを追加」と言える）。
+                    // 用語: これは端末内PDFの取り込みで、発見（A「見つける」）でも検索（B「探す」）でも
+                    // ない＝docs/patterns/discovery-terminology.md の2語を借りない。
+                    .semantics { contentDescription = "PDFを追加" },
             )
         }
 
@@ -492,6 +509,8 @@ internal fun BookshelfK(
                 Column {
                     // 欠落本の警告は本文の先頭（後段の一般文より固有かつ重い）。欠落0冊なら描画そのものが無い。
                     MissingContentDeleteWarningText(lossWarning)
+                    // 削除対象の題名列挙（監査 A11・D と同じ共有部品＝先頭5件＋ほかN件。理由は部品側コメント参照）。
+                    DeleteTargetTitlesText(bookTargets.map { it.title } + webTargets.map { it.title })
                     // 選択内訳（蔵書数・Web数）で本文を出し分け（系3）＝Web に「本文データも削除」の虚偽を出さない。
                     Text(deleteConfirmBody(bookTargets.size, webTargets.size))
                     DeleteSourcePdfOption(deletableCount, alsoDeleteSource) { alsoDeleteSource = it }
@@ -576,32 +595,35 @@ private fun KStatusChipRow(
         horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
     ) {
         // 「すべて」＝選択なし（null）。棚が非空のときだけ出る行なので常に押せる。
-        KStatusChip(label = "すべて", selected = selectedStatus == null, enabled = true) { onSelect(null) }
-        // よみかけ／未読／読了。0件の分類は enabled=false で淡く＝押しても空表示になる分類を先に塞ぐ（D と同規則）。
+        KStatusChip(label = "すべて", selected = selectedStatus == null) { onSelect(null) }
+        // よみかけ／未読／読了。0件でも淡色化しない（2026-08-07 ユーザー裁定・D と同規則＝理由は
+        // BookshelfScreen の StatusChipRow のコメント。K も「選択中の淡色化で選択が消える」同じ真因を持つ）。
         KStatusChip(
             label = "よみかけ",
             selected = selectedStatus == ReadingStatus.READING,
-            enabled = (statusCounts[ReadingStatus.READING] ?: 0) > 0,
+            isEmpty = (statusCounts[ReadingStatus.READING] ?: 0) == 0,
         ) { onSelect(ReadingStatus.READING) }
         KStatusChip(
             label = "未読",
             selected = selectedStatus == ReadingStatus.UNREAD,
-            enabled = (statusCounts[ReadingStatus.UNREAD] ?: 0) > 0,
+            isEmpty = (statusCounts[ReadingStatus.UNREAD] ?: 0) == 0,
         ) { onSelect(ReadingStatus.UNREAD) }
         KStatusChip(
             label = "読了",
             selected = selectedStatus == ReadingStatus.FINISHED,
-            enabled = (statusCounts[ReadingStatus.FINISHED] ?: 0) > 0,
+            isEmpty = (statusCounts[ReadingStatus.FINISHED] ?: 0) == 0,
         ) { onSelect(ReadingStatus.FINISHED) }
     }
 }
 
-/** フィルタチップ1個（.chip＝角丸ピル）。選択＝藍塗り＋白字／非選択＝ヘアライン枠＋補助色／0件＝淡く不活性。 */
+/** フィルタチップ1個（.chip＝角丸ピル）。選択＝藍塗り＋白字／非選択＝ヘアライン枠＋補助色。 */
 @Composable
 private fun KStatusChip(
     label: String,
     selected: Boolean,
-    enabled: Boolean,
+    // 該当0件か。**見た目には効かせない**（0件の淡色化・押下不能は 2026-08-07 裁定で廃止）。
+    // TalkBack へ「該当なし」を残すためだけに受ける＝文言は D と共有（emptyStatusSemantics）。
+    isEmpty: Boolean = false,
     onClick: () -> Unit,
 ) {
     val shape = CircleShape // border-radius:999px＝完全な丸ピル
@@ -610,16 +632,13 @@ private fun KStatusChip(
     } else {
         Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
     }
-    val fg = when {
-        !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-        selected -> MaterialTheme.colorScheme.onPrimary
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
+    val fg = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
     Box(
         modifier = Modifier
             .clip(shape)
             .then(base)
-            .clickable(enabled = enabled, onClick = onClick)
+            .clickable(onClick = onClick)
+            .then(emptyStatusSemantics(selected = selected, isEmpty = isEmpty))
             .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
     ) {
         Text(
@@ -661,7 +680,13 @@ private fun KGridBookCard(
     Column(
         modifier = modifier
             // 1冊=1トラバーサル単位に束ねる（D カードと同流儀）。
-            .semantics(mergeDescendants = true) {}
+            .semantics(mergeDescendants = true) {
+                // 選択モード中の選択状態宣言（D の GridBookCard と同文・監査 A11。理由はそちらのコメント参照）。
+                if (selectionMode) {
+                    this.selected = selected
+                    this.stateDescription = if (selected) "選択中" else "未選択"
+                }
+            }
             .combinedClickable(
                 // 通常＝タップで開く/長押しで選択モードへ。選択モード中はタップ/長押しで選択トグル（D と同挙動）。
                 onClick = { if (selectionMode) onToggleSelect() else onOpen() },
@@ -818,7 +843,13 @@ private fun KWebGridBookCard(
 
     Column(
         modifier = modifier
-            .semantics(mergeDescendants = true) {}
+            .semantics(mergeDescendants = true) {
+                // 選択モード中の選択状態宣言（D の GridBookCard と同文・監査 A11。理由はそちらのコメント参照）。
+                if (selectionMode) {
+                    this.selected = selected
+                    this.stateDescription = if (selected) "選択中" else "未選択"
+                }
+            }
             .combinedClickable(
                 // 選択モード中はタップ/長押しで選択トグル。通常時は進捗あれば主タップ=続きから／未読は目次、長押しで選択モードへ（系3）。
                 // 旧・長押し＝⋮は、キャプション行右端の可視⋮（KCardMenuButton）が代替導線になったため選択入口へ譲る。
@@ -963,7 +994,13 @@ private fun KListBookCard(
         Row(
             modifier = Modifier
                 // 1冊=1トラバーサル単位に束ねる（行末⋮は別フォーカスとして残る＝D の目録行と同流儀）。
-                .semantics(mergeDescendants = true) {}
+                .semantics(mergeDescendants = true) {
+                    // 選択モード中の選択状態宣言（D の GridBookCard と同文・監査 A11。理由はそちらのコメント参照）。
+                    if (selectionMode) {
+                        this.selected = selected
+                        this.stateDescription = if (selected) "選択中" else "未選択"
+                    }
+                }
                 // 選択中は行全体に淡い藍かぶせ（D の ListBookCard と同じ・目録は色帯があるため控えめ）。
                 .background(
                     if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
@@ -1088,7 +1125,13 @@ private fun KWebListBookCard(
     // （残すと破線と実線の二重区切りになる）。Column 包みも不要になり Row 単体で組む。
     Row(
         modifier = modifier
-            .semantics(mergeDescendants = true) {}
+            .semantics(mergeDescendants = true) {
+                // 選択モード中の選択状態宣言（D の GridBookCard と同文・監査 A11。理由はそちらのコメント参照）。
+                if (selectionMode) {
+                    this.selected = selected
+                    this.stateDescription = if (selected) "選択中" else "未選択"
+                }
+            }
             // 角丸6dp＝正本 .web の border-radius。clip が field 地・選択かぶせ・リップルを枠形に収める。
             .clip(RoundedCornerShape(6.dp))
             // 紙地一段沈め（--field）＝KWebGridBookCard と同じ onSurface 5% かぶせのテーマ非依存翻訳（alpha は実機検分で調整）。
@@ -1306,35 +1349,62 @@ private fun KSelectionActionBar(
 // 空状態（.empty＝「まだ本がありません」＋説明＋CTA2つ〈作品をさがす〉〈PDFを追加〉）
 // 〈作品をさがす〉はさがすタブ（発見ホーム）へ＝K は発見帯を本棚に置かず、さがすタブへ一本化した（plan 確定5）。
 // ============================================================
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun KEmptyState(
     onFindWorks: () -> Unit,
     onAddPdf: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier.padding(horizontal = Spacing.S40),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            "まだ本がありません",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Spacer(Modifier.height(Spacing.S12))
-        Text(
-            "読みたい作品をさがすか、お手元のPDFを追加して読み始めましょう。",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(Spacing.S32))
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.S12)) {
-            // 一画面一強調＝新規ユーザーの主導線「作品をさがす」を藍の実塗り、PDF追加を輪郭ボタンに沈める。
-            Button(onClick = onFindWorks) { Text("作品をさがす") }
-            OutlinedButton(onClick = onAddPdf) { Text("PDFを追加") }
+    // なぜ Box(中央寄せ)＋内側 Column(verticalScroll) の二段構えか（監査 2026-08-06 G-6）:
+    // fontScale 2.0 では文言＋CTA の全高が親の weight(1f) 領域を超え、下端（CTA）が画面外へ切れていた。
+    // Column へ直接 verticalScroll を足すと、内容が可視域より低いとき Column が内容高で wrap して
+    // 上詰めになり 1.0 の中央寄せが崩れるため、中央寄せは外の Box・あふれ時のスクロールは内側 Column
+    // へ役割を分ける（1.0 の見た目は不変・2.0 だけスクロール可能になる）。
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Spacing.S40)
+                // なぜ下端に FAB 回避ぶんを敷くか（2026-08-07 実機 PGEM10）: 空棚だけが器を別に持ち
+                // （グリッド/リストは contentPadding で Insets.ScrollBottomForFab を予約済み）、
+                // 拡張FABの下敷きになる帯を一切予約していなかった。fontScale 2.0 では文言と CTA が伸びて
+                // 中央寄せの塊が下へ広がり、CTA「PDFを追加」が FAB に半分覆われる（＝同じ操作の二重表示の
+                // 一方が他方を隠す）。帯の実寸＝FAB の下マージン S16 ＋ 実高 56dp の 72dp で、56dp は
+                // M3 の最小高が単行ラベル（labelLarge は 2.0 でも行高 40dp 級）を上回るため fontScale に
+                // 追従しない（golden 実測でも 1.0/2.0 とも 56dp）＝96dp の既存トークンで足りる。
+                // verticalScroll の**後**に置く＝予約はスクロール内容の一部になり、中央寄せの計算にも入る
+                // （はみ出す高さでも最後までスクロールすれば CTA が必ず帯の外へ出る）。
+                .padding(bottom = Insets.ScrollBottomForFab),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                "まだ本がありません",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.height(Spacing.S12))
+            Text(
+                "読みたい作品をさがすか、お手元のPDFを追加して読み始めましょう。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(Spacing.S32))
+            // なぜ FlowRow か（監査 2026-08-06 G-6）: 素の Row は幅を分け合わず、2.0 では先行ボタンが実寸を
+            // 取り切って輪郭ボタンが残り幅へ1文字ずつ縦積みになる破綻が golden（BookshelfK_empty_light_2.0）に
+            // 焼かれていた。入り切らないボタンは次行へ折り返して両導線の判読を保つ（テーマ3択チップと同じ流儀）。
+            // spacedBy の第2引数 CenterHorizontally は折返し後の各行を中央へ揃える（1.0 の1行時は見た目不変）。
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S12, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(Spacing.S12),
+            ) {
+                // 一画面一強調＝新規ユーザーの主導線「作品をさがす」を藍の実塗り、PDF追加を輪郭ボタンに沈める。
+                Button(onClick = onFindWorks) { Text("作品をさがす") }
+                OutlinedButton(onClick = onAddPdf) { Text("PDFを追加") }
+            }
         }
     }
 }

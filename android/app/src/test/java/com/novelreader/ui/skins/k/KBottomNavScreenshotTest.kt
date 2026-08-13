@@ -33,9 +33,11 @@ import org.robolectric.annotation.GraphicsMode
  *  ・ラベル（本棚/さがす/設定）の有無・字面・太さ・11sp の大きさ
  *  ・選択ピル（56x32・shapes.large・primary 10%）の有無/寸法/色
  *  ・アイコンの図柄（MenuBook/Search/Settings）と 24dp サイズ・選択/非選択の tint
- *  ・バー高 64dp・上罫ヘアライン（outlineVariant）・面色（surface）
+ *  ・バー高（1.0 は下限 64dp どおり・heightIn(min)）・上罫ヘアライン（outlineVariant）・面色（surface）
  *  ・3タブの等幅配置（weight(1f)）
- *  ・fontScale 2.0 でラベルが 64dp 固定高からはみ出す/切れる変化（＝この構造の最大の破綻リスク）
+ *  ・fontScale 2.0 でのラベルの収まりと帯の伸び量（旧 height(64dp) 固定での尻切れは
+ *    監査 2026-08-06 根因④で heightIn(min=64dp) へ修正済み＝以後は帯が内容高へ追従する。
+ *    その追従が壊れてラベルが再び切れる/帯高が不意に変わるのが赤）
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

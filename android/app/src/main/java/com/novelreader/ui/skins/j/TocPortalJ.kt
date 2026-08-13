@@ -22,13 +22,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -44,13 +47,18 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.TocState
+import com.novelreader.ui.skins.rememberTocEpLabelWidth
+import com.novelreader.ui.skins.tocHereChipContentDescription
+import com.novelreader.ui.skins.tocHereChipLabel
 import com.novelreader.ui.theme.AmbDarkGoldPortal
 import com.novelreader.ui.theme.AmbDarkMossPortal
 import com.novelreader.ui.theme.GlyphDarkPortal
@@ -119,6 +127,9 @@ private val AmbMossToc = AmbDarkMossPortal.copy(alpha = 0.50f) // radial moss rg
 /** 章行の道程状態（現在章より前＝PASSED／現在章＝CUR／未読＝AHEAD）。値の正本＝toc-J.html .li.{passed,cur,（既定）}。 */
 private enum class RowStep { PASSED, CUR, AHEAD }
 
+/** モック toc-J.html `.tx .ep{width:52px}`＝話数ラベル列の整列幅の下限（2桁までの実測値・スケール外の構造幅）。 */
+private val EpLabelMinWidthJ = 52.dp
+
 // 表示専用の末尾区切り除去（データは不変）。なろう系の原題は " - サブ" 形の区切りが末尾に残ることがあり、
 // 明朝15sp・幅制約の章行では孤立した「-」だけが折り返し2行目に落ちて可読性を損なう（2026-07-17 実機 J目次）。
 // そこで各種ダッシュ（半角/全角ハイフン・マイナス・各種ダッシュ・水平バー）が末尾にぶら下がるときだけ、
@@ -175,6 +186,13 @@ internal fun TocPortalJ(
                         initialFirstVisibleItemIndex = tocInitialFirstVisibleIndex(entries, currentChapterFile),
                     )
                     val scope = rememberCoroutineScope()
+                    // 話数ラベル列の整列幅は「この本で出る最長ラベル」から決める（機序＝rememberTocEpLabelWidth）。
+                    // 採寸スタイルは実際の描画（.ep＝11sp・letterSpacing .02em）と同一にする。
+                    val epLabelWidth = rememberTocEpLabelWidth(
+                        total = entries.size,
+                        style = LocalTextStyle.current.merge(TextStyle(fontSize = 11.sp, letterSpacing = 0.02.em)),
+                        minWidth = EpLabelMinWidthJ,
+                    )
                     // 現在地バー（モック toc-J.html .here）: 現在話チップ（淡い金地・金字・金枠）＋読了率。
                     TocHereBarJ(
                         currentIndex = currentIndex,
@@ -196,6 +214,7 @@ internal fun TocPortalJ(
                             }
                             TocChapterRow(
                                 epLabel = "第${index + 1}話",
+                                epLabelWidth = epLabelWidth,
                                 // 表示層で末尾区切りをトリム（データ entry.title は不変）。空題フォールバックは
                                 // トリム後に判定＝区切りだけの題は "第N話" へ落とす。
                                 title = entry.title.trimTrailingSeparator().ifEmpty { "第${index + 1}話" },
@@ -273,8 +292,11 @@ private fun TocHereBarJ(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (currentIndex >= 0) {
+            // 見える文字は「第N話」だけ（裁定 2026-08-07・4スキン同型）。前置き「いま読んでいる: 」は
+            // このチップが非加重子として幅を先取りする分の実質を占め、進捗の取り分を可視0文字まで潰していた。
+            // 削った語は読み上げ（contentDescription）に残す＝機序と数値は tocHereChipContentDescription が正本。
             Text(
-                "いま読んでいる: 第${currentIndex + 1}話",
+                tocHereChipLabel(currentIndex),
                 fontSize = 12.sp, // .herechip 12px
                 fontWeight = FontWeight.Bold,
                 color = GoldPortal, // color var(--gold)
@@ -283,16 +305,28 @@ private fun TocHereBarJ(
                     .background(GoldPortal.copy(alpha = 0.12f)) // --gold-tint rgba(226,200,120,.12)
                     .border(1.dp, GoldPortal.copy(alpha = 0.28f), RoundedCornerShape(999.dp)) // border rgba(226,200,120,.28)
                     .clickable(onClick = onJumpToCurrent)
-                    .padding(horizontal = Spacing.S16, vertical = Spacing.S8), // .herechip 6px 14px
+                    .padding(horizontal = Spacing.S16, vertical = Spacing.S8) // .herechip 6px 14px
+                    .semantics { contentDescription = tocHereChipContentDescription(currentIndex) },
             )
         }
-        Spacer(Modifier.weight(1f))
         val progress = buildString {
             append("全${total}話")
             // 読了率は現在章が既知のときのみ（未読は分母だけ＝捏造禁止）。可視の✓（既読）数と一致。
             if (currentIndex >= 0 && total > 0) append("・読了率${tocReadProgressPercent(currentIndex, total)}%")
         }
-        Text(progress, fontSize = 11.5.sp, color = SoftToc) // .prog 11.5px var(--soft)
+        // なぜ weight(1f)+maxLines=1 か（監査 2026-08-06 G-1・4スキン同型）: fontScale 2.0 でこの進捗文が
+        // チップの余り幅へ折り返して縦に膨張し、現在地バーの行高ごと下の章一覧を押し出す（K/D と同じ機序）。
+        // 余り幅の全量を進捗側へ渡して1行に固定し、入り切らない分は末尾省略で縮退させる。
+        // 右寄せは旧 Spacer(weight(1f)) と同じ見た目を textAlign=End で保つ。
+        Text(
+            progress,
+            fontSize = 11.5.sp, // .prog 11.5px var(--soft)
+            color = SoftToc,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -302,6 +336,8 @@ private fun TocHereBarJ(
 @Composable
 private fun TocChapterRow(
     epLabel: String,
+    /** リスト全行で共有する話数ラベルの整列幅（導出＝[rememberTocEpLabelWidth]）。行ごとに計算しない。 */
+    epLabelWidth: Dp,
     title: String,
     step: RowStep,
     onClick: () -> Unit,
@@ -336,12 +372,13 @@ private fun TocChapterRow(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.S12),
             ) {
                 // 話数ラベル（.ep width 52px・ゴシック11px --soft。K形伝播で追加）。
+                // 幅はモック固定値でなく桁数追従（[epLabelWidth]）＝52dp 固定では4桁「第1240話」がラベル自体で3行に割れた。
                 Text(
                     text = epLabel,
                     fontSize = 11.sp,
                     letterSpacing = 0.02.em,
                     color = SoftToc,
-                    modifier = Modifier.width(52.dp),
+                    modifier = Modifier.width(epLabelWidth),
                 )
                 Text(
                     text = title,
@@ -359,17 +396,19 @@ private fun TocChapterRow(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                // 行末（.end）: 現在章＝唯一の実アクション「ここから再開」／既読＝金の✓／未読＝なし。
+                // 行末（.end）: 現在章＝唯一の実アクション（▶ の丸チップ）／既読＝金の✓／未読＝なし。
+                // 2026-08-07 裁定でチップの文字を落としアイコンのみへ（機序＝K の TocK.kt 冒頭注記と同型）。
                 when (step) {
-                    RowStep.CUR -> Text(
-                        "ここから再開",
-                        fontSize = 11.sp,            // .resume 11px
-                        fontWeight = FontWeight.Bold, // weight 700
-                        color = ResumeInkPortal,     // color #15241A（金の上の森の暗インク）
+                    RowStep.CUR -> Icon(
+                        Icons.Filled.PlayArrow,
+                        // アイコンだけでは何のボタンか分からない＝読み上げ用の名前は必須（裁定 2026-08-07 の条件）。
+                        contentDescription = "ここから再開",
+                        tint = ResumeInkPortal,      // color #15241A（金の上の森の暗インク）
                         modifier = Modifier
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(GoldPortal)  // .resume background var(--gold)
-                            .padding(horizontal = Spacing.S12, vertical = Spacing.S8), // .resume 6px 12px
+                            .clip(CircleShape)
+                            .background(GoldPortal)  // .resume background var(--gold)（pill → 丸へ）
+                            .padding(Spacing.S4)
+                            .size(16.dp), // 16dp グリフ＋S4 の縁＝24dp の丸（K/D/M と同寸＝4スキン同型）
                     )
                     RowStep.PASSED -> Icon(
                         Icons.Filled.Check,

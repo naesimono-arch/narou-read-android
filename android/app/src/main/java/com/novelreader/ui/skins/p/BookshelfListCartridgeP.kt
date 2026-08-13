@@ -50,6 +50,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,7 +63,10 @@ import com.novelreader.data.ProgressEntity
 import com.novelreader.data.WebNovelEntity
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.DeleteSourcePdfOption
+import com.novelreader.ui.DeleteTargetTitlesText
 import com.novelreader.ui.MissingContentDeleteWarningText
+import com.novelreader.ui.ReimportScanBanner
+import com.novelreader.ui.ReimportSweepBanner
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.skins.ShelfActions
 import com.novelreader.ui.skins.ShelfChrome
@@ -85,15 +91,18 @@ import com.novelreader.ui.theme.RedCartridge
 import com.novelreader.ui.theme.RedLoCartridge
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.domain.ReadingStatus
+import com.novelreader.domain.ScanProgress
 import com.novelreader.domain.ShelfItem
 import com.novelreader.domain.chapterNumberOf
 import com.novelreader.domain.countMissingContentTargets
+import com.novelreader.domain.deleteConfirmBody
 import com.novelreader.domain.deleteConfirmLabel
 import com.novelreader.domain.filterShelfByStatus
 import com.novelreader.domain.mergeShelfItems
 import com.novelreader.domain.missingContentDeleteWarning
 import com.novelreader.domain.progressFractionFor
 import com.novelreader.domain.readingStatusFor
+import com.novelreader.domain.webNcodesInSelection
 import kotlin.math.roundToInt
 
 // ============================================================
@@ -226,6 +235,39 @@ internal fun BookshelfListCartridgeP(
             ) {
                 WritingBanner(processingState, onCancelProcessing)
             }
+            // 本文欠落の一括検出バナー（案C）と PDF フォルダ走査バナー（案X）。従来この面は chrome の
+            // sweepBannerVisible/folderScan/onScanStop を受け取って捨てており、route 層で起動した走査に
+            // 進捗表示も停止手段も無かった（監査 2026-08-06 B1）。意匠はトークン経由でスキン色に染まる
+            // 共有部品をそのまま使う＝K 面と同型の最小配線（P 意匠版は未裁定）。
+            AnimatedVisibility(
+                visible = chrome.sweepBannerVisible,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
+            ) {
+                ReimportSweepBanner(
+                    missingCount = data.reimportPlans.size,
+                    onLater = chrome.onSweepLater,
+                    onReimport = chrome.onSweepConfirm,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            // 退場アニメの間 folderScan は既に null になっているため直前の非 null 値を保持して描く
+            //（保持箱をスナップショット状態にしない理由＝BookshelfScreen の同処理コメント参照）。
+            val lastScan = remember { arrayOfNulls<ScanProgress>(1) }
+            chrome.folderScan?.let { lastScan[0] = it }
+            AnimatedVisibility(
+                visible = chrome.folderScan != null,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
+            ) {
+                lastScan[0]?.let { progress ->
+                    ReimportScanBanner(
+                        progress = progress,
+                        onStop = chrome.onScanStop,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
 
             LibraryHeader(count = bookCount, countPrefix = "一覧 · ")
 
@@ -258,10 +300,16 @@ internal fun BookshelfListCartridgeP(
                         is ShelfItem.Web -> WebCartridgeListRow(
                             novel = item.novel,
                             lastReadEpisode = item.lastReadEpisode,
+                            // 複数選択削除（系3）: 選択キーは ShelfItem.Web.key="web:<ncode>"（蔵書は bare id）。
+                            // 従来ここが未配線で、選択モード中の Web 行タップが WebView 遷移に化けていた（監査 2026-08-06 B2）。
+                            selectionMode = selectionMode,
+                            selected = item.key in selectedIds,
                             onOpen = { onOpenWebNovel(item.novel) },
                             onResume = { onResumeWebNovel(item.novel, item.lastReadEpisode) },
                             onImport = { onImportWebNovel(item.novel) },
                             onRemove = { onRemoveWebNovel(item.novel) },
+                            onToggleSelect = { onToggleSelect(item.key) },
+                            onEnterSelection = { onEnterSelection(item.key) },
                         )
                     }
                 }
@@ -289,8 +337,17 @@ internal fun BookshelfListCartridgeP(
                     count = selectedIds.size,
                     onCancel = onExitSelection,
                     onSelectAll = {
-                        // 全選択の対象は蔵書（Book）のみ＝Web未取込は選択削除の対象外（D の SelectionActionBar と同一）。
-                        onSelectAll(shelfItems.filterIsInstance<ShelfItem.Book>().map { it.book.id })
+                        // 全選択に Web由来カードも含める（系3・D/K と同一）。選択キーは蔵書=bare book.id・
+                        // Web=ShelfItem.Web.key("web:<ncode>")。旧コメント「Web未取込は対象外（D と同一）」は
+                        // D が系3で Web 統合済みのため陳腐化していた（監査 2026-08-06 B2 で是正）。
+                        onSelectAll(
+                            shelfItems.map { item ->
+                                when (item) {
+                                    is ShelfItem.Book -> item.book.id
+                                    is ShelfItem.Web -> item.key
+                                }
+                            }
+                        )
                     },
                     onDelete = { showDeleteConfirm = true },
                 )
@@ -312,30 +369,42 @@ internal fun BookshelfListCartridgeP(
     // 面の色は D 系モックの `.dlg{background:var(--base)}`（素地・分離はスクリムと影）を surfaceContainerHigh へ
     // 移植したものが効く（SkinContainerTiers.kt）＝OS 既定の紫面ではない。
     if (showDeleteConfirm) {
-        val targets = books.filter { it.id in selectedIds }
-        val deletableCount = targets.count { it.sourceUri != null }
+        val bookTargets = books.filter { it.id in selectedIds }
+        // Web由来（未取込）カードも選択削除の対象（系3・監査 2026-08-06 B2）。選択キー "web:<ncode>" を
+        // ncode へ分解し webNovels と突合する（D/K の削除確認と同型）。
+        val webNcodes = webNcodesInSelection(selectedIds).toSet()
+        val webTargets = webNovels.filter { it.ncode in webNcodes }
+        val deletableCount = bookTargets.count { it.sourceUri != null }
+        val total = bookTargets.size + webTargets.size
         // 欠落本を含む削除は「復元の最後の機会」を消す（機序＝domain/ReimportPlan.kt の該当節）。P は欠落バッジ自体が
         // 未翻訳（モック未裁定＝スキン後回し枠）だが、削除の破壊性はスキンに依存しないため警告は先に入れる。
+        // 冊数は蔵書分だけを数える（復元手段を失うのは books 行を持つ蔵書のみ＝K と同判断）。
         val lossWarning = missingContentDeleteWarning(
-            missingCount = countMissingContentTargets(targets.map { it.id }, data.reimportPlans),
-            bookCount = targets.size,
+            missingCount = countMissingContentTargets(bookTargets.map { it.id }, data.reimportPlans),
+            bookCount = bookTargets.size,
         )
         var alsoDeleteSource by remember { mutableStateOf(false) }
         NovelReaderAlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("選択した${targets.size}冊を本棚から削除しますか？") },
+            // 蔵書とWebが混じり得るため中立の「件」で数える（D/K と同語）。
+            title = { Text("選択した${total}件を本棚から削除しますか？") },
             text = {
                 Column {
                     // 欠落本の警告は本文の先頭（後段の一般文より固有かつ重い）。欠落0冊なら描画そのものが無い。
                     MissingContentDeleteWarningText(lossWarning)
-                    Text("変換済みの本文データも削除されます。この操作は取り消せません。")
+                    // 削除対象の題名列挙（監査 A11・D と同じ共有部品＝先頭5件＋ほかN件。理由は部品側コメント参照）。
+                    DeleteTargetTitlesText(bookTargets.map { it.title } + webTargets.map { it.title })
+                    // 選択内訳（蔵書数・Web数）で本文を出し分け（系3）＝Web に「本文データも削除」の虚偽を出さない。
+                    Text(deleteConfirmBody(bookTargets.size, webTargets.size))
                     DeleteSourcePdfOption(deletableCount, alsoDeleteSource) { alsoDeleteSource = it }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     showDeleteConfirm = false
-                    onDeleteBooks(targets, alsoDeleteSource)
+                    // 蔵書は本文データごと削除／Web は本棚から外す（既存 removeWebNovel を一括適用）。空側は呼ばない。
+                    if (bookTargets.isNotEmpty()) onDeleteBooks(bookTargets, alsoDeleteSource)
+                    webTargets.forEach { onRemoveWebNovel(it) }
                     onExitSelection()
                 }) { Text(deleteConfirmLabel(lossWarning != null)) }
             },
@@ -377,6 +446,13 @@ private fun CartridgeListRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                // 選択モード中の選択状態宣言（D の GridBookCard と同文・監査 A11。理由はそちらのコメント参照）。
+                .semantics {
+                    if (selectionMode) {
+                        this.selected = selected
+                        this.stateDescription = if (selected) "選択中" else "未選択"
+                    }
+                }
                 // 選択中は行に淡い緑かぶせ（署名の LCD 緑で選択を示す＝mock未定義のため P 語彙で最小翻訳）。
                 .background(if (selected) LcdCartridge.copy(alpha = 0.35f) else Color.Transparent)
                 .combinedClickable(
@@ -430,22 +506,29 @@ private fun CartridgeListRow(
 private fun SaveMeta(status: ReadingStatus, chapNum: Int?, totalChaps: Int, pct: Int, newCount: Int?) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         when (status) {
+            // 章数不明（chapterCountMap 欠落＝0）は数を描かない: 0 は「章数不明／本文実体なし」の意味しか持たず、
+            // 「全0話」は実在しない事実の捏造になる（DB だけ Auto Backup 復元された端末で全冊該当・監査 2026-08-06 B6。
+            // D 共通 BookProgressRow の規則へ揃える。バッジ＝状態の事実は残す）。
             ReadingStatus.UNREAD -> {
-                Text(
-                    "全${totalChaps}話",
-                    fontFamily = PixelFamily, fontSize = 10.5.sp, // .li .ls 10.5px
-                    color = InkMidCartridge,
-                )
-                Spacer(Modifier.width(Spacing.S8))
+                if (totalChaps > 0) {
+                    Text(
+                        "全${totalChaps}話",
+                        fontFamily = PixelFamily, fontSize = 10.5.sp, // .li .ls 10.5px
+                        color = InkMidCartridge,
+                    )
+                    Spacer(Modifier.width(Spacing.S8))
+                }
                 MetaBadge("未読", bg = RedCartridge, fg = Color.White) // .li .ls .n
             }
             ReadingStatus.FINISHED -> {
-                Text(
-                    "全${totalChaps}話",
-                    fontFamily = PixelFamily, fontSize = 10.5.sp,
-                    color = InkMidCartridge,
-                )
-                Spacer(Modifier.width(Spacing.S8))
+                if (totalChaps > 0) {
+                    Text(
+                        "全${totalChaps}話",
+                        fontFamily = PixelFamily, fontSize = 10.5.sp,
+                        color = InkMidCartridge,
+                    )
+                    Spacer(Modifier.width(Spacing.S8))
+                }
                 MetaBadge("CLEAR‼", bg = LcdCartridge, fg = LcdInkCartridge) // .li .ls .clr（水平の刻印）
             }
             ReadingStatus.READING -> {
@@ -549,16 +632,23 @@ private fun SelectionCheck(selected: Boolean) {
 // ============================================================
 // Web由来（未取込）の一覧行（.li 版＝モック未定義のため D の WebListBookCard 機能を P 語彙へ写像）。
 // 主タップ＝進捗あれば続きから／無ければ目次。⋮メニュー＝目次(進捗時)/取り込む/本棚から外す（D と全数一致）。
+// 長押し＝選択モードへ（蔵書行・D/K と同一の状態機械＝系3。メニューは行末の可視⋮が担うため長押しを選択入口へ譲る）。
 // ============================================================
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WebCartridgeListRow(
     novel: WebNovelEntity,
     lastReadEpisode: Int,
+    // 複数選択削除（系3・監査 2026-08-06 B2）: 画面全体の選択状態機械（骨格所有）へ Web 行も参加する。
+    // 既定値は付けない＝配線忘れをコンパイルエラーへ格上げする流儀（束の設計と同じ）。
+    selectionMode: Boolean,
+    selected: Boolean,
     onOpen: () -> Unit,
     onResume: () -> Unit,
     onImport: () -> Unit,
     onRemove: () -> Unit,
+    onToggleSelect: () -> Unit,
+    onEnterSelection: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val hasProgress = lastReadEpisode > 0
@@ -567,10 +657,20 @@ private fun WebCartridgeListRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                // 選択モード中の選択状態宣言（D の GridBookCard と同文・監査 A11。理由はそちらのコメント参照）。
+                .semantics {
+                    if (selectionMode) {
+                        this.selected = selected
+                        this.stateDescription = if (selected) "選択中" else "未選択"
+                    }
+                }
+                // 選択中は行に淡い緑かぶせ（蔵書行 CartridgeListRow と同じ P 語彙の最小翻訳）。
+                .background(if (selected) LcdCartridge.copy(alpha = 0.35f) else Color.Transparent)
                 .combinedClickable(
-                    // 進捗あれば主タップ=続きから（PDF蔵書と統一）／未読は目次(onOpen)＝D の WebListBookCard と同判断。
-                    onClick = if (hasProgress) onResume else onOpen,
-                    onLongClick = { menuOpen = true },
+                    // 選択モード中はタップ/長押しとも選択トグル（共有 WebBookCard と同じ分岐＝選択作業を
+                    // WebView 遷移で中断させない）。通常時は進捗あれば主タップ=続きから／未読は目次(onOpen)。
+                    onClick = { if (selectionMode) onToggleSelect() else if (hasProgress) onResume() else onOpen() },
+                    onLongClick = { if (selectionMode) onToggleSelect() else onEnterSelection() },
                 )
                 .padding(horizontal = Spacing.S4, vertical = Spacing.S12),
             verticalAlignment = Alignment.CenterVertically,
@@ -613,18 +713,24 @@ private fun WebCartridgeListRow(
                     color = InkSoftCartridge,
                 )
             }
-            Box {
-                IconButton(onClick = { menuOpen = true }) {
-                    // 機体トップの⋮（"メニュー"）と区別する固有ラベル＝未取込作品の行内メニュー。
-                    Icon(Icons.Filled.MoreVert, contentDescription = "未取込作品のメニュー", tint = InkMidCartridge)
-                }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    // 進捗ありのとき目次導線を⋮へ降格して残す（主タップが続きからに移るため・D と同判断）。
-                    if (hasProgress) {
-                        DropdownMenuItem(text = { Text("目次を開く") }, onClick = { menuOpen = false; onOpen() })
+            // 行末: 選択モード中は選択チェック（蔵書行と同じ）／通常は可視⋮メニュー（D の WebListBookCard と同じ切替）。
+            if (selectionMode) {
+                Spacer(Modifier.width(Spacing.S8))
+                SelectionCheck(selected = selected)
+            } else {
+                Box {
+                    IconButton(onClick = { menuOpen = true }) {
+                        // 機体トップの⋮（"メニュー"）と区別する固有ラベル＝未取込作品の行内メニュー。
+                        Icon(Icons.Filled.MoreVert, contentDescription = "未取込作品のメニュー", tint = InkMidCartridge)
                     }
-                    DropdownMenuItem(text = { Text("縦書きPDFを取り込む") }, onClick = { menuOpen = false; onImport() })
-                    DropdownMenuItem(text = { Text("本棚から外す") }, onClick = { menuOpen = false; onRemove() })
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        // 進捗ありのとき目次導線を⋮へ降格して残す（主タップが続きからに移るため・D と同判断）。
+                        if (hasProgress) {
+                            DropdownMenuItem(text = { Text("目次を開く") }, onClick = { menuOpen = false; onOpen() })
+                        }
+                        DropdownMenuItem(text = { Text("縦書きPDFを取り込む") }, onClick = { menuOpen = false; onImport() })
+                        DropdownMenuItem(text = { Text("本棚から外す") }, onClick = { menuOpen = false; onRemove() })
+                    }
                 }
             }
         }

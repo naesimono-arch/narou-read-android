@@ -53,3 +53,7 @@ sample_pdfs/N3957FQ.pdf
 sample_pdfs/N7038HV.pdf
 sample_pdfs/N8809BK.pdf
 sample_pdfs/N9463BR.pdf
+
+# Kotlin 2.x のビルド生成物（errors/ と sessions/ が入る）。2026-08-07 の Kotlin2 マージ後に
+# 未追跡として現れるようになったため追加＝コミットへの混入を防ぐ。
+android/.kotlin/

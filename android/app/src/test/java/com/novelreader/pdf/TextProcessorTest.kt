@@ -123,4 +123,14 @@ class TextProcessorTest {
         assertEquals(Triple(10, 0, 2), calls[0])   // pct = 10 + int(0/2*50) = 10
         assertEquals(Triple(35, 1, 2), calls[1])   // pct = 10 + int(1/2*50) = 35
     }
+
+    /** 総ページ4以下は固定トリム（先頭3＋末尾1除外）で全ページが落ち、段落0件になる（監査 A3 の機序）。
+     *  この出力を取込が成功で確定しないことは repository 層の章0件ゲート
+     *  （BookRepositoryTest の「章0件の抽出は成功で確定せず…」）が担う＝ここでは機序だけを固定する。 */
+    @Test fun fourPagesOrFewerYieldNoParagraphs() {
+        val body = ch("本", "R", 14.0, 180.0, 70.0)
+        // 全ページに本文級の文字が実在しても、index 0..2（先頭3）と index 3（=totalPages-1）が全て除外域。
+        val pages = List(4) { listOf(body) }
+        assertEquals(emptyList<String>(), TextProcessor.processPages(pages, totalPages = 4))
+    }
 }

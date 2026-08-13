@@ -527,7 +527,14 @@ internal fun NovelDetailContent(
                             Text(
                                 text = novel.summary.author,
                                 fontSize = FontButtonLabel,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface,
+                                // なぜ weight(1f, fill=false)+ellipsis: 長ハンドルの作者名が weight 無しだと Row の
+                                // 残り幅を丸ごと取り、右のジャンルタグを幅0まで押し出して1文字ずつ縦積み・枠ごと消失させる
+                                // （SpaceBetween は余り配分だけで測定順の食い合いは止めない）。作者側を可変幅で詰めて
+                                // タグの横幅を先に確保する（同一機序の実機バグ対処＝DiscoveryCommon.NovelListRow と同型）。
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
                             NarouGenres.genreLabel(novel.summary.genreCode)?.let { label ->
                                 // mock .genre-label: 1px solid var(--seiji) の枠線チップ（padding 4px 8px・radius 2px）。
@@ -538,6 +545,10 @@ internal fun NovelDetailContent(
                                     fontSize = FontChipLarge,
                                     letterSpacing = 0.5.sp,
                                     color = MaterialTheme.colorScheme.secondary,
+                                    // なぜ maxLines=1+softWrap=false: タグ自体の改行縦積みを禁じ常に横一列で出す
+                                    // （タグは固定語彙で折返し不要。DiscoveryCommon のジャンルタグと同じ判断）。
+                                    maxLines = 1,
+                                    softWrap = false,
                                     modifier = Modifier
                                         .border(
                                             width = 1.dp,

@@ -54,14 +54,32 @@ command = data.get("tool_input", {}).get("command", "")
 if not COMMIT_CMD_RE.search(command):
     sys.exit(0)
 
-# コミットメッセージ（-m "..." / -m '...'）を抽出して接頭辞を判定する。
+# コミットメッセージを抽出して接頭辞を判定する。
 # なぜ message を見るか: コミット種別で対象を絞り、docs: 等の「知見が生まれにくい」コミットでは
-# 想起文を出さないため。heredoc 等で -m が取れない場合は判定不能 → 安全側（無出力）に倒す。
-messages = re.findall(r"-m\s+(['\"])(.*?)\1", command, re.DOTALL)
+# 想起文を出さないため。
+#
+# ⚠️ 2026-08-07 修正（サイレント失敗クラス）: 旧実装は `-m "..."` だけを見ていたため、
+# **`git commit -F - <<'MSG' …` のヒアドキュメント形式では一度も発火しなかった**。
+# 長い日本語メッセージを書くほどヒアドキュメントを選ぶので「実運用ほど沈黙する」逆相関になっており、
+# 実際にある日の 18 コミット全てが -F 形式で、この想起は終日死んでいた（実測で確認）。
+# 旧コメントは「-m が取れない場合は安全側（無出力）に倒す」と書いていたが、それは
+# **想起が要る場面でこそ黙る**設計＝安全側ではなかった。
 prefixes_to_remind = ("fix:", "feat:", "refactor:")
-should_remind = any(
-    msg.strip().startswith(prefixes_to_remind) for _q, msg in messages
-)
+
+
+def _messages(cmd):
+    """コマンド文字列からコミットメッセージ候補を全て取り出す。"""
+    found = [msg for _q, msg in re.findall(r"-m\s+(['\"])(.*?)\1", cmd, re.DOTALL)]
+    # クォート無しの -m（`git commit -m fix:...` は稀だが実在する）
+    found += re.findall(r"-m\s+([^\s'\"][^\n]*)", cmd)
+    # -F/--file/-t/--template でヒアドキュメントを渡す形。`<<'MSG' … MSG` の本体を取る。
+    # 区切り語はクォートの有無を問わない（<<'MSG' / <<"MSG" / <<MSG / <<-MSG）。
+    for m in re.finditer(r"<<-?\s*(['\"]?)(\w+)\1\s*\n(.*?)\n\s*\2\b", cmd, re.DOTALL):
+        found.append(m.group(3))
+    return found
+
+
+should_remind = any(msg.strip().startswith(prefixes_to_remind) for msg in _messages(command))
 
 if not should_remind:
     sys.exit(0)

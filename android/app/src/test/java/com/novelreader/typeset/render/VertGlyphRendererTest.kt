@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import com.novelreader.typeset.CharClass
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -88,6 +89,31 @@ class VertGlyphRendererTest {
         }
         check(minX <= maxX) { "インクが描かれていること（フォント環境の前提）" }
         assertEquals(48f, (minX + maxX + 1) / 2f, 2f)
+    }
+
+    @Test
+    fun uprightSingleAsciiInkStaysWithinEmCell() {
+        // G-3（golden 監査 2026-08-06）の物理側: 正立で描く単独半角数字の字面が em セル
+        // [yTop, yTop+cellAdvance] に収まること。寸法側は PaintFontMetricsTest が
+        // 「UPRIGHT の半角1字＝em マス」を固定しており、両者が揃って初めて
+        // 「前後の字と接触しない」不変条件が閉じる。
+        val bmp = Bitmap.createBitmap(96, 144, Bitmap.Config.ARGB_8888)
+        val yTop = 48
+        renderer.drawGlyph(Canvas(bmp), "3", CharClass.UPRIGHT, 48f, yTop.toFloat(), 48f, bodyPaint())
+        var minY = Int.MAX_VALUE
+        var maxY = Int.MIN_VALUE
+        for (y in 0 until 144) {
+            for (x in 0 until 96) {
+                if (android.graphics.Color.alpha(bmp.getPixel(x, y)) > 0) {
+                    if (y < minY) minY = y
+                    if (y > maxY) maxY = y
+                }
+            }
+        }
+        check(minY <= maxY) { "インクが描かれていること（フォント環境の前提）" }
+        // ±2px はアンチエイリアスの揺れ幅（manualRotateCentersInkOnColumnCenter と同基準）。
+        assertTrue("字面の天がセル上端を越えた: $minY", minY >= yTop - 2)
+        assertTrue("字面の底がセル下端を越えた: $maxY", maxY <= yTop + 48 + 2)
     }
 
     @Test

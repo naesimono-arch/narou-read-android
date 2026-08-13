@@ -5,7 +5,8 @@ description: md・skill・hooks・settings の陳腐化を検出する（軽量=
 
 # stale-check — 管理ファイル陳腐化チェック
 
-CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/decisions/` / `.claude/skills/` / `.claude/hooks/` / settings / `.mcp.json` が
+CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/**`（decisions・patterns・knowledge・reference）/
+`.claude/skills/` / `.claude/hooks/` / settings / `.mcp.json` が
 実態（コード・ビルド設定・DBスキーマ・git）とズレていないかを点検する。
 
 検出で終わらせず **確度高 / 要確認** に分類して報告し、**修正案（diff）を提示**する。
@@ -42,7 +43,8 @@ CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/decisions/` / `.clau
    python .claude/skills/stale-check/check_machine.py --full
    ```
 2. **Explore エージェントを3つ並列起動**して意味レベルまで全面照合する（差分に絞らない）:
-   - (a) 管理md系: CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/decisions/` の主張 ↔ 実コード・git
+   - (a) 管理md系: CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/decisions/` / `docs/patterns/` の主張 ↔ 実コード・git
+     （下記「横断検査4本」を全面適用。knowledge は検査3の該当記述のみ＝全数照合しない）
    - (b) skill系: `.claude/skills/**/SKILL.md` ↔ 実構成・DBスキーマ・コマンド
    - (c) hooks/settings系: `.claude/hooks/**` ↔ settings 登録・参照パス・git追跡
    - 各エージェントに「主張(file:line) / 実態 / 推奨アクション」を確度別で報告させる。
@@ -87,6 +89,47 @@ python .claude/skills/stale-check/check_machine.py --list
 - `docs/known-bugs-registry.md`（既知バグレジストリ＝L4）の棚卸し: 前回以降の `fix:` コミットで
   **再発しうる機序**が新たに出ていないか／既存 ID の再発で状態（`[!]`/`[~]`/`[o]`）が実態とずれていないか
   （名指しの実在は機械チェック側が見る＝ここで項目を列挙しない）
+
+### 横断検査4本（2026-08-06 監査で追加。軽量=差分ファイルに適用／フル=全対象に適用）
+
+出自＝`.claude/plans/golden-and-docs-audit-2026-08-06.md` 第2部「次の投資先」。いずれも意味チェック
+（機械化困難）だが、**判定材料は下記の実測コマンドで取る**（目視カウント・記憶で判定しない）。
+
+1. **現在値数値の実測突合**: md 中の「N枚・N件・N本・N組・計Nゲート」等の**現在値を名乗る数値**を実測と突合する。
+   候補の洗い出しと実測の例:
+   ```bash
+   grep -rnE '[0-9]+ ?(枚|件|本|組|ゲート)' --include='*.md' docs .claude/skills STATUS.md handover.md
+   ls android/app/src/test/screenshots/*.png | wc -l        # golden 枚数
+   grep -n '\- name:' .github/workflows/ci.yml               # CI ステップ一覧（ゲート数はセットアップ行を除いて数える）
+   python3 tools/check_design_tokens.py                      # トークン照合の組数（出力の pairs=）
+   ls docs/knowledge/*.md | wc -l                            # knowledge 本数
+   ```
+   **推奨処方は「正しい数値へ書き直す」ではなく「数値を消して実測コマンドを書く」**
+   （`.claude/skills/build/SKILL.md` の golden 枚数の作法を全 md へ適用する。数値は書いた瞬間から腐るが、
+   コマンドは実装が動いても正しいまま）。歴史記述の数値（「当時48枚だった」等の過去形）は対象外。
+   実例: 「48枚」×2・「実測1072件」・「297組」・「計5ゲート」の5件が、いずれも書かれた直後に実態と乖離した。
+
+2. **双方向注記**: 後の ADR・コミット・実装が**前の記述（決定・警告・前提）を解除**したとき、解除された側の
+   文書にも注記が返っているか。差分に「解除・撤回・廃止・置換・復帰・済み」の類が入っていたら、
+   その旧記述を grep で探しに行き、注記が無ければ指摘する。手本＝`docs/decisions/0010-narou-unmodified-handoff-custom-tabs.md`
+   （更新のたび冒頭へ注記ブロックを追加）。実例＝片方向更新4件（監査 D-7/D-12/D-15/G-15）:
+   ADR 0005 §C（0021 が解除を明記・0005 側に注記なし）／narou-api-discovery の Main dispatcher 警告（Mutex 化済み）／
+   registry の「手動実行」（CI 結線済み）／GridStatusLineWrapTest の「D に golden 無し」（ハーネス新設済み）。
+
+3. **実測を名乗る knowledge のコマンド併記**: 外部事実を「実測・実査・確認済み」と主張する knowledge は、
+   **使ったコマンドと実行環境（ツールの有無・版）の併記が必須**。無ければ指摘する。
+   実例: 「APK に .so は0本」知見（監査 D-1）は `unzip` 未導入環境で `unzip -l | grep` が空を返した偽測定だった
+   （実際は8本。memory `bash-pipe-masks-exit-code-false-green` の型）。作法の手本＝
+   `docs/knowledge/agp-srcdir-taskprovider-drops-builtby.md`。
+   **knowledge の全数照合はしない**（監査時点で46本中4本＝9%と低汚染。1知見1ファイルで腐りが局所化している）＝
+   この検査は「差分に入った knowledge」と「実測を名乗る記述」に限定する。
+
+4. **patterns の正本ヘッダ**: `docs/patterns/*.md`（README 除く）は冒頭引用ブロックに
+   `正本コード: <repoルート相対path>` 行が必須（規約と例外形＝`docs/patterns/README.md`）。
+   (a) 行が無ければ指摘 (b) path が実在するか確認 (c) その path の**公開シンボル集合が文書の前提から
+   大幅に変わっていないか**（object/class/fun の新設・改名・撤去。例: `ProcessingStateHub` 新設も
+   `ComponentPadding` 追加も、正本1ファイルへの grep 一発で「文書が知らないシンボル」として検出できた）。
+   `正本コード: —（…が正本）` の明示形は (b)(c) を免除する（手順正本パターン用）。
 
 ## 出力フォーマット
 

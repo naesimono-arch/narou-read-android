@@ -20,36 +20,39 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.TocState
+import com.novelreader.ui.skins.rememberTocEpLabelWidth
+import com.novelreader.ui.skins.tocHereChipContentDescription
+import com.novelreader.ui.skins.tocHereChipLabel
 import com.novelreader.ui.theme.FontActionLabel
 import com.novelreader.ui.theme.FontButtonLabel
 import com.novelreader.ui.theme.FontCaption
-import com.novelreader.ui.theme.FontLabel
 import com.novelreader.ui.theme.FontSectionTitle
 import com.novelreader.ui.theme.FontSheetTitle
 import com.novelreader.ui.theme.FontSubTitle
@@ -57,16 +60,19 @@ import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.tocInitialFirstVisibleIndex
-import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
 // ============================================================
 // 明快K: 目次＝正本モック toc-K.html の忠実翻訳（深い画面＝ボトムナビは出さない・没入優先。plan 確定事項2/3）。
 //
-// 核は「いま自分がどこか」を常時明示: ①ヘッダに「目次」＋作品名サブ ②直下に現在地チップ「いま読んでいる」
+// 核は「いま自分がどこか」を常時明示: ①ヘッダに「目次」＋作品名サブ ②直下に現在地チップ「第N話」
+//   （2026-08-07 の裁定で前置き「いま読んでいる: 」を削り、空いた幅を同じ行の進捗へ戻した。読み上げには残す）
 //   ③各行の状態を語彙化（既読=題名を沈めて✓／現在=藍ルール＋地＋唯一の実アクション「ここから再開」／未読=通常）。
-//   一画面の強調は現在話の「ここから再開」チップ1つ（沈めて立てる・Design/10）。
+//   一画面の強調は現在話の再開チップ1つ（沈めて立てる・Design/10）。
+//   そのチップは 2026-08-07 の裁定で**アイコンのみ（▶ の丸）**にした: 文字入りチップは非加重子として
+//   実寸を先取りし、fontScale 2.0 で 156dp（=312px）を占めて章題の取り分を 45dp まで削っていた
+//   （＝章題が1行1文字で縦に割れる）。名前は contentDescription が担う。
 //
 // 色は D の読書テーマ（ReadingColors）追従（K=SkinD・D の目次が ReadingColors を使うのと同型＝ライト/セピア/ダーク）。
 //   base→background・ink→text・藍→accent・line→divider・メタ（作品名/進捗/話数ラベル）→infoText（AA 意味テキスト）。
@@ -252,8 +258,11 @@ private fun HereBarK(currentIndex: Int, total: Int, colors: ReadingColors, onJum
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (currentIndex >= 0) {
+            // 見える文字は「第N話」だけ（裁定 2026-08-07・4スキン同型）。前置き「いま読んでいる: 」は
+            // このチップが非加重子として幅を先取りする分の実質を占め、進捗の取り分を可視0文字まで潰していた。
+            // 削った語は読み上げ（contentDescription）に残す＝機序と数値は tocHereChipContentDescription が正本。
             Text(
-                "いま読んでいる: 第${currentIndex + 1}話",
+                tocHereChipLabel(currentIndex),
                 fontSize = FontButtonLabel, // .herechip 12.5px
                 fontWeight = FontWeight.Bold,
                 color = colors.accent,
@@ -261,10 +270,10 @@ private fun HereBarK(currentIndex: Int, total: Int, colors: ReadingColors, onJum
                     .clip(RoundedCornerShape(999.dp))
                     .background(colors.accent.copy(alpha = 0.10f)) // --ai-pill（藍10%）
                     .clickable(onClick = onJumpToCurrent)
-                    .padding(horizontal = Spacing.S16, vertical = Spacing.S8), // .herechip padding 6px 14px
+                    .padding(horizontal = Spacing.S16, vertical = Spacing.S8) // .herechip padding 6px 14px
+                    .semantics { contentDescription = tocHereChipContentDescription(currentIndex) },
             )
         }
-        Spacer(Modifier.weight(1f))
         val progress = buildString {
             append("全${total}話")
             // 読了率は現在章が既知（既読/現在の見当識が立つ）ときのみ。未読は分母だけ出す。
@@ -272,7 +281,20 @@ private fun HereBarK(currentIndex: Int, total: Int, colors: ReadingColors, onJum
                 append("・読了率${(currentIndex * 100f / total).roundToInt()}%")
             }
         }
-        Text(progress, fontSize = FontCaption, color = colors.infoText) // .prog 12px
+        // なぜ weight(1f)+maxLines=1 か（監査 2026-08-06 G-1・4スキン同型）: fontScale 2.0 でこの進捗文が
+        // チップの余り幅へ折り返して縦5行に膨張し、Row の行高ごと現在地バーが伸びて下の章一覧
+        //（LazyColumn weight(1f)）の残り高が 0＝目次のタップ対象が消えていた。余り幅の全量を進捗側へ渡して
+        // 1行に固定し、入り切らない分は末尾省略で縮退させる（章一覧の消失より軽い縮退を選ぶ）。
+        // 右寄せは旧 Spacer(weight(1f)) と同じ見た目を textAlign=End で保つ。
+        Text(
+            progress,
+            fontSize = FontCaption, // .prog 12px
+            color = colors.infoText,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -280,39 +302,20 @@ private fun HereBarK(currentIndex: Int, total: Int, colors: ReadingColors, onJum
 private val EpLabelMinWidth = 44.dp
 
 /**
- * 話数ラベル列（`.ep`）の整列幅を、この本で実際に出る最長ラベル「第[total]話」の実採寸から決める。
- *
- * なぜ 44dp 固定ではだめか（真因・2026-07-29 実機検証）: モックの `width:44px` は2桁ラベルを前提にした
- * 実測値で、3桁「第132話」は 44dp にわずかに収まらず「第132」「話」で折り返し、行高まで崩れる。
- * 実蔵書には 221 話・282 話・860 話の本があり通常利用で必ず踏む（なろう系は4桁も普通）。
- *
- * なぜ「幅を広げる」ではなく「最長ラベルから決める」か: 44dp は KDoc どおり**整列用の構造幅**＝
- * 全行で題名の開始 x を揃えることが設計意図。単に定数を広げると2桁の本まで間延びし、行ごとに
- * 可変にすると整列そのものが壊れる。幅を [total]（＝リスト単位で不変）だけの関数にすれば、
- * 「1リスト内では全行同幅＝整列は不変」「本ごとに桁数へ追従」の両立になる。
- *
- * 桁数ごとの見え方: 2桁以下は採寸値が 44dp を下回るため [EpLabelMinWidth] のまま（モック忠実・
- * 間延びしない）、3桁以上は必要なぶんだけ広がる（4桁も同じ式で自動追従＝桁数の上限を持たない）。
- *
- * dp 単位で切り上げるのは、採寸 px → dp → [Modifier.width] の px 戻しで 1px 足りずに折り返す
- * 境界事故を避けるため（3桁はちょうど 44dp 前後＝境界そのものに乗る）。
+ * 話数ラベル列（`.ep`）の整列幅。導出の機序・上界方式の理由は [rememberTocEpLabelWidth] の KDoc が正本
+ *（2026-08-07 に M/J へ同じ破綻があったため K 専用実装から共有へ移した）。
+ * 採寸スタイルは実際の描画と同一にする（Text は LocalTextStyle に fontSize だけ被せている）。
  */
 @Composable
-private fun rememberEpLabelWidth(total: Int): Dp {
-    val measurer = rememberTextMeasurer()
-    // 採寸スタイルは実際の描画と同一にする（Text は LocalTextStyle に fontSize だけ被せている）。
-    val style = LocalTextStyle.current.merge(TextStyle(fontSize = FontCaption))
-    val density = LocalDensity.current
-    return remember(total, style, density, measurer) {
-        val widestPx = measurer.measure(text = "第${total}話", style = style).size.width
-        val measured = with(density) { widestPx.toDp() }
-        ceil(measured.value).dp.coerceAtLeast(EpLabelMinWidth)
-    }
-}
+private fun rememberEpLabelWidth(total: Int): Dp = rememberTocEpLabelWidth(
+    total = total,
+    style = LocalTextStyle.current.merge(TextStyle(fontSize = FontCaption)),
+    minWidth = EpLabelMinWidth,
+)
 
 /**
  * 章行（モック .row）: 話数ラベル（ゴシック）＋題名（明朝）。左ルール分の幅を全行で確保して整列。
- * 既読=題名を沈めて行末に✓／現在=藍の左ルール＋藍10%地＋唯一の実アクション「ここから再開」／未読=通常。
+ * 既読=題名を沈めて行末に✓／現在=藍の左ルール＋藍10%地＋唯一の実アクション（▶ の丸チップ）／未読=通常。
  *
  * [epLabelWidth] はリスト全行で共有する整列幅（導出＝[rememberEpLabelWidth]）。行ごとに計算しない。
  */
@@ -372,18 +375,20 @@ private fun ChapterRowK(
                     },
                     modifier = Modifier.weight(1f),
                 )
-                // 行末: 既読=✓／現在=「ここから再開」チップ（この画面唯一の強調）／未読=なし。
+                // 行末: 既読=✓／現在=▶ の丸チップ（この画面唯一の強調）／未読=なし。
                 when {
-                    isCurrent -> Text(
-                        "ここから再開",
-                        fontSize = FontLabel, // .resume 11px
-                        fontWeight = FontWeight.Bold,
-                        // 塗り藍ボタンの実文字＝対比保証の primary/onPrimary 対（K 既定＝accent と同値ゆえ見た目一致）。
-                        color = MaterialTheme.colorScheme.onPrimary,
+                    isCurrent -> Icon(
+                        Icons.Filled.PlayArrow,
+                        // アイコンだけでは何のボタンか分からない＝読み上げ用の名前は必須（裁定 2026-08-07 の条件）。
+                        // タップは行全体の clickable が担うので、これは行の読み上げに載る名前として置く。
+                        contentDescription = "ここから再開",
+                        // 塗り藍ボタンの上の実グリフ＝対比保証の primary/onPrimary 対（K 既定＝accent と同値ゆえ見た目一致）。
+                        tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(999.dp))
+                            .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primary)
-                            .padding(horizontal = Spacing.S12, vertical = Spacing.S4), // .resume padding 5px 11px
+                            .padding(Spacing.S4)
+                            .size(16.dp), // 16dp グリフ＋S4 の縁＝24dp の丸（旧チップ文字は 2.0 で 156dp を占めていた）
                     )
                     isRead -> Icon(
                         Icons.Filled.Check,
