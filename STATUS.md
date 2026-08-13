@@ -12,9 +12,11 @@
   **残の前置＝ブランド名確定**（applicationId・ストア素材・ポリシー公開が全部これ待ち）＋鍵バックアップ（ユーザー作業）。
 
 - **実機スタック報告（2026-07-24）は計測→対処済み**（主因＝タブPager の隣ページ破棄・`beyondViewportPageCount=1` で常駐化・尾部 P99 450→73ms）。
-  **最後まで残った 12%級（ランキング期間の横スワイプ）も構造是正済み**＝順位1行＝1 item への平坦化で
-  `draw/record` の山は半減した。⚠️ **ただしジャンク率は動いていない**＝残る占有は "Slow UI thread"
-  （実測値と次に見るべき手掛かり＝`docs/knowledge/ranking-pager-jank-slow-ui-thread.md`・残作業は `handover.md`）。
+  **最後まで残った 12%級（ランキング期間の横スワイプ）は 2026-08-14 に決着**＝真因は行スロットの `key` に
+  期間名を含めていたことで、ページ送りのたびに**指を受けている `scrollable` ごと LazyColumn が破棄**され
+  フリングが毎回死んでいた（＝ユーザー報告「半分次のランキングが表示されて埋まらない」の正体）。
+  key を座席へ移して解消・実機で確認済み。⚠️ **それ以前の jank 値はすべて「アニメが走っていない状態」の計測**
+  ＝率での比較は無意味（読み方と残るコスト＝`docs/knowledge/ranking-pager-jank-slow-ui-thread.md` が正本）。
 
 - **デフォルトUI＝「明快K」**（`Skin.MEIKAI_K` が既定。既存の明示保存 D/M/P/J/C は不変・装いの間で相互選択可）。構造＝
   〈ラベル付き恒常ボトムナビ3タブ（本棚／さがす／設定）＋全画面の明示タイトル＋設定画面＋本棚グリッド（キャプション行に可視⋮）＋
@@ -29,7 +31,7 @@
 
 - **実機**: OPPO PGEM10（IP は DHCP で変動＝ハードコードせず `adb-bridge` で張り直す）・v21 APK 導入済み。作法＝`/device-verify`。
   **蔵書7冊・全冊とも本文健在**（2026-08-06 実測＝欠落表示系の目視には捨て本の再作成が要る。**実蔵書は絶対に消さない**）。
-  **APK は 2026-08-07 04:21 投入の debug**。ベンチ APK 2種（`.benchmark`/`.macrobenchmark`・Kotlin2 版）が残置。
+  **APK は 2026-08-14 投入の debug**（ランキング横スワイプの据わり失敗の修正入り）。ベンチ APK 2種（`.benchmark`/`.macrobenchmark`・Kotlin2 版）が残置。
   ⚠️ 同一 WiFi 上に**第三者端末（Huawei P30）が居り、`adb-bridge` は既存 TCP を優先して掴む**＝操作前に端末を取り違えていないか確認
   （機序＝memory `adb-bridge-stale-tcp-holds-wrong-device`／**P30 は他人の端末**＝読み取り以外はしない＝`docs/knowledge/emui-p30-jank-log-collection.md`）。
   **残るは実機で見ることだけ**＝`awaiting-human.md` §1（ローカルゲートは全て GREEN）。
