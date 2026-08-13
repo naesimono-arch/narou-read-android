@@ -689,9 +689,23 @@ def check_size_budgets():
     docs コミットが全体の35%）＝機械の番人だけが実効的な防御になる。
     しきい値は「目安」の1.5倍程度を high とし、通常運用の揺らぎでは鳴らさない。
     """
+    # 台帳ごとの文字数上限。正本＝CLAUDE.md「管理ドキュメントの体系」（2026-08-13 に明記）。
+    # ⚠️ 2026-08-14 まで**この番人は個別上限を1つも実装しておらず**、下の合計 42,000 字／per-file 21,000 字
+    # という古い（緩い）線だけで見ていた＝規約が宣言され機械が追いつかないまま、3本とも上限超過で緑を返していた。
+    # このファイル自身が冒頭で「規約は宣言だけだと数週間で崩れる＝機械の番人だけが実効的な防御」と書いており、
+    # その主張が自分自身に対して空振りしていたことになる。
+    LEDGER_BUDGETS = {"STATUS.md": 6000, "handover.md": 8000, "awaiting-human.md": 12000}
+    OVERFLOW_HINT = "**削るのではなく正しい置き場へ移す**こと（知見→docs/knowledge・凍結→docs/backlog-frozen・一次情報→.claude/plans・判断→docs/decisions）"
+
     txt = read_text("STATUS.md")
     if txt is not None:
         n = txt.count("\n") + 1
+        # 主判定は文字数。行数判定も残すのは、両者が**別の病**を見ているから
+        # ＝文字数は総量、行数は「1行が長大化して拾い読みできなくなる」型（ADR 0028 症状3）。
+        chars = len(txt)
+        if chars > LEDGER_BUDGETS["STATUS.md"]:
+            add("size_budget", "stale", "high",
+                f"STATUS.md が {chars:,} 字（上限 {LEDGER_BUDGETS['STATUS.md']:,}）。{OVERFLOW_HINT}")
         if n > 90:
             add("size_budget", "stale", "high",
                 f"STATUS.md が {n} 行（目安60行）。完了ログ・git導出値の混入を疑い刈り込むこと（完了履歴は git log が正本）")
@@ -746,15 +760,14 @@ def check_size_budgets():
     elif total > LEDGER_TOTAL_BUDGET * 3 // 4:
         add("size_budget", "warn", "info",
             f"台帳2枚の合計が {total:,} 字（肥大値 {LEDGER_TOTAL_BUDGET:,} 字の3/4超）。肥大の兆候（内訳: {breakdown}）")
-    # per-file は「二分の釣り合い」の兆候として info のみ。片方が肥大値の半分を超える＝もう一方の台帳が
-    # 事実上機能していない（＝二分前の1枚台帳へ戻りつつある）合図。awaiting-human も同じ線で見る:
-    # 人間待ちは積むのが自然だが、積むべきは「待ち1件＝何を目視するか」の短い行で、
-    # 経緯を抱えたまま積むのは handover と同じ病（ADR 0028 症状1）だから緩める理由が無い。
+    # per-file は上の LEDGER_BUDGETS（CLAUDE.md が正本）で見る。合計判定と併存させるのは役割が違うため
+    # ＝合計は「片方の溢れをもう片方へ移す」抜け道を塞ぎ、per-file は「その台帳が開いて使える大きさか」を見る。
+    # awaiting-human を handover より緩く取るのは、人間待ちが積むのは自然だから。ただし積むべきは
+    # 「待ち1件＝何を見れば決まるか」の短い行で、経緯を抱えたまま積むのは handover と同じ病（ADR 0028 症状1）。
     for rel, n in ledger_chars.items():
-        if n > LEDGER_TOTAL_BUDGET // 2:
-            add("size_budget", "warn", "info",
-                f"{rel} が {n:,} 字（台帳1枚あたりの目安 {LEDGER_TOTAL_BUDGET // 2:,} 字超）。"
-                f"完了経緯の残留・1項目あたりの長文化を疑うこと")
+        if n > LEDGER_BUDGETS[rel]:
+            add("size_budget", "stale", "high",
+                f"{rel} が {n:,} 字（上限 {LEDGER_BUDGETS[rel]:,}）。{OVERFLOW_HINT}")
 
     txt = read_text("CLAUDE.md")
     if txt is not None:
