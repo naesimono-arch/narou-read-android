@@ -744,9 +744,22 @@ private fun LazyListScope.rankingSectionK(
     }
     items(
         count = slots.count,
-        // key に期間を含める＝期間を送ると内容が総入れ替えになるため、位置キーの再利用で前の期間の
-        // 行の状態が居座らないようにする。
-        key = { index -> "ranking_${pageOrder.name}_$index" },
+        // key に**期間を含めない**（2026-08-14・「半ページずれて止まる」の真因対処）。
+        //
+        // なぜ: 送りが半ページを越えた瞬間に `PagerState.currentPage` が次ページへ切り替わり、それを読む
+        // [pageOrder] も同時に変わる。期間名を key に含めていると、この瞬間に**ランキング行の item が全数
+        // 別 key になる**＝LazyColumn が既存スロットを破棄して composition をやり直す。破棄されるものの中には
+        // 「今まさに指を受けている [RankingSlotK] の `scrollable`」が含まれ、そのノードが抱えていたドラッグと
+        // スナップの coroutine が道連れに消える。結果、ページャは `currentPageOffsetFraction` が非0のまま
+        // 静止し（アンカーは userScrollEnabled=false・[DiscoveryHomeK] の LaunchedEffect(order) も
+        // currentPage 一致で何もしない）、誰も据え直さない＝半分ずれた絵のまま固まる。
+        //
+        // ＝行スロットの同一性は「どの期間の行か」ではなく**座席（何行目か）**に置く。期間送りで差し替わるのは
+        // 中身だけになり、指を受けているノードはページ跨ぎでも生き続けてスナップを完走できる
+        //（位置は translationX が期間ごとの座席へ置くので、key で期間を分ける必要は元々ない）。
+        // 旧 key の狙い「前の期間の行の状態が居座らないように」は、行が持つ remember が
+        // `rememberOrderMetricLabel` の「今」の凍結だけ＝座席を跨いでも意味が変わらないため失うものが無い。
+        key = { index -> "ranking_$index" },
         // 行・骨・status は中身の形が違う＝再利用プールを分ける（別種の item を使い回させない）。
         contentType = { slots::class.simpleName },
     ) { index ->

@@ -237,6 +237,68 @@ class DiscoveryHomeKRankingTest {
         composeTestRule.onNodeWithText("作品W").assertDoesNotExist()
     }
 
+    /** ランキング行の左端 x（据わり位置の観測点）。行スロットの `graphicsLayer{translationX}` を含んだ実位置。 */
+    private fun rankingRowLeft(text: String): Double =
+        composeTestRule.onNodeWithText(text).fetchSemanticsNode().boundsInRoot.left.toDouble()
+
+    /**
+     * 2026-08-14 ユーザー報告「ランキングを横スワイプすると半分次のランキングが表示されて、
+     * もう一度スワイプしないと半分が埋まらない」の回帰テスト。
+     *
+     * 固定する契約: **横スワイプが静止したら、据わった期間の行は据わり位置（x＝送る前と同じ）に居る**。
+     * 送りが半ページを越えた瞬間に `PagerState.currentPage` が次ページへ切り替わる（＝画面の [pagerOrder] が
+     * 変わる）ので、行スロットの identity が期間に依存していると**指を受けているスロットごと破棄され**、
+     * `scrollable` が抱えていたドラッグ／スナップの coroutine が道連れに消える。ページャは
+     * `currentPageOffsetFraction` が非0のまま取り残され、誰も据え直さない（アンカーは
+     * `userScrollEnabled=false`・`LaunchedEffect(order)` も currentPage 一致で何もしない）＝半ページずれて静止する。
+     *
+     * 観測点を x にするのは、**タブ・onSelectOrder・settledPage はどれも正しい値になってしまう**から
+     *（scroll session が死ぬと isScrollInProgress は false＝settledPage は次ページを名乗る）。
+     * 症状は位置にしか出ないので、位置で見る。
+     */
+    @Test
+    fun `横スワイプで期間を送った後に行が据わり位置へ収まる`() {
+        setHost(NarouOrder.WEEKLY)
+        scrollListTo("作品W")
+        val seatLeft = rankingRowLeft("作品W")
+
+        swipeOnRankingRow(toLeft = true)
+
+        // 送り先（月間）に控えは無いが、order 書き戻しで state(Content) が当たり同じ行が据わる。
+        scrollListTo("作品W")
+        assertEquals(
+            "期間送りの後もランキング行が据わり位置へ戻っていない（＝ページャが半ページずれたまま静止）",
+            seatLeft,
+            rankingRowLeft("作品W"),
+            0.5,
+        )
+    }
+
+    /**
+     * 同上の契約を**一覧の途中の行**で固定する。1行目だけで見ていると「たまたま先頭スロットが生き残った」
+     * ケースを通してしまうため、30行ぶんの item がある中で下の方の行から送っても据わることまで見る
+     *（実機は常に30行＝こちらが実運用の形）。送り先の期間は控えが無いので骨30行＝スロット数は同数で、
+     * 中身の種類（Rows→Skeleton）だけが入れ替わる経路も同時に通る。
+     */
+    @Test
+    fun `一覧途中の行から横スワイプしても据わり位置へ収まる`() {
+        uiState.value = longContentState
+        setHost(NarouOrder.WEEKLY)
+        scrollListTo("作品15")
+        val seatLeft = rankingRowLeft("作品15")
+
+        composeTestRule.onNodeWithText("作品15").performTouchInput { swipeLeft(durationMillis = 50) }
+        composeTestRule.waitForIdle()
+
+        scrollListTo("作品15")
+        assertEquals(
+            "一覧途中の行から送ると据わり位置へ戻らない",
+            seatLeft,
+            rankingRowLeft("作品15"),
+            0.5,
+        )
+    }
+
     /** 期間タブ行の上端 y（貼り付き検証の観測点）。行を代表させるのは選択タブの文字ノード。 */
     private fun tabRowTop(): Double =
         composeTestRule.onNodeWithText("週間").fetchSemanticsNode().boundsInRoot.top.toDouble()
