@@ -3,7 +3,8 @@
 - ステータス: Accepted（一部**要スパイク**＝下記「未確定事項」）
 - 日付: 2026-07-09
 - 関連実装（2026-07-09 実装・実機通し検証済み）: `NovelDetailScreen.kt`（取り込みボタン・仮意匠）／`ui/discovery/PdfImportScreen.kt`＋`viewmodel/PdfImportViewModel.kt`（取り込み用 WebView・`setDownloadListener`→OkHttp DL→FileProvider `content://` 化）／`PdfProcessingService`・`BookRepository.addBook(uri, ncode)`（既存合流点＋insert 時 ncode 紐付け）／`narouWorkUrl(ncode)`（既存・目次URL）
-- 関連知見: `task_diary.md` #45（なろうヘルプ183「よくある違反行為」の原文・根拠条項）／なろうヘルプ99 `helppageid/99`（縦書きPDF機能）／`handover.md`「PDF取り込み導線」節（実機偵察の一次情報）
+- 関連知見: `task_diary.md` #45（なろうヘルプ183「よくある違反行為」の原文・根拠条項）／なろうヘルプ99 `helppageid/99`（縦書きPDF機能）
+  ／実機偵察の一次情報は当時 `handover.md`「PDF取り込み導線」節にあったが、**確定内容は下の Context に取り込み済み＝同節は消化して現存しない**（2026-08-14 に参照を是正）
 - 関連ADR: [0010](0010-narou-unmodified-handoff-custom-tabs.md)（WebView 廃止・加工なし送客を既定化。**本 ADR は 0010 を覆さず、"取り込み"という別用途に限り WebView 再導入の例外を定義する**）／[0005](0005-ui-n-visual-language-D.md)（没入意匠は権利を自前で持つ PDF 読書面に集中）
 
 ## Context（背景）
@@ -12,7 +13,7 @@
 
 しかし本アプリは ADR 0010 で WebView を意図的に廃止し「加工なし送客（Chrome Custom Tabs）」を既定にした経緯がある（`InAppBrowser.kt`・task_diary #45）。**0010 が塞いだのは「閲覧ページを WebView 内包し独自UIを被せて没入させる／本文をネイティブ描画する」用途**であり、禁止の本体は"加工"そのもの（ヘルプ183「広告を除去する**等の**加工」）だった。本導線は閲覧ではなく**公式が用意した DL 機能の操作**であり、用途が異なる。
 
-2026-07-09 にユーザーと方式を合意し、実機偵察で以下を確定した（一次情報＝`handover.md`）:
+2026-07-09 にユーザーと方式を合意し、実機偵察で以下を確定した（**確定内容はこの節が正本**＝当時の作業メモは消化済み）:
 
 - **DL方式＝静的直リンクではなく動的・多段・CSRFトークン制（確定）**: 目次最下部 `div.c-under-nav` 内の POST フォーム（`action=/novelpdf/creatingpdf/ncode/<ncode>/`・hidden の**ページ毎 CSRF トークン**）→ 生成完了ページ → DLリンク `/novelpdf/downloadend/.../pdftoken/<ワンタイム>/`（XHR で約4KB の中間ページ）→ 実体 `https://pdfnovels.net/<生成毎トークン>/<NCODE>.pdf`。**帰結**: 直URLを DownloadManager で叩く近道は技術的に不可（毎回フローを通す必要）。
 - **ログイン不要（確定）**: 非ログイン状態でフォーム・トークン・生成・実体リンクまで成立。ゲートは認証でなく CSRF トークン＋生成フロー。→ WebView 側の Cookie/セッション管理は不要（案Bの実装が一段軽い）。
