@@ -1,0 +1,946 @@
+<!-- @dsCard group="UI-n / 候補（明快K・横向きNavigationRail）" name="K. さがす 横向き — Rail 案比較（2026-08-14 裁定用）" -->
+<!--
+  横向き NavigationRail 裁定 (b) の「さがす」側。本棚と同じ裁定が横向き全体に効くので対で見る。
+  対になる本棚デッキ＝ candidates/landscape-rail-bookshelf-K.html。**候補＝正本ではない**。
+  下敷き＝現行正本 skins/discovery-K.html（語彙・順位リスト・ランキングタブ6本＝NarouOrder.entries 順を踏襲）。
+
+  【高さの出どころ（本棚デッキと違い、ここは実測ではなく正本モックからの導出）】
+    ステータスバー 40dp（本棚と同値・実測）
+    固定トップ（題「さがす」＋実検索フィールド）＝ 2 + 26.4 + 14 + 52 + 14 ≒ **108dp**（正本 discovery-K.html の .top から算出）
+    ボトムナビ 65dp（実測）
+    → 実効ビューポート 360 − 40 − 108 − 65 = **147dp**
+  ⚠️ 108dp は実機実測ではなく正本モックからの導出値。Rail の効き幅（＋65dp）は実測どおりなので裁定には足りるが、
+     Compose 翻訳前に実機で固定トップの実高を1回測ること。
+
+  【この枠の状態】ランキングまでスクロールした状態を描いている（＝「さがす＝ランキング」の実使用場面）。
+     気分ページャ・ジャンルチップは上へ流れて画面外。
+  ⚠️ 一覧行は正本モックの1段メタ（≒68dp）で描いてある。実装 NovelListRow は3段メタ（題名／作者＋ジャンル／
+     状態・読了目安・期間pt）で **1行あたり ~18dp 高い**＝実機の可視行数はここより少ない（正本の既知未同期）。
+     つまりこのデッキは破綻を**過小に**描いている。
+  ⚠️ 上の2つの警告は、2026-08-14 に追記した S1〜S4（下段）にも同じく効く。**S案の「N行読める」は上限値**で、
+     実装の3段メタ（86dp/行）で読み直すと S1/S3/S4 は 3.4行 → 2.7行、S2 は 2.4行 → 1.9行 に落ちる。
+
+  【2026-08-14 追記＝S1〜S4（ユーザー指摘「画面の半分近くを題字と検索バーで埋めている」「FAB がうまく使えるかも」）】
+  さがすの縦は 固定トップ 108dp（画面の 30%・ステータスバーを足すと 41%）が主犯。これを FAB／Rail へ畳む案を並べた。
+  同時に、上段 R1 で露見した「本棚の FAB を Rail 内に置くと さがす／設定 で 62dp の枠が空く」問題が
+  **さがす側にも FAB があれば消える**——各案にその可否を明記した（残るのは 設定 の1画面だけになる）。
+  ⚠️ どの案も「検索を畳む」＝正本 discovery-K.html の設計理由③「最上部に実検索を第一強調」を横向きだけ降ろす。
+     これは意匠の裁定事項なので、案の中では**代償を各案の弱点欄に明記して機械的には選ばない**。
+
+  【スコープ】横向きのみ。縦向きの正本は一切変えない。Compose 翻訳は裁定後。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K さがす 横向き — NavigationRail 案比較</title>
+<style>
+  /* :root は正本 discovery-K.html と同値（新値なし） */
+  :root{
+    --base:#FBFAF8; --ink:#1C1F26; --ink-soft:#7C808B; --info:#5C606D; --line:#ECEAE4;
+    --ai:#1C3D5A; --ai-pill:rgba(28,61,90,.10); --field:#F1F0EC;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    /* デッキ（比較台）専用＝アプリのトークンではない */
+    --deck:#2B2A27; --deck-ink:#EDEBE5; --deck-soft:#A6A29A; --ng:#C2453C; --ok:#3F7A55;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--deck);color:var(--deck-ink);font-family:var(--gothic);
+    padding:32px 32px 80px;-webkit-font-smoothing:antialiased}
+
+  .deckhead{max-width:840px;margin:0 auto 28px}
+  .deckhead h1{font-size:20px;letter-spacing:.04em;margin-bottom:10px}
+  .deckhead p{font-size:13px;line-height:1.85;color:var(--deck-soft)}
+  .deckhead b{color:var(--deck-ink)}
+  .deckhead .axis{margin-top:14px;font-size:12.5px;line-height:1.9;color:var(--deck-soft);
+    border-left:3px solid var(--ai);padding-left:14px}
+
+  .frame{max-width:840px;margin:0 auto 40px}
+  .cap{margin-bottom:12px}
+  .cap .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.08em;
+    padding:3px 10px;border-radius:999px;background:#4A4842;color:var(--deck-ink);margin-right:10px}
+  .cap.now .tag{background:var(--ng);color:#fff}
+  .cap b{font-size:15px;letter-spacing:.03em}
+  .cap .pick{display:block;margin-top:6px;font-size:12.5px;color:#F0D48B;line-height:1.6}
+  .cap .spec{display:block;margin-top:4px;font-size:11.5px;color:var(--deck-soft);line-height:1.7}
+
+  /* === 端末枠: 横向き実寸 800×360dp（1px = 1dp） === */
+  .phone{
+    --top:108px;   /* 固定トップ（題＋検索）＝正本 .top からの導出値 */
+    --nav:65px;    /* ボトムナビ（Rail 案では 0） */
+    --rail:0px;    /* Rail 幅 */
+    --gut:20px;    /* Rail⇄本文の余白（正本 .scroll の左右 20px） */
+    width:800px;height:360px;background:var(--base);border-radius:20px;overflow:hidden;
+    position:relative;display:flex;flex-direction:column;box-shadow:0 18px 44px rgba(0,0,0,.45)}
+
+  .sb{height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+    padding:0 26px;font-size:12px;color:var(--ink-soft)}
+
+  .row{flex:1;min-height:0;display:flex}
+  .main{flex:1;min-width:0;display:flex;flex-direction:column}
+
+  /* 固定トップ（正本と同構造・高さだけ固定） */
+  .top{height:var(--top);flex-shrink:0;padding:2px var(--gut) 14px}
+  .top h1{font-weight:700;font-size:22px;color:var(--ink);letter-spacing:.02em;line-height:1.2}
+  .search{margin-top:14px;height:52px;display:flex;align-items:center;gap:10px;background:var(--field);
+    border-radius:12px;padding:0 16px}
+  .search svg{width:20px;height:20px;stroke:var(--info);fill:none;stroke-width:1.8;flex-shrink:0}
+  .search span{font-size:14px;color:var(--info)}
+
+  /* 題と検索を1行へ統合した圧縮版（案 R4 専用・別裁定を含む） */
+  .topc{height:56px;flex-shrink:0;display:flex;align-items:center;gap:16px;padding:0 var(--gut)}
+  .topc h1{font-weight:700;font-size:19px;color:var(--ink);letter-spacing:.02em;flex-shrink:0}
+  .topc .search{margin-top:0;flex:1;height:40px}
+
+  .scroll{flex:1;min-height:0;overflow:hidden;padding:0 var(--gut);position:relative}
+
+  /* 見出し・ランキングタブ・順位リスト（すべて正本と同値） */
+  .sec{font-weight:700;font-size:13px;color:var(--ink);margin:20px 0 12px}
+  .sec:first-child{margin-top:8px}
+  .rtabs{display:flex;gap:18px;border-bottom:1px solid var(--line);margin-bottom:2px;overflow-x:auto;scrollbar-width:none}
+  .rtabs::-webkit-scrollbar{display:none}
+  .rtab{flex-shrink:0;font-size:13px;color:var(--info);padding:10px 0;position:relative}
+  .rtab.on{color:var(--ai);font-weight:700}
+  .rtab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ai)}
+  .rk{display:flex;gap:14px;align-items:baseline;padding:14px 0;border-bottom:1px solid var(--line)}
+  .rk .no{font-family:var(--mincho);font-size:19px;color:var(--info);width:24px;flex-shrink:0;text-align:center}
+  .rk.top3 .no{color:var(--ai)}
+  .rk .bd{flex:1;min-width:0}
+  .rk .t{font-family:var(--mincho);font-size:14.5px;color:var(--ink);line-height:1.5;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .rk .a{font-size:12px;color:var(--info);margin-top:4px}
+
+  /* ボトムナビ（現状枠のみ・正本と同値） */
+  .nav{height:var(--nav);flex-shrink:0;display:flex;border-top:1px solid var(--line);background:var(--base)}
+  .nt{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--ink-soft)}
+  .nt .ico{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .nt svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.7;position:relative;z-index:1}
+  .nt span{font-size:11px}
+  .nt.on{color:var(--ai)}
+  .nt.on .ico::before{content:"";position:absolute;inset:0;border-radius:16px;background:var(--ai-pill)}
+
+  /* NavigationRail */
+  .rail{width:var(--rail);flex-shrink:0;border-right:1px solid var(--line);background:var(--base);
+    display:flex;flex-direction:column;align-items:center;padding:8px 0}
+  /* 子を縮ませない＝入り切らないときに「収まったふり」をさせない（本棚デッキ 軸⑤ と同じ理由） */
+  .rail .items{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;
+    justify-content:center;gap:2px;width:100%}
+  .rt{height:56px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--ink-soft)}
+  .rt.on{color:var(--ai)}
+  .rt .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .rt .ic .pill{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .rt.on .ic .pill{background:var(--ai-pill)}
+  .rt .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .rt .lb{font-size:11px;letter-spacing:.04em;white-space:nowrap}
+  .rt.on .lb{font-weight:700}
+  .rail.nolabel .rt{height:44px}
+  .rail.nolabel .lb{display:none}
+  /* 本棚の FAB を Rail 内に置いた場合、さがす／設定ではこの枠が空く。
+     予約せずに詰めるとタブ切替のたびに項目が縦にずれるので、予約枠として可視化した。 */
+  .rslot{width:52px;height:52px;flex-shrink:0;margin-bottom:10px;border-radius:16px;
+    border:1.5px dashed var(--ng);display:grid;place-items:center;
+    font-size:9px;color:var(--ng);text-align:center;line-height:1.2;letter-spacing:0}
+  /* S案: 同じ枠を「さがす側の FAB＝検索」で埋めた状態。空き枠問題が消えるかを見るための実体 */
+  .rfab{width:52px;height:52px;flex-shrink:0;border:none;border-radius:16px;background:var(--ai);color:#fff;
+    display:grid;place-items:center;margin-bottom:10px;box-shadow:0 6px 16px rgba(28,61,90,.34)}
+  .rfab svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2}
+  /* S3: 検索フィールドを Rail 内へ縦置き（隠さずに縦方向の固定分から外す案） */
+  .vsearch{width:56px;height:120px;flex-shrink:0;margin-bottom:10px;background:var(--field);border-radius:12px;
+    display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0 12px}
+  .vsearch svg{width:20px;height:20px;stroke:var(--info);fill:none;stroke-width:1.8;flex-shrink:0}
+  .vsearch span{writing-mode:vertical-rl;font-size:11px;color:var(--info);letter-spacing:.04em;
+    flex:1;min-height:0;overflow:hidden}
+
+  /* S2: 題字だけ落として検索バーは残す版の固定トップ */
+  .tops{height:var(--top);flex-shrink:0;padding:2px var(--gut) 14px;display:flex;flex-direction:column;justify-content:center}
+
+  /* S4: 横向きは横幅が余るので順位リストを2カラムへ。読み順は「左列を下へ→右列」を矢印で明示 */
+  .rk2{display:grid;grid-template-columns:1fr 1fr;column-gap:28px}
+  .rk2 .rk{margin:0}
+  .colnote{position:absolute;right:52px;top:6px;z-index:8;font-size:10px;color:var(--ai);
+    background:var(--ai-pill);border-radius:4px;padding:2px 7px;letter-spacing:.02em}
+
+  /* 一覧末尾の公式サイト逃げ道（正本と同値・「下まで送った状態」の枠で使う） */
+  .official{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;
+    padding:16px 2px 4px;border-top:1px solid var(--line);font-size:13px;color:var(--info)}
+  .official svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6;flex-shrink:0}
+
+  /* ===== 2026-08-14 第2次追記（T案＝並べ替えのみ。畳む/隠すは使わない） ===== */
+
+  /* T1: 縦に積んでいた〈検索バー／期間タブ〉を横1行へ並べ替えた固定トップ（題字は Rail ヘッダへ移設） */
+  .toprow{height:52px;flex-shrink:0;display:flex;align-items:center;gap:24px;padding:0 var(--gut)}
+  .toprow .search{margin-top:0;height:40px;width:320px;flex-shrink:0}
+  .toprow .rtabs{flex:1;min-width:0;border-bottom:none;margin-bottom:0}
+  .toprow .rtab{padding:0}
+  .toprow .rtab.on::after{bottom:-14px}
+
+  /* 題字の移設先＝Rail のヘッダ。画面名が失われないことが T 案の要件 */
+  .railhead{flex-shrink:0;width:100%;padding:2px 0 10px;text-align:center;
+    font-size:12px;font-weight:700;color:var(--ink);letter-spacing:.06em}
+
+  /* pinned な期間タブ行（sticky 裁定 A案＝pinned と両立させるための実体） */
+  .pinned{flex-shrink:0;background:var(--base);padding:0 var(--gut)}
+  .pinned .rtabs{margin-bottom:0}
+
+  /* T2: 2ペイン。左＝検索と絞り込み／右＝結果一覧（右は全高＝固定トップを持たない） */
+  .panes{flex:1;min-height:0;display:flex}
+  .paneL{flex-shrink:0;border-right:1px solid var(--line);padding:12px 16px;overflow:hidden;
+    display:flex;flex-direction:column;gap:12px}
+  .paneL .search{margin-top:0;height:44px}
+  .paneL .flabel{font-size:11px;font-weight:700;color:var(--ink);letter-spacing:.04em;margin-top:2px}
+  .paneL .fchips{display:flex;flex-wrap:wrap;gap:6px}
+  .paneL .fchip{font-size:11.5px;color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:5px 11px}
+  .paneL .fchip.on{color:#fff;background:var(--ai);border-color:var(--ai)}
+  .paneR{flex:1;min-width:0;display:flex;flex-direction:column}
+  .paneR .scroll{padding:0 var(--gut)}
+  /* ペイン幅の当たりを枠内に出す（裁定軸が「左右の幅配分」なので数値を絵に添える） */
+  .pw{position:absolute;top:44px;z-index:9;font-size:9.5px;color:var(--ai);background:var(--ai-pill);
+    border-radius:3px;padding:1px 6px;letter-spacing:.02em}
+
+  /* 一覧行を実装の実寸で描く: 3段メタ 86dp（正本モックの1段 68dp ではない）
+     ＝T枠は上段 R/S 枠より正確。T4 は同じ行を2段 68dp に畳んだもの */
+  .rk3,.rk2m{display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-bottom:1px solid var(--line)}
+  .rk3 .no,.rk2m .no{font-family:var(--mincho);font-size:19px;color:var(--info);width:24px;flex-shrink:0;
+    text-align:center;line-height:1.15}
+  .rk3.top3 .no,.rk2m.top3 .no{color:var(--ai)}
+  .rk3 .bd,.rk2m .bd{flex:1;min-width:0}
+  .rk3 .t,.rk2m .t{font-family:var(--mincho);font-size:14.5px;color:var(--ink);line-height:1.5;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rk3 .a,.rk2m .a{font-size:12px;color:var(--info);margin-top:4px;line-height:1.15;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rk3 .s{font-size:12px;color:var(--info);margin-top:4px;line-height:1.15}   /* 3段目＝状態・読了目安・期間pt */
+  .rk2m .a .pt{color:var(--ai);font-weight:700}  /* T4: 期間pt だけは2段目の右へ退避して残す */
+
+  /* 併用早見表 */
+  .sum{max-width:840px;margin:0 auto 40px;border-collapse:collapse;font-size:12.5px;width:100%}
+  .sum th,.sum td{border:1px solid #4A4842;padding:7px 10px;text-align:left}
+  .sum th{background:#3A3833;font-weight:700;letter-spacing:.03em}
+  .sum td.n{text-align:right;font-variant-numeric:tabular-nums}
+  .sum tr.base td{color:#F0A9A3}
+  .sum tr.top td{background:rgba(63,122,85,.16);font-weight:700}
+  .sum caption{caption-side:top;text-align:left;font-size:13px;color:var(--deck-soft);
+    line-height:1.8;padding-bottom:10px}
+
+  /* 実装量の列挙（T2 用） */
+  .costs{margin-top:8px;font-size:12px;color:var(--deck-soft);line-height:1.75}
+  .costs b{color:var(--deck-ink)}
+  .costs ul{margin:4px 0 0 18px}
+
+  /* 追記セクションの仕切り */
+  .divider{max-width:840px;margin:56px auto 28px;border-top:1px solid #4A4842;padding-top:24px}
+  .divider h2{font-size:18px;letter-spacing:.04em;margin-bottom:10px}
+  .divider p{font-size:13px;line-height:1.85;color:var(--deck-soft)}
+  .divider b{color:var(--deck-ink)}
+  .divider .warn{margin-top:12px;font-size:12.5px;line-height:1.8;color:#E2B7B2;
+    border-left:3px solid var(--ng);padding-left:14px}
+
+  /* 可視域ゲージ */
+  .vp{position:absolute;right:0;width:46px;z-index:9;pointer-events:none;
+    border-top:1px dashed var(--ng);border-bottom:1px dashed var(--ng);
+    background:linear-gradient(90deg,rgba(194,69,60,0) 0%,rgba(194,69,60,.10) 100%);
+    display:flex;align-items:center;justify-content:flex-end;padding-right:4px}
+  .vp.good{border-color:var(--ok);background:linear-gradient(90deg,rgba(63,122,85,0) 0%,rgba(63,122,85,.12) 100%)}
+  .vp span{writing-mode:vertical-rl;font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--ng)}
+  .vp.good span{color:var(--ok)}
+
+  .m{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;font-size:12px}
+  .m i{font-style:normal;padding:4px 10px;border-radius:6px;background:#3A3833;color:var(--deck-ink)}
+  .m i.bad{background:rgba(194,69,60,.22);color:#F0A9A3;font-weight:700}
+  .m i.good{background:rgba(63,122,85,.24);color:#A9DCBB;font-weight:700}
+  .weak{margin-top:8px;font-size:12px;color:#E2B7B2;line-height:1.7}
+  .weak::before{content:"弱点 ";font-weight:700;color:var(--ng)}
+</style>
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <symbol id="i-shelf" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+</svg>
+
+<div class="deckhead">
+  <h1>さがす（ランキング）・横向き — NavigationRail の案比較（裁定用・候補）</h1>
+  <p>枠はすべて<b>横向きの実寸 800×360dp（1px = 1dp）</b>で、<b>ランキングまでスクロールした状態</b>を描いている。
+     本棚と違い一覧は1カラムなので、<b>Rail の幅は縦方向に効かない</b>——ここで効くのは
+     「ボトムナビ 65dp が縦から消える」ぶちだけ。だから幅の裁定は本棚デッキで、
+     ラベル有無と FAB 枠の扱いはこのデッキで見るのが早い。</p>
+  <div class="axis">
+    このデッキで見えるもの ——
+    ① ボトムナビ廃止で<b>ランキングが何行見えるようになるか</b>
+    ② 本棚の FAB を Rail 内に置いた場合、<b>さがす／設定で空く枠</b>をどうするか（赤い破線の予約枠）
+    ③ ラベル無し（R2）にしたとき現在地が読めるか。<br>
+    R3（Rail 96dp）は縦方向が R1 と同値で差が出ないため割愛した。<br>
+    <b style="color:#F0D48B">▼ ページ下段に S1〜S4 を追記（2026-08-14）</b> ——
+    上段が「ボトムナビ 65dp を横へ逃がす」だけなのに対し、下段は<b>固定トップ 108dp そのものを FAB／Rail へ畳む</b>案。
+    さがす側に FAB を持たせると上の②の空き枠問題がどうなるかも、そこで答え合わせしている。
+  </div>
+</div>
+
+<!-- ============================ 現状 ============================ -->
+<div class="frame">
+  <div class="cap now">
+    <span class="tag">現状</span><b>ボトムナビのまま（横向き未対応）</b>
+    <span class="pick">これは案ではなく基準線 — ランキングが1行も読み切れない状態。</span>
+    <span class="spec">Rail 0dp ／ ボトムナビ 65dp ／ 固定トップ 108dp</span>
+  </div>
+  <div class="phone">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="vp" style="top:148px;bottom:65px"><span>可視域 147dp</span></div>
+    <div class="row">
+      <div class="main">
+        <div class="top">
+          <h1>さがす</h1>
+          <div class="search"><svg><use href="#i-search"/></svg><span>作品名・作者名・キーワードで探す</span></div>
+        </div>
+        <div class="scroll">
+          <div class="sec">ランキング</div>
+          <div class="rtabs"><span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span></div>
+          <div class="rk top3"><span class="no">1</span><div class="bd"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="a">霧島あおい・連載中 127話</div></div></div>
+          <div class="rk top3"><span class="no">2</span><div class="bd"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="a">夜灯すばる・連載中 43話</div></div></div>
+          <div class="rk top3"><span class="no">3</span><div class="bd"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="a">白河すずら・完結 88話</div></div></div>
+          <div class="rk"><span class="no">4</span><div class="bd"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="a">青葉みのり・連載中 210話</div></div></div>
+          <div class="rk"><span class="no">5</span><div class="bd"><div class="t">辺境伯家の次男は今日も書庫にこもる</div><div class="a">水無月れん・短編</div></div></div>
+        </div>
+        <div class="nav">
+          <div class="nt"><span class="ico"><svg><use href="#i-shelf"/></svg></span><span>本棚</span></div>
+          <div class="nt on"><span class="ico"><svg><use href="#i-search"/></svg></span><span>さがす</span></div>
+          <div class="nt"><span class="ico"><svg><use href="#i-gear"/></svg></span><span>設定</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>可視域 <b>147dp</b></i><i>見出し 50 ＋ タブ行 39 = <b>89dp</b> が固定費</i><i class="bad">順位リストに残るのは 58dp ＝ 1行（68dp）すら読み切れない</i></div>
+  <div class="weak">1位の題名と作者が同時に見えない。ランキングの期間タブ（6本）を選び直すたび、選んだ結果が画面に出ない。</div>
+</div>
+
+<!-- ============================ R1 ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">R1</span><b>Rail 80dp・ラベルあり（本棚 R1 と同じ Rail）</b>
+    <span class="pick">選ばせるもの: 本棚 R1 の Rail をそのまま全画面で使うか。<b>赤い破線＝本棚の FAB 枠がここでは空く問題</b>をどう扱うかも同時に決める。</span>
+    <span class="spec">Rail 80dp ／ ラベル常時 ／ FAB 枠を予約（さがすでは空欄）</span>
+  </div>
+  <div class="phone" style="--rail:80px;--nav:0px">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="vp good" style="top:148px;bottom:0"><span>可視域 212dp</span></div>
+    <div class="row">
+      <nav class="rail">
+        <div class="rslot">FAB枠<br>（空）</div>
+        <div class="items">
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+          <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+        </div>
+      </nav>
+      <div class="main">
+        <div class="top">
+          <h1>さがす</h1>
+          <div class="search"><svg><use href="#i-search"/></svg><span>作品名・作者名・キーワードで探す</span></div>
+        </div>
+        <div class="scroll">
+          <div class="sec">ランキング</div>
+          <div class="rtabs"><span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span></div>
+          <div class="rk top3"><span class="no">1</span><div class="bd"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="a">霧島あおい・連載中 127話</div></div></div>
+          <div class="rk top3"><span class="no">2</span><div class="bd"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="a">夜灯すばる・連載中 43話</div></div></div>
+          <div class="rk top3"><span class="no">3</span><div class="bd"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="a">白河すずら・完結 88話</div></div></div>
+          <div class="rk"><span class="no">4</span><div class="bd"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="a">青葉みのり・連載中 210話</div></div></div>
+          <div class="rk"><span class="no">5</span><div class="bd"><div class="t">辺境伯家の次男は今日も書庫にこもる</div><div class="a">水無月れん・短編</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>可視域 <b>212dp</b>（+65dp）</i><i>順位リストに残る <b>123dp</b></i><i class="good">1位が読み切れ、2位の題名まで届く（0.9行 → 1.8行）</i></div>
+  <div class="weak">FAB 枠を予約すると<b>さがすで 62dp の空白が居座る</b>（画面の 17% を何も無い箱が占める）。予約せず詰めると本棚⇄さがすでタブが縦に 62dp ずれて、切替のたびに現在地が飛ぶ。<b>どちらも痛いので、FAB を Rail に入れるか否かは本棚だけで決められない。</b></div>
+</div>
+
+<!-- ============================ R2 ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">R2</span><b>Rail 56dp・ラベル無し（本棚 R2 と同じ Rail・FAB は Rail 外）</b>
+    <span class="pick">選ばせるもの: <b>FAB を Rail に入れないと決める</b>なら、Rail は細くラベル無しでよいか（空き枠問題が消える代わりに現在地がアイコンだけになる）。</span>
+    <span class="spec">Rail 56dp ／ ラベル無し ／ FAB 枠なし（本棚では右下フローティング）</span>
+  </div>
+  <div class="phone" style="--rail:56px;--nav:0px">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="vp good" style="top:148px;bottom:0"><span>可視域 212dp</span></div>
+    <div class="row">
+      <nav class="rail nolabel">
+        <div class="items">
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+          <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+        </div>
+      </nav>
+      <div class="main">
+        <div class="top">
+          <h1>さがす</h1>
+          <div class="search"><svg><use href="#i-search"/></svg><span>作品名・作者名・キーワードで探す</span></div>
+        </div>
+        <div class="scroll">
+          <div class="sec">ランキング</div>
+          <div class="rtabs"><span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span></div>
+          <div class="rk top3"><span class="no">1</span><div class="bd"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="a">霧島あおい・連載中 127話</div></div></div>
+          <div class="rk top3"><span class="no">2</span><div class="bd"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="a">夜灯すばる・連載中 43話</div></div></div>
+          <div class="rk top3"><span class="no">3</span><div class="bd"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="a">白河すずら・完結 88話</div></div></div>
+          <div class="rk"><span class="no">4</span><div class="bd"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="a">青葉みのり・連載中 210話</div></div></div>
+          <div class="rk"><span class="no">5</span><div class="bd"><div class="t">辺境伯家の次男は今日も書庫にこもる</div><div class="a">水無月れん・短編</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>可視域 <b>212dp</b>（+65dp）</i><i>順位リストに残る <b>123dp</b>（R1 と同値）</i><i class="good">空き枠なし・本文が 24dp 広い</i></div>
+  <div class="weak">スキンKの核は「ラベル付き恒常ナビで現在地を常時可視」（正本 discovery-K.html の設計理由①）。横向きだけラベルを捨てると、<b>D の分かりにくさの主因として名指しで直した当のものが横向きで復活</b>する。藍のピルだけが現在地の手がかりになる。</div>
+</div>
+
+<!-- ============================ R4 ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">R4</span><b>Rail 80dp ＋ 題と検索フィールドを1行に統合（合わせ技）</b>
+    <span class="pick">選ばせるもの: <b>Rail だけで足りるか、横向きのクローム圧縮まで踏み込むか</b>の上限（本棚 R4 と対）。下段 S案 はこの先を行く。</span>
+    <span class="spec">Rail 80dp ／ ラベル常時 ／ FAB 枠を予約 ／ 固定トップ 108dp → 統合行 56dp（−52dp）</span>
+  </div>
+  <div class="phone" style="--rail:80px;--nav:0px;--top:56px">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="vp good" style="top:96px;bottom:0"><span>可視域 264dp</span></div>
+    <div class="row">
+      <nav class="rail">
+        <div class="rslot">FAB枠<br>（空）</div>
+        <div class="items">
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+          <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+        </div>
+      </nav>
+      <div class="main">
+        <!-- 統合行: 横向きは横幅が余るので、題の右へ検索フィールドを流せる -->
+        <div class="topc">
+          <h1>さがす</h1>
+          <div class="search"><svg><use href="#i-search"/></svg><span>作品名・作者名・キーワードで探す</span></div>
+        </div>
+        <div class="scroll">
+          <div class="sec">ランキング</div>
+          <div class="rtabs"><span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span></div>
+          <div class="rk top3"><span class="no">1</span><div class="bd"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="a">霧島あおい・連載中 127話</div></div></div>
+          <div class="rk top3"><span class="no">2</span><div class="bd"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="a">夜灯すばる・連載中 43話</div></div></div>
+          <div class="rk top3"><span class="no">3</span><div class="bd"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="a">白河すずら・完結 88話</div></div></div>
+          <div class="rk"><span class="no">4</span><div class="bd"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="a">青葉みのり・連載中 210話</div></div></div>
+          <div class="rk"><span class="no">5</span><div class="bd"><div class="t">辺境伯家の次男は今日も書庫にこもる</div><div class="a">水無月れん・短編</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>可視域 <b>264dp</b>（+117dp）</i><i>順位リストに残る <b>175dp</b></i><i class="good">2位まで読み切れ、3位の題名が覗く（0.9行 → 2.6行）</i></div>
+  <div class="weak">検索フィールドが 52→40dp に痩せ、正本が「最上部に実検索を第一強調」（設計理由③）と決めた優先度が下がる。題「さがす」と検索プレースホルダが同じ行に並ぶと、<b>画面名なのか入力欄のラベルなのかが一瞬で切れない</b>。FAB 予約枠の空白（62dp）は R1 と同じく残る。</div>
+</div>
+
+<!-- ================================================================================
+     2026-08-14 追記 — S1〜S4: 固定トップ 108dp を FAB／Rail へ畳む
+     ================================================================================ -->
+<div class="divider">
+  <h2>S1〜S4 — 題字と検索バー（固定 108dp）を畳む案</h2>
+  <p>上段 R1〜R4 は<b>ボトムナビ 65dp を横へ逃がす</b>だけの案だった。ここから下は
+     <b>固定トップ 108dp（画面の 30%・ステータスバーを足すと 41%）そのものを削る</b>案。
+     Rail はすべて R1 と同じ 80dp・ラベルありに固定してある（S3 のみ 96dp）＝<b>差は「検索の置き場」だけ</b>。<br>
+     読み方は上段と地続き: <b>現状 0.9行 → R1 1.8行 → R4 2.6行</b> の続きとして各枠の数値帯を見る。
+     見出し「ランキング」50dp ＋ 期間タブ行 39dp = <b>89dp</b> はどの案でも固定費として残る。</p>
+  <p style="margin-top:12px">さらにこの下段は、上段 R1 で露見した
+     <b>「本棚の FAB を Rail 内に置くと さがす／設定 で 62dp の枠が空く」問題</b>の答え合わせも兼ねる。
+     さがす側にも FAB があればその枠は埋まる——各枠の Rail 上部を見れば、
+     <span style="color:#A9DCBB;font-weight:700">埋まった（藍の実体）</span>か
+     <span style="color:#F0A9A3;font-weight:700">空いた（赤い破線）</span>かが一目で分かる。</p>
+  <div class="warn">
+    ⚠️ 冒頭の警告2点は S案にも同じく効く —— ①固定トップ 108dp は実機実測でなく正本モックからの導出値
+    ②一覧行を正本の1段メタ（68dp）で描いており実装 NovelListRow は3段メタで ~18dp（86dp/行）高い。
+    つまり<b>下の「N行読める」はすべて上限値</b>で、実装の実寸で読み直すと
+    <b>S1／S3／S4 は 3.4行 → 2.7行、S2 は 2.4行 → 1.9行</b>。案の順位は変わらないが、絶対値を信じないこと。<br>
+    ⚠️ もう1点、S案で消えるのは さがす の空き枠だけ ——<b>設定にも FAB は無いので、その1画面ぶんの穴は残る</b>。
+  </div>
+</div>
+
+<!-- ============================ S1: 検索の入口を FAB へ畳む ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">S1</span><b>検索の入口を FAB へ畳む（題字も落とす）</b>
+    <span class="pick">選ばせるもの: <b>検索を「常に見えている欄」から「押して開く一手」へ格下げしてよいか</b>。固定分をゼロにできる代わり、さがすの主機能がアイコンの裏に入る。</span>
+    <span class="spec">Rail 80dp ／ Rail 上部の FAB＝検索（虫めがね） ／ 固定トップ 108dp → <b>0dp</b> ／ 画面名は Rail の選択ラベル「さがす」が担う</span>
+  </div>
+  <div class="phone" style="--rail:80px;--nav:0px;--top:0px">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="vp good" style="top:40px;bottom:0"><span>可視域 320dp</span></div>
+    <div class="row">
+      <nav class="rail">
+        <!-- 本棚では「＋ PDFを追加」が入る枠。さがすでは検索が入って枠が埋まる＝R1 の空き枠問題が消える -->
+        <button class="rfab"><svg><use href="#i-search"/></svg></button>
+        <div class="items">
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+          <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+        </div>
+      </nav>
+      <div class="main">
+        <div class="scroll">
+          <div class="sec">ランキング</div>
+          <div class="rtabs"><span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span></div>
+          <div class="rk top3"><span class="no">1</span><div class="bd"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="a">霧島あおい・連載中 127話</div></div></div>
+          <div class="rk top3"><span class="no">2</span><div class="bd"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="a">夜灯すばる・連載中 43話</div></div></div>
+          <div class="rk top3"><span class="no">3</span><div class="bd"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="a">白河すずら・完結 88話</div></div></div>
+          <div class="rk"><span class="no">4</span><div class="bd"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="a">青葉みのり・連載中 210話</div></div></div>
+          <div class="rk"><span class="no">5</span><div class="bd"><div class="t">辺境伯家の次男は今日も書庫にこもる</div><div class="a">水無月れん・短編</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>固定トップ <b>0dp</b>（−108dp）</i><i>可視域 <b>320dp</b></i><i>順位リストに残る <b>231dp</b></i><i class="good">0.9行 → <b>3.4行</b>（上位3件が丸ごと読める）</i><i class="good">Rail の FAB 枠が埋まる</i></div>
+  <div class="weak">検索が虫めがね1個の裏に入る。<b>「さがす」なのに初見の画面はランキング一覧にしか見えず、検索できると気付けない</b>——正本が D から直した当の弱点（ラベル無しアイコンで機能が読めない）に片足を戻す。題字も消えるので画面名は Rail の選択ラベルだけが担い、Rail をラベル無し（R2）にする裁定とは<b>併用できない</b>。縦向きは検索バーが最上部に常設なので、<b>向きで検索の見つけ方が変わる</b>（一貫性の破れ）。</div>
+</div>
+
+<!-- ============================ S1' 下まで送った状態 ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">S1'</span><b>S1 を一覧の末尾まで送った状態</b>
+    <span class="pick">選ばせるもの: 案ではなく S1 の検算 — <b>本棚で問題になった「末尾の死に空白」が さがす にも出ないか</b>の確認枠。</span>
+    <span class="spec">S1 と同一構成／末尾＝20位＋公式サイトへの逃げ道行</span>
+  </div>
+  <div class="phone" style="--rail:80px;--nav:0px;--top:0px">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="vp good" style="top:40px;bottom:0"><span>可視域 320dp</span></div>
+    <div class="row">
+      <nav class="rail">
+        <button class="rfab"><svg><use href="#i-search"/></svg></button>
+        <div class="items">
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+          <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+        </div>
+      </nav>
+      <div class="main">
+        <div class="scroll">
+          <div class="rk"><span class="no">18</span><div class="bd"><div class="t">氷の令嬢は今日も無表情で紅茶を淹れる</div><div class="a">綾坂ふゆ・連載中 64話</div></div></div>
+          <div class="rk"><span class="no">19</span><div class="bd"><div class="t">錬金術師のギルドは万年赤字</div><div class="a">柊木さやか・完結 132話</div></div></div>
+          <div class="rk"><span class="no">20</span><div class="bd"><div class="t">村人Aだった俺の平穏な二度目</div><div class="a">灰谷とおる・連載中 91話</div></div></div>
+          <div class="official"><span>小説家になろう公式サイトで探す</span><svg><use href="#i-ext"/></svg></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>末尾の内容 <b>264dp</b>（3行 204 ＋ 逃げ道行 60）</i><i class="good">残り空白 56dp ＝ 一覧の終端として自然</i></div>
+  <div class="weak">本棚の <code>Insets.ScrollBottomForFab = 96dp</code> のような死に空白は<b>さがすには出ない</b>——FAB を Rail に入れれば本文にクリアランスを取る必要が消えるため。<b>逆に言うと S2 のように FAB を本文右下へ置く案を採ると、この 96dp 問題が さがす にも輸入される</b>。</div>
+</div>
+
+<!-- ============================ S2: 題字だけ落とす ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">S2</span><b>題字「さがす」だけ落として検索バーは残す（段階の浅い案）</b>
+    <span class="pick">選ばせるもの: <b>検索バーは見えたまま残したい</b>なら、削れるのは題字ぶんの 40dp だけ。それで足りるかを見る枠。</span>
+    <span class="spec">Rail 80dp ／ FAB 枠は<b>空いたまま</b>（さがすに FAB が無い） ／ 固定トップ 108dp → <b>68dp</b>（検索52＋上下余白16）</span>
+  </div>
+  <div class="phone" style="--rail:80px;--nav:0px;--top:68px">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="vp good" style="top:108px;bottom:0"><span>可視域 252dp</span></div>
+    <div class="row">
+      <nav class="rail">
+        <div class="rslot">FAB枠<br>（空）</div>
+        <div class="items">
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+          <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+        </div>
+      </nav>
+      <div class="main">
+        <!-- 題字を落として検索バーだけを残した固定トップ -->
+        <div class="tops">
+          <div class="search"><svg><use href="#i-search"/></svg><span>作品名・作者名・キーワードで探す</span></div>
+        </div>
+        <div class="scroll">
+          <div class="sec">ランキング</div>
+          <div class="rtabs"><span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span></div>
+          <div class="rk top3"><span class="no">1</span><div class="bd"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="a">霧島あおい・連載中 127話</div></div></div>
+          <div class="rk top3"><span class="no">2</span><div class="bd"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="a">夜灯すばる・連載中 43話</div></div></div>
+          <div class="rk top3"><span class="no">3</span><div class="bd"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="a">白河すずら・完結 88話</div></div></div>
+          <div class="rk"><span class="no">4</span><div class="bd"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="a">青葉みのり・連載中 210話</div></div></div>
+          <div class="rk"><span class="no">5</span><div class="bd"><div class="t">辺境伯家の次男は今日も書庫にこもる</div><div class="a">水無月れん・短編</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>固定トップ <b>68dp</b>（−40dp）</i><i>可視域 <b>252dp</b></i><i>順位リストに残る <b>163dp</b></i><i>0.9行 → <b>2.4行</b></i><i class="bad">Rail の FAB 枠は空いたまま</i></div>
+  <div class="weak"><b>2.4行は R4（2.6行）より悪い</b>——固定分の主犯は題字(40dp)でなく検索バー(52dp)なので、題字を落としても効きが足りない。しかも FAB 枠問題は未解決のまま＝<b>効きも小さく穴も残る中途半端な案</b>。画面名が消えるのに検索バーだけ残るので、初見では「本棚の中の検索欄」と誤読されうる（Rail のラベルを読ませる負担が上がる）。</div>
+</div>
+
+<!-- ============================ S3: 検索バーを Rail の中へ縦置き ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">S3</span><b>検索バーを Rail の中へ縦置き（隠さずに縦の固定分から外す）</b>
+    <span class="pick">選ばせるもの: <b>検索を見えたまま残しつつ固定分もゼロにできるか</b>——「押して開く」代償を払わない唯一の案。その代わり Rail が 96dp に太り、縦の余裕がほぼ無くなる。</span>
+    <span class="spec">Rail <b>96dp</b> ／ Rail 上部に縦置き検索 120dp ／ 固定トップ 108dp → <b>0dp</b> ／ Rail 内寸 304dp に対し実占有 302dp</span>
+  </div>
+  <div class="phone" style="--rail:96px;--nav:0px;--top:0px">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="vp good" style="top:40px;bottom:0"><span>可視域 320dp</span></div>
+    <div class="row">
+      <nav class="rail">
+        <!-- FAB 枠の位置に「検索フィールドそのもの」を縦置き。本棚では同じ位置に ＋FAB が来る -->
+        <!-- プレースホルダは縦 72dp に収まる 6文字が限界＝正本の「作品名・作者名・キーワードで探す」(16文字)は入らない。
+             文言を削らないと成立しない時点で、この案は情報量の切り下げを含む -->
+        <div class="vsearch"><svg><use href="#i-search"/></svg><span>作品名で探す</span></div>
+        <div class="items">
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+          <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+        </div>
+      </nav>
+      <div class="main">
+        <div class="scroll">
+          <div class="sec">ランキング</div>
+          <div class="rtabs"><span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span></div>
+          <div class="rk top3"><span class="no">1</span><div class="bd"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="a">霧島あおい・連載中 127話</div></div></div>
+          <div class="rk top3"><span class="no">2</span><div class="bd"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="a">夜灯すばる・連載中 43話</div></div></div>
+          <div class="rk top3"><span class="no">3</span><div class="bd"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="a">白河すずら・完結 88話</div></div></div>
+          <div class="rk"><span class="no">4</span><div class="bd"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="a">青葉みのり・連載中 210話</div></div></div>
+          <div class="rk"><span class="no">5</span><div class="bd"><div class="t">辺境伯家の次男は今日も書庫にこもる</div><div class="a">水無月れん・短編</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>固定トップ <b>0dp</b>（−108dp）</i><i>可視域 <b>320dp</b></i><i>順位リストに残る <b>231dp</b></i><i class="good">0.9行 → <b>3.4行</b></i><i class="good">枠は埋まる（FAB でなく検索欄が占有）</i></div>
+  <div class="weak">日本語プレースホルダが縦書きになり<b>「探せる場所」だと読み取るのに時間がかかる</b>（検索欄の慣習形＝横長の角丸から外れる）。Rail 内寸 304dp に対し 120＋10＋(3×56＋gap4)=<b>302dp ＝ 余裕 2dp</b>で、タブ5本や fontScale 1.15 で即溢れる（本棚デッキ 軸⑤ 参照）。本棚⇄さがすで<b>同じ位置の部品が「＋ボタン」⇄「検索欄」に化ける</b>——跳ねはしないが、形も意味も違うものが同じ座席に座る。Rail 幅 96dp は本棚側では劣位案 R3 と同値＝<b>本棚の書影を 141dp まで縮める代償</b>を さがす の都合で本棚に払わせることになる。</div>
+</div>
+
+<!-- ============================ S4: S1 ＋ 一覧を2カラム化 ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">S4</span><b>S1 ＋ 順位リストを2カラム化（横幅が余っているのを使う）</b>
+    <span class="pick">選ばせるもの: <b>横向きで余っているのは縦でなく横だ</b>という読み替えを採るか。縦を稼ぐ S1 に、余った横 720dp を使う一手を足した最大案。</span>
+    <span class="spec">Rail 80dp ／ Rail 上部の FAB＝検索 ／ 固定トップ <b>0dp</b> ／ 順位リスト 2カラム（列送り＝左列を下へ→右列）</span>
+  </div>
+  <div class="phone" style="--rail:80px;--nav:0px;--top:0px">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="vp good" style="top:40px;bottom:0"><span>可視域 320dp</span></div>
+    <div class="row">
+      <nav class="rail">
+        <button class="rfab"><svg><use href="#i-search"/></svg></button>
+        <div class="items">
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+          <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+        </div>
+      </nav>
+      <div class="main">
+        <div class="scroll">
+          <!-- 2カラムは順位の読み順が自明でない＝読み順の明示が不可欠（この注記自体が案の弱点の証拠） -->
+          <span class="colnote">↓ 左列を下へ → 右列</span>
+          <div class="sec">ランキング</div>
+          <div class="rtabs"><span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span></div>
+          <div class="rk2">
+            <div class="rk top3"><span class="no">1</span><div class="bd"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="a">霧島あおい・連載中 127話</div></div></div>
+            <div class="rk"><span class="no">4</span><div class="bd"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="a">青葉みのり・連載中 210話</div></div></div>
+            <div class="rk top3"><span class="no">2</span><div class="bd"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="a">夜灯すばる・連載中 43話</div></div></div>
+            <div class="rk"><span class="no">5</span><div class="bd"><div class="t">辺境伯家の次男は今日も書庫にこもる</div><div class="a">水無月れん・短編</div></div></div>
+            <div class="rk top3"><span class="no">3</span><div class="bd"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="a">白河すずら・完結 88話</div></div></div>
+            <div class="rk"><span class="no">6</span><div class="bd"><div class="t">星降る夜の図書館で君を待っている</div><div class="a">七瀬いつき・完結 45話</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>固定トップ <b>0dp</b>（−108dp）</i><i>可視域 <b>320dp</b></i><i>順位リストに残る <b>231dp</b></i><i class="good">0.9行 → 3.4行 × 2列 ＝ <b>6.8件</b></i><i class="good">Rail の FAB 枠が埋まる</i></div>
+  <div class="weak">ランキングは<b>順位という一次元の並び</b>なのに2カラムにすると読み順が自明でなくなる（左列を下へか、行方向に Z 字か）——上に貼った注記は親切ではなく<b>構造が説明を要求している証拠</b>。列幅が 320dp に落ちるので題名2行クランプが効きやすくなり、長題の行だけ高くなって左右の行が揃わない。<b>S1 の弱点（検索が隠れる・向きで見つけ方が変わる）はすべて相続する</b>。加えて縦向きは1カラムのままなので、向きを変えるとカード配置が組み替わる＝スクロール位置の連続性が切れる。</div>
+</div>
+
+<!-- ================================================================================
+     2026-08-14 第2次追記 — T1〜T4: 「隠す」をやめて「並べ替え」だけで解く
+     ================================================================================ -->
+<div class="divider">
+  <h2>T1〜T4 — 並べ替えだけで解く（S1〜S4 は却下・FAB へ畳む方向は不採用）</h2>
+  <p><b>却下の理由＝設計原理</b>: 横向きの本質は〈幅が余って高さが枯れている〉こと。Rail の裁定は
+     「ボトムナビという横帯を、余っている幅へ逃がす」＝<b>並べ替え</b>だった。検索バーを FAB へ畳むのは
+     並べ替えではなく<b>隠す</b>——探す機能の格下げであり、原理から外れる。<b>隠すのは最後の手段。まず並べ替えを尽くす。</b></p>
+  <p style="margin-top:12px"><b>そして並べ替えの方が数字でも勝つ</b>。却下した S1（検索を FAB へ隠す）が
+     一覧 231dp どまりだったのは、<b>見出し 50dp ＋ 期間タブ 39dp = 89dp を scroll に残したまま</b>だったから。
+     T 案は同じ 89dp を〈上の行へ移設〉〈pinned 化〉〈重複ぶんを廃止〉で片付けるので、
+     <b>検索バーを見せたまま一覧 281dp ＝ S1 を 50dp 上回る</b>。隠す必要は最初から無かった。</p>
+  <p style="margin-top:12px"><b>読み方</b>: 一覧の可視高さ ＝ 360 − ステータスバー 40 − 固定トップ − pinned 要素。
+     見出し「ランキング」50dp は送れば抜けるので、到着直後だけ食う扱い（各枠は到着直後の状態で描いてある）。</p>
+  <div class="warn">
+    ⚠️ 冒頭の警告2点は T 案にも効く —— ①固定トップ 108dp は実機実測でなく正本モックからの導出値
+    （<b>Compose 翻訳前に実機で1回測ること</b>）。<br>
+    ②ただし<b>②の「過小に描いている」問題は T 枠では解消した</b>——上段 R/S 枠が正本モックの1段メタ（68dp）で
+    描いていたのに対し、<b>T 枠は実装 NovelListRow の3段メタ 86dp をそのまま描いている</b>。
+    つまり T 枠に見えている行数が実装の実寸。T4 の枠だけが意図的に2段 68dp。
+    各枠の数値帯には <b>3段86dp と 2段68dp（＝T4 併用時）の両方</b>を併記した。
+  </div>
+</div>
+
+<!-- ============================ T1 横一列化 ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">T1</span><b>横一列化 — 縦に積んだ〈題字／検索バー／期間タブ〉を1行へ並べ替える</b>
+    <span class="pick">選ばせるもの: <b>何も隠さずに固定分を半分にする</b>案。題字は消さずに Rail ヘッダへ移設し、検索バーは常時見えたまま。</span>
+    <span class="spec">Rail 80dp（上端に題字「さがす」を移設） ／ 固定トップ 108dp → <b>52dp</b>（検索 320dp ＋ 期間タブ 336dp を横並び） ／ 期間タブは pinned（sticky A案）と両立＝この行自体が pinned</span>
+  </div>
+  <div class="phone" style="--rail:80px;--nav:0px">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="vp good" style="top:92px;bottom:0"><span>可視域 268dp</span></div>
+    <div class="row">
+      <nav class="rail">
+        <!-- 題字の移設先。画面名は消さない＝S案が踏んだ「画面の性格が伝わらない」を回避する -->
+        <div class="railhead">さがす</div>
+        <div class="items">
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+          <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+        </div>
+      </nav>
+      <div class="main">
+        <!-- 検索バーと期間タブを同じ行へ。横向きは幅が 680dp 余るので両方を実寸で置ける -->
+        <div class="toprow">
+          <div class="search"><svg><use href="#i-search"/></svg><span>作品名・作者名・キーワードで探す</span></div>
+          <div class="rtabs"><span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span></div>
+        </div>
+        <div class="scroll">
+          <div class="sec">ランキング</div>
+          <div class="rk3 top3"><span class="no">1</span><div class="bd"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="a">霧島あおい・ハイファンタジー</div><div class="s">連載中 127話・読了目安 6時間・週間 12,480pt</div></div></div>
+          <div class="rk3 top3"><span class="no">2</span><div class="bd"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="a">夜灯すばる・ハイファンタジー</div><div class="s">連載中 43話・読了目安 2時間・週間 9,310pt</div></div></div>
+          <div class="rk3 top3"><span class="no">3</span><div class="bd"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="a">白河すずら・恋愛</div><div class="s">完結 88話・読了目安 4時間・週間 8,752pt</div></div></div>
+          <div class="rk3"><span class="no">4</span><div class="bd"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="a">青葉みのり・ローファンタジー</div><div class="s">連載中 210話・読了目安 11時間・週間 7,004pt</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>固定トップ <b>52dp</b>（−56dp）</i><i>一覧可視 <b>218dp</b></i><i class="good">3段86dp で <b>2.5行</b>／T4 併用の2段68dp で <b>3.2行</b></i><i class="good">検索バーは常時可視・題字も残る</i></div>
+  <div class="m"><i>検索バー 320dp ＝ 文字領域 258dp ＝ <b>18文字ぶん</b>。正本の16文字「作品名・作者名・キーワードで探す」は<b>そのまま入る</b>（余裕2文字）</i><i class="good">期間タブ6本が横スクロールなしで全部見える（縦向きは横スクロール行）</i></div>
+  <div class="weak">検索バーと期間タブが同じ行に並ぶと、<b>期間タブが「検索の絞り込み条件」に見えかねない</b>（実際はランキングの期間で、検索とは無関係の別系統）。この誤読は縦向きには存在しない横向き固有の新しい risk。加えて 320dp は<b>余裕2文字</b>しかないので、プレースホルダ文言を1文字でも増やすと入らない＝文言が構造にロックされる。期間タブの下線（選択中）が行の下端すれすれに来るため、pinned 行の境界線と干渉しやすい。見出し「ランキング」50dp は期間タブが上へ行った後は重複気味で、落とせばさらに +50dp（＋0.6行）稼げるが、正本の設計理由④「見出しは自己説明的に」に触れるので<b>ここでは落としていない</b>。</div>
+</div>
+
+<!-- ============================ T2a 2ペイン 280/440 ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">T2a</span><b>2ペイン（supporting pane）— 左 280dp / 右 440dp</b>
+    <span class="pick">選ばせるもの: <b>一覧を全高で使う</b>最大案。左に検索と絞り込みを常設し、右の結果一覧は固定トップを一切持たない。左を細くして一覧を広く取る配分。</span>
+    <span class="spec">Rail 80dp（題字を移設） ／ 左ペイン 280dp ＝ 検索＋絞り込み ／ 右ペイン 440dp ＝ 結果一覧（pinned な期間タブ 39dp のみ）</span>
+  </div>
+  <div class="phone" style="--rail:80px;--nav:0px">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="vp good" style="top:40px;bottom:0"><span>可視域 320dp</span></div>
+    <span class="pw" style="left:96px">左 280dp</span><span class="pw" style="left:390px">右 440dp</span>
+    <div class="row">
+      <nav class="rail">
+        <div class="railhead">さがす</div>
+        <div class="items">
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+          <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+        </div>
+      </nav>
+      <div class="panes">
+        <div class="paneL" style="width:280px">
+          <!-- プレースホルダは 186dp ＝13文字ぶんしか無く、正本16文字が入らない（弱点欄に明記） -->
+          <div class="search"><svg><use href="#i-search"/></svg><span>作品名・作者名で探す</span></div>
+          <div class="flabel">ジャンル</div>
+          <div class="fchips"><span class="fchip on">すべて</span><span class="fchip">恋愛</span><span class="fchip">ファンタジー</span><span class="fchip">文芸</span><span class="fchip">SF</span></div>
+          <div class="flabel">状態</div>
+          <div class="fchips"><span class="fchip on">指定なし</span><span class="fchip">完結済</span><span class="fchip">連載中</span></div>
+        </div>
+        <div class="paneR">
+          <div class="pinned"><div class="rtabs"><span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span></div></div>
+          <div class="scroll">
+            <div class="rk3 top3"><span class="no">1</span><div class="bd"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="a">霧島あおい・ハイファンタジー</div><div class="s">連載中 127話・週間 12,480pt</div></div></div>
+            <div class="rk3 top3"><span class="no">2</span><div class="bd"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="a">夜灯すばる・ハイファンタジー</div><div class="s">連載中 43話・週間 9,310pt</div></div></div>
+            <div class="rk3 top3"><span class="no">3</span><div class="bd"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="a">白河すずら・恋愛</div><div class="s">完結 88話・週間 8,752pt</div></div></div>
+            <div class="rk3"><span class="no">4</span><div class="bd"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="a">青葉みのり・ローファンタジー</div><div class="s">連載中 210話・週間 7,004pt</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>固定トップ <b>0dp</b>（−108dp）</i><i>一覧可視 <b>281dp</b>（320 − pinned タブ 39）</i><i class="good">3段86dp で <b>3.3行</b>／T4 併用で <b>4.1行</b></i><i class="bad">左 280dp では検索の文字領域が 186dp ＝13文字ぶん＝正本16文字が入らない</i></div>
+  <div class="costs"><b>この案だけ実装が新規に要求するもの（他案は既存構造の再配置で済む）</b>
+    <ul>
+      <li><b>情報構造の再設計</b>: 現在の さがす は〈気分ページャ／ジャンル／ランキング／公式リンク〉の4セクション縦積み。2ペインにすると気分ページャと公式リンクの行き場が無い（左へ？右の先頭へ？）＝<b>画面の設計そのものをやり直す裁定が別途要る</b>。</li>
+      <li><b>ペイン分割レイアウト</b>: 横向きだけ2ペイン＝同一画面に2つの構成が並存し、分岐点（どの幅から2ペインか）を決める必要。</li>
+      <li><b>絞り込み UI が新規</b>: 「状態＝完結済/連載中」のような絞り込みは現状の さがす に存在しない（＝新機能）。API 側の対応可否も未確認。</li>
+      <li><b>状態の持ち方</b>: 検索語・絞り込み・期間タブ・スクロール位置を左右で共有する保持先が要る（現状は単一 scroll の state）。</li>
+      <li><b>縦向きとの分岐</b>: 縦は1ペインのままなので、回転で構成が入れ替わる＝スクロール位置と選択状態の引き継ぎ規則が要る。</li>
+    </ul>
+  </div>
+  <div class="weak">上の一覧のとおり<b>実装量が4案で最大</b>で、しかも「絞り込み」という新機能の裁定を巻き込む＝横向きの高さ問題を直すはずが機能追加の議論になる。左 280dp では検索プレースホルダが正本文言を切らざるを得ない（13文字）。右 440dp でも題名は1行省略で、長題ほど末尾が消える。左ペインが常時 280dp を占め続けるので、<b>絞り込みを使わないユーザーには画面の 35% が死に領域</b>になる。</div>
+</div>
+
+<!-- ============================ T2b 2ペイン 320/400 ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">T2b</span><b>2ペイン — 左 320dp / 右 400dp（左を広げた配分）</b>
+    <span class="pick">選ばせるもの: T2 の幅配分。<b>左を 40dp 広げると検索プレースホルダの正本16文字が入る</b>——その代わり一覧の行幅が 40dp 削れる。</span>
+    <span class="spec">左ペイン 320dp ／ 右ペイン 400dp ／ その他は T2a と同一</span>
+  </div>
+  <div class="phone" style="--rail:80px;--nav:0px">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="vp good" style="top:40px;bottom:0"><span>可視域 320dp</span></div>
+    <span class="pw" style="left:96px">左 320dp</span><span class="pw" style="left:430px">右 400dp</span>
+    <div class="row">
+      <nav class="rail">
+        <div class="railhead">さがす</div>
+        <div class="items">
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+          <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+        </div>
+      </nav>
+      <div class="panes">
+        <div class="paneL" style="width:320px">
+          <div class="search"><svg><use href="#i-search"/></svg><span>作品名・作者名・キーワードで探す</span></div>
+          <div class="flabel">ジャンル</div>
+          <div class="fchips"><span class="fchip on">すべて</span><span class="fchip">恋愛</span><span class="fchip">ファンタジー</span><span class="fchip">文芸</span><span class="fchip">SF</span></div>
+          <div class="flabel">状態</div>
+          <div class="fchips"><span class="fchip on">指定なし</span><span class="fchip">完結済</span><span class="fchip">連載中</span></div>
+        </div>
+        <div class="paneR">
+          <div class="pinned"><div class="rtabs"><span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span></div></div>
+          <div class="scroll">
+            <div class="rk3 top3"><span class="no">1</span><div class="bd"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="a">霧島あおい・ハイファンタジー</div><div class="s">連載中 127話・週間 12,480pt</div></div></div>
+            <div class="rk3 top3"><span class="no">2</span><div class="bd"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="a">夜灯すばる・ハイファンタジー</div><div class="s">連載中 43話・週間 9,310pt</div></div></div>
+            <div class="rk3 top3"><span class="no">3</span><div class="bd"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="a">白河すずら・恋愛</div><div class="s">完結 88話・週間 8,752pt</div></div></div>
+            <div class="rk3"><span class="no">4</span><div class="bd"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="a">青葉みのり・ローファンタジー</div><div class="s">連載中 210話・週間 7,004pt</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>固定トップ <b>0dp</b></i><i>一覧可視 <b>281dp</b>（T2a と同値＝行数は幅では変わらない）</i><i class="good">3段86dp で <b>3.3行</b>／T4 併用で <b>4.1行</b></i><i class="good">左 320dp ＝ 文字領域 226dp ＝ 16文字ちょうど入る</i></div>
+  <div class="weak">16文字が<b>ちょうど</b>なので余裕ゼロ＝fontScale を上げた瞬間に切れる。右 400dp は T2a より 40dp 狭く、題名の省略が早まる（実データの なろう 題名は長いものが多く、順位の横で題名末尾が消えると作品を特定しにくい）。<b>実装コストは T2a と同一＝上の列挙がそのまま効く</b>。死に領域の指摘も同じで、左が広がるぶん悪化する（画面の 40%）。</div>
+</div>
+
+<!-- ============================ T3 初期状態 ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">T3-初期</span><b>検索バーだけスクロール連動で退避（到着直後＝畳む前）</b>
+    <span class="pick">選ばせるもの: <b>初期状態では検索バーが必ず見えている</b>＝格下げにならない畳み方を採るか。到着時は現状と同じ見え方で、送ったぶんだけ一覧が広がる。</span>
+    <span class="spec">Rail 80dp（題字を移設） ／ 固定 ＝ 検索バー 68dp ＋ pinned 期間タブ 39dp ／ <b>畳むのは検索バーだけで pinned の中身は不変</b></span>
+  </div>
+  <div class="phone" style="--rail:80px;--nav:0px">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="vp good" style="top:108px;bottom:0"><span>可視域 252dp</span></div>
+    <div class="row">
+      <nav class="rail">
+        <div class="railhead">さがす</div>
+        <div class="items">
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+          <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+        </div>
+      </nav>
+      <div class="main">
+        <!-- 退避する層＝ここだけ。下の pinned は畳み量に関わらず中身も高さも変わらない -->
+        <div class="tops" style="--top:68px">
+          <div class="search"><svg><use href="#i-search"/></svg><span>作品名・作者名・キーワードで探す</span></div>
+        </div>
+        <div class="pinned"><div class="rtabs"><span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span></div></div>
+        <div class="scroll">
+          <div class="sec">ランキング</div>
+          <div class="rk3 top3"><span class="no">1</span><div class="bd"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="a">霧島あおい・ハイファンタジー</div><div class="s">連載中 127話・読了目安 6時間・週間 12,480pt</div></div></div>
+          <div class="rk3 top3"><span class="no">2</span><div class="bd"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="a">夜灯すばる・ハイファンタジー</div><div class="s">連載中 43話・読了目安 2時間・週間 9,310pt</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>固定 <b>107dp</b>（検索68 ＋ タブ39）</i><i>一覧可視 <b>163dp</b>（見出し50を差し引き後）</i><i>3段86dp で <b>1.9行</b>／T4 併用で <b>2.4行</b></i></div>
+  <div class="weak">到着直後は R1（1.4行）とほぼ変わらない＝<b>この枠だけ見ると効いていない</b>。効くのは次の枠（送った後）で、つまり T3 は「最初の一画面」を犠牲にして「読み進めたときの広さ」を買う案。</div>
+</div>
+
+<!-- ============================ T3 送った後 ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">T3-送後</span><b>同・下へ送った状態（検索バーが退避し、期間タブは pinned のまま残る）</b>
+    <span class="pick">選ばせるもの: <b>前回の E案（畳み連動）との差はここ</b>——E案は pinned の中身が畳み量で変わる最重案だったが、T3 は<b>検索バーだけが上へ抜け、pinned の期間タブは中身も高さも一切変わらない</b>。2枠を見比べればタブ行が不動なことが分かる。</span>
+    <span class="spec">検索バー 68dp が退避 ／ pinned 期間タブ 39dp は不変（位置・高さ・6本すべて同じ） ／ 同じ挙動を<b>縦向きにも適用できる</b>＝向きで操作が変わらない</span>
+  </div>
+  <div class="phone" style="--rail:80px;--nav:0px">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="vp good" style="top:40px;bottom:0"><span>可視域 320dp</span></div>
+    <div class="row">
+      <nav class="rail">
+        <div class="railhead">さがす</div>
+        <div class="items">
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+          <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+        </div>
+      </nav>
+      <div class="main">
+        <!-- 検索バーは退避済み（DOM から消えたのでなく上へ抜けた状態）。pinned は上の枠と同一物 -->
+        <div class="pinned"><div class="rtabs"><span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span></div></div>
+        <div class="scroll">
+          <div class="rk3 top3"><span class="no">2</span><div class="bd"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="a">夜灯すばる・ハイファンタジー</div><div class="s">連載中 43話・読了目安 2時間・週間 9,310pt</div></div></div>
+          <div class="rk3 top3"><span class="no">3</span><div class="bd"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="a">白河すずら・恋愛</div><div class="s">完結 88話・読了目安 4時間・週間 8,752pt</div></div></div>
+          <div class="rk3"><span class="no">4</span><div class="bd"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="a">青葉みのり・ローファンタジー</div><div class="s">連載中 210話・読了目安 11時間・週間 7,004pt</div></div></div>
+          <div class="rk3"><span class="no">5</span><div class="bd"><div class="t">辺境伯家の次男は今日も書庫にこもる</div><div class="a">水無月れん・文芸</div><div class="s">短編・読了目安 20分・週間 6,120pt</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>固定 <b>39dp</b>（pinned タブのみ）</i><i>一覧可視 <b>281dp</b></i><i class="good">3段86dp で <b>3.3行</b>／T4 併用で <b>4.1行</b></i><i class="good">2ペイン（T2）と同じ広さを、実装は既存1ペインのまま得る</i></div>
+  <div class="weak">検索したくなったときに<b>上まで戻す一手</b>が要る（下まで送っていると距離が長い）。退避／復帰のしきい値と方向（下スクロールで隠す・上スクロールで戻す）を決めないと、意図しない出入りでちらつく——<b>操作感の層＝モックでは詰められず実機後詰めになる</b>（ADR 0005 §B）。到着直後は 1.9行しか無いので、<b>一覧を眺めるだけの人には T1 より劣る</b>。</div>
+</div>
+
+<!-- ============================ 併用 T1+T3+T4 ============================ -->
+<div class="frame">
+  <div class="cap">
+    <span class="tag">T1+T3+T4</span><b>併用の最大形 — 横一列化 ＋ 検索バーだけ退避 ＋ 行メタ2段（送った後）</b>
+    <span class="pick">選ばせるもの: <b>並べ替えだけで到達できる上限</b>。T1 の1行が送ると期間タブだけの 39dp に痩せ、行も2段 68dp に畳んだ状態。</span>
+    <span class="spec">到着直後＝T1 と同じ 52dp 行（検索見えている）／送ると検索が抜けて 39dp ／ 行は2段 68dp（T4）</span>
+  </div>
+  <div class="phone" style="--rail:80px;--nav:0px">
+    <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+    <div class="vp good" style="top:40px;bottom:0"><span>可視域 320dp</span></div>
+    <div class="row">
+      <nav class="rail">
+        <div class="railhead">さがす</div>
+        <div class="items">
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-shelf"/></svg></span><span class="lb">本棚</span></a>
+          <a class="rt on"><span class="ic"><span class="pill"></span><svg><use href="#i-search"/></svg></span><span class="lb">さがす</span></a>
+          <a class="rt"><span class="ic"><span class="pill"></span><svg><use href="#i-gear"/></svg></span><span class="lb">設定</span></a>
+        </div>
+      </nav>
+      <div class="main">
+        <div class="pinned"><div class="rtabs"><span class="rtab">日間</span><span class="rtab on">週間</span><span class="rtab">月間</span><span class="rtab">四半期</span><span class="rtab">累計</span><span class="rtab">新着</span></div></div>
+        <div class="scroll">
+          <!-- T4: 3段目（状態・読了目安）を落とし、期間pt だけ2段目の右へ退避させて残した -->
+          <div class="rk2m top3"><span class="no">1</span><div class="bd"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="a">霧島あおい・ハイファンタジー ／ <span class="pt">週間 12,480pt</span></div></div></div>
+          <div class="rk2m top3"><span class="no">2</span><div class="bd"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="a">夜灯すばる・ハイファンタジー ／ <span class="pt">週間 9,310pt</span></div></div></div>
+          <div class="rk2m top3"><span class="no">3</span><div class="bd"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="a">白河すずら・恋愛 ／ <span class="pt">週間 8,752pt</span></div></div></div>
+          <div class="rk2m"><span class="no">4</span><div class="bd"><div class="t">転生したら最弱スキルだったので草むしりしていた</div><div class="a">青葉みのり・ローファンタジー ／ <span class="pt">週間 7,004pt</span></div></div></div>
+          <div class="rk2m"><span class="no">5</span><div class="bd"><div class="t">辺境伯家の次男は今日も書庫にこもる</div><div class="a">水無月れん・文芸 ／ <span class="pt">週間 6,120pt</span></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="m"><i>固定 <b>39dp</b></i><i>一覧可視 <b>281dp</b></i><i>行 <b>68dp</b>（2段）</i><i class="good">現状 0.7行 → <b>4.1行</b>（約6倍）</i><i class="good">到着直後でも 218dp / 3.2行</i></div>
+  <div class="weak"><b>T4 が落とすもの＝「連載中/完結」と「読了目安」</b>。残すのは題名・作者・ジャンル・期間pt（順位の根拠なので落とせない）。代償は大きく、<b>「完結済みか」は なろう 読者が作品を選ぶ主要な軸</b>で、これが一覧から消えると詳細を開くまで判断できない＝ランキングを流し見して選ぶという行為そのものが弱る。読了目安も「今から読み始められるか」の判断材料。<b>3つ重ねると弱点も3つ重なる</b>——T3 の「戻す一手」と T1 の「期間タブが検索の絞り込みに見える」も同時に抱える。行数は最大だが、<b>推奨は T1 単独か T1+T3 まで</b>（T4 は情報の削減なので、高さが足りない実測が出てから足す順序が安全）。</div>
+</div>
+
+<!-- ============================ 併用早見表 ============================ -->
+<table class="sum">
+  <caption><b>併用早見表</b> — 一覧の可視高さと読める行数。<b>3段86dp が実装の現在値</b>、2段68dp は T4 併用時。
+    現状・R1 は比較のための基準線（上段の枠と同じもの）。</caption>
+  <tr><th>案</th><th>固定分</th><th>一覧可視</th><th>3段 86dp</th><th>2段 68dp（T4 併用）</th><th>検索バー</th></tr>
+  <tr class="base"><td>現状（ボトムナビ）</td><td class="n">108＋nav65</td><td class="n">58dp</td><td class="n">0.7行</td><td class="n">0.9行</td><td>常時可視</td></tr>
+  <tr class="base"><td>R1（Rail のみ）</td><td class="n">108</td><td class="n">123dp</td><td class="n">1.4行</td><td class="n">1.8行</td><td>常時可視</td></tr>
+  <tr><td><b>T1</b> 横一列化</td><td class="n">52</td><td class="n">218dp</td><td class="n">2.5行</td><td class="n">3.2行</td><td>常時可視</td></tr>
+  <tr><td><b>T2</b> 2ペイン</td><td class="n">0</td><td class="n">281dp</td><td class="n">3.3行</td><td class="n">4.1行</td><td>常時可視（左ペイン）</td></tr>
+  <tr><td><b>T3</b> 到着直後</td><td class="n">107</td><td class="n">163dp</td><td class="n">1.9行</td><td class="n">2.4行</td><td>常時可視</td></tr>
+  <tr><td><b>T3</b> 送った後</td><td class="n">39</td><td class="n">281dp</td><td class="n">3.3行</td><td class="n">4.1行</td><td>退避（戻す一手）</td></tr>
+  <tr class="top"><td><b>T1+T3</b> 送った後</td><td class="n">39</td><td class="n">281dp</td><td class="n">3.3行</td><td class="n">4.1行</td><td>到着時は可視</td></tr>
+  <tr><td style="color:#F0A9A3">（却下）S1 検索を FAB へ隠す</td><td class="n">0</td><td class="n">231dp</td><td class="n">2.7行</td><td class="n">3.4行</td><td style="color:#F0A9A3">隠れる</td></tr>
+</table>
+<div class="deckhead" style="margin-top:-16px">
+  <p><b>表の要点</b>: 並べ替えの上限は <b>281dp / 3.3行（2段なら4.1行）</b>で、<b>却下した S1（隠す案・231dp / 2.7行）を上回る</b>。
+     つまり<b>検索を隠して得られるものは何も無かった</b>——S1 が損をしていたのは、隠すことで浮いた分を
+     見出し 50dp ＋ 期間タブ 39dp が食い返していたから。T 案はそこを並べ替えで解いている。</p>
+</div>
+
+</body>
+</html>
