@@ -45,7 +45,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
@@ -60,7 +62,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -96,6 +100,7 @@ import com.novelreader.viewmodel.MoodPattern
 import com.novelreader.viewmodel.MoodPreset
 import java.time.LocalDate
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 
 // ============================================================
 // 明快K: さがす（発見ホーム）＝正本モック discovery-K.html の忠実翻訳（ADR 0022 §1 の構造分岐先）。
@@ -553,6 +558,8 @@ private fun GenreChipK(label: String, accent: Boolean, onClick: () -> Unit) {
  *（`horizontalScroll`）。sticky 化してもその性質は変わらず、貼り付いたまま行内を横に繰って隣の期間を出せる。
  * 正本モック側は 3本のままだった（かつ冒頭コメントは「6本」と書いて自己矛盾していた）ため、
  * 2026-08-14 に実装を一次ソースとして discovery-K.html を6本＋横スクロールへ逆同期済み。
+ * その横スクロール域から選択タブが出ないよう位置を追従させる（2026-08-14 裁定・下の側効果と
+ * [orderTabFollowTarget]）＝A 案の「現在地が常に見える」を溢れ条件でも保つ。
  */
 @Composable
 private fun OrderTabsK(
@@ -560,16 +567,76 @@ private fun OrderTabsK(
     onSelectOrder: (NarouOrder) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val scrollState = rememberScrollState()
+    val gapPx = with(LocalDensity.current) { OrderTabGap.roundToPx() }
+    // 追従の計算に要る実測2つ。可視域＝この行自身の幅／タブ幅＝並びの中での選択タブの位置を出すため
+    // （Row の子は溝込みで先頭から詰まるので、幅の積算だけで左端が決まる）。
+    val viewportWidthPx = remember { mutableStateOf(0) }
+    val tabWidthsPx = remember { mutableStateListOf(*Array(NarouOrder.entries.size) { 0 }) }
+    // 側効果のキーに使う寸法（合成で読む2値）。値が動くのはレイアウト寸法が変わったときだけなので、
+    // スクロールやページ送りのたびに再合成が走ることはない。
+    //  ・可視域幅: 画面リサイズ・分割画面・回転で変わる
+    //  ・タブ幅の合計: フォントサイズ変更で変わる（この行は fillMaxWidth＝**可視域は変わらず中身が伸びる**。
+    //    ここをキーに入れないと、activity 再生成を伴わない fontScale 変更で溢れが始まっても取りこぼす）
+    val totalTabWidthPx = tabWidthsPx.sum()
+    // 追従を一度でも評価したか（初回だけ瞬間移動にするための記録＝下の側効果のコメント）。
+    val followedOnce = remember { mutableStateOf(false) }
+
+    // ── 選択タブ追従（2026-08-14 ユーザー裁定「A 案のまま穴を塞ぐ」＝ADR 0033 決定3）──
+    // 何を防ぐか: タブは6本あり、溢れ条件（fontScale 1.3 以上・幅 360dp）では行が画面幅に収まらないため、
+    // 選択中の期間タブが横スクロール域の外＝画面外へ出てしまう。sticky 化（2026-08-07 裁定 A 案）が
+    // 約束したのは「ランキングを読み進めても現在地が常に見える」ことなので、これが破れると裁定の狙いごと
+    // 失われる。しかも期間は**行の横スワイプでも変わる**＝タブに触れずに現在地が動くため、
+    // ユーザー側には見えていないことに気付く手掛かりが無い。
+    //
+    // 発火は「選択が変わったとき」と「寸法が変わったとき」だけ＝スクロール位置の変化では動かない。
+    // これが手動横スクロールとの棲み分けそのもの: 指で選択タブを画面外へ送ったならそれはユーザーの意思で、
+    // 次に期間が変わるまで引き戻さない（＝毎フレーム可視域へ引き戻す実装にはしない）。
+    //
+    // ⚠️ ここで `isScrollInProgress` による早期 return を置いてはいけない（2026-08-14 レビュー指摘で撤去）:
+    // この旗は**誰が動かしているか**を区別せず、自分の追従アニメ（150ms）でも真になる。置くと期間を速く
+    // 連続で送ったときに次の追従が丸ごと skip され、選択タブが画面外に残る＝塞いだはずの穴が同じ形で開く。
+    // 指との競合は旗を見なくても構造的に解決している——ドラッグは MutatePriority.UserInput で、
+    // こちらの追従（Default）を取り消して指が勝つ（`horizontalScroll` は interactionSource を受け取らず、
+    // スクロールの由来を外から見分ける公開 API も無い＝旗で区別する術が無いという意味でも置く価値が無い）。
+    LaunchedEffect(selected, viewportWidthPx.value, totalTabWidthPx) {
+        // 初回コンポーズでは側効果がレイアウトより先に走る＝実測が入るまで待つ（0 のまま計算すると空振り）。
+        snapshotFlow { viewportWidthPx.value > 0 && tabWidthsPx.all { it > 0 } }.first { it }
+        val target = orderTabFollowTarget(
+            tabWidths = tabWidthsPx,
+            selectedIndex = selected.ordinal,
+            gapPx = gapPx,
+            scroll = scrollState.value,
+            viewportWidth = viewportWidthPx.value,
+            maxScroll = scrollState.maxValue,
+        )
+        val isFirstFollow = !followedOnce.value
+        followedOnce.value = true
+        if (target == null) return@LaunchedEffect // 収まっている＝動かさない（毎回のスクロールし直しで揺らさない）
+        // 初回（画面に出た時点）は瞬間移動＝誰も触っていないのに行が流れるのは初見の混乱になる。
+        // 2回目以降は期間切替に伴う移動なので、ページ送りと同じ尺で滑らせて対応関係を見せる。
+        // アニメ中にユーザーがこの行を掴んだら、掴んだ側（UserInput）が優先されてこのアニメは取り消される
+        // ＝指と綱引きにならない（取り消しは CancellationException でこの側効果のコルーチンに閉じる）。
+        if (isFirstFollow) scrollState.scrollTo(target)
+        else scrollState.animateScrollTo(target, animationSpec = tween(MotionDurationKTabSwitch))
+    }
+
     Column(modifier = modifier) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.S16), // .rtabs gap 18px → S16
+                // 可視域の実測。horizontalScroll より**前**に置く＝内側に置くと中身の全幅（無限幅で測った
+                // 6本ぶん）を拾ってしまい、溢れているかどうかの判定が常に「収まっている」になる。
+                .onSizeChanged { viewportWidthPx.value = it.width }
+                .horizontalScroll(scrollState),
+            horizontalArrangement = Arrangement.spacedBy(OrderTabGap),
         ) {
             NarouOrder.entries.forEach { o ->
                 val isSelected = o == selected
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    modifier = Modifier.onSizeChanged { tabWidthsPx[o.ordinal] = it.width },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
                     Text(
                         o.uiLabel,
                         fontSize = FontSubTitle, // .rtab 13px
@@ -596,6 +663,48 @@ private fun OrderTabsK(
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) // .rtabs border-bottom 1px
     }
+}
+
+/**
+ * 期間タブ間の溝（モック .rtabs gap 18px → S16）。**並びの見た目と追従計算が同じ値を見る**ことに意味がある
+ * （[orderTabFollowTarget] はタブの左端をこの溝込みで積算するので、片方だけ変えると追従先がずれる）。
+ */
+private val OrderTabGap = Spacing.S16
+
+/**
+ * 選択タブを可視域へ入れるための横スクロール位置（px）。**すでに収まっているときは null＝動かさない**。
+ *
+ * なぜ「外に出ているときだけ」か: 選択のたびに中央寄せ等で必ず位置を作り直すと、収まっているのに行が
+ * 横に流れる（スワイプで期間を送るたびタブ行が揺れて読みづらい）。動かすのは A 案の約束（現在地が常に
+ * 見える）が実際に破れている場合だけに絞る。
+ *
+ * [gapPx] を1つぶん余分に送るのは可視域の端ちょうどで止めないため——丸めで1px 欠けるのを避けつつ、端に
+ * 溝を残して「その先にもタブが続く」ことを見せる（S16 は並びの既存値＝新しい値の発明はしていない）。
+ * 行の端まで送り切る場合は [maxScroll] のクランプが余分を吸収する。タブ1本が可視域より広い極端な条件では
+ * 左端で丸めて頭（期間名の1文字目）を優先する＝下の実装コメント。
+ *
+ * [tabWidths] は [NarouOrder] の entries 順・全数が実測済みであること（呼び出し側が実測を待ってから呼ぶ）。
+ */
+internal fun orderTabFollowTarget(
+    tabWidths: List<Int>,
+    selectedIndex: Int,
+    gapPx: Int,
+    scroll: Int,
+    viewportWidth: Int,
+    maxScroll: Int,
+): Int? {
+    // 並びは Arrangement.spacedBy(OrderTabGap) で先頭から詰めて置かれる＝左端は前のタブ幅と溝の積算で出る。
+    val left = tabWidths.take(selectedIndex).sum() + gapPx * selectedIndex
+    val right = left + tabWidths[selectedIndex]
+    // 右の分岐で [left] を上限に丸めるのは、タブ1本が可視域より広い極端な条件（超拡大＋極狭幅）への備え。
+    // 素の式は「右端＋溝を可視域へ入れる」ので、その条件では左端が可視域より左へ押し出され**頭が切れる**
+    // ＝期間名の1文字目すら読めない。読めるところまでしか入らないなら、頭が読める側を採る。
+    val target = when {
+        left < scroll -> left - gapPx                                                   // 左へ隠れている
+        right > scroll + viewportWidth -> (right + gapPx - viewportWidth).coerceAtMost(left) // 右へ溢れている
+        else -> return null                                                             // 収まっている
+    }
+    return target.coerceIn(0, maxScroll.coerceAtLeast(0))
 }
 
 /**

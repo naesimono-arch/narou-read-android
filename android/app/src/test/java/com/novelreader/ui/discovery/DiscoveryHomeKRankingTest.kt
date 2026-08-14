@@ -7,10 +7,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasScrollToNodeAction
@@ -23,6 +25,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
+import androidx.compose.ui.unit.Density
 import com.novelreader.discovery.model.workSummary
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.ui.theme.LocalSkin
@@ -34,6 +37,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * スキンK「さがす」ランキングの期間スワイプ（2026-07-29）の回帰テスト。
@@ -94,10 +98,17 @@ class DiscoveryHomeKRankingTest {
     private fun setHost(
         initialOrder: NarouOrder = NarouOrder.WEEKLY,
         recordedOrders: MutableList<NarouOrder>? = null,
+        // 期間タブ行の溢れ（選択タブ追従の検証）を作るためだけの拡大率。density は端末値のまま fontScale
+        // だけ動かす＝ScreenshotTestSupport.captureThemed と同じ張り方（リソース修飾子に fontScale は無い）。
+        fontScale: Float = 1.0f,
     ) {
         orderState.value = initialOrder
         composeTestRule.setContent {
-            CompositionLocalProvider(LocalSkin provides Skin.MEIKAI_K) {
+            val base = LocalDensity.current
+            CompositionLocalProvider(
+                LocalSkin provides Skin.MEIKAI_K,
+                LocalDensity provides Density(density = base.density, fontScale = fontScale),
+            ) {
                 MaterialTheme {
                     // 外側タブ Pager の代役: 中央（page 1）が発見ホーム・両隣はダミー。封止が破れると
                     // 端ページでの余りスワイプが outer を動かし settledPage が 1 から外れる。
@@ -329,5 +340,40 @@ class DiscoveryHomeKRankingTest {
         assertEquals("スクロールで期間タブ行の上端が動いた＝貼り付いていない", topAtMiddle, topAtBottom, 0.5)
         composeTestRule.onNodeWithText("週間").assertIsDisplayed()
         composeTestRule.onAllNodesWithText("ランキング").assertCountEquals(0)
+    }
+
+    /**
+     * 2026-08-14 ユーザー裁定「A 案（期間タブ行ごと pinned）のまま穴を塞ぐ」＝ADR 0033 の回帰テスト。
+     *
+     * 固定する契約: **タブ行が画面幅に収まらないときでも、選択中の期間タブは可視域に入る**。
+     * 貼り付いていても行内で画面外へ出てしまえば「現在地が常に見える」という A 案の約束は破れる。
+     * しかも期間は行の横スワイプでも変わる＝ユーザーはタブに触れずに現在地を動かすので、見えなくなったこと
+     * に気付く手掛かりが無い（＝塞ぐべき穴）。
+     *
+     * 溢れは 幅 360dp（実機の溢れ条件と同じ）×fontScale 2.0（golden で使っている最大フォント＝新しい条件を
+     * 作らない）で起こす。
+     *
+     * ⚠️ **[GraphicsMode] NATIVE が必須**（2026-08-14・これを欠いて最初の実装が赤になった）。既定の LEGACY は
+     * 文字の実測をせず、Compose の計測経路 `ShadowPaint.nGetRunAdvance` が**文字数をそのまま px として返す**
+     *（TextLayoutMode=REALISTIC 時は `end - start`・それ以外は 0）。つまりタブ6本の文字は全部で 13px にしかならず、
+     * fontScale をいくら上げても幅は1px も動かない＝**溢れが原理的に起こらない**。NATIVE では
+     * nativeruntime 同梱の実フォント（CJK は DroidSansFallback）で測るので、13文字×13sp×2.0＝約 338dp、
+     * 溝 5×16dp＝80dp、合計 約 418dp が可視域 312dp（360dp −左右 S24）に対して溢れる。
+     * 溢れていること自体は冒頭の前提アサートで名指しする（溢れなければ空振りではなく赤にする）。
+     */
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(sdk = [34], qualifiers = "w360dp-h640dp-xhdpi")
+    fun `溢れる幅でも選択中の期間タブは可視域へ追従する`() {
+        setHost(NarouOrder.DAILY, fontScale = 2.0f)
+        scrollListTo("作品W") // 期間タブ行を上端へ貼り付かせてから見る（自然位置のままだと画角外）
+        composeTestRule.onNodeWithText("新着")
+            .assertIsNotDisplayed() // 前提: 右端の「新着」は日間を選んでいる間タブ行の可視域の外に居る
+
+        composeTestRule.runOnIdle { orderState.value = NarouOrder.NEW }
+        composeTestRule.waitForIdle()
+
+        composeTestRule.onNodeWithText("新着").assertIsSelected()
+        composeTestRule.onNodeWithText("新着").assertIsDisplayed()
     }
 }
