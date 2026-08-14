@@ -42,7 +42,7 @@ import org.robolectric.annotation.GraphicsMode
  *  ・カード面（surface＋outlineVariant 1dp 枠・影0）とその角丸
  *  ・行の構造（アイコン24dp・アイコン無し行のテキスト開始位置 S40 揃え・説明文の有無・trailing）
  *  ・テーマ行の現在値表記（ライト/セピア/ダーク・システム追従時の文言）
- *  ・きせかえ行の説明文に埋まる現在スキン名（"明快"）
+ *  ・きせかえ行の右端に出る現在スキン名（"明快"）と説明文の1行化（値は副文でなく trailing＝モック `.rv`）
  *  ・通知行のトグル位置と説明文
  *  ・colorScheme（surface/onSurfaceVariant/outlineVariant）・typography の値変更
  *  ・fontScale 2.0 で行が2行化し版面が伸びる/切り詰まる変化

@@ -156,8 +156,19 @@ fun SettingsScreenK(
                 KSettingsRow(
                     icon = Icons.Outlined.Checkroom,
                     title = "きせかえ",
-                    description = wardrobeRowDescription(currentSkin.displayName),
+                    // 現在の装い名は副文へ混ぜず行の右端へ出す（モック settings-J.html の `.rr > .rv`＝
+                    // テーマ行・バージョン行と同じ「値は右端・説明は副文」の分担）。2026-08-14 人間裁定。
+                    // なぜ副文へ混ぜないか: 「…装いを変える（現在: X）」は実機 360dp では一文が必ず折り返し、
+                    // 既定の貪欲改行は値の途中で割る（`）` を行頭に置かない禁則が働き、閉じ括弧だけがこぼれて見える）。
+                    // 値は trailing の独立ノード＝副文とは別の Text なので、副文は折り返さず値も割れない。
+                    // ＝装い名がどれだけ長くても、値へ分割禁止（WORD JOINER）を挟む組版の手当ては要らない。
+                    description = "本棚や画面の装いを変える",
                     trailing = {
+                        Text(
+                            currentSkin.displayName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         Icon(
                             Icons.AutoMirrored.Filled.KeyboardArrowRight,
                             contentDescription = null,
@@ -423,43 +434,6 @@ private fun KSettingsRow(
         trailing()
     }
 }
-
-/**
- * WORD JOINER（U+2060）＝前後での行分割を禁止する不可視文字。字幅を持たず描画にも現れない。
- */
-private const val WordJoiner = '\u2060'
-
-/**
- * 文字列の内部での行分割を禁止する（各文字の間へ [WordJoiner] を挟む）。
- *
- * サロゲートペアを崩さないようコードポイント単位で歩く（絵文字混じりの装い名が来ても壊さない）。
- */
-private fun String.unbreakable(): String = buildString(length * 2) {
-    var i = 0
-    while (i < this@unbreakable.length) {
-        val n = Character.charCount(this@unbreakable.codePointAt(i))
-        if (isNotEmpty()) append(WordJoiner)
-        append(this@unbreakable, i, i + n)
-        i += n
-    }
-}
-
-/**
- * 「きせかえ」行の説明文（モック settings-D.html `.rd`）。括弧の値部だけを行分割不可にする。
- *
- * 真因（2026-07-30 実機観察「（現在: 和モダ／ンD）」）: この一文はモック幅 390px では1行に収まるが、
- * 実機の 360dp 幅では説明欄が足りず必ず折り返す。折り返し自体は避けられない一方、既定の貪欲改行は
- * **値の途中**で割る——`）` を行頭に置かない禁則は効くので `ン）` が道連れで落ち、閉じ括弧だけが
- * こぼれたように見える。「値を割ってはいけない」という規則は行分割器に無いので、こちらで与える。
- *
- * なぜ幅を広げる／文言を削る対処を採らないか: 実機幅がモック幅より狭い以上、どんな幅でも装い名が
- * 長くなれば再発する（＝症状の先送り）。ここで直すべきは幅ではなく**割れ目の位置**で、値を一塊に
- * すれば割れ目は「（」の直前＝文と値の境目へ移り、「本棚や画面の装いを変える／（現在: 和モダンD）」
- * と読める2行になる。値を trailing（テーマ行の現在値と同じ場所）へ移す案は情報設計＝モック側の裁定
- * が要るため採らない（監督へ申し送り）。
- */
-internal fun wardrobeRowDescription(skinDisplayName: String): String =
-    "本棚や画面の装いを変える" + "（現在: $skinDisplayName）".unbreakable()
 
 /** テーマの表示名（K 設定・ダイアログ共用）。既存 enum に表示名が無いためここで写像する。 */
 private fun ReadingTheme.displayNameK(): String = when (this) {
