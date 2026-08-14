@@ -18,6 +18,8 @@ import org.junit.Test
  *  - `test-dispatcher-escape-flaky` …… [本番コードは起動系ディスパッチャを直書きしない]
  *  - `no-network-timeout` …………………… [OkHttpClient には callTimeout を設定する]
  *  - `fgs-notification-id-collision` …… [終端通知は FGS 通知と別 ID で投稿する]
+ *  - `backhandler-enabled-flip-loses-os-registration`（2026-08-14 新設・実機バグ由来）
+ *    …… [BackHandler は enabled の反転でなくコンポーズの有無で表す]
  *
  * 述語の取り方（DiscoveryHomeInvariantCoverageTest から踏襲）: **取りこぼし（偽陰性）を出さないことが最優先**で、
  * 掛かりすぎ（偽陽性）は登録簿へ理由付きで足せば解消できる——という非対称さに合わせて広めに取ってある。
@@ -392,6 +394,74 @@ class HazardousPatternScanTest {
         )
     }
 
+    // ────────────────────────────────────────────────────────
+    // 型5: backhandler-enabled-flip-loses-os-registration
+    // ────────────────────────────────────────────────────────
+
+    /**
+     * `BackHandler(enabled = <状態>)` の形＝**1個のコールバックを生かしたまま isEnabled を反転させる**書き方を禁じる。
+     *
+     * バグ型（2026-08-14 実機・PGEM10 / ColorOS / Android 16）: Predictive Back 下では「アプリが Back を
+     * 受けるか」は OnBackPressedDispatcher が OS の OnBackInvokedDispatcher へ**登録しているか**で決まる。
+     * 登録は Dispatcher 集約 hasEnabledCallbacks の変化に追随するが、無効で生まれたコールバックの
+     * isEnabled 反転だけが集約を false→true にする経路では、実機で割込みが届かず**アプリが終了した**
+     *（設定タブの Back／装いの間で装着後の Back。androidx activity 1.8.2 側に反映経路が在ることは
+     *  bytecode で確認済み＝落ちている層は端末側と推定・未確定）。届いている全ハンドラは例外なく
+     * 「必要になった時点で enabled=true のコールバックを**新規追加**する」形＝追加時に登録が走る経路だった。
+     *
+     * 合格形: `BackHandler { … }`（既定 enabled=true）／`BackHandler(enabled = true)`（定数）／
+     * 条件付きコンポーズ `if (cond) { BackHandler { … } }`。いずれも「有効なコールバックの追加・除去」で表す。
+     *
+     * ⚠️ この検査が唯一の番人である理由（他のテストは識別力を持たない）: JVM/Robolectric は
+     * `onBackPressedDispatcher.onBackPressed()` を直接叩くため deque の選択しか観測できず、**OS への登録**は
+     * 観測できない。実際 KTabNavigationTest の反転経路テスト（backAfterMovingAwayFromHomePage…）は
+     * **旧実装でも3アサートとも緑になる**＝再発防止として空振りする。ここだけが形で止められる。
+     *
+     * 現ツリーでの確認（2026-08-14・`rg` で全数列挙）: `BackHandler` の全出現は10件で、丸括弧つきは
+     * NativeReadingScreen の `enabled = true`（定数）1件のみ＝残り9件は末尾ラムダのみの合格形。違反0。
+     * 陽性確認は**実測済み**（2026-08-14）: `TabPagerHost` を旧形 `BackHandler(enabled = pagerState.currentPage
+     * != HOME_TAB_PAGE)` へ一時的に戻して本テストを回し、この検査だけが落ちること（`5 tests completed, 1 failed`）を
+     * 確認したうえで復元した＝**再発を形で捕まえられる**（他4型も導入時に陽性確認済み）。
+     */
+    @Test
+    fun `BackHandler は enabled の反転でなくコンポーズの有無で表す`() {
+        val violations = mutableListOf<String>()
+        var total = 0
+        for (file in sources()) {
+            val text = file.text
+            val members = KotlinSourceScanner.members(text)
+            for (match in BACK_HANDLER.findAll(text)) {
+                total++
+                val open = match.range.last
+                // `BackHandler { … }`（末尾ラムダのみ＝既定 enabled=true）は生まれた時点で有効＝対象外。
+                if (text[open] == '{') continue
+                val close = KotlinSourceScanner.matchingClose(text, open) ?: continue
+                val args = text.substring(open + 1, close).trim()
+                if (args.isEmpty()) continue
+                // 名前付き `enabled =` と、位置引数（第1引数がそのまま enabled）の両方を拾う＝
+                // 名前付きだけを見ると `BackHandler(cond) { … }` を取りこぼす（偽陰性）。
+                val enabled = (BACK_HANDLER_ENABLED_ARG.find(args)?.groupValues?.get(1) ?: args)
+                    .trim().trimEnd(',').trim()
+                if (enabled == "true") continue // 定数＝生まれた時点で有効＝反転しない
+                val member = KotlinSourceScanner.memberAt(members, match.range.first)?.name ?: "<file>"
+                violations += "${file.relativePath}#$member :: BackHandler(enabled = $enabled)"
+            }
+        }
+        assertTrue(
+            "BackHandler の出現が1件も見つからない＝述語か走査が壊れている（本番には必ず在る）。",
+            total > 0,
+        )
+        assertTrue(
+            "[backhandler-enabled-flip-loses-os-registration] 状態式で enabled を駆動する BackHandler が" +
+                "${violations.size} 件ある:\n" + violations.joinToString("\n") { "  $it" } +
+                "\n直し方: `BackHandler(enabled = cond) { body }` を `if (cond) { BackHandler { body } }` へ" +
+                "書き換える（TabPagerHost の Back 規則・BookshelfScreen の選択モード解除が手本）。" +
+                "挙動は onBackPressed 経路では同一（無効なコールバックも不在のコールバックも選ばれない）で、" +
+                "変わるのは OS への割込み登録が『反転』でなく『追加/除去』で立つことだけ。",
+            violations.isEmpty(),
+        )
+    }
+
     /** 丸括弧内をトップレベルのカンマで分割する（入れ子の呼び出し・ラムダで切られないように）。 */
     private fun splitTopLevelArgs(inner: String): List<String> {
         val args = mutableListOf<String>()
@@ -431,6 +501,10 @@ class HazardousPatternScanTest {
         val LAUNCHING_CALL = Regex("""\b(launch|CoroutineScope|flowOn|shareIn|stateIn)\s*\(""")
         val OKHTTP_BUILD = Regex("""\bOkHttpClient\s*(?:\.\s*Builder\s*)?\(""")
         val NOTIFICATION_POST = Regex("""(?:([A-Za-z0-9_]+)\s*\.\s*)?\b(startForeground|notify)\s*\(""")
+        /** `BackHandler(` と `BackHandler {` の両方（ラムダ形も件数に数える＝述語の陽性確認のため）。 */
+        val BACK_HANDLER = Regex("""\bBackHandler\s*[({]""")
+        val BACK_HANDLER_ENABLED_ARG = Regex("""\benabled\s*=\s*([\s\S]*)""")
+
         val NOTIFICATION_ID_CONST =
             Regex("""\bconst\s+val\s+([A-Za-z0-9_]*NOTIFICATION_ID)\s*=\s*(\d+)""")
     }

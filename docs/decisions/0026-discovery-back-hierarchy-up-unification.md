@@ -112,9 +112,22 @@ page 1⇄2 の移動では条件が真のまま＝同じコールバックが登
 経路が無いわけではない。しかし**端末を跨いだ再現・計測なしにはどこで落ちているか特定できない**。
 よって本件は「反転が効かない原因を突き止めて直した」ではなく、**反転に依存しない構造へ変えた**という対処である。
 
-⚠️ **同じ「反転」形はもう1箇所残っている**（`BookshelfScreen.kt` の選択モード離脱＝`BackHandler(enabled = selectionMode && isFrontTab)`）。
-これが実機で効くかは**未検証**（上の「効いている Back」の一覧に選択モードは入っていない）。事実の記録であって、
-ここで対処を決めてはいない。
+**同型の穴は全数で洗い、実害のあるものだけ直した。** 反転形は3つ——①タブ枠②`BookshelfScreen` の選択モード離脱
+（`BackHandler(enabled = selectionMode && isFrontTab)`）③NavController 内蔵。②は本棚が前面のとき他に有効な
+コールバックが無く、**反転の瞬間に集約 `hasEnabledCallbacks` が false→true になる**＝①と同じ穴で、選択モード中の
+Back が OS へ抜け選択が解除されずアプリが終了していた（全スキン共通・release 到達）。①②とも同じコミットで直してある。
+
+**「反転形かどうか」だけで判定してはいけない**というのが、ここで得た手順上の教訓である。決め手は形ではなく
+**反転の瞬間に集約が false→true になるか**で、他に有効なコールバックが居れば登録は既に済んでいて実害は出ない。
+③はその例＝依存する経路（`discovery/search`・`discovery/genre`）が born-enabled のハンドラを追加する側でもあるため
+**前進経路では**無害。⚠️ **ただし復帰経路は別で、ここは実際に穴だった**——`<activity>` に `configChanges` が無く
+回転・ダークモード切替で再生成される。`NavHost` の合成順（`setOnBackPressedDispatcher` → `graph`）と、`setContent` の
+合成が ON_START/ON_RESUME より**後**（ComposeView の attach 時）に走ることから、復帰時は内蔵 cb が
+`OnBackPressedCallback(false)` のまま deque へ入り、その後のバックスタック復元で `setEnabled(true)`＝
+**集約が反転だけで立つ**。この2ルートは自前 `BackHandler` を持たず tabs も非コンポーズ＝反転を補う「追加」経路がゼロだった
+（他ルートは復帰直後に born-enabled を追加するので無害）。→ ③もこの2ルートへ born-enabled 形を置いて揃えた。
+**教訓の核はここ**＝「実害なし」の判定は前進経路だけでは足りず、**復元経路まで見ないと穴を見落とす**。
+手順の詳細と見分け方＝`docs/knowledge/predictive-back-enabled-flip-not-registered.md`。
 
 ### テストが捕まえられなかった理由（再発防止）
 

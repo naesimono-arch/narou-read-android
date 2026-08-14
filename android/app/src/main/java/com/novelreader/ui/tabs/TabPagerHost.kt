@@ -18,7 +18,8 @@ import kotlinx.coroutines.launch
 
 /**
  * タブ層の「家」＝本棚ページのスロット index。タブ間 Back（階層 up）の唯一の着地点。
- * KTab.BOOKSHELF.ordinal と一致することはスロット契約（KTabNavigationTest の index 対応テスト）が固定する。
+ * KTab.BOOKSHELF.ordinal と一致することは KTabNavigationTest.pages_renderBySlotIndex が
+ * `assertEquals(0, KTab.BOOKSHELF.ordinal)` で明示的に固定する（KTab を並べ替えたらここも直る側）。
  * 枠側に KTab（K スキンの列挙）を持ち込まないのは ADR 0022＝枠にスキン分岐を入れない規律のため。
  */
 private const val HOME_TAB_PAGE = 0

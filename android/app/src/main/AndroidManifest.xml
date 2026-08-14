@@ -21,7 +21,8 @@
       ルール本体: API31+ は @xml/data_extraction_rules、API26-30 は @xml/backup_rules。
     -->
     <!-- enableOnBackInvokedCallback=true: Predictive Back（戻りプレビュー）へのオプトイン（API 33+。それ未満では無視される。
-         targetSdk 35+ の端末では OS 側が常時 ON 扱いのため、この宣言は「明示の意思表示」の意味になる）。
+         Android 16＝API 36 を target とするアプリでは OS 側が既定 ON のため——本アプリの targetSdk は 36
+         〔build.gradle:115〕＝実機ではこの宣言は「明示の意思表示」の意味になる）。
          ルート（本棚タブ page 0）ではアプリ側の Back 割込みが1つも**登録されない**ため、システムの
          「ホームへ戻る」プレビューアニメがそのまま効く。⚠️ 旧記載「割込みが全て enabled=false になる」は
          Predictive Back 下では不正確＝OS へ割込みが届くかは OnBackInvokedDispatcher への**登録の有無**で決まり、

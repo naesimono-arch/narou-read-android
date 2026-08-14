@@ -636,6 +636,16 @@ private fun NovelReaderApp(
         }
 
         composable("discovery/search") {
+            // 反転に依存しない Back（2026-08-14・result/detail と同じ born-enabled 形へ揃える）。
+            // なぜ要るか: この画面は自前の Back を持たず、受け口は NavController 内蔵コールバックだけだった。
+            // 内蔵は OnBackPressedCallback(false) で生まれ、バックスタック復元後の
+            // updateOnBackPressedCallbackEnabled で setEnabled(true) へ**反転**する。Activity 再生成
+            //（回転・ダークモード切替。この Activity は configChanges 未指定＝必ず再生成される）や
+            // プロセス death からこの画面へ復帰すると、内蔵は「無効のまま deque へ入り、その後で反転」する順序に
+            // なるため、Dispatcher 集約の false→true が**反転だけ**で起きる＝タブ層で実機終了を招いたのと同型
+            //（機序は TabPagerHost の Back 規則コメントが正本）。着地は内蔵と同じ popBackStack＝挙動は現状と
+            // 同一で、OS への割込み登録が「追加」経路で立つことだけが変わる。
+            BackHandler { navController.popBackStack() }
             DiscoverySearchScreen(
                 viewModel = discoveryViewModel,
                 onBack = { navController.popBackStack() },
@@ -644,6 +654,9 @@ private fun NovelReaderApp(
         }
 
         composable("discovery/genre") {
+            // 同上（自前 Back を持たず内蔵コールバックの反転だけが受け口だった最後の1画面）。
+            // 検索画面側のコメントが機序の正本。着地は内蔵と同じ popBackStack＝挙動は現状と同一。
+            BackHandler { navController.popBackStack() }
             DiscoveryGenreScreen(
                 onBack = { navController.popBackStack() },
                 onPickBiggenre = { code, label ->

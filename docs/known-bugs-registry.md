@@ -123,6 +123,7 @@
 | `[o] 固定` | `test-dispatcher-escape-flaky` | 単体テストがフレーキーに落ちる | 本番コードの `launch(Dispatchers.IO)` が TestDispatcher 管理外＝`advanceUntilIdle` が待てない | BookshelfViewModelTest をディスパッチャ注入で決定化 | `HazardousPatternScanTest`（launch/flowOn/shareIn/stateIn の Dispatchers 直書きを全数列挙。withContext は呼び出し元が待つので対象外） | — |
 | `[o] 固定` | `fgs-notification-id-collision` | 完了・失敗の通知が出た瞬間に消える | 終端通知を FGS 通知と同一 ID へ投稿＝サービス停止の道連れ | PDF 終端通知を FGS 通知と別 ID へ分離 | `HazardousPatternScanTest`（notify/startForeground の投稿口を全数登録制にし、宣言 ID と実コード・TERMINAL 役と FGS の ID 一致・ID 定数の相互差分まで検査） | — |
 | `[o] 固定` | `no-network-timeout` | 通信が返らないまま画面が固まる | OkHttp 既定の `callTimeout` は無制限 | OkHttp クライアントへタイムアウト設定 | `HazardousPatternScanTest`（OkHttpClient 生成式に callTimeout があるか） | — |
+| `[o] 固定` | `backhandler-enabled-flip-loses-os-registration` | Back を押すと戻らずアプリが終了する（設定タブ／装着後／本棚の選択モード中／検索・ジャンル画面で回転後） | Predictive Back では OnBackInvokedDispatcher への**登録の有無**が効くのに、`BackHandler(enabled = <状態式>)` が `isEnabled` の false→true **反転**に依存＝反転が登録へ反映されず OS へ抜ける（反映が落ちる層は端末計測なしには未確定） | 条件を `if (<条件>) { BackHandler { … } }` へ変えコールバック自体を出し入れする形に統一（tabs・本棚選択モード・検索/ジャンル） | `HazardousPatternScanTest` 型5（`src/main` に `BackHandler(enabled = <非定数>)` が無いことを走査。位置引数形も拾う／`enabled = true` は合格／`BackHandler` 総数>0 の陽性制御つき） | **実害の判定は形だけでは足りない**＝反転形でも他に有効な cb が居れば集約は既に true で無害。決め手は「反転の瞬間に `hasEnabledCallbacks` が false→true になるか」で、**前進経路だけでなく復元経路（回転・プロセス death 復帰）まで見る**。機序＝`docs/knowledge/predictive-back-enabled-flip-not-registered.md` |
 
 ## B. tooling（`.claude/hooks` / skills / `tools/` / statusline）
 

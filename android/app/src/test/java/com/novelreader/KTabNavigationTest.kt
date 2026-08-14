@@ -7,6 +7,7 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import com.novelreader.ui.skins.k.KTab
 import com.novelreader.ui.tabs.TabPagerHost
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -86,9 +87,12 @@ class KTabNavigationTest {
         // 実アプリの経路（起動＝page 0 →タブ移動）を通す唯一のテスト。既存3本は initialPage で
         // 「最初から page 0 以外」に置いており、**page 0 から移った後**に Back 割込みが立つ経路が
         // 素通しだった＝2026-08-14 実機バグ①（設定タブの Back でアプリ終了）が緑のまま抜けた穴。
-        // ここが固定するのは「移動後に有効コールバックが在り、Back が page 0 へ戻す」こと。
-        // ⚠️ OS の OnBackInvokedDispatcher への登録までは JVM/Robolectric では観測できない
-        //（Dispatcher を直接叩くため）＝実機確認は別途必要（TabPagerHost の Back 規則コメント参照）。
+        // ここが固定するのは「移動後に有効コールバックが在り、Back が page 0 へ戻す」ことだけ。
+        // ⚠️ **このテストは旧実装（enabled 反転形）でも3アサートとも緑になる**＝真因の再発防止には
+        // なっていない。JVM/Robolectric は onBackPressedDispatcher を直接叩くため deque の選択しか
+        // 観測できず、真因である**OS の OnBackInvokedDispatcher への登録**は観測できないため。
+        // 再発防止の番人は形で止める側＝HazardousPatternScanTest の
+        // 「BackHandler は enabled の反転でなくコンポーズの有無で表す」が持つ（実機確認も別途必要）。
         setUpTabs(initialPage = 0)
         composeTestRule.runOnIdle { pager.requestScrollToPage(2) }
         composeTestRule.waitForIdle()
@@ -128,6 +132,10 @@ class KTabNavigationTest {
     @Test
     fun pages_renderBySlotIndex() {
         // スロット index=KTab.ordinal（本棚0/さがす1/設定2）の対応でページが描かれる。
+        // ordinal を直接固定するのは、枠側（TabPagerHost）が「家＝page 0」を数値で持つため
+        //（HOME_TAB_PAGE。枠に KTab を持ち込まない ADR 0022 の規律の代償として、一致はここで固定する）。
+        // KTab の並べ替えでこの assert が落ちたら、枠の HOME_TAB_PAGE も併せて直すこと。
+        assertEquals(0, KTab.BOOKSHELF.ordinal)
         setUpTabs(initialPage = 0)
         composeTestRule.onNodeWithText("SHELF").assertIsDisplayed()
     }
