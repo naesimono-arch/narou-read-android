@@ -108,6 +108,23 @@ sqlite3 /tmp/…/db "SELECT …"
   （#25）。PowerShell ツールか `MSYS2_ARG_CONV_EXCL` 前置きで回避。WSL の Bash ツール＋
   Linux adb ラッパーなら非該当。
 
+## 5-b. 画面の回転 — 「この端末は回せない」は誤り（2026-08-16 実測）
+
+`user_rotation` を書いても効かないのは**自動回転が ON の間だけ**（自動回転 OFF のときしか参照されない）。
+先に自動回転を切れば回る。旧記述「本機は `user_rotation` を無視し ROTATION_0 固定」は、
+自動回転 ON のまま試した結果を端末の制約と誤読していたもの。
+
+```bash
+adb shell settings get system accelerometer_rotation   # ★開始時の値を控える（通常 1）
+adb shell settings put system accelerometer_rotation 0
+adb shell wm user-rotation lock 1                      # 1=横（ROTATION_90）/ 0=縦
+adb shell dumpsys window displays | grep -oE "mDisplayRotation=ROTATION_[0-9]+" | head -1
+# 終了時は必ず戻す（ユーザーが日常使いする端末）
+adb shell wm user-rotation free && adb shell settings put system accelerometer_rotation 1
+```
+
+これで**回転を挟まないと踏めない検証**（Activity 再生成の復帰経路＝Back の登録・1冊復旧の一括化・横向き意匠の実測）が回る。
+
 ## 6. テキスト入力は ADB Keyboard（フリック座標タップ禁止）
 
 端末に **ADB Keyboard（`com.android.adbkeyboard/.AdbIME`）は導入済み**。ただし **2026-07-30 実測の
