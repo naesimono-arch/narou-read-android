@@ -772,19 +772,34 @@ private fun HistoryChip(
                 modifier = Modifier.size(13.dp),
             )
         }
-        Text(
-            text = word,
-            fontSize = FontCaption,
-            color = MaterialTheme.colorScheme.onSurface,
-            // 長文履歴が weight 無しだと行全幅を占有し末尾の×を幅0へ押し出してタップ不能になるため、
-            // テキスト側を weight で縮退させて×の幅を先に確保する（fill=false で短語チップは従来幅のまま）。
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        // A11y: 語も自前で最小48dpの実寸を持つ（ピン・×と同じ外側Box分離の型）。
+        // 真因: Compose は実寸が最小タップ標的(48dp)未満のノードの当たり判定を**左右へ均等に拡張**する
+        //（SemanticsNode.touchBoundsInRoot）。語が短いと text+padding が48dp未満になり、拡張ぶんが
+        // 真隣のピン・×の**実寸領域の下へ潜り込む**。ヒットテストは実寸に入るノードを拡張だけのノードより
+        // 優先するので、潜り込んだ帯は全部ピン／×の勝ちになる＝語の有効標的は実寸のまま48dp未満に留まり、
+        // かつ語を狙った指が取り消し導線の無い削除(×)へ着弾する。実測（fontScale 2.0・1文字語・
+        // w360dp）: 語の実寸 39dp → 拡張 48dp で左右へ各 4dp 食い込み（＝実機ダンプの「×が16px食い込む」
+        // 「ピンの当たり幅44dp」の両方がこの1つの機序で説明できる）。
+        // 是正は「重なりを消す」＝語に48dpの実寸を与えて拡張自体を発生させないこと（z順や当たり判定の
+        // 小細工ではない）。語が長ければ従来どおり内容幅のままなので、通常の版面は変わらない。
+        Box(
+            contentAlignment = Alignment.Center,
             modifier = Modifier
+                // 長文履歴が weight 無しだと行全幅を占有し末尾の×を幅0へ押し出してタップ不能になるため、
+                // テキスト側を weight で縮退させて×の幅を先に確保する（fill=false で短語チップは従来幅のまま）。
                 .weight(1f, fill = false)
                 .clickable(onClick = onWordClick)
-                .padding(horizontal = Spacing.S8, vertical = Spacing.S8),
-        )
+                .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+        ) {
+            Text(
+                text = word,
+                fontSize = FontCaption,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = Spacing.S8, vertical = Spacing.S8),
+            )
+        }
         if (onDelete != null) {
             // A11y: ピン側と同じ機序（ヒット域が幅13dp）。×は誤爆すると履歴が消えて取り消し導線が無い＝
             // 語を狙った指が×に落ちる事故を判定幅の確保そのもので防ぐ（外側Box分離・見た目13dpは据え置き）。

@@ -1,10 +1,12 @@
 package com.novelreader.ui.discovery
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -16,6 +18,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import com.novelreader.narou.SearchHistory
 import com.novelreader.domain.SearchDraft
 import org.junit.Assert.assertTrue
@@ -143,5 +147,59 @@ class DiscoverySearchContentTest {
         composeTestRule.onNodeWithText("あらすじ").performClick()
         composeTestRule.onNodeWithText("あらすじ").assertIsNotSelected()
         composeTestRule.onNodeWithText("タイトル").assertIsSelected()
+    }
+
+    // 実機と同じ幅360dpで測る。高さを盛るのは、fontScale 2.0 だと履歴節が既定画面（h470dp）の外へ出て
+    // 未配置＝boundsInRoot が Rect.Zero になり、当たり判定を測れないため（画面外ノードは絵にも a11y にも
+    // 乗らない＝docs/knowledge/compose-offscreen-nodes-pruned-from-a11y-tree.md）。
+    @Config(qualifiers = "w360dp-h1200dp-xhdpi")
+    @Test
+    fun `履歴チップの語・ピン・×は互いに重ならず各48dp以上の当たり判定を持つ`() {
+        // 2026-08-17 の実機ダンプ（fontScale 2.0）で「×が語句チップへ16px食い込む」「ピンの当たり幅が44dp」
+        // として現れた欠陥の番人。機序は本番側 HistoryChip のコメント（実寸48dp未満のノードは当たり判定が
+        // 左右へ均等拡張され、隣の実寸領域へ潜り込んだ帯は隣の勝ちになる＝取り消し導線の無い削除へ誤着弾）。
+        // 短い語ほど拡張量が大きいので1文字語を撮る。GraphicsMode 既定(LEGACY)は文字幅を字数近似で返す
+        //（docs/knowledge/robolectric-legacy-graphicsmode-text-width-is-char-count.md）＝どの語でも
+        // 「実寸が48dp未満に落ちる」最悪ケースを常に踏む条件になるため、この番人にはむしろ好都合。
+        composeTestRule.setContent {
+            CompositionLocalProvider(
+                LocalDensity provides Density(
+                    density = LocalDensity.current.density,
+                    fontScale = 2.0f,
+                ),
+            ) {
+                MaterialTheme {
+                    DiscoverySearchContent(
+                        draft = SearchDraft(),
+                        history = SearchHistory(recent = listOf("剣")),
+                        onBack = {},
+                        onSetDraft = {},
+                        onExecuteSearch = {},
+                        onSearchHistoryWord = {},
+                        onPinWord = {},
+                        onUnpinWord = {},
+                        onRemoveRecentWord = {},
+                        onOpenConditionSheet = {},
+                    )
+                }
+            }
+        }
+        val word = composeTestRule.onNodeWithText("剣").fetchSemanticsNode()
+        val pin = composeTestRule.onNodeWithContentDescription("ピン留めする").fetchSemanticsNode()
+        val delete = composeTestRule.onNodeWithContentDescription("履歴から削除").fetchSemanticsNode()
+        // touchBoundsInRoot＝実際の当たり判定（実寸が最小標的未満なら拡張済みの矩形）。
+        val minPx = with(composeTestRule.density) { 48.dp.toPx() }
+        listOf("語" to word, "ピン" to pin, "×" to delete).forEach { (name, node) ->
+            val b = node.touchBoundsInRoot
+            assertTrue("$name の当たり判定が48dp未満: $b", b.width >= minPx && b.height >= minPx)
+        }
+        assertTrue(
+            "語とピンの当たり判定が重なっている: ${word.touchBoundsInRoot} / ${pin.touchBoundsInRoot}",
+            !word.touchBoundsInRoot.overlaps(pin.touchBoundsInRoot),
+        )
+        assertTrue(
+            "語と×の当たり判定が重なっている: ${word.touchBoundsInRoot} / ${delete.touchBoundsInRoot}",
+            !word.touchBoundsInRoot.overlaps(delete.touchBoundsInRoot),
+        )
     }
 }
