@@ -103,6 +103,15 @@
 
 ## リファクタ / 技術的負債（deferred）
 
+- **[perf] ページ範囲並列 `loadPages` の採否を実機で裁定する**（JVM スパイクは済み・裁定だけ待ち）:
+  JVM では長編 K=3 で **1.5x**・等価性は全 K で完全一致（数値・スレッド安全性の条件・頭打ちの理由＝
+  `docs/knowledge/pdf-extract-engine-cost-ceiling.md`「並列化だけが天井の外側にある」）。
+  **未確認は「実機で同じ比が出るか」だけ**（8スレッドの JVM と端末の big.LITTLE＋サーマルは別物）。
+  次の一手は本実装ではなく、androidTest 側に単一/並列を**同一走行**で比べる実機スパイクを1本置いて
+  `/device-verify` で回すこと（本番コードは触らない＝プローブは `ExtractPhaseProfileTest` が雛形）。
+  **1.3x 未満なら見送り**——進捗の atomic カウンタ化とキャンセル再設計（変更が `loadPages` に閉じない）の
+  代償に見合わないため。
+
 - **[Kotlin2 派生の宿題]** Kotlin 2.2 の KT-73255 警告（Moshi の `@Json` 付き引数で多数）＝
   `-Xannotation-default-target` は挙動を変える指定なので方針を決めてから別便で（連鎖の正本＝ADR 0029）。
 
