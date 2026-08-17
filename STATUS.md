@@ -30,9 +30,10 @@
   ⚠️ **旧APKへの逆走は禁止**（migration N→N-1 が無くクラッシュ＝古い→新しいの一方向のみ）。変更手順＝`/db-migration`。
 
 - **実機**: OPPO PGEM10（IP は DHCP で変動＝ハードコードせず `adb-bridge` で張り直す）・v21 APK 導入済み。作法＝`/device-verify`。
-  **蔵書7冊・全冊とも本文健在**（2026-08-06 実測＝欠落表示系の目視には捨て本の再作成が要る。**実蔵書は絶対に消さない**）。
-  **APK は 2026-08-16 投入の debug**（ランキング横スワイプの据わり失敗の修正入り。端末の `lastUpdateTime=2026-08-16 13:00:51` を
-  2026-08-17 に実測して確定＝旧記載「2026-08-14」はビルド日と投入日を取り違えていた）。ベンチ APK 2種（`.benchmark`/`.macrobenchmark`・Kotlin2 版）が残置。
+  **実蔵書7冊・全冊とも本文健在**（2026-08-17 に id・progress とも開始時バックアップと完全一致を確認＝無傷。**絶対に消さない**）。
+  **検証用の残置物**＝捨て本 `6c726cfe`（カクヨム・全26話・本文は復旧済み）／Web カード `N7415ML`／`web_reading_progress` の `N6316BN=14`。
+  **APK は 2026-08-16 投入の debug**（ランキング横スワイプの据わり失敗の修正入り＝端末の `lastUpdateTime` で確定）。
+  ベンチ APK 2種（`.benchmark`/`.macrobenchmark`・Kotlin2 版）が残置。
   ⚠️ 同一 WiFi 上に**第三者端末（Huawei P30）が居り、`adb-bridge` は既存 TCP を優先して掴む**＝操作前に端末を取り違えていないか確認
   （機序＝memory `adb-bridge-stale-tcp-holds-wrong-device`／**P30 は他人の端末**＝読み取り以外はしない＝`docs/knowledge/emui-p30-jank-log-collection.md`）。
   **残るは実機で見ることだけ**＝`awaiting-human.md` §1（ローカルゲートは全て GREEN）。
