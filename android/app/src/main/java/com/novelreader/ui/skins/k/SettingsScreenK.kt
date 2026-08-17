@@ -7,11 +7,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
@@ -125,6 +127,8 @@ fun SettingsScreenK(
                     description = "この装いはひとつの相のみです。ほかの装いは「きせかえ」から選べます",
                     trailing = {
                         KSettingsValue(supportedThemes.firstOrNull()?.displayNameK() ?: appTheme.displayNameK())
+                        // 畳んだ側は叩けないので山括弧が無い＝占位が無いと値だけ右へせり出す（[KSettingsChevronHole]）。
+                        KSettingsChevronHole()
                     },
                     onClick = null,
                 )
@@ -239,7 +243,12 @@ fun SettingsScreenK(
                 icon = Icons.Outlined.Info,
                 title = "バージョン",
                 description = null,
-                trailing = { KSettingsValue(BuildConfig.VERSION_NAME) },
+                // 情報行＝叩けないので山括弧が無い。占位を置いて値の右端をテーマ・きせかえ行と揃える
+                //（モック settings-K.html:162 の `<span class="chev-hole">`。理由は [KSettingsChevronHole]）。
+                trailing = {
+                    KSettingsValue(BuildConfig.VERSION_NAME)
+                    KSettingsChevronHole()
+                },
                 onClick = null,
             )
         }
@@ -429,6 +438,30 @@ private val K_ROW_TITLE_FONT_SIZE = 16.sp
 
 /** 予算のうち行名へ先取りで予約する字数（モック案B の「4字」）。行名の最長は「テーマ」「きせかえ」＝4字。 */
 private const val K_ROW_TITLE_RESERVE_CHARS = 4
+
+/**
+ * 山括弧を持たない行の右端に置く**不可視の占位**（モック正本 `skins/settings-K.html` の `.chev-hole`＝
+ * 同 71-77・162行の規定の翻訳。2026-08-17 人間裁定「値の右端は全行で揃える」）。
+ *
+ * なぜ空の箱が要るか: [KSettingsRow] の trailing は〈値 → 山括弧〉を素直に横へ並べるだけなので、
+ * 山括弧の無い行では値がその幅ぶん右へせり出し、**値の右端が行ごとに食い違う**
+ * （実機実測 2026-08-17: 96px＝24dp のズレ）。占位を1つ置けば山括弧の有無に依らず右端が一致し、
+ * 値だけを縦に読める。トグル行（通知・開発節）には置かない——操作部品は行の右端に接するのが正で、
+ * 値の列とは別の役（モック同注記）。値を持たない行（文字と組版）にも置かない＝揃える対象の値が無く、
+ * 置けば副文の幅だけが痩せる（モックもその行には `.rr` を持たない）。
+ */
+@Composable
+private fun KSettingsChevronHole() {
+    Spacer(Modifier.width(K_ROW_CHEVRON_WIDTH))
+}
+
+/**
+ * 占位の幅＝山括弧アイコンが実際に占める幅。M3 `Icon` は寸法指定が無いとき ImageVector の既定寸
+ * （24dp）で置かれ、trailing 内に間隔は入らないので、ズレ量はこの1つの寸法そのもの（上の実測 24dp と一致）。
+ * 由来はアイコン寸だが値が余白スケールの S24 と同値なのでトークン参照で書ける
+ *（生の dp 直書きは Spacing lint＝ADR 0014 §C で落ちる）。⚠️ 山括弧の寸法を変えるならここも動かす。
+ */
+private val K_ROW_CHEVRON_WIDTH = Spacing.S24
 
 /** 設定の1行（アイコン＋主ラベル＋説明＋trailing）。onClick=null は情報行（非活性・案内のみ）。 */
 @Composable
