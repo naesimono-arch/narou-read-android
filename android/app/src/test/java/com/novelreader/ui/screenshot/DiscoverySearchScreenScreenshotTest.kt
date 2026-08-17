@@ -31,12 +31,10 @@ import org.robolectric.annotation.GraphicsMode
  *    書籍化タイトル級の長語（20字前後）を混ぜて折り返しの段数を固定する。
  *
  * 撮っていないもの（既知の穴）:
- *  - **「条件を調整」シート（[com.novelreader.ui.discovery.SearchConditionSheet]）は撮れない**。
- *    このシートは `viewModel: DiscoveryViewModel` を直接受け取る形（stateless な Content へ未分割）で、
- *    撮るには本番側の分割が要る＝本便（test 配下のみ所有）のスコープ外。加えて `ModalBottomSheet` 枠は
- *    Robolectric で不安定なため、既存流儀（[ReadingSettingsSheetScreenshotTest]）どおり撮るなら
- *    中身の Content を切り出す必要がある。**監督への申し送り事項**。
  *  - 検索範囲を全て外した警告（「検索範囲は1つ以上必要です」）・キーワードカテゴリ展開時の版面。
+ *
+ * 「条件を調整」シートは 2026-08-17 に本番を枠（VM 受け）／中身（コールバック受け）へ分けて
+ * [SearchConditionSheetScreenshotTest] が撮るようになった（前便の申し送り事項の消化）。
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

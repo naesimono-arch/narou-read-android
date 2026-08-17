@@ -301,7 +301,7 @@ internal object GoldenCoverageRegistry {
     val acknowledgedOutOfScope: Map<String, String> = mapOf(
         "reading/{bookId}/{startFile}" to
             "監査 G-8: 読書画面**ルートとクローム**（NativeReadingScreen / ReadingChrome）が0枚。" +
-                "本文組版・章見出し・設定シート・目次・エラー面は部品単位で撮れているが、没入 on/off を含む" +
+                "本文組版・章見出し・設定シート・目次・エラー面・なろう紐付けシートは部品単位で撮れているが、没入 on/off を含む" +
                 "ルートの絵は未撮影。撮影条件の追加優先度1位（3テーマ×2スケール×没入2値）。" +
                 "既存は semantics アサーションと fling 算術のみで、KBottomNav 型の欠陥" +
                 "（ノードは在り semantics も通るが画素として読めない）を原理的に検出できない。",
@@ -330,6 +330,14 @@ internal object GoldenCoverageRegistry {
         "TocK" to "K 目次（読書ルート配下）。現在地バーと話数ラベルの整列を守る。",
         "NativeTableOfContentsScreen" to "D/C 目次（読書ルート配下）。監査 G-11: workTitle 未指定で作品名サブが未撮影。",
         "ReadingSettingsSheetContent" to "読書の表示設定シート（ModalBottomSheet の中身）。",
+        "NcodeLinkSheet" to
+            "なろう紐付けシート（読書ルート配下・ModalBottomSheet の中身）。候補行の題名省略と" +
+                "手動 N コード欄／紐付けボタンの並び、および通信失敗時の再試行ボタンが" +
+                "fontScale 2.0 で欠けないこと（監査 2026-08-06 根因④の是正箇所）を守る。",
+        "SearchConditionSheet" to
+            "「条件を調整」シート（さがす検索ホーム配下・ModalBottomSheet の中身）。開いた直後に見える" +
+                "ジャンル節のチップ折り返しと、下端の確定／リセットまでスクロールした版面（文字数⇄読了時間の" +
+                "排他注記・カスタム範囲入力）を守る。2026-08-17 に本番を枠／中身へ分けて撮影可能にした。",
         "ReadingErrorScreen" to "読書のエラー面。",
         "ContinuationCard" to "本棚の続きから読むカード。",
         "DiscoveryStatusBox" to "さがすの状態ボックス（Loading/Empty/Error の版面）。",
