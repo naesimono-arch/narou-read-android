@@ -175,8 +175,15 @@ fun BookshelfScreen(
     val pdfFolderTreeUri by viewModel.pdfFolderTreeUri.collectAsStateWithLifecycle()
     // 案B: 欠落カードのタップで開く復旧ダイアログの対象（null=非表示）。案C: 一括内訳ダイアログの開閉。
     // ダイアログは M3 AlertDialog（route 層所有）＝削除確認・取込プロンプトと同じ扱いで全スキンに被さる。
-    var reimportTarget by remember { mutableStateOf<BookEntity?>(null) }
-    var showSweepDialog by remember { mutableStateOf(false) }
+    // なぜ両方 rememberSaveable か（2026-08-17 実機で発見した実バグ）: MainActivity は configChanges を
+    // 一切宣言していない＝回転で Activity が再生成され、plain remember に置いた状態はそこで捨てられる。
+    // 実際に「復旧ダイアログを開いたまま横向きにするとダイアログが消える」が起きていた。対象を立て直す
+    // 書き込みは欠落カードのタップ1箇所だけなので、消えたら自力では戻らない（操作が丸ごと無かったことになる）。
+    // なぜ BookEntity でなく id(String) か: BookEntity は Parcelable でも Serializable でもなく Bundle へ
+    // 入らない。下の pendingScanBookId と同じく id だけを保存し、描画時に books から引き直す（同ファイル内
+    // に既にある型を踏襲＝Saver の新設より安全）。
+    var reimportTargetId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showSweepDialog by rememberSaveable { mutableStateOf(false) }
     // フォルダ選択の結果を「この1冊の走査」へ回すか「一括復旧」へ回すかの行き先（案X）。
     // なぜ状態で持つか: ピッカーのコールバックは launch 時の文脈を受け取れないため、どちらの導線から
     // 開いたかをここで覚えておく（null=一括復旧）。
@@ -263,8 +270,13 @@ fun BookshelfScreen(
 
     // 通知権限 priming（notify Minor 2026-07-12）: システム権限ダイアログの前に理由説明を挟むためのフラグ。
     // 一度提示したら以後は出さない（notif_priming_shown で永続化）＝毎回のFABタップで問い直さない。
+    // notifPrimingShown は plain remember のままでよい: 初期値を SharedPreferences から読むため、
+    // Activity 再生成後も同じ永続値で立ち上がる（＝保存する必要がない）。
     var notifPrimingShown by remember { mutableStateOf(prefs.getBoolean(PrefKeys.NOTIF_PRIMING_SHOWN, false)) }
-    var showNotifPriming by remember { mutableStateOf(false) }
+    // 開閉フラグだけは rememberSaveable（2026-08-17 掃引・reimportTargetId と同じ真因）: 表示を立てる
+    // 書き込みは FAB タップ経路の1箇所だけなので、回転で落ちると説明を出さないままピッカーへも進まず、
+    // FAB を押し直すまで何も起きない行き止まりになる。
+    var showNotifPriming by rememberSaveable { mutableStateOf(false) }
     val markPrimingShown: () -> Unit = {
         notifPrimingShown = true
         prefs.edit().putBoolean(PrefKeys.NOTIF_PRIMING_SHOWN, true).apply()
@@ -328,7 +340,7 @@ fun BookshelfScreen(
                     // 本文欠落本のタップ＝読書画面（本文が無く空になる）でなく復旧ダイアログへ（案B）。
                     // route 層で差し替えるのは、バッジ未表出のスキン（M/P/J＝モック未裁定）でも
                     // タップ起点の復旧が全スキン共通に成立するため。
-                    reimportTarget = book
+                    reimportTargetId = book.id
                 } else scope.launch {
                     // 境界: book.id は Room 由来の String＝型付き API へ渡す直前に BookId へ包む。
                     val lastReadFile = viewModel.getLastRead(BookId(book.id)) ?: "index.html"
@@ -569,9 +581,15 @@ fun BookshelfScreen(
     // ── 本文欠落→再取込ダイアログ（案B・正本 bookshelf-reimport-badge-D の4分岐）────────────────
     // 対象の plan が消えたら（背後で復旧が完走した等）ダイアログごと静かに消える＝古い操作を残さない。
     // 全分岐で「読書位置としおりは残る」を明記（C2・進捗 DB に触れない実装保証は BookDao.updateRestoredContent）。
+    // 保存した id から現物を引き直す（BookEntity は Bundle へ入らないため id だけを保持する＝宣言箇所の
+    // コメント参照）。引き直せない（削除済み・一覧未確定）ときは描画しない＝下の plan 消失時と同じ扱いで
+    // 古い操作を画面に残さない。VM は構成変更をまたいで生き残るため、回転直後も books は即座に揃う。
+    val reimportTarget = reimportTargetId?.let { targetId ->
+        (uiState as? BookshelfUiState.Content)?.books?.firstOrNull { it.id == targetId }
+    }
     reimportTarget?.let { book ->
         reimportPlans[book.id]?.let { plan ->
-            val dismiss = { reimportTarget = null }
+            val dismiss = { reimportTargetId = null }
             when (plan) {
                 is ReimportPlan.AutoPdf -> NovelReaderAlertDialog(
                     onDismissRequest = dismiss,
@@ -931,7 +949,10 @@ internal fun BookshelfContent(
     val selectedIds = rememberSaveable(
         saver = listSaver(save = { it.toList() }, restore = { it.toMutableStateList() }),
     ) { mutableStateListOf<String>() }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
+    // 確認ダイアログの開閉も rememberSaveable（2026-08-17 掃引・reimportTargetId と同じ真因）: 選択
+    // （selectionMode/selectedIds）は既に Saveable なので、ここだけ plain remember だと回転で
+    // 「選択は残っているのに確認ダイアログだけ消える」半端な復元になる。
+    var showDeleteConfirm by rememberSaveable { mutableStateOf(false) }
     val exitSelection: () -> Unit = { selectionMode = false; selectedIds.clear() }
     val toggleSelect: (String) -> Unit = { id ->
         if (id in selectedIds) selectedIds.remove(id) else selectedIds.add(id)
@@ -1479,7 +1500,11 @@ internal fun BookshelfContent(
             bookCount = bookTargets.size,
         )
         // 既定 OFF（ユーザー選択=削除ダイアログのチェック・破壊的なので明示 ON を要求）。ダイアログを開くたびリセット。
-        var alsoDeleteSource by remember { mutableStateOf(false) }
+        // rememberSaveable にするのは上の showDeleteConfirm と対（バッテリー案内の showBatteryOptDialog／
+        // doNotShowAgain と同じ組み方）: 開閉だけ復元してチェックが落ちると、ONにしたつもりの取込元PDF削除が
+        // 黙って OFF に戻る。この宣言は if ブロック内＝ダイアログを閉じると登録ごと消えるので、
+        // 「開くたびリセット」は従来どおり成立する（保持するのは構成変更をまたぐ間だけ）。
+        var alsoDeleteSource by rememberSaveable { mutableStateOf(false) }
         NovelReaderAlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             // 蔵書とWebが混じり得るため中立の「件」で数える（蔵書のみでも自然）。
