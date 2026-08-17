@@ -20,6 +20,7 @@
 | **FAB と空棚CTA の被り** | `KEmptyState` は**蔵書0冊のときだけ** | 実蔵書では踏めない（蔵書0の環境が要る） |
 | **Web 取込表示／二重押しガード／M・P・J の配線3点** | Web 本が要る（実蔵書 web_novels=0） | カクヨムか暁の URL を **adb の `am start` で投げる**（下節＝人手は不要）。**なろう URL では永久に踏めない**＝`SiteAdapterRegistry` の `blockedHosts` に `syosetu.com` があり「公式サイトでお読みください」へ送られる。2026-08-17 に作った捨て本は端末へ残置（現在値＝`STATUS.md`） |
 | **話数ラベルの4桁** | 4桁話の本 | 実蔵書は最大 860話（式に桁上限は無いが実機では踏めない） |
+| **走査中断**（M/P/J の配線3点の1件） | `reimportPlans` が非空＝**本文欠落本が1冊以上**。入口は `ui/BookshelfScreen.kt:636` `scanForBook` と同 770/774 `runSweepReimport` の2つだけで、**設定側に入口は無い** | 走査専用の捨て本を1冊作り `chap_*.html` を退避して欠落させる（⚠️ 実蔵書7冊は不触＝許可が要る＝`awaiting-human.md` §4）。**Web 由来の捨て本はプラン④ AutoWeb 扱いで走査対象外＝代用不可**。永続 URI 権限は `tree/primary:Download` の1件のみ・`pdf_library_tree_uri` も記憶済み＝**フォルダ選択なしで即走査が走る** |
 
 ### Web 取込の投入経路 — **adb で通る**（2026-08-17 に旧記述を実測で訂正）
 
@@ -37,6 +38,21 @@ ColorOS は `screenrecord` が使えないので 16ms 窓の標本化手段が�
 ⇒ **遷移スケルトンの骨・ページャの残像・Predictive Back のプレビュー・クローム出現の1〜2フレーム**は
 条件を整えても機械では決まらない＝**肉眼でしか判定できない**（無理に自動化へ回さない）。
 機械ハントを掛けるときの前提＝`adb-brute-force-hunt-needs-expected-values.md`。
+
+## 第三のクラス＝「面を取り違える」と実装が無いように見える（2026-08-17）
+
+M/P/J は〈没入面／一覧面〉の2面を持ち、**没入面は選択モードを構造的に持たない**——
+`ShelfSelection`/`ShelfWebActions` をシグネチャに取らない＝**コンパイル時制約で閲覧専用**
+（`BookshelfCartridgeP.kt:206`・`BookshelfSkyM.kt:182`・`BookshelfPortalJ.kt:297`）。
+選択モードと Web 行の配線は**一覧面**にある（キー `web:<ncode>`＝`BookshelfListCartridgeP.kt:300-312`・
+`BookshelfLogM.kt:396-408`・`BookshelfGridJ.kt:315-328`）。
+実機 `app_prefs.xml` は `p_rack_view`/`m_sky_view`/`j_deck_view` とも true＝**既定が没入面**。
+
+⚠️ このため「一覧に ⋮ ノードが0個・長押しは本が開くだけ」と観測され、台帳へ
+**「P は選択モードの入口自体が特定できていない」と誤って記録された**（実際の入口はヘッダの面切替ボタン）。
+⇒ **`uiautomator dump` で目的の要素が0個のときは、実装の不在を疑う前に
+「いま何の面に居るか」を prefs とコードで確かめる**。端末の見えだけを根拠に
+「未実装」と台帳へ書かない——その1行が次の検証ラウンドを丸ごと空振りさせる。
 
 ## 一般化
 
