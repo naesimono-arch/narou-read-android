@@ -19,9 +19,9 @@
 |---|---|
 | 表示設定シート `ReadingSettingsSheetContent`（根因②） | **是正済み**＝`ReadingSettingsSheet.kt:251-256` に理由コメントつきで `verticalScroll` |
 | `NovelReaderAlertDialog` | **是正済み**（同じ型） |
-| `NcodeLinkSheet`（なろう紐付け） | **未修正**（2026-08-17 判明・下記） |
+| `NcodeLinkSheet`（なろう紐付け） | **是正済み**＝`NcodeLinkSheet.kt:169`（2026-08-17 判明・同日に是正・下記） |
 
-### NcodeLinkSheet が 2.0 でボタンに到達できない（未修正）
+### NcodeLinkSheet が 2.0 でボタンに到達できなかった（是正済み）
 
 中身の Column に `verticalScroll` が無く、長い書名で補足文が5行に膨らむと
 **手動 N コード欄・「紐付け」・「再試行」が画面外へ押し出されて到達手段が無い**

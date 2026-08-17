@@ -18,7 +18,7 @@ Compose は非加重子に**必要幅を先に配り**、残りだけが title �
 |---|---|
 | 目次の再開チップ・話数ラベル・現在地バー | **是正済み**（この型の初出・golden 監査の根因群） |
 | P の目次 HUD＝進捗ゲージ＋「CLEAR N%」が幅を先取りし `.mid` に約 **55dp** しか残らない | **凍結**（P の版面裁定待ち＝`docs/backlog-frozen.md`「カートリッジP の目次 HUD の幅配分」が正本） |
-| 設定のテーマ行（`ui/skins/k/SettingsScreenK.kt` の `KSettingsRow`）＝trailing「システムに従う」が行幅をほぼ占め、title「**テーマ**」が `...` の3点に潰れて何の行か読めない | **未修正**（2026-08-17 に `followingSystem=true` の 2.0 を撮って判明・モック裁定待ち） |
+| 設定のテーマ行（`ui/skins/k/SettingsScreenK.kt` の `KSettingsRow`）＝trailing「システムに従う」が行幅をほぼ占め、title「**テーマ**」が `...` の3点に潰れて何の行か読めない | **是正済み**（2026-08-17 に `followingSystem=true` の 2.0 を撮って判明し同日に案Bで是正＝`SettingsScreenK.kt` の `KSettingsValue` に `K_ROW_TEXT_BUDGET` 由来の `widthIn(max)` を掛け、行名の幅を先に予約する） |
 
 ## 直し方の型
 
