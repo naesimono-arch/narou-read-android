@@ -271,3 +271,27 @@
 - **解凍条件＝①ユーザーが再度 agy 活用を判断したとき、または②コスト構造が「生成が支配的」へ変わったとき**
   （現状は `cache_read` が金額換算の約85%で、**生成だけを移しても総計の約3%**にしかならない＝ADR 0031 判断材料6）。
   上の「[agy 解除時に再燃する宿題]（同期実行が保証されない）」も同時に解凍する。
+
+## Bash 出力の自動切り詰めフック（2026-08-17 凍結・ユーザー裁定）
+
+> 実測値・機序・もう一方の打ち手（調査 Read の機械判定）の結論は
+> **`docs/knowledge/context-cost-hook-levers-measured-limits.md` が正本**。ここは所在と解凍条件だけ持つ。
+
+- **[何を作ったか]** PostToolUse(Bash|PowerShell) で長い stdout を**両端残し＋中央省略**に差し替えるフック
+  （本体 213 行＋テスト 114 行/16 ケース）。閾値 4,000 字（p97）・省略量 800 字未満なら触らない・
+  既定は末尾 60% 残し（結論は末尾に出る）／`path:12:` 形式の列挙だけ先頭 25% 寄せ・
+  **失敗マーカー（Traceback/JVM スタック/`FAILURE:`/`BUILD FAILED`/テスト失敗行/`e: `/コンパイラ error 行）と
+  stderr あり・interrupted・`persistedOutputPath` ありは素通し**・省略分は OS 一時ディレクトリへ**全文退避**して
+  パスをバナーに書く（回復可能）・例外は無出力 exit 0 の fail-open。
+- **[なぜ凍結したか]** 削減が**全体の約 2.6%**（閾値 4,000 字で介入率 3.6%・Bash 出力の 11.5%）にすぎないのに対し、
+  ①**未文書化の内部フィールド `hookSpecificOutput.updatedToolOutput` に依存**する
+  ②**監督が見る出力そのものを加工する監視パイプラインの改変**である（ハーネスも self-modification のセキュリティ警告を出した）。
+  効果と危うさが釣り合わない。
+- **解凍条件＝`hookSpecificOutput.updatedToolOutput` が公式 docs に記載されたとき**（未文書化 API 依存という減点材料が消えるため）。
+  併せて閾値は必ず `tools/measure_bash_output_size.py` を回し直してから決めること（分布は再測ごとに動く）。
+- **[復元方法＝配線を戻すだけ]** コードは**消していない**（`.claude/hooks/truncate_bash_output.py` と
+  `test_truncate_bash_output.py` はそのまま在る＝`.claude/settings.json` に登録が無いので**実行されないだけ**）。
+  解凍は **`hooks.PostToolUse` へ `"matcher": "Bash|PowerShell"` のブロックを1つ足すだけ**で、
+  **その JSON 現物は `truncate_bash_output.py` 冒頭の凍結注記が正本**（コード変更は不要）。
+  ⚠️ 戻す前に **`updatedToolOutput` がまだ生きているか**をバイナリの文字列で確認し、
+  **閾値は `tools/measure_bash_output_size.py` を回して決め直す**こと。テストは単体でいつでも回る。
