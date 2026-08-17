@@ -1,6 +1,7 @@
 # Windows セッションからは Robolectric/Roborazzi 系テストが全滅する＝ゲートは WSL で回すしかない
 
-**重要度 ★★★／2026-08-17 実測（sweep/handover-sweep-2026-08-17）／関連＝`/build` skill「Windows」節**
+**重要度 ★★★／2026-08-17 実測（sweep/handover-sweep-2026-08-17）／関連＝`/build` skill「Windows」節・
+`wsl-worktree-looks-prunable-from-windows.md`（同じ理由で worktree も WSL 側へ一本化した）**
 
 1行要約: Windows の JVM で `testDebugUnitTest` を回すと、描画を伴うテストが
 **`java.lang.UnsatisfiedLinkError at RenderNodeNatives.java:-2`** で一斉に落ちる。
