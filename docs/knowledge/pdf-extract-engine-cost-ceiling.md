@@ -30,6 +30,12 @@ engine の内訳（比率は中編 N2959KI 799ページでもほぼ同一＝**�
 - 費用対効果が最も良かったのは `detect` の**重複した仕事**の除去。`lineStepX` と `rubyOffsetX` が
   ページごとに同じ `filter`+`groupCharsByLine` を2周していたのを1周に畳んで、その列復元ブロックを
   42% 削減（＝detect 約27%減・engine 5〜6%減）。挙動は `body_sha256` で不変を確認済み。
+- 次に効いたのも `detect` の、今度は**無駄な一時確保**の除去。bodySize のヒストグラム1本のために
+  `flatten()` で全グリフのコピーリストを作り、さらに `map { it.size }` で boxed Double のリストを
+  作っていた（338万グリフで概算100MB超・どちらもここでしか使われていなかった）。ページ配列を直接
+  バケットカウンタへ積む形へ畳んで**同一走行比 −55.0%**＝detect −29%・engine −2.7%。
+  detect の engine 比は上表の 18〜22% から **15.5%** へ下がった。挙動不変は `body_sha256`
+  （`JvmGoldenRegressionTest`）と `DetectedRulesTest` で確認済み。
 - `groupCharsByLine` の線形走査（許容誤差つき近傍一致）と `associateRuby` の二重ネストは、
   **形は悪いが量が無い**。厳密に同じ列を選ぶ索引を設計するコストに見合わない。
 

@@ -231,19 +231,18 @@ class ExtractPhaseProfileTest {
             val bodySize = rules.bodySize
             val rubySize = rules.rubySize
 
-            // --- A: 全ページの文字を1本のリストへ（数百万要素の新規リスト） ---
-            val tA = System.nanoTime()
-            val allChars = charListsByPage.flatten()
-            val flattenMs = elapsedMs(tA)
-            // ⚠ 件数だけ退避して以降 allChars / sizes を参照しない。参照を残すと本体には無い延命が起き、
-            // GC 圧の差で後続ブロック(C/D/E)が過大に出る（初回実測で被覆率 108% を踏んだ真因がこれ）。
-            // 本体では allChars は bodySize 算出後、map{} の結果は modeBucketKey 通過後に即ゴミになる。
-            val glyphCount = allChars.size
-
-            // --- B: サイズだけのリスト（Double の boxing が全要素で発生する） ---
-            val tB = System.nanoTime()
-            val sizeCount = allChars.map { it.size }.size
-            val sizeListMs = elapsedMs(tB)
+            // --- A: bodySize ヒストグラム。畳み込み「前」と「後」の両形状を同一走行で測って比で読む
+            //     （理由は下の D と同じ＝走行をまたいだ絶対値比較は機械側の振れと区別できない）。
+            //     旧形状は flatten() で全グリフのコピー、さらに map{ it.size } で boxed Double の
+            //     リストを作ってからカウントする＝ヒストグラム1本のために一時リストを2本確保していた。
+            //     ⚠ 両プローブとも一時リストを関数スコープに閉じ込めてある。参照を外へ残すと本体には
+            //     無い延命が起き、GC 圧の差で後続ブロック(C/D)が過大に出る（初回実測で被覆率 108% を
+            //     踏んだ真因がこれ）。件数は charListsByPage から別に数える。
+            val glyphCount = charListsByPage.sumOf { it.size }
+            probeBodyHistogramOldShape(charListsByPage) // 両形状をウォームアップしてから測る
+            probeBodyHistogramMergedShape(charListsByPage)
+            val histOldMs = probeBodyHistogramOldShape(charListsByPage)
+            val histMs = probeBodyHistogramMergedShape(charListsByPage)
 
             // --- C: ページ番号シグネチャの収集（全ページ×全文字・Pair キーの HashMap） ---
             val tC = System.nanoTime()
@@ -269,15 +268,18 @@ class ExtractPhaseProfileTest {
             val oldShapeMs = probeColsOldShape(charListsByPage, bodySize, rubySize)
             val colsMs = probeColsMergedShape(charListsByPage, bodySize, rubySize)
 
-            val probeTotal = flattenMs + sizeListMs + comboMs + colsMs
+            val probeTotal = histMs + comboMs + colsMs
             val report = StringBuilder()
             report.appendLine(
                 "=== DetectBreakdown: $name at " +
                     "${java.time.Instant.ofEpochMilli(System.currentTimeMillis())} ==="
             )
-            report.appendLine("detect 実測: ${fmt(detectMs)}ms (glyphs=$glyphCount sizes=$sizeCount)")
-            report.appendLine(line("  A flatten()", flattenMs, detectMs))
-            report.appendLine(line("  B map{size}", sizeListMs, detectMs))
+            report.appendLine("detect 実測: ${fmt(detectMs)}ms (glyphs=$glyphCount)")
+            report.appendLine(line("  A bodySize ヒストグラム(畳み込み後＝本体と同形)", histMs, detectMs))
+            report.appendLine(
+                "  A' 同(畳み込み前＝flatten+map{size} 経由・対照群): ${fmt(histOldMs)}ms" +
+                    " → 同一走行比で ${fmt((1 - histMs / histOldMs) * 100)}% 削減"
+            )
             report.appendLine(line("  C comboPages ループ", comboMs, detectMs))
             report.appendLine(line("  D 列復元(畳み込み後＝本体と同形)", colsMs, detectMs))
             report.appendLine(
@@ -398,6 +400,37 @@ class ExtractPhaseProfileTest {
             rubyMs = rubyNs / 1_000_000.0,
             buildMs = buildNs / 1_000_000.0,
         )
+    }
+
+    /**
+     * bodySize ヒストグラムの畳み込み**前**（対照群）。全グリフのコピー（flatten）と boxed Double の
+     * リスト（map{size}）を経由してから数える、当時の形をそのまま保つ。一時リストをこの関数の
+     * スコープに閉じ込め、呼び出し側へ参照を漏らさない（本体に無い延命を作らないため）。
+     * 本体からは既に消えた形状なので、ここが唯一の記録になる。
+     */
+    private fun probeBodyHistogramOldShape(charListsByPage: List<List<CharBox>>): Double {
+        val start = System.nanoTime()
+        val allChars = charListsByPage.flatten()
+        val sizes = allChars.map { it.size }
+        val counts = HashMap<Double, Int>()
+        for (v in sizes) {
+            val b = Math.round(v * 10.0) / 10.0
+            counts[b] = (counts[b] ?: 0) + 1
+        }
+        return elapsedMs(start)
+    }
+
+    /** 畳み込み**後**（[DetectedRules.detect] の現行と同形＝ページ配列を直接走査してカウンタへ積む）。 */
+    private fun probeBodyHistogramMergedShape(charListsByPage: List<List<CharBox>>): Double {
+        val start = System.nanoTime()
+        val counts = HashMap<Double, Int>()
+        for (page in charListsByPage) {
+            for (c in page) {
+                val b = Math.round(c.size * 10.0) / 10.0
+                counts[b] = (counts[b] ?: 0) + 1
+            }
+        }
+        return elapsedMs(start)
     }
 
     /**
