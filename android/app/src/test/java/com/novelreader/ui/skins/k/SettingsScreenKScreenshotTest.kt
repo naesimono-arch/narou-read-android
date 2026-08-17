@@ -31,6 +31,18 @@ import org.robolectric.annotation.GraphicsMode
  *  ・通知 OFF を選ぶ理由: 既定値であり、prefs 未設定の実機初回起動と一致する（ON の絵は別の状態＝
  *    Switch の塗りだけの差分のため代表からは外す）。
  *
+ * ### 追加 case `followsystem`（ライトのみ×2スケール・2026-08-17）
+ * `followingSystem=true` のときテーマ行の trailing は「システムに従う」＝**この行に出る文言の最長**
+ * （既定 case の「ライト」等は3字）。値が行幅を先取りして title「テーマ」を潰す破綻はこの worst case
+ * でしか写らない（既定 case では原理的に再現しない）。テーマ全数を撮らないのは色トークンが `default` と
+ * 共通で、テーマ退行はそちらの束が張るため（ChapterHeader・TocSkyM と同じ「拡大破綻の軸だけを張る束」）。
+ *
+ * この case の 2.0 は**初回記録（2026-08-17）で「テーマ」が `…` に潰れた壊れた絵を焼いていた**が、
+ * 同日の裁定（値に上限を付けて行名に幅を予約する＝モック案B）で是正し再記録済み＝現在の golden は
+ * 「テーマ」が読め、値が「システ…」に縮んだ絵。**画素はこの状態を退行から守るだけで「何が正しいか」は
+ * 言わない**ので、行名が読めること自体は [SettingsRowWidthLayoutTest] がレイアウト値で固定している
+ * （`docs/knowledge/golden-record-bakes-in-regressions.md` の型＝画素だけに頼らない）。
+ *
  * 既知の再記録トリガ（偽陽性ではなく「意図した変更」として扱うもの）:
  *  ・versionName の改訂: 「バージョン」行は BuildConfig.VERSION_NAME をそのまま描くため、採番
  *    （ADR 0025）で値が動くと golden も動く。テスト側からは差し替えられない（本番コードが直接読む）。
@@ -51,6 +63,7 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w360dp-h640dp-xhdpi")
 class SettingsScreenKScreenshotTest(
+    private val caseId: String,
     private val theme: ReadingTheme,
     private val fontScale: Float,
 ) {
@@ -60,7 +73,7 @@ class SettingsScreenKScreenshotTest(
 
     @Test
     fun capture() {
-        composeTestRule.captureSkinK(theme, fontScale, goldenName("SettingsScreenK", "default", theme, fontScale)) { _ ->
+        composeTestRule.captureSkinK(theme, fontScale, goldenName("SettingsScreenK", caseId, theme, fontScale)) { _ ->
             // SettingsScreenK 自身は背景を持たない（実アプリでは NavHost 側の面に載る）ため、
             // テーマ素地を敷いて版面として捉える（ReadingSettingsSheetScreenshotTest と同じ扱い）。
             Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -68,7 +81,7 @@ class SettingsScreenKScreenshotTest(
                     // 現在テーマ＝描画テーマと一致させる（設定画面が自分の状態を正しく映していることごと固定）。
                     appTheme = theme,
                     onThemeChange = {},
-                    followingSystem = false,
+                    followingSystem = caseId == CASE_FOLLOW_SYSTEM,
                     onFollowSystem = {},
                     currentSkin = Skin.MEIKAI_K,
                     onOpenWardrobe = {},
@@ -81,8 +94,18 @@ class SettingsScreenKScreenshotTest(
     }
 
     companion object {
+        private const val CASE_DEFAULT = "default"
+        private const val CASE_FOLLOW_SYSTEM = "followsystem"
+
         @JvmStatic
-        @Parameters(name = "{0}_scale{1}")
-        fun data(): List<Array<Any>> = ScreenshotConfig.matrix()
+        @Parameters(name = "{0}_{1}_scale{2}")
+        fun data(): List<Array<Any>> = buildList {
+            ScreenshotConfig.THEMES.forEach { t ->
+                ScreenshotConfig.FONT_SCALES.forEach { s -> add(arrayOf<Any>(CASE_DEFAULT, t, s)) }
+            }
+            ScreenshotConfig.FONT_SCALES.forEach { s ->
+                add(arrayOf<Any>(CASE_FOLLOW_SYSTEM, ReadingTheme.LIGHT, s))
+            }
+        }
     }
 }

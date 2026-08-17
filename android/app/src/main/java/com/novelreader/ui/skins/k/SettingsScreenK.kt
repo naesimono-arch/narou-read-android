@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
@@ -39,11 +40,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.novelreader.BuildConfig
 import com.novelreader.NewEpisodeNotificationPreference
@@ -121,11 +124,7 @@ fun SettingsScreenK(
                     title = "テーマ",
                     description = "この装いはひとつの相のみです。ほかの装いは「きせかえ」から選べます",
                     trailing = {
-                        Text(
-                            supportedThemes.firstOrNull()?.displayNameK() ?: appTheme.displayNameK(),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        KSettingsValue(supportedThemes.firstOrNull()?.displayNameK() ?: appTheme.displayNameK())
                     },
                     onClick = null,
                 )
@@ -135,11 +134,7 @@ fun SettingsScreenK(
                     title = "テーマ",
                     description = null,
                     trailing = {
-                        Text(
-                            if (followingSystem) "システムに従う" else appTheme.displayNameK(),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        KSettingsValue(if (followingSystem) "システムに従う" else appTheme.displayNameK())
                         Icon(
                             Icons.AutoMirrored.Filled.KeyboardArrowRight,
                             contentDescription = null,
@@ -164,11 +159,7 @@ fun SettingsScreenK(
                     // ＝装い名がどれだけ長くても、値へ分割禁止（WORD JOINER）を挟む組版の手当ては要らない。
                     description = "本棚や画面の装いを変える",
                     trailing = {
-                        Text(
-                            currentSkin.displayName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        KSettingsValue(currentSkin.displayName)
                         Icon(
                             Icons.AutoMirrored.Filled.KeyboardArrowRight,
                             contentDescription = null,
@@ -248,13 +239,7 @@ fun SettingsScreenK(
                 icon = Icons.Outlined.Info,
                 title = "バージョン",
                 description = null,
-                trailing = {
-                    Text(
-                        BuildConfig.VERSION_NAME,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
+                trailing = { KSettingsValue(BuildConfig.VERSION_NAME) },
                 onClick = null,
             )
         }
@@ -389,6 +374,61 @@ private fun KSettingsCard(content: @Composable () -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(0.dp)) { content() }
     }
 }
+
+/**
+ * 設定行の**値**（trailing に出る現在値の文字）。幅の上限を持つことがこの部品の存在理由。
+ *
+ * なぜ上限が要るか（真因）: `Row` は非加重の子（値の Text・山括弧 Icon）を実測幅で先に確定し、残りだけを
+ * `weight(1f)` の題字列へ渡す＝**値が伸びるほど削られるのは行名の側**になる。fontScale 2.0 では
+ * 「システムに従う」が行幅をほぼ占め、行名「テーマ」が「…」だけに潰れて何の行か読めなくなっていた
+ * （実測 2026-08-17: 行名に残った幅 85px＝可視0文字）。型＝`docs/knowledge/unweighted-trailing-steals-row-width.md`。
+ * ⚠️ `maxLines` は**行数**の上限であって幅の上限ではないので効かない（題字側には既に付いていて潰れていた）。
+ *
+ * 上限値の出どころ（モック正本の案B＝`docs/design-candidates/skins/candidates/settings-K-row-width-candidates.html`。
+ * 規定は `224dp − 16sp×4字`）:
+ *  ・[K_ROW_TEXT_BUDGET] 224dp＝行内容 296dp（画面 360dp − 画面横 16×2 − 行の横 16×2）− アイコン 24
+ *    − 題字列の padding(16+8) − 山括弧 24 ＝**行名と値が分け合う予算**。
+ *  ・[K_ROW_TITLE_FONT_SIZE]×[K_ROW_TITLE_RESERVE_CHARS]＝そのうち行名に予約する分（bodyLarge 4字）。
+ *    sp なので fontScale に追従して伸び、値の取り分は自動で縮む。
+ * 結果（実測 2026-08-17・360dp/xhdpi）: 1.0 は上限 160dp に対し最長の値「システムに従う」が 98dp＝
+ * **届かないので効かず版面は不変**。2.0 は 16sp→28dp なので上限 112dp となり値は「システ…」へ縮み、
+ * 行名には 112dp（「テーマ」に要る 84dp）が残る。どちらも1行のままなので行高も骨格も変わらない。
+ * 失う側を値にしたのは、値は叩けば復元できる（ダイアログが現在値を選択状態で見せる）のに対し
+ * 行名には復元手段が無いため（2026-08-17 人間裁定）。
+ *
+ * 幅を持たない素の `Text` で値を書くとこの穴へ戻るので、**値は必ずこの部品を通す**こと。
+ */
+@Composable
+private fun KSettingsValue(text: String) {
+    val maxWidth = with(LocalDensity.current) {
+        // ⚠️ 予約は「1字ぶんを dp へ換算してから字数倍」でなければならない（`(16.sp * 4).toDp()` は誤り）。
+        // API 34 の sp→dp は**非線形**で、大きな sp ほど倍率が落ちる＝実測（fontScale 2.0）で
+        // 64sp→68.1dp に対し 16sp→28dp×4=112dp。まとめて換算すると予約が痩せ、行名が1字しか残らなかった。
+        // 「bodyLarge 4字」という意匠の規定を守るには、1字（16sp）の実換算値を字数倍する。
+        val titleReserve = K_ROW_TITLE_FONT_SIZE.toDp() * K_ROW_TITLE_RESERVE_CHARS
+        // 予約が予算を食い切る領域（極端な fontScale）では負になる。widthIn に負値は渡せないため 0 で止める
+        // （値は消えるが行名は残る＝失う順序の裁定どおり）。
+        (K_ROW_TEXT_BUDGET - titleReserve).coerceAtLeast(0.dp)
+    }
+    Text(
+        text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        // 上限まで縮めた結果を折り返させない（折り返すと行高が変わり版面が動く＝案Bの条件を破る）。
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.widthIn(max = maxWidth),
+    )
+}
+
+/** 行名と値が分け合う幅の予算（モック案B の 224dp＝360dp 幅の版面で較正）。 */
+private val K_ROW_TEXT_BUDGET = 224.dp
+
+/** 予約の単位＝行名の字送り（bodyLarge の 16sp。全角1字＝1em で数える）。Typography.bodyLarge と一致させる。 */
+private val K_ROW_TITLE_FONT_SIZE = 16.sp
+
+/** 予算のうち行名へ先取りで予約する字数（モック案B の「4字」）。行名の最長は「テーマ」「きせかえ」＝4字。 */
+private const val K_ROW_TITLE_RESERVE_CHARS = 4
 
 /** 設定の1行（アイコン＋主ラベル＋説明＋trailing）。onClick=null は情報行（非活性・案内のみ）。 */
 @Composable
