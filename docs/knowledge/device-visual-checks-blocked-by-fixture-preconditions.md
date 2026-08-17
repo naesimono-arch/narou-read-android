@@ -14,13 +14,13 @@
 
 | 見たいもの | 発火条件（出所） | 何を作れば踏めるか |
 |---|---|---|
-| **復旧ダイアログ**の3ボタン段組み | **本文欠落本のカードタップ**のみ（`ui/BookshelfScreen.kt` の `reimportPlans` 起点＝L170 収集・L327 分岐） | 捨て本を1冊用意し、その取込元を失わせて本文欠落状態にする |
+| **復旧ダイアログ**の3ボタン段組み（2026-08-17 に発火済み） | **本文欠落本のカードタップ**のみ（`ui/BookshelfScreen.kt` の `reimportPlans` 起点＝L170 収集・L327 分岐） | 捨て本を1冊用意し、その取込元を失わせて本文欠落状態にする。⚠️ **見えの結論は出た**＝2段に割れると確定し、残るのは目視でなく意匠裁定（真因＝`handover.md`／裁定＝`awaiting-human.md` §1-1） |
 | **作品詳細あらすじ**の既読4アクション版（2026-08-17 に成立させて実測済み） | `ui/discovery/NovelDetailScreen.kt:308` の `lastReadEpisode > 0` **かつ未取込** | 未取込作品を「なろうで読む」で開き、WebView 読書位置を1話ぶん記録させる。⚠️ **短編では作れない**＝`ContinuationLogic.kt:146` の正規表現が `ncode.syosetu.com/<ncode>/<N>/` 形しか受理せず、話ページを持たない短編は `web_reading_progress` が書かれない |
 | **電池最適化ダイアログ**（fontScale 2.0） | 〈PDF 変換の開始＝`isProcessing` の false→true〉×〈未確認フラグ〉。実機の `app_prefs.xml` は既に `battery_dialog_dismissed=true` | prefs のフラグを false へ戻して PDF を1冊取り込む（SAF 操作は人の手） |
 | **FAB と空棚CTA の被り** | `KEmptyState` は**蔵書0冊のときだけ** | 実蔵書では踏めない（蔵書0の環境が要る） |
 | **Web 取込表示／二重押しガード／M・P・J の配線3点** | Web 本が要る（実蔵書 web_novels=0） | カクヨムか暁の URL を **adb の `am start` で投げる**（下節＝人手は不要）。**なろう URL では永久に踏めない**＝`SiteAdapterRegistry` の `blockedHosts` に `syosetu.com` があり「公式サイトでお読みください」へ送られる。2026-08-17 に作った捨て本は端末へ残置（現在値＝`STATUS.md`） |
 | **話数ラベルの4桁** | 4桁話の本 | 実蔵書は最大 860話（式に桁上限は無いが実機では踏めない） |
-| **走査中断**（M/P/J の配線3点の1件） | `reimportPlans` が非空＝**本文欠落本が1冊以上**。入口は `ui/BookshelfScreen.kt:636` `scanForBook` と同 770/774 `runSweepReimport` の2つだけで、**設定側に入口は無い** | 走査専用の捨て本を1冊作り `chap_*.html` を退避して欠落させる（⚠️ 実蔵書7冊は不触＝許可が要る＝`awaiting-human.md` §4）。**Web 由来の捨て本はプラン④ AutoWeb 扱いで走査対象外＝代用不可**。永続 URI 権限は `tree/primary:Download` の1件のみ・`pdf_library_tree_uri` も記憶済み＝**フォルダ選択なしで即走査が走る** |
+| **走査中断**（M/P/J の配線3点の1件・**2026-08-17 に3面とも PASS**） | `reimportPlans` が非空＝**本文欠落本が1冊以上**。入口は `ui/BookshelfScreen.kt:636` `scanForBook` と同 770/774 `runSweepReimport` の2つだけで、**設定側に入口は無い** | 走査専用の捨て本を1冊作り `chap_*.html` を退避して欠落させる（2026-08-17 に実施＝捨て本 `cf4ee71b`・実蔵書7冊は不触・現在値は `STATUS.md`）。⚠️ **残る限界**＝3回とも停止が**列挙フェーズ**で着弾した（停止後の表示が `147件 のうち 0件 を調べました`＝36GB の Download ツリーの SAF 列挙が25秒経っても終わらないため）＝**ハッシュ1ファイルぶんの遅れで止まる協調中断の実挙動だけは未観測**。**Web 由来の捨て本はプラン④ AutoWeb 扱いで走査対象外＝代用不可**。永続 URI 権限は `tree/primary:Download` の1件のみ・`pdf_library_tree_uri` も記憶済み＝**フォルダ選択なしで即走査が走る** |
 
 ### Web 取込の投入経路 — **adb で通る**（2026-08-17 に旧記述を実測で訂正）
 

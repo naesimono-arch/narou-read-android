@@ -31,7 +31,8 @@
 
 - **実機**: OPPO PGEM10（IP は DHCP で変動＝ハードコードせず `adb-bridge` で張り直す）・v21 APK 導入済み。作法＝`/device-verify`。
   **実蔵書7冊・全冊とも本文健在**（2026-08-17 に id・progress とも開始時バックアップと完全一致を確認＝無傷。**絶対に消さない**）。
-  **検証用の残置物**＝捨て本 `6c726cfe`（カクヨム・全26話・本文は復旧済み）／Web カード `N7415ML`／`web_reading_progress` の `N6316BN=14`。
+  **検証用の残置物**＝捨て本2冊（`6c726cfe` カクヨム26話・`cf4ee71b` PDF18章。どちらも本文は復旧済み＝**欠落させ直せば欠落系を踏める**）／
+  Web カード `N7415ML`。books は 7＋2＝9冊。
   **APK は 2026-08-16 投入の debug**（ランキング横スワイプの据わり失敗の修正入り＝端末の `lastUpdateTime` で確定）。
   ベンチ APK 2種（`.benchmark`/`.macrobenchmark`・Kotlin2 版）が残置。
   ⚠️ 同一 WiFi 上に**第三者端末（Huawei P30）が居り、`adb-bridge` は既存 TCP を優先して掴む**＝操作前に端末を取り違えていないか確認
@@ -51,7 +52,8 @@
   ⚠️ 蔵書復旧の現在値: **案X 実装済み**（SAF フォルダ1回指定→ツリー走査→contentSha256 照合→復元・ツリー権限永続化＝2度目以降は無操作）。
   **なろうPDF 由来本（sourceUri 無し）は cache 内 PDF の直接再変換（AutoCachePdf）でも自動復旧**し、削除時は同 ncode 最後の1冊で cache を相乗り削除＋起動時の孤児掃除。
   手元にも cache にも PDF が無い本だけは救えない（前提＝`domain/PdfFolderScan.kt` ヘッダ）。旧機序が常に0冊だった知見＝
-  `docs/knowledge/auto-backup-does-not-restore-uri-permissions.md`。**実機での実復旧確認は未**。
+  `docs/knowledge/auto-backup-does-not-restore-uri-permissions.md`。
+  ✅ **実機で実復旧まで確認済み**（2026-08-17・走査→contentSha256 一致→自動再取込で本文が戻った）。
 
 - **汎用Web小説DL基盤**: `scrape/` のサイトアダプタ抽象＋規約3値ゲート（Supported／Blocked／Unsupported）。取込結果は PDF 蔵書とバイト同契約へ合流。
   対応＝**カクヨム**（JSON 系＝専用アダプタ）＋**暁**（`scrape/generic/` の SiteProfile 表駆動）。なろうグループ・アルファポリス・Pixiv・野いちご・ベリーズカフェは Blocked（公式へ送客）、ハーメルンは保留。
