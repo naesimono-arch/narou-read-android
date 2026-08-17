@@ -1,0 +1,613 @@
+<!-- @dsCard group="UI-n / 候補（裁定用ドラフト）" name="設定行の幅配分（非加重子の幅先取り）A/B/C 比較" -->
+<!--
+  裁定対象＝SettingsScreenK のテーマ行が fontScale 2.0 で行名「テーマ」を失う破綻（2026-08-17 golden 撮影で発覚）。
+  真因＝KSettingsRow の trailing が非加重（weight も maxLines も無い）ため幅を先取りし、title 側だけが縮む。
+  ⚠️ これは同型3例目（①目次の再開チップ＝アイコン化で是正済み ②P の目次 HUD＝凍結中 ③今回）。
+
+  【この HTML の作り】
+   ・パネルはすべて 1dp = 1px の実寸（golden と同じ w360dp・xhdpi）。sp は 16/14/12sp × fontScale をそのまま px に。
+     ＝ここに出る「残り幅」の数値は Compose の実測と一致する（下の検算欄参照。golden 実測で校正済み）。
+   ・左列が fontScale 1.0・右列が 2.0。**1.0 列が全案で同一に見えること**が案の必要条件（目次のときと同じ制約）。
+     ページ最上段の JS が 1.0 列の題字左端・値右端・山括弧右端を現状と突き合わせ、Δ を各パネルに出す（Δ=0 が不変の証拠）。
+   ・冒頭の2枚は CSS 再現ではなく **golden PNG の実物切り出し**（SettingsScreenK_followsystem_light_{1.0,2.0}.png）。
+  ⚠️ 正本ではない＝裁定用の候補。採用後は settings-K.html（正本）と Compose へ反映し、この候補は役目を終える。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>設定行の幅配分 — 非加重子の幅先取り A/B/C</title>
+<style>
+  :root{
+    /* === D トークン実値（settings-K.html と同一） === */
+    --base:#FBFAF8; --ink:#1C1F26; --ink-soft:#7C808B; --line:#ECEAE4;
+    --ai:#1C3D5A; --warn:#B4442F; --ok:#50685C;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;font-family:var(--gothic);color:var(--ink);
+    -webkit-font-smoothing:antialiased;padding:28px 24px 80px}
+  .wrap{max-width:1320px;margin:0 auto}
+
+  h1{font-size:21px;font-weight:700;letter-spacing:.04em;margin-bottom:6px}
+  .sub{font-size:13px;color:#5A5E68;line-height:1.7;margin-bottom:18px}
+  h2{font-size:15px;font-weight:700;letter-spacing:.08em;margin:30px 0 10px;
+    padding-bottom:6px;border-bottom:1px solid #CFCDC6}
+
+  .box{background:var(--base);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:16px}
+  .box p{font-size:13px;line-height:1.85}
+  code{font-family:ui-monospace,"Consolas",monospace;font-size:12.5px;background:#F1EFEA;
+    border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+  .formula{font-family:ui-monospace,"Consolas",monospace;font-size:13px;line-height:2.0;
+    background:#F5F3EE;border-left:3px solid var(--ai);border-radius:0 6px 6px 0;padding:10px 14px;margin:10px 0}
+  .hi{color:var(--warn);font-weight:700}
+  .okc{color:var(--ok);font-weight:700}
+
+  table{border-collapse:collapse;width:100%;font-size:12.5px;margin-top:8px}
+  th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top;line-height:1.6}
+  th{background:#F1EFEA;font-weight:700;letter-spacing:.04em}
+  td.n{font-family:ui-monospace,"Consolas",monospace}
+  tr.bad td{background:#FBF0ED}
+  tr.edge td{background:#FAF6E9}
+
+  /* ===== 証拠（golden 実物） ===== */
+  .evi{display:flex;gap:18px;flex-wrap:wrap}
+  .evi figure{background:var(--base);border:1px solid var(--line);border-radius:10px;padding:10px;width:400px}
+  .evi img{width:100%;display:block;border-radius:6px}
+  .evi figcaption{font-size:12px;color:#5A5E68;margin-top:8px;line-height:1.6}
+
+  /* ===== 比較グリッド ===== */
+  .grid{display:grid;grid-template-columns:150px 392px 392px 1fr;gap:14px;align-items:start;margin-bottom:6px}
+  .ghead{font-size:11.5px;font-weight:700;letter-spacing:.12em;color:var(--ink-soft);padding:0 4px 4px}
+  .rowlabel{padding-top:12px}
+  .rowlabel .nm{font-size:14px;font-weight:700;letter-spacing:.03em}
+  .rowlabel .tag{display:inline-block;font-size:10.5px;letter-spacing:.06em;border-radius:3px;
+    padding:2px 6px;margin-top:6px;border:1px solid var(--line);background:#F1EFEA;color:#5A5E68}
+  .rowlabel .tag.bad{background:#FBF0ED;border-color:#E7C9C1;color:var(--warn)}
+  .rowlabel .tag.ok{background:#EEF2EF;border-color:#C9D6CD;color:var(--ok)}
+  .note{font-size:12px;line-height:1.75;color:#3E424B;padding-top:10px}
+  .note b{color:var(--ink)}
+  .note .con{color:var(--warn)}
+
+  /* ===== 端末実寸パネル（1dp = 1px） ===== */
+  .panel{background:#D9D7D0;border:1px solid #C6C4BD;border-radius:10px;padding:10px}
+  .screen{width:360px;background:var(--base);padding:0 16px;position:relative;border-radius:4px}
+  .screen.fs10{--fs:1.0}
+  .screen.fs20{--fs:2.0}
+  /* 版面ガイド: 題字テキスト左端 72dp と 値の右端（山括弧の左）304dp */
+  .guide{position:absolute;top:0;bottom:0;width:0;border-left:1px dashed #C9B7A8;pointer-events:none}
+  .g1{left:72px}
+  .g2{left:304px}
+
+  .card{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--base);margin:8px 0}
+  .row{display:flex;align-items:center;padding:12px 16px}
+  .row + .row{border-top:1px solid var(--line)}
+  .ic{flex:0 0 24px;width:24px;height:24px;color:var(--ink-soft)}
+  .ic svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  /* Compose: Column(Modifier.weight(1f).padding(start=16,end=8)) */
+  .col{flex:1 1 0;min-width:0;padding-left:16px;padding-right:8px}
+  /* 題字だけ欧文フォントを先頭に置く。なぜ: 省略記号 U+2026 の送り幅を Compose（Roboto ≒ 0.5em・golden 実測
+     15dp/32dp）に合わせるため。和文フォント先頭だと全角 1em になり、幅が足りず Chrome が省略記号ごと
+     捨てて「テ」を出す＝実機と違う（＝2.0 の破綻が実物より軽く見えてしまう）。和文グリフは欧文側に無いので
+     Yu Gothic へ落ちる＝行名の送り幅は 1em のまま変わらない。 */
+  .tt{font-family:"Segoe UI","Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+      font-size:calc(16px * var(--fs));line-height:calc(28px * var(--fs));color:var(--ink);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dd{font-size:calc(12px * var(--fs));line-height:calc(18px * var(--fs));color:var(--ink-soft)}
+  /* Compose: trailing = 素の Text + Icon（weight も maxLines も無い＝非加重子） */
+  .tr{flex:0 0 auto;display:flex;align-items:center}
+  .vv{font-size:calc(14px * var(--fs));line-height:calc(22px * var(--fs));color:var(--ink-soft);white-space:nowrap}
+  .chev{flex:0 0 24px;width:24px;height:24px}
+  .chev svg{width:24px;height:24px;fill:none;stroke:var(--ink-soft);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+  /* --- 案A: 入らないときだけ値を下段へ（1.0 は通常マークアップのまま） --- */
+  .row.stack .vv{white-space:normal;display:block;margin-top:2px}
+
+  /* --- 案B: 値に上限（行名に bodyLarge 4字ぶんを先取り予約）＋省略 --- */
+  .row.cap .vv{display:inline-block;max-width:calc(224px - 64px * var(--fs));
+      overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+
+  /* --- 不採用D: 行名の折返しを許す --- */
+  .row.wrapt .tt{white-space:normal;overflow:visible;text-overflow:clip}
+
+  /* Chrome と Compose で「1字も入らないとき」の振る舞いが違う: Chrome は省略記号を捨てて先頭1字を切って出し、
+     Compose は「…」だけを出す（golden 2.0 の実物がそれ）。実機の絵に合わせるため描画だけ差し替える。
+     ⚠️ 幅は差し替えていない＝脚注の「行名が要る幅 96dp」は隠した本文（テーマ）の実測。 */
+  .tt.composeell .txt{visibility:hidden}
+  .tt.composeell::before{content:"…"}
+
+  /* パネル脚注（実測値の自動表示） */
+  .meas{font-family:ui-monospace,"Consolas",monospace;font-size:11px;color:#5A5E68;
+    margin-top:8px;line-height:1.65;padding:0 2px}
+  .meas .d0{color:var(--ok);font-weight:700}
+  .meas .dx{color:var(--warn);font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>設定行の幅配分 — 非加重子（trailing）の幅先取り</h1>
+  <div class="sub">
+    <b>破綻</b>: <code>SettingsScreenK</code> のテーマ行が fontScale 2.0 で行名「テーマ」を失い <span class="hi">「…」の3点だけ</span>になる。<br>
+    <b>真因</b>: <code>KSettingsRow</code> の trailing に weight も maxLines も無い。Row は<b>非加重子を先に実測幅で確定</b>し、
+    残りを weight 付きの title 側へ渡す＝<b>伸びるのは値、削られるのは行名</b>。<br>
+    <b>同型3例目</b>: ①目次の「ここから再開」チップ（アイコン化で是正済み）②カートリッジP の目次 HUD（凍結中）③今回。
+  </div>
+  <div class="box" style="border-color:#E7C9C1;background:#FBF6F4">
+    <p><b class="hi">⚠️ 型の記述の訂正</b>:
+      <code>docs/knowledge/unweighted-trailing-steals-row-width.md</code> は直し方を
+      「trailing に <b>weight か maxLines</b>（あるいは両方）を与えて上限を切る」と書くが、
+      <b><code>maxLines</code> だけでは1ピクセルも変わらない</b>。<code>maxLines</code> は<b>行数</b>の上限であって
+      <b>幅</b>の上限ではなく、非加重の子は依然として上限なしで実測され、望むだけの幅を先取りする
+      （現trailing は既に実質1行＝<code>maxLines=1</code> を足しても同じ絵になる）。
+      効くのは<b>幅の制約</b>だけ＝<code>weight</code> / <code>widthIn(max)</code> / 段組み。
+      同 md は「是正の型は共有済みなので意匠裁定は不要」とも書くが、<b>幅を切れば必ず「何を削るか」の選択が生じる</b>
+      （行名か・値か・行の高さか）＝それがこのページの裁定対象。</p>
+  </div>
+
+  <h2>0. 証拠（golden PNG の実物切り出し・テーマ行のみ）</h2>
+  <div class="evi">
+    <figure>
+      <img src="data:image/png;base64,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" alt="golden 1.0 テーマ行">
+      <figcaption><b>fontScale 1.0 — 健全</b>　行名「テーマ」と値「システムに従う」が両立。<br>
+        <code>SettingsScreenK_followsystem_light_1.0.png</code> の y=212–322 を等倍切り出し。</figcaption>
+    </figure>
+    <figure>
+      <img src="data:image/png;base64,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" alt="golden 2.0 テーマ行">
+      <figcaption><b>fontScale 2.0 — 破綻</b>　行名が <span class="hi">「…」</span>だけになり、何の行か読めない。
+        アイコン（明暗の半円）だけが手掛かり。<br>
+        <code>SettingsScreenK_followsystem_light_2.0.png</code> の y=286–432 を等倍切り出し。</figcaption>
+    </figure>
+  </div>
+
+  <h2>1. 一般形と、潰れ始める境目（実測校正済み）</h2>
+  <div class="box">
+    <div class="formula">
+行名に残る幅 ＝ 行内容幅 − Σ(非加重子の実測幅)<br>
+　　　　　　＝ 296dp − 24(アイコン) − 24(列padding 16+8) − <b>14sp×s×字数</b>(値) − 24(山括弧)<br>
+テーマ行（値＝「システムに従う」7字）: <b>残り = 224 − 98·s</b> ［dp］　／　行名「テーマ」が要る幅 = <b>48·s</b> ［dp］
+    </div>
+    <p>
+      両者が交わる <code>146·s = 224</code> が境目＝<b class="hi">fontScale 1.53</b>。ここを超えると行名から字が落ち始め、
+      <b class="hi">1.84</b> 以上で「…」だけになる（省略記号の送り幅は 2.0 の golden 実測 15dp ≒ 0.5em で校正）。
+      <b>1.5 は通るが余白 5dp しかない</b>＝値が1字でも伸びれば 1.5 でも折れる、という薄さ。
+    </p>
+    <table>
+      <tr><th style="width:110px">fontScale</th><th style="width:120px">行名に残る幅</th><th style="width:120px">「テーマ」が要る幅</th><th>実際に出る行名</th></tr>
+      <tr><td class="n">1.0</td><td class="n">126dp</td><td class="n">48dp</td><td class="okc">テーマ</td></tr>
+      <tr><td class="n">1.15</td><td class="n">111dp</td><td class="n">55dp</td><td class="okc">テーマ</td></tr>
+      <tr><td class="n">1.30</td><td class="n">97dp</td><td class="n">62dp</td><td class="okc">テーマ</td></tr>
+      <tr class="edge"><td class="n">1.50</td><td class="n">77dp</td><td class="n">72dp</td><td class="okc">テーマ</td><!-- 余白 5dp --></tr>
+      <tr class="edge"><td class="n">1.53</td><td class="n">74dp</td><td class="n">74dp</td><td><b>境目</b>（ここから字が落ちる）</td></tr>
+      <tr class="bad"><td class="n">1.60</td><td class="n">67dp</td><td class="n">77dp</td><td class="hi">テー…</td></tr>
+      <tr class="bad"><td class="n">1.80</td><td class="n">48dp</td><td class="n">86dp</td><td class="hi">テ…</td></tr>
+      <tr class="bad"><td class="n">2.00</td><td class="n">28dp</td><td class="n">96dp</td><td class="hi">…（行名が消える）</td></tr>
+    </table>
+    <p style="margin-top:10px">
+      同じ式で他の行も説明できる（＝式が正しいことの検算）。きせかえ行は値が2字なので
+      残り <code>224−56=168dp</code>＝行名「きせかえ」128dp は通り、<b>説明文だけが 7字/行で折り返す</b>。
+      「文字と組版」行は値ゼロで残り 248dp＝<b>10字/行</b>。いずれも 2.0 の golden の実物と一致する。
+    </p>
+  </div>
+
+  <h2>2. 案の比較（左＝1.0 / 右＝2.0・すべて 1dp = 1px の実寸）</h2>
+  <div class="box" style="padding:12px 18px">
+    <p style="font-size:12.5px">
+      薄い縦の破線は版面ガイド＝<b>左が題字テキストの左端（72dp）・右が値の右端（304dp）</b>。
+      <b>1.0 列でこの2本に対する見え方が現状と一致していれば「1.0 は動いていない」</b>。
+      各パネル下の <code>Δ</code> は JS 実測（現状 1.0 との差・px）。
+    </p>
+    <p style="font-size:12px;color:#5A5E68;margin-top:6px">
+      ⚠️ 幅の再現は <b>golden と ±2dp</b>（和文が Yu Gothic ⇄ Noto Sans CJK で字送りが 1% ほど違う）。
+      そのため <b>折り返しの字数は 1 字ずれることがある</b>（例: きせかえ行の説明文は実機 7字/行・ここでは 6字/行）。
+      <b>裁定は「絵の形」と脚注の数値で行い、字数そのものは実機 golden を正とすること。</b>
+    </p>
+  </div>
+
+  <div class="grid">
+    <div class="ghead">案</div>
+    <div class="ghead">fontScale 1.0</div>
+    <div class="ghead">fontScale 2.0</div>
+    <div class="ghead">所見</div>
+  </div>
+
+  <!-- ============ 現状 ============ -->
+  <div class="grid">
+    <div class="rowlabel">
+      <div class="nm">現状</div>
+      <div class="tag bad">2.0 で行名消失</div>
+    </div>
+    <div class="panel"><div class="screen fs10" data-cand="現状" data-base="1">
+      <span class="guide g1"></span><span class="guide g2"></span>
+      <div class="card">
+        <div class="row">
+          <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+          <div class="col"><div class="tt">テーマ</div></div>
+          <div class="tr"><span class="vv">システムに従う</span><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span></div>
+        </div>
+      </div>
+    </div><div class="meas"></div></div>
+    <div class="panel"><div class="screen fs20" data-cand="現状">
+      <span class="guide g1"></span><span class="guide g2"></span>
+      <div class="card">
+        <div class="row">
+          <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+          <div class="col"><div class="tt composeell"><span class="txt">テーマ</span></div></div>
+          <div class="tr"><span class="vv">システムに従う</span><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span></div>
+        </div>
+      </div>
+    </div><div class="meas"></div></div>
+    <div class="note">
+      値が非加重で 220dp を先取りし、行名には 28dp しか残らない。<br>
+      <span class="con">行の identity が消える</span>＝「何を設定する行か」がアイコン頼みになる。
+    </div>
+  </div>
+
+  <!-- ============ 案A ============ -->
+  <div class="grid">
+    <div class="rowlabel">
+      <div class="nm">案A</div>
+      <div class="tag">入らなければ<br>値を下段へ</div>
+      <div class="tag ok">1.0 不変</div>
+    </div>
+    <div class="panel"><div class="screen fs10" data-cand="A">
+      <span class="guide g1"></span><span class="guide g2"></span>
+      <div class="card">
+        <div class="row">
+          <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+          <div class="col"><div class="tt">テーマ</div></div>
+          <div class="tr"><span class="vv">システムに従う</span><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span></div>
+        </div>
+      </div>
+    </div><div class="meas"></div></div>
+    <div class="panel"><div class="screen fs20" data-cand="A">
+      <span class="guide g1"></span><span class="guide g2"></span>
+      <div class="card">
+        <div class="row stack">
+          <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+          <div class="col"><div class="tt">テーマ</div><span class="vv">システムに従う</span></div>
+          <span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
+        </div>
+      </div>
+    </div><div class="meas"></div></div>
+    <div class="note">
+      値が「説明文の段」へ落ちる＝<b>この画面が既に持つ語彙（題字＋副文）を使い回す</b>ので新しい見え方を発明しない。
+      <b>何も省略されない</b>のが最大の利点。<br>
+      <span class="con">代償</span>: 行が高くなる（2.0 で +46dp／行＝80→126dp）・値の右端揃えという走査手掛かりを 2.0 で失う・
+      レイアウトが2系統になる。<br>
+      切替は <b>fontScale の閾値でなく実測（入るか否か）</b>で判定したい＝きせかえ行のように 2.0 でも入る行を
+      巻き添えで段組みしないため。
+    </div>
+  </div>
+
+  <!-- ============ 案B ============ -->
+  <div class="grid">
+    <div class="rowlabel">
+      <div class="nm">案B</div>
+      <div class="tag">値に上限＋省略<br>行名に幅を予約</div>
+      <div class="tag ok">1.0 不変</div>
+    </div>
+    <div class="panel"><div class="screen fs10" data-cand="B">
+      <span class="guide g1"></span><span class="guide g2"></span>
+      <div class="card">
+        <div class="row cap">
+          <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+          <div class="col"><div class="tt">テーマ</div></div>
+          <div class="tr"><span class="vv">システムに従う</span><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span></div>
+        </div>
+      </div>
+    </div><div class="meas"></div></div>
+    <div class="panel"><div class="screen fs20" data-cand="B">
+      <span class="guide g1"></span><span class="guide g2"></span>
+      <div class="card">
+        <div class="row cap">
+          <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+          <div class="col"><div class="tt">テーマ</div></div>
+          <div class="tr"><span class="vv">システムに従う</span><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span></div>
+        </div>
+      </div>
+    </div><div class="meas"></div></div>
+    <div class="note">
+      <b>削られる側を行名から値へ入れ替える</b>だけ＝版面の骨格も行高も変わらない。上限は
+      <code>224dp − 16sp×4字</code>（行名に bodyLarge 4字ぶんを予約）で、1.0 では上限に届かないので効かない。<br>
+      <span class="con">代償</span>: 2.0 で<b>値が読めなくなる</b>（「システ…」）。ただし値は<b>叩けば復元できる</b>
+      （ダイアログが現在値を選択状態で見せる）のに対し、行名は復元手段が無い＝失う順序としてはこちらが正しい。<br>
+      Compose 実装は2通り: ①値に <code>widthIn(max = …)</code>＋<code>maxLines=1</code>（今の構造のまま・定数1個）
+      ②行名を先に測ってから値の上限を決める <code>SubcomposeLayout</code>（定数無し・正確だが重い）。
+    </div>
+  </div>
+
+  <!-- ============ 案C ============ -->
+  <div class="grid">
+    <div class="rowlabel">
+      <div class="nm">案C-1</div>
+      <div class="tag">語彙短縮<br>「システムに従う」→「自動」</div>
+      <div class="tag bad">1.0 も変わる</div>
+    </div>
+    <div class="panel"><div class="screen fs10" data-cand="C1">
+      <span class="guide g1"></span><span class="guide g2"></span>
+      <div class="card">
+        <div class="row">
+          <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+          <div class="col"><div class="tt">テーマ</div></div>
+          <div class="tr"><span class="vv">自動</span><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span></div>
+        </div>
+      </div>
+    </div><div class="meas"></div></div>
+    <div class="panel"><div class="screen fs20" data-cand="C1">
+      <span class="guide g1"></span><span class="guide g2"></span>
+      <div class="card">
+        <div class="row">
+          <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+          <div class="col"><div class="tt">テーマ</div></div>
+          <div class="tr"><span class="vv">自動</span><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span></div>
+        </div>
+      </div>
+    </div><div class="meas"></div></div>
+    <div class="note">
+      目次の再開チップと同じ発想（<code>TocK.kt:375-395</code>）。<b>コードは1行も足さずに済む</b>。<br>
+      <span class="con">代償</span>: ①<b>1.0 の見え方が変わる</b>（破綻していない側の文言を壊す）
+      ②「自動」は「システムに従う」より弱い＝何に従うのかが消える
+      ③<b>境目を押し下げるだけ</b>＝値が2字なら <code>224−28·s</code> で 2.0 でも 168dp 残るが、
+      式の形（非加重子の先取り）は残るので<b>次に長い値が来たら同じ穴に落ちる</b>。
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="rowlabel">
+      <div class="nm">案C-2</div>
+      <div class="tag">アイコン化<br>（値をグリフに）</div>
+      <div class="tag bad">1.0 も変わる</div>
+    </div>
+    <div class="panel"><div class="screen fs10" data-cand="C2">
+      <span class="guide g1"></span><span class="guide g2"></span>
+      <div class="card">
+        <div class="row">
+          <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+          <div class="col"><div class="tt">テーマ</div></div>
+          <div class="tr"><span class="chev"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><path d="M8.6 15l3.4-7 3.4 7M9.9 12.9h4.2"/></svg></span><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span></div>
+        </div>
+      </div>
+    </div><div class="meas"></div></div>
+    <div class="panel"><div class="screen fs20" data-cand="C2">
+      <span class="guide g1"></span><span class="guide g2"></span>
+      <div class="card">
+        <div class="row">
+          <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+          <div class="col"><div class="tt">テーマ</div></div>
+          <div class="tr"><span class="chev"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><path d="M8.6 15l3.4-7 3.4 7M9.9 12.9h4.2"/></svg></span><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span></div>
+        </div>
+      </div>
+    </div><div class="meas"></div></div>
+    <div class="note">
+      値が <b>dp 固定の 24dp グリフ</b>になるので <b>fontScale から原理的に切り離される</b>（残り 200dp が全域で一定）。
+      目次チップの是正が効いた理由そのもの。<br>
+      <span class="con">代償</span>: テーマは4状態（自動／ライト／セピア／ダーク）＝<b>4つの弁別可能なグリフ</b>が要り、
+      凡例なしでは読めない。<b>大フォントを必要とする人ほど小グリフの弁別が苦手</b>という逆行もある。
+      目次の「再開＝▶」は状態1種だったから成立した＝<b>ここへは素直に移植できない</b>。
+    </div>
+  </div>
+
+  <!-- ============ 不採用D ============ -->
+  <div class="grid">
+    <div class="rowlabel">
+      <div class="nm" style="color:var(--warn)">不採用D</div>
+      <div class="tag bad">行名の折返しを許す</div>
+    </div>
+    <div class="panel"><div class="screen fs10" data-cand="D">
+      <span class="guide g1"></span><span class="guide g2"></span>
+      <div class="card">
+        <div class="row wrapt">
+          <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+          <div class="col"><div class="tt">テーマ</div></div>
+          <div class="tr"><span class="vv">システムに従う</span><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span></div>
+        </div>
+      </div>
+    </div><div class="meas"></div></div>
+    <div class="panel"><div class="screen fs20" data-cand="D">
+      <span class="guide g1"></span><span class="guide g2"></span>
+      <div class="card">
+        <div class="row wrapt">
+          <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+          <div class="col"><div class="tt">テーマ</div></div>
+          <div class="tr"><span class="vv">システムに従う</span><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span></div>
+        </div>
+      </div>
+    </div><div class="meas"></div></div>
+    <div class="note">
+      <b>ここに載せた理由</b>: これが <b>P の目次 HUD で今まさに起きている絵</b>（<code>.mid</code> 約55dp に
+      「第1024話」→ 1行1文字）。<b>幅を配り直さずに折り返しだけ許すと 1行1文字へ縮退する</b>——
+      「省略をやめれば読める」は成り立たない、という反例として置く。
+    </div>
+  </div>
+
+  <h2>3. 説明文つきの行での見え方（案A・案B）</h2>
+  <div class="box" style="padding:12px 18px">
+    <p style="font-size:12.5px">きせかえ行（値2字＋説明文つき）は <b>2.0 でも現状のまま壊れていない</b>。
+      案を入れたときに<b>この行を巻き添えにしないか</b>を見るための対照。</p>
+  </div>
+  <div class="grid">
+    <div class="rowlabel"><div class="nm">対照</div><div class="tag">きせかえ行</div></div>
+    <div class="panel"><div class="screen fs10" data-cand="KISE10" data-nodelta="1">
+      <span class="guide g1"></span><span class="guide g2"></span>
+      <div class="card">
+        <div class="row">
+          <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 4a2.2 2.2 0 0 0 0 4.4c1 0 1 .8 0 1.4L4 14.6c-1.2.7-.7 2.4.7 2.4h14.6c1.4 0 1.9-1.7.7-2.4L12 9.8"/></svg></span>
+          <div class="col"><div class="tt">きせかえ</div><div class="dd">本棚や画面の装いを変える</div></div>
+          <div class="tr"><span class="vv">明快</span><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span></div>
+        </div>
+      </div>
+    </div><div class="meas"></div></div>
+    <div class="panel"><div class="screen fs20" data-cand="KISE20">
+      <span class="guide g1"></span><span class="guide g2"></span>
+      <div class="card">
+        <div class="row">
+          <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 4a2.2 2.2 0 0 0 0 4.4c1 0 1 .8 0 1.4L4 14.6c-1.2.7-.7 2.4.7 2.4h14.6c1.4 0 1.9-1.7.7-2.4L12 9.8"/></svg></span>
+          <div class="col"><div class="tt">きせかえ</div><div class="dd">本棚や画面の装いを変える</div></div>
+          <div class="tr"><span class="vv">明快</span><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span></div>
+        </div>
+      </div>
+    </div><div class="meas"></div></div>
+    <div class="note">
+      <b>現状のまま（＝壊れていない）</b>。行名 128dp に対し残り 168dp・説明文が 7字/行で折り返す（golden と一致）。<br>
+      <b>案B はこの行に触れない</b>（値56dp が上限96dp に届かない）＝<b>巻き添えゼロ</b>。<br>
+      <b>案A は判定を「実測」にすれば触れない</b>が、「fontScale ≥ 1.5 なら段組み」という閾値判定にすると
+      <span class="con">この行まで3段になる</span>＝案A を採るなら判定は実測であること。
+    </div>
+  </div>
+  <div class="grid">
+    <div class="rowlabel"><div class="nm">案A を<br>きせかえ行へ</div><div class="tag bad">段順の決めが要る</div></div>
+    <div class="panel"><div class="screen fs10" data-cand="KISEA10" data-nodelta="1">
+      <span class="guide g1"></span><span class="guide g2"></span>
+      <div class="card">
+        <div class="row">
+          <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 4a2.2 2.2 0 0 0 0 4.4c1 0 1 .8 0 1.4L4 14.6c-1.2.7-.7 2.4.7 2.4h14.6c1.4 0 1.9-1.7.7-2.4L12 9.8"/></svg></span>
+          <div class="col"><div class="tt">きせかえ</div><div class="dd">本棚や画面の装いを変える</div></div>
+          <div class="tr"><span class="vv">明快</span><span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span></div>
+        </div>
+      </div>
+    </div><div class="meas"></div></div>
+    <div class="panel"><div class="screen fs20" data-cand="KISEA20">
+      <span class="guide g1"></span><span class="guide g2"></span>
+      <div class="card">
+        <div class="row stack">
+          <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 4a2.2 2.2 0 0 0 0 4.4c1 0 1 .8 0 1.4L4 14.6c-1.2.7-.7 2.4.7 2.4h14.6c1.4 0 1.9-1.7.7-2.4L12 9.8"/></svg></span>
+          <div class="col"><div class="tt">きせかえ</div><span class="vv">明快</span><div class="dd">本棚や画面の装いを変える</div></div>
+          <span class="chev"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
+        </div>
+      </div>
+    </div><div class="meas"></div></div>
+    <div class="note">
+      強制的に段組みした場合。<b>値は題字の直下・説明文は最後</b>とした（値は題字に属し、説明文は行全体に属するため）。
+      壊れていない行を3段にする分だけ縦が伸びる＝<b>これを避けたいので案A の判定は実測にする</b>、という論拠になる絵。
+    </div>
+  </div>
+
+  <h2>4. 型として: カートリッジP の目次 HUD へ移植できるか</h2>
+  <div class="box">
+    <p>同じ式で3例を並べると、<b>効く手当てと効かない手当て</b>が分かれる。</p>
+    <table>
+      <tr>
+        <th style="width:150px">事例</th><th style="width:290px">非加重子が先取りする幅</th>
+        <th style="width:120px">主役に残る幅</th><th>手当てと結果</th>
+      </tr>
+      <tr><td>目次「ここから再開」<br>チップ（是正済み）</td>
+          <td class="n">チップ文字 156dp（sp・2.0で伸びる）</td>
+          <td class="n">—</td>
+          <td><b class="okc">アイコン化で解決</b>（24dp の dp 固定グリフ＝fontScale から切り離した）。
+              状態が「再開」1種だったので成立。<code>TocK.kt:391</code> に旧値の記録あり。</td></tr>
+      <tr class="bad"><td>P 目次 HUD<br>（凍結中）</td>
+          <td class="n">ゲージ 108.5dp（<b>dp固定</b>）<br>＋「CLEAR N%」124dp（sp）</td>
+          <td class="n">約55dp</td>
+          <td><b>語彙短縮は実施済みで不足</b>（「第1024話」でも 1行1文字・縦165dp）。
+              <b>dp 固定のゲージは短縮しても縮まない</b>＝C 系は原理的に頭打ち。</td></tr>
+      <tr class="bad"><td>設定テーマ行<br>（今回）</td>
+          <td class="n">値 196dp（sp）＋山括弧 24dp</td>
+          <td class="n">28dp</td>
+          <td>本ページの A / B / C。</td></tr>
+    </table>
+    <p style="margin-top:12px">
+      <b>移植の見立て</b>：<br>
+      ・<b>案B（主役に幅を予約し、従を省略）＝P に効く</b>。<code>backlog-frozen.md:117-124</code> の選択肢
+        「進捗側に weight を渡すか」と同じ操作で、ゲージに上限を、CLEAR 表示に省略を入れれば <code>.mid</code> が主役の幅を取り戻す。<br>
+      ・<b>案A（2.0 で段を分ける）＝P に効くが条件つき</b>。backlog のもう一方の選択肢そのもの。ただし HUD は
+        <code>.row height 66dp</code> 固定という別の縛りを持つ（同 backlog の副次項）ので、<b>段を増やすなら高さの縛りを先に外す</b>必要がある。<br>
+      ・<b>案C（短縮・アイコン化）＝P では効かない実証済み</b>。ゲージが dp 固定である以上、文字を削っても
+        先取り幅の主成分が残る。<b>今回の設定行で C を採ると、P で失敗した手を設定でもう一度打つことになる</b>。
+    </p>
+  </div>
+
+  <h2>5. まとめ（裁定の材料）</h2>
+  <div class="box">
+    <table>
+      <tr><th style="width:90px">案</th><th style="width:80px">1.0</th><th style="width:110px">2.0 の行名</th>
+          <th style="width:110px">2.0 の値</th><th style="width:120px">実装コスト</th><th>型としての射程</th></tr>
+      <tr><td>現状</td><td class="okc">健全</td><td class="hi">「…」</td><td>完全</td><td>—</td><td>—</td></tr>
+      <tr><td><b>案A</b></td><td class="okc">不変</td><td class="okc">完全</td><td class="okc">完全</td>
+          <td>大（実測判定＝<br>SubcomposeLayout）</td><td>広い（P にも移植可・ただし P は行高の縛りを先に外す）</td></tr>
+      <tr><td><b>案B</b></td><td class="okc">不変</td><td class="okc">完全</td><td class="hi">「システ…」</td>
+          <td>小（値に上限1個）〜<br>中（実測版）</td><td><b>最も広い</b>（P の「進捗側に weight」と同じ操作）</td></tr>
+      <tr><td>案C-1</td><td class="hi">文言が変わる</td><td class="okc">完全</td><td class="okc">完全</td>
+          <td>極小（文字列）</td><td><b>無い</b>（境目を押すだけ・P で不足が実証済み）</td></tr>
+      <tr><td>案C-2</td><td class="hi">値が絵に変わる</td><td class="okc">完全</td><td class="hi">凡例が要る</td>
+          <td>小</td><td>状態が1種のときだけ（目次はこれで解決した）</td></tr>
+    </table>
+    <p style="margin-top:12px">
+      <b>本便の推し＝案B</b>（実装は①の定数版から入り、②の実測版は必要になってから）。理由は3つ:
+      <b>①失う順序が正しい</b>——行名は復元手段が無いが、値は行を叩けばダイアログが現在値を選択状態で見せる。
+      <b>②巻き添えゼロ</b>——上限に届かない行（きせかえ・バージョン）は 1px も動かず、1.0 も全行不変。
+      <b>③型として一番広い</b>——P の HUD へそのまま移植でき、C で失敗した手を繰り返さない。<br>
+      <b>案A を採る条件</b>: 「2.0 では何も省略しない」を版面の方針として選ぶ場合。そのときは
+      <b>切替判定を fontScale の閾値ではなく実測にする</b>こと（閾値だと壊れていないきせかえ行まで3段になる＝§3 の絵）。
+    </p>
+  </div>
+
+</div>
+
+<script>
+// 1.0 列の「不変」を機械で見せる: 現状 1.0 の題字左端・値右端・山括弧右端を基準に各パネルの Δ を出す。
+// なぜ JS で出すか: 目で見て「同じっぽい」は 2〜3px のずれを見逃す＝案の必要条件の判定にならないため。
+(function(){
+  function px(n){ return Math.round(n*10)/10; }
+  // 行名が「要る幅」は scrollWidth では測れない（折返しを許した不採用D では折返し後の幅を返してしまい、
+  // 「入っている」と誤読させる）。折返し禁止の複製を一時的に置いて実測する。
+  function needWidth(tt){
+    // composeell 行は ::before の「…」が幅に混ざるので、隠した本文（.txt）側を測る。
+    var src = tt.querySelector('.txt') || tt;
+    var c = src.cloneNode(true);
+    c.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;width:auto;max-width:none;overflow:visible';
+    // 親は必ず src の親（.txt なら .tt・.tt なら .col）＝字送りを決めるフォント指定を継承させるため。
+    src.parentElement.appendChild(c);
+    var w = c.getBoundingClientRect().width;
+    c.remove();
+    return w;
+  }
+  function geo(screen){
+    var r0 = screen.getBoundingClientRect();
+    var tt = screen.querySelector('.tt');
+    var vv = screen.querySelector('.vv');
+    var col = screen.querySelector('.col');
+    var chevs = screen.querySelectorAll('.chev');
+    var chev = chevs.length ? chevs[chevs.length-1] : null;
+    var cs = getComputedStyle(col);
+    return {
+      titleLeft: tt ? px(tt.getBoundingClientRect().left - r0.left) : null,
+      valueRight: vv ? px(vv.getBoundingClientRect().right - r0.left) : null,
+      chevRight: chev ? px(chev.getBoundingClientRect().right - r0.left) : null,
+      valueText: vv ? vv.textContent.trim() : null,
+      avail: px(col.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)),
+      need: tt ? px(needWidth(tt)) : null,
+      rowH: px(screen.querySelector('.row').getBoundingClientRect().height)
+    };
+  }
+  var base = geo(document.querySelector('.screen[data-base="1"]'));
+  document.querySelectorAll('.screen').forEach(function(s){
+    var g = geo(s);
+    var out = s.nextElementSibling;
+    if(!out || !out.classList.contains('meas')) return;
+    var fits = (g.need <= g.avail + 0.5);
+    var line1 = '行名に残る幅 ' + g.avail + 'dp ／ 行名が要る幅 ' + g.need + 'dp → '
+              + (fits ? '<span class="d0">全部出る</span>' : '<span class="dx">削られる</span>')
+              + '　行高 ' + g.rowH + 'dp';
+    var line2 = '';
+    if(s.classList.contains('fs10') && !s.dataset.nodelta){
+      var d1 = px(g.titleLeft - base.titleLeft);
+      var d2 = (g.valueRight!=null && base.valueRight!=null) ? px(g.valueRight - base.valueRight) : null;
+      var d3 = px(g.chevRight - base.chevRight);
+      var all0 = (d1===0 && (d2===null||d2===0) && d3===0);
+      // 版面（座標）が同じでも「値の文言そのもの」を変える案がある（C-1/C-2）＝座標 Δ だけ見ると
+      // 「1.0 不変」と誤読する。中身の差も同じ行で言う。
+      var same = (g.valueText === base.valueText);
+      var verdict = !all0 ? '<span class="dx">版面が動く</span>'
+                  : same  ? '<span class="d0">1.0 は動いていない</span>'
+                  : (g.valueText===null ? '<span class="dx">版面は不変・値が絵に変わる</span>'
+                                        : '<span class="dx">版面は不変・値の文言が変わる</span>');
+      line2 = 'Δ(現状1.0比) 題字左 ' + d1 + ' / 値右 ' + (d2===null?'—':d2) + ' / 山括弧右 ' + d3 + 'px → ' + verdict;
+    }
+    out.innerHTML = line1 + (line2 ? '<br>' + line2 : '');
+  });
+})();
+</script>
+</body>
+</html>
