@@ -63,7 +63,15 @@ sed -i '/^sdk\.dir/d' local.properties   # Android Studio が書き戻す Window
 cd android && ./gradlew assembleDebug       # デバッグAPKビルド
 cd android && ./gradlew installDebug        # インストール
 cd android && ./gradlew compileDebugKotlin  # Kotlinコンパイル確認
+cd android && ./gradlew :app:lintDebug      # lint は Windows でも通る（基準 0 errors）
 ```
+
+⚠️ **`testDebugUnitTest` をここに書いていないのは書き漏らしではない**——Windows の JVM では
+描画を伴うテストが `UnsatisfiedLinkError`（`RenderNodeNatives`）で一斉に落ち、**golden の
+verify も record もできない**（2026-08-17 実測＝1436 中 210 失敗・全て同一原因・ロジック系の赤は0）。
+**見た目を変えた変更を Windows セッションだけで完結させられない**＝ゲートは WSL 側の worktree で回すこと。
+機序・実測・併発する「`| tail` が exit code を握り潰す」罠＝
+**`docs/knowledge/windows-jvm-cannot-run-robolectric-native-graphics.md` が正本**。
 
 ## CI と同じゲートをローカルで回す
 
