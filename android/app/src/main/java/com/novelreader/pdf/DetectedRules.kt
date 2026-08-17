@@ -101,38 +101,49 @@ data class DetectedRules(
                     FALLBACK.pageNumSize to FALLBACK.pageNumY
                 }
 
-            // --- lineStepX: ページごとに本文列 x0（groupCharsByLine 相当のキー）を降順整列した
-            //     隣接差分（>0 のみ）を全ページ集計→最頻 0.1 バケット→バケット内中央値で精緻化。
-            //     サンプル<10 は統計不足で FALLBACK。
-            val stepRaws = ArrayList<Double>()
-            for (page in charListsByPage) {
-                val bodyCols = TextProcessor.groupCharsByLine(
-                    page.filter { ParserRules.isClose(it.size, bodySize) }
-                ).keys.sortedDescending()
-                for (i in 0 until bodyCols.size - 1) {
-                    val d = bodyCols[i] - bodyCols[i + 1]
-                    if (d > 0.0) stepRaws.add(d)
-                }
-            }
-            val lineStepX = if (stepRaws.size >= 10) bucketModeRefined(stepRaws) else FALLBACK.lineStepX
-
-            // --- rubyOffsetX: ルビサイズ帯(rubySize±0.1)の文字 x0 と「その x0 未満で最大の本文列 x0」との
+            // --- lineStepX / rubyOffsetX: どちらも「本文サイズの文字だけを列復元した結果」を入力にする。
+            //     元はページごとに同じ filter+groupCharsByLine を2周して別々に組み立てていたが、
+            //     完全に同一の計算なので1周へ畳んで共有する。畳む前は detect 実測の中で
+            //     lineStepX 側 30.8% + rubyOffsetX 側 37.0% を占め、うち片方ぶんの列復元が
+            //     まるごと重複していた（実測＝ExtractPhaseProfileTest の DetectBreakdown）。
+            //     列キーは同じ groupCharsByLine の LinkedHashMap 由来で集合も順序も変わらないため、
+            //     stepRaws / offRaws に積む値は畳み込み前と一致する。
+            //   - lineStepX: 列 x0 を降順整列した隣接差分（>0 のみ）を全ページ集計→最頻 0.1 バケット→
+            //     バケット内中央値で精緻化。サンプル<10 は統計不足で FALLBACK。
+            //   - rubyOffsetX: ルビサイズ帯(rubySize±0.1)の文字 x0 と「その x0 未満で最大の本文列 x0」との
             //     差分を全ページ集計→最頻 0.1 バケット→バケット内中央値。サンプル<10 は FALLBACK。
             //     なぜ主峰のみ: 実測は二峰性（主峰≈14.8・副峰≈9.8が約10%）。副峰 9.8 群は現行定数 14.84 でも
             //     isClose(±0.1) の窓から外れて取りこぼしており、挙動保存のため主峰だけを検出する
             //     （副峰救済は将来の挙動変更＝本リファクタのスコープ外）。
+            val stepRaws = ArrayList<Double>()
             val offRaws = ArrayList<Double>()
             for (page in charListsByPage) {
-                val bodyCols = TextProcessor.groupCharsByLine(
+                val bodyColKeys = TextProcessor.groupCharsByLine(
                     page.filter { ParserRules.isClose(it.size, bodySize) }
-                ).keys.toList()
-                if (bodyCols.isEmpty()) continue
-                for (r in page.filter { ParserRules.isClose(it.size, rubySize) }) {
+                ).keys
+
+                val descending = bodyColKeys.sortedDescending()
+                for (i in 0 until descending.size - 1) {
+                    val d = descending[i] - descending[i + 1]
+                    if (d > 0.0) stepRaws.add(d)
+                }
+
+                if (bodyColKeys.isEmpty()) continue
+                for (r in page) {
+                    // 元は page.filter{ルビ帯} で新規リストを作っていたが、走査順は同じなのでその場で弾く
+                    // （結果は同一で、ページごとのリスト確保だけが消える）。
+                    if (!ParserRules.isClose(r.size, rubySize)) continue
                     // 親列 = ルビ x0 未満で最大の本文列 x0（associateRuby の targetX=r.x0-offset の逆算）。
-                    val parent = bodyCols.filter { it < r.x0 }.maxOrNull() ?: continue
-                    offRaws.add(r.x0 - parent)
+                    // 元は bodyCols.filter{ it < r.x0 }.maxOrNull()＝ルビ1個ごとに新規リストを作っていた。
+                    // 「r.x0 未満の最大」は1パス走査でも同値なので、確保を伴わない形へ置き換える。
+                    var parent: Double? = null
+                    for (x in bodyColKeys) {
+                        if (x < r.x0 && (parent == null || x > parent)) parent = x
+                    }
+                    if (parent != null) offRaws.add(r.x0 - parent)
                 }
             }
+            val lineStepX = if (stepRaws.size >= 10) bucketModeRefined(stepRaws) else FALLBACK.lineStepX
             val rubyOffsetX = if (offRaws.size >= 10) bucketModeRefined(offRaws) else FALLBACK.rubyOffsetX
 
             return DetectedRules(

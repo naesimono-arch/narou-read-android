@@ -149,6 +149,176 @@ class ExtractPhaseProfileTest {
         println(report)
     }
 
+    /**
+     * 支配区間 [PdfExtractor.loadPages]（engine の 66〜69%）を「PDFBox 側のコスト」と
+     * 「こちらが足しているコスト」に分離する。前者が大半なら、この層でできることは無い
+     * （＝最適化の上限がライブラリで決まる）ことが確定する。
+     *
+     * 分離が成立する根拠: [GlyphStripper.processTextPosition] は `super` を呼んでいない＝
+     * PDFTextStripper 既定のテキストバッファ書き込みは元から走らない。よって同じく super を
+     * 呼ばない [ParseOnlyStripper] との差分は、`normalizeGlyphUnicode` + [CharBox] 生成 +
+     * リスト追加だけになる。
+     */
+    @Test
+    fun profileLoadPagesBreakdown() {
+        val fixture = System.getenv("EXTRACT_PROFILE")
+        assumeTrue(
+            "EXTRACT_PROFILE 未設定のためスキップ（例: EXTRACT_PROFILE=N2959KI）。",
+            !fixture.isNullOrBlank(),
+        )
+        val name = fixture!!.trim()
+        val pdf = File(resolveRepoRoot(), "sample_pdfs/$name.pdf")
+        check(pdf.isFile) { "PDF が無い: ${pdf.absolutePath}" }
+
+        // 先に走る方が JIT で不利になるのを避けるため、両者を1往復ウォームアップしてから計測する。
+        runStripper(pdf, collectCharBoxes = false)
+        runStripper(pdf, collectCharBoxes = true)
+
+        val parseOnlyMs = runStripper(pdf, collectCharBoxes = false)
+        val fullMs = runStripper(pdf, collectCharBoxes = true)
+        val ownMs = fullMs - parseOnlyMs
+
+        val report = StringBuilder()
+        report.appendLine(
+            "=== LoadPagesBreakdown: $name at " +
+                "${java.time.Instant.ofEpochMilli(System.currentTimeMillis())} ==="
+        )
+        report.appendLine("PDFBox パース+TextPosition のみ: ${fmt(parseOnlyMs)}ms")
+        report.appendLine("GlyphStripper（本番）:           ${fmt(fullMs)}ms")
+        report.appendLine(
+            "差分＝自前(normalize+CharBox生成): ${fmt(ownMs)}ms " +
+                "(loadPages の ${fmt(ownMs / fullMs * 100)}%)"
+        )
+        // 差分が負になるのは計測ノイズがコスト差を上回った証拠＝自前コストは誤差以下と読む
+        // （0 と報告して「無い」と断定せず、測れなかったことを明示する）。
+        if (ownMs < 0) {
+            report.appendLine("⚠ 差分が負＝自前コストは計測ノイズ以下。有意差なしと読むこと。")
+        }
+        println(report)
+    }
+
+    /**
+     * engine の 22% を占める [DetectedRules.detect] の内訳。可動域のうち費用対効果が最も良い候補が
+     * どのブロックかを決めるために測る。
+     *
+     * ⚠ 被覆外: `modeBucketKey` / `bucketModeRefined`（private のため呼べない）。どちらも
+     * **構築済みリストに対する集計**で、重いのはリスト構築側（ここで測る A/B/D/E）と見込んでいるが、
+     * その見込み自体は未検証なので被覆率の残差に含まれる。
+     *
+     * プローブの `filter` は [DetectedRules.detect] の実出力 `bodySize` / `rubySize` を使うため、
+     * 本体と厳密に同じ集合を対象にする（自前で閾値を再現すると乖離するため）。
+     */
+    @Test
+    fun profileDetectBreakdown() {
+        val fixture = System.getenv("EXTRACT_PROFILE")
+        assumeTrue(
+            "EXTRACT_PROFILE 未設定のためスキップ（例: EXTRACT_PROFILE=N2959KI）。",
+            !fixture.isNullOrBlank(),
+        )
+        val name = fixture!!.trim()
+        val pdf = File(resolveRepoRoot(), "sample_pdfs/$name.pdf")
+        check(pdf.isFile) { "PDF が無い: ${pdf.absolutePath}" }
+
+        PDDocument.load(pdf).use { doc ->
+            val charListsByPage = PdfExtractor.loadPages(doc)
+
+            // 本体を1回ウォームアップしてから実測する（プローブ側だけ JIT で温まる不公平を避ける）。
+            DetectedRules.detect(charListsByPage)
+            val detectStart = System.nanoTime()
+            val rules = DetectedRules.detect(charListsByPage)
+            val detectMs = elapsedMs(detectStart)
+
+            val bodySize = rules.bodySize
+            val rubySize = rules.rubySize
+
+            // --- A: 全ページの文字を1本のリストへ（数百万要素の新規リスト） ---
+            val tA = System.nanoTime()
+            val allChars = charListsByPage.flatten()
+            val flattenMs = elapsedMs(tA)
+            // ⚠ 件数だけ退避して以降 allChars / sizes を参照しない。参照を残すと本体には無い延命が起き、
+            // GC 圧の差で後続ブロック(C/D/E)が過大に出る（初回実測で被覆率 108% を踏んだ真因がこれ）。
+            // 本体では allChars は bodySize 算出後、map{} の結果は modeBucketKey 通過後に即ゴミになる。
+            val glyphCount = allChars.size
+
+            // --- B: サイズだけのリスト（Double の boxing が全要素で発生する） ---
+            val tB = System.nanoTime()
+            val sizeCount = allChars.map { it.size }.size
+            val sizeListMs = elapsedMs(tB)
+
+            // --- C: ページ番号シグネチャの収集（全ページ×全文字・Pair キーの HashMap） ---
+            val tC = System.nanoTime()
+            val comboPages = HashMap<Pair<Double, Double>, MutableSet<Int>>()
+            for ((pi, page) in charListsByPage.withIndex()) {
+                for (c in page) {
+                    if (ParserRules.isClose(c.size, bodySize)) continue
+                    // private な bucket01 と同一式（時間計測用の写し。値の一致が目的ではない）。
+                    val key = (Math.round(c.size * 10.0) / 10.0) to Math.round(c.top).toDouble()
+                    comboPages.getOrPut(key) { mutableSetOf() }.add(pi)
+                }
+            }
+            val comboMs = elapsedMs(tC)
+
+            // --- D: 列復元ループ。畳み込み「前」と「後」の両形状を同一走行で測って比で読む。
+            //     なぜ同一走行での対比が要るか: 走行ごとに機械側の速度が大きく振れ、**変更していない**
+            //     loadPages が同じコードのまま 3.5s→5.8s、processPages が 0.7s→1.0s に振れた走行を実測した。
+            //     走行をまたいだ絶対値比較では変更の効果と機械の振れを分離できないため、旧形状と新形状を
+            //     同じ JVM・同じ入力で並べて測る（比なら機械の速度で割り戻される）。
+            //     旧形状は本体からは既に消えているので、この対照群がその唯一の記録でもある。
+            probeColsOldShape(charListsByPage, bodySize, rubySize) // 両形状をウォームアップしてから測る
+            probeColsMergedShape(charListsByPage, bodySize, rubySize)
+            val oldShapeMs = probeColsOldShape(charListsByPage, bodySize, rubySize)
+            val colsMs = probeColsMergedShape(charListsByPage, bodySize, rubySize)
+
+            val probeTotal = flattenMs + sizeListMs + comboMs + colsMs
+            val report = StringBuilder()
+            report.appendLine(
+                "=== DetectBreakdown: $name at " +
+                    "${java.time.Instant.ofEpochMilli(System.currentTimeMillis())} ==="
+            )
+            report.appendLine("detect 実測: ${fmt(detectMs)}ms (glyphs=$glyphCount sizes=$sizeCount)")
+            report.appendLine(line("  A flatten()", flattenMs, detectMs))
+            report.appendLine(line("  B map{size}", sizeListMs, detectMs))
+            report.appendLine(line("  C comboPages ループ", comboMs, detectMs))
+            report.appendLine(line("  D 列復元(畳み込み後＝本体と同形)", colsMs, detectMs))
+            report.appendLine(
+                "  D' 列復元(畳み込み前の旧形状・対照群): ${fmt(oldShapeMs)}ms" +
+                    " → 同一走行比で ${fmt((1 - colsMs / oldShapeMs) * 100)}% 削減"
+            )
+            report.appendLine(
+                "  プローブ合計: ${fmt(probeTotal)}ms / detect 実測 ${fmt(detectMs)}ms" +
+                    " (被覆率 ${fmt(probeTotal / detectMs * 100)}%＝100%未満は正常)"
+            )
+            if (probeTotal > detectMs) {
+                report.appendLine("  ⚠ プローブ合計が detect 実測を上回った＝本体への追従漏れか計測破損の疑い。")
+            }
+            println(report)
+        }
+    }
+
+    /** [GlyphStripper] と設定を揃えた走査を1回行い、`getText` の所要ミリ秒を返す（PDF ロードは計測外）。 */
+    private fun runStripper(pdf: File, collectCharBoxes: Boolean): Double {
+        PDDocument.load(pdf).use { doc ->
+            val stripper = if (collectCharBoxes) GlyphStripper() else ParseOnlyStripper()
+            stripper.sortByPosition = false
+            stripper.startPage = 1
+            stripper.endPage = Int.MAX_VALUE
+            val start = System.nanoTime()
+            stripper.getText(doc)
+            return elapsedMs(start)
+        }
+    }
+
+    /**
+     * [GlyphStripper] から「CharBox を作って貯める」処理だけを抜いた対照群。
+     * `text.unicode` の取得と空判定までは本番と揃える（そこまでは PDFBox 側のコストのため）。
+     */
+    private class ParseOnlyStripper : com.tom_roush.pdfbox.text.PDFTextStripper() {
+        override fun processTextPosition(text: com.tom_roush.pdfbox.text.TextPosition) {
+            val raw = text.unicode
+            if (raw.isNullOrEmpty()) return
+        }
+    }
+
     private class ProbeResult(
         val classifyMs: Double,
         val sortMs: Double,
@@ -228,6 +398,58 @@ class ExtractPhaseProfileTest {
             rubyMs = rubyNs / 1_000_000.0,
             buildMs = buildNs / 1_000_000.0,
         )
+    }
+
+    /**
+     * 畳み込み**前**の列復元（対照群）。ページごとに同じ filter+groupCharsByLine を2周し、
+     * ルビ1個ごとに `bodyCols.filter{}.maxOrNull()` で新規リストを作る、という当時の形をそのまま保つ。
+     * 本体からは既に消えた形状なので、ここが唯一の記録になる（変更の効果を後から再現・検証できるように残す）。
+     */
+    private fun probeColsOldShape(
+        charListsByPage: List<List<CharBox>>,
+        bodySize: Double,
+        rubySize: Double,
+    ): Double {
+        val start = System.nanoTime()
+        for (page in charListsByPage) {
+            TextProcessor.groupCharsByLine(
+                page.filter { ParserRules.isClose(it.size, bodySize) }
+            ).keys.sortedDescending()
+        }
+        for (page in charListsByPage) {
+            val bodyCols = TextProcessor.groupCharsByLine(
+                page.filter { ParserRules.isClose(it.size, bodySize) }
+            ).keys.toList()
+            if (bodyCols.isEmpty()) continue
+            for (r in page.filter { ParserRules.isClose(it.size, rubySize) }) {
+                bodyCols.filter { it < r.x0 }.maxOrNull() ?: continue
+            }
+        }
+        return elapsedMs(start)
+    }
+
+    /** 畳み込み**後**の列復元（[DetectedRules.detect] の現行と同形）。 */
+    private fun probeColsMergedShape(
+        charListsByPage: List<List<CharBox>>,
+        bodySize: Double,
+        rubySize: Double,
+    ): Double {
+        val start = System.nanoTime()
+        for (page in charListsByPage) {
+            val bodyColKeys = TextProcessor.groupCharsByLine(
+                page.filter { ParserRules.isClose(it.size, bodySize) }
+            ).keys
+            bodyColKeys.sortedDescending()
+            if (bodyColKeys.isEmpty()) continue
+            for (r in page) {
+                if (!ParserRules.isClose(r.size, rubySize)) continue
+                var parent: Double? = null
+                for (x in bodyColKeys) {
+                    if (x < r.x0 && (parent == null || x > parent)) parent = x
+                }
+            }
+        }
+        return elapsedMs(start)
     }
 
     private fun elapsedMs(startNs: Long): Double = (System.nanoTime() - startNs) / 1_000_000.0
