@@ -43,11 +43,16 @@
   /* ---- トップバー（横書きのまま。バーはクロームで本文の書字方向とは無関係）---- */
   .sb{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;
     font-size:11px;color:var(--soft);font-family:var(--gothic)}
-  .topbar{position:relative;z-index:4;height:50px;display:flex;align-items:center;gap:4px;padding:0 16px;
+  /* 縦書きでは上下バーは本文の【上に浮く】＝通常フローに置かず、本文の版面を1pxも削らない
+     （2026-08-17 実装同期。理由は下の .reader の★注記が正本）。.sb（システムステータスバー34px）の
+     直下へ絶対配置し、列はその下を素通りする。ボトムバーは元から絶対配置＝上下で扱いを揃えた。 */
+  .topbar{position:absolute;top:34px;left:0;right:0;z-index:4;height:50px;display:flex;align-items:center;gap:4px;padding:0 16px;
     background:var(--bar);border-bottom:1px solid var(--bar-line)}
   .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;
     place-items:center;color:var(--ink);cursor:pointer}
   .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  /* .ct（バーの章題）は縦書きでは使わない＝2026-08-17 に本文側から外した（理由は body 側の同名コメント）。
+     規定だけ残すのは、横書き reading-D と同じ字面・寸法であることを示すため（縦書き限定の省略だと分かる）。 */
   .topbar .ct{flex:1;font-family:var(--gothic);font-size:13.5px;color:var(--ink);letter-spacing:.04em;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
@@ -60,9 +65,22 @@
     writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;
     overflow-x:auto;overflow-y:hidden;
     scrollbar-width:thin;}
-  /* クローム表示ではボトムバー(60px・不透明)が phone 下端を覆う。縦書きは縦寸＝版面そのもの
-     ＝各行の下端が恒久的にバーへ隠れるため、reader をバー上端で終える（没入時は全面のまま）。 */
-  .phone:not(.immersive) .reader{margin-bottom:60px}
+  /* ★ここは「モックの素朴な規定」をあえて捨てた箇所（2026-08-17 実装同期。この注記が本体）★
+     旧規定は2つあった——〈非没入時は本文をトップバーの下端から始める（.topbar を通常フローに置く）〉と
+     〈非没入時 .phone:not(.immersive) .reader{margin-bottom:60px} で列の下端をボトムバーの上端で終える〉。
+     Compose 実装（VerticalChapterContent.kt:137-146 の contentPadding）はどちらも意図的に採っていない。
+
+     (1) 交差軸の非対称＝バー分の恒久確保は横書きからの【誤翻訳】。横書きの LazyColumn では contentPadding の
+         top/bottom は【スクロール軸】に効くので、章頭・章末に一度だけ入るクリアランス（実装値 64dp/80dp）で済む。
+         ところが縦書きの LazyRow では同じ top/bottom が【交差軸】＝全列の列高から恒久的に差し引かれる。
+         横画面（視野高 360dp）では列高が約4割まで潰れた（2026-07-17 実機実測）。
+     (2) リフロー＝margin-bottom:60px 相当をバーの可視状態へ追従させると、画面タップでバーを出し入れする
+         たびに全列が再組版され、読んでいる位置が跳ねる。
+
+     よって実装は「没入時の全面」へ倒し、バー表示中は列の端がバーの下へ潜るのを許容する（横書きが本文行の
+     バー下通過を許容するのと同じ取引）。列の呼吸は各段落の上下 padding＝ユーザー設定の本文余白が担う。
+     本モックで .topbar/.bottombar が本文の上に浮くのはこの姿を写したもの。
+     ⚠️ 「モックと実装が違う」と見えてもここを戻さないこと＝戻せば上の(1)(2)がそのまま再発する。 */
   .reader::-webkit-scrollbar{height:6px}
   .reader::-webkit-scrollbar-thumb{background:var(--bar-line);border-radius:3px}
 
@@ -100,7 +118,10 @@
     display:flex;align-items:center;justify-content:center;gap:10px;
     border-right:1px solid var(--rule);
     background:linear-gradient(to left,transparent,color-mix(in srgb,var(--blk-bg) 88%,transparent) 60%);}
-  .peek.chrome{top:84px;bottom:60px}   /* sb34+topbar50 と bottombar60 の内側に合わせる */
+  /* 覗き帯は .reader の箱と同じ範囲＝ステータスバー直下から phone 下端まで（バーの下も通る）。
+     旧値 top:84px;bottom:60px は「本文がバーの内側で終わる」旧規定の名残＝上の★注記で捨てた。
+     z-index は帯3 < バー4 のままなので、バーと重なる部分はバーに隠れる＝実装の見え方と一致する。 */
+  .peek.chrome{top:34px;bottom:0}
   .peek.full{top:0;bottom:0}
   .peek .nx{font-family:var(--mincho);font-size:12.5px;color:var(--soft);letter-spacing:.02em;opacity:.85}
   .peek .note{font-family:var(--gothic);font-size:9.5px;color:var(--accent);letter-spacing:.06em;
@@ -124,6 +145,7 @@
 <body>
   <p class="cap"><b>縦書きA. 右→左の連続横スクロール</b> ／ reading-D の視覚言語（寒色白×藍ヘアライン・明朝本文・余白主導・ルビは<ruby>親文字<rt>おやもじ</rt></ruby>の右）を継承し、本文だけを <code>writing-mode:vertical-rl</code>＋横スクロールへ組み替えた触感確認モック。<br><b>操作系:</b> 右→左スクロールで読み進める／章送り＝本文の終端（左端）を越えてさらに引く「連続オーバースクロール」で次章が覗く。根拠: カクヨムWeb版・Readium が同方式（縦書きは横ページ送り／横スクロール）。</p>
   <p class="wcag">本文×背景コントラストは reading-D と同値（ライト ≈15:1 ／ ダーク ≈11:1、いずれも AAA 7:1 を満たす）。PC Chrome ではマウスホイールの縦回転を横スクロールへ変換（モック専用の触感補助）。</p>
+  <p class="wcag" style="max-width:760px"><b>実装同期メモ（2026-08-17・戻す前に読むこと）:</b> 上下バーは本文の上に<b>浮く</b>——非没入でも本文はバー下端から始めず、列の下端をバー上端で終えもしない（列は全高のままバーの下を通る）。旧モックはその2つを規定していたが、縦書き（Compose の <code>LazyRow</code>）では上下の contentPadding が<b>交差軸</b>＝全列の列高から恒久的に差し引かれ、横画面の視野高 360dp で列高が<b>約4割</b>まで潰れる（2026-07-17 実機実測）。横書き <code>LazyColumn</code> の章頭/章末クリアランス 64/80dp をそのまま持ち込むのは<b>誤翻訳</b>で、バー可視状態への追従も<b>タップのたびに全列リフロー</b>を招く。縦書き中はバーに章題も出さない（列上端が題字の下へ潜るため・2026-07-29 裁定）。機序の正本は CSS 内 <code>.reader</code> の★注記／<code>VerticalChapterContent.kt:137-146</code>。</p>
   <div class="stage">
 
     <!-- ① ライト（クローム表示）: 縦書き＋横スクロール／左端に次章の覗き帯 -->
@@ -132,7 +154,10 @@
       <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
       <div class="topbar">
         <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+        <!-- 縦書き中は章題をバーに出さない（2026-07-29 人間裁定(a)・実装 NativeReadingScreen.kt の TopAppBar title）。
+             上の★注記のとおり縦書きは上端クリアランスを持たないので、題字を置くと列の上端がその下へ潜って重なる。
+             章題は本文先頭の章見出し（.chap-h＝実装 VerticalChapterHeader）が担う＝没入時と同じ担当。
+             横書き（reading-D.html）では従来どおりバーに章題を出す＝この省略は縦書き限定。 -->
       </div>
       <div class="reader" data-vscroll>
         <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>

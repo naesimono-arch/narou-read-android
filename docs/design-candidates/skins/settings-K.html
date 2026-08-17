@@ -6,8 +6,12 @@
   【2026-08-06 逆同期（golden SettingsScreenK_default_light 起点）】旧 K 専用 ink-soft #6A6E78 は実装不採用＝
   本画面の補助文字（グループ見出し/説明/アイコン/値/山括弧）は実装で全て onSurfaceVariant #7C808B（--ink-soft を実値へ）。
   golden との既知乖離（構造・文言＝ここでは直さない）: 行順（実装: テーマ→きせかえ→文字と組版）・
-  文字と組版の説明文言と非活性表現（実装は opacity 沈めなし）・きせかえアイコン（実装 Checkroom ハンガー）・
+  文字と組版の非活性表現（実装は opacity 沈めなし）・きせかえアイコン（実装 Checkroom ハンガー）・
   テーマ値表示（golden「ライト」）・バージョン表記 1.0.0・トグル OFF 面（実装 M3 Switch 既定）。
+  【2026-08-17 逆同期】文字と組版の副文は実装（SettingsScreenK.kt）と同一文へ揃えた＝上の乖離表から外した。
+  値の右端は chevron の無い行にも占位（.chev-hole）を置いて全行で揃える規定へ改めた（人間裁定(a)）。
+  なお設定画面の実装は全スキン共通の SettingsScreenK 1本＝本ファイル群は「スキン意匠の設計案」であり、
+  文言・行構成は5枚とも同一が正しい（意匠だけがスキンごとに違う）。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -65,6 +69,12 @@
   .rr{flex-shrink:0;display:flex;align-items:center;gap:8px}
   .rv{font-size:13px;color:var(--ink-soft);letter-spacing:.02em}
   .chev{width:18px;height:18px;fill:none;stroke:var(--ink-soft);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  /* chevron を持たない行の右端占位（不可視・実寸は .chev と同値）。2026-08-17 人間裁定(a)「値の右端は全行で揃える」。
+     なぜ要るか: .rr は〈値 → chevron〉を gap:8px で並べるだけなので、chevron の無い行では値が
+     18+8=26px ぶん右へせり出し、値の右端が行ごとに食い違う（実機実測でも 96px＝24dp のズレ）。
+     占位を1つ置けば chevron の有無に依らず値の右端が一致する＝値だけを縦に読める。
+     トグル行（.toggle）には置かない——操作部品は行の右端に接するのが正で、値の列とは別の役。 */
+  .chev-hole{width:18px;height:18px;flex-shrink:0}
 
   /* 非活性風の行（文字と組版＝読書中設定へ委譲） */
   .row.disabled{opacity:.5}
@@ -110,7 +120,9 @@
         </div>
         <div class="row disabled">
           <span class="ri"><svg viewBox="0 0 24 24"><path d="M5 6.5h14M12 6.5V19"/></svg></span>
-          <div class="rt"><div class="rl">文字と組版</div><div class="rd">文字サイズ・行間は読書中の表示設定から</div></div>
+          <!-- 副文は実装（SettingsScreenK.kt の同行 description）と一字一句同じ＝2026-08-17 人間裁定①「コードに揃える」。
+               「余白」を含め鉤括弧で「表示設定」を名指すのが正（シートの題字が実際にその文字列）。ここを直すときは実装も同時に直す。 -->
+          <div class="rt"><div class="rl">文字と組版</div><div class="rd">文字サイズ・行間・余白は、読書中の「表示設定」から変えられます</div></div>
         </div>
         <div class="row">
           <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 0 0 0 16c1 0 1.5-.8 1.5-1.6 0-1 .8-1.4 1.6-1.4H17a3 3 0 0 0 3-3c0-4.4-3.6-8-8-8z"/><circle cx="8.2" cy="11" r=".9" fill="currentColor" stroke="none"/><circle cx="12" cy="8.4" r=".9" fill="currentColor" stroke="none"/><circle cx="15.6" cy="11" r=".9" fill="currentColor" stroke="none"/></svg></span>
@@ -147,7 +159,7 @@
         <div class="row">
           <span class="ri"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><path d="M12 11.2v5"/><path d="M12 8.2h.01"/></svg></span>
           <div class="rt"><div class="rl">バージョン</div></div>
-          <div class="rr"><span class="rv">1.0</span></div>
+          <div class="rr"><span class="rv">1.0</span><span class="chev-hole" aria-hidden="true"></span></div>
         </div>
       </div>
 
