@@ -114,8 +114,10 @@
         </div>
         <div class="row">
           <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 0 0 0 16c1 0 1.5-.8 1.5-1.6 0-1 .8-1.4 1.6-1.4H17a3 3 0 0 0 3-3c0-4.4-3.6-8-8-8z"/><circle cx="8.2" cy="11" r=".9" fill="currentColor" stroke="none"/><circle cx="12" cy="8.4" r=".9" fill="currentColor" stroke="none"/><circle cx="15.6" cy="11" r=".9" fill="currentColor" stroke="none"/></svg></span>
-          <div class="rt"><div class="rl">きせかえ</div><div class="rd">本棚や画面の装いを変える（現在: 明快）</div></div>
-          <div class="rr"><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+          <!-- 現在の装い名は副文へ混ぜず右端 .rv へ＝テーマ行・バージョン行と同じ「値は右端・説明は副文」の分担（2026-08-14 人間裁定）。
+               なぜ: 「…装いを変える（現在: X）」は実機 360dp で必ず折り返し、閉じ括弧だけが行頭にこぼれる。 -->
+          <div class="rt"><div class="rl">きせかえ</div><div class="rd">本棚や画面の装いを変える</div></div>
+          <div class="rr"><span class="rv">明快</span><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
         </div>
       </div>
 
