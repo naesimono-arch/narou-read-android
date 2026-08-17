@@ -174,6 +174,22 @@ release ビルドを**フラグ off / on の2本**作って突き合わせた（
   （launcher/notification アイコン・`values/{colors,strings,themes}.xml`・`xml/` の3設定）だけで、
   **スキン専用のリソースは1つも無い**（配色も字面も Kotlin 側の値・`res/font/` も無い）。落とされる物が存在しない。
 
+### 【追補 2026-08-17】依存引き上げ後の再測 — ほぼ増えていない
+
+上の 8,654,747 バイトは Kotlin 2.x / Room 2.8.4 / Compose BOM 引き上げ**より前**の値なので、
+引き上げ後の release ビルドで測り直した（この ADR の当時の記録は上のまま残す＝以下は追補）。
+
+- **universal APK（`assembleRelease`・未署名）＝8,709,382 バイト**。
+  旧値との差は **+54,635 バイト（+0.6%）**＝**依存の大幅引き上げを経てもほぼ増えていない**。
+- 併せて AAB と分割APKも取得: **AAB（`bundleRelease`・未署名）＝12,855,903**／
+  **端末上の実ファイル合計＝11,145,753**（base-master 11,070,363＋arm64_v8a 49,616＋xxhdpi 13,140＋ja 12,634）／
+  **Play が配信するダウンロードサイズ＝8,356,913**（全端末構成での幅 8,337,741〜8,358,904）。
+  分割APKは bundletool 1.18.3・device-spec `{arm64-v8a, ja, xxhdpi(480dpi), sdkVersion 36}`・debug 鍵署名で生成。
+- **on-disk が universal より大きい機序**＝分割APKはネイティブライブラリと dex を**非圧縮**で格納するため。
+  配信は圧縮後なので**実質値はダウンロードサイズ**。
+- ⇒ 上の「公開スコープを絞る動機に配信サイズを数えてはいけない」は**再測後も変わらない**
+  （訴求で使う数値の置き場と但し書き＝`docs/marketing/positioning-brief.md`「自アプリの実測」）。
+
 ## 未了（解禁時の作業）
 
 実装は入った（フラグ `SKIN_SWITCHING_ENABLED`＝`Features.skinSwitchingEnabled`・適用点3つ・両値テスト）。
