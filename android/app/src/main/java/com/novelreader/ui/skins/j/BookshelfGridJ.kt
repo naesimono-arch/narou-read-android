@@ -441,50 +441,63 @@ private fun GridTopBar(
     onToggleDeck: () -> Unit,
     onFabClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = Spacing.S16, end = Spacing.S16, top = Spacing.S4, bottom = Spacing.S12), // .g-top padding 6px 16px 12px
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.S4), // .g-top gap 6px
-    ) {
-        // 本棚題字＋薄く冊数（モック .head .ttl＝h1＋.count・K形の明示冊数）。Row に weight(1f) を持たせ右のアイコン群を押し出す。
-        Row(modifier = Modifier.weight(1f)) {
-            Text(
-                "本棚",
-                fontFamily = MinchoFamily,
-                fontSize = 24.sp,             // .g-top h1 24px
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 0.12.em,
-                color = InkPortal,
-                modifier = Modifier.alignByBaseline(),
-            )
-            Spacer(Modifier.width(Spacing.S8))
-            // .count 12px soft（題字とベースラインを揃え、控えめに添える）。
-            Text(
-                "${count}冊",
-                fontSize = 12.sp,             // .head .count 12px
-                letterSpacing = 0.08.em,
-                color = SoftPortal,
-                modifier = Modifier.alignByBaseline(),
-            )
-        }
-        // デッキ表示へ戻る（一覧⇄デッキトグル）。開いた本＝没入デッキの語＝MenuBook で「読む面へ戻る」を表す。
-        PortalIconButton(onClick = onToggleDeck) {
-            Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = "デッキ表示に切替", tint = InkPortal, modifier = Modifier.size(19.dp))
-        }
-        // メニュー⋮。テーマ・新着通知は設定タブ（SettingsScreenK）へ移行済みのため撤去（系2）。非設定項目の「PDFを追加」のみ残す。
-        Box {
-            var menuOpen by remember { mutableStateOf(false) }
+    // ⋮ の開閉状態は g-top の行より外側に持つ＝メニュー本体を行の外（下のアンカー）へ出すため。
+    var menuOpen by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = Spacing.S16, end = Spacing.S16, top = Spacing.S4, bottom = Spacing.S12), // .g-top padding 6px 16px 12px
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.S4), // .g-top gap 6px
+        ) {
+            // 本棚題字＋薄く冊数（モック .head .ttl＝h1＋.count・K形の明示冊数）。Row に weight(1f) を持たせ右のアイコン群を押し出す。
+            Row(modifier = Modifier.weight(1f)) {
+                Text(
+                    "本棚",
+                    fontFamily = MinchoFamily,
+                    fontSize = 24.sp,             // .g-top h1 24px
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.12.em,
+                    color = InkPortal,
+                    modifier = Modifier.alignByBaseline(),
+                )
+                Spacer(Modifier.width(Spacing.S8))
+                // .count 12px soft（題字とベースラインを揃え、控えめに添える）。
+                Text(
+                    "${count}冊",
+                    fontSize = 12.sp,             // .head .count 12px
+                    letterSpacing = 0.08.em,
+                    color = SoftPortal,
+                    modifier = Modifier.alignByBaseline(),
+                )
+            }
+            // デッキ表示へ戻る（一覧⇄デッキトグル）。開いた本＝没入デッキの語＝MenuBook で「読む面へ戻る」を表す。
+            PortalIconButton(onClick = onToggleDeck) {
+                Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = "デッキ表示に切替", tint = InkPortal, modifier = Modifier.size(19.dp))
+            }
+            // メニュー⋮。テーマ・新着通知は設定タブ（SettingsScreenK）へ移行済みのため撤去（系2）。非設定項目の「PDFを追加」のみ残す。
             PortalIconButton(onClick = { menuOpen = true }) {
                 Icon(Icons.Filled.MoreVert, contentDescription = "メニュー", tint = InkPortal, modifier = Modifier.size(19.dp))
             }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text("PDFを追加") },
-                    onClick = { menuOpen = false; onFabClick() },
-                    leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                )
+        }
+        // なぜ ⋮ ボタンを包む Box ではなく「g-top の行の外」をメニューのアンカーにするか:
+        // DropdownMenu は直近の親レイアウトの下端に上端を合わせて開く。⋮ を包む Box を親にすると
+        // アンカー下端＝アイコンの下端（＝行の下余白 S12 の内側）で、ヘッダ全体の下端より上に来るため、
+        // メニューはヘッダの途中に開き、その差ぶんの帯が背後の地のまま外に残って覗く
+        //（M で 2026-08-17 実機再現。docs/knowledge/dropdown-anchor-aligned-to-header-first-line.md）。
+        // offset で押し下げるのは端末・インセット・フォントスケール毎に合わせ直す当て推量になるので採らない。
+        // ここでは g-top と同じ左右余白の帯を敷き、その右下＝「⋮ の右端 × ヘッダ全体の下端」を
+        // 0 サイズのアンカーにする（横位置は従来どおり ⋮ の直下）。
+        Box(modifier = Modifier.matchParentSize().padding(horizontal = Spacing.S16)) {
+            Box(modifier = Modifier.align(Alignment.BottomEnd)) {
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("PDFを追加") },
+                        onClick = { menuOpen = false; onFabClick() },
+                        leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    )
+                }
             }
         }
     }

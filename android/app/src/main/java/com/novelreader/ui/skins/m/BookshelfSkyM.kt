@@ -439,44 +439,57 @@ private fun SkyPlate(
     highLoadSkyM: Boolean = false,
     onHighLoadSkyChange: (Boolean) -> Unit = {},
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.S16, vertical = Spacing.S4),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Column(modifier = Modifier.weight(1f).padding(start = Spacing.S4, top = Spacing.S4)) {
-            Text(
-                "本棚",
-                fontFamily = MinchoFamily,
-                fontSize = 20.sp,              // .plate .name 20px
-                letterSpacing = 0.22.em,       // .22em
-                fontWeight = FontWeight.Medium,
-                color = TextSeizu,
-            )
-            // 銘の meta（モック .plate .meta＝「12冊 ・ 結んだ星座 8 / 12」）＝K形の明示冊数を先頭に添える。
-            Text(
-                "${libraryCount}冊 ・ 結ばれた星座 $boundCount / $totalCount",
-                fontSize = 10.sp,              // .plate .meta 10px
-                letterSpacing = 0.12.em,
-                color = DimSeizu,
-                modifier = Modifier.padding(top = Spacing.S4),
-            )
-        }
-        IconButton(onClick = onToggleList) {
-            Icon(Icons.AutoMirrored.Filled.List, contentDescription = "一覧表示に切替", tint = DimSeizu)
-        }
-        IconButton(onClick = onOpenWardrobe) {
-            // 装いの間だけ星光でほのめかす（モック .ib.wardrobe＝着せ替え入口はこの画面の「別の空」への扉）。
-            FourPointStar(color = StarSeizu, modifier = Modifier.size(19.dp))
-        }
-        Box {
-            var menuOpen by remember { mutableStateOf(false) }
+    // ⋮ の開閉状態は銘の行より外側に持つ＝メニュー本体を行の外（下のアンカー）へ出すため。
+    var menuOpen by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.S16, vertical = Spacing.S4),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(start = Spacing.S4, top = Spacing.S4)) {
+                Text(
+                    "本棚",
+                    fontFamily = MinchoFamily,
+                    fontSize = 20.sp,              // .plate .name 20px
+                    letterSpacing = 0.22.em,       // .22em
+                    fontWeight = FontWeight.Medium,
+                    color = TextSeizu,
+                )
+                // 銘の meta（モック .plate .meta＝「12冊 ・ 結んだ星座 8 / 12」）＝K形の明示冊数を先頭に添える。
+                Text(
+                    "${libraryCount}冊 ・ 結ばれた星座 $boundCount / $totalCount",
+                    fontSize = 10.sp,              // .plate .meta 10px
+                    letterSpacing = 0.12.em,
+                    color = DimSeizu,
+                    modifier = Modifier.padding(top = Spacing.S4),
+                )
+            }
+            IconButton(onClick = onToggleList) {
+                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "一覧表示に切替", tint = DimSeizu)
+            }
+            IconButton(onClick = onOpenWardrobe) {
+                // 装いの間だけ星光でほのめかす（モック .ib.wardrobe＝着せ替え入口はこの画面の「別の空」への扉）。
+                FourPointStar(color = StarSeizu, modifier = Modifier.size(19.dp))
+            }
             IconButton(onClick = { menuOpen = true }) {
                 Icon(Icons.Filled.MoreVert, contentDescription = "メニュー", tint = DimSeizu)
             }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                // 新着通知は設定タブ（SettingsScreenK）へ移行済みのため⋮から撤去（系2）。M は固定1変種でテーマ節も元々無い。
-                // 残すのは M 固有の非設定項目＝高負荷スカイ試作トグル（ADR 0023・debug かつ星図M のときだけ内部ゲートで出る）。
-                HighLoadSkyMenuSection(highLoadSkyM, onHighLoadSkyChange, onDismissMenu = { menuOpen = false })
+        }
+        // なぜ ⋮ ボタンを包む Box ではなく「銘の行の外」をメニューのアンカーにするか:
+        // DropdownMenu は直近の親レイアウトの下端に上端を合わせて開く。⋮ を包む Box を親にすると、
+        // アイコンは Alignment.Top＝銘（題字＋副題の2行）の1行目ぶんの高さしか占めないので、
+        // メニューはヘッダの途中に開き、副題の字面上部が帯状にメニューの外へ残って覗いた
+        //（2026-08-17 実機再現。docs/knowledge/dropdown-anchor-aligned-to-header-first-line.md）。
+        // offset で押し下げるのは端末・インセット・フォントスケール毎に合わせ直す当て推量になるので採らない。
+        // ここでは銘の行と同じ左右余白の帯を敷き、その右下＝「⋮ の右端 × ヘッダ全体の下端」を
+        // 0 サイズのアンカーにする（横位置は従来どおり ⋮ の直下・縦は2行ぶんの下へ）。
+        Box(modifier = Modifier.matchParentSize().padding(horizontal = Spacing.S16)) {
+            Box(modifier = Modifier.align(Alignment.BottomEnd)) {
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    // 新着通知は設定タブ（SettingsScreenK）へ移行済みのため⋮から撤去（系2）。M は固定1変種でテーマ節も元々無い。
+                    // 残すのは M 固有の非設定項目＝高負荷スカイ試作トグル（ADR 0023・debug かつ星図M のときだけ内部ゲートで出る）。
+                    HighLoadSkyMenuSection(highLoadSkyM, onHighLoadSkyChange, onDismissMenu = { menuOpen = false })
+                }
             }
         }
     }

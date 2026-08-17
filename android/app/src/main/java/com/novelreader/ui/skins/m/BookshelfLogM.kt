@@ -523,50 +523,63 @@ private fun LogPlate(
     highLoadSkyM: Boolean = false,
     onHighLoadSkyChange: (Boolean) -> Unit = {},
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.S16, vertical = Spacing.S4),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Column(modifier = Modifier.weight(1f).padding(start = Spacing.S4, top = Spacing.S4)) {
-            Text(
-                "本棚",
-                fontFamily = MinchoFamily,
-                fontSize = 20.sp,              // .lplate .lname 20px
-                letterSpacing = 0.22.em,
-                fontWeight = FontWeight.Medium,
-                color = TextSeizu,
-            )
-            // .lmeta「観測 <b>N</b> 天体 · 最新 <節>」。数字だけ強調色（.lmeta b #B9C2DA）。
-            Row(modifier = Modifier.padding(top = Spacing.S4)) {
-                Text("観測 ", fontSize = 10.sp, letterSpacing = 0.12.em, color = DimSeizu)
+    // ⋮ の開閉状態は銘の行より外側に持つ＝メニュー本体を行の外（下のアンカー）へ出すため。
+    var menuOpen by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.S16, vertical = Spacing.S4),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(start = Spacing.S4, top = Spacing.S4)) {
                 Text(
-                    "$recordCount",
-                    fontSize = 10.sp, letterSpacing = 0.12.em,
-                    fontWeight = FontWeight.SemiBold, color = MetaCountInkSeizu,
+                    "本棚",
+                    fontFamily = MinchoFamily,
+                    fontSize = 20.sp,              // .lplate .lname 20px
+                    letterSpacing = 0.22.em,
+                    fontWeight = FontWeight.Medium,
+                    color = TextSeizu,
                 )
-                Text(
-                    " 天体" + (latestLabel?.let { " · 最新 $it" } ?: ""),
-                    fontSize = 10.sp, letterSpacing = 0.12.em, color = DimSeizu,
-                )
+                // .lmeta「観測 <b>N</b> 天体 · 最新 <節>」。数字だけ強調色（.lmeta b #B9C2DA）。
+                Row(modifier = Modifier.padding(top = Spacing.S4)) {
+                    Text("観測 ", fontSize = 10.sp, letterSpacing = 0.12.em, color = DimSeizu)
+                    Text(
+                        "$recordCount",
+                        fontSize = 10.sp, letterSpacing = 0.12.em,
+                        fontWeight = FontWeight.SemiBold, color = MetaCountInkSeizu,
+                    )
+                    Text(
+                        " 天体" + (latestLabel?.let { " · 最新 $it" } ?: ""),
+                        fontSize = 10.sp, letterSpacing = 0.12.em, color = DimSeizu,
+                    )
+                }
             }
-        }
-        // 星図へ戻す（モック .lib「星図表示に戻す」＝星座線図）。ラベルは既存トグル語 "星図表示に切替" と統一。
-        PlateIcon(onClick = onToggleSky) {
-            ConstellationGlyph(tint = DimSeizu, modifier = Modifier.size(19.dp).semantics { contentDescription = "星図表示に切替" })
-        }
-        PlateIcon(onClick = onOpenWardrobe) {
-            // 装いの間だけ星光でほのめかす（星図面と同じ4条星＝別の空への扉）。
-            FourPointStar(color = StarSeizu, modifier = Modifier.size(19.dp).semantics { contentDescription = "着せ替え" })
-        }
-        Box {
-            var menuOpen by remember { mutableStateOf(false) }
+            // 星図へ戻す（モック .lib「星図表示に戻す」＝星座線図）。ラベルは既存トグル語 "星図表示に切替" と統一。
+            PlateIcon(onClick = onToggleSky) {
+                ConstellationGlyph(tint = DimSeizu, modifier = Modifier.size(19.dp).semantics { contentDescription = "星図表示に切替" })
+            }
+            PlateIcon(onClick = onOpenWardrobe) {
+                // 装いの間だけ星光でほのめかす（星図面と同じ4条星＝別の空への扉）。
+                FourPointStar(color = StarSeizu, modifier = Modifier.size(19.dp).semantics { contentDescription = "着せ替え" })
+            }
             PlateIcon(onClick = { menuOpen = true }) {
                 Icon(Icons.Filled.MoreVert, contentDescription = "メニュー", tint = DimSeizu, modifier = Modifier.size(19.dp))
             }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                // 新着通知は設定タブ（SettingsScreenK）へ移行済みのため⋮から撤去（系2）。残すのは M 固有の非設定項目のみ。
-                // 高負荷スカイ試作トグル（ADR 0023）＝debug かつ星図M のときだけ節ごと出る（内部で自己ゲート）。
-                HighLoadSkyMenuSection(highLoadSkyM, onHighLoadSkyChange, onDismissMenu = { menuOpen = false })
+        }
+        // なぜ ⋮ ボタンを包む Box ではなく「銘の行の外」をメニューのアンカーにするか:
+        // DropdownMenu は直近の親レイアウトの下端に上端を合わせて開く。⋮ を包む Box を親にすると、
+        // アイコンは Alignment.Top＝銘（題字＋ .lmeta の2行）の1行目ぶんの高さしか占めないので、
+        // メニューはヘッダの途中に開き、2行目の字面上部が帯状にメニューの外へ残って覗く
+        //（星図面で 2026-08-17 実機再現。docs/knowledge/dropdown-anchor-aligned-to-header-first-line.md）。
+        // offset で押し下げるのは端末・インセット・フォントスケール毎に合わせ直す当て推量になるので採らない。
+        // ここでは銘の行と同じ左右余白の帯を敷き、その右下＝「⋮ の右端 × ヘッダ全体の下端」を
+        // 0 サイズのアンカーにする（横位置は従来どおり ⋮ の直下・縦は2行ぶんの下へ）。
+        Box(modifier = Modifier.matchParentSize().padding(horizontal = Spacing.S16)) {
+            Box(modifier = Modifier.align(Alignment.BottomEnd)) {
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    // 新着通知は設定タブ（SettingsScreenK）へ移行済みのため⋮から撤去（系2）。残すのは M 固有の非設定項目のみ。
+                    // 高負荷スカイ試作トグル（ADR 0023）＝debug かつ星図M のときだけ節ごと出る（内部で自己ゲート）。
+                    HighLoadSkyMenuSection(highLoadSkyM, onHighLoadSkyChange, onDismissMenu = { menuOpen = false })
+                }
             }
         }
     }

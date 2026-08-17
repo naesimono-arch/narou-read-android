@@ -810,51 +810,64 @@ private fun PortalTopBar(
     onToggleList: () -> Unit,
     onFabClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.S16, vertical = Spacing.S8), // .topbar padding 0 18px→S16
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // メニュー⋮（左）＝テーマ3択＋新着通知（J は3変種）。
-        Box {
-            var menuOpen by remember { mutableStateOf(false) }
+    // ⋮ の開閉状態は topbar の行より外側に持つ＝メニュー本体を行の外（下のアンカー）へ出すため。
+    var menuOpen by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.S16, vertical = Spacing.S8), // .topbar padding 0 18px→S16
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // メニュー⋮（左）＝テーマ3択＋新着通知（J は3変種）。
             PortalIconButton(onClick = { menuOpen = true }) {
                 Icon(Icons.Filled.MoreVert, contentDescription = "メニュー", tint = InkPortal, modifier = Modifier.size(19.dp))
             }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                // テーマ・新着通知は設定タブ（SettingsScreenK）へ移行済みのため⋮から撤去（系2）。非設定項目の「PDFを追加」は残す。
-                // PDF追加＝モックは扉クロームに追加導線を持たない（発見扉は発見専用）。メニュー導線へ移植して全数担保（M の SkyHorizon・P の SlotAdd と同趣旨）。
-                DropdownMenuItem(
-                    text = { Text("PDFを追加") },
-                    onClick = { menuOpen = false; onFabClick() },
-                    leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                )
+            // 位置 idx「n / N」（中央・明朝・字間広め。発見扉では空）。
+            Text(
+                text = indexLabel,
+                fontFamily = MinchoFamily,
+                fontSize = 13.sp,                   // .topbar .idx 13px
+                letterSpacing = 0.12.em,
+                color = IdxInk,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.weight(1f).padding(horizontal = Spacing.S8),
+            )
+            // 見つける（🔍）。
+            PortalIconButton(onClick = onOpenDiscovery) {
+                Icon(Icons.Filled.Search, contentDescription = "見つける", tint = InkPortal, modifier = Modifier.size(19.dp))
+            }
+            Spacer(Modifier.width(Spacing.S4))
+            // 装いの間（金縁でほのめかす＝スキン切替入口・ADR 0021 決定7）。
+            PortalIconButton(onClick = onOpenWardrobe, ward = true) {
+                Icon(Icons.Filled.Checkroom, contentDescription = "着せ替え", tint = GoldPortal, modifier = Modifier.size(19.dp))
+            }
+            Spacer(Modifier.width(Spacing.S4))
+            // 全体をグリッドで見る＝一覧＝D 構造フォールバックへ（デッキ⇄一覧トグルの機能維持）。
+            PortalIconButton(onClick = onToggleList) {
+                Icon(Icons.Filled.GridView, contentDescription = "一覧表示に切替", tint = InkPortal, modifier = Modifier.size(19.dp))
             }
         }
-        // 位置 idx「n / N」（中央・明朝・字間広め。発見扉では空）。
-        Text(
-            text = indexLabel,
-            fontFamily = MinchoFamily,
-            fontSize = 13.sp,                   // .topbar .idx 13px
-            letterSpacing = 0.12.em,
-            color = IdxInk,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f).padding(horizontal = Spacing.S8),
-        )
-        // 見つける（🔍）。
-        PortalIconButton(onClick = onOpenDiscovery) {
-            Icon(Icons.Filled.Search, contentDescription = "見つける", tint = InkPortal, modifier = Modifier.size(19.dp))
-        }
-        Spacer(Modifier.width(Spacing.S4))
-        // 装いの間（金縁でほのめかす＝スキン切替入口・ADR 0021 決定7）。
-        PortalIconButton(onClick = onOpenWardrobe, ward = true) {
-            Icon(Icons.Filled.Checkroom, contentDescription = "着せ替え", tint = GoldPortal, modifier = Modifier.size(19.dp))
-        }
-        Spacer(Modifier.width(Spacing.S4))
-        // 全体をグリッドで見る＝一覧＝D 構造フォールバックへ（デッキ⇄一覧トグルの機能維持）。
-        PortalIconButton(onClick = onToggleList) {
-            Icon(Icons.Filled.GridView, contentDescription = "一覧表示に切替", tint = InkPortal, modifier = Modifier.size(19.dp))
+        // なぜ ⋮ ボタンを包む Box ではなく「topbar の行の外」をメニューのアンカーにするか:
+        // DropdownMenu は直近の親レイアウトの下端に上端を合わせて開く。⋮ を包む Box を親にすると
+        // アンカー下端＝アイコンの下端（＝行の上下余白の内側）で、ヘッダ全体の下端より上に来るため、
+        // メニューはヘッダの途中に開き、その差ぶんの帯（M では2行目の副題の上半分）が外に残って覗く
+        //（M で 2026-08-17 実機再現。docs/knowledge/dropdown-anchor-aligned-to-header-first-line.md）。
+        // offset で押し下げるのは端末・インセット・フォントスケール毎に合わせ直す当て推量になるので採らない。
+        // ここでは topbar と同じ左右余白の帯を敷き、その左下＝「⋮ の左端 × ヘッダ全体の下端」を
+        // 0 サイズのアンカーにする（⋮ は左端なので BottomStart＝横位置は従来どおり ⋮ の直下）。
+        Box(modifier = Modifier.matchParentSize().padding(horizontal = Spacing.S16)) {
+            Box(modifier = Modifier.align(Alignment.BottomStart)) {
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    // テーマ・新着通知は設定タブ（SettingsScreenK）へ移行済みのため⋮から撤去（系2）。非設定項目の「PDFを追加」は残す。
+                    // PDF追加＝モックは扉クロームに追加導線を持たない（発見扉は発見専用）。メニュー導線へ移植して全数担保（M の SkyHorizon・P の SlotAdd と同趣旨）。
+                    DropdownMenuItem(
+                        text = { Text("PDFを追加") },
+                        onClick = { menuOpen = false; onFabClick() },
+                        leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    )
+                }
+            }
         }
     }
 }
