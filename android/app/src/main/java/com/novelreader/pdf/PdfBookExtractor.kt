@@ -47,7 +47,9 @@ internal object PdfBoxEngine : PdfEngine {
 
             override fun runEngine(onProgress: (EnginePhase, Int, Int) -> Unit): List<String> =
                 // runFinalEngine が LOAD/PROCESS を phase 付きで通知する。facade がそれを重み合成する。
-                PdfExtractor.runFinalEngine(doc, onProgress)
+                // pdfFile を渡すのは load フェーズの並列化に各スレッドぶんの PDDocument を開く元が要るため
+                // （並列するか＝K はヒープ上限と文書規模から PdfExtractor が決める。余裕が無ければ単一経路）。
+                PdfExtractor.runFinalEngine(doc, pdfFile, onProgress)
 
             override fun close() = doc.close()
         }
