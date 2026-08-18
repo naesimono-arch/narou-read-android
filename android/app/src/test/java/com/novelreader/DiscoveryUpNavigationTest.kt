@@ -41,6 +41,9 @@ import org.robolectric.annotation.Config
  *      結果一覧・詳細が多段に重ならないこの畳みが、②の「1 pop＝常に一段上」と「再検索の重なりは
  *      同じ結果一覧段（up は履歴を全部は遡らない）」を機構的に保証する。
  *   ⑤ システム Back は ← と同一の up 関数を通る（Back ディスパッチ経由で①②と同じ着地になること）。
+ *   ⑥ 「条件を変更」は up の別名ではない＝横道（検索画面）へ1枚戻す唯一の明示導線。①が検索画面を飛ばして
+ *      畳むぶん、この導線が生きていないと検索条件へ戻る手段が画面から消える（MainActivity の
+ *      `onEditConditions = { navController.popBackStack() }` を同型でミラーする）。
  *
  * NavHost は MainActivity と同型の最小トポロジを共有定数 [TAB_HOST_ROUTE] で組み、Back 側は
  * MainActivity の BackHandler 配線をミラーして本物の up 関数（[popToTab]/[upFromDiscoveryDetail]）を
@@ -121,6 +124,22 @@ class DiscoveryUpNavigationTest {
         assertEquals(TAB_HOST_ROUTE, currentRoute())
         assertEquals(KTab.DISCOVER.ordinal, currentPage())
         assertNull("検索画面も畳まれてタブ層が最上段に残ること", previousRoute())
+    }
+
+    @Test
+    fun editConditionsFromResult_landsOnSearchScreen() {
+        // ⑥ 「条件を変更」は横道（検索画面）へ1枚戻す＝①の up（検索画面を飛ばして発見ホームへ畳む）と対になる。
+        //    実装は MainActivity の `onEditConditions = { navController.popBackStack() }` そのもの（素の履歴 pop）。
+        //    素の pop で戻り先が検索画面に確定するのは、このチップが `ctx.source == ResultSource.SEARCH` の
+        //    ときだけ出る＝結果一覧の1つ下が必ず検索画面だから（DiscoveryResultScreen.kt の SEARCH 限定ガード）。
+        //    キーワード再検索（④）は source=KEYWORD でチップ自体が出ないため、[tabs, result] へ畳んだ形と衝突しない。
+        setUpNav()
+        navigate("discovery/search")
+        navigate("discovery/result")
+        composeTestRule.runOnIdle { navController.popBackStack() }
+        composeTestRule.waitForIdle()
+        assertEquals("「条件を変更」の戻り先は検索画面（up と同じ発見ホームに落ちてはいけない）", "discovery/search", currentRoute())
+        assertEquals("戻したのは結果一覧の1枚だけ＝検索画面の下はタブ層", TAB_HOST_ROUTE, previousRoute())
     }
 
     @Test
