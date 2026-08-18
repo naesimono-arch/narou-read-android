@@ -525,6 +525,11 @@ private fun LogPlate(
 ) {
     // ⋮ の開閉状態は銘の行より外側に持つ＝メニュー本体を行の外（下のアンカー）へ出すため。
     var menuOpen by remember { mutableStateOf(false) }
+    // なぜ入れ物（⋮ ボタン・DropdownMenu）と中身（開発節）を同じ1つの値で駆動するか:
+    // M の⋮に載る項目は高負荷スカイ節ただ1つで、以前は露出条件が節の内側にしか無かった。
+    // 入れ物側は中身の有無を知らないまま無条件に描かれ、release では**空のメニューだけが開いていた**。
+    // 条件を⋮側にも別途書く（＝2箇所に割る）と同じ食い違いを作り直すので、読み口は1つに保つ。
+    val menuHasContent = highLoadSkyMenuVisible
     Box(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.S16, vertical = Spacing.S4),
@@ -561,8 +566,10 @@ private fun LogPlate(
                 // 装いの間だけ星光でほのめかす（星図面と同じ4条星＝別の空への扉）。
                 FourPointStar(color = StarSeizu, modifier = Modifier.size(19.dp).semantics { contentDescription = "着せ替え" })
             }
-            PlateIcon(onClick = { menuOpen = true }) {
-                Icon(Icons.Filled.MoreVert, contentDescription = "メニュー", tint = DimSeizu, modifier = Modifier.size(19.dp))
+            if (menuHasContent) {
+                PlateIcon(onClick = { menuOpen = true }) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = "メニュー", tint = DimSeizu, modifier = Modifier.size(19.dp))
+                }
             }
         }
         // なぜ ⋮ ボタンを包む Box ではなく「銘の行の外」をメニューのアンカーにするか:
@@ -573,12 +580,14 @@ private fun LogPlate(
         // offset で押し下げるのは端末・インセット・フォントスケール毎に合わせ直す当て推量になるので採らない。
         // ここでは銘の行と同じ左右余白の帯を敷き、その右下＝「⋮ の右端 × ヘッダ全体の下端」を
         // 0 サイズのアンカーにする（横位置は従来どおり ⋮ の直下・縦は2行ぶんの下へ）。
-        Box(modifier = Modifier.matchParentSize().padding(horizontal = Spacing.S16)) {
-            Box(modifier = Modifier.align(Alignment.BottomEnd)) {
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    // 新着通知は設定タブ（SettingsScreenK）へ移行済みのため⋮から撤去（系2）。残すのは M 固有の非設定項目のみ。
-                    // 高負荷スカイ試作トグル（ADR 0023）＝debug かつ星図M のときだけ節ごと出る（内部で自己ゲート）。
-                    HighLoadSkyMenuSection(highLoadSkyM, onHighLoadSkyChange, onDismissMenu = { menuOpen = false })
+        if (menuHasContent) {
+            Box(modifier = Modifier.matchParentSize().padding(horizontal = Spacing.S16)) {
+                Box(modifier = Modifier.align(Alignment.BottomEnd)) {
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        // 新着通知は設定タブ（SettingsScreenK）へ移行済みのため⋮から撤去（系2）。残すのは M 固有の非設定項目のみ。
+                        // 高負荷スカイ試作トグル（ADR 0023）。露出条件は上の menuHasContent が唯一の判定（節は自己ゲートを持たない）。
+                        HighLoadSkyMenuSection(highLoadSkyM, onHighLoadSkyChange, onDismissMenu = { menuOpen = false })
+                    }
                 }
             }
         }
