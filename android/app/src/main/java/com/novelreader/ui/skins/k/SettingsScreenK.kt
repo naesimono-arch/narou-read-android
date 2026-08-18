@@ -114,7 +114,9 @@ fun SettingsScreenK(
         // 単一変種スキン（星図M・夜行C＝supportedThemes=[DARK]）はテーマ節を「現在の相の固定表示」に畳む。
         // なぜ: これらの装いは相を1つしか持たず NovelReaderTheme が supportedThemes.first() へクランプする＝
         // 3択ダイアログを出しても選んで変わらない嘘のUIになるため（モック settings-M.html の注記どおり）。
-        // per-skin の文言（「星図 ・ 夜の相」等の装い名つき表現）は次ラウンドの深化＝ここは汎用文で割り切る。
+        // 副文は per-skin（[singleThemeNoticeK]＝各スキンの設定モックが正本。2026-08-17 裁定の翻訳）。
+        // 行名「テーマ」と右端の値は共通のまま＝モック M の primary「星図 ・ 夜の相」（装い名つき）への
+        // 置換は別件（モック冒頭 .chev-hole の注記どおり、この行だけモック構造と1対1に写らない）。
         // この畳んだ側の副文は隠したはずの「きせかえ」を案内するが、公開ビルドでは到達しない＝
         // 単一変種スキンは M/C だけで、そこへ着くには装いの間が要り、skinFromName のクランプで明快K（3変種）に固定されるため。
         val supportedThemes = currentSkin.tokens.supportedThemes
@@ -124,7 +126,7 @@ fun SettingsScreenK(
                 KSettingsRow(
                     icon = Icons.Outlined.Contrast,
                     title = "テーマ",
-                    description = "この装いはひとつの相のみです。ほかの装いは「きせかえ」から選べます",
+                    description = currentSkin.singleThemeNoticeK(),
                     trailing = {
                         KSettingsValue(supportedThemes.firstOrNull()?.displayNameK() ?: appTheme.displayNameK())
                         // 畳んだ側は叩けないので山括弧が無い＝占位が無いと値だけ右へせり出す（[KSettingsChevronHole]）。
@@ -506,6 +508,27 @@ private fun KSettingsRow(
         }
         trailing()
     }
+}
+
+/**
+ * 単一変種スキン（supportedThemes=[DARK]）のテーマ行に出す副文。文言の正本は**各スキンの設定モック**。
+ *
+ * なぜ per-skin か: 「相がひとつ」の説明はその装いの語彙で書かれる（星図Mなら夜天）＝全スキン共通の汎用文だと
+ * 装いの語彙体系から浮く（2026-08-17 人間裁定。モック側は同日反映済みで、ここはその Compose 翻訳）。
+ *
+ * なぜ `else` を置かず全スキンを並べるか: 単一変種スキンが増えたとき、文言を決めないまま汎用文へ黙って
+ * 落ちるのを防ぐため＝スキン追加が必ずコンパイルエラーになり、正本モックの参照を強制できる。
+ * 3変種スキンはこの行に到達しない（呼び出し側が supportedThemes.size <= 1 でしか引かない）。
+ *
+ * ⚠️ 夜行C は設定モック（settings-C.html）が未作成＝文言の正本が存在しない。近似で創作せず従来の汎用文のまま
+ * 置く（ここで埋めると「正本より先にコードが決めた文言」になり、モック作成時に逆同期の負債が生まれる）。
+ */
+private fun Skin.singleThemeNoticeK(): String = when (this) {
+    // 正本: docs/design-candidates/skins/settings-M.html のテーマ行（.relay > .rt2 > .s）
+    Skin.SEIZU_M -> "この装いは夜天ひとつ。ほかの相は「きせかえ」から"
+    // 正本モック未作成のため従来の汎用文（上記 KDoc の ⚠️）。3変種スキンは到達しないが分岐は残す。
+    Skin.YAKO_C, Skin.MEIKAI_K, Skin.WAMODERN_D, Skin.CARTRIDGE_P, Skin.PORTAL_J ->
+        "この装いはひとつの相のみです。ほかの装いは「きせかえ」から選べます"
 }
 
 /** テーマの表示名（K 設定・ダイアログ共用）。既存 enum に表示名が無いためここで写像する。 */
