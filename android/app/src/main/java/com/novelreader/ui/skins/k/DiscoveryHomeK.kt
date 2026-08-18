@@ -74,6 +74,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -257,12 +258,17 @@ internal fun DiscoveryHomeK(
         // なぜ LazyColumn の**外**に置くか: item として置くと縦スクロールで画面外へ出た瞬間に measure されなく
         // なり、PagerState が凍って横スワイプが死ぬ（ランキングを見ながら上へスクロールしただけで期間送りが
         // 効かなくなる）。高さ0ゆえレイアウト・意匠への影響は無い。
-        RankingPagerAnchorK(rankingPagerState)
+        // 縦リストと同じ左右マージンを渡す＝ページ寸法を行の実幅に揃える（[DiscoveryListHorizontalMargin]）。
+        RankingPagerAnchorK(rankingPagerState, DiscoveryListHorizontalMargin)
 
         LazyColumn(
             modifier = Modifier.fillMaxWidth().weight(1f),
             // .scroll padding:6px 20px 20px → 横 S24（D 発見の横マージンと同じ）・下 S24。
-            contentPadding = PaddingValues(start = Spacing.S24, end = Spacing.S24, bottom = Spacing.S24),
+            contentPadding = PaddingValues(
+                start = DiscoveryListHorizontalMargin,
+                end = DiscoveryListHorizontalMargin,
+                bottom = Spacing.S24,
+            ),
         ) {
             item { MoodSectionK(onPickMood, initialMoodPattern) }
             item { GenreSectionK(onOpenGenre, onPickBiggenre) }
@@ -716,6 +722,19 @@ internal fun orderTabFollowTarget(
 private val RankingPageSpacing = Spacing.S24
 
 /**
+ * 発見ホームの縦リストの左右マージン（モック K `.scroll{padding:6px 20px 20px}` の 20px＝トークン S24。
+ * D 発見の横マージンと同じで、新値の発明はしていない）。
+ *
+ * **縦リストの `contentPadding` とアンカーページャ（[RankingPagerAnchorK]）が同じ1値を見る**ことに意味がある
+ *（2026-08-19・据わり失敗の残件①）。`PagerState` が持つ「1ページぶんの送り量」は
+ * アンカーが measure された幅（`layoutInfo.pageSize`）から決まるので、アンカーだけがこのマージンを受けずに
+ * 画面幅いっぱいで measure されると、〈1ページ＝画面幅〉と〈行の実幅＝画面幅−2×S24〉が食い違う。
+ * 結果、1ページ送るのに指は行幅より広く動かす必要があり、覗きの溝も S24 でなく S24＋2×S24 に開く
+ * ＝[RankingPageSpacing] の KDoc が避けたかった「指の位置と覗きの位置のずれ」がページ幅の側から再発する。
+ */
+private val DiscoveryListHorizontalMargin = Spacing.S24
+
+/**
  * ページ送り1つぶんの移動量（px）。`currentPageOffsetFraction` はこの単位に対する比なので、
  * 覗きの位置もこの値から導く。
  */
@@ -747,12 +766,17 @@ private fun Density.rankingPageOffsetPx(pagerState: PagerState, pageIndex: Int):
  *
  * [userScrollEnabled] を false にするのは、指のジェスチャを受けるのが各行スロットの `scrollable` だから
  *（このアンカーは画面上で触れない）。プログラム的な `animateScrollToPage` は従来どおり効く。
+ *
+ * [horizontalMargin]＝行が実際に置かれている左右マージン（[DiscoveryListHorizontalMargin]）。
  */
 @Composable
-private fun RankingPagerAnchorK(pagerState: PagerState, modifier: Modifier = Modifier) {
+private fun RankingPagerAnchorK(pagerState: PagerState, horizontalMargin: Dp, modifier: Modifier = Modifier) {
     HorizontalPager(
         state = pagerState,
-        modifier = modifier.fillMaxWidth(),
+        // 何も描かないアンカーに左右余白を与えるのは意匠でなく**採寸**のため（2026-08-19）:
+        // ページ寸法はここで measure された幅で決まるので、行と同じ幅で measure させないと
+        // 送り量と覗きの溝がその差ぶんずれる（[DiscoveryListHorizontalMargin] の KDoc）。
+        modifier = modifier.fillMaxWidth().padding(horizontal = horizontalMargin),
         pageSpacing = RankingPageSpacing,
         userScrollEnabled = false,
         verticalAlignment = Alignment.Top,
