@@ -60,7 +60,7 @@
 ## 検証タスク（awaiting-human から機械側へ戻した分）
 
 - **[検証] 残るのは⑦だけ**（2026-08-19 棚卸し＝全43項目中17件が人間待ちではなかった。①〜⑥はテストで決着済み）:
-  **⑦ §1-4 push スケルトンの jank 数と §1-7 release の PDF 取込は実機の「数値計測」**（目視ではない。後者は SAF を uiautomator で叩ける）。
+  **⑦ 残るは §1-7 release での PDF 取込だけ**（実機の数値計測。SAF は uiautomator で叩ける）。§1-4 の jank 数は 2026-08-19 に計測済み＝下の [perf] 項目へ。
   **検分方法・既に決着していた分・台帳の誤記＝`docs/knowledge/awaiting-human-machine-decidable-triage.md` が正本**。
   ⚠️ 横向き固定トップは**実測 105.5dp**（Robolectric・insets 0／fontScale 1.0）＝モックの 108dp と整合。「116dp では」の疑いは否定済み。
 
@@ -100,6 +100,15 @@
   `bookshelf-D`・`fusion-D` とも旧世代＝**提案の構造下敷きに使わない**（語彙参照のみ可・下敷きは `skins/bookshelf-K.html`）。
 
 ## リファクタ / 技術的負債（deferred）
+
+- **[perf] 本棚→目次の push 遷移に再現性のある重フレーム**（2026-08-19 実機計測・各12窓）:
+  p50 11.0 / p90 19.4 に対し **p95 61.6 / p99 90.6 / 最大 138.0ms**（約8フレーム落ち）で、
+  **12窓中11窓で 60ms 超が必ず1枚出る**＝偶発でなく構造。jank 率は 13.83% と低く、**率では見つからない**。
+  ⚠️ 対照の本棚→本文は率 20.77% と高いのに**尾は 56ms で頭打ち・100ms 超ゼロ**＝性格が逆。
+  着地先の中身だけを変えた同一手順（同じ捨て本・同じ操作）なので、疑うのは**目次側の初回組み立て**。
+  ⚠️ **この遷移の予算は正本に存在しない**（macrobenchmark の予算は startup/scroll/tab-swipe/chapter-flip/import の5つだけ）
+  ＝直す前に予算を1本立てるか、近い `TabSwipeBudget`（P50 11 / P90 18 / P99 50ms）に倣うかを決める。
+  計測の作法と落とし穴（アニメが走っていない状態を率で比較しない）＝`docs/knowledge/ranking-pager-jank-slow-ui-thread.md` が正本。
 
 - **[perf] 縦書き本文の組版を composition から外す（A+C）— まず計測から**（採否の裁定済み・着手待ち）:
   縦書きは組版が **UI スレッドの composition 段**で走り、キャッシュが LazyRow の item 寿命と同じ＝列が入るたび、
