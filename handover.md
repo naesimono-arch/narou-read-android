@@ -62,6 +62,13 @@
   **調査済みで潰れた経路（＝同じ道を再探索しない）と次にやるべきこと＝`docs/knowledge/chapter-transition-scroll-jump-paths-ruled-out.md` が正本**。
   ⚠️ 機械の総当たりより**遭遇時の条件採取**が本筋＝`awaiting-human.md` §1-4。再現条件が取れたら Robolectric で赤を出してから直す。
 
+## 検証タスク（awaiting-human から機械側へ戻した分）
+
+- **[検証] 人間待ちに紛れていた7件を機械で決める**（2026-08-19 棚卸し＝全43項目中17件が人間待ちではなかった）:
+  安い順に ①§1-2 ⋮ メニューの座標 ②§1-3「条件を変更」の経路 ③§3-1 固定トップ 108dp の実測
+  ④§1-A 電池ダイアログの末尾到達 ⑤§1-6 削除失敗 Snackbar ⑥§1-6 U1 Web 新着の結線 ⑦§1-4 と §1-7 は実機の数値計測。
+  **検分方法・既に決着していた分・台帳の誤記＝`docs/knowledge/awaiting-human-machine-decidable-triage.md` が正本**。
+
 ## Google Play 公開準備 — 技術トラック
 
 > 一次情報＝`/mnt/c/Users/qingj/Desktop/project/アプリ公開戦略/`。決定済み方針＝組織アカウント（個人事業主）／最初から API 36／
