@@ -112,6 +112,18 @@
   **1.3x 未満なら見送り**——進捗の atomic カウンタ化とキャンセル再設計（変更が `loadPages` に閉じない）の
   代償に見合わないため。
 
+- **[perf] 縦書き本文の組版を composition から外す（A+C）— まず計測から**（採否の裁定済み・着手待ち）:
+  縦書きは組版が **UI スレッドの composition 段**で走り、キャッシュが LazyRow の item 寿命と同じ＝列が入るたび、
+  フォント/行間スライダーはドラッグの毎値で可視段落が再組版される構造。**ただし実測がまだ無い**——先に
+  `ChapterFlipBenchmark` へ `verticalMode` 軸を足す（`FlipBudget` P50 15/P90 20/P99 50ms をそのまま流用）。
+  順序は **0（計測）→ A+C → E → D → 8/9**。全16項目の実装状況・採否・不採用の根拠（alpha=0 並走／advance 定数化）＝
+  `.claude/plans/reading-render-perf-triage-2026-08-18.md`。
+  ⚠️ A は組版の寿命とスクロール位置の関係を変える＝**未再現の縦書き章遷移ジャンプの「A 前の挙動」を記録してから**入る。
+
+- **[perf] Compose compiler metrics を1度取る**（配線済み＝`gw -PcomposeCompilerReports=true` で走らせるだけ）:
+  route→Content のラムダ安定性・各層の skippable 判定が未計測。`kotlinx-collections-immutable` を外せるかの
+  再判定もこれ待ち（`android/app/build.gradle` の同依存コメントが「憶測で外すな」と保留している）。
+
 - **[Kotlin2 派生の宿題]** Kotlin 2.2 の KT-73255 警告（Moshi の `@Json` 付き引数で多数）＝
   `-Xannotation-default-target` は挙動を変える指定なので方針を決めてから別便で（連鎖の正本＝ADR 0029）。
 
