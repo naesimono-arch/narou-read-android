@@ -118,10 +118,6 @@
   `.claude/plans/reading-render-perf-triage-2026-08-18.md`。
   ⚠️ A は組版の寿命とスクロール位置の関係を変える＝**未再現の縦書き章遷移ジャンプの「A 前の挙動」を記録してから**入る。
 
-- **[perf] Compose compiler metrics を1度取る**（配線済み＝`gw -PcomposeCompilerReports=true` で走らせるだけ）:
-  route→Content のラムダ安定性・各層の skippable 判定が未計測。`kotlinx-collections-immutable` を外せるかの
-  再判定もこれ待ち（`android/app/build.gradle` の同依存コメントが「憶測で外すな」と保留している）。
-
 - **[Kotlin2 派生の宿題]** Kotlin 2.2 の KT-73255 警告（Moshi の `@Json` 付き引数で多数）＝
   `-Xannotation-default-target` は挙動を変える指定なので方針を決めてから別便で（連鎖の正本＝ADR 0029）。
 

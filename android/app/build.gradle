@@ -356,9 +356,16 @@ dependencies {
     // 導入時（2026-07-08）は strong skipping が無効で、これが skippable 化の唯一の手段だった。
     // その後 2026-07-11 に kotlinOptions で experimentalStrongSkipping=true を有効化しており（上記参照）、
     // 「strong skipping 無効の環境だから要る」という当初の理由は現在は成立しない＝旧コメントを 2026-07-30 に是正。
-    // なお strong skipping 有効下でも本依存は無害で、ImmutableList は「unstable 引数の等値比較に頼らず
-    // 安定と宣言できる」点で今も意味を持つ。要否の再判定（外せるか）は composeCompilerReports で
-    // skippable 状態を実測してから行うこと＝憶測で外すと LazyColumn の再コンポーズが静かに増える。
+    // 【2026-08-19 に composeCompilerReports で実測＝判定は「外せない」】保留していた再判定の答え。
+    // 効いているのは当初想定の「引数」ではなく**フィールド**で、依存は想定より深い:
+    //   stable class ChapterContent { stable val segments: ImmutableList<TextSegment> }
+    //   stable class TextSegment.StyledBlock { stable val segments: ImmutableList<TextSegment> }
+    // List へ戻すと StyledBlock が unstable に落ち、sealed な TextSegment 階層ごと unstable 化して
+    // ChapterContent へ伝播する。strong skipping（module.json の featureFlags で有効を実証）下でも
+    // skippable ではあり続けるが、比較が equals() から === へ変わる——読書 LazyColumn の段落リストは
+    // 抽出結果を変換して作るので === は成立しにくく、再コンポーズが静かに増える。
+    // 外すなら TextSegment 側へ @Immutable を付けて stability を手で宣言するのが前提条件で、
+    // 単に依存を削るだけでは駄目。
     implementation 'org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.7'
 
     // PDF抽出 (PDFBox-Android / Tom Roush 版)。旧 Chaquopy(Python+pdfminer) から移植した唯一の抽出経路。
