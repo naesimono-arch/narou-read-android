@@ -100,6 +100,7 @@ sqlite3 /tmp/…/db "SELECT …"
 | `screenrecord` が全パスで `Unable to open …: Permission denied`（/sdcard・/data/local/tmp とも。shell の touch は通るのに録画だけ失敗＝ColorOS 側の遮断と推定・未確定）。`exec-out --output-format=h264 -` のホスト直ストリームも 0 バイトのままハング | 実質使用不能（2026-07-16 実測）。動画での視覚検証は諦めてユーザー目視に回す（アニメ・ちらつき系は PushNotification→目視OK の通常フロー） |
 | バッテリー最適化除外の画面遷移が誤動作 | #5（`ACTION_APPLICATION_DETAILS_SETTINGS` を使う） |
 | Macrobenchmark / UiAutomation シェル実行がコマンド境界で無限停止（perfetto 起動等・CPU 凍結・SELinux で kill 不能な残骸） | `docs/knowledge/coloros-uiautomation-shell-pipe-eof-hang.md`＝2秒周期 SIGQUIT「除細動ループ」で完走させる。事前に perfetto/trace_processor 残骸ゼロ確認・kill 不能残骸は端末再起動で掃除。`pm grant` 遮断は `install -r -g` で回避 |
+| **新規**パッケージの `adb install` が失敗でなく**無応答**（`push` は 2.7MB/s で正常に終わるのに `pm install` が180秒タイムアウト。`verifier_verify_adb_installs=0` でも止まる） | `docs/knowledge/coloros-blocks-adb-install-of-benchmark-apk.md`＝OEM インストーラ（`InstallGuideActivity`→`PackageParsingV2Activity`）が**画面確認**で待っている。AOSP の検証設定では抜けられず、端末がロック中だと adb から承認もできない＝**人間の2手**（①ロック解除＋画面点灯維持〔開発者向け→充電中は画面を点けたまま〕②確認ダイアログを承認）が要る。⚠️ **既存パッケージの更新（`install -r`）は影響を受けない**＝詰まるのはベンチ APK の初回投入など |
 | 通知が表示されない | #2（ContentIntent 必須） |
 
 ## 5. シェル・パスの罠
