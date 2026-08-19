@@ -9,7 +9,7 @@
 
 - **公開準備（Google Play）**: main 統合済み。targetSdk/compileSdk 36・リリース署名＋AAB 経路・R8 実機回帰・In-App Review 実装まで済。
   プライバシーポリシー/Data safety 下書き済（裁定済み＝収集なし申告・GitHub Pages 公開）・採番規約 ADR 0025 採択（1.0.0）。
-  **残の前置＝ブランド名確定**（applicationId・ストア素材・ポリシー公開が全部これ待ち）＋鍵バックアップ（ユーザー作業）。
+  **ブランド名＝`Yosari` 確定**。残＝applicationId 変更（`app.yosari.reader`・**§1 ツアー後**）／ストア素材／ポリシー公開＋鍵バックアップ（ユーザー作業）。
 
 - **実機スタック報告（2026-07-24）は計測→対処済み**（主因＝タブPager の隣ページ破棄・`beyondViewportPageCount=1` で常駐化・尾部 P99 450→73ms）。
   **最後まで残った 12%級（ランキング期間の横スワイプ）は 2026-08-14 に決着**＝真因は行スロットの `key` に
