@@ -33,7 +33,7 @@
   **実蔵書7冊・全冊とも本文健在**（2026-08-17 に id・progress とも開始時バックアップと完全一致を確認＝無傷。**絶対に消さない**）。
   **検証用の残置物**＝捨て本2冊（`6c726cfe` カクヨム26話・`cf4ee71b` PDF18章。どちらも本文は復旧済み＝**欠落させ直せば欠落系を踏める**）／
   Web カード `N7415ML`。books は 7＋2＝9冊。
-  **APK は 2026-08-19 投入の debug**（現ブランチ＝並列 `loadPages` 入り。端末の `lastUpdateTime` で確定）。
+  **APK は 2026-08-19 投入の debug**（現ブランチ。端末の `lastUpdateTime` で確定）。
   ベンチは `.benchmark`/`.macrobenchmark` とも導入済み（⚠️ **新規**パッケージの投入は ColorOS が止める＝`/device-verify` §4）。
   ⚠️ 同一 WiFi 上に**第三者端末（Huawei P30）が居る**＝操作前に model を確認（機序＝memory `adb-bridge-stale-tcp-holds-wrong-device`・
   **他人の端末なので読み取り以外はしない**＝`docs/knowledge/emui-p30-jank-log-collection.md`）。
@@ -42,7 +42,7 @@
 - **抽出パイプライン＝純 Kotlin（PDFBox-Android）単独**（Chaquopy/Python は 2026-07-05 に完全撤去・復旧は git 履歴から）。
   本文解析は文書ごとの自動検出（`DetectedRules.detect`＝サイズ／列ピッチ／ページ番号座標を実測。検出不能時のみ `ParserRules` 定数へフォールバック）。
   精度回帰＝JVM `JvmGoldenRegressionTest`（golden **4本**を `testDebugUnitTest` で常時検証）＋実機 `PdfExtractorDeviceSpikeTest`（assets 手動配置時のみ）。
-  **ページ範囲並列を採用済み**（K は端末のヒープから動的に決まる＝低ヒープ機は従来の単一経路。実測と裁定＝**ADR 0035**）。
+  **ページ範囲並列を採用済み**（K は端末のヒープから動的＝低ヒープ機は単一経路のまま。正本＝**ADR 0035**）。
 
 - **機能の現在地**（構成の詳細は `/architecture` とコードが正本）: PDF抽出＋ふりがな読書（テーマ／没入クローム／左右スワイプ章送り〔引っ張りプレビュー〕／読書位置・読了の永続化）
   ／**縦書きモード**（連続横スクロール×自前Compose組版・ADR 0020）／なろう発見・検索（ADR 0007・規約線 0010・取込導線 0011/0013）
