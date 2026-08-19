@@ -140,14 +140,6 @@
 - **[ハーメルンの規約まとめ裁定]** `pendingHosts` で保留続行中（正本＝ADR 0024 追記）。
   **放置した場合**＝対応面の拡大は「打ち止め」と裁定済みなので何も困らない。解放するなら blockedHosts/pendingHosts 行の削除＋アダプタ追加だけで着手可。
 
-- **[ベンチ投入の2手＝これが無いとマクロベンチが1本も回らない]**（2026-08-19 に判明）: 計測対象アプリの投入が
-  **ColorOS の OEM インストーラの確認画面**で止まり、端末が資格情報ロック中のため adb からは承認できない
-  （`verifier_verify_adb_installs=0` でも止まる＝AOSP の検証ではなく OPPO 側の門。機序と実測＝
-  `docs/knowledge/coloros-blocks-adb-install-of-benchmark-apk.md`）。
-  **やってほしいこと**＝①ロックを解除し**画面点灯を維持**（開発者向け→「充電中は画面をスリープしない」＋充電接続）
-  ②adb インストールの確認ダイアログを**承認**。この2手で以後は自律で完走できる。
-  **止まっているもの**＝`TabPagerHost` の skip 回復の効果測定・縦書き組版の計測（`ChapterFlipBenchmark` の verticalMode 軸）。
-
 ## 4. 外部手続き・人からしか出てこないもの
 
 - **[検証機の自動回転が OFF のまま]** 2026-08-17 到着時点で `accelerometer_rotation=0`（`/device-verify` は「通常 1」と記載）＝
