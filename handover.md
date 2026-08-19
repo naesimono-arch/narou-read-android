@@ -102,16 +102,10 @@
 ## リファクタ / 技術的負債（deferred）
 
 - **[perf] `TabPagerHost` が決して skip しない**（2026-08-19 metrics で発見・**直し方まで確定・効果測定だけ未了**）:
-  `MainActivity.kt:536-622` の `pages = listOf({…},{…},{…})` が毎コンポーズ新しい `List` を作り、
-  `pages` は `unstable List<Function2<…>>`＝strong skipping 下では `===` 比較なので**必ず不一致＝skip しない**
-  （`app_debug-composables.txt:2099` で裏取り済み）。**駆動源は同 542 行の `isFrontTab = tabPagerState.currentPage == …`**
-  ——tabs ルート scope で `currentPage` を読むため**スワイプの settle ごとに再コンポーズ**する。
-  **直し方（決定済み）**＝各面を局所 val（`@Composable () -> Unit`）へ持ち上げ `remember(p0,p1,p2) { listOf(…) }`。
-  捕捉値を手で並べないのは、将来ラムダが memoize されない形に変わったときキーの同一性が自動で崩れ
-  **現状より悪化しない側へ倒れる**ため。
-  ⚠️ **期待値は小さい**（上乗せは1スワイプにつき `HorizontalPager` 1回ぶん・ページ本体は各ラムダが自 scope を invalidate）
-  ＝**効果が出なければ入れない**。測るには実機が要り、いま**投入が塞がれている**＝`awaiting-human.md` の
-  ベンチ投入の2手が先（機序＝`docs/knowledge/coloros-blocks-adb-install-of-benchmark-apk.md`）。
+  壊れているのはラムダでなく**それを包む `List` の同一性**。診断・駆動源・直し方・キーの選び方＝
+  **`docs/knowledge/tabpagerhost-never-skips-unstable-pages-list.md` が正本**。
+  ⚠️ **期待値は小さく、有意な改善が出なければ入れない**。測るには実機が要り、いまベンチの投入が塞がれている
+  ＝`awaiting-human.md` の「ベンチ投入の2手」が先。
 
 - **[perf] 本棚→目次の push 遷移に再現性のある重フレーム**（2026-08-19 実機計測・各12窓）:
   p50 11.0 / p90 19.4 に対し **p95 61.6 / p99 90.6 / 最大 138.0ms**（約8フレーム落ち）で、
