@@ -43,9 +43,13 @@
 
 - **現況（現在値のみ）→ `STATUS.md`**（ブランチ追従・main が正本）／**やること → `handover.md`**（悩んだらまず見る。完了したら打ち消し線で残さず**消す**）
 - **台帳のサイズ上限は行数でなく文字数で測る（`wc -m`）＝STATUS 6,000／handover 8,000／awaiting-human 12,000**。
-  超えたら**削るのではなく正しい置き場へ移す**（腐りにくい知見→`docs/knowledge/`・凍結→`docs/backlog-frozen.md`・一次情報→`.claude/plans/`）。
-  **なぜ**＝コンテキスト費の実効寄与は読み込み側に偏り、台帳だけで Read の 34.1%・`handover.md` 単独で全体の 8.9% を占める
-  （実測と計測コード＝`docs/knowledge/context-cost-breakdown-2026-08-10.md`）。
+  **上限は「圧縮の合図」ではなく「消化の合図」**＝超えたら第一手は**中身を実行して消し込む**
+  （handover＝やって消す／STATUS＝現在値でなくなった記述を消す／awaiting-human＝人間に出して裁定を取り消し込む）。
+  文章を縮める・他所へ逃がすのは最後の手段で、移してよいのは**そもそも台帳の役目でないもの**だけ
+  （腐りにくい知見→`docs/knowledge/`・凍結→`docs/backlog-frozen.md`・一次情報→`.claude/plans/`・判断→`docs/decisions/`）。
+  **なぜ**＝台帳は文書でなく**在庫**。圧縮・移設は字数だけ下げて在庫を残すので、同じ量が数日で戻る（実際に「移す」運用で3本とも再超過）。
+  字数で縛る理由は読み込み費（台帳だけで Read の 34.1%・`handover.md` 単独で全体の 8.9%
+  ＝`docs/knowledge/context-cost-breakdown-2026-08-10.md`）だが、費用を落とす正しい手段は**やること自体を減らすこと**。
 - **人間の目視・裁定・外部手続き待ち → `awaiting-human.md`**（handover は「Claude が今すぐ動けるもの」だけ。二分の軸＝待ちの種類・迷ったら handover 側＝ADR 0028）
 - **完了の履歴 → git log が正本**／**判断・Why-not → `docs/decisions/`**（方式比較の前にまず README 索引を確認。不採用判断・コミットを生まない判断も ADR 化を検討）／**凍結・見送り → `docs/backlog-frozen.md`**（捨てず解凍条件つき）
 - **腐りにくい知見 → 新規は `docs/knowledge/` に1知見=1ファイル**（`task_diary.md` は凍結アーカイブ＝既存 #N 参照は有効・新規追記はしない）／実装パターンの「なぜ」→ `docs/patterns/`／外部APIなど参照資料 → `docs/reference/`／過去プランの一次情報 → `.claude/plans/`（役目を終えたら `archive/` へ）

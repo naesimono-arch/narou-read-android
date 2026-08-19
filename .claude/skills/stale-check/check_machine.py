@@ -695,7 +695,12 @@ def check_size_budgets():
     # このファイル自身が冒頭で「規約は宣言だけだと数週間で崩れる＝機械の番人だけが実効的な防御」と書いており、
     # その主張が自分自身に対して空振りしていたことになる。
     LEDGER_BUDGETS = {"STATUS.md": 6000, "handover.md": 8000, "awaiting-human.md": 12000}
-    OVERFLOW_HINT = "**削るのではなく正しい置き場へ移す**こと（知見→docs/knowledge・凍結→docs/backlog-frozen・一次情報→.claude/plans・判断→docs/decisions）"
+    # 上限は「圧縮せよ」ではなく「**消化せよ**」の合図（2026-08-19 ユーザー裁定・正本＝CLAUDE.md「管理ドキュメントの体系」）。
+    # 要約・移設だけで字数を下げると在庫はそのまま残り、同じ量が数日で戻る＝実際に「移す」運用で3本とも再超過した。
+    OVERFLOW_HINT = ("**第一手は消化**＝中身を実行して消し込むこと"
+                     "（handover=やって消す／STATUS=現在値でなくなった記述を消す／awaiting-human=人間に出して裁定を取る）。"
+                     "縮める・他所へ移すのは最後の手段で、移してよいのは台帳の役目でないものだけ"
+                     "（知見→docs/knowledge・凍結→docs/backlog-frozen・一次情報→.claude/plans・判断→docs/decisions）")
 
     txt = read_text("STATUS.md")
     if txt is not None:
