@@ -175,6 +175,15 @@ android {
     }
     kotlinOptions {
         jvmTarget = '17'
+        // KT-73255 / KTLC-391: 注釈の既定 target 規則。Kotlin 2.4.0 で新規則（param に加え property〔不可なら
+        // field〕へも付く）が**既定 ON** になるため、2.2 のうちに先取りして黙った変化を避ける（2026-08-19 ユーザー裁定＝案B）。
+        // 本プロジェクトで影響を受けるのは NarouNovel.kt の @Json 付きコンストラクタ引数 30 件だけ。
+        // Moshi の @Json は @Target を持たない Java 注釈＝全 element 適用可なので、新規則では param+field に付く。
+        // 生成アダプタは不変（moshi-kotlin-codegen の KSP はキー名をソース側の宣言から読む）で、
+        // KotlinJsonAdapterFactory も未使用＝反射経路の影響も無い。差はバックフィールドに @Json が載ることだけ。
+        // ⚠ 退避するなら `first-only`（旧規則の凍結）へ1行変えるだけ。⚠ `@field:Json` へ寄せる案は採らないこと
+        // ——codegen のキー名解決が param/property 側なので JSON キーが Kotlin 名へ落ちて静かに壊れる。
+        freeCompilerArgs += ['-Xannotation-default-target=param-property']
     }
     buildFeatures {
         compose true
