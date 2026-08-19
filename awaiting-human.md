@@ -137,6 +137,16 @@
 - **[FAB と空棚CTA の被り＝要るのは意匠裁定]**（2026-08-19 に機械側で決着）: `BookshelfKFabTest`（fontScale 2.0・w360×h640）が
   **静止時の重なりは器の予約では消せず、消すなら意匠側（FAB の出没/縮退）が要る**と確定させた＝実機で見ても同じ結論しか出ない。
   **決めること**＝FAB を出没させるか・縮退させるか・現状維持か。
+- **[KT-73255 の方針＝A/B/C の裁定]**（2026-08-19 調査済み・連鎖の正本＝ADR 0029）: 警告は **30件・全て
+  `narou/model/NarouNovel.kt` の `@Json` 付きコンストラクタ引数**（Room の `@PrimaryKey` は `@Target` が
+  `FIELD,METHOD` で対象外と実測）。**放置してもエラーにはならない**が、**Kotlin 2.4.0 で新規則が既定 ON**になり
+  `@Json` が param に加え field にも付く（KTLC-391／compatibility-guide-24 の2点で照合）。Moshi の生成アダプタは
+  KSP がソース側からキー名を読むので不変、`KotlinJsonAdapterFactory` 未使用なので反射経路の影響も無い。
+  **決めること**＝**A** `-Xannotation-default-target=first-only`（現状凍結・1行）／**B** `=param-property`
+  （2.4 を先取り・1行・Claude の推奨）／**C** 30箇所を `@param:Json` に明示（恒久・差分30行）。
+  ⚠️ **`@field:Json` は不可**——一般に推奨として出てくるが、Moshi codegen のキー名解決が param/property 側なので
+  JSON キーが静かに壊れる恐れ。B を採るなら踏むゲート＝`testDebugUnitTest` ＋ golden verify ＋ release R8 の実機起動
+  （赤が出たら A へ退避＝どちらも1行）。
 - **[ハーメルンの規約まとめ裁定]** `pendingHosts` で保留続行中（正本＝ADR 0024 追記）。
   **放置した場合**＝対応面の拡大は「打ち止め」と裁定済みなので何も困らない。解放するなら blockedHosts/pendingHosts 行の削除＋アダプタ追加だけで着手可。
 

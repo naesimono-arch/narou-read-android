@@ -124,9 +124,6 @@
   `.claude/plans/reading-render-perf-triage-2026-08-18.md`。
   ⚠️ A は組版の寿命とスクロール位置の関係を変える＝**未再現の縦書き章遷移ジャンプの「A 前の挙動」を記録してから**入る。
 
-- **[Kotlin2 派生の宿題]** Kotlin 2.2 の KT-73255 警告（Moshi の `@Json` 付き引数で多数）＝
-  `-Xannotation-default-target` は挙動を変える指定なので方針を決めてから別便で（連鎖の正本＝ADR 0029）。
-
 ## workflow / tooling
 
 - **[運用] worktree 作業の冒頭で `gw :app:lintDebug` を回す**（基準＝**0 errors**・warnings は非ブロックの参考値）。
