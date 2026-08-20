@@ -47,9 +47,21 @@ import org.robolectric.annotation.GraphicsMode
  *    組が作者行の `weight(1f, fill=false)` 防御を試し、**"約41時間（123.5万字）"** が `IntrinsicSize.Min` で
  *    組んだ2×2表の列幅主張を試す。短い既定値（題名 "t"・作者 "w"）で撮ると 1.0 と 2.0 の差がほぼ出ず、
  *    走査 `tools/check_golden_*.py`（1.0 と 2.0 の対で判定）が原理的に何も拾えない。
- *  - `story`（ライトのみ×2スケール）＝あらすじ〜キーワードまで送った版。上端 golden の画角外にある
- *    約210字の本文ブロックと 24個のタグ FlowRow がここにしか写らない。既存流儀どおり追加状態はライトのみ
- *    （色トークンは `content` 側が張る）で、狙いは折り返し段数の退行だけに絞る。
+ *  - `story`（ライトのみ×2スケール）＝末尾キーワードまで送った版。24個のタグ FlowRow の**下側の段**が
+ *    ここに写る。既存流儀どおり追加状態はライトのみ（色トークンは `content` 側が張る）で、狙いは
+ *    折り返し段数の退行だけに絞る。
+ *    ⚠️ 旧 KDoc は「約210字の本文ブロックが**ここにしか写らない**」と書いていたが**事実に反していた**
+ *    （2026-08-21 に画素で確認）。送り先が末尾タグ「完結済み」＝それが画角の下端に来るので、
+ *    あらすじ本文はとうに上へ流れ去っている。下の2 case はその穴を塞ぐために足したもの。
+ *  - `synopsis`（ライトのみ×2スケール）＝キーワードの**先頭チップ**まで送った版。下端に「R15」が来る
+ *    ように送るので、画角には〈あらすじ本文の下側 → キーワード見出し → 見出し下の空き → 1段目のチップ〉が
+ *    そろって入る。狙いは2つで、(a) 約210字の本文ブロックの折り返し（`story` が写していなかったぶん）と
+ *    (b) **節見出しの下の空き S12**。(b) は 4ee7829 がモック逆同期で S8→S12 へ直した値なのに、
+ *    どの golden の画角にも入っておらず戻しても緑のままだった（2026-08-21 の回帰監査）。
+ *  - `tail`（ライトのみ×2スケール）＝末尾の取得時刻メタまで送った版。下端が最終行になるので、画角には
+ *    〈評価見出し → 見出し下の空き → 評価行 → 末尾メタ〉が入る。狙いは **last-updated の上アキ S16**で、
+ *    こちらも 4ee7829 が S24→S16 へ直した値ながら画角外だった。評価節は従来どの golden にも
+ *    写っておらず、この case で初めて絵が付く。
  *
  * 撮っていないもの（既知の穴）: Loading / NotFound / Error の3状態、取込済み（`isImported=true`）の
  * 固定バー分岐、本棚トグルの on 状態。いずれも版面が小さく、拡大破綻の主戦場ではないため後回し。
@@ -98,15 +110,42 @@ class NovelDetailScreenScreenshotTest(
             )
         }
 
-        if (caseId == CASE_STORY) {
-            // 最後のタグまで送る＝あらすじブロックとタグ FlowRow の全段が画角に入ることの担保。
-            // 「キーワード」見出しへ送るだけだと見出しが下端に来てチップが1つも写らない
-            //（送り先を末尾要素にするのは DiscoveryHomeKScreenshotTest の ranking case と同じ考え方）。
-            composeTestRule.onNodeWithText(LAST_KEYWORD).performScrollTo()
+        // 送り先は「その case で**画角の下端に来てほしい**要素」を名指しする。下へ送るときの
+        // performScrollTo はその要素の下辺をスクロール域の下辺に合わせるので、下端を指定すれば
+        // 「そこから上へ1画面ぶん」が写る＝写したい帯を後ろから指定できる。
+        val scrollTarget = when (caseId) {
+            CASE_STORY -> LAST_KEYWORD
+            CASE_SYNOPSIS -> FIRST_KEYWORD
+            CASE_TAIL -> null // 末尾メタは substring 一致で引く（文言に取得時刻が混ざるため）
+            else -> null
+        }
+        if (scrollTarget != null) {
+            composeTestRule.onNodeWithText(scrollTarget).performScrollTo()
             composeTestRule.waitForIdle()
             // スクロールが空振りすると golden が「上端と同じ絵」に化け、以後この case は
             // どんな退行も検出しなくなる（＝撮っているのに守らない golden）。
-            composeTestRule.onNodeWithText(LAST_KEYWORD).assertIsDisplayed()
+            composeTestRule.onNodeWithText(scrollTarget).assertIsDisplayed()
+        } else if (caseId == CASE_TAIL) {
+            composeTestRule.onNodeWithText(FETCHED_AT_SUFFIX, substring = true).performScrollTo()
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithText(FETCHED_AT_SUFFIX, substring = true).assertIsDisplayed()
+        }
+        // 狙った帯が本当に画角へ入ったかを、下端の要素だけでなく**上側の要素**でも名指しする。
+        // 下端だけの担保では「送りすぎて狙いの見出しが上へ抜けた」絵をそのまま golden にしてしまい、
+        // 見出し下の空きを守るつもりの case が何も守らなくなる。
+        when (caseId) {
+            CASE_SYNOPSIS -> composeTestRule.onNodeWithText(KEYWORD_HEADING).assertIsDisplayed()
+            CASE_TAIL -> {
+                // 末尾メタの**直上**は評価表の最終行＝この2つが同時に写っていれば、両者の間の上アキ S16 が
+                // 画角に入っていることになる（守りたい値そのもの）。どちらのスケールでも成り立つ。
+                composeTestRule.onNodeWithText(LAST_EVAL_LABEL).assertIsDisplayed()
+                // 評価**見出し**（＝見出し下 S12 の担保）は 1.0 でしか同じ画角に入らない。2.0 では
+                // 評価4行が膨らんで見出しが上へ抜けるため、ここで縛ると実装が正しいまま赤になる。
+                // S12 側は `synopsis`（キーワード見出し）が両スケールで担保するので取りこぼしは無い。
+                if (fontScale == 1.0f) {
+                    composeTestRule.onNodeWithText(EVAL_HEADING).assertIsDisplayed()
+                }
+            }
         }
 
         composeTestRule.captureRoot(goldenName("NovelDetailScreen", caseId, theme, fontScale))
@@ -115,6 +154,8 @@ class NovelDetailScreenScreenshotTest(
     companion object {
         private const val CASE_CONTENT = "content"
         private const val CASE_STORY = "story"
+        private const val CASE_SYNOPSIS = "synopsis"
+        private const val CASE_TAIL = "tail"
         /** 書影の地色は bookId のハッシュ由来（[com.novelreader.ui.components.BookCover]）＝ncode 固定で決定的。 */
         private const val NCODE = "N9876AB"
 
@@ -123,14 +164,30 @@ class NovelDetailScreenScreenshotTest(
         /** [DiscoveryScreenshotFixtures.MANY_KEYWORDS] の最終トークン。 */
         private const val LAST_KEYWORD = "完結済み"
 
+        /** [DiscoveryScreenshotFixtures.MANY_KEYWORDS] の先頭トークン＝1段目のチップ。 */
+        private const val FIRST_KEYWORD = "R15"
+
+        /** 末尾メタは "HH:mm 時点の情報"（先頭に最終更新が付く）＝時刻に依らない後半で引く。 */
+        private const val FETCHED_AT_SUFFIX = "時点の情報"
+
+        private const val KEYWORD_HEADING = "キーワード"
+        private const val EVAL_HEADING = "評価"
+
+        /** 評価表の最終行ラベル（末尾メタの直上に来る＝上アキ S16 を画角へ入れる目印）。 */
+        private const val LAST_EVAL_LABEL = "週間ポイント"
+
         @JvmStatic
         @Parameters(name = "{0}_{1}_scale{2}")
         fun data(): List<Array<Any>> = buildList {
             ScreenshotConfig.THEMES.forEach { t ->
                 ScreenshotConfig.FONT_SCALES.forEach { s -> add(arrayOf<Any>(CASE_CONTENT, t, s)) }
             }
-            ScreenshotConfig.FONT_SCALES.forEach { s ->
-                add(arrayOf<Any>(CASE_STORY, ReadingTheme.LIGHT, s))
+            // 追加3 case はいずれもライトのみ×2スケール（色トークンは content 側が張る＝
+            // ここで見たいのは画角と折り返しだけ）。
+            listOf(CASE_STORY, CASE_SYNOPSIS, CASE_TAIL).forEach { case ->
+                ScreenshotConfig.FONT_SCALES.forEach { s ->
+                    add(arrayOf<Any>(case, ReadingTheme.LIGHT, s))
+                }
             }
         }
     }
