@@ -26,7 +26,21 @@
            **案5 が既に採っている収め方（作品色を固定座標の箔罫1本だけに許す）を、書影のある版面へ持ち込んだもの。**
   2-c 淡地: 帯の地そのものを作品色から導く。ただし彩度14%・明度93%の固定窓へ圧縮するので、
            どの色相でも明度が揃う＝墨のコントラストは13.88〜14.36:1（振れ0.5以内＝実質不変）。
-           ⚠️ ただし青磁チップは白地2.14:1→淡地1.87〜1.94:1へ悪化する（AA未達は既存課題だが本案が一段悪くする）。
+           ⚠️→解決済（2026-08-21 再裁定「2cが好きだが5にするかぁ」を受けて）: 青磁チップの AA 未達は
+           **白地の時点で2.14:1＝2-cが原因ではない**。ADR 0014-D「意味を運ぶ文字は4.5:1」の移行で未読ラベル
+           だけが濃青磁 UnreadSeiji(#50685C) へ移り、ジャンル／キーワード／「なろう・未取込」が取りこぼされて
+           いた。**既存トークンを適用漏れへ当てるだけ**で素地5.79:1・淡地5.09〜5.26:1＝全8色相でAA充足＝
+           2-c の唯一の障害が消える（新色は発明しない。枠線は装飾なので据置可・淡地で輪郭を保つなら #6E8A7C で3.16:1）。
+
+  ---- タグのまたがり（同裁定の指摘）の真因 ----
+  **モック由来**（実装ではなく本ファイルの版面バグ）。3つが重なっていた:
+   ①`.genre-label` が span のままで縦padding/borderが行ボックスに算入されず、レイアウト高(約14px)より
+     見た目(約24px)が10px高い＝flex column の下端で計算より下へはみ出す → `display:inline-block` で解消。
+   ②作者行に nowrap が無く、4アクション版の「〜 ／ 第12話まで読了」が2行に折り返して下を押していた。
+     **実装は既に maxLines=1+Ellipsis**（NovelDetailScreen）＝モックが実装を写していなかった → nowrap+ellipsis へ。
+   ③題名が3行clampで、長題名だと1行増えるだけで境界を越えた → 2行clampへ。
+  結果、kmeta の最悪高は 天14＋題名44.8＋間6＋作者15＋間6＋チップ23.8＝**109.6px**で帯下端120pxまで
+  10.4pxの余裕＝**内容に依らずまたがらない**。⚠️ Compose へ翻訳する際も同じ拘束（題名2行clamp・作者1行）が要る。
 
   ---- 不変条件 ----
   ・本棚には変更を要求しない。3案とも ShioriCover を題名で呼ぶだけで、**書影そのものは本棚と1ピクセル同じ**
@@ -50,6 +64,8 @@
   :root{
     --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
     --ai:#1C3D5A;--seiji:#9CB3A8;--kinari:#EFEAE0;
+    /* 青磁ink＝既存トークン UnreadSeiji(#50685C)。ADR 0014-D「意味を運ぶ文字は4.5:1」の適用漏れを埋めるために使う（新色ではない） */
+    --seiji-ink:#50685C;--seiji-line:#6E8A7C;
     --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   }
@@ -116,10 +132,15 @@
   .kaeshi .shiori{position:absolute;left:24px;top:14px;width:110px;height:146px;border-radius:2px;overflow:hidden;
     box-shadow:0 3px 10px rgba(28,31,38,.22)}
   .kaeshi .shiori canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
-  .kaeshi .kmeta{position:absolute;left:150px;right:24px;top:18px;display:flex;flex-direction:column;gap:7px}
+    /* 帯(120px)の内側に必ず収まる寸法へ固定する。天14＋題名2行44.8＋間6＋作者1行15＋間6＋チップ23.8＝109.6
+     ＝境界120まで10.4px の余裕。題名clampと作者nowrapが無いと1行増えるだけで境界をまたぐ（またがりの真因その2・3）。 */
+  .kaeshi .kmeta{position:absolute;left:150px;right:24px;top:14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
   .kaeshi .kmeta .t{font-family:var(--mincho);font-size:16px;font-weight:600;line-height:1.4;color:var(--ink);
-    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-  .kaeshi .kmeta .au{font-size:12.5px;color:var(--ink);font-weight:500}
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  /* 実装は作者行を maxLines=1+Ellipsis にしている（NovelDetailScreen）。モックがそれを写しておらず
+     4アクション版の「〜 ／ 第12話まで読了」が2行に折り返して下を押していた＝またがりの真因その3。 */
+  .kaeshi .kmeta .au{font-size:12.5px;color:var(--ink);font-weight:500;align-self:stretch;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   /* 案5: 帯の寸法据置のまま漉き紙＋空押し題字＋作品色の箔罫（＝作品色を固定座標の1本だけに許す収め方） */
   .cvp{position:relative;width:100%;height:120px;flex-shrink:0;overflow:hidden}
@@ -127,7 +148,10 @@
 
   .detail-meta-top{display:flex;justify-content:space-between;align-items:center;margin-top:16px;height:36px}
   .author{font-size:12.5px;color:var(--ink);font-weight:500;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-  .genre-label{font-size:11.5px;color:var(--seiji);border:1px solid var(--seiji);padding:4px 8px;border-radius:2px;font-weight:500;white-space:nowrap;flex-shrink:0}
+    /* display:inline-block が要る＝span のままだと縦padding/borderが行ボックスに算入されず、
+     レイアウト上の高さ(約14px)より見た目(約24px)が10px高くなる。flex column の下に置くと
+     この差分だけチップが計算より下へはみ出し、帯の境界をまたぐ（またがりの真因その1）。 */
+  .genre-label{display:inline-block;font-size:11.5px;color:var(--seiji-ink);border:1px solid var(--seiji);padding:4px 8px;border-radius:2px;font-weight:500;white-space:nowrap;flex-shrink:0}
   .status-grid{border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:16px;display:flex;flex-direction:column}
   .status-row{display:flex;box-sizing:content-box}
   .status-row + .status-row{border-top:1px solid var(--line)}
@@ -141,7 +165,7 @@
   .sec + *{margin-top:12px}
   .summary-p{font-family:var(--mincho);font-size:14px;line-height:26px;color:var(--ink);text-align:justify}
   .kw-chips{display:flex;flex-wrap:wrap;gap:8px}
-  .kw-chip{font-size:11px;color:var(--seiji);border:1px solid var(--seiji);border-radius:2px;padding:4px 8px}
+  .kw-chip{display:inline-block;font-size:11px;color:var(--seiji-ink);border:1px solid var(--seiji);border-radius:2px;padding:4px 8px}
 
   .fixed-bar{flex-shrink:0;background:var(--base);border-top:1px solid var(--line);padding:16px 24px;display:flex;flex-direction:column}
   .slot{height:48px;display:flex;align-items:center;flex-shrink:0}
@@ -155,6 +179,16 @@
   .fixed-bar button svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5;flex-shrink:0}
   .bar-note{padding-top:8px;line-height:28px;text-align:center;font-size:10.5px;color:var(--ink-soft);flex-shrink:0}
 
+  .chipdemo{display:flex;gap:14px;flex-wrap:wrap;max-width:1200px;width:100%;margin-bottom:6px}
+  .cd{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+  .cd .cdl{font-size:11px;color:#6A6C67;letter-spacing:.04em}
+  .cdbox{padding:16px 20px;border-radius:3px;border:1px solid #D8D5CC}
+  .chip{display:inline-block;font-size:11.5px;padding:4px 8px;border-radius:2px;font-weight:500;white-space:nowrap}
+  .chip.old{color:var(--seiji);border:1px solid var(--seiji)}
+  .chip.new{color:var(--seiji-ink);border:1px solid var(--seiji)}
+  .chip.new.line{border-color:var(--seiji-line)}
+  /* 色相260＝8色相中いちばん暗い淡地＝チップにとって最悪ケース（hsl(260 14% 93%) の実値） */
+  #cdA,#cdB,#cdC{background:#ECEBF0}
   table.m{border-collapse:collapse;max-width:1200px;width:100%;font-size:11.5px;background:rgba(255,255,255,.55)}
   table.m th,table.m td{border:1px solid #d8d5cc;padding:7px 10px;text-align:left;vertical-align:top;line-height:1.6;color:#4a4c47}
   table.m th{background:rgba(0,0,0,.045);font-weight:600;font-size:11px;letter-spacing:.06em;color:#2A2C28}
@@ -175,7 +209,33 @@
   <div><b>振れているのは画面の 0.1%</b>作品ごとに変わるのは色相8値・棒のx・棒の長さ・先端174種だけ。紙地・墨・彩度48%・明度52%は全作品で固定。カード110×146dpの有色画素は<b>1.79〜2.29%</b>（先端は包絡＝上限）＝<b>画面全体の0.10〜0.13%</b>。</div>
   <div><b>書影そのものは本棚と同一</b>3案とも <code>ShioriCover</code> を題名で呼ぶだけ。案2-cが作品色から導くのは<b>書影の背後にある帯の地</b>であって書影の色ではない＝「同じ本なのに色が違う」は起きない。</div>
   <div><b>案2-cでも明度は揃う</b>帯の地を彩度14%・明度93%の固定窓へ圧縮するので、どの色相でも墨のコントラストは<b>13.88〜14.36:1</b>（振れ0.5以内＝実質不変）。変わるのは色みだけで、版面の明暗は動かない。</div>
-  <div><b>ただし青磁チップは悪化する</b>青磁は白地で既に 2.14:1＝AA未達（既存の課題）。案2-cの淡地では<b>1.87〜1.94:1</b>へ一段下がる。案2-a／2-b／案5では白地のまま＝悪化しない。</div>
+  <div><b>2-cの唯一の障害は解けた</b>青磁チップの AA 未達は<b>白地の時点で 2.14:1＝もともと壊れている</b>（2-cが原因ではない）。文字を<b>既存トークン青磁ink #50685C</b>へ寄せると素地 5.79:1・淡地 5.09〜5.26:1＝<b>全8色相でAA充足</b>。新色は発明していない。</div>
+</div>
+
+<h2>⓪ 2-c の唯一の障害だった「青磁チップのAA未達」は、既存の方針の適用漏れだった</h2>
+<div class="lead" style="margin-bottom:12px">
+  青磁チップは<b>白地の時点で 2.14:1</b>＝AA未達。<b>2-c はそれを一段悪くするだけで原因ではない</b>。
+  そして直し方は既に決まっている——<b>ADR 0014-D「意味を運ぶ文字は WCAG 4.5:1 が最低線」</b>で、
+  そのとき濃青磁トークン <code>UnreadSeiji #50685C</code>（モックの <code>--seiji-ink</code>）も新設済み。
+  未読ラベルだけが移行され、<b>ジャンル／キーワード／「なろう・未取込」は取りこぼされていた</b>。
+  つまり<b>新しい色を発明する必要はなく、既存トークンを適用漏れの箇所へ当てるだけ</b>で 2-c の障害が消える。
+</div>
+<div class="chipdemo">
+  <div class="cd"><span class="cdl">現行・素地</span><div class="cdbox" style="background:#FBFAF8">
+    <span class="chip old">ハイファンタジー</span></div><span class="badge v-ng">2.14:1</span></div>
+  <div class="cd"><span class="cdl">修正・素地</span><div class="cdbox" style="background:#FBFAF8">
+    <span class="chip new">ハイファンタジー</span></div><span class="badge v-ok">5.79:1</span></div>
+  <div class="cd"><span class="cdl">現行・2-c淡地（最悪色相260）</span><div class="cdbox" id="cdA">
+    <span class="chip old">ハイファンタジー</span></div><span class="badge v-ng">1.87:1</span></div>
+  <div class="cd"><span class="cdl">修正・2-c淡地（最悪色相260）</span><div class="cdbox" id="cdB">
+    <span class="chip new">ハイファンタジー</span></div><span class="badge v-ok">5.09:1</span></div>
+  <div class="cd"><span class="cdl">枠も濃くする案・2-c淡地</span><div class="cdbox" id="cdC">
+    <span class="chip new line">ハイファンタジー</span></div><span class="badge v-ok">枠 3.16:1</span></div>
+</div>
+<div class="lead" style="margin-top:12px">
+  <b>文字は必須・枠は任意</b>。文字を青磁ink へ寄せれば AA は満たす（上の2〜4番目）。
+  枠線は装飾＝チップの意味は文字が運ぶので規格上は据置でよいが、淡地では 1.87〜1.94:1 で輪郭がかなり薄い。
+  <b>輪郭を保ちたいなら枠だけ中濃度 #6E8A7C にすると淡地でも 3.16〜3.27:1</b>（5番目）。どちらを採るかは見た目の好み。
 </div>
 
 <h2>① 色相の端5作品を、同じ案で並べて見る（ここが本番）</h2>
@@ -196,7 +256,9 @@
   <tr><td>作品ごとに変わる有色面積</td><td class="num">カードの 1.79〜2.29%<br>画面の 0.10〜0.13%</td><td>棒（幅2.5px×s、長さは生成レンジ0.30〜0.60）＋先端（包絡16×24を s 倍）。<b>先端は塗り面積でなく包絡＝上限で数えている</b>ので、実際はこれより小さい</td></tr>
   <tr><td>カード内の縦組み題字</td><td class="num">9.7dp</td><td>本棚（幅140dp）では 12.3dp。<b>詳細のカードでは題字が一段小さくなる</b>＝文字というより刷り物の肌理として見える。題名は隣に16pxで別に組んであるので情報は落ちない</td></tr>
   <tr><td>墨のコントラスト</td><td class="num">白地 15.81:1<br>生成り 13.76:1<br>淡地 13.88〜14.36:1</td><td>案2-a/2-b は生成り固定、案2-c は作品色由来の淡地。<b>淡地でも全8色相で 0.5 ポイント以内</b>＝明度窓で圧縮しているため版面の明暗が動かない</td></tr>
-  <tr><td>青磁チップのコントラスト</td><td class="num">白地 2.14:1<br>淡地 1.87〜1.94:1</td><td><b>白地の時点でAA未達＝既存の課題</b>。案2-c だけが一段悪くする（案2-a/2-b/案5は白地のままで悪化なし）</td></tr>
+  <tr><td>青磁チップの文字（修正前）</td><td class="num">素地 2.14:1<br>2-c淡地 1.87〜1.94:1</td><td><b>2-c以前からAA未達</b>。ADR 0014-D の移行で未読ラベルだけが濃青磁へ移り、ジャンル／キーワード／「なろう・未取込」が取りこぼされていた</td></tr>
+  <tr><td>青磁チップの文字（修正後＝青磁ink #50685C）</td><td class="num">素地 5.79:1<br>2-c淡地 5.09〜5.26:1</td><td><b>全8色相でAA(4.5:1)充足</b>。既存トークン <code>UnreadSeiji</code> の値をそのまま使う＝新色を発明しない。<b>2-cの唯一の障害が消える</b></td></tr>
+  <tr><td>チップの枠線（任意）</td><td class="num">青磁 据置 1.87〜1.94:1<br>中濃度#6E8A7C 3.16〜3.27:1</td><td>枠は装飾（意味は文字が運ぶ）ので規格上は据置可。淡地で輪郭を保ちたい場合だけ中濃度へ。<b>文字の修正とは独立に選べる</b></td></tr>
   <tr><td>あらすじ初期可視</td><td class="num">案2系 3.8行<br>案5 3.5行</td><td>案2系はブロック高166dpを3案で共有＝どれを選んでも同値。案5は寸法不変＝現状のまま。<b>いずれも現状3.5行を下回らない</b></td></tr>
 </table>
 
