@@ -36,7 +36,36 @@
   ・**却下＝案E**「溢れの合図（フェード＋全文リンク）だけ足す」＝旧裁定②の選択肢(c)の後継だが、
     測ると**4アクション版では原理的に不成立**（本文が0行＝フェードさせる本文自体が存在しない）。
     旧裁定(c)が3アクション版だけを前提にしていたことがここで確定した。
-  ・書影の厚み（案F 180dp帯・案G 2:3カード）は**別途裁定**＝本改訂では書影は 120dp 帯のまま不変。
+  ・書影の厚み（案F 180dp帯・案G 2:3カード）は**別途裁定**＝下の「案2-c」で決着した。
+
+  ---- 決着: 書影は案2-c「淡地」（2026-08-21 ユーザー裁定）----
+  暗色帯（彩度12〜21%・明度26〜34%＝ほぼ無彩色）をやめ、**本棚と1ピクセル同じ栞書影**を
+  114×152（3:4＝本棚と同比）のカードで置き、その背後の帯の地を作品色から導く。
+  ・**帯の地は作品色から導くが、彩度14%・明度93%の固定窓へ圧縮する**。どの色相でも明度が揃うので
+    墨のコントラストは全8色相で 13.88〜14.36:1（振れ0.5以内）＝**変わるのは色みだけで版面の明暗は動かない**。
+    「本棚書影のランダム性を毎回固定の版面へどう収めるか」への答えがこれ（振れているのは画面の 0.1%）。
+  ・**情報列（題名・作者・ジャンルチップ）は帯の中**。高さ **96px 固定**（題名22×2行=44／間6／作者16／
+    間6／チップ 行14+padding8+枠2=24）を帯120の中へ **上12・下12（S12）＝上下対称**に据える（y 12..108）。
+    境界までの最短距離12px は帯の内側余白そのもの＝「帯の中に据わっている」と数で言える。
+    ⚠️ **line-height を明示**してフォント既定の `normal` 依存を外すこと——これが「内容にも環境にも
+    依らず96px固定」の根拠で、崩すと上下対称の根拠が消える。題名2行clamp・作者1行nowrap も同じ理由。
+  ・水平も同じ規定＝カード左24（S24＝ページ余白）／カード右138 と列左154 の間16（S16）／右余白24（S24）。
+  ・**書影カードは意図として帯の境界を 44px 越える**（カード高152の29%・帯高120の37%）。
+    10px の半端なはみ出しとは桁が違うので「面の上に置かれた本」と読める＝**減らすと中途半端に戻る**。
+  ・作者・ジャンルは書影の横へ吸収したので、旧 `.detail-meta-top`（作者行 16+36=52px）は消えた。
+    ブロック高は 120→166px（+46）だが作者行の 52px が消えるので**差引 −6px＝あらすじは 4.9→5.2行**。
+  ・**書影そのものは本棚と同一**（ShioriCover を題名で呼ぶだけ・生成側へ要求なし）。2-c が導出するのは
+    書影の背後にある帯の地であって書影の色ではない＝「同じ本なのに場所で色が違う」は起きない。
+  ・落選: 案1 統一カード（あらすじ3.1行）／案3 大判（0.0行＝不成立）／案4 奥付（表が消える構成変更）／
+    案2-a 額装・案2-b 一筋（作品色の権限が小さすぎ「素っ気なさ」が解けない）／案5 磨く（本棚との不統一が残る）。
+
+  ---- 併せて: 青磁チップの AA 未達を閉じた（同日）----
+  ジャンル／キーワードのチップ文字は青磁 #9CB3A8＝**白地の時点で 2.14:1＝AA 未達**という既存の壊れがあった
+  （2-c の淡地が原因ではない。淡地では 1.87〜1.94:1 とさらに落ちるだけ）。直し方は既に決まっていて、
+  ADR 0014-D「意味を運ぶ文字は WCAG 4.5:1」の裁定時に濃青磁 `UnreadSeiji #50685C`（--seiji-ink）が
+  新設済み——未読ラベルだけが移行され、ジャンル／キーワード／「なろう・未取込」が取りこぼされていた。
+  **新色は発明せず既存トークンを適用漏れへ当てる**だけで素地 5.79:1・2-c淡地 5.09〜5.26:1＝全8色相で AA 充足。
+  枠線は装飾（意味は文字が運ぶ）なので青磁のまま**据え置く**。
 
   ---- 決着: バー注記は撤去（2026-08-21 ユーザー裁定） ----
   固定バー下端にあった注記「なろう（syosetu.com）のページをそのまま表示します」は**消した**。
@@ -60,7 +89,10 @@
   :root{
     --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
     --ai:#1C3D5A;        /* 藍 */
-    --seiji:#9CB3A8;     /* 青磁 */
+    --seiji:#9CB3A8;     /* 青磁（装飾・枠線・署名） */
+    /* 濃青磁＝既存トークン UnreadSeiji。ADR 0014-D「意味を運ぶ文字は WCAG 4.5:1」の適用漏れを
+       埋めるために使う（新色ではない）。青磁 #9CB3A8 は素地で 2.14:1＝AA 未達だった。 */
+    --seiji-ink:#50685C;
     --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   }
@@ -98,24 +130,50 @@
   .pad{padding:0 24px;display:flex;flex-direction:column}
   .pad > *{flex-shrink:0}
 
-  /* 書影風ヒーロー（全幅の帯）。
+  /* 書影ブロック（帯 120px ＋ 帯からはみ出す書影カード）。Compose 側の正＝NovelDetailScreen。
+     ---- 帯 120px という値の来歴 ----
      2026-07-31 ユーザー裁定: 190px → 120px。実機で「あらすじがスクロールしないと出てこない」＝
-     ファーストビューの押し下げが真因で、並び順（ヒーロー→作者→ステータス表→あらすじ）は変えず
-     ヒーローの高さだけを 80px 削った。Compose 側の正＝NovelDetailScreen.DetailHeroHeight。
+     ファーストビューの押し下げが真因で、並び順（書影→作者→ステータス表→あらすじ）は変えず
+     ヒーローの高さだけを 80px 削った。
      ⚠️ 2026-08-17 の実機画素実測で**この 80px 削減だけでは足りなかった**ことが確定している——
      押し下げの主因はヒーローではなく**固定バーが版面の 229/285dp を占めていた**ことで、
      ヒーロー高はその一部にすぎなかった（4アクション版では削っても本文可視0行のまま）。
-     2026-08-21 に案B（副アクション横一列）でバー側を 173dp へ畳んで決着（さらに 2026-08-21 の注記撤去で 137dp）＝**ヒーローは 120px のまま不変**。 */
-  .cv{position:relative;display:flex;align-items:flex-end;overflow:hidden}
-  .cv .rule{position:absolute;left:24px;top:18px;bottom:18px;width:2px;background:var(--ai);opacity:.85}
-  .cv .ttl-in{padding:24px 24px 24px 32px}
-  .cv .ttl-in b{font-family:var(--mincho);font-size:17px;font-weight:600;line-height:1.4;color:var(--base);text-shadow:0 1px 3px rgba(28,31,38,.4);display:block}
-  .hero-cv{width:100%;height:120px;flex-shrink:0;background:linear-gradient(160deg,#3A4F63,#28323E)}
+     2026-08-21 に案B（副アクション横一列）でバー側を 173dp へ畳んで決着（さらに注記撤去で 137dp）。
+     ---- 2026-08-21 案2-c: 帯は 120px のまま。ブロック高だけ 166px へ ----
+     ブロック 166px の内訳は「帯120 ＋ 書影カードが越える44 ＋ 下の逃げ2」。**帯そのものは 120px で不変**。
+     ブロック高が +46px でも、作者行 `.detail-meta-top`（16+36=52px）が帯の中へ吸収されて消えるため
+     版面は差引 −6px＝あらすじの初期可視は減らずむしろ 4.9→5.2行 に増える（値の導出は上のヘッダ）。 */
+  /* ---- 返し（書影ブロック）= 案2-c。ブロック高 166px（帯120＋越え44＋逃げ2）---- */
+  .kaeshi{position:relative;flex-shrink:0;height:166px;width:100%}
+  /* 帯 y0..120。地は作品色から導くが彩度14%・明度93%の固定窓へ圧縮する（JS bandTint）。
+     どの色相でも明度が揃うので墨のコントラストは 13.88〜14.36:1＝振れ0.5以内。 */
+  .kaeshi .band{position:absolute;left:0;right:0;top:0;height:120px;border-bottom:1px solid rgba(28,31,38,.10)}
+  /* 書影カード 114×152＝3:4（本棚と同比）。左24＝S24（ページ余白）・上12。
+     下端は 164 で帯の境界(120)を **44px 越える**（帯高の37%）＝これは「はみ出し」ではなく
+     「面の上に置かれた本」の意図。10px の半端な越えとは桁が違うので中途半端に見えない。 */
+  .kaeshi .shiori{position:absolute;left:24px;top:12px;width:114px;height:152px}
+  /* 情報列 y12..108（高さ96）＝帯120の上下内側から各12px（S12）で **上下対称**。
+     水平はカード右138 と列左154 の間16（S16）／右余白24（S24）。 */
+  .kaeshi .kmeta{position:absolute;left:154px;right:24px;top:12px;height:96px}
 
-  /* メタ情報（作者を左端・ジャンルを右端） */
-  .detail-meta-top{display:flex;justify-content:space-between;align-items:center;margin-top:16px;height:36px}
-  .author{font-size:12.5px;color:var(--ink);font-weight:500;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-  .genre-label{font-size:11.5px;color:var(--seiji);border:1px solid var(--seiji);padding:4px 8px;border-radius:2px;font-weight:500;white-space:nowrap;flex-shrink:0}
+  .shiori{border-radius:2px;overflow:hidden;box-shadow:0 3px 10px rgba(28,31,38,.22)}
+  .shiori canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .kmeta{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+  /* 高さ96の内訳（内容にも環境にも依らず固定）: 題名22×2行=44 ＋ 間6 ＋ 作者16 ＋ 間6 ＋ チップ24。
+     line-height を明示するのはフォント既定の `normal` 依存を外すため——normal だと環境で1〜2px
+     ぶれ、「96px 固定＝上下対称」の根拠そのものが崩れる。題名2行clamp・作者1行nowrap も寸法保証の一部。 */
+  .kmeta .t{font-family:var(--mincho);font-size:16px;font-weight:600;line-height:22px;color:var(--ink);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .kmeta .au{font-size:12.5px;line-height:16px;color:var(--ink);font-weight:500;align-self:stretch;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* チップは .kmeta の直下の flex item に置く（div で包むと親の行ボックスが高さを決めて24pxにならない）。 */
+  .kmeta .genre-label{line-height:14px}
+
+  /* ジャンルチップ。display:inline-block が要る＝span のままだと縦padding/borderが行ボックスに
+     算入されず、レイアウト高(約14px)より見た目(約24px)が10px高くなり、flex column の下端で
+     計算より下へはみ出す（帯の境界をまたぐ症状の真因その1）。
+     文字は濃青磁＝意味を運ぶので AA(4.5:1) が要る。枠線は装飾のため青磁のまま据え置く。 */
+  .genre-label{display:inline-block;font-size:11.5px;color:var(--seiji-ink);border:1px solid var(--seiji);padding:4px 8px;border-radius:2px;font-weight:500;white-space:nowrap;flex-shrink:0}
 
   /* ステータス表（2×2・外郭ヘアライン＋中央縦罫）。
      行高は golden 実測の「罫を含まない中身の高さ」＝上段84dp（読了目安が2行に折れる）・下段61dp。
@@ -138,7 +196,8 @@
   .summary-p{font-family:var(--mincho);font-size:14px;line-height:26px;color:var(--ink);text-align:justify}
 
   .kw-chips{display:flex;flex-wrap:wrap;gap:8px}
-  .kw-chip{font-size:11px;color:var(--seiji);border:1px solid var(--seiji);border-radius:2px;padding:4px 8px;letter-spacing:.02em}
+  /* キーワードチップもジャンルチップと同じ規定＝文字は濃青磁（AA）・枠線は青磁のまま（装飾）。 */
+  .kw-chip{display:inline-block;font-size:11px;color:var(--seiji-ink);border:1px solid var(--seiji);border-radius:2px;padding:4px 8px;letter-spacing:.02em}
 
   .eval-grid{border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column}
   .eval-row{display:flex;box-sizing:content-box}
@@ -156,7 +215,7 @@
      ＋ スロット間8dp。案Bの総高 = 1+16+48+8+48+16 = 137dp。
      （2026-08-21 のバー注記撤去まではここに注記塊 36dp が乗って 173dp だった＝撤去ぶんがそのまま本文へ回る）
      3アクション版（未取込・未読）と4アクション版（未取込・既読）で**総高が変わらない**のが案Bの要点
-     ＝どちらの状態でもあらすじの初期可視が同じ 4.9行になる（旧構成は 229dp / 285dp と 56dp 差があり、
+     ＝どちらの状態でもあらすじの初期可視が同じ 5.2行になる（旧構成は 229dp / 285dp と 56dp 差があり、
      4アクション版だけ本文が0行に落ちていた）。 */
   .fixed-bar{flex-shrink:0;background:var(--base);border-top:1px solid var(--line);padding:16px 24px;display:flex;flex-direction:column}
   .slot{height:48px;display:flex;align-items:center;flex-shrink:0}
@@ -176,12 +235,14 @@
 </style>
 </head>
 <body>
-  <p class="cap"><b>D. 作品詳細</b> ／ ヘッダー化された書影風の帯、ステータス＆評価の2列ヘアライン表、浮き上がらない下部固定アクションエリア。<br>
+  <p class="cap"><b>D. 作品詳細</b> ／ 帯の上に置いた栞書影（案2-c）、ステータス＆評価の2列ヘアライン表、浮き上がらない下部固定アクションエリア。<br>
+  <b>書影＝案2-c 淡地（2026-08-21 裁定）</b>: 本棚と1ピクセル同じ栞書影を 114×152 のカードで置き、その背後の帯の地を作品色から導く——ただし<b>彩度14%・明度93%の固定窓へ圧縮</b>するので、どの色相でも墨は 13.88〜14.36:1＝<b>変わるのは色みだけで版面の明暗は動かない</b>。
+  題名・作者・ジャンルは1つの情報列（高さ96px固定）にまとめ、帯120の内側から<b>上下12px（S12）の対称</b>で据える。<b>書影カードだけが境界を44px 越える</b>＝「面の上に置かれた本」の意図（半端な10pxのはみ出しとは桁が違う）。<br>
   <b>固定バー＝案B（2026-08-21 裁定）</b>: 藍プライマリ「縦書きPDFを取り込む」を全幅で最上段に固定し（＝手元に本を置く＝アプリの主目的。案A「完全一貫」＝未取込である限り既読でも降格させない）、
   <b>副アクションは1行に横並べ</b>する。<b>隠さずに畳む</b>のが要点で、オーバーフローメニューへの退避は「せっかくの導線を隠すのは論外」として却下済み。<br>
   <b>この改訂で初期ビューポートを規定に含めた</b>——端末枠は実機と同寸の 360×792dp（1px=1dp）で、固定バーは実寸の要素。
-  <b>あらすじの初期可視は3アクション版・4アクション版とも 4.9行</b>（最低2行＝第1文が閉じる／推奨3行＝第2文の「追放」まで届く、を満たす）。
-  改訂前は 1.385行 / <b>0行</b>で、案B で 3.5行、さらに 2026-08-21 のバー注記撤去（36dp）で 4.9行。<br>
+  <b>あらすじの初期可視は3アクション版・4アクション版とも 5.2行</b>（最低2行＝第1文が閉じる／推奨3行＝第2文の「追放」まで届く、を満たす）。
+  改訂前は 1.385行 / <b>0行</b>で、案B で 3.5行、2026-08-21 のバー注記撤去（36dp）で 4.9行、案2-c の作者行吸収（差引 −6px）で 5.2行。<br>
   取込済みなら取込とその周辺は冗長で消え、主CTAは「なろうで読む」へ昇格する（＝副アクション行は「本棚に置く」だけになる）。</p>
 
   <div class="stage">
@@ -193,16 +254,16 @@
       <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
 
       <div class="scroll"><div class="col">
-        <div class="cv hero-cv">
-          <div class="rule"></div>
-          <div class="ttl-in"><b>追放された万能薬師、辺境でスローライフを始める</b></div>
-        </div>
-        <div class="pad">
-          <div class="detail-meta-top">
-            <span class="author">霧島あおい</span>
+        <div class="kaeshi">
+          <div class="band" data-band data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+          <div class="shiori" data-shiori data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+          <div class="kmeta">
+            <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+            <div class="au">霧島あおい</div>
             <span class="genre-label">ハイファンタジー</span>
           </div>
-
+        </div>
+        <div class="pad">
           <div class="status-grid">
             <div class="status-row" style="height:84px">
               <div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>
@@ -259,16 +320,16 @@
       <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
 
       <div class="scroll"><div class="col">
-        <div class="cv hero-cv">
-          <div class="rule"></div>
-          <div class="ttl-in"><b>追放された万能薬師、辺境でスローライフを始める</b></div>
-        </div>
-        <div class="pad">
-          <div class="detail-meta-top">
-            <span class="author">霧島あおい ／ 第12話まで読了</span>
+        <div class="kaeshi">
+          <div class="band" data-band data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+          <div class="shiori" data-shiori data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+          <div class="kmeta">
+            <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+            <div class="au">霧島あおい ／ 第12話まで読了</div>
             <span class="genre-label">ハイファンタジー</span>
           </div>
-
+        </div>
+        <div class="pad">
           <div class="status-grid">
             <div class="status-row" style="height:84px">
               <div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>
@@ -322,5 +383,79 @@
     </div></div>
 
   </div>
+
+<script>
+/* ============================================================================
+   栞書影の生成（本棚の ShioriGenerator と同一系列＝**書影そのものは本棚と1ピクセル同じ**）。
+   ここでは描画に使うだけで生成規則には一切手を入れない。案2-c が作品色から導くのは
+   「書影の背後にある帯の地」であって書影の色ではない＝「同じ本なのに色が違う」は起きない。
+   先端意匠は正本174種（ShioriTips.kt ／ shiori-tips-D.html）のうち代表15種だけを載せる
+   ——このモックが規定するのは版面であって先端の絵柄ではないため。
+   ============================================================================ */
+function hashStr(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function rand(r,lo,hi){return lo+(hi-lo)*r();}
+function pick(r,a){return a[Math.floor(r()*a.length)];}
+function hsl(h,s,l){return 'hsl('+h+' '+s+'% '+l+'%)';}
+const PALETTE=[20,70,140,175,200,210,260,330];
+function coverHue(t){return pick(mulberry32(hashStr(t)),PALETTE);}
+/* 帯の地（案2-c）＝作品色の色相だけを借り、彩度14%・明度93%の固定窓へ圧縮する。
+   窓を固定するので8色相のどれでも明度が揃い、版面の明暗（墨のコントラスト）が動かない。 */
+function bandTint(t){return hsl(coverHue(t),14,93);}
+function SS(c,a){c.strokeStyle=a;c.lineCap='round';c.lineJoin='round';}
+const MIN='"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif';
+const TIPS=[
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=2.6;c.beginPath();c.moveTo(x,y);c.lineTo(x-6,y+12);c.moveTo(x,y);c.lineTo(x+6,y+12);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+7,4,0,7);c.fill();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+6,6,0,7);c.fill();},
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=2.4;c.beginPath();c.moveTo(x,y);c.lineTo(x-5,y+18);c.moveTo(x,y);c.lineTo(x+5,y+18);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+3,3.2,0,7);c.fill();SS(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+5);c.lineTo(x-6,y+22);c.moveTo(x,y+5);c.lineTo(x,y+23);c.moveTo(x,y+5);c.lineTo(x+6,y+22);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+4,4,0,7);c.fill();SS(c,a);c.lineWidth=1.6;for(let k=-2;k<=2;k++){c.beginPath();c.moveTo(x,y+7);c.lineTo(x+k*4,y+24);c.stroke();}},
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+4);c.quadraticCurveTo(x-11,y-2,x-9,y+4);c.quadraticCurveTo(x-11,y+10,x,y+4);c.moveTo(x,y+4);c.quadraticCurveTo(x+11,y-2,x+9,y+4);c.quadraticCurveTo(x+11,y+10,x,y+4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+4,2,0,7);c.fill();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+5,4,0,7);c.fill();SS(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+9);c.lineTo(x,y+20);c.stroke();},
+ (c,x,y,a,pp)=>{c.fillStyle=a;c.beginPath();c.rect(x-2,y+5,8,4);c.fill();c.beginPath();c.arc(x+6,y+7,2,0,7);c.fill();c.beginPath();c.arc(x-3,y+14,5,0,7);c.fill();c.strokeStyle=pp;c.lineWidth=1.4;c.beginPath();c.arc(x-3,y+14,2,0,7);c.stroke();},
+ (c,x,y,a,pp)=>{c.fillStyle=a;c.beginPath();c.rect(x-6,y+12,12,8);c.fill();c.beginPath();c.rect(x-7,y+8,14,5);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,y+10,1.5,0,7);c.fill();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-5,y+12);c.lineTo(x+5,y+12);c.arc(x+5,y+15,3,-Math.PI/2,Math.PI/2);c.lineTo(x-5,y+18);c.arc(x-5,y+15,3,Math.PI/2,Math.PI*1.5);c.closePath();c.fill();SS(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x-3,y+12);c.quadraticCurveTo(x,y+5,x+3,y+12);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-8,y+18);c.lineTo(x-8,y+14);c.quadraticCurveTo(x-6,y+8,x-4,y+13);c.quadraticCurveTo(x-2,y+16,x,y+11);c.quadraticCurveTo(x+2,y+16,x+4,y+13);c.quadraticCurveTo(x+6,y+8,x+8,y+14);c.lineTo(x+8,y+18);c.closePath();c.fill();},
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x-4,y+12,4,0,7);c.stroke();c.beginPath();c.arc(x+4,y+12,4,0,7);c.stroke();c.beginPath();c.moveTo(x-1,y+11);c.quadraticCurveTo(x,y+9,x+1,y+11);c.stroke();},
+ (c,x,y,a,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-5,y+8);c.lineTo(x+5,y+8);c.lineTo(x+4,y+19);c.lineTo(x-4,y+19);c.closePath();c.fill();c.strokeStyle=pp;c.lineWidth=1.4;c.beginPath();c.moveTo(x-4,y+11);c.lineTo(x+4,y+11);c.stroke();},
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+6);c.lineTo(x+6,y+6);c.lineTo(x+6,y+17);c.lineTo(x-6,y+17);c.closePath();c.stroke();c.lineWidth=1.2;c.beginPath();c.moveTo(x-2,y+6);c.lineTo(x-2,y+17);c.moveTo(x+2,y+6);c.lineTo(x+2,y+17);c.stroke();c.lineWidth=2;c.beginPath();c.moveTo(x-7,y+4);c.lineTo(x+7,y+4);c.stroke();}
+];
+/* カード内の縦組み題字。114幅では 10.0dp＝本棚（140幅）の12.3dp より一段小さく、
+   文字というより刷り物の肌理として見える（題名は情報列に16pxで別に組んであるので情報は落ちない）。 */
+function vtitle(c,text,w,h,ink){
+  const S=w/150, fs=Math.round(w*0.088), lineGap=fs*1.16, colGap=Math.round(w*0.108);
+  const yTop=fs+5*S, yBottom=h-11*S, x0=w-fs-3*S, maxCols=3;
+  const perCol=Math.floor((yBottom-yTop)/lineGap); if(perCol<1||fs<1)return;
+  c.fillStyle=ink;c.font='600 '+fs+'px '+MIN;c.textAlign='center';c.textBaseline='middle';
+  const ch=[...text];
+  for(let col=0;col<maxCols;col++){const st=col*perCol;if(st>=ch.length)break;const cx=x0-col*colGap;
+    for(let i=0;i<perCol;i++){const idx=st+i;if(idx>=ch.length)break;
+      let g=ch[idx]; if(col===maxCols-1&&i===perCol-1&&idx<ch.length-1)g='⋮';
+      c.fillText(g,cx,yTop+i*lineGap+lineGap/2);}}
+}
+function drawShiori(c,w,h,title){
+  const S=w/150, paper='#FBFAF8', ink='#1C1F26';
+  c.fillStyle=paper;c.fillRect(0,0,w,h);
+  c.strokeStyle='rgba(28,31,38,.05)';c.lineWidth=1;c.strokeRect(.5,.5,w-1,h-1);
+  const acc=hsl(coverHue(title),48,52);
+  const rng=mulberry32(hashStr(title+'|B'));
+  const x=Math.round(rand(rng,.14,.36)*w)+.5, len=Math.round(rand(rng,.30,.60)*h);
+  c.strokeStyle=acc;c.lineWidth=2.5*S;c.lineCap='butt';
+  c.beginPath();c.moveTo(x,0);c.lineTo(x,len);c.stroke();
+  const ti=Math.floor(rng()*TIPS.length);
+  c.save();c.translate(x,len);c.scale(S,S);c.translate(-x,-len);
+  TIPS[ti](c,x,len,acc,paper);
+  c.restore();
+  vtitle(c,title,w,h,ink);
+}
+document.querySelectorAll('[data-band]').forEach(el=>{el.style.background=bandTint(el.dataset.title);});
+document.querySelectorAll('[data-shiori]').forEach(el=>{
+  const cv=document.createElement('canvas');el.appendChild(cv);
+  const w=el.clientWidth,h=el.clientHeight,dpr=2;
+  cv.width=w*dpr;cv.height=h*dpr;const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);
+  drawShiori(c,w,h,el.dataset.title);
+});
+</script>
 </body>
 </html>
