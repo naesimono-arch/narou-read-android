@@ -61,7 +61,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -428,18 +427,10 @@ internal fun NovelDetailContent(
                                     }
                                 }
                             }
-                            // 表示先を明示（アプリ内 WebView でなろうのページを加工せずそのまま表示する＝ADR 0012・公理8）。
-                            Text(
-                                text = "なろう（syosetu.com）のページをそのまま表示します",
-                                fontSize = FontMicroLabel,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = Spacing.S8),
-                                textAlign = TextAlign.Center
-                            )
                             // 取り込み済み（books.ncode 一致）なら以下は冗長のため出さない
-                            // （モック discovery-detail-D の固定バー注記どおり。読む手段は蔵書カードが正）。
+                            // （モック discovery-detail-D の解説文 .cap「取込済みなら取込とその周辺は冗長で消える」
+                            //   どおり。読む手段は蔵書カードが正。⚠️「注記」と書くと 2026-08-21 に撤去した
+                            //   バー下端の注記要素と紛らわしいので、指す先を .cap と明記する）。
                             if (!isImported) {
                                 // (b) Web由来・未取込カードの入口（モック .btn-ghost「本棚に置く」）。
                                 // 置いた後は「本棚から外す」へトグルし、押し直しで取り消せる（確認ダイアログ無し
