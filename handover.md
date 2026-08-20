@@ -78,10 +78,6 @@
 > 棚卸しの一次情報＝`.claude/plans/mock-drift-inventory-2026-07-16.md`（正本モック全数の未反映リスト・優先順位）。
 > モック運用の**恒久ルール5つ**（逆同期・`mockview` 必須・下敷き正本・プレースホルダの色域・二段検分）は `/visual-language` skill が正本。
 
-- **[`skins/discovery-K.html` の実装ドリフト＝残り1件]**: **一覧行のメタが正本 1段に対し実装 `NovelListRow` は 3段**
-  （題名／作者＋ジャンルタグ／状態・読了目安・**期間pt**）。⚠️ **前提が確定**＝sticky は A 案据え置き（ADR 0033）で
-  案F（pt 昇格）は不採用＝pt は行メタに残る。**正本を 3段へ逆同期してよい**が、横向き T4 案（行メタを2段へ畳む）が
-  採られると再び動くので `awaiting-human.md` §3-1 の裁定後に。
 - **[向き応答していない固定値の棚卸し]**: `Insets.ScrollBottomForFab` / `ChromeHintBottom` はいずれも縦向き前提の 96dp 固定。
   横向きは NavigationRail で確定済み（ADR 0034）＝**意匠裁定（`awaiting-human.md` §3-1）が出たら Compose 翻訳と同じ便で見直す**。
 - **`reading-vertical-scroll-D.html` と縦書き実装の構造差**: モック正本は「非没入時は本文がバー下から開始」を規定するが、
