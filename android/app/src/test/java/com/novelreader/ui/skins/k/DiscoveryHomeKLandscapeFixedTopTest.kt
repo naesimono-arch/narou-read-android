@@ -23,6 +23,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * 明快K「さがす」（[DiscoveryHomeK]）の**固定トップ（題字「さがす」＋実検索フィールド）の実高**を、
@@ -60,6 +61,16 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 // 横向き（w>h と land を両方明示する理由は BookshelfKLandscapeScreenshotTest と同じ）。
 @Config(sdk = [34], qualifiers = "w800dp-h360dp-land-xhdpi")
+// ⚠️ [GraphicsMode] NATIVE 必須。ここが測る固定トップの実高は「題字 titleLarge の行高」を含む＝
+// 実フォントのメトリクスが要る。既定の LEGACY は文字幅を字数近似・行高もそれに準じた作り物で返す
+// （docs/knowledge/robolectric-legacy-graphicsmode-text-width-is-char-count.md）。
+//
+// 実測で確かめた差（2026-08-21・同一コードで GraphicsMode だけ入れ替え）: LEGACY=105.5dp / NATIVE=120.5dp。
+// **LEGACY 側が特に危ないのは「偽の一致」を作るから**——105.5dp は裁定の前提値（モック導出 108dp）に
+// ほぼ重なるので、「実装は前提どおり＝確認済み」と読めてしまう。真値は 120.5dp で前提を 12.5dp 超えており、
+// 併せて出す実効ビューポートも 15dp ぶん広く（＝楽観的に）出ていた。このテストの目的は
+// 「いくつなのか」を人間の裁定へ渡すことなので、既定に任せた瞬間に目的そのものが裏返る。
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class DiscoveryHomeKLandscapeFixedTopTest {
 
     @get:Rule

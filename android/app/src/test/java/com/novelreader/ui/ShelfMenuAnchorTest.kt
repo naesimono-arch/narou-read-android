@@ -32,6 +32,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * アプリバー ⋮ の [androidx.compose.material3.DropdownMenu] が「ヘッダの途中」に開かないことの回帰
@@ -64,6 +65,11 @@ import org.robolectric.annotation.Config
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w360dp-h640dp-xhdpi")
+// ⚠️ [GraphicsMode] NATIVE 必須。不変条件〈メニュー上端 ≧ ヘッダ最下段テキストの下端〉の余裕は
+// テキストの実高（フォントメトリクス）で決まり、既定の LEGACY はその実測を持たない
+// （docs/knowledge/robolectric-legacy-graphicsmode-text-width-is-char-count.md・行高も作り物）。
+// ヘッダが実寸より痩せるとアンカー下端との帯が縮み、守りたい「副題に被る」退行が再現しなくなる。
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ShelfMenuAnchorTest {
 
     @get:Rule

@@ -29,6 +29,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * 星図M の銘（モック `.const`）の readout が1行に収まることの回帰。
@@ -46,6 +47,11 @@ import org.robolectric.annotation.Config
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w360dp-h640dp-xhdpi")
+// ⚠️ [GraphicsMode] NATIVE 必須。判定（readout が1行に収まるか）は**文字の実測幅が折り返し条件
+// そのもの**で、既定の LEGACY は文字幅を字数（＝十数 px）で返す＝銘ブロックの幅がいくら痩せても
+// 折り返さず lineCount は常に 1 になる。守りたい「モックより 28dp 狭くて割れる」退行は
+// LEGACY では原理的に再現しない（docs/knowledge/robolectric-legacy-graphicsmode-text-width-is-char-count.md）。
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ConstellationReadoutTest {
 
     @get:Rule
