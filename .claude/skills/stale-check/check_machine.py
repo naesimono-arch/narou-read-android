@@ -161,6 +161,42 @@ def _actual_hooks():
     return {p.name for p in hooks_dir.glob("*.py")} if hooks_dir.is_dir() else set()
 
 
+# 意図的に settings 未登録のまま置いてある hook（＝凍結）。値は〈凍結の理由と解除条件を持つ正本, その節に
+# 必ず在るべき語〉。なぜ単なる除外リストにしないか: 名前を並べて黙らせるだけだと **なぜ凍結なのか・
+# いつ解除するのか** が数週間で失われ、次に見た人が「配線し忘れ」あるいは「不要な残骸」と読んで
+# 消すか戻すかしてしまう（このリポジトリは撤去済みフックの残骸が13日間 dead だった前科がある）。
+# ここでは名前を黙らせる代わりに **正本の節へ束縛** し、節が消えた／hook を名指さなくなった／
+# 解除条件が書かれていない状態になったら黙らずに落とす＝**理由が蒸発したこと自体を検知する**。
+FROZEN_HOOKS = {
+    # 2026-08-17 ユーザー裁定で凍結。削減 2.6% に対し未文書化 API 依存＋監視パイプライン改変で割に合わない。
+    "truncate_bash_output.py": ("docs/backlog-frozen.md", "解凍条件"),
+}
+
+
+def _frozen_justification_gap(name, doc, anchor):
+    """凍結の根拠が「今も読める形で」残っているかを見る。欠けていればその理由文字列を返す。
+
+    節単位で照合するのは、別項目の『解凍条件』を誤って自分の根拠として拾わないため
+    （backlog-frozen.md は凍結項目が並ぶ文書なので、文書全体の含有では素通りしてしまう）。
+    hook 本体側も見るのは、配線を戻す人が最初に開くのがそのファイルだから
+    （復元用 JSON 現物はコード側の注記が正本）。
+    """
+    # 『解凍条件』は**定義文の形**（直後に ＝ : ：）でのみ認める。単なる言及（「所在と解凍条件だけ持つ」等）を
+    # 拾うと、条件本体を消しても素通りする——故障注入で実際に素通りしたので後から締めた。
+    # 断っておくと、これが見るのは**根拠の形**であって中身の妥当性ではない（機械に読めるのはそこまで）。
+    defined = re.compile(rf"{re.escape(anchor)}\s*[＝=:：]")
+    txt = read_text(doc)
+    if txt is None:
+        return f"凍結の根拠 {doc} が読めない（移動・削除）"
+    sections = re.split(r"^## ", txt, flags=re.M)
+    if not any(name in sec and "凍結" in sec and defined.search(sec) for sec in sections):
+        return f"{doc} に「{name} を名指し、凍結理由と『{anchor}＝…』を書いた節」が無い（理由か解除条件が失われた）"
+    body = read_text(f".claude/hooks/{name}")
+    if body is None or "凍結" not in body[:2000] or not defined.search(body[:2000]):
+        return f".claude/hooks/{name} 冒頭の凍結注記（凍結理由と『{anchor}＝…』）が失われた"
+    return None
+
+
 def check_hooks_registration():
     actual = _actual_hooks()
     registered = _registered_hooks()
@@ -174,6 +210,15 @@ def check_hooks_registration():
         # test_*.py は hook 本体ではなく回帰テスト（guard/consume の正規表現整合を守る test_hooks.py 等）。
         # settings に登録しないのが正なので死 hook 判定から除外する（誤検知回避）。
         if a.startswith("test_") or a in non_hook_libs:
+            continue
+        if a in FROZEN_HOOKS:
+            # 凍結 hook は「未登録が正」なので通常は無言（毎回ノイズになると点検の信頼が落ちる＝
+            # 既知バグ `stale-check-false-positive`）。ただし黙るのは根拠が生きている間だけ。
+            gap = _frozen_justification_gap(a, *FROZEN_HOOKS[a])
+            if gap:
+                add("hooks", "stale", "high",
+                    f"'{a}' は凍結 hook として未登録が正のはずだが、{gap}。"
+                    "配線を戻すか、理由と解除条件を書き直すこと")
             continue
         add("hooks", "warn", "info", f"'{a}' は実在するが settings に未登録（動いていない死 hook の可能性）")
 
@@ -1530,7 +1575,7 @@ def check_suppression_selftest():
 CHECKS = [
     (check_versions, "版数照合（CLAUDE.md ↔ gradle: minSdk / targetSdk）"),
     (check_db, "DB整合（AppDatabase.kt の version ↔ schemas 最大 ↔ MIGRATION 連番 ↔ db-migration の履歴表）"),
-    (check_hooks_registration, "hook 双方向照合（settings 参照 ↔ 実ファイル: 壊れた参照／未登録の死hook）"),
+    (check_hooks_registration, "hook 双方向照合（settings 参照 ↔ 実ファイル: 壊れた参照／未登録の死hook。凍結 hook は FROZEN_HOOKS で無言化するが、凍結理由と解除条件が正本から消えたら落ちる）"),
     (check_hook_git_tracked, "hook の git 追跡（実ファイル ↔ git ls-files: コミット漏れ）"),
     (check_conflict_markers, "コンフリクトマーカー残存"),
     (check_referenced_files, "参照ファイルの実在（CLAUDE/STATUS/handover・skill・docs/**・.claude/plans 直下が名指しする .md/.py/.js/.sh/.kt と、design-candidates のモック .html。『撤去済み』等の断り書きが同一行・直後の注記行・前置き引用ブロック・冒頭の名指し宣言のいずれかに在れば対象外）"),
