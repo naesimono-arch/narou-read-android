@@ -4,7 +4,6 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
-import com.novelreader.narou.model.Ncode
 import com.novelreader.ui.discovery.NovelDetailContent
 import com.novelreader.ui.skins.k.captureRoot
 import com.novelreader.ui.skins.k.setSkinKContent
@@ -96,7 +95,6 @@ class NovelDetailScreenScreenshotTest(
     fun capture() {
         composeTestRule.setSkinKContent(theme, fontScale) { _ ->
             NovelDetailContent(
-                ncode = Ncode(NCODE),
                 uiState = NovelDetailUiState.Content(
                     novel = DiscoveryScreenshotFixtures.detail(),
                     // 固定 epoch ＋ TimeZone 固定で末尾メタを「20:00 時点の情報」に一意化する。
@@ -156,8 +154,9 @@ class NovelDetailScreenScreenshotTest(
         private const val CASE_STORY = "story"
         private const val CASE_SYNOPSIS = "synopsis"
         private const val CASE_TAIL = "tail"
-        /** 書影の地色は bookId のハッシュ由来（[com.novelreader.ui.components.BookCover]）＝ncode 固定で決定的。 */
-        private const val NCODE = "N9876AB"
+        // （削除 2026-08-21）NCODE ＝ 旧 BookCover の地色シード（bookId のハッシュ）。案2-c で書影が
+        // 栞書影へ移り、色相も先端も**題名**から決まるようになったので ncode は描画に一切効かない
+        // ＝ NovelDetailContent の引数ごと落ちた。決定論はフィクスチャの題名が担保する。
 
         private const val FETCHED_AT_MILLIS = 1_767_265_200_000L // 2026-01-01 20:00 JST
 

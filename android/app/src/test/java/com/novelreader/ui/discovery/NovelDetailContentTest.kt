@@ -9,7 +9,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.novelreader.discovery.model.workDetail
 import com.novelreader.discovery.model.workSummary
-import com.novelreader.narou.model.Ncode
 import com.novelreader.viewmodel.NovelDetailUiState
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -38,7 +37,6 @@ class NovelDetailContentTest {
         composeTestRule.setContent {
             MaterialTheme {
                 NovelDetailContent(
-                    ncode = Ncode("N1234AB"),
                     uiState = uiState,
                     onSearchKeywords = {},
                     onImportPdf = onImportPdf,

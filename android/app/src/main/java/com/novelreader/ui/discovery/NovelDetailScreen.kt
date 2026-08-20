@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -59,47 +60,148 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.Ncode
-import com.novelreader.ui.components.BookCover
+import com.novelreader.ui.components.ShioriCover
+import com.novelreader.ui.components.hslToColor
+import com.novelreader.ui.components.shioriHue
 import com.novelreader.ui.theme.FontActionLabel
 import com.novelreader.ui.theme.FontBody
 import com.novelreader.ui.theme.FontButtonLabel
 import com.novelreader.ui.theme.FontChipLarge
 import com.novelreader.ui.theme.FontLabel
 import com.novelreader.ui.theme.FontMicroLabel
+import com.novelreader.ui.theme.FontSectionTitle
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.FontTopBarTitle
 import com.novelreader.ui.theme.LocalShelfColors
+import com.novelreader.ui.theme.LocalShioriColors
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.MotionDurationCrossfade
 import com.novelreader.viewmodel.NovelDetailUiState
 import com.novelreader.viewmodel.NovelDetailViewModel
 import com.novelreader.ui.theme.Spacing
 import java.util.Locale
+import kotlin.math.roundToInt
+
+// ============================================================
+// 作品詳細の書影ブロック＝案2-c「淡地」（2026-08-21 ユーザー裁定・意匠正本 discovery/discovery-detail-D.html）。
+//
+// 旧構成は全幅の暗色スラブ（BookCover・彩度12〜21%／明度26〜34%）で、①ほぼ無彩色ゆえ版面が毎回
+// そっくり同じに見え、②同じ作品が本棚（栞書影）と詳細で別の顔になっていた。案2-c は本棚と1ピクセル同じ
+// 栞書影をカードで置き、その背後の帯の地だけを作品色から導くことで両方を解く。
+//
+// ランダム性をどう収めるか（本案の核心）: 帯の地は作品色の**色相だけ**を借り、彩度14%・明度は固定窓へ
+// 圧縮する。窓を固定するので8色相のどれでも墨のコントラストが 13.88〜14.36:1 に揃い（振れ0.5以内）、
+// **作品ごとに変わるのは色みだけで版面の明暗は動かない**。書影の生成規則（ShioriGenerator）には一切触らない。
+// ============================================================
+
+/** 帯（作品色の淡地）の高さ。2026-07-31 裁定の 120dp から不変＝案2-c でも帯そのものは太らせていない。 */
+private val DetailHeroBandHeight = 120.dp
 
 /**
- * 作品詳細の書影ヒーローの高さ（2026-07-31 ユーザー裁定・旧 200dp）。
+ * 書影ブロック全体の高さ。内訳は「帯 120 ＋ 書影カードが境界を越える 44 ＋ カード下の逃げ 2」。
  *
- * なぜ縮めたか: 実機で「あらすじがスクロールしないと出てこない」＝ファーストビューの押し下げが真因だった。
- * 内訳はヒーロー 200＋作者行 34＋ステータス表 101 でここまで 351dp、あらすじ見出しは 375dp 目に来る一方、
- * 固定バー（未取込×既読は4アクション＝240dp）と TopAppBar・システムバーを引いたビューポートは
- * 360×800dp 級で約 444dp しかなく、本文は 1.7 行しか覗かなかった。並び順（モック正本 discovery-detail-D.html の
- * ヒーロー→作者→ステータス→あらすじ）は意匠なので変えず、押し下げ量だけを 80dp 削る裁定。
- *
- * なぜ定数化したか: この値はヒーローの高さと「題字を App bar へ出す」スクロール閾値の**両方**が参照する。
- * 旧実装は 200 をリテラルで二重に書いており、片方だけ直せば閾値が静かにズレる（畳の目が合わなくなる）。
- *
- * 縦横比について: [BookCover] は比を持たず Modifier で与えた寸法をそのまま塗るグラデーション面で、
- * ここは `fillMaxWidth()` の帯として使う（モック正本も `.cv{aspect-ratio:2/3}` を `.hero-cv{aspect-ratio:auto}` で
- * 明示的に打ち消している）。よって高さを変えても幅は連動せず、比の破綻は起きない。
+ * なぜ +46dp してもあらすじが減らないか: 作者・ジャンルを帯の中へ吸収したので、旧 `.detail-meta-top`
+ * （上アキ16＋行高36＝52dp）が版面から消える。差引 −6dp＝初期可視はむしろ増える（正本の実測 4.9→5.2行）。
  */
-private val DetailHeroHeight = 120.dp
+private val DetailHeroBlockHeight = 166.dp
+
+/** 書影カード 114×152dp＝3:4（本棚グリッドと同比）。 */
+private val DetailCoverWidth = 114.dp
+private val DetailCoverHeight = 152.dp
+
+/**
+ * 帯の内側余白。情報列を「境界に近づいた結果の位置」ではなく「帯の内側余白の規定どおりの位置」に据える
+ * ための値で、上下ともこれを使う＝**上下対称**（y 12..108）。境界までの最短距離 12dp が帯の内側余白そのもの
+ * ＝「帯の中に据わっている」と数で言える。
+ *
+ * ⚠️ 書影カードだけは意図的にこの規定の外で、境界を **44dp 越える**（カード高152の29%・帯高120の37%）。
+ * 10dp の半端なはみ出しとは桁が違うので「面の上に置かれた本」と読める＝**越え幅を減らすと中途半端に戻る**。
+ */
+private val DetailBandInset = Spacing.S12
+
+/** 情報列の左端。カード右端 24+114=138dp との間が 16dp（S16）＝水平も帯の内側余白と同じ規定で刻む。 */
+private val DetailInfoColumnStart = 154.dp
+
+/**
+ * 情報列（題名・作者・ジャンルチップ）の高さ。**内容にも環境にも依らず 96dp 固定**。
+ * 内訳 = 題名 [DetailTitleLineHeight] 22×2行=44 ＋ [DetailInfoGap] 6 ＋ 作者 16 ＋ 6 ＋ チップ 24。
+ * 12 + 96 + 12 = 120 ＝ 帯の高さちょうど＝上下対称の根拠。
+ */
+private val DetailInfoColumnHeight = 96.dp
+
+/**
+ * 情報列の要素間アキ。⚠️ Spacing.S4/S8 の中間の 6dp を**あえて**使う——96dp の内訳を合わせるための
+ * 計算値だから（S8 へ丸めると 44+8+16+8+24=100dp になり、上下対称 12/12 の根拠がその場で崩れる）。
+ */
+private val DetailInfoGap = 6.dp
+
+/**
+ * 題名・作者・チップの行送りを**明示**する。フォント既定（`normal` 相当）に委ねると環境で 1〜2dp ぶれ、
+ * 「情報列 96dp 固定」＝上下対称の根拠そのものが消えるため（意匠正本の警告をそのまま写した拘束）。
+ */
+private val DetailTitleLineHeight = 22.sp
+private val DetailAuthorLineHeight = 16.sp
+private val DetailChipLineHeight = 14.sp
+
+/**
+ * 行送りを CSS の `line-height` に寄せるための様式。情報列の3要素すべてに掛ける。
+ *
+ * ⚠️ **Compose の `lineHeight` は下限であって上限ではない**（本実装で実測）。CSS の `line-height` は
+ * フォント本来の行箱より小さくできるが、Compose はフォントの自然行高を下回れない——正本の指定どおり
+ * 22/16/14sp を渡しても実測は 22.75 / 18.5 / 17dp になり、96dp の内訳（44+6+16+6+24）が 8dp ぶん膨らんだ。
+ * [LineHeightStyle.Trim.Both] + `includeFontPadding = false` で行箱の**外側の余白**は落とせるが、
+ * それでも自然行高までしか縮まない。よって各要素の箱の高さは [Modifier.height] で明示して確定させる
+ * （落とされるのは行間であって字面ではないので、字面が切れることはない）。
+ * この様式は「箱の中で字面を中央に置く」役割＝ [LineHeightStyle.Alignment.Center] が本体。
+ */
+private val DetailInfoTextStyle = TextStyle(
+    platformStyle = PlatformTextStyle(includeFontPadding = false),
+    lineHeightStyle = LineHeightStyle(
+        alignment = LineHeightStyle.Alignment.Center,
+        trim = LineHeightStyle.Trim.Both,
+    ),
+)
+
+/**
+ * 情報列の3要素の箱の高さ（dp 側）。sp 側の行送りと必ず対で置く＝上の様式コメントのとおり、
+ * 行送りだけでは箱が確定しないため。44 + 6 + 16 + 6 + 24 = 96 が情報列の内訳そのもの。
+ * [DetailTitleBlockHeight] は「App bar へ題字を出すスクロール閾値」も参照する単一情報源。
+ */
+private val DetailTitleBlockHeight = 44.dp
+private val DetailAuthorLineHeightDp = 16.dp
+private val DetailChipLineHeightDp = 14.dp
+
+/**
+ * ジャンルチップの枠線幅。
+ * ⚠️ CSS の border は箱の外側に積まれるが、Compose の `Modifier.border` は要素の**内側**へ描いて寸法を
+ * 増やさない。そのまま写すとチップが 22dp になり 96dp の内訳が合わないので、枠ぶんを padding へ足して
+ * 総高 14+((4+1)×2)=24dp を再現する（正本 `.genre-label` の 4px padding + 1px border と同値）。
+ */
+private val DetailChipBorderWidth = 1.dp
+
+/**
+ * 帯の地の固定窓。彩度は 14% 固定、明度は「栞紙より 5 ポイント沈めた値」。
+ *
+ * なぜ明度を定数 0.93 で直書きしないか: 正本モックはライト専用で、0.93 をそのまま焼くとセピア／ダークで
+ * 白い帯になって破綻する。ライトの 93% の正体は**栞紙 #FBFAF8（L=97.8%）のちょうど 5 ポイント下**＝
+ * 「書影の紙より一段沈んだ面の上に本が載っている」という関係そのものなので、値ではなく関係の側を写す。
+ * これで各変種の栞紙（[com.novelreader.ui.theme.ShioriColors.paper]）から自動で導け、ライトは正本と同値 93% になる。
+ */
+private const val DetailBandSaturation = 0.14f
+private const val DetailBandLightnessDrop = 0.05f
 
 /**
  * なろうAPIの日付文字列（`general_lastup`＝"2024-01-05 12:34:56" 形式想定）を
@@ -167,7 +269,6 @@ fun NovelDetailScreen(
     val lastReadEpisode by viewModel.readingProgress.collectAsStateWithLifecycle()
 
     NovelDetailContent(
-        ncode = ncode,
         uiState = uiState,
         onSearchKeywords = onSearchKeywords,
         onImportPdf = onImportPdf,
@@ -184,14 +285,13 @@ fun NovelDetailScreen(
 
 /**
  * 作品詳細の描画層（stateless / UI 分割の content）。NovelDetailScreen からの純移動。
- * VM や Context を持たず [ncode]＋[uiState]＋コールバックだけで Loading/NotFound/Error/Content の分岐と
+ * VM や Context を持たず [uiState]＋コールバックだけで Loading/NotFound/Error/Content の分岐と
  * ヒーロー・ステータス・あらすじ・キーワード・評価・外部連携導線を描画する葉。スクロール追従の題字表示
  * といった画面ローカル UI 状態のみ内部に残す。外部ブラウザ起動は [onReadOnNarou]、再試行は [onRetry] へ委譲。
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun NovelDetailContent(
-    ncode: Ncode,
     uiState: NovelDetailUiState,
     onSearchKeywords: (List<String>) -> Unit,
     onImportPdf: () -> Unit,
@@ -211,9 +311,12 @@ internal fun NovelDetailContent(
     // App bar に作品名を常駐表示し、今どの作品を見ているかの手掛かりが消えないようにするため。
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
-    // ヒーロー高さの6割ほどスクロールしたら、書影上に載る本文タイトルが上端へ抜ける頃合いと見なす。
-    // 高さは [DetailHeroHeight] を単一情報源として引く（リテラル二重書きだと高さ変更で閾値だけ取り残される）。
-    val heroThresholdPx = remember(density) { with(density) { DetailHeroHeight.toPx() * 0.6f } }
+    // 情報列の題名が上端へ抜けたら App bar へ作品名を出す。案2-c では題名の位置が幾何で確定している
+    // （帯の内側余白 12dp から題名の箱 44dp）ので、旧「ヒーロー高の6割」という当て推量をやめて
+    // **題名の下辺そのもの**を閾値にする。構成要素を単一情報源として引くので寸法変更に自動追従する。
+    val heroThresholdPx = remember(density) {
+        with(density) { (DetailBandInset + DetailTitleBlockHeight).toPx() }
+    }
     val showBarTitle by remember {
         derivedStateOf { scrollState.value > heroThresholdPx }
     }
@@ -494,65 +597,14 @@ internal fun NovelDetailContent(
                             .fillMaxSize()
                             .verticalScroll(scrollState)
                     ) {
-                        // ヒーロー
-                        BookCover(
-                            // 境界: BookCover.bookId は String（書影キャッシュキー）。ncode を id として使う既存挙動を .value で維持。
-                            bookId = ncode.value,
+                        // 書影ブロック（案2-c）。作者・ジャンルは帯の中の情報列へ吸収済み＝
+                        // 旧 `.detail-meta-top` 行はここには無い（線引きを「帯の中＝書影と、その作品の名指し」で
+                        // 一度に通す。チップだけ動かして題名が半端に残る事故を防ぐための一括移動）。
+                        DetailCoverBlock(
                             title = novel.summary.title,
-                            showTitle = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(DetailHeroHeight)
+                            author = novel.summary.author,
+                            genreLabel = NarouGenres.genreLabel(novel.summary.genreCode),
                         )
-
-                        // 作者・ジャンル行（mock .detail-meta-top: justify-content:space-between＝作者を左端・
-                        // ジャンルを右端へ振り分ける。旧 spacedBy(S12) の左詰めはモック逆同期 2026-07-31 で検出されたズレ）
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = Spacing.S16)
-                                .padding(horizontal = Spacing.S24),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = novel.summary.author,
-                                fontSize = FontButtonLabel,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                // なぜ weight(1f, fill=false)+ellipsis: 長ハンドルの作者名が weight 無しだと Row の
-                                // 残り幅を丸ごと取り、右のジャンルタグを幅0まで押し出して1文字ずつ縦積み・枠ごと消失させる
-                                // （SpaceBetween は余り配分だけで測定順の食い合いは止めない）。作者側を可変幅で詰めて
-                                // タグの横幅を先に確保する（同一機序の実機バグ対処＝DiscoveryCommon.NovelListRow と同型）。
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-                            NarouGenres.genreLabel(novel.summary.genreCode)?.let { label ->
-                                // mock .genre-label: 1px solid var(--seiji) の枠線チップ（padding 4px 8px・radius 2px）。
-                                // 枠線の seiji はモックが不透明のため secondary をそのまま使う（キーワードチップの
-                                // alpha 0.5 淡色化は .kw-chip 側の既存判断で、ここへは持ち込まない）。
-                                Text(
-                                    text = label,
-                                    fontSize = FontChipLarge,
-                                    letterSpacing = 0.5.sp,
-                                    // ジャンル名は分類を名指す＝意味を運ぶ文字なので AA(4.5:1) が要る。
-                                    // 青磁 secondary #9CB3A8 は素地 2.14:1 で未達＝ADR 0014-D の濃青磁へ寄せる。
-                                    // 枠線（下の border）は装飾＝意味は文字が運ぶので青磁のまま据え置く。
-                                    color = LocalShelfColors.current.unreadLabel,
-                                    // なぜ maxLines=1+softWrap=false: タグ自体の改行縦積みを禁じ常に横一列で出す
-                                    // （タグは固定語彙で折返し不要。DiscoveryCommon のジャンルタグと同じ判断）。
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    modifier = Modifier
-                                        .border(
-                                            width = 1.dp,
-                                            color = MaterialTheme.colorScheme.secondary,
-                                            shape = RoundedCornerShape(2.dp)
-                                        )
-                                        .padding(horizontal = Spacing.S8, vertical = Spacing.S4)
-                                )
-                            }
-                        }
 
                         // ステータス表（2列グリッド）
                         val statusText = novelStatusLabel(novel.summary)
@@ -817,6 +869,172 @@ internal fun NovelDetailContent(
  * セル＝mock .status-item（padding:12px 0・odd は padding-right:16px・even は padding-left:16px・
  * ラベル .lbl と値 .val の縦積み gap 4px）。
  */
+// レイアウト回帰テストが寸法を名指しで掴むためのタグ（「帯の中に 96dp・上下対称」は目視でなく
+// 数で守る対象＝正本が数で規定している以上、守りも数でなければ静かに崩れる）。
+internal const val DetailCoverBlockTag = "detail_cover_block"
+internal const val DetailCoverBandTag = "detail_cover_band"
+internal const val DetailCoverCardTag = "detail_cover_card"
+internal const val DetailInfoColumnTag = "detail_info_column"
+internal const val DetailInfoTitleTag = "detail_info_title"
+internal const val DetailInfoAuthorTag = "detail_info_author"
+internal const val DetailInfoChipTag = "detail_info_chip"
+
+/**
+ * 作品詳細の書影ブロック＝案2-c「淡地」（意匠正本 discovery/discovery-detail-D.html）。
+ *
+ * 版面（1dp = 正本の1px）:
+ * ```
+ *   y0                                          帯（作品色の淡地・全幅）
+ *   y12   ┌ 書影 114×152 ┐   ┌ 情報列 96 ────┐   ← 左24(S24) / 列左154 / 右余白24(S24)
+ *   y108  │              │   └───────────────┘   ← 帯の内側余白 12dp（上と同値＝上下対称）
+ *   y120  │              │   ────────────────────  帯の境界（ヘアライン）
+ *   y164  └──────────────┘                        ← カードだけが境界を 44dp 越える（意図）
+ *   y166  ブロック下端
+ * ```
+ *
+ * @param title 書影のシードでもある（栞書影は**題名**から決定論生成＝本棚と1ピクセル同じ絵になる）。
+ *   旧 BookCover は ncode をシードにしていたので、同じ作品が本棚と詳細で別の顔になっていた。
+ */
+@Composable
+private fun DetailCoverBlock(
+    title: String,
+    author: String,
+    genreLabel: String?,
+    modifier: Modifier = Modifier,
+) {
+    val shiori = LocalShioriColors.current
+    // 帯の地。作品色の色相だけを借り、彩度14%・明度は栞紙より5ポイント下へ圧縮する（定数の why は上）。
+    val bandColor = remember(title, shiori.paper) {
+        val paper = shiori.paper
+        // HSL の明度＝(max+min)/2。Compose の Color は HSL を持たないので RGB から起こす。
+        val paperLightness =
+            (maxOf(paper.red, paper.green, paper.blue) + minOf(paper.red, paper.green, paper.blue)) / 2f
+        // 1%刻みへ丸めるのは正本が `hsl(h 14% 93%)` と整数%で書かれているため。
+        // ライトは 97.8−5=92.8 → 93% ＝正本の実値とビット単位で一致する。
+        val lightness = (((paperLightness - DetailBandLightnessDrop) * 100f).roundToInt() / 100f)
+            .coerceIn(0f, 1f)
+        hslToColor(shioriHue(title).toFloat(), DetailBandSaturation, lightness)
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(DetailHeroBlockHeight)
+            .testTag(DetailCoverBlockTag),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(DetailHeroBandHeight)
+                .background(bandColor)
+                .testTag(DetailCoverBandTag),
+        )
+        // 帯の境界（正本 `border-bottom:1px rgba(28,31,38,.10)`）。box-sizing:border-box なので
+        // 罫は帯の 120dp の**内側**最下段に載る＝オフセットは 120−1。
+        HorizontalDivider(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset(y = DetailHeroBandHeight - 1.dp),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f),
+        )
+        // 書影カード。本棚グリッドと同じ ShioriCover を題名で呼ぶだけ＝生成側へは何も要求しない。
+        // shadow は clip より前＝影を外周へ落としてから角丸で本体をクリップする（本棚カードと同じ作法）。
+        ShioriCover(
+            title = title,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset(x = Spacing.S24, y = DetailBandInset)
+                .size(width = DetailCoverWidth, height = DetailCoverHeight)
+                .shadow(
+                    elevation = shiori.coverShadowElevation,
+                    shape = RoundedCornerShape(2.dp),
+                )
+                .clip(RoundedCornerShape(2.dp))
+                .testTag(DetailCoverCardTag),
+        )
+        // 情報列。高さを固定するのは飾りでなく上下対称の根拠そのもの（12+96+12=120＝帯の高さ）。
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .fillMaxWidth()
+                .padding(
+                    start = DetailInfoColumnStart,
+                    top = DetailBandInset,
+                    end = Spacing.S24,
+                )
+                .height(DetailInfoColumnHeight)
+                .testTag(DetailInfoColumnTag),
+            verticalArrangement = Arrangement.spacedBy(DetailInfoGap),
+        ) {
+            // 題名。minLines=maxLines=2 で **1行の題名でも箱は 44dp**＝内容に依らず 96dp が保たれる
+            // （maxLines だけだと短題名で列が縮み、上下対称が題名の長さ次第で崩れる）。
+            Text(
+                text = title,
+                fontFamily = MinchoFamily,
+                fontSize = FontSectionTitle,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = DetailTitleLineHeight,
+                style = DetailInfoTextStyle,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                // 箱を 44dp で固定する＝題名が1行でも2行でも列の埋まり方が変わらない（内容非依存の要）。
+                // minLines=2 では代用にならない: Compose は「minLines の合成高」と「実際に2行組んだ高さ」を
+                // 別々に計算するため、実測で 41dp / 45.5dp と食い違った。
+                modifier = Modifier
+                    .height(DetailTitleBlockHeight)
+                    .testTag(DetailInfoTitleTag),
+            )
+            // 作者は1行 nowrap + ellipsis。折り返すと情報列が伸びて帯からはみ出す（正本が写し取り損ねて
+            // いた拘束で、実装側が先に正しかった箇所＝2026-08-21 にモックを実装へ合わせた）。
+            Text(
+                text = author,
+                fontSize = FontButtonLabel,
+                fontWeight = FontWeight.Medium,
+                lineHeight = DetailAuthorLineHeight,
+                style = DetailInfoTextStyle,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(DetailAuthorLineHeightDp)
+                    .testTag(DetailInfoAuthorTag),
+            )
+            if (genreLabel != null) {
+                Text(
+                    text = genreLabel,
+                    fontSize = FontChipLarge,
+                    letterSpacing = 0.5.sp,
+                    lineHeight = DetailChipLineHeight,
+                    style = DetailInfoTextStyle,
+                    // 分類を名指す＝意味を運ぶ文字なので AA(4.5:1)。枠線は装飾のため青磁のまま据置
+                    // （淡地の上でも意味は文字が運ぶ＝ADR 0014-D の切り分け）。
+                    color = LocalShelfColors.current.unreadLabel,
+                    // タグは固定語彙＝改行縦積みを禁じて常に横一列で出す。
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier
+                        // testTag は枠の**外側**へ置く（padding より後ろに置くと semantics の bounds が
+                        // padding の内側＝字面の箱になり、回帰テストがチップ総高 24dp でなく 14dp を測る）。
+                        .testTag(DetailInfoChipTag)
+                        .border(
+                            width = DetailChipBorderWidth,
+                            color = MaterialTheme.colorScheme.secondary,
+                            shape = RoundedCornerShape(2.dp),
+                        )
+                        .padding(
+                            horizontal = Spacing.S8 + DetailChipBorderWidth,
+                            vertical = Spacing.S4 + DetailChipBorderWidth,
+                        )
+                        // 字面の箱を 14dp に固定＝padding 5×2 と合わせてチップ総高 24dp（正本の実値）。
+                        .height(DetailChipLineHeightDp),
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun StatusGridRow2x2(
     topLeft: Pair<String, String>,

@@ -41,6 +41,40 @@ import kotlin.math.roundToInt
 // ============================================================
 
 /**
+ * HSL → RGB 変換（Jetpack Compose は HSL を直接持たない）。
+ *
+ * なぜここに在るか: 元は旧 BookCover.kt（D 世代の暗色スラブ書影）が持っていたが、2026-08-21 に
+ * 作品詳細が案2-c（栞書影＋淡地の帯）へ移って BookCover の最後の利用者が消えたため、残る利用者
+ * （[shioriAccentFor]・ShioriHighLoadTips・作品詳細の帯の地）の側へ引き取った。
+ */
+internal fun hslToColor(hue: Float, saturation: Float, lightness: Float): Color {
+    val h = hue / 360f
+    val s = saturation
+    val l = lightness
+
+    val q = if (l < 0.5f) l * (1f + s) else l + s - l * s
+    val p = 2f * l - q
+
+    fun hue2rgb(t: Float): Float {
+        var t2 = t
+        if (t2 < 0f) t2 += 1f
+        if (t2 > 1f) t2 -= 1f
+        return when {
+            t2 < 1f / 6f -> p + (q - p) * 6f * t2
+            t2 < 1f / 2f -> q
+            t2 < 2f / 3f -> p + (q - p) * (2f / 3f - t2) * 6f
+            else          -> p
+        }
+    }
+
+    return Color(
+        red   = hue2rgb(h + 1f / 3f),
+        green = hue2rgb(h),
+        blue  = hue2rgb(h - 1f / 3f),
+    )
+}
+
+/**
  * 栞アクセント色の共有ヘルパー（純関数）。書架の栞の棒／先端色と、目録リストの左端色帯を
  * この1関数へ集約し「同じ本＝同じ色相・同じ明度」を書架⇔目録で保証する（整合の要）。
  *
