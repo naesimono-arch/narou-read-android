@@ -25,3 +25,10 @@
 
 実装現物とアサート設計＝`android/app/src/test/java/com/novelreader/ui/components/ShioriCoverHighLoadTest.kt`
 （各行に機序コメントあり）。関連: ADR 0009（Compose UI テストは Robolectric で回す方針）。
+
+## ③ 時計はもう1系統ある（2026-08-21 追記）
+
+上の2つは「テストの時計をどう汲むか」の話だが、**そもそもテストの時計から外れる**経路がある——
+コルーチンのディスパッチャが差し替わると `delay` は仮想時間を離れる（`repeatOnLifecycle` などが内部で
+`Dispatchers.Main.immediate` を掴む）。`advanceTimeBy` をいくら積んでも進まないときはこれを疑う＝
+`coroutines-delay-clock-follows-interceptor.md`。
