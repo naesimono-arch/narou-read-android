@@ -1,0 +1,488 @@
+<!-- @dsCard group="UI-n / 発見（作品詳細）" name="D. 作品詳細の書影 — 意匠そのものの作り直し5案（あらすじ残行数つき・裁定用ドラフト）" -->
+<!-- @derives source="discovery/discovery-detail-D.html" note="案B 適用後の正本を土台に、書影の意匠だけを差し替えた比較用ドラフト。固定バー・並び順・本文寸法は一切触らない。裁定後は採用案を正本へ落として本ファイルを削除する" -->
+<!--
+  ============================================================================
+  何を決めるためのモックか
+  ============================================================================
+  「書影が素っ気ない」を解く。⚠️ 対象は**作品詳細（検索から辿る画面）の書影だけ**。
+  本棚の栞書影は 2026-08-21 ユーザー裁定で「満足している」＝**触らない**。
+
+  ---- 前便の取り違えと、そこから引き継いだもの ----
+  前便は本棚グリッド前提で6方向を起こしたが（bookshelf-cover-redesign-K.html）、対象が
+  違ったため役目を終えて削除した。ただし調査の中身はここへ引き継いである:
+   ・書影の生成の仕組み（title→FNV-1a→mulberry32→色相/x/長さ/先端。ShioriGenerator.kt）
+   ・書影が出る場所の全数9か所（本ファイル末尾の表）
+   ・各意匠の描画コスト実測（1冊150pxの canvas 命令数）
+  **本棚側の分析（並びの識別性・6冊で同色92%・先端174種が面積比1.1%）は、本棚は現状で
+  満足という裁定が出たため保留**とする。
+
+  ---- 争点（前便と切り口が違う） ----
+  本棚は「並んだときに1冊ずつ違って見えるか」だった。作品詳細は**1冊が大きく出る**ので、
+  問いは「**大きく出したこの面に、置くものがあるか**」に変わる。
+
+  ---- 土台と不変条件 ----
+  ・土台＝案B 適用後の正本（副アクション横一列・固定バー173dp・並び順は不変）。
+  ・固定バー下端の注記は**現行実装にまだ在る**ので、在る前提で測っている（文言調整中＝別便）。
+    注記が将来消えると 36px＝**全案が一律 +1.4行**される（差の順位は動かない）。
+  ・あらすじの初期可視行数を減らさないことが要件。現状＝**3.5行**が守るべき線。
+
+  ---- 行数の算術（このモックの自己測定と一致する） ----
+  ビューポート792 −（ステータスバー39＋トップバー64＋ナビ24）− 固定バー173 = スクロール域 492px。
+  本文1行 = 26px。書影ブロックの縦予算が 172px（帯120＋作者行52）を超えた分がそのまま
+  あらすじの押し下げになる。判定基準は正本と同じ＝最低2行（第1文が閉じる）／推奨3行／全文8.8行。
+
+  ---- 申し送り ----
+  ・この面の寸法を今後動かしたら**案B 適用後の版を土台に測り直す**こと（前提の版を取り違えると
+    行数が丸ごと嘘になる。実際に一度起きた）。
+  ・**本棚へ変更を要求する案は採れない**（裁定：本棚は満足）。各案の「本棚への要求」欄を見ること。
+  ============================================================================
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>作品詳細の書影 — 意匠の作り直し5案</title>
+<style>
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;--seiji:#9CB3A8;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px 26px 80px;font-family:var(--gothic);color:#2A2C28}
+  h1{font-family:var(--mincho);font-size:22px;font-weight:600;letter-spacing:.06em;margin-bottom:10px}
+  h2{font-family:var(--mincho);font-size:17px;font-weight:600;letter-spacing:.04em;margin:6px 0 14px;padding-bottom:8px;border-bottom:1px solid #C9C8C0;width:100%;max-width:1200px}
+  .lead{max-width:1000px;font-size:13px;line-height:1.85;color:#4A4C48;margin-bottom:22px}
+  .lead b{color:#2A2C28}
+  .diag{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px;margin:4px 0 24px;max-width:1200px;width:100%}
+  .diag div{background:rgba(255,255,255,.6);border-left:3px solid #b04a3a;padding:10px 12px;font-size:11.5px;line-height:1.65;color:#4a4c47}
+  .diag div b{display:block;font-size:12px;color:#8a3a2c;margin-bottom:3px}
+  .diag div.no{border-left-color:#8b9a86}
+  .diag div.no b{color:#4f6349}
+  section{width:100%;max-width:1200px;margin-bottom:34px;display:flex;flex-direction:column;align-items:flex-start}
+  .opt-line1{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;width:100%}
+  .opt-id{font-family:var(--mincho);font-size:20px;font-weight:700;color:var(--ai);min-width:22px}
+  .opt-name{font-family:var(--mincho);font-size:17px;font-weight:600}
+  .badges{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+  .badge{font-size:11.5px;padding:3px 9px;border-radius:2px;border:1px solid #C9C8C0;background:#F3F2EC;white-space:nowrap}
+  .badge b{font-variant-numeric:tabular-nums}
+  .badge.v-ok{background:#E9F1EA;border-color:#A9C6AF;color:#2F6B3C}
+  .badge.v-min{background:#F7F1E2;border-color:#D8C89A;color:#7A5F16}
+  .badge.v-ng{background:#F6E9E7;border-color:#D9B5AE;color:#8A3A2C}
+  .opt-meta{font-size:12.5px;color:#5A5C57;line-height:1.8;margin-top:6px}
+  .opt-meta .k{display:inline-block;min-width:9em;color:#2A2C28;font-weight:600}
+  .opt-meta.warn{color:#8A3A2C}
+  .stage{display:flex;gap:26px;flex-wrap:wrap;margin-top:14px}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .wrap .mode{font-size:11.5px;letter-spacing:.14em;color:#6A6C67}
+  .strip{display:flex;gap:26px;flex-wrap:wrap;justify-content:flex-start}
+  .crop{width:360px;height:300px;overflow:hidden;border-radius:24px 24px 4px 4px;box-shadow:0 10px 24px rgba(0,0,0,.2);position:relative;background:var(--base)}
+  .crop .phone{border-radius:24px 24px 0 0;box-shadow:none}
+
+  /* ===== 端末（正本 discovery-detail-D の harness をそのまま踏襲＝行数が比較可能） ===== */
+  .phone{width:360px;height:792px;background:var(--base);border-radius:30px;overflow:hidden;position:relative;
+    box-shadow:0 14px 34px rgba(0,0,0,.24);display:flex;flex-direction:column;font-family:var(--gothic)}
+  .sb{height:39px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:11px;color:var(--ink-soft)}
+  .navbar{height:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .navbar i{display:block;width:108px;height:3px;border-radius:2px;background:#C9C7C0}
+  .topbar{height:64px;flex-shrink:0;display:flex;align-items:center;padding:0 8px}
+  .topbar .ic{width:48px;height:48px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+  .topbar .ic svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .scroll::-webkit-scrollbar{width:0}
+  .col{display:flex;flex-direction:column}
+  .col > *{flex-shrink:0}
+  .pad{padding:0 24px;display:flex;flex-direction:column}
+  .pad > *{flex-shrink:0}
+
+  /* 現状: 全幅の暗色帯（Compose BookCover＝ncode ハッシュの暗色グラデ＋藍の縦ルール＋白明朝題字） */
+  .cv{position:relative;display:flex;align-items:flex-end;overflow:hidden;width:100%;flex-shrink:0;height:120px;
+    background:linear-gradient(160deg,#3A4F63,#28323E)}
+  .cv .rule{position:absolute;left:24px;top:18px;bottom:18px;width:2px;background:var(--ai);opacity:.85}
+  .cv .ttl-in{padding:20px 24px 20px 32px}
+  .cv .ttl-in b{font-family:var(--mincho);font-size:17px;font-weight:600;line-height:1.4;color:var(--base);text-shadow:0 1px 3px rgba(28,31,38,.4);display:block}
+
+  /* 案1 統一カード: 栞書影 2:3（112×168）＋右に題名・作者・ジャンル */
+  .coverrow{display:flex;gap:16px;padding:16px 24px 0;flex-shrink:0}
+  .shiori{position:relative;flex-shrink:0;border-radius:2px;overflow:hidden;box-shadow:0 3px 10px rgba(28,31,38,.22)}
+  .shiori canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .side{display:flex;flex-direction:column;gap:8px;min-width:0}
+  .side .t{font-family:var(--mincho);font-size:17px;font-weight:600;line-height:1.4;color:var(--ink)}
+  .side .au{font-size:12.5px;color:var(--ink);font-weight:500}
+
+  /* 案2 見返し: 紙地の全幅帯に栞カードを重ね、下へ張り出させる */
+  .kaeshi{position:relative;flex-shrink:0;height:166px;width:100%}
+  .kaeshi .band{position:absolute;left:0;right:0;top:0;height:120px;background:#EFEAE0;
+    border-bottom:1px solid #DDD6C7}
+  .kaeshi .band::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:rgba(28,61,90,.28)}
+  .kaeshi .shiori{position:absolute;left:24px;top:24px;width:84px;height:126px}
+  .kaeshi .kmeta{position:absolute;left:124px;right:24px;top:34px;display:flex;flex-direction:column;gap:7px}
+  .kaeshi .kmeta .t{font-family:var(--mincho);font-size:16px;font-weight:600;line-height:1.4;color:var(--ink)}
+  .kaeshi .kmeta .au{font-size:12.5px;color:var(--ink);font-weight:500}
+
+  /* 案3 大判: 栞書影を 168×252 で置く（＝行数が成立しないことを示すための案） */
+  /* 案4 奥付: 栞書影 144×216 ＋右に題名・作者・ジャンル・ステータス4項目を吸収 */
+  .okuduke{display:flex;gap:16px;padding:16px 24px 0;flex-shrink:0}
+  .okuduke .facts{display:flex;flex-direction:column;gap:6px;margin-top:2px;min-width:0}
+  .okuduke .fr{display:flex;gap:8px;align-items:baseline;border-top:1px solid var(--line);padding-top:5px}
+  .okuduke .fr .lbl{font-size:10px;color:var(--ink-soft);letter-spacing:.06em;flex-shrink:0;min-width:4.4em}
+  .okuduke .fr .val{font-size:12px;color:var(--ink);font-weight:500;line-height:1.35;min-width:0}
+
+  /* 案5 磨く: 帯の寸法は不変のまま、暗色スラブをやめて紙地＋空押し題字＋箔罫へ */
+  .cvp{position:relative;width:100%;height:120px;flex-shrink:0;overflow:hidden}
+  .cvp canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+  .detail-meta-top{display:flex;justify-content:space-between;align-items:center;margin-top:16px;height:36px}
+  .author{font-size:12.5px;color:var(--ink);font-weight:500;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .genre-label{font-size:11.5px;color:var(--seiji);border:1px solid var(--seiji);padding:4px 8px;border-radius:2px;font-weight:500;white-space:nowrap;flex-shrink:0}
+  .status-grid{border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:16px;display:flex;flex-direction:column}
+  .status-row{display:flex;box-sizing:content-box}
+  .status-row + .status-row{border-top:1px solid var(--line)}
+  .status-item{flex:1;min-width:0;padding:12px 0;display:flex;flex-direction:column;gap:4px}
+  .status-item:first-child{border-right:1px solid var(--line);padding-right:16px}
+  .status-item:last-child{padding-left:16px}
+  .status-item .lbl{font-size:10.5px;color:var(--ink-soft);letter-spacing:.06em}
+  .status-item .val{font-size:13px;color:var(--ink);font-weight:500;line-height:1.45}
+  .status-item .val small{font-size:11.5px;color:var(--ink-soft)}
+  .sec{font-size:10.5px;letter-spacing:.28em;color:var(--ink-soft);font-weight:600;height:28px;line-height:28px;margin-top:24px}
+  .sec + *{margin-top:12px}
+  .summary-p{font-family:var(--mincho);font-size:14px;line-height:26px;color:var(--ink);text-align:justify}
+  .kw-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .kw-chip{font-size:11px;color:var(--seiji);border:1px solid var(--seiji);border-radius:2px;padding:4px 8px}
+
+  /* 固定バーは案B のまま固定（この比較では触らない） */
+  .fixed-bar{flex-shrink:0;background:var(--base);border-top:1px solid var(--line);padding:16px 24px;display:flex;flex-direction:column}
+  .slot{height:48px;display:flex;align-items:center;flex-shrink:0}
+  .slot + .slot{margin-top:8px}
+  .slot.row{gap:8px}
+  .slot.row > *{flex:1;min-width:0}
+  .btn-primary{height:40px;width:100%;background:var(--ai);color:var(--base);border:none;border-radius:2px;
+    font-family:var(--gothic);font-size:12.5px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:.1em;white-space:nowrap}
+  .btn-ghost{height:40px;width:100%;background:transparent;color:var(--ink-soft);border:1px solid var(--line);border-radius:2px;
+    font-family:var(--gothic);font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:.1em;white-space:nowrap}
+  .btn-ghost.mini{font-size:11.5px;letter-spacing:.06em;gap:4px}
+  .fixed-bar button svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5;flex-shrink:0}
+  .bar-note{padding-top:8px;line-height:28px;text-align:center;font-size:10.5px;color:var(--ink-soft);flex-shrink:0}
+
+  table.imp{border-collapse:collapse;max-width:1200px;width:100%;font-size:11.5px;background:rgba(255,255,255,.55)}
+  table.imp th,table.imp td{border:1px solid #d8d5cc;padding:8px 10px;text-align:left;vertical-align:top;line-height:1.6;color:#4a4c47}
+  table.imp th{background:rgba(0,0,0,.045);font-weight:600;font-size:11px;letter-spacing:.06em;color:#2A2C28}
+  table.imp code{font-size:10.5px;color:#6a6c67}
+</style>
+</head>
+<body>
+<h1>作品詳細の書影 — 意匠そのものを作り直す5案</h1>
+<div class="lead">
+  対象は<b>検索から辿る作品詳細の書影だけ</b>。本棚の栞書影は「満足している」との裁定なので触らない。<br>
+  いま出ているのは <code>NovelDetailScreen.kt</code> が呼ぶ旧 <code>BookCover</code>＝<b>全幅360×120dp の暗色グラデ帯</b>に、
+  左24dpの藍の縦ルール1本と白明朝の題名を下寄せしたもの。<b>本棚の栞書影とは系統もシードも別</b>で、
+  色相は <code>ncode.hashCode()</code>（本棚は題名由来）、彩度12〜21%・明度26〜34%＝<b>ほぼ黒</b>。<br>
+  <b>土台</b>＝案B 適用後の正本。固定バー（173dp・注記あり）と並び順は触らず、<b>書影の意匠だけ</b>を入れ替えている。
+  <b>守る線＝あらすじ初期可視 3.5行</b>（現状値）。バッジは各案の画面から機械測定した実測値。
+</div>
+
+<h2>この1画面での「素っ気なさ」— 何が当てはまり、何が当てはまらないか</h2>
+<div class="diag">
+  <div><b>当てはまる｜大きいのに空</b>360×120dp＝43,200dp²の面を、縦ルール1本と題名だけが使っている。本棚は「小さすぎて個体差が潰れる」問題だったが、ここは<b>逆＝場所はあるのに置くものが無い</b>。</div>
+  <div><b>当てはまる｜本に見えない</b>3:1 の横帯は本の輪郭（2:3/3:4）を持たない。題名を載せたヘッダの色板であって、書影として読めない。</div>
+  <div><b>当てはまる｜物になっていない</b>フラットな2色グラデ1枚。大きく出るぶん、のっぺりが本棚のときより目立つ。</div>
+  <div><b>当てはまる｜決める材料が載っていない</b>この画面の用途は「取り込むか決める」。書影は状態・話数・読了目安を1つも運ばず、判断はすべて下のステータス表任せ。</div>
+  <div><b>当てはまる（最も強く）｜同じ作品が場所で別人</b>本棚では栞書影、詳細では暗色スラブ。<b>シードすら違う</b>（題名 vs ncode）ので色も一致しない＝作品の同一性が切れている。</div>
+  <div class="no"><b>当てはまらない｜並びの識別性</b>「6冊並ぶと同色が92%」「先端174種が面積比1.1%で潰れる」は<b>並びを前提にした症状</b>。詳細は1冊しか出ないので効かない。ただし彩度12〜21%・明度26〜34%では色相を360段階持っても差が知覚できず、<b>1冊でも「その作品らしさ」が0</b>という別の形で効く。</div>
+</div>
+
+<h2>① 上端300dp の見た目 — 「本」に見えるか・置くものがあるか</h2>
+<div class="strip" id="strip"></div>
+<div class="lead" style="margin-top:14px">
+  いずれも壊れやすいほう（4アクション版）の上端。<b>面積を増やしたかどうかではなく、面に何が載っているか</b>で見る。
+</div>
+
+<h2>② 案ごとの版面と、あらすじに残る行数（実測）</h2>
+<div id="opts" style="width:100%"></div>
+
+<h2>③ 前便から引き継いだ調査（本棚側の分析は保留）</h2>
+<div class="lead">
+  <b>書影の生成の仕組み</b>: 実表紙画像を持たないので題名から決定論生成する。<code>ShioriGenerator.kt</code> が
+  FNV-1a → mulberry32 で 色相／棒のx／棒の長さ／先端種 を引き、<code>ShioriCover.kt</code> が描く（先端意匠は
+  <code>ShioriTips.kt</code> の174種）。<b>作品詳細だけがこの系統に乗っておらず</b>、旧 <code>BookCover.kt</code>
+  （<code>bookId.hashCode()</code>→HSL の暗色グラデ）を使っている。<br>
+  <b>描画コストの実測</b>（書影1冊150px・canvas命令数）: 現状スラブ 36／栞（棒＋先端＋縦題字）36／紙の質感 577。
+  作品詳細は<b>1画面に1冊</b>なので、本棚（1画面に約20冊）と違ってコストは事実上の制約にならない。<br>
+  <b>本棚側の分析は保留</b>: 並びの識別性・6冊で同色92%・先端174種が面積比1.1%——本棚は現状で満足という裁定が出たため保留（解凍条件＝本棚の書影を再検討することになったとき）。
+</div>
+
+<h2>④ 書影が出る場所の全数（波及の地図）</h2>
+<table class="imp">
+  <tr><th style="width:24%">場所</th><th style="width:30%">実装</th><th>今回の扱い</th></tr>
+  <tr><td><b>作品詳細（発見）</b></td><td><code>ui/discovery/NovelDetailScreen.kt</code>（<code>DetailHeroHeight=120.dp</code>）</td><td><b>今回の対象。ここだけを変える</b></td></tr>
+  <tr><td>本棚グリッド（K＝既定）</td><td><code>skins/k/BookshelfK.kt</code> KGridBookCard</td><td>変更対象外（満足の裁定）</td></tr>
+  <tr><td>本棚グリッド（未取込）</td><td><code>skins/k/BookshelfK.kt</code> KNarouGridCard</td><td>変更対象外</td></tr>
+  <tr><td>本棚グリッド（D）</td><td><code>ui/BookCard.kt</code></td><td>変更対象外</td></tr>
+  <tr><td>本棚リスト（目録）</td><td><code>skins/k/BookshelfK.kt</code> 目録行（書影なし・左4dp色帯）</td><td>変更対象外</td></tr>
+  <tr><td>Web由来カード</td><td><code>ui/WebBookCard.kt</code></td><td>変更対象外</td></tr>
+  <tr><td>装いの間ミニチュア</td><td><code>ui/WardrobeScreen.kt</code>（34×50 の単色チップ）</td><td>変更対象外</td></tr>
+  <tr><td>遷移スケルトン</td><td><code>ui/TransitionSkeletons.kt</code></td><td>詳細ヒーローの寸法が変わる案では骨も追従（案1〜4）</td></tr>
+  <tr><td>生成ロジック</td><td><code>ShioriGenerator.kt</code>／<code>ShioriTips.kt</code>／<code>BookCover.kt</code></td><td>案1〜4 は <code>ShioriCover</code> を<b>呼ぶだけ</b>＝生成側に変更を要求しない。案5 は <code>BookCover</code> の塗りだけを差し替え</td></tr>
+</table>
+
+<script>
+/* ===== 栞書影の生成（本棚の正本 ShioriGenerator と同一系列。ここでは描画に使うだけで一切変更しない） ===== */
+function hashStr(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function rand(r,lo,hi){return lo+(hi-lo)*r();}
+function pick(r,a){return a[Math.floor(r()*a.length)];}
+function hsl(h,s,l){return 'hsl('+h+' '+s+'% '+l+'%)';}
+const PALETTE=[20,70,140,175,200,210,260,330];
+function coverHue(t){return pick(mulberry32(hashStr(t)),PALETTE);}
+function SS(c,a){c.strokeStyle=a;c.lineCap='round';c.lineJoin='round';}
+const MIN='"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif';
+/* 先端意匠（正本174種のうち代表15種。増補は /shiori-tips の手順が正本＝ここでは触らない） */
+const TIPS=[
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=2.6;c.beginPath();c.moveTo(x,y);c.lineTo(x-6,y+12);c.moveTo(x,y);c.lineTo(x+6,y+12);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+7,4,0,7);c.fill();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+6,6,0,7);c.fill();},
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=2.4;c.beginPath();c.moveTo(x,y);c.lineTo(x-5,y+18);c.moveTo(x,y);c.lineTo(x+5,y+18);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+3,3.2,0,7);c.fill();SS(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+5);c.lineTo(x-6,y+22);c.moveTo(x,y+5);c.lineTo(x,y+23);c.moveTo(x,y+5);c.lineTo(x+6,y+22);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+4,4,0,7);c.fill();SS(c,a);c.lineWidth=1.6;for(let k=-2;k<=2;k++){c.beginPath();c.moveTo(x,y+7);c.lineTo(x+k*4,y+24);c.stroke();}},
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+4);c.quadraticCurveTo(x-11,y-2,x-9,y+4);c.quadraticCurveTo(x-11,y+10,x,y+4);c.moveTo(x,y+4);c.quadraticCurveTo(x+11,y-2,x+9,y+4);c.quadraticCurveTo(x+11,y+10,x,y+4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+4,2,0,7);c.fill();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+5,4,0,7);c.fill();SS(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+9);c.lineTo(x,y+20);c.stroke();},
+ (c,x,y,a,pp)=>{c.fillStyle=a;c.beginPath();c.rect(x-2,y+5,8,4);c.fill();c.beginPath();c.arc(x+6,y+7,2,0,7);c.fill();c.beginPath();c.arc(x-3,y+14,5,0,7);c.fill();c.strokeStyle=pp;c.lineWidth=1.4;c.beginPath();c.arc(x-3,y+14,2,0,7);c.stroke();},
+ (c,x,y,a,pp)=>{c.fillStyle=a;c.beginPath();c.rect(x-6,y+12,12,8);c.fill();c.beginPath();c.rect(x-7,y+8,14,5);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,y+10,1.5,0,7);c.fill();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-5,y+12);c.lineTo(x+5,y+12);c.arc(x+5,y+15,3,-Math.PI/2,Math.PI/2);c.lineTo(x-5,y+18);c.arc(x-5,y+15,3,Math.PI/2,Math.PI*1.5);c.closePath();c.fill();SS(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x-3,y+12);c.quadraticCurveTo(x,y+5,x+3,y+12);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-8,y+18);c.lineTo(x-8,y+14);c.quadraticCurveTo(x-6,y+8,x-4,y+13);c.quadraticCurveTo(x-2,y+16,x,y+11);c.quadraticCurveTo(x+2,y+16,x+4,y+13);c.quadraticCurveTo(x+6,y+8,x+8,y+14);c.lineTo(x+8,y+18);c.closePath();c.fill();},
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x-4,y+12,4,0,7);c.stroke();c.beginPath();c.arc(x+4,y+12,4,0,7);c.stroke();c.beginPath();c.moveTo(x-1,y+11);c.quadraticCurveTo(x,y+9,x+1,y+11);c.stroke();},
+ (c,x,y,a,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-5,y+8);c.lineTo(x+5,y+8);c.lineTo(x+4,y+19);c.lineTo(x-4,y+19);c.closePath();c.fill();c.strokeStyle=pp;c.lineWidth=1.4;c.beginPath();c.moveTo(x-4,y+11);c.lineTo(x+4,y+11);c.stroke();},
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+6);c.lineTo(x+6,y+6);c.lineTo(x+6,y+17);c.lineTo(x-6,y+17);c.closePath();c.stroke();c.lineWidth=1.2;c.beginPath();c.moveTo(x-2,y+6);c.lineTo(x-2,y+17);c.moveTo(x+2,y+6);c.lineTo(x+2,y+17);c.stroke();c.lineWidth=2;c.beginPath();c.moveTo(x-7,y+4);c.lineTo(x+7,y+4);c.stroke();}
+];
+/* 縦組み題字（ShioriCover.drawShioriTitle と同ロジック） */
+function vtitle(c,text,w,h,ink){
+  const S=w/150, fs=Math.round(w*0.088), lineGap=fs*1.16, colGap=Math.round(w*0.108);
+  const yTop=fs+5*S, yBottom=h-11*S, x0=w-fs-3*S, maxCols=3;
+  const perCol=Math.floor((yBottom-yTop)/lineGap); if(perCol<1||fs<1)return;
+  c.fillStyle=ink;c.font='600 '+fs+'px '+MIN;c.textAlign='center';c.textBaseline='middle';
+  const ch=[...text];
+  for(let col=0;col<maxCols;col++){const st=col*perCol;if(st>=ch.length)break;const cx=x0-col*colGap;
+    for(let i=0;i<perCol;i++){const idx=st+i;if(idx>=ch.length)break;
+      let g=ch[idx]; if(col===maxCols-1&&i===perCol-1&&idx<ch.length-1)g='⋮';
+      c.fillText(g,cx,yTop+i*lineGap+lineGap/2);}}
+}
+/* 栞書影1枚（本棚と同一の見え。作品詳細では大きく出るぶん先端意匠が初めて実寸で読める） */
+function drawShiori(c,w,h,title){
+  const S=w/150, paper='#FBFAF8', ink='#1C1F26';
+  c.fillStyle=paper;c.fillRect(0,0,w,h);
+  c.strokeStyle='rgba(28,31,38,.05)';c.lineWidth=1;c.strokeRect(.5,.5,w-1,h-1);
+  const acc=hsl(coverHue(title),48,52);
+  const rng=mulberry32(hashStr(title+'|B'));
+  const x=Math.round(rand(rng,.14,.36)*w)+.5, len=Math.round(rand(rng,.30,.60)*h);
+  c.strokeStyle=acc;c.lineWidth=2.5*S;c.lineCap='butt';
+  c.beginPath();c.moveTo(x,0);c.lineTo(x,len);c.stroke();
+  const ti=Math.floor(rng()*TIPS.length);
+  c.save();c.translate(x,len);c.scale(S,S);c.translate(-x,-len);
+  TIPS[ti](c,x,len,acc,paper);
+  c.restore();
+  vtitle(c,title,w,h,ink);
+}
+/* 案5「磨く」: 帯の寸法は不変のまま、暗色スラブをやめて漉き紙＋空押し題字＋箔の細罫にする */
+function drawPolish(c,w,h,title){
+  const S=h/120, rng=mulberry32(hashStr(title+'|P'));
+  const g=c.createLinearGradient(0,0,w*0.5,h);g.addColorStop(0,'#F7F3E8');g.addColorStop(1,'#EDE5D3');
+  c.fillStyle=g;c.fillRect(0,0,w,h);
+  /* 簀の目。縮小時に刻みが1pxを割ると筋でなく一様な膜になるので最小2pxで留める（前便で実測した罠） */
+  c.strokeStyle='rgba(90,80,60,.06)';c.lineWidth=1;
+  const su=Math.max(2,3.4*S);
+  for(let x=2;x<w;x+=su){c.beginPath();c.moveTo(x+.5,0);c.lineTo(x+.5,h);c.stroke();}
+  c.strokeStyle='rgba(120,105,80,.11)';
+  for(let i=0;i<160;i++){const px=rng()*w,py=rng()*h,l=rand(rng,2,10),a=rand(rng,-.6,.6);
+    c.lineWidth=rand(rng,.4,1);c.beginPath();c.moveTo(px,py);c.lineTo(px+Math.cos(a)*l,py+Math.sin(a)*l);c.stroke();}
+  const rg=c.createRadialGradient(w*.42,h*.4,w*.06,w*.5,h*.5,w*.62);
+  rg.addColorStop(0,'rgba(0,0,0,0)');rg.addColorStop(1,'rgba(70,58,38,.14)');
+  c.fillStyle=rg;c.fillRect(0,0,w,h);
+  /* 箔の細罫＝現状の藍の縦ルールの後継（位置は据置・材質だけ変える） */
+  const acc=hsl(coverHue(title),44,42);
+  c.fillStyle=acc;c.fillRect(24,18,2,h-36);
+  /* 空押しの題字（沈めて、下辺に光を置く）＝刷りでなく押し */
+  const fs=17, lh=fs*1.4;
+  const chars=[...title]; const per=Math.floor((w-32-24)/fs);
+  const lines=[]; for(let i=0;i<chars.length&&lines.length<3;i+=per)lines.push(chars.slice(i,i+per).join(''));
+  c.font='600 '+fs+'px '+MIN;c.textAlign='left';c.textBaseline='alphabetic';
+  const y0=h-20-(lines.length-1)*lh;
+  for(let i=0;i<lines.length;i++){
+    c.fillStyle='rgba(255,255,255,.8)';c.fillText(lines[i],32,y0+i*lh+1);
+    c.fillStyle='rgba(74,62,44,.72)';c.fillText(lines[i],32,y0+i*lh);
+  }
+}
+function mount(el){
+  const cv=document.createElement('canvas');el.appendChild(cv);
+  const w=el.clientWidth||112,h=el.clientHeight||168,dpr=2;
+  cv.width=w*dpr;cv.height=h*dpr;const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);
+  (el.dataset.kind==='polish'?drawPolish:drawShiori)(c,w,h,TITLE);
+}
+
+/* ===== 画面の組み立て（正本 harness の写し。固定バー・並び順・本文は不変） ===== */
+const TITLE="追放された万能薬師、辺境でスローライフを始める";
+const STORY="調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。宮廷が彼を手放したことの意味に、王都が気づくのはまだ先の話。";
+const LINE=26;
+const IC={
+  back:'<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>',
+  dl:'<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  ext:'<svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
+  book:'<svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+  list:'<svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+  shelf:'<svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h5"/><line x1="12" y1="7" x2="18" y2="7"/><line x1="15" y1="4" x2="15" y2="10"/></svg>'
+};
+const GENRE='<span class="genre-label">ハイファンタジー</span>';
+
+const OPTS=[
+ { id:'現', name:'現状 — 全幅の暗色帯 120dp', kind:'now', keepsStatus:true,
+   aim:'いま出荷されている見え。比較の対照。',
+   cost:'題名以外に何も載らず、本の輪郭も持たない。本棚の栞書影とシードも系統も別＝同じ作品が場所で別人。',
+   shelf:'—', build:'—' },
+
+ { id:'1', name:'案1 統一カード — 栞書影 2:3（112×168dp）＋右に題名・作者・ジャンル', kind:'card', keepsStatus:true,
+   aim:'本棚と<b>同じ書影をそのまま持ってくる</b>。作品の同一性が初めて繋がり、「素っ気なさ」の最大要因（場所で別人）が消える。112dp なら栞の先端意匠も実寸で読める。',
+   cost:'全幅の色面が画面上端を占める迫力は失う。題名が書影の上でなく横へ出るので構図が変わる。あらすじが 0.5行 目減りする。',
+   shelf:'<b>要求なし</b>（<code>ShioriCover</code> を title で呼ぶだけ）',
+   build:'低。<code>BookCover</code> 呼び出しを <code>ShioriCover</code>＋横並び版面へ差し替えるのみ' },
+
+ { id:'2', name:'案2 見返し — 紙地の全幅帯に栞書影を重ねて張り出させる', kind:'kaeshi', keepsStatus:true,
+   aim:'帯（全幅の面）と本（2:3の輪郭）を<b>両立</b>させる。帯は暗色スラブをやめて見返しの紙地にし、その上に栞書影を浮かせる。あらすじは<b>むしろ増える</b>。',
+   cost:'重ね構図は情報が2層になるので、帯の地色と栞の紙地が近いと書影が沈む（実データでの検分が要る）。',
+   shelf:'<b>要求なし</b>',
+   build:'中。重ね配置＋帯の紙地生成（1画面1冊なので描画コストは無視できる）' },
+
+ { id:'3', name:'案3 大判 — 栞書影を 168×252dp で大きく置く', kind:'big', keepsStatus:true,
+   aim:'書影を主役に据える最も素直な案。先端174種が完全に読める大きさになる。',
+   cost:'<b>成立しない</b>。252dp はステータス表を押し下げ、あらすじが初期ビューポートから消える（0行）。要件「行数を減らさない」に真正面から反する。<b>比較のために測って示す案</b>。',
+   shelf:'要求なし（ただし画面として不成立）',
+   build:'低（実装は簡単・成立しないだけ）' },
+
+ { id:'4', name:'案4 奥付 — 栞書影 144×216dp が作者・ジャンル・ステータス4項目を吸収する', kind:'okuduke', keepsStatus:false,
+   aim:'書影を<b>判断材料の器</b>にする。作者・ジャンル・状態・読了目安・会話率・挿絵を書影の横へ組み、下のステータス表を畳む。書影が大きくなるのに<b>あらすじは倍以上に増える</b>（3.5→7.5行）。',
+   cost:'ステータス表という独立ブロックが消える＝<b>版面の構成が変わる</b>。並び順（ヒーロー→作者→ステータス→あらすじ）は意匠として据え置く裁定があるので、ここは<b>意匠の再裁定が要る</b>。項目が横組みで小さくなり、表としての読みやすさは落ちる。',
+   shelf:'<b>要求なし</b>',
+   build:'中。<code>StatusGridRow2x2</code> を書影横の縦積みへ組み替える' },
+
+ { id:'5', name:'案5 磨く — 帯の寸法は変えず、暗色スラブをやめて漉き紙＋空押し題字＋箔罫へ', kind:'polish', keepsStatus:true,
+   aim:'<b>統一しない</b>選択。全幅の帯という構図は正しいと考え、素材だけを替える。簀の目・繊維・四隅の陰りで面に手触りを与え、題名は刷らずに<b>空押し</b>で沈める。<b>寸法が1dpも動かないのであらすじは完全に据置</b>。',
+   cost:'本棚との不統一は残る（同じ作品が場所で別の顔のまま）。「本に見えない」も解けない＝帯は帯のまま。',
+   shelf:'要求なし（<code>BookCover</code> の塗りだけを差し替え）',
+   build:'低〜中。<code>BookCover</code> の Brush を Canvas 描画へ' }
+];
+
+function heroHtml(o,acts){
+  const au = acts===4 ? '霧島あおい ／ 第12話まで読了' : '霧島あおい';
+  if(o.kind==='now')
+    return '<div class="cv"><div class="rule"></div><div class="ttl-in"><b>'+TITLE+'</b></div></div>';
+  if(o.kind==='polish')
+    return '<div class="cvp" data-shiori data-kind="polish"></div>';
+  if(o.kind==='card')
+    return '<div class="coverrow"><div class="shiori" data-shiori style="width:112px;height:168px"></div>'+
+      '<div class="side"><div class="t">'+TITLE+'</div><div class="au">'+au+'</div><div>'+GENRE+'</div></div></div>';
+  if(o.kind==='kaeshi')
+    return '<div class="kaeshi"><div class="band"></div><div class="shiori" data-shiori></div>'+
+      '<div class="kmeta"><div class="t">'+TITLE+'</div><div class="au">'+au+'</div><div>'+GENRE+'</div></div></div>';
+  if(o.kind==='big')
+    return '<div class="coverrow"><div class="shiori" data-shiori style="width:168px;height:252px"></div>'+
+      '<div class="side"><div class="t">'+TITLE+'</div><div class="au">'+au+'</div><div>'+GENRE+'</div></div></div>';
+  /* 奥付＝書影の横へ作者・ジャンル・ステータス4項目を吸収する */
+  return '<div class="okuduke"><div class="shiori" data-shiori style="width:144px;height:216px"></div>'+
+    '<div class="facts"><div class="side" style="gap:6px"><div class="t" style="font-size:15px">'+TITLE+'</div>'+
+    '<div class="au">'+au+'</div><div>'+GENRE+'</div></div>'+
+    '<div class="fr"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>'+
+    '<div class="fr"><span class="lbl">読了目安</span><span class="val">約8時間（24.1万字）</span></div>'+
+    '<div class="fr"><span class="lbl">会話率</span><span class="val">42%</span></div>'+
+    '<div class="fr"><span class="lbl">挿絵</span><span class="val">3枚</span></div></div></div>';
+}
+function metaHtml(o,acts){
+  /* カード／見返し／大判／奥付は作者・ジャンルを書影の横へ吸収済み */
+  if(o.kind!=='now'&&o.kind!=='polish') return '';
+  const a = acts===4 ? '霧島あおい ／ 第12話まで読了' : '霧島あおい';
+  return '<div class="detail-meta-top"><span class="author">'+a+'</span>'+GENRE+'</div>';
+}
+function statusHtml(o){
+  if(!o.keepsStatus) return '';   /* 案4 だけがステータス表を書影へ畳む */
+  return '<div class="status-grid">'+
+    '<div class="status-row" style="height:84px">'+
+      '<div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>'+
+      '<div class="status-item"><span class="lbl">読了目安</span><span class="val">約8時間<br><small>（24.1万字）</small></span></div></div>'+
+    '<div class="status-row" style="height:61px">'+
+      '<div class="status-item"><span class="lbl">会話率</span><span class="val">42%</span></div>'+
+      '<div class="status-item"><span class="lbl">挿絵</span><span class="val">3枚</span></div></div>'+
+  '</div>';
+}
+function contentHtml(o,acts){
+  return '<div class="scroll"><div class="col">'+heroHtml(o,acts)+'<div class="pad">'+metaHtml(o,acts)+statusHtml(o)+
+    '<div class="sec">あらすじ</div><p class="summary-p" data-body>'+STORY+'</p>'+
+    '<div class="sec">キーワード</div>'+
+    '<div class="kw-chips"><span class="kw-chip">異世界転生</span><span class="kw-chip">ハーレム</span><span class="kw-chip">チート</span><span class="kw-chip">成り上がり</span><span class="kw-chip">スローライフ</span></div>'+
+    '</div></div></div>';
+}
+/* 固定バーは案B で確定済み＝全案で同一（この比較の変数を書影だけに絞るため。注記も現行実装どおり残す） */
+function barHtml(acts){
+  const subs = acts===4
+    ? [{i:'book',l:'第13話から'},{i:'list',l:'目次'},{i:'shelf',l:'本棚'}]
+    : [{i:'ext',l:'なろうで読む'},{i:'shelf',l:'本棚に置く'}];
+  return '<div class="fixed-bar"><div class="slot"><button class="btn-primary">'+IC.dl+'縦書きPDFを取り込む</button></div>'+
+    '<div class="slot row">'+subs.map(s=>'<button class="btn-ghost mini">'+IC[s.i]+s.l+'</button>').join('')+'</div>'+
+    '<div class="bar-note">なろう（syosetu.com）のページをそのまま表示します</div></div>';
+}
+function phoneHtml(o,acts){
+  return '<div class="phone"><div class="sb"><span>9:41</span><span>●●● 84%</span></div>'+
+    '<div class="topbar"><span class="ic">'+IC.back+'</span></div>'+
+    contentHtml(o,acts)+barHtml(acts)+'<div class="navbar"><i></i></div></div>';
+}
+
+/* ① 上端ストリップ（4アクション版＝壊れやすいほう） */
+const strip=document.getElementById('strip');
+OPTS.forEach(o=>{
+  const w=document.createElement('div'); w.className='wrap';
+  w.innerHTML='<span class="mode">'+o.id+'：'+o.name.replace(/^.*— /,'')+'</span><div class="crop">'+phoneHtml(o,4)+'</div>';
+  strip.appendChild(w);
+});
+
+/* ② 案ごとの全景 */
+const host=document.getElementById('opts');
+OPTS.forEach(o=>{
+  const s=document.createElement('section');
+  s.innerHTML='<div class="opt-line1"><span class="opt-id">'+o.id+'</span><span class="opt-name">'+o.name+'</span>'+
+    '<span class="badges" data-badges></span></div>'+
+    '<div class="opt-meta"><span class="k">ねらい</span>'+o.aim+'</div>'+
+    '<div class="opt-meta'+(o.id==='3'?' warn':'')+'"><span class="k">代償</span>'+o.cost+'</div>'+
+    '<div class="opt-meta"><span class="k">本棚への要求</span>'+o.shelf+'</div>'+
+    '<div class="opt-meta"><span class="k">実装コスト</span>'+o.build+'</div>'+
+    '<div class="stage">'+
+      '<div class="wrap"><span class="mode">3アクション（未取込・未読）</span>'+phoneHtml(o,3)+'</div>'+
+      '<div class="wrap"><span class="mode">4アクション（未取込・既読）</span>'+phoneHtml(o,4)+'</div>'+
+    '</div>';
+  host.appendChild(s);
+});
+
+/* 書影の canvas をすべて実描画（DOM 構築後＝clientWidth が確定してから） */
+document.querySelectorAll('[data-shiori]').forEach(mount);
+
+/* 行数の実測。緑=推奨3行以上／黄=最低2行／赤=第1文が閉じない */
+function verdict(l){ return l>=3?'v-ok':(l>=2?'v-min':'v-ng'); }
+document.querySelectorAll('#opts section').forEach(sec=>{
+  const phones=sec.querySelectorAll('.phone');
+  const labels=['3アクション','4アクション'];
+  let html='';
+  phones.forEach((p,i)=>{
+    const sc=p.querySelector('.scroll').getBoundingClientRect();
+    const b=p.querySelector('[data-body]').getBoundingClientRect();
+    const vis=Math.max(0,Math.min(b.height, sc.bottom-b.top));
+    const l=vis/LINE;
+    html+='<span class="badge '+verdict(l)+'">'+labels[i]+' あらすじ <b>'+l.toFixed(1)+'</b> 行</span>';
+  });
+  sec.querySelector('[data-badges]').innerHTML=html;
+});
+</script>
+
+<div class="lead" style="margin-top:8px">
+  <b>バッジ</b>＝各画面から機械測定した実測値を、本文から導いた基準へ機械的に照らしたもの（緑＝推奨3行以上／黄＝最低2行／赤＝2行未満＝第1文が閉じない）。<b>推薦ではない。</b>
+  固定バー下端の注記が将来消えると 36px 分＝<b>全案が一律 +1.4行</b>され、案の順位は変わらない。<br>
+  <b>裁定後</b>: 採用案を正本 <code>discovery/discovery-detail-D.html</code> の書影部へ落とし、本ファイルは削除する。
+</div>
+</body>
+</html>
