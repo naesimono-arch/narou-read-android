@@ -1,5 +1,6 @@
 package com.novelreader.ui
 
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.onNodeWithText
@@ -85,6 +86,17 @@ class ReimportScanDialogStackTest(private val fontScale: Float) {
         // 落ちると左寄せの列になり、絵は「縦に並んではいる」ので上の断言だけでは素通りする。
         assertEquals("右端が揃わない（scale=$fontScale）", scan.right.value, pick.right.value, 0.5f)
         assertEquals("右端が揃わない（scale=$fontScale）", scan.right.value, cancel.right.value, 0.5f)
+
+        // 3段が画面内に収まっていること。上の断言は **unclipped** 境界で段構成だけを見るので、
+        // 段が画面外へ押し出されても「重ならず順に並んでいる」ままで素通りする。
+        // なぜここで要るか（2026-08-21）: 縦3段化でカードが伸び、fontScale 2.0 でダイアログが
+        // 画面全高に頭打ちして本文がスクロールへ退避する版面になった。走査(b) の
+        // [BookshelfDialogK_reimport_scan_light] 除外は「切れるのは本文だけで、3操作は全可視」
+        // という前提の上に立っている。その前提はここでしか機械で守れない
+        // （走査は最終行のインクしか見ず、操作が画面外へ出ても絵の signature は変わらない）。
+        composeTestRule.onNodeWithText("場所から探す").assertIsDisplayed()
+        composeTestRule.onNodeWithText("自分で選ぶ").assertIsDisplayed()
+        composeTestRule.onNodeWithText("やめる").assertIsDisplayed()
     }
 
     private fun bounds(text: String): DpRect =

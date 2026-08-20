@@ -366,6 +366,9 @@ SCROLLING_SURFACES = {
     "NovelDetailScreen_content_dark": ("android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt", "verticalScroll(scrollState)"),
     "NovelDetailScreen_content_sepia": ("android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt", "verticalScroll(scrollState)"),
     "BookshelfDialogK_notif_priming_light": ("android/app/src/main/java/com/novelreader/ui/theme/NovelReaderAlertDialog.kt", ("Modifier.verticalScroll(rememberScrollState())", "増補（2026-08-07）")),
+    # 2026-08-21: 上と同一部品・同一機序（縦3段化でカードが伸び 2.0 で窓が画面全高に達した）。
+    # 器の字句が消えたら失効する点も同じなので、宣言する根拠ファイル・字句は notif_priming と揃える。
+    "BookshelfDialogK_reimport_scan_light": ("android/app/src/main/java/com/novelreader/ui/theme/NovelReaderAlertDialog.kt", ("Modifier.verticalScroll(rememberScrollState())", "増補（2026-08-07）")),
     # 2026-08-07: 条件帯が 2.0 で本文領域を使い切り一覧に残り高0だった破綻を是正した後の登録。
     # 帯を maxHeight/2 で閉じたので一覧に必ず半分の高さが渡る＝罫線が減るのは可視行が減っただけ。
     "DiscoveryResultScreen_list_light": ("android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryResultScreen.kt", ("heightIn(max = maxHeight", "verticalScroll")),
@@ -400,6 +403,7 @@ SCROLL_EXEMPT_REASON = {
     "NovelDetailScreen_content_dark": "同上（テーマ違いの同一構造）",
     "NovelDetailScreen_content_sepia": "同上（テーマ違いの同一構造）",
     "BookshelfDialogK_notif_priming_light": "本文スロットは NovelReaderAlertDialog が verticalScroll で包む（2026-08-07 増補）。2.0 では窓が画面全高まで育ち、最終行のインクは**ダイアログ面そのものの下端**＝角丸の弧が上端 y0・下端 y1279 とも 1.0 の弧と同一形（run 47..672 から始まる）で完全に描かれており、切断ではない。題字と2ボタンは可視で、本文の溢れはスクロールで到達できる",
+    "BookshelfDialogK_reimport_scan_light": "notif_priming と同一部品（NovelReaderAlertDialog）・同一機序の 2026-08-21 版＝3操作を縦3段へ揃えた（正本モック bookshelf-reimport-badge-D の分岐②）ぶんカードが伸び、2.0 で窓が画面全高まで育った。画素で確認: ダイアログ面は y0..y1279 に**完全な角丸矩形として収まっており**、下端の幅が 660→656→654→650→642→636→630→610 と閉じる弧を描く＝1.0 の閉じ際 y1070..y1077 と同一形で、キャンバスによる切断は起きていない。最終行の 626px が「インク」に数えられるのは、走査が両スケールを**1.0 の下端＝scrim 灰**を地として測るため、2.0 で scrim が消えてダイアログ面（#FBFAF8）だけが残ると差が出るから＝[bottom_row_ink] の docstring が予告している scrim/面の入れ替わりそのもので、絵の破綻ではない。実際に切れているのは本文2段落目（ファイル名ヒント）の3行目「義妹になっていました.pdf」だけで、これは verticalScroll の折返し地点＝スクロールで到達できる。題字・本文1段落目（「フォルダを教えて…しおりは残ります。」全4行）・3操作は全可視。⚠️ **見直しの合図**: この除外は「切れるのは本文だけ・3操作は全可視」という前提の上に立つ。前提の後半は ReimportScanDialogStackTest が fontScale 2.0 で assertIsDisplayed により機械で守る（走査は最終行のインクしか見ないので、操作が画面外へ押し出されても絵の signature は変わらない＝画素側の網では止まらない）。文言を伸ばす・段を増やす改修をしたら、その断言が落ちていないかを必ず見ること",
     "DiscoveryResultScreen_list_light": "条件帯（FlowRow）が 2.0 で8段に折り返し一覧の weight(1f) へ残り高0を渡していた破綻を 2026-08-07 に是正済み——帯を BoxWithConstraints で maxHeight/2 に閉じ、溢れた段は帯の内部スクロールで到達できる。是正後の実測でインクは下段が最大（27,296＝一覧が実際に描かれている）。罫線が 1.0 の2本→2.0 の0本になるのは、行が高くなって罫線の入る位置まで到達しないため＝可視行が減っただけ",
     "DiscoveryResultScreen_list_dark": "同上（テーマ違いの同一構造）",
     "DiscoveryResultScreen_list_sepia": "同上（テーマ違いの同一構造）",
