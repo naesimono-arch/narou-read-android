@@ -9,14 +9,12 @@
 
 - **公開準備（Google Play）**: main 統合済み。targetSdk/compileSdk 36・リリース署名＋AAB 経路・R8 実機回帰・In-App Review 実装まで済。
   プライバシーポリシー/Data safety 下書き済（裁定済み＝収集なし申告・GitHub Pages 公開）・採番規約 ADR 0025 採択（1.0.0）。
-  **ブランド名＝`Yosari` 確定**。残＝applicationId 変更（`app.yosari.reader`・**§1 ツアー後**）／ストア素材／ポリシー公開＋鍵バックアップ（ユーザー作業）。
+  **ブランド名＝`Yosari` 確定**。残＝applicationId 変更（`app.yosari.reader`・**§1 ツアー後**）／ポリシー公開＋鍵バックアップ（ユーザー作業）
+  ／**ストア素材＝意匠の本線は裁定済み**（アイコン「A 栞書影」・FG「A 夜の帯」）で残るは PNG 書き出しとスクショ6枚＝**制作は積み**。
 
-- **実機スタック報告（2026-07-24）は計測→対処済み**（主因＝タブPager の隣ページ破棄・`beyondViewportPageCount=1` で常駐化・尾部 P99 450→73ms）。
-  **最後まで残った 12%級（ランキング期間の横スワイプ）は 2026-08-14 に決着**＝真因は行スロットの `key` に
-  期間名を含めていたことで、ページ送りのたびに**指を受けている `scrollable` ごと LazyColumn が破棄**され
-  フリングが毎回死んでいた（＝ユーザー報告「半分次のランキングが表示されて埋まらない」の正体）。
-  key を座席へ移して解消・実機で確認済み。⚠️ **それ以前の jank 値はすべて「アニメが走っていない状態」の計測**
-  ＝率での比較は無意味（読み方と残るコスト＝`docs/knowledge/ranking-pager-jank-slow-ui-thread.md` が正本）。
+- **Pager 系のスタック（2026-07-24 のユーザー報告）は対処済み**＝隣ページ常駐化と行 key の座席化で解消・実機確認済み。
+  ⚠️ **それ以前の jank 値はすべて「アニメが走っていない状態」の計測＝率で比較しない**。
+  残るコストと計測の読み方＝`docs/knowledge/ranking-pager-jank-slow-ui-thread.md` が正本。
 
 - **デフォルトUI＝「明快K」**（`Skin.MEIKAI_K` が既定。既存の明示保存 D/M/P/J/C は不変・装いの間で相互選択可）。構造＝
   〈ラベル付き恒常ボトムナビ3タブ（本棚／さがす／設定）＋全画面の明示タイトル＋設定画面＋本棚グリッド（キャプション行に可視⋮）＋
@@ -24,6 +22,8 @@
   タブは Pager 化（横スワイプ・`TabPagerHost`＝スロット契約は ADR 0022 追記が正本）。意匠の正本＝`docs/design-candidates/skins/*-K.html`、
   設計の一次情報＝`.claude/plans/` の `default-ui-clarity-K-2026-07-23.md`・`k-shape-propagation-2026-07-23.md`・`ui-density-swipe-round-2026-07-24.md`。
   **状態: main 統合済み・実機目視待ち（全スキン掃引）**。
+  ⚠️ **横向きは構造・意匠とも裁定済み（NavigationRail＋T1＝ADR 0034）だが実装は縦向きのまま**
+  ＝横向きでは書影カードが1枚も見えない現状が続いている（翻訳は `handover.md`）。
 
 - **Room v21**: `sourceUrl`/`sourceSite`（Web取込元＝再取得を同じ抽出器へ回す土台。PDF由来は NULL）。
   v20＝`books.sourceUri` 永続化＋本削除時に取込元PDFも削除（削除ダイアログの opt-in・既定OFF）。v19＝栞書影の個体差。
@@ -39,7 +39,7 @@
   **他人の端末なので読み取り以外はしない**＝`docs/knowledge/emui-p30-jank-log-collection.md`）。
   **残るは実機で見ることだけ**＝`awaiting-human.md` §1（ローカルゲートは全て GREEN）。
 
-- **抽出パイプライン＝純 Kotlin（PDFBox-Android）単独**（Chaquopy/Python は 2026-07-05 に完全撤去・復旧は git 履歴から）。
+- **抽出パイプライン＝純 Kotlin（PDFBox-Android）単独**。
   本文解析は文書ごとの自動検出（`DetectedRules.detect`＝サイズ／列ピッチ／ページ番号座標を実測。検出不能時のみ `ParserRules` 定数へフォールバック）。
   精度回帰＝JVM `JvmGoldenRegressionTest`（golden **4本**を `testDebugUnitTest` で常時検証）＋実機 `PdfExtractorDeviceSpikeTest`（assets 手動配置時のみ）。
   **ページ範囲並列を採用済み**（K は端末のヒープから動的＝低ヒープ機は単一経路のまま。正本＝**ADR 0035**）。
@@ -61,7 +61,8 @@
   **対応面の拡大はいったん打ち止め**（表駆動の新規候補ゼロ・ヒューリスティック案は不採用裁定）。実行時の構造破損監視（ScrapeIntegrity＋fixture ゴールデン）と
   per-host Crawl-delay ／429・503 の Full Jitter バックオフを実装済み。裁定の正本＝ADR 0024、設計＝`.claude/plans/scraping-foundation-design-2026-07-20.md`・`generic-adapter-design-2026-07-23.md`。
 
-- **性能・リリース基盤**: Macrobenchmark（起動／本棚スクロール／章送り／大PDF取込の予算を P90/P99 で assert・設計と全実測＝`.claude/plans/macrobenchmark-kickoff-2026-07-17.md`）。
+- **性能・リリース基盤**: Macrobenchmark（起動／本棚スクロール／タブ遷移／章送り／大PDF取込の5予算を P90/P99 で assert・設計と全実測＝`.claude/plans/macrobenchmark-kickoff-2026-07-17.md`）。
+  **tab-swipe の窓は測れる状態に戻った**（シーダーが書字方向を固定せず縦書き端末で着地判定が必ず空振りしていた＝真因は除去済み・数字はこれから）。
   release は R8 収縮（minify＋shrinkResources）で出荷し、収縮起因の欠落が無いことは実機回帰で確認済み。
 
 - **端末内診断＝`diagnostics/`（外部送信ゼロ）**: クラッシュ（既定ハンドラの前段に挟んで記録し必ず委譲）／異常終了の推定
@@ -76,10 +77,8 @@
   ＋**androidTest のコンパイル**＋**release R8 ビルド**の計6ゲートを自動実行（実機必須の androidTest 実行と macrobenchmark は対象外＝YAML コメントに理由）。
   **golden の破綻を画素から見る走査3本**（`tools/check_golden_*.py`）は CI へ可視化として結線済み（ブロッキング昇格は `handover.md`）、
   網羅と孤児は `GoldenCoverageTest` が突合する。
-  ⚠️ **ゲートには構造的限界がある**——golden は退行しか止めず初回から壊れた絵は「正」に固定される・孤児 golden の検出経路は
-  Roborazzi の型として存在しない（両方の機序と運用規律＝`docs/knowledge/golden-record-bakes-in-regressions.md`）／
-  **ドキュメントは名指しの実在だけが機械照合され、記述の内容が実装と食い違うかは誰も見ていない**（腐りやすさは
-  台帳 > patterns > skills > ADR ≒ knowledge・分岐点は「現在形で書いているか」）＝`/stale-check` の腐敗検知3種で部分的に埋めた。
+  ⚠️ **ゲートには構造的限界がある**（golden は退行しか止めない・孤児 golden は検出経路が無い＝`docs/knowledge/golden-record-bakes-in-regressions.md`／
+  ドキュメントは名指しの実在だけが機械照合され、記述内容の食い違いは誰も見ていない＝`/stale-check` の腐敗検知3種が部分的に補う）。
   どのバグ型がどのゲートに守られているか（と**どこが無防備か**）の一覧＝`docs/known-bugs-registry.md`。
 
 ## 1. 観察ログ（未確定の所見のみ・確定したら handover か ADR へ）
