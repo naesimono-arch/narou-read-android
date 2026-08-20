@@ -2,17 +2,12 @@ package com.novelreader.ui.skins.k
 
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performSemanticsAction
 import com.novelreader.domain.ReadingStatus
 import com.novelreader.ui.theme.ReadingTheme
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,20 +16,20 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * K 本棚の拡張FAB「PDFを追加」の**読み上げ名**と**下端クリアランス**の回帰（2026-08-07 実機 PGEM10 起点）。
+ * K 本棚の拡張FAB「PDFを追加」の**読み上げ名**と**出没条件**の回帰（2026-08-07 実機 PGEM10／2026-08-20 裁定②）。
  *
- * 実機で観測された2件を、絵でなく構造（semantics ツリーと座標）で縛る:
+ * 絵でなく構造（semantics ツリー）で縛る:
  *  1) FAB に読み上げ名が無い。M3 の ExtendedFloatingActionButton は text スロットの意味を a11y へ渡さず、
  *     ラベルが見えていてもノードは Role=Button だけ＝TalkBack が主要操作を読めない。
- *  2) 空棚 CTA「PDFを追加」が FAB に覆われる。空棚だけが器を別に持ち、グリッド/リストが
- *     contentPadding で予約している [com.novelreader.ui.theme.Insets.ScrollBottomForFab] を
- *     一切適用していなかった（＝同じ操作の二重表示の一方が他方を隠し、実機で書影タップの誤着弾も出た）。
+ *  2) 空棚（蔵書0）では FAB を出さない。同じ操作が拡張FABと空棚CTA で二重に出ており、fontScale 2.0 では
+ *     FAB が CTA へ被っていた（実機 PGEM10）。器側で回避帯を予約する旧処方をやめ、二重表示そのものを
+ *     消す裁定②を採った＝押す対象は空棚CTA〈PDFを追加〉一本。
+ *  3) ⚠️ ただし「この分類の本はありません」（状態フィルタで0件・蔵書はある）は空棚ではない。
+ *     あちらは CTA を持たないので FAB を隠すと PDF 追加の導線が全部消える＝**残ること**を張る。
  *
- * 2) の縛り方: 「静止時に重ならない」ではなく「**内容の末尾まで送れば必ず帯の外に出る**」を見る。
- * fontScale 2.0・360x640dp では空棚の内容（≈423dp）が FAB 帯を除いた可視域（≈410dp）より高く、
- * 静止時の残り重なりは器の予約では消せない（消すには意匠側＝FAB の出没/縮退が要る）。予約が効いていれば
- * 送り切った位置で CTA は帯の外に出る＝それがこのトークンの契約そのもの。実機（Box 実効高 ≈712dp）では
- * 予約込みで収まるため静止時も覆われない。
+ * 2) と 3) は対でしか意味を持たない（片方だけでは「常に隠す」誤実装が通ってしまう）ので必ず2本で持つ。
+ * 旧テスト「空棚のCTAは末尾まで送るとFAB帯の外に出る」は FAB の存在が前提＝裁定②で成立しなくなったため、
+ * この2本へ置き換えた（回避帯 Insets.ScrollBottomForFab も同じ便で撤去済み＝避ける相手が居ない）。
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -62,10 +57,10 @@ class BookshelfKFabTest {
     }
 
     @Test
-    fun `空棚のCTAは末尾まで送るとFAB帯の外に出る`() {
+    fun `蔵書0の空棚では拡張FABが存在しない`() {
         setKGridView(true)
         val counts: Map<ReadingStatus, Int> = emptyMap()
-        composeTestRule.setSkinKContent(ReadingTheme.LIGHT, 2.0f) { _ ->
+        composeTestRule.setSkinKContent(ReadingTheme.LIGHT, 1.0f) { _ ->
             BookshelfK(
                 data = KShelfFixtures.emptyData(),
                 chrome = KShelfFixtures.chrome(counts),
@@ -75,20 +70,32 @@ class BookshelfKFabTest {
                 snackbarHostState = remember { SnackbarHostState() },
             )
         }
-        // 空棚で縦スクロールを持つ器は空状態の Column ただ1つ（チップ行は横スクロール）。
-        composeTestRule
-            .onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
-            .performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 10_000f) }
-        composeTestRule.waitForIdle()
-
+        // 空状態そのものが出ていることを先に確かめる（描画に失敗しただけでも FAB 不在は成立するため）。
+        composeTestRule.onNodeWithText("まだ本がありません").assertExists()
         // FAB は contentDescription、空棚 CTA は可視テキスト＝同じ語でも取り違えない。
-        val fabTop = composeTestRule.onNodeWithContentDescription("PDFを追加")
-            .fetchSemanticsNode().boundsInRoot.top
-        val ctaBottom = composeTestRule.onNodeWithText("PDFを追加")
-            .fetchSemanticsNode().boundsInRoot.bottom
-        assertTrue(
-            "空棚 CTA が拡張FABの帯に食い込んでいる（CTA下端=$ctaBottom / FAB上端=$fabTop）",
-            ctaBottom <= fabTop,
-        )
+        composeTestRule.onNodeWithContentDescription("PDFを追加").assertDoesNotExist()
+        // 押す対象は CTA 一本に残る（＝導線ごと消えていない）。
+        composeTestRule.onNodeWithText("PDFを追加").assertHasClickAction()
+    }
+
+    @Test
+    fun `状態フィルタで0件でも蔵書があれば拡張FABは残る`() {
+        setKGridView(true)
+        composeTestRule.setSkinKContent(ReadingTheme.LIGHT, 1.0f) { _ ->
+            BookshelfK(
+                // 未読1冊だけの棚で「読了」を選ぶ＝一覧は空だが蔵書はある（空棚ではない）。
+                data = KShelfFixtures.unreadOnlyData(),
+                chrome = KShelfFixtures.chrome(mapOf(ReadingStatus.UNREAD to 1))
+                    .copy(selectedStatus = ReadingStatus.FINISHED),
+                actions = KShelfFixtures.actions,
+                selection = KShelfFixtures.selection,
+                webActions = KShelfFixtures.webActions,
+                snackbarHostState = remember { SnackbarHostState() },
+            )
+        }
+        // この面であることの確認（空棚 CTA は出ない＝PDF 追加の導線は FAB しか無い）。
+        composeTestRule.onNodeWithText("この分類の本はありません").assertExists()
+        composeTestRule.onNodeWithText("まだ本がありません").assertDoesNotExist()
+        composeTestRule.onNodeWithContentDescription("PDFを追加").assertHasClickAction()
     }
 }

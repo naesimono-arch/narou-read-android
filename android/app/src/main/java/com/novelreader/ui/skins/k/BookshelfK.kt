@@ -103,6 +103,7 @@ import com.novelreader.ui.ReimportSweepBanner
 import com.novelreader.ui.emptyStatusSemantics
 import com.novelreader.ui.newEpisodeCountFor
 import com.novelreader.ui.components.ShioriCover
+import com.novelreader.ui.components.horizontalScrollEdgeFade
 import com.novelreader.ui.components.shioriAccentFor
 import com.novelreader.ui.components.shioriHue
 import com.novelreader.ui.skins.ShelfActions
@@ -225,6 +226,12 @@ internal fun BookshelfK(
     val gridToggle = rememberShelfViewToggle(PrefKeys.K_GRID_VIEW, default = true)
     val isGridView = gridToggle.value
 
+    // 空棚（蔵書0）か。**FAB の出没（2026-08-20 裁定②）と空状態の分岐が同じ1つの式を読む**ように畳む。
+    // ⚠️ selectedStatus == null を式に含めるのが肝: 「この分類の本はありません」（状態フィルタで0件・蔵書はある）
+    //    は空棚ではなく CTA も持たないため、あちらで FAB を隠すと PDF 追加の導線が全部消える。
+    //    条件を2箇所に書き分けるとこの取り違えが静かに入り込むので、式は1つしか置かない。
+    val isEmptyShelf = selectedStatus == null && shelfItems.isEmpty() && !isLoading && !isProcessing
+
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val gridState = rememberLazyGridState()
     val listState = rememberLazyListState()
@@ -313,7 +320,8 @@ internal fun BookshelfK(
                     )
                 }
                 // 空状態は Loading 中は出さない（Content(空) 確定まで＝cold start の空フラッシュ回避・D の F-O と同思想）。
-                !isLoading && shelfItems.isEmpty() && !isProcessing -> {
+                // 条件は FAB の出没と共有する [isEmptyShelf] ただ1つ（上の分岐で selectedStatus != null は既に消えている）。
+                isEmptyShelf -> {
                     KEmptyState(
                         onFindWorks = onOpenDiscovery,
                         onAddPdf = onFabClick,
@@ -451,7 +459,10 @@ internal fun BookshelfK(
         }
 
         // 拡張FAB「＋ PDFを追加」（.fab 藍・ラベル付き）。選択モード中は下端の選択バーへ場を譲り隠す（D の Scaffold と同挙動）。
-        if (!selectionMode) {
+        // 空棚（蔵書0）でも隠す（2026-08-20 ユーザー裁定②）＝押す対象を空棚CTA〈PDFを追加〉一本へ寄せる。
+        // 同じ操作が拡張FABと CTA で二重に出ており、fontScale 2.0 では FAB が CTA へ被っていた（実機 PGEM10）。
+        // ⚠️ [isEmptyShelf] は「この分類の本はありません」を含まない＝あちらは CTA が無いので FAB を残す。
+        if (!selectionMode && !isEmptyShelf) {
             ExtendedFloatingActionButton(
                 text = { Text("PDFを追加") },
                 icon = { Icon(Icons.Filled.Add, contentDescription = null) },
@@ -587,10 +598,20 @@ private fun KStatusChipRow(
     onSelect: (ReadingStatus?) -> Unit,
     statusCounts: Map<ReadingStatus, Int>,
 ) {
+    val scrollState = rememberScrollState()
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
+            // 端フェード（正本 .chipsrow .fade・2026-08-20 裁定①）。horizontalScroll の**直前**に置く＝
+            // この修飾子のノード寸法が可視域そのものになり、レイアウトノードは1つも増えない（版面不変）。
+            // bottomInset に S12 を渡すのは、下パディングがこの行の**内側**（スクロール器の中）にあり
+            // ノード高へ含まれるため＝チップの帯だけを溶かし下の余白には掛けない（正本 bottom:12px）。
+            .horizontalScrollEdgeFade(
+                scrollState = scrollState,
+                baseColor = MaterialTheme.colorScheme.background,
+                bottomInset = Spacing.S12,
+            )
+            .horizontalScroll(scrollState)
             .padding(start = Spacing.S24, end = Spacing.S24, bottom = Spacing.S12),
         horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
     ) {
@@ -1362,21 +1383,15 @@ private fun KEmptyState(
     // 上詰めになり 1.0 の中央寄せが崩れるため、中央寄せは外の Box・あふれ時のスクロールは内側 Column
     // へ役割を分ける（1.0 の見た目は不変・2.0 だけスクロール可能になる）。
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        // ⚠️ 下端に FAB 回避帯（Insets.ScrollBottomForFab）は敷かない（2026-08-20 裁定②で撤去）。
+        // 空棚では拡張FAB 自体を出さなくなった＝避ける相手が居ない。予約だけ残すと帯の半分（48dp）ぶん
+        // 中央寄せが上へずれる（旧・敷いていた理由は「2.0 で FAB が CTA を覆う」ことへの器側の対処で、
+        // 真因＝同じ操作の二重表示そのものを裁定②が消した）。
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.S40)
-                // なぜ下端に FAB 回避ぶんを敷くか（2026-08-07 実機 PGEM10）: 空棚だけが器を別に持ち
-                // （グリッド/リストは contentPadding で Insets.ScrollBottomForFab を予約済み）、
-                // 拡張FABの下敷きになる帯を一切予約していなかった。fontScale 2.0 では文言と CTA が伸びて
-                // 中央寄せの塊が下へ広がり、CTA「PDFを追加」が FAB に半分覆われる（＝同じ操作の二重表示の
-                // 一方が他方を隠す）。帯の実寸＝FAB の下マージン S16 ＋ 実高 56dp の 72dp で、56dp は
-                // M3 の最小高が単行ラベル（labelLarge は 2.0 でも行高 40dp 級）を上回るため fontScale に
-                // 追従しない（golden 実測でも 1.0/2.0 とも 56dp）＝96dp の既存トークンで足りる。
-                // verticalScroll の**後**に置く＝予約はスクロール内容の一部になり、中央寄せの計算にも入る
-                // （はみ出す高さでも最後までスクロールすれば CTA が必ず帯の外へ出る）。
-                .padding(bottom = Insets.ScrollBottomForFab),
+                .padding(horizontal = Spacing.S40),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(

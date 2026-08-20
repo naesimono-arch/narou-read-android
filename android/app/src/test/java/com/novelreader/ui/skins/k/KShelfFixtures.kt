@@ -156,6 +156,19 @@ internal object KShelfFixtures {
         ),
     )
 
+    /**
+     * 蔵書はあるが、選んだ分類には1件も無い棚（＝「この分類の本はありません」の面）。
+     *
+     * なぜ [emptyData] と別に要るか: 空棚（蔵書0）と**見分けがつかない誤実装**を検出するため。
+     * 蔵書0では拡張FABを引っ込める（2026-08-20 裁定②）が、こちらは空棚ではない＝CTA を持たないので
+     * FAB を隠すと PDF 追加の導線が全部消える。未読1冊だけを置き、状態フィルタ「読了」を選ばせると
+     * `filterShelfByStatus` の結果が空になる（蔵書数は 1 のまま）。
+     */
+    fun unreadOnlyData(): ShelfData = mixedData().copy(
+        books = listOf(unreadBook),
+        webNovels = emptyList(),
+    )
+
     /** 空棚（初回起動で最初に見える顔＝CTA2つの空状態）。 */
     fun emptyData(): ShelfData = ShelfData(
         books = emptyList(),

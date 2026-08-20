@@ -111,3 +111,13 @@ val MotionEasingSeal: Easing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
 // 揺れ幅（振幅）は呼び出し側の意匠差なのでトークン化しない（押下スケールの targetValue と同じ扱い）。
 const val MotionDurationRangeLockNudge: Int = 220
 val MotionEasingRangeLockNudge: Easing = CubicBezierEasing(0.42f, 0f, 0.58f, 1f) // CSS ease-in-out
+
+// 横スクロール行の端フェードの点灯/消灯（2026-08-20 ユーザー裁定①。正本モック
+// docs/design-candidates/skins/bookshelf-K.html・同 -D.html の `.fade{transition:opacity .18s ease}`）。
+// なぜ motion が要るか: 点灯条件は canScrollBackward/canScrollForward＝**端に触れた瞬間に真偽が跳ねる**ため、
+// 尺ゼロだと指を止めた位置で帯がパチンと現れ/消える（スクロールの連続感の中で唯一そこだけ離散的になる）。
+// 状態変化（まだ続く／もう無い）の伝達であって装飾ではない＝原則5に合致・禁止則①の 350ms 上限内。
+// なぜ同じ CSS ease の MotionEasingSettingsPeekReturn(260ms) を借りないか: 値が近いだけで意味が別
+//（あちらは面の退避と復帰）＝片方を実機調整したときにもう片方が巻き添えで動くのを避ける（Seal/Nudge と同じ判断）。
+const val MotionDurationEdgeFade: Int = 180
+val MotionEasingEdgeFade: Easing = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f) // CSS ease

@@ -57,6 +57,7 @@ import com.novelreader.PrefKeys
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
 import com.novelreader.model.BookId
+import com.novelreader.ui.components.horizontalScrollEdgeFade
 import com.novelreader.ui.discovery.FilterChipItem
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.theme.FontButtonLabel
@@ -1671,10 +1672,20 @@ private fun StatusChipRow(
     // 下の各チップのコメント）。現在の用途は TalkBack へ「該当0件」を残す a11y 補填だけ。
     statusCounts: Map<ReadingStatus, Int> = emptyMap(),
 ) {
+    val scrollState = rememberScrollState()
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
+            // 端フェード（正本 skins/bookshelf-D.html .chipsrow .fade・K からの伝播＝値は K と同一。
+            // 2026-08-20 裁定①）。horizontalScroll の**直前**に置く＝この修飾子のノード寸法が可視域そのもの
+            // になり、レイアウトノードは1つも増えない（fontScale 1.0 では溢れないので1枚も描かれない）。
+            // bottomInset を渡さない（0）のは、下パディングを呼び出し側の modifier＝**スクロール器の外側**で
+            // 受けており、この行のノード高がチップの帯そのものだから（K は内側で受けるので S12 を渡す）。
+            .horizontalScrollEdgeFade(
+                scrollState = scrollState,
+                baseColor = MaterialTheme.colorScheme.background,
+            )
+            .horizontalScroll(scrollState),
         horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
     ) {
         // 「すべて」＝選択なし（null）。モックどおり既定選択。棚が非空のときだけ出る行なので常に押せる。

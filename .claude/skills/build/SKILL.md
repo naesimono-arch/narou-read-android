@@ -106,6 +106,16 @@ python3 tools/check_design_tokens.py
 - `assembleDebugAndroidTest` は**端末不要**。androidTest は既定ゲートでコンパイルされず、本番のシグネチャ変更に
   追従しないまま壊れて潜伏した実績が2回あるためゲート化してある（`docs/known-bugs-registry.md`）。
 
+- ⚠️ **寸法アサートを持つ Robolectric テストは `@GraphicsMode(GraphicsMode.Mode.NATIVE)` を明示する**
+  （幅・高さ・位置・折り返し／溢れの有無＝いずれも文字送りから決まる値すべて）。既定の LEGACY では
+  **文字幅が「文字数」の定数**になり、fontScale を上げても幅が1px も動かない＝そのテストは
+  **検出力ゼロのまま緑で通り続ける**（アサート自体は自明に真になるので、赤くならず気づけない）。
+  メソッド単位で付けられるので、遅くなるのを嫌ってクラス全体を LEGACY のまま置かないこと。
+  機序・NATIVE 側の裏付け・現況の点検コマンド＝
+  `docs/knowledge/robolectric-legacy-graphicsmode-text-width-is-char-count.md`。
+  **この規約を knowledge 側にだけ書いていた間は守られず、違反が放置されていた**（2026-08-21 判明）
+  ＝テストを回すこの導線に置いてある理由。
+
 ## PDF 抽出ロジックのテスト
 
 PDF 抽出（縦書き列復元・ルビ紐付け・章分割・HTML 出力）は Kotlin ネイティブ実装
