@@ -187,20 +187,22 @@ class ProjectDirResolution(unittest.TestCase):
     """project_dir 解決順（env CLAUDE_PROJECT_DIR > payload.cwd > "."）が注入ゲートに反映される。"""
 
     def _gate_line(self, ctx):
-        return next(l for l in ctx.split("\n") if l.strip().startswith("cd "))
+        # ゲートは tools/gwlock.sh 経由（ツリー単位のロックで並列ビルドの偽の赤を潰す）＝
+        # project_dir はこのスクリプトの絶対パスとして注入文に現れる。
+        return next(l for l in ctx.split("\n") if "gwlock.sh" in l and "assembleDebugAndroidTest" not in l)
 
     def test_env_wins_over_cwd(self):
         proc = run_hook({"agent_type": "claude", "cwd": "/from-cwd"}, project_dir_env="/from-env")
         line = self._gate_line(context_of(proc))
-        self.assertIn("cd /from-env/android", line)
+        self.assertIn("/from-env/tools/gwlock.sh", line)
 
     def test_cwd_fallback_when_no_env(self):
         proc = run_hook({"agent_type": "claude", "cwd": "/from-cwd"})  # env は run_hook が除去
-        self.assertIn("cd /from-cwd/android", self._gate_line(context_of(proc)))
+        self.assertIn("/from-cwd/tools/gwlock.sh", self._gate_line(context_of(proc)))
 
     def test_default_dot_when_no_env_no_cwd(self):
         proc = run_hook({"agent_type": "claude"})
-        self.assertIn("cd ./android", self._gate_line(context_of(proc)))
+        self.assertIn("./tools/gwlock.sh", self._gate_line(context_of(proc)))
 
 
 class GateCommandMatchesClaudeMd(unittest.TestCase):
