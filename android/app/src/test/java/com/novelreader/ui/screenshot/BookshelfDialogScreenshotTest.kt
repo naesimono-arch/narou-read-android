@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
+import com.novelreader.ui.ReimportScanDialog
 import com.novelreader.ui.screenshot.BookshelfDialogFixtures as Fx
 import com.novelreader.ui.theme.NovelReaderAlertDialog
 import com.novelreader.ui.theme.ReadingTheme
@@ -58,7 +59,9 @@ import org.robolectric.annotation.GraphicsMode
  *  - `notif_priming`: 単一 Text 本文の最長（80字）。器は「題字＋本文＋2ボタン」の素朴形＝
  *    上書き確認・再取込①①'④・指紋なし分岐（いずれも本文61字以下）を代表する。
  *  - `import_prompt`: **ボタン3個**（dismissButton が Row で2個を抱える）＋確定ラベルが動的で長い形。
- *  - `reimport_scan`: 「本文＋補助行（bodySmall のファイル名ヒント）」＋ボタン3個。
+ *  - `reimport_scan`: 「本文＋補助行（bodySmall のファイル名ヒント）」＋**縦3段のボタン列**
+ *    （2026-08-20 実機裁定の翻訳＝`com.novelreader.ui.ReimportScanDialog`）。この case だけは
+ *    本番 Composable を直に描く＝下の「写し」の限界を受けない唯一の束。
  * 追加 case をライト×2スケールに限るのは既存の張り方（BookshelfD/K）と同じ理由＝
  * 色トークンは代表 case が張り、追加 case は骨格（拡大破綻）だけを見る。
  *
@@ -92,7 +95,16 @@ class BookshelfDialogScreenshotTest(
             when (caseId) {
                 CASE_NOTIF -> NotifPrimingDialog()
                 CASE_IMPORT -> ImportPromptDialog()
-                CASE_REIMPORT -> ReimportScanDialog()
+                // ④だけは写しでなく**本番の Composable**を直に描く（2026-08-21 の3段化で切り出した）。
+                // 写しを撮ると本番が旧構造へ戻っても golden は緑のまま＝この束を張る意味が消えるため。
+                CASE_REIMPORT -> ReimportScanDialog(
+                    // 場所未記憶＋ヒント行あり＝この分岐で最も縦に伸びる組合せ。
+                    folderRemembered = false,
+                    fileNameHint = Fx.REIMPORT_HINT.removePrefix(Fx.REIMPORT_HINT_PREFIX),
+                    onScan = {},
+                    onPick = {},
+                    onDismiss = {},
+                )
                 else -> BatteryOptDialog()
             }
         }
@@ -150,37 +162,6 @@ class BookshelfDialogScreenshotTest(
                 Row {
                     TextButton(onClick = {}) { Text(Fx.IMPORT_ALL) }
                     TextButton(onClick = {}) { Text(Fx.IMPORT_CANCEL) }
-                }
-            },
-        )
-    }
-
-    /**
-     * BookshelfScreen.kt の `ReimportPlan.PickPdf*` × `scanSha256 != null` 分岐。
-     * 場所**未記憶**（`pdfFolderTreeUri == null`）側の長い方の文言＋取込元ヒント行ありで撮る
-     * ＝この分岐で最も縦に伸びる組合せ。
-     */
-    @Composable
-    private fun ReimportScanDialog() {
-        NovelReaderAlertDialog(
-            onDismissRequest = {},
-            title = { Text(Fx.REIMPORT_TITLE) },
-            text = {
-                Column {
-                    Text(Fx.REIMPORT_BODY)
-                    Spacer(Modifier.height(Spacing.S12))
-                    Text(
-                        Fx.REIMPORT_HINT,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            },
-            confirmButton = { TextButton(onClick = {}) { Text(Fx.REIMPORT_CONFIRM) } },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = {}) { Text(Fx.REIMPORT_PICK) }
-                    TextButton(onClick = {}) { Text(Fx.REIMPORT_DISMISS) }
                 }
             },
         )

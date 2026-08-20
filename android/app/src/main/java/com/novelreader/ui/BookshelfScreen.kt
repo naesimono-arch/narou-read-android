@@ -622,47 +622,14 @@ fun BookshelfScreen(
                 is ReimportPlan.PickPdfPermissionLost, is ReimportPlan.PickPdfNoRecord -> {
                     if (plan.scanSha256 != null) {
                         // 指紋あり＝フォルダを1回教えれば自動で見つかる（主経路）。
-                        val hint = (plan as? ReimportPlan.PickPdfPermissionLost)?.fileNameHint
-                        NovelReaderAlertDialog(
-                            onDismissRequest = dismiss,
-                            title = { Text("PDFのある場所から探しますか？") },
-                            text = {
-                                Column {
-                                    // 文言は短く（ユーザー裁定 2026-07-29「長すぎる」）。どの本かは背後のカードで
-                                    // 分かるため書名を繰り返さず、「何をすれば戻るか」と「失わないもの」だけを言う。
-                                    Text(
-                                        if (pdfFolderTreeUri != null) {
-                                            "教えていただいたフォルダを調べて復元します。読書位置としおりは残ります。"
-                                        } else {
-                                            "フォルダを教えていただければ、中身を照合して自動で見つけます。" +
-                                                "読書位置としおりは残ります。"
-                                        },
-                                    )
-                                    // 取込元の手がかり行は、ファイル名として妥当な文字列を復元できたときだけ出す。
-                                    // 実機の主要プロバイダ（MediaStore Documents）では復元できず null になる
-                                    // ＝内部 ID を「取込元の PDF」と称して見せない（sourceFileNameHint の KDoc）。
-                                    hint?.let {
-                                        Spacer(Modifier.height(Spacing.S12))
-                                        Text(
-                                            "取込元の PDF: $it",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                }
-                            },
-                            confirmButton = {
-                                TextButton(onClick = { scanForBook(book); dismiss() }) { Text("場所から探す") }
-                            },
-                            dismissButton = {
-                                Row {
-                                    // 自分で選びたい人向けの副経路（従来のピッカー）は残す＝選択肢を奪わない。
-                                    TextButton(onClick = {
-                                        reimportPdfPicker.launch(arrayOf("application/pdf")); dismiss()
-                                    }) { Text("自分で選ぶ") }
-                                    TextButton(onClick = dismiss) { Text("やめる") }
-                                }
-                            },
+                        // 中身を [ReimportScanDialog] へ出してあるのは、ここが本棚で唯一の3ボタン縦積み
+                        // ＝版面の不変条件（3段に揃うこと）をテストから実物で検査できるようにするため。
+                        ReimportScanDialog(
+                            folderRemembered = pdfFolderTreeUri != null,
+                            fileNameHint = (plan as? ReimportPlan.PickPdfPermissionLost)?.fileNameHint,
+                            onScan = { scanForBook(book); dismiss() },
+                            onPick = { reimportPdfPicker.launch(arrayOf("application/pdf")); dismiss() },
+                            onDismiss = dismiss,
                         )
                     } else {
                         // 指紋なし（v11 前の旧取込）＝機械照合の材料が無い唯一の分岐。
@@ -851,6 +818,77 @@ fun BookshelfScreen(
             },
         )
     }
+}
+
+/**
+ * ②③（PDF 由来で取込元へ到達できない）× 指紋ありの再取込ダイアログ。正本モック＝
+ * `docs/design-candidates/bookshelf-reimport-badge-D.html` の分岐②（`.dlg-acts.stack`）。
+ *
+ * ## 操作を3つとも [confirmButton] へ縦1列で渡す理由（2026-08-20 実機裁定の翻訳）
+ * 実機（OPPO PGEM10）で「場所から探す」だけが1段目に乗り、「自分で選ぶ」「やめる」が2段目で揃う
+ * 〈1段＋2段〉の中途半端な割れ方をしていた。真因は **2ボタンを `dismissButton` の `Row` に詰めていた**こと
+ * ＝M3 の `AlertDialogFlowRow` からは幅544px の巨大要素1個に見え、確定（336px）と並べるとダイアログ
+ * 内寸1088px を超えて折り返す。折り返しに任せる限り、段構成は端末幅・fontScale・文言長で変わる
+ * （＝どう見えるかをモックが決められない）。
+ * そこで **1スロットに1つの [Column]** を渡し、`AlertDialogFlowRow` から見た子を1個にして折り返しを断つ。
+ * `dismissButton` は渡さない（既定 null）＝スロットが空なら FlowRow の子はこの列だけになる。
+ * 段順〈場所から探す→自分で選ぶ→やめる〉は M3 の縦積み規約（確定が最上段）で、実機で観測された
+ * 上下関係と同順＝押し間違いを誘う並びの入れ替えは伴わない。段間は M3 の `ButtonsCrossAxisSpacing`
+ * （12dp）に合わせた [Spacing.S12]。
+ * 版面の不変条件は `ReimportScanDialogStackTest` が fontScale 1.0/2.0 で機械検査する。
+ *
+ * @param folderRemembered 走査フォルダを記憶済みか（本文の文型が「調べて復元」／「教えていただければ」で割れる）
+ * @param fileNameHint 取込元 PDF のファイル名として妥当な文字列を復元できたときだけ非 null
+ */
+@Composable
+internal fun ReimportScanDialog(
+    folderRemembered: Boolean,
+    fileNameHint: String?,
+    onScan: () -> Unit,
+    onPick: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    NovelReaderAlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("PDFのある場所から探しますか？") },
+        text = {
+            Column {
+                // 文言は短く（ユーザー裁定 2026-07-29「長すぎる」）。どの本かは背後のカードで
+                // 分かるため書名を繰り返さず、「何をすれば戻るか」と「失わないもの」だけを言う。
+                Text(
+                    if (folderRemembered) {
+                        "教えていただいたフォルダを調べて復元します。読書位置としおりは残ります。"
+                    } else {
+                        "フォルダを教えていただければ、中身を照合して自動で見つけます。" +
+                            "読書位置としおりは残ります。"
+                    },
+                )
+                // 取込元の手がかり行は、ファイル名として妥当な文字列を復元できたときだけ出す。
+                // 実機の主要プロバイダ（MediaStore Documents）では復元できず null になる
+                // ＝内部 ID を「取込元の PDF」と称して見せない（sourceFileNameHint の KDoc）。
+                fileNameHint?.let {
+                    Spacer(Modifier.height(Spacing.S12))
+                    Text(
+                        "取込元の PDF: $it",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            // 3操作で1つの縦列（機序＝上の KDoc）。右揃えはモック `.dlg-acts.stack` の align-items:flex-end。
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(Spacing.S12),
+            ) {
+                TextButton(onClick = onScan) { Text("場所から探す") }
+                // 自分で選びたい人向けの副経路（従来のピッカー）は残す＝選択肢を奪わない。
+                TextButton(onClick = onPick) { Text("自分で選ぶ") }
+                TextButton(onClick = onDismiss) { Text("やめる") }
+            }
+        },
+    )
 }
 
 /** 一括確認ダイアログの内訳1行（モック .roll .r）。count=0 の系統は描かない。auto=藍ドット／manual=中空ドット。 */
