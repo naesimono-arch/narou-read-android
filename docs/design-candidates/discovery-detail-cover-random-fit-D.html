@@ -39,8 +39,20 @@
    ②作者行に nowrap が無く、4アクション版の「〜 ／ 第12話まで読了」が2行に折り返して下を押していた。
      **実装は既に maxLines=1+Ellipsis**（NovelDetailScreen）＝モックが実装を写していなかった → nowrap+ellipsis へ。
    ③題名が3行clampで、長題名だと1行増えるだけで境界を越えた → 2行clampへ。
-  結果、kmeta の最悪高は 天14＋題名44.8＋間6＋作者15＋間6＋チップ23.8＝**109.6px**で帯下端120pxまで
-  10.4pxの余裕＝**内容に依らずまたがらない**。⚠️ Compose へ翻訳する際も同じ拘束（題名2行clamp・作者1行）が要る。
+  ⚠️ Compose へ翻訳する際も同じ拘束（題名2行clamp・作者1行nowrap）が要る。
+
+  ---- さらに「位置が中途半端」の是正（2026-08-21 追加裁定「そこの是正」）----
+  はみ出しを潰しても位置の問題は残っていた＝情報列が top14・高さ109.6 で下端が境界まで10.4px、
+  上14/下10.4 の非対称＝**帯の中の要素なのか外の要素なのかが読めない**。
+  是正は「境界に近づいた結果の位置」をやめ「帯の内側余白の規定どおりの位置」にすること:
+   ・情報列を高さ **96px** に固定（題名22×2＋間6＋作者16＋間6＋チップ24。line-height 明示で normal 依存を外す）。
+   ・帯120 の中へ **上12 / 下12（S12）で上下対称**に据える（y12..108）。境界までの最短距離12px＝帯の内側余白そのもの。
+   ・水平も同じ規定＝カード左24(S24)／カード右138と列左154の間16(S16)／右余白24(S24)。
+   ・題名・作者・チップは3つとも帯の中＝**線引きを一度で通す**（チップだけ動かして題名が半端に残る事故を防ぐ）。
+   ・書影カードだけが境界を **44px（カード高152の29%・帯高120の37%）** 越える＝10pxの半端なはみ出しとは
+     桁が違うので「面の上に置かれた本」の意図として読める。
+   ・ブロック高166px は不変＝**あらすじ3.8行は動かない**。
+  ⚠️ 2-c 確定に伴い、案2-a（額装）・案2-b（一筋）は本ファイルから畳んだ（記録はコミット履歴）。
 
   ---- 不変条件 ----
   ・本棚には変更を要求しない。3案とも ShioriCover を題名で呼ぶだけで、**書影そのものは本棚と1ピクセル同じ**
@@ -123,24 +135,37 @@
   .cv .ttl-in{padding:20px 24px 20px 32px}
   .cv .ttl-in b{font-family:var(--mincho);font-size:17px;font-weight:600;line-height:1.4;color:var(--base);text-shadow:0 1px 3px rgba(28,31,38,.4);display:block}
 
-  /* 案2 系（a/b/c 共通の骨格）: 帯120 ＋ 栞書影110×146(3:4＝本棚Kと同比) を top14 に重ね、下へ40 張り出す。
-     ブロック高166は3案で共有＝あらすじ3.8行が動かない。輪郭・影・位置はすべて固定＝毎回同じシルエット。 */
+  /* ── 2-c の版面（是正後）──────────────────────────────────────────────
+     直した症状: チップ・題名・作者が帯の境界に半端にかかり、「帯の中の要素なのか外の要素なのか」が
+     読めなかった（旧値＝情報列 top14・高さ約109.6 で下端が境界まで10.4px、上14/下10.4 の非対称。
+     修正前はそもそも境界を約10px 越えていた）。
+     是正の考え方: 位置を「境界に近づいた結果」ではなく「帯の内側余白の規定どおり」にする。
+       ・帯 = y0..120（全幅・淡地）。
+       ・情報列 = y12..108（高さ96）＝帯の上下内側から **各12px（S12）で上下対称**。
+         境界までの最短距離12px は帯の内側余白そのもの＝「帯の中に据わっている」と数で言える。
+       ・水平も同じ規定: カード左24（S24＝ページ余白）／カード右138 →列左154 の間16（S16）／右余白24（S24）。
+       ・書影カードだけが境界を **44px 越える**（カード高152の29%・帯高120の37%）。
+         10px の半端なはみ出しとは桁が違うので「面の上に置かれた本」の意図として読める。
+     高さ96の内訳（内容に依らず固定）: 題名22×2行=44 ＋ 間6 ＋ 作者16 ＋ 間6 ＋ チップ24。
+     ブロック高166px は不変＝あらすじ3.8行は動かない。 ── */
   .kaeshi{position:relative;flex-shrink:0;height:166px;width:100%}
-  .kaeshi .band{position:absolute;left:0;right:0;top:0;height:120px;background:var(--kinari);
-    border-bottom:1px solid #DFD8C9}
-  .kaeshi .wrule{position:absolute;left:0;right:0;top:119px;height:1.5px}   /* 案2-b だけが使う作品色の一筋 */
-  .kaeshi .shiori{position:absolute;left:24px;top:14px;width:110px;height:146px;border-radius:2px;overflow:hidden;
-    box-shadow:0 3px 10px rgba(28,31,38,.22)}
-  .kaeshi .shiori canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
-    /* 帯(120px)の内側に必ず収まる寸法へ固定する。天14＋題名2行44.8＋間6＋作者1行15＋間6＋チップ23.8＝109.6
-     ＝境界120まで10.4px の余裕。題名clampと作者nowrapが無いと1行増えるだけで境界をまたぐ（またがりの真因その2・3）。 */
-  .kaeshi .kmeta{position:absolute;left:150px;right:24px;top:14px;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
-  .kaeshi .kmeta .t{font-family:var(--mincho);font-size:16px;font-weight:600;line-height:1.4;color:var(--ink);
+  .kaeshi .band{position:absolute;left:0;right:0;top:0;height:120px;border-bottom:1px solid rgba(28,31,38,.10)}
+  .kaeshi .shiori{position:absolute;left:24px;top:12px;width:114px;height:152px}
+  .kaeshi .kmeta{position:absolute;left:154px;right:24px;top:12px;height:96px}
+
+  /* 書影カードと情報列の共通見た目（配置だけが各案で違う） */
+  .shiori{border-radius:2px;overflow:hidden;box-shadow:0 3px 10px rgba(28,31,38,.22)}
+  .shiori canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .kmeta{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+  /* 題名2行clamp・作者1行nowrap は寸法保証の一部（内容に依らず情報列の高さを95.6pxに固定する） */
+  /* line-height を明示するのは、高さ96px（=12+96+12 で帯120に上下対称で収まる）を
+     フォント既定の normal 依存にしないため。normal だと環境で1〜2px ぶれ、対称の根拠が崩れる。 */
+  .kmeta .t{font-family:var(--mincho);font-size:16px;font-weight:600;line-height:22px;color:var(--ink);
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  /* 実装は作者行を maxLines=1+Ellipsis にしている（NovelDetailScreen）。モックがそれを写しておらず
-     4アクション版の「〜 ／ 第12話まで読了」が2行に折り返して下を押していた＝またがりの真因その3。 */
-  .kaeshi .kmeta .au{font-size:12.5px;color:var(--ink);font-weight:500;align-self:stretch;
+  .kmeta .au{font-size:12.5px;line-height:16px;color:var(--ink);font-weight:500;align-self:stretch;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* チップは .kmeta の直下の flex item に置く（div で包むと親の行ボックスが高さを決めてしまい24pxにならない） */
+  .kmeta .genre-label{line-height:14px}
 
   /* 案5: 帯の寸法据置のまま漉き紙＋空押し題字＋作品色の箔罫（＝作品色を固定座標の1本だけに許す収め方） */
   .cvp{position:relative;width:100%;height:120px;flex-shrink:0;overflow:hidden}
@@ -259,6 +284,9 @@
   <tr><td>青磁チップの文字（修正前）</td><td class="num">素地 2.14:1<br>2-c淡地 1.87〜1.94:1</td><td><b>2-c以前からAA未達</b>。ADR 0014-D の移行で未読ラベルだけが濃青磁へ移り、ジャンル／キーワード／「なろう・未取込」が取りこぼされていた</td></tr>
   <tr><td>青磁チップの文字（修正後＝青磁ink #50685C）</td><td class="num">素地 5.79:1<br>2-c淡地 5.09〜5.26:1</td><td><b>全8色相でAA(4.5:1)充足</b>。既存トークン <code>UnreadSeiji</code> の値をそのまま使う＝新色を発明しない。<b>2-cの唯一の障害が消える</b></td></tr>
   <tr><td>チップの枠線（任意）</td><td class="num">青磁 据置 1.87〜1.94:1<br>中濃度#6E8A7C 3.16〜3.27:1</td><td>枠は装飾（意味は文字が運ぶ）ので規格上は据置可。淡地で輪郭を保ちたい場合だけ中濃度へ。<b>文字の修正とは独立に選べる</b></td></tr>
+  <tr><td>情報列の位置（中途半端でない根拠）</td><td class="num">帯 0..120<br>情報列 12..108（高さ96）<br>上余白12 ／ 下余白12</td><td><b>上下対称</b>＝境界に近づいた結果ではなく帯の内側余白（S12）の規定どおりの位置。旧値は top14・高さ約109.6 で上14/下10.4 の非対称（修正前はそもそも境界を約10px 越えていた）。水平も同じ規定＝カード左24(S24)／カード右138と列左154の間16(S16)／右余白24(S24)</td></tr>
+  <tr><td>書影カードのはみ出し</td><td class="num">帯の下端を 44px 超過<br>（カード高152の29%）</td><td>カードだけは意図として境界を越える。<b>10px の半端なはみ出しとは桁が違う</b>ので「面の上に置かれた本」と読める＝どっちつかずにならない</td></tr>
+  <tr><td>情報列の高さの内訳</td><td class="num">44＋6＋16＋6＋24＝96</td><td>題名22px×2行clamp／間6／作者16px×1行nowrap／間6／チップ（行14＋padding8＋枠2＝24）。<b>line-height を明示</b>して font 既定の normal 依存を外し、内容にも環境にも依らず96pxで固定＝上下対称の根拠が崩れない</td></tr>
   <tr><td>あらすじ初期可視</td><td class="num">案2系 3.8行<br>案5 3.5行</td><td>案2系はブロック高166dpを3案で共有＝どれを選んでも同値。案5は寸法不変＝現状のまま。<b>いずれも現状3.5行を下回らない</b></td></tr>
 </table>
 
@@ -394,19 +422,13 @@ const OPTS=[
    fit:'第三の声を持たない（ほぼ無彩色）＝毎回そっくり同じ版面。<b>ランダム性の問題は起きないが、素っ気なさも解けない</b>。',
    weak:'本棚との不統一もそのまま（同じ作品が場所で別人）。' },
 
- { id:'2-a', name:'案2-a 額装 — 作品色をカードの中だけに閉じる', kind:'a', lines:'3.8',
-   fit:'帯は生成り固定・カードの位置と寸法と影と枠は不動。<b>毎回同じシルエットの中で、中身だけが変わる</b>＝実物の本の書影が変わるのと同じ収まり方。作品色が版面へ漏れ出さない。',
-   weak:'色が小さく孤立するので、<b>「なぜここだけ色があるのか」が読み取れない</b>おそれ。素っ気なさが完全には解けない可能性がいちばん高い案。' },
+ { id:'2-c', name:'案2-c 淡地（確定）— 帯の地を作品色から導き、情報列は帯の内側へ上下対称に据える', kind:'c', lines:'3.8',
+   fit:'ランダム性を<b>画面の主題にしてしまう</b>＝上部だけが浮く問題が原理的に消える。彩度14%・明度93%の固定窓へ圧縮するので<b>変わるのは色みだけで版面の明暗は動かない</b>（墨13.88〜14.36:1）。'+
+       '<br><b>位置の是正（本便）</b>: 題名・作者・ジャンルを1つの情報列（高さ96px）にまとめ、<b>帯120pxの上下内側から各12px（S12）＝上下対称</b>で据えた。境界までの最短距離12pxは帯の内側余白そのもの＝「帯の中に据わっている」と数で言える。水平も同じ規定（カード左24=S24／カード右138と列左154の間16=S16／右余白24=S24）。'+
+       '<br>書影カードだけが境界を<b>44px 越える</b>（カード高152の29%・帯高120の37%）＝10pxの半端なはみ出しとは桁が違うので「面の上に置かれた本」の意図として読める。',
+   weak:'色みが常に画面上部を占めるので好みが割れうる。<b>枠線の濃さは未裁定</b>（⓪の据置／中濃度#6E8A7Cを参照）。カード内の縦組み題字は 114×152 で 10.0dp＝本棚の12.3dpより小さく、文字というより刷り物の肌理として見える（題名は情報列に16pxで別に組んである）。' },
 
- { id:'2-b', name:'案2-b 一筋 — 帯の下端へ作品色の罫を1本だけ引く', kind:'b', lines:'3.8',
-   fit:'2-a に加え、作品色が<b>固定座標にもう1回だけ</b>現れる。1回きりだと偶然に見えるものが、決まった場所で2回繰り返されると<b>意匠として読める</b>。これは<b>案5が既に採っている収め方</b>（作品色を固定座標の箔罫1本だけに許す）を、書影のある版面へ持ち込んだもの。',
-   weak:'罫は帯とあらすじの境界に乗るので、<b>明るい色相（70）では線が飛び、暗い色相（260）では強く出る</b>。①の並びで最初に確かめるべき点。' },
-
- { id:'2-c', name:'案2-c 淡地 — 帯の地そのものを作品色から導く', kind:'c', lines:'3.8',
-   fit:'ランダム性を<b>画面の主題にしてしまう</b>＝上部だけが浮く問題が原理的に消える。彩度14%・明度93%の固定窓へ圧縮するので、<b>変わるのは色みだけで版面の明暗は動かない</b>（墨13.88〜14.36:1）。',
-   weak:'<b>青磁チップが 2.14:1→1.87〜1.94:1 へ悪化</b>（白地の時点でAA未達＝既存課題だが本案が一段悪くする）。色みが常に画面上部を占めるので、好みがいちばん割れる案。' },
-
- { id:'5', name:'案5 磨く — 帯の寸法据置で漉き紙＋空押し題字＋箔罫', kind:'polish', lines:'3.5',
+ { id:'5', name:'案5 磨く（対照）— 帯の寸法据置で漉き紙＋空押し題字＋箔罫', kind:'polish', lines:'3.5',
    fit:'書影カードを置かないので<b>ランダム性の問題がそもそも発生しない</b>。作品色は固定座標の箔罫1本だけ。寸法が1dpも動かないのであらすじも現状のまま。',
    weak:'本棚との不統一は残る（同じ作品が場所で別の顔のまま）。「本に見えない」も解けない＝帯は帯のまま。' }
 ];
@@ -417,11 +439,11 @@ function heroHtml(o,w,acts){
     return '<div class="cv"><div class="rule"></div><div class="ttl-in"><b>'+w.t+'</b></div></div>';
   if(o.kind==='polish')
     return '<div class="cvp" data-shiori data-kind="polish" data-title="'+w.t+'"></div>';
-  const band = (o.kind==='c') ? ' style="background:'+bandTint(w.t)+'"' : '';
-  const wrule = (o.kind==='b') ? '<div class="wrule" style="background:'+hsl(coverHue(w.t),48,52)+'"></div>' : '';
-  return '<div class="kaeshi"><div class="band"'+band+'></div>'+wrule+
+  /* 情報列（題名・作者・ジャンル）は3つとも帯の中。線引きを「帯の中＝書影と、その作品の名指し」で一度に通す。
+     チップは div で包まず .kmeta の直下へ置く（包むと親の行ボックスが高さを決め24pxにならない＝高さ96の根拠が崩れる）。 */
+  return '<div class="kaeshi"><div class="band" style="background:'+bandTint(w.t)+'"></div>'+
     '<div class="shiori" data-shiori data-title="'+w.t+'"></div>'+
-    '<div class="kmeta"><div class="t">'+w.t+'</div><div class="au">'+au+'</div><div>'+GENRE+'</div></div></div>';
+    '<div class="kmeta"><div class="t">'+w.t+'</div><div class="au">'+au+'</div>'+GENRE+'</div></div>';
 }
 function metaHtml(o,w,acts){
   /* 案2系は作者・ジャンルを書影の横へ吸収済み。対照と案5だけが従来の作者行を持つ */
