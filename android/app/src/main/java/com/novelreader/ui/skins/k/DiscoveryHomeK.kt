@@ -787,7 +787,10 @@ private fun RankingPagerAnchorK(pagerState: PagerState, horizontalMargin: Dp, mo
         // 何も描かないアンカーに左右余白を与えるのは意匠でなく**採寸**のため（2026-08-19）:
         // ページ寸法はここで measure された幅で決まるので、行と同じ幅で measure させないと
         // 送り量と覗きの溝がその差ぶんずれる（[DiscoveryListHorizontalMargin] の KDoc）。
-        modifier = modifier.fillMaxWidth().padding(horizontal = horizontalMargin),
+        // testTag は padding の**後**に置く＝この目印が報告する寸法が、ページャが実際に measure された幅
+        // （＝layoutInfo.pageSize）と一致する。前に置くと余白ぶん外側の寸法を報告し、検証が余白の有無を
+        // 見分けられなくなる（[RankingAnchorTestTag]）。
+        modifier = modifier.fillMaxWidth().padding(horizontal = horizontalMargin).testTag(RankingAnchorTestTag),
         pageSpacing = RankingPageSpacing,
         userScrollEnabled = false,
         verticalAlignment = Alignment.Top,
@@ -1040,6 +1043,18 @@ private fun RankingSlotBodyK(
         is RankingSlots.Skeleton -> RankingSkeletonRow(index)
     }
 }
+
+/**
+ * 状態供給アンカー（[RankingPagerAnchorK]）の testTag。
+ *
+ * なぜ本番コードに目印が要るか: このアンカーは**何も描かない**（高さ0・文字も色も無い）ので、
+ * セマンティクス木の中で他と見分ける手掛かりが一切無い。しかし守るべき不変条件——
+ * 〈アンカーが measure された幅＝`layoutInfo.pageSize`〉が〈行の実幅〉と一致すること
+ *（[DiscoveryListHorizontalMargin]）——は寸法そのものなので、寸法を読める節点が要る。
+ * 見えるものを代理指標にする手（例: 覗きの溝を目視相当で測る）は、送り量のずれを
+ * 溝の大きさへ変換した二次症状しか見ておらず、原因側（ページ幅）を名指しできない。
+ */
+internal const val RankingAnchorTestTag: String = "rankingPagerAnchor"
 
 /**
  * 期間ページの testTag（平坦化後は「その期間の行スロット」に付く・2026-08-06 更新）。

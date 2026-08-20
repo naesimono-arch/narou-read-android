@@ -15,9 +15,11 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -26,8 +28,11 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.width
 import com.novelreader.discovery.model.workSummary
 import com.novelreader.narou.model.NarouOrder
+import com.novelreader.ui.skins.k.RankingAnchorTestTag
+import com.novelreader.ui.skins.k.rankingPageTestTag
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.Skin
 import com.novelreader.viewmodel.DiscoveryUiState
@@ -375,5 +380,45 @@ class DiscoveryHomeKRankingTest {
 
         composeTestRule.onNodeWithText("新着").assertIsSelected()
         composeTestRule.onNodeWithText("新着").assertIsDisplayed()
+    }
+
+    /**
+     * 2026-08-19 の修正（アンカーが行の左右余白を受けず送り量と覗きがずれる）の回帰テスト。
+     *
+     * 固定する契約: **状態供給アンカーが measure される幅＝行の実幅**。
+     * `PagerState` の1ページぶんの送り量は `layoutInfo.pageSize`（＝アンカーが measure された幅）から
+     * 決まるので、アンカーだけが左右マージンを受けずに画面幅で measure されると、〈1ページ＝画面幅〉と
+     * 〈行の実幅＝画面幅−2×S24〉が食い違い、1ページ送るのに指を行幅より広く動かす羽目になる
+     * ＝覗きの溝も設計値からずれる。
+     *
+     * 覗きの溝を測るのでなく**幅そのもの**を突き合わせるのは、溝のずれが原因（ページ幅）の二次症状に
+     * すぎないため。ここが一致していれば送り量と覗きは定義から従う。
+     *
+     * ⚠️ [GraphicsMode] NATIVE を明示する。この試験は寸法を主張するので、既定の LEGACY
+     *（文字幅＝文字数の代用計量）で通っても検出力の保証にならない
+     *（`docs/knowledge/robolectric-legacy-graphicsmode-text-width-is-char-count.md`）。
+     * 幅 360dp を固定するのは、余白（2×24dp）が幅全体に対して十分大きく、取り違えが起きない画角を選ぶため。
+     */
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(sdk = [34], qualifiers = "w360dp-h640dp-xhdpi")
+    fun `アンカーのページ幅はランキング行の実幅と一致する`() {
+        setHost(NarouOrder.WEEKLY)
+        scrollListTo("作品W")
+
+        val anchorWidth = composeTestRule.onAllNodesWithTag(RankingAnchorTestTag)[0]
+            .getUnclippedBoundsInRoot().width
+        val rowWidth = composeTestRule.onAllNodesWithTag(rankingPageTestTag(NarouOrder.WEEKLY))[0]
+            .getUnclippedBoundsInRoot().width
+
+        // 前提: 行は画面いっぱいではない（左右マージンを受けている）。これが崩れたら比較自体が無意味なので
+        // 空振りでなく赤で気付く。
+        assertEquals("行が画面幅そのままになっている＝縦リストの左右マージンが消えた", 312f, rowWidth.value, 0.5f)
+        assertEquals(
+            "アンカーの measure 幅が行の実幅と違う＝ページ送り量と覗きの溝がその差ぶんずれる",
+            rowWidth.value,
+            anchorWidth.value,
+            0.5f,
+        )
     }
 }
