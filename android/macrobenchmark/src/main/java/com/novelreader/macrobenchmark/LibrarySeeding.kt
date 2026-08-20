@@ -44,6 +44,11 @@ internal fun MacrobenchmarkScope.clearAndSeedLibrary(
     chapterCount: Int = 0,
     // 読書画面の書字方向（false=横書き）。**必ず送る**＝端末に残った値で測らない（既定 false の why は下）。
     verticalMode: Boolean = false,
+    // true で「章はあるが progress 行を持たない」2冊目（題「目次計測の書」）を足す＝本棚→**目次**の
+    // push を成立させる唯一の条件（着地先は startFile = getLastRead(id) ?: "index.html" で決まる）。
+    // 既定 false は「面を変えない」ため＝この本が居ると本棚に未読50話カードが1枚増え、較正済みの
+    // 既存3予算が測る面が変わる。[TocPushBenchmark] だけが true を送る。
+    tocBook: Boolean = false,
 ) {
     // ① dead 化＝HANS 凍結なしを決定論化（凍結中プロセスへは shell 発 broadcast も配達スキップされるため、
     //    いったん非凍結へ倒してから前面起動する。[PdfImportBenchmark] ① と同形）。
@@ -72,7 +77,7 @@ internal fun MacrobenchmarkScope.clearAndSeedLibrary(
     val seedOut = device.executeShellCommand(
         "am broadcast -n ${BenchmarkTargets.TARGET_PACKAGE}/$SEED_RECEIVER_CLASS -a $ACTION_SEED" +
             " --ei count $count --ei chapterCount $chapterCount --ez gridMode $gridMode" +
-            " --ez verticalMode $verticalMode"
+            " --ez verticalMode $verticalMode --ez tocBook $tocBook"
     )
     val seeded = resultCodeOf(seedOut)
     if (seeded != count || !seedOut.contains("seeded count")) {

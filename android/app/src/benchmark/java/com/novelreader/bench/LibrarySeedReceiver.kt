@@ -44,6 +44,11 @@ class LibrarySeedReceiver : BroadcastReceiver() {
         // （他99冊は TITLE_POOL 巡回で長さがばらつくが、この本だけは一意に発見できる必要がある）。
         private const val CHAPTER_BOOK_TITLE = "章送り計測の書"
 
+        // 目次 push 計測の対象本の固定題。章送り本と**別の1冊**にするのは、目次へ着地させるには
+        // progress 行が無いこと（MainActivity の startFile = getLastRead(id) ?: "index.html"）が必要で、
+        // 章送り本は毎シード progress=chap_1 へリセットされる＝必ず本文へ直行するため兼用できない。
+        private const val TOC_BOOK_TITLE = "目次計測の書"
+
         // progress.lastReadAt は 0（未接触）に固定する（System.currentTimeMillis 禁止・決定論）。
         // なぜ 0 か（>0 だと本棚の底へ沈み By.text で見つからない＝実機 FAIL の真因）:
         // 本棚の二層ソート（ShelfItems.recencyKeyOf・ADR 0016 層反転）は lastReadAt>0 の本を
@@ -107,6 +112,10 @@ class LibrarySeedReceiver : BroadcastReceiver() {
         val clear = intent.getBooleanExtra("clear", false)
         // chapterCount=0 なら従来挙動と完全に同一（後方互換）。1以上で最新1冊に実 HTML 章を書き込む。
         val chapterCount = intent.getIntExtra("chapterCount", 0)
+        // tocBook=true で「章はあるが progress 行を持たない」2冊目を追加する（既定 false＝従来と完全同一）。
+        // 既定で足さない理由: この本が居ると本棚に「50話」の未読カードが1枚増え、2026-08-06 に較正した
+        // 既存予算（shelf-scroll / chapter-flip / tab-swipe）が測る面が変わって値の連続性が切れる。
+        val tocBook = intent.getBooleanExtra("tocBook", false)
         // Receiver のライフサイクルより DB 操作が長生きするため applicationContext を掴む。
         val appContext = context.applicationContext
 
@@ -157,6 +166,17 @@ class LibrarySeedReceiver : BroadcastReceiver() {
                 val db = AppDatabase.getDatabase(appContext)
                 val dao = db.bookDao()
                 val progressDao = db.progressDao()
+                // chapterCount>=1 のときだけ最新1冊（i=count-1）を固定題の章送り本にする。
+                // tocBook 併用時はその1つ下（i=count-2）を目次計測の書にする（addedAt 降順で2番目＝本棚先頭行に並ぶ）。
+                val chapterBookIndex = if (chapterCount >= 1) count - 1 else -1
+                val tocBookIndex = if (chapterCount >= 1 && tocBook) {
+                    // 2冊必要。足りない指定を黙って1冊に落とすと「目次計測の書が見つからない」形でベンチ側が
+                    // 落ち、原因がシード指定にあることが見えなくなるためここで明示的に失敗させる。
+                    require(count >= 2) { "tocBook には count>=2 が要る（指定 count=$count）" }
+                    count - 2
+                } else {
+                    -1
+                }
                 runBlocking(Dispatchers.IO) {
                     db.withTransaction {
                         if (clear) {
@@ -167,10 +187,8 @@ class LibrarySeedReceiver : BroadcastReceiver() {
                                 progressDao.deleteByBookId(idOf(i))
                             }
                         } else {
-                            // chapterCount>=1 のときだけ最新1冊（i=count-1）を固定題の章送り本にする。
-                            val chapterBookIndex = if (chapterCount >= 1) count - 1 else -1
                             for (i in 0 until count) {
-                                dao.insertBook(makeBook(appContext, i, i == chapterBookIndex))
+                                dao.insertBook(makeBook(appContext, i, i == chapterBookIndex, i == tocBookIndex))
                             }
                         }
                     }
@@ -185,7 +203,7 @@ class LibrarySeedReceiver : BroadcastReceiver() {
                         }
                     } else if (chapterCount >= 1) {
                         val bookId = idOf(count - 1)
-                        writeChapterBook(appContext, bookId, chapterCount)
+                        writeChapterBook(appContext, bookId, chapterCount, CHAPTER_BOOK_TITLE)
                         // progress を chap_1.html・先頭位置へ強制リセット（毎シード必ず chap_1 に戻す＝
                         // ベンチ反復の決定論）。insertIfAbsent だけでは2回目以降リセットされないため、
                         // 行が無ければ作成（insertIfAbsent）→ 位置列を必ず上書き（updatePosition）の2手で戻す。
@@ -201,6 +219,14 @@ class LibrarySeedReceiver : BroadcastReceiver() {
                             scrollOffset = 0,
                             lastReadAt = UNTOUCHED_LAST_READ_AT,
                         )
+                        // 目次計測の書は章HTMLだけ書き、**progress 行を作らない**。
+                        // なぜ「作らない」が要件か: MainActivity は startFile = getLastRead(id) ?: "index.html"
+                        // で着地先を決めるため、progress 行が無いことだけが「本棚→目次」の push を成立させる。
+                        // clear（ImportBenchReceiver mode=clear）が毎シード前に progress 全行を消すので、
+                        // ここで何もしない＝行が存在しない状態が決定論で得られる（前走行の残りが効かない）。
+                        if (tocBookIndex >= 0) {
+                            writeChapterBook(appContext, idOf(tocBookIndex), chapterCount, TOC_BOOK_TITLE)
+                        }
                     }
 
                     // 投入（または削除）後の bench_seed 件数を数え、resultCode の値源にする。
@@ -225,12 +251,14 @@ class LibrarySeedReceiver : BroadcastReceiver() {
     /** bench_seed の決定論 id（0埋め4桁）。投入・削除・集計で同じ規約を通す。 */
     private fun idOf(i: Int): String = ID_PREFIX + "%04d".format(i)
 
-    private fun makeBook(context: Context, i: Int, isChapterBook: Boolean): BookEntity {
-        // 章送りベンチの対象本だけは固定題（ベンチが By.text で書影を特定する契約）。
+    private fun makeBook(context: Context, i: Int, isChapterBook: Boolean, isTocBook: Boolean): BookEntity {
+        // 章送り／目次計測の対象本だけは固定題（ベンチが By.text・By.desc で書影を特定する契約）。
         // 他は従来どおり題名プールを巡回し「　其の${i+1}」で一意化（描画に長さのばらつき＋id と一意対応）。
-        val title =
-            if (isChapterBook) CHAPTER_BOOK_TITLE
-            else TITLE_POOL[i % TITLE_POOL.size] + "　其の${i + 1}"
+        val title = when {
+            isChapterBook -> CHAPTER_BOOK_TITLE
+            isTocBook -> TOC_BOOK_TITLE
+            else -> TITLE_POOL[i % TITLE_POOL.size] + "　其の${i + 1}"
+        }
         // htmlDirPath は filesDir/novels/bench_seed_XXXX を指す。フェイク99冊は実体を作らない
         // （章数えは File.listFiles の null 安全で 0話＝未読カードになり本棚は正常に描ける）。
         // 章送り対象本のみ、この同じパスへ後段の writeChapterBook が実 HTML を書き込む。
@@ -253,7 +281,7 @@ class LibrarySeedReceiver : BroadcastReceiver() {
      * 生成形状は HtmlExporter の出力（h1＋div.content・ul.index-list・ruby）を模倣し、
      * ChapterHtmlParser が章・目次・ルビを解釈できる最小要件を満たす。
      */
-    private fun writeChapterBook(context: Context, bookId: String, chapterCount: Int) {
+    private fun writeChapterBook(context: Context, bookId: String, chapterCount: Int, bookTitle: String) {
         val dir = File(context.filesDir, "${BookEntity.NOVELS_SUBDIR}/$bookId")
         dir.mkdirs() // 既存でも問題なし（冪等）
 
@@ -263,7 +291,7 @@ class LibrarySeedReceiver : BroadcastReceiver() {
             File(dir, "chap_$n.html").writeText(buildChapterHtml(n), Charsets.UTF_8)
             indexItems.append("            <li><a href=\"chap_$n.html\">第${n}章</a></li>\n")
         }
-        File(dir, "index.html").writeText(buildIndexHtml(indexItems.toString()), Charsets.UTF_8)
+        File(dir, "index.html").writeText(buildIndexHtml(bookTitle, indexItems.toString()), Charsets.UTF_8)
     }
 
     /** chap_N.html を生成する。h1＝章題・div.content＝本文（段落は \n 区切りのテキストノード）。 */
@@ -290,17 +318,17 @@ class LibrarySeedReceiver : BroadcastReceiver() {
     }
 
     /** index.html を生成する。ul.index-list に全章の li を並べる（ChapterHtmlParser.parseToc の要件）。 */
-    private fun buildIndexHtml(listItems: String): String {
+    private fun buildIndexHtml(bookTitle: String, listItems: String): String {
         return "<!DOCTYPE html>\n" +
             "<html lang=\"ja\">\n" +
             "<head>\n" +
             "    <meta charset=\"UTF-8\">\n" +
             "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n" +
-            "    <title>$CHAPTER_BOOK_TITLE - 目次</title>\n" +
+            "    <title>$bookTitle - 目次</title>\n" +
             "</head>\n" +
             "<body>\n" +
             "    <div class=\"container\">\n" +
-            "        <h1>$CHAPTER_BOOK_TITLE</h1>\n" +
+            "        <h1>$bookTitle</h1>\n" +
             "        <ul class=\"index-list\">\n" +
             listItems +
             "        </ul>\n" +
