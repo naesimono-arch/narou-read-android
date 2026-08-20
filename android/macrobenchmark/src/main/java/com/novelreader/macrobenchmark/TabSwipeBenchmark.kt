@@ -75,7 +75,16 @@ class TabSwipeBenchmark {
                 //     なる。2026-08-05 是正で実際に効くようになった指定＝経緯は
                 //     [BookshelfScrollBenchmark.scrollList] のコメント）。chapterCount は
                 //     [ChapterFlipBenchmark] と同値＝「章送り計測の書」の実HTML と progress=chap_1 を作る。
-                clearAndSeedLibrary(count = SEED_COUNT, gridMode = true, chapterCount = CHAPTER_COUNT)
+                //     verticalMode=false（横書き）も明示する: 書字方向は端末に残った prefs がそのまま効き、
+                //     縦書きだと描画経路（自前組版＋Canvas）ごと変わって遷移窓の原価が別物になるうえ、
+                //     本文が text ノードを持たなくなり下の着地判定が原理的に空振りする（2026-08-19 の
+                //     iter000 fail の真因）。既定値だが「面の指定」なので gridMode と並べて明示する。
+                clearAndSeedLibrary(
+                    count = SEED_COUNT,
+                    gridMode = true,
+                    chapterCount = CHAPTER_COUNT,
+                    verticalMode = false,
+                )
 
                 // (2) コールド起動して前面ガード。launcher 自身も scrollable を持つため scrollable 待ちでは
                 //     未起動を検知できない＝By.pkg で対象アプリの前面化を必ず検証する。
@@ -144,8 +153,21 @@ class TabSwipeBenchmark {
             fail("本棚に『$MEASURE_BOOK_TITLE』が現れなかった（シード契約違反 or 本棚未表示の疑い）")
         }
         book!!.click()
-        if (!device.wait(Until.hasObject(By.textStartsWith("第1章")), 10_000)) {
-            fail("chap_1 本文（第1章）に着地しなかった（目次着地＝progress リセット未反映の疑い）")
+        if (!device.wait(Until.hasObject(CHAPTER1_BODY_MARKER), 10_000)) {
+            // 空振りの切り分けを fail 文言に載せる（2026-08-19 の全5走行 iter000 fail は、旧文言が
+            // 疑っていた「progress リセット未反映」ではなく**書字方向が縦書きのまま**だった）:
+            // 縦書き本文は clearAndSetSemantics で text を持たず contentDescription にだけ出るため、
+            // By.text 系は着地していても必ず空振りする。desc 側に居るかを見て両者を区別する。
+            val verticalLanded = device.hasObject(By.descContains("第1章"))
+            fail(
+                if (verticalLanded) {
+                    "第1章 本文へは着地しているが縦書き（text ノード不在・desc のみ）＝" +
+                        "シードの verticalMode 指定が効いていない。横書き面で測る契約が壊れている"
+                } else {
+                    "chap_1 本文（第1章）に着地しなかった（本が開いていない／目次着地＝" +
+                        "progress リセット未反映／章見出しの意匠変更 のいずれか）"
+                }
+            )
         }
         // pop は2段（2026-08-06 実機確定）: progress 付きで本を開くと NavHost のスタックは
         // 本棚→目次→本文 と積まれ、本文からの Back は**目次画面**に着地する（「本棚に戻る」ボタンと
@@ -233,6 +255,15 @@ class TabSwipeBenchmark {
 
         /** 設定＝設定カードの行見出し（きせかえ行は公開ゲートで消えるため、常に在る行を選ぶ）。 */
         val SETTINGS_MARKER: BySelector = By.text("文字と組版")
+
+        /**
+         * 本文（chap_1）着地の徴＝章見出しの題テキスト。横書き [com.novelreader.ui.ChapterContent] の
+         * ChapterHeader が `splitChapterTitle` の**題側**を Compose Text で描くため、シードが書く
+         * `<h1>第1章</h1>` はそのまま text ノードとして出る（2026-08-06 の話数ラベル2要素化で足された
+         * `第 一 話` はラベル側の別ノード＝題側の前方一致は壊れない）。
+         * 縦書きでは text ノードが存在しない＝この徴は使えないため、書字方向はシードで固定する契約。
+         */
+        val CHAPTER1_BODY_MARKER: BySelector = By.textStartsWith("第1章")
 
         /**
          * 目次画面の徴＝「本棚に戻る」ボタンの contentDescription（2026-08-06 実機 dump で確認）。

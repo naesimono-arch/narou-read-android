@@ -28,11 +28,22 @@ import org.junit.Assert.fail
  *
  * shell 実行のハングリスクは run_macrobenchmark.sh の SIGQUIT 除細動ループが前提＝このヘルパを使うベンチは
  * 必ず同スクリプト経由で実行する（docs/knowledge/coloros-uiautomation-shell-pipe-eof-hang.md）。
+ *
+ * なぜ [verticalMode] まで固定するか（2026-08-20 追加・gridMode と同じ「測る面の決定論化」）:
+ * 書字方向は app_prefs の単一 Boolean（全書籍共通）で**端末に残った値がそのまま効く**。縦書きと横書きは
+ * 描画経路が別物（VerticalChapterContent の自前組版＋Canvas ⇄ ChapterContent の Compose Text）＝
+ * 遷移窓のフレーム原価が変わるうえ、縦書きは clearAndSetSemantics で text ノードを持たない
+ * （contentDescription だけ）ため、ベンチの着地判定（By.text）が原理的に空振りする。
+ * 2026-08-19 に tab-swipe が全5走行の iter000 で「本文に着地しない」と落ちたのはこれ
+ * （端末の benchmark パッケージが縦書きのまま残っていた）。既定 false＝2026-08-06 に予算を較正した
+ * ときと同じ横書き面（＝当時この着地判定が通っていた事実がその証拠）で、以後の数字の連続性を保つ。
  */
 internal fun MacrobenchmarkScope.clearAndSeedLibrary(
     count: Int,
     gridMode: Boolean,
     chapterCount: Int = 0,
+    // 読書画面の書字方向（false=横書き）。**必ず送る**＝端末に残った値で測らない（既定 false の why は下）。
+    verticalMode: Boolean = false,
 ) {
     // ① dead 化＝HANS 凍結なしを決定論化（凍結中プロセスへは shell 発 broadcast も配達スキップされるため、
     //    いったん非凍結へ倒してから前面起動する。[PdfImportBenchmark] ① と同形）。
@@ -60,7 +71,8 @@ internal fun MacrobenchmarkScope.clearAndSeedLibrary(
     //    chapterCount=0 は受信側の既定値と同じ「章なし」＝明示しても従来挙動と完全に同一（受信側契約）。
     val seedOut = device.executeShellCommand(
         "am broadcast -n ${BenchmarkTargets.TARGET_PACKAGE}/$SEED_RECEIVER_CLASS -a $ACTION_SEED" +
-            " --ei count $count --ei chapterCount $chapterCount --ez gridMode $gridMode"
+            " --ei count $count --ei chapterCount $chapterCount --ez gridMode $gridMode" +
+            " --ez verticalMode $verticalMode"
     )
     val seeded = resultCodeOf(seedOut)
     if (seeded != count || !seedOut.contains("seeded count")) {

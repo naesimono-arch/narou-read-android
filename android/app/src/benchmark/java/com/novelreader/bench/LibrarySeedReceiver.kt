@@ -110,7 +110,7 @@ class LibrarySeedReceiver : BroadcastReceiver() {
         // Receiver のライフサイクルより DB 操作が長生きするため applicationContext を掴む。
         val appContext = context.applicationContext
 
-        // gridMode は「extra に含まれている時のみ」prefs を書く（未指定なら現状のモードを尊重）。
+        // gridMode / verticalMode は「extra に含まれている時のみ」prefs を書く（未指定なら現状のモードを尊重）。
         // 本棚は app_prefs のビュー切替キーを composition で読む（ui/skins/ShelfViewToggle）ので、
         // アプリの cold start 前にこの値を確定させておけば list/grid が意図どおり描画される。
         //
@@ -123,14 +123,27 @@ class LibrarySeedReceiver : BroadcastReceiver() {
         // 両方書くのは、シーダーに「今どのスキンへクランプされるか」を知らせないため——ゲートを反転
         // （課金解禁）して D で走らせる日が来ても、この Receiver は無改修で正しい面を作れる。
         // M/P/J の m_sky_view 等は星図⇄一覧など**別の軸**なので gridMode の対象外（ここでは触らない）。
+        //
+        // verticalMode（縦書き）も同じ「extra に在るときだけ書く」規約で固定する（2026-08-20 追加）。
+        // なぜ計測面の指定に含めるか: 読書画面の書字方向は app_prefs の単一 Boolean（全書籍共通）で、
+        // 端末に残った値をそのまま使うと**同じベンチが別の面を測る**。縦書きは
+        // VerticalChapterContent（自前組版＋Canvas 描画）・横書きは ChapterContent（Compose Text）で
+        // 描画経路そのものが違い、遷移窓のフレーム原価が別物になる。さらに縦書きは
+        // clearAndSetSemantics で text ノードを持たない（contentDescription だけ）ため、ベンチ側の
+        // 着地判定（By.text）が原理的に空振りし「本文に着地していないように見える」——実際 2026-08-19 の
+        // tab-swipe 全5走行 iter000 の fail がこれだった。gridMode と同じ理由（測る面を決定論にする）で
+        // シーダーが確定させる。
+        val prefsEditor = appContext.getSharedPreferences(PrefKeys.FILE_APP_PREFS, Context.MODE_PRIVATE).edit()
         if (intent.hasExtra("gridMode")) {
             val grid = intent.getBooleanExtra("gridMode", false)
-            appContext.getSharedPreferences(PrefKeys.FILE_APP_PREFS, Context.MODE_PRIVATE)
-                .edit()
+            prefsEditor
                 .putBoolean(PrefKeys.IS_GRID_VIEW, grid)
                 .putBoolean(PrefKeys.K_GRID_VIEW, grid)
-                .apply()
         }
+        if (intent.hasExtra("verticalMode")) {
+            prefsEditor.putBoolean(PrefKeys.READING_VERTICAL, intent.getBooleanExtra("verticalMode", false))
+        }
+        prefsEditor.apply()
 
         // goAsync で処理完了まで Receiver を生かし、DB I/O は別スレッドで回す（メインを塞がない）。
         // 100件のトランザクションは Receiver の ANR 上限（~10s）内に十分収まる。
