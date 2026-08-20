@@ -36,8 +36,14 @@
    ⚠️ 台帳の「golden が無いので機械の網が効かない＝目視が唯一の手段」は**誤り**——`GridStatusLineWrapTest` が
    「D 側に golden が1枚も無いから撮影でなくレイアウト結果で縛る」という同じ問題を既に解いている。
 2. **§1-3「条件を変更」→検索画面**: `DiscoveryUpNavigationTest` は up 側7本のみで、この経路のアサートが無い。同ハーネスに1本追加。
-3. **§3-1 固定トップ 108dp の実測**: `BookshelfKLandscapeScreenshotTest` の landscape qualifier で直接測れる
-   （意匠の選択そのものは人間だが、**実測のために実機を待つ必要は無い**）。
+3. ~~**§3-1 固定トップ 108dp の実測**~~ **実施済み（2026-08-19）**＝`DiscoveryHomeKLandscapeFixedTopTest`
+   （landscape qualifier で直接測れる＝実測のために実機を待つ必要は無い、という読みは正しかった）。
+   ⚠️ **ただし最初の値 105.5dp は偽装値だった**——`@GraphicsMode` 未指定＝LEGACY は文字幅を「文字数」で
+   代用するため、テキストを含む固定トップが実機より縮んで出る。**真値は NATIVE で 120.5dp**
+   （前提の 108dp を 12.5dp 超過）。**「116dp では」という疑いを否定した根拠は失効している**
+   （真値のほうが 116dp 側に近い）。
+   **この型は assert でなく `println` した値が人間の裁定へ渡るテストで特に危ない**——赤くならないので、
+   偽装値が「実測」の顔をして一次情報になる。機序＝`robolectric-legacy-graphicsmode-text-width-is-char-count.md`。
 4. **§1-A 電池最適化ダイアログの末尾到達**: 構造は既に解決済み（`NovelReaderAlertDialog.kt:93` が body を
    `Column(verticalScroll())` で包む＝M3 1.3.2 の AlertDialog は本文を送れない）。残るのは末尾ノード到達のアサート1本。
 5. **§1-6 削除失敗 Snackbar (c)**: 権限失効を Fake で注入して文言を検証（`ShelfSnackbarScreenshotTest` の器を再利用）
