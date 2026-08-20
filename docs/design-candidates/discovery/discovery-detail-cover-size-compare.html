@@ -1,0 +1,269 @@
+<!-- @dsCard group="UI-n / 発見（api-lab）" name="D. 作品詳細 書影の大きさ — 案比較（裁定用ドラフト）" -->
+<!-- @derives source="discovery/discovery-detail-D.html" note="案B 適用後の正本を土台に、書影の意匠だけを差し替えた比較用の一時ドラフト。裁定後は採用案を正本へ落として本ファイルを削除する" -->
+<!--
+  ============================================================================
+  何を決めるためのモックか
+  ============================================================================
+  「書影が小さすぎて素っ気なくないか」（awaiting-human に併記されていた観点）を裁定する。
+
+  ---- 土台が変わったので測り直している ----
+  あらすじ8案の比較で案F（180dp帯）＝7.5行・案G（2:3カード）＝8.7行という数字を出したが、
+  **あれは案A/F の「バーを畳んで＋並び順も入れ替える」前提の値**だった。
+  2026-08-21 の裁定で入ったのは**案B だけ**（副アクション横一列・バー173dp・並び順は不変）なので、
+  前提が変わっている。本ファイルは**案B 適用後の正本を土台に取り直した値**が正。
+
+  ---- 争点 ----
+  案B が確保した初期可視 3.5行を、書影へどれだけ返せるか。
+  書影の帯を厚くした分はそのままあらすじの押し下げになる（120dp→180dp なら **60dp＝2.3行ぶん**）。
+
+  ---- 判定基準（本文から導出・正本の冒頭コメントと同じ） ----
+  1行 ≒ 22字（本文幅312dp ÷ 14sp）。第1文32字が閉じるのに **2行＝最低ライン**、
+  第2文まで届いて作品の転換が伝わるのに **3行＝推奨ライン**。全文は8.8行。
+  較正＝システムバー合算63dp（実機実測2値を同時に再現する唯一の値）。
+
+  ---- 行数だけでは決まらない ----
+  「素っ気ない」は視覚の問題なので、上端300dpを横に並べた**見た目の比較**と
+  **行数の実測バッジ**を同じ画面に置いてある。どちらか片方では裁定できない。
+
+  ---- 申し送り ----
+  ・この面の寸法を今後動かしたら、**案B 適用後の版を土台に測り直す**こと
+    （前提の版を取り違えると行数が丸ごと嘘になる。実際に一度起きた）。
+  ・案F が最低ラインを割るのは**並び順を変えていない**ため。あらすじをステータス表の上へ
+    出す案（8案比較の案C）を併用すれば帯を厚くしても成立するが、**案C は採用されていない**
+    ＝いま単独で案F を採ると初期可視が最低ラインを割る、という事実関係だけ記しておく。
+  ============================================================================
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>作品詳細 書影の大きさ — 案比較</title>
+<style>
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;--seiji:#9CB3A8;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px 26px 80px;font-family:var(--gothic);color:#2A2C28}
+  h1{font-family:var(--mincho);font-size:22px;font-weight:600;letter-spacing:.06em;margin-bottom:10px}
+  h2{font-family:var(--mincho);font-size:17px;font-weight:600;letter-spacing:.04em;margin:6px 0 14px;padding-bottom:8px;border-bottom:1px solid #C9C8C0;width:100%;max-width:1200px}
+  .lead{max-width:1000px;font-size:13px;line-height:1.85;color:#4A4C48;margin-bottom:22px}
+  .lead b{color:#2A2C28}
+  section{width:100%;max-width:1200px;margin-bottom:34px;display:flex;flex-direction:column;align-items:flex-start}
+  .opt-line1{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;width:100%}
+  .opt-id{font-family:var(--mincho);font-size:20px;font-weight:700;color:var(--ai);min-width:22px}
+  .opt-name{font-family:var(--mincho);font-size:17px;font-weight:600}
+  .badges{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+  .badge{font-size:11.5px;padding:3px 9px;border-radius:2px;border:1px solid #C9C8C0;background:#F3F2EC;white-space:nowrap}
+  .badge b{font-variant-numeric:tabular-nums}
+  .badge.v-ok{background:#E9F1EA;border-color:#A9C6AF;color:#2F6B3C}
+  .badge.v-min{background:#F7F1E2;border-color:#D8C89A;color:#7A5F16}
+  .badge.v-ng{background:#F6E9E7;border-color:#D9B5AE;color:#8A3A2C}
+  .opt-meta{font-size:12.5px;color:#5A5C57;line-height:1.8;margin-top:6px}
+  .opt-meta .k{display:inline-block;min-width:8em;color:#2A2C28;font-weight:600}
+  .stage{display:flex;gap:26px;flex-wrap:wrap;margin-top:14px}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .wrap .mode{font-size:11.5px;letter-spacing:.14em;color:#6A6C67}
+  .strip{display:flex;gap:26px;flex-wrap:wrap;justify-content:flex-start}
+  .crop{width:360px;height:300px;overflow:hidden;border-radius:24px 24px 4px 4px;box-shadow:0 10px 24px rgba(0,0,0,.2);position:relative;background:var(--base)}
+  .crop .phone{border-radius:24px 24px 0 0;box-shadow:none}
+
+  .phone{width:360px;height:792px;background:var(--base);border-radius:30px;overflow:hidden;position:relative;
+    box-shadow:0 14px 34px rgba(0,0,0,.24);display:flex;flex-direction:column;font-family:var(--gothic)}
+  .sb{height:39px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:11px;color:var(--ink-soft)}
+  .navbar{height:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .navbar i{display:block;width:108px;height:3px;border-radius:2px;background:#C9C7C0}
+  .topbar{height:64px;flex-shrink:0;display:flex;align-items:center;padding:0 8px}
+  .topbar .ic{width:48px;height:48px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+  .topbar .ic svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .scroll::-webkit-scrollbar{width:0}
+  .col{display:flex;flex-direction:column}
+  .col > *{flex-shrink:0}
+  .pad{padding:0 24px;display:flex;flex-direction:column}
+  .pad > *{flex-shrink:0}
+
+  /* 書影A/F: 全幅の帯（高さだけが違う） */
+  .cv{position:relative;display:flex;align-items:flex-end;overflow:hidden;width:100%;flex-shrink:0;
+    background:linear-gradient(160deg,#3A4F63,#28323E)}
+  .cv .rule{position:absolute;left:24px;top:18px;bottom:18px;width:2px;background:var(--ai);opacity:.85}
+  .cv .ttl-in{padding:20px 24px 20px 32px}
+  .cv .ttl-in b{font-family:var(--mincho);font-size:17px;font-weight:600;line-height:1.4;color:var(--base);text-shadow:0 1px 3px rgba(28,31,38,.4);display:block}
+
+  /* 書影G: 2:3 のカード（本のかたち）＋右に題名・作者・ジャンル */
+  .coverrow{display:flex;gap:16px;padding:16px 24px 0;flex-shrink:0}
+  .coverrow .cover{width:112px;height:168px;flex-shrink:0;border-radius:2px;position:relative;overflow:hidden;
+    background:linear-gradient(160deg,#3A4F63,#28323E);box-shadow:0 3px 10px rgba(28,31,38,.22)}
+  .coverrow .cover .rule{position:absolute;left:10px;top:12px;bottom:12px;width:2px;background:#8FA6BC;opacity:.7}
+  .coverrow .cover .ct{position:absolute;left:18px;right:10px;top:14px;font-family:var(--mincho);font-size:12px;line-height:1.45;color:var(--base);text-shadow:0 1px 3px rgba(28,31,38,.4)}
+  .coverrow .side{display:flex;flex-direction:column;gap:8px;min-width:0}
+  .coverrow .side .t{font-family:var(--mincho);font-size:17px;font-weight:600;line-height:1.4;color:var(--ink)}
+
+  .detail-meta-top{display:flex;justify-content:space-between;align-items:center;margin-top:16px;height:36px}
+  .author{font-size:12.5px;color:var(--ink);font-weight:500;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .genre-label{font-size:11.5px;color:var(--seiji);border:1px solid var(--seiji);padding:4px 8px;border-radius:2px;font-weight:500;white-space:nowrap;flex-shrink:0}
+  .status-grid{border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:16px;display:flex;flex-direction:column}
+  .status-row{display:flex;box-sizing:content-box}
+  .status-row + .status-row{border-top:1px solid var(--line)}
+  .status-item{flex:1;min-width:0;padding:12px 0;display:flex;flex-direction:column;gap:4px}
+  .status-item:first-child{border-right:1px solid var(--line);padding-right:16px}
+  .status-item:last-child{padding-left:16px}
+  .status-item .lbl{font-size:10.5px;color:var(--ink-soft);letter-spacing:.06em}
+  .status-item .val{font-size:13px;color:var(--ink);font-weight:500;line-height:1.45}
+  .status-item .val small{font-size:11.5px;color:var(--ink-soft)}
+  .sec{font-size:10.5px;letter-spacing:.28em;color:var(--ink-soft);font-weight:600;height:28px;line-height:28px;margin-top:24px}
+  .sec + *{margin-top:12px}
+  .summary-p{font-family:var(--mincho);font-size:14px;line-height:26px;color:var(--ink);text-align:justify}
+  .kw-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .kw-chip{font-size:11px;color:var(--seiji);border:1px solid var(--seiji);border-radius:2px;padding:4px 8px}
+
+  /* 固定バーは案B のまま固定（この比較では触らない） */
+  .fixed-bar{flex-shrink:0;background:var(--base);border-top:1px solid var(--line);padding:16px 24px;display:flex;flex-direction:column}
+  .slot{height:48px;display:flex;align-items:center;flex-shrink:0}
+  .slot + .slot{margin-top:8px}
+  .slot.row{gap:8px}
+  .slot.row > *{flex:1;min-width:0}
+  .btn-primary{height:40px;width:100%;background:var(--ai);color:var(--base);border:none;border-radius:2px;
+    font-family:var(--gothic);font-size:12.5px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:.1em;white-space:nowrap}
+  .btn-ghost{height:40px;width:100%;background:transparent;color:var(--ink-soft);border:1px solid var(--line);border-radius:2px;
+    font-family:var(--gothic);font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:.1em;white-space:nowrap}
+  .btn-ghost.mini{font-size:11.5px;letter-spacing:.06em;gap:6px}
+  .fixed-bar button svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5;flex-shrink:0}
+  .bar-note{padding-top:8px;line-height:28px;text-align:center;font-size:10.5px;color:var(--ink-soft);flex-shrink:0}
+</style>
+</head>
+<body>
+<h1>作品詳細 書影の大きさ —「小さすぎて素っ気ない」を解けるか</h1>
+<div class="lead">
+  土台は<b>案B 適用後の正本</b>（副アクション横一列・固定バー173dp・並び順は不変）。<b>固定バーと並び順は触らず、書影の意匠だけ</b>を入れ替えている。<br>
+  <b>争点</b>: 案B が確保した初期可視 <b>3.5行</b>を、書影へどれだけ返せるか。帯を 120→180dp に厚くすると、その 60dp はそのままあらすじの押し下げ（<b>2.3行ぶん</b>）になる。<br>
+  <b>⚠️ 8案比較で出した「案F 7.5行 / 案G 8.7行」は使えない</b>——あれは「バーを畳む＋並び順も入れ替える」前提の値だった。入ったのは案B だけなので、以下は<b>案B を土台に取り直した実測</b>。<br>
+  <b>行数だけでは決まらない</b>ので、上端300dpの見た目（下）と行数バッジ（各節）を同じ画面に置いてある。判定基準＝最低2行（第1文が閉じる）／推奨3行（第2文の「追放」まで届く）／全文8.8行。
+</div>
+
+<h2>① 上端300dp の見た目 — 「本」に見えるか</h2>
+<div class="strip" id="strip"></div>
+<div class="lead" style="margin-top:14px">
+  左から順に、全幅の帯（現状）・厚くした帯・2:3の書影カード。<b>帯は面積が増えても「本」の輪郭を持たない</b>——これが「素っ気ない」の正体かどうかを、まずここで見る。
+</div>
+
+<h2>② 案ごとの版面と、あらすじに残る行数</h2>
+<div id="opts" style="width:100%"></div>
+
+<script>
+const TITLE="追放された万能薬師、辺境でスローライフを始める";
+const STORY="調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。宮廷が彼を手放したことの意味に、王都が気づくのはまだ先の話。";
+const LINE=26;
+const IC={
+  back:'<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>',
+  dl:'<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  ext:'<svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
+  book:'<svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+  list:'<svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+  shelf:'<svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h5"/><line x1="12" y1="7" x2="18" y2="7"/><line x1="15" y1="4" x2="15" y2="10"/></svg>'
+};
+
+const OPTS=[
+  { id:'現', name:'現状 — 全幅の帯 120dp', kind:'band', hero:120,
+    unique:'いま出荷されている見え。案B の初期可視 3.5行をそのまま保つ。',
+    tradeoff:'書影が「本」の輪郭を持たず、題名を載せた色帯にしか見えない＝今回の指摘の対象。' },
+  { id:'F', name:'案F — 全幅の帯を厚くする 180dp', kind:'band', hero:180,
+    unique:'意匠の骨格（全幅の帯に題名を載せる）を変えずに面積だけ 1.5倍にする、いちばん小さい変更。',
+    tradeoff:'増えた60dpはそのままあらすじの押し下げ。帯のままなので「本らしさ」は増えず、面積だけが増える。' },
+  { id:'G', name:'案G — 2:3 の書影カード 112×168dp', kind:'card',
+    unique:'全幅の帯をやめ、実際の本と同じ 2:3 の矩形にして右へ題名・作者・ジャンルを組む。書影が「本」の輪郭を持つ。',
+    tradeoff:'帯の重厚さ（全幅の色面が画面上端を占める迫力）は失う。題名が書影の上ではなく横に出るので構図が変わる。' }
+];
+
+function headHtml(o,acts){
+  if(o.kind==='card'){
+    const sub = acts===4 ? '霧島あおい ／ 第12話まで読了' : '霧島あおい';
+    return '<div class="coverrow"><div class="cover"><div class="rule"></div><div class="ct">'+TITLE+'</div></div>'+
+      '<div class="side"><div class="t">'+TITLE+'</div><div class="author">'+sub+'</div>'+
+      '<div><span class="genre-label">ハイファンタジー</span></div></div></div>';
+  }
+  return '<div class="cv" style="height:'+o.hero+'px"><div class="rule"></div><div class="ttl-in"><b>'+TITLE+'</b></div></div>';
+}
+function metaHtml(o,acts){
+  if(o.kind==='card') return '';   /* カード案は題名・作者・ジャンルを書影の横へ吸収済み */
+  const a = acts===4 ? '霧島あおい ／ 第12話まで読了' : '霧島あおい';
+  return '<div class="detail-meta-top"><span class="author">'+a+'</span><span class="genre-label">ハイファンタジー</span></div>';
+}
+function contentHtml(o,acts){
+  return '<div class="scroll"><div class="col">'+headHtml(o,acts)+'<div class="pad">'+metaHtml(o,acts)+
+    '<div class="status-grid">'+
+      '<div class="status-row" style="height:84px">'+
+        '<div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>'+
+        '<div class="status-item"><span class="lbl">読了目安</span><span class="val">約8時間<br><small>（24.1万字）</small></span></div></div>'+
+      '<div class="status-row" style="height:61px">'+
+        '<div class="status-item"><span class="lbl">会話率</span><span class="val">42%</span></div>'+
+        '<div class="status-item"><span class="lbl">挿絵</span><span class="val">3枚</span></div></div>'+
+    '</div>'+
+    '<div class="sec">あらすじ</div><p class="summary-p" data-body>'+STORY+'</p>'+
+    '<div class="sec">キーワード</div>'+
+    '<div class="kw-chips"><span class="kw-chip">異世界転生</span><span class="kw-chip">ハーレム</span><span class="kw-chip">チート</span><span class="kw-chip">成り上がり</span><span class="kw-chip">スローライフ</span></div>'+
+    '</div></div></div>';
+}
+/* 固定バーは案B で確定済み＝全案で同一（この比較の変数を書影だけに絞るため） */
+function barHtml(acts){
+  const subs = acts===4
+    ? [{i:'book',l:'第13話から'},{i:'list',l:'目次'},{i:'shelf',l:'本棚'}]
+    : [{i:'ext',l:'なろうで読む'},{i:'shelf',l:'本棚に置く'}];
+  return '<div class="fixed-bar" data-bar><div class="slot"><button class="btn-primary">'+IC.dl+'縦書きPDFを取り込む</button></div>'+
+    '<div class="slot row">'+subs.map(s=>'<button class="btn-ghost mini">'+IC[s.i]+s.l+'</button>').join('')+'</div>'+
+    '<div class="bar-note">なろう（syosetu.com）のページをそのまま表示します</div></div>';
+}
+function phoneHtml(o,acts){
+  return '<div class="phone"><div class="sb"><span>9:41</span><span>●●● 84%</span></div>'+
+    '<div class="topbar"><span class="ic">'+IC.back+'</span></div>'+
+    contentHtml(o,acts)+barHtml(acts)+'<div class="navbar"><i></i></div></div>';
+}
+
+/* ① 上端ストリップ（いずれも4アクション版＝壊れやすいほうを見る） */
+const strip=document.getElementById('strip');
+OPTS.forEach(o=>{
+  const w=document.createElement('div'); w.className='wrap';
+  w.innerHTML='<span class="mode">'+o.id+'：'+o.name.replace(/^.*— /,'')+'</span><div class="crop">'+phoneHtml(o,4)+'</div>';
+  strip.appendChild(w);
+});
+
+/* ② 案ごとの全景＋実測 */
+const host=document.getElementById('opts');
+OPTS.forEach(o=>{
+  const s=document.createElement('section');
+  s.innerHTML='<div class="opt-line1"><span class="opt-id">'+o.id+'</span><span class="opt-name">'+o.name+'</span>'+
+    '<span class="badges" data-badges></span></div>'+
+    '<div class="opt-meta"><span class="k">ねらい</span>'+o.unique+'</div>'+
+    '<div class="opt-meta"><span class="k">代償</span>'+o.tradeoff+'</div>'+
+    '<div class="stage">'+
+      '<div class="wrap"><span class="mode">3アクション（未取込・未読）</span>'+phoneHtml(o,3)+'</div>'+
+      '<div class="wrap"><span class="mode">4アクション（未取込・既読）</span>'+phoneHtml(o,4)+'</div>'+
+    '</div>';
+  host.appendChild(s);
+});
+
+function verdict(l){ return l>=3?'v-ok':(l>=2?'v-min':'v-ng'); }
+document.querySelectorAll('#opts section').forEach(sec=>{
+  const phones=sec.querySelectorAll('.phone');
+  const labels=['3アクション','4アクション'];
+  let html='';
+  phones.forEach((p,i)=>{
+    const sc=p.querySelector('.scroll').getBoundingClientRect();
+    const b=p.querySelector('[data-body]').getBoundingClientRect();
+    const vis=Math.max(0,Math.min(b.height, sc.bottom-b.top));
+    const l=vis/LINE;
+    html+='<span class="badge '+verdict(l)+'">'+labels[i]+' あらすじ <b>'+l.toFixed(1)+'</b> 行</span>';
+  });
+  sec.querySelector('[data-badges]').innerHTML=html;
+});
+</script>
+
+<div class="lead" style="margin-top:8px">
+  <b>バッジの色</b>＝本文から導いた基準への到達を機械的に塗ったもの（緑＝推奨3行以上／黄＝最低2行／赤＝2行未満＝第1文が閉じない）。<b>推薦ではない。</b><br>
+  <b>裁定後</b>: 採用案を正本 <code>discovery/discovery-detail-D.html</code> の書影部へ落とし、本ファイルは削除する。
+</div>
+</body>
+</html>
