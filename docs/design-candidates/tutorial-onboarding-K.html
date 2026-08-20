@@ -1,0 +1,659 @@
+<!-- @dsCard group="UI-n / 教示（初出オンボーディング）" name="初めての一言 ─ 採用案（明快K）B＋D＋設定の「操作の説明」" -->
+<!--
+  採用案の設計モック（2026-08-21 ユーザー裁定後）。比較ドラフト tutorial-candidates-K.html を本ファイルへ
+  改名・書き直したもの（却下案は消し、消える前に理由だけ下へ抽出した）。実装は別便＝Compose 未着手。
+
+  下敷き: 読書面＝docs/design-candidates/reading-D.html（K の読書は D へ委譲＝CURRENT.md）
+          設定面＝docs/design-candidates/skins/settings-K.html ／ 空棚＝skins/bookshelf-K.html
+  色・書体・phone 枠・ルビ様式・行様式はすべて上記から実値継承（新意匠を発明しない）。
+
+  ================================================================================
+  【裁定の記録（2026-08-21）】採用 = B（その場で一言）＋ D（没入中も残す取っ手）＋ 設定の「操作の説明」
+  ================================================================================
+  ■ 却下: C-3「表示設定シートへの常設入口」
+    理由 =「シートに常設は不要。理解した人にとっては余分」。
+    ▶ 一般化した判断軸（この画面群すべてに効かせる）:
+      **恒常的に見え続けるものは、理解した後にコストへ変わる。**
+      よって教示は必ず「一度出て、閉じたら消える」。常設物を増やしてよいのは、
+      教示ではなく“手がかり”そのもの（＝案D の取っ手のように、文言を持たず操作の存在を示すもの）だけ。
+
+  ■ 却下: 案A の「初回起動に3枚まとめて見せる」という形
+    理由 = 初回起動時点の背後は**空の本棚**で、まだ1冊も無い＝読書画面を一度も見ていない人に
+    「読書画面ではこう操作します」を見せることになる。読む前の説明は実感と結びつかず残らない。
+    ▶ 構想は生きている。「まとめて先に」をやめ、**その階層に初めて来たときにその階層のことだけ言う**形へ移した（下記 §1）。
+
+  ■ 申し送り（解釈が割れる可能性・取り違えなら差し戻してください）
+    指示は「C-2 / C-3 を却下」と書かれていたが、C-2 は“説明の中身の画面”そのもので、
+    これを却下すると「設定に入れとく」が成立しなくなる（行はあるが行き先が無い）。
+    ユーザーの言葉が「**シートに**常設は不要」であることから、**却下は C-3 のみ**と解釈した。
+    説明の中身は採用として残し、ただし構成を作り直した（下記 §4）。
+
+  ================================================================================
+  【前便から引き継ぐ実装の現在値（2026-08-21 実測）】
+  ================================================================================
+  教示の仕組みはアプリ全体で 1 本だけ:
+    フラグ PrefKeys.IMMERSIVE_HINT_SHOWN = "immersive_hint_shown"（FILE_APP_PREFS）
+    発火   ChapterScreen.kt:382-407 — topAppBarState.collapsedFraction > 0.9f の通算初回に 1 度だけ
+    描画   NativeReadingScreen.kt:1463-1487 — 下端の半透明ピル・「画面をタップでメニュー」・2600ms でフェード消灯
+  T4 の真因 = フラグを立てる位置が「表示に踏み切った瞬間」（ChapterScreen.kt:402）＝ユーザーが見た保証の
+  無い時点で通算 1 回を焼き切る。本ファイルの設計はこの 1 本を置き換える（自動消灯をやめ、閉じるまで残す）。
+
+  ================================================================================
+  【この便の新規調査で判明したこと ─ 検索は「教示で埋めてはいけない」側に片足を置いている】
+  ================================================================================
+  検索範囲チップ（DiscoverySearchScreen.kt:360-385）はタイトル／キーワード／作者名／あらすじの 4 つだが、
+  **既定は inTitle=true のみ**（domain/SearchDraft.kt:106-109 ＝他 3 つは false）。
+  一方で入力欄の placeholder は「作品名・作者・キーワード」（同 :271）＝**既定では叶わない 3 つを名乗っている**。
+  初見の人が作者名を入れると 0 件が返り、アプリが壊れているように見える。
+  ▶ これは知識の不足ではなく**文言と既定値の食い違い**なので、本来は UI 側の修正が正しい（§5 に分離した）。
+     教示（§3 の検索カード）は、その修正が入るまでの当て木として設計してある。
+  なお「検索範囲は1つ以上必要」の制約は、既に注記＋チップの揺れ（RangeLockNudge）で UI 側が説明済み＝教示しない。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>初めての一言 ─ 採用案（明快K）</title>
+<style>
+  /*==harness==*/
+  :root{
+    /* === K/D トークン実値（bookshelf-K / settings-K / reading-D と同一） === */
+    --base:#FBFAF8; --ink:#1C1F26; --ink-soft:#7C808B; --line:#ECEAE4;
+    --ai:#1C3D5A; --ai-tint:rgba(28,61,90,.10);
+    /* 読書ライトテーマ（reading-D .t-light と同値） */
+    --bg:#FBFAF8; --soft:#7C808B; --ruby:#616C77; --rule:#1C3D5A;
+    --blk-bg:#F1F0EC; --blk-bd:#E4E2DB; --bar:#FBFAF8; --bar-line:#ECEAE4; --accent:#1C3D5A;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;min-height:100vh;padding:30px 20px 60px;font-family:var(--gothic);
+    -webkit-font-smoothing:antialiased;color:#2A2C28}
+  .doc{max-width:1180px;margin:0 auto}
+  h1{font-size:20px;letter-spacing:.06em;margin-bottom:10px}
+  .lead{font-size:13px;line-height:1.9;color:#4A4C47;max-width:880px}
+  .lead b{color:#2A2C28}
+
+  .sec{margin-top:44px;border-top:2px solid #C9C7BE;padding-top:18px}
+  .sec h2{font-size:17px;letter-spacing:.05em;margin-bottom:8px}
+  .sec h2 .tag{font-size:11px;background:var(--ai);color:#fff;padding:2px 9px;border-radius:10px;
+    margin-left:10px;letter-spacing:.08em;vertical-align:3px;font-weight:400}
+  .sec h2 .tag.g{background:#50685C}
+  .sec p.body{font-size:13px;color:#4A4C47;line-height:1.9;max-width:880px;margin-bottom:6px}
+  .sec p.body b{color:#2A2C28}
+  .rule{font-size:12.5px;line-height:1.95;max-width:880px;margin-top:12px;
+    background:#F1EFE9;border-left:3px solid var(--ai);padding:11px 14px}
+  .rule b{color:#1C3D5A}
+  .note{font-size:11.5px;color:#6A6C67;line-height:1.8;margin-top:10px;max-width:900px}
+
+  table.mx{border-collapse:collapse;margin:16px 0 6px;background:#F7F6F2;font-size:12.5px;width:100%;max-width:1000px}
+  table.mx th,table.mx td{border:1px solid #D3D1C9;padding:8px 11px;text-align:left;line-height:1.65;vertical-align:top}
+  table.mx th{background:#EDEBE4;font-weight:700;letter-spacing:.04em}
+  table.mx td.o{color:#1C3D5A;font-weight:700;white-space:nowrap}
+  table.mx td.x{color:#7A7168;font-weight:700;white-space:nowrap}
+
+  .stage{display:flex;gap:26px;flex-wrap:wrap;margin-top:18px}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .wrap .mode{font-size:11.5px;letter-spacing:.12em;color:#6A6C67;text-align:center;max-width:372px;line-height:1.65}
+
+  /* === スマホ枠 === */
+  .phone{width:372px;height:800px;background:var(--bg);border-radius:38px;overflow:hidden;position:relative;
+    display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.28);font-family:var(--mincho)}
+  .phone.k{background:var(--base);font-family:var(--gothic)}
+  .sb{height:34px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 24px;
+    font-size:11px;color:var(--soft);font-family:var(--gothic)}
+  .phone.k .sb{height:40px;color:var(--ink-soft)}
+
+  /* === 読書 chrome（reading-D 実値） === */
+  .topbar{position:relative;z-index:4;height:50px;flex-shrink:0;display:flex;align-items:center;gap:4px;
+    padding:0 16px;background:var(--bar);border-bottom:1px solid var(--bar-line)}
+  .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;
+    place-items:center;color:var(--ink);cursor:pointer}
+  .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar .ct{flex:1;font-family:var(--gothic);font-size:13.5px;color:var(--ink);letter-spacing:.04em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .reader{flex:1;overflow:auto;position:relative;z-index:1;padding:8px 24px 92px}
+  .reader p{font-size:16.5px;line-height:2.4;color:var(--ink);text-indent:1em;margin-bottom:.3em}
+  ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  .blank{height:1.5em}
+  .reader hr{border:none;height:1px;width:42%;margin:16px auto;background:var(--rule);opacity:.5}
+  .immersive .topbar{display:none}
+  .immersive .reader{padding:32px 24px 40px}
+
+  /* === 「初めての一言」ピル型（既定の見せ方・閉じるまで残る） ===
+     意匠は現行の復帰ヒント（NativeReadingScreen.kt:1470-1486）の丸ピルを角丸カードへ拡張したもの。
+     現行と違い自動消灯しない＝「見る前に消える」欠陥を作らない。 */
+  .say{position:absolute;z-index:22;background:var(--ai);color:#fff;border-radius:14px;
+    padding:14px 16px 12px;font-family:var(--gothic);font-size:13px;line-height:1.75;letter-spacing:.02em;
+    box-shadow:0 8px 24px rgba(0,0,0,.30);width:290px;left:50%;transform:translateX(-50%)}
+  .say .cl{display:block;font-size:11px;opacity:.72;letter-spacing:.12em;margin-bottom:6px}
+  /* 「後から見返せる場所」の一言＝アプリ通算で1回だけ。ヘアラインで本題と分ける（別の話題だと分かるように）。 */
+  .say .later{display:block;margin-top:11px;padding-top:10px;border-top:1px solid rgba(255,255,255,.26);
+    font-size:12px;opacity:.85;line-height:1.7}
+  .say .ok{display:block;margin-top:11px;text-align:right;font-weight:700;font-size:13px}
+  .say .beak{position:absolute;width:12px;height:12px;background:var(--ai);transform:rotate(45deg)}
+  .ring{position:absolute;z-index:21;border:2px solid var(--ai);border-radius:14px;
+    box-shadow:0 0 0 9999px rgba(28,31,38,.34)}
+  .ring.circle{border-radius:50%}
+
+  /* === 「初めての一言」止めカード型（例外の見せ方・触る前に言う） === */
+  .scrim{position:absolute;inset:0;z-index:24;background:rgba(28,31,38,.74);display:flex;
+    flex-direction:column;align-items:center;justify-content:center;padding:26px}
+  .ocard{width:100%;background:var(--base);border-radius:16px;padding:24px 22px 18px}
+  .ocard .fig{height:104px;display:grid;place-items:center;margin-bottom:16px}
+  .ocard .fig svg{stroke:var(--ai);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+  .ocard .fig svg .soft{stroke:var(--ink-soft);opacity:.55}
+  .ocard h3{font-family:var(--gothic);font-size:17px;color:var(--ink);letter-spacing:.04em;margin-bottom:11px}
+  .ocard p{font-family:var(--gothic);font-size:13.5px;color:#4A4C47;line-height:1.95}
+  .ocard p+p{margin-top:9px}
+  .ocard .later{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);
+    font-size:12.5px;color:var(--ink-soft);line-height:1.7}
+  .obtns{display:flex;justify-content:flex-end;margin-top:18px}
+  .obtn{font-family:var(--gothic);font-size:13.5px;border:none;background:var(--ai);color:#fff;
+    border-radius:10px;padding:11px 24px;font-weight:700;cursor:pointer;letter-spacing:.04em}
+
+  /* === 案D 取っ手（没入中の常設・文言なし） === */
+  .handle{position:absolute;left:50%;transform:translateX(-50%);z-index:6;bottom:16px;
+    width:46px;height:3px;border-radius:2px;background:var(--ai);opacity:.30}
+
+  /* === 設定・説明画面（settings-K 実値） === */
+  .head{flex-shrink:0;padding:6px 20px 14px}
+  .head h1{font-family:var(--gothic);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.04em}
+  .dhead{flex-shrink:0;height:52px;display:flex;align-items:center;gap:6px;padding:0 12px;
+    border-bottom:1px solid var(--line);background:var(--base)}
+  .dhead .ib{width:38px;height:38px;border:none;background:transparent;display:grid;place-items:center;
+    color:var(--ink);cursor:pointer}
+  .dhead .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.7}
+  .dhead h2{font-family:var(--gothic);font-size:17px;font-weight:700;color:var(--ink);letter-spacing:.04em}
+  .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:2px 20px 24px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+  .gh{font-size:12px;color:var(--ink-soft);letter-spacing:.14em;margin:20px 4px 8px;font-weight:600}
+  .gh:first-child{margin-top:4px}
+  .group{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--base)}
+  .row{display:flex;align-items:center;gap:14px;padding:15px 16px;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .row.hi{background:var(--ai-tint)}
+  .ri{width:24px;height:24px;flex-shrink:0;color:var(--ink-soft)}
+  .ri svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .rt{flex:1;min-width:0}
+  .rl{font-family:var(--gothic);font-size:15px;color:var(--ink);letter-spacing:.02em}
+  .rd{font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin-top:4px;letter-spacing:.01em}
+  .rr{flex-shrink:0;display:flex;align-items:center;gap:8px}
+  .rv{font-size:13px;color:var(--ink-soft);letter-spacing:.02em}
+  .chev{width:18px;height:18px;fill:none;stroke:var(--ink-soft);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .chev-hole{width:18px;height:18px;flex-shrink:0}
+  .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    text-decoration:none;cursor:pointer;color:var(--ink-soft)}
+  .tab.on{color:var(--ai)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill2{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .tab.on .ic .pill2{background:var(--ai-tint)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
+  .tab.on .lb{font-weight:700}
+
+  /* 説明画面の節（面ごとに1節＝§4 の再構成） */
+  .hs{margin:22px 2px 0}
+  .hs:first-child{margin-top:10px}
+  .hs .ht{font-family:var(--gothic);font-size:14.5px;font-weight:700;color:var(--ink);letter-spacing:.03em;
+    display:flex;align-items:center;gap:9px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+  .hs .ht .ico{width:20px;height:20px;flex-shrink:0;color:var(--ai)}
+  .hs .ht .ico svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  .hs dl{margin-top:10px}
+  .hs dt{font-family:var(--gothic);font-size:12px;color:var(--ink-soft);letter-spacing:.06em;margin-top:11px}
+  .hs dt:first-child{margin-top:0}
+  .hs dd{font-family:var(--gothic);font-size:13px;color:#3A3C38;line-height:1.85;margin-top:3px}
+  .hs dd em{font-style:normal;color:var(--ai);font-weight:700}
+
+  /* === 検索画面（DiscoverySearchScreen の実構成に合わせる） === */
+  .sfield{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);
+    padding:10px 4px 12px;margin-top:4px}
+  .sfield .ph{flex:1;font-size:15px;color:#B7B4AC;letter-spacing:.02em}
+  .sfield svg{width:22px;height:22px;fill:none;stroke:var(--ai);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .chip{font-size:12.5px;padding:7px 14px;border-radius:999px;border:1px solid var(--line);
+    color:var(--ink-soft);background:var(--base);letter-spacing:.02em}
+  .chip.on{background:var(--ai-tint);border-color:var(--ai);color:var(--ai);font-weight:700}
+  .info{font-size:11.5px;color:var(--ink-soft);margin-top:9px;letter-spacing:.02em}
+  .adj{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);
+    border-radius:12px;padding:14px 16px;margin-top:16px}
+  .adj .al{font-size:14px;color:var(--ink)}
+  .hist{margin-top:8px}
+  .hist .hi2{display:flex;align-items:center;gap:12px;padding:13px 4px;border-bottom:1px solid var(--line);
+    font-size:14px;color:var(--ink)}
+  .hist .hi2 svg{width:18px;height:18px;fill:none;stroke:var(--ink-soft);stroke-width:1.6;stroke-linecap:round}
+  /*==/harness==*/
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>「初めての一言」 ─ 採用案（既定スキン 明快K）</h1>
+  <p class="lead">
+    裁定＝<b>B（その場で一言）＋ D（没入中も残す取っ手）＋ 設定の「操作の説明」</b>。
+    却下は <b>C-3（表示設定シートへの常設入口）</b>で、理由は場所ではなく<b>「理解した人には余分」</b>——
+    <b>恒常的に見え続けるものは、理解した後にコストへ変わる</b>。この軸を設計全体に効かせた。
+  </p>
+
+  <div class="sec">
+    <h2>§1　A'（複数階層の初出）と B（面ごとの初回）は、同じものだった</h2>
+    <p class="body">
+      結論から言うと <b>別物ではない</b>。どちらも中身は「<b>初出フラグ ＋ その場の一言 ＋ 自分で閉じる</b>」で、
+      違っていたのは<b>見せかた</b>（全画面カード／その場のピル）と<b>粒度の呼びかた</b>（階層／面）だけだった。
+      粒度に至っては同じものを指している——「本文を初めて開いたとき」は階層であり面でもある。
+      よって <b>仕組みは 1 本に統合</b>する（同じものを 2 つ実装しない）。
+    </p>
+    <p class="body">
+      統合後に残る唯一の設計判断は「<b>どの初出で、どちらの見せかたを使うか</b>」。
+      ここを画面ごとの感覚で決めると必ずぶれるので、<b>規則で決める</b>ことにした。
+    </p>
+    <p class="rule">
+      <b>分岐の規則 ─「知らずに触ると、壊れているように見えるか？」</b><br>
+      <b>いいえ → その場ピル型（既定）</b>。指す先が画面にあるので、触ったところで指す。進行は止めない。<br>
+      <b>はい → 止めカード型（例外）</b>。指す先がまだ無い、または知らずに操作すると「効かない＝故障」と誤解する。
+      この場合だけ、触る前に言う。<br>
+      <span style="color:#4A4C47">共通の約束（却下 C-3 から引いた軸）: <b>自動では消えない・閉じたら二度と出ない・1 画面 1 メッセージ・恒常表示にしない</b>。</span>
+    </p>
+    <p class="note">
+      現行実装（<code>ChapterScreen.kt:382-407</code>）は「2600ms で自動消灯」なので、この共通の約束と真っ向から反する
+      ——<b>見る前に消えても通算 1 回を消費してしまう</b>のが T4 の真因だった。統合後の仕組みはこの 1 本を置き換える。
+    </p>
+  </div>
+
+  <div class="sec">
+    <h2>§2　どの初出で言うか ─ 出す 4 つと、出さないと決めた 5 つ</h2>
+    <p class="body">
+      <b>階層を増やすほど「面倒なアプリ」に近づく</b>ので、出さない判断のほうを厚く書いた。
+      基準は §1 の規則と、<b>「UI が既に答えているものは教えない」</b>の 2 つ。
+    </p>
+    <table class="mx">
+      <tr><th style="width:24%">初出</th><th style="width:11%">出す？</th><th style="width:13%">見せかた</th><th>理由</th></tr>
+      <tr>
+        <td><b>本文を初めて開いたとき</b></td><td class="o">出す</td><td>ピル</td>
+        <td>T4 そのもの。没入に入ってバーが消えた瞬間、指す先（本文全面）が目の前にある。壊れて見えはしない（本文は読めている）ので止めない。</td>
+      </tr>
+      <tr>
+        <td><b>検索を初めて使うとき</b></td><td class="o">出す</td><td>止めカード</td>
+        <td><b>既定の検索範囲がタイトルだけ</b>なのに、入力欄は「作品名・作者・キーワード」と名乗る（§5）。
+          知らずに作者名を入れると 0 件が返り、壊れているように見える＝規則の「はい」側。</td>
+      </tr>
+      <tr>
+        <td><b>「なろうで読む」を初めて開いたとき</b></td><td class="o">出す</td><td>止めカード</td>
+        <td><b>直感で埋まらない唯一の箇所</b>。見た目は読書画面と地続きなのに、本文タップも章送りも効かない。
+          外部サイトのページそのものである事実は絵で伝わらない。</td>
+      </tr>
+      <tr>
+        <td><b>後から見返せる場所（設定）</b></td><td class="o">出す</td><td>相乗り</td>
+        <td>単独では出さない。<b>最初に出た初出の一言に 1 行だけ相乗り</b>させる（§3・§4）。</td>
+      </tr>
+      <tr>
+        <td>アプリを初めて開いたとき</td><td class="x">出さない</td><td>—</td>
+        <td><b>空棚が既に答えている</b>——「まだ本がありません／読みたい作品をさがすか、お手元のPDFを追加して読み始めましょう」＋
+          CTA 2 つ（<code>skins/bookshelf-K.html:420-427</code>）。アプリが何をするものかも、次に何を押すかも書いてある。
+          ここに教示を重ねるのは同じことを 2 回言うだけで、案A が死んだ理由（読む前の説明は残らない）をそのまま繰り返す。</td>
+      </tr>
+      <tr>
+        <td>縦書きに初めて切り替えたとき</td><td class="x">出さない</td><td>—</td>
+        <td>縦書きは<b>自分で意図して切り替える</b>操作で、切り替えた本人は縦書きだと知っている。左へなぞるのは紙の本と同じ向き＝単独では直感的。
+          横書きとの食い違い（T3）は当面そのままという裁定なので、ここで教示を足すと「面倒なアプリ」側にだけ寄る。</td>
+      </tr>
+      <tr>
+        <td>検索範囲を最後の 1 つまで外そうとしたとき</td><td class="x">出さない</td><td>—</td>
+        <td><b>UI が既に答えている</b>——注記「検索範囲は1つ以上必要です」＋チップの揺れ（<code>RangeLockNudge</code>）。
+          動いて見せているものを文章で重ねない。</td>
+      </tr>
+      <tr>
+        <td>目次を初めて開いたとき</td><td class="x">出さない</td><td>—</td>
+        <td>章の一覧＝押せば飛ぶ。説明すべき隠れた操作が無い。</td>
+      </tr>
+      <tr>
+        <td>装いの間 ／ PDF取り込みの初回</td><td class="x">出さない</td><td>—</td>
+        <td>装いの間＝初回リリースは明快K のみ（M/P/J は課金アップデートへ温存）＝そもそも出番が無い。
+          PDF取り込み＝目的を持ってボタンを押して来る画面で、来た時点で何をする場所か分かっている。</td>
+      </tr>
+    </table>
+    <p class="note">
+      <b>出すのは実質 3 か所</b>（本文・検索・なろうで読む）。初回起動から数えて、ふつうの人が最初の 1 週間で見る一言は
+      多くて 3 つ、しかもすべて<b>その操作をしようとした瞬間</b>に出る。
+    </p>
+  </div>
+
+  <div class="sec">
+    <h2>§3-a　本文の初出　<span class="tag">ピル型 ＋ 取っ手（B と D は同じ場所で連続する 1 つの体験）</span></h2>
+    <p class="body">
+      B と D は別々の案ではなく、<b>同じ瞬間の前半と後半</b>だった。没入に入った初回に一言が出て、閉じると消える——
+      <b>そのあと取っ手だけが残る</b>。教示は一度で終わり、常設されるのは文言を持たない手がかりだけ。
+      これが却下 C-3 から引いた軸（恒常物は理解後にコストへ変わる）の、そのままの形。
+    </p>
+    <p class="rule">
+      <b>この形が T4 を二重に解いている</b>　①一言は自動消灯しないので<b>見る前に消えない</b>（現行 2600ms の欠陥を断つ）。
+      ②仮に一言を読み飛ばしても、<b>取っ手が画面に残り続ける</b>ので 2 週間後でも思い出す必要がない。
+      片方が抜けてももう片方が受ける。
+    </p>
+    <div class="stage">
+
+      <div class="wrap"><span class="mode">初回だけ ─ 閉じるまで残る（自動では消えない）</span>
+        <div class="phone immersive" role="img" aria-label="本文の初出 ピルと取っ手">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="reader">
+            <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+            <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+            <div class="blank"></div><hr><div class="blank"></div>
+            <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+            <p><ruby>城門<rt>じょうもん</rt></ruby>の<ruby>兵<rt>へい</rt></ruby>は<ruby>誰<rt>だれ</rt></ruby>も<ruby>私<rt>わたし</rt></ruby>たちを<ruby>止<rt>と</rt></ruby>めなかった。</p>
+          </div>
+          <div class="ring circle" style="left:50%;top:286px;width:124px;height:124px;margin-left:-62px"></div>
+          <div class="say" style="top:436px">
+            <span class="beak" style="left:50%;top:-6px;margin-left:-6px"></span>
+            <span class="cl">メニューの出しかた</span>
+            本文のどこかを 1 回タップすると、上下のバーが出ます。もう一度タップで消えます。
+            <span class="later">あとで見返すときは ［設定］＞［操作の説明］ から。</span>
+            <span class="ok">わかった</span>
+          </div>
+          <div class="handle"></div>
+        </div>
+      </div>
+
+      <div class="wrap"><span class="mode">閉じたあと ─ ずっとこの見え。残るのは取っ手だけ</span>
+        <div class="phone immersive" role="img" aria-label="本文の初出 閉じたあと取っ手だけ">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="reader">
+            <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>している。</p>
+            <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+            <div class="blank"></div><hr><div class="blank"></div>
+            <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+            <p><ruby>城門<rt>じょうもん</rt></ruby>の<ruby>兵<rt>へい</rt></ruby>は<ruby>誰<rt>だれ</rt></ruby>も<ruby>私<rt>わたし</rt></ruby>たちを<ruby>止<rt>と</rt></ruby>めなかった。<ruby>錆<rt>さ</rt></ruby>びた<ruby>蝶番<rt>ちょうつがい</rt></ruby>が、<ruby>風<rt>かぜ</rt></ruby>に<ruby>低<rt>ひく</rt></ruby>く<ruby>鳴<rt>な</rt></ruby>いている。</p>
+          </div>
+          <div class="handle"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>§3-b　検索の初出　<span class="tag">止めカード型</span></h2>
+    <p class="body">
+      検索は「触る前に言う」側。<b>既定の検索範囲がタイトルだけ</b>なので、作者名を入れた初見の人には 0 件が返る——
+      知識の問題ではなく<b>壊れて見える</b>状態になる（規則の「はい」側）。
+      ただし本来これは UI 側で直すべき食い違いなので、<b>このカードは修正が入るまでの当て木</b>という位置づけ（§5）。
+    </p>
+    <div class="stage">
+      <div class="wrap"><span class="mode">検索タブを初めて開いたとき</span>
+        <div class="phone k" role="img" aria-label="検索の初出 止めカード">
+          <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+          <div class="head"><h1>さがす</h1></div>
+          <div class="scroll">
+            <div class="sfield">
+              <span class="ph">作品名・作者・キーワード</span>
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg>
+            </div>
+            <div class="gh">検索範囲</div>
+            <div class="chips">
+              <span class="chip on">タイトル</span><span class="chip">キーワード</span>
+              <span class="chip">作者名</span><span class="chip">あらすじ</span>
+            </div>
+            <div class="info">検索範囲は1つ以上必要です</div>
+            <div class="adj">
+              <span class="al">条件を調整</span>
+              <svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+            </div>
+            <div class="gh">最近の検索</div>
+            <div class="hist">
+              <div class="hi2"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>辺境の城門</div>
+              <div class="hi2"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>ざまぁ 完結済</div>
+            </div>
+          </div>
+          <nav class="tabbar">
+            <a class="tab"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg></span><span class="lb">本棚</span></a>
+            <a class="tab on"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg></span><span class="lb">さがす</span></a>
+            <a class="tab"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="lb">設定</span></a>
+          </nav>
+          <div class="scrim">
+            <div class="ocard">
+              <div class="fig">
+                <svg viewBox="0 0 120 70" width="120" height="70">
+                  <circle cx="34" cy="30" r="15"/><path d="M45 41l11 11"/>
+                  <rect x="66" y="14" width="42" height="12" rx="6" class="soft"/>
+                  <rect x="66" y="32" width="42" height="12" rx="6"/>
+                  <rect x="66" y="50" width="42" height="12" rx="6" class="soft"/>
+                </svg>
+              </div>
+              <h3>言葉を、どこから探すか</h3>
+              <p>入力した言葉は、下で選んだ範囲の中だけを探します。<b>はじめは［タイトル］だけが選ばれています</b>。</p>
+              <p>作者名やあらすじからも探したいときは、そのチップも押してください（いくつでも選べます）。</p>
+              <div class="obtns"><button class="obtn">さがしてみる</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note">
+      文言に「作品が見つからないときは範囲を増やしてください」とは書かなかった——<b>0 件を前提にした謝罪文にすると、
+      アプリが弱く見える</b>。ここは事実（既定はタイトルだけ・複数選べる）だけを言い、直すのは §5 に回す。
+    </p>
+  </div>
+
+  <div class="sec">
+    <h2>§3-c　「なろうで読む」の初出　<span class="tag">止めカード型 ─ 直感で埋まらない唯一の箇所</span></h2>
+    <p class="body">
+      T3 の割当（横書き／縦書きの横スワイプ）は当面そのままという裁定だが、<b>ここだけは別</b>。
+      見た目は他の読書画面と地続きなのに、<b>本文タップも章送りスワイプも効かない</b>（<code>WebReaderScreen.kt</code> は
+      TopAppBar 固定で、本文は WebView そのもの）。効かないことを事前に知らないと、必ず「壊れている」と読まれる。
+      <b>絵では伝わらない事実</b>なので、教示が正当な唯一の場所として止めカードを使う。
+    </p>
+    <div class="stage">
+      <div class="wrap"><span class="mode">［なろうで読む］を初めて開いたとき</span>
+        <div class="phone k" role="img" aria-label="なろうで読む の初出 止めカード">
+          <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+          <div class="topbar" style="font-family:var(--gothic)">
+            <button class="ib" aria-label="戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <div class="ct">なろうで読む</div>
+          </div>
+          <div style="flex:1;overflow:hidden;background:#fff;padding:16px 14px;font-family:var(--gothic)">
+            <div style="border:1px dashed #D6D4CD;border-radius:4px;height:56px;display:grid;place-items:center;
+                        color:#A9A69D;font-size:11px;letter-spacing:.1em">広告枠</div>
+            <div style="margin-top:16px;font-size:13px;color:#333;line-height:1.5">第百二十七話　雨上がりの城門にて</div>
+            <div style="margin-top:14px">
+              <div style="height:9px;background:#EDEDED;border-radius:2px;margin-bottom:11px"></div>
+              <div style="height:9px;background:#EDEDED;border-radius:2px;margin-bottom:11px;width:94%"></div>
+              <div style="height:9px;background:#EDEDED;border-radius:2px;margin-bottom:11px"></div>
+              <div style="height:9px;background:#EDEDED;border-radius:2px;margin-bottom:11px;width:78%"></div>
+            </div>
+            <div style="margin-top:20px;display:flex;justify-content:space-between;font-size:12px;color:#3A6EA5">
+              <span>&lt; 前へ</span><span>目次</span><span>次へ &gt;</span>
+            </div>
+          </div>
+          <div class="scrim">
+            <div class="ocard">
+              <div class="fig">
+                <svg viewBox="0 0 120 70" width="120" height="70">
+                  <rect x="10" y="10" width="44" height="50" rx="5"/>
+                  <path d="M18 22h28M18 32h28M18 42h18" class="soft"/>
+                  <rect x="66" y="10" width="44" height="50" rx="5" stroke-dasharray="5 4"/>
+                  <path d="M74 22h28M74 32h28M74 42h18" class="soft" stroke-dasharray="5 4"/>
+                  <path d="M60 35h-2M62 35h2" class="soft"/>
+                </svg>
+              </div>
+              <h3>ここから先は、サイトのページです</h3>
+              <p>［なろうで読む］は、<b>小説家になろうのページをそのまま開きます</b>。アプリの画面ではありません。</p>
+              <p>そのため、この画面では<b>本文をタップしてもメニューは出ず、横になぞっても次の話へは進みません</b>。
+                 ふりがなも付きません。ページの中の［次へ］で読み進めてください。</p>
+              <p>アプリに戻るときは、<b>左上の ←</b> です。</p>
+              <div class="obtns"><button class="obtn">わかった</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note">
+      「アプリのメニューは出ません」だけでなく <b>「横になぞっても次の話へは進みません」まで名指した</b>のが要点——
+      効かない操作を具体的に挙げないと、人は自分の指が悪いのだと思って何度も試す。
+      同時に<b>代わりの手段（ページの中の［次へ］・左上の ←）を必ず添える</b>：できないことだけ言う教示は行き止まりになる。
+    </p>
+  </div>
+
+  <div class="sec">
+    <h2>§4　「後から見返せる場所」をどう伝えるか　<span class="tag g">恒常表示にしない</span></h2>
+    <p class="body">
+      設定に置いただけでは誰も辿り着かない。かといって却下された C-3 のように<b>常に見える入口を足すと、
+      分かった人には余分</b>になる。答えは<b>「初出の一言に 1 行だけ相乗りさせて、通算 1 回だけ言う」</b>。
+      教示の中で教示の在り処を教えるので、新しい常設物はひとつも増えない。
+    </p>
+    <p class="rule">
+      <b>置き場の決めかた</b>　どの初出が最初に出るかは人によって違う（蔵書ゼロの人は［作品をさがす］から入るので
+      検索が先、PDF を入れた人は本文が先）。そこで<b>専用のフラグを 1 本だけ持ち、最初に出た一言にだけ相乗りさせる</b>
+      ——どれが先でも、通算でちょうど 1 回。<br>
+      <b>文言（本文の初出に相乗りした例＝§3-a のパネル）</b>：<br>
+      <span style="color:#1C3D5A;font-weight:700">「あとで見返すときは ［設定］＞［操作の説明］ から。」</span><br>
+      <span style="color:#4A4C47">本題との間にヘアラインを 1 本入れ、少し小さく沈める＝別の話題だと分かる形にする（1 画面 1 メッセージを壊さない）。</span>
+    </p>
+    <p class="body" style="margin-top:14px">
+      説明の中身は<b>構成を作り直した</b>。前案は「メニューを出す／読み進める／次の話へ」と<b>操作ごと</b>に並べたため、
+      節ごとに横書き・縦書きの 2 列対比が要って読みづらかった。裁定で「<b>それぞれ単独では直感的</b>」と整理されたので、
+      <b>面ごとに 1 節</b>へ組み替えた——読んでいる人は自分がどの面にいるか分かっているのだから、その節だけ読めば済む。
+    </p>
+    <div class="stage">
+
+      <div class="wrap"><span class="mode">設定に常設の入口（新規行。ここだけは常設でよい＝探しに来た人のための場所）</span>
+        <div class="phone k" role="img" aria-label="設定の操作の説明の行">
+          <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+          <div class="head"><h1>設定</h1></div>
+          <div class="scroll">
+            <div class="gh">表示</div>
+            <div class="group">
+              <div class="row">
+                <span class="ri"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></span>
+                <div class="rt"><div class="rl">テーマ</div></div>
+                <div class="rr"><span class="rv">システムに従う</span><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+              </div>
+              <div class="row">
+                <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 0 0 0 16c1 0 1.5-.8 1.5-1.6 0-1 .8-1.4 1.6-1.4H17a3 3 0 0 0 3-3c0-4.4-3.6-8-8-8z"/><circle cx="8.2" cy="11" r=".9" fill="currentColor" stroke="none"/><circle cx="12" cy="8.4" r=".9" fill="currentColor" stroke="none"/><circle cx="15.6" cy="11" r=".9" fill="currentColor" stroke="none"/></svg></span>
+                <div class="rt"><div class="rl">きせかえ</div><div class="rd">本棚や画面の装いを変える</div></div>
+                <div class="rr"><span class="rv">明快</span><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+              </div>
+            </div>
+
+            <!-- 「このアプリ」へ混ぜず独立の見出しを立てる＝困って設定を縦に走査した人が見出しで止まれる。 -->
+            <div class="gh">つかいかた</div>
+            <div class="group">
+              <div class="row hi">
+                <span class="ri" style="color:var(--ai)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.7-.9 1.3v.4"/><path d="M12 17h.01"/></svg></span>
+                <div class="rt"><div class="rl">操作の説明</div><div class="rd">読書画面と検索の使いかたを見返せます</div></div>
+                <div class="rr"><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+              </div>
+            </div>
+
+            <div class="gh">通知</div>
+            <div class="group">
+              <div class="row">
+                <span class="ri"><svg viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg></span>
+                <div class="rt"><div class="rl">新着話の通知</div><div class="rd">Web作品の新しい話を1日1回確認して通知します</div></div>
+                <div class="rr"><span style="width:46px;height:28px;border-radius:14px;background:var(--ai);position:relative;display:inline-block"><span style="position:absolute;top:3px;left:21px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25)"></span></span></div>
+              </div>
+            </div>
+          </div>
+          <nav class="tabbar">
+            <a class="tab"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg></span><span class="lb">本棚</span></a>
+            <a class="tab"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg></span><span class="lb">さがす</span></a>
+            <a class="tab on"><span class="ic"><span class="pill2"></span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="lb">設定</span></a>
+          </nav>
+        </div>
+      </div>
+
+      <div class="wrap"><span class="mode">説明の中身 ─ 操作ごとでなく<b>面ごと</b>に組み替えた</span>
+        <div class="phone k" role="img" aria-label="操作の説明の中身">
+          <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+          <div class="dhead">
+            <button class="ib" aria-label="設定へ戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <h2>操作の説明</h2>
+          </div>
+          <div class="scroll">
+
+            <div class="hs">
+              <div class="ht"><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>横書きで読むとき</div>
+              <dl>
+                <dt>メニューを出す</dt><dd>本文のどこかを 1 回タップ。<em>もう一度タップで消えます</em>。</dd>
+                <dt>読み進める</dt><dd>下へスクロールします。</dd>
+                <dt>次の話へ</dt><dd>左へスワイプ、または下のバーの ［次章］。</dd>
+              </dl>
+            </div>
+
+            <div class="hs">
+              <div class="ht"><span class="ico"><svg viewBox="0 0 24 24"><path d="M18 4v16M13 4v16M8 4v11"/></svg></span>縦書きで読むとき</div>
+              <dl>
+                <dt>メニューを出す</dt><dd>本文のどこかを 1 回タップ（横書きと同じです）。</dd>
+                <dt>読み進める</dt><dd><em>左へなぞります</em>。指をはなすと、そこで止まります。</dd>
+                <dt>次の話へ</dt><dd>最後まで読み進めて、さらに左へ引きます。下のバーの ［次章］ でも進めます。</dd>
+                <dt>縦書きに変える</dt><dd>読書中に下のバーの ［表示設定］ から。文字の大きさ・行の間隔・余白も同じところです。</dd>
+              </dl>
+            </div>
+
+            <div class="hs">
+              <div class="ht"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.2 2.4 3.3 5.4 3.3 8.5S14.2 18.1 12 20.5c-2.2-2.4-3.3-5.4-3.3-8.5S9.8 5.9 12 3.5z"/></svg></span>「なろうで読む」で読むとき</div>
+              <dl>
+                <dt>この画面について</dt><dd>小説家になろうのページをそのまま開いています。<em>アプリの画面ではありません</em>。</dd>
+                <dt>できないこと</dt><dd>本文をタップしてもメニューは出ません。横になぞっても次の話へは進みません。ふりがなも付きません。</dd>
+                <dt>次の話へ</dt><dd>ページの中の ［次へ］ を使います。</dd>
+                <dt>アプリに戻る</dt><dd>左上の ← です。</dd>
+              </dl>
+            </div>
+
+            <div class="hs">
+              <div class="ht"><span class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg></span>作品をさがすとき</div>
+              <dl>
+                <dt>検索範囲</dt><dd>入力した言葉は、選んだ範囲の中だけを探します。タイトル・キーワード・作者名・あらすじから
+                  <em>いくつでも選べます</em>（1 つ以上必要です）。</dd>
+                <dt>もっと絞る</dt><dd>［条件を調整］ から、ジャンル・更新時期・文字数・読了時間・除外語などを指定できます。</dd>
+              </dl>
+            </div>
+
+            <div style="height:26px"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="sec">
+    <h2>§5　教示にせず UI 側で直すもの　<span class="tag g">この便では設計のみ・実装は別便</span></h2>
+    <p class="body">
+      チュートリアルを「説明で埋め合わせる逃げ道」にしないため、教示から分離した項目。
+    </p>
+    <table class="mx">
+      <tr><th style="width:30%">食い違い</th><th style="width:34%">実装の現在値</th><th>直しかたの候補（裁定が要る）</th></tr>
+      <tr>
+        <td><b>入力欄が名乗る 3 つと、既定の検索範囲 1 つが噛み合っていない</b></td>
+        <td>placeholder は「作品名・作者・キーワード」（<code>DiscoverySearchScreen.kt:271</code>）。
+          一方 既定は <code>inTitle=true</code> のみで、キーワード・作者名・あらすじは <code>false</code>
+          （<code>domain/SearchDraft.kt:106-109</code>）。作者名を入れた初見の人には 0 件が返る。</td>
+        <td>(a) 既定を 4 つとも ON にする（placeholder の約束どおりになるが、結果が広くなる）／
+          (b) placeholder を「作品名」だけにする（約束を実態へ合わせる）／
+          (c) 既定はタイトルのみのまま、0 件のときだけ「範囲を広げて探す」を結果画面に出す。<br>
+          <b>どれを採っても §3-b の止めカードは要らなくなるか、ずっと短くなる。</b></td>
+      </tr>
+    </table>
+    <p class="note">
+      T3（横書き／縦書きの横スワイプの食い違い）は<b>この便では触らない</b>という裁定に従い、表から外した
+      ——それぞれ単独では直感的で、詰まるのは両面を行き来する人だけ。かつ T3 はまだ実測されていない仮説
+      （第三者テスト未実施）。実測が出たら §5 に戻す。
+    </p>
+  </div>
+
+  <div class="sec">
+    <h2>裁定してほしい点</h2>
+    <p class="rule">
+      1. <b>§2 の「出さない 5 つ」に異論はないか</b> ─ とくに「アプリ初回は空棚が既に答えている」（教示を足さない）。<br>
+      2. <b>§3-a の 2 枚の連続</b> ─ 一言が消えたあとに残る取っ手が、没入を損なわない濃さか（不透明度 .30 / 幅 46 / 高さ 3）。<br>
+      3. <b>§3-c の文言</b> ─ 効かない操作を名指しする書きぶりが、正直に見えるか・貧相に見えるか。<br>
+      4. <b>§5 の (a)(b)(c)</b> ─ どれを採るか（採ると §3-b のカードが縮む・消える）。
+    </p>
+  </div>
+
+</div>
+</body>
+</html>
