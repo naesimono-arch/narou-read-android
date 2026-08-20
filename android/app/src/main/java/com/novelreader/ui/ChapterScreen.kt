@@ -45,7 +45,6 @@ import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.theme.rememberReadingColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -380,32 +379,32 @@ internal fun ChapterScreen(
     }
 
     // ────── 没入クローム復帰ヒント（層②）──────
-    // クローム（上下バー）が初めて画面外へ退避したとき、復帰操作（中央タップ）を数秒だけ
-    // 一過性ラベルで示す。なぜ一度きり・自動消灯か: 常時の帯は没入を削ぐため、初回消灯時の
-    // 学習機会だけを与え以後は出さない（M12＝復帰手段が不可視だった問題への最小介入）。
-    // なぜ prefs で永続化しアプリ通算初回のみにするか: セッション毎の表示は、復帰操作を既に
-    // 学習済みのユーザーには冗長。ヒントの目的（復帰手段の可視化）は一度の学習で達成されるため、
-    // 表示済みフラグを prefs に持たせて通算初回だけに絞る。他の読書設定と同じ app_prefs に置く。
+    // クローム（上下バー）が画面外へ退避しているとき、復帰操作（中央タップ）を数秒だけ一過性ラベルで示す。
+    // なぜ一度きり・自動消灯か: 常時の帯は没入を削ぐため、学習機会を一度だけ与え以後は出さない
+    // （M12＝復帰手段が不可視だった問題への最小介入）。なぜ prefs で永続化しアプリ通算初回のみにするか:
+    // ヒントの目的（復帰手段の可視化）は一度の学習で達成されるため、表示済みフラグを prefs に持たせて
+    // 通算初回だけに絞る。他の読書設定と同じ app_prefs に置く。
+    //
+    // 消費（フラグを焼く）タイミングの所有は [ImmersiveChromeHintEffect]。ここが持つのは prefs の
+    // 読み書きと表示状態だけ＝「いつ見られたとみなすか」の判断はコンポーネント側の KDoc が正本。
     val chromeHintPrefs = remember { context.getSharedPreferences(PrefKeys.FILE_APP_PREFS, Context.MODE_PRIVATE) }
     var chromeHintConsumed by remember {
         mutableStateOf(chromeHintPrefs.getBoolean(PrefKeys.IMMERSIVE_HINT_SHOWN, false))
     }
     var showChromeHint by remember { mutableStateOf(false) }
-    LaunchedEffect(topAppBarState) {
-        snapshotFlow { topAppBarState.collapsedFraction > 0.9f }
-            .distinctUntilChanged()
-            .collect { hidden ->
-                if (hidden && !chromeHintConsumed) {
-                    chromeHintConsumed = true
-                    // 表示に踏み切った時点で永続フラグを立てる＝以後のセッションでは二度と出さない。
-                    // apply は非同期ディスク書込のため UI をブロックしない。
-                    chromeHintPrefs.edit().putBoolean(PrefKeys.IMMERSIVE_HINT_SHOWN, true).apply()
-                    showChromeHint = true
-                    delay(2600)
-                    showChromeHint = false
-                }
-            }
-    }
+    ImmersiveChromeHintEffect(
+        topAppBarState = topAppBarState,
+        barsVisualReady = barsVisualReady,
+        deferHeavyContent = deferHeavyContent,
+        consumed = chromeHintConsumed,
+        onVisibleChange = { showChromeHint = it },
+        onConsumed = {
+            chromeHintConsumed = true
+            // 出し切った（＝一度は目に入りうる状態が規定尺のあいだ途切れず続いた）時点で初めて永続化する。
+            // apply は非同期ディスク書込のため UI をブロックしない。
+            chromeHintPrefs.edit().putBoolean(PrefKeys.IMMERSIVE_HINT_SHOWN, true).apply()
+        },
+    )
 
     // 継続カード → Custom Tabs の外部遷移コールバック。再入ガード（M1/公理3）・context・openInAppBrowser は
     // すべて副作用のため route（状態保持層）に留め、描画層 ChapterScreenContent には「押された」ことだけを渡す。
