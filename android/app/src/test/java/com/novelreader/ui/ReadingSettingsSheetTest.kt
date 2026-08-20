@@ -241,4 +241,43 @@ class ReadingSettingsSheetTest {
         composeTestRule.onNodeWithText("システムに従う").performClick()
         assertEquals(true, followed)
     }
+
+    /** シート枠込み（[ReadingSettingsSheet]）を本番と同じ形で組む。初期展開位置の検証専用。 */
+    private fun setSheetWithFrame() {
+        composeTestRule.setContent {
+            CompositionLocalProvider(
+                LocalSkin provides Skin.WAMODERN_D,
+                LocalSkinTokens provides Skin.WAMODERN_D.tokens,
+            ) {
+                ReadingSettingsSheet(
+                    colors = colors,
+                    readingTheme = ReadingTheme.LIGHT,
+                    onThemeChange = {},
+                    fontSize = 18,
+                    onFontSizeChange = {},
+                    onFontSizePersist = {},
+                    lineHeightEm = 2.5f,
+                    onLineHeightChange = {},
+                    onLineHeightPersist = {},
+                    bodyMarginDp = 20,
+                    onBodyMarginChange = {},
+                    onBodyMarginPersist = {},
+                    onDismiss = {},
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `開いた直後にスライダー3本が可視である（初期展開位置）`() {
+        // なぜ枠込みで組むか（このクラスの他テストは Content だけを組む）: 検証対象が枠の
+        // 初期展開位置そのもの（sheetState の skipPartiallyExpanded）で、Content には現れないため。
+        // 退行させると PartiallyExpanded 起動に戻り、主役のスライダー3本が画面外へ落ちる
+        // （fontScale 1.0 でも文字サイズのつまみが 7px しか覗かない＝2026-08-20 実測）。
+        setSheetWithFrame()
+        // スライダーは文字ラベルを持たないので ProgressBarRangeInfo で3本それぞれを一意特定する。
+        sliderNode(current = 18f, range = 14f..24f, steps = 9).assertIsDisplayed()   // 文字サイズ
+        sliderNode(current = 2.5f, range = 2.3f..2.8f, steps = 4).assertIsDisplayed() // 行間
+        sliderNode(current = 20f, range = 10f..40f, steps = 5).assertIsDisplayed()    // 本文余白
+    }
 }

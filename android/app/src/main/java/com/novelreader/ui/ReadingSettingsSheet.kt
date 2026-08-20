@@ -30,6 +30,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -141,8 +142,15 @@ internal fun ReadingSettingsSheet(
         isCartridge -> CartridgeSheetBottom
         else -> colors.background
     }
+    // なぜ skipPartiallyExpanded か（2026-08-20 裁定・意匠正本 settings-D.html の .sheet は bottom:0 で
+    // 内容なりの全高＝〈テーマ→本文の向き→スライダー3本〉が開いた瞬間に一望できる）:
+    // 既定（false）だと PartiallyExpanded で起動し、主役であるスライダー3本とライブプレビューが画面外に
+    // 落ちる（fontScale 1.0 でも文字サイズのつまみが 7px しか覗かない＝実測）。中間アンカーを消して
+    // 全高で開き、主役を開いた瞬間に見せる。⚠️ 高さ上限を掛けたくなっても modifier には渡さないこと
+    // （draggableAnchors が読む constraints ごと縮み上端に張り付く。機序＝SearchConditionSheet.kt の申し送り）。
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         // 退避割合ぶん透明化（色引数は composition 読み＝退避/復帰の短尺遷移中だけ毎フレーム再合成される。
         // graphicsLayer の deferred read が使えない引数 API のための割り切り＝尺は 160/260ms のみ）。
         containerColor = containerBase.copy(alpha = containerBase.alpha * (1f - peek.value)),
