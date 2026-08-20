@@ -948,7 +948,10 @@ private fun KWebGridBookCard(
                         "なろう・未取込",
                         fontSize = FontMicroLabel,
                         fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.secondary,
+                        // 状態を名指す＝意味を運ぶ文字なので AA(4.5:1) が要る。青磁 secondary #9CB3A8 は
+                        // 素地 2.14:1 で未達＝ADR 0014-D の濃青磁へ寄せる（正本 skins/bookshelf-K.html の
+                        // `.st.narou` も --seiji-ink。ここが「既知の乖離（意匠裁定待ち）」として残っていた）。
+                        color = LocalShelfColors.current.unreadLabel,
                     )
                 }
             }

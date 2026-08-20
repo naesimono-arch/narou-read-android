@@ -275,7 +275,9 @@ fun NovelListRow(
                         text = genre,
                         fontSize = FontLabel,
                         letterSpacing = 0.5.sp,
-                        color = MaterialTheme.colorScheme.secondary,
+                        // ジャンル名は分類を名指す＝意味を運ぶ文字なので AA(4.5:1) が要る。
+                        // 青磁 secondary #9CB3A8 は素地 2.14:1 で未達＝ADR 0014-D の濃青磁へ寄せる。
+                        color = LocalShelfColors.current.unreadLabel,
                         // なぜ maxLines=1+softWrap=false: タグ自体が改行して縦積みになるのを防ぎ、
                         // 常に横一列で表示させる（タグは固定内容なので折返し不要）。
                         maxLines = 1,

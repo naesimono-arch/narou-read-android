@@ -90,7 +90,11 @@ fun rememberReadingColors(theme: ReadingTheme): ReadingColors {
 // ============================================================
 data class ShelfColors(
     val hairline: Color,     // 目録区切り線・進捗トラック・スケルトン線（--hl/--track）
-    val unreadLabel: Color,  // 「未読」ラベル文字
+    // 青磁位置（D では #9CB3A8）の「意味を運ぶ文字」を AA(4.5:1) まで濃くした色。名前は初出の用途
+    // （未読ラベル）由来だが、役割は青磁で意味を名指す文字**全般**＝未読/「なろう・未取込」ラベル・
+    // ジャンルタグ・キーワードチップ・結果件数・「条件を変更」。2026-08-21 に適用漏れ8箇所を回収した。
+    // ⚠️ 装飾（ドット・縦ルール・チップ枠線・破線フレーム）は WCAG 対象外なので secondary のまま。
+    val unreadLabel: Color,
     val infoText: Color,     // 情報を運ぶ補助テキスト（発見系メタ）
 )
 

@@ -454,7 +454,9 @@ internal fun DiscoveryResultContent(
                                 Text(
                                     text = "条件を変更",
                                     fontSize = FontMicroLabel,
-                                    color = MaterialTheme.colorScheme.secondary,
+                                    // 操作を名指す＝意味を運ぶ文字なので AA(4.5:1) が要る。青磁 secondary
+                                    // #9CB3A8 は素地 2.14:1 で未達＝ADR 0014-D の濃青磁へ寄せる。
+                                    color = LocalShelfColors.current.unreadLabel,
                                     fontWeight = FontWeight.Medium,
                                     modifier = Modifier.padding(horizontal = Spacing.S12, vertical = Spacing.S4),
                                 )
@@ -499,7 +501,9 @@ internal fun DiscoveryResultContent(
                                     text = countText,
                                     fontSize = FontLabel,
                                     letterSpacing = 1.sp,
-                                    color = MaterialTheme.colorScheme.secondary,
+                                    // 件数は結果の規模を伝える＝意味を運ぶ文字なので AA(4.5:1) が要る。
+                                    // 青磁 secondary #9CB3A8 は素地 2.14:1 で未達＝ADR 0014-D の濃青磁へ寄せる。
+                                    color = LocalShelfColors.current.unreadLabel,
                                     modifier = Modifier.padding(top = Spacing.S4, bottom = Spacing.S4),
                                 )
                             }
