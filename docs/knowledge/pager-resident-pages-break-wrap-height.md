@@ -23,6 +23,42 @@
 `RankingPagerK` の KDoc が「高さは wrap＝現在ページ準拠」と明文化していたのが決め手だった。
 **壊れた前提がコード内に書いてあった**ので、構造から断定できた。
 
+## 増補（2026-08-20）: 引き金は `beyondViewportPageCount` だけではない・症状は空白だけでもない
+
+上の記述は**引き金**と**症状**をどちらも狭く書いていた。実際に「きょうの気分」ページャで再発した。
+
+### 引き金の追加: 覗き見せ（`contentPadding` / `pageSize`）も隣ページを測定させる
+
+「測定したページの最大高」を決めるのは *viewport に居るページ* であって
+`beyondViewportPageCount` ではない。**`contentPadding` で隣の頭を覗かせた時点で隣は viewport に
+居る**＝`beyondViewportPageCount = 0`（既定）のままでも隣が測定対象に入る。
+ドラッグ中は3ページが同時に居る瞬間すらある。
+
+⇒ **`beyondViewportPageCount` が既定なら安全、ではない。**
+覗き見せ・`PageSize.Fixed`・`pageSpacing` など「1ページで viewport を埋め切らない」構図はすべて同類。
+
+### 症状の追加: `verticalAlignment` 既定は `Top` ではなく `CenterVertically`
+
+上の実例は `verticalAlignment = Top` だったので「下に空白」で済んだ。
+**`HorizontalPager` の既定は `CenterVertically`** で、こちらだと可変高の中で各ページが
+**毎回センタリングし直される**＝空白ではなく**中身そのものが上下に動く**。
+ページャの外枠を別途固定していると「枠は動かないのに中身だけが揺れる」形になり、
+横スワイプのたびに縦に振動して見える（ユーザー報告の言葉＝「枠内で上下にがくがくと動く」）。
+
+### 対処の型
+
+外枠を安定させただけでは足りない。**ページャ自身の高さを送りと無関係な定数にする**こと:
+
+- 高さの予約主体（ゴースト等）を置いた `Box` に対し、ページャへ `Modifier.matchParentSize()`
+  ＝ページャ高が全ページの最大高で固定される
+- あわせて `verticalAlignment = Alignment.Top`＝ページ内容の縦位置も定数になる
+
+これは CSS の flex トラック（`align-items: stretch`）の翻訳でもある＝正本モックが
+`display:flex` でトラックを組んでいるなら、Compose 側の既定センタリングは**翻訳ミス**にあたる。
+
+現物＝`DiscoveryHomeK.kt` の `MoodSectionK`／回帰＝`DiscoveryHomeKMoodTest`
+（枠の外＝注記の縦位置と、枠の内＝カードの縦位置を**別々に**固定している。前者だけでは後者を通す）。
+
 ## 同じ手が効く場所との違い
 
 同じ `beyondViewportPageCount` を既に使っている2箇所は**無罪**で、違いは高さの決まり方にある:

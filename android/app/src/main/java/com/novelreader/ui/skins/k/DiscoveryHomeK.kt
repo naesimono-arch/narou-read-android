@@ -412,6 +412,17 @@ private fun MoodSectionK(onPickMood: (MoodPreset) -> Unit, todayPattern: MoodPat
             }
             HorizontalPager(
                 state = moodPagerState,
+                // 枠いっぱいに伸ばす＋上詰め＝モック .mp-track（flex の既定 align-items:stretch）の翻訳。
+                // 2026-08-20 実機報告「スワイプしていくと枠内で上下にがくがくと動く」の真因対処:
+                //  ・Pager の高さは wrap-content＝**そのとき viewport に居るページ**の最大高になる。覗き見せ
+                //    （contentPadding end）があるので常に隣のページも measure され、ドラッグ中は3組が同時に居る
+                //    瞬間もある→ Pager 自身の高さが送りのたびに変わる。
+                //  ・そのうえ HorizontalPager の verticalAlignment 既定は CenterVertically＝各ページはその
+                //    可変高の中で毎回センタリングし直される。左右の送りが縦の移動に化ける正体がこれ。
+                // 枠（安定枠 Box）は既にゴーストで最大組高に固定済みなので、Pager をその枠へ matchParentSize で
+                // 伸ばせば高さは送りと無関係な定数になり、Top 揃えでページ内容の縦位置も定数になる。
+                modifier = Modifier.matchParentSize(),
+                verticalAlignment = Alignment.Top,
                 // 右端に次ページの頭を覗かせる＝「まだ横にある」のシグニファイア（モックの左右覗きの Compose 翻訳）。
                 contentPadding = PaddingValues(end = Spacing.S24),
                 pageSpacing = Spacing.S12,

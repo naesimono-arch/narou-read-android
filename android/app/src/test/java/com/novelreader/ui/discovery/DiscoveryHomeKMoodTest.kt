@@ -1,6 +1,8 @@
 package com.novelreader.ui.discovery
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasText
@@ -9,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.unit.Density
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.ui.skins.k.DiscoveryHomeK
 import com.novelreader.viewmodel.DiscoveryUiState
@@ -20,15 +23,18 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
- * スキンK「さがす」の きょうの気分ページャ・高さ安定枠の回帰テスト（実機報告 2026-07-29）。
+ * スキンK「さがす」の きょうの気分ページャ・高さ安定枠の回帰テスト（実機報告 2026-07-29 / 2026-08-20）。
  *
  * 固定するもの:
  *  1) 組（MoodPattern）ごとに文言の折返し行数＝ページ高が違っても、気分ブロック直下の
  *     日替わり注記の縦位置が組切替（循環スワイプ）で動かない＝下部レイアウトのがくん対策。
  *     3組すべてを巡回して検証する（どの組間の高低差でも破れないこと）。
- *  2) 高さ予約ゴースト（不可視の全組格子）が semantics に漏れない・実カードのタップ結線が生きている。
+ *  2) 同じ巡回で**枠の内側**のカード縦位置も動かない＝「枠内で上下にがくがく」対策（2026-08-20）。
+ *     1) と 2) は別物で、1) だけでは枠内の揺れを通す（枠は動かず中身だけが動く形になる）。
+ *  3) 高さ予約ゴースト（不可視の全組格子）が semantics に漏れない・実カードのタップ結線が生きている。
  *
  * 巡回の起点を [START_PATTERN] に固定する（2026-07-30）。以前は `MoodPattern.forEpochDay(LocalDate.now()…)`
  * と本番と同じ導出をテスト側にも書いていたが、それは
@@ -45,29 +51,41 @@ import org.robolectric.annotation.Config
  * 起点の組を注入する経路が無くなる（K 固有の引数を共通ルーターの署名へ足すのは本末転倒）。
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+// NATIVE 必須（2026-08-20）: 既定の LEGACY は実フォントを使わない代用計測で、**どの組も同じ行数・同じ高さ**に
+// なる。組ごとの高低差こそがこのファイルの検証対象なので、LEGACY で回すと本クラスは全緑のまま検出力ゼロだった
+// （ゴーストを外しても・Pager がページを毎回センタリングし直しても緑）。qualifiers も実機同等の 360dp-xhdpi を
+// 明示して、折返し行数を実機の条件に寄せる。
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34], qualifiers = "w360dp-h800dp-xhdpi")
 class DiscoveryHomeKMoodTest {
 
     @get:Rule
     val composeTestRule = createComposeRule()
 
-    private fun setHome(onPickMood: (MoodPreset) -> Unit = {}) {
+    /**
+     * [fontScale] は端末の文字サイズ設定の再現。折返し行数＝組ごとの高低差はスケールで拡大するため、
+     * 縦位置の不変は等倍だけでなく拡大側でも押さえる（この検証機は 2.0 での破綻歴がある）。
+     */
+    private fun setHome(onPickMood: (MoodPreset) -> Unit = {}, fontScale: Float = 1f) {
         composeTestRule.setContent {
-            MaterialTheme {
-                DiscoveryHomeK(
-                    order = NarouOrder.WEEKLY,
-                    state = DiscoveryUiState.Empty,
-                    onBack = {},
-                    onOpenDetail = {},
-                    onOpenGenre = {},
-                    onPickBiggenre = { _, _ -> },
-                    onOpenSearch = {},
-                    onPickMood = onPickMood,
-                    onSelectOrder = {},
-                    onRefresh = {},
-                    // 起点の組を固定＝実時計から切り離す（本番の既定値は日付導出のまま）。
-                    initialMoodPattern = START_PATTERN,
-                )
+            val base = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(base.density, fontScale)) {
+                MaterialTheme {
+                    DiscoveryHomeK(
+                        order = NarouOrder.WEEKLY,
+                        state = DiscoveryUiState.Empty,
+                        onBack = {},
+                        onOpenDetail = {},
+                        onOpenGenre = {},
+                        onPickBiggenre = { _, _ -> },
+                        onOpenSearch = {},
+                        onPickMood = onPickMood,
+                        onSelectOrder = {},
+                        onRefresh = {},
+                        // 起点の組を固定＝実時計から切り離す（本番の既定値は日付導出のまま）。
+                        initialMoodPattern = START_PATTERN,
+                    )
+                }
             }
         }
     }
@@ -75,6 +93,14 @@ class DiscoveryHomeKMoodTest {
     /** 日替わり注記の上端 Y（dp）＝気分ブロック高の観測点。ここが動く＝下部全体ががくんと動く。 */
     private fun noteTop(): Float =
         composeTestRule.onNode(hasText("日替わり", substring = true))
+            .getUnclippedBoundsInRoot().top.value
+
+    /**
+     * 現在組の先頭カード題字の上端 Y（dp）＝**枠の内側**でのカード縦位置の観測点。
+     * 枠（安定枠 Box）自体が動かなくても、ここが組ごとに動けば「枠内で上下にがくがく」に見える。
+     */
+    private fun cardTop(pattern: MoodPattern): Float =
+        composeTestRule.onNodeWithText(pattern.presets[0].title)
             .getUnclippedBoundsInRoot().top.value
 
     /** 現在ページ（起点から順に循環）の先頭カード上で左スワイプ＝次の組へ送る。 */
@@ -107,6 +133,34 @@ class DiscoveryHomeKMoodTest {
             assertEquals("組 $current への切替で注記が動いた", baseline, noteTop(), 0.5f)
         }
     }
+
+    /**
+     * 枠内の縦位置不変（2026-08-20 実機報告「スワイプしていくと枠内で上下にがくがくと動く」の回帰）。
+     *
+     * 注記（枠の外）が動かないことは上のテストが押さえているが、それだけでは**枠の内側**の揺れを通す。
+     * Pager の高さは viewport に居るページの最大高＝覗き見せがあるので隣の組の高さで毎回変わり、
+     * verticalAlignment 既定の CenterVertically がその可変高の中で各ページを再センタリングしていた。
+     */
+    private fun assertCardTopStableAcrossPatterns(fontScale: Float) {
+        setHome(fontScale = fontScale)
+        val baseline = cardTop(START_PATTERN)
+
+        var current = START_PATTERN
+        repeat(MoodPattern.entries.size - 1) {
+            val previous = current
+            swipeToNextPattern(previous)
+            current = previous.next()
+            composeTestRule.onNodeWithText(previous.presets[0].title).assertDoesNotExist()
+            assertEquals("組 $current で枠内のカード縦位置が動いた", baseline, cardTop(current), 0.5f)
+        }
+    }
+
+    @Test
+    fun `気分の組を送っても枠内のカード縦位置が動かない`() = assertCardTopStableAcrossPatterns(fontScale = 1f)
+
+    @Test
+    fun `文字サイズ2倍でも気分の組を送って枠内のカード縦位置が動かない`() =
+        assertCardTopStableAcrossPatterns(fontScale = 2f)
 
     @Test
     fun `高さ予約ゴーストはsemanticsに漏れずカードのタップ結線は生きている`() {
