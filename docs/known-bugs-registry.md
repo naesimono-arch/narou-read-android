@@ -34,8 +34,14 @@
 ## 検知手段の語彙
 
 `不変条件テスト名` / `個別回帰テスト名` / `lint ルール名（lint:Xxx）` / `check_machine.py のチェック名（check_xxx）` /
-`CI ゲート（CI: Gradleタスク名）` / `知見のみ` / `なし`。テストクラス名・機械チェック名・参照パスは `` ` `` で囲って書く——
+`ファイル内の識別子（パス::識別子）` / `CI ゲート（CI: Gradleタスク名）` / `知見のみ` / `なし`。
+テストクラス名・機械チェック名・参照パス・ファイル内識別子は `` ` `` で囲って書く——
 `check_machine.py` の `known-bugs-registry` チェックが**実在を機械照合**し、リネーム・削除で嘘になった行を落とす。
+
+**検知の実体が「ファイルの中の1つの表・定数」のときは `パス::識別子` で書く**（例＝`tools/check_design_tokens.py::EXPECTED_SKIPS`）。
+素の識別子だけで書くとどの照合パターンにも当たらず、その行は**検知手段が空**と数えられて
+「検知ありを主張しているのに名指しが無い」の偽陽性になる（実際に2件出した）。この形式ならファイルの実在に加えて
+**識別子が今もそのファイルに在ること**まで照合されるので、定数をリネームした瞬間に台帳が落ちる。
 
 **CI ゲートだけは `` ` `` で囲まず素のテキストで `CI: <Gradleタスク名>` と書く**——Gradle のタスク名は
 テストクラス名・`check_xxx`・パスのどの照合パターンにも当たらず、コードスパンにすると info が出るだけだから
@@ -132,8 +138,8 @@
 
 | 状態 | ID | 症状 | 機序・バグ型 | 修正の所在（コミット件名の要約） | 検知手段 | 関連 knowledge |
 |---|---|---|---|---|---|---|
-| `[~] 部分` | `stale-check-false-positive` | 機械チェックが偽陽性を出し、報告が信用されなくなる | 検査対象の除外条件を実態に追随させていない | hooks_common.py の死hook 誤検知を除外／test_*.py・MEMORY.md の抑制／block_destructive_migration の対象を .kt 限定／ref 検査の対象を docs 全体と plans 直下へ拡大し「もう無い」注記4形式の抑止則を新設（同時に、探索ルートが macrobenchmark を見ておらず実在ファイルを参照切れ扱いしていた穴も是正） | `check_machine.py` 自身の自己テスト（抑止則の境界ケース・名指し判定・実行時生成ファイル・メタ変数記法をインライン期待値で毎回検証。故障注入で「抑止しすぎ」「抑止漏れ」の両方向を検出できることを実証済み）。**抑止則に限る**＝他の検査項目の偽陽性には依然として検知手段が無い | — |
-| `[~] 部分` | `checker-fail-open-skip` | 検査器が「SKIP」を黙って飲んで全通過する | 対象が見つからない＝合格、という fail-open 設計 | check_design_tokens の SKIP 内訳を列挙・ベースライン超過で exit 1／さらに総数ラチェットを鍵付き理由表へ移行（総数だけの監視は「照合が1件死んでも別の1件が復活すれば差し引き0」で素通りしていた） | `EXPECTED_SKIPS` の鍵照合＝未知の SKIP は NG・表にあるのに SKIP しなくなれば INFO・対象から消えれば NG（負のコントロール4本で実効を実証）。起動点は CI の Design token check ステップのみ＝**ローカルでは自動起動されない**のは従前どおり | `docs/decisions/0018-derived-mock-drift-optin-sync-check.md` |
+| `[~] 部分` | `stale-check-false-positive` | 機械チェックが偽陽性を出し、報告が信用されなくなる | 検査対象の除外条件を実態に追随させていない | hooks_common.py の死hook 誤検知を除外／test_*.py・MEMORY.md の抑制／block_destructive_migration の対象を .kt 限定／ref 検査の対象を docs 全体と plans 直下へ拡大し「もう無い」注記4形式の抑止則を新設（同時に、探索ルートが macrobenchmark を見ておらず実在ファイルを参照切れ扱いしていた穴も是正） | `check_suppression_selftest`（`.claude/skills/stale-check/check_machine.py` にインライン期待値を持ち、抑止則の境界ケース・名指し判定・実行時生成ファイル・メタ変数記法を毎回検証。故障注入で「抑止しすぎ」「抑止漏れ」の両方向を検出できることを実証済み）。**抑止則に限る**＝他の検査項目の偽陽性には依然として検知手段が無い | — |
+| `[~] 部分` | `checker-fail-open-skip` | 検査器が「SKIP」を黙って飲んで全通過する | 対象が見つからない＝合格、という fail-open 設計 | check_design_tokens の SKIP 内訳を列挙・ベースライン超過で exit 1／さらに総数ラチェットを鍵付き理由表へ移行（総数だけの監視は「照合が1件死んでも別の1件が復活すれば差し引き0」で素通りしていた） | `tools/check_design_tokens.py::EXPECTED_SKIPS` の鍵照合＝未知の SKIP は NG・表にあるのに SKIP しなくなれば INFO・対象から消えれば NG（負のコントロール4本で実効を実証）。起動点は CI の Design token check ステップのみ＝**ローカルでは自動起動されない**のは従前どおり | `docs/decisions/0018-derived-mock-drift-optin-sync-check.md` |
 | `[!] なし` | `wsl-path-translation` | WSL からの起動が空振りする／UNC を誤って開く | Linux パスを Windows 実行ファイルへそのまま渡す | open_in_vscode の wslpath 対応／ドライブパス限定化／JSON デコードエラー（**3回発生・当該フックは現在撤去済み**） | なし | — |
 | `[!] なし` | `statusline-terminal-geometry` | statusline の2行目が見切れる・worktree 名が出ない | 端末の実表示域や git-dir を推定値でハードコード較正する。**2回発生** | 余白を実測 24 桁へ較正（2回）／worktree 名を --git-dir 基準へ／「(1M) 二重表示」解消 | なし | — |
 | `[~] 部分` | `hook-output-not-delivered` | フックは動いているのに通告がモデルに一切届かない（主機能が無音で不達） | イベントごとに届く出力先が違う（stdout / stderr / additionalContext）のを取り違える。**7回発生** | schema・lint フックの additionalContext 化／センチネル状態遷移通知／コミット粒度チェック／remind_commit_plan の stderr 化／remind_task_diary の注入化／mark_kotlin_tests_passed の不達／センチネルが Bash 出力形式を読めず未更新／センチネル削除失敗通知の stderr 不達 | `check_hook_output_channel`（配線イベント×届く出力経路の突合）。**静的解析ゆえ判定不能が残り、SubagentStop 行は一次情報未確認の推測** | `docs/decisions/0008-no-hook-dispatcher.md` |

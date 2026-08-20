@@ -905,6 +905,26 @@ def check_known_bugs_registry():
                         add("known-bugs", "stale", "high",
                             f"{bug_id}: テストクラス '{tok}' が android/app/src/test に存在しない"
                             "（削除・リネームなら状態列も無防備側へ戻すこと）")
+                elif "::" in tok:
+                    # `パス::識別子` 形式＝**ファイル内の特定のシンボル**を名指す（例 `EXPECTED_SKIPS`）。
+                    # なぜ語彙に足したか: 検知の実体が「ファイル」でも「テストクラス」でもなく
+                    # *その中の1つの表・定数* であることがある（鍵付き理由表・許可表の類）。
+                    # 素の識別子だけで書くとどの照合パターンにも当たらず info 止まりになり、
+                    # 検知手段セルが空扱い＝「検知ありと主張しているのに名指しが無い」の偽陽性を生む
+                    # （既知バグ `stale-check-false-positive` の実例そのもの）。逆に黙って通すのも不可で、
+                    # **定数がリネーム・削除されたら落ちる**ことがこの語彙の存在意義。
+                    sym_path, _, sym = tok.partition("::")
+                    sym_txt = read_text(sym_path) if sym_path else None
+                    if not sym or sym_txt is None:
+                        add("known-bugs", "stale", "high",
+                            f"{bug_id}: '{tok}' の参照先 '{sym_path}' が存在しない"
+                            "（`パス::識別子` 形式で書くこと）")
+                    elif not re.search(rf"\b{re.escape(sym)}\b", sym_txt):
+                        add("known-bugs", "stale", "high",
+                            f"{bug_id}: 識別子 '{sym}' が {sym_path} に存在しない"
+                            "（リネーム・削除なら状態列も無防備側へ戻すこと）")
+                    else:
+                        verifiable_here += counts
                 elif "/" in tok and tok.endswith((".md", ".py", ".sh", ".kt")):
                     if (ROOT / tok).exists():
                         verifiable_here += counts
@@ -914,7 +934,8 @@ def check_known_bugs_registry():
                 else:
                     add("known-bugs", "warn", "info",
                         f"{bug_id}: '{tok}' はどの照合パターンにも当たらない"
-                        "（テストクラス名は `XxxTest`・機械チェックは `check_xxx`・参照はパスで書くこと）")
+                        "（テストクラス名は `XxxTest`・機械チェックは `check_xxx`・参照はパス・"
+                        "ファイル内の定数や表は `パス::識別子` で書くこと）")
 
         # CI ゲートの主張（検知手段セルの素テキスト "CI: <Gradleタスク名>"）を workflow と突合する。
         # なぜコードスパンで書かせないか: Gradle タスク名は上のどの照合パターン（XxxTest / check_xxx /
@@ -937,7 +958,7 @@ def check_known_bugs_registry():
         if state in _REGISTRY_DEFENDED and verifiable_here == 0:
             add("known-bugs", "stale", "high",
                 f"{bug_id}: 状態 '{state}' は検知ありを主張しているのに、"
-                "検証可能な名指し（テストクラス名／check_xxx ／パス／lint: ／CI: タスク名）が1つも無い")
+                "検証可能な名指し（テストクラス名／check_xxx ／パス／パス::識別子／lint: ／CI: タスク名）が1つも無い")
 
     if refs_seen == 0:
         add("known-bugs", "stale", "high",
@@ -1522,7 +1543,7 @@ CHECKS = [
     (check_diary_id_unique, "task_diary エントリID の一意性（#N 見出しの重複採番検知・自動リネームはしない）"),
     (check_size_budgets, "台帳のサイズ番人（STATUS=現況のみ・目安60行／handover=やることのみ）"),
     (check_delegation_meter, "委譲ターン計測フックの整合（count_delegation_turns.py の PostToolUse/SubagentStop 両配線・記録先・通告間隔）"),
-    (check_known_bugs_registry, "既知バグレジストリ（L4）の名指し実在照合（docs/known-bugs-registry.md のテストクラス名・check_xxx・参照パスが実在するか／検知ありを主張する行に名指しがあるか）"),
+    (check_known_bugs_registry, "既知バグレジストリ（L4）の名指し実在照合（docs/known-bugs-registry.md のテストクラス名・check_xxx・参照パス・`パス::識別子` が実在するか／検知ありを主張する行に名指しがあるか）"),
     (check_hook_output_channel, "hook の出力経路照合（配線イベント × モデルに届く経路: 素の stdout 不達・hookEventName の取り残し・exit 2 無しの stderr。判定不能も件数を出す）"),
     (check_suppression_selftest, "抑止則の自己テスト（項目6 の『もう無い』注記判定＝同一行/直後の注記行/引用ブロック/名指し宣言が、意図した形だけを抑止し段落・見出し境界を越えないこと）"),
     (check_removed_hook_references, "撤去フックの残存参照（git 履歴の撤去フック名＋旧ソースが作っていた生成物を現ツリーと突合。settings/実コード/.gitignore/実行コマンドは高・コメントや文書の言及は info）"),
