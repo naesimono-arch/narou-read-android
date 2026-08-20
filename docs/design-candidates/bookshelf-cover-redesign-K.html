@@ -1,0 +1,632 @@
+<!-- @dsCard group="UI-n / 本棚（書影）" name="書影の根本再設計 6方向 × 現状（並びで比較・切り口違い・サイズ違いは含まない）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>書影の根本再設計 — 6方向</title>
+<style>
+  /*==harness==*/
+  /* 本アプリは PDF/なろう取込＝実物の表紙画像を持たない。書影は title から決定論生成する「生成物」。
+     現行（栞）は紙地＋色棒＋先端174種＋縦組み題字。本ファイルは「サイズをどうするか」ではなく
+     「書影という意匠そのもの」を6方向から作り直した比較。全案とも同じ6冊・同じ生成規則の骨格
+     （title→ハッシュ→色/個体差）を共有し、意匠だけを差し替えている。 */
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--info:#5C606D;--line:#ECEAE4;--field:#F0EFEE;
+    --ai:#1C3D5A;--seiji:#9CB3A8;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:28px 20px 80px;font-family:var(--gothic)}
+  /*==/harness==*/
+  body.pgdark{background:#0b0d11}
+
+  .head{max-width:1080px;width:100%;margin-bottom:8px}
+  .head h1{font-family:var(--mincho);font-size:22px;font-weight:500;letter-spacing:.1em;color:#2A2C28;margin-bottom:10px}
+  body.pgdark .head h1{color:#e4e3e6}
+  .head p{font-size:12.5px;line-height:1.85;color:#5A5C57;max-width:840px}
+  body.pgdark .head p{color:#9a988f}
+  .head b{color:#2A2C28}body.pgdark .head b{color:#e4e3e6}
+  .diag{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin:16px 0 4px;max-width:1080px;width:100%}
+  .diag div{background:rgba(255,255,255,.55);border-left:3px solid #b04a3a;padding:10px 12px;font-size:11.5px;line-height:1.6;color:#4a4c47}
+  body.pgdark .diag div{background:rgba(255,255,255,.05);color:#a8a69f}
+  .diag div b{display:block;font-size:12px;color:#8a3a2c;margin-bottom:3px;letter-spacing:.04em}
+  body.pgdark .diag div b{color:#d18a78}
+
+  .ctrl{display:flex;gap:10px;margin:22px 0 8px;flex-wrap:wrap;justify-content:center}
+  .ctrl button{font-size:12.5px;font-weight:500;cursor:pointer;border-radius:999px;padding:11px 22px;border:none;font-family:var(--gothic)}
+  .ctrl .primary{color:#fff;background:var(--ai)}
+  .ctrl .ghost{color:var(--ai);background:transparent;border:1px solid #cbc4b8}
+  body.pgdark .ctrl .ghost{color:#9bbdd4;border-color:#2c3138}
+
+  h2.sec{font-family:var(--mincho);font-size:17px;font-weight:500;letter-spacing:.1em;color:#3a3c37;margin:44px 0 4px;text-align:center}
+  body.pgdark h2.sec{color:#d6d4cc}
+  p.secsub{font-size:11.5px;color:#7c7a72;text-align:center;margin-bottom:20px;line-height:1.7;max-width:720px}
+  body.pgdark p.secsub{color:#807e77}
+
+  /* ── 端末（並びの比較） ── */
+  .stage{display:flex;gap:26px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px;width:340px}
+  .wrap .nm{font-family:var(--mincho);font-size:14px;letter-spacing:.1em;color:#3a3c37}
+  body.pgdark .wrap .nm{color:#d6d4cc}
+  .wrap .sub{font-size:10.5px;color:#7c7a72;text-align:center;line-height:1.5;min-height:30px;padding:0 6px}
+  body.pgdark .wrap .sub{color:#807e77}
+  .phone{width:340px;height:700px;background:var(--base);border-radius:34px;overflow:hidden;position:relative;
+    box-shadow:0 18px 44px rgba(0,0,0,.26);display:flex;flex-direction:column;color:var(--ink)}
+  .phone.dark{background:#101319;color:#e6e4e8;box-shadow:0 18px 46px rgba(0,0,0,.55)}
+  .sb{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:10.5px;color:var(--ink-soft);flex-shrink:0}
+  .phone.dark .sb{color:#5c616c}
+  .top{padding:4px 22px 14px;display:flex;align-items:baseline;gap:8px;flex-shrink:0}
+  .top h3{font-family:var(--mincho);font-size:24px;font-weight:500;letter-spacing:.13em}
+  .top .cnt{font-size:14px;font-weight:600;color:var(--info)}
+  .phone.dark .top h3{color:#f0eef2}.phone.dark .top .cnt{color:#8a8f9b}
+  .scroll{flex:1;overflow:hidden;padding:0 22px 20px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px 22px}
+  .bk{display:flex;flex-direction:column}
+  .cvbox{position:relative;width:100%;aspect-ratio:3/4;border-radius:3px;overflow:hidden;
+    box-shadow:0 2px 6px rgba(22,26,40,.16),0 1px 2px rgba(0,0,0,.06)}
+  .phone.dark .cvbox{box-shadow:0 6px 16px rgba(0,0,0,.55)}
+  .cvbox canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .bk .t{font-family:var(--mincho);font-size:12.5px;line-height:1.35;margin-top:8px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bk .st{font-size:10.5px;color:var(--info);margin-top:3px}
+  .phone.dark .bk .st{color:#8a8f9b}
+
+  /* ── 案カード ── */
+  .cards{display:flex;flex-direction:column;gap:18px;max-width:1080px;width:100%}
+  .card{background:rgba(255,255,255,.62);border-radius:6px;padding:18px 20px;display:grid;
+    grid-template-columns:172px 1fr;gap:22px;align-items:start}
+  body.pgdark .card{background:rgba(255,255,255,.05)}
+  .card .big{width:172px;aspect-ratio:3/4;border-radius:3px;overflow:hidden;position:relative;
+    box-shadow:0 3px 10px rgba(22,26,40,.2)}
+  .card .big canvas{position:absolute;inset:0;width:100%;height:100%}
+  .card h4{font-family:var(--mincho);font-size:16px;font-weight:600;letter-spacing:.08em;color:#2A2C28;margin-bottom:6px}
+  body.pgdark .card h4{color:#e4e3e6}
+  .card .cc{font-size:12.5px;line-height:1.8;color:#4a4c47;margin-bottom:12px}
+  body.pgdark .card .cc{color:#a8a69f}
+  .card .cc em{font-style:normal;color:#8a3a2c;font-weight:600}
+  body.pgdark .card .cc em{color:#d18a78}
+  .meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px 16px;margin-bottom:12px}
+  .meta div{font-size:11px;line-height:1.6;color:#5a5c57;border-top:1px solid #d8d5cc;padding-top:6px}
+  body.pgdark .meta div{color:#8f8d86;border-color:#2c3138}
+  .meta div b{display:block;font-size:10px;letter-spacing:.12em;color:#8b8880;margin-bottom:2px}
+  body.pgdark .meta div b{color:#6f6d66}
+  .rangerow{display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap}
+  .rangerow .rc{width:66px;aspect-ratio:3/4;border-radius:2px;overflow:hidden;position:relative;box-shadow:0 1px 4px rgba(22,26,40,.16)}
+  .rangerow .rc canvas{position:absolute;inset:0;width:100%;height:100%}
+  .rangerow .mini{width:34px;height:50px;border-radius:2px;overflow:hidden;position:relative;box-shadow:0 1px 3px rgba(22,26,40,.2);margin-left:14px}
+  .rangerow .mini canvas{position:absolute;inset:0;width:100%;height:100%}
+  .rangerow .lbl{font-size:9.5px;color:#8b8880;letter-spacing:.1em;align-self:center;margin-left:4px}
+  body.pgdark .rangerow .lbl{color:#6f6d66}
+
+  /* ── 波及表 ── */
+  table.imp{border-collapse:collapse;max-width:1080px;width:100%;font-size:11.5px;background:rgba(255,255,255,.55)}
+  body.pgdark table.imp{background:rgba(255,255,255,.05)}
+  table.imp th,table.imp td{border:1px solid #d8d5cc;padding:8px 10px;text-align:left;vertical-align:top;line-height:1.6;color:#4a4c47}
+  body.pgdark table.imp th,body.pgdark table.imp td{border-color:#2c3138;color:#a8a69f}
+  table.imp th{background:rgba(0,0,0,.045);font-weight:600;font-size:11px;letter-spacing:.06em;color:#2A2C28}
+  body.pgdark table.imp th{background:rgba(255,255,255,.05);color:#e4e3e6}
+  table.imp code{font-size:10.5px;color:#6a6c67}
+  body.pgdark table.imp code{color:#8f8d86}
+</style>
+</head>
+<body>
+<div class="head">
+  <h1>書影の根本再設計 — 切り口の違う6方向</h1>
+  <p>本アプリは PDF／なろう取込で<b>実物の表紙画像を持たない</b>。書影は題名から決定論生成する<b>生成物</b>で、
+  現行は「紙地＋天から下りる色の細棒＋先端174種のワンポイント＋縦組み明朝題字」（<code>ShioriCover.kt</code>／正本 <code>bookshelf-shiori-grid-D.html</code>）。
+  <b>大きくしても素っ気なさは解けない</b>ので、意匠そのものを6方向へ作り直した。全案とも生成の骨格（題名→ハッシュ→色・個体差）は現行と同じで、意匠だけが違う。</p>
+  <div class="diag">
+    <div><b>① 主役がいない</b>面積の約98%が無地。棒は幅2.5px（幅比1.7%）、先端意匠は約16×24px＝<b>面積比1.1%</b>。視線が止まる焦点がない。</div>
+    <div><b>② 作り込みが最小の場所にある</b>先端174種は書影140dpのとき約22dp＝爪より小さい。<b>並ぶと判別不能</b>で、努力が見えない。</div>
+    <div><b>③ 色が8色しかない</b>色相は8値の離散・彩度48/明度52固定。6冊並べば同色が出る確率は約92%。遠目には全冊が同じトーン。</div>
+    <div><b>④ 物になっていない</b>紙地はフラット1色塗り。簀の目・ムラ・厚み・刷りが無く、紙ではなく画面上の白い矩形。</div>
+    <div><b>⑤ 書影が何も語らない</b>作者・話数・進捗・状態はすべて書影の外（下段テキスト）。書影は題名以外の情報を1つも持たない。</div>
+    <div><b>⑥ 作品詳細だけ別世代</b>詳細ヒーローは栞書影ですらなく旧 <code>BookCover</code>（暗色スラブ＋藍の縦ルール＋横組み白題字）。統一されていない。</div>
+  </div>
+</div>
+
+<div class="ctrl">
+  <button class="primary" id="reroll">🎲 別の蔵書に差し替え</button>
+  <button class="ghost" id="theme">◐ ライト / ダーク</button>
+</div>
+
+<h2 class="sec">A. 並んだ状態で比べる（本棚グリッド・2列）</h2>
+<p class="secsub">書影は<b>1冊で綺麗でも並ぶと煩い</b>のが難所。ここが本番の見え方＝まずこの7枚を横に見比べる。下段キャプションは全案とも現行と同じに揃えてあり、<b>違いは書影だけ</b>。</p>
+<div class="stage" id="stage"></div>
+
+<h2 class="sec">B. 各案の素性（拡大・生成レンジ・縮図・コスト・波及）</h2>
+<p class="secsub">拡大＝作品詳細ヒーローでの見え／レンジ6冊＝別の題名でどれだけ違って見えるか／縮図34×50＝装いの間ミニチュアで生き残るか。</p>
+<div class="cards" id="cards"></div>
+
+<h2 class="sec">C. 書影が出る場所の全数（大規模改修の波及先）</h2>
+<p class="secsub">「どこを作り直すことになるか」の地図。案ごとの効き方は B の波及欄に書いた。</p>
+<table class="imp">
+  <tr><th style="width:26%">場所</th><th style="width:30%">実装</th><th>現在の意匠</th></tr>
+  <tr><td>本棚グリッド（K＝既定）</td><td><code>skins/k/BookshelfK.kt</code> KGridBookCard</td><td>ShioriCover・3:4・角丸3dp・影（明面2dp／暗面6dp）</td></tr>
+  <tr><td>本棚グリッド（未取込）</td><td><code>skins/k/BookshelfK.kt</code> KNarouGridCard</td><td>同上＋青磁1.5dp破線＋紙地を field へ一段沈め</td></tr>
+  <tr><td>本棚グリッド（D）</td><td><code>ui/BookCard.kt</code></td><td>ShioriCover（K とは下段版面のみ相違）</td></tr>
+  <tr><td>本棚リスト（目録）</td><td><code>skins/k/BookshelfK.kt</code> 目録行</td><td><b>書影なし</b>・左4dp色帯（小口メタファ）。<code>shioriAccentFor</code> を書影と共有＝<b>色相を変える案は必ずここへ波及</b></td></tr>
+  <tr><td>作品詳細（発見）</td><td><code>ui/discovery/NovelDetailScreen.kt</code></td><td><b>旧 BookCover</b>（暗色スラブ＋藍の縦ルール＋横組み白題字）＝栞書影と不統一</td></tr>
+  <tr><td>Web由来カード</td><td><code>ui/WebBookCard.kt</code></td><td>ShioriCover＋accentOverride（青磁＝未取込の署名）</td></tr>
+  <tr><td>装いの間ミニチュア</td><td><code>ui/WardrobeScreen.kt</code></td><td>34×50 の単色矩形チップ（意匠なし・スキンの地に馴染む近似色）</td></tr>
+  <tr><td>遷移スケルトン</td><td><code>ui/TransitionSkeletons.kt</code></td><td>3:4・角丸3dp の骨（形だけ）</td></tr>
+  <tr><td>先端意匠の資産</td><td><code>ui/components/ShioriTips.kt</code>（174種）＋<code>ShioriHighLoadTips/Choreo</code>（0〜8の高負荷アニメ）</td><td>案5だけがこの資産を主役へ昇格して活かす。他案では休眠または退役</td></tr>
+  <tr><td>決定論の担保</td><td><code>ShioriGenerator.kt</code>＋<code>ShioriGeneratorTest</code>・Roborazzi golden</td><td>title→hue/x/len/tip の系列。<b>意匠を替えてもこの層は再利用できる</b>（golden は全案とも再記録）</td></tr>
+</table>
+
+<script>
+/* ===== 生成の骨格（現行と同一：FNV-1a → mulberry32） ===== */
+function hashStr(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function rand(r,lo,hi){return lo+(hi-lo)*r();}
+function pick(r,arr){return arr[Math.floor(r()*arr.length)];}
+function hsl(h,s,l,a){return a==null?'hsl('+h+' '+s+'% '+l+'%)':'hsl('+h+' '+s+'% '+l+'% / '+a+')';}
+const PALETTE=[20,70,140,175,200,210,260,330];              /* 現行＝8色相の離散 */
+function coverHue(t){return pick(mulberry32(hashStr(t)),PALETTE);}
+function contHue(t){return Math.floor(mulberry32(hashStr(t+'|H'))()*360);}  /* 新案の一部で使う連続色相 */
+function S(c,a){c.strokeStyle=a;c.lineCap='round';c.lineJoin='round';}
+
+const TH={
+  light:{key:'light',paper:'#FBFAF8',ink:'#1C1F26',soft:'#7C808B',line:'#E6E2D8',accL:52,dark:false},
+  dark :{key:'dark' ,paper:'#20232B',ink:'#ECE9E2',soft:'#6f6d66',line:'#2b303a',accL:62,dark:true }
+};
+
+/* ===== 蔵書サンプル（現行モックと同じ題名＝見比べが成立する） ===== */
+const POOL=[
+  {t:'追放された万能薬師、辺境でスローライフを始める',a:'霧島あおい',now:127,total:205,st:'reading'},
+  {t:'黒の魔王と契約した俺、気づけば最強の従者に',a:'夜灯すばる',now:0,total:150,st:'untaken'},
+  {t:'転生したら最弱スキルだったので草むしりしていた',a:'青葉みのり',now:64,total:80,st:'reading'},
+  {t:'公爵令嬢の嗜み 〜隣国で薬草園を開きます〜',a:'白河すずら',now:72,total:72,st:'done'},
+  {t:'辺境伯家の次男は今日も書庫にこもる',a:'水無月れん',now:12,total:36,st:'reading'},
+  {t:'雨宿りの喫茶店で魔女に出会った',a:'早瀬ことり',now:0,total:4,st:'short'},
+  {t:'竜騎士は辺境で余生を過ごしたい',a:'霧島あおい',now:20,total:45,st:'reading'},
+  {t:'星降る夜のパン屋と魔法使い',a:'早瀬ことり',now:3,total:24,st:'reading'},
+  {t:'辺境の宿屋は今日も満室です',a:'青葉みのり',now:58,total:58,st:'done'},
+  {t:'二度目の人生、静かに暮らしたいだけなのに',a:'夜灯すばる',now:54,total:100,st:'reading'},
+  {t:'海辺の図書館と忘れられた物語',a:'水無月れん',now:0,total:60,st:'untaken'},
+  {t:'賢者の孫弟子、村の困りごとを解決する',a:'白河すずら',now:33,total:99,st:'reading'},
+  {t:'白猫亭の看板娘は元宮廷魔術師',a:'白河すずら',now:71,total:100,st:'reading'},
+  {t:'追憶の剣士は花街で眠る',a:'水無月れん',now:66,total:120,st:'reading'},
+  {t:'氷の令嬢は春を知らない',a:'白河すずら',now:44,total:44,st:'done'},
+  {t:'名もなき料理人、王宮を救う',a:'夜灯すばる',now:0,total:6,st:'short'},
+  {t:'黄昏の魔法使いと約束の丘',a:'霧島あおい',now:19,total:88,st:'reading'},
+  {t:'鍛冶師の娘、剣より鍋を振るう',a:'青葉みのり',now:88,total:110,st:'reading'}
+];
+function pct(b){return b.total?Math.round(b.now/b.total*100):0;}
+function statusText(b){
+  if(b.st==='untaken')return 'なろう・未取込';
+  if(b.st==='done')return '読了・全'+b.total+'話';
+  if(b.st==='short')return '短編・未読';
+  return '第'+b.now+'/'+b.total+'話';
+}
+
+/* ===== 共有描画部品 ===== */
+/* 縦組み題字（現行 drawShioriTitle と同ロジック＝右上起点・最大3列・溢れは ⋮） */
+function vtitle(c,text,w,h,ink,opt){
+  opt=opt||{};
+  const fs=Math.round(w*(opt.fs||0.088)),lineGap=fs*1.16,colGap=Math.round(w*0.108);
+  const yTop=fs+5*(w/150),yBottom=h-11*(w/150),x0=w-fs-3*(w/150),maxCols=opt.cols||3;
+  const perCol=Math.floor((yBottom-yTop)/lineGap); if(perCol<1||fs<1)return;
+  c.fillStyle=ink;c.font='600 '+fs+'px '+MIN;c.textAlign='center';c.textBaseline='middle';
+  const chars=[...text];
+  for(let col=0;col<maxCols;col++){const st=col*perCol;if(st>=chars.length)break;const cx=x0-col*colGap;
+    for(let i=0;i<perCol;i++){const idx=st+i;if(idx>=chars.length)break;
+      let ch=chars[idx]; if(col===maxCols-1&&i===perCol-1&&idx<chars.length-1)ch='⋮';
+      c.fillText(ch,cx,yTop+i*lineGap+lineGap/2);}}
+}
+const MIN='"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif';
+const GO ='"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif';
+/* 縦に1列だけ流す（題簽・帯などで使う） */
+function vrun(c,text,cx,yTop,fs,gap,limit){
+  c.font='600 '+fs+'px '+MIN;c.textAlign='center';c.textBaseline='middle';
+  const ch=[...text];const n=Math.min(ch.length,limit);
+  for(let i=0;i<n;i++){let g=ch[i]; if(i===n-1&&ch.length>n)g='⋮'; c.fillText(g,cx,yTop+i*gap+gap/2);}
+}
+/* 題名を〈主題／副題〉へ割る（なろう題名は「〜…〜」「、」で情報が切れている） */
+function splitTitle(t){
+  let m=t.match(/^(.*?)\s*〜(.+?)〜\s*$/); if(m)return[m[1].trim(),m[2].trim()];
+  return [t,''];
+}
+
+/* ===== 案0 現行（栞）※先端は正本 174 種から代表 15 種 ===== */
+const TIPS=[
+ (c,x,y,a)=>{S(c,a);c.lineWidth=2.6;c.beginPath();c.moveTo(x,y);c.lineTo(x-6,y+12);c.moveTo(x,y);c.lineTo(x+6,y+12);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+7,4,0,7);c.fill();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+6,6,0,7);c.fill();},
+ (c,x,y,a)=>{S(c,a);c.lineWidth=2.4;c.beginPath();c.moveTo(x,y);c.lineTo(x-5,y+18);c.moveTo(x,y);c.lineTo(x+5,y+18);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+3,3.2,0,7);c.fill();S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+5);c.lineTo(x-6,y+22);c.moveTo(x,y+5);c.lineTo(x,y+23);c.moveTo(x,y+5);c.lineTo(x+6,y+22);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+4,4,0,7);c.fill();S(c,a);c.lineWidth=1.6;for(let k=-2;k<=2;k++){c.beginPath();c.moveTo(x,y+7);c.lineTo(x+k*4,y+24);c.stroke();}},
+ (c,x,y,a)=>{S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+4);c.quadraticCurveTo(x-11,y-2,x-9,y+4);c.quadraticCurveTo(x-11,y+10,x,y+4);c.moveTo(x,y+4);c.quadraticCurveTo(x+11,y-2,x+9,y+4);c.quadraticCurveTo(x+11,y+10,x,y+4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+4,2,0,7);c.fill();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+5,4,0,7);c.fill();S(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+9);c.lineTo(x,y+20);c.stroke();},
+ (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.rect(x-2,y+5,8,4);c.fill();c.beginPath();c.arc(x+6,y+7,2,0,7);c.fill();c.beginPath();c.arc(x-3,y+14,5,0,7);c.fill();c.strokeStyle=pp;c.lineWidth=1.4;c.beginPath();c.arc(x-3,y+14,2,0,7);c.stroke();},
+ (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.rect(x-6,y+12,12,8);c.fill();c.beginPath();c.rect(x-7,y+8,14,5);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,y+10,1.5,0,7);c.fill();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-5,y+12);c.lineTo(x+5,y+12);c.arc(x+5,y+15,3,-Math.PI/2,Math.PI/2);c.lineTo(x-5,y+18);c.arc(x-5,y+15,3,Math.PI/2,Math.PI*1.5);c.closePath();c.fill();S(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x-3,y+12);c.quadraticCurveTo(x,y+5,x+3,y+12);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-8,y+18);c.lineTo(x-8,y+14);c.quadraticCurveTo(x-6,y+8,x-4,y+13);c.quadraticCurveTo(x-2,y+16,x,y+11);c.quadraticCurveTo(x+2,y+16,x+4,y+13);c.quadraticCurveTo(x+6,y+8,x+8,y+14);c.lineTo(x+8,y+18);c.closePath();c.fill();},
+ (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x-4,y+12,4,0,7);c.stroke();c.beginPath();c.arc(x+4,y+12,4,0,7);c.stroke();c.beginPath();c.moveTo(x-1,y+11);c.quadraticCurveTo(x,y+9,x+1,y+11);c.stroke();},
+ (c,x,y,a,d,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-5,y+8);c.lineTo(x+5,y+8);c.lineTo(x+4,y+19);c.lineTo(x-4,y+19);c.closePath();c.fill();c.strokeStyle=pp;c.lineWidth=1.4;c.beginPath();c.moveTo(x-4,y+11);c.lineTo(x+4,y+11);c.stroke();},
+ (c,x,y,a)=>{S(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+6);c.lineTo(x+6,y+6);c.lineTo(x+6,y+17);c.lineTo(x-6,y+17);c.closePath();c.stroke();c.lineWidth=1.2;c.beginPath();c.moveTo(x-2,y+6);c.lineTo(x-2,y+17);c.moveTo(x+2,y+6);c.lineTo(x+2,y+17);c.stroke();c.lineWidth=2;c.beginPath();c.moveTo(x-7,y+4);c.lineTo(x+7,y+4);c.stroke();}
+];
+function drawNow(c,w,h,b,th){
+  const s=w/150;
+  c.fillStyle=th.paper;c.fillRect(0,0,w,h);
+  c.strokeStyle=th.dark?'rgba(255,255,255,.05)':'rgba(28,31,38,.05)';c.lineWidth=1;c.strokeRect(.5,.5,w-1,h-1);
+  const acc=hsl(coverHue(b.t),48,th.accL);
+  const rng=mulberry32(hashStr(b.t+'|B'));
+  const x=Math.round(rand(rng,.14,.36)*w)+.5, len=Math.round(rand(rng,.30,.60)*h);
+  c.strokeStyle=acc;c.lineWidth=2.5*s;c.lineCap='butt';
+  c.beginPath();c.moveTo(x,0);c.lineTo(x,len);c.stroke();
+  const ti=Math.floor(rng()*TIPS.length);
+  c.save();c.translate(x,len);c.scale(s,s);c.translate(-x,-len);
+  TIPS[ti](c,x,len,acc,th.dark,th.paper);
+  c.restore();
+  vtitle(c,b.t,w,h,th.ink);
+}
+
+/* ===== 案1 題字（組版が主役） ===== */
+/* 題名の字数から最大の文字寸を逆算する＝短編は極大1列・長い題名は小さく4列。
+   「同じ規則なのに全部違う顔」を、乱数でなく題名そのものから作る。 */
+function fitType(n,W,H){
+  let best={fs:0,col:1,per:n};
+  for(let col=1;col<=4;col++){
+    const per=Math.ceil(n/col);
+    const fs=Math.min(H/(per*1.10),W/(col*1.32));
+    if(fs>best.fs)best={fs:fs,col:col,per:per};
+  }
+  return best;
+}
+function drawType(c,w,h,b,th){
+  const s=w/150, hue=contHue(b.t), acc=hsl(hue,34,th.dark?58:44);
+  c.fillStyle=th.paper;c.fillRect(0,0,w,h);
+  /* 左端の色帯＝栞棒の後継。目録リストの左4dp色帯と同じ言葉のまま残す（整合の継承） */
+  c.fillStyle=acc;c.fillRect(0,0,5*s,h);
+  const [main,sub]=splitTitle(b.t);
+  const padT=h*0.09,padB=h*0.17,padL=10*s+5*s,padR=w*0.09;
+  const W=w-padL-padR,H=h-padT-padB;
+  const ch=[...main];
+  const f=fitType(ch.length,W,H);
+  const fs=Math.min(f.fs,w*0.40), gap=fs*1.10, colGap=fs*1.32;
+  // 版面を横方向に中央寄せ（右列の中心＝padL+W−余白/2−fs/2。以降 colGap ずつ左へ送る）。
+  const span=(f.col-1)*colGap+fs, slack=Math.max(0,W-span);
+  const x0=padL+W-slack/2-fs/2;
+  c.fillStyle=th.ink;
+  for(let col=0;col<f.col;col++){
+    const st=col*f.per; if(st>=ch.length)break;
+    const seg=ch.slice(st,st+f.per).join('');
+    // 各列は天付き（縦組みの作法）。最終列だけ短くなるのは正しい見え。
+    vrun(c,seg,x0-col*colGap,padT,fs,gap,99);
+  }
+  /* 副題（〜…〜）は左下に小さく横組み */
+  if(sub){
+    c.fillStyle=acc;c.font='500 '+(fs*0.24+3*s)+'px '+MIN;c.textAlign='left';c.textBaseline='alphabetic';
+    c.fillText(sub.length>13?sub.slice(0,12)+'…':sub,padL-5*s,h-h*0.085);
+  }
+  /* 作者＝下端の細い横罫の下に小さく */
+  c.strokeStyle=th.dark?'rgba(255,255,255,.13)':'rgba(28,31,38,.13)';c.lineWidth=1;
+  c.beginPath();c.moveTo(padL-5*s,h-h*0.062);c.lineTo(w-padR,h-h*0.062);c.stroke();
+  c.fillStyle=th.soft;c.font='400 '+(7.5*s)+'px '+GO;c.textAlign='left';
+  c.fillText(b.a,padL-5*s,h-h*0.022);
+}
+
+/* ===== 案2 紙（物質・空押し） ===== */
+const STOCK_L=[['#F7F3E8','#EFE7D4'],['#F4EEE0','#E9E0CB'],['#FBFAF6','#F0EDE4'],['#F2EDE2','#E6DDC9']];
+const STOCK_D=[['#23262E','#1B1E25'],['#262229','#1E1B21'],['#212630','#191D25'],['#282a28','#1e211f']];
+function drawPaper(c,w,h,b,th){
+  const s=w/150, rng=mulberry32(hashStr(b.t+'|P'));
+  const st=pick(rng,th.dark?STOCK_D:STOCK_L);
+  const g=c.createLinearGradient(0,0,w*0.3,h);g.addColorStop(0,st[0]);g.addColorStop(1,st[1]);
+  c.fillStyle=g;c.fillRect(0,0,w,h);
+  /* 簀の目（漉き簀の縦筋）＝紙であることの一次証拠 */
+  c.strokeStyle=th.dark?'rgba(255,255,255,.035)':'rgba(90,80,60,.055)';c.lineWidth=1;
+  const su=Math.max(2,3.4*s); // 縮図で刻みが1px を割ると筋でなく一様な膜になる（実測: 34pxで0.77px）
+  for(let x=2;x<w;x+=su){c.beginPath();c.moveTo(x+.5,0);c.lineTo(x+.5,h);c.stroke();}
+  /* 繊維のムラ（楮の chops） */
+  c.strokeStyle=th.dark?'rgba(255,255,255,.05)':'rgba(120,105,80,.10)';
+  for(let i=0;i<Math.round(90*s);i++){
+    const x=rng()*w,y=rng()*h,l=rand(rng,2,9)*s,a=rand(rng,-0.6,0.6);
+    c.lineWidth=rand(rng,.4,1.0);c.beginPath();c.moveTo(x,y);c.lineTo(x+Math.cos(a)*l,y+Math.sin(a)*l);c.stroke();
+  }
+  /* 四隅の陰り＝面が平らでないこと */
+  const rg=c.createRadialGradient(w*0.42,h*0.36,w*0.1,w*0.5,h*0.5,h*0.78);
+  rg.addColorStop(0,'rgba(0,0,0,0)');rg.addColorStop(1,th.dark?'rgba(0,0,0,.34)':'rgba(70,58,38,.13)');
+  c.fillStyle=rg;c.fillRect(0,0,w,h);
+  /* 空押しの枠（からおし＝インクを使わない凹み） */
+  const m=9*s;
+  c.strokeStyle=th.dark?'rgba(0,0,0,.35)':'rgba(90,76,54,.28)';c.lineWidth=1;c.strokeRect(m,m,w-m*2,h-m*2);
+  c.strokeStyle=th.dark?'rgba(255,255,255,.09)':'rgba(255,255,255,.75)';c.strokeRect(m+1,m+1,w-m*2,h-m*2);
+  /* 題字も空押し（沈めて、下辺に光を置く）＝刷りでなく押し */
+  c.save();c.translate(0,1);vtitle(c,b.t,w,h,th.dark?'rgba(255,255,255,.10)':'rgba(255,255,255,.80)');c.restore();
+  vtitle(c,b.t,w,h,th.dark?'rgba(0,0,0,.55)':'rgba(74,62,44,.62)');
+  /* 唯一の刷り＝朱の小印（作品ごとに位置と丈が変わる） */
+  const acc=hsl(contHue(b.t),46,th.dark?60:44);
+  const sx=rand(rng,0.13,0.30)*w, sy=rand(rng,0.62,0.80)*h, sw=9*s;
+  c.strokeStyle=acc;c.lineWidth=1.2*s;c.strokeRect(sx,sy,sw,sw);
+  c.fillStyle=acc;c.font='600 '+(6.4*s)+'px '+MIN;c.textAlign='center';c.textBaseline='middle';
+  c.fillText([...b.a][0],sx+sw/2,sy+sw/2+0.5*s);
+}
+
+/* ===== 案3 和装本（表紙色・四つ目綴じ・題簽） ===== */
+const WASOU_L=[['#2E4A63','#F6F1E4'],['#7E4632','#F6F1E4'],['#5F6B45','#F6F1E4'],['#3B3A3F','#F4EFE2'],
+               ['#7C3A48','#F6F1E4'],['#3F5F78','#F6F1E4'],['#8A6E42','#F6F1E4'],['#3F5A4C','#F6F1E4']];
+const WASOU_D=[['#22384B','#E4DDCC'],['#5E3527','#E4DDCC'],['#485235','#E4DDCC'],['#2E2D31','#E2DCCB'],
+               ['#5D2C36','#E4DDCC'],['#2F4759','#E4DDCC'],['#675333','#E4DDCC'],['#2F4439','#E4DDCC']];
+function drawWasou(c,w,h,b,th){
+  const s=w/150, rng=mulberry32(hashStr(b.t+'|W'));
+  const pal=(th.dark?WASOU_D:WASOU_L)[Math.floor(mulberry32(hashStr(b.t))()* 8)];
+  const cov=pal[0], slip=pal[1];
+  c.fillStyle=cov;c.fillRect(0,0,w,h);
+  /* 布目（表紙の紙布）＝ごく薄い格子 */
+  c.strokeStyle='rgba(255,255,255,.045)';c.lineWidth=1;
+  const nu=Math.max(2.5,3*s); // 同上（縮図で布目が潰れ表紙色が一段暗く沈むのを防ぐ）
+  for(let x=0;x<w;x+=nu){c.beginPath();c.moveTo(x+.5,0);c.lineTo(x+.5,h);c.stroke();}
+  for(let y=0;y<h;y+=nu){c.beginPath();c.moveTo(0,y+.5);c.lineTo(w,y+.5);c.stroke();}
+  /* 空押しの地紋（作品ごとに濃度が変わる） */
+  c.strokeStyle='rgba(255,255,255,'+rand(rng,.05,.11).toFixed(3)+')';c.lineWidth=1;
+  const step=rand(rng,11,17)*s;
+  for(let y=-h;y<h*2;y+=step){c.beginPath();c.moveTo(-w,y);c.lineTo(w*2,y+w*1.2);c.stroke();}
+  /* 四つ目綴じ＝左端の綴じ穴と糸 */
+  const bx=w*0.085;
+  c.strokeStyle='rgba(0,0,0,.28)';c.lineWidth=1.4*s;
+  c.beginPath();c.moveTo(bx+5*s,0);c.lineTo(bx+5*s,h);c.stroke();       /* 折り返しの陰 */
+  for(let i=0;i<4;i++){
+    const y=h*(0.13+i*0.245);
+    c.fillStyle='rgba(0,0,0,.42)';c.beginPath();c.arc(bx,y,1.9*s,0,7);c.fill();
+    c.strokeStyle=slip;c.lineWidth=1.5*s;c.beginPath();
+    c.moveTo(bx,y);c.lineTo(bx-4.5*s,y+5*s);c.stroke();                  /* 綴じ糸 */
+  }
+  /* 題簽（だいせん）＝左上に貼った短冊。丈と位置が作品ごとに変わる＝並びのリズムを作る */
+  const lx=w*0.20, ly=h*0.055, lw=w*0.235, lh=h*rand(rng,0.50,0.68);
+  c.fillStyle='rgba(0,0,0,.22)';c.fillRect(lx+1.5*s,ly+2*s,lw,lh);
+  c.fillStyle=slip;c.fillRect(lx,ly,lw,lh);
+  c.strokeStyle='rgba(0,0,0,.16)';c.lineWidth=1;c.strokeRect(lx+.5,ly+.5,lw-1,lh-1);
+  c.strokeStyle='rgba(0,0,0,.10)';c.strokeRect(lx+2.5*s,ly+2.5*s,lw-5*s,lh-5*s);
+  const fs=Math.min(lw*0.62,10.5*s), gap=fs*1.14;
+  c.fillStyle='#241F1A';
+  vrun(c,b.t,lx+lw/2,ly+5*s,fs,gap,Math.floor((lh-9*s)/gap));
+  /* 右下に作者（表紙色の上に淡く） */
+  c.fillStyle='rgba(255,255,255,.62)';c.font='400 '+(7*s)+'px '+GO;c.textAlign='right';c.textBaseline='alphabetic';
+  c.fillText(b.a,w-8*s,h-8*s);
+}
+
+/* ===== 案4 立体（厚み・小口・栞紐） ===== */
+function drawSolid(c,w,h,b,th){
+  const s=w/150, hue=contHue(b.t), acc=hsl(hue,40,th.dark?56:42);
+  c.fillStyle=th.dark?'#14171d':'#EFEBE2';c.fillRect(0,0,w,h);   /* 棚の地 */
+  const d=Math.min(6+ b.total/7, 26)*s;                          /* 厚み＝話数 */
+  const fw=w-d-2*s, fh=h-d*0.55-2*s, ox=1*s, oy=d*0.55+1*s;
+  /* 小口（右）＝ページの束 */
+  c.fillStyle=th.dark?'#3a3d44':'#E9E3D4';
+  c.beginPath();c.moveTo(ox+fw,oy);c.lineTo(ox+fw+d,oy-d*0.55);c.lineTo(ox+fw+d,oy-d*0.55+fh);c.lineTo(ox+fw,oy+fh);c.closePath();c.fill();
+  c.strokeStyle=th.dark?'rgba(0,0,0,.5)':'rgba(120,108,86,.35)';c.lineWidth=1;
+  for(let i=1;i<d;i+=1.6*s){
+    c.beginPath();c.moveTo(ox+fw+i,oy-i*0.55);c.lineTo(ox+fw+i,oy-i*0.55+fh);c.stroke();
+  }
+  /* 天（上）＝小口の刻み */
+  c.fillStyle=th.dark?'#43464e':'#F1ECDF';
+  c.beginPath();c.moveTo(ox,oy);c.lineTo(ox+d,oy-d*0.55);c.lineTo(ox+fw+d,oy-d*0.55);c.lineTo(ox+fw,oy);c.closePath();c.fill();
+  /* 正面＝紙地＋縦組み題字 */
+  c.save();c.beginPath();c.rect(ox,oy,fw,fh);c.clip();c.translate(ox,oy);
+  c.fillStyle=th.paper;c.fillRect(0,0,fw,fh);
+  const sh=c.createLinearGradient(0,0,fw*0.22,0);
+  sh.addColorStop(0,th.dark?'rgba(0,0,0,.45)':'rgba(60,50,34,.16)');sh.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=sh;c.fillRect(0,0,fw*0.22,fh);                      /* 綴じ際の陰＝ページが起きている */
+  c.fillStyle=acc;c.fillRect(fw*0.055,0,3*s,fh);                  /* 背に近い色帯 */
+  vtitle(c,b.t,fw,fh,th.ink);
+  c.restore();
+  c.strokeStyle=th.dark?'rgba(0,0,0,.6)':'rgba(80,70,52,.28)';c.lineWidth=1;c.strokeRect(ox+.5,oy+.5,fw-1,fh-1);
+  /* 栞紐＝進捗の位置に差してある（読んだところ） */
+  if(b.st!=='untaken'){
+    const p=Math.max(0.06,Math.min(0.94,b.total?b.now/b.total:0));
+    const rx=ox+fw+d*(0.15+0.7*p);
+    c.strokeStyle=hsl(hue,52,th.dark?62:44);c.lineWidth=1.8*s;c.lineCap='butt';
+    c.beginPath();c.moveTo(rx,oy-d*0.55*(0.15+0.7*p)-3*s);c.lineTo(rx,oy-d*0.55*(0.15+0.7*p)+fh*0.30);c.stroke();
+  }
+  /* 影＝棚に置かれている */
+  c.fillStyle=th.dark?'rgba(0,0,0,.5)':'rgba(60,52,38,.18)';
+  c.beginPath();c.moveTo(ox,oy+fh);c.lineTo(ox+fw,oy+fh);c.lineTo(ox+fw+d*0.5,oy+fh+d*0.28);c.lineTo(ox+d*0.5,oy+fh+d*0.28);c.closePath();c.fill();
+}
+
+/* ===== 案5 紋（抽象・和文様を大きく1つ） ===== */
+function pat_seigaiha(c,W,H,r,a,s){c.strokeStyle=a;c.lineWidth=1.1*s;const R=10*s;
+  for(let row=0;row<H/(R*0.62)+2;row++)for(let col=-1;col<W/R+2;col++){
+    const cx=col*R+(row%2?R/2:0),cy=row*R*0.62;
+    for(let k=1;k<=3;k++){c.beginPath();c.arc(cx,cy,R*k/3.2,Math.PI,0);c.stroke();}}}
+function pat_shippou(c,W,H,r,a,s){c.strokeStyle=a;c.lineWidth=1.1*s;const R=11*s;
+  for(let y=-R;y<H+R;y+=R)for(let x=-R;x<W+R;x+=R){c.beginPath();c.arc(x,y,R*0.707,0,7);c.stroke();}}
+function pat_asanoha(c,W,H,r,a,s){c.strokeStyle=a;c.lineWidth=.9*s;const R=13*s;
+  for(let y=-R;y<H+R;y+=R*0.866)for(let x=-R;x<W+R;x+=R){
+    const ox=x+((Math.round(y/(R*0.866))%2)?R/2:0);
+    for(let k=0;k<6;k++){const ang=k*Math.PI/3;
+      c.beginPath();c.moveTo(ox,y);c.lineTo(ox+Math.cos(ang)*R/2,y+Math.sin(ang)*R/2);c.stroke();}}}
+function pat_ichimatsu(c,W,H,r,a,s){c.fillStyle=a;const R=11*s;
+  for(let y=0;y<H+R;y+=R)for(let x=0;x<W+R;x+=R){if((Math.round(x/R)+Math.round(y/R))%2===0)c.fillRect(x,y,R,R);}}
+function pat_yagasuri(c,W,H,r,a,s){c.strokeStyle=a;c.lineWidth=1.3*s;const R=9*s;
+  for(let y=-R;y<H+R;y+=R)for(let x=0;x<W+R;x+=R*1.1){
+    c.beginPath();c.moveTo(x,y);c.lineTo(x+R*0.5,y+R*0.55);c.lineTo(x,y+R*1.1);c.stroke();}}
+function pat_kikkou(c,W,H,r,a,s){c.strokeStyle=a;c.lineWidth=1*s;const R=8*s;
+  for(let row=0;row<H/(R*1.5)+2;row++)for(let col=-1;col<W/(R*1.73)+2;col++){
+    const cx=col*R*1.73+(row%2?R*0.865:0),cy=row*R*1.5;
+    c.beginPath();for(let k=0;k<6;k++){const ang=Math.PI/6+k*Math.PI/3;
+      const px=cx+Math.cos(ang)*R,py=cy+Math.sin(ang)*R;k?c.lineTo(px,py):c.moveTo(px,py);}c.closePath();c.stroke();}}
+function pat_tatewaku(c,W,H,r,a,s){c.strokeStyle=a;c.lineWidth=1.2*s;const R=13*s;
+  for(let x=0;x<W+R;x+=R){c.beginPath();
+    for(let y=-R;y<H+R;y+=2){const dx=Math.sin(y/(R*0.9))*R*0.26;y===-R?c.moveTo(x+dx,y):c.lineTo(x+dx,y);}c.stroke();}}
+function pat_ajiro(c,W,H,r,a,s){c.strokeStyle=a;c.lineWidth=1.1*s;const R=8*s;
+  for(let i=-H;i<W+H;i+=R){c.beginPath();c.moveTo(i,0);c.lineTo(i+H,H);c.stroke();
+    c.beginPath();c.moveTo(i,H);c.lineTo(i+H,0);c.stroke();}}
+const PATS=[pat_seigaiha,pat_shippou,pat_asanoha,pat_ichimatsu,pat_yagasuri,pat_kikkou,pat_tatewaku,pat_ajiro];
+function drawMon(c,w,h,b,th){
+  const s=w/150, rng=mulberry32(hashStr(b.t+'|M'));
+  const hue=contHue(b.t), acc=hsl(hue,42,th.dark?58:46);
+  c.fillStyle=th.paper;c.fillRect(0,0,w,h);
+  c.strokeStyle=th.dark?'rgba(255,255,255,.05)':'rgba(28,31,38,.06)';c.lineWidth=1;c.strokeRect(.5,.5,w-1,h-1);
+  /* 大きな円窓に文様を1つ刷る＝1冊=1紋。個体差を「最大の面積」へ置き直す */
+  const R=w*0.345, cx=w*0.5, cy=h*0.375;
+  c.save();c.beginPath();c.arc(cx,cy,R,0,7);c.clip();
+  c.fillStyle=hsl(hue,26,th.dark?15:95);c.fillRect(cx-R,cy-R,R*2,R*2);
+  c.save();c.translate(cx-R,cy-R);c.rotate(0);
+  PATS[Math.floor(rng()*PATS.length)](c,R*2,R*2,rng,hsl(hue,44,th.dark?52:52,0.82),s);
+  c.restore();c.restore();
+  c.strokeStyle=acc;c.lineWidth=1.6*s;c.beginPath();c.arc(cx,cy,R,0,7);c.stroke();
+  /* 紋の中心に栞先端の語彙を1つ据える（174種の資産を主役サイズへ昇格） */
+  c.save();c.translate(cx,cy-11*s);c.scale(1.35*s,1.35*s);c.translate(-cx,-(cy-11*s));
+  TIPS[Math.floor(rng()*TIPS.length)](c,cx,cy-11*s,acc,th.dark,th.paper);
+  c.restore();
+  /* 題字は下段へ横組み2行（紋が主・字は従） */
+  const fs=8.4*s;
+  c.fillStyle=th.ink;c.font='600 '+fs+'px '+MIN;c.textAlign='center';c.textBaseline='middle';
+  const chars=[...b.t]; const per=Math.floor((w-16*s)/fs);
+  for(let ln=0;ln<2;ln++){
+    const st=ln*per; if(st>=chars.length)break;
+    let seg=chars.slice(st,st+per).join('');
+    if(ln===1&&chars.length>per*2)seg=seg.slice(0,per-1)+'…';
+    c.fillText(seg,w/2,h*0.775+ln*fs*1.45);
+  }
+  c.fillStyle=th.soft;c.font='400 '+(6.8*s)+'px '+GO;
+  c.fillText(b.a,w/2,h*0.935);
+}
+
+/* ===== 案6 情報意匠（進捗が紙を染める・話数の刻み・印） ===== */
+function drawInfo(c,w,h,b,th){
+  const s=w/150, hue=contHue(b.t), acc=hsl(hue,44,th.dark?58:46);
+  c.fillStyle=th.paper;c.fillRect(0,0,w,h);
+  const p=b.total?b.now/b.total:0;
+  /* 読んだぶんだけ下から色が満ちる＝「どこまで読んだか」が書影そのもの */
+  if(b.st!=='untaken'&&p>0){
+    const y=h*(1-p);
+    const g=c.createLinearGradient(0,y,0,h);
+    g.addColorStop(0,hsl(hue,40,th.dark?52:60,0.05));g.addColorStop(1,hsl(hue,44,th.dark?50:58,0.30));
+    c.fillStyle=g;c.fillRect(0,y,w,h-y);
+    c.strokeStyle=acc;c.lineWidth=1.4*s;c.beginPath();c.moveTo(0,y+.5);c.lineTo(w,y+.5);c.stroke();
+    /* 水位に小さく％（読み手が一目で位置を取れる） */
+    c.fillStyle=acc;c.font='600 '+(7.4*s)+'px '+GO;c.textAlign='left';c.textBaseline='alphabetic';
+    c.fillText(Math.round(p*100)+'%',6*s,y-4*s);
+  }
+  /* 左端の刻み＝総話数（1本=10話）。既読ぶんは色、未読は淡い＝「あとどれだけ」 */
+  const ticks=Math.max(1,Math.min(24,Math.round(b.total/10)));
+  const readT=Math.round(ticks*p);
+  for(let i=0;i<ticks;i++){
+    const y=h*0.075+i*(h*0.80/Math.max(ticks,8));
+    c.strokeStyle=(i<readT)?acc:(th.dark?'rgba(255,255,255,.16)':'rgba(28,31,38,.16)');
+    c.lineWidth=1.5*s;c.beginPath();c.moveTo(4*s,y);c.lineTo((i<readT?12:8)*s,y);c.stroke();
+  }
+  vtitle(c,b.t,w,h,th.ink);
+  /* 未取込＝まだ刷り上がっていない（紙だけある） */
+  if(b.st==='untaken'){
+    c.fillStyle=th.dark?'rgba(32,35,43,.55)':'rgba(251,250,248,.58)';c.fillRect(0,0,w,h);
+    c.strokeStyle=th.dark?'#7d9b90':'#9CB3A8';c.lineWidth=1.5*s;c.setLineDash([4*s,3*s]);
+    c.strokeRect(3*s,3*s,w-6*s,h-6*s);c.setLineDash([]);
+    c.fillStyle=th.dark?'#7d9b90':'#7d9b90';c.font='500 '+(7.4*s)+'px '+GO;c.textAlign='center';c.textBaseline='middle';
+    c.fillText('未取込',w/2,h*0.5);
+  }
+  /* 読了＝朱印「了」（既存 finished-seal-stamp-D と同じ語彙） */
+  if(b.st==='done'){
+    const sx=w*0.62,sy=h*0.79,sw=15*s;
+    c.save();c.translate(sx,sy);c.rotate(-0.06);
+    c.strokeStyle=th.dark?'#cc8b73':'#a1573f';c.lineWidth=1.4*s;c.strokeRect(0,0,sw,sw);
+    c.fillStyle=th.dark?'rgba(32,35,43,.5)':'rgba(251,250,248,.5)';c.fillRect(1.4*s,1.4*s,sw-2.8*s,sw-2.8*s);
+    c.fillStyle=th.dark?'#cc8b73':'#a1573f';c.font='600 '+(10*s)+'px '+MIN;c.textAlign='center';c.textBaseline='middle';
+    c.fillText('了',sw/2,sw/2+0.5*s);c.restore();
+  }
+  c.strokeStyle=th.dark?'rgba(255,255,255,.05)':'rgba(28,31,38,.06)';c.lineWidth=1;c.strokeRect(.5,.5,w-1,h-1);
+}
+
+/* ===== 案の定義 ===== */
+const PLANS=[
+ {k:'now',ops:'36（対照）',nm:'現状（栞）',one:'紙地＋色棒＋先端174種＋縦組み題字。比較の対照。',draw:drawNow,
+  cc:'いま出ているもの。<em>面積の98%が無地</em>で、個体差の主役（先端174種）が面積比1.1%の場所にある。色相は8値の離散＝並ぶと必ず同色が隣接する。',
+  cost:'—（現行）',impact:'—',keep:'—',risk:'—'},
+
+ {k:'type',ops:'22 — 現行より<b>軽い</b>',nm:'案1 題字',one:'表紙＝題名そのもの。字数から寸法を逆算し、短編は極大・長題は小さく4列。',draw:drawType,
+  cc:'書影に絵を足すのをやめ、<em>組版を主役</em>にする。個体差は乱数でなく<em>題名の字数と字形</em>から出るので、同じ規則なのに全冊の顔が違う。日本の書籍として最も正統で、なろう題名の長さのばらつきがそのまま構図の面白さになる。左端の色帯だけ栞棒の後継として残し、目録リストの左4dp帯と言葉を揃える。',
+  cost:'低〜中（既存 drawShioriTitle の寸法決定を字数逆算へ拡張。先端174種は不使用＝休眠）',
+  impact:'グリッド（K/D）・詳細ヒーロー・ミニチュア。目録の色帯は<b>据置</b>（色の言葉が変わらない）',
+  keep:'ShioriGenerator の決定論・色帯の共有',
+  risk:'題名が長い作品ばかりだと全冊が「小さい字の面」に寄り、①の主役不在が形を変えて再発しうる'},
+
+ {k:'paper',ops:'577 — 現行の約16倍',nm:'案2 紙',one:'漉き簀の筋・繊維のムラ・四隅の陰り・空押しの題字。刷りは朱の小印ひとつ。',draw:drawPaper,
+  cc:'情報でも図像でもなく<em>手触り</em>で持たせる。紙の銘柄（生成り／楮／鳥の子／白練）を作品ごとに引き、題字はインクを使わない<em>空押し</em>で沈める。「素っ気ない」を「静かで上等」へ反転させる方向。和モダンの視覚言語Dと最も相性が良い。',
+  cost:'中（Canvas のノイズ生成。グリッドに20冊出るので<b>描画コストの実機計測が必須</b>＝生成物をビットマップキャッシュする設計になる）',
+  impact:'グリッド・詳細・ミニチュア（縮図では質感が消え色味だけ残る＝要判断）。目録の色帯は据置',
+  keep:'縦組み題字・決定論',
+  risk:'質感は<b>小さいと消える</b>。140dp のグリッドで簀の目が判別できるかが分岐点。ダークで紙の説得力が落ちやすい'},
+
+ {k:'wasou',ops:'687 — 現行の約19倍',nm:'案3 和装本',one:'色表紙＋四つ目綴じの穴と糸＋左上に題簽（短冊）。',draw:drawWasou,
+  cc:'「本であること」を最も強く言う案。<em>表紙が色面になる</em>ので、③の「遠目に全部同じ」が根本から解ける——並びの識別が最大。題簽の丈と位置が作品ごとに変わり、棚にリズムが出る。栞書影が持っていた「紙＝白」の前提を捨てる代わりに、初見3秒の伝達力は6案で最も高い。',
+  cost:'中（描画は単純。ただし<b>紙地=白を前提にした全箇所</b>——欠落バッジ・選択かぶせ・未取込の field 沈め・破線フレームが色表紙の上で成立するか総点検）',
+  impact:'グリッド・詳細・ミニチュア・<b>目録の色帯</b>（表紙色＝帯色へ言葉を統一できる）・未取込の署名（青磁破線は色表紙上で再設計）',
+  keep:'決定論・題名→色の対応',
+  risk:'8色の表紙が並ぶと<b>賑やかすぎ</b>になりうる（②の逆の失敗）。彩度を落とし切れるかが勝負'},
+
+ {k:'solid',ops:'92 — 現行の約2.6倍',nm:'案4 立体',one:'斜投影で厚みと小口を出す。厚み＝話数、栞紐の位置＝進捗。',draw:drawSolid,
+  cc:'平面の矩形をやめ、<em>棚に置かれた物</em>にする。話数が厚みに、読んだ位置が小口へ差した栞紐に出るので、<em>情報が物理として読める</em>。長編と短編が一目で違って見えるのは6案でここだけ。',
+  cost:'高（描画・版面・影・タップ域・選択表現がすべて作り直し。3:4の枠に立体を収めるので実効の表紙面積が減る）',
+  impact:'グリッド・詳細・ミニチュア・スケルトン骨・選択かぶせ／バッジの当て所すべて',
+  keep:'正面は縦組み題字のまま＝現行の資産を温存できる',
+  risk:'2列グリッドで<b>投影方向が揃うと目が疲れる</b>。ダークで小口の縞が潰れる。スキンM/P/J の世界観と喧嘩しやすい'},
+
+ {k:'mon',ops:'1149（最大2912）— 現行の約32倍',nm:'案5 紋',one:'表紙を模さず、円窓に和文様を一つ刷る。中心に栞先端の意匠を昇格。',draw:drawMon,
+  cc:'表紙という比喩を捨て<em>記号として独立</em>させる。文様8種×色相×先端意匠で組合せが立ち、<em>174種の既存資産を「見える大きさ」へ昇格</em>できるのが最大の利点（②が直接解ける）。題字は下段の横組みへ降ろし、絵と字の役割を分ける。',
+  cost:'中（文様8種の生成関数＋既存 SHIORI_TIPS の再利用。高負荷アニメ Choreo も中心意匠として活きる）',
+  impact:'グリッド・詳細・ミニチュア（<b>縮図でも紋は残る</b>＝ミニチュアが初めて意味を持つ）。目録の色帯は据置',
+  keep:'SHIORI_TIPS 174種・ShioriHighLoadChoreo・決定論',
+  risk:'和文様は<b>作品と無関係</b>＝「この本らしさ」ではなく「柄が違うだけ」に見える危険。文様の粒が細かいと縮小でモアレ'},
+
+ {k:'info',ops:'56 — 現行の約1.6倍',nm:'案6 情報',one:'読んだぶんだけ紙が下から染まる。左端の刻み＝総話数。読了は朱印。',draw:drawInfo,
+  cc:'書影に<em>意味を持たせる</em>案。⑤（書影が何も語らない）を正面から解く。染みの高さで進捗、刻みの本数で長さ、印で読了が分かるので、<em>カード下段のテキストを減らせる</em>＝一覧が静かになる。未取込は「まだ刷り上がっていない」薄い紙として表せる。',
+  cost:'中（描画は簡単だが、進捗が変わると書影が変わる＝<b>決定論の前提が崩れる</b>。golden・キャッシュ戦略の作り直しが本体）',
+  impact:'グリッド・詳細・ミニチュア・<b>カード下段の版面</b>（状態行を削れる）・未取込／読了の署名を書影へ移管',
+  keep:'縦組み題字・栞棒は退役',
+  risk:'「読むほど書影が変わる」は情緒的には強いが、<b>同じ本が同じ絵でなくなる</b>。個体差が進捗に支配され、未読の新刊が全部同じ顔になる'}
+];
+
+/* ===== 描画ドライバ ===== */
+let dark=false, list=POOL.slice(0,6);
+function th(){return dark?TH.dark:TH.light;}
+function paint(cv){
+  const key=cv.dataset.k, b=JSON.parse(decodeURIComponent(cv.dataset.b));
+  const box=cv.parentElement, W=box.clientWidth||150, H=box.clientHeight||Math.round(W*4/3);
+  const dpr=2; cv.width=W*dpr; cv.height=H*dpr;
+  const c=cv.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0);
+  PLANS.find(p=>p.k===key).draw(c,W,H,b,th());
+}
+function paintAll(){document.querySelectorAll('canvas[data-k]').forEach(paint);}
+function cvHTML(k,b){return '<canvas data-k="'+k+'" data-b="'+encodeURIComponent(JSON.stringify(b))+'"></canvas>';}
+
+function phone(p){
+  const cards=list.map(b=>'<div class="bk"><div class="cvbox">'+cvHTML(p.k,b)+'</div>'+
+    '<div class="t">'+b.t+'</div><div class="st">'+statusText(b)+'</div></div>').join('');
+  return '<div class="wrap"><span class="nm">'+p.nm+'</span><span class="sub">'+p.one+'</span>'+
+    '<div class="phone'+(dark?' dark':'')+'"><div class="sb"><span>9:41</span><span>●●● 84%</span></div>'+
+    '<div class="top"><h3>本棚</h3><span class="cnt">18冊</span></div>'+
+    '<div class="scroll"><div class="grid">'+cards+'</div></div></div></div>';
+}
+function card(p){
+  const rng=POOL.slice(6,12).map(b=>'<div class="rc">'+cvHTML(p.k,b)+'</div>').join('');
+  return '<div class="card"><div class="big">'+cvHTML(p.k,list[0])+'</div><div>'+
+    '<h4>'+p.nm+'</h4><div class="cc">'+p.cc+'</div>'+
+    '<div class="meta">'+
+      '<div><b>実装コスト</b>'+p.cost+'</div>'+
+      '<div><b>波及範囲</b>'+p.impact+'</div>'+
+      '<div><b>温存できる資産</b>'+p.keep+'</div>'+
+      '<div><b>この案の弱点</b>'+p.risk+'</div>'+
+      '<div><b>描画コスト（実測）</b>書影1冊あたりの canvas 命令数（150px・18作品平均）＝'+p.ops+'。グリッドは1画面に約20冊</div>'+
+    '</div>'+
+    '<div class="rangerow">'+rng+'<div class="mini">'+cvHTML(p.k,list[0])+'</div><span class="lbl">← 縮図 34×50（装いの間）</span></div>'+
+  '</div></div>';
+}
+function all(){
+  document.getElementById('stage').innerHTML=PLANS.map(phone).join('');
+  document.getElementById('cards').innerHTML=PLANS.map(card).join('');
+  requestAnimationFrame(paintAll);
+}
+function sample(arr,n){const a=arr.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const x=a[i];a[i]=a[j];a[j]=x;}return a.slice(0,n);}
+all();
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(paintAll);
+document.getElementById('reroll').addEventListener('click',()=>{list=sample(POOL,6);all();});
+document.getElementById('theme').addEventListener('click',()=>{dark=!dark;document.body.classList.toggle('pgdark',dark);all();});
+window.addEventListener('resize',()=>requestAnimationFrame(paintAll));
+</script>
+</body>
+</html>
