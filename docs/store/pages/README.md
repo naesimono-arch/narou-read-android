@@ -28,15 +28,20 @@ python3 docs/store/pages/build.py --check    # md と html が食い違ってい
 
 ## 公開の手順（人間の作業）
 
-1. **公開専用リポジトリを作る**（GitHub アカウント＝`naesimono-arch`。本体リポジトリ `narou-read-android` は非公開のまま分離する）。
-   URL の形が2通りある。**どちらでも Play の要件は満たす**ので好みで選ぶ。
+1. **公開専用リポジトリ `yosari` を作る**（**public**。GitHub アカウント＝`naesimono-arch`。
+   本体リポジトリ `narou-read-android` は非公開のまま分離する）。**確定済み（2026-08-21 ユーザー裁定）**＝
+   プロジェクトページ方式。ユーザーサイトの枠（`naesimono-arch.github.io` はアカウントに1つだけ）は温存する。
 
-   | リポジトリ名 | 公開される URL | 備考 |
-   |---|---|---|
-   | `yosari`（推奨） | `https://naesimono-arch.github.io/yosari/privacy.html` | 普通のプロジェクトページ。他のサイトを将来足しても衝突しない |
-   | `naesimono-arch.github.io` | `https://naesimono-arch.github.io/privacy.html` | ユーザーページ。URL は短いが、アカウントに1つしか作れない枠を使う |
+   | | 値 |
+   |---|---|
+   | リポジトリ | `naesimono-arch/yosari`（public） |
+   | サイトの URL | `https://naesimono-arch.github.io/yosari/` |
+   | **Play に登録するポリシー URL** | `https://naesimono-arch.github.io/yosari/privacy.html` |
 
 2. **このディレクトリの中身をコピーして push**（`build.py` と `README.md` は公開に不要＝入れても害はないが、入れないなら `privacy.html` `index.html` `style.css` `.nojekyll` の4つ）。
+   ⚠️ **4つは同じ階層に平置きする**（`privacy.html` は `style.css` と `index.html` を**相対パス**で参照している）。
+   サブフォルダに入れると CSS が当たらない。逆に相対にしてあるおかげで、リポジトリ名が URL に挟まる
+   プロジェクトページ方式（`/yosari/` が付く）でも、後で独自ドメインへ移して `/yosari/` が消えても、**どちらもそのまま動く**。
 3. **`【公開日】` を push する日の日付に置換する**（`privacy.html` の 1 箇所）。
    **仮の日付を先に入れない**——制定日は「実際に公開した日」であるべきで、前倒しの日付を書くと事実と食い違う。
    md 側も同じ日付に揃える（正本が md のため）。
@@ -45,11 +50,15 @@ python3 docs/store/pages/build.py --check    # md と html が食い違ってい
    #   ../privacy-policy-draft.md の 【公開日】 を 2026年9月1日 に置換 → python3 build.py
    ```
 4. **リポジトリの Settings → Pages** で公開元ブランチ（`main` / `/root`）を指定して有効化。
-5. **公開された URL を実際に開いて確認**（反映まで数分かかる）。確認するのは以下。
-   - `privacy.html` が表示される（404 でない）
+5. **公開された URL を実際に開いて確認**（反映まで数分かかる）。開くのは
+   `https://naesimono-arch.github.io/yosari/privacy.html`。確認するのは以下。
+   - ページが表示される（404 でない）＋ **文字が組まれている**（素の白地に見えるなら CSS が 404＝手順2 の平置きを間違えている）
    - 制定日が置換済み（`【公開日】` が画面に出ていない）
-   - 連絡先 `colophon.apps@gmail.com` が Play Console の「デベロッパー用メールアドレス」と**同じ値**
-6. **Play Console に URL を登録**（「アプリのコンテンツ → プライバシーポリシー」＋ ストアの掲載情報の「連絡先ウェブサイト」）。
+   - 連絡先 `colophon.apps@gmail.com`（Play Console の「デベロッパー用メールアドレス」も**同じ値で確定済み**＝2026-08-21 裁定）
+6. **Play Console に URL を登録**。
+   - 「アプリのコンテンツ → プライバシーポリシー」＝ `https://naesimono-arch.github.io/yosari/privacy.html`
+   - ストアの掲載情報の「連絡先ウェブサイト」＝ `https://naesimono-arch.github.io/yosari/`
+   - デベロッパー用メールアドレス（アカウント設定側・**一般公開される**）＝ `colophon.apps@gmail.com`
 
 ## 独自ドメイン（`yosari.app`）を取得したあと
 
@@ -59,4 +68,7 @@ python3 docs/store/pages/build.py --check    # md と html が食い違ってい
 2. DNS に GitHub Pages の A/AAAA レコード（apex）または CNAME（サブドメイン）を設定する。
 3. Settings → Pages で独自ドメインを入力し、**Enforce HTTPS** を有効にする。
 4. **Play Console の URL を差し替える**（差し替え自体はいつでも可能）。
-   ⚠️ 旧 `github.io` の URL も**リダイレクトで生かしたまま**にする（審査中に旧 URL が 404 になると指摘の対象になりうる）。
+   ⚠️ **`/yosari/` は URL から消える**——プロジェクトページに独自ドメインを当てると、サイトはドメインの直下に出る
+   （`https://yosari.app/privacy.html`。`yosari.app/yosari/` にはならない）。ページ内のリンクは全て相対なので**修正は要らない**。
+   ⚠️ 旧 `github.io` の URL は GitHub Pages 側がリダイレクトするが、**差し替え後に旧 URL を実際に開いて確かめる**
+   （審査中に旧 URL が 404 になると指摘の対象になりうる）。

@@ -126,12 +126,17 @@
   （候補モック＝`docs/design-candidates/store/store-{icon,feature-graphic}-candidates.html`。全案の潰れ耐性・コントラスト実測・円マスク欠けの警告は同ファイル内）。
   ⚠️ **画像の制作自体は 2026-08-20 にユーザー判断で見送り**（積み）。残るのは①確定2案の **PNG 書き出し**（512²・1024×500）
   ②**スクショ6枚**（明快K で撮る＝実機作業）③**実機ストアサジェスト採取**（タイトル後半12字の使い道を決める）。
-- **[Data safety の提出]** 下書き＝`docs/store/data-safety-draft.md`。残るのは**実フォームの設問文言との突合**と、
-  **提出前に Play SDK Index を人手で見る**手順（同下書き §5-3。Play 提供 SDK にも除外規定は無い）。
-  （Auto Backup は「収集なし」で申告済みの裁定・審査指摘時のみ保険申告へ切替）。
-- **[プライバシーポリシーのプレースホルダ確定と公開]** 下書き＝`docs/store/privacy-policy-draft.md`・**公開用の静的ファイルは起こし済み**（`docs/store/pages/`）。
-  **確定が要るのは**アプリ名／屋号（組織アカウントの公開名義と一致必須）だけ（問い合わせメールは確定済み・
-  **公開日は push した当日に置換**＝手順は `docs/store/pages/README.md` 手順3）。公開先＝GitHub Pages（裁定済み・公開専用リポジトリ）。
+- **[Data safety の提出]**（提出時の作業＝**人の目でしか潰せない2点**）: 下書き＝`docs/store/data-safety-draft.md`。
+  ①**実フォームの設問文言・選択肢名との突合**（下書きは公式ヘルプの記述ベース）
+  ②**Play SDK Index で `com.google.android.play:review` の提供元ガイダンスを人手で確認**（同下書き §5-3。
+  JS 描画で機械取得できない。**Play 提供 SDK にも除外規定は無い**ため In-App Review の扱いが唯一の未評価点）。
+  申告の中身は確定済み＝Q1「いいえ」（Auto Backup も収集なしの裁定・審査指摘時のみ保険申告へ切替）。
+- **[プライバシーポリシーの公開]**（ユーザー作業＝**GitHub の手続きだけ**。値は全て確定済みで Claude 側の残作業は無い）:
+  公開するファイルは `docs/store/pages/` に生成済み（`privacy.html`・`index.html`・`style.css`・`.nojekyll` の4つ）。
+  ①**public リポジトリ `naesimono-arch/yosari` を作る** ②4ファイルを**同じ階層に平置きで** push（相対参照のため）
+  ③Settings → Pages で有効化 ④**push した当日の日付で `【公開日】` を置換**（md を直して `build.py` で再生成）
+  ⑤公開 URL `https://naesimono-arch.github.io/yosari/privacy.html` を Play Console へ登録。手順の詳細＝`docs/store/pages/README.md`。
+  **放置した場合**＝Play へ提出できない（ポリシー URL は必須）。
 - **[In-App Review の実表示確認]** **内部テストトラックへ配信しないと確認できない**（sideload では ReviewManager が no-op）。
   実装とトリガ（初回読了の false/null→true 遷移・セッション1回）は完了済み。
 - **[第三者ユーザビリティテスト]** 本人テストが成立しない2件＝**T3**（二読書面の操作言語混乱）・**T4**（中央タップトグルの再発見。
