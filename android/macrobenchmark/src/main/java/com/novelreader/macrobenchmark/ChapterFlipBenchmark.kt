@@ -1,9 +1,11 @@
 package com.novelreader.macrobenchmark
 
 import androidx.benchmark.macro.FrameTimingMetric
+import androidx.benchmark.macro.MacrobenchmarkScope
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.uiautomator.By
+import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.Until
 import org.junit.Assert.fail
 import org.junit.Rule
@@ -33,8 +35,36 @@ class ChapterFlipBenchmark {
     @get:Rule
     val benchmarkRule = MacrobenchmarkRule()
 
+    /** 横書き（既定面）の章送り。[FlipBudget] の予算値はこの面の 2026-07-18 実測から較正されている。 */
     @Test
-    fun flipChapters() {
+    fun flipChapters() = measureFlip("flipChapters", verticalMode = false)
+
+    /**
+     * 縦書き面の前進送り。予算は [FlipBudget] を流用する（新設しない＝裁定済み）。
+     *
+     * **横書きと同じ「30回スワイプ」でも測っている中身は別物**＝ここが本テストの要点:
+     * 縦書き本文は [com.novelreader.ui.VerticalChapterContent] の LazyRow で、章送りは親の draggable
+     * ではなく **LazyRow 終端の未消費デルタ**（[com.novelreader.ui.ChapterPullConnection]）経由でしか
+     * 起きない。つまり1スワイプ＝1章送りにはならず、大半は「列が LazyRow へ入る」スクロールになる。
+     * 2026-08-21 の実機プローブ（PGEM10・50章シード）で **1章あたり約15スワイプ・30スワイプで
+     * 第1章→第3章** を実測した（＝30回のうち章送りは2回、残り28回は列送り）。
+     * 縦書きの組版は composition 段で走りキャッシュ寿命が LazyRow の item と同じ＝**列が入るたび
+     * 再組版**されるため、この「列送りが大半」という配分こそが見たい構造そのものになる。
+     *
+     * 方向が横書きの鏡像である根拠: reverseLayout=true でも available.x は画面座標のままで
+     * 「item #0＝右端・読み進めは指を右へ」（ChapterPullConnection の座標系コメント）。実機でも
+     * 右向きスワイプで前進することを確認済み。
+     *
+     * **章ごとの assert を置かない理由（横書きと非対称にした唯一の点）**: 章見出しは LazyRow の
+     * item #0 で、章の途中まで送ると a11y ツリーから外れる（実機プローブ: 23スワイプ時点で章見出しの
+     * ノードが1つも無い）。よって「毎スワイプ後に第N章を待つ」判定は原理的に成立しない。
+     * 代わりに measureBlock 末尾で **第1章の消滅**を検証する＝「送りが1章ぶんも進んでいない
+     * （＝実は動いていない面を測っていた）」を必ず落とす。
+     */
+    @Test
+    fun flipChaptersVertical() = measureFlip("flipChaptersVertical", verticalMode = true)
+
+    private fun measureFlip(testName: String, verticalMode: Boolean) {
         // measureRepeated が書き出す benchmarkData.json が「今回の走行」のものであることを
         // lastModified で検証するために使う（残骸 JSON による偽判定防止＝FlipBudget 参照）。
         val startedAtEpochMs = System.currentTimeMillis()
@@ -57,7 +87,13 @@ class ChapterFlipBenchmark {
                 //     保つため（2026-08-05 是正で実際に効くようになった指定＝経緯は [BookshelfScrollBenchmark.scrollList]
                 //     のコメント。false だと未検証のリスト面で書影を掴むことになり、章送り計測と無関係な
                 //     発見失敗を持ち込みかねない）。
-                clearAndSeedLibrary(count = SEED_COUNT, gridMode = true, chapterCount = CHAPTER_COUNT)
+                // verticalMode はテストごとに変える（端末に残った prefs で測らない＝面の決定論化）。
+                clearAndSeedLibrary(
+                    count = SEED_COUNT,
+                    gridMode = true,
+                    chapterCount = CHAPTER_COUNT,
+                    verticalMode = verticalMode,
+                )
 
                 // (2) コールド起動して前面ガード。launcher 自身も scrollable を持つため（同 knowledge §2）、
                 //     scrollable 待ちでは未起動を検知できない。By.pkg で対象アプリの前面化を必ず検証する。
@@ -83,56 +119,119 @@ class ChapterFlipBenchmark {
                 // (4) chap_1 本文への着地を確認。progress があるので目次でなく本文先頭（第1章）に直接着地する
                 //     はず。第1章の Text（TopAppBar/ChapterHeader いずれかに全文で出る）を待ち、出なければ fail
                 //     （目次着地＝シーダー契約違反や progress 未反映を黙って計測しない）。
-                if (!device.wait(Until.hasObject(By.textStartsWith("第1章")), 10_000)) {
-                    fail("chap_1 本文（第1章）に着地しなかった（目次着地＝progress リセット未反映の疑い）")
+                // 徴は書字方向で別（縦書きは text ノードを持たない＝[chapterMarker] の why 参照）。
+                if (!device.wait(Until.hasObject(chapterMarker(1, verticalMode)), 10_000)) {
+                    fail(
+                        "chap_1 本文（第1章）に着地しなかった（目次着地＝progress リセット未反映／" +
+                            "書字方向がシード指定と食い違っている の疑い。verticalMode=$verticalMode）"
+                    )
                 }
             }
         ) {
-            // 前進30回の章送り。第1章に着地済みの状態から始め、i 回目のスワイプ後に第(i+2)章の出現を待つ。
-            // 最終は第31章（全50章の範囲内＝端章での送れない事故は起きない）。
-            repeat(FLIP_COUNT) { i ->
-                val currentChapter = i + 1   // 着地は第1章。i 回目のスワイプ前に表示中の章。
-                val expectedChapter = i + 2  // 1回目のスワイプで第2章 → 30回目で第31章。
-                swipeToNextChapter()
-                // 遷移「コミット」の実信号＝旧章タイトルの消滅を待つ（2026-07-18 実機切り分けで確定）:
-                // 引っ張りプレビューはドラッグ開始直後から次章の冒頭（ChapterHeader）を先読み描画するため、
-                // 「次章タイトルの出現」は settle 前でも真になり、コミットの証拠にならない。waitForIdle も
-                // Compose の settle アニメを busy と見なさず素通しする（accessibility イベントが静かなため）。
-                // その2つだけで次のスワイプへ進むと、遷移コミット前のツリーへ注入して章送りが壊れる
-                // （実機で2〜3回目のスワイプが再現的に不発。手動の約2秒間隔では完全安定＝アプリ側は健全）。
-                // プレビュー中は新旧タイトルが併存し、settle 完了＝ナビゲーション確定で旧章が畳まれて消える
-                // ため、「旧章の gone」がコミットと1:1 に対応する。
-                if (!device.wait(Until.gone(By.textStartsWith("第${currentChapter}章")), 5_000)) {
-                    // 診断: fail 時点で a11y ツリーに居る章タイトルを列挙する。「旧章が残存」には
-                    // ①章送り自体が不発（旧章のみ居る）②章送りは成功したが旧章ノードも併存
-                    // （隣章プレビューの先読みコンポーズ等＝検知側の偽 FAIL）の2様があり、
-                    // ツリーの実内容だけが両者を切り分けられる。
-                    val visible = device.findObjects(By.textStartsWith("第"))
-                        .mapNotNull { it.text }.distinct().sorted()
-                    fail("章送りがコミットしなかった（${i + 1}回目のスワイプ後も第${currentChapter}章が残存）。" +
-                        "ツリー内の章タイトル: $visible")
-                }
-                // コミット後の表示章が期待どおりかを確認（旧章が消えただけで別章へ飛んでいないことの検証）。
-                if (!device.wait(Until.hasObject(By.textStartsWith("第${expectedChapter}章")), 5_000)) {
-                    fail("章送り後に第${expectedChapter}章が表示されていない（${i + 1}回目のスワイプ）")
-                }
-                // 新章 Content の入力受付が整うまでの固定マージン（2026-07-18 切り分けの帰結）:
-                // 章切替で ChapterScreenContent は毎回作り直され、bodyWidthPx（onSizeChanged で実測）が
-                // 0 の初期化窓では draggable の clamp が min=max=0 になり、その間に注入したスワイプは
-                // 全 delta が潰れて settle 不発＝「無視」される。しかも上の gone はスライドアニメ末尾
-                // （旧章が画面外＝a11y 除外）で navigate 前に真になるため、待ちナシだと初期化窓を直撃する。
-                // この窓は a11y から観測不能（幅確定を示すノードが無い）ため、固定 400ms で跨ぐ。
-                // 400ms の根拠: 手動 `input swipe` の実証帯（+250〜700ms 間隔で 10/10 全弾命中）の中央値相当。
-                // 注入方式切替（UiObject2→UiDevice→shell input）では直らず、失敗が常に2回目以降
-                // （初章の Content は画面入場時に幅確定済み）である事実と唯一整合する機序への対処。
-                // 計測への影響: sleep 中は静止＝フレームが出ないため FrameTiming の分位には乗らない。
-                Thread.sleep(400)
-            }
+            // 面によって measureBlock の中身が別（縦書きは1スワイプ＝1章送りにならない＝各 KDoc 参照）。
+            if (verticalMode) advanceVerticalReading() else flipHorizontalChapters()
         }
         // このリターン時点で書き出し済みの benchmarkData.json を読んで判定する（FlipBudget 参照）。
         if (FlipBudget.isBudgetAssertEnabled()) {
-            FlipBudget.assertFlipWithinBudget(startedAtEpochMs)
+            FlipBudget.assertFlipWithinBudget(testName, startedAtEpochMs)
         }
+    }
+
+    /**
+     * 横書きの章送り30回。従来 flipChapters の measureBlock 本体をそのまま関数化しただけで、
+     * 手順・待ち・固定マージンは**無改変**（2026-07-18 の実機切り分けで確立した形を保全する）。
+     */
+    private fun MacrobenchmarkScope.flipHorizontalChapters() {
+        // 前進30回の章送り。第1章に着地済みの状態から始め、i 回目のスワイプ後に第(i+2)章の出現を待つ。
+        // 最終は第31章（全50章の範囲内＝端章での送れない事故は起きない）。
+        repeat(FLIP_COUNT) { i ->
+            val currentChapter = i + 1   // 着地は第1章。i 回目のスワイプ前に表示中の章。
+            val expectedChapter = i + 2  // 1回目のスワイプで第2章 → 30回目で第31章。
+            swipeToNextChapter()
+            // 遷移「コミット」の実信号＝旧章タイトルの消滅を待つ（2026-07-18 実機切り分けで確定）:
+            // 引っ張りプレビューはドラッグ開始直後から次章の冒頭（ChapterHeader）を先読み描画するため、
+            // 「次章タイトルの出現」は settle 前でも真になり、コミットの証拠にならない。waitForIdle も
+            // Compose の settle アニメを busy と見なさず素通しする（accessibility イベントが静かなため）。
+            // その2つだけで次のスワイプへ進むと、遷移コミット前のツリーへ注入して章送りが壊れる
+            // （実機で2〜3回目のスワイプが再現的に不発。手動の約2秒間隔では完全安定＝アプリ側は健全）。
+            // プレビュー中は新旧タイトルが併存し、settle 完了＝ナビゲーション確定で旧章が畳まれて消える
+            // ため、「旧章の gone」がコミットと1:1 に対応する。
+            if (!device.wait(Until.gone(By.textStartsWith("第${currentChapter}章")), 5_000)) {
+                // 診断: fail 時点で a11y ツリーに居る章タイトルを列挙する。「旧章が残存」には
+                // ①章送り自体が不発（旧章のみ居る）②章送りは成功したが旧章ノードも併存
+                // （隣章プレビューの先読みコンポーズ等＝検知側の偽 FAIL）の2様があり、
+                // ツリーの実内容だけが両者を切り分けられる。
+                val visible = device.findObjects(By.textStartsWith("第"))
+                    .mapNotNull { it.text }.distinct().sorted()
+                fail("章送りがコミットしなかった（${i + 1}回目のスワイプ後も第${currentChapter}章が残存）。" +
+                    "ツリー内の章タイトル: $visible")
+            }
+            // コミット後の表示章が期待どおりかを確認（旧章が消えただけで別章へ飛んでいないことの検証）。
+            if (!device.wait(Until.hasObject(By.textStartsWith("第${expectedChapter}章")), 5_000)) {
+                fail("章送り後に第${expectedChapter}章が表示されていない（${i + 1}回目のスワイプ）")
+            }
+            // 新章 Content の入力受付が整うまでの固定マージン（2026-07-18 切り分けの帰結）:
+            // 章切替で ChapterScreenContent は毎回作り直され、bodyWidthPx（onSizeChanged で実測）が
+            // 0 の初期化窓では draggable の clamp が min=max=0 になり、その間に注入したスワイプは
+            // 全 delta が潰れて settle 不発＝「無視」される。しかも上の gone はスライドアニメ末尾
+            // （旧章が画面外＝a11y 除外）で navigate 前に真になるため、待ちナシだと初期化窓を直撃する。
+            // この窓は a11y から観測不能（幅確定を示すノードが無い）ため、固定 400ms で跨ぐ。
+            // 400ms の根拠: 手動 `input swipe` の実証帯（+250〜700ms 間隔で 10/10 全弾命中）の中央値相当。
+            // 注入方式切替（UiObject2→UiDevice→shell input）では直らず、失敗が常に2回目以降
+            // （初章の Content は画面入場時に幅確定済み）である事実と唯一整合する機序への対処。
+            // 計測への影響: sleep 中は静止＝フレームが出ないため FrameTiming の分位には乗らない。
+            Thread.sleep(400)
+        }
+    }
+
+    /**
+     * 縦書きの前進送り30回。章ごとの assert を置かない理由と方向の根拠は [flipChaptersVertical] の KDoc。
+     *
+     * 末尾の「第1章の消滅」検証だけは省けない: これが無いと、スワイプが1つも効いていない静止画面
+     * （例＝方向を取り違えて章頭で clamp され続ける／シードが横書きのまま）でも**フレームが出ない分
+     * 分位が綺麗な値になり、緑のまま通ってしまう**。「測る対象そのものが走っていない」失敗モードは
+     * 分位では表現できない（docs/knowledge/ranking-pager-jank-slow-ui-thread.md の一般化）。
+     */
+    private fun MacrobenchmarkScope.advanceVerticalReading() {
+        repeat(FLIP_COUNT) {
+            swipeVerticalForward()
+            // 横書きと同じ 400ms。縦書きでは初期化窓対策ではなく「LazyRow の fling を毎回終わらせて
+            // 1スワイプ＝1窓に揃える」ため（静止中はフレームが出ず分位には乗らない＝計測に無害）。
+            Thread.sleep(400)
+        }
+        // 縦書きの徴は desc のみ（[chapterMarker]）。gone は既に消えていれば即真＝待ちのコストは無い。
+        if (!device.wait(Until.gone(chapterMarker(1, verticalMode = true)), 5_000)) {
+            fail(
+                "縦書きの前進送りが ${FLIP_COUNT} スワイプ経っても第1章から出ていない" +
+                    "（方向の取り違え／シードが横書きのまま／LazyRow が指を受けていない の疑い）"
+            )
+        }
+    }
+
+    /**
+     * 表示中の章を判定する徴を書字方向ごとに返す。
+     *
+     * 横書き＝ChapterHeader が題側を Compose Text で描くため `By.textStartsWith`。
+     * 縦書き＝[com.novelreader.ui.VerticalChapterContent] の見出しが `clearAndSetSemantics` で
+     * **text ノードを一切持たず** contentDescription だけになるため `By.descContains` を使う。
+     * contains（前方一致でない）なのは desc が「第 一 話　第1章」＝話数ラベルが先に来る実体だから
+     * （2026-08-21 実機 dump で確認）。第11章等が第1章に誤一致しないのは "第1章" が連続部分列として
+     * 現れないため。
+     */
+    private fun chapterMarker(chapter: Int, verticalMode: Boolean): BySelector =
+        if (verticalMode) By.descContains("第${chapter}章") else By.textStartsWith("第${chapter}章")
+
+    /**
+     * 縦書きの前進スワイプ（指を右へ）。横書き [swipeToNextChapter]（指を左へ）の鏡像。
+     * 座標・尺は横書きと同値（0.2W→0.8W・y=画面中央・100ms）＝移動量 0.6W を揃え、両面の1スワイプが
+     * 運ぶ「指の仕事量」を同じにする（数値を並べて読めるようにするため）。
+     */
+    private fun MacrobenchmarkScope.swipeVerticalForward() {
+        val w = device.displayWidth
+        val y = device.displayHeight / 2
+        device.executeShellCommand(
+            "input swipe ${(w * 0.2f).toInt()} $y ${(w * 0.8f).toInt()} $y 100"
+        )
     }
 
     /**
