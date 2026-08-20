@@ -1,0 +1,321 @@
+<!-- @dsCard group="ストア掲載素材 / Google Play" name="フィーチャーグラフィック候補 1024×500（Yosari・明快K の意匠圏・3案／実寸＋縮小＋セーフエリア）" -->
+<!--
+  Google Play「フィーチャーグラフィック」候補カタログ（2026-08-20 起草・裁定用）。
+  ・仕様＝1024×500 必須・テキストが端に寄ると端末により切られる → 各案とも重要文字を中央帯に収め、
+    「端寄せ禁止帯（外周50px）」と「強クロップ域（中央720×360）」をガイドで可視化してある。
+  ・listing-draft.md §5 の制約を直接反映:
+      ・ロゴ Yosari ＋ 一行コピー ＋ 夜の色面（＝A案の骨格）
+      ・端末フレームの写真を大きく置かない（全案で端末モックを使っていない）
+      ・動画は初回用意しない前提＝この画像が隠れない
+  ・色はアイコン候補と同じ明快K のトークンのみ（金＝M/P 系スキンの語彙は不使用）。
+  ・アイコン側で選ばれる案と地色を揃える必要があるので、A（夜）／B（紙）／C（境）で明暗を振ってある。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yosari フィーチャーグラフィック候補 1024×500（3案）</title>
+<style>
+  :root{
+    --ai:#1C3D5A;--navy:#0E2030;--ink:#1C1F26;--paper:#FBFAF8;
+    --seiji-ink:#50685C;--seiji:#A9C2BB;--shu:#A1573F;--shu-lt:#CC8B73;
+    --info:#5C606D;--line:#ECEAE4;--field:#F0EFEE;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","YuMincho","Noto Serif JP","MS PMincho",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP","Meiryo",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#EEEBE4;color:#2A2C30;font-family:var(--gothic);padding:44px 28px 120px;-webkit-font-smoothing:antialiased}
+  .doc{max-width:1180px;margin:0 auto}
+  .kicker{font-size:11px;letter-spacing:.32em;color:#8a7f6e;font-weight:600}
+  h1{font-family:var(--mincho);font-size:26px;font-weight:600;letter-spacing:.05em;margin:10px 0 10px}
+  .lead{font-size:13px;line-height:1.95;color:#5b5850;max-width:840px}
+  .lead b{color:#3a3833}
+  .specs{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0}
+  .specs span{font-size:11.5px;color:#5f5b52;background:#F7F5EF;border:1px solid #DDD8CC;border-radius:999px;padding:6px 13px}
+
+  .ctrl{margin:22px 0 30px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+    padding:14px 16px;background:#F7F5EF;border:1px solid #DDD8CC;border-radius:12px}
+  .ctrl button{font-family:var(--gothic);font-size:12.5px;cursor:pointer;border-radius:999px;
+    padding:8px 16px;border:1px solid #CBC4B8;background:transparent;color:var(--ai)}
+  .ctrl button.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
+  .ctrl .lb{font-size:11.5px;color:#8c887e;letter-spacing:.04em}
+
+  h2{font-family:var(--mincho);font-size:17px;font-weight:600;letter-spacing:.05em;color:var(--ai);
+    margin:46px 0 6px;padding-top:14px;border-top:1px solid #DEDACF}
+  h2 .sub{font-family:var(--gothic);font-size:11.5px;font-weight:400;color:#8c887e;margin-left:12px}
+
+  .cand{background:#F7F5EF;border:1px solid #DFDACE;border-radius:16px;padding:24px 26px 26px;margin-top:20px}
+  .cand .hd{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+  .cand .tag{font-family:var(--mincho);font-size:22px;font-weight:600;color:#fff;background:var(--ai);
+    width:38px;height:38px;border-radius:10px;display:grid;place-items:center;align-self:center;flex-shrink:0}
+  .cand h3{font-family:var(--mincho);font-size:19px;font-weight:600;letter-spacing:.05em;color:var(--ink)}
+  .cand .cc{font-size:12.5px;color:#6b675e;line-height:1.7;flex:1;min-width:260px}
+  figcaption{font-size:11px;color:#8c887e;margin-top:8px;letter-spacing:.02em}
+
+  /* ===== フィーチャーグラフィック本体（1024×500 実寸） ===== */
+  .stage{position:relative;width:1024px;height:500px;max-width:100%}
+  .fg{position:relative;width:1024px;height:500px;overflow:hidden;font-family:var(--gothic)}
+  .wrap{width:100%;overflow-x:auto}          /* 表示幅が足りない環境でも実寸を崩さず横スクロールで見る */
+
+  /* セーフエリアのガイド（トグル） */
+  .guide{position:absolute;inset:0;pointer-events:none;display:none;z-index:9}
+  body.safe .guide{display:block}
+  .guide .edge{position:absolute;inset:50px;border:2px dashed rgba(255,90,90,.75)}
+  .guide .crop{position:absolute;left:152px;top:70px;width:720px;height:360px;border:2px dashed rgba(90,190,255,.8)}
+  .guide .lg{position:absolute;left:56px;top:8px;font-size:10.5px;color:rgba(255,90,90,.95);letter-spacing:.04em}
+  .guide .lg2{position:absolute;left:158px;top:48px;font-size:10.5px;color:rgba(90,190,255,.95);letter-spacing:.04em}
+
+  /* 縮小プレビュー（Play 上部で小さく出るときの見え方＝文字が読めるかの判定） */
+  .minis{display:flex;gap:28px;flex-wrap:wrap;margin-top:22px;align-items:flex-start}
+  .mini{position:relative;overflow:hidden;border-radius:8px;box-shadow:0 3px 10px rgba(0,0,0,.14)}
+  .mini > *{transform-origin:0 0}
+  .m36{width:369px;height:180px}   /* 36%＝ストア上部の実寸に近い縮小 */
+  .m22{width:225px;height:110px}   /* 22%＝一覧内カルーセルのさらに小さい出方 */
+
+  .spec{margin-top:18px;border-top:1px solid #E3DED2;padding-top:14px;
+    display:grid;grid-template-columns:auto 1fr;gap:7px 16px;font-size:11.5px;line-height:1.65}
+  .spec dt{color:#8c887e;letter-spacing:.04em;white-space:nowrap}
+  .spec dd{color:#4c4941}
+  .spec .sw{display:inline-block;width:11px;height:11px;border-radius:3px;vertical-align:-1px;margin-right:5px;border:1px solid rgba(0,0,0,.15)}
+  .warn{color:#8E4B37}
+  .note{font-size:12px;line-height:1.9;color:#5b5850;background:#F7F5EF;border:1px solid #DFDACE;
+    border-radius:12px;padding:16px 20px;margin-top:22px}
+  .note li{margin-left:18px;margin-top:4px}
+  .note b{color:#8E4B37}
+
+  /* ---------- 共通パーツ: 栞書影（bookshelf-K .cv の造形をそのまま縮図で使う） ---------- */
+  .cv{position:relative;background:var(--paper);border-radius:4px;box-shadow:0 8px 22px rgba(0,0,0,.34);overflow:hidden}
+  .cv .bar{position:absolute;top:0;left:26%;width:5px;background:var(--band)}
+  .cv .bar::after{content:"";position:absolute;left:50%;top:100%;transform:translate(-50%,-1px);
+    width:13px;height:13px;border-radius:50%;background:var(--band)}
+  .cv .vt{position:absolute;top:16px;right:13px;bottom:16px;max-width:64%;overflow:hidden;
+    writing-mode:vertical-rl;font-family:var(--mincho);font-size:14px;font-weight:600;
+    color:var(--ink);line-height:1.65;letter-spacing:.06em}
+
+  /* ---------- 共通パーツ: ロゴロックアップ ---------- */
+  .logo{font-family:var(--mincho);letter-spacing:.06em;line-height:1}
+  .logo .en{font-size:82px;font-weight:600;display:block}
+  .logo .ja{font-size:19px;letter-spacing:.5em;display:block;margin-top:16px;opacity:.82}
+  .copy{font-family:var(--mincho);font-size:27px;letter-spacing:.11em;line-height:1.6;margin-top:30px}
+  .sub2{font-family:var(--gothic);font-size:14.5px;letter-spacing:.09em;margin-top:16px;line-height:1.85}
+  .rule{width:64px;height:2px;margin-top:26px}
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <div class="kicker">YOSARI · GOOGLE PLAY — FEATURE GRAPHIC 1024×500 (3 CANDIDATES)</div>
+  <h1>フィーチャーグラフィック候補（1024×500）</h1>
+  <p class="lead">
+    3案とも <b>1024×500 の実寸</b>で描いてあり、下に 36%／22% の縮小を併記した（<b>縮んで文字が読めるか</b>が実質の合否）。
+    「セーフエリアを表示」で、<span style="color:#B34">赤破線＝外周50px（端寄せ禁止帯）</span>と
+    <span style="color:#37A">青破線＝中央720×360（端末により切られても残る目安）</span>が出る。
+    listing-draft §5 の指示どおり<b>端末フレームの写真は使っていない</b>（縮むと読めなくなるため）。
+  </p>
+
+  <div class="specs">
+    <span>1024×500（必須サイズ）</span>
+    <span>重要文字は中央帯のみ</span>
+    <span>端末モック不使用</span>
+    <span>ロゴ＋一行コピー＋色面の三要素だけ</span>
+    <span>アイコンの選定案と地色を合わせる前提</span>
+  </div>
+
+  <div class="ctrl">
+    <button id="sz">セーフエリアを表示</button>
+    <span class="lb">※ ガイドは裁定用の可視化で、書き出しには含めません</span>
+  </div>
+
+<!-- ========================== A. 夜の帯 ========================== -->
+  <h2>A. 夜の帯<span class="sub">listing-draft §5 の骨格（ロゴ＋一行コピー＋夜の色面）をそのまま</span></h2>
+  <div class="cand">
+    <div class="hd">
+      <span class="tag">A</span>
+      <h3>夜の帯（よるのおび）</h3>
+      <p class="cc">藍から濃紺へ沈む夜の面に、和紙色のロゴと一行コピー。右に栞書影を3冊だけ流す。<br>アイコン A・C・F（夜色）と地続きになる。文字は全て中央帯の内側。</p>
+    </div>
+    <div class="wrap"><div class="stage">
+      <div class="fg" id="fgA" style="background:linear-gradient(118deg,#24435F 0%,#1C3D5A 42%,#0E2030 100%)">
+        <!-- 夜天の微光（装飾。縮小時は単色に潰れて構わない層） -->
+        <div style="position:absolute;left:-60px;top:-120px;width:420px;height:420px;border-radius:50%;
+          background:radial-gradient(circle,rgba(143,179,212,.16) 0%,rgba(143,179,212,0) 68%)"></div>
+        <!-- 版面の縦罫（極薄・組版の気配だけ残す） -->
+        <div style="position:absolute;left:0;top:0;right:0;bottom:0;opacity:.09;
+          background:repeating-linear-gradient(90deg,#FBFAF8 0 2px,transparent 2px 34px)"></div>
+
+        <div style="position:absolute;left:160px;top:96px;color:#FBFAF8">
+          <div class="logo"><span class="en">Yosari</span><span class="ja">よ さ り</span></div>
+          <div class="rule" style="background:#CC8B73"></div>
+          <div class="copy" style="color:#FBFAF8">縦書きで読む、Web小説。</div>
+          <div class="sub2" style="color:#A9C2BB">ふりがなを保ったまま。広告なし・登録不要。</div>
+        </div>
+
+        <!-- 栞書影3冊（右側＝切られても意味が失われない装飾側へ寄せる） -->
+        <div style="position:absolute;left:706px;top:56px;transform:rotate(-7deg)">
+          <div class="cv" style="width:150px;height:200px;--band:#A1573F">
+            <div class="bar" style="height:46%"></div><div class="vt">転生した先で本を読む</div>
+          </div>
+        </div>
+        <div style="position:absolute;left:822px;top:150px;transform:rotate(4deg)">
+          <div class="cv" style="width:162px;height:216px;--band:#1C3D5A">
+            <div class="bar" style="height:52%"></div><div class="vt">夜明けの塔にて</div>
+          </div>
+        </div>
+        <div style="position:absolute;left:690px;top:276px;transform:rotate(3deg)">
+          <div class="cv" style="width:140px;height:187px;--band:#50685C">
+            <div class="bar" style="height:40%"></div><div class="vt">辺境暮らしの記録</div>
+          </div>
+        </div>
+
+        <div class="guide"><div class="edge"></div><div class="crop"></div>
+          <div class="lg">外周50px＝端寄せ禁止</div><div class="lg2">中央720×360＝切られても残る帯</div></div>
+      </div>
+    </div></div>
+    <figcaption>1024×500 実寸</figcaption>
+
+    <div class="minis">
+      <div><div class="mini m36" data-src="fgA" data-s="0.36"></div><figcaption>36% 縮小（ストア上部の実寸に近い）</figcaption></div>
+      <div><div class="mini m22" data-src="fgA" data-s="0.22"></div><figcaption>22% 縮小（さらに小さい出方）</figcaption></div>
+    </div>
+
+    <dl class="spec">
+      <dt>使用トークン</dt><dd><span class="sw" style="background:#24435F"></span>#24435F→<span class="sw" style="background:#1C3D5A"></span>藍 #1C3D5A→<span class="sw" style="background:#0E2030"></span>濃紺 #0E2030／<span class="sw" style="background:#FBFAF8"></span>和紙 #FBFAF8／<span class="sw" style="background:#A9C2BB"></span>青磁明 #A9C2BB／<span class="sw" style="background:#CC8B73"></span>朱明 #CC8B73</dd>
+      <dt>コントラスト</dt><dd>ロゴ・コピー（和紙 : 藍）= <b>10.80 以上</b>（地が濃紺へ沈む側は 15.88）／副文（青磁明 : 藍）= <b>5.44〜8.77</b>（地のグラデ幅ぶんの範囲。最悪値でも AA 4.5 を満たす）</dd>
+      <dt>文字の位置</dt><dd>左端 160px・右端 596px＝<b>中央720×360 の内側に全収まり</b></dd>
+      <dt>相性のいいアイコン</dt><dd>A（栞書影）・C（夜）・F（結び玉紋）＝同じ夜色</dd>
+    </dl>
+  </div>
+
+<!-- ========================== B. 紙の版面 ========================== -->
+  <h2>B. 紙の版面<span class="sub">明るい側の対案。既定UI（明快K）の実際の地色と同じ和紙</span></h2>
+  <div class="cand">
+    <div class="hd">
+      <span class="tag">B</span>
+      <h3>紙の版面（かみのはんめん）</h3>
+      <p class="cc">和紙地に実際の縦組み本文（ルビ付き）を薄く敷き、藍のロゴを重ねる。<br>「何が読めるアプリか」を文字組そのもので見せる案＝差別化点のルビが画で伝わる。</p>
+    </div>
+    <div class="wrap"><div class="stage">
+      <div class="fg" id="fgB" style="background:#FBFAF8">
+        <!-- 沈めた紙地の帯（右）＝本文サンプルの領域を面で区切る -->
+        <div style="position:absolute;right:0;top:0;width:430px;height:100%;background:#F0EFEE"></div>
+        <!-- 実データの色域を模した縦組み本文＋ルビ（薄墨。読ませるためでなく「組」を見せるため） -->
+        <div style="position:absolute;right:44px;top:44px;height:412px;width:392px;overflow:hidden;
+          writing-mode:vertical-rl;font-family:var(--mincho);font-size:19px;line-height:2.5;
+          letter-spacing:.06em;color:#1C1F26;opacity:.30;text-align:justify">
+          <ruby>夜<rt>よ</rt></ruby>さりの<ruby>灯<rt>あか</rt></ruby>りを落として、<ruby>頁<rt>ページ</rt></ruby>をひらく。
+          <ruby>縦書<rt>たてが</rt></ruby>きの<ruby>行<rt>ぎょう</rt></ruby>が、<ruby>右<rt>みぎ</rt></ruby>から<ruby>左<rt>ひだり</rt></ruby>へ
+          しずかに<ruby>流<rt>なが</rt></ruby>れていく。<ruby>画像<rt>がぞう</rt></ruby>ではなく<ruby>文字<rt>もじ</rt></ruby>として
+          <ruby>組<rt>く</rt></ruby>み<ruby>直<rt>なお</rt></ruby>しているから、<ruby>大<rt>おお</rt></ruby>きさを
+          <ruby>変<rt>か</rt></ruby>えても<ruby>崩<rt>くず</rt></ruby>れない。
+        </div>
+        <!-- 朱の栞が版面を縦断（アイコン A/D と同じ造形の署名） -->
+        <div style="position:absolute;left:620px;top:0;width:8px;height:214px;background:#A1573F"></div>
+        <div style="position:absolute;left:606px;top:206px;width:36px;height:36px;border-radius:50%;background:#A1573F"></div>
+
+        <div style="position:absolute;left:150px;top:104px;color:#1C3D5A">
+          <div class="logo"><span class="en">Yosari</span><span class="ja">よ さ り</span></div>
+          <div class="rule" style="background:#A1573F"></div>
+          <div class="copy" style="color:#1C1F26">ふりがなを、<br>のこしたまま縦書きで。</div>
+          <div class="sub2" style="color:#5C606D">小説家になろう・カクヨム・暁の作品を、オフラインで。</div>
+        </div>
+
+        <div class="guide"><div class="edge"></div><div class="crop"></div>
+          <div class="lg">外周50px＝端寄せ禁止</div><div class="lg2">中央720×360＝切られても残る帯</div></div>
+      </div>
+    </div></div>
+    <figcaption>1024×500 実寸</figcaption>
+
+    <div class="minis">
+      <div><div class="mini m36" data-src="fgB" data-s="0.36"></div><figcaption>36% 縮小（ストア上部の実寸に近い）</figcaption></div>
+      <div><div class="mini m22" data-src="fgB" data-s="0.22"></div><figcaption>22% 縮小（さらに小さい出方）</figcaption></div>
+    </div>
+
+    <dl class="spec">
+      <dt>使用トークン</dt><dd><span class="sw" style="background:#FBFAF8"></span>和紙 #FBFAF8／<span class="sw" style="background:#F0EFEE"></span>沈め紙 #F0EFEE／<span class="sw" style="background:#1C3D5A"></span>藍 #1C3D5A／<span class="sw" style="background:#1C1F26"></span>墨 #1C1F26／<span class="sw" style="background:#A1573F"></span>朱 #A1573F</dd>
+      <dt>コントラスト</dt><dd>ロゴ（藍 : 和紙）= <b>10.80</b>／コピー（墨 : 和紙）= <b>15.81</b>／副文（#5C606D : 和紙）= <b>6.01</b></dd>
+      <dt>文字の位置</dt><dd>左端 150px・コピー右端 約610px＝中央帯の内側。本文サンプルは右端 44px まで＝<span class="warn">切られる前提の装飾</span></dd>
+      <dt>相性のいいアイコン</dt><dd>D（紙の栞）。夜色アイコン（A/C/F）と組むと明暗が反転して見える</dd>
+      <dt>要確認</dt><dd class="warn">22% ではルビが完全に潰れる。「組の気配」だけ残ればよい設計だが、それで足りるかは目視判断</dd>
+    </dl>
+  </div>
+
+<!-- ========================== C. 夜と紙の境 ========================== -->
+  <h2>C. 夜と紙の境<span class="sub">両方を1枚に。栞が境目そのものになる構図</span></h2>
+  <div class="cand">
+    <div class="hd">
+      <span class="tag">C</span>
+      <h3>夜と紙の境（よるとかみのさかい）</h3>
+      <p class="cc">左は夜（藍）、右は紙（版面）。境界に朱の栞が縦に走り、二つの面を綴じる。<br>アイコンが夜色でも紙地でも、どちらとも地続きになる中間案。</p>
+    </div>
+    <div class="wrap"><div class="stage">
+      <div class="fg" id="fgC" style="background:#FBFAF8">
+        <div style="position:absolute;left:0;top:0;width:560px;height:100%;
+          background:linear-gradient(150deg,#24435F 0%,#1C3D5A 48%,#0E2030 100%)"></div>
+        <!-- 紙側の版面（縦組みサンプル・薄墨） -->
+        <div style="position:absolute;left:604px;top:60px;height:380px;width:372px;overflow:hidden;
+          writing-mode:vertical-rl;font-family:var(--mincho);font-size:18px;line-height:2.6;
+          letter-spacing:.06em;color:#1C1F26;opacity:.26">
+          <ruby>頁<rt>ページ</rt></ruby>をひらけば、<ruby>行<rt>ぎょう</rt></ruby>は<ruby>右<rt>みぎ</rt></ruby>から
+          <ruby>左<rt>ひだり</rt></ruby>へ。<ruby>電波<rt>でんぱ</rt></ruby>の<ruby>無<rt>な</rt></ruby>い
+          <ruby>場所<rt>ばしょ</rt></ruby>でも、<ruby>続<rt>つづ</rt></ruby>きから<ruby>読<rt>よ</rt></ruby>める。
+        </div>
+        <!-- 境の栞（左右の面をまたぐ＝造形の主役） -->
+        <div style="position:absolute;left:552px;top:0;width:14px;height:300px;background:#A1573F"></div>
+        <div style="position:absolute;left:532px;top:290px;width:54px;height:54px;border-radius:50%;background:#A1573F"></div>
+        <div style="position:absolute;left:552px;top:290px;width:14px;height:210px;background:#A1573F;opacity:.22"></div>
+
+        <div style="position:absolute;left:158px;top:118px;color:#FBFAF8">
+          <div class="logo"><span class="en">Yosari</span><span class="ja">よ さ り</span></div>
+          <div class="copy" style="color:#FBFAF8;font-size:25px">夜に、縦書きで。</div>
+          <div class="sub2" style="color:#A9C2BB">なろうの縦書きPDFを、ルビごと読む小説リーダー。</div>
+        </div>
+
+        <div class="guide"><div class="edge"></div><div class="crop"></div>
+          <div class="lg">外周50px＝端寄せ禁止</div><div class="lg2">中央720×360＝切られても残る帯</div></div>
+      </div>
+    </div></div>
+    <figcaption>1024×500 実寸</figcaption>
+
+    <div class="minis">
+      <div><div class="mini m36" data-src="fgC" data-s="0.36"></div><figcaption>36% 縮小（ストア上部の実寸に近い）</figcaption></div>
+      <div><div class="mini m22" data-src="fgC" data-s="0.22"></div><figcaption>22% 縮小（さらに小さい出方）</figcaption></div>
+    </div>
+
+    <dl class="spec">
+      <dt>使用トークン</dt><dd><span class="sw" style="background:#1C3D5A"></span>藍 #1C3D5A→<span class="sw" style="background:#0E2030"></span>濃紺 #0E2030／<span class="sw" style="background:#FBFAF8"></span>和紙 #FBFAF8／<span class="sw" style="background:#A9C2BB"></span>青磁明 #A9C2BB／<span class="sw" style="background:#A1573F"></span>朱 #A1573F</dd>
+      <dt>コントラスト</dt><dd>ロゴ・コピー（和紙 : 藍）= <b>10.80 以上</b>／副文（青磁明 : 藍）= <b>5.44〜8.77</b>（地のグラデ幅ぶんの範囲。最悪値でも AA 4.5 を満たす）</dd>
+      <dt>文字の位置</dt><dd>左端 158px・右端 約540px＝中央帯の左半分に集約。境の栞は x=552＝中央帯の内側</dd>
+      <dt>相性のいいアイコン</dt><dd>全案（夜色・紙地どちらとも接続する）</dd>
+      <dt>要確認</dt><dd class="warn">左右分割は中央でクロップされると分割線が画面の端に来る。22% と青破線で挙動を確認</dd>
+    </dl>
+  </div>
+
+  <div class="note">
+    <b>裁定でこの3点だけ見てください</b>
+    <ul>
+      <li><b>22% 縮小でロゴとコピーが読めるか</b>（実寸は3案とも成立します＝差が出るのは縮小側）。</li>
+      <li><b>アイコンで選ぶ案と地色が噛み合うか</b>——夜色アイコン（A/C/F）なら FG-A、紙地アイコン（D）なら FG-B が地続き。決めかねる場合の逃げが FG-C。</li>
+      <li><b>コピー文言そのもの</b>（「縦書きで読む、Web小説。」／「ふりがなを、のこしたまま縦書きで。」／「夜に、縦書きで。」）。ここは画と独立に差し替えられます。</li>
+    </ul>
+    「Aで、コピーはCの文言」のような混ぜた指示も可能です。PNG 書き出しは裁定後の別便。
+  </div>
+
+</div>
+
+<script>
+  // 縮小プレビューは実寸ノードを clone して scale する＝「実寸と縮小で絵が違う」事故が起きない作り。
+  // （別々に書くと片方だけ直して食い違うため、必ず同一ノードから複製する）
+  document.querySelectorAll('.mini').forEach(box=>{
+    const src=document.getElementById(box.dataset.src);
+    const c=src.cloneNode(true);
+    c.removeAttribute('id');
+    const g=c.querySelector('.guide'); if(g) g.remove();   // ガイドは縮小側には出さない
+    c.style.transform='scale('+box.dataset.s+')';
+    box.appendChild(c);
+  });
+  const sz=document.getElementById('sz');
+  sz.addEventListener('click',()=>{document.body.classList.toggle('safe');sz.classList.toggle('on');});
+</script>
+</body>
+</html>
