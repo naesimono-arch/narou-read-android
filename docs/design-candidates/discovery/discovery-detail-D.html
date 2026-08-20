@@ -1,4 +1,53 @@
 <!-- @dsCard group="UI-n / 発見（api-lab）" name="D. 作品詳細" -->
+<!--
+  ============================================================================
+  このモックが規定するもの（2026-08-21 改訂・案B 裁定を反映）
+  ============================================================================
+  従来このモックは「並び順・書影帯120dp・固定バーの主従」までしか規定しておらず、
+  **初期ビューポートに何が入るか**を規定していなかった（旧実装は .scroll の
+  padding-bottom:210px という擬似固定バーで、実機のバー実高 229/285dp と合っていなかった）。
+  実機で「あらすじが1行も出ない」事故が起きた真因はここ＝**モックが検分できない層に
+  問題が落ちていた**こと。よって本改訂から、端末枠を実機と同じ 360×792dp（1px=1dp）にし、
+  固定バーを実寸の flex 要素にして、**初期可視行数がモック上で目に見える**ようにする。
+
+  ---- 寸法の較正（推測ではなく実測） ----
+  実機 360×792dp / density4 の実測2値（3アクション版＝あらすじ本文 h=144px／
+  4アクション版＝見出し「あらすじ」h=80px vs 3アクション版 h=112px）と、
+  golden `NovelDetailScreen_content_light_1.0.png`（w360dp-h640dp-xhdpi＝1dp=2px）から
+  画素で起こした版面値だけで組んである。**較正の自由度はシステムバー合算 63dp（上39＋下24）
+  ただ一つ**で、これは上記2つの実機実測値を**同時に**再現する唯一の値
+  （3アクション版＝本文可視36dp＝1.385行／4アクション版＝本文0行・見出し20/28dp＝28.6%クリップ）。
+  以後この面の寸法を動かすときは、この2値の再現が壊れていないかで検算できる。
+
+  ---- 「読める体裁」の判定基準（本文から導出・意匠の好みではない） ----
+  本文幅 312dp ÷ 14sp ＝ **1行 ≒ 22字**。
+  第1文「調薬の才能を…万能薬師のアルス。」32字 → 閉じるのに **2行**＝最低ライン。
+  第2文「しかし、無能と罵られ突如国を追放されてしまう。」23字 → 作品の転換が伝わるのに **3行**＝推奨ライン。
+  あらすじ全文は 8.8行（実機実測 h=916px）。
+
+  ---- なぜ案B（副アクションを横一列）なのか / 捨てた案とその理由 ----
+  8案を実測較正して比較した結果（比較ドラフトは裁定後に破棄・知識はここへ抽出）:
+  ・**採用＝案B**「主CTAは全幅のまま、副アクションを1行に横並べ」＝初期可視 **3.5行**。
+    3アクション版と4アクション版で**バー高が同一**になるのが決め手（片方だけ直る案は使えない）。
+  ・**却下＝案A**「目次・本棚をトップバーの『…』へ退避」＝行数は案Bと同じ 3.5行だが、
+    **導線を隠す方向そのものが不可**（2026-08-21 ユーザー裁定「せっかくの導線を隠すのは論外」）。
+    これは ADR 0011 の「維持する設計上の守り」②＝取込導線は公式ページを無加工・広告込みで
+    毎回ユーザー操作、と同じ筋。**この画面で「隠して省スペース化」の案は今後出さない。**
+  ・**却下＝案E**「溢れの合図（フェード＋全文リンク）だけ足す」＝旧裁定②の選択肢(c)の後継だが、
+    測ると**4アクション版では原理的に不成立**（本文が0行＝フェードさせる本文自体が存在しない）。
+    旧裁定(c)が3アクション版だけを前提にしていたことがここで確定した。
+  ・書影の厚み（案F 180dp帯・案G 2:3カード）は**別途裁定**＝本改訂では書影は 120dp 帯のまま不変。
+
+  ---- 未確定（裁定待ち） ----
+  固定バー下端の注記「なろう（syosetu.com）のページをそのまま表示します」は、
+  **どのアクションにかかる説明なのかが読み取れない**という指摘を受けて文言調整中
+  （比較＝discovery-detail-barnote-wording-compare.html）。本ファイルは現行実装の文字列を
+  そのまま置いてある（旧「外部サイト syosetu.com へ移動します」はコードとの乖離＝
+  実装はアプリ内 WebView で無加工表示＝ADR 0012 で、外部ブラウザへ「移動」しない。本改訂で是正）。
+  注記の実際の掛かり先は**「本棚に置く」以外のすべて**（取り込む／読む／目次はいずれも
+  なろうのページをアプリ内 WebView で無加工表示する。本棚に置くだけが端末内で完結する）。
+  ============================================================================
+-->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -16,371 +65,269 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px;font-family:var(--gothic)}
-  .cap{color:#5A5C57;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.6}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:1000px}
   .cap b{color:#2A2C28}
   .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
   .wrap{display:flex;flex-direction:column;align-items:center;gap:9px}
   .wrap .mode{font-size:12px;letter-spacing:.24em;color:#6A6C67}
-  .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
+  /* 端末枠は実機と同寸の 360x792dp（1px = 1dp）。初期可視行数を規定するため、
+     システムバー・トップバー・固定バーをすべて実寸の flex 要素として積む。 */
+  .phone{width:360px;height:792px;background:var(--base);border-radius:34px;overflow:hidden;position:relative;
     box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--gothic)}
   /*==/harness==*/
 
-  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:11px;color:var(--ink-soft);flex-shrink:0}
-  
-  /* Scrollable view */
-  .scroll{flex:1;overflow:auto;padding-bottom:210px} /* Extra space for fixed action bar（3アクション＋注記） */
+  /* システムバー（上39dp＋下24dp＝合算63dp が実測較正値） */
+  .sb{height:39px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:11px;color:var(--ink-soft)}
+  .navbar{height:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .navbar i{display:block;width:108px;height:3px;border-radius:2px;background:#C9C7C0}
 
-  /* 戻るボタン */
-  .back{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);padding:4px 24px 8px;cursor:pointer;flex-shrink:0}
-  .back svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5}
+  /* トップバー 64dp（M3 TopAppBar）。書影が流れて本文タイトルが上端へ抜けたら
+     作品名がここへフェードイン（普段は透明＝この静止モックでは不可視が正）。 */
+  .topbar{height:64px;flex-shrink:0;display:flex;align-items:center;padding:0 8px;gap:4px}
+  .topbar .ic{width:48px;height:48px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+  .topbar .ic svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6}
 
-  /* 書影風ヒーロー */
-  .cv{position:relative;aspect-ratio:2/3;border-radius:2px;overflow:hidden;display:flex;align-items:flex-end}
-  .cv .rule{position:absolute;left:24px;top:20px;bottom:20px;width:2px;background:var(--ai);opacity:.85}
-  .cv .ttl-in{padding:24px 24px 24px 32px;color:#base} /* text color uses white/base */
-  .cv .ttl-in b{font-family:var(--mincho);font-size:17px;font-weight:600;line-height:1.4;color:var(--base);text-shadow:0 1px 3px rgba(28,31,38,.4);display:block}
-  
-  /* 2026-07-31 ユーザー裁定: 190px → 120px。実機で「あらすじがスクロールしないと出てこない」＝
+  /* スクロール域＝固定バーに削られた残り＝これが初期ビューポート。
+     overflow-y:auto なので検分者は続きも送れるが、開いた瞬間の見えが規定対象。 */
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .scroll::-webkit-scrollbar{width:0}
+  /* margin の相殺で版面が縮むと較正が壊れるので、内側は flex 列にして相殺を止める。 */
+  .col{display:flex;flex-direction:column}
+  .col > *{flex-shrink:0}
+  .pad{padding:0 24px;display:flex;flex-direction:column}
+  .pad > *{flex-shrink:0}
+
+  /* 書影風ヒーロー（全幅の帯）。
+     2026-07-31 ユーザー裁定: 190px → 120px。実機で「あらすじがスクロールしないと出てこない」＝
      ファーストビューの押し下げが真因で、並び順（ヒーロー→作者→ステータス表→あらすじ）は変えず
-     ヒーローの高さだけを 80px 削る。aspect-ratio:auto で .cv の 2/3 を打ち消しているため
-     高さを変えても幅は連動しない（全幅の帯のまま）。Compose 側の正＝NovelDetailScreen.DetailHeroHeight。 */
-  .hero-cv {
-    width: 100%;
-    height: 120px;
-    border-radius: 0;
-    aspect-ratio: auto;
-    flex-shrink: 0;
-  }
+     ヒーローの高さだけを 80px 削った。Compose 側の正＝NovelDetailScreen.DetailHeroHeight。
+     ⚠️ 2026-08-17 の実機画素実測で**この 80px 削減だけでは足りなかった**ことが確定している——
+     押し下げの主因はヒーローではなく**固定バーが版面の 229/285dp を占めていた**ことで、
+     ヒーロー高はその一部にすぎなかった（4アクション版では削っても本文可視0行のまま）。
+     2026-08-21 に案B（副アクション横一列）でバー側を 173dp へ畳んで決着＝**ヒーローは 120px のまま不変**。 */
+  .cv{position:relative;display:flex;align-items:flex-end;overflow:hidden}
+  .cv .rule{position:absolute;left:24px;top:18px;bottom:18px;width:2px;background:var(--ai);opacity:.85}
+  .cv .ttl-in{padding:20px 24px 20px 32px}
+  .cv .ttl-in b{font-family:var(--mincho);font-size:17px;font-weight:600;line-height:1.4;color:var(--base);text-shadow:0 1px 3px rgba(28,31,38,.4);display:block}
+  .hero-cv{width:100%;height:120px;flex-shrink:0;background:linear-gradient(160deg,#3A4F63,#28323E)}
 
-  /* メタ情報 */
-  .detail-meta-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 16px;
-  }
-  .author {
-    font-size: 13.5px;
-    color: var(--ink);
-    font-weight: 500;
-  }
-  .genre-label {
-    font-size: 11px;
-    color: var(--seiji);
-    border: 1px solid var(--seiji);
-    padding: 4px 8px;
-    border-radius: 2px;
-    font-weight: 500;
-  }
+  /* メタ情報（作者を左端・ジャンルを右端） */
+  .detail-meta-top{display:flex;justify-content:space-between;align-items:center;margin-top:16px;height:36px}
+  .author{font-size:12.5px;color:var(--ink);font-weight:500;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .genre-label{font-size:11.5px;color:var(--seiji);border:1px solid var(--seiji);padding:4px 8px;border-radius:2px;font-weight:500;white-space:nowrap;flex-shrink:0}
 
-  /* ステータス表 */
-  .status-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    border-top: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
-    margin-top: 16px;
-  }
-  .status-item {
-    padding: 12px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .status-item:nth-child(odd) {
-    border-right: 1px solid var(--line);
-    padding-right: 16px;
-  }
-  .status-item:nth-child(even) {
-    padding-left: 16px;
-  }
-  .status-item:nth-child(1), .status-item:nth-child(2) {
-    border-bottom: 1px solid var(--line);
-  }
-  .status-item .lbl {
-    font-size: 10px;
-    color: var(--ink-soft);
-    letter-spacing: .06em;
-  }
-  .status-item .val {
-    font-size: 12.5px;
-    color: var(--ink);
-    font-weight: 500;
-  }
-  .status-item .val small {
-    font-size: 11px;
-    color: var(--ink-soft);
-  }
+  /* ステータス表（2×2・外郭ヘアライン＋中央縦罫）。
+     行高は golden 実測の「罫を含まない中身の高さ」＝上段84dp（読了目安が2行に折れる）・下段61dp。
+     既定の border-box のままだと下段の上罫が61dpの内側に食い込み、表が1dp縮んで版面全体がずれる。 */
+  .status-grid{border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:16px;display:flex;flex-direction:column}
+  .status-row{display:flex;box-sizing:content-box}
+  .status-row + .status-row{border-top:1px solid var(--line)}
+  .status-item{flex:1;min-width:0;padding:12px 0;display:flex;flex-direction:column;gap:4px}
+  .status-item:first-child{border-right:1px solid var(--line);padding-right:16px}
+  .status-item:last-child{padding-left:16px}
+  .status-item .lbl{font-size:10.5px;color:var(--ink-soft);letter-spacing:.06em}
+  .status-item .val{font-size:13px;color:var(--ink);font-weight:500;line-height:1.45}
+  .status-item .val small{font-size:11.5px;color:var(--ink-soft)}
 
-  /* セクション */
-  .sec{font-size:10.5px;letter-spacing:.28em;color:var(--ink-soft);margin:24px 0 12px}
+  /* セクション見出し（行箱28dp＝実機実測 h=112px/density4。margin:24px 0 12px） */
+  .sec{font-size:10.5px;letter-spacing:.28em;color:var(--ink-soft);font-weight:600;height:28px;line-height:28px;margin-top:24px}
+  .sec + *{margin-top:12px}
 
-  /* あらすじ */
-  .summary-p {
-    font-family: var(--mincho);
-    font-size: 14px;
-    line-height: 1.9;
-    color: var(--ink);
-    text-align: justify;
-  }
+  /* あらすじ本文（14sp / lineHeight 26sp＝実装値そのまま。行数制限は掛けない） */
+  .summary-p{font-family:var(--mincho);font-size:14px;line-height:26px;color:var(--ink);text-align:justify}
 
-  /* キーワード */
-  .kw-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .kw-chip {
-    font-size: 11px;
-    color: var(--seiji);
-    border: 1px solid var(--seiji);
-    border-radius: 2px;
-    padding: 4px 8px;
-    letter-spacing: .02em;
-  }
+  .kw-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .kw-chip{font-size:11px;color:var(--seiji);border:1px solid var(--seiji);border-radius:2px;padding:4px 8px;letter-spacing:.02em}
 
-  /* 評価表 */
-  .eval-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    border-top: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
-  }
-  .eval-item {
-    padding: 12px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .eval-item:nth-child(odd) {
-    border-right: 1px solid var(--line);
-    padding-right: 16px;
-  }
-  .eval-item:nth-child(even) {
-    padding-left: 16px;
-  }
-  .eval-item:nth-child(1), .eval-item:nth-child(2) {
-    border-bottom: 1px solid var(--line);
-  }
-  .eval-lbl {
-    font-size: 10px;
-    color: var(--ink-soft);
-  }
-  .eval-val {
-    font-size: 13.5px;
-    font-family: var(--mincho);
-    color: var(--ink);
-    font-weight: 600;
-  }
+  .eval-grid{border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column}
+  .eval-row{display:flex;box-sizing:content-box}
+  .eval-row + .eval-row{border-top:1px solid var(--line)}
+  .eval-item{flex:1;min-width:0;padding:12px 0;display:flex;flex-direction:column;gap:4px}
+  .eval-item:first-child{border-right:1px solid var(--line);padding-right:16px}
+  .eval-item:last-child{padding-left:16px}
+  .eval-lbl{font-size:10px;color:var(--ink-soft)}
+  .eval-val{font-size:13.5px;font-family:var(--mincho);color:var(--ink);font-weight:600}
 
-  /* 更新日 */
-  .last-updated {
-    font-size: 11px;
-    color: var(--ink-soft);
-    margin-top: 16px;
-    text-align: right;
-  }
+  .last-updated{font-size:11px;color:var(--ink-soft);margin-top:16px;margin-bottom:24px;text-align:right}
 
-  /* 下端固定バー */
-  .fixed-bar {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: var(--base);
-    border-top: 1px solid var(--line);
-    padding: 12px 24px 24px;
-    z-index: 5;
-    display: flex;
-    flex-direction: column;
-  }
-  .btn-primary {
-    width: 100%;
-    padding: 12px;
-    background: var(--ai);
-    color: var(--base);
-    border: none;
-    border-radius: 2px;
-    font-family: var(--gothic);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    /* アイコン＋ラベルを中央に並べる（Compose 側は open-in-new/download/bookmark アイコン付き。実態に合わせ収載） */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    letter-spacing: 0.1em;
-  }
-  .btn-ghost {
-    width: 100%;
-    padding: 12px;
-    background: transparent;
-    color: var(--ink-soft);
-    border: 1px solid var(--line);
-    border-radius: 2px;
-    font-family: var(--gothic);
-    font-size: 12px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    letter-spacing: 0.1em;
-  }
-  /* 既読・未取込（案A・完全一貫）の最下位リンク＝枠も塗りも持たないテキストリンク（--ink-soft）。
-     続きから読む（ghost）より軽い、最も静かな階層。目次（作品トップ）への逃げ道。 */
-  .btn-textlink {
-    width: 100%;
-    padding: 8px 12px;
-    background: transparent;
-    border: none;
-    color: var(--ink-soft);
-    font-family: var(--gothic);
-    font-size: 12px;
-    letter-spacing: 0.1em;
-    text-align: center;
-    text-decoration: none;
-    display: block;
-    cursor: pointer;
-  }
-  /* 固定バーのボタンアイコン（.back svg と同じ stroke 流儀・currentColor で文字色に追従） */
-  .fixed-bar button svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.5; flex-shrink: 0; }
-  /* 外部遷移の注記（実装済みの UX 監査対応をモックへ追認） */
-  .bar-note {
-    font-size: 10.5px;
-    color: var(--ink-soft);
-    text-align: center;
-    margin-top: 8px;
-  }
+  /* ============ 下端固定バー（案B・2026-08-21 裁定） ============
+     寸法は golden 実測: 上罫1dp ＋ 上下padding 16dp ＋ タップ標的スロット48dp（ボタン可視は40dpで上下中央）
+     ＋ スロット間8dp ＋ 注記塊36dp。案Bの総高 = 1+16+48+8+48+36+16 = 173dp。
+     3アクション版（未取込・未読）と4アクション版（未取込・既読）で**総高が変わらない**のが案Bの要点
+     ＝どちらの状態でもあらすじの初期可視が同じ 3.5行になる（旧構成は 229dp / 285dp と 56dp 差があり、
+     4アクション版だけ本文が0行に落ちていた）。 */
+  .fixed-bar{flex-shrink:0;background:var(--base);border-top:1px solid var(--line);padding:16px 24px;display:flex;flex-direction:column}
+  .slot{height:48px;display:flex;align-items:center;flex-shrink:0}
+  .slot + .slot{margin-top:8px}
+  .slot.row{gap:8px}
+  .slot.row > *{flex:1;min-width:0}
+  .btn-primary{height:40px;width:100%;background:var(--ai);color:var(--base);border:none;border-radius:2px;
+    font-family:var(--gothic);font-size:12.5px;font-weight:600;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:.1em;white-space:nowrap}
+  /* 副アクションは枠線のゴースト。案Bでは1行に横並べ＝**隠さずに畳む**（オーバーフローへの退避は
+     「せっかくの導線を隠すのは論外」で却下済み）。 */
+  .btn-ghost{height:40px;width:100%;background:transparent;color:var(--ink-soft);border:1px solid var(--line);border-radius:2px;
+    font-family:var(--gothic);font-size:12.5px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:.1em;white-space:nowrap}
+  .btn-ghost.mini{font-size:11.5px;letter-spacing:.06em;gap:6px}
+  .fixed-bar button svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5;flex-shrink:0}
+  /* 外部遷移の注記。⚠️ 文言は裁定中（掛かり先が読み取れない指摘）＝
+     discovery-detail-barnote-wording-compare.html を参照。ここは現行実装の文字列。 */
+  /* 高さは固定せず行数なりに伸ばす（8dpの上アキ＋1行28dpの行箱＝現行文言なら36dp）。
+     固定値で組むと、文言を長くしたときにモックだけが黙って収まってしまい、
+     実機で起きる押し下げがモック検分をすり抜ける——今回の事故と同じ型を作らないため。 */
+  .bar-note{padding-top:8px;line-height:28px;text-align:center;
+    font-size:10.5px;color:var(--ink-soft);flex-shrink:0}
 </style>
 </head>
 <body>
-  <p class="cap"><b>D. 作品詳細</b> ／ 上部にヘッダー化された書影風デザイン、ステータス＆評価の２列ヘアライン表、そして浮き上がらない下部固定アクションエリア。<br>固定バー＝3アクション（藍プライマリ「縦書きPDFを取り込む」＝手元に本を置く＝アプリの主目的を最優先／ghost「なろうで読む」＋注記／ghost「本棚に置く」＝(b) Web由来カードの入口・置いた後は「本棚から外す」）。※未読・未取込時の主従。取込済みなら下2つの ghost は消え、主CTAは「なろうで読む」になる。<br><b>既読・未取込（右パネル・案A 完全一貫／2026-07-16 裁定）</b>＝一度ブラウザで読んでも取込を藍の主CTAに保ち（状態依存で主従を入れ替えない）、「続きから読む」は ghost・「最初から（目次）」は最軽量のテキストリンクへ退避する。</p>
-  <div class="stage">
-    <!-- 作品詳細 -->
-    <div class="wrap"><span class="mode">作品詳細</span>
-    <div class="phone" role="img" aria-label="作品詳細">
-      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-      <div class="back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>作品一覧</div>
-      
-      <div class="scroll">
-        <!-- 書影風ヒーロー -->
-        <div class="cv hero-cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)">
-          <div class="rule"></div>
-          <div class="ttl-in">
-            <b>追放された万能薬師、辺境でスローライフを始める</b>
-          </div>
-        </div>
+  <p class="cap"><b>D. 作品詳細</b> ／ ヘッダー化された書影風の帯、ステータス＆評価の2列ヘアライン表、浮き上がらない下部固定アクションエリア。<br>
+  <b>固定バー＝案B（2026-08-21 裁定）</b>: 藍プライマリ「縦書きPDFを取り込む」を全幅で最上段に固定し（＝手元に本を置く＝アプリの主目的。案A「完全一貫」＝未取込である限り既読でも降格させない）、
+  <b>副アクションは1行に横並べ</b>する。<b>隠さずに畳む</b>のが要点で、オーバーフローメニューへの退避は「せっかくの導線を隠すのは論外」として却下済み。<br>
+  <b>この改訂で初期ビューポートを規定に含めた</b>——端末枠は実機と同寸の 360×792dp（1px=1dp）で、固定バーは実寸の要素。
+  <b>あらすじの初期可視は3アクション版・4アクション版とも 3.5行</b>（最低2行＝第1文が閉じる／推奨3行＝第2文の「追放」まで届く、を満たす）。
+  改訂前は 1.385行 / <b>0行</b>だった。<br>
+  取込済みなら取込とその周辺は冗長で消え、主CTAは「なろうで読む」へ昇格する（＝副アクション行は「本棚に置く」だけになる）。</p>
 
-        <div style="padding: 0 24px;">
-          <!-- 作者とジャンル -->
+  <div class="stage">
+
+    <!-- ============ 3アクション版（未取込・未読） ============ -->
+    <div class="wrap"><span class="mode">未取込・未読（3アクション）</span>
+    <div class="phone" role="img" aria-label="作品詳細 未取込・未読">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+
+      <div class="scroll"><div class="col">
+        <div class="cv hero-cv">
+          <div class="rule"></div>
+          <div class="ttl-in"><b>追放された万能薬師、辺境でスローライフを始める</b></div>
+        </div>
+        <div class="pad">
           <div class="detail-meta-top">
             <span class="author">霧島あおい</span>
             <span class="genre-label">ハイファンタジー</span>
           </div>
 
-          <!-- ステータス 2列表 -->
           <div class="status-grid">
-            <div class="status-item">
-              <span class="lbl">状態</span>
-              <span class="val">連載中・127話</span>
+            <div class="status-row" style="height:84px">
+              <div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>
+              <div class="status-item"><span class="lbl">読了目安</span><span class="val">約8時間<br><small>（24.1万字）</small></span></div>
             </div>
-            <div class="status-item">
-              <span class="lbl">読了目安</span>
-              <span class="val">約8時間 <small>(24.1万字)</small></span>
-            </div>
-            <div class="status-item">
-              <span class="lbl">会話率</span>
-              <span class="val">42%</span>
-            </div>
-            <div class="status-item">
-              <span class="lbl">挿絵</span>
-              <span class="val">3枚</span>
+            <div class="status-row" style="height:61px">
+              <div class="status-item"><span class="lbl">会話率</span><span class="val">42%</span></div>
+              <div class="status-item"><span class="lbl">挿絵</span><span class="val">3枚</span></div>
             </div>
           </div>
 
-          <!-- あらすじ -->
           <div class="sec">あらすじ</div>
-          <p class="summary-p">
-            調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。そこで出会った人々との穏やかな日常を描くファンタジー。
-          </p>
+          <p class="summary-p">調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。宮廷が彼を手放したことの意味に、王都が気づくのはまだ先の話。</p>
 
-          <!-- キーワード -->
-          <div class="sec" style="margin-top: 24px;">キーワード</div>
+          <div class="sec">キーワード</div>
           <div class="kw-chips">
-            <span class="kw-chip">異世界転生</span>
-            <span class="kw-chip">ハーレム</span>
-            <span class="kw-chip">チート</span>
-            <span class="kw-chip">成り上がり</span>
-            <span class="kw-chip">スローライフ</span>
+            <span class="kw-chip">異世界転生</span><span class="kw-chip">ハーレム</span><span class="kw-chip">チート</span><span class="kw-chip">成り上がり</span><span class="kw-chip">スローライフ</span>
           </div>
 
-          <!-- 評価表 -->
-          <div class="sec" style="margin-top: 24px;">評価</div>
+          <div class="sec">評価</div>
           <div class="eval-grid">
-            <div class="eval-item">
-              <span class="eval-lbl">総合評価</span>
-              <span class="eval-val">123,456 pt</span>
+            <div class="eval-row">
+              <div class="eval-item"><span class="eval-lbl">総合評価</span><span class="eval-val">123,456 pt</span></div>
+              <div class="eval-item"><span class="eval-lbl">ブックマーク</span><span class="eval-val">45,678 件</span></div>
             </div>
-            <div class="eval-item">
-              <span class="eval-lbl">ブックマーク</span>
-              <span class="eval-val">45,678 件</span>
-            </div>
-            <div class="eval-item">
-              <span class="eval-lbl">評価者数</span>
-              <span class="eval-val">8,901 人</span>
-            </div>
-            <div class="eval-item">
-              <span class="eval-lbl">週間ポイント</span>
-              <span class="eval-val">12,345 pt</span>
+            <div class="eval-row">
+              <div class="eval-item"><span class="eval-lbl">評価者数</span><span class="eval-val">8,901 人</span></div>
+              <div class="eval-item"><span class="eval-lbl">週間ポイント</span><span class="eval-val">12,345 pt</span></div>
             </div>
           </div>
 
           <div class="last-updated">2026年7月6日 更新</div>
         </div>
+      </div></div>
+
+      <!-- 案B: 主CTA全幅 ＋ 副アクション横一列（未取込・未読は「なろうで読む」「本棚に置く」の2つ） -->
+      <div class="fixed-bar">
+        <div class="slot">
+          <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>縦書きPDFを取り込む</button>
+        </div>
+        <div class="slot row">
+          <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>なろうで読む</button>
+          <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h5"/><line x1="12" y1="7" x2="18" y2="7"/><line x1="15" y1="4" x2="15" y2="10"/></svg>本棚に置く</button>
+        </div>
+        <div class="bar-note">なろう（syosetu.com）のページをそのまま表示します</div>
       </div>
 
-      <!-- 固定フッター（未読・未取込作品の状態＝主CTAは「縦書きPDFを取り込む」＝主目的を最優先。
-           取り込み済みなら PDF取り込みと「本棚に置く」は冗長で消え、「なろうで読む」が主CTA（藍）へ昇格／
-           「本棚に置く」は棚に置いた後「本棚から外す」へトグル） -->
-      <div class="fixed-bar">
-        <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>縦書きPDFを取り込む</button>
-        <button class="btn-ghost" style="margin-top: 8px;"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>なろうで読む</button>
-        <div class="bar-note">外部サイト syosetu.com へ移動します</div>
-        <button class="btn-ghost" style="margin-top: 8px;"><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h5"/><line x1="12" y1="7" x2="18" y2="7"/><line x1="15" y1="4" x2="15" y2="10"/></svg>本棚に置く</button>
-      </div>
+      <div class="navbar"><i></i></div>
     </div></div>
 
-    <!-- 作品詳細（既読・未取込・案A 完全一貫）＝一度読んでも取込を藍の主CTAに保つ -->
-    <div class="wrap"><span class="mode">既読・未取込（案A）</span>
-    <div class="phone" role="img" aria-label="作品詳細 既読・未取込 案A">
+    <!-- ============ 4アクション版（未取込・既読＝lastReadEpisode>0） ============ -->
+    <div class="wrap"><span class="mode">未取込・既読（4アクション）</span>
+    <div class="phone" role="img" aria-label="作品詳細 未取込・既読">
       <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-      <div class="back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>作品一覧</div>
-      <div class="scroll">
-        <div class="cv hero-cv" style="background:linear-gradient(160deg,#3A4F63,#28323E)">
+      <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+
+      <div class="scroll"><div class="col">
+        <div class="cv hero-cv">
           <div class="rule"></div>
           <div class="ttl-in"><b>追放された万能薬師、辺境でスローライフを始める</b></div>
         </div>
-        <div style="padding: 0 24px;">
+        <div class="pad">
           <div class="detail-meta-top">
             <span class="author">霧島あおい ／ 第12話まで読了</span>
             <span class="genre-label">ハイファンタジー</span>
           </div>
+
+          <div class="status-grid">
+            <div class="status-row" style="height:84px">
+              <div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>
+              <div class="status-item"><span class="lbl">読了目安</span><span class="val">約8時間<br><small>（24.1万字）</small></span></div>
+            </div>
+            <div class="status-row" style="height:61px">
+              <div class="status-item"><span class="lbl">会話率</span><span class="val">42%</span></div>
+              <div class="status-item"><span class="lbl">挿絵</span><span class="val">3枚</span></div>
+            </div>
+          </div>
+
           <div class="sec">あらすじ</div>
-          <p class="summary-p">調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。新天地を求め、世界の最果ての辺境でのんびりとしたスローライフを始める。</p>
+          <p class="summary-p">調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。宮廷が彼を手放したことの意味に、王都が気づくのはまだ先の話。</p>
+
+          <div class="sec">キーワード</div>
+          <div class="kw-chips">
+            <span class="kw-chip">異世界転生</span><span class="kw-chip">ハーレム</span><span class="kw-chip">チート</span><span class="kw-chip">成り上がり</span><span class="kw-chip">スローライフ</span>
+          </div>
+
+          <div class="sec">評価</div>
+          <div class="eval-grid">
+            <div class="eval-row">
+              <div class="eval-item"><span class="eval-lbl">総合評価</span><span class="eval-val">123,456 pt</span></div>
+              <div class="eval-item"><span class="eval-lbl">ブックマーク</span><span class="eval-val">45,678 件</span></div>
+            </div>
+            <div class="eval-row">
+              <div class="eval-item"><span class="eval-lbl">評価者数</span><span class="eval-val">8,901 人</span></div>
+              <div class="eval-item"><span class="eval-lbl">週間ポイント</span><span class="eval-val">12,345 pt</span></div>
+            </div>
+          </div>
+
+          <div class="last-updated">2026年7月6日 更新</div>
         </div>
-      </div>
-      <!-- 案A: 未取込である限り「縦書きPDFを取り込む」を藍の主CTA最上段に固定（既読でも降格させない）。
-           続きから読むは ghost・「最初から（目次）」は最軽量のテキストリンク。本棚に置くは末尾 ghost。 -->
+      </div></div>
+
+      <!-- 案B: 副アクションが3つに増えても**行は増えない**（横一列のまま）＝バー総高は3アクション版と同じ173dp。
+           旧構成はここで「最初から読み直す（目次）」が1段まるごと増え、バーが 229→285dp に膨らんで
+           あらすじが本文0行まで押し出されていた。 -->
       <div class="fixed-bar">
-        <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>縦書きPDFを取り込む</button>
-        <button class="btn-ghost" style="margin-top: 8px;"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>第13話のはじめから読む</button>
-        <a class="btn-textlink">最初から読み直す（目次）</a>
-        <div class="bar-note">外部サイト syosetu.com へ移動します</div>
-        <button class="btn-ghost" style="margin-top: 8px;"><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h5"/><line x1="12" y1="7" x2="18" y2="7"/><line x1="15" y1="4" x2="15" y2="10"/></svg>本棚に置く</button>
+        <div class="slot">
+          <button class="btn-primary"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>縦書きPDFを取り込む</button>
+        </div>
+        <div class="slot row">
+          <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>第13話から</button>
+          <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>目次</button>
+          <button class="btn-ghost mini"><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h5"/><line x1="12" y1="7" x2="18" y2="7"/><line x1="15" y1="4" x2="15" y2="10"/></svg>本棚</button>
+        </div>
+        <div class="bar-note">なろう（syosetu.com）のページをそのまま表示します</div>
       </div>
+
+      <div class="navbar"><i></i></div>
     </div></div>
+
   </div>
 </body>
 </html>
