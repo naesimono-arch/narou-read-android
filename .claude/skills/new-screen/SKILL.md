@@ -44,6 +44,16 @@ description: 画面・シート・ダイアログを新設するときの定型�
 
 - [ ] 状態と表示は呼び出し元 route が所有（スキン面へ配らない）
 - [ ] シート枠と中身を分け、中身を `internal fun XxxContent` に割る（テスト可能にする）
+- [ ] **中身の Column に `verticalScroll` を付ける**（例外なし）。無いと fontScale や可変長テキストで
+      操作要素が画面外へ押し出され**到達手段が消える**のに、非スクロール面の溢れは画素に痕跡が出ず
+      golden でも検出できない＝機械走査で永久に捕まらない（`docs/knowledge/sheet-without-verticalscroll-hides-actions.md`。
+      3面すべてが同じ型で踏んでいる）。`heightIn(min = …)` はこの型の対処にならない
+- [ ] **初期の展開位置（`rememberModalBottomSheetState(skipPartiallyExpanded = …)`）を明示的に決める**。
+      既定 false は中身が高いと `PartiallyExpanded` で起動する＝**主役の操作要素が折り目の下に落ちる**
+      （表示設定シートは fontScale 1.0 でも文字サイズのつまみが 7px しか覗いていなかった＝2026-08-20 に
+      全高起動へ裁定）。**何を初手で見せるかは意匠の裁定事項**であって実装の裁量ではない＝正本モックの
+      シート高に従う。⚠️ 全高を嫌って**高さ上限を `Modifier` で掛けてはいけない**——`draggableAnchors` が
+      読む constraints ごと縮み、シートが上端に張り付く（申し送り＝`SearchConditionSheet.kt`）
 
 ### タブ層の面 / スキン面
 

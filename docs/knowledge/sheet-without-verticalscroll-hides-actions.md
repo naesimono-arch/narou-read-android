@@ -17,16 +17,16 @@
 
 | 面 | 状態 |
 |---|---|
-| 表示設定シート `ReadingSettingsSheetContent`（根因②） | **是正済み**＝`ReadingSettingsSheet.kt:251-256` に理由コメントつきで `verticalScroll` |
+| 表示設定シート `ReadingSettingsSheetContent`（根因②） | **是正済み**＝`ReadingSettingsSheet.kt` の中身 Column に理由コメントつきで `verticalScroll`（所在は `rg -n verticalScroll` で引く。行番号を書かないのは、シート枠側の変更〔2026-08-20 の `skipPartiallyExpanded` 追加など〕のたびに数字だけが腐るため） |
 | `NovelReaderAlertDialog` | **是正済み**（同じ型） |
-| `NcodeLinkSheet`（なろう紐付け） | **是正済み**＝`NcodeLinkSheet.kt:169`（2026-08-17 判明・同日に是正・下記） |
+| `NcodeLinkSheet`（なろう紐付け） | **是正済み**＝中身 Column に `verticalScroll`（2026-08-17 判明・同日に是正・下記） |
 
 ### NcodeLinkSheet が 2.0 でボタンに到達できなかった（是正済み）
 
 中身の Column に `verticalScroll` が無く、長い書名で補足文が5行に膨らむと
 **手動 N コード欄・「紐付け」・「再試行」が画面外へ押し出されて到達手段が無い**
 （候補リストだけは内側 LazyColumn で送れるので、**動いているように見えてしまう**）。
-監査 根因④の `heightIn(min = 120.dp)`（`NcodeLinkSheet.kt:277`）は「**縮んで欠ける**」方だけを直しており、
+監査 根因④の `heightIn(min = 120.dp)`（`NcodeLinkSheet.kt` の候補リスト）は「**縮んで欠ける**」方だけを直しており、
 「**伸びて押し出す**」方は素通しだった＝`heightIn(min=…)` はこの型の対処にならない。
 
 是正の型は上表の既存2例と同じ＝**意匠裁定は不要**。
