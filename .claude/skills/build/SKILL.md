@@ -90,6 +90,9 @@ gw :app:assembleRelease           # release の R8 収縮が通るか（鍵不�
 python3 tools/check_design_tokens.py
 ```
 
+- **worktree 作業は冒頭で `gw :app:lintDebug` を回す**（基準＝**0 errors**・warnings は非ブロックの参考値）。
+  ローカルの自動コミットゲートは現存せず CI が毎 push で担保するので、役目は**push 前に赤を見つける**前倒し検知。
+
 - **ktlint の残数を数えるときは必ず `--continue` を付ける**——無しだと最初に落ちたソースセットで止まり、
   他ソースセットの report が生成されないまま「あと N 件」と読み違える（`ci.yml` のコメントが一次情報＝実際に踏んだ）。
 

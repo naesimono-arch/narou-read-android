@@ -97,4 +97,5 @@ P3（パイプライン接続）〜P5（発見層の脱なろう）は着地済�
   blockedHosts の該当行削除＋アダプタ追加（G3 通常経路）だけ＝実装は塞いでいない。
 - **技術検討資産は破棄しない**（ユーザー指示「技術的なそれは残しておこう」）: per-host バックオフ/レート制御は
   実装済み（ScrapeHttpClient・サイト非依存）・アルファポリスの連続DL制限対策要件（Crawl-delay 厚め＋制限検知
-  バックオフ）と Pixiv の WebView Cookie 間借り設計論点は handover「汎用DL基盤」節の注1/注2 として温存。
+  バックオフ）と Pixiv の WebView Cookie 間借り設計論点は `docs/reference/08-web-novel-site-survey.md`「着手時に使う温存メモ」の注1/注2 として温存
+   （2026-08-20 に handover から移設＝節名は「注1/注2」のまま）。

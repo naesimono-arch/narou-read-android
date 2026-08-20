@@ -8,7 +8,7 @@
 
 | 画面 / 層 | 現行正本 | 注記 |
 |---|---|---|
-| 本棚（画面構造） | `discovery/bookshelf-fusion-D.html` | ⚠️ 発見帯の完全退避のみ未反映（handover 残1 確定待ち・意図的据え置き） |
+| 本棚（画面構造） | `discovery/bookshelf-fusion-D.html` | ✅ 発見帯の未反映は **obsolete**（全スキンから帯を撤去済み＝描き直す対象が消えた・2026-08-20） |
 | 本棚（書影＝栞・最終形） | `bookshelf-shiori-grid-D.html` | 先端174種・決定論選択。**見た目の最新はこちら** |
 | 本棚（グリッド⇄リスト整合） | `bookshelf-shiori-consistency-D.html` | 1冊=1色相の共有規約 |
 | 読書 | `reading-D.html` | モーションは ADR 0005 §B＝モック対象外 |
