@@ -39,7 +39,13 @@
   .behind{position:absolute;inset:0;padding:60px 24px;font-family:var(--mincho);font-size:16px;
     line-height:2.4;color:#C9C6BF;text-indent:1em;overflow:hidden}
   .scrim{position:absolute;inset:0;background:rgba(20,23,28,.28)}
-  /* ボトムシート */
+  /* ボトムシート。
+     ★初期展開位置の正本（2026-08-20 実機裁定）: 開いた瞬間にこの全高が出る＝中間の部分展開で止めない。
+     実装は ModalBottomSheet 既定（skipPartiallyExpanded=false）で開いていたため、fontScale 1.0 でも
+     主役のスライダー3本が画面外（文字サイズのつまみが 7px 覗くだけ＝実機実測）＝主役に届くまでドラッグが要った。
+     本モックは初版から一貫して〈テーマ→本文の向き→文字サイズ→行間→本文余白〉が一望できる高さで描いており、
+     「どこまで上げるか」の答えは"内容の全高"＝この絵そのもの（372×780 の枠でおよそ 3/4 が目安）。
+     上限%は規定しない: 内容が窓を超える場合（大 fontScale）だけスクロールで吸収する。 */
   .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--bg);border-radius:20px 20px 0 0;
     padding:12px 24px 32px;box-shadow:0 -10px 30px rgba(0,0,0,.18)}
   .grab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 16px}
@@ -75,7 +81,7 @@
 </style>
 </head>
 <body>
-  <p class="cap"><b>D. 和モダン・余白 — 表示設定</b> ／ 読書画面から立ち上がるボトムシート。テーマ4択（システムに従う＋3テーマ・選択＝藍塗り）／本文の向き（縦書き）／文字サイズ 14〜24sp／行間 2.3〜2.8em／本文余白 10〜40dp。明朝見出し・ゴシックラベル・ヘアライン体系を踏襲。<b>2026-08-05</b>: 実装への逆同期3点。<b>2026-08-06</b>: 説明の出し方は案C（節ラベル trailing に現在値・説明レス）で裁定＝説明1行（旧案A）を撤去し「本文の向き」へ現在値 trailing を追加、trailing 現在値の色は意味メタ --info へ。</p>
+  <p class="cap"><b>D. 和モダン・余白 — 表示設定</b> ／ 読書画面から立ち上がるボトムシート。テーマ4択（システムに従う＋3テーマ・選択＝藍塗り）／本文の向き（縦書き）／文字サイズ 14〜24sp／行間 2.3〜2.8em／本文余白 10〜40dp。明朝見出し・ゴシックラベル・ヘアライン体系を踏襲。<b>2026-08-05</b>: 実装への逆同期3点。<b>2026-08-06</b>: 説明の出し方は案C（節ラベル trailing に現在値・説明レス）で裁定＝説明1行（旧案A）を撤去し「本文の向き」へ現在値 trailing を追加、trailing 現在値の色は意味メタ --info へ。<b>2026-08-20</b>: このシートは<b>開いた瞬間にこの全高</b>で立ち上がる（部分展開で止めずスライダー3本まで見せる）＝初期展開位置の正本はこの絵。</p>
 
   <!-- ===== 説明の出し方: 裁定の記録（handover 最優先A「本文調整/トグルの説明を出す」）=====
        採用＝案C「情報行（現在値を右端に出す）」（2026-08-06 ユーザー裁定・説明レス）:

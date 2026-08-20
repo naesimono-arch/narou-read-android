@@ -46,6 +46,14 @@
   ・⑤ をこのファイルに置く理由: 差分の根拠が「欠落かどうか」＝本ファイルの主題であるため。削除確認そのものの
     正本は bookshelf-multiselect-D.html＝**あちらへの逆同期が未了**（欠落を含む場合の分岐を追記する要）。
 
+  ★2026-08-20 実機裁定（②の3ボタンを縦3段へ）:
+  ・症状＝実機で「場所から探す」だけが1段目に乗り、「自分で選ぶ」「やめる」が2段目で揃う〈1段＋2段〉の割れ。
+  ・真因＝実装が dismissButton スロットに Row{自分で選ぶ, やめる} と2ボタンを詰めており、M3 の
+    AlertDialogFlowRow からは幅544px の巨大要素1個に見える（確定336px と並べるとダイアログ内寸1088px 超で折り返す）。
+  ・裁定＝3つとも縦に積んで揃える（M3 も入り切らないときは縦積みが規約。割れ方の中途半端さが不快の正体で、
+    段数が状況で変わることが問題＝fontScale を上げても段構成が変わらないのが採用理由）。
+  ・翻訳の含意＝3ボタン分岐では2ボタンを1スロットへ詰めず、3つを1つの縦列として渡す（下の .dlg-acts.stack が正本）。
+
   K 語彙への翻訳判断（案C 描き直しと同基準＝採用時にどちらの案でも共通部品にできる）:
   ・欠落バッジ＝書影左下のヘアラインチップ・状態行とも ink-soft＝K の「一画面一強調（藍は CTA/選択中のみ）」を守る
     （藍の強調はダイアログの実行ボタンに1点集中）。
@@ -183,8 +191,13 @@
   .bk.sel .chk svg{opacity:1}
   .bk.sel .cv{box-shadow:inset 0 0 0 2px var(--ai)}
   .bk.sel .cv::after{content:"";position:absolute;inset:0;background:rgba(28,61,90,.14);z-index:2}
-  /* 3ボタン（主＋副＋やめる）になる分岐があるため折り返しを許す＝Compose の AlertDialogFlowRow と同挙動 */
-  .dlg-acts{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px}
+  /* 2ボタン（主＋やめる）は1行・右詰め＝M3 既定のまま */
+  .dlg-acts{display:flex;justify-content:flex-end;align-items:center;gap:8px}
+  /* 3ボタン（主＋副＋やめる）は折り返しに任せず常に縦3段・右揃え（2026-08-20 実機裁定・機序は冒頭メモ）。
+     なぜ flex-wrap をやめたか: 折り返し任せだと〈1段＋2段〉に割れ、端末幅・fontScale・文言長で段構成が
+     変わる（＝どう見えるかをモックが決められない）。3つ積む形なら条件が変わっても崩れない。
+     段間 12px は M3 AlertDialog の縦積みアキ（ButtonsCrossAxisSpacing=12dp）に合わせた較正値。 */
+  .dlg-acts.stack{flex-direction:column;align-items:flex-end;gap:12px}
   .btn-cancel{border:none;background:transparent;color:var(--ink);font-size:14px;font-weight:600;padding:12px 18px;border-radius:2px;cursor:pointer}
   .btn-go{border:none;background:transparent;color:var(--ai);font-size:14px;font-weight:700;padding:12px 18px;border-radius:2px;cursor:pointer}
 </style>
@@ -307,10 +320,12 @@
         <h2>PDFのある場所から探しますか？</h2>
         <p>フォルダを教えていただければ、<span class="warn">中身を照合して自動で見つけます</span>。読書位置としおりは残ります。</p>
         <div class="src"><div class="lbl">取込元の PDF（復元できたときだけ表示）</div><div class="val">黒の魔王と契約した俺、気づけば最強の従者になっていた.pdf</div></div>
-        <div class="dlg-acts"><button class="btn-cancel">やめる</button><button class="btn-cancel">自分で選ぶ</button><button class="btn-go">場所から探す</button></div>
+        <!-- 段順は〈主→副→取消〉＝M3 の縦積み規約（確定が最上段）。実機で観測された上下関係と同じ順＝
+             今回の裁定は「揃える」だけで、押し間違いを誘う並びの入れ替えは伴わない。 -->
+        <div class="dlg-acts stack"><button class="btn-go">場所から探す</button><button class="btn-cancel">自分で選ぶ</button><button class="btn-cancel">やめる</button></div>
       </div>
     </div>
-    <p class="desc">主ボタン＝フォルダ走査（内容の指紋で照合）。場所を記憶済みなら選択ダイアログは出ずそのまま走査へ。手がかり行は provider がファイル名を残したときだけ出す（MediaStore 由来では出ない）。副ボタンで従来のピッカーも残す。</p></div>
+    <p class="desc">主ボタン＝フォルダ走査（内容の指紋で照合）。場所を記憶済みなら選択ダイアログは出ずそのまま走査へ。手がかり行は provider がファイル名を残したときだけ出す（MediaStore 由来では出ない）。副ボタンで従来のピッカーも残す。ボタンは3つとも<b>縦3段・右揃え</b>（2026-08-20 裁定＝横並びの折り返しに任せない）。</p></div>
 
     <!-- ③ 内容の記録なし（v11 前の旧取込＝照合できない） -->
     <div class="wrap"><span class="mode">③ 指紋なし（v11 前＝1冊ずつ選ぶ）</span>
