@@ -38,7 +38,11 @@ class SearchDraftTest {
     fun `toQuery - 検索語のtrim・空→null・フィルタの引き渡しが正しいこと`() {
         val draft = SearchDraft(
             word = " 薬師 ",
+            // なぜ範囲を明示するか: この番人が守るのは「toQuery が各フィールドを素通しすること」で、
+            // true も false も引き渡されることが要件（既定値がどちらかは別の番人＝`default -` が持つ）。
+            // 既定を4項目 ON へ変えた 2026-08-21 以降、明示しないと inStory も true になり素通しの片側を測れない。
             inTitle = true,
+            inStory = false,
             filters = SearchFilters(
                 types = setOf(NarouNovelType.KANKETSU),
                 lastups = setOf(NarouLastup.THISMONTH),
@@ -71,15 +75,38 @@ class SearchDraftTest {
     }
 
     @Test
-    fun `default - SearchDraftのデフォルト値でinTitleがtrueでありtoQueryに引き継がれること`() {
+    fun `default - 既定の検索範囲は4項目すべて有効でtoQueryにも引き継がれること`() {
+        // なぜ4項目とも見るか: 検索欄の placeholder が「作品名・作者・キーワード」と約束しているのに
+        // 既定が inTitle のみだった＝作者名を入れると 0 件で「壊れて見える」欠陥の番人（2026-08-21 裁定）。
+        // 「タイトルだけ true」に戻ると赤くなる形にして、約束と既定値の食い違いを再発させない。
         val draft = SearchDraft()
         assertTrue(draft.inTitle)
-        assertTrue(draft.toQuery().inTitle)
+        assertTrue(draft.inWriter)
+        assertTrue(draft.inKeyword)
+        assertTrue(draft.inStory)
+
+        val query = draft.toQuery()
+        assertTrue(query.inTitle)
+        assertTrue(query.inWriter)
+        assertTrue(query.inKeyword)
+        assertTrue(query.inStory)
+    }
+
+    @Test
+    fun `default - 既定のまま作者名で検索すると作者名検索が有効なクエリが飛ぶこと`() {
+        // 欠陥の再現形そのもの: 初見の人は範囲チップを触らず、placeholder の案内どおり作者名だけ打つ。
+        // そのとき wname が送られる（＝作者名で当たる）ことを固定する。
+        val query = SearchDraft(word = "テスト作者").toQuery()
+        assertEquals("テスト作者", query.word)
+        assertTrue(query.inWriter)
     }
 
     @Test
     fun `withRangeToggled - 境界値テスト（最後の1つは外れない、2つON時は外れる、OFFからONは常に可）`() {
-        val d1 = SearchDraft() // inTitle = true, others = false
+        // なぜ既定値に頼らず明示するか: この番人が守るのは「ONが1つのときは外せない」という
+        // withRangeToggled の境界条件であって、既定値が何かではない（既定は 2026-08-21 に4項目 ON へ変更）。
+        // 境界の入口である「ONが1つだけの draft」を自前で組み立てて、既定値の変更から独立させる。
+        val d1 = SearchDraft(inTitle = true, inStory = false, inKeyword = false, inWriter = false)
         assertTrue(d1.inTitle)
         assertFalse(d1.inStory)
         assertFalse(d1.inKeyword)

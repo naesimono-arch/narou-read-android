@@ -118,7 +118,10 @@ class DiscoverySearchContentTest {
     fun `最後の1つの範囲チップは押しても選択が外れず淡色化もされない`() {
         // 案A（2026-08-07 ユーザー裁定）: disabled による淡色化は「選択から外れた」と読めるため廃止した。
         // 見た目（選択済み＝藍）と押下可能性を保ったまま、押しても外れないことを固定する。
-        setStatefulContent(SearchDraft()) // 既定＝タイトルのみ ON＝最後の1つ
+        // なぜ既定値でなく明示の draft か: 既定は 2026-08-21 に4項目 ON へ変わった（placeholder の約束との
+        // 食い違いを直した）ため、既定＝最後の1つ ではなくなった。この番人が測るのは「ONが1つのときの振る舞い」
+        // なので、その状態を自前で組み立てて既定値の変更から独立させる。
+        setStatefulContent(SearchDraft(inTitle = true, inStory = false, inKeyword = false, inWriter = false))
         composeTestRule.onNodeWithText("タイトル").assertIsSelected().assertIsEnabled()
         composeTestRule.onNodeWithText("タイトル").performClick()
         composeTestRule.onNodeWithText("タイトル").assertIsSelected().assertIsEnabled()
@@ -128,7 +131,8 @@ class DiscoverySearchContentTest {
     @Test
     fun `最後の1つの範囲チップは外せないことをstateDescriptionで読み上げる`() {
         // disabled を外すと TalkBack の「無効」が消えるため、その補填が落ちていないことを固定する（a11y の後退防止）。
-        setStatefulContent(SearchDraft())
+        // 同上（既定は4項目 ON なので「ONが1つ」の状態は明示で作る）。
+        setStatefulContent(SearchDraft(inTitle = true, inStory = false, inKeyword = false, inWriter = false))
         composeTestRule.onNodeWithText("タイトル").assert(
             SemanticsMatcher.expectValue(
                 SemanticsProperties.StateDescription,
@@ -143,7 +147,9 @@ class DiscoverySearchContentTest {
 
     @Test
     fun `2つ選択中の範囲チップは押すと外れる`() {
-        setStatefulContent(SearchDraft(inTitle = true, inStory = true))
+        // 残り2つ＝ロックが効かない最小の状態。既定が4項目 ON になった後も「2つ」を測るため4項目とも明示する
+        //（明示しないと inKeyword/inWriter が既定の true で入り、名前どおりの2つ選択にならない）。
+        setStatefulContent(SearchDraft(inTitle = true, inStory = true, inKeyword = false, inWriter = false))
         composeTestRule.onNodeWithText("あらすじ").performClick()
         composeTestRule.onNodeWithText("あらすじ").assertIsNotSelected()
         composeTestRule.onNodeWithText("タイトル").assertIsSelected()

@@ -76,8 +76,13 @@ class DiscoverySearchScreenScreenshotTest(
         private val DRAFTED = SearchDraft(
             word = "廃鉱山 付与術 ざまぁ",
             notWord = "ハーレム",
+            // なぜ4項目とも明示するか: 既定は 2026-08-21 に4項目 ON へ変わった（placeholder の約束との食い違いを
+            // 直した）。明示しないとこの版面も全点灯になり、「範囲チップが一部だけ点灯している版面」が golden から
+            // 消えて未選択チップの意匠が撮られなくなる。既定（＝全点灯）は CASE_HISTORY 側が撮る。
             inTitle = true,
             inStory = true,
+            inKeyword = false,
+            inWriter = false,
             // 「条件を調整」の件数バッジを点灯させる（条件ゼロだとバッジ自体が出ず、その分岐が撮れない）。
             filters = SearchFilters(length = "100000-", time = "-600"),
         )
