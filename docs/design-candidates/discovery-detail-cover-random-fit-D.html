@@ -1,0 +1,445 @@
+<!-- @dsCard group="UI-n / 発見（作品詳細）" name="D. 作品詳細の書影 — 案2のランダム性を固定版面へ収める3通り × 案5（色相の端5作品で検分）" -->
+<!-- @derives source="discovery/discovery-detail-D.html" note="案B適用後の正本が土台。固定バー・並び順・本文寸法は不変。裁定後は採用案を正本の書影部へ落として本ファイルを削除する" -->
+<!--
+  ============================================================================
+  何を決めるためのモックか
+  ============================================================================
+  2026-08-21 裁定「2,5が好みだが、本棚書影はランダム性がある。それを毎回固定のあらすじに
+  どう合わせるのかっていう。良い案アイデアがなければ5」を受けた再検討。
+  案1（統一カード）・案3（大判）・案4（奥付）は落選＝本ファイルでは扱わない。
+
+  ---- 問いの機序（なぜ不釣り合いに感じるのか） ----
+  作品詳細の固定furnitureは既に2つの色の声を持つ＝藍#1C3D5A（主CTA）と青磁#9CB3A8（ジャンル/
+  キーワードのチップ）。現状の暗色帯は彩度12〜21%・明度26〜34%＝ほぼ無彩色なので**第三の声を
+  持たない**——これが「素っ気ない」の正体であると同時に、版面が毎回同じに見える理由でもある。
+  案2は書影を持ち込むことで第三の声を与えるが、その声だけが作品ごとに変わる。
+  **つまり争点は「色を与えるか否か」ではなく「第三の声にどれだけの権限を与えるか」。**
+
+  ---- ランダム性の実体（測った） ----
+  栞書影で作品ごとに変わるのは色相8値・棒のx(0.14〜0.36)・棒の長さ(0.30〜0.60)・先端174種だけで、
+  紙地・墨・彩度48%・明度52%は全作品で固定。**カード110×146dpのうち有色画素は1.79〜2.29%
+  （先端は包絡＝上限で勘定）＝画面全体の0.10〜0.13%**。振れているのは髪の毛ほどの罫と小さな印だけ。
+
+  ---- 3通りの収め方（本ファイルの提案） ----
+  2-a 額装: 作品色をカードの中だけに閉じる。輪郭・影・位置は不動＝シルエットが毎回同じ。
+  2-b 一筋: 2-a に加え、帯の下端へ作品色の罫を1本だけ引く。作品色が現れる座標は固定の2箇所。
+           **案5 が既に採っている収め方（作品色を固定座標の箔罫1本だけに許す）を、書影のある版面へ持ち込んだもの。**
+  2-c 淡地: 帯の地そのものを作品色から導く。ただし彩度14%・明度93%の固定窓へ圧縮するので、
+           どの色相でも明度が揃う＝墨のコントラストは13.88〜14.36:1（振れ0.5以内＝実質不変）。
+           ⚠️ ただし青磁チップは白地2.14:1→淡地1.87〜1.94:1へ悪化する（AA未達は既存課題だが本案が一段悪くする）。
+
+  ---- 不変条件 ----
+  ・本棚には変更を要求しない。3案とも ShioriCover を題名で呼ぶだけで、**書影そのものは本棚と1ピクセル同じ**
+    （2-c が導出するのは書影の背後にある帯の地であって、書影の色ではない＝「同じ本なのに色が違う」は起きない）。
+  ・あらすじ初期可視は案2の3.8行を維持（ブロック高166dpを3案とも共有）。案5は寸法不変＝3.5行。
+  ・固定バー下端の注記は現行実装にまだ在るので在る前提で測る。将来消えれば全案一律+1.4行（順位は動かない）。
+
+  ---- 並べた5作品の選び方（偶然きれいな作品を選ばないため機械的に選んだ） ----
+  色相は生成器が返す8値のうち、輝度の最大(70)・最小(260)・暖色端(20)・紅紫端(330)・緑(140)を採用。
+  **藍系(200/210)は既定の藍CTAと同系＝最も楽なケースなので意図的に外した。**
+  棒の長さも生成レンジの下端(0.30)と上端(0.60)、x位置も左端寄り(0.17)と右端寄り(0.35)を含めてある。
+  ============================================================================
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>作品詳細の書影 — ランダム性を版面へ収める</title>
+<style>
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;--seiji:#9CB3A8;--kinari:#EFEAE0;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:26px 26px 80px;font-family:var(--gothic);color:#2A2C28}
+  h1{font-family:var(--mincho);font-size:22px;font-weight:600;letter-spacing:.06em;margin-bottom:10px}
+  h2{font-family:var(--mincho);font-size:17px;font-weight:600;letter-spacing:.04em;margin:6px 0 14px;padding-bottom:8px;border-bottom:1px solid #C9C8C0;width:100%;max-width:1200px}
+  .lead{max-width:1040px;font-size:13px;line-height:1.85;color:#4A4C48;margin-bottom:20px}
+  .lead b{color:#2A2C28}
+  .lead em{font-style:normal;color:#8a3a2c;font-weight:600}
+  .fact{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin:4px 0 22px;max-width:1200px;width:100%}
+  .fact div{background:rgba(255,255,255,.62);border-left:3px solid #6d7f8e;padding:10px 12px;font-size:11.5px;line-height:1.65;color:#4a4c47}
+  .fact div b{display:block;font-size:12px;color:#2f4a5c;margin-bottom:3px}
+  section{width:100%;max-width:1200px;margin-bottom:30px;display:flex;flex-direction:column;align-items:flex-start}
+  .opt-line1{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;width:100%}
+  .opt-id{font-family:var(--mincho);font-size:19px;font-weight:700;color:var(--ai);min-width:34px}
+  .opt-name{font-family:var(--mincho);font-size:16.5px;font-weight:600}
+  .badges{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+  .badge{font-size:11.5px;padding:3px 9px;border-radius:2px;border:1px solid #C9C8C0;background:#F3F2EC;white-space:nowrap}
+  .badge b{font-variant-numeric:tabular-nums}
+  .badge.v-ok{background:#E9F1EA;border-color:#A9C6AF;color:#2F6B3C}
+  .badge.v-min{background:#F7F1E2;border-color:#D8C89A;color:#7A5F16}
+  .badge.v-ng{background:#F6E9E7;border-color:#D9B5AE;color:#8A3A2C}
+  .opt-meta{font-size:12.5px;color:#5A5C57;line-height:1.8;margin-top:6px}
+  .opt-meta .k{display:inline-block;min-width:8.5em;color:#2A2C28;font-weight:600}
+  .opt-meta.warn .k{color:#8A3A2C}
+  .row{display:flex;gap:14px;overflow-x:auto;width:100%;max-width:1200px;padding:6px 2px 12px}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:7px;flex-shrink:0}
+  .wrap .mode{font-size:11px;letter-spacing:.06em;color:#6A6C67;max-width:360px;text-align:center;line-height:1.45}
+  .wrap .mode i{font-style:normal;color:#8b8880}
+  .stage{display:flex;gap:24px;flex-wrap:wrap;margin-top:12px}
+  .crop{width:360px;height:300px;overflow:hidden;border-radius:24px 24px 4px 4px;box-shadow:0 10px 24px rgba(0,0,0,.2);position:relative;background:var(--base)}
+  .crop .phone{border-radius:24px 24px 0 0;box-shadow:none}
+
+  /* ===== 端末（正本 harness の写し＝行数が比較可能） ===== */
+  .phone{width:360px;height:792px;background:var(--base);border-radius:30px;overflow:hidden;position:relative;
+    box-shadow:0 14px 34px rgba(0,0,0,.24);display:flex;flex-direction:column;font-family:var(--gothic)}
+  .sb{height:39px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:11px;color:var(--ink-soft)}
+  .navbar{height:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .navbar i{display:block;width:108px;height:3px;border-radius:2px;background:#C9C7C0}
+  .topbar{height:64px;flex-shrink:0;display:flex;align-items:center;padding:0 8px}
+  .topbar .ic{width:48px;height:48px;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+  .topbar .ic svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .scroll::-webkit-scrollbar{width:0}
+  .col{display:flex;flex-direction:column}
+  .col > *{flex-shrink:0}
+  .pad{padding:0 24px;display:flex;flex-direction:column}
+  .pad > *{flex-shrink:0}
+
+  /* 対照: 現状の全幅暗色帯（BookCover） */
+  .cv{position:relative;display:flex;align-items:flex-end;overflow:hidden;width:100%;flex-shrink:0;height:120px;
+    background:linear-gradient(160deg,#3A4F63,#28323E)}
+  .cv .rule{position:absolute;left:24px;top:18px;bottom:18px;width:2px;background:var(--ai);opacity:.85}
+  .cv .ttl-in{padding:20px 24px 20px 32px}
+  .cv .ttl-in b{font-family:var(--mincho);font-size:17px;font-weight:600;line-height:1.4;color:var(--base);text-shadow:0 1px 3px rgba(28,31,38,.4);display:block}
+
+  /* 案2 系（a/b/c 共通の骨格）: 帯120 ＋ 栞書影110×146(3:4＝本棚Kと同比) を top14 に重ね、下へ40 張り出す。
+     ブロック高166は3案で共有＝あらすじ3.8行が動かない。輪郭・影・位置はすべて固定＝毎回同じシルエット。 */
+  .kaeshi{position:relative;flex-shrink:0;height:166px;width:100%}
+  .kaeshi .band{position:absolute;left:0;right:0;top:0;height:120px;background:var(--kinari);
+    border-bottom:1px solid #DFD8C9}
+  .kaeshi .wrule{position:absolute;left:0;right:0;top:119px;height:1.5px}   /* 案2-b だけが使う作品色の一筋 */
+  .kaeshi .shiori{position:absolute;left:24px;top:14px;width:110px;height:146px;border-radius:2px;overflow:hidden;
+    box-shadow:0 3px 10px rgba(28,31,38,.22)}
+  .kaeshi .shiori canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .kaeshi .kmeta{position:absolute;left:150px;right:24px;top:18px;display:flex;flex-direction:column;gap:7px}
+  .kaeshi .kmeta .t{font-family:var(--mincho);font-size:16px;font-weight:600;line-height:1.4;color:var(--ink);
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .kaeshi .kmeta .au{font-size:12.5px;color:var(--ink);font-weight:500}
+
+  /* 案5: 帯の寸法据置のまま漉き紙＋空押し題字＋作品色の箔罫（＝作品色を固定座標の1本だけに許す収め方） */
+  .cvp{position:relative;width:100%;height:120px;flex-shrink:0;overflow:hidden}
+  .cvp canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+  .detail-meta-top{display:flex;justify-content:space-between;align-items:center;margin-top:16px;height:36px}
+  .author{font-size:12.5px;color:var(--ink);font-weight:500;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .genre-label{font-size:11.5px;color:var(--seiji);border:1px solid var(--seiji);padding:4px 8px;border-radius:2px;font-weight:500;white-space:nowrap;flex-shrink:0}
+  .status-grid{border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:16px;display:flex;flex-direction:column}
+  .status-row{display:flex;box-sizing:content-box}
+  .status-row + .status-row{border-top:1px solid var(--line)}
+  .status-item{flex:1;min-width:0;padding:12px 0;display:flex;flex-direction:column;gap:4px}
+  .status-item:first-child{border-right:1px solid var(--line);padding-right:16px}
+  .status-item:last-child{padding-left:16px}
+  .status-item .lbl{font-size:10.5px;color:var(--ink-soft);letter-spacing:.06em}
+  .status-item .val{font-size:13px;color:var(--ink);font-weight:500;line-height:1.45}
+  .status-item .val small{font-size:11.5px;color:var(--ink-soft)}
+  .sec{font-size:10.5px;letter-spacing:.28em;color:var(--ink-soft);font-weight:600;height:28px;line-height:28px;margin-top:24px}
+  .sec + *{margin-top:12px}
+  .summary-p{font-family:var(--mincho);font-size:14px;line-height:26px;color:var(--ink);text-align:justify}
+  .kw-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .kw-chip{font-size:11px;color:var(--seiji);border:1px solid var(--seiji);border-radius:2px;padding:4px 8px}
+
+  .fixed-bar{flex-shrink:0;background:var(--base);border-top:1px solid var(--line);padding:16px 24px;display:flex;flex-direction:column}
+  .slot{height:48px;display:flex;align-items:center;flex-shrink:0}
+  .slot + .slot{margin-top:8px}
+  .slot.row2{gap:8px;display:flex;align-items:center}
+  .slot.row2 > *{flex:1;min-width:0}
+  .btn-primary{height:40px;width:100%;background:var(--ai);color:var(--base);border:none;border-radius:2px;
+    font-family:var(--gothic);font-size:12.5px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:.1em;white-space:nowrap}
+  .btn-ghost{height:40px;width:100%;background:transparent;color:var(--ink-soft);border:1px solid var(--line);border-radius:2px;
+    font-family:var(--gothic);font-size:11.5px;display:flex;align-items:center;justify-content:center;gap:4px;letter-spacing:.06em;white-space:nowrap}
+  .fixed-bar button svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5;flex-shrink:0}
+  .bar-note{padding-top:8px;line-height:28px;text-align:center;font-size:10.5px;color:var(--ink-soft);flex-shrink:0}
+
+  table.m{border-collapse:collapse;max-width:1200px;width:100%;font-size:11.5px;background:rgba(255,255,255,.55)}
+  table.m th,table.m td{border:1px solid #d8d5cc;padding:7px 10px;text-align:left;vertical-align:top;line-height:1.6;color:#4a4c47}
+  table.m th{background:rgba(0,0,0,.045);font-weight:600;font-size:11px;letter-spacing:.06em;color:#2A2C28}
+  table.m td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+  table.m code{font-size:10.5px;color:#6a6c67}
+</style>
+</head>
+<body>
+<h1>作品詳細の書影 — 案2のランダム性を、固定の版面へどう収めるか</h1>
+<div class="lead">
+  裁定は「2と5が好み。ただし本棚書影はランダム性がある。それを毎回固定のあらすじにどう合わせるのか」。
+  案1・3・4は落選済み。<b>争点は「色を与えるか否か」ではなく、作品ごとに変わる第三の声に<em>どれだけの権限を与えるか</em></b>。<br>
+  この画面の固定furnitureは既に2つの色の声を持っている——<b>藍</b>（主CTA）と<b>青磁</b>（ジャンル／キーワードのチップ）。
+  現状の暗色帯は彩度12〜21%・明度26〜34%＝ほぼ無彩色なので<b>第三の声を持たない</b>。
+  それが「素っ気ない」の正体であると同時に、版面が毎回そっくり同じに見える理由でもある。
+</div>
+<div class="fact">
+  <div><b>振れているのは画面の 0.1%</b>作品ごとに変わるのは色相8値・棒のx・棒の長さ・先端174種だけ。紙地・墨・彩度48%・明度52%は全作品で固定。カード110×146dpの有色画素は<b>1.79〜2.29%</b>（先端は包絡＝上限）＝<b>画面全体の0.10〜0.13%</b>。</div>
+  <div><b>書影そのものは本棚と同一</b>3案とも <code>ShioriCover</code> を題名で呼ぶだけ。案2-cが作品色から導くのは<b>書影の背後にある帯の地</b>であって書影の色ではない＝「同じ本なのに色が違う」は起きない。</div>
+  <div><b>案2-cでも明度は揃う</b>帯の地を彩度14%・明度93%の固定窓へ圧縮するので、どの色相でも墨のコントラストは<b>13.88〜14.36:1</b>（振れ0.5以内＝実質不変）。変わるのは色みだけで、版面の明暗は動かない。</div>
+  <div><b>ただし青磁チップは悪化する</b>青磁は白地で既に 2.14:1＝AA未達（既存の課題）。案2-cの淡地では<b>1.87〜1.94:1</b>へ一段下がる。案2-a／2-b／案5では白地のまま＝悪化しない。</div>
+</div>
+
+<h2>① 色相の端5作品を、同じ案で並べて見る（ここが本番）</h2>
+<div class="lead" style="margin-bottom:12px">
+  ランダム性の問題は1作品では絶対に見えないので、<b>生成器が返す8色相のうち輝度の最大(70)・最小(260)・暖色端(20)・紅紫端(330)・緑(140)</b>を機械的に選んだ。
+  <b>藍系(200/210)は既定の藍CTAと同系＝最も楽なケースなので意図的に外してある。</b>
+  棒の長さも生成レンジの下端(0.30)と上端(0.60)、x位置も左右の端を含む。<b>どれを開いても版面が破綻しないか</b>だけを見る。
+  各行は横スクロールする。
+</div>
+<div id="rows"></div>
+
+<h2>② 各案の全景と、あらすじに残る行数</h2>
+<div id="opts" style="width:100%"></div>
+
+<h2>③ 測った値</h2>
+<table class="m">
+  <tr><th style="width:30%">項目</th><th style="width:22%">値</th><th>意味</th></tr>
+  <tr><td>作品ごとに変わる有色面積</td><td class="num">カードの 1.79〜2.29%<br>画面の 0.10〜0.13%</td><td>棒（幅2.5px×s、長さは生成レンジ0.30〜0.60）＋先端（包絡16×24を s 倍）。<b>先端は塗り面積でなく包絡＝上限で数えている</b>ので、実際はこれより小さい</td></tr>
+  <tr><td>カード内の縦組み題字</td><td class="num">9.7dp</td><td>本棚（幅140dp）では 12.3dp。<b>詳細のカードでは題字が一段小さくなる</b>＝文字というより刷り物の肌理として見える。題名は隣に16pxで別に組んであるので情報は落ちない</td></tr>
+  <tr><td>墨のコントラスト</td><td class="num">白地 15.81:1<br>生成り 13.76:1<br>淡地 13.88〜14.36:1</td><td>案2-a/2-b は生成り固定、案2-c は作品色由来の淡地。<b>淡地でも全8色相で 0.5 ポイント以内</b>＝明度窓で圧縮しているため版面の明暗が動かない</td></tr>
+  <tr><td>青磁チップのコントラスト</td><td class="num">白地 2.14:1<br>淡地 1.87〜1.94:1</td><td><b>白地の時点でAA未達＝既存の課題</b>。案2-c だけが一段悪くする（案2-a/2-b/案5は白地のままで悪化なし）</td></tr>
+  <tr><td>あらすじ初期可視</td><td class="num">案2系 3.8行<br>案5 3.5行</td><td>案2系はブロック高166dpを3案で共有＝どれを選んでも同値。案5は寸法不変＝現状のまま。<b>いずれも現状3.5行を下回らない</b></td></tr>
+</table>
+
+<h2>④ 書影が出る場所と、この改修が触る範囲（前便から引き継いだ地図）</h2>
+<table class="m">
+  <tr><th style="width:24%">場所</th><th style="width:32%">実装</th><th>今回の扱い</th></tr>
+  <tr><td><b>作品詳細（発見）</b></td><td><code>ui/discovery/NovelDetailScreen.kt</code>（<code>DetailHeroHeight=120.dp</code>／旧 <code>BookCover.kt</code>）</td><td><b>今回の対象。ここだけを変える</b>。色相のシードが <code>ncode.hashCode()</code>（本棚は題名）・彩度12〜21%・明度26〜34%＝ほぼ黒で、同じ作品が本棚と別の顔になっている</td></tr>
+  <tr><td>本棚グリッド K／D・未取込</td><td><code>skins/k/BookshelfK.kt</code>・<code>ui/BookCard.kt</code>・<code>ui/WebBookCard.kt</code></td><td><b>変更対象外</b>（本棚は満足の裁定）。案2系は <code>ShioriCover</code> を題名で呼ぶだけ＝生成側へ要求なし</td></tr>
+  <tr><td>本棚リスト（目録）</td><td><code>skins/k/BookshelfK.kt</code>（書影なし・左4dp色帯が <code>shioriAccentFor</code> を共有）</td><td>変更対象外。案2系は色の写像を変えないので波及しない</td></tr>
+  <tr><td>装いの間ミニチュア</td><td><code>ui/WardrobeScreen.kt</code>（34×50 の単色チップ）</td><td>変更対象外</td></tr>
+  <tr><td>遷移スケルトン</td><td><code>ui/TransitionSkeletons.kt</code></td><td>詳細ヒーローの寸法が変わる案2系では骨も追従（案5は寸法不変＝追従不要）</td></tr>
+  <tr><td>生成ロジック</td><td><code>ShioriGenerator.kt</code>（題名→FNV-1a→mulberry32→色相/x/長さ/先端）・<code>ShioriTips.kt</code>（174種）</td><td><b>一切変更しない</b>。案5のみ <code>BookCover</code> の塗りを Canvas 描画へ差し替える</td></tr>
+</table>
+
+<div class="lead" style="margin-top:18px">
+  <b>裁定後</b>: 採用案を正本 <code>discovery/discovery-detail-D.html</code> の書影部へ落とし、本ファイルは削除する。<br>
+  <b>落選済み</b>（2026-08-21）: 案1 統一カード（2:3・あらすじ3.1行）／案3 大判（0.0行＝不成立）／案4 奥付（7.5行だがステータス表が消える構成変更）。
+</div>
+
+<script>
+/* ===== 栞書影の生成（本棚の ShioriGenerator と同一系列。ここでは描画に使うだけで一切変更しない） ===== */
+function hashStr(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function rand(r,lo,hi){return lo+(hi-lo)*r();}
+function pick(r,a){return a[Math.floor(r()*a.length)];}
+function hsl(h,s,l){return 'hsl('+h+' '+s+'% '+l+'%)';}
+const PALETTE=[20,70,140,175,200,210,260,330];
+function coverHue(t){return pick(mulberry32(hashStr(t)),PALETTE);}
+function SS(c,a){c.strokeStyle=a;c.lineCap='round';c.lineJoin='round';}
+const MIN='"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif';
+/* 先端意匠（正本174種のうち代表15種。増補は /shiori-tips の手順が正本＝ここでは触らない） */
+const TIPS=[
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=2.6;c.beginPath();c.moveTo(x,y);c.lineTo(x-6,y+12);c.moveTo(x,y);c.lineTo(x+6,y+12);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+7,4,0,7);c.fill();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+6,6,0,7);c.fill();},
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=2.4;c.beginPath();c.moveTo(x,y);c.lineTo(x-5,y+18);c.moveTo(x,y);c.lineTo(x+5,y+18);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+3,3.2,0,7);c.fill();SS(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+5);c.lineTo(x-6,y+22);c.moveTo(x,y+5);c.lineTo(x,y+23);c.moveTo(x,y+5);c.lineTo(x+6,y+22);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+4,4,0,7);c.fill();SS(c,a);c.lineWidth=1.6;for(let k=-2;k<=2;k++){c.beginPath();c.moveTo(x,y+7);c.lineTo(x+k*4,y+24);c.stroke();}},
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x,y+4);c.quadraticCurveTo(x-11,y-2,x-9,y+4);c.quadraticCurveTo(x-11,y+10,x,y+4);c.moveTo(x,y+4);c.quadraticCurveTo(x+11,y-2,x+9,y+4);c.quadraticCurveTo(x+11,y+10,x,y+4);c.stroke();c.fillStyle=a;c.beginPath();c.arc(x,y+4,2,0,7);c.fill();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+5,4,0,7);c.fill();SS(c,a);c.lineWidth=2;c.beginPath();c.moveTo(x,y+9);c.lineTo(x,y+20);c.stroke();},
+ (c,x,y,a,pp)=>{c.fillStyle=a;c.beginPath();c.rect(x-2,y+5,8,4);c.fill();c.beginPath();c.arc(x+6,y+7,2,0,7);c.fill();c.beginPath();c.arc(x-3,y+14,5,0,7);c.fill();c.strokeStyle=pp;c.lineWidth=1.4;c.beginPath();c.arc(x-3,y+14,2,0,7);c.stroke();},
+ (c,x,y,a,pp)=>{c.fillStyle=a;c.beginPath();c.rect(x-6,y+12,12,8);c.fill();c.beginPath();c.rect(x-7,y+8,14,5);c.fill();c.fillStyle=pp;c.beginPath();c.arc(x,y+10,1.5,0,7);c.fill();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-5,y+12);c.lineTo(x+5,y+12);c.arc(x+5,y+15,3,-Math.PI/2,Math.PI/2);c.lineTo(x-5,y+18);c.arc(x-5,y+15,3,Math.PI/2,Math.PI*1.5);c.closePath();c.fill();SS(c,a);c.lineWidth=1.8;c.beginPath();c.moveTo(x-3,y+12);c.quadraticCurveTo(x,y+5,x+3,y+12);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-8,y+18);c.lineTo(x-8,y+14);c.quadraticCurveTo(x-6,y+8,x-4,y+13);c.quadraticCurveTo(x-2,y+16,x,y+11);c.quadraticCurveTo(x+2,y+16,x+4,y+13);c.quadraticCurveTo(x+6,y+8,x+8,y+14);c.lineTo(x+8,y+18);c.closePath();c.fill();},
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=1.6;c.beginPath();c.arc(x-4,y+12,4,0,7);c.stroke();c.beginPath();c.arc(x+4,y+12,4,0,7);c.stroke();c.beginPath();c.moveTo(x-1,y+11);c.quadraticCurveTo(x,y+9,x+1,y+11);c.stroke();},
+ (c,x,y,a,pp)=>{c.fillStyle=a;c.beginPath();c.moveTo(x-5,y+8);c.lineTo(x+5,y+8);c.lineTo(x+4,y+19);c.lineTo(x-4,y+19);c.closePath();c.fill();c.strokeStyle=pp;c.lineWidth=1.4;c.beginPath();c.moveTo(x-4,y+11);c.lineTo(x+4,y+11);c.stroke();},
+ (c,x,y,a)=>{SS(c,a);c.lineWidth=1.6;c.beginPath();c.moveTo(x-6,y+6);c.lineTo(x+6,y+6);c.lineTo(x+6,y+17);c.lineTo(x-6,y+17);c.closePath();c.stroke();c.lineWidth=1.2;c.beginPath();c.moveTo(x-2,y+6);c.lineTo(x-2,y+17);c.moveTo(x+2,y+6);c.lineTo(x+2,y+17);c.stroke();c.lineWidth=2;c.beginPath();c.moveTo(x-7,y+4);c.lineTo(x+7,y+4);c.stroke();}
+];
+function vtitle(c,text,w,h,ink){
+  const S=w/150, fs=Math.round(w*0.088), lineGap=fs*1.16, colGap=Math.round(w*0.108);
+  const yTop=fs+5*S, yBottom=h-11*S, x0=w-fs-3*S, maxCols=3;
+  const perCol=Math.floor((yBottom-yTop)/lineGap); if(perCol<1||fs<1)return;
+  c.fillStyle=ink;c.font='600 '+fs+'px '+MIN;c.textAlign='center';c.textBaseline='middle';
+  const ch=[...text];
+  for(let col=0;col<maxCols;col++){const st=col*perCol;if(st>=ch.length)break;const cx=x0-col*colGap;
+    for(let i=0;i<perCol;i++){const idx=st+i;if(idx>=ch.length)break;
+      let g=ch[idx]; if(col===maxCols-1&&i===perCol-1&&idx<ch.length-1)g='⋮';
+      c.fillText(g,cx,yTop+i*lineGap+lineGap/2);}}
+}
+/* 栞書影1枚＝本棚と1ピクセル同じ描画（この比較では生成規則に一切手を入れない） */
+function drawShiori(c,w,h,title){
+  const S=w/150, paper='#FBFAF8', ink='#1C1F26';
+  c.fillStyle=paper;c.fillRect(0,0,w,h);
+  c.strokeStyle='rgba(28,31,38,.05)';c.lineWidth=1;c.strokeRect(.5,.5,w-1,h-1);
+  const acc=hsl(coverHue(title),48,52);
+  const rng=mulberry32(hashStr(title+'|B'));
+  const x=Math.round(rand(rng,.14,.36)*w)+.5, len=Math.round(rand(rng,.30,.60)*h);
+  c.strokeStyle=acc;c.lineWidth=2.5*S;c.lineCap='butt';
+  c.beginPath();c.moveTo(x,0);c.lineTo(x,len);c.stroke();
+  const ti=Math.floor(rng()*TIPS.length);
+  c.save();c.translate(x,len);c.scale(S,S);c.translate(-x,-len);
+  TIPS[ti](c,x,len,acc,paper);
+  c.restore();
+  vtitle(c,title,w,h,ink);
+}
+/* 案5: 帯の寸法据置のまま漉き紙＋空押し題字＋作品色の箔罫1本 */
+function drawPolish(c,w,h,title){
+  const S=h/120, rng=mulberry32(hashStr(title+'|P'));
+  const g=c.createLinearGradient(0,0,w*0.5,h);g.addColorStop(0,'#F7F3E8');g.addColorStop(1,'#EDE5D3');
+  c.fillStyle=g;c.fillRect(0,0,w,h);
+  /* 簀の目。刻みが1pxを割ると筋でなく一様な膜になるので最小2pxで留める（前便で実測した罠） */
+  c.strokeStyle='rgba(90,80,60,.06)';c.lineWidth=1;
+  const su=Math.max(2,3.4*S);
+  for(let x=2;x<w;x+=su){c.beginPath();c.moveTo(x+.5,0);c.lineTo(x+.5,h);c.stroke();}
+  c.strokeStyle='rgba(120,105,80,.11)';
+  for(let i=0;i<160;i++){const px=rng()*w,py=rng()*h,l=rand(rng,2,10),a=rand(rng,-.6,.6);
+    c.lineWidth=rand(rng,.4,1);c.beginPath();c.moveTo(px,py);c.lineTo(px+Math.cos(a)*l,py+Math.sin(a)*l);c.stroke();}
+  const rg=c.createRadialGradient(w*.42,h*.4,w*.06,w*.5,h*.5,w*.62);
+  rg.addColorStop(0,'rgba(0,0,0,0)');rg.addColorStop(1,'rgba(70,58,38,.14)');
+  c.fillStyle=rg;c.fillRect(0,0,w,h);
+  c.fillStyle=hsl(coverHue(title),44,42);c.fillRect(24,18,2,h-36);   /* 箔罫＝作品色が現れる唯一の固定座標 */
+  const fs=17, lh=fs*1.4;
+  const chars=[...title]; const per=Math.floor((w-32-24)/fs);
+  const lines=[]; for(let i=0;i<chars.length&&lines.length<3;i+=per)lines.push(chars.slice(i,i+per).join(''));
+  c.font='600 '+fs+'px '+MIN;c.textAlign='left';c.textBaseline='alphabetic';
+  const y0=h-20-(lines.length-1)*lh;
+  for(let i=0;i<lines.length;i++){
+    c.fillStyle='rgba(255,255,255,.8)';c.fillText(lines[i],32,y0+i*lh+1);
+    c.fillStyle='rgba(74,62,44,.72)';c.fillText(lines[i],32,y0+i*lh);
+  }
+}
+function mount(el){
+  const cv=document.createElement('canvas');el.appendChild(cv);
+  const w=el.clientWidth||110,h=el.clientHeight||146,dpr=2;
+  cv.width=w*dpr;cv.height=h*dpr;const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);
+  (el.dataset.kind==='polish'?drawPolish:drawShiori)(c,w,h,el.dataset.title);
+}
+
+/* ===== 検分に使う5作品（色相の端を機械選択・偶然きれいな作品を選ばないため） ===== */
+const WORKS=[
+  {t:'鍛冶師の娘、剣より鍋を振るう', a:'青葉みのり', note:'色相70＝<i>8色中いちばん明るい</i>・棒の長さ0.30＝<i>生成レンジの下端</i>'},
+  {t:'星降る夜のパン屋と魔法使い',   a:'早瀬ことり', note:'色相260＝<i>8色中いちばん暗い</i>・輝度は70の約1/4'},
+  {t:'月と兎と物置小屋',             a:'水無月れん', note:'色相20＝<i>暖色端</i>・x0.35＝<i>棒が右端寄り</i>'},
+  {t:'辺境伯家の次男は今日も書庫にこもる', a:'白河すずら', note:'色相330＝<i>紅紫端</i>・棒の長さ0.60＝<i>生成レンジの上端</i>'},
+  {t:'春嵐の剣舞',                   a:'霧島あおい', note:'色相140＝<i>緑</i>・x0.17＝<i>棒が左端寄り</i>・題名5字'}
+];
+const STORY="調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。宮廷が彼を手放したことの意味に、王都が気づくのはまだ先の話。";
+const LINE=26;
+const IC={
+  back:'<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>',
+  dl:'<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  ext:'<svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
+  book:'<svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+  list:'<svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
+  shelf:'<svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h5"/><line x1="12" y1="7" x2="18" y2="7"/><line x1="15" y1="4" x2="15" y2="10"/></svg>'
+};
+const GENRE='<span class="genre-label">ハイファンタジー</span>';
+/* 帯の地を作品色から導く（案2-c）。彩度14%・明度93%の固定窓へ圧縮＝どの色相でも明度が揃う */
+function bandTint(t){return hsl(coverHue(t),14,93);}
+
+const OPTS=[
+ { id:'対照', name:'現状 — 全幅の暗色帯 120dp', kind:'now', lines:'3.5',
+   fit:'第三の声を持たない（ほぼ無彩色）＝毎回そっくり同じ版面。<b>ランダム性の問題は起きないが、素っ気なさも解けない</b>。',
+   weak:'本棚との不統一もそのまま（同じ作品が場所で別人）。' },
+
+ { id:'2-a', name:'案2-a 額装 — 作品色をカードの中だけに閉じる', kind:'a', lines:'3.8',
+   fit:'帯は生成り固定・カードの位置と寸法と影と枠は不動。<b>毎回同じシルエットの中で、中身だけが変わる</b>＝実物の本の書影が変わるのと同じ収まり方。作品色が版面へ漏れ出さない。',
+   weak:'色が小さく孤立するので、<b>「なぜここだけ色があるのか」が読み取れない</b>おそれ。素っ気なさが完全には解けない可能性がいちばん高い案。' },
+
+ { id:'2-b', name:'案2-b 一筋 — 帯の下端へ作品色の罫を1本だけ引く', kind:'b', lines:'3.8',
+   fit:'2-a に加え、作品色が<b>固定座標にもう1回だけ</b>現れる。1回きりだと偶然に見えるものが、決まった場所で2回繰り返されると<b>意匠として読める</b>。これは<b>案5が既に採っている収め方</b>（作品色を固定座標の箔罫1本だけに許す）を、書影のある版面へ持ち込んだもの。',
+   weak:'罫は帯とあらすじの境界に乗るので、<b>明るい色相（70）では線が飛び、暗い色相（260）では強く出る</b>。①の並びで最初に確かめるべき点。' },
+
+ { id:'2-c', name:'案2-c 淡地 — 帯の地そのものを作品色から導く', kind:'c', lines:'3.8',
+   fit:'ランダム性を<b>画面の主題にしてしまう</b>＝上部だけが浮く問題が原理的に消える。彩度14%・明度93%の固定窓へ圧縮するので、<b>変わるのは色みだけで版面の明暗は動かない</b>（墨13.88〜14.36:1）。',
+   weak:'<b>青磁チップが 2.14:1→1.87〜1.94:1 へ悪化</b>（白地の時点でAA未達＝既存課題だが本案が一段悪くする）。色みが常に画面上部を占めるので、好みがいちばん割れる案。' },
+
+ { id:'5', name:'案5 磨く — 帯の寸法据置で漉き紙＋空押し題字＋箔罫', kind:'polish', lines:'3.5',
+   fit:'書影カードを置かないので<b>ランダム性の問題がそもそも発生しない</b>。作品色は固定座標の箔罫1本だけ。寸法が1dpも動かないのであらすじも現状のまま。',
+   weak:'本棚との不統一は残る（同じ作品が場所で別の顔のまま）。「本に見えない」も解けない＝帯は帯のまま。' }
+];
+
+function heroHtml(o,w,acts){
+  const au = acts===4 ? w.a+' ／ 第12話まで読了' : w.a;
+  if(o.kind==='now')
+    return '<div class="cv"><div class="rule"></div><div class="ttl-in"><b>'+w.t+'</b></div></div>';
+  if(o.kind==='polish')
+    return '<div class="cvp" data-shiori data-kind="polish" data-title="'+w.t+'"></div>';
+  const band = (o.kind==='c') ? ' style="background:'+bandTint(w.t)+'"' : '';
+  const wrule = (o.kind==='b') ? '<div class="wrule" style="background:'+hsl(coverHue(w.t),48,52)+'"></div>' : '';
+  return '<div class="kaeshi"><div class="band"'+band+'></div>'+wrule+
+    '<div class="shiori" data-shiori data-title="'+w.t+'"></div>'+
+    '<div class="kmeta"><div class="t">'+w.t+'</div><div class="au">'+au+'</div><div>'+GENRE+'</div></div></div>';
+}
+function metaHtml(o,w,acts){
+  /* 案2系は作者・ジャンルを書影の横へ吸収済み。対照と案5だけが従来の作者行を持つ */
+  if(o.kind!=='now'&&o.kind!=='polish') return '';
+  const a = acts===4 ? w.a+' ／ 第12話まで読了' : w.a;
+  return '<div class="detail-meta-top"><span class="author">'+a+'</span>'+GENRE+'</div>';
+}
+function contentHtml(o,w,acts){
+  return '<div class="scroll"><div class="col">'+heroHtml(o,w,acts)+'<div class="pad">'+metaHtml(o,w,acts)+
+    '<div class="status-grid">'+
+      '<div class="status-row" style="height:84px">'+
+        '<div class="status-item"><span class="lbl">状態</span><span class="val">連載中・127話</span></div>'+
+        '<div class="status-item"><span class="lbl">読了目安</span><span class="val">約8時間<br><small>（24.1万字）</small></span></div></div>'+
+      '<div class="status-row" style="height:61px">'+
+        '<div class="status-item"><span class="lbl">会話率</span><span class="val">42%</span></div>'+
+        '<div class="status-item"><span class="lbl">挿絵</span><span class="val">3枚</span></div></div>'+
+    '</div>'+
+    '<div class="sec">あらすじ</div><p class="summary-p" data-body>'+STORY+'</p>'+
+    '<div class="sec">キーワード</div>'+
+    '<div class="kw-chips"><span class="kw-chip">異世界転生</span><span class="kw-chip">ハーレム</span><span class="kw-chip">チート</span><span class="kw-chip">成り上がり</span><span class="kw-chip">スローライフ</span></div>'+
+    '</div></div></div>';
+}
+/* 固定バーは案B のまま全案同一（比較の変数を書影だけに絞る。注記も現行実装どおり残す） */
+function barHtml(acts){
+  const subs = acts===4
+    ? [{i:'book',l:'第13話から'},{i:'list',l:'目次'},{i:'shelf',l:'本棚'}]
+    : [{i:'ext',l:'なろうで読む'},{i:'shelf',l:'本棚に置く'}];
+  return '<div class="fixed-bar"><div class="slot"><button class="btn-primary">'+IC.dl+'縦書きPDFを取り込む</button></div>'+
+    '<div class="slot row2">'+subs.map(s=>'<button class="btn-ghost">'+IC[s.i]+s.l+'</button>').join('')+'</div>'+
+    '<div class="bar-note">なろう（syosetu.com）のページをそのまま表示します</div></div>';
+}
+function phoneHtml(o,w,acts){
+  return '<div class="phone"><div class="sb"><span>9:41</span><span>●●● 84%</span></div>'+
+    '<div class="topbar"><span class="ic">'+IC.back+'</span></div>'+
+    contentHtml(o,w,acts)+barHtml(acts)+'<div class="navbar"><i></i></div></div>';
+}
+
+/* ① 案ごとに5作品を横並び（4アクション版＝壊れやすいほう） */
+const rows=document.getElementById('rows');
+OPTS.forEach(o=>{
+  const s=document.createElement('section');
+  let h='<div class="opt-line1"><span class="opt-id">'+o.id+'</span><span class="opt-name">'+o.name+'</span></div><div class="row">';
+  WORKS.forEach(w=>{ h+='<div class="wrap"><span class="mode">'+w.note+'</span><div class="crop">'+phoneHtml(o,w,4)+'</div></div>'; });
+  s.innerHTML=h+'</div>';
+  rows.appendChild(s);
+});
+
+/* ② 各案の全景＋行数バッジ（幾何が同じなので行数は作品に依らない＝代表1作品で測る） */
+const host=document.getElementById('opts');
+OPTS.forEach(o=>{
+  const w=WORKS[3];   /* 棒が最長・紅紫端＝いちばん強く出る作品で見る */
+  const s=document.createElement('section');
+  s.innerHTML='<div class="opt-line1"><span class="opt-id">'+o.id+'</span><span class="opt-name">'+o.name+'</span>'+
+    '<span class="badges" data-badges></span></div>'+
+    '<div class="opt-meta"><span class="k">ランダム性の収め方</span>'+o.fit+'</div>'+
+    '<div class="opt-meta warn"><span class="k">残る弱点</span>'+o.weak+'</div>'+
+    '<div class="stage">'+
+      '<div class="wrap"><span class="mode">3アクション（未取込・未読）</span>'+phoneHtml(o,w,3)+'</div>'+
+      '<div class="wrap"><span class="mode">4アクション（未取込・既読）</span>'+phoneHtml(o,w,4)+'</div>'+
+    '</div>';
+  host.appendChild(s);
+});
+
+/* 書影の canvas をすべて実描画（DOM 構築後＝clientWidth が確定してから） */
+document.querySelectorAll('[data-shiori]').forEach(mount);
+
+/* 行数の実測。緑=推奨3行以上／黄=最低2行／赤=第1文が閉じない */
+function verdict(l){ return l>=3?'v-ok':(l>=2?'v-min':'v-ng'); }
+document.querySelectorAll('#opts section').forEach(sec=>{
+  const phones=sec.querySelectorAll('.phone');
+  const labels=['3アクション','4アクション'];
+  let html='';
+  phones.forEach((p,i)=>{
+    const sc=p.querySelector('.scroll').getBoundingClientRect();
+    const b=p.querySelector('[data-body]').getBoundingClientRect();
+    const vis=Math.max(0,Math.min(b.height, sc.bottom-b.top));
+    html+='<span class="badge '+verdict(vis/LINE)+'">'+labels[i]+' あらすじ <b>'+(vis/LINE).toFixed(1)+'</b> 行</span>';
+  });
+  sec.querySelector('[data-badges]').innerHTML=html;
+});
+</script>
+</body>
+</html>
