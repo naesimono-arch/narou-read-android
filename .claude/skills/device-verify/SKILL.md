@@ -103,6 +103,19 @@ sqlite3 /tmp/…/db "SELECT …"
 | **新規**パッケージの `adb install` が失敗でなく**無応答**（`push` は 2.7MB/s で正常に終わるのに `pm install` が180秒タイムアウト。`verifier_verify_adb_installs=0` でも止まる） | `docs/knowledge/coloros-blocks-adb-install-of-benchmark-apk.md`＝OEM インストーラ（`InstallGuideActivity`→`PackageParsingV2Activity`）が**画面確認**で待っている。AOSP の検証設定では抜けられず、端末がロック中だと adb から承認もできない＝**人間の2手**（①ロック解除＋画面点灯維持〔開発者向け→充電中は画面を点けたまま〕②確認ダイアログを承認）が要る。⚠️ **既存パッケージの更新（`install -r`）は影響を受けない**＝詰まるのはベンチ APK の初回投入など |
 | 通知が表示されない | #2（ContentIntent 必須） |
 
+## 4-b. マクロベンチ — 「測る面」はシードで全部固定する（端末に残った値で測らない）
+
+計測面を決める prefs は**全書籍共通の単一値**で、前回の走行やユーザーの操作が残った状態がそのまま効く。
+固定しないと**同じベンチが別の面を測る**（数字が前回と比較できなくなる）。
+`clearAndSeedLibrary` に渡す `gridMode`（本棚の list/grid）・`verticalMode`（読書の書字方向）は
+**既定値と同じでも明示して送る**＝「面の指定」だと読めるようにする。
+
+⚠️ **着地判定に `By.text` 系を使ってはいけない面がある**——本文段落はルビの読み置換のため
+`text` を捨てて `contentDescription` だけを持つ（縦書き・横書きの**両方**）。
+2026-08-19 の tab-swipe 全5走行 iter000 fail の真因がこれで、fail 文言は無関係な原因を指していた。
+機序と「効くセレクタ / 効かないセレクタ」の表＝
+`docs/knowledge/body-paragraphs-have-no-text-node-only-contentdescription.md`。
+
 ## 5. シェル・パスの罠
 
 - **Git Bash（Windows 側）**は `/sdcard` 等の device パスを MSYS が変換して push/pull/dump を壊す
