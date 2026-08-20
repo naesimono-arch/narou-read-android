@@ -26,6 +26,39 @@
   ・⋮タップ面 28→32px・グリフ 16→18px（実装 KCardMenuTapSize=32dp・アイコン 18dp）。
   ・golden との既知乖離（意匠裁定待ち＝ここでは直さない）: 列間 24px（実装 S32）・表示切替アイコンの向き・
     なろう・未取込ラベル色（実装 secondary #9CB3A8）・栞先端の TIPS 抽選意匠。
+
+  【2026-08-20 追加（ユーザー裁定2件・アクセシビリティ。既定の見え〔fontScale 1.0・蔵書あり〕は不変）】
+  ① フィルタ行のスクロール端フェード＝採用案(B)。溢れているときだけ端を地色へ溶かし「まだ続く」を示す。
+     点灯条件は Compose の ScrollState.canScrollBackward / canScrollForward と同義（本ファイルは末尾の JS で同判定）。
+     **溢れない 1.0 では両端とも消灯＝一切描画されず版面も変わらない**（採用理由がそのまま制約）。
+     直す症状＝2.0 でチップ「読了」が右へ隠れ、横へ送れること自体に気づけない（到達手段は K/D とも既にある）。
+     **強度＝案「中」で確定（2026-08-20 ユーザー裁定・幅56px／端18%を地色で保持してから緩く抜く）。**
+     比較した3案は 弱＝幅32px・線形／中＝幅56px・端18%保持／強＝幅80px・端30%保持。弱を捨てたのは、線形は
+     端で一気に透明へ向かうため「消えている」ではなく「薄い帯が乗っている」としか読めないから（幅の不足が
+     真因ではない）。強は溶け際が伸びすぎて目立ち、要求「わかりやすく・ただし目立ちすぎもNG」の後半に反する。
+     比較用の .mid / .strong クラスは役目を終えたので撤去済み＝正本が持つ見えは確定した1つだけ。
+  ② 空棚（蔵書0）では拡張FABを出さない＝押す対象を空棚CTA〈PDFを追加〉一本へ寄せる。
+     ⚠️ 「この分類の本はありません」（状態フィルタで0件・蔵書はある）は空棚ではない＝FAB は出したまま。
+        あちらは CTA を持たないので、隠すと PDF 追加の導線が全部消える。
+     ⚠️ FAB を消す枠では下端の FAB 回避帯（Insets.ScrollBottomForFab）も同時に外す＝避ける相手が居ないのに
+        予約だけ残ると空棚の中央寄せが 48dp ぶん上へずれる（下の検分③は外した後の見えを描いている）。
+     出没のトランジション（M3 の scale+fade）はモックで確定させない＝実機後詰め層（ADR 0005 §B）。
+  ・下段の検分枠（.probes）は裁定のための付帯物＝実機には無い。正本の本体は上段の phone ただ1つ。
+
+  【Compose 翻訳への申し送り（翻訳は別便＝口伝にしない）】
+  ・裁定②（空棚でFABを引っ込める）を実装する便は、同じコミットで次の2つを必ず伴わせること。
+    (1) KEmptyState の `padding(bottom = Insets.ScrollBottomForFab)` を外す。あれは FAB を避けるための
+        予約なので、避ける相手が消えたのに残すと空棚の中央寄せが帯の半分（48dp）ぶん上へずれる。
+    (2) BookshelfKFabTest「空棚のCTAは末尾まで送るとFAB帯の外に出る」を書き換える。あの assert は
+        contentDescription="PDFを追加"（＝FAB）のノードが在ることが前提で、蔵書0で FAB を消すと
+        ノード不在で落ちる。新しい契約は2本＝「蔵書0のとき FAB ノードが存在しない」／
+        「状態フィルタで0件（蔵書はある）のときは存在する」。後者を落とすと⚠️の取り違えが検出できない。
+  ・裁定①（端フェード）の確定値は **幅 56px・端の 18% を地色のまま保持してから緩く抜く**（案「中」）。
+    Compose 側の点灯条件は ScrollState.canScrollBackward / canScrollForward をそのまま読む＝
+    **溢れていなければ両方 false ＝ 何も描かない**（fontScale 1.0 で版面不変が採用の制約そのもの）。
+    実装は幅を dp でなく「チップ行の可視幅に対する固定 dp」で持つこと＝フォントスケールで伸ばさない
+    （伸ばすと 2.0 で溶ける量が増えすぎ、隠れた「読了」の手掛かりまで食う）。
+    D 正本 skins/bookshelf-D.html にも同じ確定値を反映済み＝2画面で値がずれていないことを翻訳時に確認する。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -49,8 +82,9 @@
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
+  /* 正本の phone と検分枠を横に並べるだけ（gap/wrap の追加は phone 自体の見えに影響しない） */
   body{background:#E4E3DD;min-height:100vh;display:flex;align-items:center;justify-content:center;
-    padding:24px;font-family:var(--gothic);-webkit-font-smoothing:antialiased}
+    flex-wrap:wrap;gap:28px;padding:24px;font-family:var(--gothic);-webkit-font-smoothing:antialiased}
 
   /* === スマホ画面枠（実機実効 360dp 幅・ライトテーマ） === */
   .phone{width:360px;height:820px;background:var(--base);border-radius:38px;overflow:hidden;
@@ -77,6 +111,25 @@
   .chip{flex-shrink:0;font-size:12.5px;padding:6px 15px;border-radius:999px;cursor:pointer;
     border:1px solid var(--line);color:var(--ink-soft);background:transparent;letter-spacing:.02em}
   .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
+
+  /* ===== スクロール端フェード（2026-08-20 裁定①） =====
+     .chipsrow は位置決めだけの器＝padding も高さも持たないので、内側 .chips の版面は従来と 1px も変わらない。
+     フェードは絶対配置のオーバーレイ 2枚（既定 opacity:0）で、can-l / can-r が付いたときだけ点く。
+     クラスを付ける判定は末尾の JS＝Compose の canScrollBackward / canScrollForward と同じ問い。
+     bottom を 12px 空けるのは .chips の下パディングぶん＝チップの帯だけを溶かし、下の余白には掛けないため。 */
+  /* 確定値＝案「中」（2026-08-20 裁定）。端の 18%（≈10px）を地色のまま保持してから緩く抜く
+     ＝溶け際が伸びて「チップが地へ溶けている」と読める（弱/強の比較と選定理由は冒頭コメント）。 */
+  .chipsrow{position:relative;flex-shrink:0;
+    --fade-w:56px;
+    --fade-stops:var(--base) 0%,var(--base) 18%,rgba(251,250,248,.86) 38%,
+      rgba(251,250,248,.55) 60%,rgba(251,250,248,.22) 80%,rgba(251,250,248,0) 100%}
+  /* 点灯（opacity）の条件はここ1箇所だけ＝幅やカーブを触っても発火条件は動かない */
+  .chipsrow .fade{position:absolute;top:0;bottom:12px;width:var(--fade-w);pointer-events:none;
+    opacity:0;transition:opacity .18s ease}
+  /* 透明側は rgba(251,250,248,0)＝--base と同じ RGB。transparent（＝黒の透明）だと端が灰ばむ */
+  .chipsrow .fade.l{left:0;background:linear-gradient(to right,var(--fade-stops))}
+  .chipsrow .fade.r{right:0;background:linear-gradient(to left,var(--fade-stops))}
+  .chipsrow.can-l .fade.l,.chipsrow.can-r .fade.r{opacity:1}
 
   /* スクロール本体（FAB＋ボトムナビ分の余白を確保・左右余白は拡大＝2列改A） */
   .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 24px 120px;scrollbar-width:none}
@@ -136,6 +189,32 @@
     stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
   .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
   .tab.on .lb{font-weight:700}
+
+  /* ===== 空棚（蔵書0）＝裁定② の見え。FAB は置かない ＝ 押す対象は下の CTA 2つだけ ===== */
+  /* 中央寄せは器の中央そのもの（FAB を消したので下端 96dp の回避帯は敷かない＝上寄りのズレが出ない） */
+  .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:0 40px;overflow-y:auto}
+  .empty h2{font-family:var(--gothic);font-size:22px;font-weight:600;color:var(--ink);letter-spacing:.02em}
+  .empty p{margin-top:12px;font-size:14px;line-height:1.7;color:var(--ink-soft)}
+  .empty .ctas{margin-top:32px;display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+  /* M3 の既定寸法（高40dp・角丸フル・labelLarge 14sp）。K 独自トークンは発明しない */
+  .btn{height:40px;padding:0 24px;border-radius:20px;font-family:var(--gothic);font-size:14px;
+    font-weight:600;letter-spacing:.02em;cursor:pointer;display:inline-flex;align-items:center;border:none}
+  .btn.fill{background:var(--ai);color:#fff}          /* 一画面一強調＝主導線だけ藍の実塗り */
+  .btn.out{background:transparent;color:var(--ai);border:1px solid var(--line)}
+
+  /* ===== 検分枠（裁定用の付帯物・実機には無い） ===== */
+  .probes{display:flex;flex-direction:column;gap:18px;align-items:flex-start}
+  .probes .mode{font-size:12px;font-weight:700;color:#2A2C28;letter-spacing:.04em}
+  .probes .pn{font-size:11.5px;line-height:1.7;color:#5A5C57;max-width:360px;margin-top:6px}
+  .probes .pn b{color:#2A2C28}
+  .strip{width:360px;background:var(--base);border-radius:14px;padding-top:14px;overflow:hidden;
+    box-shadow:0 8px 22px rgba(0,0,0,.16)}
+  /* fontScale 2.0 相当＝字だけ倍（12.5→25px）。パディング/角丸/間隔は dp なので据え置き＝実機の伸び方と同じ */
+  .chips.x2 .chip{font-size:25px}
+  .probes .grp{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+  .probes .ck{font-size:11.5px;font-weight:700;margin-top:8px;color:#2F6B45}
+  .probes .ck.ng{color:#A2372F}
 </style>
 </head>
 <body>
@@ -151,12 +230,16 @@
       </button>
     </div>
 
-    <!-- 状態フィルタチップ -->
-    <div class="chips">
-      <span class="chip on">すべて</span>
-      <span class="chip">よみかけ</span>
-      <span class="chip">未読</span>
-      <span class="chip">読了</span>
+    <!-- 状態フィルタチップ（器 .chipsrow は端フェード用の位置決めのみ・版面は不変） -->
+    <div class="chipsrow">
+      <div class="chips">
+        <span class="chip on">すべて</span>
+        <span class="chip">よみかけ</span>
+        <span class="chip">未読</span>
+        <span class="chip">読了</span>
+      </div>
+      <span class="fade l" aria-hidden="true"></span>
+      <span class="fade r" aria-hidden="true"></span>
     </div>
 
     <!-- 本のグリッド（2列改A・栞書影・うち2冊は Web 未取込＝D改） -->
@@ -265,5 +348,152 @@
       </a>
     </nav>
   </div>
+
+  <!-- ============================================================
+       検分枠（2026-08-20 裁定用の付帯物・実機には無い。正本の本体は上の phone ただ1つ）
+       ============================================================ -->
+  <div class="probes">
+
+    <div>
+      <span class="mode">検分① フィルタ行・fontScale 1.0（溢れない）＝不発火であること</span>
+      <p class="pn">チップ4個は幅 360 に収まる（算術 約332px）。
+        <b>溢れていなければ点灯条件が false ＝ 何も描かれない</b>のが裁定①の制約。下の自己点検が機械で見張る。</p>
+      <div class="grp">
+        <div class="strip" data-scale="1.0">
+          <div class="chipsrow">
+            <div class="chips">
+              <span class="chip on">すべて</span><span class="chip">よみかけ</span>
+              <span class="chip">未読</span><span class="chip">読了</span>
+            </div>
+            <span class="fade l" aria-hidden="true"></span>
+            <span class="fade r" aria-hidden="true"></span>
+          </div>
+        </div>
+      </div>
+      <p class="ck" id="selfcheck">自己点検: 計測中…</p>
+    </div>
+
+    <div>
+      <span class="mode">検分② フィルタ行・fontScale 2.0 相当（溢れる）＝確定値「中」</span>
+      <p class="pn">「読了」が右へ隠れる元の症状。<b>右端が地色へ溶けて続きを示す</b>。ホイール／ドラッグで
+        送ると左端にも出て、末尾まで送ると右端が消える。</p>
+      <div class="grp">
+        <div class="strip" data-scale="2.0">
+          <div class="chipsrow">
+            <div class="chips x2">
+              <span class="chip on">すべて</span><span class="chip">よみかけ</span>
+              <span class="chip">未読</span><span class="chip">読了</span>
+            </div>
+            <span class="fade l" aria-hidden="true"></span>
+            <span class="fade r" aria-hidden="true"></span>
+          </div>
+        </div>
+      </div>
+      <p class="pn">「チップ半個を覗かせる（peek）」は案に入れていない＝<b>この4個では見本にならない</b>ため。
+        チップ幅は文字数で変わるので「半個」を宣言的に保証できず、2.0 の実測では切れ目がちょうど
+        「読了」の 1px 目に落ちる（＝弱案と見分けが付かない絵になる）。覗きを本気で狙うなら並び順や
+        ラベル長というデータ側の細工が要る＝別議題として切り出すべきもの。</p>
+    </div>
+
+    <div>
+      <span class="mode">検分③ 空棚（蔵書0）＝FAB を引っ込めた状態</span>
+      <div class="phone">
+        <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+
+        <div class="head">
+          <div class="ttl"><h1>本棚</h1><span class="count">0冊</span></div>
+          <button class="view" aria-label="表示切替">
+            <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="4" width="6.6" height="6.6" rx="1.4"/><rect x="4" y="13.4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="13.4" width="6.6" height="6.6" rx="1.4"/></svg>
+          </button>
+        </div>
+
+        <!-- チップ行は空棚でも出す（実装どおり＝「すべて」へ戻れる導線を絶やさない） -->
+        <div class="chipsrow">
+          <div class="chips">
+            <span class="chip on">すべて</span><span class="chip">よみかけ</span>
+            <span class="chip">未読</span><span class="chip">読了</span>
+          </div>
+          <span class="fade l" aria-hidden="true"></span>
+          <span class="fade r" aria-hidden="true"></span>
+        </div>
+
+        <div class="empty">
+          <h2>まだ本がありません</h2>
+          <p>読みたい作品をさがすか、お手元のPDFを追加して読み始めましょう。</p>
+          <div class="ctas">
+            <button class="btn fill">作品をさがす</button>
+            <button class="btn out">PDFを追加</button>
+          </div>
+        </div>
+
+        <!-- ここに .fab は置かない＝裁定②。PDF 追加は上の輪郭ボタン一本（実装も同じ onFabClick を呼ぶ） -->
+
+        <nav class="tabbar">
+          <a class="tab on">
+            <span class="ic"><span class="pill"></span>
+              <svg viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M4 18a2 2 0 0 1 2-2h12"/></svg>
+            </span>
+            <span class="lb">本棚</span>
+          </a>
+          <a class="tab">
+            <span class="ic"><span class="pill"></span>
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg>
+            </span>
+            <span class="lb">さがす</span>
+          </a>
+          <a class="tab">
+            <span class="ic"><span class="pill"></span>
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </span>
+            <span class="lb">設定</span>
+          </a>
+        </nav>
+      </div>
+      <p class="pn">蔵書0 のときだけ FAB を引っ込める。<b>状態フィルタで0件（蔵書はある）は対象外</b>
+        ＝そちらは CTA が無いので FAB を残さないと PDF 追加の導線が消える。</p>
+    </div>
+
+  </div>
+
+<script>
+/* スクロール端フェードの点灯判定。
+   Compose 翻訳では ScrollState.canScrollBackward / canScrollForward をそのまま読むところで、
+   ここでは同じ問いを scrollLeft と scrollWidth-clientWidth で立てているだけ（意匠の分岐条件は同一）。
+   溢れていなければ max<=0 ＝ 両方 false ＝ どちらのオーバーレイも opacity:0 のまま
+   ＝ fontScale 1.0 では「何も描かれない」（裁定①の制約）。 */
+(function () {
+  function sync(row) {
+    var sc = row.querySelector('.chips');
+    var max = sc.scrollWidth - sc.clientWidth;
+    row.classList.toggle('can-l', sc.scrollLeft > 1);
+    row.classList.toggle('can-r', max > 1 && sc.scrollLeft < max - 1);
+  }
+  /* 自己点検: 1.0 の行（＝正本 phone・空棚 phone・検分①）が1つでも点いたら赤で知らせる。
+     幅やカーブを触ったときに「強くしたら 1.0 でも出てしまった」を見逃さないための見張り＝
+     点灯条件は .chipsrow 共通の1箇所しか無いので構造上そうならないが、その構造を実測で裏取りする。 */
+  function selfcheck() {
+    var el = document.getElementById('selfcheck');
+    if (!el) return;
+    var rows = [].filter.call(document.querySelectorAll('.chipsrow'), function (r) {
+      return !r.closest('[data-scale="2.0"]');
+    });
+    var fired = rows.filter(function (r) {
+      return r.classList.contains('can-l') || r.classList.contains('can-r');
+    });
+    el.className = 'ck' + (fired.length ? ' ng' : '');
+    el.textContent = fired.length
+      ? '自己点検: ✗ fontScale 1.0 の ' + rows.length + ' 行のうち ' + fired.length + ' 行が発火した（裁定①の制約違反）'
+      : '自己点検: ✓ fontScale 1.0 の ' + rows.length + ' 行（正本・空棚・検分①）すべて未発火＝端フェードは1枚も描かれていない';
+  }
+  document.querySelectorAll('.chipsrow').forEach(function (row) {
+    var sc = row.querySelector('.chips');
+    sc.addEventListener('scroll', function () { sync(row); selfcheck(); }, { passive: true });
+    /* 字幅はフォント読み込み後に確定するので、初回計算だけでは取りこぼす */
+    if (window.ResizeObserver) new ResizeObserver(function () { sync(row); selfcheck(); }).observe(sc);
+    sync(row);
+  });
+  selfcheck();
+})();
+</script>
 </body>
 </html>

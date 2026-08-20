@@ -9,6 +9,17 @@
     （K実機検分の是正形＝書影上でなくキャプション行・スクリム地なし・ink-soft）／拡張FAB「＋PDFを追加」。
   【発見帯は載せない】K形では発見は「さがす」タブへ分離（fusion-D の発見帯融合構造は退役＝ユーザー採否裁定事項）。
   ink-soft はD原値#7C808B を温存（KのAA引き上げ#6A6E78 はK固有裁定ゆえ持ち込まない）。単一画面・ライトのみ。
+
+  【2026-08-20 伝播（K 裁定①のみ・②は持ち込まない）】
+  ・フィルタ行のスクロール端フェードを K から伝播。溢れているときだけ端を地色へ溶かし「まだ続く」を示す。
+    点灯条件は Compose の ScrollState.canScrollBackward / canScrollForward と同義（末尾の JS で同判定）。
+    **溢れない fontScale 1.0 では両端とも消灯＝一切描画されず版面も変わらない**（K と同じ制約）。
+  ・強度は K の裁定に**追従済み**＝案「中」（幅56px／端の18%を地色で保持してから緩く抜く・2026-08-20 確定）。
+    K 正本 skins/bookshelf-K.html の .chipsrow と同値＝どちらかを触るときは必ず両方を同じ値に保つ。
+    フェード下端の 14px だけは D のチップ行の下パディングに合わせた値なので K（12px）と異なる＝これは正しい差。
+  ・K 裁定②（空棚で拡張FABを引っ込める）は**伝播しない**＝D の空棚は EmptyBookshelf の本文が
+    「右下の＋からPDFを追加してください」と FAB を名指ししており、FAB を消すと文言が嘘になる。
+    D へ入れるなら空棚の文言と CTA の作り直しが前提＝別議題。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -55,6 +66,24 @@
   .chip{flex-shrink:0;font-size:12px;color:var(--ink-soft);border:1px solid var(--line);
     border-radius:2px;padding:8px 14px;cursor:pointer;white-space:nowrap;letter-spacing:.04em}
   .chip.on{color:var(--ai);border-color:var(--ai);font-weight:600}
+
+  /* ===== スクロール端フェード（2026-08-20・K からの伝播） =====
+     .chipsrow は位置決めだけの器＝padding も高さも持たないので、内側 .chips の版面は従来と 1px も変わらない。
+     フェードは絶対配置のオーバーレイ 2枚（既定 opacity:0）で、can-l / can-r が付いたときだけ点く。
+     bottom を 14px 空けるのは .chips の下パディングぶん＝チップの帯だけを溶かし、下の余白には掛けないため
+     （K は 12px＝各スキンのチップ行の下パディングに合わせる値なので、ここだけは K と違って正しい）。
+     幅とカーブは K の確定値（案「中」）と同値＝端の 18% を地色のまま保持してから緩く抜くと、
+     線形のように端で一気に抜けず「チップが地へ溶けている」と読める。 */
+  .chipsrow{position:relative;flex-shrink:0;
+    --fade-w:56px;
+    --fade-stops:var(--base) 0%,var(--base) 18%,rgba(251,250,248,.86) 38%,
+      rgba(251,250,248,.55) 60%,rgba(251,250,248,.22) 80%,rgba(251,250,248,0) 100%}
+  .chipsrow .fade{position:absolute;top:0;bottom:14px;width:var(--fade-w);pointer-events:none;
+    opacity:0;transition:opacity .18s ease}
+  /* 透明側は rgba(251,250,248,0)＝--base と同じ RGB。transparent（＝黒の透明）だと端が灰ばむ */
+  .chipsrow .fade.l{left:0;background:linear-gradient(to right,var(--fade-stops))}
+  .chipsrow .fade.r{right:0;background:linear-gradient(to left,var(--fade-stops))}
+  .chipsrow.can-l .fade.l,.chipsrow.can-r .fade.r{opacity:1}
 
   /* スクロール本体（FAB＋ボトムナビ分の余白確保） */
   .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:2px 24px 120px;scrollbar-width:none}
@@ -128,12 +157,16 @@
       </button>
     </div>
 
-    <!-- 状態フィルタチップ（K形・D意匠の2px直角） -->
-    <div class="chips">
-      <span class="chip on">すべて</span>
-      <span class="chip">よみかけ</span>
-      <span class="chip">未読</span>
-      <span class="chip">読了</span>
+    <!-- 状態フィルタチップ（K形・D意匠の2px直角。器 .chipsrow は端フェード用の位置決めのみ・版面は不変） -->
+    <div class="chipsrow">
+      <div class="chips">
+        <span class="chip on">すべて</span>
+        <span class="chip">よみかけ</span>
+        <span class="chip">未読</span>
+        <span class="chip">読了</span>
+      </div>
+      <span class="fade l" aria-hidden="true"></span>
+      <span class="fade r" aria-hidden="true"></span>
     </div>
 
     <!-- 本棚グリッド（2列・6冊・発見帯なし） -->
@@ -242,5 +275,28 @@
       </a>
     </nav>
   </div>
+
+<script>
+/* スクロール端フェードの点灯判定（K 正本 skins/bookshelf-K.html と同一ロジック）。
+   Compose 翻訳では ScrollState.canScrollBackward / canScrollForward をそのまま読むところで、
+   ここでは同じ問いを scrollLeft と scrollWidth-clientWidth で立てているだけ。
+   溢れていなければ max<=0 ＝ 両方 false ＝ どちらのオーバーレイも opacity:0 のまま
+   ＝ fontScale 1.0 では「何も描かれない」（K と共通の制約）。 */
+(function () {
+  function sync(row) {
+    var sc = row.querySelector('.chips');
+    var max = sc.scrollWidth - sc.clientWidth;
+    row.classList.toggle('can-l', sc.scrollLeft > 1);
+    row.classList.toggle('can-r', max > 1 && sc.scrollLeft < max - 1);
+  }
+  document.querySelectorAll('.chipsrow').forEach(function (row) {
+    var sc = row.querySelector('.chips');
+    sc.addEventListener('scroll', function () { sync(row); }, { passive: true });
+    /* 字幅はフォント読み込み後に確定するので、初回計算だけでは取りこぼす */
+    if (window.ResizeObserver) new ResizeObserver(function () { sync(row); }).observe(sc);
+    sync(row);
+  });
+})();
+</script>
 </body>
 </html>
