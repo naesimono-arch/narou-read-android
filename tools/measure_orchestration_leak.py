@@ -14,9 +14,19 @@ main の cache_read が平均 186k/ターンある。何が伸ばしているの
 import json, glob, os, sys
 from collections import Counter, defaultdict
 
-BASE = os.path.expanduser(
-    "~/.claude/projects/-mnt-c-Users-qingj-Desktop-project-novel-reader-andloid")
-files = sorted(glob.glob(BASE + "/**/*.jsonl", recursive=True))
+# Windows 側ユーザー名の移行（qingj→naesimono, 2026-08-23）で project slug が分岐した。
+# 過去の実測値は旧 slug 側にしか無いので、新旧どちらも走査する。
+BASES = [
+    os.path.expanduser("~/.claude/projects/-mnt-c-Users-naesimono-Desktop-project-novel-reader-andloid"),
+    os.path.expanduser("~/.claude/projects/C--Users-naesimono-Desktop-project-novel-reader-andloid"),
+    os.path.expanduser("~/.claude/projects/-mnt-c-Users-qingj-Desktop-project-novel-reader-andloid"),
+    os.path.expanduser("~/.claude/projects/C--Users-qingj-Desktop-project-novel-reader-andloid"),
+]
+files = sorted({
+    os.path.realpath(p)
+    for b in BASES
+    for p in glob.glob(b + "/**/*.jsonl", recursive=True)
+})
 
 name_by_id = {}
 res_by_side = {"main": Counter(), "sub": Counter()}

@@ -10,11 +10,21 @@ cache_read = Σ(各ターンのコンテキスト長) なので、削るには�
 import json, glob, os, sys
 from collections import Counter
 
-BASE = os.path.expanduser(
-    "~/.claude/projects/-mnt-c-Users-qingj-Desktop-project-novel-reader-andloid")
+# Windows 側ユーザー名の移行（qingj→naesimono, 2026-08-23）で project slug が分岐した。
+# 過去の実測値は旧 slug 側にしか無いので、新旧どちらも走査する。
+BASES = [
+    os.path.expanduser("~/.claude/projects/-mnt-c-Users-naesimono-Desktop-project-novel-reader-andloid"),
+    os.path.expanduser("~/.claude/projects/C--Users-naesimono-Desktop-project-novel-reader-andloid"),
+    os.path.expanduser("~/.claude/projects/-mnt-c-Users-qingj-Desktop-project-novel-reader-andloid"),
+    os.path.expanduser("~/.claude/projects/C--Users-qingj-Desktop-project-novel-reader-andloid"),
+]
 TOPN = int(sys.argv[1]) if len(sys.argv) > 1 else 15
 
-files = sorted(glob.glob(BASE + "/**/*.jsonl", recursive=True))
+files = sorted({
+    os.path.realpath(p)
+    for b in BASES
+    for p in glob.glob(b + "/**/*.jsonl", recursive=True)
+})
 name_by_id = {}
 res_chars, res_count = Counter(), Counter()
 biggest = []          # (size, tool, file)

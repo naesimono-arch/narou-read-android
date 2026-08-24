@@ -2,7 +2,7 @@
 
 > **このファイルの位置づけ**: Play 必須の「静的・非PDF の公開 URL」に載せる本文の下書き（2026-07-29 起草）。
 > 「▼公開本文▼」〜「▲公開本文ここまで▲」の間だけをそのままホスティング先へ転記する（Markdown → HTML 変換可）。
-> 要件と記載項目の正本＝`/mnt/c/Users/qingj/Desktop/project/アプリ公開戦略/外部リサーチ実査結果_2026-07-19.md` B-4。
+> 要件と記載項目の正本＝`/mnt/c/Users/naesimono/Desktop/project/アプリ公開戦略/外部リサーチ実査結果_2026-07-19.md` B-4。
 > アプリ側の事実の裏取り＝`android/app/build.gradle`・`AndroidManifest.xml`・ADR 0010/0011/0012/0015/0024・`STATUS.md`（2026-07-29 時点）。
 > Data safety 申告（`data-safety-draft.md`）と内容を整合させること（不整合はアプリ停止事由）。
 >

@@ -158,7 +158,7 @@
 ## UX/Design 全層監査の残り（2026-07-12）
 
 > **解凍条件＝各項目に個別記載**（いずれも「前提が欠けていて今は成立しない」型）。
-> **これは何か**: `/mnt/c/Users/qingj/Desktop/project/UX`（UX24層＋Design10層＋公理候補）に対する全体監査（45体・敵対的検証済み）の残り。
+> **これは何か**: `/mnt/c/Users/naesimono/Desktop/project/UX`（UX24層＋Design10層＋公理候補）に対する全体監査（45体・敵対的検証済み）の残り。
 > 消化済み分の一次情報＝`.claude/plans/ux-design-full-audit-2026-07-12.md`（§A 統合報告／§B 全指摘詳細）＋
 > `.claude/plans/ux-audit-batch-execution-20260712.md`。ゲート＝`cd android && testDebugUnitTest`＋`python3 tools/check_design_tokens.py`。
 > **意匠絡みは Compose で自己判断せず ADR0005/0014＋モック正本に先に接地**。

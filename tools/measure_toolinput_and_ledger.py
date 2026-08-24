@@ -9,13 +9,23 @@ Bash の command や Agent の prompt は委譲の指示そのもので、出し
 import json, glob, os
 from collections import Counter, defaultdict
 
-BASE = os.path.expanduser(
-    "~/.claude/projects/-mnt-c-Users-qingj-Desktop-project-novel-reader-andloid")
+# Windows 側ユーザー名の移行（qingj→naesimono, 2026-08-23）で project slug が分岐した。
+# 過去の実測値は旧 slug 側にしか無いので、新旧どちらも走査する。
+BASES = [
+    os.path.expanduser("~/.claude/projects/-mnt-c-Users-naesimono-Desktop-project-novel-reader-andloid"),
+    os.path.expanduser("~/.claude/projects/C--Users-naesimono-Desktop-project-novel-reader-andloid"),
+    os.path.expanduser("~/.claude/projects/-mnt-c-Users-qingj-Desktop-project-novel-reader-andloid"),
+    os.path.expanduser("~/.claude/projects/C--Users-qingj-Desktop-project-novel-reader-andloid"),
+]
 CH2TOK = 4.0
 LEDGERS = ("STATUS.md", "handover.md", "awaiting-human.md")
 
-files = [p for p in sorted(glob.glob(BASE + "/**/*.jsonl", recursive=True))
-         if "/subagents/" not in p]
+files = sorted({
+    os.path.realpath(p)
+    for b in BASES
+    for p in glob.glob(b + "/**/*.jsonl", recursive=True)
+    if "/subagents/" not in p.replace("\\", "/")
+})
 
 eff_in = Counter()        # tool_use 引数を「中身の種類」別に
 cnt_in = Counter()

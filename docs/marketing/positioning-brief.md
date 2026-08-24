@@ -58,7 +58,7 @@
 
 ### APK サイズの実測（旧記載「数十MB」の是正・2026-08-17）
 
-**出典**＝リポジトリ外の解析ワークスペース `C:\Users\qingj\Desktop\project\book-api-analysis\apks\{パッケージ名}\` に置かれた
+**出典**＝リポジトリ外の解析ワークスペース `C:\Users\naesimono\Desktop\project\book-api-analysis\apks\{パッケージ名}\` に置かれた
 競合5本の原本 APK（**ファイル日付＝2026-07-06**・版とパッケージ名は同ワークスペース `04-HANDOFF.md` の表／記号 A〜E の対応は
 `docs/reference/04-competitor-app-features.md` の表と同一）。**測定方法**＝上記 APK 群のファイルサイズを 2026-08-17 に合算
 （単位は MiB＝1024²）。「実機に入る一式」＝`base.apk` ＋ split 3種

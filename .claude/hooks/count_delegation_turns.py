@@ -45,11 +45,13 @@ def base_dir():
     なぜ CLAUDE_PROJECT_DIR でなく固定 slug か: 計測はブランチ・worktree 不変の較正データで、
     全 worktree 分を1箇所に集計したい（worktree ごとの project slug に分散すると分布にならない）。
     auto-memory と同じ canonical スラッグ配下に置く。テストは DELEGATION_METER_DIR で差し替える。
+    slug が qingj でなく naesimono なのは Windows 側ユーザー名の移行（2026-08-23）による＝
+    auto-memory の移設先と一致させている（旧 slug のままだと記録先だけが分裂する）。
     """
     env = os.environ.get("DELEGATION_METER_DIR")
     if env:
         return Path(env)
-    return Path.home() / ".claude/projects/-mnt-c-Users-qingj-Desktop-project-novel-reader-andloid"
+    return Path.home() / ".claude/projects/-mnt-c-Users-naesimono-Desktop-project-novel-reader-andloid"
 
 
 def _read_payload_utf8():

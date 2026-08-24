@@ -6,7 +6,7 @@
 >
 > **確定済み**: アプリ名 `Yosari`（夜さり）／デベロッパー名は組織名 `Colophon`（Play 登録後に変更可）。
 > 実査＝`YOSARI`/`ヨサリ`/`よさり`/`夜さり` は **J-PlatPat 全区分で0件**・称呼類似の第9類も実質0・**Play に同名アプリなし**。
-> 全32候補の実査結果＝`/mnt/c/Users/qingj/Desktop/project/アプリ公開戦略/命名候補_実査結果_2026-08-19.md` が正本
+> 全32候補の実査結果＝`/mnt/c/Users/naesimono/Desktop/project/アプリ公開戦略/命名候補_実査結果_2026-08-19.md` が正本
 > （`Colophon` は Play 組織名・開業届・D-U-N-S に使う屋号で、アプリ名とは別軸）。
 > **意匠は確定済み（2026-08-20 裁定）**: アイコン＝**A 栞書影**／フィーチャーグラフィック＝**A 夜の帯**
 > （候補モックと実測値＝`docs/design-candidates/store/store-{icon,feature-graphic}-candidates.html`）。§5・§6 に確定値を転記した。

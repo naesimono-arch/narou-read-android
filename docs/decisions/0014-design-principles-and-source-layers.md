@@ -2,7 +2,7 @@
 
 - ステータス: Accepted
 - 日付: 2026-07-12
-- 出典: UX/Design 知識ベース（`C:\Users\qingj\Desktop\project\UX\Design` 7篇・本プロジェクトを対象に書かれた意匠の決め方 KB）。原則ドラフト＝KB 01 §4／禁止則表＝KB 04 §2／層構造＝KB 02／トークン現実解＝KB 03 §2 をほぼそのまま昇格。
+- 出典: UX/Design 知識ベース（`C:\Users\naesimono\Desktop\project\UX\Design` 7篇・本プロジェクトを対象に書かれた意匠の決め方 KB）。原則ドラフト＝KB 01 §4／禁止則表＝KB 04 §2／層構造＝KB 02／トークン現実解＝KB 03 §2 をほぼそのまま昇格。
 - 上位関係: ADR 0005（視覚言語D）が「何を選んだか」、本 ADR が「その選択を貫く判断基準」。以後の意匠裁定は本 ADR の原則番号との衝突として記述する。
 
 ## Context（背景）

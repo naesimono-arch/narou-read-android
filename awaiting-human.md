@@ -76,6 +76,13 @@
 
 ## 4. 外部手続き・人からしか出てこないもの
 
+- **[実機の adb 再承認]**（ユーザー作業＝実機の物理操作・**他の実機作業すべての前提**）:
+  Windows 側ユーザー名の移行（2026-08-23）で `C:\Users\naesimono\.android\` が引き継がれず、
+  **承認済み adbkey が消えている**（ディレクトリごと不在＝2026-08-24 実測）。`~/.local/bin/adb` は鍵が無ければ
+  vendor key を提示せず起動するので**ラッパーは壊れない代わりに実機が未承認になる**。
+  **やること**＝`adb-bridge` を実行し、実機に出る許可ダイアログで
+  **「このパソコンからのUSBデバッグを常に許可する」にチェックして許可**。
+  ⚠️ 実機を繋がないと最終確認できないため**未検証**（機序＝`docs/knowledge/windows-username-change-splits-project-slug.md`）。
 - **[agy プラグインのゲート修正を上流へ報告するか]** ⚠️ **2026-08-20 に「これはまだいいや」で保留裁定＝再提示しない**
   （修正は完成しライブ検証済み＝所在と経緯は `docs/backlog-frozen.md`「agy 委譲」節の成果物①）。
   上流 `SECURITY.md` が「唯一の制限」と称する防御が発火していない＝**上流の全ユーザーに影響する穴**で、報告の価値だけは残るため消さずに置く。
@@ -84,7 +91,7 @@
   **`yosari.app` を取得**（`.jp`/`.dev`/`.net`/`.io` も空きだが `.app` を正とする。プライバシーポリシーの GitHub Pages に当てる独自ドメインにもなる）。
   X は **`@yosari_app` 等**（`@yosari` は 2012年開設・ポスト0件の休眠アカウントが保有）。
   ⚠️ 衝突相手＝`yosari.com` はインド・ルディアナの民族衣装EC（業種・言語圏とも無関係で、Play のアプリは削除済み）。
-- **[鍵と資格情報のバックアップ]**（ユーザー作業）: `/mnt/c/Users/qingj/keystores/novel-reader-upload.jks`（RSA 2048・2053-12-14 まで・
+- **[鍵と資格情報のバックアップ]**（ユーザー作業）: `/mnt/c/Users/naesimono/keystores/novel-reader-upload.jks`（RSA 2048・2053-12-14 まで・
   alias `upload`）と `android/local.properties` の `release.*` 4行。**放置した場合**＝紛失時に Play への鍵差し替え申請が発生。
   Play Console 照合用の upload 証明書 SHA-1 = `FB:ED:C1:33:BC:1B:44:CA:35:B5:99:0D:47:6B:7C:27:B4:03:43:E3`。
 - **[ストア掲載素材の作成]** 文言の下書きは完成＝`docs/store/listing-draft.md`（＝**ユーザーは選ぶだけ**）。

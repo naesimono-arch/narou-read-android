@@ -12,13 +12,23 @@ Edit/Write/MultiEdit があれば「編集起点」、無ければ「調査」�
 import json, glob, os
 from collections import Counter
 
-BASE = os.path.expanduser(
-    "~/.claude/projects/-mnt-c-Users-qingj-Desktop-project-novel-reader-andloid")
+# Windows 側ユーザー名の移行（qingj→naesimono, 2026-08-23）で project slug が分岐した。
+# 過去の実測値は旧 slug 側にしか無いので、新旧どちらも走査する。
+BASES = [
+    os.path.expanduser("~/.claude/projects/-mnt-c-Users-naesimono-Desktop-project-novel-reader-andloid"),
+    os.path.expanduser("~/.claude/projects/C--Users-naesimono-Desktop-project-novel-reader-andloid"),
+    os.path.expanduser("~/.claude/projects/-mnt-c-Users-qingj-Desktop-project-novel-reader-andloid"),
+    os.path.expanduser("~/.claude/projects/C--Users-qingj-Desktop-project-novel-reader-andloid"),
+]
 CH2TOK = 4.0
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 
-files = [p for p in sorted(glob.glob(BASE + "/**/*.jsonl", recursive=True))
-         if "/subagents/" not in p]
+files = sorted({
+    os.path.realpath(p)
+    for b in BASES
+    for p in glob.glob(b + "/**/*.jsonl", recursive=True)
+    if "/subagents/" not in p.replace("\\", "/")
+})
 
 eff_kind = Counter()      # 編集起点 / 調査
 cnt_kind = Counter()

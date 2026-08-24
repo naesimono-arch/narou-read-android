@@ -50,6 +50,6 @@ G2 は「キリがない」として**不採用裁定**。将来の解放条件�
 
 - **注1 Pixiv**: R-18 はログイン必須＝**アプリ内ブラウザ認証（Cookie/セッション保持）が前提**。メンバーページ登録もログインが要る。
 - **注2 アルファポリス**: 連続DL制限あり＝**Crawl-delay を厚め＋制限検知バックオフ・リトライ**。土台は `ScrapeHttpClient` に実装済み。
-- **競合のスクレイピング実装解析**: `/mnt/c/Users/qingj/Desktop/project/book-api-analysis/07-competitor-scraping-techniques.md`
+- **競合のスクレイピング実装解析**: `/mnt/c/Users/naesimono/Desktop/project/book-api-analysis/07-competitor-scraping-techniques.md`
   （唯一の実スクレイプ競合 B・約38サイト・jsoup・3抽出戦略・per-host レート制御／WebView Cookie 間借り等の「作法」）。
   ⚠️ **内容が濃いため直読みせず、新アダプタ設計時に委譲ダイジェストで参照**（ユーザー指示）。

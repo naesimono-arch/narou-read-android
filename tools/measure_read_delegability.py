@@ -14,16 +14,18 @@ PreToolUse フックはその未来を見られない。本スクリプトは、
 import json, glob, os
 from collections import Counter, defaultdict
 
+# Windows 側ユーザー名の移行（qingj→naesimono, 2026-08-23）で project slug が分岐した。
+# 過去の実測値は旧 slug 側にしか無いので、新旧どちらも走査する。
 BASES = [
+    os.path.expanduser("~/.claude/projects/-mnt-c-Users-naesimono-Desktop-project-novel-reader-andloid"),
+    os.path.expanduser("~/.claude/projects/C--Users-naesimono-Desktop-project-novel-reader-andloid"),
     os.path.expanduser("~/.claude/projects/-mnt-c-Users-qingj-Desktop-project-novel-reader-andloid"),
     os.path.expanduser("~/.claude/projects/C--Users-qingj-Desktop-project-novel-reader-andloid"),
-    "/home/qingj/.claude/projects/-mnt-c-Users-qingj-Desktop-project-novel-reader-andloid",
 ]
 CH2TOK = 4.0
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 
-# WSL から見ると BASES の 1 番目と 3 番目は同一ディレクトリに解決される。
-# realpath で畳まないと同じ jsonl を二重に数え、件数だけが倍化する（比率は変わらないので気づきにくい）。
+# 同一実体へ解決される slug が混じるので realpath で畳む（畳まないと同じ jsonl を二重に数え、件数だけが倍化する）。
 files = sorted({
     os.path.realpath(p)
     for b in BASES
