@@ -1,7 +1,7 @@
 # 0031. agy 委譲の復活設計＝三層委譲と、委譲ゲートの「機械強制」からの撤退
 
 - 状態: **Accepted（2026-08-09）**
-- 関連: memory `feedback-avoid-agy-low-trust`（禁止の経緯）／`docs/backlog-frozen.md`（凍結項目の解凍条件）／
+- 関連: CLAUDE.md「委譲は二層」（現行状態の正本）／`docs/backlog-frozen.md`（凍結項目の解凍条件）／
   ADR 0030（機械と判断の線引きの先行例）／ADR 0006（事実照合を機械で止める路線）／CLAUDE.md 委譲節
 
 ## 経緯
@@ -46,7 +46,7 @@
 2. **検証負荷が監督に乗る** — 「削除行込み diff 全量レビュー」は agy 前提のルールで、Claude サブでは不要と
    明文化済み（memory 追記 2026-07-17）。**agy を選んだ瞬間に監督のコンテキストを食う規律が復活する**構造だった。
 3. **委譲がハングする**（下記3）。
-4. 信頼度（偽GREEN・較正値クラスの見落とし＝memory `agy-mechanical-batch-calibrated-values`）。
+4. 信頼度（偽GREEN・較正値クラスの見落とし＝`/orchestration` §1）。
 
 ### 3. ハングの真因は上流が特定し、根治済み（issue #37 / `33932f5`）
 
@@ -151,7 +151,7 @@ main（オーケストレーション・委譲判断・最終ゲート）
 > master 0.22.2 はこのゲートを `agents/antigravity-delegate.md` の **frontmatter** で配線しており、
 > plugin-level `hooks/hooks.json` には PreToolUse が1つも無い。Claude Code は
 > **プラグイン提供サブエージェントの frontmatter `hooks` を仕様として黙ってドロップする**
-> （memory `plugin-subagent-hooks-ignored`。42日前の実証が今回も再現）。
+> （memory `hook-implementation-facts` §5。42日前の実証が今回も再現）。
 > 実測＝`antigravity-delegate` に `echo HOOK_PROBE_OK` を叩かせたら素通り（exit 0・拒否なし）。
 > 上流 `SECURITY.md` が「このサブエージェントの実行内容を制限する唯一のもの」と呼ぶ防御が発火していない＝
 > **任意コマンドが通る**。修正の中身は正しく、**置き場所が届いていない**。

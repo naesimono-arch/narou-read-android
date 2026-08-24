@@ -37,4 +37,4 @@ Compose の spacing-context（`padding`/`PaddingValues`/`Arrangement.spacedBy`/`
 
 **判断の線引き**: 明文化された較正/パリティを持つ値だけ保持し、それ以外は裁定スケールで淡々と丸める
 （2dp の光学 nudge 等、文書化のない微小値は S4 へ丸めてよい＝過剰に「較正扱い」しない）。関連＝auto-memory
-`agy-mechanical-batch-calibrated-values`。
+`/orchestration` §1「機械置換バッチを委譲するときの2つの盲点」。

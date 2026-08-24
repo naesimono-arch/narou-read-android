@@ -23,7 +23,7 @@
   旧記載「約69%」は元計算が再現できず誤りだった〔2026-08-10 再測〕。**費用が乗るのは読み込み側**＝
   Read 36.3%〔うち `handover.md` だけで 8.9%〕・tool_use 引数 31.1%・Bash 出力 20.1%
   ＝計測は `tools/measure_read_residency.py`〔ほか `measure_read_kind.py`・`measure_toolinput_and_ledger.py`〕）。
-- **コミット**: 1論理変更＝1コミット・形式 `fix/feat/refactor: 要約（日本語可）`・`git commit` 前に変更内容を提示して人間の承認を得る・`Co-Authored-By` は付けない。**台帳（STATUS/handover）の更新は原因となった論理変更と同じコミットに同梱**（`docs:` 単独コミットはドキュメント自体が作業対象のときのみ）。main への直コミット・merge はフックがブロック＝作業ブランチで進め、コミットは worktree 内セッションから行う。
+- **コミット**: 1論理変更＝1コミット・形式 `fix/feat/refactor: 要約（日本語可）`・**論理変更が検証済みになった時点で都度コミットしてよい**（2026-07-23 ユーザー裁定＝事前の「コミットしてよいか」提示は不要。ゲートと目視関門が多重化された運用が定着したため。⚠️ **破壊的操作・main への操作・push は従来どおり明示承認**）・`Co-Authored-By` は付けない。**台帳（STATUS/handover）の更新は原因となった論理変更と同じコミットに同梱**（`docs:` 単独コミットはドキュメント自体が作業対象のときのみ）。main への直コミット・merge はフックがブロック＝作業ブランチで進め、コミットは worktree 内セッションから行う。
 - **自己検証必須**: Kotlin の `src/main`/`src/test` を変更したら `cd android && ./gradlew testDebugUnitTest` を実行してからコミット計画を提示（PDF抽出ロジックも同テストで担保。androidTest は端末必須のため**実行**は対象外。⚠️ **Windows セッションでは成立しない**＝`/build` の Windows 節）。
   **本番の public シグネチャを変えたら `./gradlew :app:assembleDebugAndroidTest` でコンパイルだけ確認する**——
   既定ゲートは androidTest をコンパイルしないため、追従漏れが壊れたまま潜伏する（実際に2回発生）。
@@ -53,13 +53,13 @@
 - **人間の目視・裁定・外部手続き待ち → `awaiting-human.md`**（handover は「Claude が今すぐ動けるもの」だけ。二分の軸＝待ちの種類・迷ったら handover 側＝ADR 0028）
 - **完了の履歴 → git log が正本**／**判断・Why-not → `docs/decisions/`**（方式比較の前にまず README 索引を確認。不採用判断・コミットを生まない判断も ADR 化を検討）／**凍結・見送り → `docs/backlog-frozen.md`**（捨てず解凍条件つき）
 - **腐りにくい知見 → 新規は `docs/knowledge/` に1知見=1ファイル**（`task_diary.md` は凍結アーカイブ＝既存 #N 参照は有効・新規追記はしない）／実装パターンの「なぜ」→ `docs/patterns/`／外部APIなど参照資料 → `docs/reference/`／過去プランの一次情報 → `.claude/plans/`（役目を終えたら `archive/` へ）
-- auto-memory は**ブランチ不変情報のみ**（ブランチ固有の状態・進捗は STATUS/handover が正本）。ブランチ固有内容を `@import` で親パスから引かない。運用詳細＝memory `docs-status-vs-handover-split`・整合点検＝`/stale-check`。
+- auto-memory は**ブランチ不変情報のみ**（ブランチ固有の状態・進捗は STATUS/handover が正本）。ブランチ固有内容を `@import` で親パスから引かない。整合点検＝`/stale-check`。
 
 ## ドメイン知識（ポインタ）
 
 - PDF解析のルール → 文書ごと自動検出 `android/app/src/main/java/com/novelreader/pdf/DetectedRules.kt`（検出不能時のフォールバック定数＝同 `ParserRules.kt`）を直接参照
 - OPPO/ColorOS 固有動作 → `/device-verify`（§4 の症状→対処表）経由で `task_diary.md`
-- フック（`.claude/hooks/`）の新規作成・改修 → 先に `task_diary.md` #26/#28 と `docs/decisions/0004`・`0008` を確認（いずれもサイレント失敗クラス＝既存フックの雛形コピーだけで書き始めない）
+- フック（`.claude/hooks/`）の新規作成・改修 → 先に `task_diary.md` #26/#28 と `docs/decisions/0004`・`0008`、**auto-memory `hook-implementation-facts`（Claude Code 側の外形仕様＝agent_type の受領・注入経路・sandbox・plugin frontmatter のドロップ。実測で確定したもの）を開く**（いずれもサイレント失敗クラス＝既存フックの雛形コピーだけで書き始めない）
 - **フックの撤去は「参照する側」まで含めて1セット**: 撤去するフック名（拡張子抜き）でリポジトリ全体を grep し、他フックのロジック・コメント・docstring・`.gitignore`・skill の記述に残骸が無いことを確認する。撤去コミットが「撤去する側」しか触らないと、**生成物に依存した判定が恒久 dead 化してもテストは緑のまま通り続ける**（2026-07-12 のテスト強制3点撤去でセンチネル照合が13日間死んでいた実例）
 - 実行捏造検知器 → エンジン `.claude/hooks/detect_fabricated_execution_core.py`／CLI `analyze_transcript.py`／正解データ `docs/reference/hallucination-ground-truth.md`
 - `/hallucination` は打った瞬間にフックが機械保全して完結（そのターンの Claude は分類・調査を始めず直前の作業に戻る）。事後の分類・正式登録は明示依頼時のみ `/hallucination` スキルで。

@@ -8,7 +8,15 @@ description: 実機検証の入口。adb接続(WSL)・APK投入・androidTest・
 実機 = PGEM10（Android 16 / ColorOS）。**事実の正本は `task_diary.md`（#N は固定ID）と
 memory `workflow-autonomous-device-verification`**。このスキルは操作手順の入口に徹する。
 
-## 0. 実機を触る前に — まず「何台繋がっているか」
+## 0. 実機を触る前に — まずユーザーへ一声、次に「何台繋がっているか」
+
+### 0-0. 着手前に一度手を止めて確認を取る（2026-07-12 ユーザー指示）
+
+**`adb`・`adb-bridge`・実機インストール・実機目視が絡む段に入る前に、一度作業を止めてユーザーに確認する**
+（「実機テストをする際は一度手を止めて聞いてね」）。実機はユーザーの手元デバイスで、使用中の可能性・
+接続準備・目視協力が要るため、無断で始めると衝突する（§0-b の「接続中でも端末側に何も表示されない」も参照）。
+- **JVM テスト（`testDebugUnitTest`・Robolectric・Roborazzi）は従来どおり自律実行してよい**＝この関門は実機だけ。
+- 2026-07-17 の「常時接続・どんどん使って」は**そのセッション限りの特別措置**と明言されたもの＝恒久ルールはこちら。
 
 ### 0-a. 1台だけのとき（通常）— `adb-bridge` を一発
 
@@ -68,6 +76,24 @@ adb.exe devices -l    # Windows 側（USB の端末が出る）
 - **禁忌: `connectedAndroidTest` の直叩き**。AGP 既定で run 後にアプリ本体＋テスト APK を
   自動 uninstall し、**蔵書DB等の実データが消える**（task_diary #36。実際に消えた実績あり）。
   やむを得ず使う場合は `-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true` を必ず付ける。
+
+### 1-b. release（R8）APK を蔵書DB無傷で実機回帰する
+
+R8 収縮起因のクラッシュは debug/JVM テストでは出ない＝実機で release を回さないと検証にならない。
+本プロジェクトの release buildType には **signingConfig が無い**（benchmark variant だけが debug 署名を継承）
+＝`assembleRelease` の成果物は未署名でそのままは入らない。**debug.keystore で署名すれば debug 版の上へ
+`install -r` できる**＝署名一致で **DB を保持したまま `debuggable false` の実 R8** を投入できる:
+
+```bash
+apksigner sign --ks ~/.android/debug.keystore --ks-key-alias androiddebugkey \
+  --ks-pass pass:android --key-pass pass:android app-release-unsigned.apk
+```
+
+投入後は `pkgFlags` から `DEBUGGABLE` が消えていることで陽性確認する。debug への復帰も
+`assembleDebug`→`install -r`（release=debug=同一署名）。build.gradle に一時 signingConfig を足す必要はない。
+**`install -r` は署名不一致でも「失敗するだけ」で uninstall はしない＝DB消失は明示 `adb uninstall` のときだけ**。
+⚠️ 鍵の現況は memory `wsl-debug-keystore-share-for-install` を必ず開く（2026-08-25 のユーザー名移行で
+Windows 側の鍵が作り直され WSL 側と md5 不一致＝**コピー手順を照合せずに実行すると署名不一致に転じて壊れる**）。
 
 ## 2. androidTest の実行（uninstall 回避手順）
 
@@ -178,5 +204,22 @@ Claude が adb を自律駆動する（install / logcat / input / screencap / DB
   座標タップがボタンに当たらず全試行が空振りしている。
 - **読書位置・進捗など「状態を変えうる」操作フェーズの前に、実機 DB 3ファイルのバックアップを取るのを標準とする**
   （§3 の手順で pull。上の実害はこれで救われた）。
-CP（コミット）1つ分の検証を終えるごとに一旦停止し、ユーザーへ目視ダブルチェックを依頼してから
-次へ進む（memory `workflow-autonomous-device-verification` / `workflow-notify-each-step-visual-check`）。
+### 委譲するときの禁忌: 破壊フローを実蔵書で踏ませない（2026-07-12 実害）
+
+**削除 / wipe / `pm clear` / factory reset 等の破壊フローは、実蔵書の本で実行させない**——テスト用シード本
+（`spike-*` 等の捨て本）を対象に名指しするか、その項目は人間目視送りにする。
+2026-07-12、「削除→snackbar Undo（放置＝確定も確認）」を実蔵書の501章の本で検証させたところ、
+**サブエージェントの screencap 解析待ちが snackbar のタイムアウト（`SnackbarDuration.Long`≈10秒）を超過して
+実削除が確定**＝蔵書1冊（DB行＋HTML実体）を消した。アプリの削除機構は正常で、**委譲設計の落ち度**。
+- **Why**: 自律エージェントは思考・解析で数秒〜数十秒止まる。「一定時間放置＝確定」型の破壊UI
+  （snackbar Undo・自動 dismiss）を人間の速度前提で踏むと Undo が間に合わず不可逆操作が確定する。
+  人間の目視関門があれば防げるが、background 委譲では関門が効かない。
+- **Undo 系は「Undo を押して復帰する」正経路だけを検証**し、「放置＝確定」経路は踏ませない。
+- `bmgr` の wipe+restore は非破壊部分（backupnow＋transport 確認）に限定し、復元検証は人間同意付きで。
+
+### 人間の関門（CP ごと）
+
+CP（コミット）1つ分の検証を終えるごとに一旦停止し、**`PushNotification` でユーザーを呼んで実機での目視
+ダブルチェックを待ってから**次のステップやコミットへ進む（memory `workflow-autonomous-device-verification`）。
+ユーザーは描画系の最終判定を自分の目で行いたい＝`testDebugUnitTest` は描画バグを捕捉できないため。
+勝手に次へ進むと確認機会を奪うことになる。スクショは目視で判断できなかった時の最終手段。
