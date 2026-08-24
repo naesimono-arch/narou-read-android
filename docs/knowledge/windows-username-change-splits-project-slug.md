@@ -27,6 +27,14 @@ slug は **cwd のパス文字列**を「`/`→`-`」で潰したもの。ユー
 「パスが解決できること」と「slug が一致すること」は別問題である。ここを取り違えると、
 symlink を張った時点で解決したと誤認する。
 
+**そして実際に張られている**（2026-08-23・`dir C:\Users /AL` で `<JUNCTION> qingj [\??\C:\Users\naesimono]`）。
+これは救済ではなく**延命**で、副作用の向きが厄介: 旧パス `C:\Users\qingj\…` が**実在するものとして解決し続ける**ため、
+参照実在チェック（`/stale-check` の項目6）も `[ -f ]` ガードも**全部素通りする**。
+つまり **slug 分裂だけが直り、旧パスを書いた記述は「壊れていないので誰も直さない」まま残る**。
+2026-08-25 の点検では auto-memory 5本＋MEMORY.md に旧パス 9 箇所が生き残っていた（機械では出せず、
+`grep -rn 'Users[\\/]qingj'` で初めて出た）。**ジャンクションを撤去するなら、先にこの grep を 0 にすること**
+——撤去した瞬間に、それまで無害だった記述が一斉に実パス切れへ変わる。
+
 ## 対処
 
 1. `ls ~/.claude/projects/ | grep <リポジトリ名>` で分裂を検出する（2つ以上出たら該当）。
@@ -43,6 +51,12 @@ symlink を張った時点で解決したと誤認する。
 - **`C:\Users\<name>\.android\` が引き継がれない**＝承認済み adbkey が消える。
   `~/.local/bin/adb` は `[ -f "$WIN_KEY" ]` でガードしているので**ラッパーは壊れず**、
   代わりに**実機が未承認になる**（vendor key を提示せず起動するだけ）。実機を繋ぐまで気づけない。
+- **`debug.keystore` は「消える」のではなく「作り直される」**＝壊れ方が adbkey と逆で、より危険。
+  移行後に Android Studio 等が新しい鍵を生成するため（実測 mtime 2026-08-25 03:51）、
+  WSL 側へ以前コピーした鍵と **md5 が一致しなくなる**。この状態で「Windows のを WSL へコピーする」という
+  従来の対処（memory `wsl-debug-keystore-share-for-install`）を実行すると、端末に入っている
+  WSL 鍵署名のアプリと**不一致に転じて `install -r` が壊れる**＝対処が破壊に反転する。
+  照合してから動く: `md5sum /mnt/c/Users/<name>/.android/debug.keystore ~/.android/debug.keystore`
 - 過去 transcript の場所を記録した資料（`docs/reference/hallucination-ground-truth.md` 等）は
   **旧 slug のまま参照が生きている**＝証跡なので書き換えてはいけない。
   同様に `/home/<linux-user>/…` は Linux 側のパスで、Windows 名の移行とは無関係。

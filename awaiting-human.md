@@ -11,6 +11,20 @@
 ## 1. 実機目視ツアー（OPPO PGEM10・上から順に消化できる並び）
 
 > **前置き**: adb・投入の作法は `/device-verify` が正本（実機と投入済み APK の現在値は `STATUS.md`）。
+> ⚠️ **端末を繋ぐ前に、移行で崩れた前提2つを潰す**（2026-08-25 の環境点検で判明・機序は
+> `docs/knowledge/windows-username-change-splits-project-slug.md`）。どちらも**実機を繋がないと確定できない**:
+> - **adb が `unauthorized` になりうる**——`/mnt/c/Users/naesimono/.android/adbkey` が**不在**で、
+>   `~/.local/bin/adb` は `[ -f ]` ガードにより vendor key を提示せず無言で起動する。
+>   **見るもの**: `adb devices` の状態列。`device` なら前提は生きている（何もしなくてよい）／
+>   `unauthorized` なら端末に出る許可ダイアログを承認するか、USB 接続のまま `adb.exe devices` を
+>   一度通して Windows 側 adbkey を再生成させる。
+> - **APK 投入が `INSTALL_FAILED_UPDATE_INCOMPATIBLE` で失敗しうる**——Windows 側 `debug.keystore` が
+>   移行時に作り直され、WSL 側（`~/.android/debug.keystore`）と md5 が一致しない。
+>   **見るもの**: `apksigner verify --print-certs` で端末 APK の SHA-256 と、`keytool -list -v` で
+>   WSL keystore の SHA-256。**一致＝そのまま `install -r` でよい**（蔵書DB保持）／不一致なら
+>   **端末側と一致する keystore を WSL へ置いてから再ビルド**する。⚠️ memory
+>   `wsl-debug-keystore-share-for-install` の「Windows のを WSL へコピー」を**確認せずに実行しない**
+>   （今の Windows 鍵は新品なので、コピーすると逆に不一致になる）。`adb uninstall` は蔵書消失＝禁止。
 > ⚠️ **ツアーの前に APK を入れ直す**——端末に入っているのは 2026-08-19 の debug で、その後に入った意匠・バグ修正
 > （端フェード／FAB 出没／復旧ダイアログ縦3段／表示設定シート／あらすじ案B／作品詳細の書影）は**まだ端末に無い**。
 > ⚠️ **2026-08-21 のツアーはこの旧 APK のまま回した**＝残っているのは旧 APK での判定で、上の未投入分は**まだ一度も目視していない**。
