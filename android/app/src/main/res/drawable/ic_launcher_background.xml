@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ランチャーアイコン背景＝案A の夜の地（藍 #1C3D5A → 濃紺 #0E2030）。
+  グラデの向きは案A の linearGradient#gNight（x2=0.35 / y2=1）を 108 キャンバスへ写したもの。
+  ⚠️ カタログ明記のとおり「48px では単色に潰れる＝潰れて良い装飾」＝小さいサイズで藍1色に見えるのは想定どおり。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0 L108,0 L108,108 L0,108 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="37.8"
+                android:endY="108">
+                <item android:offset="0" android:color="#1C3D5A" />
+                <item android:offset="1" android:color="#0E2030" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

@@ -57,3 +57,7 @@ sample_pdfs/N9463BR.pdf
 # Kotlin 2.x のビルド生成物（errors/ と sessions/ が入る）。2026-08-07 の Kotlin2 マージ後に
 # 未追跡として現れるようになったため追加＝コミットへの混入を防ぐ。
 android/.kotlin/
+
+# ストア画像の書き出し中間物（build-store-assets.py が実行のたび生成する HTML）。
+# 座標・トークンの正本はスクリプト内の ICON_HTML / FG_HTML 定数なので、消えても再生成できる。
+docs/store/assets/_*.html
