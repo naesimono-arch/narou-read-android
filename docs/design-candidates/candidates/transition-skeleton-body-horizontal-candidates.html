@@ -1,0 +1,543 @@
+<!-- @dsCard group="UI-n / 一時ドラフト（裁定用）" name="本文骨を『実際の本文の形』へ寄せる — 横書き 現状＋4案（2026-08-25）" -->
+<!--
+  ⚠️ 一時ドラフト（複数案比較）＝正本ではない。裁定が付いたら採用案だけを正本
+     docs/design-candidates/transition-skeleton-D.html へ差し戻し、この頁は削除する。
+  対象: ReadingBodySkeleton（android/app/src/main/java/com/novelreader/ui/TransitionSkeletons.kt:185）
+  出る場面: ①本棚→本文 push（NavHost enter・よみかけ直行） ②目次→本文 push（AnimatedContent の push 向きのみ）
+            ※章→目次 pop・章→章は骨が出ない
+  写経元: 本文実内容=reading-D.html(.t-light)／骨語彙=BookshelfSkeleton(P2)／既存骨=transition-skeleton-D.html 案A
+  実装値: fontSize 18sp・lineHeight 2.5em・bodyMargin 15dp（既定）／骨色 blockBackground #F1F0EC・blockBorder #E4E2DB
+          本頁は既存モックの座標系（372×780・本文16.5px・行送り40px）をそのまま使う＝現状との比較を同尺で行うため
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本文骨を実際の本文の形へ（横書き）— 現状＋4案</title>
+<style>
+  /*==harness==*/
+  :root{
+    /* reading-D(.t-light) 写経（直書き発明禁止） */
+    --base:#FBFAF8;--ink:#1C1F26;--soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;--ruby:#616C77;--rule:#1C3D5A;--hr:#9FB0BC;
+    --blk-bg:#F1F0EC;--blk-bd:#E4E2DB;
+    /* 骨の2値＝実装 ReadingBodySkeleton と同値（paraBone=blockBackground／headBone=blockBorder） */
+    --skel-block:#F1F0EC;
+    --skel-line:#E4E2DB;
+    --nav:250ms; --swap:33ms;
+    --spd:1;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  body.slow{ --spd:4 }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;
+    padding:26px 18px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:8px;text-align:center;line-height:1.75;max-width:940px}
+  .cap b{color:#2A2C28}
+  .subcap{color:#6A6C67;font-size:11.5px;margin-bottom:6px;text-align:center;line-height:1.85;max-width:940px}
+  .subcap b{color:#2A2C28}
+  .warn{color:#7A4A2A;font-size:11.5px;line-height:1.85;max-width:940px;text-align:center;margin-bottom:14px;
+    background:#F6EFE6;border:1px solid #DCC9B4;border-radius:8px;padding:9px 14px}
+  .warn b{color:#5A3418}
+  .ctrl{display:flex;gap:16px;align-items:center;margin:6px 0 18px;font-size:12.5px;color:#4A4C47;flex-wrap:wrap;
+    justify-content:center}
+  .ctrl button{font-family:var(--gothic);font-size:12.5px;padding:7px 18px;border:1px solid #B9B7AE;
+    border-radius:8px;background:#F4F3EE;color:#2A2C28;cursor:pointer;letter-spacing:.06em}
+  .ctrl button:hover{background:#ECEBE4}
+  .ctrl label{display:flex;gap:5px;align-items:center;cursor:pointer}
+  .rowhead{font-size:12px;letter-spacing:.22em;color:#4A4C47;margin:22px 0 4px;align-self:flex-start;
+    padding-left:6px;border-left:3px solid #B9B7AE}
+  .rowsub{font-size:11.5px;color:#6A6C67;margin:0 0 12px 9px;align-self:flex-start;line-height:1.7;max-width:940px}
+  .stage{display:flex;gap:26px;justify-content:flex-start;margin-bottom:10px;width:100%;
+    overflow-x:auto;padding:6px 4px 16px}
+  body.zoom .stage .wrap{zoom:.72}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:8px;width:372px;flex:0 0 auto}
+  .wrap .mode{font-size:12.5px;letter-spacing:.14em;color:#2A2C28;text-align:center;font-weight:600}
+  .wrap .when{font-size:10.5px;letter-spacing:.06em;color:#6A6C67;text-align:center;
+    background:#F0EFE9;border:1px solid #CFCDC4;border-radius:999px;padding:3px 12px}
+  .wrap .rp{font-family:var(--gothic);font-size:11.5px;padding:5px 14px;border:1px solid #B9B7AE;border-radius:7px;
+    background:#F4F3EE;color:#2A2C28;cursor:pointer}
+  .wrap .note{font-size:11.5px;color:#5A5C57;line-height:1.8;width:100%}
+  .wrap .note b{color:#2A2C28}
+  .wrap .keep{color:#2E5A3A}
+  .wrap .drop{color:#8A4A38}
+  .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28)}
+  /* 検分補助（実装対象外）: 実内容の章見出しが始まる y=102px に破線を引く。骨がここから始まっているかを見る用。 */
+  body.guide .phone::after{content:"";position:absolute;left:0;right:0;top:102px;z-index:9;
+    border-top:1px dashed rgba(28,61,90,.42)}
+  /*==/harness==*/
+
+  /* ---- クローム（骨の上に重なる実描画。実装でも上下バーはオーバーレイ＝骨の上）---- */
+  .chrome{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;pointer-events:none}
+  /* ステータスバー域は edge-to-edge＝地は透明で本文（骨）が透ける。実装と同じ */
+  .sb{height:34px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 24px;
+    font-size:11px;color:var(--soft)}
+  .topbar{height:52px;flex-shrink:0;display:flex;align-items:center;gap:8px;padding:0 12px;
+    background:var(--base);border-bottom:1px solid var(--line)}
+  .topbar .ib{width:40px;height:40px;display:grid;place-items:center;color:var(--ink)}
+  .topbar .ib svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar .ct{flex:1;font-size:13.5px;color:var(--ink);letter-spacing:.04em;font-family:var(--gothic);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bottombar{margin-top:auto;height:60px;flex-shrink:0;display:flex;align-items:center;
+    background:var(--base);border-top:1px solid var(--line)}
+  .bottombar span.b{flex:1;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:4px;color:var(--ink)}
+  .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .bottombar .bl{font-family:var(--gothic);font-size:9.5px;color:var(--soft);letter-spacing:.02em}
+  .bottombar .set svg{stroke:var(--ai)}
+  .bottombar .set .bl{color:var(--ai);font-weight:600}
+
+  /* ---- 骨の版面 ----
+     現状（.now）は inset:0＝画面の最上端から描く。実装の ReadingBodySkeleton は fillMaxSize＋左右 padding のみで、
+     上下バーのクリアランス（実本文の contentPadding: 上=statusBar+64dp／下=navBar+80dp）を持たないため。
+     案1以降（.clr）は実本文と同じ位置から始める。 */
+  .sk{position:absolute;inset:0;z-index:1;overflow:hidden;padding:0 24px}
+  .sk.clr{padding-top:86px;padding-bottom:72px}
+  /* 章見出しの骨（話数72px・題208px・藍ルールの場所取り48×2px）＝実装 TransitionSkeletons.kt:212-232 の写経 */
+  .sk-ch{display:flex;flex-direction:column;align-items:center;margin:20px 0 28px}
+  .bone{height:11px;border-radius:2px;background:var(--skel-line)}
+  .bone.blk{background:var(--skel-block)}
+  .sk-ch .num{width:72px}
+  .sk-ch .t{width:208px;margin-top:12px}
+  .sk-ch .t2{margin-top:8px}
+  .sk-ch .rl{width:48px;height:2px;border-radius:1px;background:var(--skel-line);margin-top:18px}
+  /* 段落骨: 行送り40px（本文16.5px×2.4）へ載せる＝骨11px＋間隔29px。段落頭は1em(16.5px)字下げ */
+  .ln{position:relative;height:11px;border-radius:2px;background:var(--skel-block);margin-bottom:29px}
+  .ln.head{margin-left:16.5px}
+  /* ルビ帯の粒（案4のみ）: 親文字の上の空きに小さな棒を置く。実本文でルビ行だけ行間が埋まる様子の骨版 */
+  .ln .rb{position:absolute;top:-13px;height:4px;border-radius:1px;background:var(--skel-line)}
+  /* 前書きブロックの骨板（案4のみ）＝実 .block と同外形（枠1px・地 blk-bg・角丸2px） */
+  .sk-block{border:1px solid var(--blk-bd);background:var(--blk-bg);padding:12px 16px;margin:4px 0 24px;
+    border-radius:2px}
+  .sk-block .lbl{width:44px;height:11px;border-radius:2px;background:var(--skel-line);margin-bottom:8px}
+  .sk-block .bl2{height:11px;border-radius:2px;background:var(--skel-line);margin-bottom:19px}
+  .sk-block .bl2:last-child{margin-bottom:0}
+  /* シーン区切り hr の場所取り（案4のみ）＝実 hr と同幅42%・中央 */
+  .sk-hr{width:42%;height:1px;background:var(--skel-line);margin:16px auto 27px}
+
+  /* ---- 実内容（reading-D .t-light 写経）---- */
+  .reader{position:absolute;inset:0;z-index:1;overflow:hidden;padding:86px 24px 72px;font-family:var(--mincho)}
+  .chap-h{text-align:center;margin:16px 0 24px}
+  .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--ai);letter-spacing:.3em}
+  .chap-h .t{font-size:18px;color:var(--ink);margin-top:8px;line-height:1.6;font-weight:600}
+  .chap-h .rule{width:48px;height:2px;background:var(--rule);margin:16px auto 0;opacity:.85}
+  .reader p{font-size:16.5px;line-height:2.4;color:var(--ink);text-indent:1em;margin-bottom:.3em}
+  .reader ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  .reader hr{border:none;height:1px;width:42%;margin:16px auto;background:var(--hr)}
+  .block{border:1px solid var(--blk-bd);background:var(--blk-bg);padding:12px 16px;margin:4px 0 24px;border-radius:2px}
+  .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--ai);font-weight:700;margin-bottom:8px;letter-spacing:.1em}
+  .block p{font-size:14.5px;line-height:2.1;text-indent:1em;margin:0}
+
+  /* ---- 遷移の振り付け（目次→本文 push・実装同尺: 250ms・FastOutSlowIn）---- */
+  /* z-index を明示して各層に stacking context を作る＝層の中の z-index（骨1・クローム3）が層をまたいで
+     競合しないようにする。無いと〈出る側のクローム〉や〈骨〉が上の層を突き抜ける。 */
+  .under,.mover{position:absolute;inset:0;background:var(--base);overflow:hidden}
+  .under{z-index:0}
+  .mover{z-index:1;transform:translateX(100%);box-shadow:-10px 0 22px rgba(0,0,0,.07)}
+  .demo.play .under{animation:slideOut calc(var(--nav)*var(--spd)) cubic-bezier(.4,0,.2,1) forwards}
+  .demo.play .mover{animation:slideIn  calc(var(--nav)*var(--spd)) cubic-bezier(.4,0,.2,1) forwards}
+  @keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+  @keyframes slideOut{from{transform:translateX(0)}to{transform:translateX(-100%)}}
+  /* 実層は地色で塗る＝差し替えは「重ねる」ではなく「置き換える」（骨が透けたら差し替えの検分にならない） */
+  .layer{position:absolute;inset:0;z-index:0;overflow:hidden;background:var(--base)}
+  .layer.realL{opacity:0}
+  .demo.play .layer.realL{animation:stepShow 1ms steps(1,end) forwards;
+    animation-delay:calc(var(--nav)*var(--spd))}
+  @keyframes stepShow{from{opacity:0}to{opacity:1}}
+
+  /* ---- 出る側＝目次（簡略・裁定対象外）---- */
+  .toc-list{position:absolute;top:86px;left:0;right:0;bottom:0;overflow:hidden}
+  .li{display:flex;border-bottom:1px solid var(--line)}
+  .li .bar{width:4px;flex-shrink:0;background:transparent}
+  .li .tx{flex:1;min-width:0;font-family:var(--mincho);font-size:15px;color:var(--ink);padding:16px 24px;line-height:1.5;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .li.cur{background:rgba(28,61,90,.06)}
+  .li.cur .bar{background:var(--ai)}
+  .li.cur .tx{color:var(--ai);font-weight:700}
+
+  /* ---- タイムライン図 ---- */
+  .tl{width:100%;max-width:940px;background:#F4F3EE;border:1px solid #CFCDC4;border-radius:10px;padding:14px 18px 10px;
+    margin-bottom:16px}
+  .tl .bar{position:relative;height:26px;margin:22px 0 62px}
+  .tl .seg{position:absolute;top:9px;height:8px;border-radius:4px}
+  .tl .seg.win{left:0;width:62%;background:#D9D6CB}
+  .tl .seg.after{left:62%;right:0;background:#EDEBE3}
+  .tl .mk{position:absolute;top:-2px;width:1px;height:30px;background:#8A887F}
+  .tl .lb{position:absolute;top:34px;font-size:10.5px;color:#5A5C57;transform:translateX(-50%);white-space:nowrap;
+    text-align:center;line-height:1.5}
+  .tl .lb b{color:#2A2C28}
+  .tl .cc{font-size:11.5px;color:#5A5C57;line-height:1.8}
+  .tl .cc b{color:#2A2C28}
+</style>
+</head>
+<body>
+
+<p class="cap"><b>本文の遷移骨を「実際の本文の形」へ寄せる — 横書き</b><br>
+  対象＝<code>ReadingBodySkeleton</code>（<code>ui/TransitionSkeletons.kt</code>）。出るのは
+  <b>①本棚→本文 push</b>（よみかけ直行）と<b>②目次→本文 push</b> の2経路だけ（章→目次 pop・章→章では出ない）。
+  左端が<b>実装のいまの骨</b>、右へ行くほど実本文へ寄せた案。<b>どれを採るかは人間が決める。</b></p>
+
+<div class="tl">
+  <p class="cc"><b>この紙面が描いているのは、下の帯の「骨」の区間です。</b>
+    骨にはシマー等のアニメを一切付けない裁定（<code>TransitionSkeletons.kt</code> 冒頭）＝
+    <b>窓 0〜250ms のあいだ骨は1ピクセルも動かない</b>ので、静止画1枚がこの区間の完全な絵になります。</p>
+  <div class="bar">
+    <div class="seg win"></div><div class="seg after"></div>
+    <div class="mk" style="left:0"></div>
+    <div class="mk" style="left:31%"></div>
+    <div class="mk" style="left:62%"></div>
+    <div class="lb" style="left:0;transform:translateX(0)"><b>0ms</b><br>指を離す・骨が右から入り始める</div>
+    <div class="lb" style="left:31%">125ms<br>窓の半ば（骨のまま滑る）</div>
+    <div class="lb" style="left:62%"><b>250ms 着地</b><br>ここで1フレーム差し替え<br>（骨 → 実内容）</div>
+  </div>
+  <p class="cc">差し替えは <b>settle+0ms</b>（<code>NativeReadingScreen.kt:537-543</code> の実装値。モック案A が提案した +33ms は未採用）。
+    骨が出ている総時間は約 250ms。</p>
+</div>
+
+<div class="warn"><b>4案すべてに共通で入れている修正（現状との差の一部）:</b>
+  実装の骨は <code>fillMaxSize()</code>＋左右 padding だけで、実本文が持つ上下バーのクリアランス
+  （<code>contentPadding</code> 上＝statusBar+64dp／下＝navBar+80dp）を持たない。
+  結果、<b>章見出しの骨はトップバーの裏に隠れ、着地の瞬間に実見出しが約2行ぶん下に現れる</b>。
+  現状の紙面（いちばん左）はこれを実装どおり描いてある——上端の破線ガイド（下のトグル）で位置を確認できる。
+  ⚠️ 既存の正本モック <code>transition-skeleton-D.html</code> はこのズレを描いておらず（骨をバーの下から描いている）＝
+  <b>モックと実装が食い違っている</b>。裁定と同時にこの点も直る。</div>
+
+<div class="ctrl">
+  <button onclick="playAll()">▶ すべて再生（③の段）</button>
+  <label><input type="checkbox" id="slow"> 1/4倍速（250ms窓を目視する用）</label>
+  <label><input type="checkbox" id="guide"> 実内容の章見出し位置にガイド線（検分補助・実装対象外）</label>
+  <label><input type="checkbox" id="zoom"> 縮小して並べる</label>
+</div>
+
+<!-- ============================== ① 寄せる先 ============================== -->
+<div class="rowhead">① 寄せる先＝着地したあとの実内容</div>
+<p class="rowsub">骨が消えた次のフレーム。これが「実際の本文の形」＝ 4案はここへどれだけ寄せるかの階段になっている。</p>
+<div class="stage">
+  <div class="wrap">
+    <span class="mode">実内容（比較の基準）</span>
+    <span class="when">着地＋1フレーム（骨は消えている）</span>
+    <div class="phone" role="img" aria-label="着地後の実本文">
+      <div class="reader" id="real-src">
+        <div class="chap-h">
+          <div class="num">第 百二十七 話</div>
+          <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+          <div class="rule"></div>
+        </div>
+        <div class="block"><div class="lbl">前書き</div>
+          <p>お読みいただきありがとうございます。今回は少し長めの道中回になりました。</p></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、長い雨がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <hr>
+        <p><ruby>石畳<rt>いしだたみ</rt></ruby>にはまだ水が<ruby>溜<rt>た</rt></ruby>まっていて、<ruby>灯<rt>あか</rt></ruby>りがそこに<ruby>滲<rt>にじ</rt></ruby>んでいる。門番は<ruby>眠<rt>ねむ</rt></ruby>そうな目でこちらを見て、それから何も言わずに<ruby>通<rt>とお</rt></ruby>してくれた。</p>
+        <p>その夜、宿の窓から見えた空は、まだ少しだけ<ruby>湿<rt>しめ</rt></ruby>っていた。</p>
+        <p>翌朝、彼女は誰よりも早く起きて、<ruby>荷<rt>に</rt></ruby>を<ruby>解<rt>と</rt></ruby>いていた。</p>
+      </div>
+      <div class="chrome">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+        <div class="topbar"><span class="ib"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+          <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div></div>
+        <div class="bottombar">
+          <span class="b"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></span>
+          <span class="b"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></span>
+          <span class="b set"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--base)"/><circle cx="15" cy="16" r="2.4" fill="var(--base)"/></svg><span class="bl">表示設定</span></span>
+          <span class="b"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></span>
+        </div>
+      </div>
+    </div>
+    <p class="note">写経元＝<code>reading-D.html</code>（.t-light）。1行目のインクは y=102px
+      ＝<code>contentPadding.top</code>（statusBar+64dp）＋章見出しの上マージン。</p>
+  </div>
+</div>
+
+<!-- ============================== ② 骨の紙面 ============================== -->
+<div class="rowhead">② 骨の紙面（窓 0〜250ms・この絵のまま静止する）</div>
+<p class="rowsub">左から右へ、寄せる度合いが1段ずつ上がる。各案は「前の案＋1つ」の積み上げ。</p>
+<div class="stage" id="stage-static">
+
+  <!-- 現状 -->
+  <div class="wrap">
+    <span class="mode">現状（実装のいま）</span>
+    <span class="when">窓 0〜250ms・静止</span>
+    <div class="phone" role="img" aria-label="現状の本文骨">
+      <div class="sk now" id="sk-now">
+        <div class="sk-ch"><span class="bone num"></span><span class="bone t"></span><span class="rl"></span></div>
+        <div class="ln blk head" style="width:88%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:45%"></div>
+        <div class="ln blk head" style="width:64%"></div>
+        <div class="ln blk head" style="width:94%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:58%"></div>
+      </div>
+      <div class="chrome">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+        <div class="topbar"><span class="ib"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+          <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div></div>
+        <div class="bottombar">
+          <span class="b"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></span>
+          <span class="b"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></span>
+          <span class="b set"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--base)"/><circle cx="15" cy="16" r="2.4" fill="var(--base)"/></svg><span class="bl">表示設定</span></span>
+          <span class="b"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></span>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>骨8本・3段落。</b>画面の最上端から描き始めるので、章見出しの骨（話数・題・藍ルール）は
+      <b>ステータスバーとトップバーの裏</b>に入って見えない。棒は面の上 2/3 で尽き、<b>下 1/3 は地色のまま</b>。
+      着地すると本文は約2行ぶん下から始まり、前書きブロックも初めて現れる。</p>
+  </div>
+
+  <!-- 案1 -->
+  <div class="wrap">
+    <span class="mode">案1　位置だけ直す</span>
+    <span class="when">窓 0〜250ms・静止</span>
+    <div class="phone" role="img" aria-label="案1 位置だけ直した本文骨">
+      <div class="sk clr" id="sk-a1">
+        <div class="sk-ch"><span class="bone num"></span><span class="bone t"></span><span class="rl"></span></div>
+        <div class="ln blk head" style="width:88%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:45%"></div>
+        <div class="ln blk head" style="width:64%"></div>
+        <div class="ln blk head" style="width:94%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:58%"></div>
+      </div>
+      <div class="chrome">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+        <div class="topbar"><span class="ib"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+          <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div></div>
+        <div class="bottombar">
+          <span class="b"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></span>
+          <span class="b"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></span>
+          <span class="b set"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--base)"/><circle cx="15" cy="16" r="2.4" fill="var(--base)"/></svg><span class="bl">表示設定</span></span>
+          <span class="b"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></span>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>骨の形は現状のまま。始まる位置だけ実本文と揃える</b>（上＝statusBar+64dp／下＝navBar+80dp）。
+      <span class="keep">守る＝差し替えで縦にずれない・変更は padding 2行ぶん・描画コスト不変。</span>
+      <span class="drop">捨てる＝面の下がまだ空く／段落の表情・見出しの折り返し・前書きは相変わらず出ない。</span></p>
+  </div>
+
+  <!-- 案2 -->
+  <div class="wrap">
+    <span class="mode">案2　面を埋める</span>
+    <span class="when">窓 0〜250ms・静止</span>
+    <div class="phone" role="img" aria-label="案2 面を埋めた本文骨">
+      <div class="sk clr" id="sk-a2">
+        <div class="sk-ch"><span class="bone num"></span><span class="bone t"></span><span class="rl"></span></div>
+        <div class="ln blk head" style="width:88%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:45%"></div>
+        <div class="ln blk head" style="width:64%"></div>
+        <div class="ln blk head" style="width:94%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:58%"></div>
+        <div class="ln blk head" style="width:90%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:72%"></div>
+        <div class="ln blk head" style="width:86%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:100%"></div>
+      </div>
+      <div class="chrome">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+        <div class="topbar"><span class="ib"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+          <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div></div>
+        <div class="bottombar">
+          <span class="b"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></span>
+          <span class="b"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></span>
+          <span class="b set"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--base)"/><circle cx="15" cy="16" r="2.4" fill="var(--base)"/></svg><span class="bl">表示設定</span></span>
+          <span class="b"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></span>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>案1＋行数を版面いっぱいまで。</b>下端で棒が切れるのも実本文と同じ（続きがある）。
+      段落の作りは現状の写経を延長しただけ。
+      <span class="keep">守る＝「紙が文字で埋まっている」量感・内容非依存・骨は棒だけ。</span>
+      <span class="drop">捨てる＝段落の長短の表情・見出しの折り返し・前書き・ルビ。行送りが一様で機械的に見える。</span></p>
+  </div>
+
+  <!-- 案3 -->
+  <div class="wrap">
+    <span class="mode">案3　段落の呼吸まで</span>
+    <span class="when">窓 0〜250ms・静止</span>
+    <div class="phone" role="img" aria-label="案3 段落の呼吸まで写した本文骨">
+      <div class="sk clr" id="sk-a3">
+        <div class="sk-ch"><span class="bone num"></span><span class="bone t" style="width:288px"></span>
+          <span class="bone t t2" style="width:126px"></span><span class="rl"></span></div>
+        <div class="ln blk head" style="width:92%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:38%"></div>
+        <div class="ln blk head" style="width:52%"></div>
+        <div class="ln blk head" style="width:96%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:64%"></div>
+        <div class="ln blk head" style="width:88%"></div>
+        <div class="ln blk" style="width:44%"></div>
+        <div class="ln blk head" style="width:66%"></div>
+        <div class="ln blk head" style="width:94%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:78%"></div>
+        <div class="ln blk head" style="width:90%"></div>
+        <div class="ln blk" style="width:100%"></div>
+      </div>
+      <div class="chrome">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+        <div class="topbar"><span class="ib"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+          <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div></div>
+        <div class="bottombar">
+          <span class="b"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></span>
+          <span class="b"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></span>
+          <span class="b set"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--base)"/><circle cx="15" cy="16" r="2.4" fill="var(--base)"/></svg><span class="bl">表示設定</span></span>
+          <span class="b"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></span>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>案2＋文章の表情。</b>①章題は2行に折り返す前提で骨も2本 ②段落の行数を1〜4行でばらす
+      ③段落末の余りを毎回ちがう長さに（38/64/44/78%）④会話の短い1行段落（52/66%）を混ぜる。
+      <span class="keep">守る＝一様な棒列でなく「段落の塊」に見える・内容非依存は保つ（どの章でもこの形）。</span>
+      <span class="drop">捨てる＝前書き・ルビ・区切り。段落の並びは実章と一致しないので、着地で行末の位置は変わる。</span></p>
+  </div>
+
+  <!-- 案4 -->
+  <div class="wrap">
+    <span class="mode">案4　紙面まるごと</span>
+    <span class="when">窓 0〜250ms・静止</span>
+    <div class="phone" role="img" aria-label="案4 紙面まるごと写した本文骨">
+      <div class="sk clr" id="sk-a4">
+        <div class="sk-ch"><span class="bone num"></span><span class="bone t" style="width:288px"></span>
+          <span class="bone t t2" style="width:126px"></span><span class="rl"></span></div>
+        <div class="sk-block"><div class="lbl"></div>
+          <div class="bl2" style="width:100%"></div><div class="bl2" style="width:54%"></div></div>
+        <div class="ln blk head" style="width:92%"><i class="rb" style="left:14%;width:26px"></i><i class="rb" style="left:52%;width:18px"></i></div>
+        <div class="ln blk" style="width:100%"><i class="rb" style="left:30%;width:22px"></i></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:38%"></div>
+        <div class="ln blk head" style="width:52%"></div>
+        <div class="sk-hr"></div>
+        <div class="ln blk head" style="width:96%"><i class="rb" style="left:8%;width:20px"></i></div>
+        <div class="ln blk" style="width:100%"><i class="rb" style="left:24%;width:26px"></i><i class="rb" style="left:66%;width:16px"></i></div>
+        <div class="ln blk" style="width:64%"></div>
+        <div class="ln blk head" style="width:88%"><i class="rb" style="left:44%;width:20px"></i></div>
+        <div class="ln blk" style="width:44%"></div>
+        <div class="ln blk head" style="width:66%"></div>
+        <div class="ln blk head" style="width:94%"><i class="rb" style="left:18%;width:24px"></i></div>
+        <div class="ln blk" style="width:100%"></div>
+        <div class="ln blk" style="width:78%"></div>
+      </div>
+      <div class="chrome">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+        <div class="topbar"><span class="ib"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+          <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div></div>
+        <div class="bottombar">
+          <span class="b"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></span>
+          <span class="b"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></span>
+          <span class="b set"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--base)"/><circle cx="15" cy="16" r="2.4" fill="var(--base)"/></svg><span class="bl">表示設定</span></span>
+          <span class="b"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></span>
+        </div>
+      </div>
+    </div>
+    <p class="note"><b>案3＋紙面の道具立て。</b>①前書きブロックの板（枠＋地色＝実 .block と同外形）
+      ②ルビの粒（行間に置く小さな棒＝ルビ行だけ行間が埋まる様子）③シーン区切り hr の場所取り。
+      <span class="keep">守る＝「実際の本文」への距離は最短。</span>
+      <span class="drop">捨てる＝<b>内容非依存の原則</b>——前書き・ルビ・区切りの有無は章ごとに変わるので、
+      無い章では着地の瞬間に板や粒が消える＝骨が嘘をつく。加えて遷移窓で描く要素が3〜4倍に増える
+      （骨を軽くするという元の目的と逆を向く）。</span></p>
+  </div>
+
+</div>
+
+<!-- ============================== ③ 動きで見る ============================== -->
+<div class="rowhead">③ 動きで見る（目次→本文 push・250ms → 着地で1フレーム差し替え）</div>
+<p class="rowsub">出る側は目次（裁定対象外の簡略表現）。骨の中身は②の各案をそのまま複製している＝②と③で必ず同じ絵になる。
+  1/4倍速を入れると窓の中身が見える。</p>
+<div class="stage" id="stage-anim"></div>
+
+<p class="subcap" style="margin-top:18px">写経元: 実内容=<code>reading-D.html</code>(.t-light)／骨語彙=<code>BookshelfSkeleton</code>(P2)／
+  現状の骨=<code>ui/TransitionSkeletons.kt:185-260</code>／尺=<code>Motion.kt</code>（Nav 250ms・FastOutSlowIn）。<br>
+  骨の色は実装値そのまま（段落骨 #F1F0EC・見出し骨/線 #E4E2DB を素地 #FBFAF8 の上に）＝
+  <b>薄くて見えにくいのは実装どおり</b>で、モックの手加減ではない（プレースホルダは実データの色域を模す恒久ルール）。<br>
+  <b>どの案も写していないもの</b>: 段落と段落のあいだの<b>空行</b>（実本文では 1.5em の空きが入ることがある）。
+  現状の骨も入れていない（段落間も行送り1つぶん＝実装の写経）＝入れるかどうかは別に判断が要る。<br>
+  <b>縦書きは別紙</b>: 同じ骨が縦書き設定でも出る（形が90度違う）＝
+  <code>transition-skeleton-body-vertical-candidates.html</code> を続けて見ること。<br>
+  入る側の左端の影・上端の破線ガイドはデモの可読性補助＝実装対象外。</p>
+
+<template id="tpl-under">
+  <div class="under">
+    <div class="toc-list">
+      <div class="li"><span class="bar"></span><span class="tx">第百二十四話　遠雷、辺境の街道を行く</span></div>
+      <div class="li"><span class="bar"></span><span class="tx">第百二十五話　古い井戸と、忘れられた約束</span></div>
+      <div class="li"><span class="bar"></span><span class="tx">第百二十六話　夜営の火、語られぬ過去のこと</span></div>
+      <div class="li cur"><span class="bar"></span><span class="tx">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</span></div>
+      <div class="li"><span class="bar"></span><span class="tx">第百二十八話　市場のざわめきと、薬草の値段</span></div>
+      <div class="li"><span class="bar"></span><span class="tx">第百二十九話　領主の館へ、招かれざる客として</span></div>
+      <div class="li"><span class="bar"></span><span class="tx">第百三十話　長い夜の終わりに交わした言葉</span></div>
+      <div class="li"><span class="bar"></span><span class="tx">第百三十一話　旅立ちの朝、薬箱を背負って</span></div>
+    </div>
+    <div class="chrome">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar"><span class="ib"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+        <div class="ct" style="font-family:var(--mincho);font-size:18px;letter-spacing:.12em">目次</div></div>
+    </div>
+  </div>
+</template>
+
+<script>
+  /* ③の段は②の骨と①の実内容を複製して組む＝2つの段が食い違わないようにする */
+  var CASES = [
+    ['sk-now', '現状（実装のいま）'],
+    ['sk-a1',  '案1　位置だけ直す'],
+    ['sk-a2',  '案2　面を埋める'],
+    ['sk-a3',  '案3　段落の呼吸まで'],
+    ['sk-a4',  '案4　紙面まるごと']
+  ];
+  (function build(){
+    var stage = document.getElementById('stage-anim');
+    var underHTML = document.getElementById('tpl-under').innerHTML;
+    var realHTML  = document.getElementById('real-src').outerHTML.replace(/ id="[^"]*"/, '');
+    var chromeHTML = document.querySelector('#sk-now').parentElement.querySelector('.chrome').outerHTML;
+    CASES.forEach(function(c){
+      var skelHTML = document.getElementById(c[0]).outerHTML.replace(/ id="[^"]*"/, '');
+      var w = document.createElement('div');
+      w.className = 'wrap';
+      w.innerHTML =
+        '<span class="mode">' + c[1] + '</span>' +
+        '<span class="when">0ms → 250ms 着地 → 差し替え</span>' +
+        '<div class="phone demo">' + underHTML +
+          '<div class="mover">' +
+            '<div class="layer">' + skelHTML + chromeHTML + '</div>' +
+            '<div class="layer realL">' + realHTML + chromeHTML + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<button class="rp">▶ 再生</button>';
+      w.querySelector('.rp').addEventListener('click', function(){ restart(w.querySelector('.demo')); });
+      stage.appendChild(w);
+    });
+  })();
+
+  function restart(d){ d.classList.remove('play'); void d.offsetWidth; d.classList.add('play'); }
+  function playAll(){ document.querySelectorAll('.demo').forEach(restart); }
+  document.getElementById('slow').addEventListener('change', function(e){
+    document.body.classList.toggle('slow', e.target.checked);
+  });
+  document.getElementById('guide').addEventListener('change', function(e){
+    document.body.classList.toggle('guide', e.target.checked);
+  });
+  document.getElementById('zoom').addEventListener('change', function(e){
+    document.body.classList.toggle('zoom', e.target.checked);
+  });
+  window.addEventListener('load', function(){ setTimeout(playAll, 500); });
+</script>
+</body>
+</html>

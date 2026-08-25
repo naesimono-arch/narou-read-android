@@ -1,0 +1,437 @@
+<!-- @dsCard group="UI-n / 一時ドラフト（裁定用）" name="本文骨を『実際の本文の形』へ寄せる — 縦書き 現状＋3案（2026-08-25）" -->
+<!--
+  ⚠️ 一時ドラフト（複数案比較）＝正本ではない。裁定が付いたら採用案だけを正本へ差し戻し、この頁は削除する。
+  ⚠️ この頁は 2026-07-29 裁定「縦書き専用骨は作らない（骨は横書き汎形1種）」の【再検討】を求める提案。
+     現状は縦書きで読んでいても横書きの骨（横棒）がそのまま出て、着地の瞬間に紙面が90度変わる。
+  対象: ReadingBodySkeleton（ui/TransitionSkeletons.kt:185）の縦書き版を作るかどうか
+  実装の事実: 骨の分岐（NativeReadingScreen.kt:1113）は verticalMode（同 :779 で取得済み）と同じ関数スコープ内
+             ＝縦専用骨の追加に構造変更は要らない（if (verticalMode) を1つ足すだけ）
+  写経元: 実内容=reading-vertical-scroll-D.html／骨語彙=BookshelfSkeleton(P2)／現状の骨=TransitionSkeletons.kt:185-260
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本文骨を実際の本文の形へ（縦書き）— 現状＋3案</title>
+<style>
+  /*==harness==*/
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--soft:#7C808B;--line:#ECEAE4;
+    --ai:#1C3D5A;--ruby:#616C77;--rule:#1C3D5A;--hr:#9FB0BC;
+    --blk-bg:#F1F0EC;--blk-bd:#E4E2DB;
+    --skel-block:#F1F0EC;
+    --skel-line:#E4E2DB;
+    --nav:250ms;
+    --spd:1;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  body.slow{ --spd:4 }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;
+    padding:26px 18px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:8px;text-align:center;line-height:1.75;max-width:940px}
+  .cap b{color:#2A2C28}
+  .subcap{color:#6A6C67;font-size:11.5px;margin-bottom:6px;text-align:center;line-height:1.85;max-width:940px}
+  .subcap b{color:#2A2C28}
+  .warn{color:#7A4A2A;font-size:11.5px;line-height:1.85;max-width:940px;text-align:center;margin-bottom:14px;
+    background:#F6EFE6;border:1px solid #DCC9B4;border-radius:8px;padding:9px 14px}
+  .warn b{color:#5A3418}
+  .ctrl{display:flex;gap:16px;align-items:center;margin:6px 0 18px;font-size:12.5px;color:#4A4C47;flex-wrap:wrap;
+    justify-content:center}
+  .ctrl button{font-family:var(--gothic);font-size:12.5px;padding:7px 18px;border:1px solid #B9B7AE;
+    border-radius:8px;background:#F4F3EE;color:#2A2C28;cursor:pointer;letter-spacing:.06em}
+  .ctrl button:hover{background:#ECEBE4}
+  .ctrl label{display:flex;gap:5px;align-items:center;cursor:pointer}
+  .rowhead{font-size:12px;letter-spacing:.22em;color:#4A4C47;margin:22px 0 4px;align-self:flex-start;
+    padding-left:6px;border-left:3px solid #B9B7AE}
+  .rowsub{font-size:11.5px;color:#6A6C67;margin:0 0 12px 9px;align-self:flex-start;line-height:1.7;max-width:940px}
+  .stage{display:flex;gap:26px;justify-content:flex-start;margin-bottom:10px;width:100%;
+    overflow-x:auto;padding:6px 4px 16px}
+  body.zoom .stage .wrap{zoom:.72}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:8px;width:372px;flex:0 0 auto}
+  .wrap .mode{font-size:12.5px;letter-spacing:.14em;color:#2A2C28;text-align:center;font-weight:600}
+  .wrap .when{font-size:10.5px;letter-spacing:.06em;color:#6A6C67;text-align:center;
+    background:#F0EFE9;border:1px solid #CFCDC4;border-radius:999px;padding:3px 12px}
+  .wrap .rp{font-family:var(--gothic);font-size:11.5px;padding:5px 14px;border:1px solid #B9B7AE;border-radius:7px;
+    background:#F4F3EE;color:#2A2C28;cursor:pointer}
+  .wrap .note{font-size:11.5px;color:#5A5C57;line-height:1.8;width:100%}
+  .wrap .note b{color:#2A2C28}
+  .wrap .keep{color:#2E5A3A}
+  .wrap .drop{color:#8A4A38}
+  .phone{width:372px;height:780px;background:var(--base);border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28)}
+  /* 検分補助（実装対象外）: 実本文の先頭列＝右端のインク位置に破線。骨の1列目がここから始まるかを見る用。 */
+  body.guide .phone::after{content:"";position:absolute;top:0;bottom:0;right:24px;z-index:9;
+    border-right:1px dashed rgba(28,61,90,.42)}
+  /*==/harness==*/
+
+  /* ---- クローム（縦書きでは上下バーが本文の【上に浮く】＝版面を1pxも削らない。実装同期 2026-08-17）---- */
+  .chrome{position:absolute;inset:0;z-index:4;pointer-events:none}
+  .sb{position:absolute;top:0;left:0;right:0;height:34px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:11px;color:var(--soft)}
+  .topbar{position:absolute;top:34px;left:0;right:0;height:50px;display:flex;align-items:center;padding:0 16px;
+    background:var(--base);border-bottom:1px solid var(--line)}
+  .topbar .ib{width:38px;height:38px;display:grid;place-items:center;color:var(--ink)}
+  .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  /* ⚠️ 縦書き中はバーに章題を出さない（2026-07-29 裁定＝列の上端が題字の下へ潜るため）。戻り矢印だけ。 */
+  .bottombar{position:absolute;left:0;right:0;bottom:0;height:60px;display:flex;align-items:center;
+    background:var(--base);border-top:1px solid var(--line)}
+  .bottombar span.b{flex:1;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:4px;color:var(--ink)}
+  .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .bottombar .bl{font-family:var(--gothic);font-size:9.5px;color:var(--soft);letter-spacing:.02em}
+  .bottombar .set svg{stroke:var(--ai)}
+  .bottombar .set .bl{color:var(--ai);font-weight:600}
+
+  /* ---- 現状の骨（横書き汎形がそのまま出る）: fillMaxSize＝画面の最上端から。上下バーのクリアランスなし ---- */
+  .sk{position:absolute;inset:0;z-index:1;overflow:hidden;padding:0 24px}
+  .sk-ch{display:flex;flex-direction:column;align-items:center;margin:20px 0 28px}
+  .bone{height:11px;border-radius:2px;background:var(--skel-line)}
+  .sk-ch .num{width:72px}
+  .sk-ch .t{width:208px;margin-top:12px}
+  .sk-ch .rl{width:48px;height:2px;border-radius:1px;background:var(--skel-line);margin-top:18px}
+  .ln{height:11px;border-radius:2px;background:var(--skel-block);margin-bottom:29px}
+  .ln.head{margin-left:16.5px}
+
+  /* ---- 縦書きの骨 ----
+     列送り40px（本文16.5px×列送り2.4）＝骨11px＋間隔29px。右→左（先頭列が右端）。
+     版面は実装 VerticalChapterContent の contentPadding と同じ:
+       top/bottom＝システムバーの inset のみ（上下バーのクリアランスは【足さない】＝交差軸で列高が潰れるため）
+       start/end＝S24（読み進め方向の余白）／各列の上下＝ユーザー設定の本文余白（既定15dp）
+     ＝列はトップバー／ボトムバーの下を素通りする。 */
+  .vsk{position:absolute;top:34px;left:0;right:0;bottom:0;z-index:1;overflow:hidden;padding:20px 24px;
+    display:flex;flex-direction:row-reverse;align-items:stretch;gap:29px}
+  .vcol{flex:0 0 11px;width:11px;border-radius:2px;background:var(--skel-block)}
+  /* 段落頭の列＝1em(16.5px)ぶん上端が下がる（縦書きの字下げ） */
+  .vcol.head{margin-top:16.5px}
+  /* 章見出しの骨: 右から〈話数72px・題208px・藍の縦ルール48×2px〉を縦中央に。
+     実装 VerticalChapterHeader の Row(LTR)=[ルール, S16, 題, S8, 話数] の鏡（読み順は右→左）。
+     margin-left:-13px は、外側 gap29 と実装の padding(horizontal=S16) を合わせるための差分。 */
+  .vch{flex:0 0 auto;display:flex;flex-direction:row-reverse;align-items:center;gap:8px;
+    padding-right:16px;margin-left:-13px}
+  .vch .vb{width:11px;border-radius:2px;background:var(--skel-line)}
+  .vch .num{height:72px}
+  .vch .t{height:208px}
+  .vch .rl{width:2px;height:48px;border-radius:1px;background:var(--skel-line);margin-right:8px}
+  /* ルビ帯の粒（案V3のみ）: 縦書きのルビは親文字の【右】に付く＝列の右側に小さな棒を置く */
+  .vcol{position:relative}
+  .vcol .rb{position:absolute;right:-13px;width:4px;border-radius:1px;background:var(--skel-line)}
+  /* 前書きブロックの骨板（案V3のみ）＝実 .block と同外形（縦書きでは縦長の枠・padding:16px 12px） */
+  .vsk-block{flex:0 0 auto;border:1px solid var(--blk-bd);background:var(--blk-bg);border-radius:2px;
+    padding:16px 12px;margin:0 4px;display:flex;flex-direction:row-reverse;align-items:stretch;gap:19px}
+  .vsk-block .lbl{width:11px;height:44px;border-radius:2px;background:var(--skel-line);align-self:flex-start}
+  .vsk-block .bl2{width:11px;border-radius:2px;background:var(--skel-line)}
+  /* シーン区切り hr（案V3のみ）＝列中央に立つ縦線・長さ42% */
+  .vsk-hr{flex:0 0 1px;width:1px;height:42%;align-self:center;background:var(--skel-line)}
+
+  /* ---- 実内容（reading-vertical-scroll-D 写経・ライト）---- */
+  .vreader{position:absolute;top:34px;left:0;right:0;bottom:0;z-index:1;overflow:hidden;padding:20px 24px;
+    writing-mode:vertical-rl;-webkit-writing-mode:vertical-rl;font-family:var(--mincho)}
+  .vreader .chap-h{text-align:center;margin:0 16px}
+  .vreader .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--ai);letter-spacing:.3em}
+  .vreader .chap-h .t{font-size:18px;color:var(--ink);margin-block-start:8px;line-height:1.7;font-weight:600}
+  .vreader .chap-h .rule{inline-size:48px;block-size:2px;background:var(--rule);
+    margin-inline:auto;margin-block-start:16px;opacity:.85}
+  .vreader p{font-size:16.5px;line-height:2.4;color:var(--ink);text-indent:1em;margin:0}
+  .vreader ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  .vreader .blank{block-size:1.4em}
+  .vreader hr{border:none;inline-size:42%;block-size:1px;margin:auto 16px;background:var(--hr)}
+  .vreader .block{border:1px solid var(--blk-bd);background:var(--blk-bg);padding:16px 12px;margin:0 4px;
+    border-radius:2px}
+  .vreader .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--ai);font-weight:700;
+    margin-block-end:8px;letter-spacing:.1em}
+  .vreader .block p{font-size:14.5px;line-height:2.1;text-indent:1em;margin:0}
+
+  /* ---- 遷移の振り付け（目次→本文 push・実装同尺 250ms・FastOutSlowIn）---- */
+  /* z-index を明示して各層に stacking context を作る＝層の中の z-index（骨1・クローム3）が層をまたいで
+     競合しないようにする。無いと〈出る側のクローム〉や〈骨〉が上の層を突き抜ける。 */
+  .under,.mover{position:absolute;inset:0;background:var(--base);overflow:hidden}
+  .under{z-index:0}
+  .mover{z-index:1;transform:translateX(100%);box-shadow:-10px 0 22px rgba(0,0,0,.07)}
+  .demo.play .under{animation:slideOut calc(var(--nav)*var(--spd)) cubic-bezier(.4,0,.2,1) forwards}
+  .demo.play .mover{animation:slideIn  calc(var(--nav)*var(--spd)) cubic-bezier(.4,0,.2,1) forwards}
+  @keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+  @keyframes slideOut{from{transform:translateX(0)}to{transform:translateX(-100%)}}
+  /* 実層は地色で塗る＝差し替えは「重ねる」ではなく「置き換える」（骨が透けたら差し替えの検分にならない） */
+  .layer{position:absolute;inset:0;z-index:0;overflow:hidden;background:var(--base)}
+  .layer.realL{opacity:0}
+  .demo.play .layer.realL{animation:stepShow 1ms steps(1,end) forwards;
+    animation-delay:calc(var(--nav)*var(--spd))}
+  @keyframes stepShow{from{opacity:0}to{opacity:1}}
+
+  /* ---- 出る側＝目次（簡略・裁定対象外。目次は縦書きにしない＝横書きのまま）---- */
+  .toc-list{position:absolute;top:84px;left:0;right:0;bottom:0;overflow:hidden}
+  .li{display:flex;border-bottom:1px solid var(--line)}
+  .li .bar{width:4px;flex-shrink:0;background:transparent}
+  .li .tx{flex:1;min-width:0;font-family:var(--mincho);font-size:15px;color:var(--ink);padding:16px 24px;line-height:1.5;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .li.cur{background:rgba(28,61,90,.06)}
+  .li.cur .bar{background:var(--ai)}
+  .li.cur .tx{color:var(--ai);font-weight:700}
+
+  .tl{width:100%;max-width:940px;background:#F4F3EE;border:1px solid #CFCDC4;border-radius:10px;padding:14px 18px;
+    margin-bottom:16px}
+  .tl .cc{font-size:11.5px;color:#5A5C57;line-height:1.85}
+  .tl .cc b{color:#2A2C28}
+</style>
+</head>
+<body>
+
+<p class="cap"><b>本文の遷移骨を「実際の本文の形」へ寄せる — 縦書き</b><br>
+  同じ <code>ReadingBodySkeleton</code> が縦書き設定でも出る。<b>いまは横書きの骨（横棒）がそのまま出て、
+  着地の瞬間に紙面が90度変わる。</b>左端が実装のいま、右へ行くほど実本文（右→左の列）へ寄せた案。
+  <b>どれを採るかは人間が決める。</b></p>
+
+<div class="tl">
+  <p class="cc"><b>描いているのは push 窓 0〜250ms の骨。</b>骨にはシマー等のアニメを付けない裁定なので、
+    窓のあいだ骨は1ピクセルも動かない＝静止画1枚がこの区間の完全な絵になる。着地（250ms）で1フレーム差し替え。
+    尺・差し替え点は横書きと同一（<code>Motion.kt</code> Nav 250ms・settle+0ms）。<br>
+    <b>縦書きに固有の版面</b>: 上下バーは本文の<b>上に浮く</b>——列はバーの下を素通りし、
+    バー分のクリアランスは足さない（横書きの 64/80dp をそのまま持ち込むと交差軸で列高が約4割まで潰れる＝
+    2026-07-17 実機実測・<code>VerticalChapterContent.kt:137-146</code>）。3案ともこの版面に従っている。</p>
+</div>
+
+<div class="warn"><b>この頁は既存の裁定と衝突する。</b>
+  2026-07-29 に「縦書き専用骨は作らない＝250ms の場所取りに組方向の忠実さより〈1種で全設定に成立する汎形〉を優先」と
+  裁定済み（<code>TransitionSkeletons.kt:180-184</code> の KDoc）。案V1〜V3 はいずれもその再検討を求めるもの。<br>
+  <b>実装上の障壁は無い</b>: 骨の分岐（<code>NativeReadingScreen.kt:1113</code>）と <code>verticalMode</code>
+  （同 <code>:779</code>）は同じ composable のスコープ内＝<code>if (verticalMode)</code> を1つ足すだけで、
+  差し替え点を動かす必要はない。判断材料は「骨が2種に増える保守コスト」対「縦書き利用者に90度違う絵を見せる」の比較。</div>
+
+<div class="ctrl">
+  <button onclick="playAll()">▶ すべて再生（③の段）</button>
+  <label><input type="checkbox" id="slow"> 1/4倍速（250ms窓を目視する用）</label>
+  <label><input type="checkbox" id="guide"> 先頭列（右端）にガイド線（検分補助・実装対象外）</label>
+  <label><input type="checkbox" id="zoom"> 縮小して並べる</label>
+</div>
+
+<!-- ============================== ① 寄せる先 ============================== -->
+<div class="rowhead">① 寄せる先＝着地したあとの実内容（縦書き）</div>
+<p class="rowsub">列は上→下に組まれ、右→左へ積む。文章の先頭は<b>右端</b>。章見出しも右端の1〜数列を占める。</p>
+<div class="stage">
+  <div class="wrap">
+    <span class="mode">実内容（比較の基準）</span>
+    <span class="when">着地＋1フレーム（骨は消えている）</span>
+    <div class="phone" role="img" aria-label="着地後の縦書き実本文">
+      <div class="vreader" id="real-src">
+        <div class="chap-h">
+          <div class="num">第 百二十七 話</div>
+          <div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div>
+          <div class="rule"></div>
+        </div>
+        <div class="block"><div class="lbl">前書き</div>
+          <p>お読みいただきありがとうございます。今回は少し長めの道中回になりました。</p></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、長い雨がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <div class="blank"></div>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <hr>
+        <p><ruby>石畳<rt>いしだたみ</rt></ruby>にはまだ水が<ruby>溜<rt>た</rt></ruby>まっていて、<ruby>灯<rt>あか</rt></ruby>りがそこに<ruby>滲<rt>にじ</rt></ruby>んでいる。門番は<ruby>眠<rt>ねむ</rt></ruby>そうな目でこちらを見て、それから何も言わずに<ruby>通<rt>とお</rt></ruby>してくれた。</p>
+        <div class="blank"></div>
+        <p>その夜、宿の窓から見えた空は、まだ少しだけ<ruby>湿<rt>しめ</rt></ruby>っていた。</p>
+        <p>翌朝、彼女は誰よりも早く起きて、<ruby>荷<rt>に</rt></ruby>を<ruby>解<rt>と</rt></ruby>いていた。</p>
+      </div>
+      <div class="chrome" id="chrome-src">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+        <div class="topbar"><span class="ib"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+        <div class="bottombar">
+          <span class="b"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></span>
+          <span class="b"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></span>
+          <span class="b set"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--base)"/><circle cx="15" cy="16" r="2.4" fill="var(--base)"/></svg><span class="bl">表示設定</span></span>
+          <span class="b"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></span>
+        </div>
+      </div>
+    </div>
+    <p class="note">列送り40px（本文16.5px×2.4）。トップバーには章題を出さない（縦書きの裁定）。
+      列はバーの下を素通りする＝版面はバーに削られない。</p>
+  </div>
+</div>
+
+<!-- ============================== ② 骨の紙面 ============================== -->
+<div class="rowhead">② 骨の紙面（窓 0〜250ms・この絵のまま静止する）</div>
+<p class="rowsub">左端が実装のいま。右へ行くほど寄せる度合いが上がり、各案は「前の案＋1つ」の積み上げ。</p>
+<div class="stage" id="stage-static">
+
+  <!-- 現状 -->
+  <div class="wrap">
+    <span class="mode">現状（実装のいま）</span>
+    <span class="when">窓 0〜250ms・静止</span>
+    <div class="phone" role="img" aria-label="現状の骨（横棒が縦書き画面に出る）">
+      <div class="sk" id="sk-now">
+        <div class="sk-ch"><span class="bone num"></span><span class="bone t"></span><span class="rl"></span></div>
+        <div class="ln head" style="width:88%"></div>
+        <div class="ln" style="width:100%"></div>
+        <div class="ln" style="width:100%"></div>
+        <div class="ln" style="width:45%"></div>
+        <div class="ln head" style="width:64%"></div>
+        <div class="ln head" style="width:94%"></div>
+        <div class="ln" style="width:100%"></div>
+        <div class="ln" style="width:58%"></div>
+      </div>
+    </div>
+    <p class="note"><b>横書きの骨がそのまま出る。</b>棒は上から下へ積み、面の上 2/3 で尽きる。
+      着地すると紙面は<b>右→左の列</b>に変わる＝<b>骨と実内容で組方向が90度違う</b>。
+      さらに骨は画面の最上端から描くので（実本文が持つ上下クリアランスを持たない）、章見出しの骨はバーの裏に隠れる。</p>
+  </div>
+
+  <!-- 案V1 -->
+  <div class="wrap">
+    <span class="mode">案V1　列に立てる</span>
+    <span class="when">窓 0〜250ms・静止</span>
+    <div class="phone" role="img" aria-label="案V1 列に立てた骨">
+      <div class="vsk" id="sk-v1">
+        <div class="vch"><span class="vb num"></span><span class="vb t"></span><span class="rl"></span></div>
+        <div class="vcol"></div><div class="vcol"></div><div class="vcol"></div><div class="vcol"></div>
+        <div class="vcol"></div><div class="vcol"></div><div class="vcol"></div><div class="vcol"></div>
+      </div>
+    </div>
+    <p class="note"><b>骨を90度立てて右→左に並べるだけ。</b>列送り・列高・左右余白（S24）・見出しの積み方
+      （右から 話数→題→藍ルール）を実本文と揃える。
+      <span class="keep">守る＝組方向が一致し、着地で紙面が回転しない。骨は棒だけ・内容非依存・描画量は現状と同じ。</span>
+      <span class="drop">捨てる＝段落の切れ目がまったく無い（全列が同じ長さ＝定規を並べたように見える）。</span></p>
+  </div>
+
+  <!-- 案V2 -->
+  <div class="wrap">
+    <span class="mode">案V2　段落の切れ目まで</span>
+    <span class="when">窓 0〜250ms・静止</span>
+    <div class="phone" role="img" aria-label="案V2 段落の切れ目まで写した骨">
+      <div class="vsk" id="sk-v2">
+        <div class="vch"><span class="vb num"></span><span class="vb t"></span><span class="vb t" style="height:150px"></span><span class="rl"></span></div>
+        <div class="vcol head"></div>
+        <div class="vcol"></div>
+        <div class="vcol"></div>
+        <div class="vcol" style="height:38%;align-self:flex-start"></div>
+        <div class="vcol head" style="height:34%;align-self:flex-start"></div>
+        <div class="vcol head"></div>
+        <div class="vcol"></div>
+        <div class="vcol" style="height:64%;align-self:flex-start"></div>
+        <div class="vcol head"></div>
+        <div class="vcol" style="height:47%;align-self:flex-start"></div>
+      </div>
+    </div>
+    <p class="note"><b>案V1＋文章の表情。</b>①段落頭の列は上端が1em下がる（縦書きの字下げ）
+      ②段落末の列は下端が余る（38/64/47%）③会話の短い1列段落を混ぜる ④長題は2列に折り返す前提で見出し骨も2本。
+      <span class="keep">守る＝「段落の塊」に見える・内容非依存は保つ（どの章でもこの形）。</span>
+      <span class="drop">捨てる＝ルビ・前書き・区切り。段落の並びは実章と一致しないので、着地で列の長さは変わる。</span></p>
+  </div>
+
+  <!-- 案V3 -->
+  <div class="wrap">
+    <span class="mode">案V3　紙面まるごと</span>
+    <span class="when">窓 0〜250ms・静止</span>
+    <div class="phone" role="img" aria-label="案V3 紙面まるごと写した骨">
+      <div class="vsk" id="sk-v3">
+        <div class="vch"><span class="vb num"></span><span class="vb t"></span><span class="vb t" style="height:150px"></span><span class="rl"></span></div>
+        <div class="vsk-block"><span class="lbl"></span><span class="bl2" style="height:100%"></span><span class="bl2" style="height:54%;align-self:flex-start"></span></div>
+        <div class="vcol head"><i class="rb" style="top:14%;height:26px"></i><i class="rb" style="top:52%;height:18px"></i></div>
+        <div class="vcol"><i class="rb" style="top:30%;height:22px"></i></div>
+        <div class="vcol"></div>
+        <div class="vcol" style="height:38%;align-self:flex-start"></div>
+        <div class="vcol head" style="height:34%;align-self:flex-start"></div>
+        <div class="vsk-hr"></div>
+        <div class="vcol head"><i class="rb" style="top:8%;height:20px"></i></div>
+        <div class="vcol"><i class="rb" style="top:24%;height:26px"></i><i class="rb" style="top:66%;height:16px"></i></div>
+        <div class="vcol" style="height:64%;align-self:flex-start"></div>
+        <div class="vcol head"><i class="rb" style="top:44%;height:20px"></i></div>
+        <div class="vcol" style="height:47%;align-self:flex-start"></div>
+      </div>
+    </div>
+    <p class="note"><b>案V2＋紙面の道具立て。</b>①前書きブロックの縦板（枠＋地色＝実 .block と同外形）
+      ②ルビの粒（縦書きのルビは親文字の<b>右</b>に付く＝列の右側に小さな棒）③シーン区切りの縦線（列中央・長さ42%）。
+      <span class="keep">守る＝「実際の本文」への距離は最短。</span>
+      <span class="drop">捨てる＝<b>内容非依存の原則</b>——前書き・ルビ・区切りの有無は章ごとに変わるので、
+      無い章では着地の瞬間に板や粒が消える＝骨が嘘をつく。遷移窓で描く要素も3〜4倍に増える
+      （骨を軽くするという元の目的と逆を向く）。</span></p>
+  </div>
+
+</div>
+
+<!-- ============================== ③ 動きで見る ============================== -->
+<div class="rowhead">③ 動きで見る（目次→本文 push・250ms → 着地で1フレーム差し替え）</div>
+<p class="rowsub">出る側は目次（横書きのまま＝縦書きにするのは本文だけ。裁定対象外の簡略表現）。
+  骨の中身は②の各案をそのまま複製している。1/4倍速を入れると窓の中身が見える。</p>
+<div class="stage" id="stage-anim"></div>
+
+<p class="subcap" style="margin-top:18px">写経元: 実内容=<code>reading-vertical-scroll-D.html</code>／
+  骨語彙=<code>BookshelfSkeleton</code>(P2)／現状の骨=<code>ui/TransitionSkeletons.kt:185-260</code>／
+  版面=<code>VerticalChapterContent.kt:137-152</code>／尺=<code>Motion.kt</code>。<br>
+  骨の色は実装値そのまま（段落骨 #F1F0EC・見出し骨/線 #E4E2DB を素地 #FBFAF8 の上に）＝
+  <b>薄くて見えにくいのは実装どおり</b>で、モックの手加減ではない。<br>
+  <b>どの案も写していないもの</b>: 段落と段落のあいだの<b>空行</b>（実本文では 1.4em の空き列が入ることがある）。
+  現状の骨も入れていない（段落間も列送り1つぶん）＝入れるかどうかは別に判断が要る。<br>
+  入る側の左端の影・右端の破線ガイドはデモの可読性補助＝実装対象外。</p>
+
+<template id="tpl-under">
+  <div class="under">
+    <div class="toc-list">
+      <div class="li"><span class="bar"></span><span class="tx">第百二十四話　遠雷、辺境の街道を行く</span></div>
+      <div class="li"><span class="bar"></span><span class="tx">第百二十五話　古い井戸と、忘れられた約束</span></div>
+      <div class="li"><span class="bar"></span><span class="tx">第百二十六話　夜営の火、語られぬ過去のこと</span></div>
+      <div class="li cur"><span class="bar"></span><span class="tx">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</span></div>
+      <div class="li"><span class="bar"></span><span class="tx">第百二十八話　市場のざわめきと、薬草の値段</span></div>
+      <div class="li"><span class="bar"></span><span class="tx">第百二十九話　領主の館へ、招かれざる客として</span></div>
+      <div class="li"><span class="bar"></span><span class="tx">第百三十話　長い夜の終わりに交わした言葉</span></div>
+      <div class="li"><span class="bar"></span><span class="tx">第百三十一話　旅立ちの朝、薬箱を背負って</span></div>
+    </div>
+    <div class="chrome">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar"><span class="ib"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+        <span style="font-family:var(--mincho);font-size:18px;letter-spacing:.12em;color:var(--ink)">目次</span></div>
+    </div>
+  </div>
+</template>
+
+<script>
+  var CASES = [
+    ['sk-now', '現状（実装のいま）'],
+    ['sk-v1',  '案V1　列に立てる'],
+    ['sk-v2',  '案V2　段落の切れ目まで'],
+    ['sk-v3',  '案V3　紙面まるごと']
+  ];
+  (function build(){
+    /* ②の各紙面へクロームを配る（実装でも上下バーは骨の上に浮く）＝markup を4回書かないため */
+    document.querySelectorAll('#stage-static .phone').forEach(function(p){
+      var c = document.getElementById('chrome-src').cloneNode(true);
+      c.removeAttribute('id');
+      p.appendChild(c);
+    });
+    var stage = document.getElementById('stage-anim');
+    var underHTML = document.getElementById('tpl-under').innerHTML;
+    var realHTML  = document.getElementById('real-src').outerHTML.replace(/ id="[^"]*"/, '');
+    var chromeHTML = document.getElementById('chrome-src').outerHTML.replace(/ id="[^"]*"/, '');
+    CASES.forEach(function(c){
+      var skelHTML = document.getElementById(c[0]).outerHTML.replace(/ id="[^"]*"/, '');
+      var w = document.createElement('div');
+      w.className = 'wrap';
+      w.innerHTML =
+        '<span class="mode">' + c[1] + '</span>' +
+        '<span class="when">0ms → 250ms 着地 → 差し替え</span>' +
+        '<div class="phone demo">' + underHTML +
+          '<div class="mover">' +
+            '<div class="layer">' + skelHTML + chromeHTML + '</div>' +
+            '<div class="layer realL">' + realHTML + chromeHTML + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<button class="rp">▶ 再生</button>';
+      w.querySelector('.rp').addEventListener('click', function(){ restart(w.querySelector('.demo')); });
+      stage.appendChild(w);
+    });
+  })();
+
+  function restart(d){ d.classList.remove('play'); void d.offsetWidth; d.classList.add('play'); }
+  function playAll(){ document.querySelectorAll('.demo').forEach(restart); }
+  document.getElementById('slow').addEventListener('change', function(e){
+    document.body.classList.toggle('slow', e.target.checked);
+  });
+  document.getElementById('guide').addEventListener('change', function(e){
+    document.body.classList.toggle('guide', e.target.checked);
+  });
+  document.getElementById('zoom').addEventListener('change', function(e){
+    document.body.classList.toggle('zoom', e.target.checked);
+  });
+  window.addEventListener('load', function(){ setTimeout(playAll, 500); });
+</script>
+</body>
+</html>
