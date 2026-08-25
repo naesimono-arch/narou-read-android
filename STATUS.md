@@ -22,7 +22,7 @@
 
 - **実機**: OPPO PGEM10（IP は DHCP で変動＝ハードコードせず `adb-bridge` で張り直す）。作法＝`/device-verify`。
   **実蔵書7冊・全冊とも本文健在**（id・progress とも開始時バックアップと一致＝無傷。**絶対に消さない**）。
-  **検証用の残置物**＝捨て本2冊（`6c726cfe` カクヨム26話・`cf4ee71b` PDF18章。どちらも本文は復旧済み＝**欠落させ直せば欠落系を踏める**）／
+  **検証用の残置物**＝捨て本2冊（`6c726cfe` カクヨム26話・`cf4ee71b` PDF18章・本文は復旧済み）／
   Web カード `N7415ML`。books は 7＋2＝9冊。
   ⚠️ **端末の APK は 2026-08-19 投入の debug＝以後の意匠・バグ修正はまだ端末に無い**（`awaiting-human.md` §1 の前置き）。
   ⚠️ 同一 WiFi 上に**第三者端末（Huawei P30）が居る**＝操作前に model を確認（機序＝memory `adb-bridge-stale-tcp-holds-wrong-device`・
@@ -30,7 +30,6 @@
 
 - **ゲート**: ローカル（`testDebugUnitTest`／public シグネチャを変えたときの `:app:assembleDebugAndroidTest`）も
   CI（`.github/workflows/ci.yml` の全ゲート）も**緑**。内訳と対象外の理由は YAML 側が正本。
-  ⚠️ **Gradle は `tools/gwlock.sh <task>` 経由で回す**（同一ツリーの並列実行が出す偽の赤をツリー単位ロックで潰す。作法は `/build`）。
 
 - **[分析中] 他社 APK の逆解析**（2026-08-25 開始・**ユーザーが実行中**）: 骨（遷移スケルトン）と重い処理の扱いの
   **規範を借りる**のが目的。⚠️ **骨の濃さは「借りられない」と判明**＝他社 CR 帯が測る量の違う値の混成で比較不能
