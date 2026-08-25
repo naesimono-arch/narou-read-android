@@ -133,6 +133,10 @@
   ②表示されたとおり `git remote add` → `git push` ③**Settings → Pages** で `main / (root)` を指定して有効化。
   そのあと公開 URL `https://naesimono-arch.github.io/yosari/privacy.html` を Play Console へ登録。手順の詳細＝`docs/store/pages/README.md`。
   ⚠️ **Chrome は GitHub 未ログイン**（2026-08-25 実測）＝ここは代行できない。
+  ⚠️ **`../yosari-pages/README.md` は push すると公開される**（Pages のリポジトリは public 必須）。
+  中身はローカル向けの手順書（「今この中身を push してはいけない」等）で、公開リポジトリのトップに出ると辻褄が合わない。
+  **push する前に `git rm README.md` して commit し直すか、公開向けの文へ書き換える**
+  （`.nojekyll` があるのでページ化はされない＝出るのはリポジトリのトップ表示だけ＝害は体裁だけ）。
   ⚠️ `../yosari-pages/` の制定日は **`【公開日】` に戻してある**（一度 `2026年8月21日` が入っていたが、その日に公開していない＝
   実際の公開日と食い違う制定日を載せないため）。**画面に `【公開日】` が出ていたら stage-publish.py を通していない印**。
   **放置した場合**＝Play へ提出できない（ポリシー URL は必須）。
