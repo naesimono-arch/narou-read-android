@@ -24,9 +24,18 @@
 `clearAndSetSemantics { contentDescription = … }` で**子のノードを畳んで1本の読み上げ単位**にしている。
 狙いは読み上げ品質＝当て字を著者読みへ置換した spoken を与え、1マスずつ置かれた文字（縦組みのラベル等）を
 文字単位でバラバラに読ませないため。`clearAndSetSemantics` は子の semantics を**消す**ので、
-副作用として text ノードが消える。横書き `ui/ChapterContent.kt` は Compose `Text` をそのまま使うので text が出る。
+副作用として text ノードが消える。⚠️ **横書きの本文段落も同じく text ノードを持たない**（2026-08-25 実測で確認）。
+`ui/compose/RubyText.kt:128` が `clearAndSetSemantics { contentDescription = spokenText }` で
+BasicText を畳んでおり、しかもこれは縦書き実装より**先にあった**（縦書き側がこれの移植）。
+text に出るのは**章見出しだけ**＝`ChapterHeader` の Compose `Text`（話数ラベルと題）で、
+これは横書き経路にしか無い。`By.textStartsWith("第N章")` が横書きで効くのは**見出しを掴んでいる**からで、
+本文段落を掴んでいるのではない。
 
-＝**同じ「本文」でも書字方向で a11y ツリーの形が別物**。これは不具合ではないので直らない。
+＝書字方向で違うのは**本文**ではなく**見出しの有無**（本文はどちらも desc 1本）。これは不具合ではないので直らない。
+
+⚠️ **書字方向を判定したいとき、text/desc の有無は使えない**（本文はどちらも desc のみ）。
+確実な徴は**本文段落ノードの縦横比**＝縦書きは列（細長い縦棒 h>w）・横書きは行の束（w>h）。
+実装例＝`tools/measure_typeset_work.sh` の `assert_orientation`。
 
 ## これで実際に壊れた例
 
