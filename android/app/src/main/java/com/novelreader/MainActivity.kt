@@ -20,7 +20,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -560,6 +565,22 @@ private fun NovelReaderApp(
             Column(
                 Modifier
                     .fillMaxSize()
+                    // 横向きのカットアウト帯を全画面ぶん一括で避ける。onCreate の
+                    // layoutInDisplayCutoutMode=ALWAYS は「切り欠きの下まで描く」宣言＝その裏返しの
+                    // 義務（カットアウト inset を自前で処理する）を、宣言と同じ所有者であるここで果たす。
+                    // なぜ displayCutout 単独で、safeDrawing でも systemBars でもないか:
+                    //  ・systemBars（各画面の statusBarsPadding/navigationBarsPadding や読書画面の
+                    //    systemBarsIgnoringVisibility）には **カットアウトが含まれない**。横画面では
+                    //    切り欠きが左長辺に来て inset.left=126px が立つのに横方向の実効値が 0 になり、
+                    //    戻る矢印や下部バー最左のボタンが切り欠きの下へ潜り込んでいた（実測: 読書
+                    //    [12,96][138,222]／目次 [27,102]／本棚 [35,199]）。ここが真因。
+                    //  ・safeDrawing は ime と systemBars を巻き込むうえ **可視性に追従する**ため、
+                    //    バー出没のたびに window 幾何が動く＝ALWAYS を選んだ目的（没入トグルで
+                    //    レイアウトを跳ねさせない）を自ら壊す。displayCutout は出没しないので跳ねない。
+                    // Horizontal 限定の理由: 縦画面の切り欠きは上端でステータスバーと同じ帯を占め、
+                    // そこは各画面が statusBarsPadding で既に処理済み。縦方向も足すと二重に下がる。
+                    // 横方向は現状どの画面も未処理＝ここだけが唯一の担い手で、縦画面では値 0 の無効化。
+                    .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
                     // 教示カードを出している間は配下をフォーカスから外す＝カードを「ダイアログとして
                     // 読み上げる」ための片割れ（正本 §8 a11y）。semantics ブロックの state 読みは
                     // セマンティクスの再収集だけを起こし、画面ツリーの再コンポーズは誘発しない。

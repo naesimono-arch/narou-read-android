@@ -14,12 +14,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -112,6 +117,10 @@ internal fun IntroOverlayContent(
             .pointerInput(Unit) { detectTapGestures { onDismiss() } }
             // カードはダイアログとして読み上げる（正本 §8 a11y）＝この配下を 1 つの走査群にまとめる。
             .semantics { isTraversalGroup = true }
+            // 教示カードは NavHost の外（Box 直下）に重ねるため、MainActivity の Column に入れた
+            // カットアウト回避が **効かない**＝ここで同じ inset を自分で持つ。background より後に
+            // 置くのは、スクリムは切り欠きの下まで敷き詰めたままカードだけを安全な帯へ寄せるため。
+            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
             .padding(Spacing.S24),
         contentAlignment = Alignment.Center,
     ) {
