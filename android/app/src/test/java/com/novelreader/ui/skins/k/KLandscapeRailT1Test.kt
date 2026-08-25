@@ -214,7 +214,7 @@ class KLandscapeRailT1Test {
         ).getUnclippedBoundsInRoot()
         val fixedTop = grid.top - rootTop
         println("[横向き実測 T1 本棚] fixedTop=$fixedTop viewport=${grid.bottom - grid.top}")
-        assertEquals("本棚 T1 の固定トップ（状態チップ行のみ）が動いた", FIXED_TOP_T1_SHELF, fixedTop)
+        assertEquals("本棚 T1 の固定トップ（チップ行と表示切替の高い方）が動いた", FIXED_TOP_T1_SHELF, fixedTop)
 
         // FAB は Rail 上端の円形（52dp）＝本文の右下ではない。読み上げ名は拡張FABと同一に保つ。
         val fab = composeTestRule.onNodeWithContentDescription("PDFを追加").getUnclippedBoundsInRoot()
@@ -393,6 +393,23 @@ class KLandscapeRailT1Test {
         /** T1 後の実測（初回実行の println を焼いた値）。 */
         val FIXED_TOP_T1 = 56.dp
         val VIEWPORT_T1 = 304.dp
-        val FIXED_TOP_T1_SHELF = 56.dp
+
+        /**
+         * 本棚 T1 の固定トップ。**2026-08-26 に 56dp から 48dp へ**（値だけ見ても分からないので内訳を残す）。
+         *
+         * 内訳の変化＝チップ行が正本どおりに縮み、**支配要因が〈状態チップ行〉から〈表示切替〉へ移った**:
+         * - 旧 56dp ＝ チップ行（チップ 44dp ＋ 下 [Spacing.S12]）。チップ 44 の内訳は
+         *   行箱 28dp ＋ 上下 [Spacing.S8]。**この 28dp が事故**で、`KStatusChip` の `Text` が
+         *   `fontSize` だけ 11.5sp へ落として `lineHeight` を既定 `Typography.bodyLarge`（28.sp）から
+         *   継承したまま残していたぶん（正本 .chip の総高 34px に対し実測 44.19dp ＝+30%）。
+         * - 新 48dp ＝ **表示切替（`KViewToggleButton` の M3 `IconButton`）の 48dp**。
+         *   チップ行は 34.4 ＋ 12 ＝ **46.4dp** まで縮み（正本 `bookshelf-K-landscape.html` の
+         *   `.chips` を headless Chrome で実測 **46.00px**＝一致）、`max(46.4, 48)` で切替側が勝つ。
+         *
+         * ⚠️ 48dp は**当たり判定の下限であって意匠ではない**（正本 `.view` の絵は 38px）。
+         * つまりこの定数はもう「チップ行の高さ」ではないので、**チップの寸法を測る用途に使い回さないこと**。
+         * 縦向き（trailing なし＝チップ行だけ）は 46.4dp で、こことは別の数になる。
+         */
+        val FIXED_TOP_T1_SHELF = 48.dp
     }
 }
