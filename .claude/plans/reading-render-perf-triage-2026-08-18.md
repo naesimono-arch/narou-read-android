@@ -15,13 +15,13 @@
 | 遷移層 | 1 alpha=0 で composition をアニメと並走 | **不採用**（実測で否定済みの配置へ戻るため） |
 | 遷移層 | 4 星図の `drawWithCache`/Picture | 条件付き・優先度低（既定スキンでない） |
 | 描画層 | 7 オフセットの deferred read／F `chapterCache` の eviction | **既に実装済み**＝対応不要 |
-| 描画層 | **A 組版の composition 離脱＋章スコープキャッシュ ＋ C `BoxWithConstraints` 除去** | **採用・最優先**（5・6・B もここで閉じる） |
+| 描画層 | **A 組版の composition 離脱＋章スコープキャッシュ ＋ C `BoxWithConstraints` 除去** | **採用・最優先**（5・6・B もここで閉じる）→ **2026-08-26 実装済み**（末尾「実装記録」） |
 | 描画層 | E draw 段の `splitGraphemes` 事前化 | 採用（安価） |
 | 描画層 | D advance キャッシュ | キャッシュのみ採用・**定数化は不採用**（書体差で版面がずれる＝KDoc が明示的に否定） |
 | 基盤 | 8 Compose compiler metrics 取得 | 採用・**配線済みで走らせるだけ**（`kotlinx-collections-immutable` の要否判定もこれ待ち） |
 | 基盤 | 9 Baseline Profile | 採用（profileinstaller だけ入っていて配るプロファイルが無い） |
 
-**着手順序**: 0（計測）→ A+C → E → D → 8/9。
+**着手順序**: 0（計測）→ A+C → E → D → 8/9。**0 は 2026-08-25 完了・A+C は 2026-08-26 実装（末尾「実装記録」）＝次は E。**
 0 の中身＝`ChapterFlipBenchmark` に `verticalMode` 軸が無いので追加（`FlipBudget` P50 15 / P90 20 / P99 50ms をそのまま流用）＋
 設定スライダードラッグ経路の計測。
 
@@ -142,8 +142,8 @@ M星図の導出データ分離も提案どおり入っている：`val field = 
 
 | # | 提案 | 状態 | 採否 |
 |---|---|---|---|
-| 5 | 単一 Canvas + 座標列事前計算 | **形は実装済み・オフスレッド化のみ未** | A に合流 |
-| 6 | Default 先行実行＋±1キャッシュ | 未実装 | 採用（=A） |
+| 5 | 単一 Canvas + 座標列事前計算 | **実装済み**（オフスレッド化を 2026-08-26 に追加） | A に合流 |
+| 6 | Default 先行実行＋±1キャッシュ | **実装済み（2026-08-26）** | 採用（=A） |
 | 7 | オフセットの deferred read | **実装済み** | 対応不要 |
 | 8 | compiler metrics | 設定済み・**未実行** | 採用（即実行可） |
 | 9 | Baseline Profile | 未実装 | 採用 |
@@ -156,9 +156,9 @@ M星図の導出データ分離も提案どおり入っている：`val field = 
 
 | 項目 | 状態 | 採否 |
 |---|---|---|
-| A 組版の composition 離脱＋章スコープキャッシュ | 未実装 | **採用・最優先** |
-| B ドラッグ中の再組版抑制 | 未実装 | A 優先に同意 |
-| C BoxWithConstraints 除去 | 未実装 | 採用（A と同時） |
+| A 組版の composition 離脱＋章スコープキャッシュ | **実装済み（2026-08-26）** | 採用・最優先 |
+| B ドラッグ中の再組版抑制 | **A に吸収され消滅（2026-08-26）** | A 優先に同意 |
+| C BoxWithConstraints 除去 | **実装済み（2026-08-26）** | 採用（A と同時） |
 | D advance キャッシュ | 未実装 | キャッシュ採用・**定数化は不採用** |
 | E draw 段の splitGraphemes | 未実装 | 採用（安価） |
 | F chapterCache の eviction | **実装済み** | 対応不要 |
@@ -176,3 +176,62 @@ M星図の導出データ分離も提案どおり入っている：`val field = 
 0（計測）→ A+C → E → D → 8/9 が素直だと思う。A を入れると B は collectLatest で自然消滅、5・6 も同時に閉じる。0 の「縦書きベンチ」は `ChapterFlipBenchmark` に `verticalMode` 軸が無い状態なので、`FlipBudget`（P50 15 / P90 20 / P99 50ms）の枠組みはそのまま流用できる。
 
 ひとつ注意として、縦書き経路には未再現の報告バグ（章遷移で描画が上部にジャンプ）が残っていて、遭遇時の採取5軸に「縦書き／横書き」が入っている（`docs/knowledge/chapter-transition-scroll-jump-paths-ruled-out.md`）。A で組版の寿命とスクロール位置の関係が変わるので、着手するならこのバグの再現条件採取を先に閉じるか、少なくとも「A 前の挙動」を記録してから入るほうが安全だと思う。
+
+---
+
+## 実装記録: A+C（2026-08-26・ブランチ `feat/round-2026-08-25`）
+
+### A と C が何だったか（この文書の裁定からの確定）
+
+- **A**＝「組版の composition 離脱 ＋ 章スコープキャッシュ」。合わせて 5（座標列事前計算のオフスレッド化）と
+  6（`Dispatchers.Default` 先行実行＋前後キャッシュ）を閉じ、B（ドラッグ中の再組版抑制）は
+  「collectLatest で自然消滅」（本文「順序の提案」）。
+- **C**＝「`BoxWithConstraints` 除去」。補足の「列高は全段落共通なので**親で一度取れる**。ただし章見出しと
+  ブロックは padding が別なので、そこだけ寸法の導出式を合わせる必要がある」がそのまま実装指示。
+
+### 何の寿命を何に変えたか
+
+| | 変更前 | 変更後 |
+|---|---|---|
+| 版面キャッシュの寿命 | `remember` ＝ **LazyRow の item 寿命** | `ChapterTypesetStore` ＝ **章の寿命**（`remember(content)`） |
+| 組版が走る場所 | **composition 段・UI スレッド**（`remember` の計算ブロック） | 初回表示だけ composition 段・**再組版はすべて `Dispatchers.Default`** |
+| 列高の取得 | 段落 item ごとの `BoxWithConstraints`（N 回の subcomposition） | 親で 1 回（`視野高 − contentPadding − 2×bodyMargin`、ブロックは更に `− 2×S16`） |
+
+新規: `typeset/ChapterTypesetStore.kt`（純 Kotlin＝Android 非依存）。改修: `ui/VerticalChapterContent.kt`、
+`perf/TypesetWorkProbe.kt`（`v_typeset_comp` / `v_glyphs_comp` を追加）。**`NativeReadingScreen.kt` は無改変**
+（composition 段の組版は `VerticalChapterContent.kt` 側にあった）。
+
+### 回数（JVM で固定した値・`ChapterTypesetStoreTest`）
+
+| シナリオ | 改善前（2026-08-25 実測） | 改善後 |
+|---|---|---|
+| フォント全振り1ドラッグ（離散10値 × 可視6段落） | `typeset()` **55回** / グリフ **1,845** ／ すべて composition 段 | **composition 段 0回・0グリフ**。背景の回数は端末速度で 1〜10 ラウンドに振れる |
+| 列が視界を出入り（同じ段落の再入場） | 入るたびに再組版 | **0回**（章スコープのキャッシュに当たる） |
+| 章送り5回 | `typeset()` 28回 | **据え置き 28回**（下記の意図的な線引き） |
+
+**なぜ章送りは下がらないか（意図した線引き）**: 版面が無い item は幅0で置かれるため、(1) 章頭で全段落が
+一斉に視界へ入ってから実寸へ跳ね、(2) 既読復元 `scrollToItem(index, offset)` の offset が幅0の item に対して
+解決されて着地がずれる。未再現の報告バグ「章遷移で描画が上部にジャンプ」と**同じ形の事故を自分で作る**ので、
+**そのスロットの初回だけは同期**に組んで寸法を確定させる。下がるのは反復ぶん（ドラッグ・再入場）で、
+28 はもともと「可視段落を章あたり1回」＝すでに下限。
+
+### 実装中に踏んで潰した罠（背景組版に固有）
+
+1. **破棄後の公開がテスト間へ漏れる**。背景の取り消しは協調的で、`typeset()` 実行中に取り消されても1件ぶんは
+   走り切る。その公開先が Compose のスナップショット状態なので、composition 破棄後に別スレッドから書くと
+   1つの JVM で composition を張っては捨てる単体テストで**次のテストへ漏れる**
+   （`VerticalChapterContentScreenshotTest` で、版面が同一な LIGHT が通り**後から走る DARK だけ**落ちる
+   順番依存の形。内容起因なら両テーマとも落ちるはずで、そこが切り分けの決め手）。
+   → store を `RememberObserver` にし、`onForgotten`/`onAbandoned` 後は組みも公開もしない。
+2. **同じ版面での二重公開**。初回表示で同期組版と背景が同じスロットを狙うと、見た目が1ピクセルも変わらないのに
+   item が1回よけいに再コンポーズされ、しかもそれが背景スレッドの都合で起きる＝描画の確定タイミングがぶれる。
+   → 公開は「同じ寸法の版面を持っていなければ」だけ。加えて先行組版の窓の源を `firstVisibleItemIndex` でなく
+   **`layoutInfo.visibleItemsInfo`** にして、レイアウト前は1件も依頼しない（＝初回表示と構造的に競争しない）。
+
+### 残件
+
+- **端末での回数実測が未取得**（実装時点でエミュ6台が他便で占有）。
+  `bash tools/measure_typeset_work.sh <serial> <bookId>` で `v_typeset_comp=0` を確認する。
+- **`scroll` モード3系統照合（章頭・既読復元・位置なし章）が未実行**。初回同期を残したのはまさにここを
+  守るためなので、`bash tools/measure_typeset_work.sh <serial> <bookId> scroll` で 2026-08-25 の記録と突き合わせる。
+- 章遷移ジャンプは**この便では何も主張しない**（未再現のまま）。

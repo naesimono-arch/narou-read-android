@@ -44,6 +44,20 @@ object TypesetWorkProbe {
     private val verticalTypesetColumns = AtomicLong()
 
     /**
+     * うち **composition 段（UI スレッド同期）で走った**回数と、そこで置いたグリフ数。
+     *
+     * なぜ全体と別に数えるか: 改善 A（[com.novelreader.typeset.ChapterTypesetStore]）は組版を消すのではなく
+     * **走る場所を移す**。移した先（`Dispatchers.Default`）の回数は端末の速さで変わりうる——値の到着に
+     * 追い越されたぶんだけ取り消されるため——のに対し、**composition に残る回数は構造だけで決まる**＝
+     * 端末非依存という本プローブの前提（このファイル冒頭の「なぜ ms でなく回数か」）を満たすのはこちら。
+     * よって A の成否はこの2つで判定する: 改善前はフォント全振り1ドラッグで 55回・1,845グリフが
+     * すべて composition 段だった。
+     */
+    private val verticalTypesetCallsInComposition = AtomicLong()
+
+    private val verticalTypesetGlyphsInComposition = AtomicLong()
+
+    /**
      * [com.novelreader.typeset.FontMetricsProvider.verticalAdvance] の実装（Paint 計測）呼び出し回数。
      * 組版コストの最小粒度＝**1字1回**の Paint 実測。横書きには対応物が Kotlin 側に存在しない
      * （Compose のテキストエンジンがネイティブで済ませる）＝縦書き固有コストはここに現れる。
@@ -84,6 +98,16 @@ object TypesetWorkProbe {
         verticalTypesetColumns.addAndGet(columns.toLong())
     }
 
+    /**
+     * 縦書き1段落の組版が **composition 段で同期に**走った。[onVerticalTypeset] と重ねて数える
+     * （こちらは部分集合＝`v_typeset` のうち UI スレッドを止めたぶん）。
+     */
+    fun onVerticalTypesetInComposition(glyphs: Int) {
+        if (!enabled) return
+        verticalTypesetCallsInComposition.incrementAndGet()
+        verticalTypesetGlyphsInComposition.addAndGet(glyphs.toLong())
+    }
+
     /** 1ユニット分の縦送り実測（Paint）。段落あたり数百〜千数百回来る最小粒度。 */
     fun onVerticalAdvance() {
         if (!enabled) return
@@ -122,6 +146,8 @@ object TypesetWorkProbe {
         verticalTypesetCalls.set(0)
         verticalTypesetGlyphs.set(0)
         verticalTypesetColumns.set(0)
+        verticalTypesetCallsInComposition.set(0)
+        verticalTypesetGlyphsInComposition.set(0)
         verticalAdvanceCalls.set(0)
         horizontalTextLayouts.set(0)
         horizontalLayoutChars.set(0)
@@ -142,6 +168,8 @@ object TypesetWorkProbe {
         append(" v_typeset=").append(verticalTypesetCalls.get())
         append(" v_glyphs=").append(verticalTypesetGlyphs.get())
         append(" v_cols=").append(verticalTypesetColumns.get())
+        append(" v_typeset_comp=").append(verticalTypesetCallsInComposition.get())
+        append(" v_glyphs_comp=").append(verticalTypesetGlyphsInComposition.get())
         append(" v_advance=").append(verticalAdvanceCalls.get())
         append(" h_layout=").append(horizontalTextLayouts.get())
         append(" h_chars=").append(horizontalLayoutChars.get())

@@ -115,18 +115,14 @@
   `docs/knowledge/toc-push-tail-not-reproduced-in-macrobench.md` が正本。
   計測の作法（アニメが走っていない状態を率で比較しない）＝`docs/knowledge/ranking-pager-jank-slow-ui-thread.md`。
 
-- **[perf] 縦書き本文の組版を composition から外す（A+C）— 順序0（計測）は 2026-08-25 に完了＝次は A+C 本体**:
-  縦書きは組版が **UI スレッドの composition 段**で走り、キャッシュが LazyRow の item 寿命と同じ＝列が入るたび、
-  フォント/行間スライダーはドラッグの毎値で可視段落が再組版される構造。
-  **ベースライン（仕事量＝端末非依存の回数。`bash tools/measure_typeset_work.sh <serial>` で再取得できる）**:
-  フォント全振り1ドラッグ（離散10値）で **`typeset()` 55回・グリフ 1,845・Paint 実測 1,845回**／章送り5回で typeset 28回。
-  ⚠️ **効果見積もりの土台＝この 55 と 1,845 を「章あたり1回」へ落とせるか**。
-  ⚠️ **縦横の差は「回数」ではなく「1回の中身」だった**（横書きの layout も 53回でほぼ同数）＝
-  縦書きだけが 1,845 回の Kotlin Paint 実測と同数の `PositionedGlyph` 割り当てを**追加で**払い、しかも layout 段でなく composition 段で払う。
-  順序は **A+C → E → D → 8/9**。全16項目の実装状況・採否・不採用の根拠＝`.claude/plans/reading-render-perf-triage-2026-08-18.md`。
-  ⚠️ **A 前の挙動は記録済み**（`scroll` モードで章頭・既読復元・位置なし章の3系統が2台一致。章遷移ジャンプは**踏めず＝未再現のまま**）
-  ＝`bash tools/measure_typeset_work.sh <serial> <bookId> scroll` で同じ照合を回せる。
-
+- **[perf] 縦書き本文の組版＝A+C は完了・次は E**（2026-08-26 に A+C 実装。一次情報＝`.claude/plans/reading-render-perf-triage-2026-08-18.md` の「実装記録: A+C」節）:
+  **composition 段の組版は 0回・0グリフ**になった（旧＝フォント全振り1ドラッグで typeset 55回・グリフ 1,845）。
+  版面キャッシュの寿命を LazyRow の item 寿命から**章の寿命**へ移し、再組版は `Dispatchers.Default` へ。
+  ⚠️ **章送りの 28回は据え置き＝意図**。版面が無い item を幅0で置くと章頭で一斉に実寸へ跳ね、
+  `scrollToItem(index, offset)` の offset が幅0の item に対して解決されて**着地がずれる**
+  ＝報告バグ「章遷移で上部にジャンプ」と**同じ形の事故を自作する**ため、初回だけ同期を残した。
+  **残り＝端末実測2つ**（`v_typeset_comp=0` の確認／`bash tools/measure_typeset_work.sh <serial> <bookId> scroll` で
+  2026-08-25 の3系統記録と突き合わせ）。順序は **E → D → 8/9**。
 ## 思いつき・取りこぼし（随時追記）
 
 > レビュー中・実装中に出た宿題や着想で、まだ上の各節に整理していないものをここへ。育ったら該当節へ移す。
