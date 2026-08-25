@@ -1,0 +1,6 @@
+# 生成物・中間物（いずれもスクリプトから決定的に作り直せる＝リポジトリに置かない）
+# ⚠️ パターン行に行末コメントを書かないこと（git はコメントを剥がさずパターンの一部として扱う）
+# seed-demo-library.py が作るデモ蔵書HTML
+_demo-library/
+# screencap の生PNG（RGBA）。finalize-screenshots.py が 24bit へ焼き直す
+_raw/
