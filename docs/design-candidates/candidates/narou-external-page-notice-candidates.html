@@ -1,0 +1,791 @@
+<!-- @dsCard group="UI-n / 候補（裁定待ち）" name="なろうのページを開く場面の注意喚起UI ─ 5案" -->
+<!--
+  ============================================================================
+  裁定用の一時ドラフト（2026-08-26 第1便）。裁定が付いたら採用案を正本へ差分反映し、
+  このファイルは破棄する（/visual-language 恒久ルール「複数案比較のみ一時ドラフト」）。
+  ============================================================================
+
+  ---- この便で決めてほしいこと ----
+  「ここからは小説家になろうの公式ページです」と **場所を伝える表示** を、WebView を開く瞬間に出す
+  （2026-08-26 ユーザー裁定・handover 記載）。その **形** を選ぶ。
+
+  ▶ 裁定済みで議論しない前提（この便では動かさない）
+    ・出す内容＝**場所を伝える**。⚠️ **広告を警告する形にしない**——場所を伝えれば広告はなろう側の
+      ものだと自然に伝わり、ADR 0011 の「公式を装わない」にも同時に効く、という裁定。
+      よって下の文言案には **「広告」の語を一つも使っていない**（意図的な不在であって、書き忘れではない）。
+    ・タイミング＝**WebView を開く瞬間**。
+
+  ---- 入口の全数（実コードで確定・2026-08-26） ----
+  なろうのページを **アプリ内 WebView** で開く面は **2 つだけ**。入口のボタンは **8 つ**（読書 6・取り込み 2）あるが、
+  すべてこの 2 画面のどちらかへ合流する＝**表示を置く場所は 2 箇所で全数を覆える**。
+
+  ① 読書 WebView `WebReaderScreen`（ADR 0012・ルート web-reader/{ncode}/{startEpisode}
+     ＝MainActivity.kt:866-880）へ入る経路（6）:
+       ・作品詳細「なろうで読む」（未読）             NovelDetailScreen.kt:452（未取込）/ :512（取込済）
+       ・作品詳細「最初から読み直す（目次）」（既読）  同 :437（未取込）/ :498（取込済）
+             ↑ 4 つとも onReadFromToc → MainActivity.kt:842（目次＝startEpisode 0 へ着地）
+       ・作品詳細「第N話のはじめから読む」（既読）    同 :414（未取込）/ :477（取込済）→ onResumeReading → MainActivity.kt:843
+       ・本棚 Web カード タップ（目次）     BookshelfScreen.kt:372 → MainActivity.kt:669
+       ・本棚 Web カード「続きから」        BookshelfScreen.kt:374 → MainActivity.kt:669
+       ※ K/P/M/J の各一覧面は ShelfWebActions（ShelfFace.kt:133-139）でこの 2 コールバックへ合流する
+         （BookshelfListCartridgeP.kt:671・BookshelfLogM.kt:872・BookshelfGridJ.kt:667 ほか）＝分岐は増えない。
+  ② 取り込み WebView `PdfImportScreen`（ADR 0011・ルート discovery/detail/{ncode}/import
+     ＝MainActivity.kt:848-862）へ入る経路:
+       ・作品詳細「縦書きPDFを取り込む」    → onImportPdf → MainActivity.kt:840
+       ・本棚 Web カード「縦書きPDFを取り込む」 BookshelfScreen.kt:375 → MainActivity.kt:665
+
+  ▶ 参考: WebView **ではない** なろう送客（この便の対象外・形が違うので混ぜない）
+       ・発見ホーム「小説家になろう公式サイトで探す」＝素の ACTION_VIEW（外部ブラウザへ出る）
+         DiscoveryHomeScreen.kt:402／skins/k/DiscoveryHomeK.kt:1193／m/DiscoveryHomeSkyM.kt:418／
+         p/DiscoveryCartridgeP.kt:511／j/DiscoveryPortalJ.kt:411
+       ・読書面の継続カード「なろうで続きを読む」「作品ページ」＝Custom Tabs（ChapterScreen.kt:441 / :452
+         ＝ADR 0012 スコープ外で 0010 のまま据え置き）
+       ・取込 Blocked 案内の「公式サイトで読む」＝MainActivity.kt:463・BookshelfScreen.kt:426
+     ⚠️ 外部ブラウザ・Custom Tabs は **ブラウザ自身が URL バーで場所を名乗る**ので、この便の欠落は起きない。
+        欠落しているのはアプリ内 WebView の 2 面だけ、というのが入口全数の結論。
+
+  ---- 現状そこで何が表示されるか（＝ほぼ無表示） ----
+  ・読書 WebView: TopAppBar のタイトル **「なろうで読む」** のみ（WebReaderScreen.kt:123）。
+  ・取り込み WebView: TopAppBar のタイトル **「縦書きPDFを取り込む」** のみ（PdfImportScreen.kt:180）。
+  ・詳細画面の予告注記「なろう（syosetu.com）のページをそのまま表示します」は **2026-08-21 裁定で撤去済み**
+    （モック discovery/discovery-detail-D.html の冒頭に記録・コードにも現存しない）。
+  ・初回起動の教示カード2枚目に 1 行だけある: 「**なろうで読む**　なろうのページをそのまま表示。ふりがなは
+    付かず、アプリの操作も効きません。」（IntroDeck.kt:74）。**初回起動時に一度きり**＝開く瞬間には出ない。
+
+  ---- ⚠️ 過去の裁定2件との関係（この便は両方に触れる。読まずに裁定しないこと） ----
+  (1) **2026-08-21「バー注記は撤去」**（discovery-detail-D.html 冒頭）: 撤去の理由は
+      〈ボタン名が「なろうで読む」で着地を見れば分かる〉〈ADR 0011 は文言での告知を義務づけていない〉。
+      ▶ この便との差＝**撤去したのは「押す前の予告」・今回置くのは「着地した場所の名乗り」**。
+        場所は同じ「なろう」でも、予告は読み飛ばされ、名乗りは着地面に留まる。
+        ただし **案A/案C は「押す前」に出る形**なので、撤去した予告の再来にあたる。ここは正面から裁定が要る。
+  (2) **「なろうで読む」の初出教示は不要**（tutorial-onboarding-K.html §2 の表・組A へ同梱で決着）:
+      専用カードを立てず教示列へ畳んだ、という判断。
+      ▶ この便との差＝**教示（操作の割り当てを教える）ではなく所在の表示**。ただし案A は形が教示カードに
+        近いので、実質「専用カードを立てる」に戻っていないかを見てほしい。
+
+  ---- 寸法の較正 ----
+  端末枠は実機と同寸の **360×792dp（1px=1dp）**。システムバー合算 63dp（上39＋下24）は
+  discovery-detail-D.html で 2 つの実機実測値から確定した較正値をそのまま使う。TopAppBar 64dp。
+  ▶ **WebView の可視高 = 792 − 39 − 64 − 24 = 665dp**。各案の「面を食う量」はこの 665 に対する比で書く。
+
+  ---- 色 ----
+  アプリ側の色はすべて正本トークンの CSS 変数で、直書きはしない（--base/--ink/--ink-soft/--line/--ai/
+  --seiji/--seiji-ink/--info＝Color.kt の実値）。
+  ⚠️ **--ext-* は「なろうのページ」を模すプレースホルダであってアプリのトークンではない**
+    （恒久ルール4＝プレースホルダは実データの色域を模す。白地・青リンク・灰罫＝よその面だと目で分かることが
+     この便の検分対象そのものなので、アプリの寒色で塗ってしまうと境界が見えなくなる）。
+    **広告枠も必ず描いてある**——無加工＝広告込みで表示する面を裁定するので、広告の無い絵で裁定できない。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>なろうのページを開く場面の注意喚起UI ─ 5案</title>
+<style>
+  /*==harness==*/
+  :root{
+    /* === アプリの正本トークン実値（Color.kt / discovery-detail-D / tutorial-onboarding-K と同一） === */
+    --base:#FBFAF8; --ink:#1C1F26; --ink-soft:#7C808B; --line:#ECEAE4;
+    --ai:#1C3D5A; --ai-tint:rgba(28,61,90,.10);
+    --seiji:#9CB3A8; --seiji-ink:#50685C;
+    --info:#5C606D;                      /* InfoText（素地 6.01:1） */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+    /* 案2-c の帯地・栞書影の一例（作品色から導かれるサンプル値＝トークンではない）。
+       帯地は彩度14%・明度93%の固定窓へ圧縮された値のうち1色相ぶん。 */
+    --band-tint:#EDF1EE; --shiori-sample:#7E9AA6;
+    /* 検分用の注記色（赤茶）。⚠️ アプリのトークンではない＝**モックの上に貼った注釈**の色で、
+       画面の意匠として提案しているものではない（寒色D に danger-red は無い）。 */
+    --anno:#8A4B44;
+    /* === ここから下はアプリの色ではない＝なろうのページを模すプレースホルダ === */
+    --ext-bg:#FFFFFF; --ext-ink:#333333; --ext-soft:#888888; --ext-line:#DDDDDD;
+    --ext-link:#0F6FBF; --ext-head:#F4F4F4; --ext-ad:#F7F7F7; --ext-ad-line:#E2E2E2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;min-height:100vh;padding:30px 20px 60px;font-family:var(--gothic);
+    -webkit-font-smoothing:antialiased;color:#2A2C28}
+  .doc{max-width:1180px;margin:0 auto}
+  h1{font-size:20px;letter-spacing:.06em;margin-bottom:10px}
+  .lead{font-size:13px;line-height:1.9;color:#4A4C47;max-width:940px}
+  .lead b{color:#2A2C28}
+
+  .sec{margin-top:44px;border-top:2px solid #C9C7BE;padding-top:18px}
+  .sec h2{font-size:17px;letter-spacing:.05em;margin-bottom:8px}
+  .sec h2 .tag{font-size:11px;background:var(--ai);color:#fff;padding:2px 9px;border-radius:10px;
+    margin-left:10px;letter-spacing:.08em;vertical-align:3px;font-weight:400}
+  .sec h2 .tag.g{background:#50685C}
+  .sec h2 .tag.r{background:var(--anno)}
+  .sec p.body{font-size:13px;color:#4A4C47;line-height:1.9;max-width:940px;margin-bottom:6px}
+  .sec p.body b{color:#2A2C28}
+  .rule{font-size:12.5px;line-height:1.95;max-width:940px;margin-top:12px;
+    background:#F1EFE9;border-left:3px solid var(--ai);padding:11px 14px}
+  .rule b{color:#1C3D5A}
+  .rule.warn{border-left-color:var(--anno)}
+  .rule.warn b{color:var(--anno)}
+  .note{font-size:11.5px;color:#6A6C67;line-height:1.8;margin-top:10px;max-width:940px}
+
+  table.mx{border-collapse:collapse;margin:16px 0 6px;background:#F7F6F2;font-size:12.5px;width:100%;max-width:1160px}
+  table.mx th,table.mx td{border:1px solid #D3D1C9;padding:8px 11px;text-align:left;line-height:1.65;vertical-align:top}
+  table.mx th{background:#EDEBE4;font-weight:700;letter-spacing:.04em}
+  table.mx td.o{color:#1C3D5A;font-weight:700;white-space:nowrap}
+  table.mx td.x{color:var(--anno);font-weight:700;white-space:nowrap}
+  table.mx td.m{color:#7A7168;font-weight:700;white-space:nowrap}
+  table.mx code{font-size:11.5px;color:#4A4C47}
+
+  /* 文言を「絵ではなく文字で」裁定してもらう場所（tutorial-onboarding-K の .copy 写経） */
+  .copy{max-width:1160px;margin-top:16px;background:#F7F6F2;border:1px solid #D3D1C9;padding:16px 18px}
+  .copy h4{font-size:13px;letter-spacing:.06em;color:#1C3D5A;margin:18px 0 7px;padding-bottom:5px;
+    border-bottom:1px solid #DEDCD4}
+  .copy h4:first-child{margin-top:0}
+  .copy h4 .ch{font-size:11px;color:#6A6C67;font-weight:400;letter-spacing:.1em;margin-left:8px}
+  .copy dl{font-size:12.5px;line-height:1.85}
+  .copy dt{color:#6A6C67;letter-spacing:.05em;margin-top:8px;font-size:11.5px}
+  .copy dt:first-child{margin-top:0}
+  .copy dd{color:#2A2C28;margin-left:0}
+  .copy dd b{color:#1C3D5A}
+
+  .stage{display:flex;gap:26px;flex-wrap:wrap;margin-top:18px;align-items:flex-start}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:8px;width:360px}
+  .wrap .mode{font-size:12px;letter-spacing:.1em;color:#1C3D5A;font-weight:700;text-align:center}
+  .wrap .sub{font-size:11.5px;color:#6A6C67;line-height:1.7;text-align:left;max-width:360px}
+  .wrap .sub b{color:#2A2C28}
+  .wrap .cost{font-size:11.5px;color:#4A4C47;line-height:1.7;text-align:left;max-width:360px;
+    background:#F1EFE9;padding:8px 10px;border-left:3px solid var(--seiji-ink)}
+  .wrap .cost b{color:#1C3D5A}
+
+  /* === 端末枠（実機同寸 360×792dp・1px=1dp。システムバー合算63dp は detail-D の較正値） === */
+  .phone{width:360px;height:792px;background:var(--base);border-radius:34px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--gothic)}
+  .sb{height:39px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:11px;color:var(--ink-soft)}
+  .navbar{height:24px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .navbar i{display:block;width:108px;height:3px;border-radius:2px;background:#C9C7C0}
+  /*==/harness==*/
+
+  /* === アプリのトップバー 64dp（M3 TopAppBar・WebReaderScreen.kt:121-138 の実装どおり） === */
+  .topbar{height:64px;flex-shrink:0;display:flex;align-items:center;padding:0 8px;gap:4px;background:var(--base)}
+  .topbar .ic{width:48px;height:48px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--ink)}
+  .topbar .ic svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar .tt{font-size:18px;color:var(--ink);letter-spacing:.04em}
+  /* 案E: 同じ 64dp の中に副題を積む（タイトル22 ＋ 副題16 ＝ 38dp ＜ 64dp ＝ バーは高くならない） */
+  .topbar .ttcol{display:flex;flex-direction:column;justify-content:center;min-width:0}
+  .topbar .ttcol .t{font-size:16px;line-height:22px;color:var(--ink);letter-spacing:.04em}
+  .topbar .ttcol .h{font-size:11px;line-height:16px;color:var(--info);letter-spacing:.02em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--gothic)}
+
+  /* === WebView の面（可視高 665dp）=== */
+  .wv{flex:1;min-height:0;position:relative;overflow:hidden;background:var(--ext-bg)}
+
+  /* === なろうのページ（プレースホルダ＝アプリのトークンではない・広告枠を必ず描く） === */
+  .ext{position:absolute;inset:0;overflow:hidden;background:var(--ext-bg);color:var(--ext-ink);
+    font-family:"Helvetica Neue",Arial,sans-serif}
+  .ext .hd{height:34px;background:var(--ext-head);border-bottom:1px solid var(--ext-line);
+    display:flex;align-items:center;padding:0 10px;font-size:12px;color:var(--ext-soft)}
+  .ext .hd b{color:#5A5A5A;font-weight:700;letter-spacing:.02em}
+  .ext .ad{margin:10px;height:88px;background:var(--ext-ad);border:1px solid var(--ext-ad-line);
+    display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--ext-soft);letter-spacing:.1em}
+  .ext .ad.tall{height:118px}
+  .ext .pad{padding:0 12px}
+  .ext .wk{font-size:12px;color:var(--ext-link);margin-bottom:6px}
+  .ext .ttl{font-size:16px;font-weight:700;color:var(--ext-ink);line-height:1.5;margin-bottom:10px}
+  .ext p{font-size:13px;line-height:1.9;color:var(--ext-ink);margin-bottom:8px;text-indent:1em}
+  .ext .nav{display:flex;justify-content:space-between;border-top:1px solid var(--ext-line);
+    margin-top:10px;padding-top:10px;font-size:12.5px;color:var(--ext-link)}
+  .ext .fm{margin:10px 12px 0;border:1px solid var(--ext-line);padding:10px;font-size:12px;color:var(--ext-ink)}
+  .ext .fm .b{margin-top:8px;display:inline-block;border:1px solid var(--ext-link);color:var(--ext-link);
+    padding:6px 14px;font-size:12px}
+
+  /* === 案B: 常設の帯（WebView の外＝クローム。ページに一切かぶらない） ===
+     高さ 33dp = 上下padding 8+8 ＋ 本文行送り16 ＋ 下罫1。665→632dp（−5.0%）。 */
+  .cband{flex-shrink:0;height:33px;background:var(--ai-tint);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:6px;padding:0 16px;font-size:11.5px;line-height:16px;
+    color:var(--seiji-ink);letter-spacing:.02em;font-family:var(--gothic);white-space:nowrap;overflow:hidden}
+  .cband svg{width:13px;height:13px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.7}
+  .cband .host{color:var(--info);text-overflow:ellipsis;overflow:hidden}
+
+  /* === 案D: 一過性の帯（開いた瞬間に出て、数秒で自ら退く） ===
+     位置は本文の頭を避けてトップバー直下。実装済みの丸ピル（NativeReadingScreen.kt:1463-1487）の
+     様式＝α0.92・角丸・タップを奪わない純表示、を横帯へ移したもの。 */
+  .tpill{position:absolute;left:12px;right:12px;top:10px;z-index:5;
+    background:rgba(251,250,248,.94);border:1px solid var(--line);border-radius:10px;
+    padding:9px 12px;font-size:12px;line-height:1.6;color:var(--ink);font-family:var(--gothic);
+    box-shadow:0 6px 18px rgba(28,31,38,.16);display:flex;align-items:center;gap:8px}
+  .tpill svg{width:15px;height:15px;flex-shrink:0;stroke:var(--ai);fill:none;stroke-width:1.7}
+  .tpill .fade{position:absolute;right:10px;top:-9px;font-size:10px;color:var(--anno);background:#F7F6F2;
+    border:1px solid #D3D1C9;padding:1px 6px;letter-spacing:.06em}
+
+  /* === 案A: 一度きりのダイアログ（bookshelf-multiselect-D の .dlg 写経＝値同一） === */
+  .scrim{position:absolute;inset:0;background:rgba(20,23,28,.34);z-index:6}
+  .dlg{position:absolute;left:24px;right:24px;top:50%;transform:translateY(-50%);z-index:7;
+    background:var(--base);border-radius:16px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+  .dlg h2{font-family:var(--mincho);font-size:17px;color:var(--ink);font-weight:600;letter-spacing:.05em;
+    line-height:1.55;margin-bottom:12px}
+  .dlg p{font-family:var(--gothic);font-size:12.5px;color:var(--info);line-height:1.75;margin-bottom:16px}
+  .dlg p b{color:var(--ink)}
+  .dlg .chk{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--info);margin-bottom:20px}
+  .dlg .chk i{width:18px;height:18px;border:1.5px solid var(--ink-soft);border-radius:3px;flex-shrink:0;display:block}
+  .dlg-acts{display:flex;justify-content:flex-end;align-items:center;gap:8px}
+  .btn-flat{border:none;background:transparent;color:var(--ink);font-size:14px;font-weight:600;
+    padding:12px 18px;border-radius:2px;cursor:pointer;font-family:var(--gothic)}
+  .btn-flat.ai{color:var(--ai)}
+
+  /* === 案C: 開く直前のボトムシート（settings-D の .sheet 写経） === */
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:7;background:var(--base);
+    border-radius:20px 20px 0 0;padding:12px 24px 28px;box-shadow:0 -10px 30px rgba(0,0,0,.18)}
+  .grab{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 16px}
+  .sheet h2{font-family:var(--mincho);font-size:17px;color:var(--ink);font-weight:600;letter-spacing:.06em;margin-bottom:10px}
+  .sheet p{font-size:12.5px;color:var(--info);line-height:1.8;margin-bottom:20px}
+  .sheet p b{color:var(--ink)}
+  .sheet-acts{display:flex;gap:8px}
+  .sheet-acts .btn-primary{flex:1}
+  .sheet-acts .btn-ghost{width:120px;flex:none}
+
+  /* === 案C の下敷き＝作品詳細（discovery-detail-D の実値。上半分は略図・固定バーだけ実寸） === */
+  .dtop{flex:1;min-height:0;overflow:hidden;background:var(--base);display:flex;flex-direction:column}
+  .kaeshi{position:relative;flex-shrink:0;height:166px;width:100%}
+  .kaeshi .band{position:absolute;left:0;right:0;top:0;height:120px;background:var(--band-tint);
+    border-bottom:1px solid rgba(28,31,38,.10)}
+  .kaeshi .shiori{position:absolute;left:24px;top:12px;width:114px;height:152px;border-radius:2px;
+    background:var(--shiori-sample);box-shadow:0 3px 10px rgba(28,31,38,.22)}
+  .kaeshi .shiori i{position:absolute;left:50%;top:0;bottom:0;width:0;border-left:1px dashed rgba(251,250,248,.7)}
+  .kaeshi .kmeta{position:absolute;left:154px;right:24px;top:12px;height:96px;display:flex;
+    flex-direction:column;align-items:flex-start;gap:6px}
+  .kaeshi .kmeta .t{font-family:var(--mincho);font-size:16px;font-weight:600;line-height:22px;color:var(--ink);
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .kaeshi .kmeta .au{font-size:12.5px;line-height:16px;color:var(--ink);font-weight:500}
+  .genre-label{display:inline-block;font-size:11.5px;color:var(--seiji-ink);border:1px solid var(--seiji);
+    padding:4px 8px;border-radius:2px;font-weight:500;white-space:nowrap;line-height:14px}
+  .dbody{padding:0 24px;flex:1;min-height:0;overflow:hidden}
+  .dsec{font-size:10.5px;letter-spacing:.28em;color:var(--ink-soft);font-weight:600;height:28px;line-height:28px;margin-top:24px}
+  .dsec + p{margin-top:12px}
+  .dbody p{font-family:var(--mincho);font-size:14px;line-height:26px;color:var(--ink);text-align:justify}
+  .fixed-bar{flex-shrink:0;background:var(--base);border-top:1px solid var(--line);padding:16px 24px;
+    display:flex;flex-direction:column}
+  .slot{height:48px;display:flex;align-items:center;flex-shrink:0}
+  .slot + .slot{margin-top:8px}
+  .slot.row{gap:8px}
+  .slot.row > *{flex:1;min-width:0}
+  .btn-primary{height:40px;width:100%;background:var(--ai);color:var(--base);border:none;border-radius:2px;
+    font-family:var(--gothic);font-size:12.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;
+    justify-content:center;gap:8px;letter-spacing:.1em;white-space:nowrap}
+  .btn-ghost{height:40px;width:100%;background:transparent;color:var(--ink-soft);border:1px solid var(--line);
+    border-radius:2px;font-family:var(--gothic);font-size:12.5px;cursor:pointer;display:flex;align-items:center;
+    justify-content:center;gap:8px;letter-spacing:.1em;white-space:nowrap}
+  .btn-ghost.mini{font-size:11.5px;letter-spacing:.06em;gap:4px}
+  .fixed-bar button svg,.sheet-acts button svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5;flex-shrink:0}
+  .dim{opacity:.5}
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <h1>なろうのページを開く場面 ─ 場所を伝える表示　<span style="font-size:13px;color:#6A6C67;font-weight:400">5 案（裁定用ドラフト・採用後に正本へ差分反映して破棄）</span></h1>
+  <p class="lead">
+    出すのは<b>「ここからは小説家になろうの公式ページです」＝場所を伝える表示</b>。
+    <b>広告を警告する形にはしない</b>——場所を伝えれば広告はなろう側のものだと自然に伝わり、
+    ADR 0011 の「公式を装わない」にも同時に効く（2026-08-26 裁定）。よって<b>下の文言案には「広告」の語が一つも無い</b>。<br>
+    アプリ内 WebView でなろうを開く面は<b>2 つだけ</b>（読書 <code>WebReaderScreen</code>／取り込み <code>PdfImportScreen</code>）で、
+    <b>8 つの入口ボタン</b>（読書 6・取り込み 2）はすべてこの 2 面へ合流する＝<b>表示を 2 箇所に置けば全数を覆える</b>（§1）。
+    現状そこにあるのは<b>トップバーのタイトルだけ</b>（「なろうで読む」「縦書きPDFを取り込む」）で、場所は名乗っていない。<br>
+    <b>端末枠は実機同寸 360×792dp（1px=1dp）</b>。<b>WebView の可視高は 665dp</b> で、各案が食う面積はこの数に対して書く。
+    なろうのページは<b>広告枠まで含めて</b>描いてある（無加工＝広告込みで出す面を裁定するので、広告の無い絵では裁定できない）。
+  </p>
+
+  <!-- ============================================================ §1 -->
+  <div class="sec">
+    <h2>§1　入口の全数と、いま出ているもの　<span class="tag g">実コードで確定</span></h2>
+    <table class="mx">
+      <tr><th style="width:20%">開く面</th><th style="width:34%">入口（ボタン）</th><th style="width:24%">いま出ているもの</th><th>備考</th></tr>
+      <tr>
+        <td><b>読書 WebView</b><br><code>WebReaderScreen</code><br><span style="color:#6A6C67">ADR 0012</span></td>
+        <td>作品詳細「なろうで読む」（未読）<code>NovelDetailScreen.kt:452 / :512</code><br>
+            作品詳細「最初から読み直す（目次）」（既読）<code>:437 / :498</code><br>
+            作品詳細「第N話のはじめから読む」（既読）<code>:414 / :477</code><br>
+            本棚 Web カード タップ<code>BookshelfScreen.kt:372</code><br>
+            本棚 Web カード「続きから」<code>:374</code><br>
+            <span style="color:#6A6C67">（詳細画面の 6 つは未取込／取込済 × 未読／既読の分岐＝<b>ボタン名は 3 種</b>）</span></td>
+        <td class="x">トップバー<br>「なろうで読む」<br><code>WebReaderScreen.kt:123</code><br>だけ</td>
+        <td>K/P/M/J の一覧面は <code>ShelfWebActions</code>（<code>ShelfFace.kt:133-139</code>）で上の 2 コールバックへ合流＝<b>スキンが増えても分岐は増えない</b>。
+          <b>JS 注入ゼロ</b>（ADR 0012）＝アプリが触るのは <code>onPageFinished</code> の URL 文字列だけ。</td>
+      </tr>
+      <tr>
+        <td><b>取り込み WebView</b><br><code>PdfImportScreen</code><br><span style="color:#6A6C67">ADR 0011</span></td>
+        <td>作品詳細「縦書きPDFを取り込む」<code>MainActivity.kt:840</code><br>
+            本棚 Web カード「縦書きPDFを取り込む」<code>BookshelfScreen.kt:375</code></td>
+        <td class="x">トップバー<br>「縦書きPDFを取り込む」<br><code>PdfImportScreen.kt:180</code><br>だけ</td>
+        <td>注入するのは <code>scrollIntoView</code>（ビューポート移動）のみ。<b>DL ボタンの押下は毎回ユーザー</b>（守り②）。</td>
+      </tr>
+      <tr>
+        <td colspan="4"><b>参考・この便の対象外</b>＝外部ブラウザ／Custom Tabs 送客（発見ホーム「小説家になろう公式サイトで探す」<code>DiscoveryHomeScreen.kt:402</code> ほか 4 スキン、読書面の継続カード <code>ChapterScreen.kt:441 / :452</code>、Blocked 案内 <code>MainActivity.kt:463</code>・<code>BookshelfScreen.kt:426</code>）。
+          <b>ブラウザ自身が URL バーで場所を名乗る</b>ので欠落しない。<b>欠落しているのはアプリ内 WebView の 2 面だけ</b>——これが入口全数の結論。</td>
+      </tr>
+    </table>
+    <div class="rule">
+      <b>初回教示との重なり</b>: 初回起動のカード 2 枚目に「<b>なろうで読む</b>　なろうのページをそのまま表示。ふりがなは付かず、アプリの操作も効きません。」が既にある（<code>IntroDeck.kt:74</code>）。
+      ただし<b>初回起動に一度きり</b>で、蔵書がある人・アプリを入れ直した人・数か月ぶりに開く人には届かない。<b>この便が埋めるのはそこ</b>。
+    </div>
+  </div>
+
+  <!-- ============================================================ §2 -->
+  <div class="sec">
+    <h2>§2　⚠️ 形を選ぶ前に効く2つの事実（実コード由来）　<span class="tag r">これで案が2つに割れる</span></h2>
+    <p class="body">
+      「場所を名乗る」表示は、<b>名乗った場所が本当かどうか</b>を実装が保証できないと嘘になる（公理8）。
+      コードを読むと、保証できない場面が 2 つある。<b>常設で名乗る案（B・E）はこの 2 つに答えが要る</b>。
+    </p>
+    <div class="rule warn">
+      <b>(1) 読書 WebView は なろうの外へも出られる。</b>
+      <code>shouldOverrideUrlLoading … = false</code>（<code>WebReaderScreen.kt:186</code>＝横取りせずページのリンクをそのまま辿らせる）。
+      感想欄や作者紹介の外部リンクを踏めば、<b>表示中のページはもう なろうではない</b>。
+      それでも帯が「小説家になろうの公式ページ」と言い続けたら、<b>その瞬間に嘘になる</b>
+      （<code>ContinuationLogic.kt:133</code> のコメントも「外部リンク等」への遷移を前提にしている）。
+      <br>▶ 解＝<b>常設で名乗るなら URL に追従させる</b>（表示中のホストが なろう以外なら帯の文言を切り替える／帯を消す）。
+      追従の材料は<b>すでに観測している <code>onPageFinished</code> の URL 文字列</b>なので、
+      <b>JS 注入ゼロ（ADR 0012 の中核制約）を一切侵さずに実装できる</b>——新たに取るものが無い。
+    </div>
+    <div class="rule warn">
+      <b>(2) 取り込み WebView は最後に別ホストへ移る。</b>
+      ADR 0011 のスパイク実測＝生成フローの最後は <code>pdfnovels.net/&lt;token&gt;/&lt;NCODE&gt;.pdf</code> への<b>フルナビゲーション</b>。
+      <b>ホスト名を固定文字列で焼くと、この瞬間に嘘になる</b>（§5 に絵がある）。
+      <br>▶ 解＝(1) と同じ＝<b>URL 追従</b>。あるいは<b>ホスト名を出さない</b>文言にする（W2b）。
+    </div>
+    <p class="body" style="margin-top:12px">
+      <b>逆に、開く瞬間だけ出る案（A・C・D）はこの問題を持たない</b>——出た瞬間の場所は必ず なろうだから。
+      代わりに<b>「その後どこに居るか」は言い続けない</b>。<b>この対比が今回の裁定の骨</b>で、
+      案の並びも〈開く前に出る（A・C）〉〈開いた後に居続ける／消える（B・D・E）〉で切ってある。
+    </p>
+  </div>
+
+  <!-- ============================================================ §3 -->
+  <div class="sec">
+    <h2>§3　案 ─ 開く「前」に出る 2 案　<span class="tag">A・C</span></h2>
+    <p class="body">
+      ⚠️ <b>2026-08-21 に撤去した「押す前の予告」の再来にあたる形</b>。撤去の理由は〈ボタン名で分かる〉〈告知義務は無い〉だった。
+      今回は<b>場所の名乗り</b>という別目的だが、出る位置は同じ「押す前」なので、<b>撤去裁定を覆すかどうかを正面から決める必要がある</b>。
+    </p>
+
+    <div class="stage">
+
+      <!-- ===== 案A: 一度きりのダイアログ ===== -->
+      <div class="wrap">
+        <span class="mode">案A ─ 一度きりのダイアログ</span>
+        <div class="phone" role="img" aria-label="案A 一度きりのダイアログ">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="topbar">
+            <span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+            <span class="tt">なろうで読む</span>
+          </div>
+          <div class="wv">
+            <!-- 背後ではページが読み込まれている＝待ち時間が説明の時間に化ける -->
+            <div class="ext">
+              <div class="hd"><b>小説家になろう</b></div>
+              <div class="ad">広告</div>
+              <div class="pad">
+                <div class="wk">追放された万能薬師、辺境でスローライフを始める</div>
+                <div class="ttl">第1話　宮廷を追われた日</div>
+                <p>調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。</p>
+                <p>しかし、無能と罵られ突如国を追放されてしまう。</p>
+              </div>
+            </div>
+            <div class="scrim"></div>
+            <div class="dlg">
+              <h2>ここからは<br>小説家になろうのページです</h2>
+              <p>なろうが配信するページを<b>そのまま表示</b>します。ふりがなは付かず、アプリの操作も効きません。</p>
+              <div class="chk"><i></i><span>次回から表示しない</span></div>
+              <div class="dlg-acts">
+                <button class="btn-flat ai">わかりました</button>
+              </div>
+            </div>
+          </div>
+          <div class="navbar"><i></i></div>
+        </div>
+        <p class="sub">初回だけ出す（チェックで以後も抑止）。背後ではページが読み込まれるので、<b>読み込みの待ち時間がそのまま説明の時間に化ける</b>＝体感の追加コストが最も小さい。</p>
+        <p class="cost"><b>面のコスト 0dp</b>（常設物なし・WebView は 665dp のまま）／<b>操作 +1 タップ（初回のみ）</b>／<b>2 回目以降は場所を名乗るものが消える</b>＝トップバー頼みに戻る。</p>
+      </div>
+
+      <!-- ===== 案C: 開く直前のボトムシート ===== -->
+      <div class="wrap">
+        <span class="mode">案C ─ 開く直前のボトムシート（毎回）</span>
+        <div class="phone" role="img" aria-label="案C 開く直前のボトムシート">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="topbar dim"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
+          <div class="dtop dim">
+            <div class="kaeshi">
+              <div class="band"></div>
+              <div class="shiori"><i></i></div>
+              <div class="kmeta">
+                <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+                <div class="au">霧島あおい</div>
+                <span class="genre-label">ハイファンタジー</span>
+              </div>
+            </div>
+            <div class="dbody">
+              <div class="dsec">あらすじ</div>
+              <p>調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。しかし、無能と罵られ突如国を追放されてしまう。</p>
+            </div>
+            <div class="fixed-bar">
+              <div class="slot"><button class="btn-primary">縦書きPDFを取り込む</button></div>
+              <div class="slot row">
+                <button class="btn-ghost mini">なろうで読む</button>
+                <button class="btn-ghost mini">本棚に置く</button>
+              </div>
+            </div>
+          </div>
+          <div class="scrim"></div>
+          <div class="sheet">
+            <div class="grab"></div>
+            <h2>ここからは小説家になろうのページです</h2>
+            <p>なろうが配信するページを<b>そのまま表示</b>します。ふりがなは付かず、アプリの操作も効きません。</p>
+            <div class="sheet-acts">
+              <button class="btn-ghost">やめる</button>
+              <button class="btn-primary">開く</button>
+            </div>
+          </div>
+          <div class="navbar"><i></i></div>
+        </div>
+        <p class="sub">下敷きは作品詳細（<b>固定バーだけ実寸 137dp</b>・上半分は略図）。毎回出て、<b>［開く］を押して初めて WebView が開く</b>。</p>
+        <p class="cost"><b>面のコスト 0dp</b>／<b>操作 +1 タップ（毎回）</b>＝続きから読む人が毎晩踏む。<b>ADR 0011 の守り②とは衝突しない</b>（守りが求める毎回の押下は<b>なろうページ内の DL ボタン</b>であって、アプリ側の関門ではない）。ただし<b>本棚カードを押したのに本が開かない</b>体験になる。</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================ §4 -->
+  <div class="sec">
+    <h2>§4　案 ─ 開いた「後」に出る 3 案　<span class="tag">B・D・E</span></h2>
+    <p class="body">
+      押す前の予告ではなく<b>着地面での名乗り</b>＝2026-08-21 の撤去裁定と正面衝突しない側。
+      ただし B と E は常設なので<b>§2 の URL 追従</b>が実装条件になる。
+    </p>
+
+    <div class="stage">
+
+      <!-- ===== 案B: 常設の帯 ===== -->
+      <div class="wrap">
+        <span class="mode">案B ─ 常設の帯（毎回・居続ける）</span>
+        <div class="phone" role="img" aria-label="案B 常設の帯">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="topbar">
+            <span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+            <span class="tt">なろうで読む</span>
+          </div>
+          <!-- 帯は WebView の「外」＝クロームの一部。ページの上に重ねない（重ねたら面を隠すことになる） -->
+          <div class="cband">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/></svg>
+            <span>ここからは小説家になろうのページ</span>
+            <span class="host">・ncode.syosetu.com</span>
+          </div>
+          <div class="wv">
+            <div class="ext">
+              <div class="hd"><b>小説家になろう</b></div>
+              <div class="ad">広告</div>
+              <div class="pad">
+                <div class="wk">追放された万能薬師、辺境でスローライフを始める</div>
+                <div class="ttl">第1話　宮廷を追われた日</div>
+                <p>調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。</p>
+                <p>しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。</p>
+                <p>薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。</p>
+                <div class="nav"><span>&lt; 前へ</span><span>目次</span><span>次へ &gt;</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="navbar"><i></i></div>
+        </div>
+        <p class="sub">帯は<b>WebView の外</b>に置く（ページの上に重ねない）＝なろうの面には 1px も触らない。地は <code>--ai-tint</code>・字は <code>--seiji-ink</code>＝<b>アプリの色のまま</b>で、なろうのブランド色・ロゴは真似ない（＝公式を装わない）。</p>
+        <p class="cost"><b>面のコスト −33dp（665→632dp・−5.0%）を毎回・恒久に払う</b>／<b>操作 +0</b>／<b>§2(1) の URL 追従が必須</b>（外部リンクを踏んだら文言を切り替えるか帯を消す。さもなくば嘘になる）。</p>
+      </div>
+
+      <!-- ===== 案D: 一過性の帯 ===== -->
+      <div class="wrap">
+        <span class="mode">案D ─ 一過性の帯（毎回・数秒で退く）</span>
+        <div class="phone" role="img" aria-label="案D 一過性の帯">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="topbar">
+            <span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+            <span class="tt">なろうで読む</span>
+          </div>
+          <div class="wv">
+            <div class="ext">
+              <div class="hd"><b>小説家になろう</b></div>
+              <div class="ad">広告</div>
+              <div class="pad">
+                <div class="wk">追放された万能薬師、辺境でスローライフを始める</div>
+                <div class="ttl">第1話　宮廷を追われた日</div>
+                <p>調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。</p>
+                <p>しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。</p>
+                <p>薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。</p>
+                <div class="nav"><span>&lt; 前へ</span><span>目次</span><span>次へ &gt;</span></div>
+              </div>
+            </div>
+            <div class="tpill">
+              <span class="fade">数秒で消える</span>
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/></svg>
+              <span>ここからは小説家になろうのページです</span>
+            </div>
+          </div>
+          <div class="navbar"><i></i></div>
+        </div>
+        <p class="sub">実装済みの丸ピル（<code>NativeReadingScreen.kt:1463-1487</code>＝α0.92・タップを奪わない純表示・連続2.6秒で消費）の様式を横帯へ移したもの。<b>新しい部品の発明が最も少ない</b>。</p>
+        <p class="cost"><b>面のコスト 0dp（恒久）</b>・ただし<b>数秒だけページの頭 ≒40dp を覆う</b>／<b>操作 +0</b>／<b>URL 追従は不要</b>（出た瞬間は必ず なろう）。<br>⚠️ <b>裁定点</b>＝この一時的な重なりを許すか。許さないなら「重ねず高さを畳む」形にできるが、<b>数秒後にページが上へずれる</b>（読み始めた直後に版面が動く）。</p>
+      </div>
+
+      <!-- ===== 案E: トップバーが場所を名乗る ===== -->
+      <div class="wrap">
+        <span class="mode">案E ─ トップバーが場所を名乗る（最小）</span>
+        <div class="phone" role="img" aria-label="案E トップバーが場所を名乗る">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <!-- 64dp のまま（タイトル22 ＋ 副題16 ＝ 38dp）＝バーは高くならない＝面のコストゼロ -->
+          <div class="topbar">
+            <span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+            <span class="ttcol">
+              <span class="t">小説家になろう</span>
+              <span class="h">ncode.syosetu.com ・ ページをそのまま表示</span>
+            </span>
+          </div>
+          <div class="wv">
+            <div class="ext">
+              <div class="hd"><b>小説家になろう</b></div>
+              <div class="ad">広告</div>
+              <div class="pad">
+                <div class="wk">追放された万能薬師、辺境でスローライフを始める</div>
+                <div class="ttl">第1話　宮廷を追われた日</div>
+                <p>調薬の才能を見込まれ、宮廷薬師として働いていた万能薬師のアルス。</p>
+                <p>しかし、無能と罵られ突如国を追放されてしまう。アルスは新天地を求め、たどり着いた世界の最果ての辺境の地で、のんびりとしたスローライフを始めることを決意する。</p>
+                <p>薬草を育て、傷ついた獣を癒やし、村人の頼みごとに応えるうちに、小さな暮らしは少しずつ賑やかになっていく。</p>
+                <div class="nav"><span>&lt; 前へ</span><span>目次</span><span>次へ &gt;</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="navbar"><i></i></div>
+        </div>
+        <p class="sub">新規部品ゼロ＝<b>いまある 64dp のトップバーの中身を差し替えるだけ</b>。タイトルを<b>行き先（アプリの機能名）から現在地（場所の名）へ</b>変える。Custom Tabs がホストを出すのと同じ流儀＝<b>外部ブラウザ送客と見えが揃う</b>。</p>
+        <p class="cost"><b>面のコスト 0dp</b>（バーは 64dp のまま）／<b>操作 +0</b>／<b>§2(1)(2) の URL 追従が必須</b>／⚠️ <b>「なろうで読む」というタイトルが消える</b>＝押したボタン名と着地の見出しの一致が失われる（迷子の合図になり得る）。</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================ §5 -->
+  <div class="sec">
+    <h2>§5　取り込み画面（PdfImportScreen）への適用　<span class="tag r">常設案はここで嘘になりうる</span></h2>
+    <p class="body">
+      入口 2 面のうち<b>取り込み側にも同じ表示が要る</b>（開く瞬間＝この便の対象）。ここで §2(2) が効く——
+      生成フローの最後は <b><code>pdfnovels.net</code> へのフルナビゲーション</b>（ADR 0011 スパイク実測）。
+      左＝入場直後（正しい）／右＝生成完了後（<b>固定文字列だと嘘になる瞬間</b>）。
+    </p>
+    <div class="stage">
+
+      <div class="wrap">
+        <span class="mode">案B/E を取り込み面へ ─ 入場直後</span>
+        <div class="phone" role="img" aria-label="取り込み画面 入場直後">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="topbar">
+            <span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+            <span class="ttcol">
+              <span class="t">小説家になろう</span>
+              <span class="h">ncode.syosetu.com ・ 縦書きPDFの作成</span>
+            </span>
+          </div>
+          <div class="cband">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/></svg>
+            <span>ここからは小説家になろうのページ</span>
+            <span class="host">・ncode.syosetu.com</span>
+          </div>
+          <div class="wv">
+            <div class="ext">
+              <div class="hd"><b>小説家になろう</b></div>
+              <div class="ad tall">広告</div>
+              <div class="pad">
+                <div class="wk">追放された万能薬師、辺境でスローライフを始める</div>
+                <div class="ttl">縦書きPDF</div>
+                <p>作品の冒頭200字を表示しています。ページを生成すると、しばらくお待ちいただきます。</p>
+              </div>
+              <div class="fm">縦書きPDFを作成します。<br><span class="b">縦書きPDFダウンロード</span></div>
+            </div>
+          </div>
+          <div class="navbar"><i></i></div>
+        </div>
+        <p class="cost"><b>帯とバーの両方を描いた合成図</b>（案B と案E は排他＝どちらか一方を採る）。DL ボタンは<b>なろうのページの中</b>にあり、押すのは毎回ユーザー＝<b>守り②は表示を足しても一切変わらない</b>。</p>
+      </div>
+
+      <div class="wrap">
+        <span class="mode">同・生成完了後（ホストが変わる）</span>
+        <div class="phone" role="img" aria-label="取り込み画面 生成完了後">
+          <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+          <div class="topbar">
+            <span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span>
+            <span class="ttcol">
+              <span class="t" style="color:var(--anno)">小説家になろう ← 嘘</span>
+              <span class="h" style="color:var(--anno)">ncode.syosetu.com ← 嘘（実際は pdfnovels.net）</span>
+            </span>
+          </div>
+          <div class="cband" style="color:var(--anno)">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/></svg>
+            <span>ここからは小説家になろうのページ</span>
+            <span class="host" style="color:var(--anno)">・ncode.syosetu.com ← 嘘</span>
+          </div>
+          <div class="wv">
+            <div class="ext">
+              <div class="hd" style="color:var(--anno)"><b style="color:var(--anno)">pdfnovels.net</b>（別ホスト）</div>
+              <div class="ad">広告</div>
+              <div class="pad">
+                <div class="ttl">ダウンロードを開始しています</div>
+                <p>N2959KI.pdf（891,538 バイト）</p>
+              </div>
+            </div>
+          </div>
+          <div class="navbar"><i></i></div>
+        </div>
+        <p class="cost">⚠️ <b>固定文字列で名乗る実装はここで破綻する</b>。逃げ道は 2 つ＝①<b>URL 追従</b>（現在のホストを出す。材料は既に観測済みの URL＝<b>JS 注入ゼロを侵さない</b>）／②<b>ホスト名を出さない文言</b>（W2b）にする。<b>どちらを採るかは裁定事項</b>。</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================================================ §6 -->
+  <div class="sec">
+    <h2>§6　ADR 0011「維持する守り」との衝突検査　<span class="tag g">5案とも表示は守りを侵さない</span></h2>
+    <p class="body">
+      ADR 0011 の守り＝①<b>一括・自動 DL を実装しない</b> ②<b>公式ページを無加工・広告込みで表示し、DL ボタンの押下は毎回ユーザー</b> ③<b>外部送信なし・端末内完結</b>。
+      加えて ADR 0012 の<b>JS 注入ゼロ</b>と、ADR 0010 の禁止本体＝<b>"加工"そのもの</b>。
+      <b>結論を先に書くと、5 案いずれも守りには当たらない</b>——どれも<b>アプリ側のクローム</b>で、なろうのページの DOM・CSS・広告に一切触れないから。
+      <b>割れるのは規約ではなく〈面積〉〈毎回の摩擦〉〈名乗りの真偽〉</b>。
+    </p>
+    <table class="mx">
+      <tr>
+        <th style="width:9%">案</th>
+        <th style="width:13%">守り②<br>「毎回ユーザー操作」</th>
+        <th style="width:12%">加工／注入</th>
+        <th style="width:13%">なろうの面を<br>覆うか</th>
+        <th style="width:11%">公式を装わない</th>
+        <th style="width:11%">面のコスト</th>
+        <th>残る論点</th>
+      </tr>
+      <tr>
+        <td><b>A</b> 一度きり<br>ダイアログ</td>
+        <td class="o">衝突なし</td><td class="o">なし</td>
+        <td class="m">読み込み中の面を<br>一度だけ</td><td class="o">保てる</td><td class="o">0dp</td>
+        <td>守り②が「毎回」を要求しているのは<b>なろうページ内の DL 押下</b>であって告知ではない＝「以後出さない」は規約に触れない。
+          <b>触れるのは目的の方</b>＝2 回目以降は場所を名乗るものが消える。さらに<b>形が教示カードに近い</b>＝「専用カードは立てない」（tutorial-onboarding-K §2）に戻っていないか。</td>
+      </tr>
+      <tr>
+        <td><b>C</b> 直前の<br>ボトムシート</td>
+        <td class="o">衝突なし<br>（操作は増える）</td><td class="o">なし</td>
+        <td class="m">下敷きの詳細画面<br>（なろうの面ではない）</td><td class="o">保てる</td><td class="o">0dp</td>
+        <td><b>毎回 +1 タップ</b>。続きから読む人が毎晩踏む摩擦で、<b>本棚カードを押したのに本が開かない</b>。
+          2026-08-21 の予告注記撤去と<b>最も強く衝突する形</b>（押す前に読ませる方向を、より重い部品で戻す）。</td>
+      </tr>
+      <tr>
+        <td><b>B</b> 常設の帯</td>
+        <td class="o">衝突なし</td><td class="o">なし<br>（WebView の外）</td>
+        <td class="o">覆わない<br>（面を分ける）</td><td class="o">保てる<br>（アプリの色のまま）</td><td class="x">−33dp<br>（−5.0%）毎回</td>
+        <td><b>URL 追従が必須</b>（§2）。加えて、無加工で見せる面を<b>恒久に 5% 削る</b>のをどう見るか
+          ——広告除去ではないので規約違反ではないが、<b>「隠して省スペース化の案は出さない」（0011 却下案A の筋）の逆方向</b>＝なろう側の面を削る、という対称の問いになる。</td>
+      </tr>
+      <tr>
+        <td><b>D</b> 一過性の帯</td>
+        <td class="o">衝突なし</td><td class="o">なし<br>（重ねるだけ）</td>
+        <td class="m">数秒だけ頭を<br>≒40dp 覆う</td><td class="o">保てる</td><td class="o">0dp（恒久）</td>
+        <td><b>一時的な重なりを許すか</b>が唯一の論点。DOM を触らないので"加工"ではないが、
+          <b>数秒とはいえ相手の面の上に自分のものを置く</b>。許さないなら高さを畳む形＝<b>数秒後に版面がずれる</b>。</td>
+      </tr>
+      <tr>
+        <td><b>E</b> トップバー<br>が名乗る</td>
+        <td class="o">衝突なし</td><td class="o">なし</td>
+        <td class="o">覆わない</td><td class="o">保てる<br>（ロゴを模さない）</td><td class="o">0dp</td>
+        <td><b>URL 追従が必須</b>。<b>「なろうで読む」というタイトルが消える</b>のを受け入れるか
+          ——押したボタン名と着地の見出しが一致しなくなる。<b>新規部品ゼロ＝実装が最も小さい</b>のは確か。</td>
+      </tr>
+    </table>
+    <div class="rule">
+      <b>いずれの案でも崩してはならない実装側の守り（表示を足しても一切変わらない）</b>:
+      なろうのページは<b>無加工・広告込み</b>で描く／読書 WebView は <code>evaluateJavascript</code> を<b>一度も呼ばない</b>／
+      取り込みの注入は <code>scrollIntoView</code> のみ／<b>DL ボタンの押下は毎回ユーザー</b>／<b>一括・自動 DL を作らない</b>／<b>外部送信なし</b>。
+      <b>この便が足すのはアプリ側のクロームだけ</b>で、上のどれにも触れない。
+    </div>
+  </div>
+
+  <!-- ============================================================ §7 -->
+  <div class="sec">
+    <h2>§7　文言案　<span class="tag g">敬体・教示の基準に合わせる</span></h2>
+    <p class="body">
+      下敷き＝<code>tutorial-onboarding-K.html</code> の文言基準。
+      <b>手順は書かない・このアプリ固有の割り当てだけ書く</b>／<b>ですますは保つが、語尾の反復を断つ</b>（割り当ては体言止め、結果だけ ですます）／
+      <b>短くすること自体は目的ではない（曖昧になるくらいなら長くてよい）</b>。
+      既出の教示カード「<b>なろうで読む</b>　なろうのページをそのまま表示。ふりがなは付かず、アプリの操作も効きません。」（<code>IntroDeck.kt:74</code>）と<b>語彙を揃えてある</b>——
+      同じことを 2 か所で違う言い方にしない。
+    </p>
+    <div class="rule warn">
+      ⚠️ <b>「広告」の語はどの案にも入れていない</b>（2026-08-26 裁定）。広告に言及した瞬間、表示は〈場所の案内〉から〈警告〉へ変質し、
+      なろうの収益基盤を<b>こちらが問題視しているかのように</b>読める。場所さえ伝われば、目に入る広告はなろう側のものだと自然に伝わる。
+    </div>
+    <div class="copy">
+      <h4>W1　ダイアログ／ボトムシート用（案A・案C）<span class="ch">見出し＋1文</span></h4>
+      <dl>
+        <dt>見出し</dt><dd>ここからは小説家になろうのページです</dd>
+        <dt>本文</dt><dd>なろうが配信するページを<b>そのまま表示</b>します。ふりがなは付かず、アプリの操作も効きません。</dd>
+        <dt>チェック（案A のみ）</dt><dd>次回から表示しない</dd>
+        <dt>ボタン</dt><dd>案A＝［わかりました］（1つだけ＝引き返す選択肢を作らない）／案C＝［やめる］［開く］</dd>
+        <dt>取り込み面の差し替え</dt><dd>本文2文目を「<b>縦書きPDFの作成は、なろうのページで行います。</b>」に差し替える（ふりがな・操作の話はこの面では無関係）。</dd>
+      </dl>
+
+      <h4>W2a　帯／トップバー用・ホスト名あり（案B・案E）<span class="ch">名乗り＝短い1行</span></h4>
+      <dl>
+        <dt>帯（案B）</dt><dd>ここからは小説家になろうのページ　・　<b>ncode.syosetu.com</b></dd>
+        <dt>トップバー（案E）</dt><dd>題＝<b>小説家になろう</b>／副題＝<b>ncode.syosetu.com ・ ページをそのまま表示</b></dd>
+        <dt>⚠️ 条件</dt><dd><b>URL 追従が必須</b>（§2）。ホスト部は表示中の URL から出す。なろう以外へ出たら「このページはなろうの外です」等へ切り替えるか、帯を消す。</dd>
+      </dl>
+
+      <h4>W2b　同・ホスト名なし（追従を実装しない場合の代替）<span class="ch">嘘になりにくい言い方</span></h4>
+      <dl>
+        <dt>帯（案B）</dt><dd>小説家になろうのページを、そのまま表示しています</dd>
+        <dt>トップバー（案E）</dt><dd>題＝<b>小説家になろう</b>／副題＝<b>ページをそのまま表示</b></dd>
+        <dt>注</dt><dd>ホストを名乗らないぶん <code>pdfnovels.net</code> 遷移では破綻しないが、<b>外部リンクを踏んだ後は依然として嘘になる</b>＝
+          追従を捨てきれるわけではない。<b>「表示しています」を「表示します」にする</b>と入場時の宣言に寄り、居続ける文としての嘘みは薄れる。</dd>
+      </dl>
+
+      <h4>W3　一過性の帯用（案D）<span class="ch">1行だけ・消えることを前提に短く</span></h4>
+      <dl>
+        <dt>本文</dt><dd>ここからは小説家になろうのページです</dd>
+        <dt>取り込み面</dt><dd>ここからは小説家になろうのページです（縦書きPDFの作成）</dd>
+        <dt>注</dt><dd>数秒で消えるので<b>1 行に収める</b>。ふりがな・操作の話まで入れると読み切る前に消える＝<b>入れない</b>
+          （その説明は初回教示カードが既に持っている＝<code>IntroDeck.kt:74</code>）。</dd>
+      </dl>
+
+      <h4>⚠️ 使わない言い回し<span class="ch">と、その理由</span></h4>
+      <dl>
+        <dt>「広告が表示されます」</dt><dd>裁定で禁止。警告へ変質する。</dd>
+        <dt>「外部サイトへ移動します」</dt><dd><b>移動しない</b>（アプリ内 WebView のまま）＝嘘。<b>「ここからは」</b>が正しい——移動ではなく<b>境界</b>を言う語。</dd>
+        <dt>「公式サイトへようこそ」等</dt><dd>こちらが なろう側であるかのように読める＝<b>公式を装わない</b>に反する。名乗るのは<b>相手の場所の名</b>だけ。</dd>
+        <dt>「ご注意ください」「ご了承ください」</dt><dd>注意喚起の定型だが<b>何に注意するのか無い</b>＝空語。場所を言えば足りる。</dd>
+      </dl>
+    </div>
+  </div>
+
+  <!-- ============================================================ §8 -->
+  <div class="sec">
+    <h2>§8　人間に裁定してほしい点　<span class="tag r">この 5 つが決まれば実装へ出せる</span></h2>
+    <table class="mx">
+      <tr><th style="width:4%">#</th><th style="width:30%">問い</th><th>補足</th></tr>
+      <tr><td><b>1</b></td><td><b>「押す前」に出すか、「着地面」で出すか</b>（A・C ／ B・D・E）</td>
+        <td>2026-08-21 に<b>押す前の予告は撤去済み</b>。A・C を採るなら<b>その裁定を覆す</b>ことになる（覆してよいかは目的が変わったかどうかの判断＝予告 vs 名乗り）。</td></tr>
+      <tr><td><b>2</b></td><td><b>毎回出すか、一度きりか</b></td>
+        <td>一度きり（案A）は規約には触れないが、<b>2 回目以降は場所を名乗るものが消える</b>。裁定文「開く瞬間に出す」を毎回と読むなら案A は落ちる。</td></tr>
+      <tr><td><b>3</b></td><td><b>常設で名乗るなら URL 追従を実装するか</b>（B・E の必須条件）</td>
+        <td>追従しないと<b>外部リンク後</b>と<b>pdfnovels.net 遷移</b>で嘘になる（§2・§5）。追従の材料は<b>既に観測している URL 文字列だけ</b>＝<b>JS 注入ゼロを侵さない</b>。追従を作らないなら W2b（ホスト名なし）で妥協するか、B・E を落とす。</td></tr>
+      <tr><td><b>4</b></td><td><b>なろうの面を毎回 33dp（−5.0%）削るのを許すか</b>（案B）</td>
+        <td>規約違反ではない（覆わず面を分ける）。ただし<b>無加工で見せる面を恒久に削る</b>方向。許さないなら D か E。</td></tr>
+      <tr><td><b>5</b></td><td><b>案E で「なろうで読む」というタイトルが消えるのを許すか</b></td>
+        <td>押したボタン名と着地の見出しの一致が失われる。<b>実装は最小（新規部品ゼロ）</b>なので、ここだけが案E の代償。</td></tr>
+    </table>
+    <p class="body" style="margin-top:14px">
+      <b>裁定が付いたら</b>: 採用案を <code>discovery/discovery-detail-D.html</code>（案C を採る場合）または
+      新設する読書 WebView の正本モックへ差分反映し、<b>このドラフトは破棄</b>する（複数案比較の一時ドラフト）。
+      Compose 翻訳は別便＝この便では Kotlin を一切触っていない。
+    </p>
+  </div>
+
+</div>
+</body>
+</html>

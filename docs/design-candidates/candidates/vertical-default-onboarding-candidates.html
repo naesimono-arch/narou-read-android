@@ -669,5 +669,23 @@
     </p>
   </div>
 </div>
+
+<script>
+/* ===== モック専用スクリプト（実装には持ち込まない）=====
+   縦書き(vertical-rl)の本文を「先頭＝右端」から始めて見せる。
+   reading-vertical-scroll-D.html の同名スクリプトと同じ意図・同じ式で、
+   横スクロール要素の初期位置を右端（＝行頭）へ寄せるだけ。
+   ⚠️ これを外すと縦書き枠が「文章の途中」から描かれ、
+      縦書きの見えを実物で裁定するというこの頁の目的が壊れる。 */
+document.querySelectorAll('.reader.v').forEach(function(r){
+  requestAnimationFrame(function(){ r.scrollLeft = r.scrollWidth; });
+  /* PC のホイールは縦回転しか無いので、触感確認用に横スクロールへ変換（下回し＝左へ＝読み進め）。 */
+  r.addEventListener('wheel', function(e){
+    if(Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+    e.preventDefault();
+    r.scrollLeft -= e.deltaY;
+  }, {passive:false});
+});
+</script>
 </body>
 </html>
