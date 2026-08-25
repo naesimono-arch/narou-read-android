@@ -76,6 +76,40 @@
     DL 押下は毎回ユーザー）であって、文言で告知する義務は書かれていない。
   ⚠️ **無加工表示の実装そのものは不変**。消したのは注記だけで、ADR 0011/0012 の守りは何も緩めていない。
   撤去で注記塊 36dp がバーから消え、**初期可視は 3.5行 → 4.9行**（492px → 528px ÷ 行送り26px）。
+
+  ---- 決着: fontScale（BA ＋ T2 ＋ 印③）2026-08-26 ユーザー裁定 ----
+  実機 fontScale 2.0 で「あらすじが0行・作者とジャンルが判読不能・題名は7字」になる件の決着。
+  比較は一時ドラフト2枚（detail-fontscale-viewport-compare / detail-titlebox-maxlines-compare）で取り、
+  **採用案だけをここへ畳んでドラフトは削除した**（visual-language「複数案比較のみ一時ドラフト」）。
+
+  ・**押し出しの主犯は書影帯ではない**。1.0→2.0 で伸びるのは ステータス格子 +161.5dp・固定バー +55.6dp・
+    見出し塊 +27.8dp・システムのステータスバー +23.6dp（計 +268.5dp）で、書影ブロックは dp 固定のまま
+    動いていなかった。**本文を1行取り戻すには 110dp 要る**——これが案の足切りになった。
+  ・**採用①＝案B（このモックには既に入っている固定バーの横一列）を Compose へ翻訳する**。
+    2026-08-21 に裁定・逆同期済みだったが実装は縦3段（193dp）のままで、**未翻訳の逆同期債務**として
+    残っていた（ドラフトの実測でこれが発覚した）。畳むと 1.0 で +27dp 版面が戻る。
+  ・**採用②＝案A: 帯を fontScale 追従にする＝帯 = 74·F + 46**（F＝fontScale。F=1 で 120＝従来値と一致）。
+    74 は情報列のうち sp で伸びる箱の総和（題名44 ＋ 作者16 ＋ チップ字面14）、46 は伸びない部分
+    （アキ6×2 ＋ チップの padding/枠 10 ＋ 帯の上下内側余白 24）。これで **2.0 でも作者とジャンルが読める**。
+    ⚠️ 代償＝**書影カードの「越え」が痩せる**（越え = 164 − 帯 ＝ F=1.3 で 21.8dp・F=1.5 で 7dp・
+    **F≥1.60 で 0dp**＝帯が書影を飲み、「面の上に置かれた本」は大きい文字設定では消える）。受諾済み。
+  ・**採用③＝題名の箱 T2（44 → 46dp・2行を本当に描く）**。正本もコードも「題名は2行」と書きながら
+    **2行目は一度も描かれていなかった**（箱44dp に対し Compose 実測の自然行高 22.75×2 = 45.5dp で
+    1.5dp 足りず、Paragraph が2行目を落としていた）。⚠️ これは「量」ではなく **箱46 ÷ 行45.5 = 1.011 という
+    「比」**の修正なので、箱ごと F 倍しても比は動かない＝**全 fontScale で2行が描かれる**（逆に 44dp のままでは
+    箱ごと拡大しても 0.967 のままで 2.0 でも1行）。⚠️ **あらすじは1行も減らない**——ブロック高 =
+    max(帯,164)+2 で書影カード下端 164dp が F<1.60 では支配的だから。
+    ⚠️ **帯の式は 74·F + 46 のまま据え置く**（T2 の +2dp は帯を太らせず、上下の内側余白から吸収する）。
+    上下対称は保つが値が変わる＝**内側余白 = 12 − F**（F=1 で 11/11・F=2 で 10/10）、情報列 = 76·F + 22。
+  ・**採用④＝スクロール示唆の印③「端フェード ＋ シェブロン」**。2つで1組で、片方だけ実装しない:
+    端フェードは**下端に本文がある間しか効かない**（2.0 では下端が余白＝地色に地色を重ねることになる）ので、
+    **2.0 を担うのはシェブロン側**。⚠️ 印は `canScrollForward` で出し分ける＝**下端に着いたら消す**
+    （消えないと「まだ続く」と嘘をつく）。⚠️ 印は**絶対配置＝版面を1dpも食わない**（だからあらすじの
+    行数は印の有無で変わらない）。⌄ の色は青磁 --seiji-ink の α.62＝意味を運ぶ小さな記号の既存スロット。
+  ・**不採用＝案C（あらすじをステータス格子より前に出す）**。2.0 であらすじ5行を取り戻せる唯一の案だったが、
+    代償が「連載中・127話／読了目安を先に見せる構成」そのもの＝**素性を先に見せる構成を守る側を選んだ**。
+    ⚠️ よって **fontScale 2.0 であらすじが 0行になるのは「しょうがない」として受諾済み**（並び替えで
+    版面を取り戻す提案をこの画面に再提出しない。2.0 で「続きがある」ことを言うのは印③の役目）。
   ============================================================================
 -->
 <!DOCTYPE html>
@@ -105,7 +139,12 @@
   .wrap .mode{font-size:12px;letter-spacing:.24em;color:#6A6C67}
   /* 端末枠は実機と同寸の 360x792dp（1px = 1dp）。初期可視行数を規定するため、
      システムバー・トップバー・固定バーをすべて実寸の flex 要素として積む。 */
+  /* --F = fontScale（dp の箱が追従する倍率＝案A の F）。--T = 字面の実効倍率。
+     ⚠️ 2つを分けるのは Android 14 の**非線形 sp 拡大**があるため——設定 2.0 の実測は字面 1.92 倍で、
+     箱（F=2.0）より字が小さくなる側にずれる。この静止モックは --T = --F（線形）で描く＝
+     「箱に2行が入るか」の判定にとって**実機より厳しい側**の絵になる（ここで入れば実機でも入る）。 */
   .phone{width:360px;height:792px;background:var(--base);border-radius:34px;overflow:hidden;position:relative;
+    --F:1;--T:1;
     box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--gothic)}
   /*==/harness==*/
 
@@ -121,7 +160,10 @@
   .topbar .ic svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6}
 
   /* スクロール域＝固定バーに削られた残り＝これが初期ビューポート。
-     overflow-y:auto なので検分者は続きも送れるが、開いた瞬間の見えが規定対象。 */
+     overflow-y:auto なので検分者は続きも送れるが、開いた瞬間の見えが規定対象。
+     .viewport は印（端フェード・シェブロン）の絶対配置の親を作るためだけの層で、
+     **高さも余白も足さない**（印が版面を1dpも食わない、の実装上の根拠）。 */
+  .viewport{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
   .scroll{flex:1;min-height:0;overflow-y:auto}
   .scroll::-webkit-scrollbar{width:0}
   /* margin の相殺で版面が縮むと較正が壊れるので、内側は flex 列にして相殺を止める。 */
@@ -143,31 +185,50 @@
      ブロック 166px の内訳は「帯120 ＋ 書影カードが越える44 ＋ 下の逃げ2」。**帯そのものは 120px で不変**。
      ブロック高が +46px でも、作者行 `.detail-meta-top`（16+36=52px）が帯の中へ吸収されて消えるため
      版面は差引 −6px＝あらすじの初期可視は減らずむしろ 4.9→5.2行 に増える（値の導出は上のヘッダ）。 */
-  /* ---- 返し（書影ブロック）= 案2-c。ブロック高 166px（帯120＋越え44＋逃げ2）---- */
-  .kaeshi{position:relative;flex-shrink:0;height:166px;width:100%}
-  /* 帯 y0..120。地は作品色から導くが彩度14%・明度93%の固定窓へ圧縮する（JS bandTint）。
-     どの色相でも明度が揃うので墨のコントラストは 13.88〜14.36:1＝振れ0.5以内。 */
-  .kaeshi .band{position:absolute;left:0;right:0;top:0;height:120px;border-bottom:1px solid rgba(28,31,38,.10)}
-  /* 書影カード 114×152＝3:4（本棚と同比）。左24＝S24（ページ余白）・上12。
-     下端は 164 で帯の境界(120)を **44px 越える**（帯高の37%）＝これは「はみ出し」ではなく
-     「面の上に置かれた本」の意図。10px の半端な越えとは桁が違うので中途半端に見えない。 */
+  /* ---- 返し（書影ブロック）= 案2-c ＋ 案A追従（2026-08-26）----
+     ブロック高 = max(帯, 164) + 2。F=1 では書影カード下端 164 が支配的で **166px**（従来値と一致）、
+     F≥1.60 で帯が 164 を超え、そこからは帯 + 2 になる（F=2 で 196）。
+     ⚠️ **題名の箱をいじってもあらすじは1行も減らない**のはこの max のため（F<1.60 では 164 が効いている）。 */
+  .kaeshi{position:relative;flex-shrink:0;width:100%;height:max(calc(74px * var(--F) + 48px),166px)}
+  /* 帯 = **74·F + 46**（案A・F=1 で 120＝2026-07-31 裁定値と一致）。地は作品色から導くが
+     彩度14%・明度93%の固定窓へ圧縮する（JS bandTint）。どの色相でも明度が揃うので墨のコントラストは
+     13.88〜14.36:1＝振れ0.5以内。⚠️ 74 は sp で伸びる箱の総和（題名44＋作者16＋チップ字面14）、
+     46 は伸びない部分（アキ6×2＋チップ padding/枠10＋帯の上下内側余白24）＝**式の項が版面の内訳そのもの**。 */
+  .kaeshi .band{position:absolute;left:0;right:0;top:0;height:calc(74px * var(--F) + 46px);
+    border-bottom:1px solid rgba(28,31,38,.10)}
+  /* 書影カード 114×152＝3:4（本棚と同比）。左24＝S24（ページ余白）・上12。**カードは dp 固定＝追従しない**
+     （書影は字ではないので大きい文字設定で太らせる理由が無い）。よって下端は常に 164。
+     F=1 では帯の境界(120)を **44px 越える**（帯高の37%）＝「はみ出し」ではなく「面の上に置かれた本」の意図。
+     ⚠️ 越え = 164 − 帯 なので F と共に痩せる（1.3→21.8 / 1.5→7 / **1.60 以上→0＝帯が書影を飲む**）
+     ＝大きい文字設定ではこの意匠が消えることを 2026-08-26 に受諾した（案A の代償そのもの）。 */
   .kaeshi .shiori{position:absolute;left:24px;top:12px;width:114px;height:152px}
-  /* 情報列 y12..108（高さ96）＝帯120の上下内側から各12px（S12）で **上下対称**。
-     水平はカード右138 と列左154 の間16（S16）／右余白24（S24）。 */
-  .kaeshi .kmeta{position:absolute;left:154px;right:24px;top:12px;height:96px}
+  /* 情報列 = **76·F + 22**（題名46F＋アキ6＋作者16F＋アキ6＋チップ(14F+10)）。
+     帯の上下内側余白 = **12 − F**（F=1 で 11／F=2 で 10）で **上下対称**は保つ。
+     ⚠️ 12 が 11 へ落ちるのは T2 の +2px を**帯を太らせずに**吸収したため（帯の式は 74F+46 のまま据え置き）。
+     水平はカード右138 と列左154 の間16（S16）／右余白24（S24）＝こちらは dp 固定。 */
+  .kaeshi .kmeta{position:absolute;left:154px;right:24px;top:calc(12px - 1px * var(--F));
+    height:calc(76px * var(--F) + 22px)}
 
   .shiori{border-radius:2px;overflow:hidden;box-shadow:0 3px 10px rgba(28,31,38,.22)}
   .shiori canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
   .kmeta{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
-  /* 高さ96の内訳（内容にも環境にも依らず固定）: 題名22×2行=44 ＋ 間6 ＋ 作者16 ＋ 間6 ＋ チップ24。
+  /* 情報列 76F+22 の内訳（内容には依らず、fontScale にだけ依る）:
+     題名 46F ＋ 間6 ＋ 作者 16F ＋ 間6 ＋ チップ(14F ＋ padding4×2 ＋ 枠1×2)。
      line-height を明示するのはフォント既定の `normal` 依存を外すため——normal だと環境で1〜2px
-     ぶれ、「96px 固定＝上下対称」の根拠そのものが崩れる。題名2行clamp・作者1行nowrap も寸法保証の一部。 */
-  .kmeta .t{font-family:var(--mincho);font-size:16px;font-weight:600;line-height:22px;color:var(--ink);
+     ぶれ、「内訳が確定＝上下対称」の根拠そのものが崩れる。題名2行clamp・作者1行nowrap も寸法保証の一部。
+     ---- 題名の箱 = **46·F**（T2・2026-08-26 裁定）----
+     旧 44px は「2行ぶんのつもり」の値だったが、Compose 実測の自然行高 22.75×2 = 45.5px に 1.5px 足りず
+     **2行目が一度も描かれていなかった**。46 にすると 46/45.5 = 1.011 > 1 ＝**比**が立つので、
+     箱も字も F 倍される全 fontScale で2行が描かれる（44 のままだと 0.967 のまま＝どの F でも1行）。
+     ⚠️ 箱は F・字面は T で伸ばす（分離の理由は .phone の --F/--T のコメント）。 */
+  .kmeta .t{font-family:var(--mincho);font-size:calc(16px * var(--T));font-weight:600;
+    line-height:calc(22.75px * var(--T));height:calc(46px * var(--F));color:var(--ink);
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .kmeta .au{font-size:12.5px;line-height:16px;color:var(--ink);font-weight:500;align-self:stretch;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* 作者・チップの箱は F 倍。⚠️ 字面（T）より箱（F）が大きい向きにしかずれない＝字が切れる側へは倒れない。 */
+  .kmeta .au{font-size:calc(12.5px * var(--T));line-height:calc(16px * var(--F));color:var(--ink);font-weight:500;
+    align-self:stretch;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   /* チップは .kmeta の直下の flex item に置く（div で包むと親の行ボックスが高さを決めて24pxにならない）。 */
-  .kmeta .genre-label{line-height:14px}
+  .kmeta .genre-label{line-height:calc(14px * var(--F));font-size:calc(11.5px * var(--T))}
 
   /* ジャンルチップ。display:inline-block が要る＝span のままだと縦padding/borderが行ボックスに
      算入されず、レイアウト高(約14px)より見た目(約24px)が10px高くなり、flex column の下端で
@@ -217,6 +278,22 @@
      3アクション版（未取込・未読）と4アクション版（未取込・既読）で**総高が変わらない**のが案Bの要点
      ＝どちらの状態でもあらすじの初期可視が同じ 5.2行になる（旧構成は 229dp / 285dp と 56dp 差があり、
      4アクション版だけ本文が0行に落ちていた）。 */
+  /* ============ スクロール示唆の印＝**端フェード ＋ シェブロン**（印③・2026-08-26 裁定） ============
+     ⚠️ **2つで1組。片方だけ実装しない。**
+     ・端フェード＝紙が続いていることを地色の濃度で言う（読書画面の端フェードと同じ語彙＝アプリの中で
+       語彙が増えない）。ただし**下端に本文がある間しか効かない**——fontScale 2.0 では下端に来るのが
+       余白なので、地色に地色を重ねることになって何も見えない。
+     ・シェブロン＝「下へ」と方向を名指しする。フェードが効かない **2.0 を担うのはこちら**。
+       色は青磁 --seiji-ink の α.62＝意味を運ぶ小さな記号の既存スロット（新色を作らない）。
+     ⚠️ **どちらも .viewport への絶対配置＝版面を1dpも食わない**。だからあらすじの初期可視行数は
+     印の有無で1行も変わらない（印を足したせいで本文が減る、という取引をしていない）。
+     ⚠️ 実装は `canScrollForward` で出し分ける＝**下端に着いたら消す**。消えないと「まだ続く」と嘘をつく。 */
+  .afford{position:absolute;left:0;right:0;pointer-events:none}
+  /* 36px を地色 var(--base)=#FBFAF8 へ溶かす（α0 → α.97）。 */
+  .afford.fade{bottom:0;height:36px;background:linear-gradient(to bottom,rgba(251,250,248,0),rgba(251,250,248,.97))}
+  .afford.chev{bottom:10px;display:flex;justify-content:center;color:var(--seiji-ink);opacity:.62}
+  .afford.chev svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
   .fixed-bar{flex-shrink:0;background:var(--base);border-top:1px solid var(--line);padding:16px 24px;display:flex;flex-direction:column}
   .slot{height:48px;display:flex;align-items:center;flex-shrink:0}
   .slot + .slot{margin-top:8px}
@@ -232,6 +309,24 @@
     display:flex;align-items:center;justify-content:center;gap:8px;letter-spacing:.1em;white-space:nowrap}
   .btn-ghost.mini{font-size:11.5px;letter-spacing:.06em;gap:4px}
   .fixed-bar button svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5;flex-shrink:0}
+
+  /* ---- fontScale 追従の検分列（案A＋T2）。書影ブロックだけを切り出して4段で並べる ----
+     なぜ端末まるごとでなく書影ブロックだけか: 案A と T2 が規定するのは書影ブロックの中の寸法だけで、
+     格子・見出し・本文は sp が伸びるだけ（＝この面の裁定対象ではない）。切り出すほうが
+     「帯が伸び、越えが痩せ、題名が2行のまま」が一目で分かる。 */
+  /*==harness==*/
+  /* ⚠️ ここから harness＝**検分用コンテナの見せ方**であってアプリの版面ではない（.stage/.wrap と同じ扱い）。
+     余白がスケール外なのは意図（check_design_tokens.py の off-scale 検査から除外される領域）。
+     版面そのものの寸法は上の .kaeshi 一式が持っており、そちらは検査対象のまま。 */
+  .fs-head{max-width:1000px;width:100%;margin-top:34px;font-size:16px;font-family:var(--mincho);color:#2A2C28}
+  .fs-strip{display:flex;flex-wrap:wrap;gap:22px;justify-content:center;margin-top:14px}
+  .fs-tile{display:flex;flex-direction:column;gap:7px;width:360px}
+  .fs-tile .fs-mode{font-size:12px;letter-spacing:.2em;color:#6A6C67}
+  .fs-tile .fs-num{font-size:11.5px;line-height:1.75;color:#5A5C57}
+  .fs-tile .fs-num b{color:#1C1F26}
+  .fs-frame{width:360px;background:var(--base);position:relative;overflow:hidden;border-radius:6px;
+    box-shadow:0 8px 20px rgba(0,0,0,.16)}
+  /*==/harness==*/
 </style>
 </head>
 <body>
@@ -243,7 +338,12 @@
   <b>この改訂で初期ビューポートを規定に含めた</b>——端末枠は実機と同寸の 360×792dp（1px=1dp）で、固定バーは実寸の要素。
   <b>あらすじの初期可視は3アクション版・4アクション版とも 5.2行</b>（最低2行＝第1文が閉じる／推奨3行＝第2文の「追放」まで届く、を満たす）。
   改訂前は 1.385行 / <b>0行</b>で、案B で 3.5行、2026-08-21 のバー注記撤去（36dp）で 4.9行、案2-c の作者行吸収（差引 −6px）で 5.2行。<br>
-  取込済みなら取込とその周辺は冗長で消え、主CTAは「なろうで読む」へ昇格する（＝副アクション行は「本棚に置く」だけになる）。</p>
+  取込済みなら取込とその周辺は冗長で消え、主CTAは「なろうで読む」へ昇格する（＝副アクション行は「本棚に置く」だけになる）。<br>
+  <b>fontScale＝BA ＋ T2 ＋ 印③（2026-08-26 裁定）</b>: <b>帯 = 74·F + 46</b> で書影帯を fontScale へ追従させ（2.0 で作者とジャンルが読めるようになる／代価は書影の「越え」が F≥1.60 で 0 になること）、
+  <b>題名の箱を 44→46dp</b> にして「2行」を初めて本当に描く（1.5dp 足りず2行目が落ちていた既存バグの修正＝<b>あらすじは1行も減らない</b>）。
+  下端には<b>端フェード ＋ シェブロンの2つ1組</b>を置く——<b>絶対配置で版面を1dpも食わず</b>、下端に着いたら両方消える。
+  ⚠️ <b>fontScale 2.0 であらすじが 0行になるのは受諾済み</b>（取り戻せる唯一の案＝あらすじを格子より前へ出す並び替えは、
+  「作品の素性を先に見せる構成」を守るために<b>不採用</b>にした）。伸びた姿の検分は下の<b>fontScale 追従の検分</b>列。</p>
 
   <div class="stage">
 
@@ -253,6 +353,7 @@
       <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
       <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
 
+      <div class="viewport">
       <div class="scroll"><div class="col">
         <div class="kaeshi">
           <div class="band" data-band data-title="追放された万能薬師、辺境でスローライフを始める"></div>
@@ -298,6 +399,10 @@
           <div class="last-updated">2026年7月6日 更新</div>
         </div>
       </div></div>
+        <!-- 印③（端フェード＋シェブロン）＝2つで1組。下端に着いたら両方消す（canScrollForward）。 -->
+        <div class="afford fade"></div>
+        <div class="afford chev"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
 
       <!-- 案B: 主CTA全幅 ＋ 副アクション横一列（未取込・未読は「なろうで読む」「本棚に置く」の2つ） -->
       <div class="fixed-bar">
@@ -319,6 +424,7 @@
       <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
       <div class="topbar"><span class="ic"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></span></div>
 
+      <div class="viewport">
       <div class="scroll"><div class="col">
         <div class="kaeshi">
           <div class="band" data-band data-title="追放された万能薬師、辺境でスローライフを始める"></div>
@@ -364,6 +470,10 @@
           <div class="last-updated">2026年7月6日 更新</div>
         </div>
       </div></div>
+        <!-- 印③（端フェード＋シェブロン）＝2つで1組。下端に着いたら両方消す（canScrollForward）。 -->
+        <div class="afford fade"></div>
+        <div class="afford chev"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
 
       <!-- 案B: 副アクションが3つに増えても**行は増えない**（横一列のまま）＝バー総高は3アクション版と同じ137dp。
            旧構成はここで「最初から読み直す（目次）」が1段まるごと増え、バーが 229→285dp に膨らんで
@@ -382,6 +492,80 @@
       <div class="navbar"><i></i></div>
     </div></div>
 
+  </div>
+
+  <div class="fs-head">fontScale 追従の検分（案A ＝ 帯 74·F + 46 ／ T2 ＝ 題名の箱 46·F）</div>
+  <p class="cap" style="margin-top:8px">1.0 の版面では<b>案A も T2 も差がほとんど見えない</b>（帯は 120 のまま・題名が2行になるだけ）。
+  規定しているのは「F が上がったときにどう伸びるか」なので、伸びた姿をここで検分できるようにする。
+  <b>書影カードは追従しない</b>（dp 固定 114×152・下端 164）ので、<b>帯が伸びるぶんだけ「越え」が痩せて F≥1.60 で 0 になる</b>——
+  「面の上に置かれた本」が大きい文字設定で消えるのが案A の代償で、2026-08-26 に受諾済み。<br>
+  ⚠️ 字面は非線形 sp 拡大で実機のほうが小さくなる（設定 2.0 の実測は 1.92 倍）。ここは <b>--T = --F の線形＝実機より厳しい側</b>で描いてあり、
+  それでも題名は全段で2行が描かれる（箱 46F ÷ 行 45.5T の<b>比</b>が F に依らないため）。</p>
+  <div class="fs-strip">
+      <div class="fs-tile">
+        <span class="fs-mode">fontScale 1.0</span>
+        <div class="fs-frame" style="--F:1.0;--T:1">
+          <div class="kaeshi">
+            <div class="band" data-band data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+            <div class="shiori" data-shiori data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+            <div class="kmeta">
+              <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+              <div class="au">霧島あおい</div>
+              <span class="genre-label">ハイファンタジー</span>
+            </div>
+          </div>
+        </div>
+        <span class="fs-num">帯 <b>120.0</b>（74·F+46） ／ 情報列 <b>98</b> ／ 上下の内側余白 <b>11.0</b>（対称） ／
+          書影の越え <b>44.0</b> ／ ブロック <b>166</b> ／ 題名の箱 <b>46.0</b>（2行 45.5＝<b>2行が描かれる</b>）<br>既定。帯・ブロックとも従来値のまま＝<b>この面の版面は1dpも動いていない</b>。</span>
+      </div>
+      <div class="fs-tile">
+        <span class="fs-mode">fontScale 1.3</span>
+        <div class="fs-frame" style="--F:1.3;--T:1.3">
+          <div class="kaeshi">
+            <div class="band" data-band data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+            <div class="shiori" data-shiori data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+            <div class="kmeta">
+              <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+              <div class="au">霧島あおい</div>
+              <span class="genre-label">ハイファンタジー</span>
+            </div>
+          </div>
+        </div>
+        <span class="fs-num">帯 <b>142.2</b>（74·F+46） ／ 情報列 <b>120.8</b> ／ 上下の内側余白 <b>10.7</b>（対称） ／
+          書影の越え <b>21.8</b> ／ ブロック <b>166</b> ／ 題名の箱 <b>59.8</b>（2行 59.15＝<b>2行が描かれる</b>）<br>帯が書影下端 164 に近づき越えが半分以下へ。<b>ブロック高は 166 のまま＝あらすじは1行も減らない</b>。</span>
+      </div>
+      <div class="fs-tile">
+        <span class="fs-mode">fontScale 1.5</span>
+        <div class="fs-frame" style="--F:1.5;--T:1.5">
+          <div class="kaeshi">
+            <div class="band" data-band data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+            <div class="shiori" data-shiori data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+            <div class="kmeta">
+              <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+              <div class="au">霧島あおい</div>
+              <span class="genre-label">ハイファンタジー</span>
+            </div>
+          </div>
+        </div>
+        <span class="fs-num">帯 <b>157.0</b>（74·F+46） ／ 情報列 <b>136.0</b> ／ 上下の内側余白 <b>10.5</b>（対称） ／
+          書影の越え <b>7.0</b> ／ ブロック <b>166</b> ／ 題名の箱 <b>69.0</b>（2行 68.25＝<b>2行が描かれる</b>）<br>越えは 7dp まで痩せる（意匠としては消える手前）。ここまでは<b>ブロック 166 で版面への影響ゼロ</b>。</span>
+      </div>
+      <div class="fs-tile">
+        <span class="fs-mode">fontScale 2.0</span>
+        <div class="fs-frame" style="--F:2.0;--T:2">
+          <div class="kaeshi">
+            <div class="band" data-band data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+            <div class="shiori" data-shiori data-title="追放された万能薬師、辺境でスローライフを始める"></div>
+            <div class="kmeta">
+              <div class="t">追放された万能薬師、辺境でスローライフを始める</div>
+              <div class="au">霧島あおい</div>
+              <span class="genre-label">ハイファンタジー</span>
+            </div>
+          </div>
+        </div>
+        <span class="fs-num">帯 <b>194.0</b>（74·F+46） ／ 情報列 <b>174.0</b> ／ 上下の内側余白 <b>10.0</b>（対称） ／
+          書影の越え <b>0（帯が書影を 30dp 飲む）</b> ／ ブロック <b>196</b> ／ 題名の箱 <b>92.0</b>（2行 91.0＝<b>2行が描かれる</b>）<br>帯が書影を飲み、ブロックが初めて +30dp 伸びる。<b>作者とジャンルはここで読めるようになる</b>——これが案A の目的で、代価が上の越え 0。⚠️ この段では<b>あらすじは 0行</b>（受諾済み・並び替えはしない）で、「続きがある」は<b>シェブロン</b>が言う（端フェードは下端が余白なので効かない）。</span>
+      </div>
   </div>
 
 <script>

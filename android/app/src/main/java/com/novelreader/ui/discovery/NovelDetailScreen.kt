@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,10 +30,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.BookmarkRemove
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
@@ -43,7 +47,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
@@ -62,13 +65,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
@@ -107,50 +114,102 @@ import kotlin.math.roundToInt
 // **作品ごとに変わるのは色みだけで版面の明暗は動かない**。書影の生成規則（ShioriGenerator）には一切触らない。
 // ============================================================
 
-/** 帯（作品色の淡地）の高さ。2026-07-31 裁定の 120dp から不変＝案2-c でも帯そのものは太らせていない。 */
-private val DetailHeroBandHeight = 120.dp
-
-/**
- * 書影ブロック全体の高さ。内訳は「帯 120 ＋ 書影カードが境界を越える 44 ＋ カード下の逃げ 2」。
- *
- * なぜ +46dp してもあらすじが減らないか: 作者・ジャンルを帯の中へ吸収したので、旧 `.detail-meta-top`
- * （上アキ16＋行高36＝52dp）が版面から消える。差引 −6dp＝初期可視はむしろ増える（正本の実測 4.9→5.2行）。
- */
-private val DetailHeroBlockHeight = 166.dp
-
-/** 書影カード 114×152dp＝3:4（本棚グリッドと同比）。 */
+/** 書影カード 114×152dp＝3:4（本棚グリッドと同比）。**fontScale に追従しない**（下の [detailHeroMetrics]）。 */
 private val DetailCoverWidth = 114.dp
 private val DetailCoverHeight = 152.dp
 
+/** 書影カードの上端＝帯の内側余白 S12。カードが dp 固定なので、この値も fontScale に追従しない。 */
+private val DetailCoverTopInset = Spacing.S12
+
 /**
- * 帯の内側余白。情報列を「境界に近づいた結果の位置」ではなく「帯の内側余白の規定どおりの位置」に据える
- * ための値で、上下ともこれを使う＝**上下対称**（y 12..108）。境界までの最短距離 12dp が帯の内側余白そのもの
- * ＝「帯の中に据わっている」と数で言える。
- *
- * ⚠️ 書影カードだけは意図的にこの規定の外で、境界を **44dp 越える**（カード高152の29%・帯高120の37%）。
- * 10dp の半端なはみ出しとは桁が違うので「面の上に置かれた本」と読める＝**越え幅を減らすと中途半端に戻る**。
+ * 書影カードの下端（12 + 152 = 164dp）。ブロック高の `max` の相手であり、
+ * 「書影が帯の境界を越える量 = 164 − 帯」の基準線でもある単一情報源。
  */
-private val DetailBandInset = Spacing.S12
+private const val DetailCoverBottomDp = 164f
+
+/**
+ * 書影ブロックの寸法一式。**fontScale（F）から一意に決まる**ので、必ずこの1関数から引く
+ * （帯の高さ・情報列・題名の箱・App bar へ題字を出す閾値を別々に計算すると必ず食い違う）。
+ *
+ * ---- なぜ帯を fontScale へ追従させるのか（案A・2026-08-26 ユーザー裁定）----
+ * 帯が dp 固定だと、中の情報列は sp で伸びるのに箱が伸びないため、**fontScale 2.0 で作者名とジャンルが
+ * 箱から溢れて判読不能**になっていた（題名も7字で止まる）。箱を F 倍すれば字と箱の比が保たれる。
+ *
+ * ---- なぜ「あらすじが 0行になる」問題はこれで直らないのか ----
+ * 実測で 1.0→2.0 の押し出し +268.5dp の内訳は ステータス格子 +161.5・固定バー +55.6・見出し塊 +27.8・
+ * システムのステータスバー +23.6 で、**書影ブロックは 1dp も動いていない**＝帯は主犯ではない。
+ * 本文を1行取り戻すには 110dp 要る。唯一届く案（あらすじを格子より前へ出す並び替え）は
+ * 「作品の素性を先に見せる構成」を捨てるため **不採用**＝2.0 であらすじが 0行なのは受諾済みの結論で、
+ * その段で「下へ続く」を言う役目はスクロール示唆の印（端フェード＋シェブロン）が負う。
+ */
+private data class DetailHeroMetrics(
+    /** 帯 = **74·F + 46**（F=1 で 120＝2026-07-31 裁定値と一致）。 */
+    val bandHeight: Dp,
+    /** ブロック = max(帯, 書影カード下端 164) + カード下の逃げ 2。 */
+    val blockHeight: Dp,
+    /** 帯の上下の内側余白 = **12 − F**（上下対称）。 */
+    val bandInset: Dp,
+    /** 情報列 = **76·F + 22**。 */
+    val infoColumnHeight: Dp,
+    /** 題名の箱 = **46·F**（T2）。 */
+    val titleBlockHeight: Dp,
+    /** 作者の箱 = 16·F。 */
+    val authorBlockHeight: Dp,
+    /** ジャンルチップの字面の箱 = 14·F（総高は padding4×2＋枠1×2 を足して 14F+10）。 */
+    val chipTextHeight: Dp,
+)
+
+/**
+ * [DetailHeroMetrics] を fontScale から起こす。式は意匠正本 discovery-detail-D.html の規定そのもの。
+ *
+ * ---- 帯 = 74·F + 46 の 74 と 46 は何か ----
+ * 74 ＝ **sp で伸びる箱の総和**（題名 44 ＋ 作者 16 ＋ チップ字面 14）。
+ * 46 ＝ **伸びない部分**（要素間のアキ 6×2 ＋ チップの padding/枠 10 ＋ 帯の上下内側余白 12×2）。
+ * ⚠️ 74 の内訳の「題名 44」は T2 で 46 になったが、**帯の式は 74·F + 46 のまま据え置く**のが裁定
+ * （T2 の +2dp で帯を太らせない）。増えた 2dp は上下の内側余白から吸収するので、対称は保ったまま
+ * 余白の値だけが 12 → **12 − F** になる。ここを「74 を 76 に直す」と裁定と別物になるので触らない。
+ *
+ * ---- なぜ題名の箱が 46·F なのか（T2）----
+ * 旧 44dp は「22×2行ぶん」のつもりの値だったが、Compose 実測の自然行高は 22.75dp で 2行に 45.5dp 要る。
+ * **1.5dp 足りず、maxLines=2 と書いてありながら2行目が一度も描かれていなかった**（長い題名が 13字+… で
+ * 止まる既存バグの真因）。46 にすると 46 ÷ 45.5 = 1.011 > 1 ＝ **箱と行の「比」**が立つ。
+ * 比は F を掛けても変わらないので、**1.0 / 1.3 / 1.5 / 2.0 のどの段でも2行が描かれる**
+ * （逆に 44 のままでは 0.967 のままで、箱ごと拡大しても 2.0 でも1行のまま）。
+ * ⚠️ 非線形 sp 拡大（Android 14）で実際の字面は F 倍より小さくなる側へずれる＝比はさらに余裕が出る方向。
+ *
+ * ---- なぜ題名の箱を広げてもあらすじが減らないのか ----
+ * ブロック高 = max(帯, 164) + 2 で、F < 1.60 では**書影カード下端 164dp が支配的**だから
+ * （帯が 164 を超えるのは F ≥ 1.595）。F=1.3 でも 1.5 でもブロックは 166dp のまま動かない。
+ */
+private fun detailHeroMetrics(fontScale: Float): DetailHeroMetrics {
+    val band = 74f * fontScale + 46f
+    val info = 76f * fontScale + 22f
+    return DetailHeroMetrics(
+        bandHeight = band.dp,
+        blockHeight = (maxOf(band, DetailCoverBottomDp) + 2f).dp,
+        // (帯 − 情報列) / 2 ＝ 12 − F。割り算で書くのは「上下対称」が定義そのものだから
+        // （定数 12 − F を直書きすると、帯か情報列の式を触ったときに対称が静かに崩れる）。
+        bandInset = ((band - info) / 2f).dp,
+        infoColumnHeight = info.dp,
+        titleBlockHeight = (46f * fontScale).dp,
+        authorBlockHeight = (16f * fontScale).dp,
+        chipTextHeight = (14f * fontScale).dp,
+    )
+}
 
 /** 情報列の左端。カード右端 24+114=138dp との間が 16dp（S16）＝水平も帯の内側余白と同じ規定で刻む。 */
 private val DetailInfoColumnStart = 154.dp
 
 /**
- * 情報列（題名・作者・ジャンルチップ）の高さ。**内容にも環境にも依らず 96dp 固定**。
- * 内訳 = 題名 [DetailTitleLineHeight] 22×2行=44 ＋ [DetailInfoGap] 6 ＋ 作者 16 ＋ 6 ＋ チップ 24。
- * 12 + 96 + 12 = 120 ＝ 帯の高さちょうど＝上下対称の根拠。
- */
-private val DetailInfoColumnHeight = 96.dp
-
-/**
- * 情報列の要素間アキ。⚠️ Spacing.S4/S8 の中間の 6dp を**あえて**使う——96dp の内訳を合わせるための
- * 計算値だから（S8 へ丸めると 44+8+16+8+24=100dp になり、上下対称 12/12 の根拠がその場で崩れる）。
+ * 情報列の要素間アキ。⚠️ Spacing.S4/S8 の中間の 6dp を**あえて**使う——情報列 76F+22 の内訳を
+ * 合わせるための計算値だから（S8 へ丸めると帯の式 74F+46 と噛み合わず、上下対称の根拠がその場で崩れる）。
+ * ⚠️ **アキは fontScale に追従しない**（字ではないので伸ばす理由が無く、46 の「伸びない部分」の一部）。
  */
 private val DetailInfoGap = 6.dp
 
 /**
  * 題名・作者・チップの行送りを**明示**する。フォント既定（`normal` 相当）に委ねると環境で 1〜2dp ぶれ、
- * 「情報列 96dp 固定」＝上下対称の根拠そのものが消えるため（意匠正本の警告をそのまま写した拘束）。
+ * 「情報列 76F+22 で確定」＝上下対称の根拠そのものが消えるため（意匠正本の警告をそのまま写した拘束）。
  */
 private val DetailTitleLineHeight = 22.sp
 private val DetailAuthorLineHeight = 16.sp
@@ -161,7 +220,7 @@ private val DetailChipLineHeight = 14.sp
  *
  * ⚠️ **Compose の `lineHeight` は下限であって上限ではない**（本実装で実測）。CSS の `line-height` は
  * フォント本来の行箱より小さくできるが、Compose はフォントの自然行高を下回れない——正本の指定どおり
- * 22/16/14sp を渡しても実測は 22.75 / 18.5 / 17dp になり、96dp の内訳（44+6+16+6+24）が 8dp ぶん膨らんだ。
+ * 22/16/14sp を渡しても実測は 22.75 / 18.5 / 17dp になり、情報列の内訳が 8dp ぶん膨らんだ。
  * [LineHeightStyle.Trim.Both] + `includeFontPadding = false` で行箱の**外側の余白**は落とせるが、
  * それでも自然行高までしか縮まない。よって各要素の箱の高さは [Modifier.height] で明示して確定させる
  * （落とされるのは行間であって字面ではないので、字面が切れることはない）。
@@ -176,19 +235,10 @@ private val DetailInfoTextStyle = TextStyle(
 )
 
 /**
- * 情報列の3要素の箱の高さ（dp 側）。sp 側の行送りと必ず対で置く＝上の様式コメントのとおり、
- * 行送りだけでは箱が確定しないため。44 + 6 + 16 + 6 + 24 = 96 が情報列の内訳そのもの。
- * [DetailTitleBlockHeight] は「App bar へ題字を出すスクロール閾値」も参照する単一情報源。
- */
-private val DetailTitleBlockHeight = 44.dp
-private val DetailAuthorLineHeightDp = 16.dp
-private val DetailChipLineHeightDp = 14.dp
-
-/**
  * ジャンルチップの枠線幅。
  * ⚠️ CSS の border は箱の外側に積まれるが、Compose の `Modifier.border` は要素の**内側**へ描いて寸法を
- * 増やさない。そのまま写すとチップが 22dp になり 96dp の内訳が合わないので、枠ぶんを padding へ足して
- * 総高 14+((4+1)×2)=24dp を再現する（正本 `.genre-label` の 4px padding + 1px border と同値）。
+ * 増やさない。そのまま写すとチップが 14F+8 になり情報列の内訳（14F+10）が合わないので、枠ぶんを
+ * padding へ足して総高 14F+((4+1)×2) を再現する（正本 `.genre-label` の 4px padding + 1px border と同値）。
  */
 private val DetailChipBorderWidth = 1.dp
 
@@ -202,6 +252,25 @@ private val DetailChipBorderWidth = 1.dp
  */
 private const val DetailBandSaturation = 0.14f
 private const val DetailBandLightnessDrop = 0.05f
+
+/**
+ * スクロール示唆の印（印③・2026-08-26 ユーザー裁定）の寸法と濃度。
+ *
+ * ---- なぜ「端フェード」と「シェブロン」が2つで1組なのか（片方だけ実装しない）----
+ * 端フェードは**下端にまだ本文があるときにしか効かない**。地色へ溶かす演出なので、fontScale 2.0 のように
+ * 下端へ来るのが余白だと**地色に地色を重ねる**ことになって何も見えない。その段で「下へ続く」を言う役目は
+ * シェブロンが負う——つまり **1.0 はフェード・2.0 はシェブロンが担当**していて、どちらを落としても
+ * どちらかの fontScale で無言になる。逆に 1.0 では ⌄ がフェードの中に浮くので記号が地から浮きすぎない。
+ *
+ * ⌄ の色は青磁 `--seiji-ink`（[com.novelreader.ui.theme.ShelfColors.semanticMicroText]）の α.62＝
+ * 「意味を運ぶ小さな記号」の既存スロット。ここで新色は作らない（ADR 0014 のトークン層）。
+ */
+private val DetailScrollHintFadeHeight = 36.dp
+private val DetailScrollHintChevronSize = 22.dp
+/** ⌄ と固定バーの間。フェード 36dp の中に ⌄ が収まる位置＝記号が地から浮きすぎない。 */
+private val DetailScrollHintChevronGap = 10.dp
+private const val DetailScrollHintFadeAlpha = 0.97f
+private const val DetailScrollHintChevronAlpha = 0.62f
 
 /**
  * なろうAPIの日付文字列（`general_lastup`＝"2024-01-05 12:34:56" 形式想定）を
@@ -311,11 +380,14 @@ internal fun NovelDetailContent(
     // App bar に作品名を常駐表示し、今どの作品を見ているかの手掛かりが消えないようにするため。
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
+    // 書影ブロックの寸法は fontScale から一意に決まる（案A＋T2）。閾値も情報列も**同じ1個**から引く。
+    val heroMetrics = remember(density.fontScale) { detailHeroMetrics(density.fontScale) }
     // 情報列の題名が上端へ抜けたら App bar へ作品名を出す。案2-c では題名の位置が幾何で確定している
-    // （帯の内側余白 12dp から題名の箱 44dp）ので、旧「ヒーロー高の6割」という当て推量をやめて
-    // **題名の下辺そのもの**を閾値にする。構成要素を単一情報源として引くので寸法変更に自動追従する。
-    val heroThresholdPx = remember(density) {
-        with(density) { (DetailBandInset + DetailTitleBlockHeight).toPx() }
+    // （帯の内側余白から題名の箱まで）ので、旧「ヒーロー高の6割」という当て推量をやめて
+    // **題名の下辺そのもの**を閾値にする。構成要素を単一情報源として引くので寸法変更に自動追従する
+    // （fontScale で題名の箱が伸びれば閾値も一緒に伸びる＝大きい文字設定で題字が早出しにならない）。
+    val heroThresholdPx = remember(density, heroMetrics) {
+        with(density) { (heroMetrics.bandInset + heroMetrics.titleBlockHeight).toPx() }
     }
     val showBarTitle by remember {
         derivedStateOf { scrollState.value > heroThresholdPx }
@@ -384,183 +456,89 @@ internal fun NovelDetailContent(
                             // 上書き＝状態依存で主従が入れ替わる一貫性欠如を解消）。取込済みなら取込は冗長で消え、
                             // 読む導線を藍の主CTAへ昇格。意匠正本＝discovery-detail-D.html（既読パネルと同期）。
                             // いずれもアプリ内 WebView でなろうページを **加工せず** 表示し話遷移から読書位置を記録（ADR 0012）。
+                            //
+                            // ---- 案B（2026-08-21 裁定・2026-08-26 に翻訳）: 副アクションは1行に横並べ ----
+                            // 主CTA は全幅で最上段に固定したまま、**副アクションだけを畳んで1行に並べる**。
+                            // ⚠️ **隠さずに畳む**のが要点＝オーバーフローメニューへの退避は「せっかくの導線を隠すのは
+                            // 論外」として却下済み（ADR 0011「取込導線は無加工で毎回ユーザー操作」と同じ筋）。
+                            // なぜ効くか: 3アクション版と4アクション版で**バーの総高が同じ 137dp** になる。
+                            // 旧・縦積みは 229dp / 285dp と 56dp 差があり、**4アクション版だけあらすじが0行**へ落ちていた
+                            // ＝「片方だけ直る案は使えない」というのが案B採用の決め手そのもの。
+                            // ⚠️ この裁定は 2026-08-21 にモックへ入りながら Compose へ**翻訳されていなかった**
+                            // （未翻訳の逆同期債務）。2026-08-26 の fontScale 裁定でここを閉じ、1.0 の版面が +27dp 戻る。
                             if (!isImported) {
                                 // 未取込（既読/未読問わず）: 取込を藍の主CTA・最上段に固定（案A）。
-                                Button(
+                                DetailPrimaryAction(
+                                    icon = Icons.Filled.Download,
+                                    label = "縦書きPDFを取り込む",
                                     onClick = onImportPdf,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary
-                                    ),
-                                    shape = RoundedCornerShape(2.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Download,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(Spacing.S8))
-                                    Text(
-                                        text = "縦書きPDFを取り込む",
-                                        fontSize = FontActionLabel,
-                                        letterSpacing = 1.5.sp
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(Spacing.S8))
-                                if (lastReadEpisode > 0) {
-                                    // 既読: 「続きから読む」はゴースト（主CTAは取込を維持）。着地は記録話の「冒頭」で
-                                    // 話内スクロールは復元しない（JS 注入なし＝ADR 0012）ため「第N話のはじめから」と明示。
-                                    OutlinedButton(
-                                        onClick = onResumeReading,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(2.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        ),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(Spacing.S8))
-                                        Text(
-                                            text = "第${lastReadEpisode}話のはじめから読む",
-                                            fontSize = FontActionLabel,
-                                            letterSpacing = 1.5.sp
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(Spacing.S8))
-                                    // 「最初から（目次）」は枠も塗りも持たない最下位のテキストリンク（意匠正本 .btn-textlink）。
-                                    TextButton(
-                                        onClick = onReadOnNarou,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = ButtonDefaults.textButtonColors(
-                                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    ) {
-                                        Text(
-                                            text = "最初から読み直す（目次）",
-                                            fontSize = FontActionLabel,
-                                            letterSpacing = 1.5.sp
-                                        )
-                                    }
-                                } else {
-                                    // 未読: 「なろうで読む」はゴースト。
-                                    OutlinedButton(
-                                        onClick = onReadOnNarou,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(2.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        ),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(Spacing.S8))
-                                        Text(
-                                            text = "なろうで読む",
-                                            fontSize = FontActionLabel,
-                                            letterSpacing = 1.5.sp
-                                        )
-                                    }
-                                }
+                                )
+                            } else if (lastReadEpisode > 0) {
+                                // 取込済・既読: 読む導線が主CTAへ昇格。着地は記録話の「冒頭」で話内スクロールは
+                                // 復元しない（JS 注入なし＝ADR 0012）ため「第N話のはじめから」と明示する。
+                                DetailPrimaryAction(
+                                    icon = Icons.AutoMirrored.Filled.MenuBook,
+                                    label = "第${lastReadEpisode}話のはじめから読む",
+                                    onClick = onResumeReading,
+                                )
                             } else {
-                                // 取込済: 取込は冗長で非表示。読む導線を藍の主CTAへ昇格（読む導線が主で自然）。
-                                if (lastReadEpisode > 0) {
-                                    Button(
-                                        onClick = onResumeReading,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.primary
-                                        ),
-                                        shape = RoundedCornerShape(2.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(Spacing.S8))
-                                        Text(
-                                            text = "第${lastReadEpisode}話のはじめから読む",
-                                            fontSize = FontActionLabel,
-                                            letterSpacing = 1.5.sp
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(Spacing.S8))
-                                    TextButton(
-                                        onClick = onReadOnNarou,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = ButtonDefaults.textButtonColors(
-                                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    ) {
-                                        Text(
-                                            text = "最初から読み直す（目次）",
-                                            fontSize = FontActionLabel,
-                                            letterSpacing = 1.5.sp
-                                        )
-                                    }
-                                } else {
-                                    Button(
-                                        onClick = onReadOnNarou,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.primary
-                                        ),
-                                        shape = RoundedCornerShape(2.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.MenuBook,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(Spacing.S8))
-                                        Text(
-                                            text = "なろうで読む",
-                                            fontSize = FontActionLabel,
-                                            letterSpacing = 1.5.sp
-                                        )
-                                    }
-                                }
+                                // 取込済・未読。
+                                DetailPrimaryAction(
+                                    icon = Icons.AutoMirrored.Filled.MenuBook,
+                                    label = "なろうで読む",
+                                    onClick = onReadOnNarou,
+                                )
                             }
-                            // 取り込み済み（books.ncode 一致）なら以下は冗長のため出さない
-                            // （モック discovery-detail-D の解説文 .cap「取込済みなら取込とその周辺は冗長で消える」
-                            //   どおり。読む手段は蔵書カードが正。⚠️「注記」と書くと 2026-08-21 に撤去した
-                            //   バー下端の注記要素と紛らわしいので、指す先を .cap と明記する）。
-                            if (!isImported) {
-                                // (b) Web由来・未取込カードの入口（モック .btn-ghost「本棚に置く」）。
-                                // 置いた後は「本棚から外す」へトグルし、押し直しで取り消せる（確認ダイアログ無し
-                                // ＝失うものが無く即座に戻せる操作のため）。取込はもう主CTAのためここには置かない（案A）。
-                                Spacer(modifier = Modifier.height(Spacing.S8))
-                                // 同じ .btn-ghost 系のため取り込みボタンと同一の淡色トークンで揃える。
-                                OutlinedButton(
-                                    onClick = onToggleShelf,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(2.dp),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                    ),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                                ) {
-                                    Icon(
-                                        imageVector = if (onShelf) Icons.Filled.BookmarkRemove else Icons.Filled.BookmarkAdd,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
+
+                            // 副アクション行。⚠️ **横に並ぶ数でラベルの丈を変える**（正本の3アクション版は
+                            // 「なろうで読む」「本棚に置く」、4アクション版は「第13話から」「目次」「本棚」と縮む）。
+                            // なぜ変えるか: 横並びでは1つあたりの幅が 1/n になるので、丈のあるラベルのまま3つ並べると
+                            // fontScale 1.0 でも2行に折れ、案Bの要点である「バー総高が状態で変わらない」が壊れる。
+                            when {
+                                !isImported && lastReadEpisode > 0 -> DetailSubActionRow {
+                                    // 4アクション版＝3つ横並び。ここだけラベルを縮める。
+                                    DetailSubActionButton(
+                                        icon = Icons.AutoMirrored.Filled.MenuBook,
+                                        label = "第${lastReadEpisode}話から",
+                                        onClick = onResumeReading,
                                     )
-                                    Spacer(modifier = Modifier.width(Spacing.S8))
-                                    Text(
-                                        text = if (onShelf) "本棚から外す" else "本棚に置く",
-                                        fontSize = FontActionLabel,
-                                        letterSpacing = 1.5.sp
+                                    DetailSubActionButton(
+                                        icon = Icons.AutoMirrored.Filled.List,
+                                        label = "目次",
+                                        onClick = onReadOnNarou,
+                                    )
+                                    // (b) Web由来・未取込カードの入口。置いた後は「外す」へトグルし、押し直しで
+                                    // 取り消せる（確認ダイアログ無し＝失うものが無く即座に戻せる操作のため）。
+                                    DetailSubActionButton(
+                                        icon = if (onShelf) Icons.Filled.BookmarkRemove else Icons.Filled.BookmarkAdd,
+                                        label = if (onShelf) "外す" else "本棚",
+                                        onClick = onToggleShelf,
                                     )
                                 }
+                                !isImported -> DetailSubActionRow {
+                                    // 3アクション版＝2つ横並び。幅が半分あるので正本どおり丈のあるラベルで出す。
+                                    DetailSubActionButton(
+                                        icon = Icons.AutoMirrored.Filled.MenuBook,
+                                        label = "なろうで読む",
+                                        onClick = onReadOnNarou,
+                                    )
+                                    DetailSubActionButton(
+                                        icon = if (onShelf) Icons.Filled.BookmarkRemove else Icons.Filled.BookmarkAdd,
+                                        label = if (onShelf) "本棚から外す" else "本棚に置く",
+                                        onClick = onToggleShelf,
+                                    )
+                                }
+                                lastReadEpisode > 0 -> DetailSubActionRow {
+                                    // 取込済・既読: 残る副導線は目次だけ（取り込み済みなら「本棚に置く」は冗長＝
+                                    // 蔵書カードが正。モック .cap「取込済みなら取込とその周辺は冗長で消える」）。
+                                    // 1つだけなら行の全幅を使えるのでラベルは縮めない。
+                                    DetailSubActionButton(
+                                        icon = Icons.AutoMirrored.Filled.List,
+                                        label = "最初から読み直す（目次）",
+                                        onClick = onReadOnNarou,
+                                    )
+                                }
+                                // 取込済・未読は主CTA「なろうで読む」だけ＝副アクション行そのものを出さない。
                             }
                         }
                     }
@@ -604,6 +582,7 @@ internal fun NovelDetailContent(
                             title = novel.summary.title,
                             author = novel.summary.author,
                             genreLabel = NarouGenres.genreLabel(novel.summary.genreCode),
+                            metrics = heroMetrics,
                         )
 
                         // ステータス表（2列グリッド）
@@ -854,6 +833,58 @@ internal fun NovelDetailContent(
                                 .padding(top = Spacing.S16, bottom = Spacing.S24)
                         )
                     }
+
+                    // ---- スクロール示唆の印＝端フェード ＋ シェブロン（印③・2026-08-26 ユーザー裁定）----
+                    // なぜ要るか: この画面は fontScale が上がるほど初期ビューポートから本文が消え、2.0 では
+                    // あらすじが0行になる（受諾済み）。「まだ下に続く」ことだけは**版面を1dpも使わずに**言う。
+                    // なぜ版面を食わないか: どちらも Box への align 配置＝兄弟であるスクロール列の測定に
+                    // 一切入らない（印を足した代償に本文が減る、という取引をしていない）。さらに
+                    // pointerInput を持たないのでヒットテストにも入らず、印の上をなぞってもスクロールは
+                    // そのまま下の列へ届く（CSS の `pointer-events:none` に相当）。
+                    // なぜ canScrollForward で出し分けるか: 出しっぱなしにすると**下端に着いても「まだ続く」と
+                    // 嘘をつく**。derivedStateOf で包むのは、スクロール値そのものではなく真偽が変わった
+                    // ときだけ再合成させるため（毎フレーム再合成すると印のためにスクロールが重くなる）。
+                    val showScrollHint by remember {
+                        derivedStateOf { scrollState.canScrollForward }
+                    }
+                    // 出没は App bar の題字フェードと同じ crossfade トークンで揃える（既定 spring だと
+                    // Motion.kt を経由しない野良曲線になる＝Design/08 禁止則②）。
+                    val scrollHintAlpha by animateFloatAsState(
+                        targetValue = if (showScrollHint) 1f else 0f,
+                        animationSpec = tween(MotionDurationCrossfade),
+                        label = "detailScrollHint"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(DetailScrollHintFadeHeight)
+                            .alpha(scrollHintAlpha)
+                            .background(
+                                // 地色そのものへ溶かす（α0 → α.97）。テーマの background から引くので
+                                // ライト／セピア／ダークのどれでも「その面の地色」になる。
+                                Brush.verticalGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.background.copy(alpha = 0f),
+                                        MaterialTheme.colorScheme.background
+                                            .copy(alpha = DetailScrollHintFadeAlpha),
+                                    )
+                                )
+                            )
+                    )
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowDown,
+                        // 読み上げには出さない: 「下へ続く」はスクロール可能性そのものが
+                        // TalkBack へ既に伝わっている情報で、印は目で見る人のための冗長表現だから。
+                        contentDescription = null,
+                        tint = LocalShelfColors.current.semanticMicroText
+                            .copy(alpha = DetailScrollHintChevronAlpha),
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = DetailScrollHintChevronGap)
+                            .size(DetailScrollHintChevronSize)
+                            .alpha(scrollHintAlpha)
+                    )
                 }
             }
         }
@@ -869,8 +900,10 @@ internal fun NovelDetailContent(
  * セル＝mock .status-item（padding:12px 0・odd は padding-right:16px・even は padding-left:16px・
  * ラベル .lbl と値 .val の縦積み gap 4px）。
  */
-// レイアウト回帰テストが寸法を名指しで掴むためのタグ（「帯の中に 96dp・上下対称」は目視でなく
+// レイアウト回帰テストが寸法を名指しで掴むためのタグ（「情報列が帯の中に上下対称で据わる」は目視でなく
 // 数で守る対象＝正本が数で規定している以上、守りも数でなければ静かに崩れる）。
+// ⚠️ 2026-08-26 の案A＋T2 で期待値が動いた（帯 120→74F+46・情報列 96→76F+22・題名 44→46F・
+// 内側余白 12→12−F）＝ NovelDetailCoverBlockLayoutTest の数値も同時に更新しないと赤くなる。
 internal const val DetailCoverBlockTag = "detail_cover_block"
 internal const val DetailCoverBandTag = "detail_cover_band"
 internal const val DetailCoverCardTag = "detail_cover_card"
@@ -882,24 +915,29 @@ internal const val DetailInfoChipTag = "detail_info_chip"
 /**
  * 作品詳細の書影ブロック＝案2-c「淡地」（意匠正本 discovery/discovery-detail-D.html）。
  *
- * 版面（1dp = 正本の1px）:
+ * 版面（fontScale 1.0。1dp = 正本の1px。他の段は [detailHeroMetrics] の式が決める）:
  * ```
- *   y0                                          帯（作品色の淡地・全幅）
- *   y12   ┌ 書影 114×152 ┐   ┌ 情報列 96 ────┐   ← 左24(S24) / 列左154 / 右余白24(S24)
- *   y108  │              │   └───────────────┘   ← 帯の内側余白 12dp（上と同値＝上下対称）
+ *   y0                                          帯（作品色の淡地・全幅・高さ 74·F+46）
+ *   y11   ┌ 書影 114×152 ┐   ┌ 情報列 98 ────┐   ← 左24(S24) / 列左154 / 右余白24(S24)
+ *   y12   │  ↑カードだけ  │   │               │   ← カードの上端は S12 固定（追従しない）
+ *   y109  │  上端 12 固定 │   └───────────────┘   ← 帯の内側余白 11dp（上と同値＝上下対称）
  *   y120  │              │   ────────────────────  帯の境界（ヘアライン）
  *   y164  └──────────────┘                        ← カードだけが境界を 44dp 越える（意図）
  *   y166  ブロック下端
  * ```
+ * ⚠️ 内側余白が 12 でなく **11** なのは T2（題名の箱 44→46）の +2dp を帯を太らせずに吸収したため
+ * （[detailHeroMetrics] の KDoc）。上下対称は保たれている。
  *
  * @param title 書影のシードでもある（栞書影は**題名**から決定論生成＝本棚と1ピクセル同じ絵になる）。
  *   旧 BookCover は ncode をシードにしていたので、同じ作品が本棚と詳細で別の顔になっていた。
+ * @param metrics fontScale から起こした寸法一式（案A＋T2）。呼び出し側と閾値計算で**同じ値**を使うため引数で渡す。
  */
 @Composable
 private fun DetailCoverBlock(
     title: String,
     author: String,
     genreLabel: String?,
+    metrics: DetailHeroMetrics,
     modifier: Modifier = Modifier,
 ) {
     val shiori = LocalShioriColors.current
@@ -919,22 +957,22 @@ private fun DetailCoverBlock(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(DetailHeroBlockHeight)
+            .height(metrics.blockHeight)
             .testTag(DetailCoverBlockTag),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(DetailHeroBandHeight)
+                .height(metrics.bandHeight)
                 .background(bandColor)
                 .testTag(DetailCoverBandTag),
         )
         // 帯の境界（正本 `border-bottom:1px rgba(28,31,38,.10)`）。box-sizing:border-box なので
-        // 罫は帯の 120dp の**内側**最下段に載る＝オフセットは 120−1。
+        // 罫は帯の**内側**最下段に載る＝オフセットは（帯の高さ）−1（帯が fontScale で伸びれば一緒に下がる）。
         HorizontalDivider(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .offset(y = DetailHeroBandHeight - 1.dp),
+                .offset(y = metrics.bandHeight - 1.dp),
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f),
         )
         // 書影カード。本棚グリッドと同じ ShioriCover を題名で呼ぶだけ＝生成側へは何も要求しない。
@@ -943,7 +981,9 @@ private fun DetailCoverBlock(
             title = title,
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .offset(x = Spacing.S24, y = DetailBandInset)
+                // ⚠️ カードの上端は **S12 固定**（metrics.bandInset ではない）＝カードは dp 固定で
+                // fontScale に追従しないため。下端は常に 164dp で、帯が伸びるぶん「越え」だけが痩せる。
+                .offset(x = Spacing.S24, y = DetailCoverTopInset)
                 .size(width = DetailCoverWidth, height = DetailCoverHeight)
                 .shadow(
                     elevation = shiori.coverShadowElevation,
@@ -952,22 +992,23 @@ private fun DetailCoverBlock(
                 .clip(RoundedCornerShape(2.dp))
                 .testTag(DetailCoverCardTag),
         )
-        // 情報列。高さを固定するのは飾りでなく上下対称の根拠そのもの（12+96+12=120＝帯の高さ）。
+        // 情報列。高さを確定させるのは飾りでなく上下対称の根拠そのもの
+        // （内側余白 + 情報列 + 内側余白 = 帯 が恒等的に成り立つ＝(12−F) + (76F+22) + (12−F) = 74F+46）。
         Column(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
                 .padding(
                     start = DetailInfoColumnStart,
-                    top = DetailBandInset,
+                    top = metrics.bandInset,
                     end = Spacing.S24,
                 )
-                .height(DetailInfoColumnHeight)
+                .height(metrics.infoColumnHeight)
                 .testTag(DetailInfoColumnTag),
             verticalArrangement = Arrangement.spacedBy(DetailInfoGap),
         ) {
-            // 題名。minLines=maxLines=2 で **1行の題名でも箱は 44dp**＝内容に依らず 96dp が保たれる
-            // （maxLines だけだと短題名で列が縮み、上下対称が題名の長さ次第で崩れる）。
+            // 題名。箱を高さで固定するので **1行の題名でも箱は 46·F**＝情報列の高さが内容に依らない
+            // （高さを与えないと短題名で列が縮み、上下対称が題名の長さ次第で崩れる）。
             Text(
                 text = title,
                 fontFamily = MinchoFamily,
@@ -978,11 +1019,13 @@ private fun DetailCoverBlock(
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                // 箱を 44dp で固定する＝題名が1行でも2行でも列の埋まり方が変わらない（内容非依存の要）。
+                // 箱を 46·F で固定する＝題名が1行でも2行でも列の埋まり方が変わらない（内容非依存の要）。
+                // ⚠️ 46 は「2行 45.5dp に 0.5dp の余り」＝**2行目を本当に描かせるための値**（T2）。
+                // 旧 44dp では 1.5dp 足りず、maxLines=2 と書いてあるのに2行目が落ちていた。
                 // minLines=2 では代用にならない: Compose は「minLines の合成高」と「実際に2行組んだ高さ」を
                 // 別々に計算するため、実測で 41dp / 45.5dp と食い違った。
                 modifier = Modifier
-                    .height(DetailTitleBlockHeight)
+                    .height(metrics.titleBlockHeight)
                     .testTag(DetailInfoTitleTag),
             )
             // 作者は1行 nowrap + ellipsis。折り返すと情報列が伸びて帯からはみ出す（正本が写し取り損ねて
@@ -998,7 +1041,7 @@ private fun DetailCoverBlock(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(DetailAuthorLineHeightDp)
+                    .height(metrics.authorBlockHeight)
                     .testTag(DetailInfoAuthorTag),
             )
             if (genreLabel != null) {
@@ -1027,11 +1070,110 @@ private fun DetailCoverBlock(
                             horizontal = Spacing.S8 + DetailChipBorderWidth,
                             vertical = Spacing.S4 + DetailChipBorderWidth,
                         )
-                        // 字面の箱を 14dp に固定＝padding 5×2 と合わせてチップ総高 24dp（正本の実値）。
-                        .height(DetailChipLineHeightDp),
+                        // 字面の箱を 14·F に固定＝padding 5×2 と合わせてチップ総高 14F+10（F=1 で 24dp）。
+                        // ⚠️ padding と枠は字ではないので追従させない＝これが帯の式の「+46」側の一部。
+                        .height(metrics.chipTextHeight),
                 )
             }
         }
+    }
+}
+
+/**
+ * 固定バーの主CTA（藍・全幅・最上段）。案A「完全一貫」で**未取込である限り取込がここに居座る**。
+ * 可視高は M3 既定の 40dp、タップ標的は Surface が 48dp へ広げる＝正本の「スロット48／ボタン可視40」と同値。
+ */
+@Composable
+private fun DetailPrimaryAction(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary
+        ),
+        shape = RoundedCornerShape(2.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(Spacing.S8))
+        Text(
+            text = label,
+            fontSize = FontActionLabel,
+            letterSpacing = 1.5.sp,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+/**
+ * 案B の副アクション行（横一列）。⚠️ **行を増やさないのが唯一の目的**なので、ここに縦積みの分岐を
+ * 足さないこと（足した瞬間に「3アクション版と4アクション版でバー総高が同じ」という案Bの要点が壊れ、
+ * 4アクション版だけあらすじが0行に落ちる旧構成へ戻る）。
+ */
+@Composable
+private fun DetailSubActionRow(content: @Composable RowScope.() -> Unit) {
+    // スロット間 8dp（正本 .slot + .slot{margin-top:8px}）。
+    Spacer(modifier = Modifier.height(Spacing.S8))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content
+    )
+}
+
+/**
+ * 副アクション1つ（正本 `.btn-ghost.mini`）。枠線のゴーストで、行の中を**等幅で分け合う**。
+ *
+ * なぜ主CTA より字を落とすか（[FontActionLabel] 15sp → [FontChipLarge] 11.5sp）: 横並びでは1つあたりの
+ * 幅が 1/n になるので、主CTA と同じ字面のままだと fontScale 1.0 でも2行に折れてバー高が状態依存になる
+ * （正本も `.btn-ghost.mini` として一段落とした字面を規定している）。
+ * ⚠️ 行数は縛らない＝fontScale 2.0 では折り返して2行になり、バーはそのぶん伸びる（受諾済みの挙動。
+ * `maxLines=1` で省略記号に倒すと、大きい文字設定の人にだけ導線名が読めなくなる）。
+ */
+@Composable
+private fun RowScope.DetailSubActionButton(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier.weight(1f),
+        shape = RoundedCornerShape(2.dp),
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        // 既定の左右 24dp は横一列では効きすぎる（正本 .btn-ghost に左右 padding は無く、
+        // 字とアイコンが flex の中で中央に据わるだけ）＝字が入る幅を padding へ渡さない。
+        // ⚠️ 4dp まで削るのは 3つ横並び（4アクション版）が効く条件だから: 360dp 幅で1つ 98.7dp、
+        // 枠内の余白8＋アイコン16＋アキ4 を引くと字に使えるのは 70.7dp ＝ 11.5sp なら全角6字強。
+        // 「第123話から」（3桁話数）が1行に収まるのはここまで削った場合だけで、S8 だと折り返す。
+        // 4桁話数では折り返して行が伸びる＝そこは受諾（省略記号で話数を隠すより折れるほうがまし）。
+        contentPadding = PaddingValues(horizontal = Spacing.S4, vertical = Spacing.S4)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp)
+        )
+        // 正本 `.btn-ghost.mini{gap:4px}`（主CTA の 8dp より詰める＝字の幅を稼ぐ）。
+        Spacer(modifier = Modifier.width(Spacing.S4))
+        Text(
+            text = label,
+            fontSize = FontChipLarge,
+            // 正本 .btn-ghost.mini{letter-spacing:.06em} ＝ 11.5×0.06 ≒ 0.7sp。
+            letterSpacing = 0.7.sp,
+            textAlign = TextAlign.Center
+        )
     }
 }
 

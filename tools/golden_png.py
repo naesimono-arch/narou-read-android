@@ -365,6 +365,13 @@ SCROLLING_SURFACES = {
     "NovelDetailScreen_content_light": ("android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt", "verticalScroll(scrollState)"),
     "NovelDetailScreen_content_dark": ("android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt", "verticalScroll(scrollState)"),
     "NovelDetailScreen_content_sepia": ("android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt", "verticalScroll(scrollState)"),
+    # 2026-08-26: 案B（副アクション横一列）の翻訳と案A（帯の fontScale 追従）で罫線の内訳が変わり、
+    # スクロール済み2 case が初めて減少側に出た。器の字句に加えて `scrollState.canScrollForward` を
+    # 要求するのは、**この面がスクロール面であることを実装が自分で主張している箇所**だから——
+    # 下端に着いたら消える印（端フェード＋シェブロン）を出し分ける述語で、これが消えるということは
+    # 「まだ下に続く」を言う仕組みごと失ったということ＝除外を生かしておく理由も同時に消える。
+    "NovelDetailScreen_synopsis_light": ("android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt", ("verticalScroll(scrollState)", "scrollState.canScrollForward")),
+    "NovelDetailScreen_tail_light": ("android/app/src/main/java/com/novelreader/ui/discovery/NovelDetailScreen.kt", ("verticalScroll(scrollState)", "scrollState.canScrollForward")),
     "BookshelfDialogK_notif_priming_light": ("android/app/src/main/java/com/novelreader/ui/theme/NovelReaderAlertDialog.kt", ("Modifier.verticalScroll(rememberScrollState())", "増補（2026-08-07）")),
     # 2026-08-21: 上と同一部品・同一機序（縦3段化でカードが伸び 2.0 で窓が画面全高に達した）。
     # 器の字句が消えたら失効する点も同じなので、宣言する根拠ファイル・字句は notif_priming と揃える。
@@ -399,11 +406,13 @@ SCROLL_EXEMPT_REASON = {
     "DiscoverySearchScreen_drafted_light": "本体が Scaffold 本文まるごとの verticalScroll＝2.0 で下へ流れた条件セクションはスクロールで到達できる。bottomBar の選択キーワード追従バーは内側 FlowRow が heightIn(max=96.dp) で閉じているため本体のビューポートを食い潰さない（＝器に高さが渡っていることまで確認済み）。1.0 の罫線4本→2.0 の3本は可視セクションが減っただけ",
     "DiscoverySearchScreen_drafted_dark": "同上（テーマ違いの同一構造）",
     "DiscoverySearchScreen_drafted_sepia": "同上（テーマ違いの同一構造）",
-    "NovelDetailScreen_content_light": "詳細本文は Scaffold 本文直下の Column が fillMaxSize+verticalScroll＝ヒーロー/メタ/あらすじ/状態グリッドは下へ流れるだけで到達できる（同じ Box の兄弟が居ない＝高さを奪う相手が構造上いない）。1.0 の区切り7本→2.0 の5本は可視セクションが減っただけ",
+    "NovelDetailScreen_content_light": "詳細本文は Scaffold 本文直下の Column が fillMaxSize+verticalScroll＝ヒーロー/メタ/あらすじ/状態グリッドは下へ流れるだけで到達できる（同じ Box の兄弟が居ない＝高さを奪う相手が構造上いない）。1.0 の6本→2.0 の3本は可視セクションが減っただけ。⚠️ 本数が旧記載の「7本→5本」から動いたのは絵が悪化したからではなく **2026-08-26 に固定バーを案B（副アクション横一列）へ畳んだ**ため——バー内で数えられる罫線の本数と版面の配分が両スケールとも変わった（同日の内訳は synopsis/tail の理由に画素で書いてある）",
     "NovelDetailScreen_content_dark": "同上（テーマ違いの同一構造）",
     "NovelDetailScreen_content_sepia": "同上（テーマ違いの同一構造）",
     "BookshelfDialogK_notif_priming_light": "本文スロットは NovelReaderAlertDialog が verticalScroll で包む（2026-08-07 増補）。2.0 では窓が画面全高まで育ち、最終行のインクは**ダイアログ面そのものの下端**＝角丸の弧が上端 y0・下端 y1279 とも 1.0 の弧と同一形（run 47..672 から始まる）で完全に描かれており、切断ではない。題字と2ボタンは可視で、本文の溢れはスクロールで到達できる",
     "BookshelfDialogK_reimport_scan_light": "notif_priming と同一部品（NovelReaderAlertDialog）・同一機序の 2026-08-21 版＝3操作を縦3段へ揃えた（正本モック bookshelf-reimport-badge-D の分岐②）ぶんカードが伸び、2.0 で窓が画面全高まで育った。画素で確認: ダイアログ面は y0..y1279 に**完全な角丸矩形として収まっており**、下端の幅が 660→656→654→650→642→636→630→610 と閉じる弧を描く＝1.0 の閉じ際 y1070..y1077 と同一形で、キャンバスによる切断は起きていない。最終行の 626px が「インク」に数えられるのは、走査が両スケールを**1.0 の下端＝scrim 灰**を地として測るため、2.0 で scrim が消えてダイアログ面（#FBFAF8）だけが残ると差が出るから＝[bottom_row_ink] の docstring が予告している scrim/面の入れ替わりそのもので、絵の破綻ではない。実際に切れているのは本文2段落目（ファイル名ヒント）の3行目「義妹になっていました.pdf」だけで、これは verticalScroll の折返し地点＝スクロールで到達できる。題字・本文1段落目（「フォルダを教えて…しおりは残ります。」全4行）・3操作は全可視。⚠️ **見直しの合図**: この除外は「切れるのは本文だけ・3操作は全可視」という前提の上に立つ。前提の後半は ReimportScanDialogStackTest が fontScale 2.0 で assertIsDisplayed により機械で守る（走査は最終行のインクしか見ないので、操作が画面外へ押し出されても絵の signature は変わらない＝画素側の網では止まらない）。文言を伸ばす・段を増やす改修をしたら、その断言が落ちていないかを必ず見ること",
+    "NovelDetailScreen_synopsis_light": "content と同一画面・同一の器（Scaffold 本文直下の Column が fillMaxSize+verticalScroll）で、あらすじ末尾〜キーワードまで送った状態の絵。**消えた3本を画素で1本ずつ特定した**: ①y=184(92dp) はステータス表の外郭下罫＝被覆区間が (24,179)+(180,336) と中央で切れており、これは中央縦罫と交差する「表の罫」の署名（評価表の罫は (24,336) の連続で切れない）。2.0 ではこの表が画角の上へ流れただけで、同じ絵の中でキーワード見出しとチップは可視（テスト自身が performScrollTo＋assertIsDisplayed で到達を機械保証している）。②③y=1160/1238(580/619dp) は副アクション2ボタンの上辺・下辺の枠線で、**2.0 でも両方描かれている**——画素で左ボタン(24..175dp)が y=1072..1246、右ボタン(184..335dp)が y=1112..1206 に在り、2行に折れた「なろうで読む」と1行の「本棚に置く」で高さが違う（87dp / 47dp・中央そろえ）ため同じ y に並ばず、走査の全幅条件(cover≥0.80)を外れただけ。切れても隠れてもいない。残る1本(y=838)は固定バーの上罫で、バー高は 1.0=137dp / 2.0=221dp ＝案B の較正値 137 / 221.6 と一致する",
+    "NovelDetailScreen_tail_light": "同じ器の末尾（評価表〜取得時刻）まで送った絵。**消えた3本の内訳**: ①評価表の区切り罫が3本→2本（1.0 は y=600/706/812＝53dp 間隔、2.0 は y=258/420＝81dp 間隔で、行が高くなり3本目が画角外へ出ただけ＝典型的な可視行減）。②③は synopsis と同一の「副アクション2ボタンの枠線が高さ違いで y に揃わない」分（同上・画素確認済み）。到達性はテスト自身が担保している——この case は末尾メタ『時点の情報』へ performScrollTo し、直上の評価表最終行『週間ポイント』を fontScale 2.0 でも assertIsDisplayed で断言して撮っている＝押し出されて到達不能なら撮影の時点で赤になる",
     "DiscoveryResultScreen_list_light": "条件帯（FlowRow）が 2.0 で8段に折り返し一覧の weight(1f) へ残り高0を渡していた破綻を 2026-08-07 に是正済み——帯を BoxWithConstraints で maxHeight/2 に閉じ、溢れた段は帯の内部スクロールで到達できる。是正後の実測でインクは下段が最大（27,296＝一覧が実際に描かれている）。罫線が 1.0 の2本→2.0 の0本になるのは、行が高くなって罫線の入る位置まで到達しないため＝可視行が減っただけ",
     "DiscoveryResultScreen_list_dark": "同上（テーマ違いの同一構造）",
     "DiscoveryResultScreen_list_sepia": "同上（テーマ違いの同一構造）",
