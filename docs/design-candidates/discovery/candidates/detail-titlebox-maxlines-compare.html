@@ -1,0 +1,216 @@
+<!-- @dsCard group="UI-n / 発見（api-lab）" name="D. 作品詳細 — 題名の箱（maxLines=2）比較（一時ドラフト）" -->
+<!--
+  ============================================================================
+  一時ドラフト（複数案比較）。裁定後は採用案だけを正本
+  docs/design-candidates/discovery/discovery-detail-D.html へ差分反映し、本ファイルは削除する。
+  下敷き＝同正本の情報列規定（題名22×2行=44 ／ 間6 ／ 作者16 ／ 間6 ／ チップ24 ＝ 96px 固定）。
+
+  ---- 何が壊れているか（実測で確定・2026-08-25） ----
+  正本もコードも「題名は2行」と書いているが、**2行目は一度も描かれたことがない**。
+  題名の箱は 44dp、Compose 実測の自然行高は 22.75dp ＝ 2行に 45.5dp 要る。
+  1.5dp 足りないので Paragraph が2行目を落とし、**fontScale 1.0 でも 25字の題名が 13字+… の1行**で止まる。
+  正本の「96px＝44+6+16+6+24」という内訳は、**その 44 が2行ぶんとして機能していない**まま
+  上下対称の根拠にだけ使われていた。
+
+  ---- 版面（あらすじ）への影響はどの案でもゼロ ----
+  書影ブロック高 = max(帯, 164) + 2。**書影カードの下端 164dp が既に支配的**なので、
+  帯が 99〜164dp のどこにあってもブロックは 166dp のまま＝**題名の箱をいじってもあらすじは1行も減らない**。
+  変わるのは「書影カードが帯の境界を越える幅」（正本が「面の上に置かれた本」の要と書いた 44dp）だけ。
+
+  ---- fontScale 2.0 の見え方は帯の方式に従属する ----
+  下段のとおり、**帯が dp 固定である限り題名の箱も dp 固定＝2.0 では箱がどれでも1行**。
+  題名の箱の裁定は「1.0〜1.5 をどう見せるか」の裁定で、2.0 の可読は
+  版面比較モック側の案A（帯を fontScale 追従）とセットでしか解けない。
+  ============================================================================
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>作品詳細 題名の箱 比較（ドラフト）</title>
+<style>
+  :root{
+    --base:#FBFAF8;--ink:#1C1F26;--ink-soft:#7C808B;--line:#ECEAE4;
+    --seiji:#9CB3A8;--seiji-ink:#50685C;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;padding:26px;font-family:var(--gothic);color:#2A2C28}
+  .head{max-width:1000px;font-size:13px;line-height:1.85;margin-bottom:26px}
+  .head h1{font-size:19px;font-family:var(--mincho);margin-bottom:10px}
+  .head p{margin-bottom:9px;color:#4A4C47}
+  .head b{color:#1C1F26} .head .warn{color:#7A3B2E}
+  h2.sect{max-width:1000px;width:100%;font-size:16px;font-family:var(--mincho);margin:8px 0 4px}
+  p.sectnote{max-width:1000px;width:100%;font-size:12.5px;line-height:1.8;color:#4A4C47;margin-bottom:16px}
+  .grid{display:flex;flex-wrap:wrap;gap:22px;max-width:1330px;margin-bottom:30px}
+  .tile{display:flex;flex-direction:column;gap:7px;width:411px}
+  .tile .lbl{font-size:12px;letter-spacing:.14em;color:#6A6C67}
+  .tile .num{font-size:11.5px;line-height:1.7;color:#5A5C57}
+  .tile .num b{color:#1C1F26}
+  .tile .give{font-size:11.5px;line-height:1.7;color:#7A3B2E}
+  /* 端末の版面と同じ地の上に、書影ブロックだけを切り出して並べる */
+  .frame{width:411px;background:var(--base);position:relative;overflow:hidden;border-radius:6px;
+    box-shadow:0 8px 20px rgba(0,0,0,.16)}
+  .kaeshi{position:relative;width:100%}
+  .kaeshi .band{position:absolute;left:0;right:0;top:0;border-bottom:1px solid rgba(28,31,38,.10)}
+  .kaeshi .shiori{position:absolute;left:24px;top:12px;width:114px;height:152px;border-radius:2px;
+    overflow:hidden;box-shadow:0 3px 10px rgba(28,31,38,.22)}
+  .kaeshi .shiori canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .kmeta{position:absolute;left:154px;right:24px;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+  /* 箱は dp 固定・字だけが sp で伸びる。入りきらない行は**描かれない**（Compose の Paragraph 準拠）。 */
+  .kmeta .t{width:100%;overflow:hidden;font-family:var(--mincho);font-weight:600;color:var(--ink);
+    display:-webkit-box;-webkit-box-orient:vertical}
+  .kmeta .au{width:100%;overflow:hidden;color:var(--ink);font-weight:500}
+  .kmeta .au span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .genre-label{display:inline-block;color:var(--seiji-ink);border:1px solid var(--seiji);
+    padding:4px 8px;border-radius:2px;font-weight:500;white-space:nowrap;overflow:hidden}
+  .genre-label span{display:block}
+  /* 箱の実寸を見えるようにする補助線（裁定の対象は意匠でなく寸法なので出す） */
+  .tile.guide .kmeta .t{outline:1px dashed rgba(124,0,0,.30);outline-offset:0}
+</style>
+</head>
+<body>
+<div class="head">
+  <h1>作品詳細 — 題名の箱（<code>maxLines=2</code> が一度も成立していない件）</h1>
+  <p>赤い破線が<b>題名の箱</b>の実寸。箱は dp 固定で、入りきらない行は<b>描かれずに消える</b>（clip ではなく行落ち）。
+  各列は題名の長さ（<b>52字 / 25字 / 8字</b>）。</p>
+  <p class="warn">⚠️ <b>どの案でもあらすじは1行も減らない</b>。書影ブロック高 = max(帯, 164) + 2 で、
+  書影カード下端 164dp が既に支配的だから。動くのは<b>書影カードが帯を越える幅</b>（正本が「面の上に置かれた本」の要と書いた 44dp）だけ。</p>
+</div>
+
+<h2 class="sect">§1 fontScale 1.0 — 箱をどうするか</h2>
+<p class="sectnote">現状の 44dp は「2行ぶん」のつもりで置かれた値だが、自然行高 22.75×2 = <b>45.5dp</b> に 1.5dp 足りない。
+下の3案は「不足を埋める」「1行と決める」「字を落として収める」の3方向。</p>
+<div class="grid" id="g1"></div>
+
+<h2 class="sect">§2 fontScale 2.0 — 題名の箱の裁定だけでは 2.0 は解けない</h2>
+<p class="sectnote">左2枚＝<b>帯が dp 固定のまま</b>（現行）。箱も固定なので<b>どの案でも1行</b>で、作者とジャンルは箱から溢れて判読不能のまま。
+右2枚＝<b>帯を fontScale 追従</b>にした場合（版面比較モックの案A）。作者とジャンルは読めるようになるが、
+<b>題名の2行目は現状の箱のままでは 2.0 でも出ない</b>——不足は 1.5dp という「量」ではなく
+<b>箱 44 ÷ 行 45.5 = 0.967 という「比」</b>なので、箱ごと拡大しても比は変わらないから。
+つまり <b>2行を出したいなら §1 の T2／T3（比を直す）が必須で、案A は作者・チップの可読を直すだけ</b>。
+逆に §1 だけ直しても 2.0 の作者・チップは切れたまま＝<b>2つの裁定は独立ではなく、噛み合わせて初めて 2.0 が成立する</b>。</p>
+<div class="grid" id="g2"></div>
+
+<script>
+function hashStr(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function rand(r,lo,hi){return lo+(hi-lo)*r();}
+function pick(r,a){return a[Math.floor(r()*a.length)];}
+function hsl(h,s,l){return 'hsl('+h+' '+s+'% '+l+'%)';}
+const PALETTE=[20,70,140,175,200,210,260,330];
+function coverHue(t){return pick(mulberry32(hashStr(t)),PALETTE);}
+function bandTint(t){return hsl(coverHue(t),14,93);}
+const MIN='"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif';
+const TIPS=[
+ (c,x,y,a)=>{c.strokeStyle=a;c.lineCap='round';c.lineWidth=2.6;c.beginPath();c.moveTo(x,y);c.lineTo(x-6,y+12);c.moveTo(x,y);c.lineTo(x+6,y+12);c.stroke();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+7,4,0,7);c.fill();},
+ (c,x,y,a)=>{c.fillStyle=a;c.beginPath();c.arc(x,y+5,4,0,7);c.fill();c.strokeStyle=a;c.lineCap='round';c.lineWidth=2;c.beginPath();c.moveTo(x,y+9);c.lineTo(x,y+20);c.stroke();}
+];
+function vtitle(c,text,w,h,ink){
+  const S=w/150, fs=Math.round(w*0.088), lineGap=fs*1.16, colGap=Math.round(w*0.108);
+  const yTop=fs+5*S, yBottom=h-11*S, x0=w-fs-3*S, maxCols=3;
+  const perCol=Math.floor((yBottom-yTop)/lineGap); if(perCol<1||fs<1)return;
+  c.fillStyle=ink;c.font='600 '+fs+'px '+MIN;c.textAlign='center';c.textBaseline='middle';
+  const ch=[...text];
+  for(let col=0;col<maxCols;col++){const st=col*perCol;if(st>=ch.length)break;const cx=x0-col*colGap;
+    for(let i=0;i<perCol;i++){const idx=st+i;if(idx>=ch.length)break;
+      let g=ch[idx]; if(col===maxCols-1&&i===perCol-1&&idx<ch.length-1)g='⋮';
+      c.fillText(g,cx,yTop+i*lineGap+lineGap/2);}}
+}
+function drawShiori(c,w,h,title){
+  const S=w/150, paper='#FBFAF8', ink='#1C1F26';
+  c.fillStyle=paper;c.fillRect(0,0,w,h);
+  c.strokeStyle='rgba(28,31,38,.05)';c.lineWidth=1;c.strokeRect(.5,.5,w-1,h-1);
+  const acc=hsl(coverHue(title),48,52);
+  const rng=mulberry32(hashStr(title+'|B'));
+  const x=Math.round(rand(rng,.14,.36)*w)+.5, len=Math.round(rand(rng,.30,.60)*h);
+  c.strokeStyle=acc;c.lineWidth=2.5*S;c.lineCap='butt';
+  c.beginPath();c.moveTo(x,0);c.lineTo(x,len);c.stroke();
+  const ti=Math.floor(rng()*TIPS.length);
+  c.save();c.translate(x,len);c.scale(S,S);c.translate(-x,-len);
+  TIPS[ti](c,x,len,acc,paper);c.restore();
+  vtitle(c,title,w,h,ink);
+}
+
+const T52='悪女として死の森に捨てられたら、異形の男に拾われました。一方、私を捨てた家族はどうやら没落したようです。';
+const T25='婚約破棄されたので、辺境で薬草を育てて暮らします。';
+const T08='死の森に咲く花嫁';
+const AUTHOR='春樹凜', GENRE='異世界〔恋愛〕';
+
+/* 案ごとの寸法。lh は Compose 実測の自然行高（16sp→22.75 / 14sp→19.9）。 */
+const OPTS=[
+ {id:'now', name:'現状 — 題名箱 44dp（2行のつもりで 1.5dp 足りない）', fs:16, lh:22.75, box:44, maxLines:2, band:120,
+  give:'捨てているもの＝<b>2行目そのもの</b>。25字の題名でも 13字+… で止まり、箱の下 21dp は空いたまま——「余白」ではなく<b>使えなかった行</b>。'},
+ {id:'T1', name:'T1 — 1行と決める（題名箱 23dp・空いた 21dp は帯の余白へ）', fs:16, lh:22.75, box:23, maxLines:1, band:120,
+  give:'守る＝<b>寸法の辻褄</b>（箱＝描かれる行数）。捨てる＝<b>長い題名を出す望み</b>（可読字数は 13字+… のまま増えない）。情報列 96→75dp、上下対称は 22.5/22.5 へ。'},
+ {id:'T2', name:'T2 — 2行を本当に出す（題名箱 44→46dp）', fs:16, lh:22.75, box:46, maxLines:2, band:122,
+  give:'守る＝<b>正本が書いた「題名は2行」</b>をそのまま成立させる（可読字数がほぼ倍）。捨てる＝<b>越え 44→42dp</b>と、情報列 96→98・帯 120→122 という<b>正本の数値の再計算</b>（上下対称 12/12 は不変）。<b>あらすじは 0dp も減らない。</b>'},
+ {id:'T3', name:'T3 — 箱 44dp のまま題名を 16sp→14sp へ落として2行に収める', fs:14, lh:19.9, box:44, maxLines:2, band:120,
+  give:'守る＝<b>正本の数値すべて</b>（情報列 96・帯 120・越え 44・上下対称 12/12 が1つも動かない）。捨てる＝<b>題名の格</b>——作者 12.5sp との差が 1.5sp しかなくなり、明朝の主役感が落ちる。'}
+];
+const TITLES=[[T52,'52字'],[T25,'25字'],[T08,'8字']];
+
+/* 越えが 0 以下＝帯が書影カードを飲み込んだ状態。正本が「面の上に置かれた本」の要と書いた
+   44dp が消えるどころか、帯の下端が書影の下端より下へ来る＝意匠の意図が反転する。 */
+function overLabel(r){ return r.over>0 ? r.over.toFixed(0)+'dp' : '0dp（帯が書影を '+(-r.over).toFixed(0)+'dp 飲み込む）'; }
+function heroTile(o,title,F,bandFollow){
+  /* 帯追従のときは箱も字も F 倍（版面比較モックの案A と同じ式）。 */
+  const k = bandFollow ? F : 1;
+  const box=o.box*k, lh=o.lh*F, fs=o.fs*F;
+  const au=16*k, chip=14*k, auLh=18.5*F, chipLh=17*F;
+  const infoH = box+6+au+6+(chip+10);
+  const band = bandFollow ? (24+infoH) : o.band;
+  const block = Math.max(band,164)+2;
+  const top=(band-infoH)/2;
+  const lines = Math.max(1, Math.min(o.maxLines, Math.floor(box/lh)));
+  const clip=(b,l)=>'margin-top:'+(-(l-b)/2).toFixed(2)+'px;line-height:'+l+'px';
+  return {html:'<div class="frame" style="height:'+block+'px"><div class="kaeshi" style="height:'+block+'px">'
+   +'<div class="band" data-band data-title="'+title+'" style="height:'+band+'px"></div>'
+   +'<div class="shiori" data-shiori data-title="'+title+'"></div>'
+   +'<div class="kmeta" style="top:'+top+'px;height:'+infoH+'px">'
+     +'<div class="t" data-t style="height:'+box+'px;font-size:'+fs+'px;line-height:'+lh+'px;-webkit-line-clamp:'+lines+'">'+title+'</div>'
+     +'<div class="au" style="height:'+au+'px;font-size:'+(12.5*F)+'px"><span style="'+clip(au,auLh)+'">'+AUTHOR+'</span></div>'
+     +'<span class="genre-label" style="height:'+(chip+10)+'px;font-size:'+(11.5*F)+'px"><span style="'+clip(chip,chipLh)+'">'+GENRE+'</span></span>'
+   +'</div></div></div>', band:band, block:block, over:(164-band), box:box, lines:lines};
+}
+
+const g1=document.getElementById('g1');
+OPTS.forEach(o=>{
+  TITLES.forEach(([t,len],i)=>{
+    const r=heroTile(o,t,1,false);
+    const d=document.createElement('div'); d.className='tile guide';
+    d.innerHTML='<span class="lbl">'+(i===0?o.name:'　〃　')+' ／ 題名 '+len+'</span>'+r.html
+      +'<span class="num">題名箱 <b>'+r.box+'dp</b>（'+r.lines+'行が描かれる） ／ 情報列 <b>'+(r.band-24)+'dp</b> ／ 帯 <b>'+r.band+'dp</b> ／ ブロック <b>'+r.block+'dp</b> ／ 書影の越え <b>'+overLabel(r)+'</b> ／ <b>あらすじへの影響 0dp</b></span>'
+      +(i===0?'<span class="give">'+o.give+'</span>':'');
+    g1.appendChild(d);
+  });
+});
+
+const g2=document.getElementById('g2');
+[[OPTS[0],false,'帯 dp 固定（現行）× 現状 44dp'],
+ [OPTS[2],false,'帯 dp 固定（現行）× T2 46dp'],
+ [OPTS[0],true ,'帯 fontScale 追従（案A）× 現状 44dp'],
+ [OPTS[2],true ,'帯 fontScale 追従（案A）× T2 46dp']].forEach(([o,bf,label])=>{
+  const r=heroTile(o,T52,2,bf);
+  const d=document.createElement('div'); d.className='tile guide';
+  d.innerHTML='<span class="lbl">fontScale 2.0 ／ '+label+'</span>'+r.html
+    +'<span class="num">題名箱 <b>'+r.box.toFixed(0)+'dp</b>（<b>'+r.lines+'行</b>が描かれる） ／ 帯 <b>'+r.band.toFixed(0)+'dp</b> ／ ブロック <b>'+r.block.toFixed(0)+'dp</b> ／ 書影の越え <b>'+overLabel(r)+'</b></span>';
+  g2.appendChild(d);
+});
+
+document.querySelectorAll('[data-band]').forEach(el=>{el.style.background=bandTint(el.dataset.title);});
+document.querySelectorAll('[data-shiori]').forEach(el=>{
+  const cv=document.createElement('canvas');el.appendChild(cv);
+  const w=el.clientWidth,h=el.clientHeight,dpr=2;
+  cv.width=w*dpr;cv.height=h*dpr;const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);
+  drawShiori(c,w,h,el.dataset.title);
+});
+/* ⚠️ ここに「実描画行数」の計器を置きかけて外した。-webkit-line-clamp が効いた要素では
+   Range.getClientRects() が clamp で消えた行の矩形まで返し、現物と食い違う数字を出す（実証済み）。
+   行数は箱 ÷ 自然行高 という一意の式で決まる（上の heroTile 内 lines）ので、計器を足す価値がない。 */
+</script>
+</body>
+</html>

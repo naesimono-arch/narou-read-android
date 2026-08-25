@@ -1,0 +1,326 @@
+<!-- @dsCard group="UI-n / 一時ドラフト（裁定用）" name="K 未取込の青磁破線 — 全画面文脈での比較（2026-08-25）" -->
+<!--
+  ⚠️ 一時ドラフト＝正本ではない。bookshelf-K-narou-frame-candidates.html（軸の早見）と対になる紙で、
+     こちらは **実寸の本棚1画面** に案を適用して「棚全体の圧」を見るためのもの。裁定後は両方とも削除する。
+
+  【なぜ2枚目が要るか】
+  評「目立ちすぎ。書庫に入っているのは同じなのに存在しないように見える」は、書影を2冊だけ並べた断片では
+  再現しきれない。**8冊の棚のうち2冊が未取込**という実際の密度で初めて「棚に穴が空いて見える」かどうかが判る。
+  そのため未取込（#4 と #7）は、横にも縦にも在る本と隣接する位置に置いてある。
+
+  【下敷きの正しさ】画面の骨格・寸法・題名・色相は正本 bookshelf-K.html / bookshelf-list-K.html の写し。
+  破線だけは CSS `border:dashed`（刻みがブラウザ任せ）でなく SVG で実装値どおりに描いている
+  （実装 narouDashedOutline は dash 4dp / gap 3dp を明示指定＝CSS dashed では再現できない）。
+  フィルタ行のスクロール端フェードは fontScale 1.0 では点灯しない＝正本どおり描いていない。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>K 未取込の青磁破線 — 全画面文脈での比較</title>
+<style>
+  :root{
+    --base:#FBFAF8; --ink:#1C1F26; --ink-soft:#7C808B; --info:#5C606D; --line:#ECEAE4;
+    --ai:#1C3D5A; --ai-tint:rgba(28,61,90,.10); --seiji:#9CB3A8; --seiji-ink:#50685C;
+    --field:#F0EFEE; --paper:#FBFAF8;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;font-family:var(--gothic);-webkit-font-smoothing:antialiased;color:#2A2C28;padding:26px}
+
+  .pg{max-width:1180px;margin:0 auto 20px}
+  .pg h1{font-size:21px;letter-spacing:.03em}
+  .pg p{font-size:12.5px;line-height:1.8;margin-top:10px;max-width:82ch;color:#4A4C48}
+  .pg b{color:#2A2C28} .pg .warn{color:#A2372F}
+  .ctl{max-width:1180px;margin:0 auto 22px;display:flex;flex-wrap:wrap;gap:18px;align-items:center;
+    background:#F7F6F2;border-radius:12px;padding:12px 16px;box-shadow:0 4px 12px rgba(0,0,0,.10)}
+  .ctl .grp{display:flex;align-items:center;gap:8px;font-size:12.5px}
+  .ctl b{font-size:12px;letter-spacing:.03em}
+  .ctl button{font-family:var(--gothic);font-size:12.5px;padding:6px 14px;border-radius:999px;border:1px solid #C9C8C1;
+    background:#fff;cursor:pointer;color:#4A4C48}
+  .ctl button.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:700}
+  .ctl label{font-size:12.5px;display:flex;align-items:center;gap:6px;cursor:pointer}
+
+  .wall{display:flex;flex-wrap:wrap;gap:26px;justify-content:flex-start;max-width:1180px;margin:0 auto}
+  .slot{width:360px}
+  .slot .hd{display:flex;align-items:baseline;gap:8px;margin-bottom:4px}
+  .slot .hd .id{font-size:15px;font-weight:700;letter-spacing:.04em}
+  .slot .hd .badge{font-size:10px;font-weight:700;letter-spacing:.05em;padding:2px 7px;border-radius:999px;
+    background:#D9D7CE;color:#5A5C57}
+  .slot .hd .badge.s{background:#DCE4EA;color:#2C4C66}
+  .slot .hd .badge.m{background:#DDE6DE;color:#3A5A46}
+  .slot .hd .badge.c{background:#E6DCD9;color:#7A4038}
+  .slot .nm{font-size:11.5px;line-height:1.6;color:#4A4C48;margin-bottom:10px;min-height:36px}
+  .slot .nm b{color:#2A2C28}
+
+  /* ===== スマホ画面枠（実機実効 360dp 幅・ライトテーマ・正本 bookshelf-K の写し） ===== */
+  .phone{width:360px;height:820px;background:var(--base);border-radius:38px;overflow:hidden;
+    position:relative;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.30)}
+  body.tall .phone{height:auto}
+  .sb{height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:11px;color:var(--ink-soft);letter-spacing:.02em}
+  .sb .r{display:flex;gap:6px;align-items:center}
+  .head{flex-shrink:0;display:flex;align-items:baseline;justify-content:space-between;padding:6px 20px 12px}
+  .head .ttl{display:flex;align-items:baseline;gap:8px}
+  .head h1{font-family:var(--gothic);font-size:22px;font-weight:700;color:var(--ink);letter-spacing:.04em}
+  .head .count{font-size:16px;font-weight:600;color:var(--info);letter-spacing:.02em}
+  .head .view{width:38px;height:38px;border:none;background:transparent;border-radius:10px;
+    display:grid;place-items:center;color:var(--ink);align-self:center}
+  .head .view svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6}
+  .chips{flex-shrink:0;display:flex;gap:8px;padding:0 20px 12px;overflow:hidden}
+  .chip{flex-shrink:0;font-size:12.5px;padding:6px 15px;border-radius:999px;
+    border:1px solid var(--line);color:var(--ink-soft);background:transparent;letter-spacing:.02em}
+  .chip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
+
+  .scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 24px 120px;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{display:none}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px 24px}
+  .cv{position:relative;aspect-ratio:3/4;border-radius:3px;overflow:hidden;background:var(--paper);
+    box-shadow:0 3px 10px rgba(0,0,0,.14)}
+  .cv .bar{position:absolute;top:0;left:var(--barx,26%);width:2.5px;height:var(--barlen,46%);
+    background:var(--band,var(--ink-soft))}
+  .cv .bar::after{content:"";position:absolute;left:50%;top:100%;transform:translate(-50%,-1px);
+    width:7px;height:7px;border-radius:50%;background:var(--band,var(--ink-soft))}
+  .cv .vt{position:absolute;top:14px;right:12px;bottom:14px;max-width:66%;overflow:hidden;
+    writing-mode:vertical-rl;font-family:var(--mincho);font-size:12px;font-weight:600;
+    color:var(--ink);line-height:1.6;letter-spacing:.05em}
+  .cv.narou{box-shadow:none}
+  .cv .veil{position:absolute;inset:0;pointer-events:none}
+  .cap{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-top:8px}
+  .cap .t{flex:1;min-width:0;font-family:var(--mincho);font-size:12px;color:var(--ink);line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .cap .dots{width:32px;height:32px;flex-shrink:0;border:none;background:transparent;color:var(--ink-soft);
+    display:grid;place-items:center;margin-top:-2px}
+  .cap .dots svg{width:18px;height:18px;fill:currentColor}
+  .st{margin-top:4px;font-size:10.5px;color:var(--info);letter-spacing:.03em;
+    display:flex;align-items:center;gap:5px;min-height:14px}
+  .st .dot{width:6px;height:6px;border-radius:50%;background:var(--ai);flex-shrink:0}
+  .st.narou{color:var(--seiji-ink)}
+
+  .list{flex:1;overflow-y:auto;overflow-x:hidden;padding:0 20px 120px;scrollbar-width:none}
+  .list::-webkit-scrollbar{display:none}
+  .lc{position:relative;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);
+    padding:12px 4px 12px 16px}
+  .lc::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:4px;border-radius:2px;
+    background:var(--band,var(--ink-soft))}
+  .lc .bd{flex:1;min-width:0}
+  .lc .t{font-family:var(--mincho);font-size:16px;color:var(--ink);line-height:1.5;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lc .m{font-family:var(--gothic);font-size:13px;color:var(--info);margin-top:4px;line-height:1.4}
+  .lc .dots{width:32px;height:32px;flex-shrink:0;border:none;background:transparent;color:var(--ink-soft);
+    display:grid;place-items:center}
+  .lc .dots svg{width:18px;height:18px;fill:currentColor}
+  .lc.web{border-radius:6px;border-bottom-color:transparent}
+  .lc.web.hair{border-bottom-color:var(--line)}
+  .lc.web::before{left:6px}
+
+  .fab{position:absolute;right:16px;bottom:80px;z-index:6;display:inline-flex;align-items:center;gap:8px;
+    height:52px;padding:0 20px 0 16px;border:none;border-radius:26px;
+    background:var(--ai);color:#fff;font-family:var(--gothic);font-size:14px;font-weight:600;
+    letter-spacing:.03em;box-shadow:0 8px 20px rgba(28,61,90,.36)}
+  .fab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+  .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--ink-soft)}
+  .tab.on{color:var(--ai)}
+  .tab .ic{position:relative;width:56px;height:32px;display:grid;place-items:center}
+  .tab .ic .pill{position:absolute;inset:0;border-radius:16px;background:transparent}
+  .tab.on .ic .pill{background:var(--ai-tint)}
+  .tab .ic svg{position:relative;width:24px;height:24px;fill:none;stroke:currentColor;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
+  .tab.on .lb{font-weight:700}
+
+  .fr{position:absolute;inset:0;pointer-events:none}
+  .fr svg{display:block}
+</style>
+</head>
+<body>
+<header class="pg">
+  <h1>K 本棚「なろう・未取込」の青磁破線 — 全画面文脈での比較</h1>
+  <p><b>12冊の棚のうち2冊が未取込</b>という実際の密度で並べてある（グリッドは #4 と #7＝横にも縦にも在る本と隣接）。
+    評「<b>書庫に入っているのは同じなのに存在しないように見える</b>」は<b>棚全体の圧</b>の話なので、
+    断片ではなくこの画面で見るのが本番。軸ごとの値と「何を守り何を捨てるか」は
+    <b>bookshelf-K-narou-frame-candidates.html</b>（先に見る紙）が持つ。</p>
+  <p class="warn">⚠️ 案を並べているだけで、推奨は書いていない。⚠️ 破線は実装値どおり SVG で描画（CSS dashed ではない）。</p>
+</header>
+
+<div class="ctl">
+  <div class="grp"><b>表示</b>
+    <button id="b-grid" class="on">グリッド</button>
+    <button id="b-list">一覧</button>
+  </div>
+  <label><input type="checkbox" id="b-tall"> 画面を縦に伸ばして全冊見せる（スクロール不要にする）</label>
+  <div class="grp" style="color:#6A6C66">凡例: <span class="badge">下敷き</span>
+    <b style="color:#2C4C66">強さ側</b>＝破線の枠は保つ／<b style="color:#3A5A46">記号側</b>＝囲うのをやめる／<b style="color:#7A4038">対照</b>＝採用対象外</div>
+</div>
+
+<div class="wall" id="wall"></div>
+
+<script>
+"use strict";
+var NS="http://www.w3.org/2000/svg";
+function num(v,d){var n=parseFloat(v);return isNaN(n)?d:n;}
+function drawFrame(el){
+  var host=el.parentElement, R=host.getBoundingClientRect();
+  var W=Math.round(R.width), H=Math.round(R.height);
+  if(!W||!H){return;}
+  var w=num(el.dataset.w,1.5), r=num(el.dataset.r,3), L=num(el.dataset.len,12);
+  var color=el.dataset.color||"#50685C", dash=el.dataset.dash||"", mode=el.dataset.mode||"all";
+  el.textContent="";
+  var svg=document.createElementNS(NS,"svg");
+  svg.setAttribute("width",W); svg.setAttribute("height",H);
+  svg.setAttribute("viewBox","0 0 "+W+" "+H);
+  function pen(tag,cap){
+    var n=document.createElementNS(NS,tag);
+    n.setAttribute("fill","none"); n.setAttribute("stroke",color); n.setAttribute("stroke-width",w);
+    if(dash){n.setAttribute("stroke-dasharray",dash);}
+    n.setAttribute("stroke-linecap",cap||"butt");
+    return n;
+  }
+  var i=w/2;
+  if(mode==="all"){
+    var rc=pen("rect");
+    rc.setAttribute("x",i); rc.setAttribute("y",i);
+    rc.setAttribute("width",W-w); rc.setAttribute("height",H-w); rc.setAttribute("rx",r);
+    svg.appendChild(rc);
+  }else if(mode==="bottom"){
+    var p=pen("path"); p.setAttribute("d","M "+r+" "+(H-i)+" L "+(W-r)+" "+(H-i)); svg.appendChild(p);
+  }else if(mode==="corners"){
+    [ "M "+i+" "+(i+L)+" L "+i+" "+(i+r)+" A "+r+" "+r+" 0 0 1 "+(i+r)+" "+i+" L "+(i+L)+" "+i,
+      "M "+(W-i-L)+" "+i+" L "+(W-i-r)+" "+i+" A "+r+" "+r+" 0 0 1 "+(W-i)+" "+(i+r)+" L "+(W-i)+" "+(i+L),
+      "M "+(W-i)+" "+(H-i-L)+" L "+(W-i)+" "+(H-i-r)+" A "+r+" "+r+" 0 0 1 "+(W-i-r)+" "+(H-i)+" L "+(W-i-L)+" "+(H-i),
+      "M "+(i+L)+" "+(H-i)+" L "+(i+r)+" "+(H-i)+" A "+r+" "+r+" 0 0 1 "+i+" "+(H-i-r)+" L "+i+" "+(H-i-L)
+    ].forEach(function(d){var p=pen("path","round"); p.setAttribute("d",d); svg.appendChild(p);});
+  }
+  el.appendChild(svg);
+}
+function redraw(){document.querySelectorAll(".fr").forEach(drawFrame);}
+
+/* 題名・著者・色相は正本 bookshelf-K.html / bookshelf-list-K.html の写し（実データの色域を模す） */
+var BOOKS=[
+ {h:210,barx:"26%",barlen:"46%",t:"追放された万能薬師、辺境でスローライフを始める",w:"霧島あおい",st:"第127/205話"},
+ {h:280,barx:"34%",barlen:"42%",t:"黒の魔王と契約した俺、気づけば最強の従者に",w:"夜灯すばる",st:"第43/150話"},
+ {h:95, barx:"22%",barlen:"50%",t:"転生したら最弱スキルだったので草むしりしていた",w:"常磐ゆずり",st:"未読",dot:true},
+ {h:190,barx:"30%",barlen:"44%",t:"最果てのダンジョンで細々と暮らすことにした",w:"浅葱まこと",st:"なろう・未取込",narou:true},
+ {h:340,barx:"24%",barlen:"48%",t:"公爵令嬢の嗜み 〜隣国で薬草園を開きます〜",w:"青葉みのり",st:"第8/72話"},
+ {h:150,barx:"28%",barlen:"40%",t:"聖女は隣国で薬草を育てて暮らしたい",w:"花野こむぎ",st:"読了"},
+ {h:50, barx:"24%",barlen:"46%",t:"辺境ぐらしの隠居魔導士、今日ものんびり",w:"霜月かなで",st:"なろう・未取込",narou:true},
+ {h:230,barx:"34%",barlen:"48%",t:"星降る夜の図書館で君を待っている",w:"水無月れん",st:"読了"}
+];
+var DOTS='<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>';
+
+function frAttrs(f){
+  if(!f){return "";}
+  return '<span class="fr" data-w="'+f.w+'" data-r="'+f.r+'" data-color="'+f.color+'"'+
+         (f.dash?' data-dash="'+f.dash+'"':'')+' data-mode="'+(f.mode||"all")+'"'+
+         (f.len?' data-len="'+f.len+'"':'')+'></span>';
+}
+function cover(b,c){
+  var veil="",fr="",bg="";
+  if(b.narou){
+    if(c.ground.mode==="replace"){bg=";background:"+c.ground.color;}
+    else{veil='<span class="veil" style="background:rgba(28,31,38,'+c.ground.a+')"></span>';}
+    fr=frAttrs(c.gridFrame);
+  }
+  var st=b.narou?'<div class="st narou">'+b.st+'</div>'
+        :'<div class="st">'+(b.dot?'<span class="dot"></span>':'')+b.st+'</div>';
+  return '<div class="bk">'+
+    '<div class="cv'+(b.narou?" narou":"")+'" style="--band:hsl('+b.h+' 48% 52%);--barx:'+b.barx+';--barlen:'+b.barlen+bg+'">'+
+      '<span class="bar"></span><span class="vt">'+b.t+'</span>'+veil+fr+'</div>'+
+    '<div class="cap"><span class="t">'+b.t+'</span><button class="dots" aria-label="メニュー">'+DOTS+'</button></div>'+
+    st+'</div>';
+}
+function row(b,c){
+  var cls="lc",style='--band:hsl('+b.h+' 48% 52%)',fr="",m='color:var(--info)';
+  if(b.narou){
+    cls+=" web"+(c.listHair?" hair":"");
+    style+=";background:"+c.ground.list;
+    m="color:"+(c.metaColor||"var(--seiji-ink)");
+    fr=frAttrs(c.listFrame);
+  }
+  return '<div class="'+cls+'" style="'+style+'">'+
+    '<div class="bd"><div class="t">'+b.t+'</div>'+
+    '<div class="m" style="'+m+'"><span>'+b.w+'</span>・<span>'+b.st+'</span></div></div>'+
+    '<button class="dots" aria-label="メニュー">'+DOTS+'</button>'+fr+'</div>';
+}
+var CHROME_HEAD=
+ '<div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>'+
+ '<div class="head"><div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div>'+
+   '<button class="view" aria-label="表示切替"><svg viewBox="0 0 24 24">'+
+   '<rect x="4" y="4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="4" width="6.6" height="6.6" rx="1.4"/>'+
+   '<rect x="4" y="13.4" width="6.6" height="6.6" rx="1.4"/><rect x="13.4" y="13.4" width="6.6" height="6.6" rx="1.4"/>'+
+   '</svg></button></div>'+
+ '<div class="chips"><span class="chip on">すべて</span><span class="chip">よみかけ</span>'+
+   '<span class="chip">未読</span><span class="chip">読了</span></div>';
+var CHROME_FOOT=
+ '<button class="fab"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>PDFを追加</button>'+
+ '<nav class="tabbar">'+
+ '<a class="tab on"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24">'+
+   '<path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>'+
+   '<path d="M4 18a2 2 0 0 1 2-2h12"/></svg></span><span class="lb">本棚</span></a>'+
+ '<a class="tab"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24">'+
+   '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.4 4.4"/></svg></span><span class="lb">さがす</span></a>'+
+ '<a class="tab"><span class="ic"><span class="pill"></span><svg viewBox="0 0 24 24">'+
+   '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'+
+   '</svg></span><span class="lb">設定</span></a></nav>';
+
+var G5={mode:"veil",a:.05,list:"#F0EFEE"};
+var G10={mode:"veil",a:.10,list:"#E5E4E3"};
+var SEIJI="#9CB3A8", INK="#50685C", PALE="#CAD4CF";
+
+var CASES=[
+{id:"①",badge:"下敷き",bc:"",nm:"<b>現状（実装の実描画）</b>＝実機で FAIL したのはこの見え。1.5dp・dash 4-3・淡青磁 #9CB3A8・沈め 5%。",
+ ground:G5,gridFrame:{w:1.5,r:3,color:SEIJI,dash:"4 3"},listFrame:{w:1.5,r:6,color:SEIJI,dash:"4 3"}},
+{id:"A",badge:"強さ側",bc:"s",nm:"<b>線を淡くする</b>（色だけ）。1.5dp・dash 4-3・"+PALE+"。囲いは残る。",
+ ground:G5,gridFrame:{w:1.5,r:3,color:PALE,dash:"4 3"},listFrame:{w:1.5,r:6,color:PALE,dash:"4 3"}},
+{id:"B",badge:"強さ側",bc:"s",nm:"<b>線を細くする</b>（幅だけ）。0.75dp・dash 4-3・淡青磁。色と刻みは現状のまま。",
+ ground:G5,gridFrame:{w:.75,r:3,color:SEIJI,dash:"4 3"},listFrame:{w:.75,r:6,color:SEIJI,dash:"4 3"}},
+{id:"C",badge:"強さ側",bc:"s",nm:"<b>刻みを粗く点線へ</b>（間隔だけ）。1.5dp・dash 1.5-5・淡青磁。切れ目の方が長い。",
+ ground:G5,gridFrame:{w:1.5,r:3,color:SEIJI,dash:"1.5 5"},listFrame:{w:1.5,r:6,color:SEIJI,dash:"1.5 5"}},
+{id:"H",badge:"強さ側",bc:"s",nm:"<b>濃いまま極細</b>（濃さと幅を分ける）。0.75dp・dash 3-4・濃青磁 #50685C。",
+ ground:G5,gridFrame:{w:.75,r:3,color:INK,dash:"3 4"},listFrame:{w:.75,r:6,color:INK,dash:"3 4"}},
+{id:"D",badge:"記号側",bc:"m",nm:"<b>四隅の角だけ</b>（囲わない）。1.5dp 実線・長さ12/14dp・濃青磁。",
+ ground:G5,gridFrame:{w:1.5,r:3,color:INK,mode:"corners",len:12},listFrame:{w:1.5,r:6,color:INK,mode:"corners",len:14}},
+{id:"E",badge:"記号側",bc:"m",nm:"<b>面で示す</b>（線を持たない）。沈め 5%→10%。一覧は hairline を戻してある。",
+ ground:G10,gridFrame:null,listFrame:null,listHair:true},
+{id:"F",badge:"記号側",bc:"m",nm:"<b>下辺だけ破線</b>（枠でなく未完の下線）。1.5dp・dash 4-3・濃青磁。",
+ ground:G5,gridFrame:{w:1.5,r:3,color:INK,dash:"4 3",mode:"bottom"},listFrame:{w:1.5,r:6,color:INK,dash:"4 3",mode:"bottom"}},
+{id:"G",badge:"対照",bc:"c",nm:"<b class=\"warn\">採用対象外の目盛り</b>＝線ゼロ・沈めも現状 5% のまま。線を全部外すと何が失われるか。",
+ ground:G5,gridFrame:null,listFrame:null,listHair:true},
+{id:"色②",badge:"参考",bc:"",nm:"<b>色だけ正本へ寄せた場合</b>（強さは①と同値・濃青磁 #50685C）。①と見比べる用＝<b class=\"warn\">弱めとは逆向き</b>。",
+ ground:G5,gridFrame:{w:1.5,r:3,color:INK,dash:"4 3"},listFrame:{w:1.5,r:6,color:INK,dash:"4 3"},metaColor:INK}
+];
+
+var wall=document.getElementById("wall");
+CASES.forEach(function(c){
+  var slot=document.createElement("div");
+  slot.className="slot";
+  slot.innerHTML='<div class="hd"><span class="id">'+c.id+'</span><span class="badge '+c.bc+'">'+c.badge+'</span></div>'+
+    '<div class="nm">'+c.nm+'</div>'+
+    '<div class="phone">'+CHROME_HEAD+
+      '<div class="scroll"><div class="grid">'+BOOKS.map(function(b){return cover(b,c);}).join("")+'</div></div>'+
+      '<div class="list" hidden>'+BOOKS.map(function(b){return row(b,c);}).join("")+'</div>'+
+      CHROME_FOOT+'</div>';
+  wall.appendChild(slot);
+});
+
+function setMode(m){
+  document.querySelectorAll(".phone .scroll").forEach(function(n){n.hidden=(m!=="grid");});
+  document.querySelectorAll(".phone .list").forEach(function(n){n.hidden=(m!=="list");});
+  document.getElementById("b-grid").classList.toggle("on",m==="grid");
+  document.getElementById("b-list").classList.toggle("on",m==="list");
+  redraw();
+}
+document.getElementById("b-grid").addEventListener("click",function(){setMode("grid");});
+document.getElementById("b-list").addEventListener("click",function(){setMode("list");});
+document.getElementById("b-tall").addEventListener("change",function(){
+  document.body.classList.toggle("tall",this.checked); setTimeout(redraw,0);
+});
+setMode("grid");
+if(document.fonts&&document.fonts.ready){document.fonts.ready.then(redraw);}
+window.addEventListener("resize",function(){clearTimeout(window.__t);window.__t=setTimeout(redraw,120);});
+</script>
+</body>
+</html>
