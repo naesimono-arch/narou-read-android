@@ -82,6 +82,11 @@
   エミュはツリーを小さくできる＝**初めて踏める**。
 - **[④ 横向き T1 の期間タブ／SnackbarHost の寄り]**: 数値は 2026-08-25 に採取済み（タブは検索バー右端から 18.3dp で同一行／
   スナックバーは Rail 込みの画面中央＝本文中央より 39.6dp 左）＝**残るは見え方だけ**。
+- **[⑤ `NcodeLinkSheet` が部分展開のまま]**（2026-08-26 に知見化の便が発見・未裁定）: `ModalBottomSheet` の呼び出し3か所のうち
+  **`NcodeLinkSheet.kt` だけ `sheetState` を渡しておらず既定（`skipPartiallyExpanded=false`）のまま**＝
+  新知見 `docs/knowledge/sheet-partial-expansion-hides-the-main-control.md` の型に**露出している**。
+  ⚠️ 「主役が初手で見えるか」は画素を見ないと決まらない＝**エミュで開いて撮る**（他の2か所と並べると判断が速い）。
+
 - ⚠️ **未検証の期待＝最初に確かめる価値がある**: AOSP エミュは `screenrecord` が使える見込み。ColorOS では使えず
   「16ms 窓の標本化手段が無い＝骨・残像・Predictive Back は肉眼判定しかない」と結論していたが、**エミュなら機械で捉えられるかもしれない**。
 
@@ -165,9 +170,3 @@
   **より本質的な代替＝時間でなく「仕事量」で測る**（composition 回数・再組版回数・割り当てバイト数）＝端末非依存で回帰を止められる。
   着手するなら `docs/knowledge/ranking-pager-jank-slow-ui-thread.md` の計測作法と併せて読む。
 
-- **[skill] `/new-screen` に「ルート常駐オーバーレイ」種別を足すか**（2026-08-25 の陳腐化点検で判明）:
-  教示オーバーレイ（`ui/intro/IntroOverlayHost`）は NavHost/TabPagerHost の**外側**・root Box 最上層に常駐する層で、
-  既存4類型（深い画面／シート・ダイアログ／タブ層の面／スキン面）のどれにも当たらない。`SkyBackdropM` も同型で未記載＝**2例目**。
-- **[knowledge] 「部分展開起動で主役が画面外」を知見化するか**（表示設定シート便の申し送り・2026-08-21）:
-  近縁の既存知見＝`docs/knowledge/sheet-without-verticalscroll-hides-actions.md`（非スクロール面の溢れ）だが**別類型**。
-  追記で足りるか新規に立てるかは着手時に判断。
