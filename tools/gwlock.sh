@@ -25,7 +25,11 @@
 set -uo pipefail
 
 # 自分の設置場所からツリー root を決める（cwd に依存させない＝各ツリーが自分のコピーで自分を守る）
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# pwd -P（物理パス）で symlink を解決してから鍵にする。理由: /mnt/c/Users/qingj は naesimono への
+# symlink（2026-08-23 のユーザー名移行）で、素の pwd は論理パスを保つため同じツリーが2つの鍵に割れる。
+# 一方 init スクリプト側の退避先は rootDir.canonicalPath（解決後）で決まる＝「出力先は共有・ロックは別」
+# となり、このスクリプトが防ぐはずの「偽の赤」がすり抜ける（実測: .locks に qingj/naesimono 両方が存在した）。
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 ROOT="$(dirname "$SCRIPT_DIR")"
 
 # ロックファイルは必ず ext4 に置く。/mnt/c(drvfs) の flock は当てにできないため
