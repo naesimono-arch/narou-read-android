@@ -88,14 +88,20 @@
   `docs/knowledge/toc-push-tail-not-reproduced-in-macrobench.md` が正本。
   計測の作法（アニメが走っていない状態を率で比較しない）＝`docs/knowledge/ranking-pager-jank-slow-ui-thread.md`。
 
-- **[perf] 縦書き本文の組版を composition から外す（A+C）— 計測の足場は入った**（採否の裁定済み・着手待ち）:
+- **[perf] 縦書き本文の組版を composition から外す（A+C）— 順序0（計測）は 2026-08-25 に完了＝次は A+C 本体**:
   縦書きは組版が **UI スレッドの composition 段**で走り、キャッシュが LazyRow の item 寿命と同じ＝列が入るたび、
   フォント/行間スライダーはドラッグの毎値で可視段落が再組版される構造。
-  `ChapterFlipBenchmark` の **`verticalMode` 軸は実装済み**（`flipChaptersVertical`）＝**残るのは走らせて数字を取ること**から。
-  順序は **0（計測）→ A+C → E → D → 8/9**。全16項目の実装状況・採否・不採用の根拠（alpha=0 並走／advance 定数化）＝
-  `.claude/plans/reading-render-perf-triage-2026-08-18.md`。
-  ⚠️ A は組版の寿命とスクロール位置の関係を変える＝**未再現の縦書き章遷移ジャンプの「A 前の挙動」を記録してから**入る。
-  ⚠️ 縦書き面は text ノードを持たず UI 自動化の作法が違う＝`docs/knowledge/vertical-reading-has-no-text-nodes-for-ui-automation.md`。
+  **ベースライン（仕事量＝端末非依存の回数。`bash tools/measure_typeset_work.sh <serial>` で再取得できる）**:
+  フォント全振り1ドラッグ（離散10値）で **`typeset()` 55回・グリフ 1,845・Paint 実測 1,845回**／章送り5回で typeset 28回。
+  ⚠️ **効果見積もりの土台＝この 55 と 1,845 を「章あたり1回」へ落とせるか**。
+  ⚠️ **縦横の差は「回数」ではなく「1回の中身」だった**（横書きの layout も 53回でほぼ同数）＝
+  縦書きだけが 1,845 回の Kotlin Paint 実測と同数の `PositionedGlyph` 割り当てを**追加で**払い、しかも layout 段でなく composition 段で払う。
+  順序は **A+C → E → D → 8/9**。全16項目の実装状況・採否・不採用の根拠＝`.claude/plans/reading-render-perf-triage-2026-08-18.md`。
+  ⚠️ **A 前の挙動は記録済み**（`scroll` モードで章頭・既読復元・位置なし章の3系統が2台一致。章遷移ジャンプは**踏めず＝未再現のまま**）
+  ＝`bash tools/measure_typeset_work.sh <serial> <bookId> scroll` で同じ照合を回せる。
+- **[perf] `ChapterFlipBenchmark` の縦書き軸が実は動いていない疑い**（2026-08-25 の計測便が発見・未確認）:
+  `input swipe … 100`（既存ベンチと同じ形）は**縦書きの章内スクロールでは fling として食われ1列も動かない**——500ms のドラッグが要る。
+  ⚠️ 同じ形を使っている `flipChaptersVertical` が**何も動かさずに数字を出していた可能性**＝過去の縦書き計測値を信じる前に確かめる。
 
 ## 思いつき・取りこぼし（随時追記）
 
