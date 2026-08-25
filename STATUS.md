@@ -7,13 +7,15 @@
 
 ## 0. 現在の状態
 
-- **公開準備（Google Play）**: **ブランド名＝`Yosari` 確定**。残＝applicationId 変更（`app.yosari.reader`・**§1 実機ツアーの後**）
-  ／プライバシーポリシー公開＋鍵バックアップ（ユーザー作業）／**ストア用スクショ6枚（実機作業）**。
+- **公開準備（Google Play）**: **ブランド名＝`Yosari` 確定**。**ストア用スクショ6枚は撮影・検算済み**（`docs/store/assets/screenshots/`）。
+  残＝applicationId 変更（`app.yosari.reader`・**§1 実機ツアーの後**）／プライバシーポリシー公開（ユーザー作業）。
+  ⚠️ **release 用の正式な鍵がまだ無い**（`local.properties` に `release.*` が無く Gradle は未署名 APK しか出さない）
+  ＝撮影は debug 鍵で署名した release ビルドで代用した。**提出には鍵が要る**（ユーザー作業）。
 
 - **UI の既定は「明快K」**＝`Skin.MEIKAI_K`（既存の明示保存 D/M/P/J/C は不変。⚠️ 装いの間は
   `SKIN_SWITCHING_ENABLED` で**公開ビルドでは閉じる**＝ADR 0027）。
-  **実機目視待ちが2件**＝①K の6面ツアー（本棚／さがす／設定／目次／読書／装いの間）＝`awaiting-human.md` §1
-  ／②横向き T1 の検分＝同 §1-3。
+  **実機目視待ち＝K の6面ツアー**（`awaiting-human.md` §1）。横向き T1 と未投入の意匠は 2026-08-26 に**エミュで撮影済み**
+  （実機でしか出ないのは ColorOS 固有の挙動と実 GPU の描画性能だけ＝`/emulator-verify` §5）。
 
 - **Room v22**（2026-08-25 に v21→v22＝`pending_jobs.attempts`。取込の再起動ループを止める止め金）。
   ⚠️ **旧APKへの逆走は禁止**（migration N→N-1 が無くクラッシュ＝古い→新しいの一方向のみ）。変更手順＝`/db-migration`。
@@ -34,7 +36,8 @@
   ⚠️ **Gradle は `tools/gwlock.sh <task>` 経由で回す**（同一ツリーの並列実行が出す偽の赤をツリー単位ロックで潰す。作法は `/build`）。
 
 - **[分析中] 他社 APK の逆解析**（2026-08-25 開始・**ユーザーが実行中**）: 骨（遷移スケルトン）と重い処理の扱いの
-  **規範を借りる**のが目的。取得の優先順＝①`assets/dexopt/baseline.prof`（＝開発側が「重い」と判断したメソッド一覧がそのまま出る）
+  **規範を借りる**のが目的。⚠️ **骨の濃さは「借りられない」と判明**＝他社 CR 帯が測る量の違う値の混成で比較不能
+  （ADR 0040）。同じ定義で測り直すまで現行値のまま。取得の優先順＝①`assets/dexopt/baseline.prof`（＝開発側が「重い」と判断したメソッド一覧がそのまま出る）
   ②`META-INF/*.version`（依存ライブラリとバージョンが平文・難読化されない）③骨の定数（**骨を出すまでの遅延閾値 ms**・
   shimmer の duration/easing・色差・角丸）④ページングの設定値（`pageSize`/`prefetchDistance`/`initialLoadSize`/`maxSize`・画像キャッシュ上限）。
   ⚠️ **縦書き組版だけは先例がほぼ無く借りられない**＝自前で決める領域（Compose で縦書きを本気でやっている例が見当たらない）。
