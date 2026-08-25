@@ -95,6 +95,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import com.novelreader.PrefKeys
 import com.novelreader.data.BookEntity
 import com.novelreader.data.ProgressEntity
@@ -771,11 +772,22 @@ private fun KStatusChip(
             .then(base)
             .clickable(onClick = onClick)
             .then(emptyStatusSemantics(selected = selected, isEmpty = isEmpty))
+            // ⚠️ **見た目 34dp・当たり判定 48dp は意図的な食い違い**＝この padding を 48dp 目当てに
+            // 膨らませないこと（膨らませると上の lineHeight 修正が無意味になり、ピルが正本より太る）。
+            // 当たり判定は clickable が 48dp を下限として自動確保する＝2026-08-26 に emulator-5558 で実測:
+            // ①この画面の clickable 14件すべてが 48dp 以上 ②ピル上端(242px)の外・当たり判定上端(237px)の
+            // 内側 y=239 を叩くと選択が切り替わる。ピルが 34dp へ縮んでも下限側は 48dp のまま効く。
             .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
     ) {
         Text(
             label,
             fontSize = FontChipLarge,
+            // なぜ lineHeight を明示するか: 既定の LocalTextStyle（＝Typography.bodyLarge）が
+            // lineHeight=28.sp を持つため、fontSize だけ 11.5sp へ落としても**行箱は 28sp のまま残る**。
+            // ピルは行箱の外周をなぞる＝正本 .chip（font 12.5px・line-height:normal で行箱 20px・
+            // 器の総高 34px）に対し、実測で 44.19dp まで肥大していた（+30%／2026-08-26 計測）。
+            // em で持つ理由＝正本の比（20/12.5＝1.6）を、フォント token や fontScale が動いても保つため。
+            lineHeight = 1.6.em,
             color = fg,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
         )
