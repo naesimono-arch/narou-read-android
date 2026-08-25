@@ -41,8 +41,27 @@ internal class PendingJobStore(
     // この insert が全消しの後に着地し、破棄済みジョブが復活する（フィールド pendingJobMutex の why 参照）。
     suspend fun add(uri: String, displayName: String) = withContext(Dispatchers.IO) {
         pendingJobMutex.withLock {
-            pendingJobDao.insert(PendingJobEntity(uri, displayName, System.currentTimeMillis()))
+            // ⚠️ 再開回数（attempts）は必ず引き継ぐ。REPLACE は行ごと差し替えるので、素直に
+            // 新しい Entity を入れると **再起動ループの止め金がゼロに戻る**——リカバリは再投入時に
+            // Service の ACTION_START を通し、そこが同じ URI を再記帳するため、毎回 0 にリセットされて
+            // カウンタが永遠に上限へ届かない（＝防御が無いのと同じ）。読み出しも同じ Mutex 内なので
+            // 「読んでから書くまでに他が割り込む」窓は無い。
+            val carriedAttempts = pendingJobDao.findByUri(uri)?.attempts ?: 0
+            pendingJobDao.insert(
+                PendingJobEntity(uri, displayName, System.currentTimeMillis(), carriedAttempts),
+            )
         }
+    }
+
+    /**
+     * 起動時リカバリが「これから再開する」ことを行へ刻む（再投入の**前**に呼ぶ）。
+     *
+     * なぜ再投入の前か: 目的はプロセスが死んでも残る証跡を残すこと。後に加算する形だと、
+     * 再開した取込が同じ地点でプロセスごと落ちた場合に加算が実行されず、次回起動も同じ値を見て
+     * 同じことを繰り返す＝止め金が一度も進まない。先に加算しておけば「死んだ回数」が必ず残る。
+     */
+    suspend fun markResumeAttempt(uri: String) = withContext(Dispatchers.IO) {
+        pendingJobMutex.withLock { pendingJobDao.incrementAttempts(uri) }
     }
 
     /** 未完了ジョブ一覧（enqueue 順）。起動時リカバリの検出用。 */

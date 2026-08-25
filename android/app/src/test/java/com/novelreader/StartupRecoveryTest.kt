@@ -12,8 +12,8 @@ import org.junit.Test
  */
 class StartupRecoveryTest {
 
-    private fun job(uri: String, name: String = "", at: Long = 0) =
-        PendingJobEntity(uri = uri, displayName = name, enqueuedAt = at)
+    private fun job(uri: String, name: String = "", at: Long = 0, attempts: Int = 0) =
+        PendingJobEntity(uri = uri, displayName = name, enqueuedAt = at, attempts = attempts)
 
     @Test
     fun `pending 空なら全リストが空・keepUris も空（＝全孤児権限を解放する）`() {
@@ -73,5 +73,51 @@ class StartupRecoveryTest {
         )
         assertTrue(plan.resumable.isEmpty())
         assertEquals(listOf(a, b), plan.lost)
+    }
+
+    // ── 再起動ループの止め金（取込がプロセスごと落ちる PDF で「二度と起動しない」を防ぐ） ────────
+
+    @Test
+    fun `再開回数が上限未満なら従来どおり再開する`() {
+        val fresh = job("content://a", "A", attempts = 0)
+        val once = job("content://b", "B", attempts = StartupRecovery.MAX_RESUME_ATTEMPTS - 1)
+        val plan = StartupRecovery.computePlan(
+            pending = listOf(fresh, once),
+            persistedReadUris = setOf("content://a", "content://b"),
+        )
+        assertEquals(listOf(fresh, once), plan.resumable)
+        assertTrue(plan.exhausted.isEmpty())
+    }
+
+    @Test
+    fun `再開回数が上限に達したジョブは自動再開せず exhausted へ落とす`() {
+        // これが無いと「起動→再開→同じ地点でプロセス死」が永久に続き、アプリが二度と起動しなくなる。
+        val doomed = job("content://big", "巨大PDF", attempts = StartupRecovery.MAX_RESUME_ATTEMPTS)
+        val plan = StartupRecovery.computePlan(
+            pending = listOf(doomed),
+            persistedReadUris = setOf("content://big"),
+        )
+        assertTrue("上限到達ジョブを再開してはならない", plan.resumable.isEmpty())
+        assertEquals(listOf(doomed), plan.exhausted)
+        // 権限は keep 側に残す（この後 removePendingJob が settle して返す＝解放の主体を二重化しない）。
+        assertTrue(plan.keepPermissionUris.contains("content://big"))
+    }
+
+    @Test
+    fun `上限を超えた回数でも exhausted に落ちる（等号だけを見ていないこと）`() {
+        val doomed = job("content://big", attempts = StartupRecovery.MAX_RESUME_ATTEMPTS + 5)
+        val plan = StartupRecovery.computePlan(listOf(doomed), setOf("content://big"))
+        assertTrue(plan.resumable.isEmpty())
+        assertEquals(1, plan.exhausted.size)
+    }
+
+    @Test
+    fun `権限喪失が上限判定より優先される（lost と exhausted は排他）`() {
+        // 権限が無いものは再開しようがない＝再試行回数に関わらず lost。両方に現れると二重通知になる。
+        val doomed = job("content://gone", attempts = StartupRecovery.MAX_RESUME_ATTEMPTS)
+        val plan = StartupRecovery.computePlan(listOf(doomed), persistedReadUris = emptySet())
+        assertEquals(listOf(doomed), plan.lost)
+        assertTrue(plan.exhausted.isEmpty())
+        assertTrue(plan.resumable.isEmpty())
     }
 }

@@ -118,12 +118,19 @@ class FakeBookRepository : BookRepository {
     }
 
     override suspend fun addPendingJob(uri: String, displayName: String) {
-        pendingJobs[uri] = PendingJobEntity(uri, displayName, pendingJobs.size.toLong())
+        // 本番 PendingJobStore.add と同じく再開回数を引き継ぐ（引き継がないと再起動ループの
+        // 止め金が毎回 0 に戻る＝fake で本番と違う挙動になり、防御の退行を見逃す）。
+        val carried = pendingJobs[uri]?.attempts ?: 0
+        pendingJobs[uri] = PendingJobEntity(uri, displayName, pendingJobs.size.toLong(), carried)
     }
 
     override suspend fun getPendingJobs(): List<PendingJobEntity> = pendingJobs.values.toList()
 
     override suspend fun removePendingJob(uri: String) { pendingJobs.remove(uri) }
+
+    override suspend fun markResumeAttempt(uri: String) {
+        pendingJobs[uri]?.let { pendingJobs[uri] = it.copy(attempts = it.attempts + 1) }
+    }
 
     override suspend fun clearPendingJobs() { pendingJobs.clear() }
 

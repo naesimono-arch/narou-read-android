@@ -12,9 +12,20 @@ interface PendingJobDao {
     @Query("SELECT * FROM pending_jobs ORDER BY enqueuedAt ASC")
     suspend fun getAll(): List<PendingJobEntity>
 
+    /** 1 件取得（再記帳時に既存の [PendingJobEntity.attempts] を引き継ぐために使う）。 */
+    @Query("SELECT * FROM pending_jobs WHERE uri = :uri")
+    suspend fun findByUri(uri: String): PendingJobEntity?
+
     /** REPLACE: 同一 URI の重複 enqueue・リカバリ再投入時の再記帳を1行に畳む */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(job: PendingJobEntity)
+
+    /**
+     * 再開回数を 1 増やす（再起動ループの止め金＝[PendingJobEntity.attempts] の why を参照）。
+     * 行が無ければ 0 行更新の no-op（＝既に成否が確定して掃除済みのジョブ）。
+     */
+    @Query("UPDATE pending_jobs SET attempts = attempts + 1 WHERE uri = :uri")
+    suspend fun incrementAttempts(uri: String)
 
     @Query("DELETE FROM pending_jobs WHERE uri = :uri")
     suspend fun deleteByUri(uri: String)
