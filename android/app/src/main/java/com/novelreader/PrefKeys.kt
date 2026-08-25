@@ -29,7 +29,10 @@ object PrefKeys {
     /** 読書テーマ（String=ReadingTheme 名）。キー不在＝システムのライト/ダークへ追従。 */
     const val READING_THEME = "reading_theme"
 
-    /** UIスキン（String=Skin 名）。キー不在＝D（既定装い）。 */
+    /** UIスキン（String=Skin 名）。キー不在＝**明快K**（`skinFromName(null)` → `Skin.MEIKAI_K`）。
+     *  ⚠️ 2026-08-26 まで「キー不在＝D」と書いてあったが、既定が K へ移った時にこの KDoc だけ
+     *  取り残されていた（エミュ検分で「装いが D でなく K で起動する」と気づいて発覚）。
+     *  なお `Features.skinSwitchingEnabled` が false のときは保存値によらず K を返す（ADR 0027）。 */
     const val APP_SKIN = "app_skin"
 
     /** 高負荷スカイ試作トグル（Boolean・debug 限定＝ADR 0023）。 */
