@@ -1,6 +1,7 @@
 package com.novelreader.ui.skins.k
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -15,6 +16,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,7 +25,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -63,6 +69,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -241,14 +248,73 @@ internal fun DiscoveryHomeK(
     // 位置（translationX）はページャ基準・中身は order 基準、という食い違いが症状の実体なので、
     // **中身の期間もページャ基準に揃える**（＝ページ1枚1枚が自分の期間を描いていた平坦化前の性質の回復）。
     val pagerOrder = NarouOrder.entries[rankingPagerState.currentPage]
+    // 横向きだけ構造が変わる（ADR 0034＝T1 横一列化 × Rail）。判定は既存流儀の LocalConfiguration.orientation。
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val railSelect = LocalKTabSelect.current
+    val railActive = isLandscape && railSelect != null
+    // Rail は本文の左隣＝Row で受ける（縦向き・未結線では子が本文1つだけ＝従来の Column 単独と同値）。
+    Row(modifier = Modifier.fillMaxSize()) {
+        if (railActive) {
+            KNavigationRail(
+                current = KTab.DISCOVER,
+                onSelect = railSelect!!,
+                // T1: 題字「さがす」の移設先＝Rail ヘッダ（画面名を消さずに縦の固定分から外す）。
+                // 本棚と違い冊数のような従属メタは無いので題だけ。FAB もこの面には無い。
+                header = { KRailHeader(title = "さがす") },
+            )
+        }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding(),
+            .statusBarsPadding()
+            .then(
+                // 横向きは下端の帯（KBottomNav）が消える＝本文が nav インセットを引き受ける
+                //（左端ぶんは Rail が持つので End+Bottom だけ＝二重加算しない）。
+                if (railActive) {
+                    Modifier.windowInsetsPadding(
+                        WindowInsets.navigationBars.only(WindowInsetsSides.End + WindowInsetsSides.Bottom),
+                    )
+                } else {
+                    Modifier
+                },
+            ),
     ) {
-        // 固定トップ（モック .top）: 画面タイトル＋実検索フィールド（常時可視・第一強調）。
-        SearchHeaderK(onOpenSearch)
+        if (railActive) {
+            // ── T1 横一列化（ADR 0034 意匠裁定）──
+            // 縦に積んでいた〈題字／検索バー／期間タブ〉を横1行へ。題字は Rail ヘッダへ抜け、
+            // 残る2つが同じ行に並ぶ（固定トップ 120.5dp → 1行）。
+            //
+            // ⚠️ 幅が足りなくなったときの吸い先は **期間タブの既存 `horizontalScroll`**（裁定＝案E・新機構ゼロ）。
+            // だから検索欄は**中身なりの幅**（要求幅）で置き、期間タブに weight(1f)＝残り全部を渡す:
+            //  ・収まる条件（fontScale 1.0/1.15）では6本とも見えたまま
+            //  ・溢れる条件（1.3 以上）では期間タブ側の可視域が縮み、行が横スクロールになって吸う
+            //    ＝検索欄の文言が省略される・題字が消える等の「情報が減る」壊れ方をしない。
+            // 逆に期間タブを固定幅・検索欄を weight にすると、溢れが検索プレースホルダの省略として出る
+            //（＝正本の16文字が読めなくなる）ので採らない。
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = DiscoveryListHorizontalMargin,
+                        end = DiscoveryListHorizontalMargin,
+                        top = Spacing.S4,
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SearchFieldK(onOpenSearch)
+                Spacer(Modifier.width(Spacing.S16)) // モック導出の検索⇄タブ間（800−80−24×2−320−336＝16dp）
+                OrderTabsK(
+                    selected = pagerOrder,
+                    onSelectOrder = onSelectOrder,
+                    // 横ジェスチャ封止は sticky 版と同じ（タブ列を撫でてアプリのタブが変わる誤操作の防止）。
+                    modifier = Modifier.weight(1f).nestedScroll(rankingEdgeSeal),
+                )
+            }
+        } else {
+            // 固定トップ（モック .top）: 画面タイトル＋実検索フィールド（常時可視・第一強調）。
+            SearchHeaderK(onOpenSearch)
+        }
 
         // 期間ページャの「本体」＝高さ0・中身空のアンカー（2026-08-06 平坦化）。
         // なぜ何も描かないページャを置くか: PagerState はスクロール量→ページ位置の換算に
@@ -280,6 +346,10 @@ internal fun DiscoveryHomeK(
             // 替えるだけで「タブが残り、その下を順位行が流れる」関係が成立する＝行側は無改変。
             // z-index はモック A が明示している（気分カードの藍ルール等 positioned 要素対策）が、Compose の
             // stickyHeader は貼り付き中のヘッダを他 item より前面へ置くのが既定＝翻訳先で足すものは無い。
+            // 横向き（T1）では期間タブは固定トップの横1行へ移っている＝ここには置かない
+            //（置くと同じ行が2つ出る。T1 は「この行自体が pinned」＝sticky の約束〈現在地が常に見える〉は
+            //  固定トップに居ることで満たされる）。
+            if (!railActive) {
             stickyHeader {
                 OrderTabsK(
                     // 選択表示は order でなくページャ現在地に従える＝スワイプのドラッグ中から追従する
@@ -294,6 +364,7 @@ internal fun DiscoveryHomeK(
                         .padding(top = Spacing.S8) // モック A の .rtabs padding-top:8px（貼り付き時の呼吸）
                         .nestedScroll(rankingEdgeSeal),
                 )
+            }
             }
             // ランキングの行は**外側 LazyColumn の item へ平坦化**する（2026-08-06）。
             // 旧実装は1ページ＝取得件数ぶんの素の Column を単一 item として抱いており、LazyColumn の
@@ -312,7 +383,8 @@ internal fun DiscoveryHomeK(
             )
             item { OfficialLinkK() }
         }
-    }
+    } // Column（本文）
+    } // Row（Rail ＋ 本文）
 }
 
 /** 固定トップ: h1「さがす」＋実検索フィールド（タップで検索画面へ）。モック .top / .search。 */
@@ -329,10 +401,25 @@ private fun SearchHeaderK(onOpenSearch: () -> Unit) {
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
         )
+        SearchFieldK(
+            onOpenSearch,
+            // .search margin-top 14px → S16／縦向きは1行まるごと使う
+            modifier = Modifier.padding(top = Spacing.S16).fillMaxWidth(),
+        )
+    }
+}
+
+/**
+ * 実検索フィールド（モック .search）。縦向きは固定トップの中で全幅・横向き（T1）は横1行の左半分に
+ * **中身なりの幅**で置く＝どちらも同じ実装（置き方だけ [modifier] で変える）。
+ *
+ * 幅を [modifier] 任せにしているのが T1 の要点: `fillMaxWidth` を内側に固定してしまうと、横1行に並べたとき
+ * 検索欄が行を食い尽くして期間タブが 0 幅になる（＝超過を E＝期間タブの横スクロールへ吸わせられない）。
+ */
+@Composable
+private fun SearchFieldK(onOpenSearch: () -> Unit, modifier: Modifier = Modifier) {
         Row(
-            modifier = Modifier
-                .padding(top = Spacing.S16) // .search margin-top 14px → S16
-                .fillMaxWidth()
+            modifier = modifier
                 .height(52.dp)             // .search 52px 固定（高さ＝構造値・スケール外）
                 .clip(RoundedCornerShape(12.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant) // 薄地の沈めた面（--field）
@@ -355,7 +442,6 @@ private fun SearchHeaderK(onOpenSearch: () -> Unit) {
                 modifier = Modifier.padding(start = Spacing.S12), // .search gap 10px → S12
             )
         }
-    }
 }
 
 /** セクション見出し（モック .sec）: 淡色字間装飾でなく gothic bold ink＝自己説明性優先。 */

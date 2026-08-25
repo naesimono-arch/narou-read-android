@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -28,7 +30,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -54,6 +59,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
@@ -236,23 +242,68 @@ internal fun BookshelfK(
     val gridState = rememberLazyGridState()
     val listState = rememberLazyListState()
 
+    // 向き判定は既存流儀の LocalConfiguration.orientation（回転で Configuration が変われば自動で再コンポーズ）。
+    // 横向きだけ構造が変わる（ADR 0034）＝縦向きの版面はこの val の false 枝で従来のまま通る。
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    // Rail 化の起動条件（＝タブ選択の結線が来ているか）。詳細は [LocalKTabSelect] の KDoc。
+    val railSelect = LocalKTabSelect.current
+    val railActive = isLandscape && railSelect != null
+    // 一覧下端の余白（2026-08-25 見直し）。縦向き＝[Insets.ScrollBottomForFab] 96dp のまま
+    //（拡張FAB が本文の上に浮くので回避帯が要る＝内訳は同トークンの KDoc）。
+    // 横向き（Rail 化）＝**回避すべき相手が本文の上に居なくなる**（FAB は Rail 上端＝本文の外）ので
+    // リズムの下余白 [Spacing.S24] へ戻す。96dp のまま残すと「1枚も入らない画面の末尾に 96dp の空白」
+    // という体感悪化（ADR 0034 背景の指摘そのもの）を、Rail で稼いだ縦から差し引くことになる。
+    val shelfScrollBottom = if (railActive) Spacing.S24 else Insets.ScrollBottomForFab
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
+        // Rail は本文の**左隣**に立つので Row で受ける（ADR 0034）。縦向き・未結線では子が本文1つだけの Row
+        // ＝レイアウト結果は従来の Column 単独と同値（本文を二重に書き分けないためにこの形にしている）。
+        Row(modifier = Modifier.fillMaxSize()) {
+            if (railActive) {
+                KNavigationRail(
+                    current = KTab.BOOKSHELF,
+                    onSelect = railSelect!!,
+                    // T1 横一列化: 題字「本棚」＋冊数の移設先＝Rail のヘッダ（画面名を消さずに縦の固定分から外す）。
+                    header = { KRailHeader(title = "本棚", meta = "${libraryCount}冊") },
+                    // FAB は Rail 上端（裁定③）。出没条件は本文側の拡張FABと同一＝押す対象が二重に出ない。
+                    fab = if (!selectionMode && !isEmptyShelf) {
+                        { KRailFab(onClick = onFabClick) }
+                    } else {
+                        null
+                    },
+                )
+            }
         Column(
             // statusBars のみ避ける（ボトムナビは NavHost の外＝下端 nav インセットは KBottomNav が持つ・二重加算しない）。
+            // 横向きは帯が消える＝下端／本文側の nav インセットを引き受ける相手が居なくなるので、本文が自分で持つ
+            // （左端ぶんは Rail が持っているので End+Bottom だけを取る＝二重加算しない）。
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding(),
+                .statusBarsPadding()
+                .then(
+                    if (railActive) {
+                        Modifier.windowInsetsPadding(
+                            WindowInsets.navigationBars.only(WindowInsetsSides.End + WindowInsetsSides.Bottom),
+                        )
+                    } else {
+                        Modifier
+                    },
+                ),
         ) {
             // ヘッダ（.head）: 「本棚」＋薄く冊数＋右端は表示切替のみ。
-            KHeader(
-                count = libraryCount,
-                isGridView = isGridView,
-                onToggleView = gridToggle::toggle,
-            )
+            // 横向き（T1）では出さない＝題字と冊数は Rail ヘッダへ移り、表示切替は状態チップ行の右端へ寄る
+            // （縦に積んだ2行〈ヘッダ68dp＋チップ46dp〉を1行 52dp へ畳むのが T1 の要件）。
+            if (!railActive) {
+                KHeader(
+                    count = libraryCount,
+                    isGridView = isGridView,
+                    onToggleView = gridToggle::toggle,
+                )
+            }
 
             // 取込中バナー（.proc 相当＝D の ProcessingBanner を流用）。出没のみ Motion スロット（reveal/dismiss）。
             AnimatedVisibility(
@@ -303,10 +354,16 @@ internal fun BookshelfK(
             }
 
             // 状態フィルタチップ行（.chips）。棚が非空のときだけ意味を持つが、D と同じく常時出して「すべて」へ戻れる導線を保つ。
+            // 横向き（T1）ではこの行が唯一の操作行になる＝右端に表示切替を同居させる（モック .headt）。
             KStatusChipRow(
                 selectedStatus = selectedStatus,
                 onSelect = onSelectStatus,
                 statusCounts = statusCounts,
+                trailing = if (railActive) {
+                    { KViewToggleButton(isGridView = isGridView, onToggleView = gridToggle::toggle) }
+                } else {
+                    null
+                },
             )
 
             when {
@@ -334,10 +391,7 @@ internal fun BookshelfK(
                     // 360−48(左右S24)−32(列間S32)=280/2）／横=5列（書影≈131dp級・可視域約162dpに書影約93%）。
                     // なぜ横だけ列数を変えるか: 縦と同じ2列だと横800dp級で書影が364dpへ肥大し1画面の収納数が
                     // 激減する（正本モック skins/bookshelf-K-landscape.html）。余白・アスペクト比・キャプション
-                    // 構成は縦横同値＝裁定の変数は列数のみ。判定は既存流儀の LocalConfiguration.orientation
-                    //（回転で Configuration が変われば自動で再コンポーズされる）。
-                    val isLandscape =
-                        LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+                    // 構成は縦横同値＝裁定の変数は列数のみ。判定（isLandscape）は画面冒頭で1度だけ取る。
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(if (isLandscape) 5 else 2),
                         state = gridState,
@@ -345,7 +399,7 @@ internal fun BookshelfK(
                         modifier = Modifier.fillMaxWidth().weight(1f),
                         // 上端はヘッダ（チップ行）が持つ。下端は FAB と最終行の重なり回避ぶん（D と同じ Insets 値）。
                         contentPadding = PaddingValues(
-                            start = Spacing.S24, top = Spacing.S4, end = Spacing.S24, bottom = Insets.ScrollBottomForFab,
+                            start = Spacing.S24, top = Spacing.S4, end = Spacing.S24, bottom = shelfScrollBottom,
                         ),
                         // 行間は S16 維持。列間は 2列改A で S32 へ拡大（書影を大きく見せるための余白拡大）。
                         verticalArrangement = Arrangement.spacedBy(Spacing.S16),
@@ -395,7 +449,7 @@ internal fun BookshelfK(
                         state = listState,
                         modifier = Modifier.fillMaxWidth().weight(1f),
                         contentPadding = PaddingValues(
-                            start = Spacing.S24, top = Spacing.S4, end = Spacing.S24, bottom = Insets.ScrollBottomForFab,
+                            start = Spacing.S24, top = Spacing.S4, end = Spacing.S24, bottom = shelfScrollBottom,
                         ),
                     ) {
                         // contentType=型: 蔵書/Web はカード構成が別物のため、要素の再利用プールを型ごとに分ける（性能のみ・見た目不変）
@@ -456,13 +510,16 @@ internal fun BookshelfK(
                     onDelete = { showDeleteConfirm = true },
                 )
             }
-        }
+        } // Column（本文）
+        } // Row（Rail ＋ 本文）
 
         // 拡張FAB「＋ PDFを追加」（.fab 藍・ラベル付き）。選択モード中は下端の選択バーへ場を譲り隠す（D の Scaffold と同挙動）。
+        // 横向き（Rail 化）では出さない＝FAB は Rail 上端の円形へ移る（裁定③。拡張ラベルを失う代償は受け入れ済み）。
+        // 右下据え置きを採らない理由＝横向きでは最終列の書影に恒久的に重なるため。
         // 空棚（蔵書0）でも隠す（2026-08-20 ユーザー裁定②）＝押す対象を空棚CTA〈PDFを追加〉一本へ寄せる。
         // 同じ操作が拡張FABと CTA で二重に出ており、fontScale 2.0 では FAB が CTA へ被っていた（実機 PGEM10）。
         // ⚠️ [isEmptyShelf] は「この分類の本はありません」を含まない＝あちらは CTA が無いので FAB を残す。
-        if (!selectionMode && !isEmptyShelf) {
+        if (!selectionMode && !isEmptyShelf && !railActive) {
             ExtendedFloatingActionButton(
                 text = { Text("PDFを追加") },
                 icon = { Icon(Icons.Filled.Add, contentDescription = null) },
@@ -578,14 +635,43 @@ private fun KHeader(
                 modifier = Modifier.alignByBaseline(),
             )
         }
-        // グリッド⇄リスト表示切替（.view＝唯一のヘッダアクション）。図柄は D の本棚と同じ規則で入替。
-        IconButton(onClick = onToggleView) {
-            Icon(
-                imageVector = if (isGridView) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView,
-                contentDescription = if (isGridView) "リスト表示" else "グリッド表示",
-                tint = MaterialTheme.colorScheme.onSurface,
-            )
-        }
+        KViewToggleButton(isGridView = isGridView, onToggleView = onToggleView)
+    }
+}
+
+/**
+ * グリッド⇄リスト表示切替（.view＝唯一のヘッダアクション）。図柄は D の本棚と同じ規則で入替。
+ * 縦向きはヘッダ右端・横向き（T1）は状態チップ行の右端＝**置き場所だけが変わる**ので実装を1つに保つ。
+ */
+@Composable
+private fun KViewToggleButton(isGridView: Boolean, onToggleView: () -> Unit) {
+    IconButton(onClick = onToggleView) {
+        Icon(
+            imageVector = if (isGridView) Icons.AutoMirrored.Filled.List else Icons.Filled.GridView,
+            contentDescription = if (isGridView) "リスト表示" else "グリッド表示",
+            tint = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+/**
+ * Rail 上端の FAB（裁定③）。拡張FAB は Rail 幅 80dp に入らないので**円形**になる
+ * ＝ラベル「PDFを追加」を字として持てないぶん、読み上げ名を明示で与える（拡張FAB 側と同じ
+ * label-in-name の理由＝[BookshelfK] の ExtendedFloatingActionButton のコメント）。
+ * 寸法はモック `.rfab` 52x52 / r16（＝角丸は M3 の large と同義でなく正本値なので shape で明示する）。
+ */
+@Composable
+private fun KRailFab(onClick: () -> Unit) {
+    FloatingActionButton(
+        onClick = onClick,
+        containerColor = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .size(52.dp)
+            .semantics { contentDescription = "PDFを追加" },
+    ) {
+        Icon(Icons.Filled.Add, contentDescription = null)
     }
 }
 
@@ -597,11 +683,33 @@ private fun KStatusChipRow(
     selectedStatus: ReadingStatus?,
     onSelect: (ReadingStatus?) -> Unit,
     statusCounts: Map<ReadingStatus, Int>,
+    // 行の右端に同居させる操作（横向き T1 の表示切替）。null＝縦向き＝従来どおりチップだけの行。
+    trailing: @Composable (() -> Unit)? = null,
+) {
+    if (trailing == null) {
+        KStatusChips(selectedStatus, onSelect, statusCounts, Modifier.fillMaxWidth())
+        return
+    }
+    // T1 の操作行（モック .headt）: 左にチップ（溢れは既存の横スクロールが吸う）・右端に表示切替。
+    // チップ側を weight(1f) で残り幅にするので、切替ボタンは幅を取られず必ず右端に居る。
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        KStatusChips(selectedStatus, onSelect, statusCounts, Modifier.weight(1f))
+        trailing()
+        Spacer(Modifier.width(Spacing.S8))
+    }
+}
+
+/** チップの並び本体（横スクロール器）。[KStatusChipRow] が縦横で置き方だけを変えて使う。 */
+@Composable
+private fun KStatusChips(
+    selectedStatus: ReadingStatus?,
+    onSelect: (ReadingStatus?) -> Unit,
+    statusCounts: Map<ReadingStatus, Int>,
+    modifier: Modifier,
 ) {
     val scrollState = rememberScrollState()
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             // 端フェード（正本 .chipsrow .fade・2026-08-20 裁定①）。horizontalScroll の**直前**に置く＝
             // この修飾子のノード寸法が可視域そのものになり、レイアウトノードは1つも増えない（版面不変）。
             // bottomInset に S12 を渡すのは、下パディングがこの行の**内側**（スクロール器の中）にあり

@@ -2,6 +2,7 @@ package com.novelreader.ui.skins.k
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -13,7 +14,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -42,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -102,11 +109,38 @@ fun SettingsScreenK(
     var showThemeDialog by remember { mutableStateOf(false) }
     var showHealthBoard by remember { mutableStateOf(false) }
 
+    // 横向きは恒常ナビが Rail（左端縦置き）になる＝この面も自前で立てる（ADR 0034 の構造裁定）。
+    // なぜ「本棚とさがすの横向きだけ」という意匠の適用範囲を超えてここにも要るのか: 帯を出す面と
+    // Rail の面が混在すると、横向きで さがす⇄設定 をスワイプした中点で帯が出入りし、Pager の
+    // ビューポート高が 64dp ぶん跳ねる（実害）。ナビの形は3面で揃っていなければならない。
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val railSelect = LocalKTabSelect.current
+    val railActive = isLandscape && railSelect != null
+
+    Row(modifier = Modifier.fillMaxSize()) {
+        if (railActive) {
+            // ⚠️ header を渡さない（＝Rail 上半は空）。ADR 0034 決定④は「上半は今いる面の題に使う」だが、
+            // T1 横一列化（題字を Rail へ移して本文の固定トップを畳む）が裁定されたのは本棚とさがすだけで、
+            // この面の版面は今回の対象外。題を足すと〈Rail ヘッダ・タブラベル・本文 h1〉で「設定」が
+            // 同じ列に3回出る＝意匠の自己判断で悪化させることになるので、本文の h1 を唯一の題に保つ。
+            KNavigationRail(current = KTab.SETTINGS, onSelect = railSelect!!)
+        }
     Column(
         modifier = Modifier
             .fillMaxSize()
             // タイトルがステータスバー裏に潜らないよう system bar 分を確保（実機検分 2026-07-23 で欠落発覚）。
             .statusBarsPadding()
+            .then(
+                // 横向きは下端の帯が消える＝本文が nav インセットを引き受ける
+                //（左端ぶんは Rail が持つので End+Bottom だけ＝二重加算しない）。
+                if (railActive) {
+                    Modifier.windowInsetsPadding(
+                        WindowInsets.navigationBars.only(WindowInsetsSides.End + WindowInsetsSides.Bottom),
+                    )
+                } else {
+                    Modifier
+                },
+            )
             .verticalScroll(rememberScrollState())
             .padding(horizontal = Spacing.S16),
     ) {
@@ -290,7 +324,8 @@ fun SettingsScreenK(
                 onClick = null,
             )
         }
-    }
+    } // Column（本文）
+    } // Row（Rail ＋ 本文）
 
     if (showThemeDialog) {
         KThemeDialog(

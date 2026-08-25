@@ -66,6 +66,7 @@ import com.novelreader.ui.discovery.NovelDetailScreen
 import com.novelreader.ui.discovery.PdfImportScreen
 import com.novelreader.ui.discovery.WebReaderScreen
 import com.novelreader.ui.skins.k.KBottomNav
+import com.novelreader.ui.skins.k.LocalKTabSelect
 import com.novelreader.ui.skins.k.KTab
 import com.novelreader.ui.skins.k.SettingsScreenK
 import com.novelreader.ui.skins.m.LocalSkyParallax
@@ -523,6 +524,18 @@ private fun NovelReaderApp(
                 color = if (isSeizu) Color.Transparent else MaterialTheme.colorScheme.background,
                 contentColor = if (isSeizu) LocalContentColor.current else MaterialTheme.colorScheme.onBackground,
             ) {
+            // 横向きの恒常ナビを Rail へ切り替える唯一の結線（ADR 0034）。
+            // ここ1点で〈帯（KBottomNav）を出さない側〉と〈Rail を立てる側（BookshelfK/DiscoveryHomeK/
+            // SettingsScreenK）〉が同時に切り替わる（起動条件を1本に束ねる理由＝LocalKTabSelect の KDoc）。
+            // なぜ remember で包むか: LocalKTabSelect は関数を運ぶので、素の onSelectTab（毎コンポジション
+            // 新しいラムダ）をそのまま provide すると、この画面が再コンポーズするたび local の値が変わったと
+            // 見なされ、読み手（3タブ面すべて）が無駄に再コンポーズする。remember で同一性を固定して断つ。
+            // stale にならない根拠: onSelectTab が捕まえるのは tabScope（rememberCoroutineScope）と
+            // tabPagerState（rememberPagerState）だけ＝どちらも寿命を通じて同じインスタンスなので、
+            // 初回コンポジションの実体を持ち続けても常に最新のページャを動かす。
+            CompositionLocalProvider(
+                LocalKTabSelect provides remember { { tab: KTab -> onSelectTab(tab) } },
+            ) {
             Column(Modifier.fillMaxSize()) {
     NavHost(
         navController = navController,
@@ -893,6 +906,7 @@ private fun NovelReaderApp(
                 )
             }
             } // Column（NavHost ＋ K恒常ナビ）
+            } // CompositionLocalProvider（横向き Rail の結線）
             } // Surface（画面ルートの配色接地）
         } // CompositionLocalProvider(LocalSkyParallax)
     } // Box（backdrop ＋ NavHost）
