@@ -14,6 +14,7 @@ import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -221,6 +222,26 @@ internal fun DiscoveryHomeK(
     // ページャ本体は行を持たなくなるため、この FlingBehavior を各行スロットの scrollable へ配って
     // 「どの行を触っても同じ1つのページ送りが進む」形にする。
     val rankingFling = PagerDefaults.flingBehavior(state = rankingPagerState)
+    // 送りの最中は行のタップ導線を殺す（2026-08-26・ページ送りアニメのコストの真因対処）。
+    //
+    // 旧実装は同じ目的を「覗き行には onOpenDetail / onRefresh を配線しない」という**役割による分岐**で
+    // 果たしていた。しかしこの分岐こそが横スワイプの重さの主因だった——据わりと覗きは送りが半ページを
+    // 越えた瞬間に**役割だけが入れ替わる**（前後どちらも同じ2期間が居る）ので、行へ渡す値が役割で変わると
+    // 入れ替わりの1フレームで据わり・覗きの**両方が全数再合成**される。実測（エミュ・可視6行）で
+    // その1フレームだけ StaticLayout 構築が 96 個・UI スレッド 50〜54ms に跳ねていた。
+    //
+    // ＝判定を「合成の時点でどちらの役割か」から「クリックの時点でページャが動いているか」へ移す。
+    // 行へ渡す値が役割から独立するので、役割の入れ替わりが composition にとって無変化になる。
+    // 意図は元の裁定（見えているだけの行から詳細へ飛ばさない）より**厳しくなる**方向＝送りが走っている間は
+    // 据わり側の行も飛ばない（指を離した直後のスナップ中に誤タップで別作品を開く事故も併せて塞がる）。
+    val currentOnOpenDetail by rememberUpdatedState(onOpenDetail)
+    val currentOnRefresh by rememberUpdatedState(onRefresh)
+    val rankingOpenDetail = remember(rankingPagerState) {
+        { ncode: Ncode -> if (!rankingPagerState.isScrollInProgress) currentOnOpenDetail(ncode) }
+    }
+    val rankingRefresh = remember(rankingPagerState) {
+        { if (!rankingPagerState.isScrollInProgress) currentOnRefresh() }
+    }
     // ドラッグ中に横から覗く隣期間。**方向だけを離散化して取り出す**のが要点で、
     // currentPageOffsetFraction を合成で直に読むと毎フレーム再コンポーズになり、重い合成を減らすための
     // 平坦化と真っ向から矛盾する。derivedStateOf は結果が変わったときだけ通知するので、実際に再コンポーズが
@@ -378,8 +399,9 @@ internal fun DiscoveryHomeK(
                 neighborOrder = { neighborOrderState.value },
                 state = state,
                 contents = rankingContents,
-                onOpenDetail = onOpenDetail,
-                onRefresh = onRefresh,
+                // 送り中を殺した版を渡す＝行へ渡す値が「据わりか覗きか」に依存しなくなる（上の rankingOpenDetail）。
+                onOpenDetail = rankingOpenDetail,
+                onRefresh = rankingRefresh,
             )
             item { OfficialLinkK() }
         }
@@ -997,27 +1019,21 @@ private fun LazyListScope.rankingSectionK(
         contentType = { slots::class.simpleName },
     ) { index ->
         // 覗き相手の読み取りは**この item スコープ**で行う（画面全体でなく可視行だけが再コンポーズされる）。
-        val neighbor = neighborOrder()
-        val neighborSlots = neighbor?.let { rankingNeighborSlotsK(contents[it]) }
+        val peekOrder = neighborOrder()
         RankingSlotK(
             pagerState = pagerState,
             flingBehavior = flingBehavior,
             edgeSeal = edgeSeal,
-            pageOrder = pageOrder,
-            neighbor = if (neighbor != null && neighborSlots != null && index < neighborSlots.count) {
-                {
-                    // 覗きは表示だけ＝タップ導線を配線しない（指が乗るのはドラッグ中だけだが、
-                    // 見えているだけの行に詳細遷移を持たせない方が事故が無い）。
-                    RankingSlotBodyK(neighborSlots, index, neighbor, onOpenDetail = null, onRefresh = null)
-                }
-            } else {
-                null
-            },
-            neighborPageIndex = neighbor?.ordinal ?: pageOrder.ordinal,
-            skeletonHead = slots is RankingSlots.Skeleton && index == 0,
-        ) {
-            RankingSlotBodyK(slots, index, pageOrder, onOpenDetail, onRefresh)
-        }
+            seatedOrder = pageOrder,
+            peekOrder = peekOrder,
+            index = index,
+            // 期間 → その期間に並べるもの、の対応。**役割（据わり／覗き）で分岐させない**のが要点で、
+            // 据わりの期間だけが生きた [state] を見てよい、という裁定はここに閉じている
+            //（[rankingSlotsK] / [rankingNeighborSlotsK] の使い分けは従来どおり）。
+            slotsOf = { o -> if (o == pageOrder) slots else rankingNeighborSlotsK(contents[o]) },
+            onOpenDetail = onOpenDetail,
+            onRefresh = onRefresh,
+        )
     }
 }
 
@@ -1033,30 +1049,41 @@ private fun LazyListScope.rankingSectionK(
  *  - **覗き**: [neighbor] は現在行に重ねて描き `matchParentSize` を与える＝**親の高さ決定に参加しない**。
  *    これが「ページ高を現在ページだけから決める」の実体で、はみ出しは `clipToBounds` が切る
  *    （旧 Pager が wrap 高＝現在ページ準拠で隣をクリップして覗かせていた見え方を行単位で再現する）。
- *    [neighborPageIndex]＝その覗きが何ページ目のものか（本体・覗きとも自分の座席へ置く＝
- *    [rankingPageOffsetPx]）。[neighbor] が無いときは使われない。
+ *    本体・覗きとも自分のページ番号の座席へ置く（＝[rankingPageOffsetPx]）。
  *
- * [skeletonHead] が true のスロットだけが骨領域として名乗る（TalkBack に行数ぶん読ませない）。
+ * **なぜ枠を「据わり／覗き」でなく期間 ordinal の偶奇で持つか（2026-08-26・送りアニメのコストの真因対処）**:
+ * 送りが半ページを越えた瞬間、据わりと覗きは**役割だけが入れ替わる**——前後どちらも画面に居るのは同じ2期間
+ *（例: 週間→月間の送りなら、跨ぐ前は〈据わり=週間・覗き=月間〉、跨いだ後は〈据わり=月間・覗き=週間〉）。
+ * 旧実装は枠を役割の順（第1子=据わり・第2子=覗き）で並べていたので、この入れ替わりで**同じ枠に別期間の中身が
+ * 流し込まれ、据わり・覗きの両方が全数再合成**されていた。実測（エミュ・可視6行）ではその1フレームだけ
+ * StaticLayout 構築が 96 個・UI スレッド 50〜54ms に跳ね、これがページ送りアニメの最も重いフレームだった。
+ *
+ * 隣り合う期間は ordinal が必ず 1 違う＝**偶奇が必ず異なる**ので、枠を偶奇で持てば「どちらの枠にどの期間が
+ * 入るか」が役割にも送りの向きにも依存しなくなる。入れ替わりの瞬間、両方の枠は同じ期間を持ち続ける
+ * ＝composition から見て**何も起きない**（動くのは translationX だけ＝既に deferred read）。
+ * 行へ渡すタップ導線を役割から独立させたのも同じ理由（[DiscoveryHomeK] の rankingOpenDetail）。
  */
 @Composable
 private fun RankingSlotK(
     pagerState: PagerState,
     flingBehavior: FlingBehavior,
     edgeSeal: NestedScrollConnection,
-    pageOrder: NarouOrder,
-    neighbor: (@Composable () -> Unit)?,
-    neighborPageIndex: Int,
-    skeletonHead: Boolean,
-    current: @Composable () -> Unit,
+    seatedOrder: NarouOrder,
+    peekOrder: NarouOrder?,
+    index: Int,
+    slotsOf: (NarouOrder) -> RankingSlots,
+    onOpenDetail: (ncode: Ncode) -> Unit,
+    onRefresh: () -> Unit,
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             // 溝（pageSpacing）ぶん外へはみ出す覗きを、この行の枠で切る。
+            // タップの当たり判定もこのクリップに従う＝枠の外へ送り出された期間の行は指を拾わない。
             .clipToBounds()
             // 期間ページの識別子（理由は rankingPageTestTag の KDoc）。中身の**祖先**に置くことで、
             // テストが「どのページの子孫か」で数えられる形を平坦化後も保つ。
-            .testTag(rankingPageTestTag(pageOrder))
+            .testTag(rankingPageTestTag(seatedOrder))
             .nestedScroll(edgeSeal)
             .scrollable(
                 state = pagerState,
@@ -1065,40 +1092,77 @@ private fun RankingSlotK(
                 reverseDirection = true,
             ),
     ) {
-        Column(
-            modifier = Modifier
-                // State 読みを layer 更新に閉じる（deferred read）＝ドラッグ中に composition/layout を起こさない。
-                .graphicsLayer { translationX = rankingPageOffsetPx(pagerState, pageOrder.ordinal) }
-                .then(
-                    if (skeletonHead) {
-                        // 骨は装飾＝文字を描かないが、旧 status 行が担っていた支援技術への通知は落とさない。
-                        Modifier.semantics { contentDescription = RankingSkeletonDescription }
-                    } else {
-                        Modifier
-                    },
-                ),
-        ) { current() }
-        neighbor?.let { content ->
-            Column(
-                modifier = Modifier
-                    .matchParentSize()
-                    // 覗きも本体と同じ式＝自分のページ番号の座席に置く（進行方向の場合分けは要らない）。
-                    .graphicsLayer { translationX = rankingPageOffsetPx(pagerState, neighborPageIndex) }
-                    // 覗くだけの行を TalkBack に読ませない（K の気分ゴースト格子と同じ扱い）。
-                    .clearAndSetSemantics {},
-            ) { content() }
-        }
+        // 覗きは必ず据わりの隣（PagerSnapDistance 既定＝1フリック1ページ）＝偶奇は必ず食い違う。
+        val seatedIsEven = seatedOrder.ordinal % 2 == 0
+        RankingPageLayerK(
+            pagerState, if (seatedIsEven) seatedOrder else peekOrder, seatedIsEven, index,
+            slotsOf, onOpenDetail, onRefresh,
+        )
+        RankingPageLayerK(
+            pagerState, if (seatedIsEven) peekOrder else seatedOrder, !seatedIsEven, index,
+            slotsOf, onOpenDetail, onRefresh,
+        )
     }
 }
 
-/** 1スロットぶんの中身（行／status／骨）。[onOpenDetail]・[onRefresh] が null＝覗き専用（導線を配線しない）。 */
+/**
+ * 1行ぶんの枠に載る「ある期間の1行」。[order] が null＝この枠には今どの期間も居ない（覗きが無いとき）。
+ *
+ * [seated] は**描き方だけ**を決める（高さを決めるか・TalkBack に読ませるか）。中身に渡す値には一切効かない
+ * ——効かせると役割の入れ替わりで全数再合成が起きる（[RankingSlotK] の KDoc）。modifier の差し替えは
+ * ノードの付け替えで済み、行が抱えるテキストの計測結果は生き残る。
+ */
+@Composable
+private fun BoxScope.RankingPageLayerK(
+    pagerState: PagerState,
+    order: NarouOrder?,
+    seated: Boolean,
+    index: Int,
+    slotsOf: (NarouOrder) -> RankingSlots,
+    onOpenDetail: (ncode: Ncode) -> Unit,
+    onRefresh: () -> Unit,
+) {
+    if (order == null) return
+    val slots = slotsOf(order)
+    // 覗き側の期間は行数が違い得る（例: 控えなしの骨 30 行 vs status 1 行）＝無い行は置かない。
+    if (index >= slots.count) return
+    Column(
+        modifier = Modifier
+            // 行の高さを決めるのは据わりの期間だけ＝覗きは matchParentSize で親の高さ決定に参加しない
+            //（「ページ高を現在ページだけから決める」の実体。はみ出しは親の clipToBounds が切る）。
+            .then(if (seated) Modifier else Modifier.matchParentSize())
+            // State 読みを layer 更新に閉じる（deferred read）＝ドラッグ中に composition/layout を起こさない。
+            .graphicsLayer { translationX = rankingPageOffsetPx(pagerState, order.ordinal) }
+            .then(
+                when {
+                    // 覗くだけの行を TalkBack に読ませない（K の気分ゴースト格子と同じ扱い）。
+                    !seated -> Modifier.clearAndSetSemantics {}
+                    // 骨は装飾＝文字を描かないが、旧 status 行が担っていた支援技術への通知は落とさない。
+                    slots is RankingSlots.Skeleton && index == 0 ->
+                        Modifier.semantics { contentDescription = RankingSkeletonDescription }
+                    else -> Modifier
+                },
+            ),
+    ) {
+        RankingSlotBodyK(slots, index, order, onOpenDetail, onRefresh)
+    }
+}
+
+/**
+ * 1スロットぶんの中身（行／status／骨）。
+ *
+ * 導線は**据わり・覗きで同じものを受ける**（2026-08-26）。旧実装は覗きに null を渡して配線を落としていたが、
+ * それは「渡す値が役割で変わる」ことを意味し、半ページ地点の役割入れ替わりで全数再合成を招いていた
+ *（[RankingSlotK] の KDoc）。覗き行を踏ませない目的は、送りが走っている間だけ導線を殺す形へ移してある
+ *（[DiscoveryHomeK] の rankingOpenDetail・そちらの方が範囲として厳しい）。
+ */
 @Composable
 private fun RankingSlotBodyK(
     slots: RankingSlots,
     index: Int,
     pageOrder: NarouOrder,
-    onOpenDetail: ((ncode: Ncode) -> Unit)?,
-    onRefresh: (() -> Unit)?,
+    onOpenDetail: (ncode: Ncode) -> Unit,
+    onRefresh: () -> Unit,
 ) {
     when (slots) {
         is RankingSlots.Rows -> {
@@ -1108,13 +1172,13 @@ private fun RankingSlotBodyK(
                 novel = novel,
                 order = pageOrder,
                 // 境界: novel.ncode は Moshi 由来の String。詳細遷移の引数は型付き Ncode へ包む。
-                onClick = { novel.ncode?.let { code -> onOpenDetail?.invoke(Ncode(code)) } },
+                onClick = { novel.ncode?.let { code -> onOpenDetail(Ncode(code)) } },
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
         is RankingSlots.Status -> {
             RankingStatus(slots.message)
-            if (slots.retry && onRefresh != null) {
+            if (slots.retry) {
                 Text(
                     "再試行",
                     fontSize = FontCaption,
