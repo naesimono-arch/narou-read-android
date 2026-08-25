@@ -100,7 +100,7 @@ object SkinC : SkinTokens {
 
     // 本棚系の家系トークン（bookshelf-C 値）。固定1変種＝theme 非依存。
     //   hairline = --line #2C303A（読書系 divider #2A2E37 とは家系で分岐＝D 同流儀）
-    //   unreadLabel/infoText = --text-dim #8B8A84（bg 5.13:1 で素のまま AA 充足＝MutedYako 共有）
+    //   semanticMicroText/infoText = --text-dim #8B8A84（bg 5.13:1 で素のまま AA 充足＝MutedYako 共有）
     private val NightShelf = ShelfColors(OutlineYako, MutedYako, MutedYako)
     override fun shelf(theme: ReadingTheme): ShelfColors = NightShelf
 

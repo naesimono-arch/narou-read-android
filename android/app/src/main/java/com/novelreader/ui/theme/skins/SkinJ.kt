@@ -142,7 +142,7 @@ object SkinJ : SkinTokens {
 
     // 本棚系の家系トークン（bookshelf-J 値・固定ダーク森面＝theme 非依存・ADR 0022 §2）。
     //   hairline = --line 合成 #2B2E29
-    //   unreadLabel = --green #9FCFA9（「続きあり」=森緑がモックの意味色・外殻 #0C0E0B 上 11.05:1 AA）
+    //   semanticMicroText = --green #9FCFA9（「続きあり」=森緑がモックの意味色・外殻 #0C0E0B 上 11.05:1 AA）
     //   infoText = --soft 合成 #959A92（#0C0E0B 上 6.75:1 AA）
     private val PortalShelf = ShelfColors(LinePortal, GreenPortal, SoftPortal)
     override fun shelf(theme: ReadingTheme): ShelfColors = PortalShelf

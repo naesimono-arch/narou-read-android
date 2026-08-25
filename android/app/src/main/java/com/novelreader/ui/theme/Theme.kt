@@ -84,22 +84,24 @@ fun rememberReadingColors(theme: ReadingTheme): ReadingColors {
 // なぜ CompositionLocal か: ヘアラインは「役割」でなく「正本モックの家系」で値が分かれる
 // （発見系 --line #ECEAE4 ＝ outlineVariant／本棚系 --hl/--track #E4E2DB）ため、
 // colorScheme とは別口でテーマ追従させる（ReadingColors と同じ流儀・ADR 0014）。
-// unreadLabel: 未読は意味を運ぶ文字＝4.5:1 最低線（ADR 0014-D）。ダークは既存 SecondaryDark を継続。
+// semanticMicroText: 意味を運ぶ微小文字＝4.5:1 最低線（ADR 0014-D）。ダークは既存 SecondaryDark を継続。
 // infoText: 発見系の情報メタ（順位番号・連載状態・読了目安・最終更新・結果サブタイトル・未選択タブ）用。
 //   OnSurfaceVariant（装飾的補助）は 4.5:1 未達のため情報用途だけを役割別トークンへ分離（同 ADR 0014-D 裁定）。
 // ============================================================
 data class ShelfColors(
     val hairline: Color,     // 目録区切り線・進捗トラック・スケルトン線（--hl/--track）
-    // 青磁位置（D では #9CB3A8）の「意味を運ぶ文字」を AA(4.5:1) まで濃くした色。名前は初出の用途
-    // （未読ラベル）由来だが、役割は青磁で意味を名指す文字**全般**＝未読/「なろう・未取込」ラベル・
-    // ジャンルタグ・キーワードチップ・結果件数・「条件を変更」。2026-08-21 に適用漏れ8箇所を回収した。
+    // 青磁位置（D では #9CB3A8）の「意味を運ぶ文字」を AA(4.5:1) まで濃くした色。役割は青磁で意味を
+    // 名指す微小文字**全般**＝未読/「なろう・未取込」ラベル・ジャンルタグ・キーワードチップ・
+    // 結果件数・「条件を変更」。2026-08-21 に適用漏れ8箇所を回収した。
+    // ⚠️ 旧名 unreadLabel（初出の用途＝未読ラベル由来）から 2026-08-26 に改名。用途を名前が狭く
+    //    見せることで適用漏れが起きた反省を、名前側で閉じたもの＝役割名で呼ぶ。
     // ⚠️ 装飾（ドット・縦ルール・チップ枠線・破線フレーム）は WCAG 対象外なので secondary のまま。
-    val unreadLabel: Color,
+    val semanticMicroText: Color,
     val infoText: Color,     // 情報を運ぶ補助テキスト（発見系メタ）
 )
 
 val LocalShelfColors = staticCompositionLocalOf {
-    ShelfColors(hairline = ShelfHairlineLight, unreadLabel = UnreadSeiji, infoText = InfoTextLight)
+    ShelfColors(hairline = ShelfHairlineLight, semanticMicroText = UnreadSeiji, infoText = InfoTextLight)
 }
 
 /**

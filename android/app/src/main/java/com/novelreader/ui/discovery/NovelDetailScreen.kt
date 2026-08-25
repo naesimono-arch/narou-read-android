@@ -745,7 +745,7 @@ internal fun NovelDetailContent(
                                                     color = if (selected) {
                                                         MaterialTheme.colorScheme.onPrimary
                                                     } else {
-                                                        LocalShelfColors.current.unreadLabel
+                                                        LocalShelfColors.current.semanticMicroText
                                                     }
                                                 )
                                             }
@@ -1010,7 +1010,7 @@ private fun DetailCoverBlock(
                     style = DetailInfoTextStyle,
                     // 分類を名指す＝意味を運ぶ文字なので AA(4.5:1)。枠線は装飾のため青磁のまま据置
                     // （淡地の上でも意味は文字が運ぶ＝ADR 0014-D の切り分け）。
-                    color = LocalShelfColors.current.unreadLabel,
+                    color = LocalShelfColors.current.semanticMicroText,
                     // タグは固定語彙＝改行縦積みを禁じて常に横一列で出す。
                     maxLines = 1,
                     softWrap = false,

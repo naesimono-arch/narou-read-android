@@ -587,7 +587,7 @@ def parse_skin(kt_rel: str, tokens: dict[str, str], tiers: dict[str, str] | None
             reading[theme] = got
             unresolved += [f"{kt_rel}:reading({theme}).{n}" for n in un]
 
-    # --- ShelfColors: 位置引数 (hairline, unreadLabel, infoText)。単一 val 定義の場合も辿る ---
+    # --- ShelfColors: 位置引数 (hairline, semanticMicroText, infoText)。単一 val 定義の場合も辿る ---
     shelf: dict[str, dict[str, str]] = {}
     body = _member_body(text, r"override fun shelf\([^)]*\)\s*:\s*ShelfColors\s*=\s*")
     if body is not None:
@@ -602,7 +602,7 @@ def parse_skin(kt_rel: str, tokens: dict[str, str], tiers: dict[str, str] | None
             else:
                 inner = _balanced(expr, cm.end() - 1)[0]
             args = [a.strip() for a in inner.split(",")]
-            fields = ("hairline", "unreadLabel", "infoText")
+            fields = ("hairline", "semanticMicroText", "infoText")
             vals = {}
             for f, a in zip(fields, args):
                 v = _resolve(a, tokens)
@@ -653,8 +653,8 @@ READING_OUT_OF_SCOPE = [
 # ShelfColors の意味色 × 同スキン同テーマの Material 面（棚地＝background・カード面＝surfaceVariant・
 # ダイアログ面＝surfaceContainerHigh）。
 SHELF_PAIRS = [
-    ("unreadLabel", "background", 4.5, "未読ラベル（棚地の上）"),
-    ("unreadLabel", "surfaceVariant", 4.5, "未読ラベル（カード面の上）"),
+    ("semanticMicroText", "background", 4.5, "意味を運ぶ微小文字（棚地の上）"),
+    ("semanticMicroText", "surfaceVariant", 4.5, "意味を運ぶ微小文字（カード面の上）"),
     ("infoText", "background", 4.5, "情報メタ（棚地の上）"),
     ("infoText", "surfaceVariant", 4.5, "情報メタ（カード面の上）"),
     # ダイアログ本文。対応の出所は theme/NovelReaderAlertDialog.kt の既定引数
@@ -745,11 +745,11 @@ CONTRAST_BASELINE: dict[str, str] = {
     "P/LIGHT/reading:accent⇄background": _P_ACCENT_TEXT,
     "P/SEPIA/reading:accent⇄blockBackground": _P_ACCENT_TEXT,
     "P/SEPIA/reading:accent⇄background": _P_ACCENT_TEXT,
-    "P/LIGHT/shelf:unreadLabel⇄surfaceVariant": _P_SHELF_ON_PANEL,
+    "P/LIGHT/shelf:semanticMicroText⇄surfaceVariant": _P_SHELF_ON_PANEL,
     "P/LIGHT/shelf:infoText⇄surfaceVariant": _P_SHELF_ON_PANEL,
-    "P/SEPIA/shelf:unreadLabel⇄surfaceVariant": _P_SHELF_ON_PANEL,
+    "P/SEPIA/shelf:semanticMicroText⇄surfaceVariant": _P_SHELF_ON_PANEL,
     "P/SEPIA/shelf:infoText⇄surfaceVariant": _P_SHELF_ON_PANEL,
-    "P/DARK/shelf:unreadLabel⇄surfaceVariant": _P_SHELF_ON_PANEL,
+    "P/DARK/shelf:semanticMicroText⇄surfaceVariant": _P_SHELF_ON_PANEL,
     "P/DARK/shelf:infoText⇄surfaceVariant": _P_SHELF_ON_PANEL,
     "P/DARK/reading:ruby⇄blockBackground": _P_RUBY_ON_BLOCK,
     "P/LIGHT/material:primary⇄surfaceContainerHigh": _P_DIALOG_ACTION,

@@ -154,7 +154,7 @@ object SkinP : SkinTokens {
 
     // 本棚系の家系トークン（bookshelf-P 値）。theme 非依存（筐体面はテーマ不変・ADR 0022 §2）。
     //   hairline = --line #bdb9a9
-    //   unreadLabel/infoText = --ink-mid #5a574c（plastic #dbd6c8 上 4.98:1・--ink-soft は 3.13:1 で AA 不足のため昇格）
+    //   semanticMicroText/infoText = --ink-mid #5a574c（plastic #dbd6c8 上 4.98:1・--ink-soft は 3.13:1 で AA 不足のため昇格）
     private val CartridgeShelf = ShelfColors(LineCartridge, InkMidCartridge, InkMidCartridge)
     override fun shelf(theme: ReadingTheme): ShelfColors = CartridgeShelf
 

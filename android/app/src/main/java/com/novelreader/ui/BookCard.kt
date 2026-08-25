@@ -117,7 +117,7 @@ private fun BookProgressRow(
             modifier = modifier,
             fontSize = FontLabel,
             letterSpacing = 0.8.sp,
-            color = LocalShelfColors.current.unreadLabel,
+            color = LocalShelfColors.current.semanticMicroText,
         )
     }
 }

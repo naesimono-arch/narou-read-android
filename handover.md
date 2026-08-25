@@ -135,10 +135,6 @@
   残作業＝正本 `transition-skeleton-D.html` へ差分反映（⚠️ 既存正本はこのクリアランスを描いていない）→ Compose 翻訳 → golden 再記録（同じコミットに同梱）。
   翻訳時の注意＝**縦はクリアランスを足さない**（交差軸で列高が約4割潰れる）。
 
-- **[`ShelfColors.unreadLabel` → `semanticMicroText` へ改名＝裁定済み・未着手]**（2026-08-26 裁定）:
-  実測 **21箇所・13ファイル**（本番11・テスト2）＝`Theme.kt` の定義と KDoc・全6スキンの `SkinTokens`・`LocalShelfColors` 参照。
-  意味は変わらない機械置換で、**公開前でスキンが凍結中の今なら一斉に触っても誰も困らない**、という理由での採択。
-
 - **[教示「はじめに」の golden と実機検分]**（Compose 翻訳は 2026-08-25 に完了。正本モック＝`docs/design-candidates/tutorial-onboarding-K.html`）:
   **機械側の残り＝教示オーバーレイの新規 golden が未追加**（設定画面の既存 golden 4枚は「つかいかた」節の追加ぶんを再記録済み）。
   新規 PNG は `GoldenCoverageTest` のルート⇄PNG 双方向照合に波及するため、**その照合を触る便と同じ便でやる**。

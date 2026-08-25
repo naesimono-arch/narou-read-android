@@ -168,7 +168,7 @@ fun WebGridBookCard(
                         // なぜ secondary でなく濃青磁か: これは状態を名指す＝意味を運ぶ文字で AA(4.5:1) が要る。
                         // 青磁 secondary #9CB3A8 は素地 2.14:1 で未達。ADR 0014-D の裁定時に濃青磁
                         // UnreadSeiji が新設されたが未読ラベルだけが移行され、本ラベルは取りこぼされていた。
-                        color = LocalShelfColors.current.unreadLabel,
+                        color = LocalShelfColors.current.semanticMicroText,
                     )
                 }
             }
@@ -304,7 +304,7 @@ fun WebListBookCard(
                         // なぜ secondary でなく濃青磁か: これは状態を名指す＝意味を運ぶ文字で AA(4.5:1) が要る。
                         // 青磁 secondary #9CB3A8 は素地 2.14:1 で未達。ADR 0014-D の裁定時に濃青磁
                         // UnreadSeiji が新設されたが未読ラベルだけが移行され、本ラベルは取りこぼされていた。
-                        color = LocalShelfColors.current.unreadLabel,
+                        color = LocalShelfColors.current.semanticMicroText,
                     )
                 }
             }

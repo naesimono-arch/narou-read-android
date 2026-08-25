@@ -97,7 +97,7 @@ object SkinM : SkinTokens {
 
     // 本棚系の家系トークン（bookshelf-M 値）。固定1変種＝theme 非依存。
     //   hairline = --line 合成 #273151
-    //   unreadLabel/infoText = --dim #8791AD（本棚背景 #0B1330 上 5.81:1 で AA 充足＝素のまま意味色に使える）
+    //   semanticMicroText/infoText = --dim #8791AD（本棚背景 #0B1330 上 5.81:1 で AA 充足＝素のまま意味色に使える）
     private val SeizuShelf = ShelfColors(LineSeizu, DimSeizu, DimSeizu)
     override fun shelf(theme: ReadingTheme): ShelfColors = SeizuShelf
 
