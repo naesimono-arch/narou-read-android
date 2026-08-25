@@ -116,10 +116,6 @@
 
 ## リファクタ / 技術的負債（deferred）
 
-- **[test] 回帰テストの残り（3位・4位）**（監査で優先順位づけ済み・未着手）:
-  **3位＝`d3cfd99`**（nav 帯 alpha の持ち越しと `navigationBarsPadding` の走査）／
-  **4位＝`c76e7bd`**（⋮ の露出条件。コミット自身が「off 側は JVM で踏めない」と書いており **`sourcescan` 方式が妥当**という監査見立て）。
-
 - **[perf] 本棚→目次 push の「尾」は計測系によって出方が違う**（2026-08-21 に予算とベンチを新設）:
   実機 gfxinfo（12窓）は **p95 61.6 / p99 90.6 / 最大 138.0ms** で 12窓中11窓に 60ms 超が1枚出たのに、
   macrobenchmark（`TocPushBenchmark`／`TocPushBudget`）は **最大 56.1ms・60ms 超 0枚**で安定して尾が軽い。
