@@ -26,7 +26,7 @@ CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/**`（decisions・pa
 
 1. 機械チェックを実行する:
    ```
-   python .claude/skills/stale-check/check_machine.py
+   python3 .claude/skills/stale-check/check_machine.py
    ```
    - 登録済みの機械チェックを**全件**実行し、「前回チェック以降に変わった管理ファイル」一覧の提示と、
      状態ファイル `.claude/.stale_check_state.json` の自動更新まで行う。
@@ -40,7 +40,7 @@ CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/**`（decisions・pa
 
 1. 機械チェックを全件実行:
    ```
-   python .claude/skills/stale-check/check_machine.py --full
+   python3 .claude/skills/stale-check/check_machine.py --full
    ```
 2. **Explore エージェントを3つ並列起動**して意味レベルまで全面照合する（差分に絞らない）:
    - (a) 管理md系: CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/decisions/` / `docs/patterns/` の主張 ↔ 実コード・git
@@ -55,7 +55,7 @@ CLAUDE.md / STATUS.md / handover.md / task_diary.md / `docs/**`（decisions・pa
 **項目一覧の正本はスクリプト側の `CHECKS` 表**。照会はこれで行う:
 
 ```
-python .claude/skills/stale-check/check_machine.py --list
+python3 .claude/skills/stale-check/check_machine.py --list
 ```
 
 **ここへ列挙を複製しない**——以前はこの skill に項目表を持ち、件数の一致だけを機械照合していたが、
@@ -140,7 +140,10 @@ python .claude/skills/stale-check/check_machine.py --list
 
 ## 注意
 
-- 実行環境はこのマシンでは Linux/WSL が正本。`python` は `~/.local/bin/python → python3` シム経由で
-  Bash から実行する（Windows では PowerShell / Bash どちらでも可）。
+- 実行環境はこのマシンでは Linux/WSL が正本。**フックは `python` で可・Bash ツールからは `python3` を使う**
+  ——`~/.local/bin/python → python3` のシムが効くのは Claude Code 本体プロセス（＝そこから起動されるフック）だけで、
+  **Bash ツールの PATH には `~/.local/bin` が無い**＝`python` は `command not found`（exit 127）で落ちる
+  （2026-08-25 実測。この skill 自身が `python` を指示していて起動できなかった）。
+  Windows では PowerShell / Bash どちらでも可。
 - 状態ファイル `.claude/.stale_check_state.json` は `.gitignore` 済みのローカル状態。コミットしない。
 - リナンバー禁止: task_diary.md のエントリ番号（#N）は固定IDなので、重複を見つけても自動リネームせず報告に留める。

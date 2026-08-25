@@ -264,7 +264,9 @@ Python で `raise EncryptedPdfError("...")` すると、Kotlin側では `PyExcep
 | 8.6.x | 8.7+ |
 
 Gradleダウングレードより**AGPアップグレード**の方がAndroid Studioのキャッシュ問題を回避できて確実。
-現在の構成: AGP 8.6.1 + Gradle 8.9 + Kotlin 1.9.22 + Compose Compiler 1.5.10 + Compose BOM 2024.04.01。
+（上の表は当時の互換調査の記録。**現在の版をここに書かない**＝AGP/Kotlin/Compose は以後さらに上げており、
+書けば必ず取り残される。版の正本＝`android/settings.gradle`〔AGP・Kotlin・各プラグイン〕と
+`android/app/build.gradle`〔SDK・依存〕。）
 
 ---
 

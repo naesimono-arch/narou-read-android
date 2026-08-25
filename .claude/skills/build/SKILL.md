@@ -12,10 +12,16 @@ JAVA_HOME は設定済み（Linux/WSL は `~/.bashrc`、Windows は環境変数�
 `java: command not found` のときだけ手動で通す（OS で JDK の在処が異なる）:
 
 ```bash
-export JAVA_HOME="$HOME/opt/jdk-17"                             # Linux/WSL（Temurin 17＝AGP 8.6.1 に合わせる）
-export JAVA_HOME="/c/Program Files/Android/Android Studio/jbr"  # Windows（Git Bash 等）
+export JAVA_HOME="$HOME/opt/jdk-17"                                        # Linux/WSL（AGP の要求 JDK に合わせた Temurin）
+export JAVA_HOME="/c/Users/naesimono/scoop/apps/temurin21-jdk/current"     # Windows（Git Bash 等。scoop 導入）
+# ⚠️ 隣の `scoop/apps/temurin-jdk` は名前が正統に見えるが 26 系＝Linux 側 17・CI 17 とかけ離れるので選ばない
+# （Android Studio 同梱の JBR `scoop/apps/android-studio/current/jbr` も可）。
 export PATH="$JAVA_HOME/bin:$PATH"
 ```
+
+**JDK の系列は AGP の要求に追随する＝AGP の版は `android/settings.gradle` が正本**
+（ここに版数を書かない。以前は「Temurin 17＝AGP 8.6.1」と併記していたが、AGP を上げた時点で
+この行だけ取り残されて腐った＝二重管理の芽を残さない）。
 
 # 開発コマンド
 

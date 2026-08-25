@@ -1,10 +1,13 @@
 // 栞tip 横断dedup（汎用）。正本 shiori-tips-D.html の既存 nm/rd と、新 entries ファイルの nm/rd の
 // 衝突を検出する。使い方: node cross_dedup.js <new-entries.js> <constName>
 // 例: node cross_dedup.js docs/design-candidates/shiori-tips-batch3-foo.entries.js TIPS_X
-const fs=require('fs'),vm=require('vm');
+const fs=require('fs'),vm=require('vm'),path=require('path');
 const newFile=process.argv[2], constName=process.argv[3];
 if(!newFile||!constName){console.error('usage: node cross_dedup.js <entries.js> <constName>');process.exit(2);}
-const SHOHON='/home/qingj/wt/ui-shiori-tips/docs/design-candidates/shiori-tips-D.html';
+// 正本はリポジトリ相対で解決する。なぜ＝旧実装は作業用 worktree の絶対パス（~/wt/ui-shiori-tips/… ＝撤去済み）を
+// 指しており、その worktree を畳んだ時点で readFileSync が即 throw し工程3が恒久的に不通になった。
+// __dirname = <root>/.claude/skills/shiori-tips/tools ＝リポジトリ root は4つ上。
+const SHOHON=path.resolve(__dirname,'../../../../docs/design-candidates/shiori-tips-D.html');
 function S(){} function star(){}
 function ev(code,cn){const sb={S,star,Math,console};vm.createContext(sb);vm.runInContext(code+`\n;OUT=(typeof ${cn}!=="undefined")?${cn}:[];`,sb);return sb.OUT;}
 

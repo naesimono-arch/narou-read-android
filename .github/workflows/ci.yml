@@ -47,7 +47,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17' # AGP 8.6.1 / Gradle 8.9 に合わせたローカル環境（Temurin 17）と同一系列
+          java-version: '17' # AGP の要求 JDK に追随（AGP の版の正本＝android/settings.gradle）。ローカルの Temurin 17 と同一系列
 
       # Gradle のビルドキャッシュ・wrapper キャッシュを跨ぎ実行で共有
       - uses: gradle/actions/setup-gradle@v4

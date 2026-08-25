@@ -12,9 +12,9 @@ stale-check の「機械チェック実体」。
   Claude／並列エージェントが担当する。
 
 使い方:
-  python .claude/skills/stale-check/check_machine.py          # 人間可読サマリ
-  python .claude/skills/stale-check/check_machine.py --json    # 機械可読(JSON)
-  python .claude/skills/stale-check/check_machine.py --full    # 互換のため受理（出力は同じ＝機械チェックは常に全件）
+  python3 .claude/skills/stale-check/check_machine.py          # 人間可読サマリ
+  python3 .claude/skills/stale-check/check_machine.py --json    # 機械可読(JSON)
+  python3 .claude/skills/stale-check/check_machine.py --full    # 互換のため受理（出力は同じ＝機械チェックは常に全件）
 
 終了コード: 確度高(severity=high)の陳腐化が1件以上あれば 1、無ければ 0。
   ※ これはレポート用途であり hook ではない。コミット等はブロックしない。
