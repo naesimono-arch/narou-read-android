@@ -111,6 +111,11 @@ internal fun drawPersistedShiori(random: kotlin.random.Random): PersistedShiori 
  * 乱数系列は正本と同一: 色相は `mulberry32(hash(title))` の初回値（shioriHue と同一）、
  * 位置・長さ・先端は `mulberry32(hash(title+"|B"))` から順に x→len→tip の順で引く。
  *
+ * @param debugFixedTipIndex debug 限定の観察器（[ShioriDebugTip]）が固定した tip。非 null なら永続値より優先して
+ *   差し替える（＝棚の全冊が同じ先端になる）。release では常に null で渡る＝この引数は出荷ビルドの見た目に触れない。
+ *   なぜ永続値より強いか: 観察器は「今この tip を実機で見る」ための一時的な上書きで、既に抽選済みの蔵書
+ *   （persistedTipIndex を持つ本）こそ実機の主な中身だから。永続値に負けると狙った tip を1冊も出せない。
+ *
  * なぜ永続値ありでも rng() を必ず同回数・同順で回してから差し替えるか（消費順序の保存）:
  * mulberry32 は逐次消費のストリームで、xFrac→lenFrac→tipIndex の順に3回引く。ここで「差し替える項目の
  * rng() 呼び出しを省略」すると後続の引き位置がずれ、対象外の xFrac や、片方だけ永続化された場合のもう一方の
@@ -123,6 +128,7 @@ internal fun shioriParams(
     tipCount: Int,
     persistedTipIndex: Int? = null,
     persistedLenFrac: Float? = null,
+    debugFixedTipIndex: Int? = null,
 ): ShioriParams {
     val hue = shioriHue(title)
     val rng = mulberry32(shioriHash(title + "|B"))
@@ -134,6 +140,7 @@ internal fun shioriParams(
         hue = hue,
         xFrac = xFrac,
         lenFrac = persistedLenFrac ?: drawnLenFrac,
-        tipIndex = persistedTipIndex ?: drawnTipIndex,
+        // 優先順位＝debug 固定 > 取込時の永続値 > title 由来の決定論値（上の @param debugFixedTipIndex の why）。
+        tipIndex = debugFixedTipIndex ?: persistedTipIndex ?: drawnTipIndex,
     )
 }

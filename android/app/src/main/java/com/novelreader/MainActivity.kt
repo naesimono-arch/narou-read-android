@@ -56,6 +56,8 @@ import com.novelreader.ui.BookshelfScreen
 import com.novelreader.ui.ReadingErrorScreen
 import com.novelreader.ui.ReadingScreen
 import com.novelreader.ui.WardrobeScreen
+import com.novelreader.ui.components.ShioriDebugTip
+import com.novelreader.ui.components.shioriDebugTipFor
 import com.novelreader.ui.discovery.DiscoveryGenreScreen
 import com.novelreader.ui.discovery.DiscoveryHomeScreen
 import com.novelreader.ui.discovery.DiscoveryResultScreen
@@ -140,6 +142,14 @@ class MainActivity : ComponentActivity() {
             settingsPrefs.edit().putInt(PrefKeys.SETTINGS_SCHEMA_VERSION, SETTINGS_SCHEMA_VERSION).apply()
         }
 
+        // 栞先端 tip の固定（debug 限定の観察器・2026-08-25）を prefs から復元する。
+        // なぜ setContent より前か: 復元をコンポジション内でやると初回フレームだけ固定なしで描かれ、
+        // 「起動直後の1枚」を見て裁定する実機観察でちらつきが混じるため。値の単一情報源は ShioriDebugTip 側
+        //（本棚の引数列を増やさない理由＝同ファイル冒頭）。release は shioriDebugTipFor(false, …)＝常に null。
+        ShioriDebugTip.set(
+            shioriDebugTipFor(BuildConfig.DEBUG, settingsPrefs.getInt(PrefKeys.SHIORI_DEBUG_TIP_INDEX, -1))
+        )
+
         // Edge-to-Edge 表示を有効化（ステータスバー・ナビバー領域までコンテンツを描画）
         // NovelReaderTheme 内で WindowCompat.getInsetsController を使うため、
         // setDecorFitsSystemWindows は setContent より前に呼ぶ必要がある
@@ -211,6 +221,19 @@ class MainActivity : ComponentActivity() {
                 highLoadShioriK = on
                 prefs.edit().putBoolean(PrefKeys.SHIORI_HIGH_LOAD_K, on).apply()
             }
+            // 栞先端 tip の固定（debug 限定の観察器）。他の設定と違い状態を MainActivity に**持たない**のは、
+            // 値の読み手が描画側の ShioriCover（引数の届かない本棚グリッドの奥）だから＝単一情報源は ShioriDebugTip。
+            // ここは snapshot の読み（設定画面へ現在値を映すため）と、prefs への書き戻しだけを担う。
+            // release では fixedIndex が state を読まずに null を返す＝購読が張られず再コンポーズも起きない。
+            val shioriDebugTipIndex = ShioriDebugTip.fixedIndex
+            val onShioriDebugTipChange: (Int?) -> Unit = { index ->
+                ShioriDebugTip.set(index)
+                prefs.edit().apply {
+                    // 解除はキーごと削除（「未宣言＝固定しない」を保存形式でも表す＝reading_theme と同流儀）。
+                    if (index == null) remove(PrefKeys.SHIORI_DEBUG_TIP_INDEX)
+                    else putInt(PrefKeys.SHIORI_DEBUG_TIP_INDEX, index)
+                }.apply()
+            }
 
             // Material3 配色もテーマ3値（ライト/セピア/ダーク）へ追従させる。
             // 旧実装はセピア時にライト配色を流用しており、本棚・発見系で「ライトとセピアの
@@ -228,6 +251,8 @@ class MainActivity : ComponentActivity() {
                     onHighLoadSkyChange = onHighLoadSkyChange,
                     highLoadShioriK = highLoadShioriK,
                     onHighLoadShioriChange = onHighLoadShioriChange,
+                    shioriDebugTipIndex = shioriDebugTipIndex,
+                    onShioriDebugTipChange = onShioriDebugTipChange,
                     // .value の読み取りを composable 内で行うことで onNewIntent の更新が再コンポーズを誘発する。
                     deepLinkBookId = deepLinkBookId.value,
                     onDeepLinkConsumed = { deepLinkBookId.value = null },
@@ -329,6 +354,10 @@ private fun NovelReaderApp(
     // 栞アニメ高負荷（明快K・2026-08-06 裁定）: K 本棚の栞へ渡す現在値＋設定タブ開発節のトグルが呼ぶ更新。同上の debug 限定。
     highLoadShioriK: Boolean,
     onHighLoadShioriChange: (Boolean) -> Unit,
+    // 栞先端 tip の固定（debug 限定の観察器・2026-08-25）: 設定タブ開発節が映す現在値＋送りの受け口。
+    // 描画側（ShioriCover）は ShioriDebugTip から直接読むため、本棚へは渡さない（引数はここで止まる）。
+    shioriDebugTipIndex: Int?,
+    onShioriDebugTipChange: (Int?) -> Unit,
     deepLinkBookId: String?,
     onDeepLinkConsumed: () -> Unit,
     // P3 取込導線: 共有(SEND)/リンク(VIEW)からの Web 小説 URL（deepLinkBookId と同型・消費後に呼び元が null 戻し）。
@@ -616,6 +645,9 @@ private fun NovelReaderApp(
                         shioriHighLoadRowVisible = BuildConfig.DEBUG,
                         shioriHighLoadK = highLoadShioriK,
                         onShioriHighLoadChange = onHighLoadShioriChange,
+                        // 栞先端 tip の固定（同じ開発節に相乗り＝露出可否は上の shioriHighLoadRowVisible が兼ねる）。
+                        shioriDebugTipIndex = shioriDebugTipIndex,
+                        onShioriDebugTipChange = onShioriDebugTipChange,
                     )
                     },
                 ),

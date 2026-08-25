@@ -117,10 +117,7 @@ internal fun ShioriCover(
     val shiori = LocalShioriColors.current
     val paper = shiori.paper
     val ink = shiori.ink
-    // 永続値も remember キーに含める（null→非 null の差し替え時に確実に再計算させる）。
-    val params = remember(title, persistedTipIndex, persistedLenFrac) {
-        shioriParams(title, SHIORI_TIPS.size, persistedTipIndex, persistedLenFrac)
-    }
+    val params = rememberShioriParams(title, persistedTipIndex, persistedLenFrac)
     // 棒・先端の識別色＝生成色。共有ヘルパー shioriAccentFor に集約し、目録リストの色帯と同一色にする
     // （S=0.48・L は現在スキン×変種の accentLightness＝D はライト0.52/セピア0.48/ダーク0.62）。
     val computedAccent = remember(params.hue, shiori.accentLightness) {
@@ -177,6 +174,32 @@ internal fun ShioriCover(
             drawShioriHighLoad(params.tipIndex, barX, barLen, s, accent, params.hue, shiori.accentLightness, tSec)
         }
         drawShioriTitle(title, w, h, ink)
+    }
+}
+
+/**
+ * 書影のパラメータを解決する**唯一の入口**（[ShioriCover] はここ以外から [shioriParams] を呼ばない）。
+ *
+ * ここで debug 限定の観察器 [ShioriDebugTip] の固定 tip を差し込む。なぜ本棚グリッドやカードの引数で
+ * 渡さないか＝設計の why はすべて ShioriDebugTip.kt の冒頭に置いた（要旨: 途中の画面を書き換えず、
+ * 出荷ビルドに残る恒久 API も増やさないため、生成の最終地点で上書きする）。
+ * release では [ShioriDebugTip.fixedIndex] が定数畳み込みで null に潰れる＝snapshot 購読も張られず、
+ * 既存の描画経路は1命令も変わらない。
+ *
+ * 関数として切り出しているのは、観察器の固定が「実際に描画されるパラメータ」へ載ることを
+ * JVM テスト（ShioriCoverDebugTipTest）が画素に頼らず固定できるようにするため。
+ */
+@Composable
+internal fun rememberShioriParams(
+    title: String,
+    persistedTipIndex: Int?,
+    persistedLenFrac: Float?,
+): ShioriParams {
+    val debugFixedTipIndex = ShioriDebugTip.fixedIndex
+    // 永続値も remember キーに含める（null→非 null の差し替え時に確実に再計算させる）。
+    // 固定 tip もキー＝観察器で番号を送った瞬間に全書影が引き直される。
+    return remember(title, persistedTipIndex, persistedLenFrac, debugFixedTipIndex) {
+        shioriParams(title, SHIORI_TIPS.size, persistedTipIndex, persistedLenFrac, debugFixedTipIndex)
     }
 }
 

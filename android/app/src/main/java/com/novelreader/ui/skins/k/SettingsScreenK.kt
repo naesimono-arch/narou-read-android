@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -54,6 +55,7 @@ import com.novelreader.BuildConfig
 import com.novelreader.NewEpisodeNotificationPreference
 import com.novelreader.NovelReaderApplication
 import com.novelreader.ui.AdapterHealthBoardDialog
+import com.novelreader.ui.components.shioriDebugTipStep
 import com.novelreader.ui.theme.NovelReaderAlertDialog
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Skin
@@ -91,6 +93,11 @@ fun SettingsScreenK(
     shioriHighLoadRowVisible: Boolean = false,
     shioriHighLoadK: Boolean = false,
     onShioriHighLoadChange: (Boolean) -> Unit = {},
+    // 栞先端 tip の固定（debug 限定の観察器・2026-08-25）。露出可否は上の shioriHighLoadRowVisible を兼用する
+    //（同じ開発節の中の2行目＝節の可否は1つで足りる）。null＝固定しない。
+    // 既定 null / no-op＝既存呼び出し・設定画面 golden は1pxも変わらない。
+    shioriDebugTipIndex: Int? = null,
+    onShioriDebugTipChange: (Int?) -> Unit = {},
 ) {
     var showThemeDialog by remember { mutableStateOf(false) }
     var showHealthBoard by remember { mutableStateOf(false) }
@@ -235,6 +242,35 @@ fun SettingsScreenK(
                         )
                     }
                     Switch(checked = shioriHighLoadK, onCheckedChange = onShioriHighLoadChange)
+                }
+                // 栞先端の固定（観察器・2026-08-25）。なぜ要るか: tip は書影ごとに決まるため、
+                // 高負荷アニメ tip 0〜8 を実機で順に見るには蔵書の並びを操作で戻し続けるしかなく目視不能だった
+                //（2026-08-21 実機ツアー）。1種に固定すれば棚の全冊が同じ先端になり 0→8 を送って裁定できる。
+                // なぜ数値入力でなくステッパーか: 実機で片手のまま隣の tip へ送れることが観察の本体で、
+                // キーボードを出すと本棚へ戻るまでの手数が増える（0〜8 は1タップずつ・遠い番号は ±10 で寄せる）。
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.S16, vertical = Spacing.S12),
+                ) {
+                    Text("栞先端を固定（観察）", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        shioriDebugTipDescription(shioriDebugTipIndex),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.S4),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = Spacing.S4),
+                    ) {
+                        // 送りは「解除→0→…→173→解除」の巡回（shioriDebugTipStep）＝どちら向きでも解除へ戻れる。
+                        ShioriDebugTipButton("−10") { onShioriDebugTipChange(shioriDebugTipStep(shioriDebugTipIndex, -10)) }
+                        ShioriDebugTipButton("−1") { onShioriDebugTipChange(shioriDebugTipStep(shioriDebugTipIndex, -1)) }
+                        ShioriDebugTipButton("＋1") { onShioriDebugTipChange(shioriDebugTipStep(shioriDebugTipIndex, 1)) }
+                        ShioriDebugTipButton("＋10") { onShioriDebugTipChange(shioriDebugTipStep(shioriDebugTipIndex, 10)) }
+                        ShioriDebugTipButton("解除") { onShioriDebugTipChange(null) }
+                    }
                 }
             }
         }
@@ -536,4 +572,28 @@ private fun ReadingTheme.displayNameK(): String = when (this) {
     ReadingTheme.LIGHT -> "ライト"
     ReadingTheme.SEPIA -> "セピア"
     ReadingTheme.DARK -> "ダーク"
+}
+
+/**
+ * 栞先端の固定行に出す現在値の説明（開発節・debug 限定）。
+ * 「高負荷アニメは 0〜8」を併記するのは、9 以上へ送ると**動かないのが正常**（対象外 tip は静止パス）で、
+ * それを知らずに送ると「アニメが壊れた」と誤読するため（判定は shioriHighLoadActive）。
+ */
+private fun shioriDebugTipDescription(index: Int?): String =
+    if (index == null) "固定しない（書影ごとの先端）／高負荷アニメの対象は 0〜8"
+    else "tip $index に固定中（全書影が同じ先端）／高負荷アニメの対象は 0〜8"
+
+/**
+ * 固定行のステッパー1個（開発節・debug 限定）。
+ * contentPadding を詰めるのは、5 個を 360dp 幅の1行へ収めるため（既定の TextButton は横 24dp ずつ食い、
+ * 5 個で画面幅を超えて最後の「解除」が押せなくなる＝観察器としての行き止まりになる）。
+ */
+@Composable
+private fun ShioriDebugTipButton(label: String, onClick: () -> Unit) {
+    TextButton(
+        onClick = onClick,
+        contentPadding = PaddingValues(horizontal = Spacing.S8, vertical = 0.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.labelLarge)
+    }
 }

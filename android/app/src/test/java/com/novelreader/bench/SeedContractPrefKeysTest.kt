@@ -71,6 +71,8 @@ class SeedContractPrefKeysTest {
         // 高負荷トグルは debug 限定（ADR 0023）＝benchmark ビルドには出ない。
         "SKY_HIGH_LOAD_M" to "debug 限定トグル（benchmark ビルドに無い）",
         "SHIORI_HIGH_LOAD_K" to "debug 限定トグル（benchmark ビルドに無い）",
+        // 栞先端 tip の固定は debug 限定の観察器（ShioriDebugTip）＝benchmark ビルドでは解決が常に null。
+        "SHIORI_DEBUG_TIP_INDEX" to "debug 限定の観察器（benchmark ビルドで値が解決されない）",
     )
 
     /**
