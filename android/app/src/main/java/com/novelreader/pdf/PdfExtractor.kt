@@ -72,8 +72,21 @@ class GlyphStripper(
      * 並列走行で各スレッドが同一 PDF の別範囲だけを担当するために使う。
      */
     private val pageRange: IntRange? = null,
+    /**
+     * 1 ページ分のグリフが揃った時点で発火する省略可のフック（**ストリーミング取り出し**）。
+     *
+     * 指定すると [pages] へは一切溜めず、ページ完了ごとにその 1 ページ分だけを渡して即座に捨てる。
+     * なぜ要るか＝全ページを溜める形（[pages]）は保持量がページ数に比例し、8,668 ページの実測で
+     * 500MB 級に達して端末のヒープ天井を越える（真因）。ページを跨いで CharBox を参照する処理は
+     * 一つも無いので、同時生存は 1 ページで足りる。
+     *
+     * ⚠️ 渡した List は復帰後に破棄される前提＝**受け取り側は参照を持ち越してはならない**
+     * （持ち越すとページ数比例の保持に戻り、この経路を入れた意味が消える）。
+     */
+    private val onPageComplete: ((List<CharBox>) -> Unit)? = null,
 ) : PDFTextStripper() {
 
+    /** 全ページ蓄積モードの結果。[onPageComplete] 指定時は常に空（溜めないのが目的のため）。 */
     val pages: MutableList<MutableList<CharBox>> = mutableListOf()
     private var current: MutableList<CharBox> = mutableListOf()
 
@@ -103,9 +116,25 @@ class GlyphStripper(
         }
     }
 
+    /**
+     * ストリーミング取り出し時だけ、揃った 1 ページ分を渡して即座に手放す。
+     * `endPage` は PDFTextStripper が「そのページの全グリフを processTextPosition へ流し終えた後」に
+     * 呼ぶフック＝ここが 1 ページ完成の唯一の確定点。
+     */
+    override fun endPage(page: PDPage) {
+        val sink = onPageComplete
+        if (sink != null) {
+            sink(current)
+            // 参照を切って GC 可能にする（次ページの startPage で作り直す）。
+            current = mutableListOf()
+        }
+        super.endPage(page)
+    }
+
     override fun startPage(page: PDPage) {
         current = mutableListOf()
-        pages.add(current)
+        // ストリーミング取り出し時は溜めない（溜めるとページ数比例の保持に戻る＝真因そのもの）。
+        if (onPageComplete == null) pages.add(current)
         // getText の走査中にページ毎に発火するため、支配的コストの本文抽出中も進捗バーを前進させられる
         // （handover の UX ギャップ対策）。並列走行ではキャンセル確認もこの経路に相乗りする。
         onPageStart?.invoke()
@@ -130,6 +159,62 @@ class GlyphStripper(
                 bottom = bottom,
             )
         )
+    }
+}
+
+/**
+ * 全ページのグリフを **1 ページずつ** 消費側へ渡す供給源。
+ *
+ * なぜ型として切るか（真因対処の中核）: 旧経路は [PdfExtractor.loadPages] の戻り値
+ * `List<List<CharBox>>` ＝**全ページ分の CharBox を同時生存**させる形で、保持量がページ数に比例した
+ * （N6169DZ 8,668 ページで Dalvik ピーク実測 514MB ＝約 59KB/ページ。192MB 端末では確実に、
+ * 512MB 級の実機でも使い切る寸前）。だがページを跨いで CharBox を参照する処理は**一つも無い**
+ * ——rules 検出も段落化もページ内で閉じる——ので、同時生存は 1 ページに畳める。
+ *
+ * [forEachPage] は**複数回呼べる**。rules 検出（bodySize→列/ルビ）と本文整形は「前段の結果が要る」
+ * 依存があり 1 走査に畳めないため、走査を繰り返せることを型の契約にする。
+ *
+ * ⚠️ consume へ渡した List は**復帰後に破棄されうる**。受け取り側は参照を持ち越してはならない。
+ */
+internal fun interface PageGlyphSource {
+    /** ページ 0..n-1 を昇順に [consume] へ渡す。ページ順は rules 検出・段落縫合の前提。 */
+    fun forEachPage(consume: (pageIndex: Int, chars: List<CharBox>) -> Unit)
+}
+
+/**
+ * 既に materialize 済みのページ列をそのまま流す供給源。
+ * 走査ごとの再パースが無い＝**ヒープに余裕がある端末での高速経路**（従来と同じ 1 パース）。
+ */
+internal class MaterializedPageSource(private val pages: List<List<CharBox>>) : PageGlyphSource {
+    override fun forEachPage(consume: (Int, List<CharBox>) -> Unit) {
+        for (i in pages.indices) consume(i, pages[i])
+    }
+}
+
+/**
+ * 走査のたびに PDF を読み直す供給源。保持量は常に 1 ページ分＝**ページ数に依存しない**。
+ *
+ * 代償は走査回数ぶんの再パース（PDFBox のパースは抽出コストの 85〜91%）。よって
+ * [PdfExtractor.canMaterializeAllPages] が「溜めても安全」と判断した端末では使わない。
+ * 同一 [PDDocument] を再利用するのでフォント/CMap の解決結果はドキュメント内キャッシュに乗る。
+ */
+internal class ReparsingPageSource(
+    private val doc: PDDocument,
+    private val onPageLoaded: (() -> Unit)? = null,
+) : PageGlyphSource {
+    override fun forEachPage(consume: (Int, List<CharBox>) -> Unit) {
+        var index = 0
+        GlyphStripper(
+            onPageComplete = { chars ->
+                onPageLoaded?.invoke()
+                consume(index, chars)
+                index++
+            },
+        ).apply {
+            sortByPosition = false
+            startPage = 1
+            endPage = Int.MAX_VALUE
+        }.getText(doc)
     }
 }
 
@@ -469,24 +554,107 @@ object PdfExtractor {
         doc: PDDocument,
         source: File? = null,
         onProgress: ((phase: EnginePhase, current: Int, total: Int) -> Unit)? = null,
+    ): List<String> = runFinalEngine(doc, source, Runtime.getRuntime().maxMemory(), onProgress)
+
+    /**
+     * ヒープ上限を注入できる [runFinalEngine]。
+     *
+     * なぜ注入口を開けるか: 経路の分岐（全ページ保持 / ストリーミング）は端末のヒープ天井で決まるが、
+     * **開発機は高性能で低スペック側の分岐を人間が踏めない**。人が実機で確認できない以上、境界の
+     * 保証は機械の網しか無いので、テストから両経路を名指しで叩けるようにする。
+     */
+    internal fun runFinalEngine(
+        doc: PDDocument,
+        source: File?,
+        maxMemoryBytes: Long,
+        onProgress: ((phase: EnginePhase, current: Int, total: Int) -> Unit)? = null,
     ): List<String> {
         val totalPages = doc.numberOfPages
-        val charListsByPage = loadPages(doc, source) { loaded, total ->
-            onProgress?.invoke(EnginePhase.LOAD, loaded, total)
+        // 走らせる前にヒープ上限から経路を決める（[canMaterializeAllPages] の why を参照）。
+        val materialize = canMaterializeAllPages(totalPages, maxMemoryBytes)
+
+        // LOAD フェーズ（進捗バー前半）＝「rules 検出に要る走査」。溜める経路は 1 走査、溜めない経路は
+        // 2 走査なので、通し進捗が巻き戻らないよう総数を走査数倍して単調増加のカウンタで出す。
+        val loadTotal = totalPages * (if (materialize) 1 else DetectedRules.STREAMING_PASSES)
+        var loaded = 0
+
+        val rulesSource: PageGlyphSource
+        val bodySource: PageGlyphSource
+        if (materialize) {
+            // 従来と同じ 1 パース経路。全ページ分の CharBox を保持できると判断した端末だけが通る。
+            val all = MaterializedPageSource(
+                loadPages(doc, source) { n, _ -> onProgress?.invoke(EnginePhase.LOAD, n, loadTotal) },
+            )
+            rulesSource = all
+            bodySource = all
+        } else {
+            // 保持量をページ数から切り離す経路。走査のたびに再パースする代わりに同時生存は 1 ページ。
+            // rules 用と本文用でインスタンスを分けるのは、進捗通知を LOAD フェーズの走査だけに限るため
+            // （本文走査の通知は PROCESS 側が出す＝1 ページで 2 回数えない）。
+            rulesSource = ReparsingPageSource(doc) {
+                loaded++
+                onProgress?.invoke(EnginePhase.LOAD, loaded, loadTotal)
+            }
+            bodySource = ReparsingPageSource(doc)
         }
+
         // 本文処理の前に、この文書の実配置から解析パラメータを検出する（検出不能な項目は FALLBACK＝
         // 現行実測値へ退避）。生成側が同形状のまま寸法を微調整しても追随できるようにするため。
-        val rules = DetectedRules.detect(charListsByPage)
+        val rules = DetectedRules.detect(rulesSource, totalPages)
+
+        // 段落化もページ単位のストリーミングで回す（中間の全ページ CharBox を持たない）。
         // processPages が出す pct(10-60) は元々未使用のため捨て、(processed, bodyTotal) のみ前送りする。
-        return TextProcessor.processPages(charListsByPage, totalPages, rules) { _, processed, bodyTotal ->
+        val paragraphs = ArrayList<String>()
+        val streamer = TextProcessor.ParagraphStreamer(totalPages, rules, { _, processed, bodyTotal ->
             onProgress?.invoke(EnginePhase.PROCESS, processed, bodyTotal)
-        }
+        }) { paragraphs.add(it) }
+        bodySource.forEachPage { index, chars -> streamer.addPage(index, chars) }
+        streamer.finish()
+        return paragraphs
+    }
+
+    /**
+     * 全ページ分の CharBox を**同時に保持してよいか**（＝再パースの無い高速経路を採れるか）を、
+     * 端末のヒープ上限と文書規模から**走らせる前に**決める。
+     *
+     * なぜ事前判定しかないか: [OutOfMemoryError] を捕まえてから退避する形は採れない。捕捉できた時点で
+     * ヒープは既に危険域で後続の確保も失敗しうるうえ、実機では ART が投げる前に OEM がプロセスごと
+     * 殺すこともある（`docs/knowledge/pdf-extract-engine-cost-ceiling.md`）。**踏む前に避ける**のが唯一の道。
+     *
+     * 係数の出典（いずれも実測。端末の ART 実装で 2 倍近く振れるので**大きい側**を安全側として採る）:
+     * - OPPO PGEM10 実機: engine ピーク 276.1MB / 8,668 ページ ＝ 約 32KB/ページ
+     * - x86_64 エミュレータ(API34): Dalvik ピーク 514MB / 8,668 ページ ＝ 約 59KB/ページ
+     * 保持の実体は 1 グリフ 1 [CharBox]（実測 390〜476 グリフ/ページ）なので、ページ数を代理変数にする。
+     *
+     * 予算を上限の [MATERIALIZE_BUDGET_PERCENT]% に留めるのは、CharBox 以外に
+     * PDDocument とフォント/CMap（実測で数十 MB）・段落/章の文字列・GC 猶予が同時に要るため。
+     *
+     * @param maxMemoryBytes `Runtime.getRuntime().maxMemory()` 相当。**引数で受けるのはテストのため**
+     *   ＝開発機が高性能で低スペック側の分岐を人間が踏めない以上、境界の保証は機械の網しか無い。
+     */
+    internal fun canMaterializeAllPages(totalPages: Int, maxMemoryBytes: Long): Boolean {
+        val budgetBytes = maxMemoryBytes / 100 * MATERIALIZE_BUDGET_PERCENT
+        val estimatedBytes = totalPages.toLong() * MATERIALIZED_BYTES_PER_PAGE
+        return estimatedBytes <= budgetBytes
     }
 
     // ==========================================================
     // 並列 loadPages の較正値（すべて PGEM10 実機実測が出典・根拠は parallelDegree の KDoc）
     // 出典: docs/knowledge/pdf-extract-engine-cost-ceiling.md
     // ==========================================================
+
+    /**
+     * 全ページ保持の見積り（1 ページあたり）。実測 32KB（PGEM10 実機）〜59KB（x86_64 エミュ）の
+     * **大きい側**へ寄せた安全値。小さく見積もると天井を越えて落ちる／大きく見積もると遅い経路へ
+     * 落ちるだけ＝誤りの代償が非対称なので安全側に倒す。
+     */
+    internal const val MATERIALIZED_BYTES_PER_PAGE = 64L * 1024
+
+    /**
+     * 全ページ保持に割いてよいヒープ上限の割合。残りは PDDocument とフォント/CMap（実測で数十 MB）・
+     * 段落/章の文字列・GC 猶予が同時に要るぶん。
+     */
+    internal const val MATERIALIZE_BUDGET_PERCENT = 50L
 
     /** ヒープ上限のうち抽出に使ってよい割合。残り 10% は GC 猶予（未回収ゴミの実測振れ幅 37.3MB/384MB 相当）。 */
     private const val HEAP_BUDGET_PERCENT = 90L

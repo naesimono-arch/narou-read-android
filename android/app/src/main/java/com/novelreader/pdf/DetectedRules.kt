@@ -1,5 +1,7 @@
 package com.novelreader.pdf
 
+import java.util.BitSet
+
 /**
  * 1 文書ぶんの解析パラメータを、その文書の文字配置から自動検出した結果。
  *
@@ -38,7 +40,7 @@ data class DetectedRules(
          * バケットカウンタの最頻キーを返す（空なら null）。同数タイは小さいキー優先で決定的にする
          * （HashMap 反復順に依存すると同一入力で結果が揺れ、合成テストが非決定になるため）。
          *
-         * 決定性のこの一点を [modeBucketKey] と bodySize 検出（カウンタを直接積む経路）で共有し、
+         * 決定性のこの一点を [bucketModeRefined] と bodySize 検出（カウンタを直接積む経路）で共有し、
          * 選び方が2箇所へ分岐しないようにする。
          */
         private fun modeOfBucketCounts(counts: Map<Double, Int>): Double? {
@@ -48,49 +50,60 @@ data class DetectedRules(
                 .first().key
         }
 
-        /** 生値リストを 0.1 バケットへ集計して最頻キーを返す（空なら null）。 */
-        private fun modeBucketKey(values: List<Double>): Double? {
-            if (values.isEmpty()) return null
-            val counts = HashMap<Double, Int>()
-            for (v in values) { val b = bucket01(v); counts[b] = (counts[b] ?: 0) + 1 }
-            return modeOfBucketCounts(counts)
-        }
-
-        /** 昇順ソート済みリストの中央値（偶数個は中央 2 値の平均）。 */
-        private fun median(sorted: List<Double>): Double {
-            val n = sorted.size
-            return if (n % 2 == 1) sorted[n / 2] else (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0
-        }
-
         /**
          * 最頻 0.1 バケットを選び、そのバケット内の生値の中央値で精緻化して返す。
          * なぜ中央値: 0.1 丸めだと 22.7 のような境界値に量子化されるが、閾値比較・除算丸めには真値
          * （22.68 等）が要る。最頻バケットへ生値を集め直してから中央値を採ることで量子化誤差を外す。
+         *
+         * なぜ生値リストでなく**出現回数表**を受けるか（保持量の真因対処）: 旧実装は列間差分と
+         * ルビ横オフセットを `ArrayList<Double>` へ 1 件ずつ積んでいた＝**件数がページ数に比例**して
+         * 伸びる（長編ではルビ 1 グリフごとに 1 件）。集計に要るのは「どの値が何回出たか」だけで
+         * 同じ値の重複を持つ必要は無く、回数表に畳むと保持量は**文書の幾何的な種類数**で頭打ちになる。
+         * 選ぶ値は畳む前と同一＝丸めは同じ [bucket01]、最頻は同じ [modeOfBucketCounts]（同数タイは
+         * 小さいキー優先）、中央値も同じ「昇順に並べて中央（偶数個は中央 2 値の平均）」を回数つきで数える。
          */
-        private fun bucketModeRefined(values: List<Double>): Double {
-            val mode = modeBucketKey(values)!!
-            val inBucket = values.filter { bucket01(it) == mode }.sorted()
-            return median(inBucket)
+        private fun bucketModeRefined(freq: Map<Double, Int>): Double {
+            val bucketCounts = HashMap<Double, Int>()
+            for ((v, n) in freq) { val b = bucket01(v); bucketCounts[b] = (bucketCounts[b] ?: 0) + n }
+            val mode = modeOfBucketCounts(bucketCounts)!!
+            val inBucket = freq.entries.filter { bucket01(it.key) == mode }.sortedBy { it.key }
+            val total = inBucket.sumOf { it.value }
+            // 昇順に並べたときの中央位置。偶数個は中央 2 値の平均＝ソート済みリストの median と同値。
+            val lowerIndex = if (total % 2 == 1) total / 2 else total / 2 - 1
+            val upperIndex = total / 2
+            var seen = 0
+            var lower = Double.NaN
+            for ((value, n) in inBucket) {
+                seen += n
+                if (lower.isNaN() && seen > lowerIndex) lower = value
+                if (seen > upperIndex) return (lower + value) / 2.0
+            }
+            return lower
         }
 
         /**
          * 文書全ページの文字配置から解析パラメータを検出する。各項目は独立にフォールバックする。
          *
-         * @param charListsByPage [PdfExtractor.loadPages] が返す全ページ×全文字（表紙・注意ページ含む）。
+         * ページは [PageGlyphSource] から **1 ページずつ**受け取り、走査を跨いで CharBox を保持しない
+         * （保持量をページ数から切り離す＝OOM の真因対処）。走査は [STREAMING_PASSES] 回:
+         * - ①走査: 全グリフのサイズヒストグラム → bodySize
+         * - ②走査: bodySize を前提とする「ページ番号シグネチャ」「列ピッチ」「ルビ横オフセット」
+         *
+         * ②を①に畳めない理由: ②の分類はすべて bodySize との近さで決まるが、bodySize は文書を
+         * 最後まで読み切るまで確定しない（最頻値のため）。候補ごとの仮説を全ページ並走させれば 1 走査に
+         * できるが、候補集合自体が読み切るまで確定せず、途中で現れた候補は過去ページを取りこぼす
+         * ＝正しさを保てないので採らない。
+         *
+         * @param totalPages 文書の総ページ数（ページ番号シグネチャの再出率判定に使う）。
          */
-        fun detect(charListsByPage: List<List<CharBox>>): DetectedRules {
-            val totalPages = charListsByPage.size
-
-            // --- bodySize: 全 CharBox サイズの 0.1 バケット最頻。ヒストグラム空（＝文字ゼロ）なら FALLBACK。
-            //     元は charListsByPage.flatten() で全グリフのコピーリストを作り、さらに map{ it.size } で
-            //     全グリフぶんの boxed Double リストを作ってからヒストグラムへ渡していた。338万グリフの
-            //     文書ではヒストグラム1本のために概算100MB超の一時確保が走る（そのどちらもここでしか
-            //     使われていなかった）。ページ配列を直接走査してバケットカウンタへ積む形へ畳む。
-            //     値が変わらない理由: 丸めは同じ bucket01、選び方は同じ modeOfBucketCounts（同数タイは
-            //     小さいキー優先）で、flatten の連結順は件数の集計に影響しない。文字ゼロならカウンタも
-            //     空になり、従来の「空リスト→null」と同じく FALLBACK へ退避する。
+        // internal なのは [PageGlyphSource]（モジュール内部の実装詳細）がシグネチャに現れるため。
+        // 外部公開の入口は下の materialize 済みリストを取る overload。
+        internal fun detect(source: PageGlyphSource, totalPages: Int): DetectedRules {
+            // --- ①走査 bodySize: 全 CharBox サイズの 0.1 バケット最頻。ヒストグラム空（＝文字ゼロ）なら FALLBACK。
+            //     ページ配列を直接走査してバケットカウンタへ積む（flatten や map{it.size} の一時リストを作らない
+            //     ＝338万グリフで概算100MB超の確保が消える。2026-08-17 計測）。
             val sizeBuckets = HashMap<Double, Int>()
-            for (page in charListsByPage) {
+            source.forEachPage { _, page ->
                 for (c in page) {
                     val b = bucket01(c.size)
                     sizeBuckets[b] = (sizeBuckets[b] ?: 0) + 1
@@ -102,44 +115,33 @@ data class DetectedRules(
             //     ＝ルビが無い文書では size==rubySize の分類が発火しないだけで、値自体は常に定義できる。
             val rubySize = bodySize * 0.5
 
-            // --- pageNum: 本文サイズ以外の (サイズ0.1バケット, top1.0バケット) シグネチャで、
+            // --- ②走査。以下3項目はいずれも bodySize を前提にするので同じ走査に相乗りさせる。
+            //   - pageNum: 本文サイズ以外の (サイズ0.1バケット, top1.0バケット) シグネチャで、
             //     出現ページ数（＝ページ再出率）が最大の組を採用。少ページ文書は統計が立たないため
-            //     再出率 ≥0.5 かつ 総ページ>3 のときだけ採用し、それ以外は FALLBACK。
-            val comboPages = HashMap<Pair<Double, Double>, MutableSet<Int>>()
-            for ((pi, page) in charListsByPage.withIndex()) {
-                for (c in page) {
-                    if (ParserRules.isClose(c.size, bodySize)) continue // 本文サイズはページ番号候補から除外
-                    val key = bucket01(c.size) to Math.round(c.top).toDouble()
-                    comboPages.getOrPut(key) { mutableSetOf() }.add(pi)
-                }
-            }
-            val bestPn = comboPages.entries.maxByOrNull { it.value.size }
-            val (pageNumSize, pageNumY) =
-                if (bestPn != null && totalPages > 3 &&
-                    bestPn.value.size.toDouble() / totalPages >= 0.5
-                ) {
-                    bestPn.key.first to bestPn.key.second
-                } else {
-                    FALLBACK.pageNumSize to FALLBACK.pageNumY
-                }
-
-            // --- lineStepX / rubyOffsetX: どちらも「本文サイズの文字だけを列復元した結果」を入力にする。
-            //     元はページごとに同じ filter+groupCharsByLine を2周して別々に組み立てていたが、
-            //     完全に同一の計算なので1周へ畳んで共有する。畳む前は detect 実測の中で
-            //     lineStepX 側 30.8% + rubyOffsetX 側 37.0% を占め、うち片方ぶんの列復元が
-            //     まるごと重複していた（実測＝ExtractPhaseProfileTest の DetectBreakdown）。
-            //     列キーは同じ groupCharsByLine の LinkedHashMap 由来で集合も順序も変わらないため、
-            //     stepRaws / offRaws に積む値は畳み込み前と一致する。
+            //     再出率 >=0.5 かつ 総ページ>3 のときだけ採用し、それ以外は FALLBACK。
+            //     ⚠️ 出現ページの記録に [BitSet] を使う: 旧実装は組ごとに `MutableSet<Int>` を持っており、
+            //     1 ページ 1 要素＝**組数 × ページ数**の確保になっていた（長編ではルビ由来の組が数百生まれ、
+            //     組あたり数百 KB＝これ自体が OOM の第二の原因）。ビット列なら 1 ページ 1 ビットで、
+            //     判定に要る「異なるページ数」は cardinality() がそのまま返す＝値は完全に同一。
             //   - lineStepX: 列 x0 を降順整列した隣接差分（>0 のみ）を全ページ集計→最頻 0.1 バケット→
             //     バケット内中央値で精緻化。サンプル<10 は統計不足で FALLBACK。
             //   - rubyOffsetX: ルビサイズ帯(rubySize±0.1)の文字 x0 と「その x0 未満で最大の本文列 x0」との
             //     差分を全ページ集計→最頻 0.1 バケット→バケット内中央値。サンプル<10 は FALLBACK。
             //     なぜ主峰のみ: 実測は二峰性（主峰≈14.8・副峰≈9.8が約10%）。副峰 9.8 群は現行定数 14.84 でも
-            //     isClose(±0.1) の窓から外れて取りこぼしており、挙動保存のため主峰だけを検出する
-            //     （副峰救済は将来の挙動変更＝本リファクタのスコープ外）。
-            val stepRaws = ArrayList<Double>()
-            val offRaws = ArrayList<Double>()
-            for (page in charListsByPage) {
+            //     isClose(±0.1) の窓から外れて取りこぼしており、挙動保存のため主峰だけを検出する。
+            //     lineStepX と rubyOffsetX は同じ列復元結果を共有する（別々に2周すると engine の 5〜6% を捨てる）。
+            val comboPages = HashMap<Pair<Double, Double>, BitSet>()
+            val stepFreq = HashMap<Double, Int>()
+            val offFreq = HashMap<Double, Int>()
+            var stepCount = 0
+            var offCount = 0
+            source.forEachPage { pageIndex, page ->
+                for (c in page) {
+                    if (ParserRules.isClose(c.size, bodySize)) continue // 本文サイズはページ番号候補から除外
+                    val key = bucket01(c.size) to Math.round(c.top).toDouble()
+                    comboPages.getOrPut(key) { BitSet() }.set(pageIndex)
+                }
+
                 val bodyColKeys = TextProcessor.groupCharsByLine(
                     page.filter { ParserRules.isClose(it.size, bodySize) }
                 ).keys
@@ -147,26 +149,42 @@ data class DetectedRules(
                 val descending = bodyColKeys.sortedDescending()
                 for (i in 0 until descending.size - 1) {
                     val d = descending[i] - descending[i + 1]
-                    if (d > 0.0) stepRaws.add(d)
+                    if (d > 0.0) {
+                        stepFreq[d] = (stepFreq[d] ?: 0) + 1
+                        stepCount++
+                    }
                 }
 
-                if (bodyColKeys.isEmpty()) continue
+                if (bodyColKeys.isEmpty()) return@forEachPage
                 for (r in page) {
-                    // 元は page.filter{ルビ帯} で新規リストを作っていたが、走査順は同じなのでその場で弾く
-                    // （結果は同一で、ページごとのリスト確保だけが消える）。
+                    // 走査順は同じなのでその場で弾く（ページごとの filter リストを作らない）。
                     if (!ParserRules.isClose(r.size, rubySize)) continue
                     // 親列 = ルビ x0 未満で最大の本文列 x0（associateRuby の targetX=r.x0-offset の逆算）。
-                    // 元は bodyCols.filter{ it < r.x0 }.maxOrNull()＝ルビ1個ごとに新規リストを作っていた。
-                    // 「r.x0 未満の最大」は1パス走査でも同値なので、確保を伴わない形へ置き換える。
+                    // 「r.x0 未満の最大」は1パス走査でも同値なので、確保を伴わない形で求める。
                     var parent: Double? = null
                     for (x in bodyColKeys) {
                         if (x < r.x0 && (parent == null || x > parent)) parent = x
                     }
-                    if (parent != null) offRaws.add(r.x0 - parent)
+                    if (parent != null) {
+                        val off = r.x0 - parent
+                        offFreq[off] = (offFreq[off] ?: 0) + 1
+                        offCount++
+                    }
                 }
             }
-            val lineStepX = if (stepRaws.size >= 10) bucketModeRefined(stepRaws) else FALLBACK.lineStepX
-            val rubyOffsetX = if (offRaws.size >= 10) bucketModeRefined(offRaws) else FALLBACK.rubyOffsetX
+
+            val bestPn = comboPages.entries.maxByOrNull { it.value.cardinality() }
+            val (pageNumSize, pageNumY) =
+                if (bestPn != null && totalPages > 3 &&
+                    bestPn.value.cardinality().toDouble() / totalPages >= 0.5
+                ) {
+                    bestPn.key.first to bestPn.key.second
+                } else {
+                    FALLBACK.pageNumSize to FALLBACK.pageNumY
+                }
+
+            val lineStepX = if (stepCount >= 10) bucketModeRefined(stepFreq) else FALLBACK.lineStepX
+            val rubyOffsetX = if (offCount >= 10) bucketModeRefined(offFreq) else FALLBACK.rubyOffsetX
 
             return DetectedRules(
                 bodySize = bodySize,
@@ -177,5 +195,15 @@ data class DetectedRules(
                 lineStepX = lineStepX,
             )
         }
+
+        /**
+         * 全ページを materialize 済みのリストから検出する薄いラッパー（既存呼び出し・テスト用）。
+         * 中身は [detect] と同一で、走査が再パースでなくメモリ上の再走査になるだけ。
+         */
+        fun detect(charListsByPage: List<List<CharBox>>): DetectedRules =
+            detect(MaterializedPageSource(charListsByPage), charListsByPage.size)
+
+        /** [detect] がストリーミング供給源に対して要求する走査回数（進捗の総数計算に使う）。 */
+        const val STREAMING_PASSES = 2
     }
 }

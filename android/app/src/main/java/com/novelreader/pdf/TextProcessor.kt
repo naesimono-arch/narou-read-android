@@ -127,9 +127,13 @@ object TextProcessor {
      * 本文抽出コア。ページごとの文字リストから段落文字列のリストを返す。
      * 題名は "【題名】..." プレフィックス付きの段落として混在させる（章分割で利用）。
      *
+     * 中身は [ParagraphStreamer] へ 1 ページずつ流すだけ（実装は一本＝全ページ版とストリーミング版で
+     * 段落の縫合規則が食い違わないようにするため）。全ページを同時に持てる呼び出し側（テスト・
+     * オラクル・ヒープに余裕のある端末）はこちらを使ってよい。
+     *
      * progressCallback: 有効ページの処理開始ごとに (pct, processed, bodyTotal) を通知する。
-     *   pct は 10〜60% にマップ（移植元 pdf_extractor.py _process_pages:130-133 と同一計算）。
-     *   本文抽出(step1)の進捗バーをページ単位でライブ更新するために使う。null なら通知しない。
+     *   pct は 10〜60% にマップ。本文抽出(step1)の進捗バーをページ単位でライブ更新するために使う。
+     *   null なら通知しない。
      */
     fun processPages(
         charListsByPage: List<List<CharBox>>,
@@ -137,20 +141,59 @@ object TextProcessor {
         rules: DetectedRules = DetectedRules.FALLBACK,
         progressCallback: ((pct: Int, processed: Int, bodyTotal: Int) -> Unit)? = null,
     ): List<String> {
-        val allParagraphs = mutableListOf<String>()
-        var currentParagraph = StringBuilder()
-        // 本文ページ総数（先頭3＋末尾1 を除いた数）。0除算回避で最小1（移植元 body_total と同一）
-        val bodyTotal = maxOf(totalPages - 4, 1)
+        val out = mutableListOf<String>()
+        val streamer = ParagraphStreamer(totalPages, rules, progressCallback) { out.add(it) }
+        for ((pageNum, chars) in charListsByPage.withIndex()) streamer.addPage(pageNum, chars)
+        streamer.finish()
+        return out
+    }
 
-        for ((pageNum, chars) in charListsByPage.withIndex()) {
+    /**
+     * ページを 1 枚ずつ受け取り、確定した段落を [emit] へ吐き出す逐次処理器。
+     *
+     * なぜ逐次か（OOM の真因対処）: 段落化はページ内で閉じる処理で、ページを跨いで要る状態は
+     * **組み立て中の段落 1 本だけ**（[currentParagraph]）。にもかかわらず旧経路は全ページ分の
+     * CharBox を先に materialize してから回していたため、保持量がページ数に比例した。
+     * 1 ページ受け取るたびに使い切って捨てれば、保持量はページ数に依存しない。
+     *
+     * ⚠️ [addPage] に渡された `chars` は復帰後に破棄されてよい（参照を持ち越さない）。
+     * ⚠️ ページは**昇順**に渡すこと（段落の縫合と先頭/末尾ページのトリムが順序に依存する）。
+     */
+    class ParagraphStreamer(
+        private val totalPages: Int,
+        private val rules: DetectedRules = DetectedRules.FALLBACK,
+        private val progressCallback: ((pct: Int, processed: Int, bodyTotal: Int) -> Unit)? = null,
+        private val emit: (String) -> Unit,
+    ) {
+        private var currentParagraph = StringBuilder()
+
+        // 本文ページ総数（先頭3＋末尾1 を除いた数）。0除算回避で最小1。
+        private val bodyTotal = maxOf(totalPages - 4, 1)
+
+        /**
+         * 確定した段落を整形して外へ出す。
+         * クリーンアップ規則は全ページ版と同一＝空行は "" のまま保持、それ以外は trim して空なら捨てる。
+         * 段落ごとに閉じた規則なので、全部溜めてから一括で掛けても 1 本ずつ掛けても結果は同じ。
+         */
+        private fun emitParagraph(p: String) {
+            if (p.isEmpty()) {
+                emit("")
+            } else {
+                val cleaned = p.trim(' ', '\t', '\n', '\r')
+                if (cleaned.isNotEmpty()) emit(cleaned)
+            }
+        }
+
+        /** 1 ページ分の文字を処理する（[pageNum] は 0 始まりの通しページ番号）。 */
+        fun addPage(pageNum: Int, chars: List<CharBox>) {
             // 先頭3ページ（表紙・注意事項）と最終ページ（クレジット）を除外
-            if (pageNum < 3 || pageNum >= totalPages - 1) continue
+            if (pageNum < 3 || pageNum >= totalPages - 1) return
 
-            // 進捗通知（10〜60%）。移植元 _process_pages:130-133 と同一計算。
+            // 進捗通知（10〜60%）
             if (progressCallback != null) {
                 val processed = pageNum - 3
                 val pct = 10 + (processed.toDouble() / bodyTotal * 50).toInt()
-                progressCallback(pct, processed, bodyTotal)
+                progressCallback.invoke(pct, processed, bodyTotal)
             }
 
             val titlesAll = mutableListOf<CharBox>()
@@ -193,10 +236,10 @@ object TextProcessor {
                     .joinToString("") { it.text }
                 if (titleText.isNotEmpty()) {
                     if (currentParagraph.isNotEmpty()) {
-                        allParagraphs.add(currentParagraph.toString())
+                        emitParagraph(currentParagraph.toString())
                         currentParagraph = StringBuilder()
                     }
-                    allParagraphs.add("【題名】$titleText")
+                    emitParagraph("【題名】$titleText")
                 }
             }
 
@@ -208,6 +251,7 @@ object TextProcessor {
 
             // 右の列から順にテキスト化＆段落の縫合
             val linesSortedX = linesDict.keys.sortedDescending()
+            // 列間 X の比較はページ内で閉じる（ページを跨いだ列位置の比較には意味が無い）。
             var prevX: Double? = null
 
             for (x in linesSortedX) {
@@ -231,17 +275,17 @@ object TextProcessor {
                     if (diffX > rules.lineStepX * 1.5) {
                         isNewParagraph = true
                         // 空行数 = round(diffX/lineStepX) - 1。厳密に .5 のとき roundToInt は上へ丸めるが、
-                        // 実測 PDF で diffX/lineStepX がちょうど .5 になる例は確認されておらず
-                        // （submission-B の章数一致検証で問題なし）、丸め方向は結果に効いていない。
+                        // 実測 PDF で diffX/lineStepX がちょうど .5 になる例は確認されておらず、
+                        // 丸め方向は結果に効いていない。
                         blankLineCount = (diffX / rules.lineStepX).roundToInt() - 1
                     }
                 }
 
                 if (isNewParagraph) {
                     if (currentParagraph.isNotEmpty()) {
-                        allParagraphs.add(currentParagraph.toString())
+                        emitParagraph(currentParagraph.toString())
                     }
-                    repeat(maxOf(0, blankLineCount)) { allParagraphs.add("") }
+                    repeat(maxOf(0, blankLineCount)) { emitParagraph("") }
                     currentParagraph = StringBuilder(lineStr)
                 } else {
                     currentParagraph.append(lineStr)
@@ -251,20 +295,12 @@ object TextProcessor {
             }
         }
 
-        if (currentParagraph.isNotEmpty()) {
-            allParagraphs.add(currentParagraph.toString())
-        }
-
-        // クリーンアップ：空行は "" のまま保持、それ以外は trim
-        val finalOutput = mutableListOf<String>()
-        for (p in allParagraphs) {
-            if (p.isEmpty()) {
-                finalOutput.add("")
-            } else {
-                val cleaned = p.trim(' ', '\t', '\n', '\r')
-                if (cleaned.isNotEmpty()) finalOutput.add(cleaned)
+        /** 全ページを渡し終えた後に必ず呼ぶ（組み立て途中の最後の段落を吐き出す）。 */
+        fun finish() {
+            if (currentParagraph.isNotEmpty()) {
+                emitParagraph(currentParagraph.toString())
+                currentParagraph = StringBuilder()
             }
         }
-        return finalOutput
     }
 }
