@@ -54,6 +54,7 @@
 
 - **§1-4 push スケルトン**: 遷移窓の jank フレーム数を gfxinfo で取る（骨の有無は `TransitionSkeletonTest` が構造で担保済み）。
 - **§1-7 release で PDF 取込**: R8 経路の実走。SAF ピッカーは uiautomator で叩けば自走可（Web 取込が adb で通ることは実証済み）。
+  〈2026-08-25〉この結論どおり **awaiting-human の §1-7 節は撤去**し、項目は `handover.md` へ一本化した。
 
 ## 併せて判明した誤記（直した）
 

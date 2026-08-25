@@ -48,8 +48,6 @@
   5軸の詳細・調査済みで潰れた経路・機械ハントが空振りした理由＝
   `docs/knowledge/chapter-transition-scroll-jump-paths-ruled-out.md`（**人の一次報告が唯一の手掛かり**）。
 
-### 1-7. リリース経路（R8/署名を触ったときだけ）
-
 ## 3. 裁定（意匠・方針）
 
 > **見出しだけの節は他ファイルからの参照先**（`docs/backlog-frozen.md` の凍結分は解凍時に §3-2 へ戻す）。
