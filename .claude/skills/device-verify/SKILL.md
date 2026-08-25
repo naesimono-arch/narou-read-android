@@ -165,6 +165,19 @@ adb shell wm user-rotation free && adb shell settings put system accelerometer_r
 
 これで**回転を挟まないと踏めない検証**（Activity 再生成の復帰経路＝Back の登録・1冊復旧の一括化・横向き意匠の実測）が回る。
 
+**横向きは切り欠き（display cutout）とセットで見る**。画面端 UI が帯へ潜り込む破綻は
+`WindowInsets.displayCutout` を模擬しない Robolectric・golden の**両方を素通りする**＝緑は無事の証拠にならない
+（機序＝`docs/knowledge/display-cutout-band-invisible-to-jvm-tests.md`）。判定は座標で:
+
+```bash
+python3 tools/cutout_probe.py setup -s <serial>          # 切り欠きを立てて横向き固定（--seascape で右側）
+python3 tools/cutout_probe.py check "本棚" -s <serial>    # 面を出すたびに（食い込みがあれば exit 1）
+python3 tools/cutout_probe.py restore -s <serial>        # ★必ず戻す
+```
+
+巡回すべき面は `python3 tools/cutout_probe.py checklist`。⚠️ **AVD は overlay を全部切っても切り欠きを持つ**
+ことがある（端末プロファイル overlay 由来。実測 136px）＝「無効＝帯なし」と決めつけない。
+
 ## 6. テキスト入力は ADB Keyboard（フリック座標タップ禁止）
 
 端末に **ADB Keyboard（`com.android.adbkeyboard/.AdbIME`）は導入済み**。ただし **2026-07-30 実測の
