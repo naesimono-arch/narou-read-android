@@ -1116,16 +1116,28 @@ internal fun ChapterScreenContent(
                 // 67ms 級と実測・ChapterContent.kt:77）をコンポーズせず、本文の行リズムへ載せた段落骨だけを
                 // 描く。クローム（上下バー・シート・覗き機構）は軽量なので実描画のまま＝P2「重い可変部だけ骨」
                 // と同じ分担。パース Loading のスピナーも窓内は骨で置き換わる（遷移中の回転体は視線を奪うため
-                // 骨に統一）。縦横分岐（verticalMode）の上流で差し替える＝縦書きの遷移も同経路で効き、骨は
-                // 横書き汎形1種のみ（2026-07-29 裁定＝縦書き専用骨は作らない。250ms の場所取りに組方向の
-                // 忠実さより「1種で全設定に成立する汎形」を優先）。
+                // 骨に統一）。
+                // 骨は組方向で出し分ける（2026-08-26 裁定＝ADR 0040。2026-07-29 の「縦書き専用骨は作らない」を
+                // 覆した）。なぜ覆したか: 汎形1種で通す取引の対価は「縦書き利用者だけが着地の瞬間に紙面の
+                // 90度回転を見る」ことで、骨の目的（着地先の予告＝跳ねを消す）と正面から反するため。
+                // 差し替え点（deferHeavyContent の立ち下がり）は縦横分岐の【上流】のままで動かさない＝
+                // 変わるのは窓の中に何を描くかだけ。
                 if (deferHeavyContent) {
-                    ReadingBodySkeleton(
-                        colors = colors,
-                        fontSize = fontSize,
-                        lineHeightEm = lineHeightEm,
-                        bodyMarginDp = bodyMarginDp,
-                    )
+                    if (verticalMode) {
+                        ReadingBodySkeletonVertical(
+                            colors = colors,
+                            fontSize = fontSize,
+                            lineHeightEm = lineHeightEm,
+                            bodyMarginDp = bodyMarginDp,
+                        )
+                    } else {
+                        ReadingBodySkeleton(
+                            colors = colors,
+                            fontSize = fontSize,
+                            lineHeightEm = lineHeightEm,
+                            bodyMarginDp = bodyMarginDp,
+                        )
+                    }
                 } else when (val result = parseResult) {
                     is ParseResult.Loading -> CircularProgressIndicator()
 
