@@ -358,6 +358,14 @@ internal object GoldenCoverageRegistry {
         "ShelfSnackbarK" to
             "本棚の長文 Snackbar（取込元PDF削除の失敗通知・63字＋「閉じる」アクション）。" +
                 "1行の器に長文とアクションが同居する版面の折り合いを守る。",
+        "IntroOverlayK" to
+            "教示「はじめに」のカード列（MainActivity のルートへ重なる被せもの・K 素地）。列 5 枚を" +
+                "「1枚＝1 case」で撮り、①**semantics に一切出ない線画**（clearAndSetSemantics で隠した" +
+                "Canvas 直描き＝絵以外に検査手段が無い）②スクリム α .74 越しの素地/墨/藍/罫の対比" +
+                "③図版112dp＋本文＋項目＋点＋ボタンを1枚に積んだ版面、を守る。" +
+                "⚠️ この束は **nav ルートを持たない**＝ルート網羅の検査が原理的に届かず、束の粒度で見る" +
+                "孤児検査も「PNG が1枚でも在れば通る」ため、**カードを増やしても誰も赤くならない**。" +
+                "列の増減は IntroOverlayGoldenCaseCoverageTest（撮影表⇄IntroDeck の全数照合）が締める。",
         // 記録待ちの2件も先に説明を置く（record された瞬間に「説明の無い golden」で赤くならないように）。
         // PNG がまだ無いことは acknowledgedPendingRecord 側が承知しているため stale 判定にも掛からない。
         "TocSkyM" to "M 目次の現在地バー（監査 G-1 の同型4スキン）。2026-08-06 に実装修正と同便で記録。",
@@ -378,6 +386,11 @@ internal object GoldenCoverageRegistry {
      * ここへ足すのは「撮影ハーネスだけ先に置き、実装修正の前で record を待つ」場合に限る
      * ——破綻を含んだまま record すると、その破綻が新しい正解として焼き付き、直したときに golden が
      * 赤くなる＝是正が退行に見える倒錯が起きる（`docs/knowledge/golden-record-bakes-in-regressions.md`）。
+     *
+     * ⚠️ 2026-08-26 に新設した `IntroOverlayK`（教示カード列）は**ここへ登録していない**。実装は
+     * 完了済み＝「実装修正を待つ」状況ではなく、未記録の赤は *recordRoborazziDebug を打て* という
+     * 指示そのものだから。登録すると record 後に「記録待ちとしたのに記録済み」で再び赤くなり、
+     * 消し込みの往復が1回増えるだけになる（record すれば何も残さず緑へ戻るのが正しい経路）。
      */
     val acknowledgedPendingRecord: Map<String, String> = emptyMap()
 
@@ -412,7 +425,9 @@ internal object GoldenCoverageRegistry {
                 "同日、さがす配下4束（DiscoverySearchScreen / DiscoveryGenreScreen / DiscoveryResultScreen /" +
                 "NovelDetailScreen・記録待ち）も K 素地で撮る＝これらはスキン分岐を持たない共有画面だが、" +
                 "出荷時に載る素地は K のため K で包む（DiscoveryResultScreen だけは LocalSkin で M/P/J へ分岐し、" +
-                "K/D/C は共通実装＝この束が3スキン分の版面を張る）。",
+                "K/D/C は共通実装＝この束が3スキン分の版面を張る）。" +
+                "2026-08-26 に教示カード列（IntroOverlayK）を追加＝スキン分岐は持たないが LocalShelfColors を" +
+                "読むため K で包む（記録待ち＝PNG は record で入る）。",
         Skin.WAMODERN_D to "撮影あり: BookshelfD / NativeTableOfContentsScreen（D/C 共通描画）。",
         Skin.YAKO_C to "撮影あり（D と共通描画・色トークンのみ差）: NativeTableOfContentsScreen の dark 束が張る。",
         Skin.SEIZU_M to
