@@ -8,6 +8,10 @@ description: 実機検証の入口。adb接続(WSL)・APK投入・androidTest・
 実機 = PGEM10（Android 16 / ColorOS）。**事実の正本は `task_diary.md`（#N は固定ID）と
 memory `workflow-autonomous-device-verification`**。このスキルは操作手順の入口に徹する。
 
+**エミュレータ（AVD）は `/emulator-verify` が正本**＝前提が根本的に違う（root が効く・壊してよい・
+台数と機種を増やせる）。⚠️ **低スペック端末・別解像度・切り欠き・破壊フローは実機では見えない**
+（本機はハイエンドで速い側の1点しか代表しない）＝そちらへ回す。
+
 ## 0. 実機を触る前に — まずユーザーへ一声、次に「何台繋がっているか」
 
 ### 0-0. 着手前に一度手を止めて確認を取る（2026-07-12 ユーザー指示）
