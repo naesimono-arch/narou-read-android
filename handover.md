@@ -108,17 +108,6 @@
 > レビュー中・実装中に出た宿題や着想で、まだ上の各節に整理していないものをここへ。育ったら該当節へ移す。
 > **実機で見れば決まるものは `awaiting-human.md` §1 のツアーへ移す**——ここに溜めても誰も見に来ないため。
 
-- **[skill] エミュレータ運用 skill を新設する**（2026-08-25 のエミュ導入便で必要性が判明・**本ラウンドの作業が終わってから**）:
-  実機（`/device-verify`）とは前提が根本的に違う＝**root が効く／壊してよい／台数を増やせる／機種と heap を変えられる**。
-  ⚠️ **実機だけでは構造的に見えない領域がある**——開発端末が Find X6 Pro（RAM 16GB・SD 8 Gen 2）＝**低スペック端末の問題は実機テストに一生映らない**。
-  skill に入れる作法（すべて本ラウンドで実測）＝ ①KVM は WSL 再起動ごとに手動ロード ②`-gpu host -feature -Vulkan` 以外は落ちる
-  ③**adb は `-s emulator-XXXX` 必須**（複数台では無指定が "more than one device" で失敗）④**`tar` で `/data/data` を移すと SELinux ラベルが
-  `system_data_file` に化け、`restorecon` では直らない**＝親の実ラベルを `chcon -R` でコピーする（症状はスタックトレース無しの起動失敗＋`avc: denied`）
-  ⑤蔵書スナップショットの作り方と配り方 ⑥**低スペック台の作り方**（`setprop dalvik.vm.heapgrowthlimit 96m` ＋ `stop; start`。
-  ⚠️ AVD の `config.ini` の `vm.heapSize`/`hw.ramSize` は**効かない**＝実測で確認済み）⑦Play スクショの機種適合（**長辺≦短辺×2**＝pixel_7 の 20:9 は不適合）
-  ⑧起動は重いが**定常はほぼ無負荷**（`ps` の CPU 値は生涯平均＝瞬間値と誤読しない）。
-  一次情報＝memory `wsl-android-emulator-kvm` と本ラウンドのコミット。
-
 - **[perf] エミュを「遅い方へ振る」手段を確立するか**（2026-08-25・ユーザー提起）:
   現状 `gfxinfo` は**エミュも実機も速い方へ振れる**（実機が RAM 16GB・SD 8 Gen 2 のハイエンドのため）＝**遅い端末の体感を誰も測れていない**。
   候補＝①ホスト側 `taskset` で qemu を1コアに縛る ②`-cores 1` ③`-gpu guest`（ソフトレンダリング。⚠️ `swiftshader_indirect` は
