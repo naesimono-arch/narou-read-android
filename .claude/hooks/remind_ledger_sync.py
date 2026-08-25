@@ -34,6 +34,32 @@ wrap_stdio()
 LEDGERS = ("handover.md", "STATUS.md", "docs/known-bugs-registry.md")
 MAX_HITS = 6
 
+# CLAUDE.md が定める字数上限（known-bugs-registry には上限の定めが無いので載せない）。
+LEDGER_LIMITS = {"handover.md": 8000, "STATUS.md": 6000}
+MAX_DONE_HITS = 4
+# 完了語から行末までに許す文字数（末尾の括弧注記ぶん）。広げると従属節の完了を拾い誤検知が増える。
+DONE_TAIL_SLACK = 12
+
+# 「完了の履歴＝git log が正本」（CLAUDE.md）に反して台帳へ残りがちな断定表現。
+DONE_RE = re.compile(r"(実装済|導入済|統合済|採用済|除去済|確認済|対応済|解消済|完了|済み)")
+# 現在値として正しい記述を落とすための除外。「未実装」「〜待ち」「〜禁止」「残るのは〜」は
+# 完了ではなく現況そのもの＝語が含まれても消す対象ではない。
+NOT_DONE_RE = re.compile(r"(未|待ち|禁止|不在|できて|していない|残る|残り|残す)")
+# 走査から外す台帳。known-bugs-registry は「修正済みバグの機序」を主題にする文書で、
+# 完了語が本文のいたる所に現れる＝走査すると誤検知しか出ない（実測 4/4 が誤検知）。
+DONE_SCAN_SKIP = ("docs/known-bugs-registry.md",)
+
+
+def emit(msg):
+    # PreToolUse で additionalContext を返す＝ブロックせずモデルへ渡す唯一の手段
+    # （素の stdout はモデルに届かない＝task_diary #28 追補の実測）。
+    print(json.dumps({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "additionalContext": msg,
+        }
+    }, ensure_ascii=False))
+
 
 def git(args, cwd):
     try:
@@ -47,6 +73,54 @@ def repo_root():
     # cwd 依存にしない（サブディレクトリ起動での誤判定回避＝inject_branch_context.py と同じ罠）。
     script_dir = os.path.dirname(os.path.abspath(__file__))
     return os.path.dirname(os.path.dirname(script_dir))
+
+
+def digest_notes(root, staged_ledgers):
+    """staged された台帳について「消化の合図」を作る。
+
+    なぜ全行の列挙でなく候補提示に留めるか:
+      機械判定の上限は実測 76.6%（docs/knowledge/context-cost-hook-levers-measured-limits.md）で
+      誤検知は必ず出る。門にすると「毎回無視する」運用へ化けるので、判断は読み手に残す。
+    """
+    notes = []
+    for led in staged_ledgers:
+        try:
+            with open(os.path.join(root, led), encoding="utf-8") as f:
+                text = f.read()
+        except OSError:
+            continue
+
+        limit = LEDGER_LIMITS.get(led)
+        if limit:
+            chars = len(text)  # wc -m と同じ文字数カウント
+            # 9割で言う。超えてから言うと「縮めて収める」誘惑が働くため、消化の余地が
+            # あるうちに出す（上限は圧縮の合図ではなく消化の合図＝CLAUDE.md）。
+            if chars >= limit * 0.9:
+                notes.append(f"  {led}: {chars}字 / 上限 {limit}字")
+
+        if led in DONE_SCAN_SKIP:
+            continue
+
+        hits = []
+        for i, line in enumerate(text.split("\n"), 1):
+            s = line.strip()
+            if not s or s.startswith(("#", ">", "|")):
+                continue
+            if NOT_DONE_RE.search(s):
+                continue
+            # 完了語が**行末側**に来る行だけを見る。「〜は解消済み。だが〜が残る」のように
+            # 従属節で完了を述べて項目自体は開いている行が誤検知の主因で、実測では
+            # この距離条件だけで候補が 6件→2件へ落ちた（末尾の括弧注記ぶんを 12 文字で許す）。
+            last = None
+            for mo in DONE_RE.finditer(s):
+                last = mo
+            if last is None or len(s) - last.end() > DONE_TAIL_SLACK:
+                continue
+            hits.append(f"  {led}:{i} … {re.sub(r'[ \t]+', ' ', s)[:70]}")
+            if len(hits) >= MAX_DONE_HITS:
+                break
+        notes.extend(hits)
+    return notes
 
 
 def main():
@@ -64,8 +138,21 @@ def main():
     if not staged:
         return 0
 
-    # 台帳自身が staged なら、書き手は既に台帳を見ている＝想起は不要。
-    if any(led in staged for led in LEDGERS):
+    # 台帳自身が staged＝書き手がいま台帳を開いている。ここは黙る場所ではなく、
+    # **消す判断が最も安い唯一の瞬間**。追記側にだけ合図があり削除側に無いことが
+    # 台帳肥大の機序だった（実測: STATUS.md は 2026-07-23 に上限の1.4倍へ達し、圧縮で
+    # 収めたあと1か月で再び上限へ戻った＝規約の言い換えだけでは機構が変わらなかった）。
+    staged_ledgers = [led for led in LEDGERS if led in staged]
+    if staged_ledgers:
+        notes = digest_notes(root, staged_ledgers)
+        if notes:
+            emit(
+                "[台帳の消化 想起] 台帳を触っている今が、消す判断の最も安い瞬間。"
+                "**上限は圧縮の合図ではなく消化の合図**（CLAUDE.md）＝縮めて収めない:\n"
+                + "\n".join(notes)
+                + "\n  ・完了は git log が正本＝「〜済み」で終わる記述は台帳から消す。"
+                "・やることは消化して消す。・**誤検知込みの候補**なので、現在値なら無視してよい。"
+            )
         return 0
 
     # 台帳が「今まさに変更しているファイル」に言及しているかを行番号つきで拾う。
@@ -105,12 +192,7 @@ def main():
         + "\n  ・消化したなら該当行を**消す**（打ち消し線で残さない）。"
         "現在値が変わったなら STATUS を直す。まだ残っているなら何もしなくてよい。"
     )
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "additionalContext": msg,
-        }
-    }, ensure_ascii=False))
+    emit(msg)
     return 0
 
 

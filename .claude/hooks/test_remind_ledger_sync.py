@@ -83,14 +83,43 @@ class LedgerSyncCase(unittest.TestCase):
         out = json.loads(self.run_hook())["hookSpecificOutput"]
         self.assertEqual(out["hookEventName"], "PreToolUse")
 
+    def test_fires_when_staged_ledger_holds_completion_line(self):
+        """台帳を触っている瞬間こそ、消す判断が最も安い＝削除側の合図を出す。
+
+        追記側（言及突合）にだけ合図があり削除側に無いことが台帳肥大の機序だった。
+        """
+        self.write("STATUS.md", "- 本棚のフィルタ行フェードは実装済み（ADR 0036）\n")
+        self.write("Foo.kt", "x\n")
+        self.stage("Foo.kt", "STATUS.md")
+        out = self.run_hook()
+        self.assertTrue(out, "完了記述が台帳に残っているのに黙った＝削除側の合図が死んでいる")
+        ctx = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("STATUS.md:1", ctx, "行番号が出ていない＝どこを消すか一意に決まらない")
+
+    def test_fires_when_staged_ledger_near_limit(self):
+        """上限の9割で字数を出す（超えてから言うと「縮めて収める」誘惑が働く）。"""
+        self.write("handover.md", "- やること\n" + "あ" * 7300)
+        self.stage("handover.md")
+        ctx = json.loads(self.run_hook())["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("上限 8000字", ctx)
+
     # --- 黙るべき場合 ---
 
-    def test_silent_when_ledger_already_staged(self):
-        """台帳を同梱済みなら書き手は既に見ている＝想起は不要。"""
+    def test_silent_when_staged_ledger_is_clean(self):
+        """台帳が staged でも、消す候補も字数の逼迫も無ければ黙る。
+
+        ここが緩むと毎コミット同じ小言になり、読み飛ばされて合図として死ぬ。
+        """
         self.write("handover.md", "`Foo.kt` が壊れている\n")
         self.write("Foo.kt", "x\n")
         self.stage("Foo.kt", "handover.md")
-        self.assertEqual(self.run_hook(), "", "台帳が staged なのに想起が出た＝毎回出る小言になる")
+        self.assertEqual(self.run_hook(), "", "消す理由が無いのに想起が出た＝毎回出る小言になる")
+
+    def test_silent_when_staged_ledger_is_current_value_only(self):
+        """「未実装」「〜待ち」は完了ではなく現在値＝消す対象ではない。"""
+        self.write("STATUS.md", "- 書き出しUIは未実装（別ラウンド）\n- 実機目視待ちが2件\n")
+        self.stage("STATUS.md")
+        self.assertEqual(self.run_hook(), "", "現在値の記述を消す候補として出した＝誤検知")
 
     def test_silent_when_ledger_does_not_mention(self):
         self.write("handover.md", "- 無関係なやること\n")
