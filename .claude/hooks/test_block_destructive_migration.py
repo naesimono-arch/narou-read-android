@@ -33,13 +33,22 @@ CASES = [
     ("ALLOW", "ok-write-non-kt", {"tool_name": "Write", "tool_input": {"file_path": "/x/notes.md", "content": T}}),
 ]
 
-fail = 0
-for expect, name, payload in CASES:
-    p = subprocess.run([sys.executable, HOOK], input=json.dumps(payload), capture_output=True, text=True)
-    got = "BLOCK" if p.returncode == 2 else "ALLOW" if p.returncode == 0 else "ERR(%d)" % p.returncode
-    ok = got == expect
-    fail += 0 if ok else 1
-    print("%-4s %-28s expect=%-5s got=%-5s %s" % ("PASS" if ok else "FAIL", name, expect, got, p.stderr.splitlines()[0] if (p.stderr and not ok) else ""))
+def main():
+    fail = 0
+    for expect, name, payload in CASES:
+        p = subprocess.run([sys.executable, HOOK], input=json.dumps(payload), capture_output=True, text=True)
+        got = "BLOCK" if p.returncode == 2 else "ALLOW" if p.returncode == 0 else "ERR(%d)" % p.returncode
+        ok = got == expect
+        fail += 0 if ok else 1
+        print("%-4s %-28s expect=%-5s got=%-5s %s" % ("PASS" if ok else "FAIL", name, expect, got, p.stderr.splitlines()[0] if (p.stderr and not ok) else ""))
 
-print("\n%d/%d passed" % (len(CASES) - fail, len(CASES)))
-sys.exit(1 if fail else 0)
+    print("\n%d/%d passed" % (len(CASES) - fail, len(CASES)))
+    return 1 if fail else 0
+
+
+# なぜ __main__ ガードが要るか: これは unittest モジュールではなく実ベクタを流すスクリプトだが、
+# ファイル名が test_*.py なので `unittest discover` の収集対象になる。本体がモジュール直下にあると
+# import した時点で走って sys.exit するため、収集エラーとして扱われ **スイート全体が恒久的に FAILED**
+# を出していた（中身は 16/16 通っているのに赤くなる＝偽の赤で、ゲートの合否が読めなくなる）。
+if __name__ == "__main__":
+    sys.exit(main())
