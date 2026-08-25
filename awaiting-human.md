@@ -92,23 +92,19 @@
   alias `upload`）と `android/local.properties` の `release.*` 4行。**放置した場合**＝紛失時に Play への鍵差し替え申請が発生。
   Play Console 照合用の upload 証明書 SHA-1 = `FB:ED:C1:33:BC:1B:44:CA:35:B5:99:0D:47:6B:7C:27:B4:03:43:E3`。
 - **[ストア掲載素材の作成]** 文言の下書きは完成＝`docs/store/listing-draft.md`（＝**ユーザーは選ぶだけ**）。
-  **意匠の本線は 2026-08-20 に裁定済み＝アイコン「A 栞書影」／フィーチャーグラフィック「A 夜の帯」**
-  （候補モック＝`docs/design-candidates/store/store-{icon,feature-graphic}-candidates.html`。全案の潰れ耐性・コントラスト実測・円マスク欠けの警告は同ファイル内）。
-  ✅ **①確定2案の PNG 書き出しは 2026-08-25 に完了**＝`docs/store/assets/{icon-512.png,feature-graphic-1024x500.png}`
-  （再生成＝同フォルダ `build-store-assets.py`・headless Chrome で実寸撮影。解説＝同フォルダ README）。
+  **意匠は 2026-08-20 に案A（アイコン「栞書影」／フィーチャー「夜の帯」）で裁定済み・①PNG 書き出しも完了**
+  ＝画像・候補カタログ・再生成手順は `docs/store/assets/README.md` が正本。
   **残るのは②スクショ6枚**（明快K で撮る＝実機作業＝§1 の adb 再承認待ち）**③実機ストアサジェスト採取**（タイトル後半12字の使い道を決める）。
   ⚠️ **文言はまだ「選ぶだけ」が終わっていない**＝タイトル4案／短い説明3案の**選択がユーザー待ち**（`docs/store/listing-draft.md`）。
   ⚠️ **ランチャーアイコンも同じ案A へ差し替えた**（2026-08-25。旧・汎用の青い本 `#1E88E5` は意匠と無関係な既定値のままだった）。
   マスク後の見え方は headless レンダリングで確認済み・`:app:processDebugResources` も通したが、
   **実機のホーム画面（円マスク・実際の壁紙）での見え方は未確認**＝次に端末を触るときに1秒で見える。
 - **[Data safety の提出]**（提出時の作業＝**残るは1点だけ**）: 下書き＝`docs/store/data-safety-draft.md`。
-  ①**実フォームの設問文言・選択肢名との突合**（下書きは公式ヘルプの記述ベース＝提出画面でしか潰せない）。
-  申告の中身は確定＝Q1「いいえ」（Auto Backup も収集なしの裁定・審査指摘時のみ保険申告へ切替）。
+  ①**実フォームの設問文言・選択肢名との突合**（下書きは公式ヘルプの記述ベース＝提出画面でしか潰せない。申告の中身は下書き側で確定済み）。
 - **[プライバシーポリシーの公開]**（ユーザー作業＝**GitHub の手続きだけ**。値は全て確定済みで Claude 側の残作業は無い）:
   公開するファイルは `docs/store/pages/` に生成済み（`privacy.html`・`index.html`・`style.css`・`.nojekyll` の4つ）。
-  ✅ **2026-08-25 に機械でできる分を一発化した**＝`python docs/store/pages/stage-publish.py` で
-  「制定日を当日で置換 → `privacy.html` 再生成 → `../yosari-pages/` へ平置きコピー → commit」まで進み、
-  **残る GitHub 手順がコマンド付きで表示される**（`--dry-run` あり）。
+  機械分は `python docs/store/pages/stage-publish.py` が一発で通し、残る GitHub 手順をコマンド付きで表示する
+  （何をするか・手順の正本＝`docs/store/pages/README.md`）。
   **残る人間の作業は3つだけ**＝①**public リポジトリ `naesimono-arch/yosari` を作る**（空で）
   ②表示されたとおり `git remote add` → `git push` ③**Settings → Pages** で `main / (root)` を指定して有効化。
   そのあと公開 URL `https://naesimono-arch.github.io/yosari/privacy.html` を Play Console へ登録。手順の詳細＝`docs/store/pages/README.md`。
@@ -123,7 +119,7 @@
 - **[第三者ユーザビリティテスト]** **公開前に実施で確定**（2026-08-21 裁定）。本人テストが成立しない2件＝**T3**（二読書面の操作言語混乱）・
   **T4**（中央タップトグルの再発見。ヒントは通算1回きりで再表示条件なし）＋**実 TalkBack の音声走査での是正確認**
   （uiautomator の静的確認では customActions が見えない）。プロトコル＝`.claude/plans/usability-test-protocol-2026-07-12.md`。
-  ⚠️ **T3/T4 に先回りする教示「はじめに」はモック確定済み**（Compose 翻訳は `handover.md`）。
+  ⚠️ **T3/T4 に先回りする教示「はじめに」は実装まで着地済み**（`ui/intro/IntroDeck.kt` ほか）。
   **人に出す前に順序を決める**＝教示投入前の画面でテストするか、投入後の画面でテストするかで被験者が見るものが変わる。
 - **[`settings-C.html` が存在しない]**（2026-08-19 に per-skin 文言の便で判明）: 設定のテーマ行の副文を各スキンのモック正本から
   写したが、**夜行C だけ正本が無い**（`bookshelf-C.html`・`reading-C.html` にも該当語なし）＝実装は従来の汎用文へ落としてある。
