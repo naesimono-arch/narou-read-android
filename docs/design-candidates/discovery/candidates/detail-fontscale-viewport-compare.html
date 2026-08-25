@@ -117,6 +117,12 @@
   .btn.primary{background:var(--ai);color:var(--base);border:none}
   .btn.ghost{background:transparent;color:var(--ink-soft);border:1px solid var(--line);font-weight:400}
   .btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5;flex-shrink:0}
+  /* スクロール示唆の印（裁定用の候補・いずれも .phone への絶対配置＝版面を1dpも食わない） */
+  .afford{position:absolute;left:0;right:0;pointer-events:none}
+  .afford.fade{background:linear-gradient(to bottom,rgba(251,250,248,0),rgba(251,250,248,.97))}
+  .afford.chev{display:flex;justify-content:center;color:var(--seiji-ink);opacity:.62}
+  .afford.chev svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .sbar{position:absolute;right:3px;width:2.5px;border-radius:2px;background:rgba(80,104,92,.38);pointer-events:none}
   .navpill{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;width:120px;height:3px;border-radius:2px;background:#C9C7C0}
 </style>
 </head>
@@ -238,7 +244,56 @@ const CASES=[
   hero:{'1.0':166,'2.0':196}, band:{'1.0':120,'2.0':194},
   titleBox:{'1.0':44,'2.0':88}, titleLines:{'1.0':1,'2.0':1},
   auBox:{'1.0':16,'2.0':32}, chipBox:{'1.0':14,'2.0':28},
-  bar:'stack3', summaryFirst:true}
+  bar:'stack3', summaryFirst:true},
+
+ {id:'BA', name:'案B＋案A — バーを畳む ＋ 帯を追従（並び順は現状のまま）',
+  why:'監督が後から足した合成案（ユーザー提案）。触るところ＝<em>下部ボタン塔と書影帯</em>。<em>並び順は変えない</em>＝案C を採らないので「素性を先に見せる構成」は守られる。帯の追従で 2.0 の作者・ジャンルが読める。⬇ あらすじが何行残るかは下の実測値で見る（バーで ＋27dp 戻し、帯の追従で −30dp 食う）。',
+  hero:{'1.0':166,'2.0':196}, band:{'1.0':120,'2.0':194},
+  titleBox:{'1.0':44,'2.0':88}, titleLines:{'1.0':1,'2.0':1},
+  auBox:{'1.0':16,'2.0':32}, chipBox:{'1.0':14,'2.0':28},
+  bar:'row', summaryFirst:false},
+
+ {id:'BAT2', name:'案B＋案A＋T2 — 上に題名2行（箱 46dp／2.0 は 92dp）',
+  why:'上の BA に、裁定済みの題名の箱 T2（2行を本当に出す）を噛み合わせたもの。箱 44→46dp（行 45.5dp）で2行目が描かれる。代価＝情報列が 2dp（2.0 で 4dp）肥え、帯の中で上下対称に据え直される。',
+  hero:{'1.0':166,'2.0':196}, band:{'1.0':120,'2.0':194},
+  titleBox:{'1.0':46,'2.0':92}, titleLines:{'1.0':2,'2.0':2},
+  auBox:{'1.0':16,'2.0':32}, chipBox:{'1.0':14,'2.0':28},
+  bar:'row', summaryFirst:false},
+
+ {id:'BDT2', name:'案B＋案D＋T2 — バーを畳む ＋ 帯を追従 ＋ 並び替え（全部載せ）',
+  why:'BA が 2.0 を救えなかったので、監督が併せて撮った上限側の合成。BA との差は<em>並び順だけ</em>（案C ぶん）。これで戻らないなら、版面は構成を変えずには戻らない、と言い切れる。',
+  hero:{'1.0':166,'2.0':196}, band:{'1.0':120,'2.0':194},
+  titleBox:{'1.0':46,'2.0':92}, titleLines:{'1.0':2,'2.0':2},
+  auBox:{'1.0':16,'2.0':32}, chipBox:{'1.0':14,'2.0':28},
+  bar:'row', summaryFirst:true},
+
+ {id:'S1', name:'印① 端フェード — 下端 36dp を地色へ溶かす',
+  why:'版面は裁定済みの <b>BA＋T2</b>（以下4案とも同じ）。⚠️ 印は <em>.phone への絶対配置＝版面を1dpも食わない</em>（だからあらすじの行数はどの印でも変わらない）。狙い＝<em>紙が続いていることを地色の濃度で言う</em>。読書画面の「端フェード」と同じ語彙なので、アプリの中で語彙が増えない。代価＝<em>最下段の文字が薄く沈む</em>（2.0 では格子の値が掛かる）。⚠️ 実装は canScrollForward で出し分け＝<em>下端に着いたら消す</em>（消えないと「まだ続く」と嘘をつく）。',
+  hero:{'1.0':166,'2.0':196}, band:{'1.0':120,'2.0':194},
+  titleBox:{'1.0':46,'2.0':92}, titleLines:{'1.0':2,'2.0':2},
+  auBox:{'1.0':16,'2.0':32}, chipBox:{'1.0':14,'2.0':28},
+  bar:'row', summaryFirst:false, afford:'fade'},
+
+ {id:'S2', name:'印② シェブロン — 固定バーの直上に小さな ⌄',
+  why:'狙い＝<em>「下へ」と方向を名指しする</em>（フェードより意味が一意で、初見でも読み違えない）。色は青磁 --seiji-ink の α.62＝意味を運ぶ小さな記号の既存スロット。代価＝<em>部品が1つ増える</em>（和モダン・余白の面に記号を1つ置くことになる）／2.0 では折れた副アクションのすぐ上に来るので密度が上がる。',
+  hero:{'1.0':166,'2.0':196}, band:{'1.0':120,'2.0':194},
+  titleBox:{'1.0':46,'2.0':92}, titleLines:{'1.0':2,'2.0':2},
+  auBox:{'1.0':16,'2.0':32}, chipBox:{'1.0':14,'2.0':28},
+  bar:'row', summaryFirst:false, afford:'chev'},
+
+ {id:'S3', name:'印③ 端フェード ＋ シェブロン',
+  why:'狙い＝<em>沈み（続きの気配）と方向（下へ）を両方出す</em>。⌄ がフェードの中に浮くので、記号が地から浮きすぎない。代価＝S1 と S2 の代価を両方払う。',
+  hero:{'1.0':166,'2.0':196}, band:{'1.0':120,'2.0':194},
+  titleBox:{'1.0':46,'2.0':92}, titleLines:{'1.0':2,'2.0':2},
+  auBox:{'1.0':16,'2.0':32}, chipBox:{'1.0':14,'2.0':28},
+  bar:'row', summaryFirst:false, afford:'both'},
+
+ {id:'S4', name:'印④ 細いスクロール棒 — 右端に薄い縦棒',
+  why:'狙い＝<em>「続く」だけでなく「あとどれだけ」まで言う</em>（残量が唯一分かる案）。代価＝<em>スクロール中だけ出る一般的な作法と違い、静止画で出しっぱなしにすると装飾になる</em>／棒の細さは端末の描画で潰れやすい。⚠️ 現行アプリの他画面には常設スクロール棒が無い＝<em>ここだけ語彙が増える</em>。',
+  hero:{'1.0':166,'2.0':196}, band:{'1.0':120,'2.0':194},
+  titleBox:{'1.0':46,'2.0':92}, titleLines:{'1.0':2,'2.0':2},
+  auBox:{'1.0':16,'2.0':32}, chipBox:{'1.0':14,'2.0':28},
+  bar:'row', summaryFirst:false, afford:'sbar'}
 ];
 
 /* バーの寸法（実測）。値は [総高, スロット配列] */
@@ -298,6 +353,14 @@ function barHTML(cs,k){
   }
   return '<div class="fixed-bar" style="height:'+b.h+'px">'+slots+'</div>';
 }
+function affordHTML(cs,k){
+  const a=cs.afford; if(!a) return '';
+  const bh=BARS[cs.bar][k].h; let h='';
+  if(a==='fade'||a==='both') h+='<div class="afford fade" style="bottom:'+bh+'px;height:36px"></div>';
+  if(a==='chev'||a==='both') h+='<div class="afford chev" style="bottom:'+(bh+10)+'px"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>';
+  if(a==='sbar') h+='<div class="sbar" style="bottom:'+(bh+20)+'px;height:104px"></div>';
+  return h;
+}
 function phoneHTML(cs,k){
   const B=BASE[k];
   const kw='<div class="kw-chips" style="font-size:'+B.kwFs+'px">'
@@ -309,7 +372,7 @@ function phoneHTML(cs,k){
    +'<div class="sb" style="height:'+B.sb+'px;font-size:'+(11*B.F)+'px"><span>8:31</span><span>84%</span></div>'
    +'<div class="topbar"><span class="ic">'+ICO.back+'</span></div>'
    +'<div class="scroll"><div class="col">'+heroHTML(cs,k,B)+body+'<div style="height:120px"></div></div></div>'
-   +barHTML(cs,k)+'<i class="navpill"></i></div>';
+   +barHTML(cs,k)+affordHTML(cs,k)+'<i class="navpill"></i></div>';
 }
 
 const stage=document.getElementById('stage');

@@ -278,6 +278,7 @@ function tile(c){
 }
 
 var G5={mode:"veil",a:.05,list:"#F0EFEE"};      /* 実装の現状＝onSurface 5%（焼き込み #F0EFEE） */
+var G3={mode:"veil",a:.03,list:"#F4F3F2"};   /* 2026-08-26 裁定の沈め＝3% */
 var G7={mode:"veil",a:.07,list:"#EBEBE9"};
 var G10={mode:"veil",a:.10,list:"#E5E4E3"};
 
@@ -373,6 +374,37 @@ var CASES=[
       '強すぎるのか足りないのかを測れないため。E との差は沈めの深さだけ（5% vs 10%）。'},
 
 /* ---------- 色の乖離 ---------- */
+/* ---------- 四隅マーカー（採用D）の詰め＝2026-08-26 ユーザー裁定「沈め3%・マーカーをより目立たなく」---------- */
+{sec:"s-mark",id:"D0",badge:"詰め",badgeClass:"m",axis:"沈めだけ 5%→3%（基準）",
+ name:"沈め3% ＋ マーカーは D のまま（1.5dp・濃青磁・12dp）",
+ val:'stroke 1.5dp / 実線 / 長さ 12dp（一覧 14dp）/ color --seiji-ink #50685C / 沈め 3%',
+ ground:G3, gridFrame:{w:1.5,r:3,color:INK,mode:"corners",len:12},
+ listFrame:{w:1.5,r:6,color:INK,mode:"corners",len:14},
+ note:'<b>基準</b>＝沈めだけ裁定どおり 3% へ落とし、マーカーは触らない。下の3案が「どれだけ控えめにするか」の振り幅で、'+
+      'この枚と見比べて<b>どこまで落とすかを決める</b>ためのもの。'},
+
+{sec:"s-mark",id:"D1",badge:"詰め",badgeClass:"m",axis:"色だけ弱める",
+ name:"沈め3% ＋ マーカーを淡青磁へ（1.5dp・#9CB3A8・12dp）",
+ val:'stroke 1.5dp / 実線 / 長さ 12dp（一覧 14dp）/ color secondary #9CB3A8 / 沈め 3%',
+ ground:G3, gridFrame:{w:1.5,r:3,color:SEIJI,mode:"corners",len:12},
+ listFrame:{w:1.5,r:6,color:SEIJI,mode:"corners",len:14},
+ note:'太さと長さは基準のまま、<b>色だけ</b>を実装既存の淡青磁へ。角の存在は残るが主張が落ちる。'},
+
+{sec:"s-mark",id:"D2",badge:"詰め",badgeClass:"m",axis:"太さだけ弱める",
+ name:"沈め3% ＋ マーカーを 1.0dp へ細く（濃青磁のまま・12dp）",
+ val:'stroke 1.0dp / 実線 / 長さ 12dp（一覧 14dp）/ color --seiji-ink #50685C / 沈め 3%',
+ ground:G3, gridFrame:{w:1.0,r:3,color:INK,mode:"corners",len:12},
+ listFrame:{w:1.0,r:6,color:INK,mode:"corners",len:14},
+ note:'色と長さは基準のまま、<b>太さだけ</b>を落とす。濃さが残るので遠目の識別は保ちやすい。'},
+
+{sec:"s-mark",id:"D3",badge:"詰め",badgeClass:"m",axis:"三重に弱める（下限側）",
+ name:"沈め3% ＋ 淡青磁・1.0dp・長さ 8dp（一覧 10dp）",
+ val:'stroke 1.0dp / 実線 / 長さ 8dp（一覧 10dp）/ color secondary #9CB3A8 / 沈め 3%',
+ ground:G3, gridFrame:{w:1.0,r:3,color:SEIJI,mode:"corners",len:8},
+ listFrame:{w:1.0,r:6,color:SEIJI,mode:"corners",len:10},
+ note:'色・太さ・長さを同時に落とした<b>下限側</b>。⚠️ ここまで落とすと「一目で未取込と分かる」識別の方が先に死ぬ恐れ＝'+
+      '沈め3%の面と合わせて、まだ気づけるかで見る。'},
+
 {sec:"s-color",id:"色①",badge:"実装",badgeClass:"",axis:"BookshelfK の現在値",
  name:"淡青磁 secondary #9CB3A8（枠・一覧メタ文字とも）",
  val:'枠 color secondary #9CB3A8 / 一覧メタ文字 secondary #9CB3A8（＝実装の現状）',
