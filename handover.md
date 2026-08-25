@@ -75,9 +75,6 @@
 > 棚卸しの一次情報＝`.claude/plans/mock-drift-inventory-2026-07-16.md`（正本モック全数の未反映リスト・優先順位）。
 > モック運用の**恒久ルール5つ**（逆同期・`mockview` 必須・下敷き正本・プレースホルダの色域・二段検分）は `/visual-language` skill が正本。
 
-- **[遷移スケルトンを「実際の本文の形」へ寄せる]**（2026-08-21 実機＝**jank・カクつきは無し**で形だけの宿題）:
-  骨は着地で跳ねず許容だが「もう少し実際の本文の形で」。`deferHeavyContent` の K 配線は済み＝直すのは
-  `ui/TransitionSkeletons.kt` の見た目だけ。⚠️ **モック先行**。
 - **[教示「はじめに」の golden と実機検分]**（Compose 翻訳は 2026-08-25 に完了。正本モック＝`docs/design-candidates/tutorial-onboarding-K.html`）:
   **機械側の残り＝教示オーバーレイの新規 golden が未追加**（設定画面の既存 golden 4枚は「つかいかた」節の追加ぶんを再記録済み）。
   新規 PNG は `GoldenCoverageTest` のルート⇄PNG 双方向照合に波及するため、**その照合を触る便と同じ便でやる**。
