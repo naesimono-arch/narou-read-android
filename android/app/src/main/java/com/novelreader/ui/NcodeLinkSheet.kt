@@ -33,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -103,8 +104,23 @@ internal fun NcodeLinkSheet(
     var inputText by rememberSaveable(bookTitle) { mutableStateOf(bookTitle) }
     var manualNcode by rememberSaveable { mutableStateOf("") }
 
+    // なぜ skipPartiallyExpanded か（2026-08-26 実測・型＝docs/knowledge/
+    // sheet-partial-expansion-hides-the-main-control.md「部分展開起動は主役が折り目の下」）:
+    // 既定（false）だと中間アンカー＝画面ちょうど 50% で開き、このシートの主役である
+    // 〈候補リスト＋「紐付け」〉が折り目の下に落ちる。エミュ実測（1080x2400 / density 420 / fontScale 1.0）＝
+    // 起動直後の自動検索（候補1件）でも「紐付け」は画面下端 33px を残すだけで、検索欄を打ち直して
+    // 候補が4件になると手動 N コード欄ごと完全に画面外へ出た（画面の上半分は素通しのスクリムのまま）。
+    // 中身の verticalScroll があるので指で送れば到達はできるが、それは「到達できる」であって
+    // 「開いた瞬間に見える」ではない——両者を混同すると到達性テストが真のまま緑で通り続ける（同知見）。
+    // なぜ他2か所に揃えるか: ModalBottomSheet の呼び出しは本アプリに3か所しかなく、
+    // ReadingSettingsSheet.kt と discovery/SearchConditionSheet.kt は既に同じ裁定で全高起動＝
+    // ここだけ既定のままなのは「意匠が中間を選んだ」のではなく「誰も決めていない」状態だった。
+    // このシートを縛る正本モックは docs/design-candidates/ に無く、拠り所は上記2先例と上の実測。
+    // ⚠️ 全高が過大に思えても modifier に高さ上限を掛けないこと（draggableAnchors が読む constraints ごと
+    // 縮んで上端に張り付く）。掛けるなら中身側の Column へ（機序＝SearchConditionSheet.kt の申し送り）。
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = colors.background,
         contentColor = colors.text,
     ) {
