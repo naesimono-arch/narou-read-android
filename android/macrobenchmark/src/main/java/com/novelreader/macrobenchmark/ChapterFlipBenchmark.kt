@@ -225,6 +225,13 @@ class ChapterFlipBenchmark {
      * 縦書きの前進スワイプ（指を右へ）。横書き [swipeToNextChapter]（指を左へ）の鏡像。
      * 座標・尺は横書きと同値（0.2W→0.8W・y=画面中央・100ms）＝移動量 0.6W を揃え、両面の1スワイプが
      * 運ぶ「指の仕事量」を同じにする（数値を並べて読めるようにするため）。
+     *
+     * **尺 100ms を疑う必要はない（2026-08-26 に実測で決着）**: 「100ms のスワイプは fling として食われて
+     * 1列も動かない」という疑い（tools/measure_typeset_work.sh のコメント由来）は**事実と逆**だった。
+     * エミュ実測で 1スワイプごとに LazyRow の scrollIndex が +18〜20 進み（500ms のドラッグは +5 で
+     * むしろ**小さい**）、100ms×30 で chap_1→chap_3＝上の実機プローブ値と一致する。速いスワイプは
+     * 0.6W のドラッグに fling が**上乗せ**されるため大きく動く＝「食われる」機序は存在しない。
+     * 数値と観測の落とし穴＝docs/knowledge/vertical-lazyrow-fast-swipe-is-not-eaten-by-fling.md
      */
     private fun MacrobenchmarkScope.swipeVerticalForward() {
         val w = device.displayWidth

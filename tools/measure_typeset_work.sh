@@ -230,8 +230,8 @@ run_scroll_trace() {
     scroll_snapshot "1.章1着地"
     tap_chrome 次章 || { echo "  次章を押せない" >&2; return 1; }
     scroll_snapshot "2.次章→章2(章1は未スクロール)"
-    # 章2 の中を進める。⚠️ 100ms の速いスワイプは fling として食われて**1列も動かない**
-    #（見た目が変わらないので「送ったつもり」で先へ進むと嘘の記録になる）＝500ms のドラッグにする。
+    # 500ms なのは移動量を小さく固定するため（1発 +5列）。「100ms は fling に食われ動かない」は
+    # 誤り＝上乗せで逆に大きく動く（+18〜20列）＝docs/knowledge/vertical-lazyrow-fast-swipe-is-not-eaten-by-fling.md
     local i
     for i in 1 2 3 4; do sh input swipe 250 1200 850 1200 500 >/dev/null; sleep 1; done
     sleep 2

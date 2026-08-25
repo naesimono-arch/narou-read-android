@@ -151,9 +151,6 @@
   順序は **A+C → E → D → 8/9**。全16項目の実装状況・採否・不採用の根拠＝`.claude/plans/reading-render-perf-triage-2026-08-18.md`。
   ⚠️ **A 前の挙動は記録済み**（`scroll` モードで章頭・既読復元・位置なし章の3系統が2台一致。章遷移ジャンプは**踏めず＝未再現のまま**）
   ＝`bash tools/measure_typeset_work.sh <serial> <bookId> scroll` で同じ照合を回せる。
-- **[perf] `ChapterFlipBenchmark` の縦書き軸が実は動いていない疑い**（2026-08-25 の計測便が発見・未確認）:
-  `input swipe … 100`（既存ベンチと同じ形）は**縦書きの章内スクロールでは fling として食われ1列も動かない**——500ms のドラッグが要る。
-  ⚠️ 同じ形を使っている `flipChaptersVertical` が**何も動かさずに数字を出していた可能性**＝過去の縦書き計測値を信じる前に確かめる。
 
 ## 思いつき・取りこぼし（随時追記）
 

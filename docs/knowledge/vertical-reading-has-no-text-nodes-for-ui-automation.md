@@ -60,3 +60,6 @@ text に出るのは**章見出しだけ**＝`ChapterHeader` の Compose `Text`�
 - 縦書きの**章送りは横書きの鏡像**で、親の `draggable` ではなく LazyRow 終端の未消費デルタ
   （`ui/ChapterPullConnection.kt`）経由でしか起きない＝**1スワイプ＝1章送りにならない**。
   実測で1章あたり約15スワイプ（PGEM10・50章シード）。縦書き面の自動化を書くときはここも併せて効く。
+- `vertical-lazyrow-fast-swipe-is-not-eaten-by-fling.md` — **縦書きで「スワイプが効いていない」と思ったら開く**。
+  100ms スワイプは動く（500ms より大きく動く）／⚠️ 上の `assert_orientation` は**本棚の書影でも vertical を名乗る**
+  ＝面の取り違えを止められない。
