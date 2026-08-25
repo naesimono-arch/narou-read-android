@@ -35,7 +35,7 @@ LEDGERS = ("handover.md", "STATUS.md", "docs/known-bugs-registry.md")
 MAX_HITS = 6
 
 # CLAUDE.md が定める字数上限（known-bugs-registry には上限の定めが無いので載せない）。
-LEDGER_LIMITS = {"handover.md": 8000, "STATUS.md": 6000}
+LEDGER_LIMITS = {"handover.md": 8000, "STATUS.md": 2500}
 MAX_DONE_HITS = 4
 # 完了語から行末までに許す文字数（末尾の括弧注記ぶん）。広げると従属節の完了を拾い誤検知が増える。
 DONE_TAIL_SLACK = 12
