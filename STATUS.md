@@ -28,9 +28,6 @@
   ⚠️ 同一 WiFi 上に**第三者端末（Huawei P30）が居る**＝操作前に model を確認（機序＝memory `adb-bridge-stale-tcp-holds-wrong-device`・
   **他人の端末なので読み取り以外はしない**＝`docs/knowledge/emui-p30-jank-log-collection.md`）。
 
-- **端末内診断 `diagnostics/`（外部送信ゼロ）の書き出しUIは未実装**——UI追加はモック先行が要るため別ラウンド
-  （※この1件だけ handover/backlog に受け皿が無いのでここに残置。着手するなら handover へ移す）。
-
 - **ゲート**: ローカル（`testDebugUnitTest`／public シグネチャを変えたときの `:app:assembleDebugAndroidTest`）も
   CI（`.github/workflows/ci.yml` の全ゲート）も**緑**。内訳と対象外の理由は YAML 側が正本。
   ⚠️ **Gradle は `tools/gwlock.sh <task>` 経由で回す**（同一ツリーの並列実行が出す偽の赤をツリー単位ロックで潰す。作法は `/build`）。
