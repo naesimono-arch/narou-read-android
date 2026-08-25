@@ -63,3 +63,53 @@ M/P/J は〈没入面／一覧面〉の2面を持ち、**没入面は選択モ�
 台帳（`awaiting-human.md`）には「**何が揃えば見られるか**」の1行だけを残し、
 **発火条件の出所（コード行・prefs キー・分岐条件）はここへ集約する**。
 台帳は常設注入で毎ターン読まれるので、条件の根拠まで置くと費用が積み上がる。
+
+## エミュなら前提そのものを作れる（2026-08-26・emulator-5560 で実施）
+
+**上表の「何を作れば踏めるか」は、エミュでは全部こちらの手で作れる**（実機は実蔵書が人質で作れなかっただけ）。
+実際に作った手順・撮ったもの・実測値は **`<scratchpad>/shots/b2/README.md` と同ディレクトリの
+`make-fixtures.py` / `setpref.py`** が一次情報（README に「ファイル名→画面→前提の作り方（コマンド列）」の全表がある）。
+ここには**次便が同じ穴に落ちないための事実だけ**を残す。
+
+**前提の作り方の骨**（詳細＝上記 README）:
+
+| 作りたい前提 | 最短手段 |
+|---|---|
+| 蔵書0 | `adb -s <emu> shell pm clear com.novelreader`。⚠️ 教示「はじめに」が必ず空棚を覆う＝`intro_about_shown`/`intro_reading_shown`/`intro_search_shown` を true にしてから起動する |
+| 4桁話の本 | `make-fixtures.py --chapters 1240`。**`progress` 行に `chap_1028.html` を入れておくと目次が4桁の位置へ自動で寄る**（1240行を手で送らない） |
+| 本文欠落（復旧ダイアログ・走査対象） | `make-fixtures.py --missing`（`index.html` を消す＝`BookEntity.hasContent` の判定点）。3ボタン縦積みを出したければ `--sha <64桁hex>` も付ける（`sourceUri` NULL＋指紋あり＝`PickPdfNoRecord`） |
+| 電池最適化ダイアログ | `pm clear` 後に PDF を1冊取り込むだけ（`isProcessing` の false→true）。**「二度と表示しない」を押さなければ取込のたびに再発火する**＝1.0 と 2.0 の撮り分けが1台でできる |
+| Web 本（棚の `web:<ncode>` 行・M/P/J 配線） | `sqlite3 <DB> "INSERT OR REPLACE INTO web_novels VALUES('<ncode>','<題名>','<作者>',<総話数>,<addedAt>);"`＝**ネットワーク取得なしで棚に出る** |
+| 二重押しガード | `sourceUrl` を持つ欠落本を1冊作り、**別の Web 取込を走らせたまま**そのカードをタップ |
+| スキン切替 | `app_prefs.xml` の `app_skin` を書き換えて `am force-stop`→`am start`（装いの間を UI で通らない）。debug ビルドは `SKIN_SWITCHING_ENABLED=true`＝**フラグ反転は不要** |
+
+**上表を上書きする事実（2026-08-26 実測）**
+
+- **「FAB と空棚CTA の被り」は明快K では消えている**——`ui/skins/k/BookshelfK.kt:273` が `!isEmptyShelf` で
+  FAB 自体を出さない（2026-08-20 裁定②）。`isEmptyShelf` を持つのは **K だけ**で、D/M/P/J は空棚でも FAB が出る
+  （D は空棚 CTA「PDFを追加する」と FAB「＋ PDFを追加」の**同一操作の二重表示**が残る）。
+- **走査の協調中断は初めて実挙動を観測できた**（実機の「列挙で頭打ち」は消えた）。80MB×24件の小ツリーで
+  列挙は実質ゼロ・ハッシュ **0.748 s/件**。停止タップ時の件数へ同一ランのレートで外挿すると、
+  最終 `hashedCount` の超過は **0〜1件**＝`domain/PdfFolderScan.kt:152-158` の設計どおり。
+  表示は「途中で停止しました」＋「24件 のうち N件 を調べました。」。
+
+**エミュ計測でだけ踏む罠（実機の知見と別物）**
+
+- **`uiautomator dump` は完了に 2.5〜3.0 秒かかり、スナップショットは dump 開始時点**。
+  読めた進捗値は最大3秒＝約4件ぶん古い。**observed と最終値の差をそのまま「中断の遅れ」と読むと 4件遅れに見える**。
+  かといって「開始から N 秒後に盲打ちで停止」も駄目——4台同居でホストが混みラン間でレートが揺れる
+  （+8s→12件 と +14s→11件 という逆転を実測）。**同一ラン内で観測→即タップ→外挿**が唯一信用できる形。
+- **端末側 toybox `grep` は日本語パターンに当たらない**（`grep -c 停止しました dump.xml` が 0）。
+  端末内で完結する検出ループは ASCII だけで書く（`grep -q 'text="24'` 等）。
+- **`uiautomator dump` は1ステップ古い画面を返すことがある**（スキン切替直後に前スキンの木を返した）。
+  `screencap` は正しかった＝**見えの判定は必ずスクショ側**、dump は座標取りの道具と割り切る。
+- **prefs を端末側 `sed`/`grep` で直編集しない**——属性の引用符が落ちて `<string name=app_skin>` という不正 XML になり
+  prefs が丸ごと読めなくなる。**force-stop → pull → ホストで編集 → push** が安全（`setpref.py`）。
+
+**この便でも出せなかったもの（＝まだ未検証）**
+
+- **①「元のPDFから再取込」（`ReimportPlan.AutoPdf`）のダイアログ**。SAF（Downloads プロバイダ）で取り込んだ本の
+  `index.html` を消すと `PickPdfPermissionLost`（＝永続読取権限が生きていない扱い）へ落ち、①分岐に入らなかった。
+  `sourceUri`（`content://com.android.providers.downloads.documents/document/raw%3A…`）は DB に残っている。
+  **エミュのプロバイダ固有か実バグかは判定不能**＝次便は `hasPersistedRead` の突合（`persistedUriPermissions` の
+  URI 文字列と DB の `sourceUri` を実機/エミュ両方で並べる）から入る。
