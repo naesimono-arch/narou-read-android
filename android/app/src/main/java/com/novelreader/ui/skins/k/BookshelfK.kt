@@ -68,6 +68,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -75,13 +76,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
@@ -166,7 +168,8 @@ import com.novelreader.domain.webNcodesInSelection
 //     別（モック .chip は border-radius:999・選択で塗り）ゆえ K 専用チップを置く。
 //   ・リストモード＝K 専用の案A 題字1行（KListBookCard/KWebListBookCard）。旧・D 流用は 2026-07-24 裁定で
 //     圧縮S へ置換し、2026-07-26 裁定で案A（題字1行 ellipsis・行高≈71dp・約8.6行/画面）へ再圧縮
-//     （正本モック bookshelf-list-K.html。Web未取込行は field 沈め＋青磁破線の行フレーム＝.web）。
+//     （正本モック bookshelf-list-K.html。Web未取込行は field 沈め＋青磁の四隅マーカー＝.web。
+//     四辺の破線から角だけの徴へ差し替えたのは 2026-08-26 裁定＝narouCornerMarks の KDoc に理由を置く）。
 // 色/字/余白はトークン経由（hex 直書き禁止・ADR 0014）。メタ文字は AA の LocalShelfColors.infoText を使う。
 // ============================================================
 
@@ -967,8 +970,18 @@ private fun KWebGridBookCard(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val hasProgress = lastReadEpisode > 0
-    // 破線フレーム色（青磁＝secondary）。DrawScope 内では @Composable の MaterialTheme を読めないため事前に捕捉する。
-    val seiji = MaterialTheme.colorScheme.secondary
+    // 未取込の署名色＝濃青磁（正本 --seiji-ink #50685C／トークン UnreadSeiji）。2026-08-26 ユーザー裁定で
+    // 「実装（淡 secondary #9CB3A8）を正本へ寄せる」と確定。LocalShelfColors 経由で引くのは、ライト/セピアは
+    // UnreadSeiji・ダークは暗面で合格済みの SecondaryDark を返す既存の役割配線に乗せるため（K は SkinD へ全委譲）。
+    // 新トークンは作らない＝2026-08-21 のキャプション色是正と同じく「既存トークンの適用漏れを埋める」だけ。
+    // DrawScope 内では @Composable の MaterialTheme を読めないため事前に捕捉する。
+    val seijiInk = LocalShelfColors.current.semanticMicroText
+    // 沈めた紙（正本 --field）。onSurface を NarouSinkAlpha だけ紙へ焼き込む＝ライトは #FBFAF8 → #F4F3F2。
+    val shiori = LocalShioriColors.current
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val sunkenShiori = remember(shiori, onSurface) {
+        shiori.copy(paper = onSurface.copy(alpha = NarouSinkAlpha).compositeOver(shiori.paper))
+    }
 
     Column(
         modifier = modifier
@@ -988,31 +1001,29 @@ private fun KWebGridBookCard(
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             // 未取込＝D改（2026-07-24 ユーザー裁定）: 影は付けない＝「まだ実体がない一冊」を浮かせない
-            // （実体のある蔵書カードだけ手順2の影を持つ）。輪郭は下の青磁破線が担う。
-            ShioriCover(
-                title = novel.title,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(3f / 4f)
-                    .clip(RoundedCornerShape(3.dp)),
-            )
-            // 紙地一段沈め＝取込前の「仮置き」感（正本モック D改: 紙地を field 系へ）。ShioriCover の上へ
-            // onSurface 5% を薄く被せてテーマ非依存で一段くすませる（alpha は実機検分で調整）。
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)),
-            )
-            // 青磁の破線フレーム（D改＝旧・白ピルの代替）。輪郭が未確定＝「仮置き＝まだ手元にない」の比喩。
-            // 角丸3dp＝書影 clip と整合。描画本体は共有 narouDashedOutline（リスト帯と1定義を共用）。
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .narouDashedOutline(color = seiji, cornerRadius = 3.dp),
-            )
-            // 選択中は書影へ藍の細縁取り＋淡い藍かぶせ（KGridBookCard と同じ .bk.sel）。
+            // （実体のある蔵書カードだけ手順2の影を持つ）。徴は下の四隅マーカーが担う。
+            //
+            // 紙地一段沈め＝取込前の「仮置き」感。正本 `.cv.narou` は background を --field へ差し替える
+            // ＝沈めは**地**であって被膜ではない（栞棒と縦題字はくすまない）。旧実装は ShioriCover の**上**へ
+            // veil を重ねており、一覧（行の background＝内容の下）と重ね順が食い違っていた——2面とも
+            // 「地」へ揃えた（揃える先を地にしたのは、正本2枚がどちらも background 差し替えで、かつ
+            // 被膜側へ揃えると一覧のメタ文字まで曇って下の AA 是正と正面衝突するため）。
+            // ShioriCover は紙を LocalShioriColors.paper から読むので、このカードの範囲だけ沈めた紙を
+            // 供給すれば ink（縦題字）と accent（栞棒・先端）は素のまま残る＝正本と同じ効き方になる。
+            CompositionLocalProvider(LocalShioriColors provides sunkenShiori) {
+                ShioriCover(
+                    title = novel.title,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(3f / 4f)
+                        .clip(RoundedCornerShape(3.dp)),
+                )
+            }
             if (selected) {
+                // 選択中は書影へ藍の細縁取り＋淡い藍かぶせ（KGridBookCard と同じ .bk.sel）。
+                // ⚠️ ここでは四隅マーカーを描かない: 2dp の藍縁取りは器の外周 0〜2dp を塗り、マーカーの線
+                // （外周 0〜1dp）と同じ画素を占める＝描いても埋もれて二重輪郭にしかならない。未取込の徴は
+                // 沈めた紙地とキャプション「なろう・未取込」が引き続き担うので、選択中に失われる情報は無い。
                 Box(
                     modifier = Modifier
                         .matchParentSize()
@@ -1020,8 +1031,23 @@ private fun KWebGridBookCard(
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
                         .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp)),
                 )
+            } else {
+                // 四隅マーカー（正本 `.cv.narou .mk`）。角丸3dp＝書影 clip と整合。
+                // 描画本体は共有 narouCornerMarks（一覧行と1定義を共用＝署名の脱落を構造的に防ぐ）。
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .narouCornerMarks(
+                            color = seijiInk,
+                            cornerRadius = 3.dp,
+                            armLength = NarouMarkArmGrid,
+                        ),
+                )
             }
             // 選択モード中は書影右上に選択マーク（蔵書カードと共有の KSelectionCheck）。
+            // ⚠️ 右上マーカーと同じ隅を使う。未選択のあいだは画素が重ならない（マーク＝22dp を S8 で寄せる
+            // ＝上端/右端から 8dp・マーカーの腕は端から 12dp／線 1dp ＝実測クリアランス 7dp）が、選択された
+            // 瞬間は上の藍縁取りがマーカーを完全に覆う——そこを上の if/else で描き分けて重なりを解消している。
             if (selectionMode) {
                 KSelectionCheck(
                     selected = selected,
@@ -1223,10 +1249,10 @@ private fun KListBookCard(
 
 // ============================================================
 // リスト（目録）Web由来カード＝案A（2026-07-26 ユーザー裁定・正本 bookshelf-list-K.html の .web）。KWebGridBookCard の目録版。
-// 未取込の徴＝行全体を field 沈め＋青磁1.5dp破線（角丸6dp）の中空フレームで括る。グリッド .cv.narou が書影（実体）の
-//   輪郭を「未確定＝仮置き」に描くのと同じ言葉を、書影のない目録では行そのものに掛ける（旧・帯だけの破線化は
-//   2026-07-26 mockview 目視でドラフト案A のフレーム意匠へ差し替え裁定）。色帯は蔵書行と同じ title 由来色に戻す
-//   （正本 .web は --band を保持＝破線枠が「未取込」を語り、帯は「1冊=1色相」の識別に専念する役割分担）。
+// 未取込の徴＝行地を field へ沈め、行の四隅へ青磁のコーナーマーカーを置く（角丸6dp）。グリッド .cv.narou が
+//   書影（実体）の隅に同じ徴を置くのと同じ言葉を、書影のない目録では行そのものに掛ける（2026-07-26 に帯だけの
+//   破線化→行フレームへ、2026-08-26 に四辺の破線→四隅マーカーへ。後者の理由は narouCornerMarks の KDoc）。色帯は蔵書行と同じ title 由来色に戻す
+//   （正本 .web は --band を保持＝四隅マーカーが「未取込」を語り、帯は「1冊=1色相」の識別に専念する役割分担）。
 // 機能パリティは D の WebListBookCard から全数移植（タップ=進捗あれば再開/無ければ目次・長押し=選択入口・
 //   選択マーク・⋮=目次(進捗時)/取込/外す・resume 分岐）。⋮メニューは KWebGridBookCard と同じ項目を inline で持つ。
 // ============================================================
@@ -1247,14 +1273,21 @@ private fun KWebListBookCard(
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val hasProgress = lastReadEpisode > 0
-    // 破線署名色（青磁＝secondary）。DrawScope 内では @Composable の MaterialTheme を読めないため事前に捕捉する。
-    val seiji = MaterialTheme.colorScheme.secondary
+    // 未取込の署名色＝濃青磁（正本 --seiji-ink／トークン UnreadSeiji。引き方の理由は KWebGridBookCard と同文）。
+    // 四隅マーカー（装飾）とメタ文字（AA 対象）の両方がこの1色を使う。
+    // ⚠️ メタ文字は装飾ではなく AA 対象（ADR 0014-D「意味を運ぶ文字は WCAG 4.5:1」）＝枠と別に決めてよい。
+    // 旧実装の淡 secondary #9CB3A8 は素地 2.14:1 で未達だった——2026-08-21 の是正がグリッドのキャプション
+    // （unreadLabel→semanticMicroText）にだけ入り、この一覧行が取り残されていた。濃青磁は沈めた行地
+    // #F4F3F2 上 5.45:1・素地 #FBFAF8 上 5.79:1 で AA を満たす。今回は枠の裁定も濃青磁なので1つの値を共有する。
+    // DrawScope 内では @Composable の MaterialTheme を読めないため事前に捕捉する。
+    val seijiInk = LocalShelfColors.current.semanticMicroText
     // 帯の作品識別色（蔵書行 KListBookCard と同一導出＝「1冊=1色相」を Web由来でも保つ）。
     val accentLightness = LocalShioriColors.current.accentLightness
     val bandColor = remember(novel.title, accentLightness) { shioriAccentFor(shioriHue(novel.title), accentLightness) }
 
-    // 蔵書行と違い下ヘアラインを持たない＝正本 .web が border-bottom を破線フレームへ置換しているため
-    // （残すと破線と実線の二重区切りになる）。Column 包みも不要になり Row 単体で組む。
+    // 蔵書行と違い下ヘアラインを持たない＝正本 .web が border-bottom-color を transparent にしているため
+    // （沈めた行地の縁に線を重ねると、四隅マーカーと合わせて区切りが二重に見える）。行の切れ目は前後の
+    // 蔵書行が持つヘアラインと下側マーカーが担う。Column 包みも不要になり Row 単体で組む。
     Row(
         modifier = modifier
             .semantics(mergeDescendants = true) {
@@ -1266,15 +1299,19 @@ private fun KWebListBookCard(
             }
             // 角丸6dp＝正本 .web の border-radius。clip が field 地・選択かぶせ・リップルを枠形に収める。
             .clip(RoundedCornerShape(6.dp))
-            // 紙地一段沈め（--field）＝KWebGridBookCard と同じ onSurface 5% かぶせのテーマ非依存翻訳（alpha は実機検分で調整）。
-            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+            // 行地一段沈め（--field）＝KWebGridBookCard と同じ onSurface かぶせのテーマ非依存翻訳。
+            // ここは従来から「内容の下」＝地。グリッド側をこの重ね順へ揃えた（理由はあちらのコメント）。
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = NarouSinkAlpha))
             // 選択中は field の上へ淡い藍かぶせ（蔵書行と同値）。
             .background(
                 if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
                 else Color.Transparent,
             )
-            // 青磁破線フレーム（線幅1.5dp・dash 4dp/3dp＝グリッド書影と同値の共有 narouDashedOutline）。
-            .narouDashedOutline(color = seiji, cornerRadius = 6.dp)
+            // 青磁の四隅マーカー（線幅1.0dp・実線・腕14dp＝グリッド書影と1定義を共用する narouCornerMarks）。
+            // グリッドと違い選択中も描いたままにする: 一覧の選択マークは Row の子として行内に並ぶ＝四隅とは
+            // 場所が競合せず、選択かぶせも背景（内容の下）なのでマーカーを覆わない＝選択作業中も
+            // 「どれが未取込か」を保てる（グリッドは書影右上で重なるため描き分けが要った）。
+            .narouCornerMarks(color = seijiInk, cornerRadius = 6.dp, armLength = NarouMarkArmList)
             .combinedClickable(
                 // 選択モード中はトグル。通常は進捗あれば主タップ=続きから／無ければ目次、長押しで選択モードへ（系3）。
                 onClick = { if (selectionMode) onToggleSelect() else if (hasProgress) onResume() else onOpen() },
@@ -1285,7 +1322,7 @@ private fun KWebListBookCard(
             .padding(top = Spacing.S12, bottom = Spacing.S12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 色帯（蔵書行と同寸: 幅4dp・角丸2dp）。破線フレームの左角丸6dpと重ならないよう枠内へ 6dp インセットし
+        // 色帯（蔵書行と同寸: 幅4dp・角丸2dp）。沈めた行地の左角丸6dpを跨がないよう枠内へ 6dp インセットし
         // （正本 .web::before left:6px）、題字の左位置は蔵書行と揃える＝後続ギャップを S16−インセットで相殺する。
         Box(
             modifier = Modifier
@@ -1308,34 +1345,34 @@ private fun KWebListBookCard(
             )
             // 題字→メタの詰め S4＝案A（正本 .m の margin-top:4px）。
             Spacer(Modifier.height(Spacing.S4))
-            // メタ1行: 著者＋状態を中黒で連結（蔵書行と同構造＝正本 .web の .m）。未取込署名の枠内にある行のため
-            // 文字は著者ごと青磁で統一する（正本 .web .m,.web .m span＝seiji-ink）。
+            // メタ1行: 著者＋状態を中黒で連結（蔵書行と同構造＝正本 .web の .m）。未取込の行なので
+            // 文字は著者ごと濃青磁で統一する（正本 .web .m,.web .m span＝--seiji-ink）。
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (novel.writer.isNotBlank()) {
                     Text(
                         text = novel.writer,
                         fontSize = FontMicroLabel,
-                        color = seiji,
+                        color = seijiInk,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         // 著者が長くても状態を押し出さない（蔵書行と同じ収縮）。
                         modifier = Modifier.weight(1f, fill = false),
                     )
-                    Text("・", fontSize = FontMicroLabel, color = seiji)
+                    Text("・", fontSize = FontMicroLabel, color = seijiInk)
                 }
                 // 進捗あれば「第N話まで既読」（K グリッド Web と同文言）／無ければ「なろう・未取込」（Medium＝未取込の徴）。
                 if (hasProgress) {
                     Text(
                         "第${lastReadEpisode}話まで既読",
                         fontSize = FontMicroLabel,
-                        color = seiji,
+                        color = seijiInk,
                     )
                 } else {
                     Text(
                         "なろう・未取込",
                         fontSize = FontMicroLabel,
                         fontWeight = FontWeight.Medium,
-                        color = seiji,
+                        color = seijiInk,
                     )
                 }
             }
@@ -1360,27 +1397,81 @@ private fun KWebListBookCard(
 }
 
 /**
- * 未取込Webカードの青磁破線輪郭（D改署名・2026-07-24 裁定）: 線幅1.5dp・破線間隔4dp/3dp。
- * なぜ共有 Modifier に集約するか: グリッド書影とリスト行フレーム（案A・2026-07-26 裁定で帯の破線化から
- * 行全体のフレームへ移行）は別 Composable で、破線値を各所へ写経すると
- * リスト新設時の署名脱落（2026-07-26 是正の真因＝圧縮S 新設時にグリッド inline 描画が持ち込まれなかった）
- * が再発する＝「未取込の破線署名」を1定義に束ねて構造的に防ぐ。
- * dashPathEffect の破線間隔はレイアウト余白でなくストローク模様の構造値＝Spacing 尺の対象外（実機で調整）。
+ * 未取込の紙地沈め（正本 --field）＝紙／行地へ onSurface をこの割合だけ焼き込む。
+ * 2026-08-26 ユーザー裁定で 5%→3% へ浅くした（四隅マーカー化と同じ便＝徴を全体に静める枠での再調整）。
+ * ライトでは #FBFAF8 → #F4F3F2。テーマ非依存に一段沈めるため固定色でなく onSurface のかぶせで持つ。
  */
-private fun Modifier.narouDashedOutline(color: Color, cornerRadius: Dp): Modifier = drawBehind {
-    val stroke = 1.5.dp.toPx()
-    drawRoundRect(
-        color = color,
-        // 半ストローク内側へ寄せ、線全体を領域内に収める（clip の角丸と整合）。
-        topLeft = Offset(stroke / 2f, stroke / 2f),
-        size = Size(size.width - stroke, size.height - stroke),
-        cornerRadius = CornerRadius(cornerRadius.toPx()),
-        style = Stroke(
-            width = stroke,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()), 0f),
-        ),
-    )
-}
+private const val NarouSinkAlpha = 0.03f
+
+/** 未取込マーカーの線幅（2026-08-26 裁定＝1.0dp）。面別に振らないので共有定数で持つ。 */
+private val NarouMarkStroke = 1.dp
+
+/** グリッド書影の腕の長さ（正本 `.cv.narou .mk`＝12px）。 */
+private val NarouMarkArmGrid = 12.dp
+
+/** 一覧行の腕の長さ（正本 `.lc.web .mk`＝14px。行は横長なので角をやや長く取る）。 */
+private val NarouMarkArmList = 14.dp
+
+/**
+ * 未取込Webカードの徴＝四隅のコーナーマーカー（2026-08-26 ユーザー裁定・候補紙
+ * docs/design-candidates/skins/candidates/bookshelf-K-narou-frame-candidates.html の案D＋詰め D2）:
+ * 実線・線幅 [NarouMarkStroke]・色は濃青磁・角丸は器と同値・腕は [NarouMarkArmGrid]/[NarouMarkArmList]。
+ *
+ * なぜ四辺の破線をやめたのか（＝線を弱めたのではなく記号を替えた）: 2026-08-21 の実機ツアーで
+ * 「目立ちすぎ。書庫に入っているのは同じなのに存在しないように見える」と FAIL した。四辺を等しく囲う枠は
+ * 〈中身のない枠＝不在〉と読めてしまう——これは線の *強さ* ではなく *記号* の問題なので、淡く/細く/粗く
+ * する方向（候補 A/B/C/H）では「枠であること」が残り評は解けない。角だけを示せば「中身のない枠」という
+ * 読みが成立しない一方、「まだ確定していない一冊」の比喩と一目の識別は保てる、というのが裁定の理路。
+ *
+ * なぜ共有 Modifier に集約するか（従来どおり）: グリッド書影とリスト行は別 Composable で、値を各所へ
+ * 写経するとリスト新設時のような署名脱落（2026-07-26 是正の真因）が再発する＝1定義に束ねて構造的に防ぐ。
+ *
+ * なぜ [drawWithContent] か: 器の版面（栞書影の栞棒・縦題字／行の題字・メタ・⋮）を 1dp も狭めずに
+ * 上へ重ねるため。border や padding で描くと中身が痩せる＝正本モックが絶対配置のオーバーレイ（.mk）で
+ * 描いているのと同じ思想に合わせる。
+ */
+private fun Modifier.narouCornerMarks(color: Color, cornerRadius: Dp, armLength: Dp): Modifier =
+    drawWithContent {
+        drawContent()
+        val stroke = NarouMarkStroke.toPx()
+        // 線の中心を半ストローク内側へ寄せ、線全体を器の中へ収める（clip の角丸と整合）。
+        val inset = stroke / 2f
+        val r = cornerRadius.toPx()
+        // 防御: 器が極端に狭いと左右（上下）の腕が届き合って「角の徴」が「枠」に化ける＝裁定の意図が
+        // 反転する。器の半分を超えないよう丸める（fontScale 2.0 の縦伸びや横画面の細い列を想定）。
+        val arm = armLength.toPx().coerceAtMost(minOf(size.width, size.height) / 2f - inset)
+        val end = inset + arm
+        val w = size.width
+        val h = size.height
+        val path = Path().apply {
+            // 左上
+            moveTo(inset, end)
+            lineTo(inset, inset + r)
+            arcTo(Rect(inset, inset, inset + 2 * r, inset + 2 * r), 180f, 90f, false)
+            lineTo(end, inset)
+            // 右上
+            moveTo(w - end, inset)
+            lineTo(w - inset - r, inset)
+            arcTo(Rect(w - inset - 2 * r, inset, w - inset, inset + 2 * r), 270f, 90f, false)
+            lineTo(w - inset, end)
+            // 右下
+            moveTo(w - inset, h - end)
+            lineTo(w - inset, h - inset - r)
+            arcTo(Rect(w - inset - 2 * r, h - inset - 2 * r, w - inset, h - inset), 0f, 90f, false)
+            lineTo(w - end, h - inset)
+            // 左下
+            moveTo(end, h - inset)
+            lineTo(inset + r, h - inset)
+            arcTo(Rect(inset, h - inset - 2 * r, inset + 2 * r, h - inset), 90f, 90f, false)
+            lineTo(inset, h - end)
+        }
+        drawPath(
+            path = path,
+            color = color,
+            // round cap＝候補紙が裁定を受けたときの描き方（1dp 線では butt と識別できないが値を写す）。
+            style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round),
+        )
+    }
 
 /**
  * 可視⋮のタップ面（モック `.cap .dots` は 28px だが、最小タップ面 32dp まで広げてある）。

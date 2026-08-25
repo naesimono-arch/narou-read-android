@@ -13,7 +13,8 @@
   ・グリッド＝2列改A（書影≈144dp・3:4比率・列間/左右余白を拡大・キャプション題字1行＋可視⋮＋状態行・約5冊/画面）。
   ・書影＝栞書影準拠（紙地＋題字由来色の細い栞棒＋先端＋縦組み明朝題字）。旧・濃色グラデ板は廃止。
   ・書影の輪郭は線（border）でなく柔らかい影（box-shadow）＝§F 裁定「線→影」。
-  ・Web未取込カード＝D改（青磁1.5px破線フレームのみ・紙地一段沈め field 色・白ピル廃止・キャプション「なろう・未取込」）。
+  ・Web未取込カード＝D改（紙地一段沈め field 色・白ピル廃止・キャプション「なろう・未取込」）。
+    ⚠️ 輪郭の意匠は 2026-08-26 裁定で「青磁1.5px破線フレーム」から**四隅のコーナーマーカー**へ差し替え済み（下の節）。
   ・可視⋮は書影上でなくキャプション行右端へ移設（縦題字との衝突回避・スクリム廃止＝旧「逆同期待ち」注記を消化）。
   ・ビューポート幅は実機実効 360dp（PGEM10 実測基準）。ヘッダ/フィルタチップ/ボトムナビ/FAB は現状維持。
 
@@ -29,9 +30,8 @@
     ✅ 解消（2026-08-21）: なろう・未取込ラベル色。実装が secondary #9CB3A8（素地 2.14:1＝AA未達）のまま
     取り残されていたが、ADR 0014-D の濃青磁 UnreadSeiji（＝本ファイルの --seiji-ink）へ寄せて本文の
     `.st.narou` と一致した。新色は作っておらず、既存トークンの適用漏れを埋めただけ。
-    ⚠️ 未取込カードの**破線フレーム**は本ファイルが --seiji-ink なのに実装（BookshelfK の `seiji`）は
-    secondary のままで、こちらは乖離が残っている。破線は装飾＝WCAG 対象外のため AA 修正の対象外で、
-    どちらへ寄せるかは意匠の裁定が要る（人間待ち）。
+    ✅ 解消（2026-08-26）: 未取込カードの輪郭色。「濃青磁 --seiji-ink で確定・実装（淡 secondary）を
+    正本へ寄せる」とユーザーが裁定し、下の四隅マーカー差し替えと同じ便で実装も濃青磁へ揃えた。
 
   【2026-08-20 追加（ユーザー裁定2件・アクセシビリティ。既定の見え〔fontScale 1.0・蔵書あり〕は不変）】
   ① フィルタ行のスクロール端フェード＝採用案(B)。溢れているときだけ端を地色へ溶かし「まだ続く」を示す。
@@ -50,6 +50,22 @@
         予約だけ残ると空棚の中央寄せが 48dp ぶん上へずれる（下の検分③は外した後の見えを描いている）。
      出没のトランジション（M3 の scale+fade）はモックで確定させない＝実機後詰め層（ADR 0005 §B）。
   ・下段の検分枠（.probes）は裁定のための付帯物＝実機には無い。正本の本体は上段の phone ただ1つ。
+
+  【2026-08-26 更新（ユーザー裁定・未取込カードの徴を「四辺の破線」から「四隅のコーナーマーカー」へ）】
+  ・直す症状: 2026-08-21 実機ツアーで FAIL。評＝「目立ちすぎ。書庫に入っているのは同じなのに存在しない
+    ように見える」。**これは線の〈強さ〉ではなく〈記号〉の問題**という裁定＝四辺を等しく囲う枠は
+    「中身のない枠＝不在」と読めてしまうので、淡く/細く/粗くする方向（候補 A/B/C/H）は全て不採用。
+    角だけを示せば「中身のない枠」という読みが成立しない一方、「まだ確定していない一冊」の比喩と
+    一目の識別は保てる（候補紙 candidates/bookshelf-K-narou-frame-candidates.html の案D＋詰め D2）。
+  ・確定値: 四隅マーカー／**実線**／線幅 **1px（実装 1.0dp）**／長さ **12px（一覧は 14px）**／
+    色 **--seiji-ink #50685C（濃青磁）**／角丸は器と同値（グリッド 3px・一覧 6px）／紙地の沈め **3%**。
+  ・沈めが 5%→3% になったので --field も #F0EFEE → #F4F3F2 へ更新（同じ焼き込み式の 3% 値）。
+  ・沈めは**地**であって被膜ではない（.cv.narou の background 差し替え＝栞棒と縦題字はくすまない）。
+    実装は書影の上へ veil をかぶせており重ね順が食い違っていた＝この便で本ファイル側（地）へ揃えた。
+  ・マーカーは**版面を食わない**オーバーレイで描く（絶対配置の .mk＝書影の中身を1pxも狭めない）。
+    実装も同じ思想で drawWithContent のオーバーレイ描画にする。
+  ・⚠️ 選択モードでは書影右上に選択マーク（KSelectionCheck）が載る＝右上マーカーと同じ隅を使う。
+    実装は「選択中（藍の2dp縁取りが出る状態）ではマーカーを描かない」で解決した（本モックは非選択の面）。
 
   【Compose 翻訳への申し送り（翻訳は別便＝口伝にしない）】
   ・裁定②（空棚でFABを引っ込める）を実装する便は、同じコミットで次の2つを必ず伴わせること。
@@ -81,8 +97,9 @@
     --line:#ECEAE4;        /* ヘアライン */
     --ai:#1C3D5A;          /* 藍アクセント（CTA/選択中のみ） */
     --ai-tint:rgba(28,61,90,.10);
-    --seiji-ink:#50685C;   /* 青磁ink（Web未取込の破線署名・既存トークン） */
-    --field:#F0EFEE;       /* 一段沈めた紙地（実装＝紙 #FBFAF8 へ onSurface 5% かぶせの焼き込み値） */
+    --seiji-ink:#50685C;   /* 青磁ink（Web未取込の署名＝四隅マーカーとキャプション・既存トークン UnreadSeiji） */
+    --field:#F4F3F2;       /* 一段沈めた紙地（実装＝紙 #FBFAF8 へ onSurface 3% かぶせの焼き込み値
+                              ＝251·.97+28·.03≈244/243/242。2026-08-26 裁定で 5%→3% へ浅くした） */
     --paper:#FBFAF8;       /* 栞書影の紙＝実装 ShioriColors.paper（SurfaceLight 同値・影で背景から浮かせる） */
     --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
@@ -159,8 +176,19 @@
   .cv .vt{position:absolute;top:14px;right:12px;bottom:14px;max-width:66%;overflow:hidden;
     writing-mode:vertical-rl;font-family:var(--mincho);font-size:12px;font-weight:600;
     color:var(--ink);line-height:1.6;letter-spacing:.05em}
-  /* Web未取込＝D改: 青磁1.5px破線フレームのみ・紙地一段沈め field・影なし（＝沈める） */
-  .cv.narou{background:var(--field);border:1.5px dashed var(--seiji-ink);box-shadow:none}
+  /* Web未取込＝D改（輪郭は 2026-08-26 裁定で四隅マーカーへ差し替え）: 紙地を一段沈め（field）・影なし
+     （＝在る本だけ影で浮かせる）。沈めは**地**＝background の差し替えなので栞棒と縦題字はくすまない。 */
+  .cv.narou{background:var(--field);box-shadow:none}
+  /* 四隅のコーナーマーカー（案D 詰め D2）。四辺で囲わないので「中身のない枠＝不在」と読まれない。
+     1つの意匠（左上）を反転して4隅へ配る＝長さ12px・線幅1px・実線・round cap・角丸3px（書影の角と同値）。
+     絶対配置のオーバーレイ＝書影の版面（栞棒・縦題字）を1pxも食わない（実装も同思想の重ね描き）。 */
+  .cv.narou .mk{position:absolute;width:13px;height:13px;pointer-events:none}
+  .cv.narou .mk svg{display:block;width:13px;height:13px;fill:none;stroke:var(--seiji-ink);
+    stroke-width:1;stroke-linecap:round}
+  .cv.narou .mk.tl{top:0;left:0}
+  .cv.narou .mk.tr{top:0;right:0;transform:scaleX(-1)}
+  .cv.narou .mk.br{right:0;bottom:0;transform:scale(-1,-1)}
+  .cv.narou .mk.bl{left:0;bottom:0;transform:scaleY(-1)}
 
   /* キャプション行: 題字明朝1行（左）＋可視⋮（右端・K実機是正の位置） */
   .cap{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-top:8px}
@@ -282,6 +310,7 @@
         <div class="bk">
           <div class="cv narou" style="--band:hsl(190 48% 52%);--barx:30%;--barlen:44%">
             <span class="bar"></span><span class="vt">最果てのダンジョンで細々と暮らすことにした</span>
+            <span class="mk tl" aria-hidden="true"><svg viewBox="0 0 13 13"><path d="M.5 12.5V3.5A3 3 0 0 1 3.5.5h9"/></svg></span><span class="mk tr" aria-hidden="true"><svg viewBox="0 0 13 13"><path d="M.5 12.5V3.5A3 3 0 0 1 3.5.5h9"/></svg></span><span class="mk br" aria-hidden="true"><svg viewBox="0 0 13 13"><path d="M.5 12.5V3.5A3 3 0 0 1 3.5.5h9"/></svg></span><span class="mk bl" aria-hidden="true"><svg viewBox="0 0 13 13"><path d="M.5 12.5V3.5A3 3 0 0 1 3.5.5h9"/></svg></span>
           </div>
           <div class="cap"><span class="t">最果てのダンジョンで細々と暮らすことにした</span>
             <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
@@ -309,6 +338,7 @@
         <div class="bk">
           <div class="cv narou" style="--band:hsl(50 48% 52%);--barx:24%;--barlen:46%">
             <span class="bar"></span><span class="vt">辺境ぐらしの隠居魔導士、今日ものんびり</span>
+            <span class="mk tl" aria-hidden="true"><svg viewBox="0 0 13 13"><path d="M.5 12.5V3.5A3 3 0 0 1 3.5.5h9"/></svg></span><span class="mk tr" aria-hidden="true"><svg viewBox="0 0 13 13"><path d="M.5 12.5V3.5A3 3 0 0 1 3.5.5h9"/></svg></span><span class="mk br" aria-hidden="true"><svg viewBox="0 0 13 13"><path d="M.5 12.5V3.5A3 3 0 0 1 3.5.5h9"/></svg></span><span class="mk bl" aria-hidden="true"><svg viewBox="0 0 13 13"><path d="M.5 12.5V3.5A3 3 0 0 1 3.5.5h9"/></svg></span>
           </div>
           <div class="cap"><span class="t">辺境ぐらしの隠居魔導士、今日ものんびり</span>
             <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>

@@ -104,16 +104,6 @@
   ⚠️ 印は `canScrollForward` で出し分け＝**下端に着いたら消す**（消えないと「まだ続く」と嘘をつく）。印は絶対配置＝**版面を1dpも食わない**。
   残作業＝正本 `discovery/discovery-detail-D.html` へ差分反映 → **一時ドラフト2枚を削除** → Compose 翻訳 → golden 再記録（同じコミットに同梱）。
 
-- **[本棚の「なろう・未取込」の枠＝裁定済み・未着手]**（2026-08-26 裁定。一次情報＝`skins/candidates/bookshelf-K-narou-frame-{candidates,in-context}.html`〔監督が詰め4案 D0〜D3 を追記済み〕）:
-  採用＝**四隅のコーナーマーカー（案D）／沈め 3%／stroke 1.0dp／濃青磁 `--seiji-ink` #50685C／長さ 12dp・一覧 14dp／実線**。
-  ⚠️ **四辺の破線をやめる**のが本体＝評「在る本が不在に見える」は*強さ*でなく*記号*の問題、という裁定（弱める方向の A/B/C/H は不採用）。
-  ⚠️ 色は**濃青磁で確定**＝実装（淡 `seiji`）を正本へ寄せる側。§3-2 にあった「色の乖離」はこれで決着＝別項目にしない。
-  ⚠️ **右上マーカーは選択モードの `KSelectionCheck` と場所が重なる**＝選択中の見えを実装時に別途確認する。
-  同じ便で直す＝(b) 沈めの重ね順の食い違い（グリッドは書影の上＝栞棒と縦題字までくすむ／一覧は下）
-  ／(c) 一覧のメタ文字が AA 未達（素地 2.14:1。⚠️ 文字は装飾でなく AA 対象＝枠と別に決めてよい）。
-  ※ (a) 破線リズムの正本未描画は**破線をやめるので消滅**。
-  残作業＝正本 `skins/bookshelf-K.html`・`bookshelf-list-K.html` へ差分反映 → Compose 翻訳（`ui/skins/k/BookshelfK.kt`）→ golden 再記録（同じコミットに同梱）。
-
 - **[遷移スケルトン＝裁定済み・未着手]**（2026-08-26 裁定。モック7案＝`candidates/transition-skeleton-body-{horizontal,vertical}-candidates.html`／
   逆解析から抜いた規範＝**`.claude/plans/skeleton-norms-from-teardown-2026-08-26.md` が正本**＝着手時に最初に読む）:
   採用＝**横 案3「段落の呼吸まで」／縦 V2「段落の切れ目まで」**。

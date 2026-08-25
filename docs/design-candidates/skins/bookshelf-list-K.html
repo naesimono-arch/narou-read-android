@@ -4,7 +4,8 @@
   案A＝圧縮Sから題字明朝の2行目だけを削って1行 ellipsis 化（著者＋状態の1メタ行・⋮・状態は温存）。
   行 padding 上下12・メタ margin-top 4・行高≈71dp・実機≈8.6冊/画面（実機実効 360dp 幅・
   リスト可視領域≈616dpの実寸算出。タップ標的48dp以上維持＝UX05-C）。書影なし・左4dp色帯（小口メタファ）。
-  Web未取込行＝.web（field 沈め＋青磁1.5px破線・角丸6px・帯は枠内6pxインセット＝グリッド正本 .cv.narou と同値の意匠）。
+  Web未取込行＝.web（field 沈め＋**四隅のコーナーマーカー**・角丸6px・帯は枠内6pxインセット
+  ＝グリッド正本 .cv.narou と同値の意匠。2026-08-26 裁定で青磁1.5px破線から差し替え＝下の節）。
   書影色相はグリッド正本（1冊=1色相の正）に一致（2026-07-26 是正: 辺境ぐらし hsl95→50・異界の栞 hsl150→25）。
   ヘッダ／フィルタチップ／ボトムナビは bookshelf-K.html と同一マークアップ（グリッド↔リストは表示切替で往復）。
   トークンは K 正本を流用（新色なし・余白7段スケール）。
@@ -13,11 +14,25 @@
   ・旧 K 専用 ink-soft #6A6E78 は実装不採用＝装飾補助（チップ非選択/⋮/タブラベル）は --ink-soft #7C808B
     （OnSurfaceVariantLight）・意味メタ（冊数/著者・状態行）は --info #5C606D（InfoTextLight）へ役割分離。
   ・冊数＝基線揃え 16px semibold（実装 titleMedium＋infoText）・ttl gap 10→8px（S8）。⋮グリフ 16→18px。
-  ・--field #F0EFEE（実装は行地へ onSurface 5% かぶせ＝グリッド正本と同じ焼き込み値）。
+  ・--field（実装は行地へ onSurface かぶせ＝グリッド正本と同じ焼き込み値。2026-08-26 に 5%→3% へ）。
   ・golden との既知乖離（意匠裁定待ち＝ここでは直さない）: 行ヘアライン --line #ECEAE4 vs 実装
-    ShelfHairlineLight #E4E2DB・未取込行メタ色（実装は著者ごと secondary #9CB3A8＝--seiji-ink 温存）・
+    ShelfHairlineLight #E4E2DB・
     メタ行 13px vs 実装 FontMicroLabel 10.5sp・題字 16px vs FontCardTitle 16.5sp・
     未読の藍ドット（実装は「● 未読」）と新着「続きN話」バッジがモック不在・表示切替アイコンの向き。
+    ✅ 解消（2026-08-26）: 未取込行のメタ色。実装は淡 secondary #9CB3A8（素地 2.14:1＝AA未達）のまま
+    取り残されていたが、**文字は装飾でなく AA 対象**という審級（ADR 0014-D）で濃青磁 UnreadSeiji
+    ＝本ファイルの --seiji-ink へ寄せた（沈めた行地 #F4F3F2 上 5.45:1・素地 #FBFAF8 上 5.79:1）。
+
+  【2026-08-26 更新（ユーザー裁定・未取込行の徴を「四辺の破線」から「四隅のコーナーマーカー」へ）】
+  ・直す症状と裁定の要旨はグリッド正本 bookshelf-K.html の同名節が正本（線の〈強さ〉でなく〈記号〉の
+    問題＝四辺で囲うと「中身のない枠＝不在」と読める。弱める方向の候補は全て不採用）。
+  ・一覧の確定値: 実線・線幅1px（実装 1.0dp）・長さ **14px**（グリッドは 12px）・色 --seiji-ink・
+    角丸6px（行の角と同値）・行地の沈め 3%（--field #F4F3F2）。
+  ・下ヘアラインは**透明のまま**（.lc の 1px を色だけ透明化＝行高を変えずに線を消す）。案D は
+    hairline を戻さない＝行区切りは前後の蔵書行が持つヘアラインと四隅マーカーが担う。
+  ・マーカーは絶対配置のオーバーレイ（.mk）＝行の版面を1pxも食わない。実装も drawWithContent の重ね描き。
+  ・選択マーク（KSelectionCheck）は一覧では Row の子として行内に並ぶ＝四隅とは場所が競合しない
+    （グリッドは書影右上に重なるため実装側で「選択中はマーカーを描かない」として解決した）。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -31,8 +46,9 @@
     --ink-soft:#7C808B;    /* 装飾補助（OnSurfaceVariantLight 実値。チップ非選択/⋮/タブラベル） */
     --info:#5C606D;        /* 意味メタ（InfoTextLight 実値。冊数/著者・状態行＝AA 暗化シェード） */
     --ai:#1C3D5A; --ai-tint:rgba(28,61,90,.10);
-    --seiji-ink:#50685C;   /* 青磁ink（Web未取込の破線署名・グリッド正本と同値） */
-    --field:#F0EFEE;       /* 一段沈めた紙地（実装＝行地 #FBFAF8 へ onSurface 5% かぶせ・グリッド正本と同値） */
+    --seiji-ink:#50685C;   /* 青磁ink（Web未取込の署名＝四隅マーカーとメタ文字・グリッド正本と同値） */
+    --field:#F4F3F2;       /* 一段沈めた紙地（実装＝行地 #FBFAF8 へ onSurface 3% かぶせ・グリッド正本と同値。
+                              2026-08-26 裁定で 5%→3% へ浅くした） */
     --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   }
@@ -84,12 +100,24 @@
     display:grid;place-items:center;cursor:pointer}
   .lc .dots svg{width:18px;height:18px;fill:currentColor} /* 実装グリフ 18dp */
 
-  /* Web未取込行（破線＝グリッド正本 .cv.narou と同値: 1.5px dashed 青磁・field 沈め）。
-     行全体を中空フレームで括り「まだ手元にない一冊」を目録でも同じ言葉で示す。帯は枠の左角丸6pxを
-     跨がないよう枠内へ6pxインセット（--band は保持＝1冊=1色相の識別は帯が担う） */
-  .lc.web{background:var(--field);border:1.5px dashed var(--seiji-ink);border-radius:6px;border-bottom-style:dashed}
+  /* Web未取込行（グリッド正本 .cv.narou と同値の意匠: 四隅のコーナーマーカー＋field 沈め）。
+     行を四辺で括るのはやめた（2026-08-26 裁定＝囲うと「中身のない枠＝不在」と読める）が、角で
+     「まだ手元にない一冊」を目録でも同じ言葉で示す。帯は行の左角丸6pxを跨がないよう枠内へ6pxインセット
+     （--band は保持＝1冊=1色相の識別は帯が担う）。
+     下ヘアラインは色だけ透明にする＝1px の場所を残したまま線を消す（行高が前後の蔵書行とずれない）。 */
+  .lc.web{background:var(--field);border-radius:6px;border-bottom-color:transparent}
   .lc.web::before{left:6px}
+  /* メタ文字は AA 対象（装飾ではない）＝濃青磁 --seiji-ink。沈めた行地 #F4F3F2 上 5.45:1。 */
   .lc.web .m,.lc.web .m span{color:var(--seiji-ink)}
+  /* 四隅マーカー: 1つの意匠（左上）を反転して4隅へ配る＝長さ14px・線幅1px・実線・round cap・角丸6px。
+     絶対配置のオーバーレイ＝行の版面（題字・メタ・⋮）を1pxも食わない。 */
+  .lc.web .mk{position:absolute;width:15px;height:15px;pointer-events:none}
+  .lc.web .mk svg{display:block;width:15px;height:15px;fill:none;stroke:var(--seiji-ink);
+    stroke-width:1;stroke-linecap:round}
+  .lc.web .mk.tl{top:0;left:0}
+  .lc.web .mk.tr{top:0;right:0;transform:scaleX(-1)}
+  .lc.web .mk.br{right:0;bottom:0;transform:scale(-1,-1)}
+  .lc.web .mk.bl{left:0;bottom:0;transform:scaleY(-1)}
 
   /* ===== 共通ボトムナビ（bookshelf-K と同一） ===== */
   .tabbar{flex-shrink:0;height:64px;display:flex;border-top:1px solid var(--line);background:var(--base)}
@@ -127,7 +155,7 @@
     <div class="list">
       <div class="lc" style="--band:hsl(210 48% 52%)"><div class="bd"><div class="t">追放された万能薬師、辺境でスローライフを始める</div><div class="m"><span>霧島あおい</span>・<span>第127/205話</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
       <div class="lc" style="--band:hsl(280 48% 52%)"><div class="bd"><div class="t">黒の魔王と契約した俺、気づけば最強の従者に</div><div class="m"><span>夜灯すばる</span>・<span>第43/150話</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
-      <div class="lc web" style="--band:hsl(190 48% 52%)"><div class="bd"><div class="t">最果てのダンジョンで細々と暮らすことにした</div><div class="m"><span>浅葱まこと</span>・<span>なろう・未取込</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+      <div class="lc web" style="--band:hsl(190 48% 52%)"><div class="bd"><div class="t">最果てのダンジョンで細々と暮らすことにした</div><div class="m"><span>浅葱まこと</span>・<span>なろう・未取込</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button><span class="mk tl" aria-hidden="true"><svg viewBox="0 0 15 15"><path d="M.5 14.5V6.5A6 6 0 0 1 6.5.5h8"/></svg></span><span class="mk tr" aria-hidden="true"><svg viewBox="0 0 15 15"><path d="M.5 14.5V6.5A6 6 0 0 1 6.5.5h8"/></svg></span><span class="mk br" aria-hidden="true"><svg viewBox="0 0 15 15"><path d="M.5 14.5V6.5A6 6 0 0 1 6.5.5h8"/></svg></span><span class="mk bl" aria-hidden="true"><svg viewBox="0 0 15 15"><path d="M.5 14.5V6.5A6 6 0 0 1 6.5.5h8"/></svg></span></div>
       <div class="lc" style="--band:hsl(340 48% 52%)"><div class="bd"><div class="t">公爵令嬢の嗜み 〜隣国で薬草園を開きます〜</div><div class="m"><span>青葉みのり</span>・<span>第8/72話</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
       <div class="lc" style="--band:hsl(230 48% 52%)"><div class="bd"><div class="t">星降る夜の図書館で君を待っている</div><div class="m"><span>水無月れん</span>・<span>読了</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
       <div class="lc" style="--band:hsl(50 48% 52%)"><div class="bd"><div class="t">辺境ぐらしの隠居魔導士、今日ものんびり</div><div class="m"><span>霜月かなで</span>・<span>第55/98話</span></div></div><button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
