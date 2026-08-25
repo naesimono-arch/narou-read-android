@@ -126,9 +126,15 @@
   申告の中身は確定＝Q1「いいえ」（Auto Backup も収集なしの裁定・審査指摘時のみ保険申告へ切替）。
 - **[プライバシーポリシーの公開]**（ユーザー作業＝**GitHub の手続きだけ**。値は全て確定済みで Claude 側の残作業は無い）:
   公開するファイルは `docs/store/pages/` に生成済み（`privacy.html`・`index.html`・`style.css`・`.nojekyll` の4つ）。
-  ①**public リポジトリ `naesimono-arch/yosari` を作る** ②4ファイルを**同じ階層に平置きで** push（相対参照のため）
-  ③Settings → Pages で有効化 ④**push した当日の日付で `【公開日】` を置換**（md を直して `build.py` で再生成）
-  ⑤公開 URL `https://naesimono-arch.github.io/yosari/privacy.html` を Play Console へ登録。手順の詳細＝`docs/store/pages/README.md`。
+  ✅ **2026-08-25 に機械でできる分を一発化した**＝`python docs/store/pages/stage-publish.py` で
+  「制定日を当日で置換 → `privacy.html` 再生成 → `../yosari-pages/` へ平置きコピー → commit」まで進み、
+  **残る GitHub 手順がコマンド付きで表示される**（`--dry-run` あり）。
+  **残る人間の作業は3つだけ**＝①**public リポジトリ `naesimono-arch/yosari` を作る**（空で）
+  ②表示されたとおり `git remote add` → `git push` ③**Settings → Pages** で `main / (root)` を指定して有効化。
+  そのあと公開 URL `https://naesimono-arch.github.io/yosari/privacy.html` を Play Console へ登録。手順の詳細＝`docs/store/pages/README.md`。
+  ⚠️ **Chrome は GitHub 未ログイン**（2026-08-25 実測）＝ここは代行できない。
+  ⚠️ `../yosari-pages/` の制定日は **`【公開日】` に戻してある**（一度 `2026年8月21日` が入っていたが、その日に公開していない＝
+  実際の公開日と食い違う制定日を載せないため）。**画面に `【公開日】` が出ていたら stage-publish.py を通していない印**。
   **放置した場合**＝Play へ提出できない（ポリシー URL は必須）。
 - **[第三者ユーザビリティテスト]** **公開前に実施で確定**（2026-08-21 裁定）。本人テストが成立しない2件＝**T3**（二読書面の操作言語混乱）・
   **T4**（中央タップトグルの再発見。ヒントは通算1回きりで再表示条件なし）＋**実 TalkBack の音声走査での是正確認**

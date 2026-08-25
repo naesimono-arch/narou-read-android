@@ -28,6 +28,16 @@ python3 docs/store/pages/build.py --check    # md と html が食い違ってい
 
 ## 公開の手順（人間の作業）
 
+> ⚠️ **下の 1〜3・5 に当たる機械作業は `stage-publish.py` が一発でやる**（2026-08-25 追加）。
+>
+> ```bash
+> python docs/store/pages/stage-publish.py       # --dry-run で何をするかだけ見られる
+> ```
+>
+> 制定日を当日で置換 → `privacy.html` 再生成 → `../yosari-pages/` へ4ファイルを平置きコピー → commit まで進み、
+> **残る GitHub 側の手続き（リポジトリ作成 → push → Pages 有効化 → 確認項目）がコマンド付きで表示される**。
+> 以下は**そのスクリプトが何をやっているか**の説明＝手で追うとき・スクリプトが壊れたときの正本。
+
 1. **公開専用リポジトリ `yosari` を作る**（**public**。GitHub アカウント＝`naesimono-arch`。
    本体リポジトリ `narou-read-android` は非公開のまま分離する）。**確定済み（2026-08-21 ユーザー裁定）**＝
    プロジェクトページ方式。ユーザーサイトの枠（`naesimono-arch.github.io` はアカウントに1つだけ）は温存する。
