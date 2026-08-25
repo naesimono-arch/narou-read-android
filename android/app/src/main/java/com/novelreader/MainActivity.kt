@@ -27,6 +27,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
+import androidx.compose.ui.semantics.hideFromAccessibility
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,6 +71,11 @@ import com.novelreader.ui.skins.k.KBottomNav
 import com.novelreader.ui.skins.k.LocalKTabSelect
 import com.novelreader.ui.skins.k.KTab
 import com.novelreader.ui.skins.k.SettingsScreenK
+import com.novelreader.ui.intro.IntroGroup
+import com.novelreader.ui.intro.IntroController
+import com.novelreader.ui.intro.IntroOverlayHost
+import com.novelreader.ui.intro.LocalIntroController
+import com.novelreader.ui.intro.PrefsIntroFlagStore
 import com.novelreader.ui.skins.m.LocalSkyParallax
 import com.novelreader.ui.skins.m.SkyBackdropM
 import com.novelreader.ui.skins.m.SkyParallaxController
@@ -375,6 +382,15 @@ private fun NovelReaderApp(
     val appContext = LocalContext.current.applicationContext
     val activityContext = LocalContext.current
     val viewModel: BookshelfViewModel = viewModel()
+    // 教示「はじめに」のセッション状態（正本モック tutorial-onboarding-K.html §8）。VM は持たない
+    // ＝静的テキストで、現在位置は永続しない（次に開いたときは常にその組の先頭から）。
+    // ここ 1 か所で持つ理由: カード列は本棚／本文／検索／設定のどの上にも重なる 1 コンポーネントで、
+    // 入口（4 つ）が増えても 2 つ目の画面も 2 つ目の列も作らない、という設計の要そのもの。
+    val introController = remember(appContext) {
+        IntroController(
+            PrefsIntroFlagStore(appContext.getSharedPreferences(PrefKeys.FILE_APP_PREFS, Context.MODE_PRIVATE)),
+        )
+    }
     // 発見系（ホーム/ジャンル/結果一覧）はクエリ文脈を画面間で受け渡すため単一VMを共有する。
     // ロードは ensureHomeLoaded の遅延型なので、ここで生成しても本棚起動時に通信は発生しない。
     val discoveryViewModel: DiscoveryViewModel = viewModel()
@@ -515,7 +531,12 @@ private fun NovelReaderApp(
     Box(modifier = Modifier.fillMaxSize()) {
         if (skyParallax != null) SkyBackdropM(skyParallax, highLoadSkyM, Modifier.fillMaxSize())
         // reduce-motion は root の 1 購読を全画面へ配る（各画面が個別に購読・凍結しない＝監査 C2 の真因対処）。
-        CompositionLocalProvider(LocalSkyParallax provides skyParallax, LocalReduceMotion provides reduceMotion) {
+        CompositionLocalProvider(
+            LocalSkyParallax provides skyParallax,
+            LocalReduceMotion provides reduceMotion,
+            // 入口（本棚が空／本文初回／検索初回／設定）はこの local 越しに 1 つの列へ話しかける。
+            LocalIntroController provides introController,
+        ) {
             // 画面ルートに Surface を敷いて LocalContentColor を配色へ接地する。素の Box/Column 直下では
             // 既定が黒のままで、明示色を持たない Text（K本棚タイトル等）が全テーマで黒く沈む＝2026-07-23
             // ユーザー指摘「ダークで本棚タイトルが見えない」の真因。M星図だけは常駐 backdrop（後ろの空）を
@@ -536,7 +557,14 @@ private fun NovelReaderApp(
             CompositionLocalProvider(
                 LocalKTabSelect provides remember { { tab: KTab -> onSelectTab(tab) } },
             ) {
-            Column(Modifier.fillMaxSize()) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    // 教示カードを出している間は配下をフォーカスから外す＝カードを「ダイアログとして
+                    // 読み上げる」ための片割れ（正本 §8 a11y）。semantics ブロックの state 読みは
+                    // セマンティクスの再収集だけを起こし、画面ツリーの再コンポーズは誘発しない。
+                    .semantics { if (introController.flow != null) hideFromAccessibility() },
+            ) {
     NavHost(
         navController = navController,
         startDestination = TAB_HOST_ROUTE,
@@ -691,6 +719,15 @@ private fun NovelReaderApp(
             //（機序は TabPagerHost の Back 規則コメントが正本）。着地は内蔵と同じ popBackStack＝挙動は現状と
             // 同一で、OS への割込み登録が「追加」経路で立つことだけが変わる。
             BackHandler { navController.popBackStack() }
+            // 教示「はじめに」組C（1 枚）: **検索画面が描かれてから**出す（正本 §8「置きかた」）。
+            // push 遷移窓が閉じた（currentState まで Visible が届いた）ことを着地の合図に使う＝
+            // 本文側の deferHeavyContent と同じ離散2値で、毎フレーム recompose を増やさない。
+            val searchScreenSettled by remember {
+                derivedStateOf { transition.currentState == EnterExitState.Visible }
+            }
+            LaunchedEffect(searchScreenSettled) {
+                if (searchScreenSettled) introController.requestAuto(IntroGroup.SEARCH)
+            }
             DiscoverySearchScreen(
                 viewModel = discoveryViewModel,
                 onBack = { navController.popBackStack() },
@@ -909,6 +946,12 @@ private fun NovelReaderApp(
             } // CompositionLocalProvider（横向き Rail の結線）
             } // Surface（画面ルートの配色接地）
         } // CompositionLocalProvider(LocalSkyParallax)
+
+        // 教示カード列は NavHost へ足さず、呼び出し元の**上へ重ねる**（正本 §8「置きかた」）。
+        // Box の最後＝恒常ナビ（KBottomNav）も含めて覆う位置に置く。出す回が無いときは何も描かない。
+        CompositionLocalProvider(LocalIntroController provides introController) {
+            IntroOverlayHost()
+        }
     } // Box（backdrop ＋ NavHost）
 }
 

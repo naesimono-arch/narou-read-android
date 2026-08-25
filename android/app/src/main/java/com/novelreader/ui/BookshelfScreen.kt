@@ -59,6 +59,8 @@ import com.novelreader.data.ProgressEntity
 import com.novelreader.model.BookId
 import com.novelreader.ui.components.horizontalScrollEdgeFade
 import com.novelreader.ui.discovery.FilterChipItem
+import com.novelreader.ui.intro.IntroGroup
+import com.novelreader.ui.intro.LocalIntroController
 import com.novelreader.discovery.model.WorkSummary
 import com.novelreader.ui.theme.FontButtonLabel
 import com.novelreader.ui.theme.FontHomeTitle
@@ -324,6 +326,17 @@ fun BookshelfScreen(
                 showBatteryOptDialog = true
             }
         }
+    }
+
+    // ────── 教示「はじめに」組A（初回の扉 2 枚）──────
+    // 出す条件は**起動回数ではなく「本棚が空」**（正本モック §8）。初回起動は権限ダイアログや復元と
+    // 重なりやすく、そこへ重ねると読まれずに閉じられて通算1回を焼く（ピルで踏んだのと同じ穴）。
+    // Loading（DB 初回発行前）を空と扱わないのは、cold start の一瞬で出してしまわないため。
+    val introController = LocalIntroController.current
+    val shelfLooksEmpty = (uiState as? BookshelfUiState.Content)
+        ?.let { it.books.isEmpty() && it.webNovels.isEmpty() } == true
+    LaunchedEffect(introController, shelfLooksEmpty) {
+        if (shelfLooksEmpty) introController?.requestAuto(IntroGroup.ABOUT)
     }
 
     BookshelfContent(

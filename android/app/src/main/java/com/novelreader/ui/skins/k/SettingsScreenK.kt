@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Checkroom
 import androidx.compose.material.icons.outlined.Contrast
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.MonitorHeart
 import androidx.compose.material.icons.outlined.Notifications
@@ -66,6 +67,7 @@ import com.novelreader.ui.components.shioriDebugTipStep
 import com.novelreader.ui.theme.NovelReaderAlertDialog
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Skin
+import com.novelreader.ui.intro.LocalIntroController
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.tokens
 
@@ -144,6 +146,10 @@ fun SettingsScreenK(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = Spacing.S16),
     ) {
+        // 教示カード列の常設入口（「つかいかた」節）が話しかける先。ホストは MainActivity のルートで、
+        // ここは呼び出すだけ＝設定画面はカードを描かない（列も部品も 1 つのまま＝正本 §3）。
+        val introController = LocalIntroController.current
+
         // 画面名＝タブと同語彙「設定」（You Are Here の二重化。モック h1 22px bold）。
         Text(
             "設定",
@@ -307,6 +313,33 @@ fun SettingsScreenK(
                     }
                 }
             }
+        }
+
+        // 「つかいかた」＝教示カード列の常設入口（正本モック tutorial-onboarding-K.html §8）。
+        // ⚠️ 直上の「開発」節（debug 限定）と**同じ節に混ぜない**——こちらは release でも出る通常機能で、
+        // 露出条件がまったく違う。「このアプリ」へ畳まないのも正本の裁定＝縦に走査した人が見出しで止まれる
+        // ようにするため（設定に置いただけでは誰も辿り着かない、という §5 の課題への答え）。
+        KSettingsGroupLabel("つかいかた")
+        KSettingsCard {
+            KSettingsRow(
+                icon = Icons.Outlined.HelpOutline,
+                title = "操作の説明",
+                description = "読書画面と検索の使いかたを見返せます",
+                trailing = {
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                // 画面遷移ではなくオーバーレイ（NavHost には足さない）。ここだけは**フラグを見ず**
+                // 何度でも開ける＝組A から列の最後まで通しで読む（正本 §3 の入口表）。
+                // onClick は常に非 null にする＝右端の山括弧が「叩ける」と言っている以上、semantics も
+                // Button であるべき（山括弧つきの非活性行は KSettingsRow の情報行と見分けが付かない）。
+                // ホストが居ない構成（プレビュー・単独 Robolectric）でだけ controller が null＝押しても
+                // 何も起きないが、その状態は本番には存在しない（MainActivity が必ず供給する）。
+                onClick = { introController?.openWalkthrough() },
+            )
         }
 
         KSettingsGroupLabel("このアプリ")

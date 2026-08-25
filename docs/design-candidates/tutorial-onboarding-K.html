@@ -112,6 +112,10 @@
     /* === K/D トークン実値（bookshelf-K / settings-K / reading-D と同一） === */
     --base:#FBFAF8; --ink:#1C1F26; --ink-soft:#7C808B; --line:#ECEAE4;
     --ai:#1C3D5A; --ai-tint:rgba(28,61,90,.10);
+    /* ▼ 2026-08-25 Compose 翻訳からの逆同期（値を決めたのは実装側・理由は §8「翻訳で変わった色」）。
+       --info = Compose の役割トークン InfoText（Color.kt InfoTextLight #5C606D／素地 6.01:1）。
+       --dot-off = colorScheme.outline #9CA0A8 を素地の上に α.45 で置いた実効値。 */
+    --info:#5C606D; --dot-off:#D0D2D4;
     /* 読書ライトテーマ（reading-D .t-light と同値） */
     --bg:#FBFAF8; --soft:#7C808B; --ruby:#616C77; --rule:#1C3D5A;
     --blk-bg:#F1F0EC; --blk-bd:#E4E2DB; --bar:#FBFAF8; --bar-line:#ECEAE4; --accent:#1C3D5A;
@@ -193,29 +197,34 @@
      カードを大きくして中身を増やす方向へ育てないこと（育てた瞬間に読み物型へ退化する）。 */
   .scrim{position:absolute;inset:0;z-index:24;background:rgba(28,31,38,.74);display:flex;
     flex-direction:column;align-items:center;justify-content:center;padding:26px}
+  /* ⚠️ 実装（Compose）ではこのカードの中身は**縦スクロールする**。組C は 3 項目＋再訪導線で最も高く、
+     既定画面／fontScale を上げた端末では ［とじる］ が画面外へ落ちて到達手段が消えた（2026-08-25 実測）。
+     非スクロール面の溢れは画素に痕跡を残さず golden でも捕まらないため、カードを高くする改稿は
+     「入るかどうか」を目視で保証せず、必ずスクロール前提で考えること。 */
   .ocard{width:100%;background:var(--base);border-radius:16px;padding:26px 22px 18px}
   .ocard .fig{height:112px;display:grid;place-items:center;margin-bottom:18px}
   .ocard .fig svg{stroke:var(--ai);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
   .ocard .fig svg .soft{stroke:var(--ink-soft);opacity:.55}
   .ocard h3{font-family:var(--gothic);font-size:17px;color:var(--ink);letter-spacing:.05em;margin-bottom:12px}
-  .ocard p{font-family:var(--gothic);font-size:13.5px;color:#4A4C47;line-height:1.95}
+  .ocard p{font-family:var(--gothic);font-size:13.5px;color:var(--info);line-height:1.95}
   .ocard p+p{margin-top:9px}
   .ocard p b{color:var(--ink)}
   /* カード内の項目立て（組B・組C の操作カード用）。全画面の節と違い 1 カード 3〜4 項目までに抑える。 */
   .ocard dl{font-family:var(--gothic)}
-  .ocard dt{font-size:11.5px;color:var(--ink-soft);letter-spacing:.06em;margin-top:12px}
+  /* ⚠️ dt は旧 --ink-soft。実装で --info へ揃えた（§8）＝dd との階層は色でなく寸法（11.5 vs 13.5px）で作る。 */
+  .ocard dt{font-size:11.5px;color:var(--info);letter-spacing:.06em;margin-top:12px}
   .ocard dt:first-child{margin-top:0}
-  .ocard dd{font-size:13.5px;color:#4A4C47;line-height:1.9;margin-top:2px}
+  .ocard dd{font-size:13.5px;color:var(--info);line-height:1.9;margin-top:2px}
   .ocard dd em{font-style:normal;color:var(--ai);font-weight:700}
   .ocard .later{margin-top:15px;padding-top:12px;border-top:1px solid var(--line);
-    font-size:12.5px;color:var(--ink-soft);line-height:1.7}
+    font-size:12.5px;color:var(--info);line-height:1.7}
   /* 現在地の点＝**章ごと**に打つ（列全体の 5 個ではない＝全体量を見せない設計の要） */
   .odots{display:flex;gap:7px;justify-content:center;margin:20px 0 14px}
-  .odots i{width:6px;height:6px;border-radius:50%;background:#D6D4CD}
+  .odots i{width:6px;height:6px;border-radius:50%;background:var(--dot-off)}
   .odots i.on{background:var(--ai)}
   .obtns{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px}
   .obtns.r{justify-content:flex-end}
-  .obtn{font-family:var(--gothic);font-size:13.5px;border:none;background:transparent;color:var(--ink-soft);
+  .obtn{font-family:var(--gothic);font-size:13.5px;border:none;background:transparent;color:var(--info);
     padding:11px 10px;cursor:pointer;letter-spacing:.04em}
   .obtn.pri{background:var(--ai);color:#fff;border-radius:10px;padding:11px 22px;font-weight:700}
   .obtn.back{display:inline-flex;align-items:center;gap:5px}
@@ -1045,7 +1054,11 @@
       <tr><td><b>設定の「操作の説明」</b></td>
         <td>新規グループ見出し「<b>つかいかた</b>」を立てる（「このアプリ」へ混ぜない＝縦に走査した人が見出しで止まれる）。
           ラベル「<b>操作の説明</b>」／副文「<b>読書画面と検索の使いかたを見返せます</b>」。<br>
-          押すと<b>章2 からカード列を開く</b>（画面遷移ではなくオーバーレイ）。</td></tr>
+          押すと<b>組A から列の最後まで通しで開く</b>（画面遷移ではなくオーバーレイ）。<br>
+          <span style="color:#8A4B44">⚠️ <b>2026-08-25 訂正</b>: ここは「章2 からカード列を開く」と書かれていたが、
+          <b>章立て（章1／章2）で仕分けていた前版の残り</b>で、3 系統へ分けた §3 の入口表
+          （設定 ＞ 操作の説明 ＝ <b>組A から通し・1〜5 枚目</b>）と食い違っていた。§3 が正。
+          Compose 翻訳時にこの 1 行だけを見て実装すると、設定から開いても組A が読めない別物になる。</span></td></tr>
 
       <tr><td><b>a11y</b></td>
         <td>・カードは<b>ダイアログとして読み上げる</b>（オーバーレイ配下をフォーカスから外す）。<br>
@@ -1055,6 +1068,23 @@
       <tr><td><b>意匠ゲート</b></td>
         <td>見た目・余白を変えるので <code>recordRoborazziDebug</code> の golden 再記録を<b>同じコミットに同梱</b>し、
           <code>python3 tools/check_design_tokens.py</code> を通すこと（既定ゲート非同乗＝忘れると腐ったまま潜伏する）。</td></tr>
+
+      <tr><td><b>翻訳で変わった色<br><span style="font-weight:400;color:#6A6C67">（2026-08-25 逆同期）</span></b></td>
+        <td>本モックの CSS は<b>実装の決定に合わせて書き換え済み</b>。次の翻訳者は旧い生値へ戻さないこと。<br>
+          ・<b>本文・項目の文字</b> <code>#4A4C47</code> → <code>var(--info) #5C606D</code>。
+            旧値は<b>この解説文書の地の文で使っていた生値</b>で、K のトークンに対応が無かった。
+            Compose 側は役割トークン <code>InfoText</code>（意味を運ぶ補助テキスト）へ載せた
+            ——<b>トークン層の直書きは禁止</b>（<code>/visual-language</code>）だから。<br>
+          ・<b>項目名 <code>dt</code></b> <code>--ink-soft #7C808B</code> → <code>var(--info)</code>。
+            ink-soft は素地上 <b>3.79:1</b> で、<b>ADR 0014-D「意味を運ぶ文字は WCAG 4.5:1 ＞ 美学」</b>に反する。
+            dt は〈何がどこに割り当たっているか〉を運ぶ文字なので装飾スロットには置けない。<br>
+            ⚠️ 代償＝<b>dt と dd が同色になり、モックが持っていた濃淡の階層が消える</b>。
+            階層は<b>寸法（11.5px / 13.5px）と字間</b>だけで作る、が現在の姿。
+            濃淡を戻したいなら「dd をもう一段濃くする」方向で、ink-soft へ戻す方向ではない。<br>
+          ・<b>消し点</b> <code>#D6D4CD</code> → <code>var(--dot-off) #D0D2D4</code>
+            ＝<code>colorScheme.outline #9CA0A8</code> を素地の上に α.45 で置いた実効値。明度はほぼ同じで、
+            生値を直書きしないための置き換え。<br>
+          ・<b>［あとで］［もどる］の文字</b>も同じ理由で <code>--info</code>（ボタン語も意味を運ぶ文字）。</td></tr>
     </table>
   </div>
 

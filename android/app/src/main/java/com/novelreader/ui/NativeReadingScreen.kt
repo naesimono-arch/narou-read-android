@@ -88,6 +88,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -1487,6 +1488,35 @@ internal fun ChapterScreenContent(
             }
         }
 
+        // ────── 没入中の取っ手（案D・正本モック tutorial-onboarding-K.html §6／申し送り §8）──────
+        // ピル（一度きり・数秒で消える教示）と違い、**没入中はずっと出ている**静かな手がかり（層②）。
+        // 文言を持たず「ここに何かある」だけを示すので、理解した後もコストにならない。
+        // なぜクローム表示中は出さないか: そのときは下端バーが同じ場所に居るため、取っ手は用を失うどころか
+        // バーと二重の帯に見える（正本 §6 の裁定）。よって退避割合に比例して現れる。
+        // 実測値は正本 §6 の裁定値で**動かさない**＝幅 46 / 高さ 3 / 角丸 2 / 不透明度 .30 / 下端から 16dp。
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = Insets.ImmersiveHandleBottom)
+                .size(width = ImmersiveHandleWidth, height = ImmersiveHandleHeight)
+                // 装飾＝TalkBack へ新しいフォーカス可能ノードを足さない（正本 §8 a11y）。
+                // 実際の操作は本文全面のタップで、a11y の到達性は既存経路（本文の semantics）が担う。
+                .clearAndSetSemantics { }
+                // collapsedFraction は graphicsLayer 内の deferred read＝バー追従でフレーム毎に動いても
+                // composition を再実行しない（没入ゴースト題字と同じ形）。barsVisualReady=false
+                //（入場時の初期退避が実測待ち）の間は一切出さない＝バーが未確定のうちに帯だけ光るのを防ぐ。
+                .graphicsLayer {
+                    alpha = if (barsVisualReady) {
+                        ImmersiveHandleAlpha * topAppBarState.collapsedFraction
+                    } else {
+                        0f
+                    }
+                }
+                .clip(RoundedCornerShape(ImmersiveHandleCorner))
+                // 色は藍アクセントをトークン経由で（直書き禁止＝/visual-language）。
+                .background(colors.accent),
+        )
+
         // 「続きに戻る」チップ（C1）。参照ジャンプ中だけ上端中央に常時表示し、退避元の続き位置へ復帰する。
         // 意匠は復帰ヒントの丸ピルと同型（新意匠を発明しない）。ヒントと違い自動消灯せず、タップ可能。
         AnimatedVisibility(
@@ -1633,3 +1663,13 @@ internal fun ChapterScreenContent(
  */
 internal fun readingBarAlpha(barsVisualReady: Boolean, settingsPeek: Float): Float =
     if (barsVisualReady) 1f - settingsPeek else 0f
+
+// ────── 没入中の取っ手（案D）の造形寸法 ──────
+// 正本モック tutorial-onboarding-K.html の `.handle{width:46px;height:3px;border-radius:2px;opacity:.30}`。
+// ⚠️ ユーザーが目視裁定した実測値＝勝手に動かさない（§8「取っ手の実測値（裁定中・動かさない）」）。
+// 余白スケール（Spacing）へ丸めないのは、これが「リズムの余白」ではなく1つの部品の造形寸法だから
+// （ADR 0014 §C の除外軸・ComponentPadding と同じ理由）。
+private val ImmersiveHandleWidth = 46.dp
+private val ImmersiveHandleHeight = 3.dp
+private val ImmersiveHandleCorner = 2.dp
+private const val ImmersiveHandleAlpha = 0.30f

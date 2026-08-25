@@ -1,7 +1,13 @@
 package com.novelreader.bench
 
 import com.novelreader.PrefKeys
+import com.novelreader.ui.intro.FakeIntroFlagStore
+import com.novelreader.ui.intro.IntroController
+import com.novelreader.ui.intro.IntroGroup
 import java.io.File
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -47,6 +53,13 @@ class SeedContractPrefKeysTest {
         "K_GRID_VIEW",
         // 読書画面の書字方向。縦書きは描画経路ごと変わり、text ノードも消える（2026-08-19 の当事者）。
         "READING_VERTICAL",
+        // 教示「はじめに」の 3 系統（2026-08-25 新設）。未消費だと組B が**本文の上へスクリム＋カードを
+        // 重ねる**＝ベンチが「本文を測ったつもりで教示を測る」。とくに読書系（chapter-flip / toc-push /
+        // tab-swipe）は着地判定も描画原価も別物になるので、これは面の選択肢ではなく**必ず倒す軸**。
+        // シーダーは extra 任せにせず無条件で true にする（LibrarySeedReceiver の当該コメント参照）。
+        "INTRO_ABOUT_SHOWN",
+        "INTRO_READING_SHOWN",
+        "INTRO_SEARCH_SHOWN",
     )
 
     /**
@@ -139,6 +152,46 @@ class SeedContractPrefKeysTest {
                 "実態が先に進んだので mustPin へ移すこと（表が実態からずれると本テスト全体が無意味になる）。",
             nowPinned.isEmpty(),
         )
+    }
+
+    /** 教示「はじめに」の 3 系統（陽性確認で名指しする対象）。 */
+    private val introKeys = setOf("INTRO_ABOUT_SHOWN", "INTRO_READING_SHOWN", "INTRO_SEARCH_SHOWN")
+
+    @Test
+    fun `固定行を落とすと検知器が落ちる（塞いだつもりで効いていない状態を作らない）`() {
+        // 陽性確認。2. は「参照が在るか」しか見ないので、**在るのが当たり前**の状態では
+        // 検知器が生きているのか空回りしているのか区別が付かない。実ソースから教示の固定行だけを
+        // 取り除いた版を作って同じ判定に掛け、ちゃんと 3 本とも未固定として名指しされることを見る。
+        val broken = readSeederSource()
+            .lines()
+            .filterNot { line -> introKeys.any { key -> line.contains("PrefKeys.$key") } }
+            .joinToString("\n")
+        val missing = mustPin.filterNot { broken.contains("PrefKeys.$it") }.toSet()
+        assertEquals(
+            "固定行を落とした版では 3 系統すべてが『未固定』として検出されねばならない" +
+                "（ここが空集合なら 2. の検査は何も守っていない）",
+            introKeys,
+            missing,
+        )
+    }
+
+    @Test
+    fun `シードで倒した端末では教示が1枚も出ない（未固定だと本文の上に載る）`() {
+        // 上の 2 つは**文字列**しか見ていない。キー名を正しく参照していても、そのキーを倒すことが
+        // 本当に教示を黙らせるとは限らない（別のキーで出し分けていれば無意味）。ここだけは実物の
+        // 出現判定（IntroController）に通して、固定の**効き**を確かめる。
+        val unpinnedDevice = IntroController(FakeIntroFlagStore())
+        unpinnedDevice.requestAuto(IntroGroup.READING)
+        assertNotNull(
+            "これが塞ぐべき穴そのもの: 未消費の端末では本文初回にカードが本文の上へ載る",
+            unpinnedDevice.flow,
+        )
+
+        val seededDevice = IntroController(
+            FakeIntroFlagStore().apply { preShow(*IntroGroup.entries.toTypedArray()) },
+        )
+        IntroGroup.entries.forEach { seededDevice.requestAuto(it) }
+        assertNull("シードで倒した端末で教示が出た＝計測面が汚れる", seededDevice.flow)
     }
 
     /**

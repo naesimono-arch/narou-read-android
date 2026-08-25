@@ -61,8 +61,27 @@ object PrefKeys {
     /** 縦書きモード（Boolean）。 */
     const val READING_VERTICAL = "reading_vertical"
 
-    /** 没入モードのヒント表示済みフラグ（Boolean・初回のみ表示）。 */
+    /**
+     * 没入モードのヒント表示済みフラグ（Boolean・初回のみ表示）。
+     *
+     * ⚠️ キー名は変えない（正本モック `tutorial-onboarding-K.html` §8「旧フラグの扱い」）。
+     * 2026-08-25 に**意味だけが増えた**＝「ピルを出し切った」に加えて
+     * 「教示の組B がピルの役目を肩代わりした」でも立つ（[com.novelreader.ui.intro.IntroController]）。
+     */
     const val IMMERSIVE_HINT_SHOWN = "immersive_hint_shown"
+
+    // ── app_prefs: 教示「はじめに」（ui/intro・2026-08-21 裁定／正本モック tutorial-onboarding-K.html §8）──
+    // 3 本とも Boolean・未消費＝false。消費は「その組の最後のカードまで到達したうえで閉じた／次の組へ
+    // 進んだ時点」の 1 規則で統一する（途中で閉じた回は焼かない＝次の機会にまた出る）。
+
+    /** 組A「このアプリのこと」を出し切ったか（出す条件＝未消費 かつ 本棚が空）。 */
+    const val INTRO_ABOUT_SHOWN = "intro_about_shown"
+
+    /** 組B「読みかた」を出し切ったか（出す条件＝未消費 かつ 本文が描かれてから）。 */
+    const val INTRO_READING_SHOWN = "intro_reading_shown"
+
+    /** 組C「さがしかた」を出し切ったか（出す条件＝未消費 かつ 検索画面が描かれてから）。 */
+    const val INTRO_SEARCH_SHOWN = "intro_search_shown"
 
     // ── app_prefs: 本棚（BookshelfScreen / skins 配下）──
     // 使用側の直書きは 2026-07-27 の純構造リファクタで全数この定数参照へ張替済み。

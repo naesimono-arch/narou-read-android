@@ -41,6 +41,9 @@ import com.novelreader.narou.computeContinuation
 import com.novelreader.narou.narouEpisodeUrl
 import com.novelreader.narou.narouWorkUrl
 import com.novelreader.parser.ChapterHtmlParser
+import com.novelreader.ui.intro.IntroGroup
+import com.novelreader.ui.intro.LocalIntroController
+import com.novelreader.ui.intro.immersiveHintConsumed
 import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.theme.rememberReadingColors
 import kotlinx.coroutines.Dispatchers
@@ -392,11 +395,29 @@ internal fun ChapterScreen(
         mutableStateOf(chromeHintPrefs.getBoolean(PrefKeys.IMMERSIVE_HINT_SHOWN, false))
     }
     var showChromeHint by remember { mutableStateOf(false) }
+
+    // ────── 教示「はじめに」組B（本文初回の 2 枚）──────
+    // 出すのは背景が描き切ってから＝push 遷移窓（deferHeavyContent）が閉じてから。窓中に載せると
+    // 説明の対象（本文）がまだ骨のままで、カードだけが浮く（正本モック §8「置きかた」）。
+    val introController = LocalIntroController.current
+    LaunchedEffect(introController, deferHeavyContent) {
+        if (!deferHeavyContent) introController?.requestAuto(IntroGroup.READING)
+    }
+
     ImmersiveChromeHintEffect(
         topAppBarState = topAppBarState,
         barsVisualReady = barsVisualReady,
         deferHeavyContent = deferHeavyContent,
-        consumed = chromeHintConsumed,
+        // ⚠️ ここが今回いちばん壊しやすい 1 行（正本 §8 の★）。組B は「画面をタップでメニュー」という
+        // ピルとまったく同じことを、しかも同じ瞬間（本文初回）に言うので、二重に出してはいけない。
+        // prefs へ書くだけでは足りない——上の chromeHintConsumed は remember で**入場時に 1 度読むだけ**
+        // なので、同一セッションでは false のまま効果が走り続け、**カードを閉じた直後にピルが出る**。
+        // そこで「同じセッションで組B を出した」という observable な事実を論理和で合流させる。
+        // 判定ロジック（awaitImmersiveHintSeen）には手を入れない＝別便が直したばかりで正しい。
+        consumed = immersiveHintConsumed(
+            persisted = chromeHintConsumed,
+            introSilenced = introController?.chromeHintSilenced == true,
+        ),
         onVisibleChange = { showChromeHint = it },
         onConsumed = {
             chromeHintConsumed = true

@@ -143,6 +143,19 @@ class LibrarySeedReceiver : BroadcastReceiver() {
         // tab-swipe 全5走行 iter000 の fail がこれだった。gridMode と同じ理由（測る面を決定論にする）で
         // シーダーが確定させる。
         val prefsEditor = appContext.getSharedPreferences(PrefKeys.FILE_APP_PREFS, Context.MODE_PRIVATE).edit()
+        // 教示「はじめに」の 3 系統は**無条件で消費済みへ倒す**（2026-08-25 新設・extra 任せにしない）。
+        // なぜ gridMode/verticalMode のような「extra に在るときだけ」規約に載せないか:
+        // あちらは〈どの面を測るか〉の指定で、ベンチごとにリスト/グリッド・縦/横を選ぶ意味がある。
+        // 対して**教示カードを測りたいベンチは1つも無い**。未消費の端末で走らせると、組B が本文を
+        // 開いた瞬間にスクリム＋カードを本文の上へ重ね、ベンチは「本文を測ったつもりで教示を測る」
+        // ——2026-08-05 gridMode の「面を指定したつもりで1つも指定できていない」と同型の、
+        // 計測結果が無言で汚れる欠陥。extra 未指定でも必ず倒すことで、どのベンチ・どの端末でも
+        // 「教示は最初から出ない」状態から始まる（前走行の残り値にも左右されない）。
+        prefsEditor
+            .putBoolean(PrefKeys.INTRO_ABOUT_SHOWN, true)
+            .putBoolean(PrefKeys.INTRO_READING_SHOWN, true)
+            .putBoolean(PrefKeys.INTRO_SEARCH_SHOWN, true)
+
         if (intent.hasExtra("gridMode")) {
             val grid = intent.getBooleanExtra("gridMode", false)
             prefsEditor
