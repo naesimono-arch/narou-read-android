@@ -106,6 +106,7 @@ import com.novelreader.model.ChapterContent as ChapterContentModel
 import com.novelreader.model.ParseResult
 import com.novelreader.narou.model.Ncode
 import com.novelreader.parser.ChapterHtmlParser
+import com.novelreader.perf.TypesetWorkProbe
 import com.novelreader.typeset.ParagraphPosition
 import com.novelreader.typeset.ReadingPositionMapper
 import com.novelreader.ui.theme.MinchoFamily
@@ -358,7 +359,12 @@ fun ReadingScreen(
         mutableIntStateOf(prefs.getInt(PrefKeys.READING_FONT_SIZE, 18).coerceIn(14, 24))
     }
     // ドラッグ中の毎値：本文プレビュー追従のため状態のみ更新（永続化しない）
-    val onFontSizeChange: (Int) -> Unit = { size -> fontSize = size }
+    // 計測（既定 OFF）: 再組版の駆動源＝分母。ドラッグ中の move ごとに来るコールバック数と、
+    // うち丸め後の値が実際に変わった回数を分けて数える（後者だけが再組版を起こす）。
+    val onFontSizeChange: (Int) -> Unit = { size ->
+        TypesetWorkProbe.onFontSizeChange(size)
+        fontSize = size
+    }
     // 確定時のみ：現在の fontSize を永続化する。apply は非同期ディスク書込のため UI をブロックしない
     val onFontSizePersist: () -> Unit = {
         prefs.edit().putInt(PrefKeys.READING_FONT_SIZE, fontSize).apply()
@@ -373,7 +379,10 @@ fun ReadingScreen(
         mutableFloatStateOf(prefs.getFloat(PrefKeys.READING_LINE_HEIGHT, 2.5f).coerceIn(2.3f, 2.8f))
     }
     // フォントサイズと同型：ドラッグ中は状態のみ・永続化は確定時に一度だけ
-    val onLineHeightChange: (Float) -> Unit = { v -> lineHeightEm = v }
+    val onLineHeightChange: (Float) -> Unit = { v ->
+        TypesetWorkProbe.onLineHeightChange(v)
+        lineHeightEm = v
+    }
     val onLineHeightPersist: () -> Unit = {
         prefs.edit().putFloat(PrefKeys.READING_LINE_HEIGHT, lineHeightEm).apply()
     }

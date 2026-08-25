@@ -27,6 +27,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.model.TextSegment
+import com.novelreader.perf.TypesetWorkProbe
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.colors
@@ -159,7 +160,15 @@ fun RubyText(
                     }
                 }
             },
-        onTextLayout = { textLayoutResult = it },
+        onTextLayout = {
+            textLayoutResult = it
+            // 横書き本文の「組版の仕事量」計測点（既定 OFF）。縦書きの typeset() 1回と対になる単位＝
+            // 1発火＝1段落を Compose テキストエンジンが再レイアウトした、で数える。
+            // 本文段落は全てこの RubyText を通る（ChapterContent.kt の2箇所だけが利用者）ので
+            // ここ1点で横書き側を数え切れる。⚠️ 章見出しの Text（2ノード）は onTextLayout を
+            // 持たないため計上されない＝縦横比較では見出し分の差（縦書きは v_typeset に載る）を織り込む。
+            TypesetWorkProbe.onHorizontalTextLayout(it.layoutInput.text.length)
+        },
         overflow = TextOverflow.Visible,
     )
     }

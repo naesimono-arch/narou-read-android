@@ -2,6 +2,7 @@ package com.novelreader.typeset.render
 
 import android.graphics.Paint
 import android.graphics.Typeface
+import com.novelreader.perf.TypesetWorkProbe
 import com.novelreader.typeset.CharClass
 import com.novelreader.typeset.FontMetricsProvider
 import com.novelreader.typeset.LeaderJoin
@@ -34,6 +35,10 @@ class PaintFontMetrics(typeface: Typeface = Typeface.SERIF) : FontMetricsProvide
     }
 
     override fun verticalAdvance(unitText: String, charClass: CharClass, fontSizePx: Float): Float {
+        // 組版コストの最小粒度の計測点（1ユニット＝1回）。既定 OFF＝出荷では volatile 読み1回で抜ける。
+        // なぜ interface でなくこの実装に置くか: 単体テストの等幅フェイクは実測の Paint を叩かない＝
+        // 「実機で本当に走った Paint 計測の回数」を数えたいので、Paint を持つ側に置く。
+        TypesetWorkProbe.onVerticalAdvance()
         if (unitText.isEmpty()) return fontSizePx
         // 単一の半角 ASCII 文字: 縦の占有は向き（charClass）で決まる。
         // - ROTATE（4字以上ランの各字・ルビ親の英数字）: 90 度回転して置くため、

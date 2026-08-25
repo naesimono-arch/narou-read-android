@@ -1,6 +1,7 @@
 package com.novelreader.typeset
 
 import com.novelreader.model.TextSegment
+import com.novelreader.perf.TypesetWorkProbe
 import com.novelreader.ui.compose.RubyLayoutHelper
 
 /**
@@ -134,6 +135,10 @@ class DefaultVerticalTypesetter(private val metrics: FontMetricsProvider) : Vert
             metrics = metrics,
         )
 
+        // 組版の「仕事量」計測点（既定 OFF・出荷では volatile 読み1回で抜ける）。
+        // ここが縦書き再組版の唯一の入口＝呼び出し元5箇所（見出し/段落/ブロックラベル/ブロック内段落）
+        // すべてがこの1関数を通るため、各 remember ブロックに撒かずここ1点で数え切れる。
+        TypesetWorkProbe.onVerticalTypeset(glyphs = glyphs.size, columns = columnCount)
         return ParagraphLayout(glyphs, rubies, columnCount, widthPx, heightPx)
     }
 
