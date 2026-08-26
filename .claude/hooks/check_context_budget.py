@@ -62,6 +62,40 @@ def latest_context_len(transcript_path):
     return last
 
 
+def already_notified(transcript_path):
+    """このセッションで既に通告したか。**user メッセージの本文として届いた分だけ**を数える。
+
+    なぜ transcript の全文検索ではだめか（2026-08-26 に実際に踏んだ）:
+      SENTINEL はこのファイルとテストに literal で載っている。つまりフックを Write / Read した
+      だけで、その内容が tool_use / tool_result として transcript に現れる。全文 grep だと
+      **フックを書いたセッションと、コードを読んだだけのセッションが以後永久に通告されない**。
+      通告は decision:block の reason＝user 側の text として届くので、そこだけを見る。
+    """
+    try:
+        with open(transcript_path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if SENTINEL not in line:
+                    continue
+                try:
+                    ev = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                if ev.get("type") != "user":
+                    continue
+                c = (ev.get("message") or {}).get("content")
+                if isinstance(c, str):
+                    if SENTINEL in c:
+                        return True
+                elif isinstance(c, list):
+                    for b in c:
+                        if (isinstance(b, dict) and b.get("type") == "text"
+                                and SENTINEL in (b.get("text") or "")):
+                            return True
+    except OSError:
+        return True      # 読めないなら通告しない側へ倒す（うるさくするより黙る）
+    return False
+
+
 def dirty_worktree(cwd):
     """未コミットの変更があるか。判定できなければ False（＝通告文で触れない）。"""
     try:
@@ -91,12 +125,7 @@ def main():
     if ctx is None or ctx < THRESHOLD:
         return 0
 
-    # 既に通告済みなら黙る。transcript 全文にセンチネルが載っているかだけで判る。
-    try:
-        with open(tpath, encoding="utf-8", errors="replace") as f:
-            if SENTINEL in f.read():
-                return 0
-    except OSError:
+    if already_notified(tpath):
         return 0
 
     cwd = data.get("cwd") or os.getcwd()

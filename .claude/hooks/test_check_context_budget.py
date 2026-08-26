@@ -20,7 +20,7 @@ HOOKS_DIR = os.path.dirname(os.path.abspath(__file__))
 HOOK = os.path.join(HOOKS_DIR, "check_context_budget.py")
 
 
-def transcript(*ctxs, extra_text=None):
+def transcript(*ctxs, extra_text=None, tool_use_text=None):
     """assistant ターンの usage 列を持つ transcript を書いて、そのパスを返す。"""
     fd, path = tempfile.mkstemp(suffix=".jsonl")
     with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -34,6 +34,12 @@ def transcript(*ctxs, extra_text=None):
         if extra_text:
             f.write(json.dumps({"type": "user",
                                 "message": {"content": [{"type": "text", "text": extra_text}]}},
+                               ensure_ascii=False) + "\n")
+        if tool_use_text:
+            # フックのソースやテストを Write/Read したときに transcript へ載る形
+            f.write(json.dumps({"type": "assistant",
+                                "message": {"content": [{"type": "tool_use", "id": "x", "name": "Write",
+                                                         "input": {"content": tool_use_text}}]}},
                                ensure_ascii=False) + "\n")
     return path
 
@@ -80,6 +86,14 @@ class TestContextBudget(unittest.TestCase):
         p = self._t(200_000, extra_text="前に [CTXBUDGET_NOTICE_V1] を出した")
         code, out = run_hook({"transcript_path": p})
         self.assertEqual(out.strip(), "")
+
+    def test_ソースを書いただけでは通告を止めない(self):
+        """回帰: SENTINEL はフック自身とテストに literal で載る。全文 grep で判定していた版は、
+        フックを Write / Read しただけのセッションが以後永久に通告されなかった（2026-08-26 に実際に踏んだ）。
+        通告は user 本文として届くので、tool_use に載っただけの分は無視されねばならない。"""
+        p = self._t(200_000, tool_use_text="SENTINEL = \"CTXBUDGET_NOTICE_V1\"")
+        code, out = run_hook({"transcript_path": p})
+        self.assertEqual(json.loads(out)["decision"], "block")
 
     def test_stop_hook_active時は素通し(self):
         code, out = run_hook({"transcript_path": self._t(200_000), "stop_hook_active": True})
