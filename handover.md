@@ -39,6 +39,19 @@
   **調査済みで潰れた経路（＝同じ道を再探索しない）と次にやるべきこと＝`docs/knowledge/chapter-transition-scroll-jump-paths-ruled-out.md` が正本**。
   ⚠️ 機械の総当たりより**遭遇時の条件採取**が本筋＝`awaiting-human.md` §1-4。再現条件が取れたら Robolectric で赤を出してから直す。
 
+## 独立再実装実験の持ち帰り（2026-08-30）
+
+> 方法論・適用条件＝`docs/knowledge/independent-reimpl-anchoring-method.md`／
+> 所見の詳細＝`.claude/plans/archive/indep-reimpl-experiment-2026-08-30.md`＋`~/indep-reimpl/diff-work/diff-report.md`。
+> 第二実装 `~/naro-pdf-engine/` の扱いは awaiting-human 裁定待ち＝**裁定前に消さない**。
+
+- **[web 原文オラクルの回帰テスト導入]**（最優先の方法論的修正）: golden は旧 Python 複製＝系譜内で、下記欠陥を検出できない構造。
+- **[抽出コア欠陥6クラスの真因調査→修正]** S1 半角スペース脱落／S2a U+FFFD／S3 空行復元全滅／S4a ルビ親範囲／S4b 傍点ルビ／S7 `'` 行頭移動（症状・規模＝一次情報 §4。症状でなく真因から）。
+- **[縦書き組版の規範突合]** `CharClass` ⇄ UTR#50・`LineBreaker` 禁則 ⇄ JLReq（＝`docs/knowledge/vertical-typeset-external-oracle-gap.md`。差分は棚卸し→人間裁定）。
+- **[計測スクリプトの軽量突合]** 意思決定を左右した `measure_read_residency` / `measure_session_length_cost` 等2〜3本を、仕様文からの独立サブ再実装→数値突合（オラクル無し領域・69%→4.3% の前科）。
+- **[裁定材料の web 検分]** S2b 字種写像・段落結合方針（現行の段落誤り率計測を含む）／「寸法自動検出」導入動機を git log・ADR で確認→前提の要否裁定。
+- 小粒: scrape 暁ゴールデン 66 件の実装非依存カウント手段（次回 fixture 接触時に同梱）。
+
 ## Google Play 公開準備 — 技術トラック
 
 > 一次情報＝`/mnt/c/Users/naesimono/Desktop/project/アプリ公開戦略/`。決定済み方針＝組織アカウント（個人事業主）／最初から API 36／
