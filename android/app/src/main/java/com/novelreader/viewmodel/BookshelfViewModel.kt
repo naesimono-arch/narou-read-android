@@ -100,7 +100,7 @@ sealed interface BookshelfUiState {
         val webNovels: List<WebNovelEntity> = emptyList(),
         // 機能②: ncode(正規化済み大文字)→最後に開いた話。Web カードの「続きから読む 第N話」に使う（未記録は 0＝未読）。
         val webReadingProgress: Map<String, Int> = emptyMap(),
-        // ncode(正規化済み大文字)→web 読書の最終接触時刻。web カードの並びキー＝触った web は接触時刻・未記録は addedAt で並ぶ（ShelfItems.webRecencyKeyOf）。
+        // ncode(正規化済み大文字)→web 読書の最終接触時刻。web カードの並びキー＝触った web は接触時刻・未記録は addedAt で並ぶ（ShelfItems.recencyKeyOf）。
         val webLastReadAt: Map<String, Long> = emptyMap(),
     ) : BookshelfUiState
 }

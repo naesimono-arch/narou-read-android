@@ -47,7 +47,7 @@ internal data class ShelfData(
     val webNovels: List<WebNovelEntity>,
     /** ncode→最後に開いた話（機能②）。 */
     val webReadingProgress: Map<String, Int>,
-    /** ncode→web 最終接触時刻（webRecencyKeyOf・2026-07-26 裁定）。 */
+    /** ncode→web 最終接触時刻（recencyKeyOf・単一タイムライン）。 */
     val webLastReadAt: Map<String, Long>,
     val progressMap: Map<String, ProgressEntity>,
     /** bookId→章数（進捗行表示と状態フィルタ判定の単一真実源）。 */

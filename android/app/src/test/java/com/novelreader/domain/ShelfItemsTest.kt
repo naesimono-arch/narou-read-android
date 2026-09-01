@@ -9,8 +9,8 @@ import org.junit.Test
  * ShelfItems.kt の「並び順キー生成」と「取込済み ncode 集合」の純関数に対する契約テスト。
  *
  * 対象（いずれも従来 mergeShelfItems / activeWebNovels 経由の間接検証しか無かった関数）:
- * - [recencyKeyOf]: 蔵書の並び順キー（未読=tier1/addedAt・触った本=tier0/lastReadAt）
- * - [webRecencyKeyOf]: Web由来カードの並び順キー（tier 特権なし＝常に tier0）
+ * - [recencyKeyOf]: 蔵書・Web由来カード共通の並び順キー（単一タイムライン＝触った本は lastReadAt・
+ *   未読/未接触は addedAt の降順。2026-09-01 に旧 webRecencyKeyOf と統合）
  * - [importedNcodeKeys]: 蔵書内の ncode 保存キー集合（trim+大文字の正規化＋重複除去）
  *
  * なぜ com.novelreader.viewmodel.ShelfItemsTest と分けて domain パッケージに置くか:
@@ -23,135 +23,73 @@ import org.junit.Test
 class ShelfItemsTest {
 
     // ============================================================
-    // recencyKeyOf
+    // recencyKeyOf（蔵書・Web由来カード共通。単一タイムライン）
     // ============================================================
 
     @Test
-    fun `recencyKeyOf - 触った本 (lastReadAt gt 0) は tier0 で lastReadAt が value になる`() {
+    fun `recencyKeyOf - 触った (lastReadAt gt 0) は lastReadAt が value になる`() {
         val key = recencyKeyOf(addedAt = 1000L, lastReadAt = 500L)
-        assertEquals(0, key.tier)
         assertEquals(500L, key.value)
     }
 
     @Test
-    fun `recencyKeyOf - lastReadAt の最小正数境界 (1L) で tier0 に切り替わり addedAt は無視される`() {
+    fun `recencyKeyOf - lastReadAt の最小正数境界 (1L) で addedAt は無視される`() {
         val key = recencyKeyOf(addedAt = 1000L, lastReadAt = 1L)
-        assertEquals(0, key.tier)
         assertEquals(1L, key.value)
     }
 
     @Test
-    fun `recencyKeyOf - lastReadAt が Long MAX_VALUE でも正しく tier0 になる`() {
+    fun `recencyKeyOf - lastReadAt が Long MAX_VALUE でも正しく value になる`() {
         val key = recencyKeyOf(addedAt = 1000L, lastReadAt = Long.MAX_VALUE)
-        assertEquals(0, key.tier)
         assertEquals(Long.MAX_VALUE, key.value)
     }
 
     @Test
-    fun `recencyKeyOf - 未読 (lastReadAt eq 0) は tier1 で addedAt が value になる`() {
+    fun `recencyKeyOf - 未読・未接触 (lastReadAt eq 0) は addedAt が value になる`() {
         val key = recencyKeyOf(addedAt = 1000L, lastReadAt = 0L)
-        assertEquals(1, key.tier)
         assertEquals(1000L, key.value)
     }
 
     @Test
-    fun `recencyKeyOf - 負の lastReadAt (-1L) は未読扱いとなり tier1 で addedAt が value になる`() {
+    fun `recencyKeyOf - 負の lastReadAt (-1L) は未読扱いとなり addedAt が value になる`() {
         val key = recencyKeyOf(addedAt = 2000L, lastReadAt = -1L)
-        assertEquals(1, key.tier)
         assertEquals(2000L, key.value)
     }
 
     @Test
-    fun `recencyKeyOf - lastReadAt が Long MIN_VALUE でも tier1 で addedAt が value になる`() {
+    fun `recencyKeyOf - lastReadAt が Long MIN_VALUE でも addedAt が value になる`() {
         val key = recencyKeyOf(addedAt = 2000L, lastReadAt = Long.MIN_VALUE)
-        assertEquals(1, key.tier)
         assertEquals(2000L, key.value)
     }
 
     @Test
     fun `recencyKeyOf - addedAt の極端な値 (0, Long MAX_VALUE, 負数) が未読時にそのまま value に反映される`() {
-        assertEquals(RecencyKey(1, 0L), recencyKeyOf(addedAt = 0L, lastReadAt = 0L))
-        assertEquals(RecencyKey(1, Long.MAX_VALUE), recencyKeyOf(addedAt = Long.MAX_VALUE, lastReadAt = 0L))
-        assertEquals(RecencyKey(1, -500L), recencyKeyOf(addedAt = -500L, lastReadAt = 0L))
+        assertEquals(RecencyKey(0L), recencyKeyOf(addedAt = 0L, lastReadAt = 0L))
+        assertEquals(RecencyKey(Long.MAX_VALUE), recencyKeyOf(addedAt = Long.MAX_VALUE, lastReadAt = 0L))
+        assertEquals(RecencyKey(-500L), recencyKeyOf(addedAt = -500L, lastReadAt = 0L))
+    }
+
+    @Test
+    fun `recencyKeyOf - 蔵書にもWeb由来カードにも同一関数として使える（2026-09-01 統合の契約）`() {
+        // 単一タイムラインでは蔵書とWebカードを区別する特別扱いが無い＝同じ引数なら同じキーになる。
+        assertEquals(recencyKeyOf(addedAt = 1000L, lastReadAt = 500L), recencyKeyOf(addedAt = 1000L, lastReadAt = 500L))
+        assertEquals(recencyKeyOf(addedAt = 3000L, lastReadAt = 0L), recencyKeyOf(addedAt = 3000L, lastReadAt = 0L))
     }
 
     // ============================================================
-    // RecencyKey.compareTo（2つのキー関数が表現する順序そのものの契約）
+    // RecencyKey.compareTo
     // ============================================================
 
     @Test
-    fun `RecencyKey の compareTo - tier が value に優先し同 tier 内は value 比較・同値は0`() {
-        val tier0Small = RecencyKey(0, 100L)
-        val tier0Large = RecencyKey(0, 200L)
-        val tier1Small = RecencyKey(1, 10L)
+    fun `RecencyKey の compareTo - value の大小のみで比較される`() {
+        val small = RecencyKey(100L)
+        val large = RecencyKey(200L)
 
-        // 同 tier 内は value の大小。
-        assertTrue(tier0Small < tier0Large)
-        assertTrue(tier0Large > tier0Small)
-
-        // tier が優先＝tier0 の value がどれほど大きくても tier1 を上回れない
-        // （compareTo が tier 差で決着し value まで進まない。未接触 web 恒久最上位バグの機序そのもの）。
-        assertTrue(tier0Small < tier1Small)
-        assertTrue(RecencyKey(0, Long.MAX_VALUE) < tier1Small)
+        assertTrue(small < large)
+        assertTrue(large > small)
 
         // 同値は 0＝mergeShelfItems の「同値キーは蔵書優先（>= で book を先に置く）」が成立する前提。
-        assertEquals(0, RecencyKey(0, 100L).compareTo(RecencyKey(0, 100L)))
-    }
-
-    // ============================================================
-    // webRecencyKeyOf
-    // ============================================================
-
-    @Test
-    fun `webRecencyKeyOf - 触った Web (lastReadAt gt 0) は tier0 で lastReadAt が value になる`() {
-        val key = webRecencyKeyOf(addedAt = 1000L, lastReadAt = 500L)
-        assertEquals(0, key.tier)
-        assertEquals(500L, key.value)
-    }
-
-    @Test
-    fun `webRecencyKeyOf - lastReadAt の最小正数境界 (1L) で value に 1L が入る`() {
-        val key = webRecencyKeyOf(addedAt = 1000L, lastReadAt = 1L)
-        assertEquals(0, key.tier)
-        assertEquals(1L, key.value)
-    }
-
-    @Test
-    fun `webRecencyKeyOf - 未接触 (lastReadAt eq 0) でも tier0 のまま value に addedAt が入る`() {
-        val key = webRecencyKeyOf(addedAt = 1000L, lastReadAt = 0L)
-        assertEquals(0, key.tier)
-        assertEquals(1000L, key.value)
-    }
-
-    @Test
-    fun `webRecencyKeyOf - 負の lastReadAt (-1L や Long MIN_VALUE) も tier0 で value に addedAt が入る`() {
-        val keyNeg1 = webRecencyKeyOf(addedAt = 1500L, lastReadAt = -1L)
-        assertEquals(0, keyNeg1.tier)
-        assertEquals(1500L, keyNeg1.value)
-
-        val keyMin = webRecencyKeyOf(addedAt = 1500L, lastReadAt = Long.MIN_VALUE)
-        assertEquals(0, keyMin.tier)
-        assertEquals(1500L, keyMin.value)
-    }
-
-    @Test
-    fun `webRecencyKeyOf と recencyKeyOf の差分契約 - 未読・未接触時の tier 特権の有無`() {
-        val addedAt = 3000L
-        val lastReadAt = 0L
-
-        val bookKey = recencyKeyOf(addedAt, lastReadAt)
-        val webKey = webRecencyKeyOf(addedAt, lastReadAt)
-
-        // 蔵書未読は tier1（特権あり・最上層）
-        assertEquals(1, bookKey.tier)
-        assertEquals(addedAt, bookKey.value)
-
-        // Web未接触は tier0（特権なし・通常キー）＝2026-07-26 裁定変更の実体をキー生成レベルで固定する。
-        assertEquals(0, webKey.tier)
-        assertEquals(addedAt, webKey.value)
-
-        // 比較すると未読蔵書 (tier1) の方が未接触 Web (tier0) より大きくなる
-        assertTrue(bookKey > webKey)
+        assertEquals(0, RecencyKey(100L).compareTo(RecencyKey(100L)))
     }
 
     // ============================================================
