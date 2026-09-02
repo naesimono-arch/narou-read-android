@@ -94,6 +94,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import com.novelreader.PrefKeys
@@ -925,20 +926,63 @@ private fun KGridBookCard(
         Spacer(Modifier.height(Spacing.S4))
         if (missingLabel != null) {
             // 欠落本の状態行（案B・.st）: 進捗の徴を欠落文言に置き換える（本文が無い本に話数を出すと嘘になる）。
-            Text(missingLabel, fontSize = FontMicroLabel, color = LocalShelfColors.current.infoText)
+            Text(
+                missingLabel,
+                fontSize = FontMicroLabel,
+                lineHeight = KGridStatusLineHeight,
+                color = LocalShelfColors.current.infoText,
+            )
         } else {
-            KBookStatusLine(status = status, chapNum = chapNum, totalChaps = totalChaps)
+            KBookStatusLine(status = status, chapNum = chapNum, totalChaps = totalChaps, lineHeight = KGridStatusLineHeight)
         }
     }
 }
 
+// ============================================================
+// 行送り（lineHeight）の較正値。**すべて正本モックの該当セレクタ1つと1対1で対応させる**。
+// なぜ明示が要るか: 既定の LocalTextStyle（＝Typography.bodyLarge）は lineHeight=28.sp を持ち、
+// fontSize だけ小さくしても**行箱は 28sp のまま残る**（Compose の lineHeight は下限＝
+// docs/knowledge/compose-lineheight-is-a-floor-not-css-line-height.md）。器（ピル・バッジ・行）が
+// 行箱の外周をなぞる要素では、その 28sp がそのまま器の肥大になる。
+// em で持つ理由＝正本の比を、フォント token や fontScale が動いても保つため。
+// ============================================================
+
+/**
+ * グリッド書籍カードの状態行。正本 skins/bookshelf-K.html `.st`（font-size:10.5px・line-height 未指定
+ * ＝normal）。ゴシックの normal は実測 1.6。10.5sp では実測 17.0dp（従来の継承 28.0dp から −11.0dp）。
+ */
+private val KGridStatusLineHeight = 1.6.em
+
+/**
+ * 目録（リスト）行の題字。正本 skins/bookshelf-list-K.html `.lc .t`（font-size:16px・line-height:1.5）。
+ * FontCardTitle 16.5sp では実測 25.0dp（自然行高 24.5dp より上＝下限として効く／従来 28.0dp）。
+ */
+private val KListTitleLineHeight = 1.5.em
+
+/**
+ * 目録（リスト）行のメタ1行。正本 skins/bookshelf-list-K.html `.lc .m`（font-size:13px・line-height:1.4）。
+ * ⚠️ FontMicroLabel 10.5sp では 1.4×10.5＝14.7sp が**自然行高 15.5dp を下回るためクランプされる**
+ * ＝指定した比そのものは効かず 15.5dp に着地する（Compose の lineHeight は下限）。それでもここに置くのは、
+ * この一行の目的が「bodyLarge の 28sp 継承を切って自然行高まで落とす」ことであり、比は正本の由来を
+ * 残すための記録だから。正本どおりの 18.2px 相当を厳密に出すには行送りと箱高(dp)を対で置く必要がある
+ * （＝上記 knowledge の対処。行構造ごと作り直すことになるので本便では踏み込まない）。
+ */
+private val KListMetaLineHeight = 1.4.em
+
 /** 蔵書カードの状態行（.st）。読了＝「読了」／未読＝藍ドット＋「未読」／よみかけ＝「第N/M話」。 */
 @Composable
-private fun KBookStatusLine(status: ReadingStatus, chapNum: Int?, totalChaps: Int) {
+private fun KBookStatusLine(
+    status: ReadingStatus,
+    chapNum: Int?,
+    totalChaps: Int,
+    // グリッド（.st）と目録（.lc .m）で**正本セレクタが別＝比も別**なので、行送りは呼び出し側が渡す。
+    lineHeight: TextUnit,
+) {
     when (status) {
         ReadingStatus.FINISHED -> Text(
             "読了",
             fontSize = FontMicroLabel,
+            lineHeight = lineHeight,
             color = LocalShelfColors.current.infoText,
         )
         ReadingStatus.UNREAD -> Row(verticalAlignment = Alignment.CenterVertically) {
@@ -950,12 +994,13 @@ private fun KBookStatusLine(status: ReadingStatus, chapNum: Int?, totalChaps: In
                     .background(MaterialTheme.colorScheme.primary),
             )
             Spacer(Modifier.width(Spacing.S4))
-            Text("未読", fontSize = FontMicroLabel, color = LocalShelfColors.current.infoText)
+            Text("未読", fontSize = FontMicroLabel, lineHeight = lineHeight, color = LocalShelfColors.current.infoText)
         }
         // よみかけ＝読んだ章/全章（進捗バーでなく到達話数を数字で示すモック流儀）。chapNum は READING では非 null。
         ReadingStatus.READING -> Text(
             "第${chapNum ?: 1}/${totalChaps}話",
             fontSize = FontMicroLabel,
+            lineHeight = lineHeight,
             color = LocalShelfColors.current.infoText,
         )
     }
@@ -1087,12 +1132,14 @@ private fun KWebGridBookCard(
                     Text(
                         "第${lastReadEpisode}話まで既読",
                         fontSize = FontMicroLabel,
+                        lineHeight = KGridStatusLineHeight,
                         color = LocalShelfColors.current.infoText,
                     )
                 } else {
                     Text(
                         "なろう・未取込",
                         fontSize = FontMicroLabel,
+                        lineHeight = KGridStatusLineHeight,
                         fontWeight = FontWeight.Medium,
                         // 状態を名指す＝意味を運ぶ文字なので AA(4.5:1) が要る。青磁 secondary #9CB3A8 は
                         // 素地 2.14:1 で未達＝ADR 0014-D の濃青磁へ寄せる（正本 skins/bookshelf-K.html の
@@ -1203,6 +1250,7 @@ private fun KListBookCard(
                     text = book.title,
                     fontFamily = MinchoFamily,
                     fontSize = FontCardTitle,
+                    lineHeight = KListTitleLineHeight,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -1215,20 +1263,26 @@ private fun KListBookCard(
                         Text(
                             text = book.author,
                             fontSize = FontMicroLabel,
+                            lineHeight = KListMetaLineHeight,
                             color = LocalShelfColors.current.infoText,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             // 著者が長くても状態・バッジを押し出さない（D の目録行と同じ収縮）。
                             modifier = Modifier.weight(1f, fill = false),
                         )
-                        Text("・", fontSize = FontMicroLabel, color = LocalShelfColors.current.infoText)
+                        Text("・", fontSize = FontMicroLabel, lineHeight = KListMetaLineHeight, color = LocalShelfColors.current.infoText)
                     }
                     // 状態部＝グリッドの KBookStatusLine を再利用（読了/未読(藍ドット)/第N/M話）＝徴を1箇所に集約。
                     // 本文欠落（案B）はグリッドと同じ置き換え（進捗の徴を出さず欠落文言のみ）。
                     if (missingLabel != null) {
-                        Text(missingLabel, fontSize = FontMicroLabel, color = LocalShelfColors.current.infoText)
+                        Text(
+                            missingLabel,
+                            fontSize = FontMicroLabel,
+                            lineHeight = KListMetaLineHeight,
+                            color = LocalShelfColors.current.infoText,
+                        )
                     } else {
-                        KBookStatusLine(status = status, chapNum = chapNum, totalChaps = totalChaps)
+                        KBookStatusLine(status = status, chapNum = chapNum, totalChaps = totalChaps, lineHeight = KListMetaLineHeight)
                     }
                     // 続き（新着）バッジ＝D の ListBookCard と同じ NewChaptersBadge を共有（internal 昇格）。メタ行末尾へ。
                     newCount?.let {
@@ -1351,6 +1405,7 @@ private fun KWebListBookCard(
                 fontFamily = MinchoFamily,
                 // 目録の題字は行の主役＝FontCardTitle・1行 ellipsis（案A＝KListBookCard と同じ）。
                 fontSize = FontCardTitle,
+                lineHeight = KListTitleLineHeight,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -1364,25 +1419,28 @@ private fun KWebListBookCard(
                     Text(
                         text = novel.writer,
                         fontSize = FontMicroLabel,
+                        lineHeight = KListMetaLineHeight,
                         color = seijiInk,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         // 著者が長くても状態を押し出さない（蔵書行と同じ収縮）。
                         modifier = Modifier.weight(1f, fill = false),
                     )
-                    Text("・", fontSize = FontMicroLabel, color = seijiInk)
+                    Text("・", fontSize = FontMicroLabel, lineHeight = KListMetaLineHeight, color = seijiInk)
                 }
                 // 進捗あれば「第N話まで既読」（K グリッド Web と同文言）／無ければ「なろう・未取込」（Medium＝未取込の徴）。
                 if (hasProgress) {
                     Text(
                         "第${lastReadEpisode}話まで既読",
                         fontSize = FontMicroLabel,
+                        lineHeight = KListMetaLineHeight,
                         color = seijiInk,
                     )
                 } else {
                     Text(
                         "なろう・未取込",
                         fontSize = FontMicroLabel,
+                        lineHeight = KListMetaLineHeight,
                         fontWeight = FontWeight.Medium,
                         color = seijiInk,
                     )

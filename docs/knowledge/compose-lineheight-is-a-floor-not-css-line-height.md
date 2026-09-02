@@ -72,3 +72,21 @@ Text(text = title, fontSize = 16.sp, lineHeight = 22.sp, maxLines = 2,
 - 数で守る側: `android/app/src/test/java/com/novelreader/ui/discovery/NovelDetailCoverBlockLayoutTest.kt`
   （⚠️ この種の検証は `@GraphicsMode(GraphicsMode.Mode.NATIVE)` が必須＝
   `robolectric-legacy-graphicsmode-text-width-is-char-count.md`）
+
+## 2026-09-02: 「正本の比が入らない」実例3つ（本棚K・目次K の掃討で確定）
+
+下限なので**自然行高より小さい比は書いても効かない**。掃討で実際に当たった3例:
+
+- **`.lc .m`（目録行のメタ・13px / 比 1.4）**: 13sp×1.4 = 18.2sp に対し自然行高は 14.7sp 相当。
+  指定した比そのものは効かず、達成できるのは「継承していた 28sp を切る」ことだけ（行箱 28.0→15.5dp）。
+  正本の版面へ厳密に寄せるなら**行送りと箱高 dp を対で置く**＝行構造の作り直しが要る。
+- **`.htxt h1`（比 1.2）**: クランプで効かず、かつ器も無い＝**触っても何も起きない**ので未着手のまま残した
+  （目次ヘッダは正本比 +約9dp のズレが残る）。
+- **Web グリッド題名（正本比 1.4・13sp 明朝）**: クランプで 19.0dp になり、蔵書グリッドカード 53dp に対し
+  Web カードだけ 40dp へ縮んで**グリッド内で高さが割れる**＝比を入れる方が壊れる。除外が正しい。
+
+⚠️ **比は Robolectric NATIVE・xhdpi・fontScale 1.0 で行箱の dp を実測してから採る**——
+「正本が 1.4 だから 1.4 を当てれば正本どおり」は成り立たない。下限として効くかどうかが先。
+
+⚠️ 器が固定寸法で行箱を包み込んでいる場合も対象外——蔵書グリッドの題名は `heightIn(min=32dp)` の
+内側で 28sp が収まっており、継承を切ってもカード高は動かない（＝直しても見た目が変わらない）。

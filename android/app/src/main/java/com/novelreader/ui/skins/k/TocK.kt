@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.TocState
 import com.novelreader.ui.skins.rememberTocEpLabelWidth
@@ -233,6 +234,7 @@ private fun TocHeaderK(workTitle: String?, colors: ReadingColors, onBack: () -> 
                         workTitle,
                         fontFamily = MinchoFamily,
                         fontSize = FontSubTitle, // .work 13px（明朝）
+                        lineHeight = TocKNormalLineHeight,
                         color = colors.infoText,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -264,6 +266,7 @@ private fun HereBarK(currentIndex: Int, total: Int, colors: ReadingColors, onJum
             Text(
                 tocHereChipLabel(currentIndex),
                 fontSize = FontButtonLabel, // .herechip 12.5px
+                lineHeight = TocKNormalLineHeight,
                 fontWeight = FontWeight.Bold,
                 color = colors.accent,
                 modifier = Modifier
@@ -289,6 +292,7 @@ private fun HereBarK(currentIndex: Int, total: Int, colors: ReadingColors, onJum
         Text(
             progress,
             fontSize = FontCaption, // .prog 12px
+            lineHeight = TocKNormalLineHeight,
             color = colors.infoText,
             textAlign = TextAlign.End,
             maxLines = 1,
@@ -297,6 +301,20 @@ private fun HereBarK(currentIndex: Int, total: Int, colors: ReadingColors, onJum
         )
     }
 }
+
+/**
+ * 正本 toc-K.html で **line-height を書いていない**要素の行送り（`.htxt .work` / `.herechip` /
+ * `.prog` / `.row .ep`）。CSS の `line-height:normal` はゴシックで実測 1.6。
+ *
+ * なぜ明示が要るか: 既定の LocalTextStyle（＝Typography.bodyLarge）が lineHeight=28.sp を持つため、
+ * fontSize だけ落としても**行箱は 28sp のまま残る**（Compose の lineHeight は下限＝
+ * docs/knowledge/compose-lineheight-is-a-floor-not-css-line-height.md）。この画面では
+ * ①現在話チップ（.herechip＝ピル）が行箱の外周をなぞって太り、②章行（.row）と現在地バー（.here）と
+ * ヘッダ（.top）の高さが、いちばん背の高い行箱＝28sp に引きずられていた。
+ * em で持つ理由＝正本の比を、フォント token や fontScale が動いても保つため。
+ * 実測（xhdpi・fontScale 1.0）: 12sp→19.5dp／12.5sp→20.0dp／13sp(明朝)→21.0dp（いずれも従来 28.0dp）。
+ */
+private val TocKNormalLineHeight = 1.6.em
 
 /** モック toc-K.html `.row .ep{width:44px}`＝話数ラベル列の整列幅の下限（2桁までの実測値・スケール外の構造幅）。 */
 private val EpLabelMinWidth = 44.dp
@@ -309,7 +327,9 @@ private val EpLabelMinWidth = 44.dp
 @Composable
 private fun rememberEpLabelWidth(total: Int): Dp = rememberTocEpLabelWidth(
     total = total,
-    style = LocalTextStyle.current.merge(TextStyle(fontSize = FontCaption)),
+    style = LocalTextStyle.current.merge(
+        TextStyle(fontSize = FontCaption, lineHeight = TocKNormalLineHeight),
+    ),
     minWidth = EpLabelMinWidth,
 )
 
@@ -357,6 +377,7 @@ private fun ChapterRowK(
                 Text(
                     epLabel,
                     fontSize = FontCaption, // .row .ep 12px（ゴシック）
+                    lineHeight = TocKNormalLineHeight,
                     color = colors.infoText,
                     // .ep width 44px（整列用の構造幅）を下限に、桁数へ追従する整列幅（rememberEpLabelWidth）。
                     modifier = Modifier.width(epLabelWidth),
