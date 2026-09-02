@@ -4,6 +4,7 @@
 package com.novelreader.ui.intro
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -25,6 +26,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,9 +43,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -50,6 +55,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -88,6 +94,8 @@ internal fun IntroOverlayHost(modifier: Modifier = Modifier) {
         onNext = controller::next,
         onBack = controller::back,
         onDismiss = controller::dismiss,
+        orientationVertical = controller.orientationVertical,
+        onOrientationChange = controller::selectOrientation,
         modifier = modifier,
     )
 }
@@ -101,6 +109,10 @@ internal fun IntroOverlayContent(
     onNext: () -> Unit,
     onBack: () -> Unit,
     onDismiss: () -> Unit,
+    /** 向きの選択カードでいま選ばれて見えている側（true＝縦書き）。選択を持たないカードでは使わない。 */
+    orientationVertical: Boolean,
+    /** チップ押下。**確定は呼ばれた側（IntroController）の責務**＝ここでは通知しかしない。 */
+    onOrientationChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // システム Back ＝ ［← もどる］と同じ。先頭カードでの Back は閉じる（正本 §8）。
@@ -153,7 +165,7 @@ internal fun IntroOverlayContent(
                         start = Spacing.S24, end = Spacing.S24, top = Spacing.S24, bottom = Spacing.S16,
                     ),
             ) {
-                IntroCardBody(flow)
+                IntroCardBody(flow, orientationVertical, onOrientationChange)
                 IntroDots(flow)
                 Spacer(Modifier.height(Spacing.S4)) // 正本 `.obtns{margin-top:2px}`
                 IntroButtons(flow, onNext = onNext, onBack = onBack, onDismiss = onDismiss)
@@ -163,7 +175,11 @@ internal fun IntroOverlayContent(
 }
 
 @Composable
-private fun IntroCardBody(flow: IntroFlow) {
+private fun IntroCardBody(
+    flow: IntroFlow,
+    orientationVertical: Boolean,
+    onOrientationChange: (Boolean) -> Unit,
+) {
     val card = flow.card
     // 本文色。正本の `.ocard p{color:#4A4C47}` はモック文書側の生値で K トークンに対応が無いため、
     // 役割トークン `infoText`（意味を運ぶ補助テキスト・AA 充足）へ載せ替える。装飾専用の
@@ -224,6 +240,14 @@ private fun IntroCardBody(flow: IntroFlow) {
         )
     }
 
+    card.choice?.let { choice ->
+        IntroChoiceRow(
+            choice = choice,
+            selectedIsTrue = orientationVertical,
+            onSelect = onOrientationChange,
+        )
+    }
+
     card.footnote?.let { footnote ->
         Spacer(Modifier.height(Spacing.S16)) // 正本 `.later{margin-top:15px}`
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -233,6 +257,78 @@ private fun IntroCardBody(flow: IntroFlow) {
             fontSize = FontButtonLabel, // 正本 `.later{font-size:12.5px}`（スロットは値で選ぶ）
             lineHeight = 21.3.sp, // 12.5 × 1.7
             color = bodyColor,
+        )
+    }
+}
+
+/**
+ * 2 択チップの行（正本 `.ochips` / `.ochip`）。
+ *
+ * **a11y の要**: 見えでは「チップが 2 つ並んでいる」以上のことが伝わらず、TalkBack には
+ * 〈どちらか一方しか選べない〉も〈いまどちらが選ばれているか〉も出ない。
+ * [selectableGroup] ＋ 各チップの [Role.RadioButton] で**単一選択の群**として読み上げさせる
+ * （チェックボックス的に「両方 on にできる」と誤解されるのを、意味づけの側で塞ぐ）。
+ */
+@Composable
+private fun IntroChoiceRow(
+    choice: IntroChoice,
+    selectedIsTrue: Boolean,
+    onSelect: (Boolean) -> Unit,
+) {
+    Spacer(Modifier.height(Spacing.S16)) // 正本 `.ochips{margin-top:14px}` を離散スケールへ丸めた
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.S12), // 正本 `.ochips{gap:12px}`
+    ) {
+        // 並び順は正本どおり〈false 側 → true 側〉＝左が横書き・右が縦書き。
+        IntroChoiceChip(
+            label = choice.labelForFalse,
+            selected = !selectedIsTrue,
+            onClick = { onSelect(false) },
+            modifier = Modifier.weight(1f), // 正本 `.ochip{flex:1}`
+        )
+        IntroChoiceChip(
+            label = choice.labelForTrue,
+            selected = selectedIsTrue,
+            onClick = { onSelect(true) },
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun IntroChoiceChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        // 正本 `.ochip{border-radius:10px}`＝主ボタンと同値（同じ「押せるもの」の語彙に揃える）。
+        shape = RoundedCornerShape(IntroPrimaryCorner),
+        // 正本 `.ochip.on{background:var(--ai);color:#fff}` / off は枠線だけ＝素地を透かす。
+        color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+        contentColor = if (selected) {
+            MaterialTheme.colorScheme.onPrimary
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        },
+        // 正本 `.ochip{border:1px solid var(--line)}`＝再訪導線の罫と同じ線トークン。
+        border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = modifier.selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier
+                .fillMaxWidth()
+                // 正本 `.ochip{padding:12px 16px}`。
+                .padding(horizontal = Spacing.S16, vertical = Spacing.S12),
+            textAlign = TextAlign.Center,
+            fontSize = FontPresetTitle, // 正本 `.ochip{font-size:13.5px}`
+            // 正本 `.ochip.on{font-weight:600}`＝選択側だけ字面を重くする（色だけに頼らない差）。
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
         )
     }
 }

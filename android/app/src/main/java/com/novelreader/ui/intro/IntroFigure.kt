@@ -18,7 +18,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 
 /** どのカードにどの線画が付くかは正本の 1:1 対応。 */
-internal enum class IntroFigure { SHELF, TWO_WAYS, TAP, VERTICAL, SEARCH }
+internal enum class IntroFigure { SHELF, ORIENTATION, TWO_WAYS, TAP, VERTICAL, SEARCH }
 
 /** 正本 svg の viewBox 幅・高さ（この単位系で座標を書き、描画時に実寸へ写す）。 */
 private const val FIG_W = 120f
@@ -40,6 +40,7 @@ internal fun IntroFigureArt(figure: IntroFigure, modifier: Modifier = Modifier) 
         val art = FigureScope(this, u, accent, soft)
         when (figure) {
             IntroFigure.SHELF -> art.shelf()
+            IntroFigure.ORIENTATION -> art.orientation()
             IntroFigure.TWO_WAYS -> art.twoWays()
             IntroFigure.TAP -> art.tap()
             IntroFigure.VERTICAL -> art.vertical()
@@ -100,7 +101,27 @@ private class FigureScope(
         line(99f, 34f, 99f, 44f, soft, SOFT_ALPHA)
     }
 
-    /** 2 枚目「読みかたは、2 通り」＝実線の面（アプリ）と破線の面（なろう）。 */
+    /**
+     * 2 枚目「どちらで読みますか」＝横罫の面（横書き）と縦罫の面（縦書き）。
+     *
+     * **枠は 2 枚とも実線**にする——[twoWays] は片方を破線にして〈アプリ／なろう〉という
+     * **届く/届かない**を描き分けているが、こちらは<b>どちらも等しく選べる</b>のが意味なので、
+     * 同じ破線語彙を持ち込むと「縦書きは劣った側」と読める。罫の向きだけで差を出す。
+     */
+    fun orientation() {
+        rect(8f, 14f, 46f, 56f, 5f, accent)
+        line(16f, 28f, 46f, 28f, soft, SOFT_ALPHA)
+        line(16f, 38f, 46f, 38f, soft, SOFT_ALPHA)
+        line(16f, 48f, 38f, 48f, soft, SOFT_ALPHA)
+        line(16f, 58f, 46f, 58f, soft, SOFT_ALPHA)
+        rect(66f, 14f, 46f, 56f, 5f, accent)
+        line(104f, 22f, 104f, 62f, soft, SOFT_ALPHA)
+        line(96f, 22f, 96f, 62f, soft, SOFT_ALPHA)
+        line(88f, 22f, 88f, 54f, soft, SOFT_ALPHA)
+        line(80f, 22f, 80f, 62f, soft, SOFT_ALPHA)
+    }
+
+    /** 3 枚目「読みかたは、2 通り」＝実線の面（アプリ）と破線の面（なろう）。 */
     fun twoWays() {
         rect(8f, 14f, 46f, 56f, 5f, accent)
         line(16f, 28f, 46f, 28f, soft, SOFT_ALPHA)
@@ -123,7 +144,7 @@ private class FigureScope(
         )
     }
 
-    /** 3 枚目「横書きで読む」＝画面の中央に置かれたタップの波紋。 */
+    /** 4 枚目「横書きで読む」＝画面の中央に置かれたタップの波紋。 */
     fun tap() {
         rect(30f, 4f, 60f, 76f, 7f, accent)
         line(34f, 16f, 86f, 16f, soft, SOFT_ALPHA)
@@ -132,7 +153,7 @@ private class FigureScope(
         circle(60f, 42f, 9f, accent)
     }
 
-    /** 4 枚目「縦書きで読む」＝右から左へ並ぶ行と、左向きの読み進め矢印。 */
+    /** 5 枚目「縦書きで読む」＝右から左へ並ぶ行と、左向きの読み進め矢印。 */
     fun vertical() {
         line(96f, 12f, 96f, 70f, soft, SOFT_ALPHA)
         line(84f, 12f, 84f, 70f, soft, SOFT_ALPHA)
@@ -145,7 +166,7 @@ private class FigureScope(
         line(14f, 12f, 110f, 12f, soft, alpha = 0.35f)
     }
 
-    /** 5 枚目「さがして、本棚に入れる」＝虫めがねと、選ばれた検索範囲のチップ。 */
+    /** 6 枚目「さがして、本棚に入れる」＝虫めがねと、選ばれた検索範囲のチップ。 */
     fun search() {
         circle(40f, 34f, 17f, accent)
         line(52f, 46f, 65f, 59f, accent)

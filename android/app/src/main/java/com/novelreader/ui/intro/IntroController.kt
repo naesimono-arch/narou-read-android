@@ -21,6 +21,18 @@ internal interface IntroFlagStore {
      * 意味だけが増えている＝「ピルを出し切った」に加えて「組B がピルの役目を肩代わりした」でも立つ。
      */
     fun markImmersiveHintShown()
+
+    /**
+     * 本文の向きの保存値。**null＝キーがまだ無い**（＝誰もまだ選んでも設定してもいない）。
+     *
+     * なぜ Boolean でなく Boolean? か: [PrefKeys.READING_VERTICAL] の既定は false（横書き）のままにするので、
+     * `getBoolean(key, false)` では〈横書きを選んだ人〉と〈まだ何も選んでいない人〉が同じ false に潰れる。
+     * カードの初期選択は縦書きなので、この 2 つを取り違えると**横書きを選んだ人へ縦書きを選び直させる**。
+     */
+    fun readOrientationVertical(): Boolean?
+
+    /** 本文の向きを確定する。書き先は既存の [PrefKeys.READING_VERTICAL] 1 本＝**新しいキーは足さない**。 */
+    fun writeOrientationVertical(vertical: Boolean)
 }
 
 /** 組 → prefs キー。3 本とも Boolean・FILE_APP_PREFS・apply()（正本 §8）。 */
@@ -40,7 +52,28 @@ internal class PrefsIntroFlagStore(private val prefs: SharedPreferences) : Intro
     override fun markImmersiveHintShown() {
         prefs.edit().putBoolean(PrefKeys.IMMERSIVE_HINT_SHOWN, true).apply()
     }
+
+    override fun readOrientationVertical(): Boolean? =
+        if (prefs.contains(PrefKeys.READING_VERTICAL)) {
+            prefs.getBoolean(PrefKeys.READING_VERTICAL, false)
+        } else {
+            null
+        }
+
+    override fun writeOrientationVertical(vertical: Boolean) {
+        prefs.edit().putBoolean(PrefKeys.READING_VERTICAL, vertical).apply()
+    }
 }
+
+/**
+ * 向きの選択カードが最初に見せる側＝**縦書き**。
+ *
+ * ⚠️ これは [PrefKeys.READING_VERTICAL] の**既定値ではない**（あちらは false＝横書きのまま動かさない）。
+ * 既定値そのものを true へ倒すと、**まだ一度も向きを触っていない既存ユーザーの本文が次回起動で縦書きに変わる**
+ * （キー不在＝既定値が読まれるため）。このカードは新規の人にだけ問うので、その副作用を負わずに
+ * 「看板（アプリ名も短い説明も縦書き）と初見の一致」だけを取れる。
+ */
+internal const val INTRO_ORIENTATION_DEFAULT_VERTICAL = true
 
 /**
  * 教示カード列の進行と消費を所有するセッション寿命の state holder。
@@ -69,6 +102,27 @@ internal class IntroController(private val store: IntroFlagStore) {
         private set
 
     /**
+     * 向きの選択カードでいま**選ばれて見えている**側（true＝縦書き）。
+     *
+     * 保存値が在ればそれを、無ければ [INTRO_ORIENTATION_DEFAULT_VERTICAL]（縦書き）を初期選択にする。
+     * ⚠️ **ここを読んだだけでは prefs へ何も書かない**——描いた瞬間に書くと、［あとで］で降りた人や
+     * カードを見ただけの人の端末を勝手に書き換えることになる（このカードは設定画面ではない）。
+     */
+    var orientationVertical: Boolean by mutableStateOf(
+        store.readOrientationVertical() ?: INTRO_ORIENTATION_DEFAULT_VERTICAL,
+    )
+        private set
+
+    /**
+     * チップを押した＝**その場で確定**する（画面の見えと保存値を 1 操作もずらさない）。
+     * 押した人は明示的に選んだので、この後 ［あとで］ で降りても選択は残ってよい。
+     */
+    fun selectOrientation(vertical: Boolean) {
+        orientationVertical = vertical
+        store.writeOrientationVertical(vertical)
+    }
+
+    /**
      * 自動の割り込み（組A/B/C）。**条件を満たした組はその場で出す**＝「1 起動 1 組」の間引きは
      * 入れない（2026-08-21 裁定）。組A と組C が数秒で連続してもよい。
      *
@@ -93,6 +147,11 @@ internal class IntroController(private val store: IntroFlagStore) {
     /** 主ボタン。終端なら閉じる、そうでなければ 1 枚進む。 */
     fun next() {
         val current = flow ?: return
+        // 選択カードから**先へ進んだ**時点で、見えている選択をそのまま確定する。チップに触れずに
+        // ［つづける］ を押した人も「見えていたもの」が選ばれる＝画面と保存値が食い違わない。
+        // ⚠️ [dismiss] 側には置かない——［あとで］／スクリム外タップ／先頭 Back で降りた人の端末は
+        // 書き換えない（見せただけで設定を変えるのは、このカードが持ってよい権能を超える）。
+        if (current.card.choice != null) store.writeOrientationVertical(orientationVertical)
         if (current.isTerminal) {
             dismiss()
             return

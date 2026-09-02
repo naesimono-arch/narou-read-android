@@ -366,7 +366,7 @@ internal object GoldenCoverageRegistry {
             "本棚の長文 Snackbar（取込元PDF削除の失敗通知・63字＋「閉じる」アクション）。" +
                 "1行の器に長文とアクションが同居する版面の折り合いを守る。",
         "IntroOverlayK" to
-            "教示「はじめに」のカード列（MainActivity のルートへ重なる被せもの・K 素地）。列 5 枚を" +
+            "教示「はじめに」のカード列（MainActivity のルートへ重なる被せもの・K 素地）。列 6 枚を" +
                 "「1枚＝1 case」で撮り、①**semantics に一切出ない線画**（clearAndSetSemantics で隠した" +
                 "Canvas 直描き＝絵以外に検査手段が無い）②スクリム α .74 越しの素地/墨/藍/罫の対比" +
                 "③図版112dp＋本文＋項目＋点＋ボタンを1枚に積んだ版面、を守る。" +

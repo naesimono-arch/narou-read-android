@@ -22,6 +22,26 @@ internal class FakeIntroFlagStore(
         immersiveHintShown = true
     }
 
+    /** 端末に残る `reading_vertical` の代わり。**null＝キー不在**（まだ誰も選んでいない）。 */
+    var orientationVertical: Boolean? = null
+        private set
+
+    /** 何回書かれたか。「描いただけで書いていないか」は回数でしか出ないので数える。 */
+    var orientationWrites: Int = 0
+        private set
+
+    override fun readOrientationVertical(): Boolean? = orientationVertical
+
+    override fun writeOrientationVertical(vertical: Boolean) {
+        orientationVertical = vertical
+        orientationWrites++
+    }
+
+    /** 既に向きが保存されている端末を作る（選び直しの回を組み立てるため）。 */
+    fun preSelectOrientation(vertical: Boolean) {
+        orientationVertical = vertical
+    }
+
     fun preShow(vararg groups: IntroGroup) {
         shown += groups
     }

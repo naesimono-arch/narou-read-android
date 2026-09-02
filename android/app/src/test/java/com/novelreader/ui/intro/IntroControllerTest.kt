@@ -19,6 +19,26 @@ class IntroControllerTest {
     private fun controller(store: FakeIntroFlagStore = FakeIntroFlagStore()) =
         store to IntroController(store)
 
+    /**
+     * その組の**最後のカードまで**進める。
+     *
+     * ⚠️ `next()` を枚数ぶん数えて打つ書き方をしないこと。枚数は列の都合で変わるのに、数えて打つ形は
+     * 列に 1 枚差された瞬間**「1 枚手前で止まった」へ静かに化ける**——そして消費の規則自体は無傷なのに、
+     * 遠くのアサーション（`assertNull(flow)` や「あとから改めて出る」）が赤くなるので、
+     * 実装が壊れたように見える。2026-09-03 に向きの選択カードを組A へ差したとき、
+     * この書き方のテストが**5 本まとめて赤くなった**（実装は正しかった）。
+     * 消費の規則は枚数と無関係＝「その組の最後に居たか」なので、位置も列から引く。
+     */
+    private fun IntroController.advanceToEndOf(group: IntroGroup) {
+        val goal = IntroDeck.lastIndexOf(group)
+        while (true) {
+            val at = flow?.index ?: error("$group の最後へ着く前に回が終わった（列の並びが変わった？）")
+            if (at == goal) return
+            next()
+            check(flow?.index != at) { "$group で進めなくなった（列の並びが変わった？）" }
+        }
+    }
+
     // ── 出現条件 ────────────────────────────────────────────────
 
     @Test
@@ -54,8 +74,8 @@ class IntroControllerTest {
         val (store, c) = controller()
         // 組A を最後まで読んで閉じる（＝この起動で 1 組すでに出した）。
         c.requestAuto(IntroGroup.ABOUT)
-        c.next()
-        c.next() // 終端ボタン＝閉じる
+        c.advanceToEndOf(IntroGroup.ABOUT)
+        c.next() // 組の最後で主ボタン＝閉じる
         assertNull(c.flow)
         assertTrue(store.isShown(IntroGroup.ABOUT))
 
@@ -89,6 +109,29 @@ class IntroControllerTest {
     }
 
     @Test
+    fun `どの組も「最後まで到達して閉じた」時点で焼ける（枚数に依存しない規則）`() {
+        // 上の各テストは「その組を読み切る」までを手順で書くので、列の枚数が変わると手順の方が先に壊れる。
+        // ここだけは**規則そのもの**——〈組の最後に居たか〉——を列から引いて全組で確かめ、
+        // 「カードを差したら消費が壊れたのか、テストの手順が古いだけか」を次回 1 本で切り分けられるようにする。
+        IntroGroup.entries.forEach { group ->
+            val store = FakeIntroFlagStore()
+            val c = IntroController(store)
+            c.requestAuto(group)
+            val goal = IntroDeck.lastIndexOf(group)
+            while (c.flow?.index != goal) {
+                val at = c.flow?.index ?: error("$group: 組の最後へ着く前に回が終わった")
+                assertFalse("$group: 組の最後へ着く前に焼いた（T4 の轍）", store.isShown(group))
+                c.next()
+                // 進まなくなったら**固まらせずに落とす**——ゲートが赤くなるのは直せるが、
+                // 固まるとどのテストで止まったかも分からない。
+                check(c.flow?.index != at) { "$group: 進めなくなった（列の並びが変わった？）" }
+            }
+            c.dismiss()
+            assertTrue("$group: 組の最後まで到達して閉じたら焼く", store.isShown(group))
+        }
+    }
+
+    @Test
     fun `1 枚だけの組は開いた回を閉じた時点で焼ける`() {
         val (store, c) = controller()
         c.requestAuto(IntroGroup.SEARCH)
@@ -100,7 +143,7 @@ class IntroControllerTest {
     fun `もどるで組の最後より前へ退がってから閉じても、到達済みの組は焼いたまま`() {
         val (store, c) = controller()
         c.openWalkthrough()
-        c.next() // 1→2 枚目
+        c.advanceToEndOf(IntroGroup.ABOUT) // 組A の最後へ（枚数は列から引く）
         c.next() // 組A の最後から組B へ＝ここで組A を焼く
         assertTrue(store.isShown(IntroGroup.ABOUT))
         c.back() // 組A の最後へ退がる
@@ -118,10 +161,12 @@ class IntroControllerTest {
         store.preShow(IntroGroup.ABOUT, IntroGroup.READING, IntroGroup.SEARCH)
 
         c.openWalkthrough()
-        assertEquals(0, c.flow?.index)
+        assertEquals(IntroDeck.firstIndexOf(IntroGroup.ABOUT), c.flow?.index)
 
-        repeat(4) { c.next() }
-        assertEquals("列の最後まで通しで進む", 4, c.flow?.index)
+        // 通しは列の最後まで進む。回数も到達点も**列から引く**（直書きすると枚数の増減で静かにずれ、
+        // 「1 枚手前で終端を期待する」＝ assertNull が赤くなる形で実装のせいに見える）。
+        repeat(IntroDeck.cards.lastIndex) { c.next() }
+        assertEquals("列の最後まで通しで進む", IntroDeck.cards.lastIndex, c.flow?.index)
         c.next() // 終端＝閉じる
         assertNull(c.flow)
         assertTrue(store.marked.containsAll(listOf(IntroGroup.ABOUT, IntroGroup.READING, IntroGroup.SEARCH)))
@@ -150,7 +195,8 @@ class IntroControllerTest {
         val (store, c) = controller()
         c.openWalkthrough()
         assertFalse(c.chromeHintSilenced)
-        c.next()
+        c.advanceToEndOf(IntroGroup.ABOUT)
+        assertFalse("組A を読んでいる間は黙らせない（黙らせるのは組B を出した瞬間）", c.chromeHintSilenced)
         c.next() // 組B の先頭へ
         assertTrue(c.chromeHintSilenced)
         assertTrue(store.immersiveHintShown)
@@ -170,7 +216,9 @@ class IntroControllerTest {
         c.requestAuto(IntroGroup.SEARCH)
         assertEquals("同時に 2 枚は描けない", IntroGroup.ABOUT, c.flow?.group)
         assertFalse("割り込めなかった組を焼いてはならない", store.isShown(IntroGroup.SEARCH))
-        c.next()
+        // 組A を最後まで読み切って閉じる＝ここまで来て初めて次の組が出られる
+        // （1 枚手前で止まると flow が残り、requestAuto は「同時に 2 枚は描けない」で黙って弾かれる）。
+        c.advanceToEndOf(IntroGroup.ABOUT)
         c.next()
         c.requestAuto(IntroGroup.SEARCH)
         assertEquals("あとから改めて出る", IntroGroup.SEARCH, c.flow?.group)

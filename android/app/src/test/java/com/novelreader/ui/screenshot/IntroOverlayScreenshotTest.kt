@@ -41,15 +41,19 @@ import org.robolectric.annotation.GraphicsMode
  *
  * ## 撮る状態（なぜ「1 枚 = 1 case」で列の全数か）
  * 状態を代表 1〜2 枚に絞らないのは、**カードごとに固有の線画を持つ**ため（上記 1）＝間引いた枚数は
- * そのぶん無検査で残る。5 枚は同時に、版面を決める 4 軸を過不足なく張る:
+ * そのぶん無検査で残る。6 枚は同時に、版面を決める 5 軸を過不足なく張る:
  *
- * | case | 本文の形 | 再訪導線 | 副ボタン | 点 |
- * |---|---|---|---|---|
- * | `about_intro` | 段落2 | 無 | ［あとで］ | 2 個・1 個目 |
- * | `about_ways`（**代表**） | 段落2 | 有（罫） | ［← もどる］ | 2 個・2 個目 |
- * | `reading_tap` | 項目2 | 無 | ［あとで］ | 2 個・1 個目 |
- * | `reading_vertical` | 項目3 | 無 | ［← もどる］ | 2 個・2 個目 |
- * | `search_single` | 項目3 | 有（罫） | **無し**（主ボタン単独・右寄せ） | **無し** |
+ * | case | 本文の形 | 2 択チップ | 小さい行 | 副ボタン | 点 |
+ * |---|---|---|---|---|---|
+ * | `about_intro` | 段落2 | 無 | 無 | ［あとで］ | 3 個・1 個目 |
+ * | `about_orientation` | 段落1 | **有**（右が on） | 有（罫） | ［← もどる］ | 3 個・2 個目 |
+ * | `about_ways`（**代表**） | 段落2 | 無 | 有（罫） | ［← もどる］ | 3 個・3 個目 |
+ * | `reading_tap` | 項目2 | 無 | 無 | ［あとで］ | 2 個・1 個目 |
+ * | `reading_vertical` | 項目3 | 無 | 無 | ［← もどる］ | 2 個・2 個目 |
+ * | `search_single` | 項目3 | 無 | 有（罫） | **無し**（主ボタン単独・右寄せ） | **無し** |
+ *
+ * `about_orientation` を間引けないのは、**チップの選択/非選択という 1 軸がこの 1 枚にしか出ない**ため
+ * ——藍の実塗り（on）と枠線だけ（off）の対比が壊れても、semantics は「選択済み」を返し続ける。
  *
  * 代表を `about_ways` にしたのは、**このカード列が使う色トークンを1枚で全部露出する唯一の状態**だから:
  * スクリム・素地・墨（題と段落中の強調）・infoText（本文と項目名と副ボタン）・outlineVariant（再訪導線の罫）・
@@ -109,7 +113,16 @@ class IntroOverlayScreenshotTest(
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background),
             ) {
-                IntroOverlayContent(flow = flow, onNext = {}, onBack = {}, onDismiss = {})
+                IntroOverlayContent(
+                    flow = flow,
+                    onNext = {},
+                    onBack = {},
+                    onDismiss = {},
+                    // 正本 §3 の 2/3 は**縦書きが on** の姿。golden もその 1 状態だけを撮る
+                    // （off 側は同じ部品の色違いで、増やしても線画も版面も新しく張らない）。
+                    orientationVertical = true,
+                    onOrientationChange = {},
+                )
             }
         }
     }
@@ -144,6 +157,16 @@ internal object IntroOverlayGoldenCases {
 
     val ALL: List<IntroGoldenCase> = listOf(
         IntroGoldenCase("about_intro", IntroFlow(IntroGroup.ABOUT, walkthrough = false)),
+        IntroGoldenCase(
+            caseId = "about_orientation",
+            flow = IntroFlow(
+                IntroGroup.ABOUT,
+                walkthrough = false,
+                // 数値で書かず**列から引く**＝並べ替えても「撮っているつもりの状態」がずれない
+                // （このファイルの冒頭で `index` の直書きを禁じているのと同じ理由）。
+                index = IntroDeck.cards.indexOfFirst { it.choice != null },
+            ),
+        ),
         IntroGoldenCase(
             caseId = "about_ways",
             flow = IntroFlow(

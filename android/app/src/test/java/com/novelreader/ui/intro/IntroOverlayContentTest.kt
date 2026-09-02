@@ -2,6 +2,8 @@ package com.novelreader.ui.intro
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -24,13 +26,30 @@ class IntroOverlayContentTest {
     @get:Rule
     val rule = createComposeRule()
 
-    private fun show(flow: IntroFlow, onNext: () -> Unit = {}, onBack: () -> Unit = {}, onDismiss: () -> Unit = {}) {
+    private fun show(
+        flow: IntroFlow,
+        onNext: () -> Unit = {},
+        onBack: () -> Unit = {},
+        onDismiss: () -> Unit = {},
+        orientationVertical: Boolean = true,
+        onOrientationChange: (Boolean) -> Unit = {},
+    ) {
         rule.setContent {
             MaterialTheme {
-                IntroOverlayContent(flow = flow, onNext = onNext, onBack = onBack, onDismiss = onDismiss)
+                IntroOverlayContent(
+                    flow = flow,
+                    onNext = onNext,
+                    onBack = onBack,
+                    onDismiss = onDismiss,
+                    orientationVertical = orientationVertical,
+                    onOrientationChange = onOrientationChange,
+                )
             }
         }
     }
+
+    /** 向きの選択カードの位置（数値で書かない＝並べ替えでテストが別のカードを見に行かないため）。 */
+    private val choiceIndex get() = IntroDeck.cards.indexOfFirst { it.choice != null }
 
     @Test
     fun `組A の 1 枚目は 扉そのもの（あとで／つづける）`() {
@@ -45,14 +64,51 @@ class IntroOverlayContentTest {
     }
 
     @Test
-    fun `組A の 2 枚目は もどる と 再訪導線の 1 行を持つ`() {
+    fun `組A の最後の枚は もどる と 再訪導線の 1 行を持つ`() {
         var back = 0
-        show(IntroFlow(IntroGroup.ABOUT, walkthrough = false, index = 1), onBack = { back++ })
+        // ⚠️ 位置（index = 1）で引かないこと。このテストが見たいのは「組A の**最後**＝再訪導線と
+        // ［はじめる］ を持つ枚」であって 2 枚目という位置ではない。2026-09-03 に向きの選択カードを
+        // 2 枚目へ差したとき、位置で引いていたせいで別のカードを検分して赤くなった。
+        show(
+            IntroFlow(IntroGroup.ABOUT, walkthrough = false, index = IntroDeck.lastIndexOf(IntroGroup.ABOUT)),
+            onBack = { back++ },
+        )
         rule.onNodeWithText("読みかたは、2 通り").assertIsDisplayed()
         rule.onNodeWithText("読みかたの説明は、読みはじめてから ［設定］＞［操作の説明］ で。").assertIsDisplayed()
         rule.onNodeWithText("もどる").performClick()
         assertEquals(1, back)
         rule.onNodeWithText("はじめる").assertIsDisplayed()
+    }
+
+    @Test
+    fun `向きの選択カードは 2 択チップを出し、押した側を通知する`() {
+        val picked = mutableListOf<Boolean>()
+        show(
+            IntroFlow(IntroGroup.ABOUT, walkthrough = false, index = choiceIndex),
+            orientationVertical = true,
+            onOrientationChange = { picked += it },
+        )
+        rule.onNodeWithText("どちらで読みますか").assertIsDisplayed()
+        rule.onNodeWithText("あとから ［表示設定］＞［本文の向き］ で変えられます。").assertIsDisplayed()
+        rule.onNodeWithText("横書き").performClick()
+        rule.onNodeWithText("縦書き").performClick()
+        // 描画層は state を持たない＝押されたことを**そのまま**上へ渡すだけ（確定は Controller の責務）。
+        assertEquals(listOf(false, true), picked)
+    }
+
+    @Test
+    fun `チップは単一選択として読み上げる（両方 on にできると誤解させない）`() {
+        show(IntroFlow(IntroGroup.ABOUT, walkthrough = false, index = choiceIndex), orientationVertical = true)
+        // 見えでは「チップが 2 つ並ぶ」以上のことが伝わらない＝選択状態は semantics 側でしか守れない。
+        rule.onNodeWithText("縦書き").assertIsSelected()
+        rule.onNodeWithText("横書き").assertIsNotSelected()
+    }
+
+    @Test
+    fun `選択カード以外にチップは出ない（列に選択が漏れ出していない）`() {
+        show(IntroFlow(IntroGroup.ABOUT, walkthrough = false, index = IntroDeck.firstIndexOf(IntroGroup.ABOUT)))
+        rule.onNodeWithText("縦書き").assertDoesNotExistCompat()
+        rule.onNodeWithText("横書き").assertDoesNotExistCompat()
     }
 
     @Test
@@ -77,7 +133,8 @@ class IntroOverlayContentTest {
 
     @Test
     fun `通しでは組の最後でも つぎへ が出る（列の最後だけが終端）`() {
-        show(IntroFlow(IntroGroup.ABOUT, walkthrough = true, index = 1))
+        // 同上＝「組の最後」という特徴で引く（通しではその枚が終端でなくなる、が見たいこと）。
+        show(IntroFlow(IntroGroup.ABOUT, walkthrough = true, index = IntroDeck.lastIndexOf(IntroGroup.ABOUT)))
         rule.onNodeWithText("つぎへ").assertIsDisplayed()
         rule.onNodeWithText("はじめる").assertDoesNotExistCompat()
     }
