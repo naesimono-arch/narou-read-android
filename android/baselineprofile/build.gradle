@@ -1,0 +1,76 @@
+// Baseline Profile の「生成側（producer）」モジュール。
+// なぜ :macrobenchmark に相乗りせず別モジュールにするか:
+//   :macrobenchmark は androidComponents の beforeVariants で benchmark 以外の variant を
+//   全て無効化しており（予算判定ベンチ専用の構成）、baselineprofile プラグインが要求する
+//   nonMinifiedRelease variant が生成できない。相乗りさせるにはその filter を緩める必要があり、
+//   既存ベンチ5本ぶんの variant が増殖して計測構成の前提（benchmark buildType 単独）が崩れる。
+//   producer を分ければ既存ベンチの構成を一切触らずに済む。
+plugins {
+    id 'com.android.test'
+    id 'org.jetbrains.kotlin.android'
+    id 'androidx.baselineprofile'
+}
+
+android {
+    namespace 'com.novelreader.baselineprofile'
+    compileSdk 36
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    defaultConfig {
+        // Baseline Profile の生成は AOT 情報を集めるため API 28+ の端末/AVD が要る
+        // （プラグイン側の要求。minSdk 26 の :app 本体とは別条件）。
+        minSdk 28
+        targetSdk 36
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+
+    targetProjectPath ':app'
+}
+
+dependencies {
+    implementation 'androidx.test.ext:junit:1.1.5'
+    implementation 'androidx.test.uiautomator:uiautomator:2.3.0'
+    // 版は :macrobenchmark と揃える（Android 16 実機でのトレース開始ハング回避＝同モジュールのコメント参照）
+    implementation 'androidx.benchmark:benchmark-macro-junit4:1.4.1'
+}
+
+// 生成を走らせる端末の指定。
+// ⚠️ useConnectedDevices = true は「接続中の**全端末**へ nonMinifiedRelease を撒く」意味になる。
+//    ANDROID_SERIAL を指定せずに :app:generateReleaseBaselineProfile を回すと、実蔵書 7 冊のある
+//    実機 PGEM10 にも撒かれる（別 applicationId なので蔵書自体は無傷だが、撒かれること自体が事故）。
+//    ⇒ 回すときは必ず ANDROID_SERIAL=<対象> を付ける。人手の作法に頼るのをやめて機械で止める作業は
+//      handover に登録済み（設定段階のガード／Managed Device 化のどちらかへ寄せる）。
+baselineProfile {
+    // 生成した profile を :app の src/<variant>/generated/baselineProfiles/ へ書き戻す
+    useConnectedDevices = true
+}
+
+// 計測対象の applicationId を instrumentation 引数 targetAppId としてテスト側へ渡す。
+//
+// ⚠️ これは baselineprofile プラグインが自動でやってくれると誤解しやすいが**やらない**（1.4.1 で実測＝
+// 入れずに generateReleaseBaselineProfile を回すと targetAppId が null で生成テストが落ちる）。
+//
+// ⚠️ そして値の出所に variant.testedApplicationId を使ってはいけない（2026-09-02 に実測で確認）。
+// producer モジュールはプラグインによって **self-instrumenting**（テストAPK単体で動く形）に設定されるため、
+// 「テスト対象パッケージ」はモジュール自身＝testedApplicationId も targetContext も
+// "com.novelreader.baselineprofile" を返す。これを targetAppId として渡すと macrobenchmark は
+// **テストプロセス自身を計測対象とみなして force-stop** し、instrumentation が実行 0.7 秒で死ぬ。
+// Gradle 側に出るのは "Process crashed." だけで Java 例外もログも残らない＝原因がまったく読めない。
+// 正しい出所は「実際にビルドされた対象APK のメタデータ」＝testedApks を BuiltArtifactsLoader で読む。
+// これは applicationIdSuffix 等の buildType 側の加工も反映した最終値になる。
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        def artifactsLoader = variant.artifacts.getBuiltArtifactsLoader()
+        variant.instrumentationRunnerArguments.put(
+            'targetAppId',
+            variant.testedApks.map { artifactsLoader.load(it)?.applicationId },
+        )
+    }
+}

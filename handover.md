@@ -61,11 +61,20 @@
   `docs/knowledge/toc-push-tail-not-reproduced-in-macrobench.md` が正本。
   計測の作法（アニメが走っていない状態を率で比較しない）＝`docs/knowledge/ranking-pager-jank-slow-ui-thread.md`。
 
-- **[perf] 縦書き本文の組版＝A+C+D+E と 8 は完了・残るは 9（Baseline Profile）＝本日別便が実施中**
+- **[安全・これは deferred ではない] Baseline Profile の生成が接続中の全端末へ撒かれうる**（2026-09-02 の配線便で判明・未対処）:
+  `android/baselineprofile/build.gradle` の `useConnectedDevices = true` は、**`ANDROID_SERIAL` を指定せずに
+  `:app:generateReleaseBaselineProfile` を回すと接続中の全端末**（実蔵書 7 冊のある実機 PGEM10 を含む）
+  **へ `nonMinifiedRelease` を撒く**。配線便は env で回避したが、人が忘れれば事故る。
+  ⚠️ 実蔵書は別 applicationId なので**無傷**だが、撒かれること自体が事故＝**人手の作法でなく機械で止める**。
+  直し方の候補＝①設定段階で `ANDROID_SERIAL` 未設定なら失敗させるガード ②Gradle Managed Device へ寄せて
+  接続端末を一切使わない（エミュイメージの取得が要る）。
+
+- **[perf] 縦書き本文の組版＝A+C+D+E と 8・9 は完了・残るは D の実機での効き幅の計測**
   （裁定と各項目の中身＝`.claude/plans/reading-render-perf-triage-2026-08-18.md`。
   **8＝Compose compiler metrics の取得は完了**＝知見は `docs/knowledge/compose-compiler-metrics-2026-09-02.md` が正本
   〔skippable は 390/390 で飽和・`kotlinx-collections-immutable` は外せない・実害と誤読された `ChapterPeek` は現行では stable〕。
-  **9＝Baseline Profile は別便が配線と生成を実施中＝結果待ち**。D は 2026-09-02 に
+  **9＝Baseline Profile も配線・生成・取り込みまで完了**〔生成 20,674 行・うち `Lcom/novelreader/` 2,375 行・
+  `assets/dexopt/baseline.prof` が 5,247→9,235 バイトへ増えることまで確認〕。D は 2026-09-02 に
   `(unitText, charClass, sizePx)` キー・4,096 LRU で実装済み＝**実機での効き幅は未計測**。
   ⚠️ 覆いの寿命は組版器1個＝章1つ。**プロセス常駐にしてはいけない**＝書体が delegate の属性でキーに無く、
   共有すると D が不採用にした「書体差で版面がずれる」を自作する）:

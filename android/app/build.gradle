@@ -17,6 +17,8 @@ plugins {
     // :app のみに適用する（未使用 import は全て :app 側。:macrobenchmark は実機計測専用の小モジュールで
     // 適用するにはルートの build.gradle を触る必要があり、本便の作業範囲外）。
     id 'org.jlleitschuh.gradle.ktlint'
+    // Baseline Profile の取り込み側（consumer）。生成側は :baselineprofile。
+    id 'androidx.baselineprofile'
 }
 
 // ktlint の設定。ルールの取捨はリポジトリ直下 .editorconfig が正本（ktlint 0.48+ では
@@ -382,6 +384,8 @@ dependencies {
     // 外すなら ChapterPeek 側を remember 化するのが先。数値と再現手順＝
     // docs/knowledge/compose-compiler-metrics-2026-09-02.md
     implementation 'org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.7'
+    // Baseline Profile の生成モジュールを consumer へ結線する
+    baselineProfile project(':baselineprofile')
 
     // PDF抽出 (PDFBox-Android / Tom Roush 版)。旧 Chaquopy(Python+pdfminer) から移植した唯一の抽出経路。
     // なぜ 2.0.x 系で固定: Android 版 PDFBox-Android は upstream apache-pdfbox 2.0.x をベースにしており、
