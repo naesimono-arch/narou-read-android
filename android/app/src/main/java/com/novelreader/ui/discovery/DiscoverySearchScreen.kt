@@ -68,6 +68,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.ui.theme.FontActionLabel
 import com.novelreader.ui.theme.FontButtonLabel
@@ -668,6 +669,13 @@ private fun SelectedKeywordsBar(
                     Text(
                         text = "すべて解除",
                         fontSize = FontChipLarge,
+                        // なぜ lineHeight を明示するか: 既定の LocalTextStyle（＝bodyLarge）は lineHeight=28.sp を
+                        // 持つため fontSize を落としても行箱が 28sp のまま残り、TextButton の器（既定 minHeight）が
+                        // その外周をなぞって選択バーの見出し行だけ背高になる。
+                        // 比は正本モック discovery-search-D.html の `.sel-bar-clear`（11.5px・line-height 未指定
+                        // ＝normal）から。ゴシック（--gothic）の normal は実測 1.6。em で持つ理由は行箱の比を
+                        // フォントトークン・fontScale の変化に追従させるため。
+                        lineHeight = 1.6.em,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Medium,
                     )
@@ -714,6 +722,12 @@ private fun SelectedKeywordChip(
         Text(
             text = label,
             fontSize = FontChipLarge,
+            // なぜ lineHeight を明示するか: 既定の LocalTextStyle（＝bodyLarge）は lineHeight=28.sp を持つため、
+            // fontSize を落としても行箱が 28sp のまま残り、外側の border＋padding（ピル）がその外周を
+            // なぞって縦に膨らむ（本棚K のフィルタチップと同根）。
+            // 比は正本モック discovery-search-D.html の `.sel-chip`（11.5px・line-height 未指定＝normal）から。
+            // ゴシック（--gothic）の normal は実測 1.6。em で持つ理由は上の「すべて解除」に同じ。
+            lineHeight = 1.6.em,
             color = MaterialTheme.colorScheme.primary
         )
         Icon(
@@ -919,7 +933,12 @@ fun FilterChipItem(
         selected = selected,
         onClick = onClick,
         enabled = enabled,
-        label = { Text(label, fontSize = FontChipLarge) },
+        // なぜ lineHeight を明示するか: 既定の LocalTextStyle（＝bodyLarge）は lineHeight=28.sp を持つため、
+        // fontSize を落としても行箱が 28sp のまま残り、FilterChip の器がラベルの行箱に合わせて
+        // 既定高（32dp）を超えて膨らむ（fontScale 2.0 では行箱だけで 56dp）。
+        // 比は正本モック discovery-search-D.html の `.schip`／`.rchip`（ともに 11.5px・line-height 未指定
+        // ＝normal）から。ゴシック（--gothic）の normal は実測 1.6。em で持つ理由は上の2件に同じ。
+        label = { Text(label, fontSize = FontChipLarge, lineHeight = 1.6.em) },
         modifier = modifier,
         shape = RoundedCornerShape(2.dp),
         colors = FilterChipDefaults.filterChipColors(

@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouOrder
@@ -500,6 +501,14 @@ internal fun DiscoveryResultContent(
                                 Text(
                                     text = countText,
                                     fontSize = FontLabel,
+                                    // なぜ lineHeight を明示するか: 既定の LocalTextStyle（＝Typography.bodyLarge）は
+                                    // lineHeight=28.sp を持つため、fontSize を 11sp へ落としても**行箱は 28sp のまま**
+                                    // 残り、件数行が正本より縦に膨らんで一覧を下へ押し出す（fontScale 2.0 で顕著）。
+                                    // 比は正本モック discovery-home-D.html の `.cnt`（11px・line-height 未指定＝normal）
+                                    // から。ゴシック（--gothic）の normal は実測 1.6 で、`.cnt` も同じフォント指定
+                                    // （body の font-family:var(--gothic) を継承）＝同じ比が当たる。
+                                    // sp 直値でなく em で持つのは、フォントトークンや fontScale が動いても比を保つため。
+                                    lineHeight = 1.6.em,
                                     letterSpacing = 1.sp,
                                     // 件数は結果の規模を伝える＝意味を運ぶ文字なので AA(4.5:1) が要る。
                                     // 青磁 secondary #9CB3A8 は素地 2.14:1 で未達＝ADR 0014-D の濃青磁へ寄せる。
@@ -583,6 +592,12 @@ private fun PagingFooter(
         PagingState.ApiLimitReached -> Text(
             text = "これ以上は取得できません（APIの取得上限に達しました）",
             fontSize = FontLabel,
+            // なぜ lineHeight を明示するか（機序は上の件数行と同じ＝bodyLarge の 28sp 行箱を継承）:
+            // この文言は fontScale 2.0 で2行以上に折り返すため、行箱の余りがそのまま行間として
+            // 二重に効き、フッタだけが不自然に間延びする。
+            // ⚠️ この文言はモックに対応セレクタが無い Compose 固有の一文なので、比はゴシック本文の
+            // 既定＝正本 body の `font-family:var(--gothic)`／line-height 未指定＝normal（実測 1.6）を採る。
+            lineHeight = 1.6.em,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .fillMaxWidth()

@@ -99,11 +99,14 @@
 > 棚卸しの一次情報＝`.claude/plans/mock-drift-inventory-2026-07-16.md`（正本モック全数の未反映リスト・優先順位）。
 > モック運用の**恒久ルール5つ**（逆同期・`mockview` 必須・下敷き正本・プレースホルダの色域・二段検分）は `/visual-language` skill が正本。
 
-- **[`lineHeight` 欠落の全数掃討（残り 424 箇所）]**（本棚K・discovery のランキング行/ジャンルチップは是正済み）:
+- **[`lineHeight` 欠落の全数掃討（残り 419 箇所）]**（本棚K・discovery のランキング行/ジャンルチップ／件数行・APIフッタ・検索チップ3件は是正済み）:
   `Text(fontSize = …)` が bodyLarge の `lineHeight = 28.sp` を行箱として継承する形。**全部が不具合ではない**＝
   **器（ピル・バッジ・行）が行箱の外周をなぞる要素だけが実害**なのでチップ/タグ/メタ行から潰す。直し方と機序＝
   `docs/knowledge/compose-lineheight-is-a-floor-not-css-line-height.md`（⚠️ 下限なので自然行高より小さい比は効かない）。
-  正本の比は `em` で明示（ゴシックの `line-height:normal` は実測 1.6）。次の候補＝`DiscoveryResultScreen.kt:500,583`（正本 `.cd`）。
+  正本の比は `em` で明示（ゴシックの `line-height:normal` は実測 1.6）。次の候補＝**結果一覧の条件チップ本体**
+  `DiscoveryResultScreen.kt` の `Text(` 331行（クリック可チップ）・424行（静的チップ）＝これが正本 `.cd`（10.5px・normal）。
+  ⚠️ 旧記載「次の候補＝`:500,583`（正本 `.cd`）」は**セレクタの取り違え**——その2行は件数行（正本 `.cnt` 11px）と
+  API取得上限フッタ（モックに対応セレクタ無し）で、`.cd` のピルではない。行番号側を正として 2026-09-02 に是正済み。
   ⚠️ **`NovelDetailScreen.kt` は別体が golden を調査中＝手を入れない**。
 
 - **[ストア用 `phone-2-shelf.png` の撮り直し]**: 本棚K のチップ是正で見た目が変わったため、ストア画像が旧版のまま（エミュ撮影便で回収）。
