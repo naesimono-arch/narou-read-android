@@ -170,6 +170,8 @@ def _actual_hooks():
 FROZEN_HOOKS = {
     # 2026-08-17 ユーザー裁定で凍結。削減 2.6% に対し未文書化 API 依存＋監視パイプライン改変で割に合わない。
     "truncate_bash_output.py": ("docs/backlog-frozen.md", "解凍条件"),
+    # 2026-09-01 ユーザー裁定で凍結（201k 到達の通告を受けて）。技術的な減点ではないので裁定でのみ戻す。
+    "check_context_budget.py": ("docs/backlog-frozen.md", "解凍条件"),
 }
 
 

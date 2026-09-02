@@ -297,6 +297,25 @@
   ⚠️ 戻す前に **`updatedToolOutput` がまだ生きているか**をバイナリの文字列で確認し、
   **閾値は `tools/measure_bash_output_size.py` を回して決め直す**こと。テストは単体でいつでも回る。
 
+## コンテキスト予算の Stop 通告フック（2026-09-01 凍結・ユーザー裁定）
+
+- **[何を作ったか]** Stop で transcript 末尾の assistant ターンのコンテキスト長
+  （input + cache_read + cache_creation ＝ statusLine の 🧠 と同じ量）を読み、**175k 超過なら
+  1 セッション 1 回だけ**「引き継いで新セッションへ移れ」と通告する `check_context_budget.py`（＋テスト 8 件）。
+  再通告を防ぐ状態は**ファイルに持たず** transcript のセンチネルで判定する
+  （フックのファイル書込は sandbox 化される＝auto-memory `hook-implementation-facts` §4）。
+- **[なぜ凍結したか]** **ユーザー裁定**（201k 到達の通告を受けて「`settings.json` で恒久的に無効化」）。
+  ⚠️ **裁定の理由は記録されていない**——ここに推測を書かない。**否定されたのは「自動通告」であって、
+  閾値の算出でも検知の実装でもない**（175k の根拠＝`docs/knowledge/context-cost-optimization-levers-measured.md`
+  は今も生きており、`session-relay` skill が切りどきを判断する基準として引き続き正本）。
+- **解凍条件＝ユーザーが自動通告を再び求めたとき**。技術的な減点で凍結したのではないので
+  **Claude 側の判断だけでは戻さない**。戻す際は閾値を上記 knowledge で測り直してから決めること。
+- **[復元方法＝配線を戻すだけ]** コードは**消していない**（`.claude/hooks/check_context_budget.py` と
+  `test_check_context_budget.py` はそのまま在る＝`.claude/settings.json` に登録が無いので**実行されないだけ**）。
+  解凍は **`hooks.Stop` の `hooks` 配列へ要素を1つ足すだけ**で、**その JSON 現物は
+  `check_context_budget.py` 冒頭の凍結注記が正本**（コード変更は不要）。
+  ⚠️ 併せて `session-relay` skill の frontmatter description と「通告は来ない」節も戻すこと。
+
 ## ハーメルンの規約まとめ裁定（2026-08-20 に `awaiting-human.md` §3-2 から退避）
 
 > **退避の理由＝人間待ちではなく「そもそも決めなくてよい」もの**。台帳自身が「放置しても何も困らない」と書いていた

@@ -161,8 +161,3 @@
 > レビュー中・実装中に出た宿題や着想で、まだ上の各節に整理していないものをここへ。育ったら該当節へ移す。
 > **実機で見れば決まるものは `awaiting-human.md` §1 のツアーへ移す**——ここに溜めても誰も見に来ないため。
 
-- **[`check_context_budget.py` Stop hook を `settings.json` で恒久的に無効化する]**（2026-09-01 ユーザー裁定・201k到達の通告を受けて）:
-  着手前に CLAUDE.md 規約どおり事前調査を経ること＝`task_diary.md` #26/#28・`docs/decisions/0004`・`0008`・
-  auto-memory `hook-implementation-facts`。**撤去は「参照する側」まで含めて1セット**（撤去するフック名で
-  リポジトリ全体を grep し、他フックのロジック・コメント・`.gitignore`・skill の記述に残骸が無いことを確認）。
-

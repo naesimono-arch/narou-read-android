@@ -1,5 +1,32 @@
 #!/usr/bin/env python3
-"""Stop: コンテキスト長が閾値を超えたら、引き継いで新セッションへ移るよう通告する。
+r"""⚠️ 凍結中（2026-09-01 ユーザー裁定）＝**このフックは配線されていない**。
+
+`.claude/settings.json` に登録が無いので、ここに在るだけで**一度も実行されない**
+（テストだけは `python .claude/hooks/test_check_context_budget.py` で単体で回る）。
+
+なぜ凍結したか: **ユーザー裁定**（201k 到達の通告を受けて「settings.json で恒久的に無効化」）。
+  ⚠️ **裁定の理由は記録されていない**＝ここに推測を書かない。判っているのは
+  **否定されたのが「自動通告」であって閾値の算出でも検知の実装でもない**ことだけで、
+  175k の根拠（下の設計メモ）は `session-relay` skill の判断基準として今も生きている。
+  凍結の記録＝`docs/backlog-frozen.md`「コンテキスト予算の Stop 通告フック」。
+
+解凍条件＝**ユーザーが自動通告を再び求めたとき**。技術的な減点で凍結したのではないので
+  Claude 側の判断だけでは戻さない。戻すなら閾値は
+  `docs/knowledge/context-cost-optimization-levers-measured.md` を測り直してから決めること。
+
+解凍手順: `.claude/settings.json` の `hooks.Stop` にある唯一のブロックの `hooks` 配列へ
+  **次の要素を足すだけ**（コード側の変更は不要）。凍結前は `stop_guard_fabrication.py` の直後に置いていた。
+  併せて `session-relay` skill の frontmatter description と「通告は来ない」節も戻すこと
+  （凍結時に書き換えてある＝戻し忘れると skill が嘘を言う）。
+
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR}/.claude/hooks/check_context_budget.py\""
+          }
+
+==== 以下は凍結前の設計メモ（当時のまま） ====
+
+Stop: コンテキスト長が閾値を超えたら、引き継いで新セッションへ移るよう通告する。
 
 なぜ「検知だけ」で実行までしないか:
   引き継ぎ文書の作成は「何が終わって何が途中か・次の一手は何か」の要約＝**判断**であり、
