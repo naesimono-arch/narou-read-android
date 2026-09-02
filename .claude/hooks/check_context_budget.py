@@ -57,6 +57,13 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="repla
 
 # 通告済みマーカー。transcript に残るので、これを見て 1 セッション 1 回に絞る。
 SENTINEL = "CTXBUDGET_NOTICE_V1"
+
+# ⚠️ 凍結中（2026-09-01 ユーザー裁定）。settings.json の配線は既に外してあるが、
+# **配線を外しても、外す前から走っているセッションには反映されない**（起動時スナップショット＝
+# memory `hook-implementation-facts` §3・2026-09-02 実測）。実際 09-02 のセッションで通告が再発した。
+# 本体の変更は即時反映されるので、旧配線を掴んだセッションを黙らせる手はここしかない。
+# 解凍するときは settings.json へ配線を戻したうえで、この定数を False にする。
+FROZEN = True
 THRESHOLD = 175_000
 
 
@@ -176,6 +183,8 @@ def main():
 
 
 if __name__ == "__main__":
+    if FROZEN:
+        sys.exit(0)
     try:
         sys.exit(main())
     except Exception as e:      # 計測系フックはユーザーを絶対に止めない（fail-open）
