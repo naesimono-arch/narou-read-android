@@ -34,8 +34,11 @@ import java.io.File
  * - 段落結合 vs 原文行保持（S3 の単位差）・字種写像 S2b（波ダッシュ等。現行は [PdfExtractor] で意図的に正規化）は
  *   **方針差で裁定未了**＝比較軸から外してある（flow 連結・空白除去で畳む）。
  * - ルビの分割粒度（S4-2）も裁定未了のため、両側で隣接 run を畳んでから比較する。
- * - 空行復元（S3 本体）は現状ここで見張れない。全滅する N0833HI が `.gitignore` 済みで CI から参照できないため
- *   （対象 PDF の追跡可否は監督裁定待ち）。
+ * - 空行復元（S3 本体）は**ページ抜き fixture** で見張る（2026-09-02 追加）。全滅していた N0833HI は
+ *   `.gitignore` 済みで CI から参照できないため、1 話ぶん（11 ページ）だけを抜いた
+ *   `pdf_oracle/N0833HI_ep57.pdf` を fixture 化した。抜いたことで壊れていないことは
+ *   「ページ抜き版の抽出＝全文版の当該話の抽出（段落 228 本が完全一致）」を機械で確認して担保する
+ *   （生成と検証＝`tools/build_s3_fixture.sh`）。
  * - S4a の親範囲**境界1文字**の要不要判定（2026-09-02 追加）は幾何だけからは一意に決まらないことを
  *   実測で確認済み＝既知の穴として `N6169DZ.s4a_known_gaps.json` に凍結し、感度の表として監視する
  *   （詳細は [n6169dz_s4a_rubyBaseMatchesOracle] の KDoc）。
@@ -111,7 +114,7 @@ class WebAnchoredOracleTest {
         val e = extracted("N6169DZ")
         val anchors = oracle("N6169DZ").getJSONObject("s4a_ruby_base_anchors")
         val knownGaps = JSONObject(
-            File(repoRoot(), "android/app/src/test/resources/pdf_oracle/N6169DZ.s4a_known_gaps.json").readText(),
+            File(repoRoot(), "$ORACLE_DIR/N6169DZ.s4a_known_gaps.json").readText(),
         )
         val gapTable = knownGaps.getJSONObject("gaps")
         val expectedUnpaired = knownGaps.getInt("unpaired_count")
@@ -177,6 +180,85 @@ class WebAnchoredOracleTest {
         )
     }
 
+    // ---- S3: 空行復元 ----
+
+    /**
+     * 空行の位置を**本文の文字オフセット**で突き合わせる。
+     *
+     * なぜ段落番号でなく文字オフセットか: 現行実装は行を段落へ結合し、第二実装は原文の行を保つ
+     * （段落結合の方針差＝裁定未了）。単位が違うので段落番号では比較できないが、文字は両者で保存されて
+     * いる（本テストが字数一致も同時に見張る）ので、文字オフセットなら実装非依存に位置まで比較できる。
+     *
+     * ## 既知の穴（感度の表）: ページ境界の空行は復元できない
+     * 列間 X の比較は[TextProcessor.ParagraphStreamer]でページ内に閉じており、ページ末尾と次ページ先頭の
+     * 間隔は測れない＝そこに在った空行は落ちる。この fixture では 115 中 5 件が該当し、全文版 66 話でも
+     * 欠落 654 件の**全件がページ境界**・誤検出と位置ずれは 0 件（実測）。真因が特定済みで修正は
+     * 本テスト（検証）の役目ではないため、`N0833HI_ep57.s3_known_gaps.json` に凍結して監視する。
+     * この表と食い違ったら（塞がった＝改善／新たに開いた＝退行）assert が落ちて表の更新を強制する。
+     */
+    @Test
+    fun n0833hi_s3_blankLinesRestored() {
+        val o = oracle(S3_FIXTURE)
+        val gaps = JSONObject(
+            File(repoRoot(), "$ORACLE_DIR/$S3_FIXTURE.s3_known_gaps.json").readText(),
+        )
+        val (chars, ours) = s3Extract()
+        // 字が落ちていると offset がずれて空行の照合が無意味になる＝先に字数で土俵を確かめる。
+        assertEquals(
+            "S3 本文字数がオラクルと不一致＝空行の位置比較が成立しない",
+            o.getInt("s3_flow_char_count"),
+            chars,
+        )
+        val expected = runsOf(o, "s3_blank_runs")
+        val spurious = ours.filterNot { it in expected.toSet() }
+        val missing = expected.filterNot { it in ours.toSet() }
+        assertTrue(
+            "S3 オラクルに無い空行が ${spurious.size} 件（位置ずれか過剰挿入）＝$spurious",
+            spurious.isEmpty(),
+        )
+        assertEquals(
+            "S3 欠落した空行が既知表と不一致＝真因（ページ境界で列間 X を測れない）側の変化。" +
+                "tools/build_s3_fixture.sh で再生成し内容を確認のうえ更新すること",
+            runsOf(gaps, "missing_blank_runs"),
+            missing,
+        )
+        println(
+            "  [既知の穴] S3 空行 オラクル=${expected.sumOf { it.second }} " +
+                "実測=${ours.sumOf { it.second }} 欠落=${missing.size}（全件ページ境界・真因確定済み）",
+        )
+    }
+
+    /** fixture PDF から (本文字数, 空行 run の [オフセット, 連続数]) を作る。空段落を落とさない点が [extracted] と違う。 */
+    private fun s3Extract(): Pair<Int, List<Pair<Int, Int>>> {
+        val pdf = File(repoRoot(), "$ORACLE_DIR/$S3_FIXTURE.pdf")
+        assertTrue("S3 fixture PDF が無い: ${pdf.absolutePath}", pdf.isFile)
+        return PDDocument.load(pdf).use { doc ->
+            var n = 0
+            var run = 0
+            val runs = mutableListOf<Pair<Int, Int>>()
+            for (p in PdfExtractor.runFinalEngine(doc)) {
+                // 見出しは第二実装側でメタデータ扱い＝本文 flow に載らないので、こちらも外して土俵を揃える。
+                if (p.startsWith("【題名】")) continue
+                if (p.isEmpty()) {
+                    run++
+                    continue
+                }
+                if (run > 0) {
+                    runs.add(n to run)
+                    run = 0
+                }
+                n += RUBY.replace(p) { it.groupValues[1] }.length
+            }
+            if (run > 0) runs.add(n to run)
+            n to runs
+        }
+    }
+
+    private fun runsOf(json: JSONObject, key: String): List<Pair<Int, Int>> {
+        val a = json.getJSONArray(key)
+        return (0 until a.length()).map { a.getJSONArray(it).let { e -> e.getInt(0) to e.getInt(1) } }
+    }
+
     // ---- S7: 半角アポストロフィの位置移動 ----
 
     /**
@@ -207,7 +289,7 @@ class WebAnchoredOracleTest {
     private data class Extracted(val flow: String, val runs: List<Pair<String, String>>)
 
     private fun oracle(ncode: String): JSONObject {
-        val f = File(repoRoot(), "android/app/src/test/resources/pdf_oracle/$ncode.oracle.json")
+        val f = File(repoRoot(), "$ORACLE_DIR/$ncode.oracle.json")
         assertTrue("オラクル fixture が無い: ${f.absolutePath}", f.isFile)
         return JSONObject(f.readText())
     }
@@ -256,6 +338,11 @@ class WebAnchoredOracleTest {
     }
 
     companion object {
+        private const val ORACLE_DIR = "android/app/src/test/resources/pdf_oracle"
+
+        /** S3 だけ全文版が `.gitignore` 済みのため、1 話ぶんを抜いたページ抜き fixture を使う（KDoc 参照）。 */
+        private const val S3_FIXTURE = "N0833HI_ep57"
+
         /** [ChapterProcessor] の RUBY_PATTERN と同一（private のため複製。変えるときは両方）。 */
         private val RUBY = Regex("""\|([^《]+)《([^》]+)》""")
         private val BOUTEN_MARKS = setOf('・', '﹅', '﹆', '●', '○')
