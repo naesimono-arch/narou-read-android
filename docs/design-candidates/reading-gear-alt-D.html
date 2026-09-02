@@ -64,7 +64,12 @@
   .taparea{position:absolute;inset:48px 0 64px;z-index:2;display:grid;place-items:center;pointer-events:none}
   .taphint{font-family:var(--gothic);font-size:11px;color:var(--soft);letter-spacing:.08em;
     border:1px dashed var(--line);border-radius:20px;padding:8px 16px;background:rgba(251,250,248,.7)}
-  .hint-bottom{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);z-index:6;font-family:var(--gothic);
+  /* 最小高 48px＝Material の最小タップ標的（2026-09-03 裁定・案A と同便）。
+     実装（NativeReadingScreen.kt）はこの文言を丸ピルの器に載せて描いており、器の根拠が実装だけに
+     在った状態の是正としてここへ書き戻す。字面 11px × 1.6 は 33.6px にしかならず、字面をいくら
+     動かしても 48 には届かない＝**器側**に持たせるほかない（display:flex＋align-items:center は
+     最小高の中で字面を中央に置くため）。地色・角丸はスキンごとに別値なので最小高だけを正本化する。 */
+  .hint-bottom{position:absolute;left:50%;bottom:24px;display:flex;align-items:center;min-height:48px;transform:translateX(-50%);z-index:6;font-family:var(--gothic);
     font-size:11px;color:var(--soft);letter-spacing:.08em;opacity:.85}
 
   /* ボトムバー（1段：4分割 案A） */

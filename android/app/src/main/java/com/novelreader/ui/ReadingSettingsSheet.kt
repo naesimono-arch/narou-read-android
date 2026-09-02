@@ -56,7 +56,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import com.novelreader.ui.skins.j.PortalThemeDoorChips
+import com.novelreader.ui.skins.j.PortalThemeChoiceRows
 import com.novelreader.ui.skins.m.SeizuSheetBottom
 import com.novelreader.ui.skins.m.SeizuSheetBrush
 import com.novelreader.ui.skins.m.SeizuSliderThumb
@@ -220,8 +220,9 @@ internal fun ReadingSettingsSheetContent(
     val isSeizu = LocalSkin.current == Skin.SEIZU_M
     val isCartridge = LocalSkin.current == Skin.CARTRIDGE_P
     // スキンJ（ポータル）＝「扉の前の身支度」。面/見出し/つまみは D 既定のまま（シート面 colors.background・明朝見出し・
-    // 金つまみ＝J の colors.accent が金）で自然に J の署名になる。J 固有はテーマ3択を「扉の向こうの光」の
-    // 小プレビュー（扉プレビューチップ）にする点のみ（settings-J）。
+    // 金つまみ＝J の colors.accent が金）で自然に J の署名になる。J 固有はテーマ択を正本 settings-J の
+    // 行方式（.group/.row/.rl/.rv・選択は金1系統）で描く点のみ
+    //（2026-09-03 に扉プレビュー式チップを廃止＝正本にセレクタが無い実装独自意匠だったため）。
     val isPortal = LocalSkin.current == Skin.PORTAL_J
 
     // ── 案3「一行残し」ライブプレビュー（2026-07-29 裁定・モック VARIANT 3）──
@@ -347,15 +348,15 @@ internal fun ReadingSettingsSheetContent(
                 selectedLabelColor = colors.background,
             )
             if (skinHasThemeChoice && isPortal) {
-                // J＝テーマ3択を「扉の向こうの光」を選ぶ小プレビューにする（settings-J .chips）。ロジックは共有
-                // （supportedThemes 駆動の3択＋システムに従う）で、意匠だけ扉プレビュー化する。
+                // J＝テーマ択を正本 settings-J の行方式（.group/.row/.rl/.rv）で描く。ロジックは共有
+                // （supportedThemes 駆動の3択＋システムに従う）で、意匠だけ J の行＝金1系統の強調にする。
                 Spacer(Modifier.height(Spacing.S16))
                 Text(
                     text = "テーマ",
                     style = MaterialTheme.typography.labelMedium,
                 )
                 Spacer(Modifier.height(Spacing.S8))
-                PortalThemeDoorChips(
+                PortalThemeChoiceRows(
                     currentTheme = readingTheme,
                     followingSystem = followingSystem,
                     onThemeChange = onThemeChange,

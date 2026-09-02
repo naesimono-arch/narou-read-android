@@ -7,7 +7,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
@@ -65,7 +65,6 @@ import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.rememberReduceMotion
-import com.novelreader.ui.theme.skins.SkinJ
 
 // ============================================================
 // スキンJ「ポータル」の読書クローム部品＋設定シート部品（正本 reading-J.html / settings-J.html・
@@ -400,25 +399,31 @@ fun NextDoorEdgeGlowJ(atChapterEnd: Boolean, colors: ReadingColors, modifier: Mo
 // ============================================================
 // 表示設定シート（settings-J）の J 部品＝「扉の前の身支度」。
 // シートのロジック（テーマ択・スライダー・永続化）と面/つまみは共有（D 既定＝シート面 colors.background・
-// 明朝見出し・金つまみ＝J の colors.accent が金のため既定のままで J の署名になる）。J 固有はテーマ3択のみ:
-// 各チップを「扉の向こうにどの光が差すか」の小プレビュー（そのテーマ面＋明朝「あ」）にし、選択＝金の縁で灯す。
+// 明朝見出し・金つまみ＝J の colors.accent が金のため既定のままで J の署名になる）。J 固有はテーマ択のみ。
+//
+// 2026-09-03 裁定（lineHeight 掃討の残件②）: テーマ択は**正本 settings-J が既に持つ行方式**
+//（.group/.row/.rt/.rl/.rv）へ寄せ、扉プレビュー式チップ（.chips/.prev/.cl）は廃した。
+// なぜ: 扉チップは**正本にセレクタが1つも無い**実装独自の意匠で、行送りを「正本の何と突き合わせるか」が
+// 決められない状態だった（＝掃討がここで止まっていた理由そのもの）。正本に無い意匠へ正本を後付けするのでなく、
+// 正本が既に持つ語彙へ実装を戻す。これで .rl/.rv の比（line-height 未指定＝normal・ゴシック実測 1.6）が
+// そのまま入る。失うもの＝「扉の向こうの光」を色で予告する小プレビュー。替わりに金1系統の強調
+//（settings-J の署名）と行の並びで選択を語る。
 //
 // settings-J の以下はモックにあって Portal val に無い（theme/ 編集禁止＝追加せず TODO・報告）:
 //   ・--sheet #141C15（身支度の場のシート面。暫定=colors.background で読書テーマ面に追従＝モック caption「追従」に忠実）
-//   ・--sheet-line rgba(233,240,228,.09)（チップ境界。暫定=colors.divider＝役割相当の theme ヘアライン）
-//   ・扉プレビューの大気 .prev.*::before（rgba(214,196,120,.16)等＝reading amb の .16/.16/.2 で alpha 相違＝別値。
-//     近似せず省略＝プレビューは「テーマ面＋明朝あ＋金縁」で扉の光を伝える。大気の重ねは token 補充後の後詰め）。
+//   ・--card #16211A（.group の面。暫定＝面を敷かずヘアライン枠だけで囲う＝近似で確定させない）
+//   ・--sheet-line rgba(233,240,228,.09)（行の境界。暫定=colors.divider＝役割相当の theme ヘアライン）
 // ============================================================
 
 /**
- * テーマ3択＝「扉の向こうの光」を選ぶ小プレビュー（settings-J .chips）。M/P と違い FilterChip を使わず、
- * 各チップにそのテーマ面（地色＋明朝「あ」）を灯し、選択＝金の縁（--gold）で示す。
- * 「システムに従う」（D 機能＝OS 明暗への自動追従。モック省略機能を J 意匠へ移植）を3扉の下に金の選択で併置する。
+ * テーマ択（settings-J の .group/.row/.rt/.rl/.rv 行方式）。1行＝1つの宣言で、選択は金（--gold）1系統で示す。
+ * 「システムに従う」（D 機能＝OS 明暗への自動追従。モック省略機能を J へ移植）も同じ行として最後に並べる。
+
  *
- * @param sheetColors シート面＝現在の読書テーマ colors（ラベル文字色・非選択境界に使う）。
+ * @param sheetColors シート面＝現在の読書テーマ colors（行の文字色・境界に使う）。
  */
 @Composable
-fun PortalThemeDoorChips(
+fun PortalThemeChoiceRows(
     currentTheme: ReadingTheme,
     followingSystem: Boolean,
     onThemeChange: (ReadingTheme) -> Unit,
@@ -426,71 +431,54 @@ fun PortalThemeDoorChips(
     sheetColors: ReadingColors,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.S12)) { // .chips gap 12px
-            // 並びはモック順（ライト・セピア・ダーク）。
-            listOf(ReadingTheme.LIGHT, ReadingTheme.SEPIA, ReadingTheme.DARK).forEach { theme ->
-                // 扉プレビューの地色/文字色は SkinJ.reading(theme)＝その扉の向こうの読書面（正本値）。
-                val prev = SkinJ.reading(theme)
-                val selected = !followingSystem && currentTheme == theme
-                val label = when (theme) {
-                    ReadingTheme.LIGHT -> "ライト"
-                    ReadingTheme.SEPIA -> "セピア"
-                    ReadingTheme.DARK -> "ダーク"
-                }
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(14.dp)) // .chip border-radius 14px
-                        // 選択＝金の縁（.chip.on border-color --gold）。非選択＝theme ヘアライン（--sheet-line 相当・TODO 上述）。
-                        .border(
-                            width = if (selected) 2.dp else 1.dp,
-                            color = if (selected) sheetColors.accent else sheetColors.divider,
-                            shape = RoundedCornerShape(14.dp),
-                        )
-                        .clickable { onThemeChange(theme) }
-                        .padding(Spacing.S8),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    // 扉プレビュー（.prev＝そのテーマ面＋明朝「あ」）。大気の重ねは token 補充後の後詰め（上述 TODO）。
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp)               // .prev height 52px
-                            .clip(RoundedCornerShape(10.dp)) // .prev border-radius 10px
-                            .background(prev.background)  // その扉の向こうの地色
-                            .border(1.dp, prev.divider, RoundedCornerShape(10.dp)), // 明地の識別（light-on-light の輪郭）
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = "あ",
-                            fontFamily = MinchoFamily,    // .prev font-family --mincho
-                            fontSize = 22.sp,             // .prev 22px
-                            color = prev.text,            // その扉の向こうの本文色
-                        )
-                    }
-                    Spacer(Modifier.height(Spacing.S8))   // .chip gap 9px → S8
+    // 並びは既存の宣言順（ライト・セピア・ダーク → 追従）を保つ。追従は「特定の面を選ぶ」でなく
+    // 「宣言を消す」行為なので3つの面の後ろに置く（旧・扉チップ版と同じ意味づけ）。
+    val entries: List<Pair<ReadingTheme?, String>> = listOf(
+        ReadingTheme.LIGHT to "ライト",
+        ReadingTheme.SEPIA to "セピア",
+        ReadingTheme.DARK to "ダーク",
+        null to "システムに従う",
+    )
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))                                // .group border-radius 14px
+            .border(1.dp, sheetColors.divider, RoundedCornerShape(14.dp)),  // .group border 1px var(--line)
+    ) {
+        entries.forEachIndexed { index, (theme, label) ->
+            val selected = if (theme == null) followingSystem else !followingSystem && currentTheme == theme
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { if (theme == null) onFollowSystem() else onThemeChange(theme) }
+                    .padding(horizontal = Spacing.S16, vertical = Spacing.S16), // .row padding 15px 16px → 離散最近傍
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = label,
+                    fontSize = 15.sp,                     // .rl 15px（ゴシック＝既定サンセリフ）
+                    // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承して行が膨れる。
+                    // 正本 .rl は line-height 未指定＝normal（ゴシック実測 1.6）＝15 × 1.6。
+                    lineHeight = 24.sp,
+                    // .rl は --ink。選択行だけ金（--gold＝J の唯一の強調系統・.rv.gold と同じ役）。
+                    color = if (selected) sheetColors.accent else sheetColors.text,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier.weight(1f),       // .rt{flex:1;min-width:0}
+                )
+                if (selected) {
                     Text(
-                        text = label,
-                        fontSize = 12.5.sp,               // .cl 12.5px（ゴシック）
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                        color = if (selected) sheetColors.accent else sheetColors.text, // .chip.on .cl=--gold
+                        // 行の右端＝正本の値の座（.rr > .rv）。色だけで選択を語ると色覚差で読めないので語でも示す。
+                        text = "選択中",
+                        fontSize = 13.sp,                 // .rv 13px
+                        lineHeight = 20.8.sp,             // .rv も line-height 未指定＝normal ＝13 × 1.6
+                        color = sheetColors.accent,       // .rv.gold（値の強調＝金）
                     )
                 }
             }
+            // .row{border-bottom:1px solid var(--line)}／.row:last-child{border-bottom:none}
+            if (index != entries.lastIndex) {
+                HorizontalDivider(thickness = 1.dp, color = sheetColors.divider)
+            }
         }
-        // 「システムに従う」（D 機能の J 意匠移植）。3扉の下に金の選択で併置＝OS 明暗への自動追従へ戻す入口。
-        // なぜ扉にしないか: 追従は特定テーマ面を選ぶ行為でなく「宣言を消す」ため、扉プレビューが無い（扉の光が定まらない）。
-        Spacer(Modifier.height(Spacing.S12))
-        Text(
-            text = "システムに従う",
-            fontSize = 12.5.sp,
-            fontWeight = if (followingSystem) FontWeight.Bold else FontWeight.Normal,
-            color = if (followingSystem) sheetColors.accent else sheetColors.textSecondary,
-            modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
-                .clickable { onFollowSystem() }
-                .padding(horizontal = Spacing.S12, vertical = Spacing.S8),
-        )
     }
 }

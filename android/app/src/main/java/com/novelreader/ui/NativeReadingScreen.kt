@@ -23,8 +23,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -109,9 +111,10 @@ import com.novelreader.parser.ChapterHtmlParser
 import com.novelreader.perf.TypesetWorkProbe
 import com.novelreader.typeset.ParagraphPosition
 import com.novelreader.typeset.ReadingPositionMapper
+import com.novelreader.ui.theme.GothicFamily
 import com.novelreader.ui.theme.MinchoFamily
 import com.novelreader.ui.theme.FontSectionTitle
-import com.novelreader.ui.theme.FontSubTitle
+import com.novelreader.ui.theme.FontLabel
 import com.novelreader.ui.theme.MotionDurationCrossfade
 import com.novelreader.ui.theme.MotionDurationDismiss
 import com.novelreader.ui.theme.MotionDurationNavTransition
@@ -1494,26 +1497,39 @@ internal fun ChapterScreenContent(
             exit = fadeOut(tween(MotionDurationCrossfade)),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = Insets.ChromeHintBottom),
+                // 下端＝正本 reading-D `.hint` の bottom:26px を離散スケール最近傍の S24 で写す（26→24）。
+                // なぜ旧 Insets.ChromeHintBottom(96dp) をやめたか: あの値は「下端バー(80dp)の上へ逃がす」
+                // クリアランスだが、このヒントが出るのは**没入中＝下端バーが画面外へ退避しているとき**だけで、
+                // 避ける相手が居ない＝前提そのものが成り立っていなかった（2026-09-03 裁定「下端を正本へ」）。
+                // 前提ごと消えた値なので Insets からトークンごと削除した（他に使い道が無い＝Spacing.kt 参照）。
+                .padding(bottom = Spacing.S24),
         ) {
             Box(
                 modifier = Modifier
+                    // 最小高 48dp＝Material の最小タップ標的（2026-09-03 裁定・正本6ファイルへ追記済み）。
+                    // 復帰ヒント自体は純表示だが、3ピルは「同型の器」で語られる一族なので器の寸法規則を揃える。
+                    .heightIn(min = 48.dp)
                     // 半透明のナビ背景色で本文に沈める丸ピル（色は必ずテーマトークン経由）
                     .clip(RoundedCornerShape(50))
                     .background(colors.navBackground.copy(alpha = 0.92f))
                     .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
+                contentAlignment = Alignment.Center, // 48dp の器の中で字面を中央に置く
             ) {
                 Text(
                     // 実タップ領域は本文全面（中央に限らない）ため文言も全面に一致させる（gesture 指摘）。
                     text = "画面をタップでメニュー",
-                    color = colors.topBarIcon,
-                    fontFamily = MinchoFamily,
-                    fontSize = FontSubTitle,
+                    // 正本 reading-D `.hint` は --soft（＝textSecondary）。3ピルのうち純表示のこれだけが
+                    // --soft で、タップできる2つは --ink＝正本自身が2色を使い分けている（2026-09-03 裁定）。
+                    color = colors.textSecondary,
+                    // 案A（2026-09-03 裁定・比較モック reading-pill-size-face-compare-D.html）＝正本へ寄せる。
+                    // 正本は 11px ゴシック（reading-D `.hint`／reading-backtotop-D `.toppill`）で、実装だけが
+                    // 13sp 明朝だった。トークンの値は動かさず参照先だけ差し替える（FontSubTitle の他所は不変）。
+                    fontFamily = GothicFamily,
+                    fontSize = FontLabel,
                     // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、上下 S8 のピルが
-                    // 44dp まで膨れる（ピルは行箱の外周をそのままなぞる器）。正本 reading-D `.hint`／
-                    // reading-backtotop-D `.toppill` はいずれも line-height 未指定＝normal（ゴシック
-                    // 実測 1.6）なので、その比を実サイズ FontSubTitle(13sp) へ写して 20.8sp とする。
-                    lineHeight = 20.8.sp,
+                    // 44dp まで膨れる（ピルは行箱の外周をそのままなぞる器）。正本はいずれも
+                    // line-height 未指定＝normal（ゴシック実測 1.6）なので 11sp × 1.6 ＝ 17.6sp。
+                    lineHeight = 17.6.sp,
                 )
             }
         }
@@ -1524,6 +1540,18 @@ internal fun ChapterScreenContent(
         // なぜクローム表示中は出さないか: そのときは下端バーが同じ場所に居るため、取っ手は用を失うどころか
         // バーと二重の帯に見える（正本 §6 の裁定）。よって退避割合に比例して現れる。
         // 実測値は正本 §6 の裁定値で**動かさない**＝幅 46 / 高さ 3 / 角丸 2 / 不透明度 .30 / 下端から 16dp。
+        //
+        // なぜ復帰ヒント表示中も出さないか（2026-09-03 追加）: 3ピル裁定でヒントの下端が 96dp→24dp（正本
+        // reading-D `.hint` の 26px 相当）へ下りた結果、ピルは下端から 24..72dp・取っ手は 16..19dp を占め、
+        // **両者の間隔は 5dp**（＝離散スケールの最小アキ [Spacing.S4] 並み）まで詰まった。重なりはしないが、
+        // 取っ手がピルの「外れた下辺」に見える距離で、独立した層②として読めない。
+        // 真因は取っ手の 16dp ではない——正本 §8 の成立根拠が「現行ピルの ChromeHintBottom(96dp) と 80dp
+        // 離れる」という**他方の値への相対**で書かれており、その 96dp が誤り（避ける相手が居ない）だったため、
+        // ピルが正しい位置へ戻った瞬間に根拠だけが残って崩れた。取っ手を上へ逃がすとピルの内側へ入るだけで、
+        // 幾何では分離できない＝**時間で分ける**。正本 §6 の「ピルが出て自分で消える。そのあと取っ手だけが
+        // 残る」という層①→層②の受け渡しそのものに戻す（当て値でピルや取っ手を動かさない）。
+        // 受け渡しはピル側の fadeOut に乗る（AnimatedVisibility の退場中だけ両者が重なるが、それは
+        // 消えていくピルと現れる取っ手のクロスフェード＝正本の記述どおりの見えになる）。
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -1536,7 +1564,7 @@ internal fun ChapterScreenContent(
                 // composition を再実行しない（没入ゴースト題字と同じ形）。barsVisualReady=false
                 //（入場時の初期退避が実測待ち）の間は一切出さない＝バーが未確定のうちに帯だけ光るのを防ぐ。
                 .graphicsLayer {
-                    alpha = if (barsVisualReady) {
+                    alpha = if (barsVisualReady && !showChromeHint) {
                         ImmersiveHandleAlpha * topAppBarState.collapsedFraction
                     } else {
                         0f
@@ -1562,19 +1590,25 @@ internal fun ChapterScreenContent(
         ) {
             Text(
                 text = "続きに戻る",
-                color = colors.topBarIcon,
-                fontFamily = MinchoFamily,
-                fontSize = FontSubTitle,
+                // 正本に専用セレクタが無い唯一のピル。色は「タップできるか」で割る＝正本 `.toppill`（--ink）と
+                // 同型のタップ標的なので --ink（＝text）を採る（純表示の復帰ヒントだけが --soft）。
+                color = colors.text,
+                // 案A（2026-09-03 裁定）＝11px ゴシックへ。詳細は復帰ヒント側のコメント。
+                fontFamily = GothicFamily,
+                fontSize = FontLabel,
                 // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、上下 S8 のピルが
-                // 44dp まで膨れる（ピルは行箱の外周をそのままなぞる器）。正本 reading-D `.hint`／
-                // reading-backtotop-D `.toppill` はいずれも line-height 未指定＝normal（ゴシック
-                // 実測 1.6）なので、その比を実サイズ FontSubTitle(13sp) へ写して 20.8sp とする。
-                lineHeight = 20.8.sp,
+                // 44dp まで膨れる（ピルは行箱の外周をそのままなぞる器）。正本はいずれも
+                // line-height 未指定＝normal（ゴシック実測 1.6）なので 11sp × 1.6 ＝ 17.6sp。
+                lineHeight = 17.6.sp,
                 modifier = Modifier
+                    // 最小高 48dp＝Material の最小タップ標的（2026-09-03 裁定）。字面をいくら動かしても
+                    // 48dp には届かない（案A のピル高は 33.6dp）ので、器側に最小高を持たせる。
+                    .heightIn(min = 48.dp)
                     // 復帰ヒントと同じ半透明ピル。こちらはタップで退避元へ戻る。
                     .clip(RoundedCornerShape(50))
                     .background(colors.navBackground.copy(alpha = 0.92f))
                     .clickable(onClick = onReturnToContinuation)
+                    .wrapContentHeight(Alignment.CenterVertically) // 48dp の器の中で字面を中央に置く
                     .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
             )
         }
@@ -1613,6 +1647,8 @@ internal fun ChapterScreenContent(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.S4),
                 modifier = Modifier
+                    // 最小高 48dp＝Material の最小タップ標的（2026-09-03 裁定・正本6ファイルへ追記済み）。
+                    .heightIn(min = 48.dp)
                     .clip(RoundedCornerShape(50))
                     // 不透明地（alpha を掛けない）。真因＝半透明(.92)地は暗色スキン(J=#101913)で
                     // 背後の章末mark「— 第N話 了 —」(明色)が8%透けてピル文字とだぶる（2026-07-17 実機）。
@@ -1627,19 +1663,21 @@ internal fun ChapterScreenContent(
                 Icon(
                     imageVector = Icons.Filled.VerticalAlignTop,
                     contentDescription = null, // 隣のテキストが意味を担う（重複読み上げ回避）
-                    tint = colors.topBarIcon,
+                    // 正本 reading-backtotop-D `.toppill svg{stroke:var(--ink)}`＝字と同じ --ink。
+                    tint = colors.text,
                     modifier = Modifier.size(16.dp),
                 )
                 Text(
                     text = "最上部へ",
-                    color = colors.topBarIcon,
-                    fontFamily = MinchoFamily,
-                    fontSize = FontSubTitle,
+                    // 正本 `.toppill` は --ink（＝text）。純表示の復帰ヒント（--soft）と使い分ける。
+                    color = colors.text,
+                    // 案A（2026-09-03 裁定）＝11px ゴシックへ。詳細は復帰ヒント側のコメント。
+                    fontFamily = GothicFamily,
+                    fontSize = FontLabel,
                     // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、上下 S8 のピルが
-                    // 44dp まで膨れる（ピルは行箱の外周をそのままなぞる器）。正本 reading-D `.hint`／
-                    // reading-backtotop-D `.toppill` はいずれも line-height 未指定＝normal（ゴシック
-                    // 実測 1.6）なので、その比を実サイズ FontSubTitle(13sp) へ写して 20.8sp とする。
-                    lineHeight = 20.8.sp,
+                    // 44dp まで膨れる（ピルは行箱の外周をそのままなぞる器）。正本はいずれも
+                    // line-height 未指定＝normal（ゴシック実測 1.6）なので 11sp × 1.6 ＝ 17.6sp。
+                    lineHeight = 17.6.sp,
                 )
             }
         }

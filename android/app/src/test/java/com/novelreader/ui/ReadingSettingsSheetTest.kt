@@ -53,7 +53,7 @@ class ReadingSettingsSheetTest {
         onVerticalModeChange: (Boolean) -> Unit = {},
         // スキンM の意匠分岐（テーマ固定表示・星のつまみ）検証用。既定 D＝既存テストは完全不変。
         skin: Skin = Skin.WAMODERN_D,
-        // J の「システムに従う」（扉プレビュー下の追従入口）結線検証用。既定 false/空＝既存テストは不変。
+        // J の「システムに従う」（テーマ行の最後に並ぶ追従入口）結線検証用。既定 false/空＝既存テストは不変。
         followingSystem: Boolean = false,
         onFollowSystem: () -> Unit = {},
         // 案3ライブプレビューの押下行通知（押下=該当行・解放=null）の契約検証用。既定 no-op＝既存テストは不変。
@@ -97,10 +97,11 @@ class ReadingSettingsSheetTest {
     @Test
     fun `M装着ではテーマ3択の代わりに固定表示行を出しスライダー値は不変`() {
         setSheet(skin = Skin.SEIZU_M)
-        // 固定表示（settings-M .theme-fixed）＝何が装着されているか＋変種切替の所在。
+        // 固定表示（settings-M の `.rt.relay`）＝何が装着されているか＋変種切替の所在。
         composeTestRule.onNodeWithText("星図 ・ 夜の相").assertIsDisplayed()
-        // 入口移管（2026-07-29 本棚→設定タブ「きせかえ」）後の実導線を指す文言であること。
-        composeTestRule.onNodeWithText("ほかの装いは設定の「きせかえ」から").assertIsDisplayed()
+        // 副文は正本 `.relay .rt2 .s` の一次表記（2026-09-03 に実装側の独自文から張り替え）。
+        // 入口移管（2026-07-29 本棚→設定タブ「きせかえ」）後の実導線名「きせかえ」を含むことも兼ねて縛る。
+        composeTestRule.onNodeWithText("この装いは夜天ひとつ。ほかの相は「きせかえ」から").assertIsDisplayed()
         // 3択チップは出ない（1変種＝押しても変わらないチップを出さない）。
         composeTestRule.onNodeWithText("ライト").assertDoesNotExist()
         // ロジック共有の証左＝スライダー現在値は D と同一書式のまま。
@@ -210,8 +211,9 @@ class ReadingSettingsSheetTest {
     }
 
     @Test
-    fun `J装着では扉プレビュー3択＋システムに従うを出す（settings-J）`() {
-        // J は supportedThemes=3（ADR 0022 §2）＝扉プレビューの3択が出る。M の固定表示行分岐に流れないこと。
+    fun `J装着ではテーマ3行＋システムに従うを出す（settings-J）`() {
+        // J は supportedThemes=3（ADR 0022 §2）＝正本 settings-J の行方式（.row/.rl/.rv）で3択が出る
+        //（2026-09-03 に扉プレビュー式チップを廃した）。M の固定表示行分岐に流れないこと。
         setSheet(skin = Skin.PORTAL_J)
         composeTestRule.onNodeWithText("表示設定").assertIsDisplayed()
         composeTestRule.onNodeWithText("ライト").assertIsDisplayed()
@@ -220,14 +222,14 @@ class ReadingSettingsSheetTest {
         // D 機能の J 意匠移植＝OS 明暗への自動追従へ戻す入口。
         composeTestRule.onNodeWithText("システムに従う").assertIsDisplayed()
         // ロジック共有の証左＝スライダー現在値は D と同一書式のまま。
-        //（J の扉プレビュー3択＋追従入口は縦に高く、スライダー値は Robolectric の 470px 窓の外に出るため
+        //（J のテーマ4行は縦に高く、スライダー値は Robolectric の 470px 窓の外に出るため
         //   assertExists で存在のみ確認する＝P 装着テストの "20dp" と同じ扱い。実機のシートはスクロールする）。
         composeTestRule.onNodeWithText("18sp").assertExists()
         composeTestRule.onNodeWithText("2.5").assertExists()
     }
 
     @Test
-    fun `J装着の扉タップでonThemeChangeが該当テーマで呼ばれる`() {
+    fun `J装着のテーマ行タップでonThemeChangeが該当テーマで呼ばれる`() {
         var picked: ReadingTheme? = null
         setSheet(skin = Skin.PORTAL_J, onThemeChange = { picked = it })
         composeTestRule.onNodeWithText("セピア").performClick()

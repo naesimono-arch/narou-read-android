@@ -80,7 +80,12 @@
   /* 没入時（クローム非表示）: 上下バーを消し本文を全面に。中央の薄い「タップでバー表示」ヒントのみ */
   .immersive .topbar,.immersive .bottombar{display:none}
   .immersive .reader{padding:32px 24px 40px}
-  .hint{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:6;font-family:var(--gothic);
+  /* 最小高 48px＝Material の最小タップ標的（2026-09-03 裁定・案A と同便）。
+     実装（NativeReadingScreen.kt）はこの文言を丸ピルの器に載せて描いており、器の根拠が実装だけに
+     在った状態の是正としてここへ書き戻す。字面 11px × 1.6 は 33.6px にしかならず、字面をいくら
+     動かしても 48 には届かない＝**器側**に持たせるほかない（display:flex＋align-items:center は
+     最小高の中で字面を中央に置くため）。地色・角丸はスキンごとに別値なので最小高だけを正本化する。 */
+  .hint{position:absolute;left:50%;bottom:26px;display:flex;align-items:center;min-height:48px;transform:translateX(-50%);z-index:6;font-family:var(--gothic);
     font-size:11px;color:var(--soft);letter-spacing:.08em;opacity:.8}
 </style>
 </head>

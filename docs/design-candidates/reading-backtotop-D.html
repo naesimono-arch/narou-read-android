@@ -65,7 +65,10 @@
   .toppill{position:absolute;left:50%;bottom:74px;transform:translateX(-50%);z-index:6;
     display:flex;align-items:center;gap:6px;font-family:var(--gothic);font-size:11px;color:var(--ink);
     letter-spacing:.08em;background:rgba(251,250,248,.92);border:1px solid var(--bar-line);
-    border-radius:999px;padding:8px 16px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+    border-radius:999px;padding:8px 16px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.08);
+    /* 最小高 48px＝Material の最小タップ標的（2026-09-03 裁定）。字面 11px × 1.6 ＋ 上下 8px は
+       33.6px で届かないので器側に持たせる（display:flex＋align-items:center が中央に置く）。 */
+    min-height:48px;justify-content:center}
   .toppill svg{width:14px;height:14px;stroke:var(--ink);fill:none;stroke-width:1.8}
 </style>
 </head>

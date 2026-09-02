@@ -302,8 +302,15 @@ fun SettingsHeaderFragM(modifier: Modifier = Modifier) {
 }
 
 /**
- * テーマ固定表示行（settings-M .theme-fixed）。M は夜の相の1変種＝3択を出す代わりに
- * 「何が装着されているか」と「変種切替の所在＝装いの間」を明示する（機能は消さず所在を示す）。
+ * テーマ固定表示行（settings-M の `.row > .rt.relay`＝主文 `.rt2 .b`／副文 `.rt2 .s`）。
+ * M は夜の相の1変種＝3択を出す代わりに「何が装着されているか」と「変種切替の所在＝装いの間」を
+ * 明示する（機能は消さず所在を示す）。
+ *
+ * 2026-09-03 裁定（lineHeight 掃討の残件③）: 旧コメントが指していた `.theme-fixed`／`.tf-b`／`.tf-s` は
+ * **正本モックに存在しない**（改名済み＝現行は `.relay .rt2 .b`／`.relay .rt2 .s`）。存在しないセレクタを
+ * 根拠にしていたので突き合わせようが無かった＝掃討がここで止まっていた理由。正本を現行セレクタと認めて
+ * 記述側を張り替える。**器を持たない2行**（行箱が膨らんでも囲うものが無い）なので実害はなく、
+ * 寸法・行送りの実装は動かさない。
  */
 @Composable
 fun ThemeFixedRowM(modifier: Modifier = Modifier) {
@@ -330,17 +337,20 @@ fun ThemeFixedRowM(modifier: Modifier = Modifier) {
         Column(Modifier.padding(start = Spacing.S12)) {
             Text(
                 "星図 ・ 夜の相",
-                fontFamily = MinchoFamily,
-                fontSize = 13.5.sp,            // .tf-b 13.5px
-                color = TextSeizu,
+                fontFamily = MinchoFamily,     // .rt2 .b font-family --mincho
+                // 正本 `.relay .rt2 .b` は 14px。0.5px 差は寸法の軸＝本便（記述の是正）では動かさない。
+                fontSize = 13.5.sp,
+                color = TextSeizu,             // .rt2 .b color --text
             )
             Text(
-                // 2026-07-29 本棚の装いの間入口撤去（設定タブ「きせかえ」へ移管＝ADR 0021 追記）に追従。
-                // 「きせかえ」は SettingsScreenK の行ラベル表記と一致させる（実導線と文言の齟齬を作らない）。
-                "ほかの装いは設定の「きせかえ」から",
-                fontSize = 10.5.sp,            // .tf-s 10.5px
-                color = DimSeizu,
-                modifier = Modifier.padding(top = Spacing.S4),
+                // 文言は正本 `.relay .rt2 .s` の一次表記へ張り替える（旧文は 2026-07-29 に実装側だけで
+                // 書き換えたもので正本と不一致だった）。2026-07-29 の要件＝「きせかえ」という導線名を
+                // SettingsScreenK の行ラベルと一致させること は、正本の文にも「きせかえ」が入るため保たれる。
+                "この装いは夜天ひとつ。ほかの相は「きせかえ」から",
+                // 正本 `.relay .rt2 .s` は 11px（ゴシック）。0.5px 差は上と同じ理由で動かさない。
+                fontSize = 10.5.sp,
+                color = DimSeizu,              // .rt2 .s color --dim
+                modifier = Modifier.padding(top = Spacing.S4), // .rt2 .s margin-top 4px
             )
         }
     }
