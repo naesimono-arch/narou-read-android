@@ -14,15 +14,15 @@
 > `ui-density-swipe-round-2026-07-24.md`。K 形は D/M/P/J へ伝播済み
 > （正本＝`docs/design-candidates/skins/{bookshelf,discovery,toc,settings}-{D,M,P,J}.html`）。以下は**残り**のみ。
 
-- **[ランキング横スワイプ＝B は縮んだ・次は `matchParentSize` の役割依存]**（2026-08-26 に実測。正本＝`docs/knowledge/ranking-pager-jank-slow-ui-thread.md`）:
-  枠を役割でなく**期間 ordinal の偶奇**で持つ変更を入れ、半ページ越えフレーム（B）の `Constructing StaticLayout` が
-  **96個→9個**・フレーム長 61–76ms→**33–35ms**。4フリックの合成量 554→204（−63%）。
-  ⚠️ **B は消えていない＝縮んだだけ**。残るスパイクは `measureAndLayout` 12.9–14.8ms で **StaticLayout がほぼ0なのに measure が残る**
-  ＝原因はテキストでなく**レイアウトの測り直し**。ほぼ確実に `RankingPageLayerK` の `matchParentSize` が役割で入れ替わる
-  （据わりだけが高さを決める）ため＝**次の一手はここ**。ここまでやって初めて B が平らになる見込み。
-  ⚠️ **A（覗き行の新規合成・StaticLayout 42個×1フリック1枚）は想定どおり残存**。常駐化には
-  テスト観測点を〈合成されていない〉から〈表示されていない〉へ強化するのが先。
-  ⚠️ **`gfxinfo` の率（29.7%→11.0%）を成果として引用しない**＝同一APKの3走で total p50 が 33〜48ms と揺れる（エミュの GPU 負荷差）。
+- **[ランキング横スワイプ＝B は平らになった・残るは A と実機ツアー]**（2026-09-02 に実測。正本＝`docs/knowledge/ranking-pager-jank-slow-ui-thread.md`）:
+  枠の高さの決め手を子の `matchParentSize` から**親の測り方**（`rankingSlotMeasurePolicy`）へ移し、
+  半ページ越えフレーム（B）の `measureAndLayout` を **17.2–62.3ms → 0.35–5.6ms** へ。
+  ⚠️ **A（覗き行の新規合成・StaticLayout 42–49個×1フリック1枚・measure 25–40ms）は想定どおり残存**＝**次に効く唯一の手**。
+  常駐化には `DiscoveryHomeInvariantTest`・`DiscoveryHomeKRankingTest` の観測点を
+  〈合成されていない〉から〈表示されていない〉へ強化するのが**先**。
+  ⚠️ 各走に1回だけ残る重い B は**役割入れ替わりでなくデータ差替え**（VM の期間追従で新しい行文字列が届くフレーム＝
+  是正前にも同じ位置に在る）。ここを追うなら対象は覗きでなく**取得の載せ替え**。
+  ⚠️ **`gfxinfo` の率を成果として引用しない**＝同一APKの走間で `total` p50 が大きく揺れる（エミュの GPU 負荷差）。
   ⚠️ **体感が直ったとはまだ言えない**＝2026-08-21 にユーザーが「ジャンクが気になる」と体感で確認した件の再判定は**実機ツアー待ち**。
 ## 最優先B：幅広いサイト対応＝汎用オフラインDL基盤（検索→DL→アプリ内で読む）
 
@@ -58,7 +58,7 @@
 - **[web 原文オラクルの回帰テスト導入]**（最優先の方法論的修正）: golden は旧 Python 複製＝系譜内で、下記欠陥を検出できない構造。
 - **[抽出コア欠陥6クラスの真因調査→修正]** S1 半角スペース脱落／S2a U+FFFD／S3 空行復元全滅／S4a ルビ親範囲／S4b 傍点ルビ／S7 `'` 行頭移動（症状・規模＝一次情報 §4。症状でなく真因から）。
 - **[縦書き組版の規範突合]** `CharClass` ⇄ UTR#50・`LineBreaker` 禁則 ⇄ JLReq（＝`docs/knowledge/vertical-typeset-external-oracle-gap.md`。差分は棚卸し→人間裁定）。
-- **[計測スクリプトの軽量突合]** 意思決定を左右した `measure_read_residency` / `measure_session_length_cost` 等2〜3本を、仕様文からの独立サブ再実装→数値突合（オラクル無し領域・69%→4.3% の前科）。
+- **[計測値の訂正の波及]** `measure_read_residency.py` に欠陥2件（文字→トークン換算が 4.8 倍ずれ／分母が `cache_read` でなくその 15.6%）。knowledge 2本は訂正済み。残り＝①`CLAUDE.md`・`AGENTS.md` の「実測 4.3%」を補正値（約5.6%）へ差し替え＝**所管外・要監督** ②独立実装との突合（仕様文は起草済み・実装便の返却待ち）③スクリプト自体を直すかの裁定（直すと過去実測との比較可能性が切れる＝いまは意図的に未修正）。`measure_session_length_cost.py` は再現性良好＝訂正不要。
 - **[前提3件の裁定＝人間へ]** 材料は揃った（`docs/knowledge/extraction-charmap-diverges-from-web-source.md`・`naro-source-is-line-oriented.md`・`dimension-autodetect-was-preventive.md`）。裁定対象＝①字種写像の pdfminer 追従を撤去するか（golden 再採取と `CharClass` 改訂が道連れ）②行→段落結合を維持するか撤回するか ③寸法自動検出の去就。⚠️ **awaiting-human へ移す項目**＝Claude 側で動かせるのはここまで。なお現行の段落誤り率は**測れていない**（ルビのインライン記法が本文の《》と分離できず、比較可能な話が 1.8% に落ちるため）。
 - 小粒: `tools/count_toc_fixture_chapters.sh` をゲート（CI か GoldenTest）へ結線する。暁66・カクヨム593 を実装非依存で数える手段は用意済みだが、**手動実行のみ＝誰も走らせない**状態。
 
