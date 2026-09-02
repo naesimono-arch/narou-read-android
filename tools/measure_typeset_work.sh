@@ -276,6 +276,23 @@ run_scenario() {
         probe on >/dev/null
         for _ in 1 2 3 4 5; do sh input tap "$nx" "$ny" >/dev/null; sleep 1.5; done
         ;;
+    scroll_read)
+        # 定常スクロール（設定を触らない）＝**再組版が起きない状態で draw だけが起きる**シナリオ。
+        # 改善 E（draw 段の書記素分割の除去）はここでしか差が出ない: 組版回数は 0 のまま
+        # v_draw だけが伸びるので、v_split が v_draw に連れて伸びるかどうかで効果を判定できる。
+        # ⚠️ 送り回数は SWIPES で外から与える（ハードコードすると短い章で章送りに化けて
+        #    全スナップショットが idx=0 off=0 になる＝退行に見えて実は内容起因、という既知の罠）。
+        probe on >/dev/null
+        local n
+        for n in $(seq 1 "${SWIPES:-3}"); do
+            sh input swipe 250 1200 850 1200 500 >/dev/null
+            sleep 1
+        done
+        sleep 2
+        echo -n "  progress="
+        sh "run-as $PKG sqlite3 /data/data/$PKG/databases/novel_reader_db \
+            \"select lastReadFilename||' idx='||scrollIndex||' off='||scrollOffset from progress where bookId='$BOOK_ID';\"" | tr -d '\r'
+        ;;
     font_drag | lineheight_drag)
         coords="$(center_of text 表示設定)" || { echo "  表示設定ボタンが無い" >&2; return 1; }
         read -r _ _ _ _ sx sy <<<"$coords"
@@ -307,10 +324,14 @@ if [[ "$MODE" == scroll ]]; then
 fi
 
 echo "指標: v_typeset=縦書き組版の呼び出し回数 / v_glyphs=置き直したグリフ数 / v_advance=Paint実測回数"
+echo "      v_split=書記素分割の実行回数（BreakIterator 生成数）/ v_draw=段落 draw 回数 / v_draw_ruby=draw で置いたルビ書記素数"
 echo "      h_layout=横書き BasicText の再レイアウト回数 / font_eff・lh_eff=スライダーの実効値変化数（分母）"
 echo
-for orientation in vertical horizontal; do
-    for scenario in chapter_flip font_drag lineheight_drag; do
+# シナリオを絞れるようにする（E の前後比較は vertical の chapter_flip と scroll_read だけで足りる）。
+ORIENTATIONS="${ORIENTATIONS:-vertical horizontal}"
+SCENARIOS="${SCENARIOS:-chapter_flip font_drag lineheight_drag}"
+for orientation in $ORIENTATIONS; do
+    for scenario in $SCENARIOS; do
         run_scenario "$orientation" "$scenario"
     done
 done

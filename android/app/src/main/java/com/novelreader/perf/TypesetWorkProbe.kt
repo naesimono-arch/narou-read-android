@@ -64,6 +64,32 @@ object TypesetWorkProbe {
      */
     private val verticalAdvanceCalls = AtomicLong()
 
+    // --- draw 段に残っている計算（改善 E の対象・分母は描画パス数）---
+
+    /**
+     * [com.novelreader.ui.compose.RubyLayoutHelper.splitGraphemes] の呼び出し回数
+     * ＝**BreakIterator を1本作った回数**（呼び出し元は問わず全経路を数える）。
+     *
+     * なぜ経路を分けずに全部数えるか: 改善 E は「同じ分割を組版時に1回だけやる」ことなので、
+     * 効いたかどうかは**分割の総数が描画パス数に比例して伸びなくなること**でしか見えない。
+     * 呼び出し元別に数えると「draw 段の分だけ 0 になりました」という同語反復になり、
+     * 組版側へ付け替わっただけの場合と区別できない。
+     */
+    private val graphemeSplitCalls = AtomicLong()
+
+    /** 上記で切り出した書記素の総数＝分割の仕事量（文字列長で正規化した分母）。 */
+    private val graphemeSplitUnits = AtomicLong()
+
+    /**
+     * [com.novelreader.ui.compose.drawParagraphLayout] の呼び出し回数＝**1回＝1段落の draw**。
+     * E の前後で不変であるべき量＝「描画そのものは同じだけ起きている」ことの確認に使う
+     * （これが動くと分割数の比較が同条件でなくなる）。
+     */
+    private val paragraphDraws = AtomicLong()
+
+    /** draw で置いたルビ書記素セルの総数。これも E の前後で不変（描く字は変わらない）。 */
+    private val drawnRubyCells = AtomicLong()
+
     // --- 横書き（Compose テキストエンジン）---
 
     /** `BasicText` の `onTextLayout` 発火回数＝**1回＝1段落の再レイアウト**（縦書きの typeset と対になる単位）。 */
@@ -114,6 +140,20 @@ object TypesetWorkProbe {
         verticalAdvanceCalls.incrementAndGet()
     }
 
+    /** 書記素分割を1回実行した（[units] は切り出した書記素数）。呼び出し元は問わない。 */
+    fun onGraphemeSplit(units: Int) {
+        if (!enabled) return
+        graphemeSplitCalls.incrementAndGet()
+        graphemeSplitUnits.addAndGet(units.toLong())
+    }
+
+    /** 1段落を draw した（[rubyCells] はそこで置いたルビ書記素セル数）。 */
+    fun onParagraphDraw(rubyCells: Int) {
+        if (!enabled) return
+        paragraphDraws.incrementAndGet()
+        drawnRubyCells.addAndGet(rubyCells.toLong())
+    }
+
     /** 横書き1段落のテキストレイアウト完了。[chars] はレイアウトした文字数。 */
     fun onHorizontalTextLayout(chars: Int) {
         if (!enabled) return
@@ -149,6 +189,10 @@ object TypesetWorkProbe {
         verticalTypesetCallsInComposition.set(0)
         verticalTypesetGlyphsInComposition.set(0)
         verticalAdvanceCalls.set(0)
+        graphemeSplitCalls.set(0)
+        graphemeSplitUnits.set(0)
+        paragraphDraws.set(0)
+        drawnRubyCells.set(0)
         horizontalTextLayouts.set(0)
         horizontalLayoutChars.set(0)
         fontSizeCallbacks.set(0)
@@ -171,6 +215,10 @@ object TypesetWorkProbe {
         append(" v_typeset_comp=").append(verticalTypesetCallsInComposition.get())
         append(" v_glyphs_comp=").append(verticalTypesetGlyphsInComposition.get())
         append(" v_advance=").append(verticalAdvanceCalls.get())
+        append(" v_split=").append(graphemeSplitCalls.get())
+        append(" v_split_units=").append(graphemeSplitUnits.get())
+        append(" v_draw=").append(paragraphDraws.get())
+        append(" v_draw_ruby=").append(drawnRubyCells.get())
         append(" h_layout=").append(horizontalTextLayouts.get())
         append(" h_chars=").append(horizontalLayoutChars.get())
         append(" font_cb=").append(fontSizeCallbacks.get())

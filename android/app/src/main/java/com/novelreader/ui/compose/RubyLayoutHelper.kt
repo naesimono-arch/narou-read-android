@@ -35,6 +35,8 @@ object RubyLayoutHelper {
     fun splitGraphemes(text: String): List<String> {
         if (text.isEmpty()) return emptyList()
         val result = mutableListOf<String>()
+        // BreakIterator は生成そのものにコストがある（ロケール別データの参照）＝
+        // 「1文字列＝1本」なので、呼ばれた回数がそのまま分割コストの分母になる。
         val iterator = BreakIterator.getCharacterInstance(Locale.JAPANESE)
         iterator.setText(text)
         var start = 0
@@ -44,6 +46,7 @@ object RubyLayoutHelper {
             start = end
             end = iterator.next()
         }
+        com.novelreader.perf.TypesetWorkProbe.onGraphemeSplit(result.size)
         return result
     }
 
