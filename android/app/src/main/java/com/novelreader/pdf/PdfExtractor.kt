@@ -120,29 +120,51 @@ class GlyphStripper(
     val pages: MutableList<MutableList<CharBox>> = mutableListOf()
     private var current: MutableList<CharBox> = mutableListOf()
 
-    init {
-        if (pageRange != null) {
-            // なぜ 0..0 か: [processPages] を差し替えると `currentPageNo`（private・setter 無し）が 0 のまま
-            // になり、`processPage` 先頭の範囲判定 `currentPageNo in startPage..endPage` を通せなくなる。
-            // `startBookmarkPageNumber`/`endBookmarkPageNumber` は差し替えた processPages を通らないので
-            // 既定の 0 のままだが、判定は「-1 でなければ currentPageNo と比較」で 0 同士なら両方通る
-            // （javap -c で確認済み・実機スパイク PdfParallelLoadPagesSpikeTest で 8,668 ページ分の等価性も確認済み）。
-            startPage = 0
-            endPage = 0
-        }
-    }
-
     /**
-     * [pageRange] 指定時だけ、担当範囲のページだけを処理して打ち切る。範囲外は `processPage` を
-     * 呼ばない＝そのページのコンテンツストリームを一切パースしない（これが並列分割の実体）。
+     * ページツリーの走査を基底から引き取る。目的は 2 つ。
+     *
+     * ① **内容ストリームを持たないページも 1 件として出す**（真因対処）。基底の `processPages` は
+     *   `if (page.hasContents())` でそのページを走査対象から**外す**ため、[pages] の件数が文書の
+     *   ページ数より短くなり、**リスト位置と実ページ番号がズレる**。ズレたリストをそのまま使う
+     *   [PdfExtractor.runFinalEngine] は位置をページ番号として扱う（「先頭 3 ページ・最終ページを捨てる」・
+     *   ページ跨ぎの段落縫合）ので、空ページが 1 枚在るだけで本文の先頭が削られる
+     *   （実測: 白紙 padding の PDF で本文 11p のうち先頭 3p が消えた）。空ページも 1 件出せば
+     *   「リスト位置＝ページ番号」が文書の形に依らず成り立つ。
+     * ② [pageRange] 指定時に担当範囲だけを処理して打ち切る（範囲外はコンテンツストリームを
+     *   一切パースしない＝これが並列分割の実体）。
+     *
+     * なぜ処理中だけ `startPage`/`endPage` を 0 へ落とすか: 基底の `processPage` は先頭で
+     * `currentPageNo in startPage..endPage` を判定するが、`currentPageNo`（private・setter 無し）を
+     * 進めるのは基底の `processPages` だけで、差し替えた以上ここでは 0 のまま動かない。
+     * 0..0 にすれば通る（`startBookmarkPageNumber`/`endBookmarkPageNumber` も既定値のまま両方通ることを
+     * javap -c で確認済み・実機スパイク PdfParallelLoadPagesSpikeTest で 8,668 ページ分の等価性も確認済み）。
+     * 呼び出し側から見える 1 始まりのページ範囲は退避して復元するので、外形は従来どおり。
      */
     override fun processPages(tree: PDPageTree) {
-        val range = pageRange ?: return super.processPages(tree)
-        var index = 0
-        for (page in tree) {
-            if (index > range.last) break
-            if (index >= range.first) processPage(page)
-            index++
+        // 呼び出し側が指定した 1 始まりの処理範囲。pageRange（0 始まり）が在ればそちらが優先。
+        val from = pageRange?.let { it.first + 1 } ?: startPage
+        val to = pageRange?.let { it.last + 1 } ?: endPage
+        startPage = 0
+        endPage = 0
+        try {
+            var pageNo = 0
+            for (page in tree) {
+                pageNo++
+                if (pageNo > to) break
+                if (pageNo < from) continue
+                if (page.hasContents()) {
+                    processPage(page)
+                } else {
+                    // 内容ストリームが無い＝グリフが 1 つも無いページ。基底の processPage は
+                    // 呼べない（中で hasContents を見て何もしない）ので、ページの開始と終了だけを
+                    // 直接叩いて「グリフ 0 件のページ」を 1 件出す。
+                    startPage(page)
+                    endPage(page)
+                }
+            }
+        } finally {
+            startPage = from
+            endPage = to
         }
     }
 
@@ -258,6 +280,9 @@ object PdfExtractor {
 
     /**
      * 全ページの文字を取得する（list[list[CharBox]]）。
+     * **返り値の件数は必ず `doc.numberOfPages` と等しく、リスト位置＝0 始まりの実ページ番号**
+     * （内容ストリームを持たないページは空リストで並ぶ＝[GlyphStripper.processPages] の KDoc）。
+     * 下流はこの位置をページ番号として扱うので、この契約が崩れると本文が丸ごとズレる。
      * onPageLoaded はページ開始ごとに (開始済みページ数, 総ページ数) を通知する（既定＝無通知）。
      *
      * [source] に PDF の実ファイルを渡すと、端末のヒープに余裕がある場合だけ**ページ範囲を分割して

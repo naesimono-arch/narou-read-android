@@ -333,6 +333,17 @@ object TextProcessor {
     ) {
         private var currentParagraph = StringBuilder()
 
+        /**
+         * 直前に本文列を出したページの「最終列 x0」と「そのページ番号」。**ページを跨いで持ち越す**。
+         *
+         * なぜ持ち越すか（S3 の真因）: 縦組みは列を右から左へ送るので、空行はそのぶん列が飛ぶ形で現れる。
+         * 旧実装は列間 X の比較をページ内で閉じており（ページ先頭で prevX を null に戻していた）、
+         * **ページ末尾と次ページ先頭の間隔だけが測れず、そこに在った空行が丸ごと落ちていた**
+         * （実測 N0833HI 全 66 話で欠落 654 件・その全件がページ境界）。
+         */
+        private var carryX: Double? = null
+        private var carryPage: Int = NO_PAGE
+
         // 本文ページ総数（先頭3＋末尾1 を除いた数）。0除算回避で最小1。
         private val bodyTotal = maxOf(totalPages - 4, 1)
 
@@ -429,8 +440,19 @@ object TextProcessor {
 
             // 右の列から順にテキスト化＆段落の縫合
             val linesSortedX = linesDict.keys.sortedDescending()
-            // 列間 X の比較はページ内で閉じる（ページを跨いだ列位置の比較には意味が無い）。
+            // ページ内の直前列（先頭列では null＝そこだけページ跨ぎの規則へ委ねる）。
             var prevX: Double? = null
+            // このページの先頭列に、直前ページからの持ち越しを適用してよいか。
+            // ⚠️ この 2 条件は「新しい誤検出を作らない」ための要（下の crossPageBlankCount も参照）。
+            //  - 題名のあるページを除く: 章の題名は列グリッドの先頭側を占有し、本文はその何列か左から
+            //    始まる。この空きは空行ではなく題名の版面なので、数えると章ごとに偽の空行が湧く
+            //    （実測: 数えた場合 N0833HI で誤検出 180 件）。加えて章の変わり目では前ページが
+            //    途中で終わる（章末の余白）ため、前ページ側の残り列も空行ではない。
+            //  - 直前ページが 1 つ前のページであること: 本文列を 1 つも持たないページ（挿絵・区切り等）を
+            //    挟むと、グリッドの連続という前提そのものが成り立たない
+            //    （実測: 隣接を要求しない場合 N3957FQ で誤検出 2 件＝いずれも本文なしページを跨いだ形）。
+            val carriedX = carryX
+            val canCarry = carriedX != null && carryPage == pageNum - 1 && titlesAll.isEmpty()
 
             for (x in linesSortedX) {
                 val lineBodies = linesDict[x]!!.sortedBy { it.top }
@@ -457,6 +479,13 @@ object TextProcessor {
                         // 丸め方向は結果に効いていない。
                         blankLineCount = (diffX / rules.lineStepX).roundToInt() - 1
                     }
+                } else if (canCarry) {
+                    // ページの先頭列だけは、直前ページの最終列との間で同じことをする。
+                    val blanks = crossPageBlankCount(carriedX!!, x)
+                    if (blanks >= 1) {
+                        isNewParagraph = true
+                        blankLineCount = blanks
+                    }
                 }
 
                 if (isNewParagraph) {
@@ -471,7 +500,31 @@ object TextProcessor {
 
                 prevX = x
             }
+
+            // 本文列を 1 つでも出したページだけを持ち越す。出さなかったページは carryPage を更新しない
+            // ＝次ページで隣接判定が外れ、グリッドの連続が切れた区間には空行を入れない。
+            if (prevX != null) {
+                carryX = prevX
+                carryPage = pageNum
+            }
         }
+
+        /**
+         * 前ページ最終列 [prevPageLastX] と次ページ先頭列 [x] の間に在る**空き列の数**＝復元すべき空行数。
+         *
+         * 導出: 1 ページの列を右から 0..C-1 と数え、列 j の x0 は Xright − j·step。
+         * 前ページの最終列を a、次ページの先頭列を b とすると、間に在る空き列は
+         * 「前ページで余った (C-1-a)」＋「次ページで空いた b」＝ (C-1) − a + b。
+         * a = (Xright − prevPageLastX)/step、b = (Xright − x)/step を入れると Xright が消えて
+         *   ((C-1)·step + prevPageLastX − x) / step ＝ (columnSpanX + prevPageLastX − x) / step。
+         * ＝**両端の絶対座標は要らず、列グリッドの幅だけで足りる**（[DetectedRules.columnSpanX]）。
+         *
+         * ページ内の `round(diffX/step) - 1` と同じ「間に挟まる空き列の数」を返すので、下流の扱いも同じ。
+         * columnSpanX の検出は原理的に過小側にしか外れない（[DetectedRules] の検出関数の KDoc）ので、
+         * ここが過大になって偽の空行を生むことは無い。負値は 0 とみなす（版面が読めなかった＝入れない）。
+         */
+        private fun crossPageBlankCount(prevPageLastX: Double, x: Double): Int =
+            ((rules.columnSpanX + prevPageLastX - x) / rules.lineStepX).roundToInt()
 
         /** 全ページを渡し終えた後に必ず呼ぶ（組み立て途中の最後の段落を吐き出す）。 */
         fun finish() {
@@ -479,6 +532,11 @@ object TextProcessor {
                 emitParagraph(currentParagraph.toString())
                 currentParagraph = StringBuilder()
             }
+        }
+
+        private companion object {
+            /** 「まだ本文列を出したページが無い」を表す番号（0 は正当なページ番号なので使えない）。 */
+            const val NO_PAGE = -1
         }
     }
 }

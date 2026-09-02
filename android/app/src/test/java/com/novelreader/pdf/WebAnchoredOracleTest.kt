@@ -34,7 +34,7 @@ import java.io.File
  * - 段落結合 vs 原文行保持（S3 の単位差）・字種写像 S2b（波ダッシュ等。現行は [PdfExtractor] で意図的に正規化）は
  *   **方針差で裁定未了**＝比較軸から外してある（flow 連結・空白除去で畳む）。
  * - ルビの分割粒度（S4-2）も裁定未了のため、両側で隣接 run を畳んでから比較する。
- * - 空行復元（S3 本体）は**ページ抜き fixture** で見張る（2026-09-02 追加）。全滅していた N0833HI は
+ * - 空行復元（S3 本体）は**ページ抜き fixture** で見張る（2026-09-02 追加・同日の真因修正で全数一致）。全滅していた N0833HI は
  *   `.gitignore` 済みで CI から参照できないため、1 話ぶん（11 ページ）だけを抜いた
  *   `pdf_oracle/N0833HI_ep57.pdf` を fixture 化した。抜いたことで壊れていないことは
  *   「ページ抜き版の抽出＝全文版の当該話の抽出（段落 228 本が完全一致）」を機械で確認して担保する
@@ -189,19 +189,20 @@ class WebAnchoredOracleTest {
      * （段落結合の方針差＝裁定未了）。単位が違うので段落番号では比較できないが、文字は両者で保存されて
      * いる（本テストが字数一致も同時に見張る）ので、文字オフセットなら実装非依存に位置まで比較できる。
      *
-     * ## 既知の穴（感度の表）: ページ境界の空行は復元できない
-     * 列間 X の比較は[TextProcessor.ParagraphStreamer]でページ内に閉じており、ページ末尾と次ページ先頭の
-     * 間隔は測れない＝そこに在った空行は落ちる。この fixture では 115 中 5 件が該当し、全文版 66 話でも
-     * 欠落 654 件の**全件がページ境界**・誤検出と位置ずれは 0 件（実測）。真因が特定済みで修正は
-     * 本テスト（検証）の役目ではないため、`N0833HI_ep57.s3_known_gaps.json` に凍結して監視する。
-     * この表と食い違ったら（塞がった＝改善／新たに開いた＝退行）assert が落ちて表の更新を強制する。
+     * ## 既知の穴は無い（2026-09-02 に真因を修正して全数一致へ）
+     * かつては列間 X の比較が [TextProcessor.ParagraphStreamer] でページ内に閉じており、ページ末尾と
+     * 次ページ先頭の間隔が測れず**そこに在った空行だけが落ちていた**（この fixture で 115 中 5 件、
+     * 全文版 66 話で 654 件・全件がページ境界）。列グリッド幅を使ってページ跨ぎでも間隔を測るよう
+     * 直したので、この fixture は**空行 115 件が全数一致**する。よってここは既知表を持たず
+     * 欠落 0・誤検出 0 を直接要求する（穴が開いたら即赤）。
+     *
+     * ⚠️ `pdf_oracle/N0833HI_ep57.s3_known_gaps.json` は**この修正で役目を終えた**（表の 5 件は全て塞がった）
+     * ので撤去済み。生成側の `tools/build_s3_fixture.py` は残してある——別の文書で fixture を作るとき、
+     * 「まだ塞がっていない穴の表」は診断として要るため。
      */
     @Test
     fun n0833hi_s3_blankLinesRestored() {
         val o = oracle(S3_FIXTURE)
-        val gaps = JSONObject(
-            File(repoRoot(), "$ORACLE_DIR/$S3_FIXTURE.s3_known_gaps.json").readText(),
-        )
         val (chars, ours) = s3Extract()
         // 字が落ちていると offset がずれて空行の照合が無意味になる＝先に字数で土俵を確かめる。
         assertEquals(
@@ -216,15 +217,14 @@ class WebAnchoredOracleTest {
             "S3 オラクルに無い空行が ${spurious.size} 件（位置ずれか過剰挿入）＝$spurious",
             spurious.isEmpty(),
         )
-        assertEquals(
-            "S3 欠落した空行が既知表と不一致＝真因（ページ境界で列間 X を測れない）側の変化。" +
-                "tools/build_s3_fixture.sh で再生成し内容を確認のうえ更新すること",
-            runsOf(gaps, "missing_blank_runs"),
-            missing,
+        assertTrue(
+            "S3 空行が ${missing.size} 件欠落＝ページ跨ぎの復元が退行した可能性（欠落位置: $missing）",
+            missing.isEmpty(),
         )
-        println(
-            "  [既知の穴] S3 空行 オラクル=${expected.sumOf { it.second }} " +
-                "実測=${ours.sumOf { it.second }} 欠落=${missing.size}（全件ページ境界・真因確定済み）",
+        assertEquals(
+            "S3 空行の総数がオラクルと不一致",
+            expected.sumOf { it.second },
+            ours.sumOf { it.second },
         )
     }
 

@@ -18,6 +18,8 @@ data class DetectedRules(
     val pageNumY: Double,
     val rubyOffsetX: Double,
     val lineStepX: Double,
+    /** 1 ページの本文列グリッドの横幅（右端列 x0 −左端列 x0）。ページ跨ぎの空行数の算出に使う。 */
+    val columnSpanX: Double = ParserRules.COLUMN_SPAN_X,
 ) {
     companion object {
         /**
@@ -31,6 +33,7 @@ data class DetectedRules(
             pageNumY = ParserRules.PAGE_NUM_Y,
             rubyOffsetX = ParserRules.RUBY_OFFSET_X,
             lineStepX = ParserRules.LINE_STEP_X,
+            columnSpanX = ParserRules.COLUMN_SPAN_X,
         )
 
         /** 0.1pt/0.1px 単位のバケットキー（実測ヒストグラムの粒度。較正プローブと同一の丸め）。 */
@@ -173,6 +176,10 @@ data class DetectedRules(
             val comboPages = HashMap<Pair<Double, Double>, BitSet>()
             val stepFreq = HashMap<Double, Int>()
             val offFreq = HashMap<Double, Int>()
+            // ページ先頭列 / 末尾列の x0 の出現回数（列グリッド幅 columnSpanX の検出用）。
+            val firstColFreq = HashMap<Double, Int>()
+            val lastColFreq = HashMap<Double, Int>()
+            var colPageCount = 0
             var stepCount = 0
             var offCount = 0
             source.forEachPage { pageIndex, page ->
@@ -187,6 +194,13 @@ data class DetectedRules(
                 ).keys
 
                 val descending = bodyColKeys.sortedDescending()
+                if (descending.isNotEmpty()) {
+                    val f = descending.first()
+                    val l = descending.last()
+                    firstColFreq[f] = (firstColFreq[f] ?: 0) + 1
+                    lastColFreq[l] = (lastColFreq[l] ?: 0) + 1
+                    colPageCount++
+                }
                 for (i in 0 until descending.size - 1) {
                     val d = descending[i] - descending[i + 1]
                     if (d > 0.0) {
@@ -225,6 +239,7 @@ data class DetectedRules(
 
             val lineStepX = if (stepCount >= 10) fundamentalStepRefined(stepFreq) else FALLBACK.lineStepX
             val rubyOffsetX = if (offCount >= 10) bucketModeRefined(offFreq) else FALLBACK.rubyOffsetX
+            val columnSpanX = detectColumnSpanX(firstColFreq, lastColFreq, colPageCount)
 
             return DetectedRules(
                 bodySize = bodySize,
@@ -233,7 +248,37 @@ data class DetectedRules(
                 pageNumY = pageNumY,
                 rubyOffsetX = rubyOffsetX,
                 lineStepX = lineStepX,
+                columnSpanX = columnSpanX,
             )
+        }
+
+        /**
+         * 本文列グリッドの横幅（右端列 x0 −左端列 x0）を、ページ先頭列/末尾列の出現分布から検出する。
+         *
+         * なぜ「最頻」でなく**支持のある最大 first ／支持のある最小 last**か:
+         * 観測できる先頭列 x0 は必ず真の右端 ≦ で、末尾列 x0 は必ず真の左端 ≧ になる
+         * （空行や章末の余白ぶん内側へ寄るだけで、グリッドの外へは出られない）。よって
+         * この採り方の誤差は**必ず過小側**＝ページ跨ぎの空行数を過大に見積もることが原理的に無い
+         * ＝**新しい誤検出を作らない**。最頻値にすると「毎ページ先頭が空行」のような文書で
+         * 1 列ぶん内側に張り付き、やはり過小側に倒れる（安全側だが精度が落ちる）。
+         *
+         * 支持の下限を置くのは、半角プロポーショナル字のずれ（[TextProcessor.groupCharsByLine] の
+         * KDoc 参照＝x0 が右へ最大 0.25 列ぶんずれる）や外れ値 1 件で両端が動かないようにするため。
+         * ずれの大きさは 1 列の半分に満たないので、下の round で吸収され列数は変わらない。
+         *
+         * 統計不足（支持のある候補が無い）なら [FALLBACK] へ退避する＝他項目と同じ方針。
+         */
+        private fun detectColumnSpanX(
+            firstColFreq: Map<Double, Int>,
+            lastColFreq: Map<Double, Int>,
+            pageCount: Int,
+        ): Double {
+            if (pageCount < COLUMN_SPAN_MIN_PAGES) return FALLBACK.columnSpanX
+            val floor = maxOf(COLUMN_SPAN_MIN_SUPPORT, (pageCount * COLUMN_SPAN_SUPPORT_RATIO).toInt())
+            val right = firstColFreq.entries.filter { it.value >= floor }.maxOfOrNull { it.key }
+            val left = lastColFreq.entries.filter { it.value >= floor }.minOfOrNull { it.key }
+            if (right == null || left == null || right <= left) return FALLBACK.columnSpanX
+            return right - left
         }
 
         /**
@@ -255,6 +300,15 @@ data class DetectedRules(
         private const val MAX_STEP_HARMONIC = 4
 
         private const val FUNDAMENTAL_SUPPORT_RATIO = 0.05
+
+        /** 列グリッド幅の検出に要る最小ページ数。これ未満は統計が立たない＝[FALLBACK] へ退避する。 */
+        private const val COLUMN_SPAN_MIN_PAGES = 4
+
+        /** 列グリッド幅の両端候補に要る最小支持ページ数（比率が下回るときの床）。 */
+        private const val COLUMN_SPAN_MIN_SUPPORT = 3
+
+        /** 列グリッド幅の両端候補に要る支持率（全本文ページに対する割合）。 */
+        private const val COLUMN_SPAN_SUPPORT_RATIO = 0.05
 
         /** [detect] がストリーミング供給源に対して要求する走査回数（進捗の総数計算に使う）。 */
         const val STREAMING_PASSES = 2

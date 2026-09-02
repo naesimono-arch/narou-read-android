@@ -36,6 +36,20 @@ object ParserRules {
     // 4. 行間（フォールバック実測値）
     const val LINE_STEP_X = 22.68 // 1 行あたりの x 移動量（空行計算用）
 
+    /**
+     * 1 ページの本文列グリッドの横幅＝右端列 x0 −左端列 x0（フォールバック実測値）。
+     *
+     * なぜ要るか（S3 ページ境界の空行）: ページ末尾と次ページ先頭の空行数は
+     * 「前ページで余った列数 ＋ 次ページで空いた列数」で、これは
+     * (COLUMN_SPAN_X + 前ページ最終列 x0 − 次ページ先頭列 x0) / LINE_STEP_X に等しい
+     * （導出は [com.novelreader.pdf.TextProcessor.ParagraphStreamer] の KDoc）。
+     * 個々の右端/左端の絶対座標は要らず、**両端の差**だけで足りるのが要点。
+     *
+     * 値は sample_pdfs 全 10 文書で一致した実測（741.35 − 83.71＝29 列ぶん＝1 ページ 30 列）。
+     * 文書ごとの検出は [DetectedRules.detect] が行い、統計不足のときだけここへ退避する。
+     */
+    const val COLUMN_SPAN_X = 657.64
+
     // 5. 表紙の著者名
     const val FONT_SIZE_AUTHOR = 12.0    // FONT_SIZE_PAGE と同値 → フッター除外で区別
     const val COVER_FOOTER_Y = 500.0
