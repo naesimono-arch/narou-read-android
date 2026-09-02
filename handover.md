@@ -58,7 +58,7 @@
 - **[web 原文オラクルの回帰テスト導入]**（最優先の方法論的修正）: golden は旧 Python 複製＝系譜内で、下記欠陥を検出できない構造。
 - **[抽出コア欠陥6クラスの真因調査→修正]** S1 半角スペース脱落／S2a U+FFFD／S3 空行復元全滅／S4a ルビ親範囲／S4b 傍点ルビ／S7 `'` 行頭移動（症状・規模＝一次情報 §4。症状でなく真因から）。
 - **[縦書き組版の規範突合]** `CharClass` ⇄ UTR#50・`LineBreaker` 禁則 ⇄ JLReq（＝`docs/knowledge/vertical-typeset-external-oracle-gap.md`。差分は棚卸し→人間裁定）。
-- **[計測値の訂正の波及]** `measure_read_residency.py` に欠陥2件（文字→トークン換算が 4.8 倍ずれ／分母が `cache_read` でなくその 15.6%）。knowledge 2本は訂正済み。残り＝①`CLAUDE.md`・`AGENTS.md` の「実測 4.3%」を補正値（約5.6%）へ差し替え＝**所管外・要監督** ②独立実装との突合（仕様文は起草済み・実装便の返却待ち）③スクリプト自体を直すかの裁定（直すと過去実測との比較可能性が切れる＝いまは意図的に未修正）。`measure_session_length_cost.py` は再現性良好＝訂正不要。
+- **[計測値の訂正の波及]** `measure_read_residency.py` に欠陥2件（文字→トークン換算が 4.8 倍ずれ／分母が `cache_read` でなくその 15.6%）。knowledge 2本は訂正済み。残り＝①`CLAUDE.md`・`AGENTS.md` の「実測 4.3%」を補正値（約5.6%）へ差し替え＝**所管外・要監督** ②独立実装との突合は**完了**＝構成比は全区分 2.4pt 以内で一致・絶対値のみ3欠陥（換算係数／分母／分割イベントの usage 複製）③スクリプト自体を直すかの裁定（直すと過去実測との比較可能性が切れる＝いまは意図的に未修正）。`measure_session_length_cost.py` は再現性良好＝訂正不要。
 - **[前提3件の裁定＝人間へ]** 材料は揃った（`docs/knowledge/extraction-charmap-diverges-from-web-source.md`・`naro-source-is-line-oriented.md`・`dimension-autodetect-was-preventive.md`）。裁定対象＝①字種写像の pdfminer 追従を撤去するか（golden 再採取と `CharClass` 改訂が道連れ）②行→段落結合を維持するか撤回するか ③寸法自動検出の去就。⚠️ **awaiting-human へ移す項目**＝Claude 側で動かせるのはここまで。なお現行の段落誤り率は**測れていない**（ルビのインライン記法が本文の《》と分離できず、比較可能な話が 1.8% に落ちるため）。
 - 小粒: `tools/count_toc_fixture_chapters.sh` をゲート（CI か GoldenTest）へ結線する。暁66・カクヨム593 を実装非依存で数える手段は用意済みだが、**手動実行のみ＝誰も走らせない**状態。
 
