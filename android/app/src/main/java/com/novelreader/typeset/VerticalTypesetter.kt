@@ -31,16 +31,40 @@ data class PositionedGlyph(
 )
 
 /**
+ * ルビ1書記素ぶんの描画セル（分割と向きの判定を**組版時に確定**させたもの）。
+ *
+ * なぜ組版時に持つか: 以前は描画のたびに `drawParagraphLayout` が読みを
+ * [com.novelreader.ui.compose.RubyLayoutHelper.splitGraphemes] で分割し直し
+ * （＝ルビ1本につき BreakIterator を1本生成）、さらに [CharClassifier] で分類し直していた。
+ * どちらも入力が同じなら結果も同じ純粋計算で、しかも同じ分割・同じ分類を
+ * [RubyPlacer] が採寸のために**既に済ませている**＝draw 段に残す理由が無かった。
+ * 描画は座標の消化だけにする、という P2 描画層の分業（ADR 0020）にも本来こちらが沿う。
+ */
+data class RubyCell(
+    val text: String,
+    val charClass: CharClass,
+)
+
+/**
  * 配置済みのルビ部分文字列。
+ * @param cells 描画順（列内 上→下）の書記素セル。draw はこれを順に消化するだけ。
  * @param x ルビ帯中心 x（列の右側）
  * @param y ルビの天（上端）
  */
 data class PositionedRuby(
-    val text: String,
+    val cells: List<RubyCell>,
     val columnIndex: Int,
     val x: Float,
     val y: Float,
-)
+) {
+    /**
+     * この部分に割り当てられた読み（テスト・デバッグ用の可読表現）。
+     * なぜ保持でなく導出か: 分割前の文字列と分割後のセル列を両方フィールドに持つと、
+     * 片方だけ書き換えた瞬間に「採寸した読み」と「描く読み」が静かに食い違う。
+     * 描画経路はセル列しか見ないので、文字列側を導出にして二重管理を無くす。
+     */
+    val text: String get() = cells.joinToString("") { it.text }
+}
 
 /** 1段落の組版結果（純データ）。 */
 data class ParagraphLayout(

@@ -13,7 +13,6 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import com.novelreader.perf.TypesetWorkProbe
-import com.novelreader.typeset.CharClassifier
 import com.novelreader.typeset.ParagraphLayout
 import com.novelreader.typeset.render.GlyphRenderer
 import com.novelreader.typeset.render.VertGlyphRenderer
@@ -97,12 +96,14 @@ internal fun drawParagraphLayout(
     // ルビも本文と同じ分類器＋renderer 経由で描く。読みには「ー」（伸ばし棒＝要回転）や
     // 小書き仮名（要位置替え）が普通に含まれる——「ルビ＝仮名だから正立だけで足りる」は
     // 誤った前提だった（2026-07-17 実機フィードバック「ルビの伸ばし棒が横向き」の真因）。
+    // 分割と分類は組版時に [com.novelreader.typeset.RubyCell] へ確定済み＝ここは座標を進めるだけ
+    // （以前は描画のたびに BreakIterator を作って分割し直していた＝改善 E）。
     var rubyCells = 0
     for (r in layout.rubies) {
         var cellTop = r.y
-        for (grapheme in RubyLayoutHelper.splitGraphemes(r.text)) {
+        for (cell in r.cells) {
             renderer.drawGlyph(
-                nc, grapheme, CharClassifier.classify(grapheme),
+                nc, cell.text, cell.charClass,
                 r.x, cellTop, rubyFontSizePx, rubyPaint,
             )
             cellTop += rubyFontSizePx
