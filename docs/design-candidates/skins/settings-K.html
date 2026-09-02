@@ -12,6 +12,11 @@
   値の右端は chevron の無い行にも占位（.chev-hole）を置いて全行で揃える規定へ改めた（人間裁定(a)）。
   なお設定画面の実装は全スキン共通の SettingsScreenK 1本＝本ファイル群は「スキン意匠の設計案」であり、
   文言・行構成は5枚とも同一が正しい（意匠だけがスキンごとに違う）。
+  【2026-09-02 追加＝モック先行・Compose 未実装】「データ」節へ〈診断の記録〉行を新設（端末内診断の書き出し入口）。
+  ⚠️ この行だけは release でも出す＝debug なら `adb shell run-as` で filesDir を読めるが release では読めず、
+  「日常利用してもらっている検証機から記録を取り出す手段が無い」ことが、この UI が要る理由そのもの。
+  よって実装では「データ」節の `if (BuildConfig.DEBUG)` を節ごとではなく〈取り込み状態の診断〉行だけに掛け替える。
+  行の飛び先（ボトムシート案A／専用画面案B）は `skins/diagnostics-export-K.html` で裁定中＝入口の見えは両案で同一。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -146,6 +151,14 @@
       <!-- データ -->
       <div class="gh">データ</div>
       <div class="group">
+        <!-- 診断の記録（2026-09-02 新設）。値（件数）を右端に出さないのは、たまっている記録が2種（不具合／なめらかさ）で
+             1つの数に畳めないため＝畳むと「3件」が何の3件か言えない。件数は飛び先で2行に分けて見せる。
+             アイコンは受け皿へ矢印を落とす形＝実装は Icons.Outlined.SaveAlt（同形）。 -->
+        <div class="row">
+          <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 4v9.5"/><path d="M8.2 10.3l3.8 3.8 3.8-3.8"/><path d="M5 18.5h14"/></svg></span>
+          <div class="rt"><div class="rl">診断の記録</div><div class="rd">不具合と動作のなめらかさの記録を、端末の中からファイルへ書き出せます</div></div>
+          <div class="rr"><svg class="chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>
+        </div>
         <div class="row">
           <span class="ri"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 4 13 2.5-7H21"/></svg></span>
           <div class="rt"><div class="rl">取り込み状態の診断</div><div class="rd">Web取込の健全性を確認（開発版のみ）</div></div>

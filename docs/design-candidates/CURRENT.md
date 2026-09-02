@@ -13,7 +13,8 @@
 | 本棚（グリッド⇄リスト整合） | `bookshelf-shiori-consistency-D.html` | 1冊=1色相の共有規約 |
 | 読書 | `reading-D.html` | モーションは ADR 0005 §B＝モック対象外 |
 | 目次 | `toc-D.html` | |
-| 設定 | `settings-D.html` | |
+| 設定 | `settings-D.html` | K の意匠面は `skins/settings-K.html`（既定スキン＝実装は全スキン共通 SettingsScreenK 1本） |
+| 診断の記録（書き出し） | `skins/diagnostics-export-K.html` | ⚠️ **正本ではない＝裁定待ちドラフト**（案A ボトムシート／案B 専用画面／案A の空状態の3枚・中身は同一文）。入口の行は `skins/settings-K.html` の「データ」節へ直差分済み＝そちらは正本。裁定が付いたら勝った案だけ残して正本化し、本行の注記を落とす |
 | 発見系 | `discovery/discovery-{home,genre,search,detail}-D.html` | ⚠️ InfoText AA 未反映（handover 留置） |
 | 装いの間（スキン選択） | `skins/wardrobe-D.html` | 入口は本棚 topbar のみ（ADR 0021 決定7） |
 | スキンC 夜行 | `skins/bookshelf-C.html`・`skins/reading-C.html` | 色トークン層のみ実装済み・構造/演出層は別タスク |
