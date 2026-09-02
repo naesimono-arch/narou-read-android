@@ -15,7 +15,7 @@
 | 目次 | `toc-D.html` | |
 | 設定 | `settings-D.html` | K の意匠面は `skins/settings-K.html`（既定スキン＝実装は全スキン共通 SettingsScreenK 1本） |
 | 診断の記録（書き出し） | `skins/diagnostics-export-K.html` | ⚠️ **正本ではない＝裁定待ちドラフト**（案A ボトムシート／案B 専用画面／案A の空状態の3枚・中身は同一文）。入口の行は `skins/settings-K.html` の「データ」節へ直差分済み＝そちらは正本。裁定が付いたら勝った案だけ残して正本化し、本行の注記を落とす |
-| 発見系 | `discovery/discovery-{home,genre,search,detail}-D.html` | ⚠️ InfoText AA 未反映（handover 留置） |
+| 発見系 | `discovery/discovery-{home,genre,search,detail}-D.html` | ⚠️ InfoText AA 未反映（`docs/backlog-frozen.md` へ凍結） |
 | 装いの間（スキン選択） | `skins/wardrobe-D.html` | 入口は本棚 topbar のみ（ADR 0021 決定7） |
 | スキンC 夜行 | `skins/bookshelf-C.html`・`skins/reading-C.html` | 色トークン層のみ実装済み・構造/演出層は別タスク |
 | スキンK 本棚（横画面グリッド） | `skins/bookshelf-K-landscape.html` | 5列＝案L5（2026-07-26 裁定）。縦正本 `skins/bookshelf-K.html`（2列改A）との差は列数のみ・破線/余白/キャプション同値。**2026-08-20 裁定済み・Compose 未反映**＝①フィルタ行のスクロール端フェード（案「中」＝幅56px／端18%保持・1.0 では不発火）は縦正本と `bookshelf-D.html` に反映済み ②空棚での拡張FAB出没は K 固有で GO（D は空棚文言が FAB を名指しするため当時は伝播せず）——**2026-09-02 に裁定が変わり D も空棚では FAB を出さない＝文言ごと改稿**。D の空棚の見え（イラストは `EmptyBookshelf.kt` からの逆同期・文言3案）は `skins/bookshelf-D.html` 下段の候補枠が正本＝人間の裁定待ち。翻訳時の申し送りは `bookshelf-K.html` 冒頭コメントが正本。横正本と M/P/J は①未反映 |

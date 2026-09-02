@@ -1,4 +1,8 @@
 <!-- @dsCard group="UI-n / 発見（api-lab）" name="D. 検索画面（条件調整・キーワードから選ぶ・選択中バー）" -->
+<!--
+  2026-09-03: 選択中バーの見出しへ **A' を反映**（見出しの器 .sel-bar-ttl ＋ 前半 .sel-bar-ttl-main／件数 .sel-bar-ttl-count の分割）。
+  狙い＝fontScale 2.0 でも「◯件」が残り、見出し行が1行に保たれる（縮んで末尾省略になるのは前半だけ・「すべて解除」は右端のまま）。
+-->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -275,7 +279,13 @@
     padding: 12px 24px 16px;
   }
   .sel-bar-head { display: flex; align-items: center; justify-content: space-between; }
-  .sel-bar-ttl { font-size: 10.5px; letter-spacing: .08em; color: var(--ink-soft); }
+  /* 見出しの器。伸長させない（flex 既定 0 1 auto のまま＝残り幅を埋めない）ので、
+     「すべて解除」は space-between の配りで右端に残る。 */
+  .sel-bar-ttl { display: flex; align-items: center; min-width: 0; font-size: 10.5px; letter-spacing: .08em; color: var(--ink-soft); }
+  /* 縮んで末尾省略になるのは前半だけ（A'）。1行構図は .sel-bar-head の nowrap 既定が守る。 */
+  .sel-bar-ttl-main { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  /* 件数は縮まない＝大きい文字（fontScale 2.0）でも「◯件」が残る。 */
+  .sel-bar-ttl-count { flex: 0 0 auto; white-space: nowrap; }
   .sel-bar-clear { font-size: 11.5px; color: var(--ai); font-weight: 500; cursor: pointer; }
   .sel-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   .sel-chip {
@@ -432,7 +442,7 @@
       <!-- 選択中キーワード追従バー（実装 SelectedKeywordsBar＝下部固定・.scroll の兄弟） -->
       <div class="sel-bar">
         <div class="sel-bar-head">
-          <span class="sel-bar-ttl">選択中のキーワード 2件</span>
+          <span class="sel-bar-ttl"><span class="sel-bar-ttl-main">選択中のキーワード</span><span class="sel-bar-ttl-count"> 2件</span></span>
           <span class="sel-bar-clear">すべて解除</span>
         </div>
         <div class="sel-chips">

@@ -655,15 +655,48 @@ private fun SelectedKeywordsBar(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "選択中のキーワード ${tokens.size}件",
-                    fontSize = FontMicroLabel,
-                    letterSpacing = 1.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
-                )
+                // 見出しの器（正本 discovery-search-D.html の `<span class="sel-bar-ttl">` に対応）。
+                // なぜ weight(1f) をやめて weight(1f, fill = false) ＋ SpaceBetween にしたか: 正本の
+                // `.sel-bar-ttl` は伸長指定を持たない（flex 既定＝`0 1 auto`＝伸びないが縮む）。
+                // fill = true（＝`flex:1 1 0`）は正本に無い加筆で、見出しが常に残り幅いっぱいの器を
+                // 得るため fontScale 2.0 で見出しが2行へ折れ、縦センターの「すべて解除」が2行の谷間へ
+                // 落ちてどちらの行にも属さなく見えていた（折返しは行箱でなく幅で決まる）。
+                // fill = false で器を内容幅へ戻し、右端定位置は行の余りを配る SpaceBetween が担う
+                // （＝正本 `.sel-bar-head` の `justify-content: space-between` の翻訳）。
+                // なぜ semantics でまとめるか: 見出しを Text 2本へ割った分だけ TalkBack の停留先が増えるのを
+                // 防ぎ、分割前と同じ「選択中のキーワード ◯件」という1ノードの読み上げに戻すため。
+                Row(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .semantics(mergeDescendants = true) {},
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 見出しは「選択中のキーワード」と「◯件」へ割る（裁定＝案 A'）。前半だけを
+                    // 縮退＋末尾省略の対象にし、件数には weight を持たせない＝Row は weight 無しの子を先に
+                    // 固有幅で測るので、件数はどんな fontScale でも削られない。見出しを一括で省略する案 A だと
+                    // fontScale 2.0 で「◯件」が消える＝大きい文字を要求している人ほど情報が削られるため。
+                    Text(
+                        text = "選択中のキーワード",
+                        fontSize = FontMicroLabel,
+                        letterSpacing = 1.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    // 区切りの半角空白は件数側に持たせる：分割前の1本の文字列と字送りを同じに保つため
+                    // （letterSpacing は文字ごとに加算されるので、分割しても総幅は変わらない）。
+                    Text(
+                        text = " ${tokens.size}件",
+                        fontSize = FontMicroLabel,
+                        letterSpacing = 1.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
                 // すべて解除（一括リセット）。テキストボタンで primary。
                 TextButton(onClick = onClearAll) {
                     Text(
