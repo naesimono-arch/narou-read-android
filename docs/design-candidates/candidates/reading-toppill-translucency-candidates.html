@@ -1,0 +1,332 @@
+<!-- @dsCard group="UI-n / 一時ドラフト（裁定用）" name="読書「最上部へ」ピルの透過 — 3案＋対照（2026-09-03）" -->
+<!--
+  ⚠️ 一時ドラフト（複数案比較）＝正本ではない。裁定が付いたら**採用案だけ**を正本
+     docs/design-candidates/reading-backtotop-D.html（.toppill＝ピルの器の正本）へ差し戻し、この頁は削除する
+     （CLAUDE.md「一時ファイルは抽出→集約→削除まで1セット」／visual-language「複数案比較のみ一時ドラフト」）。
+
+  ── 動機（handover.md「[意匠] 小口3件 ③新規提起」2026-09-03）────────────────────────
+  「最上部ピルを半透明に」。現状の「最上部へ」ピルだけが**不透明**で、同型の他2ピル（復帰ヒント／続きに戻る）
+  が α.92 なのに対し**独りだけ板に見える**。
+
+  ── 下敷きにした正本（新意匠を発明しない。色・寸法は逐語複製）──────────────────────
+  版面・配色・本文組み（D ライト）      = docs/design-candidates/reading-D.html
+  ピルの器（角丸・余白・枠・影）        = docs/design-candidates/reading-backtotop-D.html:64-70（.toppill）
+  3ピルの器の現行実測値                 = docs/design-candidates/reading-pill-size-face-compare-D.html:71-82
+  J ダークのトークン（最悪条件の再現）  = docs/design-candidates/skins/reading-J.html:34-36
+
+  ── 実装の現在値（2026-09-03 実測）────────────────────────────────────────────
+  ・最上部へ    NativeReadingScreen.kt:1621  .background(colors.navBackground)          ＝**不透明**
+  ・復帰ヒント  NativeReadingScreen.kt:1503  .background(navBackground.copy(alpha=.92f))
+  ・続きに戻る  NativeReadingScreen.kt:1576  .background(navBackground.copy(alpha=.92f))
+  ・器          角丸999(RoundedCornerShape(50))・padding 左右16dp/上下8dp・**枠なし・影なし**
+  ・字          topBarIcon #4A4F58（Dライト）・13sp 明朝・lineHeight 20.8sp
+  ・地色        navBackground = D/K ライト #FBFAF8 ／ セピア #ECDFC0 ／ ダーク #181C22 ／ J ダーク #101913
+  ⚠️ 寸法・書体は別軸（handover「読書の3ピル＝案A（11px ゴシック）」が未翻訳）。本頁は**地の透過だけ**を振り、
+     寸法・書体・字色は全案で現行実装値に固定してある＝差が透過以外から来ない。
+
+  ── 覆す対象＝過去の裁定と、その真因（ここを外すと同じ事故が再発する）────────────────
+  2026-07-17 実機: 半透明(.92)の地は暗色スキン J（navBackground #101913）で、背後の章末印
+  「— 第百二十七話 了 —」（明色 #8E998C）が 8% 透けて**ピル文字とだぶった**。よって「操作可能ピルは
+  可読性優先」で不透明へ倒した（NativeReadingScreen.kt:1617-1621 の why が正本）。
+  つまり争点は「透けるか否か」ではなく「**暗地×明背景でも文字が勝てるか**」。
+  本頁は右列に J ダーク×章末印を必ず並べ、都合のよい地でごまかさない（visual-language モック恒久ルール4）。
+  ※章末印はスキンJ 固有（ui/skins/j/ReadingPortalJ.kt）。D/K には無いので左列は通常本文を背後に置く。
+
+  ── 各案の意図 ────────────────────────────────────────────────────────
+  案A「α.92 一律」        : 他2ピルと**同じ値に揃えるだけ**。実装差分は1行。2026-07-17 の条件をそのまま踏む。
+  案B「α.86 ＋ ヘアライン枠＋淡影」: より透かす代わりに**輪郭を枠が担う**。正本 reading-backtotop-D の .toppill は
+                            元から border+box-shadow を持っており、実装がそれを落としていた＝**正本への復帰**でもある。
+  案C「テーマ別 α（明色.88／暗色.96）」: 2026-07-17 の真因は「暗地×明背景」だけなので、**そこだけ避ける**。
+                            明色テーマは他2ピルより一段透け、暗色はほぼ不透明のまま。
+  対照R「不透明」          : 現行実装そのもの。
+
+  ── 推奨案とその理由 ──────────────────────────────────────────────────
+  **案B**。①「半透明にしたい」動機（板に見える／浮きが硬い）に最も応え、透過量を増やしても**枠と影が形を保つ**ので
+  暗色スキンでも文字がだぶらない＝2026-07-17 の真因を構造で回避する。②器の枠・影は**正本 .toppill に元からある**
+  記述で、新意匠の発明にあたらない（原則「既存意匠の転用」）。③案A は最悪条件（右列 J）で文字がだぶる危険が残り、
+  案C は同じ部品に**テーマ別の分岐**を持ち込む（他2ピルは一律 .92 なので、ピル3種の規則が割れる）。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>読書「最上部へ」ピルの透過 — 3案＋対照</title>
+<style>
+  /*==harness==*/
+  :root{
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;
+    padding:26px;font-family:var(--gothic)}
+  .ttl{font-family:var(--mincho);font-size:19px;color:#1C1F26;letter-spacing:.06em;margin-bottom:8px}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.7;max-width:820px}
+  .cap b{color:#2A2C28}
+  .warn{color:#6A6C67;font-size:11.5px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:820px}
+  .sec{width:100%;max-width:900px;margin:30px 0 12px;font-size:13px;letter-spacing:.14em;
+    color:#2A2C28;border-bottom:1px solid #C8C6BF;padding-bottom:6px}
+  table{border-collapse:collapse;margin:0 auto;font-size:11.5px;background:#FBFAF8}
+  th,td{border:1px solid #D9D7D0;padding:5px 10px;text-align:left;color:#3A3C38}
+  th{background:#F1F0EC;color:#1C1F26;font-weight:600}
+  td b{color:#1C1F26}
+  .notes{max-width:900px;display:flex;flex-direction:column;gap:14px}
+  .note{background:#FBFAF8;border:1px solid #D9D7D0;border-radius:4px;padding:14px 18px;
+    font-size:12px;line-height:1.85;color:#3A3C38}
+  .note h3{font-size:13px;color:#1C3D5A;margin-bottom:6px;letter-spacing:.06em}
+  .note code{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;background:#F1F0EC;padding:0 3px}
+  .note b{color:#1C1F26}
+  /*==/harness==*/
+
+  /* ---- テーマ別トークン（reading-D.html / skins/reading-J.html の実値。1文字も変えない）---- */
+  .t-light{ --bg:#FBFAF8; --ink:#1C1F26; --soft:#7C808B; --ruby:#616C77; --accent:#1C3D5A;
+            --bar:#FBFAF8; --bar-line:#ECEAE4; --pill-ink:#4A4F58; }
+  .t-jdark{ --bg:#0F1712; --ink:#E4E9DE; --soft:#8E998C; --ruby:#A2AC9C; --accent:#E2C878;
+            --bar:#101913; --bar-line:#22301F; --pill-ink:#C8D2C4; }
+
+  /* ---- 比較用の切り出し枠 ----
+     ピルは「下端バー直上」に出る部品なので、判定に要るのは画面下部だけ。372px 幅（＝正本 .phone と同値）は
+     保ったまま高さだけ 300px に詰めた**切り出し**にして、4案×2テーマを一望できるようにする。
+     バー高 60px・ピルの下端 72px（＝バー高＋S12）は実装実測どおり。 */
+  .crop{width:372px;height:300px;position:relative;overflow:hidden;border-radius:10px;
+    background:var(--bg);font-family:var(--mincho);box-shadow:0 8px 22px rgba(0,0,0,.24)}
+  .crop .body{position:absolute;inset:0;padding:16px 24px;color:var(--ink);
+    font-size:16.5px;line-height:2.4;text-indent:1em}
+  .crop .body ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  /* 章末印（reading-J .chapend .mark の逐語複製）＝スキンJ 固有。ピルの真裏に来る高さへ置き、
+     2026-07-17 に不透明化の根拠となった「明色の印 × 暗地のピル」を再現する。 */
+  .chapend{position:absolute;left:0;right:0;bottom:84px;text-align:center;text-indent:0;
+    font-family:var(--gothic);font-size:10.5px;letter-spacing:.34em;color:var(--soft)}
+  /* 下端バー（reading-D .bottombar の逐語複製・4分割） */
+  .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:60px;display:flex;align-items:center;
+    background:var(--bar);border-top:1px solid var(--bar-line)}
+  .bottombar button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:4px;color:var(--ink);cursor:pointer}
+  .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .bottombar .bl{font-family:var(--gothic);font-size:9.5px;color:var(--soft);letter-spacing:.02em}
+  .bottombar .set svg{stroke:var(--accent)}
+  .bottombar .set .bl{color:var(--accent);font-weight:600}
+
+  /* ---- 本件の比較対象＝「最上部へ」ピルの地だけ。器の寸法・書体・字色は全案共通で現行実装値に固定 ---- */
+  .toppill{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);z-index:6;
+    display:flex;align-items:center;gap:6px;font-family:var(--mincho);font-size:13px;line-height:1.6;
+    color:var(--pill-ink);letter-spacing:.08em;border-radius:999px;padding:8px 16px;white-space:nowrap;
+    border:none;cursor:pointer}
+  .toppill svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8}
+
+  /* 対照R: 現行＝不透明（NativeReadingScreen.kt:1621） */
+  .r  .toppill{background:var(--bar)}
+  /* 案A: α.92 一律（復帰ヒント／続きに戻ると同値） */
+  .a.t-light .toppill{background:rgba(251,250,248,.92)}
+  .a.t-jdark .toppill{background:rgba(16,25,19,.92)}
+  /* 案B: α.86 ＋ ヘアライン枠＋淡影（正本 reading-backtotop-D .toppill の器へ復帰） */
+  .b.t-light .toppill{background:rgba(251,250,248,.86);border:1px solid var(--bar-line);
+    box-shadow:0 2px 10px rgba(0,0,0,.08)}
+  .b.t-jdark .toppill{background:rgba(16,25,19,.86);border:1px solid var(--bar-line);
+    box-shadow:0 2px 10px rgba(0,0,0,.45)}
+  /* 案C: テーマ別 α（明色 .88 ／ 暗色 .96） */
+  .c.t-light .toppill{background:rgba(251,250,248,.88)}
+  .c.t-jdark .toppill{background:rgba(16,25,19,.96)}
+
+  /* ---- 案の並べ方 ---- */
+  .cases{display:flex;flex-direction:column;gap:26px;align-items:center}
+  .case{background:#FBFAF8;border:1px solid #D9D7D0;border-radius:6px;padding:16px 18px;
+    display:flex;flex-direction:column;gap:10px;max-width:900px}
+  .case .hd{font-size:13.5px;color:#1C1F26;letter-spacing:.04em}
+  .case .hd b{color:#1C3D5A}
+  .case .hd .val{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;background:#F1F0EC;
+    padding:1px 5px;margin-left:8px;color:#3A3C38}
+  .pair{display:flex;gap:22px;flex-wrap:wrap;justify-content:center}
+  .col{display:flex;flex-direction:column;align-items:center;gap:7px}
+  .col .mode{font-size:11px;letter-spacing:.16em;color:#6A6C67}
+  .case .sub{font-size:11.5px;line-height:1.8;color:#5A5C57}
+  .case .sub b{color:#1C1F26}
+  .case.reco{border-color:#1C3D5A;box-shadow:0 0 0 2px rgba(28,61,90,.12)}
+  .badge{display:inline-block;background:#1C3D5A;color:#fff;font-size:10.5px;letter-spacing:.1em;
+    border-radius:3px;padding:2px 8px;margin-right:8px}
+</style>
+</head>
+<body>
+  <h1 class="ttl">読書「最上部へ」ピルの透過 — 3案＋対照</h1>
+  <p class="cap"><b>争点</b>: 同型の3ピルのうち「最上部へ」だけが不透明で、独りだけ板に見える。どこまで透かすか。<br>
+  全案とも<b>寸法・書体・字色・位置は現行実装値に固定</b>し、<b>地の透過だけ</b>を変えてある（寸法／書体は別軸＝
+  handover「読書の3ピル＝案A（11px ゴシック）」が未翻訳のため、本頁では現行 13px 明朝のまま描く）。</p>
+  <p class="warn">⚠️ 右列の <b>J ダーク × 章末印</b> は、2026-07-17 に「不透明へ倒す」根拠になった当の条件
+  （明色の印 #8E998C がピルの裏を通る）。都合のよい地で隠さず、ここで文字がだぶらないかを見て決める。</p>
+
+  <div class="sec">現在値と、過去に不透明へ倒した真因</div>
+  <table>
+    <tr><th>部品</th><th>地の透過（実装）</th><th>器</th><th>実装の該当行</th></tr>
+    <tr><td>復帰ヒント（純表示）</td><td>navBackground <b>α.92</b></td><td>枠なし・影なし</td><td><code>NativeReadingScreen.kt:1503</code></td></tr>
+    <tr><td>続きに戻る（タップ可）</td><td>navBackground <b>α.92</b></td><td>枠なし・影なし</td><td><code>NativeReadingScreen.kt:1576</code></td></tr>
+    <tr><td>最上部へ（タップ可）</td><td>navBackground <b>不透明</b></td><td>枠なし・影なし</td><td><code>NativeReadingScreen.kt:1621</code></td></tr>
+    <tr><td colspan="4">正本 <code>reading-backtotop-D.html:64-70</code> の <code>.toppill</code> は <b>α.92 ＋ 1px 枠 ＋ 影</b>＝
+      実装は<b>透過だけでなく枠と影も落としている</b>（＝案B は新提案ではなく正本への復帰）。</td></tr>
+  </table>
+
+  <div class="sec">4案の見比べ（左＝D/K ライト・背後は本文／右＝J ダーク・背後は章末印）</div>
+  <div class="cases">
+
+    <!-- 対照R: 現行 -->
+    <div class="case">
+      <div class="hd">対照R ／ <b>現行＝不透明</b><span class="val">alpha 1.00・枠なし・影なし</span></div>
+      <div class="pair">
+        <div class="col"><span class="mode">D／K ライト</span>
+          <div class="crop t-light r" role="img" aria-label="対照R ライト 不透明ピル">
+            <div class="body"><p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p></div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar">
+              <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+              <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+              <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+              <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+            </div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">J ダーク（章末印）</span>
+          <div class="crop t-jdark r" role="img" aria-label="対照R Jダーク 不透明ピル">
+            <div class="body"><p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar">
+              <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+              <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+              <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+              <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sub">背後は一切透けない＝<b>板</b>。他2ピル（α.92）と並ぶと、この1個だけ質感が違う。</div>
+    </div>
+
+    <!-- 案A -->
+    <div class="case">
+      <div class="hd">案A ／ <b>α.92 一律</b>（他2ピルと同値に揃えるだけ）<span class="val">alpha 0.92・枠なし・影なし</span></div>
+      <div class="pair">
+        <div class="col"><span class="mode">D／K ライト</span>
+          <div class="crop t-light a" role="img" aria-label="案A ライト α.92">
+            <div class="body"><p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p></div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar">
+              <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+              <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+              <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+              <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+            </div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">J ダーク（章末印）</span>
+          <div class="crop t-jdark a" role="img" aria-label="案A Jダーク α.92">
+            <div class="body"><p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar">
+              <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+              <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+              <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+              <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sub">実装差分は1行（<code>.copy(alpha=0.92f)</code> を足すだけ）で、3ピルの規則が「一律 .92」に揃う。
+        <b>緊張点</b>: 右列がまさに 2026-07-17 の条件＝章末印の白い横棒がピルの中を横切る。ここが許容できるかが全て。</div>
+    </div>
+
+    <!-- 案B（推奨） -->
+    <div class="case reco">
+      <div class="hd"><span class="badge">推奨</span>案B ／ <b>α.86 ＋ ヘアライン枠 ＋ 淡影</b>（正本 .toppill の器へ復帰）<span class="val">alpha 0.86・border 1px --bar-line・shadow 0 2px 10px</span></div>
+      <div class="pair">
+        <div class="col"><span class="mode">D／K ライト</span>
+          <div class="crop t-light b" role="img" aria-label="案B ライト α.86 枠あり">
+            <div class="body"><p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p></div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar">
+              <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+              <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+              <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+              <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+            </div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">J ダーク（章末印）</span>
+          <div class="crop t-jdark b" role="img" aria-label="案B Jダーク α.86 枠あり">
+            <div class="body"><p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar">
+              <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+              <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+              <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+              <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sub">案A より<b>6pt 多く透ける</b>のに、輪郭は枠が引き受けるのでピルの形が崩れない＝
+        「板でない」と「文字が勝つ」を同時に取る。枠と影は<b>正本 reading-backtotop-D.html:64-70 に元からある記述</b>で、
+        新意匠ではなく実装が落としていたものの復帰。<b>緊張点</b>: 影は D の「黒衣」思想では重い部類＝
+        影を捨てて枠だけにする亜種も可（その場合は暗色スキンでピルが地に沈みやすくなる）。</div>
+    </div>
+
+    <!-- 案C -->
+    <div class="case">
+      <div class="hd">案C ／ <b>テーマ別 α</b>（明色 .88 ／ 暗色 .96）<span class="val">light 0.88 / dark 0.96・枠なし・影なし</span></div>
+      <div class="pair">
+        <div class="col"><span class="mode">D／K ライト（α.88）</span>
+          <div class="crop t-light c" role="img" aria-label="案C ライト α.88">
+            <div class="body"><p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p></div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar">
+              <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+              <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+              <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+              <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+            </div>
+          </div>
+        </div>
+        <div class="col"><span class="mode">J ダーク（α.96・章末印）</span>
+          <div class="crop t-jdark c" role="img" aria-label="案C Jダーク α.96">
+            <div class="body"><p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p></div>
+            <div class="chapend">— 第百二十七話 了 —</div>
+            <button class="toppill"><svg viewBox="0 0 24 24"><line x1="5" y1="4" x2="19" y2="4"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span>最上部へ</span></button>
+            <div class="bottombar">
+              <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+              <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/></svg><span class="bl">目次</span></button>
+              <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+              <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sub">2026-07-17 の真因は「暗地×明背景」だけなので、そこだけ避けて明色は思い切り透かす。
+        <b>緊張点</b>: 同じ部品にテーマ別の分岐が入る＝3ピルの規則が「復帰ヒント/続きに戻る＝一律.92／最上部へ＝テーマ別」と割れる。
+        規則が割れると、次に誰かが触るとき<b>どちらが正なのか読み取れない</b>。</div>
+    </div>
+
+  </div>
+
+  <div class="sec">波及メモ</div>
+  <div class="notes">
+    <div class="note"><h3>裁定が「透過あり」に倒れたときの実装側の1点</h3>
+      現行 <code>NativeReadingScreen.kt:1617-1621</code> には「なぜ不透明か」の why コメントが据えてあり、
+      2026-07-17 の実機真因を記している。透過を入れるなら<b>そのコメントを消さず書き換える</b>
+      （「.92 は J で章末印が透けた → 案B の枠＋影で輪郭を担保したうえで .86 へ」）。
+      why を消して値だけ変えると、次に暗色スキンで事故ったとき原因が辿れない。
+    </div>
+    <div class="note"><h3>この頁で振っていない軸（混ぜないこと）</h3>
+      ①<b>寸法・書体</b>（handover「3ピル＝案A 11px ゴシック」が未翻訳）②<b>字色</b>
+      （実装 <code>topBarIcon</code> #4A4F58 と正本 <code>.toppill</code> の <code>--ink</code> #1C1F26 が不一致・別件）
+      ③<b>出現条件</b>（章の3割以上＝2026-07-16 裁定済み・変更しない）。
+      本頁の裁定は「地の透過」だけに効く。
+    </div>
+    <div class="note"><h3>復帰ヒント・続きに戻るは触らない</h3>
+      提起は「最上部ピル」1個。他2ピルは既に α.92 で、揃えるとしたら<b>最上部へをそちらへ寄せる</b>方向
+      （案A）。案B を採ると 3ピルの器が「最上部へだけ枠＋影」で割れるため、
+      <b>3ピルすべてを案B の器へ揃える</b>かどうかも同時に裁定してほしい（揃えるなら復帰ヒント/続きに戻るも .86＋枠＋影）。
+    </div>
+  </div>
+</body>
+</html>
