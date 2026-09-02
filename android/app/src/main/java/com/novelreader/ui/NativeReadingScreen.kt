@@ -10,6 +10,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.fadeIn
@@ -1491,8 +1492,17 @@ internal fun ChapterScreenContent(
 
         // 没入クローム復帰ヒント（初回消灯時に数秒フェード）。タップは奪わない純表示。
         // fade は motion トークン MotionDurationCrossfade 経由（d-motion 08 禁止則②＝野良既定に委ねない）。
+        //
+        // なぜ visible= でなく visibleState= か（2026-09-03 の実機是正）: 下の取っ手が「ピルが消えてから出る」
+        // ためには、**ピルが画面に残っている間**を知る必要がある。showChromeHint は退場アニメの*開始*を指す
+        // 入力にすぎず、ピルはその後 MotionDurationCrossfade のあいだ描かれ続ける＝boolean を見ても
+        // 「まだ居るのか」は分からない。MutableTransitionState なら currentState が退場完了で初めて false に
+        // なるので、ピルの実寿命がそのまま読める（取っ手側の受け渡し条件＝下の graphicsLayer）。
+        // 初期値に showChromeHint を入れるのは、初回コンポーズで意図しない入場アニメを走らせないため。
+        val chromeHintState = remember { MutableTransitionState(showChromeHint) }
+        chromeHintState.targetState = showChromeHint
         AnimatedVisibility(
-            visible = showChromeHint,
+            visibleState = chromeHintState,
             enter = fadeIn(tween(MotionDurationCrossfade)),
             exit = fadeOut(tween(MotionDurationCrossfade)),
             modifier = Modifier
@@ -1550,8 +1560,18 @@ internal fun ChapterScreenContent(
         // ピルが正しい位置へ戻った瞬間に根拠だけが残って崩れた。取っ手を上へ逃がすとピルの内側へ入るだけで、
         // 幾何では分離できない＝**時間で分ける**。正本 §6 の「ピルが出て自分で消える。そのあと取っ手だけが
         // 残る」という層①→層②の受け渡しそのものに戻す（当て値でピルや取っ手を動かさない）。
-        // 受け渡しはピル側の fadeOut に乗る（AnimatedVisibility の退場中だけ両者が重なるが、それは
-        // 消えていくピルと現れる取っ手のクロスフェード＝正本の記述どおりの見えになる）。
+        //
+        // ⚠️ 2026-09-03 の実機是正: 当初 `!showChromeHint` で直接ゲートしたが**退場方向だけ受け渡しが成立
+        // していなかった**（実測＝ピルがまだ 98% 不透明の同一フレームで取っ手が 0→満値へ跳び、約180ms 並ぶ）。
+        // 真因は取っ手側でなく**参照している信号**: showChromeHint の false は退場アニメの*開始*を指す入力で、
+        // ピルはその後 MotionDurationCrossfade のあいだ描かれ続ける。取っ手にはもともと淡入が無く（濃さは
+        // collapsedFraction に比例するだけ）、その二値が「ピルがまだ居るフレーム」で反転していた。
+        // 入場方向だけ正常に見えたのは、立ち上がりでは同じ二値が取っ手を*即座に消す*側へ働き、
+        // 「先に消えてからピルが出る」という望ましい順序と偶然一致していたから（対称ではない）。
+        // 是正＝ピルの実寿命（[chromeHintState]）を見る。currentState は退場完了で初めて false になるので、
+        // 「ピルの最後の1フレームが描かれ切ってから取っ手が出る」が構造的に保証される。
+        // 遅延やアニメを足していない＝新しい時定数を持ち込まず、参照する信号だけを正しいものへ替えた。
+        // 判定は [immersiveHandleVisible] に括り出して単体テストで縛る（ImmersiveHandleHandoffTest）。
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -1564,7 +1584,13 @@ internal fun ChapterScreenContent(
                 // composition を再実行しない（没入ゴースト題字と同じ形）。barsVisualReady=false
                 //（入場時の初期退避が実測待ち）の間は一切出さない＝バーが未確定のうちに帯だけ光るのを防ぐ。
                 .graphicsLayer {
-                    alpha = if (barsVisualReady && !showChromeHint) {
+                    alpha = if (
+                        immersiveHandleVisible(
+                            barsVisualReady = barsVisualReady,
+                            hintIdle = chromeHintState.isIdle,
+                            hintCurrentlyShown = chromeHintState.currentState,
+                        )
+                    ) {
                         ImmersiveHandleAlpha * topAppBarState.collapsedFraction
                     } else {
                         0f
@@ -1747,6 +1773,29 @@ internal fun readingBarAlpha(barsVisualReady: Boolean, settingsPeek: Float): Flo
 // ⚠️ ユーザーが目視裁定した実測値＝勝手に動かさない（§8「取っ手の実測値（裁定中・動かさない）」）。
 // 余白スケール（Spacing）へ丸めないのは、これが「リズムの余白」ではなく1つの部品の造形寸法だから
 // （ADR 0014 §C の除外軸・ComponentPadding と同じ理由）。
+/**
+ * 没入中の取っ手を出してよいか（層①ピル → 層②取っ手の受け渡し規則）。
+ *
+ * 正本 `tutorial-onboarding-K.html` §6 は「ピルが出て自分で消える。**そのあと**取っ手だけが残る」＝順次で、
+ * 同時に並ぶ絵ではない。よって判定は「ピルがまだ描かれているか」で、**入力の boolean ではなく
+ * ピルの実寿命**（[MutableTransitionState]）を見る必要がある——`showChromeHint=false` は退場アニメの
+ * *開始*でしかなく、ピルはそのあと数フレーム描かれ続けるため、boolean で切ると
+ * 「まだ 98% 不透明のピルの隣に取っ手が満値で出る」（2026-09-03 実機実測）。
+ *
+ * @param hintIdle ピルの遷移が停止しているか（アニメ中は false）。
+ * @param hintCurrentlyShown 遷移の現在値＝退場が完了するまで true のまま。
+ */
+internal fun immersiveHandleVisible(
+    barsVisualReady: Boolean,
+    hintIdle: Boolean,
+    hintCurrentlyShown: Boolean,
+): Boolean =
+    // barsVisualReady: 入場直後の初期退避が実測待ちの間は帯を光らせない（既存の条件・意味は不変）。
+    // idle かつ現在値 false ＝「ピルは居ないし、これから出入りしている最中でもない」。
+    // 入場方向（target=true になった瞬間）は idle が false へ落ちるので、この式は**同じフレームで**
+    // false を返す＝取っ手は従来どおり即座に消える（ピルが淡入するより先に場所を空ける）。
+    barsVisualReady && hintIdle && !hintCurrentlyShown
+
 private val ImmersiveHandleWidth = 46.dp
 private val ImmersiveHandleHeight = 3.dp
 private val ImmersiveHandleCorner = 2.dp
