@@ -118,8 +118,11 @@ EOF
     sh "su 0 cp /data/local/tmp/nr_app_prefs.xml /data/data/$PKG/shared_prefs/app_prefs.xml"
     # 章頭から始める（既読位置の残りで測ると可視段落集合が run ごとに変わる）。
     # run-as で書くと owner と SELinux ラベルが自動的に正しくなる（root の sqlite3 だと壊れうる）。
+    # 開始章は外から与えられるようにする（既定は章1）。なぜ要るか: 短い章は数スワイプで尽きて
+    # **章送りに化ける**＝定常スクロールを測るつもりが章遷移の数字になる（既知の罠）。
+    # 章長に見合う章を選べるようにしておく。
     sh "run-as $PKG sqlite3 /data/data/$PKG/databases/novel_reader_db \
-        \"insert or replace into progress values('$BOOK_ID','chap_1.html',0,0,0,0);\"" >/dev/null
+        \"insert or replace into progress values('$BOOK_ID','${START_CHAP:-chap_1.html}',0,0,0,0);\"" >/dev/null
     # フルスクリーン確認ダイアログ（システム）は起動のたびに前面を奪う＝先に恒久抑止する。
     sh settings put secure immersive_mode_confirmations confirmed >/dev/null
 }
