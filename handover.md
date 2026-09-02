@@ -61,7 +61,6 @@
   ページ抜き fixture 化の方針は承認済み（本節末尾の「前提3件の裁定」とは別軸）。着手は
   ①全文版からの抽出結果と突合できる形でページ抜き PDF を作る ②抽出が全文版と一致することを検証
   ③fixture化してオラクルテストへ追加、の順。
-- **[縦書き組版の規範突合]** `CharClass` ⇄ UTR#50・`LineBreaker` 禁則 ⇄ JLReq（＝`docs/knowledge/vertical-typeset-external-oracle-gap.md`。差分は棚卸し→人間裁定）。
 - **[計測値の訂正の波及]** 訂正は完了（knowledge 2本・`CLAUDE.md`・`AGENTS.md` とも差し替え済み。独立実装との突合で構成比は全区分 2.4pt 以内で一致・壊れていたのは絶対値だけ）。⚠️ **`measure_read_residency.py` 自体は意図的に未修正**＝直すと過去実測との比較可能性が切れるため。総額には**未説明 22%** が残る（jsonl 本文に現れない注入が候補・特定未了）＝絶対値を新しい判断の根拠に使わない。
 
 ## Google Play 公開準備 — 技術トラック
