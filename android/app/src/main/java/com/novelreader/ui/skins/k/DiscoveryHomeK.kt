@@ -14,7 +14,6 @@ import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -69,6 +68,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.MeasurePolicy
+import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -84,6 +86,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.novelreader.discovery.model.WorkSummary
@@ -1046,9 +1049,11 @@ private fun LazyListScope.rankingSectionK(
  *    `reverseDirection = true` は横 LTR の既定（左へ払う＝次ページへ進む）を標準実装と揃えるため。
  *  - **端の封止**: [edgeSeal] を `scrollable` の親側に置き、消費し切れない横成分を全量食う
  *    ＝端期間でさらに引いてもアプリのタブ（外側 Pager）が切り替わらない（2026-07-29 監督裁定の継承）。
- *  - **覗き**: [neighbor] は現在行に重ねて描き `matchParentSize` を与える＝**親の高さ決定に参加しない**。
- *    これが「ページ高を現在ページだけから決める」の実体で、はみ出しは `clipToBounds` が切る
- *    （旧 Pager が wrap 高＝現在ページ準拠で隣をクリップして覗かせていた見え方を行単位で再現する）。
+ *  - **覗き**: 覗きの期間は現在行に重ねて描き、**親の高さ決定に参加しない**（枠の高さは据わりの期間の
+ *    行だけが決める＝「ページ高を現在ページだけから決める」の実体。はみ出しは `clipToBounds` が切る。
+ *    旧 Pager が wrap 高＝現在ページ準拠で隣をクリップして覗かせていた見え方を行単位で再現する）。
+ *    ⚠️ この「参加しない」を**子の modifier（matchParentSize）で表さない**のが 2026-09-02 の是正で、
+ *    理由は [rankingSlotMeasurePolicy] の KDoc（役割の入れ替わりが子の制約を反転させ測り直しを呼ぶ）。
  *    本体・覗きとも自分のページ番号の座席へ置く（＝[rankingPageOffsetPx]）。
  *
  * **なぜ枠を「据わり／覗き」でなく期間 ordinal の偶奇で持つか（2026-08-26・送りアニメのコストの真因対処）**:
@@ -1075,7 +1080,9 @@ private fun RankingSlotK(
     onOpenDetail: (ncode: Ncode) -> Unit,
     onRefresh: () -> Unit,
 ) {
-    Box(
+    // 覗きは必ず据わりの隣（PagerSnapDistance 既定＝1フリック1ページ）＝偶奇は必ず食い違う。
+    val seatedIsEven = seatedOrder.ordinal % 2 == 0
+    Layout(
         modifier = Modifier
             .fillMaxWidth()
             // 溝（pageSpacing）ぶん外へはみ出す覗きを、この行の枠で切る。
@@ -1091,18 +1098,59 @@ private fun RankingSlotK(
                 flingBehavior = flingBehavior,
                 reverseDirection = true,
             ),
-    ) {
-        // 覗きは必ず据わりの隣（PagerSnapDistance 既定＝1フリック1ページ）＝偶奇は必ず食い違う。
-        val seatedIsEven = seatedOrder.ordinal % 2 == 0
-        RankingPageLayerK(
-            pagerState, if (seatedIsEven) seatedOrder else peekOrder, seatedIsEven, index,
-            slotsOf, onOpenDetail, onRefresh,
-        )
-        RankingPageLayerK(
-            pagerState, if (seatedIsEven) peekOrder else seatedOrder, !seatedIsEven, index,
-            slotsOf, onOpenDetail, onRefresh,
-        )
-    }
+        content = {
+            // 枠の並び順は**偶奇で固定**（役割では並べない）。layoutId も偶奇＝送りで動かない
+            // ＝親データが変わらないので、入れ替わりが子の測り直しを呼ばない。
+            RankingPageLayerK(
+                Modifier.layoutId(RankingEvenSlotId), pagerState,
+                if (seatedIsEven) seatedOrder else peekOrder, seatedIsEven, index,
+                slotsOf, onOpenDetail, onRefresh,
+            )
+            RankingPageLayerK(
+                Modifier.layoutId(RankingOddSlotId), pagerState,
+                if (seatedIsEven) peekOrder else seatedOrder, !seatedIsEven, index,
+                slotsOf, onOpenDetail, onRefresh,
+            )
+        },
+        measurePolicy = remember(seatedIsEven) { rankingSlotMeasurePolicy(seatedIsEven) },
+    )
+}
+
+/** 偶数 ordinal の期間が入る枠の識別子（[rankingSlotMeasurePolicy] が据わり側を見分けるためだけに使う）。 */
+private object RankingEvenSlotId
+
+/** 奇数 ordinal の期間が入る枠の識別子。 */
+private object RankingOddSlotId
+
+/**
+ * 1行ぶんの枠（据わり＋覗き）の測り方。**役割で子の制約を変えないこと**が唯一の要点。
+ *
+ * **なぜ Box + matchParentSize をやめたか（2026-09-02・送りアニメの残りスパイクの真因対処）**:
+ * 旧実装は「高さを決めるのは据わりだけ」を覗き側の [androidx.compose.foundation.layout.BoxScope.matchParentSize]
+ * で表していた。ところが matchParentSize は**子が受け取る制約そのもの**を変える（付いていれば
+ * `Constraints.fixed(枠の実寸)`・付いていなければ高さ無限）。半ページを越えて据わりと覗きが入れ替わると、
+ * この modifier も一緒に入れ替わる＝**両方の枠の高さ制約が反転**し、Compose は制約が変わった子を
+ * 必ず測り直す。行の中身（テキスト）は同じままなので組版キャッシュは効き
+ *（`Constructing StaticLayout` はほぼ 0）、それでも**可視行×2ページぶんの measure が丸ごと走る**。
+ * 実測（Robolectric・可視3行）で「送り1回あたり枠9回・行9回の測り直し」＝1行につき3回、
+ * うち2回は maxH が 151⇄無限に反転しただけのもの、と数え上げて確認した。
+ *
+ * ⇒ 子には**常に同じ制約**（Box が matchParentSize 無しの子へ渡すのと同じ緩め方）を渡し、
+ * 「どちらの高さを採るか」は**親のこの測り方**が決める。据わりが入れ替わってもこの方針が
+ * 選ぶ相手が変わるだけで、子の制約は 1 ビットも動かない＝測り直しが起きない。
+ * 見た目は不変（枠の高さは従来どおり据わりの期間の行の高さ・はみ出しは親の `clipToBounds` が切る）。
+ */
+private fun rankingSlotMeasurePolicy(seatedIsEven: Boolean) = MeasurePolicy { measurables, constraints ->
+    // Box が matchParentSize でない子へ渡すのと同じ制約＝この1行が「役割に依存しない測り方」の実体。
+    val childConstraints = constraints.copy(minWidth = 0, minHeight = 0)
+    val placeables = measurables.map { it.measure(childConstraints) }
+    val seatedId = if (seatedIsEven) RankingEvenSlotId else RankingOddSlotId
+    val seatedIndex = measurables.indexOfFirst { it.layoutId == seatedId }
+    // 枠の高さは据わりの期間の行だけが決める（覗きは高さに参加しない＝旧 matchParentSize の意図）。
+    // 覗きしか居ない状況は構造上あり得ない（据わりの枠は常に置かれる）が、保険で最大高へ倒す。
+    val height = if (seatedIndex >= 0) placeables[seatedIndex].height else placeables.maxOfOrNull { it.height } ?: 0
+    val width = constraints.constrainWidth(placeables.maxOfOrNull { it.width } ?: 0)
+    layout(width, height) { placeables.forEach { it.place(0, 0) } }
 }
 
 /**
@@ -1113,7 +1161,8 @@ private fun RankingSlotK(
  * ノードの付け替えで済み、行が抱えるテキストの計測結果は生き残る。
  */
 @Composable
-private fun BoxScope.RankingPageLayerK(
+private fun RankingPageLayerK(
+    modifier: Modifier,
     pagerState: PagerState,
     order: NarouOrder?,
     seated: Boolean,
@@ -1127,10 +1176,7 @@ private fun BoxScope.RankingPageLayerK(
     // 覗き側の期間は行数が違い得る（例: 控えなしの骨 30 行 vs status 1 行）＝無い行は置かない。
     if (index >= slots.count) return
     Column(
-        modifier = Modifier
-            // 行の高さを決めるのは据わりの期間だけ＝覗きは matchParentSize で親の高さ決定に参加しない
-            //（「ページ高を現在ページだけから決める」の実体。はみ出しは親の clipToBounds が切る）。
-            .then(if (seated) Modifier else Modifier.matchParentSize())
+        modifier = modifier
             // State 読みを layer 更新に閉じる（deferred read）＝ドラッグ中に composition/layout を起こさない。
             .graphicsLayer { translationX = rankingPageOffsetPx(pagerState, order.ordinal) }
             .then(
