@@ -106,10 +106,25 @@ M/P/J は〈没入面／一覧面〉の2面を持ち、**没入面は選択モ�
 - **prefs を端末側 `sed`/`grep` で直編集しない**——属性の引用符が落ちて `<string name=app_skin>` という不正 XML になり
   prefs が丸ごと読めなくなる。**force-stop → pull → ホストで編集 → push** が安全（`setpref.py`）。
 
-**この便でも出せなかったもの（＝まだ未検証）**
+## ①AutoPdf が出ない真因と、出すための前提（2026-09-02・emulator-5554 / AVD `nr_b` で確定）
 
-- **①「元のPDFから再取込」（`ReimportPlan.AutoPdf`）のダイアログ**。SAF（Downloads プロバイダ）で取り込んだ本の
-  `index.html` を消すと `PickPdfPermissionLost`（＝永続読取権限が生きていない扱い）へ落ち、①分岐に入らなかった。
-  `sourceUri`（`content://com.android.providers.downloads.documents/document/raw%3A…`）は DB に残っている。
-  **エミュのプロバイダ固有か実バグかは判定不能**＝次便は `hasPersistedRead` の突合（`persistedUriPermissions` の
-  URI 文字列と DB の `sourceUri` を実機/エミュ両方で並べる）から入る。
+**エミュのプロバイダ固有ではない。SAF 取込では構造的に踏めない**——取込成功の直後に
+`repository/PendingJobStore.kt:107-110`（`settlePendingJob`）が `releasePersistableUriPermission` を呼ぶため、
+`books.sourceUri` は残るのに**永続 URI 権限だけが即座に返却される**。よって
+`viewmodel/BookshelfViewModel.kt:375-378` の `hasPersistedRead` が必ず false になり、②`PickPdfPermissionLost` へ落ちる。
+実測（`adb shell dumpsys activity permissions`）＝取込直後の当該 URI は **`persistable=0x3 persisted=0x0`**
+（一時グラントは Activity が持つが `persistedUriPermissions` には現れない）。
+⚠️ この解放は `releaseOrphanedPermissions` の keepUris ②（「本の生存中ずっと保持する」と書かれた意図）と
+**食い違って見える**＝取込元PDF削除が権限失効で失敗しうる。是非の判断は人間（このファイルは前提の作り方が責務）。
+
+**①を出す前提の作り方**（本番コード不変・エミュで4分）:
+
+1. 小さい PDF を SAF ピッカーで取り込む（本ができ `sourceUri` が入る。権限はここで返却済み）
+2. **同じパスの PDF を壊し、同じ URI でもう一度取込を走らせて失敗させる**——失敗経路だけは権限を意図的に残す
+   （`repository/PdfBookImporter.kt:334` `deleteRowKeepingPermission`）。`dumpsys` が `persisted=0x3` に変わる
+3. PDF の中身を元へ戻す（URI もグラントも不変＝①の実行が実際に成功する状態になる）
+4. その本の `index.html` を消す → カードをタップ
+
+⇒ ①「…を元のPDFから再取込しますか？／記録されている取込元 PDF からもう一度変換します」（2ボタン）が出る。
+一括バナーの内訳ダイアログも「元のPDFから自動で再変換（取込元の記録と権限あり） 1冊」になる。
+**作り物でない確認**＝「再取込する」を押すと `books.id` が変わらないまま本文が戻る（読書位置・栞を保つ①本来の動き）。

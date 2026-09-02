@@ -83,16 +83,10 @@
 > 発火条件と「何を作れば踏めるか」＝`docs/knowledge/device-visual-checks-blocked-by-fixture-preconditions.md` が正本／運用＝`/emulator-verify`。
 > ⚠️ **判定（良し悪し）は人間**＝**撮って出すまでが Claude の職務**（スクショを出せばその場で裁定が回る）。
 
-- **[① 未投入の意匠のうち、まだ踏めていない2つ]**（2026-08-26 に6件中4件は撮影済み＝`shots/b1/`）:
+- **[① 未投入の意匠のうち、まだ踏めていないもの]**（2026-09-02 時点で残るのは (a) だけ＝FAB の出没と AutoPdf 分岐は撮影済み）:
   (a) **端フェードの左端**＝実装上スクロール可（`BookshelfK.kt` のチップ行）なのに **adb 合成入力では踏めない**
   ——横ドラッグを親のタブ `HorizontalPager` が必ず奪う（機序と潰した手＝`docs/knowledge/emulator-screenrecord-and-synthetic-input-limits.md`）。
   ⚠️ **前提の問題ではなく入力手段の問題**＝実指なら踏める可能性がある（実機ツアーで見る側）。
-  (b) **FAB の出没の「動き」**＝静止の前後2枚は撮れた。動きは蔵書0でしか消えず、`読了`フィルタ0件では空棚にならない。
-
-- **[復旧ダイアログの AutoPdf 分岐だけ出せない]**（2026-08-26・前提の作り方が未確立）:
-  3ボタン縦積み（場所から探す／自分で選ぶ／やめる）は踏めたが、**①AutoPdf 分岐だけ再現できず**
-  ＝SAF(Downloads) 取込本は `PickPdfPermissionLost` に落ちるため。**次便の入口は
-  `docs/knowledge/device-visual-checks-blocked-by-fixture-preconditions.md` に記載済み**。
 
 ## モック逆同期・意匠の宿題
 
