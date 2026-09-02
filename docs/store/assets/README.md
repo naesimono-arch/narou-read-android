@@ -59,7 +59,7 @@ UI・組版・ルビ描画は本物のまま＝**アプリの挙動は何も偽�
 コンタクトシートを用意してある:
 
 ```bash
-python3 build-contact-sheet.py
+uv run --no-project build-contact-sheet.py
 mockview docs/store/assets/screenshots/contact-sheet.html
 ```
 
