@@ -14,6 +14,7 @@ import com.novelreader.diagnostics.CrashReporter
 import com.novelreader.diagnostics.DiagnosticsRecorder
 import com.novelreader.diagnostics.DiagnosticsStore
 import com.novelreader.diagnostics.JankTracker
+import com.novelreader.diagnostics.NoBackupFileInstallSentinel
 import com.novelreader.diagnostics.SessionWatch
 import com.novelreader.narou.DataStoreSearchHistoryStore
 import com.novelreader.narou.NovelApiRepository
@@ -67,9 +68,21 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
         DiagnosticsRecorder(this, DiagnosticsStore(java.io.File(filesDir, "diagnostics")))
     }
 
-    /** 前面セッションの開閉監視（異常終了の推定）。設定は他と同じ app_prefs へ置く。 */
+    /**
+     * 前面セッションの開閉監視（異常終了の推定）。設定は他と同じ app_prefs へ置く。
+     *
+     * 第3引数の徴は **noBackupFilesDir**（`Context.getNoBackupFilesDir()`）へ置く。
+     * app_prefs は Auto Backup で丸ごと復元されるため、そこに置いた印では
+     * 「前回の自分が書いた DIAG_*」と「他のインストールから復元された DIAG_*」を区別できず、
+     * 復元直後に旧端末の時刻で偽の異常終了を1件記録してしまう（機序と方式比較＝[InstallSentinel]）。
+     * ⚠️ **ここに filesDir 等バックアップ対象の場所を渡すと、この防御は無音で無効になる。**
+     */
     val sessionWatch: SessionWatch by lazy {
-        SessionWatch(getSharedPreferences(PrefKeys.FILE_APP_PREFS, MODE_PRIVATE), diagnostics)
+        SessionWatch(
+            getSharedPreferences(PrefKeys.FILE_APP_PREFS, MODE_PRIVATE),
+            diagnostics,
+            NoBackupFileInstallSentinel(noBackupFilesDir),
+        )
     }
 
     /** 実利用のフレーム落ち計測（画面別）。window への接続は MainActivity が行う。 */

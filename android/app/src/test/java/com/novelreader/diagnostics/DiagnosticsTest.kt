@@ -133,10 +133,34 @@ class DiagnosticsTest {
 
     @Test
     fun `異常終了は「開いたまま」かつ時刻が既知のときだけ数える`() {
-        assertTrue(SessionWatch.shouldReportAbnormalExit(wasOpen = true, lastSeenAt = 1_700_000_000_000))
+        // installKnown=true＝2回目以降の通常起動（徴が立っている）。従来からの3条件はそのまま。
+        assertTrue(
+            SessionWatch.shouldReportAbnormalExit(
+                wasOpen = true, lastSeenAt = 1_700_000_000_000, installKnown = true,
+            )
+        )
         // 正常に背面へ回っていた＝以後の kill は Android の正常動作なので数えない
-        assertFalse(SessionWatch.shouldReportAbnormalExit(wasOpen = false, lastSeenAt = 1_700_000_000_000))
+        assertFalse(
+            SessionWatch.shouldReportAbnormalExit(
+                wasOpen = false, lastSeenAt = 1_700_000_000_000, installKnown = true,
+            )
+        )
         // 時刻未記録で「1970年に落ちた」という無意味な記録を作らない
-        assertFalse(SessionWatch.shouldReportAbnormalExit(wasOpen = true, lastSeenAt = 0L))
+        assertFalse(
+            SessionWatch.shouldReportAbnormalExit(
+                wasOpen = true, lastSeenAt = 0L, installKnown = true,
+            )
+        )
+    }
+
+    @Test
+    fun `復元直後（このインストールでの起動歴が無い）は数えない`() {
+        // 他の条件が「本物の異常終了」と完全に同じでも、徴が無い起動では数えない
+        //（旧端末が前面のまま取られたバックアップを復元した初回起動がこれ）。
+        assertFalse(
+            SessionWatch.shouldReportAbnormalExit(
+                wasOpen = true, lastSeenAt = 1_700_000_000_000, installKnown = false,
+            )
+        )
     }
 }
