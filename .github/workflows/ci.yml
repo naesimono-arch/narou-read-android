@@ -44,6 +44,21 @@ jobs:
       - name: Design token check
         run: python3 tools/check_design_tokens.py
 
+      # scrape 目次の章数を、パーサ実装を通さずに fixture の HTML から数え直して
+      # *GoldenTest.kt が主張する期待値と突き合わせる（暁66・カクヨム593）。
+      # なぜ CI ジョブで、単体テストに入れないのか:
+      # ①独立性が結線の目的そのもの。突合の相手方は *GoldenTest.kt に書かれた**リテラル**であって
+      #   「66」という値ではない。JVM テスト側へ期待値を書き写すと、実装が壊れたときに
+      #   golden の 66 を 65 へ直す退行が新テストも一緒に素通りする（両方直せば緑）＝第二の目が消える。
+      #   ソース文面を読む検査は、テスト実行系の外に置いてこそ系譜の外側に居られる。
+      # ②失敗の読み: 落ちれば「暁が 66 でなく 65 章になった」と1行で出る。単体テスト群に混ぜると
+      #   何百件の中の1 failure になり、実装の赤か fixture の赤かが分からなくなる。
+      # ③頻度: push/PR ごと＝実装変更でも fixture 差し替えでも必ず走る（Gradle の UP-TO-DATE で
+      #   飛ばされることもない。verifyRoborazziDebug の「既知の限界」と同じ罠を踏まない）。
+      # 走行は純 bash（grep/sort/wc）で数十 ms＝Java セットアップより前に置いて fail-fast を保つ。
+      - name: TOC 章数の実装非依存突合（暁66・カクヨム593）
+        run: bash tools/count_toc_fixture_chapters.sh
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
