@@ -45,11 +45,64 @@ dependencies {
 // ⚠️ useConnectedDevices = true は「接続中の**全端末**へ nonMinifiedRelease を撒く」意味になる。
 //    ANDROID_SERIAL を指定せずに :app:generateReleaseBaselineProfile を回すと、実蔵書 7 冊のある
 //    実機 PGEM10 にも撒かれる（別 applicationId なので蔵書自体は無傷だが、撒かれること自体が事故）。
-//    ⇒ 回すときは必ず ANDROID_SERIAL=<対象> を付ける。人手の作法に頼るのをやめて機械で止める作業は
-//      handover に登録済み（設定段階のガード／Managed Device 化のどちらかへ寄せる）。
+//    ⇒ 付け忘れは下のガードが構成段階で止める（人手の作法に頼らない）。
 baselineProfile {
     // 生成した profile を :app の src/<variant>/generated/baselineProfiles/ へ書き戻す
     useConnectedDevices = true
+}
+
+// ── ANDROID_SERIAL 未指定のまま端末へ撒くのを機械で止めるガード ────────────────────────
+//
+// なぜ env を whenReady の中ではなく**トップレベル**で解決するか（configuration cache 対策・ここが肝）:
+//   ANDROID_SERIAL を実際に使う AGP 側（DeviceProviderInstrumentTestTask）は **タスク実行時**に
+//   System.getenv("ANDROID_SERIAL") を読む（AGP 8.10.1 のバイトコードで確認）＝この変数は構成キャッシュの
+//   入力として登録されない。そのため「serial 付きで一度成功 → 次は serial 無しで再実行」すると構成キャッシュが
+//   ヒットして構成段階が丸ごと飛び、env の参照を whenReady の中だけに置くと**一度も発火しないまま全端末へ撒かれる**。
+//   providers.environmentVariable() をここで解決しておけば env が構成キャッシュの入力になり、値が変われば
+//   キャッシュが破棄されて構成＝ガードが必ずやり直される（AGP 側が実行時読みである穴も同時に塞がる）。
+def androidSerial = providers.environmentVariable('ANDROID_SERIAL').orNull
+// AGP は ANDROID_DEVICE_SERIAL を読まない（8.10.1 の全クラスを走査して該当 0 件・ANDROID_SERIAL は 5 クラス）。
+// ＝これを「指定済み」と認めると素通りして撒かれるので、合格条件には使わず取り違えたときの助言にだけ使う。
+def androidDeviceSerial = providers.environmentVariable('ANDROID_DEVICE_SERIAL').orNull
+
+// なぜ taskGraph.whenReady か: 構成段階で無条件に判定すると assembleDebug も testDebugUnitTest も巻き添えで
+//   落ちる。実際に組まれたタスクグラフを見て「端末へ撒くタスクが入っているときだけ」落とす。whenReady は
+//   構成の最後（＝構成キャッシュ保存前）に走り、AGP 8.10.1 自身も AndroidTestTaskManager 等 7 クラスで
+//   使っている＝構成キャッシュと両立する。
+gradle.taskGraph.whenReady { graph ->
+    // 撒く実体は producer 側の connected<Variant>AndroidTest（AGP の DeviceProviderInstrumentTestTask）。
+    // baselineprofile プラグイン 1.4.1 はタスク名を camelCase(デバイス名, variantName, "androidTest") で組み、
+    // 接続端末のデバイス名は固定文字列 "connected"（同プラグインのバイトコードで確認）＝この接頭辞で同定できる。
+    // なぜ入口の :app:generate*BaselineProfile を条件にしないか: Managed Device へ移行するとデバイス名が
+    //   AVD 名に変わって connected* が消え、ANDROID_SERIAL 自体が不要になる。入口タスク名で見ているとその時に
+    //   ガードだけが残って誤って止めてしまう。「撒く実体」で見れば移行時に自動で外れる。
+    // task.project でなく task.path（String）で判定する＝構成キャッシュが嫌う Project 参照を持ち込まない。
+    def spreadingTasks = graph.allTasks*.path.findAll { it.startsWith(':baselineprofile:connected') }
+    if (spreadingTasks.isEmpty()) return
+    if (androidSerial?.trim()) return
+
+    def hint = ''
+    if (androidDeviceSerial?.trim()) {
+        hint = '\n  ※ ANDROID_DEVICE_SERIAL が設定されていますが、AGP はこの変数を読みません' +
+            '（読むのは ANDROID_SERIAL のみ）＝端末の指定としては無効です。\n'
+    }
+    throw new GradleException(
+        'Baseline Profile の生成を止めました: 環境変数 ANDROID_SERIAL が未設定です。\n' +
+        '\n' +
+        '【なぜ止めたか】\n' +
+        '  この producer は useConnectedDevices = true で動くため、対象端末を指定しないと\n' +
+        '  adb に接続中の全端末へ nonMinifiedRelease APK を install して実行します。\n' +
+        '  実蔵書の入った実機まで巻き込む事故になるので、撒く前に構成段階で止めました。\n' +
+        hint +
+        '\n' +
+        '【どうすればよいか】\n' +
+        '  1) 対象端末の serial を確認する:\n' +
+        '       adb devices\n' +
+        '  2) serial を指定して実行する:\n' +
+        '       ANDROID_SERIAL=<serial> ./gradlew :app:generateReleaseBaselineProfile\n' +
+        '\n' +
+        '  止めたタスク: ' + spreadingTasks.join(', ') + '\n'
+    )
 }
 
 // 計測対象の applicationId を instrumentation 引数 targetAppId としてテスト側へ渡す。

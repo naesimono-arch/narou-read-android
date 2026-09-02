@@ -61,14 +61,6 @@
   `docs/knowledge/toc-push-tail-not-reproduced-in-macrobench.md` が正本。
   計測の作法（アニメが走っていない状態を率で比較しない）＝`docs/knowledge/ranking-pager-jank-slow-ui-thread.md`。
 
-- **[安全・これは deferred ではない] Baseline Profile の生成が接続中の全端末へ撒かれうる**（2026-09-02 の配線便で判明・未対処）:
-  `android/baselineprofile/build.gradle` の `useConnectedDevices = true` は、**`ANDROID_SERIAL` を指定せずに
-  `:app:generateReleaseBaselineProfile` を回すと接続中の全端末**（実蔵書 7 冊のある実機 PGEM10 を含む）
-  **へ `nonMinifiedRelease` を撒く**。配線便は env で回避したが、人が忘れれば事故る。
-  ⚠️ 実蔵書は別 applicationId なので**無傷**だが、撒かれること自体が事故＝**人手の作法でなく機械で止める**。
-  直し方の候補＝①設定段階で `ANDROID_SERIAL` 未設定なら失敗させるガード ②Gradle Managed Device へ寄せて
-  接続端末を一切使わない（エミュイメージの取得が要る）。
-
 - **[perf] 縦書き本文の組版＝A+C+D+E と 8・9 は完了・残るは D の実機での効き幅の計測**
   （裁定と各項目の中身＝`.claude/plans/reading-render-perf-triage-2026-08-18.md`。
   **8＝Compose compiler metrics の取得は完了**＝知見は `docs/knowledge/compose-compiler-metrics-2026-09-02.md` が正本
@@ -107,7 +99,6 @@
 - **[意匠] 小口3件**: ①棚 FAB の出没に**淡入淡出**（K だけでなく**全スキンの棚 FAB**）②再取込ダイアログの題名は**行数上限＋…で切る**
   ③新規提起＝**最上部ピルを半透明に**・**読書の上下バーにわずかな透過**（境界が読めない／臨場感）・**「縦書き｜横書き」の2択タグ**（現状トグルがオンオフに見えない）。
   ⚠️ ③は透過率も含めて**モック正本を先に起こす**（意匠の自己判断禁止）。
-- **[ストア] `phone-2-shelf.png` は撮り直さない**: `docs/store/assets/README.md` の主張を**チップ4つで成立する文**へ寄せる（旧構図は `BookDao.kt:19` の並び順改訂で再現不能）。
 - **[機械] nuru の採用候補3件**（一次記録＝`docs/reference/nuru-exchange-2026-09-02.md` 第 II 部 (4)）: ①「値は人が書かない」を CLAUDE.md の費用構成比と
   `docs/requirements.md` の写し値へ ②killtest を結線フック16本と `check_machine.py` の検査20本へ ③員数宣言（roster）と既知バグ台帳の「卒業」規律。
   ⚠️ 指摘 (a) は **CLAUDE.md へ反映済み**／(b) は対応不要（既にそう書いてある）／(c) 文脈予算の自動通告は**凍結維持**で裁定済み。
