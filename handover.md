@@ -60,7 +60,7 @@
 - **[縦書き組版の規範突合]** `CharClass` ⇄ UTR#50・`LineBreaker` 禁則 ⇄ JLReq（＝`docs/knowledge/vertical-typeset-external-oracle-gap.md`。差分は棚卸し→人間裁定）。
 - **[計測スクリプトの軽量突合]** 意思決定を左右した `measure_read_residency` / `measure_session_length_cost` 等2〜3本を、仕様文からの独立サブ再実装→数値突合（オラクル無し領域・69%→4.3% の前科）。
 - **[裁定材料の web 検分]** S2b 字種写像・段落結合方針（現行の段落誤り率計測を含む）／「寸法自動検出」導入動機を git log・ADR で確認→前提の要否裁定。
-- 小粒: scrape 暁ゴールデン 66 件の実装非依存カウント手段（次回 fixture 接触時に同梱）。
+- 小粒: `tools/count_toc_fixture_chapters.sh` をゲート（CI か GoldenTest）へ結線する。暁66・カクヨム593 を実装非依存で数える手段は用意済みだが、**手動実行のみ＝誰も走らせない**状態。
 
 ## Google Play 公開準備 — 技術トラック
 
