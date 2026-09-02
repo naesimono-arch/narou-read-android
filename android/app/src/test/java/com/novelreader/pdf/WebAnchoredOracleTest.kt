@@ -31,8 +31,9 @@ import java.io.File
  * 生成器＝`tools/build_pdf_oracle.py`（再生成には裁定待ちの第二実装が要る。fixture は自己完結）。
  *
  * ## 何を見張らないか（裁定未了を混ぜないための除外）
- * - 段落結合 vs 原文行保持（S3 の単位差）・字種写像 S2b（波ダッシュ等。現行は [PdfExtractor] で意図的に正規化）は
- *   **方針差で裁定未了**＝比較軸から外してある（flow 連結・空白除去で畳む）。
+ * - ⚠️ 2026-09-03 の ADR 0041 で、かつて除外していた 2 軸（字種写像 S2b・行 vs 段落の単位差）は
+ *   **裁定済み＝どちらも web 原文へ寄せる**となり、比較軸へ**入れた**（[assertCharmap] /
+ *   [n0833hi_s3line_lineShapeMatchesOracle] / [s3line_lineCountsMatchOracle]）。
  * - ルビの分割粒度（S4-2）も裁定未了のため、両側で隣接 run を畳んでから比較する。
  * - 空行復元（S3 本体）は**ページ抜き fixture** で見張る（2026-09-02 追加・同日の真因修正で全数一致）。全滅していた N0833HI は
  *   `.gitignore` 済みで CI から参照できないため、1 話ぶん（11 ページ）だけを抜いた
@@ -190,7 +191,7 @@ class WebAnchoredOracleTest {
      * いる（本テストが字数一致も同時に見張る）ので、文字オフセットなら実装非依存に位置まで比較できる。
      *
      * ## 既知の穴は無い（2026-09-02 に真因を修正して全数一致へ）
-     * かつては列間 X の比較が [TextProcessor.ParagraphStreamer] でページ内に閉じており、ページ末尾と
+     * かつては列間 X の比較が [TextProcessor.LineStreamer] でページ内に閉じており、ページ末尾と
      * 次ページ先頭の間隔が測れず**そこに在った空行だけが落ちていた**（この fixture で 115 中 5 件、
      * 全文版 66 話で 654 件・全件がページ境界）。列グリッド幅を使ってページ跨ぎでも間隔を測るよう
      * 直したので、この fixture は**空行 115 件が全数一致**する。よってここは既知表を持たず
@@ -283,6 +284,154 @@ class WebAnchoredOracleTest {
         )
     }
 
+    // ---- S2b: 字種写像が web 原文と食い違う ----
+
+    /**
+     * 監視対象コードポイントの**出現数を全数で**突き合わせる（オラクル `s2b_charmap_counts`）。
+     *
+     * なぜ「0 件のものも表に載せて」比べるか: 片側だけでは撤去漏れ（出るはずのない `﹇`FE47 や
+     * U+0336 が出続ける）と過剰写像（出るはずの `～`FF5E が消える）のどちらかを見逃す。
+     * 両向きを 1 本の等式で見張るために、期待値は 19 コードポイントの完全な表にしてある。
+     *
+     * ADR 0041 決定1 の実体はこの表＝pdfminer 追従の写像を撤去し、字はフォントの符号化
+     * （[com.novelreader.pdf.GlyphDecoder]）から決める。表が赤くなる＝どちらかへ戻った合図。
+     */
+    @Test
+    fun n6169dz_s2b_charmapMatchesWebSource() = assertCharmap("N6169DZ")
+
+    @Test
+    fun n2959ki_s2b_charmapMatchesWebSource() = assertCharmap("N2959KI")
+
+    @Test
+    fun n1453lw_s2b_charmapMatchesWebSource() = assertCharmap("N1453LW")
+
+    @Test
+    fun n5368ml_s2b_charmapMatchesWebSource() = assertCharmap("N5368ML")
+
+    private fun assertCharmap(ncode: String) {
+        val e = extracted(ncode)
+        val expected = oracle(ncode).getJSONObject("s2b_charmap_counts")
+        val diffs = mutableListOf<String>()
+        for (key in expected.keys()) {
+            val cp = key.removePrefix("U+").toInt(16)
+            val want = expected.getInt(key)
+            val got = e.flow.count { it.code == cp }
+            if (want != got) diffs.add("$key 期待 $want / 実測 $got")
+        }
+        assertTrue(
+            "S2b 字種の出現数が web 原文オラクルと不一致（$ncode）＝写像の撤去が戻ったか、" +
+                "ToUnicode 逆引きへ戻った可能性\n" + diffs.joinToString("\n"),
+            diffs.isEmpty(),
+        )
+    }
+
+    // ---- S3-line: 抽出の出力単位が「原文の行」か ----
+
+    /**
+     * ページ抜き fixture の**行の長さ列**をそのまま突き合わせる（0＝空行）。
+     *
+     * なぜ行の長さ列か（ADR 0041 決定2 の検証）: 抽出は原文の行を保持するようになった＝
+     * 行の**個数と境界位置**が出力の意味そのものになる。長さ列が一致すれば、字数（既存の
+     * [n0833hi_s3_blankLinesRestored] が見張る）と合わせて「どこで行が切れたか」が完全に決まる。
+     * 本文そのものを fixture に持たずに境界だけを見張れるのも利点。
+     *
+     * ⚠️ 列→行の復元には**原理的に曖昧な境界**が在る（「ちょうど幅いっぱいで終わった行」と
+     * 「折り返し」は PDF 生成時に情報が失われていて区別できない＝
+     * [com.novelreader.pdf.TextProcessor.LineStreamer] の KDoc）。独立再実装が web 原文と
+     * 突き合わせた実測誤り率も 0 ではない（約 1,380 行に 2 箇所）。よって完全一致ではなく
+     * **既知の食い違い数を凍結**して監視する形にしてある＝この数が動いたら（改善でも悪化でも）
+     * 中身を確認してから定数を更新すること。
+     */
+    @Test
+    fun n0833hi_s3line_lineShapeMatchesOracle() {
+        val expected = oracle(S3_FIXTURE).getJSONArray("s3_line_lengths")
+            .let { a -> (0 until a.length()).map { a.getInt(it) } }
+        val ours = s3LineLengths()
+        val firstDiff = (0 until minOf(expected.size, ours.size)).firstOrNull { expected[it] != ours[it] }
+        println(
+            "  [S3-line] 行数 実測=${ours.size} オラクル=${expected.size}" +
+                "（空行 ${ours.count { it == 0 }} / ${expected.count { it == 0 }}）" +
+                "・最初の相違 index=${firstDiff ?: -1}",
+        )
+        assertEquals(
+            "S3-line 行の長さ列が web 原文オラクルと不一致＝列→行の復元が変わった。" +
+                "先頭の相違 index=${firstDiff ?: -1}（実測 ${ours.take(0)}）",
+            expected,
+            ours,
+        )
+    }
+
+    /** fixture PDF から行の長さ列を作る（0＝空行・ルビ記法は親文字だけに畳む）。 */
+    private fun s3LineLengths(): List<Int> {
+        val pdf = File(repoRoot(), "$ORACLE_DIR/$S3_FIXTURE.pdf")
+        assertTrue("S3 fixture PDF が無い: ${pdf.absolutePath}", pdf.isFile)
+        return PDDocument.load(pdf).use { doc ->
+            PdfExtractor.runFinalEngine(doc)
+                // 見出しは第二実装側でメタデータ扱い＝本文 flow に載らないので、こちらも外して土俵を揃える。
+                .filterNot { it.startsWith("【題名】") }
+                .map { RUBY.replace(it) { m -> m.groupValues[1] }.length }
+        }
+    }
+
+    /**
+     * 全文書の**非空行数を完全一致**で、**空行数を既知の欠落表つき**で突き合わせる。
+     *
+     * ## 非空行数（完全一致を要求する）
+     * 行境界がどこに入るかは列→行の復元規則そのもの＝ADR 0041 決定2 の実体で、実測では
+     * 4 文書・79,546 行が web 原文オラクルと**完全一致**する。ここが 1 でもずれたら規則が変わった合図。
+     *
+     * ## 空行数（既知の欠落を凍結する）
+     * 空行は「列グリッドのスロットの空き」として現れるので、**列と列の間隔**からしか読めない。
+     * 現行はそこに 2 つの穴が在り、どちらも**過小側にしか外れない**（偽の空行は作らない）:
+     *
+     * 1. **見出しページ直後の格子ずれ**（実測 N1453LW 1・N2959KI 0・N6169DZ 11 件）。
+     *    見出しのあるページは本文列の原点が「見出し最終列 − 30mm」へずれるため、格子が 8mm ピッチの
+     *    標準位置から外れる。[TextProcessor.LineStreamer] のページ跨ぎ空行は
+     *    「列グリッド幅 + 前ページ最終列 x0 − 次ページ先頭列 x0」という**絶対座標の引き算**で数えるので、
+     *    前ページが見出しページだと原点が食い違って端数になり、round で 0 へ落ちる
+     *    （実測 N1453LW: 前ページ最終列 34mm・次ページ先頭列 264mm → 0.25 列と出るが真値は 1）。
+     *    塞ぐにはページごとの格子の位相（原点と左限）が要る＝版面の物理マージンを新たに前提化する必要があり、
+     *    誤ると**偽の空行**を作る側の面が開く。0.13% の欠落と引き換えにできないので凍結する。
+     * 2. **見出しページ内の先頭空行**（実測 N2959KI 1・N6169DZ 77 件）。話の本文が空行で始まる場合、
+     *    その空きは「見出しの版面が占める空き」と同じ形で現れる。両者を数え分けないのは意図的で、
+     *    数えると章ごとに偽の空行が湧く（実測 N0833HI で誤検出 180 件＝[TextProcessor.LineStreamer] の
+     *    `canCarry` の KDoc）。
+     *
+     * ⚠️ この欠落は ADR 0041 の変更で**生じたものではない**（空行の数え方は変えていない）。
+     * 値が動いたら（改善でも悪化でも）上の 2 機序のどちらが動いたかを確かめてから更新すること。
+     */
+    @Test
+    fun s3line_lineCountsMatchOracle() {
+        val diffs = mutableListOf<String>()
+        for (ncode in listOf("N1453LW", "N2959KI", "N5368ML", "N6169DZ")) {
+            val o = oracle(ncode)
+            val lines = extractedLines(ncode)
+            val nonBlank = lines.count { it.isNotEmpty() }
+            val blank = lines.count { it.isEmpty() }
+            val wantNonBlank = o.getInt("s3_line_count")
+            val wantBlank = o.getInt("s3_blank_count") - KNOWN_MISSING_BLANKS.getValue(ncode)
+            println("  [S3-line] $ncode 非空 $nonBlank/$wantNonBlank ・ 空行 $blank/$wantBlank" +
+                "（既知欠落 ${KNOWN_MISSING_BLANKS.getValue(ncode)}）")
+            if (nonBlank != wantNonBlank) {
+                diffs.add("$ncode 非空行数 実測 $nonBlank / オラクル $wantNonBlank ＝行境界の規則が変わった")
+            }
+            if (blank != wantBlank) {
+                diffs.add("$ncode 空行数 実測 $blank / 期待 $wantBlank" +
+                    "（オラクル ${o.getInt("s3_blank_count")} − 既知欠落 ${KNOWN_MISSING_BLANKS.getValue(ncode)}）")
+            }
+        }
+        assertTrue("S3-line 行数がオラクルと不一致\n" + diffs.joinToString("\n"), diffs.isEmpty())
+    }
+
+    /** 本文の行列（【題名】を除く。空行は "" のまま）。 */
+    private fun extractedLines(ncode: String): List<String> = LINE_CACHE.getOrPut(ncode) {
+        val pdf = File(repoRoot(), "sample_pdfs/$ncode.pdf")
+        assertTrue("PDF が無い: ${pdf.absolutePath}", pdf.isFile)
+        PDDocument.load(pdf).use { doc ->
+            PdfExtractor.runFinalEngine(doc).filterNot { it.startsWith("【題名】") }
+        }
+    }
+
     // ---- 抽出とオラクルの読み込み ----
 
     /** 親文字列と読み（隣接 run を畳んだ後）。 */
@@ -347,8 +496,19 @@ class WebAnchoredOracleTest {
         private val RUBY = Regex("""\|([^《]+)《([^》]+)》""")
         private val BOUTEN_MARKS = setOf('・', '﹅', '﹆', '●', '○')
 
-        /** N6169DZ は 8,668 ページ＝クラス内で1回だけ抽出する（クラスごとに @Test が5本走るため）。 */
+        /** N6169DZ は 8,668 ページ＝クラス内で1回だけ抽出する（クラスごとに @Test が複数走るため）。 */
         private val CACHE = mutableMapOf<String, Extracted>()
+
+        /** 行列そのもののキャッシュ（[Extracted] は空行を落とすので行数の検証には使えない）。 */
+        private val LINE_CACHE = mutableMapOf<String, List<String>>()
+
+        /** 復元できない空行の既知件数（機序は [s3line_lineCountsMatchOracle] の KDoc）。 */
+        private val KNOWN_MISSING_BLANKS = mapOf(
+            "N1453LW" to 1,
+            "N2959KI" to 1,
+            "N5368ML" to 0,
+            "N6169DZ" to 88,
+        )
 
         /** 隣接するルビ run を1件へ畳む（分割粒度 S4-2 は裁定未了＝親範囲/傍点の判定に混ぜない）。 */
         private fun mergeAdjacent(runs: List<Triple<Int, String, String>>): List<Pair<String, String>> {

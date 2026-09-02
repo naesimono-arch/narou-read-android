@@ -438,43 +438,95 @@ private fun ParagraphItem(
 }
 
 /**
- * TextSegment リストを LineBreak で段落分割する。
- * 空段落（LineBreak 連続）はフィルタリングせず保持する。
- * なぜか: なろう系小説では連続空行によるシーン転換演出が頻出するため。
+ * TextSegment リストを**表示用の段落**へ組み直す。入力は LineBreak 区切りの**原文の行**。
  *
- * internal（旧 private）: 縦書きの [VerticalChapterContent] が同一の段落分割を流用するため同パッケージへ開く
- * （挙動は不変＝可視性だけの変更。段落 index 体系を横書き/縦書きで一致させ位置保存を同型に保つのが目的）。
+ * ## なぜここで結合するか（ADR 0041 決定2＝結合の移設先）
+ * 抽出（[com.novelreader.pdf.TextProcessor.LineStreamer]）は原文の行と空行をそのまま出す＝
+ * なろうの web 原文（`原文1行 = <p id="L…"> 1つ`）と同じ単位で、原文に無い「段落」を作らない。
+ * 読み味のための結合はここ＝**表示側**の責務になった。この関数を選んだ理由は、
+ * (a) 保存物（chap_N.html）は行のまま残り、抽出の忠実性が下流で壊れない、
+ * (b) 横書き [ChapterContent] と縦書き [VerticalChapterContent] が既に共有する唯一の
+ *     「段落」定義点で、両者の段落 index 体系（読書位置の保存に使う）が自動的に一致する、
+ * (c) PDF 取込と Web 取込が同じ規則で読める（どちらもこの関数を通る）。
+ *
+ * ## 結合規則（抽出側から**そのまま移した**もの＝意匠は変えない）
+ * 行を順に足していき、次のどれかで新しい段落を始める:
+ * - 空行（その空行自体も空段落 1 本として保持する。連続空行によるシーン転換演出のため）
+ * - 行頭が字下げ「　」または開き括弧「「『（」＝旧 ParagraphStreamer が使っていた判定そのもの
+ * - 水平線・前書き/後書きブロック（従来どおり独立した段落）
+ *
+ * ⚠️ 判定字は旧抽出側の 4 字だけに保つ（[com.novelreader.pdf.TextProcessor] の行復元が使う
+ * 行頭指標より狭い）。ここは**版面の見た目を決める規則**なので、忠実性の都合で広げない。
+ *
+ * internal（旧 private）: 縦書きの [VerticalChapterContent] が同一の段落分割を流用するため同パッケージへ開く。
  */
 internal fun List<TextSegment>.splitIntoParagraphs(): List<ImmutableList<TextSegment>> {
     val result = mutableListOf<ImmutableList<TextSegment>>()
+    // 組み立て中の段落（複数行を連ねうる）。
     val current = mutableListOf<TextSegment>()
+    // 組み立て中の行（次の LineBreak までに溜まったセグメント）。
+    val line = mutableListOf<TextSegment>()
+    // 直前が空行・水平線・ブロックだったか＝次の行は無条件に新しい段落から始める。
+    var afterBreak = true
 
-    for (segment in this) {
-        when {
-            segment is TextSegment.LineBreak -> {
-                result.add(current.toImmutableList())
-                current.clear()
-            }
-            segment is TextSegment.HorizontalRule -> {
-                // 水平線は独立した段落として扱う
-                if (current.isNotEmpty()) {
-                    result.add(current.toImmutableList())
-                    current.clear()
-                }
-                result.add(listOf(segment).toImmutableList())
-            }
-            segment is TextSegment.StyledBlock -> {
-                // 前書き・後書きも独立した段落として扱う
-                if (current.isNotEmpty()) {
-                    result.add(current.toImmutableList())
-                    current.clear()
-                }
-                result.add(listOf(segment).toImmutableList())
-            }
-            else -> current.add(segment)
+    fun flushParagraph() {
+        if (current.isNotEmpty()) {
+            result.add(current.toImmutableList())
+            current.clear()
         }
     }
-    if (current.isNotEmpty()) result.add(current.toImmutableList())
+
+    // 溜まっている行を段落へ取り込む（空行のときは何もしない＝呼び分けは closeLine が持つ）。
+    fun absorbLine() {
+        if (line.isEmpty()) return
+        if (afterBreak || startsNewParagraph(line)) flushParagraph()
+        current.addAll(line)
+        line.clear()
+        afterBreak = false
+    }
+
+    fun closeLine() {
+        if (line.isEmpty()) {
+            // 空行＝段落の切れ目そのもの。空段落 1 本として残す（描画側が行あきとして出す）。
+            flushParagraph()
+            result.add(emptyList<TextSegment>().toImmutableList())
+            afterBreak = true
+        } else {
+            absorbLine()
+        }
+    }
+
+    for (segment in this) {
+        when (segment) {
+            is TextSegment.LineBreak -> closeLine()
+            is TextSegment.HorizontalRule, is TextSegment.StyledBlock -> {
+                // 水平線・前後書きブロックは独立した段落。直前の行は先に段落へ落としてから切る。
+                absorbLine()
+                flushParagraph()
+                result.add(listOf(segment).toImmutableList())
+                afterBreak = true
+            }
+            else -> line.add(segment)
+        }
+    }
+    // 末尾に残った行は段落へ畳む。⚠️ 末尾の空行は段落を作らない（旧実装と同じ＝章末の余白を増やさない）。
+    absorbLine()
+    flushParagraph()
 
     return result
 }
+
+/** 行の先頭が段落開始の指標（字下げ・開き括弧）か。判定は**版面に出る最初の 1 文字**で行う。 */
+private fun startsNewParagraph(line: List<TextSegment>): Boolean {
+    val head = line.firstNotNullOfOrNull { seg ->
+        when (seg) {
+            is TextSegment.Plain -> seg.text.firstOrNull()
+            is TextSegment.Ruby -> seg.base.firstOrNull()
+            else -> null
+        }
+    } ?: return false
+    return head in PARAGRAPH_OPENERS
+}
+
+/** 段落開始とみなす行頭字（旧 ParagraphStreamer の判定と同一）。 */
+private val PARAGRAPH_OPENERS = setOf('　', '「', '『', '（')

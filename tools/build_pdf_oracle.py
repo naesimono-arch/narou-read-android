@@ -33,8 +33,46 @@ def merge(runs):
     return [(b, r) for _, b, r in out]
 
 
+# S2b（字種写像）の監視対象コードポイント。**0 件のものも必ず載せる**＝「出るはずのない字が出た」も
+# 「出るはずの字が消えた」も同じ表で赤くするため（片側だけだと撤去漏れ・過剰写像のどちらかを見逃す）。
+# 6 系統＝波ダッシュ / 二重引用符 / 縦書き括弧 / ダッシュ / 矢印 / マイナス
+# （`docs/knowledge/extraction-charmap-diverges-from-web-source.md` の表と 1:1）。
+S2B_WATCH = [
+    0xFF5E, 0x301C,                    # 波ダッシュ（PDF は両方を撃ち分けて保持している）
+    0x301D, 0x301E, 0x301F,            # 二重引用符（開き 301D・閉じ 301F。301E は ToUnicode 逆引きの誤り）
+    0xFF3B, 0xFF3D, 0xFE47, 0xFE48,    # 縦書き括弧（FE47/FE48 は縦書き表示形＝原文には現れない）
+    0x2014, 0x2015, 0x0336,            # ダッシュ（0336 は結合長打消線＝独立字ですらない）
+    0x2190, 0x2191, 0x2192, 0x2193,    # 矢印
+    0xFF0D, 0x2212, 0x002D,            # マイナス（生成器が半角 - を全角 FF0D 化する。2212 は写像の産物）
+    0x203E, 0xFFE3,                    # 上線（203E は ToUnicode 逆引きの誤り・原文は全角マクロン FFE3）
+]
+
+
+def s2b_counts(flow):
+    c = {'U+%04X' % cp: 0 for cp in S2B_WATCH}
+    watch = {chr(cp): 'U+%04X' % cp for cp in S2B_WATCH}
+    for ch in flow:
+        k = watch.get(ch)
+        if k:
+            c[k] += 1
+    return c
+
+
+def line_shape(lines):
+    """行構造の要約（非空行数・空行数）。ADR 0041 決定2 で抽出の出力単位が「原文の行」になった検証用。
+
+    ⚠️ 長編は行の完全一致では比較しない。列→行の復元には原理的に曖昧な境界が在り
+    （`~/naro-pdf-engine/design.md` §1.3）、一致率は帯で見るのが正しい。位置まで見る厳密な比較は
+    小さい ep57 fixture 側（`build_s3_fixture.py` の s3_line_lengths）が持つ。
+    """
+    return {
+        's3_line_count': sum(1 for t in lines if t != ''),
+        's3_blank_count': sum(1 for t in lines if t == ''),
+    }
+
+
 def read_doc(n):
-    flow, runs = [], []
+    flow, runs, lines_all = [], [], []
     for f in sorted(glob.glob(f'{TH}/{n}/episodes/*.json')):
         d = json.load(open(f))
         for sec in ('foreword', 'body', 'afterword'):
@@ -46,16 +84,17 @@ def read_doc(n):
                 # 空文字の行だけを「空行」として落とす。⚠️ `not t.strip()` で落とすと
                 # **半角スペースだけの行**まで消え、S1 の期待値が実際より小さくなる
                 # （実測 N6169DZ で 1 個・N8809BK で 4 個ぶん過少になっていた）。
+                lines_all.append(t)
                 if t == '':
                     continue
                 if not isinstance(ln, str):
                     runs += merge([(o, t[o:o + l], r) for o, l, r in ln.get('r', [])])
                 flow.append(t)
-    return ''.join(flow), runs
+    return ''.join(flow), runs, lines_all
 
 
 def build(n):
-    flow, runs = read_doc(n)
+    flow, runs, lines_all = read_doc(n)
     # S7 は半角スペース除去後の flow で見る＝S1（空白脱落）と赤の原因を分離するため。
     stripped = flow.replace(' ', '')
     apos = [stripped[max(0, i - 12):i + 12]
@@ -71,6 +110,8 @@ def build(n):
         'oracle_source': 'naro-pdf-engine (独立再実装) work/out/%s — web 原文検証済み' % n,
         's1_body_space_count': flow.count(' '),
         's2a_replacement_char_count': flow.count('�'),
+        's2b_charmap_counts': s2b_counts(flow),
+        **line_shape(lines_all),
         's4b_bouten_ruby_count': sum(1 for _, r in runs if r and set(r) <= BOUTEN_MARKS),
         's4a_ruby_base_anchors': anchors,
         's7_apostrophe_contexts': apos,
@@ -85,6 +126,7 @@ if __name__ == '__main__':
         p = os.path.join(OUT, f'{n}.oracle.json')
         with open(p, 'w') as f:
             json.dump(o, f, ensure_ascii=False, indent=1, sort_keys=True)
-        print(f"{n}: space={o['s1_body_space_count']} fffd={o['s2a_replacement_char_count']} "
+        print(f"{n}: space={o['s1_body_space_count']} lines={o['s3_line_count']} "
+              f"blank={o['s3_blank_count']} fffd={o['s2a_replacement_char_count']} "
               f"bouten={o['s4b_bouten_ruby_count']} anchors={len(o['s4a_ruby_base_anchors'])} "
               f"apos={len(o['s7_apostrophe_contexts'])}  -> {os.path.getsize(p)//1024}KB")

@@ -77,12 +77,45 @@ class JvmGoldenRegressionTest {
         val report = StringBuilder("\n===== JVMスパイク ${fx.name} (${if (fx.exactBody) "body完全一致要求" else "許容帯"}) =====\n")
 
         val snap = buildSnapshot(pdf)
+        if (System.getenv("UPDATE_GOLDEN") == "1") {
+            writeGolden(goldenFile, snap, golden)
+            println("  [UPDATE_GOLDEN] 採り直した: ${goldenFile.absolutePath}")
+            return
+        }
         val gateOk = compareToGolden(snap, fx, golden, report)
         report.append("  → 判定: ${mark(gateOk)}\n")
 
         // 結果は必ず stdout へ（pass でも残差を見たい）。
         println(report.toString())
         assertTrue("JVMスパイク ${fx.name} ゲート失敗:\n$report", gateOk)
+    }
+
+    /**
+     * golden を現在の出力で採り直す（`UPDATE_GOLDEN=1` のときだけ走る）。
+     *
+     * なぜテストの中に置くか: 旧ハーネス `ab-review/golden_regression.py` は撤去済みの Python エンジンを
+     * import しており**復旧不能**で、採り直しの手順が「誰かが手で書く」しか無い状態だった
+     * （`docs/knowledge/golden-regression-baselines.md`）。期待値を作る経路と突き合わせる経路が
+     * 同じ [buildSnapshot] であることが、この形の要点＝「golden だけ別の作り方をしていて、
+     * そもそも比較になっていない」という壊れ方をしない。
+     *
+     * ⚠️ **採り直しは仕様変更を追認する操作**なので、必ず先に赤い差分レポートを読んで
+     * 「変わってよい理由」を持ってから走らせること。elapsed_sec は計測値でゲート対象外のため引き継ぐ。
+     */
+    private fun writeGolden(file: File, snap: Snapshot, previous: JSONObject) {
+        val o = JSONObject()
+        o.put("title", snap.title)
+        o.put("author", snap.author)
+        o.put("paragraph_count", snap.paragraphCount)
+        o.put("blank_paragraph_count", snap.blankParagraphCount)
+        o.put("chapter_count", snap.chapterCount)
+        o.put("chapter_titles", org.json.JSONArray(snap.chapterTitles))
+        o.put("total_chars", snap.totalChars)
+        o.put("ruby_run_count", snap.rubyRunCount)
+        o.put("body_sha256", snap.bodySha256)
+        o.put("elapsed_sec", previous.optDouble("elapsed_sec", 0.0))
+        o.put("head_paragraphs", org.json.JSONArray(snap.headParagraphs))
+        file.writeText(o.toString(1) + "\n")
     }
 
     /** DeviceSpikeTest.buildSnapshot と同一手順（同一 PDDocument へメタ→本文の順で 2 回ストリップ）。 */

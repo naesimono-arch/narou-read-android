@@ -18,62 +18,64 @@ import java.util.concurrent.atomic.AtomicReference
 data class BookMeta(val title: String, val author: String)
 
 /**
- * PDFBox-android の CID→Unicode 出力を pdfminer（移植のオラクル）に揃える 1 文字正規化。
+ * 1 グリフの文字を決める復号器。**フォントの符号化そのもの**（文字コード）を第一の根拠にする。
  *
- * なぜ: PDFBox-android は一部グリフを Adobe-Japan1/pdfminer と別コードポイントへ写す。放置すると
- * title・本文・章題が実機とオラクルでズレ、ゴールデン回帰がグリフ差だけで不一致になる。1:1 で対応が
- * 付くものをオラクル側へ寄せる（N6169DZ 章題ドリフト・task_diary #35）。写像:
- *   - FF5E FULLWIDTH TILDE → 301C WAVE DASH（有名な「波ダッシュ問題」の CMap 版。なろうでは波ダッシュが
- *     正で FF5E の正当用例はほぼ無く低リスク）
- *   - FF0D FULLWIDTH HYPHEN-MINUS → 2212 MINUS SIGN（章題6件）
- *   - 2191/2193 UP/DOWN ARROW → 2190/2192 LEFT/RIGHT ARROW（PDFBox が矢印を 90° 回転誤読するのを補正・章題3件）
+ * なぜ ToUnicode を第一にしないか（字種写像 6 系統の真因・ADR 0041 決定1）:
+ * なろうの縦書き PDF が使うのは `…-UniJIS-UTF16-V/H` 系の CMap で、**文字コードが UTF-16 符号単位
+ * そのもの**（CMap 名の UTF16 がその契約）＝コードには作者が書いた字そのものが入っている。一方
+ * ToUnicode は「縦組みグリフ(CID)→Unicode」の逆引き表で、縦組み専用の**表示形**や、CID を共有する
+ * 別字へ写る。実測でこの逆引きが web 原文と食い違った字（正は第二実装 `~/naro-pdf-engine/` ＝
+ * ncode.syosetu.com の原文と一致した側。`docs/knowledge/extraction-charmap-diverges-from-web-source.md`）:
+ *   - `［`FF3B / `］`FF3D → `﹇`FE47 / `﹈`FE48（縦書き表示形へ写る）
+ *   - `〟`301F → `〞`301E（二重引用符の閉じ。CID 共有による取り違え）
+ *   - `—`2014 → U+0336 結合長打消線（**独立字ですらない**＝実機表示が壊れる側）
+ *   - `↑`2191 → 別の矢印
+ * コードを見れば 4 系統すべてが原文どおりに出る＝写像表を足して個別に打ち返すのではなく、
+ * **参照する層を変える**のが真因対処。残る 2 系統（波ダッシュ FF5E→301C・マイナス FF0D→2212）は
+ * ここで明示的に潰していた正規化で、同 ADR で写像ごと撤去した（PDF は FF5E と 301C を作品ごとに
+ * 撃ち分けて保持しており、一律 301C は情報の復元ではなく破壊だった）。
  *
- * ⚠ FF0D→2212 は body にも同グリフが出れば正規化され、短中編の body_sha256（現状 pdfminer と完全一致）を
- *   破壊しうる＝pdfminer が本文では FF0D のまま出す証拠になる。実機ゲート(PdfExtractorDeviceSpikeTest)で
- *   検証し、短中編 body_sha256 が壊れたら FF0D→2212 は取り下げる（golden から離れる写像は入れない）。
- *   矢印は本文に出にくく低リスク。
+ * ⚠️ **フォント名に UTF16 を含むときだけ**コードを字として読む。この前提が無い符号化（Identity-H で
+ * CID がグリフ番号のフォント等）でコードを文字扱いすると、字を**別の読める字に化けさせる**＝
+ * ToUnicode より悪い壊れ方をするため、前提が確認できないフォントは ToUnicode の結果をそのまま使う。
+ * この前提のもとでは ToUnicode の穴（U+FFFD 化。実測 N6169DZ 本文に 32 件）も自動的に埋まる
+ * ——穴が空いているのは逆引き表の側だけで、コードには字が入っているため。
  *
- * 各写像は個別 indexOf ガードで包み、対象を含まない大多数のグリフでは新規文字列を確保しない
- * （processTextPosition は 1 グリフ毎＝超長編で数百万回走るホットパス。PdfExtractorTest の assertSame 契約）。
- * 見た目が酷似する文字が多いため取り違え防止にエスケープで明示する。
+ * 直前フォントの判定結果を持つのでインスタンス単位で使う＝**並列走行の各 [GlyphStripper] が
+ * 自分のを持つ**（共有すると別スレッドが書いたフォント判定を読む）。
  */
-internal fun normalizeGlyphUnicode(s: String): String {
-    var r = s
-    if (r.indexOf('\uFF5E') >= 0) r = r.replace('\uFF5E', '\u301C')  // FULLWIDTH TILDE → WAVE DASH
-    if (r.indexOf('\uFF0D') >= 0) r = r.replace('\uFF0D', '\u2212')  // FULLWIDTH HYPHEN-MINUS → MINUS SIGN
-    if (r.indexOf('\u2191') >= 0) r = r.replace('\u2191', '\u2190')  // UPWARDS → LEFTWARDS ARROW
-    if (r.indexOf('\u2193') >= 0) r = r.replace('\u2193', '\u2192')  // DOWNWARDS → RIGHTWARDS ARROW
-    return r
-}
+internal class GlyphDecoder {
+    // 直前グリフのフォントと、その UTF16 判定。グリフは同一フォントで長く連続するので 1 段で足りる
+    // （processTextPosition は 1 グリフ毎＝超長編で数百万回走るホットパス）。
+    private var lastFont: Any? = null
+    private var lastFontIsUtf16 = false
 
-/**
- * ToUnicode CMap に穴が在るグリフを、フォントの**符号化そのもの**から復号し直す（U+FFFD の真因対処）。
- *
- * なぜ成立するか: なろうの縦書き PDF が使うのは `…-UniJIS-UTF16-V/H` 系の CMap で、**文字コードが
- * UTF-16 符号単位そのもの**（CMap 名の UTF16 がその契約）。PDFBox は ToUnicode を先に引くため、
- * そこに載っていない字だけが U+FFFD へ化ける＝コード自体には正しい字が入っている。
- * 実測（N6169DZ 全ページ）: `MS-Mincho-UniJIS-UTF16-V` の code=0x25FC(◼)・0xFE0E(異体字セレクタ)が
- * FFFD 化しており、この2コードの連なりが本文中に 32 件あった。
- *
- * ⚠️ **フォント名に UTF16 を含むときだけ**適用する。この前提が無い符号化（Identity-H で CID が
- * グリフ番号のフォント等）でコードを文字扱いすると、読めない字を**別の読める字に化けさせる**＝
- * U+FFFD より悪い壊れ方をするため、前提が確認できないフォントには触らない。
- * サロゲート対は 2 コードで来るのでそのまま連結すれば正しい対になる。
- *
- * @return 復号できたら文字列・前提を満たさないなら null（呼び出し側が元の値を使う）
- */
-private fun decodeFromCharacterCodes(text: TextPosition): String? {
-    val fontName = text.font?.name ?: return null
-    if (!fontName.contains("UTF16")) return null
-    val codes = text.characterCodes ?: return null
-    if (codes.isEmpty()) return null
-    val sb = StringBuilder(codes.size)
-    for (c in codes) {
-        // UTF-16 符号単位に収まらない値＝上の前提が崩れているので、推測せず復号を諦める。
-        if (c < 0 || c > 0xFFFF) return null
-        sb.append(c.toInt().toChar())
+    /** @return このグリフの文字。前提を満たさないときは ToUnicode の結果をそのまま返す。 */
+    fun decode(text: TextPosition): String? {
+        val raw: String? = text.unicode
+        val font = text.font
+        if (font !== lastFont) {
+            lastFont = font
+            lastFontIsUtf16 = font?.name?.contains("UTF16") == true
+        }
+        if (!lastFontIsUtf16) return raw
+        val codes = text.characterCodes ?: return raw
+        if (codes.isEmpty()) return raw
+        if (codes.size == 1) {
+            val c = codes[0]
+            // UTF-16 符号単位に収まらない値＝上の前提が崩れているので、推測せず ToUnicode に委ねる。
+            if (c < 0 || c > 0xFFFF) return raw
+            // ToUnicode と一致する大多数では既存の String をそのまま返す（1 グリフ毎の確保を避ける）。
+            if (raw != null && raw.length == 1 && raw[0].code == c) return raw
+            return c.toChar().toString()
+        }
+        val sb = StringBuilder(codes.size)
+        for (c in codes) {
+            if (c < 0 || c > 0xFFFF) return raw
+            sb.append(c.toChar())
+        }
+        return sb.toString()
     }
-    return sb.toString()
 }
 
 /**
@@ -193,18 +195,13 @@ class GlyphStripper(
         super.startPage(page)
     }
 
-    override fun processTextPosition(text: TextPosition) {
-        val raw = text.unicode
-        // ToUnicode に穴が在るグリフだけ、フォントの符号化から直接復号し直す（U+FFFD 対策）。
-        val decoded = if (raw == null || raw.isEmpty() || raw.indexOf('�') >= 0) {
-            decodeFromCharacterCodes(text) ?: raw
-        } else {
-            raw
-        }
-        if (decoded.isNullOrEmpty()) return
-        // PDFBox-android の CID→Unicode を pdfminer(オラクル)へ揃える（波ダッシュ等・task_diary #35）。
-        val s = normalizeGlyphUnicode(decoded)
+    // グリフ 1 つぶんの文字を決める復号器。ストリッパ 1 本＝1 インスタンス（状態を持つため共有しない）。
+    private val decoder = GlyphDecoder()
 
+    override fun processTextPosition(text: TextPosition) {
+        // 字は ToUnicode の逆引きでなくフォントの符号化から決める（理由は [GlyphDecoder]）。
+        val s = decoder.decode(text)
+        if (s.isNullOrEmpty()) return
         val bottom = text.yDirAdj.toDouble()
         val top = bottom - text.heightDir.toDouble()
         current.add(
@@ -663,15 +660,15 @@ object PdfExtractor {
         // 現行実測値へ退避）。生成側が同形状のまま寸法を微調整しても追随できるようにするため。
         val rules = DetectedRules.detect(rulesSource, totalPages)
 
-        // 段落化もページ単位のストリーミングで回す（中間の全ページ CharBox を持たない）。
+        // 行の復元もページ単位のストリーミングで回す（中間の全ページ CharBox を持たない）。
         // processPages が出す pct(10-60) は元々未使用のため捨て、(processed, bodyTotal) のみ前送りする。
-        val paragraphs = ArrayList<String>()
-        val streamer = TextProcessor.ParagraphStreamer(totalPages, rules, { _, processed, bodyTotal ->
+        val lines = ArrayList<String>()
+        val streamer = TextProcessor.LineStreamer(totalPages, rules, { _, processed, bodyTotal ->
             onProgress?.invoke(EnginePhase.PROCESS, processed, bodyTotal)
-        }) { paragraphs.add(it) }
+        }) { lines.add(it) }
         bodySource.forEachPage { index, chars -> streamer.addPage(index, chars) }
         streamer.finish()
-        return paragraphs
+        return lines
     }
 
     /**

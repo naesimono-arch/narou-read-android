@@ -15,10 +15,14 @@ import org.junit.Test
  * 条件ごとに 1 本ずつ赤にできる。
  *
  * 版面は [DetectedRules.FALLBACK]（実測値＝1 ページ 30 列・列ピッチ 22.68）に合わせて組む。
+ *
+ * ⚠️ 期待値は「列 1 本＝行 1 本」を前提に組んである。1 文字だけ置いた列は容量 30 字に満たない＝
+ * [TextProcessor.LineStreamer] の規則では**そこで原文の行が終わる**ため（ADR 0041 決定2）。
+ * 列が行を跨いで繋がる側の規則は [LineStreamerLineShapeTest] が受け持つ。
  */
-class ParagraphStreamerPageBoundaryTest {
+class LineStreamerPageBoundaryTest {
 
-    /** 列グリッドの右端（0 列目の x0）。値そのものに意味は無く、[COLS] 列が収まればよい。 */
+    /** 列グリッドの右端（0 列目の x0）。値そのものに意味は無く、[cols] 列が収まればよい。 */
     private val originX = 741.35
     private val step = ParserRules.LINE_STEP_X
 
@@ -39,13 +43,16 @@ class ParagraphStreamerPageBoundaryTest {
     /** 列 [range] を 1 文字ずつ [t] で埋めたページ。 */
     private fun page(range: IntRange, t: String) = range.map { body(it, t) }
 
+    /** 列 [range] を「1 文字だけの列」として並べたときに出る行列（列 1 本＝行 1 本）。 */
+    private fun lines(range: IntRange, t: String) = range.map { t }
+
     /**
      * ページ 3..(3+pages.size-1) として流す。先頭 3 ページ（表紙）と最終ページ（クレジット）は
-     * [TextProcessor.ParagraphStreamer] が捨てる仕様なので、その外側に 1 ページ足した総数を渡す。
+     * [TextProcessor.LineStreamer] が捨てる仕様なので、その外側に 1 ページ足した総数を渡す。
      */
     private fun stream(vararg pages: List<CharBox>): List<String> {
         val out = mutableListOf<String>()
-        val s = TextProcessor.ParagraphStreamer(3 + pages.size + 1, DetectedRules.FALLBACK) { out.add(it) }
+        val s = TextProcessor.LineStreamer(3 + pages.size + 1, DetectedRules.FALLBACK) { out.add(it) }
         for ((i, p) in pages.withIndex()) s.addPage(3 + i, p)
         s.finish()
         return out
@@ -56,25 +63,25 @@ class ParagraphStreamerPageBoundaryTest {
     @Test fun 次ページ先頭が1列空いていれば空行1つを復元する() {
         // 前ページは左端まで詰まっている＝空きは次ページ側の 1 列だけ。
         val r = stream(page(0 until cols, "あ"), page(1 until cols, "い"))
-        assertEquals(listOf("あ".repeat(cols), "", "い".repeat(cols - 1)), r)
+        assertEquals(lines(0 until cols, "あ") + listOf("") + lines(1 until cols, "い"), r)
     }
 
     @Test fun 前ページ末尾が2列余っていれば空行2つを復元する() {
         val r = stream(page(0..(cols - 3), "あ"), page(0 until cols, "い"))
-        assertEquals(listOf("あ".repeat(cols - 2), "", "", "い".repeat(cols)), r)
+        assertEquals(lines(0..(cols - 3), "あ") + listOf("", "") + lines(0 until cols, "い"), r)
     }
 
     @Test fun 前ページの余りと次ページの空きは合算される() {
         // 前 1 列 + 次 1 列＝2 つ。両端を別々に測るのではなく合計で出るのがこの実装の要点。
         val r = stream(page(0..(cols - 2), "あ"), page(1 until cols, "い"))
-        assertEquals(listOf("あ".repeat(cols - 1), "", "", "い".repeat(cols - 1)), r)
+        assertEquals(lines(0..(cols - 2), "あ") + listOf("", "") + lines(1 until cols, "い"), r)
     }
 
     // ---- 復元してはいけない側（＝偽の空行を作らない条件） ----
 
-    @Test fun 隙間が無ければ段落はページを跨いで繋がったまま() {
+    @Test fun 隙間が無ければ空行を入れない() {
         val r = stream(page(0 until cols, "あ"), page(0 until cols, "い"))
-        assertEquals(listOf("あ".repeat(cols) + "い".repeat(cols)), r)
+        assertEquals(lines(0 until cols, "あ") + lines(0 until cols, "い"), r)
     }
 
     @Test fun 題名のあるページには空行を入れない() {
@@ -83,24 +90,26 @@ class ParagraphStreamerPageBoundaryTest {
             page(0 until cols, "あ"),
             listOf(title("章")) + page(4 until cols, "い"),
         )
-        assertEquals(listOf("あ".repeat(cols), "【題名】章", "い".repeat(cols - 4)), r)
+        assertEquals(
+            lines(0 until cols, "あ") + listOf("【題名】章") + lines(4 until cols, "い"),
+            r,
+        )
     }
 
     @Test fun 本文列を持たないページを挟んだら空行を入れない() {
         // 挿絵・区切りページを挟むと「列グリッドが連続している」という前提自体が崩れる。
-        // 空行を入れない＝この改修前と同じく段落は繋がったままになる（挙動を変えないことが要件）。
         val r = stream(page(0 until cols, "あ"), emptyList(), page(5 until cols, "い"))
-        assertEquals(listOf("あ".repeat(cols) + "い".repeat(cols - 5)), r)
+        assertEquals(lines(0 until cols, "あ") + lines(5 until cols, "い"), r)
     }
 
     @Test fun 版面が読めない文書では空行を入れない() {
         // columnSpanX が 0（＝検出も退避も効かない仮想の版面）なら差は必ず負＝1 つも入れない。
         val out = mutableListOf<String>()
         val rules = DetectedRules.FALLBACK.copy(columnSpanX = 0.0)
-        val s = TextProcessor.ParagraphStreamer(6, rules) { out.add(it) }
+        val s = TextProcessor.LineStreamer(6, rules) { out.add(it) }
         s.addPage(3, page(0..(cols - 3), "あ"))
         s.addPage(4, page(1 until cols, "い"))
         s.finish()
-        assertEquals(listOf("あ".repeat(cols - 2) + "い".repeat(cols - 1)), out)
+        assertEquals(lines(0..(cols - 3), "あ") + lines(1 until cols, "い"), out)
     }
 }

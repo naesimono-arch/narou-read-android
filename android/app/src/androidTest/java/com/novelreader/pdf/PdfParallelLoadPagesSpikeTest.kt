@@ -482,10 +482,12 @@ class PdfParallelLoadPagesSpikeTest {
             super.startPage(page)
         }
 
+        // 本番 [GlyphStripper] と同じ復号器を使う（等価性スパイクが本番と別の字を作らないようにするため）。
+        private val decoder = GlyphDecoder()
+
         override fun processTextPosition(text: TextPosition) {
-            val raw = text.unicode
-            if (raw.isNullOrEmpty()) return
-            val s = normalizeGlyphUnicode(raw)
+            val s = decoder.decode(text)
+            if (s.isNullOrEmpty()) return
             val bottom = text.yDirAdj.toDouble()
             current.add(
                 CharBox(

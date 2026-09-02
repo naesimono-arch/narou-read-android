@@ -162,7 +162,7 @@ class ExtractPhaseProfileTest {
      *
      * 分離が成立する根拠: [GlyphStripper.processTextPosition] は `super` を呼んでいない＝
      * PDFTextStripper 既定のテキストバッファ書き込みは元から走らない。よって同じく super を
-     * 呼ばない [ParseOnlyStripper] との差分は、`normalizeGlyphUnicode` + [CharBox] 生成 +
+     * 呼ばない [ParseOnlyStripper] との差分は、[GlyphDecoder] による字の決定 + [CharBox] 生成 +
      * リスト追加だけになる。
      */
     @Test
@@ -851,10 +851,12 @@ class ExtractPhaseProfileTest {
             super.startPage(page)
         }
 
+        // 本番 [GlyphStripper] と同じ復号器を使う（プローブが本番と別の字を作らないようにするため）。
+        private val decoder = GlyphDecoder()
+
         override fun processTextPosition(text: TextPosition) {
-            val raw = text.unicode
-            if (raw.isNullOrEmpty()) return
-            val s = normalizeGlyphUnicode(raw)
+            val s = decoder.decode(text)
+            if (s.isNullOrEmpty()) return
             val bottom = text.yDirAdj.toDouble()
             current.add(
                 CharBox(

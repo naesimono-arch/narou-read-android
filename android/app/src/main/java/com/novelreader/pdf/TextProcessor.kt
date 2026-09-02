@@ -290,11 +290,11 @@ object TextProcessor {
     }
 
     /**
-     * 本文抽出コア。ページごとの文字リストから段落文字列のリストを返す。
-     * 題名は "【題名】..." プレフィックス付きの段落として混在させる（章分割で利用）。
+     * 本文抽出コア。ページごとの文字リストから**原文の行**のリストを返す（空行は ""）。
+     * 題名は "【題名】..." プレフィックス付きの行として混在させる（章分割で利用）。
      *
-     * 中身は [ParagraphStreamer] へ 1 ページずつ流すだけ（実装は一本＝全ページ版とストリーミング版で
-     * 段落の縫合規則が食い違わないようにするため）。全ページを同時に持てる呼び出し側（テスト・
+     * 中身は [LineStreamer] へ 1 ページずつ流すだけ（実装は一本＝全ページ版とストリーミング版で
+     * 行の縫合規則が食い違わないようにするため）。全ページを同時に持てる呼び出し側（テスト・
      * オラクル・ヒープに余裕のある端末）はこちらを使ってよい。
      *
      * progressCallback: 有効ページの処理開始ごとに (pct, processed, bodyTotal) を通知する。
@@ -308,30 +308,62 @@ object TextProcessor {
         progressCallback: ((pct: Int, processed: Int, bodyTotal: Int) -> Unit)? = null,
     ): List<String> {
         val out = mutableListOf<String>()
-        val streamer = ParagraphStreamer(totalPages, rules, progressCallback) { out.add(it) }
+        val streamer = LineStreamer(totalPages, rules, progressCallback) { out.add(it) }
         for ((pageNum, chars) in charListsByPage.withIndex()) streamer.addPage(pageNum, chars)
         streamer.finish()
         return out
     }
 
     /**
-     * ページを 1 枚ずつ受け取り、確定した段落を [emit] へ吐き出す逐次処理器。
+     * ページを 1 枚ずつ受け取り、確定した**原文の行**を [emit] へ吐き出す逐次処理器。
      *
-     * なぜ逐次か（OOM の真因対処）: 段落化はページ内で閉じる処理で、ページを跨いで要る状態は
-     * **組み立て中の段落 1 本だけ**（[currentParagraph]）。にもかかわらず旧経路は全ページ分の
-     * CharBox を先に materialize してから回していたため、保持量がページ数に比例した。
-     * 1 ページ受け取るたびに使い切って捨てれば、保持量はページ数に依存しない。
+     * ## 何を出すか（ADR 0041 決定2：行→段落結合の撤回）
+     * 出すのは PDF の**列**でも「読み味の段落」でもなく、**作者が書いた 1 行**と空行。
+     * なろうの web 原文は `原文1行 = <p id="L…"> 1つ`（空行も要素として実在）で、サーバ側に「段落」という
+     * 単位が無い（`docs/knowledge/naro-source-is-line-oriented.md`）。旧実装は列を「行頭が字下げ/開き括弧か」
+     * だけで段落へ畳んでおり、**原文に無い構造を抽出段で作って**行境界の約 1/3 を失っていた。
+     * 読み味のための結合は表示側（`com.novelreader.ui.splitIntoParagraphs`）の責務へ移した。
+     *
+     * ## 列→行の復元規則（原理的に曖昧な部分を含む）
+     * 原文の行は 1 列の容量ぶん（[ParserRules.COLUMN_CAPACITY]＝30 字）ずつ流し込まれ、溢れた分が次の列へ
+     * 折り返される。縦送りは全文字 1em なので列の幅は**文字数**で数えられる。
+     * - 列 < 容量 → その列で行が終わる（確定）
+     * - 列 = 容量+1 → 行頭禁則文字が 1 字ぶら下がった形。末尾が禁則文字**でない**なら widow 回避
+     *   （行の残り 1 字を引き込んだ）＝行が終わる（確定）。禁則文字なら次列へ続く
+     *   ——ただし次列が行頭指標（　「『（等）で始まるなら「ちょうど 31 字で終わる行＋新しい行」とみなす
+     * - 列 = 容量ちょうど → 次列へ続く。ただし「文末文字＋次列が全角空白始まり」「」＋「」は行末とみなす
+     * - 次のスロットが空き（空行）／次の列が無い → 行が終わる（確定）
+     *
+     * ⚠️ 「ちょうど幅いっぱいで終わった行」と「折り返し」は **PDF 生成時に情報が失われていて原理的に
+     * 区別できない**。上の 2 つの但し書きは経験則で、独立再実装が web 原文 10 話・約 1,380 行と
+     * 突き合わせた実測誤り率は行境界 2 箇所（0.14%/行。`~/naro-pdf-engine/verification.md` §3）。
+     * 規則と文字集合はその実装（web 原文で検証済み）から移した。
+     *
+     * ## なぜ逐次か（OOM の真因対処）
+     * 行の復元はページ内で閉じる処理で、ページを跨いで要る状態は**組み立て中の行 1 本と直前列の形だけ**。
+     * にもかかわらず旧経路は全ページ分の CharBox を先に materialize してから回していたため、保持量が
+     * ページ数に比例した。1 ページ受け取るたびに使い切って捨てれば、保持量はページ数に依存しない。
      *
      * ⚠️ [addPage] に渡された `chars` は復帰後に破棄されてよい（参照を持ち越さない）。
-     * ⚠️ ページは**昇順**に渡すこと（段落の縫合と先頭/末尾ページのトリムが順序に依存する）。
+     * ⚠️ ページは**昇順**に渡すこと（行の縫合と先頭/末尾ページのトリムが順序に依存する）。
      */
-    class ParagraphStreamer(
+    class LineStreamer(
         private val totalPages: Int,
         private val rules: DetectedRules = DetectedRules.FALLBACK,
         private val progressCallback: ((pct: Int, processed: Int, bodyTotal: Int) -> Unit)? = null,
         private val emit: (String) -> Unit,
     ) {
-        private var currentParagraph = StringBuilder()
+        /** 組み立て中の行（複数列に跨りうる）。 */
+        private var currentLine = StringBuilder()
+
+        /** 組み立て中の行が在るか。**空文字列の行と「行が無い」を区別する**ために長さでは判定しない。 */
+        private var lineOpen = false
+
+        /** 直前に取り込んだ列の文字数（＝em 数）。結合可否の判定に使う。 */
+        private var prevColWidth = 0
+
+        /** 直前に取り込んだ列の最終文字。⚠️ ルビ記法 `|親《読み》` の `》` ではなく**実体の字**。 */
+        private var prevColLastChar = NO_CHAR
 
         /**
          * 直前に本文列を出したページの「最終列 x0」と「そのページ番号」。**ページを跨いで持ち越す**。
@@ -348,19 +380,26 @@ object TextProcessor {
         private val bodyTotal = maxOf(totalPages - 4, 1)
 
         /**
-         * 確定した段落を整形して外へ出す。
-         * クリーンアップ規則は全ページ版と同一＝空行は "" のまま保持、それ以外は trim して空なら捨てる。
-         * 段落ごとに閉じた規則なので、全部溜めてから一括で掛けても 1 本ずつ掛けても結果は同じ。
+         * 確定した行を整形して外へ出す。
+         * 空行は "" のまま保持、それ以外は trim して空なら捨てる（行ごとに閉じた規則）。
          */
-        private fun emitParagraph(p: String) {
+        private fun emitLine(p: String) {
             if (p.isEmpty()) {
                 emit("")
             } else {
                 // 半角スペースは本文の文字なので**端でも落とさない**（S1 の真因の一部＝行末/行頭の
-                // 空白演出が段落境界で消える）。落とすのは縦組み PDF に本来現れない制御空白だけ。
+                // 空白演出が境界で消える）。落とすのは縦組み PDF に本来現れない制御空白だけ。
                 val cleaned = p.trim('\t', '\n', '\r')
                 if (cleaned.isNotEmpty()) emit(cleaned)
             }
+        }
+
+        /** 組み立て中の行が在れば確定させて出す。 */
+        private fun closeLine() {
+            if (!lineOpen) return
+            emitLine(currentLine.toString())
+            currentLine = StringBuilder()
+            lineOpen = false
         }
 
         /** 1 ページ分の文字を処理する（[pageNum] は 0 始まりの通しページ番号）。 */
@@ -414,19 +453,17 @@ object TextProcessor {
             // 題名のテキスト化（列ごとに X 降順・列内は Y 昇順）
             if (titlesAll.isNotEmpty()) {
                 // 素の x0 降順で並べると、列の中央に置かれる半角字（`'` 等）が x0 の大きさだけで
-                // 先頭へ飛ぶ（S7 が章題にも出る実例＝「'鳥ｗｉｔｈ兎ｓ」）。本文と同じ列復元を通す。
+                // 先頭へ飛ぶ（S7 が章題にも出る実例）。本文と同じ列復元を通す。
                 val titleCols = groupCharsByLine(titlesAll, columnTol)
                 val sorted = titleCols.keys.sortedDescending()
                     .flatMap { k -> titleCols[k]!!.sortedBy { it.top } }
                 val titleText = sorted
-                    .filter { it.text != "\n" && it.text != "\r" && it.text != "\t" }
+                    .filter { it.text !in DROPPED_WHITESPACE }
                     .joinToString("") { it.text }
                 if (titleText.isNotEmpty()) {
-                    if (currentParagraph.isNotEmpty()) {
-                        emitParagraph(currentParagraph.toString())
-                        currentParagraph = StringBuilder()
-                    }
-                    emitParagraph("【題名】$titleText")
+                    // 題名は本文の行の途中に割り込めない＝組み立て中の行はここで必ず閉じる。
+                    closeLine()
+                    emitLine("【題名】$titleText")
                 }
             }
 
@@ -438,7 +475,7 @@ object TextProcessor {
             // （列ピッチ 22.68 の 1/4＝隣の列とは決して混ざらない）。
             associateRuby(linesDict, rubiesAll, rules.rubyOffsetX, rules.lineStepX / 4.0)
 
-            // 右の列から順にテキスト化＆段落の縫合
+            // 右の列から順にテキスト化＆行の縫合
             val linesSortedX = linesDict.keys.sortedDescending()
             // ページ内の直前列（先頭列では null＝そこだけページ跨ぎの規則へ委ねる）。
             var prevX: Double? = null
@@ -459,44 +496,32 @@ object TextProcessor {
                 val lineStr = buildLineStr(lineBodies)
                 if (lineStr.isEmpty()) continue
 
-                var isNewParagraph = false
-                var blankLineCount = 0
-
-                // 行頭が字下げ/開き括弧なら新段落
-                if (lineStr.startsWith("　") || lineStr.startsWith("「") ||
-                    lineStr.startsWith("『") || lineStr.startsWith("（")
-                ) {
-                    isNewParagraph = true
-                }
-
-                // 列間 X が 1 行ステップの 1.5 倍超なら段落切れ＋空行挿入
+                // 空きスロット（＝空行）の数。ページ内は列間 X から、ページ先頭列だけは持ち越しから。
+                var blankCount = 0
                 if (prevX != null) {
                     val diffX = prevX - x
                     if (diffX > rules.lineStepX * 1.5) {
-                        isNewParagraph = true
                         // 空行数 = round(diffX/lineStepX) - 1。厳密に .5 のとき roundToInt は上へ丸めるが、
                         // 実測 PDF で diffX/lineStepX がちょうど .5 になる例は確認されておらず、
                         // 丸め方向は結果に効いていない。
-                        blankLineCount = (diffX / rules.lineStepX).roundToInt() - 1
+                        blankCount = (diffX / rules.lineStepX).roundToInt() - 1
                     }
                 } else if (canCarry) {
-                    // ページの先頭列だけは、直前ページの最終列との間で同じことをする。
-                    val blanks = crossPageBlankCount(carriedX!!, x)
-                    if (blanks >= 1) {
-                        isNewParagraph = true
-                        blankLineCount = blanks
-                    }
+                    blankCount = crossPageBlankCount(carriedX!!, x)
                 }
 
-                if (isNewParagraph) {
-                    if (currentParagraph.isNotEmpty()) {
-                        emitParagraph(currentParagraph.toString())
-                    }
-                    repeat(maxOf(0, blankLineCount)) { emitParagraph("") }
-                    currentParagraph = StringBuilder(lineStr)
-                } else {
-                    currentParagraph.append(lineStr)
+                if (blankCount > 0) {
+                    // スロットが空いている＝そこで原文の行は必ず終わっている（曖昧さが無い唯一の境界）。
+                    closeLine()
+                    repeat(blankCount) { emitLine("") }
+                } else if (lineOpen && !continuesFromPrevColumn(firstBodyChar(lineBodies))) {
+                    closeLine()
                 }
+
+                currentLine.append(lineStr)
+                lineOpen = true
+                prevColWidth = bodyCharCount(lineBodies)
+                prevColLastChar = lastBodyChar(lineBodies)
 
                 prevX = x
             }
@@ -506,6 +531,22 @@ object TextProcessor {
             if (prevX != null) {
                 carryX = prevX
                 carryPage = pageNum
+            }
+        }
+
+        /**
+         * 直前列から**同じ原文行が続いているか**を判定する（規則の出典はクラス KDoc）。
+         * @param nextFirst これから取り込む列の先頭文字（ルビ記法を除いた実体）。
+         */
+        private fun continuesFromPrevColumn(nextFirst: Char): Boolean {
+            val capacity = ParserRules.COLUMN_CAPACITY
+            return if (prevColWidth > capacity) {
+                // 容量超過＝ぶら下がり or widow 回避。末尾が禁則文字ならぶら下がり＝行はまだ続きうる。
+                isHangChar(prevColLastChar) && !isLineOpener(nextFirst)
+            } else {
+                prevColWidth >= capacity &&
+                    !(isSentenceEnder(prevColLastChar) && nextFirst == '　') &&
+                    !(prevColLastChar == '」' && nextFirst == '「')
             }
         }
 
@@ -524,19 +565,70 @@ object TextProcessor {
          * ここが過大になって偽の空行を生むことは無い。負値は 0 とみなす（版面が読めなかった＝入れない）。
          */
         private fun crossPageBlankCount(prevPageLastX: Double, x: Double): Int =
-            ((rules.columnSpanX + prevPageLastX - x) / rules.lineStepX).roundToInt()
+            maxOf(0, ((rules.columnSpanX + prevPageLastX - x) / rules.lineStepX).roundToInt())
 
-        /** 全ページを渡し終えた後に必ず呼ぶ（組み立て途中の最後の段落を吐き出す）。 */
+        /** 全ページを渡し終えた後に必ず呼ぶ（組み立て途中の最後の行を吐き出す）。 */
         fun finish() {
-            if (currentParagraph.isNotEmpty()) {
-                emitParagraph(currentParagraph.toString())
-                currentParagraph = StringBuilder()
-            }
+            closeLine()
         }
 
         private companion object {
             /** 「まだ本文列を出したページが無い」を表す番号（0 は正当なページ番号なので使えない）。 */
             const val NO_PAGE = -1
         }
+    }
+
+    // ---- 列→行の復元に使う文字集合 ----
+    // 出典: 独立再実装 `~/naro-pdf-engine/`（`src/naropdf/Flow.java`）。同実装の出力は ncode.syosetu.com の
+    // 公開原文 10 話と突き合わせ済み（8/10 完全一致・残り 2 話も行境界のみの差）＝**この集合は web 原文で
+    // 検証された側**。字面が似た別字を取り違えないよう、判定は下のヘルパ経由に一本化する。
+
+    /**
+     * 行末に 1 字だけぶら下がることを許す文字（JIS X 4051 の行頭禁則に相当する閉じ類）。
+     * 全角空白・半角空白まで含むのは、行末に置かれた空白も同じくぶら下がる実測による。
+     */
+    private val HANG_CHARS: Set<Char> = (
+        "。、」』）〉》】〕｝？！：；…‥・―ーヽヾゝゞ々" +
+            "ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ" +
+            "，．　 "
+        ).toSet()
+
+    /** 行頭に来やすい文字（段落開始の指標）。ぶら下がり列の直後にこれが来たら行末とみなす。 */
+    private val LINE_OPENERS: Set<Char> = "　「『（【〈《".toSet()
+
+    /** 文末に来やすい文字。「容量ちょうど」列の行末判定の補助に使う。 */
+    private val SENTENCE_ENDERS: Set<Char> = "。！？」…‥".toSet()
+
+    /** 版面に字が無かったことを表す番兵（どの文字集合にも属さない＝判定を素通りさせる）。 */
+    private const val NO_CHAR = '￿'
+
+    private fun isHangChar(c: Char): Boolean = c in HANG_CHARS
+    private fun isLineOpener(c: Char): Boolean = c in LINE_OPENERS
+    private fun isSentenceEnder(c: Char): Boolean = c in SENTENCE_ENDERS
+
+    // ---- 列の「実体の字」を取り出すヘルパ ----
+    // なぜ [buildLineStr] の結果から取らないか: 組み立て済みの文字列はルビを `|親《読み》` で埋め込むため、
+    // 先頭/末尾がルビ記法の `|` や `》` になりうる。行の復元規則は**版面に置かれた字**を見る必要がある。
+
+    /** 列の文字数（＝em 数）。制御空白は版面を占めないので数えない。 */
+    private fun bodyCharCount(lineBodies: List<CharBox>): Int {
+        var n = 0
+        for (b in lineBodies) if (b.text !in DROPPED_WHITESPACE) n++
+        return n
+    }
+
+    /** 列の先頭文字（版面に字が無ければ [NO_CHAR]）。 */
+    private fun firstBodyChar(lineBodies: List<CharBox>): Char {
+        for (b in lineBodies) if (b.text !in DROPPED_WHITESPACE && b.text.isNotEmpty()) return b.text[0]
+        return NO_CHAR
+    }
+
+    /** 列の最終文字（版面に字が無ければ [NO_CHAR]）。 */
+    private fun lastBodyChar(lineBodies: List<CharBox>): Char {
+        for (i in lineBodies.indices.reversed()) {
+            val t = lineBodies[i].text
+            if (t !in DROPPED_WHITESPACE && t.isNotEmpty()) return t[t.length - 1]
+        }
+        return NO_CHAR
     }
 }

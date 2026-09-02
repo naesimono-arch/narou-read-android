@@ -40,12 +40,19 @@ class NativeReadingScreenTopPillTest {
 
     private val colors = ReadingTheme.LIGHT.colors
 
-    /** 段落 n 個の章（Plain＋LineBreak の繰り返し＝LazyColumn のアイテム数を稼ぐ）。 */
+    /**
+     * 段落 n 個の章（Plain＋LineBreak の繰り返し＝LazyColumn のアイテム数を稼ぐ）。
+     *
+     * ⚠️ 各行を字下げ「　」で始めるのが load-bearing。表示側の [splitIntoParagraphs] は
+     * 「行頭が字下げ／開き括弧」を段落の切れ目に使う（ADR 0041 決定2 で抽出側から移設）ので、
+     * 字下げの無い行を並べると**全部 1 段落へ畳まれて**アイテムが 1 個になり、
+     * このテストが必要とする「後半までスクロールした状態」が作れない。
+     */
     private fun longChapter(n: Int) = ChapterContent(
         title = "テスト章",
         segments = buildList {
             repeat(n) {
-                add(TextSegment.Plain("これは第${it}段落のテスト本文です。"))
+                add(TextSegment.Plain("　これは第${it}段落のテスト本文です。"))
                 add(TextSegment.LineBreak)
             }
         }.toImmutableList(),

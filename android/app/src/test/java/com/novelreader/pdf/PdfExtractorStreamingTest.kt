@@ -120,7 +120,7 @@ class PdfExtractorStreamingTest {
         val expected = TextProcessor.processPages(buildDoc(pageCount), pageCount, rules)
 
         val streamed = mutableListOf<String>()
-        val streamer = TextProcessor.ParagraphStreamer(pageCount, rules) { streamed.add(it) }
+        val streamer = TextProcessor.LineStreamer(pageCount, rules) { streamed.add(it) }
         SelfClearingPageSource(pageCount).forEachPage { i, chars -> streamer.addPage(i, chars) }
         streamer.finish()
 

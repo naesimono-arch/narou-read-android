@@ -160,6 +160,11 @@ def cmd_verify(work, ep, third, outdir):
         'oracle_source': 'naro-pdf-engine (独立再実装) work/out/N0833HI/episodes/%04d.json — web 原文検証済み' % ep,
         's3_flow_char_count': len(nf),
         's3_blank_runs': nb,
+        # 行構造そのもの（0＝空行）。ADR 0041 決定2 で抽出の出力単位が「原文の行」になったため、
+        # 空行の位置だけでなく**行境界の位置まで**この小さい fixture で厳密に見張る
+        # （長編は曖昧境界の影響で完全一致にならない＝帯で見るのが正しく、oracle.json 側の
+        #  s3_line_count/s3_blank_count が担当する）。
+        's3_line_lengths': [len(t) for t in oracle_lines(third, ep)],
     }, open(os.path.join(outdir, 'N0833HI_ep%d.oracle.json' % ep), 'w'),
         ensure_ascii=False, indent=1, sort_keys=True)
 
