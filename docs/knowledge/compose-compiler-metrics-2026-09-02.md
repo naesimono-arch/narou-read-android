@@ -106,3 +106,27 @@ skip できるが、unstable に落ちると `===` が毎回失敗する:
 skippable 数は既に飽和しており、`ChapterPeek` のような「毎回生成される持ち主」が居るかを
 確かめない限り実害は言えない。**着手するなら同じ反実仮想の手順で先に実測すること**（憶測で
 `ImmutableSet` 化しない）。
+
+
+## ⚠️ 上の「ChapterPeek」は**条件文**であって現状の欠陥ではない（2026-09-02 に別体が実証）
+
+反実仮想表の「なし」列（＝`kotlinx-collections-immutable` を外した場合）の話なので、
+**現行ツリーでは `ChapterPeek` は stable**。レポートを取り直した実測:
+
+```
+stable class com.novelreader.ui.ChapterPeek { stable val content: ChapterContent
+restartable skippable fun ChapterScreenContent( … stable prevPeek: ChapterPeek? … )
+restartable skippable fun ChapterPeekPanel( … stable peek: ChapterPeek )
+```
+
+**なぜここに注意書きが要るか**＝この文書と `build.gradle` のコメントは条件節で書かれているが、
+条件節が落ちた形で引用されると「読書画面が毎回再コンポーズされている実害がある」と読めてしまう
+（実際に監督が誤読して修正を委譲し、差し戻された）。**「外すなら remember 化が先」は依存撤去の
+前提工事であって、現状のバグ修正ではない。**
+
+**そして、その前提工事は `ChapterScreen.kt` 単独では安全に閉じない**——`ChapterPeek` に焼き込む
+`resolveInitialScroll(prevFile)` は `NativeReadingScreen.kt:502` の
+`remember { mutableMapOf<String, Pair<Int,Int>>() }`＝**snapshot でない素の MutableMap** を読む。
+Compose から観測できないので、鮮度は「毎コンポジション評価されること」だけが担保している。
+`remember` で包むと**キーで覆えない更新経路が残り、覗きの着地位置が古い値で固まる**。
+着手するなら**その記憶を先に snapshot 化する**のが順序で、`NativeReadingScreen.kt` の所有権も要る。
