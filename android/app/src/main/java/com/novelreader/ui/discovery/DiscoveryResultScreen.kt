@@ -332,6 +332,13 @@ internal fun DiscoveryResultContent(
                                         Text(
                                             text = displayLabel,
                                             fontSize = FontMicroLabel,
+                                            // なぜ lineHeight を明示するか: 既定の LocalTextStyle（＝Typography.bodyLarge）は
+                                            // lineHeight=28.sp を持つため、fontSize を 10.5sp へ落としても**行箱は 28sp のまま**
+                                            // 残り、下の border＋padding（ピル）がその外周をなぞって縦に膨らむ。
+                                            // 比は正本モック discovery-home-D.html の `.cd`
+                                            // （10.5px・line-height 未指定＝normal）から。ゴシック（--gothic）の normal は実測 1.6。
+                                            // sp 直値でなく em で持つのは、フォントトークンや fontScale が動いても比を保つため。
+                                            lineHeight = 1.6.em,
                                             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
                                             modifier = Modifier
                                                 .border(
@@ -425,6 +432,10 @@ internal fun DiscoveryResultContent(
                                     Text(
                                         text = label,
                                         fontSize = FontMicroLabel,
+                                        // 行箱を明示する理由は上のクリック可チップに同じ（同じ正本 `.cd` のピル）。
+                                        // 静的チップは 48dp タップ枠を持たないぶん、行箱の膨らみがそのまま
+                                        // FlowRow の段高へ出る＝条件帯が一覧を下へ押し出す実害が大きい。
+                                        lineHeight = 1.6.em,
                                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
                                         modifier = Modifier
                                             // 48dpタップ枠のクリック可チップと縦センターを揃える（上のFlowRowコメント参照）
