@@ -89,11 +89,6 @@
 
 - **[抽出] ADR 0041 の3決定**: ①字種写像の pdfminer 追従を全面撤去し web 原文一致へ（6種）②行→段落結合を撤回し抽出は行保持・結合は表示側へ
   ③`DetectedRules` は維持だが「予防であって実測に基づかない」をコメントへ明記。⚠️ **golden 全再採取と `CharClass` 改訂が道連れ**＝1便で通す。
-- **[教示] 縦書き既定＝案1**: 教示デッキ組Aに「どちらで読みますか」の選択カードを1枚差す（本文を見る前に確定＝`NativeReadingScreen.kt:407` の `remember` 罠を踏まない）。
-  正本＝`docs/design-candidates/candidates/vertical-default-onboarding-candidates.html`。⚠️ 実装が入ったら**ストア詳細説明 §3 の「初期設定は横書き」を書き換える**。
-- **[設定] Auto Backup＝案C・既定 OFF**: `BackupAgent`＋`fullBackupOnly` でトグル（`allowBackup` は実行時に変えられない＝唯一の手段）。
-  設計＝`.claude/plans/auto-backup-design-2026-08-26.md`／UI＝`skins/candidates/settings-backup-row-candidates.html`。併せて **C' 宣言の精度上げ**と
-  **プライバシーポリシー §5 の粒度上げ**（Data safety の申告と揃える）。
 - **[縦書き] 規範差分**: B-1〜B-3 の禁則を足す（**規範に無い字も実データに出る形で登録**＝ADR 0041 撤去後に実際に出る 301D/301F/FF5E/301C が対象）。
   B-11 の列高超過は**句読点だけぶら下げ・他は追い出す**。差分表＝`docs/knowledge/vertical-typeset-external-oracle-gap.md`。
 ## 思いつき・取りこぼし（随時追記）

@@ -34,6 +34,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.MonitorHeart
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.SaveAlt
+import androidx.compose.material.icons.outlined.SettingsBackupRestore
 import androidx.compose.material.icons.outlined.Title
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -63,6 +64,7 @@ import androidx.core.content.ContextCompat
 import com.novelreader.BuildConfig
 import com.novelreader.NewEpisodeNotificationPreference
 import com.novelreader.NovelReaderApplication
+import com.novelreader.backup.BackupOptIn
 import com.novelreader.ui.AdapterHealthBoardDialog
 import com.novelreader.ui.components.shioriDebugTipStep
 import com.novelreader.ui.theme.NovelReaderAlertDialog
@@ -116,6 +118,7 @@ fun SettingsScreenK(
 ) {
     var showThemeDialog by remember { mutableStateOf(false) }
     var showHealthBoard by remember { mutableStateOf(false) }
+    var showBackupInfo by remember { mutableStateOf(false) }
 
     // 横向きは恒常ナビが Rail（左端縦置き）になる＝この面も自前で立てる（ADR 0034 の構造裁定）。
     // なぜ「本棚とさがすの横向きだけ」という意匠の適用範囲を超えてここにも要るのか: 帯を出す面と
@@ -253,6 +256,28 @@ fun SettingsScreenK(
         // もらっている検証機から記録を取り出す手段が無い」ことがこの UI の存在理由そのものだから。
         KSettingsGroupLabel("データ")
         KSettingsCard {
+            // 引き継ぎ（Auto Backup）の2行。正本モックは一時ドラフト
+            // `skins/candidates/settings-backup-row-candidates.html` の**案C-2**（トグル行＋説明行）。
+            // 節の先頭に置くのはモックの並び（引き継ぎ → 診断系）どおり＝release で全員に見える行を上に、
+            // 診断は下に置く。モックが描かれた時点では〈診断の記録〉行がまだ無く3行にならないが、
+            // 「引き継ぎが先・診断が後」という順序規則はそのまま当てはめられる。
+            BackupOptInRowK()
+            KSettingsRow(
+                // モック C-2 の2行目はアイコン列を**空ける**（直上の行の続きに見せる。節内に2つ目の
+                // アイコンを立てると別件に見える、というモック注記の規定）。KSettingsRow は icon=null で
+                // テキスト開始位置を S40 揃えにするので、そのまま翻訳できる。
+                icon = null,
+                title = "引き継がれるもの",
+                description = "本の情報・読書位置・しおり・設定。本文は引き継がれません",
+                trailing = {
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                onClick = { showBackupInfo = true },
+            )
             KSettingsRow(
                 // モック .ri は受け皿へ矢印を落とす形＝Icons.Outlined.SaveAlt が同形（モック注記の指定）。
                 icon = Icons.Outlined.SaveAlt,
@@ -398,6 +423,9 @@ fun SettingsScreenK(
     if (showHealthBoard) {
         AdapterHealthBoardDialog(onDismiss = { showHealthBoard = false })
     }
+    if (showBackupInfo) {
+        KBackupInfoDialog(onDismiss = { showBackupInfo = false })
+    }
 }
 
 /** テーマ4択（システムに従う＋ライト/セピア/ダーク）。本棚⋮の4択と同じ状態源を素通しした radio ダイアログ。 */
@@ -491,6 +519,123 @@ private fun NewEpisodeNotificationRowK() {
             },
         )
     }
+}
+
+/**
+ * 「読書記録の引き継ぎ」（Auto Backup）のトグル行。正本モックは一時ドラフト
+ * `skins/candidates/settings-backup-row-candidates.html` の**案C-2 の1行目**。
+ *
+ * 意匠は「新着話の通知」行と**同一部品**（M3 Switch・説明文つき行）＝モック注記の規定どおりで、
+ * 新しい部品は発明していない。だから [KSettingsRow] ではなく [NewEpisodeNotificationRowK] と同じ
+ * 手組みの Row にしている（トグル行だけ semantics の束ね方が違い、その流儀を節をまたいで揃えるため）。
+ *
+ * 状態源が [com.novelreader.backup.BackupOptIn]＝SharedPreferences 直読みで、引数にも ViewModel にも
+ * 載せていないのは、**同じ値を restricted mode の [com.novelreader.backup.NovelReaderBackupAgent] が
+ * 読む**ため（そちらは Application も ContentProvider も生きていない）。置き場を1つに保つと、
+ * 画面側の都合で DataStore 等へ移す誘惑が構造的に絶たれる。
+ * ＝呼び出し元（MainActivity）に配線が要らない副産物もある（通知トグルと同じ形）。
+ *
+ * ⚠️ **既定 OFF**（2026-09-03 人間裁定）。モックは既定 ON の前提で描かれており、トグルの初期状態だけが
+ * 紙と食い違う（行の形・文言・部品は同じ）。逆同期の注記はモック冒頭に入れてある。
+ */
+@Composable
+private fun BackupOptInRowK() {
+    val context = LocalContext.current
+    var enabled by remember { mutableStateOf(BackupOptIn.isEnabled(context)) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            // TalkBack で「ラベル＋説明＋スイッチ」を1トラバーサル単位に（通知トグルと同流儀）。
+            .semantics(mergeDescendants = true) {}
+            .padding(horizontal = Spacing.S16, vertical = Spacing.S12),
+    ) {
+        Icon(
+            // モック .ri は「時計の針を抱いた円弧矢印」＝Icons.Outlined.SettingsBackupRestore が同形。
+            Icons.Outlined.SettingsBackupRestore,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(24.dp),
+        )
+        Column(Modifier.weight(1f).padding(horizontal = Spacing.S16)) {
+            Text("読書記録の引き継ぎ", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                // 副文が一文で収まるのが案C-2 を採る理由そのもの（案C-1 は3行に伸びて行高が節内で突出する）。
+                // 「何が引き継がれ、何が引き継がれないか」は直下の説明行とダイアログが引き取る。
+                "端末を替えたときに引き継げるよう保存します",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(
+            checked = enabled,
+            onCheckedChange = { on ->
+                enabled = on
+                BackupOptIn.setEnabled(context, on)
+                // ⚠️ ここで OS へ通知する手段は無い（BackupManager.dataChanged は key-value 用で
+                // Auto Backup の可否には効かない）。次に OS がバックアップを起こしたとき、
+                // NovelReaderBackupAgent がこの値を読んで運ぶ／運ばないを決める＝即時反映ではない。
+            },
+        )
+    }
+}
+
+/**
+ * 「引き継がれるもの」行の遷移先（正本モック `settings-backup-row-candidates.html` 末尾の説明ダイアログ）。
+ * 器は既存の [NovelReaderAlertDialog]＝テーマ選択と同じで、新しい部品は使っていない。
+ *
+ * 文言で守っている制約2点（設計ドラフト §4.2・§3.3）:
+ *  ・「OFF にすれば**すでに保存されたものが消える**」とは書けない——その扱いはトランスポート依存で
+ *    公式ガイドに記載が無い。だから OFF 側は「これ以降は保存されません」に留め、削除は端末設定／
+ *    Google アカウント側の手段へ送る。
+ *  ・「本文は引き継がれません」は**必ず書く**——機種変更で PDF 本の本文が戻らないのは構造的な事実で
+ *    （永続 URI 権限もキャッシュも復元されない）、事故の前に伝えられる場所がここしかない。
+ *
+ * ⚠️ モックからの差分は既定 OFF 裁定に由来する1点だけ＝「自動で戻ります」を**この設定が ON のとき**に
+ * 条件づけた。モックは既定 ON の前提で無条件に書いており、そのまま写すと OFF の利用者に嘘になる。
+ */
+@Composable
+private fun KBackupInfoDialog(onDismiss: () -> Unit) {
+    NovelReaderAlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("端末を替えたときの引き継ぎ") },
+        text = {
+            Column {
+                KBackupInfoSection(
+                    label = "引き継がれるもの",
+                    body = "本棚に入れた本の情報・読書位置・しおり・アプリの設定。" +
+                        "この設定が ON のとき、新しい端末で本アプリを入れ直すと自動で戻ります。",
+                )
+                KBackupInfoSection(
+                    label = "引き継がれないもの",
+                    body = "取り込んだ作品の本文。端末を替えたあとは、同じ PDF を取り込み直すと" +
+                        "続きから読めます（読書位置は残っています）。",
+                )
+                KBackupInfoSection(
+                    label = "保存先",
+                    body = "Android の標準機能（自動バックアップ）で、お使いの Google アカウントに" +
+                        "保存されます。OFF にすると、これ以降は保存されません。" +
+                        "すでに保存されたものは、端末の「設定 > システム > バックアップ」または" +
+                        "Google アカウントのバックアップ管理から削除できます。",
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("閉じる") } },
+    )
+}
+
+/** 説明ダイアログの1節（モック `.dlg .db .lbl` ＝小見出しの下に本文）。 */
+@Composable
+private fun KBackupInfoSection(label: String, body: String) {
+    Text(
+        label,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        // 最初の節だけ上を空けないのはモックの規定（.lbl:first-child{margin-top:0}）だが、
+        // ここは Column の先頭要素が持つ余白をダイアログ側が既に確保しているため一律で置ける。
+        modifier = Modifier.padding(top = Spacing.S12, bottom = Spacing.S4),
+    )
+    Text(body, style = MaterialTheme.typography.bodyMedium)
 }
 
 /** グループ見出し（モック .glabel 12px 字間広め）。 */

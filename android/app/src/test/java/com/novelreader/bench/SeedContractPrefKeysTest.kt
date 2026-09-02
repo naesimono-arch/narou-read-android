@@ -98,6 +98,14 @@ class SeedContractPrefKeysTest {
         "FILE_APP_PREFS", "FILE_NAROU_SEARCH_HISTORY",
         "SETTINGS_SCHEMA_VERSION",
         "NEW_EPISODE_NOTIFY_ENABLED",
+        // 読書記録の引き継ぎ（Auto Backup）のオプトイン。設定画面は TabSwipeBenchmark が実際に
+        // 通る面（本棚→さがす→設定の横スワイプ）なので「測る面に出ない」とは言えないが、
+        // **値がどちらでも面は変わらない**＝行は ON/OFF どちらでも2本とも描かれ、差は Switch の
+        // つまみ位置と塗りだけ（行数・行高・スクロール量が動かない）。同じ面に同居する
+        // NEW_EPISODE_NOTIFY_ENABLED を neutral に置いているのと同じ理由・同じ粒度で扱う。
+        // ⚠️ 引き継ぎの状態で行の**構成**を出し分ける（OFF のとき説明行を畳む等）改修を入れたら、
+        // その時点で面が値に依存する＝knownUnpinnedSurface か mustPin へ移すこと。
+        "BACKUP_OPT_IN",
         "IMMERSIVE_HINT_SHOWN",
         "BATTERY_DIALOG_DISMISSED",
         "NOTIF_PRIMING_SHOWN",

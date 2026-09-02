@@ -50,6 +50,22 @@ object PrefKeys {
     /** 新着話通知のオプトイン（Boolean・既定 false＝公理13）。 */
     const val NEW_EPISODE_NOTIFY_ENABLED = "new_episode_notify_enabled"
 
+    /**
+     * 読書記録の引き継ぎ＝Auto Backup のオプトイン（Boolean・**既定 false＝OFF**。
+     * 読み書きは [com.novelreader.backup.BackupOptIn] のみを通す）。
+     *
+     * ⚠️ このキーだけは**置き場所が本質**: 値を読むのは
+     * [com.novelreader.backup.NovelReaderBackupAgent]＝バックアップ中の **restricted mode** で走るため、
+     * `Application` サブクラスも ContentProvider も生きていない。素の `Context` API だけで読める
+     * SharedPreferences が唯一の安全な置き場で、Room / DataStore は使えない（DataStore は suspend、
+     * Room はまさにバックアップ対象のファイルを開くことになる）。移設するなら agent 側の制約から検討し直すこと。
+     *
+     * 自己言及の整理: このキーを収める `app_prefs.xml` 自身もバックアップ対象なので、ON のまま取った
+     * バックアップを復元すると新端末も ON で始まる（利用者の意思がそのまま渡る＝意図どおり）。
+     * OFF のときはバックアップ自体が空なので復元される値も無い＝新端末は既定の OFF から始まる。
+     */
+    const val BACKUP_OPT_IN = "backup_opt_in"
+
     // ── app_prefs: 読書画面（NativeReadingScreen）──
 
     /** 本文フォントサイズ sp（Int）。 */

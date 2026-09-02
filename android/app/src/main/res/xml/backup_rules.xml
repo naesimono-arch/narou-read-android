@@ -5,15 +5,57 @@
   実体を含めると「HTML だけ部分欠落・DB だけ復元」の不整合が構造的に起きるため、
   バックアップ対象を〈メタデータ層＝蔵書リスト・読書位置・しおり・設定（数十KB）〉に限定し、
   HTML 実体は復元後の再取込（graceful degrade・位置は保持）で賄う。
-  include を1つでも書くと対象は include 列挙のみ＝HTML 実体（files/novels/）は構造的に対象外。
-  （明示の <exclude path="novels/"> は「included path 内にない exclude」として lint エラーに
-  なるため書けない＝除外の意図はこのコメントが正本。）
+
+  ⚠️ このファイルは「運ぶ／運ばない」の宣言だけを持つ。**運ぶかどうか自体**（利用者のトグル）は
+  NovelReaderBackupAgent が onFullBackup を素通しするかで決める＝OFF のときはここの列挙は評価されない。
+
+  ── 何が対象外になっているか（2026-09-03 に実コードから確定・§印は落ちる機序）──
+  ・files/novels/<bookId>/*.html（本文実体）
+      §include 方式の構造的除外。「include を1つでも書くと対象は include 列挙のみ」＝domain="file" の
+      include が datastore/ だけなので novels/ はその外側。明示の <exclude path="novels/"> は
+      「included path の内側でない exclude」として lint エラーになるため書けない＝この注記が除外の正本。
+  ・cache/pdf_import/*.pdf（なろう縦書きPDF の実体）・cache/temp_*.pdf
+      §プラットフォームが常に除外する（getCacheDir/getCodeCacheDir/getNoBackupFilesDir）。
+      include に書いても救えない＝復元先の端末に cache は存在しない。
+  ・SAF の永続 URI 権限（takePersistableUriPermission で取ったもの）
+      §そもそもバックアップという概念の外。アンインストールで必ず失効する
+      （実機実測＝docs/knowledge/auto-backup-does-not-restore-uri-permissions.md）。
+
+  ⚠️ **上の3つ目が本ルールの設計上いちばん効く事実**: 権限は運べないのに、権限を指す**文字列**は
+  運ばれてしまう（books.sourceUri と app_prefs の pdf_library_tree_uri）。放置すると復元先で
+  「本棚にあるのに開けない本」になるため、**読み出し側が生きた権限の有無で判定する**ことが前提条件になっている
+  （BookshelfViewModel の pdfFolderTreeUri／isContentMissing、domain/ReimportPlan の分岐②）。
+  ここを外すとこの宣言は「復元したのに読めない本」を作る宣言に変わる。列を単位に除外する手段は
+  Auto Backup に無い（最小粒度はファイル）ので、防御は必ずコード側に置くこと。
+
+  ── 精度上げ（案C'・2026-09-03）の方針 ────────────────────────────────────────
+  **include は絞らず exclude で落とす**。失敗のコストが非対称だから:
+  ・include を絞って対象名を外すと「バックアップが空」＝無音の全損になる（どこにもエラーが出ない）。
+    とくに domain="database" を novel_reader_db 1点へ絞ると -wal（未チェックポイントの確定済み書込）が
+    落ち、復元先で直近の読書位置だけが古い、という最も気づきにくい壊れ方をする。
+  ・exclude を書き損じても「これまで通り運ぶ」に留まる＝現状維持へ落ちるだけ。
+  実機 bmgr 検証（設計ドラフト §7）を伴わない今、外し方を間違えても無害な側にしか倒れない形にする。
 -->
 <full-backup-content>
-    <!-- Room DB（books/progress/web_novels/web_reading_progress ほか）＝蔵書メタ・読書位置の正本 -->
+    <!-- Room DB（books/progress/web_novels/web_reading_progress ほか）＝蔵書メタ・読書位置の正本。
+         path="." のまま置くのは、novel_reader_db 本体と -wal / -shm を取りこぼさないため（上記の非対称）。 -->
     <include domain="database" path="." />
-    <!-- SharedPreferences（読書テーマ・設定） -->
+    <!-- WorkManager の内部 DB。databases/ に生えるが本アプリのデータではなく、旧端末のジョブ待ち行列を
+         新端末へ持ち込む意味は無い（新着話チェックの Worker は起動時に組み直される）。
+         ファイル名は work-runtime 2.10.5 の実バイナリから確認した一次事実
+         （androidx/work/impl/WorkDatabasePathHelperKt に "androidx.work.workdb" と
+         サイドカーの接尾辞 "-journal" "-shm" "-wal" が定数として入っている）。
+         ⚠️ 依存を上げてDB名が変わればここは黙って効かなくなる（＝運んでしまう側＝無害）。 -->
+    <exclude domain="database" path="androidx.work.workdb" />
+    <exclude domain="database" path="androidx.work.workdb-journal" />
+    <exclude domain="database" path="androidx.work.workdb-shm" />
+    <exclude domain="database" path="androidx.work.workdb-wal" />
+    <!-- SharedPreferences（読書テーマ・設定・引き継ぎトグル自身）。実体は app_prefs.xml の1枚。
+         ⚠️ path="app_prefs" へ絞らないのは、公式ガイドが sharedpref の path に拡張子を付けるかで
+         記述が食い違っており（例は "device.xml"・本文は拡張子なし）、外すと設定が丸ごと運ばれなくなるため。
+         ライブラリ由来の prefs（WebView 等）を落とす exclude は、実機 bmgr で**実ファイル名を見てから**足す
+         （設計ドラフト §7 の確認項目2）。名前を推測で書くと「効いていない exclude」が恒久的に残る。 -->
     <include domain="sharedpref" path="." />
-    <!-- Preferences DataStore（検索履歴ほか）。既定配置は files/datastore/ -->
+    <!-- Preferences DataStore（なろう検索履歴）。既定配置は files/datastore/ -->
     <include domain="file" path="datastore/" />
 </full-backup-content>
