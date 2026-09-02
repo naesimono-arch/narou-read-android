@@ -114,6 +114,13 @@ jobs:
       # 昇格の条件は導入時から「赤0になったら外す」と決めてあった＝ktlint が 2026-08-05 に辿ったのと同じ経路。
       # ⚠️ 3本は1つの run にぶら下がるが、既定シェルが `bash -e` なので**最初に落ちた1本で止まる**。
       # 手元で全件の残数を数えるときは3本を個別に叩くこと（ktlint の --continue と同じ落とし穴）。
+      # 走査(c) の判定器そのものの回帰（感度＝本物を赤にする／特異度＝産物を緑にする）。
+      # なぜ走査より先に置くか: 偽陽性を消すたびに述語が足される検査なので、緩めすぎて
+      # 「常に緑を返すだけの部品」に化けても走査本体は緑のままで気づけない。走査の結果を
+      # 信じる前に、判定器が是正済みの本物（履歴から凍結した golden）を今も赤にできることを見る。
+      - name: golden 走査(c) 判定器の回帰テスト
+        run: python3 tools/test_check_golden_label_split.py
+
       - name: golden の 2.0 破綻走査（ブロッキング）
         run: |
           python3 tools/check_golden_rule_loss.py android/app/src/test/screenshots

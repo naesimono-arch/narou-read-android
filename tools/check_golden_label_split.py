@@ -158,6 +158,21 @@ def vertical_stacks(path, scale):
     return found
 
 
+def case_verdict(files):
+    """1組（fontScale 1.0/2.0 のペア）の判定 ("red"|"vanished"|"green", 1.0の本数, 2.0の連なり)。
+
+    **判定の唯一の入口**＝CI が叩く main も回帰テスト（test_check_golden_label_split.py）もここを通す。
+    テスト側で述語を組み直すと「テストは緑だが本番の判定は変わっている」が成立してしまうため。
+    """
+    small = vertical_stacks(files["1.0"], 1.0)
+    large = vertical_stacks(files["2.0"], 2.0)
+    if len(large) > len(small):
+        return "red", len(small), large
+    if len(small) > len(large) and small:
+        return "vanished", len(small), large
+    return "green", len(small), large
+
+
 def main(argv):
     png_dir = gp.resolve_dir(argv)
     pairs = gp.scale_pairs(png_dir)
@@ -165,12 +180,11 @@ def main(argv):
     failures = []
     vanished = []
     for case, files in pairs.items():
-        small = vertical_stacks(files["1.0"], 1.0)
-        large = vertical_stacks(files["2.0"], 2.0)
-        if len(large) > len(small):
-            failures.append((files["2.0"].name, len(small), large))
-        elif len(small) > len(large) and small:
-            vanished.append((case, len(small), len(large)))
+        verdict, small_n, large = case_verdict(files)
+        if verdict == "red":
+            failures.append((files["2.0"].name, small_n, large))
+        elif verdict == "vanished":
+            vanished.append((case, small_n, len(large)))
     print(f"走査(c) ラベルの段割れ: {len(pairs)} 組を比較（scale ペアを持たない {skipped} 枚は対象外）")
     for name, before, stacks in failures:
         boxes = ", ".join(f"({a},{b})-({c},{d})" for a, b, c, d in stacks[:3])
