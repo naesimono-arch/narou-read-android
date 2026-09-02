@@ -59,7 +59,7 @@
 - **[抽出コア欠陥6クラスの真因調査→修正]** S1 半角スペース脱落／S2a U+FFFD／S3 空行復元全滅／S4a ルビ親範囲／S4b 傍点ルビ／S7 `'` 行頭移動（症状・規模＝一次情報 §4。症状でなく真因から）。
 - **[縦書き組版の規範突合]** `CharClass` ⇄ UTR#50・`LineBreaker` 禁則 ⇄ JLReq（＝`docs/knowledge/vertical-typeset-external-oracle-gap.md`。差分は棚卸し→人間裁定）。
 - **[計測スクリプトの軽量突合]** 意思決定を左右した `measure_read_residency` / `measure_session_length_cost` 等2〜3本を、仕様文からの独立サブ再実装→数値突合（オラクル無し領域・69%→4.3% の前科）。
-- **[裁定材料の web 検分]** S2b 字種写像・段落結合方針（現行の段落誤り率計測を含む）／「寸法自動検出」導入動機を git log・ADR で確認→前提の要否裁定。
+- **[前提3件の裁定＝人間へ]** 材料は揃った（`docs/knowledge/extraction-charmap-diverges-from-web-source.md`・`naro-source-is-line-oriented.md`・`dimension-autodetect-was-preventive.md`）。裁定対象＝①字種写像の pdfminer 追従を撤去するか（golden 再採取と `CharClass` 改訂が道連れ）②行→段落結合を維持するか撤回するか ③寸法自動検出の去就。⚠️ **awaiting-human へ移す項目**＝Claude 側で動かせるのはここまで。なお現行の段落誤り率は**測れていない**（ルビのインライン記法が本文の《》と分離できず、比較可能な話が 1.8% に落ちるため）。
 - 小粒: `tools/count_toc_fixture_chapters.sh` をゲート（CI か GoldenTest）へ結線する。暁66・カクヨム593 を実装非依存で数える手段は用意済みだが、**手動実行のみ＝誰も走らせない**状態。
 
 ## Google Play 公開準備 — 技術トラック
