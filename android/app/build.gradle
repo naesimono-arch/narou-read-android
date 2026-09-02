@@ -365,16 +365,22 @@ dependencies {
     // 導入時（2026-07-08）は strong skipping が無効で、これが skippable 化の唯一の手段だった。
     // その後 2026-07-11 に kotlinOptions で experimentalStrongSkipping=true を有効化しており（上記参照）、
     // 「strong skipping 無効の環境だから要る」という当初の理由は現在は成立しない＝旧コメントを 2026-07-30 に是正。
-    // 【2026-08-19 に composeCompilerReports で実測＝判定は「外せない」】保留していた再判定の答え。
-    // 効いているのは当初想定の「引数」ではなく**フィールド**で、依存は想定より深い:
-    //   stable class ChapterContent { stable val segments: ImmutableList<TextSegment> }
-    //   stable class TextSegment.StyledBlock { stable val segments: ImmutableList<TextSegment> }
-    // List へ戻すと StyledBlock が unstable に落ち、sealed な TextSegment 階層ごと unstable 化して
-    // ChapterContent へ伝播する。strong skipping（module.json の featureFlags で有効を実証）下でも
-    // skippable ではあり続けるが、比較が equals() から === へ変わる——読書 LazyColumn の段落リストは
-    // 抽出結果を変換して作るので === は成立しにくく、再コンポーズが静かに増える。
-    // 外すなら TextSegment 側へ @Immutable を付けて stability を手で宣言するのが前提条件で、
-    // 単に依存を削るだけでは駄目。
+    // 【2026-09-02 に反実仮想で再実測＝判定は「外せない」で確定】A+C・E 実装後の状態で取り直した。
+    // ⚠️ 2026-08-19 版のコメントは結論だけ正しく機序が誤っていたので訂正した（実測で否定された2点）:
+    //   ×「List へ戻すと StyledBlock が unstable に落ち sealed 階層ごと ChapterContent へ伝播する」
+    //     → 起きない。TextSegment の @Immutable（model/ChapterContent.kt）が推論の循環を断つので
+    //       StyledBlock は <runtime stability> = Stable のまま。unstable になるのは ChapterContent 自身で、
+    //       理由は伝播ではなく自分のフィールドが List インタフェースであること。
+    //   ×「外すなら TextSegment へ @Immutable を付けるのが前提条件」→ その注釈は既に付いている＝
+    //     前提は充足済みで、それでも外せない（「注釈さえ付ければ外せる」と読み違えないこと）。
+    // 実測した本当の理由: strong skipping 下で **skippable 数は依存の有無で1個も動かない**（390/390）。
+    // 効くのは比較の意味論（stable=equals() / unstable====）だけで、実害の出所は1点に絞れる——
+    // ChapterPeek（ChapterScreen.kt:493/503）が remember 無しで毎コンポジション新規生成される data class で、
+    // stable なら equals() で skip できるが unstable だと === が毎回失敗し、ChapterScreenContent と
+    // ChapterPeekPanel＝読書画面の内容全体が親の再コンポジションのたびに必ず再コンポーズされる。
+    // （段落リストは remember(content) で instance 固定なので === でも成立＝そちらは無害だった。）
+    // 外すなら ChapterPeek 側を remember 化するのが先。数値と再現手順＝
+    // docs/knowledge/compose-compiler-metrics-2026-09-02.md
     implementation 'org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.7'
 
     // PDF抽出 (PDFBox-Android / Tom Roush 版)。旧 Chaquopy(Python+pdfminer) から移植した唯一の抽出経路。
