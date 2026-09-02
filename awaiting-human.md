@@ -104,6 +104,14 @@
 
 ### 3-2. 決めなくても公開は止まらないもの（残件なし＝他ファイルからの参照先として節だけ残す。main切る谷=見送り／独立再実装資産=②当面保持で 2026-09-01 裁定済み）
 
+- **[前提3件の裁定＝人間へ]** 材料は揃った（`docs/knowledge/extraction-charmap-diverges-from-web-source.md`・`naro-source-is-line-oriented.md`・`dimension-autodetect-was-preventive.md`）。裁定対象＝①字種写像の pdfminer 追従を撤去するか（golden 再採取と `CharClass` 改訂が道連れ）②行→段落結合を維持するか撤回するか ③寸法自動検出の去就。（2026-09-02 に handover から移設＝Claude 側で動かせるのはここまで）なお現行の段落誤り率は**測れていない**（ルビのインライン記法が本文の《》と分離できず、比較可能な話が 1.8% に落ちるため）。
+
+- **[端末内診断 `diagnostics/` の書き出しUI＝モック完成・A/B の目視裁定待ち]**（2026-09-02）:
+  `mockview docs/design-candidates/skins/diagnostics-export-K.html`（案A シート／案B 専用画面／案A の空状態＝
+  中身は3枚とも同一文）。入口の行は正本 `skins/settings-K.html`「データ」節へ直差分済み。
+  **実装の申し送りはモック冒頭コメントが正本**（release 可視化の理由・シート/画面それぞれの必須条件）。
+  裁定後は Compose 実装＋`CURRENT.md` の該当行から「裁定待ちドラフト」注記を落として正本化。
+
 ## 4. 外部手続き・人からしか出てこないもの
 
 - **[実機の adb 承認が生きているかの確認]**（実機を繋がないと確定できない・**他の実機作業すべての前提**）:

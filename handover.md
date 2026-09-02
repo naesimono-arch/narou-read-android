@@ -62,8 +62,7 @@
   ①全文版からの抽出結果と突合できる形でページ抜き PDF を作る ②抽出が全文版と一致することを検証
   ③fixture化してオラクルテストへ追加、の順。
 - **[縦書き組版の規範突合]** `CharClass` ⇄ UTR#50・`LineBreaker` 禁則 ⇄ JLReq（＝`docs/knowledge/vertical-typeset-external-oracle-gap.md`。差分は棚卸し→人間裁定）。
-- **[計測値の訂正の波及]** `measure_read_residency.py` に欠陥2件（文字→トークン換算が 4.8 倍ずれ／分母が `cache_read` でなくその 15.6%）。knowledge 2本は訂正済み。残り＝①`CLAUDE.md`・`AGENTS.md` の「実測 4.3%」を補正値（約5.6%）へ差し替え＝**所管外・要監督** ②独立実装との突合は**完了**＝構成比は全区分 2.4pt 以内で一致・絶対値のみ3欠陥（換算係数／分母／分割イベントの usage 複製）③スクリプト自体を直すかの裁定（直すと過去実測との比較可能性が切れる＝いまは意図的に未修正）。`measure_session_length_cost.py` は再現性良好＝訂正不要。
-- **[前提3件の裁定＝人間へ]** 材料は揃った（`docs/knowledge/extraction-charmap-diverges-from-web-source.md`・`naro-source-is-line-oriented.md`・`dimension-autodetect-was-preventive.md`）。裁定対象＝①字種写像の pdfminer 追従を撤去するか（golden 再採取と `CharClass` 改訂が道連れ）②行→段落結合を維持するか撤回するか ③寸法自動検出の去就。⚠️ **awaiting-human へ移す項目**＝Claude 側で動かせるのはここまで。なお現行の段落誤り率は**測れていない**（ルビのインライン記法が本文の《》と分離できず、比較可能な話が 1.8% に落ちるため）。
+- **[計測値の訂正の波及]** 訂正は完了（knowledge 2本・`CLAUDE.md`・`AGENTS.md` とも差し替え済み。独立実装との突合で構成比は全区分 2.4pt 以内で一致・壊れていたのは絶対値だけ）。⚠️ **`measure_read_residency.py` 自体は意図的に未修正**＝直すと過去実測との比較可能性が切れるため。総額には**未説明 22%** が残る（jsonl 本文に現れない注入が候補・特定未了）＝絶対値を新しい判断の根拠に使わない。
 - 小粒: `tools/count_toc_fixture_chapters.sh` をゲート（CI か GoldenTest）へ結線する。暁66・カクヨム593 を実装非依存で数える手段は用意済みだが、**手動実行のみ＝誰も走らせない**状態。
 
 ## Google Play 公開準備 — 技術トラック
@@ -155,13 +154,6 @@
   **章送りに化けて全スナップショットが `idx=0 off=0`** になる（退行に見えるが内容起因）。
   `work` モードは `SCENARIOS`/`ORIENTATIONS`/`START_CHAP`/`SWIPES` で外から絞れる（`scroll_read`＝設定を触らない定常送り）。
   ⚠️ **背景ぶんを含む総回数は増える**（先行組版のぶん）＝「回数が減った」と読まないこと。
-- **[端末内診断 `diagnostics/` の書き出しUI＝モック完成・A/B の目視裁定待ち]**（2026-09-02）:
-  `mockview docs/design-candidates/skins/diagnostics-export-K.html`（案A シート／案B 専用画面／案A の空状態＝
-  中身は3枚とも同一文）。入口の行は正本 `skins/settings-K.html`「データ」節へ直差分済み。
-  **実装の申し送りはモック冒頭コメントが正本**（release 可視化の理由・シート/画面それぞれの必須条件）。
-  ⚠️ 本来は `awaiting-human.md` の在庫（ADR 0028）だが、並行作業と衝突するため移設は監督が行う。
-  裁定後は Compose 実装＋`CURRENT.md` の該当行から「裁定待ちドラフト」注記を落として正本化。
-
 ## 思いつき・取りこぼし（随時追記）
 
 > レビュー中・実装中に出た宿題や着想で、まだ上の各節に整理していないものをここへ。育ったら該当節へ移す。
