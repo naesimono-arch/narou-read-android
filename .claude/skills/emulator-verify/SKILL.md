@@ -58,6 +58,23 @@ avdmanager create avd -n <名> -k "system-images;android-<api>;google_apis;x86_6
 **⚠️ 複数台あるときは adb の全コマンドに `-s emulator-XXXX` が要る**（無指定は
 "more than one device" で失敗する。本ラウンドで実際に踏んだ）。スクリプトへ渡す `--serial` も同様。
 
+**⚠️ 台を落とした瞬間に serial 情報は無効になる＝空いた番号は次の台が継承する。**
+serial は AVD の属性ではなく**起動順に配られるポート**（5554 から2つ刻み）で、
+落ちた台の番号は次に起動した台へそのまま回る。ゆえに「5554＝あの AVD」という**メモは
+1台落とした時点で嘘になり、その番号を打つと別の AVD に当たる**。
+`emu kill` は特に危険（無関係な台を静かに殺し、殺された側は計測の途中で `device offline` になる）。
+**kill でも `adb -s` でも、打つ前に必ず `adb devices` と `adb -s <serial> emu avd name` を突き合わせる**:
+
+```bash
+adb devices                          # 今いる台
+adb -s emulator-5554 emu avd name    # ★その番号が本当に狙った AVD か
+```
+
+殺された側の徴（ログ末尾）＝`Saving snapshot ...` → `ERROR | stop: Not implemented` → `INFO | removeAll`。
+**クラッシュではなく正常なシャットダウン要求**なので、これを見たら自分のビルドや APK を疑う前に
+「誰かが `emu kill` を撃った」を先に疑う（2026-09-02 に実際に発生＝落とした `nr_b` の番号を
+`nr_d` が継承していた）。
+
 **負荷の見積もり**: 起動は重い（4台同時ブートで load 20 / 20コア）が、**定常はほぼ無負荷**（アイドル4台で 0.24 コア）。
 実際の制約は**メモリ（1台 3GB）と同時起動のピークだけ**＝並べること自体は安い。
 ⚠️ **`ps` の CPU 値はプロセス生涯の累積平均**で、起動時の重さをいつまでも引きずる。
