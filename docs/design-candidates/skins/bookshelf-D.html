@@ -17,9 +17,26 @@
   ・強度は K の裁定に**追従済み**＝案「中」（幅56px／端の18%を地色で保持してから緩く抜く・2026-08-20 確定）。
     K 正本 skins/bookshelf-K.html の .chipsrow と同値＝どちらかを触るときは必ず両方を同じ値に保つ。
     フェード下端の 14px だけは D のチップ行の下パディングに合わせた値なので K（12px）と異なる＝これは正しい差。
-  ・K 裁定②（空棚で拡張FABを引っ込める）は**伝播しない**＝D の空棚は EmptyBookshelf の本文が
-    「右下の＋からPDFを追加してください」と FAB を名指ししており、FAB を消すと文言が嘘になる。
-    D へ入れるなら空棚の文言と CTA の作り直しが前提＝別議題。
+  ・K 裁定②（空棚で拡張FABを引っ込める）は当時**伝播しない**とした＝D の空棚は EmptyBookshelf の本文が
+    「右下の＋からPDFを追加してください」と FAB を名指ししており、FAB を消すと文言が嘘になるため。
+    末尾に「文言と CTA の作り直しが前提＝別議題」と書いた、その別議題を 2026-09-02 に開いた
+    ＝**この見送りは下の追記で破棄済み**。
+
+  【2026-09-02 追記（ユーザー裁定・上の「②は伝播しない」を破棄）】
+  ・裁定＝**空棚では拡張FABを出さない。同時に空棚の文言を改稿して「右下の＋」の名指しを落とす。**
+    見送りの理由（文言が嘘になる）は文言ごと直せば消える＝K と同じ役割分担へ揃える
+    ＝**空棚の主導線は中央の CTA ただ1つ・FAB は蔵書があるときの補助**（最優先A「一目でわかる・迷わせない」）。
+  ・空棚の見えは下段の候補枠に3案。**3案で違うのは h2 / p / CTA の文字だけ**で、構造・余白・色・イラストは同一
+    ＝裁定の変数を「文言」と「FAB の有無」の2つだけに絞るため。決まった1案を残して他2案と候補枠ごと消す。
+  ・K の空棚との意図的な差2つ（K をそのまま写していない箇所＝翻訳時に迷わないようここに残す）:
+    ①**チップ行を出さない**＝D の実装は空棚を排他分岐で描き、フィルタ行も Lazy も描かない
+      （`BookshelfScreen.kt` の `shelfItems.isEmpty() && selectedStatus == null` 分岐）。K は出す＝K の実装がそう描くから。
+    ②**CTA は1つ**＝K は「作品をさがす」を併置するが、D の `EmptyBookshelf` は `onAddClick` 一本で、
+      2本目は新しい導線の追加＝文言改稿とは別の議題。要るなら別便で足す。
+  ・下端の FAB 回避帯は D では元からグリッド/リスト側の contentPadding にしか無い
+    （`Insets.ScrollBottomForFab`）＝FAB を消しても空棚の中央寄せはずれない（K が外す必要のあった予約が D には無い）。
+  ・空棚のイラストは**現行実装 `EmptyBookshelf.kt` の Canvas を 1:1 で写した逆同期**で、意匠は変えていない
+    （コード先行の視覚が正本モックに無い状態を解消する＝モック運用ルール1）。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -36,12 +53,15 @@
     --ai:#1C3D5A;        /* 藍アクセント（D） */
     --ai-tint:rgba(28,61,90,.10); /* 藍10%＝選択タブのピル地（K骨格が要求） */
     --seiji:#9CB3A8;     /* 青磁（続きあり/なろう未取込の署名色・D） */
+    --ink-faint:#9CA0A8; /* 空棚イラストの線色＝Compose の colorScheme.outline と同値（EmptyBookshelf.kt からの逆同期）。
+                            --line(#ECEAE4) では素地比 1.08:1 でイラストが消えるため、静かだが見える outline を採る */
     --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
+  /* 正本の phone と空棚の候補枠を横に並べるだけ（gap/wrap の追加は phone 自体の見えに影響しない） */
   body{background:#E4E3DD;min-height:100vh;display:flex;align-items:center;justify-content:center;
-    padding:24px;font-family:var(--gothic);-webkit-font-smoothing:antialiased}
+    flex-wrap:wrap;gap:28px;padding:24px;font-family:var(--gothic);-webkit-font-smoothing:antialiased}
 
   /* スマホ画面枠（390×844・単一・ライト） */
   .phone{width:390px;height:844px;background:var(--base);border-radius:40px;overflow:hidden;
@@ -143,6 +163,35 @@
     stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
   .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
   .tab.on .lb{font-weight:700}
+
+  /* ===== 空棚（蔵書0冊）＝2026-09-02 裁定の見え。FAB は置かない ＝ 押す対象は中央の CTA ただ1つ =====
+     中央寄せは器の中央そのもの（D は FAB 回避帯をグリッド/リスト側にしか持たないので、
+     FAB を消しても引くべき予約が無い＝上寄りのズレは起きない）。 */
+  .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:0 40px;overflow-y:auto}
+  /* イラストは EmptyBookshelf.kt の Canvas を 1:1 で写したもの＝140dp 角・棚板 30%/72%・柱 5%/95%（上下20〜80%）・
+     本3冊は幅12%×高30%を y35% から中心 30/46/62% に・線幅 3dp・本だけ alpha .4。
+     左右の棚板が枠で半分切れるのは Compose の Canvas と同じ（0〜w に引いているため）＝写し漏れではない。 */
+  .empty .illust{width:140px;height:140px;color:var(--ink-faint);flex-shrink:0}
+  /* 見出しは D 署名の明朝（K はゴシック22px＝K の語り口なので写さない）。ヘッダ h1 より一段落として 20px */
+  .empty h2{margin-top:24px;font-family:var(--mincho);font-size:20px;font-weight:500;color:var(--ink);
+    letter-spacing:.1em;line-height:1.6}
+  .empty p{margin-top:12px;font-family:var(--gothic);font-size:13px;line-height:1.9;color:var(--ink-soft);
+    letter-spacing:.03em}
+  /* CTA＝消した FAB の役を引き継ぐ主導線。藍の実塗りは FAB から・2px 直角は D の署名から受け継ぐ。
+     影は持たせない＝浮いていないから（D で影を持つのは書影と FAB だけ）。 */
+  .cta{margin-top:32px;height:48px;padding:0 28px;border:none;border-radius:2px;cursor:pointer;
+    background:var(--ai);color:#fff;font-family:var(--gothic);font-size:14px;font-weight:600;
+    letter-spacing:.06em}
+
+  /* ===== 空棚の文言候補を並べる枠（裁定用の付帯物・実機には無い）=====
+     ラベルと注記の灰は D パレット外だが、実機に出ない付帯物なので意図的にトークンを使わない
+     （地の #E4E3DD 上に置く注記＝phone の中の色域と混ぜないため）。 */
+  .probes{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;justify-content:center}
+  .cand{display:flex;flex-direction:column;gap:10px;width:390px}
+  .cand .mode{font-size:12px;font-weight:700;color:#2A2C28;letter-spacing:.04em}
+  .cand .pn{font-size:11.5px;line-height:1.7;color:#5A5C57}
+  .cand .pn b{color:#2A2C28}
 </style>
 </head>
 <body>
@@ -276,7 +325,118 @@
     </nav>
   </div>
 
+  <!-- ============================================================
+       空棚（蔵書0冊）の文言候補 3案（2026-09-02 裁定用の付帯物・実機には無い）。
+       正本の本体は上の phone ただ1つ＝ここは裁定のための仮置きで、決まった1案を残して他2案とこの枠ごと消す。
+       3案で違うのは h2 / p / CTA の文字だけ。構造・余白・色・イラストは同一＝裁定の変数を文言に絞るため。
+       ボトムナビは上の正本 phone から複製する（末尾スクリプト）＝3枚に写経すると必ずどれかが取り残されるので、
+       「正本と同じものが出る」ことを構造で保証する。空棚でナビが変わらないこと自体が仕様。
+       ============================================================ -->
+  <div class="probes">
+    <div class="cand">
+      <span class="mode">案A ／ 簡潔・現行温存</span>
+      <div class="phone">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+
+        <div class="top">
+          <div class="ttl"><h1>本棚</h1><span class="count">0冊</span></div>
+          <button class="ib" aria-label="表示切替">
+            <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </button>
+        </div>
+
+        <!-- チップ行は出さない＝D の実装が空棚を排他分岐で描き、フィルタ行も Lazy も描かないため（K は出す） -->
+
+        <div class="empty">
+          <svg class="illust" viewBox="0 0 140 140" aria-hidden="true">
+            <g fill="none" stroke="currentColor" stroke-width="3"><path d="M0 42h140M0 100.8h140M7 28v84M133 28v84"/></g>
+            <g fill="currentColor" opacity=".4"><rect x="33.6" y="49" width="16.8" height="42"/><rect x="56" y="49" width="16.8" height="42"/><rect x="78.4" y="49" width="16.8" height="42"/></g>
+          </svg>
+          <h2>本棚はまだ空です</h2>
+          <p>PDFを追加すると、ここに並びます。</p>
+          <button class="cta">PDFを追加</button>
+        </div>
+
+        <!-- ここに .fab は置かない＝2026-09-02 裁定。PDF 追加は上の CTA 一本（実装も同じ onFabClick を呼ぶ） -->
+
+        <nav class="tabbar" data-nav-clone></nav>
+      </div>
+      <p class="pn">見出しは現行のまま、<b>FAB を名指す一行だけ</b>を差し替える。読む量が最小で「押す物は一つ」の絵が最も強く出る。反面、このアプリで何ができるかは語らない＝<b>初見の人へ与える手掛かりも最少</b>。</p>
+    </div>
+
+    <div class="cand">
+      <span class="mode">案B ／ 操作と結果の明示（迷わせない優先）</span>
+      <div class="phone">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+
+        <div class="top">
+          <div class="ttl"><h1>本棚</h1><span class="count">0冊</span></div>
+          <button class="ib" aria-label="表示切替">
+            <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </button>
+        </div>
+
+        <!-- チップ行は出さない＝D の実装が空棚を排他分岐で描き、フィルタ行も Lazy も描かないため（K は出す） -->
+
+        <div class="empty">
+          <svg class="illust" viewBox="0 0 140 140" aria-hidden="true">
+            <g fill="none" stroke="currentColor" stroke-width="3"><path d="M0 42h140M0 100.8h140M7 28v84M133 28v84"/></g>
+            <g fill="currentColor" opacity=".4"><rect x="33.6" y="49" width="16.8" height="42"/><rect x="56" y="49" width="16.8" height="42"/><rect x="78.4" y="49" width="16.8" height="42"/></g>
+          </svg>
+          <h2>まだ一冊もありません</h2>
+          <p>お手元のPDFを取り込むと、ふりがな付きで読めるようになります。</p>
+          <button class="cta">PDFを追加する</button>
+        </div>
+
+        <!-- ここに .fab は置かない＝2026-09-02 裁定。PDF 追加は上の CTA 一本（実装も同じ onFabClick を呼ぶ） -->
+
+        <nav class="tabbar" data-nav-clone></nav>
+      </div>
+      <p class="pn">空棚は初見でいちばん長く見る面なので、<b>何を入れると何が得られるか</b>まで言い切る。「ふりがな付き」はこのアプリの核心価値を一度だけ名乗る一語。反面、3案でいちばん字数が多い。</p>
+    </div>
+
+    <div class="cand">
+      <span class="mode">案C ／ 和モダンの語り口（トーン優先）</span>
+      <div class="phone">
+        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+
+        <div class="top">
+          <div class="ttl"><h1>本棚</h1><span class="count">0冊</span></div>
+          <button class="ib" aria-label="表示切替">
+            <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </button>
+        </div>
+
+        <!-- チップ行は出さない＝D の実装が空棚を排他分岐で描き、フィルタ行も Lazy も描かないため（K は出す） -->
+
+        <div class="empty">
+          <svg class="illust" viewBox="0 0 140 140" aria-hidden="true">
+            <g fill="none" stroke="currentColor" stroke-width="3"><path d="M0 42h140M0 100.8h140M7 28v84M133 28v84"/></g>
+            <g fill="currentColor" opacity=".4"><rect x="33.6" y="49" width="16.8" height="42"/><rect x="56" y="49" width="16.8" height="42"/><rect x="78.4" y="49" width="16.8" height="42"/></g>
+          </svg>
+          <h2>まだ何も置かれていません</h2>
+          <p>読みたい作品のPDFを加えると、ここに一冊ずつ増えていきます。</p>
+          <button class="cta">PDFを追加</button>
+        </div>
+
+        <!-- ここに .fab は置かない＝2026-09-02 裁定。PDF 追加は上の CTA 一本（実装も同じ onFabClick を呼ぶ） -->
+
+        <nav class="tabbar" data-nav-clone></nav>
+      </div>
+      <p class="pn">明朝の見出しと釣り合う静かな語り。<b>棚が一冊ずつ増えていく情景</b>で次に起きることを示す。反面、操作そのものの説明は案Bより弱く、価値（ふりがな）にも触れない。</p>
+    </div>
+  </div>
+
 <script>
+/* 候補枠のボトムナビを正本 phone から複製する。見た目は正本と 1px も違わない＝
+   空棚でナビが変化しないことを、写経ではなく「同じ DOM を配る」ことで保証している。 */
+(function () {
+  var src = document.querySelector('.phone > .tabbar');
+  document.querySelectorAll('.tabbar[data-nav-clone]').forEach(function (dst) {
+    dst.innerHTML = src.innerHTML;
+  });
+})();
+
 /* スクロール端フェードの点灯判定（K 正本 skins/bookshelf-K.html と同一ロジック）。
    Compose 翻訳では ScrollState.canScrollBackward / canScrollForward をそのまま読むところで、
    ここでは同じ問いを scrollLeft と scrollWidth-clientWidth で立てているだけ。

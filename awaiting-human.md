@@ -66,6 +66,16 @@
   ⚠️ 実コードから摘出された罠2つ＝`WebReaderScreen.kt:186` は `shouldOverrideUrlLoading=false` で**外部リンクへ出られる**／取り込みは最後に
   `pdfnovels.net` へ遷移（ADR 0011 スパイク）＝常設で名乗る案 B/E は URL 追従が必須（材料は観測済みの URL 文字列だけ＝JS 注入ゼロは侵さない）。
 
+- **[D の空棚＝FAB を消して文言を改稿]** — `mockview docs/design-candidates/skins/bookshelf-D.html`
+  （下段の候補枠が空棚3案。上段の正本 phone＝蔵書ありは従来どおり FAB あり）
+  症状＝D の空棚は CTA「PDFを追加する」と FAB「＋PDFを追加」が**同じ操作を2つ**並べる（2026-08-26 エミュ検分・実物 `shots/b2/`）。
+  K は `BookshelfK.kt:273` の `!isEmptyShelf` で解消済みだが、D は空棚文言が「右下の＋」を名指ししていて1行を移植できなかった
+  ＝**2026-09-02 に〈FAB を消し文言を改稿する〉と裁定**、その文言をモック化したのがこの3案。
+  **決めること**＝①3案から1つ（A 簡潔・現行温存／B 操作と結果を明示し「ふりがな付きで読める」まで言う／C 和モダンの語り口・情景）
+  ②CTA は1本のままでよいか（K は「作品をさがす」を併置＝足すなら `EmptyBookshelf` に新しい導線が要る＝別便）。
+  ⚠️ 裁定後の実装は2点だけ＝`EmptyBookshelf.kt` の文言と、`BookshelfScreen.kt:1317` の FAB 条件に空棚を足す。
+  ⚠️ **M/P/J は非該当**（`EmptyBookshelf` も棚 FAB も持たない・P/J は「PDFを追加」を⋮メニューに置く）＝直すのは D だけ。
+
 - **[Auto Backup の設計＋ON/OFF トグル]** — 設計＝`.claude/plans/auto-backup-design-2026-08-26.md`／
   UI 案＝`mockview docs/design-candidates/skins/candidates/settings-backup-row-candidates.html`
   A: トグル無し・現状維持を明文化／B: 説明の情報行1本（コードゼロのまま「本文は引き継がれない」を事故の前に言える）／
