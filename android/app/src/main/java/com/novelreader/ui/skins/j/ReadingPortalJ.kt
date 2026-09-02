@@ -185,6 +185,11 @@ fun ChapterHeaderJ(
                 Text(
                     text = numText,
                     fontSize = 11.sp,             // .num 11px（ゴシック・字間 .34em・金）
+                // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、話数ラベルの行箱が
+                // 28dp まで膨らんで章見出しの版面へ約10dp の幽霊余白が入る（巨大字 .glyph との
+                // 重ね位置もその分ずれる）。正本 reading-J `.chap-h .num` は 11px・line-height
+                // 未指定＝normal（ゴシック実測 1.6）＝17.6px。
+                lineHeight = 17.6.sp,
                     letterSpacing = 0.34.em,
                     color = colors.accent,        // --accent（金＝構造/話数）
                     textAlign = TextAlign.Center,
@@ -281,6 +286,10 @@ fun ChapterEndMarkJ(chapterNumber: Int?, colors: ReadingColors, modifier: Modifi
         Text(
             text = if (chapterNumber != null) "— 第${kanjiNumber(chapterNumber)}話 了 —" else "— 了 —",
             fontSize = 10.5.sp,            // .mark 10.5px（ゴシック・字間 .34em・--soft）
+            // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、章末の印が 28dp の
+            // 行箱で描かれる＝章末ブロックの余白の足し算へ約11dp の幽霊余白が入る。
+            // 正本 reading-J `.chapend .mark` は 10.5px・line-height 未指定＝normal（ゴシック実測 1.6）。
+            lineHeight = 16.8.sp,
             letterSpacing = 0.34.em,
             color = colors.textSecondary, // --soft（装飾＝了の印）
             textAlign = TextAlign.Center,

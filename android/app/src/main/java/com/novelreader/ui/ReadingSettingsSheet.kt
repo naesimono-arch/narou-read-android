@@ -322,6 +322,12 @@ internal fun ReadingSettingsSheetContent(
             Text(
                 text = "配色や文字の設定は、すべての本に適用されます",
                 fontSize = FontMicroLabel,
+                // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、10.5sp のキャプションが
+                // 28dp の行箱で描かれる＝見出しとの間隔（Spacer S4）に約12dp の幽霊余白が加算される。
+                // 正本 reading-settings-livepreview-D `.scope-note` は line-height:1.5 の明示指定＝
+                // 実サイズ 10.5sp へ写して 15.75sp。⚠️ ゴシックの自然行高（実測 約1.48倍＝15.5sp）と
+                // ほぼ同値なので実効はほぼ自然行高だが、継承した 28sp を外す効果が本体。
+                lineHeight = 15.75.sp,
                 color = colors.infoText,
             )
             // テーマ節はスキンが複数変種を持つときだけ出す（C夜行=DARK固定の1変種では選べるものが無く、

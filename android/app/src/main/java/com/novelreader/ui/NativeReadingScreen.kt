@@ -1427,6 +1427,10 @@ internal fun ChapterScreenContent(
                     if (chapterNumber != null) append(" · 第${chapterNumber}話")
                 },
                 fontSize = 11.sp,                      // reading-M .ghost .ct 11px
+                // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、上端から padding(top=S12)
+                // で据えるゴースト題字が行箱の余り（約5dp）ぶん下へ沈む＝正本の 46px 帯の中心と合わない。
+                // 正本 `.ghost .ct` は 11px・line-height 未指定＝normal（ゴシック実測 1.6）＝17.6px。
+                lineHeight = 17.6.sp,
                 letterSpacing = 0.14.em,
                 color = colors.textSecondary,          // --dim
                 maxLines = 1,
@@ -1505,6 +1509,11 @@ internal fun ChapterScreenContent(
                     color = colors.topBarIcon,
                     fontFamily = MinchoFamily,
                     fontSize = FontSubTitle,
+                    // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、上下 S8 のピルが
+                    // 44dp まで膨れる（ピルは行箱の外周をそのままなぞる器）。正本 reading-D `.hint`／
+                    // reading-backtotop-D `.toppill` はいずれも line-height 未指定＝normal（ゴシック
+                    // 実測 1.6）なので、その比を実サイズ FontSubTitle(13sp) へ写して 20.8sp とする。
+                    lineHeight = 20.8.sp,
                 )
             }
         }
@@ -1556,6 +1565,11 @@ internal fun ChapterScreenContent(
                 color = colors.topBarIcon,
                 fontFamily = MinchoFamily,
                 fontSize = FontSubTitle,
+                // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、上下 S8 のピルが
+                // 44dp まで膨れる（ピルは行箱の外周をそのままなぞる器）。正本 reading-D `.hint`／
+                // reading-backtotop-D `.toppill` はいずれも line-height 未指定＝normal（ゴシック
+                // 実測 1.6）なので、その比を実サイズ FontSubTitle(13sp) へ写して 20.8sp とする。
+                lineHeight = 20.8.sp,
                 modifier = Modifier
                     // 復帰ヒントと同じ半透明ピル。こちらはタップで退避元へ戻る。
                     .clip(RoundedCornerShape(50))
@@ -1621,6 +1635,11 @@ internal fun ChapterScreenContent(
                     color = colors.topBarIcon,
                     fontFamily = MinchoFamily,
                     fontSize = FontSubTitle,
+                    // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、上下 S8 のピルが
+                    // 44dp まで膨れる（ピルは行箱の外周をそのままなぞる器）。正本 reading-D `.hint`／
+                    // reading-backtotop-D `.toppill` はいずれも line-height 未指定＝normal（ゴシック
+                    // 実測 1.6）なので、その比を実サイズ FontSubTitle(13sp) へ写して 20.8sp とする。
+                    lineHeight = 20.8.sp,
                 )
             }
         }

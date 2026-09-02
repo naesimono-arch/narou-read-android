@@ -302,6 +302,11 @@ private fun ChapterHeader(
                 text = numText,
                 fontFamily = GothicFamily,
                 fontSize = 11.sp,
+                // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、11sp のラベルが 28dp の
+                // 行箱で描かれる＝正本が「.num →（.t margin-top:8px）→ 題」と足し算で規定した間隔へ
+                // 約10dp の幽霊余白が割り込み、章見出しの版面が静かに崩れる。
+                // 正本 reading-D `.chap-h .num` は 11px・line-height 未指定＝normal（ゴシック実測 1.6）。
+                lineHeight = 17.6.sp,
                 letterSpacing = 0.3.em,
                 color = colors.accent,
                 textAlign = TextAlign.Center,

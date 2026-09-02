@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.novelreader.ui.theme.FontNavLabel
 import com.novelreader.ui.theme.MotionSpringBarSettle
 import com.novelreader.ui.theme.ReadingColors
@@ -97,6 +98,11 @@ internal fun RowScope.BottomBarButton(
             text = label,
             color = tint,
             fontSize = FontNavLabel,
+            // 行箱を明示する理由: 未指定だと bodyLarge の lineHeight 28sp を継承し、9.5sp のラベルが
+            // 28dp の行箱で描かれる＝アイコン(22)+間隔(4)+ラベル箱 で 54dp を占め、60dp の帯
+            //（正本 reading-D `.bottombar{height:60px}`）の中でアイコン↔ラベルの塊が上下へ引き伸ばされる。
+            // 正本 `.bottombar .bl` は 9.5px・line-height 未指定＝normal（ゴシック実測 1.6）＝15.2px。
+            lineHeight = 15.2.sp,
             fontWeight = if (accent) FontWeight.SemiBold else FontWeight.Normal,
         )
     }

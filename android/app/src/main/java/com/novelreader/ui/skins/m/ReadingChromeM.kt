@@ -185,6 +185,10 @@ fun ChapterHeaderM(
             Text(
                 text = numText,
                 fontSize = 11.sp,              // .num 11px（ゴシック・字間 .32em・星光の金）
+                // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、話数ラベルの行箱が
+                // 28dp まで膨らんで章見出しの版面（.num →題）へ約10dp の幽霊余白が入る。
+                // 正本 reading-M `.chap-h .num` は 11px・line-height 未指定＝normal（実測 1.6）。
+                lineHeight = 17.6.sp,
                 letterSpacing = 0.32.em,
                 color = colors.accent,
                 textAlign = TextAlign.Center,
