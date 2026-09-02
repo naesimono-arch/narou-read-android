@@ -51,6 +51,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.narou.model.NarouGenres
 import com.novelreader.narou.model.NarouOrder
@@ -539,6 +540,14 @@ private fun GenreEntrySection(
                 Text(
                     text = label,
                     fontSize = FontChipLarge,
+                    // なぜ lineHeight を明示するか: 既定の LocalTextStyle（＝Typography.bodyLarge）は
+                    // lineHeight=28.sp を持つため、fontSize を 11.5sp へ落としても**行箱は 28sp のまま残る**。
+                    // ピルは行箱の外周をなぞる＝正本 `.gc`（11.5px＋padding 8/16px＋1px 枠＝総高 36.4px）に対し
+                    // 実測 48dp まで肥大していた（2026-08-26／本棚K のフィルタチップと同根）。
+                    // 比は正本モック discovery-{home,genre}-D.html の `.gc`（line-height 未指定＝normal）から。
+                    // ゴシック体（--gothic）の normal は実測 1.6（本棚K の .chip 12.5px→行箱 20px と同値）。
+                    // sp の直値でなく em で持つ理由＝フォントトークンや fontScale が動いても正本の比を保つため。
+                    lineHeight = 1.6.em,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
                         .border(

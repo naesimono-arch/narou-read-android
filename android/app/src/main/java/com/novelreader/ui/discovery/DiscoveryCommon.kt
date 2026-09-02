@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.novelreader.discovery.model.SerialState
 import com.novelreader.discovery.model.WorkSummary
@@ -262,6 +263,13 @@ fun NovelListRow(
                 Text(
                     text = novel.author,
                     fontSize = FontLabel,
+                    // なぜ lineHeight を明示するか: 既定の LocalTextStyle（＝Typography.bodyLarge）は
+                    // lineHeight=28.sp を持つため、fontSize だけ落としても**行箱は 28sp のまま残る**
+                    // ＝ランキング行が正本より縦に膨らむ（2026-08-26 実測 48dp／本棚K のフィルタチップと同根）。
+                    // 比は正本モック discovery-home-D.html の `.rk .a`（11px・line-height 未指定＝normal）から。
+                    // ゴシック体（--gothic）の normal は実測 1.6（本棚K の .chip 12.5px→行箱 20px と同値）。
+                    // sp の直値でなく em で持つ理由＝フォントトークンや fontScale が動いても正本の比を保つため。
+                    lineHeight = 1.6.em,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     // なぜ weight(1f)+ellipsis: 作者名が長い作品（例「藍銅 紅@『お姉様は…』」）だと
                     // 右のジャンルタグが狭いカラムに押し出され1文字ずつ縦積みになる実機バグが出るため、
@@ -274,6 +282,9 @@ fun NovelListRow(
                     Text(
                         text = genre,
                         fontSize = FontLabel,
+                        // 正本では `.rk .a em`＝著者名 `.a` の**内側のインライン要素**で、行箱は親（11px×1.6）を
+                        // そのまま継ぐ。Compose では兄弟 Text なので同じ比を明示して行箱を揃える（理由は上に同じ）。
+                        lineHeight = 1.6.em,
                         letterSpacing = 0.5.sp,
                         // ジャンル名は分類を名指す＝意味を運ぶ文字なので AA(4.5:1) が要る。
                         // 青磁 secondary #9CB3A8 は素地 2.14:1 で未達＝ADR 0014-D の濃青磁へ寄せる。
@@ -292,6 +303,8 @@ fun NovelListRow(
                 Text(
                     text = novelStatusLabel(novel),
                     fontSize = FontMicroLabel,
+                    // メタ行は正本 `.rk .m`（10.5px・line-height 未指定＝normal→1.6）。理由は著者名に同じ。
+                    lineHeight = 1.6.em,
                     // 連載状態は情報を運ぶ文字＝infoText（AA 4.5:1）。装飾用 onSurfaceVariant と分離（ADR 0014-D）。
                     color = LocalShelfColors.current.infoText,
                 )
@@ -299,6 +312,8 @@ fun NovelListRow(
                     Text(
                         text = it,
                         fontSize = FontMicroLabel,
+                        // 行箱は同じ `.rk .m` の一員なので著者名と同じ比（理由は上に同じ）。
+                        lineHeight = 1.6.em,
                         // 読了目安も情報テキスト＝infoText（AA 4.5:1・ADR 0014-D 裁定）。
                         color = LocalShelfColors.current.infoText,
                     )
@@ -309,6 +324,8 @@ fun NovelListRow(
                     Text(
                         text = it,
                         fontSize = FontMicroLabel,
+                        // 行箱は同じ `.rk .m` の一員なので著者名と同じ比（理由は上に同じ）。
+                        lineHeight = 1.6.em,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.primary,
                     )

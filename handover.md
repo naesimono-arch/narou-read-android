@@ -104,13 +104,14 @@
 > 棚卸しの一次情報＝`.claude/plans/mock-drift-inventory-2026-07-16.md`（正本モック全数の未反映リスト・優先順位）。
 > モック運用の**恒久ルール5つ**（逆同期・`mockview` 必須・下敷き正本・プレースホルダの色域・二段検分）は `/visual-language` skill が正本。
 
-- **[`fontSize` だけ上書きして `lineHeight` を継承する形が他にもある]**（2026-08-26 の実測が発見・本棚Kは是正済み）:
-  本棚K のフィルタチップは `Text(label, fontSize = …)` が `Typography.kt` bodyLarge の `lineHeight = 28.sp` を
-  行箱として継承し、**高さが正本より +30%（44.19dp vs 正本 34.00dp）**になっていた。ピルは行箱の外周をなぞるので直に効く。
-  ⚠️ **幅は逆に正本より狭い**（65.14 vs 69.64dp）＝**器だけ膨れて字は小さい**のが「大きすぎる」印象の正体。
-  ⚠️ **同じ 28sp 継承が `ui/discovery` のランキング行タグ・ジャンルチップにも出ている（実測 48dp 高）**＝未着手。
-  直し方＝`lineHeight` を `em` 比で明示（正本の比。本棚Kは 1.6.em＝前例 `ui/ChapterContent.kt:318`）。
-  **見た目が変わる＝golden 再記録と、ストア用 `phone-2-shelf.png` の撮り直しが要る**。
+- **[`lineHeight` 欠落の全数掃討（残り 424 箇所）]**（本棚K・discovery のランキング行/ジャンルチップは是正済み）:
+  `Text(fontSize = …)` が bodyLarge の `lineHeight = 28.sp` を行箱として継承する形。**全部が不具合ではない**＝
+  **器（ピル・バッジ・行）が行箱の外周をなぞる要素だけが実害**なのでチップ/タグ/メタ行から潰す。直し方と機序＝
+  `docs/knowledge/compose-lineheight-is-a-floor-not-css-line-height.md`（⚠️ 下限なので自然行高より小さい比は効かない）。
+  正本の比は `em` で明示（ゴシックの `line-height:normal` は実測 1.6）。次の候補＝`DiscoveryResultScreen.kt:500,583`（正本 `.cd`）。
+  ⚠️ **`NovelDetailScreen.kt` は別体が golden を調査中＝手を入れない**。
+
+- **[ストア用 `phone-2-shelf.png` の撮り直し]**: 本棚K のチップ是正で見た目が変わったため、ストア画像が旧版のまま（エミュ撮影便で回収）。
 
 - **[走査(c) の残り2ケースが赤（CI ブロッキング）]**（2026-09-02・NovelDetail 分は解消済み）:
   残るのは `BookshelfK_grid_mixed_{light,sepia}`（14→15）と `IntroOverlayK_about_intro_light`（0→1）。
