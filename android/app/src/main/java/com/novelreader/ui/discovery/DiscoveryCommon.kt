@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -210,6 +212,7 @@ internal fun rememberOrderMetricLabel(order: NarouOrder, work: WorkSummary): Str
  *   なぜ remember で凍結するか: 再コンポーズのたびに読み直すと一覧が同一フレーム内で別々の「今」を持ちうる。
  *   代償として日跨ぎ直後は行が再生成されるまで「05:45 更新」が残るが、粒度が日なので実害は無い。
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NovelListRow(
     rank: Int,
@@ -296,7 +299,20 @@ fun NovelListRow(
                     )
                 }
             }
-            Row(
+            // なぜ Row ではなく FlowRow か（Row だと最終要素が1行1文字に割れて画面外へ流出する）:
+            // Compose の Row は weight を持たない子を「先着順に**残り幅**を渡す」形で測るため、
+            // 3つ目（指標＝週間 54,321pt）へ届く maxWidth が fontScale 2.0 で 1 文字ぶんまで痩せ、
+            // maxLines も無いので1文字ずつ縦に折り返して下端から溢れていた（golden
+            // DiscoveryResultScreen_list_*_2.0＝走査(c) が真陽性として赤にしていた実バグ）。
+            // 正本 `.rk .m` は `display:flex`＝CSS 既定の `flex-shrink:1`＋`min-width:auto` で
+            // **不足分を3要素が按分する**規則なので、1要素だけを飢えさせる Row は誤訳だった。
+            // FlowRow は各子を「行の残り」ではなく**コンテナ全幅**で測ってから折返し位置を決める＝
+            // 飢餓が起きず、収まらない要素は次段へ送られる。CSS が字単位で按分した結果と同じ
+            // 「全要素が読める多段」に落ちる（正本が規定するのは要素の省略ではなく共有ゆえ、
+            // maxLines/ellipsis で握り潰す形は採らない）。fontScale 1.0＝モックの条件では
+            // 3つとも1段に収まるので版面は不変。段間を 0 にしてあるのも正本準拠
+            // （CSS の折返し行の間隔は line-height ちょうどで、追加の余白は入らない）。
+            FlowRow(
                 modifier = Modifier.padding(top = Spacing.S8),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.S12),
             ) {
