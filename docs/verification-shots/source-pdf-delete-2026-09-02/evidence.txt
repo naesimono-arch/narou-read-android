@@ -1,0 +1,45 @@
+① 取込元PDF削除が権限失効で失敗する — 症状確定（2026-09-02 / AVD nr_c = emulator-5556 / API36 1080x2400 / debug APK 09-02 11:05 ビルド）
+判定は人間。以下は観測のみ。
+
+■ ArmB（プロセス再起動後＝実運用の通常経路）→ 失敗
+ 前提: 起動直後・pidof com.novelreader なし。books に既存本 c4a5da50（sourceUri=downloads.documents/…/N5368ML.pdf）。
+ dumpsys activity permissions で UID 10216 が持つのは tree/primary:Download/scan-small（mode=0x1 persisted=0x1）のみ
+ ＝当該 document URI の永続権限も一時グラントも無い。
+ 操作: 長押し→削除→「取込元のPDFファイルも削除する（1件）」を checked=true にして「削除する」。
+ 結果:
+   BEFORE  -rw-rw---- 29895 2026-07-17 00:45 /sdcard/Download/N5368ML.pdf
+   AFTER   -rw-rw---- 29895 2026-07-17 00:45 /sdcard/Download/N5368ML.pdf   ← サイズ・mtime とも不変＝消えていない
+   books   c4a5da50 の行は消えた（本だけ消えて取込元PDFは残る）
+ logcat（LibraryDeleter.kt:97 から直接）:
+   W DocumentsContract: java.lang.SecurityException: Permission Denial: opening provider
+     com.android.providers.downloads.DownloadStorageProvider from ProcessRecord{... com.novelreader/u0a216}
+     requires that you obtain access using ACTION_OPEN_DOCUMENT or related APIs
+     at android.provider.DocumentsContract.deleteDocument(DocumentsContract.java:1469)
+     at com.novelreader.repository.LibraryDeleter$deleteBook$2.invokeSuspend(LibraryDeleter.kt:97)
+ UI 表示: 「取込元PDFの削除に失敗しました（1件・移動/削除済みか、削除に対応しない保存先の可能性）」
+   ⚠ 実際の真因は権限失効で、この文言のどちらでもない（誤誘導）。
+
+■ ArmA（同一プロセス・取込直後）→ 成功
+ SAF ピッカーで /sdcard/Download/N5368ML.pdf を取込 → 本 fa767a55 生成。
+ dumpsys（取込完了後）:
+   UriPermission{... externalstorage.documents/document/primary%3ADownload%2FN5368ML.pdf}
+     mode=0x3 owned=0x3 global=0x0 persistable=0x3 persisted=0x0
+     readOwners: ServiceRecord{... /.PdfProcessingService StartItem}, ActivityRecord{... /.MainActivity t51}
+   ＝永続権限は返却済み（persisted=0x0）だが、一時グラントを MainActivity が保持している。
+ 同じ操作で削除:
+   BEFORE  -rw-rw---- 29895 /sdcard/Download/N5368ML.pdf
+   AFTER   ls: /sdcard/Download/N5368ML.pdf: No such file or directory   ← 消えた
+   logcat に SecurityException なし。
+
+■ 境界（確定した挙動）
+ 取込元PDF削除が成功するのは「取込したアクティビティ／プロセスが生きている間だけ」。
+ アプリを閉じた後・次回起動後は必ず SecurityException で失敗する。
+ 機序: PendingJobStore.settlePendingJob（L104-107）が取込成功の直後に releasePersistedPermission を呼ぶため
+ persisted=0x0 になり、以後は MainActivity の一時グラントだけが命綱。プロセス死でそれも消える。
+ releaseOrphanedPermissions の keepUris ②（books.sourceUri を「本の生存中ずっと」保持する意図）と矛盾する。
+ ⚠ keepUris ② は「起動時の孤児掃除で誤解放しない」ためのガードとしては機能しているが、
+   守るべき権限が settle 側で既に返却済みなので、守る対象が存在しない（空振り）。
+
+■ スクショ（順に）
+ shots/01-shelf.png 02-selection.png 03-delete-dialog.png 04-checked.png
+ shots/05-after-delete.png 06-fail-snackbar.png（失敗の文言） 07-after-import.png 08-armA-after.png（成功）
