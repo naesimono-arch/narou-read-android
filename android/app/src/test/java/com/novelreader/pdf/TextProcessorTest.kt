@@ -78,15 +78,18 @@ class TextProcessorTest {
         assertEquals("|漢《か》字", TextProcessor.buildLineStr(listOf(r, p)))
     }
 
-    @Test fun whitespaceSkipped() {
+    // 半角スペースは本文の文字として**残る**こと（S1 の真因＝移植元が空白集合ごと捨てていた。
+    // 顔文字・AA・連続スペース演出が壊れる。旧テストは捨てる側を正として固定していた）。
+    @Test fun halfWidthSpacePreserved() {
         val cs = listOf(ch(" ", "R", 14.0, 100.0, 50.0), ch("あ", "R", 14.0, 100.0, 60.0))
-        assertEquals("あ", TextProcessor.buildLineStr(cs))
+        assertEquals(" あ", TextProcessor.buildLineStr(cs))
     }
 
-    // NBSP(U+00A0) も空白としてスキップされること（Python \xa0 の再現。WHITESPACE 欠落バグの回帰防止）
-    @Test fun nbspSkipped() {
+    // NBSP(U+00A0) も文字として残ること。落とすのは縦組み PDF のグリフとして現れない
+    // 改行・復帰・タブだけ（[TextProcessor.DROPPED_WHITESPACE] の KDoc）。
+    @Test fun nbspPreserved() {
         val cs = listOf(ch("\u00a0", "R", 14.0, 100.0, 50.0), ch("あ", "R", 14.0, 100.0, 60.0))
-        assertEquals("あ", TextProcessor.buildLineStr(cs))
+        assertEquals("\u00a0あ", TextProcessor.buildLineStr(cs))
     }
 
     // --- processPages ---

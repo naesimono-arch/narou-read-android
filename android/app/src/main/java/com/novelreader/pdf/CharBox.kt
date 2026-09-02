@@ -13,7 +13,10 @@ data class CharBox(
     val top: Double,
     val bottom: Double,
     var rubyText: String? = null,
-)
+) {
+    /** 字面の垂直中心。ルビと親の対応付けはここで比べる（上端同士だと字面高の差だけ偏る）。 */
+    val center: Double get() = (top + bottom) / 2.0
+}
 
 /** 章分割の中間表現（移植元 chapter_processor.py の {"title","body"} 相当）。 */
 data class RawChapter(

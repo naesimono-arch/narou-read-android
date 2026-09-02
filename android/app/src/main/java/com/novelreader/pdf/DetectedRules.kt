@@ -62,10 +62,50 @@ data class DetectedRules(
          * 選ぶ値は畳む前と同一＝丸めは同じ [bucket01]、最頻は同じ [modeOfBucketCounts]（同数タイは
          * 小さいキー優先）、中央値も同じ「昇順に並べて中央（偶数個は中央 2 値の平均）」を回数つきで数える。
          */
-        private fun bucketModeRefined(freq: Map<Double, Int>): Double {
+        private fun bucketModeRefined(freq: Map<Double, Int>): Double =
+            refineWithinBucket(freq, pickBucket(freq, fundamental = false))
+
+        /**
+         * 列ピッチ（1 行ぶんの x 移動量）専用の選び方＝**基本波を採る**。
+         *
+         * なぜ最頻ではいけないか（S3 の真因）: 列間距離は必ず「1 行ぶん × 整数」で現れる。
+         * 段落間に必ず空行を置く文書では **2 行ぶんの距離が最頻**になり、最頻値を採ると
+         * lineStepX が真値の 2 倍にロックされる（N0833HI 実測: 検出 45.36 ／ 真値 22.68。
+         * 列間距離の分布は 45.4×481・22.7×313）。すると空行判定 `diffX > lineStepX*1.5` の閾値が
+         * 68.04 まで上がり、本物の空行（45.4）が 1 つも引っ掛からず
+         * **本文中の空行が全滅**した（実測 本文空行 17 対 オラクル 10,178）。
+         * 皮肉なことにフォールバック定数 [ParserRules.LINE_STEP_X]=22.68 なら正しく動いていた＝
+         * 自動検出が固定値より悪化させていた事例。
+         *
+         * 直し方: 倍音ではなく基本波＝**最頻値の約数 mode/k のうち、支持のある最小**を採る
+         * （最頻値は必ず基本波の整数倍なので、基本波は必ず約数の側に在る）。候補を約数に限らないと、
+         * 半角字のずれ由来の小さな偽ピッチ（実測 N6169DZ: 5.1・17.6＝最頻 22.7 と整除関係が無い）を
+         * 基本波と誤認して lineStepX が崩壊する（実測で空行が 58,341→687,336 に暴発した）。
+         */
+        private fun fundamentalStepRefined(freq: Map<Double, Int>): Double =
+            refineWithinBucket(freq, pickBucket(freq, fundamental = true))
+
+        /** 0.1 バケットへ畳んで、最頻（または支持のある最小の約数＝基本波）のバケットを返す。 */
+        private fun pickBucket(freq: Map<Double, Int>, fundamental: Boolean): Double {
             val bucketCounts = HashMap<Double, Int>()
             for ((v, n) in freq) { val b = bucket01(v); bucketCounts[b] = (bucketCounts[b] ?: 0) + n }
             val mode = modeOfBucketCounts(bucketCounts)!!
+            if (!fundamental) return mode
+            val total = bucketCounts.values.sum()
+            val floor = maxOf(3, (total * FUNDAMENTAL_SUPPORT_RATIO).toInt())
+            // 候補は**最頻値の約数だけ**に限る。最頻値は必ず「基本波 × 整数」なので、基本波は
+            // mode/k のいずれか。単に「支持のある最小バケット」を採ると、半角字のずれ由来の
+            // 小さな偽ピッチ（実測 N6169DZ: 5.1・17.6。最頻 22.7 とは整除関係が無い）を拾って
+            // lineStepX が崩壊する（実測: 空行が 58,341→687,336 に暴発した）。
+            for (k in MAX_STEP_HARMONIC downTo 2) {
+                val candidate = bucket01(mode / k)
+                if ((bucketCounts[candidate] ?: 0) >= floor) return candidate
+            }
+            return mode
+        }
+
+        /** バケット内を回数つき中央値で精緻化する（畳む前のリスト median と同値）。 */
+        private fun refineWithinBucket(freq: Map<Double, Int>, mode: Double): Double {
             val inBucket = freq.entries.filter { bucket01(it.key) == mode }.sortedBy { it.key }
             val total = inBucket.sumOf { it.value }
             // 昇順に並べたときの中央位置。偶数個は中央 2 値の平均＝ソート済みリストの median と同値。
@@ -183,7 +223,7 @@ data class DetectedRules(
                     FALLBACK.pageNumSize to FALLBACK.pageNumY
                 }
 
-            val lineStepX = if (stepCount >= 10) bucketModeRefined(stepFreq) else FALLBACK.lineStepX
+            val lineStepX = if (stepCount >= 10) fundamentalStepRefined(stepFreq) else FALLBACK.lineStepX
             val rubyOffsetX = if (offCount >= 10) bucketModeRefined(offFreq) else FALLBACK.rubyOffsetX
 
             return DetectedRules(
@@ -202,6 +242,19 @@ data class DetectedRules(
          */
         fun detect(charListsByPage: List<List<CharBox>>): DetectedRules =
             detect(MaterializedPageSource(charListsByPage), charListsByPage.size)
+
+        /**
+         * 列ピッチの基本波とみなすのに要る支持率（全サンプルに対する割合）。
+         * 実測の偽ピッチ（N6169DZ の 5.1・17.6 は全体の 1% 未満）を基本波と誤認せず、
+         * 本物の 1 行ピッチ（同 22.7 は 60%超・N0833HI でも 313/791＝40%）は必ず拾える位置に置く。
+         */
+        /**
+         * 列ピッチの最頻値が基本波の何倍までを想定するか。段落間に空行1つ（＝2倍）が実測の最大で、
+         * 余裕を見て 4 まで見る。大きくし過ぎると偶然 mode/k に当たる無関係なバケットを拾いうる。
+         */
+        private const val MAX_STEP_HARMONIC = 4
+
+        private const val FUNDAMENTAL_SUPPORT_RATIO = 0.05
 
         /** [detect] がストリーミング供給源に対して要求する走査回数（進捗の総数計算に使う）。 */
         const val STREAMING_PASSES = 2

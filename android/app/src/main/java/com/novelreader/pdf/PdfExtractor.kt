@@ -47,6 +47,36 @@ internal fun normalizeGlyphUnicode(s: String): String {
 }
 
 /**
+ * ToUnicode CMap に穴が在るグリフを、フォントの**符号化そのもの**から復号し直す（U+FFFD の真因対処）。
+ *
+ * なぜ成立するか: なろうの縦書き PDF が使うのは `…-UniJIS-UTF16-V/H` 系の CMap で、**文字コードが
+ * UTF-16 符号単位そのもの**（CMap 名の UTF16 がその契約）。PDFBox は ToUnicode を先に引くため、
+ * そこに載っていない字だけが U+FFFD へ化ける＝コード自体には正しい字が入っている。
+ * 実測（N6169DZ 全ページ）: `MS-Mincho-UniJIS-UTF16-V` の code=0x25FC(◼)・0xFE0E(異体字セレクタ)が
+ * FFFD 化しており、この2コードの連なりが本文中に 32 件あった。
+ *
+ * ⚠️ **フォント名に UTF16 を含むときだけ**適用する。この前提が無い符号化（Identity-H で CID が
+ * グリフ番号のフォント等）でコードを文字扱いすると、読めない字を**別の読める字に化けさせる**＝
+ * U+FFFD より悪い壊れ方をするため、前提が確認できないフォントには触らない。
+ * サロゲート対は 2 コードで来るのでそのまま連結すれば正しい対になる。
+ *
+ * @return 復号できたら文字列・前提を満たさないなら null（呼び出し側が元の値を使う）
+ */
+private fun decodeFromCharacterCodes(text: TextPosition): String? {
+    val fontName = text.font?.name ?: return null
+    if (!fontName.contains("UTF16")) return null
+    val codes = text.characterCodes ?: return null
+    if (codes.isEmpty()) return null
+    val sb = StringBuilder(codes.size)
+    for (c in codes) {
+        // UTF-16 符号単位に収まらない値＝上の前提が崩れているので、推測せず復号を諦める。
+        if (c < 0 || c > 0xFFFF) return null
+        sb.append(c.toInt().toChar())
+    }
+    return sb.toString()
+}
+
+/**
  * PDFTextStripper をカスタマイズし、processTextPosition で 1 文字ずつ座標付きで収集する。
  *
  * pdfminer 版の座標変換（top = page_height - y1, bottom = page_height - y0）に合わせ、
@@ -143,9 +173,15 @@ class GlyphStripper(
 
     override fun processTextPosition(text: TextPosition) {
         val raw = text.unicode
-        if (raw.isNullOrEmpty()) return
+        // ToUnicode に穴が在るグリフだけ、フォントの符号化から直接復号し直す（U+FFFD 対策）。
+        val decoded = if (raw == null || raw.isEmpty() || raw.indexOf('�') >= 0) {
+            decodeFromCharacterCodes(text) ?: raw
+        } else {
+            raw
+        }
+        if (decoded.isNullOrEmpty()) return
         // PDFBox-android の CID→Unicode を pdfminer(オラクル)へ揃える（波ダッシュ等・task_diary #35）。
-        val s = normalizeGlyphUnicode(raw)
+        val s = normalizeGlyphUnicode(decoded)
 
         val bottom = text.yDirAdj.toDouble()
         val top = bottom - text.heightDir.toDouble()
