@@ -46,11 +46,14 @@ import org.robolectric.annotation.GraphicsMode
  * 既知の再記録トリガ（偽陽性ではなく「意図した変更」として扱うもの）:
  *  ・versionName の改訂: 「バージョン」行は BuildConfig.VERSION_NAME をそのまま描くため、採番
  *    （ADR 0025）で値が動くと golden も動く。テスト側からは差し替えられない（本番コードが直接読む）。
- *  ・BuildConfig.DEBUG: debug ユニットテストでは true 固定のため「データ（取り込み状態の診断）」節が
- *    golden に含まれる。release では消える節＝この golden は debug 版の面を固定している。
+ *  ・BuildConfig.DEBUG: debug ユニットテストでは true 固定のため「データ」節の**2行目**
+ *    〈取り込み状態の診断〉が golden に含まれる。release ではこの行だけが消える。
+ *    ⚠️ 2026-09-03 にゲートを節ごとから行単位へ掛け替えた（正本 settings-K.html の申し送り）＝
+ *    節と1行目〈診断の記録〉は release でも出る。旧記述「節ごと消える」はこの改訂で無効。
  *
  * このテストが赤くなる条件:
- *  ・見出し「設定」の字面/余白、グループ見出し（表示/通知/データ/このアプリ）の語彙と間隔
+ *  ・見出し「設定」の字面/余白、グループ見出し（表示/通知/データ/つかいかた/このアプリ）の語彙と間隔
+ *  ・「データ」節の行構成（〈診断の記録〉＝release でも出る／〈取り込み状態の診断〉＝debug のみ）
  *  ・カード面（surface＋outlineVariant 1dp 枠・影0）とその角丸
  *  ・行の構造（アイコン24dp・アイコン無し行のテキスト開始位置 S40 揃え・説明文の有無・trailing）
  *  ・テーマ行の現在値表記（ライト/セピア/ダーク・システム追従時の文言）
@@ -85,6 +88,8 @@ class SettingsScreenKScreenshotTest(
                     onFollowSystem = {},
                     currentSkin = Skin.MEIKAI_K,
                     onOpenWardrobe = {},
+                    // 「データ」節の〈診断の記録〉行の飛び先。この観点では叩かないので no-op。
+                    onOpenDiagnosticsExport = {},
                     // 公開スコープ機能ゲート（ADR 0027）は on 側で撮る＝この golden は debug 版の面を固定する
                     // （off 側＝きせかえ行が消えた面は画素でなく構造で縛る＝SettingsScreenKSkinGateTest）。
                     skinSwitchingEnabled = true,

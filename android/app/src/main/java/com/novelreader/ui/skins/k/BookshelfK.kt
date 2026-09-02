@@ -275,10 +275,18 @@ internal fun BookshelfK(
                     // T1 横一列化: 題字「本棚」＋冊数の移設先＝Rail のヘッダ（画面名を消さずに縦の固定分から外す）。
                     header = { KRailHeader(title = "本棚", meta = "${libraryCount}冊") },
                     // FAB は Rail 上端（裁定③）。出没条件は本文側の拡張FABと同一＝押す対象が二重に出ない。
-                    fab = if (!selectionMode && !isEmptyShelf) {
-                        { KRailFab(onClick = onFabClick) }
-                    } else {
-                        null
+                    // 淡入淡出も縦向きの拡張FABと同一にする（2026-09-03 小口裁定①＝棚 FAB は全数対象）。
+                    // スロットへ null を渡す形をやめて常に非 null にするのは、退場アニメを再生する主体が
+                    // 消えてしまうと淡出が一瞬も描かれないため。隠れている間の AnimatedVisibility は
+                    // 高さ0＝Rail の版面は従来（null を渡していたとき）と同一。
+                    fab = {
+                        AnimatedVisibility(
+                            visible = !selectionMode && !isEmptyShelf,
+                            enter = fadeIn(tween(MotionDurationReveal)),
+                            exit = fadeOut(tween(MotionDurationDismiss)),
+                        ) {
+                            KRailFab(onClick = onFabClick)
+                        }
                     },
                 )
             }
@@ -524,16 +532,28 @@ internal fun BookshelfK(
         // 空棚（蔵書0）でも隠す（2026-08-20 ユーザー裁定②）＝押す対象を空棚CTA〈PDFを追加〉一本へ寄せる。
         // 同じ操作が拡張FABと CTA で二重に出ており、fontScale 2.0 では FAB が CTA へ被っていた（実機 PGEM10）。
         // ⚠️ [isEmptyShelf] は「この分類の本はありません」を含まない＝あちらは CTA が無いので FAB を残す。
-        if (!selectionMode && !isEmptyShelf && !railActive) {
-            ExtendedFloatingActionButton(
-                text = { Text("PDFを追加") },
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                onClick = onFabClick,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
+        // 淡入淡出（2026-09-03 小口裁定①）: 出没条件（選択モード・空棚）は長押しや 0冊目の取込完了で
+        // 瞬間的に跳ねるため、尺ゼロだと FAB がパチンと現れ／消えて何が起きたか読めない。位置ずれを
+        // 伴わない純フェードにするのは、右下固定の FAB に「動いてくる先」が無く、滑り込ませると嘘の
+        // 空間語彙を足すため。尺は同ファイルのバナー入退場と同じスロット（enter>exit＝Design/08-C）。
+        // 横向き（railActive）だけは AnimatedVisibility の外＝素の if に残す。Rail への移設は構成変更（回転）で
+        // 起き、面ごと作り直されるので出没のフェードとは別事象（包むと回転のたびに薄く光る）。
+        // 横向きの円形 FAB は Rail 側で同じ尺の淡入淡出を持つ（[KNavigationRail] へ渡す fab スロット）。
+        if (!railActive) {
+            AnimatedVisibility(
+                visible = !selectionMode && !isEmptyShelf,
+                enter = fadeIn(tween(MotionDurationReveal)),
+                exit = fadeOut(tween(MotionDurationDismiss)),
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = Spacing.S16, bottom = Spacing.S16)
+                    .padding(end = Spacing.S16, bottom = Spacing.S16),
+            ) {
+                ExtendedFloatingActionButton(
+                    text = { Text("PDFを追加") },
+                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    onClick = onFabClick,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
                     // 読み上げ名（2026-08-07 実機 TalkBack で無名と判明）: M3 の
                     // ExtendedFloatingActionButton は text スロットを clearAndSetSemantics{} で包む
                     // （展開/縮退アニメで読み上げが揺れないようにするため）。結果、ラベルが見えていても
@@ -542,8 +562,10 @@ internal fun BookshelfK(
                     // 名前は見える文字と同一にする（label-in-name＝音声操作で「PDFを追加」と言える）。
                     // 用語: これは端末内PDFの取り込みで、発見（A「見つける」）でも検索（B「探す」）でも
                     // ない＝docs/patterns/discovery-terminology.md の2語を借りない。
-                    .semantics { contentDescription = "PDFを追加" },
-            )
+                    // ⚠️ 配置（align/padding）は AnimatedVisibility 側へ移した＝FAB 自身は器の中身になった。
+                    modifier = Modifier.semantics { contentDescription = "PDFを追加" },
+                )
+            }
         }
 
         SnackbarHost(

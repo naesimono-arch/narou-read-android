@@ -320,6 +320,13 @@ internal object GoldenCoverageRegistry {
         "web-reader/{ncode}/{startEpisode}" to
             "WebView 主体の面で、Robolectric では外部 HTML が描画されない＝絵を撮っても" +
                 "アプリ側の版面をほとんど含まない。ここだけは撮影しても回帰検知にならないため恒久除外。",
+        "DIAGNOSTICS_EXPORT_ROUTE" to
+            "診断の記録（書き出し・2026-09-03 新設）。撮影条件は未新設＝**恒久除外ではなく宿題**。" +
+                "版面は設定画面と同じ行部品（KSettingsGroupLabel/KSettingsCard/KSettingsRow/KSettingsValue）の" +
+                "再利用で、テーマ退行は SettingsScreenK の束が既に張っている。この面に固有で golden でしか" +
+                "見えないのは〈主操作ボタンの全幅版面〉と〈記録あり／まだ無しの2状態〉で、fontScale 2.0 で" +
+                "ボタン内の 15px ラベルが折り返す方向に壊れうる。撮るなら stateless な" +
+                "DiagnosticsExportContent を状態2つ×3テーマ×2スケールで。",
     )
 
     /**

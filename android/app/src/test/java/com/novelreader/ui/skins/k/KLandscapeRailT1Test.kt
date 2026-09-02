@@ -281,6 +281,8 @@ class KLandscapeRailT1Test {
                             onFollowSystem = {},
                             currentSkin = Skin.MEIKAI_K,
                             onOpenWardrobe = {},
+                            // 「データ」節の〈診断の記録〉行の飛び先。この観点では叩かないので no-op。
+                            onOpenDiagnosticsExport = {},
                             skinSwitchingEnabled = true,
                             // 開発節の露出を明示的に開ける（既定 false＝節ごと消える側は ADR 0027 の別テストが持つ）。
                             shioriHighLoadRowVisible = true,

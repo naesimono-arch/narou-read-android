@@ -33,6 +33,7 @@ import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.MonitorHeart
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.SaveAlt
 import androidx.compose.material.icons.outlined.Title
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -91,6 +92,11 @@ fun SettingsScreenK(
     onFollowSystem: () -> Unit,
     currentSkin: Skin,
     onOpenWardrobe: () -> Unit,
+    // 診断の記録（「データ」節の1行目）→ 専用画面へ push（正本 skins/diagnostics-export-K.html 案B）。
+    // ⚠️ 既定値を付けない: この行は release でも常に出る＝配線を忘れると「叩いても何も起きない行」が
+    // 無音で出荷される。既定 no-op を置かず、呼び出し元の追加漏れをコンパイルエラーにする
+    //（同ファイルの shiori 系が既定値を持つのは「既定＝行ごと出さない」で無害だから＝条件が違う）。
+    onOpenDiagnosticsExport: () -> Unit,
     // 公開スコープ機能ゲート（ADR 0027 適用点1）。BuildConfig を本画面から直接読まず引数で受けるのは、
     // JVM テストが debug の BuildConfig しか見ず「行が消えている」側を固定できないため（ADR 0027 決定4）。
     // 本番の値は呼び出し元（MainActivity）が Features から供給する。
@@ -240,10 +246,30 @@ fun SettingsScreenK(
             NewEpisodeNotificationRowK()
         }
 
-        // 開発版のみの診断面（release では節ごと消える＝既存ヘルスボードの露出規約と同じ）。
-        if (BuildConfig.DEBUG) {
-            KSettingsGroupLabel("データ")
-            KSettingsCard {
+        // 「データ」節（正本 skins/settings-K.html の同節）。
+        // ⚠️ 節ごと debug で潰していた旧実装から、ゲートを**〈取り込み状態の診断〉行だけ**へ掛け替えた
+        //（2026-09-02 モック差分の申し送り）。なぜ節を release でも出すか: 新設の〈診断の記録〉は
+        // debug なら `adb shell run-as` で filesDir を読めるが release では読めず、「日常利用して
+        // もらっている検証機から記録を取り出す手段が無い」ことがこの UI の存在理由そのものだから。
+        KSettingsGroupLabel("データ")
+        KSettingsCard {
+            KSettingsRow(
+                // モック .ri は受け皿へ矢印を落とす形＝Icons.Outlined.SaveAlt が同形（モック注記の指定）。
+                icon = Icons.Outlined.SaveAlt,
+                title = "診断の記録",
+                description = "不具合と動作のなめらかさの記録を、端末の中からファイルへ書き出せます",
+                // 件数を右端に出さないのはモックの裁定＝記録が2種（不具合／なめらかさ）で1つの数に
+                // 畳めないため（畳むと「3件」が何の3件か言えない）。件数は飛び先で2行に分けて見せる。
+                trailing = {
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                onClick = onOpenDiagnosticsExport,
+            )
+            if (BuildConfig.DEBUG) {
                 KSettingsRow(
                     icon = Icons.Outlined.MonitorHeart,
                     title = "取り込み状態の診断",
@@ -469,7 +495,7 @@ private fun NewEpisodeNotificationRowK() {
 
 /** グループ見出し（モック .glabel 12px 字間広め）。 */
 @Composable
-private fun KSettingsGroupLabel(label: String) {
+internal fun KSettingsGroupLabel(label: String) {
     Text(
         label,
         style = MaterialTheme.typography.labelMedium,
@@ -480,7 +506,7 @@ private fun KSettingsGroupLabel(label: String) {
 
 /** グループの面（モック .card ヘアライン枠の白面）。影に頼らず枠線1本で沈める（Design/10「沈めて立てる」）。 */
 @Composable
-private fun KSettingsCard(content: @Composable () -> Unit) {
+internal fun KSettingsCard(content: @Composable () -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
@@ -514,7 +540,14 @@ private fun KSettingsCard(content: @Composable () -> Unit) {
  * 幅を持たない素の `Text` で値を書くとこの穴へ戻るので、**値は必ずこの部品を通す**こと。
  */
 @Composable
-private fun KSettingsValue(text: String) {
+internal fun KSettingsValue(
+    text: String,
+    // 既定＝これまでの唯一の役（単なる現在値＝沈める側）。既定値のまま呼べば既存5箇所の見えは変わらない。
+    // 引数にしたのは「意味を運ぶ値」（診断の件数・容量）が同じ幅の予算を要りながら墨で立つ必要があるため
+    //（ADR 0014-D の適用＝DiagnosticsCountValue の KDoc が理由の正本）。幅の上限だけは役に依らず共通。
+    style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyMedium,
+    color: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
     val maxWidth = with(LocalDensity.current) {
         // ⚠️ 予約は「1字ぶんを dp へ換算してから字数倍」でなければならない（`(16.sp * 4).toDp()` は誤り）。
         // API 34 の sp→dp は**非線形**で、大きな sp ほど倍率が落ちる＝実測（fontScale 2.0）で
@@ -527,8 +560,8 @@ private fun KSettingsValue(text: String) {
     }
     Text(
         text,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = style,
+        color = color,
         // 上限まで縮めた結果を折り返させない（折り返すと行高が変わり版面が動く＝案Bの条件を破る）。
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
@@ -557,7 +590,7 @@ private const val K_ROW_TITLE_RESERVE_CHARS = 4
  * 置けば副文の幅だけが痩せる（モックもその行には `.rr` を持たない）。
  */
 @Composable
-private fun KSettingsChevronHole() {
+internal fun KSettingsChevronHole() {
     Spacer(Modifier.width(K_ROW_CHEVRON_WIDTH))
 }
 
@@ -571,7 +604,7 @@ private val K_ROW_CHEVRON_WIDTH = Spacing.S24
 
 /** 設定の1行（アイコン＋主ラベル＋説明＋trailing）。onClick=null は情報行（非活性・案内のみ）。 */
 @Composable
-private fun KSettingsRow(
+internal fun KSettingsRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector?,
     title: String,
     description: String?,

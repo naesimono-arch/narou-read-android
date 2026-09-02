@@ -47,6 +47,8 @@ class SettingsScreenKShioriHighLoadTest {
                     onFollowSystem = {},
                     currentSkin = skin,
                     onOpenWardrobe = {},
+                    // 「データ」節の〈診断の記録〉行の飛び先。この観点では叩かないので no-op。
+                    onOpenDiagnosticsExport = {},
                     skinSwitchingEnabled = true,
                     shioriHighLoadRowVisible = rowVisible,
                     shioriHighLoadK = false,

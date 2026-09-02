@@ -8,6 +8,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotSelected
@@ -65,6 +66,9 @@ class BookshelfContentTest {
         progressMap: Map<String, ProgressEntity> = emptyMap(),
         chapterCountMap: Map<String, Int> = emptyMap(),
         onFabClick: () -> Unit = {},
+        // 空棚の2本目の導線「作品をさがす」＝さがすタブへの結線（ADR 0037 追記 2026-09-03）。
+        // 蔵書ありの面は今も発見導線を持たない（K形正本追従）＝既定 no-op で他テストの描画は不変。
+        onOpenDiscovery: () -> Unit = {},
         onDeleteBooks: (List<BookEntity>, Boolean) -> Unit = { _, _ -> },
         // 本文欠落本の地図（bookId→復旧手段）。既定 emptyMap＝欠落なし＝他テストの描画は完全に不変。
         reimportPlans: Map<String, ReimportPlan> = emptyMap(),
@@ -96,8 +100,9 @@ class BookshelfContentTest {
                     actions = ShelfActions(
                         onOpenBook = {},
                         onFabClick = onFabClick,
-                        // 発見・装いは D 描画部から撤去済み（K形正本追従）＝束の契約上 no-op を渡す。
-                        onOpenDiscovery = {},
+                        // 装いは D 描画部から撤去済み（K形正本追従）＝束の契約上 no-op を渡す。
+                        // 発見は空棚の「作品をさがす」だけが使う（同上・ADR 0037 追記）。
+                        onOpenDiscovery = onOpenDiscovery,
                         onOpenWardrobe = {},
                         onCancelProcessing = {},
                     ),
@@ -124,14 +129,14 @@ class BookshelfContentTest {
     @Test
     fun `Content(空)ではEmptyBookshelfを出す`() {
         setContent(BookshelfUiState.Content(emptyList()))
-        composeTestRule.onNodeWithText("本棚はまだ空です").assertIsDisplayed()
+        composeTestRule.onNodeWithText("まだ一冊もありません").assertIsDisplayed()
     }
 
     @Test
     fun `Loading中は空メッセージを出さない（cold startの空フラッシュ対策）`() {
         setContent(BookshelfUiState.Loading)
         // Loading はスケルトンのみ。Content(空) が確定するまで空状態を出さない
-        composeTestRule.onNodeWithText("本棚はまだ空です").assertDoesNotExist()
+        composeTestRule.onNodeWithText("まだ一冊もありません").assertDoesNotExist()
     }
 
     @Test
@@ -149,7 +154,7 @@ class BookshelfContentTest {
         setContent(BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))))
         // 栞書影は題字を Canvas 描画するため text ノードを持たず、表紙の contentDescription=題名 で確認する。
         composeTestRule.onNodeWithContentDescription("吾輩は猫である").assertIsDisplayed()
-        composeTestRule.onNodeWithText("本棚はまだ空です").assertDoesNotExist()
+        composeTestRule.onNodeWithText("まだ一冊もありません").assertDoesNotExist()
         // 発見帯・トップバー🔍・装いの間（Checkroom）は撤去済み（2026-07-29 K形正本 bookshelf-D.html 追従＝
         // 発見は「さがす」タブ・装いは設定タブへ移管）。再出現の退行をここで固定する。
         composeTestRule.onNodeWithText("新しい物語を見つける").assertDoesNotExist()
@@ -167,6 +172,38 @@ class BookshelfContentTest {
         // 空状態の「PDFを追加する」ボタンも FAB と同じ onFabClick を叩く
         composeTestRule.onNodeWithText("PDFを追加する").performClick()
         assertTrue(fabClicked)
+    }
+
+    // ────── 空棚の導線（ADR 0037 追記 2026-09-03＝K の裁定②を D へ伝播）──────
+    // ⚠️ 下2本は**対でしか意味を持たない**（空棚で消えることだけを張ると「常に隠す」誤実装が通る）＝
+    // K 側 BookshelfKFabTest と同じ持ち方に揃える。
+
+    @Test
+    fun `蔵書0の空棚では追加FABを出さず中央のCTAへ寄せる`() {
+        setContent(BookshelfUiState.Content(emptyList()))
+        // 空状態そのものが出ていることを先に確かめる（描画に失敗しただけでも FAB 不在は成立するため）。
+        composeTestRule.onNodeWithText("まだ一冊もありません").assertIsDisplayed()
+        // FAB は contentDescription で引く（M3 が拡張FAB の text スロットを clearAndSetSemantics{} で包むため
+        // 可視ラベルでは引けない）。空棚 CTA は可視テキスト「PDFを追加する」＝同じ語でも取り違えない。
+        composeTestRule.onNodeWithContentDescription("PDFを追加").assertDoesNotExist()
+    }
+
+    @Test
+    fun `蔵書があれば追加FABは出る`() {
+        setContent(BookshelfUiState.Content(listOf(book("b1", "吾輩は猫である"))))
+        composeTestRule.onNodeWithContentDescription("PDFを追加").assertHasClickAction()
+    }
+
+    @Test
+    fun `空棚の「作品をさがす」はさがすタブへ送る`() {
+        var discoveryOpened = false
+        setContent(
+            BookshelfUiState.Content(emptyList()),
+            onOpenDiscovery = { discoveryOpened = true },
+        )
+        // 行き先の違う2本目の導線（＝PDF追加との二重出しではない）。消えると初見が行き止まりになる。
+        composeTestRule.onNodeWithText("作品をさがす").performClick()
+        assertTrue(discoveryOpened)
     }
 
     // ────── 読書状態フィルタのチップ行（すべて/よみかけ/未読/読了） ──────

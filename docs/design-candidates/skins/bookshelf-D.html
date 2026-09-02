@@ -22,21 +22,33 @@
     末尾に「文言と CTA の作り直しが前提＝別議題」と書いた、その別議題を 2026-09-02 に開いた
     ＝**この見送りは下の追記で破棄済み**。
 
-  【2026-09-02 追記（ユーザー裁定・上の「②は伝播しない」を破棄）】
+  【2026-09-02〜09-03 追記（ユーザー裁定・上の「②は伝播しない」を破棄）】正本の裁定は ADR 0037 追記。
   ・裁定＝**空棚では拡張FABを出さない。同時に空棚の文言を改稿して「右下の＋」の名指しを落とす。**
     見送りの理由（文言が嘘になる）は文言ごと直せば消える＝K と同じ役割分担へ揃える
-    ＝**空棚の主導線は中央の CTA ただ1つ・FAB は蔵書があるときの補助**（最優先A「一目でわかる・迷わせない」）。
-  ・空棚の見えは下段の候補枠に3案。**3案で違うのは h2 / p / CTA の文字だけ**で、構造・余白・色・イラストは同一
-    ＝裁定の変数を「文言」と「FAB の有無」の2つだけに絞るため。決まった1案を残して他2案と候補枠ごと消す。
-  ・K の空棚との意図的な差2つ（K をそのまま写していない箇所＝翻訳時に迷わないようここに残す）:
-    ①**チップ行を出さない**＝D の実装は空棚を排他分岐で描き、フィルタ行も Lazy も描かない
-      （`BookshelfScreen.kt` の `shelfItems.isEmpty() && selectedStatus == null` 分岐）。K は出す＝K の実装がそう描くから。
-    ②**CTA は1つ**＝K は「作品をさがす」を併置するが、D の `EmptyBookshelf` は `onAddClick` 一本で、
-      2本目は新しい導線の追加＝文言改稿とは別の議題。要るなら別便で足す。
+    （最優先A「一目でわかる・迷わせない」）。
+  ・文言は3案をモック化して比べ、**2026-09-03 に案B＝〈操作と結果を明示する語り〉で確定**した。
+    下段は候補枠でなく**確定した空棚の見え1枚**＝裁定は済んでいる。
+    ⚠️ 不採用2案は ADR 0037 追記に「文言3案」としか残らず本文が追えないので、要点だけここに残して落とした:
+      ・**案A（簡潔・現行温存）**＝見出しは現行のまま「右下の＋」を名指す一行だけを差し替える。読む量が最小で
+        「押す物は一つ」の絵が最も強い反面、このアプリで何ができるかを語らず初見への手掛かりも最少。
+      ・**案C（和モダンの語り口）**＝「棚が一冊ずつ増えていく」情景で次に起きることを示す静かな語り。
+        明朝の見出しと最も釣り合う反面、操作の説明が案Bより弱く、価値（ふりがな）にも触れない。
+  ・**CTA は2本**（2026-09-03 裁定）＝〈PDFを追加する〉と〈作品をさがす〉を併置する。
+    ⚠️ 前日の「**CTA は1つ・2本目は別議題**」は**この裁定で覆した**。二重出しの解消は「同じ操作の入口が2つある」
+    ことの是正であって、**行き先の違う導線を1本に絞る理由にはならない**——蔵書ゼロの人の選択肢は
+    「手元のPDFを入れる」か「これから探す」の2つで、後者を空棚から消すと初見が行き止まりになる。
+    主従は K と同じく一画面一強調＝実塗りは主導線だけ・2本目は輪郭へ沈める（輪郭の形は K の `.btn.out` を
+    D の署名〈2px 直角・藍・--line〉へ翻訳したもので、K の角丸ピルは写さない）。
+  ・K の空棚との意図的な差（K をそのまま写していない箇所＝翻訳時に迷わないようここに残す）:
+    **チップ行を出さない**＝D の実装は空棚を排他分岐で描き、フィルタ行も Lazy も描かない
+    （`BookshelfScreen.kt` の `isEmptyShelf` 分岐）。K は出す＝K の実装がそう描くから。
   ・下端の FAB 回避帯は D では元からグリッド/リスト側の contentPadding にしか無い
     （`Insets.ScrollBottomForFab`）＝FAB を消しても空棚の中央寄せはずれない（K が外す必要のあった予約が D には無い）。
   ・空棚のイラストは**現行実装 `EmptyBookshelf.kt` の Canvas を 1:1 で写した逆同期**で、意匠は変えていない
     （コード先行の視覚が正本モックに無い状態を解消する＝モック運用ルール1）。
+  ⚠️ **未裁定のモック⇄実装ドリフト3件**（空棚の余白・見出しタイポ・CTA の意匠）が残っている＝棚卸しは
+    `.claude/plans/mock-drift-inventory-2026-07-16.md`。この枠の見えは**モック側の主張**であって、
+    実装が追従済みという意味ではない（どちらが正本かは未裁定）。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -59,7 +71,7 @@
     --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  /* 正本の phone と空棚の候補枠を横に並べるだけ（gap/wrap の追加は phone 自体の見えに影響しない） */
+  /* 正本の phone と空棚の枠を横に並べるだけ（gap/wrap の追加は phone 自体の見えに影響しない） */
   body{background:#E4E3DD;min-height:100vh;display:flex;align-items:center;justify-content:center;
     flex-wrap:wrap;gap:28px;padding:24px;font-family:var(--gothic);-webkit-font-smoothing:antialiased}
 
@@ -164,7 +176,7 @@
   .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
   .tab.on .lb{font-weight:700}
 
-  /* ===== 空棚（蔵書0冊）＝2026-09-02 裁定の見え。FAB は置かない ＝ 押す対象は中央の CTA ただ1つ =====
+  /* ===== 空棚（蔵書0冊）＝2026-09-03 確定の見え。FAB は置かない ＝ PDF 追加の入口は中央の実塗り CTA 1つ =====
      中央寄せは器の中央そのもの（D は FAB 回避帯をグリッド/リスト側にしか持たないので、
      FAB を消しても引くべき予約が無い＝上寄りのズレは起きない）。 */
   .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -180,11 +192,18 @@
     letter-spacing:.03em}
   /* CTA＝消した FAB の役を引き継ぐ主導線。藍の実塗りは FAB から・2px 直角は D の署名から受け継ぐ。
      影は持たせない＝浮いていないから（D で影を持つのは書影と FAB だけ）。 */
-  .cta{margin-top:32px;height:48px;padding:0 28px;border:none;border-radius:2px;cursor:pointer;
+  /* 2本並ぶので器を作る（2026-09-03 裁定＝〈PDFを追加する〉＋〈作品をさがす〉）。wrap＋center は、
+     fontScale を上げて1行に収まらなくなったときの折返しを、実装の FlowRow と同じ「入り切らない方が
+     次行へ落ちて中央へ揃う」形にするため（K の .empty .ctas と同じ流儀・gap も 12px で揃える）。 */
+  .empty .ctas{margin-top:32px;display:flex;flex-wrap:wrap;gap:12px;justify-content:center}
+  .cta{height:48px;padding:0 28px;border:none;border-radius:2px;cursor:pointer;
     background:var(--ai);color:#fff;font-family:var(--gothic);font-size:14px;font-weight:600;
     letter-spacing:.06em}
+  /* 2本目〈作品をさがす〉＝一画面一強調なので実塗りにしない。K の .btn.out（透明地・藍字・輪郭）を
+     D の署名へ翻訳＝角丸ピルでなく 2px 直角、輪郭はヘアライン体系の --line。 */
+  .cta.out{background:transparent;color:var(--ai);border:1px solid var(--line)}
 
-  /* ===== 空棚の文言候補を並べる枠（裁定用の付帯物・実機には無い）=====
+  /* ===== 空棚の見えを添える枠（検分用の付帯物・実機には無い。2026-09-03 の決着で候補比較ではなくなった）=====
      ラベルと注記の灰は D パレット外だが、実機に出ない付帯物なので意図的にトークンを使わない
      （地の #E4E3DD 上に置く注記＝phone の中の色域と混ぜないため）。 */
   .probes{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;justify-content:center}
@@ -326,46 +345,15 @@
   </div>
 
   <!-- ============================================================
-       空棚（蔵書0冊）の文言候補 3案（2026-09-02 裁定用の付帯物・実機には無い）。
-       正本の本体は上の phone ただ1つ＝ここは裁定のための仮置きで、決まった1案を残して他2案とこの枠ごと消す。
-       3案で違うのは h2 / p / CTA の文字だけ。構造・余白・色・イラストは同一＝裁定の変数を文言に絞るため。
-       ボトムナビは上の正本 phone から複製する（末尾スクリプト）＝3枚に写経すると必ずどれかが取り残されるので、
+       空棚（蔵書0冊）＝**確定形**（2026-09-03 裁定）。候補比較の枠ではない——文言3案の比較は案Bで決着し、
+       不採用2案は冒頭コメントへ要点だけ残して落とした（ADR 0037 追記は「文言3案」としか書かず本文が追えないため）。
+       正本の本体は上の phone＝蔵書ありの面で、ここは同じ骨格の「蔵書0冊のとき」＝第2の状態を添えた検分枠。
+       ボトムナビは上の正本 phone から複製する（末尾スクリプト）＝写経すると必ず取り残されるので、
        「正本と同じものが出る」ことを構造で保証する。空棚でナビが変わらないこと自体が仕様。
        ============================================================ -->
   <div class="probes">
     <div class="cand">
-      <span class="mode">案A ／ 簡潔・現行温存</span>
-      <div class="phone">
-        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-
-        <div class="top">
-          <div class="ttl"><h1>本棚</h1><span class="count">0冊</span></div>
-          <button class="ib" aria-label="表示切替">
-            <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-          </button>
-        </div>
-
-        <!-- チップ行は出さない＝D の実装が空棚を排他分岐で描き、フィルタ行も Lazy も描かないため（K は出す） -->
-
-        <div class="empty">
-          <svg class="illust" viewBox="0 0 140 140" aria-hidden="true">
-            <g fill="none" stroke="currentColor" stroke-width="3"><path d="M0 42h140M0 100.8h140M7 28v84M133 28v84"/></g>
-            <g fill="currentColor" opacity=".4"><rect x="33.6" y="49" width="16.8" height="42"/><rect x="56" y="49" width="16.8" height="42"/><rect x="78.4" y="49" width="16.8" height="42"/></g>
-          </svg>
-          <h2>本棚はまだ空です</h2>
-          <p>PDFを追加すると、ここに並びます。</p>
-          <button class="cta">PDFを追加</button>
-        </div>
-
-        <!-- ここに .fab は置かない＝2026-09-02 裁定。PDF 追加は上の CTA 一本（実装も同じ onFabClick を呼ぶ） -->
-
-        <nav class="tabbar" data-nav-clone></nav>
-      </div>
-      <p class="pn">見出しは現行のまま、<b>FAB を名指す一行だけ</b>を差し替える。読む量が最小で「押す物は一つ」の絵が最も強く出る。反面、このアプリで何ができるかは語らない＝<b>初見の人へ与える手掛かりも最少</b>。</p>
-    </div>
-
-    <div class="cand">
-      <span class="mode">案B ／ 操作と結果の明示（迷わせない優先）</span>
+      <span class="mode">空棚（蔵書0冊）＝拡張FAB を引っ込め、中央に CTA 2本</span>
       <div class="phone">
         <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
 
@@ -385,50 +373,24 @@
           </svg>
           <h2>まだ一冊もありません</h2>
           <p>お手元のPDFを取り込むと、ふりがな付きで読めるようになります。</p>
-          <button class="cta">PDFを追加する</button>
+          <div class="ctas">
+            <button class="cta">PDFを追加する</button>
+            <button class="cta out">作品をさがす</button>
+          </div>
         </div>
 
-        <!-- ここに .fab は置かない＝2026-09-02 裁定。PDF 追加は上の CTA 一本（実装も同じ onFabClick を呼ぶ） -->
+        <!-- ここに .fab は置かない＝2026-09-02 裁定。PDF 追加は上の実塗り CTA（実装も同じ onFabClick を呼ぶ）。
+             ⚠️ 「押す対象が1つ」なのは **PDF 追加という同じ操作**の話で、行き先の違う〈作品をさがす〉は
+             併置してよい（2026-09-03 裁定＝前日の「CTA は1つ」を覆した）。 -->
 
         <nav class="tabbar" data-nav-clone></nav>
       </div>
-      <p class="pn">空棚は初見でいちばん長く見る面なので、<b>何を入れると何が得られるか</b>まで言い切る。「ふりがな付き」はこのアプリの核心価値を一度だけ名乗る一語。反面、3案でいちばん字数が多い。</p>
-    </div>
-
-    <div class="cand">
-      <span class="mode">案C ／ 和モダンの語り口（トーン優先）</span>
-      <div class="phone">
-        <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
-
-        <div class="top">
-          <div class="ttl"><h1>本棚</h1><span class="count">0冊</span></div>
-          <button class="ib" aria-label="表示切替">
-            <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-          </button>
-        </div>
-
-        <!-- チップ行は出さない＝D の実装が空棚を排他分岐で描き、フィルタ行も Lazy も描かないため（K は出す） -->
-
-        <div class="empty">
-          <svg class="illust" viewBox="0 0 140 140" aria-hidden="true">
-            <g fill="none" stroke="currentColor" stroke-width="3"><path d="M0 42h140M0 100.8h140M7 28v84M133 28v84"/></g>
-            <g fill="currentColor" opacity=".4"><rect x="33.6" y="49" width="16.8" height="42"/><rect x="56" y="49" width="16.8" height="42"/><rect x="78.4" y="49" width="16.8" height="42"/></g>
-          </svg>
-          <h2>まだ何も置かれていません</h2>
-          <p>読みたい作品のPDFを加えると、ここに一冊ずつ増えていきます。</p>
-          <button class="cta">PDFを追加</button>
-        </div>
-
-        <!-- ここに .fab は置かない＝2026-09-02 裁定。PDF 追加は上の CTA 一本（実装も同じ onFabClick を呼ぶ） -->
-
-        <nav class="tabbar" data-nav-clone></nav>
-      </div>
-      <p class="pn">明朝の見出しと釣り合う静かな語り。<b>棚が一冊ずつ増えていく情景</b>で次に起きることを示す。反面、操作そのものの説明は案Bより弱く、価値（ふりがな）にも触れない。</p>
+      <p class="pn"><b>採用（2026-09-03）</b>。空棚は初見でいちばん長く見る面なので、<b>何を入れると何が得られるか</b>まで言い切る（「ふりがな付き」はこのアプリの核心価値を一度だけ名乗る一語）。CTA は<b>行き先で2本</b>——〈PDFを追加する〉は手元の PDF、〈作品をさがす〉はさがすタブ。<b>同じ操作の二重出しではない</b>ので1本に絞らない。主従は一画面一強調＝実塗りは主導線だけ。</p>
     </div>
   </div>
 
 <script>
-/* 候補枠のボトムナビを正本 phone から複製する。見た目は正本と 1px も違わない＝
+/* 空棚の枠のボトムナビを正本 phone から複製する。見た目は正本と 1px も違わない＝
    空棚でナビが変化しないことを、写経ではなく「同じ DOM を配る」ことで保証している。 */
 (function () {
   var src = document.querySelector('.phone > .tabbar');

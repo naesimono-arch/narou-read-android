@@ -33,6 +33,11 @@
     - 案B を採るなら ←もシステム Back も「設定タブへ1段上がる」（ADR 0026）＋遷移契約テストへ追加。
     - 〈記録を消す〉は書き出しの必須要件ではない任意要素（枠で囲って明示）。要らなければこの1行だけ落とせる。
     - 色・寸法はすべて settings-K.html の既存トークン再利用＝新しい値は1つも足していない。
+
+  ■ 実装との対応（2026-09-03 逆同期・実装＝`ui/diagnostics/DiagnosticsExportScreen.kt`）
+    採用は**案B（専用画面）**。案A の2枚は不採用案の記録として凍結する＝以後この面の改訂に追従しない
+    （上の「中身は3枚とも一字一句同じ」は裁定を分離するための不変で、裁定の終了とともに解除）。
+    案B へ追加＝書き出しの結末1行（.result）。落とした3項目は消さず ⚠️ 宿題マーカーで所在と復活条件を持たせた。
 -->
 <!DOCTYPE html>
 <html lang="ja">
@@ -126,6 +131,21 @@
   .optional{margin-top:24px;border:1px dashed #C9C6BE;border-radius:10px;padding:4px 0 2px;position:relative}
   .optional::before{content:"任意（要らなければこの1行だけ落とせる）";position:absolute;top:-8px;left:12px;
     background:#FBFAF8;padding:0 6px;font-size:10px;color:#9A968D;letter-spacing:.04em}
+
+  /* 書き出しの結末（成功／失敗）。2026-09-03 追加＝実装からの逆同期（この面は元々「押した後」を持たなかった）。
+     .pnote と同じ字送り・行間のまま色だけ --ink にする＝結末は「意味を運ぶ文字」で、単なる補足
+     （--ink-soft 3.79:1）とは役が違う（ADR 0014-D の適用＝件数 .num を --ink にしたのと同じ理由）。
+     新しい意匠語彙は作らない＝既存2値（--ink-soft／--ink）の使い分けだけで表す。 */
+  .result{font-size:12px;color:var(--ink);line-height:1.6;letter-spacing:.01em;margin:4px 4px 0}
+
+  /* 宿題マーカー（裁定用の可視注記。.optional と同じく**実装には翻訳しない**＝画面の一部ではない）。
+     なぜ消さずに残して注記か: 実装が落とした文言をモックからも消すと、決着していない残
+     ——出すために何が要るか——が誰の記憶にも残らない形で消える（2026-09-03 監督裁定）。
+     色は既存トークンを使わない＝「画面でない注記」を地の意匠と取り違えさせないため。 */
+  .todo-mark{background:#FBF3DE;border-bottom:1px dashed #C9A24A}
+  .todo{margin:8px 4px 0;border:1px dashed #C9A24A;border-radius:8px;padding:7px 9px;background:#FBF7EC;
+    font-size:10.5px;line-height:1.6;color:#7A6528;letter-spacing:.02em}
+  .todo b{color:#5E4D1C;font-weight:700}
 
   /* ---- スクリム＋シート（reading-settings-livepreview-D / settings-D の実値） ---- */
   .scrim{position:absolute;inset:0;background:rgba(20,23,28,.28);z-index:5}
@@ -296,18 +316,28 @@
         <div class="group">
           <div class="row">
             <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 4.6l8.4 14.8H3.6z"/><path d="M12 10v4"/><path d="M12 16.8h.01"/></svg></span>
-            <div class="rt"><div class="rl">不具合の記録</div><div class="rd">落ちた・急に終わったときの記録（最新 9月1日 22:41／30件まで）</div></div>
+            <div class="rt"><div class="rl">不具合の記録</div><div class="rd">落ちた・急に終わったときの記録（<span class="todo-mark">最新 9月1日 22:41</span>／30件まで）</div></div>
             <div class="rr"><span class="num">3件</span><span class="chev-hole" aria-hidden="true"></span></div>
           </div>
           <div class="row">
             <span class="ri"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 4 13 2.5-7H21"/></svg></span>
-            <div class="rt"><div class="rl">動作のなめらかさ</div><div class="rd">画面ごとのカクつきの要約（直近 12 回ぶん）</div></div>
+            <div class="rt"><div class="rl">動作のなめらかさ</div><div class="rd">画面ごとのカクつきの要約（<span class="todo-mark">直近 12 回ぶん</span>）</div></div>
             <div class="rr"><span class="num">48KB</span><span class="chev-hole" aria-hidden="true"></span></div>
           </div>
         </div>
+        <div class="todo">⚠️ <b>宿題</b>: 上で網掛けした〈最新 9月1日 22:41〉〈直近 12 回ぶん〉は
+          <b>実装では省略</b>（2026-09-03）。出すには DiagnosticsStore に latestEventTime() /
+          jankSessionCount() の新設が要る——保管庫が返すのは件数（count）と全文（dumpAll／dumpJank）だけで、
+          DiagnosticEvent.format() の KDoc が「機械パースはしない」と明記しているため、既存 API から
+          近似で埋めると嘘の表示になる。<b>近似で埋めず省略した</b>のが現状で、文言は復活先として残す。</div>
 
         <button class="pbtn">ファイルへ書き出す</button>
         <p class="pnote">保存する場所はあなたが選びます。1つのテキストファイルにまとめます。</p>
+        <!-- 書き出しの結末（2026-09-03 追加・実装からの逆同期）。静止画なので成功側だけを出す。
+             失敗側の文言＝「書き出せませんでした。保存先を変えてもう一度お試しください。」（同じ .result）。
+             なぜ要るか: SAF で保存先を選んだ後に成否を出さないと、失敗が黙って消える＝握り潰しになる。
+             出るのは押した後だけ＝初回表示のこの面には無い1行。 -->
+        <p class="result">書き出しました。</p>
 
         <div class="gh">書き出される内容</div>
         <div class="note">
@@ -316,6 +346,10 @@
         </div>
 
         <div class="optional"><button class="tbtn">記録を消す</button></div>
+        <div class="todo">⚠️ <b>実装では落とした</b>（2026-09-03）: DiagnosticsStore に削除 API が無く、
+          この便は diagnostics/ を触らない所有権だったため。復活させるには保管庫側に clear()
+          （events/ の全削除＋jank.txt の切り詰め）の新設が要る。<b>任意要素としてこの行は生きている</b>
+          ＝落としたのは「今は出せない」からで、不要と裁定したわけではない。</div>
       </div>
     </div>
   </div>

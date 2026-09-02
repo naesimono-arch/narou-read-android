@@ -68,10 +68,13 @@ internal object BookshelfDialogFixtures {
     const val REIMPORT_DISMISS = "やめる"
 
     // ── ⑤取込元PDF削除の失敗通知（BookshelfViewModel.deleteBooks → emitError）──────────────
-    // ダイアログではなく Snackbar だが、63字の長文が「1行の器」に入る点で同じ危険を持つ。
+    // ダイアログではなく Snackbar だが、長文が「1行の器」に入る点で同じ危険を持つ。
     // actionLabel が付く理由＝transient=false の既定経路（BookshelfScreen の errorEvents 収集）。
-    const val SNACKBAR_DELETE_FAIL_TAIL = "件・移動/削除済みか、削除に対応しない保存先の可能性）"
-    const val SNACKBAR_DELETE_FAIL = "取込元PDFの削除に失敗しました（3$SNACKBAR_DELETE_FAIL_TAIL"
+    // ⚠ 文言は ADR 0043 の実装便で推測形→断定形へ是正した（機序は VM 側のコメント）。
+    // 版面が変わるため golden（ShelfSnackbarK の deleteFail 系）は撮り直しが要る。
+    const val SNACKBAR_DELETE_FAIL_TAIL =
+        "件・ファイルが移動/削除済みか、この保存先が削除に対応していません）"
+    const val SNACKBAR_DELETE_FAIL = "取込元PDFを削除できませんでした（3$SNACKBAR_DELETE_FAIL_TAIL"
     const val SNACKBAR_ACTION = "閉じる"
 
     /**

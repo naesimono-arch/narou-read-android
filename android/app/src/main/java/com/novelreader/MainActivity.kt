@@ -72,6 +72,7 @@ import com.novelreader.ui.discovery.DiscoverySearchScreen
 import com.novelreader.ui.discovery.NovelDetailScreen
 import com.novelreader.ui.discovery.PdfImportScreen
 import com.novelreader.ui.discovery.WebReaderScreen
+import com.novelreader.ui.diagnostics.DiagnosticsExportScreen
 import com.novelreader.ui.skins.k.KBottomNav
 import com.novelreader.ui.skins.k.LocalKTabSelect
 import com.novelreader.ui.skins.k.KTab
@@ -660,9 +661,10 @@ private fun NovelReaderApp(
                 onOpenWardrobe = {
                     navController.navigate("wardrobe") { launchSingleTop = true }
                 },
-                // (b) Web由来カードの「縦書きPDFを取り込む」→ 既存の取り込み画面ルートへ直行
-                // （詳細画面経由の onImportPdf と同じ着地＝ADR 0011 の WebView 取り込み）。
-                onImportWebNovel = { ncode ->
+                // なろう縦書きPDF取り込み画面へ直行（詳細画面経由の onImportPdf と同じ着地＝ADR 0011）。
+                // 呼び手は2つ＝(b) Web由来カードの「縦書きPDFを取り込む」／欠落本の再取込ダイアログの
+                // 「なろうで作り直す」（取込元PDFが端末に残っていない本の唯一の復旧導線＝ADR 0043）。
+                onOpenNarouPdfImport = { ncode ->
                     navController.navigate("discovery/detail/$ncode/import") { launchSingleTop = true }
                 },
                 // 機能②: Web カードの読書＝アプリ内 WebView（ADR 0012）。startEpisode 0=目次(初回)／>0=続きから。
@@ -701,6 +703,11 @@ private fun NovelReaderApp(
                         onFollowSystem = onFollowSystem,
                         currentSkin = appSkin,
                         onOpenWardrobe = { navController.navigate("wardrobe") { launchSingleTop = true } },
+                        // 診断の記録（設定「データ」節 → 専用画面へ push・正本モック案B）。
+                        // launchSingleTop: 二度押しで同じ画面が二重に積まれるのを防ぐ（全 push 共通の作法）。
+                        onOpenDiagnosticsExport = {
+                            navController.navigate(DIAGNOSTICS_EXPORT_ROUTE) { launchSingleTop = true }
+                        },
                         skinSwitchingEnabled = skinSwitchingEnabled,
                         // 栞アニメ高負荷（開発節・2026-08-06 裁定）。行の露出可否はここで BuildConfig を読んで供給
                         // ＝JVM テストが release 側（行が消える）を引数で固定できる（ADR 0027 決定4 と同じ理由）。
@@ -727,6 +734,18 @@ private fun NovelReaderApp(
                 onSkinChange = onSkinChange,
                 onBack = { navController.popBackStack() },
             )
+        }
+
+        // 診断の記録（端末内診断の書き出し・専用画面＝正本 skins/diagnostics-export-K.html 案B）。
+        // 階層 up 一本化（ADR 0026）: ← もシステム Back も一段上＝**設定タブ**へ。入口が設定「データ」節
+        // 1つだけなので上は常に設定ページで、素の pop でなく popToTab を通すのは
+        //   (a) 深い画面から復帰したとき Pager が他タブに居ると着地が化ける（popToTab の契約＝スナップ込み）
+        //   (b) pop 先をルート名リテラルで書かない（2026-07-27 のリテラル封鎖）
+        // の2つ。BackHandler を画面側でなくここへ置くのも ADR 0026 の規律（← と同じ up 関数の単一点）。
+        composable(DIAGNOSTICS_EXPORT_ROUTE) {
+            val upToSettings = { popToTab(navController, tabPagerState, KTab.SETTINGS) }
+            BackHandler { upToSettings() }
+            DiagnosticsExportScreen(onUp = upToSettings)
         }
 
         composable("discovery/search") {
@@ -983,6 +1002,13 @@ private fun NovelReaderApp(
  * （2026-07-25 実機バグ・目次に幽閉）。pop 先とルート登録を同一定数で結び、リネーム時の取り残しを型で封じる。
  */
 internal const val TAB_HOST_ROUTE = "tabs"
+
+/**
+ * 診断の記録（書き出し）画面のルート名。
+ * 定数にするのは navigate 側（設定タブの行）と登録側を1つの正本で結び、改名で入口が宙に浮くのを防ぐため
+ *（pop 先は [popToTab] が持つので、ここはリテラル封鎖の対象ではなく「入口と登録の一致」だけを担う）。
+ */
+internal const val DIAGNOSTICS_EXPORT_ROUTE = "diagnostics/export"
 
 /**
  * 深い画面（読書・目次・発見の結果一覧/作品詳細）から「タブ層の特定タブへ階層 up する」単一実装。

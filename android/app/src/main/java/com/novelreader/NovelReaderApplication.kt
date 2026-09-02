@@ -193,11 +193,14 @@ class NovelReaderApplication : Application(), androidx.work.Configuration.Provid
                 .toSet()
             // partition・keepUris の導出は純関数へ集約（measure §E: 回復パスを JVM テストで固定するため）。
             val plan = StartupRecovery.computePlan(pending, persisted)
-            // 失敗取込の権限リーク回収（恒久リーク対策・root cause）: 取込失敗時は M7 の再試行成立の
-            // ため addBook が pending_jobs 行だけ消し永続 URI 権限を残すが、再試行 Snackbar はプロセス
-            // 生存中しか出せないため、再試行されずに終わった分の権限が次回起動時に「pending_jobs 非紐付け」
-            // として孤立し恒久リークする（端末上限128件へ）。ここで解放する。pending が空でも走らせる必要が
-            // あるため、下の early return より前に置く（リークの典型形＝pending_jobs 行ゼロ＋孤児権限1件）。
+            // 孤児になった永続 URI 権限の回収（恒久リーク対策・root cause）: ADR 0043 以降、取込の確定は
+            // 成否によらず永続 URI 権限を解放しない（PendingJobStore.settleJob の why＝あの層は「生きている
+            // 本の取込元か」を判定できない）。よって解放を判断できる唯一の地点がここになる。回収対象は
+            // 「どの pending_jobs 行も どの books.sourceUri も名乗らない」権限＝取込に失敗して再試行もされず
+            // 終わった分（再試行 Snackbar はプロセス生存中しか出せない）・重複で本にならなかった分・明示停止
+            // で捨てられた分・書込権限が取れず sourceUri に採られなかった分。放置すると端末上限128件へ
+            // 溜まり続ける。pending が空でも走らせる必要があるため、下の early return より前に置く
+            // （リークの典型形＝pending_jobs 行ゼロ＋孤児権限1件）。
             // keepPermissionUris（＝現在の pending URI 全体・空 pending なら空集合）に加え、取込元PDF削除機能で
             // books が保持する取込元 URI（sourceUri）も keep へ合流させる。これを足さないと、変換完了後も本の
             // 生存中ずっと保持すべき取込元権限を毎起動で誤解放し、その後の取込元PDF削除が権限失効で失敗する

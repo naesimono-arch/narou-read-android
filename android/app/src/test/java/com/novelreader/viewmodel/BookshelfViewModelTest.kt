@@ -171,7 +171,7 @@ class BookshelfViewModelTest {
      * 実行時に組み上がる文字列と突き合わせて初めて、あの golden が「実際に出る Snackbar の版面」になる。
      */
     @Test
-    fun `deleteBooks - 取込元の権限失効で失敗した件数だけを Snackbar の文言に載せる`() = runTest {
+    fun `deleteBooks - 取込元PDFの削除に失敗した件数だけを Snackbar の文言に載せる`() = runTest {
         val fake = FakeBookRepository()
         // 失敗3冊＋成功1冊。3 は golden の写し（Fx.SNACKBAR_DELETE_FAIL）が撮っている件数と同じ値に揃えてある。
         val revoked = (1..3).map { BookEntity("id0$it", "本$it", "/p$it", sourceUri = "content://docs/revoked$it") }

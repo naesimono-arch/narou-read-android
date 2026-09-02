@@ -46,6 +46,23 @@
   ・⑤ をこのファイルに置く理由: 差分の根拠が「欠落かどうか」＝本ファイルの主題であるため。削除確認そのものの
     正本は bookshelf-multiselect-D.html＝**あちらへの逆同期が未了**（欠落を含む場合の分岐を追記する要）。
 
+  ★2026-09-03 分岐③' を新設（実行不能な提案の解消・ADR 0043 実装便）:
+  ・症状＝uninstall→Auto Backup で復元した **なろう縦書きPDF取込の本** が③へ落ち、「PDFのある場所から探す／
+    自分で選ぶ」を提案される。しかしこの本の取込元 PDF は**アプリの cache にしか存在したことがない**
+    （なろうの生成フローを WebView で通し、DL 実体を cache/pdf_import/<ncode>.pdf へ落として取り込む経路）。
+    cache は Auto Backup の対象外で復元されないため、ユーザーの手元には最初から最後まで存在しない
+    ＝どちらのボタンを押しても戻らない**実行不能な提案**だった（①' AutoCachePdf は cache 現存時のみ成立）。
+  ・実行できる唯一の手段＝**なろうで縦書きPDF をもう一度作って取り込む**。直 URL を機械 DL する近道は
+    CSRF＋ワンタイムトークンで技術的に不可、かつ生成ページ（広告）迂回は規約違反（ADR 0011）＝
+    人が生成フローを1回通す必要があるので、①①'④のような無操作復旧にはできない（＝自動の群には入れない）。
+  ・版面＝①①'④と同じ2ボタン（やめる／なろうで作り直す）。②の3段スタックにしないのは、走査も選び直しも
+    この本には空振りが確定していて**併記する意味が無い**ため。なろう再取込は「書込権限を取れず sourceUri を
+    記録できないまま ncode を手動紐付けした SAF 由来の本」でも成立する（作り直した PDF は指紋が変わっても
+    題名＋著者で既存行へ復元される）＝1操作で両方を賄える。
+  ・一括復旧（案C）側の含意＝この群はフォルダ走査の対象から外す。指紋は持っているが探す先が無いので、
+    走査群に数えると内訳が「場所から自動で見つけて戻す N冊」と数え、CTA が約束した冊数を一致0のまま裏切る
+    （＝守れない約束）。内訳では「内容の記録がない古い取込」とも別行にする（原因も次の操作も違うため）。
+
   ★2026-08-20 実機裁定（②の3ボタンを縦3段へ）:
   ・症状＝実機で「場所から探す」だけが1段目に乗り、「自分で選ぶ」「やめる」が2段目で揃う〈1段＋2段〉の割れ。
   ・真因＝実装が dismissButton スロットに Row{自分で選ぶ, やめる} と2ボタンを詰めており、M3 の
@@ -176,6 +193,19 @@
   .dlg{position:absolute;left:20px;right:20px;top:50%;transform:translateY(-50%);z-index:8;
     background:var(--base);border-radius:16px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,.4)}
   .dlg h2{font-family:var(--gothic);font-size:16.5px;color:var(--ink);font-weight:700;letter-spacing:.03em;line-height:1.55;margin-bottom:12px}
+  /* 【2026-09-03 追記】見出しは〈題名節〉と〈操作の問い〉の2ブロックで、**題名節だけ最大2行・超過は末尾省略**、
+     操作の問いは長さに関係なく必ず全文を出す（実装も別々の Text＝BookshelfScreen.kt の ReimportDialogTitle）。
+     ・なぜ問いを別ブロックにするか: 1本の文に行数上限を掛けると、切り落とされるのが末尾＝
+       **「再取込しますか？」という操作そのもの**になり、何を訊かれているか分からないダイアログになる。
+       割っておけば上限に掛かるのは常に題名節だけで済む。
+     ・なぜ2行か（較正値）: ダイアログの縦は〈見出し＋本文3行＋ボタン行〉で埋まり、見出しに割ける余裕は
+       操作の問い1行を含めて3行ぶん＝題名節は2行。16.5px では1行およそ16字＝**32字まで見える**ので、
+       同シリーズの巻数違いを取り違えない程度には題名を判別できる。なろう系の長題（50字超が珍しくない）を
+       素通しすると見出しだけで4〜5行に伸び、本文とボタン行を押し下げてダイアログが崩れる。
+     ・⚠️ 省略に掛かると … が閉じ括弧『』と助詞「を」ごと消える（行末から切るため）。括弧を残すには題名を
+       実測して自前で詰める必要があり、それは「省略の見え」を新しく設計すること＝**別便のモック裁定が要る**。
+       現状は他画面（書名・章題）と同じ既定の省略に揃えてある。 */
+  .dlg h2 .wt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .dlg p{font-size:12.5px;color:var(--ink-soft);line-height:1.75;margin-bottom:16px}
   .dlg p .warn{color:var(--ink);font-weight:600}
   /* 取込元の手がかり行（②のみ＝選び直しの判断材料。意味を運ぶ値は --ink） */
@@ -292,7 +322,7 @@
       </div>
       <div class="scrim"></div>
       <div class="dlg">
-        <h2>『黒の魔王と契約した俺』を<br>元のPDFから再取込しますか？</h2>
+        <h2><span class="wt">『黒の魔王と契約した俺』を</span>元のPDFから再取込しますか？</h2>
         <p>記録されている取込元 PDF からもう一度変換します。<span class="warn">読書位置としおりは残ります。</span></p>
         <div class="dlg-acts"><button class="btn-cancel">やめる</button><button class="btn-go">再取込する</button></div>
       </div>
@@ -352,6 +382,31 @@
     </div>
     <p class="desc">contentSha256=NULL＝機械照合の材料が無い唯一の分岐。ここだけは人が選ぶしかない（黙って落とさず理由を言う）。同一判定は title＋author（BookDao 既存機序）。</p></div>
 
+    <!-- ③' なろう取込＋cache 消失（取込元PDF が端末に存在しない＝なろうで作り直すしかない） -->
+    <div class="wrap"><span class="mode">③' なろう取込・cache 消失（なろうで作り直す）</span>
+    <div class="phone" role="img" aria-label="案B ダイアログ なろうで作り直す（K下敷き）">
+      <div class="behind">
+        <div class="sb"><span>9:41</span><span class="r">5G ▾ ▮▮▮</span></div>
+        <div class="head"><div class="ttl"><h1>本棚</h1><span class="count">12冊</span></div></div>
+        <div class="chips"><span class="chip on">すべて</span><span class="chip">よみかけ</span><span class="chip">未読</span><span class="chip">読了</span></div>
+        <div class="scroll"><div class="grid">
+          <div class="bk">
+            <div class="cv" style="--band:hsl(205 42% 46%);--barx:31%;--barlen:44%"><span class="bar"></span><span class="vt">辺境伯の三男は魔導書の夢を見る</span><span class="miss">本文なし</span></div>
+            <div class="cap2"><span class="t">辺境伯の三男は魔導書の夢を見る</span>
+              <button class="dots" aria-label="メニュー"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button></div>
+            <div class="st">本文なし・タップで再取込</div>
+          </div>
+        </div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="dlg">
+        <h2><span class="wt">『辺境伯の三男は魔導書の夢を見る』を</span>なろうで作り直して再取込しますか？</h2>
+        <p>取込元の PDF は<span class="warn">端末に残っていない</span>ため、なろうで縦書きPDF をもう一度作って取り込みます。読書位置としおりは残ります。</p>
+        <div class="dlg-acts"><button class="btn-cancel">やめる</button><button class="btn-go">なろうで作り直す</button></div>
+      </div>
+    </div>
+    <p class="desc">sourceUri/sourceUrl とも NULL・ncode あり・cache 実体なし＝なろう縦書きPDF取込の本が復元された姿（cache は Auto Backup 対象外）。②の「場所から探す」も③の「PDFを選ぶ」も、この本には**存在しないファイルを探せ**と言うことになる＝出さない。確定を押すと取り込み画面（discovery/detail/&lt;ncode&gt;/import）へ送り、ユーザーが生成フローを1回通す。戻った PDF は指紋または題名＋著者で既存行へ復元（読書位置・しおり・追加日は不変）。</p></div>
+
     <!-- ④ Web 本 -->
     <div class="wrap"><span class="mode">④ Web 作品（sourceUrl あり）</span>
     <div class="phone" role="img" aria-label="案B ダイアログ Web 作品（K下敷き）">
@@ -370,7 +425,7 @@
       </div>
       <div class="scrim"></div>
       <div class="dlg">
-        <h2>『星降る夜の図書館』を<br>Webから再取得しますか？</h2>
+        <h2><span class="wt">『星降る夜の図書館』を</span>Webから再取得しますか？</h2>
         <p>作品ページからもう一度取得して復元します。<span class="warn">読書位置としおりは残ります。</span></p>
         <div class="dlg-acts"><button class="btn-cancel">やめる</button><button class="btn-go">再取得する</button></div>
       </div>

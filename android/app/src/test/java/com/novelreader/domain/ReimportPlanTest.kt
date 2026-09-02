@@ -250,15 +250,67 @@ class ReimportPlanTest {
         assertNull(plan.scanSha256)
     }
 
+    // ── cache も消えた なろう取込本＝「実行不能な提案」を出さないための ncode 保持 ─────────────
+    // 真因: uninstall→Auto Backup の復元後は、永続 URI 権限も cache 実体もどちらも戻らない。この本の
+    // 取込元PDF はユーザー領域に一度も存在しないため、③の導線（フォルダ走査／SAF ピッカー）は
+    // 構造的に実行不能。唯一残る手段は「なろうで縦書きPDF を作り直して取り込む」＝ncode が要る。
+
     @Test
-    fun `classifyReimport - ncode ありでも cache 不在なら従来どおり PickPdfNoRecord（正直に落ちる）`() {
-        // OS が逼迫時に cache を消した後の形。嘘の自動提案をせず、指紋があれば走査で救う③へ。
+    fun `classifyReimport - ncode あり＋cache 不在は ncode を運ぶ（なろうで作り直す導線の材料）`() {
+        // OS の cache 掃除後／uninstall→Auto Backup 復元後の形。③へ落ちること自体は従来どおりだが、
+        // 「SAF では絶対に見つからない本」であることを ncode で表明する（棚がこれで導線を割る）。
         val plan = classifyReimport(
             book(contentSha256 = "abc", ncode = "n1453lw"),
             hasPersistedRead = { true },
             cachedNarouPdfPath = { null },
         )
-        assertEquals(ReimportPlan.PickPdfNoRecord("abc"), plan)
+        assertEquals(ReimportPlan.PickPdfNoRecord("abc", narouNcode = "n1453lw"), plan)
+        assertEquals("なろうで作り直す導線へ送れる", "n1453lw", plan.narouRedownloadNcode)
+        // 自動復旧には入れない（生成フローは CSRF＋ワンタイムトークン制＝人が1回通す必要がある）。
+        assertFalse("無操作で戻せると約束しない", plan.isAuto)
+    }
+
+    @Test
+    fun `classifyReimport - なろう再取込の本はフォルダ走査の対象から外れる（守れない約束を作らない）`() {
+        // 指紋は持っているが探す先が無い（PDF はアプリ cache にしか無い）。走査対象に残すと一括復旧の
+        // 内訳が「場所から自動で見つけて戻す N冊」に数え、CTA が約束した冊数を一致0のまま裏切る。
+        val plan = classifyReimport(
+            book(contentSha256 = "abc", ncode = "n1453lw"),
+            hasPersistedRead = { true },
+            cachedNarouPdfPath = { null },
+        )
+        assertNull("走査キーを出さない＝buildScanTargets の対象にならない", plan.scanSha256)
+    }
+
+    @Test
+    fun `reimportBreakdown - なろう再取込群は走査群にも指紋なし群にも混ぜない（原因も次の操作も違う）`() {
+        val plans = listOf(
+            ReimportPlan.PickPdfPermissionLost("a.pdf", "sha-a"),   // 走査で戻る
+            ReimportPlan.PickPdfNoRecord("sha-b"),                  // 走査で戻る
+            ReimportPlan.PickPdfNoRecord(null),                     // v11 前＝1冊ずつ選ぶ
+            ReimportPlan.PickPdfNoRecord("sha-c", narouNcode = "n1"), // なろうで作り直す
+            ReimportPlan.PickPdfNoRecord("sha-d", narouNcode = "n2"),
+        )
+        val b = reimportBreakdown(plans)
+        assertEquals("走査で戻るのは2冊だけ", 2, b.scannable)
+        assertEquals("指紋なしは1冊だけ（なろう分を混ぜない）", 1, b.unscannable)
+        assertEquals("なろう再取込は2冊", 2, b.narouRedownload)
+        // 不変条件: ②③の総数＝走査＋指紋なし＋なろう再取込。
+        assertEquals(b.manualTotal, b.scannable + b.unscannable + b.narouRedownload)
+        // 一括では戻らずカードから1冊ずつ操作する群（内訳ダイアログの「残り N冊」）。
+        assertEquals(3, b.individualTotal)
+        // 一括の CTA が約束する冊数に、当たらない本を混ぜない。
+        assertEquals(2, b.recoverableTotal)
+    }
+
+    @Test
+    fun `narouRedownloadNcode - なろう再DL 以外の分岐では null（他分岐へ導線が漏れない）`() {
+        assertNull(ReimportPlan.AutoPdf("content://docs/a").narouRedownloadNcode)
+        assertNull(ReimportPlan.AutoWeb("https://example.com/w/1").narouRedownloadNcode)
+        assertNull(ReimportPlan.AutoCachePdf("/cache/pdf_import/n1.pdf", "n1").narouRedownloadNcode)
+        assertNull(ReimportPlan.PickPdfPermissionLost("a.pdf", "sha").narouRedownloadNcode)
+        // ncode を持たない旧取込（v20 前）は③のままで、なろう導線は出さない。
+        assertNull(ReimportPlan.PickPdfNoRecord("sha").narouRedownloadNcode)
     }
 
     @Test

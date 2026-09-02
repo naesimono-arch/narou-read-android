@@ -97,21 +97,13 @@
 
 - **[抽出] ADR 0041 の3決定**: ①字種写像の pdfminer 追従を全面撤去し web 原文一致へ（6種）②行→段落結合を撤回し抽出は行保持・結合は表示側へ
   ③`DetectedRules` は維持だが「予防であって実測に基づかない」をコメントへ明記。⚠️ **golden 全再採取と `CharClass` 改訂が道連れ**＝1便で通す。
-- **[権限] ADR 0043**: `settlePendingJob` の即時 `releasePersistableUriPermission` をやめ、本の生存中は保持（keepUris ② の前提へ実装を合わせる）。
-  **失敗文言も是正**（現在の「移動/削除済みか…」は真因と違う）。
 - **[なろう] ADR 0042**: 「なろうで読む」を押す前に**一度きりのダイアログ**（チェックで以後抑止）。文言は〈外部サイト／なろうの表示のまま／
   アプリの操作・表示設定・ふりがな機能は効かない〉。⚠️ **「ふりがなは付かず」は誤りなので主語をアプリ側へ直す**。
-- **[本棚D] ADR 0037 追記**: 空棚は**案B の文言**（`EmptyBookshelf.kt`）＋`BookshelfScreen.kt:1317` の FAB 条件に空棚を足す＋**検索画面への動線を併置**。M/P/J は非該当。
 - **[教示] 縦書き既定＝案1**: 教示デッキ組Aに「どちらで読みますか」の選択カードを1枚差す（本文を見る前に確定＝`NativeReadingScreen.kt:407` の `remember` 罠を踏まない）。
   正本＝`docs/design-candidates/candidates/vertical-default-onboarding-candidates.html`。⚠️ 実装が入ったら**ストア詳細説明 §3 の「初期設定は横書き」を書き換える**。
 - **[設定] Auto Backup＝案C・既定 OFF**: `BackupAgent`＋`fullBackupOnly` でトグル（`allowBackup` は実行時に変えられない＝唯一の手段）。
   設計＝`.claude/plans/auto-backup-design-2026-08-26.md`／UI＝`skins/candidates/settings-backup-row-candidates.html`。併せて **C' 宣言の精度上げ**と
   **プライバシーポリシー §5 の粒度上げ**（Data safety の申告と揃える）。
-- **[バグ] なろう縦書きPDF は復元後に実行不能な提案を出す**（Auto Backup から独立して立てた件・実害はトグルより大きい可能性）:
-  復元後 PDF 本は永続 URI 権限が戻らず0件になり、`ReimportPlan.kt:92-115` が「PDF のある場所を教えて」と出す。
-  **`ncode` からの再DL 経路は `PdfImportViewModel.kt:113` に既存**＝そこへ寄せられるか調べてから直す。
-- **[診断] `diagnostics/` の書き出し＝案B 専用画面**: 正本 `skins/diagnostics-export-K.html`（申し送りはモック冒頭コメント）。
-  ←もシステム Back も設定タブへ1段上がる（ADR 0026）＋遷移契約テストへ追加。入口の行は `settings-K.html`「データ」節に差分済み。
 - **[縦書き] 規範差分**: B-1〜B-3 の禁則を足す（**規範に無い字も実データに出る形で登録**＝ADR 0041 撤去後に実際に出る 301D/301F/FF5E/301C が対象）。
   B-11 の列高超過は**句読点だけぶら下げ・他は追い出す**。差分表＝`docs/knowledge/vertical-typeset-external-oracle-gap.md`。
 - **[意匠] 読書の3ピル＝案A（11px ゴシック）**: 3箇所の参照先を差し替え（`FontSubTitle` の他15箇所は不変・正本改訂も不要）。併せて

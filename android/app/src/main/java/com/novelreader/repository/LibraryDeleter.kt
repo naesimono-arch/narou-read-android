@@ -82,8 +82,10 @@ internal class LibraryDeleter(
             Log.w(TAG, "HTMLディレクトリの削除に失敗: ${book.htmlDirPath}")
         }
         // 取込元 PDF 本体の削除（オプトイン）と、取込元 URI 永続権限の解放。
-        // 本が消えた時点でこの URI の永続権限は保持不要（起動時掃除の keepUris 対象から外れ孤児化する）ため、
-        // 取込元削除の有無に関わらず必ず解放する（残すと端末上限128件を圧迫。次回起動の掃除でも拾えるが即時が明快）。
+        // ADR 0043 以降、取込の確定経路は永続権限を解放しない（本の生存中ずっと保持する）ため、
+        // **即時解放を行う唯一の地点がここ＝「本の死」**になる。取込元削除の有無に関わらず必ず解放する
+        // （本が消えれば起動時掃除の keepUris から外れて孤児化するので次回起動でも拾えるが、
+        //  端末上限128件の圧迫を次回起動まで持ち越さない方が明快）。
         val src = book.sourceUri ?: return@withContext SourceDeleteOutcome.NoSource
         val srcUri = Uri.parse(src)
         val outcome = if (!deleteSource) {
@@ -93,6 +95,10 @@ internal class LibraryDeleter(
             // 失敗要因（既に移動/削除済み=FileNotFoundException・権限失効=SecurityException・削除非対応
             // プロバイダ=UnsupportedOperationException・戻り値 false）を全て runCatching で吸収し、本削除は
             // 既に成立させたまま結末だけ返す（handover 提起③の失敗ハンドリング）。
+            // ⚠ 失敗要因の重みは ADR 0043 で入れ替わった: 0043 以前は取込直後に権限を解放していたため
+            // 「権限失効」が支配的（アプリを閉じた後は100%これ）だったが、権限を本の生存中保持するように
+            // した今は、残る要因は〈実体が既に移動/削除された〉〈削除に対応しないプロバイダ〉が主になる。
+            // 呼び出し側（BookshelfViewModel の失敗 Snackbar 文言）はこの新しい要因集合に合わせること。
             val ok = runCatching {
                 DocumentsContract.deleteDocument(context.contentResolver, srcUri)
             }.getOrDefault(false)

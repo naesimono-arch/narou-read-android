@@ -45,9 +45,28 @@ sealed interface ReimportPlan {
         val contentSha256: String?,
     ) : ReimportPlan
 
-    /** ③ sourceUri NULL（v20 前の旧取込等）＝取込元の手がかりが無い。
-     *  ただし contentSha256 は v11 以降なら入っている＝フォルダ走査では②と同じく機械照合できる。 */
-    data class PickPdfNoRecord(val contentSha256: String?) : ReimportPlan
+    /**
+     * ③ sourceUri NULL（v20 前の旧取込等）＝取込元の手がかりが無い。
+     * ただし contentSha256 は v11 以降なら入っている＝フォルダ走査では②と同じく機械照合できる。
+     *
+     * [narouNcode] は「なろう作品として紐付いている」ことの記録で、非 null なら〈なろうの縦書きPDF を
+     * もう一度生成して取り込む〉という **実行可能な** 復旧手段が残っていることを意味する
+     * （導線＝nav ルート `discovery/detail/{ncode}/import`＝`ui.discovery.PdfImportScreen`）。
+     *
+     * なぜ分類がこれを運ぶのか（棚側で book.ncode を見れば済ませない理由）: 「取込元PDF がユーザー領域に
+     * 一度も存在しない＝SAF で探す提案が構造的に実行不能になる本か」の定義は分類側の責務で、棚が独自に
+     * 条件を書くと定義が二重化して片方だけ腐る（[countMissingContentTargets] の KDoc と同じ理由）。
+     *
+     * ⚠ なぜ自動復旧（[isAuto]）にできないか（ADR 0011 の実測）: なろうの縦書きPDF は
+     * 〈目次の POST フォーム（ページ毎 CSRF トークン）→ 生成ページ → ワンタイム pdftoken → 実体 URL〉の
+     * 多段フローでしか実体に到達できず、直 URL をプログラムで組み立てて DL することは技術的に不可能。
+     * かつ生成ページ（広告）を迂回する純 HTTP の機械化は規約違反で検討対象外。よって人が画面を1回通す
+     * 必要があり、[AutoCachePdf] のような無操作復旧にはできない。
+     */
+    data class PickPdfNoRecord(
+        val contentSha256: String?,
+        val narouNcode: String? = null,
+    ) : ReimportPlan
 
     /** ④ Web 取込本（sourceUrl あり）＝作品ページから自動で再取得できる。 */
     data class AutoWeb(val sourceUrl: String) : ReimportPlan
@@ -61,7 +80,9 @@ sealed interface ReimportPlan {
      * 落とすと「PDF のある場所から探しますか？」と SAF ピッカーを出すが、その PDF はアプリ専用 cache に
      * しか存在せず SAF から辿れない（/sdcard/Download にも無いことを実測）＝提案が実行不能になる。
      * 案X のフォルダ走査でも救えない（ユーザーの手元フォルダに PDF ファイルが無いため）。
-     * cache の現存だけが唯一の到達手段なので、③より先にここで拾う。
+     * cache の現存が **無操作で戻せる唯一の** 到達手段なので、③より先にここで拾う
+     * （cache も消えた場合の受け皿＝[PickPdfNoRecord] の narouNcode＝なろうで作り直す。
+     *  そちらは人が生成フローを1回通す必要があり無操作では戻せない）。
      *
      * [ncode] は再変換の投入時に紐付けを引き継ぐために運ぶ（万一ハッシュ/題名照合が既存行へ合流
      * しなかったときでも、新規行がなろう紐付けを失わないため）。
@@ -76,11 +97,17 @@ sealed interface ReimportPlan {
      * フォルダ走査（案X）で機械照合するときのキー。null＝走査では戻せない。
      * ①①'④を除外するのは、取込元の記録・cache 実体から直接戻せる本を重い全走査の対象に混ぜないため
      * （①①'は再変換を、④はWeb再取得を既に投入済み＝二重取込になる）。
+     *
+     * ③のうち [PickPdfNoRecord.narouNcode] を持つ本も除外する（ADR 0043 実装便）。理由は「重複投入」では
+     * なく **走査が構造的に当たらない** こと: その PDF はアプリ cache にしか存在せず、ユーザーのフォルダを
+     * どれだけ調べても一致しない。ここを残すと一括復旧の内訳が「PDFのある場所から自動で見つけて戻す N冊」
+     * に数え、CTA が「N冊を再取込する」と約束したうえで一致0のまま終わる＝守れない約束になる
+     * （同じ轍＝[AutoCachePdf] の KDoc）。この本の復旧は棚カードの「なろうで作り直す」が担う。
      */
     val scanSha256: String?
         get() = when (this) {
             is PickPdfPermissionLost -> contentSha256
-            is PickPdfNoRecord -> contentSha256
+            is PickPdfNoRecord -> if (narouNcode != null) null else contentSha256
             is AutoPdf, is AutoWeb, is AutoCachePdf -> null
         }
 }
@@ -107,7 +134,16 @@ fun classifyReimport(
         val ncode = book.ncode
         val cached = ncode?.let(cachedNarouPdfPath)
         if (ncode != null && cached != null) return ReimportPlan.AutoCachePdf(cached, ncode)
-        return ReimportPlan.PickPdfNoRecord(book.contentSha256)
+        // cache が消えた なろう取込本（uninstall→Auto Backup 後は必ずこの形＝cache はバックアップ対象外で、
+        // 復元後は永続 URI 権限も cache 実体もどちらも戻らない）は、取込元PDF がユーザー領域に一度も
+        // 存在しない＝「PDFのある場所を教えて」も「PDFを選ぶ」も構造的に実行できない。ncode を運んで
+        // 〈なろうで作り直して取り込む〉導線へ送れるようにする（narouNcode の KDoc）。
+        // これに伴い走査キー（[ReimportPlan.scanSha256]）は null になる＝フォルダ走査の対象から外れる
+        // （理由は scanSha256 の KDoc）。sourceUri NULL には「書込権限を取れず sourceUri を記録できなかった
+        // SAF 取込本に、後から NcodeLinkSheet で ncode を手動紐付けした本」も混じりうるが、その本も
+        // なろう再取込で戻せる（作り直した PDF は指紋が変わっても題名＋著者で既存行へ復元される
+        // ＝PdfBookImporter ④）ため、救済経路を失わない。
+        return ReimportPlan.PickPdfNoRecord(book.contentSha256, narouNcode = ncode)
     }
     return if (hasPersistedRead(sourceUri)) {
         ReimportPlan.AutoPdf(sourceUri)
@@ -183,18 +219,35 @@ data class ReimportBreakdown(
     val scannable: Int,
     /** ②③のうち内容指紋が無い＝走査では戻せず1冊ずつPDFを選ぶしかない冊数（v11 前の旧取込）。 */
     val unscannable: Int,
+    /** ③のうち「なろうで作り直す」でしか戻せない冊数（取込元PDF が端末に存在しない＝ADR 0043 実装便）。
+     *  [unscannable] と束ねない理由: あちらの文言は「内容の記録がない古い取込」で、こちらは指紋を持つのに
+     *  探す先が無い本＝原因が違う。同じ数字に混ぜると内訳がユーザーに嘘をつく。 */
+    val narouRedownload: Int = 0,
 ) {
     val total: Int get() = autoPdf + autoWeb + autoCachePdf + pickPermissionLost + pickNoRecord
 
     /** 取込元の記録・cache 実体だけで戻せる冊数（①＋①'＋④＝確認だけで実行できる分）。 */
     val autoTotal: Int get() = autoPdf + autoWeb + autoCachePdf
 
-    /** 取込元の記録では戻せない冊数（②＋③）。内訳は [scannable] ＋ [unscannable]（不変条件）。 */
+    /** 取込元の記録では戻せない冊数（②＋③）。
+     *  内訳は [scannable] ＋ [unscannable] ＋ [narouRedownload]（不変条件）。 */
     val manualTotal: Int get() = pickPermissionLost + pickNoRecord
+
+    /** 一括操作では戻らず、カードから1冊ずつ操作が要る冊数（指紋なし＋なろう再取込）。 */
+    val individualTotal: Int get() = unscannable + narouRedownload
 
     /** 一括復旧のワンアクションで戻る見込みの冊数（自動＋フォルダ走査）。CTA の冊数表示に使う。 */
     val recoverableTotal: Int get() = autoTotal + scannable
 }
+
+/**
+ * 「なろうでPDFを作り直して取り込む」導線へ送れる本の Nコード（null＝その手段は無い）。
+ * 棚の再取込ダイアログが分岐条件に使う（when の枝では型が [ReimportPlan] のままなので拡張で受ける）。
+ * ここに集約するのは、判定条件を棚に書き写して定義を二重化させないため（[ReimportPlan.PickPdfNoRecord] の
+ * narouNcode の KDoc 参照）。
+ */
+val ReimportPlan.narouRedownloadNcode: String?
+    get() = (this as? ReimportPlan.PickPdfNoRecord)?.narouNcode
 
 /** 検出結果から内訳冊数を数える（一括確認ダイアログの表示データ）。 */
 fun reimportBreakdown(plans: Collection<ReimportPlan>): ReimportBreakdown {
@@ -207,7 +260,9 @@ fun reimportBreakdown(plans: Collection<ReimportPlan>): ReimportBreakdown {
         pickPermissionLost = plans.count { it is ReimportPlan.PickPdfPermissionLost },
         pickNoRecord = plans.count { it is ReimportPlan.PickPdfNoRecord },
         scannable = manual.count { it.scanSha256 != null },
-        unscannable = manual.count { it.scanSha256 == null },
+        // 走査も選び直しも効かない群のうち、なろう再取込で戻せる本は別勘定にする（原因も操作も違う）。
+        unscannable = manual.count { it.scanSha256 == null && it.narouRedownloadNcode == null },
+        narouRedownload = manual.count { it.narouRedownloadNcode != null },
     )
 }
 

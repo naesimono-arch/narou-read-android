@@ -55,6 +55,8 @@ class SettingsScreenKShioriDebugTipTest {
                     onFollowSystem = {},
                     currentSkin = Skin.MEIKAI_K,
                     onOpenWardrobe = {},
+                    // 「データ」節の〈診断の記録〉行の飛び先。この観点では叩かないので no-op。
+                    onOpenDiagnosticsExport = {},
                     skinSwitchingEnabled = true,
                     shioriHighLoadRowVisible = rowVisible,
                     shioriDebugTipIndex = tipIndex,
@@ -99,6 +101,8 @@ class SettingsScreenKShioriDebugTipTest {
                     onFollowSystem = {},
                     currentSkin = Skin.MEIKAI_K,
                     onOpenWardrobe = {},
+                    // 「データ」節の〈診断の記録〉行の飛び先。この観点では叩かないので no-op。
+                    onOpenDiagnosticsExport = {},
                     skinSwitchingEnabled = true,
                     shioriHighLoadRowVisible = true,
                     shioriDebugTipIndex = current,
