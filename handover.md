@@ -55,8 +55,12 @@
 > 所見の詳細＝`.claude/plans/archive/indep-reimpl-experiment-2026-08-30.md`＋`~/indep-reimpl/diff-work/diff-report.md`。
 > 第二実装 `~/naro-pdf-engine/` の扱いは awaiting-human 裁定待ち＝**裁定前に消さない**。
 
-- **[web 原文オラクルの回帰テスト導入]**（最優先の方法論的修正）: golden は旧 Python 複製＝系譜内で、下記欠陥を検出できない構造。
-- **[抽出コア欠陥6クラスの真因調査→修正]** S1 半角スペース脱落／S2a U+FFFD／S3 空行復元全滅／S4a ルビ親範囲／S4b 傍点ルビ／S7 `'` 行頭移動（症状・規模＝一次情報 §4。症状でなく真因から）。
+- **[S3 空行復元のオラクル検証]**（2026-09-02 時点で唯一未着手）: S1/S2a/S4a/S4b/S7 は真因修正済み・
+  `WebAnchoredOracleTest` が回帰を見張る（`android/app/src/test/java/com/novelreader/pdf/WebAnchoredOracleTest.kt`）。
+  S3（空行復元）だけは対象 PDF N0833HI が `.gitignore` 済みで CI から参照できず未検証＝
+  ページ抜き fixture 化の方針は承認済み（本節末尾の「前提3件の裁定」とは別軸）。着手は
+  ①全文版からの抽出結果と突合できる形でページ抜き PDF を作る ②抽出が全文版と一致することを検証
+  ③fixture化してオラクルテストへ追加、の順。
 - **[縦書き組版の規範突合]** `CharClass` ⇄ UTR#50・`LineBreaker` 禁則 ⇄ JLReq（＝`docs/knowledge/vertical-typeset-external-oracle-gap.md`。差分は棚卸し→人間裁定）。
 - **[計測値の訂正の波及]** `measure_read_residency.py` に欠陥2件（文字→トークン換算が 4.8 倍ずれ／分母が `cache_read` でなくその 15.6%）。knowledge 2本は訂正済み。残り＝①`CLAUDE.md`・`AGENTS.md` の「実測 4.3%」を補正値（約5.6%）へ差し替え＝**所管外・要監督** ②独立実装との突合は**完了**＝構成比は全区分 2.4pt 以内で一致・絶対値のみ3欠陥（換算係数／分母／分割イベントの usage 複製）③スクリプト自体を直すかの裁定（直すと過去実測との比較可能性が切れる＝いまは意図的に未修正）。`measure_session_length_cost.py` は再現性良好＝訂正不要。
 - **[前提3件の裁定＝人間へ]** 材料は揃った（`docs/knowledge/extraction-charmap-diverges-from-web-source.md`・`naro-source-is-line-oriented.md`・`dimension-autodetect-was-preventive.md`）。裁定対象＝①字種写像の pdfminer 追従を撤去するか（golden 再採取と `CharClass` 改訂が道連れ）②行→段落結合を維持するか撤回するか ③寸法自動検出の去就。⚠️ **awaiting-human へ移す項目**＝Claude 側で動かせるのはここまで。なお現行の段落誤り率は**測れていない**（ルビのインライン記法が本文の《》と分離できず、比較可能な話が 1.8% に落ちるため）。
