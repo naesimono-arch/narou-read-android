@@ -42,10 +42,10 @@ EXPECTED = [
      "栞書影の縦組み題字が dp 固定で、2.0 側だけ広いまとめ幅により隣接2列が融合した産物"),
     ("BookshelfK_list_mixed_light", "green", "green",
      "同上の融合（塊 36x16px＝縦横比 2.25）"),
-    ("BookshelfK_grid_mixed_light", "green", "red",
-     "既知の穴: 同じ PNG が粒度1.0で14/11・粒度2.0で18/15＝異なる粒度どうしを突き合わせている産物"),
-    ("IntroOverlayK_about_intro_light", "green", "red",
-     "既知の穴: 2.0 の絵が粒度1.0で0・粒度2.0で1＝同上"),
+    ("BookshelfK_grid_mixed_light", "green", "green",
+     "粒度1.0で14/11・粒度2.0で18/15＝どちらの粒度でも増えていない（⑤で解消）"),
+    ("IntroOverlayK_about_intro_light", "green", "green",
+     "粒度1.0で0/0・粒度2.0で0/1＝粒度2.0でしか増えない（⑤で解消）"),
 ]
 
 

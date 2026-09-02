@@ -10,7 +10,8 @@
   ①狭い（画面幅の [MAX_WIDTH_RATIO] 以下）インク塊が、②x 範囲を [MIN_X_OVERLAP] 以上共有し幅も高さも
   同程度の塊を真下に持ち（間隔は上の塊の高さの [MAX_V_GAP_RATIO] 倍以内＝1行分まで）、③**その行に
   自分しか居ない**（同じ y 帯の最近傍インクが字高の [ISOLATION_RATIO] 倍以上離れている）、
-  ④**塊が1文字の形をしている**（幅が自身の高さの [MAX_ASPECT] 倍以下）。
+  ④**塊が1文字の形をしている**（幅が自身の高さの [MAX_ASPECT] 倍以下）、
+  ⑤**[GRANULARITIES] のどの粒度で測っても 2.0 の本数が 1.0 を上回る**。
   ③が本検査の要＝1行1文字に潰れた列と、複数字が並ぶ**正常な折返し**を分ける唯一の軸。
 
 なぜ ③ が要るのか（2026-08-06 の再較正・初版の署名は成立していなかった）: 初版は「縦の間隔が字送り相当
@@ -37,6 +38,14 @@ fontScale 比で伸ばす下の正規化は「インクは全て sp 追従で拡
 名乗る以上あり得ない縦横比になる。実測でも真の1文字は最大 1.22、融合塊は最小 2.20 と谷が空いている。
 なぜ正規化そのものを止めないか: 粒度を 1.0 に固定して測り直すと corpus の赤は 6→12 件へ増える
 （2.0 の sp 文字が細かく砕けて別の偽陽性が出る）＝下の正規化の理由は今も成立している。
+
+なぜ ⑤ が要るのか（2026-09-02・④と同じ穴の一般解）: ④は融合が「横に広い塊」として現れた場合しか
+落とせない。根にあるのは**1.0 の絵を粒度1.0 で、2.0 の絵を粒度2.0 で測った本数を突き合わせている**ことで、
+dp 固定インクにはこの土俵合わせが不公平に働く（絵は同じなのに測り方だけ変わる）。そこで両方の粒度で
+測り、**どちらでも増えている**ことを赤の条件にする。本物の 1行1文字は字の周りが大きく空くので粒度を
+変えても連なりとして残る——実測でも是正前の実物2件（空棚 CTA・4桁話数ラベル）は両粒度で 0→1 / 0→3 と
+赤のままで、既知の産物4件は緑へ落ちた。⚠️ **これで corpus の赤が減った分だけ感度が落ちていないことは
+`test_check_golden_label_split.py` が真陽性 fixture で固定している**＝緩めるなら必ずそちらも通すこと。
 
 なぜ塊の粒度をスケールで正規化するか: 塊のまとめ幅を絶対 px（3px）で固定すると、2.0 の絵だけが
 細かく砕けて「1.0 より塊が増えた」が構造的に起きる（同じ UI を2倍で描いただけで字間も2倍になるため）。
@@ -88,6 +97,8 @@ ISOLATION_RATIO = 0.4
 #                  （1.22＝D 書影の縦組み題字の実塊、2.20＝隣接2列が融合した偽の塊）。
 #                  ⚠️ 上げると dp 固定要素の融合を拾い直し、下げると全角1文字を落とす。
 MAX_ASPECT = 1.4
+#  GRANULARITIES — 判定に使う粒度。1.0 と 2.0 の両方で増えていることを赤の条件にする（下の⑤）。
+GRANULARITIES = (1.0, 2.0)
 
 
 def _isolated(blob, all_blobs):
@@ -113,11 +124,24 @@ def _isolated(blob, all_blobs):
 def vertical_stacks(path, scale):
     """1行1文字へ崩れた連なり [(x1, y1, x2, y2), ...]（上の塊の左上と下の塊の右下）。
 
-    [scale] は当該 golden の fontScale。塊の粒度をこの比で伸ばして 1.0 と 2.0 の土俵を揃える。
+    [scale] は塊の粒度に使う比。塊の粒度をこの比で伸ばして 1.0 と 2.0 の土俵を揃える。
+    """
+    return stacks_in(ink_of(path), scale)
+
+
+def ink_of(path):
+    """PNG を1回だけ復号してインクマスク (width, height, mask) にする。
+
+    同じ絵を複数の粒度で測るため（case_verdict）、復号とマスク化を粒度ループの外へ出してある。
     """
     width, height, rows = gp.decode_rgba(path)
     bg = gp.background_color(width, height, rows)
-    mask = gp.ink_mask(width, height, rows, bg, INK_THRESHOLD)
+    return width, height, gp.ink_mask(width, height, rows, bg, INK_THRESHOLD)
+
+
+def stacks_in(ink, scale):
+    """[ink_of] の結果に対する [vertical_stacks] 本体。"""
+    width, height, mask = ink
     all_blobs = gp.components(
         width, height, mask,
         gap=max(1, round(H_GAP_BASE * scale)),
@@ -164,9 +188,15 @@ def case_verdict(files):
     **判定の唯一の入口**＝CI が叩く main も回帰テスト（test_check_golden_label_split.py）もここを通す。
     テスト側で述語を組み直すと「テストは緑だが本番の判定は変わっている」が成立してしまうため。
     """
-    small = vertical_stacks(files["1.0"], 1.0)
-    large = vertical_stacks(files["2.0"], 2.0)
-    if len(large) > len(small):
+    ink_small, ink_large = ink_of(files["1.0"]), ink_of(files["2.0"])
+    # 各粒度の内側で 1.0 と 2.0 を突き合わせる（粒度をまたいだ本数を比べない）。
+    per_granularity = [
+        (stacks_in(ink_small, g), stacks_in(ink_large, g)) for g in GRANULARITIES
+    ]
+    # 表示は従来どおり「各絵を自分の fontScale の粒度で測った本数」＝人が絵と照合しやすい読み。
+    small = per_granularity[0][0]
+    large = per_granularity[-1][1]
+    if all(len(b) > len(a) for a, b in per_granularity):
         return "red", len(small), large
     if len(small) > len(large) and small:
         return "vanished", len(small), large
