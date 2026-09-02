@@ -108,6 +108,9 @@ M/P/J は〈没入面／一覧面〉の2面を持ち、**没入面は選択モ�
 
 ## ①AutoPdf が出ない真因と、出すための前提（2026-09-02・emulator-5554 / AVD `nr_b` で確定）
 
+**撮った実物と再現用の道具＝`docs/verification-shots/c1-2026-09-02/`**（git 追跡下。入口は同ディレクトリの
+`README.md` と `index.html`＝`mockview` で開く）。
+
 **エミュのプロバイダ固有ではない。SAF 取込では構造的に踏めない**——取込成功の直後に
 `repository/PendingJobStore.kt:107-110`（`settlePendingJob`）が `releasePersistableUriPermission` を呼ぶため、
 `books.sourceUri` は残るのに**永続 URI 権限だけが即座に返却される**。よって

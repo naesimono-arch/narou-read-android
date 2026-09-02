@@ -39,6 +39,16 @@
   **調査済みで潰れた経路（＝同じ道を再探索しない）と次にやるべきこと＝`docs/knowledge/chapter-transition-scroll-jump-paths-ruled-out.md` が正本**。
   ⚠️ 機械の総当たりより**遭遇時の条件採取**が本筋＝`awaiting-human.md` §1-4。再現条件が取れたら Robolectric で赤を出してから直す。
 
+- **[取込元PDF削除が権限失効で失敗しうる（仕様か不具合か未判断）]**（2026-09-02・エミュ検分の派生）:
+  **症状（推定）**＝本を削除するとき取込元PDFも消す選択をしても、`DocumentsContract.deleteDocument` に要る書込権限が
+  既に無く失敗しうる。**機序**＝`PendingJobStore.kt:107-110` の `settlePendingJob` が取込成功の直後に
+  `releasePersistableUriPermission` を呼ぶ一方、同ファイル `releaseOrphanedPermissions` の keepUris ②は
+  「books.sourceUri の権限は本の生存中ずっと保持する」前提で書かれている＝**両者が食い違っている**
+  （実測: 取込直後の URI は `dumpsys activity permissions` で `persistable=0x3 persisted=0x0`）。
+  ⚠️ **未確認**＝削除フローを実際に走らせて失敗するところまでは踏んでいない（権限側の観測だけ）。
+  **確かめ方**＝エミュで SAF 取込→本削除で「取込元PDFも削除」を選び、`/sdcard/Download` の実体が消えるかを見る
+  （消えなければ症状が確定。ここで初めて〈解放が早すぎる〉のか〈keepUris のコメントが古い〉のかを裁定できる）。
+
 ## 独立再実装実験の持ち帰り（2026-08-30）
 
 > 方法論・適用条件＝`docs/knowledge/independent-reimpl-anchoring-method.md`／
