@@ -86,6 +86,17 @@ object PrefKeys {
     /** 組C「さがしかた」を出し切ったか（出す条件＝未消費 かつ 検索画面が描かれてから）。 */
     const val INTRO_SEARCH_SHOWN = "intro_search_shown"
 
+    // ── app_prefs: なろうの面の注意喚起（ADR 0042・ui/NarouExternalPageNoticeDialog.kt）──
+
+    /**
+     * 「ここからは小説家になろうのページです」の注意喚起を今後出さないか（Boolean・既定 false＝出す）。
+     *
+     * 立つのは**「次回から表示しない」を選んだうえで閉じた時だけ**。チェックせずに閉じた回は焼かない
+     * ＝読み落とした人にもう一度届く余地を残す（同型の先例＝[BATTERY_DIALOG_DISMISSED]）。
+     * ⚠️ キー文字列は不変（冒頭の【重要】参照）。
+     */
+    const val NAROU_EXTERNAL_NOTICE_SUPPRESSED = "narou_external_notice_suppressed"
+
     // ── app_prefs: 本棚（BookshelfScreen / skins 配下）──
     // 使用側の直書きは 2026-07-27 の純構造リファクタで全数この定数参照へ張替済み。
     // 値の正本はこちら＝新規の読み書きも必ずこの定数を参照すること。

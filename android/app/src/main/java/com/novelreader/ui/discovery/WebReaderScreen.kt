@@ -33,6 +33,7 @@ import com.novelreader.narou.narouEpisodeUrl
 import com.novelreader.narou.narouWorkUrl
 import com.novelreader.narou.parseNarouEpisodeNumber
 import com.novelreader.viewmodel.WebReaderViewModel
+import com.novelreader.ui.NarouExternalPageNoticeHost
 import com.novelreader.ui.theme.FontTopBarTitle
 
 /**
@@ -194,6 +195,14 @@ fun WebReaderScreen(
                     }
                 },
             )
+
+            // 「ここからは小説家になろうのページです」の一度きりの注意喚起（ADR 0042 決定1＝案A）。
+            // なぜ入口（作品詳細・本棚Webカード・各スキンの一覧面）ではなくここか: アプリ内 WebView へは
+            // ルート web-reader/{ncode}/{startEpisode} ただ1つを通ってしか入れない＝ここに1つ置けば
+            // 入口の全数を覆え、入口が増えても抜けない。上の AndroidView より後に置くのは
+            // 「ページは背後で読み込み続ける」＝待ち時間が説明の時間に化ける、という案A の要点のため
+            // （実体は別ウィンドウの Dialog なので描画順ではなく、読み込みを止めないことが要点）。
+            NarouExternalPageNoticeHost()
         }
     }
 }

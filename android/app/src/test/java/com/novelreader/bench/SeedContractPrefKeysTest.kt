@@ -101,6 +101,17 @@ class SeedContractPrefKeysTest {
         "IMMERSIVE_HINT_SHOWN",
         "BATTERY_DIALOG_DISMISSED",
         "NOTIF_PRIMING_SHOWN",
+        // なろう外部ページの一度きり注意喚起（ADR 0042）。上の KDoc の但し書き——「一度きりの案内
+        // フラグは新品端末だと案内 UI が挟まって面が変わりうる」——は **このキーには当たらない**。
+        // ダイアログが出るのは WebReaderScreen だけで、そこへ入る唯一のルート
+        // web-reader/{ncode}/{startEpisode} をどのベンチも踏まないため（＝新品端末でも差が出ない）。
+        // 根拠3点（2026-09-03 に実測）:
+        //  (a) :macrobenchmark・:baselineprofile のソースに WebReader/なろう/web-reader の参照が 0 件。
+        //  (b) LibrarySeedReceiver が播く本は ncode=null ＝本棚に Web 由来カードが1枚も無い
+        //      ＝なろうへ出る導線そのものが生えない。
+        //  (c) ベンチが掴む徴は蔵書題・「本棚に戻る」・「文字と組版」等だけで「なろうで読む」を含まない。
+        // よってシーダー側の固定も要らない（要るなら mustPin へ移すこと）。
+        "NAROU_EXTERNAL_NOTICE_SUPPRESSED",
         "REIMPORT_SWEEP_SEEN_IDS",
         "PDF_LIBRARY_TREE_URI",
         "DIAG_SESSION_OPEN", "DIAG_LAST_SEEN_AT", "DIAG_LAST_SCREEN",

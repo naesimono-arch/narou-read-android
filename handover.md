@@ -97,8 +97,6 @@
 
 - **[抽出] ADR 0041 の3決定**: ①字種写像の pdfminer 追従を全面撤去し web 原文一致へ（6種）②行→段落結合を撤回し抽出は行保持・結合は表示側へ
   ③`DetectedRules` は維持だが「予防であって実測に基づかない」をコメントへ明記。⚠️ **golden 全再採取と `CharClass` 改訂が道連れ**＝1便で通す。
-- **[なろう] ADR 0042**: 「なろうで読む」を押す前に**一度きりのダイアログ**（チェックで以後抑止）。文言は〈外部サイト／なろうの表示のまま／
-  アプリの操作・表示設定・ふりがな機能は効かない〉。⚠️ **「ふりがなは付かず」は誤りなので主語をアプリ側へ直す**。
 - **[教示] 縦書き既定＝案1**: 教示デッキ組Aに「どちらで読みますか」の選択カードを1枚差す（本文を見る前に確定＝`NativeReadingScreen.kt:407` の `remember` 罠を踏まない）。
   正本＝`docs/design-candidates/candidates/vertical-default-onboarding-candidates.html`。⚠️ 実装が入ったら**ストア詳細説明 §3 の「初期設定は横書き」を書き換える**。
 - **[設定] Auto Backup＝案C・既定 OFF**: `BackupAgent`＋`fullBackupOnly` でトグル（`allowBackup` は実行時に変えられない＝唯一の手段）。
