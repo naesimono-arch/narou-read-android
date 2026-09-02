@@ -132,9 +132,11 @@
   `docs/knowledge/toc-push-tail-not-reproduced-in-macrobench.md` が正本。
   計測の作法（アニメが走っていない状態を率で比較しない）＝`docs/knowledge/ranking-pager-jank-slow-ui-thread.md`。
 
-- **[perf] 縦書き本文の組版＝A+C+E は完了・次は D（advance キャッシュ）→ 8/9**
-  （裁定と各項目の中身＝`.claude/plans/reading-render-perf-triage-2026-08-18.md`。⚠️ **D の「定数化」は不採用**＝
-  書体差で版面がずれる。`(unitText, charClass, sizePx)` キーのキャッシュだけが安全）:
+- **[perf] 縦書き本文の組版＝A+C+D+E は完了・次は 8 → 9**
+  （裁定と各項目の中身＝`.claude/plans/reading-render-perf-triage-2026-08-18.md`。D は 2026-09-02 に
+  `(unitText, charClass, sizePx)` キー・4,096 LRU で実装済み＝**実機での効き幅は未計測**。
+  ⚠️ 覆いの寿命は組版器1個＝章1つ。**プロセス常駐にしてはいけない**＝書体が delegate の属性でキーに無く、
+  共有すると D が不採用にした「書体差で版面がずれる」を自作する）:
   ⚠️ **章送りの composition 段の同期組版は据え置き＝意図**。版面が無い item を幅0で置くと章頭で一斉に実寸へ跳ね、
   `scrollToItem(index, offset)` の offset が幅0の item に対して解決されて**着地がずれる**
   ＝報告バグ「章遷移で上部にジャンプ」と**同じ形の事故を自作する**。D でもここを外さないこと。

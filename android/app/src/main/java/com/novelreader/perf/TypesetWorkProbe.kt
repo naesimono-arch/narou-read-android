@@ -59,7 +59,10 @@ object TypesetWorkProbe {
 
     /**
      * [com.novelreader.typeset.FontMetricsProvider.verticalAdvance] の実装（Paint 計測）呼び出し回数。
-     * 組版コストの最小粒度＝**1字1回**の Paint 実測。横書きには対応物が Kotlin 側に存在しない
+     * ⚠️ **2026-09-02 の advance キャッシュ導入以降、これは「1字1回」ではなく〈キャッシュを外した回数〉**
+     * ＝同じ `(unitText, charClass, sizePx)` の2回目以降は数えない。組版した字数を知りたいなら `v_glyphs`、
+     * 当たり回数を知りたいなら `CachingFontMetrics.stats()` を拾うプローブが別に要る。
+     * 横書きには対応物が Kotlin 側に存在しない
      * （Compose のテキストエンジンがネイティブで済ませる）＝縦書き固有コストはここに現れる。
      */
     private val verticalAdvanceCalls = AtomicLong()
@@ -134,7 +137,7 @@ object TypesetWorkProbe {
         verticalTypesetGlyphsInComposition.addAndGet(glyphs.toLong())
     }
 
-    /** 1ユニット分の縦送り実測（Paint）。段落あたり数百〜千数百回来る最小粒度。 */
+    /** 1ユニット分の縦送り実測（Paint）。⚠️ キャッシュ導入後は**外れたときだけ**来る＝回数は異なり字数に近い。 */
     fun onVerticalAdvance() {
         if (!enabled) return
         verticalAdvanceCalls.incrementAndGet()

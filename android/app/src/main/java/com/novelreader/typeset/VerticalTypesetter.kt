@@ -88,8 +88,33 @@ interface VerticalTypesetter {
  * 既定の自前組版器。
  * 処理順: segments を書記素ユニット列へ展開 → LineBreaker で列へ折る →
  * 列ごとに x（列0＝最右）を確定 → RubyPlacer → ParagraphLayout。
+ * 寸法源（[FontMetricsProvider]）は内側で [CachingFontMetrics] に覆われる＝下の構築子の KDoc。
  */
-class DefaultVerticalTypesetter(private val metrics: FontMetricsProvider) : VerticalTypesetter {
+class DefaultVerticalTypesetter internal constructor(
+    metrics: FontMetricsProvider,
+    cacheAdvances: Boolean,
+) : VerticalTypesetter {
+
+    /**
+     * 本番の入口。寸法源は必ず [CachingFontMetrics] で覆う（改善 D＝advance キャッシュ）。
+     *
+     * なぜ組版器の内側で覆うか: この覆いが正しいのは「同じ書体の同じ delegate に対して」だけで、
+     * 妥当な寿命は〈その delegate を使い続ける単位〉＝組版器そのもの。組版器は章ごとに1つ
+     * （`VerticalChapterContent` の `remember(content)`）なので、内側に持たせるだけで寿命が章に一致し、
+     * 呼び出し側が覆い忘れる余地も消える。
+     */
+    constructor(metrics: FontMetricsProvider) : this(metrics, cacheAdvances = true)
+
+    /**
+     * 実際に叩く寸法源。[cacheAdvances] が false のときだけ素の delegate をそのまま使う。
+     *
+     * なぜ切れる縫い目を残すか: D の裁定は「実測値を覚えるだけ・定数化はしない」なので、
+     * **キャッシュの有無で版面が1ビットも変わらない**ことを機械で固定し続けられる形が要る。
+     * その対照群を同じ組版器で取るための internal 構築子（`CachedAdvanceLayoutIdentityTest`）で、
+     * 本番の public 構築子は1引数のまま＝出荷経路に切替の余地は無い。
+     */
+    private val metrics: FontMetricsProvider =
+        if (cacheAdvances) CachingFontMetrics.wrapping(metrics) else metrics
 
     override fun typeset(segments: List<TextSegment>, constraints: TypesetConstraints): ParagraphLayout {
         val units = ArrayList<TypesetUnit>()
