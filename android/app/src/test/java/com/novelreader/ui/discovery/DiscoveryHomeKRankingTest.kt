@@ -17,6 +17,7 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -32,11 +33,13 @@ import androidx.compose.ui.unit.width
 import com.novelreader.discovery.model.workSummary
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.ui.skins.k.RankingAnchorTestTag
+import com.novelreader.ui.skins.k.rankingPageLayerTestTag
 import com.novelreader.ui.skins.k.rankingPageTestTag
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.ui.theme.Skin
 import com.novelreader.viewmodel.DiscoveryUiState
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -166,6 +169,88 @@ class DiscoveryHomeKRankingTest {
         composeTestRule.waitForIdle()
     }
 
+    /**
+     * [order] の「面」（その期間のページ1枚＝可視行ぶん）の節点。0件＝その期間は今どこにも合成されていない。
+     * 面は行スロットごとに1つ置かれるので、可視行が複数あれば複数返る。
+     */
+    private fun pageLayers(order: NarouOrder) =
+        composeTestRule.onAllNodes(hasTestTag(rankingPageLayerTestTag(order)))
+
+    /**
+     * **表示されていない**ことの観測（2026-09-02・覗きの常駐化に伴う観測点の強化）。
+     *
+     * 従来は「そのノードが合成されていない（＝ツリーに居ない）」で見ていたが、これは
+     * 〈画面に出ていない面は合成もされていない〉という**合成戦略への依存**であり、覗きを常駐させた時点で
+     * 前提が崩れる。さらに悪いことに、常駐する面は `clearAndSetSemantics` で子孫の意味を落とすので、
+     * 文字で数える検査は**面が誤って据わり位置へ出ても 0 件のまま緑**になる＝退行を素通しする。
+     * ⇒ 節点が在るかではなく、在る節点が画面に出ているかで見る。
+     *
+     * 0 件のときに素通しするのは意図どおり（＝自明に表示されていない）。「出ているべきもの」の側は
+     * 各テストが [assertIsDisplayed] で別途名指しするので、この非対称は空振りを生まない。
+     */
+    private fun assertNotDisplayed(matcher: SemanticsMatcher, why: String) {
+        val nodes = composeTestRule.onAllNodes(matcher)
+        repeat(nodes.fetchSemanticsNodes().size) { i ->
+            try {
+                nodes[i].assertIsNotDisplayed()
+            } catch (e: AssertionError) {
+                // 握り潰しではなく文脈の付与（どの不変条件が破れたかを添えて投げ直す）。
+                throw AssertionError("$why（${i + 1}件目が画面に出ている）", e)
+            }
+        }
+    }
+
+    /**
+     * A（覗き行の新規合成）の真因対処の回帰テスト（2026-09-02）。
+     *
+     * 固定する契約: **隣の期間の面は、指が動き出す前から合成されている**。
+     *
+     * なぜ「合成済みであること」を契約にするか: 旧実装は覗きの面をドラッグ中だけ合成していた
+     *（`isScrollInProgress` が false の間は隣期間 = null）。すると指が動き出した最初のフレームで
+     * null→非null に変わり、**可視行ぶんの覗き行が丸ごと新規合成**される——実測（エミュ・可視6行）で
+     * StaticLayout 42個・measure 25〜40ms の重いフレームが1フリックに必ず1枚出ていた
+     *（`docs/knowledge/ranking-pager-jank-slow-ui-thread.md` の A）。合成の総量ではなく
+     * **合成がドラッグの外に居ること**が対処の本体なので、契約もそこに置く。
+     *
+     * ⚠️ この観測点は時間（ms）を測らない。エミュ/CI の絶対値は走ごとに揺れて成果の根拠にならないため、
+     * 「重いフレームが減った」ではなく「重い仕事が指の動き出しに紐付いていない」を構造で押さえる。
+     */
+    @Test
+    fun `隣の期間の面は指が動き出す前から常駐している`() {
+        setHost(NarouOrder.WEEKLY)
+        scrollListTo("作品W")
+
+        listOf(NarouOrder.DAILY, NarouOrder.MONTHLY).forEach { neighbor ->
+            assertTrue(
+                "据わっている間に隣期間（${neighbor.name}）の面が合成されていない" +
+                    "＝指が動き出したフレームで覗きが新規合成される（ジャンク要因 A）",
+                pageLayers(neighbor).fetchSemanticsNodes().isNotEmpty(),
+            )
+        }
+    }
+
+    /**
+     * 上の常駐化が**見た目を1px も変えていない**ことの対の契約（片方だけ強めると必ずもう片方が壊れる関係）。
+     *
+     * 固定する契約: **据わっていない期間の面は、合成されていても画面には出ない**。
+     * 覗きの面は自分のページ番号の座席（`translationX`）へ置かれ、行スロットの `clipToBounds` で切られる
+     * ＝静止時は溝ごと枠の外に居る。ここが崩れると「隣の期間が据わり位置に重なって見える」退行になる。
+     */
+    @Test
+    fun `常駐している隣の期間の面は据わっている間は表示されない`() {
+        setHost(NarouOrder.WEEKLY)
+        scrollListTo("作品W")
+
+        // 前提: 据わりの面は出ている（出ていない状態で下の検査が通っても意味が無い）。
+        pageLayers(NarouOrder.WEEKLY)[0].assertIsDisplayed()
+        listOf(NarouOrder.DAILY, NarouOrder.MONTHLY).forEach { neighbor ->
+            assertNotDisplayed(
+                hasTestTag(rankingPageLayerTestTag(neighbor)),
+                "据わっていない期間（${neighbor.name}）の面が画面に出ている",
+            )
+        }
+    }
+
     @Test
     fun `ランキング行の横スワイプで次の期間へ進みタブ選択が追従する`() {
         val recorded = mutableListOf<NarouOrder>()
@@ -239,9 +324,12 @@ class DiscoveryHomeKRankingTest {
         scrollListTo("作品W")
         swipeOnRankingRow(toLeft = true)
 
-        composeTestRule.onNodeWithText("作品W")
-            .assertDoesNotExist() // 旧期間（週間）の行が据わり位置に残っている＝報告された症状
-        composeTestRule.onNodeWithText("作品M").assertExists()
+        // 観測点は〈合成されていない〉でなく〈**表示されていない**〉（2026-09-02・[assertNotDisplayed] の KDoc）。
+        // 覗きの常駐後、旧期間（週間）の面は控えの行を持ったままツリーに居るのが正常。しかもその面は
+        // 子孫の意味を落としているので、文字の有無で見ると何が壊れても緑になる＝面の位置で名指しする。
+        assertNotDisplayed(hasText("作品W"), "旧期間（週間）の行が据わり位置に見えている＝報告された症状")
+        assertNotDisplayed(hasTestTag(rankingPageLayerTestTag(NarouOrder.WEEKLY)), "旧期間（週間）の面が画面に出ている")
+        composeTestRule.onNodeWithText("作品M").assertIsDisplayed()
 
         // order が追従しても内容は動かない（＝上で描いていたものが正であり、差し替えの瞬間が無い）。
         composeTestRule.runOnIdle {
@@ -249,8 +337,9 @@ class DiscoveryHomeKRankingTest {
             uiState.value = monthlyContentState
         }
         composeTestRule.waitForIdle()
-        composeTestRule.onNodeWithText("作品M").assertExists()
-        composeTestRule.onNodeWithText("作品W").assertDoesNotExist()
+        composeTestRule.onNodeWithText("作品M").assertIsDisplayed()
+        assertNotDisplayed(hasText("作品W"), "order 追従後に旧期間（週間）の行が見えている")
+        assertNotDisplayed(hasTestTag(rankingPageLayerTestTag(NarouOrder.WEEKLY)), "order 追従後に旧期間の面が画面に出ている")
     }
 
     /** ランキング行の左端 x（据わり位置の観測点）。行スロットの `graphicsLayer{translationX}` を含んだ実位置。 */

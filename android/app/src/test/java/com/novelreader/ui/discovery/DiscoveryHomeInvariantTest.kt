@@ -6,6 +6,8 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -17,7 +19,6 @@ import com.novelreader.discovery.model.workSummary
 import com.novelreader.narou.model.NarouOrder
 import com.novelreader.ui.theme.LocalSkin
 import com.novelreader.viewmodel.DiscoveryUiState
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,11 +43,14 @@ import org.robolectric.annotation.Config
  * 片側だけ強めると必ずもう片方が壊れる関係なので、同じ登録簿で必ず一緒に回す。
  *
  * 観測点について: 「先頭へクランプされたか」は LazyListState を直接読めない（各実装が内部に持つ）ため、
- * **先頭セクション見出しが合成されているか**で見る。LazyColumn は可視域外の item を破棄するので、送った位置に
- * 留まっていれば先頭 item はツリーに居ない。一覧が status 1行へ潰れると総コンテンツ高が画面高付近まで縮み、
- * どこまで送っていても先頭 item が可視域へ入る＝ツリーに現れる。テスト側に実装の内部状態を持ち込まずに
- * 機序そのものを観測できる（末尾リンクの可視でも観測できるが、行高がスキンごとに違うぶん余白が読みにくいので
- * 判定は先頭側1点に絞る）。
+ * **先頭セクション見出しが画面に出ているか**で見る。送った位置に留まっていれば先頭セクションは可視域の外に居る。
+ * 一覧が status 1行へ潰れると総コンテンツ高が画面高付近まで縮み、どこまで送っていても先頭が可視域へ入る。
+ * テスト側に実装の内部状態を持ち込まずに機序そのものを観測できる（末尾リンクの可視でも観測できるが、
+ * 行高がスキンごとに違うぶん余白が読みにくいので判定は先頭側1点に絞る）。
+ *
+ * ⚠️ **2026-09-02 に観測点を〈合成されていない〉から〈表示されていない〉へ強化した**（[assertNotDisplayed]）。
+ * 旧観測は〈LazyColumn は可視域外の item を破棄する〉という**合成戦略**に乗っており、可視域外でも合成し続ける
+ * 実装（K のランキングは覗きの面を常駐させる）を偽陽性で落とす一方、意味の落ちた節点は数え漏らす。
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -124,10 +128,27 @@ class DiscoveryHomeInvariantTest(
         ).onFirst().performScrollToNode(hasText(text))
     }
 
-    /** LazyColumn は可視域外の item を破棄する＝合成されていないこと＝画面に出ていないこと。 */
-    private fun assertNotComposed(text: String, why: String) {
-        val nodes = composeTestRule.onAllNodesWithText(text).fetchSemanticsNodes()
-        assertTrue("[${impl.displayName}] $why（'$text' が合成されている）", nodes.isEmpty())
+    /**
+     * **画面に出ていない**ことの観測（2026-09-02 に〈合成されていない〉から強化）。
+     *
+     * 旧実装は「ツリーに居ないこと」で見ていた＝〈LazyColumn は可視域外の item を破棄する〉という
+     * **合成戦略への依存**。守りたいのは「先頭へ戻っていない」「0件を行で覆い隠していない」であって
+     * 合成の有無ではないので、画面に出ているかで直接見る。合成戦略が変わっても（K のランキングは
+     * 覗きの面を常駐させるようになった）意味が変わらない。
+     *
+     * 0 件は自明に「出ていない」＝素通し。出ているべき側は各テストが [assertIsDisplayed] で名指しするので
+     * 空振りにはならない。
+     */
+    private fun assertNotDisplayed(text: String, why: String) {
+        val nodes = composeTestRule.onAllNodesWithText(text)
+        repeat(nodes.fetchSemanticsNodes().size) { i ->
+            try {
+                nodes[i].assertIsNotDisplayed()
+            } catch (e: AssertionError) {
+                // 握り潰しではなく文脈の付与（どの実装のどの不変条件が破れたかを添えて投げ直す）。
+                throw AssertionError("[${impl.displayName}] $why（'$text' が画面に出ている）", e)
+            }
+        }
     }
 
     /** 一覧を中ほどまで送った状態を作る（各不変条件の共通の出発点）。 */
@@ -135,7 +156,7 @@ class DiscoveryHomeInvariantTest(
         setHome(input)
         scrollListTo("作品$SCROLL_ANCHOR_ROW")
         // 出発点が「先頭 item が居ない」であることを確かめてから本題へ入る（前提が崩れたまま緑になるのを防ぐ）。
-        assertNotComposed(TOP_SECTION, "前提が崩れている: 一覧の中ほどまで送ったのに先頭セクションが見えている")
+        assertNotDisplayed(TOP_SECTION, "前提が崩れている: 一覧の中ほどまで送ったのに先頭セクションが見えている")
     }
 
     @Test
@@ -149,7 +170,7 @@ class DiscoveryHomeInvariantTest(
         input.value = HomeInput(NarouOrder.MONTHLY, DiscoveryUiState.Loading)
         composeTestRule.waitForIdle()
 
-        assertNotComposed(
+        assertNotDisplayed(
             TOP_SECTION,
             "期間切替でランキング領域の高さが崩壊し一覧が先頭へクランプされた" +
                 "（控えの無い面は status 1行に潰さず、行数ぶんの骨格＝RankingSkeletonRow で高さを保つこと）",
@@ -165,9 +186,9 @@ class DiscoveryHomeInvariantTest(
         composeTestRule.waitForIdle()
 
         scrollListTo(impl.emptyText)
-        composeTestRule.onNodeWithText(impl.emptyText).assertExists()
+        composeTestRule.onNodeWithText(impl.emptyText).assertIsDisplayed()
         // 直近の行を骨格として出し続けていたら「0件」を行で覆い隠したことになる（高さ保持より正直さが上位）。
-        assertNotComposed("作品1", "Empty なのに直近ランキングの行が残っている＝0件を覆い隠している")
+        assertNotDisplayed("作品1", "Empty なのに直近ランキングの行が残っている＝0件を覆い隠している")
     }
 
     @Test
@@ -179,7 +200,7 @@ class DiscoveryHomeInvariantTest(
         composeTestRule.waitForIdle()
 
         scrollListTo(ERROR_MESSAGE)
-        composeTestRule.onNodeWithText(ERROR_MESSAGE).assertExists()
-        assertNotComposed("作品1", "Error なのに直近ランキングの行が残っている＝失敗を覆い隠している")
+        composeTestRule.onNodeWithText(ERROR_MESSAGE).assertIsDisplayed()
+        assertNotDisplayed("作品1", "Error なのに直近ランキングの行が残っている＝失敗を覆い隠している")
     }
 }

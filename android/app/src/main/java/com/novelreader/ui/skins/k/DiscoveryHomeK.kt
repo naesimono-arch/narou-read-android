@@ -245,22 +245,31 @@ internal fun DiscoveryHomeK(
     val rankingRefresh = remember(rankingPagerState) {
         { if (!rankingPagerState.isScrollInProgress) currentOnRefresh() }
     }
-    // ドラッグ中に横から覗く隣期間。**方向だけを離散化して取り出す**のが要点で、
-    // currentPageOffsetFraction を合成で直に読むと毎フレーム再コンポーズになり、重い合成を減らすための
-    // 平坦化と真っ向から矛盾する。derivedStateOf は結果が変わったときだけ通知するので、実際に再コンポーズが
-    // 走るのは「覗く相手が変わった瞬間」だけ＝1スワイプにつき数回に収まる。
-    // 値でなく取得関数として下へ渡す理由: この画面本体で読むと覗き相手が変わるたび画面全体が再コンポーズ
-    // されるため、読む位置を LazyColumn の item スコープ（＝可視行だけ）まで下げる。
-    val neighborOrderState = remember(rankingPagerState) {
+    // 行スロットに常駐させる期間＝**据わり（settledPage）とその両隣**（2026-09-02・ジャンク要因 A の真因対処）。
+    //
+    // 旧実装は覗きを「ドラッグ中だけ」合成していた（`isScrollInProgress` が false の間は null、動き出したら
+    // `currentPageOffsetFraction` の符号で隣を1つ選ぶ）。この形は**指が動き出した最初のフレーム**で
+    // null→非null に変わる＝**可視行ぶんの覗き行が丸ごと新規合成**される。実測（エミュ・可視6行）で
+    // StaticLayout 42個・measure 25〜40ms の重いフレームが1フリックに必ず1枚あり、
+    // 08-26／09-02 で B（半ページ地点）を潰した後は**これが唯一残る山**だった
+    //（`docs/knowledge/ranking-pager-jank-slow-ui-thread.md`）。
+    //
+    // ⇒ 窓を **`settledPage` を軸に ±1**（1フリックで到達し得る範囲＝PagerSnapDistance 既定）へ移す。
+    // `settledPage` は送りの最中は動かない（据わったときだけ動く）ので、ドラッグ〜フリング〜スナップの
+    // 全フレームで「どの枠にどの期間が入るか」が 1 ビットも動かない＝新規合成はドラッグの外
+    //（据わった後の静止フレーム）へ移り、しかも1回の送りで新しく合成されるのは**新たに窓へ入る1面だけ**。
+    // 覗きが要らない静止時も面を持ち続けるのは意図どおりで、見た目は変わらない（自分のページ番号の座席へ
+    // translationX で置かれ、行スロットの `clipToBounds` が枠の外を切る）。
+    //
+    // `currentPage` も窓に必ず含める: 期間タブのタップは `animateScrollToPage` で複数ページを跨ぐことが
+    // あり、その最中は `currentPage` だけが途中ページを指す（`settledPage` は終わるまで据え置き）。
+    // 据わりの面が窓から漏れると行の高さが 0 に落ち、一覧全体が縮んで先頭へクランプする。
+    //
+    // 値でなく取得関数として下へ渡す理由（旧実装から継承）: この画面本体で読むと窓が動くたび画面全体が
+    // 再コンポーズされるため、読む位置を LazyColumn の item スコープ（＝可視行だけ）まで下げる。
+    val residentOrdersState = remember(rankingPagerState) {
         derivedStateOf {
-            if (!rankingPagerState.isScrollInProgress) return@derivedStateOf null
-            val fraction = rankingPagerState.currentPageOffsetFraction
-            val page = when {
-                fraction > 0f -> rankingPagerState.currentPage + 1
-                fraction < 0f -> rankingPagerState.currentPage - 1
-                else -> return@derivedStateOf null
-            }
-            NarouOrder.entries.getOrNull(page)
+            rankingResidentOrders(rankingPagerState.settledPage, rankingPagerState.currentPage)
         }
     }
     // 画面の「据わる位置」に居る期間＝ページャが指しているページ（2026-08-07）。
@@ -399,7 +408,7 @@ internal fun DiscoveryHomeK(
                 edgeSeal = rankingEdgeSeal,
                 pageOrder = pagerOrder,
                 selectedOrder = order,
-                neighborOrder = { neighborOrderState.value },
+                residentOrders = { residentOrdersState.value },
                 state = state,
                 contents = rankingContents,
                 // 送り中を殺した版を渡す＝行へ渡す値が「据わりか覗きか」に依存しなくなる（上の rankingOpenDetail）。
@@ -957,7 +966,7 @@ private fun rankingSlotsK(state: DiscoveryUiState, cached: DiscoveryUiState.Cont
 }
 
 /**
- * **選択中でない期間**に何を並べるか。使い所は2つ＝ドラッグ中に横から覗く隣期間と、送りは確定したが
+ * **選択中でない期間**に何を並べるか。使い所は2つ＝据わりの両隣に常駐する覗きの面と、送りは確定したが
  * order の追従がまだ返ってきていない据わり位置（[rankingSectionK]）。どちらも生きた state を見ない
  *（state は常に選択中期間のもので、別の期間に当てると他期間の読込結果を誤って被せることになる）。
  * 控えがあればその行・無ければ骨＝平坦化前に非選択ページへ出していたものと同じ。
@@ -987,7 +996,7 @@ private fun LazyListScope.rankingSectionK(
     edgeSeal: NestedScrollConnection,
     pageOrder: NarouOrder,
     selectedOrder: NarouOrder,
-    neighborOrder: () -> NarouOrder?,
+    residentOrders: () -> List<NarouOrder>,
     state: DiscoveryUiState,
     contents: Map<NarouOrder, DiscoveryUiState.Content>,
     onOpenDetail: (ncode: Ncode) -> Unit,
@@ -1021,14 +1030,13 @@ private fun LazyListScope.rankingSectionK(
         // 行・骨・status は中身の形が違う＝再利用プールを分ける（別種の item を使い回させない）。
         contentType = { slots::class.simpleName },
     ) { index ->
-        // 覗き相手の読み取りは**この item スコープ**で行う（画面全体でなく可視行だけが再コンポーズされる）。
-        val peekOrder = neighborOrder()
+        // 常駐窓の読み取りは**この item スコープ**で行う（画面全体でなく可視行だけが再コンポーズされる）。
         RankingSlotK(
             pagerState = pagerState,
             flingBehavior = flingBehavior,
             edgeSeal = edgeSeal,
             seatedOrder = pageOrder,
-            peekOrder = peekOrder,
+            residentOrders = residentOrders(),
             index = index,
             // 期間 → その期間に並べるもの、の対応。**役割（据わり／覗き）で分岐させない**のが要点で、
             // 据わりの期間だけが生きた [state] を見てよい、という裁定はここに閉じている
@@ -1049,23 +1057,25 @@ private fun LazyListScope.rankingSectionK(
  *    `reverseDirection = true` は横 LTR の既定（左へ払う＝次ページへ進む）を標準実装と揃えるため。
  *  - **端の封止**: [edgeSeal] を `scrollable` の親側に置き、消費し切れない横成分を全量食う
  *    ＝端期間でさらに引いてもアプリのタブ（外側 Pager）が切り替わらない（2026-07-29 監督裁定の継承）。
- *  - **覗き**: 覗きの期間は現在行に重ねて描き、**親の高さ決定に参加しない**（枠の高さは据わりの期間の
+ *  - **覗き**: 据わり以外の期間も同じ枠に重ねて描き、**親の高さ決定に参加しない**（枠の高さは据わりの期間の
  *    行だけが決める＝「ページ高を現在ページだけから決める」の実体。はみ出しは `clipToBounds` が切る。
  *    旧 Pager が wrap 高＝現在ページ準拠で隣をクリップして覗かせていた見え方を行単位で再現する）。
  *    ⚠️ この「参加しない」を**子の modifier（matchParentSize）で表さない**のが 2026-09-02 の是正で、
  *    理由は [rankingSlotMeasurePolicy] の KDoc（役割の入れ替わりが子の制約を反転させ測り直しを呼ぶ）。
- *    本体・覗きとも自分のページ番号の座席へ置く（＝[rankingPageOffsetPx]）。
+ *    どの面も自分のページ番号の座席へ置く（＝[rankingPageOffsetPx]）。
  *
- * **なぜ枠を「据わり／覗き」でなく期間 ordinal の偶奇で持つか（2026-08-26・送りアニメのコストの真因対処）**:
+ * **なぜ枠を「据わり／覗き」でなく期間 ordinal の剰余で持つか（2026-08-26・送りアニメのコストの真因対処）**:
  * 送りが半ページを越えた瞬間、据わりと覗きは**役割だけが入れ替わる**——前後どちらも画面に居るのは同じ2期間
  *（例: 週間→月間の送りなら、跨ぐ前は〈据わり=週間・覗き=月間〉、跨いだ後は〈据わり=月間・覗き=週間〉）。
  * 旧実装は枠を役割の順（第1子=据わり・第2子=覗き）で並べていたので、この入れ替わりで**同じ枠に別期間の中身が
  * 流し込まれ、据わり・覗きの両方が全数再合成**されていた。実測（エミュ・可視6行）ではその1フレームだけ
  * StaticLayout 構築が 96 個・UI スレッド 50〜54ms に跳ね、これがページ送りアニメの最も重いフレームだった。
  *
- * 隣り合う期間は ordinal が必ず 1 違う＝**偶奇が必ず異なる**ので、枠を偶奇で持てば「どちらの枠にどの期間が
- * 入るか」が役割にも送りの向きにも依存しなくなる。入れ替わりの瞬間、両方の枠は同じ期間を持ち続ける
- * ＝composition から見て**何も起きない**（動くのは translationX だけ＝既に deferred read）。
+ * ⇒ 枠は **ordinal を [RankingSlotCount] で割った余り**で固定する（[rankingSlotIdFor]）。常駐する期間は
+ * 連続する高々3つ（[rankingResidentOrders]）＝余りは必ず全て異なるので、どの枠にどの期間が入るかが
+ * 役割にも送りの向きにも依存しない。役割が入れ替わる瞬間も各枠は同じ期間を持ち続ける＝composition から見て
+ * **何も起きない**（動くのは translationX だけ＝既に deferred read）。2026-08-26 に偶奇（2枠）で入れた形の
+ * 一般化で、窓を ±1 へ広げる（＝A の対処）ために枠を1つ増やしただけ。
  * 行へ渡すタップ導線を役割から独立させたのも同じ理由（[DiscoveryHomeK] の rankingOpenDetail）。
  */
 @Composable
@@ -1074,14 +1084,12 @@ private fun RankingSlotK(
     flingBehavior: FlingBehavior,
     edgeSeal: NestedScrollConnection,
     seatedOrder: NarouOrder,
-    peekOrder: NarouOrder?,
+    residentOrders: List<NarouOrder>,
     index: Int,
     slotsOf: (NarouOrder) -> RankingSlots,
     onOpenDetail: (ncode: Ncode) -> Unit,
     onRefresh: () -> Unit,
 ) {
-    // 覗きは必ず据わりの隣（PagerSnapDistance 既定＝1フリック1ページ）＝偶奇は必ず食い違う。
-    val seatedIsEven = seatedOrder.ordinal % 2 == 0
     Layout(
         modifier = Modifier
             .fillMaxWidth()
@@ -1099,28 +1107,62 @@ private fun RankingSlotK(
                 reverseDirection = true,
             ),
         content = {
-            // 枠の並び順は**偶奇で固定**（役割では並べない）。layoutId も偶奇＝送りで動かない
-            // ＝親データが変わらないので、入れ替わりが子の測り直しを呼ばない。
-            RankingPageLayerK(
-                Modifier.layoutId(RankingEvenSlotId), pagerState,
-                if (seatedIsEven) seatedOrder else peekOrder, seatedIsEven, index,
-                slotsOf, onOpenDetail, onRefresh,
-            )
-            RankingPageLayerK(
-                Modifier.layoutId(RankingOddSlotId), pagerState,
-                if (seatedIsEven) peekOrder else seatedOrder, !seatedIsEven, index,
-                slotsOf, onOpenDetail, onRefresh,
-            )
+            // 枠の並び順は**ordinal の剰余で固定**（役割でも送りの向きでも並べ替わらない）。layoutId も同じ
+            // 剰余＝親データが動かないので、据わりと覗きの入れ替わりが子の測り直しを呼ばない。
+            // 窓に居ない剰余の枠は order=null＝何も置かない（[RankingPageLayerK] が即 return する）。
+            RankingSlotIds.forEach { slotId ->
+                val order = residentOrders.firstOrNull { rankingSlotIdFor(it) == slotId }
+                RankingPageLayerK(
+                    Modifier.layoutId(slotId), pagerState,
+                    order, order == seatedOrder, index,
+                    slotsOf, onOpenDetail, onRefresh,
+                )
+            }
         },
-        measurePolicy = remember(seatedIsEven) { rankingSlotMeasurePolicy(seatedIsEven) },
+        measurePolicy = remember(seatedOrder) { rankingSlotMeasurePolicy(rankingSlotIdFor(seatedOrder)) },
     )
 }
 
-/** 偶数 ordinal の期間が入る枠の識別子（[rankingSlotMeasurePolicy] が据わり側を見分けるためだけに使う）。 */
-private object RankingEvenSlotId
+/**
+ * 行スロットが持つ枠の数＝常駐窓の広さ（[rankingResidentOrders]＝据わり±1）。
+ *
+ * この値が「連続する期間の ordinal を割った余りで枠を固定できる」条件そのもの: 連続する 3 つの整数は
+ * 3 で割った余りが必ず全て異なるので、窓の中の期間は枠を奪い合わない。逆に窓を ±2 へ広げるなら
+ * この値も 5 にしないと衝突する（2 では 2026-08-26 の偶奇＝窓 ±0.5 相当が限界だった）。
+ */
+private const val RankingSlotCount = 3
 
-/** 奇数 ordinal の期間が入る枠の識別子。 */
-private object RankingOddSlotId
+/** 枠の識別子（[rankingSlotMeasurePolicy] が据わりの枠を見分けるためだけに使う）。値は ordinal の剰余。 */
+private data class RankingSlotId(val residue: Int)
+
+private val RankingSlotIds = List(RankingSlotCount) { RankingSlotId(it) }
+
+/** [order] が入る枠。ordinal 由来＝**送りでも役割の入れ替わりでも動かない**のが唯一の要件。 */
+private fun rankingSlotIdFor(order: NarouOrder): RankingSlotId =
+    RankingSlotIds[order.ordinal % RankingSlotCount]
+
+/**
+ * 行スロットに常駐させる期間＝**据わり（[settledPage]）とその両隣**。理由は [DiscoveryHomeK] の
+ * residentOrdersState のコメント（ジャンク要因 A＝覗きの新規合成を、指の動き出しから静止フレームへ移す）。
+ *
+ * [currentPage] を必ず含めるのは、期間タブのタップが `animateScrollToPage` で複数ページを跨ぎ得るため。
+ * その最中は `currentPage` だけが途中ページを指し（`settledPage` は送りが終わるまで動かない）、窓から
+ * 漏れると**据わりの面が消えて行の高さが 0 になる**＝一覧全体が縮んで先頭へクランプする。枠は剰余で
+ * 1つずつしか無いので、衝突する常駐を追い出して据わりを必ず入れる（覗きは1フレーム欠けても
+ * 画面外なので見た目に出ない＝譲るのは常に覗きの側）。
+ */
+private fun rankingResidentOrders(settledPage: Int, currentPage: Int): List<NarouOrder> {
+    val entries = NarouOrder.entries
+    val orders = ArrayList<NarouOrder>(RankingSlotCount)
+    // ±1＝1フリックで到達し得る範囲（PagerSnapDistance 既定＝1回の送りで1ページ）。
+    for (page in (settledPage - 1)..(settledPage + 1)) entries.getOrNull(page)?.let(orders::add)
+    val seated = entries.getOrNull(currentPage)
+    if (seated != null && seated !in orders) {
+        orders.removeAll { rankingSlotIdFor(it) == rankingSlotIdFor(seated) }
+        orders.add(seated)
+    }
+    return orders
+}
 
 /**
  * 1行ぶんの枠（据わり＋覗き）の測り方。**役割で子の制約を変えないこと**が唯一の要点。
@@ -1140,12 +1182,11 @@ private object RankingOddSlotId
  * 選ぶ相手が変わるだけで、子の制約は 1 ビットも動かない＝測り直しが起きない。
  * 見た目は不変（枠の高さは従来どおり据わりの期間の行の高さ・はみ出しは親の `clipToBounds` が切る）。
  */
-private fun rankingSlotMeasurePolicy(seatedIsEven: Boolean) = MeasurePolicy { measurables, constraints ->
+private fun rankingSlotMeasurePolicy(seatedSlotId: RankingSlotId) = MeasurePolicy { measurables, constraints ->
     // Box が matchParentSize でない子へ渡すのと同じ制約＝この1行が「役割に依存しない測り方」の実体。
     val childConstraints = constraints.copy(minWidth = 0, minHeight = 0)
     val placeables = measurables.map { it.measure(childConstraints) }
-    val seatedId = if (seatedIsEven) RankingEvenSlotId else RankingOddSlotId
-    val seatedIndex = measurables.indexOfFirst { it.layoutId == seatedId }
+    val seatedIndex = measurables.indexOfFirst { it.layoutId == seatedSlotId }
     // 枠の高さは据わりの期間の行だけが決める（覗きは高さに参加しない＝旧 matchParentSize の意図）。
     // 覗きしか居ない状況は構造上あり得ない（据わりの枠は常に置かれる）が、保険で最大高へ倒す。
     val height = if (seatedIndex >= 0) placeables[seatedIndex].height else placeables.maxOfOrNull { it.height } ?: 0
@@ -1154,7 +1195,8 @@ private fun rankingSlotMeasurePolicy(seatedIsEven: Boolean) = MeasurePolicy { me
 }
 
 /**
- * 1行ぶんの枠に載る「ある期間の1行」。[order] が null＝この枠には今どの期間も居ない（覗きが無いとき）。
+ * 1行ぶんの枠に載る「ある期間の1行」。[order] が null＝この枠（剰余）に入る期間が今の常駐窓に居ない
+ *（端の期間に据わっているとき＝隣が片側しか無い場合）。
  *
  * [seated] は**描き方だけ**を決める（高さを決めるか・TalkBack に読ませるか）。中身に渡す値には一切効かない
  * ——効かせると役割の入れ替わりで全数再合成が起きる（[RankingSlotK] の KDoc）。modifier の差し替えは
@@ -1179,6 +1221,9 @@ private fun RankingPageLayerK(
         modifier = modifier
             // State 読みを layer 更新に閉じる（deferred read）＝ドラッグ中に composition/layout を起こさない。
             .graphicsLayer { translationX = rankingPageOffsetPx(pagerState, order.ordinal) }
+            // 面そのものに寸法を読める節点を置く（理由は [rankingPageLayerTestTag] の KDoc）。
+            // clearAndSetSemantics は**子孫**の意味だけを落とし、その節点自身の意味は残す＝下の分岐と同居できる。
+            .testTag(rankingPageLayerTestTag(order))
             .then(
                 when {
                     // 覗くだけの行を TalkBack に読ませない（K の気分ゴースト格子と同じ扱い）。
@@ -1265,6 +1310,22 @@ internal const val RankingAnchorTestTag: String = "rankingPagerAnchor"
  * テスト側の契約（`hasAnyAncestor(hasTestTag(...))`）はそのまま生き延びている。
  */
 internal fun rankingPageTestTag(order: NarouOrder): String = "rankingPage_${order.name}"
+
+/**
+ * その行スロットに載っている「[order] の面」そのものの testTag（2026-09-02・覗きの常駐化に伴う観測点の強化）。
+ *
+ * [rankingPageTestTag] が**枠**（据わりの期間で名乗る外側の1節点）に付くのに対し、こちらは枠の中に重なる
+ * **面**1枚ずつに付く＝どの期間の面が今どこに置かれているかを1節点で読める。
+ *
+ * なぜ本番コードに増やすか: 覗きを常駐させた（[DiscoveryHomeK] の residentOrders）ことで、**据わっていない
+ * 期間の面も合成されたまま画面外に居る**のが正常になった。その面は TalkBack に読ませないため
+ * `clearAndSetSemantics` で子孫の意味を全部落としている＝**セマンティクス木にはその期間の行の文字が1つも
+ * 現れない**。したがって「他期間の行が出ていないこと」を文字の有無で検査すると、覗きが誤って据わり位置へ
+ * 出てしまう退行が起きても**常に緑のまま**になる（＝空振りの検査）。守るべき不変条件は
+ * 「合成されていない」ではなく「**表示されていない**」なので、位置と寸法を読める節点を面ごとに置き、
+ * 検査を合成戦略から独立させる（[RankingAnchorTestTag] と同じ理由づけ＝見えないものを見るための目印）。
+ */
+internal fun rankingPageLayerTestTag(order: NarouOrder): String = "rankingPageLayer_${order.name}"
 
 /**
  * ランキング領域の状態一文（空／失敗理由＝意味テキストゆえ infoText）。
