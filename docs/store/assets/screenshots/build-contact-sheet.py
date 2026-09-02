@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["pillow"]
+# ///
 """
 撮影した候補を1枚に並べた「コンタクトシート」を作る（人間の採否ゲート用）。
 
@@ -9,7 +13,9 @@
 ⚠️ 画像は data URI で埋め込む（`mockview` は HTML 1ファイルだけを .mock-preview へコピーするため、
 相対パス参照だと画像が全部切れる）。原寸は各カードのリンクから開く。
 
-    python3 build-contact-sheet.py && mockview docs/store/assets/screenshots/contact-sheet.html
+    uv run --no-project build-contact-sheet.py   # Pillow をその場で解決する（推奨）
+    python3 build-contact-sheet.py               # システムに Pillow がある環境のみ
+    mockview docs/store/assets/screenshots/contact-sheet.html
 """
 import base64, io, os, struct, sys
 from PIL import Image
@@ -44,25 +50,32 @@ ALTS = [
      "2枚目の別案。状態は見えるが上段の書影が切れる。採用版はこれを使わずに済むよう並び順で解決した。"),
 ]
 
+# 埋め込み解像度は「そのカードが実際に表示される CSS 幅」に合わせて決める（一律 300px にしない）。
+# なぜ: スマホ(1080x1920 縦)とタブレット(2560x1600 横)を同じ 300px へ落とすと縮小率が 3.6倍 と 8.5倍 に割れ、
+# タブレットのジャンルチップ(原寸 214x78px・文字 145x24px)が 25x9px／文字 2.8px まで潰れて判読不能になる。
+# 2026-08-26 にこれで「素材の欠陥」と誤診が出た（原本 PNG も実機も無傷だった）＝レビュー用の道具側の欠陥。
+EMBED_PHONE,  Q_PHONE  = 640,  76   # 複数列グリッド（表示 ~250px）＋ブラウザ拡大ぶんの余裕
+EMBED_TABLET, Q_TABLET = 2560, 82   # 1枚1行で表示（~1800px）＝原寸のまま埋めて細部を読ませる
+
 def png_info(p):
     with open(p,"rb") as f:
         f.read(16); w,h,d,c = struct.unpack(">IIBB", f.read(10))
     return w,h,d,c
 
-def thumb(path, w=300):
+def thumb(path, w, q):
     im = Image.open(path).convert("RGB")
     im.thumbnail((w, w*3), Image.LANCZOS)
-    b = io.BytesIO(); im.save(b, "JPEG", quality=72, optimize=True)
+    b = io.BytesIO(); im.save(b, "JPEG", quality=q, optimize=True)
     return base64.b64encode(b.getvalue()).decode()
 
-def card(fn, num, caption, note):
+def card(fn, num, caption, note, embed_w=EMBED_PHONE, q=Q_PHONE):  # w は下で原寸に使うので別名
     p = os.path.join(HERE, fn)
     if not os.path.exists(p): return f'<div class="card missing">未撮影: {fn}</div>'
     w,h,d,c = png_info(p)
     ratio = max(w,h)/min(w,h)
     ok = (c==2 and d==8 and 320<=min(w,h) and max(w,h)<=3840 and ratio<=2)
     return f"""<figure class="card">
-  <a href="file:///{WINDIR}/{fn}" target="_blank"><img src="data:image/jpeg;base64,{thumb(p)}" alt="{fn}"></a>
+  <a href="file:///{WINDIR}/{fn}" target="_blank"><img src="data:image/jpeg;base64,{thumb(p, embed_w, q)}" alt="{fn}"></a>
   <figcaption>
     <div class="num">{num}</div>
     <div class="cap">{caption}</div>
@@ -86,6 +99,8 @@ html = f"""<!doctype html><html lang="ja"><head><meta charset="utf-8">
  .banner b{{color:#7a5a12}}
  h2{{font-size:15px;margin:30px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line)}}
  .grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:20px}}
+ .grid.wide{{grid-template-columns:1fr}}
+ .hint{{font-weight:400;color:var(--sub);font-size:12px}}
  .card{{margin:0;background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;
    display:flex;flex-direction:column}}
  .card img{{width:100%;display:block;border-bottom:1px solid var(--line);background:#eee}}
@@ -129,8 +144,8 @@ html = f"""<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <h2>スマートフォン（1080×1920・Play は2〜8枚）</h2>
 <div class="grid">{''.join(card(*s) for s in SHOTS)}</div>
 
-<h2>タブレット（2560×1600・任意／推奨）</h2>
-<div class="grid">{''.join(card(*s) for s in TABLETS)}</div>
+<h2>タブレット（2560×1600・任意／推奨）<span class="hint">— 1枚1行・原寸埋め込み。ジャンルチップ等の細部はここで読める（縮小しても判読できる必要があるため）</span></h2>
+<div class="grid wide">{''.join(card(*s, embed_w=EMBED_TABLET, q=Q_TABLET) for s in TABLETS)}</div>
 
 <h2>代案（採否の比較用・提出候補ではない）</h2>
 <div class="grid">{''.join(card(*s) for s in ALTS)}</div>
