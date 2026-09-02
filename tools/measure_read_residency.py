@@ -10,8 +10,17 @@
 さらに Read はファイル別に「同一セッション内の重複読み」を出す——重複は委譲でなく
 読み方の問題で、対策がまったく違うため。
 """
-import json, glob, os
+import json, glob, os, sys, io
 from collections import Counter, defaultdict
+
+# --json: 機械可読出力（tools/numbers.py の抽出器がここを読む）。
+# なぜ人間可読の表を parse させないか: 桁揃えや見出しの書式を変えた瞬間に抽出が静かに壊れる
+# ＝「アンカーはリテラルでなく構造で指す」（docs/reference/nuru-exchange-2026-09-02.md 第III部(B)）と同根。
+# 人間可読の print はそのまま残し、--json のときだけ捨てて末尾で JSON だけを出す。
+JSON_MODE = "--json" in sys.argv
+_real_stdout = sys.stdout
+if JSON_MODE:
+    sys.stdout = io.StringIO()
 
 # Windows 側ユーザー名の移行（qingj→naesimono, 2026-08-23）で project slug が分岐した。
 # 過去の実測値は旧 slug 側にしか無いので、新旧どちらも走査する。
@@ -125,3 +134,23 @@ print(f"\n  実効寄与の大きいファイル上位12:")
 for p, v in eff_file.most_common(12):
     print(f"    {v/1e6:>7.1f}M  {cnt_file[p]:>4}回  {os.path.basename(p)}")
 print(f"\n  （main 総ターン {total_turns:,}）")
+
+if JSON_MODE:
+    sys.stdout = _real_stdout
+    # ファイル別はフルパスで持っているが、同一ファイルが Windows/WSL の別表記で分裂する
+    # （実測で `C:\...\awaiting-human.md` と `/mnt/c/.../awaiting-human.md` が別キーになる）ので
+    # basename へ畳んでから比率にする。台帳の占有を主張する側はこの畳んだ値を指す。
+    _by_base = Counter()
+    for _p, _v in eff_file.items():
+        _by_base[os.path.basename(_p.replace("\\", "/"))] += _v
+    print(json.dumps({
+        "total_eff": tot_eff,
+        "turns": total_turns,
+        "sessions": len(files),
+        "by_source_pct": {k: 100 * v / tot_eff for k, v in eff.most_common()},
+        "read": {
+            "pct_of_total": 100 * read_total_eff / tot_eff,
+            "dup_pct": 100 * dup_eff / max(read_total_eff, 1),
+        },
+        "by_basename_pct_of_total": {k: 100 * v / tot_eff for k, v in _by_base.most_common(30)},
+    }, ensure_ascii=False, indent=1))

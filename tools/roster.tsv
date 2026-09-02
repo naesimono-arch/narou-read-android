@@ -1,0 +1,66 @@
+# 員数宣言（roster）＝「あるべき本数と顔ぶれ」を人が宣言し、実体とのズレを機械が検知する。
+#
+# ⚠️ このファイルは**人が編集する**。生成しない・生成器を作らない。
+#    なぜ生成してはいけないか: 検知の表は「1 行消せば 1 本の検知が消え、消えたことを誰も見ていない」
+#    のが唯一の失敗様式で、`len(実体)` を期待値にすると実装が自分自身を検査する自己参照になり、
+#    行が消えたときに宣言も一緒に消えて**必ず一致する**＝照合が恒久的に無意味になる。
+#    ∴ 期待値は必ず実体とは別のファイル（ここ）に置く。
+#    ⚠️ 初版の中身は 2026-09-03 に実体から書き起こしたが、**生成器は同梱していない**。
+#    以後の増減は、実体を触った本人がこの表を手で直すこと（直さなければ check_roster.py が落ちる）。
+#
+# ⚠️ 引数・イベント・matcher まで凍結する理由: args は文言ではなく**実行対象**。
+#    配線行を消さずに .py の指す先だけを差し替えれば検知は死ぬので、
+#    「何本あるか」ではなく「どれが・どのイベントで・どの matcher で」まで宣言する。
+#
+# 照合＝ python3 tools/check_roster.py
+#
+# 列: kind / 以降は kind ごと（TAB 区切り・# は行コメント）
+#   count    <名前> <本数>                       員数そのものの宣言
+#   hook     <イベント> <matcher|-> <スクリプト>  settings.json の配線 1 行 = ここの 1 行
+#   check    <関数名> <指摘名>                    check_machine.py の CHECKS 1 要素 = ここの 1 行
+#
+# 「員数」の定義（数え方を書いておかないと、数が合わない時にどちらが正か決まらない）:
+#   hook_wirings = settings.json の配線の**延べ数**（同じ .py が 2 イベントに載れば 2）
+#   hook_files   = 配線されている .py の**実ファイル数**（重複を畳んだ数）
+#   checks       = CHECKS の要素数
+#   killtest_mutants = killtest.py が持つ変異の数（検査 19 + フック 16）
+count	hook_wirings	17
+count	hook_files	16
+count	checks	19
+count	killtest_mutants	35
+hook	SessionStart	-	inject_branch_context.py
+hook	SessionStart	-	inject_handover_digest.py
+hook	PostToolUse	Write|Edit	remind_commit_plan.py
+hook	PostToolUse	Bash	remind_task_diary.py
+hook	PostToolUse	Bash	consume_protected_sentinel.py
+hook	PostToolUse	*	count_delegation_turns.py
+hook	PreToolUse	Edit|Write|MultiEdit|Bash	block_destructive_migration.py
+hook	PreToolUse	Edit|Write|MultiEdit|Bash	guard_sentinel_creation.py
+hook	PreToolUse	Edit|Write|MultiEdit	check_sequence_id_collision.py
+hook	PreToolUse	Edit|Write|MultiEdit	warn_delegated_deletions.py
+hook	PreToolUse	Bash	check_schema_change.py
+hook	PreToolUse	Bash	guard_commit_branch.py
+hook	PreToolUse	Bash	remind_ledger_sync.py
+hook	Stop	-	stop_guard_fabrication.py
+hook	UserPromptSubmit	-	record_hallucination.py
+hook	SubagentStart	-	inject_subagent_briefing.py
+hook	SubagentStop	-	count_delegation_turns.py
+check	check_versions	versions
+check	check_db	db
+check	check_hooks_registration	hooks
+check	check_hook_git_tracked	hook-git
+check	check_conflict_markers	conflict
+check	check_referenced_files	ref
+check	check_test_commands	cmd
+check	check_gradlew_path	gradlew
+check	check_skill_frontmatter	frontmatter
+check	check_plans_references	plans-ref
+check	check_permission_paths	perm-path
+check	check_hook_smoke	hook-smoke
+check	check_diary_id_unique	diary_id
+check	check_size_budgets	size_budget
+check	check_delegation_meter	delegation-meter
+check	check_known_bugs_registry	known-bugs
+check	check_hook_output_channel	hook-output
+check	check_suppression_selftest	selftest
+check	check_removed_hook_references	removed-hook

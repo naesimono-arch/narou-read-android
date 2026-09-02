@@ -20,8 +20,10 @@
 - **報告は結論と根拠だけ**: 調査の実況・検討して捨てた選択肢の列挙・同じ結論の言い換え・末尾の要約を書かない。
   表は3行以上の比較にだけ使う。見出しは話題が変わるときだけ（**なぜ**＝監督の判断を速くするため。
   ⚠️ **コスト規律としてではない**——応答本文の実効寄与は**7〜10%**の小項目にすぎない。
-  **最大はツール引数 37.7%**・次いでシェル出力 25.6%・**Read 20.4%**
-  （計測は `tools/measure_read_residency.py`〔ほか `measure_read_kind.py`・`measure_toolinput_and_ledger.py`〕）。
+  **最大はツール引数 38.0%**〔#ctx.toolinput_pct〕・次いでシェル出力 26.0%〔#ctx.shellout_pct〕・**Read 19.6%**〔#ctx.read_pct〕
+  （計測は `tools/measure_read_residency.py`〔ほか `measure_read_kind.py`・`measure_toolinput_and_ledger.py`〕。
+  ⚠️ **`〔#key〕` の付いた数値は人が書き替えない**＝宣言は `tools/numbers_manifest.tsv`・値の正本は生成物
+  `tools/numbers.json`・照合は `python3 tools/numbers.py --verify`。更新は `--extract` を走らせてから写す）。
   ⚠️ **旧記載「assistant 4.3%・Read 36.3%〔handover.md 8.9%〕・tool_use 31.1%・Bash 20.1%」は誤り**
   〔2026-09-02 に独立実装との突合で確定〕——**順位まで違っていた**（旧は Read 最大・実際はツール引数が最大）。
   真因は計測側の欠陥3件＝①換算係数が除数で使われ約4.8倍ずれる ②分母が `cache_read` でなく人間の入力と
@@ -43,7 +45,7 @@
   ⚠️ **これはフックで強制できない**（決定時点で見える特徴では機械判定の上限が 76.6%＝実測 `docs/knowledge/context-cost-hook-levers-measured-limits.md`）。
 - **Opus を実行者にするときの処方**（「書かれた基準への追従」が最強・「書かれていない基準の自己設定」が弱点＝effort を上げても埋まらない。根拠＝A/B実測 `/mnt/c/Users/naesimono/Desktop/project/claude-bestpractice/models/knowledge/06-field-ab-opus-vs-fable.md`）: **完了定義を外給する**——①近似禁止（表現不可なら停止して相談するか合成解を検討）②症状でなく真因 ③検証は影響面の全画面・全組合せ（スモーク範囲を明示）④外部事実は一次ソース2点照合。複数項目バッチは1項目ごとに PushNotification→人間目視OK→コミット。委譲基準に該当する生成を自前でやるときは着手前に理由を明示。タスク種別ルーティング・ブリーフ設計＝`/mnt/c/Users/naesimono/Desktop/project/claude-bestpractice/supervision/opus-protocol.md`。
 - Windows 側セッションでは PowerShell 構文（`$_`・`Get-ChildItem` 等）を Bash ツールに渡さない（PowerShell ツールで実行。POSIX コマンドはどちらでも可）。
-- **コード探索は `rg` 起点**（総当たり Read の禁止）。⚠️ **Grep/Glob ツールは現行の実行系に存在しない**——旧記載「専用 Grep ツールを使う」は物理的に守れず、実測の乖離（Bash grep 706回 vs Grep 18回）を規律違反として誤読させていた（真因＝サーバー配信のツール構成。ローカル設定・バージョン・プロジェクト固有要因はいずれも対照実験で否定済み＝`docs/knowledge/tooling-no-grep-glob-tools.md`。**復旧待ちや設定変更で戻せる類ではない**）。作法＝**①`rg -l` でファイルを絞る ②必要箇所だけ Read の offset/limit で読む ③行を出すなら `-g '<glob>' -m 3` で対象と1ファイル上限を付ける**。`find`/`grep -r` より `rg` を優先（`.gitignore` を自動尊重するので `-prune` の羅列が消え、**コマンド文字列自体が縮む**＝費用はシェル出力 25.6% より**ツール引数 37.7% の方が大きい**〔最大区分〕）。semble はツールの一つ＝キーワードで絞れない意味検索・類似実装探しのときだけ。パス既知なら直接 Read／アーキ全体把握・スキーマ変更は上の必須ゲートが先／編集前の文脈確認は従来どおり Read。
+- **コード探索は `rg` 起点**（総当たり Read の禁止）。⚠️ **Grep/Glob ツールは現行の実行系に存在しない**——旧記載「専用 Grep ツールを使う」は物理的に守れず、実測の乖離（Bash grep 706回 vs Grep 18回）を規律違反として誤読させていた（真因＝サーバー配信のツール構成。ローカル設定・バージョン・プロジェクト固有要因はいずれも対照実験で否定済み＝`docs/knowledge/tooling-no-grep-glob-tools.md`。**復旧待ちや設定変更で戻せる類ではない**）。作法＝**①`rg -l` でファイルを絞る ②必要箇所だけ Read の offset/limit で読む ③行を出すなら `-g '<glob>' -m 3` で対象と1ファイル上限を付ける**。`find`/`grep -r` より `rg` を優先（`.gitignore` を自動尊重するので `-prune` の羅列が消え、**コマンド文字列自体が縮む**＝費用はシェル出力より**ツール引数の方が大きい**〔最大区分・値は上の構成比〕）。semble はツールの一つ＝キーワードで絞れない意味検索・類似実装探しのときだけ。パス既知なら直接 Read／アーキ全体把握・スキーマ変更は上の必須ゲートが先／編集前の文脈確認は従来どおり Read。
 
 ## 管理ドキュメントの体系（役割で分離・混ぜない）
 
@@ -58,8 +60,12 @@
   文章を縮める・他所へ逃がすのは最後の手段で、移してよいのは**そもそも台帳の役目でないもの**だけ
   （腐りにくい知見→`docs/knowledge/`・凍結→`docs/backlog-frozen.md`・一次情報→`.claude/plans/`・判断→`docs/decisions/`）。
   **なぜ**＝台帳は文書でなく**在庫**。圧縮・移設は字数だけ下げて在庫を残すので、同じ量が数日で戻る（実際に「移す」運用で3本とも再超過）。
-  字数で縛る理由は読み込み費（台帳だけで Read の 34.1%・`handover.md` 単独で全体の 8.9%
-  ＝`docs/knowledge/context-cost-breakdown-2026-08-10.md`）だが、費用を落とす正しい手段は**やること自体を減らすこと**。
+  字数で縛る理由は読み込み費——**台帳だけで Read の 34.1%**〔#ctx.ledger_pct_of_read@2026-08-10〕→ **50.9%**〔#ctx.ledger_pct_of_read@2026-09-03〕、
+  `handover.md` 単独で全体の 8.9%〔#ctx.handover_pct_of_total@2026-08-10〕→ 5.9%〔#ctx.handover_pct_of_total@2026-09-03〕
+  （前者の出所＝`docs/knowledge/context-cost-breakdown-2026-08-10.md`）。⚠️ **単一セッションの測定を恒久値として引かない**＝
+  2点が動いた候補は①その便の性質（2026-09-03 はサブ9体並列）②測定中に台帳自体が縮んだ（handover 8,811→6,631 字）の2つで、
+  **どちらが真因かは材料が無く未確定**（∴ どちらか一方に倒さず両方を残す）。台帳の Read 占有は**上がって**いるので縛る理由は弱まっていない。
+  費用を落とす正しい手段は**やること自体を減らすこと**。
 - **人間の目視・裁定・外部手続き待ち → `awaiting-human.md`**（handover は「Claude が今すぐ動けるもの」だけ。二分の軸＝待ちの種類・迷ったら handover 側＝ADR 0028）
 - **完了の履歴 → git log が正本**／**判断・Why-not → `docs/decisions/`**（方式比較の前にまず README 索引を確認。不採用判断・コミットを生まない判断も ADR 化を検討）／**凍結・見送り → `docs/backlog-frozen.md`**（捨てず解凍条件つき）
 - **腐りにくい知見 → 新規は `docs/knowledge/` に1知見=1ファイル**（`task_diary.md` は凍結アーカイブ＝既存 #N 参照は有効・新規追記はしない）／実装パターンの「なぜ」→ `docs/patterns/`／外部APIなど参照資料 → `docs/reference/`／過去プランの一次情報 → `.claude/plans/`（役目を終えたら `archive/` へ）

@@ -129,15 +129,17 @@ B で見つけた作品のうち、**なろう作品は本文を加工しない*
 ### 4.1 性能 — NFR-PERF
 
 macrobenchmark で**予算を機械判定する**（値の正本＝`android/macrobenchmark/.../*Budget.kt`）。
+⚠️ **`〔#key〕` の付いた数値は人が書き替えない**——写しの正しさは `python3 tools/numbers.py --verify` が
+毎走 .kt から再導出して突合する（宣言＝`tools/numbers_manifest.tsv`／値＝生成物 `tools/numbers.json`）。
 
 | ID | 対象 | 予算 |
 |---|---|---|
-| NFR-PERF-01 | 起動（timeToInitialDisplay） | median 350ms / max 500ms |
-| NFR-PERF-02 | 本棚スクロール（frameDurationCpu） | P50 15ms / P90 20ms / P99 30ms |
-| NFR-PERF-03 | 章送り | P50 15ms / P90 20ms / P99 50ms |
-| NFR-PERF-04 | タブ横スワイプ | P50 11ms / P90 18ms / P99 50ms |
-| NFR-PERF-05 | 本棚→目次 push | P50 15ms / P90 35ms / P99 60ms |
-| NFR-PERF-06 | PDF 取込（実PDF 1本） | extract 35s / engine 33s |
+| NFR-PERF-01 | 起動（timeToInitialDisplay） | median 350ms〔#nfr.startup.median_ms〕 / max 500ms〔#nfr.startup.max_ms〕 |
+| NFR-PERF-02 | 本棚スクロール（frameDurationCpu） | P50 15ms〔#nfr.scroll.p50_ms〕 / P90 20ms〔#nfr.scroll.p90_ms〕 / P99 30ms〔#nfr.scroll.p99_ms〕 |
+| NFR-PERF-03 | 章送り | P50 15ms〔#nfr.flip.p50_ms〕 / P90 20ms〔#nfr.flip.p90_ms〕 / P99 50ms〔#nfr.flip.p99_ms〕 |
+| NFR-PERF-04 | タブ横スワイプ | P50 11ms〔#nfr.tabswipe.p50_ms〕 / P90 18ms〔#nfr.tabswipe.p90_ms〕 / P99 50ms〔#nfr.tabswipe.p99_ms〕 |
+| NFR-PERF-05 | 本棚→目次 push | P50 15ms〔#nfr.tocpush.p50_ms〕 / P90 35ms〔#nfr.tocpush.p90_ms〕 / P99 60ms〔#nfr.tocpush.p99_ms〕 |
+| NFR-PERF-06 | PDF 取込（実PDF 1本） | extract 35s〔#nfr.import.extract_s〕 / engine 33s〔#nfr.import.engine_s〕 |
 | NFR-PERF-07 | 起動経路は **Baseline Profile** を release へ取り込む | `:baselineprofile` モジュール |
 | NFR-PERF-08 | 大PDF のページ範囲並列度 K は**固定値でなく `maxMemory()` から動的に決める**（低ヒープ機の OEM kill を避けるため） | ADR 0035 |
 
@@ -147,7 +149,7 @@ macrobenchmark で**予算を機械判定する**（値の正本＝`android/macr
 
 | ID | 要件 |
 |---|---|
-| NFR-REL-01 | 蔵書メタデータは Room（現行 **v22**）で管理し、全バージョン間の Migration を持つ（3→4 … 21→22）。**ダウングレードは不可**（旧 APK への逆走はクラッシュ） |
+| NFR-REL-01 | 蔵書メタデータは Room（現行 **v22**〔#nfr.room.version〕）で管理し、全バージョン間の Migration を持つ（3→4 … 21→22）。**ダウングレードは不可**（旧 APK への逆走はクラッシュ） |
 | NFR-REL-02 | HTML 実体は `filesDir/novels/{bookId}/` に置く（`index.html` + `chap_N.html`） |
 | NFR-REL-03 | Auto Backup は**層別**＝メタデータ層（Room・SharedPreferences・DataStore）のみ。HTML 実体は除外し、復元後に実体が無い場合は「再取込が必要」へ graceful degrade する（読書位置は保持）＝ADR 0015 |
 | NFR-REL-04 | 長時間処理中は `PARTIAL_WAKE_LOCK` を保持する（OEM のバックグラウンド強制停止対策） |

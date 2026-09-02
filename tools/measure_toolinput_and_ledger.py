@@ -6,8 +6,14 @@ agy が消せるのは Write/Edit の content/new_string（＝Claude が書い�
 Bash の command や Agent の prompt は委譲の指示そのもので、出しても main に残る。
 そこを分けないと「agy でどれだけ減るか」を誤る。
 """
-import json, glob, os
+import json, glob, os, sys, io
 from collections import Counter, defaultdict
+
+# --json の意図は measure_read_residency.py の同名ブロックを参照（表を parse させない）。
+JSON_MODE = "--json" in sys.argv
+_real_stdout = sys.stdout
+if JSON_MODE:
+    sys.stdout = io.StringIO()
 
 # Windows 側ユーザー名の移行（qingj→naesimono, 2026-08-23）で project slug が分岐した。
 # 過去の実測値は旧 slug 側にしか無いので、新旧どちらも走査する。
@@ -140,3 +146,12 @@ for base, v in eff_led.most_common():
     med = sorted(ps)[len(ps)//2] if ps else 0
     print(f"  {base:<18}{v/1e6:>8.0f}M{n:>7}{avg:>9,}{100*partial_led[base]/max(n,1):>7.0f}%"
           f"{med:>7}回(中央値・n={len(ps)})")
+
+if JSON_MODE:
+    sys.stdout = _real_stdout
+    print(json.dumps({
+        "toolinput_total_eff": tot_in,
+        "toolinput_pct": {k: 100 * v / tot_in for k, v in eff_in.most_common()},
+        "ledger_eff": {k: v for k, v in eff_led.most_common()},
+        "ledger_reads": {k: cnt_led[k] for k, _ in eff_led.most_common()},
+    }, ensure_ascii=False, indent=1))

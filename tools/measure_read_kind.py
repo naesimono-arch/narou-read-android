@@ -9,8 +9,14 @@ CLAUDE.md の委譲規約では〈編集起点ファイルの読み〉は委譲�
 Edit/Write/MultiEdit があれば「編集起点」、無ければ「調査」。
 併せて offset/limit 付き（部分読み）の比率と、台帳ファイルの読み方も出す。
 """
-import json, glob, os
+import json, glob, os, sys, io
 from collections import Counter
+
+# --json の意図は measure_read_residency.py の同名ブロックを参照（表を parse させない）。
+JSON_MODE = "--json" in sys.argv
+_real_stdout = sys.stdout
+if JSON_MODE:
+    sys.stdout = io.StringIO()
 
 # Windows 側ユーザー名の移行（qingj→naesimono, 2026-08-23）で project slug が分岐した。
 # 過去の実測値は旧 slug 側にしか無いので、新旧どちらも走査する。
@@ -123,3 +129,12 @@ big_reads.sort(reverse=True)
 print("\n=== 実効寄与の大きい単発 Read 上位10 ===")
 for e, size, kind, base in big_reads[:10]:
     print(f"  {e/1e6:>6.2f}M  {size:>7,}文字  {kind:<18}{base}")
+
+if JSON_MODE:
+    sys.stdout = _real_stdout
+    print(json.dumps({
+        "read_total_eff": tot,
+        "kind_pct": {k: 100 * v / tot for k, v in eff_kind.most_common()},
+        "partial_pct": {k: 100 * v / tot for k, v in eff_partial.most_common()},
+        "target_pct_of_read": {k: 100 * v / tot for k, v in eff_ledger.most_common()},
+    }, ensure_ascii=False, indent=1))

@@ -1,0 +1,367 @@
+{
+ "_generated_by": "tools/numbers.py --extract",
+ "_do_not_edit": "人はこのファイルを編集しない。値の主張は md 側の〔#key〕タグで行う。",
+ "_generated_at": "2026-09-03T05:59:17+09:00",
+ "_manifest_sha256": "bf7483e99b4cd500511161b52c7ef2411f5e000577f667071df8a53593d608eb",
+ "_n_keys": 25,
+ "_context_at_extract": {
+  "_why": "測定時の条件。台帳の占有率は台帳自体の大きさに依存するので、後から代表性を判断するにはこの字数が要る。単一セッションの測定を恒久値として引かないこと。",
+  "ledger_chars": {
+   "STATUS.md": 2560,
+   "handover.md": 6631,
+   "awaiting-human.md": 9888
+  }
+ },
+ "_points_by_quantity": {
+  "ctx.ledger_pct_of_read": [
+   {
+    "as_of": "2026-08-10",
+    "value": "34.1",
+    "origin": "docs/knowledge/context-cost-breakdown-2026-08-10.md :: 「台帳が」直後"
+   },
+   {
+    "as_of": "2026-09-03",
+    "value": "50.9",
+    "origin": "tools/measure_read_kind.py --json :: target_pct_of_read.台帳(STATUS/handover/awaiting)"
+   }
+  ],
+  "ctx.handover_pct_of_total": [
+   {
+    "as_of": "2026-08-10",
+    "value": "8.9",
+    "origin": "docs/knowledge/context-cost-breakdown-2026-08-10.md :: 「単独で全体の」直後"
+   },
+   {
+    "as_of": "2026-09-03",
+    "value": "5.9",
+    "origin": "tools/measure_read_residency.py --json :: by_basename_pct_of_total.handover.md"
+   }
+  ]
+ },
+ "numbers": {
+  "ctx.toolinput_pct": {
+   "value": "38.0",
+   "raw": 37.955749892094026,
+   "kind": "measure_json",
+   "quantity": "ctx.toolinput_pct",
+   "as_of": null,
+   "source": "tools/measure_read_residency.py",
+   "selector": "by_source_pct.(tool_use 引数)",
+   "origin": "tools/measure_read_residency.py --json :: by_source_pct.(tool_use 引数)",
+   "note": "最大費目＝ツール引数",
+   "corpus": {
+    "turns": 10604,
+    "sessions": 93,
+    "total_eff": 326059916.75
+   }
+  },
+  "ctx.shellout_pct": {
+   "value": "26.0",
+   "raw": 26.03833686343478,
+   "kind": "measure_json",
+   "quantity": "ctx.shellout_pct",
+   "as_of": null,
+   "source": "tools/measure_read_residency.py",
+   "selector": "by_source_pct.Bash",
+   "origin": "tools/measure_read_residency.py --json :: by_source_pct.Bash",
+   "note": "シェル出力",
+   "corpus": {
+    "turns": 10604,
+    "sessions": 93,
+    "total_eff": 326059916.75
+   }
+  },
+  "ctx.read_pct": {
+   "value": "19.6",
+   "raw": 19.61710339546052,
+   "kind": "measure_json",
+   "quantity": "ctx.read_pct",
+   "as_of": null,
+   "source": "tools/measure_read_residency.py",
+   "selector": "read.pct_of_total",
+   "origin": "tools/measure_read_residency.py --json :: read.pct_of_total",
+   "note": "Read",
+   "corpus": {
+    "turns": 10604,
+    "sessions": 93,
+    "total_eff": 326059916.75
+   }
+  },
+  "ctx.assistant_pct": {
+   "value": "7.3",
+   "raw": 7.339376222177116,
+   "kind": "measure_json",
+   "quantity": "ctx.assistant_pct",
+   "as_of": null,
+   "source": "tools/measure_read_residency.py",
+   "selector": "by_source_pct.(assistant 出力)",
+   "origin": "tools/measure_read_residency.py --json :: by_source_pct.(assistant 出力)",
+   "note": "CLAUDE.md は「7〜10%」と幅で述べる＝上端 9.8% は別セッションの独立実装の値で当リポジトリに抽出器が無い。幅の下端だけをタグ付けると幅の主張が機械化されたと誤認させるのでタグを要求しない（守れない範囲）",
+   "corpus": {
+    "turns": 10604,
+    "sessions": 93,
+    "total_eff": 326059916.75
+   }
+  },
+  "ctx.ledger_pct_of_read@2026-08-10": {
+   "value": "34.1",
+   "raw": 34.1,
+   "kind": "doc_number",
+   "quantity": "ctx.ledger_pct_of_read",
+   "as_of": "2026-08-10",
+   "source": "docs/knowledge/context-cost-breakdown-2026-08-10.md",
+   "selector": "台帳が",
+   "origin": "docs/knowledge/context-cost-breakdown-2026-08-10.md :: 「台帳が」直後",
+   "note": "台帳が Read に占める割合。出所は日付つき knowledge 文書そのもの",
+   "sha256": "fba27fa3d07cf84b743c7c40d0374074450d7f699499d70d1b098226489d04b3"
+  },
+  "ctx.handover_pct_of_total@2026-08-10": {
+   "value": "8.9",
+   "raw": 8.9,
+   "kind": "doc_number",
+   "quantity": "ctx.handover_pct_of_total",
+   "as_of": "2026-08-10",
+   "source": "docs/knowledge/context-cost-breakdown-2026-08-10.md",
+   "selector": "単独で全体の",
+   "origin": "docs/knowledge/context-cost-breakdown-2026-08-10.md :: 「単独で全体の」直後",
+   "note": "handover.md 単独の全体占有。同上",
+   "sha256": "fba27fa3d07cf84b743c7c40d0374074450d7f699499d70d1b098226489d04b3"
+  },
+  "ctx.ledger_pct_of_read@2026-09-03": {
+   "value": "50.9",
+   "raw": 50.89638762950333,
+   "kind": "measure_json",
+   "quantity": "ctx.ledger_pct_of_read",
+   "as_of": "2026-09-03",
+   "source": "tools/measure_read_kind.py",
+   "selector": "target_pct_of_read.台帳(STATUS/handover/awaiting)",
+   "origin": "tools/measure_read_kind.py --json :: target_pct_of_read.台帳(STATUS/handover/awaiting)",
+   "note": "再測。⚠️ 代表性が低い可能性＝この便はサブエージェント9体並列で、かつ測定中に handover.md が 8,811→6,631 字へ縮んだ（今ラウンドの消し込み6コミット）。どちらが効いたかは未確定",
+   "corpus": {
+    "turns": null,
+    "sessions": null,
+    "total_eff": 63963511.0
+   }
+  },
+  "ctx.handover_pct_of_total@2026-09-03": {
+   "value": "5.9",
+   "raw": 5.916186721838142,
+   "kind": "measure_json",
+   "quantity": "ctx.handover_pct_of_total",
+   "as_of": "2026-09-03",
+   "source": "tools/measure_read_residency.py",
+   "selector": "by_basename_pct_of_total.handover.md",
+   "origin": "tools/measure_read_residency.py --json :: by_basename_pct_of_total.handover.md",
+   "note": "再測。⚠️ 上と同じ条件つき＝台帳自体が測定中に縮んでいるので、下がったこと自体が消し込みの結果を測っただけの可能性がある",
+   "corpus": {
+    "turns": 10604,
+    "sessions": 93,
+    "total_eff": 326059916.75
+   }
+  },
+  "nfr.startup.median_ms": {
+   "value": "350",
+   "raw": 350.0,
+   "kind": "kotlin_const",
+   "quantity": "nfr.startup.median_ms",
+   "as_of": null,
+   "source": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/StartupBudget.kt",
+   "selector": "BUDGET_MEDIAN_MS",
+   "origin": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/StartupBudget.kt :: BUDGET_MEDIAN_MS",
+   "note": "NFR-PERF-01",
+   "sha256": "1b15297531c6c95d7801009da406141a437a15fe44fa33b8739ca9bd73ac5d92"
+  },
+  "nfr.startup.max_ms": {
+   "value": "500",
+   "raw": 500.0,
+   "kind": "kotlin_const",
+   "quantity": "nfr.startup.max_ms",
+   "as_of": null,
+   "source": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/StartupBudget.kt",
+   "selector": "BUDGET_MAX_MS",
+   "origin": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/StartupBudget.kt :: BUDGET_MAX_MS",
+   "note": "NFR-PERF-01",
+   "sha256": "1b15297531c6c95d7801009da406141a437a15fe44fa33b8739ca9bd73ac5d92"
+  },
+  "nfr.scroll.p50_ms": {
+   "value": "15",
+   "raw": 15.0,
+   "kind": "kotlin_const",
+   "quantity": "nfr.scroll.p50_ms",
+   "as_of": null,
+   "source": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/ScrollBudget.kt",
+   "selector": "BUDGET_P50_MS",
+   "origin": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/ScrollBudget.kt :: BUDGET_P50_MS",
+   "note": "NFR-PERF-02",
+   "sha256": "ae4ce2c70d160e39549510c1b9d0b5400891c397340bc6ccbc4d51ae86a07e89"
+  },
+  "nfr.scroll.p90_ms": {
+   "value": "20",
+   "raw": 20.0,
+   "kind": "kotlin_const",
+   "quantity": "nfr.scroll.p90_ms",
+   "as_of": null,
+   "source": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/ScrollBudget.kt",
+   "selector": "BUDGET_P90_MS",
+   "origin": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/ScrollBudget.kt :: BUDGET_P90_MS",
+   "note": "NFR-PERF-02",
+   "sha256": "ae4ce2c70d160e39549510c1b9d0b5400891c397340bc6ccbc4d51ae86a07e89"
+  },
+  "nfr.scroll.p99_ms": {
+   "value": "30",
+   "raw": 30.0,
+   "kind": "kotlin_const",
+   "quantity": "nfr.scroll.p99_ms",
+   "as_of": null,
+   "source": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/ScrollBudget.kt",
+   "selector": "BUDGET_P99_MS",
+   "origin": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/ScrollBudget.kt :: BUDGET_P99_MS",
+   "note": "NFR-PERF-02",
+   "sha256": "ae4ce2c70d160e39549510c1b9d0b5400891c397340bc6ccbc4d51ae86a07e89"
+  },
+  "nfr.flip.p50_ms": {
+   "value": "15",
+   "raw": 15.0,
+   "kind": "kotlin_const",
+   "quantity": "nfr.flip.p50_ms",
+   "as_of": null,
+   "source": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/FlipBudget.kt",
+   "selector": "BUDGET_P50_MS",
+   "origin": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/FlipBudget.kt :: BUDGET_P50_MS",
+   "note": "NFR-PERF-03",
+   "sha256": "ebed184b6a96adce8bade7998cb59e2e784c49239ec98a62821f91c809f3d0aa"
+  },
+  "nfr.flip.p90_ms": {
+   "value": "20",
+   "raw": 20.0,
+   "kind": "kotlin_const",
+   "quantity": "nfr.flip.p90_ms",
+   "as_of": null,
+   "source": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/FlipBudget.kt",
+   "selector": "BUDGET_P90_MS",
+   "origin": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/FlipBudget.kt :: BUDGET_P90_MS",
+   "note": "NFR-PERF-03",
+   "sha256": "ebed184b6a96adce8bade7998cb59e2e784c49239ec98a62821f91c809f3d0aa"
+  },
+  "nfr.flip.p99_ms": {
+   "value": "50",
+   "raw": 50.0,
+   "kind": "kotlin_const",
+   "quantity": "nfr.flip.p99_ms",
+   "as_of": null,
+   "source": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/FlipBudget.kt",
+   "selector": "BUDGET_P99_MS",
+   "origin": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/FlipBudget.kt :: BUDGET_P99_MS",
+   "note": "NFR-PERF-03",
+   "sha256": "ebed184b6a96adce8bade7998cb59e2e784c49239ec98a62821f91c809f3d0aa"
+  },
+  "nfr.tabswipe.p50_ms": {
+   "value": "11",
+   "raw": 11.0,
+   "kind": "kotlin_const",
+   "quantity": "nfr.tabswipe.p50_ms",
+   "as_of": null,
+   "source": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TabSwipeBudget.kt",
+   "selector": "BUDGET_P50_MS",
+   "origin": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TabSwipeBudget.kt :: BUDGET_P50_MS",
+   "note": "NFR-PERF-04",
+   "sha256": "61480e72fa1d64ba986f4dc1abc7be0a3df36d5095f533bbe84dc6bb2c1d5bd8"
+  },
+  "nfr.tabswipe.p90_ms": {
+   "value": "18",
+   "raw": 18.0,
+   "kind": "kotlin_const",
+   "quantity": "nfr.tabswipe.p90_ms",
+   "as_of": null,
+   "source": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TabSwipeBudget.kt",
+   "selector": "BUDGET_P90_MS",
+   "origin": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TabSwipeBudget.kt :: BUDGET_P90_MS",
+   "note": "NFR-PERF-04",
+   "sha256": "61480e72fa1d64ba986f4dc1abc7be0a3df36d5095f533bbe84dc6bb2c1d5bd8"
+  },
+  "nfr.tabswipe.p99_ms": {
+   "value": "50",
+   "raw": 50.0,
+   "kind": "kotlin_const",
+   "quantity": "nfr.tabswipe.p99_ms",
+   "as_of": null,
+   "source": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TabSwipeBudget.kt",
+   "selector": "BUDGET_P99_MS",
+   "origin": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TabSwipeBudget.kt :: BUDGET_P99_MS",
+   "note": "NFR-PERF-04",
+   "sha256": "61480e72fa1d64ba986f4dc1abc7be0a3df36d5095f533bbe84dc6bb2c1d5bd8"
+  },
+  "nfr.tocpush.p50_ms": {
+   "value": "15",
+   "raw": 15.0,
+   "kind": "kotlin_const",
+   "quantity": "nfr.tocpush.p50_ms",
+   "as_of": null,
+   "source": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TocPushBudget.kt",
+   "selector": "BUDGET_P50_MS",
+   "origin": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TocPushBudget.kt :: BUDGET_P50_MS",
+   "note": "NFR-PERF-05",
+   "sha256": "68a00ec8e117e581cfa67fce5a1444392bb9dc6aeff3b16cd125ecee657ef0eb"
+  },
+  "nfr.tocpush.p90_ms": {
+   "value": "35",
+   "raw": 35.0,
+   "kind": "kotlin_const",
+   "quantity": "nfr.tocpush.p90_ms",
+   "as_of": null,
+   "source": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TocPushBudget.kt",
+   "selector": "BUDGET_P90_MS",
+   "origin": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TocPushBudget.kt :: BUDGET_P90_MS",
+   "note": "NFR-PERF-05",
+   "sha256": "68a00ec8e117e581cfa67fce5a1444392bb9dc6aeff3b16cd125ecee657ef0eb"
+  },
+  "nfr.tocpush.p99_ms": {
+   "value": "60",
+   "raw": 60.0,
+   "kind": "kotlin_const",
+   "quantity": "nfr.tocpush.p99_ms",
+   "as_of": null,
+   "source": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TocPushBudget.kt",
+   "selector": "BUDGET_P99_MS",
+   "origin": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/TocPushBudget.kt :: BUDGET_P99_MS",
+   "note": "NFR-PERF-05",
+   "sha256": "68a00ec8e117e581cfa67fce5a1444392bb9dc6aeff3b16cd125ecee657ef0eb"
+  },
+  "nfr.import.extract_s": {
+   "value": "35",
+   "raw": 35000.0,
+   "kind": "kotlin_const",
+   "quantity": "nfr.import.extract_s",
+   "as_of": null,
+   "source": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/ImportBudget.kt",
+   "selector": "BUDGET_EXTRACT_MS",
+   "origin": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/ImportBudget.kt :: BUDGET_EXTRACT_MS",
+   "note": "NFR-PERF-06（ms→s）",
+   "sha256": "1d9db7534301b5a04c70cfe57241b8a5770dbbb6226ec14177bc9736d7222511"
+  },
+  "nfr.import.engine_s": {
+   "value": "33",
+   "raw": 33000.0,
+   "kind": "kotlin_const",
+   "quantity": "nfr.import.engine_s",
+   "as_of": null,
+   "source": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/ImportBudget.kt",
+   "selector": "BUDGET_ENGINE_MS",
+   "origin": "android/macrobenchmark/src/main/java/com/novelreader/macrobenchmark/ImportBudget.kt :: BUDGET_ENGINE_MS",
+   "note": "NFR-PERF-06（ms→s）",
+   "sha256": "1d9db7534301b5a04c70cfe57241b8a5770dbbb6226ec14177bc9736d7222511"
+  },
+  "nfr.room.version": {
+   "value": "22",
+   "raw": 22.0,
+   "kind": "kotlin_attr",
+   "quantity": "nfr.room.version",
+   "as_of": null,
+   "source": "android/app/src/main/java/com/novelreader/data/AppDatabase.kt",
+   "selector": "version",
+   "origin": "android/app/src/main/java/com/novelreader/data/AppDatabase.kt :: version",
+   "note": "NFR-REL-01",
+   "sha256": "517be3bc6d88e8397a8789943c9c5c53d8688fc70b2811ca620feffb4b87f417"
+  }
+ }
+}
