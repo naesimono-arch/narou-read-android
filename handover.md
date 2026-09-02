@@ -112,10 +112,13 @@
   直し方＝`lineHeight` を `em` 比で明示（正本の比。本棚Kは 1.6.em＝前例 `ui/ChapterContent.kt:318`）。
   **見た目が変わる＝golden 再記録と、ストア用 `phone-2-shelf.png` の撮り直しが要る**。
 
-- **[走査(c) が `NovelDetailScreen_content_{light,sepia}_2.0` を赤にする]**（2026-08-26 に既存の赤と判明・未着手）:
-  `check_golden_rule_loss.py` の走査(c) が赤を出すが、**HEAD の golden で同じ関数を回しても座標も本数も完全一致**
-  ＝作品詳細の fontScale 便より前から在る赤。実体は **x≈97〜105dp の栞書影カードの縦組み題字**（1.0=5→2.0=6）。
-  カードは dp 固定なので案A/T2/案B とは無関係。⚠️ **CI ブロッキングなので、赤のまま放置すると他の変更の赤が埋もれる**。
+- **[走査(c) の残り2ケースが赤（CI ブロッキング）]**（2026-09-02・NovelDetail 分は解消済み）:
+  残るのは `BookshelfK_grid_mixed_{light,sepia}`（14→15）と `IntroOverlayK_about_intro_light`（0→1）。
+  **どちらも同じ PNG を 1.0 粒度で測ると赤が消える**（grid は 1.0画像14/2.0画像11・intro は 0/0）＝
+  走査(c) が**異なる粒度で測った本数を突き合わせている**のが機序で、dp 固定インクでは不公平になる。
+  NovelDetail 側は「融合塊」という形で現れたので `MAX_ASPECT` で塞いだが、この2件は塊が正方形＝別の現れ方。
+  ⚠️ **両粒度の AND を要求すると corpus の赤が 0 件になり感度を検証できない**（真陽性2件は 2026-08-07 に是正済みで
+  corpus に残っていない）ので、緩め方は要裁定。BookshelfK は golden 再記録便で絵自体が変わる可能性あり。
 
 ## リファクタ / 技術的負債（deferred）
 
