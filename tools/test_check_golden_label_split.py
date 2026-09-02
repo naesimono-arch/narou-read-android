@@ -13,6 +13,9 @@ fixture の出所（tools/testdata/golden_label_split/ ＝ corpus 本体とは�
     空棚 CTA が 2.0 で P/D/F の縦積みへ割れた実物。
   ・TocK_ep4digits_light_{1.0,2.0}.png … コミット 3567f2c（是正コミット 20f1f01「目次の現在地バーが
     fontScale 2.0 で章題を1行1文字に潰し進捗も読めない」の親）から取得。4桁話数ラベルが割れた実物。
+  ・DiscoveryResultScreen_list_light_{1.0,2.0}.png … 現行 corpus（HEAD）から凍結。**未是正の本物**＝
+    ランキング行のメタ「週間51位」が 2.0 で 1行1文字へ割れ、画面下端から流出している。意匠側が
+    是正して再記録すると corpus からは消えるので、消える前に感度サンプルとして確保した。
   ・残り4組 … 現行 corpus から凍結した既知の偽陽性（いずれも「同じ PNG を別の粒度で測ると結果が変わる」
     ことを実測して判定器の産物と確定したもの）。
 
@@ -38,6 +41,8 @@ EXPECTED = [
      "d99d99d＝是正前の実物。空棚 CTA が P/D/F へ縦積み（感度の担保）"),
     ("TocK_ep4digits_light", "red", "red",
      "3567f2c＝是正前の実物。4桁話数ラベルが縦積み（感度の担保）"),
+    ("DiscoveryResultScreen_list_light", "red", "red",
+     "現行 corpus の未是正の本物。ランキング行メタの最終要素『週間51位』が 1行1文字へ割れて画面外へ流出"),
     ("NovelDetailScreen_content_light", "green", "green",
      "栞書影の縦組み題字が dp 固定で、2.0 側だけ広いまとめ幅により隣接2列が融合した産物"),
     ("BookshelfK_list_mixed_light", "green", "green",

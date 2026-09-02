@@ -29,7 +29,8 @@
   **他人の端末なので読み取り以外はしない**＝`docs/knowledge/emui-p30-jank-log-collection.md`）。
 
 - **ゲート**: ローカル（`testDebugUnitTest`／public シグネチャを変えたときの `:app:assembleDebugAndroidTest`）も
-  CI（`.github/workflows/ci.yml` の全ゲート）も**緑**。内訳と対象外の理由は YAML 側が正本。
+  CI は **golden 走査(c) だけ赤**（`DiscoveryResultScreen_list_{dark,light,sepia}`＝実破綻・handover に登録済み）で、
+  残りのゲートは緑。内訳と対象外の理由は YAML 側が正本。
 
 - **[分析中] 他社 APK の逆解析**（2026-08-25 開始・**ユーザーが実行中**）: 骨（遷移スケルトン）と重い処理の扱いの
   **規範を借りる**のが目的。⚠️ **骨の濃さは「借りられない」と判明**＝他社 CR 帯が測る量の違う値の混成で比較不能
