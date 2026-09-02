@@ -1,0 +1,326 @@
+<!-- @dsCard group="UI-n / 読書（D詰め）" name="D. 読書 — 3ピルの寸法・書体 3案比較（裁定用ドラフト）" -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>読書3ピル — 寸法・書体 3案比較（裁定用ドラフト）</title>
+<style>
+  /*==harness==*/
+  /* 読書3ピル（復帰ヒント／続きに戻る／最上部へ）の**寸法と書体**だけを比較する裁定用ドラフト。
+     版面・配色・本文組みは reading-D.html（ライト）から逐語複製し、変えたのはピルの font-size と
+     font-family だけ＝差が「ピルの字面」以外から来ないようにする。
+     ⚠️ 裁定が下りたら正本（reading-D 等）へ反映し、このファイルは削除する（複数案比較の一時ドラフト）。 */
+  :root{
+    --ai:#1C3D5A;            /* 藍（アクセント・ルール線。3テーマ共通の骨格色） */
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;
+    padding:26px;font-family:var(--gothic)}
+  .cap{color:#5A5C57;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.6;max-width:860px}
+  .cap b{color:#2A2C28}
+  .wcag{color:#6A6C67;font-size:11px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:860px}
+  .stage{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:9px;width:372px}
+  .wrap .mode{font-size:12px;letter-spacing:.2em;color:#6A6C67;text-align:center}
+  .wrap .sub{font-size:11px;line-height:1.7;color:#6A6C67;text-align:left}
+  .wrap .sub b{color:#2A2C28}
+  .phone{width:372px;height:800px;border-radius:40px;overflow:hidden;position:relative;
+    box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--mincho)}
+  /*==/harness==*/
+
+  .t-light{ --bg:#FBFAF8; --ink:#1C1F26; --soft:#7C808B; --ruby:#616C77; --rule:#1C3D5A;
+            --blk-bg:#F1F0EC; --blk-bd:#E4E2DB; --bar:#FBFAF8; --bar-line:#ECEAE4; --accent:#1C3D5A; --acc-on:#fff; }
+  .phone{background:var(--bg)}
+
+  /* ---- 以下 .sb / .topbar / .reader / .bottombar は reading-D.html から逐語複製 ---- */
+  .sb{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;
+    font-size:11px;color:var(--soft);font-family:var(--gothic)}
+  .topbar{position:relative;z-index:4;height:50px;display:flex;align-items:center;gap:4px;padding:0 16px;
+    background:var(--bar);border-bottom:1px solid var(--bar-line)}
+  .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;
+    place-items:center;color:var(--ink);cursor:pointer}
+  .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar .ct{flex:1;font-family:var(--gothic);font-size:13.5px;color:var(--ink);letter-spacing:.04em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .reader{flex:1;overflow:auto;position:relative;z-index:1;padding:8px 24px 92px}
+  .chap-h{text-align:center;margin:16px 0 24px}
+  .chap-h .num{font-family:var(--gothic);font-size:11px;color:var(--accent);letter-spacing:.3em}
+  .chap-h .t{font-size:18px;color:var(--ink);margin-top:8px;line-height:1.6;font-weight:600}
+  .chap-h .rule{width:48px;height:2px;background:var(--rule);margin:16px auto 0;opacity:.85}
+  p{font-size:16.5px;line-height:2.4;color:var(--ink);text-indent:1em;margin-bottom:.3em}
+  ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+  .blank{height:1.5em}
+  hr{border:none;height:1px;width:42%;margin:16px auto;background:var(--rule);opacity:.5}
+  .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:60px;display:flex;align-items:center;
+    background:var(--bar);border-top:1px solid var(--bar-line)}
+  .bottombar button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:4px;color:var(--ink);cursor:pointer}
+  .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  .bottombar .bl{font-family:var(--gothic);font-size:9.5px;color:var(--soft);letter-spacing:.02em}
+  .bottombar .set svg{stroke:var(--accent)}
+  .bottombar .set .bl{color:var(--accent);font-weight:600}
+  .immersive .topbar,.immersive .bottombar{display:none}
+  .immersive .reader{padding:32px 24px 40px}
+  /* 正本 reading-D `.hint` の逐語複製（参考R でのみ使う＝器なし素テキスト） */
+  .hint{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:6;font-family:var(--gothic);
+    font-size:11px;color:var(--soft);letter-spacing:.08em;opacity:.8}
+
+  /* ---- ここからが本件の比較対象: 3ピルの器（現行実装の写し）---- */
+  /* 器・色・位置は現行 Compose 実測値で全案共通に固定する（＝差が寸法と書体だけになる）:
+     ・角丸 999px（RoundedCornerShape(50)）・左右 16dp / 上下 8dp（Spacing.S16 / S8）
+     ・地色 navBackground #FBFAF8（復帰ヒント/続きに戻るは α.92、最上部へは不透明＝暗色スキン対策の既決）
+     ・字色 topBarIcon #4A4F58（D ライト。⚠️ 正本 .toppill は --ink #1C1F26 で不一致だが別軸）
+     ・復帰ヒントの下端は Insets.ChromeHintBottom = 96dp（正本 .hint の 26px とは別軸） */
+  .hintpill,.retchip,.toppill{position:absolute;left:50%;transform:translateX(-50%);z-index:6;
+    color:#4A4F58;letter-spacing:.08em;border-radius:999px;padding:8px 16px;white-space:nowrap}
+  .hintpill{bottom:96px;background:rgba(251,250,248,.92)}
+  .retchip{top:42px;background:rgba(251,250,248,.92)}
+  .toppill{bottom:74px;background:#FBFAF8;display:flex;align-items:center;gap:6px;border:none;cursor:pointer}
+  .toppill svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8}
+
+  /* 寸法・書体の3案（ここだけが案ごとに違う）。
+     line-height は Windows/Android とも和文フォントの `normal` 実測 1.6（hhea: (asc-desc+gap)/upem
+     ＝Yu Gothic/Yu Mincho とも 1.6021）に合わせ、全案で「字面 × 1.6」に統一する。 */
+  .v-a{font-family:var(--gothic);font-size:11px;line-height:1.6}   /* 17.6 + 16 = 33.6px 高 */
+  .v-b{font-family:var(--mincho);font-size:13px;line-height:1.6}   /* 20.8 + 16 = 36.8px 高（現行実装） */
+  .v-c{font-family:var(--gothic);font-size:12px;line-height:1.6}   /* 19.2 + 16 = 35.2px 高 */
+
+  /* 波及メモ */
+  .notes{max-width:1180px;margin-top:34px;display:flex;flex-direction:column;gap:14px}
+  .note{background:#FBFAF8;border:1px solid #D9D7D0;border-radius:4px;padding:14px 18px;
+    font-size:12px;line-height:1.85;color:#3A3C38}
+  .note h3{font-size:13px;color:#1C3D5A;margin-bottom:6px;letter-spacing:.06em}
+  .note code{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;background:#F1F0EC;padding:0 3px}
+  .note b{color:#1C1F26}
+  table{border-collapse:collapse;margin:0 auto 18px;font-size:11.5px;background:#FBFAF8}
+  th,td{border:1px solid #D9D7D0;padding:5px 10px;text-align:left;color:#3A3C38}
+  th{background:#F1F0EC;color:#1C1F26;font-weight:600}
+  .sec{width:100%;max-width:1180px;margin:30px 0 12px;font-size:13px;letter-spacing:.14em;
+    color:#2A2C28;border-bottom:1px solid #C8C6BF;padding-bottom:6px}
+</style>
+</head>
+<body>
+  <p class="cap"><b>読書の3ピル（復帰ヒント／続きに戻る／最上部へ）— 寸法と書体をどちらへ寄せるか</b><br>
+  <b>症状</b>: 正本は <b>11px ゴシック</b>（reading-D <code>.hint</code>・reading-backtotop-D <code>.toppill</code>）なのに、
+  実装は <b>13sp 明朝</b>（<code>FontSubTitle</code> ＋ <code>MinchoFamily</code>）。2026-09-02 の <code>lineHeight</code> 便は
+  <b>行送りの比（1.6）だけを写して寸法・書体は触っていない</b>ため、字面のサイズと書体そのものがズレたまま残っている。</p>
+  <p class="wcag">全案とも<b>ライト・同一本文・同一余白</b>で統一し、<b>ピルの font-size と font-family だけ</b>を変えてある
+  （器・地色・字色・位置は現行 Compose の実測値で全案共通に固定）。<br>
+  行送りは全案「字面 × 1.6」。1.6 の出所＝Yu Gothic / Yu Mincho の <code>line-height: normal</code> 実測
+  （hhea の (ascender − descender + lineGap) ÷ unitsPerEm ＝ 1.6021・両書体とも同値）。</p>
+
+  <table>
+    <tr><th>要素</th><th>正本（HTMLモック）</th><th>現行実装（Compose）</th><th>ズレ</th></tr>
+    <tr><td>復帰ヒント</td><td>reading-D <code>.hint</code> 11px ゴシック・器なし・下端 26px</td><td>13sp 明朝・丸ピル・下端 96dp</td><td>寸法＋2 / 書体 / 器 / 位置</td></tr>
+    <tr><td>続きに戻る</td><td>専用セレクタなし（散文で「復帰ヒントと同型」）</td><td>13sp 明朝・丸ピル α.92</td><td>正本が未定義</td></tr>
+    <tr><td>最上部へ</td><td>reading-backtotop-D <code>.toppill</code> 11px ゴシック・枠線＋影あり</td><td>13sp 明朝・枠線/影なし・不透明地</td><td>寸法＋2 / 書体 / 枠・影</td></tr>
+  </table>
+
+  <div class="sec">① 没入中（バー非表示）＝ 続きに戻る（上端）＋ 復帰ヒント（下端）</div>
+  <div class="stage">
+    <div class="wrap"><span class="mode">案A ／ 正本へ寄せる</span>
+    <div class="phone t-light immersive" role="img" aria-label="案A ／ 正本へ寄せる 没入中の復帰ヒント">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <div class="blank"></div><hr><div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <p><ruby>城門<rt>じょうもん</rt></ruby>の<ruby>兵<rt>へい</rt></ruby>は<ruby>誰<rt>だれ</rt></ruby>も<ruby>咎<rt>とが</rt></ruby>めなかった。<ruby>剣<rt>つるぎ</rt></ruby>を<ruby>置<rt>お</rt></ruby>いた<ruby>者<rt>もの</rt></ruby>を<ruby>通<rt>とお</rt></ruby>すのが、この<ruby>街<rt>まち</rt></ruby>の<ruby>古<rt>ふる</rt></ruby>い<ruby>掟<rt>おきて</rt></ruby>だからだ。</p>
+      </div>
+      <div class="retchip v-a">続きに戻る</div>
+      <div class="hintpill v-a">画面をタップでメニュー</div>
+    </div>
+    <span class="sub">復帰ヒント／続きに戻る＝<b>11px ゴシック</b>。ピル高 = 字面 × 1.6 ＋ 上下 8dp ＝ <b>33.6dp</b>。上（続きに戻る）はタップ可能・下（復帰ヒント）は純表示。</span></div>
+    <div class="wrap"><span class="mode">案B ／ 実装へ寄せる（正本を改訂）</span>
+    <div class="phone t-light immersive" role="img" aria-label="案B ／ 実装へ寄せる（正本を改訂） 没入中の復帰ヒント">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <div class="blank"></div><hr><div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <p><ruby>城門<rt>じょうもん</rt></ruby>の<ruby>兵<rt>へい</rt></ruby>は<ruby>誰<rt>だれ</rt></ruby>も<ruby>咎<rt>とが</rt></ruby>めなかった。<ruby>剣<rt>つるぎ</rt></ruby>を<ruby>置<rt>お</rt></ruby>いた<ruby>者<rt>もの</rt></ruby>を<ruby>通<rt>とお</rt></ruby>すのが、この<ruby>街<rt>まち</rt></ruby>の<ruby>古<rt>ふる</rt></ruby>い<ruby>掟<rt>おきて</rt></ruby>だからだ。</p>
+      </div>
+      <div class="retchip v-b">続きに戻る</div>
+      <div class="hintpill v-b">画面をタップでメニュー</div>
+    </div>
+    <span class="sub">復帰ヒント／続きに戻る＝<b>13px 明朝</b>。ピル高 = 字面 × 1.6 ＋ 上下 8dp ＝ <b>36.8dp</b>。上（続きに戻る）はタップ可能・下（復帰ヒント）は純表示。</span></div>
+    <div class="wrap"><span class="mode">案C ／ 中間</span>
+    <div class="phone t-light immersive" role="img" aria-label="案C ／ 中間 没入中の復帰ヒント">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <div class="blank"></div><hr><div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <p><ruby>城門<rt>じょうもん</rt></ruby>の<ruby>兵<rt>へい</rt></ruby>は<ruby>誰<rt>だれ</rt></ruby>も<ruby>咎<rt>とが</rt></ruby>めなかった。<ruby>剣<rt>つるぎ</rt></ruby>を<ruby>置<rt>お</rt></ruby>いた<ruby>者<rt>もの</rt></ruby>を<ruby>通<rt>とお</rt></ruby>すのが、この<ruby>街<rt>まち</rt></ruby>の<ruby>古<rt>ふる</rt></ruby>い<ruby>掟<rt>おきて</rt></ruby>だからだ。</p>
+      </div>
+      <div class="retchip v-c">続きに戻る</div>
+      <div class="hintpill v-c">画面をタップでメニュー</div>
+    </div>
+    <span class="sub">復帰ヒント／続きに戻る＝<b>12px ゴシック</b>。ピル高 = 字面 × 1.6 ＋ 上下 8dp ＝ <b>35.2dp</b>。上（続きに戻る）はタップ可能・下（復帰ヒント）は純表示。</span></div>
+    <div class="wrap"><span class="mode">参考R ／ 正本の字義どおり</span>
+    <div class="phone t-light immersive" role="img" aria-label="参考R ／ 正本の字義どおり 没入中の復帰ヒント">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <div class="blank"></div><hr><div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <p><ruby>城門<rt>じょうもん</rt></ruby>の<ruby>兵<rt>へい</rt></ruby>は<ruby>誰<rt>だれ</rt></ruby>も<ruby>咎<rt>とが</rt></ruby>めなかった。<ruby>剣<rt>つるぎ</rt></ruby>を<ruby>置<rt>お</rt></ruby>いた<ruby>者<rt>もの</rt></ruby>を<ruby>通<rt>とお</rt></ruby>すのが、この<ruby>街<rt>まち</rt></ruby>の<ruby>古<rt>ふる</rt></ruby>い<ruby>掟<rt>おきて</rt></ruby>だからだ。</p>
+      </div>
+      <div class="hint">画面をタップでメニュー</div>
+    </div>
+    <span class="sub">reading-D <code>.hint</code> をそのまま描くとこうなる＝<b>丸ピルの器そのものが正本に無い</b>（11px ゴシック・--soft #7C808B・opacity .8・下端 26px の素テキスト）。「続きに戻る」は<b>正本にセレクタが無い</b>ので描けない。器・色・位置は寸法／書体とは別の軸なので、3案の側は現行実装どおり「ピルあり・下端 96dp」に揃えてある。</span></div>
+  </div>
+
+  <div class="sec">② クローム表示中 ＝ 最上部へ（下端バー直上）</div>
+  <div class="stage">
+    <div class="wrap"><span class="mode">案A ／ 正本へ寄せる</span>
+    <div class="phone t-light" role="img" aria-label="案A ／ 正本へ寄せる クローム表示中の続きに戻る／最上部へ">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="reader">
+        <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <div class="blank"></div><hr><div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <p><ruby>城門<rt>じょうもん</rt></ruby>の<ruby>兵<rt>へい</rt></ruby>は<ruby>誰<rt>だれ</rt></ruby>も<ruby>咎<rt>とが</rt></ruby>めなかった。<ruby>剣<rt>つるぎ</rt></ruby>を<ruby>置<rt>お</rt></ruby>いた<ruby>者<rt>もの</rt></ruby>を<ruby>通<rt>とお</rt></ruby>すのが、この<ruby>街<rt>まち</rt></ruby>の<ruby>古<rt>ふる</rt></ruby>い<ruby>掟<rt>おきて</rt></ruby>だからだ。</p>
+      </div>
+      <button class="toppill v-a" aria-label="この章の最上部へ"><svg viewBox="0 0 24 24"><line x1="6" y1="5" x2="18" y2="5"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg>最上部へ</button>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div>
+    <span class="sub">最上部へ＝<b>11px ゴシック</b>（高さ 33.6dp ＋ アイコン 16dp）。メニュー表示中かつ章を3割以上読み進めたときだけ出る＝下端バーとの<b>近接での大きさ</b>がここで見える。</span></div>
+    <div class="wrap"><span class="mode">案B ／ 実装へ寄せる（正本を改訂）</span>
+    <div class="phone t-light" role="img" aria-label="案B ／ 実装へ寄せる（正本を改訂） クローム表示中の続きに戻る／最上部へ">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="reader">
+        <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <div class="blank"></div><hr><div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <p><ruby>城門<rt>じょうもん</rt></ruby>の<ruby>兵<rt>へい</rt></ruby>は<ruby>誰<rt>だれ</rt></ruby>も<ruby>咎<rt>とが</rt></ruby>めなかった。<ruby>剣<rt>つるぎ</rt></ruby>を<ruby>置<rt>お</rt></ruby>いた<ruby>者<rt>もの</rt></ruby>を<ruby>通<rt>とお</rt></ruby>すのが、この<ruby>街<rt>まち</rt></ruby>の<ruby>古<rt>ふる</rt></ruby>い<ruby>掟<rt>おきて</rt></ruby>だからだ。</p>
+      </div>
+      <button class="toppill v-b" aria-label="この章の最上部へ"><svg viewBox="0 0 24 24"><line x1="6" y1="5" x2="18" y2="5"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg>最上部へ</button>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div>
+    <span class="sub">最上部へ＝<b>13px 明朝</b>（高さ 36.8dp ＋ アイコン 16dp）。メニュー表示中かつ章を3割以上読み進めたときだけ出る＝下端バーとの<b>近接での大きさ</b>がここで見える。</span></div>
+    <div class="wrap"><span class="mode">案C ／ 中間</span>
+    <div class="phone t-light" role="img" aria-label="案C ／ 中間 クローム表示中の続きに戻る／最上部へ">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="reader">
+        <div class="chap-h"><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="rule"></div></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <div class="blank"></div><hr><div class="blank"></div>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <p><ruby>城門<rt>じょうもん</rt></ruby>の<ruby>兵<rt>へい</rt></ruby>は<ruby>誰<rt>だれ</rt></ruby>も<ruby>咎<rt>とが</rt></ruby>めなかった。<ruby>剣<rt>つるぎ</rt></ruby>を<ruby>置<rt>お</rt></ruby>いた<ruby>者<rt>もの</rt></ruby>を<ruby>通<rt>とお</rt></ruby>すのが、この<ruby>街<rt>まち</rt></ruby>の<ruby>古<rt>ふる</rt></ruby>い<ruby>掟<rt>おきて</rt></ruby>だからだ。</p>
+      </div>
+      <button class="toppill v-c" aria-label="この章の最上部へ"><svg viewBox="0 0 24 24"><line x1="6" y1="5" x2="18" y2="5"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg>最上部へ</button>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div>
+    <span class="sub">最上部へ＝<b>12px ゴシック</b>（高さ 35.2dp ＋ アイコン 16dp）。メニュー表示中かつ章を3割以上読み進めたときだけ出る＝下端バーとの<b>近接での大きさ</b>がここで見える。</span></div>
+  </div>
+
+  <div class="notes">
+    <div class="note">
+      <h3>案A ／ 正本へ寄せる（11px ゴシック）— 波及</h3>
+      <b>Compose 側</b>: <code>NativeReadingScreen.kt</code> の3箇所（復帰ヒント／続きに戻る／最上部へ）で
+      <code>fontSize = FontSubTitle</code> → <code>FontLabel</code>(11.sp)、<code>fontFamily = MinchoFamily</code> →
+      <code>GothicFamily</code> へ**参照するトークンを差し替えるだけ**。<br>
+      <b>他要素への波及＝ゼロ</b>: <code>FontSubTitle</code> の値（13.sp）は動かさないので、同トークンを使う他の
+      15 箇所（本棚・作品詳細・検索・取込・目次・K スキン等）は 1px も変わらない。<b>トークンの値を書き換える案ではない</b>ことが要点。<br>
+      <b>正本の改訂</b>: 不要（reading-D <code>.hint</code>・reading-backtotop-D <code>.toppill</code> がいずれも 11px ゴシックで、実装がそこへ戻るだけ）。
+      ただし <code>tutorial-onboarding-K.html</code> の <code>.pillhint</code>（13px 明朝＝実装の逆同期記録）は 11px ゴシックへ直す必要がある。<br>
+      <b>副作用</b>: <code>GothicFamily</code> は現在どの描画からも参照されていない（Typography.kt が「裁定が下りたときの器」として先に置いたもの）。
+      本案はその<b>初めての実使用</b>になる。<br>
+      <b>緊張点</b>: タップ可能な2ピルが最小になる（高さ 33.6dp）。
+    </div>
+    <div class="note">
+      <h3>案B ／ 実装へ寄せる＝正本を改訂（13px 明朝）— 波及</h3>
+      <b>Compose 側</b>: <b>変更なし</b>（現行がこれ）。<br>
+      <b>正本の改訂が6ファイル</b>: <code>reading-D.html .hint</code> ／ <code>reading-vertical-scroll-D.html .hint</code> ／
+      <code>reading-gear-alt-D.html .hint-bottom</code> ／ <code>skins/reading-J.html .hint</code> ／
+      <code>skins/reading-M.html .hint</code> ／ <code>reading-backtotop-D.html .toppill</code>。
+      いずれも現在 11px ゴシック（M は 11px・J/D 系も 11px）で、これを 13px 明朝へ書き換えることになる。<br>
+      <b>スキン横断の緊張</b>: C は <code>.float .hint</code> 10px、P は <code>.puck .hint</code> 9px ピクセル体と、
+      各スキンが独自の字面を持つ。D だけ 13px 明朝へ上げると、<b>「ヒントは小さいゴシック」というスキン横断の共通語彙が D で切れる</b>。<br>
+      <b>原則との衝突</b>: 視覚言語 D の署名は「<b>本文＝明朝／ラベル＝ゴシック</b>」（ADR 0005・0014、Typography.kt 冒頭）。
+      ピルは機能ラベルなので、明朝を正本化するのはこの署名を D 全体で緩めることを意味する。ここは人間の裁定が要る一番大きな点。<br>
+      <b>整合が取れる先</b>: <code>tutorial-onboarding-K.html .pillhint</code>（13px 明朝）は改訂不要になる。
+    </div>
+    <div class="note">
+      <h3>案C ／ 中間（12px ゴシック）— 波及と、そもそもの根拠</h3>
+      <b>根拠</b>: 書体は正本（ゴシック）が勝ち、寸法だけ実装寄りに 1px 上げる。
+      <b>書体と寸法を別の軸として扱う</b>のが本案の主張＝「D の署名（ラベル＝ゴシック）は譲らないが、
+      <b>タップ可能な2ピル</b>（続きに戻る／最上部へ）は純表示の復帰ヒントと違って<b>指で押す標的</b>なので、
+      11px は正本が『純表示のヒント』として較正した値であってタップ標的の較正ではない」という分離。<br>
+      <b>Compose 側</b>: 3箇所を <code>FontCaption</code>(12.sp) ＋ <code>GothicFamily</code> へ。既存トークンなので新設不要。<br>
+      <b>正本の改訂</b>: 案B と同じ6ファイルを 11px → 12px（書体は据え置き）。<b>案B より改訂の中身は小さい</b>（書体を触らない）。<br>
+      <b>緊張点</b>: 3案の中で唯一「正本にも実装にも今は無い値」を新たに置く＝<b>逆同期の手間が確実に発生する</b>。
+      1px の差に見合うかは人間の判断。
+    </div>
+    <div class="note">
+      <h3>3案に共通してぶら下がる論点（本件の裁定とは別に、決めるなら今）</h3>
+      ① <b>タップ標的の最小寸法</b>: ピル高は案A 33.6 / 案C 35.2 / 案B 36.8 dp で、<b>3案とも Material の最小タップ標的 48dp に届かない</b>。
+      48dp が要るなら、字面をいくら動かしても届かないので<b>器に最小高を持たせる</b>（<code>Modifier.heightIn(min = 48.dp)</code> か
+      不可視の当たり判定拡張）別作業になる。復帰ヒントは純表示なので対象外。<br>
+      ② <b>字色の乖離</b>: 実装は3ピルとも <code>topBarIcon</code> #4A4F58。正本は <code>.toppill</code> が <code>--ink</code> #1C1F26、
+      <code>.hint</code> が <code>--soft</code> #7C808B で、<b>正本自身が2つの色を使い分けている</b>のに実装は1色に潰している。<br>
+      ③ <b>器そのもの</b>: 参考R のとおり、<b>復帰ヒントの丸ピルは正本のどの読書モックにも存在しない</b>
+      （D・J・M・vertical-scroll・gear-alt の全てが「器なしの素テキスト」）。丸ピルの根拠は
+      reading-backtotop-D の散文「復帰ヒント・続きに戻ると同型」と、実装を逆同期した <code>tutorial-onboarding-K .pillhint</code> だけ。<br>
+      ④ <b>位置</b>: 復帰ヒントの下端は実装 96dp（<code>Insets.ChromeHintBottom</code>）／正本 <code>.hint</code> は 26px。
+      本比較では実装値 96 に揃えてあるが、これも未決の乖離。<br>
+      ⑤ <b>「続きに戻る」をクローム表示側に描いていない理由</b>: 実装の位置指定は
+      <code>Alignment.TopCenter</code> ＋ <code>statusBarsIgnoringVisibility</code> ＋ <code>top = 8dp</code> で、
+      これは<b>上端バーが占める帯と同じ場所</b>を指す（コード上の読み取り。実機での重なり方は未確認）。
+      本件は寸法・書体の裁定なので、重なりという別問題で目を曇らせないよう、チップは没入側（バーが無い状態）に置いた。
+    </div>
+  </div>
+
+</body>
+</html>
