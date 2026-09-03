@@ -170,7 +170,9 @@ class DefaultVerticalTypesetter internal constructor(
                         advancePx = placed.advance,
                     ),
                 )
-                // 追い込みで容量超過しうるため、実測の列底を最大値で拾う。
+                // 句読点のぶら下げ（[LineBreaker] B-11）で列高を最大1字ぶん超えうるため、実測の列底を
+                // 最大値で拾う。⚠️ 2026-09-03 以前は「追い込み」で超過が無制限だった＝この max は
+                // 「たまに1字はみ出す」ための保険であって、無制限の超過を吸収する仕掛けではない。
                 heightPx = maxOf(heightPx, placed.yTop + placed.advance)
             }
         }
