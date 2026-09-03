@@ -22,6 +22,20 @@ class CharClassifierTest {
         assertClass(CharClass.PUNCT_REPOSITION, "、。，．")
     }
 
+    /**
+     * 引用符は縦書き用（〝〞〟）も欧文（“”‘’）も位置替え。
+     *
+     * なぜ同じ扱いか: UAX#50 の Vertical_Orientation が 7 字とも **Tr**（＝縦字形への変形が主段・
+     * 変形できない書体では回転が fallback 段）で**同値**のため。欧文側は 2026-09-03 の規範照合まで
+     * 表に無く UPRIGHT 既定＝Tr のどちらの段でもない第3の状態だった（実データ 7,319 件）。
+     * 族を割ると「なぜこの字だけ違うのか」を説明できないので揃える。
+     */
+    @Test
+    fun `引用符は縦書き用も欧文も位置替え`() {
+        assertClass(CharClass.PUNCT_REPOSITION, "〝〞〟")
+        assertClass(CharClass.PUNCT_REPOSITION, "“”‘’")
+    }
+
     @Test
     fun `小書き仮名は位置替え`() {
         assertClass(CharClass.PUNCT_REPOSITION, "ぁぃぅぇぉっゃゅょゎゕゖ")
