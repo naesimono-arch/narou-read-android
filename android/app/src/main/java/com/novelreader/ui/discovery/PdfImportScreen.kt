@@ -48,6 +48,21 @@ import com.novelreader.ui.theme.FontTopBarTitle
 import com.novelreader.ui.theme.Spacing
 
 /**
+ * scrollIntoView の寄せ位置（`block` オプション）。**スクロール後の見えは、ここ1行の差し替えで切り替わる。**
+ *
+ * 【なぜ center か】引数なしの `scrollIntoView()` は既定が `block:"start"`＝対象要素の**上端をビューポート上端へ
+ * 貼り付ける**ため、目的地のフォームが画面の一番端に来て「どこへ着いたのか分かりにくい」（2026-09-04 実機所感）。
+ * 中央に置けば上下に地の文脈（目次の末尾・フォーム下のフッタ）が残り、着地点として読み取りやすい。
+ * 【代替 nearest を残す理由】.c-under-nav はフォーム＋ボタンの塊で高さがあり、center は**要素の中心**を画面中心へ
+ * 合わせる＝要素高がビューポートより大きいと上端の「縦書きPDF」見出しが画面外へ切れうる。実機で切れて見えたら
+ * "nearest"（既に見えていれば動かさず、外に在るときだけ最小移動で収める）へ倒す。
+ * 【なぜ2つの JS で定数を共有するか】主経路とフォールバックで寄せ位置が食い違うと、どちらが走ったかで見えが変わる
+ * ——そしてどちらが走ったかは実機からは判別できない。2箇所に literal を書かず、必ずここを参照させる。
+ * 【規約】block は「ビューポートをどう寄せるか」の指定にすぎず CSS 注入でも DOM 改変でもない＝ADR 0010/0011 の線の内側。
+ */
+private const val AUTO_SCROLL_BLOCK = "center"
+
+/**
  * 目次到達時に PDF 生成フォーム(.c-under-nav)へビューポートを寄せる注入 JS（onPageCommitVisible 主経路用）。
  *
  * 【なぜ要素出現駆動か】旧実装は onPageFinished（画像・広告含む全リソース読込完了）でのみ scrollIntoView して
@@ -64,7 +79,7 @@ private const val AUTO_SCROLL_JS_ON_VISIBLE = """
   function tryScroll(){
     if (window.__nrAutoScrollDone) return true;
     var el = document.querySelector('.c-under-nav');
-    if (el) { el.scrollIntoView(); window.__nrAutoScrollDone = true; return true; }
+    if (el) { el.scrollIntoView({block:'$AUTO_SCROLL_BLOCK'}); window.__nrAutoScrollDone = true; return true; }
     return false;
   }
   if (tryScroll()) return;
@@ -84,7 +99,7 @@ private const val AUTO_SCROLL_JS_FALLBACK = """
 (function(){
   if (window.__nrAutoScrollDone) return;
   var el = document.querySelector('.c-under-nav');
-  if (el) { el.scrollIntoView(); window.__nrAutoScrollDone = true; }
+  if (el) { el.scrollIntoView({block:'$AUTO_SCROLL_BLOCK'}); window.__nrAutoScrollDone = true; }
 })();
 """
 
