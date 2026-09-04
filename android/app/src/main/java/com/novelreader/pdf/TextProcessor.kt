@@ -376,8 +376,13 @@ object TextProcessor {
         private var carryX: Double? = null
         private var carryPage: Int = NO_PAGE
 
-        // 本文ページ総数（先頭3＋末尾1 を除いた数）。0除算回避で最小1。
+        // 本文ページ総数（前付け3＋末尾1 を除いた数）。0除算回避で最小1。
+        // 前付けが 2 枚だった文書ではここが 1 枚ぶん過小になるが、pct 側で 60 に丸めるので
+        // 進捗が 60% を超えて見えることはない（表示上の誤差だけで、抽出結果には効かない）。
         private val bodyTotal = maxOf(totalPages - 4, 1)
+
+        /** 実際に本文として処理したページ枚数。前付けの枚数が可変なので通し番号からは引けない。 */
+        private var processedPages = 0
 
         /**
          * 確定した行を整形して外へ出す。
@@ -402,17 +407,51 @@ object TextProcessor {
             lineOpen = false
         }
 
+        /**
+         * このページが前付け（表紙・注意事項・作品情報）かどうか。
+         *
+         * なぜ定数で切らないか（2026-09-04 の真因）: 旧実装は `pageNum < 3` で先頭3ページを無条件に
+         * 捨てていたが、**前付けの枚数は作品によって変わる**。無作為標本 42 本中 6 本（14.3%）が
+         * 総4ページ（表紙／注意事項／本文／クレジット）で、3 枚捨てると**本文が1枚も残らず全損**した。
+         * 別の 6 本では作品情報ページが無く、ページ2 に前書きブロックが来ていて**前書きが丸ごと消えて**いた。
+         *
+         * 構造で決められること（標本 26 本の実測・詳細は
+         * docs/knowledge/narou-pdf-structure-survey-2026-09.md）:
+         * - ページ0 は表紙（本文サイズのグリフが 0 個）・ページ1 は注意事項（Bold 見出し「注意事項」）
+         *   ＝**26/26 で例外なし**。この 2 枚は必ず前付け。
+         * - 作品情報（あらすじ）ページは **Bold 見出しを持たない**（14/14）。逆に見出しが在るページは
+         *   ブロックの開始＝本文側。
+         *
+         * 構造で決められないこと: 「作品情報ページが在るか無いか」自体。在る群と無い群でページ1 の
+         * 版面充填率は 26〜29 と 22〜28 で重なり、継ぎ目の空き列数も 3 で重なる（分離不能）。
+         * ∴ ここは**判定できる 2 つの場合だけ本文側へ倒し、それ以外は従来どおり捨てる**。
+         * この向きにしたのは安全のため＝**旧実装より捨てる枚数が増えることは決して無い**ので、
+         * 新しい取りこぼしを作らずに全損だけを解消できる（残る誤りは旧実装と同一の面に留まる）。
+         */
+        private fun isFrontMatter(pageNum: Int, chars: List<CharBox>): Boolean {
+            if (pageNum <= LAST_FIXED_FRONT_PAGE) return true
+            if (pageNum > SYNOPSIS_PAGE) return false
+            // ① Bold 見出しが在る＝ブロックの開始＝作品情報ではない（作品情報ページは見出しを持たない）。
+            if (chars.any { ParserRules.checkIsTitle(it.fontName, it.size, rules.bodySize) }) return false
+            // ② ここを捨てると本文ページが 1 枚も残らない（最終ページはクレジットで別途除外される）。
+            //    作品に本文が無いことはありえないので、その場合このページは本文と確定できる。
+            if (totalPages - 1 <= SYNOPSIS_PAGE + 1) return false
+            return true
+        }
+
         /** 1 ページ分の文字を処理する（[pageNum] は 0 始まりの通しページ番号）。 */
         fun addPage(pageNum: Int, chars: List<CharBox>) {
-            // 先頭3ページ（表紙・注意事項）と最終ページ（クレジット）を除外
-            if (pageNum < 3 || pageNum >= totalPages - 1) return
+            // 前付け（枚数は文書ごと＝[isFrontMatter]）と最終ページ（クレジット）を除外
+            if (isFrontMatter(pageNum, chars) || pageNum >= totalPages - 1) return
 
-            // 進捗通知（10〜60%）
+            // 進捗通知（10〜60%）。前付けの枚数が可変になったので「何枚目を処理中か」は
+            // ページ番号からの引き算ではなく実際に処理した枚数で数える（負値・飛びを作らないため）。
             if (progressCallback != null) {
-                val processed = pageNum - 3
-                val pct = 10 + (processed.toDouble() / bodyTotal * 50).toInt()
+                val processed = processedPages
+                val pct = (10 + (processed.toDouble() / bodyTotal * 50).toInt()).coerceAtMost(60)
                 progressCallback.invoke(pct, processed, bodyTotal)
             }
+            processedPages++
 
             val titlesAll = mutableListOf<CharBox>()
             val bodiesAll = mutableListOf<CharBox>()
@@ -575,6 +614,15 @@ object TextProcessor {
         private companion object {
             /** 「まだ本文列を出したページが無い」を表す番号（0 は正当なページ番号なので使えない）。 */
             const val NO_PAGE = -1
+
+            /**
+             * ここまでは必ず前付け（0=表紙／1=注意事項）。標本 26 本すべてで例外が無かった 2 枚だけを固定する
+             * ＝「何枚が前付けか」を決め打ちしているのではなく、**構造が一定な範囲だけ**を定数にしている。
+             */
+            const val LAST_FIXED_FRONT_PAGE = 1
+
+            /** 作品情報（あらすじ）が置かれうるページ。ここに在るか本文かは [isFrontMatter] が構造で判定する。 */
+            const val SYNOPSIS_PAGE = 2
         }
     }
 

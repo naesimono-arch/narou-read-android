@@ -127,13 +127,45 @@ class TextProcessorTest {
         assertEquals(Triple(35, 1, 2), calls[1])   // pct = 10 + int(1/2*50) = 35
     }
 
-    /** 総ページ4以下は固定トリム（先頭3＋末尾1除外）で全ページが落ち、段落0件になる（監査 A3 の機序）。
-     *  この出力を取込が成功で確定しないことは repository 層の章0件ゲート
-     *  （BookRepositoryTest の「章0件の抽出は成功で確定せず…」）が担う＝ここでは機序だけを固定する。 */
-    @Test fun fourPagesOrFewerYieldNoParagraphs() {
+    // --- 前付け（表紙・注意事項・作品情報）の枚数判定 ---
+    // ⚠️ 旧テスト `fourPagesOrFewerYieldNoParagraphs` は「総4ページなら段落0件」を監査 A3 の機序として
+    // 固定していた（＝取込は repository 層の章0件ゲートで失敗させる、という受け止め）。
+    // 2026-09-04 にこれは**バグとして修正**した——無作為標本 42 本中 6 本（14.3%）が総4ページで、
+    // 全滅していたのは前付けを定数3枚で切っていたため。以下はその修正後の契約。
+
+    /** 総4ページ（表紙／注意事項／本文／クレジット）でも本文ページは落とさない（B1-a の回帰）。 */
+    @Test fun fourPageDocumentKeepsItsSingleBodyPage() {
         val body = ch("本", "R", 14.0, 180.0, 70.0)
-        // 全ページに本文級の文字が実在しても、index 0..2（先頭3）と index 3（=totalPages-1）が全て除外域。
         val pages = List(4) { listOf(body) }
-        assertEquals(emptyList<String>(), TextProcessor.processPages(pages, totalPages = 4))
+        // index 0,1 は必ず前付け・index 3 は末尾（クレジット）。残る index 2 を捨てると本文が
+        // 1枚も残らないので、ここは作品情報ではなく本文と確定できる。
+        assertEquals(listOf("本"), TextProcessor.processPages(pages, totalPages = 4))
+    }
+
+    /** 5ページ以上で index 2 に見出しが無ければ、従来どおり作品情報として捨てる（既存挙動の保存）。 */
+    @Test fun synopsisPageWithoutHeadingIsStillDropped() {
+        val body = ch("本", "R", 14.0, 180.0, 70.0)
+        val synopsis = ch("紹", "R", 14.0, 180.0, 70.0)
+        val pages = listOf(
+            emptyList(), emptyList(), listOf(synopsis), listOf(body), emptyList<CharBox>()
+        )
+        assertEquals(listOf("本"), TextProcessor.processPages(pages, totalPages = 5))
+    }
+
+    /** index 2 に Bold 見出しが在れば、そこは作品情報ではなくブロックの開始＝落とさない（B1-b の回帰）。 */
+    @Test fun headingOnSynopsisPageMarksItAsContent() {
+        val head = ch("前", "MS-Mincho,Bold", 14.0, 200.0, 40.0)
+        val body = ch("本", "R", 14.0, 180.0, 70.0)
+        val pages = listOf(
+            emptyList(), emptyList(), listOf(head, body), listOf(body), emptyList<CharBox>()
+        )
+        // 見出しは【題名】行として、同ページの本文はその後に出る＝ページごと捨てられていない。
+        // 空行を除いて突き合わせるのは、ページの継ぎ目に入る持ち越し空行がこのテストの対象では
+        // ないため（版面の余りが空行として復元される件は別途。ここで件数を焼き込むと、
+        // その扱いを直したときに「ページを捨てていないか」という本来の主題と無関係に赤くなる）。
+        assertEquals(
+            listOf("【題名】前", "本", "本"),
+            TextProcessor.processPages(pages, totalPages = 5).filter { it.isNotEmpty() },
+        )
     }
 }
