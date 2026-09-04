@@ -72,6 +72,9 @@
   /* 器・色・位置は現行 Compose 実測値で全案共通に固定する（＝差が寸法と書体だけになる）:
      ・角丸 999px（RoundedCornerShape(50)）・左右 16dp / 上下 8dp（Spacing.S16 / S8）
      ・地色 navBackground #FBFAF8（復帰ヒント/続きに戻るは α.92、最上部へは不透明＝暗色スキン対策の既決）
+     ⚠️ **2026-09-04 に「最上部へ」の地だけ更新された**＝α.78＋1px 枠＋淡影（正本 reading-backtotop-D `.toppill`）。
+        この頁が振っているのは**寸法・書体**の軸で、地は当時の値のまま据え置いてある（同時に2軸動かさないため）。
+        下の比較表の「実装」列も地に関する記述だけ古い＝**寸法・書体の比較としては現役**。
      ・字色 topBarIcon #4A4F58（D ライト。⚠️ 正本 .toppill は --ink #1C1F26 で不一致だが別軸）
      ・復帰ヒントの下端は Insets.ChromeHintBottom = 96dp（正本 .hint の 26px とは別軸） */
   .hintpill,.retchip,.toppill{position:absolute;left:50%;transform:translateX(-50%);z-index:6;

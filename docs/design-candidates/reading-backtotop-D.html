@@ -83,9 +83,16 @@
         （別軸のモックは実機判断待ちで先に起こさない）。
      ⚠️ 他2ピル（復帰ヒント／続きに戻る）は **α.92 のまま**＝裁定は「最上部へ」1個だけに効く。3枚を揃えるかは
         別項目「復帰ヒントの色が AA 未達」の裁定が先に来ると前提が変わるため保留（比較モック 波及メモ）。
-     ⚠️ **実装未反映**（2026-09-04 時点）: Compose 側は α・枠・影の3点とも未翻訳。理由＝CSS の box-shadow は
-        border-box の**外側**にしか描かれ要素自身の地を濁さないが、Compose の drawBehind／shadowElevation は
-        半透明の面の**下**に入って器の内側を暗くする＝上の 5.02:1 の前提が崩れる。作り分けの裁定待ち。 */
+     ⚠️ **実装の対応点**（2026-09-04 に翻訳済み）: `NativeReadingScreen.kt` の「最上部へ」ピル＝
+        `Modifier.readingChromePillSurface(...)`（α＋落ち影）＋ `.border(1.dp, colors.divider, ...)`（枠）。
+        α は `theme/Theme.kt` の `ChromeTopPillAlpha`、枠色は `--bar-line`→`divider` トークン。
+        ⚠️ 影は素直に写せない＝CSS の box-shadow は border-box の**外側**にしか描かれ要素自身の地を濁さないが、
+        Compose の `Modifier.shadow`／`shadowElevation` も素朴な drawBehind も影を**面の下**へ敷き、α.78 の
+        半透明を透けて内側を暗くする＝上の 5.02:1 の前提が崩れる。そこで影は別レイヤーへ描いて
+        ピル形を打ち抜いてから面を載せている（`ReadingChromePillSurface.kt`）。この不変条件は
+        `ReadingChromePillSurfaceTest` が実際に画素へ描いて〈内側は濁らない／外側には影が在る〉の両方向で見る。
+        ⚠️ 暗面の影の濃さは**この正本が値を持たない**（比較モックの J 列 `.45` は比較用の頁の値）ので、
+        実装は全スキンで D の `.08` を敷いてある。暗面専用の影が要るなら先にモックを起こすこと。 */
   .toppill{position:absolute;left:50%;bottom:74px;transform:translateX(-50%);z-index:6;
     display:flex;align-items:center;gap:6px;font-family:var(--gothic);font-size:11px;color:var(--ink);
     letter-spacing:.08em;background:rgba(251,250,248,.78);border:1px solid var(--bar-line);

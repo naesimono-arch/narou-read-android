@@ -19,6 +19,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -123,6 +124,7 @@ import com.novelreader.ui.theme.MotionDurationSeizuFadeIn
 import com.novelreader.ui.theme.MotionDurationSeizuFadeInDelay
 import com.novelreader.ui.theme.MotionDurationSeizuFadeOut
 import com.novelreader.ui.theme.ChromeSurfaceAlpha
+import com.novelreader.ui.theme.ChromeTopPillAlpha
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.skins.j.NextDoorEdgeGlowJ
@@ -1706,12 +1708,23 @@ internal fun ChapterScreenContent(
                 modifier = Modifier
                     // 最小高 48dp＝Material の最小タップ標的（2026-09-03 裁定・正本6ファイルへ追記済み）。
                     .heightIn(min = 48.dp)
+                    // 地＝α.78（2026-09-04 裁定・比較モック reading-toppill-translucency-candidates.html 案D／
+                    // 正本 reading-backtotop-D `.toppill`）。提起理由は 2026-09-04 に訂正されている＝
+                    // 旧「他2ピルと器が揃わず独りだけ板に見える」（器の一貫性）ではなく
+                    //「**不透明だから本文が隠れてしまう**」（本文の見え量）。
+                    // 旧実装が不透明だった why は残す: 2026-07-17 に「α.92 の地は暗色スキン J(#101913) で
+                    // 背後の章末mark(明色)が透けて字とだぶる」ため不透明へ倒した。⚠️ 2026-09-04 に実測して
+                    // 分かったのは、あれは**だぶり**であって**コントラスト不足ではない**こと＝下限は明色側が
+                    // 先に来る（J は α.70 でも 4.78:1）。だぶりは 1px ヘアライン枠＋淡影で輪郭を立て直して抑える。
+                    .readingChromePillSurface(
+                        color = colors.navBackground,
+                        faceAlpha = ChromeTopPillAlpha,
+                    )
+                    // 1px ヘアライン枠（正本 `.toppill{border:1px solid var(--bar-line)}`＝divider トークン）。
+                    // α を下げると地との境が消えるので、枠は値とセット＝輪郭の主はこちらで、影は補助。
+                    .border(1.dp, colors.divider, RoundedCornerShape(50))
+                    // clip は枠より内側＝ripple を器の形へ収める（枠自身は clip の外なので欠けない）。
                     .clip(RoundedCornerShape(50))
-                    // 不透明地（alpha を掛けない）。真因＝半透明(.92)地は暗色スキン(J=#101913)で
-                    // 背後の章末mark「— 第N話 了 —」(明色)が8%透けてピル文字とだぶる（2026-07-17 実機）。
-                    // モックの .92 は D 明色テーマ（ピル色≒地色で透過が目立たない）較正で、暗地×明背景の
-                    // J では成立しない。操作可能ピルは可読性優先＝navBackground を不透明で敷く。
-                    .background(colors.navBackground)
                     // animateScrollToItem: 瞬間ジャンプは味気ないというユーザー所見（2026-07-16）で滑走化。
                     // 遠距離は Lazy が目標近くまで内部で座標を寄せてから滑らかに着地する＝長章でも安全。
                     .clickable(onClick = { scope.launch { lazyListState.animateScrollToItem(0) } })
