@@ -6,6 +6,8 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -149,30 +151,37 @@ class ReadingSettingsSheetTest {
     }
 
     @Test
-    fun `縦書きトグルの見出しとチップと現在値を表示する`() {
+    fun `本文の向きは2択タグで出し既定は横書きが選ばれている`() {
         setSheet()
         composeTestRule.onNodeWithText("本文の向き").assertIsDisplayed()
-        composeTestRule.onNodeWithText("縦書き").assertIsDisplayed()
-        // trailing の現在値（モック settings-D 案C・2026-08-06 裁定）: 横書き中は節ラベル右端に「横書き」。
-        composeTestRule.onNodeWithText("横書き").assertIsDisplayed()
+        // 2026-09-04 裁定（比較モック案B）: 札は〔横書き〕〔縦書き〕の2本で、常にどちらかが選択状態。
+        composeTestRule.onNodeWithText("横書き").assertIsSelected()
+        composeTestRule.onNodeWithText("縦書き").assertIsNotSelected()
+        // trailing の現在値はこの節だけ落とした（札自身が現在値を語る）＝各語は画面に1つずつしか無い。
+        // ⚠️ この本数検査が要る理由: 現在値を「念のため」戻すと、2026-09-04 実機で実害になった
+        // 「同じ語が2つ並ぶ」状態が復活する。落としたことを機械で固定しておく。
+        composeTestRule.onAllNodesWithText("横書き").assertCountEquals(1)
+        composeTestRule.onAllNodesWithText("縦書き").assertCountEquals(1)
     }
 
     @Test
-    fun `縦書きON時はtrailing現在値が縦書きへ変わる`() {
-        // ON では現在値も「縦書き」になりチップ label と文言が重複するため、現在値側の検証は
-        // 「横書きの不在」＋「縦書き2ノード（チップ＋現在値）」で行う（onNodeWithText の一意性を保つ）。
+    fun `縦書きON時は縦書き札が選択され横書き札は残る`() {
         setSheet(verticalMode = true)
-        composeTestRule.onNodeWithText("横書き").assertDoesNotExist()
-        composeTestRule.onAllNodesWithText("縦書き").assertCountEquals(2)
+        composeTestRule.onNodeWithText("縦書き").assertIsSelected()
+        // 旧・単独チップでは縦書き中に「横書き」という語が画面のどこにも無く、戻り先が読めなかった
+        //（2026-09-04 実機 PGEM10 の実害）。2択タグでは戻り先が常に札として在ることを固定する。
+        composeTestRule.onNodeWithText("横書き").assertIsNotSelected()
     }
 
     @Test
-    fun `縦書きチップのタップでonVerticalModeChangeが反転値で呼ばれる`() {
-        var toggled: Boolean? = null
-        // 現在 OFF（横書き）→ タップで ON（縦書き）を要求する反転値が飛ぶ。
-        setSheet(verticalMode = false, onVerticalModeChange = { toggled = it })
+    fun `向きの札のタップでonVerticalModeChangeが押した側の絶対値で呼ばれる`() {
+        val sent = mutableListOf<Boolean>()
+        setSheet(verticalMode = false, onVerticalModeChange = { sent += it })
         composeTestRule.onNodeWithText("縦書き").performClick()
-        assertEquals(true, toggled)
+        assertEquals(listOf(true), sent)
+        // 選択中の札を押しても裏返らない（旧 `!verticalMode` の反転送出をやめた＝札＝現在値と操作結果が一致）。
+        composeTestRule.onNodeWithText("横書き").performClick()
+        assertEquals(listOf(true, false), sent)
     }
 
     @Test

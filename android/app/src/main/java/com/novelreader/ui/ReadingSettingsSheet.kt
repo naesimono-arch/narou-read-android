@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -210,7 +211,8 @@ internal fun ReadingSettingsSheetContent(
     bodyMarginDp: Int,
     onBodyMarginChange: (Int) -> Unit,
     onBodyMarginPersist: () -> Unit,
-    // 縦書きモードのトグル（全書籍共通・app_prefs reading_vertical）。既定 false＝横書き。
+    // 本文の向き（全書籍共通・app_prefs reading_vertical）。既定 false＝横書き。
+    // 2026-09-04 裁定で見せ方は〔横書き〕〔縦書き〕の2択タグになったが、保存値はこの単一 Boolean のまま。
     verticalMode: Boolean = false,
     onVerticalModeChange: (Boolean) -> Unit = {},
     // 案3ライブプレビュー: 押下中スライダー行の変化通知（null=非調整）。検出はこの Content が
@@ -418,36 +420,54 @@ internal fun ReadingSettingsSheetContent(
                 ThemeFixedRowM()
             }
             Spacer(Modifier.height(Spacing.S24))
-            // 縦書きトグル。テーマ3択と同じ FilterChip＋themeChipColors を流用する（新しい部品・色を作らない）。
+            // 本文の向き＝〔横書き〕〔縦書き〕の2択タグ（2026-09-04 裁定・比較モック
+            // candidates/writing-mode-binary-tag-candidates.html 案B「分離2チップ」・正本 settings-D.html）。
+            // テーマ3択と同じ FilterChip＋themeChipColors を流用する（新しい部品・色を作らない）。
             // なぜテーマ直下（チップ群のそば）に置くか（並び順の判断）: (1) テーマと同じ離散チップ選択なので
             // 3本のスライダーの間に挟まず、チップ系設定をまとめると視覚リズムが揃う。(2) シートを開いた直後に
             // スクロールなしで見える上部は確実に目に入る＝影響の大きい組方向の切替を埋もれさせない
             //（シートの Column は 2026-08-06 に verticalScroll を得て末尾でも到達自体は可能になったが、
             // 「開いた瞬間に見えている」価値は変わらないため配置は維持）。
-            // 見出し語（labelMedium）は他設定と同じ体裁。チップ選択(accent塗り)＝縦書きON。
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "本文の向き",
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.weight(1f),
+            // なぜ単独チップ「縦書き」1個をやめたか: 状態が**その1個の塗りの有無**でしか語られず、
+            // 「縦書きという機能のオン／オフ」に見える（実際は対等な2値で、片方が「オフ」なのではない）。
+            // 2026-08-06 は節ラベル trailing に現在値を出す案C でこれを補ったが、**字で補って形は補えず**、
+            // 2026-09-04 実機（PGEM10）で実害になった＝縦書き中に開くと〈本文の向き 縦書き〉と塗りチップ
+            // 〈縦書き〉で**同じ語が2つ並び**、しかも「横書きへ戻す」という語が画面のどこにも無い
+            //（横書き中は片方しか無いので気づけない）。2個並べて常にどちらかが塗られていれば、
+            // 現在値も戻り先も**形で**読める。
+            // ⚠️ trailing の現在値はこの節だけ落とした（タグ自身が現在値を語る＝残すと上の重複がそのまま残り、
+            //    直した意味が消える）。スライダー3節の trailing 現在値は据え置き＝あちらは連続量で札にできない。
+            // ⚠️ 保存値は単一 Boolean のまま＝2つのチップが同じ1つの Boolean の true/false を指すだけ。
+            //    ただし**押した側の絶対値**を送る形へ変えた（旧 `!verticalMode` の反転送出）。選択中の札を
+            //    もう一度押しても裏返らない＝「札＝現在値」という読み方と操作の結果が食い違わない。
+            Text(
+                text = "本文の向き",
+                style = MaterialTheme.typography.labelMedium,
+            )
+            Spacer(Modifier.height(Spacing.S8))
+            // なぜ selectableGroup か: 見えでは「チップが2つ並んでいる」以上のことが伝わらず、TalkBack には
+            // 〈どちらか一方しか選べない〉が出ない（チェックボックス的に両方 on にできると誤解されうる）。
+            // 初回教示の向き選択カード（IntroOverlay の IntroChoiceRow）が同じ理由で先に採っている形に揃える。
+            // FlowRow はテーマ節と同じ理由＝フォント拡大・狭幅端末で溢れたら折り返して両チップの可視を保つ。
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.S8),
+                verticalArrangement = Arrangement.spacedBy(Spacing.S8),
+                modifier = Modifier.selectableGroup(),
+            ) {
+                // 並び順は正本モックどおり〈横書き → 縦書き〉＝既定（false）側が先。
+                FilterChip(
+                    selected = !verticalMode,
+                    onClick = { onVerticalModeChange(false) },
+                    label = { Text("横書き") },
+                    colors = themeChipColors,
                 )
-                // trailing の現在値（モック settings-D 案C・2026-08-06 裁定）: 単独チップだけでは
-                // 「現在の状態を示す表示」か「押すと何かが起きるボタン」かが読めないため、節ラベル行の
-                // 右端へ今の組み方向を常時出す（説明文は置かない＝説明レス。押した結果は現在値の変化として
-                // ここに現れる）。色は意味を運ぶ文字＝AA を満たす infoText（スライダー3節の現在値と同色）。
-                Text(
-                    text = if (verticalMode) "縦書き" else "横書き",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.infoText,
+                FilterChip(
+                    selected = verticalMode,
+                    onClick = { onVerticalModeChange(true) },
+                    label = { Text("縦書き") },
+                    colors = themeChipColors,
                 )
             }
-            Spacer(Modifier.height(Spacing.S8))
-            FilterChip(
-                selected = verticalMode,
-                onClick = { onVerticalModeChange(!verticalMode) },
-                label = { Text("縦書き") },
-                colors = themeChipColors,
-            )
         }
         // スライダー共通色。モック settings-D は目盛りドットを持たない細線＋藍フィルのため、
         // steps のスナップは維持したまま tick 色だけ透明化して視覚的に消す。
