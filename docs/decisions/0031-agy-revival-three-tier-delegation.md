@@ -4,6 +4,12 @@
 - 関連: CLAUDE.md「委譲は二層」（現行状態の正本）／`docs/backlog-frozen.md`（凍結項目の解凍条件）／
   ADR 0030（機械と判断の線引きの先行例）／ADR 0006（事実照合を機械で止める路線）／CLAUDE.md 委譲節
 
+> ⚠️ **本文が名指しする agy の資産**（`scripts/agy-delegate.sh`・`agy-job.sh`・`hooks/validate-delegate-bash.sh`・
+> `scripts/agy-break-even.py`・`scripts/measure-session.py`・`skills/antigravity/SKILL.md`・
+> `agents/antigravity-delegate.md`・`tests/run-tests.sh`・`SECURITY.md`）は**上流プラグイン側のパスで、
+> 当リポジトリには非収蔵**＝参照切れではない。所在と解凍条件は `docs/backlog-frozen.md` が正本。
+> ⚠️ **本 ADR は 2026-08-13 の再凍結で上書きされている**＝現行の運用状態の正本は CLAUDE.md「委譲は二層」。
+
 ## 経緯
 
 2026-07-24 に agy（Antigravity/Gemini）を使用禁止、07-26 にプラグインごと無効化した

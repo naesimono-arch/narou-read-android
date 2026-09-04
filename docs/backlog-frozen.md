@@ -253,6 +253,10 @@
 
 ## agy 委譲（2026-08-13 再凍結・ユーザー裁定）
 
+> ⚠️ 本節が名指しする agy の成果物（`scripts/agy-break-even.py`・`hooks/validate-delegate-bash.sh` 等）は
+> **別ブランチ／上流プラグイン側にあり、当リポジトリの作業ツリーには非収蔵**＝参照切れではない
+> （所在は各項目に明記。`/stale-check` 項目6 の抑止則に沿った断り書き）。
+
 > 2026-08-09 に「三層委譲」で復活着手したが、**今回は配線を作るところまでで打ち切り**＝プラグインも無効化した
 > （`~/.claude/settings.json` の `enabledPlugins` で `antigravity@antigravity-for-claude-code: false`）。
 > 設計・実測・却下理由の正本は **ADR 0031**（再凍結の裁定は同 ADR の決定5）。ここは**解凍時に拾う成果物の所在**だけを持つ。

@@ -5,6 +5,8 @@
 > 4 部とも**送受信した本文そのまま**（受領時に sha256 を照合済み・改行のみ LF に統一）。数値は各文書が書いた時点の実測。
 > **腐りうる二次ビューにしない**ため、ここから規則を写さない＝採用するものは ADR／handover で個別に起こす。
 > 交換の結論（当方の採用候補 3 件・nuru からの指摘 3 件）＝**第 II 部末尾と第 IV 部**。auto-memory `reference-nuru-sibling-project` が入口。
+> ⚠️ **本文が名指しするファイル（`code/preflight.py`・`ledger_discipline_lint.py`・`inject_red_rules.sh`・`docs/records/*`・`docs/thinking/*` 等）は
+> すべて nuru 側のパスで、当リポジトリには非収蔵**＝参照切れではない（`/stale-check` 項目6 の抑止則に沿った断り書き）。
 
 ## 目次
 
