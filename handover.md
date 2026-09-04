@@ -94,6 +94,10 @@
   `docs/knowledge/vert-feature-pgem10-coverage.md` の「未計測の字」節が正本（`/device-verify` 案件）。
   ⚠️ 実機を触る便があれば計測対象に入れる（`VertProbeUnmeasuredTest` が JSONL と突合していて、
   計測を足して台帳から消し忘れると赤くなる）。
+  **24字は計測スパイクへ登録済み**（2026-09-04・`Probe1FontFeature.kt` の `TARGET_GROUPS`＝台帳と機械照合して差分ゼロ）
+  ＝残るのは実機で走らせて JSONL を回収するだけ。手順＝`adb -s <dev> shell am start -n com.novelreader/com.novelreader.spike.SpikeActivity`
+  → `getExternalFilesDir(null)/vert_probe_results.jsonl` を pull → `vert_probe_pgem10.jsonl` へマージ。
+  接続の作法は `/device-verify` §0-a2（USB もペアリングコードも要らない）。
   ⚠️ **A 表（字の向き）の規範照合は 2026-09-03 に完了**＝`“”‘’` は UAX#50 で `〝〞〟` と同値の Tr と確定し
   `PUNCT_REPOSITION` へ移した（差分表 A-11）。**残るのは実機計測だけ**で、規範側の宿題ではない。
 
