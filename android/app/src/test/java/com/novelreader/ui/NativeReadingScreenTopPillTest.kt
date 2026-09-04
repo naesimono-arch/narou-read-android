@@ -4,24 +4,34 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarState
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTouchHeightIsEqualTo
 import androidx.compose.ui.test.assertTouchWidthIsEqualTo
 import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.dp
 import com.novelreader.model.ChapterContent
 import com.novelreader.model.ParseResult
 import com.novelreader.model.TextSegment
 import com.novelreader.ui.skins.ThemeControl
+import com.novelreader.ui.theme.Insets
+import com.novelreader.ui.theme.LocalSkin
+import com.novelreader.ui.theme.LocalSkinTokens
 import com.novelreader.ui.theme.ReadingTheme
+import com.novelreader.ui.theme.Skin
+import com.novelreader.ui.theme.Spacing
 import com.novelreader.ui.theme.colors
+import com.novelreader.ui.theme.tokens
 import com.novelreader.viewmodel.NcodeSearchUiState
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineScope
@@ -29,6 +39,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -77,70 +89,75 @@ class NativeReadingScreenTopPillTest {
         // 初回ラベル（2026-09-05 裁定・案S4 の手当）。既定は未消費＝語つきで出る。
         topPillLabelShown: Boolean = false,
         onTopPillLabelShown: () -> Unit = {},
+        // 既定 D＝既存テストの前提を変えない。章末印を積むのは J だけなので、重なりを見るテストだけ
+        // PORTAL_J を渡す（`ChapterContent` は `LocalSkin` を読んで J のときだけ印の item を積む）。
+        skin: Skin = Skin.WAMODERN_D,
     ) {
         composeTestRule.setContent {
-            // 束は全フィールド必須（既定値なし＝ReadingFace.kt 冒頭）。旧・既定値に頼っていた値
-            //（verticalMode=false／barsVisualReady=true／chapterNumber・totalChapters・peek=null）は実値で明示する。
-            ChapterScreenContent(
-                parseResult = ParseResult.Success(longChapter(paragraphs)),
-                colors = colors,
-                typography = ReadingTypography(
-                    fontSize = 18,
-                    onFontSizeChange = {},
-                    onFontSizePersist = {},
-                    lineHeightEm = 2.5f,
-                    onLineHeightChange = {},
-                    onLineHeightPersist = {},
-                    bodyMarginDp = 20,
-                    onBodyMarginChange = {},
-                    onBodyMarginPersist = {},
-                    verticalMode = false,
-                    onVerticalModeChange = {},
-                ),
-                theme = ThemeControl(
-                    appTheme = ReadingTheme.LIGHT,
-                    onThemeChange = {},
-                    followingSystem = true,
-                    onFollowSystem = {},
-                ),
-                chrome = ReadingChrome(
-                    lazyListState = lazyListState,
-                    topAppBarState = topAppBarState,
-                    scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(topAppBarState),
-                    barsVisualReady = true,
-                    showChromeHint = false,
-                    topPillLabelShown = topPillLabelShown,
-                    onTopPillLabelShown = onTopPillLabelShown,
-                ),
-                nav = ChapterNav(
-                    prevFile = "c0002.html",
-                    nextFile = "c0004.html",
-                    navEnabled = true,
-                    isLastChapter = false,
-                    chapterNumber = null,
-                    totalChapters = null,
-                    onNavigateTo = {},
-                    onNavigateToBookshelf = {},
-                ),
-                ncodeLink = NcodeLink(
-                    bookTitle = "テスト書名",
-                    ncode = null,
-                    ncodeSearchState = NcodeSearchUiState.Loading,
-                    onSearchNcode = {},
-                    onRetryNcodeSearch = {},
-                    onLinkNcode = {},
-                ),
-                continuationCta = ContinuationCta(
-                    continuationInfo = null,
-                    onReadContinuation = {},
-                    onOpenWorkPage = {},
-                ),
-                prevPeek = null,
-                nextPeek = null,
-                showReturnChip = false,
-                onReturnToContinuation = {},
-                onRetryParse = {},
-            )
+            CompositionLocalProvider(LocalSkin provides skin, LocalSkinTokens provides skin.tokens) {
+                // 束は全フィールド必須（既定値なし＝ReadingFace.kt 冒頭）。旧・既定値に頼っていた値
+                //（verticalMode=false／barsVisualReady=true／chapterNumber・totalChapters・peek=null）は実値で明示する。
+                ChapterScreenContent(
+                    parseResult = ParseResult.Success(longChapter(paragraphs)),
+                    colors = colors,
+                    typography = ReadingTypography(
+                        fontSize = 18,
+                        onFontSizeChange = {},
+                        onFontSizePersist = {},
+                        lineHeightEm = 2.5f,
+                        onLineHeightChange = {},
+                        onLineHeightPersist = {},
+                        bodyMarginDp = 20,
+                        onBodyMarginChange = {},
+                        onBodyMarginPersist = {},
+                        verticalMode = false,
+                        onVerticalModeChange = {},
+                    ),
+                    theme = ThemeControl(
+                        appTheme = ReadingTheme.LIGHT,
+                        onThemeChange = {},
+                        followingSystem = true,
+                        onFollowSystem = {},
+                    ),
+                    chrome = ReadingChrome(
+                        lazyListState = lazyListState,
+                        topAppBarState = topAppBarState,
+                        scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(topAppBarState),
+                        barsVisualReady = true,
+                        showChromeHint = false,
+                        topPillLabelShown = topPillLabelShown,
+                        onTopPillLabelShown = onTopPillLabelShown,
+                    ),
+                    nav = ChapterNav(
+                        prevFile = "c0002.html",
+                        nextFile = "c0004.html",
+                        navEnabled = true,
+                        isLastChapter = false,
+                        chapterNumber = null,
+                        totalChapters = null,
+                        onNavigateTo = {},
+                        onNavigateToBookshelf = {},
+                    ),
+                    ncodeLink = NcodeLink(
+                        bookTitle = "テスト書名",
+                        ncode = null,
+                        ncodeSearchState = NcodeSearchUiState.Loading,
+                        onSearchNcode = {},
+                        onRetryNcodeSearch = {},
+                        onLinkNcode = {},
+                    ),
+                    continuationCta = ContinuationCta(
+                        continuationInfo = null,
+                        onReadContinuation = {},
+                        onOpenWorkPage = {},
+                    ),
+                    prevPeek = null,
+                    nextPeek = null,
+                    showReturnChip = false,
+                    onReturnToContinuation = {},
+                    onRetryParse = {},
+                )
+            }
         }
     }
 
@@ -308,4 +325,70 @@ class NativeReadingScreenTopPillTest {
 
         composeTestRule.onNodeWithText("最上部へ").assertDoesNotExist()
     }
+
+    /**
+     * 2026-09-05 実機 NG の回帰止め＝**章末印（スキンJ）とピルの矩形が交差しない**。
+     *
+     * ⚠️ ここが「重なった瞬間に赤くなる」唯一の形。値（[Insets.ReadingChapterEndPillClearance]）を
+     * 直接見るのではなく**実際に組んだ矩形**を見るのが要点で、印の行箱・sill2・ピルの器のどれが
+     * 変わっても、結果として重なれば落ちる。
+     *
+     * ⚠️ 印が本文の**最終アイテム**であることが再現条件（最大スクロールでそこへ着地する）。
+     * 末尾 index へ送るのはこの着地状態を作るため＝末尾より先へは送れないので到達点が最大スクロールに
+     * 一致する（`canScrollForward==false` で前提そのものも検査する）。
+     *
+     * ⚠️ 比べる相手は**透明なタップ標的（48dp）の上端**＝見える器ではない。器 32dp だけを避けると
+     * 通算初回の語つき（実測 36dp）で食い込み、印の上のタップが章頭ジャンプに化ける。
+     */
+    @Test
+    fun `スキンJ の章末印はピルの標的矩形と交差しない`() {
+        val topBar = TopAppBarState(0f, 0f, 0f)
+        val list = LazyListState(firstVisibleItemIndex = 150)
+        // 語を見せ切った後＝アイコンのみ＝実機で重なったのと同じ姿。
+        setContent(topBar, list, topPillLabelShown = true, skin = Skin.PORTAL_J)
+        makeChromeVisible(topBar)
+
+        // 末尾アイテムまで送る。話数は harness が null で渡すので印は「— 了 —」へ縮退する。
+        // ⚠️ `performScrollToNode` ではダメ＝あれは「見えた時点」で止まるので、印が画面のどこに居るかが
+        // スクロール量まかせになる（最初にこう書いて、印が画面中ほどでピルへ掛かった状態を測ってしまった）。
+        // 裁定が対象にしているのは**最大スクロールで印が着地する位置**なので、末尾 index へ送って
+        // それ以上進めないこと（canScrollForward==false）まで確かめてから測る。
+        val lastIndex = composeTestRule.runOnIdle { list.layoutInfo.totalItemsCount - 1 }
+        composeTestRule.onNode(hasScrollAction()).performScrollToIndex(lastIndex)
+        composeTestRule.waitForIdle()
+        composeTestRule.runOnIdle {
+            assertFalse("最大スクロールに達していない＝この検査の前提が崩れている", list.canScrollForward)
+        }
+
+        val mark = composeTestRule.onNodeWithText(CHAPTER_END_MARK).getUnclippedBoundsInRoot()
+        val target = composeTestRule.onNodeWithContentDescription("最上部へ").getUnclippedBoundsInRoot()
+        val face = composeTestRule.onNodeWithTag(ReadingTopPillFaceTag, useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+
+        assertTrue(
+            "章末印がピルの標的へ食い込んでいる（印 bottom=${mark.bottom} / 標的 top=${target.top}）",
+            mark.bottom <= target.top,
+        )
+        // 見える器との間には (48-32)/2 = 8dp の呼吸が残る（標的を避けた副産物）。
+        assertTrue(
+            "章末印がピルの器へ食い込んでいる（印 bottom=${mark.bottom} / 器 top=${face.top}）",
+            mark.bottom <= face.top,
+        )
+    }
+
+    /**
+     * クリアランスの**導き方**そのものを固定する（上のレイアウトテストが見るのは結果の矩形だけで、
+     * 「なぜ 60dp なのか」は見ていない）。ピルの標的が広がったのにクリアランスが据え置かれる、という
+     * 片側だけの改訂をここで落とす。
+     *
+     * ⚠️ 器（[TopPillVisualHeight]）ではなく標的（[TopPillTouchTarget]）から導く＝器は `heightIn(min=)` の
+     * 下限で語つきは 36dp まで伸びるため、器基準の値は初回表示だけ食い込む。
+     */
+    @Test
+    fun `章末クリアランスはピルの浮き＋タップ標的から導かれている`() {
+        assertEquals(Spacing.S12 + TopPillTouchTarget, Insets.ReadingChapterEndPillClearance)
+    }
 }
+
+/** 話数不明の章末印（[com.novelreader.ui.skins.j.ChapterEndMarkJ] の縮退形）。 */
+private const val CHAPTER_END_MARK = "— 了 —"

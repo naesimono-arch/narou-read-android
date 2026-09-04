@@ -251,7 +251,25 @@ internal fun ChapterContent(
                     colors = colors,
                     modifier = Modifier
                         .widthIn(max = bodyMaxWidth)
-                        .padding(horizontal = bodyMarginDp.dp),
+                        .padding(horizontal = bodyMarginDp.dp)
+                        // ────── 「最上部へ」ピルとの重なり回避（2026-09-05 実機 NG・正本 reading-J `.chapend`）──────
+                        // 印は本文の最終要素なので最大スクロールで必ず本文下端へ着地し、ピルは下端バーからの
+                        // 距離で位置が決まる＝**両者の位置は独立に決まる**ため、章を読み切ると必ず重なる
+                        //（実機 PGEM10・ダークで印の字高 68px のうち 44px がピルの器の下に沈んだ）。
+                        // 退けるのは印の側＝ピルは全スキン・全場面で同じ場所に居ることが取り柄の器で、
+                        // 動かすと J 以外へ影響が出る。値の内訳は [Insets.ReadingChapterEndPillClearance]。
+                        //
+                        // なぜ continuation の有無で分けるか: 空きが要るのは**印が最終アイテムのとき**だけ。
+                        // 最終章は印の下に継続カードが積まれて印を押し上げるので避ける相手が居らず、それでも
+                        // 足すと「了マークの後にカード」（正本 reading-continuation-D）の間合いだけが広がる
+                        // ＝裁定されていない意匠変更になる。
+                        .then(
+                            if (continuation == null) {
+                                Modifier.padding(bottom = Insets.ReadingChapterEndPillClearance)
+                            } else {
+                                Modifier
+                            },
+                        ),
                 )
             }
         }

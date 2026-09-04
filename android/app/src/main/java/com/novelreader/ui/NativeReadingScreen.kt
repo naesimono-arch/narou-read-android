@@ -1942,8 +1942,11 @@ internal const val ReadingTopPillFaceTag = "reading_top_pill_face"
 // 覆うかを決める）、[TopPillTouchTarget] は Material の最小タップ標的（2026-09-03 裁定の下限）。
 // 器を縮めた副作用で標的まで縮む退行が最も起きやすく、しかも見た目には出ない＝
 // [com.novelreader.ui.NativeReadingScreenTopPillTest] が両方を機械で固定している。
-private val TopPillVisualHeight = 32.dp
-private val TopPillTouchTarget = 48.dp
+// ⚠️ internal なのはテスト都合ではなく**導出関係を機械で結ぶため**（2026-09-05）: スキンJ の章末印が
+// 避ける距離 [com.novelreader.ui.theme.Insets.ReadingChapterEndPillClearance] は「S12 ＋ 標的 48dp」で
+// 導いてある。片側だけ改訂されると重なりが戻るので、テストが両方を読んで等式を固定する。
+internal val TopPillVisualHeight = 32.dp
+internal val TopPillTouchTarget = 48.dp
 
 private val ImmersiveHandleWidth = 46.dp
 private val ImmersiveHandleHeight = 3.dp

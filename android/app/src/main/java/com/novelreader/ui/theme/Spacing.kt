@@ -70,6 +70,28 @@ object Insets {
     /** 読書本文の下クリアランス: navigationBars インセットへの加算ぶん（WindowInsets 加算軸）。 */
     val ReadingBodyBottomExtra = 80.dp
 
+    /**
+     * 読書: スキンJ の章末印が「最上部へ」ピルの帯へ入らないための回避距離（2026-09-05 裁定・
+     * 正本 `skins/reading-J.html` `.chapend` の `margin-bottom:60px`）。
+     *
+     * 内訳＝ピルが下端バー上端から浮く距離 [Spacing.S12] ＋ ピルの**透明なタップ標的 48dp** ＝ 60dp。
+     *
+     * ⚠️ **見える器 32dp ではなく標的 48dp から導く**。①器は下限であって固定寸ではなく、通算初回の
+     * 語つきは実測 36dp まで伸びる（`NativeReadingScreen.kt` の `TopPillVisualHeight` は `heightIn(min=)`）＝
+     * 32dp 基準だと初回表示のときだけ 4dp 食い込む。②標的は透明で見えないが**押せる**ので、印の上の
+     * タップが章頭へのジャンプになる（本文タップのクローム・トグルも奪われる）＝印は押す対象ではないのに
+     * 説明のつかない挙動になる。副次的に器との間へ 8dp（＝(48−32)/2）の呼吸も付く。
+     *
+     * ⚠️ **なぜピルでなく印を退けるか**: ピルは章のどこでも・どのスキンでも下端バー直上の同じ場所に
+     * 居ること自体が取り柄の器で、動かすと J 以外の全場面へ影響が出る。印は J だけ・章末だけの一点物。
+     *
+     * ⚠️ **contentPadding へ足してはいけない**。本文リストの下余白を増やすと全スキン・全章の版面が動き、
+     * 縦書き [com.novelreader.ui.VerticalChapterContent] では交差軸＝全列の列高が恒久的に削れる
+     * （ADR 0040・`docs/knowledge/compose-lazy-mirror-contentpadding-axis-shift.md`）。
+     * よって**末尾アイテムに閉じた余白**として印そのものへ載せる。
+     */
+    val ReadingChapterEndPillClearance = 60.dp
+
     /** M星図: 星空リスト末尾／スナックバーが下辺の地平（発見導線＋迎える・モック .horizon 112px 相当）と
      *  重ならないための回避距離。地平コンポーネントの実高から決まる構造値＝リズムの余白ではない。 */
     val SkyHorizonClearance = 120.dp
