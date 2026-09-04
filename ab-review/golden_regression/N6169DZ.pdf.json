@@ -960,6 +960,8 @@
  "total_chars": 3536878,
  "ruby_run_count": 11657,
  "body_sha256": "3b191efd3dfea792dae9e7b9fe3adecd50715e3c9b74f8a1956ebae83c473595",
+ "chapter_html_sha256": "a94b7c5687f01fbbbfbabba2499afd44c2766b1b5f935d4d56eba587d13b90b3",
+ "chapter_html_chars": 3922808,
  "elapsed_sec": 199.12,
  "head_paragraphs": [
   "【題名】貴方はなんのためにゲームをしますか？",
