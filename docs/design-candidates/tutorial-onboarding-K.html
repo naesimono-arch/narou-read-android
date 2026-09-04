@@ -298,6 +298,35 @@
     stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
   .tab .lb{font-family:var(--gothic);font-size:11px;letter-spacing:.04em}
   .tab.on .lb{font-weight:700}
+
+  /* === 組D の背景＝なろうの目次ページ（WebView 全面）。2026-09-04 に比較モックから差し戻し ===
+     ⚠️ **実データの色域を模す**（visual-language 恒久ルール4）。なろうのページは白地・黒字・青リンクで、
+     K の素地（#FBFAF8）より**明るい**面。ここを灰色の板でごまかすと、白い面の上にカードが載ったときの
+     見え（スクリム α.74 の効き）を裁定し損ねる。描いているのは自動送り（scrollIntoView block:"center"）の
+     **後**＝［縦書きPDF］ の枠が画面の中ほどに来た状態。
+     ⚠️ 枠内は**実物の写しではなく色域と密度の placeholder**。フォームの項目名とボタン語は
+     見出し「縦書きPDF」以外**推定**で、なろう側の実ラベルは一次確認していない
+     （＝§4 の文言が作成ボタンの語を断定していないのはこのため）。 */
+  .topbar{flex-shrink:0;height:56px;display:flex;align-items:center;gap:6px;padding:0 8px 0 4px;background:var(--base)}
+  .topbar .ib{width:44px;height:44px;border:none;background:transparent;display:grid;place-items:center;
+    color:var(--ink);cursor:pointer;flex:none}
+  .topbar .ib svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;
+    stroke-linecap:round;stroke-linejoin:round}
+  .topbar .ct{font-size:16px;color:var(--ink);letter-spacing:.03em}
+  .web{flex:1;overflow:hidden;background:#FFFFFF;color:#333;font-size:12px;line-height:1.8;padding:10px 12px;
+    font-family:var(--gothic)}
+  .web .ep{color:#3D6899;border-bottom:1px dotted #CFCFCF;padding:6px 2px;font-size:12px}
+  .web .ep .dt{float:right;color:#999;font-size:10.5px}
+  .web .ad{margin:10px 0;height:56px;border:1px solid #E2E2E2;background:#F4F4F4;display:grid;
+    place-items:center;color:#AAA;font-size:10.5px;letter-spacing:.2em}
+  .web .pdfbox{margin-top:12px;border:1px solid #CFCFCF;background:#FAFAFA;padding:10px}
+  .web .pdfbox h5{font-size:12.5px;color:#333;font-weight:700;margin-bottom:6px}
+  .web .pdfbox p{font-size:10.5px;color:#777;line-height:1.7}
+  .web .pdfbox .frow{display:flex;gap:6px;margin-top:8px}
+  .web .pdfbox .fsel{flex:1;border:1px solid #CFCFCF;background:#fff;padding:5px 7px;font-size:10.5px;color:#555}
+  .web .pdfbox .fbtn{margin-top:8px;background:#5C7FA8;color:#fff;text-align:center;padding:7px;
+    font-size:11.5px;border-radius:3px}
+  .web .foot{margin-top:10px;color:#999;font-size:10px;text-align:center}
   /*==/harness==*/
 </style>
 </head>
@@ -308,7 +337,7 @@
     <b>2026-08-21 裁定の反映版</b>。説明の本体は<b>案A の形（数枚のカードをめくる）で確定</b>し、
     前便が提案した<b>全画面の説明画面（目次型・読み物型）は却下</b>——理由は認知負荷で、
     <b>全画面は開いた瞬間に全体量が見えてしまう</b>（冒頭コメントに抽出）。<br>
-    作るのは<b>カード列 1 本（6 枚）</b>だけ。<b>扉はその 1 枚目</b>で、独立した部品ではない。
+    作るのは<b>カード列 1 本（7 枚）</b>だけ。<b>扉はその 1 枚目</b>で、独立した部品ではない。
     <b>入口が 2 つ（初回の空棚／設定＞操作の説明）あっても、実装は 1 つ</b>——
     入口が指定するのは<b>どの章から始めるか</b>だけ（§3）。<br>
     <b>文言は 2026-08-21 の追加裁定で全 5 枚（当時の構成）を見直した</b>——基準は
@@ -329,10 +358,10 @@
         <td><b>① 教示</b></td>
         <td>割り込んで<b>その場で言う</b>。読書や操作を一瞬止める。</td>
         <td><b>しない</b>（一度出て消える）</td>
-        <td><b>組A</b>（初回の扉 3 枚）／<b>組B</b>（本文初回 2 枚）／<b>組C</b>（検索初回 1 枚）。<br>
-          <span style="color:#8A4B44"><b>＋組D（PDF取り込み初回 1 枚）＝2026-09-04 に §2 で「置く」へ反転・
-          中身は未裁定</b>（比較モック
-          <code>candidates/pdf-import-guidance-candidates.html</code>）。裁定が付くまでこの欄は 3 組のまま。</span><br>
+        <td><b>組A</b>（初回の扉 3 枚）／<b>組B</b>（本文初回 2 枚）／<b>組C</b>（検索初回 1 枚）／
+          <b>組D</b>（PDF取り込み初回 1 枚）。<br>
+          <span style="color:#4A4C47">組D は 2026-09-04 に §2 で「置く」へ反転し、<b>層① のカード 1 枚（案A）で裁定・実装済み</b>
+          （中身は §3／§4 の 7 枚目）。比較に使った 3 案の一時ドラフトは、採用案を本ファイルへ差し戻した時点で削除した。</span><br>
           <span style="color:#4A4C47">既存のピルは<b>組B が肩代わりする</b>ので、新規の人にはほぼ出ない（§8）。</span></td>
       </tr>
       <tr>
@@ -345,7 +374,7 @@
         <td><b>③ 説明</b></td>
         <td>読みたい人が<b>読みに行く</b>。割り込まない。</td>
         <td>入口だけ 1 か所（設定）</td>
-        <td><b>「はじめに」＝カード列 6 枚</b>（本ファイルの主題）</td>
+        <td><b>「はじめに」＝カード列 7 枚</b>（本ファイルの主題）</td>
       </tr>
     </table>
     <p class="rule">
@@ -377,7 +406,7 @@
     <h2>§2　階層ごとの判定　<span class="tag g">前便から変更なし</span></h2>
     <p class="body">
       層① を増やすほど「面倒なアプリ」に近づくので、<b>層① は本文初回の 1 件のまま</b>。
-      招待は<b>アプリ通算 1 つ</b>（初回の扉）。説明は<b>カード列 6 枚</b>に収める。
+      招待は<b>アプリ通算 1 つ</b>（初回の扉）。説明は<b>カード列 7 枚</b>に収める。
     </p>
     <table class="mx">
       <tr>
@@ -442,7 +471,7 @@
           ——書くことが無い項目までカードにすると、枚数が増えて全体が重くなる。</span></td>
       </tr>
       <tr>
-        <td><b>PDF取り込みを初めて開いたとき</b><br><span style="color:#6A6C67">組D（案・未実装）</span></td>
+        <td><b>PDF取り込みを初めて開いたとき</b><br><span style="color:#6A6C67">組D</span></td>
         <td class="o"><b>置く</b><br><span style="font-weight:400;color:#6A6C67">組D</span></td>
         <td class="x">置かない</td><td class="o">組D（1枚）</td>
         <td><span style="color:#8A4B44"><b>⚠️ 2026-09-04 に判定が覆った</b>（前版は上の行に同居させて「置かない」）。</span><br>
@@ -468,15 +497,14 @@
           <b>前者はどの層にも受け皿が無いまま「規則3 で送った」ことになっていた</b>——
           落としたつもりの項目が、実は落としてすらいなかった。</span><br>
           <b>出しかた</b>＝<b>取り込み画面を初めて開いた瞬間</b>に組D（1 枚）だけ。<b>点は打たない</b>（組C と同じ）。
-          <span style="color:#4A4C47">比較モックと文言＝
-          <code>docs/design-candidates/candidates/pdf-import-guidance-candidates.html</code>（裁定待ち）。</span></td>
+          <span style="color:#4A4C47">文言は §4 の 7 枚目・入口は §3 の入口表（<b>2026-09-04 に案A で裁定・実装済み</b>）。</span></td>
       </tr>
     </table>
   </div>
 
   <!-- ============================================================ §3 -->
   <div class="sec">
-    <h2>§3　カード列の構造 ─ 1 本の列・3 つの組・4 つの入口　<span class="tag">実装は 1 つ</span></h2>
+    <h2>§3　カード列の構造 ─ 1 本の列・4 つの組・5 つの入口　<span class="tag">実装は 1 つ</span></h2>
     <p class="body">
       <b>案A の死因は「読む前の説明は実感と結びつかない」</b>だった。前版はこれを
       「初回は章1 で終わらせ、章2 へ自動で送らない」で回避したが、<b>章2 をいつ見るかは〈設定へ行くかどうか〉任せ</b>
@@ -484,10 +512,11 @@
     </p>
     <p class="rule">
       <b>解きかた ─ その画面に初めて来た瞬間に、その画面の説明だけを出す。</b>　（2026-08-21 裁定）<br>
-      カードは<b>1 本の列（6 枚）</b>のまま。それを<b>「いつ出すか」で 3 つの組</b>に分ける。<br>
+      カードは<b>1 本の列（7 枚）</b>のまま。それを<b>「いつ出すか」で 4 つの組</b>に分ける。<br>
       <b>組A「このアプリのこと」（1〜3 枚目）</b>＝<b>初回・本棚が空のとき</b>。読んだ経験を要さない事実だけ。<br>
       <b>組B「読みかた」（4・5 枚目）</b>＝<b>本文を初めて開いたとき</b>。目の前に本文がある＝実感と同時に届く。<br>
       <b>組C「さがしかた」（6 枚目）</b>＝<b>検索画面を初めて開いたとき</b>。同上。<br>
+      <b>組D「つくって、本棚に入れる」（7 枚目）</b>＝<b>PDF取り込み画面を初めて開いたとき</b>。同上（2026-09-04 追加）。<br>
       <span style="color:#4A4C47">▶ <b>「組」の意味が変わった</b>: 前版の「章」は〈実感が要るか〉での仕分けだったが、
       いまは〈<b>どの画面に着いたときに出すか</b>〉。実感は<b>出す瞬間が保証する</b>ので、
       仕分けのための章立てはもう要らない。前版の回避策（章2 へ送らない）は<b>役目を終えて消えた</b>。</span>
@@ -499,14 +528,18 @@
       <b>増えたのは入口（＝呼び出し側）だけ</b>で、列も部品も前版のまま。
     </p>
     <p class="rule" style="border-left-color:#50685C">
-      <b>現在地の点は「その回に出す枚数」ぶんだけ打つ</b>——列全体の 5 個は<b>絶対に打たない</b>。
+      <b>現在地の点は「その回に出す枚数」ぶんだけ打つ</b>——列全体の 7 個は<b>絶対に打たない</b>。
       組A＝●○○（<b>3 個</b>・2026-09-03 に向きの選択カードが入って 1 個増えた）／組B＝●○（2 個）／
-      <b>組C＝点なし</b>（1 枚しかない回に点は要らない・
+      <b>組C＝点なし</b>／<b>組D＝点なし</b>（1 枚しかない回に点は要らない・
       1 個だけの点はむしろ壊れて見える）。<br>
-      <span style="color:#4A4C47">これは飾りではなく<b>全体量を見せないための要</b>。5 個並べた瞬間に、
+      <span style="color:#4A4C47">これは飾りではなく<b>全体量を見せないための要</b>。7 個並べた瞬間に、
       却下した全画面型と同じ「これだけ読む必要がある」が戻ってくる。<br>
-      <b>設定から通しで読むときも同じ規則</b>＝点は組が変わるたびにリセットする（●○○ → ●○ → なし）。
-      最後の 1 枚だけ点が消えるので、<b>点の不在がそのまま「これで終わり」の合図</b>になる。</span>
+      <b>設定から通しで読むときも同じ規則</b>＝点は組が変わるたびにリセットする（●○○ → ●○ → なし → なし）。<br>
+      <span style="color:#8A4B44">⚠️ <b>2026-09-04 に組D が入って「点の無い回」が 2 つ続くようになった</b>
+      ＝「点の不在がそのまま『これで終わり』の合図」は<b>通しの終盤で 1 回鈍る</b>。
+      <b>これは承知のうえで何もしない</b>（裁定）——終端ボタンが ［とじる］ に変わるので押す直前には分かる。
+      組C と組D を 1 組にまとめる案は、<b>出す条件が別画面</b>（検索画面／取り込み画面）で
+      「組＝出す単位」という本節の定義に反するため<b>採らない</b>。</span></span>
     </p>
     <table class="mx">
       <tr><th style="width:14%">入口</th><th style="width:16%">開始</th><th style="width:22%">見えるもの</th><th>なぜ</th></tr>
@@ -535,16 +568,35 @@
           チップだけでは意味が分からない（規則1b）という取りこぼしが、ここで閉じる。</td>
       </tr>
       <tr>
+        <td><b>PDF取り込み画面を初めて開いたとき</b><br><span style="color:#6A6C67">未消費・目次が初描画されてから</span></td>
+        <td>組D（7 枚目）</td>
+        <td>1 枚（<b>点なし</b>）。背景は<b>なろうの目次ページ</b>。</td>
+        <td>この面の<b>ボタンはすべてなろうのもの</b>で、アプリのものは題と戻るだけ——
+          自動送りで ［縦書きPDF］ の枠が見えていても、それが<b>なろう側の生成フォームだ</b>とは読めない（規則1b）。<br>
+          <span style="color:#8A4B44">⚠️ <b>出す契機はこの入口だけ「描き切ってから」を厳密には守れない</b>。
+          WebView の自動送り（<code>scrollIntoView</code>）が終わったことを Kotlin 側は知らない
+          （<code>evaluateJavascript</code> の結果を受けていない）ため、実装は
+          <b><code>onPageCommitVisible</code> かつ目次 URL 一致</b>＝自動送りの JS を投げるのと同じ瞬間に出す。
+          <b>担保できるのは</b>〈目次に着いた後にしか出ない〉〈白紙の上には載らない〉の 2 つで、
+          <b>担保できないのは</b>〈カードが載る瞬間、背後がまだ目次の上の方でありうる〉こと。<br>
+          それ以上は<b>注入 JS の役割を「ビューポート移動のみ」から広げる</b>話＝ADR 0010/0011 の線に触れるので
+          <b>踏み込まない</b>（踏み込むなら別 ADR）。カードの文言は<b>閉じた後の状態</b>を指しており、
+          スクロールはカードの下で進むので実害は出ない想定＝<b>実機の二段検分で見る</b>。</span></td>
+      </tr>
+      <tr>
         <td><b>設定 ＞ 操作の説明</b><br><span style="color:#6A6C67">常設・1 か所だけ</span></td>
-        <td>組A から<b>通し</b>（1〜6 枚目）</td>
-        <td>6 枚を連続。点は組ごとにリセット（●○○ → ●○ → なし）。</td>
+        <td>組A から<b>通し</b>（1〜7 枚目）</td>
+        <td>7 枚を連続。点は組ごとにリセット（●○○ → ●○ → なし → なし）。</td>
         <td><b>従来どおり全部通しで読める</b>。フラグは見ない＝<b>何度でも開ける</b>。<br>
           <b>読み進めた組はその場で消費する</b>ので、ここで全部読んだ人には<b>あとから自動で出てこない</b>
           （同じ説明を 2 度は割り込ませない）。</td>
       </tr>
     </table>
     <p class="note">
-      <b>割り込みの総量</b>　自動で出るのは<b>アプリ通算で 3 回・合計 6 枚</b>（組A 3 枚・組B 2 枚・組C 1 枚）。
+      <b>割り込みの総量</b>　自動で出るのは<b>アプリ通算で 4 回・合計 7 枚</b>（組A 3 枚・組B 2 枚・組C 1 枚・組D 1 枚）。
+      <span style="color:#4A4C47">組D で 1 回・1 枚増えた（2026-09-04）。<b>取り込み画面は ［取り込む］ を押した直後</b>＝
+      割り込みの原価が最も安い面で、正本が「割り込みのコストが最も高い」と書いた読書中とは事情が違う。
+      しかも<b>初回だけ</b>なので、2 冊目以降は 1 画素も使わない。</span>
       前版の 1 回・2 枚から増えているが、<b>増えたぶんは全部「その画面に初めて着いた瞬間」に移動しただけ</b>で、
       設定へ行かないと読めなかったものが届くようになった。
       <span style="color:#4A4C47">新規の人は〈扉 → ［作品をさがす］ を押す → 検索画面〉と進みやすく、
@@ -688,7 +740,8 @@
       <b><code>remember</code> で入場時に 1 度だけ prefs を読む</b>ため、カードから prefs を書いても
       <b>本文は横書きのまま動かない</b>。組A なら<b>読書画面へ入る前に prefs が確定している</b>＝この罠を踏まない
       （同じ機序を <code>IntroController.chromeHintSilenced</code> の KDoc が既に一度記録している）。<br>
-      ▶ <b>代償</b>＝点が 3 個になり、自動で出る総量が通算 5 枚 → 6 枚になる。上限（列全体の 6 個を打たない）には触れない。</span>
+      ▶ <b>代償</b>＝点が 3 個になり、自動で出る総量が通算 5 枚 → 6 枚になる。上限（列全体の点を打たない）には触れない。
+      <span style="color:#4A4C47">※ 枚数は<b>2026-09-03 時点の値</b>。組D が入った現在は 7 枚（§3 の「割り込みの総量」が現在値の正本）。</span></span>
     </p>
     <p class="note">
       <b>参考: 組A がかつて 2 枚だった理由</b>　案A の原型は 3 枚だったが、3 枚目は「縦書きでも読めます」＝<b>実感を要する話</b>で、
@@ -814,6 +867,72 @@
       </div>
 
     </div>
+
+    <h2 style="font-size:14.5px;margin-top:30px;letter-spacing:.04em">組D「つくって、本棚に入れる」 ─ PDF取り込み画面を初めて開いたとき（1 枚）　<span style="font-size:11.5px;font-weight:400;color:#6A6C67">背景＝なろうの目次ページ・自動送りの後の位置</span></h2>
+    <div class="stage">
+
+      <div class="wrap"><span class="mode"><b>組D ─ 1 枚だけ</b>　取り込み画面を開いた直後<br><b>点は打たない</b>（組C と同じ）</span>
+        <div class="phone k" role="img" aria-label="組D 7枚目 つくって本棚に入れる">
+          <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+          <div class="topbar">
+            <button class="ib" aria-label="戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <div class="ct">縦書きPDFを取り込む</div>
+          </div>
+          <div class="web">
+            <div class="ep">第百二十五話　雨上がりの城門<span class="dt">2026/08/21</span></div>
+            <div class="ep">第百二十六話　石畳の照り返し<span class="dt">2026/08/24</span></div>
+            <div class="ep">第百二十七話　彼女は剣を置いた<span class="dt">2026/08/28</span></div>
+            <div class="ad">広告</div>
+            <div class="pdfbox">
+              <h5>縦書きPDF</h5>
+              <p>この作品を縦書きのPDFで読むことができます。設定を選んで作成してください。</p>
+              <div class="frow"><div class="fsel">文字サイズ　中</div><div class="fsel">ページ番号　あり</div></div>
+              <div class="frow"><div class="fsel">1ページの行数　18</div><div class="fsel">ルビ　あり</div></div>
+              <div class="fbtn">縦書きPDFを作成する</div>
+            </div>
+            <div class="foot">— 小説家になろう —</div>
+          </div>
+          <div class="scrim">
+            <div class="ocard">
+              <div class="fig">
+                <!-- 新規図版（IntroFigure.IMPORT）＝**なろうの面（破線）から本棚（実線）へ運ぶ**。
+                     約束は TWO_WAYS から継ぐ＝なろうの面は破線・アプリの面と動作は実線。
+                     ⚠️ TWO_WAYS の使い回しは不可＝あちらは 2 つの面を**並べて分ける**図で、
+                     こちらは**片方からもう片方へ運ぶ**図（ORIENTATION のときと同じ理由で禁じる）。
+                     ⚠️ **この svg が Compose 翻訳の source**（IntroFigure.kt importToShelf が座標で写経）。 -->
+                <svg viewBox="0 0 120 84" width="120" height="84">
+                  <rect x="36" y="4" width="48" height="34" rx="3" stroke-dasharray="5 4"/>
+                  <path class="soft" d="M43 13h34M43 20h34M43 27h20" stroke-dasharray="5 4"/>
+                  <path d="M60 43v13"/><path d="M54 50l6 6 6-6"/>
+                  <rect x="38" y="63" width="11" height="17" rx="1.5"/>
+                  <rect x="52" y="63" width="11" height="17" rx="1.5"/>
+                  <rect x="66" y="63" width="11" height="17" rx="1.5"/>
+                  <path class="soft" d="M31 82h58"/>
+                </svg>
+              </div>
+              <h3>つくって、本棚に入れる</h3>
+              <dl>
+                <dt>ここはなろうのページ</dt><dd>なろうが配信するページを、そのまま表示します。</dd>
+                <dt>縦書きPDFを作る</dt><dd>開いた位置にある <em>［縦書きPDF］</em> の枠から。作り終わるとページが変わります。</dd>
+                <dt>ダウンロードを押す</dt><dd>変わったページの <em>［縦書きPDFダウンロード］</em>。押すと<em>アプリが引き取り</em>、本棚に入ります。</dd>
+              </dl>
+              <div class="later">この説明は ［設定］＞［操作の説明］ にあります。</div>
+              <div class="obtns r"><button class="obtn pri">とじる</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <p class="note">
+      <b>⚠️ 実装で分かった版面の事実（2026-09-04・golden 実測）</b>　組D は<b>組C より 1 行ぶん高い</b>
+      （3 項目目が 3 行に折り返す）。360×640dp・既定フォントの golden では
+      <b>［とじる］ が折り返しの下に入り、スクロールしないと画面に出ない</b>——組C はちょうど収まっている。<br>
+      <span style="color:#4A4C47">これは<b>この器の既知の性質</b>で、退行ではない（カードは縦スクロール器＝
+      <code>IntroOverlayContentTest</code> が組C でも「スクロールで必ず到達できる」ことを見ており、組D にも同じ検査を足した）。
+      <b>詰めるなら文言ではなく器の側</b>——文言は裁定済みなので実装側で言い換えない。
+      実機で「押せないと感じる」かは<b>二段検分</b>で見る。</span>
+    </p>
   </div>
 
   <!-- ============================================================ §4 -->
@@ -887,6 +1006,36 @@
         <dt>小さい行</dt><dd><b>この説明は ［設定］＞［操作の説明］ にあります。</b></dd>
         <dt>ボタン</dt><dd>［とじる］</dd>
       </dl>
+
+      <h4>7 枚目<span class="ch">組D ─ PDF取り込み画面を初めて開いたとき・1 枚だけ（2026-09-04 追加）</span></h4>
+      <dl>
+        <dt>見出し</dt><dd>つくって、本棚に入れる</dd>
+        <dt>ここはなろうのページ</dt><dd>なろうが配信するページを、そのまま表示します。</dd>
+        <dt>縦書きPDFを作る</dt><dd>開いた位置にある <b>［縦書きPDF］</b> の枠から。作り終わるとページが変わります。</dd>
+        <dt>ダウンロードを押す</dt><dd>変わったページの <b>［縦書きPDFダウンロード］</b>。押すと<b>アプリが引き取り</b>、本棚に入ります。</dd>
+        <dt>小さい行</dt><dd><b>この説明は ［設定］＞［操作の説明］ にあります。</b></dd>
+        <dt>ボタン</dt><dd>［とじる］（<b>1 枚だけの回＝副ボタンを置かない</b>＝組C と同じ）</dd>
+      </dl>
+      <p class="note" style="margin-top:6px">
+        <b>§4 の基準にどう通したか</b>（一般的なジェスチャの挙動は書かない・書くのはこのアプリ固有の割り当てだけ）<br>
+        ・<b>書いていない</b>＝「スクロールします」「タップします」「ボタンを押します」の類。<br>
+        ・<b>書いた</b>＝〈この面のボタンは<b>なろうのもの</b>〉〈<b>2 段階</b>（作る→ダウンロード）〉
+          〈押した先で<b>アプリが引き取って本棚に入る</b>〉。3 つとも推測できない。
+          とくに 3 つ目は<b>規則1 にも当たる</b>——ブラウザのダウンロードだと思えば「ファイルはどこへ行った」になる。<br>
+        ・<b>見出しは組C と対にした</b>（「さがして、本棚に入れる」／「つくって、本棚に入れる」）
+          ＝2 つの入手経路が<b>同じ終点</b>を持つことが、文を足さずに見出しだけで伝わる。<br>
+        ・<b>1 項目目は <code>NarouExternalPageNotice.BODY</code> の第 1 文と 1 字同一</b>。
+          <b>同じ事実を 2 通りに言うと、片方を直したときにもう片方が黙って腐る</b>——
+          組A 3 枚目が既に同じ理由で同じ言い回しへ揃えてある（ADR 0042）。
+          <span style="color:#4A4C47">実装では <code>IntroOverlayContentTest</code> が定数から導いた文字列で照合し、
+          <b>どちらを直しても落ちる</b>ようにしてある。</span><br>
+        ・<span style="color:#8A4B44"><b>⚠️ なろう側の「作成」ボタンの実ラベルは一次確認していない</b></span>ので<b>名指ししない</b>
+          （「その枠から」で受ける）。名指ししてよいのは確定している見出し語「縦書きPDF」と、
+          ADR 0011 が原文で記録している「縦書きPDFダウンロード」だけ。実機で 1 語を確かめられたらそこだけ差し替える。<br>
+        ・<span style="color:#8A4B44"><b>⚠️ 「広告」の語は名指ししない</b></span>（ADR 0042 決定2）。背景に広告帯が出るが、
+          名指しした瞬間に〈場所の案内〉が〈警告〉へ変質する。1 項目目の「そのまま表示します」に織り込む。<br>
+        ・<b>上限</b>＝項目 3 つ（本節の「1 カード 3〜4 項目まで」の内側）。組C と同じ 3 項目＋<code>.later</code>。
+      </p>
     </div>
     <p class="note">
       <b>⚠️ 2026-08-21 のフラグ裁定で本文の文言は 1 文字も変えていない</b>（確定済み）。
@@ -970,10 +1119,20 @@
           読書操作を出さなかったことが手抜きでなく配慮として伝わる。</td>
       </tr>
       <tr>
-        <td><b>6 枚目（組C ＝列の最後）</b></td>
+        <td><b>6 枚目（組C の最後）</b></td>
         <td>この説明は ［設定］＞［操作の説明］ にあります。</td>
         <td>章2 を読み終えた人＝<b>また困りうる人</b>。設定から来た人はここが終点なので、
           <b>次も同じ場所で会える</b>ことを最後に置く。</td>
+      </tr>
+      <tr>
+        <td><b>7 枚目（組D ＝列の最後）</b><br><span style="color:#6A6C67">2026-09-04 追加</span></td>
+        <td>この説明は ［設定］＞［操作の説明］ にあります。</td>
+        <td>組C と<b>同じ 1 行</b>＝各組の最後で 1 回ずつ言う、という本節の規則をそのまま適用しただけ
+          （組D も 1 枚で終わる回なので、その 1 枚が組の最後）。<br>
+          <span style="color:#4A4C47">▶ <b>通しで読む人には この 1 行が 2 枚続けて出る</b>（6 枚目と 7 枚目）。
+          規則どおりの帰結で、<b>設定から来た人にとっては 7 枚目が本当の終点</b>なので最後にもう一度言う側を採る。
+          <b>組D 側を落とすと、取り込み画面から単独で出た人が再訪の在り処を 1 度も聞けなくなる</b>
+          ——組D は組C を経由せずに出る回なので、ここは重複ではなく<b>それぞれの回の終端</b>。</span></td>
       </tr>
     </table>
     <p class="rule" style="border-left-color:#8A4B44">
@@ -1077,7 +1236,7 @@
       <b>NavHost に新しい画面を足さない</b>——カード列は<b>本棚／設定の上へ重ねるオーバーレイ</b>。
     </p>
 
-    <p class="body"><b>作るもの ─ 2 つ</b>　①カード列のオーバーレイ（6 枚・3 組・1 コンポーネント）　②設定の「操作の説明」行。<br>
+    <p class="body"><b>作るもの ─ 2 つ</b>　①カード列のオーバーレイ（7 枚・4 組・1 コンポーネント）　②設定の「操作の説明」行。<br>
       <b>触らないもの</b>　没入ヒントのピル（<code>ImmersiveChromeHint.kt</code> / <code>ChapterScreen.kt:389-406</code> /
       <code>NativeReadingScreen.kt:1463-1487</code>）＝<b>既に正しい</b>。</p>
     <p class="body"><b>作らないもの（明示）</b>　全画面の説明画面／止めカード（割り込んで進行を止める教示）／
@@ -1092,25 +1251,33 @@
       <b>②「PDF取り込み」</b>——<b>2026-09-04 の実機所感と規則1b で反転</b>（§2 の「PDF取り込みを初めて開いたとき」の行が根拠の正本）。
       旧判定は「目的を持って押して来る画面」だったが、<b>動機は〈この面で何を押すか〉を運ばない</b>。
       組C（検索範囲チップ）を反転させたのと<b>同じ規則・同じ取りこぼし</b>。<br>
-      <span style="color:#4A4C47">▶ <b>組D の中身（層① を 1 枚にするか・常設の帯にするか）は未裁定</b>。
-      比較モック＝<code>docs/design-candidates/candidates/pdf-import-guidance-candidates.html</code>。
-      裁定が付いたら採用案だけを本ファイル（§3 の入口表・§4 の文言・§8 のフラグ表）へ差し戻し、比較モックは削除する。</span>
+      <span style="color:#4A4C47">▶ <b>組D の中身は 2026-09-04 に裁定＝層① のカード 1 枚</b>（案A）。
+      3 案（カード 1 枚／恒常の帯／初回だけの帯）を比べた一時ドラフトは、採用案を本ファイル
+      （§3 の入口表と組D の絵・§4 の 7 枚目・§8 のフラグ表）へ差し戻したうえで削除した。<br>
+      <b>落とした 2 案の理由を残す</b>: <b>常設の帯</b>＝層① の定義（割り込んでその場で言う・恒常表示しない）にも
+      層②（文言を持たない）にも入らず<b>3 層のどこにも席が無い</b>うえ、この画面は<b>作品ごとに毎回通る</b>ので
+      却下 C-3「恒常的に見え続けるものは、理解した後にコストへ変わる」が最も多く起きる。
+      <b>初回だけの帯</b>＝層① には入るが、<b>再訪の受け皿（<code>.later</code> 相当）を置く余白が無く</b>規則3・4 が立たない。
+      さらに<b>消す契機に新しい規則を 1 本増やす</b>（時間で消すと T4 の轍＝見た保証が無いのに焼く。
+      この面は読み込みが重く目を離しやすいので時間の推定が最も当てにならない）。</span>
     </p>
 
     <table class="mx">
       <tr><th style="width:20%">項目</th><th>決めたこと</th></tr>
 
       <tr><td><b>カード列の持ちかた</b><br><span style="color:#8A4B44">（実装を二重にしない要）</span></td>
-        <td>カードは<b>順序つきの不変リスト 1 本</b>（6 要素）。各要素は〈見出し・本文または項目・<b>2 択</b>・図版・属する章〉を持つ。
+        <td>カードは<b>順序つきの不変リスト 1 本</b>（7 要素）。各要素は〈見出し・本文または項目・<b>2 択</b>・図版・属する章〉を持つ。
           描画するコンポーネントは<b>1 つ</b>。<br>
           ・<b>入口が渡すのは〈開始する組〉と〈通しで読むか〉の 2 値だけ</b>＝
-            <code>IntroGroup.ABOUT</code>（組A）／<code>IntroGroup.READING</code>（組B）／<code>IntroGroup.SEARCH</code>（組C）。
-            <b>入口が 4 つに増えても、2 つ目の画面も 2 つ目のリストも作らない</b>。<br>
+            <code>IntroGroup.ABOUT</code>（組A）／<code>IntroGroup.READING</code>（組B）／<code>IntroGroup.SEARCH</code>（組C）／
+            <code>IntroGroup.IMPORT</code>（組D）。
+            <b>入口が 5 つに増えても、2 つ目の画面も 2 つ目のリストも作らない</b>
+            <span style="color:#4A4C47">（2026-09-04 に組D を足したときも、増えたのは列の 1 要素と呼び出し側 1 箇所だけ＝この芯が効いた）</span>。<br>
           ・<b>単独の回はその組で終わる</b>／<b>通し（設定から）は組をまたいで最後まで進む</b>
             ＝終端かどうかは <code>通し ? 列の最後 : 組の最後</code> の 1 行で決まる。<br>
-          ・<b>現在地の点は「その回に出す枚数」ぶんだけ打つ</b>（組A＝<b>3 個</b>・組B＝2 個・<b>組C＝打たない</b>）。
-            通しでも同じ＝<b>組が変わるたびにリセット</b>（●○○ → ●○ → なし）。
-            <span style="color:#8A4B44">⚠️ 列全体の 6 個は絶対に打たないこと——打った瞬間に「これだけ読む必要がある」が戻り、
+          ・<b>現在地の点は「その回に出す枚数」ぶんだけ打つ</b>（組A＝<b>3 個</b>・組B＝2 個・<b>組C＝打たない</b>・<b>組D＝打たない</b>）。
+            通しでも同じ＝<b>組が変わるたびにリセット</b>（●○○ → ●○ → なし → なし）。
+            <span style="color:#8A4B44">⚠️ 列全体の 7 個は絶対に打たないこと——打った瞬間に「これだけ読む必要がある」が戻り、
             却下した全画面型と同じ認知負荷になる（冒頭コメント）。1 枚だけの回に点を 1 個出すのも禁止
             （壊れて見える／通しでは<b>点の不在がそのまま「これで終わり」の合図</b>になる）。</span><br>
           ・<b>［← もどる］は列の前方へ 1 枚戻る</b>＝<b>ただのインデックス −1</b>。組をまたぐ特別扱いは要らない。
@@ -1161,8 +1328,8 @@
           ・システム Back ＝ ［← もどる］と同じ。先頭カードでの Back は閉じる。<br>
           ・route/Content の 2 層に割り、Content に Robolectric テストを付ける（<code>/new-screen</code> §4）。</td></tr>
 
-      <tr><td><b>フラグ ─ 3 系統</b><br><span style="color:#8A4B44">（2026-08-21 裁定）</span></td>
-        <td>すべて Boolean・<code>FILE_APP_PREFS</code>・書き込みは <code>apply()</code>。<b>3 本とも新規キー</b>。<br>
+      <tr><td><b>フラグ ─ 4 系統</b><br><span style="color:#8A4B44">（2026-08-21 裁定／組D は 2026-09-04 追加）</span></td>
+        <td>すべて Boolean・<code>FILE_APP_PREFS</code>・書き込みは <code>apply()</code>。<b>4 本とも新規キー</b>。<br>
           <table class="mx" style="margin:8px 0">
             <tr><th style="width:16%">組</th><th style="width:26%">キー</th><th>出す条件</th></tr>
             <tr><td><b>組A</b>（1〜3枚目）</td><td><code>intro_about_shown</code></td>
@@ -1172,7 +1339,16 @@
               <td>未消費 <b>かつ 本文画面に着いた</b>（<code>deferHeavyContent</code> が閉じてから）。</td></tr>
             <tr><td><b>組C</b>（6枚目）</td><td><code>intro_search_shown</code></td>
               <td>未消費 <b>かつ 検索画面に着いた</b>（描画後）。</td></tr>
+            <tr><td><b>組D</b>（7枚目）</td><td><code>intro_import_shown</code></td>
+              <td>未消費 <b>かつ 取り込み画面が目次を初描画した</b>（<code>onPageCommitVisible</code> かつ目次 URL 一致）。<br>
+                <span style="color:#8A4B44">⚠️ ここだけ「背景が描き切ってから」を厳密には守れない
+                （WebView の自動送りの完了を Kotlin 側が知らない）＝§3 の入口表の但し書きが正本。</span></td></tr>
           </table>
+          <span style="color:#4A4C47">※ <b>組D のキーはベンチのシード契約では neutral</b>＝
+          <code>LibrarySeedReceiver</code> は固定しない。組D を出す入口が取り込み画面 1 箇所しかなく、
+          ベンチはそこへ入らない（3 タブと読書画面しか歩かない・播く本は <code>ncode=null</code>）。
+          <b>取り込み画面や作品詳細を歩くベンチを足したら mustPin へ移すこと</b>
+          （<code>SeedContractPrefKeysTest</code> の当該コメントが根拠の正本）。</span>
           <span style="color:#4A4C47">※ <b>向きの選択カード（2 枚目）は 4 本目のフラグを持たない</b>——
           書くのは既存の <code>reading_vertical</code> だけで、「もう訊いたか」は
           <code>intro_about_shown</code> が既に表している。フラグを増やすと
@@ -1232,7 +1408,7 @@
           押すと<b>組A から列の最後まで通しで開く</b>（画面遷移ではなくオーバーレイ）。<br>
           <span style="color:#8A4B44">⚠️ <b>2026-08-25 訂正</b>: ここは「章2 からカード列を開く」と書かれていたが、
           <b>章立て（章1／章2）で仕分けていた前版の残り</b>で、3 系統へ分けた §3 の入口表
-          （設定 ＞ 操作の説明 ＝ <b>組A から通し・1〜6 枚目</b>）と食い違っていた。§3 が正。
+          （設定 ＞ 操作の説明 ＝ <b>組A から通し・1〜7 枚目</b>）と食い違っていた。§3 が正。
           Compose 翻訳時にこの 1 行だけを見て実装すると、設定から開いても組A が読めない別物になる。</span></td></tr>
 
       <tr><td><b>a11y</b></td>

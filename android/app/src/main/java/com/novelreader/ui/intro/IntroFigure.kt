@@ -18,7 +18,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 
 /** どのカードにどの線画が付くかは正本の 1:1 対応。 */
-internal enum class IntroFigure { SHELF, ORIENTATION, TWO_WAYS, TAP, VERTICAL, SEARCH }
+internal enum class IntroFigure { SHELF, ORIENTATION, TWO_WAYS, TAP, VERTICAL, SEARCH, IMPORT }
 
 /** 正本 svg の viewBox 幅・高さ（この単位系で座標を書き、描画時に実寸へ写す）。 */
 private const val FIG_W = 120f
@@ -45,6 +45,7 @@ internal fun IntroFigureArt(figure: IntroFigure, modifier: Modifier = Modifier) 
             IntroFigure.TAP -> art.tap()
             IntroFigure.VERTICAL -> art.vertical()
             IntroFigure.SEARCH -> art.search()
+            IntroFigure.IMPORT -> art.importToShelf()
         }
     }
 }
@@ -174,5 +175,28 @@ private class FigureScope(
         rect(74f, 32f, 34f, 10f, 5f, accent)
         rect(74f, 48f, 34f, 10f, 5f, soft.copy(alpha = SOFT_ALPHA))
         line(18f, 70f, 102f, 70f, soft, alpha = 0.5f)
+    }
+
+    /**
+     * 7 枚目「つくって、本棚に入れる」＝**破線の面（なろう）から、実線の本 3 冊（本棚）へ運ぶ**。
+     *
+     * 破線／実線の約束は [twoWays] から継ぐ（なろうの面＝破線・アプリの面と動作＝実線）。
+     * ⚠️ [twoWays] そのものの使い回しは不可——あちらは 2 つの面を**並べて分ける**図で、
+     * こちらは**片方からもう片方へ運ぶ**図＝意味が違う（正本 §8 が [ORIENTATION] のときに
+     * 同じ理由で使い回しを禁じた前例に倣う）。
+     */
+    fun importToShelf() {
+        rect(36f, 4f, 48f, 34f, 3f, accent, dash = 5f to 4f)
+        dashedLine(43f, 13f, 77f, 13f, 5f to 4f)
+        dashedLine(43f, 20f, 77f, 20f, 5f to 4f)
+        dashedLine(43f, 27f, 63f, 27f, 5f to 4f)
+        // 下向きの矢印＝「運ぶ」動作そのものなので実線・主線（アプリ側が引き取る）。
+        line(60f, 43f, 60f, 56f, accent)
+        line(54f, 50f, 60f, 56f, accent)
+        line(60f, 56f, 66f, 50f, accent)
+        rect(38f, 63f, 11f, 17f, 1.5f, accent)
+        rect(52f, 63f, 11f, 17f, 1.5f, accent)
+        rect(66f, 63f, 11f, 17f, 1.5f, accent)
+        line(31f, 82f, 89f, 82f, soft, SOFT_ALPHA)
     }
 }

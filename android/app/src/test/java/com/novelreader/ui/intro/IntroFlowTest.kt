@@ -21,15 +21,16 @@ import org.junit.Test
 class IntroFlowTest {
 
     @Test
-    fun `列は 6 枚・組は 3-2-1 で並ぶ（文言の所在が二重化していない）`() {
-        assertEquals(6, IntroDeck.cards.size)
+    fun `列は 7 枚・組は 3-2-1-1 で並ぶ（文言の所在が二重化していない）`() {
+        assertEquals(7, IntroDeck.cards.size)
         assertEquals(3, IntroDeck.countIn(IntroGroup.ABOUT))
         assertEquals(2, IntroDeck.countIn(IntroGroup.READING))
         assertEquals(1, IntroDeck.countIn(IntroGroup.SEARCH))
+        assertEquals(1, IntroDeck.countIn(IntroGroup.IMPORT))
         assertEquals(
             listOf(
                 IntroGroup.ABOUT, IntroGroup.ABOUT, IntroGroup.ABOUT,
-                IntroGroup.READING, IntroGroup.READING, IntroGroup.SEARCH,
+                IntroGroup.READING, IntroGroup.READING, IntroGroup.SEARCH, IntroGroup.IMPORT,
             ),
             IntroDeck.cards.map { it.group },
         )
@@ -57,23 +58,29 @@ class IntroFlowTest {
         assertTrue(IntroFlow(IntroGroup.ABOUT, walkthrough = false, index = 2).isTerminal)
         assertTrue(IntroFlow(IntroGroup.READING, walkthrough = false, index = 4).isTerminal)
         assertTrue(IntroFlow(IntroGroup.SEARCH, walkthrough = false, index = 5).isTerminal)
+        assertTrue(IntroFlow(IntroGroup.IMPORT, walkthrough = false, index = 6).isTerminal)
         // 通し＝組の最後では終わらず、列の最後だけが終端。
         assertFalse(IntroFlow(IntroGroup.ABOUT, walkthrough = true, index = 2).isTerminal)
         assertFalse(IntroFlow(IntroGroup.ABOUT, walkthrough = true, index = 4).isTerminal)
-        assertTrue(IntroFlow(IntroGroup.ABOUT, walkthrough = true, index = 5).isTerminal)
+        assertFalse(IntroFlow(IntroGroup.ABOUT, walkthrough = true, index = 5).isTerminal)
+        assertTrue(IntroFlow(IntroGroup.ABOUT, walkthrough = true, index = 6).isTerminal)
     }
 
     @Test
-    fun `点はその回に出す枚数でなく〈いま居る組〉の枚数ぶんだけ打つ（列全体の 6 個は打たない）`() {
+    fun `点はその回に出す枚数でなく〈いま居る組〉の枚数ぶんだけ打つ（列全体の 7 個は打たない）`() {
         val walkthrough = IntroFlow(IntroGroup.ABOUT, walkthrough = true)
-        assertEquals(listOf(3, 3, 3, 2, 2, 0), (0..5).map { walkthrough.copy(index = it).dotCount })
-        // 組が変わるたびに現在地はリセットされる（●○○ → ●○ → なし）。
-        assertEquals(listOf(0, 1, 2, 0, 1, 0), (0..5).map { walkthrough.copy(index = it).dotIndex })
+        // ⚠️ 末尾が 0 の 2 連＝**点の無い回が 2 つ続く**（組C・組D はどちらも 1 枚）。
+        // 正本 §3 の「点の不在がそのまま『これで終わり』の合図」が通しの終盤で 1 回鈍るのは
+        // 2026-09-04 の裁定で**受け入れた代償**であって、退行ではない（組C と組D は統合しない）。
+        assertEquals(listOf(3, 3, 3, 2, 2, 0, 0), (0..6).map { walkthrough.copy(index = it).dotCount })
+        // 組が変わるたびに現在地はリセットされる（●○○ → ●○ → なし → なし）。
+        assertEquals(listOf(0, 1, 2, 0, 1, 0, 0), (0..6).map { walkthrough.copy(index = it).dotIndex })
     }
 
     @Test
     fun `1 枚だけの回に点を 1 個出さない（壊れて見える・点の不在が終わりの合図）`() {
         assertEquals(0, IntroFlow(IntroGroup.SEARCH, walkthrough = false).dotCount)
+        assertEquals(0, IntroFlow(IntroGroup.IMPORT, walkthrough = false).dotCount)
     }
 
     @Test
@@ -93,6 +100,7 @@ class IntroFlowTest {
         assertEquals(IntroSecondary.LATER, IntroFlow(IntroGroup.READING, false, 3).secondary)
         assertEquals(IntroSecondary.BACK, IntroFlow(IntroGroup.READING, false, 4).secondary)
         assertEquals(IntroSecondary.NONE, IntroFlow(IntroGroup.SEARCH, false, 5).secondary)
+        assertEquals(IntroSecondary.NONE, IntroFlow(IntroGroup.IMPORT, false, 6).secondary)
         // 通しでは組B の先頭も「途中」なので もどる。
         assertEquals(IntroSecondary.BACK, IntroFlow(IntroGroup.ABOUT, true, 3).secondary)
     }
@@ -108,6 +116,8 @@ class IntroFlowTest {
         assertEquals("とじる", IntroFlow(IntroGroup.READING, false, 4).primaryLabel)
         assertEquals("つぎへ", IntroFlow(IntroGroup.ABOUT, true, 4).primaryLabel)
         assertEquals("とじる", IntroFlow(IntroGroup.SEARCH, false, 5).primaryLabel)
+        assertEquals("つぎへ", IntroFlow(IntroGroup.ABOUT, true, 5).primaryLabel) // 通しでは組C も終端でない
+        assertEquals("とじる", IntroFlow(IntroGroup.IMPORT, false, 6).primaryLabel)
     }
 
     @Test
@@ -116,7 +126,7 @@ class IntroFlowTest {
         // 向きの選択カード＝「あとから変えられる」の明示。枠の有無で数えると選択カードの 1 行が
         // 紛れ込み、**規則が緩んだことに誰も気づかない**ので、再訪導線を名指しで数える。
         assertEquals(
-            listOf(false, false, true, false, false, true),
+            listOf(false, false, true, false, false, true, true),
             IntroDeck.cards.map { it.footnote?.contains("［操作の説明］") == true },
         )
         val choiceCard = IntroDeck.cards.single { it.choice != null }

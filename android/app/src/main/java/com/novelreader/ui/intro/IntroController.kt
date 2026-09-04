@@ -10,7 +10,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.novelreader.PrefKeys
 
-/** 3 系統フラグ＋没入ピルの旧フラグの読み書き口（テストで差し替えるためのシーム）。 */
+/** 4 系統フラグ＋没入ピルの旧フラグの読み書き口（テストで差し替えるためのシーム）。 */
 internal interface IntroFlagStore {
     fun isShown(group: IntroGroup): Boolean
     fun markShown(group: IntroGroup)
@@ -35,11 +35,17 @@ internal interface IntroFlagStore {
     fun writeOrientationVertical(vertical: Boolean)
 }
 
-/** 組 → prefs キー。3 本とも Boolean・FILE_APP_PREFS・apply()（正本 §8）。 */
+/**
+ * 組 → prefs キー。4 本とも Boolean・FILE_APP_PREFS・apply()（正本 §8）。
+ *
+ * `when` を **enum 網羅（else なし）**で書いてあるのが要＝組を足した瞬間にここがコンパイルで赤くなる。
+ * else へ逃がすと、フラグを持たない組が既存キーへ相乗りして**別の組の消費で黙って焼かれる**。
+ */
 internal fun introPrefKey(group: IntroGroup): String = when (group) {
     IntroGroup.ABOUT -> PrefKeys.INTRO_ABOUT_SHOWN
     IntroGroup.READING -> PrefKeys.INTRO_READING_SHOWN
     IntroGroup.SEARCH -> PrefKeys.INTRO_SEARCH_SHOWN
+    IntroGroup.IMPORT -> PrefKeys.INTRO_IMPORT_SHOWN
 }
 
 internal class PrefsIntroFlagStore(private val prefs: SharedPreferences) : IntroFlagStore {

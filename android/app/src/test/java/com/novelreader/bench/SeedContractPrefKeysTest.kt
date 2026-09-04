@@ -124,6 +124,18 @@ class SeedContractPrefKeysTest {
         "PDF_LIBRARY_TREE_URI",
         "DIAG_SESSION_OPEN", "DIAG_LAST_SEEN_AT", "DIAG_LAST_SCREEN",
         "SEARCH_HISTORY_PINNED", "SEARCH_HISTORY_RECENT",
+        // 教示「はじめに」組D（2026-09-04 新設）。**上の 3 系統と違って mustPin ではない**——
+        // 組D を出す requestAuto は PdfImportScreen（なろうの取り込み画面）1 箇所からしか呼ばれず、
+        // そこへ入るには〈さがす → 作品詳細 → ［縦書きPDFを取り込む］〉と 2 段潜る必要がある。
+        // NAROU_EXTERNAL_NOTICE_SUPPRESSED と同型・同じ粒度の判断で、根拠3点（2026-09-04 実測）:
+        //  (a) :macrobenchmark・:baselineprofile が触るのは 本棚／さがす／設定 の 3 タブと読書画面だけで、
+        //      作品詳細にも取り込み画面にも入るコードが 0 件。
+        //  (b) LibrarySeedReceiver が播く本は ncode=null ＝ Web 由来カードが 1 枚も無く、詳細へ出る導線が生えない。
+        //  (c) PdfImportBenchmark は取り込み画面を通らない——ImportBenchReceiver への broadcast で
+        //      PdfProcessingService を直に叩く経路で、測っているのは抽出パイプラインであって画面ではない。
+        // ⚠️ 取り込み画面（または作品詳細）を歩くベンチを足したら、その時点で mustPin へ移し
+        //     LibrarySeedReceiver 側の固定も足すこと（未固定だと初回走行だけカードが載る）。
+        "INTRO_IMPORT_SHOWN",
     )
 
     /** [PrefKeys] が公開する String 定数の**名前**を全数取る（object の INSTANCE 等は除く）。 */

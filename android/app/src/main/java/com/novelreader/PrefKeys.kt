@@ -90,7 +90,7 @@ object PrefKeys {
     const val IMMERSIVE_HINT_SHOWN = "immersive_hint_shown"
 
     // ── app_prefs: 教示「はじめに」（ui/intro・2026-08-21 裁定／正本モック tutorial-onboarding-K.html §8）──
-    // 3 本とも Boolean・未消費＝false。消費は「その組の最後のカードまで到達したうえで閉じた／次の組へ
+    // 4 本とも Boolean・未消費＝false。消費は「その組の最後のカードまで到達したうえで閉じた／次の組へ
     // 進んだ時点」の 1 規則で統一する（途中で閉じた回は焼かない＝次の機会にまた出る）。
 
     /** 組A「このアプリのこと」を出し切ったか（出す条件＝未消費 かつ 本棚が空）。 */
@@ -101,6 +101,14 @@ object PrefKeys {
 
     /** 組C「さがしかた」を出し切ったか（出す条件＝未消費 かつ 検索画面が描かれてから）。 */
     const val INTRO_SEARCH_SHOWN = "intro_search_shown"
+
+    /**
+     * 組D「つくって、本棚に入れる」を出し切ったか（出す条件＝未消費 かつ 取り込み画面が目次を初描画してから）。
+     *
+     * 2026-09-04 に §2 の判定が「置かない → 置く」へ反転して増えた 4 本目（規則1b＝見えていても
+     * それが何を決めているか推測できない＝取り込み画面のボタンはすべてなろうのもの）。
+     */
+    const val INTRO_IMPORT_SHOWN = "intro_import_shown"
 
     // ── app_prefs: なろうの面の注意喚起（ADR 0042・ui/NarouExternalPageNoticeDialog.kt）──
 

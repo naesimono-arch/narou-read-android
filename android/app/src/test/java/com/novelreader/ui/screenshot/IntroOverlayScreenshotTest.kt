@@ -31,7 +31,7 @@ import org.robolectric.annotation.GraphicsMode
  * 既存の [com.novelreader.ui.intro.IntroOverlayContentTest] は semantics（文言・ボタンの有無・押下）
  * だけを見るため、次の3つを原理的に検出できない:
  *
- *  1. **線画（[com.novelreader.ui.intro.IntroFigureArt]）が絵として壊れること**。5 枚それぞれに
+ *  1. **線画（[com.novelreader.ui.intro.IntroFigureArt]）が絵として壊れること**。7 枚それぞれに
  *     正本モックの `<svg>` path を座標で写経した Canvas 直描きが付いているが、`clearAndSetSemantics`
  *     で TalkBack から隠してあるので **semantics には1ノードも出ない**＝絵以外に検査手段が無い。
  *     座標を1つ書き損じても、いまは全テストが緑のまま通る。
@@ -41,7 +41,7 @@ import org.robolectric.annotation.GraphicsMode
  *
  * ## 撮る状態（なぜ「1 枚 = 1 case」で列の全数か）
  * 状態を代表 1〜2 枚に絞らないのは、**カードごとに固有の線画を持つ**ため（上記 1）＝間引いた枚数は
- * そのぶん無検査で残る。6 枚は同時に、版面を決める 5 軸を過不足なく張る:
+ * そのぶん無検査で残る。7 枚は同時に、版面を決める 5 軸を過不足なく張る:
  *
  * | case | 本文の形 | 2 択チップ | 小さい行 | 副ボタン | 点 |
  * |---|---|---|---|---|---|
@@ -51,6 +51,10 @@ import org.robolectric.annotation.GraphicsMode
  * | `reading_tap` | 項目2 | 無 | 無 | ［あとで］ | 2 個・1 個目 |
  * | `reading_vertical` | 項目3 | 無 | 無 | ［← もどる］ | 2 個・2 個目 |
  * | `search_single` | 項目3 | 無 | 有（罫） | **無し**（主ボタン単独・右寄せ） | **無し** |
+ * | `import_single` | 項目3 | 無 | 有（罫） | **無し**（同上） | **無し** |
+ *
+ * `import_single` は版面の軸としては `search_single` と同型（項目3・小さい行・副ボタン無し・点無し）だが、
+ * **線画が違う**＝上記 1 の理由でここだけは間引けない（絵は semantics に 1 ノードも出ない）。
  *
  * `about_orientation` を間引けないのは、**チップの選択/非選択という 1 軸がこの 1 枚にしか出ない**ため
  * ——藍の実塗り（on）と枠線だけ（off）の対比が壊れても、semantics は「選択済み」を返し続ける。
@@ -186,6 +190,7 @@ internal object IntroOverlayGoldenCases {
             ),
         ),
         IntroGoldenCase("search_single", IntroFlow(IntroGroup.SEARCH, walkthrough = false)),
+        IntroGoldenCase("import_single", IntroFlow(IntroGroup.IMPORT, walkthrough = false)),
     )
 
     fun byId(caseId: String): IntroGoldenCase =
@@ -197,7 +202,7 @@ internal object IntroOverlayGoldenCases {
  *
  * ## なぜ [GoldenCoverageTest] だけでは足りないか
  * あちらの双方向照合は **golden 接頭辞（＝束）の粒度**でしか働かない。`IntroOverlayK` の PNG が
- * 1枚でも在れば「撮影テストがある束」として通ってしまうので、**6 枚目のカードを列へ足しても
+ * 1枚でも在れば「撮影テストがある束」として通ってしまうので、**7 枚目のカードを列へ足しても
  * 誰も赤くならない**——新しい線画と版面が無検査のまま出荷される（撮っていない面は最初から
  * 検査対象に入らない、という GoldenCoverageTest 自身が挙げている失敗の型そのもの）。
  * カードは nav ルートを持たない被せもの＝ルート側の網羅検査も届かないので、ここで塞ぐ。

@@ -43,6 +43,8 @@ import com.novelreader.narou.narouWorkUrl
 import com.novelreader.viewmodel.PdfImportEvent
 import com.novelreader.viewmodel.PdfImportUiState
 import com.novelreader.viewmodel.PdfImportViewModel
+import com.novelreader.ui.intro.IntroGroup
+import com.novelreader.ui.intro.LocalIntroController
 import com.novelreader.ui.theme.FontSubTitle
 import com.novelreader.ui.theme.FontTopBarTitle
 import com.novelreader.ui.theme.Spacing
@@ -140,6 +142,29 @@ fun PdfImportScreen(
     // 目次ページ URL 判定用の正規表現。onPageCommitVisible と onPageFinished の双方で使うため hoist（重複回避）。
     val menuUrlRegex = remember(lowerNcode) { Regex("^https://ncode\\.syosetu\\.com/$lowerNcode/?$") }
 
+    // ── 教示「はじめに」組D（1 枚）＝この画面を初めて開いたときだけ出す（正本 §2/§3・2026-09-04 反転）──
+    // null＝教示のホストが居ない構成（プレビュー・個別画面だけの Robolectric）＝何も出さない。
+    val introController = LocalIntroController.current
+    // カードを出す契機。**背景が描き切ってから出す**（正本 §8「置きかた」）に対して、この画面で取れる最良点。
+    // 【なぜ onPageCommitVisible＋menuUrlRegex 一致か】他の組は着地の信号を持つ（組B＝deferHeavyContent が
+    // 閉じた／組C＝push 遷移窓が閉じた）が、この画面の背景は WebView で、**Kotlin 側は自動送りが終わったことを
+    // 知らない**（AUTO_SCROLL_JS_* を evaluateJavascript へ投げっぱなしで結果コールバックを受けていない）。
+    // 目次ページの**初描画**は取れるので、自動送りの JS を投げるのと同じ瞬間をカードの契機にする。
+    // 【担保できること】①なろうの目次ページに着いた後にしか出ない（作品ページ以外の多段フロー中には出ない）
+    //   ②白いままの画面には載らない（onPageCommitVisible＝最初のピクセルが出た後）。
+    // 【担保できないこと】**カードが載る瞬間、背後はまだ目次の上の方**のことがある——scrollIntoView が
+    //   走り切ったかを知る手段が無いため。カード文言「開いた位置にある ［縦書きPDF］ の枠から」は
+    //   **閉じた後の状態**を指しており、スクロールはカードの下で進むので実害は出ない想定だが、
+    //   これはモックでは確かめられない＝実機の二段検分で見る（visual-language 恒久ルール5）。
+    // 【なぜこれ以上踏み込まないか】JS からコールバックを返せば「寄せ終わった」を取れるが、それは注入 JS の
+    //   役割を〈ビューポート移動のみ〉から広げる話＝ADR 0010/0011 の線に触れる。踏み込むなら別 ADR。
+    val menuPageCommitted = remember { mutableStateOf(false) }
+    LaunchedEffect(menuPageCommitted.value) {
+        // requestAuto 自身が〈未消費か〉〈他のカードを出していないか〉を見るので、ここで条件を重ねない
+        // （重ねると同じ規則が 2 箇所に散り、片方だけ直されて腐る）。再訪でも true のままなので発火は 1 回。
+        if (menuPageCommitted.value) introController?.requestAuto(IntroGroup.IMPORT)
+    }
+
     // 構成変更（回転・ダーク切替・fontScale 変更）で Activity が再生成されると WebView も破棄される。
     // 旧実装は plain remember＋無条件 loadUrl(menuUrl) だったため、なろうの多段フロー
     // （作品ページ→縦書きPDF→書式設定→生成）の途中で構成変更が起きると作品ページ先頭へ巻き戻っていた。
@@ -233,6 +258,10 @@ fun PdfImportScreen(
                             override fun onPageCommitVisible(view: WebView?, url: String?) {
                                 if (url != null && menuUrlRegex.matches(url)) {
                                     view?.evaluateJavascript(AUTO_SCROLL_JS_ON_VISIBLE, null)
+                                    // 教示カード（組D）の契機。ここは UI スレッドなので snapshot state を直接触れる。
+                                    // requestAuto を直接呼ばず state 経由にするのは、コントローラを触るのを
+                                    // コンポジション側（LaunchedEffect）に寄せるため＝他の入口と同じ形にする。
+                                    menuPageCommitted.value = true
                                 }
                             }
 

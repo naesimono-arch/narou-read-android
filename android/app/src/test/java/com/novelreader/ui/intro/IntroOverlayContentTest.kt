@@ -8,6 +8,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import com.novelreader.ui.NarouExternalPageNotice
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -126,6 +127,24 @@ class IntroOverlayContentTest {
         rule.onNodeWithText("さがして、本棚に入れる").assertIsDisplayed()
         // 3 項目＋再訪導線を積む最長のカード＝既定画面では下端が折り返す。スクロールで**必ず到達できる**
         // ことまで見る（非スクロール面だと、ここで到達手段そのものが消える）。
+        rule.onNodeWithText("とじる").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("あとで").assertDoesNotExistCompat()
+        rule.onNodeWithText("もどる").assertDoesNotExistCompat()
+    }
+
+    @Test
+    fun `組D も 1 枚で終わるので あとで を置かず とじる だけ`() {
+        show(IntroFlow(IntroGroup.IMPORT, walkthrough = false))
+        rule.onNodeWithText("つくって、本棚に入れる").assertIsDisplayed()
+        rule.onNodeWithText("ここはなろうのページ").assertIsDisplayed()
+        // 境界の告知（ADR 0042）はこの 1 項目が受ける＝取り込みルートに NarouExternalPageNoticeHost は
+        // **置かない**（両方入れると初回だけダイアログとカードが連続する＝2026-09-04 裁定）。
+        // その代わり、この項目の本文が NarouExternalPageNotice.BODY の**第 1 文と 1 字同一**であることを
+        // ここで機械的に縛る。左辺を定数から導くので、**どちらを直しても**このテストが落ちる
+        // ——同じ事実を 2 通りに言って片方が黙って腐るのを防ぐ（IntroDeck.kt 側のコメントと対）。
+        rule.onNodeWithText(NarouExternalPageNotice.BODY.substringBefore("。") + "。").assertIsDisplayed()
+        // ⚠️ 組C より 1 行ぶん高い（項目3 が 3 行に折り返す）＝**既定画面でも下端が折り返す**。
+        // 組C と同じくスクロールで必ず到達できることまで見る（到達手段そのものが消えていないか）。
         rule.onNodeWithText("とじる").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("あとで").assertDoesNotExistCompat()
         rule.onNodeWithText("もどる").assertDoesNotExistCompat()
