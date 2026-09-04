@@ -599,14 +599,23 @@ def check_permission_paths():
         rules = [r for v in perms.values() if isinstance(v, list)
                  for r in v if isinstance(r, str)]
         for rule in rules:
-            for tok in sorted(set(token_pat.findall(rule))):
-                prefix = tok.split("*", 1)[0].rstrip("/")
+            seen = set()
+            for m in token_pat.finditer(rule):
+                prefix = m.group(0).split("*", 1)[0].rstrip("/")
                 # ホーム相対(~)・URL 断片・スラッシュが残らない断片は再構成不能のため対象外
                 if "/" not in prefix or prefix.startswith(("http", "~")):
                     continue
-                if not (ROOT / prefix).exists():
+                # token_pat は先頭に "/" を含められない（英数始まり）ので、直前の1文字を見て
+                # 絶対パスを復元する。これを見ないと /home/... が ROOT 相対に解決され、実在する
+                # パスを「死 permission」と誤報する（2026-09-05 に4件すべてが誤検知だった）。
+                absolute = m.start() > 0 and rule[m.start() - 1] == "/"
+                if (absolute, prefix) in seen:
+                    continue
+                seen.add((absolute, prefix))
+                target = Path("/" + prefix) if absolute else (ROOT / prefix)
+                if not target.exists():
                     add("perm-path", "stale", "info",
-                        f"{sf} の許可ルール '{rule}' が指す '{prefix}' が存在しない（死 permission の疑い）")
+                        f"{sf} の許可ルール '{rule}' が指す '{target}' が存在しない（死 permission の疑い）")
 
 
 # ── 12. hook 動作点検（構文＋自己テスト）────────────────────────────────
