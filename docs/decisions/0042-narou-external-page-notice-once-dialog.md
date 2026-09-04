@@ -1,6 +1,7 @@
 # 0042. なろうのページを開く場面の注意喚起＝**一度きりのダイアログ**（案A）／「広告」は名指しせず「なろうの表示のまま」で含める
 
-- 状態: 採用（2026-09-03 ユーザー裁定）。**実装は未着手**。
+- 状態: 採用（2026-09-03 ユーザー裁定）・**実装済み**（`android/app/src/main/java/com/novelreader/ui/NarouExternalPageNoticeDialog.kt`＝`NarouExternalPageNotice`／`NarouExternalPageNoticeHost`／`NarouExternalPageNoticeDialog`）。⚠️ 旧記述「実装は未着手」は着手前のままだった（2026-09-05 訂正）。
+- ⚠️ **範囲の限定（2026-09-04・ADR 0044）**: 本 ADR の「全数確認」が数えていたのは〈なろうで読む〉導線だけで、**PDF 取り込み画面は勘定外**だった。取り込みルートの境界告知は本ダイアログではなく**教示カード 組D の1項目目**が受ける（ADR 0044 決定2）＝このダイアログの呼び手は `WebReaderScreen` の1箇所に限る。
 - 関連: 正本モック `docs/design-candidates/candidates/narou-external-page-notice-candidates.html`（案A〜E）／
   規約線＝ADR 0010・0011・0012（加工なし・広告保持・JS 注入ゼロ）／覆す対象＝2026-08-21 の「予告注記を撤去する」裁定
 

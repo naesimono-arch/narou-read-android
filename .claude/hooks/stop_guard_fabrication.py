@@ -6,7 +6,9 @@ Stop フック: ターン終了時に、直近の assistant 発話の「実行�
 設計（ADR 0006。Tier C と A2 昇格は 2026-07-07 の misread 型対応＝正解データ事象F）:
   - Stop フックは additionalContext を持てない（task_diary #28）ため「ブロック or 素通し」の二択。
   - ブロックは高精度シグナルのみ:
-      Tier B unverified_test_claim（成功実行なし ∧ センチネル不在/古い ∧ 非降格・conf≥0.8）
+      Tier B unverified_test_claim（成功実行なし ∧ 非降格・conf≥0.8）
+        ⚠️ 旧記述にあった「センチネル不在/古い」の条件は 2026-07-25 に退役済み（この docstring だけ追従が漏れていた＝2026-09-05 訂正）。生成者 mark_kotlin_tests_passed.py の撤去で mtime が凍結し、
+        fresh 判定が恒久 False になっていたため（機序＝detect_fabricated_execution_core.py の同名注記）。
       Tier A3 fabricated_harness_block（ハーネス/ツール構文の地の文化・非降格）
       Tier A2 fabricated_concrete_token（存在しない SHA の断言。証拠の result 層化・エコーバック
         除外・git 文脈語拡張で精度が上がり、全セッション走査で偽陽性ゼロを確認して昇格）

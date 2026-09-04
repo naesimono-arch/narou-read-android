@@ -21,7 +21,7 @@ description: アプリ全体構成の入口。タスク→場所→罠の早見�
 | PDF抽出ロジック | `pdf/`（入口は facade `PdfBookExtractor.kt`＝4ステップ進捗・例外分類。ステップ構成は同ファイル KDoc） | `PDDocument.load` 前に `PDFBoxResourceLoader.init` 必須＝CID→Unicode 解決（`NovelReaderApplication.onCreate` で配線済み・task_diary #31）。グリフ正規化（波ダッシュ等）は `PdfExtractor` の `normalizeGlyphUnicode`（#35/#38） |
 | 抽出のルール（文書ごと自動検出） | `pdf/DetectedRules.kt`（フォールバック定数＝`pdf/ParserRules.kt`） | 検出値は文書内実測＝定数直参照で挙動を推論しない |
 | 精度の基準・回帰 | `ab-review/golden_regression/`＋実機ゲート `androidTest/…/pdf/PdfExtractorDeviceSpikeTest.kt`／HTMLバイト等価ゴールデン `src/test/resources/golden_html/` | 実機テストは `/device-verify` 必読（`connectedAndroidTest` 直叩きは蔵書DB消失＝task_diary #36） |
-| UI（本棚/読書/目次） | `ui/BookshelfScreen.kt`（カード=`BookCard.kt`・バナー=`ProcessingBanner.kt`）／`ui/NativeReadingScreen.kt`（公開名 ReadingScreen。本文=`ChapterContent.kt`・設定=`ReadingSettingsSheet.kt`）。**ルート一覧の正本＝`MainActivity.kt` の NavHost**（変更が多いので実物を見る。入口は `"tabs"`＝本棚／さがす／設定を `ui/tabs/TabPagerHost.kt` で横スワイプ切替） | 読書画面（PDF蔵書）は **WebView ではなく Compose ネイティブ**（HTML解析=`parser/ChapterHtmlParser.kt`・ルビ=`ui/compose/RubyText.kt`）。⚠️**なろう作品の"閲覧"だけは例外的に WebView**（`WebReaderScreen`・ADR 0012＝加工なし・URL 観測のみ・JS 注入ゼロ）。目次 `NativeTableOfContentsScreen` は NavHost ルートでなく ReadingScreen 内から表示。旧 `"bookshelf"`/`"discovery"` ルートは 2026-07-24 のタブPager化で消滅＝それを指す古い記述に注意 |
+| UI（本棚/読書/目次） | `ui/BookshelfScreen.kt`（カード=`BookCard.kt`・バナー=`ProcessingBanner.kt`）／`ui/NativeReadingScreen.kt`（公開名 ReadingScreen。本文=`ChapterContent.kt`・設定=`ReadingSettingsSheet.kt`）。**ルート一覧の正本＝`MainActivity.kt` の NavHost**（変更が多いので実物を見る。入口は `"tabs"`＝本棚／さがす／設定を `ui/tabs/TabPagerHost.kt` で横スワイプ切替） | 読書画面（PDF蔵書）は **WebView ではなく Compose ネイティブ**（HTML解析=`parser/ChapterHtmlParser.kt`・ルビ=`ui/compose/RubyText.kt`）。⚠️**WebView は 2 面ある**＝なろう作品の"閲覧"（`WebReaderScreen`・ADR 0012＝加工なし・URL 観測のみ・**JS 注入ゼロ**）と、Web取込の元ページ表示（`ui/discovery/PdfImportScreen.kt`・ADR 0011 案B＝**注入は自動スクロール `scrollIntoView({block:'center'})` に限る**）。**注入規約は面ごとに別**なので、片方の規約をもう片方へ持ち込まないこと。⚠️ 旧記述「なろうの閲覧**だけ**が例外・注入ゼロ」は取り込み画面を勘定に入れていない誤り（2026-09-05 訂正）。目次 `NativeTableOfContentsScreen` は NavHost ルートでなく ReadingScreen 内から表示。旧 `"bookshelf"`/`"discovery"` ルートは 2026-07-24 のタブPager化で消滅＝それを指す古い記述に注意 |
 | 着せ替え（スキン） | 意匠トークン=`ui/theme/skins/Skin{C,D,J,K,M,P}.kt`／各スキン固有画面=`ui/skins/{j,k,m,p}/`／切替UI=`ui/WardrobeScreen.kt`（装いの間）／タブ骨格=`ui/tabs/TabPagerHost.kt` | 既定は **K（明快K）**。構造骨格（ナビ・情報配置・操作導線）は K 形で全スキン共通・**意匠だけがスキン差**＝ADR 0021 追記が正本（0022 が構造の二層化とスロット契約）。新スキン追加時、ルーター分岐は exhaustive when で守られるが**シート色やクロームは加算的で無音欠落しうる**（既知の残存リスク） |
 | 見た目（配色・タイポ・余白・アニメ）の変更 | **`/visual-language` が正本の入口**（HTMLモック正本→Compose 翻訳の分業・トークン層・機械検査・関連ADR） | Compose 側で意匠を自己判断しない |
 | 変換サービス | `PdfProcessingService`（Foreground）→ `BookRepository.addBook` → `PdfBookExtractor.process` | 下記「コードから読み取りにくい設計判断」 |
@@ -30,6 +30,7 @@ description: アプリ全体構成の入口。タスク→場所→罠の早見�
 | 生成物の保存先 | `context.filesDir/novels/{bookId}/`（`index.html`＋`chap_N.html`） | — |
 | 発見・検索（なろうAPI） | API層=`narou/`／VM=`viewmodel/Discovery*` 等／UI=`ui/discovery/`（詳細は下記の専用節） | 命名の非対称（傘は Discovery・テキスト検索部分だけ Search）＝`search` だけの grep は取りこぼす。検索履歴は Room でなく DataStore 別系統。**UI⇄API 境界はサイト非依存 `discovery/model/WorkSummary`**（`NarouNovel` は Moshi DTO として narou/ 内限定＝境界規則は ADR 0024 追記） |
 | 汎用Web小説取込（scrape層） | `scrape/`（IF=`NovelSiteAdapter`・解決/規約ゲート=`SiteAdapterRegistry` の3値・表駆動=`scrape/generic/`＝`SiteProfiles` の1プロファイル=1アダプタ・HTTP=`ScrapeHttpClient`〔Crawl-delay 内蔵〕・破損検知=`ScrapeIntegrity`/`AdapterHealthCheck`）。取込導線＝MainActivity intent（ACTION_SEND 全サイト／ACTION_VIEW 対応ホスト限定）→`BookshelfViewModel`→`BookRepository.addWebBook`→既存 `ChapterProcessor`/`HtmlExporter` で PDF 蔵書と同契約 HTML | 設計の正本＝ADR 0024（＋追記）。カクヨムは JSON 系につき専用アダプタのまま温存・暁は generic へ移植済み（専用 AkatsukiAdapter は退役）。fixture ゴールデン（`test/resources/scrape_fixtures/`）が破損監視の核＝赤くなったら `tools/capture_scrape_fixture.sh` ヘッダの手順。Web源は pending_jobs 非対象。なろう系 URL は Blocked＝公式送り（ADR 0010/0012） |
+| Web取込の元ページ表示（取り込み画面） | `ui/discovery/PdfImportScreen.kt`＋`viewmodel/PdfImportViewModel.kt`（ADR 0011 案B） | **`ui/discovery/` の 2 本目の WebView**。注入 JS は自動スクロール（`scrollIntoView({block:'center'})`）に限る＝それ以外の DOM 改変は規約違反。初出教示カードは `ui/intro/IntroDeck.kt`（枚数・順序は同ファイルの `cards` が正本） |
 
 ## コードから読み取りにくい設計判断・罠
 
@@ -63,7 +64,7 @@ description: アプリ全体構成の入口。タスク→場所→罠の早見�
   `ResultContext`/`ResultSource` も同ファイル）／`NovelDetailViewModel`（作品詳細のみ独立）／`SearchDraft`（検索条件の下書き）／`MoodPreset`
 - `ui/discovery/` ＝ VM直結画面は route(VM結線)/Content(stateless描画) の2層分割＝`BookshelfScreen`/`BookshelfContent`
   と同型・Content は Robolectric でテスト（ADR 0009）。`DiscoveryResultScreen` が検索/ジャンル/気分の**共通着地**・
-  `DiscoveryGenreScreen` だけ VM 非依存（静的 `NarouGenres` 依存）・`WebReaderScreen` は**このディレクトリで唯一の WebView**（ADR 0012）
+  `DiscoveryGenreScreen` だけ VM 非依存（静的 `NarouGenres` 依存）・`WebReaderScreen` と `PdfImportScreen` の**2 本が WebView**（前者＝ADR 0012 の注入ゼロ／後者＝ADR 0011 案B で `scrollIntoView` のみ注入）。⚠️ 旧記述「唯一の WebView」は取り込み画面を数えていなかった（2026-09-05 訂正）
 - ※本棚↔なろう紐付けシート `ui/NcodeLinkSheet.kt` は `ui/discovery/` ではなく `ui/` 直下＝**発見層ではなく
   読書画面（NativeReadingScreen）の継続読書フロー部品**
 

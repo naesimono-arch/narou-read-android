@@ -102,7 +102,7 @@ NavHost のどの route にも属さず、`MainActivity` の root Box の子と�
 ## §4 締めのゲート
 
 - [ ] Content の Robolectric テストを追加（新規画面でテスト無しは不可）
-- [ ] `cd android && ./gradlew testDebugUnitTest`（⚠️ Windows セッションでは通らない＝`/build` の Windows 節）
+- [ ] `bash tools/gwlock.sh testDebugUnitTest`（⚠️ 旧記述の `./gradlew` 直叩きは ext4 worktree で Permission denied＝`/build` が「必ず gwlock.sh 経由」を正本にしている。Windows セッションでは通らない＝`/build` の Windows 節）
 - [ ] 意匠に触れたら `python3 tools/check_design_tokens.py` ＋ `recordRoborazziDebug` で golden 再記録（既定ゲート非同乗＝忘れると腐ったまま潜伏する）
 - [ ] STATUS/handover の更新は原因となった論理変更と同じコミットへ同梱／新しい設計判断が出たら ADR 起票
 - [ ] 制御フロー・構成を変えたなら同じターンで `/stale-check`

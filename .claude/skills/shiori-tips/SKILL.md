@@ -39,7 +39,7 @@ description: 栞書影の先端ワンポイント意匠（SHIORI_TIPS）を安�
 全 nm/rd の衝突を検出（テーマ跨ぎの同名）。`node .claude/skills/shiori-tips/tools/cross_dedup.js`（正本 shiori-tips-D.html の既存名＋新 entries を突合）。同名は改名 or drop。同音異字（例 富士/藤＝ふじ）は別意匠なら可。
 
 ### D. 提示（人の審級）
-全数カタログHTMLを組み `chrome <file>` で見せる。ext4 の .html は UNC 読み込みが脆いので `/mnt/c` へ複製して開く。opt-out 方式（省くものだけ番号指定・残り全採用）。
+全数カタログHTMLを組み **`mockview <file>`** で見せる（⚠️ 旧記述の素の `chrome <file>` は 2026-07-16 に禁止＝`/visual-language` と `/shiori-anim` が正本。mockview が開く瞬間のスナップショットを複製するので、canonical/worktree に同名モックが併存しても古い版を掴まない）。opt-out 方式（省くものだけ番号指定・残り全採用）。
 
 ### E. 統合
 1. **Kotlin 移植**: 既存の `SHIORI_TIPS` ラムダを Rosetta stone に、JS draw → DrawScope へ翻訳（翻訳表は下）。SHIORI_TIPS 末尾へ**正順で追記**。bulk（数十以上）はサブへ委譲可＝ただし全数 diff 照合＋最難関（arcTo/save-rotate/部分弧）をスポット目視。
@@ -47,7 +47,7 @@ description: 栞書影の先端ワンポイント意匠（SHIORI_TIPS）を安�
 3. **ゴールデン再生成**: `node .claude/skills/shiori-tips/tools/shiori_golden.js <新tipCount>` → `ShioriGeneratorTest` の `tipCount` と3件の tipIndex 期待値を差し替え（hue/xFrac/lenFrac は不変）。
 4. **テスト**: 自分で実行する（旧記述「背景だとコミットゲートのセンチネルが出ない→前景で」は失効＝センチネル機構ごと撤去済み・経緯は `/build` スキル）。ext4 worktree は `--init-script` 不要。Bashツールは env 明示（`/build` スキル参照）。確証には `--rerun-tasks` で強制再実行。
 
-### JS canvas → Kotlin DrawScope 翻訳表（既存31ラムダで全パターン確認可）
+### JS canvas → Kotlin DrawScope 翻訳表（既存の `SHIORI_TIPS` 全ラムダで全パターン確認可）
 - 全数値に `f`。`Math.PI/cos/sin`→`PI/cos/sin`。
 - 単線 `moveTo;lineTo;stroke`→`drawLine(a, Offset(..), Offset(..), Wf, StrokeCap.Round)`。
 - 塗り円 `arc(..,0,7);fill`→`drawCircle(a, rf, Offset(..))`。線円は `style=strokeR(Wf)`。

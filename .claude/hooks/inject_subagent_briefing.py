@@ -10,7 +10,9 @@
 
 設計上の注意:
   - agent_type はスクリプト側で判定する（matcher の対象仕様が非明確なため。
-    memory `hook-agent-type-confirmed` の実測で全 hook 入力に agent_type が来る）。
+    memory `hook-agent-type-confirmed` の実測で **SubagentStart の入力には** agent_type が来る）。
+    ⚠️ 旧記述「全 hook 入力に来る」は主語が広すぎた（2026-09-05 訂正）＝SubagentStop 側は
+    delegation-stats の記録で大半が空で、来ることを確かめた事実は無い（未確認であって否定ではない）。
   - 注入なし種別（claude-code-guide / statusline-setup / antigravity 系）は
     プロジェクト規律と無関係な外部調査・設定エージェントのため対象外。
   - stdout がモデルに届くのは additionalContext の JSON のみ（task_diary #28）。

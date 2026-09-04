@@ -109,7 +109,9 @@ verify も record もできない**（2026-08-17 実測＝1436 中 210 失敗・
 
 ## CI と同じゲートをローカルで回す
 
-CI（`.github/workflows/ci.yml`）が毎 push で回すのは次の6つ。**日常の自己検証は
+CI（`.github/workflows/ci.yml`）が毎 push で回すゲートは下記。**本数は書かない**＝実数は
+`grep -n '\- name:' .github/workflows/ci.yml`（セットアップ行 "Make gradlew executable" を除いて数える）。
+⚠️ 旧記述の「6つ」は golden 走査系の追加で実態と乖離していた（2026-09-05 訂正）。**日常の自己検証は
 `testDebugUnitTest` だけでよく**（CLAUDE.md「自己検証必須」）、以下は push 前に赤を前倒しで拾いたいときや、
 該当領域を触ったときに個別で回す。**起動はここでも `tools/gwlock.sh` 経由**（ツリー単位のロックを通す）。
 

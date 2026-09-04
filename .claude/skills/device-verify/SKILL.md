@@ -154,8 +154,10 @@ Windows 側の鍵が作り直され WSL 側と md5 不一致＝**コピー手順
 ## 2. androidTest の実行（uninstall 回避手順）
 
 ```bash
-# ビルド＆投入（Bash ツールでは gw が使えない → /build スキルの「Bashツール素起動」節を参照）
-gw --init-script /home/qingj/ext-build/novel-reader-init.gradle installDebug installDebugAndroidTest
+# ビルド＆投入（起動は必ず gwlock.sh 経由＝init スクリプトもツリー単位ロックも内包。/build スキル参照）
+# ⚠️ 旧記述は「gw は使えない」と書いた直後に gw を並べており、参照先の節名も実在しなかった（2026-09-05 訂正）。
+#    gwlock.sh を使えない状況の逃げ道は /build スキル「素の起動列が要るとき」節。
+bash tools/gwlock.sh installDebug installDebugAndroidTest
 # 実行は connectedAndroidTest ではなく am instrument 直叩き（アンインストールが起きない）
 adb shell am instrument -w -e class <テストFQCN> com.novelreader.test/androidx.test.runner.AndroidJUnitRunner
 ```
