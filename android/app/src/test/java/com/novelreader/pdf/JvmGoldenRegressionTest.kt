@@ -51,6 +51,16 @@ class JvmGoldenRegressionTest {
     @Test
     fun n5368ml_singleChapterWork_bodyExactMatch() = runOne(Fixture("N5368ML", exactBody = true))
 
+    // 単話＋前書き/後書き＝**第4本 N5368ML が覆えていなかった型**（そちらは前書きも後書きも無い単話）。
+    // なろうの生成器は単話でも前書き/後書きブロックに Bold 見出しを打ち、話タイトルが空なので
+    // 裸の「（前書き）」「（後書き）」だけが出る。この2件を章見出しと数えて単話判定が外れると、
+    // 後書き付きは全文が嘘見出し「作品情報・プロローグ」章に入り、前書き付きは畳み込み先の通常章が
+    // 現れず**章数 0＝本文全損**になる（2026-09-04 の実機症状と、その調査で判明した併発）。
+    // この標本の穴そのものが当時の真因なので、第5本として corpus へ入れて機械で塞ぐ。
+    @Test
+    fun n7668gf_singleChapterWithForewordAfterword_bodyExactMatch() =
+        runOne(Fixture("N7668GF", exactBody = true))
+
     private data class Fixture(val name: String, val exactBody: Boolean)
 
     private data class Snapshot(
