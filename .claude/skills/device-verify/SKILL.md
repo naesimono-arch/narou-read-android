@@ -24,10 +24,62 @@ memory `workflow-autonomous-device-verification`**。このスキルは操作手
 
 ### 0-a. 1台だけのとき（通常）— `adb-bridge` を一発
 
+⚠️ **先に §0-a2 を見る**——ワイヤレスデバッグ経由なら **USB を一度も挿さずに繋がる**（2026-09-04 実測）。
+`adb-bridge` が要るのは tcpip 5555 を使う場合で、5555 は端末 reboot で閉じ、**再発行に USB が要る**。
+
 WSL2 は USB を直接認識しない。**まず `adb-bridge`** を実行する（PATH 済・冪等:
 未接続なら Windows `adb.exe` 経由で tcpip 化→wlan0 IP へ connect、接続済みなら確認のみ）。
 以後は素の `adb …`（`~/.local/bin/adb` ラッパー＝Windows の承認済み鍵を vendor key 提示・
 鍵ローテーション自動追従）で操作する。
+
+### 0-a2. ワイヤレスデバッグ＋Tailscale — USB もペアリングコードも要らずに繋がる（2026-09-04 実測）
+
+**これを既定の経路にする**（§0-a の `adb-bridge`＝USB 一度が要る tcpip 5555 とは別系統）。所要 1 分:
+
+1. 端末: 設定 → 開発者向けオプション → **ワイヤレスデバッグを ON**（「ペア設定コード…」のダイアログは**開かなくてよい**）
+2. **ON の前後でポート走査し、新しく現れたポートを取る**（下記スクリプト）
+3. `adb connect <IP>:<新しく現れたポート>` → `device` になる
+
+⚠️ **6桁コードは出てこないし要らない**——ペアリングは過去に済んでいて端末が証明書を覚えている
+（一次証拠＝`self-ai-tool` の便で `100.106.77.20:37863` が `device` になり `install -r` まで通った記録）。
+**接続用ポートは ON のたびに変わる**（実測 37863／42655）＝ハードコード不可。ここだけが毎回の手間。
+
+⚠️⚠️ **最大の罠＝「開いているポート＝adb」ではない**。ColorOS は `10150 10152 10162 16219 46888` を**常時**開けている。
+2026-09-04 に **46888 を接続用と誤認**して叩き、返ってきた `offline` を「未ペアリング」と読み違えて
+**「6桁コードが要る」と誤結論**した（コードも USB も不要だったのに人へ手間を求めた）。
+**`offline` は未ペアリングだけでなく「adb でないポートに繋いだ」でも出る**＝症状から原因を決めないこと。
+**判別は「ON の前後の差分」だけが確実**。⚠️ `adb mdns services` は WSL 側・Windows 側とも**空**で当てにならない（同日実測）。
+
+```bash
+# ポート走査（30000-50000 で足りる。ON 前後で2回走らせて差分を取る）
+python3 - <<'EOF'
+import socket
+from concurrent.futures import ThreadPoolExecutor
+H = '192.168.1.210'   # LAN IP（DHCP で変わる）でも 100.106.77.20（Tailscale・固定）でも可
+def probe(p):
+    s = socket.socket(); s.settimeout(0.6)
+    try: return p if s.connect_ex((H, p)) == 0 else None
+    finally: s.close()
+with ThreadPoolExecutor(max_workers=400) as ex:
+    print([p for p in ex.map(probe, range(30000, 50000)) if p])
+EOF
+adb connect 192.168.1.210:<差分ポート>   # → device product:PGEM10 になれば成立
+```
+
+**Tailscale（開通済み）が足すもの**——実機 `oppo-find-x6-pro` の **`100.106.77.20` は DHCP と無関係に固定**
+（§0-b 末尾「IP はハードコードしない」は wlan0 IP の注意で、100.x はその限りでない）。
+⚠️ **WSL に tailscale クライアントは無いのに WSL の素の Bash から直接届く**（Windows 側 Tailscale の経路に WSL2 が乗っている）。
+**同一 LAN にいなくても届く**（direct が張れなければ DERP 中継へ自動で落ちる）。
+
+```bash
+"/mnt/c/Program Files/Tailscale/tailscale.exe" status                  # 実機が online か
+"/mnt/c/Program Files/Tailscale/tailscale.exe" ping oppo-find-x6-pro   # 経路（direct か DERP 中継か）
+```
+
+- **adb 以外の経路＝Taildrop**: `tailscale file cp <apk> oppo-find-x6-pro:`（Windows 側 exe から）。
+  ⚠️ **`install -r` の代替にはならない**（受信後のインストールは端末側の手動タップ）＝位置づけは
+  「**adb が全滅したときに APK を届ける逃げ道**」。⚠️ コマンドの存在のみ確認・**実送信は未実測**。
+- **素の IP 疎通**: 実機で待ち受けているポートへ WSL から直接届く＝HTTP 等の確認に adb を介さなくてよい。
 
 ### 0-b. ⚠️ 2台繋がっているときは `adb-bridge` を打ってはいけない（2026-07-31 実証）
 
