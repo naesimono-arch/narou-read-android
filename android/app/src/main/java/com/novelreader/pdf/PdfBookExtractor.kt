@@ -138,8 +138,10 @@ object PdfBookExtractor {
                 }
 
                 onProgress(2, 0f, "章を分割しています…", currentTitle)
-                // 単話（【題名】マーカー皆無）では嘘見出し「作品情報・プロローグ」の代わりに
+                // 単話（実在の章見出しが皆無）では嘘見出し「作品情報・プロローグ」の代わりに
                 // 表紙由来の作品タイトル meta.title を単一章タイトルへ流用する（裁定済み仕様）。
+                // ⚠️ 旧記述「【題名】マーカー皆無」は誤り＝単話でも前書き/後書きの見出しは付く
+                // （判定条件は ChapterProcessor.isRealChapterHeading が正本・2026-09-04 訂正）。
                 // trace 区間: 章分割（段落列→章構造への分解）。
                 val chaptersData = Sections.trace("Extract#splitChapters") {
                     ChapterProcessor.splitIntoChapters(paragraphs, meta.title)

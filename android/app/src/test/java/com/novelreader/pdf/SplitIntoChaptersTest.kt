@@ -89,6 +89,69 @@ class SplitIntoChaptersTest {
         assertEquals("第一話", result[1].title)
     }
 
+    // ---- 単話（実在の章見出しゼロ）× 前書き/後書き見出し =====================================
+    // 実データ由来: なろうの縦書きPDF は単話でも前書き/後書きブロックに Bold 見出しを打ち、
+    // 話タイトルが空なので裸の「（前書き）」「（後書き）」になる（実測 N0089HK・N7668GF）。
+    // 旧実装は【題名】の総数で単話を判定していたため、この2つを章見出しと数えて判定が外れていた。
+
+    @Test fun singleEpisodeWithAfterwordUsesFallbackTitle() {
+        // 後書きのみの単話＝実機症状。本文章が「作品情報・プロローグ」に化けないこと。
+        val paragraphs = listOf("本文A", "本文B", "【題名】（後書き）", "後書き本文")
+        val result = ChapterProcessor.splitIntoChapters(paragraphs, "作品タイトルX")
+        assertEquals(2, result.size)
+        assertEquals("作品タイトルX", result[0].title)
+        assertEquals(listOf("本文A", "本文B"), result[0].body)
+        assertEquals("（後書き）", result[1].title)
+    }
+
+    @Test fun singleEpisodeWithAfterwordEndsAsOneChapterWithWorkTitle() {
+        // 通し（後処理まで）: 後書きは本文章の末尾へ畳まれ、単一章のタイトルは作品タイトルのまま。
+        val paragraphs = listOf("本文A", "【題名】（後書き）", "後書き本文")
+        val final = ChapterProcessor.processForewordAfterword(
+            ChapterProcessor.splitIntoChapters(paragraphs, "作品タイトルX"),
+        )
+        assertEquals(1, final.size)
+        assertEquals("作品タイトルX", final[0].title)
+        assertTrue(final[0].body.contains("本文A"))
+        assertTrue(final[0].body.contains("後書き本文"))
+    }
+
+    @Test fun singleEpisodeWithForewordDoesNotSplitAndKeepsAllBody() {
+        // 前書き付き単話は、旧実装だと前書き以降が丸ごと畳み込み先不在で消えていた（章数 0）。
+        val paragraphs = listOf("【題名】（前書き）", "前書き本文", "本文A", "【題名】（後書き）", "後書き本文")
+        val result = ChapterProcessor.splitIntoChapters(paragraphs, "作品タイトルX")
+        assertEquals(2, result.size)
+        assertEquals("作品タイトルX", result[0].title)
+        assertEquals(listOf("前書き本文", "本文A"), result[0].body)
+        assertEquals("（後書き）", result[1].title)
+    }
+
+    @Test fun singleEpisodeWithForewordSurvivesForewordAfterwordProcessing() {
+        // 通し: 章数 0（本文全損）にならず、作品タイトルの単一章に全段落が残ること。
+        val paragraphs = listOf("【題名】（前書き）", "前書き本文", "本文A", "【題名】（後書き）", "後書き本文")
+        val final = ChapterProcessor.processForewordAfterword(
+            ChapterProcessor.splitIntoChapters(paragraphs, "作品タイトルX"),
+        )
+        assertEquals(1, final.size)
+        assertEquals("作品タイトルX", final[0].title)
+        assertTrue(final[0].body.contains("前書き本文"))
+        assertTrue(final[0].body.contains("本文A"))
+        assertTrue(final[0].body.contains("後書き本文"))
+    }
+
+    @Test fun serialWorkWithStructuralMarkersKeepsLegacyLeadingChapter() {
+        // 連載（実在の章見出しあり）＝構造マーカーが混ざっても従来どおり。先頭本文群は
+        // 「作品情報・プロローグ」章のまま＝fallback は無効（単話判定の訂正が連載へ漏れない保証）。
+        val paragraphs = listOf(
+            "先頭本文", "【題名】第一話（前書き）", "前書き本文", "【題名】第一話", "本文1",
+        )
+        val result = ChapterProcessor.splitIntoChapters(paragraphs, "作品タイトルX")
+        assertEquals(3, result.size)
+        assertEquals("作品情報・プロローグ", result[0].title)
+        assertEquals("第一話（前書き）", result[1].title)
+        assertEquals("第一話", result[2].title)
+    }
+
     @Test fun afterwordSubstringInChapterTitleIsSplit() {
         // タイトルに「後書き」を含む話も通常章として分離される
         val paragraphs = listOf("【題名】第一話", "本文1", "【題名】第五話　後書きの話", "本文2")

@@ -44,38 +44,72 @@ object ChapterProcessor {
     // 隣接する 2 つのルビ記法をまたいで飲み込むことはない（貪欲/非貪欲で結果は変わらない）。
     private val RUBY_PATTERN = Regex("""\|([^《]+)《([^》]+)》""")
 
+    /** [TextProcessor.processPages] が Bold 見出し段落へ付ける接頭辞。 */
+    private const val TITLE_MARKER = "【題名】"
+
+    /**
+     * その【題名】段落が「実在の章見出し」か（＝構造マーカー見出しでないか）。
+     *
+     * なぜ区別が要るか（2026-09-04 の真因）: なろうの縦書きPDF 生成器は、前書き/後書きブロックにも
+     * Bold 見出しを打つ。連載作品では〈話タイトル〉＋「（前書き）」/「（後書き）」の形になるが、
+     * **単話（話タイトルが存在しない作品）では話タイトル部が空になり、裸の「（前書き）」「（後書き）」
+     * だけの見出しが出る**（実測: N0089HK は「（後書き）」1件のみ・N7668GF は「（前書き）」「（後書き）」の
+     * 2件のみで、本文側の見出しは1件も無い）。つまり単話でも【題名】の総数は 0 にならない。
+     * 「章見出しの有無」をマーカー総数で測ると、この2つを章見出しと数えて単話判定が外れる。
+     */
+    private fun isRealChapterHeading(paragraph: String): Boolean =
+        paragraph.startsWith(TITLE_MARKER) &&
+            structuralMarkerOf(paragraph.removePrefix(TITLE_MARKER)) == null
+
     /**
      * 段落列を「【題名】プレフィックス」で章に分割する（移植元 split_into_chapters と 1:1）。
+     * 呼び手は PDF 経路のみ（Web 取込は [processForewordAfterword] だけを使う）＝ここで
+     * PDF 生成器の構造マーカーを解釈してよい。
      *
      * 本文のない章（題名直後に本文が無い＝currentBody が空）はサイレントにドロップする仕様。
      * 後書きの特殊処理はここでは行わない（processForewordAfterword が後書きタイトルを処理するため、
      * ここで畳み込むと二重処理になる）。
      *
-     * @param noTitleFallback 文書全体に【題名】マーカーが1件も無いときの単一章タイトル。
-     *   なぜ引数化するか＝単話（章見出しグリフが皆無で【題名】が1件も付かない作品）では、
-     *   全段落が既定タイトル「作品情報・プロローグ」の単一章に流れ込み、目次と読書画面に
-     *   実在しない嘘見出しが出る。マーカー皆無時に限り本パラメータ（本番は表紙由来の作品タイトル）を
+     * @param noTitleFallback 文書に**実在の章見出し**が1件も無いとき（＝単話）の単一章タイトル。
+     *   なぜ引数化するか＝単話では全段落が既定タイトル「作品情報・プロローグ」の単一章に流れ込み、
+     *   目次と読書画面に実在しない嘘見出しが出る。本パラメータ（本番は表紙由来の作品タイトル）を
      *   初期タイトルへ流用してこれを防ぐ。既定値は従来値のため、引数を省く既存呼び出し・テストは挙動不変。
-     *   マーカーが1件でもあれば従来どおり先頭本文群は「作品情報・プロローグ」章となり本パラメータは無効。
+     *
+     *   ⚠️ **判定条件は 2026-09-04 に訂正した**。旧条件は「【題名】マーカーが1件も無いとき」で、
+     *   単話でも前書き/後書きの見出しだけは付く（[isRealChapterHeading] の実測）ため**発火しなかった**
+     *   ＝後書き付き単話が丸ごと「作品情報・プロローグ」章になる実機症状の真因。
      */
     fun splitIntoChapters(
         paragraphs: List<String>,
         noTitleFallback: String = "作品情報・プロローグ",
     ): List<RawChapter> {
         val chapters = mutableListOf<RawChapter>()
-        // マーカーが1件でも在れば従来値、皆無のときのみ fallback を初期タイトルにする。
+        // 実在の章見出しが1件でも在れば従来値、皆無（＝単話）のときのみ fallback を初期タイトルにする。
         // なぜ事前走査か＝先頭本文を読み始める前に初期タイトルを確定する必要があるため（後から遡って
         // 差し替えると「作品情報・プロローグ」が既に確定済みの章へ混入しうる）。
-        val hasAnyTitleMarker = paragraphs.any { it.startsWith("【題名】") }
-        var currentTitle = if (hasAnyTitleMarker) "作品情報・プロローグ" else noTitleFallback
+        val hasRealChapterHeading = paragraphs.any { isRealChapterHeading(it) }
+        var currentTitle = if (hasRealChapterHeading) "作品情報・プロローグ" else noTitleFallback
         var currentBody = mutableListOf<String>()
 
         for (p in paragraphs) {
-            if (p.startsWith("【題名】")) {
+            if (p.startsWith(TITLE_MARKER)) {
+                val title = p.replace(TITLE_MARKER, "").trim()
+                // 単話の「（前書き）」見出しだけは章の区切りにしない。
+                // なぜ＝[processForewordAfterword] の前書きは「次の通常章の先頭へ前置」する向きだが、
+                // 単話には本文側の見出しが存在しない（生成器が空タイトルの見出しを出さない）ため
+                // 畳み込む先の通常章が最後まで現れず、**前書き以降の本文が丸ごと落ちて章数 0 になる**
+                // （実測: N7668GF が finalChapters=0）。ここで区切らなければ前書きと本文が単一章に
+                // 収まり、内容も順序も落ちない。
+                // ⚠️ 代償＝前書きが装飾枠（（前書き）ボックス）を持たず本文冒頭に地の文として並ぶ。
+                // 枠を保つには前書きと本文の境界が要るが、その境界はグリフ列に現れず（見出しが無く
+                // ページ送りだけで区切られる）、段落列へページ境界を通す構造変更が要る＝別裁定。
+                if (!hasRealChapterHeading && structuralMarkerOf(title) == StructuralMarker.FOREWORD) {
+                    continue
+                }
                 if (currentBody.isNotEmpty()) {
                     chapters.add(RawChapter(currentTitle, currentBody))
                 }
-                currentTitle = p.replace("【題名】", "").trim()
+                currentTitle = title
                 currentBody = mutableListOf()
             } else {
                 currentBody.add(p)
@@ -133,6 +167,12 @@ object ChapterProcessor {
      *   （同 corpus に「１２９　罪人の独白（前編）」「（後編）」が実在）。マーカー語まで含めて突き合わせる。
      * - 出自分岐だけで文字列判定は元のまま＝PDF 内部の誤爆（本文見出しにマーカー語を含む題）が残る。
      *   出自分岐は Web を守るが PDF 側の同定精度は上げないので、両方を重ねる。
+     *
+     * ⚠️ **corpus 4 本の実測に穴があった（2026-09-04 追記）**: 上の「1444 件すべてが〈話タイトル〉＋末尾
+     * マーカー」は**連載作品しか含まない標本**の話で、単話（話タイトルが存在しない作品）では
+     * 話タイトル部が空になり **「（前書き）」「（後書き）」だけの見出し**が出る（実測 N0089HK・N7668GF）。
+     * 末尾アンカーなので判定自体はそのまま当たるが、「単話には【題名】が付かない」という前提は誤り。
+     * 依存していた [splitIntoChapters] の単話判定を [isRealChapterHeading] へ差し替えてある。
      *
      * 裸の完全一致も残すのは、移植元 python 実装が保証していた最小契約（生成器が話タイトル無しの
      * 「後書き」単独見出しを出す版）を落とさないため。判定が PDF 経路限定になった今、
