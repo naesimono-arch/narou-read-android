@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -31,6 +32,33 @@ sealed interface NovelDetailUiState {
     /** ncode に該当する作品が API に存在しない（削除・検索除外設定など）。 */
     object NotFound : NovelDetailUiState
     data class Error(val message: String) : NovelDetailUiState
+}
+
+/**
+ * 取込済みの蔵書と、その本の**手元の栞**（作品詳細の固定バーが読む唯一の状態）。
+ *
+ * ⚠️ **顔（主CTA の文言）と着地先を1つの値から出すための型**（2026-09-04 裁定）。
+ * この画面には栞が2つある——**手元の栞（ここ）** と **なろうの栞**（`readingProgress`）——ので、
+ * どちらがどちらを決めるかを型で分ける: **主＝手元／副＝なろう**。
+ * 取込済みの「既読／未読」の顔は手元の栞だけで決まり、なろう側の位置は一切見ない
+ * （旧実装はなろうの位置で顔を決めていたため、〈アプリで8割読了・なろう未訪〉が「未読」の顔のまま
+ * 続きへ着地していた）。
+ *
+ * @param bookId 蔵書の id（読書ルートの引数）。
+ * @param lastReadFile 進捗行の `lastReadFilename`。行が無ければ null＝一度も章を開いていない。
+ */
+data class ImportedBook(val bookId: String, val lastReadFile: String?) {
+    /** 主CTA の着地先ファイル。栞が無ければ目次（本棚から本を開く既存経路と同じ既定）。 */
+    val startFile: String get() = lastReadFile ?: INDEX
+
+    /** 「続きから」の顔にするか。⚠️ **着地が章かどうか**そのものを条件にしているので、
+     *  顔と着地がずれることが**構造的に起きない**（進捗行に目次が保存されていても未読の顔になる）。 */
+    val hasBookmark: Boolean get() = startFile != INDEX
+
+    private companion object {
+        /** 目次のファイル名（ReadingBackStack.INDEX と同値。読書ルートの既定着地）。 */
+        const val INDEX = "index.html"
+    }
 }
 
 /**
@@ -66,9 +94,13 @@ class NovelDetailViewModel(application: Application) : AndroidViewModel(applicat
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    /** 機能②: この作品の WebView 読書位置（最後に開いた話数。未記録＝0）。
-     *  >0 のとき作品詳細に「続きから読む 第N話」を出し、記録した話へ直接着地させる。
-     *  比較は保存時正規化（trim+uppercase）と同じ形で行う（表記ゆれで記録が引けない事故を防ぐ）。 */
+    /** 機能②: この作品の**なろう側**の読書位置（最後に開いた話数。未記録＝0）。
+     *  >0 のとき記録した話へ直接着地する導線を出す。
+     *  比較は保存時正規化（trim+uppercase）と同じ形で行う（表記ゆれで記録が引けない事故を防ぐ）。
+     *
+     *  ⚠️ **これは「なろうの栞」で、手元の本の栞（[ImportedBook.hasBookmark]）とは別物**（2026-09-04 裁定）。
+     *  取込済みでは**副アクションだけ**がこれを読む＝主＝手元／副＝なろう。未取込のときは手元に本が
+     *  無いのでこれが唯一の位置＝従来どおり固定バーの顔も決める。 */
     @OptIn(ExperimentalCoroutinesApi::class)
     val readingProgress: StateFlow<Int> = ncodeFlow
         .flatMapLatest { nc ->
@@ -80,21 +112,26 @@ class NovelDetailViewModel(application: Application) : AndroidViewModel(applicat
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    /** 現在の作品が既に蔵書（PDF 取込済み・ncode 紐付け）なら、その蔵書の bookId。未取込なら null。
+    /** 現在の作品が既に蔵書（PDF 取込済み・ncode 紐付け）なら、その蔵書と**手元の栞**。未取込なら null。
      *  取込済みなら「取り込む」「本棚に置く」の2アクションは冗長のため固定バーから隠す（モック注記）。
      *
-     *  ⚠️ **Boolean でなく id を持つ**（2026-09-04 裁定・案A）: 取込済みの主CTA「アプリで読む」は
-     *  その蔵書を読書画面で開くので、判定だけでなく**着地先の bookId** が要る。作品詳細が ncode しか
-     *  持たず bookId を持たないことが「取込済みなのに手元の本へ行けない」（＝この画面から蔵書への道が
-     *  ゼロ）の真因だったため、**判定と着地先を同じ突合1つから出す**（別経路で id を引くと、
-     *  「取込済みと言っているのに開けない」ずれが構造的に生まれる）。取込済みかは `!= null` で導出する。 */
+     *  ⚠️ **Boolean でなく [ImportedBook] を持つ**（2026-09-04 裁定・案A ＋ 同日の栞一本化）:
+     *  取込済みの主CTA は蔵書を読書画面で開くので、判定だけでなく**着地先**（bookId と開くファイル）が要る。
+     *  作品詳細が ncode しか持たず bookId を持たないことが「取込済みなのに手元の本へ行けない」の真因だった。
+     *  ⚠️ さらに **`allProgress` を合流させて栞まで同じ1値に入れる**のが要点＝主CTA の文言（顔）と着地先が
+     *  同じ源を見る。別々に引くと「未読の顔で続きから開く」食い違いが必ず戻る（それが今回の真因）。
+     *  ⚠️ 進捗は Room の Flow なので、読書画面から戻ってきた時点で自動的に顔が更新される
+     *  （一度きりの suspend 取得では「読んだのに未読の顔のまま」が残る）。 */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val importedBookId: StateFlow<String?> = ncodeFlow
+    val importedBook: StateFlow<ImportedBook?> = ncodeFlow
         .flatMapLatest { nc ->
             if (nc == null) flowOf(null)
-            else bookRepository.allBooks.map { books ->
+            else combine(bookRepository.allBooks, bookRepository.allProgress) { books, progress ->
                 // 表記ゆれ無視の同一作品判定は Ncode.sameWorkAs（storageKey 突合＝2026-07-27 に全流儀と統一）に集約。
-                books.firstOrNull { it.ncode?.let { n -> Ncode(n).sameWorkAs(nc) } == true }?.id
+                val book = books.firstOrNull { it.ncode?.let { n -> Ncode(n).sameWorkAs(nc) } == true }
+                book?.let { b ->
+                    ImportedBook(b.id, progress.firstOrNull { it.bookId == b.id }?.lastReadFilename)
+                }
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)

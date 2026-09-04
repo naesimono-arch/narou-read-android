@@ -35,6 +35,7 @@ class NovelDetailContentTest {
         onReadOnNarou: () -> Unit = {},
         onImportPdf: () -> Unit = {},
         isImported: Boolean = false,
+        hasLocalBookmark: Boolean = false,
         lastReadEpisode: Int = 0,
         onResumeReading: () -> Unit = {},
         onOpenImportedBook: () -> Unit = {},
@@ -51,6 +52,7 @@ class NovelDetailContentTest {
                     lastReadEpisode = lastReadEpisode,
                     onResumeReading = onResumeReading,
                     isImported = isImported,
+                    hasLocalBookmark = hasLocalBookmark,
                     onOpenImportedBook = onOpenImportedBook,
                 )
             }
@@ -96,12 +98,14 @@ class NovelDetailContentTest {
         assertTrue(read)
     }
 
-    // ---- 案A（2026-09-04 裁定）: 取込済みの主CTA は手元の蔵書「アプリで読む」 ----
+    // ---- 案A（2026-09-04 裁定）: 取込済みの主CTA は手元の蔵書 ----
     // なぜ固定するか: 取込済みの分岐は golden が1枚も撮っておらず（既知の穴）、ここが唯一の回帰網。
     // 真因（作品詳細が bookId を持たず、取込済みでも全ボタンがなろうへ出る）が戻ったら落ちる形にする。
+    // ⚠️ 栞は2つある＝**主＝手元（hasLocalBookmark）／副＝なろう（lastReadEpisode）**。
+    // 以下は2軸が独立に効くことを4通りで固定する（片方の軸がもう片方を汚したら落ちる）。
 
     @Test
-    fun `取込済み・未読は主CTAがアプリで読むになりなろうで読むが副へ降りる`() {
+    fun `取込済みで手元に栞が無ければ主CTAはアプリで読む`() {
         setContent(content(), isImported = true)
         composeTestRule.onNodeWithText("アプリで読む").assertIsDisplayed()
         // なろう系は**降ろすが消さない**（アプリ自身の新着通知の着地がなろうの WebView だけのため）。
@@ -112,7 +116,26 @@ class NovelDetailContentTest {
     }
 
     @Test
-    fun `取込済み・既読でも主CTAはアプリで読むで副に「なろうで」が前置される`() {
+    fun `取込済みで手元に栞があれば主CTAはアプリで続きからになる`() {
+        setContent(content(), isImported = true, hasLocalBookmark = true, lastReadEpisode = 12)
+        composeTestRule.onNodeWithText("アプリで続きから").assertIsDisplayed()
+        composeTestRule.onNodeWithText("アプリで読む").assertDoesNotExist()
+    }
+
+    // ⚠️ 2軸が独立であることの本丸: なろうを一度も訪れていなくても手元の栞は「続きから」になる。
+    // 旧実装はここでなろうの位置を見ていたため「未読の顔で続きへ着地する」食い違いが出ていた。
+    @Test
+    fun `手元に栞がありなろう未訪でも主は続きからで副は行ごと消えない`() {
+        setContent(content(), isImported = true, hasLocalBookmark = true, lastReadEpisode = 0)
+        composeTestRule.onNodeWithText("アプリで続きから").assertIsDisplayed()
+        // 副はなろうの栞だけで決まる＝位置が無いので「なろうで読む」。行を消すと 81dp へ落ちて
+        // 「4状態すべて137dp」が壊れるため、消さずに1つ出す。
+        composeTestRule.onNodeWithText("なろうで読む").assertIsDisplayed()
+        composeTestRule.onNodeWithText("なろうの目次").assertDoesNotExist()
+    }
+
+    @Test
+    fun `取込済みでなろう既訪なら副に「なろうで」が前置される`() {
         setContent(content(), isImported = true, lastReadEpisode = 12)
         composeTestRule.onNodeWithText("アプリで読む").assertIsDisplayed()
         // 主が蔵書側へ移った以上、前置が無いと「第12話」が何の話数か言えない（手元の栞となろうの位置は別物）。

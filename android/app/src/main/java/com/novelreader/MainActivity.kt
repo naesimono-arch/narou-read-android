@@ -827,9 +827,6 @@ private fun NovelReaderApp(
             // 分岐が安全である機序（詳細の直下は必ず〈結果一覧 or タブ層〉）は upFromDiscoveryDetail の KDoc。
             val upFromDetail = { upFromDiscoveryDetail(navController, tabPagerState) }
             BackHandler { upFromDetail() }
-            // 蔵書を開くときの再開ファイル解決は suspend の DB 参照＝コールバックから起動するためのスコープ。
-            // 詳細エントリの composition に紐づく（＝BookshelfScreen の onOpenBook と同じ作法）。
-            val detailScope = rememberCoroutineScope()
             NovelDetailScreen(
                 // 境界: nav 引数は String。詳細画面へは型付き Ncode へ包んで渡す。
                 ncode = Ncode(ncode),
@@ -864,15 +861,11 @@ private fun NovelReaderApp(
                 onReadFromToc = { navController.navigate("web-reader/$ncode/0") { launchSingleTop = true } },
                 onResumeReading = { episode -> navController.navigate("web-reader/$ncode/$episode") { launchSingleTop = true } },
                 // 案A（2026-09-04 裁定）: 取込済みの主CTA＝手元の蔵書を読書画面で開く。
-                // ⚠️ 着地の作法は**本棚から本を開く既存経路と同一**にする（BookshelfScreen / 通知の deep link と
-                // 同じ getLastRead ?: "index.html"）＝入口が増えても「続きが在れば章・無ければ目次」の一規則を
-                // 分岐させない。ここで独自に決めると、同じ本が入口によって別の場所で開く。
-                onOpenImportedBook = { bookId ->
-                    detailScope.launch {
-                        // 境界: bookId は Room 由来の String＝型付き API へ渡す直前に BookId へ包む。
-                        val startFile = viewModel.getLastRead(BookId(bookId)) ?: "index.html"
-                        navController.navigate("reading/$bookId/$startFile") { launchSingleTop = true }
-                    }
+                // 着地の規則は本棚から本を開く既存経路と同一（続きが在れば章・無ければ目次）。
+                // ⚠️ **ここで栞を引き直さない**＝startFile は主CTA の文言を決めたのと同じ ImportedBook から
+                // 来る。引き直すと源が2つに割れ、「未読の顔で続きから開く」食い違いが戻る（真因の再発）。
+                onOpenImportedBook = { bookId, startFile ->
+                    navController.navigate("reading/$bookId/$startFile") { launchSingleTop = true }
                 },
                 onUp = upFromDetail,
             )

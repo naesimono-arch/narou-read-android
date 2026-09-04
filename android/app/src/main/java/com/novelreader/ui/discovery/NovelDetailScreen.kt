@@ -320,9 +320,11 @@ fun NovelDetailScreen(
     // 廃し、目次(初回)と続きから(記録話へ直接)の2着地をルート層のナビへ委ねる（描画層は callback を叩くだけ）。
     onReadFromToc: () -> Unit,
     onResumeReading: (episode: Int) -> Unit,
-    // 2026-09-04 裁定（案A）: 取込済みなら主CTA は手元の蔵書を開く。着地の作法（getLastRead ?: index.html）は
-    // 本棚から開く既存経路と同一で、ルート層（MainActivity）が持つ＝この画面は bookId を渡すだけ。
-    onOpenImportedBook: (bookId: String) -> Unit,
+    // 2026-09-04 裁定（案A＋栞の一本化）: 取込済みなら主CTA は手元の蔵書を開く。
+    // ⚠️ **着地先ファイルまで一緒に渡す**＝主CTA の文言（顔）を決めた栞と、実際に開くファイルが
+    // 同じ1つの値（ImportedBook）から出る。ルート層で引き直すと源が2つに割れ、
+    // 「未読の顔で続きから開く」食い違いが戻る（＝今回直した真因そのもの）。
+    onOpenImportedBook: (bookId: String, startFile: String) -> Unit,
     // 作品詳細の ← は階層 up＝一段上の「直近の結果一覧」へ（発見ホーム直行入場だけは発見ホームへ）。
     // システム Back も同じ up で一本（MainActivity の BackHandler・分岐の機序は upFromDiscoveryDetail の KDoc）。
     // 旧「←＝発見ホーム固定 Up／Back＝履歴 pop」の二本立て（D 統一・2026-07-12）は 2026-07-29 ユーザー裁定
@@ -336,9 +338,11 @@ fun NovelDetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     // (b) 固定バーのトグル表示状態（本棚に置く/外す・取込済みなら2アクション非表示）。
     val onShelf by viewModel.onShelf.collectAsStateWithLifecycle()
-    // 取込済みなら蔵書の bookId（未取込は null）。判定（!= null）と着地先を同じ1つの状態から出す。
-    val importedBookId by viewModel.importedBookId.collectAsStateWithLifecycle()
-    // 機能②: この作品の WebView 読書位置（最後に開いた話。>0 なら「続きから読む」を出す）。
+    // 取込済みなら蔵書と**手元の栞**（未取込は null）。取込済み判定・主CTA の文言・着地先の3つを
+    // この1つの状態から出す＝顔と着地がずれない（2026-09-04 裁定）。
+    val importedBook by viewModel.importedBook.collectAsStateWithLifecycle()
+    // 機能②: この作品の**なろう側**の読書位置（最後に開いた話）。⚠️ 取込済みでは**副アクションだけ**が
+    // これを読む（主＝手元の栞／副＝なろうの栞、と役割が割れている）。未取込では従来どおり顔も決める。
     val lastReadEpisode by viewModel.readingProgress.collectAsStateWithLifecycle()
 
     NovelDetailContent(
@@ -346,16 +350,17 @@ fun NovelDetailScreen(
         onSearchKeywords = onSearchKeywords,
         onImportPdf = onImportPdf,
         onShelf = onShelf,
-        isImported = importedBookId != null,
+        isImported = importedBook != null,
+        hasLocalBookmark = importedBook?.hasBookmark == true,
         onToggleShelf = { viewModel.toggleShelf() },
         onUp = onUp,
         onRetry = { viewModel.retry() },
         lastReadEpisode = lastReadEpisode,
         onReadOnNarou = onReadFromToc,
         onResumeReading = { onResumeReading(lastReadEpisode) },
-        // 描画層へ id を渡さず、ルート層で捕まえた bookId を閉じ込める（onResumeReading が
+        // 描画層へ id を渡さず、ルート層で捕まえた蔵書を閉じ込める（onResumeReading が
         // lastReadEpisode を閉じ込めるのと同型＝描画層は VM/識別子を知らない葉のまま保つ）。
-        onOpenImportedBook = { importedBookId?.let(onOpenImportedBook) },
+        onOpenImportedBook = { importedBook?.let { onOpenImportedBook(it.bookId, it.startFile) } },
     )
 }
 
@@ -382,8 +387,11 @@ internal fun NovelDetailContent(
     onShelf: Boolean = false,
     isImported: Boolean = false,
     onToggleShelf: () -> Unit = {},
-    // 案A: 取込済みの主CTA「アプリで読む」＝手元の蔵書を開く。既定値は既存テスト・プレビュー互換のため。
+    // 案A: 取込済みの主CTA＝手元の蔵書を開く。既定値は既存テスト・プレビュー互換のため。
     onOpenImportedBook: () -> Unit = {},
+    // ⚠️ **手元の栞**が章を指しているか（なろうの位置とは別物）。取込済みの主CTA の文言だけがこれを読む。
+    // [isImported] が false のときは意味を持たない（手元に本が無いので栞も無い）。
+    hasLocalBookmark: Boolean = false,
 ) {
     // スクロール状態を最上位で保持する（M10/層②）。書影ヒーローと本文タイトルが画面外へ流れたら
     // App bar に作品名を常駐表示し、今どの作品を見ているかの手掛かりが消えないようにするため。
@@ -497,15 +505,18 @@ internal fun NovelDetailContent(
                                     onClick = onImportPdf,
                                 )
                             } else {
-                                // 取込済（既読/未読を問わず同一）: 主CTA は手元の蔵書を開く。
-                                // ⚠️ 文言は「アプリで読む」1つで、未読/既読で振り分けない。理由は2つ:
-                                //  ・着地の実装が getLastRead(bookId) ?: "index.html" の**1動作**（続きが在れば章・
-                                //    無ければ目次）＝振り分ける先が実は無い。
-                                //  ・「なろうで読む」と1軸2択の対比語彙になる（IntroDeck が既に〈アプリ／なろう〉で
-                                //    語っており、新しい語を発明しない）。
+                                // 取込済: 主CTA は手元の蔵書を開く。⚠️ **文言は手元の栞だけで決まる**
+                                // （2026-09-04 監督裁定＝この画面の「既読／未読」の顔は手元の栞が決める）。
+                                // ⚠️ 旧記載（同日の先行裁定）＝「未読/既読で語を振り分けない。着地が
+                                // getLastRead ?: index.html の1動作だから」。**この理由は事実として誤り**で、
+                                // 着地は〈章〉と〈目次〉の2値＝振り分ける先は在った。振り分けなかったせいで
+                                // 〈アプリで8割読了・なろう未訪〉が「未読」の顔のまま続きへ着地していた。
+                                // ⚠️ 顔と着地は同じ ImportedBook 1値から出す（hasBookmark は startFile が章か
+                                // どうかそのもの）＝**構造的にずれない**。ここで別の状態を参照しないこと。
+                                // 語彙は〈アプリ／なろう〉の対比を保つ（副の「なろうで第N話から」と対になる）。
                                 DetailPrimaryAction(
                                     icon = Icons.AutoMirrored.Filled.MenuBook,
-                                    label = "アプリで読む",
+                                    label = if (hasLocalBookmark) "アプリで続きから" else "アプリで読む",
                                     onClick = onOpenImportedBook,
                                 )
                             }
@@ -522,6 +533,15 @@ internal fun NovelDetailContent(
                             // 既に使っている外部リンク記号＝新しい記号を発明しない）で揃える。
                             // ⚠️ これは案Aと同時の**逆同期の是正**でもある: 正本は「なろうで読む」を外部リンクで
                             // 描いているのに実装は MenuBook を当てていた（＝正本と実装が食い違っていた）。
+                            //
+                            // ---- 栞は2つある（2026-09-04 監督裁定）: **主＝手元／副＝なろう** ----
+                            // ⚠️ 取込済みの副アクションは **なろうの栞（lastReadEpisode）だけ**で決まり、
+                            // 手元の栞（hasLocalBookmark）は見ない。役割が割れているので
+                            // 〈手元に栞あり × なろう未訪〉＝主「アプリで続きから」＋副「なろうで読む」
+                            // という組み合わせが正常に出る（進捗が2つ在るのは不整合ではない）。
+                            // なぜ「なろう未訪のとき副を消さない」か: ①消すと1スロット81dp へ落ちて
+                            // 「4状態すべて137dp」が壊れる ②「なろうで最初から」は新語で、位置が無いことは
+                            // 既存の「なろうで読む」（未取込・未読の副と同じ語）が既に言える。
                             when {
                                 !isImported && lastReadEpisode > 0 -> DetailSubActionRow {
                                     // 4アクション版＝3つ横並び。ここだけラベルを縮める。
@@ -557,7 +577,7 @@ internal fun NovelDetailContent(
                                     )
                                 }
                                 lastReadEpisode > 0 -> DetailSubActionRow {
-                                    // 取込済・既読: 主CTA から降りたなろう系2つ（「本棚に置く」は取込済みでは
+                                    // 取込済 × なろう既訪: 主CTA から降りたなろう系2つ（「本棚に置く」は取込済みでは
                                     // 冗長＝蔵書カードが正。モック .cap「取込済みなら取込とその周辺は冗長で消える」）。
                                     // ⚠️ **「なろうで」を前置する**: 主CTA が蔵書側へ移った瞬間、副の「第12話」が
                                     // **何の**話数か言えなくなる（手元の本の栞と、なろうの読書位置は別物）。
@@ -575,8 +595,8 @@ internal fun NovelDetailContent(
                                     )
                                 }
                                 else -> DetailSubActionRow {
-                                    // 取込済・未読: 降りたなろう系は1つだけ（行の全幅を使えるので丈は縮めない）。
-                                    // ⚠️ この行を出すことで取込済・未読も 2スロット＝137dp になり、**4状態が揃う**。
+                                    // 取込済 × なろう未訪: 降りたなろう系は1つだけ（行の全幅を使えるので丈は縮めない）。
+                                    // ⚠️ この行を出すことで取込済みも 2スロット＝137dp になり、**4状態が揃う**。
                                     DetailSubActionButton(
                                         icon = Icons.AutoMirrored.Filled.OpenInNew,
                                         label = "なろうで読む",
