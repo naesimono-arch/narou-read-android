@@ -199,4 +199,19 @@ class ProcessForewordAfterwordTest {
         assertEquals("前書き", result[0].title)
         assertTrue(result[0].body.contains("唯一の本文"))
     }
+
+    @Test fun rubyMarkerDoesNotSwallowAcrossLines() {
+        // ⚠️ ルビ記法は行内に閉じる。章本文は行を "\n" で連結した1本の文字列なので、
+        // 親文字の文字クラスが改行を許すと「ルビでない縦線」1つで次の《…》までの全文が
+        // 1つの <ruby> へ潰れる（実測で潰れ得た最大は 2,886 字・改行 88 本）。
+        // 既存の半角ルビの挙動は変わらない（corpus 23,017 件のうち改行を含むものは 0 件）。
+        val result = ChapterProcessor.processForewordAfterword(
+            listOf(chap("第一話", "|区切りだけの行", "普通の行", "本文|親《よみ》")),
+        )
+        val body = result[0].body
+        assertTrue(body.contains("<ruby>親<rt>よみ</rt></ruby>"))
+        // 飲み込まれていない＝間の行が本文として残っている
+        assertTrue(body.contains("|区切りだけの行"))
+        assertTrue(body.contains("普通の行"))
+    }
 }

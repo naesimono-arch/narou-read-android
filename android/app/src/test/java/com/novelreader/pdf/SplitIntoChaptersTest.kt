@@ -281,4 +281,43 @@ class SplitIntoChaptersTest {
         val result = ChapterProcessor.splitIntoChapters(paragraphs, "作品タイトルX", setOf(3))
         assertEquals(listOf("前書き本文"), result[0].body)
     }
+
+    // ── 全角縦線のルビ記法（なろうは半角/全角どちらも正式＝ヘルプ helppageid/42）──
+    // 実測: corpus 12 本の全角縦線は挿絵タグを除き 8 件で、ルビはそのうち 1 件だけ。
+    // 残り 7 件は地の文の区切り 3 件と「（）をルビにしない」打ち消し記法 4 件＝触ってはいけない側。
+
+    @Test fun fullWidthRubyMarkerIsNormalizedToAscii() {
+        val result = ChapterProcessor.splitIntoChapters(listOf("こいつの｜未練《ねがい》は"))
+        assertEquals(listOf("こいつの|未練《ねがい》は"), result[0].body)
+    }
+
+    @Test fun fullWidthPipeWithoutReadingIsLeftAlone() {
+        // ⚠️ 誤爆の封鎖その1: 地の文の区切りとしての全角縦線（実測 N3957FQ に 3 件）。
+        // 同じ行に《…》が続かないので寄せない＝著者の文字がそのまま残る。
+        val paragraphs = listOf("地形的には【廃棄場｜スラム街｜都市】な感じだ")
+        assertEquals(paragraphs, ChapterProcessor.splitIntoChapters(paragraphs)[0].body)
+    }
+
+    @Test fun fullWidthPipeBeforeParenthesisIsLeftAlone() {
+        // ⚠️ 誤爆の封鎖その2: なろうの「（）をルビにしない」打ち消し記法（実測 N6169DZ に 4 件）。
+        // 縦線を一律 ASCII へ寄せると、この 4 件まで巻き込んでルビ変換の入力にしてしまう。
+        val paragraphs = listOf("｜触手（手足）にカジキの頭が生えている")
+        assertEquals(paragraphs, ChapterProcessor.splitIntoChapters(paragraphs)[0].body)
+    }
+
+    @Test fun fullWidthRubyNormalizationDoesNotReachAcrossLines() {
+        // 正規化は本文1行ずつに掛かる＝別の行の《…》とは結び付かない。
+        // これが崩れると、ルビでない縦線1つで次の《…》までの全文が1つのルビへ潰れる
+        // （行境界を外した場合に潰れ得た量の実測は RUBY_PATTERN の注記）。
+        val paragraphs = listOf("｜区切り", "普通の行", "地の文の《引用》です")
+        assertEquals(paragraphs, ChapterProcessor.splitIntoChapters(paragraphs)[0].body)
+    }
+
+    @Test fun fullWidthRubyReachesRubyTagAfterProcessing() {
+        // 経路の通し確認: 全角で書かれたルビが最終的に <ruby> まで届く（記法のまま出ない）。
+        val chapters = ChapterProcessor.splitIntoChapters(listOf("【題名】第一話", "こいつの｜未練《ねがい》は"))
+        val processed = ChapterProcessor.processForewordAfterword(chapters)
+        assertTrue(processed[0].body.contains("<ruby>未練<rt>ねがい</rt></ruby>"))
+        assertTrue(!processed[0].body.contains("｜"))
+    }
 }

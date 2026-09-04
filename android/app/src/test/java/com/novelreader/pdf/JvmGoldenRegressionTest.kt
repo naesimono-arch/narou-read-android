@@ -94,6 +94,16 @@ class JvmGoldenRegressionTest {
          * 実測の分布＝N5892FB 1 件・N6169DZ 126 件（単独行 118／行末インライン 8）・他 4 本 0 件。
          */
         val illustrationTagsInChapters: Int,
+        /**
+         * **章本文**に残った未変換のルビ記法（`｜親《読み》` / `|親《読み》`）の件数＝常に 0 が契約。
+         *
+         * なぜ golden の `ruby_run_count` では代わりにならないか（2026-09-05）: あちらは
+         * `paragraphs.count { it == '《' }` ＝**抽出出力に現れる `《` の数**で、変換が起きたかを一切見ていない。
+         * ∴ ルビの変換が全滅しても `ruby_run_count` は 1 も動かない（実際、全角縦線のルビが
+         * 素通しだった間もこの値は正常値のままだった）。**変換されたか**を測るゲートはここが唯一。
+         * 実測の分布＝修正前は N6169DZ に 1 件（全角縦線形）・他 5 本 0 件。
+         */
+        val residualRubyMarkersInChapters: Int,
     )
 
     private fun runOne(fx: Fixture) {
@@ -173,6 +183,7 @@ class JvmGoldenRegressionTest {
                 bodySha256 = sha256Hex(bodyText),
                 headParagraphs = paragraphs.take(3),
                 illustrationTagsInChapters = chapters.sumOf { c -> ILLUSTRATION_TAG_PROBE.findAll(c.body).count() },
+                residualRubyMarkersInChapters = chapters.sumOf { c -> RUBY_MARKER_PROBE.findAll(c.body).count() },
             )
         }
     }
@@ -226,8 +237,10 @@ class JvmGoldenRegressionTest {
         // 期待値ゼロの不変条件（golden の項目ではない＝採り直しで追認できない）。理由は Snapshot の KDoc。
         val illustOk = snap.illustrationTagsInChapters == 0
         report.append("  挿絵記法の残留【常に0】: ${mark(illustOk)} now=${snap.illustrationTagsInChapters}\n")
+        val rubyOk = snap.residualRubyMarkersInChapters == 0
+        report.append("  未変換ルビ記法の残留【常に0】: ${mark(rubyOk)} now=${snap.residualRubyMarkersInChapters}\n")
 
-        return titleOk && authorOk && chapterCountOk && titlesOk && bodyOk && illustOk
+        return titleOk && authorOk && chapterCountOk && titlesOk && bodyOk && illustOk && rubyOk
     }
 
     /**
@@ -237,6 +250,15 @@ class JvmGoldenRegressionTest {
      */
     private val ILLUSTRATION_TAG_PROBE =
         Regex("""(?:[＜<]|&lt;)[ｉi][0-9０-９]+[｜|][0-9０-９]+(?:[＞>]|&gt;)""")
+
+    /**
+     * 未変換ルビ記法の検出子。**両方の字種の縦線**を見る（なろうはどちらも正式＝ヘルプ helppageid/42）。
+     * 本番の [ChapterProcessor] とは独立に書く理由は [ILLUSTRATION_TAG_PROBE] と同じ。
+     *
+     * 行内に閉じた形だけを数える＝行を跨ぐ縦線と `《…》` の組は記法ではなく、たまたま同じ章に
+     * 並んだ別々の文字（これを記法と数えると、地の文の縦線 3 件で恒久的に赤くなる）。
+     */
+    private val RUBY_MARKER_PROBE = Regex("""[|｜][^《\n]+《[^》\n]+》""")
 
     /** user.dir から sample_pdfs/ を持つ祖先ディレクトリを探す（gradle の cwd がモジュールでも root でも解決）。 */
     private fun resolveRepoRoot(): File {
