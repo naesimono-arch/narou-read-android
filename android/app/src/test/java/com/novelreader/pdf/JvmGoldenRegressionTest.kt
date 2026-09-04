@@ -142,7 +142,8 @@ class JvmGoldenRegressionTest {
          * `paragraphs.count { it == '《' }` ＝**抽出出力に現れる `《` の数**で、変換が起きたかを一切見ていない。
          * ∴ ルビの変換が全滅しても `ruby_run_count` は 1 も動かない（実際、全角縦線のルビが
          * 素通しだった間もこの値は正常値のままだった）。**変換されたか**を測るゲートはここが唯一。
-         * 実測の分布＝修正前は N6169DZ に 1 件（全角縦線形）・他 5 本 0 件。
+         * ⚠️ 数える対象は **ASCII 縦線形だけ**（全角形は「なろうが解釈しなかった literal」＝
+         * 残っているのが正しい。理由は [RUBY_MARKER_PROBE] の KDoc）。実測の分布＝全6本 0 件。
          */
         val residualRubyMarkersInChapters: Int,
     )
@@ -299,13 +300,20 @@ class JvmGoldenRegressionTest {
         Regex("""(?:[＜<]|&lt;)[ｉi][0-9０-９]+[｜|][0-9０-９]+(?:[＞>]|&gt;)""")
 
     /**
-     * 未変換ルビ記法の検出子。**両方の字種の縦線**を見る（なろうはどちらも正式＝ヘルプ helppageid/42）。
-     * 本番の [ChapterProcessor] とは独立に書く理由は [ILLUSTRATION_TAG_PROBE] と同じ。
+     * 未変換ルビ記法の検出子。**ASCII 縦線の形だけ**を数える。
      *
+     * ⚠️ **全角縦線を数えてはいけない**（2026-09-05 に対象を狭めた）: 全角のマーカーは
+     * 「なろうが解釈せず本文に残した literal」＝web の読者にも記号のまま見えているもので、
+     * 変換しないのが正しい（機序と一次ソースの裏取りは [ChapterProcessor] の
+     * `normalizeNarouMarkup` の KDoc）。ここで数えると「捏造しろ」と迫るゲートになる。
+     * 逆に ASCII のマーカーは [TextProcessor] が描画済みルビから組み立てた中間表現なので、
+     * 章本文へ残っていたら [ChapterProcessor.applyRuby] が変換に失敗した証拠になる＝0 が契約。
+     *
+     * 本番の [ChapterProcessor] とは独立に書く理由は [ILLUSTRATION_TAG_PROBE] と同じ。
      * 行内に閉じた形だけを数える＝行を跨ぐ縦線と `《…》` の組は記法ではなく、たまたま同じ章に
      * 並んだ別々の文字（これを記法と数えると、地の文の縦線 3 件で恒久的に赤くなる）。
      */
-    private val RUBY_MARKER_PROBE = Regex("""[|｜][^《\n]+《[^》\n]+》""")
+    private val RUBY_MARKER_PROBE = Regex("""\|[^《\n]+《[^》\n]+》""")
 
     /** user.dir から sample_pdfs/ を持つ祖先ディレクトリを探す（gradle の cwd がモジュールでも root でも解決）。 */
     private fun resolveRepoRoot(): File {

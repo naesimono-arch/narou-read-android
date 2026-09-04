@@ -282,42 +282,48 @@ class SplitIntoChaptersTest {
         assertEquals(listOf("前書き本文"), result[0].body)
     }
 
-    // ── 全角縦線のルビ記法（なろうは半角/全角どちらも正式＝ヘルプ helppageid/42）──
-    // 実測: corpus 12 本の全角縦線は挿絵タグを除き 8 件で、ルビはそのうち 1 件だけ。
-    // 残り 7 件は地の文の区切り 3 件と「（）をルビにしない」打ち消し記法 4 件＝触ってはいけない側。
+    // ── 全角縦線のルビ記法は**触らない**（2026-09-05 に方針を反転）──
+    // 旧方針は「なろうは半角/全角どちらも正式（ヘルプ helppageid/42）だから ASCII へ寄せて <ruby> にする」
+    // だったが、それは web の読者が見ていないルビを捏造する側の誤りだった。
+    // 機序＝抽出出力の ASCII マーカーは TextProcessor が描画済みルビから組み立てた中間表現で、
+    // 全角マーカーは「なろうが解釈せず本文に残った literal」＝残っていること自体が非解釈の証拠。
+    // 一次ソースの裏取りと取りこぼす変種は ChapterProcessor.normalizeNarouMarkup の KDoc。
 
-    @Test fun fullWidthRubyMarkerIsNormalizedToAscii() {
+    @Test fun fullWidthRubyMarkerIsLeftAsAuthorWroteIt() {
+        // corpus 唯一の実例と同じ形（N6169DZ 第686話）。web でも縦線と《》が文字として見えているので、
+        // ここで ASCII へ寄せてはいけない。
         val result = ChapterProcessor.splitIntoChapters(listOf("こいつの｜未練《ねがい》は"))
-        assertEquals(listOf("こいつの|未練《ねがい》は"), result[0].body)
+        assertEquals(listOf("こいつの｜未練《ねがい》は"), result[0].body)
+    }
+
+    @Test fun fullWidthRubyMarkerSurvivesToReaderUnchanged() {
+        // 経路の通し確認: <ruby> にならず、記法の字面がそのまま読者へ届く（＝web と同じ見え）。
+        val chapters = ChapterProcessor.splitIntoChapters(listOf("【題名】第一話", "こいつの｜未練《ねがい》は"))
+        val processed = ChapterProcessor.processForewordAfterword(chapters)
+        assertTrue(processed[0].body.contains("こいつの｜未練《ねがい》は"))
+        assertTrue(!processed[0].body.contains("<ruby>"))
+    }
+
+    @Test fun asciiRubyMarkerStillBecomesRubyTag() {
+        // 反対側の封鎖: ASCII マーカーは TextProcessor が組み立てた「ルビが確かに描かれた」証拠なので、
+        // こちらは従来どおり <ruby> まで届かないといけない（全角を止めた巻き添えで死んでいないこと）。
+        val chapters = ChapterProcessor.splitIntoChapters(listOf("【題名】第一話", "こいつの|未練《ねがい》は"))
+        val processed = ChapterProcessor.processForewordAfterword(chapters)
+        assertTrue(processed[0].body.contains("<ruby>未練<rt>ねがい</rt></ruby>"))
     }
 
     @Test fun fullWidthPipeWithoutReadingIsLeftAlone() {
-        // ⚠️ 誤爆の封鎖その1: 地の文の区切りとしての全角縦線（実測 N3957FQ に 3 件）。
-        // 同じ行に《…》が続かないので寄せない＝著者の文字がそのまま残る。
+        // 地の文の区切りとしての全角縦線（実測 N3957FQ に 3 件）。
         val paragraphs = listOf("地形的には【廃棄場｜スラム街｜都市】な感じだ")
         assertEquals(paragraphs, ChapterProcessor.splitIntoChapters(paragraphs)[0].body)
     }
 
     @Test fun fullWidthPipeBeforeParenthesisIsLeftAlone() {
-        // ⚠️ 誤爆の封鎖その2: なろうの「（）をルビにしない」打ち消し記法（実測 N6169DZ に 4 件）。
-        // 縦線を一律 ASCII へ寄せると、この 4 件まで巻き込んでルビ変換の入力にしてしまう。
+        // `｜親（読み）` の形（実測 N6169DZ に 4 件）。なろうは（）形のルビを「親＝漢字・読み＝かな」の
+        // ときだけ適用するため、読みが漢字/カタカナのこれらは解釈されず縦線ごと本文に残る。
+        // ⚠️ 旧コメントはこれを「（）をルビにしない打ち消し記法」と書いていたが誤り＝打ち消しは
+        // `｜` を**（の直前**に置く形（helppageid/42）で、この 4 件はいずれも縦線が親文字の前に在る。
         val paragraphs = listOf("｜触手（手足）にカジキの頭が生えている")
         assertEquals(paragraphs, ChapterProcessor.splitIntoChapters(paragraphs)[0].body)
-    }
-
-    @Test fun fullWidthRubyNormalizationDoesNotReachAcrossLines() {
-        // 正規化は本文1行ずつに掛かる＝別の行の《…》とは結び付かない。
-        // これが崩れると、ルビでない縦線1つで次の《…》までの全文が1つのルビへ潰れる
-        // （行境界を外した場合に潰れ得た量の実測は RUBY_PATTERN の注記）。
-        val paragraphs = listOf("｜区切り", "普通の行", "地の文の《引用》です")
-        assertEquals(paragraphs, ChapterProcessor.splitIntoChapters(paragraphs)[0].body)
-    }
-
-    @Test fun fullWidthRubyReachesRubyTagAfterProcessing() {
-        // 経路の通し確認: 全角で書かれたルビが最終的に <ruby> まで届く（記法のまま出ない）。
-        val chapters = ChapterProcessor.splitIntoChapters(listOf("【題名】第一話", "こいつの｜未練《ねがい》は"))
-        val processed = ChapterProcessor.processForewordAfterword(chapters)
-        assertTrue(processed[0].body.contains("<ruby>未練<rt>ねがい</rt></ruby>"))
-        assertTrue(!processed[0].body.contains("｜"))
     }
 }
