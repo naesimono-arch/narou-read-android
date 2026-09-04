@@ -225,4 +225,60 @@ class SplitIntoChaptersTest {
         assertEquals("第五話　後書きの話", result[1].title)
         assertTrue(!result[0].body.contains("第五話　後書きの話"))
     }
+
+    // ── 挿絵記法（なろう／みてみん `＜iコード｜ユーザID＞`）の除去 ──
+    // 実機症状（2026-09-05）: 極小作品の本文冒頭に `＜ｉ３４９８１３｜２７５４９＞` が文字として出ていた。
+    // 実測の形は全角のみ（生成器が半角英数を全角へ倒すため）で、単独行 118 件・行末インライン 8 件。
+
+    @Test fun illustrationTagOnItsOwnLineBecomesBlankLineNotDroppedLine() {
+        // 単独行の挿絵は「行は残し中身だけ落とす」＝原文の行構造（ADR 0041 決定2）に一致させる。
+        // 行ごと消さないことは段落添字の不変にも効く（blockStarts の添字体系が動かない）。
+        val paragraphs = listOf("＜ｉ３４９８１３｜２７５４９＞", "　本文A")
+        val result = ChapterProcessor.splitIntoChapters(paragraphs, "作品タイトルX")
+        assertEquals(listOf("", "　本文A"), result[0].body)
+    }
+
+    @Test fun illustrationTagInlineKeepsSurroundingText() {
+        // 行末インライン形（実測: 後書きの告知行）。前後の地の文は1字も落とさない。
+        val paragraphs = listOf("コミカライズ版が好評発売中です！＜ｉ６３６９１６｜２２９５１＞")
+        val result = ChapterProcessor.splitIntoChapters(paragraphs)
+        assertEquals(listOf("コミカライズ版が好評発売中です！"), result[0].body)
+    }
+
+    @Test fun illustrationTagHalfWidthFormIsAlsoStripped() {
+        // 生成器は半角英数を全角へ倒すので実測は全角のみ。ヘルプ helppageid/44 の正式書式は半角
+        // （`<i3724|23>`）なので、生成器が変わっても素通しへ戻らないよう半角形も受ける。
+        val result = ChapterProcessor.splitIntoChapters(listOf("前<i3724|23>後"))
+        assertEquals(listOf("前後"), result[0].body)
+    }
+
+    @Test fun angleBracketsInProseAreNotStripped() {
+        // ⚠️ 誤爆の封鎖: `＜…＞` は地の文の括弧としても使われる（sample_pdfs 全12本で挿絵タグ以外に15件）。
+        // `ｉ`＋数字・数字という形にアンカーしているので、括弧ごと本文を飲むことはない。
+        val paragraphs = listOf("＜第一報＞が届いた", "＜２７５４９｜３４９８１３＞", "＜ｉあ｜い＞")
+        val result = ChapterProcessor.splitIntoChapters(paragraphs)
+        assertEquals(paragraphs, result[0].body)
+    }
+
+    @Test fun illustrationTagDoesNotShiftStructuralDecisions() {
+        // 記法の除去が構造の判定へ染み出さないことの封鎖。挿絵だけの行が空行に変わっても、
+        // 前書き終端（blockStarts は**素の**段落列に対して判定される）の結論は挿絵の有無で動かない。
+        // ＝章の数・タイトル・各章の行数が、挿絵行を地の文に置き換えた場合と一致する。
+        val withTag = listOf("【題名】（前書き）", "前書き本文", "＜ｉ１｜２＞", "前書き続き", "　本文A")
+        val withProse = listOf("【題名】（前書き）", "前書き本文", "地の文", "前書き続き", "　本文A")
+        val a = ChapterProcessor.splitIntoChapters(withTag, "作品タイトルX", setOf(4))
+        val b = ChapterProcessor.splitIntoChapters(withProse, "作品タイトルX", setOf(4))
+        assertEquals(b.map { it.title }, a.map { it.title })
+        assertEquals(b.map { it.body.size }, a.map { it.body.size })
+        assertEquals(listOf("前書き本文", "", "前書き続き"), a[0].body)
+    }
+
+    @Test fun illustrationAtForewordBlockEndIsAbsorbedByExistingTrailingBlankTrim() {
+        // ⚠️ 唯一の相互作用として記録する（隠さない）: 前書きブロックの**最終行**が挿絵だけの行だと、
+        // 除去後の空行が既存の「ブロック末尾の空行は版面の余り＝落とす」処理に吸われて行ごと消える。
+        // 版面の余りと区別する材料はこの層に無く、落とす向きは既存仕様と同じ（＝新しい判断を足さない）。
+        val paragraphs = listOf("【題名】（前書き）", "前書き本文", "＜ｉ１｜２＞", "　本文A")
+        val result = ChapterProcessor.splitIntoChapters(paragraphs, "作品タイトルX", setOf(3))
+        assertEquals(listOf("前書き本文"), result[0].body)
+    }
 }

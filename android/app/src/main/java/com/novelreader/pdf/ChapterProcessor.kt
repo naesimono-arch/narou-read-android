@@ -44,6 +44,31 @@ object ChapterProcessor {
     // 隣接する 2 つのルビ記法をまたいで飲み込むことはない（貪欲/非貪欲で結果は変わらない）。
     private val RUBY_PATTERN = Regex("""\|([^《]+)《([^》]+)》""")
 
+    /**
+     * なろうの挿絵記法（みてみん）。ルビ記法と同じく**本文に埋め込まれた制御記法**で、
+     * 読者に見える文字ではない（web ではこの位置に画像が出る）。
+     *
+     * 一次ソース2点で確認（2026-09-05）:
+     * - なろうヘルプセンター helppageid/44「挿絵の挿入」＝書式は `＜iコード｜ユーザID＞`、
+     *   注記「括弧と縦線は半角で入力してください」・例 `<i3724|23>`。iコードは "i"＋数字。
+     * - みてみんの画像閲覧ページ URL `https://<ユーザID>.mitemin.net/<iコード>/` が実在する
+     *   （golden N5892FB 本文の `＜ｉ３４９８１３｜２７５４９＞` → 27549.mitemin.net/i349813/ が
+     *   同作品の著者名義で実在＝この文字列が実在の挿絵を指すことを外部で裏取りした）。
+     *
+     * なぜ全角も受けるか: なろう公式の縦書きPDF 生成器（Producer=FPDF）は**半角英数をすべて全角へ倒す**
+     * ——sample_pdfs 全12本の抽出結果に半角英数は1文字も現れない。∴ 実測で当たるのは全角形だけだが、
+     * 生成器が変われば半角形が出うるので両方受ける（受けすぎても PDF 経路には半角が来ない）。
+     *
+     * なぜ `ｉ`＋数字・数字にアンカーするか: `＜…＞` は地の文の括弧としても使われており
+     * （同12本で挿絵タグ以外に15件）、形を緩めるとその括弧ごと本文を飲む。
+     *
+     * ⚠️ **原理的に区別できない誤爆面**: 著者が全角で `＜ｉ123｜45＞` と書いた場合、なろう web 上は
+     * 挿絵にならず**文字として見える**が、生成器が半角形も全角へ倒すため PDF 上は真の挿絵タグと同形になる。
+     * 見分ける材料は PDF 内に無い（外部問い合わせは ADR 0011 の「外部送信なし」に反する）。
+     * 実害は「壊れた挿絵タグを書いた作品でその15字前後が消える」だけなので、素通しを選ばず除去へ倒す。
+     */
+    private val ILLUSTRATION_TAG = Regex("""[＜<][ｉi][0-9０-９]+[｜|][0-9０-９]+[＞>]""")
+
     /** [TextProcessor.processPages] が Bold 見出し段落へ付ける接頭辞。 */
     private const val TITLE_MARKER = "【題名】"
 
@@ -62,9 +87,29 @@ object ChapterProcessor {
             structuralMarkerOf(paragraph.removePrefix(TITLE_MARKER)) == null
 
     /**
+     * 本文行から挿絵記法（[ILLUSTRATION_TAG]）を取り除く。
+     *
+     * なぜ除去が正しいか（2026-09-05 の裁定）: 忠実性の相手は **web 原文の見え**（ADR 0041）で、
+     * web の読者が見るのは画像であって記法そのものではない＝素通しは「原文に無い文字列を出す」側の誤り。
+     * 代替表示（画像）も出せない——なろう公式の縦書きPDF は画像を**1枚も**持たない
+     * （sample_pdfs 全12本で `/XObject <<>>` が空・`/Subtype /Image` が 0 件）。
+     * ∴ 端末内に材料が無く、外部取得は ADR 0011 の守り（外部送信なし・端末内完結）に反する。
+     *
+     * なぜ行ごと消さず**行は残す**か: 抽出は原文の行と空行をそのまま持つ（ADR 0041 決定2）。
+     * 挿絵は原文でも1行を占めるので、行を残して中身だけ落とすのが原文の行構造に一致する
+     * （表示側 `splitIntoParagraphs` は空行を空段落＝行あきとして出す）。行を消さないことで
+     * 段落添字が動かず、[splitIntoChapters] が使う blockStarts の添字体系も壊れない。
+     *
+     * ⚠️ 「［挿絵］」等の**可視のプレースホルダを出すか**は意匠裁定（/visual-language）＝ここでは決めない。
+     */
+    private fun stripIllustrationTags(line: String): String = ILLUSTRATION_TAG.replace(line, "")
+
+    /**
      * 段落列を「【題名】プレフィックス」で章に分割する（移植元 split_into_chapters と 1:1）。
      * 呼び手は PDF 経路のみ（Web 取込は [processForewordAfterword] だけを使う）＝ここで
-     * PDF 生成器の構造マーカーを解釈してよい。
+     * PDF 生成器の構造マーカーを解釈してよい。**なろう固有の記法の除去（[stripIllustrationTags]）を
+     * ここに置くのも同じ理由**＝他サイトの著者記述文へ同じ写像を掛けると、著者が書いた文字列を
+     * 記法と誤読して消す面が開く（監査 A1 と同型の誤り）。Web 経路はこの関数を通らない。
      *
      * 本文のない章（題名直後に本文が無い＝currentBody が空）はサイレントにドロップする仕様。
      * 後書きの特殊処理はここでは行わない（processForewordAfterword が後書きタイトルを処理するため、
@@ -157,7 +202,12 @@ object ChapterProcessor {
                 currentTitle = title
                 currentBody = mutableListOf()
             } else {
-                currentBody.add(p)
+                // 挿絵記法の除去は本文へ入れる**この1点だけ**で行う（判断は stripIllustrationTags の KDoc）。
+                // なぜ入口（paragraphs）を一括で写像しないか＝上の構造判定（hasRealChapterHeading・
+                // forewordIdx・forewordEnd の「切った先に本文が実在するか」）は素の段落列を見ている。
+                // 先に写像すると、挿絵だけの行が空行に変わって前書き終端の判定が動きうる＝
+                // 記法の除去が構造の判定に染み出す。内容の変換は内容を積む場所に閉じる。
+                currentBody.add(stripIllustrationTags(p))
             }
         }
 

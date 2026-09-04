@@ -83,6 +83,17 @@ class JvmGoldenRegressionTest {
         val rubyRunCount: Int,
         val bodySha256: String,
         val headParagraphs: List<String>,
+        /**
+         * **章本文**に残った挿絵記法（なろう／みてみん `＜iコード｜ユーザID＞`）の件数＝常に 0 が契約。
+         *
+         * なぜ golden の項目でなく不変条件として持つか: golden の body_sha256 が測っているのは
+         * **抽出出力**（[PdfExtractor.runFinalEngine] の段落列）で、記法は抽出段では保持される側
+         * （ルビ記法と同じ＝解釈は [ChapterProcessor] の層）。∴ 記法の除去は body_sha256 を1ビットも
+         * 動かさず、golden だけでは実機に出る症状（本文冒頭に記号列が見える）を検出できない。
+         * ここが章本文まで見る唯一のゲートなので、期待値ゼロの不変条件として据える。
+         * 実測の分布＝N5892FB 1 件・N6169DZ 126 件（単独行 118／行末インライン 8）・他 4 本 0 件。
+         */
+        val illustrationTagsInChapters: Int,
     )
 
     private fun runOne(fx: Fixture) {
@@ -161,6 +172,7 @@ class JvmGoldenRegressionTest {
                 rubyRunCount = paragraphs.sumOf { p -> p.count { it == '《' } },
                 bodySha256 = sha256Hex(bodyText),
                 headParagraphs = paragraphs.take(3),
+                illustrationTagsInChapters = chapters.sumOf { c -> ILLUSTRATION_TAG_PROBE.findAll(c.body).count() },
             )
         }
     }
@@ -211,8 +223,20 @@ class JvmGoldenRegressionTest {
             report.append("  head_paragraphs(診断): ✓ (先頭${gHead.size}段落一致)\n")
         }
 
-        return titleOk && authorOk && chapterCountOk && titlesOk && bodyOk
+        // 期待値ゼロの不変条件（golden の項目ではない＝採り直しで追認できない）。理由は Snapshot の KDoc。
+        val illustOk = snap.illustrationTagsInChapters == 0
+        report.append("  挿絵記法の残留【常に0】: ${mark(illustOk)} now=${snap.illustrationTagsInChapters}\n")
+
+        return titleOk && authorOk && chapterCountOk && titlesOk && bodyOk && illustOk
     }
+
+    /**
+     * 挿絵記法の検出子。**本番 [ChapterProcessor] の正規表現とは独立に書く**（同じ式を共有すると、
+     * 本番側を緩めたときにゲートも同時に緩んで気づけない）。形の根拠はなろうヘルプ helppageid/44。
+     * 検査対象が HTML 化済みの章本文なので、半角形が漏れたときの `&lt;`/`&gt;` 形も拾う。
+     */
+    private val ILLUSTRATION_TAG_PROBE =
+        Regex("""(?:[＜<]|&lt;)[ｉi][0-9０-９]+[｜|][0-9０-９]+(?:[＞>]|&gt;)""")
 
     /** user.dir から sample_pdfs/ を持つ祖先ディレクトリを探す（gradle の cwd がモジュールでも root でも解決）。 */
     private fun resolveRepoRoot(): File {
