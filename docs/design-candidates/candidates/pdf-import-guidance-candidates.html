@@ -1,0 +1,568 @@
+<!-- @dsCard group="UI-n / 一時ドラフト（裁定用）" name="PDF取り込み画面の操作説明 — 3案＋対照（2026-09-04）" -->
+<!--
+  ⚠️ 一時ドラフト（複数案比較）＝正本ではない。裁定が付いたら**採用案だけ**を正本
+     docs/design-candidates/tutorial-onboarding-K.html（§2 の判定表・§3 の入口表・§4 の文言・§8 のフラグ表）へ
+     差し戻し、この頁は削除する（CLAUDE.md「一時ファイルは抽出→集約→削除まで1セット」／
+     visual-language「小粒は正本直差分・複数案比較のみ一時ドラフト」）。
+
+  ── 動機（2026-09-04 実機・監督所感の原文）──────────────────────────────────
+  「取り込む際のチュートリアルというか、操作の仕方の説明がありません。
+    ページ遷移した後に、何をどうすればいいのかという説明が欲しい」
+
+  ── これは未実装ではなく、**外れた設計判断**である ────────────────────────────
+  正本 tutorial-onboarding-K.html は 2 箇所で明示的に落としていた:
+    ・§2 判定表「目次／装いの間／PDF取り込み＝**置かない**。PDF取り込み＝**目的を持って押して来る画面**」
+    ・§8「作らないもの（明示）… PDF取り込みへの**層① 教示**」
+  実機がこれを反証した。**動機は「取り込みたい」までしか運ばず、〈この面で自分が何を押すのか〉は運ばない**
+  ——旧判定はこの 2 つを同一視していた。
+
+  ── 覆す梃子は正本の中に既にある＝規則1b（2026-08-21 新設）──────────────────────
+  規則1b〈**見えていても、それが何を決めているか推測できるか？**〉→ いいえ なら層① を置く。
+  自動スクロール（scrollIntoView(block:"center")）で ［縦書きPDF］ の枠は**見えて**いるが、
+  それが**アプリの続きではなく、なろう側の生成フォームだ**とは読めない。
+  **この画面のボタンはすべてなろうのもので、アプリのものは題と戻るだけ**。
+  ▶ **組C（検索範囲チップ）を「置かない→置く」に反転させたのと、規則も取りこぼしの型も同じ**。
+    規則1（壊れて見えるか）では両方とも「いいえ」で落ちる。拾えるのは規則1b だけ——
+    **組C だけ拾って取り込みを落とすと、同じ規則が画面ごとに違う答えを出す**ことになる。
+
+  ── 旧判定が見落としていた機序（2026-09-04 に発見・裁定材料）──────────────────────
+  旧行は「PDF取り込み」の 1 語で**〈なろうの取り込み画面〉と〈手元のPDFファイルを足す操作〉を束ねて**いた。
+  層③ で受けたと書いた「組C の 1 行」は **「PDF は本棚の ［PDFを追加］」＝後者だけ**
+  （IntroDeck.kt 組C の 3 項目目）。**前者はどの層にも受け皿が無いまま「規則3 で送った」ことになっていた**
+  ＝落としたつもりの項目が、実は落としてすらいなかった。
+
+  ── 下敷きにした正本（新意匠を発明しない。色・寸法・語彙は逐語複製）────────────────
+  カードの器・文言の基準・層の定義   = docs/design-candidates/tutorial-onboarding-K.html
+                                        （.scrim / .ocard / .odots / .obtns、§1 の 3 層 4 規則、§4 の文言基準）
+  K トークン実値・タブバー・題の様式 = docs/design-candidates/skins/bookshelf-K.html 経由で同上ファイルから継承
+  帯（案B・案C）の地                 = 同ファイル `.row.hi{background:var(--ai-tint)}`＝**既存の強調行の地をそのまま使う**
+                                        （帯のために新しい色・新しい部品を作らない）
+
+  ── 実装の現在値（2026-09-04 実測）────────────────────────────────────────
+  ・画面      PdfImportScreen.kt:177-288。**アプリの文言は題「縦書きPDFを取り込む」だけ**、あとは WebView 全面。
+  ・自動送り  onPageCommitVisible → `.c-under-nav` へ scrollIntoView({block:"center"})（AUTO_SCROLL_BLOCK）。
+              onPageFinished は同じ寄せのフォールバック（__nrAutoScrollDone で冪等）。
+  ・DL 捕捉   setDownloadListener → PdfImportViewModel.onDownloadRequested → 取り込み後に画面を pop。
+  ・教示の器  ui/intro/（IntroGroup は ABOUT/READING/SEARCH の 3 つ）。requestAuto の呼び手は
+              BookshelfScreen.kt:345／ChapterScreen.kt:404／MainActivity.kt:769 の 3 箇所。
+              **この画面には LocalIntroController も requestAuto も一切結線されていない。**
+  ・⚠️ 併記事実 ADR 0042 の「ここからは小説家になろうのページです」ダイアログは
+              **web-reader ルートにしか載っていない**（NarouExternalPageNoticeHost の呼び手は
+              WebReaderScreen.kt:205 のみ）。**取り込み画面も等しくなろうの面なのに、境界を名乗るものが無い。**
+              → 3 案とも、この穴を同時に塞げるかどうかで差が出る（下の「層の当たり」表）。
+
+  ── 振っている軸は 1 つだけ＝「言うものの層」──────────────────────────────
+  対照R = 何も置かない（現行）／案A = 層① のカード 1 枚／案B = 恒常の帯／案C = 初回だけの帯（自ら消える）。
+  背景のなろうページ・題・自動送りの結果（フォームが画面中ほどに来ている状態）は**4 案とも同一**に描いてある。
+
+  ── 推奨案とその理由 ──────────────────────────────────────────────
+  **案A（層① 教示カード 1 枚＝組D）**。
+  ① **既存の型に 1 つも新しい仕組みを足さずに乗る**。正本 §8 の芯は「入口が増えても列は 1 本・描画は 1 コンポーネント」で、
+     IntroGroup に IMPORT を足すのは**4 つ目の入口**にすぎない（列も部品も増えない）。
+  ② **組C の反転と同じ形で受ける**＝規則1b が画面ごとに違う答えを出さない。組C だけカード・取り込みだけ帯にすると、
+     同じ規則から生えた 2 つが別の見えになり、あとから「なぜ違うのか」を誰も説明できなくなる。
+  ③ **再訪の受け皿を既に持っている**（［設定］＞［操作の説明］）＝規則3・規則4 を追加工事なしで満たす。帯にはこの行を置く余白が無い。
+  ④ **恒常表示にならない**＝却下 C-3「恒常的に見え続けるものは、理解した後にコストへ変わる」に触れない。
+  ⑤ **境界の告知（ADR 0042 の穴）まで 1 枚で塞げる**——項目 3 つのうち 1 つを NarouExternalPageNotice.BODY と
+     同じ言い回しに充てられる（帯は文字数が足りず落ちる）。
+  ⚠️ **代償は隠さない**: 自動で出る割り込みが通算 3 回・6 枚 → **4 回・7 枚**に増える。
+     ただし**取り込み画面は「取り込む」を押した直後**＝割り込みの原価が最も安い面で、読書中（正本が「割り込みのコストが
+     最も高い面」と書いた場所）とは事情が違う。
+  ⚠️ **「新意匠ゼロ」ではない**——**図版 1 点は新規に起こす必要がある**（下の案A 枠に実物を描いた）。
+     既存 6 図の使い回しは不可: TWO_WAYS は「アプリ／なろう」を分ける図で意味が違う
+     （正本 §8 が ORIENTATION のときに同じ理由で使い回しを禁じている）。
+  ⚠️ **モックは構図の裁定・実機は実データ衝突の検出**（visual-language 恒久ルール5）。
+     ここで見えない最大の未知は〈**背景がまだ読み込み中のときにカードが載る**〉——下の「波及メモ」に切り出した。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF取り込み画面の操作説明 — 3案＋対照</title>
+<style>
+  /*==harness==*/
+  :root{
+    /* === K トークン実値（tutorial-onboarding-K / bookshelf-K と同一。1 文字も変えない） === */
+    --base:#FBFAF8; --ink:#1C1F26; --ink-soft:#7C808B; --line:#ECEAE4;
+    --ai:#1C3D5A; --ai-tint:rgba(28,61,90,.10);
+    --info:#5C606D; --dot-off:#D0D2D4;
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#E4E3DD;display:flex;flex-direction:column;align-items:center;min-height:100vh;
+    padding:26px 26px 80px;font-family:var(--gothic);color:#2A2C28}
+  .ttl{font-family:var(--mincho);font-size:20px;color:#1C1F26;letter-spacing:.06em;margin-bottom:8px}
+  .cap{color:#4A4C47;font-size:13px;line-height:1.85;margin-bottom:6px;max-width:960px}
+  .cap b{color:#2A2C28}
+  .warn{color:#6A6C67;font-size:11.5px;line-height:1.8;margin-bottom:18px;max-width:960px}
+  .sec{width:100%;max-width:1060px;margin:34px 0 12px;font-size:13px;letter-spacing:.14em;
+    color:#2A2C28;border-bottom:1px solid #C8C6BF;padding-bottom:6px}
+
+  table{border-collapse:collapse;font-size:12px;background:#F7F6F2;width:100%;max-width:1060px}
+  th,td{border:1px solid #D3D1C9;padding:8px 11px;text-align:left;line-height:1.7;vertical-align:top;color:#3A3C38}
+  th{background:#EDEBE4;color:#1C1F26;font-weight:700;letter-spacing:.04em}
+  td b{color:#1C1F26}
+  td.o{color:#1C3D5A;font-weight:700;white-space:nowrap}
+  td.x{color:#7A7168;font-weight:700;white-space:nowrap}
+  code{font-family:ui-monospace,Consolas,monospace;font-size:11px;background:#F1F0EC;padding:0 3px}
+
+  .notes{max-width:1060px;display:flex;flex-direction:column;gap:14px}
+  .note{background:#FBFAF8;border:1px solid #D9D7D0;border-radius:4px;padding:14px 18px;
+    font-size:12px;line-height:1.85;color:#3A3C38}
+  .note h3{font-size:13px;color:#1C3D5A;margin-bottom:6px;letter-spacing:.06em}
+  .note b{color:#1C1F26}
+  .note.bad{border-left:3px solid #8A4B44}
+  .note.good{border-left:3px solid #50685C}
+
+  /* 文言のフル記載（絵ではなく文字で裁定してもらうための場所＝正本 §4 と同じ器） */
+  .copy{max-width:1060px;background:#F7F6F2;border:1px solid #D3D1C9;padding:16px 18px}
+  .copy h4{font-size:13px;letter-spacing:.06em;color:#1C3D5A;margin:18px 0 7px;padding-bottom:5px;
+    border-bottom:1px solid #DEDCD4}
+  .copy h4:first-child{margin-top:0}
+  .copy h4 .ch{font-size:11px;color:#6A6C67;font-weight:400;letter-spacing:.1em;margin-left:8px}
+  .copy dl{font-size:12.5px;line-height:1.85}
+  .copy dt{color:#6A6C67;letter-spacing:.05em;margin-top:8px;font-size:11.5px}
+  .copy dt:first-child{margin-top:0}
+  .copy dd{color:#2A2C28;margin-left:0}
+  .copy dd b{color:#1C3D5A}
+  .copy p.why{font-size:11.5px;color:#6A6C67;line-height:1.8;margin-top:8px}
+  .copy p.why b{color:#2A2C28}
+
+  .stage{display:flex;gap:24px;flex-wrap:wrap;justify-content:center;max-width:1660px}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .wrap .mode{font-size:11.5px;letter-spacing:.1em;color:#3A3C38;text-align:center;line-height:1.6;max-width:372px}
+  .wrap .mode b{color:#1C3D5A}
+  .wrap.reco .mode b:first-child{background:#1C3D5A;color:#fff;padding:1px 7px;border-radius:3px}
+
+  /* === スマホ枠（幅 372px は正本 .phone と同値。高さは取り合いが見える 760px に詰めた） === */
+  .phone{width:372px;height:760px;background:var(--base);border-radius:38px;overflow:hidden;position:relative;
+    display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.28);font-family:var(--gothic)}
+  .sb{height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 24px;
+    font-size:11px;color:var(--ink-soft)}
+  /* 題＝実装の TopAppBar（PdfImportScreen.kt:180「縦書きPDFを取り込む」・戻る矢印・地は surface） */
+  .topbar{flex-shrink:0;height:56px;display:flex;align-items:center;gap:6px;padding:0 8px 0 4px;
+    background:var(--base)}
+  .topbar .ib{width:44px;height:44px;border:none;background:transparent;display:grid;place-items:center;
+    color:var(--ink);cursor:pointer;flex:none}
+  .topbar .ib svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;
+    stroke-linecap:round;stroke-linejoin:round}
+  .topbar .ct{font-size:16px;color:var(--ink);letter-spacing:.03em}
+
+  /* === 帯（案B・案C）＝正本 `.row.hi` の地をそのまま使う。新しい色も新しい部品も作らない === */
+  .band{flex-shrink:0;background:var(--ai-tint);border-bottom:1px solid var(--line);
+    padding:10px 16px;font-size:12.5px;line-height:1.65;color:var(--ink);letter-spacing:.01em}
+  .band b{color:var(--ai);font-weight:700}
+
+  /* === なろうの目次ページ（WebView 全面）＝**実データの色域を模す**（visual-language 恒久ルール4）===
+     なろうのページは白地・黒字・青リンクで、K の素地（#FBFAF8）より明るく、広告の帯が入る。
+     ここを灰色の板でごまかすと、カード/帯の可読と「白い面の上でどう見えるか」を裁定し損ねる。
+     自動送り（scrollIntoView block:"center"）の**後**の見え＝［縦書きPDF］の枠が画面の中ほどに来た状態で描く。 */
+  .web{flex:1;overflow:hidden;background:#FFFFFF;color:#333;font-size:12px;line-height:1.8;padding:10px 12px;
+    font-family:var(--gothic)}
+  .web .wtitle{font-size:13px;color:#333;font-weight:700;margin-bottom:6px}
+  .web .ep{color:#3D6899;border-bottom:1px dotted #CFCFCF;padding:6px 2px;font-size:12px}
+  .web .ep .dt{float:right;color:#999;font-size:10.5px}
+  .web .ad{margin:10px 0;height:56px;border:1px solid #E2E2E2;background:#F4F4F4;display:grid;
+    place-items:center;color:#AAA;font-size:10.5px;letter-spacing:.2em}
+  .web .pdfbox{margin-top:12px;border:1px solid #CFCFCF;background:#FAFAFA;padding:10px}
+  .web .pdfbox h5{font-size:12.5px;color:#333;font-weight:700;margin-bottom:6px}
+  .web .pdfbox p{font-size:10.5px;color:#777;line-height:1.7}
+  .web .pdfbox .frow{display:flex;gap:6px;margin-top:8px}
+  .web .pdfbox .fsel{flex:1;border:1px solid #CFCFCF;background:#fff;padding:5px 7px;font-size:10.5px;color:#555}
+  .web .pdfbox .fbtn{margin-top:8px;background:#5C7FA8;color:#fff;text-align:center;padding:7px;
+    font-size:11.5px;border-radius:3px}
+  .web .foot{margin-top:10px;color:#999;font-size:10px;text-align:center}
+
+  /* === カード（案A）＝正本 tutorial-onboarding-K.html の .scrim/.ocard を逐語複製 === */
+  .scrim{position:absolute;inset:0;z-index:24;background:rgba(28,31,38,.74);display:flex;
+    flex-direction:column;align-items:center;justify-content:center;padding:26px}
+  .ocard{width:100%;background:var(--base);border-radius:16px;padding:26px 22px 18px}
+  .ocard .fig{height:112px;display:grid;place-items:center;margin-bottom:18px}
+  .ocard .fig svg{stroke:var(--ai);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+  .ocard .fig svg .soft{stroke:var(--ink-soft);opacity:.55}
+  .ocard h3{font-size:17px;color:var(--ink);letter-spacing:.05em;margin-bottom:12px}
+  .ocard dt{font-size:11.5px;color:var(--info);letter-spacing:.06em;margin-top:12px}
+  .ocard dt:first-child{margin-top:0}
+  .ocard dd{font-size:13.5px;color:var(--info);line-height:1.9;margin-top:2px}
+  .ocard dd em{font-style:normal;color:var(--ai);font-weight:700}
+  .ocard .later{margin-top:15px;padding-top:12px;border-top:1px solid var(--line);
+    font-size:12.5px;color:var(--info);line-height:1.7}
+  /* 1 枚だけの回は点を打たず、副ボタンも置かない＝正本 §3／IntroFlow.secondary が NONE を返す形 */
+  .obtns{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:2px}
+  .obtn{font-size:13.5px;border:none;background:transparent;color:var(--info);padding:11px 10px;
+    cursor:pointer;letter-spacing:.04em}
+  .obtn.pri{background:var(--ai);color:#fff;border-radius:10px;padding:11px 22px;font-weight:700}
+  /*==/harness==*/
+</style>
+</head>
+<body>
+
+<h1 class="ttl">PDF取り込み画面の操作説明 — 3案＋対照</h1>
+<p class="cap">
+  <b>争点</b>: この画面のアプリ側の文言は<b>題「縦書きPDFを取り込む」だけ</b>で、あとは<b>なろうの目次ページが全面</b>
+  （<code>PdfImportScreen.kt:177-288</code>）。自動送りで ［縦書きPDF］ の枠は<b>見えて</b>いるが、
+  それが<b>アプリの続きではなく、なろう側の生成フォームだ</b>とは読めない——<b>規則1b</b> の取りこぼし
+  （組C＝検索範囲チップを「置かない→置く」に反転させたのと同型）。<br>
+  <b>振っているのは「言うものの層」だけ</b>。背景のなろうページ・題・自動送り後の位置は 4 案とも同一に描いてある。
+</p>
+<p class="warn">
+  ⚠️ 背景は<b>実データの色域を模してある</b>（白地 #FFFFFF・黒字・青リンク・広告帯＝visual-language 恒久ルール4）。
+  K の素地 #FBFAF8 より明るい面の上に置くので、灰色の板で代用すると帯の可読と<b>白の上での見え</b>を裁定し損ねる。<br>
+  ⚠️ <b>案B と案C は t=0 では同じ見え</b>。違いは<b>消えるかどうか</b>だけなので、案C は<b>2 行版</b>で描いてある
+  （恒常でないぶん字数を使えるのが案C の唯一の取り柄＝そこを見せないと比較にならない）。
+</p>
+
+<!-- ============================================================ 4案 -->
+<div class="sec">4案（背景・題・自動送り後の位置は共通）</div>
+<div class="stage">
+
+  <!-- ── 対照R ── -->
+  <div class="wrap"><span class="mode"><b>対照R</b> ／ 現行（文言ゼロ）<br>アプリの文言は題 1 行だけ</span>
+  <div class="phone" role="img" aria-label="対照R 現行のPDF取り込み画面">
+    <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+    <div class="topbar">
+      <button class="ib" aria-label="戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <div class="ct">縦書きPDFを取り込む</div>
+    </div>
+    <div class="web">
+      <div class="ep">第百二十五話　雨上がりの城門<span class="dt">2026/08/21</span></div>
+      <div class="ep">第百二十六話　石畳の照り返し<span class="dt">2026/08/24</span></div>
+      <div class="ep">第百二十七話　彼女は剣を置いた<span class="dt">2026/08/28</span></div>
+      <div class="ad">広告</div>
+      <div class="pdfbox">
+        <h5>縦書きPDF</h5>
+        <p>この作品を縦書きのPDFで読むことができます。設定を選んで作成してください。</p>
+        <div class="frow"><div class="fsel">文字サイズ　中</div><div class="fsel">ページ番号　あり</div></div>
+        <div class="frow"><div class="fsel">1ページの行数　18</div><div class="fsel">ルビ　あり</div></div>
+        <div class="fbtn">縦書きPDFを作成する</div>
+      </div>
+      <div class="foot">— 小説家になろう —</div>
+    </div>
+  </div></div>
+
+  <!-- ── 案A（推奨） ── -->
+  <div class="wrap reco"><span class="mode"><b>推奨 案A</b> ／ 層① 教示カード 1 枚（組D）<br>
+    点なし・副ボタンなし（1 枚の回）</span>
+  <div class="phone" role="img" aria-label="案A 教示カード1枚">
+    <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+    <div class="topbar">
+      <button class="ib" aria-label="戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <div class="ct">縦書きPDFを取り込む</div>
+    </div>
+    <div class="web">
+      <div class="ep">第百二十五話　雨上がりの城門<span class="dt">2026/08/21</span></div>
+      <div class="ep">第百二十六話　石畳の照り返し<span class="dt">2026/08/24</span></div>
+      <div class="ep">第百二十七話　彼女は剣を置いた<span class="dt">2026/08/28</span></div>
+      <div class="ad">広告</div>
+      <div class="pdfbox">
+        <h5>縦書きPDF</h5>
+        <p>この作品を縦書きのPDFで読むことができます。設定を選んで作成してください。</p>
+        <div class="frow"><div class="fsel">文字サイズ　中</div><div class="fsel">ページ番号　あり</div></div>
+        <div class="frow"><div class="fsel">1ページの行数　18</div><div class="fsel">ルビ　あり</div></div>
+        <div class="fbtn">縦書きPDFを作成する</div>
+      </div>
+      <div class="foot">— 小説家になろう —</div>
+    </div>
+    <div class="scrim">
+      <div class="ocard">
+        <div class="fig">
+          <!-- 新規図版（IntroFigure に 1 値足す）。約束は正本 TWO_WAYS から継ぐ＝
+               **なろうの面は破線・アプリの面と動作は実線**。使い回しが不可なのはこの約束のため
+               （TWO_WAYS は「アプリ／なろう」を並べて**分ける**図で、ここは「なろうから本棚へ**運ぶ**」図）。 -->
+          <svg viewBox="0 0 120 84" width="120" height="84">
+            <rect x="36" y="4" width="48" height="34" rx="3" stroke-dasharray="5 4"/>
+            <path class="soft" d="M43 13h34M43 20h34M43 27h20" stroke-dasharray="5 4"/>
+            <path d="M60 43v13"/><path d="M54 50l6 6 6-6"/>
+            <rect x="38" y="63" width="11" height="17" rx="1.5"/>
+            <rect x="52" y="63" width="11" height="17" rx="1.5"/>
+            <rect x="66" y="63" width="11" height="17" rx="1.5"/>
+            <path class="soft" d="M31 82h58"/>
+          </svg>
+        </div>
+        <h3>つくって、本棚に入れる</h3>
+        <dl>
+          <dt>ここはなろうのページ</dt><dd>なろうが配信するページを、そのまま表示します。</dd>
+          <dt>縦書きPDFを作る</dt><dd>開いた位置にある <em>［縦書きPDF］</em> の枠から。作り終わるとページが変わります。</dd>
+          <dt>ダウンロードを押す</dt><dd>変わったページの <em>［縦書きPDFダウンロード］</em>。押すと<em>アプリが引き取り</em>、本棚に入ります。</dd>
+        </dl>
+        <div class="later">この説明は ［設定］＞［操作の説明］ にあります。</div>
+        <div class="obtns"><button class="obtn pri">とじる</button></div>
+      </div>
+    </div>
+  </div></div>
+
+  <!-- ── 案B ── -->
+  <div class="wrap"><span class="mode"><b>案B</b> ／ 常設バナー 1 行<br>
+    <span style="color:#8A4B44">層① ですらない（下の「層の当たり」）</span></span>
+  <div class="phone" role="img" aria-label="案B 常設バナー1行">
+    <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+    <div class="topbar">
+      <button class="ib" aria-label="戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <div class="ct">縦書きPDFを取り込む</div>
+    </div>
+    <div class="band"><b>［縦書きPDF］</b> を作り <b>［ダウンロード］</b> で本棚に入ります</div>
+    <div class="web">
+      <div class="ep">第百二十五話　雨上がりの城門<span class="dt">2026/08/21</span></div>
+      <div class="ep">第百二十六話　石畳の照り返し<span class="dt">2026/08/24</span></div>
+      <div class="ep">第百二十七話　彼女は剣を置いた<span class="dt">2026/08/28</span></div>
+      <div class="ad">広告</div>
+      <div class="pdfbox">
+        <h5>縦書きPDF</h5>
+        <p>この作品を縦書きのPDFで読むことができます。設定を選んで作成してください。</p>
+        <div class="frow"><div class="fsel">文字サイズ　中</div><div class="fsel">ページ番号　あり</div></div>
+        <div class="frow"><div class="fsel">1ページの行数　18</div><div class="fsel">ルビ　あり</div></div>
+        <div class="fbtn">縦書きPDFを作成する</div>
+      </div>
+      <div class="foot">— 小説家になろう —</div>
+    </div>
+  </div></div>
+
+  <!-- ── 案C ── -->
+  <div class="wrap"><span class="mode"><b>案C</b> ／ 初回だけの帯（2 行・自ら消える）<br>
+    消す契機は<b>時間ではなく操作</b></span>
+  <div class="phone" role="img" aria-label="案C 初回だけの帯2行">
+    <div class="sb"><span>9:41</span><span>5G ▾ ▮▮▮</span></div>
+    <div class="topbar">
+      <button class="ib" aria-label="戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <div class="ct">縦書きPDFを取り込む</div>
+    </div>
+    <div class="band">ここからはなろうのページです。<b>［縦書きPDF］</b> を作り、<b>［縦書きPDFダウンロード］</b> を押すと本棚に入ります。</div>
+    <div class="web">
+      <div class="ep">第百二十五話　雨上がりの城門<span class="dt">2026/08/21</span></div>
+      <div class="ep">第百二十六話　石畳の照り返し<span class="dt">2026/08/24</span></div>
+      <div class="ep">第百二十七話　彼女は剣を置いた<span class="dt">2026/08/28</span></div>
+      <div class="ad">広告</div>
+      <div class="pdfbox">
+        <h5>縦書きPDF</h5>
+        <p>この作品を縦書きのPDFで読むことができます。設定を選んで作成してください。</p>
+        <div class="frow"><div class="fsel">文字サイズ　中</div><div class="fsel">ページ番号　あり</div></div>
+        <div class="frow"><div class="fsel">1ページの行数　18</div><div class="fsel">ルビ　あり</div></div>
+        <div class="fbtn">縦書きPDFを作成する</div>
+      </div>
+      <div class="foot">— 小説家になろう —</div>
+    </div>
+  </div></div>
+
+</div>
+
+<p class="warn" style="margin-top:16px;max-width:1060px">
+  ⚠️ 枠内のなろうページは<b>実物の写しではなく、色域と密度を模した placeholder</b>
+  （フォームの項目名・ボタン語は「縦書きPDF」の見出し以外**推定**）。
+  <b>なろう側のボタンの実ラベルは一次確認していない</b>ので、案A・案C の文言は
+  <b>確定している見出し語「縦書きPDF」と、ADR 0011 が原文で記録している「縦書きPDFダウンロード」だけを名指し</b>し、
+  作成ボタンの語は<b>断定していない</b>（「その枠から」で受けている）。実機で 1 語を確かめられれば、そこだけ差し替えるとさらに具体になる。
+</p>
+
+<!-- ============================================================ 層の当たり -->
+<div class="sec">層の当たり（正本 §1 の 3 層 4 規則に照らす）</div>
+<table>
+  <tr><th style="width:9%">案</th><th style="width:13%">当たる層</th><th style="width:11%">恒常表示</th>
+      <th style="width:13%">規則3・4 の受け皿</th><th style="width:12%">境界の告知</th><th>判定</th></tr>
+  <tr>
+    <td><b>対照R</b></td><td class="x">なし</td><td class="x">—</td><td class="x">無い</td><td class="x">無い</td>
+    <td>規則1b で<b>置くべきものが置かれていない</b>状態。実機所感がそのまま症状。</td>
+  </tr>
+  <tr>
+    <td><b>案A</b></td><td class="o"><b>① 教示</b></td><td class="o">しない</td>
+    <td class="o">［設定］＞［操作の説明］</td><td class="o"><b>塞げる</b></td>
+    <td>層の定義に<b>そのまま当たる</b>——「割り込んでその場で言う・恒常表示しない」。
+      再訪導線は組C と同じ <code>.later</code> 1 行で足りる。<br>
+      <b>境界</b>＝項目 1 つを <code>NarouExternalPageNotice.BODY</code> と同じ言い回しに充てられる
+      （ADR 0042 のダイアログが web-reader ルートにしか無い穴を、同じ 1 枚で塞ぐ）。</td>
+  </tr>
+  <tr>
+    <td><b>案B</b></td><td class="x"><b>層① ですらない</b></td><td class="x"><b>する</b></td><td class="x">置けない</td><td class="x">落ちる</td>
+    <td><span style="color:#8A4B44"><b>⚠️ 不利は隠さない。</b></span>
+      層① の定義（§1）は<b>「割り込んでその場で言う・恒常表示しない」</b>で、恒常の帯はこの定義に入らない。
+      層② は<b>「文言を持たない」</b>ものなので、文言を持つ帯はそちらにも入らない——<b>3 層のどこにも席が無い</b>。<br>
+      さらに<b>却下 C-3 の系譜に正面から当たる</b>＝「<b>恒常的に見え続けるものは、理解した後にコストへ変わる</b>」。
+      この画面は<b>2 回目以降も必ず通る</b>（作品ごとに毎回来る）ので、コストへ変わる回数が最も多い面。<br>
+      <b>字数の代償</b>＝1 行（25 字）に収めると<b>〈ここはなろうのページ〉と〈アプリが引き取る〉の 2 つが落ちる</b>。
+      落とさず 2 行にすると、恒常で削り続ける WebView の面積が倍になる。</td>
+  </tr>
+  <tr>
+    <td><b>案C</b></td><td class="o">① 教示（帯型）</td><td class="o">しない</td><td class="x"><b>置けない</b></td><td class="o">入る（2 行）</td>
+    <td>恒常でないので<b>層① には入る</b>（既存の先例＝没入ヒントのピル＝スクリムを持たない層①）。
+      案B の不利のうち<b>恒常のぶんだけ</b>を外した案。<br>
+      <span style="color:#8A4B44"><b>⚠️ 弱点は 2 つ。</b></span>
+      <b>①再訪の受け皿が無い</b>——1 行の帯に <code>.later</code> 相当を置く余白が無く、
+      <b>消えた後にどこにも読み返せない</b>（規則3・4 が立たない）。<br>
+      <b>②消す契機の設計が要る</b>＝<b>時間で消してはいけない</b>。正本 §8 が T4 の轍として明示している
+      「<b>見た保証が無いのに焼いて教育の機会を失う</b>」に当たり、しかもこの画面は<b>ページ読み込みが重く目を離しやすい</b>＝
+      時間の推定が最も当てにならない面。<b>操作（WebView のスクロール／DL 開始）で消して、消えた時に焼く</b>設計が要る
+      ——つまり<b>この案だけ新しい規則を 1 本増やす</b>。</td>
+  </tr>
+</table>
+
+<!-- ============================================================ 文言 -->
+<div class="sec">文言（フル記載）</div>
+<div class="copy">
+  <h4>案A<span class="ch">層① 教示カード 1 枚＝組D・列の 7 枚目</span></h4>
+  <dl>
+    <dt>見出し</dt><dd>つくって、本棚に入れる</dd>
+    <dt>項目1</dt><dd><b>ここはなろうのページ</b>　なろうが配信するページを、そのまま表示します。</dd>
+    <dt>項目2</dt><dd><b>縦書きPDFを作る</b>　開いた位置にある ［縦書きPDF］ の枠から。作り終わるとページが変わります。</dd>
+    <dt>項目3</dt><dd><b>ダウンロードを押す</b>　変わったページの ［縦書きPDFダウンロード］。押すとアプリが引き取り、本棚に入ります。</dd>
+    <dt>小さい行</dt><dd><b>この説明は ［設定］＞［操作の説明］ にあります。</b></dd>
+    <dt>ボタン</dt><dd>［とじる］（<b>1 枚だけの回＝副ボタンを置かない</b>。<code>IntroFlow.secondary</code> が
+      <code>NONE</code> を返す形＝組C と同じ）</dd>
+  </dl>
+  <p class="why">
+    <b>正本 §4 の文言基準にどう通したか</b>（「一般的なジェスチャの挙動は書かない・書くのはこのアプリ固有の割り当てだけ」）<br>
+    ・<b>書いていない</b>＝「スクロールします」「タップします」「ボタンを押します」の類。読者は全員知っている。<br>
+    ・<b>書いた</b>＝〈この面のボタンは<b>なろうのもの</b>である〉〈<b>2 段階</b>（作る→ダウンロード）である〉
+      〈押した先で<b>アプリが引き取って本棚に入る</b>〉。3 つとも<b>推測できない</b>。
+      特に 3 つ目は<b>規則1 にも当たる</b>——ブラウザのダウンロードだと思えば「ファイルはどこへ行った」になり、
+      <b>知らないと壊れて見える</b>。<br>
+    ・<b>見出しは組C と対にした</b>（「さがして、本棚に入れる」／「つくって、本棚に入れる」）
+      ＝2 つの入手経路が<b>同じ終点</b>を持つことが、文を足さずに見出しだけで伝わる。<br>
+    ・<b>項目1 は <code>NarouExternalPageNotice.BODY</code> の第 1 文と 1 字同一</b>。
+      <b>同じ事実を 2 通りに言うと、片方を直したときにもう片方が黙って腐る</b>——
+      <code>IntroDeck.kt</code> の組A 3 枚目が既に同じ理由で同じ言い回しへ揃えてある（ADR 0042）。<br>
+    ・<b>語尾</b>＝dt は体言止め・dd の頭も体言止めで、ですますは<b>状態と結果にだけ</b>置いた
+      （手取り足取り感の実体は語尾の反復＝正本の裁定）。<br>
+    ・<b>上限</b>＝項目 3 つ（正本 §4 の「1 カード 3〜4 項目まで」の内側）。組C と同じ 3 項目＋<code>.later</code>。<br>
+    ⚠️ <b>「広告」の語は名指ししない</b>（ADR 0042 決定2）。背景に広告帯が出るが、名指しした瞬間に
+    〈場所の案内〉が〈警告〉へ変質する。項目1 の「そのまま表示します」に織り込む。
+  </p>
+
+  <h4>案B<span class="ch">常設バナー 1 行（TopAppBar 直下）</span></h4>
+  <dl>
+    <dt>帯（1 行・25 字）</dt><dd>［縦書きPDF］ を作り ［ダウンロード］ で本棚に入ります</dd>
+    <dt>落ちるもの</dt><dd><b>〈ここはなろうのページ〉</b>（境界の告知）と<b>〈アプリが引き取る〉</b>の 2 つ。
+      372dp 幅・12.5px で 1 行に入るのは 25 字前後で、3 つ目の事実を足すと折り返す。</dd>
+    <dt>2 行にすると</dt><dd>案C の文言と同じになるが、<b>恒常</b>なので WebView の面積を<b>ずっと</b>削る
+      （この画面は作品ごとに毎回通る）。</dd>
+  </dl>
+
+  <h4>案C<span class="ch">初回だけの帯（2 行・操作で消える）</span></h4>
+  <dl>
+    <dt>帯（2 行・44 字）</dt><dd>ここからはなろうのページです。［縦書きPDF］ を作り、［縦書きPDFダウンロード］ を押すと本棚に入ります。</dd>
+    <dt>消える条件</dt><dd><b>時間ではなく操作</b>＝WebView をスクロールした／ダウンロードが始まった、のどちらか。
+      <b>焼くのは消えた時</b>。</dd>
+    <dt>置けないもの</dt><dd><b>再訪導線</b>（<code>.later</code> 相当）。帯に 3 行目を足すと恒常でない利点が消える。</dd>
+    <dt>見出し語</dt><dd>「ここからは」＝ADR 0042 が<b>移動ではなく境界</b>を言うために選んだ語をそのまま使う
+      （「外部サイトへ移動します」は<b>移動しないので嘘</b>）。</dd>
+  </dl>
+</div>
+
+<!-- ============================================================ 実装規模 -->
+<div class="sec">実装規模（案A を採った場合・2026-09-04 実測）</div>
+<table>
+  <tr><th style="width:26%">触るもの</th><th style="width:10%">量</th><th>中身と根拠</th></tr>
+  <tr><td><code>ui/intro/IntroDeck.kt</code></td><td>1 値＋1 カード</td>
+    <td><code>IntroGroup</code> へ <code>IMPORT</code>／<code>cards</code> へ上の文言のカード 1 枚（末尾）。
+      <b>列は 1 本のまま・7 要素になるだけ</b>。</td></tr>
+  <tr><td><code>ui/intro/IntroFigure.kt</code></td><td><b>1 図版（新規）</b></td>
+    <td>enum へ 1 値＋<code>IntroFigureArt</code> の <code>when</code> へ 1 分岐。<b>上の SVG を座標で写経</b>。
+      <span style="color:#8A4B44">⚠️ <b>ここだけは「既存の型に乗る」で済まない</b>——既存 6 図の使い回しは不可
+      （<code>TWO_WAYS</code> は「アプリ／なろう」を<b>分ける</b>図で、ここは「なろうから本棚へ<b>運ぶ</b>」図）。
+      正本 §8 が ORIENTATION のときに同じ理由で使い回しを禁じた前例がある。</span></td></tr>
+  <tr><td><code>PrefKeys.kt</code></td><td>1 キー</td>
+    <td><code>INTRO_IMPORT_SHOWN = "intro_import_shown"</code>（Boolean・<code>FILE_APP_PREFS</code>・<code>apply()</code>）。</td></tr>
+  <tr><td><code>ui/intro/IntroController.kt</code></td><td>1 分岐</td>
+    <td><code>introPrefKey()</code> の <code>when</code> に 1 行。
+      <span style="color:#50685C">▶ <b>ここは安全側に倒れている</b>＝<code>when</code> が enum 網羅なので、
+      <code>IMPORT</code> を足した瞬間に<b>コンパイルが赤くなる</b>＝追従漏れが構造的に起きない。</span></td></tr>
+  <tr><td><code>ui/discovery/PdfImportScreen.kt</code></td><td>3〜4 行</td>
+    <td><code>LocalIntroController.current</code> ＋ <code>LaunchedEffect</code> で
+      <code>requestAuto(IntroGroup.IMPORT)</code>。<b>4 つ目の入口</b>（既存＝
+      <code>BookshelfScreen.kt:345</code>／<code>ChapterScreen.kt:404</code>／<code>MainActivity.kt:769</code>）。</td></tr>
+  <tr><td><b>IntroOverlay がこの面に載るか</b></td><td class="o"><b>載る（確認済み）</b></td>
+    <td><b>追加の結線は要らない。</b>取り込み画面は <code>discovery/detail/{ncode}/import</code> ＝
+      <code>MainActivity.kt:867-880</code> のルートで、
+      <b>それを含む NavHost 全体が <code>LocalIntroController</code> を provide する
+      <code>CompositionLocalProvider</code>（同 :544）の内側</b>にある。
+      <code>IntroOverlayHost()</code>（同 :992-993）は<b>その NavHost を含む root の <code>Box</code> の最後</b>に置かれ、
+      恒常ナビごと覆う。<span style="color:#4A4C47">＝カードは NavHost に触れず<b>この面の上にも重なる</b>
+      （正本 §8「置きかた＝NavHost には触れない」がそのまま効く）。</span></td></tr>
+  <tr><td><code>IntroFlowTest</code></td><td><b>必ず直す</b></td>
+    <td><span style="color:#8A4B44">⚠️ <b>このファイルだけが index を数値で直書きしている</b></span>
+      （<b>意図的</b>＝右辺を <code>IntroDeck.lastIndexOf()</code> で導くと実装と同じ式になり何も確かめないから、と
+      KDoc が明記）。<code>assertEquals(6, cards.size)</code>・組ごとの枚数・<code>group</code> の並び・終端 index が
+      <b>全部ずれる</b>。<span style="color:#4A4C47">KDoc いわく「列に 1 枚差したら、まずこのファイルの数値を直すのが正しい順序」。</span></td></tr>
+  <tr><td><code>IntroOverlayScreenshotTest</code></td><td><b>1 case 追加</b></td>
+    <td><code>IntroOverlayGoldenCases.ALL</code> へ 1 件。<b>足さないと赤くなる</b>——
+      <code>IntroOverlayGoldenCaseCoverageTest</code> が「列の全カードがちょうど 1 つの case で撮られている」を
+      機械で締めている（<code>GoldenCoverageTest</code> は束の粒度なので、これが無いと新カードが無検査で出荷される）。</td></tr>
+  <tr><td>golden 再記録</td><td>1 枚</td>
+    <td><code>recordRoborazziDebug</code> を<b>同じコミットに同梱</b>（visual-language＝既定ゲート非同乗）。
+      あわせて <code>python3 tools/check_design_tokens.py</code>。</td></tr>
+  <tr><td><code>IntroControllerTest</code><br><code>IntroOverlayContentTest</code><br><code>IntroPillDoubleShowTest</code></td>
+    <td class="o">追従不要</td>
+    <td>いずれも<b>列から引く</b>書き方（<code>firstIndexOf</code>／<code>lastIndexOf</code>／
+      <code>indexOfFirst { it.choice != null }</code>）で、絶対 index を直書きしていない。
+      ピルの二重表示テストは組B 固有＝組D は無関係。</td></tr>
+  <tr><td><b>正本モックへの差し戻し</b></td><td>3 箇所</td>
+    <td>§3 の入口表に 1 行（組D）／§4 に 7 枚目の文言／§8 のフラグ表に 1 行。
+      <b>§2 の判定表と §8 の「作らないもの」は 2026-09-04 に反転済み</b>（この頁と同じコミット）。</td></tr>
+</table>
+
+<!-- ============================================================ 波及メモ -->
+<div class="sec">波及メモ</div>
+<div class="notes">
+
+  <div class="note bad"><h3>⚠️ この面は「背景が描き切ってから出す」が最も守りにくい（案A・案C 共通）</h3>
+    正本 §8 の「置きかた」は<b>背景が描き切ってから出す</b>を要件にしている（組B は
+    <code>deferHeavyContent</code> が閉じてから／組C は検索画面が描かれてから）。
+    <b>この画面には対応する信号が無い</b>——WebView は
+    <code>onPageCommitVisible</code>（初描画）で自動送りの JS を投げるが、
+    <b>Kotlin 側はスクロールが終わったことを知らない</b>（<code>evaluateJavascript</code> の結果を受けていない）。<br>
+    ▶ <b>現実的な最良点</b>＝<code>onPageCommitVisible</code> かつ <code>menuUrlRegex</code> 一致で出す
+    （＝自動送りと同時）。<b>それ以上を望むなら JS からコールバックを返す仕掛けが要る</b>が、
+    それは注入 JS の役割を「ビューポート移動のみ」から広げる話になり、<b>ADR 0010/0011 の線に触れる</b>ので
+    <b>この便では踏み込まない</b>（踏み込むなら別 ADR）。<br>
+    ▶ <b>裁定材料</b>: カードが載る瞬間、背後は<b>まだ目次の上の方</b>のことがある。
+    案A の文言「開いた位置にある ［縦書きPDF］ の枠から」は<b>カードを閉じた後の状態</b>を指しており、
+    その時点では自動送りが終わっている（スクロールはカードの下で進む）。<b>モックでは確かめられない</b>ので
+    <b>実機の二段検分</b>で見る（visual-language 恒久ルール5）。
+  </div>
+
+  <div class="note good"><h3>ADR 0042 の穴が同時に塞がる（案A・案C）</h3>
+    「ここからは小説家になろうのページです」のダイアログは <code>NarouExternalPageNoticeHost</code> が持ち、
+    呼び手は <code>WebReaderScreen.kt:205</code> の<b>1 箇所だけ</b>＝<b>web-reader ルート専用</b>。
+    <b>取り込み画面も等しくなろうの面なのに、境界を名乗るものが無い</b>。<br>
+    ADR 0042 の KDoc は「アプリ内 WebView へは<b>ただ 1 つのルート</b>を通ってしか入れない（MainActivity の grep で
+    全数確認）」と書いているが、<b>これは「なろうで読む」の入口についての全数確認</b>で、
+    <b>取り込み画面という別のなろう面は勘定に入っていない</b>（＝当時の確認が誤りだったのではなく、
+    数えた対象が違う）。<br>
+    ▶ <b>選択肢は 2 つ</b>: ①案A の項目1 で受ける（<b>1 枚で 2 つの穴を塞ぐ</b>）
+    ②取り込み画面にも <code>NarouExternalPageNoticeHost()</code> を置く（<b>別便・ADR 0042 の追補</b>）。
+    ②を採るなら案A の項目1 は<b>重複するので落とす</b>——<b>同じことを 2 回言わない</b>（規則2）。
+    <span style="color:#8A4B44">⚠️ どちらか一方に決めること。両方入れると、初回だけダイアログとカードが連続して出る。</span>
+  </div>
+
+  <div class="note"><h3>設定＞操作の説明の「通し」が 7 枚になる</h3>
+    案A を採ると、設定から通しで読む人は<b>組A 3 枚 → 組B 2 枚 → 組C 1 枚 → 組D 1 枚</b>を続けて読む。
+    点は組ごとにリセットなので<b>●○○ → ●○ → なし → なし</b>となり、
+    <b>点の無い回が 2 つ続く</b>（正本 §3 は「点の不在がそのまま『これで終わり』の合図」と書いている）。<br>
+    ▶ <b>合図が 1 回鈍る</b>のが代償。組C と組D はどちらも 1 枚なので、通しの終盤で「あと何枚あるか」が読めなくなる。<br>
+    ▶ <b>採りうる手当ては 2 つ</b>: ①<b>何もしない</b>（終端ボタンが ［とじる］ に変わるので、押す直前には分かる）
+    ②組C と組D を<b>1 つの組にまとめる</b>（＝「さがす／つくる」を 2 枚 1 組にし、点を ●○ で打つ）。
+    <span style="color:#4A4C47">②は<b>出す条件が別画面</b>（検索画面／取り込み画面）なので、組＝出す単位という
+    §3 の定義に反する。<b>①を推す</b>が、通しの見えは監督の目視裁定に委ねる。</span>
+  </div>
+
+  <div class="note"><h3>「毎回通る画面」であることが案B の致命傷になる理由</h3>
+    組A（初回の空棚）・組B（本文初回）・組C（検索初回）は<b>いずれも通算 1 回だけの面</b>だが、
+    取り込み画面は<b>取り込む作品の数だけ通る</b>。よって恒常の帯は
+    <b>「理解した後にコストへ変わる」（却下 C-3）が最も多く起きる場所</b>になる。<br>
+    逆に言えば、<b>初回だけ出るもの（案A・案C）はここでは特に安い</b>——2 冊目以降は 1 画素も使わない。
+    <b>層の判定と使用頻度が同じ向きを指している</b>ので、ここは迷わなくてよい。
+  </div>
+
+  <div class="note"><h3>この頁で振っていない軸</h3>
+    ・<b>自動送りの寄せ位置</b>（<code>AUTO_SCROLL_BLOCK = "center"</code>／代替 <code>"nearest"</code>）は
+      <b>触っていない</b>。2026-09-04 の実機所感で <code>"start"</code> から <code>"center"</code> へ既に直った軸で、
+      説明を置くかどうかとは別の裁定（同時に 2 軸動かすと効いた方が分からない）。<br>
+    ・<b>取り込みの仕組みそのもの</b>（なろうのページを無加工で開く・生成ボタンは毎回ユーザーが押す）は
+      <b>設計上の守り</b>＝ADR 0011「維持する設計上の守り」②。<b>説明を足すだけで、押す主体は変えない。</b><br>
+    ・<b>失敗時の文言</b>（<code>PdfImportUiState.Error</code> の下端メッセージ）も触っていない。
+  </div>
+
+</div>
+
+</body>
+</html>
