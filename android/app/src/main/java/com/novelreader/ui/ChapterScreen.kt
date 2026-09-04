@@ -396,6 +396,16 @@ internal fun ChapterScreen(
     }
     var showChromeHint by remember { mutableStateOf(false) }
 
+    // ────── 「最上部へ」ピルの初回ラベル（2026-09-05 裁定・案S4 の手当）──────
+    // ピルはアイコンのみ（視覚の器 32dp）へ縮んだ。記号だけで通じる条件のうち「一度は語で見せてある」を
+    // これが担う＝**アプリ通算初回だけ**ラベル付きで出す。prefs の所有は復帰ヒントと同じくここ（route）。
+    // なぜ同じ chromeHintPrefs（app_prefs）へ相乗りするか: 読書設定の単一置き場という既存の約束を崩さない。
+    // ⚠️ 焼くタイミングの判断は描画層が持つ（「出きって、そのあと消えた」＝ChapterScreenContent の why）。
+    //    ここは読み書きだけを持つ＝復帰ヒントで確立した所有の分け方をそのまま踏襲する。
+    var topPillLabelShown by remember {
+        mutableStateOf(chromeHintPrefs.getBoolean(PrefKeys.TOP_PILL_LABEL_SHOWN, false))
+    }
+
     // ────── 教示「はじめに」組B（本文初回の 2 枚）──────
     // 出すのは背景が描き切ってから＝push 遷移窓（deferHeavyContent）が閉じてから。窓中に載せると
     // 説明の対象（本文）がまだ骨のままで、カードだけが浮く（正本モック §8「置きかた」）。
@@ -467,6 +477,14 @@ internal fun ChapterScreen(
             scrollBehavior = scrollBehavior,
             barsVisualReady = barsVisualReady,
             showChromeHint = showChromeHint,
+            topPillLabelShown = topPillLabelShown,
+            onTopPillLabelShown = {
+                // 再入は無害だが prefs 書き込みを毎回走らせない（描画層は消えるたびに呼びうる）。
+                if (!topPillLabelShown) {
+                    topPillLabelShown = true
+                    chromeHintPrefs.edit().putBoolean(PrefKeys.TOP_PILL_LABEL_SHOWN, true).apply()
+                }
+            },
         ),
         // 章ナビは route が tocEntries から算出する（隣章・活性条件・章位置）。
         nav = ChapterNav(

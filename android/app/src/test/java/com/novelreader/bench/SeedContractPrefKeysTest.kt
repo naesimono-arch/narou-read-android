@@ -107,6 +107,19 @@ class SeedContractPrefKeysTest {
         // その時点で面が値に依存する＝knownUnpinnedSurface か mustPin へ移すこと。
         "BACKUP_OPT_IN",
         "IMMERSIVE_HINT_SHOWN",
+        // 「最上部へ」ピルの初回ラベル（2026-09-05 新設）。**mustPin ではなく neutral**——
+        // このフラグが変えるのはピルの器の幅（語つき ≒96dp ⇄ アイコンのみ 32dp）だけで、しかも
+        // **どのベンチもピルを一度も描かない**。根拠3点（2026-09-05 実測）:
+        //  (a) ピルの出現条件の第1項は「クローム表示中」（NativeReadingScreen の chromeVisibleForPill）。
+        //      章へ入ると ChapterScreen の初期退避（didInitialCollapse）でクロームは必ず畳まれ、
+        //      戻すのは**本文中央のタップだけ**。:macrobenchmark の click() は 3 本とも本棚の書影に対してで、
+        //      本文をタップするコードが 0 件＝クロームは測定中ずっと畳まれたまま。
+        //  (b) よって第2項（章の3割以上）を ChapterFlipBenchmark の縦書きスワイプが満たしても、
+        //      AND の第1項が false のままでピルは出ない。
+        //  (c) ピルが出ない以上、ラベルの有無は描画枚数にも着地判定にも一切出ない。
+        // ⚠️ 本文タップでクロームを出すベンチ（没入の出没を測る類）を足したら、その時点で
+        //     knownUnpinnedSurface か mustPin へ移すこと。
+        "TOP_PILL_LABEL_SHOWN",
         "BATTERY_DIALOG_DISMISSED",
         "NOTIF_PRIMING_SHOWN",
         // なろう外部ページの一度きり注意喚起（ADR 0042）。上の KDoc の但し書き——「一度きりの案内

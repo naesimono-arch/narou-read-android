@@ -90,6 +90,9 @@ class NativeReadingScreenA11yTest {
                     scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(topAppBarState),
                     barsVisualReady = true,
                     showChromeHint = false,
+                    // 初回ラベルは既定（未消費＝語つき）で置く。本テストの関心事ではない。
+                    topPillLabelShown = false,
+                    onTopPillLabelShown = {},
                 ),
                 nav = ChapterNav(
                     prevFile = prevFile,

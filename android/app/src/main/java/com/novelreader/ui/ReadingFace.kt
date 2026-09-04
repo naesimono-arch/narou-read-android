@@ -124,6 +124,12 @@ internal data class ChapterNav(
  *   隠す（route が算出）。M3 の不変式（layout 高 = 実高 + heightOffset）に縛られ state 側で先に畳めないため、
  *   退避完了までの見た目は描画側の alpha ゲートで隠す。
  * @property showChromeHint 没入クローム復帰ヒント（アプリ通算初回の消灯時に数秒だけ出す一過性ラベル）。
+ * @property topPillLabelShown 「最上部へ」ピルのラベルを通算初回に見せ切ったか（true＝以後アイコンのみ）。
+ *   2026-09-05 裁定（案S4）でピルはアイコンのみへ縮んだので、「一度は語で見せてある」をこの pref が担う。
+ *   ⚠️ prefs の読み書きは route（[ChapterScreen]）が持つ＝復帰ヒント（[showChromeHint]）と同じ所有の型。
+ * @property onTopPillLabelShown ラベルを見せ切ったことを route へ伝える（route が prefs へ焼く）。
+ *   ⚠️ 呼ぶのは**ピルが出きって、そのあと画面から消えた**時点。表示中に呼ぶと pref の反転がそのまま
+ *   画面に出て、読者の目の前で語が消え器が縮む（呼び出し側の why を参照）。
  */
 @Stable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -133,6 +139,8 @@ internal data class ReadingChrome(
     val scrollBehavior: TopAppBarScrollBehavior,
     val barsVisualReady: Boolean,
     val showChromeHint: Boolean,
+    val topPillLabelShown: Boolean,
+    val onTopPillLabelShown: () -> Unit,
 )
 
 /**

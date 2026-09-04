@@ -17,10 +17,13 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.LocalOverscrollConfiguration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -28,6 +31,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
@@ -81,6 +85,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -804,6 +809,8 @@ internal fun ChapterScreenContent(
     val scrollBehavior = chrome.scrollBehavior
     val barsVisualReady = chrome.barsVisualReady
     val showChromeHint = chrome.showChromeHint
+    val topPillLabelShown = chrome.topPillLabelShown
+    val onTopPillLabelShown = chrome.onTopPillLabelShown
     val prevFile = nav.prevFile
     val nextFile = nav.nextFile
     val navEnabled = nav.navEnabled
@@ -1693,8 +1700,53 @@ internal fun ChapterScreenContent(
                 total > 0 && lazyListState.firstVisibleItemIndex * 10 >= total * 3
             }
         }
+        // ────── A1（2026-09-05 裁定・比較モック candidates/reading-toppill-occlusion-candidates.html）──────
+        // スクロール中は**ピルだけ**退場する。読んでいるまさにその瞬間の被覆を 0 にするのが狙いで、
+        // 止まれば戻る＝「ピルが要る時」と「本文が要る時」を時間で分ける。
+        //
+        // ⚠️ **バーの挙動は変えない**（裁定の外）。上下バーの出没は画面タップのトグルのままで、
+        // [scrollBehavior] は heightOffsetLimit の測定用に持っているだけ＝nestedScroll へ繋いでいない。
+        // ここでバーまでスクロール連動にすると没入の設計そのものが別物になる。
+        //
+        // ⚠️ この軸の意味は途中で変わっている。当初は「本文を読んでいる間は出さない」と読んでいたが、
+        // 実装を読むと**クロームはスクロールで自動退避しない**（自動なのは章入場時の初期退避 1 回だけ）＝
+        // ピルが本文を覆うのは**読者が自分でクロームを出した状態**に限られる。つまり A1 が救うのは
+        // 「クロームを出したまま読み続ける人」であって、没入で読んでいる人はそもそも被覆を受けていない。
+        //
+        // なぜ derivedStateOf か: isScrollInProgress は boolean だが、読む場所がこの Content スコープなので
+        // 反転時だけ recompose させる定石へ揃える（本棚 showBand・敷居光・上の pastThreshold と同型）。
+        val scrollIdle by remember(lazyListState) {
+            derivedStateOf { !lazyListState.isScrollInProgress }
+        }
+
+        // ピルの**実寿命**（入退場アニメを含む）。復帰ヒント→取っ手の受け渡しで確立した同ファイルの作法と
+        // 同じ理由で必要になる: targetState=false は退場アニメの*開始*しか意味せず、currentState だけが
+        // 「まだ画面に居る／出きった」を表す。初回ラベルを焼く判断（下）がこの区別に依存する。
+        val topPillState = remember { MutableTransitionState(false) }
+        topPillState.targetState = chromeVisibleForPill && pastThreshold && scrollIdle
+
+        // ────── 初回だけラベル（2026-09-05 裁定・案S4 の手当）──────
+        // アイコンのみで通じるための条件は3つ（①標準語彙のアイコン ②同画面に紛れる別アイコンが無い
+        // ③一度は語で見せてある）で、③をこのフラグが作る。②は下端バーの4項目が全てラベル付きなので
+        // 満たさない＝「面の中の恒久ボタンは語で／本文の上に浮く一時的な器は記号で」と規則を書き分けて
+        // 正当化する（正本 reading-backtotop-D.html の why が本文）。
+        //
+        // ⚠️ 焼くのは「**出きって、そのあと画面から消えた**」時点。表示中に焼くと pref の反転がそのまま
+        // 画面に出て、**読者の目の前で語が消えて器が縮む**。A1 でピルは頻繁に出入りするので、この差は
+        // 実際に見える（「出た瞬間に焼く」だと指送りの合間に一瞬出ただけで語が二度と出なくなる問題も併発する）。
+        var topPillWasFullyShown by remember { mutableStateOf(false) }
+        LaunchedEffect(topPillState.isIdle, topPillState.currentState) {
+            if (topPillState.isIdle && topPillState.currentState) {
+                topPillWasFullyShown = true
+            } else if (topPillState.isIdle && !topPillState.currentState && topPillWasFullyShown) {
+                onTopPillLabelShown()
+            }
+        }
+        // ラベルを出すか。pref が焼かれるのはピルが画面から消えた後なので、表示中にこの値は反転しない。
+        val topPillShowsLabel = !topPillLabelShown
+
         AnimatedVisibility(
-            visible = chromeVisibleForPill && pastThreshold,
+            visibleState = topPillState,
             enter = fadeIn(tween(MotionDurationCrossfade)),
             exit = fadeOut(tween(MotionDurationCrossfade)),
             modifier = Modifier
@@ -1702,53 +1754,92 @@ internal fun ChapterScreenContent(
                 // 下端バーの実測高さ＋S12 で「バー直上」に浮かべる（バー高はナビバー実高で変わるため実測値）。
                 .padding(bottom = with(LocalDensity.current) { bottomBarHeightPx.toDp() } + Spacing.S12),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.S4),
+            // ────── S4（2026-09-05 裁定）＝見える器と当たり判定を分ける ──────
+            // 外側の Box が**タップ標的 48dp**（透明・地も枠も持たない）、内側の Row が**視覚の器 32dp**。
+            // ⚠️ 48dp は Material の最小タップ標的（2026-09-03 裁定）で、**器を縮めても割ってはいけない**。
+            // 「器も標的も 34dp へ」（案S5）は規範割れとして裁定で落ちている。標的が器と一緒に縮む退行は
+            // 見た目に出ないので、[NativeReadingScreenTopPillTest] が寸法を両方向で機械固定する。
+            // なぜ ripple を内側へ付け替えるか: clickable を外側の 48dp に置いたまま既定の indication を
+            // 使うと、**見えているピルより一回り大きい輪**が波紋として出る（器を縮めた意味が薄れる）。
+            // interactionSource だけ外へ、描画は内側の器の clip の中へ、と分けて浮遊物の輪郭に揃える。
+            val pillInteraction = remember { MutableInteractionSource() }
+            Box(
+                contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    // 最小高 48dp＝Material の最小タップ標的（2026-09-03 裁定・正本6ファイルへ追記済み）。
-                    .heightIn(min = 48.dp)
-                    // 地＝α.78（2026-09-04 裁定・比較モック reading-toppill-translucency-candidates.html 案D／
-                    // 正本 reading-backtotop-D `.toppill`）。提起理由は 2026-09-04 に訂正されている＝
-                    // 旧「他2ピルと器が揃わず独りだけ板に見える」（器の一貫性）ではなく
-                    //「**不透明だから本文が隠れてしまう**」（本文の見え量）。
-                    // 旧実装が不透明だった why は残す: 2026-07-17 に「α.92 の地は暗色スキン J(#101913) で
-                    // 背後の章末mark(明色)が透けて字とだぶる」ため不透明へ倒した。⚠️ 2026-09-04 に実測して
-                    // 分かったのは、あれは**だぶり**であって**コントラスト不足ではない**こと＝下限は明色側が
-                    // 先に来る（J は α.70 でも 4.78:1）。だぶりは 1px ヘアライン枠＋淡影で輪郭を立て直して抑える。
-                    .readingChromePillSurface(
-                        color = colors.navBackground,
-                        faceAlpha = ChromeTopPillAlpha,
-                    )
-                    // 1px ヘアライン枠（正本 `.toppill{border:1px solid var(--bar-line)}`＝divider トークン）。
-                    // α を下げると地との境が消えるので、枠は値とセット＝輪郭の主はこちらで、影は補助。
-                    .border(1.dp, colors.divider, RoundedCornerShape(50))
-                    // clip は枠より内側＝ripple を器の形へ収める（枠自身は clip の外なので欠けない）。
-                    .clip(RoundedCornerShape(50))
-                    // animateScrollToItem: 瞬間ジャンプは味気ないというユーザー所見（2026-07-16）で滑走化。
-                    // 遠距離は Lazy が目標近くまで内部で座標を寄せてから滑らかに着地する＝長章でも安全。
-                    .clickable(onClick = { scope.launch { lazyListState.animateScrollToItem(0) } })
-                    .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
+                    .sizeIn(minWidth = TopPillTouchTarget, minHeight = TopPillTouchTarget)
+                    .clickable(
+                        interactionSource = pillInteraction,
+                        indication = null,
+                        // animateScrollToItem: 瞬間ジャンプは味気ないというユーザー所見（2026-07-16）で滑走化。
+                        // 遠距離は Lazy が目標近くまで内部で座標を寄せてから滑らかに着地する＝長章でも安全。
+                        onClick = { scope.launch { lazyListState.animateScrollToItem(0) } },
+                    ),
             ) {
-                Icon(
-                    imageVector = Icons.Filled.VerticalAlignTop,
-                    contentDescription = null, // 隣のテキストが意味を担う（重複読み上げ回避）
-                    // 正本 reading-backtotop-D `.toppill svg{stroke:var(--ink)}`＝字と同じ --ink。
-                    tint = colors.text,
-                    modifier = Modifier.size(16.dp),
-                )
-                Text(
-                    text = "最上部へ",
-                    // 正本 `.toppill` は --ink（＝text）。純表示の復帰ヒント（--soft）と使い分ける。
-                    color = colors.text,
-                    // 案A（2026-09-03 裁定）＝11px ゴシックへ。詳細は復帰ヒント側のコメント。
-                    fontFamily = GothicFamily,
-                    fontSize = FontLabel,
-                    // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、上下 S8 のピルが
-                    // 44dp まで膨れる（ピルは行箱の外周をそのままなぞる器）。正本はいずれも
-                    // line-height 未指定＝normal（ゴシック実測 1.6）なので 11sp × 1.6 ＝ 17.6sp。
-                    lineHeight = 17.6.sp,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.S4),
+                    modifier = Modifier
+                        // 視覚の器＝32dp（案S4）。アイコンのみのときはこの値ちょうど（16dp ＋ 上下の余りが
+                        // 中央寄せで吸収される）。
+                        // ⚠️ **固定寸ではなく下限**にしてある。語つき（通算初回）は 11sp の字面がフォントの
+                        // 上下余白ごと積まれて 36dp になる＝2026-09-05 のゲートで実測。ここを height() で
+                        // 32dp に固定すると、字が大きい端末設定（FontLabel は sp＝ユーザー倍率が乗る）で
+                        // 語が欠ける。器が数 dp 伸びる代償のほうが軽い。
+                        // なお 32⇄36 の切り替わりは**ピルが画面から消えている間**に起きる（ラベルを焼くのは
+                        // 退場しきった後＝下の why）ので、読者の目には高さの跳ねとして映らない。
+                        .heightIn(min = TopPillVisualHeight)
+                        // なぜ testTag か: 「見える器は 32dp・タップ標的は 48dp」という**2枚重ねの寸法**は
+                        // semantics には外側（標的）しか出ない＝内側が 48dp へ戻る退行を検知できない。
+                        // 器の側を掴む手がかりをここに置いて、両方の寸法をテストで固定する。
+                        .testTag(ReadingTopPillFaceTag)
+                        // 地＝α.78（2026-09-04 裁定・比較モック reading-toppill-translucency-candidates.html 案D／
+                        // 正本 reading-backtotop-D `.toppill`）。提起理由は 2026-09-04 に訂正されている＝
+                        // 旧「他2ピルと器が揃わず独りだけ板に見える」（器の一貫性）ではなく
+                        //「**不透明だから本文が隠れてしまう**」（本文の見え量）。
+                        // 旧実装が不透明だった why は残す: 2026-07-17 に「α.92 の地は暗色スキン J(#101913) で
+                        // 背後の章末mark(明色)が透けて字とだぶる」ため不透明へ倒した。⚠️ 2026-09-04 に実測して
+                        // 分かったのは、あれは**だぶり**であって**コントラスト不足ではない**こと＝下限は明色側が
+                        // 先に来る（J は α.70 でも 4.78:1）。だぶりは 1px ヘアライン枠＋淡影で輪郭を立て直して抑える。
+                        .readingChromePillSurface(
+                            color = colors.navBackground,
+                            faceAlpha = ChromeTopPillAlpha,
+                        )
+                        // 1px ヘアライン枠（正本 `.toppill{border:1px solid var(--bar-line)}`＝divider トークン）。
+                        // α を下げると地との境が消えるので、枠は値とセット＝輪郭の主はこちらで、影は補助。
+                        .border(1.dp, colors.divider, RoundedCornerShape(50))
+                        // clip は枠より内側＝ripple を器の形へ収める（枠自身は clip の外なので欠けない）。
+                        .clip(RoundedCornerShape(50))
+                        // 波紋は外側 48dp の標的ではなく**見えている器**の中だけで鳴らす（上の why）。
+                        .indication(pillInteraction, LocalIndication.current)
+                        // 左右の余白は語の有無で変わる（アイコンのみ＝S8 で 8+16+8＝32dp の正方形／
+                        // 語つき＝正本どおり S16）。上下は器の 32dp と中央寄せが担うので持たない。
+                        .padding(horizontal = if (topPillShowsLabel) Spacing.S16 else Spacing.S8),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.VerticalAlignTop,
+                        // 語が出ているときは隣のテキストが意味を担う（重複読み上げ回避）。語を消した後は
+                        // **アイコンが唯一の意味の担い手**になるので、ここに読み上げ用の名前を移す
+                        //（移し忘れると TalkBack から「最上部へ」が完全に消える＝見た目には出ない退行）。
+                        contentDescription = if (topPillShowsLabel) null else "最上部へ",
+                        // 正本 reading-backtotop-D `.toppill svg{stroke:var(--ink)}`＝字と同じ --ink。
+                        tint = colors.text,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    if (topPillShowsLabel) {
+                        Text(
+                            text = "最上部へ",
+                            // 正本 `.toppill` は --ink（＝text）。純表示の復帰ヒント（--soft）と使い分ける。
+                            color = colors.text,
+                            // 案A（2026-09-03 裁定）＝11px ゴシックへ。詳細は復帰ヒント側のコメント。
+                            fontFamily = GothicFamily,
+                            fontSize = FontLabel,
+                            // 行箱を明示する理由: 未指定だと bodyLarge の 28sp を継承し、器が 44dp まで膨れる
+                            //（ピルは行箱の外周をそのままなぞる器）。正本はいずれも line-height 未指定＝normal
+                            // （ゴシック実測 1.6）なので 11sp × 1.6 ＝ 17.6sp。
+                            lineHeight = 17.6.sp,
+                        )
+                    }
+                }
             }
         }
 
@@ -1839,6 +1930,20 @@ internal fun immersiveHandleVisible(
     // 入場方向（target=true になった瞬間）は idle が false へ落ちるので、この式は**同じフレームで**
     // false を返す＝取っ手は従来どおり即座に消える（ピルが淡入するより先に場所を空ける）。
     barsVisualReady && hintIdle && !hintCurrentlyShown
+
+/**
+ * 「最上部へ」ピルの**見える器**（32dp 側）を掴むための testTag。標的（48dp）は clickable の semantics で
+ * 掴めるが、器の側は semantics に出ないため（[NativeReadingScreenTopPillTest] の寸法固定に使う）。
+ */
+internal const val ReadingTopPillFaceTag = "reading_top_pill_face"
+
+// 「最上部へ」ピルの寸法（2026-09-05 裁定・案S4／正本 reading-backtotop-D.html `.toppill`）。
+// ⚠️ この2つは**別の役目**で、揃えてはいけない。[TopPillVisualHeight] は目に見える器（本文をどれだけ
+// 覆うかを決める）、[TopPillTouchTarget] は Material の最小タップ標的（2026-09-03 裁定の下限）。
+// 器を縮めた副作用で標的まで縮む退行が最も起きやすく、しかも見た目には出ない＝
+// [com.novelreader.ui.NativeReadingScreenTopPillTest] が両方を機械で固定している。
+private val TopPillVisualHeight = 32.dp
+private val TopPillTouchTarget = 48.dp
 
 private val ImmersiveHandleWidth = 46.dp
 private val ImmersiveHandleHeight = 3.dp

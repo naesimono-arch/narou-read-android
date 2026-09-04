@@ -93,13 +93,67 @@
         `ReadingChromePillSurfaceTest` が実際に画素へ描いて〈内側は濁らない／外側には影が在る〉の両方向で見る。
         ⚠️ 暗面の影の濃さは**この正本が値を持たない**（比較モックの J 列 `.45` は比較用の頁の値）ので、
         実装は全スキンで D の `.08` を敷いてある。暗面専用の影が要るなら先にモックを起こすこと。 */
+  /* ---- 出現条件（2026-09-05 裁定・案A1 を**足した**）------------------------------------------
+     現行 ①クローム表示中 ②章の3割以上（2026-07-16 実機較正）に、③**スクロールしていない**を足す。
+     ⚠️ **足すのであって置き換えない**。①を外すと没入中にもピルが出て、下端 16px の「没入の取っ手」
+        （層②）と再衝突する（2026-09-03 に復帰ヒントと取っ手が 5px まで詰まった事故と同型）。
+        ②を外すと「章頭では戻る意味が無くただの浮遊物」という 2026-07-16 の裁定に反する。
+     ⚠️ **動くのはピルだけで、バーは動かさない**。上下バーの出没は画面タップのトグルのままで、
+        スクロール連動にはしない（実装の scrollBehavior は heightOffsetLimit の測定用で nestedScroll
+        未接続＝現状もバーはスクロールで動かない）。ここを繋ぐと没入の設計そのものが別物になる。
+     ⚠️ この軸の**意味が途中で変わっている**ので書き残す: 当初は「本文を読んでいる間は出さない」と
+        読んでいたが、実装を読むと**クロームはスクロールで自動退避しない**（自動なのは章入場時の初期退避
+        1回だけ）＝ピルが本文を覆うのは**読者が自分でクロームを出した状態**に限られる。つまり A1 が
+        救うのは「**クロームを出したまま読み続ける人**」であって、没入で読んでいる人は元から被覆ゼロ。
+     戻す手段: クローム自体は消えないので本棚へは上端バーの戻る矢印から常に到達できる。失うのは
+        「最上部へ」への到達だけで、代替は 目次 →同じ章を選び直す（章頭へ着地）＝3タップ。 */
+
+  /* ---- 3ピルと下端バーの規則（2026-09-05・**4か所目の割れ**をここで正当化する）-----------------
+     「最上部へ」だけがアイコンのみになる＝3ピル（復帰ヒント／続きに戻る／最上部へ）の同型が崩れる。
+     ⚠️ ただし同型はすでに3か所で割れている: 地の透過（.78＋枠＋影 ⇄ 他2枚は α.92・枠なし）／
+        アイコンの有無（このピルだけ持つ）／出現条件（このピルだけ条件つき）。今回が4か所目。
+     **書き分けの規則**（透過で使った「バーは面・ピルは浮遊物」を一段細かくしたもの）:
+       **通算1回きりの教示ピル（復帰ヒント）は語で説明する。何度も再出現する操作ピル（最上部へ）は
+         最小の記号でよい。**
+     根拠＝復帰ヒントは通算1回しか出ないので語のコストを払う価値がある。最上部へは章の3割以降ずっと
+     出続けるので、毎回同じ4字を読ませる必要が無い（読者はもう知っている）。「続きに戻る」は参照
+     ジャンプ中だけ・**上端**＝本文の行頭側に居るので被覆の痛みが違う（下端は読み進む先）。
+     ⚠️ **下端バーとの割れのほうが目に付く**: バーの4項目（前章／目次／表示設定／次章）は全てアイコン＋
+        ラベルなので、ピルだけが裸のアイコンになる。これも同じ書き分けで説明する——
+        **バーは面の中の恒久ボタン（初見の可読性が最優先）／ピルは本文の上に浮く一時的な器（最小である
+        ことが最優先）**。透過のときに「面 vs 浮遊物」で値を割った先例と一貫している。
+     ⚠️ 他2ピルは **α.92・語つきのまま**＝今回の裁定は「最上部へ」1個だけに効く。3枚を揃えるかは
+        別項目「復帰ヒントの色が AA 未達」の裁定が先に来ると前提が変わるため保留（透過裁定と同じ扱い）。
+     ⚠️ 一次情報＝比較モック candidates/reading-toppill-occlusion-candidates.html（器・出現・位置の3軸を
+        面積と字数で比較。採らなかった案とその理由もそこに残してある）。 */
   .toppill{position:absolute;left:50%;bottom:74px;transform:translateX(-50%);z-index:6;
     display:flex;align-items:center;gap:6px;font-family:var(--gothic);font-size:11px;color:var(--ink);
     letter-spacing:.08em;background:rgba(251,250,248,.78);border:1px solid var(--bar-line);
-    border-radius:999px;padding:8px 16px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.08);
-    /* 最小高 48px＝Material の最小タップ標的（2026-09-03 裁定）。字面 11px × 1.6 ＋ 上下 8px は
-       33.6px で届かないので器側に持たせる（display:flex＋align-items:center が中央に置く）。 */
-    min-height:48px;justify-content:center}
+    border-radius:999px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.08);
+    /* ---- 見える器＝32px 角（2026-09-05 裁定・案S4）----
+       アイコンのみ＝左右 8px ＋ アイコン ＝ 32px。上下も 32px（余りは align-items:center が吸収）。
+       ⚠️ 旧記述（2026-09-03）は「min-height:48px＝Material の最小タップ標的を器側に持たせる」だった。
+          **消さずに書き換える**: 48px は今も下限のままだが、それを担うのは器ではなく下の ::after
+          （透明な当たり判定）＝**見える器と当たり判定を分けた**。器を 48→32 に縮めたのは本文の被覆を
+          7.3字→1.6字（−79%）へ落とすためで、48px を割ったのではない。
+       ⚠️ 高さは**下限であって固定寸ではない**。語つき（下の .first）は 11px の字面がフォントの上下余白ごと
+          積まれて実測 36px になる（2026-09-05 の Compose 側ゲートで判明）。32px に固定すると、字を
+          大きくした端末設定で語が欠ける＝伸びる側を正とした。 */
+    min-height:32px;min-width:32px;padding:0 8px;justify-content:center}
+  /* ---- 透明なタップ標的＝48px（2026-09-03 裁定の下限。器を縮めても**ここは縮めない**）----
+     見えないので目視では確かめられない＝比較モック candidates/reading-toppill-occlusion-candidates.html
+     が点線で可視化し、Compose 側は NativeReadingScreenTopPillTest が器 32px と標的 48px を両方向で固定する。
+     ⚠️ 「器も標的も 34px へ詰める」（案S5）は規範割れとして裁定で落ちている＝ここを 32px に揃えないこと。 */
+  .toppill::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:max(100%,48px);height:48px;border-radius:999px}
+  /* ---- 通算初回だけ語つき（案S4 の手当）----
+     アイコンのみで通じる条件は3つ（①標準語彙のアイコン ②同画面に紛れる別アイコンが無い
+     ③一度は語で見せてある）で、③をこの状態が作る。②は下端バーの4項目が全てラベル付きなので満たさない
+     ——その割れの正当化は下の「3ピルと下端バーの規則」を参照。
+     一度見せ切ったら以後はアイコンのみ（prefs `top_pill_label_shown`）。 */
+  .toppill.first{padding:0 16px}
+  .toppill .lbl{display:none}
+  .toppill.first .lbl{display:inline}
   .toppill svg{width:14px;height:14px;stroke:var(--ink);fill:none;stroke-width:1.8}
 </style>
 </head>
@@ -174,7 +228,7 @@
         <div class="blank"></div><hr><div class="blank"></div>
         <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
       </div>
-      <button class="toppill" aria-label="この章の最上部へ"><svg viewBox="0 0 24 24"><line x1="6" y1="5" x2="18" y2="5"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg>最上部へ</button>
+      <button class="toppill" aria-label="最上部へ"><svg viewBox="0 0 24 24"><line x1="6" y1="5" x2="18" y2="5"/><polyline points="7 13 12 8 17 13"/><line x1="12" y1="8" x2="12" y2="20"/></svg><span class="lbl">最上部へ</span></button>
       <div class="bottombar">
         <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
         <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
@@ -182,7 +236,7 @@
         <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
       </div>
     </div>
-    <span class="sub">復帰ヒント・続きに戻ると同型のピル＝新意匠を発明しない。バー本体は4分割のまま無傷。ただし「続きに戻る」（参照ジャンプ中・上端）と親類の型が上下に増える点と、ピルの浮遊が黒衣の静けさを僅かに削る点が緊張。</span></div>
+    <span class="sub">復帰ヒント・続きに戻ると同型のピル＝新意匠を発明しない。バー本体は4分割のまま無傷。<b>2026-09-05 裁定で器はアイコンのみ・32px へ縮んだ</b>（本文の被覆 7.3字→1.6字）。当たり判定は透明のまま 48px。上の絵は<b>通算2回目以降の姿</b>で、初回だけ語つき（<code>.first</code>）で出る。<b>スクロール中は退場し、止まると戻る</b>（A1・静止画では出せないので比較モックのタイムラインを参照）。</span></div>
 
   </div>
 </body>

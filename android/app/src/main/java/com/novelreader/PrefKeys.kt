@@ -89,6 +89,17 @@ object PrefKeys {
      */
     const val IMMERSIVE_HINT_SHOWN = "immersive_hint_shown"
 
+    /**
+     * 「最上部へ」ピルのラベルを一度でも見せ切ったか（Boolean・初回のみ語を出す）。
+     *
+     * 2026-09-05 裁定（比較モック `candidates/reading-toppill-occlusion-candidates.html` 案S4）で
+     * ピルは**アイコンのみ・視覚の器 32dp**へ縮んだ。記号だけで通じるための条件のうち
+     * 「一度は語で見せてある」を満たすのがこのフラグ＝**通算初回だけラベル付きで出す**。
+     * ⚠️ 焼くのは「ピルが出きって、そのあと画面から消えた」時点（[com.novelreader.ui.ChapterScreenContent]）。
+     * 表示中に焼くと pref の反転がそのまま画面に出て、読者の目の前で語が消え器が縮む。
+     */
+    const val TOP_PILL_LABEL_SHOWN = "top_pill_label_shown"
+
     // ── app_prefs: 教示「はじめに」（ui/intro・2026-08-21 裁定／正本モック tutorial-onboarding-K.html §8）──
     // 4 本とも Boolean・未消費＝false。消費は「その組の最後のカードまで到達したうえで閉じた／次の組へ
     // 進んだ時点」の 1 規則で統一する（途中で閉じた回は焼かない＝次の機会にまた出る）。
