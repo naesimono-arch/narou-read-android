@@ -50,7 +50,7 @@ class NovelDetailViewModel(application: Application) : AndroidViewModel(applicat
 
     private var loadedNcode: Ncode? = null
 
-    // load() された ncode の Flow 版。onShelf/isImported の購読切り替え（flatMapLatest）の起点にする。
+    // load() された ncode の Flow 版。onShelf/importedBookId の購読切り替え（flatMapLatest）の起点にする。
     private val ncodeFlow = MutableStateFlow<Ncode?>(null)
 
     /** 現在の作品が Web由来カードとして本棚に置かれているか（固定バーのトグル表示用）。
@@ -80,18 +80,24 @@ class NovelDetailViewModel(application: Application) : AndroidViewModel(applicat
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    /** 現在の作品が既に蔵書（PDF 取込済み・ncode 紐付け）か。
-     *  取込済みなら「取り込む」「本棚に置く」の2アクションは冗長のため固定バーから隠す（モック注記）。 */
+    /** 現在の作品が既に蔵書（PDF 取込済み・ncode 紐付け）なら、その蔵書の bookId。未取込なら null。
+     *  取込済みなら「取り込む」「本棚に置く」の2アクションは冗長のため固定バーから隠す（モック注記）。
+     *
+     *  ⚠️ **Boolean でなく id を持つ**（2026-09-04 裁定・案A）: 取込済みの主CTA「アプリで読む」は
+     *  その蔵書を読書画面で開くので、判定だけでなく**着地先の bookId** が要る。作品詳細が ncode しか
+     *  持たず bookId を持たないことが「取込済みなのに手元の本へ行けない」（＝この画面から蔵書への道が
+     *  ゼロ）の真因だったため、**判定と着地先を同じ突合1つから出す**（別経路で id を引くと、
+     *  「取込済みと言っているのに開けない」ずれが構造的に生まれる）。取込済みかは `!= null` で導出する。 */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val isImported: StateFlow<Boolean> = ncodeFlow
+    val importedBookId: StateFlow<String?> = ncodeFlow
         .flatMapLatest { nc ->
-            if (nc == null) flowOf(false)
+            if (nc == null) flowOf(null)
             else bookRepository.allBooks.map { books ->
                 // 表記ゆれ無視の同一作品判定は Ncode.sameWorkAs（storageKey 突合＝2026-07-27 に全流儀と統一）に集約。
-                books.any { it.ncode?.let { n -> Ncode(n).sameWorkAs(nc) } == true }
+                books.firstOrNull { it.ncode?.let { n -> Ncode(n).sameWorkAs(nc) } == true }?.id
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** 「本棚に置く/外す」トグル。Content 未取得（Loading/Error）では何もしない
      *  （置くのに必要な title/writer/話数が無く、ボタン自体も Content でしか出ない）。 */

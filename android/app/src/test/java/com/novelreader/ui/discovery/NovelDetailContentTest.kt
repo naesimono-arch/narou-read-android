@@ -10,6 +10,7 @@ import androidx.compose.ui.test.performClick
 import com.novelreader.discovery.model.workDetail
 import com.novelreader.discovery.model.workSummary
 import com.novelreader.viewmodel.NovelDetailUiState
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -33,6 +34,10 @@ class NovelDetailContentTest {
         uiState: NovelDetailUiState,
         onReadOnNarou: () -> Unit = {},
         onImportPdf: () -> Unit = {},
+        isImported: Boolean = false,
+        lastReadEpisode: Int = 0,
+        onResumeReading: () -> Unit = {},
+        onOpenImportedBook: () -> Unit = {},
     ) {
         composeTestRule.setContent {
             MaterialTheme {
@@ -43,10 +48,19 @@ class NovelDetailContentTest {
                     onUp = {},
                     onRetry = {},
                     onReadOnNarou = onReadOnNarou,
+                    lastReadEpisode = lastReadEpisode,
+                    onResumeReading = onResumeReading,
+                    isImported = isImported,
+                    onOpenImportedBook = onOpenImportedBook,
                 )
             }
         }
     }
+
+    private fun content() = NovelDetailUiState.Content(
+        novel = workDetail(summary = workSummary(title = "詳細作品", author = "作者名テスト")),
+        fetchedAtMillis = 0L,
+    )
 
     @Test
     fun `Loading状態はプログレスインジケータを描画する`() {
@@ -80,6 +94,48 @@ class NovelDetailContentTest {
         )
         composeTestRule.onNodeWithText("なろうで読む").performClick()
         assertTrue(read)
+    }
+
+    // ---- 案A（2026-09-04 裁定）: 取込済みの主CTA は手元の蔵書「アプリで読む」 ----
+    // なぜ固定するか: 取込済みの分岐は golden が1枚も撮っておらず（既知の穴）、ここが唯一の回帰網。
+    // 真因（作品詳細が bookId を持たず、取込済みでも全ボタンがなろうへ出る）が戻ったら落ちる形にする。
+
+    @Test
+    fun `取込済み・未読は主CTAがアプリで読むになりなろうで読むが副へ降りる`() {
+        setContent(content(), isImported = true)
+        composeTestRule.onNodeWithText("アプリで読む").assertIsDisplayed()
+        // なろう系は**降ろすが消さない**（アプリ自身の新着通知の着地がなろうの WebView だけのため）。
+        composeTestRule.onNodeWithText("なろうで読む").assertIsDisplayed()
+        // 取込済みでは取込とその周辺（本棚に置く）は冗長で消える＝スロットは2つのまま（総高137dp）。
+        composeTestRule.onNodeWithText("縦書きPDFを取り込む").assertDoesNotExist()
+        composeTestRule.onNodeWithText("本棚に置く").assertDoesNotExist()
+    }
+
+    @Test
+    fun `取込済み・既読でも主CTAはアプリで読むで副に「なろうで」が前置される`() {
+        setContent(content(), isImported = true, lastReadEpisode = 12)
+        composeTestRule.onNodeWithText("アプリで読む").assertIsDisplayed()
+        // 主が蔵書側へ移った以上、前置が無いと「第12話」が何の話数か言えない（手元の栞となろうの位置は別物）。
+        composeTestRule.onNodeWithText("なろうで第12話から").assertIsDisplayed()
+        composeTestRule.onNodeWithText("なろうの目次").assertIsDisplayed()
+        composeTestRule.onNodeWithText("縦書きPDFを取り込む").assertDoesNotExist()
+    }
+
+    @Test
+    fun `アプリで読むの押下でonOpenImportedBookが呼ばれる`() {
+        var opened = false
+        var narou = false
+        setContent(
+            content(),
+            isImported = true,
+            lastReadEpisode = 12,
+            onReadOnNarou = { narou = true },
+            onOpenImportedBook = { opened = true },
+        )
+        composeTestRule.onNodeWithText("アプリで読む").performClick()
+        assertTrue(opened)
+        // 主CTA がなろう側へ結線し直る退行（＝真因そのものの再発）を落とす。
+        assertFalse(narou)
     }
 
     // 縦書きPDF取り込みボタン（ADR 0011・仮意匠）の描画とコールバック結線がサイレント退行しないことを固定する。
