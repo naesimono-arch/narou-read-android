@@ -61,6 +61,15 @@ class JvmGoldenRegressionTest {
     fun n7668gf_singleChapterWithForewordAfterword_bodyExactMatch() =
         runOne(Fixture("N7668GF", exactBody = true))
 
+    // 前付けが2ページしかない極小作品（総4ページ＝表紙／注意事項／本文／クレジット）。
+    // 何を守るか＝**この修正が無ければ本文が1文字も残らない型**。旧実装は前付けを定数3ページで
+    // 切っていたため、処理対象ページが1枚も残らず段落0件になっていた（無作為標本42本中6本＝14.3%）。
+    // 見出しを持たないページ2 を本文と確定できるのは「捨てると本文ページが0枚になる＝作品に本文が
+    // 無いことはありえない」という構造の argument で、その枝をここで実 PDF ごと固定する。
+    @Test
+    fun n5892fb_minimalFrontMatterWork_bodyExactMatch() =
+        runOne(Fixture("N5892FB", exactBody = true))
+
     private data class Fixture(val name: String, val exactBody: Boolean)
 
     private data class Snapshot(
