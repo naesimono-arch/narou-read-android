@@ -75,6 +75,16 @@ object ChapterProcessor {
      *   目次と読書画面に実在しない嘘見出しが出る。本パラメータ（本番は表紙由来の作品タイトル）を
      *   初期タイトルへ流用してこれを防ぐ。既定値は従来値のため、引数を省く既存呼び出し・テストは挙動不変。
      *
+     * @param blockStarts 「新しいブロックが始まる段落の添字」（[TextProcessor.LineStreamer] が版面から拾う副産物）。
+     *   **単話の前書きブロックの終端を決めるためだけに使う**。なぜここまで運ぶ必要があるか＝前書きと本文の
+     *   境界は見出しを持たず（生成器は話タイトルが空の見出しを描かない）、版面のページ送りにしか現れない。
+     *   なぜ用途をここまで絞るか＝この信号は単独では信用できない。ページ末尾では「作者が置いた空行」と
+     *   「版面の余り」が同じ形で現れて原理的に区別できず、実測でも連載本文中に紛れが出る（N6169DZ に 60 件）。
+     *   区別できない信号は**区別しなくてよい範囲でだけ使う**——単話の前書き終端に限れば標本 11 本で
+     *   誤検出 0 件だった。実在の章見出しが 1 件でもあれば（＝連載）この引数は**一切参照されない**。
+     *   ⚠️ **取りこぼす型**: 「連載なのに前書きへ見出しが付かない」形が将来現れたら漏れる。現状それが
+     *   起きていないのは連載には必ず実在の章見出しがあるからで、**生成器が変われば崩れる前提**。
+     *
      *   ⚠️ **判定条件は 2026-09-04 に訂正した**。旧条件は「【題名】マーカーが1件も無いとき」で、
      *   単話でも前書き/後書きの見出しだけは付く（[isRealChapterHeading] の実測）ため**発火しなかった**
      *   ＝後書き付き単話が丸ごと「作品情報・プロローグ」章になる実機症状の真因。
@@ -82,16 +92,49 @@ object ChapterProcessor {
     fun splitIntoChapters(
         paragraphs: List<String>,
         noTitleFallback: String = "作品情報・プロローグ",
+        blockStarts: Set<Int> = emptySet(),
     ): List<RawChapter> {
         val chapters = mutableListOf<RawChapter>()
         // 実在の章見出しが1件でも在れば従来値、皆無（＝単話）のときのみ fallback を初期タイトルにする。
         // なぜ事前走査か＝先頭本文を読み始める前に初期タイトルを確定する必要があるため（後から遡って
         // 差し替えると「作品情報・プロローグ」が既に確定済みの章へ混入しうる）。
         val hasRealChapterHeading = paragraphs.any { isRealChapterHeading(it) }
+
+        // 単話の「（前書き）」見出しの位置。連載では触れない（-1 のまま＝以降の分岐が丸ごと死ぬ）。
+        val forewordIdx = if (hasRealChapterHeading) -1 else paragraphs.indexOfFirst {
+            it.startsWith(TITLE_MARKER) &&
+                structuralMarkerOf(it.removePrefix(TITLE_MARKER)) == StructuralMarker.FOREWORD
+        }
+        // 前書きブロックの終端＝その見出しより後ろで最初に来るブロック開始。
+        // ⚠️ 条件＝切った直後に「通常章になる本文」が実在すること。次の見出しまでの範囲だけを見る
+        // （その先まで見ると後書きの中身を本文と誤認する）。これが要るのは、切った先が見出しだけ
+        // （例＝直後が「（後書き）」）だと前書きの畳み込み先である通常章が生まれず、
+        // processForewordAfterword が前書きを行き場なしで捨てる＝本文が丸ごと消えるため。
+        // 条件を満たさないときは null にして「切らない」へ倒す（落ちない・壊さない側）。
+        val forewordEnd = if (forewordIdx < 0) null else {
+            blockStarts.filter { it > forewordIdx }.minOrNull()
+                ?.takeIf { end ->
+                    paragraphs.drop(end)
+                        .takeWhile { !it.startsWith(TITLE_MARKER) }
+                        .any { it.isNotEmpty() }
+                }
+        }
+
         var currentTitle = if (hasRealChapterHeading) "作品情報・プロローグ" else noTitleFallback
         var currentBody = mutableListOf<String>()
 
-        for (p in paragraphs) {
+        paragraphs.forEachIndexed { index, p ->
+            if (index == forewordEnd) {
+                // 前書きブロックはここで終わる。末尾に付いている空行は作者の空行ではなく
+                // 「前書きページの版面の余り」が空行として復元されたもの（実測で約20行）。
+                // ブロック境界と判定した継ぎ目でだけ落とす＝作者の空行には触れない。
+                while (currentBody.isNotEmpty() && currentBody.last().isEmpty()) {
+                    currentBody.removeAt(currentBody.lastIndex)
+                }
+                if (currentBody.isNotEmpty()) chapters.add(RawChapter(currentTitle, currentBody))
+                currentTitle = noTitleFallback
+                currentBody = mutableListOf()
+            }
             if (p.startsWith(TITLE_MARKER)) {
                 val title = p.replace(TITLE_MARKER, "").trim()
                 // 単話の「（前書き）」見出しだけは章の区切りにしない。
@@ -103,8 +146,10 @@ object ChapterProcessor {
                 // ⚠️ 代償＝前書きが装飾枠（（前書き）ボックス）を持たず本文冒頭に地の文として並ぶ。
                 // 枠を保つには前書きと本文の境界が要るが、その境界はグリフ列に現れず（見出しが無く
                 // ページ送りだけで区切られる）、段落列へページ境界を通す構造変更が要る＝別裁定。
-                if (!hasRealChapterHeading && structuralMarkerOf(title) == StructuralMarker.FOREWORD) {
-                    continue
+                if (forewordEnd == null && !hasRealChapterHeading &&
+                    structuralMarkerOf(title) == StructuralMarker.FOREWORD
+                ) {
+                    return@forEachIndexed
                 }
                 if (currentBody.isNotEmpty()) {
                     chapters.add(RawChapter(currentTitle, currentBody))

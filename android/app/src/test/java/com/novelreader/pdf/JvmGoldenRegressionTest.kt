@@ -132,11 +132,13 @@ class JvmGoldenRegressionTest {
     private fun buildSnapshot(pdfFile: File): Snapshot {
         PDDocument.load(pdfFile).use { doc ->
             val meta = PdfExtractor.extractBookMeta(doc)
-            val paragraphs = PdfExtractor.runFinalEngine(doc)
-            // 本番 PdfBookExtractor と同経路にするため meta.title を fallback として渡す
-            // （題名マーカー有りの既存3本は分岐に入らず出力不変。単話 N5368ML のみ作品タイトルが単一章名になる）。
+            // 本番 PdfBookExtractor と同経路にする＝meta.title を fallback として渡し、
+            // 版面由来のブロック開始も同じように受け渡す（単話の前書き終端の判定に使われる）。
+            // ここを本番と揃えておかないと、golden は「本番が通らない経路」を守ることになる。
+            val blockStarts = mutableSetOf<Int>()
+            val paragraphs = PdfExtractor.runFinalEngine(doc, null, blockStarts)
             val chapters = ChapterProcessor.processForewordAfterword(
-                ChapterProcessor.splitIntoChapters(paragraphs, meta.title)
+                ChapterProcessor.splitIntoChapters(paragraphs, meta.title, blockStarts)
             )
             val bodyText = paragraphs.joinToString("\n")
             return Snapshot(

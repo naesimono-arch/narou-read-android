@@ -152,6 +152,71 @@ class SplitIntoChaptersTest {
         assertEquals("第一話", result[2].title)
     }
 
+    // ---- 単話の前書き終端（blockStarts）＝版面由来のブロック境界を1箇所だけ使う ----
+
+    @Test fun forewordIsBoxedWhenBlockBoundaryIsKnown() {
+        // 添字: 0=前書き見出し 1=前書き本文 2,3=版面の余り由来の空行 4=本文 5=後書き見出し 6=後書き本文
+        val paragraphs = listOf("【題名】（前書き）", "前書き本文", "", "", "本文A", "【題名】（後書き）", "後書き本文")
+        val result = ChapterProcessor.splitIntoChapters(paragraphs, "作品タイトルX", setOf(4))
+        assertEquals(3, result.size)
+        assertEquals("（前書き）", result[0].title)
+        // 末尾の空行（版面の余り）は落とし、作者の本文だけを残す
+        assertEquals(listOf("前書き本文"), result[0].body)
+        assertEquals("作品タイトルX", result[1].title)
+        assertEquals(listOf("本文A"), result[1].body)
+        assertEquals("（後書き）", result[2].title)
+    }
+
+    @Test fun forewordBoxLooksTheSameAsSerialAfterProcessing() {
+        val paragraphs = listOf("【題名】（前書き）", "前書き本文", "", "本文A", "【題名】（後書き）", "後書き本文")
+        val final = ChapterProcessor.processForewordAfterword(
+            ChapterProcessor.splitIntoChapters(paragraphs, "作品タイトルX", setOf(3)),
+        )
+        assertEquals(1, final.size)
+        assertEquals("作品タイトルX", final[0].title)
+        // 連載と同じ装飾（前書きは冒頭のボックス＋<hr>、後書きは末尾）＝単話だけ別の見えにしない
+        assertTrue(final[0].body.startsWith("<div"))
+        assertTrue(final[0].body.contains("<b>（前書き）</b>"))
+        assertTrue(final[0].body.contains("<b>（後書き）</b>"))
+        assertTrue(final[0].body.contains("前書き本文"))
+        assertTrue(final[0].body.contains("本文A"))
+    }
+
+    @Test fun withoutBlockBoundaryFallsBackToNotSplitting() {
+        // 未観測ケース（前書きが1ページを満たして次ページへ続く等）でブロック境界が拾えないとき。
+        // 枠は付かないが、本文も順序も落とさない側へ倒す。
+        val paragraphs = listOf("【題名】（前書き）", "前書き本文", "本文A", "【題名】（後書き）", "後書き本文")
+        val final = ChapterProcessor.processForewordAfterword(
+            ChapterProcessor.splitIntoChapters(paragraphs, "作品タイトルX", emptySet()),
+        )
+        assertEquals(1, final.size)
+        assertEquals("作品タイトルX", final[0].title)
+        assertTrue(final[0].body.contains("前書き本文"))
+        assertTrue(final[0].body.contains("本文A"))
+        assertTrue(final[0].body.contains("後書き本文"))
+    }
+
+    @Test fun blockBoundaryPointingAtHeadingOnlyTailIsIgnored() {
+        // 境界の先に実体のある本文が無い＝切ると前書きの畳み込み先が生まれず本文が消える。切らない。
+        val paragraphs = listOf("【題名】（前書き）", "前書き本文", "【題名】（後書き）", "後書き本文")
+        val final = ChapterProcessor.processForewordAfterword(
+            ChapterProcessor.splitIntoChapters(paragraphs, "作品タイトルX", setOf(2)),
+        )
+        assertEquals(1, final.size)
+        assertTrue(final[0].body.contains("前書き本文"))
+        assertTrue(final[0].body.contains("後書き本文"))
+    }
+
+    @Test fun serialWorkIgnoresBlockStartsEntirely() {
+        // ⚠️ 狭めた条件の封鎖: 実在の章見出しが在れば blockStarts は一切参照されない。
+        // 将来この適用範囲をうっかり広げたら、このテストが赤くなる。
+        val paragraphs = listOf("先頭本文", "【題名】第一話", "本文1", "", "", "本文2")
+        val without = ChapterProcessor.splitIntoChapters(paragraphs, "作品タイトルX")
+        val with = ChapterProcessor.splitIntoChapters(paragraphs, "作品タイトルX", setOf(2, 3, 5))
+        assertEquals(without.map { it.title }, with.map { it.title })
+        assertEquals(without.map { it.body }, with.map { it.body })
+    }
+
     @Test fun afterwordSubstringInChapterTitleIsSplit() {
         // タイトルに「後書き」を含む話も通常章として分離される
         val paragraphs = listOf("【題名】第一話", "本文1", "【題名】第五話　後書きの話", "本文2")

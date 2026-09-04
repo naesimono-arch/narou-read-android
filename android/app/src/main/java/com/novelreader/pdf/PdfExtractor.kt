@@ -611,8 +611,10 @@ object PdfExtractor {
     fun runFinalEngine(
         doc: PDDocument,
         source: File? = null,
+        blockStarts: MutableSet<Int>? = null,
         onProgress: ((phase: EnginePhase, current: Int, total: Int) -> Unit)? = null,
-    ): List<String> = runFinalEngine(doc, source, Runtime.getRuntime().maxMemory(), onProgress)
+    ): List<String> =
+        runFinalEngine(doc, source, Runtime.getRuntime().maxMemory(), blockStarts, onProgress)
 
     /**
      * ヒープ上限を注入できる [runFinalEngine]。
@@ -625,6 +627,7 @@ object PdfExtractor {
         doc: PDDocument,
         source: File?,
         maxMemoryBytes: Long,
+        blockStarts: MutableSet<Int>? = null,
         onProgress: ((phase: EnginePhase, current: Int, total: Int) -> Unit)? = null,
     ): List<String> {
         val totalPages = doc.numberOfPages
@@ -665,7 +668,7 @@ object PdfExtractor {
         val lines = ArrayList<String>()
         val streamer = TextProcessor.LineStreamer(totalPages, rules, { _, processed, bodyTotal ->
             onProgress?.invoke(EnginePhase.PROCESS, processed, bodyTotal)
-        }) { lines.add(it) }
+        }, blockStarts) { lines.add(it) }
         bodySource.forEachPage { index, chars -> streamer.addPage(index, chars) }
         streamer.finish()
         return lines

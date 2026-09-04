@@ -305,10 +305,11 @@ object TextProcessor {
         charListsByPage: List<List<CharBox>>,
         totalPages: Int,
         rules: DetectedRules = DetectedRules.FALLBACK,
+        blockStarts: MutableSet<Int>? = null,
         progressCallback: ((pct: Int, processed: Int, bodyTotal: Int) -> Unit)? = null,
     ): List<String> {
         val out = mutableListOf<String>()
-        val streamer = LineStreamer(totalPages, rules, progressCallback) { out.add(it) }
+        val streamer = LineStreamer(totalPages, rules, progressCallback, blockStarts) { out.add(it) }
         for ((pageNum, chars) in charListsByPage.withIndex()) streamer.addPage(pageNum, chars)
         streamer.finish()
         return out
@@ -351,6 +352,13 @@ object TextProcessor {
         private val totalPages: Int,
         private val rules: DetectedRules = DetectedRules.FALLBACK,
         private val progressCallback: ((pct: Int, processed: Int, bodyTotal: Int) -> Unit)? = null,
+        /**
+         * 「新しいブロック（前書き／本文／後書き）が始まる段落の添字」の記録先。null なら記録しない。
+         *
+         * ⚠️ **出力段落列には一切影響しない**（純粋な副産物）。ここを段落として混ぜると
+         * 既存 golden の body_sha256 が全部動くので、構造情報は別経路で出す。
+         */
+        private val blockStarts: MutableSet<Int>? = null,
         private val emit: (String) -> Unit,
     ) {
         /** 組み立て中の行（複数列に跨りうる）。 */
@@ -384,18 +392,34 @@ object TextProcessor {
         /** 実際に本文として処理したページ枚数。前付けの枚数が可変なので通し番号からは引けない。 */
         private var processedPages = 0
 
+        /** これまでに外へ出した行数＝次に出す行の添字。[blockStarts] の記録に使う。 */
+        private var emittedCount = 0
+
+        /** 次に出る行が新しいブロックの先頭か（空行を出し終えてから立てる）。 */
+        private var blockStartPending = false
+
+        /** 行を1本外へ出す。ブロック先頭の添字づけはここに一本化する（出口が1つなので取りこぼさない）。 */
+        private fun out(line: String) {
+            if (blockStartPending) {
+                blockStarts?.add(emittedCount)
+                blockStartPending = false
+            }
+            emit(line)
+            emittedCount++
+        }
+
         /**
          * 確定した行を整形して外へ出す。
          * 空行は "" のまま保持、それ以外は trim して空なら捨てる（行ごとに閉じた規則）。
          */
         private fun emitLine(p: String) {
             if (p.isEmpty()) {
-                emit("")
+                out("")
             } else {
                 // 半角スペースは本文の文字なので**端でも落とさない**（S1 の真因の一部＝行末/行頭の
                 // 空白演出が境界で消える）。落とすのは縦組み PDF に本来現れない制御空白だけ。
                 val cleaned = p.trim('\t', '\n', '\r')
-                if (cleaned.isNotEmpty()) emit(cleaned)
+                if (cleaned.isNotEmpty()) out(cleaned)
             }
         }
 
@@ -547,6 +571,12 @@ object TextProcessor {
                     }
                 } else if (canCarry) {
                     blankCount = crossPageBlankCount(carriedX!!, x)
+                    // 前ページが版面を使い切らずに終わっている＝そこでブロックが切れた可能性。
+                    // ⚠️ これは「可能性」までしか言えない（ページ末尾では作者が置いた空行と版面の余りが
+                    // 同じ形で現れ、原理的に区別できない＝実測で N6169DZ に 60 件の紛れがある）。
+                    // だから**ここでは記録するだけで、出力は一切変えない**。使ってよい範囲かどうかの
+                    // 判断は、実在の章見出しの有無を知っている ChapterProcessor 側が持つ。
+                    if (blankCount >= BLOCK_BREAK_MIN_EMPTY_COLUMNS) blockStartPending = true
                 }
 
                 if (blankCount > 0) {
@@ -623,6 +653,20 @@ object TextProcessor {
 
             /** 作品情報（あらすじ）が置かれうるページ。ここに在るか本文かは [isFrontMatter] が構造で判定する。 */
             const val SYNOPSIS_PAGE = 2
+
+            /**
+             * 「前ページでブロックが終わった」とみなす、継ぎ目に空いた列の数の下限。
+             *
+             * 較正の根拠（標本 53 本・継ぎ目 25,163 件の実測）: ふつうの継続の継ぎ目は 0〜3 列しか空かない
+             * （単話標本では最大 3）。いっぽう前書きブロックの終端は **20〜24 列**空く（前書きページの
+             * 版面充填率が 5〜9／満杯 29）。12 はその中間で、どちらからも 8 列以上の余裕がある。
+             *
+             * ⚠️ **単変数では完全分離しない**（連載の本文中にも、作者が長い空行を置いたために
+             * 20 列以上空く継ぎ目が実在する＝N6169DZ で 60 件）。だからこの旗は**単独では使わない**
+             * 前提で立てている。実際に使うのは単話の前書き終端という 1 箇所だけで、そこでの誤検出は
+             * 標本 11 本で 0 件だった。
+             */
+            const val BLOCK_BREAK_MIN_EMPTY_COLUMNS = 12
         }
     }
 
