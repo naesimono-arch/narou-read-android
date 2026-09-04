@@ -26,6 +26,13 @@ object SkinD : SkinTokens {
     // 初弾は全スキンとも共有の本文タイポ（原則5「静謐は機能」＝字面はスキン間で不変）。
     override val typography: Typography = NovelReaderTypography
 
+    // 上下バーの面はわずかに透かす（2026-09-04 裁定・比較モック reading-bars-translucency-candidates.html 案B）。
+    // なぜ D（と委譲先の K）だけか: ライトの navBackground #FBFAF8 が本文素地 #FBFAF8 と完全に同値で、
+    // 境界を語るのが 1px のヘアラインだけ＝面としてのバーが見えない、という D/K 固有の機序への手当てだから。
+    // 値は 3ピルと同値＝クロームの面は一律 ChromeSurfaceAlpha（新しい数を増やさない）。
+    // 正本モック reading-D.html `.topbar`/`.bottombar` = rgba(var(--bar-rgb),.92)。
+    override val readingBarSurfaceAlpha: Float = ChromeSurfaceAlpha
+
     // ============================================================
     // Material3 カラースキーム
     // ============================================================

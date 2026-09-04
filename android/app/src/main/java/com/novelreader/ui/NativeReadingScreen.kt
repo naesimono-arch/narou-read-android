@@ -122,6 +122,7 @@ import com.novelreader.ui.theme.MotionDurationNavTransition
 import com.novelreader.ui.theme.MotionDurationSeizuFadeIn
 import com.novelreader.ui.theme.MotionDurationSeizuFadeInDelay
 import com.novelreader.ui.theme.MotionDurationSeizuFadeOut
+import com.novelreader.ui.theme.ChromeSurfaceAlpha
 import com.novelreader.ui.theme.ReadingColors
 import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.skins.j.NextDoorEdgeGlowJ
@@ -132,6 +133,7 @@ import com.novelreader.ui.skins.p.ReadingSaveBarP
 import com.novelreader.ui.skins.p.SaveChipP
 import com.novelreader.ui.skins.m.LocalSkyParallax
 import com.novelreader.ui.theme.LocalSkin
+import com.novelreader.ui.theme.LocalSkinTokens
 import com.novelreader.ui.theme.ReadingTheme
 import com.novelreader.ui.theme.Skin
 import com.novelreader.ui.theme.rememberReadingColors
@@ -1273,6 +1275,16 @@ internal fun ChapterScreenContent(
             }
         }
 
+        // ────── 上下バーの地（2段塗りの材料）──────
+        // 面＝スキンの裁定 α（D/K は .92・他は不透明）／システム帯＝常に不透明。理由は readingChromeBarSurface。
+        val barFaceAlpha = LocalSkinTokens.current.readingBarSurfaceAlpha
+        // なぜ IgnoringVisibility か: バー自身の windowInsets と同じ源を使う。可視追従の insets だと
+        // トグルのたびに 0⇄実測値で振れ、帯の高さが1フレームずれて「帯だけ透ける」瞬間が出る。
+        val barSystemInsets = WindowInsets.systemBarsIgnoringVisibility
+        val barDensity = LocalDensity.current
+        val navBandPx = barSystemInsets.getBottom(barDensity).toFloat()
+        val statusBandPx = barSystemInsets.getTop(barDensity).toFloat()
+
         // ────── ボトムバー（オーバーレイ）──────
         // collapsedFraction（トップバーの退避割合）に連動して下方向へスライド退避させる。
         // これにより中央タップトグルでトップバーと同フレームで同期して動く。
@@ -1285,19 +1297,27 @@ internal fun ChapterScreenContent(
                     translationY = bottomBarHeightPx * topAppBarState.collapsedFraction
                     // 初期実測待ちの不可視化＋案3ライブプレビュー退避（スライダー押下中は完全透明）の合成。
                     alpha = readingBarAlpha(barsVisualReady, settingsPeek.value)
-                },
+                }
+                // 地は Surface でなくここで2段に塗る（面＝半透明／ナビ帯＝不透明）。graphicsLayer の内側に
+                // 置くので、スライド退避も設定退避のフェードも従来どおり地ごと一緒に動く。
+                .readingChromeBarSurface(
+                    color = colors.navBackground,
+                    faceAlpha = barFaceAlpha,
+                    systemBandHeightPx = navBandPx,
+                    bandAtTop = false,
+                ),
             // なぜ IgnoringVisibility か: トグルと同フレームで systemBars を hide/show するため、
             // 可視追従の既定 insets だとバー内パディングが 0⇄実測値で振れ、バー高の再測定で
             // 開閉のたびに下端がガタつく（本文側 ChapterContent と同じ対策をバー自身にも適用）。
             windowInsets = WindowInsets.systemBarsIgnoringVisibility
                 .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
-            // なぜ不透明か: モック reading-D は上下バーとも background:var(--bar)（不透明）＝
-            // 不透明な上部バー（topBarBackground）との対称が正。旧 .copy(alpha=0.95f) は WebView 期
-            // html_exporter.py .nav-footer の持ち越しで、BottomAppBar の Surface は nav バー inset 帯まで
-            // この色で塗るため、5% 透過が inset 帯（ボタン行の下の無地部分）で本文の透けとして見えていた
-            //（2026-07-29 実機・上下バー非対称の真因）。M の navBackground も焼き込み済み不透明トークン＝
-            // 使用側で alpha を掛けない前提（SkinM.kt）。
-            containerColor = colors.navBackground,
+            // なぜ Surface 自身は透明か: Surface は windowInsets ぶんのナビ帯まで containerColor で塗るため、
+            // ここへ α を掛けると帯（ボタン行の下の無地部分）から本文が覗く＝2026-07-29 実機・上下バー
+            // 非対称の真因（旧 .copy(alpha=0.95f)・WebView 期 html_exporter.py .nav-footer の持ち越し）。
+            // 2026-09-04 裁定で面だけを .92 で透かすことになったので、塗りを Surface から上の
+            // readingChromeBarSurface（面＝半透明／帯＝不透明の2段）へ移し、Surface は塗らない係にする。
+            // ⚠️ ここを再び地色に戻すと2枚重ねになって面の透過が消えるので戻さないこと。
+            containerColor = Color.Transparent,
             contentColor = colors.topBarIcon,
         ) {
             // C①案A: 下端を4分割。横書き＝[前章｜目次｜表示設定｜次章]。表示設定を右上隅の歯車から下端へ
@@ -1343,13 +1363,22 @@ internal fun ChapterScreenContent(
         }
 
         TopAppBar(
-            modifier = Modifier.graphicsLayer {
-                // なぜ graphicsLayer か: レイアウトを再計算せず描画位置のみを変えるため。
-                // これによりバーの追従中でも本文の位置が一切動かない。
-                translationY = topAppBarState.heightOffset
-                // 初期実測待ちの不可視化＋案3ライブプレビュー退避（スライダー押下中は完全透明）の合成。
-                alpha = readingBarAlpha(barsVisualReady, settingsPeek.value)
-            },
+            modifier = Modifier
+                .graphicsLayer {
+                    // なぜ graphicsLayer か: レイアウトを再計算せず描画位置のみを変えるため。
+                    // これによりバーの追従中でも本文の位置が一切動かない。
+                    translationY = topAppBarState.heightOffset
+                    // 初期実測待ちの不可視化＋案3ライブプレビュー退避（スライダー押下中は完全透明）の合成。
+                    alpha = readingBarAlpha(barsVisualReady, settingsPeek.value)
+                }
+                // 下バーと同じ2段塗り（面＝半透明／ステータス帯＝不透明）。上下で扱いを揃えるのが 2026-09-04
+                // 裁定の要件＝片方だけ透かすと 2026-07-29 と同じ「上下バー非対称」を作り直すことになる。
+                .readingChromeBarSurface(
+                    color = colors.topBarBackground,
+                    faceAlpha = barFaceAlpha,
+                    systemBandHeightPx = statusBandPx,
+                    bandAtTop = true,
+                ),
             title = {
                 when (val r = parseResult) {
                     // 2026-07-29 裁定(a): 縦書きモード中は章題テキストを出さない（バー自体・戻る←・
@@ -1396,8 +1425,10 @@ internal fun ChapterScreenContent(
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = colors.topBarBackground,
-                scrolledContainerColor = colors.topBarBackground,
+                // 地は上の readingChromeBarSurface が2段で塗る（理由は BottomAppBar 側のコメントと同じ）。
+                // scrolledContainerColor も透明にしないと、スクロール合成で帯だけ不透明地が戻って段差が出る。
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent,
                 // Material3 内部の色計算に依存せず読書テーマの色を直接指定。
                 // containerColor が非デフォルト値のとき titleContentColor が
                 // 意図しない薄さになる場合があるため明示する。
@@ -1521,7 +1552,7 @@ internal fun ChapterScreenContent(
                     .heightIn(min = 48.dp)
                     // 半透明のナビ背景色で本文に沈める丸ピル（色は必ずテーマトークン経由）
                     .clip(RoundedCornerShape(50))
-                    .background(colors.navBackground.copy(alpha = 0.92f))
+                    .background(colors.navBackground.copy(alpha = ChromeSurfaceAlpha))
                     .padding(horizontal = Spacing.S16, vertical = Spacing.S8),
                 contentAlignment = Alignment.Center, // 48dp の器の中で字面を中央に置く
             ) {
@@ -1632,7 +1663,7 @@ internal fun ChapterScreenContent(
                     .heightIn(min = 48.dp)
                     // 復帰ヒントと同じ半透明ピル。こちらはタップで退避元へ戻る。
                     .clip(RoundedCornerShape(50))
-                    .background(colors.navBackground.copy(alpha = 0.92f))
+                    .background(colors.navBackground.copy(alpha = ChromeSurfaceAlpha))
                     .clickable(onClick = onReturnToContinuation)
                     .wrapContentHeight(Alignment.CenterVertically) // 48dp の器の中で字面を中央に置く
                     .padding(horizontal = Spacing.S16, vertical = Spacing.S8),

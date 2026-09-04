@@ -32,20 +32,42 @@
   /*==/harness==*/
 
   .t-light{ --bg:#FBFAF8; --ink:#1C1F26; --soft:#7C808B; --ruby:#616C77; --rule:#1C3D5A;
-            --blk-bg:#F1F0EC; --blk-bd:#E4E2DB; --bar:#FBFAF8; --bar-line:#ECEAE4; --accent:#1C3D5A; --acc-on:#fff; }
+            --blk-bg:#F1F0EC; --blk-bd:#E4E2DB; --bar:#FBFAF8; --bar-rgb:251,250,248; --bar-line:#ECEAE4; --accent:#1C3D5A; --acc-on:#fff; }
   /* セピアは 2026-07-08 に Compose 実装（Theme.kt ReadingColors.SEPIA）の実機調律値を正本として逆反映。
      旧 #EDE0C3 系は実機で「ライトと色味の差がない」ため、彩度約15%の琥珀の紙×焦茶の墨へ再調律済み。 */
   .t-sepia{ --bg:#F2E7CE; --ink:#3D3121; --soft:#8C7D5D; --ruby:#6D5F43; --rule:#2E4A60;
-            --blk-bg:#EBDEBE; --blk-bd:#DCCC9F; --bar:#ECDFC0; --bar-line:#E0D3B0; --accent:#2E4A60; --acc-on:#FBF6EC; }
+            --blk-bg:#EBDEBE; --blk-bd:#DCCC9F; --bar:#ECDFC0; --bar-rgb:236,223,192; --bar-line:#E0D3B0; --accent:#2E4A60; --acc-on:#FBF6EC; }
   .t-dark{ --bg:#14171C; --ink:#C7CDD3; --soft:#7B838C; --ruby:#7F8994; --rule:#5E7E9C;
-            --blk-bg:#1B1F26; --blk-bd:#2A2F38; --bar:#181C22; --bar-line:#2A2F38; --accent:#6E96B8; --acc-on:#0F1318; }
+            --blk-bg:#1B1F26; --blk-bd:#2A2F38; --bar:#181C22; --bar-rgb:24,28,34; --bar-line:#2A2F38; --accent:#6E96B8; --acc-on:#0F1318; }
   .phone{background:var(--bg)}
 
   /* ---- トップバー（オーバーレイ。読書中は控えめ。Dのヘアライン体系）---- */
   .sb{height:34px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;
     font-size:11px;color:var(--soft);font-family:var(--gothic)}
+  /* ---- 上下バーの面は α.92（2026-09-04 裁定・比較モック candidates/reading-bars-translucency-candidates.html 案B）----
+     なぜ透かすか: ライトは --bar #FBFAF8 と --bg #FBFAF8 が**完全に同値**で、境界を語るのは 1px の --bar-line
+     だけ＝面としてのバーが見えない（実使用の報せ＝「境界が読めない」「臨場感が欲しい」）。
+     .92 は効く最小値＝本文が真下を通った箇所のバー面が #FBFAF8 → #E9E8E7 へ沈む（.96 は差 約4% で動いて初めて
+     気づく／.86 は 9.5px のバーラベル --soft が本文の影 #DCDBDB を踏む）。3ピル（復帰ヒント／続きに戻る）が
+     既に .92 なので**新しい数を1つも増やさず**「クロームの面は一律 α.92」へ規則が1本にまとまる。
+     ⚠️ システム帯（上＝ステータス／下＝ナビ inset）は**不透明のまま**＝〈面＝半透明／帯＝不透明〉の2段塗り。
+        素朴に面ぜんぶへ α を掛けると帯まで透け、ボタン行の下の無地部分で本文が覗く（2026-07-29 実機・
+        上下バー非対称の真因＝旧 containerColor .copy(alpha=0.95f)）。--bar-rgb は --bar と同値の RGB 三つ組で、
+        片方だけ動かすと腐るので必ず対で直す。
+     ⚠️ ヘアライン（--bar-line）は触っていない。「境界が読めない」にはヘアラインを濃くする別解もあるが、
+        提起は透過で臨場感も同時に求めている＝同時に2軸動かすと効いた方が分からない。線は次の別裁定に回す。
+     ⚠️ 没入（.immersive）には効かない＝バーごと退避するので、これは**クローム表示中の定常の地**だけの話。
+        出没はスライドのままでフェードへは戻さない（2026-07-17 に「フェード中に面が半透明化して本文と重なる」
+        を避けて意図的にフェードを捨てた経緯がある）。
+     ⚠️ この静止画で透けが読めるのは**下バーだけ**。上バーは本文の上クリアランス（実装 Insets.ReadingBodyTopExtra
+        ＝64dp）がバー高 50px を上回り、スクロール原点では真下に本文が無い（潜るのはスクロール中）。値は同じ .92。
+     ⚠️ 他スキンへは波及させない＝D/K だけの裁定。C は上下バー面を素地と別面（--surface）に取る思想で機序が
+        そもそも起きず、M/P は navBackground が焼き込み済み不透明トークン（使用側で α を掛けない前提）、
+        J は同じ機序を持つ（.t-light --bar #FAFBF8 ＝ --bg）が未裁定＝別便で見る。
+     ⚠️ 比較ドラフト（reading-pill-size-face-compare-D / reading-backtotop-D / spacing-scale-compare-D）と
+        不採用試作（reading-gear-alt-D）は**当時の見えを保存する頁**なので不透明のまま据え置く。 */
   .topbar{position:relative;z-index:4;height:50px;display:flex;align-items:center;gap:4px;padding:0 16px;
-    background:var(--bar);border-bottom:1px solid var(--bar-line)}
+    background:rgba(var(--bar-rgb),.92);border-bottom:1px solid var(--bar-line)}
   .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;
     place-items:center;color:var(--ink);cursor:pointer}
   .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
@@ -70,7 +92,7 @@
   /* ---- ボトムバー（オーバーレイ。C①案A＝前章/目次/表示設定/次章の4分割・アイコン＋ラベル）---- */
   /* 右上隅の歯車を撤去し表示設定をここへ集約。表示設定(.set)だけ藍＋太字で画面唯一の強調（原則4）。 */
   .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:60px;display:flex;align-items:center;
-    background:var(--bar);border-top:1px solid var(--bar-line)}
+    background:rgba(var(--bar-rgb),.92);border-top:1px solid var(--bar-line)}
   .bottombar button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:4px;color:var(--ink);cursor:pointer}
   .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}

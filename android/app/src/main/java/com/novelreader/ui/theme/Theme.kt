@@ -24,6 +24,22 @@ import com.novelreader.ui.theme.skins.SkinD
 // ============================================================
 enum class ReadingTheme { LIGHT, SEPIA, DARK }
 
+/**
+ * 読書クロームの「面」の α（正本モック `reading-D.html` の `.topbar`/`.bottombar` ＝ `rgba(var(--bar-rgb),.92)`）。
+ *
+ * なぜ1つの名前に集約するか: 2026-09-04 裁定（比較モック `candidates/reading-bars-translucency-candidates.html`
+ * 案B）で上下バーの面が 3ピル（復帰ヒント／続きに戻る）と同値になり、「**クロームの面は一律 α.92**」という
+ * 規則が1本になった。数を2箇所に散らすと、片方だけ動いたときに規則が黙って割れる。
+ *
+ * ⚠️ これは**面（指が触れる帯）専用**で、システム帯（ステータス／ナビ inset）へ掛けてはならない。
+ * 帯まで透かすと、ボタン行の下の無地部分から本文が覗く（2026-07-29 実機・上下バー非対称の真因）。
+ * 上下バーの塗りは [com.novelreader.ui.readingChromeBarSurface] が〈面＝半透明／帯＝不透明〉の2段で描く。
+ *
+ * ⚠️ バーへ実際にこの α が載るかはスキンごとの裁定＝[SkinTokens.readingBarSurfaceAlpha] が持つ（既定は不透明）。
+ * ピル側は全スキン共通でこの値を使う（J の「最上部へ」だけは可読性のため不透明＝使用側のコメント参照）。
+ */
+const val ChromeSurfaceAlpha = 0.92f
+
 data class ReadingColors(
     val background: Color,        // 本文・目次の背景
     val text: Color,              // 本文文字
@@ -35,8 +51,11 @@ data class ReadingColors(
     // textSecondary.copy(alpha=0.6) の二重帳簿を避け、その合成結果を素地上で焼き込んだ役割別シェード
     // （Design/10§9「alpha でなく専用シェード」＝コード衛生）。
     val placeholder: Color,
-    // 下部ナビバー・ピル地。バー本体は不透明で使う（上部バーとの対称・モック .bottombar は不透明
-    // var(--bar)。2026-07-29 に旧 0.95f 透過を廃止）。ヒント系の非操作ピルのみ使用側で半透明化する。
+    // 下部ナビバー・ピル地。バー本体の面は [SkinTokens.readingBarSurfaceAlpha] ぶんだけ透かす
+    //（D/K は 2026-09-04 裁定で [ChromeSurfaceAlpha]＝.92／他スキンは不透明のまま）。
+    // ⚠️ どのスキンでも**システム帯（ナビ inset）は不透明**＝2段塗り。帯へ α を掛けると本文が覗く
+    //（2026-07-29 実機・上下バー非対称の真因＝旧 containerColor .copy(alpha=0.95f)）。
+    // ヒント系の非操作ピルは従来どおり使用側で [ChromeSurfaceAlpha] を掛ける。
     val navBackground: Color,
     val topBarBackground: Color,  // 読書画面トップバー
     val topBarTitle: Color,       // トップバーのタイトル文字

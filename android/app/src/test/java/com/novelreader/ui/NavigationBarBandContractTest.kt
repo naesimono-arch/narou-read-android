@@ -14,12 +14,17 @@ import java.io.File
  *
  * 守る不変条件は2つ。どちらも**同じ帯を誰がどう塗る／避けるか**の話で、欠けると実機でだけ見える壊れ方をする:
  *
- *  1. **読書クロームの下部バーは nav 帯を不透明で塗る。** `BottomAppBar` の `Surface` は nav バー inset 帯まで
- *     `containerColor` で塗るので、ここに alpha を掛けるとボタン行の下の無地部分だけが半透明になり、
- *     **本文がその帯から透けて見える**（不透明な上部バーと非対称になる）。2026-07-29 実機の真因は
- *     WebView 期 `html_exporter.py .nav-footer` から持ち越した `.copy(alpha = 0.95f)` だった。
+ *  1. **読書クロームの上下バーはシステム帯を不透明で塗る。** `TopAppBar`/`BottomAppBar` の `Surface` は
+ *     `windowInsets` ぶんのシステム帯（下＝ナビ／上＝ステータス）まで `containerColor` で塗るので、ここに
+ *     alpha を掛けるとボタン行の下・題字の上の**無地部分だけが半透明になり本文が透ける**。2026-07-29 実機の
+ *     真因は WebView 期 `html_exporter.py .nav-footer` から持ち越した `.copy(alpha = 0.95f)` だった。
+ *     2026-09-04 裁定（比較モック `reading-bars-translucency-candidates.html` 案B）で**面**は α.92 で透かす
+ *     ことになったが、**帯は不透明のまま**が裁定自身の要件＝守る不変条件は変わっていない。変わったのは
+ *     守り方で、`containerColor` を `Color.Transparent` にして [readingChromeBarSurface] が
+ *     〈面＝半透明／帯＝不透明〉の2段で塗る。だから検査も「containerColor に alpha が無い」から
+ *     「**塗りが2段の形になっている**」へ移した（帯の不透明さは同関数の [chromeBarBands] 側で別途固定する）。
  *     ⚠️ `navBackground` トークン自体への alpha 掛けを一律で禁じてはいない——ヒント系の**非操作ピル**は
- *     意図して半透明に敷く（`NativeReadingScreen.kt` の 0.92f 群）。禁じるのは「帯を塗る面」＝バー本体だけ。
+ *     意図して半透明に敷く（`NativeReadingScreen.kt` の `ChromeSurfaceAlpha` 群）。禁じるのは帯を塗る面だけ。
  *
  *  2. **スキン実装の目次は root で nav バー inset を処理する。** これが無いとリスト末尾／下端固定フッタが
  *     物理下端まで届き、**最終行がジェスチャーバーと重なる**（K のリスト・P の Deck で 2026-07-29 実機確認）。
@@ -55,44 +60,134 @@ class NavigationBarBandContractTest {
         KotlinSourceScanner.stripComments(File(root(), relativePath).readText())
 
     // ────────────────────────────────────────────────────────
-    // 1. 読書クロームの下部バーは nav 帯を不透明で塗る
+    // 1. 読書クロームの上下バーはシステム帯を不透明で塗る（面だけを2段塗りで透かす）
     // ────────────────────────────────────────────────────────
 
-    /** 違反なら理由・無ければ null。テキストを引数に取るのは陽性確認（壊した本文を食わせる）と同じ経路を通すため。 */
-    private fun readingBottomBarViolation(text: String): String? {
-        val at = text.indexOf(BOTTOM_APP_BAR)
-        if (at < 0) return "$BOTTOM_APP_BAR が本文に無い＝検知器の前提（読書クロームの下部バー）が壊れている"
-        val openParen = at + BOTTOM_APP_BAR.length - 1
+    /**
+     * バー1本ぶんの違反理由（無ければ null）。テキストを引数に取るのは陽性確認（壊した本文を食わせる）と
+     * 同じ経路を通すため。[barCall] の引数リストだけを見る＝`modifier` も `containerColor` もその中に在る。
+     */
+    private fun chromeBarViolation(text: String, barCall: String, bandAtTop: Boolean): String? {
+        val at = text.indexOf(barCall)
+        if (at < 0) return "$barCall が本文に無い＝検知器の前提（読書クロームのバー）が壊れている"
+        val openParen = at + barCall.length - 1
         val closeParen = KotlinSourceScanner.matchingClose(text, openParen)
-            ?: return "$BOTTOM_APP_BAR の引数リストで括弧の対応が取れない＝検知器の前提が壊れている"
+            ?: return "$barCall の引数リストで括弧の対応が取れない＝検知器の前提が壊れている"
         val args = text.substring(openParen, closeParen + 1)
-        val value = CONTAINER_COLOR.find(args)?.groupValues?.get(1)?.trim()
-            ?: return "BottomAppBar に containerColor 指定が無い＝M3 既定色になりスキンの nav 地色が失われる"
-        if (!value.contains("navBackground")) {
-            return "BottomAppBar の containerColor がスキントークン navBackground でない（実際: $value）"
+
+        // (a) Surface 自身は塗らない。ここに地色（まして alpha 付き）を置くと帯まで塗られる。
+        val containers = CONTAINER_COLOR.findAll(args).map { it.groupValues[1].trim() }.toList()
+        if (containers.isEmpty()) {
+            return "$barCall に containerColor 指定が無い＝M3 既定色になり、地色の所在が実装から読めなくなる"
         }
-        if (value.contains("alpha")) {
-            return "BottomAppBar の containerColor に alpha を掛けている（実際: $value）＝" +
-                "Surface が nav バー inset 帯までこの色で塗るため、ボタン行の下の無地部分から本文が透ける" +
-                "（2026-07-29 実機・上下バー非対称の真因）"
+        containers.forEach { value ->
+            if (!value.startsWith(TRANSPARENT)) {
+                return "$barCall の containerColor が $TRANSPARENT でない（実際: $value）＝Surface が" +
+                    "システム帯まで塗るため、2段塗りと二重になるか帯から本文が透ける"
+            }
+        }
+
+        // (b) 2段塗りが在る＝面と帯を別々に塗っている。
+        val drawAt = args.indexOf(TWO_STAGE_PAINT)
+        if (drawAt < 0) {
+            return "$barCall の modifier に $TWO_STAGE_PAINT が無い＝バーの地を誰も塗っていない" +
+                "（containerColor は透明なので、地が消えて本文がバー全面に透ける）"
+        }
+        val drawOpen = drawAt + TWO_STAGE_PAINT.length - 1
+        val drawClose = KotlinSourceScanner.matchingClose(args, drawOpen)
+            ?: return "$TWO_STAGE_PAINT の引数リストで括弧の対応が取れない＝検知器の前提が壊れている"
+        val paint = args.substring(drawOpen, drawClose + 1)
+
+        // (c) 帯の側（上バー＝ステータス／下バー＝ナビ）を取り違えると、透ける側と塗る側が入れ替わる。
+        val expectedSide = "bandAtTop = $bandAtTop"
+        if (!paint.contains(expectedSide)) {
+            return "$barCall の $TWO_STAGE_PAINT に「$expectedSide」が無い＝面と帯が上下逆に塗られ、" +
+                "システム帯が半透明になる（透ける側と塗る側の取り違え）"
+        }
+
+        // (d) 地色そのものに alpha を焼くと、帯（α を渡さない側）まで半透明になり (b)(c) が無意味になる。
+        val color = PAINT_COLOR.find(paint)?.groupValues?.get(1)?.trim()
+            ?: return "$TWO_STAGE_PAINT に color 指定が無い＝検知器の前提が壊れている"
+        if (color.contains("alpha")) {
+            return "$TWO_STAGE_PAINT の color に alpha を焼いている（実際: $color）＝帯も半透明になり、" +
+                "ボタン行の下・題字の上の無地部分から本文が透ける（2026-07-29 実機・上下バー非対称の真因）"
         }
         return null
     }
 
     @Test
     fun `読書クロームの下部バーは nav 帯を不透明で塗る`() {
-        assertNull(readingBottomBarViolation(stripped(READING_SCREEN)))
+        assertNull(chromeBarViolation(stripped(READING_SCREEN), BOTTOM_APP_BAR, bandAtTop = false))
     }
 
     @Test
-    fun `陽性確認 — 下部バーに alpha を戻すと落ちる`() {
+    fun `読書クロームの上部バーはステータス帯を不透明で塗る`() {
+        assertNull(chromeBarViolation(stripped(READING_SCREEN), TOP_APP_BAR, bandAtTop = true))
+    }
+
+    @Test
+    fun `陽性確認 — バーの地を Surface へ戻すと落ちる`() {
         val original = stripped(READING_SCREEN)
         val broken = original.replace(
-            "containerColor = colors.navBackground",
+            "containerColor = Color.Transparent",
             "containerColor = colors.navBackground.copy(alpha = 0.95f)",
         )
         assertNotEquals("退行の再現に失敗＝検知器の前提（containerColor の書き方）が変わっている", original, broken)
-        assertNotNull("alpha を掛けた形を検知器が見逃した＝この検査は死んでいる", readingBottomBarViolation(broken))
+        assertNotNull(
+            "Surface へ地色を戻した形を検知器が見逃した＝この検査は死んでいる",
+            chromeBarViolation(broken, BOTTOM_APP_BAR, bandAtTop = false),
+        )
+    }
+
+    @Test
+    fun `陽性確認 — 2段塗りを外すと落ちる`() {
+        val original = stripped(READING_SCREEN)
+        val broken = original.replace(TWO_STAGE_PAINT, "padding(")
+        assertNotEquals("退行の再現に失敗＝検知器の前提（2段塗りの呼び名）が変わっている", original, broken)
+        listOf(BOTTOM_APP_BAR to false, TOP_APP_BAR to true).forEach { (bar, atTop) ->
+            assertNotNull(
+                "$bar: 2段塗りを外した形を検知器が見逃した＝この検査は死んでいる",
+                chromeBarViolation(broken, bar, bandAtTop = atTop),
+            )
+        }
+    }
+
+    @Test
+    fun `陽性確認 — 帯の上下を取り違えると落ちる`() {
+        val original = stripped(READING_SCREEN)
+        val broken = original.replace("bandAtTop = false", "bandAtTop = true")
+        assertNotEquals("退行の再現に失敗＝検知器の前提（bandAtTop の書き方）が変わっている", original, broken)
+        assertNotNull(
+            "帯を上下逆に塗る形を検知器が見逃した＝この検査は死んでいる",
+            chromeBarViolation(broken, BOTTOM_APP_BAR, bandAtTop = false),
+        )
+    }
+
+    // ── 帯そのものが不透明であることは、描画から切り出した純関数の側で固定する ──
+
+    @Test
+    fun `2段塗りは面と帯を重ねずバー全高を使い切る`() {
+        val bands = chromeBarBands(totalHeight = 200f, systemBandHeight = 48f)
+        assertEquals(48f, bands.bandHeight, 0f)
+        assertEquals(152f, bands.faceHeight, 0f)
+        // 面＋帯＝全高＝隙間も重なりも無い（重なると帯の上に半透明の面が載って結局透ける）。
+        assertEquals(200f, bands.faceHeight + bands.bandHeight, 0f)
+    }
+
+    @Test
+    fun `帯がバー全高を超えても面は負にならない`() {
+        // Robolectric や折り畳み端末で inset がバー高を超えうる。負サイズの矩形は黙って描画されないため、
+        // 丸めが無いと「面だけ消える」形で壊れる（例外は出ない＝気づけない）。
+        val bands = chromeBarBands(totalHeight = 30f, systemBandHeight = 48f)
+        assertEquals(30f, bands.bandHeight, 0f)
+        assertEquals(0f, bands.faceHeight, 0f)
+    }
+
+    @Test
+    fun `帯が無い端末では全高が面になる`() {
+        val bands = chromeBarBands(totalHeight = 160f, systemBandHeight = 0f)
+        assertEquals(0f, bands.bandHeight, 0f)
+        assertEquals(160f, bands.faceHeight, 0f)
     }
 
     // ────────────────────────────────────────────────────────
@@ -199,6 +294,14 @@ class NavigationBarBandContractTest {
         const val READING_SCREEN = "ui/NativeReadingScreen.kt"
         const val SHARED_TOC_SCREEN = "ui/NativeTableOfContentsScreen.kt"
         const val BOTTOM_APP_BAR = "BottomAppBar("
+        const val TOP_APP_BAR = "TopAppBar("
+
+        /** バーの地を〈面＝半透明／システム帯＝不透明〉の2段で塗る Modifier（ReadingChromeBarSurface.kt）。 */
+        const val TWO_STAGE_PAINT = "readingChromeBarSurface("
+
+        /** Surface 自身は塗らない＝地は2段塗りが持つ、を表す値。 */
+        const val TRANSPARENT = "Color.Transparent"
+
         const val SKINS_DIR = "ui/skins"
 
         /** 目次のスキン委譲ルーター（この分岐の中で呼ばれる composable が「スキン側の目次 root」の定義）。 */
@@ -207,8 +310,13 @@ class NavigationBarBandContractTest {
         /** ルーター分岐の中の composable 呼び出し（大文字始まり＋開き括弧）。`Skin.SEIZU_M ->` 等は括弧が無く掛からない。 */
         val CALL = Regex("""\b([A-Z][A-Za-z0-9_]*)\s*\(""")
 
-        /** 引数リスト内の `containerColor = …` の右辺（この呼出は1行で書かれている＝行末まで取れば式1つぶん）。 */
-        val CONTAINER_COLOR = Regex("""containerColor\s*=\s*([^\n]+)""")
+        /** 引数リスト内の `containerColor = …` の右辺（この呼出は1行で書かれている＝行末まで取れば式1つぶん）。
+         *  上バーは `containerColor` と `scrolledContainerColor` の2つを持つので findAll で全数見る
+         *  （`scrolledContainerColor` も末尾一致でこの正規表現に掛かる＝どちらか片方の取りこぼしが起きない）。 */
+        val CONTAINER_COLOR = Regex("""[Cc]ontainerColor\s*=\s*([^\n,]+)""")
+
+        /** 2段塗りの `color = …` の右辺（末尾のカンマは含めない）。 */
+        val PAINT_COLOR = Regex("""\bcolor\s*=\s*([^\n,]+)""")
 
         /**
          * root で nav バー inset を処理していると認める形。

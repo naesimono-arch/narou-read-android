@@ -33,11 +33,11 @@
   /*==/harness==*/
 
   .t-light{ --bg:#FBFAF8; --ink:#1C1F26; --soft:#7C808B; --ruby:#616C77; --rule:#1C3D5A;
-            --blk-bg:#F1F0EC; --blk-bd:#E4E2DB; --bar:#FBFAF8; --bar-line:#ECEAE4; --accent:#1C3D5A; --acc-on:#fff; }
+            --blk-bg:#F1F0EC; --blk-bd:#E4E2DB; --bar:#FBFAF8; --bar-rgb:251,250,248; --bar-line:#ECEAE4; --accent:#1C3D5A; --acc-on:#fff; }
   .t-sepia{ --bg:#F2E7CE; --ink:#3D3121; --soft:#8C7D5D; --ruby:#6D5F43; --rule:#2E4A60;
-            --blk-bg:#EBDEBE; --blk-bd:#DCCC9F; --bar:#ECDFC0; --bar-line:#E0D3B0; --accent:#2E4A60; --acc-on:#FBF6EC; }
+            --blk-bg:#EBDEBE; --blk-bd:#DCCC9F; --bar:#ECDFC0; --bar-rgb:236,223,192; --bar-line:#E0D3B0; --accent:#2E4A60; --acc-on:#FBF6EC; }
   .t-dark{ --bg:#14171C; --ink:#C7CDD3; --soft:#7B838C; --ruby:#7F8994; --rule:#5E7E9C;
-            --blk-bg:#1B1F26; --blk-bd:#2A2F38; --bar:#181C22; --bar-line:#2A2F38; --accent:#6E96B8; --acc-on:#0F1318; }
+            --blk-bg:#1B1F26; --blk-bd:#2A2F38; --bar:#181C22; --bar-rgb:24,28,34; --bar-line:#2A2F38; --accent:#6E96B8; --acc-on:#0F1318; }
   .phone{background:var(--bg)}
 
   /* ---- トップバー（横書きのまま。バーはクロームで本文の書字方向とは無関係）---- */
@@ -46,8 +46,10 @@
   /* 縦書きでは上下バーは本文の【上に浮く】＝通常フローに置かず、本文の版面を1pxも削らない
      （2026-08-17 実装同期。理由は下の .reader の★注記が正本）。.sb（システムステータスバー34px）の
      直下へ絶対配置し、列はその下を素通りする。ボトムバーは元から絶対配置＝上下で扱いを揃えた。 */
+  /* 上下バーの面は α.92（2026-09-04 裁定＝正本 reading-D.html の why を正とする。値だけ追従）。
+     システム帯（ステータス／ナビ inset）は不透明のまま＝面と帯の2段塗り。--bar-rgb は --bar と同値の RGB 三つ組。 */
   .topbar{position:absolute;top:34px;left:0;right:0;z-index:4;height:50px;display:flex;align-items:center;gap:4px;padding:0 16px;
-    background:var(--bar);border-bottom:1px solid var(--bar-line)}
+    background:rgba(var(--bar-rgb),.92);border-bottom:1px solid var(--bar-line)}
   .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;
     place-items:center;color:var(--ink);cursor:pointer}
   .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
@@ -129,7 +131,7 @@
 
   /* ---- ボトムバー（reading-D と同一。章送りボタンは併存＝スワイプ以外の明示手段として残す）---- */
   .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:60px;display:flex;align-items:center;
-    background:var(--bar);border-top:1px solid var(--bar-line)}
+    background:rgba(var(--bar-rgb),.92);border-top:1px solid var(--bar-line)}
   .bottombar button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:4px;color:var(--ink);cursor:pointer}
   .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
