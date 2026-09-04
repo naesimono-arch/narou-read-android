@@ -173,6 +173,14 @@ internal fun DiscoveryHomeK(
         initialPage = order.ordinal,
         pageCount = { NarouOrder.entries.size },
     )
+    /**
+     * order（VM）が先に変わったのに、送りが走っていてページがまだ追従できていない間だけ true。
+     *
+     * なぜ旗が要るか: 追従を「待たせる」だけでは症状は直らない。待っている最中に送りが据わると
+     * `settledPage` 側が着地ページを order へ書き戻し、待っていた追従先＝ユーザーが選んだ期間が消えるため
+     * ＝**待たせる**と**書き戻しを止める**の2つで1つの修正。
+     */
+    val followPending = remember { mutableStateOf(false) }
     // LaunchedEffect のキーは pagerState のみ＝order/onSelectOrder は寿命中に差し替わるため
     // rememberUpdatedState で常に最新を参照する（stale capture 防止・compose-side-effects 定石）。
     val currentOrder by rememberUpdatedState(order)
@@ -183,6 +191,9 @@ internal fun DiscoveryHomeK(
         // order が食い違うケースで、初回発行が VM を過去ページへ引き戻すのを防ぎ、order 側を正として
         // ページの方を直す（直下の LaunchedEffect(order) が担当）。
         snapshotFlow { rankingPagerState.settledPage }.drop(1).collect { page ->
+            // 追従待ちの間は書き戻さない（[followPending] の KDoc）。ここを止めないと、待っている最中に
+            // 据わった「送りの着地ページ」が order を上書きし、ユーザーが選んだ期間が消える。
+            if (followPending.value) return@collect
             val target = NarouOrder.entries[page]
             if (target != currentOrder) currentOnSelectOrder(target)
         }
@@ -190,9 +201,38 @@ internal fun DiscoveryHomeK(
     LaunchedEffect(order) {
         // タブタップ（onSelectOrder 経由）や外部要因の order 変更にページを追従アニメさせる。
         // 尺はタブ切替の既存スロット MotionDurationKTabSwitch を踏襲＝新値を発明しない（監督裁定）。
-        // スワイプ進行中は触らない（指の主導権優先。settle 後は上の settledPage 側が order を追従させ整合する）。
-        if (rankingPagerState.currentPage != order.ordinal && !rankingPagerState.isScrollInProgress) {
-            rankingPagerState.animateScrollToPage(order.ordinal, animationSpec = tween(MotionDurationKTabSwitch))
+        //
+        // ⚠️ 送りが走っていても「見送って終わり」にしてはいけない（2026-09-05 実機で確定した無反応の真因）。
+        // 旧実装は `!isScrollInProgress` を条件に含めて早期に諦めており、再試行の口が無かった。
+        // フリング/スナップの尾（据わった直後もこの旗は暫く true）にタブタップが入ると追従が丸ごと捨てられ、
+        // order（VM）とページャが食い違ったまま固定される。選択下線も行の内容もページャ現在地由来なので
+        // 画面は1pxも動かず、しかも setHomeOrder は同値 no-op なので**同じタブをもう一度叩いても復帰できない**
+        //（＝実機報告「2回とも無反応」の形。実測ログ: ORDER=DAILY currentPage=5 scrolling=true → SKIP）。
+        // ⇒ 諦めるのでなく据わるのを待ってから送る。判断そのものは [rankingFollowAction]（純関数）が持つ。
+        try {
+            while (true) {
+                val action = rankingFollowAction(
+                    currentPage = rankingPagerState.currentPage,
+                    orderPage = order.ordinal,
+                    scrollInProgress = rankingPagerState.isScrollInProgress,
+                )
+                if (action == RankingFollowAction.AlreadyThere) break
+                if (action == RankingFollowAction.Follow) {
+                    rankingPagerState.animateScrollToPage(
+                        order.ordinal,
+                        animationSpec = tween(MotionDurationKTabSwitch),
+                    )
+                    break
+                }
+                // AwaitSettle: 据わるまで待つ。待つ意思を旗で示す＝この間の書き戻しを止める（上の collect）。
+                followPending.value = true
+                snapshotFlow { rankingPagerState.isScrollInProgress }.first { !it }
+            }
+        } finally {
+            // 指のドラッグ（MutatePriority.UserInput）に追従アニメが取り消された場合も、order がさらに
+            // 変わってこの側効果ごと作り直された場合もここを通る＝旗を残さない。
+            // 残すとスワイプの着地が二度と order へ書き戻らなくなる（症状が入れ替わるだけになる）。
+            followPending.value = false
         }
     }
     // 期間別 stale-while-revalidate: 期間ごとの直近 Content を控え、再訪ページは再取得(Loading)中も
@@ -800,6 +840,42 @@ private fun OrderTabsK(
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant) // .rtabs border-bottom 1px
     }
+}
+
+/**
+ * 期間ページャの追従判断（[DiscoveryHomeK] の `LaunchedEffect(order)` の中身）。
+ *
+ * **なぜ純関数へ切り出すか**: この判断の穴（送り進行中に来た order 変更を捨てる）は実機でしか現れず、
+ * 画面ごとの試験では守れない——Compose のテスト入力注入（`performClick`/`performTouchInput`）は
+ * 注入前に waitForIdle を通すため、**送りが据わる前にタップを届かせることが JVM では原理的にできない**
+ *（2026-09-05 実測: `performClick` も order 直書きも、フリングが据わってからしか届かず競合窓を作れない。
+ *  実機では `adb` のログ計測で `ORDER=… scrolling=true → SKIP` を直接観測して確定させた）。
+ * ⇒ 画面試験に頼れない以上、**判断だけを機械で固定する**（[orderTabFollowTarget] と同じ流儀）。
+ */
+internal enum class RankingFollowAction {
+    /** ページは既に order を指している＝何もしない。 */
+    AlreadyThere,
+
+    /** すぐ送る。 */
+    Follow,
+
+    /**
+     * 送りが走っている＝据わるのを待ってから送り直す。
+     * ⚠️ **「何もしない」ではない**。ここを取りこぼしにすると order とページャが食い違ったまま固定され、
+     * 同じタブの再タップでも復帰できなくなる（setHomeOrder が同値 no-op のため）。
+     */
+    AwaitSettle,
+}
+
+/** [RankingFollowAction] の決定。分岐の順序に意味がある（既に着いているなら送りの有無は問わない）。 */
+internal fun rankingFollowAction(
+    currentPage: Int,
+    orderPage: Int,
+    scrollInProgress: Boolean,
+): RankingFollowAction = when {
+    currentPage == orderPage -> RankingFollowAction.AlreadyThere
+    scrollInProgress -> RankingFollowAction.AwaitSettle
+    else -> RankingFollowAction.Follow
 }
 
 /**
