@@ -24,7 +24,7 @@
   **実蔵書7冊・全冊とも本文健在**（id・progress とも開始時バックアップと一致＝無傷。**絶対に消さない**）。
   **検証用の残置物**＝捨て本2冊（`6c726cfe` カクヨム26話・`cf4ee71b` PDF18章・本文は復旧済み）／
   Web カード `N7415ML`。books は 7＋2＝9冊。
-  ⚠️ **端末の APK は 2026-08-19 投入の debug＝以後の意匠・バグ修正はまだ端末に無い**（`awaiting-human.md` §1 の前置き）。
+  **端末の APK は 2026-09-04 投入の debug（最新）**。⚠️ 実機 DB は投入時に **Room v21→v22 へ移行済み**＝旧 APK へは戻せない。
   ⚠️ 同一 WiFi 上に**第三者端末（Huawei P30）が居る**＝操作前に model を確認（機序＝memory `adb-bridge-stale-tcp-holds-wrong-device`・
   **他人の端末なので読み取り以外はしない**＝`docs/knowledge/emui-p30-jank-log-collection.md`）。
 

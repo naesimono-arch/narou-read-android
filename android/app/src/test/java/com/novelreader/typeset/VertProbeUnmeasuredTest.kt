@@ -33,7 +33,7 @@ class VertProbeUnmeasuredTest {
     @Test
     fun `未計測として記録した字が計測データに存在しないこと`() {
         val measured = measuredCodePoints()
-        assertTrue("計測データが読めていること（73 コードポイント想定）", measured.size > 50)
+        assertTrue("計測データが読めていること（97 コードポイント想定）", measured.size > 50)
         val contradictions = VertFeatureCoverage.UNMEASURED_IN_VERT_PROBE
             .filter { it.codePointAt(0) in measured }
         assertTrue(
@@ -45,13 +45,20 @@ class VertProbeUnmeasuredTest {
     }
 
     @Test
-    fun `301Fと FFE3が未計測であることを名指しで固定する`() {
-        // 委譲仕様が名指しした2字。集合から不用意に消えると「未検証である」事実まで消えるので、
-        // 計測されたときにだけ（上のテストが赤くなる形で）外れるよう二重に留める。
+    fun `2026-09-03 棚卸しの24字が計測済みであること`() {
+        // 2026-09-04 に PGEM10 の実機で計測した 24 字。JSONL からこの実測が落ちると、コメントだけが
+        // 「実測で裏付けた」と言い張る旧状態（301F で 1 ヶ月半潜伏した嘘）へ逆戻りするので名指しで留める。
+        // ⚠️ この 24 字は「もう分類が確定した」という意味ではない——vert が効くと分かった字
+        // （〟￣ゝヽヾ）と効かないと分かった字の扱いは knowledge 側が持つ。ここが守るのは実測の存在だけ。
         val measured = measuredCodePoints()
-        assertTrue("〟U+301F は実機未計測のはず", 0x301F !in measured)
-        assertTrue("￣U+FFE3 は実機未計測のはず", 0xFFE3 !in measured)
-        assertTrue("〟が未計測台帳に載っていること", "〟" in VertFeatureCoverage.UNMEASURED_IN_VERT_PROBE)
-        assertTrue("￣が未計測台帳に載っていること", "￣" in VertFeatureCoverage.UNMEASURED_IN_VERT_PROBE)
+        val stocktake = "〟￣－—‐–↑↓‼⁉％℃°′″＃＄ヽヾゝ“”‘’"
+        // toList()＝String のままだと joinToString が生えない（CharSequence には無い）。
+        val missing = stocktake.filter { it.code !in measured }.toList()
+        assertTrue(
+            "棚卸し 24 字のうち計測データから消えた字がある: " +
+                missing.joinToString(" ") { "$it(U+%04X)".format(it.code) },
+            missing.isEmpty(),
+        )
+        assertTrue("棚卸しは 24 字のはず", stocktake.length == 24)
     }
 }
