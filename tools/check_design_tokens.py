@@ -79,12 +79,14 @@ def parse_reading_colors(kt_rel: str) -> dict[str, dict[str, str]]:
     """
     text = (THEME_DIR / kt_rel).read_text(encoding="utf-8")
     themes: dict[str, dict[str, str]] = {}
+    # なぜ自前の literal 正規表現をやめて [_named_args] を使うか（2026-09-07）: 旧実装は
+    # `Color(0xFFRRGGBB)` の**直値だけ**を拾い、`infoText = InfoTextLight` のように Color.kt の
+    # val 名で書かれたフィールドを黙って落としていた。同じ when ブロックをコントラスト検査側は
+    # [_named_args]（val 名も解決する）で読んでおり、1ファイルに解像度の違う抽出器が2つ在る状態だった。
+    # 実害＝モック側に対応変数を足した瞬間に「抽出できない」で NG になる（--info の追加で顕在化）。
+    tokens = parse_color_kt()
     for tm in re.finditer(r"ReadingTheme\.(LIGHT|SEPIA|DARK)\s*->\s*ReadingColors\((.*?)\n\s*\)", text, re.S):
-        fields = {
-            f.group(1): f.group(2).upper()
-            for f in re.finditer(r"(\w+)\s*=\s*Color\(0xFF([0-9A-Fa-f]{6})\)", tm.group(2))
-        }
-        themes[tm.group(1)] = fields
+        themes[tm.group(1)] = _named_args(tm.group(2), tokens)[0]
     return themes
 
 # ---- 期待表（保守対象。モック改版・トークン改名時はここを更新する） ---------------
@@ -140,6 +142,9 @@ READING_VARS = {
     "--bg": "background",
     "--ink": "text",
     "--soft": "textSecondary",
+    # 2026-09-07 新設。復帰ヒント `.hint` の字色が --soft（＝AA 免除枠）から意味色へ移った裁定に伴い
+    # モックへ --info を宣言した＝実装の役割トークン infoText と 1:1 で縛る（ADR 0014-D 適用裁定「復帰ヒント」）。
+    "--info": "infoText",
     "--ruby": "ruby",
     "--blk-bg": "blockBackground",
     "--blk-bd": "blockBorder",

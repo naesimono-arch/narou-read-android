@@ -31,13 +31,16 @@
     box-shadow:0 20px 50px rgba(0,0,0,.28);display:flex;flex-direction:column;font-family:var(--mincho)}
   /*==/harness==*/
 
-  .t-light{ --bg:#FBFAF8; --ink:#1C1F26; --soft:#7C808B; --ruby:#616C77; --rule:#1C3D5A;
+  /* --info＝意味を運ぶ補助テキスト（Compose の役割トークン ReadingColors.infoText＝Color.kt の
+     InfoTextLight/Sepia/Dark 実値）。--soft を「意味を運ぶ文字」に使うと AA(4.5:1) を割るため、
+     色相・彩度を保ったまま明度だけ落とした最小暗化シェード。settings-D.html 等の --info と同じ役割。 */
+  .t-light{ --bg:#FBFAF8; --ink:#1C1F26; --soft:#7C808B; --info:#5C606D; --ruby:#616C77; --rule:#1C3D5A;
             --blk-bg:#F1F0EC; --blk-bd:#E4E2DB; --bar:#FBFAF8; --bar-rgb:251,250,248; --bar-line:#ECEAE4; --accent:#1C3D5A; --acc-on:#fff; }
   /* セピアは 2026-07-08 に Compose 実装（Theme.kt ReadingColors.SEPIA）の実機調律値を正本として逆反映。
      旧 #EDE0C3 系は実機で「ライトと色味の差がない」ため、彩度約15%の琥珀の紙×焦茶の墨へ再調律済み。 */
-  .t-sepia{ --bg:#F2E7CE; --ink:#3D3121; --soft:#8C7D5D; --ruby:#6D5F43; --rule:#2E4A60;
+  .t-sepia{ --bg:#F2E7CE; --ink:#3D3121; --soft:#8C7D5D; --info:#6C6148; --ruby:#6D5F43; --rule:#2E4A60;
             --blk-bg:#EBDEBE; --blk-bd:#DCCC9F; --bar:#ECDFC0; --bar-rgb:236,223,192; --bar-line:#E0D3B0; --accent:#2E4A60; --acc-on:#FBF6EC; }
-  .t-dark{ --bg:#14171C; --ink:#C7CDD3; --soft:#7B838C; --ruby:#7F8994; --rule:#5E7E9C;
+  .t-dark{ --bg:#14171C; --ink:#C7CDD3; --soft:#7B838C; --info:#8A929B; --ruby:#7F8994; --rule:#5E7E9C;
             --blk-bg:#1B1F26; --blk-bd:#2A2F38; --bar:#181C22; --bar-rgb:24,28,34; --bar-line:#2A2F38; --accent:#6E96B8; --acc-on:#0F1318; }
   .phone{background:var(--bg)}
 
@@ -108,9 +111,19 @@
      実装（NativeReadingScreen.kt）はこの文言を丸ピルの器に載せて描いており、器の根拠が実装だけに
      在った状態の是正としてここへ書き戻す。字面 11px × 1.6 は 33.6px にしかならず、字面をいくら
      動かしても 48 には届かない＝**器側**に持たせるほかない（display:flex＋align-items:center は
-     最小高の中で字面を中央に置くため）。地色・角丸はスキンごとに別値なので最小高だけを正本化する。 */
+     最小高の中で字面を中央に置くため）。地色・角丸はスキンごとに別値なので最小高だけを正本化する。
+     ────── 字色 --soft → --info ／ opacity:.8 撤去（2026-09-07 裁定・ADR 0014-D 適用裁定「復帰ヒント」）──────
+     **この2点は正本（＝ここ）側の誤りだったので正本を直した**。理由: この文言は没入からの復帰操作を
+     語で教える唯一の機会（アプリ通算1回・約2.6秒・以後は語を持たない取っ手だけが残る）＝「意味を運ぶ文字」で、
+     ADR 0014-D の「意味を運ぶ文字は 4.5:1／静かに沈めてよいのは装飾・補助だけ」に真っ向から当たる。
+     旧値の実効コントラストは --soft #7C808B ＠opacity.8 を素地 #FBFAF8 へ焼くと **2.75:1**
+     （opacity 抜きでも 3.79:1）。--info（#5C606D）なら 6.01:1、実装のピル地（--bar ×.92 が本文の字を
+     踏んだ最悪ケース #E9E8E7）でも 5.14:1 で AA を満たす。
+     ⚠️ 3ピルの「純表示＝淡い／タップ可＝--ink」という描き分けは残っている（--info は --ink より明らかに淡い）。
+        やめたのは**コントラストを描き分けの軸に使うこと**だけ。
+     ⚠️ opacity は実装（NativeReadingScreen.kt）が元々写していない＝この撤去でモックと実装が一致する。 */
   .hint{position:absolute;left:50%;bottom:26px;display:flex;align-items:center;min-height:48px;transform:translateX(-50%);z-index:6;font-family:var(--gothic);
-    font-size:11px;color:var(--soft);letter-spacing:.08em;opacity:.8}
+    font-size:11px;color:var(--info);letter-spacing:.08em}
 </style>
 </head>
 <body>

@@ -1589,9 +1589,25 @@ internal fun ChapterScreenContent(
                 Text(
                     // 実タップ領域は本文全面（中央に限らない）ため文言も全面に一致させる（gesture 指摘）。
                     text = "画面をタップでメニュー",
-                    // 正本 reading-D `.hint` は --soft（＝textSecondary）。3ピルのうち純表示のこれだけが
-                    // --soft で、タップできる2つは --ink＝正本自身が2色を使い分けている（2026-09-03 裁定）。
-                    color = colors.textSecondary,
+                    // ────── 色＝infoText（2026-09-07 裁定・ADR 0014-D 適用裁定「復帰ヒント」）──────
+                    // 旧実装は正本 reading-D `.hint` の --soft を [ReadingColors.textSecondary] へ素直に
+                    // 写していた（2026-09-03）。それが誤訳だった理由は「淡いから」ではない——textSecondary は
+                    // 型の側で「意味を運ばない装飾補助」と宣言され、**だからコントラスト検査の対象外**に
+                    // 置いてある枠（Theme.kt の KDoc／tools/check_design_tokens.py の READING_OUT_OF_SCOPE）で、
+                    // 意味を運ぶ文言をそこへ入れると AA 未達が構造的に検知されなくなる（実際 3.79:1 で潜伏した）。
+                    // この文言は意味を運ぶ側だと裁定した: ①「復帰手段が不可視」（M12）への手当てとして足した
+                    // 導線そのもの ②アプリ通算1回きり（PrefKeys.IMMERSIVE_HINT_SHOWN で焼き切る）
+                    // ③約 2.6 秒で自動消灯し再掲なし ④以後残る層②の取っ手は語を持たない（α.30 の 3dp 帯）
+                    // ＝没入からの復帰操作を**語で教える機会はアプリ生涯でここ 1 回だけ**＝無いと操作が分からない。
+                    // よって正本モックの --soft 側を誤りとして改め（reading-D `.hint` も同便で是正）、未読ラベル
+                    // UnreadSeiji・ルビ・発見系メタと同型の「色相彩度を保った最小暗化」＝ infoText を採る。
+                    // ⚠️ 3ピルの「純表示＝--soft／タップ可＝--ink」という描き分け自体は捨てていない。infoText は
+                    //    タップ可2つが使う text より明らかに淡く（D/LIGHT #5C606D vs #1C1F26）階層は残る。
+                    //    捨てたのは**コントラストを描き分けの軸に使うこと**だけ（原則D が禁じるのはそれ）。
+                    // ⚠️ ピルの地は素地ではなく navBackground×[ChromeSurfaceAlpha]＝スキンによっては素地と
+                    //    別面になる。infoText は素地基準の較正なので P/DARK 等に残差が出る（数値・真因・
+                    //    追跡先は ADR 0014 の同裁定に記載。ここを直すのはピル一族3枚まとめての別便）。
+                    color = colors.infoText,
                     // 案A（2026-09-03 裁定・比較モック reading-pill-size-face-compare-D.html）＝正本へ寄せる。
                     // 正本は 11px ゴシック（reading-D `.hint`／reading-backtotop-D `.toppill`）で、実装だけが
                     // 13sp 明朝だった。トークンの値は動かさず参照先だけ差し替える（FontSubTitle の他所は不変）。
