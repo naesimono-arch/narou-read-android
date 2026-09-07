@@ -102,7 +102,9 @@ fun ReadingSaveBarP(fraction: Float, modifier: Modifier = Modifier) {
             // 原理的に閉じている。よって正本の箱の算術（padding ＋ 子の最大高）を dp で確定させる。
             // .savebar の実高＝上下 padding 5+5 ＋ 子の最大行箱（.pc 10px × 1.17 ＝ 11.7）＝ 21.7px ≒ 22dp。
             // 縦 padding は高さそのものだったので dp 固定に置き換える（横 13px→S12 はそのまま）。
-            .height(22.dp)
+            // ⚠️ dp 固定のままだと fontScale に追従せず「42%」が切れた（2.0 で自然行箱 23.5dp＞22dp・実機再現）。
+            // 22dp を基準に比例追従させる＝1.0 では 22dp のまま・拡大時だけ器が伸びる（→ cartridgeBoxHeight）。
+            .height(cartridgeBoxHeight(22.dp))
             // .savebar background: linear-gradient(--lcd-hi,--lcd)（緑LCD面・テーマ不変）
             .background(Brush.verticalGradient(listOf(LcdHiCartridge, LcdCartridge)))
             .padding(horizontal = Spacing.S12),
@@ -167,7 +169,8 @@ fun SaveChipP(chapterNumber: Int, totalChapters: Int, fraction: Float, modifier:
         modifier = modifier
             // 器の dp 固定＝ReadingSaveBarP と同じ理由（等幅の比は写せない）。
             // .save の実高＝上下 padding 4+4 ＋ .n 11px × 1.17 ＝ 20.87px ≒ 21dp。
-            .height(21.dp)
+            // fontScale 2.0 では字面が 26.0dp＝21dp の器から切れていたので比例追従させる（→ cartridgeBoxHeight）。
+            .height(cartridgeBoxHeight(21.dp))
             .clip(RoundedCornerShape(5.dp))          // .save border-radius 5px
             .background(LcdCartridge)                // .save background --lcd
             .border(1.dp, LcdInkCartridge.copy(alpha = 0.25f), RoundedCornerShape(5.dp)) // inset 0 0 0 1px rgba(43,54,22,.25)
@@ -198,7 +201,9 @@ fun StreakFlameP(streakDays: Int, modifier: Modifier = Modifier) {
         modifier = modifier
             // 器の dp 固定＝ReadingSaveBarP と同じ理由（等幅の比は写せない）。
             // .streak の実高＝上下 padding 4+4 ＋ 子の最大高（.flame 16px＞.d 11px×1.17）＝ 24dp。
-            .height(24.dp)
+            // fontScale 2.0 で「N日」が 24dp の器から切れていたので比例追従させる（→ cartridgeBoxHeight）。
+            // 炎の Canvas は dp のまま＝意匠が寸法を決める側なので追従させない（器の中で中央に浮く）。
+            .height(cartridgeBoxHeight(24.dp))
             .clip(RoundedCornerShape(5.dp))          // .streak border-radius 5px
             .background(PlasticHiCartridge)          // .streak background --plastic-hi
             .border(1.dp, LineCartridge, RoundedCornerShape(5.dp)) // inset 0 0 0 1px var(--line)
@@ -362,7 +367,9 @@ fun SettingsSysBarP(modifier: Modifier = Modifier) {
             .fillMaxWidth()
             // 器の dp 固定＝ReadingSaveBarP と同じ理由（等幅の比は写せない）。
             // .sysbar の実高＝上下 padding 8+8 ＋ 子の最大高（10px × 1.17 ＝ 11.7＞.dot 7px）＝ 27.7px ≒ 28dp。
-            .height(28.dp)
+            // 現状 fontScale 2.0 でも字面 23.5dp＜28dp で切れてはいないが、同じ「字面が高さを決める器」なので
+            // 同じ規則へ揃える（文言が伸びた瞬間に切れる側へ倒れるのを構造で防ぐ）。
+            .height(cartridgeBoxHeight(28.dp))
             .clip(RoundedCornerShape(7.dp))          // .sysbar border-radius 7px
             .background(Brush.verticalGradient(listOf(LcdHiCartridge, LcdCartridge))) // linear-gradient(--lcd-hi,--lcd)
             .border(1.dp, LcdInkCartridge.copy(alpha = 0.25f), RoundedCornerShape(7.dp)) // inset 0 0 0 1px rgba(43,54,22,.25)

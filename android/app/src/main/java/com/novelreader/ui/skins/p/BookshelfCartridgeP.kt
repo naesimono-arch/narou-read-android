@@ -1084,10 +1084,15 @@ internal fun LibraryHeader(count: Int, countPrefix: String = "") {
         Text(
             "CARTRIDGE LIBRARY",
             fontFamily = PixelFamily,
-            fontSize = 11.sp,                 // .lib-h .t 11px
+            // 刻印＝ fontScale で伸ばさない（→ CartridgePartsP.engravedSp の KDoc に線引きの根拠）。
+            // 伸ばすと fontScale 2.0 で字面が 281.5dp まで広がり、残り 30.5dp に押された冊数が
+            // 「10」「本」へ割れて別行に落ちていた（実機 PGEM10 で再現した実害そのもの）。
+            // 止めるのは英字チャンネルだけで、隣の冊数（情報）は伸ばしたまま＝拡大の恩恵は数字が受ける。
+            fontSize = engravedSp(11.dp),     // .lib-h .t 11px
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.16.em,
             color = InkMidCartridge,
+            maxLines = 1,
         )
         Text(
             // 一覧面は .lib-h .n = 「一覧 · 04 本」＝ countPrefix で「一覧 · 」を前置（ラック面は空）。

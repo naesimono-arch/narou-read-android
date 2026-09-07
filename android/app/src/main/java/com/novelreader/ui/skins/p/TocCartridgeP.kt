@@ -424,7 +424,11 @@ private fun TocChapterRowP(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(RowHeight)                     // .row height 66px 固定
+            // .row height 66px 固定。⚠️ dp のままだと fontScale に追従せず、2.0 では章題が
+            // 1行へ潰れた上で切れていた（実測 didOverflowHeight=true・1.0 では2行 42.5dp）。
+            // 66dp を基準に比例追従させる＝1.0 の版面は不変・拡大時だけ行が伸びる（→ cartridgeBoxHeight）。
+            // 左レーンの道・ノードは Canvas の size.height から毎回引くので、行が伸びても蛇行は接続したまま。
+            .height(cartridgeBoxHeight(RowHeight))
             // 現在章＝緑LCDの帯（.row.cur background）。バンドは行全幅（右端の余白域も含む）。
             .then(if (isCur) Modifier.background(CurRowBand) else Modifier)
             .clickable(onClick = onClick)
