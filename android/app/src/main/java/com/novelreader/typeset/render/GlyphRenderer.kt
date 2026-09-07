@@ -48,8 +48,19 @@ class VertGlyphRenderer : GlyphRenderer {
     ) {
         when (charClass) {
             // 正立: vert を使わずそのまま縦に置く（漢字・仮名・全角英数・約物「？！・」など）。
+            // 例外＝VERT_FORM_REQUIRED_ON_UPRIGHT（￣U+FFE3）。向きは正立のままだが UAX#50 では Tr で、
+            // PGEM10 実測でも縦字形が実在する（横棒→右端の縦棒）。vert を渡さないと横棒のまま描かれ、
+            // 縦組み本文で漢数字「一」と紛らわしくなる（2026-09-07 裁定）。判定の正本は純層。
             CharClass.UPRIGHT ->
-                drawCentered(canvas, text, xCenter, yTop, cellAdvancePx, paint, useVert = false)
+                drawCentered(
+                    canvas,
+                    text,
+                    xCenter,
+                    yTop,
+                    cellAdvancePx,
+                    paint,
+                    useVert = VertFeatureCoverage.usesVertFormWhileUpright(text),
+                )
 
             // 位置替え: 句読点・小書き仮名は vert で右上寄せ等の縦字形が出る（P0-1 実測で有効）。
             CharClass.PUNCT_REPOSITION ->

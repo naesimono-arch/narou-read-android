@@ -123,4 +123,44 @@ class VertGlyphRendererTest {
         renderer.drawGlyph(newCanvas(), "亜", CharClass.UPRIGHT, 48f, 0f, 48f, paint)
         assertEquals(null, paint.fontFeatureSettings)
     }
+
+    /**
+     * fontFeatureSettings への代入を記録する Paint。
+     *
+     * なぜ絵でなく代入を見るか: Robolectric の環境フォントは日本語の vert 縦字形を持たないため、
+     * 「vert を適用した」ことをピクセルで証明できない（適用してもしなくても同じ絵になる）。
+     * 描画層に残る唯一の観測点が「Paint へ "vert" を渡したか」なので、そこを直接記録する。
+     */
+    private class RecordingPaint : Paint() {
+        val featureLog = mutableListOf<String?>()
+
+        override fun setFontFeatureSettings(settings: String?) {
+            featureLog.add(settings)
+            super.setFontFeatureSettings(settings)
+        }
+    }
+
+    @Test
+    fun uprightMacronAppliesVertFeatureAndRestoresIt() {
+        // 2026-09-07 裁定 (b): ￣U+FFE3 は正立クラスのまま vert の縦字形を使う唯一の字
+        //（UAX#50 Tr・PGEM10 実測で横棒 64×4 → 右端の縦棒 3×66）。vert を渡さないと横棒のまま描かれ、
+        // 縦組み本文で漢数字「一」と紛らわしくなる＝UPRIGHT 分岐を useVert=false へ戻す退行を捕まえる。
+        val paint = RecordingPaint().apply { textSize = 48f; isAntiAlias = true; fontFeatureSettings = "kern" }
+        paint.featureLog.clear()
+        renderer.drawGlyph(newCanvas(), "￣", CharClass.UPRIGHT, 48f, 0f, 48f, paint)
+        assertTrue("￣ の描画で vert を適用していない: ${paint.featureLog}", paint.featureLog.contains("vert"))
+        assertEquals("復帰漏れ（共有 Paint に vert が残る）", "kern", paint.fontFeatureSettings)
+    }
+
+    @Test
+    fun uprightRepeatMarksDoNotApplyVertFeature() {
+        // 2026-09-07 裁定 (b): ゝヽヾ は UAX#50 が U（正立）と宣言し、実測の bounds 差も最大 3px＝
+        // 縦字形ではなくヒンティング差。JSONL の changed=true だけを根拠にここへ足す退行を捕まえる。
+        for (ch in listOf("ゝ", "ヽ", "ヾ")) {
+            val paint = RecordingPaint().apply { textSize = 48f; isAntiAlias = true }
+            paint.featureLog.clear()
+            renderer.drawGlyph(newCanvas(), ch, CharClass.UPRIGHT, 48f, 0f, 48f, paint)
+            assertTrue("'$ch' に vert を適用してはいけない: ${paint.featureLog}", !paint.featureLog.contains("vert"))
+        }
+    }
 }
