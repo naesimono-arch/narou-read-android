@@ -75,7 +75,12 @@ class IntroOverlayContentTest {
             onBack = { back++ },
         )
         rule.onNodeWithText("読みかたは、2 通り").assertIsDisplayed()
-        rule.onNodeWithText("読みかたの説明は、読みはじめてから ［設定］＞［操作の説明］ で。").assertIsDisplayed()
+        // ⚠️ 2026-09-07 に performScrollTo を足した（文言は 1 字も変えていない）。カードの構造が
+        // 〈全体が 1 つのスクロール器〉から〈**本文域だけ**がスクロールし、点とボタンは下端に固定〉へ
+        // 変わり、本文域に割かれる高さがボタン列ぶん減ったため、Robolectric の既定画面（小さい）では
+        // 再訪導線が折り返し位置より下に来る。**見たいのは「文があること」ではなく「到達できること」**。
+        rule.onNodeWithText("読みかたの説明は、読みはじめてから ［設定］＞［操作の説明］ で。")
+            .performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("もどる").performClick()
         assertEquals(1, back)
         rule.onNodeWithText("はじめる").assertIsDisplayed()
@@ -90,7 +95,8 @@ class IntroOverlayContentTest {
             onOrientationChange = { picked += it },
         )
         rule.onNodeWithText("どちらで読みますか").assertIsDisplayed()
-        rule.onNodeWithText("あとから ［表示設定］＞［本文の向き］ で変えられます。").assertIsDisplayed()
+        rule.onNodeWithText("あとから ［表示設定］＞［本文の向き］ で変えられます。")
+            .performScrollTo().assertIsDisplayed() // 上と同じ理由（本文域スクロール化）
         rule.onNodeWithText("横書き").performClick()
         rule.onNodeWithText("縦書き").performClick()
         // 描画層は state を持たない＝押されたことを**そのまま**上へ渡すだけ（確定は Controller の責務）。
@@ -116,8 +122,11 @@ class IntroOverlayContentTest {
     fun `組B は本文の割り当てだけを言う（一般的なジェスチャの挙動は書かない）`() {
         show(IntroFlow(IntroGroup.READING, walkthrough = false))
         rule.onNodeWithText("横書きで読む").assertIsDisplayed()
-        rule.onNodeWithText("メニューを出す").assertIsDisplayed()
-        rule.onNodeWithText("本文のどこでもタップ。もう一度で消えます。").assertIsDisplayed()
+        // 1 項目目〈横書きにする〉は 2026-09-07 に足した（縦書きが既定なので、このカードが
+        // 「いまの操作の説明」と誤読されるのを 1 行目で塞ぐ＝IntroDeck.kt の理由コメントと対）。
+        rule.onNodeWithText("横書きにする").assertIsDisplayed()
+        rule.onNodeWithText("メニューを出す").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("本文のどこでもタップ。もう一度で消えます。").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("つぎへ").assertIsDisplayed()
     }
 
@@ -125,9 +134,12 @@ class IntroOverlayContentTest {
     fun `組C は 1 枚で終わるので あとで を置かず とじる だけ`() {
         show(IntroFlow(IntroGroup.SEARCH, walkthrough = false))
         rule.onNodeWithText("さがして、本棚に入れる").assertIsDisplayed()
-        // 3 項目＋再訪導線を積む最長のカード＝既定画面では下端が折り返す。スクロールで**必ず到達できる**
-        // ことまで見る（非スクロール面だと、ここで到達手段そのものが消える）。
-        rule.onNodeWithText("とじる").performScrollTo().assertIsDisplayed()
+        // ⚠️ 2026-09-07 に performScrollTo を**外した**（緩めたのではなく強めた）。ボタンは
+        // スクロール器の外＝カード下端に固定されたので、**スクロールせずに見えていなければ赤**にする。
+        // 旧構造（カード全体が 1 つのスクロール器）では到達に必ずスクロールが要り、
+        // 「スクロールすれば届く」までしか縛れなかった。ここを performScrollTo に戻すと
+        // 「Scroll SemanticsAction を持つ親が無い」で落ちる＝構造の退行がそのまま検出される。
+        rule.onNodeWithText("とじる").assertIsDisplayed()
         rule.onNodeWithText("あとで").assertDoesNotExistCompat()
         rule.onNodeWithText("もどる").assertDoesNotExistCompat()
     }
@@ -136,16 +148,16 @@ class IntroOverlayContentTest {
     fun `組D も 1 枚で終わるので あとで を置かず とじる だけ`() {
         show(IntroFlow(IntroGroup.IMPORT, walkthrough = false))
         rule.onNodeWithText("つくって、本棚に入れる").assertIsDisplayed()
-        rule.onNodeWithText("ここはなろうのページ").assertIsDisplayed()
+        rule.onNodeWithText("ここはなろうのページ").performScrollTo().assertIsDisplayed()
         // 境界の告知（ADR 0042）はこの 1 項目が受ける＝取り込みルートに NarouExternalPageNoticeHost は
         // **置かない**（両方入れると初回だけダイアログとカードが連続する＝2026-09-04 裁定）。
         // その代わり、この項目の本文が NarouExternalPageNotice.BODY の**第 1 文と 1 字同一**であることを
         // ここで機械的に縛る。左辺を定数から導くので、**どちらを直しても**このテストが落ちる
         // ——同じ事実を 2 通りに言って片方が黙って腐るのを防ぐ（IntroDeck.kt 側のコメントと対）。
-        rule.onNodeWithText(NarouExternalPageNotice.BODY.substringBefore("。") + "。").assertIsDisplayed()
-        // ⚠️ 組C より 1 行ぶん高い（項目3 が 3 行に折り返す）＝**既定画面でも下端が折り返す**。
-        // 組C と同じくスクロールで必ず到達できることまで見る（到達手段そのものが消えていないか）。
-        rule.onNodeWithText("とじる").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText(NarouExternalPageNotice.BODY.substringBefore("。") + "。")
+            .performScrollTo().assertIsDisplayed()
+        // 組C と同じ＝ボタンはスクロール器の外にいるので、スクロールなしで見えていること（上の理由）。
+        rule.onNodeWithText("とじる").assertIsDisplayed()
         rule.onNodeWithText("あとで").assertDoesNotExistCompat()
         rule.onNodeWithText("もどる").assertDoesNotExistCompat()
     }

@@ -28,6 +28,19 @@ internal data class IntroFlow(
     val isTerminal: Boolean
         get() = index == (if (walkthrough) IntroDeck.cards.lastIndex else IntroDeck.lastIndexOf(group))
 
+    /**
+     * **この回で出うるカードの範囲**（先頭〜終端）。カードの寸法を揃える単位はこれ＝
+     * 描画側は範囲の全カードを測って最も高い 1 枚に本文域を合わせる（2026-09-07 実機所見の是正）。
+     *
+     * なぜ「列 7 枚」でなく「その回」か: 組A 単独の回で組D（最も高い）に合わせると、1 枚目に画面の
+     * 3 分の 1 近い空白が空き、正本の「全体量を見せないための形」を自分で壊す。
+     * なぜ [group] でなく [startGroup] で始めるか: 通しでは組をまたいで進むが [back] は開始位置より
+     * 前へは戻れない＝出うるのは常に「開始位置から終端まで」の連続区間。
+     */
+    val runIndices: IntRange
+        get() = IntroDeck.firstIndexOf(startGroup)..
+            (if (walkthrough) IntroDeck.cards.lastIndex else IntroDeck.lastIndexOf(startGroup))
+
     /** その回の先頭カードか（先頭では ［← もどる］ の代わりに ［あとで］ を出す＝正本 §8）。 */
     val isFirst: Boolean get() = index == IntroDeck.firstIndexOf(startGroup)
 

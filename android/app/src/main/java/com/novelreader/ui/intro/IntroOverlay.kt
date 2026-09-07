@@ -4,6 +4,16 @@
 package com.novelreader.ui.intro
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
@@ -45,6 +55,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.Role
@@ -56,6 +68,8 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -64,7 +78,12 @@ import com.novelreader.ui.theme.FontChipLarge
 import com.novelreader.ui.theme.FontPresetTitle
 import com.novelreader.ui.theme.FontTopBarTitle
 import com.novelreader.ui.theme.LocalShelfColors
+import com.novelreader.ui.theme.MotionDurationIntroCardFlip
+import com.novelreader.ui.theme.MotionDurationIntroCardFlipFadeIn
+import com.novelreader.ui.theme.MotionDurationIntroCardFlipFadeOut
+import com.novelreader.ui.theme.MotionEasingIntroCardFlip
 import com.novelreader.ui.theme.Spacing
+import com.novelreader.ui.theme.rememberReduceMotion
 
 /** 正本 `.scrim{background:rgba(28,31,38,.74)}` の α。色は scrim トークンから引く（直書き禁止）。 */
 private const val INTRO_SCRIM_ALPHA = 0.74f
@@ -153,34 +172,164 @@ internal fun IntroOverlayContent(
                     }
                 },
         ) {
-            Column(
-                modifier = Modifier
-                    // 例外なしの規則（`/new-screen`）: 非スクロール面が溢れると**操作要素が画面外へ押し出され
-                    // 到達手段が消える**のに、溢れは画素に痕跡を残さず golden でも捕まらない。ここは
-                    // 図版 112dp ＋ 項目 3 つ ＋ 点 ＋ ボタンで、小さい画面や fontScale を上げた端末では
-                    // 実際に［とじる］が落ちる（Robolectric の既定画面で再現した）。
-                    .verticalScroll(rememberScrollState())
-                    .padding(
-                        // 正本 `.ocard{padding:26px 22px 18px}` を離散スケールへ最近傍で丸めた（ADR 0014 §C）。
-                        start = Spacing.S24, end = Spacing.S24, top = Spacing.S24, bottom = Spacing.S16,
+            Column {
+                // 本文域＝**この回で最も高い 1 枚に固定した器**（[IntroCardDeck]）。点とボタンは器の外＝
+                // カードの下端に留め置く（正本 §8「めくりの遷移と寸法」）。
+                // weight(fill = false) にするのは、器へ「残りの高さ」を上限として渡しつつ、
+                // 中身が短い回でカードを縦に引き伸ばさないため。
+                IntroCardDeck(
+                    flow = flow,
+                    orientationVertical = orientationVertical,
+                    onOrientationChange = onOrientationChange,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Column(
+                    // 正本 `.ocard{padding:26px 22px 18px}` の左右と下（上は器の側が持つ）を
+                    // 離散スケールへ最近傍で丸めた（ADR 0014 §C）。
+                    modifier = Modifier.padding(
+                        start = Spacing.S24, end = Spacing.S24, bottom = Spacing.S16,
                     ),
-            ) {
-                IntroCardBody(flow, orientationVertical, onOrientationChange)
-                IntroDots(flow)
-                Spacer(Modifier.height(Spacing.S4)) // 正本 `.obtns{margin-top:2px}`
-                IntroButtons(flow, onNext = onNext, onBack = onBack, onDismiss = onDismiss)
+                ) {
+                    // ⚠️ 点の有無に関わらず入れる間隔。本文域はスクロール器なので溢れた行は下端で
+                    // 断ち切られ、ここが 0 だと**半分に切れた行が ［とじる］ に直接くっつく**
+                    // （fontScale 2.0・点の無い組C/組D で実測）。IntroDots の上側を S24→S8 へ
+                    // 減らして合計 S24 を保つので、点がある回の見えは動かない（正本 `.obody{margin-bottom:14px}`）。
+                    Spacer(Modifier.height(Spacing.S16))
+                    IntroDots(flow)
+                    Spacer(Modifier.height(Spacing.S4)) // 正本 `.obtns{margin-top:2px}`
+                    IntroButtons(flow, onNext = onNext, onBack = onBack, onDismiss = onDismiss)
+                }
             }
         }
     }
 }
 
+/**
+ * カード 1 枚を出す器。**2026-09-07 のユーザー実機所見 2 件をここで受ける**。
+ *
+ * ## ①「『次へ』をタップするたびにパッと切り替わる」＝遷移が無かった
+ * 旧実装は [IntroFlow.card] を直に描くだけで、[IntroController] が flow を差し替えると
+ * **再コンポーズで中身が入れ替わるだけ**だった（このファイルにアニメの指定が 1 つも無かった）。
+ * ここで [AnimatedContent] を噛ませ、正本 §8 の横スライド（shared axis X）へ翻訳する。
+ *
+ * ## ②「カードの大きさもバラバラ」＝カードが中身の量で伸縮していた
+ * 旧実装のカードは高さを持たず、[Surface] が中身の高さをそのまま纏っていた。
+ * **枚ごとに違う固定値が置いてあったのではなく、内容量でそのまま伸縮していた**のが真因
+ * （正本モックの実測でも組A は 1 枚目 257px → 3 枚目 380px ＝ 1 枚めくるだけで 1.5 倍に伸びる）。
+ *
+ * [SubcomposeLayout] で **[IntroFlow.runIndices] の全カードを測り、最も高い 1 枚に器を固定**する。
+ * dp の定数に置き換えないこと——最大値は fontScale・端末幅・文言の改稿で動くので、定数にした瞬間に
+ * 次に文言を 1 行足した人が黙って溢れさせる。
+ *
+ * ⚠️ 測るだけのカードは place しないので**描かれはしない**が、**semantics には残る**
+ * （2026-09-07 実測＝TalkBack が同じ文を 2 度読み、Compose テストも 8 件が「ノードが 2 つある」で赤）。
+ * 配置しないことを a11y の遮蔽と混同しないこと——遮蔽は [clearAndSetSemantics] で明示的に行う。
+ */
 @Composable
-private fun IntroCardBody(
+private fun IntroCardDeck(
     flow: IntroFlow,
     orientationVertical: Boolean,
     onOrientationChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    val card = flow.card
+    val slidePx = with(LocalDensity.current) { Spacing.S32.roundToPx() }
+    // 端末の「アニメーションを減らす」設定では遷移を丸ごと外す（既存 NativeReadingScreen と同じ扱い）。
+    val reduceMotion = rememberReduceMotion()
+    SubcomposeLayout(modifier) { constraints ->
+        // ① 揃える高さ＝この回の全カードの本文域の最大（器に収まらなければ器いっぱい）。
+        //    線画は高さ 112dp の固定枠なので**測るときは描かない**＝Canvas を回の枚数ぶん焼かずに済む。
+        val probeConstraints = constraints.copy(minWidth = 0, minHeight = 0)
+        var uniformHeight = 0
+        for (index in flow.runIndices) {
+            subcompose("probe$index") {
+                // ⚠️ **配置しないだけでは a11y から消えない**。測るためだけの複製は place しないので
+                // 描かれはしないが、semantics ツリーには残って TalkBack が読み上げ、Compose テストも
+                // 「同じ文字のノードが 2 つある」と拾う（2026-09-07 実測＝この対処なしで 8 件が赤）。
+                // clearAndSetSemantics で複製の意味づけを丸ごと落とす（測るのに意味づけは要らない）。
+                Box(Modifier.clearAndSetSemantics { }) {
+                    IntroCardPage(IntroDeck.cards[index], orientationVertical, {}, drawFigure = false)
+                }
+            }.forEach { uniformHeight = maxOf(uniformHeight, it.measure(probeConstraints).height) }
+        }
+        uniformHeight = uniformHeight.coerceIn(constraints.minHeight, constraints.maxHeight)
+
+        // ② 現在のカードだけを、その固定高で置く。幅は必ず有界（親が fillMaxWidth の Surface）。
+        val width = constraints.maxWidth
+        val placeables = subcompose("page") {
+            AnimatedContent(
+                targetState = flow.index,
+                transitionSpec = {
+                    if (reduceMotion) {
+                        EnterTransition.None togetherWith ExitTransition.None
+                    } else {
+                        // 進む＝新しい面が右から入り、古い面は左へ抜ける。［← もどる］ はその鏡像。
+                        val enterFrom = if (targetState > initialState) slidePx else -slidePx
+                        val slide = tween<IntOffset>(
+                            durationMillis = MotionDurationIntroCardFlip,
+                            easing = MotionEasingIntroCardFlip,
+                        )
+                        val enter = slideInHorizontally(slide) { enterFrom } + fadeIn(
+                            tween(
+                                durationMillis = MotionDurationIntroCardFlipFadeIn,
+                                // 退場が終わってから入場する（フェードスルー）＝32dp しか動かさないので、
+                                // 同時に薄く重ねると 2 枚の文字がほぼ同じ位置で二重に見える。
+                                delayMillis = MotionDurationIntroCardFlipFadeOut,
+                                easing = MotionEasingIntroCardFlip,
+                            ),
+                        )
+                        val exit = slideOutHorizontally(slide) { -enterFrom } + fadeOut(
+                            tween(MotionDurationIntroCardFlipFadeOut, easing = MotionEasingIntroCardFlip),
+                        )
+                        // 器の高さは外側で固定済み＝サイズは動かさない（clip=false で余計な切り取りもしない）。
+                        (enter togetherWith exit).using(SizeTransform(clip = false))
+                    }
+                },
+                label = "introCardFlip",
+            ) { index ->
+                IntroCardPage(IntroDeck.cards[index], orientationVertical, onOrientationChange)
+            }
+        }.map { it.measure(Constraints.fixed(width, uniformHeight)) }
+        layout(width, uniformHeight) { placeables.forEach { it.place(0, 0) } }
+    }
+}
+
+/**
+ * スライドする 1 ページ＝カード 1 枚の中身。
+ *
+ * @param drawFigure false＝寸法を測るためだけの複製（線画を描かない）。図版は高さ固定の枠なので
+ *   描かなくても測る高さは 1px も変わらない。
+ */
+@Composable
+private fun IntroCardPage(
+    card: IntroCard,
+    orientationVertical: Boolean,
+    onOrientationChange: (Boolean) -> Unit,
+    drawFigure: Boolean = true,
+) {
+    Column(
+        modifier = Modifier
+            // 例外なしの規則（`/new-screen`）: 非スクロール面が溢れると**操作要素が画面外へ押し出され
+            // 到達手段が消える**のに、溢れは画素に痕跡を残さず golden でも捕まらない。ここは
+            // 図版 112dp ＋ 項目 3 つで、小さい画面や fontScale を上げた端末では実際に溢れる。
+            // ⚠️ スクロールする器は**本文域だけ**＝点と ［とじる］ は器の外（下端）にいるので、
+            // 溢れても操作要素が画面外へ出ない（旧実装はカード全体が 1 つのスクロール器だった）。
+            .verticalScroll(rememberScrollState())
+            // 正本 `.ocard{padding:26px 22px 18px}` の左右と上（下は器の外側が持つ）。
+            // 横の余白を**ページの内側**へ置くのは、スライドが余白ごと動いてカード端で切れるようにするため
+            // （余白を器側に置くと、入ってくる文字が余白の中へ唐突に湧いて見える）。
+            .padding(start = Spacing.S24, end = Spacing.S24, top = Spacing.S24),
+    ) {
+        IntroCardBody(card, orientationVertical, onOrientationChange, drawFigure)
+    }
+}
+
+@Composable
+private fun IntroCardBody(
+    card: IntroCard,
+    orientationVertical: Boolean,
+    onOrientationChange: (Boolean) -> Unit,
+    drawFigure: Boolean,
+) {
     // 本文色。正本の `.ocard p{color:#4A4C47}` はモック文書側の生値で K トークンに対応が無いため、
     // 役割トークン `infoText`（意味を運ぶ補助テキスト・AA 充足）へ載せ替える。装飾専用の
     // onSurfaceVariant を使わないのは、ここが「読ませる文」だから（ADR 0014-D の審級）。
@@ -197,7 +346,7 @@ private fun IntroCardBody(
             .clearAndSetSemantics { },
         contentAlignment = Alignment.Center,
     ) {
-        IntroFigureArt(card.figure)
+        if (drawFigure) IntroFigureArt(card.figure)
     }
     Spacer(Modifier.height(Spacing.S16)) // 正本 `.fig{margin-bottom:18px}`
 
@@ -336,7 +485,7 @@ private fun IntroChoiceChip(
 @Composable
 private fun IntroDots(flow: IntroFlow) {
     if (flow.dotCount <= 0) return
-    Spacer(Modifier.height(Spacing.S24)) // 正本 `.odots{margin:20px 0 14px}` の上
+    Spacer(Modifier.height(Spacing.S8)) // 正本 `.odots{margin:6px 0 14px}` の上（上の S16 と合わせて 24dp）
     Row(
         modifier = Modifier
             .fillMaxWidth()
