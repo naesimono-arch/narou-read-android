@@ -82,7 +82,10 @@
 
   ■ 前便から引き継ぐ裁定（変えない）
     ・却下 C-3「表示設定シートへの常設入口」＝恒常的に見え続けるものは、理解した後にコストへ変わる。
-    ・「なろうで読む」の初出教示は不要／検索の初出教示も不要（既定が 4 つ ON へ直る＝別便）。
+    ・「なろうで読む」の初出教示は不要。
+      ⚠️ **同じ行に併記していた「検索の初出教示も不要」は 2026-09-07 に削除**＝§2 が 2026-08-21 に
+      「出す」へ覆っている（組C＝実装済み）のに、ここだけ旧判定のまま残っていた**掃き残しの3箇所目**。
+      §8 は「2 箇所に分かれていた」と書いていたが、否定形の掃き残しは**このヘッダを含めて3箇所**あった。
     ・設定の「操作の説明」は採用＝新規グループ「つかいかた」・ラベル「操作の説明」。
     ・案D の取っ手は採用＝実測値は §6 のまま動かさない（ユーザーが目視裁定中）。
     ・没入ヒントのピルは **触らない**（実装済み・c772de3 で消費バグ修正済み）。
@@ -197,11 +200,51 @@
      カードを大きくして中身を増やす方向へ育てないこと（育てた瞬間に読み物型へ退化する）。 */
   .scrim{position:absolute;inset:0;z-index:24;background:rgba(28,31,38,.74);display:flex;
     flex-direction:column;align-items:center;justify-content:center;padding:26px}
-  /* ⚠️ 実装（Compose）ではこのカードの中身は**縦スクロールする**。組C は 3 項目＋再訪導線で最も高く、
-     既定画面／fontScale を上げた端末では ［とじる］ が画面外へ落ちて到達手段が消えた（2026-08-25 実測）。
+  /* ⚠️ 実装（Compose）ではカードの**本文域（.obody）だけ**が縦スクロールする。組C は 3 項目＋再訪導線で
+     最も高く、既定画面／fontScale を上げた端末では ［とじる］ が画面外へ落ちて到達手段が消えた（2026-08-25 実測）。
      非スクロール面の溢れは画素に痕跡を残さず golden でも捕まらないため、カードを高くする改稿は
-     「入るかどうか」を目視で保証せず、必ずスクロール前提で考えること。 */
-  .ocard{width:100%;background:var(--base);border-radius:16px;padding:26px 22px 18px}
+     「入るかどうか」を目視で保証せず、必ずスクロール前提で考えること。
+     ⚠️ 2026-09-07 に**スクロールの器を .ocard 全体から .obody へ狭めた**＝点とボタンは器の外（下端）に
+     留まるので、溢れても ［とじる］ が画面外へ出ない（到達手段が消える経路そのものを閉じた）。 */
+  .ocard{width:100%;background:var(--base);border-radius:16px;padding:26px 22px 18px;
+    display:flex;flex-direction:column;overflow:hidden}
+
+  /* ================================================================
+     2026-09-07 ユーザー実機所見の是正
+       「チュートリアルが『次へ』をタップするたびにパッと切り替わる」「カードの大きさもバラバラ」
+     ================================================================
+     ■ 寸法の統一（.obody の min-height）
+       旧: .ocard に高さ指定が無く**中身の量でそのまま伸縮**していた（枚ごとに固定値が違ったのではない）。
+           組A は 1 枚目 257px → 3 枚目 380px ＝ 1 枚めくるだけで枠が 1.5 倍に伸びる。
+       新: **その回（＝その回で出うるカード）の中で最も高い 1 枚**に本文域を揃え、点とボタンは下端へ留め置く。
+       ⚠️ 揃える単位を「列 7 枚」にしない——組A 単独の回で組D（503px）の高さまで伸ばすと 1 枚目に
+          246px の空白が空き、「全体量を見せないための形」（このブロック冒頭）を自分で壊す。
+       ⚠️ 下の px は**この phone 枠・カード幅 320px での実測値**。HTML は兄弟の最大値を採れないので
+          直書きしているだけで、**Compose 側は実行時に測る**（SubcomposeLayout）。
+          fontScale・端末幅で最大値は動くので、翻訳先でこの数値を定数化してはいけない。
+
+     ■ めくりの遷移（@keyframes oslide）
+       旧: 遷移が**無い**（差し替えるだけ）＝「パッと切り替わる」。
+       新: 横スライド（shared axis X）。**32px の横移動＋フェードスルー**で、全体の尺は 250ms。
+       ⚠️ カード幅ぶんの押し出し（full push）にはしない——320px を 250ms で走らせると小さな面の中では
+          騒がしく、原則5「静謐＝フィードバックのための motion」から外れる。移動は**方向を語るだけ**にし、
+          入れ替わりはフェードが担う。
+       ⚠️ 動くのは **.obody だけ**。点とボタンは動かさない＝押した指の下でボタンが横に逃げないし、
+          遷移中に「前のカードのボタン」がもう一度押せる状態にもならない。 */
+  /* ⚠️ margin-bottom は**点の有無に関わらず**本文域の下に入れる間隔（2026-09-07）。
+     本文域はスクロール器なので、溢れた行は下端で断ち切られる。ここが 0 だと**半分に切れた行が
+     ［とじる］ に直接くっつく**（fontScale 2.0・点の無い組C/組D で実測）。下の .odots の上マージンを
+     20px→6px へ減らして合計 20px を保つので、点がある回の見えは 1px も動かない。 */
+  .ocard .obody{flex:1 1 auto;min-height:0;overflow-y:auto;margin-bottom:14px;
+    animation:oslide .25s cubic-bezier(0,0,.58,1) both}
+  .stage.ga .ocard .obody{min-height:380px}  /* 組A 3 枚の実測 257/327/380 の最大 */
+  .stage.gb .ocard .obody{min-height:381px}  /* 組B 2 枚の実測 381/356 の最大 */
+  /* 組C・組D は 1 枚だけの回＝揃える相手が居ない（min-height を置いても空白が増えるだけ）。 */
+  @keyframes oslide{
+    0%{transform:translateX(32px);opacity:0}
+    40%{opacity:0}            /* 先行して退場する側のフェードアウト（100ms）ぶんだけ待つ */
+    100%{transform:none;opacity:1}
+  }
   .ocard .fig{height:112px;display:grid;place-items:center;margin-bottom:18px}
   .ocard .fig svg{stroke:var(--ai);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
   .ocard .fig svg .soft{stroke:var(--ink-soft);opacity:.55}
@@ -226,7 +269,7 @@
   .ochip{flex:1;text-align:center;padding:12px 16px;border-radius:10px;font-family:var(--gothic);font-size:13.5px;
     border:1px solid var(--line);color:var(--ink);background:transparent;cursor:pointer}
   .ochip.on{background:var(--ai);border-color:var(--ai);color:#fff;font-weight:600}
-  .odots{display:flex;gap:7px;justify-content:center;margin:20px 0 14px}
+  .odots{display:flex;gap:7px;justify-content:center;margin:6px 0 14px}
   .odots i{width:6px;height:6px;border-radius:50%;background:var(--dot-off)}
   .odots i.on{background:var(--ai)}
   .obtns{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:2px}
@@ -552,7 +595,7 @@
       </tr>
       <tr>
         <td><b>本文を初めて開いたとき</b><br><span style="color:#6A6C67">未消費・本文が描かれてから</span></td>
-        <td>組B（3・4 枚目）</td>
+        <td>組B（4・5 枚目）</td>
         <td>2 枚（点 ●○）。背景は<b>読んでいる本文</b>。</td>
         <td><b>ここが今回の裁定の核</b>。説明の対象が背後に見えている状態で読むので、
           「メニューを出す」も「左へスワイプ」も<b>その場で試せる</b>。
@@ -605,7 +648,7 @@
     </p>
 
     <h2 style="font-size:14.5px;margin-top:26px;letter-spacing:.04em">組A「このアプリのこと」 ─ 初回・本棚が空のとき（3 枚）</h2>
-    <div class="stage">
+    <div class="stage ga">
 
       <div class="wrap"><span class="mode"><b>組A ─ 1/3</b>　扉＝カード列の 1 枚目<br>（独立した部品ではない）</span>
         <div class="phone k" role="img" aria-label="章1 1枚目 はじめに">
@@ -626,17 +669,19 @@
           </nav>
           <div class="scrim">
             <div class="ocard">
-              <div class="fig">
-                <svg viewBox="0 0 120 84" width="120" height="84">
-                  <rect x="10" y="14" width="22" height="48" rx="2"/><rect x="36" y="20" width="22" height="42" rx="2"/>
-                  <rect x="62" y="10" width="22" height="52" rx="2"/><rect x="88" y="24" width="22" height="38" rx="2"/>
-                  <path class="soft" d="M6 68h108"/>
-                  <path d="M21 26v10M47 30v10M73 22v10M99 34v10" class="soft"/>
-                </svg>
+              <div class="obody">
+                <div class="fig">
+                  <svg viewBox="0 0 120 84" width="120" height="84">
+                    <rect x="10" y="14" width="22" height="48" rx="2"/><rect x="36" y="20" width="22" height="42" rx="2"/>
+                    <rect x="62" y="10" width="22" height="52" rx="2"/><rect x="88" y="24" width="22" height="38" rx="2"/>
+                    <path class="soft" d="M6 68h108"/>
+                    <path d="M21 26v10M47 30v10M73 22v10M99 34v10" class="soft"/>
+                  </svg>
+                </div>
+                <h3>はじめに</h3>
+                <p><b>PDF</b> と Web の連載小説（<b>小説家になろう</b>）を、ひとつの本棚で読めます。</p>
+                <p>漢字の<b>ふりがなは自動でつきます</b>。</p>
               </div>
-              <h3>はじめに</h3>
-              <p><b>PDF</b> と Web の連載小説（<b>小説家になろう</b>）を、ひとつの本棚で読めます。</p>
-              <p>漢字の<b>ふりがなは自動でつきます</b>。</p>
               <div class="odots"><i class="on"></i><i></i><i></i></div>
               <div class="obtns"><button class="obtn">あとで</button><button class="obtn pri">つづける</button></div>
             </div>
@@ -663,23 +708,25 @@
           </nav>
           <div class="scrim">
             <div class="ocard">
-              <div class="fig">
-                <!-- 横組みの紙と縦組みの紙の対比。実線 2 枚（どちらも「できる」）＝
-                     2 枚目の twoWays 図が破線で「アプリ／なろう」を分けているのと役割が違う。 -->
-                <svg viewBox="0 0 120 84" width="120" height="84">
-                  <rect x="8" y="14" width="46" height="56" rx="5"/>
-                  <path class="soft" d="M16 28h30M16 38h30M16 48h22M16 58h30"/>
-                  <rect x="66" y="14" width="46" height="56" rx="5"/>
-                  <path class="soft" d="M104 22v40M96 22v40M88 22v32M80 22v40"/>
-                </svg>
+              <div class="obody">
+                <div class="fig">
+                  <!-- 横組みの紙と縦組みの紙の対比。実線 2 枚（どちらも「できる」）＝
+                       2 枚目の twoWays 図が破線で「アプリ／なろう」を分けているのと役割が違う。 -->
+                  <svg viewBox="0 0 120 84" width="120" height="84">
+                    <rect x="8" y="14" width="46" height="56" rx="5"/>
+                    <path class="soft" d="M16 28h30M16 38h30M16 48h22M16 58h30"/>
+                    <rect x="66" y="14" width="46" height="56" rx="5"/>
+                    <path class="soft" d="M104 22v40M96 22v40M88 22v32M80 22v40"/>
+                  </svg>
+                </div>
+                <h3>どちらで読みますか</h3>
+                <p>本文を<b>縦書き</b>にも<b>横書き</b>にもできます。</p>
+                <div class="ochips">
+                  <button class="ochip">横書き</button>
+                  <button class="ochip on">縦書き</button>
+                </div>
+                <div class="later">あとから ［表示設定］＞［本文の向き］ で変えられます。</div>
               </div>
-              <h3>どちらで読みますか</h3>
-              <p>本文を<b>縦書き</b>にも<b>横書き</b>にもできます。</p>
-              <div class="ochips">
-                <button class="ochip">横書き</button>
-                <button class="ochip on">縦書き</button>
-              </div>
-              <div class="later">あとから ［表示設定］＞［本文の向き］ で変えられます。</div>
               <div class="odots"><i></i><i class="on"></i><i></i></div>
               <div class="obtns"><button class="obtn back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>もどる</button><button class="obtn pri">つづける</button></div>
             </div>
@@ -706,21 +753,23 @@
           </nav>
           <div class="scrim">
             <div class="ocard">
-              <div class="fig">
-                <svg viewBox="0 0 120 84" width="120" height="84">
-                  <rect x="8" y="14" width="46" height="56" rx="5"/>
-                  <path class="soft" d="M16 28h30M16 38h30M16 48h20"/>
-                  <path d="M22 60h18"/>
-                  <rect x="66" y="14" width="46" height="56" rx="5" stroke-dasharray="5 4"/>
-                  <path class="soft" d="M74 24h30" stroke-dasharray="4 3"/>
-                  <path class="soft" d="M74 34h30M74 44h18" stroke-dasharray="5 4"/>
-                  <path class="soft" d="M86 60h14" stroke-dasharray="4 3"/>
-                </svg>
+              <div class="obody">
+                <div class="fig">
+                  <svg viewBox="0 0 120 84" width="120" height="84">
+                    <rect x="8" y="14" width="46" height="56" rx="5"/>
+                    <path class="soft" d="M16 28h30M16 38h30M16 48h20"/>
+                    <path d="M22 60h18"/>
+                    <rect x="66" y="14" width="46" height="56" rx="5" stroke-dasharray="5 4"/>
+                    <path class="soft" d="M74 24h30" stroke-dasharray="4 3"/>
+                    <path class="soft" d="M74 34h30M74 44h18" stroke-dasharray="5 4"/>
+                    <path class="soft" d="M86 60h14" stroke-dasharray="4 3"/>
+                  </svg>
+                </div>
+                <h3>読みかたは、2 通り</h3>
+                <p><b>アプリで読む</b>　ふりがな付き。文字の大きさや縦書きに変えられます。</p>
+                <p><b>なろうで読む</b>　なろうのページをそのまま表示。アプリの操作・表示設定・ふりがな機能は効きません。</p>
+                <div class="later">読みかたの説明は、読みはじめてから ［設定］＞［操作の説明］ で。</div>
               </div>
-              <h3>読みかたは、2 通り</h3>
-              <p><b>アプリで読む</b>　ふりがな付き。文字の大きさや縦書きに変えられます。</p>
-              <p><b>なろうで読む</b>　なろうのページをそのまま表示。アプリの操作・表示設定・ふりがな機能は効きません。</p>
-              <div class="later">読みかたの説明は、読みはじめてから ［設定］＞［操作の説明］ で。</div>
               <div class="odots"><i></i><i></i><i class="on"></i></div>
               <div class="obtns"><button class="obtn back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>もどる</button><button class="obtn pri">はじめる</button></div>
             </div>
@@ -752,7 +801,7 @@
     </p>
 
     <h2 style="font-size:14.5px;margin-top:30px;letter-spacing:.04em">組B「読みかた」 ─ 本文を初めて開いたとき（2 枚）　<span style="font-size:11.5px;font-weight:400;color:#6A6C67">背景＝読んでいる本文</span></h2>
-    <div class="stage">
+    <div class="stage gb">
 
       <div class="wrap"><span class="mode"><b>組B ─ 1/2</b>　本文を開いた直後に出る<br>説明の対象が背後に見えている</span>
         <div class="phone" role="img" aria-label="組B 3枚目 横書きで読む">
@@ -765,18 +814,21 @@
           </div>
           <div class="scrim">
             <div class="ocard">
-              <div class="fig">
-                <svg viewBox="0 0 120 84" width="120" height="84">
-                  <rect x="30" y="4" width="60" height="76" rx="7"/>
-                  <path class="soft" d="M34 16h52M34 68h52"/>
-                  <circle cx="60" cy="42" r="17" opacity=".45"/><circle cx="60" cy="42" r="9"/>
-                </svg>
+              <div class="obody">
+                <div class="fig">
+                  <svg viewBox="0 0 120 84" width="120" height="84">
+                    <rect x="30" y="4" width="60" height="76" rx="7"/>
+                    <path class="soft" d="M34 16h52M34 68h52"/>
+                    <circle cx="60" cy="42" r="17" opacity=".45"/><circle cx="60" cy="42" r="9"/>
+                  </svg>
+                </div>
+                <h3>横書きで読む</h3>
+                <dl>
+                  <dt>横書きにする</dt><dd>下のバーの ［表示設定］ ＞ ［本文の向き］。文字の大きさ・行間・余白も同じ場所です。</dd>
+                  <dt>メニューを出す</dt><dd>本文のどこでもタップ。<em>もう一度で消えます</em>。</dd>
+                  <dt>次の話へ</dt><dd><em>左へスワイプ</em>。下のバーの ［次章］ でも。</dd>
+                </dl>
               </div>
-              <h3>横書きで読む</h3>
-              <dl>
-                <dt>メニューを出す</dt><dd>本文のどこでもタップ。<em>もう一度で消えます</em>。</dd>
-                <dt>次の話へ</dt><dd><em>左へスワイプ</em>。下のバーの ［次章］ でも。</dd>
-              </dl>
               <div class="odots"><i class="on"></i><i></i></div>
               <div class="obtns"><button class="obtn">あとで</button><button class="obtn pri">つぎへ</button></div>
             </div>
@@ -795,20 +847,27 @@
           </div>
           <div class="scrim">
             <div class="ocard">
-              <div class="fig">
-                <svg viewBox="0 0 120 84" width="120" height="84">
-                  <path d="M96 12v58M84 12v58M72 12v58" class="soft"/>
-                  <path d="M60 20v42M48 20v42"/>
-                  <path d="M40 76H18"/><path d="M25 69l-7 7 7 7"/>
-                  <path class="soft" d="M14 12h96" opacity=".35"/>
-                </svg>
+              <div class="obody">
+                <div class="fig">
+                  <svg viewBox="0 0 120 84" width="120" height="84">
+                    <path d="M96 12v58M84 12v58M72 12v58" class="soft"/>
+                    <path d="M60 20v42M48 20v42"/>
+                    <!-- ⚠️ 2026-09-07 に矢印を左向き→右向きへ反転。この矢印は**指の向き**（＝このカードが
+                         教えている操作）で、実機の前進スワイプは指を右へ。項目が「右へスワイプ」と言っている
+                         横で ← を描くと、絵と文が正面から食い違う。
+                         ⚠️ 「行が左へ進む」の意味に読み替えれば元の向きも成り立つが、**このカードの用は
+                         割り当て（指の向き）を教えること**なので、曖昧なら操作側へ倒す。 -->
+                    <path d="M18 76H40"/><path d="M33 69l7 7-7 7"/>
+                    <path class="soft" d="M14 12h96" opacity=".35"/>
+                  </svg>
+                </div>
+                <h3>縦書きで読む</h3>
+                <dl>
+                  <dt>縦書きにする</dt><dd>下のバーの ［表示設定］ ＞ ［本文の向き］。</dd>
+                  <dt>読み進める</dt><dd><em>右へスワイプ</em>（横書きでは「次の話へ」）。</dd>
+                  <dt>次の話へ</dt><dd>最後まで進めて、さらに右へ。［次章］ でも。</dd>
+                </dl>
               </div>
-              <h3>縦書きで読む</h3>
-              <dl>
-                <dt>縦書きにする</dt><dd>下のバーの ［表示設定］ ＞ ［本文の向き］。文字の大きさ・行間・余白も同じ場所です。</dd>
-                <dt>読み進める</dt><dd><em>左へスワイプ</em>（横書きでは「次の話へ」）。</dd>
-                <dt>次の話へ</dt><dd>最後まで進めて、さらに左へ。［次章］ でも。</dd>
-              </dl>
               <div class="odots"><i></i><i class="on"></i></div>
               <div class="obtns"><button class="obtn back"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>もどる</button><button class="obtn pri">とじる</button></div>
             </div>
@@ -819,7 +878,7 @@
     </div>
 
     <h2 style="font-size:14.5px;margin-top:30px;letter-spacing:.04em">組C「さがしかた」 ─ 検索画面を初めて開いたとき（1 枚）　<span style="font-size:11.5px;font-weight:400;color:#6A6C67">背景＝検索画面・チップは既定4つ ON の姿</span></h2>
-    <div class="stage">
+    <div class="stage gc">
 
       <div class="wrap"><span class="mode"><b>組C ─ 1 枚だけ</b>　検索画面を開いた直後<br><b>点は打たない</b>（1 枚に点は要らない）</span>
         <div class="phone k" role="img" aria-label="組C 5枚目 さがして本棚に入れる">
@@ -844,22 +903,24 @@
           </nav>
           <div class="scrim">
             <div class="ocard">
-              <div class="fig">
-                <svg viewBox="0 0 120 84" width="120" height="84">
-                  <circle cx="40" cy="34" r="17"/><path d="M52 46l13 13"/>
-                  <rect x="74" y="16" width="34" height="10" rx="5" class="soft"/>
-                  <rect x="74" y="32" width="34" height="10" rx="5"/>
-                  <rect x="74" y="48" width="34" height="10" rx="5" class="soft"/>
-                  <path d="M18 70h84" class="soft" opacity=".5"/>
-                </svg>
+              <div class="obody">
+                <div class="fig">
+                  <svg viewBox="0 0 120 84" width="120" height="84">
+                    <circle cx="40" cy="34" r="17"/><path d="M52 46l13 13"/>
+                    <rect x="74" y="16" width="34" height="10" rx="5" class="soft"/>
+                    <rect x="74" y="32" width="34" height="10" rx="5"/>
+                    <rect x="74" y="48" width="34" height="10" rx="5" class="soft"/>
+                    <path d="M18 70h84" class="soft" opacity=".5"/>
+                  </svg>
+                </div>
+                <h3>さがして、本棚に入れる</h3>
+                <dl>
+                  <dt>検索範囲</dt><dd>言葉は<em>選んだ範囲の中だけ</em>を探します。複数選べます。</dd>
+                  <dt>もっと絞る</dt><dd>［条件を調整］ から、ジャンル・更新時期・文字数・読了時間・除外語など。</dd>
+                  <dt>本棚に入れる</dt><dd>作品の詳細画面で ［本棚に置く］。PDF は本棚の ［PDFを追加］。</dd>
+                </dl>
+                <div class="later">この説明は ［設定］＞［操作の説明］ にあります。</div>
               </div>
-              <h3>さがして、本棚に入れる</h3>
-              <dl>
-                <dt>検索範囲</dt><dd>言葉は<em>選んだ範囲の中だけ</em>を探します。複数選べます。</dd>
-                <dt>もっと絞る</dt><dd>［条件を調整］ から、ジャンル・更新時期・文字数・読了時間・除外語など。</dd>
-                <dt>本棚に入れる</dt><dd>作品の詳細画面で ［本棚に置く］。PDF は本棚の ［PDFを追加］。</dd>
-              </dl>
-              <div class="later">この説明は ［設定］＞［操作の説明］ にあります。</div>
               <div class="obtns r"><button class="obtn pri">とじる</button></div>
             </div>
           </div>
@@ -869,7 +930,7 @@
     </div>
 
     <h2 style="font-size:14.5px;margin-top:30px;letter-spacing:.04em">組D「つくって、本棚に入れる」 ─ PDF取り込み画面を初めて開いたとき（1 枚）　<span style="font-size:11.5px;font-weight:400;color:#6A6C67">背景＝なろうの目次ページ・自動送りの後の位置</span></h2>
-    <div class="stage">
+    <div class="stage gd">
 
       <div class="wrap"><span class="mode"><b>組D ─ 1 枚だけ</b>　取り込み画面を開いた直後<br><b>点は打たない</b>（組C と同じ）</span>
         <div class="phone k" role="img" aria-label="組D 7枚目 つくって本棚に入れる">
@@ -894,29 +955,31 @@
           </div>
           <div class="scrim">
             <div class="ocard">
-              <div class="fig">
-                <!-- 新規図版（IntroFigure.IMPORT）＝**なろうの面（破線）から本棚（実線）へ運ぶ**。
-                     約束は TWO_WAYS から継ぐ＝なろうの面は破線・アプリの面と動作は実線。
-                     ⚠️ TWO_WAYS の使い回しは不可＝あちらは 2 つの面を**並べて分ける**図で、
-                     こちらは**片方からもう片方へ運ぶ**図（ORIENTATION のときと同じ理由で禁じる）。
-                     ⚠️ **この svg が Compose 翻訳の source**（IntroFigure.kt importToShelf が座標で写経）。 -->
-                <svg viewBox="0 0 120 84" width="120" height="84">
-                  <rect x="36" y="4" width="48" height="34" rx="3" stroke-dasharray="5 4"/>
-                  <path class="soft" d="M43 13h34M43 20h34M43 27h20" stroke-dasharray="5 4"/>
-                  <path d="M60 43v13"/><path d="M54 50l6 6 6-6"/>
-                  <rect x="38" y="63" width="11" height="17" rx="1.5"/>
-                  <rect x="52" y="63" width="11" height="17" rx="1.5"/>
-                  <rect x="66" y="63" width="11" height="17" rx="1.5"/>
-                  <path class="soft" d="M31 82h58"/>
-                </svg>
+              <div class="obody">
+                <div class="fig">
+                  <!-- 新規図版（IntroFigure.IMPORT）＝**なろうの面（破線）から本棚（実線）へ運ぶ**。
+                       約束は TWO_WAYS から継ぐ＝なろうの面は破線・アプリの面と動作は実線。
+                       ⚠️ TWO_WAYS の使い回しは不可＝あちらは 2 つの面を**並べて分ける**図で、
+                       こちらは**片方からもう片方へ運ぶ**図（ORIENTATION のときと同じ理由で禁じる）。
+                       ⚠️ **この svg が Compose 翻訳の source**（IntroFigure.kt importToShelf が座標で写経）。 -->
+                  <svg viewBox="0 0 120 84" width="120" height="84">
+                    <rect x="36" y="4" width="48" height="34" rx="3" stroke-dasharray="5 4"/>
+                    <path class="soft" d="M43 13h34M43 20h34M43 27h20" stroke-dasharray="5 4"/>
+                    <path d="M60 43v13"/><path d="M54 50l6 6 6-6"/>
+                    <rect x="38" y="63" width="11" height="17" rx="1.5"/>
+                    <rect x="52" y="63" width="11" height="17" rx="1.5"/>
+                    <rect x="66" y="63" width="11" height="17" rx="1.5"/>
+                    <path class="soft" d="M31 82h58"/>
+                  </svg>
+                </div>
+                <h3>つくって、本棚に入れる</h3>
+                <dl>
+                  <dt>ここはなろうのページ</dt><dd>なろうが配信するページを、そのまま表示します。</dd>
+                  <dt>縦書きPDFを作る</dt><dd>開いた位置にある <em>［縦書きPDF］</em> の枠から。作り終わるとページが変わります。</dd>
+                  <dt>ダウンロードを押す</dt><dd>変わったページの <em>［縦書きPDFダウンロード］</em>。押すと<em>アプリが引き取り</em>、本棚に入ります。</dd>
+                </dl>
+                <div class="later">この説明は ［設定］＞［操作の説明］ にあります。</div>
               </div>
-              <h3>つくって、本棚に入れる</h3>
-              <dl>
-                <dt>ここはなろうのページ</dt><dd>なろうが配信するページを、そのまま表示します。</dd>
-                <dt>縦書きPDFを作る</dt><dd>開いた位置にある <em>［縦書きPDF］</em> の枠から。作り終わるとページが変わります。</dd>
-                <dt>ダウンロードを押す</dt><dd>変わったページの <em>［縦書きPDFダウンロード］</em>。押すと<em>アプリが引き取り</em>、本棚に入ります。</dd>
-              </dl>
-              <div class="later">この説明は ［設定］＞［操作の説明］ にあります。</div>
               <div class="obtns r"><button class="obtn pri">とじる</button></div>
             </div>
           </div>
@@ -983,6 +1046,7 @@
       <h4>4 枚目<span class="ch">組B ─ 本文を初めて開いたとき</span></h4>
       <dl>
         <dt>見出し</dt><dd>横書きで読む</dd>
+        <dt>横書きにする</dt><dd>下のバーの ［表示設定］ ＞ ［本文の向き］。文字の大きさ・行間・余白も同じ場所です。</dd>
         <dt>メニューを出す</dt><dd>本文のどこでもタップ。<b>もう一度で消えます</b>。</dd>
         <dt>次の話へ</dt><dd><b>左へスワイプ</b>。下のバーの ［次章］ でも。</dd>
         <dt>ボタン</dt><dd>組B 単独＝［あとで］　［つぎへ］　／　設定からの通し＝［← もどる］　［つぎへ］</dd>
@@ -991,9 +1055,9 @@
       <h4>5 枚目<span class="ch">組B ─ 組B はここで終わる</span></h4>
       <dl>
         <dt>見出し</dt><dd>縦書きで読む</dd>
-        <dt>縦書きにする</dt><dd>下のバーの ［表示設定］ ＞ ［本文の向き］。文字の大きさ・行間・余白も同じ場所です。</dd>
-        <dt>読み進める</dt><dd><b>左へスワイプ</b>（横書きでは「次の話へ」）。</dd>
-        <dt>次の話へ</dt><dd>最後まで進めて、さらに左へ。［次章］ でも。</dd>
+        <dt>縦書きにする</dt><dd>下のバーの ［表示設定］ ＞ ［本文の向き］。</dd>
+        <dt>読み進める</dt><dd><b>右へスワイプ</b>（横書きでは「次の話へ」）。</dd>
+        <dt>次の話へ</dt><dd>最後まで進めて、さらに右へ。［次章］ でも。</dd>
         <dt>ボタン</dt><dd>組B 単独＝［← もどる］　［とじる］　／　設定からの通し＝［← もどる］　［つぎへ］</dd>
       </dl>
 
@@ -1037,6 +1101,33 @@
         ・<b>上限</b>＝項目 3 つ（本節の「1 カード 3〜4 項目まで」の内側）。組C と同じ 3 項目＋<code>.later</code>。
       </p>
     </div>
+    <p class="note" style="border-left-color:#8A4B44">
+      <b>⚠️ 2026-09-07 の文言改訂 ─ 2 件（組B のみ）</b><br>
+      <b>①方向の是正（バグ）</b>　5 枚目の〈読み進める〉〈次の話へ〉が「<b>左</b>へ」と書いていたが、
+      <b>実機は指を右へで進み、左へで戻る</b>（PGEM10 実測）。実装側の座標系コメントも
+      <code>ChapterPullConnection</code>「item #0＝右端・読み進めは指を右へ」／
+      <code>ChapterFlipBenchmark</code>「縦書きの前進スワイプ（指を右へ）」で一致しており、
+      <b>教示だけが 4 枚目（横書き＝左へで正しい）の文言を流用したまま</b>だった。
+      <span style="color:#4A4C47">機序＝4 枚目と 5 枚目は<b>同じ項目名（「次の話へ」）を持つ対の構造</b>で、
+      対にした側（見出し「<b>横書きで</b>読む」／「縦書きで読む」）だけが差し替えられ、
+      <b>中身は横書き側から複製されたまま向きだけ検算されなかった</b>。
+      ⚠️ <b>鏡像の対を作ったら、対の各項目を実装の座標系と 1 つずつ突き合わせる</b>——
+      見出しが違えば中身も直っている、とは限らない。</span><br>
+      <b>②4 枚目の非対称の解消（裁定）</b>　5 枚目にだけ〈縦書きにする〉があり 4 枚目に〈横書きにする〉が無かった。
+      <b>4 枚目へ〈横書きにする〉を足して対称化する</b>。
+      <span style="color:#4A4C47">見た目の対称のためではない——<b>向きの既定は縦書き</b>
+      （<code>INTRO_ORIENTATION_DEFAULT_VERTICAL=true</code>・組A 2 枚目の初期選択）なので、
+      <b>組B に着く人の多くは縦書きで読んでいる</b>。その人が最初に見る 4 枚目が
+      「次の話へ＝<b>左</b>へスワイプ」だけを言うと、<b>いま自分がしている操作の説明として読めてしまう</b>
+      （縦書きでは左＝戻る＝逆）。冒頭に〈横書きにする〉が入ると
+      <b>「これは横書きという別の状態の話だ」と 1 行目で分かる</b>＝2 枚とも
+      <b>端末の現在値に依らず読める</b>形になり、状態を持たない列（§8「カード列の持ちかた」）と噛み合う。<br>
+      <b>捨てた案</b>: <b>見出しを現在の向きで出し分ける</b>＝カード列に端末の状態が混ざり
+      （§4「選択肢」の項と <code>IntroChoice</code> の設計＝列は文言の正本で可変値を持たない、に反する）、
+      しかも直るのは見出しだけで<b>逆向きの項目は残る</b>。
+      <b>現状維持</b>＝上の誤読が残る。<br>
+      重複を避けるため「文字の大きさ・行間・余白も同じ場所です。」は<b>初出の 4 枚目にだけ</b>置き、
+      5 枚目は場所の指示だけにした（同じ文を 2 枚続けて出すと、2 枚目が読み飛ばされる）。</p>
     <p class="note">
       <b>⚠️ 2026-08-21 のフラグ裁定で本文の文言は 1 文字も変えていない</b>（確定済み）。
       変わったのは<b>所属の呼び名（章→組）とボタン</b>だけ——ボタンは文章ではなく
@@ -1081,9 +1172,12 @@
         <td><b>左へスワイプ</b>（横書きでは「次の話へ」）。</td>
         <td>⚠️ <b>削りすぎの境界</b>。「指をはなすと止まる」＝既知なので削る。
           <b>「左へ」は残す</b>——消すと〈縦書きでどう読み進めるか〉が伝わらなくなる。
+          <span style="color:#8A4B44">⚠️ この「左へ」自体が<b>誤り</b>だった（正しくは右へ）＝2026-09-07 に是正。
+          この表は「そのとき何を削ったか」の記録なので<b>当時の文言のまま残す</b>。現行の文言は上の全文リストが正本。</span>
           括弧は文を増やさずに<b>割り当ての衝突（T3）</b>を置くためのもので、これがこの列で最も推測できない事実。</td></tr>
       <tr><td>4</td><td>［本文の向き］ <b>から</b>。…も同じところ<b>です</b>。／最後まで読み<b>進めて</b>、さらに左へ<b>引きます</b>。［次章］ でも<b>進めます</b>。</td>
-        <td>［本文の向き］。…も同じ場所です。／最後まで進めて、さらに左へ。［次章］ でも。</td>
+        <td>［本文の向き］。…も同じ場所です。／最後まで進めて、さらに左へ。［次章］ でも。
+          <span style="color:#8A4B44">⚠️「さらに左へ」は 2026-09-07 に「さらに右へ」へ是正（同上・当時の文言のまま残す）。</span></td>
         <td><b>文体</b>　1 項目に「〜ます」が 3 つ並ぶと手取り足取りに聞こえる。<b>割り当ては体言止め</b>にし、
           ですますは結果を言う文だけに残した（丁寧さは落としていない）。</td></tr>
       <tr><td>5</td><td><b>下の ［さがす］ から。</b>入力した言葉は、選んだ検索範囲の中だけを探します（いくつでも選べます）。</td>
@@ -1247,7 +1341,11 @@
       （組C は実装済み＝<code>IntroGroup.SEARCH</code>）。<b>同じファイルの中で §2 と §8 が反対のことを言っていた</b>ので、
       §2 を正として外す。<span style="color:#4A4C47">⚠️ 機序＝<b>反転は「置く」側の表に書き足せば済むと思いがちだが、
       「作らないもの」の側は書き足しでは直らず、消しに行かないと残る</b>。反転を記録するときは
-      <b>否定形で書かれた箇所を必ず grep する</b>（本ファイル内でも 2 箇所に分かれていた）。</span><br>
+      <b>否定形で書かれた箇所を必ず grep する</b>（本ファイル内でも <b>3 箇所</b>に分かれていた）。<br>
+      ⚠️ <b>2026-09-07 追記</b>: ここは長く「2 箇所」と書いていたが<b>3 箇所目が生き残っていた</b>——
+      冒頭コメント「前便から引き継ぐ裁定（変えない）」の中に「検索の初出教示も不要」が併記されており、
+      <b>§2・§8 と反対のことを言う行が本文の外（コメント）に残っていた</b>。
+      grep の範囲を <code>&lt;body&gt;</code> だけに取ると、<b>設計の由来を書いたヘッダコメントが丸ごと死角になる</b>。</span><br>
       <b>②「PDF取り込み」</b>——<b>2026-09-04 の実機所感と規則1b で反転</b>（§2 の「PDF取り込みを初めて開いたとき」の行が根拠の正本）。
       旧判定は「目的を持って押して来る画面」だったが、<b>動機は〈この面で何を押すか〉を運ばない</b>。
       組C（検索範囲チップ）を反転させたのと<b>同じ規則・同じ取りこぼし</b>。<br>
@@ -1402,9 +1500,29 @@
           ・現行ピルの <code>Insets.ChromeHintBottom</code>（<b>96.dp</b>）とは<b>別値</b>＝取っ手用に 16dp を新しく置く
             （80dp 離れるので重ならない）。</td></tr>
 
+      <tr><td><b>めくりの遷移と寸法</b><br><span style="color:#8A4B44">（2026-09-07 実機所見の是正）</span></td>
+        <td><b>遷移＝横スライド（shared axis X）。</b>進むとき新しい面は<b>右から</b>入り古い面は<b>左へ</b>抜ける・
+          ［← もどる］ は鏡像。移動量は <b>32dp</b>（<code>Spacing.S32</code>）＝<b>カード幅ぶんの押し出しにはしない</b>。
+          尺は<b>全体 250ms</b>・フェードは<b>先に退場（100ms）→ 遅れて入場（150ms）</b>のフェードスルー。
+          値は motion トークンへ置く（直書き禁止＝<code>/visual-language</code>）。<br>
+          <b>動かす範囲は本文域（<code>.obody</code>）だけ</b>——点とボタンは下端に固定。
+          <span style="color:#4A4C47">主ボタンごと滑らせると①押した指の下でボタンが横へ逃げる
+          ②遷移中は<b>去りゆくカードのボタンも生きている</b>ので連打で 2 枚飛ぶ、の 2 つを自分で作る。</span><br>
+          <b>寸法＝その回で最も高い 1 枚に揃える</b>（列 7 枚ではなく<b>その回</b>）。実装は
+          <b>実行時に測る</b>（<code>SubcomposeLayout</code> で回の全カードを測り最大を採る）。
+          <span style="color:#8A4B44">⚠️ dp の定数にしないこと——最大は fontScale・端末幅・文言の改稿で動く。
+          定数にした瞬間に、次に文言を 1 行足した人が黙って溢れさせる。</span><br>
+          <b>スワイプでの送りは足さない</b>。<span style="color:#4A4C47">この画面の用は
+          〈このアプリ固有の割り当てを教えること〉で、<b>教示自身が説明の要る隠れた割り当てを増やす</b>のは
+          自己矛盾（§1 の基準そのもの）。［つぎへ］／［← もどる］ は見えていて、点が残りを語っている。</span></td></tr>
+
       <tr><td><b>設定の「操作の説明」</b></td>
         <td>新規グループ見出し「<b>つかいかた</b>」を立てる（「このアプリ」へ混ぜない＝縦に走査した人が見出しで止まれる）。
-          ラベル「<b>操作の説明</b>」／副文「<b>読書画面と検索の使いかたを見返せます</b>」。<br>
+          ラベル「<b>操作の説明</b>」／副文「<b>読書画面・検索・PDF取り込みの使いかたを見返せます</b>」。<br>
+          <span style="color:#8A4B44">⚠️ <b>2026-09-07 是正</b>: 旧副文「読書画面と検索の使いかたを見返せます」は<b>2 領域しか数えていなかった</b>
+          （2026-09-04 に組D を足して<b>通しは 7 枚・4 領域</b>になっている）。<b>副文は組の数だけ列挙する</b>——
+          通しで開く導線なので、何が読めるかを列挙しないと「もう知っている話だけ」と読まれて押されない。
+          <b>組を増やしたらこの副文も足す</b>（列挙をやめて総称にすると、増えたことに誰も気づけない）。</span><br>
           押すと<b>組A から列の最後まで通しで開く</b>（画面遷移ではなくオーバーレイ）。<br>
           <span style="color:#8A4B44">⚠️ <b>2026-08-25 訂正</b>: ここは「章2 からカード列を開く」と書かれていたが、
           <b>章立て（章1／章2）で仕分けていた前版の残り</b>で、3 系統へ分けた §3 の入口表
