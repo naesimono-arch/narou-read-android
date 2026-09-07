@@ -121,8 +121,18 @@ python3 .claude/skills/stale-check/check_machine.py --list
    実例: 「APK に .so は0本」知見（監査 D-1）は `unzip` 未導入環境で `unzip -l | grep` が空を返した偽測定だった
    （実際は8本。memory `bash-pipe-masks-exit-code-false-green` の型）。作法の手本＝
    `docs/knowledge/agp-srcdir-taskprovider-drops-builtby.md`。
-   **knowledge の全数照合はしない**（監査時点で46本中4本＝9%と低汚染。1知見1ファイルで腐りが局所化している）＝
-   この検査は「差分に入った knowledge」と「実測を名乗る記述」に限定する。
+   **knowledge の全数照合はしない**（2026-09-07 再確認・現況 98本）＝この検査は「差分に入った knowledge」と
+   「実測を名乗る記述」に限定する。**母数が増えたことは判断を弱めない**——全数照合の費用は母数に比例して
+   増える（46→98本＝2.1倍）ので、汚染率が跳ねていない限り「全数はやらない」は強まる側に動く。
+   跳ねていないことの機械的な確認（費用ゼロで再現できる唯一の腐り検査）＝**文中の参照パスの死に**は
+   98本中 実質0本。`git ls-files` の末尾一致で解決すると未解決は7本だが、内訳はビルド生成物
+   （`app_debug-module.json`・`benchmarkData.json`）・端末上のファイル（`app_prefs.xml`・`chap_1028.html`）・
+   auto-memory（`MEMORY.md`・`legacy-python-artifacts.md`）＝いずれも非追跡が設計どおりで腐りではない。
+   ⚠️ **旧記載「46本中4本＝9%」とこの0本を並べて「改善した」と読まない**——旧値は人手の意味監査、
+   こちらは参照パスの死活だけを見る機械測定で**別指標**。意味監査は再実施していない（する予定も無い＝
+   それが「全数照合はしない」の中身）ので、9% は根拠として引かず取り下げる。
+   照合コマンド（`docs/knowledge/*.md` のバッククォート内トークンを `git ls-files` へ末尾一致で解決）:
+   `python3 tools/check_knowledge_refs.py`
 
 4. **patterns の正本ヘッダ**: `docs/patterns/*.md`（README 除く）は冒頭引用ブロックに
    `正本コード: <repoルート相対path>` 行が必須（規約と例外形＝`docs/patterns/README.md`）。
