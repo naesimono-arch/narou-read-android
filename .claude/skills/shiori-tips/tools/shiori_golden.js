@@ -16,7 +16,15 @@ function params(title,tipCount){
   return {hue,xFrac,lenFrac,tipIndex};
 }
 
-const tipCount=Number(process.argv[2]||31);
+// tipCount は必須引数。既定値を持たせない理由（2026-09-07 裁定）: 既定 31 は採用数が 174 へ増えた後も
+// 据え置かれ、引数を忘れた実行が「黙って別 tipCount のゴールデン」を吐く状態が続いていた。
+// 既定を 174 へ直しても増補のたびに同じ腐り方をするので、既定そのものを廃す（本ツールの用途は
+// 「これから確定させる新 tipCount で再生成する」＝現行値を既定に採るのも誤り）。
+const tipCount=Number(process.argv[2]);
+if(!Number.isInteger(tipCount)||tipCount<1){
+  console.error('usage: node shiori_golden.js <tipCount>\n  tipCount = 採用後の SHIORI_TIPS.size（正本＝ShioriCover.kt の SHIORI_TIPS / ShioriGenerator.kt の SHIORI_TIP_COUNT）');
+  process.exit(2);
+}
 // ShioriGeneratorTest が固定している 3 title（ハッシュ検証用に生ハッシュも出す）。
 const titles=['テスト','星降る夜のパン屋と魔法使い','黒の魔王と契約した俺、気づけば最強の従者に'];
 // hash は tipCount 非依存＝不変。参考に signed int32 でも出す（Kotlin の shioriHash は Int）。

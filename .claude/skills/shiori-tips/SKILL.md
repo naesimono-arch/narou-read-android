@@ -59,5 +59,5 @@ description: 栞書影の先端ワンポイント意匠（SHIORI_TIPS）を安�
 
 ## tools/
 - `verify_tips.js <entries.js> [constName=TIPS_BATCH1]` — 実行時検証（色/メソッド/例外/包絡/重複）。
-- `shiori_golden.js [tipCount=31]` — 正本JS(hashStr/mulberry32)移植でゴールデン(hue/xFrac/lenFrac/tipIndex)を算出。
+- `shiori_golden.js <tipCount>`（必須引数・既定値なし） — 正本JS(hashStr/mulberry32)移植でゴールデン(hue/xFrac/lenFrac/tipIndex)を算出。
 - `cross_dedup.js` — 正本＋新 entries の nm/rd 横断衝突検出。
