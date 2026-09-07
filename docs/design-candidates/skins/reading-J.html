@@ -32,13 +32,13 @@
 
   /* ---- 読書テーマ別トークン（金＝構造／森緑＝世界。段はテーマごとに彫り分け）---- */
   .t-dark{ --bg:#0F1712; --ink:#E4E9DE; --soft:#8E998C; --ruby:#A2AC9C; --accent:#E2C878; --rule:#9FCFA9;
-           --panel:#16211A; --panel-bd:#25332A; --bar:#101913; --bar-line:#22301F;
+           --panel:#16211A; --panel-bd:#25332A; --bar:#101913; --bar-rgb:16,25,19; --bar-line:#22301F;
            --amb1:rgba(214,196,120,.22); --amb2:rgba(39,64,48,.72); --glyph:rgba(233,240,228,.06); }
   .t-light{ --bg:#FAFBF8; --ink:#171E18; --soft:#6C746B; --ruby:#5A6257; --accent:#2E5B3E; --rule:#7BA986;
-            --panel:#F1F4EE; --panel-bd:#E2E7DE; --bar:#FAFBF8; --bar-line:#E7ECE4;
+            --panel:#F1F4EE; --panel-bd:#E2E7DE; --bar:#FAFBF8; --bar-rgb:250,251,248; --bar-line:#E7ECE4;
             --amb1:rgba(197,168,74,.14); --amb2:rgba(120,150,110,.18); --glyph:rgba(28,40,28,.06); }
   .t-sepia{ --bg:#F3E8CF; --ink:#332918; --soft:#8A7B5B; --ruby:#6C5D40; --accent:#5E4A1C; --rule:#A88B4E;
-            --panel:#EBDEBE; --panel-bd:#DBCB9E; --bar:#EDE1C3; --bar-line:#E0D3B0;
+            --panel:#EBDEBE; --panel-bd:#DBCB9E; --bar:#EDE1C3; --bar-rgb:237,225,195; --bar-line:#E0D3B0;
             --amb1:rgba(180,140,60,.18); --amb2:rgba(120,130,80,.2); --glyph:rgba(60,48,20,.07); }
   .phone{background:var(--bg)}
 
@@ -71,9 +71,39 @@
   .block .lbl{font-family:var(--gothic);font-size:11px;color:var(--accent);font-weight:700;margin-bottom:8px;letter-spacing:.1em}
   .block p{font-size:14.5px;line-height:2.1;text-indent:1em;margin:0;color:var(--soft)}
 
+  /* ---- 上下バーの面は α.92（2026-09-07 裁定・比較モック candidates/reading-bars-translucency-J-candidates.html 案B）----
+     2026-09-04 の D/K 裁定と**同じ値をそのまま当てた**（J 固有の値は作らない）。
+     なぜ透かすか: ライトは --bar #FAFBF8 と --bg #FAFBF8 が**完全に同値**で、境界を語るのは 1px の --bar-line
+     だけ＝面としてのバーが見えない（D/K が「境界が読めない」と報せた構図と同一）。
+     ⚠️ **J はダークも同じクラス**＝--bar #101913 と --bg #0F1712 が Δrgb=(1,2,1) でほぼ同値。D/K のダークは
+        Δ(4,5,6) で「もともと面が薄く見えている」状態だったので「ライトとは効き方が逆」と注記したが、
+        **J にその注意は当てはまらない**（3テーマとも同じ向きに効く＝α はテーマ共通の1値でよい）。
+     .92 は効く最小値＝本文が真下を通った箇所のバー面がライト #FAFBF8 → #E8E9E6／ダーク #101913 → #212A23 へ
+     動く（.96 は差 約4% で動いて初めて気づく／.86 はダークでバーが灰へ寄り森緑が抜ける・章頭では巨大 glyph の
+     画がバーの下端に透けて「本文が流れる」以外のものが混じる）。3ピル（復帰ヒント／続きに戻る／最上部へ）と
+     クローム面が同じ数に揃うので**新しい数を1つも増やさない**。
+     ⚠️ セピアだけ --bar #EDE1C3 が --bg #F3E8CF と別値（バーが暗い）だが、合成相手が近い素地なので
+        「素のバー面」は .92 で 1 階調しか動かない（#EDE1C3 → #EDE2C4）＝**既存の差は薄まらない**。
+     ⚠️ システム帯（上＝ステータス／下＝ナビ inset）は**不透明のまま**＝〈面＝半透明／帯＝不透明〉の2段塗り。
+        素朴に面ぜんぶへ α を掛けると帯まで透け、ボタン行の下の無地部分で本文が覗く（2026-07-29 実機・
+        上下バー非対称の真因＝旧 containerColor .copy(alpha=0.95f)）。--bar-rgb は --bar と同値の RGB 三つ組で、
+        片方だけ動かすと腐るので必ず対で直す。
+     ⚠️ ヘアライン（--bar-line）は触っていない。「境界が読めない」にはヘアラインを濃くする別解もあるが、
+        同時に2軸動かすと効いた方が分からない＝線は次の別裁定に回す（D/K の裁定と同じ規律）。
+     ⚠️ 章頭では大気（--amb1 金／--amb2 森緑）が .chap-h 上端から 300px＝**上バーをまるごと覆う位置**に居るので、
+        透かすと金と森緑が上バーへ**囁く程度**滲む。これは J だけに起きる効き（D/K の版面に大気は無い）で、
+        「扉をくぐる瞬間」が題字の地にも触れる＝**意図として採る**。題字 --ink は最悪面でも 13.9:1（ライト）で濁らない。
+     ⚠️ **この頁の4パネルでは透けが1つも見えない。それで正しい**——4つとも「バーの下に本文が無い」状態だから:
+        ①②は章頭＝本文の上クリアランス（実装 Insets.ReadingBodyTopExtra＝64dp／モックは .chap-h の
+        padding-top 92px）がバー高 50px を上回り上バーの真下に本文が無く、本文も下バーまで届いていない。
+        ③は没入＝バーごと退避。④は章末（.tail）＝章末印の下に 60px 空けるので下バーの真下も空く。
+        透けが立つのは**章の途中をスクロールしている間**で、その姿は上記の比較モック（§2/§4/§5）にある。
+        ⚠️ ここを「効いていない＝入れ損ね」と読んで α を戻さないこと（値は 3 テーマとも .92 で正しい）。
+     ⚠️ 没入（.immersive）には効かない＝バーごと退避するので、これは**クローム表示中の定常の地**だけの話
+        （J は没入が既定＝効くのはトグル中）。出没はスライドのままでフェードへは戻さない。 */
   /* ---- トップバー（オーバーレイ・chrome時のみ。本棚＝ポータルデッキへ戻る）---- */
   .topbar{position:absolute;left:0;right:0;top:34px;z-index:4;height:50px;display:flex;align-items:center;gap:4px;
-    padding:0 14px;background:var(--bar);border-bottom:1px solid var(--bar-line)}
+    padding:0 14px;background:rgba(var(--bar-rgb),.92);border-bottom:1px solid var(--bar-line)}
   .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;
     place-items:center;color:var(--ink);cursor:pointer}
   .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
@@ -82,11 +112,14 @@
 
   /* ---- ボトムバー（オーバーレイ・chrome時のみ。前章/目次/表示設定/次章）。表示設定だけ金＝画面唯一の強調 ---- */
   .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:62px;display:flex;align-items:center;
-    background:var(--bar);border-top:1px solid var(--bar-line)}
+    background:rgba(var(--bar-rgb),.92);border-top:1px solid var(--bar-line)}
   .bottombar button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:4px;color:var(--ink);cursor:pointer}
   .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
   .bottombar .bl{font-family:var(--gothic);font-size:9.5px;color:var(--soft);letter-spacing:.02em}
+  /* ⚠️ 表示設定アイコンの2つの円は `fill="var(--bar)"`（**不透明**）のまま。円は線を抜くための
+     モック固有の描き方で、実装は Icons.Filled.Tune の単一ベクタ＝抜き円が存在しない。バーを透かしても
+     ここを rgba へ揃えると「バーの上にもう一枚バー地を重ねる」形になって実装と別物になるので触らない。 */
   .bottombar .set svg{stroke:var(--accent)}
   .bottombar .set .bl{color:var(--accent);font-weight:600}
 
@@ -156,10 +189,12 @@
     font-family:var(--gothic);font-size:11px;color:var(--ink);letter-spacing:.08em;
     border:1px solid var(--bar-line);border-radius:999px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.08)}
   /* 地＝各テーマの --bar に α.78（reading-backtotop-D の 2026-09-04 裁定・案D）。α は**テーマ共通**で
-     色だけがテーマ追従＝CSS 変数に α を掛ける手段が無いので rgb 実値で展開する（値は上の --bar と同一）。 */
-  .t-dark .toppill{background:rgba(16,25,19,.78)}
-  .t-light .toppill{background:rgba(250,251,248,.78)}
-  .t-sepia .toppill{background:rgba(237,225,195,.78)}
+     色だけがテーマ追従＝--bar-rgb（--bar と同値の RGB 三つ組）越しに掛ける。
+     ⚠️ 旧記述「CSS 変数に α を掛ける手段が無いので rgb 実値で展開する」は 2026-09-07 に解消済み＝上下バーの
+        透過裁定で --bar-rgb を宣言したので、テーマごとの rgb 実値を三重に書き写す必要はなくなった
+        （同じ三つ組が2箇所に在ると片方だけ動いて腐る）。値は 1 も変えていない。
+     ⚠️ ピルは**バーの上ではなく本文の上に浮く**別の器＝上下バーの α.92 とは別値（.78）で正しい。 */
+  .toppill{background:rgba(var(--bar-rgb),.78)}
   /* 透明なタップ標的＝48px（2026-09-03 裁定の下限。器を縮めてもここは縮めない）。
      見えないので目視では確かめられない＝Compose 側は NativeReadingScreenTopPillTest が両寸法を機械固定する。 */
   .toppill::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);

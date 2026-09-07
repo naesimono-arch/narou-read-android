@@ -84,7 +84,7 @@ data class ReadingColors(
     // （Design/10§9「alpha でなく専用シェード」＝コード衛生）。
     val placeholder: Color,
     // 下部ナビバー・ピル地。バー本体の面は [SkinTokens.readingBarSurfaceAlpha] ぶんだけ透かす
-    //（D/K は 2026-09-04 裁定で [ChromeSurfaceAlpha]＝.92／他スキンは不透明のまま）。
+    //（D/K は 2026-09-04 裁定・J は 2026-09-07 裁定でいずれも [ChromeSurfaceAlpha]＝.92／C・M・P は不透明のまま）。
     // ⚠️ どのスキンでも**システム帯（ナビ inset）は不透明**＝2段塗り。帯へ α を掛けると本文が覗く
     //（2026-07-29 実機・上下バー非対称の真因＝旧 containerColor .copy(alpha=0.95f)）。
     // ヒント系の非操作ピルは従来どおり使用側で [ChromeSurfaceAlpha] を掛ける。

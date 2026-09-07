@@ -98,13 +98,15 @@ interface SkinTokens {
     /**
      * 読書クロームの上下バーの**面**に載せる α（既定＝不透明）。
      *
-     * なぜスキンごとに持たせるか: 2026-09-04 裁定（比較モック `reading-bars-translucency-candidates.html` 案B）は
-     * **D/K だけ**を対象にしている。機序が D/K 固有だからで、ライトの `navBackground` #FBFAF8 が本文素地
-     * #FBFAF8 と**完全に同値**＝面としてのバーが見えない、という状態への手当てである。
+     * なぜスキンごとに持たせるか: 透過は「バー地と本文素地が同値で面が見えない」スキンへの手当てで、
+     * その機序を持つスキンだけが対象だから。ライトの `navBackground` が本文素地と**完全に同値**という状態が起点。
+     *  - D/K: 2026-09-04 裁定（比較モック `reading-bars-translucency-candidates.html` 案B）＝#FBFAF8 が同値。
+     *  - J: 2026-09-07 裁定（比較モック `reading-bars-translucency-J-candidates.html` 案B）＝`.t-light --bar`
+     *    #FAFBF8 が `--bg` と同値。**ダークも Δrgb=(1,2,1) でほぼ同値**なので3テーマとも同じ向きに効く。
+     *    D/K と同じ .92 をそのまま当てており、J 固有の値は作っていない。
      *  - C: 上下バー面を素地と別面（`--surface` #1E2128）に取る思想＝同値問題がそもそも起きない。
      *  - M/P: `navBackground` が焼き込み済み不透明トークン（M は `rgba(14,21,48,.82)` を、P は plastic 面を
      *    焼き込んである）＝使用側でさらに α を掛けると二重に薄まる。
-     *  - J: `.t-light --bar` #FAFBF8 が `--bg` と同値で D と同じ機序を持つが**未裁定**（意匠の自己判断はしない）。
      * だから既定を 1f（現行の見えを 1px も変えない）に置き、裁定の付いたスキンだけが override する。
      *
      * ⚠️ 値を面へ載せるのは [com.novelreader.ui.readingChromeBarSurface] で、システム帯は常に不透明に塗る。

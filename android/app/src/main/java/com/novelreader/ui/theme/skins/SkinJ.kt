@@ -32,6 +32,18 @@ object SkinJ : SkinTokens {
     // 初弾は全スキンとも共有の本文タイポ（原則5「静謐は機能」＝字面はスキン間で不変）。
     override val typography: Typography = NovelReaderTypography
 
+    // 上下バーの面はわずかに透かす（2026-09-07 裁定・比較モック
+    // candidates/reading-bars-translucency-J-candidates.html 案B＝D/K と同じ .92 をそのまま当てた）。
+    // なぜ J にも要るか: ライトの navBackground #FAFBF8 が本文素地 #FAFBF8 と完全に同値で、境界を語るのが
+    // 1px のヘアラインだけ＝面としてのバーが見えない（D/K と同じ機序）。⚠️ **J はダークも同じクラス**で、
+    // #101913 と素地 #0F1712 が Δrgb=(1,2,1) とほぼ同値＝D/K のダーク（Δ4,5,6）と違い3テーマとも同じ向きに
+    // 効くので、テーマ共通の1値でよい（テーマ別に振る必要が無い）。
+    // なぜ D/K より濃い .86 を採らないか: ダークでバーが灰へ寄って署名の森緑が抜け、章頭では大気の巨大 glyph の
+    // 画までバーに透けて「本文が流れる」以外のものが混じる。
+    // 値は 3ピルと同値＝クロームの面は一律 ChromeSurfaceAlpha（新しい数を増やさない）。
+    // 正本モック reading-J.html `.topbar`/`.bottombar` = rgba(var(--bar-rgb),.92)。
+    override val readingBarSurfaceAlpha: Float = ChromeSurfaceAlpha
+
     // ============================================================
     // Material3 カラースキーム（darkColorScheme ベース＝theme 非依存の固定ダーク森面）。
     // なぜ固定か: 本棚/目次/発見/設定はモックが固定ダーク森面（回廊 --page #0C0E0B）で、reading の3テーマは

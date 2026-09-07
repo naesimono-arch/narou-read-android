@@ -1302,7 +1302,7 @@ internal fun ChapterScreenContent(
         }
 
         // ────── 上下バーの地（2段塗りの材料）──────
-        // 面＝スキンの裁定 α（D/K は .92・他は不透明）／システム帯＝常に不透明。理由は readingChromeBarSurface。
+        // 面＝スキンの裁定 α（D/K・J は .92・C/M/P は不透明）／システム帯＝常に不透明。理由は readingChromeBarSurface。
         val barFaceAlpha = LocalSkinTokens.current.readingBarSurfaceAlpha
         // なぜ IgnoringVisibility か: バー自身の windowInsets と同じ源を使う。可視追従の insets だと
         // トグルのたびに 0⇄実測値で振れ、帯の高さが1フレームずれて「帯だけ透ける」瞬間が出る。

@@ -1,0 +1,700 @@
+<!-- @dsCard group="UI-n / 一時ドラフト（裁定用）" name="読書 上下バーのわずかな透過 — スキンJ 3案＋対照（2026-09-07）" -->
+<!--
+  ✅ 裁定済み（2026-09-07）＝**案B（α.92）を採用**（D/K の 2026-09-04 裁定と同じ値をそのまま当てた）。
+     正本 docs/design-candidates/skins/reading-J.html の `.topbar`/`.bottombar` へ差し戻し済み
+     （`rgba(var(--bar-rgb),.92)`・why も同所）。Compose は `SkinJ.readingBarSurfaceAlpha = ChromeSurfaceAlpha`。
+     決め手（headless レンダを 1.9x で検分）:
+       ①対照R はライトもダークも**完全に平ら**＝バーが本文の続きに見え、語るのはヘアラインだけ（提起そのもの）。
+       ②案A(.96) の影は 1.9x に拡大して初めて読める＝等倍では「動いて初めて気づく」域を出ない。
+       ③案B(.92) は上下バーとも静止画で層として読め、題字・ラベルは影の上でも濁らない。
+       ④案C(.86) はダークでバーが灰へ寄り**署名の森緑が抜ける**／章頭では大気の巨大 glyph の画までバーに透けて
+         「本文がバーの下を流れる」以外のものが混じる＝J では退ける理由が D/K（ラベル可読）と別に立つ。
+       ⑤J固有の懸念だった**章頭の大気の滲み**は .92 では囁く程度で、題字は清いまま＝「扉をくぐる瞬間」が
+         クロームの地に触れる効きとして**採る**判断にした。
+     ⚠️ **この頁はまだ消していない**——正本側の why が「比較モック …案B」として本頁を名指しで参照しており、
+        消すと参照が切れるため。消すなら正本の参照文言も同じコミットで畳むこと（D/K 側の頁と同じ扱い）。
+  ── 以下は裁定前の記述（当時の判断材料として残す）──────────────────────────────
+  ⚠️ 一時ドラフト（複数案比較）＝正本ではない。裁定が付いたら**採用案だけ**を正本
+     docs/design-candidates/skins/reading-J.html（.topbar / .bottombar）へ差し戻す
+     （CLAUDE.md「一時ファイルは抽出→集約→削除まで1セット」／visual-language「複数案比較のみ一時ドラフト」）。
+     ⚠️ この頁を消すときは、正本 reading-J.html の `.topbar`/`.bottombar` の why が本頁を名指しで参照して
+        いるので、参照文言も同じコミットで畳むこと（D/K 側 reading-bars-translucency-candidates.html と同じ扱い）。
+
+  ── 動機 ────────────────────────────────────────────────────────────
+  2026-09-04 の「上下バーのわずかな透過」裁定（案B＝α.92）は **D/K 限定**だった。J は同じ機序を持ちながら
+  未裁定のまま据え置かれている（`SkinTokens.readingBarSurfaceAlpha` の既定 1f）。本頁は **J の裁定だけ**を求める。
+  機序: J `.t-light` は `--bar` #FAFBF8 が `--bg` と**完全に同値**＝面としてのバーが存在せず、境界を語るのは
+  1px のヘアライン（`--bar-line` #E7ECE4）だけ。D/K で「境界が読めない」と報せた構図とそっくり同じ。
+
+  ── 下敷きにした正本（新意匠を発明しない。色・寸法は逐語複製）──────────────────────
+  版面・配色・上下バーの構造・章扉の大気 = docs/design-candidates/skins/reading-J.html
+                                            （.sb 34px / .topbar 50px / .bottombar 62px / .chap-h / --amb1 --amb2 --glyph）
+  透過の案の切り方・ナビ帯の要件・波及メモの型 = candidates/reading-bars-translucency-candidates.html（D/K の裁定頁）
+  バーが本文の上に浮く根拠                  = reading-vertical-scroll-D.html .reader ★注記
+                                            （「バー表示中は列の端がバーの下へ潜るのを許容する」＝2026-08-17 実装同期）
+
+  ── J が D/K と違うところ（本頁がわざわざ別に要る理由）──────────────────────────
+  ① **章頭の大気が上バーの裏を通る**。`.chap-h::before` は `.reader` の上端から 300px の大気グラデで、
+     上バー（34〜84px）を**まるごと覆う位置に居る**。D/K の版面には大気が無いので、この面は D/K の裁定頁に
+     存在しなかった。透かすと金（--amb1）と森緑（--amb2）が上バーへ滲む＝J の「扉をくぐる瞬間」に効くのか、
+     題字を濁すだけなのかを見る必要がある（本頁 §3）。
+  ② **ダークでも `--bar` #101913 と `--bg` #0F1712 がほぼ同値**（Δrgb = 1,2,1）。D/K のダークは
+     #181C22 vs #14171C（Δ 4,5,6）で「もともと面が薄く見えている」状態だったが、**J のダークは
+     ライトと同じ〈同値〉クラス**。よって D/K で「ライトとは効き方が逆」と書いた注意は J には当てはまらない（§4）。
+  ③ **セピアだけ `--bar` #EDE1C3 が `--bg` #F3E8CF と別値**（バーが素地より暗い）＝面がもともと見えている。
+     ここは「透かして既存の差が薄まらないか」を見る面（§5）。
+
+  ── 実装の現在値（2026-09-07 実測）────────────────────────────────────────
+  ・塗りの器は結線済み＝`Modifier.readingChromeBarSurface`（面＝半透明／システム帯＝不透明の2段塗り）。
+    J に足りないのは `SkinJ.readingBarSurfaceAlpha` の override **1行だけ**で、器・帯の扱いは D/K と共有。
+  ・J のバーは「D 標準（署名にしない）」＝NativeReadingScreen.kt:899 の why。J 固有のクローム追加は
+    遊び心J2『敷居光』（右端 EdgeGlow・z-index はバーより上）だけで、本件はそれに触れない。
+  ・J は**没入が既定**＝バーが出ているのはトグル中だけ。効くのは「クローム表示中の定常の地」に限る。
+
+  ── 踏んではいけない地雷（D/K の裁定頁から引き継ぐ・案の要件に織り込み済み）──────────
+  `containerColor` に α を掛ける形は禁じ手。`BottomAppBar`/`TopAppBar` の Surface は **windowInsets ぶんの
+  システム帯まで同じ色で塗る**ため、ボタン行の下（ナビ帯）・題字の上（ステータス帯）という**指も触れない
+  無地部分**から本文が透けた（2026-07-29 実機「上下バー非対称」の真因）。**帯は常に不透明**が全案の要件。
+  図は D/K の裁定頁 §「ナビ inset 帯」に在る（同じ図を再掲しない＝要件は共有で、J で変わらないため）。
+
+  ── 各案（振っているのは面の α だけ。ヘアライン・高さ・字色・アイコン・出没は全案とも J の現行値）──
+  案A「α.96」ぎりぎり気づく／案B「α.92」D/K と同値・3ピルとも同値／案C「α.86」はっきり流れる／対照R「不透明」＝現行。
+
+  ⚠️ **ヘアラインは触っていない**（＝この頁で振っていない軸）。D/K の裁定で「透過を入れてなお境界が弱いなら
+     `--bar-line` を濃くする案は別裁定」として意図的に外してある。同時に2軸動かすと効いた方が分からないので、
+     **J でも同じ規律を守る**。
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>読書 上下バーのわずかな透過 — スキンJ 3案＋対照</title>
+<style>
+  /*==harness==*/
+  :root{
+    --mincho:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+    --gothic:"Yu Gothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0C0E0B;display:flex;flex-direction:column;align-items:center;min-height:100vh;
+    padding:26px;font-family:var(--gothic)}
+  .ttl{font-family:var(--mincho);font-size:19px;color:#E9F0E4;letter-spacing:.06em;margin-bottom:8px}
+  .cap{color:#9DAE97;font-size:13px;margin-bottom:6px;text-align:center;line-height:1.7;max-width:900px}
+  .cap b{color:#E9F0E4}
+  .warn{color:#7E8C79;font-size:11.5px;margin-bottom:18px;text-align:center;line-height:1.7;max-width:900px}
+  .warn b{color:#C6D2C1}
+  .sec{width:100%;max-width:1700px;margin:34px 0 12px;font-size:13px;letter-spacing:.14em;
+    color:#C6D2C1;border-bottom:1px solid #2B3329;padding-bottom:6px}
+  table{border-collapse:collapse;margin:0 auto;font-size:11.5px;background:#121A14}
+  th,td{border:1px solid #2B3329;padding:5px 10px;text-align:left;color:#B4C0AF}
+  th{background:#18211A;color:#E9F0E4;font-weight:600}
+  td b{color:#E9F0E4}
+  .sw{display:inline-block;width:34px;height:12px;border:1px solid #3A4438;vertical-align:-2px;margin-right:6px}
+  .notes{max-width:1000px;display:flex;flex-direction:column;gap:14px}
+  .note{background:#121A14;border:1px solid #2B3329;border-radius:4px;padding:14px 18px;
+    font-size:12px;line-height:1.85;color:#B4C0AF}
+  .note h3{font-size:13px;color:#E2C878;margin-bottom:6px;letter-spacing:.06em}
+  .note code{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;background:#18211A;padding:0 3px}
+  .note b{color:#E9F0E4}
+  .stage{display:flex;gap:22px;flex-wrap:wrap;justify-content:center;max-width:1700px}
+  .wrap{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .wrap .mode{font-size:11.5px;letter-spacing:.1em;color:#B4C0AF;text-align:center;line-height:1.5}
+  .wrap .mode b{color:#9FCFA9}
+  .wrap .val{font-family:ui-monospace,Consolas,monospace;font-size:10.5px;color:#7E8C79}
+  .wrap.reco .mode b{background:#9FCFA9;color:#0C0E0B;padding:1px 7px;border-radius:3px}
+  /*==/harness==*/
+
+  /* ---- 読書テーマ別トークン（reading-J.html .t-* の実値。1文字も変えない。--bar-rgb だけ --bar の rgb 展開を足した）---- */
+  .t-dark{ --bg:#0F1712; --ink:#E4E9DE; --soft:#8E998C; --ruby:#A2AC9C; --accent:#E2C878; --rule:#9FCFA9;
+           --panel:#16211A; --panel-bd:#25332A; --bar:#101913; --bar-rgb:16,25,19; --bar-line:#22301F;
+           --amb1:rgba(214,196,120,.22); --amb2:rgba(39,64,48,.72); --glyph:rgba(233,240,228,.06); }
+  .t-light{ --bg:#FAFBF8; --ink:#171E18; --soft:#6C746B; --ruby:#5A6257; --accent:#2E5B3E; --rule:#7BA986;
+            --panel:#F1F4EE; --panel-bd:#E2E7DE; --bar:#FAFBF8; --bar-rgb:250,251,248; --bar-line:#E7ECE4;
+            --amb1:rgba(197,168,74,.14); --amb2:rgba(120,150,110,.18); --glyph:rgba(28,40,28,.06); }
+  .t-sepia{ --bg:#F3E8CF; --ink:#332918; --soft:#8A7B5B; --ruby:#6C5D40; --accent:#5E4A1C; --rule:#A88B4E;
+            --panel:#EBDEBE; --panel-bd:#DBCB9E; --bar:#EDE1C3; --bar-rgb:237,225,195; --bar-line:#E0D3B0;
+            --amb1:rgba(180,140,60,.18); --amb2:rgba(120,130,80,.2); --glyph:rgba(60,48,20,.07); }
+
+  /* ---- 比較用の枠 ----
+     幅 390px は正本 .phone と同値。高さだけ 472px に詰めた**縦詰めの枠**（上バー・本文・下バーの
+     取り合いだけが判定対象で、本文の行数は判定に効かないため）。バー高 50/62px・ヘアラインは正本どおり。 */
+  .frame{width:390px;height:472px;position:relative;overflow:hidden;border-radius:12px;display:flex;
+    flex-direction:column;background:var(--bg);font-family:var(--mincho);box-shadow:0 8px 22px rgba(0,0,0,.5)}
+  .sb{position:relative;z-index:5;height:34px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 24px;font-size:11px;color:var(--soft);font-family:var(--gothic);flex:none}
+
+  /* ★本文はバーの下を通す（＝この頁の判定対象そのもの）。
+     正本 .reader の padding-bottom:100px は**章末（最大スクロール）で本文が下端バーに突き当たらない
+     ための終端余白**なので、章頭／章の途中しか映さない本頁では全パネルとも外してある（実装の
+     contentPadding.bottom も同じ役割＝途中では本文が下端バーの下を流れる）。 */
+  .reader{flex:1;position:relative;z-index:1;padding:0 26px;overflow:hidden;
+    color:var(--ink)}
+  .reader p{font-size:16.5px;line-height:2.5;color:var(--ink);text-indent:1em;margin-bottom:.25em;letter-spacing:0}
+  .reader ruby rt{font-size:.5em;color:var(--ruby);font-weight:400;letter-spacing:.04em}
+
+  /* 章扉（正本 .chap-h の逐語複製。大気が上バーの裏を通ることを見せるのが §3 の目的） */
+  .chap-h{position:relative;text-align:center;padding:92px 0 8px;overflow:hidden}
+  .chap-h::before{content:"";position:absolute;left:-12%;right:-12%;top:0;height:300px;z-index:0;pointer-events:none;
+    background:radial-gradient(88% 70% at 50% 2%,var(--amb1),transparent 60%),
+               radial-gradient(130% 96% at 50% -14%,var(--amb2),transparent 62%)}
+  .chap-h .glyph{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:0;pointer-events:none;
+    font-family:var(--mincho);font-size:210px;line-height:1;color:var(--glyph)}
+  .chap-h .num{position:relative;z-index:1;font-family:var(--gothic);font-size:11px;color:var(--accent);letter-spacing:.34em}
+  .chap-h .t{position:relative;z-index:1;font-size:21px;color:var(--ink);margin-top:14px;line-height:1.6;font-weight:600}
+  .chap-h .sill{position:relative;z-index:1;width:132px;height:2px;margin:24px auto 0;
+    background:linear-gradient(90deg,transparent,var(--rule),transparent);opacity:.9}
+  .chap-h .sill::after{content:"";position:absolute;left:50%;top:-2px;width:6px;height:6px;border-radius:50%;
+    transform:translateX(-50%);background:var(--accent);box-shadow:0 0 10px 2px var(--accent);opacity:.6}
+  .lead{height:26px}
+
+  /* ---- 上下バー（正本 reading-J .topbar/.bottombar。地の指定だけ案ごとに差し替える）---- */
+  .topbar{position:absolute;left:0;right:0;top:34px;z-index:4;height:50px;display:flex;align-items:center;gap:4px;
+    padding:0 14px;border-bottom:1px solid var(--bar-line)}
+  .topbar .ib{width:38px;height:38px;border:none;background:transparent;border-radius:10px;display:grid;
+    place-items:center;color:var(--ink);cursor:pointer;flex:none}
+  .topbar .ib svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .topbar .ct{flex:1;font-family:var(--gothic);font-size:13.5px;color:var(--ink);letter-spacing:.04em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bottombar{position:absolute;left:0;right:0;bottom:0;z-index:4;height:62px;display:flex;align-items:center;
+    border-top:1px solid var(--bar-line)}
+  .bottombar button{flex:1;height:100%;border:none;background:transparent;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:4px;color:var(--ink);cursor:pointer}
+  .bottombar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.5}
+  /* ⚠️ 正本は `.bl{color:var(--soft)}` だが、**実装は `topBarIcon`（=--ink）でラベルを描いている**
+     （ReadingChrome.kt BottomBarButton の tint がアイコンとラベルで共通）。モックの方が字が淡い＝
+     可読の判定は**モックが厳しい側**。本頁は正本の見えを崩さないため --soft のまま置き、実装値との差は
+     波及メモに書く（この差の是非は本件の裁定対象ではない＝別軸）。 */
+  .bottombar .bl{font-family:var(--gothic);font-size:9.5px;color:var(--soft);letter-spacing:.02em}
+  .bottombar .set svg{stroke:var(--accent)}
+  .bottombar .set .bl{color:var(--accent);font-weight:600}
+
+  /* ---- 本件の比較対象＝上下バーの地の α だけ（高さ・ヘアライン・字色・アイコンは全案共通）---- */
+  .r .topbar,.r .bottombar{background:rgba(var(--bar-rgb),1)}
+  .a .topbar,.a .bottombar{background:rgba(var(--bar-rgb),.96)}
+  .b .topbar,.b .bottombar{background:rgba(var(--bar-rgb),.92)}
+  .c .topbar,.c .bottombar{background:rgba(var(--bar-rgb),.86)}
+</style>
+</head>
+<body>
+  <h1 class="ttl">読書 上下バーのわずかな透過 — スキンJ 3案＋対照</h1>
+  <p class="cap"><b>争点</b>: J の <code>.t-light</code> は <b>--bar #FAFBF8 と --bg #FAFBF8 が完全に同値</b>で、
+  境界を語るのは 1px のヘアラインだけ＝面としてのバーが見えない（D/K で「境界が読めない」と報せた構図と同じ）。
+  <b>J のダークも Δrgb=(1,2,1) でほぼ同値</b>＝ライトと同じクラス。どれだけ透かせば「本文がバーの下を流れている」と読めるか。<br>
+  全案とも<b>高さ・ヘアライン・字色・アイコン・出没（スライド）は J の現行値に固定</b>し、<b>面の α だけ</b>を変えてある。</p>
+  <p class="warn">⚠️ 本文の行が<b>バーの下を通っている</b>のは正本どおり（reading-vertical-scroll-D.html ★注記）。
+  現行の不透明でも潜っている事実は同じで、見えていないだけ。<br>
+  ⚠️ §2/§4/§5 は<b>スクロール中の姿</b>。スクロール原点では本文の上クリアランス（実装 <code>Insets.ReadingBodyTopExtra</code>＝64dp）が
+  上バー高 50px を上回り、上バーの真下に本文が無い＝透けは<b>下バーから先に立つ</b>。§3（章頭）がその状態にあたる。<br>
+  ⚠️ <b>ヘアラインは全案とも現行 --bar-line のまま</b>＝この頁で振っていない軸（D/K の裁定と同じ規律。同時に2軸動かすと効いた方が分からない）。</p>
+
+  <div class="sec">α と合成値（3テーマとも。「本文上」＝本文の濃い画がバーの真下を通った箇所）</div>
+  <table>
+    <tr><th>テーマ</th><th>--bg / --bar</th><th>案</th><th>α</th><th>素のバー面</th><th>本文が真下を通った箇所</th><th>評</th></tr>
+    <tr><td rowspan="4"><b>ライト</b></td><td rowspan="4">#FAFBF8 / #FAFBF8<br><b>同値（Δ0）</b></td>
+        <td>対照R（現行）</td><td>1.00</td><td><span class="sw" style="background:#FAFBF8"></span>#FAFBF8</td>
+        <td><span class="sw" style="background:#FAFBF8"></span>#FAFBF8</td><td>層が見えない＝提起そのもの</td></tr>
+    <tr><td>案A</td><td>0.96</td><td><span class="sw" style="background:#FAFBF8"></span>#FAFBF8</td>
+        <td><span class="sw" style="background:#F1F2EF"></span><b>#F1F2EF</b></td><td>動いて初めて気づく</td></tr>
+    <tr><td><b>案B</b></td><td><b>0.92</b></td><td><span class="sw" style="background:#FAFBF8"></span>#FAFBF8</td>
+        <td><span class="sw" style="background:#E8E9E6"></span><b>#E8E9E6</b></td><td>静止画でも層として読める</td></tr>
+    <tr><td>案C</td><td>0.86</td><td><span class="sw" style="background:#FAFBF8"></span>#FAFBF8</td>
+        <td><span class="sw" style="background:#DADCD9"></span><b>#DADCD9</b></td><td>臨場感は最大・影が濃い</td></tr>
+    <tr><td rowspan="4"><b>ダーク</b></td><td rowspan="4">#0F1712 / #101913<br><b>ほぼ同値（Δ1,2,1）</b></td>
+        <td>対照R（現行）</td><td>1.00</td><td><span class="sw" style="background:#101913"></span>#101913</td>
+        <td><span class="sw" style="background:#101913"></span>#101913</td><td>層が見えない（D/K のダークと違いここも同値）</td></tr>
+    <tr><td>案A</td><td>0.96</td><td><span class="sw" style="background:#101913"></span>#101913</td>
+        <td><span class="sw" style="background:#18211B"></span><b>#18211B</b></td><td>暗面では 8 階調でも意外に読める</td></tr>
+    <tr><td><b>案B</b></td><td><b>0.92</b></td><td><span class="sw" style="background:#101913"></span>#101913</td>
+        <td><span class="sw" style="background:#212A23"></span><b>#212A23</b></td><td>森の面に本文が滲む＝層が立つ</td></tr>
+    <tr><td>案C</td><td>0.86</td><td><span class="sw" style="background:#101913"></span>#101913</td>
+        <td><span class="sw" style="background:#2E362F"></span><b>#2E362F</b></td><td>バーが灰へ寄り森緑が抜ける</td></tr>
+    <tr><td rowspan="4"><b>セピア</b></td><td rowspan="4">#F3E8CF / #EDE1C3<br><b>別値（バーが暗い）</b></td>
+        <td>対照R（現行）</td><td>1.00</td><td><span class="sw" style="background:#EDE1C3"></span>#EDE1C3</td>
+        <td><span class="sw" style="background:#EDE1C3"></span>#EDE1C3</td><td>面はもともと見えている</td></tr>
+    <tr><td>案A</td><td>0.96</td><td><span class="sw" style="background:#EDE1C3"></span>#EDE1C3</td>
+        <td><span class="sw" style="background:#E6DABC"></span><b>#E6DABC</b></td><td>既存の差は保たれる</td></tr>
+    <tr><td><b>案B</b></td><td><b>0.92</b></td><td><span class="sw" style="background:#EDE2C4"></span>#EDE2C4</td>
+        <td><span class="sw" style="background:#DED2B5"></span><b>#DED2B5</b></td><td>素地上は 1 階調しか動かない＝差は薄まらない</td></tr>
+    <tr><td>案C</td><td>0.86</td><td><span class="sw" style="background:#EEE2C5"></span>#EEE2C5</td>
+        <td><span class="sw" style="background:#D3C7AB"></span><b>#D3C7AB</b></td><td>同上・影は濃い</td></tr>
+  </table>
+  <p class="warn" style="margin-top:10px">セピアで<b>「素のバー面」がほとんど動かない</b>のが要点＝
+  α を掛けても合成相手が近い素地なので、<b>バーが素地より暗いという既存の関係は失われない</b>（案B で 1 階調）。
+  「透かすと面が消える」心配は J のどのテーマでも起きない。</p>
+
+  <div class="sec">§2 ライト ／ 章の途中（純粋な境界の判定）— 4案</div>
+  <div class="stage">
+    <div class="wrap"><span class="mode"><b>対照R</b> ／ 不透明（現行）<br><span class="val">alpha 1.00</span></span>
+    <div class="frame t-light r" role="img" aria-label="J ライト 章の途中 対照R">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- ⚠️ 以降は**正本の同じ本文の繰り返し**＝意匠の追加ではない。正本 reading-J.html の抜粋（4段）は
+             この 472px の縦詰め枠では下端バーまで届かず、**下端バーの下を本文が通る面**が作れないため
+             （＝この頁の判定対象そのものが写らない）。実装では章の途中で常に本文が下端バーの下を流れる。 -->
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+      </div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap"><span class="mode"><b>案A</b> ／ α.96（ぎりぎり気づく）<br><span class="val">alpha 0.96</span></span>
+    <div class="frame t-light a" role="img" aria-label="J ライト 章の途中 案A">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- ⚠️ 以降は**正本の同じ本文の繰り返し**＝意匠の追加ではない。正本 reading-J.html の抜粋（4段）は
+             この 472px の縦詰め枠では下端バーまで届かず、**下端バーの下を本文が通る面**が作れないため
+             （＝この頁の判定対象そのものが写らない）。実装では章の途中で常に本文が下端バーの下を流れる。 -->
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+      </div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap reco"><span class="mode"><b>推奨 案B</b> ／ α.92（D/K と同値・3ピルとも同値）<br><span class="val">alpha 0.92</span></span>
+    <div class="frame t-light b" role="img" aria-label="J ライト 章の途中 案B">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- ⚠️ 以降は**正本の同じ本文の繰り返し**＝意匠の追加ではない。正本 reading-J.html の抜粋（4段）は
+             この 472px の縦詰め枠では下端バーまで届かず、**下端バーの下を本文が通る面**が作れないため
+             （＝この頁の判定対象そのものが写らない）。実装では章の途中で常に本文が下端バーの下を流れる。 -->
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+      </div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap"><span class="mode"><b>案C</b> ／ α.86（はっきり流れる）<br><span class="val">alpha 0.86</span></span>
+    <div class="frame t-light c" role="img" aria-label="J ライト 章の途中 案C">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- ⚠️ 以降は**正本の同じ本文の繰り返し**＝意匠の追加ではない。正本 reading-J.html の抜粋（4段）は
+             この 472px の縦詰め枠では下端バーまで届かず、**下端バーの下を本文が通る面**が作れないため
+             （＝この頁の判定対象そのものが写らない）。実装では章の途中で常に本文が下端バーの下を流れる。 -->
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+      </div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="sec">§3 ライト ／ 章頭（大気が上バーの裏を通る＝J固有の面）— 4案</div>
+  <p class="warn">章扉の大気（<code>--amb1</code> 金／<code>--amb2</code> 森緑）は <code>.reader</code> 上端から 300px＝
+  <b>上バーをまるごと覆う位置</b>に居る。透かすと金と森緑が上バーへ滲む。<b>D/K の裁定頁には存在しなかった面</b>。</p>
+  <div class="stage">
+    <div class="wrap"><span class="mode"><b>対照R</b> ／ 不透明（現行）<br><span class="val">alpha 1.00</span></span>
+    <div class="frame t-light r" role="img" aria-label="J ライト 章頭 対照R">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <div class="chap-h"><div class="glyph">薬</div><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="sill"></div></div>
+        <div class="lead"></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- ⚠️ 以降は**正本の同じ本文の繰り返し**＝意匠の追加ではない。正本 reading-J.html の抜粋（4段）は
+             この 472px の縦詰め枠では下端バーまで届かず、**下端バーの下を本文が通る面**が作れないため
+             （＝この頁の判定対象そのものが写らない）。実装では章の途中で常に本文が下端バーの下を流れる。 -->
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+      </div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap"><span class="mode"><b>案A</b> ／ α.96（ぎりぎり気づく）<br><span class="val">alpha 0.96</span></span>
+    <div class="frame t-light a" role="img" aria-label="J ライト 章頭 案A">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <div class="chap-h"><div class="glyph">薬</div><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="sill"></div></div>
+        <div class="lead"></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- ⚠️ 以降は**正本の同じ本文の繰り返し**＝意匠の追加ではない。正本 reading-J.html の抜粋（4段）は
+             この 472px の縦詰め枠では下端バーまで届かず、**下端バーの下を本文が通る面**が作れないため
+             （＝この頁の判定対象そのものが写らない）。実装では章の途中で常に本文が下端バーの下を流れる。 -->
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+      </div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap reco"><span class="mode"><b>推奨 案B</b> ／ α.92（D/K と同値・3ピルとも同値）<br><span class="val">alpha 0.92</span></span>
+    <div class="frame t-light b" role="img" aria-label="J ライト 章頭 案B">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <div class="chap-h"><div class="glyph">薬</div><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="sill"></div></div>
+        <div class="lead"></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- ⚠️ 以降は**正本の同じ本文の繰り返し**＝意匠の追加ではない。正本 reading-J.html の抜粋（4段）は
+             この 472px の縦詰め枠では下端バーまで届かず、**下端バーの下を本文が通る面**が作れないため
+             （＝この頁の判定対象そのものが写らない）。実装では章の途中で常に本文が下端バーの下を流れる。 -->
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+      </div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap"><span class="mode"><b>案C</b> ／ α.86（はっきり流れる）<br><span class="val">alpha 0.86</span></span>
+    <div class="frame t-light c" role="img" aria-label="J ライト 章頭 案C">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <div class="chap-h"><div class="glyph">薬</div><div class="num">第 百二十七 話</div><div class="t">雨上がりの城門にて、彼女は静かに剣を置いた</div><div class="sill"></div></div>
+        <div class="lead"></div>
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- ⚠️ 以降は**正本の同じ本文の繰り返し**＝意匠の追加ではない。正本 reading-J.html の抜粋（4段）は
+             この 472px の縦詰め枠では下端バーまで届かず、**下端バーの下を本文が通る面**が作れないため
+             （＝この頁の判定対象そのものが写らない）。実装では章の途中で常に本文が下端バーの下を流れる。 -->
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+      </div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="sec">§4 ダーク ／ 章の途中（J固有＝ダークも --bar ≒ --bg）— 4案</div>
+  <div class="stage">
+    <div class="wrap"><span class="mode"><b>対照R</b> ／ 不透明（現行）<br><span class="val">alpha 1.00</span></span>
+    <div class="frame t-dark r" role="img" aria-label="J ダーク 章の途中 対照R">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- ⚠️ 以降は**正本の同じ本文の繰り返し**＝意匠の追加ではない。正本 reading-J.html の抜粋（4段）は
+             この 472px の縦詰め枠では下端バーまで届かず、**下端バーの下を本文が通る面**が作れないため
+             （＝この頁の判定対象そのものが写らない）。実装では章の途中で常に本文が下端バーの下を流れる。 -->
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+      </div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap"><span class="mode"><b>案A</b> ／ α.96（ぎりぎり気づく）<br><span class="val">alpha 0.96</span></span>
+    <div class="frame t-dark a" role="img" aria-label="J ダーク 章の途中 案A">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- ⚠️ 以降は**正本の同じ本文の繰り返し**＝意匠の追加ではない。正本 reading-J.html の抜粋（4段）は
+             この 472px の縦詰め枠では下端バーまで届かず、**下端バーの下を本文が通る面**が作れないため
+             （＝この頁の判定対象そのものが写らない）。実装では章の途中で常に本文が下端バーの下を流れる。 -->
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+      </div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap reco"><span class="mode"><b>推奨 案B</b> ／ α.92（D/K と同値・3ピルとも同値）<br><span class="val">alpha 0.92</span></span>
+    <div class="frame t-dark b" role="img" aria-label="J ダーク 章の途中 案B">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- ⚠️ 以降は**正本の同じ本文の繰り返し**＝意匠の追加ではない。正本 reading-J.html の抜粋（4段）は
+             この 472px の縦詰め枠では下端バーまで届かず、**下端バーの下を本文が通る面**が作れないため
+             （＝この頁の判定対象そのものが写らない）。実装では章の途中で常に本文が下端バーの下を流れる。 -->
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+      </div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap"><span class="mode"><b>案C</b> ／ α.86（はっきり流れる）<br><span class="val">alpha 0.86</span></span>
+    <div class="frame t-dark c" role="img" aria-label="J ダーク 章の途中 案C">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- ⚠️ 以降は**正本の同じ本文の繰り返し**＝意匠の追加ではない。正本 reading-J.html の抜粋（4段）は
+             この 472px の縦詰め枠では下端バーまで届かず、**下端バーの下を本文が通る面**が作れないため
+             （＝この頁の判定対象そのものが写らない）。実装では章の途中で常に本文が下端バーの下を流れる。 -->
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+      </div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="sec">§5 セピア ／ 章の途中（バーが素地と別値のテーマ＝薄まらないかの確認）— 4案</div>
+  <div class="stage">
+    <div class="wrap"><span class="mode"><b>対照R</b> ／ 不透明（現行）<br><span class="val">alpha 1.00</span></span>
+    <div class="frame t-sepia r" role="img" aria-label="J セピア 章の途中 対照R">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- ⚠️ 以降は**正本の同じ本文の繰り返し**＝意匠の追加ではない。正本 reading-J.html の抜粋（4段）は
+             この 472px の縦詰め枠では下端バーまで届かず、**下端バーの下を本文が通る面**が作れないため
+             （＝この頁の判定対象そのものが写らない）。実装では章の途中で常に本文が下端バーの下を流れる。 -->
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+      </div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap"><span class="mode"><b>案A</b> ／ α.96（ぎりぎり気づく）<br><span class="val">alpha 0.96</span></span>
+    <div class="frame t-sepia a" role="img" aria-label="J セピア 章の途中 案A">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- ⚠️ 以降は**正本の同じ本文の繰り返し**＝意匠の追加ではない。正本 reading-J.html の抜粋（4段）は
+             この 472px の縦詰め枠では下端バーまで届かず、**下端バーの下を本文が通る面**が作れないため
+             （＝この頁の判定対象そのものが写らない）。実装では章の途中で常に本文が下端バーの下を流れる。 -->
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+      </div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap reco"><span class="mode"><b>推奨 案B</b> ／ α.92（D/K と同値・3ピルとも同値）<br><span class="val">alpha 0.92</span></span>
+    <div class="frame t-sepia b" role="img" aria-label="J セピア 章の途中 案B">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- ⚠️ 以降は**正本の同じ本文の繰り返し**＝意匠の追加ではない。正本 reading-J.html の抜粋（4段）は
+             この 472px の縦詰め枠では下端バーまで届かず、**下端バーの下を本文が通る面**が作れないため
+             （＝この頁の判定対象そのものが写らない）。実装では章の途中で常に本文が下端バーの下を流れる。 -->
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+      </div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+
+    <div class="wrap"><span class="mode"><b>案C</b> ／ α.86（はっきり流れる）<br><span class="val">alpha 0.86</span></span>
+    <div class="frame t-sepia c" role="img" aria-label="J セピア 章の途中 案C">
+      <div class="sb"><span>9:41</span><span>●●● 84%</span></div>
+      <div class="reader">
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。<ruby>濡<rt>ぬ</rt></ruby>れた<ruby>石畳<rt>いしだたみ</rt></ruby>が<ruby>夕陽<rt>ゆうひ</rt></ruby>を<ruby>照<rt>て</rt></ruby>り<ruby>返<rt>かえ</rt></ruby>し、<ruby>橙<rt>だいだい</rt></ruby>の<ruby>光<rt>ひかり</rt></ruby>が<ruby>水<rt>みず</rt></ruby>たまりに<ruby>滲<rt>にじ</rt></ruby>んでいる。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+        <p><ruby>彼女<rt>かのじょ</rt></ruby>はそう<ruby>呟<rt>つぶや</rt></ruby>くと、<ruby>腰<rt>こし</rt></ruby>の<ruby>剣<rt>つるぎ</rt></ruby>をそっと<ruby>地<rt>じ</rt></ruby>に<ruby>置<rt>お</rt></ruby>いた。</p>
+        <p><ruby>翌朝<rt>よくあさ</rt></ruby>、<ruby>鳥<rt>とり</rt></ruby>の<ruby>声<rt>こえ</rt></ruby>で<ruby>目<rt>め</rt></ruby>を<ruby>覚<rt>さ</rt></ruby>ますと、<ruby>窓辺<rt>まどべ</rt></ruby>には<ruby>昨夜<rt>ゆうべ</rt></ruby>の<ruby>雨<rt>あめ</rt></ruby>の<ruby>名残<rt>なごり</rt></ruby>が<ruby>雫<rt>しずく</rt></ruby>となって<ruby>光<rt>ひか</rt></ruby>っていた。</p>
+        <!-- ⚠️ 以降は**正本の同じ本文の繰り返し**＝意匠の追加ではない。正本 reading-J.html の抜粋（4段）は
+             この 472px の縦詰め枠では下端バーまで届かず、**下端バーの下を本文が通る面**が作れないため
+             （＝この頁の判定対象そのものが写らない）。実装では章の途中で常に本文が下端バーの下を流れる。 -->
+        <p><ruby>辺境<rt>へんきょう</rt></ruby>の<ruby>城門<rt>じょうもん</rt></ruby>に<ruby>辿<rt>たど</rt></ruby>り<ruby>着<rt>つ</rt></ruby>いたのは、<ruby>長<rt>なが</rt></ruby>い<ruby>雨<rt>あめ</rt></ruby>がようやく<ruby>上<rt>あ</rt></ruby>がった<ruby>頃<rt>ころ</rt></ruby>だった。</p>
+        <p>「——ここまで、よく<ruby>付<rt>つ</rt></ruby>いてきてくれた」</p>
+      </div>
+      <div class="topbar">
+        <button class="ib" aria-label="本棚に戻る"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="ct">第百二十七話　雨上がりの城門にて、彼女は静かに剣を置いた</div>
+      </div>
+      <div class="bottombar">
+        <button aria-label="前章"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg><span class="bl">前章</span></button>
+        <button aria-label="目次"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1" fill="currentColor" stroke="none"/></svg><span class="bl">目次</span></button>
+        <button class="set" aria-label="表示設定"><svg viewBox="0 0 24 24"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="8" r="2.4" fill="var(--bar)"/><circle cx="15" cy="16" r="2.4" fill="var(--bar)"/></svg><span class="bl">表示設定</span></button>
+        <button aria-label="次章"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg><span class="bl">次章</span></button>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="sec">波及メモ</div>
+  <div class="notes">
+    <div class="note"><h3>ヘアラインは触っていない（＝この頁で振っていない軸）</h3>
+      「境界が読めない」には <b>ヘアラインを濃くする</b>という別解もあるが、D/K の裁定でそれは
+      <b>次の別裁定</b>として意図的に外してある（同時に2軸動かすと効いた方が分からない）。J でも同じ規律を守り、
+      <code>--bar-line</code>（ライト #E7ECE4／セピア #E0D3B0／ダーク #22301F）は全案で現行のまま。
+    </div>
+    <div class="note"><h3>ナビ／ステータス帯は不透明（要件・図は D/K の裁定頁に在る）</h3>
+      実装形は <code>containerColor</code> に α を掛ける形ではなく、<b>面＝半透明／システム帯＝不透明</b>の2段塗り
+      （<code>Modifier.readingChromeBarSurface</code>）。この器は D/K の裁定で既に結線済みでスキン非依存なので、
+      J は <code>SkinJ.readingBarSurfaceAlpha</code> の override 1行だけで乗る。<b>J 固有の実装は増えない。</b>
+    </div>
+    <div class="note"><h3>バーラベルの可読は J では制約にならない（実装はラベルも --ink）</h3>
+      正本の <code>.bottombar .bl</code> は <code>--soft</code> だが、<b>実装（<code>ReadingChrome.kt</code> の
+      <code>BottomBarButton</code>）はアイコンとラベルで tint を共有</b>＝ラベルも <code>topBarIcon</code>（=--ink）。
+      案B の最悪面（本文が真下を通った箇所）でのコントラストは <b>ライト 13.9:1 ／ セピア 9.5:1 ／ ダーク 12.0:1</b>、
+      金の「表示設定」ラベルでも <b>6.4 / 5.7 / 9.0:1</b> で、いずれも 4.5:1 を大きく上回る。
+      D/K の裁定で「9.5px のラベルが本文の影を踏む」を案C 却下の根拠にしたが、<b>J ではその軸が効かない</b>
+      （このモックの --soft 表示は実装より厳しい側＝差の是非は本件の裁定対象外）。
+    </div>
+    <div class="note"><h3>この裁定が触らないもの</h3>
+      <b>「最上部へ」ピル</b>は地が <code>--bar</code>×α.78 で、<b>バーの上ではなく本文の上に浮く</b>別の器
+      （2026-09-04 裁定・reading-backtotop-D 案D）＝本件で値は動かない。
+      <b>遊び心J2『敷居光』</b>は z-index がバーより上＝バーの α に関わらず同じに見える。
+      <b>没入</b>中は上下バーごと退避＝本件は「クローム表示中の定常の地」だけに効く（J は没入が既定）。
+      出没は<b>スライド</b>（<code>translationY × collapsedFraction</code>）のままで、定常の透過を入れても
+      フェードへ戻す話ではない。
+    </div>
+    <div class="note"><h3>C・M・P は対象外（なぜ J だけを別に裁定するのか）</h3>
+      <b>C</b> は上下バー面を素地と別面に取る思想＝同値問題がそもそも起きない。
+      <b>M/P</b> は <code>navBackground</code> が焼き込み済み不透明トークン（M は <code>rgba(14,21,48,.82)</code>、
+      P は plastic 面を焼き込み）＝使用側でさらに α を掛けると二重に薄まる。
+      だから <code>SkinTokens.readingBarSurfaceAlpha</code> の既定は 1f のままで、<b>裁定の付いたスキンだけが override する</b>。
+    </div>
+  </div>
+</body>
+</html>
