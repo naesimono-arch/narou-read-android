@@ -154,16 +154,21 @@ private class FigureScope(
         circle(60f, 42f, 9f, accent)
     }
 
-    /** 5 枚目「縦書きで読む」＝右から左へ並ぶ行と、左向きの読み進め矢印。 */
+    /** 5 枚目「縦書きで読む」＝右から左へ並ぶ行と、**右向き**（＝前進スワイプの指の向き）の矢印。 */
     fun vertical() {
         line(96f, 12f, 96f, 70f, soft, SOFT_ALPHA)
         line(84f, 12f, 84f, 70f, soft, SOFT_ALPHA)
         line(72f, 12f, 72f, 70f, soft, SOFT_ALPHA)
         line(60f, 20f, 60f, 62f, accent)
         line(48f, 20f, 48f, 62f, accent)
-        line(40f, 76f, 18f, 76f, accent)
-        line(25f, 69f, 18f, 76f, accent)
-        line(18f, 76f, 25f, 83f, accent)
+        // ⚠️ 2026-09-07 に矢印を左向き→**右向き**へ反転（正本モックと同時）。この矢印は**指の向き**で、
+        // 実機の縦書き前進スワイプは指を右へ（ChapterPullConnection「item #0＝右端・読み進めは指を右へ」）。
+        // 項目が「右へスワイプ」と言っている横に ← を描くと、絵と文が正面から食い違う。
+        // ⚠️ 「行が左へ進む」の意味なら元の向きも成り立つが、**このカードの用は割り当て（指の向き）を
+        // 教えること**なので、曖昧なら操作側へ倒す。
+        line(18f, 76f, 40f, 76f, accent)
+        line(33f, 69f, 40f, 76f, accent)
+        line(40f, 76f, 33f, 83f, accent)
         line(14f, 12f, 110f, 12f, soft, alpha = 0.35f)
     }
 

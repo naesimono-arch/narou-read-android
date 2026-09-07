@@ -375,7 +375,11 @@ fun SettingsScreenK(
             KSettingsRow(
                 icon = Icons.Outlined.HelpOutline,
                 title = "操作の説明",
-                description = "読書画面と検索の使いかたを見返せます",
+                // ⚠️ 副文は**組の数だけ列挙する**（正本 §8）。2026-09-04 に組D（PDF取り込み）が増えて
+                // 通しは 7 枚・4 領域になったのに、旧副文「読書画面と検索の使いかたを見返せます」は
+                // 2 領域しか数えていなかった＝2026-09-07 に是正。列挙をやめて総称にすると、
+                // 増えたことに誰も気づけない（IntroGroup を足したらこの行も足す）。
+                description = "読書画面・検索・PDF取り込みの使いかたを見返せます",
                 trailing = {
                     Icon(
                         Icons.AutoMirrored.Filled.KeyboardArrowRight,
