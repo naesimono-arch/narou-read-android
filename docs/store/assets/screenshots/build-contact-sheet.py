@@ -21,7 +21,7 @@ import base64, io, os, struct, sys
 from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-WINDIR = "C:/Users/naesimono/Desktop/project/novel-reader_andloid/docs/store/assets/screenshots"
+WINDIR = "C:/Users/naesimono/Desktop/project/android-make/novel-reader/docs/store/assets/screenshots"
 
 SHOTS = [
     ("phone-1-vertical-ruby.png", "1", "ふりがな付きのまま、縦書きで",
