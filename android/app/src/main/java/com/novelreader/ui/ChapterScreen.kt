@@ -80,7 +80,11 @@ internal fun ChapterScreen(
     initialScrollIndex: Int,
     initialScrollOffset: Int,
     onSaveScroll: (index: Int, offset: Int) -> Unit,
+    // 章パース失敗のエラー画面「本棚に戻る」専用＝入場元に依らず本棚へ直行（文言どおりの行き先）。
     onNavigateToBookshelf: () -> Unit,
+    // 上端 ← ／没入時 a11y「戻る」＝システム Back と同一実装（前画面へ1段戻る・2026-09-07 裁定）。
+    // 判定は親 ReadingScreen の performBack が持つ＝この層で「章なら目次へ」と再実装しないこと。
+    onBack: () -> Unit,
     onNavigateTo: (String) -> Unit,
     // 参照ジャンプ（C1）。referenceMode 中は現在地の自動保存を抑止し「続きに戻る」チップを出す。
     referenceMode: Boolean,
@@ -496,6 +500,7 @@ internal fun ChapterScreen(
             chapterNumber = if (currentIndex >= 0) currentIndex + 1 else null,
             totalChapters = tocEntries.size.takeIf { it > 0 },
             onNavigateTo = onNavigateTo,
+            onBack = onBack,
             onNavigateToBookshelf = onNavigateToBookshelf,
         ),
         // 継続導線。Custom Tabs 起動（再入ガード付き）は route の2つのコールバックが担う。

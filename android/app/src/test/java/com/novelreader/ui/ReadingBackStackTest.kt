@@ -1,55 +1,56 @@
 package com.novelreader.ui
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * 読書フローの Back スタック（[ReadingBackStack]）の不変条件を UI から切り離して固定する単体テスト。
- * 2026-07-19 裁定「Back は経路を逆再生せず必ず一つ上の階層へ」を反映した2つの不変条件を守る:
- *   ① Back は末尾 pop（経路逆再生）でなく一階層 up（章→目次・目次→本棚）＝左上 ← ボタンと完全一致
+ * 2026-09-07 裁定「Back も左上 ← も『前画面へ1段戻る』の1実装」を反映した不変条件を守る:
+ *   ① [ReadingBackStack.back] は末尾を1枚 pop するだけ＝現在地が章か目次かで分岐しない
+ *      （分岐が生まれると Back と ← が別々に育ち、同じ画面で操作により行き先が割れる＝3度の反転の真因）
  *   ② 前進の覗き（目次⇄章のプレビュー往復）で段が増えないこと（旧 navHistory 全逆再生バグの再発防止）
+ *   ③ 終端（back()==null）に達する回数が入場形で決まること＝直行入場は1回・目次経由の本文は2回
+ *
+ * ⚠️ 終端の**行き先**（本棚 or 作品詳細）はこの構造の関心事ではない（入場元は NavController が知る）。
+ * 入場元2種 × 操作2種の4通りの着地は [com.novelreader.ReadingEscapeNavigationTest] が固定する。
  */
 class ReadingBackStackTest {
 
     private val INDEX = ReadingBackStack.INDEX
 
-    // ── ① 本棚→本文直行（続きから）: Back は目次を経て本棚（2段。1発で本棚にしない） ──
+    // ── ① 直行入場（続きから／通知）: Back/← は1発で読書フローを出る ──
     @Test
-    fun `本文直行の入場でも Back は目次を経て本棚へ（2段・2026-07-19裁定）`() {
-        // startFile が章＝続きから直行。経路に目次が無くても Back は「一階層 up」＝まず目次を開く。
+    fun `本文直行の入場は Back 一発で読書フローの終端に達する（2026-09-07裁定）`() {
+        // startFile が章＝続きから直行。下段が無い＝前画面が無い＝そのまま入場元へ帰す。
         val stack = ReadingBackStack.initial("c5.html")
         assertEquals("c5.html", stack.current)
-        val toToc = stack.back()!!                       // 章→目次（経路に無いので目次を積む）
-        assertEquals(listOf("c5.html", INDEX), toToc.screens)
-        assertNull("目次→これ以上上位なし＝本棚へ", toToc.back())
+        assertNull("直行入場の Back/← は目次を経由しない（07/19 の2段化を撤回）", stack.back())
     }
 
     @Test
-    fun `本文直行で何話読み進めても Back は目次経由の2段（話送りは置き換えで深さ不変）`() {
+    fun `本文直行で何話読み進めても Back 一発で終端（話送りは置き換えで深さ不変）`() {
         var stack = ReadingBackStack.initial("c5.html")
         stack = stack.sibling("c6.html").sibling("c7.html").sibling("c8.html")
-        assertEquals(listOf("c8.html"), stack.screens) // 話送りは replace＝深さ1のまま
-        val toToc = stack.back()!!                      // 章→目次
-        assertEquals(listOf("c8.html", INDEX), toToc.screens)
-        assertNull(toToc.back())                        // 目次→本棚
+        assertEquals("話送りは replace＝深さ1のまま", listOf("c8.html"), stack.screens)
+        // 読んだ章列（c5→c6→c7）を Back で逆走しない＝07/19 が求めた第2要件は前進規則が担い続ける。
+        assertNull(stack.back())
     }
 
-    // ── ② 本棚→目次→本文: Back で目次→本棚（2段） ──
+    // ── ② 目次経由の入場: 章 → 目次 → 終端（2段） ──
     @Test
-    fun `目次から章へ入ると Back で目次を経て本棚へ戻る（2段）`() {
+    fun `目次から章へ入ると Back は目次へ戻り もう一度で終端に達する`() {
         var stack = ReadingBackStack.initial(INDEX).openChapter("c1.html")
         assertEquals(listOf(INDEX, "c1.html"), stack.screens)
-        stack = stack.back()!! // 本文→目次
+        stack = stack.back()!! // 本文→目次（前画面）
         assertEquals(listOf(INDEX), stack.screens)
-        assertNull(stack.back()) // 目次→本棚
+        assertNull(stack.back()) // 目次→読書フローを出る
     }
 
     @Test
     fun `目次入場後に何話読み進めてもBackは目次経由の2段のまま（話送りは置き換え）`() {
-        var stack = ReadingBackStack.initial(INDEX)
+        val stack = ReadingBackStack.initial(INDEX)
             .openChapter("c1.html").sibling("c2.html").sibling("c3.html")
         assertEquals(listOf(INDEX, "c3.html"), stack.screens)
         assertEquals(listOf(INDEX), stack.back()!!.screens)
@@ -62,7 +63,7 @@ class ReadingBackStackTest {
         repeat(50) { i ->
             stack = stack.openChapter("peek$i.html") // 覗く（push）
             assertEquals("覗き中は目次+章の2枚", 2, stack.screens.size)
-            stack = stack.back()!! // 章→目次（既存目次へ巻き戻し）
+            stack = stack.back()!! // 章→目次（前画面）
             assertEquals(listOf(INDEX), stack.screens)
         }
     }
@@ -83,13 +84,16 @@ class ReadingBackStackTest {
         assertEquals(listOf(INDEX), stack.screens)
     }
 
-    // ── 直行本文から目次を開く: 現在地が目次＝Back は本棚へ（下段の本文へ逆走しない） ──
+    // ── 直行本文から目次を開いた後: Back は本文へ戻る（前画面。本棚へは落ちない）──
     @Test
-    fun `直行本文から目次を開いた後の Back は本文へ戻らず本棚へ抜ける（経路逆再生の廃止）`() {
-        val stack = ReadingBackStack.initial("c5.html").openToc() // 直行本文→目次ボタン [c5, index]
+    fun `直行本文から目次を開いた後の Back は前画面の本文へ戻る`() {
+        val stack = ReadingBackStack.initial("c5.html").openToc() // 直行本文→下端目次ボタン [c5, index]
         assertEquals(listOf("c5.html", INDEX), stack.screens)
-        // 現在地が目次＝一階層 up の先は本棚。下段に c5 が在っても経路を逆走しない（07/15 逆再生の撤回）。
-        assertNull("目次の Back は本棚へ（c5 へは戻さない）", stack.back())
+        // 07/19 は「目次の一つ上＝本棚」として c5 を飛ばして脱出していた（同じ目次画面で Back と ← が
+        // 割れていた最後の1件）。前画面遷移では両者とも c5 へ戻る。
+        val back = stack.back()
+        assertEquals(listOf("c5.html"), back?.screens)
+        assertNull("さらに Back すると終端（入場元へ）", back!!.back())
     }
 
     @Test
@@ -98,7 +102,7 @@ class ReadingBackStackTest {
         repeat(30) { i ->
             stack = stack.openChapter("peek$i.html") // [c5, index, peek]
             assertEquals(3, stack.screens.size)
-            stack = stack.back()!! // 章→目次（既存目次へ巻き戻し）→ [c5, index]
+            stack = stack.back()!! // 覗き章→目次（前画面）→ [c5, index]
             assertEquals(listOf("c5.html", INDEX), stack.screens)
         }
     }
@@ -114,7 +118,7 @@ class ReadingBackStackTest {
             .openChapter("c2.html") // 覗き → [index, c2]
         stack = stack.returnTo("c5.html") // 退避元は下段に無い→置き換え → [index, c5]
         assertEquals(listOf(INDEX, "c5.html"), stack.screens)
-        assertEquals("復帰後も Back で目次→本棚の2段", listOf(INDEX), stack.back()!!.screens)
+        assertEquals("復帰後も Back で目次→終端の2段", listOf(INDEX), stack.back()!!.screens)
     }
 
     @Test
@@ -125,10 +129,8 @@ class ReadingBackStackTest {
             .openChapter("c2.html")  // [c5, index, c2]
             .returnTo("c5.html")     // c5 は下段に在る→そこまで巻き戻し
         assertEquals(listOf("c5.html"), stack.screens)
-        // 復帰後の Back は経路を逆走せず一階層 up＝目次を開いてから本棚（直行本文と同じ2段）。
-        val toToc = stack.back()!!
-        assertEquals(listOf("c5.html", INDEX), toToc.screens)
-        assertNull(toToc.back())
+        // 巻き戻しで下段を捨てているため、復帰後の Back は直行入場と同じく1発で終端。
+        assertNull(stack.back())
     }
 
     // ── 端章の prev/next は目次へ抜ける（sibling("index.html") は openToc に委譲） ──
@@ -150,38 +152,55 @@ class ReadingBackStackTest {
         assertEquals(original.current, restored.current)
     }
 
-    // ── ①不変条件: back は常に一階層 up（経路を逆走しない・空スタックも生まない）── 2026-07-19裁定の中核
+    // ── ①不変条件: back は必ず1枚縮む・現在地の種類（章/目次）で分岐しない ── 2026-09-07裁定の中核
     @Test
-    fun `back は常に一階層 up＝章なら現在地が目次に・目次なら本棚へ抜ける（空を生まない）`() {
-        // あらゆる入場・移動形を列挙。裁定＝Back は末尾 pop でなく必ず一つ上の階層へ。
-        val chapterTops = listOf(
+    fun `back は常に末尾を1枚 pop する＝現在地が章か目次かに依存しない`() {
+        // あらゆる入場・移動形を列挙。「章なら◯・目次なら×」という分岐が入り込んでいないことを固定する。
+        listOf(
             ReadingBackStack.initial("c5.html"),                                  // 直行本文 [c5]
+            ReadingBackStack.initial(INDEX),                                      // 目次入場 [index]
             ReadingBackStack.initial(INDEX).openChapter("c1.html"),               // 目次経由 [index, c1]
+            ReadingBackStack.initial("c5.html").openToc(),                        // 直行→目次 [c5, index]
             ReadingBackStack.initial("c5.html").openToc().openChapter("c2.html"), // 覗き [c5, index, c2]
             ReadingBackStack.initial("c5.html").sibling("c6.html"),               // 話送り後 [c6]
-        )
-        chapterTops.forEach { stack ->
-            val up = stack.back()
-            assertNotNull("章の Back は本棚へ抜けず必ず目次を開く", up)
-            assertTrue("back は空スタックを生まない", up!!.screens.isNotEmpty())
-            assertEquals("章の一つ上の階層は目次", INDEX, up.current)
-        }
-        val tocTops = listOf(
-            ReadingBackStack.initial(INDEX),               // 目次入場 [index]
-            ReadingBackStack.initial("c5.html").openToc(), // 直行→目次 [c5, index]
-        )
-        tocTops.forEach { stack ->
-            assertNull("目次の Back は本棚へ（一つ上の階層＝本棚）", stack.back())
+        ).forEach { stack ->
+            val back = stack.back()
+            if (stack.screens.size == 1) {
+                assertNull("下段が無ければ終端（呼び出し側が入場元へ帰す）", back)
+            } else {
+                assertEquals("前画面＝末尾1枚 pop", stack.screens.dropLast(1), back!!.screens)
+                assertTrue("back は空スタックを生まない", back.screens.isNotEmpty())
+            }
         }
     }
 
-    // ── 直行入場でも Back と 左上 ← ボタンが同一の遷移列を辿る（階層統一の要）── 2026-07-19裁定
+    // ── 入場形ごとの「終端に達するまでの回数」＝可視の押下回数を固定する ──
     @Test
-    fun `全入場形で Back の遷移列と 左上← の遷移列が一致する`() {
-        // 左上←＝章では目次を開き（openToc）・目次では本棚へ（onNavigateToBookshelf＝null 相当）。
-        // Back を同モデルへ寄せた＝両者の遷移列が入場形に依らず一致（将来 back が逆再生へ退行したら検知）。
-        fun up(s: ReadingBackStack): ReadingBackStack? =
-            if (s.current == INDEX) null else s.openToc()
+    fun `終端までの Back 回数は入場形で決まる（直行1回・目次入場1回・目次経由の本文2回）`() {
+        fun stepsToExit(entry: ReadingBackStack): Int {
+            var cur: ReadingBackStack? = entry
+            var steps = 0
+            while (cur != null) {
+                cur = cur.back()
+                steps++
+                assertTrue("終端に達しない＝無限ループの防波堤", steps <= 8)
+            }
+            return steps
+        }
+        assertEquals(1, stepsToExit(ReadingBackStack.initial("c5.html")))
+        assertEquals(1, stepsToExit(ReadingBackStack.initial(INDEX)))
+        assertEquals(2, stepsToExit(ReadingBackStack.initial(INDEX).openChapter("c1.html")))
+        assertEquals(2, stepsToExit(ReadingBackStack.initial("c5.html").openToc()))
+        assertEquals(3, stepsToExit(ReadingBackStack.initial("c5.html").openToc().openChapter("c2.html")))
+    }
+
+    // ── 左上 ← ボタンは Back と同一実装＝別関数を持たない（操作で行き先が割れない） ──
+    @Test
+    fun `左上←とシステムBackは同じ back の呼び出しで同じ遷移列を辿る`() {
+        // ← の実装は「back() を呼ぶ」以外に無い（章の ← ＝ChapterNav.onBack／目次の ← ＝ReadingScreen が
+        // performBack を渡す）。ここでは同じ関数を2度辿って列が一致することを機械的に固定し、
+        // 将来 ← 側に「章なら目次へ」等の別実装が復活したら UI 側の契約テスト
+        // （NativeReadingScreenA11yTest の ←/customAction）と併せて検知できるようにする。
         listOf(
             ReadingBackStack.initial("c5.html"),                    // 直行本文
             ReadingBackStack.initial(INDEX).openChapter("c1.html"), // 目次経由
@@ -192,9 +211,9 @@ class ReadingBackStackTest {
             while (viaBack != null && viaUp != null) {
                 assertEquals("Back と ← の各段の経路が一致", viaUp.screens, viaBack.screens)
                 viaBack = viaBack.back()
-                viaUp = up(viaUp)
+                viaUp = viaUp.back()
             }
-            assertEquals("同時に本棚へ抜ける（双方 null）", viaUp, viaBack)
+            assertEquals("同時に読書フローを出る（双方 null）", viaUp, viaBack)
         }
     }
 }

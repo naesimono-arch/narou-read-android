@@ -180,6 +180,7 @@ class VerticalChapterContentTest {
                     chapterNumber = null,
                     totalChapters = null,
                     onNavigateTo = {},
+                    onBack = {},
                     onNavigateToBookshelf = {},
                 ),
                 ncodeLink = NcodeLink(

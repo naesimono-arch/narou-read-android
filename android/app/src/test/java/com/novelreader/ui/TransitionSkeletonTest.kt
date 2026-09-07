@@ -138,6 +138,7 @@ class TransitionSkeletonTest {
                     chapterNumber = null,
                     totalChapters = null,
                     onNavigateTo = {},
+                    onBack = {},
                     onNavigateToBookshelf = {},
                 ),
                 ncodeLink = NcodeLink(

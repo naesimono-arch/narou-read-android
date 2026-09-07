@@ -136,6 +136,7 @@ class NativeReadingScreenTopPillTest {
                         chapterNumber = null,
                         totalChapters = null,
                         onNavigateTo = {},
+                        onBack = {},
                         onNavigateToBookshelf = {},
                     ),
                     ncodeLink = NcodeLink(

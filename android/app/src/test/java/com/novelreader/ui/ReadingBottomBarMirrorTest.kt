@@ -92,6 +92,7 @@ class ReadingBottomBarMirrorTest {
                     chapterNumber = null,
                     totalChapters = null,
                     onNavigateTo = onNavigateTo,
+                    onBack = {},
                     onNavigateToBookshelf = {},
                 ),
                 ncodeLink = NcodeLink(

@@ -958,9 +958,13 @@ private fun NovelReaderApp(
                             onThemeChange = onThemeChange,
                             followingSystem = followingSystem,
                             onFollowSystem = onFollowSystem,
-                            // 目次→本棚の脱出。旧 popBackStack("bookshelf") はタブ化でルートが消え黙殺されていた
+                            // 章パース失敗のエラー画面「本棚に戻る」専用＝文言どおり本棚へ直行する。
+                            // 旧 popBackStack("bookshelf") はタブ化でルートが消え黙殺されていた
                             // （真因と2段構成の理由＝popToTab の KDoc）。
                             onNavigateToBookshelf = { popToTab(navController, tabPagerState, KTab.BOOKSHELF) },
+                            // 読書フローの終端（Back/← で内部スタックを使い切ったとき）＝入場元へ戻す。
+                            // 入場元が本棚と作品詳細の2種に増えたのに終端が本棚固定だったのが 2026-09-07 の是正点。
+                            onExitReading = { upFromReading(navController, tabPagerState) },
                             // push 遷移窓の骨差し替え（案A）。startFile が目次なら目次骨・章なら本文骨に
                             // ReadingScreen 側で振り分ける。
                             deferHeavyContent = deferHeavyContent,
@@ -1034,6 +1038,29 @@ internal const val DIAGNOSTICS_EXPORT_ROUTE = "diagnostics/export"
 internal fun popToTab(navController: NavController, tabPagerState: PagerState, tab: KTab) {
     tabPagerState.requestScrollToPage(tab.ordinal)
     navController.popBackStack(TAB_HOST_ROUTE, false)
+}
+
+/**
+ * 読書フローの終端＝入場元の前画面へ戻る（← とシステム Back の共通実装・2026-09-07 裁定）。
+ * 読書画面（目次/本文）の中の戻るは [ReadingBackStack.back] が担い、内部スタックを使い切った1回だけ
+ * ここへ来る。行き先は入場元で決まる:
+ *   ・本棚から（続きから／通知 deep link）… 直下がタブ層＝[popToTab] で本棚ページへ（Pager スナップ込み）
+ *   ・作品詳細の「アプリで読む」から … 1 pop でその詳細へ戻る
+ * なぜ「直下がタブ層か」で分けるか: 素の pop だけだと deep link 入場で Pager が他タブに居るとき着地が
+ * 化ける（[popToTab] の KDoc）。逆にタブ層でない直下（作品詳細）へは素の pop が正しく一段上になる。
+ * ⚠️ 入場元を nav 引数で持ち回さないこと: NavController のバックスタックが既に唯一の正本で、
+ * 引数に写すと「詳細から入場した後に本棚へ pop した」等でズレる状態が2つできる。
+ *
+ * 発見の [upFromDiscoveryDetail] と同じ形だが1関数に束ねていない: 着地タブが違い（本棚／さがす）、
+ * それぞれ別の契約テスト（読書＝ReadingEscapeNavigationTest・発見＝DiscoveryUpNavigationTest／ADR 0026）が
+ * 固定している。共通化するなら両契約を同時に動かすこと。
+ */
+internal fun upFromReading(navController: NavController, tabPagerState: PagerState) {
+    if (navController.previousBackStackEntry?.destination?.route == TAB_HOST_ROUTE) {
+        popToTab(navController, tabPagerState, KTab.BOOKSHELF)
+    } else {
+        navController.popBackStack()
+    }
 }
 
 /**

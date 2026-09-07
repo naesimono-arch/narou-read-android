@@ -10,6 +10,8 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performClick
 import com.novelreader.model.ParseResult
 import com.novelreader.ui.skins.ThemeControl
 import com.novelreader.ui.theme.ReadingTheme
@@ -56,6 +58,7 @@ class NativeReadingScreenA11yTest {
         nextFile: String = "c0004.html",
         navEnabled: Boolean = true,
         onNavigateTo: (String) -> Unit = {},
+        onBack: () -> Unit = {},
     ) {
         composeTestRule.setContent {
             // 束は全フィールド必須（既定値なし＝配線忘れをコンパイルエラーにする・ReadingFace.kt 冒頭）。
@@ -102,6 +105,7 @@ class NativeReadingScreenA11yTest {
                     chapterNumber = null,
                     totalChapters = null,
                     onNavigateTo = onNavigateTo,
+                    onBack = onBack,
                     onNavigateToBookshelf = {},
                 ),
                 ncodeLink = NcodeLink(
@@ -222,5 +226,41 @@ class NativeReadingScreenA11yTest {
         val toToc = customActions().first { it.label == "目次を開く" }
         composeTestRule.runOnUiThread { assertTrue(toToc.action()) }
         composeTestRule.runOnIdle { assertEquals("index.html", navigatedTo) }
+    }
+
+    @Test
+    fun `戻るアクション起動でonBackが呼ばれ目次遷移は起きない`() {
+        // 2026-09-07 裁定で「戻る」と「目次を開く」は行き先が分かれた（← は前画面へ1段＝入場形により
+        // 目次にも読書フロー脱出にもなる／目次ボタンは常に目次）。a11y だけ旧挙動（常に目次）に
+        // 取り残されると、TalkBack 利用時だけ直行入場から抜けられなくなる。
+        var backCalled = 0
+        var navigatedTo: String? = null
+        val state = TopAppBarState(0f, 0f, 0f)
+        setContent(state, onNavigateTo = { navigatedTo = it }, onBack = { backCalled++ })
+        makeImmersive(state)
+
+        val back = customActions().first { it.label == "戻る" }
+        composeTestRule.runOnUiThread { assertTrue(back.action()) }
+        composeTestRule.runOnIdle {
+            assertEquals(1, backCalled)
+            assertEquals("戻るは目次遷移（onNavigateTo）を叩かない", null, navigatedTo)
+        }
+    }
+
+    @Test
+    fun `クローム表示中の上端←ボタンもonBackを叩く（customActionと同一コールバック）`() {
+        // 本テストクラスの前提「customActions は実ボタンと同一コールバック」の実ボタン側を固定する。
+        // ← が onNavigateTo("index.html") へ戻ると Back と ← が別実装に割れる（3度の反転の真因）。
+        var backCalled = 0
+        var navigatedTo: String? = null
+        val state = TopAppBarState(0f, 0f, 0f)
+        setContent(state, onNavigateTo = { navigatedTo = it }, onBack = { backCalled++ })
+        makeChromeVisible(state)
+
+        composeTestRule.onNodeWithContentDescription("戻る").performClick()
+        composeTestRule.runOnIdle {
+            assertEquals(1, backCalled)
+            assertEquals("← は目次遷移（onNavigateTo）を叩かない", null, navigatedTo)
+        }
     }
 }
