@@ -381,6 +381,18 @@ SCROLLING_SURFACES = {
     "DiscoveryResultScreen_list_light": ("android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryResultScreen.kt", ("heightIn(max = maxHeight", "verticalScroll")),
     "DiscoveryResultScreen_list_dark": ("android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryResultScreen.kt", ("heightIn(max = maxHeight", "verticalScroll")),
     "DiscoveryResultScreen_list_sepia": ("android/app/src/main/java/com/novelreader/ui/discovery/DiscoveryResultScreen.kt", ("heightIn(max = maxHeight", "verticalScroll")),
+    # 2026-09-07 の新設撮影条件（読書ルート＝監査 G-8 優先度1位）のうち、**没入の case だけ**が出た分。
+    # 没入は上下バーが画面外へ全退避し本文が全画面を使う姿＝下端に本文が接するのが仕様そのもの。
+    # クローム表示側（head / mid_pill）は下端バーが地を塗るので1件も出ない＝出方が「没入かどうか」と
+    # 完全に一致していることが、この赤が版面の破綻でなく**没入の定義**であることの傍証になっている。
+    # 根拠字句を2つ要求する理由: `LazyColumn` だけだと「スクロールできる」しか言えない。
+    # `Insets.ReadingBodyBottomExtra` は**本文が下端バーぶんの余白をスクロール領域の内側に確保している**
+    # 宣言で、これが在る限り最終段落もバーの外へ送り切れる＝「切れて到達できない」が構造的に起きない。
+    # どちらかが消えたら除外は失効して赤に戻る。
+    "ReadingScreenK_immersive_light": ("android/app/src/main/java/com/novelreader/ui/ChapterContent.kt", ("LazyColumn", "Insets.ReadingBodyBottomExtra")),
+    "ReadingScreenK_immersive_dark": ("android/app/src/main/java/com/novelreader/ui/ChapterContent.kt", ("LazyColumn", "Insets.ReadingBodyBottomExtra")),
+    "ReadingScreenK_immersive_sepia": ("android/app/src/main/java/com/novelreader/ui/ChapterContent.kt", ("LazyColumn", "Insets.ReadingBodyBottomExtra")),
+    "ReadingScreenK_immersive_hint_light": ("android/app/src/main/java/com/novelreader/ui/ChapterContent.kt", ("LazyColumn", "Insets.ReadingBodyBottomExtra")),
 }
 
 SCROLL_EXEMPT_REASON = {
@@ -416,6 +428,10 @@ SCROLL_EXEMPT_REASON = {
     "DiscoveryResultScreen_list_light": "条件帯（FlowRow）が 2.0 で8段に折り返し一覧の weight(1f) へ残り高0を渡していた破綻を 2026-08-07 に是正済み——帯を BoxWithConstraints で maxHeight/2 に閉じ、溢れた段は帯の内部スクロールで到達できる。是正後の実測でインクは下段が最大（27,296＝一覧が実際に描かれている）。罫線が 1.0 の2本→2.0 の0本になるのは、行が高くなって罫線の入る位置まで到達しないため＝可視行が減っただけ",
     "DiscoveryResultScreen_list_dark": "同上（テーマ違いの同一構造）",
     "DiscoveryResultScreen_list_sepia": "同上（テーマ違いの同一構造）",
+    "ReadingScreenK_immersive_light": "没入（上下バーが画面外へ全退避）の本文は LazyColumn が全画面を使う＝**下端に本文が接するのが仕様**で、最終行の切れ方はスクロール面の折返し地点そのもの。1.0 で 0px・2.0 で 99px なのは行が高くなって折返しの位置が段落の隙間から字の途中へ移っただけ（1.0 の golden も同じ場所で次段落を切っており、たまたま隙間に当たっていた）。到達性は本文が Insets.ReadingBodyBottomExtra ぶんの余白をスクロール領域の内側に持つことで担保される。⚠️ 同じ束のクローム表示側（ReadingScreenK_head / mid_pill）は1件も出ていない＝下端バーが地を塗るため。出方が没入の有無と完全に一致することが、破綻でなく仕様であることの傍証",
+    "ReadingScreenK_immersive_dark": "同上（テーマ違いの同一構造）",
+    "ReadingScreenK_immersive_sepia": "同上（テーマ違いの同一構造）",
+    "ReadingScreenK_immersive_hint_light": "同上（没入の同一構造。復帰ヒントのピルが増えるだけで本文の器は変わらない）",
 }
 
 

@@ -289,6 +289,10 @@ internal object GoldenCoverageRegistry {
         "TAB_HOST_ROUTE" to setOf(
             "BookshelfK", "BookshelfD", "DiscoveryHomeK", "SettingsScreenK", "KBottomNav",
         ),
+        // 読書ルート（2026-09-07 に撮影条件を新設＝監査 G-8 優先度1位の消化）。route ではなく stateless な
+        // 描画層 [com.novelreader.ui.ChapterScreenContent] を撮る（VM・prefs・非同期パースを立てないため）。
+        // K＝出荷素地／J＝2026-09-07 の「J のバーも α.92」裁定を守る唯一の手段（理由は撮影テストの KDoc）。
+        "reading/{bookId}/{startFile}" to setOf("ReadingScreenK", "ReadingScreenJ"),
         // さがす配下（2026-08-07 に撮影条件を新設＝監査 G-8 優先度2位の消化）。いずれも出荷素地 K で包み、
         // ルート層でなく stateless な Content 層を撮る（VM の実 API 取得・実時刻が絵に混ざるのを断つため）。
         "discovery/search" to setOf("DiscoverySearchScreen"),
@@ -299,12 +303,9 @@ internal object GoldenCoverageRegistry {
 
     /** 撮らない nav ルート → 理由（監査 2026-08-06 第1部の裁定に対応）。 */
     val acknowledgedOutOfScope: Map<String, String> = mapOf(
-        "reading/{bookId}/{startFile}" to
-            "監査 G-8: 読書画面**ルートとクローム**（NativeReadingScreen / ReadingChrome）が0枚。" +
-                "本文組版・章見出し・設定シート・目次・エラー面・なろう紐付けシートは部品単位で撮れているが、没入 on/off を含む" +
-                "ルートの絵は未撮影。撮影条件の追加優先度1位（3テーマ×2スケール×没入2値）。" +
-                "既存は semantics アサーションと fling 算術のみで、KBottomNav 型の欠陥" +
-                "（ノードは在り semantics も通るが画素として読めない）を原理的に検出できない。",
+        // ⚠️ 読書ルート（reading/{bookId}/{startFile}）は 2026-09-07 に撮影条件を新設して routeGoldens へ移した
+        // （監査 G-8 優先度1位の消化）。起票が名指しした「3テーマ×2スケール×没入2値」は
+        // ReadingScreenK の mid_pill / immersive の2代表がそのまま満たしている。
         "wardrobe" to
             "監査 G-8: 装いの間（WardrobeScreen）が0枚。ADR 0027 により release ではルートごと登録されない" +
                 "（skinSwitchingEnabled=false）ため出荷面ではないが、debug では到達可能。" +
@@ -434,7 +435,9 @@ internal object GoldenCoverageRegistry {
                 "出荷時に載る素地は K のため K で包む（DiscoveryResultScreen だけは LocalSkin で M/P/J へ分岐し、" +
                 "K/D/C は共通実装＝この束が3スキン分の版面を張る）。" +
                 "2026-08-26 に教示カード列（IntroOverlayK）を追加＝スキン分岐は持たないが LocalShelfColors を" +
-                "読むため K で包む（記録待ち＝PNG は record で入る）。",
+                "読むため K で包む（記録待ち＝PNG は record で入る）。" +
+                "2026-09-07 に読書ルートとクローム（ReadingScreenK・監査 G-8 優先度1位）を追加＝上下バー・" +
+                "「最上部へ」ピル・没入の取っ手・復帰ヒントを、没入 on/off の2代表で 3テーマ×2スケール全数。",
         Skin.WAMODERN_D to "撮影あり: BookshelfD / NativeTableOfContentsScreen（D/C 共通描画）。",
         Skin.YAKO_C to "撮影あり（D と共通描画・色トークンのみ差）: NativeTableOfContentsScreen の dark 束が張る。",
         Skin.SEIZU_M to
@@ -444,6 +447,10 @@ internal object GoldenCoverageRegistry {
             "ADR 0027 で release 出荷対象外＝golden 0枚。ADR 0027 の判断が変わるまで撮らない。",
         Skin.PORTAL_J to
             "ADR 0027 で release 出荷対象外。目次 HereBar のみ G-1 の同型4スキンとして撮影ハーネスを用意済み" +
-                "（TocPortalJ・記録済み）。",
+                "（TocPortalJ・記録済み）。2026-09-07 に読書ルートの代表 case（ReadingScreenJ の mid_pill）を追加＝" +
+                "同日の裁定で J のバーも α.92 へ移したが、変更点は SkinJ.readingBarSurfaceAlpha の1行で、" +
+                "戻しても他の全ゲートが緑のまま通る。しかも正本 skins/reading-J.html の4パネルは全て" +
+                "「バーの下に本文が無い」構図で透けが写らない＝**この golden 以外に検査手段が無い**。" +
+                "3テーマ全数なのは裁定の根拠が「ダークも同値クラスで3テーマとも同じ向きに効く」だったため。",
     )
 }

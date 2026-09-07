@@ -87,8 +87,6 @@
   ③**モック乖離**＝`bookshelf-P.html` の `.lib-h` に冊数 `.n` が無く（正本は `.head` の「本棚＋冊数」）、Compose 側だけが
   冊数を見出しへ置いている。既存の乖離なので広げない範囲に留めてある＝どちらへ寄せるかは別便。
 
-- **[golden] 監査 G-8「読書ルートとクロームの golden が0枚」＝撮影条件の追加優先度1位**: `GoldenCoverageTest.kt:302` の `acknowledgedOutOfScope` に**既に登録済みの宿題**（3テーマ×2スケール×没入2値）。⚠️ 2026-09-04 のピル便が「縮小版を撮ると G-8 を『済んだ』と誤報し registry を二度触る」ため意図的に見送った＝**別便で正面からやる**。⚠️ ピルは chrome 表示中かつ章の3割以上でしか出ないので、**そのスクロール状態を作る fixture が要る**。⚠️ golden は record した絵を無条件に正解として焼き込む（`docs/knowledge/golden-record-bakes-in-regressions.md`）＝撮る前に何が正しい見えかを決めておくこと。
-
 ## リファクタ / 技術的負債（deferred）
 
 - **[perf] 本棚→目次 push の「尾」は計測系によって出方が違う**（2026-08-21 に予算とベンチ `TocPushBenchmark`／`TocPushBudget` を新設）:
