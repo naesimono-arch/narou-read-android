@@ -82,7 +82,7 @@ internal fun ChapterScreen(
     onSaveScroll: (index: Int, offset: Int) -> Unit,
     // 章パース失敗のエラー画面「本棚に戻る」専用＝入場元に依らず本棚へ直行（文言どおりの行き先）。
     onNavigateToBookshelf: () -> Unit,
-    // 上端 ← ／没入時 a11y「戻る」＝システム Back と同一実装（前画面へ1段戻る・2026-09-07 裁定）。
+    // 上端 ← ／没入時 a11y「戻る」＝システム Back と同一実装（階層 up＝章の親は目次・ADR 0047）。
     // 判定は親 ReadingScreen の performBack が持つ＝この層で「章なら目次へ」と再実装しないこと。
     onBack: () -> Unit,
     onNavigateTo: (String) -> Unit,

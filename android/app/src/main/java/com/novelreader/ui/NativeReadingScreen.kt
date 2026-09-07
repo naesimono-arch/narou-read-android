@@ -179,9 +179,12 @@ private val readingBackStackSaver = listSaver<ReadingBackStack, String>(
  * @param ncode 紐付け済みなろう作品の Nコード（null = 未紐付け。継続導線の分岐に使う）
  * @param viewModel BookshelfViewModel（進捗保存・ncode 紐付けに使用）
  * @param onNavigateToBookshelf 本棚へ直行するコールバック（章パース失敗のエラー画面「本棚に戻る」専用）。
- * @param onExitReading 読書フローの終端＝入場元の前画面へ戻る（Back/← が [ReadingBackStack.back]==null に
- *   達したときだけ呼ぶ）。入場元は本棚（続きから・通知）と作品詳細（「アプリで読む」）の2種あり、
- *   どちらへ帰るかは NavController を見る MainActivity.upFromReading が決める（2026-09-07 裁定）。
+ * @param onExitReading 読書フローの終端＝目次より一つ上の階層へ上がる（Back/← が
+ *   [ReadingBackStack.back]==null に達したときだけ呼ぶ＝現在地が目次のときだけ）。
+ *   「読書フローの親」は入場元で決まり、本棚（続きから・通知）と作品詳細（「アプリで読む」）の2種ある。
+ *   どちらへ帰るかは NavController を見る MainActivity.upFromReading が決める
+ *   （ADR 0047＝2026-09-04 に失効したのは「読書の親＝本棚」という**親の固定**だけで、階層 up のモデル自体
+ *   ではなかった。親を入場元から引けば階層モデルのまま解ける）。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -209,7 +212,7 @@ fun ReadingScreen(
     // 読書ナビの Back スタック（実データ構造＝ReadingBackStack）。末尾が現在地。
     // なぜ「現在地1個」でなく経路を保持するスタックか（Back の前画面復元・前進操作の巻き戻し・参照退避元の探索）:
     // 目次ボタンで既存目次へ戻る／「続きに戻る」で退避元章へ復帰、が経路上の位置を必要とする。
-    // Back と左上 ← は「前画面へ1段戻る」の1実装（下の performBack・2026-09-07 裁定＝ReadingBackStack 参照）。
+    // Back と左上 ← は「必ず一つ上の階層へ」の1実装（下の performBack＝[ReadingBackStack.back] を参照）。
     // なぜ旧 navHistory 全逆再生バグを再発させないか: 覗き（目次⇄章）は ReadingBackStack が
     // 「既出は巻き戻し・話送りは置き換え」で段を増やさないため、何度覗いてもスタック深さは不変（不変条件②）。
     // なぜ rememberSaveable に bookId.value（生 String）をキーとして含めるか:
@@ -280,14 +283,22 @@ fun ReadingScreen(
         }
     }
 
-    // 戻るの単一実装＝「前画面へ1段戻る」（2026-09-07 裁定）。システム Back（横スワイプ・端末ボタン）と
-    // 左上 ←（章・目次とも）と没入時 a11y「戻る」が**この performBack だけ**を叩く＝同じ画面で操作によって
-    // 行き先が割れない（07/12 階層→07/15 逆再生→07/19 階層 と3度反転した真因は、Back と ← が別実装で
-    // 育ったこと自体だった）。back() が null＝読書フローの終端で、そこから先は onExitReading が入場元
-    // （本棚／作品詳細）へ帰す＝この画面は入場元を知らないままでよい（判定は MainActivity.upFromReading）。
-    // 目次へは下端「目次」ボタンが単独で導線を担う（章の ← はもう目次を開かない＝07/19 契約の撤回）。
+    // 戻るの単一実装＝「必ず一つ上の階層へ」（2026-07-19 ユーザー裁定・07-29 に全アプリへ拡大＝ADR 0026／
+    // 一度覆したのを ADR 0047 で復帰）。システム Back（横スワイプ・端末ボタン）と左上 ←（章・目次とも）と
+    // 没入時 a11y「戻る」が**この performBack だけ**を叩く＝同じ画面で操作によって行き先が割れない
+    // （07/12 階層→07/15 逆再生→07/19 階層 と3度反転した真因は、Back と ← が別実装で育ったこと自体だった）。
+    // 行き先は「今どの階層に居るか」だけで決まり、どう来たかには依らない:
+    //   ・章に居る … 目次へ上がる（既出の目次まで巻き戻し／直行入場で目次が無ければ積む）
+    //   ・目次に居る … back() が null＝読書フローの終端。onExitReading が入場元（本棚／作品詳細）へ帰す
+    //     ＝この画面は入場元を知らないままでよい（判定は MainActivity.upFromReading）。
+    // ⚠️ 「前画面へ1段 pop」（履歴逆走）へ倒さないこと＝ADR 0046 の誤り: [章,目次]（直行入場から目次を開いた形）
+    // で目次から章へ**降りて**しまい「戻るのに階層が下がる」が起きる（実機で最初に指摘された症状）。
+    // 0046 が動機に挙げた「作品詳細から入場しても本棚へ落ちる」は実在のバグだが、それは終端の脱出先を
+    // 入場元依存にするだけで階層モデルのまま解ける（MainActivity.upFromReading）＝失効していたのは
+    // 「読書の親＝本棚」という**親の固定**であって、階層モデル自体ではなかった。モデルごと倒したのが誤り。
+    // 下端「目次」ボタンは残す（章では ← と同じ着地だが、行き先を名乗る導線として別に露出する）。
     // 【旧 navHistory 全逆再生バグの再発防止】前進操作が経路を無制限に伸ばさない（既出巻き戻し・話送り置き換え）ため、
-    // 1枚 pop が「読んだ章列の逆走」にはならない。覗きで段が増えないのは ReadingBackStack 側規則（不変条件②）。
+    // 章→目次の上がりが「読んだ章列の逆走」にはならない。覗きで段が増えないのは ReadingBackStack 側規則（不変条件②）。
     // 【生命線】Back で saveProgress を呼ばず backStack 更新だけに留める理由: 進捗の書き込みは ChapterScreen の
     // debounce/onStop フラッシュに一元化してあり（C1 で遷移時の eager saveProgress は廃止済み）、Back で章を
     // 再表示しても章先頭への scrollIndex=0 破壊的上書きは起きない。再表示位置はセッション内記憶＝
@@ -600,8 +611,9 @@ fun ReadingScreen(
                 currentChapterFile = lastChapterFile,
                 // 章選択は参照ジャンプ扱い（C1）。続き位置と別章なら jumpOrigin へ退避し自動保存を抑止する。
                 onSelectChapter = onSelectChapterFromToc,
-                // 目次の ← ＝ Back と同一の performBack（前画面へ1段戻る・2026-09-07 裁定）。
-                // 目次入場なら1発で読書フローを出て入場元へ／直行本文から開いた目次なら本文へ戻る。
+                // 目次の ← ＝ Back と同一の performBack（階層 up・ADR 0047）。目次の一つ上は読書フローの外
+                // ＝入場形に依らず**常に**読書フローを出て入場元（本棚／作品詳細）へ帰る。
+                // ⚠️ 直行本文から開いた目次（[章,目次]）でも本文へは降りない＝上がる方向しか無いのが階層 up。
                 // ⚠️ 引数名が onNavigateToBookshelf のままなのは各スキンの目次（D/C/M/P/J）が共有する
                 // 呼び名で、改名は全スキンの署名変更を伴うため（受け取る側は「← が押された」以上の意味を
                 // 持たない）。この行が渡す実体が唯一の正＝「本棚へ直行」ではないことに注意。
@@ -673,7 +685,7 @@ fun ReadingScreen(
                     },
                     // 章パース失敗のエラー画面「本棚に戻る」専用＝入場元に依らず本棚へ落ちる（文言どおり）。
                     onNavigateToBookshelf = onNavigateToBookshelf,
-                    // 章の ← ／没入時 a11y「戻る」＝ Back と同一実装（前画面へ1段戻る・2026-09-07 裁定）。
+                    // 章の ← ／没入時 a11y「戻る」＝ Back と同一実装（階層 up＝章の親は目次・ADR 0047）。
                     onBack = performBack,
                     // 前後章・下端「目次」ボタンからの遷移はスタックへ反映（話送りは置換・目次開きは巻戻し/積み）
                     onNavigateTo = navigateForward,
@@ -1044,10 +1056,12 @@ internal fun ChapterScreenContent(
             .semantics {
                 if (topAppBarState.collapsedFraction > 0.5f) {
                     customActions = buildList {
-                        // 「戻る」=上端 ← ボタン（前画面へ1段＝onBack）／「目次を開く」=下端目次ボタン
-                        // （常に目次＝onNavigateTo("index.html")）。実ボタンと同一コールバックを貼るのが要で、
-                        // 2026-09-07 裁定で両者の行き先が分かれた（← は入場形により目次にも脱出にもなる）ため、
-                        // ここも実ボタンと同じく別コールバックへ分ける＝a11y だけ旧挙動に取り残さない。
+                        // 「戻る」=上端 ← ボタン（階層 up＝onBack）／「目次を開く」=下端目次ボタン
+                        // （常に目次＝onNavigateTo("index.html")）。実ボタンと同一コールバックを貼るのが要。
+                        // ⚠️ ここは章の描画層＝章では両者の**着地は同じ目次**（章の親が目次だから・ADR 0047）。
+                        // それでも2つ露出するのは重複ではなく、実ボタンが2つ在り「customActions は実ボタンと
+                        // 同一コールバック」が到達性回復の前提だから＝操作名の違い（階層を上がる／目次を開く）を
+                        // そのまま a11y へ写す。片方へ寄せると実ボタンとの1対1対応が崩れ、前提が静かに死ぬ。
                         add(CustomAccessibilityAction("戻る") { onBack(); true })
                         add(CustomAccessibilityAction("目次を開く") { onNavigateTo("index.html"); true })
                         // 前後章は実ボタンの活性条件（navEnabled＝目次ロード済）に一致させる。端章では隣接章が無く
@@ -1426,16 +1440,18 @@ internal fun ChapterScreenContent(
                 }
             },
             navigationIcon = {
-                // 章の ← ＝前画面へ1段戻る（システム Back と同一実装＝performBack・2026-09-07 裁定）。
-                // 目次経由で入場していれば目次へ・続きから直行入場なら1発で読書フローを出る。
-                // ⚠️ ここを再び onNavigateTo("index.html")（＝常に目次）へ戻さないこと: Back と ← が
-                // 別実装に割れた状態こそが 07/12→07/15→07/19 と3度の反転を招いた真因。
-                // 目次を開く導線は下端「目次」ボタンが単独で担う（行き先が固定＝ラベルどおり）。
+                // 章の ← ＝一つ上の階層＝目次へ（システム Back と同一実装＝performBack・ADR 0047）。
+                // 入場形に依らず必ず目次へ上がる（既出の目次まで巻き戻し／直行入場で目次が無ければ積む）。
+                // ⚠️ ここを onNavigateTo("index.html") へ**書き戻さないこと**: 着地は同じでも、Back と ← が
+                // 別実装に割れた状態こそが 07/12→07/15→07/19 と3度の反転を招いた真因で、両者の一致は
+                // 「同じ関数を叩く」ことでしか保てない（着地の一致は実装が割れた瞬間に崩れる）。
+                // 目次を開く導線は下端「目次」ボタンも別に担う（章では同じ着地・ラベルどおりの行き先）。
                 IconButton(onClick = onBack) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        // 行き先が入場形で変わる（目次／読書フロー脱出）ため、行き先を名乗らず操作名にする。
-                        contentDescription = "戻る",
+                        // 階層 up では章の ← の行き先は常に目次＝一意なので、操作名でなく行き先を名乗れる
+                        //（0046 が操作名「戻る」へ倒した根拠「入場形で行き先が変わる」は階層 up で消えた）。
+                        contentDescription = "目次に戻る",
                     )
                 }
             },

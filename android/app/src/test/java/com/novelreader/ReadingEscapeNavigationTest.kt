@@ -35,22 +35,26 @@ import org.robolectric.annotation.Config
 /**
  * 読書フロー脱出（[popToTab] / [upFromReading]）の契約テスト。
  *
- * 固定する契約（前画面遷移への統一 2026-09-07 × K タブ構造 2026-07-24）:
+ * 固定する契約（階層 up への復帰 ADR 0047 × K タブ構造 2026-07-24）:
  *   ① 読書内スタックを使い切った後の脱出が「実際に有効な pop」であり、本棚入場ならタブ層＝本棚ページへ着地する。
  *   ② deep link 入場等で Pager が他タブに居ても、本棚入場の脱出は本棚ページへスナップする（pop だけだと
  *      「目次→さがす/設定」に化ける）。
  *   ③ バグ機序の固定: スタックに無いルート名への popBackStack は黙って無視される（false・現在地不動）
  *      ＝2026-07-25 実機バグ（旧 "bookshelf" への pop が黙殺され目次に幽閉）の再発防波堤。
  *      pop 先とルート登録は [TAB_HOST_ROUTE] の単一正本共有で乖離を封じる。
- *   ④ **入場元2種 × 操作2種の4通り**（2026-09-07 裁定の中核）: 本棚から直行入場／作品詳細の「アプリで読む」
- *      から入場 の各々で、システム Back と左上 ← が同じ画面へ着地する（本棚入場→本棚・詳細入場→その詳細）。
- *      2026-09-04 まで終端は本棚固定で、詳細から入場しても本棚へ落ちていた＝これが是正点。
+ *   ④ **入場元2種 × 操作2種の4通り**: 本棚から直行入場／作品詳細の「アプリで読む」から入場 の各々で、
+ *      システム Back と左上 ← が同じ画面へ着地する（本棚入場→本棚・詳細入場→その詳細）。
+ *      2026-09-04 まで終端は [popToTab] 固定で、詳細から入場しても本棚へ落ちていた＝これが是正点。
+ *      ⚠️ 是正は [upFromReading]（親を入場元から引く）が担い、**戻り規則は階層 up のまま**
+ *      ＝失効していたのは「読書の親＝本棚」という親の固定だけで階層モデル自体ではなかった（ADR 0047）。
+ *      ∴ 直行入場でも脱出は「章→目次→脱出」の**2回**で、1回目は読書ルートに留まる（ADR 0046 は
+ *      1発で出ていた＝2026-07-19 裁定「← も Back も必ず一つ上の階層へ」に対する退行だった）。
  *   ⑤ 内部スタックが残っている間は読書ルートを出ない（目次経由入場の1回目の Back は目次へ）。
  *
  * NavHost は MainActivity と同型の最小トポロジ（TAB_HOST_ROUTE 起点＋detail/reading が上に積まれる）を
  * 共有定数で組む＝プロダクションのルート名が変わればこのテストも同時に追従する。
  * 読書ルートの中身は MainActivity＋ReadingScreen の配線ミラー（Back も ← も同一の performBack を叩き、
- * [ReadingBackStack.back] が null のときだけ [upFromReading] へ抜ける）＝本物の終端実装を叩く
+ * [ReadingBackStack.back] が null＝現在地が目次のときだけ [upFromReading] へ抜ける）＝本物の終端実装を叩く
  * （[DiscoveryUpNavigationTest] と同じ手法。ViewModel を要求する ReadingScreen 実体は JVM で組めないため）。
  */
 @RunWith(RobolectricTestRunner::class)
@@ -164,7 +168,7 @@ class ReadingEscapeNavigationTest {
         assertTrue("正規の脱出後はタブ層", currentRoute() == TAB_HOST_ROUTE)
     }
 
-    // ────── ④ 入場元2種 × 操作2種の4通り（2026-09-07 裁定の中核）──────
+    // ────── ④ 入場元2種 × 操作2種の4通り（脱出先は upFromReading・戻り規則は階層 up）──────
 
     /** 本棚から続きを直行で開く（BookshelfScreen.onOpenBook 相当＝タブ層の上に reading を1枚）。 */
     private fun enterReadingFromBookshelf() {
@@ -182,19 +186,25 @@ class ReadingEscapeNavigationTest {
 
     @Test
     fun back_fromBookshelfEntry_landsOnBookshelfTab() {
-        // (1/4) 本棚直行入場 × システム Back → 1発で本棚（目次を経由しない＝07/19 の2段化を撤回）。
+        // (1/4) 本棚直行入場 × システム Back → 「章→目次→本棚」の2段（階層 up）。
         buildNav(initialTabPage = 0)
         enterReadingFromBookshelf()
-        pressBack()
+        pressBack() // 1回目＝章の一つ上＝目次（読書ルートに留まる）
+        assertEquals("1回目は読書ルートを出ない", "reading/{bookId}/{startFile}", currentRoute())
+        composeTestRule.onNodeWithText("READING:index.html").assertIsDisplayed()
+        pressBack() // 2回目＝目次の一つ上＝読書フローの外＝入場元（本棚）
         assertEquals(TAB_HOST_ROUTE, currentRoute())
         assertEquals("着地は本棚ページ", 0, composeTestRule.runOnIdle { pager.currentPage })
     }
 
     @Test
     fun up_fromBookshelfEntry_landsOnBookshelfTab() {
-        // (2/4) 本棚直行入場 × 左上 ← → Back と同じ本棚。操作で行き先が割れないことの半分。
+        // (2/4) 本棚直行入場 × 左上 ← → Back と同じ2段・同じ本棚。操作で行き先が割れないことの半分。
         buildNav(initialTabPage = 0)
         enterReadingFromBookshelf()
+        clickUp()
+        assertEquals("← も1回目は目次まで（Back と同じ段数）", "reading/{bookId}/{startFile}", currentRoute())
+        composeTestRule.onNodeWithText("READING:index.html").assertIsDisplayed()
         clickUp()
         assertEquals(TAB_HOST_ROUTE, currentRoute())
         assertEquals(0, composeTestRule.runOnIdle { pager.currentPage })
@@ -202,28 +212,33 @@ class ReadingEscapeNavigationTest {
 
     @Test
     fun back_fromDetailEntry_landsOnDetail_notBookshelf() {
-        // (3/4) 作品詳細入場 × システム Back → 呼び出し元の詳細へ帰る。
-        // 2026-09-04 まで終端は popToTab 固定で、ここが本棚に化けていた（＝本裁定の直接の動機）。
+        // (3/4) 作品詳細入場 × システム Back → 「章→目次→その詳細」。
+        // 2026-09-04 まで終端は popToTab 固定で、ここが本棚に化けていた（＝ADR 0046 が挙げた実在のバグ）。
+        // 直したのは終端の行き先（upFromReading）だけで、戻り規則は階層 up のまま＝2段は変わらない。
         buildNav(initialTabPage = 0)
         enterReadingFromDetail()
+        pressBack()
+        assertEquals("1回目は読書ルートを出ない", "reading/{bookId}/{startFile}", currentRoute())
         pressBack()
         assertEquals("詳細から入場したら詳細へ帰る", "discovery/detail/{ncode}", currentRoute())
     }
 
     @Test
     fun up_fromDetailEntry_landsOnDetail_notBookshelf() {
-        // (4/4) 作品詳細入場 × 左上 ← → Back と同じ詳細。
+        // (4/4) 作品詳細入場 × 左上 ← → Back と同じ段数・同じ詳細。
         buildNav(initialTabPage = 0)
         enterReadingFromDetail()
+        clickUp()
+        assertEquals("1回目は読書ルートを出ない", "reading/{bookId}/{startFile}", currentRoute())
         clickUp()
         assertEquals("詳細から入場したら詳細へ帰る", "discovery/detail/{ncode}", currentRoute())
     }
 
     @Test
     fun back_fromTocEntry_staysInReadingUntilInnerStackIsEmpty() {
-        // ⑤ 内部スタックが残る間は読書ルートを出ない: 目次入場→章を開くと Back の1回目は目次へ戻るだけで、
+        // ⑤ 内部スタックが残る間は読書ルートを出ない: 目次入場→章を開くと1回目は目次へ上がるだけで、
         // 2回目に初めて終端（入場元＝本棚）へ抜ける。終端判定（upFromReading）が毎回走ってしまう
-        // ＝「章の Back で本ごと出てしまう」退行の防波堤。← 側も同じ2段を辿る。
+        // ＝「章の Back で本ごと出てしまう」退行の防波堤。← 側も同じ2段を辿る（階層 up・ADR 0047）。
         buildNav(initialTabPage = 0)
         composeTestRule.runOnIdle { navController.navigate("reading/b1/index.html") }
         composeTestRule.waitForIdle()
@@ -232,11 +247,11 @@ class ReadingEscapeNavigationTest {
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText("READING:c5.html").assertIsDisplayed()
 
-        pressBack() // 1回目＝章→目次（読書ルートに留まる）
+        pressBack() // 1回目＝章の一つ上＝目次（読書ルートに留まる）
         assertEquals("読書ルートを出ていないこと", "reading/{bookId}/{startFile}", currentRoute())
         composeTestRule.onNodeWithText("READING:index.html").assertIsDisplayed()
 
-        clickUp() // 2回目は ← で＝目次→終端（本棚）。操作を混ぜても同じ列を辿ることの確認を兼ねる。
+        clickUp() // 2回目は ← で＝目次の一つ上＝終端（本棚）。操作を混ぜても同じ列を辿ることの確認を兼ねる。
         assertEquals(TAB_HOST_ROUTE, currentRoute())
         assertEquals(0, composeTestRule.runOnIdle { pager.currentPage })
     }

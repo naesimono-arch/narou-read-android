@@ -94,9 +94,10 @@ internal data class NcodeLink(
  *   （ADR 0022 §1 の部品分岐）。null＝目次未ロード等で不明。M/P 以外のスキンでは未使用。
  * @property totalChapters 同上（総章数）。null または 0 以下なら進捗表示を出さない。
  * @property onNavigateTo 章/目次へ「進む」。"index.html" を渡すと目次を開く（下端「目次」ボタン・前後章）。
- * @property onBack 上端 ←（と没入時 a11y「戻る」）＝前画面へ1段戻る。システム Back と同一実装
- *   （ReadingScreen の performBack → [ReadingBackStack.back]）を受け取ること＝ボタン側で
- *   「章なら目次へ」等の分岐を持たせない（操作で行き先が割れる 3 度の反転の真因・2026-09-07 裁定）。
+ * @property onBack 上端 ←（と没入時 a11y「戻る」）＝一つ上の階層へ（章の親＝目次・ADR 0047）。
+ *   システム Back と同一実装（ReadingScreen の performBack → [ReadingBackStack.back]）を受け取ること
+ *   ＝ボタン側で「章なら目次へ」と**再実装**しない。着地が同じでも実装が2本に割れると、片方だけが
+ *   後から書き換わって操作で行き先が割れる（3 度の反転の真因はまさにこれ）。
  * @property onNavigateToBookshelf 本棚へ直行（章パース失敗時のエラー画面「本棚に戻る」だけが使う）。
  *   ⚠️ [onBack] とは別物＝こちらは入場元に依らず本棚へ落ちる（ボタン文言どおりの行き先）。
  */

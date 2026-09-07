@@ -230,9 +230,11 @@ class NativeReadingScreenA11yTest {
 
     @Test
     fun `戻るアクション起動でonBackが呼ばれ目次遷移は起きない`() {
-        // 2026-09-07 裁定で「戻る」と「目次を開く」は行き先が分かれた（← は前画面へ1段＝入場形により
-        // 目次にも読書フロー脱出にもなる／目次ボタンは常に目次）。a11y だけ旧挙動（常に目次）に
-        // 取り残されると、TalkBack 利用時だけ直行入場から抜けられなくなる。
+        // 「戻る」は onBack（階層 up）・「目次を開く」は onNavigateTo("index.html") と、実ボタン2つに
+        // 1対1で対応させる。⚠️ ここは章の描画層＝章では**両者の着地は同じ目次**（章の親が目次・ADR 0047）
+        // だが、着地が同じことに寄りかかって「戻る」を onNavigateTo へ流用すると、実ボタンとの対応が崩れて
+        // 上端 ← の実装（performBack）だけが a11y から検証されなくなる＝ここが固定するのはコールバックの
+        // 結線であって着地ではない。
         var backCalled = 0
         var navigatedTo: String? = null
         val state = TopAppBarState(0f, 0f, 0f)
@@ -251,16 +253,22 @@ class NativeReadingScreenA11yTest {
     fun `クローム表示中の上端←ボタンもonBackを叩く（customActionと同一コールバック）`() {
         // 本テストクラスの前提「customActions は実ボタンと同一コールバック」の実ボタン側を固定する。
         // ← が onNavigateTo("index.html") へ戻ると Back と ← が別実装に割れる（3度の反転の真因）。
+        // 階層 up では ← の着地も目次＝onNavigateTo でも「見た目は」同じに動くため、着地でなく
+        // どのコールバックを叩くかで固定しないと退行を検知できない（ADR 0047）。
         var backCalled = 0
         var navigatedTo: String? = null
         val state = TopAppBarState(0f, 0f, 0f)
         setContent(state, onNavigateTo = { navigatedTo = it }, onBack = { backCalled++ })
         makeChromeVisible(state)
 
-        composeTestRule.onNodeWithContentDescription("戻る").performClick()
+        // contentDescription は "目次に戻る"＝階層 up では章の ← の行き先が常に目次で一意なため
+        // 行き先を名乗れる（ADR 0047。0046 が操作名「戻る」へ倒した根拠は階層 up で消えた）。
+        composeTestRule.onNodeWithContentDescription("目次に戻る").performClick()
         composeTestRule.runOnIdle {
             assertEquals(1, backCalled)
-            assertEquals("← は目次遷移（onNavigateTo）を叩かない", null, navigatedTo)
+            // 着地は目次で同じでも、← は onNavigateTo でなく performBack（onBack）を叩くこと＝
+            // Back と ← が別実装に割れた状態こそ3度の反転の真因なので、結線そのものを固定する。
+            assertEquals("← は目次遷移（onNavigateTo）でなく onBack を叩く", null, navigatedTo)
         }
     }
 }
