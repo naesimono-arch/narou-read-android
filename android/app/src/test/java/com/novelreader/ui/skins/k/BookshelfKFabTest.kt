@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import com.novelreader.domain.ReadingStatus
 import com.novelreader.ui.theme.ReadingTheme
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,6 +27,10 @@ import org.robolectric.annotation.GraphicsMode
  *     消す裁定②を採った＝押す対象は空棚CTA〈PDFを追加〉一本。
  *  3) ⚠️ ただし「この分類の本はありません」（状態フィルタで0件・蔵書はある）は空棚ではない。
  *     あちらは CTA を持たないので FAB を隠すと PDF 追加の導線が全部消える＝**残ること**を張る。
+ *
+ *  4) 空棚の語り（案B の本文）と CTA の並び。2) で FAB を消した結果、**PDF 追加の入口は空棚 CTA だけ**に
+ *     なった＝その CTA が読み順で先に来ることまで張らないと、裁定②の「一本へ寄せる」が見えとして崩れても
+ *     テストが素通りする（2026-09-07 裁定・ADR 0037 追記）。
  *
  * 2) と 3) は対でしか意味を持たない（片方だけでは「常に隠す」誤実装が通ってしまう）ので必ず2本で持つ。
  * 旧テスト「空棚のCTAは末尾まで送るとFAB帯の外に出る」は FAB の存在が前提＝裁定②で成立しなくなったため、
@@ -97,5 +102,37 @@ class BookshelfKFabTest {
         composeTestRule.onNodeWithText("この分類の本はありません").assertExists()
         composeTestRule.onNodeWithText("まだ本がありません").assertDoesNotExist()
         composeTestRule.onNodeWithContentDescription("PDFを追加").assertHasClickAction()
+    }
+
+    /**
+     * 空棚の語りと CTA の並び（2026-09-07 裁定・ADR 0037 追記）。K は既定スキン＝新規インストール直後の
+     * 初見が最初に見る空棚なので、D の案B と本文を**一字同じ**で保つ（核心価値〈ふりがな付き〉の名乗り）。
+     * ⚠️ 実塗り／輪郭そのもの（主従の見え）は semantics に出ない＝golden BookshelfKScreenshotTest の
+     *    empty ケースが担う。ここで縛れるのは文言と並びまで。
+     */
+    @Test
+    fun `空棚の語りは案Bで CTA は〈PDFを追加〉が読み順で先`() {
+        setKGridView(true)
+        val counts: Map<ReadingStatus, Int> = emptyMap()
+        composeTestRule.setSkinKContent(ReadingTheme.LIGHT, 1.0f) { _ ->
+            BookshelfK(
+                data = KShelfFixtures.emptyData(),
+                chrome = KShelfFixtures.chrome(counts),
+                actions = KShelfFixtures.actions,
+                selection = KShelfFixtures.selection,
+                webActions = KShelfFixtures.webActions,
+                snackbarHostState = remember { SnackbarHostState() },
+            )
+        }
+        // 見出しは K の語彙のまま（D「まだ一冊もありません」とは意図的に別＝スキンの署名）。
+        composeTestRule.onNodeWithText("まだ本がありません").assertExists()
+        composeTestRule.onNodeWithText("お手元のPDFを取り込むと、ふりがな付きで読めるようになります。").assertExists()
+
+        val add = composeTestRule.onNodeWithText("PDFを追加").fetchSemanticsNode().boundsInRoot
+        val find = composeTestRule.onNodeWithText("作品をさがす").fetchSemanticsNode().boundsInRoot
+        // FlowRow は幅が足りなければ折り返す（大きい fontScale）ため x 座標だけで張ると脆い＝読み順
+        //（上→下、同じ行なら左→右）で比べる。折り返しても「主導線が先」の契約は変わらない。
+        val addComesFirst = add.top < find.top || (add.top == find.top && add.left < find.left)
+        assertTrue("空棚の主導線〈PDFを追加〉は〈作品をさがす〉より読み順で先に来る", addComesFirst)
     }
 }

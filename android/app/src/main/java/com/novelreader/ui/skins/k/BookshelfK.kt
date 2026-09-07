@@ -1661,8 +1661,10 @@ private fun KSelectionActionBar(
 }
 
 // ============================================================
-// 空状態（.empty＝「まだ本がありません」＋説明＋CTA2つ〈作品をさがす〉〈PDFを追加〉）
+// 空状態（.empty＝「まだ本がありません」＋説明＋CTA2つ〈PDFを追加〉〈作品をさがす〉）
 // 〈作品をさがす〉はさがすタブ（発見ホーム）へ＝K は発見帯を本棚に置かず、さがすタブへ一本化した（plan 確定5）。
+// 本文と CTA の主従は 2026-09-07 裁定（ADR 0037 追記）で D の案B へ揃えた＝正本モックは
+// docs/design-candidates/skins/bookshelf-K.html の .empty。見出しだけは K の語彙のまま（同上・個性として残す側）。
 // ============================================================
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -1695,8 +1697,11 @@ private fun KEmptyState(
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Spacer(Modifier.height(Spacing.S12))
+            // 案B〈操作と結果を明示する語り〉＝D と一字同じ本文（2026-09-07 裁定）。旧文言は操作しか言わず、
+            // このアプリの核心価値（ふりがな付きで読める）を一度も名乗らなかった。K は既定スキン＝
+            // 新規インストール直後の初見が最初に見る空棚なので、価値を告げる効きが D より大きい。
             Text(
-                "読みたい作品をさがすか、お手元のPDFを追加して読み始めましょう。",
+                "お手元のPDFを取り込むと、ふりがな付きで読めるようになります。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -1710,9 +1715,14 @@ private fun KEmptyState(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.S12, Alignment.CenterHorizontally),
                 verticalArrangement = Arrangement.spacedBy(Spacing.S12),
             ) {
-                // 一画面一強調＝新規ユーザーの主導線「作品をさがす」を藍の実塗り、PDF追加を輪郭ボタンに沈める。
-                Button(onClick = onFindWorks) { Text("作品をさがす") }
-                OutlinedButton(onClick = onAddPdf) { Text("PDFを追加") }
+                // 一画面一強調＝実塗りは主導線だけ・順序も主を先に置く。主従の根拠は 2026-08-20 裁定② そのもの
+                // ＝空棚では拡張FAB を出さないので、**PDF 追加の入口はこの CTA だけ**になる。一方〈作品をさがす〉は
+                // ボトムナビ（KBottomNav の さがす）に常設＝空棚 CTA が唯一の入口ではない。導線の希少性が主従を決める。
+                // 旧「新規ユーザーの主導線＝作品をさがす」は plan 確定5 由来の想定で、裁定②の後に見直されておらず、
+                // 「押す対象を空棚CTA〈PDFを追加〉一本へ寄せる」という決定に対し寄せた先が画面で最も弱いボタンだった
+                // （2026-09-07 裁定で解消・ADR 0037 追記）。ラベルは「PDFを追加」のまま＝蔵書ありの拡張FAB と同じ語。
+                Button(onClick = onAddPdf) { Text("PDFを追加") }
+                OutlinedButton(onClick = onFindWorks) { Text("作品をさがす") }
             }
         }
     }
