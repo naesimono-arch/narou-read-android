@@ -102,7 +102,10 @@ sealed interface TocState {
  * @param workTitle 作品名（目次ヘッダの作品名サブに使う。K形伝播で D/C/M/P/J も受け取る＝各スキンの header に副題を出す。null なら副題を出さない）
  * @param currentChapterFile 最後に表示していた章のファイル名（null なら未読。ハイライト＋自動スクロールに使う）
  * @param onSelectChapter 章ファイル名を引数にして章選択時に呼ぶコールバック
- * @param onNavigateToBookshelf 本棚に戻るコールバック
+ * @param onNavigateToBookshelf 目次の ← が押されたときのコールバック。⚠️ 名前に反して行き先は本棚固定ではない
+ *   ＝実体は読書フローの脱出（ReadingScreen の performBack →[back] が null→ MainActivity.upFromReading）で、
+ *   入場元が本棚なら本棚・作品詳細の「アプリで読む」ならその詳細へ帰る。引数名は D/C/M/P/J の全目次が
+ *   共有する呼び名のため改名していない（受け取る側は「← が押された」以上の意味を持たない）。
  * @param onRetry 目次パースを再試行するコールバック（Error 状態の再読込に使う）
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -335,7 +338,12 @@ private fun TocTopBarD(
             IconButton(onClick = onNavigateToBookshelf) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "本棚に戻る",
+                    // 行き先が入場形で変わる（本棚／作品詳細）ため、行き先を名乗らず操作名にする。
+                    // ⚠️ 章の ←（"目次に戻る"）と非対称でよい: 章の ← の一つ上は必ず目次＝行き先が一意なので
+                    // 名乗れるが、目次の ← の一つ上は読書フローの外＝入場元次第で変わるので名乗れない。
+                    // 旧 "本棚に戻る" は作品詳細から入場した場合に**嘘の読み上げ**だった（ユーザー裁定 2026-09-07）。
+                    // 全スキンで同じ語であることは TocBackButtonLabelTest が固定する。
+                    contentDescription = "戻る",
                 )
             }
         },

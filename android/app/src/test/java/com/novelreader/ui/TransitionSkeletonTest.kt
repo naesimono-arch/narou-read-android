@@ -70,7 +70,7 @@ class TransitionSkeletonTest {
         setToc(defer = true)
         // クローム（題字・戻る）は実描画＝案A「軽量部は本物・重い可変部だけ骨」の分担。
         composeTestRule.onNodeWithText("目次").assertIsDisplayed()
-        composeTestRule.onNodeWithContentDescription("本棚に戻る").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("戻る").assertIsDisplayed()
         // 章リスト（重い実内容）は窓中コンポーズされない＝Content を渡していても章題は存在しない。
         composeTestRule.onNodeWithText("第一章 出会い").assertDoesNotExist()
     }

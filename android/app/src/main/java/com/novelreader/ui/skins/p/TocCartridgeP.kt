@@ -257,7 +257,9 @@ private fun TocTopBarP(workTitle: String?, onBack: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "本棚に戻る", tint = InkCartridge)
+            // ← は入場元（本棚／作品詳細）へ帰る＝行き先が一意でないので操作名で名乗る（理由は
+            // NativeTableOfContentsScreen の同箇所。章の ← が "目次に戻る" なのとの非対称もそこに記す）。
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る", tint = InkCartridge)
         }
         Column(modifier = Modifier.padding(start = Spacing.S8)) { // .top gap 6px → S8
             Text(

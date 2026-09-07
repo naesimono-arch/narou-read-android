@@ -216,7 +216,9 @@ private fun TocHeaderK(workTitle: String?, colors: ReadingColors, onBack: () -> 
             ) {
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "本棚に戻る",
+                    // 目次の ← は入場元（本棚／作品詳細）へ帰る＝行き先が一意でないので操作名で名乗る。
+                    // 章の ← が "目次に戻る" と名乗れるのとの非対称の理由は NativeTableOfContentsScreen の同箇所。
+                    contentDescription = "戻る",
                     tint = colors.topBarIcon,
                     modifier = Modifier.size(22.dp),
                 )

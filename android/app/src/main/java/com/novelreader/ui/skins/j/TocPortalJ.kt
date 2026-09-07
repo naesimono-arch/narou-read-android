@@ -248,7 +248,9 @@ private fun TocPortalTopBar(workTitle: String?, onNavigateToBookshelf: () -> Uni
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onNavigateToBookshelf) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "本棚に戻る", tint = InkTocPortal)
+                // ← は入場元（本棚／作品詳細）へ帰る＝行き先が一意でないので操作名で名乗る（理由は
+                // NativeTableOfContentsScreen の同箇所。章の ← が "目次に戻る" なのとの非対称もそこに記す）。
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る", tint = InkTocPortal)
             }
             Column(modifier = Modifier.padding(start = Spacing.S8)) { // .top gap 6px → S8
                 Text(

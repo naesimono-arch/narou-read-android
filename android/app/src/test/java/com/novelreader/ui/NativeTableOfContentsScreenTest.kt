@@ -106,7 +106,9 @@ class NativeTableOfContentsScreenTest {
     fun `戻るナビゲーションクリックでonNavigateToBookshelfが呼ばれる`() {
         var navigated = false
         setToc(TocState.Empty, onNavigateToBookshelf = { navigated = true })
-        composeTestRule.onNodeWithContentDescription("本棚に戻る").performClick()
+        // ← の読み上げは "戻る"（入場元により本棚/作品詳細へ帰るため行き先を名乗らない・2026-09-07 ユーザー裁定）。
+        // 語そのものの全スキン契約は TocBackButtonLabelTest が持つ＝ここは結線だけを見る。
+        composeTestRule.onNodeWithContentDescription("戻る").performClick()
         assertTrue(navigated)
     }
 }

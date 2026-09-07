@@ -285,7 +285,9 @@ private fun TocSkyTopBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onNavigateToBookshelf) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "本棚に戻る", tint = TextSeizu)
+            // ← は入場元（本棚／作品詳細）へ帰る＝行き先が一意でないので操作名で名乗る（理由は
+            // NativeTableOfContentsScreen の同箇所。章の ← が "目次に戻る" なのとの非対称もそこに記す）。
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "戻る", tint = TextSeizu)
         }
         Column(modifier = Modifier.padding(start = Spacing.S8)) {  // .topbar gap 8px
             Text(
