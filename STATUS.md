@@ -9,8 +9,10 @@
 
 - **公開準備（Google Play）**: **ブランド名＝`Yosari` 確定**。**ストア用スクショ6枚は撮影・検算済み**（`docs/store/assets/screenshots/`）。
   残＝applicationId 変更（`app.yosari.reader`・**§1 実機ツアーの後**）／プライバシーポリシー公開（ユーザー作業）。
-  ⚠️ **release 用の正式な鍵がまだ無い**（`local.properties` に `release.*` が無く Gradle は未署名 APK しか出さない）
-  ＝撮影は debug 鍵で署名した release ビルドで代用した。**提出には鍵が要る**（ユーザー作業）。
+  ⚠️ **鍵は在るが Gradle へ配線されていない**（`/mnt/c/Users/naesimono/keystores/novel-reader-upload.jks` は実在＝
+  2026-09-07 に確認。欠けているのは `android/local.properties` の `release.storeFile/storePassword/keyAlias/keyPassword` 4行で、
+  `build.gradle:103` の `hasReleaseKeystore` が false になり未署名 APK しか出ない）＝撮影は debug 鍵で署名した release ビルドで代用した。
+  **配線はパスワードを持つユーザーにしかできない**（Claude 側の残作業は無い）。
 
 - **UI の既定は「明快K」**＝`Skin.MEIKAI_K`（既存の明示保存 D/M/P/J/C は不変。⚠️ 装いの間は
   `SKIN_SWITCHING_ENABLED` で**公開ビルドでは閉じる**＝ADR 0027）。
