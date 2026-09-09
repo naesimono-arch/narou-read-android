@@ -43,8 +43,9 @@ memory `wsl-android-emulator-kvm`**。このスキルは操作手順と判断の
 
 - ⚠️ **`-gpu swiftshader_indirect` は使えない**（アプリ描画の瞬間に `RenderThread` が segfault する）。
   `-gpu host -feature -Vulkan` **だけ**が動く組み合わせ＝ここは選択肢ではない。
-- 非対話 Bash は PATH に adb を持たない → **`~/Android/Sdk/platform-tools/adb` を絶対パスで**呼ぶ
-  （機序は memory `bash-tool-no-bashrc-gradle-env` と同じ）。
+- 非対話 Bash でも `~/.local/bin` は PATH に載る（2026-08-26 の `BASH_ENV` 以降）＝**素の `adb` を呼ぶ**。
+  ⚠️ `~/Android/Sdk/platform-tools/adb` を直に叩くと承認済み鍵を提示するラッパーを迂回し、実機が混ざる場面で
+  端末を見失う（`/device-verify`）。機序は memory `bash-tool-no-bashrc-gradle-env`。
 
 ## 2. 台を増やす・複数台で回す
 
@@ -135,7 +136,10 @@ adb -s <serial> shell "stop; start"
 **実 GPU の描画性能**。実機関門（`/device-verify`）は残す。
 
 ⚠️ **ただし「実機なら本当の数字が出る」ではない**——実機もハイエンドで速い方へ振れる。
-**低スペックの体感はエミュでも実機でも測れていない**（遅い方へ振る手段は `handover.md` に task 化済み）。
+**低スペックの体感はエミュでも実機でも測れていない**——遅い方へ振る手段は全数実測済みで、当たりは
+**ホスト側 `taskset -a` で qemu を1コアに縛る**手だけ（約3.2倍・遅くなるのは並列に走る仕事だけ）。
+⚠️ **`heapsize` 絞りは速度に効かない**（OOM の天井であって速度のつまみではない）＝§4 が再現するのは
+メモリ天井であって速度ではない。正本＝`docs/knowledge/emulator-slow-side-calibration.md`。
 性能の回帰を止めたいなら時間でなく**端末非依存の「仕事量」**（組版回数など）で測る＝§7 の `measure_typeset_work.sh`。
 
 ## 6. ストア用スクリーンショットを撮る

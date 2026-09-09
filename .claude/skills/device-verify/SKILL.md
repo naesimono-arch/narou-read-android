@@ -148,8 +148,9 @@ apksigner sign --ks ~/.android/debug.keystore --ks-key-alias androiddebugkey \
 投入後は `pkgFlags` から `DEBUGGABLE` が消えていることで陽性確認する。debug への復帰も
 `assembleDebug`→`install -r`（release=debug=同一署名）。build.gradle に一時 signingConfig を足す必要はない。
 **`install -r` は署名不一致でも「失敗するだけ」で uninstall はしない＝DB消失は明示 `adb uninstall` のときだけ**。
-⚠️ 鍵の現況は memory `wsl-debug-keystore-share-for-install` を必ず開く（2026-08-25 のユーザー名移行で
-Windows 側の鍵が作り直され WSL 側と md5 不一致＝**コピー手順を照合せずに実行すると署名不一致に転じて壊れる**）。
+⚠️ 鍵は現在 **SHA-256 一致**（2026-08-25 のユーザー名移行で一時 Windows 側が作り直されたが同日解消済み＝経緯は
+`docs/knowledge/windows-username-change-splits-project-slug.md`）。ただし移行のたびに再発しうるので
+**コピー手順を踏む前の照合は省かない**——照合手順は memory `wsl-debug-keystore-share-for-install`。
 
 ## 2. androidTest の実行（uninstall 回避手順）
 
